@@ -221,3 +221,62 @@ export const USE_LOCAL_ENGINE = false;
 4. **节点模型选择器"内置模型"标签**：有 `length > 0` 条件保护，列表为空时不显示
 5. **收藏功能**：资源面板收藏走本地 KV 可用；提示词广场收藏随广场自然失效
 6. **var-mapping.txt**：记录了已识别的混淆变量映射，后续可写脚本批量替换
+
+---
+
+## 9. 第三方 API 接入：lovart-chat 生图异步 task 排查（2026-07-19）
+
+> **目标**：让 V1 画布用用户自己的第三方 API（`lovart-chat`，OpenAI 风格网关）生图。
+> **状态**：聊天已通，生图进行中（卡在异步 task 轮询）。
+
+### 9.1 已完成的修复
+
+1. **聊天 SSE 流式修复（已应用）**：`src/_engine/App.js` 中 4 处 `response.json()` → `response.text()` + SSE 逐行累积 `delta.content`（画幅检测 / 主文本 `tr` / JSON 提取 `lr` / 另一处文本调用）。聊天已正常。
+2. **git 仓库重建**：原 `.git` 被另一 AI 的 `git checkout` 误删（非本 AI 操作）。已 `git init` 并以干净原始版 `App.js` 为基线创建初始提交 `0e0b2cc`（main 分支，170 文件，忽略 node_modules/dist）。改坏可 `git checkout -- src/_engine/App.js` 恢复。
+3. **生图诊断埋点（已应用）**：在生图回调 `Jn`（~32425）的 `ie` 子函数内加了 `rawResp` 变量，把真实响应体抓出来——
+   - HTTP 错误分支与 200 成功分支都捕获 `rawResp`
+   - 失败时 `errorMsg` 附带 `| 原始响应: ${rawResp.substring(0,500)}`，任务面板 `responseData` 存原始响应
+   - N 分支响应解析增加备用字段：`images[0]` / `output[0]` / `image_url.url` / `t.url` / `t.image`
+
+### 9.2 生图失败根因（已定位）
+
+`lovart-chat` 是**异步 task 型**图片 API，不走同步返回 `data[0].b64_json/url` 的模式。
+
+**请求**（插件发到 `${R}/v1/images/generations`，OpenAI 格式）：
+```json
+{ "model": "gpt-image-2-low", "prompt": "小狗跳舞", "n": 1, "image_size": "1K", "size": "880x1776" }
+```
+
+**响应**（实际抓到的，证明是异步提交）：
+```json
+{ "code": 200, "data": [{ "status": "submitted", "task_id": "task_75cb69ca-120f-4d5a-87b5-7db54532ae19" }] }
+```
+
+插件当前逻辑（`Jn` 内 N 分支 ~32887）只同步读 `data[0].b64_json/url` → `u` 为空 → 抛 `未生成图片`。
+**正确做法**：拿到 `task_id` 后轮询 `GET ${R}/v1/tasks/{task_id}`，等 `status` 变成功再取图片。
+
+### 9.3 待确认 / 待做（明天继续）
+
+- [ ] **确认轮询端点与成功结果格式**（最关键，未知项）：
+  - PRD.md 附录 B 印证 lovart 规范：`POST /v1/images/generations` 异步 + `GET /v1/tasks/{id}` 查结果。
+  - 但 `lovart-chat` 响应带 `code`/`data` 包装，且 `status` 用 `submitted`（非 v2 gateway 的 `completed`）。需实测确认：
+    1. 轮询 URL 是否 `GET ${R}/v1/tasks/{task_id}`（还是别的路径）
+    2. 成功时 `status` 取值（success/succeeded/completed?）
+    3. 图片字段在哪（url / b64_json / result.url / data[].url？）
+  - **建议做法**：在 `Jn` 的 N 分支检测到 `task_id` 后，先打一次 `GET /v1/tasks/{id}` 的 `console.log` 把完整响应贴出来，再写解析；或直接让用户提供 `lovart-chat` 的生图 curl 示例 / API 文档。
+- [ ] **实现轮询**：在 `Jn` 的 N 分支，若响应含 `task_id`（或 `data[0].task_id`），进入轮询循环——定时 `GET` 任务结果，更新进度，成功提取图片 URL/b64，失败/超时抛错。需复用 `ht.current`（AbortController 集合）支持取消，并接 `z(...)` 任务面板状态。
+- [ ] **待处理 bug（生图修完后再搞）**：提示词库"最近使用"不记录本地提示词。
+
+### 9.4 关键代码位置速查（V1 `src/_engine/App.js`）
+
+| 位置 | 内容 |
+|------|------|
+| `32425` `Jn` | 生图主回调（useCallback） |
+| `32714` `if (N)` | OpenAI 格式分支，构造 `/v1/images/generations` 请求体 |
+| `32812` `zc(I, ...)` | 实际 fetch 生图（带本地代理 `localPort`） |
+| `32820` `!l.ok` | HTTP 错误分支（已加 rawResp 捕获） |
+| `32878` `else` | 200 成功分支（已加 rawResp 捕获 + 备用解析字段） |
+| `32887` `if (N)` | 当前同步解析 `data[0].b64_json/url`（**需改为 task 轮询**） |
+| `32901` `if (!u) throw` | 当前报 `未生成图片` 的位置 |
+| `33024` `catch` | 失败兜底，已把 rawResp 带进 errorMsg / responseData |
+| `34718` `B` 分支 | `v1/draw/completions` 走 SSE 流（`status:"succeeded"` + `results[0].url`），可参考其成功/失败判断写法 |
