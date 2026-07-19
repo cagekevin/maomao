@@ -32889,12 +32889,96 @@ ${_}`,
                 throw console.error(`JSON parse error, raw response:`, e.substring(0, 500)), Error(`API 响应解析失败: ${e.substring(0, 100)}`);
               }
               if (N) {
-                let e = t.data?.[0] || t.images?.[0] || t.output?.[0];
-                if (e?.b64_json) u = `data:image/png;base64,${e.b64_json}`;
-                else if (e?.url) u = e.url;
-                else if (e?.image_url?.url) u = e.image_url.url;
-                else if (t.url) u = t.url;
-                else if (t.image) u = t.image;
+                // A-C1: task_id 检测 + 分流
+                let taskId = t.data?.[0]?.task_id || t.data?.[0]?.id || t.task_id || t.id;
+                if (taskId) {
+                  // === 异步轮询分支（网关 task_id） ===
+                  console.log(`[生图调试] 检测到 task_id: ${taskId}，进入轮询`);
+                  // A-C3: AbortController 重注册
+                  let ac = new AbortController();
+                  ht.current.set(n, ac);
+                  try {
+                    // A-C8: 自建 deadline 15min
+                    let deadline = Date.now() + 9e5;
+                    let pollInterval = (ie || 3) * 1e3;
+                    let backoff = pollInterval;
+                    let pollCount = 0;
+                    while (true) {
+                      if (ac.signal.aborted) throw new DOMException('Aborted', 'AbortError');
+                      if (Date.now() > deadline) throw Error('生成超时（15分钟）');
+                      // A-C2: 轮询 GET
+                      let pollUrl = `${R}/v1/tasks/${taskId}`;
+                      console.log(`[生图调试] 轮询 #${pollCount}: ${pollUrl}`);
+                      let pollResp = await zc(pollUrl, {
+                        method: 'GET',
+                        headers: { Authorization: `Bearer ${h}` },
+                        localPort: H.status.isConnected ? H.status.port : undefined,
+                        signal: ac.signal
+                      });
+                      let pollData;
+                      try {
+                        pollData = await pollResp.json();
+                      } catch {
+                        throw Error('轮询响应 JSON 解析失败');
+                      }
+                      console.log(`[生图调试] 轮询 #${pollCount} 响应:`, JSON.stringify(pollData).substring(0, 300));
+                      // HTTP 级错误
+                      if (pollData.error) throw Error(pollData.error.message || `API 错误: ${JSON.stringify(pollData.error)}`);
+                      let taskInfo = pollData.data || pollData;
+                      // A-C9: 进度回写
+                      if (z && taskInfo.progress != null) {
+                        z(e => e.map(e => e.id === r || e.taskId === r ? { ...e, status: 'running', progress: taskInfo.progress } : e));
+                      }
+                      // A-C4: 终态判定（严格按网关归一化值）
+                      if (taskInfo.status === 'completed') {
+                        // A-C5: 结果提取
+                        let result = taskInfo.result;
+                        let imgUrl = result?.images?.[0]?.url?.[0];
+                        let vidUrl = result?.videos?.[0]?.url?.[0];
+                        u = imgUrl || vidUrl;
+                        // 兜底同步 shape
+                        if (!u) {
+                          let syncItem = pollData.data?.[0] || t.data?.[0];
+                          if (syncItem?.url) u = typeof syncItem.url === 'string' ? syncItem.url : syncItem.url?.[0];
+                          else if (syncItem?.b64_json) u = `data:image/png;base64,${syncItem.b64_json}`;
+                          else if (syncItem?.image_url?.url) u = syncItem.image_url.url;
+                        }
+                        // 无结果处理
+                        if (!u) {
+                          if (taskInfo.error?.code === 'no_artifact') throw Error(taskInfo.error.message || '生成完成但未产出媒资');
+                          throw Error('生成完成但未产出媒资');
+                        }
+                        // A-C6: URL 持久化（HTTP URL 也需经过 ii()）
+                        if (u && !u.startsWith('data:')) {
+                          try {
+                            let persisted = await ii(u, { subfolder: 'tasks', preferThumbnail: true, thumbMaxDim: 480, thumbQuality: 75 });
+                            if (persisted?.url && /^https?:\/\//i.test(persisted.url)) { u = persisted.url; f = persisted.thumbnailUrl; }
+                          } catch (persistErr) { console.warn('[生图调试] ii() 持久化失败，使用原始 URL:', persistErr); }
+                        }
+                        console.log(`[生图调试] 轮询成功，u = ${u.substring(0, 120)}`);
+                        break;
+                      } else if (taskInfo.status === 'failed') {
+                        throw Error(taskInfo.error?.message || '生成失败');
+                      }
+                      // pending / processing → 继续轮询
+                      // A-C7: 间隔 + 429 退避
+                      if (pollResp.status === 429) { backoff = Math.min(backoff * 1.5, 15e3); }
+                      else { backoff = pollInterval; }
+                      await new Promise(res => setTimeout(res, backoff));
+                      pollCount++;
+                    }
+                  } finally {
+                    ht.current.delete(n);
+                  }
+                } else {
+                  // === 原同步解析（无 task_id） ===
+                  let e = t.data?.[0] || t.images?.[0] || t.output?.[0];
+                  if (e?.b64_json) u = `data:image/png;base64,${e.b64_json}`;
+                  else if (e?.url) u = e.url;
+                  else if (e?.image_url?.url) u = e.image_url.url;
+                  else if (t.url) u = t.url;
+                  else if (t.image) u = t.image;
+                }
               } else {
                 let e = t.candidates?.[0];
                 if (!e) throw Error(`API 返回格式错误：找不到 candidates`);
