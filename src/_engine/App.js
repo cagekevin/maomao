@@ -32592,7 +32592,32 @@ ${_}`,
                   })
                 });
               if (o.ok) {
-                let t = (await o.json()).choices?.[0]?.message?.content?.trim()?.match(/(1:1|1:4|1:8|2:3|3:2|3:4|4:1|4:3|4:5|5:4|8:1|9:16|16:9|21:9)/);
+                let otext = await o.text(),
+                  oc;
+                try {
+                  oc = JSON.parse(otext);
+                } catch {
+                  oc = {
+                    choices: [{
+                      message: {
+                        content: ``
+                      }
+                    }]
+                  };
+                  for (let line of otext.split(`\n`)) {
+                    let ln = line.trim();
+                    if (ln.startsWith(`data:`) && ln !== `data: [DONE]`) {
+                      let dt = ln.substring(5).trim();
+                      if (!dt) continue;
+                      try {
+                        let d = JSON.parse(dt);
+                        let p = d.choices?.[0]?.delta?.content || d.choices?.[0]?.message?.content || ``;
+                        if (p) oc.choices[0].message.content += p;
+                      } catch {}
+                    }
+                  }
+                }
+                let t = oc?.choices?.[0]?.message?.content?.trim()?.match(/(1:1|1:4|1:8|2:3|3:2|3:4|4:1|4:3|4:5|5:4|8:1|9:16|16:9|21:9)/);
                 t ? (e = t[1], M(`AI分析提示词得出比例: ${e}`)) : M(`大模型未提供明确比例，将使用其原生默认画幅`);
               } else console.warn(`Auto aspect ratio API failed`, await o.text());
             }
@@ -32748,7 +32773,8 @@ ${_}`,
         }
         let ie = async t => {
           let n = `${e}_${t}`,
-            r = `${e}_${Date.now()}_${t}`;
+            r = `${e}_${Date.now()}_${t}`,
+            rawResp = ``;
           try {
             let i = new AbortController();
             ht.current.set(n, i);
@@ -32795,7 +32821,9 @@ ${_}`,
             if (console.log(`[生图调试] response status:`, l.status, `| content-type:`, l.headers.get(`content-type`)), ht.current.delete(n), !l.ok) {
               let e = `API 请求失败: ${l.status} ${l.statusText}`;
               try {
-                let t = await l.json();
+                let rt = await l.text();
+                rawResp = rt;
+                let t = JSON.parse(rt);
                 e = t.error && t.error.message ? `API 请求失败: ${t.error.message}` : t.message ? `API 请求失败: ${t.message}` : `API 请求失败: ${l.status} - ${JSON.stringify(t)}`;
               } catch {}
               throw Error(e);
@@ -32852,6 +32880,7 @@ ${_}`,
               if (!u) throw Error(`流式请求未返回最终图片URL`);
             } else {
               let e = await l.text();
+              rawResp = e;
               if (!e || e.trim() === ``) throw Error(`API 返回空响应，请检查模型是否支持生图或 API Key 是否有效`);
               let t;
               try {
@@ -32860,8 +32889,12 @@ ${_}`,
                 throw console.error(`JSON parse error, raw response:`, e.substring(0, 500)), Error(`API 响应解析失败: ${e.substring(0, 100)}`);
               }
               if (N) {
-                let e = t.data?.[0];
-                e?.b64_json ? u = `data:image/png;base64,${e.b64_json}` : e?.url && (u = e.url);
+                let e = t.data?.[0] || t.images?.[0] || t.output?.[0];
+                if (e?.b64_json) u = `data:image/png;base64,${e.b64_json}`;
+                else if (e?.url) u = e.url;
+                else if (e?.image_url?.url) u = e.image_url.url;
+                else if (t.url) u = t.url;
+                else if (t.image) u = t.image;
               } else {
                 let e = t.candidates?.[0];
                 if (!e) throw Error(`API 返回格式错误：找不到 candidates`);
@@ -33022,7 +33055,8 @@ ${_}`,
             console.error(t), d === 1 && M(`生成失败: ${t.message}`), z && z(e => e.map(e => e.id === r || e.taskId === r && (e.status === `running` || e.status === `pending`) ? {
               ...e,
               status: `failed`,
-              errorMsg: t.message
+              errorMsg: rawResp ? `${t.message} | 原始响应: ${rawResp.substring(0, 500)}` : t.message,
+              responseData: rawResp || e.responseData
             } : e)), d === 1 && (W(n => n.map(n => n.id === e ? {
               ...n,
               data: {
@@ -34226,7 +34260,27 @@ ${_}`,
           }
           throw Error(e);
         }
-        let T = (await w.json()).choices?.[0]?.message?.content || ``;
+        let T = ``;
+        {
+          let rt = await w.text();
+          try {
+            let rd = JSON.parse(rt);
+            T = rd?.choices?.[0]?.message?.content || rd?.candidates?.[0]?.content?.parts?.[0]?.text || rd?.response || (typeof rd == `string` ? rd : ``);
+          } catch {
+            for (let line of rt.split(`\n`)) {
+              let ln = line.trim();
+              if (ln.startsWith(`data:`) && ln !== `data: [DONE]`) {
+                let dt = ln.substring(5).trim();
+                if (!dt) continue;
+                try {
+                  let d = JSON.parse(dt);
+                  let piece = d.choices?.[0]?.delta?.content || d.choices?.[0]?.message?.content || ``;
+                  if (piece) T += piece;
+                } catch {}
+              }
+            }
+          }
+        }
         if (i) try {
           let r = T.replace(/```json/g, ``).replace(/```/g, ``).trim(),
             i = [];
@@ -34515,9 +34569,28 @@ ${_}`,
         } catch {}
         throw Error(e);
       }
-      let d = await c.json(),
+      let d = await c.text(),
         f = ``;
-      if (d?.choices?.[0]?.message?.content) f = d.choices[0].message.content;else if (d?.candidates?.[0]?.content?.parts?.[0]?.text) f = d.candidates[0].content.parts[0].text;else if (d?.response) f = d.response;else if (typeof d == `string`) f = d;else throw Error(`无法从大模型返回结果中提取文本`);
+      try {
+        let rj = JSON.parse(d);
+        if (rj?.choices?.[0]?.message?.content) f = rj.choices[0].message.content;
+        else if (rj?.candidates?.[0]?.content?.parts?.[0]?.text) f = rj.candidates[0].content.parts[0].text;
+        else if (rj?.response) f = rj.response;
+        else if (typeof rj == `string`) f = rj;
+      } catch {
+        for (let line of d.split(`\n`)) {
+          let ln = line.trim();
+          if (ln.startsWith(`data:`) && ln !== `data: [DONE]`) {
+            let dt = ln.substring(5).trim();
+            if (!dt) continue;
+            try {
+              let rj = JSON.parse(dt);
+              let piece = rj.choices?.[0]?.delta?.content || rj.choices?.[0]?.message?.content || ``;
+              if (piece) f += piece;
+            } catch {}
+          }
+        }
+      }
       return f;
     }, [C, l, u, t, n, H]);
   Y.useEffect(() => (kp(lr), () => kp(null)), [lr]);
@@ -34709,7 +34782,27 @@ ${_}`,
           localPort: H.status.isConnected ? H.status.port : undefined
         });
       if (!s.ok) throw Error(`API 请求失败: ${s.status}`);
-      let c = (await s.json()).choices?.[0]?.message?.content || ``;
+      let c = ``;
+      {
+        let st = await s.text();
+        try {
+          let sd = JSON.parse(st);
+          c = sd?.choices?.[0]?.message?.content || sd?.candidates?.[0]?.content?.parts?.[0]?.text || sd?.response || (typeof sd == `string` ? sd : ``);
+        } catch {
+          for (let line of st.split(`\n`)) {
+            let ln = line.trim();
+            if (ln.startsWith(`data:`) && ln !== `data: [DONE]`) {
+              let dt = ln.substring(5).trim();
+              if (!dt) continue;
+              try {
+                let d = JSON.parse(dt);
+                let piece = d.choices?.[0]?.delta?.content || d.choices?.[0]?.message?.content || ``;
+                if (piece) c += piece;
+              } catch {}
+            }
+          }
+        }
+      }
       return c = c.replace(/```json\n?/gi, ``).replace(/```\n?/g, ``).trim(), c;
     }, [n, t, C]),
     _r = Y.useCallback(async e => {
