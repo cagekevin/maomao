@@ -1,0 +1,224 @@
+{
+  "generated": "2026-07-18T18:30:45.538Z",
+  "source": "/sessions/6a5b83aaa37b35aa3da8b8eb/workspace/reference/decompiled/App-B9jVCs-a.decompiled.js",
+  "extracted": 27,
+  "missing": [],
+  "nodes": [
+    {
+      "nodeType": "group",
+      "funcName": "Eh",
+      "start": 28406,
+      "end": 28519,
+      "lines": 114,
+      "file": "group.raw.js"
+    },
+    {
+      "nodeType": "imageNode",
+      "funcName": "li",
+      "start": 2000,
+      "end": 2336,
+      "lines": 337,
+      "file": "imageNode.raw.js"
+    },
+    {
+      "nodeType": "promptNode",
+      "funcName": "Ya",
+      "start": 3939,
+      "end": 5030,
+      "lines": 1092,
+      "file": "promptNode.raw.js"
+    },
+    {
+      "nodeType": "textNode",
+      "funcName": "Qa",
+      "start": 5268,
+      "end": 5909,
+      "lines": 642,
+      "file": "textNode.raw.js"
+    },
+    {
+      "nodeType": "cropNode",
+      "funcName": "eo",
+      "start": 5931,
+      "end": 6032,
+      "lines": 102,
+      "file": "cropNode.raw.js"
+    },
+    {
+      "nodeType": "gridSplitNode",
+      "funcName": "po",
+      "start": 6167,
+      "end": 6960,
+      "lines": 794,
+      "file": "gridSplitNode.raw.js"
+    },
+    {
+      "nodeType": "gridMergeNode",
+      "funcName": "To",
+      "start": 7906,
+      "end": 8591,
+      "lines": 686,
+      "file": "gridMergeNode.raw.js"
+    },
+    {
+      "nodeType": "videoNode",
+      "funcName": "Do",
+      "start": 8617,
+      "end": 9589,
+      "lines": 973,
+      "file": "videoNode.raw.js"
+    },
+    {
+      "nodeType": "sd2VideoNode",
+      "funcName": "Ao",
+      "start": 9672,
+      "end": 10749,
+      "lines": 1078,
+      "file": "sd2VideoNode.raw.js"
+    },
+    {
+      "nodeType": "discountVideoNode",
+      "funcName": "os",
+      "start": 11322,
+      "end": 12746,
+      "lines": 1425,
+      "file": "discountVideoNode.raw.js"
+    },
+    {
+      "nodeType": "audioNode",
+      "funcName": "cs",
+      "start": 12802,
+      "end": 13217,
+      "lines": 416,
+      "file": "audioNode.raw.js"
+    },
+    {
+      "nodeType": "audioPlayerNode",
+      "funcName": "ps",
+      "start": 13404,
+      "end": 13581,
+      "lines": 178,
+      "file": "audioPlayerNode.raw.js"
+    },
+    {
+      "nodeType": "customNode",
+      "funcName": "ms",
+      "start": 13582,
+      "end": 14394,
+      "lines": 813,
+      "file": "customNode.raw.js"
+    },
+    {
+      "nodeType": "rhWebappNode",
+      "funcName": "Ms",
+      "start": 14637,
+      "end": 16030,
+      "lines": 1394,
+      "file": "rhWebappNode.raw.js"
+    },
+    {
+      "nodeType": "videoExtractNode",
+      "funcName": "Ns",
+      "start": 16031,
+      "end": 16603,
+      "lines": 573,
+      "file": "videoExtractNode.raw.js"
+    },
+    {
+      "nodeType": "videoToGifNode",
+      "funcName": "Gs",
+      "start": 16746,
+      "end": 17022,
+      "lines": 277,
+      "file": "videoToGifNode.raw.js"
+    },
+    {
+      "nodeType": "imageCompressNode",
+      "funcName": "nc",
+      "start": 17168,
+      "end": 17422,
+      "lines": 255,
+      "file": "imageCompressNode.raw.js"
+    },
+    {
+      "nodeType": "faceMosaicNode",
+      "funcName": "Cc",
+      "start": 17950,
+      "end": 18288,
+      "lines": 339,
+      "file": "faceMosaicNode.raw.js"
+    },
+    {
+      "nodeType": "compareNode",
+      "funcName": "Lc",
+      "start": 18501,
+      "end": 18811,
+      "lines": 311,
+      "file": "compareNode.raw.js"
+    },
+    {
+      "nodeType": "textConcatNode",
+      "funcName": "Rc",
+      "start": 18812,
+      "end": 18920,
+      "lines": 109,
+      "file": "textConcatNode.raw.js"
+    },
+    {
+      "nodeType": "urlToImageNode",
+      "funcName": "Wc",
+      "start": 19090,
+      "end": 19225,
+      "lines": 136,
+      "file": "urlToImageNode.raw.js"
+    },
+    {
+      "nodeType": "fileToUrlNode",
+      "funcName": "qc",
+      "start": 19270,
+      "end": 19421,
+      "lines": 152,
+      "file": "fileToUrlNode.raw.js"
+    },
+    {
+      "nodeType": "panoramaNode",
+      "funcName": "Yc",
+      "start": 19516,
+      "end": 20143,
+      "lines": 628,
+      "file": "panoramaNode.raw.js"
+    },
+    {
+      "nodeType": "director3dNode",
+      "funcName": "Th",
+      "start": 28284,
+      "end": 28405,
+      "lines": 122,
+      "file": "director3dNode.raw.js"
+    },
+    {
+      "nodeType": "imageBoxNode",
+      "funcName": "Ih",
+      "start": 28906,
+      "end": 29603,
+      "lines": 698,
+      "file": "imageBoxNode.raw.js"
+    },
+    {
+      "nodeType": "stickyNoteNode",
+      "funcName": "Uh",
+      "start": 29663,
+      "end": 29999,
+      "lines": 337,
+      "file": "stickyNoteNode.raw.js"
+    },
+    {
+      "nodeType": "ghostTarget",
+      "funcName": "Nh",
+      "start": 28852,
+      "end": 28873,
+      "lines": 22,
+      "file": "ghostTarget.raw.js"
+    }
+  ]
+}

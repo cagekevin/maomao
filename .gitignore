@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# macOS
+.DS_Store
+
+# TypeScript
+*.tsbuildinfo
+
+# Python
+__pycache__/
+*.pyc
+
+# Logs
+*.log
+
+# Runtime temp
+.localTool-uploads/
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# IDE
+.vscode/
+.idea/

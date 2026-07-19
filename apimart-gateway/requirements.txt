@@ -1,0 +1,7 @@
+fastapi>=0.110
+# 注意：uvicorn[standard] 会拉 uvloop，而 uvloop 无 Windows wheel，Windows 上 pip 安装会失败。
+# 故默认用纯 uvicorn（Windows/Linux/macOS 通用）。需要更高性能可在 Linux/macOS 单独装：
+#   pip install "uvicorn[standard]"   # 仅非 Windows 平台
+uvicorn>=0.27
+httpx>=0.27
+python-multipart>=0.0.9
