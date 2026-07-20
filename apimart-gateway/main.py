@@ -642,6 +642,16 @@ async def images_edits(request: Request):
 async def videos_generations(request: Request):
     return await _submit_generation(request, "VIDEO")
 
+# 路由别名：兼容画布 sd2Video 节点（单数 video）
+@app.post("/v1/video/generations")
+async def video_generations_singular(request: Request):
+    return await _submit_generation(request, "VIDEO")
+
+# 路由别名：兼容画布 video 节点（无 generations 后缀）
+@app.post("/v1/videos")
+async def videos_no_gen(request: Request):
+    return await _submit_generation(request, "VIDEO")
+
 @app.post("/v1/music/generations")
 async def music_generations(request: Request):
     return err(501, "音乐/音频生成 (music generation) 不被 Lovart 后端支持", "not_supported_error", 501)
@@ -682,6 +692,21 @@ async def _submit_generation(request: Request, category: str):
         body = await request.json()
     except Exception:
         return err(400, "invalid JSON body", "invalid_request_error", 400)
+    # 字段兼容映射：画布视频节点字段名 → 网关标准字段名
+    if "metadata" in body and isinstance(body["metadata"], dict):
+        meta = body.pop("metadata")
+        for key in ("reference_images", "reference_videos", "reference_audios",
+                     "ratio", "duration", "watermark", "generate_audio"):
+            if key in meta and key not in body:
+                body[key] = meta[key]
+    if "ratio" in body and "aspect_ratio" not in body:
+        body["aspect_ratio"] = body.pop("ratio")
+    if "seconds" in body and "duration" not in body:
+        body["duration"] = body.pop("seconds")
+    if "input_reference" in body and "reference_images" not in body:
+        body["reference_images"] = body.pop("input_reference")
+    if "input_video" in body and "videos" not in body:
+        body["videos"] = body.pop("input_video")
     return await _do_submit(client, body, category)
 
 def _cleanup_task_meta():
