@@ -24,6 +24,16 @@ function extToFileType(ext: string): string | null {
   return RESCAN_FILE_TYPE[ext.toLowerCase()] || null;
 }
 
+// 本地工具服务基址：资源面板运行在 chrome-extension:// 页面，
+// 直接 <img src="/files/..."> 会被解析成 chrome-extension://.../files/... → 404 破图。
+// 因此 rescan 入库的 url 必须补全为可访问的完整地址。
+const LOCAL_TOOL_BASE = 'http://127.0.0.1:18080';
+function toAbsoluteFileUrl(relativePath: string): string {
+  if (!relativePath) return relativePath;
+  if (/^https?:\/\//i.test(relativePath)) return relativePath;
+  return `${LOCAL_TOOL_BASE}${relativePath.startsWith('/') ? '' : '/'}${relativePath}`;
+}
+
 export async function handleResourcesRescan(_req: IncomingMessage, res: ServerResponse): Promise<void> {
   const uploadDir = getUploadDir();
   const db = await getDb();
@@ -64,7 +74,7 @@ export async function handleResourcesRescan(_req: IncomingMessage, res: ServerRe
         }
         const row = resourceToRow({
           id,
-          url: `/files/${folder}/${entry.name}`,
+          url: toAbsoluteFileUrl(`/files/${folder}/${entry.name}`),
           type: 'folder',
           source: 'local-tool',
           folder,
@@ -82,7 +92,7 @@ export async function handleResourcesRescan(_req: IncomingMessage, res: ServerRe
       if (!type) continue;
       scanned++;
 
-      const url = `/files/${folder}/${entry.name}`;
+      const url = toAbsoluteFileUrl(`/files/${folder}/${entry.name}`);
       const id = `local-${folder}-${entry.name}`;
 
       // 已存在同 id 则跳过（保留收藏/手动元数据）
