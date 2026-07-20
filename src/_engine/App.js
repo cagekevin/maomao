@@ -43047,10 +43047,21 @@ function Nv() {
             n.push(...e.filter(e => !t.has(e.id)));
           }
           let r = n.filter(e => e && e.id && e.source !== `local-tool`);
-          r.length > 0 && (await Promise.all(r.map(e => Sv({
-            ...e,
-            id: String(e.id)
-          }))), console.log(`[App] 已播种 ${r.length} 条历史资源到 SQLite`)), await Q.setConfig(kv, String(Date.now()));
+          if (r.length > 0) {
+            for (const resource of r) {
+              try {
+                let localized = await Zr(resource.url, { subfolder: `migrated` });
+                if (localized && localized.url) {
+                  let url = localized.url.startsWith(`http`) ? localized.url : `${Hr}${localized.url}`;
+                  await Sv({ ...resource, url, folder: `migrated`, id: String(resource.id) });
+                }
+              } catch (err) {
+                console.warn(`[App] 播种资源 ${resource.id} 失败:`, err);
+              }
+            }
+            console.log(`[App] 已播种 ${r.length} 条历史资源到 SQLite`);
+          }
+          await Q.setConfig(kv, String(Date.now()));
         } catch (e) {
           console.error(`[App] 资源播种失败:`, e);
         }
