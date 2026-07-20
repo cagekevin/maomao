@@ -31399,7 +31399,6 @@ function xg({
     wt.current !== null && cancelAnimationFrame(wt.current), _t.current !== null && window.clearTimeout(_t.current);
   }, []);
   let [Et, Dt] = Y.useState(null);
-  let [ctrlHeld, setCtrlHeld] = Y.useState(false);
   Y.useEffect(() => {
     let e = () => Le(true);
     return window.addEventListener(`open-shortcuts-modal`, e), () => window.removeEventListener(`open-shortcuts-modal`, e);
@@ -37030,13 +37029,7 @@ ${_}`,
         };
       });
     }, [pe, si, ci, li, U.length, ai]);
-  Y.useEffect(() => {
-    let down = e => (e.key === `Control` || e.key === `Meta`) && setCtrlHeld(true);
-    let up = e => (e.key === `Control` || e.key === `Meta`) && setCtrlHeld(false);
-    return window.addEventListener(`keydown`, down), window.addEventListener(`keyup`, up), () => {
-      window.removeEventListener(`keydown`, down), window.removeEventListener(`keyup`, up);
-    };
-  }, []);
+
   return X.jsx(`div`, {
     style: {
       width: `100%`,
@@ -37116,8 +37109,11 @@ ${_}`,
         onlyRenderVisibleElements: U.length > 20,
         nodesDraggable: true,
         nodesConnectable: true,
-        selectionOnDrag: ctrlHeld ? true : false,
-        panOnDrag: ctrlHeld ? [2] : true,
+        selectionOnDrag: false,
+        panOnDrag: true,
+        selectionKeyCode: [`Control`, `Meta`],
+        multiSelectionKeyCode: [`Control`, `Meta`],
+        panActivationKeyCode: `Space`,
         children: [X.jsx(vg, {
           onLodChange: nt
         }), tt >= 2 && X.jsx(F, {
