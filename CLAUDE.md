@@ -63,8 +63,8 @@ maomao/
 ## 4. V2 状态（永久暂停，别碰也别接）
 
 - 位置 `src/v2/`。含一批 node 组件 tsx + 多个 Zustand store + `AppShell.tsx` + `utils/api.ts`（具体数量以目录实际为准）。
-- **实际进度**：模块 1-5 的结构都搭出来了，但全是空壳/TODO——AppShell 里项目切换、accounts/资源/设置面板全是无逻辑的占位（`console.log('[AppShell] ... TODO')`）。**从未真正接业务逻辑，从未被 `main.tsx` 启用。**
-- `main.tsx` L41 只 `lazy import('./_engine/App.js')`，V2 的 `AppShell` 无任何运行路径 import。
+- **实际进度**：模块 1-5 的结构都搭出来了，但全是空壳/TODO——AppShell 里项目切换、accounts/资源/设置面板全是无逻辑的占位（`console.log('[AppShell] ... TODO')`）。**从未真正接业务逻辑，V2 业务入口 `AppShell` 从未被 `main.tsx` 启用。**
+- `main.tsx` L41 只 `lazy import('./_engine/App.js')` 作业务入口；V2 的 `AppShell` 无任何运行路径 import。**注意**：V2 并非"零引用"——`main.tsx` 已复用 V2 的 `v2/react-bridge.ts`（L7）和 `v2/components/ErrorBoundary`（L16）作错误兜底与 React 实例桥接，仅 V2 业务 `AppShell` 未启用。切换 V2 时把 L41 换成 `import('./v2/App.js')` 即可（L3 注释已说明）。
 - **规则**：除非用户明确说"恢复 V2 / 切到 V2"，否则所有工作都在 V1 下进行，V2 当只读归档。
 
 ---
@@ -82,6 +82,7 @@ maomao/
 ## 6. 文档怎么用（trust 什么）
 
 - `docs/PROJECT_ORIGIN.md`：项目来历，**以它为准**。
+- `docs/FUNCTION_MAP.md`：**功能代码地图（App.js 行号索引）**。改画布功能前先查它，秒定位"某功能在 App.js 哪一行"，避免大海捞针式 grep 把能跑的改坏。行号会漂移，以实际打开为准。
 - `docs/reference/` 里的 HANDOFF/PRD/diff/映射表：**历史笔记，可能过时**。其中 PRD 的"规划"不等于"现状"（如 §5 说的存储选型偏差）。引用具体事实前**以实际代码/git 为准**，别把文档当真理。
 - `reference/`（根）：早期反编译素材 + `App.original.js`，一般不用看。
 

@@ -20,7 +20,7 @@
 
 原版前端引擎被反编译，得到：
 
-- `App.js`（约 1.72MB 混淆代码，全部业务逻辑所在）
+- `App.js`（实测 **46229 行 / 约 1.80MB** 混淆代码，全部业务逻辑所在；行号会随编辑漂移，引用以实际打开为准）
 - `entry.js`（入口壳：接入点引导、CSS 加载、ErrorBoundary、render）
 - `config.js`（端点等配置，后来被抽成集中配置层）
 - 预编译 CSS、vendor runtime 等
@@ -40,7 +40,8 @@
 
 ## 3. 自研本地工具服务 `localTool/`（`127.0.0.1:18080`，Node/TS）
 
-用 `better-sqlite3` 把闭源 Go 二进制**重写**为开源可控的 Node/TS 服务，替代原二进制。
+用 `sql.js`（纯 WASM，跨平台无需编译）把闭源 Go 二进制**重写**为开源可控的 Node/TS 服务，替代原二进制。
+> 注意：早期笔记曾写"用 better-sqlite3"，**实际落地是 sql.js**，以 `localTool/src/db/database.ts` 为准，勿被旧文档误导去改依赖。
 
 实现端点（详见 `reference/PRD.md` 附录 A）：
 
@@ -59,6 +60,8 @@
 
 把 OpenAI 风格的外向接口翻译成实际后端（Lovart 等）调用，画布的聊天、生图、生视频、音乐全部走这里。
 
+> **⚠ 端口坑（实测）**：本网关源码 `main.py` 顶部 docstring 与 `README.md` 默认写的是 `port 8000` / `--port 8000`，但本项目画布（`config.js` 的 `DEFAULT_ENDPOINT`、App.js 里的 `ot = 'http://127.0.0.1:9004'`）**实际连的是 9004**。启动网关时必须显式 `uvicorn main:app --host 127.0.0.1 --port 9004`，否则画布会全部 404 / 连不上。勿照搬 README 的 8000。
+
 端点映射（详见 `reference/PRD.md` 附录 B）：
 
 - `POST /v1/chat/completions` 文本生成（流式）
@@ -67,7 +70,26 @@
 - `GET /v1/tasks/{id}` 任务结果轮询
 - 其它：`/v1/music/generations`、`/v1/uploads/images`、`/v1/balance` 等
 
-> 注：异步生图的 task 轮询逻辑是后续逐步补齐的（见 `reference/PRD_TASK_POLLING.md`、`reference/HANDOFF3.md`）。
+> 注：异步生图的 task 轮询逻辑是后续逐步补齐的（见 `docs/FUNCTION_MAP.md` §2.1 陷阱浓缩、`reference/PRD_TASK_POLLING.md`）。
+
+---
+
+## 4.5 V1 本地模式改造要点速查（改功能前必知）
+
+> 提取自 `reference/HANDOFF2.md`（仍有效部分）。详细改造记录见该文件。
+
+- **去登录**：`Oa()` 永远返回本地 token，`isLoggedIn` 恒 true（详见 `FUNCTION_MAP.md` §1）。
+- **地址参数化**：所有端点集中在 `src/_engine/config.js`（详见 `FUNCTION_MAP.md` §5）。
+- **React 实例统一**：项目 React + `window.React` 桥接，消除双实例冲突。
+- **Vite 构建**：替代原版 rolldown，`npm run build` → `dist/`。
+- **UI 清理策略**：官方依赖项（升级横幅/会员充值/应用商店/官方教程等）一律用 `false &&` **前置禁用，不删代码**。改 UI 发现某块"消失"，先搜 `false &&` 而非以为代码丢了。
+- **GAS 云端同步**：头像菜单"推送到云端/从云端拉取"改走 Google Apps Script（`CloudSyncEngine`，URL 在 `config.js` 的 `GAS_CLOUD_SYNC_URL`）。
+- **"退出登录" → "重置配置"**：清本地数据；"重置配置"文案改动在 `Zr`(logout) 处。
+- **画布交互决策（易踩坑）**：
+  - **Ctrl+拖拽框选**：`ctrlHeld` state 监听物理 Ctrl/Meta 键动态切换 `panOnDrag`/`selectionOnDrag`，keydown 只响应 `e.key==='Control'/'Meta'`，不吞组合键。
+  - **画布 `minZoom: .05`**：React Flow 默认 0.5 会限制缩放/fitView，显式放宽。
+  - **`.react-flow__pane { user-select: none }`**：防 Ctrl+框选时产生蓝色文本选区。
+  - 撤销/重做直接 `setNodes/setEdges`，不经 `onNodesChange` 回调链。
 
 ---
 
@@ -96,6 +118,8 @@ maomao/
 ├── apimart-gateway/          # AI 网关（:9004，Python FastAPI）
 ├── docs/
 │   ├── PROJECT_ORIGIN.md     # 本文档：项目来历
+│   ├── FUNCTION_MAP.md       # 功能代码地图（App.js 行号索引，改功能前先查）
+│   ├── PROJECT_LOG.md        # 关键决策日志（只追加不覆盖）
 │   └── reference/            # 历史工程笔记（PRD / HANDOFF / diff / 映射表）
 └── dist/                     # 构建产物
 ```
@@ -141,7 +165,7 @@ maomao/
 
 | 文件 | 角色 | 是否要改 |
 |------|------|---------|
-| **`App.js`** | **主程序（约 1.72MB 反编译产物，当前魔改最新版，含生图轮询/SSE/rescan 节流等后续逻辑）** | ✅ 唯一要改/运行的权威文件（V1 全部业务逻辑在这） |
+| **`App.js`** | **主程序（实测 46229 行 / 约 1.80MB 混淆产物，当前魔改最新版，含生图轮询/SSE/rescan 节流等后续逻辑）** | ✅ 唯一要改/运行的权威文件（V1 全部业务逻辑在这） |
 | `config.js` | 集中配置层（端点地址等） | ✅ 改配置时动它 |
 | `entry.js` | 入口壳（接入点引导） | 极少改 |
 | `vendor-Cr1JWW-B.js` | 打包后的第三方 vendor | ❌ 别改 |
@@ -170,6 +194,23 @@ maomao/
 - 在反编译混淆代码里插入新逻辑时，新变量也不要复用周围的短名风格，避免后续 session 分不清"这是原版混淆的"还是"我们加的"。
 
 **现状核查（2026-07-20）**：当前我们自己新增的代码命名已合规——诊断变量用 `rawResp`（`App.js` ~32785）、云同步用 `CloudSyncEngine`（`App.js` ~43760）、配置层 `config.js` 全用 `UPPER_SNAKE` 常量。无需回溯重命名历史代码；此规则仅约束**后续新增**。
+
+---
+
+### 8.5 `docs/reference/` 使用须知（防误信过时笔记）
+
+`docs/reference/` 是**历史工程笔记**（HANDOFF/PRD/映射表），记录了反编译魔改全过程，**价值极高但部分已过时**。下个 AI 必读，但引用具体事实前**以实际代码 / git / 本文件§8 为准**：
+
+| 文件 | 可信度 | 用途与注意 |
+|------|--------|-----------|
+| `func-mapping.txt` / `var-mapping.txt` | 🟡 字典级，但**行号基于 2026-07-19 快照，已漂移** | 混淆名→可读名映射，**改 App.js 前先查**。注意部分符号（如 `Bl`/`Oc`/`Vn`）来自 `dist/assets/engine-*.js` 包，批量替换须跨包；行号以实际打开为准 |
+| `PRD_TASK_POLLING.md` + `PRD-画布异步生图别人的.md` | 🟢 **设计真源（仍有效）** | 生图/视频异步 task 轮询的完整陷阱清单（7 陷阱 + 9 约束）。**接网关生图功能必读**，方案已就绪待实施 |
+| `HANDOFF3.md` §1-§2 | 🟢 实证结论有效 | 资源面板类型识别规则、破图真因（相对路径 url）、rescan 节流——结论可靠；但 §3 待办已部分被 PRD 覆盖、§6 状态描述已过期（见下） |
+| `HANDOFF2.md` | 🟡 部分过时 | §0-§4 改造记录可用；**§5 的 `USE_LOCAL_ENGINE=false` 与 `config.js` 实测 `true` 不符**、§7 决策#3 `better-sqlite3` 实为 `sql.js`、§8 已知问题#1"未接网关"已被后续 PRD 推翻——勿照搬这两处 |
+| `HANDOFF3.md` §5-§6 | 🔴 状态已过期 | §5.2 把 `App.original.js` 称"git 基线同款"**错误**（见 §8.2）；§6"App.js 处于干净基线 / 破图未修复"**已被 commit `3db58ff`(rescan节流) / `d5d48dd`(破图修复) 推翻**。以 git log 与 FUNCTION_MAP.md 为准 |
+| `PRD_MODULE4_5.md` | 🟢 V2 蓝图（仅切 V2 时读） | 27 节点清单 / React Flow 配置 / 右键菜单结构。V2 暂停中，默认不读；恢复 V2 时必读 |
+
+> **一句话**：reference 是"当时怎么踩坑的"，不是"现在是什么样"。改代码前先 `git log` + 查 `FUNCTION_MAP.md` + 实际打开 App.js 确认行号，再回头参考 reference 的设计思路。
 
 ### 8.5 localTool 与 V1/V2 的关系
 
