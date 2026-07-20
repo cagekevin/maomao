@@ -367,7 +367,7 @@ function CanvasPanelInner() {
         onlyRenderVisibleElements={nodes.length > 20}
         nodesDraggable={true}
         nodesConnectable={true}
-        selectionOnDrag={nodes.length <= 80}
+        selectionOnDrag={false}
         panOnDrag={true}
         proOptions={{ hideAttribution: true }}
         className="bg-[#0d0c0c]"
