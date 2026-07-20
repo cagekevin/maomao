@@ -37932,10 +37932,14 @@ ${_}`,
                   })]
                 }), X.jsx(`div`, {
                   className: `h-[1px] bg-[#333] my-1`
-                }), X.jsxs(`button`, {
+                }),                 X.jsxs(`button`, {
                   className: `text-left px-3 py-2 text-sm text-red-400 hover:bg-[#333] rounded flex items-center gap-2`,
                   onClick: e => {
-                    e.stopPropagation(), Ar(), ve(null);
+                    e.stopPropagation();
+                    let ids = t.map(n => n.id);
+                    W(nodes => nodes.filter(n => !ids.includes(n.id)));
+                    G(edges => edges.filter(ed => !ids.includes(ed.source) && !ids.includes(ed.target)));
+                    ve(null);
                   },
                   children: [X.jsx(S, {
                     size: 16,
