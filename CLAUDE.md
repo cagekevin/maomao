@@ -1,14 +1,14 @@
 # CLAUDE.md · 猫猫画布（一毛AI画布魔改版）
 
-> 本文件给接手本项目的 AI / 协作者看。先读它，再动手。核心是：**当前只跑 V1，V2 已永久暂停，别瞎改、别瞎猜。**
+> 给接手本项目的 AI / 协作者：**当前只跑 V1，V2 已永久暂停，别瞎改、别瞎猜。**先读它再动手。
 
 ---
 
 ## 0. 一句话定位
 
-一个 Chrome 扩展画布工具（AI 图片/视频/文本工作流）。原版是闭源产品，本项目把它**反编译 → 魔改成脱离官方的本地模式**：前端跑本地引擎，AI 请求走你自己的网关，文件/数据走自研本地服务。
+一个 Chrome 扩展画布工具（AI 图片/视频/文本工作流），由闭源原版**反编译魔改成脱离官方的本地模式**：前端跑本地引擎，AI 请求走自研网关，文件/数据走自研本地服务。
 
-当前**唯一在运行的是 V1**（`src/_engine/` + `src/main.tsx`）。V2（`src/v2/`，TypeScript 重写）**已永久暂停**，代码只是半成品存档，不参与运行。
+当前**只跑 V1**（`src/_engine/` + `src/main.tsx`）；V2（`src/v2/`，TS 重写）**已永久暂停**，仅为不参与运行的半成品存档。
 
 ---
 
@@ -20,7 +20,7 @@
 | **localTool 本地服务** | `127.0.0.1:18080` | KV/文件/tasks/resources/proxy/jianying，数据落 SQLite(WASM) + 磁盘 | `cd localTool && npm run build && npm start`（或 `start.sh`） |
 | **apimart-gateway 网关** | `127.0.0.1:9004` | OpenAI 风格接口 → 翻译为 Lovart 调用，文/图/视频生图走这 | `cd apimart-gateway && pip install -r requirements.txt && uvicorn main:app --host 127.0.0.1 --port 9004` |
 
-前端（`config.js`）里 `USE_LOCAL_ENGINE=true` 时：KV/文件走 `:18080`；AI 生成请求走 `:9004`。
+`config.js` 中 `USE_LOCAL_ENGINE=true` 时：KV/文件走 `:18080`，AI 生成请求走 `:9004`。
 
 ---
 
@@ -53,10 +53,10 @@ maomao/
 
 1. **默认只改 `src/_engine/App.js`**。配置改 `config.js`，入口壳 `entry.js` 极少改。
 2. **别碰**：`vendor-Cr1JWW-B.js`、`rolldown-runtime-*.js`、`captureVideoFrame-*.js`、`*.css`、`App.original.js` 等备份/第三方产物。
-3. **恢复 `App.js` 基线用 `git checkout -- src/_engine/App.js`**，不要复制任何备份文件。
-   - `App.original.js` 已移至 `reference/App.original.js`，它是 V1 本地模式**早期魔改快照**（去登录/地址参数化/GAS 同步已完成，但早于生图轮询等后续改动），**既不是 V2、也不是 git 基线 `0e0b2cc` 的原始反编译件**。仅作参照。
+3. **恢复 `App.js` 基线用 `git checkout -- src/_engine/App.js`**，别复制任何备份文件（`reference/App.original.js` 仅是早期魔改快照，仅作参照）。
 4. `App.js` 是混淆代码，函数/变量名（`ii()` `Xr()` `Jn()` `Oa()` 等）无稳定语义，**引用必须带行号**。
-5. **新增代码用语义化命名**（如 `rawResp`、`LOCAL_ENGINE`），严禁用反编译风格短名（`U_` `W_` `G_` 这类是原版残留，不是我们加的，别动）。
+5. **新增代码用语义化命名**（如 `rawResp`、`LOCAL_ENGINE`），严禁用反编译风格短名（`U_` `W_` `G_` 是原版残留，别动）。
+6. **❌ 严禁改 `dist/`**：那是 `npm run build` 的输出物，改了下次 build 即被覆盖、且浏览器加载的就是它。改动只在源码（`App.js`/`config.js`/`localTool/`/`apimart-gateway/`），改完 `npm run build` → Chrome 重新加载。有 AI 误以为要改 `dist/` 下的文件——那是错的。
 
 ---
 
@@ -85,6 +85,18 @@ maomao/
 - `docs/FUNCTION_MAP.md`：**功能代码地图（App.js 行号索引）**。改画布功能前先查它，秒定位"某功能在 App.js 哪一行"，避免大海捞针式 grep 把能跑的改坏。行号会漂移，以实际打开为准。
 - `docs/reference/` 里的 HANDOFF/PRD/diff/映射表：**历史笔记，可能过时**。其中 PRD 的"规划"不等于"现状"（如 §5 说的存储选型偏差）。引用具体事实前**以实际代码/git 为准**，别把文档当真理。
 - `reference/`（根）：早期反编译素材 + `App.original.js`，一般不用看。
+
+---
+
+## 6.5 日志在哪（排查时去哪拿）
+
+| 来源 | 位置 | 拿法 |
+|------|------|------|
+| 网关 (9004) | `apimart-gateway/apimart_9004.log` + `apimart_9004.err.log` | 已落盘，直接把路径给 AI |
+| localTool (18080) | 双击 `启动项目.ps1` 前台运行的窗口 | 看窗口输出；当前未落盘文件 |
+| 前端画布 | 画布内「任务清单」面板（App.js 的 TaskListDrawer） | UI 内看任务运行记录；DevTools Console 可右键 Save as 存文本 |
+
+交给 AI 排查时附"预期 vs 实际、触发动作"即可，具体定位由 AI 在代码里做。
 
 ---
 
