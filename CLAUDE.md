@@ -62,8 +62,11 @@ maomao/
 
 ## 4. V2 状态（永久暂停，别碰也别接）
 
-- 位置 `src/v2/`：模块 1-5 结构搭出但全是空壳/TODO（`AppShell.tsx` 里项目切换/accounts/资源/设置面板仅 `console.log('[AppShell] ... TODO')`），**从未接业务逻辑，`AppShell` 从未被 `main.tsx` 启用**。
-- V2 并非"零引用"：`main.tsx` 复用了 V2 的 `v2/react-bridge.ts`（L7）和 `v2/components/ErrorBoundary`（L16）作兜底与桥接；切 V2 只需把 `main.tsx` L41 换成 `import('./v2/App.js')`。
+- **2026-07-20 起**：V2 源码（App.tsx / AppShell.tsx / nodes(30) / stores / utils / hooks 等）已压缩归档为 `src/v2/归档.zip` 并从 `src/v2/` 移走。当前 `src/v2/` 仅保留 V1 真实依赖的文件 + 少量残留。
+- `src/v2/` 现存文件清单：
+  - ✅ `react-bridge.ts`、`vite-env.d.ts`、`components/ErrorBoundary.tsx` —— **V1 真实依赖**（被 `main.tsx` L7/L16 引用，且在 `tsconfig` include 中），勿删。
+  - `归档.zip` —— V2 源码归档，勿在 `src` 内解析。
+- V2 并非"零引用"：`main.tsx` 复用了 `react-bridge.ts`（L7）和 `ErrorBoundary`（L16）作兜底与桥接；切 V2 需先解压 `归档.zip` 恢复源码，再把 `main.tsx` L41 换成 `import('./v2/App.js')`。
 - **规则**：除非用户明确说"恢复/切到 V2"，否则所有工作在 V1 下进行，V2 当只读归档。
 
 ---
@@ -80,6 +83,7 @@ maomao/
 
 - `docs/PROJECT_ORIGIN.md`：项目来历，**以它为准**。
 - `docs/FUNCTION_MAP.md`：App.js 行号索引，改画布功能前先查它；行号会漂移，以实际打开为准。
+- `docs/func-mapping.txt` / `docs/var-mapping.txt`：混淆名 → 可读名映射表（函数 52 个 + 变量全集）。**找功能/定位符号时优先先搜这两个文件**：拿到 `ii()` `Xr()` `ei` `Cr` 这类短名，先来这里查它对应什么（如 `ei = pushToCloud`、`Cr = canvasStateKey`），再决定去 App.js 哪一行改；别在 App.js 里盲搜短名。
 - `docs/reference/` 与根 `reference/`：历史笔记，**可能过时**，引用具体事实前以实际代码/git 为准，别当真理。
 
 ---
@@ -108,3 +112,4 @@ maomao/
 - **先读 `docs/PROJECT_ORIGIN.md` 和本文件，再读代码。**
 - 遇到没见过的报错/异常（如某次运行日志里的 `RootErrorBoundary` 异常），**先确认它是不是魔改原版客户端时漏掉的东西导致的**，别急着为了消除一条报错去大改代码——大局优先。
 - 不确定该改哪、能不能改时，**先问，别猜**。本项目最大的坑就是"AI 接手后瞎猜瞎改，把能跑的改坏"。
+
