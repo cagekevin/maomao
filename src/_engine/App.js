@@ -32954,6 +32954,36 @@ ${_}`,
               } catch {
                 throw console.error(`JSON parse error, raw response:`, e.substring(0, 500)), Error(`API 响应解析失败: ${e.substring(0, 100)}`);
               }
+              // ── [架构5步法] 深模块：仅检测 needs_confirm（不动原 completed/failed 提取）──
+              function resolveNeedsConfirm(taskInfo) {
+                return taskInfo?.error?.code === 'pending_confirmation' ? taskInfo.id : null;
+              }
+              function makeConfirmAdapter(gatewayBase, authToken) {
+                return async (taskId) => {
+                  try {
+                    const resp = await zc(`${gatewayBase}/v1/tasks/${taskId}/confirm`, {
+                      method: 'POST',
+                      headers: { Authorization: `Bearer ${authToken}` },
+                      localPort: H.status.isConnected ? H.status.port : undefined,
+                    });
+                    const data = await resp.json().catch(() => ({}));
+                    if (data?.error) return { error: { message: data.error.message || '确认失败' } };
+                    return { status: 'confirmed' };
+                  } catch (e) {
+                    return { error: { message: e?.message || '确认请求失败' } };
+                  }
+                };
+              }
+              async function requestConfirm(confirmAdapter, taskId) {
+                try { return await confirmAdapter(taskId); }
+                catch (e) { return { error: { message: e?.message || '确认异常' } }; }
+              }
+              function markNeedsConfirm(updateNode, taskId, kind, gatewayBase, authToken) {
+                updateNode((nodes) => nodes.map((n) =>
+                  (n.id === taskId || n.taskId === taskId)
+                    ? { ...n, status: 'await_confirm', confirmTaskId: taskId, confirmKind: kind, confirmGatewayBase: gatewayBase, confirmToken: authToken }
+                    : n));
+              }
               if (N) {
                 // A-C1: task_id 检测 + 分流
                 let taskId = t.data?.[0]?.task_id || t.data?.[0]?.id || t.task_id || t.id;
@@ -33025,6 +33055,13 @@ ${_}`,
                         break;
                       } else if (taskInfo.status === 'failed') {
                         throw Error(taskInfo.error?.message || '生成失败');
+                      } else {
+                        // [架构5步法] pending_confirmation：退出轮询，节点置等待确认
+                        const cid = resolveNeedsConfirm(taskInfo);
+                        if (cid) {
+                          markNeedsConfirm(z, cid, 'image', R, h);
+                          return;
+                        }
                       }
                       // pending / processing → 继续轮询
                       // A-C7: 间隔 + 429 退避
@@ -33505,6 +33542,13 @@ ${_}`,
                 return;
               } else if (taskInfo.status === 'failed') {
                 throw Error(taskInfo.error?.message || '视频生成失败');
+              } else {
+                // [架构5步法] pending_confirmation：退出轮询，节点置等待确认
+                const cid = resolveNeedsConfirm(taskInfo);
+                if (cid) {
+                  markNeedsConfirm(z, cid, 'video', _, m);
+                  return;
+                }
               }
               await new Promise(res => setTimeout(res, pollInterval));
               pollCount++;
@@ -34170,6 +34214,13 @@ ${_}`,
                 return;
               } else if (taskInfo.status === 'failed') {
                 throw Error(taskInfo.error?.message || '视频生成失败');
+              } else {
+                // [架构5步法] pending_confirmation：退出轮询，节点置等待确认
+                const cid = resolveNeedsConfirm(taskInfo);
+                if (cid) {
+                  markNeedsConfirm(z, cid, 'video', g, m);
+                  return;
+                }
               }
               await new Promise(res => setTimeout(res, pollInterval));
               pollCount++;
