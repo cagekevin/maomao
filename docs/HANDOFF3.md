@@ -69,7 +69,7 @@
 
 > ⚠️ 历史记录澄清：早前某 session 曾声称"已 `git checkout` 撤销 App.js 全部改动、回到基线 `0e0b2cc`"。**该结论不准确**——实际工作区里保留了对"破图"真正有效的修复（见 2.4），且本次（2026-07-20）已随 commit `3db58ff` 一并提交。文档早期版本照抄了"已撤销"说法，特此更正。
 
-### 2.3 真实根因 + 修复（2026-07-20 已修复并提交 `3db58ff`）
+### 2.3 问题 A：疯狂刷新（rescan 频率，2026-07-20 已修复 `3db58ff`）
 
 - rescan 后端**无定时器**：`localTool/src/index.ts` 仅在 `POST /api/resources/rescan` 注册 handler（L196-L198），后端不会自循环。
 - 循环调用方在 **V1 前端**（`src/_engine/App.js`）：`transit` Tab 切换的 effect 直接调用 `Oi(true)`（裸 rescan），在频繁切换 / 多触发下造成 rescan + resources 反复请求，即日志里的"疯狂刷新"。
@@ -78,16 +78,28 @@
   2. 生成完成时把结果写入 `resources` 表（`mutiwindow-task-completed` 监听内，L31358），图片/视频生成后自动进资源面板，不再依赖反复 rescan 拉取。
 - 命名合规：`rescanThrottledSync` / `rescanLastRunRef` 均为语义化命名（符合 §5.4 规则）。
 
-### 2.4 残留风险
+### 2.4 问题 B：资源面板破图（相对路径 url，2026-07-20 已修复 `d5d48dd`）★ 真凶
 
-- 节流仅 3 秒，极端高频切换仍可能触发有限次 rescan，但已不会"疯狂"。若后续仍观察到刷新异常，再排查是否有其它 effect 也直接调 `we()` / `Oi`。
+> ⚠️ 重要更正：早前把"破图"笼统归因为"transit Tab 裸 rescan 把图片覆盖/清掉"是**错误判断**。rescan 频率只影响刷新次数，**不会造成破图**。破图的真正根因是 url 格式，见下。
+
+- **根因**：`localTool/src/routes/resources.ts` 的 rescan 把资源 `url` 存成**相对路径** `/files/{folder}/{name}`。资源面板运行在 `chrome-extension://` 页面，直接 `<img src="/files/...">` 被解析成 `chrome-extension://xxx/files/...` → 404 → **所有图片/视频破图**（包括历史图，不止生成的）。
+- **已修复**（`resources.ts`，随 `d5d48dd` 提交）：新增 `LOCAL_TOOL_BASE = 'http://127.0.0.1:18080'` + `toAbsoluteFileUrl()`，rescan 入库时把 `url` 补全为 `http://127.0.0.1:18080/files/...`，前端 `<img src>` 可直接加载。
+- **验证**：清表 + rescan 后 11 条资源 `url` 均为完整地址，图片可访问。
+- ⚠️ 已知次要问题：中文目录名（如"新建文件夹"）在 resources 表里读出乱码（`æ°å»ºæä»¶å¤±`），疑似 sql.js 以 Latin1 存中文。不影响图片加载，但资源面板中文文件夹名显示异常，待后续修（见 §3）。
+
+### 2.5 残留风险
+
+- 刷新节流仅 3 秒，极端高频切换仍可能触发有限次 rescan，但已不会"疯狂"。
+- rescan 入库的 `url` host 硬编码 `127.0.0.1:18080`（localTool 监听地址）。若以后 localTool 改 host/port 或前端跨设备访问，需同步此处（或改为前端渲染时按 `config.js` 的 `LOCAL_ENGINE` 动态补前缀）。
 - 生成写资源表里的 `type` 判定（`video`/`image`/`text`）依赖 `r` 字段取值，若新增节点类型需同步补充。
 
 ---
 
 ## 3. 待后续 session 处理的事项
 
-- [x] ~~定位 rescan 循环真因~~ → **已完成（2026-07-20）**：根因为 transit Tab 裸 rescan，已用 `rescanThrottledSync` 节流修复，见 §2.3。
+- [x] ~~定位 rescan 循环真因（疯狂刷新）~~ → **已完成（2026-07-20 `3db58ff`）**：transit Tab 裸 rescan，已用 `rescanThrottledSync` 节流，见 §2.3。
+- [x] ~~修复资源面板破图~~ → **已完成（2026-07-20 `d5d48dd`）**：根因为 rescan 存相对路径 url，已补全为完整地址，见 §2.4。
+- [ ] **修复中文目录/文件名乱码**：resources 表里中文名（如"新建文件夹"）读出为 Latin1 乱码（`æ°å»ºæä»¶å¤±`），疑似 sql.js 以 Latin1 存中文。影响资源面板中文文件夹显示，需排查 database.ts 存读编码或 rescan 时的字符串编码，见 §2.4。
 - [ ] **确认轮询端点与成功结果格式**（`lovart-chat` 异步生图，HANDOFF2 §9.3 遗留）：轮询 URL、成功 `status` 取值、图片字段位置。
 - [ ] 实现 `lovart-chat` 生图异步轮询（HANDOFF2 §9.3）。
 - [ ] 待处理 bug：提示词库"最近使用"不记录本地提示词（HANDOFF2 §9.3 遗留）。
