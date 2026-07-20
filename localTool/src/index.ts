@@ -15,7 +15,7 @@ import { json, sendError } from './utils/helpers.js';
 import { handleKvGet, handleKvSet } from './routes/kv.js';
 import { handleUpload, handleRead, handleThumbnail, handleMkdir, handleMove, handleOpen, handleOpenDir, handleList } from './routes/files.js';
 import { handleTasksGet, handleTasksSave, handleTasksBatchSave, handleTasksDelete, handleTasksBatchDelete, handleTasksClear } from './routes/tasks.js';
-import { handleResourcesGet, handleResourcesSave, handleResourcesBatchSave, handleResourcesDelete, handleResourcesClear } from './routes/resources.js';
+import { handleResourcesGet, handleResourcesSave, handleResourcesBatchSave, handleResourcesDelete, handleResourcesClear, handleResourcesRescan } from './routes/resources.js';
 import { handleStatus, handleProxy, handleJianyingSend } from './routes/system.js';
 
 const PORT = 18080;
@@ -192,6 +192,9 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
     }
     if (pathname === '/api/resources/clear' && method === 'POST') {
       return await handleResourcesClear(req, res);
+    }
+    if (pathname === '/api/resources/rescan' && method === 'POST') {
+      return await handleResourcesRescan(req, res);
     }
 
     // ── 代理 ──

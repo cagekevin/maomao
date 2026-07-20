@@ -31358,7 +31358,15 @@ function xg({
           };
         }
         return e;
-      }));
+      })), i === `completed` && n && (Sv({
+        id: `gen-${t}-${Date.now()}`,
+        url: n,
+        type: r === `sd2Video` || r === `video` || r === `discountVideo` ? `video` : r === `image` ? `image` : r === `text` ? `text` : r,
+        source: `local-tool`,
+        folder: r === `image` || r === `video` || r === `discountVideo` || r === `sd2Video` ? `tasks` : `migrated`,
+        name: n.split(`/`).pop() || `生成结果`,
+        timestamp: Date.now()
+      }).then(() => Di.current && Di.current()).catch(e => console.error(`[resourceStore] 生成结果刷新面板失败:`, e)), console.log(`[resourceStore] 生成完成已写入资源表:`, n));
     };
     return window.addEventListener(`mutiwindow-task-completed`, e), () => {
       window.removeEventListener(`mutiwindow-task-completed`, e);
@@ -42907,6 +42915,12 @@ function Nv() {
         console.error(`Failed to sync transit resources from local:`, e);
       }
     }, [n.status.port]),
+    rescanLastRunRef = Y.useRef(0),
+    rescanThrottledSync = Y.useCallback(async () => {
+      let e = Date.now();
+      if (e - rescanLastRunRef.current < 3e3) return;
+      rescanLastRunRef.current = e, await we();
+    }, [we]),
     [q, Te] = Y.useState(`accounts`),
     [Ee, De] = Y.useState(`builtin`);
   Y.useEffect(() => {
@@ -44284,8 +44298,8 @@ grok-video-3`),
     }
   }, [we, Br]);
   Y.useEffect(() => {
-    q === `transit` && Oi(true);
-  }, [q, Oi]);
+    q === `transit` && rescanThrottledSync();
+  }, [q, rescanThrottledSync]);
   let ki = (e, t, n) => {
       let r = [...jr];
       r[e] = {
