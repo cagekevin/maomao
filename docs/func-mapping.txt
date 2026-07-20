@@ -146,7 +146,8 @@ Ln = getDropTargetType      # 拖拽落点类型：源节点连到 imageBoxNode 
 Mt = requestGroupResize     # 设 kt.current=true（标记分组需重算尺寸）后调用 At=autoResizeGroupNodes（@31443）
 Ns = FrameExtractNode       # 视频抽帧节点组件（Y.memo）：mode count/interval、intervalSec、frameCount、sensitivity、allExtractedImages，复制为 mutiwindow-images（@16031）
 Ng = checkPluginUpdate      # 拉 ${$n}/plugin/manifest.json 比对版本号，返回 {hasUpdate, version,...}（@37952）
-On = onSelectionContextMenu # 多选(>1)节点 setTimeout 50ms 在鼠标位弹 selection 菜单（ve 设菜单、Ue 关，@31899）
+En = onSelectionContextMenu # 右键多选(>1)节点弹 selection 菜单（ve 设菜单、Ue 关，@31958）
+On = onSelectionEnd        # 框选结束 setTimeout 50ms，选中>1 在鼠标位弹 selection 菜单（@31968；原表误记为 onSelectionContextMenu，已更正）
 N_ = BuiltinModelPanel      # 内置模型面板：list/模型列表 与 schedule/模型调度 切换，监听 builtin-panel-switch-schedule（@40554）
 Nr = localStorageBackend    # 存储后端：直接封装 localStorage（get/set/remove/getMultiple/isAvailable，@1383）
 Pr = localforageBackend     # 存储后端：封装 Sr.default（localforage，get/set/remove/clear，@1411）
@@ -173,3 +174,19 @@ Xr = openInTab             # async 在活动标签页打开 URL（chrome.tabs.qu
 Yc = PanoNode              # 全景图节点（Y.memo）：panoType sphere/…，getNode/setNodes 取尺寸（@19516）
 Yn = FallbackMedia         # 带降级媒体组件（{url,fallbackExt='mp4',onToast,size,className}，@102）
 Xn = DataUrlViewer         # 数据/URL 内容查看组件（function({url})：解码 data:text/ base64、加载内容，@128）
+
+# ── ReactFlow 鼠标交互 handler（2026-07-20，全部回函数体 + props 接线坐实）──
+# 接线证据：App.js L37074–37091 的 ReactFlow props 块（onConnect:xn … onNodeDragStop:jt）
+xn = onConnect            # 建边：同侧校验(M 提示)、左右反向纠正、选中节点批量连（@31883）
+Cn = onPaneContextMenu    # 画布右键菜单（type:'canvas'，ve 设、Ue 关，@31933）
+wn = onNodeContextMenu    # 节点右键菜单（type:'node'，@31947）
+# ※ En(onSelectionContextMenu) / On(onSelectionEnd) 见上方修正段（L149–150），此处不重复
+An = onPaneClick          # 左键点空白：关菜单、退多连模式（@31994）
+kn = onNodeClick          # 左键点节点：仅多连模式 Et 下建连（@31981）
+Fr = onConnectEnd        # 连线落空：建 ghost-target/ghost-edge + connection 菜单（@36195）
+Ir = onDragOver           # 拖拽悬停：设 dropEffect='copy'（@36240）
+Lr = onDrop               # 拖放：模板/任务/文件 → 建节点（@36243）
+jt = onNodeDragStop       # 节点拖动结束 → requestGroupResize 重算分组（@31514）
+bt = onMoveStart          # 视口平移/缩放开始：置"移动中"标志（@31381）
+xt = onMoveEnd            # 视口平移/缩放结束：清"移动中"标志（@31384）
+Yr = onEdgeDoubleClick   # 双击边：直接删边 G(filter)，未走撤销栈（@36570）

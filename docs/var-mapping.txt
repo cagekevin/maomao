@@ -244,3 +244,14 @@ Zm = defaultPanelRgb        # '26 26 26' 面板默认 RGB（@27658） 🟢
 # 实为「函数」，早已收录在 func-mapping.txt（见该表 Fi@107/Ah@82/ar@10/tr@7/Da@93/Ea@98/Ga@112/kc@141），
 # 此处不再重复，避免两表冲突。仅 Xt 是真正未收录且为组件局部，保留如下。
 Xt = tabInstanceRef         # 组件内局部：Y.useRef(`tab-${Date.now()}-${Math.random()}`) 独立 tab 实例标识（@31467）⚠️ 局部，非模块级绑定，勿随表批量重命名
+
+# ── ReactFlow 画布状态（鼠标交互相关，2026-07-20）──
+Et = multiConnectMode     # 多连模式 state：let [Et, Dt] = Y.useState(null)（@31401）；kn 仅在此模式下建连
+Dt = setMultiConnectMode  # Et 的 setter
+K  = contextMenu          # 右键菜单 state：{x,y,type:'canvas'|'node'|'selection'|'connection',nodeId?,connection?}（菜单渲染 @37597）
+ve = setContextMenu       # K 的 setter（Cn/wn/En/On/Fr 中 ve({...}) 设菜单）
+Ue = closeMenuSetter      # 关菜单/退模式 setter：Ue(false) 在 Cn/wn/En/On 中调用（配合 Et）
+W  = setNodes             # 节点 setState（Fr 中过滤 ghost-target；与 Qt 节点数组配套）
+G  = setEdges             # 边 setState（Fr 中过滤/建 ghost-edge；与 $t 边数组配套）
+Qt = nodesArray           # 当前节点数组/ref（On 中 Qt.current.filter(selected)；layout 用）
+$t = edgesArray           # 当前边数组/ref（layout 用）
