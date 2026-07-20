@@ -1,5 +1,5 @@
 import { i as e } from "./rolldown-runtime-aKtaBQYM.js";
-import { LOCAL_ENGINE, JIANYING_PORT, localEngineBase, GAS_CLOUD_SYNC_URL } from './config.js';
+import { LOCAL_ENGINE, JIANYING_PORT, localEngineBase, GAS_CLOUD_SYNC_URL, AVATAR_IMAGE } from './config.js';
 import { $ as t, $n as n, $t as r, A as i, An as a, Ar as o, At as s, B as c, Bn as l, Bt as u, C as d, Cn as f, Cr as p, Ct as m, D as h, Dn as g, Dr as _, Dt as v, E as y, En as b, Er as x, Et as S, F as C, Fn as w, Ft as T, G as E, Gn as D, Gt as O, H as k, Hn as A, Ht as j, I as M, In as N, It as P, J as F, Jn as I, Jt as L, K as ee, Kn as R, Kt as z, L as B, Ln as te, Lt as ne, M as re, Mn as ie, Mr as ae, Mt as oe, N as se, Nn as ce, Nr as le, Nt as ue, O as V, On as H, Or as U, Ot as de, P as W, Pn as fe, Pt as pe, Q as me, Qn as G, Qt as he, R as ge, Rn as _e, Rt as K, S as ve, Sn as ye, Sr as be, St as xe, T as Se, Tn as Ce, Tr as we, Tt as q, U as Te, Un as Ee, Ut as De, V as Oe, Vn as ke, Vt as Ae, W as je, Wn as Me, Wt as Ne, X as Pe, Xn as Fe, Xt as Ie, Y as Le, Yn as Re, Yt as ze, Z as Be, Zn as Ve, Zt as He, _ as Ue, _n as We, _r as Ge, _t as Ke, a as qe, an as Je, ar as Ye, at as J, b as Xe, bn as Ze, br as Qe, bt as $e, c as et, cn as tt, cr as nt, ct as rt, d as it, dn as at, dr as ot, dt as st, en as ct, er as lt, et as ut, f as dt, fn as ft, fr as pt, ft as mt, g as ht, gn as gt, gr as _t, gt as vt, h as yt, hn as bt, hr as xt, ht as St, i as Ct, in as wt, ir as Tt, it as Et, j as Dt, jn as Ot, jt as kt, k as At, kn as jt, kr as Mt, kt as Nt, l as Pt, ln as Ft, lr as It, lt as Lt, m as Rt, mn as zt, mr as Bt, mt as Vt, n as Ht, nn as Ut, nr as Wt, nt as Gt, o as Kt, on as qt, or as Jt, ot as Yt, p as Xt, pn as Zt, pr as Qt, pt as $t, q as en, qn as tn, qt as nn, r as rn, rn as an, rr as on, rt as sn, s as cn, sn as ln, sr as un, st as dn, t as fn, tn as pn, tr as mn, tt as hn, u as gn, un as _n, ur as vn, ut as yn, v as bn, vn as xn, vr as Sn, vt as Cn, w as wn, wn as Tn, wr as En, wt as Dn, x as On, xn as kn, xr as An, xt as jn, y as Mn, yn as Nn, yr as Pn, yt as Fn, z as In, zn as Ln, zt as Rn } from "./vendor-Cr1JWW-B.js";
 import { i as zn, n as Bn, r as Vn, t as Hn } from "./entry.js";
 var Y = e(le(), 1),
@@ -42853,7 +42853,7 @@ function jv({
     children: t
   });
 }
-var Mv = `data:image/svg+xml;utf8,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20width%3D'80'%20height%3D'80'%20viewBox%3D'0%200%2080%2080'%3E%3Crect%20width%3D'80'%20height%3D'80'%20rx%3D'40'%20fill%3D'%232f3a4a'%2F%3E%3Cellipse%20cx%3D'40'%20cy%3D'44'%20rx%3D'34'%20ry%3D'30'%20fill%3D'%23f59e0b'%2F%3E%3Cpolygon%20points%3D'10%2C26%2022%2C4%2034%2C20'%20fill%3D'%23f59e0b'%2F%3E%3Cpolygon%20points%3D'70%2C26%2058%2C4%2046%2C20'%20fill%3D'%23f59e0b'%2F%3E%3Cpolygon%20points%3D'16%2C24%2022%2C10%2030%2C21'%20fill%3D'%23fbbf24'%2F%3E%3Cpolygon%20points%3D'64%2C24%2058%2C10%2050%2C21'%20fill%3D'%23fbbf24'%2F%3E%3Ccircle%20cx%3D'28'%20cy%3D'42'%20r%3D'9'%20fill%3D'%231a1a2e'%2F%3E%3Ccircle%20cx%3D'52'%20cy%3D'42'%20r%3D'9'%20fill%3D'%231a1a2e'%2F%3E%3Ccircle%20cx%3D'31'%20cy%3D'39'%20r%3D'3.5'%20fill%3D'%23fff'%2F%3E%3Ccircle%20cx%3D'55'%20cy%3D'39'%20r%3D'3.5'%20fill%3D'%23fff'%2F%3E%3Cpolygon%20points%3D'40%2C52%2036%2C57%2044%2C57'%20fill%3D'%23e87d7d'%2F%3E%3Cpath%20d%3D'M32%2060%20Q40%2067%2048%2060'%20stroke%3D'%231a1a2e'%20stroke-width%3D'2'%20fill%3D'none'%2F%3E%3Cline%20x1%3D'40'%20y1%3D'57'%20x2%3D'40'%20y2%3D'64'%20stroke%3D'%231a1a2e'%20stroke-width%3D'2'%2F%3E%3C%2Fsvg%3E`;
+var Mv = AVATAR_IMAGE;
 function Nv() {
   let {
       toasts: e,
@@ -43433,7 +43433,7 @@ grok-video-3`),
           });
         };
       chrome.tabs.onUpdated.addListener(e), chrome.tabs.onActivated.addListener(n);
-      let r = (e, t, n) => {
+      let r = async (e, t, n) => {
         if (e.action === `resourceAdded` && e.resource) {
           let t = e.resource,
             r = t.source === `local-tool`,
@@ -43442,10 +43442,27 @@ grok-video-3`),
               folder: `migrated`,
               source: r ? `local-tool` : `extension`
             };
-          return D(e => e.find(e => e.id === i.id) ? e : [i, ...e]), r ? G(e => e + 1) : Sv({
+          // 铁律：素材入库前，外部地址必须转成内部地址（/files/migrated/...）。
+          // local-tool 来源本就是本地路径，直接走原逻辑；
+          // extension 来源（网页直链 / data: / http）先下载到 migrated/，失败则整条丢弃。
+          if (!r) {
+            let localized = await Zr(i.url, {
+              subfolder: `migrated`
+            });
+            if (!localized || !localized.url) return n({
+              success: false,
+              error: `download_failed`
+            }), false;
+            i = {
+              ...i,
+              url: localized.url,
+              thumbnailUrl: localized.thumbnailUrl || i.thumbnailUrl
+            };
+          }
+          return D(e => e.find(e => e.id === i.id) ? e : [i, ...e]), G(e => e + 1), r ? void 0 : await Sv({
             ...i,
             id: String(i.id)
-          }).then(() => G(e => e + 1)), Te(`transit`), j(`materials`), n({
+          }), Te(`transit`), j(`materials`), n({
             success: true
           }), false;
         }

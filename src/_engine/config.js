@@ -46,6 +46,9 @@ export function localEngineBase() {
 // 兼容别名（service worker 侧使用）
 export const getLocalEngineBase = localEngineBase;
 
+// 头像图片（设置按钮左侧的圆形头像）
+export const AVATAR_IMAGE = '/logo.png';
+
 // ====== GAS 云端同步地址 ======
 // 用户头像下的「推送到云端」/「从云端拉取」按钮使用的
 // Google Apps Script 部署 URL（需部署为「所有人」可访问）。
