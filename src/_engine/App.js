@@ -19044,7 +19044,13 @@ function Uc() {
         body: i
       });
       if (!a.ok) throw Error(`Upload failed`);
-      return a.json();
+      let s = await a.json();
+      // 后端返回相对路径 /files/...，Chrome 扩展环境下会被解析为 chrome-extension:// 前缀导致加载失败无限重试。
+      // 统一在此补成 http://127.0.0.1:{port} 绝对路径，所有消费链路受益。
+      let prefix = `http://127.0.0.1:${Bc}`;
+      if (s && typeof s.url == `string` && s.url.startsWith(`/`)) s.url = prefix + s.url;
+      if (s && typeof s.thumbnailUrl == `string` && s.thumbnailUrl.startsWith(`/`)) s.thumbnailUrl = prefix + s.thumbnailUrl;
+      return s;
     }, [e.isConnected]),
     saveKV: Y.useCallback(async (e, t) => {
       try {
@@ -44224,7 +44230,7 @@ grok-video-3`),
                 },
                 i = false,
                 a = async (e, r, i) => {
-                  if (!e || typeof e != `string` || e.startsWith(`http://127.0.0.1`) && /\/files\/tasks(\/|$)/.test(e)) return e;
+                  if (!e || typeof e != `string` || e.startsWith(`/files/`) || e.startsWith(`http://127.0.0.1`) && /\/files\/tasks(\/|$)/.test(e)) return e;
                   try {
                     if (!e.startsWith(`http://127.0.0.1`) && e.startsWith(`http`) || e.startsWith(`data:`) || e.startsWith(`blob:`)) {
                       let a = null;

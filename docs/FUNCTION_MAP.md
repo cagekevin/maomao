@@ -1,17 +1,13 @@
 # 一毛AI画布 · 功能代码地图（V1，App.js 行号索引）
 
-> 目的：让下一个接手的 AI **秒定位"某功能在 App.js 的哪一行"**，避免大海捞针式 grep 把能跑的改坏。
-> 适用范围：仅 V1 运行主线 `src/_engine/App.js`（混淆代码）。
-> **铁律**（详见 `CLAUDE.md` §3 / `PROJECT_ORIGIN.md` §8）：
-> 1. 引用必须带**行号**，函数名（`Oa()` `Ev()` `Jn()` 等）无稳定语义，不同次反编译可能变。
-> 2. 行号会随编辑**漂移**，以下为 **2026-07-20 实测快照**，动手前请重新 grep 确认。
-> 3. 新增代码用语义化命名（`rawResp`/`CloudSyncEngine`/`LOCAL_ENGINE`），严禁 `ii()`/`U_`/`W_` 这类反编译短名。
+> 让接手的 AI **秒定位功能在 App.js 的哪一行**，避免 grep 把能跑的改坏。仅适用于 V1 主线 `src/_engine/App.js`。
+> **铁律**：① 引用必须带**行号**（函数名无稳定语义，反编译可能变）；② 行号为 **2026-07-20 实测快照，会漂移**，动手前重新 grep；③ 新增代码用语义化命名，严禁 `ii()`/`U_` 这类短名。
 
 ---
 
 ## 0. 全局常量（端点/端口，原版残留短名，勿改）
 
-这些是反编译器生成的**原版残留**，不是我们加的，改了会和基线对不上、grep 误判：
+这些是原版残留（反编译器生成），改了会和基线对不上、grep 误判：
 
 | 行号（App.js） | 常量 | 含义 |
 |---|---|---|
@@ -25,7 +21,7 @@
 
 ## 0.5 混淆名高频核心（改 App.js 必备速查）
 
-完整字典在 `docs/reference/var-mapping.txt` + `func-mapping.txt`（行号已漂移，以实际打开为准）。**下面是最常碰到的几个**，改功能前先认脸：
+完整字典在 `docs/reference/var-mapping.txt` + `func-mapping.txt`（行号已漂移）。**下面是最常碰到的几个**，改功能前先认脸：
 
 | 混淆名 | 可读含义 | 用途 |
 |--------|---------|------|
@@ -39,9 +35,9 @@
 | `wr` | localToolBackend | 基于 `window.localTool` 的 KV 后端 |
 | `ei` / `ti` | pushToCloud / pullFromCloud | GAS 云端同步（我们新增，非原版） |
 | `Qn` | TransitPanel | 资源面板（transit Tab）组件 |
-| `Ev()` | rescan 前端定义 | 资源 rescan 循环调用方（见 §3） |
+| `Ev()` | rescan 前端定义 | 资源 rescan 循环调用方；定义见 §2「生成完成触发 rescan」处（行号以实际 grep 为准），调用点在 §3 L42768 |
 
-> 注意：`U_`/`W_`/`G_`/`B_` 这类短下划线名是**原版残留**（如 `U_='http://127.0.0.1:18080'`），不是我们加的，别改也别和新增变量混淆。
+> 注意：`U_`/`W_`/`G_`/`B_` 这类短下划线名是**原版残留**，不是我们加的，别改也别和新增变量混淆。
 
 ---
 
@@ -83,7 +79,7 @@
 6. **审核拒绝 ≠ 普通失败**：终态 `failed` + `data.error.code:"no_artifact"` → 优先透传 `data.error.message`，别笼统报"生成失败"。
 7. **图/视频可独立出现**：`data.result` 只含实际存在的 `images`/`videos`，分别判空，不假设两者都在。
 
-**关键约束**：仅改 `Jn` 的 N 分支；复用现有 `zc`/`R`/`h`/`z`/`ht.current`/`ii`；所有错误统一 `throw Error(...)` 走现有 catch；无 `task_id` 时走原同步解析。轮询间隔 `≥3s`、退避上限 15s、自建 15min deadline。
+**关键约束**：仅改 `Jn` 的 N 分支；复用现有 `zc`/`R`/`h`/`z`/`ht.current`/`ii`；错误统一 `throw Error(...)`；无 `task_id` 走原同步解析。轮询间隔 `≥3s`、退避上限 15s、自建 15min deadline。
 
 ---
 
@@ -100,7 +96,7 @@
 | `useLocalTool.getKV` | L19074 | KV 读取；连不上 18080 会打"请确保 localTool 正在运行" |
 | KV 保存 | L19092 | `fetch(\`http://127.0.0.1:${Bc}/api/resources/save\`...)` |
 
-> localTool 侧对应：`localTool/src/routes/resources.ts`（`handleResourcesRescan` 等）、`localTool/src/index.ts` L196 路由 `/api/resources/rescan`。**破图真因**（历史）：rescan 入库 url 必须是完整地址，相对路径会破图，已在 `d5d48dd` 修复。
+> localTool 侧对应：`localTool/src/routes/resources.ts`（`handleResourcesRescan` 等）、`localTool/src/index.ts` L196 路由 `/api/resources/rescan`。破图真因见 §3.2（已在 `d5d48dd` 修复）。
 
 ### 3.1 资源类型识别规则（rescan 入库，实证有效）
 
@@ -119,8 +115,8 @@
 
 ### 3.2 破图真因 & 已知残留（已修复，记此防复发）
 
-- **真凶**（已在 `d5d48dd` 修复）：rescan 把 `url` 存成相对路径 `/files/{...}`，资源面板运行在 `chrome-extension://` 下被解析成 `chrome-extension://xxx/files/...` → 404 破图。修复：入库时补全为 `http://127.0.0.1:18080/files/...`。
-- **残留风险**：① rescan 入库 `url` host 硬编码 `127.0.0.1:18080`，若 localTool 改 host/port 或跨设备访问需同步（或改前端按 `config.js` 的 `LOCAL_ENGINE` 动态补前缀）；② **中文目录/文件名乱码**：resources 表读出为 Latin1 乱码（如"新建文件夹"→`æ°å»ºæä»¶å¤±`），疑似 sql.js 以 Latin1 存中文，待修。
+- **真凶**（已在 `d5d48dd` 修复）：rescan 把 `url` 存成相对路径，在 `chrome-extension://` 下被解析成 `chrome-extension://xxx/files/...` → 404 破图；修复为补全 `http://127.0.0.1:18080/files/...`。
+- **残留风险**：① 入库 `url` host 硬编码 `127.0.0.1:18080`，改 host/port 或跨设备需同步；② **中文目录/文件名 Latin1 乱码**（如"新建文件夹"→`æ°å»ºæä»¶å¤±`），疑似 sql.js 以 Latin1 存中文，待修。
 
 ---
 
@@ -128,29 +124,24 @@
 
 | 功能 | 行号 | 说明 |
 |---|---|---|
-| `CloudSyncEngine` | ~L43760（实测引用区） | 我们新增：推送到云端/从云端拉取引擎 |
-| 同步 URL 来源 | `config.js` `GAS_CLOUD_SYNC_URL` | GAS 部署地址集中配置，改地址动 config.js 不是 App.js |
+| `CloudSyncEngine` | ~L43760 | 我们新增的云端推送/拉取引擎 |
+| 同步 URL | `config.js` `GAS_CLOUD_SYNC_URL` | GAS 部署地址集中配置，改地址动 config.js |
 
 ---
 
 ## 5. 配置层（改配置动 `config.js`，不是 App.js）
 
-`src/_engine/config.js` 导出（语义化命名，全 `UPPER_SNAKE`）：
-- `LOCAL_ENGINE` {host, port, base} —— 本地工具服务（:18080）
-- `ENDPOINTS` / `DEFAULT_ENDPOINT` —— 默认 `http://127.0.0.1:9004`（网关）
-- `USE_LOCAL_ENGINE = true` —— 开关：true 走 localTool，false 走 `REMOTE_BASE`
-- `AUTH_TOKEN_KEY = 'auth_token'`
-- `GAS_CLOUD_SYNC_URL` —— 云端同步地址
+`src/_engine/config.js` 导出（全 `UPPER_SNAKE`）：`LOCAL_ENGINE`{host,port,base}（:18080）、`ENDPOINTS`/`DEFAULT_ENDPOINT`（默认 `http://127.0.0.1:9004`）、`USE_LOCAL_ENGINE=true`（true 走 localTool）、`AUTH_TOKEN_KEY='auth_token'`、`GAS_CLOUD_SYNC_URL`。
 
 ---
 
 ## 6. 已知无害噪音（下个 AI 看到别慌，也别改）
 
 来自 `docs/PROJECT_LOG.md` (2026-07-20) + `PROJECT_ORIGIN.md` §8：
-- 控制台 9004 的 4 个 404（`/api/public/platform/builtin`、`/plugin/manifest.json`、`/api/workflow-apps/by-project/default` 等）：网关从未实现，前端兜底吞掉，**无害**。
+- 控制台 9004 的 4 个 404（`/api/public/platform/builtin`、`/plugin/manifest.json`、`/api/workflow-apps/by-project/default` 等）：网关从未实现、前端兜底吞掉，**无害**。
 - `RootErrorBoundary` 的 `useState null` 异常：魔改残留，**无害，不改**。
 - 18080 连不上：localTool 没启动，**非代码 bug**，先起服务。
-- 被注释掉的 UI 功能（模型选择/插件市场/工作流管理）底层取数函数仍发请求（`App.js` L3224/L3240/L38212/L43311），属预期，**不改**。
+- 被注释的 UI（模型选择/插件市场/工作流管理）底层取数函数仍发请求（`App.js` L3224/L3240/L38212/L43311），属预期，**不改**。
 
 ---
 
@@ -158,9 +149,8 @@
 
 1. 先 `git status` 确认工作区干净（App.js 有未提交改动时别 `git checkout`）。
 2. 按上表 grep 目标功能的**当前行号**（行号会漂移）。
-3. 只改 `App.js`（业务逻辑）或 `config.js`（配置）；资源/文件/rescan 相关改 `localTool/`，AI 生成相关改 `apimart-gateway/`。
-4. 新增变量用语义化命名，插入逻辑后**小步提交**，commit message 写清（`feat(localTool+engine): ...` / `fix(localTool): ...`）。
-5. 改完 `npm run build` 重新构建 `dist/`，Chrome 重新加载。
+3. 只改 `App.js`/`config.js`；资源/rescan 相关改 `localTool/`，AI 生成相关改 `apimart-gateway/`。**绝不改 `dist/`**（build 产物，改了下次构建即覆盖、浏览器加载的就是它）——改源码再 `npm run build` → Chrome 重新加载。
+4. 新增变量用语义化命名，小步提交，commit message 写清（`feat(localTool+engine): ...` / `fix(localTool): ...`）。
 
 ---
 
@@ -171,8 +161,8 @@
 - 资源类型识别规则 + 破图真因 + 中文乱码残留 → 见 **§3.1 / §3.2**
 - 混淆名高频核心 → 见 **§0.5**
 
-`docs/reference/` 本身现仅作为**两类补充**存在，默认不必先读：
-1. **完整混淆名字典**：`var-mapping.txt` / `func-mapping.txt`（§0.5 不够用时查全量；行号基于 2026-07-19 快照，App.js 现 46229 行已漂移，部分符号属 `engine` 包）。
-2. **详版设计与历史**：`PRD_TASK_POLLING.md`（轮询 9 约束全文）、`PRD-画布异步生图别人的.md`（视频提交侧 D-P1~P6）、`HANDOFF2/3.md`（改造全记录）、`PRD_MODULE4_5.md`（V2 蓝图，仅切 V2 时读）。
+`docs/reference/` 仅作两类补充，默认不必先读：
+1. **完整混淆名字典**：`var-mapping.txt` / `func-mapping.txt`（§0.5 不够用时查；行号已漂移，部分符号属 `engine` 包）。
+2. **详版设计与历史**：`PRD_TASK_POLLING.md`、`PRD-画布异步生图别人的.md`、`HANDOFF2/3.md`、`PRD_MODULE4_5.md`（V2 蓝图，仅切 V2 时读）。
 
-> ⚠️ reference 部分描述已过时（如 HANDOFF2 §5 `USE_LOCAL_ENGINE=false` 实测为 `true`、§7 #3 `better-sqlite3` 实为 `sql.js`；HANDOFF3 §6"App.js 干净基线/破图未修"已被 `3db58ff`/`d5d48dd` 推翻）。**以本文件 + git + 实际代码为准**，reference 只作思路参考。
+> ⚠️ reference 部分已过时（如 HANDOFF2 §5 `USE_LOCAL_ENGINE=false` 实测为 `true`、§7 #3 `better-sqlite3` 实为 `sql.js`；HANDOFF3 §6 已被 `3db58ff`/`d5d48dd` 推翻）。**以本文件 + git + 实际代码为准**。

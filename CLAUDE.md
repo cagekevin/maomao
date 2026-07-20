@@ -62,29 +62,25 @@ maomao/
 
 ## 4. V2 状态（永久暂停，别碰也别接）
 
-- 位置 `src/v2/`。含一批 node 组件 tsx + 多个 Zustand store + `AppShell.tsx` + `utils/api.ts`（具体数量以目录实际为准）。
-- **实际进度**：模块 1-5 的结构都搭出来了，但全是空壳/TODO——AppShell 里项目切换、accounts/资源/设置面板全是无逻辑的占位（`console.log('[AppShell] ... TODO')`）。**从未真正接业务逻辑，V2 业务入口 `AppShell` 从未被 `main.tsx` 启用。**
-- `main.tsx` L41 只 `lazy import('./_engine/App.js')` 作业务入口；V2 的 `AppShell` 无任何运行路径 import。**注意**：V2 并非"零引用"——`main.tsx` 已复用 V2 的 `v2/react-bridge.ts`（L7）和 `v2/components/ErrorBoundary`（L16）作错误兜底与 React 实例桥接，仅 V2 业务 `AppShell` 未启用。切换 V2 时把 L41 换成 `import('./v2/App.js')` 即可（L3 注释已说明）。
-- **规则**：除非用户明确说"恢复 V2 / 切到 V2"，否则所有工作都在 V1 下进行，V2 当只读归档。
+- 位置 `src/v2/`：模块 1-5 结构搭出但全是空壳/TODO（`AppShell.tsx` 里项目切换/accounts/资源/设置面板仅 `console.log('[AppShell] ... TODO')`），**从未接业务逻辑，`AppShell` 从未被 `main.tsx` 启用**。
+- V2 并非"零引用"：`main.tsx` 复用了 V2 的 `v2/react-bridge.ts`（L7）和 `v2/components/ErrorBoundary`（L16）作兜底与桥接；切 V2 只需把 `main.tsx` L41 换成 `import('./v2/App.js')`。
+- **规则**：除非用户明确说"恢复/切到 V2"，否则所有工作在 V1 下进行，V2 当只读归档。
 
 ---
 
 ## 5. 后端契约（对齐参考）
 
 - localTool 端点全集见 `docs/reference/PRD.md` 附录 A；网关见附录 B。
-- **实现与 PRD 的偏差（已实证）**：
-  - PRD 规划 localTool 用 `better-sqlite3`，**实际用的是 `sql.js`（纯 WASM，跨平台无需编译）**（`localTool/src/db/database.ts`）。功能等价，别被 PRD 误导去改依赖。
-  - localTool 实际路由见 `localTool/src/index.ts`（含 `/api/resources/rescan` 等，比 PRD 附录 A 略多）。
-- 网关为内存任务库，重启即丢（见 `apimart-gateway/README.md` 已知限制），属已知限制非 bug。
+- **实现与 PRD 的偏差（已实证）**：PRD 规划 localTool 用 `better-sqlite3`，**实际用 `sql.js`（纯 WASM，跨平台无需编译）**，别被 PRD 误导去改依赖；localTool 实际路由（`localTool/src/index.ts`）比附录 A 略多。
+- 网关为内存任务库，重启即丢，属已知限制非 bug。
 
 ---
 
 ## 6. 文档怎么用（trust 什么）
 
 - `docs/PROJECT_ORIGIN.md`：项目来历，**以它为准**。
-- `docs/FUNCTION_MAP.md`：**功能代码地图（App.js 行号索引）**。改画布功能前先查它，秒定位"某功能在 App.js 哪一行"，避免大海捞针式 grep 把能跑的改坏。行号会漂移，以实际打开为准。
-- `docs/reference/` 里的 HANDOFF/PRD/diff/映射表：**历史笔记，可能过时**。其中 PRD 的"规划"不等于"现状"（如 §5 说的存储选型偏差）。引用具体事实前**以实际代码/git 为准**，别把文档当真理。
-- `reference/`（根）：早期反编译素材 + `App.original.js`，一般不用看。
+- `docs/FUNCTION_MAP.md`：App.js 行号索引，改画布功能前先查它；行号会漂移，以实际打开为准。
+- `docs/reference/` 与根 `reference/`：历史笔记，**可能过时**，引用具体事实前以实际代码/git 为准，别当真理。
 
 ---
 
@@ -96,15 +92,14 @@ maomao/
 | localTool (18080) | 双击 `启动项目.ps1` 前台运行的窗口 | 看窗口输出；当前未落盘文件 |
 | 前端画布 | 画布内「任务清单」面板（App.js 的 TaskListDrawer） | UI 内看任务运行记录；DevTools Console 可右键 Save as 存文本 |
 
-交给 AI 排查时附"预期 vs 实际、触发动作"即可，具体定位由 AI 在代码里做。
+排查时附"预期 vs 实际、触发动作"即可，定位由 AI 在代码里做。
 
 ---
 
 ## 7. git 工作区（通用原则）
 
-- 动手前先 `git status` 看清当前状态，别在脏工作区上乱 `checkout` 丢掉未提交改动。
-- `src/_engine/App.js` 是 V1 魔改主线，里面的未提交改动可能就是当前在跑的逻辑，**别随意 `git checkout` 还原它**。
-- 重要改动小步提交，commit message 写清（参考历史：`feat(localTool+engine): ...` / `fix(localTool): ...` / `docs: ...`）。
+- 动手前先 `git status`；`src/_engine/App.js` 的未提交改动可能就是当前在跑的逻辑，**别随意 `git checkout` 还原它**。
+- 重要改动小步提交，commit message 写清（参考：`feat(localTool+engine): ...` / `fix(localTool): ...` / `docs: ...`）。
 
 ---
 
