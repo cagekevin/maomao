@@ -20,6 +20,7 @@ venv/
 
 # Runtime temp
 .localTool-uploads/
+Temp/
 
 # Environment variables
 .env
