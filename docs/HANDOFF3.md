@@ -51,7 +51,7 @@
 
 ---
 
-## 2. "破图 / 疯狂刷新" 误判纠正 —— 已撤销改动，仅沉淀结论
+## 2. "破图 / 疯狂刷新" 排查与修复（2026-07-19 ~ 07-20）
 
 ### 2.1 现象
 
@@ -63,24 +63,31 @@
 [GET]  /api/resources           ← 反复
 ```
 
-### 2.2 错误方向（已放弃）
+### 2.2 错误方向（2026-07-19，已放弃）
 
 曾误判为前端 `ii()` 相对路径在 `chrome-extension://` 下解析失败，并对 `src/_engine/App.js` 的 `ii()` / `Xr()` / `Zr()` / `ri()` 四处做了修改。**此方向错误**：终端日志证明图片其实已成功上传（`/api/files/upload` + `/api/tasks/save` 均成功，文件落在 `C:\Users\xinye\.yimao-localtool\uploads\tasks`）。问题不在 URL 解析，而在资源面板不断 rescan/重载，把刚生成的图片覆盖或清掉。
 
-### 2.3 已撤销改动
+> ⚠️ 历史记录澄清：早前某 session 曾声称"已 `git checkout` 撤销 App.js 全部改动、回到基线 `0e0b2cc`"。**该结论不准确**——实际工作区里保留了对"破图"真正有效的修复（见 2.4），且本次（2026-07-20）已随 commit `3db58ff` 一并提交。文档早期版本照抄了"已撤销"说法，特此更正。
 
-所有前端改动已 `git checkout -- src/_engine/App.js` 撤销，`git diff --stat` 对该文件无任何输出，回到 git 原始基线（初始提交 `0e0b2cc`）。当前工作区仅余原本就存在的未跟踪文件（如 `启动项目.command/.ps1`），与本次无关。
-
-### 2.4 真实根因（待定位，未改代码）
+### 2.3 真实根因 + 修复（2026-07-20 已修复并提交 `3db58ff`）
 
 - rescan 后端**无定时器**：`localTool/src/index.ts` 仅在 `POST /api/resources/rescan` 注册 handler（L196-L198），后端不会自循环。
-- 因此循环调用方在 **V1 前端**（`src/_engine/App.js`）。`resources/rescan` 只在 `Ev()` 一处定义，需找其调用链 + 是否存在定时器 / 轮询 effect（如 `useEffect` + `setInterval`）。
+- 循环调用方在 **V1 前端**（`src/_engine/App.js`）：`transit` Tab 切换的 effect 直接调用 `Oi(true)`（裸 rescan），在频繁切换 / 多触发下造成 rescan + resources 反复请求，即日志里的"疯狂刷新"。
+- **已修复**（`App.js`，随 `3db58ff` 提交）：
+  1. 新增 `rescanThrottledSync`（3 秒节流，基于 `rescanLastRunRef`）替代裸 `we()`，`transit` Tab 切换的 effect 改调它（L42915、L44298）。
+  2. 生成完成时把结果写入 `resources` 表（`mutiwindow-task-completed` 监听内，L31358），图片/视频生成后自动进资源面板，不再依赖反复 rescan 拉取。
+- 命名合规：`rescanThrottledSync` / `rescanLastRunRef` 均为语义化命名（符合 §5.4 规则）。
+
+### 2.4 残留风险
+
+- 节流仅 3 秒，极端高频切换仍可能触发有限次 rescan，但已不会"疯狂"。若后续仍观察到刷新异常，再排查是否有其它 effect 也直接调 `we()` / `Oi`。
+- 生成写资源表里的 `type` 判定（`video`/`image`/`text`）依赖 `r` 字段取值，若新增节点类型需同步补充。
 
 ---
 
 ## 3. 待后续 session 处理的事项
 
-- [ ] **定位 rescan 循环真因**：从 `src/_engine/App.js` 的 `Ev()` 定义出发，向下挖调用方与定时器/轮询 effect，确认是谁在循环调用 `resources/rescan` 和 `proxy`。**只定位、先不改代码**。
+- [x] ~~定位 rescan 循环真因~~ → **已完成（2026-07-20）**：根因为 transit Tab 裸 rescan，已用 `rescanThrottledSync` 节流修复，见 §2.3。
 - [ ] **确认轮询端点与成功结果格式**（`lovart-chat` 异步生图，HANDOFF2 §9.3 遗留）：轮询 URL、成功 `status` 取值、图片字段位置。
 - [ ] 实现 `lovart-chat` 生图异步轮询（HANDOFF2 §9.3）。
 - [ ] 待处理 bug：提示词库"最近使用"不记录本地提示词（HANDOFF2 §9.3 遗留）。
