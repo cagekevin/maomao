@@ -1,0 +1,175 @@
+# func-mapping.txt — 模块级短函数名解码（V1 引擎 App-B9jVCs-a.decompiled.js）
+# 格式：混淆名 = 可读名 # 依据（函数体前 ~10 行）
+# 来源：对模块级 `function X(` 短声明按「被调用频次」排序，取 top 高频解码（共 52 个）
+# 说明：同名函数若多处重复定义且逻辑相同，会注明「同 X」；带 (?) 为推断、存疑
+
+# ── API / URL 构造 ──
+tr = withApiSuffix          # 把 apiBaseUrl($n) 规范成带 /api 的基址（去空白、补 /api）
+nr = buildApiPath           # 以 $n 为基址（去尾斜杠）拼接路径 e → `${base}/${path}`（直接用 $n，不含 /api，区别于 tr）
+rr = buildGatewayUrl        # `${tr(e)}/v1/gateway/ai-app${t}` → AI 网关地址
+ar = resolveApiUrl          # 按 localhost/127 规则选择最终 API 基址（dev 代理逻辑）
+Eg = apiGet                 # Tg(e,{...t,method:'GET'}) → GET 封装
+Dg = apiPost                # Tg(e,{...n,method:'POST',body:t}) → POST 封装
+Jh = authHeaders            # Oa() 有 token → {Authorization:'Bearer '+e}；无 token → {}
+Oa = getAuthToken           # localStorage.getItem(Ca)（Ca=authTokenKey）
+Cr = canvasStateKey         # `${Z.CANVAS_STATE_PREFIX}${e}` → 画布状态存储键
+Ar = invalidateCache        # Tr.delete(e); Er.delete(e) → 清内存/过期缓存
+kr = isCacheKey             # Or.some(t=>e.startsWith(t)) → 是否走缓存的键
+
+# ── 模型 / 权益 ──
+Xi = isModelAvailable       # 模型名是否在可用列表（xi / Bi() 分类）中
+Ui = getModelPower          # bi?.power?.[t] → 模型功耗数值
+Wi = getModelUnit           # bi?.unit?.[t] → 模型功耗单位
+ki = getModelEntitlement    # bi?.entitlements?.[t] → 模型权益对象（access/reason/...）
+Ai = getAccessDenyReason    # ki(e) 非 allowed → 拒绝原因文案
+Bi = getModelCategories     # 返回 {text,image,video} 模型分类清单（来自 bi）
+Gi = getModelCurrency       # bi?.currency?.[t]==='proxy'?'proxy':'compute'
+Fo = getModelDurationSpec   # Mo(e).durationSpec 解析为 {mode,min,max,...}
+Bo = modelHasCapability     # Mo(e) 后判断 resolutions/aspectRatios/durationSpec/promptLimit 是否支持
+Mo = asPlainObject          # 非对象或数组 → null，否则原样返回（确保是纯对象）
+xs = normalizeFieldType     # fieldType 归一：LIST/SWITCH→'LIST'；空→'STRING'；否则原样返回大写值
+ea = makeModelMenuItem      # 由 Qi(e) 生成菜单项 {disabled,denyReason,title,className}
+_a = getScheduleId          # e.startsWith('schedule:') ? e.slice(9) : null → 定时任务 id
+zi = addListener            # Ti.add(e) 注册监听，返回取消函数
+Di = notifyListeners        # Ti.forEach(e=>e()) → 触发所有监听
+
+# ── 媒体 / URL 处理 ──
+zr = withFrameSuffix        # /files/ URL 追加 Rr('_frame1.jpg') 帧图后缀
+Lr = withThumbSuffix        # /files/ URL 追加 _resize_${t}.jpg / _frame1_resize_${t}.jpg 缩略图后缀
+Ir = snapToFrameSize        # 数值映射到最近的 Fr 尺寸（≤）；<=0 返回 Fr[0]
+Jr = mimeToExtension        # 从 mime 字符串提取文件扩展名（png/jpg/mp4/...）
+hg = getProviderLabel       # URL 含 yimao/jiangwei/weishao 或空 → '内置'，否则 '第三方'
+js = detectMediaType        # 由 mime/扩展名判定 image/video/audio/text/unknown
+
+# ── 3D 导演台 ──
+ol = degToRad               # e * Math.PI / 180 → 角度转弧度
+hl = normalizeAngleToRad    # ol(ml(e,t)) → 归一化角度再转弧度（ml 做范围归一）
+el = makeBodyTypeConfig     # 构造素体预设 {bodyType,defaultScale,label,labelAnchorY,proportions}
+ou = makeTransform          # {position,rotation,scale} → 变换对象
+lu = padIndex2              # `${e}${String(t).padStart(2,'0')}` → 两位补零序号
+ku = updateItemById         # e.map(x=>x.id===t?n(x):x) → 按 id 更新数组项
+Ld = replaceItemAtIndex     # e.map((x,r)=>r===t?n:x) → 按下标替换（同 zd/Yd 逻辑）
+zd = replaceItemAtIndex     # 同 Ld（3D 导演台内重复实现）
+Yd = replaceItemAtIndex     # 同 Ld（全景模块内重复实现）
+sd = toNumberOrNull         # Number(e) 有限则返回，否则 null
+
+# ── 状态 / 持久化 ──
+pr = useThumbnail           # {useThumbnail: Y.useContext(ur)} → 缩略图 context hook
+pu = deepClone              # JSON.parse(JSON.stringify(e)) → 深拷贝
+xu = extractPersistedState  # 从编辑器 store 抽取可持久化字段（viewMode/project/...）
+Su = saveEditorState        # fu().setItem(iu(), JSON.stringify(e)) → 存编辑器状态到 localStorage
+
+# ── UI / 组件 / 杂项 ──
+Zi = roundTo3Decimals       # parseFloat(e.toFixed(3)).toString()（非有限→'0'）
+uu = nextPrefixedId         # 在列表里找 `${t}<n>` 最大序号并 +1 → 生成下一个带前缀 id
+Jn = LogoIcon               # 返回品牌 SVG（viewBox 0 0 1389 1024）的图标组件
+Qn = TransitPanel           # 资源转存/传输面板组件（transitItems/transitResources/transitPage/setTransitPage/transitGridCols/transitTabFilter/handleSyncLocal/handleToggleFavorite/handleSendToActiveTab/handleCopyResource...）
+oi = useZoomScaled          # sn(t=>{let n=t.transform[2]||1; return Ir((e??0)*n)}) → 视口缩放 hook：按 transform 缩放系数把值映射回屏幕像素
+Ss = nodeFieldKey           # `${e.nodeId}__${e.fieldName}` → 节点字段唯一键
+
+# ── 第二批（中频，2026-07-19，全部回函数体坐实）──
+$d = DirectorShell          # 3D 导演台主布局：director-shell + 视口列(3D视口,children=e) + 左场景栏(id) + 右属性栏(Qd)，读 viewportPanelsCollapsed
+$f = getBoundingBoxEdges    # 由 center[e]+size[t] 算 3D 包围盒 8 角(bbl/bbr/btl/btr/fbl/fbr/ftl/ftr)，返回 12 条边对
+$i = getModelDenyMessage    # 由 Qi(e) 权益算拒绝文案：quota_exceeded 带 (usedCount/callLimit)，否则 '权益不够'（disabled 时返回，否则 undefined）
+$o = getModelSpeedLabel     # 由 speed 统计算耗时/速度标签：sampleCount<Jo(5) 或 avgTaskSeconds 空→null，否则 label||Qo(avgTaskSeconds)
+$p = mirrorBlendPixels      # 像素左右镜像混合：Uint8ClampedArray，按 c=n/a 渐变混合源与镜像，返回新缓冲（图像镜像/对称处理）
+$r = genRandomId            # Math.random().toString(36).slice(2,8) 短随机 id
+$u = pasteClipboardToScene  # 3D 导演台粘贴：clipboard→objects/cameras，uu 生成新 id（obj_/cam_），Yl 为粘贴偏移
+Aa = clearAuthToken         # 清 auth_token：localStorage.removeItem(Ca) + Q.remove(Ca)
+Ac = renderCanvasDiff       # canvas 两图 diff 渲染：clearRect→#000 底，mode==='diff' 用 kc('a'/'b') 离屏 + diffStrength 阈值
+Ad = getOrigin              # window.location.origin
+Ag = apiPatch               # Tg(e,{...n,method:'PATCH',body:t}) → PATCH 封装
+Ah = customEdgeRenderer     # 自定义连线渲染函数（jh=Y.memo(Ah)），参数 id/sourceX/sourceY/targetX/targetY/markerEnd/selected/data
+As = sanitizeHtml           # DOMParser 解析 + Ds 白名单标签 + Os 白名单属性 净化富文本（非法标签子节点上提后删除）
+Au = pickNextCharacterColor # 从 Kl 调色板取未被现有 character 使用的颜色（无空闲则按数量取模）
+Ba = hasAuthToken           # !!Oa() → 是否有登录 token
+Bd = ModelInspectorPanel    # 3D 模型右侧属性面板（prop-inspector，updateObjectName/updateObjectTransform/updateUniformScale/updateObjectColor）
+Be = addLibraryProp         # H({kind:'prop',assetSource:'library',fileName,name,url}) + E(false) 从库导入道具并关闭
+Bg = ImportExportPanel      # 导入导出面板（importData/exportData）
+Bu = createSceneObject      # 由 asset 生成场景对象：uu('obj_')+name??zu(fileName)+kind+visible+assetRefId+ou([0,0,0])
+
+# ── 第三批（中频，2026-07-19，全部回函数体坐实）──
+A_ = hashGradientClass      # 由字符串哈希(31 进制)选渐变 class：'bg-gradient-to-br '+from+to（8 组蓝/紫/绿/橙等色对）
+Da = clearRememberedCredentials # localStorage.removeItem(wa='remembered_login_credentials')
+Dd = identity               # return e（恒等/默认回调，返回入参不变）
+Dl = bodyTypeBoneScales     # 按 bodyType(female/broad) 生成 Bip001 骨骼缩放数组（Cl() 基 + 覆盖）
+Dp = PanoramaView           # 全景背景组件（backgroundColor/panoramaAsset/panoramaRadius/panoramaYaw）
+Du = createDefaultDirectorProject # 默认工程工厂：cam_1+char_default_a+cam_object_1，返回完整 project（Gl 场景/mu 资源）
+Ea = saveRememberedCredentials # localStorage.setItem(wa='remembered_login_credentials', JSON(e))
+Ec = computeMaxFitSize      # 两图(wc 取尺寸)取最大偶数值并缩放到 ≤n(1280)，返回 {w,h}
+Ef = BodyConfigPanel        # 素体配置组件（bodyType/color/onLabelAnchorYChange/rigState）
+Eh = GroupNode              # 编组节点组件（名称编辑 + 折叠/展开，collapsed/expandedWidth/Height）
+El = defaultBodyPose        # 默认骨骼姿态（双臂 ±25° 旋转偏移 Bip001_*）
+Ep = useTexture             # hook：se().load 加载纹理，返回 {status,texture}(wp 处理，Tp 格式化错误)
+Eu = getPersistedEditorState # xu(e) 包装（抽取可持久化编辑器状态）
+Fc = classifyMediaUrl       # URL 判定 video/image：data:video/ 或 .mp4/webm/mov... 扩展名
+Fd = replaceItemAtIndex      # 同 Ld/zd/Yd（第 4 处逐字节相同实现：e.map((x,r)=>r===t?n:x)）
+Fi = getModelCatalog        # return bi（模型目录/权益数据对象，被 getModelPower/Unit/Entitlement 等消费）
+Fl = getObjectWorldCenter   # 由 transform(scale/rotation/position) 算物体世界中心/包围盒（W 向量/ve 欧拉/Ml 中心化）
+Fm = ViewportToolbar        # 视口工具条组件（getViewportCameraSnapshot/toolbarContainerRef）
+Fs = loadVideo              # 创建 video 元素 preload，onloadedmetadata resolve(i) / 超时(t)或错误 reject
+Fu = formatCrowdLabel       # `群众（${e}x${t}）`
+Ga = getRecentPrompts       # localStorage 'yimao:promptRecent' 读数组（JSON.parse，异常返回 []）
+
+# ── 第四批（中频，2026-07-19，全部回函数体坐实）──
+I_ = useTaskMetaSync        # 多窗口任务元数据 hook：dispatch 'mutiwindow-update-task-meta'，从 requestData/responseData 解析宽/高/时长
+Ic = useNodeMediaSources    # hook：从节点递归(Ic)提取媒体 url（最多2个），Fc 分类，updateNodeData 写回
+Id = usePropertyPanel       # 属性面板状态 hook：properties tab + null 初始态 + camera/object store selectors
+Ii = fetchBuiltinModels     # 拉取内置模型：fetch /public/platform/builtin，设 bi=modelCatalogData + wi/Di 刷新
+Io = formatSeconds          # 秒数数组 → `X秒、Y秒`（Lo 为数值范围校验，独立函数）
+Is = seekTo                 # 媒体 seek：addEventListener('seeked')，设 currentTime=t 后回调
+Iu = createCharacterPreset  # 生成角色预设对象：uu('char_preset_')+lu('角色')+kind:'character'+visible
+Ja = filterAndSortByType    # 过滤 enabled(!==false) 并按 type/category 把匹配项排前（partition）
+Jf = expandBounds           # 用 Yf(e) 包围盒扩展 min/max XYZ（minX/maxX/minY/maxY/minZ/maxZ）
+Jg = getExtensionId         # 返回 chrome.runtime?.id（无则返回 undefined）
+Ji = findModelCategory      # 模型名 t 是否在某分类：Bi() 的 text/image/video includes(t)（同 Ki）
+Jp = loadImageSize          # 读图片尺寸：createObjectURL+Image，onload→尺寸，onerror→'无法读取全景图尺寸'（同 Kp）
+Js = readFileAsDataURL      # FileReader.readAsDataURL(e) → dataURL
+Ju = genPasteObjectId       # 生成粘贴对象 id：cam_object_ / char_paste_ / geometry 按 kind
+K_ = mergeById              # 按 id 合并/对账两数组（tv 实现，promise 链 $_）
+Ka = addRecentPrompt        # 最近提示词：unshift 去重，localStorage Wa 存前 50（Ga 读）
+Kf = getPointsMaxY          # 点集 e.map(e=>e[1]) 最大 Y + ef
+Kh = resetFields            # 清空三个 state（a('')/l('')/s(false)）
+Ki = findModelCategory      # 同 Ji（模型名匹配分类，逐字节相同）
+Kn = sendToJianying         # 发送到剪映本地 API：http://127.0.0.1:${Wn}/api/jianying/send（POST）
+Ko = HintText               # 小提示文本组件（text-[10px] text-gray-500 whitespace-nowrap）
+Kp = loadImageSize          # 同 Jp（读图片尺寸，全景）
+Ks = loadImageCors          # crossOrigin='anonymous' 加载图片，超时(t) 报错，onload→Image
+Ku = genCrowdId             # 生成 crowd_ id（uu 去重 crowdId 数组）
+
+# ── 审计闭环补充（2026-07-19）──
+kc = getOffscreenCtx        # 取离屏 canvas 的 2d context：e==='a'?Dc:Oc，Oc=offscreenCanvasB；clearRect(0,0,t,n) 后返回 ctx（@18325）🟢
+Xt = useTabInstanceId        # Y.useRef('tab-${Date.now()}-${Math.random()}') 生成唯一 tab 实例 id，@31467
+
+# ── 第五批（L/M/N/O/P 系列，2026-07-19，全部回函数体坐实）──
+Ln = getDropTargetType      # 拖拽落点类型：源节点连到 imageBoxNode 则返回 'imageBox'，否则 'newNodes'（$t=edges, Qt=nodes, @31941）
+Mt = requestGroupResize     # 设 kt.current=true（标记分组需重算尺寸）后调用 At=autoResizeGroupNodes（@31443）
+Ns = FrameExtractNode       # 视频抽帧节点组件（Y.memo）：mode count/interval、intervalSec、frameCount、sensitivity、allExtractedImages，复制为 mutiwindow-images（@16031）
+Ng = checkPluginUpdate      # 拉 ${$n}/plugin/manifest.json 比对版本号，返回 {hasUpdate, version,...}（@37952）
+On = onSelectionContextMenu # 多选(>1)节点 setTimeout 50ms 在鼠标位弹 selection 菜单（ve 设菜单、Ue 关，@31899）
+N_ = BuiltinModelPanel      # 内置模型面板：list/模型列表 与 schedule/模型调度 切换，监听 builtin-panel-switch-schedule（@40554）
+Nr = localStorageBackend    # 存储后端：直接封装 localStorage（get/set/remove/getMultiple/isAvailable，@1383）
+Pr = localforageBackend     # 存储后端：封装 Sr.default（localforage，get/set/remove/clear，@1411）
+
+# ── 存储子系统（聚焦子系统补充，2026-07-19）──
+# 注：Cr/kr/Ar 已由用户早期收录（func-mapping L15-17），此处不重复；仅补未收录的 jr
+jr = cachedGet               # 带缓存读取：非资源键走 Tr(值)/Er(在途)/Dr=600s TTL，否则 wr.get；StorageManager.getConfig/getObject 底层，@1310
+
+# ── 第六批（Q/R/S/T 大写函数系列，2026-07-19，回函数体坐实）──
+# 跳过（用户早期已收录，不重复）：Qa=TextNode(L66) Tf=ErrorBoundary(L78) S_=ModelCatalogEditor(L85) Rr=frameImageSuffix(L97) Rg=syncRetryCount(L184) Th=Director3DNode(L187)
+# 跳过（组件内局部 hook/解构/局部 handler，非模块级绑定）：R Rn S Se St T Qt Tt Sn Te Sr(局部 useSyncExternalStore，其主义 localforageInstance 已收录)
+Rc = TextConcatNode         # 文本拼接节点（Y.memo）：取 target 输入多节点文本，按 separator/prefix/suffix 拼成单串（@18812）
+Re = parseAspectRatio       # 解析 "W:H"/"W：H" → 宽高比数值 w/h（正则 ^(\d+)\s*[:：]\s*(\d+)$，@11846）
+So = parseGridDims          # 解析 "WxH"/"W*H"/"W×H" → {rows,cols}（限幅 1–20；与 To=GridMergeNode 配套，@7874）
+To = GridMergeNode          # 网格合并节点（Y.memo）：rows/cols/mergeMode/cellSize/aspectRatio/titlePattern/longDirection/longGap（@7906）
+
+# ── 第七批（U/V/W/X/Y/Z 大写函数系列，2026-07-19，回函数体坐实）──
+# 判定规则修正：def 体以 Y.useRef/useState/useMemo/useCallback 开头、或依赖闭包变量的裸表达式 → 组件内局部，跳过
+# 跳过（局部）：U Ue Ut Wt W(useMemo) V(局部handler) Ve Xe Ye Yr Ze Ur(null缓存) Wr(0计数)
+# 跳过（裸数字常量，语义不明，待补上下文）：Um Vc Vf Vm Vp Wm Wp Xl Xm Yl Ym Up
+V_ = CopyBlock             # 可复制代码块组件（{title,code,emptyHint}）：navigator.clipboard 复制 + 复制提示（@41160）
+Wg = useToasts             # 自定义 hook：订阅 Ug 通知，返回 {toasts,removeToast,success,error,warning,info}（@38477）
+Xr = openInTab             # async 在活动标签页打开 URL（chrome.tabs.query + qr 校验 siteUrl，@43479）
+Yc = PanoNode              # 全景图节点（Y.memo）：panoType sphere/…，getNode/setNodes 取尺寸（@19516）
+Yn = FallbackMedia         # 带降级媒体组件（{url,fallbackExt='mp4',onToast,size,className}，@102）
+Xn = DataUrlViewer         # 数据/URL 内容查看组件（function({url})：解码 data:text/ base64、加载内容，@128）
