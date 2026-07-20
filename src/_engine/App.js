@@ -31358,15 +31358,7 @@ function xg({
           };
         }
         return e;
-      })), i === `completed` && n && (Sv({
-        id: `gen-${t}-${Date.now()}`,
-        url: n,
-        type: r === `sd2Video` || r === `video` || r === `discountVideo` ? `video` : r === `image` ? `image` : r === `text` ? `text` : r,
-        source: `local-tool`,
-        folder: r === `image` || r === `video` || r === `discountVideo` || r === `sd2Video` ? `tasks` : `migrated`,
-        name: n.split(`/`).pop() || `生成结果`,
-        timestamp: Date.now()
-      }).then(() => Di.current && Di.current()).catch(e => console.error(`[resourceStore] 生成结果刷新面板失败:`, e)), console.log(`[resourceStore] 生成完成已写入资源表:`, n));
+      })), i === `completed` && n && (Ev().then(() => Di.current && Di.current()).catch(e => console.error(`[resourceStore] 生成完成触发后端 rescan 失败:`, e)), console.log(`[resourceStore] 生成完成，触发后端 rescan 统一入库:`, n));
     };
     return window.addEventListener(`mutiwindow-task-completed`, e), () => {
       window.removeEventListener(`mutiwindow-task-completed`, e);
