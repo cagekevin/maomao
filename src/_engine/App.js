@@ -33411,6 +33411,41 @@ ${_}`,
             progress: 10
           }
         } : t));
+        // === 网关轮询分支（task_ 前缀检测） ===
+        if (k.startsWith('task_')) {
+          let ac = new AbortController();
+          ht.current.set(e, ac);
+          try {
+            let deadline = Date.now() + 9e5, pollInterval = (ie || 3) * 1e3, pollCount = 0;
+            while (true) {
+              if (ac.signal.aborted) throw Error(`已取消`);
+              if (Date.now() > deadline) throw Error(`生成超时（15分钟）`);
+              let pollResp = await zc(`${_}/v1/tasks/${k}`, {
+                method: 'GET',
+                headers: { Authorization: `Bearer ${m}` },
+                localPort: H.status.isConnected ? H.status.port : undefined,
+                signal: ac.signal
+              });
+              let pollData = await pollResp.json();
+              let taskInfo = pollData.data || pollData;
+              if (z && taskInfo.progress != null) z(n => n.map(n => n.id === C || n.taskId === k ? { ...n, status: 'running', progress: taskInfo.progress } : n));
+              if (taskInfo.status === 'completed') {
+                let videoUrl = taskInfo.result?.videos?.[0]?.url?.[0];
+                if (!videoUrl) { if (taskInfo.error?.code === 'no_artifact') throw Error(taskInfo.error.message || '生成完成但未产出媒资'); throw Error('生成完成但未产出视频'); }
+                z && z(n => n.map(n => n.id === C || n.taskId === k ? { ...n, status: 'completed', progress: 100, resultUrl: videoUrl } : n));
+                W(t => t.map(t => t.id === e ? { ...t, data: { ...t.data, loading: false, progress: 100, videoUrl, errorMsg: undefined } } : t));
+                G(t => t.map(t => t.target === e ? { ...t, animated: false } : t));
+                M(`视频生成完成`);
+                return;
+              } else if (taskInfo.status === 'failed') {
+                throw Error(taskInfo.error?.message || '视频生成失败');
+              }
+              await new Promise(res => setTimeout(res, pollInterval));
+              pollCount++;
+            }
+          } finally { ht.current.delete(e); }
+        }
+        // === 原轮询路径（非网关） ===
         let A = 0,
           j = Math.ceil((ae || 600) / (ie || 3)),
           N = async () => {
@@ -34041,6 +34076,41 @@ ${_}`,
           ...e,
           taskId: k
         } : e)), M(`任务提交成功，正在生成中...`);
+        // === 网关轮询分支（task_ 前缀检测） ===
+        if (k.startsWith('task_')) {
+          let ac = new AbortController();
+          ht.current.set(e, ac);
+          try {
+            let deadline = Date.now() + 9e5, pollInterval = (ie || 3) * 1e3, pollCount = 0;
+            while (true) {
+              if (ac.signal.aborted) throw Error(`生成已取消`);
+              if (Date.now() > deadline) throw Error(`生成超时（15分钟）`);
+              let pollResp = await zc(`${g}/v1/tasks/${k}`, {
+                method: 'GET',
+                headers: { Authorization: `Bearer ${m}` },
+                localPort: H.status.isConnected ? H.status.port : undefined,
+                signal: ac.signal
+              });
+              let pollData = await pollResp.json();
+              let taskInfo = pollData.data || pollData;
+              if (z && taskInfo.progress != null) z(n => n.map(n => n.id === E || n.taskId === k ? { ...n, status: 'running', progress: taskInfo.progress } : n));
+              if (taskInfo.status === 'completed') {
+                let videoUrl = taskInfo.result?.videos?.[0]?.url?.[0];
+                if (!videoUrl) { if (taskInfo.error?.code === 'no_artifact') throw Error(taskInfo.error.message || '生成完成但未产出媒资'); throw Error('生成完成但未产出视频'); }
+                z && z(n => n.map(n => n.id === E || n.taskId === k ? { ...n, status: 'completed', progress: 100, resultUrl: videoUrl } : n));
+                W(t => t.map(t => t.id === e ? { ...t, data: { ...t.data, loading: false, progress: 100, videoUrl, errorMsg: undefined, errorMessage: undefined } } : t));
+                G(t => t.map(t => t.target === e ? { ...t, animated: false } : t));
+                M(`视频生成完成`);
+                return;
+              } else if (taskInfo.status === 'failed') {
+                throw Error(taskInfo.error?.message || '视频生成失败');
+              }
+              await new Promise(res => setTimeout(res, pollInterval));
+              pollCount++;
+            }
+          } finally { ht.current.delete(e); }
+        }
+        // === 原轮询路径（非网关） ===
         let A = false,
           j = 0,
           N = 0,
