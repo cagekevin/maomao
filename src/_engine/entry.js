@@ -1,4 +1,4 @@
-import { ENDPOINTS, DEFAULT_ENDPOINT, localEngineBase } from './config.js';
+import { ENDPOINTS, DEFAULT_ENDPOINT, localEngineBase, LOCAL_ENGINE } from './config.js';
 // 原版样式（已预编译的最终 Tailwind 输出 + 自定义样式），静态引入以确保打包进 bundle
 // 顺序：Tailwind 原子类主体 -> 组件库样式 -> App 自定义样式
 import './index-bBckPAG7.css';
@@ -9,7 +9,7 @@ import { Ar as t, Nr as n, jr as r } from "./vendor-Cr1JWW-B.js";
 var i = e(n(), 1),
   a = e(r(), 1),
   o = `active_api_endpoint`,
-  s = `18080`;
+  s = String(LOCAL_ENGINE.port);
 function c(e) {
   return (e || ``).replace(/[`\s]/g, ``).trim().replace(/\/$/, ``);
 }

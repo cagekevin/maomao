@@ -6,6 +6,7 @@ import React, { useState } from 'react';
 import { useUIStore } from './stores/uiStore';
 import { useLocalToolStatus } from './hooks/useLocalToolStatus';
 import CanvasPanel from './components/CanvasPanel';
+import { APP_VERSION } from '../_engine/config.js';
 
 // ── 图标组件（对齐原版 lucide-react 图标）──
 
@@ -231,7 +232,7 @@ export default function AppShell() {
           onClick={() => setActiveTab('canvas')}
           title="返回画布"
         >
-          <span className="text-lg font-bold text-white">一毛AI</span>
+          <span className="text-lg font-bold text-white">{APP_BRAND}</span>
         </div>
 
         {/* 中: Tab 按钮组 + 项目选择器（仅 canvas tab） */}
@@ -309,7 +310,7 @@ export default function AppShell() {
           {/* 引擎状态指示器（对齐原版 L44846-44892） */}
           <div className="absolute bottom-6 right-6 z-50 flex items-center gap-2">
             <span className="text-[10px] font-medium text-white/15 tabular-nums select-none leading-none" title="当前版本">
-              v1.3.5
+              v{APP_VERSION}
             </span>
             <div
               className={`flex items-center gap-2 rounded-full bg-[#151414] border shadow-lg transition-all ${

@@ -1,5 +1,5 @@
 import { i as e } from "./rolldown-runtime-aKtaBQYM.js";
-import { LOCAL_ENGINE, JIANYING_PORT, localEngineBase, GAS_CLOUD_SYNC_URL, AVATAR_IMAGE } from './config.js';
+import { LOCAL_ENGINE, JIANYING_PORT, localEngineBase, GAS_CLOUD_SYNC_URL, AVATAR_IMAGE, APP_BRAND, APP_VERSION, DEFAULT_GATEWAY_URL, DICEBEAR_AVATAR_BASE, DEV_DEMO_SITE } from './config.js';
 import { $ as t, $n as n, $t as r, A as i, An as a, Ar as o, At as s, B as c, Bn as l, Bt as u, C as d, Cn as f, Cr as p, Ct as m, D as h, Dn as g, Dr as _, Dt as v, E as y, En as b, Er as x, Et as S, F as C, Fn as w, Ft as T, G as E, Gn as D, Gt as O, H as k, Hn as A, Ht as j, I as M, In as N, It as P, J as F, Jn as I, Jt as L, K as ee, Kn as R, Kt as z, L as B, Ln as te, Lt as ne, M as re, Mn as ie, Mr as ae, Mt as oe, N as se, Nn as ce, Nr as le, Nt as ue, O as V, On as H, Or as U, Ot as de, P as W, Pn as fe, Pt as pe, Q as me, Qn as G, Qt as he, R as ge, Rn as _e, Rt as K, S as ve, Sn as ye, Sr as be, St as xe, T as Se, Tn as Ce, Tr as we, Tt as q, U as Te, Un as Ee, Ut as De, V as Oe, Vn as ke, Vt as Ae, W as je, Wn as Me, Wt as Ne, X as Pe, Xn as Fe, Xt as Ie, Y as Le, Yn as Re, Yt as ze, Z as Be, Zn as Ve, Zt as He, _ as Ue, _n as We, _r as Ge, _t as Ke, a as qe, an as Je, ar as Ye, at as J, b as Xe, bn as Ze, br as Qe, bt as $e, c as et, cn as tt, cr as nt, ct as rt, d as it, dn as at, dr as ot, dt as st, en as ct, er as lt, et as ut, f as dt, fn as ft, fr as pt, ft as mt, g as ht, gn as gt, gr as _t, gt as vt, h as yt, hn as bt, hr as xt, ht as St, i as Ct, in as wt, ir as Tt, it as Et, j as Dt, jn as Ot, jt as kt, k as At, kn as jt, kr as Mt, kt as Nt, l as Pt, ln as Ft, lr as It, lt as Lt, m as Rt, mn as zt, mr as Bt, mt as Vt, n as Ht, nn as Ut, nr as Wt, nt as Gt, o as Kt, on as qt, or as Jt, ot as Yt, p as Xt, pn as Zt, pr as Qt, pt as $t, q as en, qn as tn, qt as nn, r as rn, rn as an, rr as on, rt as sn, s as cn, sn as ln, sr as un, st as dn, t as fn, tn as pn, tr as mn, tt as hn, u as gn, un as _n, ur as vn, ut as yn, v as bn, vn as xn, vr as Sn, vt as Cn, w as wn, wn as Tn, wr as En, wt as Dn, x as On, xn as kn, xr as An, xt as jn, y as Mn, yn as Nn, yr as Pn, yt as Fn, z as In, zn as Ln, zt as Rn } from "./vendor-Cr1JWW-B.js";
 import { i as zn, n as Bn, r as Vn, t as Hn } from "./entry.js";
 var Y = e(le(), 1),
@@ -5355,8 +5355,22 @@ var Qa = Y.memo(({
     [I, ee] = Y.useState(false),
     [z, B] = Y.useState([]);
   Y.useEffect(() => {
-    I && Q.getObject(Z.TRANSIT_RESOURCES).then(e => {
-      e && Array.isArray(e) && e.length > 0 && B(e);
+    I && Q.getObject(Z.TRANSIT_RESOURCES).then(async e => {
+      if (e && Array.isArray(e) && e.length > 0) {
+        B(e);
+        for (const resource of e) {
+          if (resource.source === `local-tool`) continue;
+          try {
+            let localized = await Zr(resource.url, { subfolder: `migrated` });
+            if (localized && localized.url) {
+              let url = localized.url.startsWith(`http`) ? localized.url : `${Hr}${localized.url}`;
+              await Sv({ ...resource, url, folder: `migrated`, id: String(resource.id) });
+            }
+          } catch (err) {
+            console.warn(`[transit] 处理资源 ${resource.id} 失败:`, err);
+          }
+        }
+      }
     }).catch(e => {
       console.error(`Failed to fetch transitResources from storage`, e);
     });
@@ -8749,8 +8763,22 @@ var bo = [{
     Y.useEffect(() => {
       l.selectedContextResources && ce(l.selectedContextResources);
     }, [l.selectedContextResources]), Y.useEffect(() => {
-      ne && Q.getObject(Z.TRANSIT_RESOURCES).then(e => {
-        e && Array.isArray(e) && e.length > 0 && ae(e);
+      ne && Q.getObject(Z.TRANSIT_RESOURCES).then(async e => {
+        if (e && Array.isArray(e) && e.length > 0) {
+          ae(e);
+          for (const resource of e) {
+            if (resource.source === `local-tool`) continue;
+            try {
+              let localized = await Zr(resource.url, { subfolder: `migrated` });
+              if (localized && localized.url) {
+                let url = localized.url.startsWith(`http`) ? localized.url : `${Hr}${localized.url}`;
+                await Sv({ ...resource, url, folder: `migrated`, id: String(resource.id) });
+              }
+            } catch (err) {
+              console.warn(`[transit] 处理资源 ${resource.id} 失败:`, err);
+            }
+          }
+        }
       }).catch(e => {
         console.error(`Failed to fetch transitResources from storage`, e);
       });
@@ -15349,7 +15377,7 @@ var Ms = Y.memo(({
                 progress: 0,
                 createdAt: Date.now(),
                 prompt: s,
-                channelName: `一毛AI应用`,
+                channelName: `${APP_BRAND}应用`,
                 modelName: `应用 · ${d.webappName || f}`,
                 requestData: n
               }, ...r];
@@ -19109,7 +19137,7 @@ function Uc() {
         return console.log(`[useLocalTool.getKV] 📥 响应状态:`, n.status, n.statusText), n.ok ? await n.json() : (console.error(`[useLocalTool.getKV] ❌ 请求失败 HTTP 状态:`, n.status), null);
       } catch (e) {
         let t = e instanceof Error ? e.message : String(e);
-        return console.error(`[useLocalTool.getKV] ❌ fetch 异常:`, e), console.error(`[useLocalTool.getKV] ❌ 错误类型:`, e instanceof Error ? e.name : `Error`, `错误消息:`, t), (t.includes(`Failed to fetch`) || t.includes(`NetworkError`)) && console.error(`[useLocalTool.getKV] ❌ 网络错误：无法连接到 http://127.0.0.1:18080，请确保 localTool Service 正在运行`), null;
+        return console.error(`[useLocalTool.getKV] ❌ fetch 异常:`, e), console.error(`[useLocalTool.getKV] ❌ 错误类型:`, e instanceof Error ? e.name : `Error`, `错误消息:`, t), (t.includes(`Failed to fetch`) || t.includes(`NetworkError`)) && console.error(`[useLocalTool.getKV] ❌ 网络错误：无法连接到 ${LOCAL_ENGINE.base}，请确保 localTool Service 正在运行`), null;
       }
     }, [e.isConnected, e.port]),
     createFolder: Y.useCallback(async e => {
@@ -41488,7 +41516,7 @@ var B_ = ({
     });
   },
   H_ = Y.memo(B_),
-  U_ = `http://127.0.0.1:18080`,
+  U_ = LOCAL_ENGINE.base,
   W_ = [`customResultData`, `customRawResponse`, `requestData`, `responseData`, `mediaMeta`];
 function G_(e) {
   let t = {
@@ -42690,7 +42718,7 @@ function _v({
           }), X.jsxs(`li`, {
             children: [`启动 local-companion 服务（默认端口 `, X.jsx(`span`, {
               className: `text-white font-medium`,
-              children: `18080`
+              children: String(LOCAL_ENGINE.port)
             }), `）`]
           }), X.jsx(`li`, {
             children: `点击下方重试按钮重新检测连接`
@@ -42726,7 +42754,7 @@ function _v({
     })
   }) : null;
 }
-var vv = `http://127.0.0.1:18080`;
+var vv = LOCAL_ENGINE.base;
 function yv(e) {
   let t = {
     ...e
@@ -43119,7 +43147,7 @@ function Nv() {
     [et, tt] = Y.useState(null),
     [nt, rt] = Y.useState(false),
     [it, at] = Y.useState(``),
-    ot = `http://127.0.0.1:9004`,
+    ot = DEFAULT_GATEWAY_URL,
     [st, ct] = Y.useState(ot),
     [ut, dt] = Y.useState(``),
     [pt, mt] = Y.useState(ot),
@@ -43398,7 +43426,7 @@ grok-video-3`),
   let Gr = Y.useRef(En.length);
   Gr.current = En.length, Y.useEffect(() => {
     let e = typeof chrome < `u` && chrome.runtime && chrome.runtime.id;
-    b(!!e), e ? document.title = `一毛AI画布·插件端` : (Te(`canvas`), document.title = `一毛AI画布·本地端`), e && chrome.tabs.getCurrent(e => {}), Jn(r);
+    b(!!e), e ? document.title = `${APP_BRAND}画布·插件端` : (Te(`canvas`), document.title = `${APP_BRAND}画布·本地端`), e && chrome.tabs.getCurrent(e => {}), Jn(r);
     let t = setTimeout(() => {
       m(false);
     }, 2e3);
@@ -43455,8 +43483,8 @@ grok-video-3`),
             }), false;
             i = {
               ...i,
-              url: localized.url,
-              thumbnailUrl: localized.thumbnailUrl || i.thumbnailUrl
+              url: localized.url.startsWith(`http`) ? localized.url : `${Hr}${localized.url}`,
+              thumbnailUrl: localized.thumbnailUrl ? (localized.thumbnailUrl.startsWith(`http`) ? localized.thumbnailUrl : `${Hr}${localized.thumbnailUrl}`) : i.thumbnailUrl
             };
           }
           return D(e => e.find(e => e.id === i.id) ? e : [i, ...e]), G(e => e + 1), r ? void 0 : await Sv({
@@ -43941,7 +43969,7 @@ grok-video-3`),
               } : null;
             }).filter(Boolean));
           }
-          if (r.length > 0) e = r, t = `手动添加`, a ||= `https://example.com`, o = et?.favIconUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${i}`;else throw Error(`Invalid cookie format`);
+          if (r.length > 0) e = r, t = `手动添加`, a ||= `https://example.com`, o = et?.favIconUrl || `${DICEBEAR_AVATAR_BASE}${i}`;else throw Error(`Invalid cookie format`);
         } catch {
           alert(`Cookie 格式错误，请输入有效的 JSON 数组或 key=value; 格式字符串`), $e(false);
           return;
@@ -43953,10 +43981,7 @@ grok-video-3`),
           console.log(`add tab`, n), n?.url && (a = n.url, o = n.favIconUrl || `https://www.google.com/s2/favicons?domain=${new URL(n.url).hostname}&sz=64`, e = await chrome.cookies.getAll({
             url: n.url
           }), console.log(`add cookies`, e), n.title && (t = n.title.substring(0, 5)));
-        } else t = `开发测试网`, a = `http://localhost:3000`, o = `https://api.dicebear.com/7.x/avataaars/svg?seed=test`, e = [{
-          name: `test`,
-          value: `123`
-        }];
+        } else t = DEV_DEMO_SITE.name, a = DEV_DEMO_SITE.url, o = DEV_DEMO_SITE.avatar, e = DEV_DEMO_SITE.cookies;
         if (e.length === 0 && !confirm(`当前页面未检测到 Cookie，且未手动输入，确定要保存吗？`)) {
           $e(false);
           return;
@@ -43986,7 +44011,7 @@ grok-video-3`),
             name: i,
             siteName: t,
             siteUrl: a,
-            avatar: o || `https://api.dicebear.com/7.x/avataaars/svg?seed=${i}`,
+            avatar: o || `${DICEBEAR_AVATAR_BASE}${i}`,
             cookies: s
           };
           c = [...ze, e];
@@ -44521,7 +44546,7 @@ grok-video-3`),
             })
           }), X.jsx(`span`, {
             className: `text-white font-bold text-lg italic tracking-wider`,
-            children: `一毛AI`
+            children: APP_BRAND
           }), false && X.jsx(`div`, {
             className: `absolute left-0 top-full mt-2 bg-[#1a1a1a] border border-[#333] rounded-lg shadow-xl opacity-0 invisible group-hover/logo:opacity-100 group-hover/logo:visible transition-all duration-300 delay-500 z-50 overflow-hidden whitespace-nowrap p-1`,
             children: X.jsx(`button`, {
@@ -45035,7 +45060,7 @@ grok-video-3`),
                 className: `w-12 h-12 rounded-full bg-[#0d0c0c] object-contain p-0.5 border border-[#333] mb-3 pointer-events-none`,
                 draggable: `false`,
                 onError: t => {
-                  t.target.src = `https://api.dicebear.com/7.x/avataaars/svg?seed=${e.name}`;
+                  t.target.src = `${DICEBEAR_AVATAR_BASE}${e.name}`;
                 }
               }), X.jsx(`div`, {
                 className: `font-bold text-gray-200 truncate text-sm w-full text-center px-2`,
@@ -46275,11 +46300,11 @@ sora`
                 })
               }), X.jsx(`span`, {
                 className: `text-2xl font-black tracking-wider text-white italic`,
-                children: `一毛AI`
+                children: APP_BRAND
               })]
             }), X.jsx(`p`, {
               className: `text-sm text-gray-400 font-medium tracking-widest mt-1`,
-              children: `省钱就用一毛AI`
+              children: `省钱就用${APP_BRAND}`
             })]
           })
         }), X.jsx(`div`, {

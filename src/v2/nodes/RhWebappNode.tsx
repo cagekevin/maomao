@@ -72,6 +72,7 @@ import {
 import NodeTitle from './NodeTitle';
 import ResizeController from './ResizeController';
 import CustomHandle from './CustomHandle';
+import { APP_BRAND } from '../../_engine/config.js';
 
 // ====== External dependency stubs ======
 
@@ -1013,7 +1014,7 @@ function RhWebappNode({ id, data, selected }: NodeProps<RhWebappNodeData>) {
           progress: 0,
           createdAt: Date.now(),
           prompt: promptSummary,
-          channelName: '一毛AI应用',
+          channelName: `${APP_BRAND}应用`,
           modelName: `应用 · ${nodeData.webappName || webappId}`,
           requestData: requestBody
         }, ...filtered];

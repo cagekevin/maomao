@@ -5,8 +5,9 @@
  */
 
 import { useState, useEffect, useRef } from 'react';
+import { LOCAL_ENGINE } from '../../_engine/config.js';
 
-const LOCAL_ENGINE_PORT = 18080;
+const LOCAL_ENGINE_PORT = LOCAL_ENGINE.port;
 const CONNECTED_INTERVAL = 15000;
 const DISCONNECTED_INTERVAL = 5000;
 

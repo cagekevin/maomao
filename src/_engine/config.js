@@ -49,6 +49,26 @@ export const getLocalEngineBase = localEngineBase;
 // 头像图片（设置按钮左侧的圆形头像）
 export const AVATAR_IMAGE = '/logo.png';
 
+// 应用品牌名（顶部 Logo 文案、标题等）
+export const APP_BRAND = '猫猫';
+
+// 应用版本号（右下角版本标记）
+export const APP_VERSION = '1.3.5';
+
+// 默认网关地址（兜底使用，优先级低于用户选择的接入点）
+export const DEFAULT_GATEWAY_URL = DEFAULT_ENDPOINT;
+
+// 多开账号兜底头像服务（dicebear）
+export const DICEBEAR_AVATAR_BASE = 'https://api.dicebear.com/7.x/avataaars/svg?seed=';
+
+// 多开模块「开发测试网」演示站点
+export const DEV_DEMO_SITE = {
+  name: '开发测试网',
+  url: 'http://localhost:3000',
+  avatar: `${DICEBEAR_AVATAR_BASE}test`,
+  cookies: [{ name: 'test', value: '123' }],
+};
+
 // ====== GAS 云端同步地址 ======
 // 用户头像下的「推送到云端」/「从云端拉取」按钮使用的
 // Google Apps Script 部署 URL（需部署为「所有人」可访问）。

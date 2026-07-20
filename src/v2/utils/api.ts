@@ -6,6 +6,8 @@
 
 // ── 2.1 基础设施 ──
 
+import { DEFAULT_ENDPOINT, LOCAL_ENGINE } from '../../_engine/config.js';
+
 /** 统一 API 错误类型 */
 export class ApiError extends Error {
   code: string;
@@ -55,7 +57,7 @@ export function getBaseUrl(): string {
       return stored.replace(/[`\s]/g, '').trim().replace(/\/$/, '');
     }
   } catch { /* ignore */ }
-  return 'http://127.0.0.1:9004';
+  return DEFAULT_ENDPOINT;
 }
 
 /** 获取鉴权 token */
@@ -76,7 +78,7 @@ function authHeaders(headers: Record<string, string> = {}): Record<string, strin
 }
 
 /** 本地 tool 基址（固定） */
-const LOCAL_TOOL_BASE = 'http://127.0.0.1:18080';
+const LOCAL_TOOL_BASE = LOCAL_ENGINE.base;
 
 // ── 2.2 gateway 函数族（远程网关 127.0.0.1:9004）──
 
