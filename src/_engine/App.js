@@ -32954,86 +32954,12 @@ ${_}`,
               } catch {
                 throw console.error(`JSON parse error, raw response:`, e.substring(0, 500)), Error(`API 响应解析失败: ${e.substring(0, 100)}`);
               }
-              // ── [架构5步法] 深模块：终态判定收口（三处轮询共用）──
-              function resolveTerminalState(taskInfo) {
-                if (taskInfo?.error?.code === 'pending_confirmation')
-                  return { kind: 'needs_confirm', taskId: taskInfo.id };
-                if (taskInfo?.status === 'completed')
-                  return { kind: 'completed', images: taskInfo.result?.images, videos: taskInfo.result?.videos };
-                if (taskInfo?.status === 'failed')
-                  return { kind: 'failed', error: taskInfo.error };
-                return { kind: 'continue' };
-              }
-              // ── [架构5步法] 深模块：结果提取收口（首次完成 + 确认后 refetch 共用）──
-              async function extractArtifact(taskInfo, kind) {
-                let raw = kind === 'video'
-                  ? taskInfo?.result?.videos?.[0]?.url?.[0]
-                  : taskInfo?.result?.images?.[0]?.url?.[0];
-                if (!raw) return { url: undefined };
-                if (!raw.startsWith('data:')) {
-                  try {
-                    const persisted = await ii(raw, { subfolder: 'tasks', preferThumbnail: true, thumbMaxDim: 480, thumbQuality: 75 });
-                    if (persisted?.url && /^https?:\/\//i.test(persisted.url))
-                      return { url: persisted.url, thumbnailUrl: persisted.thumbnailUrl };
-                  } catch (e) { console.warn('[生图调试] ii() 持久化失败:', e); }
-                }
-                return { url: raw };
-              }
-              // ── [架构5步法] ConfirmSeam：Adapter 工厂（生产=HTTP /confirm）──
-              function makeConfirmAdapter(gatewayBase, authToken) {
-                return async (taskId) => {
-                  try {
-                    const resp = await zc(`${gatewayBase}/v1/tasks/${taskId}/confirm`, {
-                      method: 'POST',
-                      headers: { Authorization: `Bearer ${authToken}` },
-                      localPort: H.status.isConnected ? H.status.port : undefined,
-                    });
-                    const data = await resp.json().catch(() => ({}));
-                    if (data?.error) return { error: { message: data.error.message || '确认失败' } };
-                    return { status: 'confirmed' };
-                  } catch (e) {
-                    return { error: { message: e?.message || '确认请求失败' } };
-                  }
-                };
-              }
-              // ── [架构5步法] 确认触发：永不 throw ──
-              async function requestConfirm(confirmAdapter, taskId) {
-                try { return await confirmAdapter(taskId); }
-                catch (e) { return { error: { message: e?.message || '确认异常' } }; }
-              }
-              // ── [架构5步法] 节点状态：置等待确认（复用既有更新器）──
-              function markNeedsConfirm(updateNode, taskId, kind, gatewayBase, authToken) {
-                updateNode((nodes) => nodes.map((n) =>
-                  (n.id === taskId || n.taskId === taskId)
-                    ? { ...n, status: 'await_confirm', confirmTaskId: taskId, confirmKind: kind, confirmGatewayBase: gatewayBase, confirmToken: authToken }
-                    : n));
-              }
-              // ── [架构5步法] 确认后重启结果拉取（复用 extractArtifact）──
-              async function onConfirmedThenRefetch(taskInfo, kind, updateNode, confirmAdapter) {
-                const term = resolveTerminalState(taskInfo);
-                if (term.kind === 'completed') {
-                  const a = await extractArtifact(taskInfo, kind);
-                  updateNode((nodes) => nodes.map((n) =>
-                    (n.id === term.taskId || n.taskId === term.taskId)
-                      ? { ...n, status: 'completed', progress: 100, resultUrl: a.url, thumbnailUrl: a.thumbnailUrl }
-                      : n));
-                } else if (term.kind === 'failed') {
-                  updateNode((nodes) => nodes.map((n) =>
-                    (n.id === term.taskId || n.taskId === term.taskId)
-                      ? { ...n, status: 'failed', errorMsg: term.error?.message }
-                      : n));
-                } else if (term.kind === 'needs_confirm') {
-                  markNeedsConfirm(updateNode, term.taskId, kind);
-                }
-              }
               if (N) {
                 // A-C1: task_id 检测 + 分流
                 let taskId = t.data?.[0]?.task_id || t.data?.[0]?.id || t.task_id || t.id;
                 if (taskId) {
                   // === 异步轮询分支（网关 task_id） ===
                   console.log(`[生图调试] 检测到 task_id: ${taskId}，进入轮询`);
-                  // [架构5步法] 确认 Adapter（gatewayBase=R, token=h）
-                  const confirmAdapter = makeConfirmAdapter(R, h);
                   // A-C3: AbortController 重注册
                   let ac = new AbortController();
                   ht.current.set(n, ac);
@@ -33069,23 +32995,36 @@ ${_}`,
                       if (z && taskInfo.progress != null) {
                         z(e => e.map(e => e.id === r || e.taskId === r ? { ...e, status: 'running', progress: taskInfo.progress } : e));
                       }
-                      // A-C4: 终态判定（[架构5步法] 收口到 resolveTerminalState）
-                      const term = resolveTerminalState(taskInfo);
-                      if (term.kind === 'completed') {
-                        const a = await extractArtifact(taskInfo, 'image');
-                        if (!a.url) {
+                      // A-C4: 终态判定（严格按网关归一化值）
+                      if (taskInfo.status === 'completed') {
+                        // A-C5: 结果提取
+                        let result = taskInfo.result;
+                        let imgUrl = result?.images?.[0]?.url?.[0];
+                        let vidUrl = result?.videos?.[0]?.url?.[0];
+                        u = imgUrl || vidUrl;
+                        // 兜底同步 shape
+                        if (!u) {
+                          let syncItem = pollData.data?.[0] || t.data?.[0];
+                          if (syncItem?.url) u = typeof syncItem.url === 'string' ? syncItem.url : syncItem.url?.[0];
+                          else if (syncItem?.b64_json) u = `data:image/png;base64,${syncItem.b64_json}`;
+                          else if (syncItem?.image_url?.url) u = syncItem.image_url.url;
+                        }
+                        // 无结果处理
+                        if (!u) {
                           if (taskInfo.error?.code === 'no_artifact') throw Error(taskInfo.error.message || '生成完成但未产出媒资');
                           throw Error('生成完成但未产出媒资');
                         }
-                        u = a.url; f = a.thumbnailUrl;
+                        // A-C6: URL 持久化（HTTP URL 也需经过 ii()）
+                        if (u && !u.startsWith('data:')) {
+                          try {
+                            let persisted = await ii(u, { subfolder: 'tasks', preferThumbnail: true, thumbMaxDim: 480, thumbQuality: 75 });
+                            if (persisted?.url && /^https?:\/\//i.test(persisted.url)) { u = persisted.url; f = persisted.thumbnailUrl; }
+                          } catch (persistErr) { console.warn('[生图调试] ii() 持久化失败，使用原始 URL:', persistErr); }
+                        }
                         console.log(`[生图调试] 轮询成功，u = ${u.substring(0, 120)}`);
                         break;
-                      } else if (term.kind === 'failed') {
+                      } else if (taskInfo.status === 'failed') {
                         throw Error(taskInfo.error?.message || '生成失败');
-                      } else if (term.kind === 'needs_confirm') {
-                        // [架构5步法] 退出轮询，节点置等待确认
-                        markNeedsConfirm(z, term.taskId, 'image', R, h);
-                        return;
                       }
                       // pending / processing → 继续轮询
                       // A-C7: 间隔 + 429 退避
@@ -33543,8 +33482,6 @@ ${_}`,
           let ac = new AbortController();
           ht.current.set(e, ac);
           try {
-            // [架构5步法] 确认 Adapter（gatewayBase=_, token=m）
-            const confirmAdapter = makeConfirmAdapter(_, m);
             let deadline = Date.now() + 9e5, pollInterval = (ie || 3) * 1e3, pollCount = 0;
             while (true) {
               if (ac.signal.aborted) throw Error(`已取消`);
@@ -33558,20 +33495,16 @@ ${_}`,
               let pollData = await pollResp.json();
               let taskInfo = pollData.data || pollData;
               if (z && taskInfo.progress != null) z(n => n.map(n => n.id === C || n.taskId === k ? { ...n, status: 'running', progress: taskInfo.progress } : n));
-              const term = resolveTerminalState(taskInfo);
-              if (term.kind === 'completed') {
-                const a = await extractArtifact(taskInfo, 'video');
-                if (!a.url) { if (taskInfo.error?.code === 'no_artifact') throw Error(taskInfo.error.message || '生成完成但未产出媒资'); throw Error('生成完成但未产出视频'); }
-                z && z(n => n.map(n => n.id === C || n.taskId === k ? { ...n, status: 'completed', progress: 100, resultUrl: a.url, thumbnailUrl: a.thumbnailUrl } : n));
-                W(t => t.map(t => t.id === e ? { ...t, data: { ...t.data, loading: false, progress: 100, videoUrl: a.url, errorMsg: undefined } } : t));
+              if (taskInfo.status === 'completed') {
+                let videoUrl = taskInfo.result?.videos?.[0]?.url?.[0];
+                if (!videoUrl) { if (taskInfo.error?.code === 'no_artifact') throw Error(taskInfo.error.message || '生成完成但未产出媒资'); throw Error('生成完成但未产出视频'); }
+                z && z(n => n.map(n => n.id === C || n.taskId === k ? { ...n, status: 'completed', progress: 100, resultUrl: videoUrl } : n));
+                W(t => t.map(t => t.id === e ? { ...t, data: { ...t.data, loading: false, progress: 100, videoUrl, errorMsg: undefined } } : t));
                 G(t => t.map(t => t.target === e ? { ...t, animated: false } : t));
                 M(`视频生成完成`);
                 return;
-              } else if (term.kind === 'failed') {
+              } else if (taskInfo.status === 'failed') {
                 throw Error(taskInfo.error?.message || '视频生成失败');
-              } else if (term.kind === 'needs_confirm') {
-                markNeedsConfirm(z, term.taskId, 'video', _, m);
-                return;
               }
               await new Promise(res => setTimeout(res, pollInterval));
               pollCount++;
@@ -34214,8 +34147,6 @@ ${_}`,
           let ac = new AbortController();
           ht.current.set(e, ac);
           try {
-            // [架构5步法] 确认 Adapter（gatewayBase=g, token=m）
-            const confirmAdapter = makeConfirmAdapter(g, m);
             let deadline = Date.now() + 9e5, pollInterval = (ie || 3) * 1e3, pollCount = 0;
             while (true) {
               if (ac.signal.aborted) throw Error(`生成已取消`);
@@ -34229,20 +34160,16 @@ ${_}`,
               let pollData = await pollResp.json();
               let taskInfo = pollData.data || pollData;
               if (z && taskInfo.progress != null) z(n => n.map(n => n.id === E || n.taskId === k ? { ...n, status: 'running', progress: taskInfo.progress } : n));
-              const term = resolveTerminalState(taskInfo);
-              if (term.kind === 'completed') {
-                const a = await extractArtifact(taskInfo, 'video');
-                if (!a.url) { if (taskInfo.error?.code === 'no_artifact') throw Error(taskInfo.error.message || '生成完成但未产出媒资'); throw Error('生成完成但未产出视频'); }
-                z && z(n => n.map(n => n.id === E || n.taskId === k ? { ...n, status: 'completed', progress: 100, resultUrl: a.url, thumbnailUrl: a.thumbnailUrl } : n));
-                W(t => t.map(t => t.id === e ? { ...t, data: { ...t.data, loading: false, progress: 100, videoUrl: a.url, errorMsg: undefined, errorMessage: undefined } } : t));
+              if (taskInfo.status === 'completed') {
+                let videoUrl = taskInfo.result?.videos?.[0]?.url?.[0];
+                if (!videoUrl) { if (taskInfo.error?.code === 'no_artifact') throw Error(taskInfo.error.message || '生成完成但未产出媒资'); throw Error('生成完成但未产出视频'); }
+                z && z(n => n.map(n => n.id === E || n.taskId === k ? { ...n, status: 'completed', progress: 100, resultUrl: videoUrl } : n));
+                W(t => t.map(t => t.id === e ? { ...t, data: { ...t.data, loading: false, progress: 100, videoUrl, errorMsg: undefined, errorMessage: undefined } } : t));
                 G(t => t.map(t => t.target === e ? { ...t, animated: false } : t));
                 M(`视频生成完成`);
                 return;
-              } else if (term.kind === 'failed') {
+              } else if (taskInfo.status === 'failed') {
                 throw Error(taskInfo.error?.message || '视频生成失败');
-              } else if (term.kind === 'needs_confirm') {
-                markNeedsConfirm(z, term.taskId, 'video', g, m);
-                return;
               }
               await new Promise(res => setTimeout(res, pollInterval));
               pollCount++;
