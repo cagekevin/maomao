@@ -117,7 +117,19 @@ export async function handleResourcesRescan(_req: IncomingMessage, res: ServerRe
     }
   }
 
-  return json(res, { ok: true, count: added, scanned, added, skipped });
+  // 孤儿清理：库中 source='local-tool' 但磁盘上对应路径已不存在的记录删除。
+  // 否则本地删了文件夹/文件后，rescan 只新增不删除，前端仍显示陈旧条目。
+  let orphanDeleted = 0;
+  const localRows = queryAll(db, `SELECT id, folder, name, type FROM resources WHERE source = 'local-tool'`) as Array<{ id: string; folder: string; name: string; type: string }>;
+  for (const row of localRows) {
+    const diskPath = path.join(uploadDir, row.folder, row.name);
+    if (!fs.existsSync(diskPath)) {
+      run(db, `DELETE FROM resources WHERE id = ?`, [row.id]);
+      orphanDeleted++;
+    }
+  }
+
+  return json(res, { ok: true, count: added, scanned, added, skipped, orphanDeleted });
 }
 
 const SNAKE_TO_CAMEL: Record<string, string> = {

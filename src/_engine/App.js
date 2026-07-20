@@ -199,8 +199,13 @@ function Qn({
   handleCopyResource: k,
   setFullscreenResource: j,
   openResourceMenu: M,
-  setOpenResourceMenu: P
+  setOpenResourceMenu: P,
+  onRefreshList: Pt
 }) {
+  // 每次打开资源面板（active 变 true）自动 rescan 一次，清理本地已删除的孤儿文件夹
+  Y.useEffect(() => {
+    if (e && Pt) Pt();
+  }, [e]);
   if (!e) return null;
   let F = t.filter(e => !(e.type === `folder` && e.name && e.name.startsWith(`_`))),
     I = e => e.type === `audio` || e.type?.startsWith(`audio`) || /\.(flac|mp3|wav|ogg|m4a|aac|opus|wma|aiff)(\?|$)/i.test(e.url || ``),
@@ -301,9 +306,9 @@ function Qn({
             min: `2`,
             max: `8`,
             step: `1`,
-            value: c,
+            value: 10 - c,
             onChange: e => {
-              l(parseInt(e.target.value));
+              l(10 - parseInt(e.target.value));
             },
             className: `w-24 accent-white bg-gray-600 h-1.5 rounded-lg appearance-none cursor-pointer`
           }), X.jsx(`div`, {
@@ -332,6 +337,33 @@ function Qn({
             title: S.status.isConnected ? `打开本地存储目录` : `打开浏览器下载目录`,
             children: X.jsx(Me, {
               size: 16
+            })
+          }), X.jsx(`button`, {
+            onClick: () => {
+              if (!S.status.isConnected) return C(`请先连接本地引擎`);
+              // 手动刷新：rescan（清理已删孤儿）+ 按当前过滤条件刷新列表
+              Pt && Pt();
+            },
+            className: `flex items-center justify-center bg-[#2a2a2a] hover:bg-[#333] border border-[#333] rounded w-8 h-8 text-gray-300 hover:text-white transition-colors`,
+            title: `刷新资源（重新扫描本地文件夹）`,
+            children: X.jsx(`svg`, {
+              width: 16,
+              height: 16,
+              viewBox: `0 0 24 24`,
+              fill: `none`,
+              stroke: `currentColor`,
+              strokeWidth: 2,
+              strokeLinecap: `round`,
+              strokeLinejoin: `round`,
+              children: [X.jsx(`path`, {
+                d: `M3 12a9 9 0 0 1 15-6.7L21 8`
+              }), X.jsx(`path`, {
+                d: `M21 3v5h-5`
+              }), X.jsx(`path`, {
+                d: `M21 12a9 9 0 0 1-15 6.7L3 16`
+              }), X.jsx(`path`, {
+                d: `M3 21v-5h5`
+              })]
             })
           })]
         })
@@ -42821,7 +42853,7 @@ function jv({
     children: t
   });
 }
-var Mv = `data:image/svg+xml;utf8,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20width%3D'80'%20height%3D'80'%20viewBox%3D'0%200%2080%2080'%3E%3Crect%20width%3D'80'%20height%3D'80'%20fill%3D'%232f3a4a'%2F%3E%3Ccircle%20cx%3D'40'%20cy%3D'31'%20r%3D'15'%20fill%3D'%23cbd5e1'%2F%3E%3Cpath%20d%3D'M14%2070c0-15%2012-24%2026-24s26%209%2026%2024z'%20fill%3D'%23cbd5e1'%2F%3E%3C%2Fsvg%3E`;
+var Mv = `data:image/svg+xml;utf8,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20width%3D'80'%20height%3D'80'%20viewBox%3D'0%200%2080%2080'%3E%3Crect%20width%3D'80'%20height%3D'80'%20rx%3D'40'%20fill%3D'%232f3a4a'%2F%3E%3Cellipse%20cx%3D'40'%20cy%3D'44'%20rx%3D'34'%20ry%3D'30'%20fill%3D'%23f59e0b'%2F%3E%3Cpolygon%20points%3D'10%2C26%2022%2C4%2034%2C20'%20fill%3D'%23f59e0b'%2F%3E%3Cpolygon%20points%3D'70%2C26%2058%2C4%2046%2C20'%20fill%3D'%23f59e0b'%2F%3E%3Cpolygon%20points%3D'16%2C24%2022%2C10%2030%2C21'%20fill%3D'%23fbbf24'%2F%3E%3Cpolygon%20points%3D'64%2C24%2058%2C10%2050%2C21'%20fill%3D'%23fbbf24'%2F%3E%3Ccircle%20cx%3D'28'%20cy%3D'42'%20r%3D'9'%20fill%3D'%231a1a2e'%2F%3E%3Ccircle%20cx%3D'52'%20cy%3D'42'%20r%3D'9'%20fill%3D'%231a1a2e'%2F%3E%3Ccircle%20cx%3D'31'%20cy%3D'39'%20r%3D'3.5'%20fill%3D'%23fff'%2F%3E%3Ccircle%20cx%3D'55'%20cy%3D'39'%20r%3D'3.5'%20fill%3D'%23fff'%2F%3E%3Cpolygon%20points%3D'40%2C52%2036%2C57%2044%2C57'%20fill%3D'%23e87d7d'%2F%3E%3Cpath%20d%3D'M32%2060%20Q40%2067%2048%2060'%20stroke%3D'%231a1a2e'%20stroke-width%3D'2'%20fill%3D'none'%2F%3E%3Cline%20x1%3D'40'%20y1%3D'57'%20x2%3D'40'%20y2%3D'64'%20stroke%3D'%231a1a2e'%20stroke-width%3D'2'%2F%3E%3C%2Fsvg%3E`;
 function Nv() {
   let {
       toasts: e,
@@ -44772,8 +44804,8 @@ grok-video-3`),
               })
             })]
           })]
-        }), X.jsx(`button`, {
-          onClick: () => Te(`settings`),
+        }),         X.jsx(`button`, {
+          onClick: () => { Te(`settings`), De(`models`); },
           className: `relative text-gray-400 hover:text-white transition-colors p-2 rounded-full hover:bg-[#252525] ${q === `settings` ? `bg-[#252525] text-white` : ``}`,
           title: `设置`,
           children: X.jsx(P, {
@@ -45098,7 +45130,10 @@ grok-video-3`),
         handleCopyResource: vi,
         setFullscreenResource: C,
         openResourceMenu: w,
-        setOpenResourceMenu: T
+        setOpenResourceMenu: T,
+        onRefreshList: () => {
+          Oi(true), xe(1);
+        }
       }), X.jsxs(`div`, {
         className: `absolute inset-0 w-full h-full bg-[#0d0c0c] flex flex-col ${q === `canvas` ? `visible z-10` : `invisible -z-10`}`,
         children: [X.jsxs(`div`, {
