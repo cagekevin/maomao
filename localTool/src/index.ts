@@ -18,7 +18,7 @@ import { handleTasksGet, handleTasksSave, handleTasksBatchSave, handleTasksDelet
 import { handleResourcesGet, handleResourcesSave, handleResourcesBatchSave, handleResourcesDelete, handleResourcesClear, handleResourcesRescan } from './routes/resources.js';
 import { handleStatus, handleProxy, handleJianyingSend } from './routes/system.js';
 
-const PORT = 18080;
+const PORT = Number(process.env.PORT) || 18080;
 const VERSION = '2.0.0-yimao-clone';
 
 // ── 端口冲突检测 ──

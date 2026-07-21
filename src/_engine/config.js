@@ -73,3 +73,18 @@ export const DEV_DEMO_SITE = {
 // 用户头像下的「推送到云端」/「从云端拉取」按钮使用的
 // Google Apps Script 部署 URL（需部署为「所有人」可访问）。
 export const GAS_CLOUD_SYNC_URL = "https://script.google.com/macros/s/AKfycbwI6PvC1v8Bv1E-0aKGx1PQ3AIH5SIUUKjTeDHtq5UxxF3qFFHj8DCr1QvflPDqFdI5/exec";
+
+// ====== 默认模型（集中配置） ======
+// 本地模式单人使用：默认走网关(:9004) → Lovart。
+// 改这里即可全局调整默认模型，无需动 App.js。
+export const DEFAULT_MODELS = {
+  // 聊天/文本模型
+  text: 'lovart-chat',
+  // 生图模型（OpenAI 格式 → 网关 → Lovart）
+  drawing: 'gpt-image-2-low',
+  // 视频模型（→ 网关 → Lovart）
+  video: 'seedance-2-fast',
+};
+
+// 本地模式：单人自用，不依赖云端权益校验，放行所有模型选择（去掉禁止符号）
+export const LOCAL_MODE_ALLOW_ALL = true;

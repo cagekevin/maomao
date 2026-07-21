@@ -1,5 +1,5 @@
 import { i as e } from "./rolldown-runtime-aKtaBQYM.js";
-import { LOCAL_ENGINE, JIANYING_PORT, localEngineBase, GAS_CLOUD_SYNC_URL, AVATAR_IMAGE, APP_BRAND, APP_VERSION, DEFAULT_GATEWAY_URL, DICEBEAR_AVATAR_BASE, DEV_DEMO_SITE } from './config.js';
+import { LOCAL_ENGINE, JIANYING_PORT, localEngineBase, GAS_CLOUD_SYNC_URL, AVATAR_IMAGE, APP_BRAND, APP_VERSION, DEFAULT_GATEWAY_URL, DICEBEAR_AVATAR_BASE, DEV_DEMO_SITE, DEFAULT_MODELS, LOCAL_MODE_ALLOW_ALL } from './config.js';
 import { $ as t, $n as n, $t as r, A as i, An as a, Ar as o, At as s, B as c, Bn as l, Bt as u, C as d, Cn as f, Cr as p, Ct as m, D as h, Dn as g, Dr as _, Dt as v, E as y, En as b, Er as x, Et as S, F as C, Fn as w, Ft as T, G as E, Gn as D, Gt as O, H as k, Hn as A, Ht as j, I as M, In as N, It as P, J as F, Jn as I, Jt as L, K as ee, Kn as R, Kt as z, L as B, Ln as te, Lt as ne, M as re, Mn as ie, Mr as ae, Mt as oe, N as se, Nn as ce, Nr as le, Nt as ue, O as V, On as H, Or as U, Ot as de, P as W, Pn as fe, Pt as pe, Q as me, Qn as G, Qt as he, R as ge, Rn as _e, Rt as K, S as ve, Sn as ye, Sr as be, St as xe, T as Se, Tn as Ce, Tr as we, Tt as q, U as Te, Un as Ee, Ut as De, V as Oe, Vn as ke, Vt as Ae, W as je, Wn as Me, Wt as Ne, X as Pe, Xn as Fe, Xt as Ie, Y as Le, Yn as Re, Yt as ze, Z as Be, Zn as Ve, Zt as He, _ as Ue, _n as We, _r as Ge, _t as Ke, a as qe, an as Je, ar as Ye, at as J, b as Xe, bn as Ze, br as Qe, bt as $e, c as et, cn as tt, cr as nt, ct as rt, d as it, dn as at, dr as ot, dt as st, en as ct, er as lt, et as ut, f as dt, fn as ft, fr as pt, ft as mt, g as ht, gn as gt, gr as _t, gt as vt, h as yt, hn as bt, hr as xt, ht as St, i as Ct, in as wt, ir as Tt, it as Et, j as Dt, jn as Ot, jt as kt, k as At, kn as jt, kr as Mt, kt as Nt, l as Pt, ln as Ft, lr as It, lt as Lt, m as Rt, mn as zt, mr as Bt, mt as Vt, n as Ht, nn as Ut, nr as Wt, nt as Gt, o as Kt, on as qt, or as Jt, ot as Yt, p as Xt, pn as Zt, pr as Qt, pt as $t, q as en, qn as tn, qt as nn, r as rn, rn as an, rr as on, rt as sn, s as cn, sn as ln, sr as un, st as dn, t as fn, tn as pn, tr as mn, tt as hn, u as gn, un as _n, ur as vn, ut as yn, v as bn, vn as xn, vr as Sn, vt as Cn, w as wn, wn as Tn, wr as En, wt as Dn, x as On, xn as kn, xr as An, xt as jn, y as Mn, yn as Nn, yr as Pn, yt as Fn, z as In, zn as Ln, zt as Rn } from "./vendor-Cr1JWW-B.js";
 import { i as zn, n as Bn, r as Vn, t as Hn } from "./entry.js";
 var Y = e(le(), 1),
@@ -3138,6 +3138,7 @@ var _i = ({
     video: []
   },
   bi = null,
+  LOCAL_MODE_ALLOW_ALL_MODELS = LOCAL_MODE_ALLOW_ALL,
   xi = [],
   Si = null,
   Ci = null,
@@ -3157,6 +3158,10 @@ function Oi() {
 function ki(e) {
   let t = (e || ``).trim();
   if (!t) return null;
+  // 本地模式：不依赖云端权益校验，放行所有模型选择
+  if (LOCAL_MODE_ALLOW_ALL_MODELS) return {
+    access: `allowed`
+  };
   let n = bi?.entitlements?.[t];
   if (n) return n;
   if (xi.length > 0) {
@@ -3180,7 +3185,7 @@ function Ai(e) {
 }
 async function ji(e, t, n = false) {
   if (!t || t === `local-mode-token`) {
-    xi = [], bi && (bi.entitlements = undefined), Di();
+    xi = [], bi && (bi.entitlements = undefined), LOCAL_MODE_ALLOW_ALL_MODELS = LOCAL_MODE_ALLOW_ALL, Di();
     return;
   }
   if (Ci && !n) return Ci;
@@ -3226,7 +3231,7 @@ async function ji(e, t, n = false) {
   })(), await Ci, n && (Ci = null);
 }
 function Mi() {
-  xi = [], bi && (bi.entitlements = undefined), Di();
+  xi = [], bi && (bi.entitlements = undefined), LOCAL_MODE_ALLOW_ALL_MODELS = true, Di();
 }
 function Ni(e) {
   return xi.length > 0 ? xi.filter(t => {
@@ -31285,9 +31290,9 @@ function xg({
   aiAppApiKey: y,
   audioApiUrl: b,
   audioApiKey: x,
-  textModel: C = `gpt-3.5-turbo`,
-  drawingModel: w = `gemini-3.1-flash-image-preview`,
-  videoModel: T = `grok-video-3-pro`,
+  textModel: C = DEFAULT_MODELS.text,
+  drawingModel: w = DEFAULT_MODELS.drawing,
+  videoModel: T = DEFAULT_MODELS.video,
   sd2VideoModel: E = `seed-2`,
   discountVideoModel: D = `seedance_2_fast`,
   videoDurations: O = `10
@@ -32588,9 +32593,9 @@ function xg({
           T = S?.data?.aspectRatio || `Auto`,
           E = S?.data?.imageSize || `1K`,
           D = w ? w.split(`
-`)[0].trim() : `gemini-3.1-flash-image-preview`,
+`)[0].trim() : `gpt-image-2-low`,
           O = w ? w.split(`
-`).map(e => e.trim()).filter(Boolean) : [`gemini-3.1-flash-image-preview`],
+`).map(e => e.trim()).filter(Boolean) : [`gpt-image-2-low`],
           k = s && O.includes(s) ? s : D,
           A = k.toLowerCase(),
           j = A.includes(`banana`) || A.includes(`gemini`) || A.includes(`香蕉`) || A.includes(`芭蕉`),
@@ -43218,8 +43223,7 @@ function Nv() {
 gemini-3-pro`),
     [yt, bt] = Y.useState(ot),
     [xt, St] = Y.useState(``),
-    [Ct, wt] = Y.useState(`gemini-3.1-flash-image-preview
-gemini-3-pro-image-preview`),
+    [Ct, wt] = Y.useState(`gpt-image-2-low`),
     [Tt, Et] = Y.useState(ot),
     [Dt, At] = Y.useState(``),
     [jt, Mt] = Y.useState(`grok-video-3-pro

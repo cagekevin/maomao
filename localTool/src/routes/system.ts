@@ -7,7 +7,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { json, parseJsonBody, readRawBody, sendError } from '../utils/helpers.js';
 
 const VERSION = '2.0.0-yimao-clone';
-const PORT = 18080;
+const PORT = Number(process.env.PORT) || 18080;
 
 // ── GET /api/status ──
 export async function handleStatus(_req: IncomingMessage, res: ServerResponse): Promise<void> {

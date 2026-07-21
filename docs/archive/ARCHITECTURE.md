@@ -1,3 +1,5 @@
+> ⚠️ 本文为旧版架构描述，已迁移至 docs/02-architecture.md（理解文档主文件，含交叉验证实锤事实）；对外能力接口请看 docs/06-integration.md。旧版保留仅供追溯。
+
 # 一毛AI画布 · 架构参考（AI 友好版）
 
 > 合并自 `AI_REFERENCE.md` + `DATA_FLOW_ARCHITECTURE.md`(27 张图，已去) + `FILE_SYSTEM_AUDIT.md`，并补全代码库结构化事实。
@@ -46,7 +48,7 @@
 - **总线范围**：`window` CustomEvent **仅在前端进程内**跨模块通信（前端↔localTool/网关之间靠 HTTP 请求/响应，无直接事件总线）。
 
 ## G4. 关键数据流（一句话版）
-1. **AI 生成**：前端 `Jn()` → 网关 `/v1/.../generations` → Lovart 异步任务 → 前端轮询 → 下载落盘 `uploads/tasks/` → 事件总线刷新资源。
+1. **AI 生成**：前端 组件内 `Jn()`(L32490，局部变量，遮蔽模块级 `Jn`=LogoIcon@L89) → 网关 `/v1/.../generations` → Lovart 异步任务 → 前端轮询 → 下载落盘 `uploads/tasks/` → 事件总线刷新资源。
 2. **资源采集**：`background.ts` 右键采集 → `chrome.storage` + `resourceAdded` 事件 → 前端下载 `uploads/migrated/` → 入库。
 3. **画布持久化**：ReactFlow `onChange` → `canvas-state-change` → localforage。
 4. **同步**：统一同步 effect 遍历 `globalTasks` → 未本地化则 uploadFile → 事件总线 rescan。
@@ -124,7 +126,7 @@ maomao/
 ### L1.3 AI 生成编排（App.js）
 | 函数 | 行号 | 作用 |
 |------|------|------|
-| `Jn` | ~L32731 | 生图/生视频/生音频 主回调（N 分支走网关异步轮询） |
+| `Jn`(模块级 L89)=`LogoIcon` 品牌图标；生图主回调是组件内局部 `let Jn = Y.useCallback(...)`(L32490)，遮蔽模块级 `Jn` | L32490（局部）| 生图/生视频/生音频 主回调（N 分支走网关异步轮询）；引用须带 L32490，不能只写 `Jn` |
 | 生图轮询 | L32910 | 轮询 `GET /v1/tasks/{id}`（≥3s，退避 15s，15min deadline） |
 | 统一同步 effect | L44246 | 遍历 `globalTasks`，未本地化则 `uploadFile()` |
 | `Oa` | L3511 | 登录/鉴权（本地模式永远返回本地 token） |
@@ -134,11 +136,11 @@ maomao/
 |------|------|------|------|
 | `Q`(管理器) | ~L1260 | `get/set/setObject/getObject/syncToLocalTool` | 后端 `wr`/`Mr`/`Nr`/`Pr` |
 | `xv` | L42742 | 查询资源列表 | GET /api/resources |
-| `Sv` | L42759 | 保存资源(upsert) | POST /api/resources/save |
+| `Sv`(大写) | L42838 | 保存资源 upsert（POST /api/resources/save）；⚠️ ≠ 小写 `sv`=nodeCallbackFieldSet(L42002) | POST /api/resources/save |
 | `Cv` | L42772 | 切换收藏 | Sv({...isFavorite}) |
-| `wv` | L42778 | 删除资源 | POST /api/resources/delete |
-| `Ev` | L42804 | rescan（扫磁盘→resources 表） | POST /api/resources/rescan |
-| `we` | L42936 | 加载资源(rescan+查询) | Ev()→xv() |
+| `wv` | L42857 | 删除资源（只删 DB，不删磁盘，TASKS P2） | POST /api/resources/delete |
+| `Ev` | L42883 | rescan（扫磁盘→resources 表） | POST /api/resources/rescan |
+| `we` | L4176(模块级) / L43015(组件内) | 加载资源(rescan+查询)；同名双定义，引用带行号 | Ev()→xv() |
 | `Oi` | L44322 | "同步到本地" | we() 刷新 |
 | `ei` / `ti` | ~L43760 | GAS 云同步 push / pull | config.GAS_CLOUD_SYNC_URL |
 
@@ -208,11 +210,11 @@ resources(id TEXT PK, url TEXT, type TEXT, source, folder, name, page_url, page_
 **写入入口（7 个）**
 | # | 入口 | 落盘位置 | App.js 行号 | 说明 |
 |---|------|---------|------------|------|
-| 1 | 右键"发送到资源" | `uploads/migrated/` | L43436–L43467 | Zr()→POST /api/files/upload；元数据 Sv() 入库 |
-| 2 | AI 生成结果 | `uploads/tasks/` | L44287 | 统一同步 effect → uploadFile()→Xr()/Zr() |
+| 1 | 右键"发送到资源" | `uploads/migrated/` | L43436–L43467 | ii()(L1888)→POST /api/files/upload；元数据 Sv()(L42838) 入库（注：原记 `Zr()` 误，`Zr`=注销@L43893） |
+| 2 | AI 生成结果 | `uploads/tasks/` | L44287 | 统一同步 effect → uploadFile()→ii()(L1888)（注：原记 `Xr()/Zr()` 误，`Xr`=openInTab@L1802） |
 | 3 | 画布拖入文件 | `uploads/canvas/drop/` | L36285 | ii({subfolder:'canvas/drop'})→POST /api/files/upload |
 | 4 | 剪贴板粘贴 | `uploads/canvas/paste/` | L36003 | ii({subfolder:'canvas/paste'}) |
-| 5 | 资源面板文件上传 | `uploads/canvas/` | L29165–L29166 | R(files)→ii()→Xr() |
+| 5 | 资源面板文件上传 | `uploads/canvas/` | L29165–L29166 | R(files)→ii()(L1888)（注：原记 `→Xr()` 误） |
 | 6 | 资源面板 URL 拖入 | **不落盘** | L29176 | 只存 URL 到状态，刷新后丢失 |
 | 7 | 剪映素材发送 | 占位 | localTool | POST /api/jianying/send 只记日志，不发送 |
 
@@ -334,7 +336,7 @@ resources(id TEXT PK, url TEXT, type TEXT, source, folder, name, page_url, page_
 ## X1. 跨层数据流（端到端，带边界）
 ### X1.1 AI 生成（前端 ↔ 网关 ↔ Lovart ↔ localTool）
 ```
-Jn()(App L32731)
+Jn()(组件内, App L32490；模块级 Jn@L89=LogoIcon)
   → POST /v1/images|videos/generations (网关 L591/L641)
   → LovartClient 创建异步任务 → task_id
   → 前端轮询 GET /v1/tasks/{id} (网关 L873, ≥3s/退避15s/15min)
@@ -350,7 +352,7 @@ Jn()(App L32731)
 background.ts handleSaveToTransit()
   → chrome.storage.local.set('transitResources') (≤5)
   → sendMessage({action:'resourceAdded'})
-  → 前端 onMessage (App L43436) → 追加 transitItems(内存) + Zr() 下载 → uploads/migrated/
+  → 前端 onMessage (App L43436) → 追加 transitItems(内存) + ii()(L1888) 落盘 → uploads/migrated/
   → Sv() POST /api/resources/save 入库
 ```
 > 已知限制：只存元数据 URL，不下载文件（P1，见 TASKS）。
@@ -385,7 +387,7 @@ onDrop (App L36215)
 1. **双数据源**：`transitItems`(内存易失) vs `resources`(持久) — "素材"Tab 显示 resources。
 2. **资源 ID 冲突**：`resourceAdded` 用 `Date.now()`；rescan 用 `local-{folder}-{name}` — 同一文件可能两条记录。
 3. **base URL 不一致**：`Hr=localEngineBase()`(可能 9004) vs `vv=LOCAL_ENGINE.base`(固定 18080) — `USE_LOCAL_ENGINE=false` 时文件走 9004 无上传路由失败。
-4. **rescan URL 格式**：rescan 补全绝对路径；Zr() 返回相对路径 — 相对路径在 `chrome-extension://` 下破图（已 `d5d48dd` 修复，host 硬编码 18080 待改）。
+4. **rescan URL 格式**：rescan 补全绝对路径；ii()(L1888)/uploadFile 返回相对路径 — 相对路径在 `chrome-extension://` 下破图（已 `d5d48dd` 修复，host 硬编码 18080 待改）。（注：原记 `Zr()` 误，`Zr`=注销@L43893）
 5. **缩略图路径**：`/files/{sub}/{subfolder}/.thumbnails/thumb_*` → `uploads/{sub}/.thumbnails/` ✅；rescan 跳过 `.thumbnails` ✅。
 
 ## X4. 跨层错误处理层级
@@ -422,7 +424,7 @@ onDrop (App L36215)
 | 资源读取 xv() | App.js | L42742 |
 | 资源保存 Sv() | App.js | L42759 |
 | 右键采集 | App.js | L43436 |
-| 生图主回调 Jn | App.js | ~L32731 |
+| 生图主回调(组件内 Jn) | App.js | L32490 |
 | 生图轮询 | App.js | L32910 |
 | 存储管理器 Q | App.js | L1260 |
 | GAS 云同步 | App.js | L43760 |

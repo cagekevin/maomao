@@ -1,3 +1,5 @@
+> ⚠️ 本文为旧版任务/审计计划，审计结论已汇总至 docs/AI13/交叉验证最终报告.md；理解文档见 docs/02-architecture.md，对外能力接口见 docs/06-integration.md。旧版保留仅供追溯。
+
 # 一毛AI画布 · 任务板（Bug + 修复清单 + 排查）
 
 > 从 `ARCHITECTURE.md` 拆出的可行动任务集合：已知 Bug 风险（P0–P2）、对应修复清单、以及专项排查建议。
@@ -17,7 +19,7 @@
 
 ### P2 — 逻辑/设计缺陷
 5. ResourceAdded base URL 不一致（见交叉点 3，仅 `USE_LOCAL_ENGINE=false` 触发）
-6. **资源删除不删磁盘文件**: `wv()`(L42778) 只删 DB，长期产生孤儿文件
+6. **资源删除不删磁盘文件**: `wv()`(L42857) 只删 DB，长期产生孤儿文件
 7. **Rescan 孤儿清理只清 source='local-tool'**: source='extension' 记录不被清理
 8. **缩略图伪复制**: 仅 copyFileSync，文件名 `thumb_{maxDim}x{quality}_` 有误导性
 
@@ -31,9 +33,9 @@
 | 优先级 | 问题 | 修复方案 | 涉及文件 |
 |--------|------|---------|---------|
 | P0 | URL 格式不统一破图 | Sv() 保存前 `toAbsoluteFileUrl(i.url)` | App.js L43462 |
-| P1 | 拖入 URL 不落盘 | 拖入 URL 时调 Zr() 下载或提示 | App.js L29176 |
+| P1 | 拖入 URL 不落盘 | 拖入 URL 时调 ii()(L1888) 下载落盘或提示 | App.js L29176 |
 | P1 | 文件上传不入库 | R(files) 成功后调 we()/Sv() | App.js L29133 |
-| P2 | 删除不删磁盘 | wv() 加 deleteFiles 参数可选联动 | App.js L42778 |
+| P2 | 删除不删磁盘 | wv() 加 deleteFiles 参数可选联动 | App.js L42857 |
 | P2 | 缩略图伪复制 | 接入 sharp 做真实缩放 | localTool files.ts L136 |
 | P2 | 统一 base URL | Hr 和 vv 用同一配置源 | App.js L1732/L42729 |
 
