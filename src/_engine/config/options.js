@@ -396,42 +396,6 @@ var Zs = [{
     value: 512
 }];
 
-var yc = [{
-  mode: `mosaic`,
-  label: `马赛克`,
-  icon: oe
-}, {
-  mode: `bar`,
-  label: `黑条`,
-  icon: at
-}, {
-  mode: `grid`,
-  label: `网格`,
-  icon: _e
-}, {
-  mode: `blur`,
-  label: `模糊`,
-  icon: $t
-}];
-
-var xc = [{
-  mode: `mosaic`,
-  label: `马赛克`,
-  icon: oe
-}, {
-  mode: `bar`,
-  label: `黑条`,
-  icon: at
-}, {
-  mode: `grid`,
-  label: `网格`,
-  icon: _e
-}, {
-  mode: `blur`,
-  label: `模糊`,
-  icon: $t
-}];
-
 var yp = [{
   id: `auto`,
   label: `自动`,
@@ -488,4 +452,4 @@ var fm = [{
     directoryName: ``
 }];
 
-export { mi, Ua, to, bo, ko, is, zs, Zs, yc, xc, yp, fm };
+export { mi, Ua, to, bo, ko, is, zs, Zs, yp, fm };
