@@ -2,104 +2,33 @@ import { i as e } from "./rolldown-runtime-aKtaBQYM.js";
 import { LOCAL_ENGINE, JIANYING_PORT, localEngineBase, GAS_CLOUD_SYNC_URL, AVATAR_IMAGE, APP_BRAND, APP_VERSION, DEFAULT_GATEWAY_URL, DICEBEAR_AVATAR_BASE, DEV_DEMO_SITE, DEFAULT_MODELS, LOCAL_MODE_ALLOW_ALL } from './config.js';
 import { $ as t, $n as n, $t as r, A as i, An as a, Ar as o, At as s, B as c, Bn as l, Bt as u, C as d, Cn as f, Cr as p, Ct as m, D as h, Dn as g, Dr as _, Dt as v, E as y, En as b, Er as x, Et as S, F as C, Fn as w, Ft as T, G as E, Gn as D, Gt as O, H as k, Hn as A, Ht as j, I as M, In as N, It as P, J as F, Jn as I, Jt as L, K as ee, Kn as R, Kt as z, L as B, Ln as te, Lt as ne, M as re, Mn as ie, Mr as ae, Mt as oe, N as se, Nn as ce, Nr as le, Nt as ue, O as V, On as H, Or as U, Ot as de, P as W, Pn as fe, Pt as pe, Q as me, Qn as G, Qt as he, R as ge, Rn as _e, Rt as K, S as ve, Sn as ye, Sr as be, St as xe, T as Se, Tn as Ce, Tr as we, Tt as q, U as Te, Un as Ee, Ut as De, V as Oe, Vn as ke, Vt as Ae, W as je, Wn as Me, Wt as Ne, X as Pe, Xn as Fe, Xt as Ie, Y as Le, Yn as Re, Yt as ze, Z as Be, Zn as Ve, Zt as He, _ as Ue, _n as We, _r as Ge, _t as Ke, a as qe, an as Je, ar as Ye, at as J, b as Xe, bn as Ze, br as Qe, bt as $e, c as et, cn as tt, cr as nt, ct as rt, d as it, dn as at, dr as ot, dt as st, en as ct, er as lt, et as ut, f as dt, fn as ft, fr as pt, ft as mt, g as ht, gn as gt, gr as _t, gt as vt, h as yt, hn as bt, hr as xt, ht as St, i as Ct, in as wt, ir as Tt, it as Et, j as Dt, jn as Ot, jt as kt, k as At, kn as jt, kr as Mt, kt as Nt, l as Pt, ln as Ft, lr as It, lt as Lt, m as Rt, mn as zt, mr as Bt, mt as Vt, n as Ht, nn as Ut, nr as Wt, nt as Gt, o as Kt, on as qt, or as Jt, ot as Yt, p as Xt, pn as Zt, pr as Qt, pt as $t, q as en, qn as tn, qt as nn, r as rn, rn as an, rr as on, rt as sn, s as cn, sn as ln, sr as un, st as dn, t as fn, tn as pn, tr as mn, tt as hn, u as gn, un as _n, ur as vn, ut as yn, v as bn, vn as xn, vr as Sn, vt as Cn, w as wn, wn as Tn, wr as En, wt as Dn, x as On, xn as kn, xr as An, xt as jn, y as Mn, yn as Nn, yr as Pn, yt as Fn, z as In, zn as Ln, zt as Rn } from "./vendor-Cr1JWW-B.js";
 import { i as zn, n as Bn, r as Vn, t as Hn } from "./entry.js";
+import { Z } from './config/storageKeys.js';
+import { Wn, Zn, or, hr, Rr, Hr, ta, Ca, Va, Jo, ds, Bc, Mp, Fp, Dh, ig, d_, nv, vv, Dv } from './config/constants.js';
+import { mi, Ua, to, bo, ko, is, zs, Zs, yc, xc, yp, fm } from './config/options.js';
+import { qr, Jr, Yr, Js, Ys } from './utils/fileUtils.js';
+import { Zi, uu, pu } from './utils/helpers.js';
+import { Ks, qs, $a } from './utils/canvasUtils.js';
+import { Sr, Cr, wr, Tr, Er, Dr, Or, kr, Ar, jr, Mr, Nr, Pr, Q } from './utils/storage/index.js';
+import { Gn, Kn, qn } from './services/jianying.js';
+import { Vr, Ur, Wr, Gr, Kr, Xr, Zr, Qr, $r, ei, ti, ni, ri, ii, ai } from './services/localTool.js';
+import {
+  $n, er, tr, nr, rr, ir, ar, sr, cr,
+  yi, bi, LOCAL_MODE_ALLOW_ALL_MODELS, xi, Si, Ci, wi, Ti, Ei,
+  Di, Oi, ki, Ai, ji, Mi, Ni, Pi, Fi, Ii, Li, Ri, zi, Bi, Vi, Hi, Ui, Wi, Gi, Ki, qi, Ji, Yi, Xi, Qi, $i, ea,
+  na, ra, ia, aa, oa, sa, ca, la, ua, da, fa, pa, ma, ha, ga, _a, va, ya, ba, xa, Sa,
+  wa, Ta, Ea, Da, Oa, ka, Aa, ja, Ma, Na, Pa, Fa, Ia, La, Ra, za, Ba, Ha, Wa, Ga, Ka,
+  y_, O_, k_, A_, j_
+} from './services/modelApi.js';
+import { lr, ur, dr, fr, pr, mr } from './contexts/EditorContext.js';
+import { Jn } from './components/common/LogoIcon.js';
+import { Tf } from './components/common/ErrorBoundary.js';
+import { gi } from './components/common/ResizableTextarea.js';
+import { Fh } from './components/common/LazyImage.js';
+import { Hg } from './components/common/ToastContainer.js';
+import { Bg } from './components/panels/ImportExportPanel.js';
 var Y = e(le(), 1),
-  Un = ae(),
-  Wn = JIANYING_PORT;
-async function Gn(e) {
-  if (!e.fileUrl && !e.localPath) return {
-    ok: false,
-    message: `没有可发送的素材`
-  };
-  try {
-    let t = await fetch(`http://127.0.0.1:${Wn}/api/jianying/send`, {
-        method: `POST`,
-        headers: {
-          "Content-Type": `application/json`
-        },
-        body: JSON.stringify({
-          fileUrl: e.fileUrl || ``,
-          localPath: e.localPath || ``,
-          fileName: e.fileName || ``
-        })
-      }),
-      n = await t.json().catch(() => ({}));
-    return t.ok && n.status === `ok` ? {
-      ok: true,
-      message: n.message || `已发送到剪映`
-    } : {
-      ok: false,
-      message: n.error || `发送失败 (HTTP ${t.status})`
-    };
-  } catch (e) {
-    let t = String(e?.message || e);
-    return t.includes(`Failed to fetch`) || t.includes(`NetworkError`) ? {
-      ok: false,
-      message: `无法连接本地引擎，请确认引擎已启动`
-    } : {
-      ok: false,
-      message: t
-    };
-  }
-}
-function Kn(e, t = `mp4`) {
-  try {
-    let n = e.split(`?`)[0],
-      r = n.substring(n.lastIndexOf(`/`) + 1);
-    return r && r.includes(`.`) ? r : `clip_${Date.now()}.${t}`;
-  } catch {
-    return `clip_${Date.now()}.${t}`;
-  }
-}
-async function qn(e) {
-  let t = e.filter(e => e.fileUrl || e.localPath);
-  if (t.length === 0) return {
-    ok: false,
-    message: `没有可发送的素材`
-  };
-  try {
-    let e = await fetch(`http://127.0.0.1:${Wn}/api/jianying/send`, {
-        method: `POST`,
-        headers: {
-          "Content-Type": `application/json`
-        },
-        body: JSON.stringify({
-          items: t
-        })
-      }),
-      n = await e.json().catch(() => ({}));
-    return e.ok && n.status === `ok` ? {
-      ok: true,
-      message: `已发送 ${n.count ?? t.length} 个素材到剪映`
-    } : {
-      ok: false,
-      message: n.error || `发送失败 (HTTP ${e.status})`
-    };
-  } catch (e) {
-    let t = String(e?.message || e);
-    return t.includes(`Failed to fetch`) || t.includes(`NetworkError`) ? {
-      ok: false,
-      message: `无法连接本地引擎，请确认引擎已启动`
-    } : {
-      ok: false,
-      message: t
-    };
-  }
-}
+  Un = ae();
 var X = o();
-function Jn({
-  size: e = 14
-}) {
-  return X.jsx(`svg`, {
-    viewBox: `0 0 1389 1024`,
-    width: e,
-    height: e,
-    fill: `currentColor`,
-    "aria-hidden": `true`,
-    children: X.jsx(`path`, {
-      d: `M1140.11 150.95l243.537-120.088c0 33.024 0.24 63.046 0 93.188-0.24 22.096 6.124 48.636-3.843 65.208-9.607 15.611-36.266 21.015-55.6 30.622L737.457 510.852c6.004 3.482 10.327 6.485 15.01 8.766 204.99 101.834 410.1 203.428 615.208 304.902 12.13 6.004 16.212 12.49 15.972 25.819-0.84 45.753-0.24 91.506-0.24 141.103l-239.935-118.407c-12.97 24.498-23.537 50.197-39.028 72.293-37.227 53.199-91.507 77.456-154.913 77.697-250.742 0.96-501.365 0.96-752.107 0.24-97.271 0-176.289-65.328-190.94-161.638C0 817.915 3.604 772.642 6.005 728.33c0.48-9.247 14.05-20.775 24.258-25.819 111.681-56.44 223.723-111.801 335.764-167.402l47.555-23.657c-125.972-62.685-249.782-124.89-374.312-185.655-24.859-12.009-37.228-26.78-35.066-55.24 2.882-40.59-1.441-81.9 5.044-121.649C23.057 64.367 103.395 0.6 189.257 0.6 443.844 0.6 698.429 0.96 952.894 0.36c87.904-0.24 157.315 60.524 181.933 134.858l5.164 15.732z m-566.332-8.767H207.51a105.677 105.677 0 0 0-27.98 3.603c-20.415 5.524-31.343 21.135-33.505 43.232-1.921 20.054 3.363 31.943 24.018 42.03 125.851 60.524 250.982 122.49 375.153 185.895 21.616 11.048 38.188 11.169 60.043 0 125.132-63.406 251.223-125.13 376.715-187.696 6.364-3.122 15.13-7.686 16.812-13.21 12.009-40.95-13.57-74.094-56.681-74.094l-368.308 0.36z m0 736.857H949.89c31.223 0 48.035-16.812 49.356-47.795a67.009 67.009 0 0 0-0.24-18.974c-1.561-5.524-4.803-12.85-9.487-15.13-134.498-67.25-268.996-134.138-403.854-200.307a26.9 26.9 0 0 0-20.775 0 86586.855 86586.855 0 0 0-408.897 202.348c-3.843 2.041-9.007 6.364-9.367 10.087-4.203 38.188 11.528 70.852 55 70.371 123.93-1.44 248.1-0.48 372.27-0.48v-0.12z`
-    })
-  });
-}
 function Yn({
   url: e,
   fallbackExt: t = `mp4`,
@@ -165,7 +94,6 @@ function Xn({
     children: t
   });
 }
-var Zn = `canvas-add-resource-request`;
 function Qn({
   active: e,
   transitItems: t,
@@ -841,92 +769,7 @@ function Qn({
     })]
   });
 }
-var $n = Vn(),
-  er = `/api`;
-function tr(e) {
-  let t = $n.replace(/[\`\s]/g, ``).replace(/\/$/, ``),
-    n = (e || t).replace(/[\`\s]/g, ``).trim().replace(/\/$/, ``);
-  return n ? /\/api$/i.test(n) ? n : `${n}/api` : `${t}/api`;
-}
-function nr(e = ``) {
-  let t = $n.replace(/[\`\s]/g, ``).replace(/\/+$/, ``),
-    n = e.trim().replace(/^\/+|\/+$/g, ``);
-  return n ? `${t}/${n}` : t;
-}
-function rr(e, t) {
-  return `${tr(e)}/v1/gateway/ai-app${t.startsWith(`/`) ? t : `/${t}`}`;
-}
-function ir(e, t) {
-  let n = tr(e);
-  return t ? `${n}/ai-apps/${encodeURIComponent(t)}` : `${n}/ai-apps`;
-}
-function ar(e, t) {
-  let n = tr($n);
-  if (t || !e) return n;
-  let r = tr(e),
-    i = r.replace(/\/api$/i, ``),
-    a = /^https?:\/\/(localhost|127\.0\.0\.1):3000$/i.test(i),
-    o = $n.replace(/[`\s]/g, ``).trim().replace(/\/$/, ``),
-    s = !/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(o);
-  return a && s ? n : r;
-}
-var or = 3e4,
-  sr = {
-    "Content-Type": `application/json`
-  };
-function cr(e) {
-  return e.startsWith(`http`) ? e : `${$n}${er}${e}`;
-}
-var lr = {
-    useThumbnail: true,
-    lodLevel: 0,
-    viewportMoving: false,
-    nodeCount: 0,
-    handleFollowLimit: 60,
-    edgeFxLimit: 100
-  },
-  ur = Y.createContext(lr.useThumbnail),
-  dr = Y.createContext({
-    lodLevel: lr.lodLevel,
-    viewportMoving: lr.viewportMoving,
-    nodeCount: lr.nodeCount,
-    handleFollowLimit: lr.handleFollowLimit,
-    edgeFxLimit: lr.edgeFxLimit
-  });
-function fr({
-  value: e,
-  children: t
-}) {
-  let n = e.lodLevel ?? lr.lodLevel,
-    r = e.viewportMoving ?? lr.viewportMoving,
-    i = e.nodeCount ?? lr.nodeCount,
-    a = e.handleFollowLimit ?? lr.handleFollowLimit,
-    o = e.edgeFxLimit ?? lr.edgeFxLimit,
-    s = Y.useMemo(() => ({
-      lodLevel: n,
-      viewportMoving: r,
-      nodeCount: i,
-      handleFollowLimit: a,
-      edgeFxLimit: o
-    }), [n, r, i, a, o]);
-  return X.jsx(ur.Provider, {
-    value: e.useThumbnail,
-    children: X.jsx(dr.Provider, {
-      value: s,
-      children: t
-    })
-  });
-}
-function pr() {
-  return {
-    useThumbnail: Y.useContext(ur)
-  };
-}
-function mr() {
-  return Y.useContext(dr);
-}
-var hr = `custom-handle-hover-style`,
-  gr = `
+var gr = `
 .cust-handle-wrap {
   position: absolute;
   z-index: 100;
@@ -1263,435 +1106,8 @@ var _r = Y.memo(({
       blob: await (await fetch(a)).blob(),
       compressed: true
     };
-  },
-  Sr = e(Oe(), 1),
-  Z = {
-    APP_SETTINGS: `app_settings`,
-    API_CONFIGS: `api_configs`,
-    USERS: `users`,
-    MEMBERSHIP: `membership`,
-    OLD_MEMBERSHIP: `old_membership`,
-    PROJECTS: `projects`,
-    LAST_OPENED_PROJECT: `lastOpenedProject`,
-    CUSTOM_NODE_TEMPLATES: `customNodeTemplates`,
-    PRESET_PROMPTS: `presetPrompts`,
-    MODEL_SCHEDULES: `modelSchedules`,
-    CLOUD_STORAGE_CONFIG: `cloud_storage_config`,
-    TRANSIT_RESOURCES: `transitResources`,
-    TRANSIT_GRID_COLS: `transit_grid_cols`,
-    GLOBAL_TASKS: `globalTasks`,
-    CANVAS_STATE_PREFIX: `canvas-state-v1-`,
-    DEVICE_ID: `device_id`,
-    CURRENT_USER_ID: `current_user_id`,
-    VIDEO_SIZE: `video_size`,
-    VIDEO_SECONDS: `video_seconds`,
-    VIDEO_MODEL: `video_model`,
-    SYNC_VERSION: `sync_version`,
-    LAST_SYNC_TIME: `last_sync_time`,
-    AUTH_TOKEN: `auth_token`
   };
-Z.API_CONFIGS, Z.USERS, Z.MEMBERSHIP, Z.PROJECTS, Z.CUSTOM_NODE_TEMPLATES, Z.PRESET_PROMPTS, Z.MODEL_SCHEDULES, Z.CLOUD_STORAGE_CONFIG;
-function Cr(e) {
-  return `${Z.CANVAS_STATE_PREFIX}${e}`;
-}
-var wr = {
-    async get(e) {
-      console.log(`[Storage] localToolEngine.get 被调用，key:`, e);
-      try {
-        let t = window.localTool;
-        return t ? (console.log(`[Storage] 准备调用 lt.getKV("` + e + `")`), await t.getKV(e)) : (console.error(`[Storage] ❌ window.localTool 不存在，localTool service 可能未运行`), null);
-      } catch (e) {
-        return console.error(`[Storage] localToolEngine.get 异常:`, e), null;
-      }
-    },
-    async set(e, t) {
-      try {
-        let n = window.localTool;
-        return n ? await n.saveKV(e, t) : false;
-      } catch (e) {
-        return console.error(`localToolEngine set error`, e), false;
-      }
-    },
-    async setObject(e, t) {
-      try {
-        let n = window.localTool;
-        return n ? await n.saveKV(e, t) : false;
-      } catch {
-        return false;
-      }
-    },
-    async remove(e) {
-      try {
-        let t = window.localTool;
-        return t?.status?.isConnected ? await t.saveKV(e, ``) : false;
-      } catch {
-        return false;
-      }
-    },
-    isAvailable() {
-      return !!window.localTool?.status?.isConnected;
-    }
-  },
-  Tr = new Map(),
-  Er = new Map(),
-  Dr = 600 * 1e3,
-  Or = [`img_`, `img_thumb_`, `video_thumb_`];
-function kr(e) {
-  return Or.some(t => e.startsWith(t));
-}
-function Ar(e) {
-  Tr.delete(e), Er.delete(e);
-}
-async function jr(e) {
-  if (!kr(e)) return wr.get(e);
-  let t = Date.now(),
-    n = Tr.get(e);
-  if (n && n.expireAt > t) return n.value;
-  let r = Er.get(e);
-  if (r) return r;
-  let i = (async () => wr.get(e))();
-  Er.set(e, i);
-  try {
-    let t = await i;
-    return Tr.set(e, {
-      value: t,
-      expireAt: Date.now() + Dr
-    }), t;
-  } finally {
-    Er.delete(e);
-  }
-}
-var Mr = {
-    async get(e) {
-      try {
-        return typeof chrome < `u` && chrome.storage?.local ? new Promise(t => {
-          chrome.storage.local.get([e], n => {
-            t(n[e] ?? null);
-          });
-        }) : null;
-      } catch {
-        return null;
-      }
-    },
-    async set(e, t) {
-      try {
-        return typeof chrome < `u` && chrome.storage?.local ? new Promise(n => {
-          chrome.storage.local.set({
-            [e]: t
-          }, () => {
-            n(!chrome.runtime.lastError);
-          });
-        }) : false;
-      } catch {
-        return false;
-      }
-    },
-    async remove(e) {
-      try {
-        return typeof chrome < `u` && chrome.storage?.local ? new Promise(t => {
-          chrome.storage.local.remove(e, () => {
-            t(!chrome.runtime.lastError);
-          });
-        }) : false;
-      } catch {
-        return false;
-      }
-    },
-    async getMultiple(e) {
-      try {
-        return typeof chrome < `u` && chrome.storage?.local ? new Promise(t => {
-          chrome.storage.local.get(e, n => {
-            let r = {};
-            e.forEach(e => {
-              r[e] = n[e] ?? null;
-            }), t(r);
-          });
-        }) : {};
-      } catch {
-        return {};
-      }
-    },
-    isAvailable() {
-      return !!(typeof chrome < `u` && chrome.storage?.local);
-    }
-  },
-  Nr = {
-    async get(e) {
-      return localStorage.getItem(e);
-    },
-    async set(e, t) {
-      try {
-        return localStorage.setItem(e, t), true;
-      } catch {
-        return false;
-      }
-    },
-    async remove(e) {
-      try {
-        return localStorage.removeItem(e), true;
-      } catch {
-        return false;
-      }
-    },
-    async getMultiple(e) {
-      let t = {};
-      return e.forEach(e => {
-        t[e] = localStorage.getItem(e);
-      }), t;
-    },
-    isAvailable() {
-      return true;
-    }
-  },
-  Pr = {
-    async get(e) {
-      try {
-        return await Sr.default.getItem(e);
-      } catch {
-        return null;
-      }
-    },
-    async set(e, t) {
-      try {
-        return await Sr.default.setItem(e, t), true;
-      } catch {
-        return false;
-      }
-    },
-    async remove(e) {
-      try {
-        return await Sr.default.removeItem(e), true;
-      } catch {
-        return false;
-      }
-    },
-    async clear() {
-      try {
-        return await Sr.default.clear(), true;
-      } catch {
-        return false;
-      }
-    }
-  },
-  Q = {
-    isLocalToolAvailable() {
-      return wr.isAvailable();
-    },
-    getStatus() {
-      return {
-        localTool: wr.isAvailable(),
-        chromeStorage: Mr.isAvailable(),
-        localStorage: Nr.isAvailable()
-      };
-    },
-    getAvailableEngines() {
-      let e = [];
-      return wr.isAvailable() && e.push(`localTool`), Mr.isAvailable() && e.push(`chromeStorage`), Nr.isAvailable() && e.push(`localStorage`), e;
-    },
-    async getConfig(e) {
-      try {
-        let t = await jr(e);
-        if (t != null) return typeof t == `object` ? JSON.stringify(t) : String(t);
-        let n = await jr(e);
-        return n == null ? null : typeof n == `object` ? JSON.stringify(n) : String(n);
-      } catch (t) {
-        return console.error(`[Storage] 读取 ${e} 失败:`, t), null;
-      }
-    },
-    async setConfig(e, t) {
-      try {
-        let n = await wr.set(e, t);
-        return n && Ar(e), console.log(`[Storage] 保存到 localTool ${e}: ${n ? `成功` : `失败`}`), n;
-      } catch (t) {
-        return console.error(`[Storage] 保存 ${e} 失败:`, t), false;
-      }
-    },
-    async getObject(e) {
-      let t = await jr(e);
-      if (t != null && t !== ``) try {
-        if (typeof t == `object`) return t;
-        let e = t;
-        try {
-          return JSON.parse(e);
-        } catch {
-          return e;
-        }
-      } catch (t) {
-        console.error(`[Storage] 处理 ${e} 失败:`, t);
-      }
-      return console.log(`[Storage] localTool 中 ${e} 不存在或为空`), null;
-    },
-    async setObject(e, t) {
-      if (t == null) return console.warn(`[Storage] 拒绝保存空值 (null/undefined) 到 ${e}`), false;
-      if (typeof t == `object`) {
-        let n = Object.keys(t).length === 0,
-          r = Array.isArray(t) && t.length === 0;
-        if (n && console.warn(`[Storage] 拒绝保存空对象 {} 到 ${e}`), r && console.warn(`[Storage] 拒绝保存空数组 [] 到 ${e}`), e.startsWith(Z.CANVAS_STATE_PREFIX)) {
-          let n = t;
-          if (!n.nodes || n.nodes.length === 0) return console.warn(`[Storage] 拒绝保存无节点的画布状态到 ${e}`), false;
-        }
-      }
-      if (typeof t == `string` && t.trim() === ``) return console.warn(`[Storage] 拒绝保存空字符串到 ${e}`), false;
-      try {
-        let n = await wr.setObject(e, t);
-        return n && Ar(e), console.log(`${new Date().toLocaleString()} [Storage] 保存对象到 localTool ${e}: ${n ? `成功` : `失败`}`), n;
-      } catch (t) {
-        return console.error(`[Storage] 保存对象 ${e} 失败:`, t), false;
-      }
-    },
-    async remove(e) {
-      try {
-        let t = await wr.remove(e);
-        return Ar(e), t;
-      } catch (t) {
-        return console.error(`[Storage] 删除 ${e} 失败:`, t), false;
-      }
-    },
-    async getMultiple(e) {
-      let t = {};
-      try {
-        let n = e.map(async e => ({
-          key: e,
-          value: (await wr.get(e))?.toString()
-        }));
-        (await Promise.all(n)).forEach(({
-          key: e,
-          value: n
-        }) => {
-          n != null && (t[e] = n);
-        });
-        let r = e.filter(e => !(e in t));
-        if (r.length > 0) {
-          console.log(`[Storage] 批量同步 ${r.length} 个缺失的键到 localTool`), await this.syncMultipleToLocalTool(r);
-          let e = r.map(async e => ({
-            key: e,
-            value: await wr.get(e)
-          }));
-          (await Promise.all(e)).forEach(({
-            key: e,
-            value: n
-          }) => {
-            n !== null && (t[e] = n.toString());
-          });
-        }
-      } catch (e) {
-        console.error(`[Storage] 批量读取失败:`, e);
-      }
-      return t;
-    },
-    async setMultiple(e) {
-      let t = true;
-      for (let [n, r] of Object.entries(e)) (await this.setConfig(n, r)) || (t = false);
-      return t;
-    },
-    async has(e) {
-      let t = await this.getConfig(e);
-      return t !== null && t !== ``;
-    },
-    async syncToLocalTool(e) {
-      if (!wr.isAvailable()) return false;
-      if (Mr.isAvailable()) {
-        let t = await Mr.get(e);
-        if (t !== null) return console.log(`[Storage] 从 Chrome Storage 同步 ${e} 到 localTool`), await wr.set(e, t);
-      }
-      let t = await Nr.get(e);
-      if (t !== null) return console.log(`[Storage] 从 localStorage 同步 ${e} 到 localTool`), await wr.set(e, t);
-      if (e === Z.TRANSIT_RESOURCES || e.startsWith(`canvas-state-v1-`)) {
-        let t = await Pr.get(e);
-        if (t !== null) return console.log(`[Storage] 从 localforage 同步 ${e} 到 localTool`), await wr.setObject(e, t);
-      }
-      return console.log(`[Storage] ${e} 在所有存储中都未找到`), false;
-    },
-    async syncMultipleToLocalTool(e) {
-      if (wr.isAvailable()) for (let t of e) await this.syncToLocalTool(t);
-    },
-    async syncAllToLocalTool() {
-      let e = [Z.USERS, Z.MEMBERSHIP, Z.OLD_MEMBERSHIP, Z.PROJECTS, Z.LAST_OPENED_PROJECT, Z.GLOBAL_TASKS, Z.CUSTOM_NODE_TEMPLATES, Z.APP_SETTINGS, Z.TRANSIT_RESOURCES, Z.TRANSIT_GRID_COLS],
-        t = 0,
-        n = [];
-      for (let r of e) (await this.syncToLocalTool(r)) ? t++ : n.push(r);
-      return console.log(`[Storage] 全量同步完成: 成功 ${t}, 失败 ${n.length}`), {
-        synced: t,
-        failed: n
-      };
-    },
-    async hasLocalToolData() {
-      if (!wr.isAvailable()) return false;
-      let e = [Z.PROJECTS, Z.USERS, Z.TRANSIT_RESOURCES];
-      for (let t of e) {
-        let e = await wr.get(t);
-        if (e !== null && e !== ``) return true;
-      }
-      return false;
-    },
-    async getLocalforage(e) {
-      let t = await wr.get(e);
-      if (t !== null) try {
-        return t;
-      } catch {
-        return t;
-      }
-      return await Pr.get(e);
-    },
-    async setLocalforage(e, t) {
-      return wr.isAvailable() && (await wr.setObject(e, t)), await Pr.set(e, t);
-    },
-    async clearLocalforage() {
-      return await Pr.clear();
-    },
-    async saveCanvasState(e, t) {
-      let n = Cr(e);
-      return await this.setLocalforage(n, t);
-    },
-    async loadCanvasState(e) {
-      let t = Cr(e);
-      return await this.getLocalforage(t);
-    },
-    async saveCanvasStateWithVersion(e, t, n) {
-      let r = Cr(e);
-      if (!t.nodes || t.nodes.length === 0) return console.log(`[Storage] 画布状态为空，跳过保存`), {
-        success: false,
-        skipped: true
-      };
-      let i = `${r}_version`,
-        a = await wr.get(i),
-        o = a ? parseInt(String(a), 10) : 0;
-      if (o > n) return console.warn(`[Storage] 版本冲突！远程版本 ${o} > 本地版本 ${n}，拒绝覆盖`), {
-        success: false,
-        skipped: true,
-        conflictVersion: o
-      };
-      let s = await wr.setObject(r, t),
-        c = await wr.set(i, String(n));
-      return s && c && console.log(`[Storage] 保存画布状态成功，版本号: ${n}`), {
-        success: s && c,
-        skipped: false
-      };
-    },
-    async getCanvasVersion(e) {
-      let t = `${Cr(e)}_version`,
-        n = await wr.get(t);
-      return n ? parseInt(String(n), 10) : 0;
-    },
-    async deleteCanvasState(e) {
-      let t = Cr(e);
-      return wr.isAvailable() && (await wr.remove(t)), await Pr.remove(t);
-    },
-    async migrate(e, t, n = true) {
-      let r = await this.getConfig(e);
-      if (!r) return false;
-      try {
-        if (n) {
-          let e = JSON.parse(r);
-          await this.setObject(t, e);
-        } else await this.setConfig(t, r);
-        return console.log(`[Storage] 迁移 ${e} -> ${t} 成功`), true;
-      } catch (n) {
-        return console.error(`[Storage] 迁移 ${e} -> ${t} 失败:`, n), false;
-      }
-    }
-  },
-  Fr = [200, 300, 400, 500, 600, 700, 800, 900, 1e3];
+var Fr = [200, 300, 400, 500, 600, 700, 800, 900, 1e3];
 function Ir(e) {
   if (!Number.isFinite(e) || e <= 0) return Fr[0];
   for (let t of Fr) if (e <= t) return t;
@@ -1704,7 +1120,6 @@ function Lr(e, t, n) {
   let [r, i] = e.split(`?`);
   return `${r}${n === `video` ? `_frame1_resize_${t}.jpg` : `_resize_${t}.jpg`}${i ? `?` + i : ``}`;
 }
-var Rr = `_frame1.jpg`;
 function zr(e) {
   if (!e || !e.includes(`/files/`) || e.startsWith(`data:`) || e.startsWith(`blob:`)) return null;
   let [t, n] = e.split(`?`);
@@ -1713,226 +1128,6 @@ function zr(e) {
 function Br(e, t) {
   let n = zr(e);
   return n ? Lr(n, t, `image`) : null;
-}
-function Vr(e) {
-  if (!e) return null;
-  let t = e.split(`?`)[0],
-    n = t.indexOf(`/files/resources/`);
-  if (n < 0) return null;
-  let r = t.slice(n + 17),
-    i = r.lastIndexOf(`/`);
-  return i < 0 ? {
-    subfolder: ``,
-    filename: r
-  } : {
-    subfolder: r.slice(0, i),
-    filename: r.slice(i + 1)
-  };
-}
-var Hr = localEngineBase(),
-  Ur = null,
-  Wr = 0,
-  Gr = 3e3;
-async function Kr() {
-  let e = Date.now();
-  if (Ur !== null && e - Wr < Gr) return Ur;
-  try {
-    let e = new AbortController(),
-      t = setTimeout(() => e.abort(), 1e3),
-      n = await fetch(`${Hr}/api/status`, {
-        signal: e.signal
-      });
-    if (clearTimeout(t), Ur = n.ok, n.ok) try {
-      let e = await n.clone().json();
-      typeof e?.ffmpeg == `boolean` && e.ffmpeg;
-    } catch {}
-  } catch {
-    Ur = false;
-  }
-  return Wr = e, Ur;
-}
-async function qr(e) {
-  if (e instanceof File) {
-    let t = e.name.includes(`.`) ? e.name.split(`.`).pop() : Jr(e.type);
-    return {
-      blob: e,
-      suggestedName: e.name,
-      ext: t
-    };
-  }
-  if (e instanceof Blob) {
-    let t = Jr(e.type);
-    return {
-      blob: e,
-      suggestedName: `blob_${Date.now()}.${t}`,
-      ext: t
-    };
-  }
-  if (e.startsWith(`data:`)) {
-    let t = Yr(e),
-      n = Jr(t.type);
-    return {
-      blob: t,
-      suggestedName: `data_${Date.now()}.${n}`,
-      ext: n
-    };
-  }
-  let t = await (await fetch(e)).blob(),
-    n = Jr(t.type);
-  return {
-    blob: t,
-    suggestedName: `remote_${Date.now()}.${n}`,
-    ext: n
-  };
-}
-function Jr(e) {
-  return e ? e.includes(`png`) ? `png` : e.includes(`jpeg`) || e.includes(`jpg`) ? `jpg` : e.includes(`webp`) ? `webp` : e.includes(`gif`) ? `gif` : e.includes(`mp4`) ? `mp4` : e.includes(`webm`) ? `webm` : e.includes(`flac`) ? `flac` : e.includes(`aac`) ? `aac` : e.includes(`ogg`) ? `ogg` : e.includes(`opus`) ? `opus` : e.includes(`mpeg`) ? `mp3` : e.includes(`m4a`) || e.includes(`mp4a`) ? `m4a` : e.includes(`wav`) ? `wav` : e.includes(`aiff`) ? `aiff` : e.includes(`plain`) ? `txt` : (e.split(`/`)[1] || ``).replace(/^x-/, ``) || `bin` : `bin`;
-}
-function Yr(e) {
-  let [t, n] = e.split(`,`),
-    r = t.match(/data:([^;]+)/)?.[1] || `application/octet-stream`,
-    i = t.includes(`;base64`) ? atob(n) : decodeURIComponent(n),
-    a = new ArrayBuffer(i.length),
-    o = new Uint8Array(a);
-  for (let e = 0; e < i.length; e++) o[e] = i.charCodeAt(e);
-  return new Blob([a], {
-    type: r
-  });
-}
-async function Xr(e, t = {}) {
-  if (!(await Kr())) return null;
-  try {
-    let {
-        blob: n,
-        ext: r
-      } = await qr(e),
-      i = t.filename || `${Qr(n.type)}_${Date.now()}_${$r()}.${r}`,
-      a = new FormData();
-    a.append(`file`, n, i), a.append(`subfolder`, t.subfolder ?? `canvas`);
-    let o = await fetch(`${Hr}/api/files/upload`, {
-      method: `POST`,
-      body: a
-    });
-    if (!o.ok) return null;
-    let s = await o.json();
-    return s?.url ? {
-      url: s.url,
-      thumbnailUrl: s.thumbnailUrl,
-      path: s.path
-    } : null;
-  } catch (e) {
-    return console.warn(`[uploadHelper] uploadToLocalTool failed:`, e), null;
-  }
-}
-async function Zr(e, t = {}) {
-  if (!e || typeof e != `string` || !(await Kr())) return null;
-  try {
-    let n = new FormData();
-    n.append(`fileUrl`, e), n.append(`subfolder`, t.subfolder ?? `canvas`), t.filename && n.append(`filename`, t.filename);
-    let r = await fetch(`${Hr}/api/files/upload`, {
-      method: `POST`,
-      body: n
-    });
-    if (!r.ok) return null;
-    let i = await r.json();
-    return i?.url ? {
-      url: i.url,
-      thumbnailUrl: i.thumbnailUrl,
-      path: i.path
-    } : null;
-  } catch (e) {
-    return console.warn(`[uploadHelper] uploadRemoteUrlToLocalTool failed:`, e), null;
-  }
-}
-function Qr(e) {
-  return e.startsWith(`image/`) ? `img` : e.startsWith(`video/`) ? `vid` : e.startsWith(`audio/`) ? `aud` : `file`;
-}
-function $r() {
-  return Math.random().toString(36).slice(2, 8);
-}
-var ei = new Map(),
-  ti = new Map(),
-  ni = 300 * 1e3;
-async function ri(e, t = {}) {
-  if (!e || !e.includes(`/files/`)) return null;
-  let n = `${e}|${t.maxDim ?? ``}|${t.quality ?? ``}`,
-    r = Date.now(),
-    i = ei.get(n);
-  if (i && i.expireAt > r) return i.value;
-  let a = ti.get(n);
-  if (a) return a;
-  let o = (async () => {
-    if (!(await Kr())) return null;
-    try {
-      let n = new URLSearchParams({
-        url: e
-      });
-      t.maxDim && n.set(`maxDim`, String(t.maxDim)), t.quality && n.set(`quality`, String(t.quality));
-      let r = await fetch(`${Hr}/api/files/thumbnail?${n.toString()}`);
-      return r.ok && (await r.json())?.thumbnailUrl || null;
-    } catch {
-      return null;
-    }
-  })();
-  ti.set(n, o);
-  try {
-    let e = await o;
-    return ei.set(n, {
-      value: e,
-      expireAt: Date.now() + ni
-    }), e;
-  } finally {
-    ti.delete(n);
-  }
-}
-async function ii(e, t = {}) {
-  if (typeof e == `string` && /^https?:\/\//i.test(e) && !e.startsWith(`data:`)) return t.preferThumbnail && e.includes(`/files/`) ? {
-    url: e,
-    thumbnailUrl: (await ri(e, {
-      maxDim: t.thumbMaxDim,
-      quality: t.thumbQuality
-    })) || undefined
-  } : {
-    url: e
-  };
-  let n = await Xr(e, {
-    subfolder: t.subfolder ?? `canvas`,
-    generateThumb: !!t.preferThumbnail,
-    thumbMaxDim: t.thumbMaxDim,
-    thumbQuality: t.thumbQuality
-  });
-  return n ? {
-    url: n.url,
-    thumbnailUrl: n.thumbnailUrl
-  } : typeof e == `string` ? {
-    url: e
-  } : {
-    url: URL.createObjectURL(e)
-  };
-}
-async function ai(e) {
-  if (!e || typeof e != `string` || !e.includes(`/files/`) || !(await Kr())) return false;
-  let t = Vr(e);
-  if (!t) return false;
-  let n = `${t.filename}${Rr}`;
-  try {
-    let {
-      captureVideoFrameBlob: r
-    } = await Hn(async () => {
-      let {
-        captureVideoFrameBlob: e
-      } = await import(`./captureVideoFrame-f-OS08uG.js`);
-      return {
-        captureVideoFrameBlob: e
-      };
-    }, [], import.meta.url);
-    return !!(await Xr(await r(e), {
-      subfolder: t.subfolder,
-      filename: n
-    }))?.url;
-  } catch (e) {
-    return console.warn(`[uploadHelper] ensureVideoPoster failed, will fall back to <video>:`, e), false;
-  }
 }
 function oi(e) {
   return sn(t => {
@@ -2583,283 +1778,6 @@ function pi({
     })]
   });
 }
-var mi = [{
-  text: `提问前加上“你是一位资深文案”，AI的输出结构会更专业`,
-  category: `text`
-}, {
-  text: `告诉AI“请使用积极的语气”，比说“不要用消极语气”效果更好`,
-  category: `text`
-}, {
-  text: `在提示词中附带满意的案例，AI能迅速模仿你的行文格式`,
-  category: `text`
-}, {
-  text: `加上“请一步步进行推理”，能大幅提高处理复杂逻辑题的准确率`,
-  category: `text`
-}, {
-  text: `交待清楚目标受众和具体应用场景，生成的文案会更有针对性`,
-  category: `text`
-}, {
-  text: `不要让AI一次写完长文，先生成大纲，确认后再逐段扩写`,
-  category: `text`
-}, {
-  text: `设定具体的字数和情绪，如“写一段100字幽默带讽刺的短评”`,
-  category: `text`
-}, {
-  text: `输入长文并要求“提取时间、地点、人物，并以JSON格式输出”`,
-  category: `text`
-}, {
-  text: `把优秀的文案喂给AI，让它分析并反推当初生成这段文案的提示词`,
-  category: `text`
-}, {
-  text: `大部分的大模型都支持图片反推，但支持视频反推的不对，例如Qwen系列`,
-  category: `text`
-}, {
-  text: `把最重要的元素（如人物、主要物体）放在提示词的最开头位置`,
-  category: `image`
-}, {
-  text: `加入“电影级光效”、“丁达尔效应”或“边缘背光”提升画面高级感`,
-  category: `image`
-}, {
-  text: `使用“广角镜头”、“微距特写”或“俯视仰拍”精准控制画面构图`,
-  category: `image`
-}, {
-  text: `提示词中加入“莫兰迪色系”、“高对比度”统一画面的色彩倾向`,
-  category: `image`
-}, {
-  text: `添加“杰作、最高画质、8k分辨率、细节极其丰富”等通用魔法词`,
-  category: `image`
-}, {
-  text: `利用参考图控制构图走势，配合文本提示词进行二次风格迁移`,
-  category: `image`
-}, {
-  text: `描述细节忌抽象：说“穿红裙在雨中撑伞的女孩”，不要说“忧郁女孩”`,
-  category: `image`
-}, {
-  text: `大尺寸慢不稳而且贵，可以先生成小尺寸，满意后高清放大处理`,
-  category: `image`
-}, {
-  text: `越具体的穿搭描述，越能避免AI随机生成结构奇怪的衣服款式`,
-  category: `image`
-}, {
-  text: `若生成元素过多显得拥挤，加上“极简主义”、“干净的背景”、“留白”`,
-  category: `image`
-}, {
-  text: `提示词中加入“镜头缓慢平移”、“推镜头”来精确控制运镜语言`,
-  category: `video`
-}, {
-  text: `利用昂贵主力模型+首尾帧便宜模型，是省钱有好用的方法`,
-  category: `video`
-}, {
-  text: `拆解动作过程，如“他先低头看手表，然后慢慢抬头望向天空”`,
-  category: `video`
-}, {
-  text: `对于长视频，提供多视角的参考图，能有效减少过程中的人物崩坏`,
-  category: `video`
-}, {
-  text: `描述动作和场景即可，太复杂的心理描写AI视频模型目前无法表现`,
-  category: `video`
-}, {
-  text: `添加光影动态变化，如“阳光透过树叶缝隙，光斑在人物脸上移动”`,
-  category: `video`
-}, {
-  text: `先用极高画质的模型生成图像，再输入到视频模型让图片动起来`,
-  category: `video`
-}, {
-  text: `根据低端模型模型能力选择5秒生成，过长的时间容易导致后半段画面崩塌`,
-  category: `video`
-}, {
-  text: `部分模型支持音频节点，让可以让生成的数字人根据台词音频精准对口型`,
-  category: `video`
-}, {
-  text: `描述“大雪纷飞”、“烟雾弥漫”，这类动态粒子效果AI处理极为出色`,
-  category: `video`
-}, {
-  text: `加入“频繁眨眼”、“嘴角微微上扬”，让生成的视频人物更有生命力`,
-  category: `video`
-}, {
-  text: `单个短镜头内尽量保持单一视角，复杂的机位切换容易导致空间错乱`,
-  category: `video`
-}, {
-  text: `写长视频脚本时，务必把提示词按照场景分开，建立独立节点生成`,
-  category: `video`
-}, {
-  text: `上传真人动作视频作为骨骼参考，让AI角色完美复刻复杂的舞蹈动作`,
-  category: `video`
-}, {
-  text: `打斗跳舞高运动感模型目前只推荐SD2`,
-  category: `video`
-}, {
-  text: `在连续节点中传递相同的角色设定，确保下一秒主角不会突然换衣服`,
-  category: `video`
-}, {
-  text: `设定首尾完全相同的画面特征，非常适合制作动态壁纸或网页背景`,
-  category: `video`
-}, {
-  text: `生文写分镜，生图做原画，最后一起喂给生视频节点，流程无缝衔接`,
-  category: `video`
-}, {
-  text: `画布支持多个项目管理，不要把所有都放在一个项目里面`,
-  category: `general`
-}, {
-  text: `生成的满意结果随时拖入素材，作为公共素材池供各节点调用`,
-  category: `general`
-}, {
-  text: `在复杂的节点群旁边添加文本便签，几个月后你依然能一眼看懂逻辑`,
-  category: `general`
-}, {
-  text: `工作流会被实时保存在本地，即使意外关闭浏览器，进度也绝不会丢失`,
-  category: `general`
-}, {
-  text: `使用快捷键Q / W /E，让你快速添加常用节点`,
-  category: `general`
-}, {
-  text: `目前Window支持将资源一键传入剪映，非常高效`,
-  category: `general`
-}, {
-  text: `不要把所有图片都铺满整个画布，不妨试试图片盒子`,
-  category: `image`
-}, {
-  text: `画布太乱？点击“自动整理”功能，让复杂的节点拓扑图瞬间井井有条`,
-  category: `general`
-}, {
-  text: `想在家/在公司资源共享，迁移你的文件的最快方法是把data文件夹搬过去`,
-  category: `general`
-}, {
-  text: `对于视频生成节点，双击即可在画布悬浮窗中全屏播放，无需下载查看`,
-  category: `general`
-}, {
-  text: `不要把整章小说丢给AI，按场景发生地切分成小段，剧本生成会更精准`,
-  category: `text`
-}, {
-  text: `小说里的心理活动无法直接拍出，让AI将其转化为具体的微表情或肢体动作`,
-  category: `text`
-}, {
-  text: `拆解动作时避免连贯长句，让AI重写为“他拔出剑。他向前冲刺”的短平快句型`,
-  category: `text`
-}, {
-  text: `设定镜头感：“请用导演口吻描述剧情，多使用推镜头、特写和全景等专业术语”`,
-  category: `text`
-}, {
-  text: `对于战斗场景，提示AI“增加动词密度，强调力量和速度感，减少修饰性形容词”`,
-  category: `text`
-}, {
-  text: `遇到抽象设定（如剑气、威压），让AI具象化为“发光的蓝色半月形能量波”`,
-  category: `text`
-}, {
-  text: `剧本分镜编号化：要求AI输出“Shot 1, Shot 2”，在画布中对应独立分支`,
-  category: `text`
-}, {
-  text: `如果主角会变身，在小传节点中提前定义好“常态”和“变身态”的两套特征库`,
-  category: `text`
-}, {
-  text: `小说转绘本的核心是角色一致性：先跑出完美的主角三视图，作为后续垫图参考`,
-  category: `image`
-}, {
-  text: `给角色面部打光：加入“伦勃朗光”或“蝴蝶光”，让角色五官更具立体电影感`,
-  category: `image`
-}, {
-  text: `分镜图构图技巧：人物对话多用“过肩镜头（Over-the-shoulder）”，增强互动`,
-  category: `image`
-}, {
-  text: `如果小说场景是宏大奇幻修仙，多用“极远景（Extreme long shot）”和史诗构图`,
-  category: `image`
-}, {
-  text: `控制画面留白：如果该图后续要配大量旁白字幕，提示词记得加上“负空间”`,
-  category: `image`
-}, {
-  text: `保持画风统一的捷径：在每个生图节点末尾加上同一位特定画师或电影导演的名字`,
-  category: `image`
-}, {
-  text: `对于连贯动作，先生成静止的起步动作，这比直接生成复杂的运动画面更容易`,
-  category: `image`
-}, {
-  text: `突出人物情绪：使用“面部特写”配合“泪水”、“咬牙”、“瞳孔地震”等微表情词`,
-  category: `image`
-}, {
-  text: `场景氛围图不需要太清晰的人脸，强调“轮廓（Silhouette）”和环境光更出效果`,
-  category: `image`
-}, {
-  text: `生成背影或侧脸：有效规避正脸崩坏的风险，同时还能增加画面的故事悬念感`,
-  category: `image`
-}, {
-  text: `重要武器或道具：单独生成高清大图，在后续剧情中作为局部重绘的参考源`,
-  category: `image`
-}, {
-  text: `色彩心理学：回忆情节用“泛黄滤镜/黑白”，战斗高潮用“高饱和度对比色”`,
-  category: `image`
-}, {
-  text: `仰拍能让反派显得高大威猛，俯拍（High angle）能表现角色的弱小与无助`,
-  category: `image`
-}, {
-  text: `避免画面太平淡：加入“前景遮挡（Foreground framing）”，如透过树叶看主角`,
-  category: `image`
-}, {
-  text: `整场戏的提示词都带上“蓝绿色调（Teal and orange）”，轻松打造好莱坞大片质感`,
-  category: `image`
-}, {
-  text: `不要每一格都画满人物：适当插入只画背景空镜头的过渡图，让节奏张弛有度`,
-  category: `image`
-}, {
-  text: `生成速度感画面：加上“运动模糊（Motion blur）”和“速度线”视觉效果`,
-  category: `image`
-}, {
-  text: `固定一张完美的图作为风格锚点，通过工作流将其作为所有后续生成的参考`,
-  category: `image`
-}, {
-  text: `图生视频第一准则：原图必须足够清晰，视频的画质与稳定性上限由原图决定`,
-  category: `video`
-}, {
-  text: `视频提示词要克制：不要重复描述图片里已有的东西，重点描述什么东西怎么动`,
-  category: `video`
-}, {
-  text: `小说里的打斗戏：运镜词使用“快速平移（Fast pan）”或“推拉镜头”增强冲击力`,
-  category: `video`
-}, {
-  text: `人物对话场景：保持摄像机微弱移动（Subtle drift），不要完全静止，增加呼吸感`,
-  category: `video`
-}, {
-  text: `控制动作幅度：廉价模型AI视频动作过大易变形，加上“缓慢移动”能大幅提高成功率`,
-  category: `video`
-}, {
-  text: `在视频提示词中强调“角色眨眼并看向镜头”，让原画里的纸片人瞬间活过来`,
-  category: `video`
-}, {
-  text: `首尾相接控制：动作复刻最后一帧，但是可以换个角度`,
-  category: `video`
-}, {
-  text: `小说转场效果：生视频时加入“黑屏过渡”或“白闪”，方便后续节点拼剪`,
-  category: `video`
-}, {
-  text: `处理人物转身：尽量用“切换不同机位”代替“让人物在同一个镜头里转180度”`,
-  category: `video`
-}, {
-  text: `表现时间流逝：输入一张白天场景图，提示词写“从白天变黑夜的延时摄影”`,
-  category: `video`
-}, {
-  text: `头发和衣服的物理效果：加上“随风飘动（Blowing in the wind）”，极大增加生动感`,
-  category: `video`
-}, {
-  text: `镜头光晕移动：提示词加“镜头光晕在画面中划过”，科幻与写实摄影感拉满`,
-  category: `video`
-}, {
-  text: `遇到视频生成崩坏：不要硬死磕，回到生图节点换一张构图稍微不同的图片再试`,
-  category: `video`
-}, {
-  text: `制造悬疑感：使用“缓慢向黑暗的走廊尽头推进（Slow dolly in toward darkness）”`,
-  category: `video`
-}, {
-  text: `你用过Ctrl+D这个快捷键吗，不妨对着节点尝试下，有惊喜`,
-  category: `general`
-}, {
-  text: `云端可以备份你的api/多开/视频模型等信息，你换了设备也可以马上用，而本地资源你需要手动备份`,
-  category: `general`
-}, {
-  text: `别被工具困住：接受适度的随机性，有时AI的“错误”会带来意想不到的绝妙转场`,
-  category: `general`
-}, {
-  text: `不会写提示词时，不妨查看提示词库，学习别人的经验`,
-  category: `general`
-}];
 function hi({
   intervalMs: e = 1e4,
   category: t,
@@ -2906,34 +1824,6 @@ function hi({
     }, i)]
   });
 }
-var gi = Y.forwardRef(({
-  value: e,
-  onChange: t,
-  className: n = ``,
-  style: r,
-  placeholder: i,
-  onKeyDown: a,
-  onWheel: o,
-  ...s
-}, c) => {
-  let l = Y.useRef(null);
-  return Y.useImperativeHandle(c, () => l.current), X.jsx(`textarea`, {
-    ref: l,
-    className: `${n.split(/\s+/).filter(e => e && e !== `resize-y` && e !== `resize-x` && e !== `resize-none` && e !== `resize`).join(` `)} block`,
-    style: {
-      ...r,
-      resize: `none`,
-      boxSizing: `border-box`
-    },
-    value: e,
-    onChange: e => t(e.target.value),
-    placeholder: i,
-    onKeyDown: a,
-    onWheel: o,
-    ...s
-  });
-});
-gi.displayName = `ResizableTextarea`;
 var _i = ({
     targetRef: e,
     onRequestFullscreen: t,
@@ -3131,551 +2021,7 @@ var _i = ({
         })]
       })
     }), document.body) : null;
-  },
-  yi = {
-    text: [],
-    image: [],
-    video: []
-  },
-  bi = null,
-  LOCAL_MODE_ALLOW_ALL_MODELS = LOCAL_MODE_ALLOW_ALL,
-  xi = [],
-  Si = null,
-  Ci = null,
-  wi = 0,
-  Ti = new Set(),
-  Ei = {};
-function Di() {
-  Ti.forEach(e => {
-    try {
-      e();
-    } catch {}
-  });
-}
-function Oi() {
-  return [...xi];
-}
-function ki(e) {
-  let t = (e || ``).trim();
-  if (!t) return null;
-  // 本地模式：不依赖云端权益校验，放行所有模型选择
-  if (LOCAL_MODE_ALLOW_ALL_MODELS) return {
-    access: `allowed`
   };
-  let n = bi?.entitlements?.[t];
-  if (n) return n;
-  if (xi.length > 0) {
-    let e = xi.find(e => e.modelName === t);
-    if (e) return {
-      access: e.access,
-      reason: e.reason,
-      callLimit: e.callLimit,
-      usedCount: e.usedCount,
-      periodType: e.periodType
-    };
-  }
-  return {
-    access: `denied`,
-    reason: `权益不够`
-  };
-}
-function Ai(e) {
-  let t = ki(e);
-  return !t || t.access === `allowed` ? null : t.reason || (t.access === `quota_exceeded` ? `已达到使用次数额度` : `权益不够`);
-}
-async function ji(e, t, n = false) {
-  if (!t || t === `local-mode-token`) {
-    xi = [], bi && (bi.entitlements = undefined), LOCAL_MODE_ALLOW_ALL_MODELS = LOCAL_MODE_ALLOW_ALL, Di();
-    return;
-  }
-  if (Ci && !n) return Ci;
-  n && (Ci = null), Ci = (async () => {
-    try {
-      let r = e.replace(/\/$/, ``),
-        i = await (await fetch(`${r}/user/model-entitlements`, {
-          headers: {
-            Authorization: `Bearer ${t}`
-          },
-          cache: n ? `no-store` : `default`
-        })).json();
-      if (i.success && i.data) {
-        xi = Array.isArray(i.data.models) ? i.data.models : [];
-        let e = {};
-        for (let t of xi) e[t.modelName] = {
-          access: t.access,
-          reason: t.reason,
-          callLimit: t.callLimit,
-          usedCount: t.usedCount,
-          periodType: t.periodType,
-          source: t.source
-        };
-        i.data.catalog ? bi = {
-          ...(bi || {
-            text: [],
-            image: [],
-            video: [],
-            discountVideo: [],
-            power: {},
-            unit: {},
-            currency: {},
-            recommended: {},
-            descriptions: {}
-          }),
-          ...i.data.catalog,
-          entitlements: e
-        } : bi && (bi.entitlements = e), wi = Date.now(), Di();
-      }
-    } catch (e) {
-      console.warn(`[builtinFavorites] 拉取模型权益失败`, e);
-    }
-  })(), await Ci, n && (Ci = null);
-}
-function Mi() {
-  xi = [], bi && (bi.entitlements = undefined), LOCAL_MODE_ALLOW_ALL_MODELS = true, Di();
-}
-function Ni(e) {
-  return xi.length > 0 ? xi.filter(t => {
-    let n = t.builtinCategory || t.category;
-    return e === `video` ? n === `video` && !t.isDiscountVideo : n === e;
-  }).map(e => e.modelName) : Bi()[e] || [];
-}
-function Pi() {
-  return xi.length > 0 ? xi.filter(e => e.isDiscountVideo).map(e => e.modelName) : Vi();
-}
-function Fi() {
-  return bi;
-}
-function Ii() {
-  return wi;
-}
-async function Li(e = `/api`, t = false) {
-  if (Si && !t) return Si;
-  t && (Si = null), Si = (async () => {
-    try {
-      let n = e.replace(/\/$/, ``),
-        r = t ? `?t=${Date.now()}` : ``,
-        i = {
-          cache: t ? `no-store` : `default`
-        };
-      await Ri(n, t);
-      let a = await (await fetch(`${n}/public/platform/builtin${r}`, i)).json();
-      if (a.success && a.data) return bi = a.data, wi = Date.now(), Di(), bi;
-    } catch (e) {
-      console.warn(`[builtinFavorites] 拉取内置模型失败`, e);
-    }
-    return bi;
-  })();
-  try {
-    return await Si;
-  } finally {
-    t && (Si = null);
-  }
-}
-async function Ri(e, t) {
-  try {
-    let n = t ? `?t=${Date.now()}` : ``,
-      r = await (await fetch(`${e}/public/platform/models${n}`, {
-        cache: t ? `no-store` : `default`
-      })).json();
-    if (!r?.success || !Array.isArray(r.data)) return;
-    let i = {};
-    for (let e of r.data) {
-      let t = (e?.name || ``).trim();
-      !t || !e.seriesKey && !e.seriesLabel || (i[t] = {
-        key: e.seriesKey || e.seriesLabel || t,
-        label: e.seriesLabel || e.seriesKey || t
-      });
-    }
-    Ei = i, Di();
-  } catch (e) {
-    console.warn(`[builtinFavorites] 拉取模型系列失败`, e);
-  }
-}
-function zi(e) {
-  return Ti.add(e), () => {
-    Ti.delete(e);
-  };
-}
-function Bi() {
-  return bi ? {
-    text: [...(bi.text || [])],
-    image: [...(bi.image || [])],
-    video: [...(bi.video || [])]
-  } : {
-    ...yi
-  };
-}
-function Vi() {
-  return bi?.discountVideo ? [...bi.discountVideo] : [];
-}
-function Hi(e) {
-  let t = (e || ``).trim();
-  return !t || !bi?.discountVideoSpecs ? null : bi.discountVideoSpecs[t] ?? null;
-}
-function Ui(e) {
-  if (!e) return null;
-  let t = e.trim();
-  if (!t) return null;
-  let n = bi?.power?.[t];
-  return typeof n == `number` ? n : null;
-}
-function Wi(e) {
-  if (!e) return null;
-  let t = e.trim();
-  return t && bi?.unit?.[t] || null;
-}
-function Gi(e) {
-  let t = (e || ``).trim();
-  return t && bi?.currency?.[t] === `proxy` ? `proxy` : `compute`;
-}
-function Ki(e) {
-  let t = (e || ``).trim();
-  return !t || !bi?.descriptions ? `` : bi.descriptions[t] || ``;
-}
-function qi(e) {
-  let t = (e || ``).trim();
-  if (!t) return null;
-  let n = Ei[t];
-  return n ? {
-    key: n.key,
-    label: n.label
-  } : null;
-}
-function Ji(e) {
-  let t = (e || ``).trim();
-  return !t || !bi?.recommended ? false : !!bi.recommended[t];
-}
-function Yi(e) {
-  return e ? Vi().includes(e.trim()) : false;
-}
-function Xi(e) {
-  if (!e) return false;
-  let t = e.trim();
-  if (!t) return false;
-  if (xi.length > 0) return xi.some(e => e.modelName === t);
-  let n = Bi();
-  return n.text.includes(t) || n.image.includes(t) || n.video.includes(t);
-}
-function Zi(e) {
-  return Number.isFinite(e) ? parseFloat(e.toFixed(3)).toString() : `0`;
-}
-function Qi(e) {
-  let t = ki(e),
-    n = !t || t.access !== `allowed`;
-  return {
-    disabled: n,
-    reason: n ? Ai(e) : null,
-    ent: t
-  };
-}
-function $i(e) {
-  let {
-    disabled: t,
-    reason: n,
-    ent: r
-  } = Qi(e);
-  if (t) return r?.access === `quota_exceeded` && r.callLimit != null ? `${n || `已达到使用次数额度`} (${r.usedCount ?? 0}/${r.callLimit})` : n || `权益不够`;
-}
-function ea(e, t) {
-  let {
-    disabled: n,
-    reason: r
-  } = Qi(e);
-  return {
-    disabled: n,
-    denyReason: r,
-    title: $i(e) || e,
-    className: `w-full flex items-center gap-1.5 mb-1 last:mb-0 text-left px-2 py-1.5 text-[11px] rounded-md transition-colors ${n ? `opacity-40 cursor-not-allowed` : `cursor-pointer ${t ? `bg-[#333] text-white` : `text-gray-400 hover:bg-[#2a2a2a] hover:text-gray-200`}`} ${t && !n ? `bg-[#333] text-white` : ``}`
-  };
-}
-var ta = `modelSchedules`,
-  na = `modelSchedules:change`,
-  ra = `schedule:`;
-function ia(e) {
-  let t = Math.round(Number(e) || 1);
-  return t < 1 ? 1 : t > 3 ? 3 : t;
-}
-function aa(e) {
-  if (!Array.isArray(e)) return [];
-  let t = [],
-    n = 0;
-  for (let r of e) {
-    if (t.length >= 5) break;
-    let e = typeof r?.model == `string` ? r.model.trim() : ``;
-    if (!e) continue;
-    let i = ia(r?.retries);
-    if (n + i > 10 && (i = 10 - n), i <= 0) break;
-    t.push({
-      model: e,
-      retries: i
-    }), n += i;
-  }
-  return t;
-}
-function oa(e) {
-  if (!e || typeof e != `object`) return null;
-  let t = e,
-    n = t.category === `text` || t.category === `image` || t.category === `video` ? t.category : `image`,
-    r = aa(t.steps);
-  if (!r.length) return null;
-  let i = Date.now();
-  return {
-    id: typeof t.id == `string` && t.id ? t.id : sa(),
-    name: typeof t.name == `string` && t.name.trim() ? t.name.trim() : `未命名调度`,
-    category: n,
-    enabled: !!t.enabled,
-    steps: r,
-    createdAt: typeof t.createdAt == `number` ? t.createdAt : i,
-    updatedAt: typeof t.updatedAt == `number` ? t.updatedAt : i
-  };
-}
-function sa() {
-  return `sch_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
-}
-function ca(e) {
-  return e.reduce((e, t) => e + (t.retries || 0), 0);
-}
-function la() {
-  if (typeof window > `u`) return [];
-  try {
-    let e = window.localStorage.getItem(ta);
-    if (!e) return [];
-    let t = JSON.parse(e);
-    return Array.isArray(t) ? t.map(oa).filter(e => !!e) : [];
-  } catch {
-    return [];
-  }
-}
-function ua(e) {
-  if (!(typeof window > `u`)) {
-    try {
-      window.localStorage.setItem(ta, JSON.stringify(e));
-    } catch {}
-    try {
-      window.dispatchEvent(new CustomEvent(na, {
-        detail: e
-      }));
-    } catch {}
-  }
-}
-function da(e) {
-  ua(e);
-  try {
-    Q.setObject(ta, e);
-  } catch {}
-}
-function fa(e) {
-  let t = oa(e);
-  if (!t) return la();
-  let n = la(),
-    r = n.findIndex(e => e.id === t.id);
-  return t.updatedAt = Date.now(), r >= 0 ? (t.createdAt = n[r].createdAt, n[r] = t) : n.push(t), da(n), n;
-}
-function pa(e) {
-  let t = la().filter(t => t.id !== e);
-  return da(t), t;
-}
-function ma(e, t) {
-  let n = la(),
-    r = n.find(t => t.id === e);
-  return r && (r.enabled = t, r.updatedAt = Date.now(), da(n)), n;
-}
-function ha(e) {
-  if (typeof window > `u`) return () => undefined;
-  let t = t => {
-      e(t.detail ?? la());
-    },
-    n = t => {
-      t.key === `modelSchedules` && e(la());
-    };
-  return window.addEventListener(na, t), window.addEventListener(`storage`, n), () => {
-    window.removeEventListener(na, t), window.removeEventListener(`storage`, n);
-  };
-}
-function ga(e) {
-  return `${ra}${e}`;
-}
-function _a(e) {
-  return e && e.startsWith(`schedule:`) ? e.slice(9) : null;
-}
-function va(e) {
-  let t = [];
-  for (let n of e.steps) for (let e = 0; e < n.retries; e++) {
-    if (t.length >= 10) return t;
-    t.push(n.model);
-  }
-  return t;
-}
-function ya(e) {
-  return Array.isArray(e) ? e.map(oa).filter(e => !!e) : [];
-}
-function ba(e, t) {
-  let n = new Map();
-  for (let t of ya(e)) n.set(t.id, t);
-  for (let e of ya(t)) n.set(e.id, e);
-  return Array.from(n.values());
-}
-async function xa() {
-  try {
-    let e = await Q.getObject(ta);
-    if (!Array.isArray(e)) return;
-    ua(ya(e));
-  } catch {}
-}
-async function Sa(e) {
-  let t = ba(la(), e);
-  return da(t), t;
-}
-var Ca = `auth_token`,
-  wa = `remembered_login_credentials`;
-function Ta() {
-  let e = localStorage.getItem(wa);
-  if (!e) return null;
-  try {
-    let t = JSON.parse(e);
-    if (typeof t.account != `string` || typeof t.password != `string`) throw Error(`Invalid remembered login credentials`);
-    return t;
-  } catch {
-    return localStorage.removeItem(wa), null;
-  }
-}
-function Ea(e) {
-  localStorage.setItem(wa, JSON.stringify(e));
-}
-function Da() {
-  localStorage.removeItem(wa);
-}
-function Oa() {
-  // 本地模式：免登录，始终返回一个固定本地 token，使所有 getCurrentToken() 拦截放行
-  return localStorage.getItem(Ca) || `local-mode-token`;
-}
-function ka(e) {
-  localStorage.setItem(Ca, e), Q.setConfig(Ca, e).then(() => {
-    console.log(`AUTH_TOKEN_KEY 保存成功`);
-  });
-}
-function Aa() {
-  localStorage.removeItem(Ca), Q.remove(Ca).then(() => {
-    console.log(`AUTH_TOKEN_KEY 移除成功`);
-  });
-}
-var ja = `${$n}${er}`;
-function Ma(e) {
-  return e ? /^https?:\/\//i.test(e) || e.startsWith(`data:`) ? e : `${$n}${e.startsWith(`/`) ? `` : `/`}${e}` : ``;
-}
-function Na() {
-  let e = Oa();
-  return e ? {
-    Authorization: `Bearer ${e}`
-  } : {};
-}
-async function Pa() {
-  return []; // 本地模式：不从官方拉标签
-  let e = await (await fetch(`${ja}/public/prompt-tags`)).json();
-  return e.success ? e.data : [];
-}
-async function Fa(e = {}) {
-  return []; // 本地模式：不从官方拉提示词
-  let t = new URLSearchParams();
-  e.category && t.set(`category`, e.category), e.tagId && t.set(`tagId`, String(e.tagId)), e.keyword && e.keyword.trim() && t.set(`keyword`, e.keyword.trim()), t.set(`pageSize`, `200`);
-  let n = await (await fetch(`${ja}/public/prompts?${t.toString()}`)).json();
-  return n.success ? n.data : [];
-}
-async function Ia() {
-  return []; // 本地模式：不从官方拉收藏
-  if (!Oa()) return [];
-  let e = await fetch(`${ja}/prompts/favorites`, {
-    headers: Na()
-  });
-  if (!e.ok) return [];
-  let t = await e.json();
-  return t.success ? t.data.map(e => e.promptId) : [];
-}
-async function La() {
-  return []; // 本地模式：不从官方拉收藏项
-  if (!Oa()) return [];
-  let e = await fetch(`${ja}/prompts/favorites/items`, {
-    headers: Na()
-  });
-  if (!e.ok) return [];
-  let t = await e.json();
-  return t.success ? t.data : [];
-}
-async function Ra(e) {
-  return { ok: false, error: `本地模式不支持` }; // 本地模式
-  try {
-    let t = await fetch(`${ja}/prompts/favorites/${e}`, {
-      method: `POST`,
-      headers: Na()
-    });
-    if (t.ok) return {
-      ok: true
-    };
-    let n = `收藏失败 (${t.status})`;
-    try {
-      let e = await t.json();
-      e?.error && (n = e.error);
-    } catch {}
-    return {
-      ok: false,
-      error: n
-    };
-  } catch (e) {
-    return {
-      ok: false,
-      error: e?.message || `网络错误`
-    };
-  }
-}
-async function za(e) {
-  return false; // 本地模式
-  if (!Oa()) return false;
-  try {
-    return (await fetch(`${ja}/prompts/favorites/${e}`, {
-      method: `DELETE`,
-      headers: Na()
-    })).ok;
-  } catch {
-    return false;
-  }
-}
-function Ba() {
-  return !!Oa();
-}
-var Va = `yimao:openPromptSettings`;
-function Ha() {
-  try {
-    window.dispatchEvent(new CustomEvent(Va));
-  } catch {}
-}
-var Ua = [{
-    value: ``,
-    label: `全部`
-  }, {
-    value: `text`,
-    label: `文本`
-  }, {
-    value: `image`,
-    label: `生图`
-  }, {
-    value: `video`,
-    label: `视频`
-  }],
-  Wa = `yimao:promptRecent`;
-function Ga() {
-  try {
-    let e = localStorage.getItem(Wa);
-    return e ? JSON.parse(e) : [];
-  } catch {
-    return [];
-  }
-}
-function Ka(e) {
-  try {
-    let t = Ga().filter(t => t !== e);
-    t.unshift(e), localStorage.setItem(Wa, JSON.stringify(t.slice(0, 50)));
-  } catch {}
-}
 function qa({
   open: e,
   onClose: t,
@@ -5978,27 +4324,6 @@ var Qa = Y.memo(({
     })()]
   });
 });
-async function $a(e, t) {
-  let n = document.createElement(`canvas`),
-    r = e.naturalWidth / e.width,
-    i = e.naturalHeight / e.height;
-  n.width = t.width * r, n.height = t.height * i;
-  let a = n.getContext(`2d`);
-  if (!a) throw Error(`No 2d context`);
-  return a.drawImage(e, t.x * r, t.y * i, t.width * r, t.height * i, 0, 0, t.width * r, t.height * i), new Promise((e, t) => {
-    n.toBlob(async n => {
-      if (!n) {
-        t(Error(`Canvas is empty`));
-        return;
-      }
-      try {
-        e(await yr(n, 2048, .85));
-      } catch (e) {
-        t(e);
-      }
-    }, `image/jpeg`, .9);
-  });
-}
 function eo({
   id: e,
   data: t,
@@ -6101,28 +4426,7 @@ function eo({
     })]
   });
 }
-var to = [{
-    label: `2×2`,
-    rows: 2,
-    cols: 2
-  }, {
-    label: `3×3`,
-    rows: 3,
-    cols: 3
-  }, {
-    label: `4×4`,
-    rows: 4,
-    cols: 4
-  }, {
-    label: `1×5`,
-    rows: 1,
-    cols: 5
-  }, {
-    label: `5×1`,
-    rows: 5,
-    cols: 1
-  }],
-  no = (e, t, n) => Math.max(t, Math.min(n, e)),
+var no = (e, t, n) => Math.max(t, Math.min(n, e)),
   ro = e => {
     let t = e.map(e => no(e, .01, .99));
     return Array.from(new Set(t.map(e => Math.round(e * 1e4) / 1e4))).sort((e, t) => e - t);
@@ -7920,28 +6224,7 @@ function yo({
     })(), document.body)]
   });
 }
-var bo = [{
-    label: `2×2`,
-    rows: 2,
-    cols: 2
-  }, {
-    label: `3×3`,
-    rows: 3,
-    cols: 3
-  }, {
-    label: `4×4`,
-    rows: 4,
-    cols: 4
-  }, {
-    label: `1×5`,
-    rows: 1,
-    cols: 5
-  }, {
-    label: `5×1`,
-    rows: 5,
-    cols: 1
-  }],
-  xo = (e, t, n) => Math.max(t, Math.min(n, e)),
+var xo = (e, t, n) => Math.max(t, Math.min(n, e)),
   So = e => {
     let t = e.trim().match(/^(\d+)\s*[x×*]\s*(\d+)$/i);
     if (!t) return null;
@@ -9738,23 +8021,7 @@ function Oo({
     forceUpdate: d
   };
 }
-var ko = [{
-    label: `16:9`,
-    value: `16:9`
-  }, {
-    label: `9:16`,
-    value: `9:16`
-  }, {
-    label: `3:4`,
-    value: `3:4`
-  }, {
-    label: `4:3`,
-    value: `4:3`
-  }, {
-    label: `1:1`,
-    value: `1:1`
-  }],
-  Ao = Y.memo(({
+var Ao = Y.memo(({
     id: e,
     data: n,
     selected: r
@@ -11037,7 +9304,6 @@ function qo({
     })
   });
 }
-var Jo = 5;
 function Yo(e) {
   let t = e?.promptLimit;
   return !t || t.type === `none` ? `—` : t.type === `chars` ? t.label || `${t.max}字` : `—`;
@@ -11375,26 +9641,7 @@ function rs({
     })
   }), document.body) : null;
 }
-var is = [{
-    label: `16:9`,
-    value: `16:9`
-  }, {
-    label: `9:16`,
-    value: `9:16`
-  }, {
-    label: `3:4`,
-    value: `3:4`
-  }, {
-    label: `4:3`,
-    value: `4:3`
-  }, {
-    label: `1:1`,
-    value: `1:1`
-  }, {
-    label: `自定义`,
-    value: `custom`
-  }],
-  as = [{
+var as = [{
     label: `480p`,
     value: `480p`
   }, {
@@ -13315,7 +11562,6 @@ function ls(e) {
 function us(e) {
   return (!isFinite(e) || e < 0) && (e = 0), `${Math.floor(e / 60)}:${Math.floor(e % 60).toString().padStart(2, `0`)}`;
 }
-var ds = `__audio_player_range_style__`;
 if (typeof document < `u` && !document.getElementById(ds)) {
   let e = document.createElement(`style`);
   e.id = ds, e.textContent = `
@@ -16783,8 +15029,7 @@ function Rs(e, t = 15e3) {
     return t && isFinite(t) ? t : 0;
   });
 }
-var zs = [240, 360, 480, 640, 720],
-  Bs = [.5, 1, 2, 3, 5, 8, 10, 12, 15, 20],
+var Bs = [.5, 1, 2, 3, 5, 8, 10, 12, 15, 20],
   Vs = [{
     label: `0.5×`,
     value: .5
@@ -17105,40 +15350,6 @@ var Gs = Y.memo(({
     })]
   });
 });
-function Ks(e, t) {
-  return new Promise((n, r) => {
-    let i = new Image();
-    i.crossOrigin = `anonymous`;
-    let a = window.setTimeout(() => r(Error(`图片加载超时`)), t);
-    i.onload = () => {
-      window.clearTimeout(a), n(i);
-    }, i.onerror = () => {
-      window.clearTimeout(a), r(Error(`图片加载失败（可能是跨域或格式不支持）`));
-    }, i.src = e;
-  });
-}
-function qs(e, t, n) {
-  return new Promise((r, i) => {
-    e.toBlob(e => e ? r(e) : i(Error(`图片编码失败`)), t, n);
-  });
-}
-function Js(e) {
-  return new Promise((t, n) => {
-    let r = new FileReader();
-    r.onload = () => t(r.result), r.onerror = () => n(Error(`读取结果失败`)), r.readAsDataURL(e);
-  });
-}
-async function Ys(e) {
-  try {
-    if (e.startsWith(`data:`)) {
-      let t = e.split(`,`)[1] || ``;
-      return Math.floor(t.length * 3 / 4);
-    }
-    return (await (await fetch(e)).blob()).size;
-  } catch {
-    return 0;
-  }
-}
 async function Xs(e, t = {}) {
   let {
       maxSize: n = 0,
@@ -17185,29 +15396,7 @@ async function Xs(e, t = {}) {
     format: i
   };
 }
-var Zs = [{
-    label: `原始`,
-    value: 0
-  }, {
-    label: `2048`,
-    value: 2048
-  }, {
-    label: `1600`,
-    value: 1600
-  }, {
-    label: `1280`,
-    value: 1280
-  }, {
-    label: `1024`,
-    value: 1024
-  }, {
-    label: `768`,
-    value: 768
-  }, {
-    label: `512`,
-    value: 512
-  }],
-  Qs = [{
+var Qs = [{
     label: `高 (0.9)`,
     value: .9
   }, {
@@ -17709,23 +15898,6 @@ async function vc(e, t = 2e4) {
   }
   return s;
 }
-var yc = [{
-  mode: `mosaic`,
-  label: `马赛克`,
-  icon: oe
-}, {
-  mode: `bar`,
-  label: `黑条`,
-  icon: at
-}, {
-  mode: `grid`,
-  label: `网格`,
-  icon: _e
-}, {
-  mode: `blur`,
-  label: `模糊`,
-  icon: $t
-}];
 function bc({
   imageUrl: e,
   onSave: t,
@@ -17998,23 +16170,6 @@ function bc({
     })]
   }), document.body);
 }
-var xc = [{
-  mode: `mosaic`,
-  label: `马赛克`,
-  icon: oe
-}, {
-  mode: `bar`,
-  label: `黑条`,
-  icon: at
-}, {
-  mode: `grid`,
-  label: `网格`,
-  icon: _e
-}, {
-  mode: `blur`,
-  label: `模糊`,
-  icon: $t
-}];
 function Sc(e) {
   let t = [],
     n = e => {
@@ -19051,8 +17206,7 @@ async function zc(e, t) {
   };
   return t.body && (i.body = n || typeof t.body == `string` ? t.body : JSON.stringify(t.body)), fetch(e, i);
 }
-var Bc = LOCAL_ENGINE.port,
-  Vc = 5e3,
+var Vc = 5e3,
   Hc = 15e3;
 function Uc() {
   let [e, t] = Y.useState({
@@ -21092,23 +19246,11 @@ function cu(e) {
 function lu(e, t) {
   return `${e}${String(t).padStart(2, `0`)}`;
 }
-function uu(e, t, n = 1) {
-  let r = n - 1;
-  for (let n of e) {
-    if (!n.startsWith(t)) continue;
-    let e = n.slice(t.length);
-    /^\d+$/.test(e) && (r = Math.max(r, Number.parseInt(e, 10)));
-  }
-  return `${t}${r + 1}`;
-}
 function du(e) {
   return e.sourceType === `model` && e.kind !== `panorama` && e.assetSource === `local`;
 }
 function fu() {
   return typeof localStorage > `u` ? null : localStorage;
-}
-function pu(e) {
-  return JSON.parse(JSON.stringify(e));
 }
 function mu() {
   let e = fu();
@@ -25050,19 +23192,6 @@ function wf({
     })
   });
 }
-var Tf = class extends Y.Component {
-  state = {
-    hasError: false
-  };
-  static getDerivedStateFromError() {
-    return {
-      hasError: true
-    };
-  }
-  render() {
-    return this.state.hasError ? this.props.fallback : this.props.children;
-  }
-};
 function Ef({
   bodyType: e,
   color: t,
@@ -25921,39 +24050,6 @@ function vp() {
     }, t.id)) : null]
   });
 }
-var yp = [{
-  id: `auto`,
-  label: `自动`,
-  value: null
-}, {
-  id: `1:1`,
-  label: `1:1`,
-  value: 1
-}, {
-  id: `2:1`,
-  label: `2:1`,
-  value: 2
-}, {
-  id: `3:4`,
-  label: `3:4`,
-  value: 3 / 4
-}, {
-  id: `4:3`,
-  label: `4:3`,
-  value: 4 / 3
-}, {
-  id: `16:9`,
-  label: `16:9`,
-  value: 16 / 9
-}, {
-  id: `21:9`,
-  label: `21:9`,
-  value: 21 / 9
-}, {
-  id: `9:16`,
-  label: `9:16`,
-  value: 9 / 16
-}];
 function bp(e) {
   return yp.find(t => t.id === e)?.value ?? null;
 }
@@ -26551,7 +24647,6 @@ function jp({
     })]
   });
 }
-var Mp = /\.(fbx|obj)$/i;
 function Np(e) {
   return new Promise((t, n) => {
     let r = new FileReader();
@@ -26573,8 +24668,7 @@ async function Pp(e) {
     url: await Np(e)
   };
 }
-var Fp = /\.(jpe?g|png|webp)$/i,
-  Ip = 2,
+var Ip = 2,
   Lp = .02,
   Rp = 2048,
   zp = 4096,
@@ -26768,28 +24862,7 @@ async function dm(e, t = `panorama.jpg`) {
     type: i
   }));
 }
-var fm = [{
-    id: `convenience`,
-    label: `便利生活`,
-    directoryName: `便利生活`
-  }, {
-    id: `home`,
-    label: `居家生活`,
-    directoryName: `生活家居`
-  }, {
-    id: `outdoor`,
-    label: `户外出行`,
-    directoryName: `户外出行`
-  }, {
-    id: `tools`,
-    label: `工具配件`,
-    directoryName: `工具配件`
-  }, {
-    id: `my-models`,
-    label: `我的模型`,
-    directoryName: ``
-  }],
-  pm = Object.assign({}),
+var pm = Object.assign({}),
   mm = Object.assign({}),
   hm = Object.assign({}),
   gm = Object.assign({}),
@@ -28626,8 +26699,7 @@ function Eh({
     })
   });
 }
-var Dh = `custom-edge-flow-style`,
-  Oh = `
+var Oh = `
 /* 默认: 淡白色细线 (任何 path 都强制 fill:none, 避免曲线开口被填黑) */
 .cust-edge-base,
 .cust-edge-glow,
@@ -28981,37 +27053,6 @@ function Nh() {
   });
 }
 var Ph = () => `img-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-  Fh = Y.memo(({
-    src: e,
-    alt: t,
-    className: n,
-    onDoubleClick: r
-  }) => {
-    let i = Y.useRef(null),
-      [a, o] = Y.useState(false);
-    return Y.useEffect(() => {
-      let e = i.current;
-      if (!e || a) return;
-      let t = new IntersectionObserver(e => {
-        e.some(e => e.isIntersecting) && (o(true), t.disconnect());
-      }, {
-        rootMargin: `120px`
-      });
-      return t.observe(e), () => t.disconnect();
-    }, [a]), X.jsx(`div`, {
-      ref: i,
-      className: n,
-      onDoubleClick: r,
-      children: a && X.jsx(`img`, {
-        src: e,
-        alt: t || ``,
-        loading: `lazy`,
-        decoding: `async`,
-        draggable: false,
-        className: `w-full h-full object-cover`
-      })
-    });
-  }),
   Ih = Y.memo(({
     id: e,
     data: i,
@@ -30789,8 +28830,7 @@ async function ng(e) {
 function rg(e) {
   // 本地模式：不记录使用次数
 }
-var ig = `application/x-yimao-template`,
-  ag = [{
+var ag = [{
     value: ``,
     label: `全部`
   }, {
@@ -38520,27 +36560,6 @@ function zg({
     handleRefreshTask: _
   };
 }
-function Bg({
-  importData: e,
-  exportData: t
-}) {
-  let n = Y.useRef(e),
-    r = Y.useRef(t);
-  Y.useEffect(() => {
-    n.current = e, r.current = t;
-  }, [e, t]), Y.useEffect(() => {
-    let e = () => {
-        let e = document.createElement(`input`);
-        e.type = `file`, e.accept = `.json`, e.onchange = e => n.current(e), e.click();
-      },
-      t = () => {
-        r.current();
-      };
-    return window.addEventListener(`import-project`, e), window.addEventListener(`export-project`, t), () => {
-      window.removeEventListener(`import-project`, e), window.removeEventListener(`export-project`, t);
-    };
-  }, []);
-}
 function Vg({
   onLoginSuccess: e
 }) {
@@ -38717,105 +36736,7 @@ function Vg({
     })]
   });
 }
-var Hg = ({
-    toasts: e,
-    onRemove: t
-  }) => {
-    let n = e => {
-        switch (e) {
-          case `success`:
-            return X.jsx(ot, {
-              size: 20,
-              className: `text-green-300`
-            });
-          case `error`:
-            return X.jsx(nt, {
-              size: 20,
-              className: `text-red-300`
-            });
-          case `warning`:
-            return X.jsx(pt, {
-              size: 20,
-              className: `text-yellow-300`
-            });
-          case `info`:
-            return X.jsx(H, {
-              size: 20,
-              className: `text-blue-300`
-            });
-        }
-      },
-      r = e => {
-        switch (e) {
-          case `success`:
-            return `from-green-500/10 to-emerald-500/10 border-green-500/30 shadow-[0_0_20px_rgba(34,197,94,0.15)]`;
-          case `error`:
-            return `from-red-500/10 to-rose-500/10 border-red-500/30 shadow-[0_0_20px_rgba(239,68,68,0.15)]`;
-          case `warning`:
-            return `from-yellow-500/10 to-amber-500/10 border-yellow-500/30 shadow-[0_0_20px_rgba(234,179,8,0.15)]`;
-          case `info`:
-            return `from-blue-500/10 to-indigo-500/10 border-blue-500/30 shadow-[0_0_20px_rgba(59,130,246,0.15)]`;
-        }
-      };
-    return X.jsxs(`div`, {
-      className: `fixed top-20 right-4 z-[9999] flex flex-col gap-3 max-w-sm`,
-      children: [e.map(e => X.jsxs(`div`, {
-        className: `relative overflow-hidden bg-gradient-to-r ${r(e.type)} backdrop-blur-xl rounded-lg border p-4 animate-slide-in`,
-        style: {
-          animation: `slideIn 0.3s ease-out`
-        },
-        children: [X.jsxs(`div`, {
-          className: `flex items-start gap-3`,
-          children: [X.jsx(`div`, {
-            className: `flex-shrink-0 mt-0.5`,
-            children: n(e.type)
-          }), X.jsx(`div`, {
-            className: `flex-1`,
-            children: X.jsx(`p`, {
-              className: `text-sm font-medium text-gray-200`,
-              children: e.message
-            })
-          }), X.jsx(`button`, {
-            onClick: () => t(e.id),
-            className: `flex-shrink-0 text-gray-400 hover:text-gray-200 transition-colors`,
-            children: X.jsx(yn, {
-              size: 16
-            })
-          })]
-        }), X.jsx(`div`, {
-          className: `absolute bottom-0 left-0 right-0 h-0.5 bg-gray-700/50`,
-          children: X.jsx(`div`, {
-            className: `h-full bg-gradient-to-r from-white/40 to-white/20`,
-            style: {
-              animation: `shrink ${e.duration || 3e3}ms linear forwards`
-            }
-          })
-        })]
-      }, e.id)), X.jsx(`style`, {
-        children: `
-        @keyframes slideIn {
-          from {
-            transform: translateX(100%);
-            opacity: 0;
-          }
-          to {
-            transform: translateX(0);
-            opacity: 1;
-          }
-        }
-        @keyframes shrink {
-          from {
-            width: 100%;
-          }
-          to {
-            width: 0%;
-          }
-        }
-      `
-      })]
-    });
-  },
-  Ug = new class {
+var Ug = new class {
     listeners = [];
     toasts = [];
     subscribe(e) {
@@ -39927,8 +37848,7 @@ function u_({
     })]
   });
 }
-var d_ = `! @ # $ % ^ & * ( ) _ - + = { } [ ] | : ; " ' < > , . ? / ~`,
-  f_ = `密码至少8位，需包含大写字母、小写字母、数字和特殊字符`,
+var f_ = `密码至少8位，需包含大写字母、小写字母、数字和特殊字符`,
   p_ = `特殊字符指除字母、数字外的符号，例如：${d_}`;
 function m_(e) {
   return e ? e.length < 8 ? {
@@ -40144,27 +38064,6 @@ var __ = (...e) => e.filter(Boolean).join(` `),
       label: `生视频`
     }
   };
-function y_() {
-  let e = [],
-    t = new Set(),
-    n = [`text`, `image`, `video`],
-    r = Bi();
-  for (let i of n) for (let n of r[i] || []) t.has(n) || (t.add(n), e.push({
-    name: n,
-    category: i,
-    power: Ui(n),
-    unit: Wi(n),
-    currency: Gi(n)
-  }));
-  for (let n of Vi()) t.has(n) || (t.add(n), e.push({
-    name: n,
-    category: `video`,
-    power: Ui(n),
-    unit: Wi(n),
-    currency: Gi(n)
-  }));
-  return e;
-}
 function b_({
   model: e
 }) {
@@ -40618,136 +38517,6 @@ function D_(e, t) {
     title: t || `权益不够`,
     children: `权益不够`
   });
-}
-var O_ = {
-  text: {
-    short: `文本`,
-    label: `文本`,
-    tone: `text-sky-300`
-  },
-  image: {
-    short: `生图`,
-    label: `生图`,
-    tone: `text-fuchsia-300`
-  },
-  video: {
-    short: `生视频`,
-    label: `生视频`,
-    tone: `text-emerald-300`
-  },
-  discount: {
-    short: `生视频`,
-    label: `生视频`,
-    tone: `text-emerald-300`
-  }
-};
-function k_(e) {
-  let t = (e || ``).trim();
-  if (!t) return {
-    key: `misc`,
-    label: `其他`
-  };
-  let n = qi(t);
-  if (n) return {
-    key: n.key,
-    label: n.label
-  };
-  let r = t.toLowerCase();
-  for (let e of [{
-    test: /^gemini[-_ ]?3[-_ ]?pro/i,
-    key: `gemini-3-pro`,
-    label: `Gemini 3 Pro 系列`
-  }, {
-    test: /^gemini[-_ ]?3\.1/i,
-    key: `gemini-3.1`,
-    label: `Gemini 3.1 系列`
-  }, {
-    test: /^gemini[-_ ]?3/i,
-    key: `gemini-3`,
-    label: `Gemini 3 系列`
-  }, {
-    test: /^gemini/i,
-    key: `gemini`,
-    label: `Gemini 系列`
-  }, {
-    test: /^grok[-_ ]?video/i,
-    key: `grok-video`,
-    label: `Grok Video 系列`
-  }, {
-    test: /^deepseek/i,
-    key: `deepseek`,
-    label: `DeepSeek 系列`
-  }, {
-    test: /^seedance/i,
-    key: `seedance`,
-    label: `Seedance 系列`
-  }]) if (e.test.test(r)) return {
-    key: e.key,
-    label: e.label
-  };
-  let i = t.split(/[-_:.@/\s]/)[0] || `misc`;
-  return {
-    key: i.toLowerCase(),
-    label: `${i} 系列`
-  };
-}
-function A_(e) {
-  let t = [[`from-blue-500/65`, `to-cyan-400/45`], [`from-fuchsia-500/65`, `to-pink-400/45`], [`from-emerald-500/65`, `to-teal-400/45`], [`from-amber-500/65`, `to-orange-400/45`], [`from-violet-500/65`, `to-indigo-400/45`], [`from-rose-500/65`, `to-red-400/45`], [`from-sky-500/65`, `to-blue-400/45`], [`from-lime-500/65`, `to-emerald-400/45`]],
-    n = 0;
-  for (let t = 0; t < e.length; t++) n = n * 31 + e.charCodeAt(t) >>> 0;
-  let [r, i] = t[n % t.length];
-  return `bg-gradient-to-br ${r} ${i}`;
-}
-function j_() {
-  let e = Oi();
-  if (e.length > 0) return e.map(e => {
-    let t = e.builtinCategory || e.category || `text`,
-      n = t === `video` || t === `text` || t === `image` ? t : `text`,
-      r = e.isDiscountVideo ? `discount` : n;
-    return {
-      id: `${n}:${e.modelName}`,
-      name: e.modelName,
-      category: n,
-      displayCategory: r,
-      power: Ui(e.modelName),
-      unit: Wi(e.modelName),
-      currency: Gi(e.modelName),
-      recommended: Ji(e.modelName),
-      description: Ki(e.modelName),
-      access: e.access,
-      accessReason: e.reason
-    };
-  });
-  let t = [],
-    n = new Set();
-  for (let e of [`text`, `image`, `video`]) for (let r of Bi()[e] || []) {
-    if (n.has(r)) continue;
-    n.add(r);
-    let i = Yi(r) ? `discount` : e;
-    t.push({
-      id: `${e}:${r}`,
-      name: r,
-      category: e,
-      displayCategory: i,
-      power: Ui(r),
-      unit: Wi(r),
-      currency: Gi(r),
-      recommended: Ji(r),
-      description: Ki(r)
-    });
-  }
-  for (let e of Vi()) n.has(e) || (n.add(e), t.push({
-    id: `video:${e}`,
-    name: e,
-    category: `video`,
-    displayCategory: `discount`,
-    power: Ui(e),
-    unit: Wi(e),
-    currency: Gi(e),
-    recommended: Ji(e),
-    description: Ki(e)
-  }));
-  return t;
 }
 var M_ = () => {
     let [e, t] = Y.useState(`all`),
@@ -41717,8 +39486,7 @@ async function tv(e, t) {
   let o = [];
   i.length === 1 ? o.push(J_(i[0])) : i.length > 1 && o.push(Y_(i)), a.length > 0 && o.push(Z_(a)), o.length > 0 && (await Promise.all(o).catch(e => console.error(`[taskStore] diffAndPersistTasks error`, e)));
 }
-var nv = 20,
-  rv = (e, t) => t === `all` ? true : t === `running` ? e === `running` || e === `pending` : e === t,
+var rv = (e, t) => t === `all` ? true : t === `running` ? e === `running` || e === `pending` : e === t,
   iv = (e, t) => t === `all` ? true : t === `video` ? e === `video` || e === `sd2Video` || e === `discountVideo` : e === t;
 function av({
   open: e,
@@ -42827,7 +40595,6 @@ function _v({
     })
   }) : null;
 }
-var vv = LOCAL_ENGINE.base;
 function yv(e) {
   let t = {
     ...e
@@ -42912,8 +40679,7 @@ async function Ev() {
     return console.error(`[resourceStore] rescanResources error`, e), 0;
   }
 }
-var Dv = 200,
-  Ov = `tasks_seeded_to_sqlite`,
+var Ov = `tasks_seeded_to_sqlite`,
   kv = `resources_seeded_to_sqlite`,
   Av = [];
 function jv({
