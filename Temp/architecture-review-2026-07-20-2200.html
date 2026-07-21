@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>架构评审 · 画布鼠标操作全景评估</title>
+<style>
+  :root{
+    --emerald:#10b981; --emerald-bg:#064e3b; --amber:#f59e0b; --amber-bg:#78350f;
+    --slate:#64748b; --slate-bg:#1e293b; --ink:#0f172a; --paper:#f8fafc; --red:#ef4444;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,system-ui,"Segoe UI",Roboto,sans-serif;background:var(--paper);color:var(--ink);line-height:1.55}
+  .wrap{max-width:1080px;margin:0 auto;padding:32px 24px 64px}
+  h1{font-size:24px;font-weight:700;letter-spacing:-.02em;margin:0 0 4px}
+  .sub{color:var(--slate);font-size:13px;margin-bottom:28px}
+  .panel{background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:20px 22px;margin-bottom:22px;box-shadow:0 1px 2px rgba(15,23,42,.04)}
+  .panel h2{font-size:15px;text-transform:uppercase;letter-spacing:.08em;color:var(--slate);margin:0 0 14px;font-weight:700}
+  .roi{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  .roi .cell{border-radius:10px;padding:14px 16px;border:1px solid}
+  .roi .b{background:#ecfdf5;border-color:#a7f3d0}
+  .roi .c{background:#fffbeb;border-color:#fde68a}
+  .roi .r{background:#fef2f2;border-color:#fecaca}
+  .roi h3{margin:0 0 8px;font-size:12px;text-transform:uppercase;letter-spacing:.06em}
+  .roi .b h3{color:#047857}.roi .c h3{color:#b45309}.roi .r h3{color:#b91c1c}
+  .roi p{margin:0;font-size:13px;color:#334155}
+  .roi b{color:var(--ink)}
+  .badges{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:22px}
+  .badge{font-size:12px;font-weight:600;padding:5px 12px;border-radius:999px;color:#fff}
+  .badge.strong{background:var(--emerald)}
+  .badge.worth{background:var(--amber)}
+  .badge.spec{background:var(--slate)}
+  .evi{font-size:13px;color:#334155}
+  .evi code{background:#f1f5f9;padding:1px 6px;border-radius:5px;font-size:12px;color:#0f172a}
+  .evi li{margin-bottom:6px}
+  table{width:100%;border-collapse:collapse;font-size:12.5px}
+  th,td{text-align:left;padding:8px 10px;border-bottom:1px solid #eef2f6;vertical-align:top}
+  th{color:var(--slate);text-transform:uppercase;letter-spacing:.05em;font-size:11px;background:#f8fafc}
+  td code{background:#f1f5f9;padding:1px 5px;border-radius:5px;font-size:11.5px;color:#0f172a}
+  tr:hover td{background:#fafcff}
+  .sev{font-weight:700;white-space:nowrap;font-size:11.5px;padding:2px 8px;border-radius:999px;display:inline-block}
+  .p1{background:#fef2f2;color:#b91c1c;border:1px solid #fecaca}
+  .p2{background:#fff7ed;color:#c2410c;border:1px solid #fed7aa}
+  .p3{background:#fefce8;color:#a16207;border:1px solid #fde68a}
+  .chart{display:flex;gap:24px;flex-wrap:wrap}
+  .chart .box{flex:1;min-width:320px}
+  .figcap{font-size:12px;color:var(--slate);margin-top:8px;text-transform:uppercase;letter-spacing:.05em}
+  .node{border:1px solid #cbd5e1;background:#fff;border-radius:8px;padding:8px 10px;font-size:12px;display:inline-block}
+  .node.deep{border:2px solid var(--emerald);background:#ecfdf5}
+  .node.leak{border:1px dashed var(--red);background:#fef2f2;color:#b91c1c}
+  .arrow{font-size:18px;color:var(--slate);padding:0 6px}
+  .row{display:flex;align-items:center;margin:8px 0}
+  .col{display:flex;flex-direction:column;gap:8px}
+  .top{background:var(--emerald-bg);color:#d1fae5;border-radius:12px;padding:18px 20px;font-size:14px}
+  .top b{color:#fff}
+  .warn{background:var(--amber-bg);color:#fde68a;border-radius:10px;padding:12px 16px;font-size:13px;margin-bottom:22px}
+  .foot{color:var(--slate);font-size:12px;margin-top:30px;border-top:1px solid #e2e8f0;padding-top:14px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>架构评审报告 · 画布鼠标操作全景评估</h1>
+  <div class="sub">State 1 / 量化探勘与视觉图纸 — 目标：<b>画布全部鼠标交互</b>（平移/框选/右键菜单/连线/拖放/双击/滚轮）· 源码：<code>src/_engine/App.js</code> (V1 引擎) · ReactFlow 配置 <code>L37077–37120</code> · 2026-07-20</div>
+
+  <div class="badges">
+    <span class="badge strong">Strong · 2 个高确定性缺陷 (P1)</span>
+    <span class="badge worth">Worth exploring · 2 个体验隐患 (P2)</span>
+    <span class="badge spec">Speculative · 2 个取向问题 (P3)</span>
+  </div>
+
+  <div class="panel">
+    <h2>一 · 鼠标操作全清单（源码事实 · 14 handler + 4 模式开关）</h2>
+    <table>
+      <thead><tr><th>鼠标动作</th><th>handler</th><th>定义</th><th>实际行为</th></tr></thead>
+      <tbody>
+        <tr><td>左键空白拖拽</td><td><code>panOnDrag</code></td><td>L37120</td><td>无 ctrl→平移；按 ctrl→<b>不平移</b>（改右键平移）</td></tr>
+        <tr><td>左键空白框选</td><td><code>selectionOnDrag</code></td><td>L37119</td><td>无 ctrl→关；按 ctrl→框选</td></tr>
+        <tr><td>右键空白拖拽</td><td><code>panOnDrag:[2]</code></td><td>L37120</td><td>仅按 ctrl 时右键可平移</td></tr>
+        <tr><td>右键空白点击</td><td><code>Cn</code> onPaneContextMenu</td><td>L31934</td><td>弹画布右键菜单</td></tr>
+        <tr><td>右键节点</td><td><code>wn</code> onNodeContextMenu</td><td>L31948</td><td>弹节点右键菜单</td></tr>
+        <tr><td>右键多选区</td><td><code>En</code> onSelectionContextMenu</td><td>L31959</td><td>弹选区菜单</td></tr>
+        <tr><td>框选结束(多选)</td><td><code>On</code> onSelectionEnd</td><td>L31969</td><td>延时 50ms 若选中&gt;1 弹选区菜单</td></tr>
+        <tr><td>左键点节点</td><td><code>kn</code> onNodeClick</td><td>L31981</td><td>仅"多连模式"<code>Et</code> 下建连，否则无</td></tr>
+        <tr><td>左键点空白</td><td><code>An</code> onPaneClick</td><td>L31994</td><td>关菜单、取消多连模式</td></tr>
+        <tr><td>连线拖出</td><td><code>xn</code> onConnect</td><td>L31884</td><td>建边（同侧校验+方向纠正+多选批量连）</td></tr>
+        <tr><td>连线落空</td><td><code>Fr</code> onConnectEnd</td><td>L36195</td><td>落空白→生成 ghost 节点+连线菜单</td></tr>
+        <tr><td>拖文件/模板进入</td><td><code>Ir</code> onDragOver</td><td>L36240</td><td>设 dropEffect=copy</td></tr>
+        <tr><td>拖放</td><td><code>Lr</code> onDrop</td><td>L36243</td><td>落模板/任务/文件→建节点</td></tr>
+        <tr><td>节点拖动结束</td><td><code>jt</code> onNodeDragStop</td><td>L31514</td><td>触发分组尺寸重算</td></tr>
+        <tr><td>选区拖动结束</td><td><code>Mt</code> onSelectionDragStop</td><td>L31517</td><td>同上</td></tr>
+        <tr><td>视口移动</td><td><code>bt</code>/<code>xt</code> onMoveStart/End</td><td>L31381/31384</td><td>平移/缩放打"正在移动"标志(120ms 防抖)</td></tr>
+        <tr><td>边双击</td><td><code>Yr</code> onEdgeDoubleClick</td><td>L36570</td><td>删除该边（无二次确认）</td></tr>
+        <tr><td>滚轮</td><td><i>未配置</i></td><td>—</td><td>走 ReactFlow 默认 = 缩放</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="panel">
+    <h2>二 · 问题分级（全景 · 6 项）</h2>
+    <table>
+      <thead><tr><th>级别</th><th>问题</th><th>位置</th><th>根因 / 影响</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><span class="sev p1">P1</span></td>
+          <td><code>ctrlHeld</code> 无失焦重置<br>（用户报告的"偶尔变框选"）</td>
+          <td>L37033–37039</td>
+          <td>只监听 <code>keydown</code>/<code>keyup</code>，<b>0 处</b> <code>window.blur</code>/<code>visibilitychange</code>。Cmd+Tab 切走后 keyup 丢失 → <code>ctrlHeld</code> 卡 <code>true</code> → 左键拖拽变框选。<b>这是根因。</b></td>
+        </tr>
+        <tr>
+          <td><span class="sev p1">P1</span></td>
+          <td>ctrl 键位与 RF 内置多选键<b>冲突</b></td>
+          <td>L37075–37120 未设键码</td>
+          <td>未设 <code>selectionKeyCode</code>/<code>multiSelectionKeyCode</code>/<code>panActivationKeyCode</code>，全走默认——Mac 默认 <code>multiSelectionKeyCode=Meta(Cmd)</code>，与自建的 ctrl 翻转 <code>selectionOnDrag</code> 叠在同一键，行为不可预期。<b>设计层隐患。</b></td>
+        </tr>
+        <tr>
+          <td><span class="sev p2">P2</span></td>
+          <td>右键在两模式下语义漂移</td>
+          <td>L37120 + <code>Cn</code> L31934</td>
+          <td>无 ctrl：右键=菜单；按 ctrl：<code>panOnDrag:[2]</code> 让右键变平移，菜单是否弹取决于是否移动 → 按 ctrl 想右键菜单时可能拿到平移。</td>
+        </tr>
+        <tr>
+          <td><span class="sev p2">P2</span></td>
+          <td>连线落空的 ghost 节点依赖菜单关闭时机</td>
+          <td><code>Fr</code> L36195 + effect L36573</td>
+          <td>落空后 50ms 建 <code>ghost-target</code>+<code>ghost-edge</code>+连线菜单；清理靠"菜单非 connection 类型"的 effect。菜单状态异常时 ghost 边/节点可能残留。</td>
+        </tr>
+        <tr>
+          <td><span class="sev p3">P3</span></td>
+          <td>滚轮缩放无自定义</td>
+          <td>未配 <code>zoomOnScroll</code>/<code>panOnScroll</code></td>
+          <td>全默认。Mac 触摸板双指默认缩放而非平移，笔记本用户可能觉得"滚不动画布"。非 bug，属体验取向。</td>
+        </tr>
+        <tr>
+          <td><span class="sev p3">P3</span></td>
+          <td>双击边=删除，无二次确认/undo 提示</td>
+          <td><code>Yr</code> L36570</td>
+          <td>误双击静默删连线（是否有全局 undo 需另查）。</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="panel">
+    <h2>三 · 根因归纳</h2>
+    <p class="evi">所有交互模式的"分叉"都压在<b>单个布尔 <code>ctrlHeld</code></b> 上（L31402 状态 + L37034 键监听 + L37119/37120 props），而 ReactFlow 本身已有一整套键码体系（<code>selectionKeyCode</code>/<code>panActivationKeyCode</code>/<code>multiSelectionKeyCode</code>）<b>完全没被使用</b>。等于自建了一套<b>与框架内置机制打架、且缺失失焦兜底</b>的操作模式——两个 P1 都是它的直接后果。这就是本 Module 的"浅"所在：交互模式逻辑摊薄在 3 处，与约 40 个渲染 props 纠缠在同一对象里。</p>
+  </div>
+
+  <div class="panel">
+    <h2>四 · ROI 面板（基于源码事实）</h2>
+    <div class="roi">
+      <div class="cell b">
+        <h3>收益 Benefit</h3>
+        <p>一次消除 <b>2 个 P1</b>（失焦卡死 + 键位冲突）+ 缓解 2 个 P2。当前交互模式散落 3 处、与框架键码冲突；收敛为独立 Module 自管重置后，根因消失，交互语义可预期。</p>
+      </div>
+      <div class="cell c">
+        <h3>成本 Cost</h3>
+        <p>抽 1 个交互模式 Module / Hook，约 <b>新增 30–50 行</b>，改 <code>App.js</code> <b>3 个</b>位点（L31402 / L37033 / L37119-37120）。无新增依赖，无跨进程调用。最小修复（仅补失焦重置）只需 <b>+3 行</b>。</p>
+      </div>
+      <div class="cell r">
+        <h3>风险 Risk</h3>
+        <p>RF 默认 <code>selectionKeyCode='Shift'</code>、<code>panActivationKeyCode='Space'</code> 仍生效。若新 Module 不显式声明键码，Shift/空格行为可能与 ctrl 模式叠加。需在 Interface 层<b>显式固定全部 4 个键码</b>避免回归。</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>五 · 可视化 · before / after</h2>
+    <div class="chart">
+      <div class="box">
+        <div class="figcap">依赖流（before · 红边为泄漏）</div>
+        <div class="row">
+          <span class="node">keydown/keyup<br>window 监听</span>
+          <span class="arrow">&rarr;</span>
+          <span class="node">ctrlHeld 状态<br>L31402</span>
+          <span class="arrow">&rarr;</span>
+          <span class="node">ReactFlow props<br>L37119-37120</span>
+        </div>
+        <div class="row">
+          <span class="node leak">window blur / Cmd-Tab<br>keyup 丢失 → 卡 TRUE</span>
+          <span class="arrow">+</span>
+          <span class="node leak">RF 默认 Meta 多选<br>与 ctrl 翻转叠加</span>
+        </div>
+        <div style="font-size:12px;color:var(--red);margin-top:6px">⚠ 红边：无重置路径 + 键位冲突，状态泄漏到后续交互</div>
+      </div>
+      <div class="box">
+        <div class="figcap">after · 收敛为 InteractionMode Module</div>
+        <div class="col">
+          <span class="node deep">InteractionMode Module<br>键态自管 + blur/visibilitychange 重置</span>
+          <span class="arrow">&darr;</span>
+          <span class="node deep">窄 Interface：<br>{ panOnDrag, selectionOnDrag,<br>selectionKeyCode, panActivationKeyCode }</span>
+        </div>
+        <div style="font-size:12px;color:var(--emerald);margin-top:6px">✓ 单一出口·4 键码固定·失焦自愈</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>六 · 依赖分类（State 2 预判）</h2>
+    <p class="evi">全部 14 个鼠标 handler 均为 <b>In-process</b>（纯内存态 + 浏览器事件监听，无 I/O、无网络）。属「永远可深化」类别：直接合并/抽取 Module，透过新 Interface 在组件内测试即可，<b>无需 Adapter</b>。低成本高确定性。</p>
+  </div>
+
+  <div class="top">
+    <b>Top recommendation：</b>分两步——<b>①（治标 · P1-1）</b>先给 <code>window</code> 加 <code>blur</code>+<code>visibilitychange</code> → <code>setCtrlHeld(false)</code>，最小 3 行解你当前的"偶尔变框选"；<b>②（治本 · P1-2）</b>去掉自建 <code>ctrlHeld</code>，改用 RF 原生键码把 <code>ctrlHeld</code>+键监听+失焦重置收敛为 1 个 <b>InteractionMode Module</b>，Interface 暴露 <code>{ panOnDrag, selectionOnDrag, selectionKeyCode, panActivationKeyCode }</code> 四个已固定键码，同时消除键位冲突。属 In-process 深化，无 Adapter、无跨文件风险，ROI 为正。
+  </div>
+
+  <div class="foot">
+    报告路径：<code>Temp/architecture-review-2026-07-20-2200.html</code> · 离线可读，无外部依赖 · 遍历范围：<code>src/_engine/App.js</code> 全部鼠标 handler（14 个）· 未检测到 <code>docs/adr/</code> 或 <code>CONTEXT.md</code>，故无 ADR 冲突 · 更新：由单点 ctrlHeld 扩展为全鼠标操作全景评估。
+  </div>
+</div>
+</body>
+</html>

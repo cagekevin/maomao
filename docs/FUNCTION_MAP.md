@@ -21,7 +21,7 @@
 
 ## 0.5 混淆名高频核心（改 App.js 必备速查）
 
-完整字典在 `docs/reference/var-mapping.txt` + `func-mapping.txt`（行号已漂移）。**下面是最常碰到的几个**，改功能前先认脸：
+完整字典在 `docs/var-mapping.txt` + `docs/func-mapping.txt`（行号已漂移）。**下面是最常碰到的几个**，改功能前先认脸：
 
 | 混淆名 | 可读含义 | 用途 |
 |--------|---------|------|
