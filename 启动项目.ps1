@@ -102,6 +102,12 @@ if ($args.Count -gt 0) {
     }
 }
 
+# ── 进入菜单前先显示端口状态（双击打开即可见）──
+Write-Host "📡 当前端口状态：" -ForegroundColor Cyan
+Show-PortStatus -Port 9004 -Name "AI 网关 (apimart-gateway)"
+Show-PortStatus -Port 18080 -Name "本地工具 (localTool)"
+Write-Host ""
+
 # ── 交互菜单 ──
 Write-Host "=================================="
 Write-Host "   一毛AI画布 — 本地工具"

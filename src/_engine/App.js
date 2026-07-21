@@ -40990,12 +40990,29 @@ var M_ = () => {
     }
   },
   F_ = new Set([`discountVideo`, `sd2Video`]);
+function normalizeBlobMeta(e) {
+  if (typeof Blob != `undefined` && e instanceof Blob) return {
+    _blob: !0,
+    name: e.name || `(blob)`,
+    size: e.size,
+    type: e.type || `(unknown)`
+  };
+  return e;
+}
 function I_(e) {
   if (e == null) return ``;
   if (typeof e == `string`) try {
     return JSON.stringify(JSON.parse(e), null, 2);
   } catch {
     return e;
+  }
+  if (typeof FormData != `undefined` && e instanceof FormData) {
+    let t = {};
+    for (let n of e.keys()) {
+      let r = e.getAll(n);
+      t[n] = r.length > 1 ? r.map(o => normalizeBlobMeta(o)) : normalizeBlobMeta(r[0]);
+    }
+    return JSON.stringify(t, null, 2);
   }
   try {
     return JSON.stringify(e, null, 2);
@@ -43219,15 +43236,13 @@ function Nv() {
     [ut, dt] = Y.useState(``),
     [pt, mt] = Y.useState(ot),
     [ht, gt] = Y.useState(``),
-    [_t, vt] = Y.useState(`gemini-3-flash-preview
-gemini-3-pro`),
+    [_t, vt] = Y.useState(DEFAULT_MODELS.text),
     [yt, bt] = Y.useState(ot),
     [xt, St] = Y.useState(``),
-    [Ct, wt] = Y.useState(`gpt-image-2-low`),
+    [Ct, wt] = Y.useState(DEFAULT_MODELS.drawing),
     [Tt, Et] = Y.useState(ot),
     [Dt, At] = Y.useState(``),
-    [jt, Mt] = Y.useState(`grok-video-3-pro
-grok-video-3`),
+    [jt, Mt] = Y.useState(DEFAULT_MODELS.video),
     [Nt, Pt] = Y.useState(`10
 15`),
     [Ft, It] = Y.useState(`defaultModelApiUrl`),

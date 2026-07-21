@@ -22,6 +22,33 @@
 
 ---
 
+## 〇·五、接缝总图（跨模块通道一览）
+
+> 所有通道均经 AI13 交叉验证实锤。改任一模块前，先在此确认"它和谁说话、走什么通道、什么格式"。
+> 行号随构建漂移，通道本身（协议/函数真身）稳定；引用带真身名，动码前 grep 复核。
+
+### 通道类型一览
+
+| # | 通道 | 协议 / 机制 | 发起方 → 接收方 | 关键端点 / 事件 / 函数 | 备注 |
+|---|------|------------|----------------|----------------------|------|
+| 1 | 前端 ↔ localTool | HTTP :18080 | 前端 `useLocalTool` hook → localTool `node:http` | `/api/files/*` `/api/kv/*` `/api/resources/*` `/api/tasks/*` `/api/status` | 文件落盘 + 持久化主通道 |
+| 2 | 前端 ↔ 网关 | HTTP :9004 | 前端 `Jn`/`lr`/`zc` → 网关 FastAPI | `/v1/images\|videos/generations` `/v1/tasks/{id}` `/v1/chat/completions` | 生图/视频/chat 主通道；网关 ↔ Lovart 外部依赖 |
+| 3 | 前端 ↔ 网关（代理跳板） | HTTP `POST /api/proxy` @L19016 | 前端 `zc`（localTool 连通时）→ localTool 转发 → 9004 | localTool 兼作 9004 请求的代理跳板（AI12 实锤）；断开时 `zc` 直连 9004 | localTool = 文件服务 + 代理跳板 + 本地文件读取器 三重角色 |
+| 4 | background ↔ 前端 | `chrome.runtime` 跨进程消息 | `background.ts`(SW) → App.js | `resourceAdded`（detail `{action,resource:{id,url,type,pageUrl,pageTitle,source:'extension'}}`） | **非 CustomEvent**，跨进程唯一通道；纯 CustomEvent 跨不过进程边界 |
+| 5 | 前端进程内广播 | `window` CustomEvent（`mutiwindow-*` 前缀） | 同窗口多面板（popup/sidePanel/画布）互发 | `mutiwindow-task-completed` / `mutiwindow-update-task-meta` / `mutiwindow-rerun-task` | 限同窗口；**不能跨扩展窗口**（多窗口机制 AI13 标记 ➖ 待查） |
+| 6 | 前端 ↔ GAS 云同步 | HTTP POST（Google Apps Script） | `ei`(push)@L43950 / `ti`(pull)@L43974（`CloudSyncEngine`）→ GAS 部署 | URL 在 `config.js` `GAS_CLOUD_SYNC_URL` | 仅配置/资源元数据，非实时协同；pull 后 1s reload |
+| 7 | 画布落盘（资源/生成结果） | HTTP :18080 | `ii`@L1888 / `Xr`@L1802 / `Zr`@L1827 → `POST /api/files/upload` | 结果经 `toAbsoluteFileUrl`(`localTool/resources.ts#L31`) 补 `http://127.0.0.1:18080/...` | 拒绝 CDN 直链（红线） |
+| 8 | 生成结果回填 → 资源刷新 | 通道 5 + 通道 1 | `mutiwindow-task-completed` → `Ev`@L42883 `POST /api/resources/rescan` → `xv`@L42821 `GET /api/resources` | 闭环：生图落盘 → 广播 → rescan → 面板刷新 | 节流在 L42910–42914 |
+| 9 | 配置层 | 模块内读取 | `src/_engine/config.js`（`UPPER_SNAKE`）→ App.js / 网关 | `USE_LOCAL_ENGINE` / `LOCAL_ENGINE.base`(18080) / `DEFAULT_ENDPOINT`(9004) | 改配置动 config.js，不是 App.js |
+
+### 通道边界铁律（接手必守）
+- **跨进程只用 `chrome.runtime`**（`resourceAdded`）；同窗口广播只用 `mutiwindow-*`；别指望 `mutiwindow-*` 跨窗口。
+- **文件落盘只走 localTool :18080**，URL 必须绝对路径；网关 :9004 无 `/api/files/upload`（`USE_LOCAL_ENGINE=false` 时上传全失败，当前默认 true 不触发）。
+- **网关请求默认 9004**，启动必须 `--port 9004`（README 写 8000 是错的）。
+- **代理跳板**：前端↔网关在 localTool 连通时经 `/api/proxy`，这是本地网络隔离穿透点，改 `zc` 封装须保留降级直连逻辑。
+
+---
+
 ## 一、AI 生图 / 生视频能力
 
 ### 1.1 生图主入口 `Jn`

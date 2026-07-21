@@ -29,29 +29,35 @@
 **系统（system.ts）**
 | Endpoint | Method | 说明 |
 |----------|--------|------|
-| `/api/status` | GET | 服务状态 |
-| `/api/proxy` | POST | 代理转发 |
-| `/api/jianying/send` | POST | 剪映发送（占位，仅记日志） |
+| `/api/status` | GET | 服务状态，返回 `{status:"ok", version, message, ffmpeg?:boolean, port}` |
+| `/api/proxy` | POST | 代理转发（localTool 兼作 9004 网关请求的代理跳板，穿透本地网络隔离）。**两种形态**：① FormData/Blob + `X-Proxy-Url`/`X-Proxy-Method`/`X-Proxy-Headers`(JSON)/`X-Proxy-Cookie` 头；② JSON `{url, method, headers, body, cookie}`。失败 `catch` 后 fall through 直连（AI12 实锤） |
+| `/api/jianying/send` | POST | 剪映发送。走本地 `http://127.0.0.1:18080/api/jianying/send`（`Wn`=`Bc`=18080，需 localTool 在跑）。**两种形态**：① 单个 `{fileUrl, localPath, fileName}`；② 批量 `{items:[{fileUrl, localPath}]}`。当前仅记日志占位（AI11 实锤） |
 
 **资源（resources.ts）**
 | Endpoint | Method | 说明 | 真身函数 | 备注 |
 |----------|--------|------|----------|------|
-| `/api/resources` | GET | 资源列表（分页） | `handleResourcesGet` | — |
+| `/api/resources` | GET | 资源列表（分页） | `handleResourcesGet` | 分页参数：`page`/`pageSize`(默认20)/`sortBy`(默认`timestamp`)/`sortDir`(默认`DESC`)/`search`/`filters`(JSON字符串)；返回 `{items, total, page, pageSize, totalPages}` |
 | `/api/resources/save` | POST | 资源 upsert | `handleResourcesSave`（`Sv`） | body 需含 `id` |
 | `/api/resources/batch-save` | POST | 批量 upsert | — | body 为数组 |
-| `/api/resources/delete` | POST/GET | 只删 DB 不删盘 | `handleResourcesDelete`（`wv`） | 已知债务；无 deleteFiles 参数 |
-| `/api/resources/clear` | POST | 清空资源（可按 folder） | `handleResourcesClear` | **已支持 `deleteFiles:true` 删盘**（wv 未用，修复解法见 `03-database.md` §四） |
+| `/api/resources/delete` | POST | 只删 DB 不删盘 | `handleResourcesDelete`（localTool L202） | query `?id=` 传 id；**已 grep 源码坐实**（index.ts L190 仅注册 POST；无 GET、无 deleteFiles 参数） |
+| `/api/resources/clear` | POST | 清空资源（可按 folder） | `handleResourcesClear` | body `{folder?:string, deleteFiles?:boolean}`；**已支持 `deleteFiles:true` 删盘**（wv 未用，修复解法见 `03-database.md` §四） |
 | `/api/resources/rescan` | POST | 扫描 upload 目录同步进 resources 表 + 孤儿清理 | `handleResourcesRescan`（`Ev`） | rescan 真身在 `Ev`，非 `we`；调用端有**节流**（App.js L42910–42914），高频落盘不会炸库 |
 
 **任务（tasks.ts）**
 | Endpoint | Method | 说明 | 真身函数 | 备注 |
 |----------|--------|------|----------|------|
-| `/api/tasks` | GET | 任务列表（分页） | `handleTasksGet` | — |
+| `/api/tasks` | GET | 任务列表（分页） | `handleTasksGet` | 分页参数：`page`/`pageSize`(默认20)/`sortBy`(默认`createdAt`)/`sortDir`(默认`DESC`)/`search`/`filters`(JSON字符串)；返回 `{items, total, page, pageSize, totalPages}` |
 | `/api/tasks/save` | POST | 任务 upsert | `handleTasksSave`（前端 `J_`@L41611 调它） | body 需含 `taskId`；`media_meta` 由 `taskToRow` 序列化 |
 | `/api/tasks/batch-save` | POST | 批量 upsert | `Y_`@L41696 | body 为数组（启动播种用） |
-| `/api/tasks/delete` | GET | 删任务（只删 DB） | `handleTasksDelete` | 已知债务 |
-| `/api/tasks/batch-delete` | POST | 批量删任务 | `Z_` | body `{ids:[]}` |
-| `/api/tasks/clear` | POST | 清空任务（无删盘） | `handleTasksClear` | 已知债务（比 wv 更深）|
+| `/api/tasks/delete` | POST | 删任务（只删 DB） | `handleTasksDelete`（localTool L84） | query `?id=` 传 id，无 body；**已 grep 源码坐实**（localTool/src/index.ts L170 仅注册 POST，无 GET） |
+| `/api/tasks/batch-delete` | POST | 批量删任务 | `handleTasksBatchDelete`（localTool L93） | body `{ids:string[]}`，返回 `{deleted:number}`；**已 grep 源码坐实** |
+| `/api/tasks/clear` | POST | 清空全部任务（无删盘、无 statuses 过滤） | `handleTasksClear`（localTool L102） | **无 body**，直接 `DELETE FROM tasks`（清空整表）；原文档写 `{statuses:[]}` 系误植，已据源码删除 |
+
+**客户端调用形态与超时（已 grep src/_engine/App.js 坐实）**
+- `useLocalTool` hook 暴露 `uploadFile/saveKV/getKV/createFolder/moveFile/status`，内部 `fetch` 打向 localTool 基址（来自 `LOCAL_ENGINE.base`，默认 `http://127.0.0.1:18080`）。
+- 超时常量（App.js L19055–19056）：`Vc=5e3`(5s)、`Hc=15e3`(15s)；连通检测节流 `Gr=3e3`(3s，App.js L1735)。
+- 连通失败文案（App.js L19145，原文变量形式）：`无法连接到 ${LOCAL_ENGINE.base}，请确保 localTool Service 正在运行`（非硬编码 18080，运行时取变量）。
+- 代理封装 `zc` 经 `/api/proxy` 转发 9004，断开直连（`zc` 双形态：本地跳板 / 网关直发，App.js L19009–19026）；`localPort` 透传逻辑见 App.js L19009、L19230。
 
 > 资源 URL 经 `toAbsoluteFileUrl`（`localTool/src/routes/resources.ts#L31`）补全为 `http://127.0.0.1:18080/...`，否则前端 `<img>` 在 extension 页面破图。
 
@@ -72,10 +78,23 @@
 | `/v1/videos/generations` | POST | 视频生成（L641） | — |
 | `/v1/images/edits` | POST | 图片编辑(inpaint/outpaint)（L595） | — |
 | `/v1/tasks/{id}/confirm` | POST | 手动确认（`AUTO_CONFIRM=false` 时，L882） | — |
+| `/v1/uploads/images` | POST | 图片上传到网关侧（L900，`USE_LOCAL_ENGINE=false` 时文件走此路由；本地模式默认不走） | — |
+| `/v1/balance` | GET | 余额/模式查询（L922）；402/403 → Toast | — |
+| `/v1/audio/transcriptions` | POST | 音频转写（走用户配置 endpoint `s`，非 CDN 直连，AI11 L12830） | 自定义端点 |
+| `/v1/gateway/ai-app{t}` | POST | 网关 AI 应用调用（`rr`=buildGatewayUrl@L856，`${tr(e)}/v1/gateway/ai-app${t}`） | — |
 | `/v1/music` `/audio` `/audio/speech` | POST | 音频类 | **实际返回 501**（L655/L659/L663，与 README 矛盾，待修项） |
 
 > ⚠️ **已知偏差**：网关 README 声称 music/audio 走 chat，源码实返 501。记此待修。
 > 两套生图机制：chat 网关内同步轮询 + SSE；生图节点前端异步轮询 `/v1/tasks/{id}`。汇于同一查询端点（AI05-13）。
+
+### 2.1 网关**未实现**端点（前端仍发请求，前端兜底吞掉，无害）
+来自 `PROJECT_LOG` + AI13 裁决，以下 9004 路径网关从未实现，**下游 AI 切勿当可用接口调用**：
+- `/api/public/platform/builtin`
+- `/public/platform/models`
+- `/plugin/manifest.json`
+- `/api/workflow-apps/by-project/default`
+
+> `workflow-apps/publish` 真实路由：`POST /api/workflow-apps/publish`（AI11 L42492）经 `Sg` 拼 URL 走网关 `http://127.0.0.1:9004/api/workflow-apps/publish`（非 localTool），发布画布工作流用。
 
 ---
 

@@ -51,7 +51,7 @@
 - **真凶**（已在 `d5d48dd` 修复）：rescan 把 `url` 存成相对路径，在 `chrome-extension://` 下解析成 `chrome-extension://xxx/files/...` → 404 破图；修复为补全 `http://127.0.0.1:18080/files/...`。
 - **残留风险**：① 入库 `url` host 硬编码 `127.0.0.1:18080`，改 host/port 或跨设备需同步；② **中文目录/文件名 Latin1 乱码**（如"新建文件夹"→`æ°å»ºæä»¶å¤±`），疑似 sql.js 以 Latin1 存中文，**待修**。
 
-### 2.2 `tasks` 表（tasks.ts）
+### 2.3 `tasks` 表（tasks.ts）
 AI 生成任务记录。
 
 | 字段 | 含义 |
@@ -62,7 +62,7 @@ AI 生成任务记录。
 | `result_url` | 生成结果地址 |
 | `media_meta` | 由 `taskToRow` 序列化（tasks.ts L19/L36），由 `mutiwindow-update-task-meta` 事件回填 |
 
-### 2.3 `kv` 表（kv.ts）
+### 2.4 `kv` 表（kv.ts）
 通用键值，含播种幂等锁（`Ov`=tasks_seeded、`resources_seeded_to_sqlite`）。
 
 | 字段 | 含义 |

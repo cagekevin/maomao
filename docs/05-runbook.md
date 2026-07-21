@@ -36,6 +36,7 @@ uvicorn main:app --port 9004     # 端口须 9004，非 README 写的 8000
 ```
 - 环境变量见 `apimart-gateway/.env.example`（如 `LOVART_ACCESS_KEY` / `AUTO_CONFIRM` / `LOVART_BASE_URL`）。
 - 日志：`apimart_9004.log` + `apimart_9004.err.log`。
+- 端口冲突会在 `EADDRINUSE` 报"9004 被占用"；`USE_LOCAL_ENGINE=false` 时文件路由也走 9004（`REMOTE_BASE`）。
 
 ### 第 3 步 · 构建并加载前端扩展
 ```bash
@@ -75,3 +76,5 @@ npm run build     # 输出 dist/
 - **网关连 8000 失败** → 网关实际端口 9004，启动必须 `--port 9004`。
 - **资源面板破图** → URL 未绝对化（host 硬编码 18080 待改）；确认 `USE_LOCAL_ENGINE=true`。
 - **"发送到资源"不落盘** → 见 `docs/TASKS.md` 排查建议（查 localTool 日志 / 端口 / `uploads/migrated/` / `resourceAdded` 接收 / 数据源 transitItems vs resources）。
+- **"发送到剪映"无效** → 剪映本地 API 走 `http://127.0.0.1:18080/api/jianying/send`（端口同 localTool，`Wn`=`Bc`=18080），需 localTool 在跑；外部图片须先「魔法棒」转路径图片。
+- **网关连 8000 失败** → 网关实际端口 9004，启动必须 `--port 9004`（README 写 8000 是错的）。

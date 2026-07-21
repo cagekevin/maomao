@@ -25,7 +25,7 @@
 ```
 
 - **前端 ↔ localTool**：本地 HTTP + SQLite 持久化。
-- **前端 ↔ 网关**：远程 HTTP + 异步任务轮询（网关 ↔ Lovart 为外部依赖）。
+- **前端 ↔ 网关**：远程 HTTP + 异步任务轮询（网关 ↔ Lovart 为外部依赖）。**关键**：localTool 兼作 9004 网关请求的**代理跳板**——前端 `zc` 封装在 localTool 连通时把网关请求经 `POST /api/proxy` 转发（`App.js` L19016/L19021，AI12 实锤），断开时直连 9004。localTool 是"文件服务 + 代理跳板 + 本地文件读取器"三重角色。
 - **background.ts ↔ 前端**：`chrome.runtime` 跨进程消息 `resourceAdded`（非 CustomEvent）。
 - **前端进程内**：`window` CustomEvent（`mutiwindow-*` 前缀）做同窗口多面板广播。
 
