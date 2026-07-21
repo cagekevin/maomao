@@ -1,0 +1,127 @@
+/* Agent 独立页面样式（解耦自 smart-canvas.js，独立文件 T5） */
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; height: 100%; }
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--bg, #f5f6f8);
+    color: var(--text, #1f2329);
+}
+:root {
+    --bg: #f5f6f8; --text: #1f2329; --panel: #ffffff; --border: #e5e6eb;
+    --primary: #4f46e5; --primary-soft: #eef2ff; --muted: #8a8f99;
+    --user-bubble: #4f46e5; --assistant-bubble: #ffffff; --shadow: 0 2px 12px rgba(0,0,0,.06);
+}
+.theme-dark, .studio-theme-dark {
+    --bg: #15171c; --text: #e6e8eb; --panel: #1e2128; --border: #2c3038;
+    --primary: #6366f1; --primary-soft: #232540; --muted: #8a8f99;
+    --user-bubble: #6366f1; --assistant-bubble: #232730; --shadow: 0 2px 12px rgba(0,0,0,.3);
+}
+.agent-app { display: flex; height: 100vh; overflow: hidden; }
+.agent-sidebar {
+    width: 240px; background: var(--panel); border-right: 1px solid var(--border);
+    display: flex; flex-direction: column; flex-shrink: 0;
+}
+.agent-sidebar-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 16px; border-bottom: 1px solid var(--border);
+}
+.agent-sidebar-title { font-weight: 600; font-size: 15px; }
+.agent-new-chat {
+    border: none; background: var(--primary-soft); color: var(--primary);
+    width: 30px; height: 30px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+}
+.agent-chat-list { flex: 1; overflow-y: auto; padding: 8px; }
+.agent-chat-item {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 12px; border-radius: 8px; cursor: pointer; margin-bottom: 4px;
+    border: 1px solid transparent; background: transparent; color: var(--text); width: 100%; text-align: left;
+}
+.agent-chat-item:hover { background: var(--primary-soft); }
+.agent-chat-item.active { background: var(--primary-soft); border-color: var(--primary); }
+.agent-chat-item-title { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+.agent-chat-item-time { font-size: 11px; color: var(--muted); margin-left: 8px; }
+.agent-chat-item-delete { border: none; background: transparent; color: var(--muted); cursor: pointer; padding: 2px; }
+.agent-chat-empty { color: var(--muted); font-size: 13px; text-align: center; padding: 24px 0; }
+
+.agent-main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.agent-topbar {
+    display: flex; align-items: center; gap: 12px; padding: 12px 16px;
+    border-bottom: 1px solid var(--border); background: var(--panel);
+}
+.agent-topbar-title { font-weight: 600; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.agent-sidebar-toggle { display: none; border: none; background: transparent; color: var(--text); cursor: pointer; }
+.agent-topbar-actions { display: flex; align-items: center; gap: 12px; }
+.agent-thinking-toggle { font-size: 13px; display: flex; align-items: center; gap: 4px; cursor: pointer; color: var(--text); }
+.agent-recover-btn { border: none; background: var(--primary-soft); color: var(--primary); width: 32px; height: 32px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+
+.agent-messages { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+.agent-msg { display: flex; flex-direction: column; max-width: 78%; }
+.agent-msg.user { align-self: flex-end; align-items: flex-end; }
+.agent-msg.assistant { align-self: flex-start; align-items: flex-start; }
+.agent-bubble {
+    padding: 12px 14px; border-radius: 14px; line-height: 1.6; font-size: 14px; white-space: pre-wrap; word-break: break-word;
+}
+.agent-msg.user .agent-bubble { background: var(--user-bubble); color: #fff; border-bottom-right-radius: 4px; }
+.agent-msg.assistant .agent-bubble { background: var(--assistant-bubble); border: 1px solid var(--border); border-bottom-left-radius: 4px; box-shadow: var(--shadow); }
+.agent-msg-images { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+.agent-msg-images img { width: 48px; height: 48px; object-fit: cover; border-radius: 6px; border: 1px solid var(--border); }
+
+.agent-options { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.agent-option-btn {
+    border: 1px solid var(--primary); background: var(--panel); color: var(--primary);
+    padding: 7px 12px; border-radius: 18px; cursor: pointer; font-size: 13px; transition: .15s;
+}
+.agent-option-btn:hover { background: var(--primary-soft); }
+
+.agent-prompts { margin-top: 10px; display: flex; flex-direction: column; gap: 8px; width: 100%; }
+.agent-prompt-card {
+    border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; background: var(--panel);
+}
+.agent-prompt-card.current { border-color: var(--primary); box-shadow: 0 0 0 2px var(--primary-soft); }
+.agent-prompt-card.confirmed { opacity: .7; }
+.agent-prompt-text { font-size: 13px; line-height: 1.5; white-space: pre-wrap; }
+.agent-prompt-actions { display: flex; gap: 8px; margin-top: 8px; }
+.agent-prompt-actions button {
+    border: 1px solid var(--border); background: var(--panel); color: var(--text);
+    padding: 5px 10px; border-radius: 8px; cursor: pointer; font-size: 12px;
+}
+.agent-prompt-actions button.primary { background: var(--primary); color: #fff; border-color: var(--primary); }
+.agent-prompt-edit { width: 100%; min-height: 60px; border: 1px solid var(--primary); border-radius: 8px; padding: 8px; font-family: inherit; font-size: 13px; resize: vertical; }
+
+.agent-generations { margin-top: 10px; display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; width: 100%; }
+.agent-gen-card { border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: var(--panel); }
+.agent-gen-card .agent-gen-img { width: 100%; aspect-ratio: 1; object-fit: cover; background: var(--bg); display: block; }
+.agent-gen-card .agent-gen-status { padding: 6px 8px; font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+.agent-gen-card.done .agent-gen-status { color: #16a34a; }
+.agent-gen-card.error .agent-gen-status { color: #dc2626; }
+.agent-spinner { width: 13px; height: 13px; border: 2px solid var(--border); border-top-color: var(--primary); border-radius: 50%; animation: agent-spin .8s linear infinite; }
+@keyframes agent-spin { to { transform: rotate(360deg); } }
+
+.agent-composer { border-top: 1px solid var(--border); background: var(--panel); padding: 12px 16px; }
+.agent-attachments { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+.agent-attachment-thumb { position: relative; width: 52px; height: 52px; }
+.agent-attachment-thumb img { width: 100%; height: 100%; object-fit: cover; border-radius: 6px; border: 1px solid var(--border); }
+.agent-attachment-thumb button { position: absolute; top: -6px; right: -6px; border: none; background: #dc2626; color: #fff; width: 18px; height: 18px; border-radius: 50%; cursor: pointer; font-size: 11px; line-height: 1; }
+.agent-input-row { display: flex; gap: 10px; align-items: flex-end; }
+.agent-input {
+    flex: 1; border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px;
+    font-family: inherit; font-size: 14px; resize: none; max-height: 160px; background: var(--bg); color: var(--text);
+}
+.agent-send {
+    border: none; background: var(--primary); color: #fff; width: 42px; height: 42px;
+    border-radius: 12px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.agent-send:disabled { opacity: .5; cursor: not-allowed; }
+.agent-toolbar { display: flex; gap: 8px; align-items: center; margin-top: 10px; flex-wrap: wrap; }
+.agent-select, .agent-count {
+    border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; font-size: 13px; background: var(--bg); color: var(--text);
+}
+.agent-count { width: 56px; }
+.agent-upload-btn { border: 1px solid var(--border); background: var(--bg); color: var(--text); width: 34px; height: 34px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+
+@media (max-width: 720px) {
+    .agent-sidebar { position: absolute; z-index: 20; height: 100%; transform: translateX(-100%); transition: .2s; }
+    .agent-sidebar.open { transform: translateX(0); }
+    .agent-sidebar-toggle { display: flex; }
+    .agent-msg { max-width: 92%; }
+}

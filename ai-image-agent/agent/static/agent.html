@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-studio-scale="off">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="/agent/static/images/logo.png" type="image/png">
+    <title>AI 生图 Agent</title>
+    <script>
+        (function(){
+            try {
+                var theme = localStorage.getItem('studio_theme') || localStorage.getItem('canvas_theme') || 'light';
+                if(theme === 'dark') {
+                    document.documentElement.classList.add('theme-dark');
+                    document.documentElement.classList.add('studio-theme-dark');
+                }
+            } catch(e) {}
+        })();
+    </script>
+    <script src="/agent/static/vendor/js/lucide.js?v=v1.6.1784620076"></script>
+    <script src="/agent/static/js/theme.js?v=v1.6.1784620076"></script>
+    <link rel="stylesheet" href="/agent/static/agent.css?v=v1.6.1784624783">
+</head>
+<body>
+    <div class="agent-app">
+        <!-- 侧边对话列表 -->
+        <aside class="agent-sidebar" id="agentSidebar">
+            <div class="agent-sidebar-head">
+                <span class="agent-sidebar-title">对话</span>
+                <button class="agent-new-chat" id="agentNewChatBtn" type="button" title="新建对话"><i data-lucide="plus"></i></button>
+            </div>
+            <div class="agent-chat-list" id="agentChatList"></div>
+        </aside>
+
+        <!-- 主区域 -->
+        <main class="agent-main">
+            <header class="agent-topbar">
+                <button class="agent-sidebar-toggle" id="agentSidebarToggle" type="button"><i data-lucide="menu"></i></button>
+                <div class="agent-topbar-title" id="agentConvTitle">新对话</div>
+                <div class="agent-topbar-actions">
+                    <label class="agent-thinking-toggle">
+                        <input type="checkbox" id="agentThinkingMode"> <span>思维模式</span>
+                    </label>
+                    <button class="agent-recover-btn" id="agentRecoverBtn" type="button" title="恢复中断的生图"><i data-lucide="refresh-cw"></i></button>
+                </div>
+            </header>
+
+            <section class="agent-messages" id="agentMessages"></section>
+
+            <footer class="agent-composer">
+                <div class="agent-attachments" id="agentAttachments"></div>
+                <div class="agent-input-row">
+                    <textarea id="agentInput" class="agent-input" rows="1" placeholder="描述你想生成的图片，或上传参考图…"></textarea>
+                    <button class="agent-send" id="agentSendBtn" type="button"><i data-lucide="send"></i></button>
+                </div>
+                <div class="agent-toolbar">
+                    <select id="agentGenRatio" class="agent-select">
+                        <option value="square">1:1 方图</option>
+                        <option value="portrait">3:4 竖图</option>
+                        <option value="portrait43">3:4 (1008)</option>
+                        <option value="landscape43">4:3 横图</option>
+                        <option value="landscape">4:3 (1536)</option>
+                        <option value="story">9:16 故事</option>
+                        <option value="wide">16:9 宽屏</option>
+                        <option value="ultrawide">21:9 超宽</option>
+                        <option value="ultratall">9:21 超长</option>
+                    </select>
+                    <select id="agentGenResolution" class="agent-select">
+                        <option value="1k">1K</option>
+                        <option value="2k">2K</option>
+                        <option value="4k">4K</option>
+                        <option value="auto">自动</option>
+                    </select>
+                    <input type="number" id="agentGenCount" class="agent-count" min="1" max="8" value="1" title="生图数量">
+                    <select id="agentChatProvider" class="agent-select" title="理解模型(思维模式)"></select>
+                    <select id="agentChatModel" class="agent-select" title="理解模型(思维模式)"></select>
+                    <select id="agentGenProvider" class="agent-select"></select>
+                    <select id="agentGenModel" class="agent-select"></select>
+                    <button class="agent-upload-btn" id="agentUploadBtn" type="button" title="上传参考图"><i data-lucide="image-plus"></i></button>
+                    <input type="file" id="agentFileInput" accept="image/*" multiple hidden>
+                </div>
+            </footer>
+        </main>
+    </div>
+    <script src="/agent/static/agent.js?v=v1.6.1784625915"></script>
+</body>
+</html>

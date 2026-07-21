@@ -1,0 +1,13 @@
+[
+  {
+    "id": "my-image",
+    "name": "我的生图服务",
+    "base_url": "https://your-openai-compatible-endpoint.example.com/v1",
+    "protocol": "openai",
+    "enabled": true,
+    "primary": true,
+    "image_models": ["gpt-image-1", "your-image-model"],
+    "chat_models": ["gpt-4o", "your-chat-model"],
+    "api_key": ""
+  }
+]
