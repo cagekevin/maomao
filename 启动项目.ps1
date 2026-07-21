@@ -23,8 +23,28 @@ function Build-Dist {
     Write-Host "✅ dist 构建完成" -ForegroundColor Green
 }
 
+# ── 端口状态检测 ──
+function Show-PortStatus {
+    param(
+        [int]$Port,
+        [string]$Name
+    )
+    $conn = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue
+    if ($conn) {
+        Write-Host "  ● ${Name} (端口 ${Port}): 开启" -ForegroundColor Green
+    } else {
+        Write-Host "  ○ ${Name} (端口 ${Port}): 关闭" -ForegroundColor Red
+    }
+}
+
 # ── 启动 localTool 服务 ──
 function Start-Service {
+    # 启动前显示端口状态
+    Write-Host "📡 当前端口状态：" -ForegroundColor Cyan
+    Show-PortStatus -Port 9004 -Name "AI 网关 (apimart-gateway)"
+    Show-PortStatus -Port 18080 -Name "本地工具 (localTool)"
+    Write-Host ""
+
     $localToolDir = Join-Path $ScriptDir "localTool"
     if (-not (Test-Path $localToolDir)) {
         Write-Host "❌ 未找到 localTool 目录: $localToolDir" -ForegroundColor Red
