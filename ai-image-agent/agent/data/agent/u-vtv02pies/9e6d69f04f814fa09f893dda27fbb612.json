@@ -1,0 +1,18 @@
+{
+  "id": "9e6d69f04f814fa09f893dda27fbb612",
+  "title": "新对话",
+  "created_at": 1784643930343,
+  "updated_at": 1784643930343,
+  "messages": [],
+  "attachments": [],
+  "genProvider": "",
+  "genModel": "",
+  "genRatio": "square",
+  "genResolution": "1k",
+  "genCount": 1,
+  "genQuality": "",
+  "thinkingMode": false,
+  "skills": [],
+  "chatProvider": "",
+  "chatModel": ""
+}
