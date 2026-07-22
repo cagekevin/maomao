@@ -1,6 +1,6 @@
-# Handoff — 2026-07-22 双 React 实例修复（第九轮：合并 main.tsx → entry.js）
+# Handoff — 2026-07-22 阶段 4.2：已完成
 
-> **给下一位 AI**：先读 `CLAUDE.md`，再看本文档。
+> **给下一位 AI**：先读 `CLAUDE.md`，再看 `docs/拆分计划.md`，最后读本文档。
 
 ---
 
@@ -8,108 +8,57 @@
 
 | 项目 | 值 |
 |------|-----|
-| 分支 | `decouple/exec`（detached HEAD @ `b5c712d`） |
-| 工作区 | `index.html`、`src/entry.js` 已完成入口合并；`src/main.tsx` 已删除 |
-| 构建 | `npx vite build` 成功 |
-| 运行时 | **待验证**（上轮报 `Cannot read properties of undefined (reading 'Component')`） |
+| 分支 | `main` |
+| 工作区 | App.js 已修改 + `gatewayClient.js` 新建 |
+| 构建 | `npx vite build` ✓ 成功，38 modules，~5.5s |
+| 运行时 | GAS 同步正常，预存 bug `engine-*.js:489` 仍在（非本次引入） |
+
+> Windows build 命令：`$env:NODE_OPTIONS="--max-old-space-size=1024"; npx vite build`
 
 ---
 
-## 核心矛盾
+## 阶段 4.2：已完成 ✅
 
-Rollup 无法对 vendor.js 的 CJS wrapper 导出做**跨 chunk 模块去重**。不同 chunk 各自 `import { Nr } from vendor.js` → 各自解包 → 多个 React 实例。
+10 个 9004 网关端点已全部从 App.js 提取到 `src/services/gatewayClient.js`：
 
----
+| # | 函数名 | 端点 | 方法 |
+|---|--------|------|------|
+| 1 | `uploadToGateway` | `/v1/gateway/upload` | POST (fetch) |
+| 2 | `submitSd2Video` | `/v1/video/generations` | POST (zc) |
+| 3 | `pollSd2Video` | `/v1/video/generations/{id}` | GET (fetch) |
+| 4 | `submitDiscountVideo` | `/v1/gateway/generate` | POST (zc) |
+| 5 | `pollDiscountVideo` | `/v1/gateway/task/{id}` | GET (fetch) |
+| 6 | `pollImageTask` | `/v1/tasks/{id}` | GET (zc, 3处共用) |
+| 7 | `confirmTask` | `/v1/tasks/{id}/confirm` | POST (zc) |
+| 8 | `getVideoResult` | `/v1/videos/{id}` | GET (zc) |
+| 9 | `submitVideoGeneration` | 视频生成提交 | POST (zc, FormData) |
+| 10 | `submitImageGeneration` | 生图提交 | POST (zc, FormData/JSON) |
 
-## 架构关键信息
-
-### vendor.js
-
-```js
-// 开头
-import { i as e, n as t, r as n, t as r } from "./rolldown-runtime.js";
-var i = r((e) => { /* React 19.2.7 完整代码 */ });
-
-// 末尾
-export { a as Nr, ... jr ... }
-// a = i = r(...) = CJS lazy singleton wrapper 函数
-// jr = ReactDOM CJS wrapper
-```
-
-### rolldown-runtime.js
-
-```js
-export { l as i, s as n, u as r, o as t };
-// i = unwrapModule(factoryResult, moduleId)
-// t = CJS lazy singleton: () => 缓存 exports
-```
-
-### 正确的解包方式（参考原始 entry.js）
-
-```js
-import { i as e } from "./vendor/rolldown-runtime.js";
-import { Nr as n, jr as r } from "./vendor/vendor.js";
-var React = e(n(), 1);      // 调用 wrapper + unwrap
-var ReactDOM = e(r(), 1);
-```
+App.js import 已添加在 L25（`import { zc }` 之后）。
 
 ---
 
-## 产物 chunk 结构（第九轮）
+## 本次额外修复
 
-| Chunk | 大小 | 来源 |
-|-------|------|------|
-| `main-*.js` | 776 字节 | Vite 自动生成的 HTML 入口 wrapper（仅 modulepreload polyfill + import engine + import vendor-legacy），**不再包含任何业务代码** |
-| `engine-*.js` | 1.1 MB | `src/App.js`（manualChunks） + entry.js（唯一解包点 + 渲染启动） |
-| `vendor-legacy-*.js` | 1.7 MB | `src/vendor/` + `@xyflow/` |
-
-**加载顺序**：`index.html` → main chunk（polyfill）→ engine chunk + vendor-legacy chunk 并行加载。由于 engine import vendor-legacy，vendor-legacy 先于 engine 执行。
+- **"ei is not defined"** — 删除了 `_saveLocalTemplates` 中无效的 `ei().catch(() => {})` 调用（L28636），该引用指向不存在的变量导致 GAS 同步拉取失败。已修复，拉取正常。
 
 ---
 
-## 历轮方案
+## 已知问题（无需处理）
 
-### 第五轮（原始状态）
-- 三个文件各自 `import { Nr } from vendor.js` 并直接当 React 对象用
-- 结果：`Class extends value undefined`（Nr 是 wrapper 函数，没有 .Component）
-
-### 第六轮：各自解包
-- 三个文件各自 `import unwrapModule` + `unwrapModule(VendorReact(), 1)` 解包
-- 结果：大量双实例错误
-
-### 第七轮：统一解包 + window（main.tsx 做解包）
-- main.tsx 解包 → 挂 `window.__React`，entry.js / ErrorBoundary / react-bridge 从 window 取
-- 结果：**时序错误** — engine chunk 先执行，entry.js 读 `window.__React` 时为 `undefined`
-
-### 第八轮：解包移到 engine chunk（entry.js）
-- entry.js 作为唯一解包点，挂 window
-- main.tsx 从 window 取 React
-- 结果：构建成功但运行时仍报 `Cannot read properties of undefined (reading 'Component')`，怀疑 main chunk 中 `import vendor-legacy` 干扰
-
-### 第九轮（当前）：合并 main.tsx → entry.js
-
-**改动**：
-
-| 文件 | 改动 |
-|------|------|
-| `index.html` | `<script src="/src/main.tsx">` → `<script src="/src/entry.js">` |
-| `src/entry.js` | 注释更新，逻辑不变（已经是完整入口：解包 React → 挂 window → 动态 import App → createRoot → render） |
-| `src/main.tsx` | **已删除**（清空注释 + 删除文件，不再被任何地方引用） |
-| `src/react-bridge.ts` | 注释更新：明确 React 由 `entry.js` 解包（原注释误写 `main.tsx`） |
-| `vite.config.ts` | 未改动 |
-
-**效果**：
-- `main.tsx` 中的重复逻辑（ResizeObserver 抑制、App lazy import、createRoot）已随文件删除而移除
-- `entry.js` 作为唯一入口，包含完整的解包→渲染流程
-- 消除了 main chunk 中可能的 React 引用来源（实际产物已不含 main.tsx 业务代码，仅 `index.html` → entry/engine/vendor-legacy 三 chunk 并行）
+1. **engine 错误三件套（`setObject`/`on`/`mt`）** — 控制台显示 3 个错误：
+   - `engine-*.js:1 (setObject)` → import 语句，Vite 打包的 ESM 导入行，无对应源码
+   - `engine-*.js:433 (on)` → App.js L26545，CSS 样式字符串 `var Oh = \`...`，与 `on` 完全无关
+   - `engine-*.js:599 (mt)` → App.js L40797，JSON 配置字符串 `Lr = \`{...}`，与 `mt` 完全无关
+   - **结论**：sourcemap 定位后确认全部是误报。压缩后变量名与 sourcemap 行号错位导致 Chrome 误显示，不影响功能。无需处理。
+   - **排查方法**：`vite.config.ts` 设 `sourcemap: true` 构建，用 `source-map` 包反查 `consumer.originalPositionFor({line, column:0})`
+2. **`[Storage] 拒绝保存空对象/空数组`** — Storage 层防御性 warn，云端无数据时触发，不影响功能
 
 ---
 
-## 待验证
+## 拆分计划的 4 条铁律（红线）
 
-运行时是否仍有 `Cannot read properties of undefined (reading 'Component')` 错误。
-
-## 下一步方向（如仍有问题）
-
-1. **终极方案**：vendor.js 在 `index.html` 通过 `<script>` 标签提前加载，所有代码从 `window.__React` 取，彻底绕过 Rollup 模块系统。
-2. 检查 vendor-legacy 模块是否有副作用覆盖 `window.__React`。
+1. **降低认知负担** — 切完后调用方是不是更容易找到和理解这段代码？
+2. **奥卡姆剃刀** — "删掉这个改动有影响吗？" 答不上来就不做。不建包装层、不建桶文件。
+3. **切而不改** — 从 App.js 搬代码时原样不动。新创建的函数用语义化 camelCase 命名。
+4. **每步 build 必须过** — 切完立刻从 App.js 删除原代码，不保留重复。不碰 `entry.js`/`vendor/`/`dist/`/`.css`。

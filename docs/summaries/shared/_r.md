@@ -1,0 +1,11 @@
+## _r — 🔗 共享函数
+
+| 属性 | 值 |
+|------|----|
+| 行号 | L310 |
+| 类型 | var |
+| 入度 | 3 |
+| 被依赖 | `qc`, `xg`, `Nv` |
+
+- **数据**: left, top, clientX, clientY
+- **hooks**: useRef, useEffect

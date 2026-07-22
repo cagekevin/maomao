@@ -30,7 +30,7 @@ npx vite build
 > - 别碰：`dist/`、`src/vendor/`（含 `vendor.js`/`rolldown-runtime.js`）、`captureVideoFrame-*.js`、`*.css`、`reference/App.original.js`
 > - 入口：前端唯一入口是 `src/entry.js`（`index.html` 直接引用）；`src/main.tsx` 已删除，不要再创建或引用。
 > - 端口：前端扩展（Chrome 加载 `dist/`）· localTool `:18080` · 网关 `:9004`
-> - 先读：本文件 → `docs/archive/PROJECT_ORIGIN.md` → `docs/02-architecture.md` → 改码前查 `docs/func-mapping.txt` + `docs/var-mapping.txt` + `docs/archive/FUNCTION_MAP.md`
+> - 先读：本文件 → `docs/summaries/README.md`（函数摘要索引入口）→ `docs/archive/PROJECT_ORIGIN.md` → `docs/02-architecture.md` → 改码前查 `docs/func-mapping.txt` + `docs/var-mapping.txt` + `docs/archive/FUNCTION_MAP.md`
 > - 事实源：代码 > git > 审计文档；`docs/04-api` 等是 AI 提纯，**非事实源**，改码前须 grep 源码复核
 > - 已知噪音（别修）：`9004` 未实现 API 的 `404`、`RootErrorBoundary` 的 `null` 异常
 
