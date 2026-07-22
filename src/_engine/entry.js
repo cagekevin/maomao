@@ -4,8 +4,8 @@ import { ENDPOINTS, DEFAULT_ENDPOINT, localEngineBase, LOCAL_ENGINE } from './co
 import './styles/tailwind.css';
 import './styles/vendor.css';
 import './styles/app.css';
-import { i as e } from "./vendor/rolldown-runtime-aKtaBQYM.js";
-import { Ar as t, Nr as n, jr as r } from "./vendor/vendor-Cr1JWW-B.js";
+import { i as e } from "./vendor/rolldown-runtime.js";
+import { Ar as t, Nr as n, jr as r } from "./vendor/vendor.js";
 var i = e(n(), 1),
   a = e(r(), 1),
   o = `active_api_endpoint`,

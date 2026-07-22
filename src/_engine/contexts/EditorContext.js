@@ -1,5 +1,5 @@
-import { i as e } from "../vendor/rolldown-runtime-aKtaBQYM.js";
-import { Nr as le, Ar as o, Mr as ae } from "../vendor/vendor-Cr1JWW-B.js";
+import { i as e } from "../vendor/rolldown-runtime.js";
+import { Nr as le, Ar as o, Mr as ae } from "../vendor/vendor.js";
 
 var Y = e(le(), 1),
   Un = ae();
