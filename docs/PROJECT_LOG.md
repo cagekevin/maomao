@@ -44,3 +44,39 @@
 - **路径与构建配置同步更新**：`main.tsx`、`entry.js`、`tsconfig.json`、`vite.config.ts`、`vite-env.d.ts` 中所有 `_engine/`、`v2/`、哈希后缀引用已修正；`vite.config.ts` 的 manualChunks 改为匹配 `/src/App.js`、`/src/vendor/`、`/src/entry.js`。
 - **待解耦（高风险，暂保留在 App.js）**：TransitPanel、BuiltinModelPanel 等业务面板（依赖大量闭包变量）；所有 ReactFlow 节点组件（依赖图标变量）；modelApi/localTool（需先打破与 entry.js 的循环依赖）。
 - **运行验证**（日志 `1784679240647.log`）：应用正常启动，localTool（18080）连接成功，初始化完成 `isLoggedIn: true`。已知噪音依旧存在（9004 的 4 个 404、RootErrorBoundary 的 useState null），与 07-20 记录一致，**未引入新问题**。用户发请求时 `/api/proxy` 500、`/api/tasks/save` 400，回退 direct fetch——属 localTool 服务端问题，非前端解耦引入。
+
+## 2026-07-22 下一步计划（交接给下一位 AI）
+**原则：先修 bug，再继续解耦。** 两线独立，但先修 bug 能让解耦的构建验证基线更干净，且避免与即将解耦的 modelApi/localTool 调用链撞车。
+
+### 任务 1：排查并修复 `/api/proxy` 500 + `/api/tasks/save` 400
+- **现象**（日志 `1784679240647.log` L110-122, L130）：用户发送文本请求"啊啊啊"时，`127.0.0.1:18080/api/proxy` 返回 500，前端回退 direct fetch 后 `api/tasks/save` 仍返回 400（出现两次）。
+- **排查方向**：
+  1. 读 [localTool/src/routes/tasks.ts](file:///Users/kevin/Documents/maomao/localTool/src/routes/tasks.ts) 确认 `/api/tasks/save` 的请求体 schema，对照前端发送的 payload 找 400 根因
+  2. 查 localTool 的 proxy 路由（可能在 [localTool/src/routes/](file:///Users/kevin/Documents/maomao/localTool/src/routes) 下或 index.ts）确认 500 根因
+  3. 前端调用链在 [src/App.js](file:///Users/kevin/Documents/maomao/src/App.js)（modelApi/localTool 代码体，尚未解耦出），发送逻辑可参考日志 L110 `Sending Text API payload`
+- **待确认**：500 是 localTool 路由 bug 还是上游 API 错误透传；400 是 schema 不匹配还是缺字段
+- **不要做的事**：不要把 500/400 归咎于解耦——基线版本同样存在
+
+### 任务 2：确认 apiConfigs 空配置项是否需要前端过滤
+- **现象**（日志 L77）：`apiConfigs` 数组第二条为空配置 `{name:"", url:"", key:""}`，是用户占位未填。
+- **待确认**：发请求时是否可能命中这条空配置导致代理失败；前端是否应在发送前校验/跳过空配置。
+- **数据位置**：存储在 localTool kvStore 的 `api_configs` 键，前端加载逻辑在 [src/App.js](file:///Users/kevin/Documents/maomao/src/App.js) 的 `loadAppSettings`（日志 L70）
+
+### 任务 3：bug 修复后，继续解耦 modelApi/localTool
+- **前提**：任务 1、2 完成且验证通过，调用链稳定
+- **目标**：将 modelApi/localTool 代码体从 App.js 剥离到独立模块
+- **关键风险**：与 [src/entry.js](file:///Users/kevin/Documents/maomao/src/entry.js) 存在循环依赖（entry.js 动态加载 App.js，而 modelApi/localTool 需从 entry.js 导入 Vn/Hn）——这是上次解耦失败的根因
+- **解法**：先打破循环依赖（可能需将 Vn/Hn 的依赖反转，或把共享逻辑下沉到不依赖 entry.js 的底层模块），再剥离代码体
+- **验证**：`npm run build` + 运行时确认无 `Cannot access before initialization` 错误
+
+### 后续解耦队列（低优先级，待 modelApi/localTool 完成后再推进）
+- 业务面板：TransitPanel、BuiltinModelPanel（依赖大量闭包变量）
+- ReactFlow 节点组件（依赖图标变量 oe/at/_e/$t）
+
+### 工程约束（沿用项目既有约定）
+- 只可修改：`src/App.js`、`src/_engine/config.js`（已迁至 `src/config.js`）、`localTool/src/**`、`apimart-gateway/**`
+- 禁止修改：`dist/`、`vendor-*.js`（现 `src/vendor/`）、`rolldown-runtime-*.js`、`src/v2/`（已删除）
+- 网关启动用 `--port 9004`（README 文档有误）
+- 新代码语义命名：常量 UPPER_SNAKE，函数 camelCase
+- 解耦原则：**剪切不重写**，保持混淆变量名和逻辑完全不变
+- 每个主要剥离步骤后跑 `npm run build` 验证
