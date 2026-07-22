@@ -1,9 +1,9 @@
 import { ENDPOINTS, DEFAULT_ENDPOINT, localEngineBase, LOCAL_ENGINE } from './config.js';
 // 原版样式（已预编译的最终 Tailwind 输出 + 自定义样式），静态引入以确保打包进 bundle
 // 顺序：Tailwind 原子类主体 -> 组件库样式 -> App 自定义样式
-import './styles/index-bBckPAG7.css';
-import './styles/vendor-Qkhkn02K.css';
-import './styles/App-DFxwm5B3.css';
+import './styles/tailwind.css';
+import './styles/vendor.css';
+import './styles/app.css';
 import { i as e } from "./vendor/rolldown-runtime-aKtaBQYM.js";
 import { Ar as t, Nr as n, jr as r } from "./vendor/vendor-Cr1JWW-B.js";
 var i = e(n(), 1),
