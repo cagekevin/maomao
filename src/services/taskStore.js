@@ -3,12 +3,12 @@
 // 不引入 U_，不改 9004。W_ 为同组字段白名单，一并切走。
 import { vv } from '../config/constants.js';
 
-const W_ = [`customResultData`, `customRawResponse`, `requestData`, `responseData`, `mediaMeta`];
+const TASK_SERIALIZABLE_FIELDS = [`customResultData`, `customRawResponse`, `requestData`, `responseData`, `mediaMeta`];
 function G_(e) {
   let t = {
     ...e
   };
-  for (let e of W_) {
+  for (let e of TASK_SERIALIZABLE_FIELDS) {
     let n = t[e];
     if (n === `` || n == null) {
       delete t[e];

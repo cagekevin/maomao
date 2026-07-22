@@ -18,26 +18,26 @@ function Vr(e) {
     filename: r.slice(i + 1)
   };
 }
-var Ur = null,
-  Wr = 0,
-  Gr = 3e3;
+var localToolAvailableCache = null,
+  lastStatusCheckTime = 0,
+  statusCheckIntervalMs = 3e3;
 async function Kr() {
   let e = Date.now();
-  if (Ur !== null && e - Wr < Gr) return Ur;
+  if (localToolAvailableCache !== null && e - lastStatusCheckTime < statusCheckIntervalMs) return localToolAvailableCache;
   try {
     let e = new AbortController(),
       t = setTimeout(() => e.abort(), 1e3),
       n = await fetch(`${Hr}/api/status`, {
         signal: e.signal
       });
-    if (clearTimeout(t), Ur = n.ok, n.ok) try {
+    if (clearTimeout(t), localToolAvailableCache = n.ok, n.ok) try {
       let e = await n.clone().json();
       typeof e?.ffmpeg == `boolean` && e.ffmpeg;
     } catch {}
   } catch {
-    Ur = false;
+    localToolAvailableCache = false;
   }
-  return Wr = e, Ur;
+  return lastStatusCheckTime = e, localToolAvailableCache;
 }
 async function Xr(e, t = {}) {
   if (!(await Kr())) return null;
@@ -90,16 +90,16 @@ function Qr(e) {
 function $r() {
   return Math.random().toString(36).slice(2, 8);
 }
-var ei = new Map(),
-  ti = new Map(),
-  ni = 300 * 1e3;
+var thumbnailCache = new Map(),
+  pendingThumbnails = new Map(),
+  thumbnailCacheTtlMs = 300 * 1e3;
 async function ri(e, t = {}) {
   if (!e || !e.includes(`/files/`)) return null;
   let n = `${e}|${t.maxDim ?? ``}|${t.quality ?? ``}`,
     r = Date.now(),
-    i = ei.get(n);
+    i = thumbnailCache.get(n);
   if (i && i.expireAt > r) return i.value;
-  let a = ti.get(n);
+  let a = pendingThumbnails.get(n);
   if (a) return a;
   let o = (async () => {
     if (!(await Kr())) return null;
@@ -114,15 +114,15 @@ async function ri(e, t = {}) {
       return null;
     }
   })();
-  ti.set(n, o);
+  pendingThumbnails.set(n, o);
   try {
     let e = await o;
-    return ei.set(n, {
+    return thumbnailCache.set(n, {
       value: e,
-      expireAt: Date.now() + ni
+      expireAt: Date.now() + thumbnailCacheTtlMs
     }), e;
   } finally {
-    ti.delete(n);
+    pendingThumbnails.delete(n);
   }
 }
 async function ii(e, t = {}) {
