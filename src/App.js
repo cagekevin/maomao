@@ -29049,6 +29049,7 @@ async function _getLocalTemplates() {
 
 async function _saveLocalTemplates(arr) {
   await Q.setObject(LOCAL_TEMPLATES_KEY, arr);
+  ei().catch(() => {});
 }
 
 async function Qh(e) {
@@ -29834,7 +29835,7 @@ function xg({
       });
     }, 100);
   }, [ge, De]);
-  let [Pt, Ft] = Y.useState(true),
+  let [Pt, Ft] = Y.useState(false),
     [Rt, zt] = Y.useState([]),
     [Bt, Ht] = Y.useState(-1),
     Ut = Y.useRef(false),
@@ -41816,9 +41817,10 @@ function Nv() {
           Br(`本地没有可同步的配置数据`);
           return;
         }
+        e._syncMeta = { lastPushAt: new Date().toISOString() };
         let ok = await CloudSyncEngine.push(e,
           msg => Br(msg),
-          msg => { Br(msg); $r(false); },
+          msg => { Br(msg); $r(false); try { localStorage.setItem(`gas_last_push_at`, e._syncMeta.lastPushAt); localStorage.setItem(`gas_cloud_last_push_at`, e._syncMeta.lastPushAt); } catch {} },
           msg => { Br(msg); $r(false); }
         );
         if (!ok) $r(false);
@@ -41869,6 +41871,7 @@ function Nv() {
             r++;
           }
         }
+        try { localStorage.setItem(`gas_last_pull_at`, new Date().toISOString()); if (t && t._syncMeta && t._syncMeta.lastPushAt) localStorage.setItem(`gas_cloud_last_push_at`, t._syncMeta.lastPushAt); } catch {}
         Br(r > 0 ? `【配置】已从云端同步到本地 (${r}项)` : `没有需要恢复的配置`), setTimeout(() => {
           window.location.reload();
         }, 1e3);
@@ -42723,10 +42726,24 @@ function Nv() {
               })]
             }), X.jsxs(`div`, {
               className: `p-2 border-b border-[#333]`,
-              children: [X.jsx(`div`, {
-                className: `px-2 py-1 text-xs text-gray-500 font-bold`,
-                children: `同步设置`
-              }), X.jsxs(`button`, {
+              children: [              (() => {
+                let s = e => { try { return e ? new Date(e) : null; } catch { return null; } };
+                let a = s(localStorage.getItem(`gas_cloud_last_push_at`));
+                let b = s(localStorage.getItem(`gas_last_push_at`));
+                let c = s(localStorage.getItem(`gas_last_pull_at`));
+                let push = a && b ? (a > b ? a : b) : (a || b);
+                let last = null;
+                if (push && c) last = push > c ? { t: push, label: `推送` } : { t: c, label: `拉取` };
+                else if (push) last = { t: push, label: `推送` };
+                else if (c) last = { t: c, label: `拉取` };
+                return X.jsxs(`div`, {
+                  className: `px-2 pb-2 text-xs text-gray-400`,
+                  children: last ? [
+                    X.jsx(`div`, { children: `最近同步（${last.label}）` }),
+                    X.jsx(`div`, { className: `mt-0.5 break-all text-gray-500`, children: last.t.toLocaleString() })
+                  ] : X.jsx(`div`, { children: `尚未与云端同步` })
+                });
+              })(), X.jsxs(`button`, {
                 onClick: ei,
                 disabled: Qr,
                 className: `w-full text-left px-2 py-2 text-sm text-gray-300 hover:bg-[#333] hover:text-white rounded-md flex items-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed`,

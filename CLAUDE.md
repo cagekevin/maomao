@@ -11,7 +11,7 @@
 > **⚠️ 目录结构已重组（2026-07-22）**：原 `src/_engine/` 已扁平化，`App.js` / `config.js` / `entry.js` / `vendor/` 现直接位于 `src/` 根（`src/App.js`、`src/config.js`、`src/entry.js`、`src/vendor/`）。本文档及 `docs/` 常驻文档中凡出现 `src/_engine/App.js` 之处，均指 **`src/App.js`**；`src/_engine/config.js` 即 `src/config.js`。`docs/archive/` 下的历史笔记仍保留旧路径，属当时快照，以本说明与常驻文档为准。恢复基线用 `git checkout -- src/App.js`。
 
 > **TL;DR（AI 进场速查）**
-> - 能改：`src/App.js` 及已解耦子模块（`src/config/`、`src/utils/`、`src/services/`、`src/components/`、`src/hooks/`、`src/contexts/`）、`src/config.js`、`localTool/src/**`、`apimart-gateway/**`
+> - 能改：`src/App.js` 及已解耦子模块（`src/config/`、`src/utils/`、`src/services/`、`src/components/`、`src/hooks/`、`src/contexts/`）、`src/config.js`、`localTool/src/**`、`apimart-gateway/**`等
 > - 别碰：`dist/`、`src/vendor/`（含 `vendor.js`/`rolldown-runtime.js`）、`captureVideoFrame-*.js`、`*.css`、`reference/App.original.js`
 > - 入口：前端唯一入口是 `src/entry.js`（`index.html` 直接引用）；`src/main.tsx` 已删除，不要再创建或引用。
 > - 端口：前端扩展（Chrome 加载 `dist/`）· localTool `:18080` · 网关 `:9004`
@@ -57,6 +57,7 @@
 - `TASKS.md` — 已知 Bug/修复清单/排查任务板（🟢 高信任）
 - `func-mapping.txt` / `var-mapping.txt` — 混淆名→可读名映射表（🟡 字典级，定位符号先查这俩）
 - `01-concept.md` / `02-architecture.md`（常驻版，对应 `archive/ARCHITECTURE.md`）/ `03-database.md` / `04-api/`（端点路由，提纯非事实源）/ `05-runbook.md` / `06-integration.md` / `glossary.md` / `PROJECT_LOG.md`
+- `模块专题/` — 按需查阅的模块深度剖析（🟢 高信任，代码坐实）。先点 [`模块专题/README.md`](模块专题/README.md) 看目录索引，确认有没有自己要改的部分再进去。
 
 > 同名易混：`docs/02-architecture.md`（常驻精简）与 `docs/archive/ARCHITECTURE.md`（旧审计原版）是不同文件，内容可能分叉。
 
