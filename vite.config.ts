@@ -21,9 +21,9 @@ export default defineConfig({
         // 保持 background 文件名稳定，供 manifest.service_worker 引用
         entryFileNames: (chunkInfo) =>
           chunkInfo.name === 'background' ? 'background.js' : 'assets/[name]-[hash].js',
-        // _engine/* 归入独立 chunk，不与项目代码混合
+        // App.js 及其依赖归入独立 chunk
         manualChunks(id) {
-          if (id.includes('/_engine/')) {
+          if (id.includes('/src/App.js') || id.includes('/src/vendor/') || id.includes('/src/entry.js')) {
             return 'engine';
           }
           // vendor React 独立 chunk（后续 1.2 统一 React 实例后可移除）

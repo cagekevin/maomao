@@ -7,9 +7,9 @@
 import './react-bridge.ts';
 
 // ── CSS 加载（沿用原版预编译 CSS）──
-import './_engine/styles/tailwind.css';
-import './_engine/styles/vendor.css';
-import './_engine/styles/app.css';
+import './styles/tailwind.css';
+import './styles/vendor.css';
+import './styles/app.css';
 
 import React from 'react';
 import { createRoot } from 'react-dom/client';
@@ -38,7 +38,7 @@ window.addEventListener('error', (event) => {
 });
 
 // ── App：原版引擎 ──
-const App = React.lazy(() => import('./_engine/App.js'));
+const App = React.lazy(() => import('./App.js'));
 
 async function bootstrap(): Promise<void> {
   const rootEl = document.getElementById('root');

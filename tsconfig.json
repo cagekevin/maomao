@@ -18,5 +18,5 @@
     "noFallthroughCasesInSwitch": true,
     "forceConsistentCasingInFileNames": true
   },
-  "include": ["src/background.ts", "src/main.tsx", "src/_engine/**/*", "src/v2/react-bridge.ts", "src/v2/components/ErrorBoundary.tsx", "src/v2/vite-env.d.ts"]
+  "include": ["src/background.ts", "src/main.tsx", "src/**/*"]
 }

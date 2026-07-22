@@ -11,7 +11,7 @@ declare module '*.png' {
   export default content;
 }
 
-declare module '*/_engine/App.js' {
+declare module '*/App.js' {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const App: any;
   export default App;
