@@ -7,9 +7,9 @@
 import './v2/react-bridge.ts';
 
 // ── CSS 加载（沿用原版预编译 CSS）──
-import './_engine/index-bBckPAG7.css';
-import './_engine/vendor-Qkhkn02K.css';
-import './_engine/App-DFxwm5B3.css';
+import './_engine/styles/index-bBckPAG7.css';
+import './_engine/styles/vendor-Qkhkn02K.css';
+import './_engine/styles/App-DFxwm5B3.css';
 
 import React from 'react';
 import { createRoot } from 'react-dom/client';
