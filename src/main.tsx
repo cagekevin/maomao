@@ -4,7 +4,7 @@
 // ============================================================
 
 // ── React 实例统一 ──
-import './v2/react-bridge.ts';
+import './react-bridge.ts';
 
 // ── CSS 加载（沿用原版预编译 CSS）──
 import './_engine/styles/index-bBckPAG7.css';
@@ -13,7 +13,7 @@ import './_engine/styles/App-DFxwm5B3.css';
 
 import React from 'react';
 import { createRoot } from 'react-dom/client';
-import { ErrorBoundary } from './v2/components/ErrorBoundary';
+import { ErrorBoundary } from './ErrorBoundary';
 
 // ── ResizeObserver 错误抑制（从 entry.js 提取）──
 const originalConsoleError = console.error;

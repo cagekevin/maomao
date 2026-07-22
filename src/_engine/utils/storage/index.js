@@ -1,6 +1,6 @@
 import { Z } from '../../config/storageKeys.js';
-import { V as Oe } from '../../vendor-Cr1JWW-B.js';
-import { i as e } from '../../rolldown-runtime-aKtaBQYM.js';
+import { V as Oe } from '../../vendor/vendor-Cr1JWW-B.js';
+import { i as e } from '../../vendor/rolldown-runtime-aKtaBQYM.js';
 
 var Sr = e(Oe(), 1);
 

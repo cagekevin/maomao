@@ -4,8 +4,8 @@ import { ENDPOINTS, DEFAULT_ENDPOINT, localEngineBase, LOCAL_ENGINE } from './co
 import './styles/index-bBckPAG7.css';
 import './styles/vendor-Qkhkn02K.css';
 import './styles/App-DFxwm5B3.css';
-import { i as e } from "./rolldown-runtime-aKtaBQYM.js";
-import { Ar as t, Nr as n, jr as r } from "./vendor-Cr1JWW-B.js";
+import { i as e } from "./vendor/rolldown-runtime-aKtaBQYM.js";
+import { Ar as t, Nr as n, jr as r } from "./vendor/vendor-Cr1JWW-B.js";
 var i = e(n(), 1),
   a = e(r(), 1),
   o = `active_api_endpoint`,
