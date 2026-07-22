@@ -62,7 +62,9 @@ export async function handleTasksGet(req: IncomingMessage, res: ServerResponse, 
 
 export async function handleTasksSave(req: IncomingMessage, res: ServerResponse): Promise<void> {
   const body = (await parseJsonBody(req)) as Record<string, unknown> | null;
-  if (!body || !body.taskId) return sendError(res, 'Missing taskId field', 400);
+  if (!body) return sendError(res, 'Missing body', 400);
+  if (!body.taskId && !body.id) return sendError(res, 'Missing taskId or id field', 400);
+  if (!body.taskId && body.id) body.taskId = body.id;
 
   const db = await getDb();
   upsertTask(db, taskToRow(body));
@@ -75,7 +77,8 @@ export async function handleTasksBatchSave(req: IncomingMessage, res: ServerResp
 
   const db = await getDb();
   for (const task of body) {
-    if (!task.taskId) continue;
+    if (!task.taskId && !task.id) continue;
+    if (!task.taskId && task.id) task.taskId = task.id;
     upsertTask(db, taskToRow(task));
   }
   return json(res, { ok: true });

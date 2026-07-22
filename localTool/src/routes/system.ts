@@ -116,7 +116,7 @@ async function handleProxyJson(req: IncomingMessage, res: ServerResponse): Promi
     headers['Cookie'] = body.cookie;
   }
 
-  const fetchBody = body.body ? JSON.stringify(body.body) : undefined;
+  const fetchBody = (typeof body.body === 'string' && body.body) || undefined;
   if (fetchBody) {
     headers['Content-Type'] = 'application/json';
   }
