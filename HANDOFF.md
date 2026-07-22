@@ -9,7 +9,7 @@
 | 项目 | 值 |
 |------|-----|
 | 分支 | `decouple/exec`（detached HEAD @ `b5c712d`） |
-| 工作区 | `index.html`、`src/main.tsx`、`src/entry.js` 已修改 |
+| 工作区 | `index.html`、`src/entry.js` 已完成入口合并；`src/main.tsx` 已删除 |
 | 构建 | `npx vite build` 成功 |
 | 运行时 | **待验证**（上轮报 `Cannot read properties of undefined (reading 'Component')`） |
 
@@ -94,16 +94,14 @@ var ReactDOM = e(r(), 1);
 |------|------|
 | `index.html` | `<script src="/src/main.tsx">` → `<script src="/src/entry.js">` |
 | `src/entry.js` | 注释更新，逻辑不变（已经是完整入口：解包 React → 挂 window → 动态 import App → createRoot → render） |
-| `src/main.tsx` | 清空为废弃注释，不再被任何地方引用 |
-| `src/ErrorBoundary.tsx` | 未改动（保留备用） |
-| `src/react-bridge.ts` | 未改动（被 vite alias 引用用于 JSX transform） |
+| `src/main.tsx` | **已删除**（清空注释 + 删除文件，不再被任何地方引用） |
+| `src/react-bridge.ts` | 注释更新：明确 React 由 `entry.js` 解包（原注释误写 `main.tsx`） |
 | `vite.config.ts` | 未改动 |
 
 **效果**：
-- main chunk 从包含业务代码变为仅 776 字节的 modulepreload polyfill
-- `main.tsx` 中的重复逻辑（ResizeObserver 抑制、App lazy import、createRoot）不再执行
+- `main.tsx` 中的重复逻辑（ResizeObserver 抑制、App lazy import、createRoot）已随文件删除而移除
 - `entry.js` 作为唯一入口，包含完整的解包→渲染流程
-- 消除了 main chunk 中可能的 React 引用来源
+- 消除了 main chunk 中可能的 React 引用来源（实际产物已不含 main.tsx 业务代码，仅 `index.html` → entry/engine/vendor-legacy 三 chunk 并行）
 
 ---
 

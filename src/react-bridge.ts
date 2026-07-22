@@ -1,6 +1,6 @@
 /**
  * JSX Runtime 桥接
- * React 由 main.tsx 统一解包后挂 window，避免双实例。
+ * React 由 src/entry.js 统一解包后挂 window.__React，避免双实例。
  */
 const React: any = (window as any).__React;
 

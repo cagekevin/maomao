@@ -17,6 +17,7 @@ import { handleUpload, handleRead, handleThumbnail, handleMkdir, handleMove, han
 import { handleTasksGet, handleTasksSave, handleTasksBatchSave, handleTasksDelete, handleTasksBatchDelete, handleTasksClear } from './routes/tasks.js';
 import { handleResourcesGet, handleResourcesSave, handleResourcesBatchSave, handleResourcesDelete, handleResourcesClear, handleResourcesRescan } from './routes/resources.js';
 import { handleStatus, handleProxy, handleJianyingSend } from './routes/system.js';
+import { handlePluginManifest, handleWorkflowAppsByProject } from './routes/platform.js';
 
 const PORT = Number(process.env.PORT) || 18080;
 const VERSION = '2.0.0-yimao-clone';
@@ -207,6 +208,14 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
       return await handleJianyingSend(req, res);
     }
 
+    // ── 平台 ──
+    if (pathname === '/plugin/manifest.json' && method === 'GET') {
+      return await handlePluginManifest(req, res);
+    }
+    if (pathname.startsWith('/api/workflow-apps/by-project/') && method === 'GET') {
+      return await handleWorkflowAppsByProject(req, res, url);
+    }
+
     // ── 404 ──
     sendError(res, 'Not Found', 404);
   } catch (e) {
@@ -252,6 +261,7 @@ async function main(): Promise<void> {
     console.log('           /api/resources/delete  /api/resources/clear');
     console.log('    代理:   /api/proxy');
     console.log('    剪映:   /api/jianying/send');
+    console.log('    平台:   /plugin/manifest.json  /api/workflow-apps/by-project/:id');
     console.log('');
     console.log('  按 Ctrl+C 停止');
     console.log('');

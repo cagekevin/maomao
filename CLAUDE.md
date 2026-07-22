@@ -11,10 +11,11 @@
 > **⚠️ 目录结构已重组（2026-07-22）**：原 `src/_engine/` 已扁平化，`App.js` / `config.js` / `entry.js` / `vendor/` 现直接位于 `src/` 根（`src/App.js`、`src/config.js`、`src/entry.js`、`src/vendor/`）。本文档及 `docs/` 常驻文档中凡出现 `src/_engine/App.js` 之处，均指 **`src/App.js`**；`src/_engine/config.js` 即 `src/config.js`。`docs/archive/` 下的历史笔记仍保留旧路径，属当时快照，以本说明与常驻文档为准。恢复基线用 `git checkout -- src/App.js`。
 
 > **TL;DR（AI 进场速查）**
-> - 能改：`src/App.js`、`src/config.js`、`localTool/src/**`、`apimart-gateway/**`
-> - 别碰：`dist/`、`vendor-*.js`、`rolldown-runtime-*.js`、`captureVideoFrame-*.js`、`*.css`、`reference/App.original.js`、`src/v2/`
+> - 能改：`src/App.js` 及已解耦子模块（`src/config/`、`src/utils/`、`src/services/`、`src/components/`、`src/hooks/`、`src/contexts/`）、`src/config.js`、`localTool/src/**`、`apimart-gateway/**`
+> - 别碰：`dist/`、`src/vendor/`（含 `vendor.js`/`rolldown-runtime.js`）、`captureVideoFrame-*.js`、`*.css`、`reference/App.original.js`
+> - 入口：前端唯一入口是 `src/entry.js`（`index.html` 直接引用）；`src/main.tsx` 已删除，不要再创建或引用。
 > - 端口：前端扩展（Chrome 加载 `dist/`）· localTool `:18080` · 网关 `:9004`
-> - 先读：本文件 → `docs/archive/PROJECT_ORIGIN.md` → `docs/archive/ARCHITECTURE.md` → 改码前查 `func/var-mapping.txt` + `FUNCTION_MAP.md`
+> - 先读：本文件 → `docs/archive/PROJECT_ORIGIN.md` → `docs/02-architecture.md` → 改码前查 `docs/func-mapping.txt` + `docs/var-mapping.txt` + `docs/archive/FUNCTION_MAP.md`
 > - 事实源：代码 > git > 审计文档；`docs/04-api` 等是 AI 提纯，**非事实源**，改码前须 grep 源码复核
 > - 已知噪音（别修）：`9004` 未实现 API 的 `404`、`RootErrorBoundary` 的 `null` 异常
 
@@ -26,7 +27,7 @@
 
 | 进程名称 | 端口 | 核心职责 | 启动命令与方式 |
 |----------|------|----------|----------------|
-| 前端扩展 | `dist/` | 提供 V1 画布 UI，作为表现层加载到 Chrome。 | 执行 `npm run build`，将 `dist/` 加载到 Chrome。 |
+| 前端扩展 | `dist/` | 提供 V1 画布 UI，作为表现层加载到 Chrome。 | 执行 `npm run build`，将 `dist/` 加载到 Chrome。唯一入口为 `src/entry.js`（经 `index.html` 引用）。 |
 | localTool 本地服务 | `127.0.0.1:18080` | 提供 KV、文件、任务、资源、代理的存储，数据落盘至 SQLite(WASM) 和磁盘。 | `cd localTool && npm run build && npm start`（或 `start.sh`）。 |
 | apimart-gateway 网关 | `127.0.0.1:9004` | 接收 OpenAI 风格接口并翻译为 Lovart 调用，处理图文视频生成。 | `cd apimart-gateway && pip install -r requirements.txt && uvicorn main:app --host 127.0.0.1 --port 9004`。 |
 
@@ -36,13 +37,12 @@
 
 | 目录/文件 | 核心职责与状态 |
 |-----------|----------------|
-| `src/main.tsx` | V1 入口，懒加载 `./App.js`，用 `src/ErrorBoundary` 包裹。 |
+| `src/entry.js` | ★ 前端**唯一入口**（`index.html` 直接引用）。负责解包 vendor React/ReactDOM 并挂 `window`、`接入点引导`、动态 `import('./App.js')`、`createRoot().render()`。双 React 实例问题的唯一解包点，改动须谨慎。 |
 | `src/background.ts` | Service Worker，负责右键菜单和资源采集，可读 TS，必须保留别重写。 |
-| `src/App.js` | ★ V1 引擎（当前运行，原 `src/_engine/App.js` 扁平化而来）。反编译魔改产物，约 4.6 万行混淆代码。★ 唯一权威运行/修改文件。 |
+| `src/App.js` | ★ V1 引擎核心（当前运行，原 `src/_engine/App.js` 扁平化而来），约 4.4 万行。已**解耦拆分**：业务逻辑分散在 `src/config/`、`src/utils/`、`src/services/`、`src/components/`、`src/hooks/`、`src/contexts/` 子模块，`App.js` 本身保留混淆变量名并 `import` 这些子模块。★ 主权威运行/修改文件。 |
 | `src/config.js` | 集中配置层（原 `src/_engine/config.js`），修改端点或开关时动它。 |
-| `src/entry.js` | 入口壳（接入点引导等），极少改动。 |
+| `src/react-bridge.ts` | JSX runtime 桥接，从 `window.__React` 取 React 供 `@vitejs/plugin-react` 的 JSX transform 用（配合 `vite.config.ts` 的 alias）。 |
 | `src/vendor/` 等 | 第三方/运行时原版产物，绝对禁止修改。 |
-| `src/v2/` | ⏸ 永久暂停存档。源码在 `归档.zip` 中，仅保留 V1 依赖的桥接文件。 |
 | `localTool/` | 本地工具服务，基于 Node/TS，使用 sql.js(WASM) 存储。 |
 | `apimart-gateway/` | AI 网关，基于 Python FastAPI。 |
 | `scripts/` | 反编译/拆分辅助脚本，不是运行所需。 |
@@ -50,6 +50,8 @@
 | `docs/` | 核心文档区（详见下方文件清单）。 |
 | `docs/archive/` | 审计归档。包含真实溯源文件 `PROJECT_ORIGIN.md` 和 `ARCHITECTURE.md`。 |
 | `dist/` | 构建产物，❌ 严禁手动修改。 |
+
+> **入口变更（2026-07-22，双 React 实例修复第九轮）**：原 `src/main.tsx` 已删除，入口合并进 `src/entry.js`，`index.html` 的 `<script>` 改为指向 `/src/entry.js`。不要再创建/引用 `main.tsx`。详见 `HANDOFF.md`。
 
 **`docs/` 根目录真实文件（常被误认为在 archive/ 下）**：
 - `TASKS.md` — 已知 Bug/修复清单/排查任务板（🟢 高信任）
@@ -63,8 +65,8 @@
 ## 3. 开发维护最高红线（不可违背）
 
 ### 3.1 核心边界与版本锁定
-- **修改范围**：前端只能修改 `src/App.js` 和 `src/config.js`（即原 `src/_engine/` 扁平化后的文件）。绝对禁止修改 `dist/` 目录以及任何原版保留/第三方产物。
-- **版本隔离**：严格运行 V1，绝对禁止引入 V2 的代码或逻辑。
+- **修改范围**：前端可修改 `src/App.js` 及其已解耦子模块——`src/config/`、`src/utils/`、`src/services/`、`src/components/`、`src/hooks/`、`src/contexts/`、`src/config.js`、`src/entry.js`、`src/react-bridge.ts`。绝对禁止修改 `dist/`、`src/vendor/`（含 `vendor.js`/`rolldown-runtime.js`）以及任何原版保留/第三方产物。
+- **版本隔离**：严格运行 V1，V2 已彻底移除，禁止引入 V2 的代码或逻辑。
 - **命名规范**：禁止修改 `App.js` 现有的短命名（如 `ii`、`Xr`），定位必须带行号。新增变量必须语义化（`camelCase` 或 `UPPER_SNAKE`），严禁模仿短名。
 - **代码恢复**：改坏时仅能使用 `git checkout -- src/App.js` 恢复，严禁复制备份文件覆盖。
 
@@ -86,9 +88,8 @@
 
 ## 4. V2 归档状态说明
 
-- **归档处理**：2026-07-20 起，V2 源码已压缩为 `src/v2/归档.zip`。
-- **现存依赖**：目前 `src/v2/` 仅保留 V1 真实依赖的 `react-bridge.ts`、`vite-env.d.ts`、`components/ErrorBoundary.tsx`，切勿删除。
-- **重启规则**：切回 V2 需解压归档并修改 `main.tsx` L41。除非用户明确要求，否则完全当做只读归档。
+- **彻底移除**：V2 源码已压缩归档（见 `归档.zip` 或历史备份），`src/v2/` 目录已**删除**。V1 实际依赖的桥接文件（`src/react-bridge.ts`、`src/vite-env.d.ts`）已留在 `src/` 根，正常使用，切勿误删。
+- **重启规则**：除非用户明确要求，否则完全当做已废弃，不引入任何 V2 代码或逻辑。
 
 ---
 

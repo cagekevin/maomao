@@ -189,7 +189,7 @@ rhWebapp     → 发 vs 事件（专用重跑）
 6. 不碰 `dist/`、vendor、`App.original.js`；默认只改 `App.js`/`config.js`。
 7. **网关端口坑**：画布实际连 `127.0.0.1:9004`（网关 `config.js` 的 `ot`/`DEFAULT_ENDPOINT`），README 写的 `8000` 是错的。启动网关必须 `uvicorn main:app --host 127.0.0.1 --port 9004`，照搬 8000 会让画布全 404。
 8. **文件上传 URL 必须绝对路径**：`/api/files/upload` 返回的 `url`/`thumbnailUrl` 必须是 `http://127.0.0.1:18080/files/...`，禁止相对路径（扩展环境相对路径会解析成 `chrome-extension://...` → 破图刷日志）。前端 `uploadFile` 已兜底补前缀，改 `files.ts` 时保留。
-9. **只跑 V1**：`main.tsx` L41 只 `React.lazy(() => import('./App.js'))`，V2（`src/v2/`）封存不参与运行。恢复 `App.js` 基线用 `git checkout -- src/App.js`，别复制任何备份文件。
+9. **只跑 V1**：前端唯一入口是 `src/entry.js`（经 `index.html` 引用，`main.tsx` 已删除），V2（`src/v2/`）已暂停归档且目录已删除，不参与运行。恢复 `App.js` 基线用 `git checkout -- src/App.js`，别复制任何备份文件。
 10. **画布交互易踩坑**：Ctrl+拖拽框选（`ctrlHeld` 动态切 `panOnDrag`/`selectionOnDrag`，keydown 只认 `Control`/`Meta`）；`minZoom:.05`（React Flow 默认 0.5）；`.react-flow__pane{user-select:none}` 防框选蓝选；**撤销/重做直连 `setNodes`/`setEdges`，不经 `onNodesChange`**。
 
 ### 7.1 已知无害噪音（看到别慌，也别改）
@@ -273,5 +273,5 @@ rhWebapp     → 发 vs 事件（专用重跑）
 - 反编译魔改为**去官方依赖的本地模式（V1）**：去登录（`Oa` 永返本地 token）、端点集中 `config.js`、画布改连自研**网关 9004** + **localTool 18080**。
 - localTool 用 `sql.js`(WASM) **重写**了原版闭源 Go 二进制（原以为 better-sqlite3，实际 sql.js）。
 - 网关把 OpenAI 风格接口翻译转发 Lovart。
-- **V2 完整重写已暂停归档**（`src/v2/`），当前只跑 V1；不要假设 V2 stores 在运行。
+- **V2 完整重写已暂停归档**（`src/v2/` 目录已删除），当前只跑 V1；不要假设 V2 stores 在运行。
 - 原版残留短名 `U_`/`W_`/`G_`/`B_` 别改也别和新增变量混淆。

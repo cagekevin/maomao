@@ -53,7 +53,7 @@
 | `/api/tasks/batch-delete` | POST | 批量删任务 | `handleTasksBatchDelete`（localTool L93） | body `{ids:string[]}`，返回 `{deleted:number}`；**已 grep 源码坐实** |
 | `/api/tasks/clear` | POST | 清空全部任务（无删盘、无 statuses 过滤） | `handleTasksClear`（localTool L102） | **无 body**，直接 `DELETE FROM tasks`（清空整表）；原文档写 `{statuses:[]}` 系误植，已据源码删除 |
 
-**客户端调用形态与超时（已 grep src/_engine/App.js 坐实）**
+**客户端调用形态与超时（已 grep src/App.js 坐实）**
 - `useLocalTool` hook 暴露 `uploadFile/saveKV/getKV/createFolder/moveFile/status`，内部 `fetch` 打向 localTool 基址（来自 `LOCAL_ENGINE.base`，默认 `http://127.0.0.1:18080`）。
 - 超时常量（App.js L19055–19056）：`Vc=5e3`(5s)、`Hc=15e3`(15s)；连通检测节流 `Gr=3e3`(3s，App.js L1735)。
 - 连通失败文案（App.js L19145，原文变量形式）：`无法连接到 ${LOCAL_ENGINE.base}，请确保 localTool Service 正在运行`（非硬编码 18080，运行时取变量）。

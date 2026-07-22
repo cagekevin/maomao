@@ -36630,7 +36630,7 @@ var Mg = {
   },
   Ng = async e => {
     try {
-      let t = await Eg(`${$n}/plugin/manifest.json`, {
+      let t = await Eg(`${localEngineBase()}/plugin/manifest.json`, {
           useLicenseServer: true,
           skipAuth: true
         }),
@@ -41268,7 +41268,7 @@ function Nv() {
         return;
       }
       try {
-        let e = await Mg.get(`/workflow-apps/by-project/${encodeURIComponent(fr)}`),
+        let e = await Mg.get(`${localEngineBase()}/api/workflow-apps/by-project/${encodeURIComponent(fr)}`),
           t = e.data;
         xr(e.success ? t?.data ?? t ?? null : null);
       } catch {
@@ -41783,8 +41783,33 @@ function Nv() {
       $r(true);
       try {
         let e = {};
-        for (let t of [`app_settings`, `api_configs`, `users`, `membership`, `projects`, `presetPrompts`, `customNodeTemplates`, `modelSchedules`, `cloud_storage_config`]) {
-          let n = t === `modelSchedules` ? la() : await Q.getObject(t);
+        for (let t of [`app_settings`, `api_configs`, `users`, `membership`, `projects`, `presetPrompts`, `customNodeTemplates`, `modelSchedules`, `cloud_storage_config`, `local_templates`]) {
+          let n = t === `modelSchedules` ? la() : t === `local_templates` ? await _getLocalTemplates().then(arr => arr.map(tpl => {
+            let clean = { ...tpl };
+            delete clean.coverUrl;
+            if (clean.graphData?.nodes) {
+              clean.graphData = {
+                ...clean.graphData,
+                nodes: clean.graphData.nodes.map(nd => {
+                  let d = { ...nd };
+                  if (d.data) {
+                    let dd = { ...d.data };
+                    delete dd.imageUrl;
+                    delete dd.thumbnailUrl;
+                    delete dd.images;
+                    delete dd.videoUrl;
+                    delete dd.thumbnailUrlRef;
+                    delete dd.imageUrlRef;
+                    delete dd.imageUrlThumbRef;
+                    delete dd.imageUrlUploaded;
+                    d.data = dd;
+                  }
+                  return d;
+                })
+              };
+            }
+            return clean;
+          })) : await Q.getObject(t);
           n !== null && (e[t] = n);
         }
         if (Object.keys(e).length === 0) {
@@ -41823,7 +41848,26 @@ function Nv() {
         let r = 0;
         for (let e of n) {
           let n = t[e];
-          n != null && (e === `modelSchedules` ? await Sa(n) : await Q.setObject(e, n), r++);
+          if (n == null) continue;
+          if (e === `modelSchedules`) {
+            await Sa(n);
+            r++;
+          } else if (e === `local_templates`) {
+            // 拉取模板时合并而非覆盖：云端模板加入本地
+            let localArr = await _getLocalTemplates();
+            let cloudArr = Array.isArray(n) ? n : [];
+            let localIds = new Set(localArr.map(t => t.id));
+            for (let tpl of cloudArr) {
+              if (!localIds.has(tpl.id)) {
+                localArr.unshift(tpl);
+              }
+            }
+            await _saveLocalTemplates(localArr);
+            r++;
+          } else {
+            await Q.setObject(e, n);
+            r++;
+          }
         }
         Br(r > 0 ? `【配置】已从云端同步到本地 (${r}项)` : `没有需要恢复的配置`), setTimeout(() => {
           window.location.reload();
