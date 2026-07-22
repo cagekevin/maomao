@@ -137,7 +137,7 @@ async function xa() {
 }
 async function Sa(e) {
   let t = ba(la(), e);
-  return da(t), t;
+  return Array.isArray(t) && t.length > 0 && da(t), t;
 }
 export {
   na, ra, ia, aa, oa, sa, ca, la, ua, da, fa, pa, ma, ha, ga, _a, va, ya, ba, xa, Sa

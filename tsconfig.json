@@ -18,5 +18,5 @@
     "noFallthroughCasesInSwitch": true,
     "forceConsistentCasingInFileNames": true
   },
-  "include": ["src/background.ts", "src/main.tsx", "src/**/*"]
+  "include": ["src/background.ts", "src/**/*"]
 }

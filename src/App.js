@@ -40921,7 +40921,7 @@ function Nv() {
     Ur(false), console.log(`[useEffect:refreshCounter] refreshCounter 变化触发，当前值:`, se);
     try {
       Q.getObject(Z.USERS).then(e => {
-        e && e.length > 0 ? Be(e) : (Be(Av), Q.setObject(Z.USERS, Av));
+        e && e.length > 0 ? Be(e) : Be(Av);
       }), (async () => {
         try {
           if (await Q.getConfig(kv)) return;
@@ -41401,9 +41401,9 @@ function Nv() {
   }, []), Y.useEffect(() => {
     if (!Hr) return;
     let e = setTimeout(() => {
-      Q.setObject(Z.PROJECTS, ur).catch(e => console.error(`PROJECTS save error`, e)), Q.setObject(Z.USERS, ze).catch(e => console.error(`USERS save error`, e));
+      Q.setObject(Z.PROJECTS, ur).catch(e => console.error(`PROJECTS save error`, e)), Array.isArray(ze) && ze.length > 0 && Q.setObject(Z.USERS, ze).catch(e => console.error(`USERS save error`, e));
       let e = En.filter(e => !e.readonly);
-      Q.setObject(Z.API_CONFIGS, e).catch(e => console.error(`API_CONFIGS save error`, e)), Q.setObject(Z.PRESET_PROMPTS, jr).catch(e => console.error(`PRESET_PROMPTS save error`, e)), Q.setObject(Z.CUSTOM_NODE_TEMPLATES, wn).catch(e => console.error(`CUSTOM_NODE_TEMPLATES save error`, e)), Q.setObject(Z.CLOUD_STORAGE_CONFIG, o).catch(e => console.error(`CLOUD_STORAGE_CONFIG save error`, e));
+      Q.setObject(Z.API_CONFIGS, e).catch(e => console.error(`API_CONFIGS save error`, e)), Q.setObject(Z.PRESET_PROMPTS, jr).catch(e => console.error(`PRESET_PROMPTS save error`, e)), Array.isArray(wn) && wn.length > 0 && Q.setObject(Z.CUSTOM_NODE_TEMPLATES, wn).catch(e => console.error(`CUSTOM_NODE_TEMPLATES save error`, e)), Q.setObject(Z.CLOUD_STORAGE_CONFIG, o).catch(e => console.error(`CLOUD_STORAGE_CONFIG save error`, e));
     }, 1e3);
     return () => clearTimeout(e);
   }, [ur, ze, En, jr, wn, o]), Y.useEffect(() => {
@@ -42311,7 +42311,7 @@ function Nv() {
           Br(`⚠️ app_settings 保存失败，请检查本地引擎连接`);
           return;
         }
-        await Q.setObject(Z.PROJECTS, ur), await Q.setObject(Z.USERS, ze), await Q.setObject(Z.API_CONFIGS, En.filter(e => !e.readonly)), await Q.setObject(Z.PRESET_PROMPTS, jr), await Q.setObject(Z.CUSTOM_NODE_TEMPLATES, wn), await Q.setObject(Z.CLOUD_STORAGE_CONFIG, o);
+        await Q.setObject(Z.PROJECTS, ur), Array.isArray(ze) && ze.length > 0 && await Q.setObject(Z.USERS, ze), await Q.setObject(Z.API_CONFIGS, En.filter(e => !e.readonly)), await Q.setObject(Z.PRESET_PROMPTS, jr), Array.isArray(wn) && wn.length > 0 && await Q.setObject(Z.CUSTOM_NODE_TEMPLATES, wn), await Q.setObject(Z.CLOUD_STORAGE_CONFIG, o);
         let n = 0;
         for (let e of ur) {
           let t = Cr(e.id),
