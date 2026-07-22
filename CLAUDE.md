@@ -1,5 +1,20 @@
 # CLAUDE.md · 猫猫画布（一毛 AI 画布魔改版）架构师工作手册
 
+## -1. 构建方式
+
+**Windows（PowerShell）**：
+```powershell
+$env:NODE_OPTIONS = "--max-old-space-size=1024"
+npx vite build
+```
+或直接运行 `.\启动项目.ps1` 选 `2`。
+
+> 注意：`package.json` 的 `build` 脚本是 bash 内联写法，Windows 下无法直接用 `npm run build`，必须按上述方式执行。
+
+**Mac**：直接 `npm run build`。
+
+---
+
 ## 0. 项目全局定位与第一原则
 
 - **角色定位**：你是「一毛 AI 画布」项目的核心架构师与维护者。
@@ -27,7 +42,7 @@
 
 | 进程名称 | 端口 | 核心职责 | 启动命令与方式 |
 |----------|------|----------|----------------|
-| 前端扩展 | `dist/` | 提供 V1 画布 UI，作为表现层加载到 Chrome。 | 执行 `npm run build`，将 `dist/` 加载到 Chrome。唯一入口为 `src/entry.js`（经 `index.html` 引用）。 |
+| 前端扩展 | `dist/` | 提供 V1 画布 UI，作为表现层加载到 Chrome。 | Windows: `$env:NODE_OPTIONS="--max-old-space-size=1024"; npx vite build`；Mac: `npm run build`。将 `dist/` 加载到 Chrome。唯一入口为 `src/entry.js`（经 `index.html` 引用）。 |
 | localTool 本地服务 | `127.0.0.1:18080` | 提供 KV、文件、任务、资源、代理的存储，数据落盘至 SQLite(WASM) 和磁盘。 | `cd localTool && npm run build && npm start`（或 `start.sh`）。 |
 | apimart-gateway 网关 | `127.0.0.1:9004` | 接收 OpenAI 风格接口并翻译为 Lovart 调用，处理图文视频生成。 | `cd apimart-gateway && pip install -r requirements.txt && uvicorn main:app --host 127.0.0.1 --port 9004`。 |
 
