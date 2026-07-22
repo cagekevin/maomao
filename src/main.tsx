@@ -4,16 +4,17 @@
 // V2 重写已暂停并删除，不参与运行
 // ============================================================
 
-// ── React 实例统一 ──
-import './react-bridge.ts';
-
 // ── CSS 加载（沿用原版预编译 CSS）──
 import './styles/tailwind.css';
 import './styles/vendor.css';
 import './styles/app.css';
 
-import React from 'react';
-import { createRoot } from 'react-dom/client';
+// 直接从 vendor.js 导入 React/ReactDOM，避免 node_modules 双实例
+import { Nr as VendorReact, jr as VendorReactDOM } from './vendor/vendor.js';
+
+const React: any = VendorReact;
+const ReactDOM: any = VendorReactDOM;
+
 import { ErrorBoundary } from './ErrorBoundary';
 
 // ── ResizeObserver 错误抑制（从 entry.js 提取）──
@@ -48,7 +49,7 @@ async function bootstrap(): Promise<void> {
     return;
   }
 
-  const root = createRoot(rootEl);
+  const root = ReactDOM.createRoot(rootEl);
 
   root.render(
     <React.StrictMode>

@@ -1,28 +1,108 @@
-# Handoff: ⚠️ 本文件已作废，请勿据此改动代码
+# Handoff — 2026-07-22 双 React 实例修复（第五轮）
 
-> **状态（2026-07-22 更新）**：本文件描述的「修复」经实测是破坏代码的元凶，相关未提交改动已通过 `git checkout -- src/App.js src/entry.js` **全部回退**。当前正常工作基线是 commit `7504c3e`（fix: localTool 两个接口 bug 修复）。
->
-> **下个 AI 请直接读 `docs/PROJECT_LOG.md` 与 `CLAUDE.md`，不要参考本文件列出的「修复方案」。**
+> **给下一位 AI**：先读 `CLAUDE.md` 和 `docs/PROJECT_LOG.md`，再看本文档。
 
-## 本文件哪里错了（避免重蹈覆辙）
+---
 
-| 本文件声称的修复 | 实际情况 |
-|------------------|----------|
-| 移除 App.js 中与内部定义冲突的导入 `Vr, Kr, Qr, ri` | 这些是 storage 模块的导入符号，App.js 内部**引用**它们（如 `Vr.getItem`、`Kr()`）。删除导入导致运行时 `TypeError: Vr.getItem is not a function` 等致命错误，应用无法进入。 |
-| localTool.js 将硬编码模块 ID `24996` 改为 `Nr()` 动态获取 React | `Nr` 在 storage 模块里是 localStorage 后端（有 `getItem`），不是 React；React 真正来自 vendor 的 `Nr` 导出。该改动混淆了两处 `Nr`，属错误修复。 |
-| 「应用运行时仍报错，React 对象为 null」 | 回退后验证（日志 `1784687267140.log`）：应用正常进入，画布加载、localTool 连接成功、初始化完成 `isLoggedIn: true`。仅剩两个**已知无害噪音**（见下）。 |
+## 当前状态
 
-## 已知无害噪音（不要修，不要为了消灭它大改）
+| 项目 | 值 |
+|------|-----|
+| 分支 | `decouple/exec` |
+| 工作区 | `vite.config.ts`、`src/main.tsx`、`src/ErrorBoundary.tsx`、`src/react-bridge.ts` 已修改 |
+| 运行状态 | `npx vite build` 成功，产物完整 |
+| P0 双 React 实例 | **未解决** — 方向 A 第一版（直接 import vendor.js 但不解包 CJS）运行时报错 `Class extends value undefined`，第二版（加 unwrapModule 解包）又回到大量双实例错误 |
+| 构建产物 | main.js ~3KB，无 node_modules React 代码，但多次 `i(a(),1)` 调用可能导致问题 |
 
-1. `TypeError: Cannot read properties of null (reading 'useState')` + `[RootErrorBoundary] 捕获到未处理异常` —— 被 RootErrorBoundary 捕获后应用正常恢复，基线版本即存在。
-2. `127.0.0.1:9004` 的 4 个 404（`/api/public/platform/models`、`/plugin/manifest.json`、`/api/workflow-apps/by-project/default`、`/api/public/platform/builtin`）—— 网关从未实现，本地模式用不到，前端兜底。
+---
 
-## 当前正确状态
+## 架构关键信息（不可变事实）
 
-- 基线 commit：`7504c3e`
-- 已验证：应用正常进入、localTool(:18080) 连接、`/api/tasks/save` 与 `/api/proxy` 后端 bug 已在 `7504c3e` 修复（见 `docs/PROJECT_LOG.md`）。
-- 工作区相对 `7504c3e` 仅有 untracked 文件：`src/services/{apiService,localTool,taskManager}.js`、`src/utils/endpoint.js` —— **这些是未完成的解耦实验，未被基线 import，请勿直接启用**（其中 `apiService.js` 曾误用 `Q.getItem` 调用 StorageManager，而 `Q` 无 `getItem` 方法，是典型坑）。
+### vendor.js 结构
 
-## 正确的下一步
+vendor.js（1744KB 单行混淆代码）通过 **rolldown-runtime CJS wrapper** 导出：
 
-读 `docs/PROJECT_LOG.md` 末尾「2026-07-22 任务1收尾」与「下一步计划」，按红线（`src/App.js` / `config.js` / `localTool/**` 可改，`dist/` / `vendor/` 禁改）继续。
+```js
+// vendor.js 开头
+import { i as e, n as t, r as n, t as r } from "./rolldown-runtime.js";
+var i = r((e) => { /* React 19.2.7 完整代码 */ });  // React = 变量 i
+
+// vendor.js 末尾
+export { a as Nr, ... jr ... }  // a = React CJS wrapper, jr = ReactDOM CJS wrapper
+```
+
+- `r` = rolldown-runtime 的 `t`（即 `o()` CJS lazy singleton wrapper）
+- `a`（即 `i`）是 CJS wrapper 函数，需要 **调用 `a()` 获得 `{ exports: React }`，再用 `unwrapModule()` 提取 exports**
+- vendor.js **不 import 外部 react**，React 完全自包含
+
+### rolldown-runtime 关键函数
+
+```js
+// rolldown-runtime.js
+export { l as i, s as n, u as r, o as t };
+// i = CJS module unwrapper: unwrapModule(factoryResult, moduleId) → 返回 module exports
+// t = CJS lazy singleton factory: he(fn) → 返回 () => fn第一次调用后缓存的 exports
+```
+
+### 正确的 React 获取方式（参考 entry.js）
+
+```js
+// entry.js 的做法 — 这是正确的模式
+import { i as e } from "./vendor/rolldown-runtime.js";  // e = unwrapModule
+import { Nr as n, jr as r } from "./vendor/vendor.js";   // n = React CJS wrapper, r = ReactDOM CJS wrapper
+
+var React = e(n(), 1);      // 调用 wrapper + unwrap → 真正的 React 对象
+var ReactDOM = e(r(), 1);   // 同上
+```
+
+---
+
+## 双实例的精确根因
+
+**不是 vendor-legacy 内部有两个 React，而是 main.js 中额外内联了 node_modules 的 React**。
+
+根本原因：`react-dom/client` 是 node_modules 中的预编译 CJS 模块。即使 alias 指向 react-bridge，Rollup 的 `@rollup/plugin-commonjs` 在处理 react-dom 内部的 `require('react')` 时，**绕过了 alias**，直接解析为 node_modules/react 的 ESM 入口。导致 main.js 中出现第二份完整的 React + react-dom 代码。
+
+---
+
+## 已尝试方案及结果
+
+### 方案 A-1：直接 import vendor.js 但不解包 CJS
+
+- `main.tsx`: `import { Nr as React } from './vendor/vendor.js'`
+- `ErrorBoundary.tsx`: 同上
+- **结果**：构建产物干净（main.js 3KB），但运行时 `Class extends value undefined` — 因为 `React` 是 CJS wrapper 函数，不是 React 对象，没有 `.Component`
+
+### 方案 A-2：import + unwrapModule 解包（当前代码状态）
+
+- 三个文件都 `import { i as unwrapModule }` + 调用 `unwrapModule(factory(), 1)` 解包
+- **结果**：构建产物中 `i(a(),1)` 被调用了 3 次（main.tsx、ErrorBoundary.tsx、react-bridge.ts 各一次），运行时又回到大量双实例错误
+
+**推测**：多次 `unwrapModule` 调用虽然在源代码中是同一个函数，但 Rollup 可能把它们内联/复制，导致多次初始化 vendor 模块产生多个 React 实例。
+
+---
+
+## 关键约束
+
+| 能改 | 不能改 |
+|------|--------|
+| `src/App.js` | `dist/` |
+| `src/config.js` | `*.css`（预编译产物） |
+| `localTool/src/**` | `src/entry.js`（入口壳，极少改动） |
+| `apimart-gateway/**` | `src/vendor/vendor.js`（预编译混淆产物，极高风险） |
+| `vite.config.ts` | `src/vendor/rolldown-runtime.js` |
+| `src/react-bridge.ts`（新增） |  |
+| `src/main.tsx` |  |
+| `src/ErrorBoundary.tsx` |  |
+| `index.html` |  |
+
+---
+
+## 下一步建议
+
+1. **统一解包入口**：只在 `main.tsx` 中解包一次 React/ReactDOM，挂到 `window`，ErrorBoundary 和 react-bridge 从 `window.React` 获取，避免多次 `unwrapModule` 调用
+2. 或者：让 ErrorBoundary 和 react-bridge 从 `main.tsx` 重新 export 的 React 导入（但需要解决循环依赖）
+3. 或者回退到**方向 B（external + 全局变量）**，彻底绕过 Rollup 模块去重问题
+
+
+

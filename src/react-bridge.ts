@@ -1,16 +1,14 @@
 /**
- * React 实例统一桥接
- * 将项目 React 挂载到 window.React，让 engine 代码使用同一实例
- * 消除双 React 实例导致的 #306/#300 冲突
- *
- * 必须在所有其他 import 之前执行
+ * JSX Runtime 桥接
+ * 从 vendor/vendor.js 导入 React，提供 JSX 编译所需的 jsx/jsxs/jsxDEV/Fragment。
  */
+import { Nr as VendorReact } from './vendor/vendor.js';
 
-import React from 'react';
-import ReactDOM from 'react-dom';
+const React: any = VendorReact;
 
-// 挂载到全局
-(window as unknown as Record<string, unknown>).React = React;
-(window as unknown as Record<string, unknown>).ReactDOM = ReactDOM;
+export const jsx = React.jsx ?? React.createElement;
+export const jsxs = React.jsxs ?? React.createElement;
+export const jsxDEV = React.jsxDEV ?? React.createElement;
+export const Fragment = React.Fragment;
 
-export { React, ReactDOM };
+export default React;

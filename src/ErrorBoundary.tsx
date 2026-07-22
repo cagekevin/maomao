@@ -3,18 +3,18 @@
  * 捕获 React 渲染错误，显示友好错误页面
  */
 
-import React from 'react';
+import { Nr as VendorReact } from './vendor/vendor.js';
+
+const React: any = VendorReact;
+const ReactComponent: any = React.Component || React.PureComponent || class {};
 
 interface ErrorBoundaryState {
   hasError: boolean;
   error: Error | null;
 }
 
-export class ErrorBoundary extends React.Component<
-  { children: React.ReactNode },
-  ErrorBoundaryState
-> {
-  constructor(props: { children: React.ReactNode }) {
+export class ErrorBoundary extends ReactComponent<{ children: any }, ErrorBoundaryState> {
+  constructor(props: { children: any }) {
     super(props);
     this.state = { hasError: false, error: null };
   }
@@ -23,7 +23,7 @@ export class ErrorBoundary extends React.Component<
     return { hasError: true, error };
   }
 
-  componentDidCatch(error: Error, errorInfo: React.ErrorInfo): void {
+  componentDidCatch(error: Error, errorInfo: any): void {
     console.error('[RootErrorBoundary] 捕获到未处理异常:', error, errorInfo);
   }
 
@@ -32,7 +32,7 @@ export class ErrorBoundary extends React.Component<
     window.location.reload();
   };
 
-  render(): React.ReactNode {
+  render(): any {
     if (this.state.hasError) {
       return (
         <div
