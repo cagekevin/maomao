@@ -10,7 +10,7 @@
 
 ```
 ┌────────────────────────────── 前端扩展（表现/逻辑层） ──────────────────────────────┐
-│ src/main.tsx → src/_engine/App.js(~46252 行，★权威修改文件) + src/background.ts(SW)   │
+│ src/main.tsx → src/App.js(~46252 行，★权威修改文件) + src/background.ts(SW)   │
 │ 职责：画布 / 资源面板 / 配置 / 采集 / 同步 / 轮询编排                                │
 └───────┬──────────────────────────────┬───────────────────────────────┬────────────┘
         │ HTTP :18080                   │ HTTP :9004                     │ chrome.runtime
@@ -52,21 +52,21 @@
 - 两者最终都汇于 `GET /v1/tasks/{id}`(L873)，但入口与轮询主体不同（AI05-13 实锤）。
 
 ### ADR-5：为什么只有 V1 在跑（V2 已归档）
-- 项目最初反编译出闭源产品**本地模式 V1**（`src/_engine/App.js`，约 4.6 万行，★权威修改文件）。
+- 项目最初反编译出闭源产品**本地模式 V1**（`src/App.js`，约 4.6 万行，★权威修改文件；原路径 `src/_engine/App.js` 已于 2026-07-22 扁平化到 `src/` 根）。
 - 曾启动 V2 重写，代码留在 `src/v2/`，但**已暂停 / 归档**，未上线。
 - 任何新功能、接接口、下游 AI 开发都**默认基于 V1 的 `App.js` 与其事件 / 函数契约**；`src/v2/` 不可作为事实来源。来历细节见 `docs/06-integration.md` §11、`docs/AI05/`。
 
 ### ADR-6：下游改码 / 接接口的硬纪律（来自 PROJECT_ORIGIN §4/§4.5/§8）
 - **端口坑**：网关 `main.py`/README 写 `8000`，但画布 `config.js` 的 `ot`/`DEFAULT_ENDPOINT` 实际连 `127.0.0.1:9004`。启动必须 `--port 9004`，照搬 8000 画布全 404。
 - **文件上传绝对路径**：`/api/files/upload` 返回的 `url`/`thumbnailUrl` 必须是 `http://127.0.0.1:18080/files/...` 绝对路径；扩展环境相对路径会解析成 `chrome-extension://...` → 破图刷日志。
-- **V1 铁证 + 恢复基线**：`main.tsx` L41 只 `React.lazy(() => import('./_engine/App.js'))`；V2 无运行路径。恢复 `App.js` 用 `git checkout -- src/_engine/App.js`，别复制任何备份。
+- **V1 铁证 + 恢复基线**：`main.tsx` L41 只 `React.lazy(() => import('./App.js'))`；V2 无运行路径。恢复 `App.js` 用 `git checkout -- src/App.js`，别复制任何备份。
 - **混淆名引用带行号 + 语义名**；`U_`/`W_`/`G_`/`H_`/`B_` 是原版残留别改。
 - **新增代码严禁短混淆名**：常量 `UPPER_SNAKE`、函数/变量 `camelCase`、类 `PascalCase`（下游 AI 写新逻辑必守）。
 - **画布交互易踩坑**：Ctrl+拖拽框选、`minZoom:.05`、`.react-flow__pane{user-select:none}`、撤销/重做直连 `setNodes`/`setEdges`（不经 `onNodesChange`）。
 - 完整版见 `docs/06-integration.md` §七。
 
 ### ADR-7：配置层集中在 `config.js`（不是 App.js）
-`src/_engine/config.js` 导出（全 `UPPER_SNAKE`，改配置动这里）：
+`src/config.js` 导出（全 `UPPER_SNAKE`，改配置动这里；原路径 `src/_engine/config.js` 已扁平化）：
 - `LOCAL_ENGINE`{host,port,base}（:18080）
 - `ENDPOINTS` / `DEFAULT_ENDPOINT`（默认 `http://127.0.0.1:9004`，即网关 `ot`）
 - `USE_LOCAL_ENGINE=true`（true 走 localTool；false 走网关 9004 文件路由）

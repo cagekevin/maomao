@@ -44,13 +44,13 @@ npm install
 npm run build     # 输出 dist/
 ```
 - Chrome → 扩展程序 → 加载已解压的扩展程序 → 选 `dist/`。
-- 配置层 `src/_engine/config.js`：`USE_LOCAL_ENGINE=true` 走 18080 本地；`ENDPOINTS` 指向 `http://127.0.0.1:9004`。
+- 配置层 `src/config.js`：`USE_LOCAL_ENGINE=true` 走 18080 本地；`ENDPOINTS` 指向 `http://127.0.0.1:9004`。
 
 ---
 
 ## 三、配置说明
 
-- 前端无统一 `.env.example`；配置项集中在 `src/_engine/config.js`：
+- 前端无统一 `.env.example`；配置项集中在 `src/config.js`：
   - `USE_LOCAL_ENGINE` / `LOCAL_ENGINE.base`（默认 18080）
   - `DEFAULT_ENDPOINT`（默认 `http://127.0.0.1:9004`）
   - `GAS_CLOUD_SYNC_URL`（GAS 云同步部署 URL，可选）

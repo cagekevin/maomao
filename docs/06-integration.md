@@ -39,7 +39,7 @@
 | 6 | 前端 ↔ GAS 云同步 | HTTP POST（Google Apps Script） | `ei`(push)@L43950 / `ti`(pull)@L43974（`CloudSyncEngine`）→ GAS 部署 | URL 在 `config.js` `GAS_CLOUD_SYNC_URL` | 仅配置/资源元数据，非实时协同；pull 后 1s reload |
 | 7 | 画布落盘（资源/生成结果） | HTTP :18080 | `ii`@L1888 / `Xr`@L1802 / `Zr`@L1827 → `POST /api/files/upload` | 结果经 `toAbsoluteFileUrl`(`localTool/resources.ts#L31`) 补 `http://127.0.0.1:18080/...` | 拒绝 CDN 直链（红线） |
 | 8 | 生成结果回填 → 资源刷新 | 通道 5 + 通道 1 | `mutiwindow-task-completed` → `Ev`@L42883 `POST /api/resources/rescan` → `xv`@L42821 `GET /api/resources` | 闭环：生图落盘 → 广播 → rescan → 面板刷新 | 节流在 L42910–42914 |
-| 9 | 配置层 | 模块内读取 | `src/_engine/config.js`（`UPPER_SNAKE`）→ App.js / 网关 | `USE_LOCAL_ENGINE` / `LOCAL_ENGINE.base`(18080) / `DEFAULT_ENDPOINT`(9004) | 改配置动 config.js，不是 App.js |
+| 9 | 配置层 | 模块内读取 | `src/config.js`（`UPPER_SNAKE`）→ App.js / 网关 | `USE_LOCAL_ENGINE` / `LOCAL_ENGINE.base`(18080) / `DEFAULT_ENDPOINT`(9004) | 改配置动 config.js，不是 App.js |
 
 ### 通道边界铁律（接手必守）
 - **跨进程只用 `chrome.runtime`**（`resourceAdded`）；同窗口广播只用 `mutiwindow-*`；别指望 `mutiwindow-*` 跨窗口。
@@ -189,7 +189,7 @@ rhWebapp     → 发 vs 事件（专用重跑）
 6. 不碰 `dist/`、vendor、`App.original.js`；默认只改 `App.js`/`config.js`。
 7. **网关端口坑**：画布实际连 `127.0.0.1:9004`（网关 `config.js` 的 `ot`/`DEFAULT_ENDPOINT`），README 写的 `8000` 是错的。启动网关必须 `uvicorn main:app --host 127.0.0.1 --port 9004`，照搬 8000 会让画布全 404。
 8. **文件上传 URL 必须绝对路径**：`/api/files/upload` 返回的 `url`/`thumbnailUrl` 必须是 `http://127.0.0.1:18080/files/...`，禁止相对路径（扩展环境相对路径会解析成 `chrome-extension://...` → 破图刷日志）。前端 `uploadFile` 已兜底补前缀，改 `files.ts` 时保留。
-9. **只跑 V1**：`main.tsx` L41 只 `React.lazy(() => import('./_engine/App.js'))`，V2（`src/v2/`）封存不参与运行。恢复 `App.js` 基线用 `git checkout -- src/_engine/App.js`，别复制任何备份文件。
+9. **只跑 V1**：`main.tsx` L41 只 `React.lazy(() => import('./App.js'))`，V2（`src/v2/`）封存不参与运行。恢复 `App.js` 基线用 `git checkout -- src/App.js`，别复制任何备份文件。
 10. **画布交互易踩坑**：Ctrl+拖拽框选（`ctrlHeld` 动态切 `panOnDrag`/`selectionOnDrag`，keydown 只认 `Control`/`Meta`）；`minZoom:.05`（React Flow 默认 0.5）；`.react-flow__pane{user-select:none}` 防框选蓝选；**撤销/重做直连 `setNodes`/`setEdges`，不经 `onNodesChange`**。
 
 ### 7.1 已知无害噪音（看到别慌，也别改）

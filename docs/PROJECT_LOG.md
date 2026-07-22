@@ -74,9 +74,32 @@
 - ReactFlow 节点组件（依赖图标变量 oe/at/_e/$t）
 
 ### 工程约束（沿用项目既有约定）
-- 只可修改：`src/App.js`、`src/_engine/config.js`（已迁至 `src/config.js`）、`localTool/src/**`、`apimart-gateway/**`
+- 只可修改：`src/App.js`、`src/config.js`、`localTool/src/**`、`apimart-gateway/**`
 - 禁止修改：`dist/`、`vendor-*.js`（现 `src/vendor/`）、`rolldown-runtime-*.js`、`src/v2/`（已删除）
 - 网关启动用 `--port 9004`（README 文档有误）
 - 新代码语义命名：常量 UPPER_SNAKE，函数 camelCase
 - 解耦原则：**剪切不重写**，保持混淆变量名和逻辑完全不变
 - 每个主要剥离步骤后跑 `npm run build` 验证
+
+## 2026-07-22 任务1收尾：proxy 500 / tasks-save 400 根因确认（已闭环）
+
+- **根因全在后端，已在 `7504c3e` 修复，前端无需改动**：
+  - `localTool/src/routes/system.ts`（`handleProxyJson`）：原重复 `JSON.stringify` 导致双重序列化 500 → 改为透传前端已序列化的 `body` 字符串。
+  - `localTool/src/routes/tasks.ts`（`handleTasksSave` / `handleTasksBatchSave`）：原只认 `taskId` 导致前端发 `id` 时 400 → 改为同时接受 `id` 与 `taskId` 并自动映射 `body.taskId = body.id`。
+- **前端调用链核对（确认无遗留 bug）**：
+  - `/api/proxy`（`src/App.js` `zc()` ~L18078）：proxy 失败时静默 catch 后直接 `fetch` 原始 URL，是正常容错兜底，**非 bug**；后端修好后基本不触发。
+  - `/api/tasks/save`、`/api/tasks/batch-save`（`src/App.js` `J_` ~L40319、`Y_` ~L40332）：直接 `JSON.stringify(e)` 打 `U_`(:18080)，无"回退"逻辑，后端修好即正常。
+- **验证状态**：当前基线 `7504c3e` + localTool 重 build 后，发送请求不再 500/400（日志 `1784687267140.log` 已验证应用正常进入、初始化完成）。
+
+## 2026-07-22 解耦实验文件状态（提醒下个 AI）
+
+- 工作区 untracked：`src/services/{apiService,localTool,taskManager}.js`、`src/utils/endpoint.js`。
+- 这些是从 `src/App.js` 剥离的**未完成解耦实验**，**未被当前基线 import**，处于"悬空"状态。
+- ⚠️ 已知坑：`src/services/apiService.js` 曾误用 `Q.getItem/Q.setItem/Q.remove`（`Q` 是 StorageManager，方法名是 `getConfig/setConfig`，无 `getItem`），正确应引用 storage 的 localStorage 后端 `Nr`。若重启解耦，必须先修此处再启用。
+- 重启解耦前请先重读 `CLAUDE.md` 红线与循环依赖约束（entry.js 动态 import App.js，modelApi/localTool 不能反向 import entry.js 的 `Vn/Hn`）。
+
+## 2026-07-22 误改回退记录（重要教训，防重犯）
+
+- 曾有一次未提交改动（`src/App.js` -751 行、`src/entry.js` -102 行）声称"修复变量名冲突/React 导入"，实际删除了 storage 模块的 `Vr/Kr/Qr/ri` 导入，导致运行时 `Vr.getItem is not a function`、应用无法进入。
+- 该改动已 `git checkout` 回退到 `7504c3e`，应用恢复正常（日志 `1784687267140.log`）。
+- **教训**：`App.js` 内 `Vr/Kr/Qr/ri` 等短名是**被引用的导入符号**，不是"与内部冲突的多余导入"，删除前必须先 grep 全部引用点确认。详见已作废的 `HANDOFF.md`（本日志已取代它）。

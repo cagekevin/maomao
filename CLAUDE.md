@@ -8,8 +8,10 @@
 - **当前状态**：代码极度脆弱，含大量混淆代码。当前只跑 V1，V2 已永久暂停。
 - **第一原则**：修改前必须先读本文档与 `docs/archive/PROJECT_ORIGIN.md`，任何建议绝不可违背红线，别瞎改别瞎猜。
 
+> **⚠️ 目录结构已重组（2026-07-22）**：原 `src/_engine/` 已扁平化，`App.js` / `config.js` / `entry.js` / `vendor/` 现直接位于 `src/` 根（`src/App.js`、`src/config.js`、`src/entry.js`、`src/vendor/`）。本文档及 `docs/` 常驻文档中凡出现 `src/_engine/App.js` 之处，均指 **`src/App.js`**；`src/_engine/config.js` 即 `src/config.js`。`docs/archive/` 下的历史笔记仍保留旧路径，属当时快照，以本说明与常驻文档为准。恢复基线用 `git checkout -- src/App.js`。
+
 > **TL;DR（AI 进场速查）**
-> - 能改：`src/_engine/App.js`、`src/_engine/config.js`、`localTool/src/**`、`apimart-gateway/**`
+> - 能改：`src/App.js`、`src/config.js`、`localTool/src/**`、`apimart-gateway/**`
 > - 别碰：`dist/`、`vendor-*.js`、`rolldown-runtime-*.js`、`captureVideoFrame-*.js`、`*.css`、`reference/App.original.js`、`src/v2/`
 > - 端口：前端扩展（Chrome 加载 `dist/`）· localTool `:18080` · 网关 `:9004`
 > - 先读：本文件 → `docs/archive/PROJECT_ORIGIN.md` → `docs/archive/ARCHITECTURE.md` → 改码前查 `func/var-mapping.txt` + `FUNCTION_MAP.md`
@@ -34,13 +36,12 @@
 
 | 目录/文件 | 核心职责与状态 |
 |-----------|----------------|
-| `src/main.tsx` | V1 入口，懒加载 `_engine/App.js`，用 V2 的 ErrorBoundary 包裹。 |
+| `src/main.tsx` | V1 入口，懒加载 `./App.js`，用 `src/ErrorBoundary` 包裹。 |
 | `src/background.ts` | Service Worker，负责右键菜单和资源采集，可读 TS，必须保留别重写。 |
-| `src/_engine/` | ★ V1 引擎（当前运行）。反编译魔改产物。 |
-| `src/_engine/App.js` | ★ 唯一权威运行/修改文件（约 1.8MB / 46252 行混淆代码）。 |
-| `src/_engine/config.js` | 集中配置层，修改端点或开关时动它。 |
-| `src/_engine/entry.js` | 入口壳（接入点引导等），极少改动。 |
-| `src/_engine/vendor-*.js` 等 | 第三方/运行时原版产物，绝对禁止修改。 |
+| `src/App.js` | ★ V1 引擎（当前运行，原 `src/_engine/App.js` 扁平化而来）。反编译魔改产物，约 4.6 万行混淆代码。★ 唯一权威运行/修改文件。 |
+| `src/config.js` | 集中配置层（原 `src/_engine/config.js`），修改端点或开关时动它。 |
+| `src/entry.js` | 入口壳（接入点引导等），极少改动。 |
+| `src/vendor/` 等 | 第三方/运行时原版产物，绝对禁止修改。 |
 | `src/v2/` | ⏸ 永久暂停存档。源码在 `归档.zip` 中，仅保留 V1 依赖的桥接文件。 |
 | `localTool/` | 本地工具服务，基于 Node/TS，使用 sql.js(WASM) 存储。 |
 | `apimart-gateway/` | AI 网关，基于 Python FastAPI。 |
@@ -62,10 +63,10 @@
 ## 3. 开发维护最高红线（不可违背）
 
 ### 3.1 核心边界与版本锁定
-- **修改范围**：前端只能修改 `src/_engine/App.js` 和 `config.js`。绝对禁止修改 `dist/` 目录以及任何原版保留/第三方产物。
+- **修改范围**：前端只能修改 `src/App.js` 和 `src/config.js`（即原 `src/_engine/` 扁平化后的文件）。绝对禁止修改 `dist/` 目录以及任何原版保留/第三方产物。
 - **版本隔离**：严格运行 V1，绝对禁止引入 V2 的代码或逻辑。
 - **命名规范**：禁止修改 `App.js` 现有的短命名（如 `ii`、`Xr`），定位必须带行号。新增变量必须语义化（`camelCase` 或 `UPPER_SNAKE`），严禁模仿短名。
-- **代码恢复**：改坏时仅能使用 `git checkout -- src/_engine/App.js` 恢复，严禁复制备份文件覆盖。
+- **代码恢复**：改坏时仅能使用 `git checkout -- src/App.js` 恢复，严禁复制备份文件覆盖。
 
 ### 3.2 架构与数据流限制
 - **三层隔离**：前端扩展依赖两个独立服务：文件/KV 走 `18080`，AI 生成走 `9004`。
