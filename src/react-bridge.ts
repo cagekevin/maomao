@@ -1,10 +1,8 @@
 /**
  * JSX Runtime 桥接
- * 从 vendor/vendor.js 导入 React，提供 JSX 编译所需的 jsx/jsxs/jsxDEV/Fragment。
+ * React 由 main.tsx 统一解包后挂 window，避免双实例。
  */
-import { Nr as VendorReact } from './vendor/vendor.js';
-
-const React: any = VendorReact;
+const React: any = (window as any).__React;
 
 export const jsx = React.jsx ?? React.createElement;
 export const jsxs = React.jsxs ?? React.createElement;

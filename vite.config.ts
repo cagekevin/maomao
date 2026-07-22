@@ -27,7 +27,7 @@ export default defineConfig({
         entryFileNames: (chunkInfo) =>
           chunkInfo.name === 'background' ? 'background.js' : 'assets/[name]-[hash].js',
         manualChunks(id) {
-          if (id.includes('/src/App.js') || id.includes('/src/entry.js')) {
+          if (id.includes('/src/App.js')) {
             return 'engine';
           }
           if (id.includes('/src/vendor/')) {

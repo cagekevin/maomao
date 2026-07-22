@@ -3,9 +3,8 @@
  * 捕获 React 渲染错误，显示友好错误页面
  */
 
-import { Nr as VendorReact } from './vendor/vendor.js';
-
-const React: any = VendorReact;
+// React 由 main.tsx 统一解包后挂 window
+const React: any = (window as any).__React;
 const ReactComponent: any = React.Component || React.PureComponent || class {};
 
 interface ErrorBoundaryState {

@@ -4,10 +4,16 @@ import { ENDPOINTS, DEFAULT_ENDPOINT, localEngineBase, LOCAL_ENGINE } from './co
 import './styles/tailwind.css';
 import './styles/vendor.css';
 import './styles/app.css';
-import { i as e } from "./vendor/rolldown-runtime.js";
-import { Ar as t, Nr as n, jr as r } from "./vendor/vendor.js";
-var i = e(n(), 1),
-  a = e(r(), 1),
+// 在 engine chunk 内直接解包 React/ReactDOM 并挂 window，保证时序
+// engine chunk 先于 main chunk 执行，所以必须在这里完成解包
+import { i as unwrapModule } from './vendor/rolldown-runtime.js';
+import { Ar as t, Nr as VendorReact, jr as VendorReactDOM } from './vendor/vendor.js';
+var React = unwrapModule(VendorReact(), 1);
+var ReactDOM = unwrapModule(VendorReactDOM(), 1);
+window.__React = React;
+window.__ReactDOM = ReactDOM;
+var i = React,
+  a = ReactDOM,
   o = `active_api_endpoint`,
   s = String(LOCAL_ENGINE.port);
 function c(e) {
@@ -191,6 +197,6 @@ async function k() {
     })
   }));
 }
-// k() 启用 — main.tsx 直接导入此文件作为入口
+// entry.js 是 index.html 直接引用的唯一入口
 k();
 export { x as i, u as n, y as r, E as t };
