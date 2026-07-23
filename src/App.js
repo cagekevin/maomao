@@ -4186,7 +4186,7 @@ function CropNodeComp({
 // [✔ 已确认] lo — insertRectangleCorners
 // [✔ 已确认] uo — getPointsBounds
 // [✔ 已确认] fo — cropImageByPolygon
-// [✔ 已确认] po — ImageSplitNode
+// [✔ 已确认] GridSplitNodeComp — ImageSplitNode
 // [✔ 已确认] mo — genLayerId
 // [✔ 已确认] ho — loadImage
 // [✔ 已确认] go — renderLayerWithMask
@@ -4305,7 +4305,7 @@ var no = (e, t, n) => Math.max(t, Math.min(n, e)),
       }), p.closePath(), p.clip(), p.drawImage(i, -c, -l, a, o), p.restore(), n(f.toDataURL(`image/png`));
     }
   }),
-  po = Y.memo(({
+  GridSplitNodeComp = Y.memo(({
     id: e,
     data: n,
     selected: r
@@ -5995,9 +5995,9 @@ function yo({
 // [✔ 已确认] So — parseGridDims
 // [✔ 已确认] Co — loadImage
 // [✔ 已确认] wo — drawBackground
-// [✔ 已确认] To — GridMergeNode
+// [✔ 已确认] GridMergeNodeComp — GridMergeNode
 // [✔ 已确认] Eo — videoAspectRatioOptions
-// [✔ 已确认] Do — VideoGenNode
+// [✔ 已确认] VideoGenNodeComp — VideoGenNode
 var xo = (e, t, n) => Math.max(t, Math.min(n, e)),
   So = e => {
     let t = e.trim().match(/^(\d+)\s*[x×*]\s*(\d+)$/i);
@@ -6031,7 +6031,7 @@ var xo = (e, t, n) => Math.max(t, Math.min(n, e)),
       }
     }
   },
-  To = Y.memo(({
+  GridMergeNodeComp = Y.memo(({
     id: e,
     data: n,
     selected: r
@@ -6742,7 +6742,7 @@ var xo = (e, t, n) => Math.max(t, Math.min(n, e)),
     value: `custom`,
     defaultSize: ``
   }],
-  Do = Y.memo(({
+  VideoGenNodeComp = Y.memo(({
     id: e,
     data: n,
     selected: r,
@@ -7796,9 +7796,9 @@ function Oo({
     forceUpdate: d
   };
 }
-// [✔ 已确认] Ao — Sd2VideoNode
+// [✔ 已确认] SD2VideoNodeComp — Sd2VideoNode
 // [✔ 已确认] jo — mediaTypeShortLabels
-var Ao = Y.memo(({
+var SD2VideoNodeComp = Y.memo(({
     id: e,
     data: n,
     selected: r
@@ -9426,9 +9426,9 @@ function rs({
   }), document.body) : null;
 }
 // [✔ 已确认] as — videoResolutionOptions
-// [✔ 已确认] os — DiscountVideoNode
+// [✔ 已确认] DiscountVideoNodeComp — DiscountVideoNode
 // [✔ 已确认] ss — transcribeToSegments
-// [✔ 已确认] cs — SubtitleNode
+// [✔ 已确认] AudioTranscribeNodeComp — SubtitleNode
 var as = [{
     label: `480p`,
     value: `480p`
@@ -9439,7 +9439,7 @@ var as = [{
     label: `1080p`,
     value: `1080p`
   }],
-  os = Y.memo(({
+  DiscountVideoNodeComp = Y.memo(({
     id: e,
     data: n,
     selected: r
@@ -10919,7 +10919,7 @@ var as = [{
     }
     return m && (m.duration = Number((m.end_time - m.start_time).toFixed(2)), m.start_time = Number(m.start_time.toFixed(2)), m.end_time = Number(m.end_time.toFixed(2)), p.push(m)), p;
   },
-  cs = Y.memo(({
+  AudioTranscribeNodeComp = Y.memo(({
     id: e,
     data: n,
     selected: r
@@ -12766,10 +12766,10 @@ function js(e, t) {
     r = (e || ``).toLowerCase();
   return r.startsWith(`data:image/`) ? `image` : r.startsWith(`data:video/`) ? `video` : r.startsWith(`data:audio/`) ? `audio` : [`png`, `jpg`, `jpeg`, `webp`, `gif`, `bmp`, `svg`, `avif`].includes(n) || /\.(png|jpe?g|webp|gif|bmp|svg|avif)(\?|$)/.test(r) ? `image` : [`mp4`, `webm`, `mov`, `mkv`, `avi`, `m4v`].includes(n) || /\.(mp4|webm|mov|mkv|avi|m4v)(\?|$)/.test(r) ? `video` : [`mp3`, `wav`, `ogg`, `m4a`, `flac`, `aac`, `opus`, `wma`, `aiff`].includes(n) || /\.(x-)?(mp3|wav|ogg|m4a|flac|aac|opus|wma|aiff)(\?|$)/.test(r) ? `audio` : [`txt`, `md`, `json`, `csv`, `log`, `xml`, `yaml`, `yml`, `srt`, `vtt`].includes(n) || /\.(txt|md|json|csv|log|xml|ya?ml|srt|vtt)(\?|$)/.test(r) || !e ? `text` : `unknown`;
 }
-// [✔ 已确认] Ms — RhWebappNode
-// [✔ 已确认] Ns — FrameExtractNode
+// [✔ 已确认] RhWebappNodeComp — RhWebappNode
+// [✔ 已确认] VideoExtractNodeComp — FrameExtractNode
 // [✔ 已确认] Ps — gifEncoderLib
-var Ms = Y.memo(({
+var RhWebappNodeComp = Y.memo(({
     id: e,
     data: n,
     selected: i
@@ -14163,7 +14163,7 @@ var Ms = Y.memo(({
       }), K]
     });
   }),
-  Ns = Y.memo(({
+  VideoExtractNodeComp = Y.memo(({
     id: e,
     data: n,
     selected: r
@@ -14880,8 +14880,8 @@ function Ws(e) {
   }
   return ``;
 }
-// [✔ 已确认] Gs — VideoToGifNode
-var Gs = Y.memo(({
+// [✔ 已确认] VideoToGifNodeComp — VideoToGifNode
+var VideoToGifNodeComp = Y.memo(({
   id: e,
   data: n,
   selected: r
@@ -15248,8 +15248,8 @@ function tc(e) {
   }
   return t;
 }
-// [✔ 已确认] nc — ImageCompressNode
-var nc = Y.memo(({
+// [✔ 已确认] ImageCompressNodeComp — ImageCompressNode
+var ImageCompressNodeComp = Y.memo(({
   id: e,
   data: n,
   selected: r
@@ -15999,8 +15999,8 @@ function Sc(e) {
   }
   return t;
 }
-// [✔ 已确认] Cc — FaceMosaicNode
-var Cc = Y.memo(({
+// [✔ 已确认] FaceMosaicNodeComp — FaceMosaicNode
+var FaceMosaicNodeComp = Y.memo(({
   id: e,
   data: n,
   selected: r
@@ -16558,9 +16558,9 @@ function Ic(e) {
   }
   return null;
 }
-// [✔ 已确认] Lc — GridSplitNode
-// [✔ 已确认] Rc — TextConcatNode
-var Lc = Y.memo(({
+// [✔ 已确认] CompareNodeComp — GridSplitNode
+// [✔ 已确认] TextConcatNodeComp — TextConcatNode
+var CompareNodeComp = Y.memo(({
     id: e,
     data: n,
     selected: r
@@ -16871,7 +16871,7 @@ var Lc = Y.memo(({
       })]
     });
   }),
-  Rc = Y.memo(({
+  TextConcatNodeComp = Y.memo(({
     id: e,
     data: n,
     selected: r
@@ -16980,8 +16980,8 @@ var Lc = Y.memo(({
       })]
     });
   });
-// [✔ 已确认] Wc — UrlToImageNode
-var Wc = Y.memo(({
+// [✔ 已确认] UrlToImageNodeComp — UrlToImageNode
+var UrlToImageNodeComp = Y.memo(({
   id: e,
   data: n,
   selected: r
@@ -17161,7 +17161,7 @@ async function Kc(e, t) {
   }
   return o;
 }
-function qc({
+function FileToUrlNodeComp({
   id: e,
   data: n,
   selected: r
@@ -17314,7 +17314,7 @@ function qc({
   });
 }
 // [✔ 已确认] Jc — PanoramaNode
-// [✔ 已确认] Yc — PanoNode
+// [✔ 已确认] PanoramaNodeComp — PanoNode
 // [✔ 已确认] Xc — posePresets
 // [✔ 已确认] Zc — shapePresets
 // [✔ 已确认] Qc — defaultBodyType
@@ -17413,7 +17413,7 @@ var Jc = Y.forwardRef(({
       })]
     });
   }),
-  Yc = Y.memo(({
+  PanoramaNodeComp = Y.memo(({
     id: e,
     data: n,
     selected: r
@@ -26197,8 +26197,8 @@ function wh({
     })]
   });
 }
-// [✔ 已确认] Th — Director3DNode
-var Th = Y.memo(({
+// [✔ 已确认] Director3DNodeComp — Director3DNode
+var Director3DNodeComp = Y.memo(({
   id: e,
   data: n,
   selected: r
@@ -26320,8 +26320,8 @@ var Th = Y.memo(({
     }), document.body)]
   });
 });
-// [✔ 已确认] Eh — GroupNode
-function Eh({
+// [✔ 已确认] GroupNodeComp — GroupNode
+function GroupNodeComp({
   id: e,
   data: t,
   selected: n
@@ -26791,13 +26791,13 @@ function Nh() {
   });
 }
 // [✔ 已确认] Ph — genImageId
-// [✔ 已确认] Ih — ImageGalleryEditor
+// [✔ 已确认] ImageBoxNodeComp — ImageGalleryEditor
 // [✔ 已确认] Lh — bgColorPresets
 // [✔ 已确认] Rh — presetColors
 // [✔ 已确认] zh — fontSizeOptions
 // [✔ 已确认] Bh — emojiIcons
 var Ph = () => `img-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-  Ih = Y.memo(({
+  ImageBoxNodeComp = Y.memo(({
     id: e,
     data: i,
     selected: a
@@ -27554,8 +27554,8 @@ function Vh(e) {
 function Hh(e) {
   return e.replace(/&/g, `&amp;`).replace(/</g, `&lt;`).replace(/>/g, `&gt;`).replace(/\n/g, `<br>`);
 }
-// [✔ 已确认] Uh — TextOverlayEditor
-function Uh({
+// [✔ 已确认] StickyNoteNodeComp — TextOverlayEditor
+function StickyNoteNodeComp({
   id: e,
   data: t
 }) {
@@ -28894,32 +28894,32 @@ var cg = ({
     });
   },
   lg = {
-    group: Eh,
+    group: GroupNodeComp,
     imageNode: li,
     promptNode: PromptNodeComp,
     textNode: TextNodeComp,
     cropNode: CropNodeComp,
-    gridSplitNode: po,
-    gridMergeNode: To,
-    videoNode: Do,
-    sd2VideoNode: Ao,
-    discountVideoNode: os,
-    audioNode: cs,
+    gridSplitNode: GridSplitNodeComp,
+    gridMergeNode: GridMergeNodeComp,
+    videoNode: VideoGenNodeComp,
+    sd2VideoNode: SD2VideoNodeComp,
+    discountVideoNode: DiscountVideoNodeComp,
+    audioNode: AudioTranscribeNodeComp,
     audioPlayerNode: AudioPlayerNodeComp,
     customNode: ms,
-    rhWebappNode: Ms,
-    videoExtractNode: Ns,
-    videoToGifNode: Gs,
-    imageCompressNode: nc,
-    faceMosaicNode: Cc,
-    compareNode: Lc,
-    textConcatNode: Rc,
-    urlToImageNode: Wc,
-    fileToUrlNode: qc,
-    panoramaNode: Yc,
-    director3dNode: Th,
-    imageBoxNode: Ih,
-    stickyNoteNode: Uh,
+    rhWebappNode: RhWebappNodeComp,
+    videoExtractNode: VideoExtractNodeComp,
+    videoToGifNode: VideoToGifNodeComp,
+    imageCompressNode: ImageCompressNodeComp,
+    faceMosaicNode: FaceMosaicNodeComp,
+    compareNode: CompareNodeComp,
+    textConcatNode: TextConcatNodeComp,
+    urlToImageNode: UrlToImageNodeComp,
+    fileToUrlNode: FileToUrlNodeComp,
+    panoramaNode: PanoramaNodeComp,
+    director3dNode: Director3DNodeComp,
+    imageBoxNode: ImageBoxNodeComp,
+    stickyNoteNode: StickyNoteNodeComp,
     ghostTarget: Nh
   },
   ug = {
