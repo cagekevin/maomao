@@ -30,3 +30,4 @@ Temp/
 # IDE
 .vscode/
 src/App.js.bak
+*.rename-bak
