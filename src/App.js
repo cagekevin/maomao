@@ -19,14 +19,14 @@ import { Hg } from './components/common/ToastContainer.js';
 import { Bg } from './components/panels/ImportExportPanel.js';
 import { PromptLibrary, PromptDropdown } from './components/prompts/PromptLibrary.jsx';
 import { saveAndNotify } from './services/promptManager.js';
-import { $n, er, tr, nr, rr, ir, ar, sr, cr } from './utils/urlTools.js';
+import { $n, er, tr, rr, ir, ar, sr, cr } from './utils/urlTools.js';
 import { na, ra, ia, aa, oa, sa, ca, la, ua, da, fa, pa, ma, ha, ga, _a, va, ya, ba, xa, Sa } from './services/modelSchedules.js';
-import { wa, Ta, Ea, Da, Oa, ka, Aa, ja, Ma, Na, Pa, Fa, Ia, La, Ra, za, Ba, Ha, Wa, Ga, Ka } from './services/auth.js';
+import { Ha, Wa, Ga, Ka } from './services/auth.js';
 import { Vr, Kr, Xr, Zr, Qr, $r, ri, ii, ai } from './services/localToolClient.js';
 import { zc } from './services/gatewayProxy.js';
 import { G_, K_, q_, J_, Y_, X_, Z_, Q_, $_, ev, tv } from './services/taskStore.js';
 import { yv, bv, xv, Sv, Cv, wv, Tv, Ev } from './services/resourceStore.js';
-import { yi, bi, LOCAL_MODE_ALLOW_ALL_MODELS, xi, Si, Ci, wi, Ti, Ei, Di, Oi, ki, Ai, ji, Mi, Ni, Pi, Fi, Ii, Li, Ri, zi, Bi, Vi, Hi, Ui, Wi, Gi, Ki, qi, Ji, Yi, Xi, Qi, $i, ea, y_, O_, k_, A_, j_ } from './services/modelEntitlements.js';
+import { yi, bi, LOCAL_MODE_ALLOW_ALL_MODELS, xi, Si, Ci, wi, Ti, Ei, Di, Oi, ki, Ai, Ni, Pi, Fi, Ii, Li, Ri, zi, Bi, Vi, Hi, Ui, Wi, Gi, Ki, qi, Ji, Yi, Xi, Qi, $i, ea, y_, O_, k_, A_, j_ } from './services/modelEntitlements.js';
 import { Uc } from './hooks/useLocalTool.js';
 var Y = e(le(), 1),
   Un = ae();
@@ -28282,20 +28282,7 @@ function Kh({
     })
   });
 }
-var qh = `${$n}${er}`;
-function Jh() {
-  let e = Oa();
-  return e ? {
-    Authorization: `Bearer ${e}`
-  } : {};
-}
-function Yh(e) {
-  return e ? e.includes(`/files/`) ? Lr(e, 300, `image`) : /^https?:\/\//i.test(e) ? /x-tos-process=image\/resize,w_300/i.test(e) ? e : e.includes(`?`) ? `${e}&x-tos-process=image/resize,w_300` : `${e}?x-tos-process=image/resize,w_300` : Xh(e) : ``;
-}
-function Xh(e) {
-  return e ? /^https?:\/\//i.test(e) || e.startsWith(`data:`) ? e : `${$n}${e.startsWith(`/`) ? `` : `/`}${e}` : ``;
-}
-async function Zh(e, t, n = {}) {
+
   if (!Oa()) throw Error(`请先登录`);
   let r = new FormData();
   r.append(`file`, e, t), n.folder && r.append(`folder`, n.folder), n.bizType && r.append(`bizType`, n.bizType);
@@ -30418,7 +30405,7 @@ ${_}`,
             ht.current.set(n, i);
             let a = (oe || 600) * 1e3,
               o = setTimeout(() => {
-                ht.current.has(n) && d === 1 && (M(`生成耗时较长，已转入后台运行，请稍后在“任务清单”中查看。`), W(t => t.map(t => t.id === e ? {
+                ht.current.has(n) && d === 1 && (M(`生成耗时较长，已转入后台运行，请稍后在"任务清单"中查看。`), W(t => t.map(t => t.id === e ? {
                   ...t,
                   data: {
                     ...t.data,
@@ -32033,7 +32020,7 @@ ${_}`,
         ht.current.set(e, v);
         let y = (oe || 600) * 1e3,
           b = setTimeout(() => {
-            ht.current.has(e) && (M(`生成耗时较长，已转入后台运行，请稍后在“任务清单”中查看。`), W(t => t.map(t => t.id === e ? {
+            ht.current.has(e) && (M(`生成耗时较长，已转入后台运行，请稍后在"任务清单"中查看。`), W(t => t.map(t => t.id === e ? {
               ...t,
               data: {
                 ...t.data,
@@ -34921,7 +34908,7 @@ ${_}`,
                 }), X.jsxs(`div`, {
                   className: `absolute bottom-full left-0 mb-2 w-32 bg-[#1a1a1a] border border-[#333] rounded-xl shadow-xl opacity-0 invisible group-hover/help:opacity-100 group-hover/help:visible transition-all duration-200 z-50 overflow-hidden py-1`,
                   children: [false && X.jsxs(`a`, {
-                    href: nr(`/docs`),
+                    href: `#`,
                     target: `_blank`,
                     className: `flex items-center gap-2 px-3 py-2 text-sm text-gray-300 hover:bg-[#333] hover:text-white`,
                     children: [X.jsx(p, {
@@ -35787,12 +35774,7 @@ function Sg(e, t) {
   return e.startsWith(`http`) ? e : `${t.useLicenseServer, $n}${e.startsWith(`/api`) ? e : `${er}${e}`}`;
 }
 function Cg(e) {
-  let t = new Headers(e.headers || sr);
-  if (!e.skipAuth) {
-    let e = Oa();
-    e && t.set(`Authorization`, `Bearer ${e}`);
-  }
-  return t;
+  return new Headers(e.headers || sr);
 }
 function wg(e, t, n) {
   let r = new AbortController(),
@@ -35826,7 +35808,6 @@ async function Tg(e, t = {}) {
       };
     r && [`POST`, `PUT`, `PATCH`].includes(n.toUpperCase()) && (!(r instanceof FormData) && !(r instanceof Blob) ? l.body = typeof r == `string` ? r : JSON.stringify(r) : l.body = r), console.log(`[HTTP ${n}] ${c}`);
     let u = await wg(c, l, i);
-    u.status === 401 && !a && Aa();
     let d,
       f = u.headers.get(`content-type`);
     return d = f && f.includes(`application/json`) ? await u.json() : await u.text(), u.ok ? {
@@ -35884,18 +35865,12 @@ function Ag(e, t, n) {
     body: t
   });
 }
-function jg() {
-  return Oa();
-}
 var Mg = {
     get: Eg,
     post: Dg,
     put: Og,
     delete: kg,
-    patch: Ag,
-    setAuthToken: ka,
-    clearAuthToken: Aa,
-    getCurrentToken: jg
+    patch: Ag
   },
   Ng = async e => {
     try {
@@ -36087,182 +36062,6 @@ function zg({
   }, [n, _, e, t]), {
     handleRefreshTask: _
   };
-}
-function Vg({
-  onLoginSuccess: e
-}) {
-  let t = Ta(),
-    [n, r] = Y.useState(`phone`),
-    [i, a] = Y.useState(``),
-    [o, s] = Y.useState(``),
-    [c, l] = Y.useState(t?.account ?? ``),
-    [u, d] = Y.useState(t?.password ?? ``),
-    [f, p] = Y.useState(!!t),
-    [m, h] = Y.useState(0),
-    [g, _] = Y.useState(false),
-    [v, y] = Y.useState(false),
-    [b, x] = Y.useState(``);
-  return X.jsxs(`div`, {
-    className: `space-y-5 mt-4`,
-    children: [b && X.jsx(`div`, {
-      className: `bg-red-500/10 border border-red-500/30 text-red-400 text-sm p-3 rounded-lg text-center`,
-      children: b
-    }), X.jsxs(`div`, {
-      className: `flex rounded-xl border border-[#333] bg-[#1a1a1a] p-1`,
-      children: [X.jsx(`button`, {
-        type: `button`,
-        onClick: () => {
-          r(`phone`), x(``);
-        },
-        className: `flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${n === `phone` ? `bg-red-600 text-white` : `text-gray-400 hover:text-white`}`,
-        children: `手机验证码`
-      }), X.jsx(`button`, {
-        type: `button`,
-        onClick: () => {
-          r(`password`), x(``);
-        },
-        className: `flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${n === `password` ? `bg-red-600 text-white` : `text-gray-400 hover:text-white`}`,
-        children: `账号密码`
-      })]
-    }), n === `phone` ? X.jsxs(X.Fragment, {
-      children: [X.jsx(`div`, {
-        className: `space-y-1.5`,
-        children: X.jsx(`input`, {
-          type: `tel`,
-          value: i,
-          onChange: e => a(e.target.value),
-          placeholder: `请输入手机号`,
-          className: `w-full bg-[#2a2a2a] rounded-xl px-5 py-4 text-base text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white/20 transition-all`,
-          maxLength: 11
-        })
-      }), X.jsx(`div`, {
-        className: `space-y-1.5`,
-        children: X.jsxs(`div`, {
-          className: `flex gap-3`,
-          children: [X.jsx(`input`, {
-            type: `text`,
-            value: o,
-            onChange: e => s(e.target.value.replace(/\D/g, ``)),
-            placeholder: `请输入验证码`,
-            className: `flex-1 bg-[#2a2a2a] rounded-xl px-5 py-4 text-base text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white/20 transition-all`,
-            maxLength: 6
-          }), X.jsx(`button`, {
-            type: `button`,
-            onClick: async () => {
-              if (!i || !/^1[3-9]\d{9}$/.test(i)) {
-                x(`请输入有效的手机号`);
-                return;
-              }
-              y(true), x(``);
-              try {
-                let e = await Dg(`/auth/send-code`, {
-                  phone: i
-                });
-                if (e.success) {
-                  h(60);
-                  let e = setInterval(() => {
-                    h(t => t <= 1 ? (clearInterval(e), 0) : t - 1);
-                  }, 1e3);
-                } else x(e.error || `发送验证码失败`);
-              } catch {
-                x(`网络错误，请稍后重试`);
-              } finally {
-                y(false);
-              }
-            },
-            disabled: m > 0 || v,
-            className: `px-5 py-4 rounded-xl text-sm font-bold transition-colors whitespace-nowrap ${m > 0 ? `bg-[#333] text-gray-500 cursor-not-allowed` : `bg-[#2a2a2a] text-gray-300 hover:bg-[#333]`}`,
-            children: v ? `发送中...` : m > 0 ? `${m}s` : `获取验证码`
-          })]
-        })
-      }), X.jsx(`button`, {
-        type: `button`,
-        onClick: async () => {
-          if (!i || !o) {
-            x(`请填写手机号和验证码`);
-            return;
-          }
-          _(true), x(``);
-          try {
-            let t = await Dg(`/auth/login-phone`, {
-              phone: i,
-              code: o
-            });
-            if (t.success && t.data) {
-              let n = t.data;
-              ka(n.token), e(n.user);
-            } else x(t.error || `登录失败`);
-          } catch {
-            x(`网络错误，请稍后重试`);
-          } finally {
-            _(false);
-          }
-        },
-        disabled: g,
-        className: `w-full py-4 mt-2 bg-red-600 text-white rounded-xl text-base font-bold hover:bg-red-500 transition-all shadow-lg shadow-red-900/20 disabled:opacity-50`,
-        children: g ? `处理中...` : `一键注册/登录`
-      })]
-    }) : X.jsxs(`form`, {
-      onSubmit: async t => {
-        if (t.preventDefault(), !c.trim() || !u) {
-          x(`请填写账号和密码`);
-          return;
-        }
-        _(true), x(``);
-        try {
-          let t = await Dg(`/auth/login-password`, {
-            account: c.trim(),
-            password: u
-          });
-          if (t.success && t.data) {
-            let n = t.data;
-            ka(n.token), f ? Ea({
-              account: c.trim(),
-              password: u
-            }) : Da(), e(n.user);
-          } else x(t.error || `登录失败`);
-        } catch {
-          x(`网络错误，请稍后重试`);
-        } finally {
-          _(false);
-        }
-      },
-      className: `space-y-4`,
-      autoComplete: `on`,
-      children: [X.jsx(`input`, {
-        type: `text`,
-        name: `username`,
-        id: `plugin-login-account`,
-        autoComplete: `username`,
-        value: c,
-        onChange: e => l(e.target.value),
-        placeholder: `用户名 / 手机号`,
-        className: `w-full bg-[#2a2a2a] rounded-xl px-5 py-4 text-base text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white/20 transition-all`
-      }), X.jsx(`input`, {
-        type: `password`,
-        name: `password`,
-        id: `plugin-login-password`,
-        autoComplete: `current-password`,
-        value: u,
-        onChange: e => d(e.target.value),
-        placeholder: `请输入密码`,
-        className: `w-full bg-[#2a2a2a] rounded-xl px-5 py-4 text-base text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white/20 transition-all`
-      }), X.jsxs(`label`, {
-        className: `flex items-center gap-2 text-sm text-gray-400 cursor-pointer select-none`,
-        children: [X.jsx(`input`, {
-          type: `checkbox`,
-          checked: f,
-          onChange: e => p(e.target.checked),
-          className: `h-4 w-4 accent-red-600`
-        }), `记住密码`]
-      }), X.jsx(`button`, {
-        type: `submit`,
-        disabled: g,
-        className: `w-full py-4 mt-2 bg-red-600 text-white rounded-xl text-base font-bold hover:bg-red-500 transition-all shadow-lg shadow-red-900/20 disabled:opacity-50`,
-        children: g ? `处理中...` : `登录`
-      })]
-    })]
-  });
 }
 var Ug = new class {
     listeners = [];
@@ -40155,36 +39954,9 @@ function Nv() {
         phone: e.phone,
         nickname: e.nickname,
         avatar: e.avatar,
-        membershipType: e.membershipType,
-        balance: e.balance,
         modelApiTokenKey: e.modelApiTokenKey,
-        membershipExpiryDate: e.membershipExpiryDate,
-        hasUnlimitedMembership: e.hasUnlimitedMembership,
         hasPassword: e.hasPassword
-      }), Pe(true);
-      let t = Oa();
-      if (t && ji(cr(``), t, true).catch(() => undefined), console.log(`[useEffect:refreshCounter] 使用函数式更新 apiConfigs 中 default 的 key 为服务器返回的值`), Dn(t => t.map(t => {
-        if (t.id === "default") return {
-          ...t,
-          key: e.modelApiTokenKey
-        };
-        if (t.id === `tehuishipin` || t.id === `maomaoAiApp`) {
-          let e = t.url.replace(`{VITE_API_BASE_URL}`, tr($n));
-          return {
-            ...t,
-            key: Oa(),
-            url: ar(e, true)
-          };
-        }
-        return t;
-      })), e.membershipType) {
-        let t = {
-          type: e.membershipType,
-          expiry: e.membershipExpiryDate,
-          code: Un.code
-        };
-        Q.setObject(Z.MEMBERSHIP, t), Wn(t);
-      }
+      });
     };
   Y.useEffect(() => {
     Ur(false), console.log(`[useEffect:refreshCounter] refreshCounter 变化触发，当前值:`, se);
@@ -40269,7 +40041,7 @@ function Nv() {
         e && Object.keys(e).length > 0 && s(t => Object.keys(t).every(e => !t[e]) ? e : t);
       }), xa(), Q.getObject(Z.APP_SETTINGS).then(e => {
         console.log(`[Storage] 加载 app_settings:`, e ? `存在` : `不存在`), e && (e.globalPollingInterval !== undefined && dn(e.globalPollingInterval > 60 ? e.globalPollingInterval / 1e3 : e.globalPollingInterval), e.globalMaxPollingDuration !== undefined && pn(e.globalMaxPollingDuration), e.globalSyncTimeout !== undefined && gn(e.globalSyncTimeout), e.transitGridCols !== undefined && re(e.transitGridCols), e.defaultTextModel && vt(e.defaultTextModel), e.defaultDrawingModel && wt(e.defaultDrawingModel), e.defaultVideoModel && Mt(e.defaultVideoModel), e.defaultSd2VideoModel && Bt(e.defaultSd2VideoModel), e.videoDurations && Pt(e.videoDurations), e.defaultAudioModel && nn(e.defaultAudioModel), e.textApiConfigId && !localStorage.getItem(`apiConfigId_text`) && kn(e.textApiConfigId), e.imageApiConfigId && !localStorage.getItem(`apiConfigId_image`) && Mn(e.imageApiConfigId), e.videoApiConfigId && !localStorage.getItem(`apiConfigId_video`) && In(e.videoApiConfigId), e.sd2VideoApiConfigId && !localStorage.getItem(`apiConfigId_sd2Video`) && Rn(e.sd2VideoApiConfigId), e.audioApiConfigId && !localStorage.getItem(`apiConfigId_audio`) && Hn(e.audioApiConfigId), e.sd2Token && !c && u(e.sd2Token), e.useThumbnail !== undefined && bn(e.useThumbnail), e.panPerformanceMode !== undefined && Cn(e.panPerformanceMode), console.log(`result.useThumbnail`, e.useThumbnail));
-      }), Q.getObject(Z.MEMBERSHIP).then(e => {
+      }), .then(e => {
         if (e) {
           let t = Date.now();
           e.expiry > t ? Wn(e) : (Wn({
@@ -40998,9 +40770,6 @@ function Nv() {
       }
       He(e);
     },
-    Zr = async () => {
-      Pe(false), Le(null), ka(``), Mi(), Q.remove(Z.AUTH_TOKEN);
-    },
     // ── GAS 云端同步引擎（原样保留，勿改内部逻辑）──
     CloudSyncEngine = {
       config: {
@@ -41662,7 +41431,7 @@ function Nv() {
           localforage: {},
           kvStore: {}
         };
-        for (let t of [`users`, `membership`, `old_membership`, `projects`, `lastOpenedProject`, `app_settings`, `presetPrompts`, `customNodeTemplates`, `cloud_storage_config`, `api_configs`]) {
+        for (let t of [`projects`, `lastOpenedProject`, `app_settings`, `presetPrompts`, `customNodeTemplates`, `cloud_storage_config`, `api_configs`]) {
           let n = await Q.getObject(t);
           n !== null && (e.kvStore[t] = n);
         }
@@ -41706,7 +41475,7 @@ function Nv() {
             i = {},
             a = {};
           if (r) {
-            console.log(`[importData] 检测到老格式数据，正在兼容处理...`), t.users && (a[Z.USERS] = t.users), t.projects && (a[Z.PROJECTS] = t.projects), t.presetPrompts && (a[Z.PRESET_PROMPTS] = t.presetPrompts), t.customNodeTemplates && (a[Z.CUSTOM_NODE_TEMPLATES] = t.customNodeTemplates), t.membership && (a[Z.MEMBERSHIP] = t.membership), t.cloudStorageConfig && (a[Z.CLOUD_STORAGE_CONFIG] = t.cloudStorageConfig), t.lastOpenedProject && (a[Z.LAST_OPENED_PROJECT] = t.lastOpenedProject), t.apiConfigs && (a[Z.API_CONFIGS] = t.apiConfigs);
+            console.log(`[importData] 检测到老格式数据，正在兼容处理...`), t.users && (a[Z.USERS] = t.users), t.projects && (a[Z.PROJECTS] = t.projects), t.presetPrompts && (a[Z.PRESET_PROMPTS] = t.presetPrompts), t.customNodeTemplates && (a[Z.CUSTOM_NODE_TEMPLATES] = t.customNodeTemplates), t.cloudStorageConfig && (a[Z.CLOUD_STORAGE_CONFIG] = t.cloudStorageConfig), t.lastOpenedProject && (a[Z.LAST_OPENED_PROJECT] = t.lastOpenedProject), t.apiConfigs && (a[Z.API_CONFIGS] = t.apiConfigs);
             let e = {};
             t.textModel && (e.defaultTextModel = t.textModel), t.drawingModel && (e.defaultDrawingModel = t.drawingModel), t.videoModel && (e.defaultVideoModel = t.videoModel), t.audioModel && (e.defaultAudioModel = t.audioModel), t.sd2VideoModel && (e.defaultSd2VideoModel = t.sd2VideoModel), t.videoDurations && (e.videoDurations = t.videoDurations), t.globalPollingInterval && (e.globalPollingInterval = t.globalPollingInterval), t.globalMaxPollingDuration && (e.globalMaxPollingDuration = t.globalMaxPollingDuration), t.globalSyncTimeout && (e.globalSyncTimeout = t.globalSyncTimeout), t.transitGridCols && (e.transitGridCols = t.transitGridCols), t.sd2Token && (e.sd2Token = t.sd2Token), t.textApiConfigId && (e.textApiConfigId = t.textApiConfigId), t.imageApiConfigId && (e.imageApiConfigId = t.imageApiConfigId), t.videoApiConfigId && (e.videoApiConfigId = t.videoApiConfigId), t.sd2VideoApiConfigId && (e.sd2VideoApiConfigId = t.sd2VideoApiConfigId), t.audioApiConfigId && (e.audioApiConfigId = t.audioApiConfigId), t.textApiUrl && (e.textApiUrl = t.textApiUrl), t.textApiKey && (e.textApiKey = t.textApiKey), t.imageApiUrl && (e.imageApiUrl = t.imageApiUrl), t.imageApiKey && (e.imageApiKey = t.imageApiKey), t.videoApiUrl && (e.videoApiUrl = t.videoApiUrl), t.videoApiKey && (e.videoApiKey = t.videoApiKey), t.sd2VideoApiUrl && (e.sd2VideoApiUrl = t.sd2VideoApiUrl), t.sd2VideoApiKey && (e.sd2VideoApiKey = t.sd2VideoApiKey), t.audioApiUrl && (e.audioApiUrl = t.audioApiUrl), t.audioApiKey && (e.audioApiKey = t.audioApiKey), t.apiUrl && (e.textApiUrl = t.apiUrl), t.apiKey && (e.textApiKey = t.apiKey), Object.keys(e).length > 0 && (a[Z.APP_SETTINGS] = e), i = t.localforage || {}, t.transitResources && (i[Z.TRANSIT_RESOURCES] = t.transitResources), (t.canvasState || t.canvasStateV1) && (i[`canvas-state-v1-default`] = t.canvasState || t.canvasStateV1);
           } else i = t.localforage || {}, a = t.kvStore || {};
@@ -41767,7 +41536,7 @@ function Nv() {
             className: `absolute left-0 top-full mt-2 bg-[#1a1a1a] border border-[#333] rounded-lg shadow-xl opacity-0 invisible group-hover/logo:opacity-100 group-hover/logo:visible transition-all duration-300 delay-500 z-50 overflow-hidden whitespace-nowrap p-1`,
             children: X.jsx(`button`, {
               onClick: e => {
-                e.stopPropagation(), window.open(nr(), `_blank`);
+                e.stopPropagation(), undefined;
               },
               className: `text-sm text-gray-300 hover:text-white hover:bg-[#333] px-3 py-2 rounded-md flex items-center gap-2`,
               children: `访问官网`
@@ -41929,17 +41698,17 @@ function Nv() {
                 })]
               })]
             }), X.jsx(`button`, {
-              onClick: () => window.open(nr(`/invite`), `_blank`),
+              onClick: () => undefined,
               className: `w-full py-2 text-sm text-center text-orange-400 hover:text-orange-300 hover:bg-orange-500/10 transition-colors border-b border-[#333]`,
               children: `邀好友 赚奖励`
             }), X.jsxs(`div`, {
               className: `flex bg-[#222]`,
               children: [X.jsx(`button`, {
-                onClick: () => window.open(nr(`/console/wallet`), `_blank`),
+                onClick: () => undefined,
                 className: `flex-1 py-2 text-sm font-bold text-blue-400 hover:text-blue-300 hover:bg-blue-500/10 transition-colors border-r border-[#333]`,
                 children: `充值`
               }), X.jsx(`button`, {
-                onClick: () => window.open(nr(`/console/consumption`), `_blank`),
+                onClick: () => undefined,
                 className: `flex-1 py-2 text-sm text-gray-400 hover:text-white hover:bg-[#333] transition-colors`,
                 children: `消费详情`
               })]
@@ -41995,7 +41764,7 @@ function Nv() {
                   children: [new Date(Un.expiry).toLocaleDateString(), ` 到期`]
                 })]
               }), X.jsx(`button`, {
-                onClick: () => window.open(nr(`/pricing`), `_blank`),
+                onClick: () => undefined,
                 className: `mt-2 w-full bg-gradient-to-r from-yellow-600 to-yellow-500 hover:from-yellow-500 hover:to-yellow-400 text-white font-bold py-1.5 rounded-lg text-sm transition-all shadow-lg`,
                 children: `开通 / 续费`
               })]
@@ -42048,33 +41817,6 @@ function Nv() {
                   size: 14
                 }), ` 修改密码`]
               })
-            }), X.jsx(`div`, {
-              className: `p-2`,
-              children: X.jsxs(`button`, {
-                onClick: Zr,
-                className: `w-full text-left px-2 py-2 text-sm text-red-400 hover:bg-red-500/10 hover:text-red-300 rounded-md flex items-center gap-2 transition-colors`,
-                children: [X.jsxs(`svg`, {
-                  width: `14`,
-                  height: `14`,
-                  viewBox: `0 0 24 24`,
-                  fill: `none`,
-                  stroke: `currentColor`,
-                  strokeWidth: `2`,
-                  strokeLinecap: `round`,
-                  strokeLinejoin: `round`,
-                  children: [X.jsx(`path`, {
-                    d: `M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4`
-                  }), X.jsx(`polyline`, {
-                    points: `16 17 21 12 16 7`
-                  }), X.jsx(`line`, {
-                    x1: `21`,
-                    y1: `12`,
-                    x2: `9`,
-                    y2: `12`
-                  })]
-                }), `重置配置`]
-              })
-            })]
           })]
         }),         X.jsx(`button`, {
           onClick: () => { Te(`settings`), De(`models`); },

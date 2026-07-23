@@ -50,56 +50,7 @@ function Ai(e) {
   let t = ki(e);
   return !t || t.access === `allowed` ? null : t.reason || (t.access === `quota_exceeded` ? `已达到使用次数额度` : `权益不够`);
 }
-async function ji(e, t, n = false) {
-  if (!t || t === `local-mode-token`) {
-    xi = [], bi && (bi.entitlements = undefined), LOCAL_MODE_ALLOW_ALL_MODELS = LOCAL_MODE_ALLOW_ALL, Di();
-    return;
-  }
-  if (Ci && !n) return Ci;
-  n && (Ci = null), Ci = (async () => {
-    try {
-      let r = e.replace(/\/$/, ``),
-        i = await (await fetch(`${r}/user/model-entitlements`, {
-          headers: {
-            Authorization: `Bearer ${t}`
-          },
-          cache: n ? `no-store` : `default`
-        })).json();
-      if (i.success && i.data) {
-        xi = Array.isArray(i.data.models) ? i.data.models : [];
-        let e = {};
-        for (let t of xi) e[t.modelName] = {
-          access: t.access,
-          reason: t.reason,
-          callLimit: t.callLimit,
-          usedCount: t.usedCount,
-          periodType: t.periodType,
-          source: t.source
-        };
-        i.data.catalog ? bi = {
-          ...(bi || {
-            text: [],
-            image: [],
-            video: [],
-            discountVideo: [],
-            power: {},
-            unit: {},
-            currency: {},
-            recommended: {},
-            descriptions: {}
-          }),
-          ...i.data.catalog,
-          entitlements: e
-        } : bi && (bi.entitlements = e), wi = Date.now(), Di();
-      }
-    } catch (e) {
-      console.warn(`[builtinFavorites] 拉取模型权益失败`, e);
-    }
-  })(), await Ci, n && (Ci = null);
-}
-function Mi() {
-  xi = [], bi && (bi.entitlements = undefined), LOCAL_MODE_ALLOW_ALL_MODELS = true, Di();
-}
+
 function Ni(e) {
   return xi.length > 0 ? xi.filter(t => {
     let n = t.builtinCategory || t.category;
@@ -430,6 +381,6 @@ function j_() {
 
 export {
   yi, bi, LOCAL_MODE_ALLOW_ALL_MODELS, xi, Si, Ci, wi, Ti, Ei,
-  Di, Oi, ki, Ai, ji, Mi, Ni, Pi, Fi, Ii, Li, Ri, zi, Bi, Vi, Hi, Ui, Wi, Gi, Ki, qi, Ji, Yi, Xi, Qi, $i, ea,
+  Di, Oi, ki, Ai, Ni, Pi, Fi, Ii, Li, Ri, zi, Bi, Vi, Hi, Ui, Wi, Gi, Ki, qi, Ji, Yi, Xi, Qi, $i, ea,
   y_, O_, k_, A_, j_
 };

@@ -8,11 +8,6 @@ function tr(e) {
     n = (e || t).replace(/[`\s]/g, ``).trim().replace(/\/$/, ``);
   return n ? /\/api$/i.test(n) ? n : `${n}/api` : `${t}/api`;
 }
-function nr(e = ``) {
-  let t = $n.replace(/[`\s]/g, ``).replace(/\/+$/, ``),
-    n = e.trim().replace(/^\/+|\/+$/g, ``);
-  return n ? `${t}/${n}` : t;
-}
 function rr(e, t) {
   return `${tr(e)}/v1/gateway/ai-app${t.startsWith(`/`) ? t : `/${t}`}`;
 }
@@ -37,5 +32,5 @@ function cr(e) {
   return e.startsWith(`http`) ? e : `${$n}${er}${e}`;
 }
 export {
-  $n, er, tr, nr, rr, ir, ar, sr, cr
+  $n, er, tr, rr, ir, ar, sr, cr
 };

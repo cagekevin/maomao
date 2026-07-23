@@ -14,7 +14,7 @@ var Hr = localEngineBase();
 
 var ta = `modelSchedules`;
 
-var Ca = `auth_token`;
+
 
 var Va = `maomao:openPromptSettings`;
 

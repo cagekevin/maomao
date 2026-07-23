@@ -30,7 +30,7 @@ export const ENDPOINTS = [
 export const DEFAULT_ENDPOINT = 'http://127.0.0.1:9004';
 
 // 鉴权 token 在 localStorage 中的 key（保持原版约定）
-export const AUTH_TOKEN_KEY = 'auth_token';
+
 
 // 是否启用原版本地引擎（true = 走本地 localTool :18080）
 export const USE_LOCAL_ENGINE = true;
