@@ -1284,7 +1284,7 @@ function ci({
   });
 }
 // [✔ 已确认] li — ImageNode
-var li = Y.memo(({
+var ImageNodeComp = Y.memo(({
   id: e,
   data: t,
   selected: n,
@@ -28895,7 +28895,7 @@ var cg = ({
   },
   lg = {
     group: GroupNodeComp,
-    imageNode: li,
+    imageNode: ImageNodeComp,
     promptNode: PromptNodeComp,
     textNode: TextNodeComp,
     cropNode: CropNodeComp,
@@ -28906,7 +28906,7 @@ var cg = ({
     discountVideoNode: DiscountVideoNodeComp,
     audioNode: AudioTranscribeNodeComp,
     audioPlayerNode: AudioPlayerNodeComp,
-    customNode: ms,
+    customNode: CustomNodeComp,
     rhWebappNode: RhWebappNodeComp,
     videoExtractNode: VideoExtractNodeComp,
     videoToGifNode: VideoToGifNodeComp,
