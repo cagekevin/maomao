@@ -12520,9 +12520,7 @@ var ps = Y.memo(({
     }
   },
   vs = `rhwebapp-run-request`;
-function ys(e) {
-  return e === `VIP` || e === `SVIP` || e === `UNLIMITED`;
-}
+
 function bs(e) {
   if (!e) return [];
   try {
@@ -13259,13 +13257,6 @@ var Ms = Y.memo(({
         if (!d.loading) {
           if (!p || !m) {
             let t = `请先在节点中配置 API URL 和 API Key`;
-            a(e, {
-              errorMessage: t
-            }), d.onShowToast?.(t);
-            return;
-          }
-          if (false && !ys(d.membershipType)) {
-            let t = `AI 应用需要 VIP 或以上会员`;
             a(e, {
               errorMessage: t
             }), d.onShowToast?.(t);
@@ -40828,7 +40819,7 @@ function Nv() {
       $r(true);
       try {
         let e = {};
-        for (let t of [`app_settings`, `api_configs`, `users`, `membership`, `projects`, `presetPrompts`, `customNodeTemplates`, `modelSchedules`, `cloud_storage_config`, `local_templates`]) {
+        for (let t of [`app_settings`, `api_configs`, `projects`, `presetPrompts`, `customNodeTemplates`, `modelSchedules`, `cloud_storage_config`, `local_templates`]) {
           let n = t === `modelSchedules` ? la() : t === `local_templates` ? await _getLocalTemplates().then(arr => arr.map(tpl => {
             let clean = { ...tpl };
             delete clean.coverUrl;
@@ -43159,54 +43150,6 @@ sora`
               size: 14
             }), `确认恢复`]
           })]
-        })]
-      })
-    }), false && Oe && X.jsx(`div`, {
-      className: `fixed inset-0 bg-black/70 backdrop-blur-sm z-[9999] flex items-center justify-center p-4`,
-      children: X.jsxs(`div`, {
-        className: `bg-[#151414] rounded-3xl w-full max-w-[420px] shadow-2xl overflow-hidden relative`,
-        children: [X.jsx(`button`, {
-          type: `button`,
-          onClick: () => ke(false),
-          className: `absolute top-4 right-4 z-10 text-gray-400 hover:text-white transition-all duration-300 hover:rotate-90 p-1.5 rounded-full hover:bg-white/10 bg-black/10 backdrop-blur-md`,
-          "aria-label": `关闭登录弹窗`,
-          children: X.jsx(yn, {
-            size: 18
-          })
-        }), X.jsx(`div`, {
-          className: `w-full pt-10 pb-2 flex flex-col items-center justify-center bg-[#151414]`,
-          children: X.jsxs(`div`, {
-            className: `flex flex-col items-center gap-2`,
-            children: [X.jsxs(`div`, {
-              className: `flex items-center gap-2`,
-              children: [X.jsx(`svg`, {
-                viewBox: `0 0 20.7624 28.8621`,
-                xmlns: `http://www.w3.org/2000/svg`,
-                xmlnsXlink: `http://www.w3.org/1999/xlink`,
-                width: `28`,
-                height: `28`,
-                fill: `none`,
-                children: X.jsx(`path`, {
-                  d: `M20.7624 0C0.868225 2.29614 0.393066 20.877 0 28.8621L1.21155 28.8621C1.21155 21.9207 4.94049 21.4546 8.42853 20.6113C13.6559 19.3462 17.0903 14.3184 17.95 10.2493L15.8051 9.17358L16.9758 7.71509C18.1466 6.25684 19.2449 4.14502 20.7624 0L20.7624 0Z`,
-                  fill: `rgb(210,2,7)`,
-                  fillRule: `evenodd`
-                })
-              }), X.jsx(`span`, {
-                className: `text-2xl font-black tracking-wider text-white italic`,
-                children: APP_BRAND
-              })]
-            }), X.jsx(`p`, {
-              className: `text-sm text-gray-400 font-medium tracking-widest mt-1`,
-              children: `省钱就用${APP_BRAND}`
-            })]
-          })
-        }), X.jsx(`div`, {
-          className: `px-8 pb-10 pt-2 bg-[#151414]`,
-          children: X.jsx(Vg, {
-            onLoginSuccess: e => {
-              Ue(e), ce(e => e + 1), ke(false);
-            }
-          })
         })]
       })
     }), X.jsx(g_, {
