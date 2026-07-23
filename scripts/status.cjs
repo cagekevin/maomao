@@ -12,12 +12,12 @@ const app = fs.readFileSync('src/App.js', 'utf-8');
 const lines = app.split('\n').length;
 const confirmed = (app.match(/✔ 已确认/g) || []).length;
 const unknown = (app.match(/⚠️ 待确认/g) || []).length;
-const semanticNodes = 27; // temporarily hardcoded
+const semanticNodes = (app.match(/\\\\w*NodeComp\\\\w*|CropNodeComp/g) || []).length;
 
 console.log('📦 App.js');
 console.log(`   行数: ${lines.toLocaleString()}`);
 console.log(`   函数: ${confirmed} ✔ / ${unknown} ⚠️`);
-console.log(`   节点: ${semanticNodes = 27; // temporarily hardcoded
+console.log(`   节点: ${semanticNodes}/27 语义化`);
 
 // 2. 映射表
 const funcMap = fs.readFileSync('docs/func-mapping.txt', 'utf-8').split('\n').filter(l => l.match(/^\w+\s*=/)).length;
