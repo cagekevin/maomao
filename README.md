@@ -34,6 +34,8 @@ npm run build    # 输出到 dist/
 
 ## 工程规范
 
-- 编辑器 / 格式化：`.editorconfig` + Prettier（`prettier.config.json`，已用 `.prettierignore` 排除禁区）。
+- 构建：`npm run build`（`cross-env` 跨平台统一）。
+- 一键联调：`npm run dev:all` 同时拉起前端 vite + localTool(:18080) + 网关(:9004)。
+- 质量门控（AI 改码后必跑）：前端 `npx eslint <安全区>`；网关 `cd apimart-gateway && ruff check .`。`src/App.js` / `src/vendor` 已被忽略。
 - 提交：小步提交，信息清晰（`feat(...)` / `fix(...)` / `docs: ...`）。
 - 恢复基线：`git checkout -- src/App.js`（改坏核心时唯一恢复手段）。

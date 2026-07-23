@@ -14,8 +14,8 @@
 
 ## 二、存储层级
 
-- **StorageManager `Q`**（`src/utils/storage/index.js`）：`setObject/getObject/setConfig/getConfig`。
-- **写入优先级**：`wr`（localTool KV `:18080`）→ `Mr`（chrome.storage.local）→ `Nr`（localStorage）→ `Pr`（localforage）。但 `Q.setObject`（≈238）**只调 `wr.setObject`**，localTool 不可用就直接返回 false（不降级到 chrome/localStorage）。
+- **StorageManager `Q`**（`src/utils/storage/index.js`）：`setObject/getObject/setConfig/getConfig/saveCanvasState*`。
+- **写入只落 localTool，无降级链（2026-07-23 更正）**：`Q.setObject`/`Q.setConfig`（≈238/215）**只调 `wr.setObject`/`wr.set`**（即 localTool KV `:18080`）；localTool 不可用直接返回 false，**不降级**到 `Mr`（chrome.storage.local）/`Nr`（localStorage）/`Pr`（localforage）。旧文档写的「写入优先级 wr→Mr→Nr→Pr」是**错的**——该顺序只存在于**读取/迁移**路径：`getObject` 走 `jr`（内存缓存→`wr`）；`syncToLocalTool`（≈305）才按 `Mr→Nr→Pr` 把数据**拉回** `wr`。一句话：写只有一条路（localTool），读/迁移才有优先级。
 - **localTool KV 接口**：`window.localTool.saveKV(key, value)` → `POST http://127.0.0.1:{port}/api/kv/set`（`src/hooks/useLocalTool.js` ≈79）；读 `GET /api/kv/get?key=`（≈96）。同样 endpoint 也出现在 `src/entry.js`（≈71/79）。
 - **localTool 进程**：Node 进程，监听 `:18080`，内部用 sql.js（WASM SQLite）内存数据库。
 - **数据文件位置**：`~/.yimao-localtool/localtool.db`（`getDataDir`，可用 `YIMAO_DATA_DIR` 环境变量覆盖）。
