@@ -5,10 +5,14 @@
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 # ── 构建主项目 dist (v1) ──
+# ⚠️ 唯一合法构建命令：npm run build（CLAUDE.md 铁律，禁止 npx vite build）
 build_dist() {
   echo "🔨 正在构建 dist (v1)..."
   cd "$SCRIPT_DIR" || exit 1
-  npm run build
+  # 双击运行时 shell 未加载 npm 环境，需把本项目 node_modules/.bin 加入 PATH，
+  # 否则 cross-env / vite 解析不到（sh: cross-env: command not found）
+  export PATH="$SCRIPT_DIR/node_modules/.bin:$PATH"
+  npm run build || { echo "❌ 构建失败，请检查上方报错"; exit 1; }
   echo "✅ dist 构建完成"
 }
 

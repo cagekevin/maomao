@@ -18,6 +18,8 @@ import { Fh } from './components/common/LazyImage.js';
 import { Hg } from './components/common/ToastContainer.js';
 import { Bg } from './components/panels/ImportExportPanel.js';
 import { PromptLibrary, PromptDropdown } from './components/prompts/PromptLibrary.jsx';
+import { _getLocalTemplates, _saveLocalTemplates, createTemplate, recordUsage } from './services/templateManager.js';
+import { TemplateLibrary } from './components/template/TemplateLibrary.jsx';
 import { saveAndNotify } from './services/promptManager.js';
 import { $n, er, tr, nr, rr, ir, ar, sr, cr } from './utils/urlTools.js';
 import { na, ra, ia, aa, oa, sa, ca, la, ua, da, fa, pa, ma, ha, ga, _a, va, ya, ba, xa, Sa } from './services/modelSchedules.js';
@@ -28308,291 +28310,6 @@ async function Zh(e, t, n = {}) {
   if (!i.ok || !a.success) throw Error(a.error || `素材上传失败 (${i.status})`);
   return a.data.url;
 }
-// ── 本地模板 CRUD（数据存储在 localTool KV，key: local_templates）──
-var LOCAL_TEMPLATES_KEY = `local_templates`;
-
-async function _getLocalTemplates() {
-  let arr = await Q.getObject(LOCAL_TEMPLATES_KEY);
-  return Array.isArray(arr) ? arr : [];
-}
-
-async function _saveLocalTemplates(arr) {
-  await Q.setObject(LOCAL_TEMPLATES_KEY, arr);
-}
-
-async function Qh(e) {
-  let templates = await _getLocalTemplates();
-  let item = { ...e, id: Date.now(), isPublic: false, reviewStatus: `approved`, createdAt: new Date().toISOString() };
-  templates.unshift(item);
-  await _saveLocalTemplates(templates);
-  return item;
-}
-async function $h(e = {}) {
-  let templates = await _getLocalTemplates();
-  if (e.category) templates = templates.filter(t => t.category === e.category);
-  if (e.keyword && e.keyword.trim()) {
-    let kw = e.keyword.trim().toLowerCase();
-    templates = templates.filter(t => (t.name || ``).toLowerCase().includes(kw));
-  }
-  return templates;
-}
-async function eg(e = {}) {
-  return []; // 本地模式无模板广场
-}
-async function tg(e, t) {
-  let templates = await _getLocalTemplates();
-  let idx = templates.findIndex(t => t.id == e);
-  if (idx === -1) return { ok: false, error: `模板不存在` };
-  templates[idx].isPublic = t;
-  await _saveLocalTemplates(templates);
-  return { ok: true, data: templates[idx] };
-}
-async function ng(e) {
-  let templates = await _getLocalTemplates();
-  let idx = templates.findIndex(t => t.id == e);
-  if (idx === -1) return false;
-  templates.splice(idx, 1);
-  await _saveLocalTemplates(templates);
-  return true;
-}
-function rg(e) {
-  // 本地模式：不记录使用次数
-}
-var ag = [{
-    value: ``,
-    label: `全部`
-  }, {
-    value: `image`,
-    label: `图片`
-  }, {
-    value: `video`,
-    label: `视频`
-  }, {
-    value: `text`,
-    label: `文本`
-  }];
-function og({
-  category: e
-}) {
-  let t = {
-      image: {
-        icon: Ot,
-        label: `图片`
-      },
-      video: {
-        icon: D,
-        label: `视频`
-      },
-      text: {
-        icon: R,
-        label: `文本`
-      }
-    },
-    {
-      icon: n,
-      label: r
-    } = t[e] || t.image;
-  return X.jsxs(`span`, {
-    className: `flex items-center gap-1 px-1.5 py-0.5 rounded bg-black/55 text-[11px] text-gray-200 backdrop-blur-sm`,
-    children: [X.jsx(n, {
-      size: 11
-    }), ` `, r]
-  });
-}
-function sg({
-  open: e,
-  onClose: t,
-  onUse: n,
-  onToast: r
-}) {
-  let [i, a] = Y.useState(`mine`),
-    [o, s] = Y.useState(``),
-    [c, d] = Y.useState(``),
-    [f, p] = Y.useState([]),
-    [m, h] = Y.useState(false),
-    [g, _] = Y.useState(``),
-    v = e => {
-      r?.(e), _(e), window.setTimeout(() => _(``), 2e3);
-    },
-    y = async () => {
-      if (e) {
-        h(true);
-        try {
-          p(await (i === `mine` ? $h : eg)({
-            category: o,
-            keyword: c
-          }));
-        } catch {
-          p([]);
-        } finally {
-          h(false);
-        }
-      }
-    };
-  Y.useEffect(() => {
-    e && y();
-  }, [e, i, o]);
-  let b = Y.useMemo(() => {
-      let e = c.trim().toLowerCase();
-      return e ? f.filter(t => t.name.toLowerCase().includes(e)) : f;
-    }, [f, c]),
-    x = async e => {
-      let t = await tg(e.id, !e.isPublic);
-      if (t.ok) {
-        let n = t.data || {
-          ...e,
-          isPublic: !e.isPublic
-        };
-        p(t => t.map(t => t.id === e.id ? n : t)), e.isPublic ? v(`已设为私有`) : v(`已设为公开`);
-      } else v(t.error || `操作失败`);
-    },
-    C = async e => {
-      (await ng(e.id)) ? (p(t => t.filter(t => t.id !== e.id)), v(`已删除`)) : v(`删除失败`);
-    },
-    w = e => {
-      n(e), t();
-    },
-    T = (e, t) => {
-      e.dataTransfer.setData(ig, JSON.stringify(t)), e.dataTransfer.setData(`text/plain`, JSON.stringify(t)), e.dataTransfer.effectAllowed = `copy`;
-    };
-  return e ? Un.createPortal(X.jsx(`div`, {
-    className: `fixed inset-0 z-[1000] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 nowheel nopan nodrag`,
-    onClick: t,
-    children: X.jsxs(`div`, {
-      className: `relative w-[58vw] h-[66vh] max-w-[1080px] bg-[#141414] border border-[#2a2a2a] rounded-2xl shadow-2xl flex flex-col overflow-hidden`,
-      onClick: e => e.stopPropagation(),
-      children: [g && X.jsx(`div`, {
-        className: `absolute top-4 left-1/2 -translate-x-1/2 z-[1100] px-4 py-2 rounded-lg bg-[#2a2a2a] border border-[#3a3a3a] text-sm text-white shadow-2xl`,
-        children: g
-      }), X.jsxs(`div`, {
-        className: `shrink-0 flex items-center gap-4 px-5 h-14 border-b border-[#222]`,
-        children: [X.jsx(`div`, {
-          className: `flex items-center gap-1`,
-          children: [{
-            key: `mine`,
-            label: `我的模板`
-          }].map(e => X.jsx(`button`, {
-            onClick: () => a(e.key),
-            className: `px-3.5 py-1.5 text-sm rounded-lg transition-colors ${i === e.key ? `bg-[#2a2a2a] text-white font-medium` : `text-gray-400 hover:text-gray-200`}`,
-            children: e.label
-          }, e.key))
-        }), X.jsx(`div`, {
-          className: `ml-auto flex items-center gap-3`,
-          children: X.jsx(`button`, {
-            onClick: t,
-            className: `p-1.5 text-gray-400 hover:text-gray-200 hover:bg-[#2a2a2a] rounded-lg`,
-            children: X.jsx(yn, {
-              size: 18
-            })
-          })
-        })]
-      }), X.jsx(`div`, {
-        className: `shrink-0 flex items-center gap-2 px-5 pt-3 pb-1`,
-        children: ag.map(e => X.jsx(`button`, {
-          onClick: () => s(e.value),
-          className: `px-4 py-1.5 text-[13px] rounded-lg transition-colors ${o === e.value ? `bg-white text-[#141414] font-medium` : `bg-[#1f1f1f] text-gray-400 hover:bg-[#2a2a2a] hover:text-gray-200`}`,
-          children: e.label
-        }, e.value))
-      }), X.jsx(`div`, {
-        className: `shrink-0 px-5 py-2`,
-        children: X.jsxs(`div`, {
-          className: `relative max-w-md`,
-          children: [X.jsx(u, {
-            className: `absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500`
-          }), X.jsx(`input`, {
-            value: c,
-            onChange: e => d(e.target.value),
-            placeholder: `搜索模板关键词`,
-            className: `w-full pl-8 pr-3 py-2 text-sm bg-[#1a1a1a] border border-[#2a2a2a] rounded-lg text-gray-200 placeholder:text-gray-600 focus:border-gray-500 outline-none`
-          })]
-        })
-      }), X.jsx(`div`, {
-        className: `flex-1 overflow-y-auto custom-scrollbar p-5`,
-        children: m ? X.jsx(`div`, {
-          className: `h-full flex items-center justify-center text-sm text-gray-500`,
-          children: `加载中…`
-        }) : b.length === 0 ? X.jsx(`div`, {
-          className: `h-full flex items-center justify-center text-sm text-gray-500`,
-          children: i === `mine` ? `还没有创建模板，框选画布节点即可创建` : `暂无公开模板`
-        }) : X.jsx(`div`, {
-          className: `grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3`,
-          children: b.map(e => X.jsxs(`div`, {
-            draggable: true,
-            onDragStart: t => T(t, e),
-            className: `group relative rounded-xl overflow-hidden bg-[#1a1a1a] border border-transparent hover:border-white/30 transition-all cursor-grab active:cursor-grabbing`,
-            title: `拖拽到画布插入，或点击「使用」`,
-            children: [X.jsxs(`div`, {
-              className: `relative aspect-[4/3] bg-[#0d0c0c] overflow-hidden`,
-              children: [e.coverUrl ? X.jsx(`img`, {
-                src: Yh(e.coverUrl),
-                alt: e.name,
-                className: `w-full h-full object-cover`,
-                draggable: false
-              }) : X.jsx(`div`, {
-                className: `w-full h-full flex items-center justify-center text-gray-700 text-3xl`,
-                children: `🧩`
-              }), X.jsx(`div`, {
-                className: `absolute top-2 left-2 z-10`,
-                children: X.jsx(og, {
-                  category: e.category
-                })
-              }), X.jsxs(`div`, {
-                className: `absolute inset-0 bg-black/55 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2`,
-                children: [i === `mine` && X.jsxs(X.Fragment, {
-                  children: [X.jsxs(`button`, {
-                    onClick: t => {
-                      t.stopPropagation(), x(e);
-                    },
-                    className: `flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#2a2a2a] hover:bg-[#3a3a3a] text-xs text-gray-100`,
-                    title: e.isPublic ? `设为私有` : `设为公开`,
-                    children: [e.isPublic ? X.jsx(We, {
-                      size: 13
-                    }) : X.jsx(l, {
-                      size: 13
-                    }), e.isPublic ? `私有` : `公开`]
-                  }), X.jsx(`button`, {
-                    onClick: t => {
-                      t.stopPropagation(), C(e);
-                    },
-                    className: `p-1.5 rounded-lg bg-[#2a2a2a] hover:bg-red-600/80 text-gray-100`,
-                    title: `删除`,
-                    children: X.jsx(S, {
-                      size: 14
-                    })
-                  })]
-                }), X.jsx(`button`, {
-                  onClick: t => {
-                    t.stopPropagation(), w(e);
-                  },
-                  className: `px-3 py-1.5 rounded-lg bg-white hover:bg-gray-200 text-xs text-[#141414] font-medium`,
-                  children: `使用`
-                })]
-              })]
-            }), X.jsxs(`div`, {
-              className: `px-2 py-2 space-y-1`,
-              children: [X.jsxs(`div`, {
-                className: `flex items-center justify-between gap-2`,
-                children: [X.jsx(`p`, {
-                  className: `text-[13px] text-gray-200 truncate`,
-                  children: e.name
-                }), false && i === `mine` && X.jsx(`span`, {
-                  className: `shrink-0 px-1.5 py-0.5 rounded text-[10px] font-medium ${e.reviewStatus === `approved` ? `bg-emerald-500/15 text-emerald-300` : e.reviewStatus === `rejected` ? `bg-rose-500/15 text-rose-300` : e.reviewStatus === `pending` ? `bg-amber-500/15 text-amber-300` : `bg-slate-500/15 text-slate-300`}`,
-                  children: e.reviewStatus === `approved` ? `已通过` : e.reviewStatus === `rejected` ? `已驳回` : e.reviewStatus === `pending` ? `待审核` : `草稿`
-                })]
-              }), false && i === `mine` && e.reviewStatus === `rejected` && e.reviewRemark && X.jsxs(`p`, {
-                className: `text-[11px] leading-4 text-rose-300 line-clamp-2 break-words`,
-                children: [`驳回原因：`, e.reviewRemark]
-              }), false && i === `mine` && e.reviewStatus === `pending` && X.jsx(`p`, {
-                className: `text-[11px] leading-4 text-amber-300`,
-                children: `已提交审核，等待管理员处理`
-              })]
-            })]
-          }, e.id))
-        })
-      })]
-    })
-  }), document.body) : null;
-}
 var cg = ({
     imageUrl: e,
     onClose: t
@@ -34095,7 +33812,7 @@ ${_}`,
           data: n
         });
       }
-      await Qh({
+      await createTemplate({
         name: e,
         category: Gr(t),
         coverUrl: s,
@@ -34144,7 +33861,7 @@ ${_}`,
       W(e => e.map(e => ({
         ...e,
         selected: false
-      })).concat(a)), G(e => e.concat(o)), rg(e.id), M(`已插入模板「${e.name}」`);
+      })).concat(a)), G(e => e.concat(o)), recordUsage(e.id), M(`已插入模板「${e.name}」`);
     }, [W, G, M, Wr, Ur]);
   Y.useEffect(() => {
     W(e => e.map(e => {
@@ -35783,7 +35500,7 @@ ${_}`,
         nodeCount: lt.length,
         onClose: () => ct(false),
         onSave: qr
-      }), X.jsx(sg, {
+      }), X.jsx(TemplateLibrary, {
         open: dt,
         onClose: () => mt(false),
         onUse: async e => {
