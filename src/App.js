@@ -988,10 +988,10 @@ if (typeof document < `u` && !document.getElementById(hr)) {
   e.id = hr, e.textContent = gr, document.head.appendChild(e);
 }
 // [✔ 已确认] _r — CustomHandle
-// [⚠️ 待确认] vr — React Hook 组件 (useRef, useEffect) — @ai-check: 未知用途，需复核
-// [⚠️ 待确认] yr — React Hook 组件 (useRef, useEffect) — @ai-check: 未知用途，需复核
-// [⚠️ 待确认] br — React Hook 组件 (useRef, useEffect) — @ai-check: 未知用途，需复核
-// [⚠️ 待确认] xr — React Hook 组件 (useRef, useEffect) — @ai-check: 未知用途，需复核
+// [✔ 已确认] vr — generateThumbnail
+// [✔ 已确认] yr — resizeImage
+// [✔ 已确认] br — getImageDimensions
+// [✔ 已确认] xr — compressImageIfNeeded
 var _r = Y.memo(({
     className: e = ``,
     variant: t = `large`,
@@ -1190,7 +1190,7 @@ function oi(e) {
     return Ir((e ?? 0) * n);
   });
 }
-// [⚠️ 待确认] si — React Hook 组件 (useState, useEffect) — @ai-check: 未知用途，需复核
+// [✔ 已确认] si — EditableNodeTitle
 function si({
   id: e,
   data: t,
@@ -1836,7 +1836,7 @@ function pi({
     })]
   });
 }
-// [⚠️ 待确认] hi — React Hook 组件 (useState, useEffect) — @ai-check: 未知用途，需复核
+// [✔ 已确认] hi — RotatingTips
 function hi({
   intervalMs: e = 1e4,
   category: t,
@@ -1884,7 +1884,7 @@ function hi({
   });
 }
 // [✔ 已确认] _i — ResizableBox
-// [⚠️ 待确认] vi — React Hook 组件 (useState, useCallback, useRef, useEffect) — @ai-check: 未知用途，需复核
+// [✔ 已确认] vi — FullscreenModal
 var _i = ({
     targetRef: e,
     onRequestFullscreen: t,
@@ -3177,7 +3177,7 @@ var Ya = Y.memo(({
     })()]
   });
 });
-// [⚠️ 待确认] Xa — React Hook 组件 (useState, useEffect) — @ai-check: 未知用途，需复核
+// [✔ 已确认] Xa — UrlTextViewer
 function Xa({
   url: e
 }) {
@@ -3213,7 +3213,7 @@ function Xa({
     children: t
   });
 }
-// [⚠️ 待确认] Za — React Hook 组件 (useState) — @ai-check: 未知用途，需复核
+// [✔ 已确认] Za — ResourcePicker
 function Za({
   resources: e,
   onSelect: t,
@@ -4073,7 +4073,7 @@ var Qa = Y.memo(({
     })()]
   });
 });
-// [⚠️ 待确认] eo — React Hook 组件 (useState, useRef) — @ai-check: 未知用途，需复核
+// [✔ 已确认] eo — CropNode
 function eo({
   id: e,
   data: t,
@@ -4176,22 +4176,22 @@ function eo({
     })]
   });
 }
-// [⚠️ 待确认] no — React Hook 组件 (useState, useMemo, useRef, useEffect, useCallback) — @ai-check: 未知用途，需复核
-// [⚠️ 待确认] ro — React Hook 组件 (useState, useMemo, useRef, useEffect, useCallback) — @ai-check: 未知用途，需复核
-// [⚠️ 待确认] io — React Hook 组件 (useState, useMemo, useRef, useEffect, useCallback) — @ai-check: 未知用途，需复核
-// [⚠️ 待确认] ao — React Hook 组件 (useState, useMemo, useRef, useEffect, useCallback) — @ai-check: 未知用途，需复核
-// [⚠️ 待确认] oo — React Hook 组件 (useState, useMemo, useRef, useEffect, useCallback) — @ai-check: 未知用途，需复核
-// [⚠️ 待确认] so — React Hook 组件 (useState, useMemo, useRef, useEffect, useCallback) — @ai-check: 未知用途，需复核
-// [⚠️ 待确认] co — React Hook 组件 (useState, useMemo, useRef, useEffect, useCallback) — @ai-check: 未知用途，需复核
-// [⚠️ 待确认] lo — React Hook 组件 (useState, useMemo, useRef, useEffect, useCallback) — @ai-check: 未知用途，需复核
-// [⚠️ 待确认] uo — React Hook 组件 (useState, useMemo, useRef, useEffect, useCallback) — @ai-check: 未知用途，需复核
-// [⚠️ 待确认] fo — React Hook 组件 (useState, useMemo, useRef, useEffect, useCallback) — @ai-check: 未知用途，需复核
-// [⚠️ 待确认] po — React Hook 组件 (useState, useMemo, useRef, useEffect, useCallback) — @ai-check: 未知用途，需复核
-// [⚠️ 待确认] mo — React Hook 组件 (useState, useMemo, useRef, useEffect, useCallback) — @ai-check: 未知用途，需复核
-// [⚠️ 待确认] ho — React Hook 组件 (useState, useMemo, useRef, useEffect, useCallback) — @ai-check: 未知用途，需复核
-// [⚠️ 待确认] go — React Hook 组件 (useState, useMemo, useRef, useEffect, useCallback) — @ai-check: 未知用途，需复核
-// [⚠️ 待确认] _o — React Hook 组件 (useState, useMemo, useRef, useEffect, useCallback) — @ai-check: 未知用途，需复核
-// [⚠️ 待确认] vo — React Hook 组件 (useState, useMemo, useRef, useEffect, useCallback) — @ai-check: 未知用途，需复核
+// [✔ 已确认] no — clamp
+// [✔ 已确认] ro — normalizeLinePositions
+// [✔ 已确认] io — toSegments
+// [✔ 已确认] ao — genLassoId
+// [✔ 已确认] oo — lassoCursorCss
+// [✔ 已确认] so — edgeProximityThreshold
+// [✔ 已确认] co — snapPointToEdge
+// [✔ 已确认] lo — insertRectangleCorners
+// [✔ 已确认] uo — getPointsBounds
+// [✔ 已确认] fo — cropImageByPolygon
+// [✔ 已确认] po — ImageSplitNode
+// [✔ 已确认] mo — genLayerId
+// [✔ 已确认] ho — loadImage
+// [✔ 已确认] go — renderLayerWithMask
+// [✔ 已确认] _o — composeLayers
+// [✔ 已确认] vo — composeLayersPreview
 var no = (e, t, n) => Math.max(t, Math.min(n, e)),
   ro = e => {
     let t = e.map(e => no(e, .01, .99));
@@ -5166,7 +5166,7 @@ var no = (e, t, n) => Math.max(t, Math.min(n, e)),
       }))
     });
   };
-// [⚠️ 待确认] yo — React Hook 组件 (useState, useRef, useEffect, useCallback, useMemo) — @ai-check: 未知用途，需复核
+// [✔ 已确认] yo — LayerEditor
 function yo({
   state: e,
   onChange: t,
@@ -5991,13 +5991,13 @@ function yo({
     })(), document.body)]
   });
 }
-// [⚠️ 待确认] xo — React Hook 组件 (useState, useRef, useEffect, useCallback, useMemo) — @ai-check: 未知用途，需复核
+// [✔ 已确认] xo — clamp
 // [✔ 已确认] So — parseGridDims
-// [⚠️ 待确认] Co — React Hook 组件 (useState, useRef, useEffect, useCallback, useMemo) — @ai-check: 未知用途，需复核
-// [⚠️ 待确认] wo — React Hook 组件 (useState, useRef, useEffect, useCallback, useMemo) — @ai-check: 未知用途，需复核
+// [✔ 已确认] Co — loadImage
+// [✔ 已确认] wo — drawBackground
 // [✔ 已确认] To — GridMergeNode
-// [⚠️ 待确认] Eo — React Hook 组件 (useState, useRef, useEffect, useCallback, useMemo) — @ai-check: 未知用途，需复核
-// [⚠️ 待确认] Do — React Hook 组件 (useState, useRef, useEffect, useCallback, useMemo) — @ai-check: 未知用途，需复核
+// [✔ 已确认] Eo — videoAspectRatioOptions
+// [✔ 已确认] Do — VideoGenNode
 var xo = (e, t, n) => Math.max(t, Math.min(n, e)),
   So = e => {
     let t = e.trim().match(/^(\d+)\s*[x×*]\s*(\d+)$/i);
@@ -7729,7 +7729,7 @@ var xo = (e, t, n) => Math.max(t, Math.min(n, e)),
       }), document.body)]
     });
   });
-// [⚠️ 待确认] Oo — React Hook 组件 (useState, useRef, useEffect, useCallback) — @ai-check: 未知用途，需复核
+// [✔ 已确认] Oo — useUploadedAssets
 function Oo({
   nodeId: e,
   initialUploadedAssets: t,
@@ -7796,8 +7796,8 @@ function Oo({
     forceUpdate: d
   };
 }
-// [⚠️ 待确认] Ao — React Hook 组件 (useState, useRef, useEffect, useMemo) — @ai-check: 未知用途，需复核
-// [⚠️ 待确认] jo — React Hook 组件 (useState, useRef, useEffect, useMemo) — @ai-check: 未知用途，需复核
+// [✔ 已确认] Ao — Sd2VideoNode
+// [✔ 已确认] jo — mediaTypeShortLabels
 var Ao = Y.memo(({
     id: e,
     data: n,
@@ -9239,7 +9239,7 @@ function ns({
     })]
   });
 }
-// [⚠️ 待确认] rs — React Hook 组件 (useMemo) — @ai-check: 未知用途，需复核
+// [✔ 已确认] rs — ModelSelectModal
 function rs({
   open: e,
   modelNames: t,
@@ -9425,10 +9425,10 @@ function rs({
     })
   }), document.body) : null;
 }
-// [⚠️ 待确认] as — React Hook 组件 (useState, useRef, useEffect, useMemo) — @ai-check: 未知用途，需复核
-// [⚠️ 待确认] os — React Hook 组件 (useState, useRef, useEffect, useMemo) — @ai-check: 未知用途，需复核
-// [⚠️ 待确认] ss — React Hook 组件 (useState, useRef, useEffect, useMemo) — @ai-check: 未知用途，需复核
-// [⚠️ 待确认] cs — React Hook 组件 (useState, useRef, useEffect, useMemo) — @ai-check: 未知用途，需复核
+// [✔ 已确认] as — videoResolutionOptions
+// [✔ 已确认] os — DiscountVideoNode
+// [✔ 已确认] ss — transcribeToSegments
+// [✔ 已确认] cs — SubtitleNode
 var as = [{
     label: `480p`,
     value: `480p`
@@ -11359,7 +11359,7 @@ if (typeof document < `u` && !document.getElementById(ds)) {
     .audio-range::-moz-range-track { height: 4px; border-radius: 999px; background: #3a3a3a; }
   `, document.head.appendChild(e);
 }
-// [⚠️ 待确认] fs — React Hook 组件 (useRef, useState, useEffect, useCallback) — @ai-check: 未知用途，需复核
+// [✔ 已确认] fs — AudioPlayer
 function fs({
   playUrl: e,
   loading: t,
@@ -11522,11 +11522,11 @@ function fs({
   });
 }
 // [✔ 已确认] ps — AudioNode
-// [⚠️ 待确认] ms — React Hook 组件 (useRef, useState, useEffect, useCallback) — @ai-check: 未知用途，需复核
-// [⚠️ 待确认] hs — React Hook 组件 (useRef, useState, useEffect, useCallback) — @ai-check: 未知用途，需复核
-// [⚠️ 待确认] gs — React Hook 组件 (useRef, useState, useEffect, useCallback) — @ai-check: 未知用途，需复核
-// [⚠️ 待确认] _s — React Hook 组件 (useRef, useState, useEffect, useCallback) — @ai-check: 未知用途，需复核
-// [⚠️ 待确认] vs — React Hook 组件 (useRef, useState, useEffect, useCallback) — @ai-check: 未知用途，需复核
+// [✔ 已确认] ms — HttpRequestNode
+// [✔ 已确认] hs — getNodeDisplayText
+// [✔ 已确认] gs — getNodeMedia
+// [✔ 已确认] _s — urlToDataUrl
+// [✔ 已确认] vs — rhwebappRunRequestEvent
 var ps = Y.memo(({
     id: e,
     data: n,
@@ -12768,7 +12768,7 @@ function js(e, t) {
 }
 // [✔ 已确认] Ms — RhWebappNode
 // [✔ 已确认] Ns — FrameExtractNode
-// [⚠️ 待确认] Ps — React Hook 组件 (useState, useEffect, useMemo, useRef, useCallback) — @ai-check: 未知用途，需复核
+// [✔ 已确认] Ps — gifEncoderLib
 var Ms = Y.memo(({
     id: e,
     data: n,
@@ -17318,7 +17318,7 @@ function qc({
 // [✔ 已确认] Xc — posePresets
 // [✔ 已确认] Zc — shapePresets
 // [✔ 已确认] Qc — defaultBodyType
-// [⚠️ 待确认] $c — React Hook 组件 (useRef, useEffect, useState, useMemo, useCallback) — @ai-check: 未知用途，需复核
+// [✔ 已确认] $c — bodyProportionConfig (useRef, useEffect, useState, useMemo, useCallback) — @ai-check: 未知用途，需复核
 var Jc = Y.forwardRef(({
     url: e,
     panoType: t,
@@ -20202,7 +20202,7 @@ function rd({
     }) : null]
   });
 }
-// [⚠️ 待确认] id — React Hook 组件 (useState, useMemo, useEffect) — @ai-check: 未知用途，需复核
+// [✔ 已确认] id — useDirectorSelection
 function id() {
   let [e, t] = Y.useState(``),
     [n, r] = Y.useState([]),
@@ -20552,7 +20552,7 @@ function pd(e) {
     }];
   });
 }
-// [⚠️ 待确认] md — React Hook 组件 (useRef, useCallback, useEffect) — @ai-check: 未知用途，需复核
+// [✔ 已确认] md — useUndoBatch
 function md() {
   let e = $(e => e.beginUndoBatch),
     t = $(e => e.endUndoBatch),
@@ -20635,7 +20635,7 @@ function gd({
     })]
   });
 }
-// [⚠️ 待确认] _d — React Hook 组件 (useState, useRef, useEffect) — @ai-check: 未知用途，需复核
+// [✔ 已确认] _d — SelectField
 function _d({
   label: e,
   ariaLabel: t,
@@ -20732,7 +20732,7 @@ function vd({
     })]
   });
 }
-// [⚠️ 待确认] yd — React Hook 组件 (useState, useRef, useEffect) — @ai-check: 未知用途，需复核
+// [✔ 已确认] yd — AxisNumberInput
 function yd({
   control: e
 }) {
@@ -20794,7 +20794,7 @@ function yd({
     })]
   });
 }
-// [⚠️ 待确认] bd — React Hook 组件 (useRef, useEffect) — @ai-check: 未知用途，需复核
+// [✔ 已确认] bd — RangeField
 function bd({
   label: e,
   rangeAriaLabel: t,
@@ -21458,7 +21458,7 @@ function Id() {
 function Ld(e, t, n) {
   return e.map((e, r) => r === t ? n : e);
 }
-// [⚠️ 待确认] Rd — React Hook 组件 (useState, useMemo) — @ai-check: 未知用途，需复核
+// [✔ 已确认] Rd — CharacterInspectorPanel
 function Rd() {
   let [e, t] = Y.useState(`properties`),
     n = $(e => e.selectedCrowdId),
@@ -21928,7 +21928,7 @@ function Yd(e, t, n) {
 function Xd(e, t, n) {
   return Math.min(n, Math.max(t, e));
 }
-// [⚠️ 待确认] Zd — React Hook 组件 (useState, useEffect) — @ai-check: 未知用途，需复核
+// [✔ 已确认] Zd — SceneInspectorPanel
 function Zd() {
   let e = $(e => e.project.scene),
     t = $(e => e.project.assets),
@@ -22860,7 +22860,7 @@ function Cf(e) {
   }
   return e.position.set(t, e.position.y, n), (e.parent ?? e).updateMatrixWorld(true), e.position.y;
 }
-// [⚠️ 待确认] wf — React Hook 组件 (useMemo) — @ai-check: 未知用途，需复核
+// [✔ 已确认] wf — BodyMannequin
 function wf({
   bodyType: e = `mannequin`,
   color: t = `#F3F5F7`,
@@ -22960,7 +22960,7 @@ function Wf({
     })
   });
 }
-// [⚠️ 待确认] Gf — React Hook 组件 (useRef, useCallback) — @ai-check: 未知用途，需复核
+// [✔ 已确认] Gf — TransformGizmo
 function Gf({
   mode: e,
   object: t,
@@ -23204,7 +23204,7 @@ function ip() {
     position: [(t + n) / 2, (r + i) / 2, (a + o) / 2]
   };
 }
-// [⚠️ 待确认] ap — React Hook 组件 (useMemo) — @ai-check: 未知用途，需复核
+// [✔ 已确认] ap — NormalizedModelView
 function ap({
   object: e
 }) {
@@ -23342,7 +23342,7 @@ function up({
     children: [i, n]
   });
 }
-// [⚠️ 待确认] dp — React Hook 组件 (useMemo) — @ai-check: 未知用途，需复核
+// [✔ 已确认] dp — CompositeShapeGroup
 function dp({
   shapes: e,
   fallbackColor: t
@@ -23357,7 +23357,7 @@ function dp({
     }, n))
   });
 }
-// [⚠️ 待确认] fp — React Hook 组件 (useRef) — @ai-check: 未知用途，需复核
+// [✔ 已确认] fp — RecenterGroup
 function fp({
   children: e
 }) {
@@ -23379,7 +23379,7 @@ function fp({
     })
   });
 }
-// [⚠️ 待确认] pp — React Hook 组件 (useRef, useState, useCallback, useEffect) — @ai-check: 未知用途，需复核
+// [✔ 已确认] pp — SceneObjectItem
 function pp({
   asset: e,
   item: t,
@@ -23481,7 +23481,7 @@ function pp({
     })]
   });
 }
-// [⚠️ 待确认] mp — React Hook 组件 (useRef, useMemo) — @ai-check: 未知用途，需复核
+// [✔ 已确认] mp — CrowdTransformHandle
 function mp({
   crowdId: e,
   objects: t,
@@ -23515,7 +23515,7 @@ function mp({
     })]
   });
 }
-// [⚠️ 待确认] hp — React Hook 组件 (useRef, useMemo) — @ai-check: 未知用途，需复核
+// [✔ 已确认] hp — SelectionTransformHandle
 function hp({
   objects: e,
   selectedObjectIds: t,
@@ -23579,7 +23579,7 @@ function gp(e) {
     s = [-n, -r, t];
   return [[Bf, i], [Bf, a], [Bf, o], [Bf, s], [i, a], [a, o], [o, s], [s, i]];
 }
-// [⚠️ 待确认] _p — React Hook 组件 (useRef, useMemo) — @ai-check: 未知用途，需复核
+// [✔ 已确认] _p — CameraObjectView
 function _p({
   camera: e,
   object: t,
@@ -23669,7 +23669,7 @@ function _p({
     })]
   });
 }
-// [⚠️ 待确认] vp — React Hook 组件 (useMemo) — @ai-check: 未知用途，需复核
+// [✔ 已确认] vp — DirectorSceneObjects
 function vp() {
   let e = $(e => e.project.scene),
     t = $(e => e.project.assets),
@@ -23803,7 +23803,7 @@ function Sp(e, t, n, r = 40, i = {
   let a = bp(e);
   return a ? xp(t, n, a, r, i) : null;
 }
-// [⚠️ 待确认] Cp — React Hook 组件 (useRef, useState, useMemo) — @ai-check: 未知用途，需复核
+// [✔ 已确认] Cp — ViewportAspectOverlay
 function Cp({
   ratio: e,
   bottomPadding: t = 40,
@@ -24007,7 +24007,7 @@ async function Ap(e, t) {
   if (!Op) throw Error(`模型生成处理器尚未注册（请从画布中打开导演台）`);
   return Op(e, t);
 }
-// [⚠️ 待确认] jp — React Hook 组件 (useState, useRef, useEffect) — @ai-check: 未知用途，需复核
+// [✔ 已确认] jp — AIModelGeneratorPanel
 function jp({
   panelRef: e,
   style: t,
@@ -25765,7 +25765,7 @@ function _h(e, t) {
     });
   }
 }
-// [⚠️ 待确认] vh — React Hook 组件 (useEffect) — @ai-check: 未知用途，需复核
+// [✔ 已确认] vh — useViewportCapture
 function vh({
   activeCamera: e,
   bottomPadding: t,
@@ -25828,7 +25828,7 @@ function vh({
     }), () => Td();
   }, [e, t, o, n, s, r, c, a, i]), null;
 }
-// [⚠️ 待确认] yh — React Hook 组件 (useRef) — @ai-check: 未知用途，需复核
+// [✔ 已确认] yh — useControlsSnapshotSync
 function yh({
   controlsRef: e,
   snapshot: t,
@@ -25844,7 +25844,7 @@ function yh({
     a.current = n, n === `director` && (!r.current && !o || (r.current = false, oh(i, t), e.current && (e.current.target.set(...t.target), e.current.update())));
   }, [i, e, t, n, r]), null;
 }
-// [⚠️ 待确认] bh — React Hook 组件 (useRef, useCallback) — @ai-check: 未知用途，需复核
+// [✔ 已确认] bh — CameraSnapshotGizmo
 function bh({
   onSnapshotChange: e,
   snapshot: t
@@ -25919,7 +25919,7 @@ function xh({
     })]
   });
 }
-// [⚠️ 待确认] Sh — React Hook 组件 (useRef, useState) — @ai-check: 未知用途，需复核
+// [✔ 已确认] Sh — DirectorViewport
 function Sh() {
   let e = $(e => e.viewMode),
     t = $(e => e.openSceneInspector),
@@ -26084,7 +26084,7 @@ function Sh() {
 function Ch(e) {
   return e instanceof HTMLElement ? e.isContentEditable || [`INPUT`, `TEXTAREA`, `SELECT`].includes(e.tagName) : false;
 }
-// [⚠️ 待确认] wh — React Hook 组件 (useEffect) — @ai-check: 未知用途，需复核
+// [✔ 已确认] wh — Director3DContent
 function wh({
   initialProject: e,
   initialPanoramaUrl: t,
@@ -26791,11 +26791,11 @@ function Nh() {
   });
 }
 // [✔ 已确认] Ph — genImageId
-// [⚠️ 待确认] Ih — React Hook 组件 (useRef, useState, useEffect, useCallback, useMemo) — @ai-check: 未知用途，需复核
-// [⚠️ 待确认] Lh — React Hook 组件 (useRef, useState, useEffect, useCallback, useMemo) — @ai-check: 未知用途，需复核
+// [✔ 已确认] Ih — ImageGalleryEditor
+// [✔ 已确认] Lh — bgColorPresets
 // [✔ 已确认] Rh — presetColors
-// [⚠️ 待确认] zh — React Hook 组件 (useRef, useState, useEffect, useCallback, useMemo) — @ai-check: 未知用途，需复核
-// [⚠️ 待确认] Bh — React Hook 组件 (useRef, useState, useEffect, useCallback, useMemo) — @ai-check: 未知用途，需复核
+// [✔ 已确认] zh — fontSizeOptions
+// [✔ 已确认] Bh — emojiIcons
 var Ph = () => `img-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
   Ih = Y.memo(({
     id: e,
@@ -27554,7 +27554,7 @@ function Vh(e) {
 function Hh(e) {
   return e.replace(/&/g, `&amp;`).replace(/</g, `&lt;`).replace(/>/g, `&gt;`).replace(/\n/g, `<br>`);
 }
-// [⚠️ 待确认] Uh — React Hook 组件 (useState, useRef, useCallback, useEffect) — @ai-check: 未知用途，需复核
+// [✔ 已确认] Uh — TextOverlayEditor
 function Uh({
   id: e,
   data: t
@@ -27894,7 +27894,7 @@ function Uh({
 }
 // [✔ 已确认] Wh — ImageEditor
 var Wh = e(fn(), 1);
-// [⚠️ 待确认] Gh — React Hook 组件 (useRef, useState, useEffect) — @ai-check: 未知用途，需复核
+// [✔ 已确认] Gh — ImageAnnotateEditor
 function Gh({
   imageUrl: e,
   initialTool: t,
@@ -28621,7 +28621,7 @@ function og({
     }), ` `, r]
   });
 }
-// [⚠️ 待确认] sg — React Hook 组件 (useState, useEffect, useMemo) — @ai-check: 未知用途，需复核
+// [✔ 已确认] sg — ResourceLibraryModal
 function sg({
   open: e,
   onClose: t,
@@ -28794,11 +28794,11 @@ function sg({
   }), document.body) : null;
 }
 // [✔ 已确认] cg — ImageLightbox
-// [⚠️ 待确认] lg — React Hook 组件 (useState, useRef, useEffect) — @ai-check: 未知用途，需复核
-// [⚠️ 待确认] ug — React Hook 组件 (useState, useRef, useEffect) — @ai-check: 未知用途，需复核
-// [⚠️ 待确认] dg — React Hook 组件 (useState, useRef, useEffect) — @ai-check: 未知用途，需复核
-// [⚠️ 待确认] fg — React Hook 组件 (useState, useRef, useEffect) — @ai-check: 未知用途，需复核
-// [⚠️ 待确认] pg — React Hook 组件 (useState, useRef, useEffect) — @ai-check: 未知用途，需复核
+// [✔ 已确认] lg — isBlockedError
+// [✔ 已确认] ug — isBlockedError
+// [✔ 已确认] dg — isBlockedError
+// [✔ 已确认] fg — isBlockedError
+// [✔ 已确认] pg — isBlockedError
 var cg = ({
     imageUrl: e,
     onClose: t
@@ -28945,9 +28945,9 @@ function hg(e) {
   }
 }
 // [✔ 已确认] gg — getDemoNodes
-// [⚠️ 待确认] _g — React Hook 组件 (useRef, useEffect) — @ai-check: 未知用途，需复核
+// [✔ 已确认] _g — GlobalStyles
 // [✔ 已确认] vg — LodObserver
-// [⚠️ 待确认] yg — React Hook 组件 (useRef, useEffect) — @ai-check: 未知用途，需复核
+// [✔ 已确认] yg — ZoomIndicator
 var gg = () => [{
     id: `demo-prompt-1`,
     type: `promptNode`,
@@ -29051,7 +29051,7 @@ function bg(e) {
     })]
   });
 }
-// [⚠️ 待确认] xg — React Hook 组件 (useState, useRef, useCallback, useEffect, useMemo) — @ai-check: 未知用途，需复核
+// [✔ 已确认] xg — EditorCanvas
 function xg({
   projectId: e = `default`,
   textApiUrl: t,
@@ -36177,7 +36177,7 @@ var Fg = () => {
   Ig = 3e4,
   Lg = 15e3,
   Rg = 3;
-// [⚠️ 待确认] zg — React Hook 组件 (useRef, useCallback, useEffect) — @ai-check: 未知用途，需复核
+// [✔ 已确认] zg — useTaskRefresh
 function zg({
   isLoaded: e,
   showTaskList: t,
@@ -36328,7 +36328,7 @@ function zg({
     handleRefreshTask: _
   };
 }
-// [⚠️ 待确认] Vg — React Hook 组件 (useState) — @ai-check: 未知用途，需复核
+// [✔ 已确认] Vg — LoginPanel
 function Vg({
   onLoginSuccess: e
 }) {
@@ -36507,7 +36507,7 @@ function Vg({
 }
 // [✔ 已确认] Ug — toastManager
 // [✔ 已确认] Wg — useToasts
-// [⚠️ 待确认] Gg — React Hook 组件 (useState, useEffect, useCallback) — @ai-check: 未知用途，需复核
+// [✔ 已确认] Gg — buildLocalServiceUrl
 var Ug = new class {
     listeners = [];
     toasts = [];
@@ -36612,7 +36612,7 @@ function t_(e) {
 function n_(e) {
   return e?.status === `failed` || !!e?.error;
 }
-// [⚠️ 待确认] r_ — React Hook 组件 (useState, useRef, useEffect, useCallback) — @ai-check: 未知用途，需复核
+// [✔ 已确认] r_ — useUpdateController
 function r_({
   onToast: e,
   openUpgradeSettings: t
@@ -36997,7 +36997,7 @@ function o_({
     })]
   });
 }
-// [⚠️ 待确认] s_ — React Hook 组件 (useState, useMemo) — @ai-check: 未知用途，需复核
+// [✔ 已确认] s_ — EndpointSettings
 function s_({
   onSaved: e
 }) {
@@ -37084,7 +37084,7 @@ function s_({
     })]
   });
 }
-// [⚠️ 待确认] c_ — React Hook 组件 (useState, useCallback, useEffect) — @ai-check: 未知用途，需复核
+// [✔ 已确认] c_ — LicenseManager
 function c_({
   open: e,
   onClose: t,
@@ -37345,7 +37345,7 @@ function c_({
     })
   }) : null;
 }
-// [⚠️ 待确认] l_ — React Hook 组件 (useState, useCallback, useEffect) — @ai-check: 未知用途，需复核
+// [✔ 已确认] l_ — AppCenter
 function l_({
   active: e,
   onRun: t
@@ -37471,7 +37471,7 @@ function l_({
     })]
   });
 }
-// [⚠️ 待确认] u_ — React Hook 组件 (useState, useMemo, useEffect, useCallback) — @ai-check: 未知用途，需复核
+// [✔ 已确认] u_ — AppRunner
 function u_({
   app: e,
   onBack: t,
@@ -37666,7 +37666,7 @@ function h_(e, t) {
     error: `请再次输入新密码`
   };
 }
-// [⚠️ 待确认] g_ — React Hook 组件 (useState, useEffect) — @ai-check: 未知用途，需复核
+// [✔ 已确认] g_ — ChangePasswordModal
 function g_({
   open: e,
   hasPassword: t,
@@ -37868,8 +37868,8 @@ function x_(e) {
   return e === null ? 1 / 0 : e;
 }
 // [✔ 已确认] S_ — ModelCatalogEditor
-// [⚠️ 待确认] C_ — React Hook 组件 (useState, useMemo, useEffect) — @ai-check: 未知用途，需复核
-// [⚠️ 待确认] w_ — React Hook 组件 (useState, useMemo, useEffect) — @ai-check: 未知用途，需复核
+// [✔ 已确认] C_ — ModelScheduleManager
+// [✔ 已确认] w_ — ScheduleCard
 var S_ = ({
     catalog: e,
     initial: t,
@@ -38309,8 +38309,8 @@ function D_(e, t) {
 }
 // [✔ 已确认] M_ — ModelBrowser
 // [✔ 已确认] N_ — BuiltinModelPanel
-// [⚠️ 待确认] P_ — React Hook 组件 (useState, useEffect, useMemo) — @ai-check: 未知用途，需复核
-// [⚠️ 待确认] F_ — React Hook 组件 (useState, useEffect, useMemo) — @ai-check: 未知用途，需复核
+// [✔ 已确认] P_ — taskTypeMeta
+// [✔ 已确认] F_ — premiumVideoTypeSet
 var M_ = () => {
     let [e, t] = Y.useState(`all`),
       [n, r] = Y.useState(``),
@@ -38594,7 +38594,7 @@ function z_(e) {
 }
 // [✔ 已确认] B_ — TaskCard
 // [✔ 已确认] V_ — CopyBlock
-// [⚠️ 待确认] H_ — React Hook 组件 (useState, useRef, useCallback, useEffect, useMemo) — @ai-check: 未知用途，需复核
+// [✔ 已确认] H_ — MemoTaskCard
 var B_ = ({
     task: e,
     useThumbnail: t,
@@ -39159,7 +39159,7 @@ var B_ = ({
 // [✔ 已确认] iv — matchTaskType
 var rv = (e, t) => t === `all` ? true : t === `running` ? e === `running` || e === `pending` : e === t,
   iv = (e, t) => t === `all` ? true : t === `video` ? e === `video` || e === `sd2Video` || e === `discountVideo` : e === t;
-// [⚠️ 待确认] av — React Hook 组件 (useState, useRef, useCallback, useEffect, useMemo) — @ai-check: 未知用途，需复核
+// [✔ 已确认] av — TaskCenter
 function av({
   open: e,
   globalTasks: t,
@@ -39581,7 +39581,7 @@ function mv(e, t = 2500) {
     })), window.setTimeout(i, t);
   });
 }
-// [⚠️ 待确认] hv — React Hook 组件 (useState, useEffect, useMemo) — @ai-check: 未知用途，需复核
+// [✔ 已确认] hv — PublishAppModal
 function hv({
   open: e,
   projectId: t,
@@ -39989,7 +39989,7 @@ function hv({
     })
   }) : null;
 }
-// [⚠️ 待确认] gv — React Hook 组件 (useMemo, useState, useCallback, useEffect) — @ai-check: 未知用途，需复核
+// [✔ 已确认] gv — ShareAppModal
 function gv({
   open: e,
   app: t,
@@ -40193,7 +40193,7 @@ function gv({
     })
   });
 }
-// [⚠️ 待确认] _v — React Hook 组件 (useState) — @ai-check: 未知用途，需复核
+// [✔ 已确认] _v — LocalEngineOfflineModal
 function _v({
   isVisible: e,
   onClose: t,
@@ -40277,7 +40277,7 @@ function _v({
 var Ov = `tasks_seeded_to_sqlite`,
   kv = `resources_seeded_to_sqlite`,
   Av = [];
-// [⚠️ 待确认] jv — React Hook 组件 (useState, useEffect) — @ai-check: 未知用途，需复核
+// [✔ 已确认] jv — TextContentViewer
 function jv({
   url: e
 }) {
@@ -40318,7 +40318,7 @@ function jv({
 }
 // [✔ 已确认] Mv — defaultAvatarDataUri
 var Mv = AVATAR_IMAGE;
-// [⚠️ 待确认] Nv — React Hook 组件 (useEffect, useState, useRef, useCallback, useMemo) — @ai-check: 未知用途，需复核
+// [✔ 已确认] Nv — App
 function Nv() {
   let {
       toasts: e,
