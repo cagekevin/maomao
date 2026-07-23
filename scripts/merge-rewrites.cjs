@@ -1,10 +1,21 @@
-// 合并 9 个 agent 的函数体重写结果到 App.js
+// 合并 agent 的函数体重写结果到 App.js
 // 用法: node scripts/merge-rewrites.cjs
+//       node scripts/merge-rewrites.cjs --rollback  # 恢复备份
 const fs = require('fs');
 const path = require('path');
 
 const TASK_DIR = 'docs/annotate-body-tasks';
 const SRC = 'src/App.js';
+const BAK = SRC + '.merge-bak';
+
+if (process.argv.includes('--rollback')) {
+  if (fs.existsSync(BAK)) { fs.copyFileSync(BAK, SRC); console.log('✅ 已回退到合并前'); }
+  else console.log('⚠️ 无备份'); process.exit(0);
+}
+
+// 备份
+fs.copyFileSync(SRC, BAK);
+console.log(`📦 备份: ${BAK}`);
 
 // 读取 App.js 行
 const lines = fs.readFileSync(SRC, 'utf-8').split('\n');
@@ -86,5 +97,23 @@ for (const rw of rewrites) {
 }
 
 fs.writeFileSync(SRC, content);
-console.log(`\n已替换 ${replaced}/${rewrites.length} 个函数`);
-console.log('请运行: npm run build && node scripts/check-build.cjs');
+console.log(`\n已替换 ${replaced}/${rewrites.length} 个函数\n`);
+
+// 自动验证构建
+console.log('🔨 正在验证 npm run build ...');
+try {
+  const { execSync } = require('child_process');
+  const out = execSync('npm run build', { encoding: 'utf-8', timeout: 30000 });
+  console.log('✅ build 通过');
+  
+  // 运行 check-build
+  console.log('🔍 正在验证 check-build ...');
+  execSync('node scripts/check-build.cjs', { stdio: 'inherit' });
+} catch (e) {
+  console.error('\n❌ 验证失败！回退到合并前...');
+  fs.copyFileSync(BAK, SRC);
+  console.log(`✅ 已回退，备份: ${BAK}`);
+  process.exit(1);
+}
+
+console.log(`\n🎉 全部通过。若需回退: node scripts/merge-rewrites.cjs --rollback`);
