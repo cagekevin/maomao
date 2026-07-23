@@ -226,6 +226,9 @@ git commit -m "feat(xxx): 拆解 XXX 模块，App.js -N 行"
 | 组件要写回 App.js 状态 | 读 §4.2，事件总线 / props 回调 |
 | 拆前检查是否安全 | 读 §1 前置检查清单 |
 | 完成后要做什么 | 读 §5 验证 + §6 提交沉淀 |
+| 遇到不认识的函数名 | `node scripts/summarize.cjs <名>` 看摘要 |
+| 遇到不认识的 vendor 导出 | `node scripts/vendor-lookup.cjs <名>` 查来源 |
+| 想知道当前项目状态 | `node scripts/status.cjs` 开工速览 |
 
 ---
 
@@ -246,6 +249,7 @@ git commit -m "feat(xxx): 拆解 XXX 模块，App.js -N 行"
 改码完成、提交前，逐项确认：
 
 - [ ] `npm run build` 通过
+- [ ] `node scripts/check-build.cjs` 通过（不用开 Chrome）
 - [ ] `npx eslint` 无新 error
 - [ ] 新组件使用自包含 CSS（无 Tailwind 任意值）
 - [ ] 未修改 `src/vendor/`、`dist/`、`*.css`
