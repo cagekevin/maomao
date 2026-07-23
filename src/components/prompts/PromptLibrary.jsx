@@ -19,8 +19,8 @@ var X = o();
 /* ========== 内联 SVG 图标 ========== */
 
 var SparklesIcon = X.jsx("svg", {
-  viewBox: "0 0 20 20", width: 20, height: 20, fill: "none",
-  stroke: "currentColor", strokeWidth: 1.5,
+  viewBox: "0 0 20 20", width: 14, height: 14, fill: "none",
+  stroke: "currentColor", strokeWidth: 1.8,
   children: X.jsx("path", {
     d: "M10 1.5l1.2 4.3 4.3 1.2-4.3 1.2L10 18.5l-1.2-4.3-4.3-1.2 4.3-1.2L10 1.5z"
   })
@@ -305,7 +305,7 @@ function PromptLibrary({
             X.jsxs("div", {
               className: "flex items-center gap-2 pr-3 mr-1 border-r border-[#2a2a2a]",
               children: [
-                X.jsx("span", { className: "w-5 h-5 text-white", children: SparklesIcon }),
+                X.jsx("span", { className: "text-white flex items-center", children: SparklesIcon }),
                 X.jsx("span", { className: "text-base font-semibold text-white whitespace-nowrap", children: "提示词库" })
               ]
             }),
