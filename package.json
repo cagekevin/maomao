@@ -6,7 +6,7 @@
   "description": "一毛AI画布插件 - Chrome Extension MV3 with AI Canvas",
   "scripts": {
     "dev": "vite",
-    "build": "NODE_OPTIONS='--max-old-space-size=1024' vite build",
+    "build": "cross-env NODE_OPTIONS=--max-old-space-size=1024 vite build",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -30,6 +30,7 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.20",
+    "cross-env": "^7.0.3",
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.16",
     "typescript": "~5.6.2",

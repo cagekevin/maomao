@@ -1,0 +1,15 @@
+# 红线禁区，绝不格式化（CLAUDE.md §3）
+src/App.js
+src/vendor/
+dist/
+*.css
+src/entry.js
+reference/App.original.js
+captureVideoFrame-*.js
+
+# 依赖与构建产物
+node_modules
+coverage
+
+# 历史归档稿，仅索引不重写
+docs/archive/
