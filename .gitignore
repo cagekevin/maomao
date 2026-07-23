@@ -31,3 +31,4 @@ Temp/
 .vscode/
 src/App.js.bak
 *.rename-bak
+scripts/.snapshot.json

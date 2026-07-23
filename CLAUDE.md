@@ -217,21 +217,17 @@ return X.jsxs("div", { className: "pl-overlay", children: [
    │ 1. node scripts/status.cjs                   │  了解当前状态
    │ 2. node scripts/summarize.cjs <函数名>        │  读懂要改的代码
    │    node scripts/vendor-lookup.cjs <名>        │  遇到陌生 vendor 名
+   │ 3. node scripts/safety-net.cjs --snapshot     │  建立基线快照
    └─────────────────────────────────────────────┘
                           ↓
    ┌─ 改码 ─────────────────────────────────────┐
-   │ 3. 改代码                                    │
-   │ 4. 如果改了 App.js 函数定义且该函数在      │
-   │    func-mapping.txt 中无条目：               │
-   │    → 同步追加一行 `混淆名 = 可读名 # 依据`  │
-   │    → 同步更新 App.js 注释行                  │
+   │ 4. 改代码                                    │
    └─────────────────────────────────────────────┘
                           ↓
    ┌─ 验证 ─────────────────────────────────────┐
-   │ 5. npm run build                             │  编译
-   │ 6. node scripts/check-build.cjs               │  不用 Chrome 验证
-   │ 7. npx eslint src/config src/utils ...       │  lint（如已安装）
-   └─────────────────────────────────────────────┘
+   │ 5. node scripts/safety-net.cjs               │  3层对比（大小/JSX/构建）`
+   │ 6. npm run build                             │  编译
+   │ 7. node scripts/check-build.cjs               │  不用 Chrome 验证
                           ↓
    ┌─ 提交 ─────────────────────────────────────┐
    │ 8. git add -A && git commit -m "..."         │
