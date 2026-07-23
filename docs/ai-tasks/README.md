@@ -1,18 +1,16 @@
 # @ai-check 任务索引
 
-共 107 个 App.js 待确认函数，分 5 个 agent 并行识别。
+共 106 个待确认函数，分 5 个 agent。**每个函数由 2 个 agent 独立识别**，交叉验证。
 
-| Agent | 文件 | 函数数 | 状态 |
-|-------|------|--------|------|
-| AI01 | [AI01.md](AI01.md) | 22 | ⚠️ 待执行 |
-| AI02 | [AI02.md](AI02.md) | 22 | ⚠️ 待执行 |
-| AI03 | [AI03.md](AI03.md) | 22 | ⚠️ 待执行 |
-| AI04 | [AI04.md](AI04.md) | 22 | ⚠️ 待执行 |
-| AI05 | [AI05.md](AI05.md) | 18 | ⚠️ 待执行 |
+| Agent | 函数数 | 文件 | 重叠组 |
+|-------|--------|------|--------|
+| AI01 | 42 | [AI01.md](AI01.md) | 第1组 + 第2组 |
+| AI02 | 42 | [AI02.md](AI02.md) | 第2组 + 第3组 |
+| AI03 | 42 | [AI03.md](AI03.md) | 第3组 + 第4组 |
+| AI04 | 43 | [AI04.md](AI04.md) | 第4组 + 第5组 |
+| AI05 | 43 | [AI05.md](AI05.md) | 第5组 + 第1组 |
 
 ## 完成后
-
-1. 各 agent 输出映射行 → 你汇总合并到 `docs/func-mapping.txt` / `docs/var-mapping.txt`
-2. 运行 `node scripts/annotate.cjs --run --force` 更新 App.js 注释
-3. 所有 `⚠️` 升为 `✔`，App.js 函数名 100% 可读
-4. 之后再考虑用脚本反向替换混淆名为可读名
+1. 对比每组的 2 个 agent 结果：一致 → 直接采纳；不一致 → 人工裁决
+2. 合并到 `docs/func-mapping.txt` / `docs/var-mapping.txt`
+3. `node scripts/annotate.cjs --run --force` 刷新 App.js 注释
