@@ -2,13 +2,13 @@
 
 ## -1. 构建方式
 
-跨平台统一命令（已用 `cross-env` 包装 `NODE_OPTIONS`，Windows / Mac 行为一致）：
+**唯一合法构建命令：**
 
 ```bash
 npm run build
 ```
 
-> 早期版本 `build` 为 bash 内联写法，Windows 需 `$env:NODE_OPTIONS=...; npx vite build` 变通；现已改为 `cross-env`，`npm run build` 在 Windows 也能直接跑通。一键联调用 `npm run dev:all`（vite + localTool:18080 + 网关:9004）。
+> ⚠️ **禁止使用 `npx vite build` 替代！** 后者比 `npm run build`（经 `cross-env` 包装）宽松，可能放过语法错误（如 import 不存在的导出、孤儿 JSX 等）。**2026-07-23 翻车记录**：用 `npx vite build` 验证通过的代码，`npm run build` 报 `invalid JS syntax`，浪费数小时回退。**改码后验证必须用 `npm run build`。**
 
 ---
 
@@ -39,7 +39,7 @@ npm run build
 
 | 进程名称 | 端口 | 核心职责 | 启动命令与方式 |
 |----------|------|----------|----------------|
-| 前端扩展 | `dist/` | 提供 V1 画布 UI，作为表现层加载到 Chrome。 | `npm run build`（cross-env 已跨平台统一，Windows/Mac 同命令）。将 `dist/` 加载到 Chrome。唯一入口为 `src/entry.js`（经 `index.html` 引用）。 |
+| 前端扩展 | `dist/` | 提供 V1 画布 UI，作为表现层加载到 Chrome。 | `npm run build`（⚠️ 唯一合法构建命令，禁止用 `npx vite build`）。将 `dist/` 加载到 Chrome。唯一入口为 `src/entry.js`（经 `index.html` 引用）。 |
 | localTool 本地服务 | `127.0.0.1:18080` | 提供 KV、文件、任务、资源、代理的存储，数据落盘至 SQLite(WASM) 和磁盘。 | `cd localTool && npm run build && npm start`（或 `start.sh`）。 |
 | apimart-gateway 网关 | `127.0.0.1:9004` | 接收 OpenAI 风格接口并翻译为 Lovart 调用，处理图文视频生成。 | `cd apimart-gateway && pip install -r requirements.txt && uvicorn main:app --host 127.0.0.1 --port 9004`。 |
 
@@ -193,9 +193,10 @@ return X.jsxs("div", { className: "pl-overlay", children: [
 - **提交规范**：小步提交，信息清晰（例如：`feat(localTool+engine): ...` / `fix(localTool): ...` / `docs: ...`）。
 - **给 AI 的提醒**：遇到未见过的报错先确认是否为魔改遗漏，不要为了消灭报错大改代码。不确定时必须先问，绝不能瞎猜瞎改。
 - **经验沉淀**：每次完成一次拆解或功能改造后，把经验教训追加到 `docs/拆分计划.md` 的「翻车点」区域。记录内容：改了什么、遇到什么问题、怎么解决的、下次怎么避免。拆解完成时更新对应条目的状态。
-- **AI 质量门控（改码后必跑，再交付）**：每次改动安全区代码后，先跑静态检查确认无新增 error 再收工：
-  - 前端 / TS：`npx eslint src/config src/utils src/services src/components src/hooks src/contexts src/config.js src/react-bridge.ts`（仅报错级规则；`src/App.js` / `src/vendor` 已在 `eslint.config.js` 中忽略）。
-  - 网关 Python：`cd apimart-gateway && ruff check .`（需先 `pip install ruff` 或 `uv tool install ruff`）。
+- **AI 质量门控（改码后必跑，再交付）**：每次改动安全区代码后，**按顺序**执行以下检查，全部通过才能交付：
+  - **① `npm run build`（最先跑，最重要）** — ⚠️ 只能用 `npm run build`，禁止 `npx vite build`。
+  - ② 前端 / TS：`npx eslint src/config src/utils src/services src/components src/hooks src/contexts src/config.js src/react-bridge.ts`（仅报错级规则；`src/App.js` / `src/vendor` 已在 `eslint.config.js` 中忽略）。
+  - ③ 网关 Python：`cd apimart-gateway && ruff check .`（需先 `pip install ruff` 或 `uv tool install ruff`）。
   - 不强制 0 warning，但不得引入新的 error 级问题；若工具未安装，在交付说明中注明「未跑 lint」。
 
 ---

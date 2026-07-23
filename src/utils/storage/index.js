@@ -320,7 +320,7 @@ var Mr = {
       if (wr.isAvailable()) for (let t of e) await this.syncToLocalTool(t);
     },
     async syncAllToLocalTool() {
-      let e = [Z.USERS, Z.PROJECTS, Z.LAST_OPENED_PROJECT, Z.GLOBAL_TASKS, Z.CUSTOM_NODE_TEMPLATES, Z.APP_SETTINGS, Z.TRANSIT_RESOURCES, Z.TRANSIT_GRID_COLS],
+      let e = [Z.USERS, Z.MEMBERSHIP, Z.OLD_MEMBERSHIP, Z.PROJECTS, Z.LAST_OPENED_PROJECT, Z.GLOBAL_TASKS, Z.CUSTOM_NODE_TEMPLATES, Z.APP_SETTINGS, Z.TRANSIT_RESOURCES, Z.TRANSIT_GRID_COLS],
         t = 0,
         n = [];
       for (let r of e) (await this.syncToLocalTool(r)) ? t++ : n.push(r);

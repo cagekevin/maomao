@@ -1,7 +1,9 @@
 var Z = {
     APP_SETTINGS: `app_settings`,
     API_CONFIGS: `api_configs`,
-    USERS: `users`,
+    USERS: `users`,
+    MEMBERSHIP: `membership`,
+    OLD_MEMBERSHIP: `old_membership`,
     PROJECTS: `projects`,
     LAST_OPENED_PROJECT: `lastOpenedProject`,
     CUSTOM_NODE_TEMPLATES: `customNodeTemplates`,
@@ -12,11 +14,13 @@ var Z = {
     TRANSIT_GRID_COLS: `transit_grid_cols`,
     GLOBAL_TASKS: `globalTasks`,
     CANVAS_STATE_PREFIX: `canvas-state-v1-`,
-    DEVICE_ID: `device_id`,
+    DEVICE_ID: `device_id`,
+    CURRENT_USER_ID: `current_user_id`,
     VIDEO_SIZE: `video_size`,
     VIDEO_SECONDS: `video_seconds`,
     VIDEO_MODEL: `video_model`,
     SYNC_VERSION: `sync_version`,
-    LAST_SYNC_TIME: `last_sync_time`,
+    LAST_SYNC_TIME: `last_sync_time`,
+    AUTH_TOKEN: `auth_token`
   };
 export { Z };
