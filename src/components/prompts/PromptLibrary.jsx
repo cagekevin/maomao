@@ -441,10 +441,7 @@ function PromptLibrary({
                     children: [
                       X.jsx("div", {
                         className: "pl-filters",
-                        children: [
-                          { label: "全部", value: "" },
-                          ...Ua
-                        ].map(function (opt) {
+                        children: Ua.map(function (opt) {
                           let isActive = selectedCategory === opt.value;
                           return X.jsx("button", {
                             onClick: function () { setSelectedCategory(opt.value); },
