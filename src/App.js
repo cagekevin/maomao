@@ -41362,7 +41362,7 @@ function Nv() {
       }
     },
     [Qr, $r] = Y.useState(false),
-    ei = async () => {
+    syncToCloud = async () => {
       $r(true);
       try {
         let e = {};
@@ -42326,7 +42326,7 @@ function Nv() {
                   ] : X.jsx(`div`, { children: `尚未与云端同步` })
                 });
               })(), X.jsxs(`button`, {
-                onClick: ei,
+                onClick: syncToCloud,
                 disabled: Qr,
                 className: `w-full text-left px-2 py-2 text-sm text-gray-300 hover:bg-[#333] hover:text-white rounded-md flex items-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed`,
                 children: [Qr ? X.jsx(Nn, {
