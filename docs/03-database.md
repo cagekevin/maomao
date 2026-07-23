@@ -1,4 +1,4 @@
-# 一毛AI画布 · 数据模型（Database）
+# 猫猫AI画布 · 数据模型（Database）
 
 > 实体来自 localTool（来源 `docs/AI08/33_模块6_localTool服务端.md` + `docs/AI11/09-localTool与网关路由全量核对.md` + AI13 最终报告 + AI05-03/11 实证）。
 > 本文只记录"代码表达不了的字段语义 / 已知债务 / 修复解法"，不贴全 DDL（遵循"代码即文档"）。对外调用见 `06-integration.md` §四。
@@ -9,11 +9,11 @@
 
 | 层 | 技术 | 位置 | 内容 |
 |----|------|------|------|
-| 本地持久 | sql.js(WASM) SQLite | `~/.yimao-localtool/localtool.db` | resources / tasks / kv 三表 |
-| 磁盘文件 | 文件系统 | `~/.yimao-localtool/uploads/` | 生成 / 采集 / 拖入 / 粘贴 / 缩略图 |
+| 本地持久 | sql.js(WASM) SQLite | `~/.maomao-localtool/localtool.db` | resources / tasks / kv 三表 |
+| 磁盘文件 | 文件系统 | `~/.maomao-localtool/uploads/` | 生成 / 采集 / 拖入 / 粘贴 / 缩略图 |
 | 浏览器内 | chrome.storage / localStorage / localforage | 扩展沙箱 | 设置 / 鉴权 / 画布状态(易失/半持久) |
 
-> `YIMAO_DATA_DIR` 可覆盖 `~/.yimao-localtool/`。
+> `MAOMAO_DATA_DIR` 可覆盖 `~/.maomao-localtool/`。
 
 ---
 

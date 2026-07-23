@@ -81,7 +81,7 @@ localTool 侧端点（来自 `var-mapping` + 代码实测）：
 | P2 删除不删磁盘 | `wv`(L42857) 无 `deleteFiles` vs `Tv`(L42866) 有 | ✅ 坐实 | 修复：`wv` 加 `deleteFiles` 可选联动，或改走 `Tv` 单条语义 |
 | P2 Rescan 孤儿只清 local-tool | `handleResourcesRescan` 孤儿清理仅 `source='local-tool'`(resources.ts:L123) | ✅ 坐实（门4 B.2 + 模块8） | extension 瞬态设计，非 bug |
 | P2 缩略图伪复制 | `ri`(L1856) 仅是取 URL；伪复制在 `tryGenerateThumbnail`(files.ts:L137) `copyFileSync` | ✅ 坐实（门4 B.3 + 模块8） | 建议接 sharp 真实缩放 |
-| P2 统一 base URL | `Hr`/`vv` 均为硬编码 18080（var-map L117/L118） | ✅ 坐实 | host 硬编码，TASKS P0 残留；`YIMAO_DATA_DIR` 切换不生效 |
+| P2 统一 base URL | `Hr`/`vv` 均为硬编码 18080（var-map L117/L118） | ✅ 坐实 | host 硬编码，TASKS P0 残留；`MAOMAO_DATA_DIR` 切换不生效 |
 
 ---
 

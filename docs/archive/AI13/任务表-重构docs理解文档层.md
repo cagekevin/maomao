@@ -41,7 +41,7 @@ docs/
 ├── FUNCTION_MAP.md           # 保留不动
 ├── PROJECT_LOG.md            # 保留不动
 ├── PROJECT_ORIGIN.md         # 保留不动
-├── 一毛AI画布使用教程合集.md  # 保留不动
+├── 猫猫AI画布使用教程合集.md  # 保留不动
 ├── audit/                    # 保留不动
 ├── AI01/ ~ AI12/             # 保留不动（审计过程稿）
 └── AI13/                     # 保留不动（裁决产物）

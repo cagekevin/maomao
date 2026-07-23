@@ -1,4 +1,4 @@
-# 一毛AI画布 · 模块 4-5 PRD（画布框架 + 节点组件）
+# 猫猫AI画布 · 模块 4-5 PRD（画布框架 + 节点组件）
 
 > 基于 `_engine/App.js` 深度分析，步进式推理引擎生成。
 > 目标：UI 和功能 1:1 复刻原版，最终删除 `_engine/`。
@@ -9,7 +9,7 @@
 
 ### 定位
 
-将一毛AI画布 Chrome 扩展的 **UI 层**（模块 4 + 模块 5）从 `_engine/App.js`（4.6 万行混淆代码）完整复刻为可读 TypeScript。功能和 UI 1:1 对齐原版，用户不应感知到底层被重写。
+将猫猫AI画布 Chrome 扩展的 **UI 层**（模块 4 + 模块 5）从 `_engine/App.js`（4.6 万行混淆代码）完整复刻为可读 TypeScript。功能和 UI 1:1 对齐原版，用户不应感知到底层被重写。
 
 ### 范围
 
@@ -238,7 +238,7 @@ Nv() — 主应用组件
 ├── Loading: "flex items-center justify-center h-screen" → "Loading..."
 └── 主容器: "flex h-screen bg-[#0d0c0c] flex-col font-sans text-gray-200"
     ├── 顶部导航栏 (h-16, flex-shrink-0, z-20)
-    │   ├── 左: Logo "一毛AI" (onClick → canvas tab) + 下拉菜单
+    │   ├── 左: Logo "猫猫AI" (onClick → canvas tab) + 下拉菜单
     │   ├── 中: Tab按钮组 [画布|资源|多开] "bg-[#151414] rounded-full p-1"
     │   ├── 中(仅canvas tab): 项目选择器 + 新建/导入/导出
     │   └── 右: 余额 + 头像/登录 + 设置齿轮(→settings tab) + 任务中心(→弹窗)

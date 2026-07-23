@@ -62,7 +62,7 @@ export function mapToLibraryCards(presets) {
 export async function saveAndNotify(presets) {
   await savePresets(presets);
   try {
-    window.dispatchEvent(new CustomEvent('yimao:presetsChanged', { detail: presets }));
+    window.dispatchEvent(new CustomEvent('maomao:presetsChanged', { detail: presets }));
   } catch (e) {}
 }
 

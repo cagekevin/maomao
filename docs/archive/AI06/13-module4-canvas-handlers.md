@@ -27,7 +27,7 @@
 
 ### 3.1 `Lr` 的两处定义
 - **L1700** `function Lr(e, t, n)`：缩略图 resize URL 拼接（`_resize_${t}.jpg` / `_frame1_resize_${t}.jpg`），属模块2 资源工具函数。
-- **L36293** `let Lr = Y.useCallback(e => {...})`：**画布 onDrop 拖放建节点**（读 `application/x-yimao-template` / `application/x-mutiwindow-task` / `dataTransfer.files` → `Z(...)` spawnNode）。这才是 ReactFlow `onDrop:Lr`@L37138 指向的 `Lr`。
+- **L36293** `let Lr = Y.useCallback(e => {...})`：**画布 onDrop 拖放建节点**（读 `application/x-maomao-template` / `application/x-mutiwindow-task` / `dataTransfer.files` → `Z(...)` spawnNode）。这才是 ReactFlow `onDrop:Lr`@L37138 指向的 `Lr`。
 - **结论**：`04` 文档说「`Lr`(onDrop)@L36293」方向对，但混淆字典未注明与 L1700 重名；func-mapping 若把 `Lr` 锚为单一含义则错。
 
 ### 3.2 `Ir` 的两处定义

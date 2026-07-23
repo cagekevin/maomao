@@ -1,4 +1,4 @@
-# AI07 · 一毛AI画布 文档一致性审计整理（V1）
+# AI07 · 猫猫AI画布 文档一致性审计整理（V1）
 
 > 本轮审计全部产出**仅存放于 `docs/AI07/`**，不向项目其他目录写入任何文件。
 > 审计对象：当前运行的 **V1 引擎**（`src/_engine/App.js` + `config.js` + `localTool/` + `apimart-gateway/`）。

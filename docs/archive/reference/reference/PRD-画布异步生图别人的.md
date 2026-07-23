@@ -1,4 +1,4 @@
-# PRD 骨架：一毛画布 V1 生图/生视频回调接入 lovart-chat 异步 Task 轮询
+# PRD 骨架：猫猫画布 V1 生图/生视频回调接入 lovart-chat 异步 Task 轮询
 
 > 本文档用 PRD5步法撰写。网关（apimart-gateway / lovart-chat）不改动，仅画布侧改造。第 1 层为骨架，第 2 层起逐模块细化并追加到本文档。
 >
@@ -6,7 +6,7 @@
 
 ## 1. 项目定位（State 1）
 - **做什么**：在 V1 画布生成回调里实现对 `lovart-chat`（用户自有 OpenAI 风格第三方网关）异步 task 的轮询取媒资——提交拿到 `task_id` → 轮询 `GET /v1/tasks/{id}` 至终态 → 从 `data.result` 取图/取视频。
-- **给谁用**：一毛画布 V1 的使用者（Kevin 及用其画布的人），通过画布界面生图/生视频。
+- **给谁用**：猫猫画布 V1 的使用者（Kevin 及用其画布的人），通过画布界面生图/生视频。
 - **核心价值**：屏蔽第三方网关的异步状态机，让画布像调同步 API 一样稳定出图/出视频；同时向后兼容直接返回 `url`/`b64` 的同步 API。
 - **媒资无关性**：文生图（`/v1/images/generations`）、图生图（`/v1/images/edits`）、视频（`/v1/videos/generations`）三个端点均返回 `task_id`，共用同一轮询契约；差异只在提交参数与结果字段。
 

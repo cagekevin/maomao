@@ -1,4 +1,4 @@
-# 一毛AI画布 · 对外能力接口文档（Integration Guide）
+# 猫猫AI画布 · 对外能力接口文档（Integration Guide）
 
 > 事实全部来自 `docs/AI13/交叉验证最终报告.md` + `docs/AI05/*` 深审（13 个 AI 交叉验证实锤）。
 > 本文是给**外部开发者 / 下游 AI agent** 看的：告诉你在这个系统上**能接什么、调哪个真身、传什么、收什么、踩什么红线**。
@@ -114,7 +114,7 @@ rhWebapp     → 发 vs 事件（专用重跑）
 ### 3.1 可创建节点类型（nodeTypes，AI05-05 实锤）
 `promptNode` · `imageNode`(li) · `imageBoxNode` · `videoNode` · `sd2VideoNode` · `discountVideoNode` · `gridSplitNode`(Lc) · `gridMergeNode`(To) · `cropNode` · `urlToImageNode`(Wc) · `fileToUrlNode` · `panoramaNode`(Jc/Yc) · `videoExtractNode`(Ns) · `textNode`(Qa) · `audioNode`(ps) · `textConcatNode`(Rc) · `Director3DNode`(Th)。
 - 节点 data 字段：`data.imageUrl` / `videoUrl` / `audioUrl` / `text` / `prompt` / `label` / `resultUrl`。
-- 拖放建节点：`onDrop`(Lr@L36243) 支持 `application/x-yimao-template`（批量导入）/ `application/x-mutiwindow-task`（创建节点）/ `dataTransfer.files`（落盘）。
+- 拖放建节点：`onDrop`(Lr@L36243) 支持 `application/x-maomao-template`（批量导入）/ `application/x-mutiwindow-task`（创建节点）/ `dataTransfer.files`（落盘）。
 
 ### 3.2 3D 导演台
 - `$d`=DirectorShell@L24391（布局壳）；`Th`=Director3DNode（节点壳，注册 L31141，**仍生效**）。
@@ -208,7 +208,7 @@ rhWebapp     → 发 vs 事件（专用重跑）
 
 ## 七·五、画布节点能力清单（在画布"能做什么"）
 
-> 来源 `一毛AI画布使用教程合集.md`（v1.1.1–v1.3.5）。这些是**已上线能力**，下游 AI 可基于它们设计"对话即生成"的工作流。节点创建契约见 `glossary.md` / `Z`@L36215（精确入参待查）。
+> 来源 `猫猫AI画布使用教程合集.md`（v1.1.1–v1.3.5）。这些是**已上线能力**，下游 AI 可基于它们设计"对话即生成"的工作流。节点创建契约见 `glossary.md` / `Z`@L36215（精确入参待查）。
 
 | 能力 | 节点 / 入口 | 对 AI agent 的意义 |
 |------|-----------|-------------------|

@@ -1,5 +1,5 @@
 /**
- * 一毛AI画布 - 节点组件拆分脚本 v2
+ * 猫猫AI画布 - 节点组件拆分脚本 v2
  * 输入：reference/decompiled/App-B9jVCs-a.decompiled.js（反编译后的 App.js）
  * 输出：reference/decompiled/nodes/<NodeType>.raw.js（27个节点独立文件）
  *

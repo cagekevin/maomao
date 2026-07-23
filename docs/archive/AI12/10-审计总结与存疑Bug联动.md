@@ -70,7 +70,7 @@
 
 ## 五、重构指南建议（终极交付物雏形）
 
-若未来要做「一毛AI画布-权威重构指南」，建议结构：
+若未来要做「猫猫AI画布-权威重构指南」，建议结构：
 1. 先校正根 `func/var-mapping.txt`（C1~C4）+ `ARCHITECTURE`/`TASKS`（C5~C10）。
 2. 统一三个落盘入口（`ii`/`Xr`/`H.uploadFile`）收口到 `ii`。
 3. 统一 base URL 走 `localEngineBase()`，消除 6 处硬编码。

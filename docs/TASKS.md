@@ -1,6 +1,6 @@
 > ⚠️ 本文为旧版任务/审计计划，审计结论已汇总至 docs/AI13/交叉验证最终报告.md；理解文档见 docs/02-architecture.md，对外能力接口见 docs/06-integration.md。旧版保留仅供追溯。
 
-# 一毛AI画布 · 任务板（Bug + 修复清单 + 排查）
+# 猫猫AI画布 · 任务板（Bug + 修复清单 + 排查）
 
 > 从 `ARCHITECTURE.md` 拆出的可行动任务集合：已知 Bug 风险（P0–P2）、对应修复清单、以及专项排查建议。
 > 行号快照 2026-07-20，会漂移，动手前重新 grep 确认。
@@ -76,16 +76,16 @@
 ---
 1. 查 localTool 日志: 是否有 `POST /api/files/upload` + fetch 下载日志
 2. 查端口: localTool 是否在 18080
-3. 查 `~/.yimao-localtool/uploads/migrated/` 是否真没写
+3. 查 `~/.maomao-localtool/uploads/migrated/` 是否真没写
 4. 查 DevTools 网络: resourceAdded 是否被前端接收
 5. 查数据源: 资源在 transitItems(内存) 还是 resources(持久)
-6. 查 `YIMAO_DATA_DIR` 是否指向不同目录
+6. 查 `MAOMAO_DATA_DIR` 是否指向不同目录
 
 ---
 
 # 架构审计计划（模块化理解文档 · 终极重构指南）
 
-> **目标**：用「切香肠」法（一次一个模块，四段式输出）让 AI 逐模块啃下 4 万行反编译巨兽，产出《一毛AI画布-权威重构指南》。
+> **目标**：用「切香肠」法（一次一个模块，四段式输出）让 AI 逐模块啃下 4 万行反编译巨兽，产出《猫猫AI画布-权威重构指南》。
 > **铁律**：任何模块锚定的混淆名必须先过映射表；映射表没收录的，先解码再写 prompt，禁止让 AI 基于猜测名推理（会幻觉）。
 > **当前阻塞**：映射表缺口未补（见 T0），阶段二 prompt 不能直接用原版（原版 `Jn`/`Ev`/`Xr`/`Sv`/`Zr` 锚点有误）。
 
@@ -159,7 +159,7 @@
 - 每项产出均须过门3脚本校验接缝 `file:line`。
 
 ## 阶段 3：合并与总结
-- **T3.1** 合并 4 模块输出为 `docs/audit/一毛AI画布-权威重构指南.md`（或分散 `docs/audit/module-N.md` 再拼）。
+- **T3.1** 合并 4 模块输出为 `docs/audit/猫猫AI画布-权威重构指南.md`（或分散 `docs/audit/module-N.md` 再拼）。
 - **T3.2** 与 `TASKS.md` Bug 表联动：审计中发现的存疑 Bug 回填到上方 P0–P2。
 
 ## 附带：修正现有文档错误锚点（与 T0 同步做）

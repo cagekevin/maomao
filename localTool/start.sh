@@ -1,5 +1,5 @@
 #!/bin/bash
-# 一毛AI画布 — 本地工具服务 一键启动脚本
+# 猫猫AI画布 — 本地工具服务 一键启动脚本
 # 用法: ./start.sh
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"

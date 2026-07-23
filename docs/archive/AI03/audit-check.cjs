@@ -64,7 +64,7 @@ const BEHAVIOR = {
   'ghostTarget': 'ghostTarget',                                // nodeTypes 末尾 L31144
   'canvas/drop': 'canvas/drop',                                // onDrop 落盘子目录 L36363
   'subfolder': 'subfolder',                                    // ii 调用通用特征
-  'application/x-yimao-template': 'x-yimao-template',          // 模板拖放 L36300
+  'application/x-maomao-template': 'x-yimao-template',          // 模板拖放 L36300
   'application/x-mutiwindow-task': 'x-mutiwindow-task',        // 任务清单拖放 L36309
   // 节点类型注册表 / 接线行 / spawn 注入区 的细分强证据
   'lg': 'group: Eh',                                           // nodeTypes 定义起点 L31117

@@ -1,5 +1,5 @@
 /**
- * 一毛AI画布 - 反混淆/反编译批处理 (Babel AST 版)
+ * 猫猫AI画布 - 反混淆/反编译批处理 (Babel AST 版)
  * 输入：reference/ 下的压缩 ESM（Rolldown/esbuild 产物）
  * 处理（AST 级，比正则更可靠）：
  *   1. 常量折叠：!0 -> true, !1 -> false, void 0 -> undefined
@@ -86,6 +86,6 @@ function processFile(file) {
   console.log(`OK  ${file} -> decompiled/${base}.decompiled.js  (${(output.code.length / 1024).toFixed(0)} KB)`);
 }
 
-console.log('=== 一毛AI画布 反编译/反混淆 (Babel AST) ===');
+console.log('=== 猫猫AI画布 反编译/反混淆 (Babel AST) ===');
 for (const f of TARGETS) processFile(f);
 console.log('=== 完成 ===');

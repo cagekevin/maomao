@@ -1,4 +1,4 @@
-# 一毛AI画布 · Handoff 3（2026-07-20）
+# 猫猫AI画布 · Handoff 3（2026-07-20）
 
 > 承接 HANDOFF2.md。本文记录 2026-07-19 ~ 07-20 跨 session 排查的两条主线的结论、改动、验证结果、残留风险。
 > **默认工作上下文仍是 V1（原版引擎）。** 代码位置同 HANDOFF2 §3。
@@ -65,7 +65,7 @@
 
 ### 2.2 错误方向（2026-07-19，已放弃）
 
-曾误判为前端 `ii()` 相对路径在 `chrome-extension://` 下解析失败，并对 `src/_engine/App.js` 的 `ii()` / `Xr()` / `Zr()` / `ri()` 四处做了修改。**此方向错误**：终端日志证明图片其实已成功上传（`/api/files/upload` + `/api/tasks/save` 均成功，文件落在 `C:\Users\xinye\.yimao-localtool\uploads\tasks`）。问题不在 URL 解析，而在资源面板不断 rescan/重载，把刚生成的图片覆盖或清掉。
+曾误判为前端 `ii()` 相对路径在 `chrome-extension://` 下解析失败，并对 `src/_engine/App.js` 的 `ii()` / `Xr()` / `Zr()` / `ri()` 四处做了修改。**此方向错误**：终端日志证明图片其实已成功上传（`/api/files/upload` + `/api/tasks/save` 均成功，文件落在 `C:\Users\xinye\.maomao-localtool\uploads\tasks`）。问题不在 URL 解析，而在资源面板不断 rescan/重载，把刚生成的图片覆盖或清掉。
 
 > ⚠️ 历史记录澄清：早前某 session 曾声称"已 `git checkout` 撤销 App.js 全部改动、回到基线 `0e0b2cc`"。**该结论不准确**——实际工作区里保留了对"破图"真正有效的修复（见 2.4），且本次（2026-07-20）已随 commit `3db58ff` 一并提交。文档早期版本照抄了"已撤销"说法，特此更正。
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * 一毛AI画布 — 本地工具服务 (localTool Service)
+ * 猫猫AI画布 — 本地工具服务 (localTool Service)
  * 模拟原版桌面应用提供的本地 API，端口 18080
  *
  * 用法：node localTool.mjs
@@ -225,7 +225,7 @@ function json(res, data, status = 200) {
 const server = http.createServer(handleRequest);
 server.listen(PORT, '127.0.0.1', () => {
   console.log(``);
-  console.log(`  一毛AI画布 — 本地工具服务`);
+  console.log(`  猫猫AI画布 — 本地工具服务`);
   console.log(`  地址: http://127.0.0.1:${PORT}`);
   console.log(`  状态: 运行中`);
   console.log(``);

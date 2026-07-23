@@ -1,6 +1,6 @@
 > ⚠️ 本文为旧版架构描述，已迁移至 docs/02-architecture.md（理解文档主文件，含交叉验证实锤事实）；对外能力接口请看 docs/06-integration.md。旧版保留仅供追溯。
 
-# 一毛AI画布 · 架构参考（AI 友好版）
+# 猫猫AI画布 · 架构参考（AI 友好版）
 
 > 合并自 `AI_REFERENCE.md` + `DATA_FLOW_ARCHITECTURE.md`(27 张图，已去) + `FILE_SYSTEM_AUDIT.md`，并补全代码库结构化事实。
 > 面向 AI 阅读：只保留结构化事实，**不含 Mermaid 图**。
@@ -173,12 +173,12 @@ maomao/
 ### L2.1 服务骨架
 | 项 | 文件:行号 | 说明 |
 |----|-----------|------|
-| 入口 | `localTool/src/index.ts` L1 | 原生 `node:http`，`PORT=18080`，`VERSION=2.0.0-yimao-clone` |
+| 入口 | `localTool/src/index.ts` L1 | 原生 `node:http`，`PORT=18080`，`VERSION=2.0.0-maomao-clone` |
 | 端口冲突检测 | index.ts L25 | `EADDRINUSE` 报「18080 被占用」 |
 | 静态文件 | index.ts L43 | `/files/*` → 磁盘，路径遍历防护 + 403 |
 | 数据库 | `localTool/src/db/database.ts` L1/L59 | `sql.js`(WASM SQLite)，非 better-sqlite3 |
 | 工具 | `localTool/src/utils/helpers.ts` | `json` / `sendError` |
-| 数据根目录 | `~/.yimao-localtool/`（`YIMAO_DATA_DIR` 可覆盖） | DB: `localtool.db` |
+| 数据根目录 | `~/.maomao-localtool/`（`MAOMAO_DATA_DIR` 可覆盖） | DB: `localtool.db` |
 
 ### L2.2 路由模块
 | 模块 | 文件 | 路由（方法） |
@@ -360,7 +360,7 @@ background.ts handleSaveToTransit()
 ### X1.3 画布拖放（前端内 → localTool）
 ```
 onDrop (App L36215)
-  → application/x-yimao-template → 批量导入节点
+  → application/x-maomao-template → 批量导入节点
   → application/x-mutiwindow-task → 创建节点
   → dataTransfer.files → ii({subfolder:'canvas/drop'}) → POST /api/files/upload
 ```

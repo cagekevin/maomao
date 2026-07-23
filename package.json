@@ -3,7 +3,7 @@
   "private": true,
   "version": "1.3.5",
   "type": "module",
-  "description": "一毛AI画布插件 - Chrome Extension MV3 with AI Canvas",
+  "description": "猫猫AI画布插件 - Chrome Extension MV3 with AI Canvas",
   "scripts": {
     "dev": "vite",
     "build": "cross-env NODE_OPTIONS=--max-old-space-size=1024 vite build",

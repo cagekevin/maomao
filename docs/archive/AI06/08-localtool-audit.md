@@ -5,18 +5,18 @@
 > 放置范围：仅 `docs/AI06/`，未触碰 localTool 源码（红线§3.1）。
 
 ## 1. 运转图景
-localTool 是独立 Node 进程，原生 `node:http` 监听 127.0.0.1:18080。职责：KV 存储、文件上传/读取/缩略图、tasks 持久化、resources CRUD + rescan、proxy、剪映发送（占位）。数据落 SQLite WASM（sql.js）+ 磁盘 `~/.yimao-localtool/`。
+localTool 是独立 Node 进程，原生 `node:http` 监听 127.0.0.1:18080。职责：KV 存储、文件上传/读取/缩略图、tasks 持久化、resources CRUD + rescan、proxy、剪映发送（占位）。数据落 SQLite WASM（sql.js）+ 磁盘 `~/.maomao-localtool/`。
 
 ## 2. 核心事实（已坐实）
 | 项 | 文件:行号 | 说明 |
 |----|-----------|------|
-| 入口 | `localTool/src/index.ts` L1 | 原生 node:http，VERSION='2.0.0-yimao-clone' |
+| 入口 | `localTool/src/index.ts` L1 | 原生 node:http，VERSION='2.0.0-maomao-clone' |
 | 端口 | index.ts L21 | `PORT=18080`（常量） |
 | 端口冲突检测 | index.ts L25 | EADDRINUSE → 退出并报"18080 被占用" |
 | 静态文件 | index.ts L43/L114 | `/files/*` → 磁盘，路径遍历防护(@L51-54) + 403 |
 | 路由分发 | index.ts L100/L231 | `http.createServer(handleRequest)` |
 | 数据库 | `localTool/src/db/database.ts` | sql.js(WASM SQLite)，非 better-sqlite3 |
-| 上传目录 | database.ts `getUploadDir()` | `~/.yimao-localtool/uploads`（YIMAO_DATA_DIR 可覆盖） |
+| 上传目录 | database.ts `getUploadDir()` | `~/.maomao-localtool/uploads`（MAOMAO_DATA_DIR 可覆盖） |
 
 ## 3. 路由全表（实 grep index.ts L122-208，比 ARCHITECTURE L2.2 更全）
 | 模块 | 路由(方法) | 处理 | 行号 |
@@ -87,7 +87,7 @@ for (const row of localRows) {
 | HTTP | POST /api/resources/delete | index.ts L190 | 前端 wv(L42857) 调 |
 | HTTP | POST /api/resources/rescan | index.ts L196 | 前端 Ev(L42883) 调 |
 | HTTP | GET /files/{sub}/{file} | index.ts L114 | 静态服务 |
-| 存储 | `~/.yimao-localtool/` | getUploadDir() | DB + uploads 磁盘根 |
+| 存储 | `~/.maomao-localtool/` | getUploadDir() | DB + uploads 磁盘根 |
 
 ## 7. 校验门
 所有 `localTool/...:Lnnn` 锚点由 grep 坐实 ✅。与模块2 互补，前端↔localTool 接缝闭合。

@@ -1,4 +1,4 @@
-# 一毛 AI 画布（maomao · yimao-ai-canvas）
+# 猫猫AI画布（maomao · yimao-ai-canvas）
 
 一个 Chrome 扩展画布工具，集成 AI 图片 / 视频 / 文本工作流。由闭源原版反编译魔改为**脱离官方的本地模式**：前端跑本地引擎，AI 请求走自研网关，文件与数据走自研本地服务。当前只跑 V1，V2 已永久废弃。
 

@@ -1,4 +1,4 @@
-﻿# 一毛AI画布 — 本地工具 启动/构建 脚本
+﻿# 猫猫AI画布 — 本地工具 启动/构建 脚本
 # 双击运行进入菜单；也可带参数: .\启动项目.ps1 1 (启动) | 2 (构建)
 
 $ErrorActionPreference = "Continue"
@@ -110,7 +110,7 @@ Write-Host ""
 
 # ── 交互菜单 ──
 Write-Host "=================================="
-Write-Host "   一毛AI画布 — 本地工具"
+Write-Host "   猫猫AI画布 — 本地工具"
 Write-Host "=================================="
 Write-Host "   [1] 启动 localTool 服务"
 Write-Host "   [2] 构建 dist (v1)"

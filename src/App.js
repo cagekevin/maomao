@@ -1481,7 +1481,7 @@ var li = Y.memo(({
               let e = `png`;
               if (m === `video` && (e = `mp4`), m === `audio` && (e = `mp3`), m === `text` && (e = `txt`), typeof chrome < `u` && chrome.downloads) chrome.downloads.download({
                 url: n,
-                filename: `yimao/file-${Date.now()}.${e}`,
+                filename: `maomao/file-${Date.now()}.${e}`,
                 saveAs: false
               });else {
                 let t = document.createElement(`a`);
@@ -2297,7 +2297,7 @@ var Ya = Y.memo(({
       try {
         if (typeof chrome < `u` && chrome.downloads) chrome.downloads.download({
           url: r,
-          filename: `yimao/generated-${Date.now()}.png`,
+          filename: `maomao/generated-${Date.now()}.png`,
           saveAs: false
         });else {
           let e = await (await fetch(r)).blob(),
@@ -5725,7 +5725,7 @@ function yo({
         return X.jsxs(`div`, {
           draggable: true,
           onDragStart: t => {
-            t.stopPropagation(), k(e.id), t.dataTransfer.effectAllowed = `move`, t.dataTransfer.setData(`application/x-yimao-layer`, e.id);
+            t.stopPropagation(), k(e.id), t.dataTransfer.effectAllowed = `move`, t.dataTransfer.setData(`application/x-maomao-layer`, e.id);
             let n = document.createElement(`div`);
             n.style.cssText = `position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;opacity:0;`, document.body.appendChild(n), t.dataTransfer.setDragImage(n, 0, 0), setTimeout(() => {
               try {
@@ -5744,7 +5744,7 @@ function yo({
           },
           onDrop: t => {
             t.preventDefault(), t.stopPropagation();
-            let n = t.dataTransfer.getData(`application/x-yimao-layer`) || O;
+            let n = t.dataTransfer.getData(`application/x-maomao-layer`) || O;
             n && n !== e.id && U(n, e.id), k(null), j(null);
           },
           onDragEnd: e => {
@@ -6320,7 +6320,7 @@ var xo = (e, t, n) => Math.max(t, Math.min(n, e)),
                   draggable: !!n,
                   onDragStart: e => {
                     if (!n) return;
-                    e.stopPropagation(), ce(t), e.dataTransfer.effectAllowed = `move`, e.dataTransfer.setData(`application/x-yimao-puzzle`, String(t));
+                    e.stopPropagation(), ce(t), e.dataTransfer.effectAllowed = `move`, e.dataTransfer.setData(`application/x-maomao-puzzle`, String(t));
                     let r = document.createElement(`div`);
                     r.style.cssText = `position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;opacity:0;`, document.body.appendChild(r), e.dataTransfer.setDragImage(r, 0, 0), setTimeout(() => {
                       try {
@@ -6339,7 +6339,7 @@ var xo = (e, t, n) => Math.max(t, Math.min(n, e)),
                   },
                   onDrop: e => {
                     e.preventDefault(), e.stopPropagation();
-                    let n = e.dataTransfer.getData(`application/x-yimao-puzzle`),
+                    let n = e.dataTransfer.getData(`application/x-maomao-puzzle`),
                       r = n ? parseInt(n, 10) : se ?? -1;
                     if (r < 0 || r === t || Number.isNaN(r)) {
                       ce(null), ue(null);
@@ -6391,7 +6391,7 @@ var xo = (e, t, n) => Math.max(t, Math.min(n, e)),
                     `,
                   draggable: true,
                   onDragStart: e => {
-                    e.stopPropagation(), ce(t), e.dataTransfer.effectAllowed = `move`, e.dataTransfer.setData(`application/x-yimao-puzzle`, String(t));
+                    e.stopPropagation(), ce(t), e.dataTransfer.effectAllowed = `move`, e.dataTransfer.setData(`application/x-maomao-puzzle`, String(t));
                     let n = document.createElement(`div`);
                     n.style.cssText = `position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;opacity:0;`, document.body.appendChild(n), e.dataTransfer.setDragImage(n, 0, 0), setTimeout(() => {
                       try {
@@ -6410,7 +6410,7 @@ var xo = (e, t, n) => Math.max(t, Math.min(n, e)),
                   },
                   onDrop: e => {
                     e.preventDefault(), e.stopPropagation();
-                    let n = e.dataTransfer.getData(`application/x-yimao-puzzle`),
+                    let n = e.dataTransfer.getData(`application/x-maomao-puzzle`),
                       r = n ? parseInt(n, 10) : se ?? -1;
                     if (r < 0 || r === t || Number.isNaN(r)) {
                       ce(null), ue(null);
@@ -6902,7 +6902,7 @@ var xo = (e, t, n) => Math.max(t, Math.min(n, e)),
         if (e.stopPropagation(), l.videoUrl) try {
           if (l.onShowToast?.(`开始下载视频...`), typeof chrome < `u` && chrome.downloads) chrome.downloads.download({
             url: l.videoUrl,
-            filename: `yimao/video-${Date.now()}.mp4`,
+            filename: `maomao/video-${Date.now()}.mp4`,
             saveAs: false
           });else {
             let e = await (await fetch(l.videoUrl)).blob(),
@@ -8026,7 +8026,7 @@ var Ao = Y.memo(({
                 if (e.stopPropagation(), l.videoUrl) try {
                   if (l.onShowToast?.(`开始下载视频...`), typeof chrome < `u` && chrome.downloads) chrome.downloads.download({
                     url: l.videoUrl,
-                    filename: `yimao/video-${Date.now()}.mp4`,
+                    filename: `maomao/video-${Date.now()}.mp4`,
                     saveAs: false
                   });else {
                     let e = await (await fetch(l.videoUrl)).blob(),
@@ -9769,7 +9769,7 @@ var as = [{
         if (e.stopPropagation(), d.videoUrl) try {
           if (d.onShowToast?.(`开始下载视频...`), typeof chrome < `u` && chrome.downloads) chrome.downloads.download({
             url: d.videoUrl,
-            filename: `yimao/video-${Date.now()}.mp4`,
+            filename: `maomao/video-${Date.now()}.mp4`,
             saveAs: false
           });else {
             let e = await (await fetch(d.videoUrl)).blob(),
@@ -28730,7 +28730,7 @@ function mg(e) {
 function hg(e) {
   if (!e) return `内置`;
   let t = String(e).trim();
-  if (!t || /yimao|jiangwei|weishao/i.test(t)) return `内置`;
+  if (!t || /maomao|jiangwei|weishao/i.test(t)) return `内置`;
   try {
     return new URL(t).host || `第三方`;
   } catch {
@@ -29112,7 +29112,7 @@ function xg({
     [qt, Yt] = Y.useState(false),
     Xt = Y.useRef(`tab-${Date.now()}-${Math.random()}`);
   Y.useEffect(() => {
-    let e = new BroadcastChannel(`yimao_canvas_sync`);
+    let e = new BroadcastChannel(`maomao_canvas_sync`);
     return e.onmessage = e => {
       e.data && e.data.type === `CANVAS_SAVED` && e.data.projectId === en.current && e.data.tabId !== Xt.current && Yt(true);
     }, () => e.close();
@@ -29315,7 +29315,7 @@ function xg({
         console.error(`Save failed`, e);
       }
       try {
-        let e = new BroadcastChannel(`yimao_canvas_sync`);
+        let e = new BroadcastChannel(`maomao_canvas_sync`);
         e.postMessage({
           type: `CANVAS_SAVED`,
           projectId: en.current,
@@ -33869,7 +33869,7 @@ ${_}`,
           x: e.clientX,
           y: e.clientY
         }),
-        n = e.dataTransfer.getData(`application/x-yimao-template`) || e.dataTransfer.getData(`text/plain`);
+        n = e.dataTransfer.getData(`application/x-maomao-template`) || e.dataTransfer.getData(`text/plain`);
       if (n) try {
         let e = JSON.parse(n);
         if (e && typeof e == `object` && typeof e.id == `number` && typeof e.name == `string` && e.graphData && Array.isArray(e.graphData.nodes)) {
@@ -40168,7 +40168,7 @@ function Nv() {
           ...t,
           key: e.modelApiTokenKey
         };
-        if (t.id === `tehuishipin` || t.id === `yimaoAiApp`) {
+        if (t.id === `tehuishipin` || t.id === `maomaoAiApp`) {
           let e = t.url.replace(`{VITE_API_BASE_URL}`, tr($n));
           return {
             ...t,
@@ -40390,7 +40390,7 @@ function Nv() {
       }
     }),
     [zn] = Y.useState(`tehuishipin`),
-    [Bn] = Y.useState(`yimaoAiApp`),
+    [Bn] = Y.useState(`maomaoAiApp`),
     [Vn, Hn] = Y.useState(() => {
       try {
         return localStorage.getItem(`apiConfigId_audio`) || `default`;
@@ -40439,7 +40439,7 @@ function Nv() {
     let o = En.find(e => e.id === zn) || En[0];
     o && (Ht(o.url), Wt(o.key));
     let s = En.find(e => e.id === Bn) || o;
-    s && (Jt(ar(s.url, s.readonly || s.id === `yimaoAiApp`)), Xt(s.key));
+    s && (Jt(ar(s.url, s.readonly || s.id === `maomaoAiApp`)), Xt(s.key));
     let c = En.find(e => e.id === Vn) || En[0];
     c && (Qt(c.url), en(c.key));
     let l = En.find(e => e.id === "default") || En[0];
@@ -40586,7 +40586,7 @@ function Nv() {
     let e = e => {
       e.detail && Array.isArray(e.detail) && Mr(e.detail);
     };
-    return window.addEventListener(`yimao:presetsChanged`, e), () => window.removeEventListener(`yimao:presetsChanged`, e);
+    return window.addEventListener(`maomao:presetsChanged`, e), () => window.removeEventListener(`maomao:presetsChanged`, e);
   }, []);
   Y.useEffect(() => {
     Hr && !Wr.current && (Wr.current = true, console.log(`[初始化完成] 当前 isLoggedIn:`, Ne), console.log(`[初始化完成] 当前 userInfo:`, Ie?.modelApiTokenKey ? `***` + Ie.modelApiTokenKey.slice(-4) : `empty`));
@@ -41690,7 +41690,7 @@ function Nv() {
           }),
           i = URL.createObjectURL(r),
           a = document.createElement(`a`);
-        a.href = i, a.download = `yimao-workflow-backup-${new Date().toISOString().split(`T`)[0]}.json`, a.click(), URL.revokeObjectURL(i), Br(`配置与工作流导出成功`);
+        a.href = i, a.download = `maomao-workflow-backup-${new Date().toISOString().split(`T`)[0]}.json`, a.click(), URL.revokeObjectURL(i), Br(`配置与工作流导出成功`);
       } catch (e) {
         console.error(e), Br(`导出失败`);
       }
@@ -43227,7 +43227,7 @@ sora`
                           bucket: e.target.value
                         }),
                         className: `w-full bg-[#0d0c0c] border border-[#333] rounded px-3 py-2 text-xs text-gray-200 focus:outline-none focus:border-blue-500 transition-colors`,
-                        placeholder: `例如：yimaoai`
+                        placeholder: `例如：maomaoai`
                       })]
                     }), X.jsxs(`div`, {
                       children: [X.jsx(`label`, {

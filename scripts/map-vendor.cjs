@@ -1,5 +1,5 @@
 /**
- * 一毛AI画布 - vendor 依赖映射
+ * 猫猫AI画布 - vendor 依赖映射
  * 解析 vendor-Cr1JWW-B.js 尾部的 `as` 导出别名，
  * 生成「短名 -> 真实导出名」字典，例如：
  *   o as jsx       -> X(jsx) 表示 App 里 import { X as o } 时 X 是 jsx

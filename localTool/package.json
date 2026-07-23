@@ -1,7 +1,7 @@
 {
-  "name": "yimao-localtool",
+  "name": "maomao-localtool",
   "version": "2.0.0",
-  "description": "一毛AI画布 — 本地工具服务 (替代闭源 Go 二进制)",
+  "description": "猫猫AI画布 — 本地工具服务 (替代闭源 Go 二进制)",
   "type": "module",
   "main": "dist/index.js",
   "scripts": {

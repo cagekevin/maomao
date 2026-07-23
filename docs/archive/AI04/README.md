@@ -1,6 +1,6 @@
 # AI04 · 猫猫画布架构审计（全套 6 步）
 
-> **审计对象**：一毛 AI 画布魔改本地版（V1 引擎 `src/_engine/App.js` + `localTool/` + `apimart-gateway/`）。
+> **审计对象**：猫猫AI画布魔改本地版（V1 引擎 `src/_engine/App.js` + `localTool/` + `apimart-gateway/`）。
 > **审计方法**：源自 `docs/TASKS.md` 末尾《架构审计计划》的五关流水线（锚点门 / 强制引用 / 机器校验 / 对抗审计 / 入库门）+ 防污染规则。
 > **铁律**：引用必须带 `file:line`；混淆名先过映射表再 grep 确认；不盲猜；不改任何代码；不碰 `dist/`/`vendor`/`App.original.js`；不引入 V2。
 > **文件位置约束**：本目录 `docs/AI04/` 是本次审计唯一产出区，**所有文档与校验脚本只放这里**，不写入 `TASKS.md`/`ARCHITECTURE.md` 等其他文档（发现的问题仅记录于此）。

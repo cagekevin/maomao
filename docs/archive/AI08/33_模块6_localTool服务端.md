@@ -10,8 +10,8 @@
 ## ① 运转图景
 
 localTool 是纯本地 HTTP 服务，承载四类职责：
-1. **文件仓库**：`/api/files/*` 上传/读取/缩略图/目录操作，磁盘落地于 `~/.yimao-localtool/uploads`（见 `database.ts:L17-L19`）。
-2. **结构化存储**：`tasks` / `resources` / `kv` 三张表，由 sql.js（WASM）持久化到 `~/.yimao-localtool/localtool.db`（`database.ts:L36`）。
+1. **文件仓库**：`/api/files/*` 上传/读取/缩略图/目录操作，磁盘落地于 `~/.maomao-localtool/uploads`（见 `database.ts:L17-L19`）。
+2. **结构化存储**：`tasks` / `resources` / `kv` 三张表，由 sql.js（WASM）持久化到 `~/.maomao-localtool/localtool.db`（`database.ts:L36`）。
 3. **系统/代理**：`/api/status` 健康检查、`/api/proxy` 反代（前端绕过 CORS）、`/api/jianying/send` 剪映对接（空实现）。
 4. **静态文件**：`/files/*` 直接映射到 upload 目录，带路径穿越防护（`index.ts:L43-L95`）。
 
@@ -26,13 +26,13 @@ localTool 是纯本地 HTTP 服务，承载四类职责：
 | 符号 | 行号 | 真身 | 说明 |
 |------|------|------|------|
 | `PORT` | index.ts:L21 | `18080` | 硬编码，与 App.js `Hr`/`vv` 同值（P0 根因侧） |
-| `VERSION` | index.ts:L22 | `2.0.0-yimao-clone` | 版本戳 |
+| `VERSION` | index.ts:L22 | `2.0.0-maomao-clone` | 版本戳 |
 | `checkPortAvailable` | index.ts:L25 | 端口预检 | `EADDRINUSE` → exit(1) |
 | `handleStaticFile` | index.ts:L43 | 静态服务 | 路径穿越防护（`index.ts:L51-L55`），404/403 |
 | `handleRequest` | index.ts:L98 | 主路由 | 全路由表 L122-L208 |
 | `getDb` | database.ts:L23 | DB 初始化 | sql.js WASM，`localtool.db` 不存在则新建 |
 | `saveDb` | database.ts:L51 | 落盘 | `_db.export()` → `writeFileSync` |
-| `getDataDir` | database.ts:L11 | 数据目录 | `YIMAO_DATA_DIR` 或 `~/ .yimao-localtool` |
+| `getDataDir` | database.ts:L11 | 数据目录 | `MAOMAO_DATA_DIR` 或 `~/ .maomao-localtool` |
 | `queryAll`/`queryOne`/`run` | database.ts:L82/L94/L100 | 查询封装 | better-sqlite3 风格兼容 |
 | `upsertTask` | tasks.ts:L42 | 任务 upsert | sql.js 无 ON CONFLICT → DELETE+INSERT 模拟 |
 | `handleStatus` | system.ts:L13 | 健康检查 | `ffmpeg:false`（硬编，非探测） |
@@ -45,7 +45,7 @@ localTool 是纯本地 HTTP 服务，承载四类职责：
 
 ### 流 A：前端文件上传落盘（模块2 `Xr`/`Zr` 服务端归宿）
 - 前端 `Xr`(`App.js:L1802`) → `POST /api/files/upload`（`index.ts:L135`）→ `handleUpload`（`files.ts:L14`）。
-- FormData（`files.ts:L25`）或 JSON（`files.ts:L21`）两形态；落地 `~/.yimao-localtool/uploads/<subfolder>/`（默认 `canvas`）。
+- FormData（`files.ts:L25`）或 JSON（`files.ts:L21`）两形态；落地 `~/.maomao-localtool/uploads/<subfolder>/`（默认 `canvas`）。
 - 缩略图：`App.js:ri`(L1856) → `GET /api/files/thumbnail`（`index.ts:L141`）→ `handleThumbnail`（`files.ts`）。门4（30_）已坐实 `files.ts:L137` `fs.copyFileSync` 伪复制（P2 #8）。
 
 ### 流 B：资源入库/删除/rescan（模块2 `Sv`/`wv`/`Tv`/`Ev` 服务端归宿）

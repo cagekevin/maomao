@@ -9,9 +9,9 @@ import fs from 'node:fs';
 import os from 'node:os';
 
 export function getDataDir(): string {
-  const envDir = process.env['YIMAO_DATA_DIR'];
+  const envDir = process.env['MAOMAO_DATA_DIR'];
   if (envDir) return envDir;
-  return path.join(os.homedir(), '.yimao-localtool');
+  return path.join(os.homedir(), '.maomao-localtool');
 }
 
 export function getUploadDir(): string {

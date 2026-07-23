@@ -1,4 +1,4 @@
-# AI03 · 一毛AI画布 架构审计整理（V1）
+# AI03 · 猫猫AI画布 架构审计整理（V1）
 
 > 本轮审计全部产出**仅存放于 `docs/AI03/`**，不向项目其他目录写入任何文件。
 > 审计对象：当前运行的 **V1 引擎**（`src/_engine/App.js` + `config.js` + `localTool/` + `apimart-gateway/`）。
@@ -144,6 +144,6 @@
 
 - **T4.1 修 `ARCHITECTURE.md`**：`Jn` 实为 `LogoIcon`、`Xr=openInTab`、`Zr=logout`、spawnable 误读等错锚纠正（文件在 `docs/`，非 AI03）。
 - **T4.2 修 `TASKS.md`**：`Zr()` 下载表述、Sv/sv 厘清、wv/R/B/ii 行号回填（文件在 `docs/`，非 AI03）。
-- **T3.1 合并终极文档**：拼 `docs/audit/一毛AI画布-权威重构指南.md`（目录在 `docs/audit/`，非 AI03）。
+- **T3.1 合并终极文档**：拼 `docs/audit/猫猫AI画布-权威重构指南.md`（目录在 `docs/audit/`，非 AI03）。
 
 以上三项均**写入 AI03 以外目录**，按本轮约束须用户明确同意后执行。当前 AI03 内审计任务已全部完成并通过门3/门4。

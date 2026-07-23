@@ -117,11 +117,11 @@ Dh = customEdgeStyleId     # <style> id：自定义连线流动样式 🟢
 ta = modelSchedulesKey     # KV key：'modelSchedules' 🟢
 Ca = authTokenKey          # KV key：'auth_token' 🟢
 wa = rememberedLoginKey     # 'remembered_login_credentials'（Da 删 / Ea 存，localStorage 记住的登录凭据） 🟢
-Wa = promptRecentKey        # 'yimao:promptRecent'（Ga 读最近提示词数组，localStorage） 🟢
+Wa = promptRecentKey        # 'maomao:promptRecent'（Ga 读最近提示词数组，localStorage） 🟢
 e_ = extensionUpdateDismissedKey # 'extension-update-dismissed-version'（扩展更新提示忽略版本，localStorage） 🟢
 Va = openPromptSettingsEvent # CustomEvent 名：打开提示词设置 🟢
 $g = extensionUpdateDistPathKey # KV key：'extension-update-dist-path' 🟢
-ig = templateMimeType      # 模板拖拽 MIME：'application/x-yimao-template' 🟢
+ig = templateMimeType      # 模板拖拽 MIME：'application/x-maomao-template' 🟢
 d_ = passwordSpecialChars  # 密码特殊字符白名单字符串 🟢
 
 # ── 端点 / URL / 端口 ──

@@ -47,12 +47,12 @@ const eventListener = `
   // 监听提示词变更事件
   Y.useEffect(() => {
     const h = (e) => Mr(e.detail);
-    window.addEventListener('yimao:presetsChanged', h);
-    return () => window.removeEventListener('yimao:presetsChanged', h);
+    window.addEventListener('maomao:presetsChanged', h);
+    return () => window.removeEventListener('maomao:presetsChanged', h);
   }, []);`;
 
 // 在 jr/Mr 定义之后插入
-if (!content.includes('yimao:presetsChanged')) {
+if (!content.includes('maomao:presetsChanged')) {
   content = content.replace(mrSetterAnchor, mrSetterAnchor + eventListener);
 }
 

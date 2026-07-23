@@ -122,7 +122,7 @@ function Ha() {
     window.dispatchEvent(new CustomEvent(Va));
   } catch {}
 }
-var Wa = `yimao:promptRecent`;
+var Wa = `maomao:promptRecent`;
 function Ga() {
   try {
     let e = localStorage.getItem(Wa);

@@ -16,7 +16,7 @@ var ta = `modelSchedules`;
 
 var Ca = `auth_token`;
 
-var Va = `yimao:openPromptSettings`;
+var Va = `maomao:openPromptSettings`;
 
 var Jo = 5;
 
@@ -30,7 +30,7 @@ var Fp = /\.(jpe?g|png|webp)$/i;
 
 var Dh = `custom-edge-flow-style`;
 
-var ig = `application/x-yimao-template`;
+var ig = `application/x-maomao-template`;
 
 var d_ = `! @ # $ % ^ & * ( ) _ - + = { } [ ] | : ; " ' < > , . ? / ~`;
 

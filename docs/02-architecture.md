@@ -1,4 +1,4 @@
-# 一毛AI画布 · 架构主文件（Architecture）
+# 猫猫AI画布 · 架构主文件（Architecture）
 
 > 事实锚点经 AI13 交叉验证实锤（2026-07-21），详见 `docs/AI13/交叉验证最终报告.md` 与 `docs/AI13/裁决表.md`。
 > 本文只陈述"代码表达不了的 Why / 上下文 / 已裁决事实"，不抄代码逻辑（遵循"代码即文档"）。行号随构建漂移，主引用用函数名 / 真实 TS 路径。
@@ -71,7 +71,7 @@
 │  │ /api/jianying/send     │   │
 │  └────────────────────────┘   │
 │                               │
-│  数据: ~/.yimao-localtool/    │
+│  数据: ~/.maomao-localtool/    │
 └───────────────────────────────┘
 ```
 
@@ -111,7 +111,7 @@
 ## 二、技术选型 ADR（Why）
 
 ### ADR-1：为什么 localTool 是独立进程（:18080）
-画布需要文件落盘、缩略图生成、资源 / 任务 / KV 持久化。这些能力在扩展 Service Worker / 页面沙箱里受限（文件路径、WASM SQLite、长驻服务），故拆出 Node/TS 本地服务，用原生 `node:http` + `sql.js`(WASM) SQLite，数据落在 `~/.yimao-localtool/`。
+画布需要文件落盘、缩略图生成、资源 / 任务 / KV 持久化。这些能力在扩展 Service Worker / 页面沙箱里受限（文件路径、WASM SQLite、长驻服务），故拆出 Node/TS 本地服务，用原生 `node:http` + `sql.js`(WASM) SQLite，数据落在 `~/.maomao-localtool/`。
 
 ### ADR-2：为什么双 base（USE_LOCAL_ENGINE 开关）
 - `USE_LOCAL_ENGINE=true`（默认）→ 文件走 `LOCAL_ENGINE.base` = `18080`（localTool）。

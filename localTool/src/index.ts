@@ -1,5 +1,5 @@
 /**
- * 一毛AI画布 — 本地工具服务 (localTool Service)
+ * 猫猫AI画布 — 本地工具服务 (localTool Service)
  * 替代闭源 Go 二进制，监听 18080 端口
  *
  * 用法：node dist/index.js
@@ -20,7 +20,7 @@ import { handleStatus, handleProxy, handleJianyingSend } from './routes/system.j
 import { handlePluginManifest, handleWorkflowAppsByProject } from './routes/platform.js';
 
 const PORT = Number(process.env.PORT) || 18080;
-const VERSION = '2.0.0-yimao-clone';
+const VERSION = '2.0.0-maomao-clone';
 
 // ── 端口冲突检测 ──
 function checkPortAvailable(port: number): Promise<void> {
@@ -242,12 +242,12 @@ async function main(): Promise<void> {
   server.listen(PORT, '127.0.0.1', () => {
     console.log('');
     console.log('  ╔══════════════════════════════════════════╗');
-    console.log('  ║   一毛AI画布 — 本地工具服务              ║');
-    console.log('  ║   yimao-localtool v' + VERSION.padEnd(22) + '║');
+    console.log('  ║   猫猫AI画布 — 本地工具服务              ║');
+    console.log('  ║   maomao-localtool v' + VERSION.padEnd(22) + '║');
     console.log('  ╚══════════════════════════════════════════╝');
     console.log('');
     console.log(`  地址: http://127.0.0.1:${PORT}`);
-    console.log(`  数据: ${path.join(os.homedir(), '.yimao-localtool')}`);
+    console.log(`  数据: ${path.join(os.homedir(), '.maomao-localtool')}`);
     console.log('');
     console.log('  端点:');
     console.log('    系统:   /api/status');

@@ -1,4 +1,4 @@
-# 一毛AI画布 · 运维手册（Runbook）
+# 猫猫AI画布 · 运维手册（Runbook）
 
 > 启动逻辑抽自 `启动项目.ps1` 与 `package.json`；事实锚点经 AI13 交叉验证实锤（2026-07-21）。
 > 目标：重装系统后 5 分钟内跑起来。开发接入口见 `06-integration.md`。
@@ -23,7 +23,7 @@ npm install
 npm run build
 npm start        # 或 node dist/index.js，端口 18080 硬编码
 ```
-- 数据根目录 `~/.yimao-localtool/`（可用 `YIMAO_DATA_DIR` 覆盖）。
+- 数据根目录 `~/.maomao-localtool/`（可用 `MAOMAO_DATA_DIR` 覆盖）。
 - DB：`localtool.db`（sql.js WASM）；上传落盘：`uploads/`。
 - 端口冲突会在 `EADDRINUSE` 报"18080 被占用"。
 

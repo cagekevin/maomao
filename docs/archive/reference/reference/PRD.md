@@ -1,11 +1,11 @@
-# PRD · 一毛AI画布 完全复刻工程
+# PRD · 猫猫AI画布 完全复刻工程
 
 > 文档状态：第 1 层 + 第 2 层全部完成，附录 A 契约已源码验证，待确认后进入执行阶段
 > 方法：PRD 5 步法（步进式，Strangler 渐进替换，禁止 big-bang 重写）
 
 ## 1. 项目定位
 
-- **做什么**：将「一毛AI画布」Chrome 扩展从反编译的 `_engine`（~4.6 万行混淆 JS）**完全复刻**为可读、可维护的 TypeScript 源码工程。包含前端扩展（React + React Flow 画布）和本地工具服务（Node/TS，端口 18080，替代闭源 Go 二进制）。方法为 Strangler 渐进替换，禁止 big-bang 重写。最终删除 `_engine/` 目录。
+- **做什么**：将「猫猫AI画布」Chrome 扩展从反编译的 `_engine`（~4.6 万行混淆 JS）**完全复刻**为可读、可维护的 TypeScript 源码工程。包含前端扩展（React + React Flow 画布）和本地工具服务（Node/TS，端口 18080，替代闭源 Go 二进制）。方法为 Strangler 渐进替换，禁止 big-bang 重写。最终删除 `_engine/` 目录。
 - **给谁用**：Kevin 本人，连接个人 API 网关 `127.0.0.1:9004`，作为 AI 图片/视频/文本工作流画布工具。
 - **核心价值**：
   1. 统一 React 实例（消除双实例 #306 冲突）
@@ -37,7 +37,7 @@
 
 ### 模块 0 · 本地工具服务
 - 约束 1：实现前必须先从 App.js 调用点反推 upload/tasks/resources 的精确字段名，写成测试用例，再写实现。禁止凭猜测实现。
-- 约束 2：KV 存储用 `better-sqlite3`，数据目录默认 `~/.yimao-localtool/`，可通过环境变量覆盖。
+- 约束 2：KV 存储用 `better-sqlite3`，数据目录默认 `~/.maomao-localtool/`，可通过环境变量覆盖。
 - 约束 3：完整实现附录 A 全部端点，数据落 SQLite + 磁盘目录，重启后数据不丢。
 - 约束 4：跨平台（Mac arm64/intel + Windows），可 `node` 启动或打包为单文件可执行双击运行。
 
@@ -186,7 +186,7 @@ interface Resource {
 - 约束 1：`/api/status` 返回结构需同时满足两个客户端（`App.js` 有两处调用）：
   - `Kr()`（行 1708，1s 超时）：以 HTTP 200 判连通，读 `response.ffmpeg`（boolean，可选）。
   - `Uc()`（行 18981，5s/15s 轮询）：读 `response.status === 'ok'`、`response.version`、`response.message`。
-  - **综合返回**：`{status: "ok", version: "2.0.0-yimao-clone", message: "localTool service", ffmpeg: false, port: 18080}`
+  - **综合返回**：`{status: "ok", version: "2.0.0-maomao-clone", message: "localTool service", ffmpeg: false, port: 18080}`
 - 约束 2：`/api/proxy` 两种形态（`App.js:18936-18955`）：
   - 形态 ①（body 为 FormData/Blob）：读 `X-Proxy-Url`/`X-Proxy-Method`/`X-Proxy-Headers`（JSON 字符串）/`X-Proxy-Cookie` 请求头，body 透传。
   - 形态 ②（body 为 JSON）：`{url, method, headers, body, cookie}`。
@@ -571,7 +571,7 @@ interface Resource {
 ## 附录 A · 本地引擎（18080）API 契约（反推 + 源码验证）
 
 > 来源：反编译 `App.js` 调用点，每个字段均经源码交叉验证。**本契约同时作为自研 localTool 服务的实现与验收标准。** 闭源二进制本体路径（仅作参考，不再依赖）：
-> `/Users/kevin/Nutstore Files/我的坚果云/chrome插件/04画布插件/一毛AI画布引擎Mac端Arm版`
+> `/Users/kevin/Nutstore Files/我的坚果云/chrome插件/04画布插件/猫猫AI画布引擎Mac端Arm版`
 > （Mach-O arm64 闭源，约 11MB，双击运行后监听 18080，状态栏常驻）
 
 ### A.1 KV 存储

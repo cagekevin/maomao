@@ -99,7 +99,7 @@ const LINE_EXPECT = {
     35724: ['type: `director3dNode`'],
     35791: ['type: `customNode`'],
     35813: ['type: `fileToUrlNode`'],
-    31542: ['new BroadcastChannel(`yimao_canvas_sync`)'],
+    31542: ['new BroadcastChannel(`maomao_canvas_sync`)'],
     31428: ['addEventListener(`mutiwindow-task-completed`'],
     41032: ['dispatchEvent(new CustomEvent(`mutiwindow-update-task-meta`'],
     43527: ['e.action === `resourceAdded` && e.resource'],

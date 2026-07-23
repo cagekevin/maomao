@@ -64,7 +64,7 @@ config.js（静态）：
 → 答：config.js `localEngineBase()`(L42) 返回 `REMOTE_BASE`(9004)。但前端 `Hr`/`vv` 是**写死 18080 的常量**（var-mapping），不读 `localEngineBase()`。即：config 开关与实际请求地址**脱钩**——`USE_LOCAL_ENGINE` 只影响 `localEngineBase()` 返回值，但 `Hr`/`vv` 常量忽略它。这会导致 false 时文件请求仍打 18080（若 localTool 没跑则失败），或按 TASKS X3.3 描述走 9004 无路由。需确认 `Hr`/`vv` 是否在某处被 `localEngineBase()` 覆盖（grep 未见，标注待查）。
 
 **Q2**：五个 18080 硬编码点，改端口要改几处？
-→ 答：至少 5 处（Hr/vv/Bc/Wn/resources.ts LOCAL_TOOL_BASE）+ config.js LOCAL_ENGINE。共 6 处。漏改即部分功能连错端口。建议抽env(`YIMAO_DATA_DIR` 模式)统一。
+→ 答：至少 5 处（Hr/vv/Bc/Wn/resources.ts LOCAL_TOOL_BASE）+ config.js LOCAL_ENGINE。共 6 处。漏改即部分功能连错端口。建议抽env(`MAOMAO_DATA_DIR` 模式)统一。
 
 **Q3**：`$n`(apiBaseUrl=Vn()) 真实值？
 → 答：func-mapping 标注"疑在 engine 包/外部，App.js 内未见声明"。本地模式应指向 9004 或空。单遍无法坐实，标注待上游确认（影响 `ar`/`tr` 行为）。

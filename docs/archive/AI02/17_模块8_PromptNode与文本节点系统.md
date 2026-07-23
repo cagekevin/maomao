@@ -32,7 +32,7 @@
 |------|------|------|
 | `Te = async t => {...}` | L4203 | PromptNode "下载生成结果"处理器 |
 | 读原图 `Q.getConfig(_e)` | L4212 | 从配置取 `imageUrlRef` 原图（base64，size>1e4 用原图） |
-| `chrome.downloads.download` | L4227 | 插件端走 chrome 下载 API，存 `yimao/generated-*.png` |
+| `chrome.downloads.download` | L4227 | 插件端走 chrome 下载 API，存 `maomao/generated-*.png` |
 | 本地端回退 | L4226+ try/catch | 非插件端走 fetch/blob 下载 |
 
 > `Te` 才是 PromptNode 的"资源导出"动作（下载图片），与 `@提及` `we` 无关。注意命名：`Te`(下载) vs `we`(@提及) 同组件内两回调，职责清晰不混。
