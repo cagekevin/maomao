@@ -2,16 +2,13 @@
 
 ## -1. 构建方式
 
-**Windows（PowerShell）**：
-```powershell
-$env:NODE_OPTIONS = "--max-old-space-size=1024"
-npx vite build
+跨平台统一命令（已用 `cross-env` 包装 `NODE_OPTIONS`，Windows / Mac 行为一致）：
+
+```bash
+npm run build
 ```
-或直接运行 `.\启动项目.ps1` 选 `2`。
 
-> 注意：`package.json` 的 `build` 脚本是 bash 内联写法，Windows 下无法直接用 `npm run build`，必须按上述方式执行。
-
-**Mac**：直接 `npm run build`。
+> 早期版本 `build` 为 bash 内联写法，Windows 需 `$env:NODE_OPTIONS=...; npx vite build` 变通；现已改为 `cross-env`，`npm run build` 在 Windows 也能直接跑通。一键联调用 `npm run dev:all`（vite + localTool:18080 + 网关:9004）。
 
 ---
 
@@ -20,17 +17,17 @@ npx vite build
 - **角色定位**：你是「一毛 AI 画布」项目的核心架构师与维护者。
 - **项目本质**：一个 Chrome 扩展画布工具（包含 AI 图片、视频、文本工作流），由闭源原版反编译魔改为脱离官方的本地模式。
 - **运行机制**：前端跑本地引擎，AI 请求走自研网关，文件和数据走自研本地服务。
-- **当前状态**：代码极度脆弱，含大量混淆代码。当前只跑 V1，V2 已永久暂停。
-- **第一原则**：修改前必须先读本文档与 `docs/archive/PROJECT_ORIGIN.md`，任何建议绝不可违背红线，别瞎改别瞎猜。
+- **当前状态**：代码含大量混淆代码（反编译产物），**正在渐进式拆解中**。当前只跑 V1，V2 已永久暂停。目标是将 `App.js`（~4.4 万行）逐步拆解为可读、可维护的独立模块。
+- **第一原则**：修改前先读本文档。目标是让项目越来越可读、功能越来越完整。改代码前确认影响范围，别瞎猜。
 
 > **⚠️ 目录结构已重组（2026-07-22）**：原 `src/_engine/` 已扁平化，`App.js` / `config.js` / `entry.js` / `vendor/` 现直接位于 `src/` 根（`src/App.js`、`src/config.js`、`src/entry.js`、`src/vendor/`）。本文档及 `docs/` 常驻文档中凡出现 `src/_engine/App.js` 之处，均指 **`src/App.js`**；`src/_engine/config.js` 即 `src/config.js`。`docs/archive/` 下的历史笔记仍保留旧路径，属当时快照，以本说明与常驻文档为准。恢复基线用 `git checkout -- src/App.js`。
 
 > **TL;DR（AI 进场速查）**
-> - 能改：`src/App.js` 及已解耦子模块（`src/config/`、`src/utils/`、`src/services/`、`src/components/`、`src/hooks/`、`src/contexts/`）、`src/config.js`、`localTool/src/**`、`apimart-gateway/**`等
-> - 别碰：`dist/`、`src/vendor/`（含 `vendor.js`/`rolldown-runtime.js`）、`captureVideoFrame-*.js`、`*.css`、`reference/App.original.js`
+> - 可自由修改：`src/App.js`（渐进拆解，抽函数到子模块）及子模块（`src/config/`、`src/utils/`、`src/services/`、`src/components/`、`src/hooks/`、`src/contexts/`）、`src/config.js`、`localTool/src/**`、`apimart-gateway/**`
+> - 保持原样不重写：`src/vendor/`（`vendor.js`/`rolldown-runtime.js` 是运行时依赖，可 import 引用，不改内容）、`dist/`（构建产物）、`reference/App.original.js`（原始参考）、`*.css`
 > - 入口：前端唯一入口是 `src/entry.js`（`index.html` 直接引用）；`src/main.tsx` 已删除，不要再创建或引用。
 > - 端口：前端扩展（Chrome 加载 `dist/`）· localTool `:18080` · 网关 `:9004`
-> - 先读：本文件 → `docs/summaries/README.md`（函数摘要索引入口）→ `docs/archive/PROJECT_ORIGIN.md` → `docs/02-architecture.md` → 改码前查 `docs/func-mapping.txt` + `docs/var-mapping.txt` + `docs/archive/FUNCTION_MAP.md`
+> - 先读：本文件 → `docs/模块专题/README.md` → `docs/archive/PROJECT_ORIGIN.md` → `docs/02-architecture.md` → 改码前查 `docs/func-mapping.txt` + `docs/var-mapping.txt`
 > - 事实源：代码 > git > 审计文档；`docs/04-api` 等是 AI 提纯，**非事实源**，改码前须 grep 源码复核
 > - 已知噪音（别修）：`9004` 未实现 API 的 `404`、`RootErrorBoundary` 的 `null` 异常
 
@@ -42,7 +39,7 @@ npx vite build
 
 | 进程名称 | 端口 | 核心职责 | 启动命令与方式 |
 |----------|------|----------|----------------|
-| 前端扩展 | `dist/` | 提供 V1 画布 UI，作为表现层加载到 Chrome。 | Windows: `$env:NODE_OPTIONS="--max-old-space-size=1024"; npx vite build`；Mac: `npm run build`。将 `dist/` 加载到 Chrome。唯一入口为 `src/entry.js`（经 `index.html` 引用）。 |
+| 前端扩展 | `dist/` | 提供 V1 画布 UI，作为表现层加载到 Chrome。 | `npm run build`（cross-env 已跨平台统一，Windows/Mac 同命令）。将 `dist/` 加载到 Chrome。唯一入口为 `src/entry.js`（经 `index.html` 引用）。 |
 | localTool 本地服务 | `127.0.0.1:18080` | 提供 KV、文件、任务、资源、代理的存储，数据落盘至 SQLite(WASM) 和磁盘。 | `cd localTool && npm run build && npm start`（或 `start.sh`）。 |
 | apimart-gateway 网关 | `127.0.0.1:9004` | 接收 OpenAI 风格接口并翻译为 Lovart 调用，处理图文视频生成。 | `cd apimart-gateway && pip install -r requirements.txt && uvicorn main:app --host 127.0.0.1 --port 9004`。 |
 
@@ -57,7 +54,7 @@ npx vite build
 | `src/App.js` | ★ V1 引擎核心（当前运行，原 `src/_engine/App.js` 扁平化而来），约 4.4 万行。已**解耦拆分**：业务逻辑分散在 `src/config/`、`src/utils/`、`src/services/`、`src/components/`、`src/hooks/`、`src/contexts/` 子模块，`App.js` 本身保留混淆变量名并 `import` 这些子模块。★ 主权威运行/修改文件。 |
 | `src/config.js` | 集中配置层（原 `src/_engine/config.js`），修改端点或开关时动它。 |
 | `src/react-bridge.ts` | JSX runtime 桥接，从 `window.__React` 取 React 供 `@vitejs/plugin-react` 的 JSX transform 用（配合 `vite.config.ts` 的 alias）。 |
-| `src/vendor/` 等 | 第三方/运行时原版产物，绝对禁止修改。 |
+| `src/vendor/` | 第三方/运行时原版产物。可 import 引用其导出，**不要直接修改文件内容**（`vendor.js`/`rolldown-runtime.js`）。 |
 | `localTool/` | 本地工具服务，基于 Node/TS，使用 sql.js(WASM) 存储。 |
 | `apimart-gateway/` | AI 网关，基于 Python FastAPI。 |
 | `scripts/` | 反编译/拆分辅助脚本，不是运行所需。 |
@@ -78,27 +75,39 @@ npx vite build
 
 ---
 
-## 3. 开发维护最高红线（不可违背）
+## 3. 开发原则与边界
 
-### 3.1 核心边界与版本锁定
-- **修改范围**：前端可修改 `src/App.js` 及其已解耦子模块——`src/config/`、`src/utils/`、`src/services/`、`src/components/`、`src/hooks/`、`src/contexts/`、`src/config.js`、`src/entry.js`、`src/react-bridge.ts`。绝对禁止修改 `dist/`、`src/vendor/`（含 `vendor.js`/`rolldown-runtime.js`）以及任何原版保留/第三方产物。
-- **版本隔离**：严格运行 V1，V2 已彻底移除，禁止引入 V2 的代码或逻辑。
-- **命名规范**：禁止修改 `App.js` 现有的短命名（如 `ii`、`Xr`），定位必须带行号。新增变量必须语义化（`camelCase` 或 `UPPER_SNAKE`），严禁模仿短名。
-- **代码恢复**：改坏时仅能使用 `git checkout -- src/App.js` 恢复，严禁复制备份文件覆盖。
+### 3.1 渐进式拆解模式
 
-### 3.2 架构与数据流限制
-- **三层隔离**：前端扩展依赖两个独立服务：文件/KV 走 `18080`，AI 生成走 `9004`。
-- **异步契约**：所有 AI 任务必须轮询。拿到 `task_id` 后轮询 `9004`，获取结果后必须通过 `uploadFile` 下载落盘到 `18080`。严禁直接使用 CDN URL。
-- **路径绝对化**：与 `18080` 交互的文件路径必须是绝对路径。严禁使用相对路径以防破图。已知存在 P0 级别 host 硬编码 `18080` 和中文乱码问题。
+`App.js` 的目标是逐步缩小，将功能模块提取为独立文件。每次拆解遵循标准模式：
 
-### 3.3 修复与诊断规约
-- **无视噪音**：严禁修复 `9004` 的未实现 API `404` 报错，严禁修复 `RootErrorBoundary` 的 `null` 异常。
-- **状态更新**：必须利用事件总线（`CustomEvent`）通知更新，不要绕过 `StorageManager`（`Q`）直接操作存储。
-- **先证明后修改**：在提供代码前，必须查阅映射表，解释数据流向影响。
+- **标准拆解**：2 个文件 = `src/services/xxxManager.js`（薄数据层） + `src/components/xxx/XxxPanel.jsx`（UI 层）
+- **更大拆解**：3 个文件 = service + component + hook
+- **最小拆解**：1 个文件 = 纯工具函数或纯数据层
+- 拆解后，`App.js` 中删除原有函数定义，改为 import 并在原位置引用
+- 不改变数据通路：KV 读写、状态管理、GAS 同步键集合保持原有逻辑
+- 拆解文档参考：`docs/模块专题/` 下各专题文档
 
-> ★ **AI 回复强制要求**：每次修改代码前，必须在第一句话声明：
-> 「我已核对红线规则，本次修改在 `[具体文件]` 中，未触碰已知噪音和禁区。」
-> 然后再给出方案。
+### 3.2 核心边界与规范
+- **修改范围**：`src/App.js`（渐进拆解，抽函数到子模块）及子模块（`src/config/`、`src/utils/`、`src/services/`、`src/components/`、`src/hooks/`、`src/contexts/`）、`src/config.js`、`src/entry.js`、`src/react-bridge.ts`。
+- **保持原样不重写**：`src/vendor/`（可 import 引用导出，不改文件内容）、`dist/`（构建产物）、`reference/App.original.js`（原始参考）。
+- **版本隔离**：只跑 V1，V2 已移除，不引入 V2 代码。
+- **命名规范**：不修改 `App.js` 中现有的混淆短命名（如 `ii`、`Xr`）。新增变量用语义化名（`camelCase` 或 `UPPER_SNAKE`），不模仿短名。
+- **代码恢复**：改坏用 `git checkout -- <file>` 恢复。
+
+### 3.3 统一入口原则
+
+多个入口做同一件事时，统一为一个入口。例如：提示词管理 → 设置面板 tab 和节点下拉「提示词库」都打开同一个 `PromptLibrary` 组件，不再各自实现。
+
+### 3.4 架构与数据流
+- **三层隔离**：文件/KV 走 `18080`，AI 生成走 `9004`。
+- **异步契约**：AI 任务轮询 `9004`，结果通过 `uploadFile` 落盘到 `18080`，不用 CDN URL。
+- **路径绝对化**：与 `18080` 交互的文件路径用绝对路径。
+- **状态更新**：必要时用事件总线（`CustomEvent`），不绕过 `StorageManager`（`Q`）直接操作存储。
+
+### 3.5 诊断规约
+- **无视噪音**：别修 `9004` 未实现 API 的 `404`、`RootErrorBoundary` 的 `null` 异常。
+- **先理解后修改**：改码前确认影响范围，必要时查映射表和专题文档。
 
 ---
 
@@ -151,6 +160,11 @@ npx vite build
 - **操作前确认**：动手前先 `git status`，切勿随意 checkout 覆盖当前运行逻辑。
 - **提交规范**：小步提交，信息清晰（例如：`feat(localTool+engine): ...` / `fix(localTool): ...` / `docs: ...`）。
 - **给 AI 的提醒**：遇到未见过的报错先确认是否为魔改遗漏，不要为了消灭报错大改代码。不确定时必须先问，绝不能瞎猜瞎改。
+- **经验沉淀**：每次完成一次拆解或功能改造后，把经验教训追加到 `docs/拆分计划.md` 的「翻车点」区域。记录内容：改了什么、遇到什么问题、怎么解决的、下次怎么避免。拆解完成时更新对应条目的状态。
+- **AI 质量门控（改码后必跑，再交付）**：每次改动安全区代码后，先跑静态检查确认无新增 error 再收工：
+  - 前端 / TS：`npx eslint src/config src/utils src/services src/components src/hooks src/contexts src/config.js src/react-bridge.ts`（仅报错级规则；`src/App.js` / `src/vendor` 已在 `eslint.config.js` 中忽略）。
+  - 网关 Python：`cd apimart-gateway && ruff check .`（需先 `pip install ruff` 或 `uv tool install ruff`）。
+  - 不强制 0 warning，但不得引入新的 error 级问题；若工具未安装，在交付说明中注明「未跑 lint」。
 
 ---
 
@@ -163,7 +177,7 @@ npx vite build
 **如无必要，勿增实体。** 任何新增的依赖/文件/端点/开关，先问"删掉它有影响吗"——答不上来就是多余；多解释并存时取假设最少的那条。
 
 ### 8.3 精准修改
-只碰必须碰的，匹配现有风格。清理自己改动造成的孤儿代码，但绝不删除原有的死代码。每行修改必须追溯到请求。
+只碰必须碰的，匹配现有风格。拆解时清理提取后遗留的孤儿代码（App.js 中已被替代的函数/变量）。每行修改必须能追溯到明确目的。
 
 ### 8.4 目标驱动执行
 定义成功标准，将任务转为可验证目标（如写测试验证）。多步骤任务先给出简短计划（`步骤 → 验证：检查项`）。
