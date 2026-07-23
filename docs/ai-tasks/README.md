@@ -12,6 +12,7 @@
 
 ## 完成后
 
-1. 各 agent 输出映射行 → 合并到 `docs/func-mapping.txt` / `docs/var-mapping.txt`
+1. 各 agent 输出映射行 → 你汇总合并到 `docs/func-mapping.txt` / `docs/var-mapping.txt`
 2. 运行 `node scripts/annotate.cjs --run --force` 更新 App.js 注释
-3. 交叉对比：同一函数被多个 agent 命中的，取共识结果
+3. 所有 `⚠️` 升为 `✔`，App.js 函数名 100% 可读
+4. 之后再考虑用脚本反向替换混淆名为可读名
