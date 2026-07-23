@@ -28,9 +28,13 @@ import { G_, K_, q_, J_, Y_, X_, Z_, Q_, $_, ev, tv } from './services/taskStore
 import { yv, bv, xv, Sv, Cv, wv, Tv, Ev } from './services/resourceStore.js';
 import { yi, bi, LOCAL_MODE_ALLOW_ALL_MODELS, xi, Si, Ci, wi, Ti, Ei, Di, Oi, ki, Ai, ji, Mi, Ni, Pi, Fi, Ii, Li, Ri, zi, Bi, Vi, Hi, Ui, Wi, Gi, Ki, qi, Ji, Yi, Xi, Qi, $i, ea, y_, O_, k_, A_, j_ } from './services/modelEntitlements.js';
 import { Uc } from './hooks/useLocalTool.js';
+// [✔ 已确认] Y — React
+// [✔ 已确认] Un — membershipInfo
 var Y = e(le(), 1),
   Un = ae();
+// [✔ 已确认] X — jsxRuntime
 var X = o();
+// [✔ 已确认] yc — mosaicEditorModeOptions
 var yc = [{
   mode: `mosaic`,
   label: `马赛克`,
@@ -48,6 +52,7 @@ var yc = [{
   label: `模糊`,
   icon: $t
 }];
+// [✔ 已确认] xc — mosaicNodeModeOptions
 var xc = [{
   mode: `mosaic`,
   label: `马赛克`,
@@ -65,6 +70,7 @@ var xc = [{
   label: `模糊`,
   icon: $t
 }];
+// [✔ 已确认] Yn — FallbackMedia
 function Yn({
   url: e,
   fallbackExt: t = `mp4`,
@@ -91,6 +97,7 @@ function Yn({
     })
   });
 }
+// [✔ 已确认] Xn — DataUrlViewer
 function Xn({
   url: e
 }) {
@@ -130,6 +137,7 @@ function Xn({
     children: t
   });
 }
+// [✔ 已确认] Qn — TransitPanel
 function Qn({
   active: e,
   transitItems: t,
@@ -979,6 +987,11 @@ if (typeof document < `u` && !document.getElementById(hr)) {
   let e = document.createElement(`style`);
   e.id = hr, e.textContent = gr, document.head.appendChild(e);
 }
+// [✔ 已确认] _r — CustomHandle
+// [⚠️ 待确认] vr — React Hook 组件 (useRef, useEffect) — @ai-check: 未知用途，需复核
+// [⚠️ 待确认] yr — React Hook 组件 (useRef, useEffect) — @ai-check: 未知用途，需复核
+// [⚠️ 待确认] br — React Hook 组件 (useRef, useEffect) — @ai-check: 未知用途，需复核
+// [⚠️ 待确认] xr — React Hook 组件 (useRef, useEffect) — @ai-check: 未知用途，需复核
 var _r = Y.memo(({
     className: e = ``,
     variant: t = `large`,
@@ -1143,12 +1156,15 @@ var _r = Y.memo(({
       compressed: true
     };
   };
+// [✔ 已确认] Fr — onConnectEnd
 var Fr = [200, 300, 400, 500, 600, 700, 800, 900, 1e3];
+// [✔ 已确认] Ir — onDragOver
 function Ir(e) {
   if (!Number.isFinite(e) || e <= 0) return Fr[0];
   for (let t of Fr) if (e <= t) return t;
   return null;
 }
+// [✔ 已确认] Lr — onDrop
 function Lr(e, t, n) {
   if (!e) return e ?? ``;
   if (!e.includes(`/files/`) || e.startsWith(`data:`) || e.startsWith(`blob:`)) return e;
@@ -1156,21 +1172,25 @@ function Lr(e, t, n) {
   let [r, i] = e.split(`?`);
   return `${r}${n === `video` ? `_frame1_resize_${t}.jpg` : `_resize_${t}.jpg`}${i ? `?` + i : ``}`;
 }
+// [✔ 已确认] zr — withFrameSuffix
 function zr(e) {
   if (!e || !e.includes(`/files/`) || e.startsWith(`data:`) || e.startsWith(`blob:`)) return null;
   let [t, n] = e.split(`?`);
   return `${t}${Rr}${n ? `?` + n : ``}`;
 }
+// [✔ 已确认] Br — showToast
 function Br(e, t) {
   let n = zr(e);
   return n ? Lr(n, t, `image`) : null;
 }
+// [✔ 已确认] oi — useZoomScaled
 function oi(e) {
   return sn(t => {
     let n = t.transform[2] || 1;
     return Ir((e ?? 0) * n);
   });
 }
+// [⚠️ 待确认] si — React Hook 组件 (useState, useEffect) — @ai-check: 未知用途，需复核
 function si({
   id: e,
   data: t,
@@ -1263,6 +1283,7 @@ function ci({
     })
   });
 }
+// [✔ 已确认] li — ImageNode
 var li = Y.memo(({
   id: e,
   data: t,
@@ -1637,6 +1658,7 @@ function ui({
     })]
   });
 }
+// [✔ 已确认] di — penIconSvgPath
 var di = `M20.7624 0C0.868225 2.29614 0.393066 20.877 0 28.8621L1.21155 28.8621C1.21155 21.9207 4.94049 21.4546 8.42853 20.6113C13.6559 19.3462 17.0903 14.3184 17.95 10.2493L15.8051 9.17358L16.9758 7.71509C18.1466 6.25684 19.2449 4.14502 20.7624 0L20.7624 0Z`;
 function fi({
   visible: e,
@@ -1814,6 +1836,7 @@ function pi({
     })]
   });
 }
+// [⚠️ 待确认] hi — React Hook 组件 (useState, useEffect) — @ai-check: 未知用途，需复核
 function hi({
   intervalMs: e = 1e4,
   category: t,
@@ -1860,6 +1883,8 @@ function hi({
     }, i)]
   });
 }
+// [✔ 已确认] _i — ResizableBox
+// [⚠️ 待确认] vi — React Hook 组件 (useState, useCallback, useRef, useEffect) — @ai-check: 未知用途，需复核
 var _i = ({
     targetRef: e,
     onRequestFullscreen: t,
@@ -2059,6 +2084,7 @@ var _i = ({
     }), document.body) : null;
   };
 
+// [✔ 已确认] Ya — PromptNode
 var Ya = Y.memo(({
   id: e,
   data: n,
@@ -3151,6 +3177,7 @@ var Ya = Y.memo(({
     })()]
   });
 });
+// [⚠️ 待确认] Xa — React Hook 组件 (useState, useEffect) — @ai-check: 未知用途，需复核
 function Xa({
   url: e
 }) {
@@ -3186,6 +3213,7 @@ function Xa({
     children: t
   });
 }
+// [⚠️ 待确认] Za — React Hook 组件 (useState) — @ai-check: 未知用途，需复核
 function Za({
   resources: e,
   onSelect: t,
@@ -3388,6 +3416,7 @@ function Za({
     })]
   });
 }
+// [✔ 已确认] Qa — TextNode
 var Qa = Y.memo(({
   id: e,
   data: n,
@@ -4044,6 +4073,7 @@ var Qa = Y.memo(({
     })()]
   });
 });
+// [⚠️ 待确认] eo — React Hook 组件 (useState, useRef) — @ai-check: 未知用途，需复核
 function eo({
   id: e,
   data: t,
@@ -4146,6 +4176,22 @@ function eo({
     })]
   });
 }
+// [⚠️ 待确认] no — React Hook 组件 (useState, useMemo, useRef, useEffect, useCallback) — @ai-check: 未知用途，需复核
+// [⚠️ 待确认] ro — React Hook 组件 (useState, useMemo, useRef, useEffect, useCallback) — @ai-check: 未知用途，需复核
+// [⚠️ 待确认] io — React Hook 组件 (useState, useMemo, useRef, useEffect, useCallback) — @ai-check: 未知用途，需复核
+// [⚠️ 待确认] ao — React Hook 组件 (useState, useMemo, useRef, useEffect, useCallback) — @ai-check: 未知用途，需复核
+// [⚠️ 待确认] oo — React Hook 组件 (useState, useMemo, useRef, useEffect, useCallback) — @ai-check: 未知用途，需复核
+// [⚠️ 待确认] so — React Hook 组件 (useState, useMemo, useRef, useEffect, useCallback) — @ai-check: 未知用途，需复核
+// [⚠️ 待确认] co — React Hook 组件 (useState, useMemo, useRef, useEffect, useCallback) — @ai-check: 未知用途，需复核
+// [⚠️ 待确认] lo — React Hook 组件 (useState, useMemo, useRef, useEffect, useCallback) — @ai-check: 未知用途，需复核
+// [⚠️ 待确认] uo — React Hook 组件 (useState, useMemo, useRef, useEffect, useCallback) — @ai-check: 未知用途，需复核
+// [⚠️ 待确认] fo — React Hook 组件 (useState, useMemo, useRef, useEffect, useCallback) — @ai-check: 未知用途，需复核
+// [⚠️ 待确认] po — React Hook 组件 (useState, useMemo, useRef, useEffect, useCallback) — @ai-check: 未知用途，需复核
+// [⚠️ 待确认] mo — React Hook 组件 (useState, useMemo, useRef, useEffect, useCallback) — @ai-check: 未知用途，需复核
+// [⚠️ 待确认] ho — React Hook 组件 (useState, useMemo, useRef, useEffect, useCallback) — @ai-check: 未知用途，需复核
+// [⚠️ 待确认] go — React Hook 组件 (useState, useMemo, useRef, useEffect, useCallback) — @ai-check: 未知用途，需复核
+// [⚠️ 待确认] _o — React Hook 组件 (useState, useMemo, useRef, useEffect, useCallback) — @ai-check: 未知用途，需复核
+// [⚠️ 待确认] vo — React Hook 组件 (useState, useMemo, useRef, useEffect, useCallback) — @ai-check: 未知用途，需复核
 var no = (e, t, n) => Math.max(t, Math.min(n, e)),
   ro = e => {
     let t = e.map(e => no(e, .01, .99));
@@ -5120,6 +5166,7 @@ var no = (e, t, n) => Math.max(t, Math.min(n, e)),
       }))
     });
   };
+// [⚠️ 待确认] yo — React Hook 组件 (useState, useRef, useEffect, useCallback, useMemo) — @ai-check: 未知用途，需复核
 function yo({
   state: e,
   onChange: t,
@@ -5944,6 +5991,13 @@ function yo({
     })(), document.body)]
   });
 }
+// [⚠️ 待确认] xo — React Hook 组件 (useState, useRef, useEffect, useCallback, useMemo) — @ai-check: 未知用途，需复核
+// [✔ 已确认] So — parseGridDims
+// [⚠️ 待确认] Co — React Hook 组件 (useState, useRef, useEffect, useCallback, useMemo) — @ai-check: 未知用途，需复核
+// [⚠️ 待确认] wo — React Hook 组件 (useState, useRef, useEffect, useCallback, useMemo) — @ai-check: 未知用途，需复核
+// [✔ 已确认] To — GridMergeNode
+// [⚠️ 待确认] Eo — React Hook 组件 (useState, useRef, useEffect, useCallback, useMemo) — @ai-check: 未知用途，需复核
+// [⚠️ 待确认] Do — React Hook 组件 (useState, useRef, useEffect, useCallback, useMemo) — @ai-check: 未知用途，需复核
 var xo = (e, t, n) => Math.max(t, Math.min(n, e)),
   So = e => {
     let t = e.trim().match(/^(\d+)\s*[x×*]\s*(\d+)$/i);
@@ -7675,6 +7729,7 @@ var xo = (e, t, n) => Math.max(t, Math.min(n, e)),
       }), document.body)]
     });
   });
+// [⚠️ 待确认] Oo — React Hook 组件 (useState, useRef, useEffect, useCallback) — @ai-check: 未知用途，需复核
 function Oo({
   nodeId: e,
   initialUploadedAssets: t,
@@ -7741,6 +7796,8 @@ function Oo({
     forceUpdate: d
   };
 }
+// [⚠️ 待确认] Ao — React Hook 组件 (useState, useRef, useEffect, useMemo) — @ai-check: 未知用途，需复核
+// [⚠️ 待确认] jo — React Hook 组件 (useState, useRef, useEffect, useMemo) — @ai-check: 未知用途，需复核
 var Ao = Y.memo(({
     id: e,
     data: n,
@@ -8824,6 +8881,7 @@ var Ao = Y.memo(({
     audio: `音`,
     video: `视`
   };
+// [✔ 已确认] Mo — asPlainObject
 function Mo(e) {
   return !e || typeof e != `object` || Array.isArray(e) ? null : e;
 }
@@ -8843,6 +8901,7 @@ function Po(e) {
   let t = Mo(e);
   return t ? Array.isArray(t.referenceTypes) && t.referenceTypes.length ? t.referenceTypes.filter(e => e?.type === `image` || e?.type === `audio` || e?.type === `video`) : No(t.referenceSupport) : [];
 }
+// [✔ 已确认] Fo — getModelDurationSpec
 function Fo(e) {
   let t = Mo(e);
   if (!t) return null;
@@ -8873,6 +8932,7 @@ function Fo(e) {
     options: [...new Set(r)].sort((e, t) => e - t)
   } : null;
 }
+// [✔ 已确认] Io — formatSeconds
 function Io(e, t) {
   let n = String(t || ``).trim();
   if (n) return n;
@@ -8914,6 +8974,7 @@ function zo(e) {
   }
   return null;
 }
+// [✔ 已确认] Bo — modelHasCapability
 function Bo(e, t) {
   let n = Mo(e);
   if (!n) return false;
@@ -8957,6 +9018,7 @@ function Uo(e, t) {
     step: 1
   };
 }
+// [✔ 已确认] Wo — mediaTypeLabels
 var Wo = {
   image: `图片`,
   audio: `音频`,
@@ -9007,6 +9069,7 @@ function Go(e, t) {
     errors: n
   };
 }
+// [✔ 已确认] Ko — HintText
 function Ko(e) {
   return e == null || e === `` ? `—` : Array.isArray(e) ? e.length ? e.map(String).join(`, `) : `—` : typeof e == `boolean` ? e ? `是` : `否` : String(e);
 }
@@ -9176,6 +9239,7 @@ function ns({
     })]
   });
 }
+// [⚠️ 待确认] rs — React Hook 组件 (useMemo) — @ai-check: 未知用途，需复核
 function rs({
   open: e,
   modelNames: t,
@@ -9361,6 +9425,10 @@ function rs({
     })
   }), document.body) : null;
 }
+// [⚠️ 待确认] as — React Hook 组件 (useState, useRef, useEffect, useMemo) — @ai-check: 未知用途，需复核
+// [⚠️ 待确认] os — React Hook 组件 (useState, useRef, useEffect, useMemo) — @ai-check: 未知用途，需复核
+// [⚠️ 待确认] ss — React Hook 组件 (useState, useRef, useEffect, useMemo) — @ai-check: 未知用途，需复核
+// [⚠️ 待确认] cs — React Hook 组件 (useState, useRef, useEffect, useMemo) — @ai-check: 未知用途，需复核
 var as = [{
     label: `480p`,
     value: `480p`
@@ -11291,6 +11359,7 @@ if (typeof document < `u` && !document.getElementById(ds)) {
     .audio-range::-moz-range-track { height: 4px; border-radius: 999px; background: #3a3a3a; }
   `, document.head.appendChild(e);
 }
+// [⚠️ 待确认] fs — React Hook 组件 (useRef, useState, useEffect, useCallback) — @ai-check: 未知用途，需复核
 function fs({
   playUrl: e,
   loading: t,
@@ -11452,6 +11521,12 @@ function fs({
     })]
   });
 }
+// [✔ 已确认] ps — AudioNode
+// [⚠️ 待确认] ms — React Hook 组件 (useRef, useState, useEffect, useCallback) — @ai-check: 未知用途，需复核
+// [⚠️ 待确认] hs — React Hook 组件 (useRef, useState, useEffect, useCallback) — @ai-check: 未知用途，需复核
+// [⚠️ 待确认] gs — React Hook 组件 (useRef, useState, useEffect, useCallback) — @ai-check: 未知用途，需复核
+// [⚠️ 待确认] _s — React Hook 组件 (useRef, useState, useEffect, useCallback) — @ai-check: 未知用途，需复核
+// [⚠️ 待确认] vs — React Hook 组件 (useRef, useState, useEffect, useCallback) — @ai-check: 未知用途，需复核
 var ps = Y.memo(({
     id: e,
     data: n,
@@ -12563,10 +12638,12 @@ function bs(e) {
     return [];
   }
 }
+// [✔ 已确认] xs — normalizeFieldType
 function xs(e) {
   let t = (e.fieldType || ``).toUpperCase();
   return t === `LIST` || t === `SWITCH` ? `LIST` : t || `STRING`;
 }
+// [✔ 已确认] Ss — nodeFieldKey
 function Ss(e) {
   return `${e.nodeId}__${e.fieldName}`;
 }
@@ -12580,6 +12657,7 @@ function Cs(e, t) {
   let i = Number(n);
   return Number.isFinite(i) && Number.isInteger(i) && i >= 1 && i <= t.length ? t[i - 1].index : n;
 }
+// [✔ 已确认] ws — mediaTypeClassMap
 var ws = {
   IMAGE: Ot,
   VIDEO: D,
@@ -12610,6 +12688,7 @@ async function Es(e) {
   if (!t.ok) throw Error(`下载源文件失败 HTTP ${t.status}`);
   return t.blob();
 }
+// [✔ 已确认] Ds — allowedHtmlTags
 var Ds = new Set(`p.br.strong.b.em.i.u.span.a.ul.ol.li.div.h1.h2.h3.h4.h5.h6.small.sub.sup.blockquote.code.pre.hr`.split(`.`)),
   Os = {
     a: new Set([`href`, `title`, `target`, `rel`])
@@ -12643,6 +12722,7 @@ if (typeof document < `u` && !document.getElementById(ks)) {
     .rh-num-input { -moz-appearance: textfield; appearance: textfield; }
   `, document.head.appendChild(e);
 }
+// [✔ 已确认] As — sanitizeHtml
 function As(e) {
   if (!e || typeof window > `u` || typeof DOMParser > `u`) return ``;
   let t;
@@ -12680,11 +12760,15 @@ function As(e) {
   };
   return r(n), n.innerHTML;
 }
+// [✔ 已确认] js — detectMediaType
 function js(e, t) {
   let n = (t || ``).toLowerCase().replace(/^x-/, ``),
     r = (e || ``).toLowerCase();
   return r.startsWith(`data:image/`) ? `image` : r.startsWith(`data:video/`) ? `video` : r.startsWith(`data:audio/`) ? `audio` : [`png`, `jpg`, `jpeg`, `webp`, `gif`, `bmp`, `svg`, `avif`].includes(n) || /\.(png|jpe?g|webp|gif|bmp|svg|avif)(\?|$)/.test(r) ? `image` : [`mp4`, `webm`, `mov`, `mkv`, `avi`, `m4v`].includes(n) || /\.(mp4|webm|mov|mkv|avi|m4v)(\?|$)/.test(r) ? `video` : [`mp3`, `wav`, `ogg`, `m4a`, `flac`, `aac`, `opus`, `wma`, `aiff`].includes(n) || /\.(x-)?(mp3|wav|ogg|m4a|flac|aac|opus|wma|aiff)(\?|$)/.test(r) ? `audio` : [`txt`, `md`, `json`, `csv`, `log`, `xml`, `yaml`, `yml`, `srt`, `vtt`].includes(n) || /\.(txt|md|json|csv|log|xml|ya?ml|srt|vtt)(\?|$)/.test(r) || !e ? `text` : `unknown`;
 }
+// [✔ 已确认] Ms — RhWebappNode
+// [✔ 已确认] Ns — FrameExtractNode
+// [⚠️ 待确认] Ps — React Hook 组件 (useState, useEffect, useMemo, useRef, useCallback) — @ai-check: 未知用途，需复核
 var Ms = Y.memo(({
     id: e,
     data: n,
@@ -14653,6 +14737,7 @@ var Ms = Y.memo(({
     });
   }),
   Ps = B();
+// [✔ 已确认] Fs — loadVideo
 function Fs(e, t) {
   return new Promise((n, r) => {
     let i = document.createElement(`video`);
@@ -14667,6 +14752,7 @@ function Fs(e, t) {
     };
   });
 }
+// [✔ 已确认] Is — seekTo
 function Is(e, t) {
   return new Promise(n => {
     let r = () => {
@@ -14749,6 +14835,7 @@ function Rs(e, t = 15e3) {
     return t && isFinite(t) ? t : 0;
   });
 }
+// [✔ 已确认] Vs — scalePresets
 var Bs = [.5, 1, 2, 3, 5, 8, 10, 12, 15, 20],
   Vs = [{
     label: `0.5×`,
@@ -14793,6 +14880,7 @@ function Ws(e) {
   }
   return ``;
 }
+// [✔ 已确认] Gs — VideoToGifNode
 var Gs = Y.memo(({
   id: e,
   data: n,
@@ -15116,6 +15204,7 @@ async function Xs(e, t = {}) {
     format: i
   };
 }
+// [✔ 已确认] Qs — qualityPresets
 var Qs = [{
     label: `高 (0.9)`,
     value: .9
@@ -15159,6 +15248,7 @@ function tc(e) {
   }
   return t;
 }
+// [✔ 已确认] nc — ImageCompressNode
 var nc = Y.memo(({
   id: e,
   data: n,
@@ -15421,6 +15511,7 @@ function rc(e) {
   } catch {}
   return e;
 }
+// [✔ 已确认] ic — faceDetectorInstance
 var ic = null;
 async function ac() {
   return ic ||= (async () => {
@@ -15618,6 +15709,7 @@ async function vc(e, t = 2e4) {
   }
   return s;
 }
+// [✔ 已确认] bc — MosaicEditor
 function bc({
   imageUrl: e,
   onSave: t,
@@ -15907,6 +15999,7 @@ function Sc(e) {
   }
   return t;
 }
+// [✔ 已确认] Cc — FaceMosaicNode
 var Cc = Y.memo(({
   id: e,
   data: n,
@@ -16268,6 +16361,7 @@ function Tc(e, t, n, r) {
     u = (r - c) / 2;
   e.drawImage(t, l, u, s, c);
 }
+// [✔ 已确认] Ec — computeMaxFitSize
 function Ec(e, t, n = 1280) {
   let r = wc(e),
     i = wc(t),
@@ -16280,8 +16374,11 @@ function Ec(e, t, n = 1280) {
     h: c
   };
 }
+// [✔ 已确认] Dc — offscreenCanvasA
+// [✔ 已确认] Oc — offscreenCanvasB
 var Dc = null,
   Oc = null;
+// [✔ 已确认] kc — getOffscreenCtx
 function kc(e, t, n) {
   let r = e === `a` ? Dc : Oc;
   r || (r = document.createElement(`canvas`), e === `a` ? Dc = r : Oc = r), r.width !== t && (r.width = t), r.height !== n && (r.height = n);
@@ -16290,6 +16387,7 @@ function kc(e, t, n) {
   });
   return i.clearRect(0, 0, t, n), i;
 }
+// [✔ 已确认] Ac — renderCanvasDiff
 function Ac(e, t, n, r) {
   let i = e.canvas.width,
     a = e.canvas.height;
@@ -16439,9 +16537,11 @@ async function Pc(e) {
     }, _.onerror = () => s(Error(`录制失败`)), _.start(), f = requestAnimationFrame(g);
   });
 }
+// [✔ 已确认] Fc — classifyMediaUrl
 function Fc(e) {
   return e.startsWith(`data:video/`) || /\.(mp4|webm|mov|mkv|avi|m4v|ogg)($|\?)/i.test(e) ? `video` : `image`;
 }
+// [✔ 已确认] Ic — useNodeMediaSources
 function Ic(e) {
   if (!e) return null;
   if (Array.isArray(e.images) && e.images.length > 0) {
@@ -16458,6 +16558,8 @@ function Ic(e) {
   }
   return null;
 }
+// [✔ 已确认] Lc — GridSplitNode
+// [✔ 已确认] Rc — TextConcatNode
 var Lc = Y.memo(({
     id: e,
     data: n,
@@ -16878,6 +16980,7 @@ var Lc = Y.memo(({
       })]
     });
   });
+// [✔ 已确认] Wc — UrlToImageNode
 var Wc = Y.memo(({
   id: e,
   data: n,
@@ -17210,6 +17313,12 @@ function qc({
     })]
   });
 }
+// [✔ 已确认] Jc — PanoramaNode
+// [✔ 已确认] Yc — PanoNode
+// [✔ 已确认] Xc — posePresets
+// [✔ 已确认] Zc — shapePresets
+// [✔ 已确认] Qc — defaultBodyType
+// [⚠️ 待确认] $c — React Hook 组件 (useRef, useEffect, useState, useMemo, useCallback) — @ai-check: 未知用途，需复核
 var Jc = Y.forwardRef(({
     url: e,
     panoType: t,
@@ -18306,6 +18415,7 @@ var Jc = Y.forwardRef(({
     mouthScale: [.55, .1, .08],
     jointRadiusScale: 1
   };
+// [✔ 已确认] el — makeBodyTypeConfig
 function el(e, t, n, r = {}, i = [1, 1, 1]) {
   return {
     bodyType: e,
@@ -18318,6 +18428,7 @@ function el(e, t, n, r = {}, i = [1, 1, 1]) {
     }
   };
 }
+// [✔ 已确认] tl — bodyTypePresets
 var tl = [el(`mannequin`, `男性素体`, 2.62), el(`female`, `女性素体`, 2.52, {
     pelvisScale: [1.42, .56, .78],
     torsoLowerRadius: .16,
@@ -18478,6 +18589,7 @@ function il(e) {
 function al(e) {
   return il(e).labelAnchorY;
 }
+// [✔ 已确认] ol — degToRad
 function ol(e) {
   return e * Math.PI / 180;
 }
@@ -18505,12 +18617,14 @@ function ul(e, t, n) {
 function dl(e, t) {
   return `${e.endsWith(`/`) ? e : `${e}/`}${t}`;
 }
+// [✔ 已确认] fl — mannequinGlbUrl
 var fl = dl(`./`, `models/ue-mannequin-retopology.glb`),
   pl = 1 / .0254;
 function ml(e, t) {
   let n = cl(t);
   return Math.min(n, Math.max(-n, e));
 }
+// [✔ 已确认] hl — normalizeAngleToRad
 function hl(e, t) {
   return ol(ml(e, t));
 }
@@ -18590,6 +18704,7 @@ function Tl(e) {
       return 2.04;
   }
 }
+// [✔ 已确认] El — defaultBodyPose
 function El() {
   return {
     Bip001_L_UpperArm_08: [0, ol(25), 0],
@@ -18598,6 +18713,7 @@ function El() {
     Bip001_R_Forearm_033: [0, 0, ol(25)]
   };
 }
+// [✔ 已确认] Dl — bodyTypeBoneScales
 function Dl(e = `mannequin`) {
   let t = Cl();
   switch (e) {
@@ -18653,6 +18769,7 @@ function kl(e, t) {
     Bip001_R_Foot_063: Sl(e, `rightFoot`, t)
   };
 }
+// [✔ 已确认] Al — defaultObjectScale
 var Al = 1,
   jl = {
     box: .5,
@@ -18671,11 +18788,15 @@ function Nl(e) {
 function Pl(e) {
   return e.assetRefId ? Al : e.kind === `character` ? (e.characterRig?.rigType === `ue4-mannequin` ? Tl(e.bodyType) : al(e.bodyType)) / 2 : e.geometryType ? jl[e.geometryType] : Al;
 }
+// [✔ 已确认] Fl — getObjectWorldCenter
 function Fl(e) {
   let [t, n, r] = e.transform.scale,
     i = new W(0, Pl(e), 0).multiply(new W(t, n, r)).applyEuler(new ve(...e.transform.rotation));
   return Ml(new W(...e.transform.position).add(i));
 }
+// [✔ 已确认] Il — defaultAspectRatio
+// [✔ 已确认] Rl — cameraDistance
+// [✔ 已确认] Bl — defaultCameraConfig
 var Il = 16 / 9,
   Ll = .35,
   Rl = 5.2 * Ll,
@@ -18707,6 +18828,9 @@ function Wl(e) {
     n = Vl(e.position, e.target);
   return Hl(t.sub(n.multiplyScalar(Rl)));
 }
+// [✔ 已确认] Gl — directorDefaultScene
+// [✔ 已确认] Zl — localModelLibKey
+// [✔ 已确认] Ql — directorDeskKeyPrefix
 var Gl = {
     scale: 1,
     position: [0, 0, 0],
@@ -18750,6 +18874,7 @@ function nu() {
     return null;
   }
 }
+// [✔ 已确认] ru — activeModelLibraryId
 var ru = nu();
 function iu(e = ru) {
   let t = tu(e);
@@ -18758,6 +18883,7 @@ function iu(e = ru) {
 function au(e) {
   ru = tu(e) || null;
 }
+// [✔ 已确认] ou — makeTransform
 function ou(e, t = [0, 0, 0], n = [1, 1, 1]) {
   return {
     position: e,
@@ -18771,6 +18897,7 @@ function su(e) {
 function cu(e) {
   return e.map(e => su(e));
 }
+// [✔ 已确认] lu — padIndex2
 function lu(e, t) {
   return `${e}${String(t).padStart(2, `0`)}`;
 }
@@ -18836,6 +18963,7 @@ function bu(e) {
     })
   };
 }
+// [✔ 已确认] xu — extractPersistedState
 function xu(e) {
   return pu({
     viewMode: e.viewMode,
@@ -18850,6 +18978,7 @@ function xu(e) {
     project: e.project
   });
 }
+// [✔ 已确认] Su — saveEditorState
 function Su(e) {
   let t = fu();
   if (t) try {
@@ -18899,9 +19028,11 @@ function Tu(e) {
     undoBatchHasTrackedChanges: false
   };
 }
+// [✔ 已确认] Eu — getPersistedEditorState
 function Eu(e) {
   return xu(e);
 }
+// [✔ 已确认] Du — createDefaultDirectorProject
 function Du({
   includePersistedLocalAssets: e = false
 } = {}) {
@@ -18957,9 +19088,11 @@ function Ou(e = {}) {
     })
   };
 }
+// [✔ 已确认] ku — updateItemById
 function ku(e, t, n) {
   return e.map(e => e.id === t ? n(e) : e);
 }
+// [✔ 已确认] Au — pickNextCharacterColor
 function Au(e) {
   let t = new Set(e.filter(e => e.kind === `character`).map(e => e.color));
   return Kl.find(e => !t.has(e)) || Kl[e.filter(e => e.kind === `character`).length % Kl.length];
@@ -18986,9 +19119,11 @@ function Pu(e, t) {
     i = r.length ? Math.max(...r.map(e => e[2])) : 0;
   return [0, 0, Number((i + n * 2).toFixed(4))];
 }
+// [✔ 已确认] Fu — formatCrowdLabel
 function Fu(e, t) {
   return `群众（${e}x${t}）`;
 }
+// [✔ 已确认] Iu — createCharacterPreset
 function Iu(e, t, n, r) {
   let i = e.project.objects.filter(e => e.kind === `character`).length + 1,
     a = uu(e.project.objects.map(e => e.id), `char_preset_`, i),
@@ -19029,6 +19164,7 @@ function Ru(e, t) {
 function zu(e) {
   return e.replace(/\.(fbx|obj|jpe?g|png|webp)$/i, ``);
 }
+// [✔ 已确认] Bu — createSceneObject
 function Bu(e, t) {
   return {
     id: uu(t.map(e => e.id), `obj_`, t.length + 1),
@@ -19078,6 +19214,7 @@ function Gu(e, t) {
     o = n[0];
   return ou(a, [...o.transform.rotation], [...o.transform.scale]);
 }
+// [✔ 已确认] Ku — genCrowdId
 function Ku(e) {
   return uu(e.map(e => e.crowdId).filter(e => typeof e == `string`), `crowd_`, 1);
 }
@@ -19128,6 +19265,7 @@ function qu(e, t, n) {
     })
   };
 }
+// [✔ 已确认] Ju — genPasteObjectId
 function Ju(e) {
   return e.selectedObjectIds.length ? e.selectedObjectIds : e.selectedObjectId ? [e.selectedObjectId] : [];
 }
@@ -20064,6 +20202,7 @@ function rd({
     }) : null]
   });
 }
+// [⚠️ 待确认] id — React Hook 组件 (useState, useMemo, useEffect) — @ai-check: 未知用途，需复核
 function id() {
   let [e, t] = Y.useState(``),
     [n, r] = Y.useState([]),
@@ -20375,7 +20514,9 @@ function ad(e) {
     n = t?.assetRefId ? e.project.assets.find(e => e.id === t.assetRefId) : undefined;
   return t?.kind === `character` ? `character` : t?.kind === `prop` || n?.sourceType === `model` ? `prop` : t?.kind === `camera` || e.viewMode === `camera` ? `camera` : `scene`;
 }
+// [✔ 已确认] od — sliderDragStepPx
 var od = 10;
+// [✔ 已确认] sd — toNumberOrNull
 function sd(e) {
   let t = Number(e);
   return Number.isFinite(t) ? t : null;
@@ -20411,6 +20552,7 @@ function pd(e) {
     }];
   });
 }
+// [⚠️ 待确认] md — React Hook 组件 (useRef, useCallback, useEffect) — @ai-check: 未知用途，需复核
 function md() {
   let e = $(e => e.beginUndoBatch),
     t = $(e => e.endUndoBatch),
@@ -20493,6 +20635,7 @@ function gd({
     })]
   });
 }
+// [⚠️ 待确认] _d — React Hook 组件 (useState, useRef, useEffect) — @ai-check: 未知用途，需复核
 function _d({
   label: e,
   ariaLabel: t,
@@ -20589,6 +20732,7 @@ function vd({
     })]
   });
 }
+// [⚠️ 待确认] yd — React Hook 组件 (useState, useRef, useEffect) — @ai-check: 未知用途，需复核
 function yd({
   control: e
 }) {
@@ -20650,6 +20794,7 @@ function yd({
     })]
   });
 }
+// [⚠️ 待确认] bd — React Hook 组件 (useRef, useEffect) — @ai-check: 未知用途，需复核
 function bd({
   label: e,
   rangeAriaLabel: t,
@@ -20761,17 +20906,21 @@ function Sd({
     }), n]
   });
 }
+// [✔ 已确认] Cd — viewportCaptureHandler
 var Cd = null;
+// [✔ 已确认] wd — registerViewportCaptureHandler
 function wd(e) {
   Cd = e;
 }
 function Td() {
   Cd = null;
 }
+// [✔ 已确认] Ed — invokeViewportCapture
 async function Ed(e) {
   if (!Cd) throw Error(`Viewport capture handler is not registered`);
   return Cd(e);
 }
+// [✔ 已确认] Dd — identity
 function Dd(e) {
   return e;
 }
@@ -20782,6 +20931,7 @@ function Od(e, t) {
 function kd(e) {
   return typeof e == `string` ? e.trim() : ``;
 }
+// [✔ 已确认] Ad — getOrigin
 function Ad() {
   return window.location.origin;
 }
@@ -20800,12 +20950,17 @@ function jd(e) {
     }
   }, Ad());
 }
+// [✔ 已确认] Md — minZoom
+// [✔ 已确认] Nd — maxZoom
+// [✔ 已确认] Pd — defaultZoom
 var Md = .25,
   Nd = 5,
   Pd = .25;
+// [✔ 已确认] Fd — replaceItemAtIndex
 function Fd(e, t, n) {
   return e.map((e, r) => r === t ? n : e);
 }
+// [✔ 已确认] Id — usePropertyPanel
 function Id() {
   let [e, t] = Y.useState(`properties`),
     [n, r] = Y.useState(null),
@@ -21299,9 +21454,11 @@ function Id() {
     }), se()]
   });
 }
+// [✔ 已确认] Ld — replaceItemAtIndex
 function Ld(e, t, n) {
   return e.map((e, r) => r === t ? n : e);
 }
+// [⚠️ 待确认] Rd — React Hook 组件 (useState, useMemo) — @ai-check: 未知用途，需复核
 function Rd() {
   let [e, t] = Y.useState(`properties`),
     n = $(e => e.selectedCrowdId),
@@ -21632,9 +21789,11 @@ function Rd() {
     })
   });
 }
+// [✔ 已确认] zd — replaceItemAtIndex
 function zd(e, t, n) {
   return e.map((e, r) => r === t ? n : e);
 }
+// [✔ 已确认] Bd — ModelInspectorPanel
 function Bd() {
   let e = $(e => {
       let t = e.project.objects.find(t => t.id === e.selectedObjectId),
@@ -21750,6 +21909,10 @@ function Bd() {
     })]
   });
 }
+// [✔ 已确认] Vd — minPanoramaRadius
+// [✔ 已确认] Hd — maxPanoramaRadius
+// [✔ 已确认] Ud — minPanoramaRotation
+// [✔ 已确认] Wd — maxPanoramaRotation
 var Vd = 10,
   Hd = 300,
   Ud = -180,
@@ -21758,12 +21921,14 @@ var Vd = 10,
   Kd = 3,
   qd = -5,
   Jd = 5;
+// [✔ 已确认] Yd — replaceItemAtIndex
 function Yd(e, t, n) {
   return e.map((e, r) => r === t ? n : e);
 }
 function Xd(e, t, n) {
   return Math.min(n, Math.max(t, e));
 }
+// [⚠️ 待确认] Zd — React Hook 组件 (useState, useEffect) — @ai-check: 未知用途，需复核
 function Zd() {
   let e = $(e => e.project.scene),
     t = $(e => e.project.assets),
@@ -22086,6 +22251,7 @@ function $d({
     })]
   });
 }
+// [✔ 已确认] ef — modelBBoxYOffset
 var ef = .18;
 function tf({
   color: e
@@ -22694,6 +22860,7 @@ function Cf(e) {
   }
   return e.position.set(t, e.position.y, n), (e.parent ?? e).updateMatrixWorld(true), e.position.y;
 }
+// [⚠️ 待确认] wf — React Hook 组件 (useMemo) — @ai-check: 未知用途，需复核
 function wf({
   bodyType: e = `mannequin`,
   color: t = `#F3F5F7`,
@@ -22720,6 +22887,7 @@ function wf({
     })
   });
 }
+// [✔ 已确认] Ef — BodyConfigPanel
 function Ef({
   bodyType: e,
   color: t,
@@ -22741,14 +22909,20 @@ function Ef({
     })
   }) : i;
 }
+// [✔ 已确认] Df — cameraAngleOffsetDeg
+// [✔ 已确认] Of — minClampThreshold
 var Df = 90,
   Of = .1;
 function kf(e) {
   return (e + Df) * Math.PI / 180;
 }
+// [✔ 已确认] Af — minClamp
 function Af(e, t) {
   return t ? Math.min(e, Of) : e;
 }
+// [✔ 已确认] jf — directorAccentColor
+// [✔ 已确认] Pf — defaultUpVector
+// [✔ 已确认] Rf — lensSize
 var jf = `#A9D8FF`,
   Mf = .92,
   Nf = .06,
@@ -22786,6 +22960,7 @@ function Wf({
     })
   });
 }
+// [⚠️ 待确认] Gf — React Hook 组件 (useRef, useCallback) — @ai-check: 未知用途，需复核
 function Gf({
   mode: e,
   object: t,
@@ -22818,6 +22993,7 @@ function Gf({
     }
   }), s);
 }
+// [✔ 已确认] Kf — getPointsMaxY
 function Kf(e, t) {
   let n = new W(...e),
     r = new W(...t).sub(n);
@@ -22831,6 +23007,7 @@ function qf() {
   let e = rp().flatMap(e => e.points);
   return Math.max(...e.map(e => e[1])) + ef;
 }
+// [✔ 已确认] Jf — expandBounds
 function Jf(e, t = Hf) {
   if (e.isEmpty()) return {
     position: [0, 0, 0],
@@ -23027,6 +23204,7 @@ function ip() {
     position: [(t + n) / 2, (r + i) / 2, (a + o) / 2]
   };
 }
+// [⚠️ 待确认] ap — React Hook 组件 (useMemo) — @ai-check: 未知用途，需复核
 function ap({
   object: e
 }) {
@@ -23164,6 +23342,7 @@ function up({
     children: [i, n]
   });
 }
+// [⚠️ 待确认] dp — React Hook 组件 (useMemo) — @ai-check: 未知用途，需复核
 function dp({
   shapes: e,
   fallbackColor: t
@@ -23178,6 +23357,7 @@ function dp({
     }, n))
   });
 }
+// [⚠️ 待确认] fp — React Hook 组件 (useRef) — @ai-check: 未知用途，需复核
 function fp({
   children: e
 }) {
@@ -23199,6 +23379,7 @@ function fp({
     })
   });
 }
+// [⚠️ 待确认] pp — React Hook 组件 (useRef, useState, useCallback, useEffect) — @ai-check: 未知用途，需复核
 function pp({
   asset: e,
   item: t,
@@ -23300,6 +23481,7 @@ function pp({
     })]
   });
 }
+// [⚠️ 待确认] mp — React Hook 组件 (useRef, useMemo) — @ai-check: 未知用途，需复核
 function mp({
   crowdId: e,
   objects: t,
@@ -23333,6 +23515,7 @@ function mp({
     })]
   });
 }
+// [⚠️ 待确认] hp — React Hook 组件 (useRef, useMemo) — @ai-check: 未知用途，需复核
 function hp({
   objects: e,
   selectedObjectIds: t,
@@ -23396,6 +23579,7 @@ function gp(e) {
     s = [-n, -r, t];
   return [[Bf, i], [Bf, a], [Bf, o], [Bf, s], [i, a], [a, o], [o, s], [s, i]];
 }
+// [⚠️ 待确认] _p — React Hook 组件 (useRef, useMemo) — @ai-check: 未知用途，需复核
 function _p({
   camera: e,
   object: t,
@@ -23485,6 +23669,7 @@ function _p({
     })]
   });
 }
+// [⚠️ 待确认] vp — React Hook 组件 (useMemo) — @ai-check: 未知用途，需复核
 function vp() {
   let e = $(e => e.project.scene),
     t = $(e => e.project.assets),
@@ -23618,6 +23803,7 @@ function Sp(e, t, n, r = 40, i = {
   let a = bp(e);
   return a ? xp(t, n, a, r, i) : null;
 }
+// [⚠️ 待确认] Cp — React Hook 组件 (useRef, useState, useMemo) — @ai-check: 未知用途，需复核
 function Cp({
   ratio: e,
   bottomPadding: t = 40,
@@ -23721,6 +23907,7 @@ function wp(e, t = `equirectangular`) {
 function Tp(e) {
   return e instanceof Error ? e : Error(`全景图纹理加载失败`);
 }
+// [✔ 已确认] Ep — useTexture
 function Ep(e, t) {
   let [n, r] = Y.useState({
     status: `idle`
@@ -23764,6 +23951,7 @@ function Ep(e, t) {
     };
   }, [t, e]), n;
 }
+// [✔ 已确认] Dp — PanoramaView
 function Dp({
   backgroundColor: e,
   panoramaAsset: t,
@@ -23809,7 +23997,9 @@ function Dp({
     }) : null]
   });
 }
+// [✔ 已确认] Op — modelGenerateHandler
 var Op = null;
+// [✔ 已确认] kp — registerModelGenerateHandler
 function kp(e) {
   Op = e;
 }
@@ -23817,6 +24007,7 @@ async function Ap(e, t) {
   if (!Op) throw Error(`模型生成处理器尚未注册（请从画布中打开导演台）`);
   return Op(e, t);
 }
+// [⚠️ 待确认] jp — React Hook 组件 (useState, useRef, useEffect) — @ai-check: 未知用途，需复核
 function jp({
   panelRef: e,
   style: t,
@@ -24196,6 +24387,7 @@ async function Pp(e) {
     url: await Np(e)
   };
 }
+// [✔ 已确认] Rp — maxTextureSize
 var Ip = 2,
   Lp = .02,
   Rp = 2048,
@@ -24206,12 +24398,14 @@ var Ip = 2,
   Up = .16,
   Wp = 48,
   Gp = 220;
+// [✔ 已确认] Kp — loadImageSize
 function Kp(e, t) {
   return Math.abs(e / t - Ip) <= Lp;
 }
 function qp(e, t, n) {
   return Math.min(n, Math.max(t, e));
 }
+// [✔ 已确认] Jp — loadImageSize
 function Jp(e) {
   let t = Math.round(e);
   return t % 2 == 0 ? t : t + 1;
@@ -24619,6 +24813,8 @@ function Cm() {
     return n === r ? e.name.localeCompare(t.name) : n - r;
   });
 }
+// [✔ 已确认] wm — directorEditorLimits
+// [✔ 已确认] Tm — defaultGridCount
 var wm = 46,
   Tm = 3,
   Em = 3,
@@ -24638,6 +24834,7 @@ function Pm() {
     requestAnimationFrame(() => e());
   });
 }
+// [✔ 已确认] Fm — ViewportToolbar
 function Fm({
   getViewportCameraSnapshot: e,
   toolbarContainerRef: t
@@ -25350,6 +25547,10 @@ function Fm({
     })]
   });
 }
+// [✔ 已确认] Im — directorDefaultCamera
+// [✔ 已确认] Rm — axisColors
+// [✔ 已确认] Zm — defaultPanelRgb
+// [✔ 已确认] Qm — defaultTextRgb
 var Im = Bl,
   Lm = 44,
   Rm = [`#E56C5B`, `#6CDB7A`, `#7AA7FF`],
@@ -25564,6 +25765,7 @@ function _h(e, t) {
     });
   }
 }
+// [⚠️ 待确认] vh — React Hook 组件 (useEffect) — @ai-check: 未知用途，需复核
 function vh({
   activeCamera: e,
   bottomPadding: t,
@@ -25626,6 +25828,7 @@ function vh({
     }), () => Td();
   }, [e, t, o, n, s, r, c, a, i]), null;
 }
+// [⚠️ 待确认] yh — React Hook 组件 (useRef) — @ai-check: 未知用途，需复核
 function yh({
   controlsRef: e,
   snapshot: t,
@@ -25641,6 +25844,7 @@ function yh({
     a.current = n, n === `director` && (!r.current && !o || (r.current = false, oh(i, t), e.current && (e.current.target.set(...t.target), e.current.update())));
   }, [i, e, t, n, r]), null;
 }
+// [⚠️ 待确认] bh — React Hook 组件 (useRef, useCallback) — @ai-check: 未知用途，需复核
 function bh({
   onSnapshotChange: e,
   snapshot: t
@@ -25715,6 +25919,7 @@ function xh({
     })]
   });
 }
+// [⚠️ 待确认] Sh — React Hook 组件 (useRef, useState) — @ai-check: 未知用途，需复核
 function Sh() {
   let e = $(e => e.viewMode),
     t = $(e => e.openSceneInspector),
@@ -25879,6 +26084,7 @@ function Sh() {
 function Ch(e) {
   return e instanceof HTMLElement ? e.isContentEditable || [`INPUT`, `TEXTAREA`, `SELECT`].includes(e.tagName) : false;
 }
+// [⚠️ 待确认] wh — React Hook 组件 (useEffect) — @ai-check: 未知用途，需复核
 function wh({
   initialProject: e,
   initialPanoramaUrl: t,
@@ -25991,6 +26197,7 @@ function wh({
     })]
   });
 }
+// [✔ 已确认] Th — Director3DNode
 var Th = Y.memo(({
   id: e,
   data: n,
@@ -26113,6 +26320,7 @@ var Th = Y.memo(({
     }), document.body)]
   });
 });
+// [✔ 已确认] Eh — GroupNode
 function Eh({
   id: e,
   data: t,
@@ -26363,6 +26571,7 @@ function kh({
     })]
   });
 }
+// [✔ 已确认] Ah — customEdgeRenderer
 function Ah({
   id: e,
   sourceX: t,
@@ -26441,6 +26650,7 @@ function Ah({
     })]
   });
 }
+// [✔ 已确认] jh — CustomEdge
 var jh = Y.memo(Ah);
 function Mh({
   fromX: e,
@@ -26580,6 +26790,12 @@ function Nh() {
     })
   });
 }
+// [✔ 已确认] Ph — genImageId
+// [⚠️ 待确认] Ih — React Hook 组件 (useRef, useState, useEffect, useCallback, useMemo) — @ai-check: 未知用途，需复核
+// [⚠️ 待确认] Lh — React Hook 组件 (useRef, useState, useEffect, useCallback, useMemo) — @ai-check: 未知用途，需复核
+// [✔ 已确认] Rh — presetColors
+// [⚠️ 待确认] zh — React Hook 组件 (useRef, useState, useEffect, useCallback, useMemo) — @ai-check: 未知用途，需复核
+// [⚠️ 待确认] Bh — React Hook 组件 (useRef, useState, useEffect, useCallback, useMemo) — @ai-check: 未知用途，需复核
 var Ph = () => `img-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
   Ih = Y.memo(({
     id: e,
@@ -27338,6 +27554,7 @@ function Vh(e) {
 function Hh(e) {
   return e.replace(/&/g, `&amp;`).replace(/</g, `&lt;`).replace(/>/g, `&gt;`).replace(/\n/g, `<br>`);
 }
+// [⚠️ 待确认] Uh — React Hook 组件 (useState, useRef, useCallback, useEffect) — @ai-check: 未知用途，需复核
 function Uh({
   id: e,
   data: t
@@ -27675,7 +27892,9 @@ function Uh({
     })]
   });
 }
+// [✔ 已确认] Wh — ImageEditor
 var Wh = e(fn(), 1);
+// [⚠️ 待确认] Gh — React Hook 组件 (useRef, useState, useEffect) — @ai-check: 未知用途，需复核
 function Gh({
   imageUrl: e,
   initialTool: t,
@@ -28210,6 +28429,7 @@ function Gh({
     })]
   }), document.body);
 }
+// [✔ 已确认] Kh — resetFields
 function Kh({
   open: e,
   nodeCount: t,
@@ -28282,7 +28502,9 @@ function Kh({
     })
   });
 }
+// [✔ 已确认] qh — apiBasePath
 var qh = `${$n}${er}`;
+// [✔ 已确认] Jh — authHeaders
 function Jh() {
   let e = Oa();
   return e ? {
@@ -28399,6 +28621,7 @@ function og({
     }), ` `, r]
   });
 }
+// [⚠️ 待确认] sg — React Hook 组件 (useState, useEffect, useMemo) — @ai-check: 未知用途，需复核
 function sg({
   open: e,
   onClose: t,
@@ -28570,6 +28793,12 @@ function sg({
     })
   }), document.body) : null;
 }
+// [✔ 已确认] cg — ImageLightbox
+// [⚠️ 待确认] lg — React Hook 组件 (useState, useRef, useEffect) — @ai-check: 未知用途，需复核
+// [⚠️ 待确认] ug — React Hook 组件 (useState, useRef, useEffect) — @ai-check: 未知用途，需复核
+// [⚠️ 待确认] dg — React Hook 组件 (useState, useRef, useEffect) — @ai-check: 未知用途，需复核
+// [⚠️ 待确认] fg — React Hook 组件 (useState, useRef, useEffect) — @ai-check: 未知用途，需复核
+// [⚠️ 待确认] pg — React Hook 组件 (useState, useRef, useEffect) — @ai-check: 未知用途，需复核
 var cg = ({
     imageUrl: e,
     onClose: t
@@ -28704,6 +28933,7 @@ function mg(e) {
   let t = String(e).toLowerCase();
   return !!(/余额|算力|额度|配额|充值|欠费|insufficient|quota|balance|not enough|payment|billing|计费/.test(t) || /权益不够|已达到使用次数额度|model_entitlement|model_quota/.test(t) || /审核|违规|敏感|涉黄|涉政|安全|拦截|blocked|moderation|safety|content[_ ]?policy|policy violation|prohibited|nsfw|sensitive/.test(t));
 }
+// [✔ 已确认] hg — getProviderLabel
 function hg(e) {
   if (!e) return `内置`;
   let t = String(e).trim();
@@ -28714,6 +28944,10 @@ function hg(e) {
     return `第三方`;
   }
 }
+// [✔ 已确认] gg — getDemoNodes
+// [⚠️ 待确认] _g — React Hook 组件 (useRef, useEffect) — @ai-check: 未知用途，需复核
+// [✔ 已确认] vg — LodObserver
+// [⚠️ 待确认] yg — React Hook 组件 (useRef, useEffect) — @ai-check: 未知用途，需复核
 var gg = () => [{
     id: `demo-prompt-1`,
     type: `promptNode`,
@@ -28817,6 +29051,7 @@ function bg(e) {
     })]
   });
 }
+// [⚠️ 待确认] xg — React Hook 组件 (useState, useRef, useCallback, useEffect, useMemo) — @ai-check: 未知用途，需复核
 function xg({
   projectId: e = `default`,
   textApiUrl: t,
@@ -35846,12 +36081,14 @@ async function Tg(e, t = {}) {
     };
   }
 }
+// [✔ 已确认] Eg — apiGet
 function Eg(e, t) {
   return Tg(e, {
     ...t,
     method: `GET`
   });
 }
+// [✔ 已确认] Dg — apiPost
 function Dg(e, t, n) {
   return Tg(e, {
     ...n,
@@ -35872,6 +36109,7 @@ function kg(e, t) {
     method: `DELETE`
   });
 }
+// [✔ 已确认] Ag — apiPatch
 function Ag(e, t, n) {
   return Tg(e, {
     ...n,
@@ -35882,6 +36120,8 @@ function Ag(e, t, n) {
 function jg() {
   return Oa();
 }
+// [✔ 已确认] Mg — apiClient
+// [✔ 已确认] Ng — checkPluginUpdate
 var Mg = {
     get: Eg,
     post: Dg,
@@ -35926,6 +36166,10 @@ var Mg = {
 function Pg() {
   return `10000000-1000-4000-8000-100000000000`.replace(/[018]/g, e => (e ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> e / 4).toString(16));
 }
+// [✔ 已确认] Fg — getDeviceId
+// [✔ 已确认] Ig — syncTimeoutLongMs
+// [✔ 已确认] Lg — syncShortTimeoutMs
+// [✔ 已确认] Rg — syncRetryCount
 var Fg = () => {
     let e = localStorage.getItem(Z.DEVICE_ID);
     return e || (e = Pg(), localStorage.setItem(Z.DEVICE_ID, e)), e;
@@ -35933,6 +36177,7 @@ var Fg = () => {
   Ig = 3e4,
   Lg = 15e3,
   Rg = 3;
+// [⚠️ 待确认] zg — React Hook 组件 (useRef, useCallback, useEffect) — @ai-check: 未知用途，需复核
 function zg({
   isLoaded: e,
   showTaskList: t,
@@ -36083,6 +36328,7 @@ function zg({
     handleRefreshTask: _
   };
 }
+// [⚠️ 待确认] Vg — React Hook 组件 (useState) — @ai-check: 未知用途，需复核
 function Vg({
   onLoginSuccess: e
 }) {
@@ -36259,6 +36505,9 @@ function Vg({
     })]
   });
 }
+// [✔ 已确认] Ug — toastManager
+// [✔ 已确认] Wg — useToasts
+// [⚠️ 待确认] Gg — React Hook 组件 (useState, useEffect, useCallback) — @ai-check: 未知用途，需复核
 var Ug = new class {
     listeners = [];
     toasts = [];
@@ -36322,6 +36571,7 @@ async function Kg(e, t) {
 function qg() {
   return typeof chrome < `u` && chrome.runtime?.getManifest ? chrome.runtime.getManifest().version : `1.3.5`;
 }
+// [✔ 已确认] Jg — getExtensionId
 function Jg() {
   if (typeof chrome < `u` && chrome.runtime?.id) return chrome.runtime.id;
 }
@@ -36353,6 +36603,7 @@ async function Zg(e, t) {
 async function Qg(e) {
   return Kg(Gg(e, `/extension/update/status`));
 }
+// [✔ 已确认] e_ — extensionUpdateDismissedKey
 var $g = `extension-update-dist-path`,
   e_ = `extension-update-dismissed-version`;
 function t_(e) {
@@ -36361,6 +36612,7 @@ function t_(e) {
 function n_(e) {
   return e?.status === `failed` || !!e?.error;
 }
+// [⚠️ 待确认] r_ — React Hook 组件 (useState, useRef, useEffect, useCallback) — @ai-check: 未知用途，需复核
 function r_({
   onToast: e,
   openUpgradeSettings: t
@@ -36408,6 +36660,7 @@ function r_({
     showToast: e
   };
 }
+// [✔ 已确认] i_ — UpgradeNavButton
 function i_({
   active: e,
   controller: t,
@@ -36423,6 +36676,7 @@ function i_({
     })]
   });
 }
+// [✔ 已确认] a_ — UpdateBanner
 function a_({
   controller: e
 }) {
@@ -36464,6 +36718,7 @@ function a_({
     })
   }) : null;
 }
+// [✔ 已确认] o_ — UpgradePanel
 function o_({
   controller: e,
   localToolStatus: t
@@ -36742,6 +36997,7 @@ function o_({
     })]
   });
 }
+// [⚠️ 待确认] s_ — React Hook 组件 (useState, useMemo) — @ai-check: 未知用途，需复核
 function s_({
   onSaved: e
 }) {
@@ -36828,6 +37084,7 @@ function s_({
     })]
   });
 }
+// [⚠️ 待确认] c_ — React Hook 组件 (useState, useCallback, useEffect) — @ai-check: 未知用途，需复核
 function c_({
   open: e,
   onClose: t,
@@ -37088,6 +37345,7 @@ function c_({
     })
   }) : null;
 }
+// [⚠️ 待确认] l_ — React Hook 组件 (useState, useCallback, useEffect) — @ai-check: 未知用途，需复核
 function l_({
   active: e,
   onRun: t
@@ -37213,6 +37471,7 @@ function l_({
     })]
   });
 }
+// [⚠️ 待确认] u_ — React Hook 组件 (useState, useMemo, useEffect, useCallback) — @ai-check: 未知用途，需复核
 function u_({
   app: e,
   onBack: t,
@@ -37407,6 +37666,7 @@ function h_(e, t) {
     error: `请再次输入新密码`
   };
 }
+// [⚠️ 待确认] g_ — React Hook 组件 (useState, useEffect) — @ai-check: 未知用途，需复核
 function g_({
   open: e,
   hasPassword: t,
@@ -37575,6 +37835,8 @@ function g_({
     })]
   });
 }
+// [✔ 已确认] __ — cx
+// [✔ 已确认] v_ — modelCategoryLabels
 var __ = (...e) => e.filter(Boolean).join(` `),
   v_ = {
     text: {
@@ -37605,6 +37867,9 @@ function b_({
 function x_(e) {
   return e === null ? 1 / 0 : e;
 }
+// [✔ 已确认] S_ — ModelCatalogEditor
+// [⚠️ 待确认] C_ — React Hook 组件 (useState, useMemo, useEffect) — @ai-check: 未知用途，需复核
+// [⚠️ 待确认] w_ — React Hook 组件 (useState, useMemo, useEffect) — @ai-check: 未知用途，需复核
 var S_ = ({
     catalog: e,
     initial: t,
@@ -38027,6 +38292,7 @@ function T_() {
     children: `→`
   });
 }
+// [✔ 已确认] E_ — cx
 var E_ = (...e) => e.filter(Boolean).join(` `);
 function D_(e, t) {
   return e === `allowed` ? X.jsx(`span`, {
@@ -38041,6 +38307,10 @@ function D_(e, t) {
     children: `权益不够`
   });
 }
+// [✔ 已确认] M_ — ModelBrowser
+// [✔ 已确认] N_ — BuiltinModelPanel
+// [⚠️ 待确认] P_ — React Hook 组件 (useState, useEffect, useMemo) — @ai-check: 未知用途，需复核
+// [⚠️ 待确认] F_ — React Hook 组件 (useState, useEffect, useMemo) — @ai-check: 未知用途，需复核
 var M_ = () => {
     let [e, t] = Y.useState(`all`),
       [n, r] = Y.useState(``),
@@ -38291,6 +38561,7 @@ function normalizeBlobMeta(e) {
   };
   return e;
 }
+// [✔ 已确认] I_ — useTaskMetaSync
 function I_(e) {
   if (e == null) return ``;
   if (typeof e == `string`) try {
@@ -38321,6 +38592,9 @@ function R_(e) {
 function z_(e) {
   return e === `completed` ? `bg-emerald-400` : e === `failed` ? `bg-red-400` : `bg-blue-400`;
 }
+// [✔ 已确认] B_ — TaskCard
+// [✔ 已确认] V_ — CopyBlock
+// [⚠️ 待确认] H_ — React Hook 组件 (useState, useRef, useCallback, useEffect, useMemo) — @ai-check: 未知用途，需复核
 var B_ = ({
     task: e,
     useThumbnail: t,
@@ -38881,8 +39155,11 @@ var B_ = ({
     });
   },
   H_ = Y.memo(B_);
+// [✔ 已确认] rv — matchTaskStatus
+// [✔ 已确认] iv — matchTaskType
 var rv = (e, t) => t === `all` ? true : t === `running` ? e === `running` || e === `pending` : e === t,
   iv = (e, t) => t === `all` ? true : t === `video` ? e === `video` || e === `sd2Video` || e === `discountVideo` : e === t;
+// [⚠️ 待确认] av — React Hook 组件 (useState, useRef, useCallback, useEffect, useMemo) — @ai-check: 未知用途，需复核
 function av({
   open: e,
   globalTasks: t,
@@ -39183,6 +39460,8 @@ function av({
     })]
   }) : null;
 }
+// [✔ 已确认] ov — nodeDataFieldSet
+// [✔ 已确认] sv — nodeCallbackFieldSet
 var ov = new Set(`prompt.text.content.query.question.caption.description.style.seed.steps.temperature.guidanceScale.cfgScale.strength.quality.width.height.resolution.size.aspectRatio.ratio.duration.videoDuration.imageUrl.videoUrl.audioUrl.referenceImage.referenceVideo.referenceAudio.maskUrl.fileUrl.model.modelName.outputType.apiUrl.method.body`.split(`.`)),
   sv = new Set(`id.label.type.loading.progress.errorMessage.resultData.resultUrl.imageUrlThumbRef.imageUrlRef.imageUrlUploaded.hasChanged.config.variables.variableFormats.presetPrompts.selectedIds.images.extractedImages.allExtractedImages.hiddenIndices.onGenerate.onGenerateText.onGenerateSD2Video.onShowToast.onUploadAsset.onAddImage.onSpawnImageNode.onPushImagesToImageBox.onStop`.split(`.`));
 function cv(e, t) {
@@ -39302,6 +39581,7 @@ function mv(e, t = 2500) {
     })), window.setTimeout(i, t);
   });
 }
+// [⚠️ 待确认] hv — React Hook 组件 (useState, useEffect, useMemo) — @ai-check: 未知用途，需复核
 function hv({
   open: e,
   projectId: t,
@@ -39709,6 +39989,7 @@ function hv({
     })
   }) : null;
 }
+// [⚠️ 待确认] gv — React Hook 组件 (useMemo, useState, useCallback, useEffect) — @ai-check: 未知用途，需复核
 function gv({
   open: e,
   app: t,
@@ -39912,6 +40193,7 @@ function gv({
     })
   });
 }
+// [⚠️ 待确认] _v — React Hook 组件 (useState) — @ai-check: 未知用途，需复核
 function _v({
   isVisible: e,
   onClose: t,
@@ -39990,9 +40272,12 @@ function _v({
     })
   }) : null;
 }
+// [✔ 已确认] Ov — tasksSeededFlag
+// [✔ 已确认] kv — resourcesSeededFlag
 var Ov = `tasks_seeded_to_sqlite`,
   kv = `resources_seeded_to_sqlite`,
   Av = [];
+// [⚠️ 待确认] jv — React Hook 组件 (useState, useEffect) — @ai-check: 未知用途，需复核
 function jv({
   url: e
 }) {
@@ -40031,7 +40316,9 @@ function jv({
     children: t
   });
 }
+// [✔ 已确认] Mv — defaultAvatarDataUri
 var Mv = AVATAR_IMAGE;
+// [⚠️ 待确认] Nv — React Hook 组件 (useEffect, useState, useRef, useCallback, useMemo) — @ai-check: 未知用途，需复核
 function Nv() {
   let {
       toasts: e,

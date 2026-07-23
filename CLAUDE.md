@@ -198,6 +198,10 @@ return X.jsxs("div", { className: "pl-overlay", children: [
   - ② 前端 / TS：`npx eslint src/config src/utils src/services src/components src/hooks src/contexts src/config.js src/react-bridge.ts`（仅报错级规则；`src/App.js` / `src/vendor` 已在 `eslint.config.js` 中忽略）。
   - ③ 网关 Python：`cd apimart-gateway && ruff check .`（需先 `pip install ruff` 或 `uv tool install ruff`）。
   - 不强制 0 warning，但不得引入新的 error 级问题；若工具未安装，在交付说明中注明「未跑 lint」。
+- **注释维护（@ai-check 机制）**：App.js 中每条 `[✔ 已确认]` / `[⚠️ 待确认] @ai-check` 注释由 `scripts/annotate.cjs` 基于 `docs/func-mapping.txt` + `docs/var-mapping.txt` 自动生成。规则：
+  - **每当确认一个 `⚠️ 待确认` 函数的真身**，必须同步两件事：① 把 `App.js` 中该行 `⚠️ 待确认` 改为 `✔ 已确认`，并更新函数名说明；② 在 `docs/func-mapping.txt`（函数）或 `docs/var-mapping.txt`（常量/状态）中添加一行 `混淆名 = 可读名 # 依据`。这样后续 `annotate.cjs --run --force` 不会把已确认的改回去。
+  - **如果可读名不确定**，不加到映射文件，只改 App.js 注释并保留 `@ai-check` 标记。
+  - **批量刷新**：`node scripts/annotate.cjs --run --force` 清除旧注释后重新生成，适用于映射文件大幅更新后。
 
 ---
 
