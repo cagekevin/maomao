@@ -28632,7 +28632,6 @@ async function _getLocalTemplates() {
 
 async function _saveLocalTemplates(arr) {
   await Q.setObject(LOCAL_TEMPLATES_KEY, arr);
-  ei().catch(() => {});
 }
 
 async function Qh(e) {
