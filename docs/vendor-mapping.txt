@@ -1,0 +1,202 @@
+# vendor.js 导出映射 (199个)
+# 格式: 导出名 = 库::API # 说明
+
+A = three::RGBAFormat # THREE 纹理格式常量 1023（LT=1022/RT=1023… 同组为 THREE 像素格式），用于 Texture.format
+An = lucide-react::Images # 图片图标（images），素材/图集节点
+Ar = react::createElement # JSX 编译工厂（X=Ar(...)），见任务参考示例
+At = react-dom::mediaEventTypes (?) # 媒体事件类型数组（abort/canplay/…/waiting），MediaEventPlugin 内部常量
+B = react-easy-crop::Cropper # 图片裁剪组件（extends PureComponent，evData/mouseDownOnCrop/docMoveBound 裁剪逻辑）
+Bn = react::internal (?) # React 内部常量 0（hu=0，reconciler/scheduler 内部状态）
+Bt = lucide-react::Search # 搜索图标（search）
+C = three::LinearFilter # THREE 纹理过滤常量 1006（_T=1005/vT=1006… 同组为过滤模式），Texture.minFilter
+Cn = lucide-react::LayoutTemplate # 布局模板图标（layout-template）
+Cr = lucide-react::BookOpen # 书/文档图标（book-open）
+Ct = lucide-react::Undo2 # 撤销图标（undo-2）
+D = three::MeshStandardMaterial # THREE 标准 PBR 材质类（extends Material，isMeshStandardMaterial）
+Dn = lucide-react::Keyboard # 键盘图标（keyboard）
+Dr = lucide-react::ArrowDownUp # 上下箭头图标（arrow-down-up，排序用）
+Dt = lucide-react::Ticket # 票/优惠券图标（ticket，特惠视频相关）
+E = three::Matrix4 # THREE 4x4 矩阵类（isMatrix4，set/elements）
+En = lucide-react::Lasso # 套索图标（lasso，图片分割/选区）
+Er = lucide-react::ArrowLeft # 左箭头图标（arrow-left，返回）
+Et = lucide-react::Trash2 # 删除图标（trash-2）
+F = three::WebGLRenderTarget # THREE WebGL 渲染目标类（extends RenderTarget，isWebGLRenderTarget）
+Fn = lucide-react::Hash # “#” 图标（hash）
+Ft = lucide-react::ShieldCheck # 安全/校验图标（shield-check）
+G = @xyflow/react::Handle # ReactFlow 连接点组件（forwardRef+memo，type/position/isValidConnection/isConnectable）
+Gn = react::ErrorBoundary # 错误边界类组件（componentDidCatch / getDerivedStateFromError）
+Gt = react::internal (?) # React 内部常量 0（ud=0，调度器内部）
+H = @xyflow/react::Background # ReactFlow 背景组件（displayName Background，variant/gap/size/dots）
+Hn = react::internal (?) # React 内部常量 null（pu=null）
+Ht = lucide-react::ScanFace # 人脸识别图标（scan-face）
+I = aws4::SignatureV4 (?) # AWS SigV4 请求签名器（constructor: accessKeyId/secretAccessKey/sessionToken/service/region/retries/initRetryMs）
+In = react::internal (?) # React 内部常量 null（yu=null）
+It = lucide-react::Settings # 设置齿轮图标（settings）
+J = @xyflow/react::Panel # ReactFlow 面板组件（forwardRef，react-flow__panel，position top/left…）
+Jn = react::internal (?) # React 内部（su=Se()，调度器 getCurrentTime 调用）
+Jt = react::internal (?) # React 内部常量 false（sd=!1，调度器标志）
+K = @xyflow/react::MiniMap # ReactFlow 缩略图组件（displayName MiniMap，nodeColor/nodeStrokeWidth…）
+Kn = react::internal (?) # React 内部常量 null（lu=null）
+Kt = react::internal (?) # React 内部常量 false（ld=!1，调度器标志）
+L = gifenc (?) # GIF 编码库（GIFEncoder/quantize/applyPalette/nearestColor/nearestColorIndex…）
+Ln = react::internal (?) # React 内部常量 0（vu=0）
+Lt = lucide-react::Settings2 # 设置-2 图标（settings-2）
+M = three::Spherical # 球坐标类(radius/phi/theta)
+Mn = lucide-react::ImagePlus # 图标 image-plus
+Mr = rolldown-runtime::__copyProps (?) # 模块 interop 复制属性
+Mt = lucide-react::Square # 图标 square
+N = three::Loader (?) # 加载器基类(manager/crossOrigin/path/load)
+Nn = lucide-react::ImageOff # 图标 image-off
+Nr = react::(internal/fiber) (?) # React 内部 fiber 创建(e.index/e.sibling)
+Nt = lucide-react::SquareCheckBig # 图标 square-check-big
+O = three::PerspectiveCamera # 透视相机(fov/near/far)
+On = lucide-react::Info # 图标 info
+Or = rolldown-runtime::__toESM (?) # 模块 interop(ESM 命名空间)
+Ot = lucide-react::TicketPercent # 图标 ticket-percent
+P = three::Vector3 # 三维向量(x/y/z)
+Pn = lucide-react::Heart # 图标 heart
+Pt = lucide-react::Sparkles # 图标 sparkles
+Q = react::(custom hook) (?) # useState+useCallback 返回[值,set,cb]
+Qn = react::(internal/enqueue) (?) # React 调度/更新内部(flags/lanes)
+Qt = lucide-react::Power # 图标 power
+R = reactflow::(geometry util) (?) # 尺寸/包围盒计算(Bw→width/height)
+Rn = rolldown-runtime::__commonJS (?) # CJS 模块封装工厂
+Rt = lucide-react::Server # 图标 server
+S = three::Euler # 欧拉角(_x/_y/_z/_order)
+Sn = lucide-react::Link2 # 图标 link-2
+Sr = lucide-react::Box # 图标 box
+St = lucide-react::Undo # 图标 undo
+T = three::MathUtils # 数学工具(DEG2RAD/clamp/lerp/...)
+Tn = lucide-react::Layers # 图标 layers
+Tr = lucide-react::ArrowUpRight # 图标 arrow-up-right
+Tt = react-dom::(internal/events) (?) # 事件注册内部(_reactListening/listenToAll)
+U = reactflow::BackgroundVariant # 背景变体枚举(Lines/Dots/Cross)
+Un = rolldown-runtime::__toESM (?) # 模块 interop(ESM 命名空间)
+Ut = lucide-react::Save # 图标 save
+V = rolldown-runtime::__commonJS (?) # CJS 模块封装工厂
+Vn = rolldown-runtime::__copyProps (?) # 模块 interop 复制属性
+Vt = lucide-react::Scissors # 图标 scissors
+W = react::createPortal # 取容器+createPortal 封装
+Wn = scheduler::(internal) (?) # React 调度内部(事件优先级/shouldYield)
+Wt = lucide-react::Scale3d # 图标 scale-3d
+X = reactflow::addEdge # 边添加封装(ey=e=>addEdge)
+Xn = scheduler::(internal) (?) # React 调度内部(事件优先级/shouldYield)
+Xt = `Xt = app::helper(?) # Ie(\`图片N\`) 媒体标签/复制类工具,真实用法被局部变量遮蔽`
+Y = `Y = app::getMediaTypeLabel(?) # Le(e) 按 type 返回 '图片'/'视频' 等展示名`
+Yn = `Yn = lucide-react::Icon(?) # Re size11/15 strokeWidth1.8 aria-hidden 图标`
+Yt = `Yt = lucide-react::Icon(?) # ze X.jsx(ze,{…}) L15937`
+Z = `Z = (?)? # Be 仅见局部尺寸变量,未定位真实 API(疑似被遮蔽)`
+Zn = `Zn = (?)? # Ve 仅见局部尺寸变量,未定位真实 API(疑似被遮蔽)`
+Zt = `Zt = lucide-react::Icon(?) # He X.jsx(He,{…}) 4 处`
+_ = `_ = (?)? # Ue 被局部 useRef 遮蔽,未定位真实 API`
+_n = `_n = lucide-react::Icon(?) # We size11/15 strokeWidth1.8 图标(图片类按钮)`
+_r = `_r = react-flow::Handle # Ge X.jsx(_r,{type:'target',…})`
+_t = `_t = react-flow::Node(?) # Ke X.jsx(Ke,{…}) style:Ke 疑似节点/容器组件`
+a = `a = app::component(?) # qe X.jsx(qe,{…}) onClick:()=>qe(id)`
+an = `an = app::optionsArray(?) # Je=[{…}] 列表(切片 map 渲染)`
+ar = `ar = app::component(?) # Ye function Ye(e) 在 map 中渲染`
+at = `at = react-flow::Position # J.Left / J.Right 枚举(Position.Left/Right)`
+b = `b = three::RepeatWrapping # Xe e.wrapS = Xe; e.wrapT = Xe(THREE 纹理环绕常量)`
+bn = `bn = lucide-react::Icon(?) # Ze X.jsx(Ze,{…}) L33476`
+br = `br = lucide-react::Loader(?) # Qe size + className animate-spin 旋转/加载图标`
+bt = `bt = lucide-react::Icon(?) # $e X.jsx($e,{…}) L25164`
+c = `c = app::component(?) # et X.jsx(et,{…}) L25869`
+cn = `cn = app::component(?) # tt function tt(e) X.jsx(tt,{…})`
+cr = `cr = (?)? # nt 仅见局部 style/state 对象,未定位真实 API`
+ct = `ct = lucide-react::Crop(?) # rt X.jsx(rt,{size:14}) 旁 title='裁剪'`
+d = `d = @react-three/fiber::PerspectiveCamera # it X.jsx(it,{makeDefault,position,fov})`
+dn = `dn = lucide-react::Icon(?) # at X.jsx(at,{size:16})`
+dr = `dr = lucide-react::Icon(?) # ot X.jsx(ot,{size:12,text-green-500 drop-shadow}) 成功/勾选图标`
+dt = `dt = app::component(?) # st X.jsx(st,{…}) L35527`
+e = `e = (不存在) # 非 vendor 导出,任务表噪声项`
+en = `en = lucide-react::Icon(?) # ct X.jsx(ct,{…}) 9 处`
+er = `er = lucide-react::Icon(?) # lt X.jsx(lt,{size:16})`
+et = `et = React::memo # ut(Y.useMemo(…)) 包裹组件`
+expected = `expected = (不存在) # 非 vendor 导出,任务表噪声项`
+explained = `explained = (不存在) # 非 vendor 导出,任务表噪声项`
+f = `f = drawing::Line(?) # dt X.jsx(dt,{color,lineWidth,points,onClick,opacity,transparent}) 绘图线条`
+fn = `fn = lucide-react::Icon(?) # ft X.jsx(ft,{…}) 5 处`
+fr = `fr = lucide-react::Icon(?) # pt X.jsx(pt,{…}) 20 处`
+ft = `ft = lucide-react::Icon(?) # mt X.jsx(mt,{className:'w-4 h-4 …'})`
+g = `g = React::(memo/forwardRef)(?) # ht(…) 包裹 X.jsx 的 HOC`
+gn = `gn = lucide-react::Icon(?) # gt X.jsx(gt,{…})`
+gr = `gr = lucide-react::Icon(?) # _t X.jsx(_t,{…}) 6 处`
+gt = lucide-react::volume-2 # U(`volume-2`) 图标组件（内部 zd）
+h = @reactflow::BaseEdge (?) # 边渲染包装 function xW(e){jsx(iH,{children:jsx(bW,...)})}
+hn = lucide-react::maximize-2 # U(`maximize-2`)（内部 Bu）
+hr = lucide-react::chevron-up # U(`chevron-up`)（内部 Bl）
+ht = lucide-react::volume-x # U(`volume-x`)（内部 Bd）
+i = three::OBJLoader # three OBJ 加载器 class extends Loader, this.materials=null, load()（内部 jq）
+in = lucide-react::pause # U(`pause`)（内部 Zu）
+ir = lucide-react::code # U(`code`)（内部 Zl）
+it = @reactflow::useUpdateNodeInternals # hook 返回更新节点内部尺寸的回调（内部 UC）
+j = three::SRGBColorSpace # three 颜色空间常量字符串 'srgb'（内部 GE=`srgb`）
+jn = lucide-react::image # U(`image`)（内部 wu）
+jr = @reactflow::(?) (?) # 内部 d，处于 React Flow 上下文但未定位到公开 API
+jt = lucide-react::star # U(`star`)（内部 wd）
+k = three::Quaternion # three 四元数类 constructor(e,t,n,r){this.isQuaternion=!0}（内部 cO）
+kn = lucide-react::inbox # U(`inbox`)（内部 Eu）
+kr = react-dom::finalizeContainerChildren (?) # react-dom host config 内部变量（内部 ls=class{} 被赋 e.finalizeContainerChildren）
+kt = lucide-react::store # U(`store`)（内部 Ed）
+l = @react-three/drei::TransformControls (?) # forwardRef, domElement+onObjectChange+onMouseDown/Up（内部 VG）
+ln = lucide-react::move-3d # U(`move-3d`)（内部 Ku）
+lr = lucide-react::circle-question-mark # U(`circle-question-mark`) 帮助图标（内部 Kl）
+lt = lucide-react::zap # U(`zap`)（内部 Kd）
+m = @react-three/drei::Html # drei Html 组件 prepend/center/fullscreen/eps（内部 LW）
+mn = lucide-react::maximize # U(`maximize`)（内部 Vu）
+mr = react::(?) (?) # React 内部结构变量 Vl，非公开 API
+mt = lucide-react::wand-sparkles # U(`wand-sparkles`)（内部 Vd）
+n = three::GLTFLoader # three GLTF 加载器 dracoLoader/ktx2Loader（内部 Fq）
+nn = lucide-react::pencil # U(`pencil`)（内部 $u）
+node = (未找到) # vendor.js 导出块无此名（仅 170 处代码内 `node` 单词；疑属 rolldown-runtime 或其它 chunk）
+nr = lucide-react::crop # U(`crop`)（内部 $l）
+nt = @reactflow::useReactFlow # hook 返回画布 store 访问器 nodeLookup/nodeQueue/edgeQueue（内部 Rx）
+o = @react-three/drei::Grid # drei 网格地面 gridMaterial/cellColor/sectionColor（内部 oK）
+on = lucide-react::music # U(`music`)（内部 Yu）
+or = lucide-react::clapperboard (?) # U(`clapperboard`)；与 React 内部名 Yl 同名遮蔽，取顶层 lucide 定义
+ot = @reactflow::getBezierPath # 贝塞尔连线路径计算 function Jv({sourceX,sourceY,sourcePosition,targetX,...})
+p = @reactflow::useStore (?) # zustand 式 store selector hook VW=e=>e?BW(e):BW
+perpendicular = (未找到) # vendor.js 导出块无此名（仅 1 处 `direction as perpendicular` 噪声，未定位公开 API）
+pn = lucide-react::mic # U(`mic`)（内部 Hu）
+pr = lucide-react::chevrons-up # U(`chevrons-up`)（内部 Hl）
+pt = lucide-react::waves # U(`waves`)（内部 Hd）
+q = @reactflow::(memo component) (?) # React.memo(Dw) 记忆化组件（内部 Ow）
+qn = `lucide-react::FileBraces` # 文件括号图标
+qt = `lucide-react::Rotate3d` # 3D 旋转图标
+r = `three/SkeletonUtils::clone` # 深克隆含骨骼 SkinnedMesh 层级
+rn = `lucide-react::PenLine` # 笔线图标
+rr = `lucide-react::Copy` # 复制图标
+rt = `zustand::useStore (?) # 基于 context 的 store 选择器 hook (useContext + selector)
+s = `@react-three/drei::Gizmo (?) # 3D 坐标轴/方位指示组件 (hideNegativeAxes/axisColors)
+sn = `lucide-react::MoveVertical` # 垂直移动图标
+sr = `lucide-react::Circle` # 圆形图标
+st = `lucide-react::ZoomOut` # 缩小图标
+t = `@dagrejs/dagre (?) # 有向图布局 graphlib/layout/util.time
+the = `N/A (vendor.js 导出列表中无此名) (?)
+tn = `lucide-react::Pipette` # 吸管图标
+tr = `lucide-react::Download` # 下载图标
+triangles = `N/A (vendor.js 导出列表中无此名) (?)
+tt = `react::useControllableState (?) # 受控值 hook，返回 [value,set,update] 三元组
+u = `@react-three/drei::OrbitControls` # 轨道控制器 (forwardRef, makeDefault, invalidate)
+un = `lucide-react::MonitorPlay` # 监视播放图标
+ur = `lucide-react::CirclePlay` # 圆圈播放图标
+ut = `lucide-react::X` # 关闭/叉号图标
+v = `@react-three/fiber::useThree` # r3f store 选择器 hook (selector, equalityFn)
+vn = `lucide-react::LockOpen` # 开锁图标
+vr = `lucide-react::ChevronDown` # 下箭头图标
+vt = `lucide-react::Users` # 用户组图标
+w = `constant/enum (?) # 连续枚举常量之一 (xT=1008，同组 1004~1020)
+wn = `lucide-react::LayoutGrid` # 网格布局图标
+wr = `react::FiberFlags (?) # React 内部子树标志位常量 (jl=8192, subtreeFlags & jl)
+wt = `lucide-react::Type` # 文本/字体图标
+x = `three::Color` # THREE.Color 颜色类 (isColor,r/g/b,set)
+xn = `lucide-react::Link` # 链接图标
+xr = `lucide-react::Boxes` # Boxes 图标
+xt = `lucide-react::Upload` # 上传图标
+y = `three::Box3` # THREE.Box3 包围盒类 (isBox3,min,max,setFromArray)
+yn = `lucide-react::LoaderCircle` # 加载圆圈图标
+yr = `lucide-react::Check` # 勾选图标
+yt = `lucide-react::User` # 用户图标
+z = `positioningUtil (?) # 居中定位工具，支持 %/px 单位 (box 居中到父容器)
+zn = `lucide-react::Grid2x2` # 2x2 网格图标
+zt = `lucide-react::Send` # 发送图标
