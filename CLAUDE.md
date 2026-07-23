@@ -31,6 +31,7 @@ npm run build
 > - 诊断工具：`node scripts/vendor-lookup.cjs <name>`（查混淆名来源）、`npm run build && node scripts/check-build.cjs`（不用 Chrome 验证）
 > - 事实源：代码 > git > 审计文档；`docs/04-api` 等是 AI 提纯，**非事实源**，改码前须 grep 源码复核
 > - 已知噪音（别修）：`9004` 未实现 API 的 `404`、`RootErrorBoundary` 的 `null` 异常
+- 遇到报错先查：`docs/常见报错速查.md`（重命名/模板/拆解/网关/构建）
 
 ---
 
