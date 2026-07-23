@@ -16,6 +16,107 @@ var Y = e(le(), 1),
   Un = ae();
 var X = o();
 
+/* ========== 内置独立 CSS 样式 ========== */
+const injectedStyles = `
+/* 弹窗通用基础样式 */
+.pl-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.75); backdrop-filter: blur(6px); display: flex; align-items: center; justify-content: center; padding: 24px; z-index: 9999; }
+.pl-modal { width: 88vw; height: 84vh; max-width: 1400px; background: #141414; border: 1px solid #2a2a2a; border-radius: 18px; box-shadow: 0 24px 80px rgba(0,0,0,0.6); display: flex; flex-direction: column; overflow: hidden; position: relative; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif; }
+.pl-header { height: 60px; border-bottom: 1px solid #222; display: flex; align-items: center; padding: 0 20px; gap: 16px; flex-shrink: 0; }
+.pl-brand { display: flex; align-items: center; gap: 8px; padding-right: 16px; border-right: 1px solid #2a2a2a; }
+.pl-brand svg { color: #fff; }
+.pl-brand span { font-size: 16px; font-weight: 600; color: #fff; white-space: nowrap; }
+.pl-search { position: relative; flex: 1; max-width: 320px; }
+.pl-search svg { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #666; width: 16px; height: 16px; }
+.pl-search input { width: 100%; height: 34px; background: #1a1a1a; border: 1px solid #333; border-radius: 10px; padding: 0 12px 0 34px; color: #e5e5e5; font-size: 13px; outline: none; transition: border-color 0.2s; box-sizing: border-box; }
+.pl-search input:focus { border-color: #555; }
+.pl-search input::placeholder { color: #666; }
+.pl-close { margin-left: auto; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; background: transparent; border: none; border-radius: 8px; color: #888; cursor: pointer; }
+.pl-close:hover { background: #2a2a2a; color: #fff; }
+.pl-body { display: flex; flex: 1; overflow: hidden; }
+
+/* 左侧导航 */
+.pl-sidebar { width: 170px; border-right: 1px solid #222; padding: 16px 12px; display: flex; flex-direction: column; gap: 6px; flex-shrink: 0; }
+.pl-nav-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px; font-size: 13px; color: #999; cursor: pointer; transition: all 0.15s; border: none; background: transparent; width: 100%; text-align: left; }
+.pl-nav-item:hover { background: #1f1f1f; color: #ddd; }
+.pl-nav-item.active { background: #1f1f1f; color: #fff; font-weight: 500; }
+
+/* 主体区域 */
+.pl-main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+.pl-toolbar { height: 58px; padding: 0 20px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-shrink: 0; }
+.pl-filters { display: flex; gap: 8px; align-items: center; }
+.pl-filter { padding: 7px 14px; border-radius: 999px; font-size: 12px; background: #1f1f1f; color: #999; border: 1px solid transparent; cursor: pointer; transition: all 0.15s; }
+.pl-filter:hover { background: #2a2a2a; color: #ddd; }
+.pl-filter.active { background: #fff; color: #141414; font-weight: 500; }
+.pl-btn-primary { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 8px 14px; border-radius: 10px; font-size: 12px; background: #2563eb; color: #fff; border: none; cursor: pointer; transition: background 0.15s; }
+.pl-btn-primary:hover { background: #3b82f6; }
+.pl-content { flex: 1; overflow-y: auto; padding: 4px 20px 24px; }
+.pl-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
+
+/* 提示词卡片 */
+.pl-card { background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 14px; padding: 16px; display: flex; flex-direction: column; gap: 10px; cursor: pointer; transition: all 0.15s; position: relative; }
+.pl-card:hover { border-color: #444; background: #1f1f1f; }
+.pl-card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.pl-card-title { font-size: 14px; font-weight: 600; color: #fff; line-height: 1.4; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+.pl-card-actions { display: flex; gap: 4px; opacity: 0; transition: opacity 0.15s; flex-shrink: 0; }
+.pl-card:hover .pl-card-actions { opacity: 1; }
+.pl-icon-btn { width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; border-radius: 6px; background: transparent; border: none; color: #888; cursor: pointer; }
+.pl-icon-btn:hover { background: #2a2a2a; color: #fff; }
+.pl-icon-btn.danger:hover { background: rgba(239,68,68,0.12); color: #ef4444; }
+.pl-card-body { font-size: 12px; color: #888; line-height: 1.6; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; flex: 1; margin: 0; }
+.pl-card-bottom { display: flex; align-items: center; justify-content: space-between; margin-top: 4px; }
+.pl-tag { padding: 3px 8px; border-radius: 6px; font-size: 11px; font-weight: 500; }
+.pl-tag.text { background: rgba(34,197,94,0.12); color: #4ade80; }
+.pl-tag.image { background: rgba(59,130,246,0.12); color: #60a5fa; }
+.pl-tag.video { background: rgba(168,85,247,0.12); color: #c084fc; }
+.pl-tag.all { background: rgba(255,255,255,0.08); color: #aaa; }
+.pl-use-btn { padding: 5px 12px; border-radius: 8px; font-size: 12px; background: transparent; color: #60a5fa; border: 1px solid #333; cursor: pointer; transition: all 0.15s; }
+.pl-use-btn:hover { background: rgba(59,130,246,0.12); border-color: rgba(59,130,246,0.3); }
+.pl-empty { height: 100%; display: flex; align-items: center; justify-content: center; color: #666; font-size: 14px; }
+
+/* 编辑/新建 弹窗 */
+.pl-edit-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; z-index: 10000; }
+.pl-edit-modal { width: 520px; background: #1a1a1a; border: 1px solid #333; border-radius: 16px; padding: 22px; display: flex; flex-direction: column; gap: 14px; box-shadow: 0 10px 40px rgba(0,0,0,0.5); font-family: sans-serif; }
+.pl-edit-modal h3 { font-size: 15px; font-weight: 600; color: #fff; margin: 0; }
+.pl-field { display: flex; flex-direction: column; gap: 6px; }
+.pl-field-row { display: flex; gap: 10px; }
+.pl-field label { font-size: 12px; color: #888; margin: 0; }
+.pl-field input, .pl-field select, .pl-field textarea { background: #141414; border: 1px solid #333; border-radius: 10px; padding: 10px 12px; color: #e5e5e5; font-size: 13px; outline: none; box-sizing: border-box; }
+.pl-field input:focus, .pl-field select:focus, .pl-field textarea:focus { border-color: #555; }
+.pl-field textarea { resize: none; height: 160px; line-height: 1.6; }
+.pl-edit-actions { display: flex; justify-content: space-between; align-items: center; margin-top: 4px; }
+.pl-btn-danger { padding: 8px 14px; border-radius: 10px; font-size: 12px; background: transparent; color: #ef4444; border: none; cursor: pointer; }
+.pl-btn-danger:hover { background: rgba(239,68,68,0.12); }
+.pl-btn-group { display: flex; gap: 10px; }
+.pl-btn-secondary { padding: 8px 16px; border-radius: 10px; font-size: 12px; background: #2a2a2a; color: #ccc; border: none; cursor: pointer; }
+.pl-btn-secondary:hover { background: #333; }
+
+/* Toast */
+.pl-toast { position: absolute; top: 16px; left: 50%; transform: translateX(-50%); z-index: 10001; padding: 8px 16px; border-radius: 8px; background: #2a2a2a; border: 1px solid #3a3a3a; font-size: 13px; color: #fff; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
+
+/* 下拉菜单 (Dropdown) */
+.pd-container { position: relative; display: flex; align-items: center; font-family: sans-serif; }
+.pd-divider { width: 1px; height: 12px; background: #444; flex-shrink: 0; margin-right: 6px; }
+.pd-trigger { display: flex; align-items: center; gap: 4px; height: 24px; padding: 0 8px; background: transparent; border: 1px solid transparent; border-radius: 4px; font-size: 11px; color: #ccc; cursor: pointer; transition: all 0.15s; max-width: 80px; }
+.pd-trigger:hover { background: #2a2a2a; border-color: #333; }
+.pd-trigger span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pd-popup { position: absolute; bottom: 100%; left: 0; margin-bottom: 4px; width: 224px; background: #222; border: 1px solid #333; border-radius: 8px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); z-index: 9999; display: flex; flex-direction: column; max-height: 320px; overflow: hidden; }
+.pd-search-wrap { flex-shrink: 0; padding: 8px 8px 4px 8px; }
+.pd-search-input { width: 100%; font-size: 11px; background: #1a1a1a; border: 1px solid #333; border-radius: 4px; padding: 4px 8px; color: #ccc; outline: none; box-sizing: border-box; }
+.pd-search-input:focus { border-color: #3b82f6; }
+.pd-list { flex: 1; overflow-y: auto; padding: 4px 8px 8px 8px; }
+.pd-item { width: 100%; display: block; margin-bottom: 4px; text-align: left; padding: 6px 8px; font-size: 11px; border-radius: 6px; transition: all 0.15s; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #aaa; background: transparent; border: none; cursor: pointer; box-sizing: border-box; }
+.pd-item:hover { background: #2a2a2a; color: #eee; }
+.pd-empty { padding: 6px 8px; font-size: 11px; color: #666; text-align: center; }
+.pd-footer { flex-shrink: 0; display: flex; align-items: center; justify-content: center; padding: 6px 8px; border-top: 1px solid #333; }
+.pd-footer-btn { display: flex; align-items: center; justify-content: center; gap: 4px; width: 100%; font-size: 10px; color: #60a5fa; background: transparent; border: none; cursor: pointer; transition: color 0.15s; padding: 4px 0; }
+.pd-footer-btn:hover { color: #93c5fd; }
+
+/* 滚动条美化 */
+.pl-custom-scrollbar::-webkit-scrollbar { width: 6px; }
+.pl-custom-scrollbar::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+.pl-custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #555; }
+`;
+
 /* ========== 内联 SVG 图标 ========== */
 
 var SparklesIcon = X.jsx("svg", {
@@ -107,8 +208,7 @@ function ClockIcon() {
     stroke: "currentColor", strokeWidth: 1.5,
     children: X.jsxs("g", {
       children: [
-        X.jsx("circle", { cx: 10, cy: 10, r: 7.5 }),
-        X.jsx("polyline", { points: "10 5.5 10 10 13.5 12" })
+        X.jsx("polyline", { points: "4 10 8 14 16 6" })
       ]
     })
   });
@@ -132,12 +232,7 @@ function typeLabel(cat) {
 }
 
 function typeTagColor(cat) {
-  return {
-    text: "bg-[rgba(34,197,94,0.12)] text-[#4ade80]",
-    image: "bg-[rgba(59,130,246,0.12)] text-[#60a5fa]",
-    video: "bg-[rgba(168,85,247,0.12)] text-[#c084fc]",
-    all: "bg-[rgba(255,255,255,0.08)] text-[#aaa]"
-  }[cat || "all"];
+  return "pl-tag " + ({ text: "text", image: "image", video: "video" }[cat] || "all");
 }
 
 /* ========== PromptLibrary 弹窗 ========== */
@@ -268,50 +363,48 @@ function PromptLibrary({
 
   if (!open) return null;
 
-  return Un.createPortal(X.jsx("div", {
-    className: "fixed inset-0 z-[1000] flex items-center justify-center bg-black/75 backdrop-blur-[6px] p-6 nowheel nopan nodrag",
+  return Un.createPortal(X.jsxs("div", {
+    className: "pl-overlay nowheel nopan nodrag",
     onClick: onClose,
     children: [
+      // 注入独立 CSS 样式
+      X.jsx("style", { children: injectedStyles }),
       // 主弹窗
       X.jsxs("div", {
-        className: "relative w-[88vw] h-[84vh] max-w-[1400px] bg-[#141414] border border-[#2a2a2a] rounded-[18px] shadow-[0_24px_80px_rgba(0,0,0,0.6)] flex flex-col overflow-hidden",
+        className: "pl-modal",
         onClick: function (e) { e.stopPropagation(); },
         children: [
           // Toast
           toast && X.jsx("div", {
-            className: "absolute top-4 left-1/2 -translate-x-1/2 z-[1100] px-4 py-2 rounded-lg bg-[#2a2a2a] border border-[#3a3a3a] text-sm text-white shadow-2xl",
+            className: "pl-toast",
             children: toast
           }),
 
           // Header：品牌 + 搜索 + 关闭
           X.jsxs("div", {
-            className: "shrink-0 flex items-center gap-[16px] px-[20px] h-[60px] border-b border-[#222]",
+            className: "pl-header",
             children: [
               X.jsxs("div", {
-                className: "flex items-center gap-[8px] pr-[16px] border-r border-[#2a2a2a]",
+                className: "pl-brand",
                 children: [
-                  X.jsx("span", { className: "text-white flex items-center", children: SparklesIcon }),
-                  X.jsx("span", { className: "text-base font-semibold text-white whitespace-nowrap", children: "提示词库" })
+                  SparklesIcon,
+                  X.jsx("span", { children: "提示词库" })
                 ]
               }),
               X.jsxs("div", {
-                className: "relative flex-1 max-w-[320px]",
+                className: "pl-search",
                 children: [
-                  X.jsx("span", {
-                    className: "absolute left-[12px] top-1/2 -translate-y-1/2 w-4 h-4 text-[#666]",
-                    children: SearchFullIcon
-                  }),
+                  SearchFullIcon,
                   X.jsx("input", {
                     value: searchKeyword,
                     onChange: function (e) { setSearchKeyword(e.target.value); },
-                    placeholder: "搜索标题或提示词内容",
-                    className: "w-full h-[34px] pl-[34px] pr-3 text-[13px] bg-[#1a1a1a] border border-[#333] rounded-[10px] text-[#e5e5e5] placeholder-[#666] focus:border-[#555] outline-none transition-colors duration-200"
+                    placeholder: "搜索标题或提示词内容"
                   })
                 ]
               }),
               X.jsx("button", {
                 onClick: onClose,
-                className: "ml-auto w-[32px] h-[32px] flex items-center justify-center text-[#888] hover:text-white hover:bg-[#2a2a2a] rounded-[8px] transition-colors bg-transparent border-none cursor-pointer",
+                className: "pl-close",
                 children: CloseIcon
               })
             ]
@@ -319,56 +412,50 @@ function PromptLibrary({
 
           // Body：左侧导航 + 主区域
           X.jsxs("div", {
-            className: "flex flex-1 overflow-hidden",
+            className: "pl-body",
             children: [
               // 左侧导航
-              X.jsx("div", {
-                className: "w-[170px] shrink-0 border-r border-[#222] px-[12px] py-[16px] flex flex-col gap-[6px]",
+              X.jsxs("div", {
+                className: "pl-sidebar",
                 children: [
                   X.jsxs("button", {
                     onClick: function () { setActiveTab("mine"); },
-                    className: "flex items-center gap-[10px] px-[12px] py-[10px] rounded-[10px] text-[13px] w-full text-left transition-all duration-150 border-none cursor-pointer "
-                      + (activeTab === "mine" ? "bg-[#1f1f1f] text-white font-medium" : "bg-transparent text-[#999] hover:bg-[#1f1f1f] hover:text-[#ddd]"),
-                    children: [X.jsx("span", { className: "w-4 h-4 flex items-center", children: ListIcon() }), "我的提示词"]
+                    className: "pl-nav-item " + (activeTab === "mine" ? "active" : ""),
+                    children: [ListIcon(), "我的提示词"]
                   }),
                   X.jsxs("button", {
                     onClick: function () { setActiveTab("recent"); },
-                    className: "flex items-center gap-[10px] px-[12px] py-[10px] rounded-[10px] text-[13px] w-full text-left transition-all duration-150 border-none cursor-pointer "
-                      + (activeTab === "recent" ? "bg-[#1f1f1f] text-white font-medium" : "bg-transparent text-[#999] hover:bg-[#1f1f1f] hover:text-[#ddd]"),
-                    children: [X.jsx("span", { className: "w-4 h-4 flex items-center", children: ClockIcon() }), "最近使用"]
+                    className: "pl-nav-item " + (activeTab === "recent" ? "active" : ""),
+                    children: [ClockIcon(), "最近使用"]
                   })
                 ]
               }),
 
               // 主区域
               X.jsxs("div", {
-                className: "flex-1 flex flex-col overflow-hidden",
+                className: "pl-main",
                 children: [
                   // 工具栏：分类 + 新建
                   X.jsxs("div", {
-                    className: "shrink-0 h-[58px] px-[20px] flex items-center justify-between gap-[12px]",
+                    className: "pl-toolbar",
                     children: [
                       X.jsx("div", {
-                        className: "flex items-center gap-[8px]",
+                        className: "pl-filters",
                         children: [
                           { label: "全部", value: "" },
                           ...Ua
                         ].map(function (opt) {
-                          // Treat "" as generic "all" matching defaultCategory logic if applicable
                           let isActive = selectedCategory === opt.value;
                           return X.jsx("button", {
                             onClick: function () { setSelectedCategory(opt.value); },
-                            className: "px-[14px] py-[7px] text-[12px] rounded-full transition-all duration-150 cursor-pointer "
-                              + (isActive
-                                ? "bg-white text-[#141414] font-medium border border-transparent"
-                                : "bg-[#1f1f1f] text-[#999] border border-transparent hover:bg-[#2a2a2a] hover:text-[#ddd]"),
+                            className: "pl-filter " + (isActive ? "active" : ""),
                             children: opt.label
                           }, opt.value || "all");
                         })
                       }),
                       X.jsxs("button", {
                         onClick: startNew,
-                        className: "flex items-center gap-[6px] px-[14px] py-[8px] text-[12px] bg-[#2563eb] hover:bg-[#3b82f6] text-white rounded-[10px] border-none transition-colors duration-150 cursor-pointer",
+                        className: "pl-btn-primary",
                         children: [PlusIcon(), "新建提示词"]
                       })
                     ]
@@ -376,40 +463,39 @@ function PromptLibrary({
 
                   // 卡片网格
                   X.jsx("div", {
-                    className: "flex-1 overflow-y-auto custom-scrollbar px-[20px] pt-[4px] pb-[24px]",
+                    className: "pl-content pl-custom-scrollbar",
                     children: displayCards.length === 0 ? X.jsx("div", {
-                      className: "h-full flex items-center justify-center text-[14px] text-[#666]",
+                      className: "pl-empty",
                       children: activeTab === "recent" ? "还没有使用记录" : "暂无提示词，点击「新建提示词」添加"
                     }) : X.jsx("div", {
-                      className: "grid gap-[14px]",
-                      style: { gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))" },
+                      className: "pl-grid",
                       children: displayCards.map(function (card) {
                         return X.jsxs("div", {
                           key: card.id,
-                          className: "group relative bg-[#1a1a1a] border border-[#2a2a2a] hover:border-[#444] hover:bg-[#1f1f1f] rounded-[14px] p-[16px] flex flex-col gap-[10px] cursor-pointer transition-all duration-150",
+                          className: "pl-card",
                           onClick: function () { handleUse(card); },
                           children: [
                             // 第一行：标题 + 操作图标
                             X.jsxs("div", {
-                              className: "flex items-start justify-between gap-[10px]",
+                              className: "pl-card-top",
                               children: [
-                                X.jsx("h3", {
-                                  className: "text-[14px] font-semibold text-white leading-[1.4] truncate",
+                                X.jsx("div", {
+                                  className: "pl-card-title",
                                   title: card.title,
                                   children: card.title || "(未命名)"
                                 }),
                                 X.jsxs("div", {
-                                  className: "flex items-center gap-[4px] opacity-0 group-hover:opacity-100 transition-opacity duration-150 shrink-0",
+                                  className: "pl-card-actions",
                                   children: [
                                     X.jsx("button", {
                                       onClick: function (evt) { evt.stopPropagation(); startEdit(card.presetIndex); },
-                                      className: "w-[26px] h-[26px] flex items-center justify-center rounded-[6px] bg-transparent text-[#888] border-none hover:text-white hover:bg-[#2a2a2a] transition-colors cursor-pointer",
+                                      className: "pl-icon-btn",
                                       title: "编辑",
                                       children: EditIcon()
                                     }),
                                     X.jsx("button", {
                                       onClick: function (evt) { evt.stopPropagation(); handleDelete(card.presetIndex); },
-                                      className: "w-[26px] h-[26px] flex items-center justify-center rounded-[6px] bg-transparent text-[#888] border-none hover:text-[#ef4444] hover:bg-[rgba(239,68,68,0.12)] transition-colors cursor-pointer",
+                                      className: "pl-icon-btn danger",
                                       title: "删除",
                                       children: TrashIcon()
                                     })
@@ -419,26 +505,20 @@ function PromptLibrary({
                             }),
                             // 内容预览
                             X.jsx("p", {
-                              className: "text-[12px] text-[#888] leading-[1.6] flex-1",
-                              style: {
-                                display: "-webkit-box",
-                                WebkitLineClamp: "2",
-                                WebkitBoxOrient: "vertical",
-                                overflow: "hidden"
-                              },
+                              className: "pl-card-body",
                               children: card.content || "(空)"
                             }),
                             // 底部：标签 + 使用按钮
                             X.jsxs("div", {
-                              className: "flex items-center justify-between mt-[4px]",
+                              className: "pl-card-bottom",
                               children: [
                                 X.jsx("span", {
-                                  className: "px-[8px] py-[3px] rounded-[6px] text-[11px] font-medium " + typeTagColor(card.category),
+                                  className: typeTagColor(card.category),
                                   children: typeLabel(card.category)
                                 }),
                                 X.jsx("button", {
                                   onClick: function (evt) { evt.stopPropagation(); handleUse(card); },
-                                  className: "px-[12px] py-[5px] text-[12px] rounded-[8px] border border-[#333] bg-transparent text-[#60a5fa] hover:bg-[rgba(59,130,246,0.12)] hover:border-[rgba(59,130,246,0.3)] transition-all duration-150 cursor-pointer",
+                                  className: "pl-use-btn",
                                   children: "使用"
                                 })
                               ]
@@ -457,26 +537,25 @@ function PromptLibrary({
 
       // 编辑/新建弹窗 modal
       isModalOpen && Un.createPortal(X.jsx("div", {
-        className: "fixed inset-0 z-[2000] flex items-center justify-center bg-[rgba(0,0,0,0.6)]",
+        className: "pl-edit-overlay",
         onClick: closeModal,
         children: X.jsxs("div", {
-          className: "w-[520px] bg-[#1a1a1a] border border-[#333] rounded-[16px] p-[22px] flex flex-col gap-[14px] shadow-2xl",
+          className: "pl-edit-modal",
           onClick: function (e) { e.stopPropagation(); },
           children: [
             X.jsx("h3", {
-              className: "text-[15px] font-semibold text-white",
               children: showNewForm ? "新建提示词" : "编辑提示词"
             }),
             // 标题 + 类型
             X.jsxs("div", {
-              className: "flex gap-[10px]",
+              className: "pl-field-row",
               children: [
                 X.jsxs("div", {
-                  className: "flex flex-col gap-[6px] flex-[2]",
+                  className: "pl-field",
+                  style: { flex: 2 },
                   children: [
-                    X.jsx("label", { className: "text-[12px] text-[#888]", children: "标题" }),
+                    X.jsx("label", { children: "标题" }),
                     X.jsx("input", {
-                      className: "bg-[#141414] border border-[#333] rounded-[10px] px-[12px] py-[10px] text-[#e5e5e5] text-[13px] outline-none focus:border-[#555]",
                       placeholder: "标题",
                       value: formData.title,
                       onChange: function (e) { setFormData(Object.assign({}, formData, { title: e.target.value })); }
@@ -484,11 +563,11 @@ function PromptLibrary({
                   ]
                 }),
                 X.jsxs("div", {
-                  className: "flex flex-col gap-[6px] flex-1",
+                  className: "pl-field",
+                  style: { flex: 1 },
                   children: [
-                    X.jsx("label", { className: "text-[12px] text-[#888]", children: "类型" }),
+                    X.jsx("label", { children: "类型" }),
                     X.jsxs("select", {
-                      className: "bg-[#141414] border border-[#333] rounded-[10px] px-[12px] py-[10px] text-[#e5e5e5] text-[13px] outline-none focus:border-[#555]",
                       value: formData.type,
                       onChange: function (e) { setFormData(Object.assign({}, formData, { type: e.target.value })); },
                       children: [
@@ -504,11 +583,10 @@ function PromptLibrary({
             }),
             // 提示词内容
             X.jsxs("div", {
-              className: "flex flex-col gap-[6px]",
+              className: "pl-field",
               children: [
-                X.jsx("label", { className: "text-[12px] text-[#888]", children: "提示词内容" }),
+                X.jsx("label", { children: "提示词内容" }),
                 X.jsx("textarea", {
-                  className: "bg-[#141414] border border-[#333] rounded-[10px] px-[12px] py-[10px] text-[#e5e5e5] text-[13px] outline-none focus:border-[#555] resize-none h-[160px] leading-[1.6]",
                   placeholder: "提示词内容",
                   value: formData.prompt,
                   onChange: function (e) { setFormData(Object.assign({}, formData, { prompt: e.target.value })); }
@@ -517,24 +595,24 @@ function PromptLibrary({
             }),
             // 底部按钮
             X.jsxs("div", {
-              className: "flex items-center justify-between mt-[4px]",
+              className: "pl-edit-actions",
               children: [
                 !showNewForm ? X.jsx("button", {
                   onClick: function () { handleDelete(editingIndex); closeModal(); },
-                  className: "px-[14px] py-[8px] text-[12px] bg-transparent text-[#ef4444] border-none rounded-[10px] hover:bg-[rgba(239,68,68,0.12)] cursor-pointer transition-colors",
+                  className: "pl-btn-danger",
                   children: "删除"
-                }) : X.jsx("span"),
+                }) : X.jsx("span", {}),
                 X.jsxs("div", {
-                  className: "flex gap-[10px]",
+                  className: "pl-btn-group",
                   children: [
                     X.jsx("button", {
                       onClick: closeModal,
-                      className: "px-[16px] py-[8px] text-[12px] bg-[#2a2a2a] text-[#ccc] border-none rounded-[10px] hover:bg-[#333] cursor-pointer transition-colors",
+                      className: "pl-btn-secondary",
                       children: "取消"
                     }),
                     X.jsx("button", {
                       onClick: showNewForm ? saveNew : saveEdit,
-                      className: "flex items-center gap-[6px] px-[14px] py-[8px] text-[12px] bg-[#2563eb] text-white border-none rounded-[10px] hover:bg-[#3b82f6] cursor-pointer transition-colors",
+                      className: "pl-btn-primary",
                       children: showNewForm ? "添加" : "保存"
                     })
                   ]
@@ -583,36 +661,38 @@ function PromptDropdown({
   };
 
   return X.jsxs("div", {
-    className: "relative nodrag flex items-center",
+    className: "pd-container nodrag",
     ref: ref,
     children: [
-      X.jsx("div", { className: "w-[1px] h-3 bg-[#444] flex-shrink-0 mr-1.5" }),
+      // 为 Dropdown 同样注入保障性的 CSS
+      X.jsx("style", { children: injectedStyles }),
+      X.jsx("div", { className: "pd-divider" }),
       X.jsx("button", {
-        className: "flex items-center gap-1 h-6 px-2 bg-transparent hover:bg-[#2a2a2a] border border-transparent hover:border-[#333] rounded text-[11px] text-gray-300 transition-colors cursor-pointer max-w-[80px]",
+        className: "pd-trigger",
         onClick: function (evt) { evt.stopPropagation(); setOpen(function (v) { return !v; }); setSearchText(""); },
-        children: X.jsx("span", { className: "truncate", children: "提示词" })
+        children: X.jsx("span", { children: "提示词" })
       }),
       open && X.jsxs("div", {
-        className: "absolute bottom-full left-0 mb-1 w-56 bg-[#222] border border-[#333] rounded-lg shadow-xl z-50 flex flex-col max-h-80 overflow-hidden nowheel nopan nodrag",
+        className: "pd-popup nowheel nopan nodrag",
         onClick: function (evt) { evt.stopPropagation(); },
         children: [
           X.jsx("div", {
-            className: "shrink-0 px-2 pt-2 pb-1",
+            className: "pd-search-wrap",
             children: X.jsx("input", {
-              className: "w-full text-[11px] bg-[#1a1a1a] border border-[#333] rounded px-2 py-1 text-gray-300 placeholder:text-gray-600 focus:border-blue-500 outline-none",
+              className: "pd-search-input",
               placeholder: "搜索...",
               value: searchText,
               onChange: function (evt) { setSearchText(evt.target.value); }
             })
           }),
           X.jsx("div", {
-            className: "flex-1 overflow-y-auto custom-scrollbar px-2 pt-1 pb-2",
+            className: "pd-list pl-custom-scrollbar",
             children: filtered.length === 0 ? X.jsx("div", {
-              className: "px-2 py-1.5 text-[11px] text-gray-600",
+              className: "pd-empty",
               children: "暂无提示词"
             }) : filtered.map(function (p, i) {
               return X.jsx("button", {
-                className: "w-full block mb-1 text-left px-2 py-1.5 text-[11px] rounded-md transition-colors truncate text-gray-400 hover:bg-[#2a2a2a] hover:text-gray-200",
+                className: "pd-item",
                 onClick: function () { handleApply(p.prompt); },
                 title: p.title,
                 children: p.title
@@ -620,9 +700,9 @@ function PromptDropdown({
             })
           }),
           X.jsx("div", {
-            className: "shrink-0 flex items-center justify-center gap-2 px-2 py-1.5 border-t border-[#333]",
+            className: "pd-footer",
             children: X.jsxs("button", {
-              className: "flex items-center gap-1 text-[10px] text-blue-400 hover:text-blue-300 transition-colors",
+              className: "pd-footer-btn",
               onClick: function () { setLibraryOpen(true); setOpen(false); },
               children: [SparklesIcon, " 提示词库"]
             })

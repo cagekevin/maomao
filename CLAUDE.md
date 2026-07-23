@@ -77,7 +77,39 @@ npm run build
 
 ## 3. 开发原则与边界
 
-### 3.1 渐进式拆解模式
+### 3.1 新组件编写规范（自包含样式）
+
+**所有新建 UI 组件必须使用自包含 CSS，不依赖 Tailwind。**
+
+原因：项目使用预编译的静态 `src/styles/tailwind.css`，没有 `tailwind.config.js` 和 JIT 编译，`gap-[16px]`、`rounded-[18px]` 等任意值写法不会生效。
+
+标准写法：
+
+```js
+// 1. 定义 CSS 字符串（用统一前缀，如 pl- / pd-）
+const STYLES = `
+  .pl-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.75); ... }
+  .pl-card { background: #1a1a1a; border: 1px solid #2a2a2a; ... }
+  .pl-card:hover { border-color: #444; }
+`;
+
+// 2. 在组件 return 最外层注入 <style>
+return X.jsxs("div", { className: "pl-overlay", children: [
+  X.jsx("style", { children: STYLES }),
+  // ... 其他 JSX，全部用 pl- 前缀类名
+]});
+```
+
+规则：
+- 使用语义化类名前缀（如 `pl-` = prompt library，`pd-` = prompt dropdown）
+- 颜色用 hex/rgba，字体大小用 px，间距用 px
+- 伪类（`:hover`、`:focus`）直接写在 CSS 字符串里
+- 滚动条用统一类名 `pl-custom-scrollbar`（已在项目中定义）
+- `PromptDropdown` 等小组件也复用同一个 `STYLES` 字符串，各自注入 `<style>`
+
+**不要用的写法**：`className="gap-[16px]"`、`className="text-[#e5e5e5]"`、`className="rounded-[18px]"` 等 Tailwind 任意值语法。
+
+### 3.2 渐进式拆解模式
 
 `App.js` 的目标是逐步缩小，将功能模块提取为独立文件。每次拆解遵循标准模式：
 
