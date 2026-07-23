@@ -1,0 +1,9 @@
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+# 排除第三方/虚拟环境，避免对禁区与 venv 误报
+exclude = ["vendor", "venv", ".venv", "node_modules"]
+
+[tool.ruff.lint]
+# 仅启用安全规则集（Pyflakes / pycodestyle），不自动改码
+select = ["F", "E"]
