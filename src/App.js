@@ -30166,8 +30166,7 @@ function xg({
 `).map(e => e.trim()).filter(Boolean) : [`gpt-image-2-low`],
           k = s && O.includes(s) ? s : D,
           A = k.toLowerCase(),
-          j = A.includes(`banana`) || A.includes(`gemini`) || A.includes(`香蕉`) || A.includes(`芭蕉`),
-          N = c === `openai` || c === `auto` && !j;
+          N = true;
         if (T === `Auto` && !N) {
           let e = `Auto`;
           try {
@@ -30353,7 +30352,7 @@ ${_}`,
           let e = !T || T === `Auto`,
             t = String(e ? `Auto` : T),
             n = e ? `auto` : te[t]?.[String(E)] || te[t]?.[`1K`] || `1024x1024`;
-          if (B) I = `${R}/v1/draw/completions`, L = {
+          if (B) I = `${R}/v1/images/generations`, L = {
             model: k,
             prompt: v,
             aspectRatio: t === `Auto` ? undefined : t
