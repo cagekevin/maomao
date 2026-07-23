@@ -30348,15 +30348,31 @@ ${_}`,
             }
           },
           ne = async e => await (await fetch(e)).blob();
+        // ─────────────────────────────────────────────────────────────
+        // 生图请求路由决策（链路）
+        // 目标地址 R = 网关基地址(去掉结尾 /)，例如 http://127.0.0.1:9004
+        // 所有生图模型都走网关的 OpenAI 兼容接口，由网关按模型名映射到 Lovart 工具：
+        //   文生图（无参考图）            → POST {R}/v1/images/generations   body=JSON {model,prompt,n,image_size,size}
+        //   垫图/编辑（有参考图 l>0）     → POST {R}/v1/images/edits          body=FormData(model,prompt,size,image_size,image[])
+        //   通配模型（模型名含 *，B=true）→ POST {R}/v1/images/generations   body=JSON {model,prompt,aspectRatio,urls?}
+        // 注：早期遗留的 Gemini 直连分支 (/v1beta/models/{k}:generateContent) 在本地 9004 模式下不存在该路由(404)，
+        //     已被移除，统一改走上面的网关接口（N 恒为 true）。
+        // 变量说明：k=模型名 v=提示词 l=参考图URL数组 x=内联base64数组 E=尺寸档(1K/2K/4K) T=比例
+        //           I=最终请求URL L=请求体 ee=是否FormData B=是否通配模型 te=比例×尺寸→像素映射
+        // ─────────────────────────────────────────────────────────────
         if (N) {
           let e = !T || T === `Auto`,
             t = String(e ? `Auto` : T),
             n = e ? `auto` : te[t]?.[String(E)] || te[t]?.[`1K`] || `1024x1024`;
-          if (B) I = `${R}/v1/images/generations`, L = {
-            model: k,
-            prompt: v,
-            aspectRatio: t === `Auto` ? undefined : t
-          }, x.length > 0 && (L.urls = x);else if (l.length > 0) {
+          if (B) {
+            // 通配模型（含 *）：走生成接口，可附带参考图 URL
+            I = `${R}/v1/images/generations`, L = {
+              model: k,
+              prompt: v,
+              aspectRatio: t === `Auto` ? undefined : t
+            }, x.length > 0 && (L.urls = x);
+          } else if (l.length > 0) {
+            // 有参考图 → 编辑接口（FormData 上传参考图）
             I = `${R}/v1/images/edits`, ee = true, L = new FormData(), L.append(`model`, k), L.append(`prompt`, v || ` `), L.append(`n`, `1`), n !== `Auto` && L.append(`size`, n), L.append(`image_size`, String(E).toUpperCase());
             for (let e = 0; e < l.length; e++) try {
               console.log(`referenceImages`, l[e]);
@@ -30365,12 +30381,15 @@ ${_}`,
             } catch (e) {
               console.error(`Failed to fetch image as blob for edit`, e);
             }
-          } else I = `${R}/v1/images/generations`, L = {
-            model: k,
-            prompt: v,
-            n: 1,
-            image_size: String(E).toUpperCase()
-          }, n !== `Auto` && (L.size = n);
+          } else {
+            // 纯文生图 → 生成接口（JSON）
+            I = `${R}/v1/images/generations`, L = {
+              model: k,
+              prompt: v,
+              n: 1,
+              image_size: String(E).toUpperCase()
+            }, n !== `Auto` && (L.size = n);
+          }
         } else I = `${R}/v1beta/models/${k}:generateContent?key=${h}`, L = F;
         let re = null;
         if (d > 1) {
