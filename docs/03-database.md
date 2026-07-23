@@ -96,7 +96,7 @@ AI 生成任务记录。
 | 子目录 | 写入来源 |
 |--------|---------|
 | `uploads/tasks/` | AI 生成结果（统一同步 effect → uploadFile） |
-| `uploads/migrated/` | 右键采集（`resourceAdded` → `Zr`@L1827） |
+| `uploads/migrated/` | 右键采集（`resourceAdded` → `Zr`（真身 `src/services/localToolClient.js` L67）） |
 | `uploads/canvas/drop/` | 画布拖入文件 |
 | `uploads/canvas/paste/` | 剪贴板粘贴 |
 | `uploads/.thumbnails/` | 缩略图（伪复制） |

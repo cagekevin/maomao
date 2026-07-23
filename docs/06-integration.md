@@ -10,14 +10,14 @@
 
 | 你想做什么 | 接入口 | 机制 |
 |-----------|--------|------|
-| 让画布生一张图 | `Jn(e, prompt, size, model)` @L32490 | 前端派发网关异步任务 |
+| 让画布生一张图 | `Jn(e, prompt, size, model)` @L30377 | 前端派发网关异步任务 |
 | 让画布生视频 | `er` / `Qn` / `$n`（按类型） | 复用生图底层 |
 | 重跑一个已有任务 | 发 `mutiwindow-rerun-task` 事件 | 纯前端 CustomEvent |
 | 生图完成后刷新资源 | 监听 `mutiwindow-task-completed` | 纯前端 CustomEvent |
 | 写任务元数据 | 发 `mutiwindow-update-task-meta` | 纯前端 CustomEvent |
 | 从网页采集资源 | 用浏览器扩展右键菜单（background 已内置） | chrome.runtime 跨进程 |
-| 资源落盘 / 入库 | `ii`@L1888 / `Sv`@L42838 / `Ev`@L42883 | HTTP → localTool :18080 |
-| 云同步配置 | `ei`(push) / `ti`(pull) @L43950/L43974 | POST GAS |
+| 资源落盘 / 入库 | `ii`(src/services/localToolClient.js L128) / `Sv`@L42838 / `Ev`@L42883 | HTTP → localTool :18080 |
+| 云同步配置 | `syncToCloud`(push，原 `ei`) / `ti`(pull) @L41365/L41415 | POST GAS |
 | 和 AI 直接对话 | `POST /v1/chat/completions`（网关 :9004） | SSE |
 
 ---
@@ -33,11 +33,11 @@
 |---|------|------------|----------------|----------------------|------|
 | 1 | 前端 ↔ localTool | HTTP :18080 | 前端 `useLocalTool` hook → localTool `node:http` | `/api/files/*` `/api/kv/*` `/api/resources/*` `/api/tasks/*` `/api/status` | 文件落盘 + 持久化主通道 |
 | 2 | 前端 ↔ 网关 | HTTP :9004 | 前端 `Jn`/`lr`/`zc` → 网关 FastAPI | `/v1/images\|videos/generations` `/v1/tasks/{id}` `/v1/chat/completions` | 生图/视频/chat 主通道；网关 ↔ Lovart 外部依赖 |
-| 3 | 前端 ↔ 网关（代理跳板） | HTTP `POST /api/proxy` @L19016 | 前端 `zc`（localTool 连通时）→ localTool 转发 → 9004 | localTool 兼作 9004 请求的代理跳板（AI12 实锤）；断开时 `zc` 直连 9004 | localTool = 文件服务 + 代理跳板 + 本地文件读取器 三重角色 |
+| 3 | 前端 ↔ 网关（代理跳板） | HTTP `POST /api/proxy` | 前端 `zc`（src/services/gatewayProxy.js，localTool 连通时调用）→ localTool 转发 → 9004 | localTool 兼作 9004 请求的代理跳板（AI12 实锤）；断开时 `zc` 直连 9004 | localTool = 文件服务 + 代理跳板 + 本地文件读取器 三重角色 |
 | 4 | background ↔ 前端 | `chrome.runtime` 跨进程消息 | `background.ts`(SW) → App.js | `resourceAdded`（detail `{action,resource:{id,url,type,pageUrl,pageTitle,source:'extension'}}`） | **非 CustomEvent**，跨进程唯一通道；纯 CustomEvent 跨不过进程边界 |
 | 5 | 前端进程内广播 | `window` CustomEvent（`mutiwindow-*` 前缀） | 同窗口多面板（popup/sidePanel/画布）互发 | `mutiwindow-task-completed` / `mutiwindow-update-task-meta` / `mutiwindow-rerun-task` | 限同窗口；**不能跨扩展窗口**（多窗口机制 AI13 标记 ➖ 待查） |
-| 6 | 前端 ↔ GAS 云同步 | HTTP POST（Google Apps Script） | `ei`(push)@L43950 / `ti`(pull)@L43974（`CloudSyncEngine`）→ GAS 部署 | URL 在 `config.js` `GAS_CLOUD_SYNC_URL` | 仅配置/资源元数据，非实时协同；pull 后 1s reload |
-| 7 | 画布落盘（资源/生成结果） | HTTP :18080 | `ii`@L1888 / `Xr`@L1802 / `Zr`@L1827 → `POST /api/files/upload` | 结果经 `toAbsoluteFileUrl`(`localTool/resources.ts#L31`) 补 `http://127.0.0.1:18080/...` | 拒绝 CDN 直链（红线） |
+| 6 | 前端 ↔ GAS 云同步 | HTTP POST（Google Apps Script） | `syncToCloud`(push)@L41365 / `ti`(pull)@L41415（`CloudSyncEngine`@L41312）→ GAS 部署 | URL 在 `config.js` `GAS_CLOUD_SYNC_URL` | 仅配置/资源元数据，非实时协同；pull 后 1s reload |
+| 7 | 画布落盘（资源/生成结果） | HTTP :18080 | `ii`/`Xr`/`Zr`（真身均在 `src/services/localToolClient.js`：ii L128 / Xr L42 / Zr L67）→ `POST /api/files/upload` | 结果经 `toAbsoluteFileUrl`(`localTool/resources.ts#L31`) 补 `http://127.0.0.1:18080/...` | 拒绝 CDN 直链（红线） |
 | 8 | 生成结果回填 → 资源刷新 | 通道 5 + 通道 1 | `mutiwindow-task-completed` → `Ev`@L42883 `POST /api/resources/rescan` → `xv`@L42821 `GET /api/resources` | 闭环：生图落盘 → 广播 → rescan → 面板刷新 | 节流在 L42910–42914 |
 | 9 | 配置层 | 模块内读取 | `src/config.js`（`UPPER_SNAKE`）→ App.js / 网关 | `USE_LOCAL_ENGINE` / `LOCAL_ENGINE.base`(18080) / `DEFAULT_ENDPOINT`(9004) | 改配置动 config.js，不是 App.js |
 
@@ -52,8 +52,8 @@
 ## 一、AI 生图 / 生视频能力
 
 ### 1.1 生图主入口 `Jn`
-- **真身**：`Jn` = imageNode 生图主回调，`let Jn = Y.useCallback(async (e, r, o, ...) => {})` @L32490。
-- **⚠️ 同名遮蔽**：模块级 `Jn`@L89 = `LogoIcon` 组件，**不是**生图回调。引用必须带 L32490。
+- **真身**：`Jn` = imageNode 生图主回调，`let Jn = Y.useCallback(async (e, r, o, ...) => {})` @L30377（App.js 内当前唯一 `Jn` 定义）。
+- **⚠️ 历史同名遮蔽已消除**：旧文档称"模块级 `Jn`@L89 = LogoIcon 组件"，但 `LogoIcon` 已解耦到 `src/components/common/LogoIcon.js`，App.js 内 `Jn` 现仅指生图回调，引用带 L30377 即可。
 - **入参形状**（AI05-04 实锤）：
   ```
   Jn(e, prompt, size, model)
@@ -170,10 +170,10 @@ rhWebapp     → 发 vs 事件（专用重跑）
 
 ## 六、云同步能力（GAS）
 
-- **真身**：`CloudSyncEngine`@L43896，POST `text/plain` 到 `config.GAS_CLOUD_SYNC_URL`。
-- **push** `ei`@L43950：收集 9 类配置（`app_settings`/`api_configs`/`users`/`membership`/`projects`/`presetPrompts`/`customNodeTemplates`/`modelSchedules`/`cloud_storage_config`），非空才推。
-- **pull** `ti`@L43974：拉取后逐键写回，**成功 1s 后 `window.location.reload()`**。
-- **硬约束**：GAS 必须部署为「所有人访问」，否则响应含 `<html` 报错（L43914）。
+- **真身**：`CloudSyncEngine`@L41312，POST `text/plain` 到 `config.GAS_CLOUD_SYNC_URL`。
+- **push** `syncToCloud`@L41365（原 `ei`，已于 `176437b` 改名）：收集 9 类配置（`app_settings`/`api_configs`/`users`/`membership`/`projects`/`presetPrompts`/`customNodeTemplates`/`modelSchedules`/`cloud_storage_config`），非空才推。
+- **pull** `ti`@L41415：拉取后逐键写回，**成功 1s 后 `window.location.reload()`**。
+- **硬约束**：GAS 必须部署为「所有人访问」，否则响应含 `<html` 报错（约 L41350）。
 
 ---
 
@@ -181,8 +181,8 @@ rhWebapp     → 发 vs 事件（专用重跑）
 
 > 以下硬规则来自 `PROJECT_ORIGIN.md` §4/§4.5/§8，改码 / 接接口前逐条过。
 
-1. 引用混淆名**必须带行号 + 语义名**（如"生图主回调 `Jn`@L32490"），禁止只写 `Jn`。
-2. 同名遮蔽（`ei`/`ti`/`Jn`/`Zr`/`we`/`R`/`Th`）查 `glossary.md` 确认用哪个真身。
+1. 引用混淆名**必须带行号 + 语义名**（如"生图主回调 `Jn`@L30377"），禁止只写 `Jn`。
+2. 同名遮蔽（`ei`（仅打组，GAS push 已改名 `syncToCloud`）/`ti`/`Jn`/`Zr`/`we`/`R`/`Th`）查 `glossary.md` 确认用哪个真身。
 3. 动码前重新 grep 确认当前行号（构建会漂移）。
 4. **新增代码用语义化命名，严禁复用短混淆名**（`ii`/`Xr`/`U_`/`W_`/`G_` 等）。`U_`/`W_`/`G_`/`H_`/`B_` 这类下划线短名是原版残留，别改（改了会和基线对不上、grep 误判）。常量 `UPPER_SNAKE`、函数/变量 `camelCase`、类 `PascalCase`。
 5. 跨进程用 `chrome.runtime`；同窗口广播用 `mutiwindow-*`；别指望 `mutiwindow-*` 跨窗口。
@@ -213,7 +213,7 @@ rhWebapp     → 发 vs 事件（专用重跑）
 | 能力 | 节点 / 入口 | 对 AI agent 的意义 |
 |------|-----------|-------------------|
 | 文本生成 | 文本节点 | 提示词 / 文案入口 |
-| AI 生图 | 生图节点（`Jn`@L32490） | 图生成主入口 |
+| AI 生图 | 生图节点（`Jn`@L30377） | 图生成主入口 |
 | AI 生视频 | 视频节点（`er`/`Qn`/`$n` 分派） | 视频生成主入口 |
 | **万能节点** | 右键添加 → 齿轮配置 | **灵魂功能**：配 URL+`{{变量}}` 即可接任意第三方 API（ComfyUI/RunningHub/TTS…），自动生成输入控件；结果默认每 4.5s 刷新 |
 | 视频抽帧 / 关键帧 | 抽帧节点 | 标准/间隔/智能场景三模式，输出可连生图做图生图 |
@@ -260,7 +260,7 @@ rhWebapp     → 发 vs 事件（专用重跑）
 > 来源 `PROJECT_LOG.md`（2026-07-20 待观察项）。外部开发者做导入导出 / 云端同步时必知。
 
 - **导出备份** `Ri`@L44443 / 恢复 `Bi`@L44482：同一份 `{localforage, kvStore}` 结构（含画布节点）。
-- **云端推送** `ei`@L43888 → GAS `push_data`：**另一份独立扁平结构**，仅 9 个 kvStore 键（`app_settings`/`api_configs`/`users`/`membership`/`projects`/`presetPrompts`/`customNodeTemplates`/`modelSchedules`/`cloud_storage_config`），**不含画布节点(localforage)**。
+- **云端推送** `syncToCloud`@L41365（原 `ei`，`176437b` 改名）→ GAS `push_data`：**另一份独立扁平结构**，仅 9 个 kvStore 键（`app_settings`/`api_configs`/`users`/`membership`/`projects`/`presetPrompts`/`customNodeTemplates`/`modelSchedules`/`cloud_storage_config`），**不含画布节点(localforage)**。
 - **互用问题**：导出备份拿去云端 push 会丢字段；云端拉取 `ti` 只写 kvStore 不碰 localforage，画布不会回来。当前三者未统一，做同步功能时注意结构差异。
 
 ---

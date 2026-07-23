@@ -1,46 +1,35 @@
-# Handoff — 2026-07-22 阶段 4.2：已完成
+# Handoff — 2026-07-23 拆退回 4.1（4.2 未落地）
 
 > **给下一位 AI**：先读 `CLAUDE.md`，再看 `docs/拆分计划.md`，最后读本文档。
+> ⚠️ **重要**：拆分计划已**退回到阶段 4.1**。阶段 4.2（把 9004 网关请求切到 `src/services/gatewayClient.js`）**并未真正落地**，代码里没有 `gatewayClient.js` 这个文件。本文档旧版曾误写"4.2 已完成"，已作废。
 
 ---
 
-## 当前状态
+## 当前状态（2026-07-23，commit `176437b`）
 
 | 项目 | 值 |
 |------|-----|
-| 分支 | `main` |
-| 工作区 | App.js 已修改 + `gatewayClient.js` 新建 |
-| 构建 | `npx vite build` ✓ 成功，38 modules，~5.5s |
+| 分支 | `main` @ `176437b` |
+| 网关请求 | **仍在 App.js 内**，未切出。仅有 `src/services/gatewayProxy.js`（`zc` 函数，网关 proxy 转发层，切自 App.js L18078，App.js L24 `import { zc }` 使用） |
+| GAS 云同步 | 仍在 App.js 内 `CloudSyncEngine` 对象（约 L41312 起）。push 函数已语义化改名：原 `ei` → `syncToCloud`（L41365）；pull 函数仍是 `ti`（L41415） |
+| 构建 | `npx vite build` ✓ 成功 |
 | 运行时 | GAS 同步正常，预存 bug `engine-*.js:489` 仍在（非本次引入） |
 
 > Windows build 命令：`$env:NODE_OPTIONS="--max-old-space-size=1024"; npx vite build`
 
 ---
 
-## 阶段 4.2：已完成 ✅
+## 拆分进度（真实）
 
-10 个 9004 网关端点已全部从 App.js 提取到 `src/services/gatewayClient.js`：
-
-| # | 函数名 | 端点 | 方法 |
-|---|--------|------|------|
-| 1 | `uploadToGateway` | `/v1/gateway/upload` | POST (fetch) |
-| 2 | `submitSd2Video` | `/v1/video/generations` | POST (zc) |
-| 3 | `pollSd2Video` | `/v1/video/generations/{id}` | GET (fetch) |
-| 4 | `submitDiscountVideo` | `/v1/gateway/generate` | POST (zc) |
-| 5 | `pollDiscountVideo` | `/v1/gateway/task/{id}` | GET (fetch) |
-| 6 | `pollImageTask` | `/v1/tasks/{id}` | GET (zc, 3处共用) |
-| 7 | `confirmTask` | `/v1/tasks/{id}/confirm` | POST (zc) |
-| 8 | `getVideoResult` | `/v1/videos/{id}` | GET (zc) |
-| 9 | `submitVideoGeneration` | 视频生成提交 | POST (zc, FormData) |
-| 10 | `submitImageGeneration` | 生图提交 | POST (zc, FormData/JSON) |
-
-App.js import 已添加在 L25（`import { zc }` 之后）。
+- **4.1 ✅**：模型权益/目录等已切到 `src/services/modelEntitlements.js` 等（见 `docs/拆分计划.md` §1 已切出清单）。
+- **4.2 ❌ 未做（已退回）**：原计划把 9004 网关 fetch 切到 `src/services/gatewayClient.js`，**执行中发现问题已退回**。代码里**不存在** `gatewayClient.js`。如需重做 4.2，请先 `git log` 确认当前 `main` 状态，不要假设文件已存在。
 
 ---
 
-## 本次额外修复
+## 本次真实改动（176437b）
 
-- **"ei is not defined"** — 删除了 `_saveLocalTemplates` 中无效的 `ei().catch(() => {})` 调用（L28636），该引用指向不存在的变量导致 GAS 同步拉取失败。已修复，拉取正常。
+- **GAS push 函数语义化重命名**：`ei` → `syncToCloud`（仅 App.js 内 2 处：L41365 定义 + L42329 `onClick` 引用）。
+- ⚠️ **同名遮蔽提醒**：App.js 的 `Nv` 组件内**另有一个 `ei`**（L34671，是"打组"的 `Y.useCallback`），与已被改名的 GAS push `ei` 无关。改名后 `ei` 仅指打组函数，`syncToCloud` 专指 GAS push。下个 AI 搜 `ei` 时务必带行号区分，勿混淆。
 
 ---
 

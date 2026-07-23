@@ -33,7 +33,7 @@
 | 优先级 | 问题 | 修复方案 | 涉及文件 |
 |--------|------|---------|---------|
 | P0 | URL 格式不统一破图 | Sv() 保存前 `toAbsoluteFileUrl(i.url)` | App.js L43462 |
-| P1 | 拖入 URL 不落盘 | 拖入 URL 时调 ii()(L1888) 下载落盘或提示 | App.js L29176 |
+| P1 | 拖入 URL 不落盘 | 拖入 URL 时调 `ii()`（真身 `src/services/localToolClient.js` L128）下载落盘或提示 | App.js L29176 |
 | P1 | 文件上传不入库 | R(files) 成功后调 we()/Sv() | App.js L29133 |
 | P2 | 删除不删磁盘 | wv() 加 deleteFiles 参数可选联动 | App.js L42857 |
 | P2 | 缩略图伪复制 | 接入 sharp 做真实缩放 | localTool files.ts L136 |
@@ -48,7 +48,7 @@
 
 ### A. 任务生命周期（AI 生成异步轮询闭环）
 - **A1 链路已合规**：提交 `POST /v1/images|videos/generations` → 拿 `task_id` → 轮询 `GET /v1/tasks/{id}`（网关 `main.py` L873）→ 终态 `completed` → `ii(u,{subfolder:'tasks'})` 落盘 18080（`App.js` L33049）→ 派发 `mutiwindow-task-completed` → `Ev()`(L42883) rescan 刷资源面板。红线 §3.2 异步契约实测达标（AI10/AI11/AI12 共识）。
-- **A2 生图主回调是局部 `Jn`(L32490)**：与模块级 `Jn`(L89)=LogoIcon 同名不同物。旧文档把生图入口写作模块级 `Jn` 是错的，引用必带行号（AI01/AI05/AI06/AI10 坐实）。
+- **A2 生图主回调 `Jn`@L30377**：App.js 内当前唯一 `Jn` 定义（旧文档称"模块级 `Jn`(L89)=LogoIcon 同名"已过时——`LogoIcon` 已解耦到 `src/components/common/LogoIcon.js`，App.js 内 `Jn` 仅指生图回调）。引用必带行号（AI01/AI05/AI06/AI10 坐实）。
 - **A3 `pending_confirmation` 卡死（真 bug，未修）**：`resolveNeedsConfirm`(L32958) 检测到 `error.code==='pending_confirmation'` → `markNeedsConfirm`(L32980) 把节点置 `await_confirm` 并退出轮询；底层 `makeConfirmAdapter`(L32960)/`requestConfirm`(L32976) 已实现确认 POST `/v1/tasks/{id}/confirm`（网关 L882），但**全文件 0 调用点**接到 `await_confirm` 节点 UI → 任务永久卡死。网关 `AUTO_CONFIRM=true`(main.py L34) 仅减少触发，非根因（AI01/AI04/AI12 坐实）。**建议任务**：在 `await_confirm` 节点补确认按钮/UI，调用已有 `makeConfirmAdapter`。
 - **A4 统一同步 effect 落盘兜底**：遍历 `globalTasks`(L31304)，未本地化(url 非 `/files/` 开头)则 `H.uploadFile(url,name,'tasks')`(L44377) 落盘；已本地化则跳过(L44369)。风险点：`ii()` 对纯 http(s) URL 直返不落盘，仅在传入 `subfolder` 时才落盘——若调用方漏传 `subfolder` 会退回 CDN 直链（红线风险）。另：`await_confirm` 状态被 L44363 `if(t.status!=='completed') return` 跳过，不落盘符合预期（AI11/AI12 坐实）。
 
@@ -61,14 +61,14 @@
 ### C. 文档锚点纠错（AI 共识，待回填，未改）
 > 以下为 AI01–AI12 对上方旧表/旧文档符号名的纠错结论；**未改动任何文件**，仅列此处供后续修文档时采用。
 - **C1 `we` 非 rescan 主函数**：旧表/T0.1 把 `we` 标为 rescan 主函数(L42834/L42980)，实测 `we` 是组件局部（prompt @提及插入 L4176），真实 rescan 主函数是 `Ev`(L42883)（AI06/AI08/AI09 坐实）。
-- **C2 `Zr` 非 logout 非下载**：`Zr`(L1827) 实为「按 URL 上传到 localTool」(`POST /api/files/upload`)；`logout` 真身是另一符号 `Aa`(L3552，或局部 L43893)。旧文档 `Zr=下载`/`Zr=logout` 双向都错（AI05/AI07/AI08 坐实）。
-- **C3 `Xr`(L1802) 是 blob 上传**：非 `openInTab`；`ii`(L1888)→`Xr`(L1802)→`POST /api/files/upload` 是统一落盘链。
+- **C2 `Zr` 是「按 URL 上传到 localTool」**：真身 `src/services/localToolClient.js` L67（`async function Zr` → `POST /api/files/upload`）；`logout` 真身是另一符号（非 `Zr`）。旧文档 `Zr=下载`/`Zr=logout` 双向都错（AI05/AI07/AI08 坐实）。
+- **C3 `Xr`(localToolClient.js L42) 是 blob 上传**：非 `openInTab`；`ii`(localToolClient.js L128)→`Xr`(L42)→`POST /api/files/upload` 是统一落盘链。
 - **C4 `R`/`B` 是组件局部**：资源面板 `R`(L29149,FileReader 读 base64)/`B`(L29188,onDrop) 均为组件内局部回调，非模块级；旧表 P1 把它们当模块级符号名不准确（AI05/AI07/AI09 共识）。
 - **C5 P0「`toAbsoluteFileUrl@L43462`」已失效**：`toAbsoluteFileUrl` 在 App.js 0 匹配；URL 绝对化已在 localTool 后端 `resources.ts` L31 落地(`d5d48dd` 修复)。旧表 P0 行34 修复任务可关闭（AI09/AI10 坐实）。
 - **C6 `Sv`(L42838)=资源入库**，`sv`(小写,var-mapping L178)=`nodeCallbackFieldSet`，大小写不同两符号（AI05/AI06 厘清）。
 
 ### D. 事件总线（task 相关）
-- **D1 `mutiwindow-task-completed`**：5 处派发(L38481/L43640/L43676/L43697/L44406)，1 处监听(L31428)→`Ev()` rescan。是资源面板刷新唯一主驱动，设计健康（AI09/AI10 坐实）。
+- **D1 `mutiwindow-task-completed`**：多处派发，1 处监听→`Ev()` rescan。是资源面板刷新唯一主驱动，设计健康（AI09/AI10 坐实；派发/监听行号随构建漂移，以事件名 + `Ev` 真身为锚）。
 - **D2 `mutiwindow-rerun-task`**：资源面板「重新执行」按钮派发(L44343)，监听(L36618)按 `task.nodeId` 重派（AI05 坐实）。
 - **D3 `mutiwindow-update-task-meta`**：派发(L41032)/监听(L43764) 同步任务元信息（AI10 坐实）。
 - **D4 拼写注意**：跨窗口事件统一前缀 `mutiwindow-`（少一个 l），非 `multiwindow-`；图片粘贴兜底走 `localStorage('mutiwindow-clipboard')`（AI09/AI11 提示）。

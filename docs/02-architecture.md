@@ -99,11 +99,12 @@
 
 ### 数据流
 
-1. **AI 生成**：`Jn`@L32490 → 网关异步任务 → 轮询 `GET /v1/tasks/{id}` → 落盘 `uploads/tasks/` → `mutiwindow-task-completed` → rescan。
+1. **AI 生成**：`Jn`@L30377 → 网关异步任务 → 轮询 `GET /v1/tasks/{id}` → 落盘 `uploads/tasks/` → `mutiwindow-task-completed` → rescan。
 2. **资源采集**：`background.ts` 右键 → `resourceAdded`（跨进程）→ 前端下载 → `uploads/migrated/` → 入库。
 3. **画布拖入**：`onDrop` → `ii({subfolder:'canvas/drop'})` → `POST /api/files/upload`。
 4. **画布持久化**：`Q.saveCanvasState` → localforage + localTool KV，版本号防冲突。
-5. **GAS 云同步**：`ei`(push) / `ti`(pull) → POST Google Apps Script URL。
+5. **GAS 云同步**：`syncToCloud`(push，原 `ei`，App.js L41365) / `ti`(pull，App.js L41415) → 走 `CloudSyncEngine` 对象（约 L41312 起）→ POST Google Apps Script URL。
+   > ⚠️ 同名遮蔽：App.js `Nv` 组件内另有一个 `ei`（L34671，是"打组"的 `Y.useCallback`），与 GAS push 无关。搜 `ei` 必须带行号。
 
 ---
 
@@ -123,7 +124,7 @@
 - 两者职责不同：CustomEvent 限同窗口；chrome.runtime 限跨进程。**纯 CustomEvent 不能跨扩展窗口**（多窗口真实机制待查）。
 
 ### ADR-4：为什么生图有两套轮询机制
-- 生图节点 `Jn`@L32490：前端直接轮询 `GET /v1/tasks/{id}`（L33005），落盘 18080。
+- 生图节点 `Jn`@L30377：前端直接轮询 `GET /v1/tasks/{id}`（L33005），落盘 18080。
 - 网关 chat `/v1/chat/completions`：网关内同步轮询 Lovart 后 SSE 吐出。
 - 两者最终都汇于 `GET /v1/tasks/{id}`(L873)，但入口与轮询主体不同（AI05-13 实锤）。
 
@@ -177,7 +178,7 @@
 撤销 / 重做由**中央 store `r`@L21580** 接管（快照 / 入栈 `undoStack`@L21219 / 持久化 `Su`@L21178），**不经 ReactFlow onChange 直接 setNodes/setEdges**。无变化不入栈。
 
 ### 3.6 AI 生图流
-- 生图主回调 `Jn`@L32490（模块级 `Jn`@L89 = LogoIcon 组件，同名遮蔽，勿混）。
+- 生图主回调 `Jn`@L30377（App.js 内当前唯一 `Jn` 定义；`LogoIcon` 已解耦到 `src/components/common/LogoIcon.js`，不再有同名遮蔽）。
 - 入参 `Jn(e, prompt, size, model)`；内部轮询 `GET /v1/tasks/{id}`（局部 `R`@L33005），completed → `images[].url[0]` → `ii` 落盘@L33049 → 发 `mutiwindow-task-completed`。
 - 生视频走 `er`/`Qn`/`$n`（按节点 type 分派，见 `06-integration.md` §1.2），不走 `Jn`。
 

@@ -32,8 +32,8 @@
 ## 二、用户故事（从已实现数据流反推）
 
 1. **作为用户，我拖入一张图片到画布** → 系统经 `ii({subfolder:'canvas/drop'})` 落盘 `uploads/canvas/drop/`，节点直接引用本地文件（`02-architecture.md` §画布拖放）。
-2. **作为用户，我右键网页图片"发送到资源"** → `background.ts` 经 `chrome.runtime` 跨进程发 `resourceAdded` 消息 → 前端 `Zr`@L1827 下载落盘 `uploads/migrated/` 并入库 → 资源面板刷新。
-3. **作为用户，我触发 AI 生图** → `Jn`@L32490 主回调派发网关异步任务 → 轮询 `GET /v1/tasks/{id}` → 结果落盘 `uploads/tasks/` → `mutiwindow-task-completed` 广播回填节点并触发 rescan。
+2. **作为用户，我右键网页图片"发送到资源"** → `background.ts` 经 `chrome.runtime` 跨进程发 `resourceAdded` 消息 → 前端 `Zr`（真身 `src/services/localToolClient.js` L67）下载落盘 `uploads/migrated/` 并入库 → 资源面板刷新。
+3. **作为用户，我触发 AI 生图** → `Jn`@L30377 主回调派发网关异步任务 → 轮询 `GET /v1/tasks/{id}` → 结果落盘 `uploads/tasks/` → `mutiwindow-task-completed` 广播回填节点并触发 rescan。
 4. **作为用户，我点"同步到本地"** → 统一同步 effect 遍历 `globalTasks`，未本地化者 `uploadFile` 下载 → 同样经 `mutiwindow-task-completed` → rescan 刷新。
 
 ---

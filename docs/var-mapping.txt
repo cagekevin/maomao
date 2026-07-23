@@ -6,18 +6,21 @@
 #    批量替换脚本须同时作用于 App.js 与 engine 两个包，否则这些符号会漏替换/报错。
 
 # ── GAS 云端同步相关（本次改造）──
-ei = pushToCloud          # 推送到云端 🟢  [同名遮蔽·GAS 义 @L43950]
-ti = pullFromCloud         # 从云端拉取 🟢  [同名遮蔽·GAS 义 @L43974]
+# ⚠️ 2026-07-23 更正（commit 176437b）：GAS push 函数已从 `ei` 语义化改名为 `syncToCloud`。
+#    原文档"ei = pushToCloud"已作废：当前 App.js 内 `ei` 仅指"节点打组"函数，与 GAS 无关。
+syncToCloud = pushToCloud    # 推送到云端（GAS push）🟢  [App.js L41365，原 `ei` 改名]
+ti = pullFromCloud           # 从云端拉取（GAS pull）🟢  [同名遮蔽·GAS 义 App.js L41415]
 
-# ⚠️ ei/ti 四义缺口补录（据 AI13 裁决表专项 2026-07-21）：
-#   本表仅收 GAS 两义，漏收前端三义同名遮蔽绑定。凡引用必带 @Lnnnn 行号区分：
-#   ei@L1853 = var ei = new Map()（缩略图缓存 Map，与 ri@L1856 同区）
-#   ei@L36784 = Y.useCallback（节点打组）
-#   ti@L36822 = Y.useCallback（清缓存）
-#   注：ri@L1856 缩略图缓存本体即 ei@L1853 的 Map；Ar(e) 清的也是此 Map，非 GAS 义 ei。
-ei@L1853 = thumbnailCacheMap    # 缩略图缓存 Map（与 ri@L1856 同区）[同名遮蔽·前端义]
-ei@L36784 = groupNodesCallback  # Y.useCallback（节点打组）[同名遮蔽·前端义]
-ti@L36822 = clearCacheCallback   # Y.useCallback（清缓存）[同名遮蔽·前端义]
+# ⚠️ ei/ti 同名遮蔽真实状态（核对 App.js @176437b，行号随构建漂移，以语义名为准）：
+#   App.js 内 `ei` 当前只有 1 个真身：节点打组 `ei = Y.useCallback`（≈L34671）。
+#     —— 旧文档称"ei@L1853 = var ei = new Map() 缩略图缓存"经 grep 源码 0 命中，系旧构建快照误传，已删除该义。
+#   App.js 内 `ti` 当前有 2 个真身：
+#     ti@≈L34709 = Y.useCallback（清缓存，非 GAS 义）
+#     ti@≈L41415 = async（GAS pullFromCloud，即上条 pullFromCloud）
+#   凡引用必带 @Lnnnn 行号 + 语义名区分，勿只写 `ei`/`ti`。
+ei = groupNodesCallback      # 节点打组 Y.useCallback（App.js ≈L34671，唯一真身）[同名遮蔽]
+ti@L34709 = clearCacheCallback  # Y.useCallback（清缓存，非 GAS 义）[同名遮蔽·前端义]
+ti@L41415 = pullFromCloud       # 从云端拉取（GAS pull）[见上条]
 
 Qr = isSyncing             # 同步中 loading 状态 🟢
 $r = setSyncing            # setSyncing setter 🟢

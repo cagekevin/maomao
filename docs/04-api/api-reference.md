@@ -55,9 +55,9 @@
 
 **客户端调用形态与超时（已 grep src/App.js 坐实）**
 - `useLocalTool` hook 暴露 `uploadFile/saveKV/getKV/createFolder/moveFile/status`，内部 `fetch` 打向 localTool 基址（来自 `LOCAL_ENGINE.base`，默认 `http://127.0.0.1:18080`）。
-- 超时常量（App.js L19055–19056）：`Vc=5e3`(5s)、`Hc=15e3`(15s)；连通检测节流 `Gr=3e3`(3s，App.js L1735)。
-- 连通失败文案（App.js L19145，原文变量形式）：`无法连接到 ${LOCAL_ENGINE.base}，请确保 localTool Service 正在运行`（非硬编码 18080，运行时取变量）。
-- 代理封装 `zc` 经 `/api/proxy` 转发 9004，断开直连（`zc` 双形态：本地跳板 / 网关直发，App.js L19009–19026）；`localPort` 透传逻辑见 App.js L19009、L19230。
+- 超时常量（已解耦至 `src/services/localToolClient.js` / `src/hooks/useLocalTool.js`，行号随构建漂移）：fetch 超时约 5s/15s，连通检测节流约 3s。具体常量名以源码 grep 为准，勿依赖旧行号 L19055/L19145。
+- 连通失败文案（源自 `useLocalTool.js`）：`无法连接到 ${LOCAL_ENGINE.base}，请确保 localTool Service 正在运行`（运行时取变量，非硬编码 18080）。
+- 代理封装 `zc` 经 `/api/proxy` 转发 9004，断开直连（`zc` 双形态：本地跳板 / 网关直发；`zc` 真身定义在 `src/services/gatewayProxy.js` L3 `async function zc`，App.js L24 `import { zc }` 使用，非 App.js 内定义）。`localPort` 透传逻辑见 `gatewayProxy.js`。
 
 > 资源 URL 经 `toAbsoluteFileUrl`（`localTool/src/routes/resources.ts#L31`）补全为 `http://127.0.0.1:18080/...`，否则前端 `<img>` 在 extension 页面破图。
 

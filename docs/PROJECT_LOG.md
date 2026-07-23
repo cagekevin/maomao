@@ -18,11 +18,12 @@
   - 遗留：单任务轮询卡 `pending_confirmation` 仍是独立问题，未修
 
 ## 2026-07-20 待观察
+> ⚠️ **2026-07-23 更正（commit `176437b`）**：下文 GAS push 函数当时名为 `ei`，现已语义化改名为 **`syncToCloud`**（App.js ≈L41365）；pull 仍是 `ti`（≈L41415）。行号 L43888/L44443/L44482 是当时构建快照，已漂移。
 - **导出/恢复/云端上传的 JSON 不是同一份**（代码已确认，待观察是否要统一）：
   - 导出备份 `Ri` (L44443) 与 恢复导入 `Bi` (L44482) 是同一份 `{localforage, kvStore}` 结构，互为对偶。
-  - 云端上传 `ei` (L43888) → GAS `push_data` 是另一份独立扁平结构，仅 9 个 kvStore 键（`app_settings, api_configs, users, membership, projects, presetPrompts, customNodeTemplates, modelSchedules, cloud_storage_config`）。
+  - 云端上传 `syncToCloud`（当时写作 `ei`，L43888） → GAS `push_data` 是另一份独立扁平结构，仅 9 个 kvStore 键（`app_settings, api_configs, users, membership, projects, presetPrompts, customNodeTemplates, modelSchedules, cloud_storage_config`）。
   - 差异：云端**不含**画布节点(localforage)、`old_membership`、`lastOpenedProject`、项目详情 `Cr(id)`，但**多含** `modelSchedules`；导出备份反之。
-  - 互用问题：导出备份拿去云端 push 会丢字段（`ei` 硬编码只取那 9 键）；云端拉取 `ti` 只写 kvStore 不碰 localforage，画布不会回来。
+  - 互用问题：导出备份拿去云端 push 会丢字段（`syncToCloud` 硬编码只取那 9 键）；云端拉取 `ti` 只写 kvStore 不碰 localforage，画布不会回来。
   - 待观察：是否要统一三者（让云端也带 localforage + 补齐缺失键，或导出也带 modelSchedules）。当前未改。
 
 ## 2026-07-22 解耦工程阶段一完成
