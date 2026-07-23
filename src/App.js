@@ -17,6 +17,8 @@ import { gi } from './components/common/ResizableTextarea.js';
 import { Fh } from './components/common/LazyImage.js';
 import { Hg } from './components/common/ToastContainer.js';
 import { Bg } from './components/panels/ImportExportPanel.js';
+import { PromptLibrary, PromptDropdown } from './components/prompts/PromptLibrary.jsx';
+import { saveAndNotify } from './services/promptManager.js';
 import { $n, er, tr, nr, rr, ir, ar, sr, cr } from './utils/urlTools.js';
 import { na, ra, ia, aa, oa, sa, ca, la, ua, da, fa, pa, ma, ha, ga, _a, va, ya, ba, xa, Sa } from './services/modelSchedules.js';
 import { wa, Ta, Ea, Da, Oa, ka, Aa, ja, Ma, Na, Pa, Fa, Ia, La, Ra, za, Ba, Ha, Wa, Ga, Ka } from './services/auth.js';
@@ -2056,323 +2058,7 @@ var _i = ({
       })
     }), document.body) : null;
   };
-function qa({
-  open: e,
-  onClose: t,
-  onUse: n,
-  onToast: r,
-  defaultCategory: i = ``,
-  presetPrompts: q = []
-}) {
-  let [a, o] = Y.useState(`square`),
-    [s, c] = Y.useState([]),
-    [l, d] = Y.useState([]),
-    [f, p] = Y.useState(new Set()),
-    [m, h] = Y.useState([]),
-    [g, _] = Y.useState(``),
-    [v, y] = Y.useState(i),
-    [b, x] = Y.useState(``),
-    [S, C] = Y.useState(false),
-    [w, T] = Y.useState(``),
-    E = Ba(),
-    D = e => {
-      r?.(e), T(e), window.setTimeout(() => T(``), 2e3);
-    };
-  Y.useEffect(() => {
-    e && y(i);
-  }, [e, i]), Y.useEffect(() => {
-    e && (Pa().then(c).catch(() => {}), Ia().then(e => p(new Set(e))).catch(() => {}), La().then(h).catch(() => {}));
-  }, [e]), Y.useEffect(() => {
-    !e || a !== `square` || (C(true), Fa({
-      category: v,
-      tagId: g,
-      keyword: b
-    }).then(d).catch(() => d([])).finally(() => C(false)));
-  }, [e, a, v, g, b]);
-  let N = Y.useMemo(() => q.filter(e => e.enabled !== false).map(e => ({
-      id: `preset-${e.title}`,
-      title: e.title,
-      content: e.prompt,
-      category: e.type === `all` ? `` : e.type,
-      tags: [],
-      coverUrl: e.previewUrl || null,
-      description: e.prompt.slice(0, 60),
-      isLocal: true
-    })), [q]),
-    O = Y.useMemo(() => {
-      if (a === `recent`) {
-        let e = Ga(),
-          t = [...l, ...m],
-          n = new Map(t.map(e => [e.id, e]));
-        return e.map(e => n.get(e)).filter(e => !!e);
-      }
-      return l.length > 0 ? l : N;
-    }, [a, l, m, N]),
-    k = Y.useMemo(() => {
-      let e = O;
-      if (a !== `square` && (v && (e = e.filter(e => e.category === v)), g && (e = e.filter(e => e.tags.some(e => e.id === g)))), !b.trim() || a === `square`) return e;
-      let t = b.trim().toLowerCase();
-      return e.filter(e => e.title.toLowerCase().includes(t) || e.content.toLowerCase().includes(t) || (e.description || ``).toLowerCase().includes(t));
-    }, [O, b, a, v, g]),
-    A = async e => {
-      if (!E) {
-        D(`请先登录后再收藏`);
-        return;
-      }
-      let t = f.has(e.id),
-        n = new Set(f);
-      if (t) n.delete(e.id), p(n), h(t => t.filter(t => t.id !== e.id)), (await za(e.id)) || (D(`取消收藏失败`), Ia().then(e => p(new Set(e))));else {
-        n.add(e.id), p(n), h(t => t.some(t => t.id === e.id) ? t : [e, ...t]);
-        let {
-          ok: t,
-          error: r
-        } = await Ra(e.id);
-        t ? D(`已收藏`) : (n.delete(e.id), p(new Set(n)), h(t => t.filter(t => t.id !== e.id)), D(r || `收藏失败`));
-      }
-    },
-    j = e => {
-      Ka(e.id), n(e), t();
-    };
-  return e ? Un.createPortal(X.jsx(`div`, {
-    className: `fixed inset-0 z-[1000] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 nowheel nopan nodrag`,
-    onClick: t,
-    children: X.jsxs(`div`, {
-      className: `relative w-[78vw] h-[82vh] max-w-[1600px] bg-[#141414] border border-[#2a2a2a] rounded-2xl shadow-2xl flex flex-col overflow-hidden`,
-      onClick: e => e.stopPropagation(),
-      children: [w && X.jsx(`div`, {
-        className: `absolute top-4 left-1/2 -translate-x-1/2 z-[1100] px-4 py-2 rounded-lg bg-[#2a2a2a] border border-[#3a3a3a] text-sm text-white shadow-2xl`,
-        children: w
-      }), X.jsxs(`div`, {
-        className: `shrink-0 flex items-center gap-4 px-5 h-14 border-b border-[#222]`,
-        children: [X.jsxs(`div`, {
-          className: `flex items-center gap-2 pr-3 mr-1 border-r border-[#2a2a2a]`,
-          children: [X.jsx(Ye, {
-            className: `w-5 h-5 text-white`
-          }), X.jsx(`span`, {
-            className: `text-base font-semibold text-white whitespace-nowrap`,
-            children: `提示词库`
-          })]
-        }), X.jsx(`div`, {
-          className: `flex items-center gap-1`,
-          children: [{
-            key: `square`,
-            label: `提示词广场`
-          }, {
-            key: `recent`,
-            label: `最近使用`
-          }].map(e => X.jsx(`button`, {
-            onClick: () => o(e.key),
-            className: `px-3.5 py-1.5 text-sm rounded-lg transition-colors ${a === e.key ? `bg-[#2a2a2a] text-white font-medium` : `text-gray-400 hover:text-gray-200`}`,
-            children: e.label
-          }, e.key))
-        }), X.jsxs(`div`, {
-          className: `relative flex-1 max-w-md`,
-          children: [X.jsx(u, {
-            className: `absolute left-1 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500`
-          }), X.jsx(`input`, {
-            value: b,
-            onChange: e => x(e.target.value),
-            placeholder: `搜索标题、标签、提示词内容`,
-            className: `w-full pl-7 pr-3 py-1.5 text-sm bg-transparent border-0 border-b border-[#333] rounded-none text-gray-200 placeholder:text-gray-600 focus:border-gray-400 outline-none`
-          })]
-        }), X.jsx(`div`, {
-          className: `ml-auto flex items-center gap-3`,
-          children: X.jsx(`button`, {
-            onClick: t,
-            className: `p-1.5 text-gray-400 hover:text-gray-200 hover:bg-[#2a2a2a] rounded-lg`,
-            children: X.jsx(yn, {
-              size: 18
-            })
-          })
-        })]
-      }), X.jsx(`div`, {
-        className: `shrink-0 flex items-center gap-2 px-5 pt-3 pb-1`,
-        children: Ua.map(e => X.jsx(`button`, {
-          onClick: () => y(e.value),
-          className: `px-4 py-1.5 text-[13px] rounded-lg transition-colors ${v === e.value ? `bg-white text-[#141414] font-medium` : `bg-[#1f1f1f] text-gray-400 hover:bg-[#2a2a2a] hover:text-gray-200`}`,
-          children: e.label
-        }, e.value))
-      }), X.jsxs(`div`, {
-        className: `shrink-0 flex items-center gap-1.5 px-5 h-11 overflow-x-auto custom-scrollbar`,
-        children: [X.jsx(`button`, {
-          onClick: () => _(``),
-          className: `shrink-0 px-3 py-1.5 text-[13px] rounded-md transition-colors ${g === `` ? `text-white font-medium border-b-2 border-red-500 rounded-none` : `text-gray-400 hover:text-gray-200`}`,
-          children: `推荐`
-        }), s.map(e => X.jsx(`button`, {
-          onClick: () => _(e.id),
-          className: `shrink-0 px-3 py-1.5 text-[13px] rounded-md transition-colors ${g === e.id ? `text-white font-medium border-b-2 border-red-500 rounded-none` : `text-gray-400 hover:text-gray-200`}`,
-          children: e.name
-        }, e.id))]
-      }), X.jsx(`div`, {
-        className: `flex-1 overflow-y-auto custom-scrollbar p-5`,
-        children: S ? X.jsx(`div`, {
-          className: `h-full flex items-center justify-center text-sm text-gray-500`,
-          children: `加载中…`
-        }) : k.length === 0 ? X.jsx(`div`, {
-          className: `h-full flex items-center justify-center text-sm text-gray-500`,
-          children: a === `recent` ? `还没有使用记录` : `暂无提示词`
-        }) : X.jsx(`div`, {
-          className: `grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-3`,
-          children: k.map(e => {
-            let t = f.has(e.id);
-            return X.jsx(`div`, {
-              className: `group relative rounded-xl overflow-hidden bg-[#1a1a1a] border border-transparent hover:border-white/30 transition-all`,
-              children: X.jsxs(`div`, {
-                className: `relative aspect-[3/4] bg-[#0d0c0c] overflow-hidden`,
-                children: [e.coverUrl ? X.jsx(`img`, {
-                  src: Ma(e.coverUrl),
-                  alt: e.title,
-                  className: `w-full h-full object-cover`
-                }) : X.jsx(`div`, {
-                  className: `w-full h-full flex items-center justify-center text-gray-700 text-3xl`,
-                  children: e.isLocal ? `📝` : `✨`
-                }), X.jsx(`div`, {
-                  className: `absolute inset-x-0 bottom-0 h-2/5 bg-gradient-to-t from-black/85 to-transparent`
-                }), !e.isLocal && X.jsx(`button`, {
-                  onClick: t => {
-                    t.stopPropagation(), A(e);
-                  },
-                  className: `absolute top-2 right-2 z-20 p-1.5 rounded-full backdrop-blur-sm transition-all ${t ? `bg-red-500/90 text-white opacity-100` : `bg-black/50 text-white/90 opacity-0 group-hover:opacity-100 hover:bg-black/70`}`,
-                  title: t ? `取消收藏` : `收藏`,
-                  children: X.jsx(fe, {
-                    size: 14,
-                    fill: t ? `currentColor` : `none`
-                  })
-                }), X.jsxs(`div`, {
-                  className: `absolute bottom-0 inset-x-0 p-2.5`,
-                  children: [X.jsx(`h3`, {
-                    className: `text-[13px] font-semibold text-white truncate drop-shadow`,
-                    title: e.title,
-                    children: e.title
-                  }), X.jsx(`div`, {
-                    className: `mt-1 flex items-center gap-1.5`,
-                    children: e.isLocal ? e.category ? [X.jsx(`span`, {
-                      className: `px-1.5 py-0.5 text-[10px] rounded bg-blue-500/30 text-blue-300 backdrop-blur-sm`,
-                      children: ({text: `文本`, image: `生图`, video: `视频`})[e.category] || e.category
-                    }, `type`)] : [X.jsx(`span`, {
-                      className: `px-1.5 py-0.5 text-[10px] rounded bg-white/15 text-white/90 backdrop-blur-sm`,
-                      children: `通用`
-                    }, `all`)] : e.tags.slice(0, 1).map(e => X.jsx(`span`, {
-                      className: `px-1.5 py-0.5 text-[10px] rounded bg-white/15 text-white/90 backdrop-blur-sm`,
-                      children: e.name
-                    }, e.id))
-                  })]
-                }), X.jsx(`button`, {
-                  onClick: () => e.isLocal ? n(e.content) : j(e),
-                  className: `absolute inset-0 z-10 flex items-center justify-center opacity-0 group-hover:opacity-100 bg-black/40 transition-opacity`,
-                  children: X.jsxs(`span`, {
-                    className: `flex items-center gap-1.5 px-4 py-2 text-sm font-medium bg-white text-[#141414] rounded-lg shadow-lg`,
-                    children: [X.jsx(Pn, {
-                      size: 15
-                    }), ` 使用`]
-                  })
-                })]
-              })
-            }, e.id);
-          })
-        })
-      })]
-    })
-  }), document.body) : null;
-}
-function Ja({
-  category: e,
-  presetPrompts: t,
-  onApply: n,
-  onToast: r
-}) {
-  let [i, a] = Y.useState(false),
-    [o, s] = Y.useState(false),
-    [c, l] = Y.useState([]),
-    u = Y.useRef(null),
-    d = t.filter(e => e.enabled !== false),
-    f = t => t.type === e || t.type === `all` || !t.type,
-    p = [...d.filter(f), ...d.filter(e => !f(e))],
-    m = [...c.filter(t => t.category === e), ...c.filter(t => t.category !== e)];
-  Y.useEffect(() => {
-    i && La().then(l).catch(() => {});
-  }, [i]), Y.useEffect(() => {
-    if (!i) return;
-    let e = e => {
-      u.current && !u.current.contains(e.target) && a(false);
-    };
-    return document.addEventListener(`mousedown`, e, true), () => document.removeEventListener(`mousedown`, e, true);
-  }, [i]);
-  let h = e => {
-    n(e), a(false);
-  };
-  return X.jsxs(`div`, {
-    className: `relative nodrag flex items-center`,
-    ref: u,
-    children: [X.jsx(`div`, {
-      className: `w-[1px] h-3 bg-[#444] flex-shrink-0 mr-1.5`
-    }), X.jsx(`button`, {
-      className: `flex items-center gap-1 h-6 px-2 bg-transparent hover:bg-[#2a2a2a] border border-transparent hover:border-[#333] rounded text-[11px] text-gray-300 transition-colors cursor-pointer max-w-[80px]`,
-      onClick: e => {
-        e.stopPropagation(), a(e => !e);
-      },
-      children: X.jsx(`span`, {
-        className: `truncate`,
-        children: `提示词`
-      })
-    }), i && X.jsxs(`div`, {
-      className: `absolute bottom-full left-0 mb-1 w-56 bg-[#222] border border-[#333] rounded-lg shadow-xl z-50 flex flex-col max-h-72 overflow-hidden nowheel nopan nodrag`,
-      onClick: e => e.stopPropagation(),
-      children: [X.jsx(`div`, {
-        className: `shrink-0 px-3 pt-2 pb-1.5 text-[10px] text-gray-500`,
-        children: `提示词`
-      }), X.jsx(`div`, {
-        className: `flex-1 overflow-y-auto custom-scrollbar px-2`,
-        children: p.length === 0 && m.length === 0 ? X.jsx(`div`, {
-          className: `px-2 py-1.5 text-[11px] text-gray-600`,
-          children: `暂无提示词`
-        }) : X.jsxs(X.Fragment, {
-          children: [m.map(e => X.jsxs(`button`, {
-            className: `w-full flex items-center gap-1.5 mb-1 text-left px-2 py-1.5 text-[11px] rounded-md transition-colors truncate text-gray-400 hover:bg-[#2a2a2a] hover:text-gray-200`,
-            onClick: () => h(e.content),
-            title: e.title,
-            children: [X.jsx(`span`, {
-              className: `truncate`,
-              children: e.title
-            }), X.jsx(Ye, {
-              size: 12,
-              className: `shrink-0 text-white`
-            })]
-          }, `fav-${e.id}`)), p.map((e, t) => X.jsx(`button`, {
-            className: `w-full block mb-1 text-left px-2 py-1.5 text-[11px] rounded-md transition-colors truncate text-gray-400 hover:bg-[#2a2a2a] hover:text-gray-200`,
-            onClick: () => h(e.prompt),
-            title: e.title,
-            children: e.title
-          }, `local-${t}`))]
-        })
-      }), X.jsxs(`div`, {
-        className: `shrink-0 flex items-center justify-between gap-2 px-2 py-1.5 border-t border-[#333]`,
-        children: [X.jsx(`button`, {
-          className: `text-[10px] text-gray-400 hover:text-gray-200 transition-colors`,
-          onClick: () => {
-            Ha(), a(false);
-          },
-          children: `本地配置`
-        }), X.jsxs(`button`, {
-          className: `flex items-center gap-1 text-[10px] text-blue-400 hover:text-blue-300 transition-colors`,
-          onClick: () => {
-            s(true), a(false);
-          },
-          children: [X.jsx(Ye, {
-            size: 11
-          }), `提示词库`]
-        })]
-      })]
-    }), X.jsx(qa, {
-      open: o,
-      onClose: () => s(false),
-      onUse: e => n(e.content),
-      onToast: r,
-      defaultCategory: e,
-      presetPrompts: t
-    })]
-  });
-}
+
 var Ya = Y.memo(({
   id: e,
   data: n,
@@ -3361,7 +3047,7 @@ var Ya = Y.memo(({
                     children: t.label
                   }, t.value))]
                 })]
-              }), X.jsx(Ja, {
+              }), X.jsx(PromptDropdown, {
                 category: `image`,
                 presetPrompts: ue,
                 onApply: V,
@@ -4266,7 +3952,7 @@ var Qa = Y.memo(({
                   });
                 })()
               })]
-            }), X.jsx(Ja, {
+            }), X.jsx(PromptDropdown, {
               category: `text`,
               presetPrompts: S,
               onApply: t => {
@@ -7894,7 +7580,7 @@ var xo = (e, t, n) => Math.max(t, Math.min(n, e)),
                     children: t.label
                   }, t.value))]
                 })]
-              }), X.jsx(Ja, {
+              }), X.jsx(PromptDropdown, {
                 category: `video`,
                 presetPrompts: l.presetPrompts || [],
                 onApply: t => {
@@ -9028,7 +8714,7 @@ var Ao = Y.memo(({
                     }, n);
                   })]
                 })]
-              }), X.jsx(Ja, {
+              }), X.jsx(PromptDropdown, {
                 category: `video`,
                 presetPrompts: l.presetPrompts || [],
                 onApply: t => {
@@ -10994,7 +10680,7 @@ var as = [{
                     selectedModel: t
                   }), localStorage.setItem(`mutiwindow_discountvideo_model`, t), N(false);
                 }
-              }), X.jsx(Ja, {
+              }), X.jsx(PromptDropdown, {
                 category: `video`,
                 presetPrompts: d.presetPrompts || [],
                 onApply: t => {
@@ -40895,6 +40581,13 @@ function Nv() {
     }),
     [Hr, Ur] = Y.useState(false),
     Wr = Y.useRef(false);
+  // 监听提示词变更事件（来自 PromptLibrary 的 saveAndNotify）
+  Y.useEffect(() => {
+    let e = e => {
+      e.detail && Array.isArray(e.detail) && Mr(e.detail);
+    };
+    return window.addEventListener(`yimao:presetsChanged`, e), () => window.removeEventListener(`yimao:presetsChanged`, e);
+  }, []);
   Y.useEffect(() => {
     Hr && !Wr.current && (Wr.current = true, console.log(`[初始化完成] 当前 isLoggedIn:`, Ne), console.log(`[初始化完成] 当前 userInfo:`, Ie?.modelApiTokenKey ? `***` + Ie.modelApiTokenKey.slice(-4) : `empty`));
   }, [Hr, En, Ne, Ie]), Y.useEffect(() => {
@@ -42940,89 +42633,10 @@ function Nv() {
           className: `flex-1 overflow-y-auto p-6 relative pb-24 custom-scrollbar bg-[#0d0c0c] nowheel nopan nodrag`,
           children: X.jsxs(`div`, {
             className: `max-w-4xl mx-auto flex flex-col gap-6`,
-            children: [Ee === `basic` && X.jsx(`div`, {
-              className: `space-y-6 animate-fade-in`,
-              children: X.jsxs(`div`, {
-                className: `group bg-[#1a1a1a] rounded-xl overflow-hidden transition-all duration-300 pb-4 shadow-sm border border-[#222]`,
-                children: [X.jsxs(`div`, {
-                  className: `flex justify-between items-center p-4 border-b border-[#222]`,
-                  children: [X.jsxs(`h2`, {
-                    className: `font-bold text-gray-200 text-sm flex items-center gap-2`,
-                    children: [X.jsx(`span`, {
-                      className: `text-yellow-500`,
-                      children: `✨`
-                    }), ` 预设提示词`, X.jsxs(`span`, {
-                      className: `text-xs text-gray-500 font-normal ml-2 bg-[#222] px-2 py-0.5 rounded-full`,
-                      children: [`(`, jr.length, `/`, lr.presets, `)`]
-                    })]
-                  }), X.jsx(`button`, {
-                    onClick: Ai,
-                    className: `text-xs px-3 py-1.5 rounded-lg transition-colors bg-[#222] text-gray-300 hover:bg-[#2a2a2a] hover:text-blue-400`,
-                    title: `添加预设`,
-                    children: `+ 添加新预设`
-                  })]
-                }), X.jsx(`div`, {
-                  className: `px-4 pt-4`,
-                  children: X.jsxs(`div`, {
-                    className: `space-y-3 custom-scrollbar`,
-                    children: [jr.map((e, t) => X.jsxs(`div`, {
-                      className: `flex gap-3 items-start bg-[#0d0c0c] p-3 rounded-lg border border-[#333] hover:border-[#444] transition-colors group/preset`,
-                      children: [X.jsx(`div`, {
-                        className: `flex flex-col gap-2 pt-1.5`,
-                        children: X.jsx(`input`, {
-                          type: `checkbox`,
-                          checked: e.enabled !== false,
-                          onChange: e => ki(t, `enabled`, e.target.checked),
-                          className: `cursor-pointer accent-blue-500 w-4 h-4`,
-                          title: `启用/禁用`
-                        })
-                      }), X.jsxs(`div`, {
-                        className: `flex-1 space-y-2`,
-                        children: [X.jsxs(`div`, {
-                          className: `flex gap-2`,
-                          children: [X.jsx(`input`, {
-                            className: `w-full text-xs bg-[#1a1a1a] border border-[#333] rounded px-3 py-1.5 text-gray-300 focus:border-blue-500 outline-none transition-all`,
-                            placeholder: `标题`,
-                            value: e.title,
-                            onChange: e => ki(t, `title`, e.target.value)
-                          }), X.jsxs(`select`, {
-                            className: `text-xs bg-[#1a1a1a] border border-[#333] rounded px-2 py-1.5 text-gray-300 focus:border-blue-500 outline-none transition-all w-24`,
-                            value: e.type || `all`,
-                            onChange: e => ki(t, `type`, e.target.value),
-                            children: [X.jsx(`option`, {
-                              value: `all`,
-                              children: `通用`
-                            }), X.jsx(`option`, {
-                              value: `text`,
-                              children: `文本`
-                            }), X.jsx(`option`, {
-                              value: `image`,
-                              children: `生图`
-                            }), X.jsx(`option`, {
-                              value: `video`,
-                              children: `视频`
-                            })]
-                          })]
-                        }), X.jsx(`textarea`, {
-                          className: `w-full text-xs bg-[#1a1a1a] border border-[#333] rounded px-3 py-2 resize-none h-16 text-gray-400 focus:border-blue-500 outline-none transition-all nowheel nopan`,
-                          placeholder: `提示词内容`,
-                          value: e.prompt,
-                          onChange: e => ki(t, `prompt`, e.target.value)
-                        })]
-                      }), X.jsx(`button`, {
-                        onClick: () => Fi(t),
-                        className: `text-gray-600 hover:text-red-500 p-1.5 hover:bg-[#222] rounded-lg transition-colors opacity-0 group-hover/preset:opacity-100`,
-                        children: X.jsx(S, {
-                          size: 14
-                        })
-                      })]
-                    }, t)), false && jr.length >= lr.presets && Un.type !== `VIP` && X.jsx(`div`, {
-                      className: `text-xs text-center text-gray-500 mt-4 bg-[#222] p-2 rounded-lg`,
-                      children: `已达当前版本预设上限，请升级会员`
-                    })]
-                  })
-                })]
-              })
+            children: [Ee === `basic` && X.jsx(PromptLibrary, {
+              open: true,
+              onClose: () => De(`models`),
+              presetPrompts: jr
             }), Ee === `builtin` && X.jsx(N_, {}), Ee === `models` && X.jsxs(`div`, {
               className: `space-y-6 animate-fade-in`,
               children: [X.jsxs(`div`, {

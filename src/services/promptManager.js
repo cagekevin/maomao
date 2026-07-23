@@ -43,17 +43,27 @@ export function createPreset() {
   };
 }
 
-// 将预设数组映射为弹窗卡片格式
+// 将预设数组映射为弹窗卡片格式（含原始下标）
 export function mapToLibraryCards(presets) {
   return presets
-    .filter(p => p.enabled !== false)
-    .map(p => ({
-      id: p.id,
+    .map((p, idx) => ({ p, idx }))
+    .filter(({ p }) => p.enabled !== false)
+    .map(({ p, idx }) => ({
+      id: p.id || ('preset-' + idx),
       title: p.title,
       content: p.prompt,
       category: p.type === 'all' ? '' : p.type,
+      presetIndex: idx,
       isLocal: true
     }));
+}
+
+// 保存并通知 UI 刷新
+export async function saveAndNotify(presets) {
+  await savePresets(presets);
+  try {
+    window.dispatchEvent(new CustomEvent('yimao:presetsChanged', { detail: presets }));
+  } catch (e) {}
 }
 
 // 获取最近使用的 preset id 列表
