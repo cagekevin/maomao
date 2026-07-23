@@ -17,7 +17,7 @@ npm run build
 - **角色定位**：你是「猫猫AI画布」项目的核心架构师与维护者。
 - **项目本质**：一个 Chrome 扩展画布工具（包含 AI 图片、视频、文本工作流），由闭源原版反编译魔改为脱离官方的本地模式。
 - **运行机制**：前端跑本地引擎，AI 请求走自研网关，文件和数据走自研本地服务。
-- **当前状态**：代码含大量混淆代码（反编译产物），**正在渐进式拆解中**。当前只跑 V1，V2 已永久暂停。目标是将 `App.js`（~4.4 万行）逐步拆解为可读、可维护的独立模块。
+- **当前状态**：代码含大量混淆代码（反编译产物），**注释化已完成，正在进行重命名**（2026-07-24）。App.js 287 个模块级函数全部标注可读名，27 个节点组件名已语义化。目标是将 `App.js`（~4.3 万行）逐步拆解为可读、可维护的独立模块。
 - **第一原则**：修改前先读本文档。目标是让项目越来越可读、功能越来越完整。改代码前确认影响范围，别瞎猜。
 
 > **⚠️ 目录结构已重组（2026-07-22）**：原 `src/_engine/` 已扁平化，`App.js` / `config.js` / `entry.js` / `vendor/` 现直接位于 `src/` 根（`src/App.js`、`src/config.js`、`src/entry.js`、`src/vendor/`）。本文档及 `docs/` 常驻文档中凡出现 `src/_engine/App.js` 之处，均指 **`src/App.js`**；`src/_engine/config.js` 即 `src/config.js`。`docs/archive/` 下的历史笔记仍保留旧路径，属当时快照，以本说明与常驻文档为准。恢复基线用 `git checkout -- src/App.js`。
@@ -27,7 +27,8 @@ npm run build
 > - 保持原样不重写：`src/vendor/`（`vendor.js`/`rolldown-runtime.js` 是运行时依赖，可 import 引用，不改内容）、`dist/`（构建产物）、`reference/App.original.js`（原始参考）、`*.css`
 > - 入口：前端唯一入口是 `src/entry.js`（`index.html` 直接引用）；`src/main.tsx` 已删除，不要再创建或引用。
 > - 端口：前端扩展（Chrome 加载 `dist/`）· localTool `:18080` · 网关 `:9004`
-> - 先读：本文件 → `docs/模块专题/README.md` → `docs/archive/PROJECT_ORIGIN.md` → `docs/02-architecture.md` → 改码前查 `docs/func-mapping.txt` + `docs/var-mapping.txt`
+> - 先读：本文件 → 查函数查 `docs/func-mapping.txt` + `docs/var-mapping.txt` → 查节点查 `docs/节点组件契约表.md` → 查事件查 `docs/事件总线字典.md` → 查 vendor 查 `docs/vendor-mapping.txt` → 查存储查 `docs/KV存储键读写面.md`
+> - 诊断工具：`node scripts/vendor-lookup.cjs <name>`（查混淆名来源）、`npm run build && node scripts/check-build.cjs`（不用 Chrome 验证）
 > - 事实源：代码 > git > 审计文档；`docs/04-api` 等是 AI 提纯，**非事实源**，改码前须 grep 源码复核
 > - 已知噪音（别修）：`9004` 未实现 API 的 `404`、`RootErrorBoundary` 的 `null` 异常
 
@@ -169,6 +170,10 @@ return X.jsxs("div", { className: "pl-overlay", children: [
 | `docs/archive/PROJECT_ORIGIN.md` | 项目来历 + 命名/版本澄清，**以它为准** | 🟢 高 |
 | `docs/archive/ARCHITECTURE.md`（常驻版 `02-architecture.md`） | 三层架构事实，红线以本文档 §3 为准 | 🟢 高 |
 | `docs/archive/FUNCTION_MAP.md` | App.js 行号索引，改画布功能前先查；行号会漂移 | 🟡 行号已漂 |
+| `docs/vendor-mapping.txt` | vendor.js 199 个导出 → 库::API 映射。报 `Xx is not defined` 时先查这个。 | 🟢 高 |
+| `docs/节点组件契约表.md` | 26 个节点的 props/callbacks/output/连接关系。改节点时必查。 | 🟢 高 |
+| `docs/事件总线字典.md` | 27 个 CustomEvent 的派发/消费/detail。拆组件时必查。 | 🟢 高 |
+| `docs/KV存储键读写面.md` | 23 个 KV 键的读写位置/GAS 同步/数据结构。 | 🟡 字典级 |
 | `docs/func-mapping.txt` / `docs/var-mapping.txt` | 混淆名→可读名。找功能必须先查这两个表获取短名真身，绝不能在 App.js 里盲搜。 | 🟡 字典级 |
 | `docs/04-api/api-reference.md` | 端点/网关路由清单（已审计提纯，**改码前须 grep 源码复核**，非事实源） | 🟡 提纯非事实源 |
 | `docs/TASKS.md` | 已知 Bug/修复清单/排查任务板 | 🟢 高 |
@@ -195,8 +200,9 @@ return X.jsxs("div", { className: "pl-overlay", children: [
 - **经验沉淀**：每次完成一次拆解或功能改造后，把经验教训追加到 `docs/拆分计划.md` 的「翻车点」区域。记录内容：改了什么、遇到什么问题、怎么解决的、下次怎么避免。拆解完成时更新对应条目的状态。
 - **AI 质量门控（改码后必跑，再交付）**：每次改动安全区代码后，**按顺序**执行以下检查，全部通过才能交付：
   - **① `npm run build`（最先跑，最重要）** — ⚠️ 只能用 `npm run build`，禁止 `npx vite build`。
-  - ② 前端 / TS：`npx eslint src/config src/utils src/services src/components src/hooks src/contexts src/config.js src/react-bridge.ts`（仅报错级规则；`src/App.js` / `src/vendor` 已在 `eslint.config.js` 中忽略）。
-  - ③ 网关 Python：`cd apimart-gateway && ruff check .`（需先 `pip install ruff` 或 `uv tool install ruff`）。
+  - **② `node scripts/check-build.cjs`** — 运行时静态分析（错误签名/注释完整性/TDZ 风险/语法），**不用开 Chrome**。
+  - ③ 前端 / TS：`npx eslint src/config src/utils src/services src/components src/hooks src/contexts src/config.js src/react-bridge.ts`（仅报错级规则；`src/App.js` / `src/vendor` 已在 `eslint.config.js` 中忽略）。
+  - ④ 网关 Python：`cd apimart-gateway && ruff check .`（需先 `pip install ruff` 或 `uv tool install ruff`）。
   - 不强制 0 warning，但不得引入新的 error 级问题；若工具未安装，在交付说明中注明「未跑 lint」。
 - **注释维护（@ai-check 机制）**：App.js 中每条 `[✔ 已确认]` / `[⚠️ 待确认] @ai-check` 注释由 `scripts/annotate.cjs` 基于 `docs/func-mapping.txt` + `docs/var-mapping.txt` 自动生成。规则：
   - **每当确认一个 `⚠️ 待确认` 函数的真身**，必须同步两件事：① 把 `App.js` 中该行 `⚠️ 待确认` 改为 `✔ 已确认`，并更新函数名说明；② 在 `docs/func-mapping.txt`（函数）或 `docs/var-mapping.txt`（常量/状态）中添加一行 `混淆名 = 可读名 # 依据`。这样后续 `annotate.cjs --run --force` 不会把已确认的改回去。
