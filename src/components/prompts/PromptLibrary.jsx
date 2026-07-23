@@ -3,7 +3,6 @@
 import { i as e } from "../../vendor/rolldown-runtime.js";
 import { Nr as le, Ar as o, Mr as ae } from "../../vendor/vendor.js";
 import { Ua } from "../../config/options.js";
-import { Ha } from "../../services/auth.js";
 import {
   mapToLibraryCards,
   getRecent,
@@ -516,20 +515,13 @@ function PromptDropdown({
               }, "local-" + i);
             })
           }),
-          X.jsxs("div", {
-            className: "shrink-0 flex items-center justify-between gap-2 px-2 py-1.5 border-t border-[#333]",
-            children: [
-              X.jsx("button", {
-                className: "text-[10px] text-gray-400 hover:text-gray-200 transition-colors",
-                onClick: function () { setLibraryOpen(true); setOpen(false); },
-                children: "管理"
-              }),
-              X.jsxs("button", {
-                className: "flex items-center gap-1 text-[10px] text-blue-400 hover:text-blue-300 transition-colors",
-                onClick: function () { setLibraryOpen(true); setOpen(false); },
-                children: [SparklesIcon, " 提示词库"]
-              })
-            ]
+          X.jsx("div", {
+            className: "shrink-0 flex items-center justify-center gap-2 px-2 py-1.5 border-t border-[#333]",
+            children: X.jsxs("button", {
+              className: "flex items-center gap-1 text-[10px] text-blue-400 hover:text-blue-300 transition-colors",
+              onClick: function () { setLibraryOpen(true); setOpen(false); },
+              children: [SparklesIcon, " 提示词库"]
+            })
           })
         ]
       }),
