@@ -2084,8 +2084,8 @@ var _i = ({
     }), document.body) : null;
   };
 
-// [✔ 已确认] Ya — PromptNode
-var Ya = Y.memo(({
+// [✔ 已确认] PromptNodeComp — PromptNode
+var PromptNodeComp = Y.memo(({
   id: e,
   data: n,
   selected: r,
@@ -3416,8 +3416,8 @@ function Za({
     })]
   });
 }
-// [✔ 已确认] Qa — TextNode
-var Qa = Y.memo(({
+// [✔ 已确认] TextNodeComp — TextNode
+var TextNodeComp = Y.memo(({
   id: e,
   data: n,
   selected: r
@@ -4073,8 +4073,8 @@ var Qa = Y.memo(({
     })()]
   });
 });
-// [✔ 已确认] eo — CropNode
-function eo({
+// [✔ 已确认] CropNodeComp — CropNode
+function CropNodeComp({
   id: e,
   data: t,
   selected: n
@@ -11521,13 +11521,13 @@ function fs({
     })]
   });
 }
-// [✔ 已确认] ps — AudioNode
+// [✔ 已确认] AudioPlayerNodeComp — AudioNode
 // [✔ 已确认] ms — HttpRequestNode
 // [✔ 已确认] hs — getNodeDisplayText
 // [✔ 已确认] gs — getNodeMedia
 // [✔ 已确认] _s — urlToDataUrl
 // [✔ 已确认] vs — rhwebappRunRequestEvent
-var ps = Y.memo(({
+var AudioPlayerNodeComp = Y.memo(({
     id: e,
     data: n,
     selected: r
@@ -28896,16 +28896,16 @@ var cg = ({
   lg = {
     group: Eh,
     imageNode: li,
-    promptNode: Ya,
-    textNode: Qa,
-    cropNode: eo,
+    promptNode: PromptNodeComp,
+    textNode: TextNodeComp,
+    cropNode: CropNodeComp,
     gridSplitNode: po,
     gridMergeNode: To,
     videoNode: Do,
     sd2VideoNode: Ao,
     discountVideoNode: os,
     audioNode: cs,
-    audioPlayerNode: ps,
+    audioPlayerNode: AudioPlayerNodeComp,
     customNode: ms,
     rhWebappNode: Ms,
     videoExtractNode: Ns,
