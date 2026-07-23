@@ -1,16 +1,23 @@
-# @ai-check 任务索引
+# Agent 任务索引
 
-共 106 个待确认函数，分 5 个 agent。**每个函数由 2 个 agent 独立识别**，交叉验证。
+三组并行任务，共 15 个 agent。
 
-| Agent | 函数数 | 文件 | 重叠组 |
-|-------|--------|------|--------|
-| AI01 | 42 | [AI01.md](AI01.md) | 第1组 + 第2组 |
-| AI02 | 42 | [AI02.md](AI02.md) | 第2组 + 第3组 |
-| AI03 | 42 | [AI03.md](AI03.md) | 第3组 + 第4组 |
-| AI04 | 43 | [AI04.md](AI04.md) | 第4组 + 第5组 |
-| AI05 | 43 | [AI05.md](AI05.md) | 第5组 + 第1组 |
+| 组别 | Agent | 文件 | 数量 | 内容 |
+|------|-------|------|------|------|
+| 节点 | NC01 | [NC01.md](NC01.md) | ~6 | imageNode, promptNode, textNode, cropNode, gridSplitNode, gridMergeNode |
+| 节点 | NC02 | [NC02.md](NC02.md) | ~6 | videoNode, sd2VideoNode, discountVideoNode, audioNode, audioPlayerNode, customNode |
+| 节点 | NC03 | [NC03.md](NC03.md) | ~6 | rhWebappNode, videoExtractNode, videoToGifNode, imageCompressNode, faceMosaicNode, compareNode |
+| 节点 | NC04 | [NC04.md](NC04.md) | ~6 | textConcatNode, urlToImageNode, fileToUrlNode, panoramaNode, director3dNode, imageBoxNode |
+| 节点 | NC05 | [NC05.md](NC05.md) | ~6 | stickyNoteNode, group |
+| 事件 | EV01 | [EV01.md](EV01.md) | ~6 | |
+| 事件 | EV02 | [EV02.md](EV02.md) | ~6 | |
+| 事件 | EV03 | [EV03.md](EV03.md) | ~6 | |
+| 事件 | EV04 | [EV04.md](EV04.md) | ~6 | |
+| 事件 | EV05 | [EV05.md](EV05.md) | ~6 | |
+| KV键 | KV01 | [KV01.md](KV01.md) | ~5 | |
+| KV键 | KV02 | [KV02.md](KV02.md) | ~5 | |
+| KV键 | KV03 | [KV03.md](KV03.md) | ~5 | |
+| KV键 | KV04 | [KV04.md](KV04.md) | ~5 | |
+| KV键 | KV05 | [KV05.md](KV05.md) | ~5 | |
 
-## 完成后
-1. 对比每组的 2 个 agent 结果：一致 → 直接采纳；不一致 → 人工裁决
-2. 合并到 `docs/func-mapping.txt` / `docs/var-mapping.txt`
-3. `node scripts/annotate.cjs --run --force` 刷新 App.js 注释
+已另有: `docs/vendor-tasks/` — vendor 导出标注 (VA01~05)
