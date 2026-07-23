@@ -9,6 +9,14 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 build_dist() {
   echo "🔨 正在构建 dist (v1)..."
   cd "$SCRIPT_DIR" || exit 1
+
+  # 首次运行自动安装依赖
+  if [ ! -d "node_modules" ]; then
+    echo "📦 首次运行，正在安装依赖..."
+    npm install
+    echo ""
+  fi
+
   # 双击运行时 shell 未加载 npm 环境，需把本项目 node_modules/.bin 加入 PATH，
   # 否则 cross-env / vite 解析不到（sh: cross-env: command not found）
   export PATH="$SCRIPT_DIR/node_modules/.bin:$PATH"
