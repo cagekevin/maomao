@@ -91,11 +91,15 @@ A.注释化 ✅ → B.重命名 ✅ → C.函数体重写 ✅ → D.vendor翻译
 - 主因：导出块内部名为单字母/双字母（如 `l`/`a`/`GC`/`Lw`），1.66MB 压缩包难唯一定位
 - 处理：`Mr/Nr/Q/R` 由 AI01 继续探索；`Zn/_/jr` 保留 `(?)` 不修正
 
-**D-2 待办（下一步）**：
-1. 把 24 条修正合并回 `vendor-mapping.txt`（去掉/改 `(?)`）
-2. 重新生成 `vendor-readable.js`（映射变了，可读名同步更新）
-3. `Mr/Nr/Q/R` 续研结果回来后再合并
-4. 三层验证（build + check-build + safety-net）后提交
+**D-2 已完成（commit `16efa09`）**：
+1. ✅ 24 条修正合并回 `vendor-mapping.txt`（value 去掉 `(?)`，注释保留——过时注释留 D-3 清理）
+2. ✅ 重新生成 `vendor-readable.js`：**186 条导出，0 重复 0 空名**（之前 192 条为旧脚本容错偏宽的虚高数字，186 是严格解析的真实覆盖）
+3. ✅ 三层验证通过：`npm run build` ✅、`check-build` 7 项 ✅、`safety-net --check` ✅（物理/JSX/产物指纹均无破坏）
+
+**D-2 仍未结清**：
+- `Mr / Nr / Q / R`（AI01 4 条存疑）—— 续研结果回来后再合并
+- `Zn / _ / jr`（3 条保留 `(?)`）—— 无 sourcemap 不强求
+- D-3 待办：vendor-mapping.txt 中已修正条目对应的 # 描述还是旧的（如 Z 的 "未定位真实 API" 已不准确），需要按映射重写描述
 
 ---
 
