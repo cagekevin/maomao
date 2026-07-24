@@ -1290,53 +1290,55 @@ var ImageNodeComp = Y.memo(({
   selected: n,
   width: r
 }) => {
+// ── 状态 ──
+
   let {
-      updateNodeData: i
+      updateNodeData: updateNodeData
     } = Gt(),
-    a = Y.useRef(null),
-    [o, s] = Y.useState(false),
+    fileInputRef = Y.useRef(null),
+    [isHovered, setIsHovered] = Y.useState(false),
     {
-      useThumbnail: c
+      useThumbnail: useThumbnail
     } = pr(),
-    l = t.imageUrl,
-    u = t.imageUrlRef,
-    d = t.thumbnailUrl,
-    f = t.imageAvailable,
-    p = oi(r ?? t._styleWidth ?? 420),
-    m = Y.useMemo(() => l ? l.startsWith(`data:video/`) || /\.(mp4|webm|mov|mkv|avi|m4v)($|\?)/i.test(l) ? `video` : l.startsWith(`data:audio/`) || /\.(mp3|wav|ogg|m4a|flac|aac|opus|wma|aiff)($|\?)/i.test(l) ? `audio` : l.startsWith(`data:text/`) || /\.(txt|md|json|csv)($|\?)/i.test(l) ? `text` : `image` : `empty`, [l]),
-    h = Y.useMemo(() => c ? Lr(l, p, `image`) || d || l : l || d, [c, l, d, p]),
-    g = Y.useMemo(() => {
-      if (c && f) {
-        let e = Br(l, p);
+    imageUrl = t.imageUrl,
+    imageUrlRef = t.imageUrlRef,
+    thumbnailUrl = t.thumbnailUrl,
+    imageAvailable = t.imageAvailable,
+    computedWidth = oi(r ?? t._styleWidth ?? 420),
+    mediaType = Y.useMemo(() => imageUrl ? imageUrl.startsWith(`data:video/`) || /\.(mp4|webm|mov|mkv|avi|m4v)($|\?)/i.test(imageUrl) ? `video` : imageUrl.startsWith(`data:audio/`) || /\.(mp3|wav|ogg|m4a|flac|aac|opus|wma|aiff)($|\?)/i.test(imageUrl) ? `audio` : imageUrl.startsWith(`data:text/`) || /\.(txt|md|json|csv)($|\?)/i.test(imageUrl) ? `text` : `image` : `empty`, [imageUrl]),
+    displayUrl = Y.useMemo(() => useThumbnail ? Lr(imageUrl, computedWidth, `image`) || thumbnailUrl || imageUrl : imageUrl || thumbnailUrl, [useThumbnail, imageUrl, thumbnailUrl, computedWidth]),
+    thumbnailSrc = Y.useMemo(() => {
+      if (useThumbnail && imageAvailable) {
+        let e = Br(imageUrl, computedWidth);
         if (e) return e;
       }
-      return d;
-    }, [c, f, l, d, p]),
-    _ = Y.useMemo(() => zr(l), [l]),
-    v = Y.useRef(null);
+      return thumbnailUrl;
+    }, [useThumbnail, imageAvailable, imageUrl, thumbnailUrl, computedWidth]),
+    fallbackSrc = Y.useMemo(() => zr(imageUrl), [imageUrl]),
+    videoSeenRef = Y.useRef(null);
   return Y.useEffect(() => {
-    if (m !== `video` || !l || f || !l.includes(`/files/`) || v.current === l) return;
-    v.current = l;
+    if (mediaType !== `video` || !imageUrl || imageAvailable || !imageUrl.includes(`/files/`) || videoSeenRef.current === imageUrl) return;
+    videoSeenRef.current = imageUrl;
     let t = false;
     return (async () => {
-      let n = await ai(l);
-      !t && n && i(e, {
+      let n = await ai(imageUrl);
+      !t && n && updateNodeData(e, {
         imageAvailable: true
       });
     })(), () => {
       t = true;
     };
-  }, [e, m, l, f, i]), X.jsxs(`div`, {
+  }, [e, mediaType, imageUrl, imageAvailable, updateNodeData]), X.jsxs(`div`, {
     className: `relative group/node w-full h-full min-w-[120px] min-h-[80px]`,
     children: [X.jsx(si, {
       id: e,
       data: t,
-      defaultTitle: m === `video` ? `视频` : m === `audio` ? `音频` : m === `text` ? `文本文件` : `图片`,
-      icon: m === `video` ? X.jsx(D, {
+      defaultTitle: mediaType === `video` ? `视频` : mediaType === `audio` ? `音频` : mediaType === `text` ? `文本文件` : `图片`,
+      icon: mediaType === `video` ? X.jsx(D, {
         size: 11
-      }) : m === `audio` ? X.jsx(qt, {
+      }) : mediaType === `audio` ? X.jsx(qt, {
         size: 11
-      }) : m === `text` ? X.jsx(R, {
+      }) : mediaType === `text` ? X.jsx(R, {
         size: 11
       }) : X.jsx(Ot, {
         size: 11
@@ -1347,7 +1349,7 @@ var ImageNodeComp = Y.memo(({
       minHeight: 80
     }), X.jsx(`input`, {
       type: `file`,
-      ref: a,
+      ref: fileInputRef,
       style: {
         display: `none`
       },
@@ -1366,28 +1368,29 @@ var ImageNodeComp = Y.memo(({
             thumbQuality: 75
           });
           if (t.url && /^https?:\/\//i.test(t.url)) {
-            i(e, {
+            updateNodeData(e, {
               imageUrl: t.url,
               thumbnailUrl: t.thumbnailUrl,
               label: n.name,
               imageUrlRef: undefined
             });
-            return;
+            // ── 渲染 ──
+return;
           }
         } catch (e) {
           console.warn(`[ImageNode] urlifyAsset failed, fallback to base64:`, e);
         }
-        let a = new FileReader();
-        a.onload = t => {
+        let fileInputRef = new FileReader();
+        fileInputRef.onload = t => {
           let r = t.target?.result;
-          i(e, {
+          updateNodeData(e, {
             imageUrl: r,
             thumbnailUrl: undefined,
             label: n.name
           });
-        }, a.onerror = () => {
+        }, fileInputRef.onerror = () => {
           console.error(`File read failed`);
-        }, a.readAsDataURL(n);
+        }, fileInputRef.readAsDataURL(n);
       }
     }), X.jsx(`div`, {
       className: `absolute -top-12 left-1/2 -translate-x-1/2 z-20 opacity-0 group-hover/node:opacity-100 transition-opacity pointer-events-none group-hover/node:pointer-events-auto nodrag pb-4`,
@@ -1397,17 +1400,17 @@ var ImageNodeComp = Y.memo(({
           className: `p-1.5 text-gray-400 hover:text-white hover:bg-[#333] rounded-md`,
           title: `上传/替换`,
           onClick: e => {
-            e.stopPropagation(), a.current?.click();
+            e.stopPropagation(), fileInputRef.current?.click();
           },
           children: X.jsx(jn, {
             size: 14
           })
-        }), (m === `image` || m === `empty`) && X.jsxs(X.Fragment, {
+        }), (mediaType === `image` || mediaType === `empty`) && X.jsxs(X.Fragment, {
           children: [X.jsx(`button`, {
             className: `p-1.5 text-gray-400 hover:text-white hover:bg-[#333] rounded-md`,
             title: `放大`,
             onClick: n => {
-              n.stopPropagation(), t.onZoom && t.onZoom(e, u, l);
+              n.stopPropagation(), t.onZoom && t.onZoom(e, imageUrlRef, imageUrl);
             },
             children: X.jsx(rt, {
               size: 14
@@ -1416,7 +1419,7 @@ var ImageNodeComp = Y.memo(({
             className: `p-1.5 text-gray-400 hover:text-white hover:bg-[#333] rounded-md`,
             title: `裁剪`,
             onClick: n => {
-              n.stopPropagation(), t.onCrop && t.onCrop(e, l, u);
+              n.stopPropagation(), t.onCrop && t.onCrop(e, imageUrl, imageUrlRef);
             },
             children: X.jsx(Wt, {
               size: 14
@@ -1425,20 +1428,20 @@ var ImageNodeComp = Y.memo(({
             className: `p-1.5 text-gray-400 hover:text-white hover:bg-[#333] rounded-md`,
             title: `编辑`,
             onClick: n => {
-              n.stopPropagation(), t.onEdit && t.onEdit(e, u, l);
+              n.stopPropagation(), t.onEdit && t.onEdit(e, imageUrlRef, imageUrl);
             },
             children: X.jsx(an, {
               size: 14
             })
           })]
-        }), l && l.startsWith(`http`) && m === `image` && X.jsx(`button`, {
+        }), imageUrl && imageUrl.startsWith(`http`) && mediaType === `image` && X.jsx(`button`, {
           className: `p-1.5 text-blue-400 hover:text-blue-300 hover:bg-[#333] rounded-md`,
           title: `将URL转换为Base64内嵌数据 (解决跨域/跨设备问题)`,
           onClick: async n => {
             n.stopPropagation();
             try {
-              i(e, {
-                imageUrl: await yr(l, 2048, .85)
+              updateNodeData(e, {
+                imageUrl: await yr(imageUrl, 2048, .85)
               }), t.onShowToast?.(`已转换为 Base64 内嵌格式`);
             } catch {
               t.onShowToast?.(`转换失败: 可能是跨域问题`);
@@ -1453,54 +1456,54 @@ var ImageNodeComp = Y.memo(({
           className: `p-1.5 text-gray-400 hover:text-blue-400 hover:bg-[#333] rounded-md`,
           title: `发送到左侧网站`,
           onClick: e => {
-            e.stopPropagation(), t.onSendToActiveTab && l && t.onSendToActiveTab(l);
+            e.stopPropagation(), t.onSendToActiveTab && imageUrl && t.onSendToActiveTab(imageUrl);
           },
           children: X.jsx(Rn, {
             size: 14
           })
         }), X.jsx(Yn, {
-          url: l,
-          fallbackExt: m === `video` ? `mp4` : `png`,
+          url: imageUrl,
+          fallbackExt: mediaType === `video` ? `mp4` : `png`,
           onToast: e => t.onShowToast?.(e)
         }), X.jsx(`button`, {
           className: `p-1.5 text-gray-400 hover:text-white hover:bg-[#333] rounded-md`,
           title: `下载`,
           onClick: async t => {
             t.stopPropagation();
-            let n = l,
+            let n = imageUrl,
               r = false;
             if (console.log(`[ImageNode] 下载开始:`, {
               nodeId: e,
-              imageUrlRef: u,
-              currentImageType: typeof l,
-              currentImageLength: l?.length
-            }), u) try {
-              console.log(`[ImageNode] 尝试读取原图, key=${u}`);
-              let e = await Q.getConfig(u);
+              imageUrlRef: imageUrlRef,
+              currentImageType: typeof imageUrl,
+              currentImageLength: imageUrl?.length
+            }), imageUrlRef) try {
+              console.log(`[ImageNode] 尝试读取原图, key=${imageUrlRef}`);
+              let e = await Q.getConfig(imageUrlRef);
               console.log(`[ImageNode] storage.getConfig 返回:`, {
                 type: typeof e,
                 isNull: e === null,
                 isUndefined: e === undefined,
                 isString: typeof e == `string`,
                 length: e?.length,
-                currentLength: l?.length,
-                equal: e === l,
+                currentLength: imageUrl?.length,
+                equal: e === imageUrl,
                 first100: e?.substring(0, 100),
-                currentFirst100: l?.substring(0, 100)
+                currentFirst100: imageUrl?.substring(0, 100)
               }), e && typeof e == `string` && e.length > 1e4 ? (n = e, r = true, console.log(`[ImageNode] 下载使用原图成功, size:`, e.length)) : console.log(`[ImageNode] 原图未找到或数据异常，使用当前图片`);
             } catch (e) {
               console.warn(`[ImageNode] 获取原图失败，使用当前图片:`, e);
             } else console.log(`[ImageNode] 无原图引用(imageUrlRef)，下载当前图片`);
-            let i = n.length < 5e4 && n.startsWith(`data:image`);
+            let updateNodeData = n.length < 5e4 && n.startsWith(`data:image`);
             if (console.log(`[ImageNode] 开始下载:`, {
               useOriginal: r,
-              isLikelyThumbnail: i,
+              isLikelyThumbnail: updateNodeData,
               urlLength: n.length,
               isBase64: n.startsWith(`data:image`),
               isHttp: n.startsWith(`http`)
             }), n) {
               let e = `png`;
-              if (m === `video` && (e = `mp4`), m === `audio` && (e = `mp3`), m === `text` && (e = `txt`), typeof chrome < `u` && chrome.downloads) chrome.downloads.download({
+              if (mediaType === `video` && (e = `mp4`), mediaType === `audio` && (e = `mp3`), mediaType === `text` && (e = `txt`), typeof chrome < `u` && chrome.downloads) chrome.downloads.download({
                 url: n,
                 filename: `maomao/file-${Date.now()}.${e}`,
                 saveAs: false
@@ -1522,10 +1525,10 @@ var ImageNodeComp = Y.memo(({
         position: J.Left
       }), X.jsxs(`div`, {
         className: `flex-1 p-0 bg-[#121212] flex items-center justify-center relative overflow-hidden`,
-        onMouseEnter: () => s(true),
-        onMouseLeave: () => s(false),
-        children: [m === `image` && X.jsx(`img`, {
-          src: h,
+        onMouseEnter: () => setIsHovered(true),
+        onMouseLeave: () => setIsHovered(false),
+        children: [mediaType === `image` && X.jsx(`img`, {
+          src: displayUrl,
           alt: `Content`,
           loading: `lazy`,
           decoding: `async`,
@@ -1533,35 +1536,35 @@ var ImageNodeComp = Y.memo(({
           draggable: false,
           onError: e => {
             let t = e.currentTarget;
-            l && t.src !== l && (t.src = l);
+            imageUrl && t.src !== imageUrl && (t.src = imageUrl);
           },
           onDoubleClick: n => {
-            n.stopPropagation(), t.onZoom && t.onZoom(e, u, l);
+            n.stopPropagation(), t.onZoom && t.onZoom(e, imageUrlRef, imageUrl);
           }
-        }), m === `video` && (o ? X.jsx(`video`, {
-          src: l,
+        }), mediaType === `video` && (isHovered ? X.jsx(`video`, {
+          src: imageUrl,
           controls: true,
           autoPlay: true,
           preload: `metadata`,
-          poster: g,
+          poster: thumbnailSrc,
           className: `w-full h-full object-contain`
-        }) : c && g ? X.jsxs(`div`, {
+        }) : useThumbnail && thumbnailSrc ? X.jsxs(`div`, {
           className: `relative w-full h-full`,
           children: [X.jsx(`img`, {
-            src: g,
+            src: thumbnailSrc,
             alt: `video poster`,
             loading: `lazy`,
             decoding: `async`,
             draggable: false,
             className: `w-full h-full object-contain cursor-pointer`,
             onClick: e => {
-              e.stopPropagation(), s(true);
+              e.stopPropagation(), setIsHovered(true);
             },
             onError: t => {
               let n = t.currentTarget;
-              _ && n.src !== _ ? n.src = _ : d && n.src !== d ? n.src = d : (i(e, {
+              fallbackSrc && n.src !== fallbackSrc ? n.src = fallbackSrc : thumbnailUrl && n.src !== thumbnailUrl ? n.src = thumbnailUrl : (updateNodeData(e, {
                 imageAvailable: false
-              }), s(true));
+              }), setIsHovered(true));
             }
           }), X.jsx(`div`, {
             className: `absolute inset-0 flex items-center justify-center pointer-events-none`,
@@ -1569,7 +1572,7 @@ var ImageNodeComp = Y.memo(({
               className: `w-12 h-12 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center opacity-80 hover:opacity-100 hover:bg-black/70 transition-all nodrag pointer-events-auto`,
               title: `播放视频`,
               onClick: e => {
-                e.stopPropagation(), s(true);
+                e.stopPropagation(), setIsHovered(true);
               },
               children: X.jsx(vn, {
                 className: `text-white w-6 h-6`
@@ -1577,22 +1580,22 @@ var ImageNodeComp = Y.memo(({
             })
           })]
         }) : X.jsx(`video`, {
-          src: l,
+          src: imageUrl,
           preload: `none`,
           muted: true,
-          poster: d,
+          poster: thumbnailUrl,
           className: `w-full h-full object-contain`
-        })), m === `audio` && X.jsxs(`div`, {
+        })), mediaType === `audio` && X.jsxs(`div`, {
           className: `w-full h-full flex flex-col items-center justify-center bg-[#1a1a1a] p-2 gap-2`,
           children: [X.jsx(qt, {
             size: 24,
             className: `text-blue-500 mb-2`
           }), X.jsx(`audio`, {
-            src: l,
+            src: imageUrl,
             controls: true,
             className: `w-full max-w-[200px] h-8`
           })]
-        }), m === `text` && X.jsxs(`div`, {
+        }), mediaType === `text` && X.jsxs(`div`, {
           className: `w-full h-full flex flex-col items-center justify-center bg-[#1a1a1a] p-2`,
           children: [X.jsx(R, {
             size: 24,
@@ -1601,10 +1604,10 @@ var ImageNodeComp = Y.memo(({
             className: `text-[10px] text-gray-500`,
             children: `文本/数据文件`
           })]
-        }), m === `empty` && X.jsx(`div`, {
+        }), mediaType === `empty` && X.jsx(`div`, {
           className: `flex flex-col items-center justify-center absolute inset-0 bg-[#151515] hover:bg-[#1a1a1a] transition-colors cursor-pointer group`,
           onClick: e => {
-            e.stopPropagation(), a.current?.click();
+            e.stopPropagation(), fileInputRef.current?.click();
           },
           children: X.jsx(`div`, {
             className: `w-12 h-12 rounded-xl bg-[#222] border border-dashed border-[#444] group-hover:border-blue-500/50 flex flex-col items-center justify-center transition-all`,
@@ -2091,48 +2094,50 @@ var PromptNodeComp = Y.memo(({
   selected: r,
   width: i
 }) => {
+// ── 状态 ──
+
   let {
-      updateNodeData: a,
-      setEdges: o,
-      setNodes: s,
-      getNode: c
+      updateNodeData: updateNodeData,
+      setEdges: setEdges,
+      setNodes: setNodes,
+      getNode: getNode
     } = Gt(),
-    l = Y.useRef(null),
-    [u, d] = Y.useState(n.prompt || ``),
-    [f, p] = Y.useState(() => {
+    nodeDivRef = Y.useRef(null),
+    [prompt, setPrompt] = Y.useState(n.prompt || ``),
+    [aspectRatio, setAspectRatio] = Y.useState(() => {
       let e = localStorage.getItem(`mutiwindow_prompt_aspectRatio`);
       return n.aspectRatio || e || `Auto`;
     }),
-    [m, h] = Y.useState(() => {
+    [imageSize, setImageSize] = Y.useState(() => {
       let e = localStorage.getItem(`mutiwindow_prompt_imageSize`);
       return n.imageSize || e || `1K`;
     });
   Y.useEffect(() => {
     let t = localStorage.getItem(`mutiwindow_prompt_aspectRatio`),
       r = n.aspectRatio || t || `Auto`;
-    r !== n.aspectRatio && a(e, {
+    r !== n.aspectRatio && updateNodeData(e, {
       aspectRatio: r
     });
   }, []), Y.useEffect(() => {
     let t = localStorage.getItem(`mutiwindow_prompt_imageSize`),
       r = n.imageSize || t || `1K`;
-    r !== n.imageSize && a(e, {
+    r !== n.imageSize && updateNodeData(e, {
       imageSize: r
     });
   }, []);
-  let [g, _] = Y.useState(false),
-    v = Y.useRef(null),
-    [y, b] = Y.useState(false),
-    [x, S] = Y.useState(false),
-    [C, w] = Y.useState(false),
-    T = Y.useRef(null),
-    [E, D] = Y.useState(false),
+  let [showRatioMenu, setShowRatioMenu] = Y.useState(false),
+    ratioMenuRef = Y.useRef(null),
+    [showMentionMenu, setShowMentionMenu] = Y.useState(false),
+    [showImageMenu, setShowImageMenu] = Y.useState(false),
+    [showQualityMenu, setShowQualityMenu] = Y.useState(false),
+    showVideoMenu = Y.useRef(null),
+    [setShowVideoMenu, D] = Y.useState(false),
     O = Y.useRef(null),
-    [k, A] = Y.useState(false),
-    j = Y.useRef(null),
-    [M, N] = Y.useState(n.expanded === undefined ? true : n.expanded),
-    [P, F] = Y.useState(false),
-    [I, L] = Y.useState(-1),
+    [showExtraMenu, setShowExtraMenu] = Y.useState(false),
+    extraMenuRef = Y.useRef(null),
+    [expanded, setExpanded] = Y.useState(n.expanded === undefined ? true : n.expanded),
+    [showFontMenu, setShowFontMenu] = Y.useState(false),
+    [mentionStartIndex, setMentionStartIndex] = Y.useState(-1),
     [ee, R] = Y.useState(n.selectedContextResources || []),
     [z, B] = Y.useState(n.selectedModel || localStorage.getItem(`mutiwindow_prompt_model`) || n.drawingModel && n.drawingModel.split(`
 `)[0].trim() || ``),
@@ -2147,8 +2152,8 @@ var PromptNodeComp = Y.memo(({
     ue = n.presetPrompts || [],
     V = t => {
       if (!t) return;
-      let n = u ? `${u}, ${t}` : t;
-      d(n), a(e, {
+      let n = prompt ? `${prompt}, ${t}` : t;
+      setPrompt(n), updateNodeData(e, {
         prompt: n
       });
     },
@@ -2160,25 +2165,25 @@ var PromptNodeComp = Y.memo(({
         t = e.includes(`banana`) || e.includes(`gemini`) || e.includes(`香蕉`) || e.includes(`芭蕉`);
       return te === `gemini` || te === `auto` && t;
     }, [z, te]),
-    fe = Y.useMemo(() => W ? C ? [`Auto`, `1:1`, `1:4`, `1:8`, `2:3`, `3:2`, `3:4`, `4:1`, `4:3`, `4:5`, `5:4`, `8:1`, `9:16`, `16:9`, `21:9`, `9:21`, `1:3`, `3:1`, `2:1`, `1:2`] : Array.from(new Set([`Auto`, `1:1`, `16:9`, `9:16`, `3:2`, `2:3`, `4:3`, `3:4`, `21:9`, f])) : [`Auto`, `1:1`, `16:9`, `9:16`, `3:2`, `2:3`, `4:3`, `3:4`, `21:9`, `9:21`, `1:3`, `3:1`, `2:1`, `1:2`], [W, C, f]);
+    fe = Y.useMemo(() => W ? showQualityMenu ? [`Auto`, `1:1`, `1:4`, `1:8`, `2:3`, `3:2`, `3:4`, `4:1`, `4:3`, `4:5`, `5:4`, `8:1`, `9:16`, `16:9`, `21:9`, `9:21`, `1:3`, `3:1`, `2:1`, `1:2`] : Array.from(new Set([`Auto`, `1:1`, `16:9`, `9:16`, `3:2`, `2:3`, `4:3`, `3:4`, `21:9`, aspectRatio])) : [`Auto`, `1:1`, `16:9`, `9:16`, `3:2`, `2:3`, `4:3`, `3:4`, `21:9`, `9:21`, `1:3`, `3:1`, `2:1`, `1:2`], [W, showQualityMenu, aspectRatio]);
   Y.useEffect(() => {
-    d(n.prompt || ``), n.aspectRatio !== undefined && p(n.aspectRatio), n.imageSize !== undefined && h(n.imageSize), n.selectedModel !== undefined && B(n.selectedModel), n.apiFormat !== undefined && ne(n.apiFormat), n.selectedContextResources && R(n.selectedContextResources), n.expanded !== undefined && N(n.expanded);
+    setPrompt(n.prompt || ``), n.aspectRatio !== undefined && setAspectRatio(n.aspectRatio), n.imageSize !== undefined && setImageSize(n.imageSize), n.selectedModel !== undefined && B(n.selectedModel), n.apiFormat !== undefined && ne(n.apiFormat), n.selectedContextResources && R(n.selectedContextResources), n.expanded !== undefined && setExpanded(n.expanded);
   }, [n.prompt, n.aspectRatio, n.imageSize, n.selectedModel, n.apiFormat, n.selectedContextResources, n.expanded]), Y.useEffect(() => {
     if (!_a(z) && n.drawingModel) {
       let t = n.drawingModel.split(`
 `).map(e => e.trim()).filter(Boolean);
-      t.length > 0 && (!z || !t.includes(z)) && (B(t[0]), a(e, {
+      t.length > 0 && (!z || !t.includes(z)) && (B(t[0]), updateNodeData(e, {
         selectedModel: t[0]
       }));
     }
-  }, [n.drawingModel, z, e, a]), Y.useEffect(() => {
+  }, [n.drawingModel, z, e, updateNodeData]), Y.useEffect(() => {
     let e = e => {
-      v.current && !v.current.contains(e.target) && _(false), T.current && !T.current.contains(e.target) && S(false), O.current && !O.current.contains(e.target) && D(false), j.current && !j.current.contains(e.target) && A(false);
+      ratioMenuRef.current && !ratioMenuRef.current.contains(e.target) && setShowRatioMenu(false), showVideoMenu.current && !showVideoMenu.current.contains(e.target) && setShowImageMenu(false), O.current && !O.current.contains(e.target) && D(false), extraMenuRef.current && !extraMenuRef.current.contains(e.target) && setShowExtraMenu(false);
     };
-    return (g || x || E || k) && document.addEventListener(`mousedown`, e, true), () => {
+    return (showRatioMenu || showImageMenu || setShowVideoMenu || showExtraMenu) && document.addEventListener(`mousedown`, e, true), () => {
       document.removeEventListener(`mousedown`, e, true);
     };
-  }, [g, x, E, k]);
+  }, [showRatioMenu, showImageMenu, setShowVideoMenu, showExtraMenu]);
   let pe = t({
       handleType: `target`
     }),
@@ -2255,8 +2260,8 @@ var PromptNodeComp = Y.memo(({
       };
     })(),
     he = () => {
-      N(!M), a(e, {
-        expanded: !M
+      setExpanded(!expanded), updateNodeData(e, {
+        expanded: !expanded
       });
     },
     ge = n.imageUrl,
@@ -2273,27 +2278,27 @@ var PromptNodeComp = Y.memo(({
     we = (t, n = false) => {
       let r = U.current,
         i = r?.textareaRef?.current || r,
-        o = `@${t} `;
+        setEdges = `@${t} `;
       if (!i) {
-        let t = n && I >= 0 ? u.substring(0, I) + o + u.substring(I + 1) : u + o;
-        d(t), a(e, {
+        let t = n && mentionStartIndex >= 0 ? prompt.substring(0, mentionStartIndex) + setEdges + prompt.substring(mentionStartIndex + 1) : prompt + setEdges;
+        setPrompt(t), updateNodeData(e, {
           prompt: t
         });
         return;
       }
-      let s = i.selectionStart ?? u.length,
-        c = i.selectionEnd ?? u.length,
-        l,
-        f;
-      n && I >= 0 ? (l = u.substring(0, I), f = u.substring(I + 1)) : (l = u.substring(0, s), f = u.substring(c));
-      let p = l + o + f;
-      d(p), a(e, {
-        prompt: p
+      let setNodes = i.selectionStart ?? prompt.length,
+        getNode = i.selectionEnd ?? prompt.length,
+        nodeDivRef,
+        aspectRatio;
+      n && mentionStartIndex >= 0 ? (nodeDivRef = prompt.substring(0, mentionStartIndex), aspectRatio = prompt.substring(mentionStartIndex + 1)) : (nodeDivRef = prompt.substring(0, setNodes), aspectRatio = prompt.substring(getNode));
+      let setAspectRatio = nodeDivRef + setEdges + aspectRatio;
+      setPrompt(setAspectRatio), updateNodeData(e, {
+        prompt: setAspectRatio
       });
-      let m = l.length + o.length;
+      let imageSize = nodeDivRef.length + setEdges.length;
       requestAnimationFrame(() => {
         let e = U.current?.textareaRef?.current || U.current;
-        e && (e.focus(), e.setSelectionRange(m, m));
+        e && (e.focus(), e.setSelectionRange(imageSize, imageSize));
       });
     },
     q = e => e.type.startsWith(`image`) ? `图片${G.images.findIndex(t => t.id === e.id) + 1}` : e.type.startsWith(`text`) ? `文本${G.texts.findIndex(t => t.id === e.id) + 1}` : `素材1`,
@@ -2365,7 +2370,7 @@ var PromptNodeComp = Y.memo(({
       let n = parseFloat(t[1]),
         r = parseFloat(t[2]);
       return !n || !r ? null : n / r;
-    })(f),
+    })(aspectRatio),
     Oe = De !== null,
     ke = Oe && De ? Math.round(360 * Math.sqrt(De)) : null,
     Ae = Oe && De ? Math.round(360 / Math.sqrt(De)) : null,
@@ -2375,7 +2380,7 @@ var PromptNodeComp = Y.memo(({
   return Y.useEffect(() => {
     let t = je.current;
     if (je.current = Ae, Me.current !== null && (cancelAnimationFrame(Me.current), Me.current = null), ke === null || Ae === null) {
-      Pe(null), s(t => t.map(t => {
+      Pe(null), setNodes(t => t.map(t => {
         if (t.id !== e || t.style?.height !== undefined) return t;
         let n = 420 - (t.style?.width ?? t.width ?? 360);
         return {
@@ -2395,26 +2400,26 @@ var PromptNodeComp = Y.memo(({
       }));
       return;
     }
-    let n = c(e),
+    let n = getNode(e),
       r = n?.style?.width ?? n?.width ?? 360,
       i = n?.position.x ?? 0,
-      a = n?.position.y ?? 0,
-      o = t ?? Ae,
-      l = ke,
-      u = Ae;
-    if (t === null || Math.round(r) === l && Math.round(o) === u) {
-      Pe(null), s(t => t.map(t => {
+      updateNodeData = n?.position.y ?? 0,
+      setEdges = t ?? Ae,
+      nodeDivRef = ke,
+      prompt = Ae;
+    if (t === null || Math.round(r) === nodeDivRef && Math.round(setEdges) === prompt) {
+      Pe(null), setNodes(t => t.map(t => {
         if (t.id !== e) return t;
         let n = t.style?.width ?? t.width ?? 360;
-        if (Math.round(n) === l && t.style?.height === undefined) return t;
-        let r = l - n,
+        if (Math.round(n) === nodeDivRef && t.style?.height === undefined) return t;
+        let r = nodeDivRef - n,
           i = {
             ...t.style,
-            width: l
+            width: nodeDivRef
           };
         return delete i.height, {
           ...t,
-          width: l,
+          width: nodeDivRef,
           height: undefined,
           style: i,
           position: {
@@ -2425,54 +2430,54 @@ var PromptNodeComp = Y.memo(({
       }));
       return;
     }
-    let d = e => 1 - (1 - e) ** 3,
-      f = a + o,
-      p = i + r / 2,
-      m = performance.now(),
-      h = t => {
-        let n = Math.min(1, (t - m) / 360),
-          i = d(n),
-          a = r + (l - r) * i,
-          c = o + (u - o) * i;
-        Pe(c), s(t => t.map(t => {
+    let setPrompt = e => 1 - (1 - e) ** 3,
+      aspectRatio = updateNodeData + setEdges,
+      setAspectRatio = i + r / 2,
+      imageSize = performance.now(),
+      setImageSize = t => {
+        let n = Math.min(1, (t - imageSize) / 360),
+          i = setPrompt(n),
+          updateNodeData = r + (nodeDivRef - r) * i,
+          getNode = setEdges + (prompt - setEdges) * i;
+        Pe(getNode), setNodes(t => t.map(t => {
           if (t.id !== e) return t;
           let n = {
             ...t.style,
-            width: a
+            width: updateNodeData
           };
           return delete n.height, {
             ...t,
-            width: a,
+            width: updateNodeData,
             height: undefined,
             style: n,
             position: {
-              x: p - a / 2,
-              y: f - c
+              x: setAspectRatio - updateNodeData / 2,
+              y: aspectRatio - getNode
             }
           };
-        })), n < 1 ? Me.current = requestAnimationFrame(h) : (Me.current = null, Pe(null), s(t => t.map(t => {
+        })), n < 1 ? Me.current = requestAnimationFrame(setImageSize) : (Me.current = null, Pe(null), setNodes(t => t.map(t => {
           if (t.id !== e) return t;
           let n = {
             ...t.style,
-            width: l
+            width: nodeDivRef
           };
           return delete n.height, {
             ...t,
-            width: l,
+            width: nodeDivRef,
             height: undefined,
             style: n,
             position: {
-              x: p - l / 2,
-              y: f - u
+              x: setAspectRatio - nodeDivRef / 2,
+              y: aspectRatio - prompt
             }
           };
         })));
       };
-    return Me.current = requestAnimationFrame(h), () => {
+    return Me.current = requestAnimationFrame(setImageSize), () => {
       Me.current !== null && (cancelAnimationFrame(Me.current), Me.current = null);
     };
   }, [ke, Ae, e]), X.jsxs(`div`, {
-    ref: l,
+    ref: nodeDivRef,
     className: `relative flex flex-col items-center group/node w-full min-w-[160px] min-h-[160px] ${Oe ? `h-auto` : `h-full`} ${r ? `z-50` : `z-10`}`,
     children: [X.jsx(si, {
       id: e,
@@ -2661,9 +2666,9 @@ var PromptNodeComp = Y.memo(({
                   }), X.jsx(`div`, {
                     className: `absolute top-0 right-0 p-0.5 bg-black/50 hover:bg-red-500/80 rounded-bl-md cursor-pointer opacity-0 group-hover:opacity-100 transition-all`,
                     onClick: n => {
-                      if (n.stopPropagation(), t.isConnected) o(n => n.filter(n => !(n.source === t.sourceNodeId && n.target === e)));else {
+                      if (n.stopPropagation(), t.isConnected) setEdges(n => n.filter(n => !(n.source === t.sourceNodeId && n.target === e)));else {
                         let n = ee.filter(e => e.id !== t.id);
-                        R(n), a(e, {
+                        R(n), updateNodeData(e, {
                           selectedContextResources: n
                         });
                       }
@@ -2690,7 +2695,7 @@ var PromptNodeComp = Y.memo(({
                   }), X.jsx(`div`, {
                     className: `absolute -top-1 -right-1 p-0.5 bg-black hover:bg-red-500 rounded-full cursor-pointer opacity-0 group-hover/text:opacity-100 transition-all`,
                     onClick: n => {
-                      n.stopPropagation(), o(n => n.filter(n => !(n.source === t.sourceNodeId && n.target === e)));
+                      n.stopPropagation(), setEdges(n => n.filter(n => !(n.source === t.sourceNodeId && n.target === e)));
                     },
                     children: X.jsx(yn, {
                       size: 10,
@@ -2714,41 +2719,41 @@ var PromptNodeComp = Y.memo(({
                     overflow: `auto`
                   },
                   placeholder: `描述你想要的画面 (输入 @ 调出素材)...`,
-                  value: u,
+                  value: prompt,
                   onChange: t => {
                     let r = U.current?.textareaRef?.current || U.current,
                       i = r ? r.selectionStart : t.length;
-                    d(t), a(e, {
+                    setPrompt(t), updateNodeData(e, {
                       prompt: t
                     });
-                    let o = t.substring(0, i),
-                      s = o.lastIndexOf(`@`);
-                    if (s >= 0) {
-                      let e = s === 0 ? `` : o[s - 1],
-                        t = o.substring(s + 1),
-                        n = s === 0 || /\s/.test(e),
+                    let setEdges = t.substring(0, i),
+                      setNodes = setEdges.lastIndexOf(`@`);
+                    if (setNodes >= 0) {
+                      let e = setNodes === 0 ? `` : setEdges[setNodes - 1],
+                        t = setEdges.substring(setNodes + 1),
+                        n = setNodes === 0 || /\s/.test(e),
                         r = !/\s/.test(t);
                       if (n && r) {
-                        L(s), b(true);
+                        setMentionStartIndex(setNodes), setShowMentionMenu(true);
                         return;
                       }
                     }
-                    L(-1), b(false), (!n.inputHeight || n.inputHeight <= 200) && requestAnimationFrame(() => {
+                    setMentionStartIndex(-1), setShowMentionMenu(false), (!n.inputHeight || n.inputHeight <= 200) && requestAnimationFrame(() => {
                       if (r) {
                         r.style.height = `auto`;
                         let t = Math.max(80, Math.min(r.scrollHeight, 200));
-                        r.style.height = t + `px`, a(e, {
+                        r.style.height = t + `px`, updateNodeData(e, {
                           inputHeight: t
                         });
                       }
                     });
                   },
                   onKeyDown: e => {
-                    e.key === `Escape` && y && b(false);
+                    e.key === `Escape` && showMentionMenu && setShowMentionMenu(false);
                   },
-                  autoFocus: M,
+                  autoFocus: expanded,
                   onWheel: e => e.stopPropagation()
-                }), y && X.jsxs(`div`, {
+                }), showMentionMenu && X.jsxs(`div`, {
                   className: `absolute bottom-[calc(100%+4px)] left-0 w-72 bg-[#222] border border-[#444] rounded-lg shadow-2xl z-[999999] flex flex-col overflow-hidden h-[300px] nopan`,
                   onWheel: e => e.stopPropagation(),
                   onClick: e => e.stopPropagation(),
@@ -2760,7 +2765,7 @@ var PromptNodeComp = Y.memo(({
                         children: `选择素材引用`
                       })
                     }), X.jsx(`button`, {
-                      onClick: () => b(false),
+                      onClick: () => setShowMentionMenu(false),
                       className: `text-gray-500 hover:text-white p-1`,
                       children: X.jsx(yn, {
                         size: 12
@@ -2787,7 +2792,7 @@ var PromptNodeComp = Y.memo(({
                         children: e.map(e => X.jsxs(`div`, {
                           className: `aspect-square bg-[#111] rounded border border-[#333] hover:border-blue-500 cursor-pointer overflow-hidden relative group flex flex-col`,
                           onClick: () => {
-                            we(q(e), true), L(-1), b(false);
+                            we(q(e), true), setMentionStartIndex(-1), setShowMentionMenu(false);
                           },
                           children: [e.type.startsWith(`image`) ? X.jsx(`img`, {
                             src: e.url,
@@ -2821,7 +2826,7 @@ var PromptNodeComp = Y.memo(({
               className: `flex items-center gap-1.5 overflow-visible`,
               children: [X.jsxs(`div`, {
                 className: `relative nodrag`,
-                ref: v,
+                ref: ratioMenuRef,
                 children: [X.jsxs(`button`, {
                   type: `button`,
                   className: `flex items-center gap-1.5 h-6 px-2 bg-transparent hover:bg-[#2a2a2a] border border-transparent hover:border-[#333] rounded text-[11px] text-gray-300 transition-colors cursor-pointer`,
@@ -2829,14 +2834,14 @@ var PromptNodeComp = Y.memo(({
                     e.stopPropagation();
                   },
                   onClick: e => {
-                    e.stopPropagation(), _(!g);
+                    e.stopPropagation(), setShowRatioMenu(!showRatioMenu);
                   },
                   children: [X.jsx(`div`, {
                     className: `w-2.5 h-3 border border-current rounded-[2px]`
                   }), X.jsxs(`span`, {
-                    children: [f, ` · `, m]
+                    children: [aspectRatio, ` · `, imageSize]
                   })]
-                }), g && X.jsxs(`div`, {
+                }), showRatioMenu && X.jsxs(`div`, {
                   className: `absolute bottom-full left-0 mb-1 w-56 bg-[#222] border border-[#333] rounded-lg shadow-xl p-3 z-50 flex flex-col gap-3`,
                   onMouseDown: e => e.stopPropagation(),
                   onClick: e => e.stopPropagation(),
@@ -2848,13 +2853,13 @@ var PromptNodeComp = Y.memo(({
                       className: `flex gap-1.5`,
                       children: [`1K`, `2K`, `4K`].map(t => X.jsx(`button`, {
                         type: `button`,
-                        className: `flex-1 py-1.5 text-[11px] rounded-md border transition-colors ${m === t ? `bg-[#333] border-[#555] text-white` : `bg-[#1a1a1a] border-transparent text-gray-400 hover:bg-[#2a2a2a]`}`,
+                        className: `flex-1 py-1.5 text-[11px] rounded-md border transition-colors ${imageSize === t ? `bg-[#333] border-[#555] text-white` : `bg-[#1a1a1a] border-transparent text-gray-400 hover:bg-[#2a2a2a]`}`,
                         onMouseDown: e => {
                           e.stopPropagation();
                         },
                         onClick: () => {
-                          _(false), h(t), requestAnimationFrame(() => {
-                            a(e, {
+                          setShowRatioMenu(false), setImageSize(t), requestAnimationFrame(() => {
+                            updateNodeData(e, {
                               imageSize: t
                             }), localStorage.setItem(`mutiwindow_prompt_imageSize`, t);
                           });
@@ -2870,33 +2875,33 @@ var PromptNodeComp = Y.memo(({
                       className: `flex flex-wrap gap-1.5`,
                       children: [fe.map(t => X.jsx(`button`, {
                         type: `button`,
-                        className: `px-3 py-1.5 text-[11px] rounded-md border transition-colors ${f === t ? `bg-[#333] border-[#555] text-white` : `bg-[#1a1a1a] border-transparent text-gray-400 hover:bg-[#2a2a2a]`}`,
+                        className: `px-3 py-1.5 text-[11px] rounded-md border transition-colors ${aspectRatio === t ? `bg-[#333] border-[#555] text-white` : `bg-[#1a1a1a] border-transparent text-gray-400 hover:bg-[#2a2a2a]`}`,
                         onMouseDown: e => {
                           e.stopPropagation();
                         },
                         onClick: () => {
-                          _(false), p(t), requestAnimationFrame(() => {
-                            a(e, {
+                          setShowRatioMenu(false), setAspectRatio(t), requestAnimationFrame(() => {
+                            updateNodeData(e, {
                               aspectRatio: t
                             }), localStorage.setItem(`mutiwindow_prompt_aspectRatio`, t);
                           });
                         },
                         children: t
-                      }, t)), W && !C && X.jsx(`button`, {
+                      }, t)), W && !showQualityMenu && X.jsx(`button`, {
                         type: `button`,
                         className: `px-3 py-1.5 text-[11px] rounded-md border border-transparent bg-[#1a1a1a] text-gray-500 hover:bg-[#2a2a2a] hover:text-gray-400 transition-colors`,
                         onMouseDown: e => {
                           e.stopPropagation();
                         },
-                        onClick: () => w(true),
+                        onClick: () => setShowQualityMenu(true),
                         children: `更多...`
-                      }), W && C && X.jsx(`button`, {
+                      }), W && showQualityMenu && X.jsx(`button`, {
                         type: `button`,
                         className: `px-3 py-1.5 text-[11px] rounded-md border border-transparent bg-[#1a1a1a] text-gray-500 hover:bg-[#2a2a2a] hover:text-gray-400 transition-colors`,
                         onMouseDown: e => {
                           e.stopPropagation();
                         },
-                        onClick: () => w(false),
+                        onClick: () => setShowQualityMenu(false),
                         children: `收起`
                       })]
                     })]
@@ -2905,13 +2910,13 @@ var PromptNodeComp = Y.memo(({
               }), !!(n.drawingModel && n.drawingModel.split(`
 `).filter(e => e.trim() !== ``).length > 0 || ae.length > 0) && X.jsxs(`div`, {
                 className: `relative nodrag flex items-center`,
-                ref: T,
+                ref: showVideoMenu,
                 children: [X.jsx(`div`, {
                   className: `w-[1px] h-3 bg-[#444] flex-shrink-0 mr-1.5`
                 }), X.jsxs(`button`, {
                   className: `flex items-center gap-1 h-6 px-2 bg-transparent hover:bg-[#2a2a2a] border border-transparent hover:border-[#333] rounded text-[11px] text-gray-300 transition-colors cursor-pointer`,
                   onClick: e => {
-                    e.stopPropagation(), S(!x);
+                    e.stopPropagation(), setShowImageMenu(!showImageMenu);
                   },
                   title: le ? `调度：${le.name}` : z ? `${z}（${Xi(z) ? `内置` : `第三方`}）` : `选择模型`,
                   children: [le ? X.jsx(`span`, {
@@ -2924,7 +2929,7 @@ var PromptNodeComp = Y.memo(({
                     className: `whitespace-nowrap`,
                     children: le ? le.name : z || `选择模型`
                   })]
-                }), x && X.jsx(`div`, {
+                }), showImageMenu && X.jsx(`div`, {
                   className: `absolute bottom-full left-0 mb-1 min-w-[17rem] w-max max-w-[29rem] bg-[#222] border border-[#333] rounded-lg shadow-xl p-2 z-50 block max-h-60 overflow-y-auto custom-scrollbar nowheel nopan nodrag`,
                   onClick: e => e.stopPropagation(),
                   children: (() => {
@@ -2932,18 +2937,18 @@ var PromptNodeComp = Y.memo(({
 `).map(e => e.trim()).filter(e => e !== ``),
                       r = t.filter(e => Xi(e)).sort((e, t) => e.localeCompare(t)),
                       i = t.filter(e => !Xi(e)).sort((e, t) => e.localeCompare(t)),
-                      o = (t, n, r) => {
+                      setEdges = (t, n, r) => {
                         let i = r ? Ui(t) : null,
-                          o = r ? Wi(t) : null,
-                          s = ea(t, z === t);
+                          setEdges = r ? Wi(t) : null,
+                          setNodes = ea(t, z === t);
                         return X.jsxs(`div`, {
                           role: `button`,
-                          className: s.className,
-                          title: s.title,
+                          className: setNodes.className,
+                          title: setNodes.title,
                           onClick: () => {
-                            s.disabled || (B(t), a(e, {
+                            setNodes.disabled || (B(t), updateNodeData(e, {
                               selectedModel: t
-                            }), localStorage.setItem(`mutiwindow_prompt_model`, t), S(false));
+                            }), localStorage.setItem(`mutiwindow_prompt_model`, t), setShowImageMenu(false));
                           },
                           children: [X.jsx(`span`, {
                             className: `shrink-0 px-1 rounded text-[9px] leading-[14px] border ${r ? `bg-white/10 text-white/90 border-white/30` : `bg-gray-500/15 text-gray-400 border-gray-500/40`}`,
@@ -2957,7 +2962,7 @@ var PromptNodeComp = Y.memo(({
                               className: `w-2.5 h-2.5`,
                               strokeWidth: 2.5
                             }), X.jsxs(`span`, {
-                              children: [Zi(i), o ? `/${o}` : ``]
+                              children: [Zi(i), setEdges ? `/${setEdges}` : ``]
                             })]
                           })]
                         }, `${r ? `b` : `o`}-${n}`);
@@ -2987,9 +2992,9 @@ var PromptNodeComp = Y.memo(({
                             role: `button`,
                             className: `w-full flex items-center gap-1.5 mb-1 last:mb-0 text-left px-2 py-1.5 text-[11px] rounded-md transition-colors cursor-pointer ${z === n ? `bg-[#333] text-white` : `text-gray-400 hover:bg-[#2a2a2a] hover:text-gray-200`}`,
                             onClick: () => {
-                              B(n), a(e, {
+                              B(n), updateNodeData(e, {
                                 selectedModel: n
-                              }), localStorage.setItem(`mutiwindow_prompt_model`, n), S(false);
+                              }), localStorage.setItem(`mutiwindow_prompt_model`, n), setShowImageMenu(false);
                             },
                             title: `${t.name}（${t.steps.length} 个模型按序重试）`,
                             children: [X.jsx(`span`, {
@@ -3016,19 +3021,19 @@ var PromptNodeComp = Y.memo(({
                           }), X.jsx(`span`, {
                             className: `ml-auto text-white/90 hover:text-white cursor-pointer whitespace-nowrap`,
                             onClick: e => {
-                              e.stopPropagation(), window.dispatchEvent(new CustomEvent(`mutiwindow-open-builtin-settings`)), S(false);
+                              e.stopPropagation(), window.dispatchEvent(new CustomEvent(`mutiwindow-open-builtin-settings`)), setShowImageMenu(false);
                             },
                             title: `查看内置模型详情`,
                             children: `详情 ›`
                           })]
-                        }), r.map((e, t) => o(e, t, true))]
+                        }), r.map((e, t) => setEdges(e, t, true))]
                       }), i.length > 0 && X.jsxs(X.Fragment, {
                         children: [r.length > 0 && X.jsx(`div`, {
                           className: `h-px bg-[#333] my-1.5`
                         }), X.jsx(`div`, {
                           className: `text-[10px] text-gray-500 mb-1 px-1`,
                           children: `第三方 API`
-                        }), i.map((e, t) => o(e, t, false))]
+                        }), i.map((e, t) => setEdges(e, t, false))]
                       })]
                     });
                   })()
@@ -3041,14 +3046,14 @@ var PromptNodeComp = Y.memo(({
                 }), X.jsx(`button`, {
                   className: `flex items-center gap-1 h-6 px-2 bg-transparent hover:bg-[#2a2a2a] border border-transparent hover:border-[#333] rounded text-[11px] text-gray-300 transition-colors cursor-pointer`,
                   onClick: e => {
-                    e.stopPropagation(), D(!E);
+                    e.stopPropagation(), D(!setShowVideoMenu);
                   },
                   title: `请求格式`,
                   children: X.jsx(`span`, {
                     className: `truncate`,
                     children: te === `auto` ? `自动格式` : te === `openai` ? `OpenAI格式` : `Gemini格式`
                   })
-                }), E && X.jsxs(`div`, {
+                }), setShowVideoMenu && X.jsxs(`div`, {
                   className: `absolute bottom-full left-0 mb-1 w-32 bg-[#222] border border-[#333] rounded-lg shadow-xl p-2 z-50 block nodrag`,
                   onClick: e => e.stopPropagation(),
                   children: [X.jsx(`div`, {
@@ -3066,7 +3071,7 @@ var PromptNodeComp = Y.memo(({
                   }].map(t => X.jsx(`button`, {
                     className: `w-full block mb-1 last:mb-0 text-left px-2 py-1.5 text-[11px] rounded-md transition-colors truncate ${te === t.value ? `bg-[#333] text-white` : `text-gray-400 hover:bg-[#2a2a2a] hover:text-gray-200`}`,
                     onClick: () => {
-                      ne(t.value), a(e, {
+                      ne(t.value), updateNodeData(e, {
                         apiFormat: t.value
                       }), D(false);
                     },
@@ -3100,23 +3105,23 @@ var PromptNodeComp = Y.memo(({
                 className: `flex items-center gap-2`,
                 children: [X.jsxs(`div`, {
                   className: `relative nodrag flex items-center`,
-                  ref: j,
+                  ref: extraMenuRef,
                   children: [X.jsx(`button`, {
                     className: `flex items-center gap-1 h-6 px-2 bg-transparent hover:bg-[#2a2a2a] border border-[#333] hover:border-[#555] rounded text-[11px] text-gray-300 transition-colors cursor-pointer`,
                     onClick: e => {
-                      e.stopPropagation(), A(!k);
+                      e.stopPropagation(), setShowExtraMenu(!showExtraMenu);
                     },
                     title: `批量生成数量`,
                     children: X.jsxs(`span`, {
                       children: [`x`, re]
                     })
-                  }), k && X.jsx(`div`, {
+                  }), showExtraMenu && X.jsx(`div`, {
                     className: `absolute bottom-full right-0 mb-1 w-16 bg-[#222] border border-[#333] rounded-lg shadow-xl p-1 z-50 flex flex-col gap-0.5`,
                     onClick: e => e.stopPropagation(),
                     children: [1, 2, 3, 4, 5].map(e => X.jsxs(`button`, {
                       className: `w-full text-center py-1.5 text-[11px] rounded-md transition-colors ${re === e ? `bg-[#333] text-white` : `text-gray-400 hover:bg-[#2a2a2a] hover:text-gray-200`}`,
                       onClick: t => {
-                        t.stopPropagation(), ie(e), A(false);
+                        t.stopPropagation(), ie(e), setShowExtraMenu(false);
                       },
                       children: [`x`, e]
                     }, e))
@@ -3124,11 +3129,11 @@ var PromptNodeComp = Y.memo(({
                 }), X.jsxs(`div`, {
                   className: `flex items-center bg-[#2a2a2a] rounded-full p-1 pl-3 border border-[#333] hover:border-gray-500 transition-colors cursor-pointer group/btn`,
                   onClick: t => {
-                    if (t.stopPropagation(), !u.trim() && G.images.length === 0 && G.texts.length === 0) {
+                    if (t.stopPropagation(), !prompt.trim() && G.images.length === 0 && G.texts.length === 0) {
                       n.onShowToast && n.onShowToast(`请输入提示词或连接参考节点`);
                       return;
                     }
-                    n.onGenerate && n.onGenerate(e, u, `1024x1024`, z, te, re);
+                    n.onGenerate && n.onGenerate(e, prompt, `1024x1024`, z, te, re);
                   },
                   children: [z && Xi(z) && Ui(z) !== null && X.jsxs(`div`, {
                     className: `flex items-center gap-0.5 mr-2 text-[11px] text-orange-400 tabular-nums`,
@@ -3153,24 +3158,25 @@ var PromptNodeComp = Y.memo(({
             })]
           })]
         });
-      return X.jsxs(X.Fragment, {
+      // ── 渲染 ──
+return X.jsxs(X.Fragment, {
         children: [X.jsxs(`div`, {
           className: `absolute top-full left-1/2 -translate-x-1/2 mt-2 bg-[#1c1c1c] rounded-2xl border border-[#333] shadow-2xl min-w-[500px] w-max max-w-[920px] transition-all duration-300 origin-top z-50
-                ${M ? `opacity-100 scale-100 p-4 overflow-visible` : `opacity-0 scale-95 pointer-events-none h-0 p-0 border-0 overflow-hidden`}
+                ${expanded ? `opacity-100 scale-100 p-4 overflow-visible` : `opacity-0 scale-95 pointer-events-none h-0 p-0 border-0 overflow-hidden`}
               `,
           onClick: e => e.stopPropagation(),
-          children: [!P && r, M && !P && X.jsx(_i, {
+          children: [!showFontMenu && r, expanded && !showFontMenu && X.jsx(_i, {
             targetRef: U,
-            onRequestFullscreen: () => F(true),
-            onResizeEnd: (t, n) => a(e, {
+            onRequestFullscreen: () => setShowFontMenu(true),
+            onResizeEnd: (t, n) => updateNodeData(e, {
               inputWidth: t,
               inputHeight: n
             })
           })]
         }), X.jsx(vi, {
-          open: P,
+          open: showFontMenu,
           title: `编辑提示词 - 生图`,
-          onClose: () => F(false),
+          onClose: () => setShowFontMenu(false),
           children: r
         })]
       });
@@ -3422,42 +3428,44 @@ var TextNodeComp = Y.memo(({
   data: n,
   selected: r
 }) => {
+// ── 状态 ──
+
   let {
-      updateNodeData: i,
-      setEdges: a
+      updateNodeData: updateNodeData,
+      setEdges: setEdges
     } = Gt(),
-    [o, s] = Y.useState(n.prompt || ``),
-    [c, l] = Y.useState(n.text || ``),
-    [u, d] = Y.useState(n.autoSplit || false),
-    [f, p] = Y.useState(n.expanded === undefined ? true : n.expanded);
+    [prompt, setPrompt] = Y.useState(n.prompt || ``),
+    [text, setText] = Y.useState(n.text || ``),
+    [autoSplit, setAutoSplit] = Y.useState(n.autoSplit || false),
+    [expanded, setExpanded] = Y.useState(n.expanded === undefined ? true : n.expanded);
   Y.useEffect(() => {
-    n.expanded !== undefined && p(n.expanded);
+    n.expanded !== undefined && setExpanded(n.expanded);
   }, [n.expanded]);
-  let [m, h] = Y.useState(false),
-    [g, _] = Y.useState(false),
-    [v, y] = Y.useState(false),
-    [b, x] = Y.useState(n.selectedContextResources || []),
-    S = n.presetPrompts || [],
-    [C, w] = Y.useState(n.selectedModel || localStorage.getItem(`mutiwindow_text_model`) || n.textModel && n.textModel.split(`
+  let [showFullscreen, setShowFullscreen] = Y.useState(false),
+    [isEditing, setIsEditing] = Y.useState(false),
+    [showVideo, setShowVideo] = Y.useState(false),
+    [selectedContextResources, setSelectedContextResources] = Y.useState(n.selectedContextResources || []),
+    presetPrompts = n.presetPrompts || [],
+    [selectedModel, setSelectedModel] = Y.useState(n.selectedModel || localStorage.getItem(`mutiwindow_text_model`) || n.textModel && n.textModel.split(`
 `)[0].trim() || ``),
-    [T, E] = Y.useState(() => la().filter(e => e.enabled && e.category === `text`));
+    [textModels, setTextModels] = Y.useState(() => la().filter(e => e.enabled && e.category === `text`));
   Y.useEffect(() => ha(e => {
-    E(e.filter(e => e.enabled && e.category === `text`));
+    setTextModels(e.filter(e => e.enabled && e.category === `text`));
   }), []);
-  let D = _a(C),
-    O = D ? T.find(e => e.id === D) : null,
-    k = Y.useRef(null),
-    A = Y.useRef(null),
-    j = Y.useRef(null),
-    M = Y.useRef(null),
-    [N, P] = Y.useState(false),
+  let selectedModelDef = _a(selectedModel),
+    selectedModelInfo = selectedModelDef ? textModels.find(e => e.id === selectedModelDef) : null,
+    uploadInputRef = Y.useRef(null),
+    textareaRef = Y.useRef(null),
+    fullscreenBtnRef = Y.useRef(null),
+    rootDivRef = Y.useRef(null),
+    [copyToast, setCopyToast] = Y.useState(false),
     F = Y.useRef(null),
-    [I, ee] = Y.useState(false),
-    [z, B] = Y.useState([]);
+    [showResourcePicker, setShowResourcePicker] = Y.useState(false),
+    [resourceList, setResourceList] = Y.useState([]);
   Y.useEffect(() => {
-    I && Q.getObject(Z.TRANSIT_RESOURCES).then(async e => {
+    showResourcePicker && Q.getObject(Z.TRANSIT_RESOURCES).then(async e => {
       if (e && Array.isArray(e) && e.length > 0) {
-        B(e);
+        setResourceList(e);
         for (const resource of e) {
           if (resource.source === `local-tool`) continue;
           try {
@@ -3474,24 +3482,24 @@ var TextNodeComp = Y.memo(({
     }).catch(e => {
       console.error(`Failed to fetch transitResources from storage`, e);
     });
-  }, [I]), Y.useEffect(() => {
+  }, [showResourcePicker]), Y.useEffect(() => {
     let e = e => {
-      F.current && !F.current.contains(e.target) && P(false);
+      F.current && !F.current.contains(e.target) && setCopyToast(false);
     };
-    return N && document.addEventListener(`mousedown`, e, true), () => {
+    return copyToast && document.addEventListener(`mousedown`, e, true), () => {
       document.removeEventListener(`mousedown`, e, true);
     };
-  }, [N]), Y.useEffect(() => {
-    s(n.prompt || ``), n.text !== undefined && l(n.text), n.selectedModel && w(n.selectedModel), n.selectedContextResources && x(n.selectedContextResources);
+  }, [copyToast]), Y.useEffect(() => {
+    setPrompt(n.prompt || ``), n.text !== undefined && setText(n.text), n.selectedModel && setSelectedModel(n.selectedModel), n.selectedContextResources && setSelectedContextResources(n.selectedContextResources);
   }, [n.prompt, n.text, n.selectedModel, n.selectedContextResources]), Y.useEffect(() => {
-    if (n.textModel && !C) {
+    if (n.textModel && !selectedModel) {
       let t = n.textModel.split(`
 `)[0].trim();
-      w(t), i(e, {
+      setSelectedModel(t), updateNodeData(e, {
         selectedModel: t
       });
     }
-  }, [n.textModel, C, e, i]);
+  }, [n.textModel, selectedModel, e, updateNodeData]);
   let te = t({
       handleType: `target`
     }),
@@ -3528,9 +3536,9 @@ var TextNodeComp = Y.memo(({
           let n = e.data.images,
             r = e.data.selectedIds || [];
           if (r.length > 0) {
-            let i = new Set(r);
+            let updateNodeData = new Set(r);
             n.forEach((n, r) => {
-              n?.url && i.has(n.id) && t.push({
+              n?.url && updateNodeData.has(n.id) && t.push({
                 id: `${e.id}-box-${r}`,
                 url: n.url
               });
@@ -3543,8 +3551,8 @@ var TextNodeComp = Y.memo(({
             });
           }
         }
-        let i = new Set([`promptNode`, `imageNode`, `imageBoxNode`, `videoNode`, `sd2VideoNode`, `discountVideoNode`, `gridSplitNode`, `gridMergeNode`, `cropNode`, `urlToImageNode`, `fileToUrlNode`, `panoramaNode`, `videoExtractNode`]);
-        e?.data?.text && !i.has(e.type) && n.push({
+        let updateNodeData = new Set([`promptNode`, `imageNode`, `imageBoxNode`, `videoNode`, `sd2VideoNode`, `discountVideoNode`, `gridSplitNode`, `gridMergeNode`, `cropNode`, `urlToImageNode`, `fileToUrlNode`, `panoramaNode`, `videoExtractNode`]);
+        e?.data?.text && !updateNodeData.has(e.type) && n.push({
           id: e.id,
           label: e?.type === `audioNode` ? `听音断句结果` : e.data.label || `文本节点`,
           text: e.data.text
@@ -3558,10 +3566,10 @@ var TextNodeComp = Y.memo(({
     ae = n.errorMessage,
     se = n.fontSize || 14,
     ce = e => {
-      e.stopPropagation(), navigator.clipboard.writeText(c), n.onShowToast && n.onShowToast(`已复制文本`);
+      e.stopPropagation(), navigator.clipboard.writeText(text), n.onShowToast && n.onShowToast(`已复制文本`);
     },
     le = t => {
-      t.stopPropagation(), n.onGenerateText && n.onGenerateText(e, o, u, C);
+      t.stopPropagation(), n.onGenerateText && n.onGenerateText(e, prompt, autoSplit, selectedModel);
     };
   return X.jsxs(`div`, {
     className: `relative flex flex-col items-center group/node transition-all ${r ? `z-50` : `z-10`}`,
@@ -3585,7 +3593,7 @@ var TextNodeComp = Y.memo(({
           }
         }), te.length === 0 && X.jsx(`button`, {
           className: `p-1.5 text-gray-400 hover:text-white hover:bg-[#333] rounded-md`,
-          onClick: () => k.current?.click(),
+          onClick: () => uploadInputRef.current?.click(),
           title: `上传图片`,
           children: X.jsx(jn, {
             size: 12
@@ -3600,12 +3608,12 @@ var TextNodeComp = Y.memo(({
         }), X.jsx(`button`, {
           className: `p-1.5 text-gray-400 hover:text-white hover:bg-[#333] rounded-md`,
           onClick: () => {
-            p(!f), i(e, {
-              expanded: !f
+            setExpanded(!expanded), updateNodeData(e, {
+              expanded: !expanded
             });
           },
-          title: f ? `收起输入` : `展开输入`,
-          children: f ? X.jsx(ft, {
+          title: expanded ? `收起输入` : `展开输入`,
+          children: expanded ? X.jsx(ft, {
             size: 12
           }) : X.jsx(bt, {
             size: 12
@@ -3614,7 +3622,7 @@ var TextNodeComp = Y.memo(({
       })
     }), X.jsx(`input`, {
       type: `file`,
-      ref: k,
+      ref: uploadInputRef,
       style: {
         display: `none`
       },
@@ -3632,7 +3640,7 @@ var TextNodeComp = Y.memo(({
         }
       }
     }), X.jsxs(`div`, {
-      ref: M,
+      ref: rootDivRef,
       className: `relative bg-[#1c1c1c] rounded-xl border shadow-xl transition-[border-color] duration-200 flex flex-col
           ${r ? `border-[#555]` : `border-[#333] hover:border-[#444]`}
         `,
@@ -3641,15 +3649,15 @@ var TextNodeComp = Y.memo(({
         height: `240px`
       },
       onClick: t => {
-        g || t.target instanceof HTMLButtonElement || t.target instanceof HTMLInputElement || t.target instanceof HTMLTextAreaElement || (p(!f), i(e, {
-          expanded: !f
+        isEditing || t.target instanceof HTMLButtonElement || t.target instanceof HTMLInputElement || t.target instanceof HTMLTextAreaElement || (setExpanded(!expanded), updateNodeData(e, {
+          expanded: !expanded
         }));
       },
       children: [X.jsxs(`div`, {
-        className: `flex-1 min-h-0 p-3 overflow-hidden bg-[#1a1a1a] relative rounded-xl ${g ? `nopan nowheel nodrag` : `drag-handle cursor-move`}`,
+        className: `flex-1 min-h-0 p-3 overflow-hidden bg-[#1a1a1a] relative rounded-xl ${isEditing ? `nopan nowheel nodrag` : `drag-handle cursor-move`}`,
         onWheel: e => e.stopPropagation(),
         onDoubleClick: () => {
-          g || (_(true), setTimeout(() => j.current?.focus(), 0));
+          isEditing || (setIsEditing(true), setTimeout(() => fullscreenBtnRef.current?.focus(), 0));
         },
         children: [ie ? X.jsx(pi, {
           label: `生成中...`,
@@ -3666,7 +3674,7 @@ var TextNodeComp = Y.memo(({
             children: ae
           })]
         }) : X.jsxs(X.Fragment, {
-          children: [!c && !ie && !g && X.jsxs(`div`, {
+          children: [!text && !ie && !isEditing && X.jsxs(`div`, {
             className: `absolute inset-0 flex flex-col items-center justify-center gap-3 pointer-events-none`,
             children: [X.jsx(R, {
               size: 72,
@@ -3677,28 +3685,28 @@ var TextNodeComp = Y.memo(({
               children: `双击编辑内容或AI生成`
             })]
           }), X.jsx(gi, {
-            ref: j,
-            className: `w-full h-full bg-transparent outline-none font-sans leading-relaxed custom-scrollbar nowheel ${g ? `nodrag nopan` : `pointer-events-none`}`,
+            ref: fullscreenBtnRef,
+            className: `w-full h-full bg-transparent outline-none font-sans leading-relaxed custom-scrollbar nowheel ${isEditing ? `nodrag nopan` : `pointer-events-none`}`,
             style: {
               fontSize: `${se}px`,
               color: `#a1a1aa`
             },
             placeholder: ``,
-            value: c,
-            readOnly: !g,
+            value: text,
+            readOnly: !isEditing,
             onChange: t => {
-              l(t), i(e, {
+              setText(t), updateNodeData(e, {
                 text: t
               });
             },
-            onBlur: () => _(false),
+            onBlur: () => setIsEditing(false),
             onWheel: e => e.stopPropagation()
           })]
         }), X.jsx(_i, {
-          targetRef: M,
+          targetRef: rootDivRef,
           minWidth: 320,
           minHeight: 180,
-          onRequestFullscreen: () => h(true)
+          onRequestFullscreen: () => setShowFullscreen(true)
         })]
       }), X.jsx(_r, {
         type: `target`,
@@ -3712,7 +3720,7 @@ var TextNodeComp = Y.memo(({
         className: `space-y-3`,
         children: [X.jsxs(`div`, {
           className: `flex flex-col gap-2`,
-          children: [(re.images.length > 0 || re.texts.length > 0 || b.length > 0) && X.jsxs(`div`, {
+          children: [(re.images.length > 0 || re.texts.length > 0 || selectedContextResources.length > 0) && X.jsxs(`div`, {
             className: `flex flex-wrap gap-2 mb-1`,
             children: [re.images.map((t, n) => X.jsxs(`div`, {
               className: `w-8 h-8 rounded overflow-hidden border border-[#444] relative group bg-black`,
@@ -3724,14 +3732,14 @@ var TextNodeComp = Y.memo(({
               }), X.jsx(`div`, {
                 className: `absolute top-0 right-0 p-0.5 bg-black/50 hover:bg-red-500/80 rounded-bl-md cursor-pointer opacity-0 group-hover:opacity-100 transition-all`,
                 onClick: n => {
-                  n.stopPropagation(), a(n => n.filter(n => !(n.target === e && n.source === t.id)));
+                  n.stopPropagation(), setEdges(n => n.filter(n => !(n.target === e && n.source === t.id)));
                 },
                 children: X.jsx(`span`, {
                   className: `text-white text-[8px]`,
                   children: `×`
                 })
               })]
-            }, `img-${n}`)), b.map((t, n) => X.jsxs(`div`, {
+            }, `img-${n}`)), selectedContextResources.map((t, n) => X.jsxs(`div`, {
               className: `w-8 h-8 rounded overflow-hidden border border-blue-500/50 relative group bg-black`,
               title: `通过 @ 选中的素材`,
               children: [t.type.startsWith(`image`) ? X.jsx(`img`, {
@@ -3752,8 +3760,8 @@ var TextNodeComp = Y.memo(({
                 className: `absolute top-0 right-0 p-0.5 bg-black/50 hover:bg-red-500/80 rounded-bl-md cursor-pointer opacity-0 group-hover:opacity-100 transition-all`,
                 onClick: t => {
                   t.stopPropagation();
-                  let r = b.filter((e, t) => t !== n);
-                  x(r), i(e, {
+                  let r = selectedContextResources.filter((e, t) => t !== n);
+                  setSelectedContextResources(r), updateNodeData(e, {
                     selectedContextResources: r
                   });
                 },
@@ -3777,7 +3785,7 @@ var TextNodeComp = Y.memo(({
             children: X.jsxs(`div`, {
               className: `flex-1 relative`,
               children: [X.jsx(gi, {
-                ref: A,
+                ref: textareaRef,
                 className: `w-full bg-transparent text-[15px] text-gray-200 outline-none leading-relaxed placeholder-gray-600 font-sans custom-scrollbar nodrag nowheel nopan`,
                 style: {
                   width: n.inputWidth ? `${n.inputWidth}px` : undefined,
@@ -3786,17 +3794,17 @@ var TextNodeComp = Y.memo(({
                   overflow: `auto`
                 },
                 placeholder: `输入提示词 (输入 @ 调出素材)...`,
-                value: o,
+                value: prompt,
                 onChange: t => {
-                  if (s(t), i(e, {
+                  if (setPrompt(t), updateNodeData(e, {
                     prompt: t
-                  }), t.endsWith(`@`) ? ee(true) : t.includes(`@`) || ee(false), !n.inputHeight || n.inputHeight <= 200) {
-                    let t = A.current;
+                  }), t.endsWith(`@`) ? setShowResourcePicker(true) : t.includes(`@`) || setShowResourcePicker(false), !n.inputHeight || n.inputHeight <= 200) {
+                    let t = textareaRef.current;
                     requestAnimationFrame(() => {
                       if (t) {
                         t.style.height = `auto`;
                         let n = Math.max(80, Math.min(t.scrollHeight, 200));
-                        t.style.height = n + `px`, i(e, {
+                        t.style.height = n + `px`, updateNodeData(e, {
                           inputHeight: n
                         });
                       }
@@ -3804,31 +3812,31 @@ var TextNodeComp = Y.memo(({
                   }
                 },
                 onWheel: e => e.stopPropagation()
-              }), I && X.jsx(`div`, {
+              }), showResourcePicker && X.jsx(`div`, {
                 className: `absolute bottom-full left-0 mb-1 z-[100]`,
                 onWheel: e => e.stopPropagation(),
                 onClick: e => e.stopPropagation(),
                 children: X.jsx(Za, {
-                  resources: z,
+                  resources: resourceList,
                   onSelect: t => {
-                    let n = o.lastIndexOf(`@`),
-                      r = n >= 0 ? o.substring(0, n) + o.substring(n + 1) : o;
+                    let n = prompt.lastIndexOf(`@`),
+                      r = n >= 0 ? prompt.substring(0, n) + prompt.substring(n + 1) : prompt;
                     if (t.type === `text`) {
                       let n = r + (t.url || ``);
-                      s(n), i(e, {
+                      setPrompt(n), updateNodeData(e, {
                         prompt: n
                       });
                     } else {
-                      let n = [...b, t];
-                      x(n), i(e, {
+                      let n = [...selectedContextResources, t];
+                      setSelectedContextResources(n), updateNodeData(e, {
                         selectedContextResources: n
-                      }), s(r), i(e, {
+                      }), setPrompt(r), updateNodeData(e, {
                         prompt: r
                       });
                     }
-                    ee(false);
+                    setShowResourcePicker(false);
                   },
-                  onClose: () => ee(false)
+                  onClose: () => setShowResourcePicker(false)
                 })
               })]
             })
@@ -3841,16 +3849,16 @@ var TextNodeComp = Y.memo(({
               className: `flex items-center gap-1.5 cursor-pointer h-6 px-2 text-[11px] text-gray-400 hover:text-gray-200 select-none bg-transparent hover:bg-[#2a2a2a] border border-transparent hover:border-[#333] rounded transition-colors`,
               children: [X.jsx(`input`, {
                 type: `checkbox`,
-                checked: u,
+                checked: autoSplit,
                 onChange: t => {
-                  d(t.target.checked), i(e, {
+                  setAutoSplit(t.target.checked), updateNodeData(e, {
                     autoSplit: t.target.checked
                   });
                 },
                 className: `accent-blue-500 rounded sm:w-3 sm:h-3`
               }), `自动拆分`]
             }), !!(n.textModel && n.textModel.split(`
-`).filter(e => e.trim() !== ``).length > 0 || T.length > 0) && X.jsxs(`div`, {
+`).filter(e => e.trim() !== ``).length > 0 || textModels.length > 0) && X.jsxs(`div`, {
               className: `relative nodrag flex items-center`,
               ref: F,
               children: [X.jsx(`div`, {
@@ -3858,20 +3866,20 @@ var TextNodeComp = Y.memo(({
               }), X.jsxs(`button`, {
                 className: `flex items-center gap-1 h-6 px-2 bg-transparent hover:bg-[#2a2a2a] border border-transparent hover:border-[#333] rounded text-[11px] text-gray-300 transition-colors cursor-pointer`,
                 onClick: e => {
-                  e.stopPropagation(), P(!N);
+                  e.stopPropagation(), setCopyToast(!copyToast);
                 },
-                title: O ? `调度：${O.name}` : C ? `${C}（${Xi(C) ? `内置` : `第三方`}）` : `选择模型`,
-                children: [O ? X.jsx(`span`, {
+                title: selectedModelInfo ? `调度：${selectedModelInfo.name}` : selectedModel ? `${selectedModel}（${Xi(selectedModel) ? `内置` : `第三方`}）` : `选择模型`,
+                children: [selectedModelInfo ? X.jsx(`span`, {
                   className: `shrink-0 px-1 rounded text-[9px] leading-[14px] border bg-blue-500/20 text-blue-200 border-blue-400/40`,
                   children: `调度`
-                }) : C && X.jsx(`span`, {
-                  className: `shrink-0 px-1 rounded text-[9px] leading-[14px] border ${Xi(C) ? `bg-white/10 text-white/90 border-white/30` : `bg-gray-500/15 text-gray-400 border-gray-500/40`}`,
-                  children: Xi(C) ? `内置` : `三方`
+                }) : selectedModel && X.jsx(`span`, {
+                  className: `shrink-0 px-1 rounded text-[9px] leading-[14px] border ${Xi(selectedModel) ? `bg-white/10 text-white/90 border-white/30` : `bg-gray-500/15 text-gray-400 border-gray-500/40`}`,
+                  children: Xi(selectedModel) ? `内置` : `三方`
                 }), X.jsx(`span`, {
                   className: `whitespace-nowrap`,
-                  children: O ? O.name : C || `选择模型`
+                  children: selectedModelInfo ? selectedModelInfo.name : selectedModel || `选择模型`
                 })]
-              }), N && X.jsx(`div`, {
+              }), copyToast && X.jsx(`div`, {
                 className: `absolute bottom-full left-0 mb-1 min-w-[17rem] w-max max-w-[29rem] bg-[#222] border border-[#333] rounded-lg shadow-xl p-2 z-50 block max-h-60 overflow-y-auto custom-scrollbar nowheel nopan nodrag`,
                 onWheel: e => e.stopPropagation(),
                 onClick: e => e.stopPropagation(),
@@ -3879,19 +3887,19 @@ var TextNodeComp = Y.memo(({
                   let t = (n.textModel || ``).split(`
 `).map(e => e.trim()).filter(e => e !== ``),
                     r = t.filter(e => Xi(e)).sort((e, t) => e.localeCompare(t)),
-                    a = t.filter(e => !Xi(e)).sort((e, t) => e.localeCompare(t)),
-                    o = (t, n, r) => {
-                      let a = r ? Ui(t) : null,
-                        o = r ? Wi(t) : null,
-                        s = ea(t, C === t);
+                    setEdges = t.filter(e => !Xi(e)).sort((e, t) => e.localeCompare(t)),
+                    prompt = (t, n, r) => {
+                      let setEdges = r ? Ui(t) : null,
+                        prompt = r ? Wi(t) : null,
+                        setPrompt = ea(t, selectedModel === t);
                       return X.jsxs(`div`, {
                         role: `button`,
-                        className: s.className,
-                        title: s.title,
+                        className: setPrompt.className,
+                        title: setPrompt.title,
                         onClick: () => {
-                          s.disabled || (w(t), i(e, {
+                          setPrompt.disabled || (setSelectedModel(t), updateNodeData(e, {
                             selectedModel: t
-                          }), localStorage.setItem(`mutiwindow_text_model`, t), P(false));
+                          }), localStorage.setItem(`mutiwindow_text_model`, t), setCopyToast(false));
                         },
                         children: [X.jsx(`span`, {
                           className: `shrink-0 px-1 rounded text-[9px] leading-[14px] border ${r ? `bg-white/10 text-white/90 border-white/30` : `bg-gray-500/15 text-gray-400 border-gray-500/40`}`,
@@ -3899,19 +3907,19 @@ var TextNodeComp = Y.memo(({
                         }), X.jsx(`span`, {
                           className: `flex-1 whitespace-nowrap`,
                           children: t
-                        }), a !== null && X.jsxs(`span`, {
+                        }), setEdges !== null && X.jsxs(`span`, {
                           className: `shrink-0 inline-flex items-center gap-0.5 text-[10px] text-orange-400 tabular-nums`,
                           children: [X.jsx(Lt, {
                             className: `w-2.5 h-2.5`,
                             strokeWidth: 2.5
                           }), X.jsxs(`span`, {
-                            children: [Zi(a), o ? `/${o}` : ``]
+                            children: [Zi(setEdges), prompt ? `/${prompt}` : ``]
                           })]
                         })]
                       }, `${r ? `b` : `o`}-${n}`);
                     };
                   return X.jsxs(X.Fragment, {
-                    children: [T.length > 0 && X.jsxs(X.Fragment, {
+                    children: [textModels.length > 0 && X.jsxs(X.Fragment, {
                       children: [X.jsxs(`div`, {
                         className: `text-[10px] text-blue-300 mb-1 px-1 flex items-center justify-between`,
                         children: [X.jsxs(`span`, {
@@ -3929,15 +3937,15 @@ var TextNodeComp = Y.memo(({
                           },
                           children: `配置 ›`
                         })]
-                      }), T.map(t => {
+                      }), textModels.map(t => {
                         let n = ga(t.id);
                         return X.jsxs(`div`, {
                           role: `button`,
-                          className: `w-full flex items-center gap-1.5 mb-1 last:mb-0 text-left px-2 py-1.5 text-[11px] rounded-md transition-colors cursor-pointer ${C === n ? `bg-[#333] text-white` : `text-gray-400 hover:bg-[#2a2a2a] hover:text-gray-200`}`,
+                          className: `w-full flex items-center gap-1.5 mb-1 last:mb-0 text-left px-2 py-1.5 text-[11px] rounded-md transition-colors cursor-pointer ${selectedModel === n ? `bg-[#333] text-white` : `text-gray-400 hover:bg-[#2a2a2a] hover:text-gray-200`}`,
                           onClick: () => {
-                            w(n), i(e, {
+                            setSelectedModel(n), updateNodeData(e, {
                               selectedModel: n
-                            }), localStorage.setItem(`mutiwindow_text_model`, n), P(false);
+                            }), localStorage.setItem(`mutiwindow_text_model`, n), setCopyToast(false);
                           },
                           title: `${t.name}（${t.steps.length} 个模型按序重试）`,
                           children: [X.jsx(`span`, {
@@ -3951,7 +3959,7 @@ var TextNodeComp = Y.memo(({
                             children: [t.steps.length, ` 模型`]
                           })]
                         }, t.id);
-                      }), (r.length > 0 || a.length > 0) && X.jsx(`div`, {
+                      }), (r.length > 0 || setEdges.length > 0) && X.jsx(`div`, {
                         className: `h-px bg-[#333] my-1.5`
                       })]
                     }), r.length > 0 && X.jsxs(X.Fragment, {
@@ -3964,29 +3972,29 @@ var TextNodeComp = Y.memo(({
                         }), X.jsx(`span`, {
                           className: `ml-auto text-white/90 hover:text-white cursor-pointer whitespace-nowrap`,
                           onClick: e => {
-                            e.stopPropagation(), window.dispatchEvent(new CustomEvent(`mutiwindow-open-builtin-settings`)), P(false);
+                            e.stopPropagation(), window.dispatchEvent(new CustomEvent(`mutiwindow-open-builtin-settings`)), setCopyToast(false);
                           },
                           title: `查看内置模型详情`,
                           children: `详情 ›`
                         })]
-                      }), r.map((e, t) => o(e, t, true))]
-                    }), a.length > 0 && X.jsxs(X.Fragment, {
+                      }), r.map((e, t) => prompt(e, t, true))]
+                    }), setEdges.length > 0 && X.jsxs(X.Fragment, {
                       children: [r.length > 0 && X.jsx(`div`, {
                         className: `h-px bg-[#333] my-1.5`
                       }), X.jsx(`div`, {
                         className: `text-[10px] text-gray-500 mb-1 px-1`,
                         children: `第三方 API`
-                      }), a.map((e, t) => o(e, t, false))]
+                      }), setEdges.map((e, t) => prompt(e, t, false))]
                     })]
                   });
                 })()
               })]
             }), X.jsx(PromptDropdown, {
               category: `text`,
-              presetPrompts: S,
+              presetPrompts: presetPrompts,
               onApply: t => {
-                let n = o ? `${o}, ${t}` : t;
-                s(n), i(e, {
+                let n = prompt ? `${prompt}, ${t}` : t;
+                setPrompt(n), updateNodeData(e, {
                   prompt: n
                 });
               },
@@ -4010,13 +4018,13 @@ var TextNodeComp = Y.memo(({
           }) : X.jsxs(`div`, {
             className: `flex items-center bg-[#2a2a2a] rounded-full p-1 pl-3 border border-[#333] hover:border-gray-500 transition-colors cursor-pointer group/btn flex-shrink-0 ml-2`,
             onClick: le,
-            children: [C && Xi(C) && Ui(C) !== null && X.jsxs(`div`, {
+            children: [selectedModel && Xi(selectedModel) && Ui(selectedModel) !== null && X.jsxs(`div`, {
               className: `flex items-center gap-0.5 mr-2 text-[11px] text-orange-400 tabular-nums`,
               children: [X.jsx(Lt, {
                 className: `w-3 h-3`,
                 strokeWidth: 2.5
               }), X.jsxs(`span`, {
-                children: [Zi(Ui(C) || 0), Wi(C) ? `/${Wi(C)}` : ``]
+                children: [Zi(Ui(selectedModel) || 0), Wi(selectedModel) ? `/${Wi(selectedModel)}` : ``]
               })]
             }), X.jsx(`div`, {
               className: `flex items-center gap-1 mr-3 text-xs text-gray-300 group-hover/btn:text-white`,
@@ -4031,29 +4039,30 @@ var TextNodeComp = Y.memo(({
           })]
         })]
       });
-      return X.jsxs(X.Fragment, {
+      // ── 渲染 ──
+return X.jsxs(X.Fragment, {
         children: [X.jsxs(`div`, {
           className: `absolute top-full left-1/2 -translate-x-1/2 mt-2 bg-[#1c1c1c] rounded-2xl border border-[#333] shadow-2xl min-w-[420px] w-max max-w-[920px] transition-all duration-300 origin-top z-50
-                ${f ? `opacity-100 scale-100 p-4 overflow-visible` : `opacity-0 scale-95 pointer-events-none h-0 p-0 border-0 overflow-hidden`}
+                ${expanded ? `opacity-100 scale-100 p-4 overflow-visible` : `opacity-0 scale-95 pointer-events-none h-0 p-0 border-0 overflow-hidden`}
               `,
           onClick: e => e.stopPropagation(),
-          children: [!v && t, f && !v && X.jsx(_i, {
-            targetRef: A,
-            onRequestFullscreen: () => y(true),
-            onResizeEnd: (t, n) => i(e, {
+          children: [!showVideo && t, expanded && !showVideo && X.jsx(_i, {
+            targetRef: textareaRef,
+            onRequestFullscreen: () => setShowVideo(true),
+            onResizeEnd: (t, n) => updateNodeData(e, {
               inputWidth: t,
               inputHeight: n
             })
           })]
         }), X.jsx(vi, {
-          open: v,
+          open: showVideo,
           title: `编辑提示词 - 文本`,
-          onClose: () => y(false),
+          onClose: () => setShowVideo(false),
           children: t
         }), X.jsx(vi, {
-          open: m,
+          open: showFullscreen,
           title: `编辑文本内容`,
-          onClose: () => h(false),
+          onClose: () => setShowFullscreen(false),
           children: X.jsx(`textarea`, {
             autoFocus: true,
             className: `w-full h-full bg-[#0d0c0c] text-gray-100 outline-none custom-scrollbar resize-none p-4 rounded`,
@@ -4061,9 +4070,9 @@ var TextNodeComp = Y.memo(({
               fontSize: `${se}px`,
               lineHeight: 1.7
             },
-            value: c,
+            value: text,
             onChange: t => {
-              l(t.target.value), i(e, {
+              setText(t.target.value), updateNodeData(e, {
                 text: t.target.value
               });
             }
@@ -12556,13 +12565,819 @@ return X.jsxs(`div`, {
     });
   }),
   hs = e => {
-    if (!e?.data) return ``;
-    if (e.type === `textNode` && e.data.text && typeof e.data.text == `string`) {
-      let t = e.data.text.trim();
-      if (/^https?:\/\/[^\s]+$/.test(t) || t.startsWith(`data:image/`)) return ``;
+// ── 状态 ──
+let {
+    updateNodeData: updateNodeData
+  } = Gt(),
+  nodeData = t,
+  [configMode, setConfigMode] = Y.useState(nodeData.configMode === undefined ? true : nodeData.configMode),
+  [variables, setVariables] = Y.useState(nodeData.config?.variables || {}),
+  [extractedVars, setExtractedVars] = Y.useState([]),
+  [config, setConfig] = Y.useState(nodeData.config || {
+    apiUrl: ``,
+    method: `POST`,
+    headers: `{
+  "Content-Type": "application/json"
+}`,
+    body: `{
+  "prompt": "{{prompt}}"
+}`,
+    outputType: `text`,
+    executionMode: `sync`,
+    resultPath: `data.result`
+  }),
+  [aiPrompt, setAiPrompt] = Y.useState(``),
+  [aiLoading, setAiLoading] = Y.useState(false);
+Y.useEffect(() => {
+  let text = (config.body || ``) + ` ` + (config.apiUrl || ``) + ` ` + (config.headers || ``),
+    varRegex = /\{\{([^}]+)\}\}/g,
+    match,
+    vars = [],
+    seen = new Set();
+  for (; (match = varRegex.exec(text)) !== null;) {
+    let name = match[1].trim();
+    if (!seen.has(name)) if (seen.add(name), name.includes(`|`)) {
+      let [optName, optList] = name.split(`|`);
+      vars.push({
+        name: optName.trim(),
+        options: optList.split(`,`).map(opt => opt.trim())
+      });
+    } else vars.push({
+      name: name
+    });
+  }
+  setExtractedVars(vars);
+}, [config.body, config.apiUrl, config.headers]);
+
+// ── 回调 ──
+let handleAiGenerate = async () => {
+    if (aiPrompt.trim()) {
+      if (!nodeData.onAIAssist) {
+        nodeData.onShowToast?.(`AI辅助不可用，请检查API配置`);
+        return;
+      }
+      setAiLoading(true);
+      try {
+        let result = await nodeData.onAIAssist(aiPrompt, config);
+        try {
+          let parsed = JSON.parse(result);
+          setConfig(cfg => ({
+            ...cfg,
+            apiUrl: parsed.apiUrl || cfg.apiUrl,
+            method: parsed.method || cfg.method,
+            headers: parsed.headers || cfg.headers,
+            body: parsed.body || cfg.body,
+            outputType: parsed.outputType || cfg.outputType,
+            executionMode: parsed.executionMode || cfg.executionMode,
+            resultPath: parsed.resultPath || cfg.resultPath,
+            taskIdPath: parsed.taskIdPath || cfg.taskIdPath,
+            pollingUrl: parsed.pollingUrl || cfg.pollingUrl,
+            pollingMethod: parsed.pollingMethod || cfg.pollingMethod,
+            pollingHeaders: parsed.pollingHeaders || cfg.pollingHeaders,
+            pollingBody: parsed.pollingBody || cfg.pollingBody,
+            pollingResultPath: parsed.pollingResultPath || cfg.pollingResultPath,
+            pollingCompletedValue: parsed.pollingCompletedValue || cfg.pollingCompletedValue,
+            pollingFailedValue: parsed.pollingFailedValue || cfg.pollingFailedValue,
+            pollingErrorPath: parsed.pollingErrorPath || cfg.pollingErrorPath,
+            pollingProgressPath: parsed.pollingProgressPath === undefined ? cfg.pollingProgressPath : parsed.pollingProgressPath,
+            pollingResultDataPath: parsed.pollingResultDataPath === undefined ? cfg.pollingResultDataPath : parsed.pollingResultDataPath,
+            rawTextOutput: parsed.rawTextOutput === undefined ? cfg.rawTextOutput : parsed.rawTextOutput
+          })), nodeData.onShowToast?.(`AI 生成配置成功`);
+        } catch (parseErr) {
+          console.error(`AI 返回的 JSON 解析失败`, parseErr, result), nodeData.onShowToast?.(`AI 生成格式错误，请重试`);
+        }
+      } catch (err) {
+        nodeData.onShowToast?.(err.message || `AI 生成失败`);
+      } finally {
+        setAiLoading(false);
+      }
     }
-    return e.data.text === undefined ? e.data.prompt === undefined ? e.data.resultUrl === undefined ? e.data.resultData === undefined ? e.data.label !== undefined && e.type !== `imageNode` ? String(e.data.label) : `` : typeof e.data.resultData == `object` ? JSON.stringify(e.data.resultData, null, 2) : String(e.data.resultData) : String(e.data.resultUrl) : String(e.data.prompt) : String(e.data.text);
   },
+  handleCompleteConfig = () => {
+    updateNodeData(e, {
+      config: {
+        ...config,
+        variables: variables
+      },
+      configMode: false
+    }), setConfigMode(false);
+  },
+  handleSaveTemplate = () => {
+    if (!config.apiUrl) {
+      nodeData.onShowToast?.(`请至少填写 API URL`);
+      return;
+    }
+    let name = window.prompt(`请输入自定义节点名称:`, t.label || `万能节点`);
+    name && nodeData.onSaveTemplate && nodeData.onSaveTemplate(name, {
+      ...config,
+      variables: variables
+    });
+  },
+  handleRun = evt => {
+    if (evt.stopPropagation(), configMode) {
+      nodeData.onShowToast?.(`请先完成配置`);
+      return;
+    }
+    let cfg = {
+      ...config,
+      variables: variables
+    };
+    setConfig(cfg), updateNodeData(e, {
+      config: cfg
+    }), setTimeout(() => {
+      console.log(`CustomNode handleRun triggered, calling onGenerateCustom`, nodeData.onGenerateCustom), nodeData.onGenerateCustom ? nodeData.onGenerateCustom(e) : nodeData.onShowToast?.(`未找到执行方法，请刷新页面重试`);
+    }, 50);
+  },
+  urlifyAsset = async (varName, file) => {
+    try {
+      let uploaded = await ii(file, {
+        subfolder: `canvas/upload`,
+        preferThumbnail: file.type.startsWith(`image/`),
+        thumbMaxDim: 480,
+        thumbQuality: 75
+      });
+      if (uploaded.url && /^https?:\/\//i.test(uploaded.url)) {
+        setVariables(vars => ({
+          ...vars,
+          [varName]: uploaded.url
+        }));
+        return;
+      }
+    } catch (err) {
+      console.warn(`[CustomNode] urlifyAsset failed, fallback to base64:`, err);
+    }
+    let reader = new FileReader();
+    reader.onload = evt => {
+      evt.target?.result && setVariables(vars => ({
+        ...vars,
+        [varName]: evt.target.result
+      }));
+    }, reader.readAsDataURL(file);
+  };
+
+// ── 渲染 ──
+return X.jsxs(`div`, {
+  className: `flex flex-col items-center group/node transition-all ${n ? `z-50` : `z-10`}`,
+  children: [X.jsx(si, {
+    id: e,
+    data: t,
+    defaultTitle: `万能节点`,
+    icon: X.jsx(He, {
+      size: 11,
+      className: `text-gray-500`
+    })
+  }), X.jsxs(`div`, {
+    className: `relative bg-[#1c1c1c] rounded-xl overflow-visible border shadow-xl transition-all duration-300 flex flex-col
+                ${n ? `border-[#555]` : `border-[#333] hover:border-[#444]`}
+                `,
+    style: {
+      width: `400px`,
+      minHeight: configMode ? `450px` : `250px`
+    },
+    children: [X.jsxs(`div`, {
+      className: `absolute top-2 right-2 z-20 flex items-center gap-2 nodrag`,
+      children: [nodeData.loading && X.jsx(L, {
+        size: 12,
+        className: `animate-spin flex-shrink-0`,
+        style: {
+          color: `rgb(210,2,7)`
+        }
+      }), X.jsxs(`div`, {
+        className: `flex bg-[#0d0c0c]/90 rounded p-0.5 border border-[#333]`,
+        children: [X.jsx(`button`, {
+          className: `px-2 py-1 text-[10px] rounded transition-colors ${configMode ? `bg-[#333] text-white` : `text-gray-400 hover:text-gray-200`}`,
+          onClick: () => {
+            setConfigMode(true), updateNodeData(e, {
+              configMode: true
+            });
+          },
+          children: `编辑模式`
+        }), X.jsx(`button`, {
+          className: `px-2 py-1 text-[10px] rounded transition-colors ${configMode ? `text-gray-400 hover:text-gray-200` : `bg-[#333] text-white`}`,
+          onClick: () => {
+            setConfigMode(false), updateNodeData(e, {
+              configMode: false
+            });
+          },
+          children: `工作模式`
+        })]
+      })]
+    }), X.jsxs(`div`, {
+      className: `flex-1 flex flex-col p-3 bg-[#1a1a1a] relative drag-handle rounded-xl`,
+      children: [nodeData.loading && X.jsxs(`div`, {
+        className: `absolute inset-0 flex flex-col items-center justify-center gap-2 text-gray-500 bg-[#1a1a1a]/80 backdrop-blur-sm z-10`,
+        children: [X.jsx(ui, {
+          size: 24
+        }), X.jsx(`span`, {
+          className: `text-xs`,
+          children: config.executionMode === `async` ? `请求中... ${nodeData.progress || 0}%` : `请求中...`
+        }), X.jsxs(`button`, {
+          onClick: evt => {
+            evt.stopPropagation(), nodeData.onStop && nodeData.onStop(e);
+          },
+          className: `mt-2 bg-[#222]/80 hover:bg-[#333] border border-[#444] text-gray-400 hover:text-gray-200 px-3 py-1 rounded-full text-[10px] flex items-center gap-1.5 transition-colors backdrop-blur-sm nodrag`,
+          children: [X.jsx(oe, {
+            size: 10,
+            fill: `currentColor`
+          }), `停止`]
+        })]
+      }), nodeData.errorMessage && X.jsxs(`div`, {
+        className: `text-red-400 text-[10px] p-2 mb-2 border border-red-500/30 rounded bg-red-500/10 flex items-start gap-1.5`,
+        children: [X.jsx(pt, {
+          size: 12,
+          className: `mt-0.5 flex-shrink-0`
+        }), X.jsx(`span`, {
+          className: `break-all`,
+          children: nodeData.errorMessage
+        })]
+      }), configMode ? X.jsxs(`div`, {
+        className: `flex flex-col gap-3 nodrag text-xs`,
+        children: [X.jsxs(`div`, {
+          className: `flex flex-col gap-1`,
+          children: [X.jsxs(`label`, {
+            className: `text-gray-500 flex items-center gap-1`,
+            children: [X.jsx(pe, {
+              size: 12,
+              className: `text-yellow-500`
+            }), `AI 辅助配置`]
+          }), X.jsxs(`div`, {
+            className: `flex flex-col gap-2`,
+            children: [X.jsx(`textarea`, {
+              className: `flex-1 bg-[#0d0c0c] border border-[#333] rounded p-2 text-gray-200 focus:border-blue-500 outline-none custom-scrollbar text-[10px] resize-y nodrag nowheel nopan`,
+              placeholder: `描述你想调用的API... (如：调用百度翻译)`,
+              value: aiPrompt,
+              onChange: evt => setAiPrompt(evt.target.value),
+              onKeyDown: evt => {
+                evt.key === `Enter` && (evt.ctrlKey || evt.metaKey) && handleAiGenerate();
+              },
+              onWheel: evt => evt.stopPropagation(),
+              rows: 3
+            }), X.jsxs(`button`, {
+              onClick: handleAiGenerate,
+              disabled: aiLoading,
+              className: `py-1.5 w-full bg-blue-600/20 hover:bg-blue-600/40 text-blue-400 border border-blue-500/30 rounded transition-colors flex items-center justify-center gap-1`,
+              children: [aiLoading ? X.jsx(L, {
+                size: 12,
+                className: `animate-spin`
+              }) : `生成`, !aiLoading && X.jsx(`span`, {
+                className: `text-[10px] text-blue-400/70`,
+                children: `(Ctrl+Enter)`
+              })]
+            })]
+          })]
+        }), X.jsxs(`div`, {
+          className: `flex gap-2`,
+          children: [X.jsxs(`div`, {
+            className: `flex flex-col gap-1 w-20`,
+            children: [X.jsx(`label`, {
+              className: `text-gray-500`,
+              children: `Method`
+            }), X.jsxs(`select`, {
+              className: `bg-[#0d0c0c] border border-[#333] rounded px-1 py-1 text-gray-200 outline-none`,
+              value: config.method,
+              onChange: evt => setConfig({
+                ...config,
+                method: evt.target.value
+              }),
+              children: [X.jsx(`option`, {
+                children: `GET`
+              }), X.jsx(`option`, {
+                children: `POST`
+              }), X.jsx(`option`, {
+                children: `PUT`
+              })]
+            })]
+          }), X.jsxs(`div`, {
+            className: `flex flex-col gap-1 flex-1`,
+            children: [X.jsx(`label`, {
+              className: `text-gray-500`,
+              children: `API URL`
+            }), X.jsx(`input`, {
+              className: `bg-[#0d0c0c] border border-[#333] rounded px-2 py-1 text-gray-200 focus:border-blue-500 outline-none`,
+              value: config.apiUrl,
+              onChange: evt => setConfig({
+                ...config,
+                apiUrl: evt.target.value
+              })
+            })]
+          })]
+        }), X.jsxs(`div`, {
+          className: `flex flex-col gap-1`,
+          children: [X.jsxs(`div`, {
+            className: `flex justify-between items-center`,
+            children: [X.jsx(`label`, {
+              className: `text-gray-500`,
+              children: `Headers (JSON格式)`
+            }), X.jsxs(`div`, {
+              className: `flex gap-1`,
+              children: [X.jsx(`button`, {
+                onClick: () => setConfig({
+                  ...config,
+                  headers: `{
+  "Content-Type": "application/json"
+}`
+                }),
+                className: `text-[9px] bg-[#333] hover:bg-[#444] px-1.5 py-0.5 rounded text-gray-300 transition-colors`,
+                children: `JSON`
+              }), X.jsx(`button`, {
+                onClick: () => setConfig({
+                  ...config,
+                  headers: `{
+  "Content-Type": "multipart/form-data"
+}`
+                }),
+                className: `text-[9px] bg-[#333] hover:bg-[#444] px-1.5 py-0.5 rounded text-gray-300 transition-colors`,
+                children: `FormData`
+              })]
+            })]
+          }), X.jsx(`textarea`, {
+            className: `bg-[#0d0c0c] border border-[#333] rounded px-2 py-1 text-gray-200 font-mono text-[10px] h-16 resize-y focus:border-blue-500 outline-none custom-scrollbar nodrag nowheel nopan`,
+            value: config.headers,
+            onChange: evt => setConfig({
+              ...config,
+              headers: evt.target.value
+            }),
+            onWheel: evt => evt.stopPropagation()
+          })]
+        }), X.jsxs(`div`, {
+          className: `flex flex-col gap-1`,
+          children: [X.jsx(`label`, {
+            className: `text-gray-500 flex justify-between`,
+            children: X.jsxs(`span`, {
+              children: [`Body (支持变量: `, `{{prompt}}`, `, `, `{{image_1}}`, `)`]
+            })
+          }), X.jsx(`textarea`, {
+            className: `bg-[#0d0c0c] border border-[#333] rounded px-2 py-1 text-gray-200 font-mono text-[10px] h-24 resize-y focus:border-blue-500 outline-none custom-scrollbar nodrag nowheel nopan`,
+            value: config.body,
+            onChange: evt => setConfig({
+              ...config,
+              body: evt.target.value
+            }),
+            onWheel: evt => evt.stopPropagation()
+          })]
+        }), X.jsxs(`div`, {
+          className: `flex gap-2`,
+          children: [X.jsxs(`div`, {
+            className: `flex flex-col gap-1 flex-1`,
+            children: [X.jsx(`label`, {
+              className: `text-gray-500`,
+              children: `输出类型`
+            }), X.jsxs(`select`, {
+              className: `bg-[#0d0c0c] border border-[#333] rounded px-1 py-1 text-gray-200 outline-none`,
+              value: config.outputType,
+              onChange: evt => setConfig({
+                ...config,
+                outputType: evt.target.value
+              }),
+              children: [X.jsx(`option`, {
+                value: `text`,
+                children: `文本 (Text)`
+              }), X.jsx(`option`, {
+                value: `image`,
+                children: `图片 (Image URL)`
+              }), X.jsx(`option`, {
+                value: `video`,
+                children: `视频 (Video URL)`
+              }), X.jsx(`option`, {
+                value: `audio`,
+                children: `音频 (Audio URL)`
+              })]
+            })]
+          }), X.jsxs(`div`, {
+            className: `flex flex-col gap-1 flex-1`,
+            children: [X.jsx(`label`, {
+              className: `text-gray-500`,
+              children: `执行模式`
+            }), X.jsxs(`select`, {
+              className: `bg-[#0d0c0c] border border-[#333] rounded px-1 py-1 text-gray-200 outline-none`,
+              value: config.executionMode,
+              onChange: evt => setConfig({
+                ...config,
+                executionMode: evt.target.value
+              }),
+              children: [X.jsx(`option`, {
+                value: `sync`,
+                children: `同步 (立即返回)`
+              }), X.jsx(`option`, {
+                value: `async`,
+                children: `异步 (需轮询)`
+              })]
+            })]
+          })]
+        }), X.jsxs(`div`, {
+          className: `flex gap-2`,
+          children: [X.jsxs(`div`, {
+            className: `flex flex-col gap-1 flex-1`,
+            children: [X.jsx(`label`, {
+              className: `text-gray-500`,
+              children: `提取结果字段 (JSON Path, 如 data.url)`
+            }), X.jsx(`input`, {
+              className: `bg-[#0d0c0c] border border-[#333] rounded px-2 py-1 text-gray-200 focus:border-blue-500 outline-none`,
+              value: config.resultPath,
+              onChange: evt => setConfig({
+                ...config,
+                resultPath: evt.target.value
+              }),
+              placeholder: `如 choices[0].message.content`
+            })]
+          }), config.outputType === `text` && X.jsxs(`div`, {
+            className: `flex flex-col gap-1 w-24`,
+            children: [X.jsx(`label`, {
+              className: `text-gray-500 text-center`,
+              children: `纯文本输出`
+            }), X.jsx(`div`, {
+              className: `flex items-center justify-center h-full`,
+              children: X.jsx(`input`, {
+                type: `checkbox`,
+                checked: config.rawTextOutput || false,
+                onChange: evt => setConfig({
+                  ...config,
+                  rawTextOutput: evt.target.checked
+                }),
+                className: `w-4 h-4 accent-blue-500 cursor-pointer`
+              })
+            })]
+          })]
+        }), config.executionMode === `async` && X.jsxs(`div`, {
+          className: `flex flex-col gap-2 p-2 bg-[#222] border border-[#333] rounded mt-1`,
+          children: [X.jsxs(`div`, {
+            className: `flex flex-col gap-1`,
+            children: [X.jsx(`label`, {
+              className: `text-gray-500`,
+              children: `提取 Task ID 字段`
+            }), X.jsx(`input`, {
+              className: `bg-[#0d0c0c] border border-[#333] rounded px-2 py-1 text-gray-200 outline-none`,
+              value: config.taskIdPath || ``,
+              onChange: evt => setConfig({
+                ...config,
+                taskIdPath: evt.target.value
+              }),
+              placeholder: `如 data.task_id`
+            })]
+          }), X.jsxs(`div`, {
+            className: `flex gap-2`,
+            children: [X.jsxs(`div`, {
+              className: `flex flex-col gap-1 w-24`,
+              children: [X.jsx(`label`, {
+                className: `text-gray-500`,
+                children: `轮询 Method`
+              }), X.jsxs(`select`, {
+                className: `bg-[#0d0c0c] border border-[#333] rounded px-2 py-1 text-gray-200 outline-none h-[30px]`,
+                value: config.pollingMethod || `GET`,
+                onChange: evt => setConfig({
+                  ...config,
+                  pollingMethod: evt.target.value
+                }),
+                children: [X.jsx(`option`, {
+                  value: `GET`,
+                  children: `GET`
+                }), X.jsx(`option`, {
+                  value: `POST`,
+                  children: `POST`
+                })]
+              })]
+            }), X.jsxs(`div`, {
+              className: `flex flex-col gap-1 flex-1`,
+              children: [X.jsxs(`label`, {
+                className: `text-gray-500`,
+                children: [`轮询 API URL (支持 `, `{{task_id}}`, `)`]
+              }), X.jsx(`input`, {
+                className: `bg-[#0d0c0c] border border-[#333] rounded px-2 py-1 text-gray-200 outline-none h-[30px]`,
+                value: config.pollingUrl || ``,
+                onChange: evt => setConfig({
+                  ...config,
+                  pollingUrl: evt.target.value
+                }),
+                placeholder: `如果与上方一致可留空`
+              })]
+            })]
+          }), X.jsxs(`div`, {
+            className: `flex flex-col gap-1`,
+            children: [X.jsx(`label`, {
+              className: `text-gray-500`,
+              children: `轮询 Headers (JSON格式, 留空同上)`
+            }), X.jsx(`textarea`, {
+              className: `bg-[#0d0c0c] border border-[#333] rounded px-2 py-1 text-gray-200 font-mono text-[10px] h-20 resize-y focus:border-blue-500 outline-none custom-scrollbar nodrag nowheel nopan`,
+              value: config.pollingHeaders || ``,
+              onChange: evt => setConfig({
+                ...config,
+                pollingHeaders: evt.target.value
+              }),
+              placeholder: `例如: {"Authorization": "Bearer xxx"}`,
+              onWheel: evt => evt.stopPropagation()
+            })]
+          }), X.jsxs(`div`, {
+            className: `flex flex-col gap-1 ${config.pollingMethod === `GET` || !config.pollingMethod ? `hidden` : ``}`,
+            children: [X.jsxs(`label`, {
+              className: `text-gray-500`,
+              children: [`轮询 Body (JSON格式, 支持 `, `{{task_id}}`, `)`]
+            }), X.jsx(`textarea`, {
+              className: `bg-[#0d0c0c] border border-[#333] rounded px-2 py-1 text-gray-200 font-mono text-[10px] h-12 resize-y focus:border-blue-500 outline-none custom-scrollbar nodrag`,
+              value: config.pollingBody || ``,
+              onChange: evt => setConfig({
+                ...config,
+                pollingBody: evt.target.value
+              }),
+              placeholder: `例如: {"taskId": "{{task_id}}"}`,
+              onWheel: evt => evt.stopPropagation()
+            })]
+          }), X.jsxs(`div`, {
+            className: `flex gap-2`,
+            children: [X.jsxs(`div`, {
+              className: `flex flex-col gap-1 flex-1`,
+              children: [X.jsx(`label`, {
+                className: `text-gray-500`,
+                children: `状态判断字段`
+              }), X.jsx(`input`, {
+                className: `bg-[#0d0c0c] border border-[#333] rounded px-2 py-1 text-gray-200 outline-none`,
+                value: config.pollingResultPath || ``,
+                onChange: evt => setConfig({
+                  ...config,
+                  pollingResultPath: evt.target.value
+                }),
+                placeholder: `如 data.status`
+              })]
+            }), X.jsxs(`div`, {
+              className: `flex flex-col gap-1 flex-1`,
+              children: [X.jsx(`label`, {
+                className: `text-gray-500`,
+                children: `完成状态值`
+              }), X.jsx(`input`, {
+                className: `bg-[#0d0c0c] border border-[#333] rounded px-2 py-1 text-gray-200 outline-none`,
+                value: config.pollingCompletedValue || ``,
+                onChange: evt => setConfig({
+                  ...config,
+                  pollingCompletedValue: evt.target.value
+                }),
+                placeholder: `如 completed`
+              })]
+            })]
+          }), X.jsxs(`div`, {
+            className: `flex gap-2`,
+            children: [X.jsxs(`div`, {
+              className: `flex flex-col gap-1 flex-1`,
+              children: [X.jsx(`label`, {
+                className: `text-gray-500`,
+                children: `失败状态值`
+              }), X.jsx(`input`, {
+                className: `bg-[#0d0c0c] border border-[#333] rounded px-2 py-1 text-gray-200 outline-none`,
+                value: config.pollingFailedValue || ``,
+                onChange: evt => setConfig({
+                  ...config,
+                  pollingFailedValue: evt.target.value
+                }),
+                placeholder: `如 failed`
+              })]
+            }), X.jsxs(`div`, {
+              className: `flex flex-col gap-1 flex-1`,
+              children: [X.jsx(`label`, {
+                className: `text-gray-500`,
+                children: `失败信息字段`
+              }), X.jsx(`input`, {
+                className: `bg-[#0d0c0c] border border-[#333] rounded px-2 py-1 text-gray-200 outline-none`,
+                value: config.pollingErrorPath || ``,
+                onChange: evt => setConfig({
+                  ...config,
+                  pollingErrorPath: evt.target.value
+                }),
+                placeholder: `如 data.error`
+              })]
+            })]
+          }), X.jsxs(`div`, {
+            className: `flex flex-col gap-1`,
+            children: [X.jsx(`label`, {
+              className: `text-gray-500`,
+              children: `进度判断字段`
+            }), X.jsx(`input`, {
+              className: `bg-[#0d0c0c] border border-[#333] rounded px-2 py-1 text-gray-200 outline-none`,
+              value: config.pollingProgressPath || ``,
+              onChange: evt => setConfig({
+                ...config,
+                pollingProgressPath: evt.target.value
+              }),
+              placeholder: `如 data.progress (选填)`
+            })]
+          }), X.jsxs(`div`, {
+            className: `flex gap-2`,
+            children: [X.jsxs(`div`, {
+              className: `flex flex-col gap-1 flex-1`,
+              children: [X.jsx(`label`, {
+                className: `text-gray-500`,
+                children: `异步结果提取字段 (如轮询返回的 data.url)`
+              }), X.jsx(`input`, {
+                className: `bg-[#0d0c0c] border border-[#333] rounded px-2 py-1 text-gray-200 outline-none`,
+                value: config.pollingResultDataPath || ``,
+                onChange: evt => setConfig({
+                  ...config,
+                  pollingResultDataPath: evt.target.value
+                }),
+                placeholder: `留空则使用上方主请求提取字段`
+              })]
+            }), config.outputType === `text` && X.jsxs(`div`, {
+              className: `flex flex-col gap-1 w-24`,
+              children: [X.jsx(`label`, {
+                className: `text-gray-500 text-center`,
+                children: `纯文本输出`
+              }), X.jsx(`div`, {
+                className: `flex items-center justify-center h-full`,
+                children: X.jsx(`input`, {
+                  type: `checkbox`,
+                  checked: config.rawTextOutput || false,
+                  onChange: evt => setConfig({
+                    ...config,
+                    rawTextOutput: evt.target.checked
+                  }),
+                  className: `w-4 h-4 accent-blue-500 cursor-pointer`
+                })
+              })]
+            })]
+          })]
+        }), X.jsxs(`div`, {
+          className: `flex gap-2 mt-2`,
+          children: [X.jsx(`button`, {
+            onClick: handleCompleteConfig,
+            className: `flex-1 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded transition-colors text-xs`,
+            children: `完成配置`
+          }), X.jsxs(`button`, {
+            onClick: handleSaveTemplate,
+            className: `py-1.5 px-3 bg-[#333] hover:bg-[#444] text-white rounded transition-colors flex items-center justify-center gap-1 text-xs`,
+            title: `保存为自定义节点供下次使用`,
+            children: [X.jsx(De, {
+              size: 12
+            }), `保存模板`]
+          })]
+        })]
+      }) : X.jsx(`div`, {
+        className: `flex flex-col h-full nodrag`,
+        children: X.jsxs(`div`, {
+          className: `flex-1 flex flex-col min-h-[100px] pr-1`,
+          children: [nodeData.resultData && X.jsxs(`div`, {
+            className: `flex-1 bg-[#0d0c0c] border border-[#333] rounded p-2 mb-2 overflow-auto custom-scrollbar flex min-h-[60px] max-h-[250px] ${config.outputType === `text` ? `items-start justify-start` : `items-center justify-center`}`,
+            children: [config.outputType === `text` && X.jsx(`div`, {
+              className: `text-gray-300 text-xs whitespace-pre-wrap w-full align-top break-all`,
+              children: nodeData.resultData
+            }), config.outputType === `image` && X.jsx(`img`, {
+              src: nodeData.resultData,
+              loading: `lazy`,
+              decoding: `async`,
+              className: `max-w-full max-h-full object-contain`
+            }), config.outputType === `video` && X.jsx(`video`, {
+              src: nodeData.resultData,
+              controls: true,
+              preload: `metadata`,
+              className: `max-w-full max-h-full`
+            }), config.outputType === `audio` && X.jsx(`audio`, {
+              src: nodeData.resultData,
+              controls: true,
+              className: `w-full`
+            })]
+          }), X.jsx(`div`, {
+            className: `flex flex-col gap-3 mt-auto pt-2 pb-2`,
+            children: extractedVars.length > 0 ? X.jsx(X.Fragment, {
+              children: extractedVars.map(varDef => X.jsxs(`div`, {
+                className: `flex flex-col gap-1 relative nodrag`,
+                children: [X.jsx(`div`, {
+                  className: `absolute top-1/2 -translate-y-1/2`,
+                  style: {
+                    left: `-12px`
+                  },
+                  children: X.jsx(_r, {
+                    type: `target`,
+                    id: `var-${varDef.name}`,
+                    position: J.Left,
+                    variant: `small`,
+                    title: `连接到变量: ${varDef.name}`
+                  })
+                }), X.jsxs(`div`, {
+                  className: `flex justify-between items-center mb-1`,
+                  children: [X.jsx(`label`, {
+                    className: `text-gray-400 text-[10px] ml-1`,
+                    children: varDef.name
+                  }), !varDef.options && !varDef.name.startsWith(`image`) && !varDef.name.startsWith(`audio`) && !varDef.name.startsWith(`video`) && !varDef.name.startsWith(`file`) && X.jsxs(`div`, {
+                    className: `flex items-center gap-1 text-[9px]`,
+                    children: [X.jsx(`span`, {
+                      className: `${config.variableFormats?.[varDef.name] === `json` ? `text-gray-500` : `text-blue-400 font-bold`}`,
+                      children: `Text`
+                    }), X.jsx(`div`, {
+                      className: `w-5 h-2.5 bg-[#333] rounded-full relative cursor-pointer`,
+                      onClick: () => {
+                        let fmt = (config.variableFormats?.[varDef.name] || `text`) === `text` ? `json` : `text`;
+                        setConfig(cfg => ({
+                          ...cfg,
+                          variableFormats: {
+                            ...cfg.variableFormats,
+                            [varDef.name]: fmt
+                          }
+                        }));
+                      },
+                      children: X.jsx(`div`, {
+                        className: `absolute top-[1px] w-2 h-2 rounded-full transition-all ${config.variableFormats?.[varDef.name] === `json` ? `bg-blue-400 right-[1px]` : `bg-gray-400 left-[1px]`}`
+                      })
+                    }), X.jsx(`span`, {
+                      className: `${config.variableFormats?.[varDef.name] === `json` ? `text-blue-400 font-bold` : `text-gray-500`}`,
+                      children: `JSON`
+                    })]
+                  })]
+                }), varDef.options ? X.jsx(`select`, {
+                  className: `w-full bg-[#0d0c0c] border border-[#333] rounded px-2 py-1.5 text-xs text-gray-200 outline-none focus:border-blue-500`,
+                  value: variables[varDef.name] || varDef.options[0],
+                  onChange: evt => setVariables(vars => ({
+                    ...vars,
+                    [varDef.name]: evt.target.value
+                  })),
+                  children: varDef.options.map(opt => X.jsx(`option`, {
+                    value: opt,
+                    children: opt
+                  }, opt))
+                }) : varDef.name.startsWith(`image`) || varDef.name.startsWith(`audio`) || varDef.name.startsWith(`video`) || varDef.name.startsWith(`file`) ? X.jsx(`div`, {
+                  className: `flex items-center gap-2`,
+                  children: variables[varDef.name] ? X.jsxs(`div`, {
+                    className: `relative w-full h-12 rounded overflow-hidden border border-[#444] flex items-center justify-center bg-[#0d0c0c]`,
+                    children: [varDef.name.startsWith(`image`) && X.jsx(`img`, {
+                      src: variables[varDef.name],
+                      loading: `lazy`,
+                      decoding: `async`,
+                      className: `w-full h-full object-cover`
+                    }), varDef.name.startsWith(`audio`) && X.jsx(`audio`, {
+                      src: variables[varDef.name],
+                      controls: true,
+                      className: `w-full h-full`
+                    }), varDef.name.startsWith(`video`) && X.jsx(`video`, {
+                      src: variables[varDef.name],
+                      preload: `metadata`,
+                      className: `w-full h-full object-cover`
+                    }), varDef.name.startsWith(`file`) && X.jsx(`div`, {
+                      className: `text-xs text-gray-400 break-all p-1 text-center line-clamp-2`,
+                      children: `文件已上传`
+                    }), X.jsx(`button`, {
+                      onClick: () => setVariables(vars => {
+                        let next = {
+                          ...vars
+                        };
+                        return delete next[varDef.name], next;
+                      }),
+                      className: `absolute top-0 right-0 bg-red-500/80 text-white p-0.5 rounded-bl z-10`,
+                      children: X.jsx(oe, {
+                        size: 8,
+                        fill: `currentColor`
+                      })
+                    })]
+                  }) : X.jsxs(`label`, {
+                    className: `flex-1 border border-dashed border-[#444] hover:border-blue-500 rounded p-2 flex items-center justify-center cursor-pointer text-gray-500 hover:text-blue-400 transition-colors text-xs`,
+                    children: [X.jsx(jn, {
+                      size: 12,
+                      className: `mr-1`
+                    }), varDef.name.startsWith(`image`) ? `上传图片` : varDef.name.startsWith(`audio`) ? `上传音频` : varDef.name.startsWith(`video`) ? `上传视频` : `上传文件`, X.jsx(`input`, {
+                      type: `file`,
+                      accept: varDef.name.startsWith(`image`) ? `image/*` : varDef.name.startsWith(`audio`) ? `audio/*` : varDef.name.startsWith(`video`) ? `video/*` : `*/*`,
+                      className: `hidden`,
+                      onChange: evt => {
+                        evt.target.files?.[0] && urlifyAsset(varDef.name, evt.target.files[0]);
+                      }
+                    })]
+                  })
+                }) : X.jsx(`textarea`, {
+                  className: `w-full bg-[#0d0c0c] border border-[#333] rounded px-2 py-1.5 text-xs text-gray-200 outline-none focus:border-blue-500 custom-scrollbar resize-y nodrag min-h-[30px]`,
+                  placeholder: `输入 ${varDef.name}...`,
+                  value: variables[varDef.name] || ``,
+                  onChange: evt => setVariables(vars => ({
+                    ...vars,
+                    [varDef.name]: evt.target.value
+                  })),
+                  onWheel: evt => evt.stopPropagation()
+                })]
+              }, varDef.name))
+            }) : X.jsxs(`div`, {
+              className: `text-gray-500 text-xs text-center py-4 border border-dashed border-[#444] rounded`,
+              children: [`当前配置未提取到变量。`, X.jsx(`br`, {}), `在编辑模式下使用 `, `{{变量名}}`, ` 添加变量。`]
+            })
+          }), X.jsx(`div`, {
+            className: `mt-auto pt-2`,
+            children: X.jsxs(`button`, {
+              onClick: evt => {
+                evt.stopPropagation(), handleRun(evt);
+              },
+              disabled: nodeData.loading,
+              className: `w-full py-2 bg-white hover:bg-gray-100 text-black rounded-lg flex items-center justify-center gap-1.5 transition-colors shadow-sm disabled:opacity-50 font-medium text-sm`,
+              children: [nodeData.loading ? X.jsx(L, {
+                size: 14,
+                className: `animate-spin`
+              }) : X.jsx(ct, {
+                size: 14,
+                fill: `currentColor`
+              }), nodeData.loading ? `处理中...` : `开始处理`]
+            })
+          })]
+        })
+      })]
+    }), X.jsx(_r, {
+      type: `source`,
+      position: J.Right,
+      variant: `small`
+    })]
+  })]
+});
+},
   gs = (e, t) => {
     let n = [],
       r = [],
@@ -16931,25 +17746,31 @@ var CompareNodeComp = Y.memo(({
     data: n,
     selected: r
   }) => {
-    let {
-        updateNodeData: i
+let {
+        updateNodeData
       } = Gt(),
-      a = t({
+      // ── 数据读取：上游连线句柄与源节点 ──
+      targetHandles = t({
         handleType: `target`
       }),
-      o = ut(a.map(e => e.source)),
-      [s, c] = Y.useState(n.separator === undefined ? `\\n` : n.separator),
-      [l, u] = Y.useState(n.prefix || ``),
-      [d, f] = Y.useState(n.suffix || ``),
-      p = a.map(e => hs(o.find(t => t?.id === e.source))).filter(e => e),
-      m = s.replace(/\\n/g, `
+      sources = ut(targetHandles.map(t => t.source)),
+      // ── 状态：前缀、分隔符、后缀 ──
+      [separator, setSeparator] = Y.useState(n.separator === undefined ? `\\n` : n.separator),
+      [prefix, setPrefix] = Y.useState(n.prefix || ``),
+      [suffix, setSuffix] = Y.useState(n.suffix || ``),
+      // ── 计算：提取上游文本并拼接 ──
+      inputTexts = targetHandles.map(t => hs(sources.find(s => s?.id === t.source))).filter(t => t),
+      separatorStr = separator.replace(/\\n/g, `
 `),
-      h = p.length > 0 ? `${l}${p.join(m)}${d}` : ``;
+      resultText = inputTexts.length > 0 ? `${prefix}${inputTexts.join(separatorStr)}${suffix}` : ``;
+    // ── 副作用：拼接结果回写 data.text ──
     return Y.useEffect(() => {
-      n.text !== h && i(e, {
-        text: h
+      n.text !== resultText && updateNodeData(e, {
+        text: resultText
       });
-    }, [h, e, i, n.text]), X.jsxs(`div`, {
+    }, [resultText, e, updateNodeData, n.text]),
+    // ── 渲染 ──
+    X.jsxs(`div`, {
       className: `relative flex flex-col`,
       children: [X.jsx(si, {
         id: e,
@@ -16973,9 +17794,9 @@ var CompareNodeComp = Y.memo(({
               children: `前缀`
             }), X.jsx(`input`, {
               type: `text`,
-              value: l,
+              value: prefix,
               onChange: t => {
-                u(t.target.value), i(e, {
+                setPrefix(t.target.value), updateNodeData(e, {
                   prefix: t.target.value
                 });
               },
@@ -16989,9 +17810,9 @@ var CompareNodeComp = Y.memo(({
               children: `分隔符 (输入 \\n 表示换行)`
             }), X.jsx(`input`, {
               type: `text`,
-              value: s,
+              value: separator,
               onChange: t => {
-                c(t.target.value), i(e, {
+                setSeparator(t.target.value), updateNodeData(e, {
                   separator: t.target.value
                 });
               },
@@ -17004,9 +17825,9 @@ var CompareNodeComp = Y.memo(({
               children: `后缀`
             }), X.jsx(`input`, {
               type: `text`,
-              value: d,
+              value: suffix,
               onChange: t => {
-                f(t.target.value), i(e, {
+                setSuffix(t.target.value), updateNodeData(e, {
                   suffix: t.target.value
                 });
               },
@@ -17018,11 +17839,11 @@ var CompareNodeComp = Y.memo(({
             children: [X.jsx(`label`, {
               className: `text-[10px] text-gray-500 flex justify-between`,
               children: X.jsxs(`span`, {
-                children: [`拼接结果 (`, p.length, ` 个输入)`]
+                children: [`拼接结果 (`, inputTexts.length, ` 个输入)`]
               })
             }), X.jsx(`textarea`, {
               readOnly: true,
-              value: h,
+              value: resultText,
               className: `w-full bg-[#111] border border-[#333] rounded px-2 py-1 text-xs text-gray-300 h-[60px] resize-y custom-scrollbar`,
               placeholder: `等待连入文本...`
             })]
@@ -17031,10 +17852,10 @@ var CompareNodeComp = Y.memo(({
           type: `source`,
           position: J.Right,
           id: `text`
-        })]
       })]
+    })]
     });
-  });
+});
 // [✔ 已确认] UrlToImageNodeComp — UrlToImageNode
 var UrlToImageNodeComp = Y.memo(({
   id: e,

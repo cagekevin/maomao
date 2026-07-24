@@ -37,13 +37,16 @@ for (let n = 1; n <= 9; n++) {
   
   const fileContent = fs.readFileSync(f, 'utf-8');
   // 优化正则，适应更多样的 markdown 表格排版
-  const blocks = [...fileContent.matchAll(/\|\s*(\w+)\s*\|\s*(\w+)\s*\|\s*```(?:js|javascript)?\r?\n([\s\S]*?)```/g)];
+  // 注意：`[\s\S]*?` 非贪婪 + 要求 ``` 后跟 \r?\n\|，避免函数体内模板字面量误判为代码块结束
+  const blocks = [...fileContent.matchAll(/\|\s*(\w+)\s*\|\s*(\w+)\s*\|\s*```(?:js|javascript)?\r?\n([\s\S]*?)\r?\n```\r?\n\|/g)];
   
   for (const m of blocks) {
+    const body = (m[3] || '').trim().replace(/;\r?\n\}\s*$/, ';').replace(/\r\n/g, '\n');
+    if (body.length < 20) continue;  // 跳过空/占位代码块
     rewrites.push({ 
       nodeType: m[1], 
       varName: m[2], 
-      newBody: m[3].trim(), 
+      newBody: body, 
       source: `AB${String(n).padStart(2, '0')}` 
     });
   }
@@ -117,7 +120,8 @@ for (const rw of rewrites) {
   const signature = lastStableContent.slice(sIdx, bStart + 1);
   const newContent = lastStableContent.slice(0, sIdx) + signature + '\n' + rw.newBody + '\n}' + lastStableContent.slice(bEnd);
   
-  fs.writeFileSync(SRC, newContent);
+  // 统一换行为 LF，避免 CRLF/LF 混用导致 rollup 报 Expected unicode escape
+  fs.writeFileSync(SRC, newContent.replace(/\r\n/g, '\n'));
 
   try {
     // 静默构建，只暴露关键错误
