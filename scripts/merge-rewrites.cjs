@@ -37,7 +37,7 @@ for (let n = 1; n <= 9; n++) {
   
   const fileContent = fs.readFileSync(f, 'utf-8');
   // 优化正则，适应更多样的 markdown 表格排版
-  const blocks = [...fileContent.matchAll(/\|\s*(\w+)\s*\|\s*(\w+)\s*\|\s*```(?:js|javascript)?\n([\s\S]*?)```/g)];
+  const blocks = [...fileContent.matchAll(/\|\s*(\w+)\s*\|\s*(\w+)\s*\|\s*```(?:js|javascript)?\r?\n([\s\S]*?)```/g)];
   
   for (const m of blocks) {
     rewrites.push({ 
