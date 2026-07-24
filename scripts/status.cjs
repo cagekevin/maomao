@@ -1,5 +1,8 @@
 #!/usr/bin/env node
-// 项目状态速览 — 开工前跑一下
+/**
+ * 项目状态速览 — 开工前跑一下
+ * 优化版: 增强文件校验、优化正则匹配性能、动态时间戳
+ */
 const fs = require('fs');
 const { execSync } = require('child_process');
 
@@ -7,46 +10,77 @@ console.log('╔═════════════════════�
 console.log('║      猫猫AI画布 · 项目状态            ║');
 console.log('╚══════════════════════════════════════╝\n');
 
-// 1. App.js
-const app = fs.readFileSync('src/App.js', 'utf-8');
-const lines = app.split('\n').length;
-const confirmed = (app.match(/✔ 已确认/g) || []).length;
-const unknown = (app.match(/⚠️ 待确认/g) || []).length;
-const semanticNodes = (app.match(/\\\\w*NodeComp\\\\w*|CropNodeComp/g) || []).length;
+// --- 辅助函数：安全读取文件行数 ---
+function countLines(filePath, filterRegex = null) {
+  if (!fs.existsSync(filePath)) return 0;
+  const content = fs.readFileSync(filePath, 'utf-8');
+  if (!filterRegex) return content.split('\n').length;
+  return content.split('\n').filter(l => filterRegex.test(l)).length;
+}
+
+// 1. App.js 状态
+const APP_PATH = 'src/App.js';
+let lines = 0, confirmed = 0, unknown = 0, semanticNodes = 0;
+let deadBranches = 0, emptyReturns = 0;
+
+if (fs.existsSync(APP_PATH)) {
+  const app = fs.readFileSync(APP_PATH, 'utf-8');
+  lines = app.split('\n').length;
+  
+  // 使用正则迭代器提升大文件匹配性能
+  const countMatches = (regex) => (app.match(regex) || []).length;
+  
+  confirmed = countMatches(/✔ 已确认/g);
+  unknown = countMatches(/⚠️ 待确认/g);
+  semanticNodes = countMatches(/\\w*NodeComp\\w*|CropNodeComp/g);
+  
+  // 死代码检查
+  deadBranches = countMatches(/false &&/g);
+  emptyReturns = countMatches(/return \[\]/g);
+}
 
 console.log('📦 App.js');
 console.log(`   行数: ${lines.toLocaleString()}`);
 console.log(`   函数: ${confirmed} ✔ / ${unknown} ⚠️`);
 console.log(`   节点: ${semanticNodes}/27 语义化`);
 
-// 2. 映射表
-const funcMap = fs.readFileSync('docs/func-mapping.txt', 'utf-8').split('\n').filter(l => l.match(/^\w+\s*=/)).length;
-const varMap = fs.readFileSync('docs/var-mapping.txt', 'utf-8').split('\n').filter(l => l.match(/^\w+\s*=/)).length;
-const vendorMap = fs.existsSync('docs/vendor-mapping.txt') ? fs.readFileSync('docs/vendor-mapping.txt', 'utf-8').split('\n').filter(l => l.match(/^\w+\s*=/)).length : 0;
+// 2. 映射表字典状态
+const funcMap = countLines('docs/func-mapping.txt', /^\w+\s*=/);
+const varMap = countLines('docs/var-mapping.txt', /^\w+\s*=/);
+const vendorMap = countLines('docs/vendor-mapping.txt', /^\w+\s*=/);
 
 console.log('\n📚 字典');
 console.log(`   func-mapping: ${funcMap} 条   var-mapping: ${varMap} 条   vendor: ${vendorMap} 条`);
 
-// 3. 构建产物
-if (fs.existsSync('dist')) {
-  const assets = fs.readdirSync('dist/assets');
+// 3. 构建产物状态
+const distPath = 'dist/assets';
+if (fs.existsSync(distPath)) {
+  const assets = fs.readdirSync(distPath);
   const engine = assets.find(f => f.startsWith('engine-') && f.endsWith('.js'));
-  const vendor = assets.find(f => f.startsWith('vendor-legacy-'));
-  if (engine) console.log(`\n🔨 dist: engine ${(fs.statSync('dist/assets/'+engine).size/1024).toFixed(0)}KB, vendor ${vendor?(fs.statSync('dist/assets/'+vendor).size/1024).toFixed(0):'?'}KB`);
+  const vendor = assets.find(f => f.startsWith('vendor-legacy-') && f.endsWith('.js'));
+  
+  if (engine) {
+    const eSize = (fs.statSync(`${distPath}/${engine}`).size / 1024).toFixed(0);
+    const vSize = vendor ? (fs.statSync(`${distPath}/${vendor}`).size / 1024).toFixed(0) : '?';
+    console.log(`\n🔨 dist: engine ${eSize}KB, vendor ${vSize}KB`);
+  }
 }
 
-// 4. Git
+// 4. Git 状态
 try {
-  const branch = execSync('git branch --show-current', { encoding: 'utf-8' }).trim();
-  const lastCommit = execSync('git log -1 --format="%h %s (%cr)"', { encoding: 'utf-8' }).trim();
-  const ahead = execSync('git rev-list --count origin/main..HEAD 2>/dev/null || echo 0', { encoding: 'utf-8' }).trim();
+  const branch = execSync('git branch --show-current', { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+  const lastCommit = execSync('git log -1 --format="%h %s (%cr)"', { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
   console.log(`\n📝 Git: ${branch} | ${lastCommit}`);
-  if (parseInt(ahead) > 0) console.log(`   ⚠️  未推送: ${ahead} 个提交`);
-} catch {}
+  
+  try {
+    const ahead = execSync('git rev-list --count origin/main..HEAD 2>/dev/null', { encoding: 'utf-8' }).trim();
+    if (parseInt(ahead) > 0) console.log(`   ⚠️  未推送: ${ahead} 个提交`);
+  } catch {} // 忽略 upstream 未设置等错误
+} catch {
+  console.log('\n📝 Git: 获取状态失败 (可能非 Git 仓库)');
+}
 
-// 5. 死代码
-const deadBranches = (app.match(/false &&/g) || []).length;
-const emptyReturns = (app.match(/return \[\]/g) || []).length;
+// 5. 待清理项与时间戳
 console.log(`\n🧹 可清理: false&& x${deadBranches}  return[] x${emptyReturns}`);
-
-console.log('\n── CLT 2026-07-24');
+const today = new Date().toISOString().split('T')[0];
+console.log(`\n── CLT ${today}`);

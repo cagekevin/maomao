@@ -1,88 +1,120 @@
 #!/usr/bin/env node
-// vendor.js 诊断工具 — 查一个混淆名对应什么
-// 用法: node scripts/vendor-lookup.cjs <name>
-//       node scripts/vendor-lookup.cjs Dj        → 查 Dj 是啥
-//       node scripts/vendor-lookup.cjs --imports → 列出所有 App.js 导入别名
+/**
+ * vendor.js 诊断工具 — 查一个混淆名对应什么
+ * 
+ * 用法: 
+ *   node scripts/vendor-lookup.cjs <name>    # 查某个变量是啥，例如 Dj
+ *   node scripts/vendor-lookup.cjs --imports # 列出所有 App.js 导入别名
+ */
 const fs = require('fs');
-// 用法: node scripts/vendor-lookup.cjs <name>
-//       node scripts/vendor-lookup.cjs --imports     # 列出全部导入别名
+const path = require('path');
+
 const name = process.argv[2];
 
-if (!name || name === '--imports') {
-  // 列出 App.js 导入的 vendor 别名映射
-  const app = fs.readFileSync('src/App.js', 'utf-8');
-  const line2 = app.split('\n')[2]; // import from vendor.js
-  const line3 = app.split('\n')[3]; // import from entry.js
-  const matches = [...line2.matchAll(/(\w+)\s+as\s+(\w+)/g)];
-  console.log(`App.js vendor 导入别名 (${matches.length} 个):\n`);
-  console.log('vendor名 → App.js别名 → 可读名');
-  console.log('─'.repeat(50));
+if (!name) {
+  console.log('❌ 请提供要查询的名称，或者使用 --imports 参数');
+  process.exit(1);
+}
+
+const APP_PATH = 'src/App.js';
+const VENDOR_PATH = 'src/vendor/vendor.js';
+const MAPPING_PATH = 'docs/vendor-mapping.txt';
+
+// --- 辅助函数：统一加载映射 ---
+function loadMapping() {
   const mapping = {};
   try {
-    for (const line of fs.readFileSync('docs/vendor-mapping.txt', 'utf-8').split('\n')) {
-      const m = line.match(/^(\w+)\s*=\s*(.+)/);
-      if (m) mapping[m[1]] = m[2].trim();
+    if (fs.existsSync(MAPPING_PATH)) {
+      for (const line of fs.readFileSync(MAPPING_PATH, 'utf-8').split('\n')) {
+        const m = line.match(/^(\w+)\s*=\s*(.+)/);
+        if (m) mapping[m[1]] = m[2].trim();
+      }
     }
   } catch {}
+  return mapping;
+}
+
+// ==========================================
+// 模式 1: 列出所有导入
+// ==========================================
+if (name === '--imports') {
+  if (!fs.existsSync(APP_PATH)) {
+    console.error(`❌ 找不到文件: ${APP_PATH}`);
+    process.exit(1);
+  }
+
+  const app = fs.readFileSync(APP_PATH, 'utf-8');
+  const line2 = app.split('\n')[2] || ''; 
+  const matches = [...line2.matchAll(/(\w+)\s+as\s+(\w+)/g)];
+  const mapping = loadMapping();
+
+  console.log(`📦 App.js vendor 导入别名 (共 ${matches.length} 个):\n`);
+  console.log('vendor名'.padEnd(12) + 'App.js别名'.padEnd(12) + '可读名');
+  console.log('─'.repeat(50));
+  
   for (const m of matches) {
     const vName = m[1], alias = m[2];
-    const readable = mapping[vName] || '?';
-    console.log(`${vName.padEnd(10)} → ${alias.padEnd(10)} → ${readable}`);
+    const readable = mapping[vName] || '❓未知';
+    console.log(`${vName.padEnd(12)} ${alias.padEnd(12)} ${readable}`);
   }
   process.exit(0);
 }
 
-// 查单个名字
-console.log(`🔍 查 "${name}"\n`);
-const vendor = fs.readFileSync('src/vendor/vendor.js', 'utf-8');
+// ==========================================
+// 模式 2: 查询单个名称
+// ==========================================
+console.log(`🔍 开始查询 "${name}"\n`);
 
-// 1. 是不是 vendor 导出
+if (!fs.existsSync(VENDOR_PATH) || !fs.existsSync(APP_PATH)) {
+  console.error('❌ 缺失必要的源文件 (App.js 或 vendor.js)，请检查目录结构。');
+  process.exit(1);
+}
+
+const vendor = fs.readFileSync(VENDOR_PATH, 'utf-8');
+const app = fs.readFileSync(APP_PATH, 'utf-8');
+const mapping = loadMapping();
+
+// 1. 查 vendor 导出
 const exportPattern = new RegExp(`(\\w+)\\s+as\\s+${name}\\b`, 'g');
-let found = [...vendor.matchAll(exportPattern)];
+const found = [...vendor.matchAll(exportPattern)];
 if (found.length > 0) {
-  console.log('✅ vendor.js 导出:');
+  console.log('✅ 发现 vendor.js 显式导出:');
   for (const m of found) {
-    console.log(`   内部名 ${m[1]} → 导出为 ${name}`);
+    console.log(`   内部真实名: ${m[1]} → 导出暴露为: ${name}`);
   }
 }
 
-// 2. 从 mapping 查
-try {
-  const mapping = {};
-  for (const line of fs.readFileSync('docs/vendor-mapping.txt', 'utf-8').split('\n')) {
-    const m = line.match(/^(\w+)\s*=\s*(.+)/);
-    if (m) mapping[m[1]] = m[2].trim();
-  }
-  if (mapping[name]) console.log(`   映射: ${mapping[name]}`);
-} catch {}
+// 2. 查 mapping 字典
+if (mapping[name]) {
+  console.log(`   📚 字典映射: ${mapping[name]}`);
+}
 
-// 3. 是不是被 App.js import
-const app = fs.readFileSync('src/App.js', 'utf-8');
+// 3. 查 App.js Import 引用情况
 const importMatch = app.match(new RegExp(`${name}\\s+as\\s+(\\w+)`));
 if (importMatch) {
-  console.log(`   在 App.js 中别名: ${importMatch[1]}`);
-  // grep usage count
   const alias = importMatch[1];
-  const usageCount = (app.match(new RegExp('\\b' + alias + '\\b', 'g')) || []).length;
-  console.log(`   使用次数: ${usageCount}`);
+  const usageCount = (app.match(new RegExp(`\\b${alias}\\b`, 'g')) || []).length;
+  console.log(`   🔗 App.js 导入别名: ${alias}`);
+  console.log(`   📈 App.js 使用次数: ${usageCount} 次`);
 }
 
-// 4. 是不是 App.js 模块级变量
+// 4. 查 App.js 本地模块级声明
 const moduleMatch = app.match(new RegExp(`^(?:var|let|const|function)\\s+${name}\\b`, 'm'));
-if (moduleMatch) console.log(`   App.js 模块级声明: ${moduleMatch[0]}`);
+if (moduleMatch) {
+  console.log(`   📦 App.js 本地模块声明: ${moduleMatch[0]}`);
+}
 
-// 5. 在 vendor.js 中搜索内部名（非导出）
+// 5. 查 vendor.js 内部使用 (仅在非导出时提示)
 const internalPattern = new RegExp(`\\b${name}\\b`, 'g');
 const internalMatches = [...vendor.matchAll(internalPattern)];
 if (internalMatches.length > 0 && found.length === 0) {
-  // show first match context
   const firstMatch = internalMatches[0];
-  const start = Math.max(0, firstMatch.index - 100);
-  const end = Math.min(vendor.length, firstMatch.index + 100);
-  console.log(`\n🔸 vendor.js 内部变量 (非导出)，出现 ${internalMatches.length} 次`);
-  console.log(`   上下文: ...${vendor.slice(start, end)}...`);
+  const start = Math.max(0, firstMatch.index - 50);
+  const end = Math.min(vendor.length, firstMatch.index + 50);
+  console.log(`\n🔸 vendor.js 内部变量 (非暴露导出)，共出现 ${internalMatches.length} 次`);
+  console.log(`   上下文预览: ...${vendor.slice(start, end).replace(/\n/g, ' ')}...`);
 }
 
-if (found.length === 0 && internalMatches.length === 0) {
-  console.log('❌ 未找到，可能是构建产物中的 minified 临时变量');
+if (found.length === 0 && internalMatches.length === 0 && !moduleMatch) {
+  console.log('❌ 未找到任何匹配项。这可能是构建产物中的 minified 临时局部变量。');
 }

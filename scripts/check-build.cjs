@@ -1,27 +1,45 @@
 #!/usr/bin/env node
-// 构建后完整性检查 — 不用 Chrome，检查常见问题
-// 用法: npm run build && node scripts/check-build.cjs
-
+/**
+ * 构建后完整性检查 — 拦截常见错误、静态分析构建产物
+ * 
+ * 用法: npm run build && node scripts/check-build.cjs
+ */
 const fs = require('fs');
 const path = require('path');
 
-const DIST = 'dist';
-const engine = fs.readdirSync(path.join(DIST, 'assets')).find(f => f.startsWith('engine-') && f.endsWith('.js'));
-const vendor = fs.readdirSync(path.join(DIST, 'assets')).find(f => f.startsWith('vendor-legacy-') && f.endsWith('.js'));
+const DIST_DIR = path.join('dist', 'assets');
+const SRC_FILE = 'src/App.js';
 
-if (!engine || !vendor) {
-  console.error('❌ 找不到构建产物');
+// --- 0. 前置环境检查 ---
+if (!fs.existsSync(DIST_DIR)) {
+  console.error('❌ 找不到构建目录 dist/assets，请先运行 npm run build');
   process.exit(1);
 }
 
-const engineCode = fs.readFileSync(path.join(DIST, 'assets', engine), 'utf-8');
-const vendorCode = fs.readFileSync(path.join(DIST, 'assets', vendor), 'utf-8');
-const srcCode = fs.readFileSync('src/App.js', 'utf-8');
+if (!fs.existsSync(SRC_FILE)) {
+  console.error(`❌ 找不到源文件 ${SRC_FILE}`);
+  process.exit(1);
+}
+
+const files = fs.readdirSync(DIST_DIR);
+const engine = files.find(f => f.startsWith('engine-') && f.endsWith('.js'));
+const vendor = files.find(f => f.startsWith('vendor-legacy-') && f.endsWith('.js'));
+
+if (!engine || !vendor) {
+  console.error('❌ 在构建目录中找不到 engine-*.js 或 vendor-legacy-*.js 产物');
+  process.exit(1);
+}
+
+// --- 读取文件内容 ---
+const engineCode = fs.readFileSync(path.join(DIST_DIR, engine), 'utf-8');
+const vendorCode = fs.readFileSync(path.join(DIST_DIR, vendor), 'utf-8');
+const srcCode = fs.readFileSync(SRC_FILE, 'utf-8');
 
 let issues = 0;
+console.log('🚀 开始执行构建后完整性检查...\n' + '='.repeat(50));
 
-// 1. 检查是否包含常见的 undefined 引用
-console.log('🔍 检查 1: 常见运行时错误签名...');
+// --- 1. 检查常见运行时错误签名 ---
+console.log('🔍 检查 1: 常见运行时错误签名');
 const dangerPatterns = [
   [/'(\w+)' is not defined/g, '未定义变量引用'],
   [/Cannot access '(\w+)' before initialization/g, 'TDZ 引用错误'],
@@ -29,77 +47,107 @@ const dangerPatterns = [
   [/Cannot read propert\w+ '(\w+)' of null/g, 'null 属性访问'],
 ];
 
+let hasPatternIssue = false;
 for (const [pattern, label] of dangerPatterns) {
   const matches = [...engineCode.matchAll(pattern)];
   if (matches.length > 0) {
-    console.log(`  ⚠️  ${label}: ${matches.length} 处`);
+    hasPatternIssue = true;
+    console.log(`  ⚠️  ${label}: 发现 ${matches.length} 处嫌疑`);
     const seen = new Set();
     for (const m of matches.slice(0, 5)) {
       const name = m[1];
       if (!seen.has(name)) {
         seen.add(name);
-        console.log(`     → ${name}`);
+        console.log(`     → 涉及变量/属性: ${name}`);
       }
     }
     issues++;
   }
 }
+if (!hasPatternIssue) console.log('  ✅ 未扫描到典型的错误抛出字符串');
 
-// 2. 检查 App.js 注释中是否有残留的 ⚠️ 待确认
-console.log('\n🔍 检查 2: 注释完整性...');
+
+// --- 2. 检查注释完整性 ---
+console.log('\n🔍 检查 2: App.js 注释完整性');
 const unknownCount = (srcCode.match(/⚠️ 待确认/g) || []).length;
 if (unknownCount > 0) {
-  console.log(`  ⚠️  还有 ${unknownCount} 个未确认函数，需运行 annotate`);
+  console.log(`  ⚠️  存在 ${unknownCount} 个未确认函数，建议运行 annotate 脚本修复`);
+  // 这里不算作阻断级 issue，仅做警告
 } else {
-  console.log('  ✅ 全部函数已标注');
+  console.log('  ✅ 所有函数标注状态健康');
 }
 
-// 3. 检查构建产物中的短混淆名数量（如果太多说明映射不完整）
-console.log('\n🔍 检查 3: 构建产物短名密度...');
+
+// --- 3. 构建产物短混淆名密度 ---
+console.log('\n🔍 检查 3: 构建产物短名密度');
 const shortVars = (engineCode.match(/\b[a-z]{1,2}\b/g) || []).length;
-const density = (shortVars / engineCode.length * 100).toFixed(1);
-console.log(`  短变量名: ${shortVars} 个 (${density}%) — 越低越好`);
+const density = ((shortVars / engineCode.length) * 100).toFixed(2);
+console.log(`  短变量名: ${shortVars} 个 (代码占比 ${density}%) — 占比异常高时需检查 sourcemap/压缩配置`);
 
-// 4. App.js 语法检查
-console.log('\n🔍 检查 4: App.js 语法...');
+
+// --- 4. App.js 语法检查 ---
+console.log('\n🔍 检查 4: App.js 语法分析');
 try {
-  require('acorn').Parser.parse(srcCode, { ecmaVersion: 'latest', sourceType: 'module' });
-  console.log('  ✅ 语法正确');
+  const acorn = require('acorn');
+  const jsx = require('acorn-jsx');
+  const JsxParser = acorn.Parser.extend(jsx());
+  
+  JsxParser.parse(srcCode, { ecmaVersion: 'latest', sourceType: 'module' });
+  console.log('  ✅ AST 解析通过，无底层语法错误');
 } catch (e) {
-  console.log(`  ❌ ${e.message}`);
-  issues++;
+  // 如果缺少 acorn-jsx 会降级提示
+  if (e.code === 'MODULE_NOT_FOUND') {
+    console.log('  ⚠️  跳过语法检查：缺少依赖 acorn 或 acorn-jsx');
+  } else {
+    console.log(`  ❌ 解析失败: ${e.message}`);
+    issues++;
+  }
 }
 
-// 5. 构建产物大小
-console.log('\n🔍 检查 5: 构建产物大小...');
-const es=fs.statSync(path.join(DIST,"assets",engine)).size; const vs=fs.statSync(path.join(DIST,"assets",vendor)).size; console.log(`  engine: ${(es/1024).toFixed(0)} KB  vendor: ${(vs/1024).toFixed(0)} KB`);
 
-// 6. 模块声明顺序 TDZ 风险
-console.log('\n🔍 检查 6: TDZ 风险...');
+// --- 5. 构建产物大小 ---
+console.log('\n🔍 检查 5: 构建产物体积评估');
+function formatSize(bytes) {
+  if (bytes > 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+  return (bytes / 1024).toFixed(1) + ' KB';
+}
+const es = fs.statSync(path.join(DIST_DIR, engine)).size;
+const vs = fs.statSync(path.join(DIST_DIR, vendor)).size;
+console.log(`  ✅ engine: ${formatSize(es)}`);
+console.log(`  ✅ vendor: ${formatSize(vs)}`);
+
+
+// --- 6. 模块声明顺序 TDZ (暂时性死区) 风险 ---
+console.log('\n🔍 检查 6: TDZ 风险静态扫描');
 const moduleDecls = [];
-let lineNum = 0;
-for (const line of srcCode.split('\n')) {
-  lineNum++;
-  const m = line.match(/^(?:var|let|const|function)\s+(\w+)/);
-  if (m) moduleDecls.push({ name: m[1], num: lineNum, line });
+const lines = srcCode.split('\n');
+
+for (let i = 0; i < lines.length; i++) {
+  // 优化正则：允许更多的空格，提取变量名
+  const m = lines[i].match(/^\s*(?:var|let|const|function)\s+(\w+)/);
+  if (m) moduleDecls.push({ name: m[1], lineNum: i + 1, content: lines[i] });
 }
+
 let tdzCount = 0;
 for (let i = 0; i < moduleDecls.length; i++) {
-  if (moduleDecls[i].line.includes('var ') || moduleDecls[i].line.includes('let ') || moduleDecls[i].line.includes('const ')) {
+  const current = moduleDecls[i].content;
+  if (current.includes('let ') || current.includes('const ')) {
+    // 检查紧随其后的 10 个声明中，是否有函数调用了提前声明的变量
     for (let j = i + 1; j < Math.min(i + 10, moduleDecls.length); j++) {
-      if (moduleDecls[j].line.includes('function') && moduleDecls[j].line.includes(moduleDecls[i].name)) {
+      if (moduleDecls[j].content.includes('function') && moduleDecls[j].content.includes(moduleDecls[i].name)) {
         tdzCount++;
       }
     }
   }
 }
-console.log(tdzCount > 0 ? `  ⚠️  可能的 TDZ 风险: ${tdzCount} 处` : '  ✅ 无明显风险');
+console.log(tdzCount > 0 ? `  ⚠️  发现可能的 TDZ 风险: ${tdzCount} 处 (请检查 let/const 声明顺序)` : '  ✅ 无明显死区风险');
 
-// 总结
+
+// --- 总结 ---
 console.log(`\n${'='.repeat(50)}`);
 if (issues === 0) {
-  console.log('✅ 全部检查通过，可安全部署');
+  console.log('🎉 结论: 全部硬性检查通过，可安全部署！');
 } else {
-  console.log(`❌ ${issues} 个问题需处理`);
+  console.log(`❌ 结论: 发现 ${issues} 个阻断级问题，请修复后重试。`);
   process.exit(1);
 }

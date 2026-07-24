@@ -15,6 +15,8 @@ const SNAKE_TO_CAMEL: Record<string, string> = {
 };
 const CAMEL_TO_SNAKE: Record<string, string> = {};
 for (const [k, v] of Object.entries(SNAKE_TO_CAMEL)) CAMEL_TO_SNAKE[v] = k;
+// 兼容别名：部分调用方用 id 而非 taskId，归一化到 task_id（表无 id 列）
+CAMEL_TO_SNAKE['id'] = 'task_id';
 
 const JSON_FIELDS = new Set(['customResultData', 'customRawResponse', 'requestData', 'responseData', 'mediaMeta', 'extraFields']);
 
@@ -64,7 +66,6 @@ export async function handleTasksSave(req: IncomingMessage, res: ServerResponse)
   const body = (await parseJsonBody(req)) as Record<string, unknown> | null;
   if (!body) return sendError(res, 'Missing body', 400);
   if (!body.taskId && !body.id) return sendError(res, 'Missing taskId or id field', 400);
-  if (!body.taskId && body.id) body.taskId = body.id;
 
   const db = await getDb();
   upsertTask(db, taskToRow(body));
@@ -78,7 +79,6 @@ export async function handleTasksBatchSave(req: IncomingMessage, res: ServerResp
   const db = await getDb();
   for (const task of body) {
     if (!task.taskId && !task.id) continue;
-    if (!task.taskId && task.id) task.taskId = task.id;
     upsertTask(db, taskToRow(task));
   }
   return json(res, { ok: true });
