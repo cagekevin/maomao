@@ -4,6 +4,7 @@
  * 优化版: 增强文件校验、优化正则匹配性能、动态时间戳
  */
 const fs = require('fs');
+const path = require('path');
 const { execSync } = require('child_process');
 
 console.log('╔══════════════════════════════════════╗');
@@ -78,6 +79,35 @@ try {
   } catch {} // 忽略 upstream 未设置等错误
 } catch {
   console.log('\n📝 Git: 获取状态失败 (可能非 Git 仓库)');
+}
+
+// 4.5 localTool 本地服务状态
+console.log('\n📦 localTool (本地服务 :18080)');
+const LT_SRC = 'localTool/src';
+const LT_DIST = 'localTool/dist/index.js';
+if (fs.existsSync(LT_SRC)) {
+  let ltLines = 0;
+  let newestSrc = 0;
+  (function walk(dir) {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const p = path.join(dir, entry.name);
+      if (entry.isDirectory()) walk(p);
+      else if (entry.name.endsWith('.ts')) {
+        ltLines += fs.readFileSync(p, 'utf-8').split('\n').length;
+        newestSrc = Math.max(newestSrc, fs.statSync(p).mtimeMs);
+      }
+    }
+  })(LT_SRC);
+  console.log(`   src: ${ltLines.toLocaleString()} 行`);
+  if (fs.existsSync(LT_DIST)) {
+    console.log(fs.statSync(LT_DIST).mtimeMs >= newestSrc
+      ? '   dist: 已构建 (与 src 同步) ✅'
+      : '   dist: 已构建但落后于 src，需重新 build ⚠️');
+  } else {
+    console.log('   dist: 未构建 (请 cd localTool && npm run build) ⚠️');
+  }
+} else {
+  console.log('   未找到 localTool/src，跳过');
 }
 
 // 5. 待清理项与时间戳

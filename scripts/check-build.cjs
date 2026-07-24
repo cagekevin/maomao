@@ -143,6 +143,33 @@ for (let i = 0; i < moduleDecls.length; i++) {
 console.log(tdzCount > 0 ? `  ⚠️  发现可能的 TDZ 风险: ${tdzCount} 处 (请检查 let/const 声明顺序)` : '  ✅ 无明显死区风险');
 
 
+// --- 7. localTool 本地服务产物 (仅报告，不计入前端阻断级 issues) ---
+console.log('\n🔍 检查 7: localTool 本地服务产物');
+const ltDist = path.join('localTool', 'dist');
+if (!fs.existsSync(ltDist)) {
+  console.log('  ⚠️  localTool/dist 不存在，跳过（请先 cd localTool && npm run build）');
+} else {
+  const ltFiles = fs.readdirSync(ltDist).filter(f => f.endsWith('.js'));
+  if (ltFiles.length === 0) {
+    console.log('  ⚠️  localTool/dist 为空，可能未成功构建');
+  }
+  for (const f of ltFiles) {
+    const fp = path.join(ltDist, f);
+    const code = fs.readFileSync(fp, 'utf-8');
+    let fileIssues = 0;
+    for (const [pattern, label] of dangerPatterns) {
+      const m = [...code.matchAll(pattern)];
+      if (m.length) {
+        fileIssues += m.length;
+        console.log(`  ⚠️  ${f}: ${label} 嫌疑 ${m.length} 处`);
+      }
+    }
+    const sz = formatSize(fs.statSync(fp).size);
+    console.log(fileIssues === 0 ? `  ✅ ${f}: 无错误签名 (${sz})` : `  ➕ ${f}: 体积 ${sz}`);
+  }
+}
+
+
 // --- 总结 ---
 console.log(`\n${'='.repeat(50)}`);
 if (issues === 0) {
