@@ -44,7 +44,7 @@ for (const rw of rewrites) {
   // 读取原函数体，提取所有单字母变量名
   const original = fs.readFileSync(BAK, 'utf-8');
   // 找原函数位置
-  const oldPattern = new RegExp(`${rw.varName}\\s*=\\s*Y\\.memo\\(\\()`);
+  const oldPattern = new RegExp(`(?:function )?${rw.varName}\\s*(?:=\\s*Y\\.memo\\(\\(|\\()`);
   const oldMatch = original.match(oldPattern);
   if (!oldMatch) { console.log(`⚠️  ${rw.nodeType}: 找不到原函数定义`); failed++; continue; }
 

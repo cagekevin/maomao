@@ -12774,60 +12774,62 @@ var RhWebappNodeComp = Y.memo(({
     data: n,
     selected: i
   }) => {
+// ── 状态 ──
     let {
-        updateNodeData: a,
-        setNodes: o,
-        setEdges: s,
-        getNode: c
+        updateNodeData: updateNodeData,
+        setNodes: setNodes,
+        setEdges: setEdges,
+        getNode: getNode
       } = Gt(),
-      l = Et(),
-      d = n,
-      f = d.webappId || ``,
-      p = ar(d.aiAppApiUrl),
-      m = d.aiAppApiKey || ``,
-      [h, g] = Y.useState(null);
+      updateNodeInternals = Et(),
+      nodeData = n,
+      webappId = nodeData.webappId || ``,
+      apiUrl = ar(nodeData.aiAppApiUrl),
+      apiKey = nodeData.aiAppApiKey || ``,
+      [openFieldKey, setOpenFieldKey] = Y.useState(null);
     Y.useEffect(() => {
-      if (!h) return;
-      let e = () => g(null);
-      return document.addEventListener(`mousedown`, e), () => document.removeEventListener(`mousedown`, e);
-    }, [h]);
-    let _ = Y.useMemo(() => d.schema || [], [d.schema]),
-      v = Y.useMemo(() => d.values || {}, [d.values]),
-      y = Y.useMemo(() => d.uploadStatus || {}, [d.uploadStatus]),
-      b = Y.useMemo(() => d.uploadError || {}, [d.uploadError]),
-      x = t({
+      if (!openFieldKey) return;
+      let closeHandler = () => setOpenFieldKey(null);
+      return document.addEventListener(`mousedown`, closeHandler), () => document.removeEventListener(`mousedown`, closeHandler);
+    }, [openFieldKey]);
+    let schema = Y.useMemo(() => nodeData.schema || [], [nodeData.schema]),
+      values = Y.useMemo(() => nodeData.values || {}, [nodeData.values]),
+      uploadStatusMap = Y.useMemo(() => nodeData.uploadStatus || {}, [nodeData.uploadStatus]),
+      uploadErrorMap = Y.useMemo(() => nodeData.uploadError || {}, [nodeData.uploadError]),
+      targetHandles = t({
         handleType: `target`
       }),
-      S = ut(Y.useMemo(() => Array.from(new Set(x.map(e => e.source))), [x])),
-      C = Y.useMemo(() => _.filter(e => [`IMAGE`, `VIDEO`, `AUDIO`].includes(xs(e))), [_]),
-      w = Y.useMemo(() => _.filter(e => ![`IMAGE`, `VIDEO`, `AUDIO`].includes(xs(e))), [_]);
+      sourceNodeIds = ut(Y.useMemo(() => Array.from(new Set(targetHandles.map(e => e.source))), [targetHandles])),
+      mediaFields = Y.useMemo(() => schema.filter(e => [`IMAGE`, `VIDEO`, `AUDIO`].includes(xs(e))), [schema]),
+      nonMediaFields = Y.useMemo(() => schema.filter(e => ![`IMAGE`, `VIDEO`, `AUDIO`].includes(xs(e))), [schema]);
     Y.useEffect(() => {
-      let t = window.requestAnimationFrame(() => l(e));
-      return () => window.cancelAnimationFrame(t);
-    }, [e, _, l]);
-    let T = Y.useRef(null),
-      E = Y.useRef(false),
-      D = Y.useRef(null),
-      O = Y.useRef({}),
-      k = Y.useRef({}),
+      let rafId = window.requestAnimationFrame(() => updateNodeInternals(e));
+      return () => window.cancelAnimationFrame(rafId);
+    }, [e, schema, updateNodeInternals]);
+    let pollTimerRef = Y.useRef(null),
+      stopPollingRef = Y.useRef(false),
+      currentTaskIdRef = Y.useRef(null),
+      mediaUploadSigRef = Y.useRef({}),
+      textUploadSigRef = Y.useRef({}),
+      // ── 回调 ──
       A = Y.useCallback(async (t, n) => {
-        if (!p || !m) {
-          a(e, {
+        if (!apiUrl || !apiKey) {
+          updateNodeData(e, {
             schemaLoading: false,
             schemaError: `请先在节点中配置 API URL 和 API Key`
           });
           return;
         }
-        a(e, {
+        updateNodeData(e, {
           schemaLoading: true,
           schemaError: undefined
         });
         let r = new AbortController(),
           i = window.setTimeout(() => r.abort(), 15e3);
         try {
-          let i = await fetch(ir(p, t), {
+          let i = await fetch(ir(apiUrl, t), {
               headers: {
-                Authorization: `Bearer ${m}`
+                Authorization: `Bearer ${apiKey}`
               },
               signal: r.signal
             }),
@@ -12852,7 +12854,7 @@ var RhWebappNodeComp = Y.memo(({
           let u = Array.isArray(s.covers) ? s.covers : [],
             f = s.tags ?? [],
             h = Array.isArray(f) ? f.map(e => typeof e == `string` ? e : e?.name || e?.tagName || ``).filter(Boolean) : [];
-          a(e, {
+          updateNodeData(e, {
             webappId: t,
             schema: c,
             webappName: s.appName || `AI应用`,
@@ -12862,55 +12864,55 @@ var RhWebappNodeComp = Y.memo(({
             preDeductAmount: s.preDeductAmountDefault ?? null,
             values: n?.resetValues ? l : {
               ...l,
-              ...(d.values || {})
+              ...(nodeData.values || {})
             },
-            uploadStatus: n?.resetValues ? {} : d.uploadStatus || {},
-            uploadError: n?.resetValues ? {} : d.uploadError || {},
-            uploadSourceSig: n?.resetValues ? {} : d.uploadSourceSig || {},
+            uploadStatus: n?.resetValues ? {} : nodeData.uploadStatus || {},
+            uploadError: n?.resetValues ? {} : nodeData.uploadError || {},
+            uploadSourceSig: n?.resetValues ? {} : nodeData.uploadSourceSig || {},
             schemaLoading: false
           }), O.current = n?.resetValues ? {} : {
-            ...(d.uploadSourceSig || {})
+            ...(nodeData.uploadSourceSig || {})
           };
         } catch (t) {
-          a(e, {
+          updateNodeData(e, {
             schemaLoading: false,
             schemaError: t?.name === `AbortError` ? `加载超时（15s），请检查网络或应用 ID` : t?.message || `加载失败`
           });
         } finally {
           window.clearTimeout(i);
         }
-      }, [e, p, m]);
+      }, [e, apiUrl, apiKey]);
     Y.useEffect(() => {
-      _.length > 0 || !d.webappId || A(d.webappId);
+      _.length > 0 || !nodeData.webappId || A(nodeData.webappId);
     }, [e]);
-    let j = Y.useRef(m);
+    let j = Y.useRef(apiKey);
     Y.useEffect(() => {
       let e = j.current;
-      if (j.current = m, !p || !m || !d.webappId) return;
-      let t = !e && !!m,
-        n = !!d.schemaError && /登录/.test(d.schemaError);
-      (t || n && _.length === 0) && A(d.webappId);
-    }, [p, m, d.webappId, d.schemaError, _.length, A]), Y.useEffect(() => {
+      if (j.current = apiKey, !apiUrl || !apiKey || !nodeData.webappId) return;
+      let t = !e && !!apiKey,
+        n = !!nodeData.schemaError && /登录/.test(nodeData.schemaError);
+      (t || n && _.length === 0) && A(nodeData.webappId);
+    }, [apiUrl, apiKey, nodeData.webappId, nodeData.schemaError, _.length, A]), Y.useEffect(() => {
       C.length !== 0 && C.forEach(t => {
         let n = Ss(t),
           r = x.find(e => e.targetHandle === `var-${n}`),
           i = xs(t);
         if (!r) {
-          O.current[n] && (O.current[n] = ``, a(e, {
+          O.current[n] && (O.current[n] = ``, updateNodeData(e, {
             values: {
-              ...(d.values || {}),
+              ...(nodeData.values || {}),
               [n]: ``
             },
             uploadStatus: {
-              ...(d.uploadStatus || {}),
+              ...(nodeData.uploadStatus || {}),
               [n]: `idle`
             },
             uploadError: {
-              ...(d.uploadError || {}),
+              ...(nodeData.uploadError || {}),
               [n]: ``
             },
             uploadSourceSig: {
-              ...(d.uploadSourceSig || {}),
+              ...(nodeData.uploadSourceSig || {}),
               [n]: ``
             }
           }));
@@ -12933,13 +12935,13 @@ var RhWebappNodeComp = Y.memo(({
               video: `视频`,
               audio: `音频`
             };
-            a(e, {
+            updateNodeData(e, {
               uploadStatus: {
-                ...(d.uploadStatus || {}),
+                ...(nodeData.uploadStatus || {}),
                 [n]: `error`
               },
               uploadError: {
-                ...(d.uploadError || {}),
+                ...(nodeData.uploadError || {}),
                 [n]: `该字段需要${r[u]}，但接入的是${r[f] || f}`
               }
             });
@@ -12947,23 +12949,23 @@ var RhWebappNodeComp = Y.memo(({
           return;
         }
         let h = `${r.source}#${r.sourceHandle ?? ``}#${l}`;
-        if (O.current[n] === h || (d.uploadSourceSig || {})[n] === h && (d.values || {})[n] && (d.uploadStatus || {})[n] === `done`) {
+        if (O.current[n] === h || (nodeData.uploadSourceSig || {})[n] === h && (nodeData.values || {})[n] && (nodeData.uploadStatus || {})[n] === `done`) {
           O.current[n] = h;
           return;
         }
         O.current[n] = h, (async () => {
-          a(e, {
+          updateNodeData(e, {
             uploadStatus: {
-              ...(d.uploadStatus || {}),
+              ...(nodeData.uploadStatus || {}),
               [n]: `uploading`
             },
             uploadError: {
-              ...(d.uploadError || {}),
+              ...(nodeData.uploadError || {}),
               [n]: ``
             }
           });
           try {
-            let t = await Ts(await Es(l), p, m, (() => {
+            let t = await Ts(await Es(l), apiUrl, apiKey, (() => {
               try {
                 let e = new URL(l);
                 return decodeURIComponent(e.pathname.split(`/`).pop() || `upload.bin`);
@@ -12971,28 +12973,28 @@ var RhWebappNodeComp = Y.memo(({
                 return `upload.bin`;
               }
             })());
-            a(e, {
+            updateNodeData(e, {
               values: {
-                ...(d.values || {}),
+                ...(nodeData.values || {}),
                 [n]: t
               },
               uploadStatus: {
-                ...(d.uploadStatus || {}),
+                ...(nodeData.uploadStatus || {}),
                 [n]: `done`
               },
               uploadSourceSig: {
-                ...(d.uploadSourceSig || {}),
+                ...(nodeData.uploadSourceSig || {}),
                 [n]: h
               }
             });
           } catch (t) {
-            a(e, {
+            updateNodeData(e, {
               uploadStatus: {
-                ...(d.uploadStatus || {}),
+                ...(nodeData.uploadStatus || {}),
                 [n]: `error`
               },
               uploadError: {
-                ...(d.uploadError || {}),
+                ...(nodeData.uploadError || {}),
                 [n]: t?.message || `上传失败`
               }
             });
@@ -13004,9 +13006,9 @@ var RhWebappNodeComp = Y.memo(({
         let n = Ss(t),
           r = x.find(e => e.targetHandle === `var-${n}`);
         if (!r) {
-          k.current[n] && (k.current[n] = ``, a(e, {
+          k.current[n] && (k.current[n] = ``, updateNodeData(e, {
             values: {
-              ...(d.values || {}),
+              ...(nodeData.values || {}),
               [n]: ``
             }
           }));
@@ -13019,9 +13021,9 @@ var RhWebappNodeComp = Y.memo(({
         k.current[n] = o;
         let s = xs(t),
           c = i;
-        s === `LIST` && (c = Cs(i, bs(t.fieldData))), s === `BOOLEAN` && (c = /^(true|1|yes|是|开)$/i.test(i) ? `true` : /^(false|0|no|否|关)$/i.test(i) ? `false` : i), a(e, {
+        s === `LIST` && (c = Cs(i, bs(t.fieldData))), s === `BOOLEAN` && (c = /^(true|1|yes|是|开)$/i.test(i) ? `true` : /^(false|0|no|否|关)$/i.test(i) ? `false` : i), updateNodeData(e, {
           values: {
-            ...(d.values || {}),
+            ...(nodeData.values || {}),
             [n]: c
           }
         });
@@ -13040,7 +13042,7 @@ var RhWebappNodeComp = Y.memo(({
             video: `视频`,
             audio: `音频`
           };
-          a(e, {
+          updateNodeData(e, {
             uploadStatus: {
               ...(y || {}),
               [t]: `error`
@@ -13062,7 +13064,7 @@ var RhWebappNodeComp = Y.memo(({
           });
           e?.url && (m = e.url);
         } catch {}
-        let h = c(e),
+        let h = getNode(e),
           g = h?.position?.x ?? 0,
           _ = h?.position?.y ?? 0,
           v = C.findIndex(e => Ss(e) === t),
@@ -13109,25 +13111,25 @@ var RhWebappNodeComp = Y.memo(({
           target: e,
           targetHandle: `var-${t}`
         };
-        o(e => e.concat(S)), s(e => e.concat(w));
-      }, [e, a, y, b, c, C, o, s]),
+        setNodes(e => e.concat(S)), setEdges(e => e.concat(w));
+      }, [e, updateNodeData, y, b, getNode, C, setNodes, setEdges]),
       N = Y.useCallback(t => {
-        s(n => n.filter(n => !(n.target === e && n.targetHandle === `var-${t}`)));
-      }, [e, s]),
+        setEdges(n => n.filter(n => !(n.target === e && n.targetHandle === `var-${t}`)));
+      }, [e, setEdges]),
       P = Y.useCallback((t, n) => {
-        a(e, {
+        updateNodeData(e, {
           values: {
-            ...(d.values || {}),
+            ...(nodeData.values || {}),
             [t]: n
           }
         });
-      }, [e, a, d.values]),
+      }, [e, updateNodeData, nodeData.values]),
       F = Y.useMemo(() => C.every(e => y[Ss(e)] === `done`), [C, y]),
       I = Y.useCallback(() => {
         E.current = true, D.current = null, T.current &&= (window.clearTimeout(T.current), null);
       }, []),
       ee = Y.useCallback(t => {
-        let n = c(e);
+        let n = getNode(e);
         if (!n) return;
         let r = (n.position?.x ?? 0) + (n.width || 560) + 80,
           i = n.position?.y ?? 0,
@@ -13196,8 +13198,8 @@ var RhWebappNodeComp = Y.memo(({
             target: o,
             targetHandle: null
           });
-        }), a.length > 0 && (o(e => e.concat(a)), s(e => e.concat(l)));
-      }, [c, e, o, s]),
+        }), a.length > 0 && (setNodes(e => e.concat(a)), setEdges(e => e.concat(l)));
+      }, [getNode, e, setNodes, setEdges]),
       R = Y.useCallback(async t => {
         if (D.current === t) return;
         D.current = t, E.current = false;
@@ -13205,11 +13207,11 @@ var RhWebappNodeComp = Y.memo(({
           r = async () => {
             if (!E.current) {
               if (Date.now() - n > 6e5) {
-                a(e, {
+                updateNodeData(e, {
                   loading: false,
                   status: `FAILED`,
                   errorMessage: `任务轮询超时`
-                }), d.updateGlobalTasks?.(e => e.map(e => e.taskId === t ? {
+                }), nodeData.updateGlobalTasks?.(e => e.map(e => e.taskId === t ? {
                   ...e,
                   status: `failed`,
                   errorMsg: `任务轮询超时`
@@ -13217,9 +13219,9 @@ var RhWebappNodeComp = Y.memo(({
                 return;
               }
               try {
-                let n = await fetch(rr(p, `/task/${encodeURIComponent(t)}`), {
+                let n = await fetch(rr(apiUrl, `/task/${encodeURIComponent(t)}`), {
                     headers: {
-                      Authorization: `Bearer ${m}`
+                      Authorization: `Bearer ${apiKey}`
                     }
                   }),
                   r = await n.json();
@@ -13230,7 +13232,7 @@ var RhWebappNodeComp = Y.memo(({
                     i = r?.finalPrice == null ? null : Number(r.finalPrice),
                     o = i != null && i > 0 ? String(i).replace(/\.?0+$/, ``) : null,
                     s = r?.usage?.taskCostTime ?? null,
-                    c = e => e ? /^(https?:|data:|blob:)/i.test(e) ? e : `${p.replace(/\/api\/?$/i, ``).replace(/\/$/, ``)}/${e.replace(/^\/+/, ``)}` : ``,
+                    c = e => e ? /^(https?:|data:|blob:)/i.test(e) ? e : `${apiUrl.replace(/\/api\/?$/i, ``).replace(/\/$/, ``)}/${e.replace(/^\/+/, ``)}` : ``,
                     l = await Promise.all(n.map(async e => {
                       let t = c(String(e.url || ``).trim().replace(/^`+|`+$/g, ``));
                       if (!t) return {
@@ -13281,7 +13283,7 @@ var RhWebappNodeComp = Y.memo(({
                         };
                       }
                     }));
-                  a(e, {
+                  updateNodeData(e, {
                     loading: false,
                     status: `SUCCESS`,
                     consumeMoney: o,
@@ -13289,7 +13291,7 @@ var RhWebappNodeComp = Y.memo(({
                     taskCostTime: s,
                     lastResultTaskId: t
                   }), ee(l);
-                  let u = d.addTransitResource;
+                  let u = nodeData.addTransitResource;
                   u && l.forEach(e => {
                     if (!e?.url) return;
                     let t = js(e.url, e.outputType),
@@ -13301,7 +13303,7 @@ var RhWebappNodeComp = Y.memo(({
                     h = f?.thumbnailUrl,
                     g = js(m),
                     _ = g === `video` ? `video` : g === `audio` ? `audio` : g === `text` ? `text` : `image`;
-                  d.updateGlobalTasks?.(e => e.map(e => e.taskId === t ? {
+                  nodeData.updateGlobalTasks?.(e => e.map(e => e.taskId === t ? {
                     ...e,
                     status: `completed`,
                     progress: 100,
@@ -13315,11 +13317,11 @@ var RhWebappNodeComp = Y.memo(({
                 }
                 if (i === `FAILED`) {
                   let n = r?.errorMessage || r?.errorCode || `任务失败`;
-                  a(e, {
+                  updateNodeData(e, {
                     loading: false,
                     status: `FAILED`,
                     errorMessage: n
-                  }), d.updateGlobalTasks?.(e => e.map(e => e.taskId === t ? {
+                  }), nodeData.updateGlobalTasks?.(e => e.map(e => e.taskId === t ? {
                     ...e,
                     status: `failed`,
                     errorMsg: n,
@@ -13327,9 +13329,9 @@ var RhWebappNodeComp = Y.memo(({
                   } : e)), D.current = null;
                   return;
                 }
-                a(e, {
+                updateNodeData(e, {
                   status: i === `QUEUED` ? `QUEUED` : `RUNNING`
-                }), d.updateGlobalTasks?.(e => e.map(e => e.taskId === t ? {
+                }), nodeData.updateGlobalTasks?.(e => e.map(e => e.taskId === t ? {
                   ...e,
                   status: `running`
                 } : e));
@@ -13338,37 +13340,37 @@ var RhWebappNodeComp = Y.memo(({
             }
           };
         T.current = window.setTimeout(r, 1500);
-      }, [e, p, m, a, ee, d.addTransitResource, d.updateGlobalTasks]),
+      }, [e, apiUrl, apiKey, updateNodeData, ee, nodeData.addTransitResource, nodeData.updateGlobalTasks]),
       z = Y.useCallback(async () => {
-        if (!d.loading) {
-          if (!p || !m) {
+        if (!nodeData.loading) {
+          if (!apiUrl || !apiKey) {
             let t = `请先在节点中配置 API URL 和 API Key`;
-            a(e, {
+            updateNodeData(e, {
               errorMessage: t
-            }), d.onShowToast?.(t);
+            }), nodeData.onShowToast?.(t);
             return;
           }
-          if (false && !ys(d.membershipType)) {
+          if (false && !ys(nodeData.membershipType)) {
             let t = `AI 应用需要 VIP 或以上会员`;
-            a(e, {
+            updateNodeData(e, {
               errorMessage: t
-            }), d.onShowToast?.(t);
+            }), nodeData.onShowToast?.(t);
             return;
           }
-          if (!f) {
+          if (!webappId) {
             let t = `请先选择 AI 应用`;
-            a(e, {
+            updateNodeData(e, {
               errorMessage: t
-            }), d.onShowToast?.(t);
+            }), nodeData.onShowToast?.(t);
             return;
           }
           if (!F) {
-            a(e, {
+            updateNodeData(e, {
               errorMessage: `存在未完成的文件上传，请等待打勾后再运行`
             });
             return;
           }
-          a(e, {
+          updateNodeData(e, {
             loading: true,
             status: `QUEUED`,
             errorMessage: undefined,
@@ -13380,7 +13382,7 @@ var RhWebappNodeComp = Y.memo(({
           try {
             let t = _.map(e => {
                 let t = Ss(e),
-                  n = (d.values || {})[t] ?? e.fieldValue ?? ``;
+                  n = (nodeData.values || {})[t] ?? e.fieldValue ?? ``;
                 xs(e) === `LIST` && (n = Cs(String(n ?? ``), bs(e.fieldData)));
                 let r = {
                   nodeId: e.nodeId,
@@ -13390,15 +13392,15 @@ var RhWebappNodeComp = Y.memo(({
                 return e.description && (r.description = e.description), r;
               }),
               n = {
-                appId: f,
+                appId: webappId,
                 instanceType: `default`,
                 nodeInfoList: t
               },
-              r = await fetch(rr(p, `/run`), {
+              r = await fetch(rr(apiUrl, `/run`), {
                 method: `POST`,
                 headers: {
                   "Content-Type": `application/json`,
-                  Authorization: `Bearer ${m}`
+                  Authorization: `Bearer ${apiKey}`
                 },
                 body: JSON.stringify(n)
               }),
@@ -13406,9 +13408,9 @@ var RhWebappNodeComp = Y.memo(({
             if (!r.ok) throw r.status === 402 ? Error(`特惠币余额不足`) : r.status === 403 ? Error(i?.error || `需要 VIP 会员`) : Error(i?.error || `发起任务失败`);
             let o = String(i?.taskId || i?.task_id || ``);
             if (!o) throw Error(`未拿到 taskId`);
-            i?.preDeducted != null && a(e, {
+            i?.preDeducted != null && updateNodeData(e, {
               preDeductAmount: Number(i.preDeducted)
-            }), a(e, {
+            }), updateNodeData(e, {
               taskId: o,
               status: `RUNNING`
             });
@@ -13421,7 +13423,7 @@ var RhWebappNodeComp = Y.memo(({
                 e.push(`${t.description || t.fieldName}: ${r}`);
               }), e.join(` | `);
             })();
-            d.updateGlobalTasks?.(t => {
+            nodeData.updateGlobalTasks?.(t => {
               let r = t.filter(t => t.nodeId !== e || t.status === `completed` || t.status === `failed`);
               return [{
                 id: o,
@@ -13433,19 +13435,19 @@ var RhWebappNodeComp = Y.memo(({
                 createdAt: Date.now(),
                 prompt: s,
                 channelName: `${APP_BRAND}应用`,
-                modelName: `应用 · ${d.webappName || f}`,
+                modelName: `应用 · ${nodeData.webappName || webappId}`,
                 requestData: n
               }, ...r];
             }), R(o);
           } catch (t) {
-            a(e, {
+            updateNodeData(e, {
               loading: false,
               status: `FAILED`,
               errorMessage: t?.message || `请求失败`
-            }), d.onShowToast?.(t?.message || `请求失败`);
+            }), nodeData.onShowToast?.(t?.message || `请求失败`);
           }
         }
-      }, [F, p, m, e, d.loading, d.membershipType, d.onShowToast, d.updateGlobalTasks, d.values, d.webappName, R, _, a, f]);
+      }, [F, apiUrl, apiKey, e, nodeData.loading, nodeData.membershipType, nodeData.onShowToast, nodeData.updateGlobalTasks, nodeData.values, nodeData.webappName, R, _, updateNodeData, webappId]);
     Y.useEffect(() => {
       let t = t => {
         t.detail?.nodeId === e && z();
@@ -13454,9 +13456,9 @@ var RhWebappNodeComp = Y.memo(({
     }, [e, z]), Y.useEffect(() => () => I(), [I]);
     let B = Y.useRef(null);
     Y.useEffect(() => {
-      let e = d.taskId;
-      e && d.status !== `FAILED` && d.lastResultTaskId !== e && B.current !== e && D.current !== e && (B.current = e, R(e));
-    }, [d.taskId, d.status, d.lastResultTaskId, R]);
+      let e = nodeData.taskId;
+      e && nodeData.status !== `FAILED` && nodeData.lastResultTaskId !== e && B.current !== e && D.current !== e && (B.current = e, R(e));
+    }, [nodeData.taskId, nodeData.status, nodeData.lastResultTaskId, R]);
     let te = (e, t) => {
         let n = String(e ?? ``).trim();
         if (!n) return t === `FLOAT` ? .1 : 1;
@@ -13750,7 +13752,7 @@ var RhWebappNodeComp = Y.memo(({
           })]
         }, t);
       },
-      re = d.covers && d.covers[0],
+      re = nodeData.covers && nodeData.covers[0],
       [ie, ae] = Y.useState(false),
       [se, ce] = Y.useState([]),
       [le, ue] = Y.useState(false),
@@ -13760,10 +13762,10 @@ var RhWebappNodeComp = Y.memo(({
     Y.useEffect(() => {
       ie && (fe(1), de(``));
     }, [ie]), Y.useEffect(() => {
-      d.openAppSelectorOnMount && (ae(true), a(e, {
+      nodeData.openAppSelectorOnMount && (ae(true), updateNodeData(e, {
         openAppSelectorOnMount: false
       }));
-    }, [e, d.openAppSelectorOnMount, a]);
+    }, [e, nodeData.openAppSelectorOnMount, updateNodeData]);
     let me = Y.useMemo(() => {
         let e = U.trim().toLowerCase();
         return e ? se.filter(t => t.appName.toLowerCase().includes(e) || t.appId.includes(e)) : se;
@@ -13774,13 +13776,13 @@ var RhWebappNodeComp = Y.memo(({
       }, [me, W]),
       he = W * 10 < me.length;
     Y.useEffect(() => {
-      if (!ie || !p || !m) return;
+      if (!ie || !apiUrl || !apiKey) return;
       let e = false;
       ue(true), H(null);
-      let t = new URL(ir(p));
+      let t = new URL(ir(apiUrl));
       return t.searchParams.set(`page`, `1`), t.searchParams.set(`pageSize`, `100`), fetch(t.toString(), {
         headers: {
-          Authorization: `Bearer ${m}`
+          Authorization: `Bearer ${apiKey}`
         }
       }).then(async t => {
         let n = await t.json();
@@ -13793,7 +13795,7 @@ var RhWebappNodeComp = Y.memo(({
       }), () => {
         e = true;
       };
-    }, [ie, p, m]);
+    }, [ie, apiUrl, apiKey]);
     let ge = Y.useCallback(e => {
         A(e, {
           resetValues: true
@@ -13847,16 +13849,16 @@ var RhWebappNodeComp = Y.memo(({
                 value: U,
                 onChange: e => de(e.target.value)
               })]
-            }), f && X.jsxs(`div`, {
+            }), webappId && X.jsxs(`div`, {
               className: `text-[11px] text-gray-500 truncate`,
               children: [`当前：`, X.jsx(`span`, {
                 className: `text-gray-300`,
-                children: d.webappName || f
+                children: nodeData.webappName || webappId
               })]
             })]
           }), X.jsx(`div`, {
             className: `flex-1 min-h-0 overflow-y-auto custom-scrollbar p-5`,
-            children: m ? le ? X.jsxs(`div`, {
+            children: apiKey ? le ? X.jsxs(`div`, {
               className: `h-full flex flex-col items-center justify-center gap-3 text-sm text-gray-500`,
               children: [X.jsx(ui, {
                 size: 34
@@ -13872,7 +13874,7 @@ var RhWebappNodeComp = Y.memo(({
             }) : X.jsx(`div`, {
               className: `grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-4`,
               children: G.map(e => {
-                let t = e.appId === f,
+                let t = e.appId === webappId,
                   n = e.coverUrl || e.iconUrl || ``,
                   r = _e(e);
                 return X.jsx(`button`, {
@@ -13933,7 +13935,7 @@ var RhWebappNodeComp = Y.memo(({
               className: `h-full flex items-center justify-center text-sm text-amber-400`,
               children: `请在节点中配置 AI 应用的 API URL 和 Key`
             })
-          }), m && !le && !V && me.length > 0 && X.jsxs(`div`, {
+          }), apiKey && !le && !V && me.length > 0 && X.jsxs(`div`, {
             className: `shrink-0 flex items-center justify-center gap-4 py-3 border-t border-[#1f1f1f] bg-[#141414]`,
             children: [X.jsx(`button`, {
               type: `button`,
@@ -13954,6 +13956,7 @@ var RhWebappNodeComp = Y.memo(({
           })]
         })
       }), document.body) : null;
+    // ── 渲染 ──
     return X.jsxs(`div`, {
       className: `flex flex-col items-center group/node transition-all ${i ? `z-50` : `z-10`}`,
       children: [X.jsx(si, {
@@ -13982,9 +13985,9 @@ var RhWebappNodeComp = Y.memo(({
             className: `flex-shrink-0 flex items-center gap-2 px-3 py-2 drag-handle cursor-move rounded-tl-xl`,
             children: [X.jsx(`span`, {
               className: `font-semibold text-[13px] text-gray-100 flex-1 truncate`,
-              title: d.webappName,
-              children: d.webappName || `AI应用`
-            }), f && X.jsx(`button`, {
+              title: nodeData.webappName,
+              children: nodeData.webappName || `AI应用`
+            }), webappId && X.jsx(`button`, {
               className: `text-gray-400 hover:text-gray-100 hover:bg-[#2a2a2a] rounded p-1.5 nodrag`,
               onClick: e => {
                 e.stopPropagation(), ae(true);
@@ -13997,21 +14000,21 @@ var RhWebappNodeComp = Y.memo(({
           }), X.jsxs(`div`, {
             className: `flex-1 min-h-0 px-4 py-4 flex flex-col gap-4`,
             onWheel: e => e.stopPropagation(),
-            children: [d.schemaLoading && X.jsxs(`div`, {
+            children: [nodeData.schemaLoading && X.jsxs(`div`, {
               className: `flex items-center gap-2 text-xs text-gray-400 py-6 justify-center`,
               children: [X.jsx(L, {
                 size: 12,
                 className: `animate-spin`
               }), `正在加载应用参数...`]
-            }), d.schemaError && X.jsxs(`div`, {
+            }), nodeData.schemaError && X.jsxs(`div`, {
               className: `text-red-400 text-[11px] p-2 border border-red-500/30 rounded bg-red-500/10 flex items-start gap-1.5`,
               children: [X.jsx(pt, {
                 size: 12,
                 className: `mt-0.5`
               }), X.jsx(`span`, {
-                children: d.schemaError
+                children: nodeData.schemaError
               })]
-            }), !d.schemaLoading && !f && !d.schemaError && X.jsxs(`div`, {
+            }), !nodeData.schemaLoading && !webappId && !nodeData.schemaError && X.jsxs(`div`, {
               className: `flex-1 flex flex-col items-center justify-center gap-6 nodrag`,
               children: [X.jsxs(`div`, {
                 className: `flex flex-col items-center gap-3`,
@@ -14040,30 +14043,30 @@ var RhWebappNodeComp = Y.memo(({
                 className: `text-sm text-gray-500`,
                 children: `请选择 AI 应用开始创作`
               })]
-            }), !d.schemaLoading && _.map(ne), d.errorMessage && X.jsxs(`div`, {
+            }), !nodeData.schemaLoading && _.map(ne), nodeData.errorMessage && X.jsxs(`div`, {
               className: `text-red-400 text-[11px] p-2 border border-red-500/30 rounded bg-red-500/10 flex items-start gap-1.5`,
               children: [X.jsx(pt, {
                 size: 12,
                 className: `mt-0.5`
               }), X.jsx(`span`, {
                 className: `break-all`,
-                children: d.errorMessage
+                children: nodeData.errorMessage
               })]
             })]
           }), X.jsxs(`div`, {
             className: `flex-shrink-0 px-4 py-3 flex items-center justify-between gap-3 nodrag`,
-            children: [d.loading ? X.jsxs(`div`, {
+            children: [nodeData.loading ? X.jsxs(`div`, {
               className: `flex items-center bg-[#2a2a2a] rounded-full p-1 pl-3 border border-[#333]`,
               title: `停止`,
               onClick: t => {
-                t.stopPropagation(), I(), a(e, {
+                t.stopPropagation(), I(), updateNodeData(e, {
                   loading: false,
                   status: `IDLE`
                 });
               },
               children: [X.jsx(`div`, {
                 className: `flex items-center gap-1 mr-3 text-xs text-gray-300`,
-                children: d.status === `QUEUED` ? `排队中` : `运行中…`
+                children: nodeData.status === `QUEUED` ? `排队中` : `运行中…`
               }), X.jsx(`button`, {
                 className: `bg-red-500/20 text-red-400 w-6 h-6 rounded-full flex items-center justify-center hover:bg-red-500/30 transition-colors cursor-pointer`,
                 children: X.jsx(oe, {
@@ -14072,9 +14075,9 @@ var RhWebappNodeComp = Y.memo(({
                 })
               })]
             }) : X.jsxs(`div`, {
-              className: `flex items-center bg-[#2a2a2a] rounded-full p-1 pl-3 border border-[#333] hover:border-gray-500 transition-colors cursor-pointer group/btn ${!F || d.schemaLoading ? `opacity-50 cursor-not-allowed` : ``}`,
+              className: `flex items-center bg-[#2a2a2a] rounded-full p-1 pl-3 border border-[#333] hover:border-gray-500 transition-colors cursor-pointer group/btn ${!F || nodeData.schemaLoading ? `opacity-50 cursor-not-allowed` : ``}`,
               onClick: e => {
-                e.stopPropagation(), !(!F || d.schemaLoading) && z();
+                e.stopPropagation(), !(!F || nodeData.schemaLoading) && z();
               },
               title: F ? `` : `等待文件上传完成`,
               children: [X.jsx(`div`, {
@@ -14087,21 +14090,21 @@ var RhWebappNodeComp = Y.memo(({
                   fill: `currentColor`
                 })
               })]
-            }), !d.loading && (d.taskCostTime != null || d.consumeMoney != null || d.preDeductAmount != null) && X.jsxs(`div`, {
+            }), !nodeData.loading && (nodeData.taskCostTime != null || nodeData.consumeMoney != null || nodeData.preDeductAmount != null) && X.jsxs(`div`, {
               className: `text-[12px] text-gray-400 tabular-nums text-right`,
-              children: [d.preDeductAmount != null && d.loading === false && d.consumeMoney == null && X.jsxs(`span`, {
+              children: [nodeData.preDeductAmount != null && nodeData.loading === false && nodeData.consumeMoney == null && X.jsxs(`span`, {
                 className: `mr-2`,
                 children: [`预计预扣 `, X.jsx(`span`, {
                   className: `text-yellow-300`,
-                  children: d.preDeductAmount
+                  children: nodeData.preDeductAmount
                 }), ` 特惠币`]
-              }), (d.taskCostTime != null || d.consumeMoney != null) && X.jsxs(X.Fragment, {
+              }), (nodeData.taskCostTime != null || nodeData.consumeMoney != null) && X.jsxs(X.Fragment, {
                 children: [`上次运行了 `, X.jsx(`span`, {
                   className: `text-gray-200`,
-                  children: d.taskCostTime ?? `-`
+                  children: nodeData.taskCostTime ?? `-`
                 }), ` 秒，实扣 `, X.jsxs(`span`, {
                   className: `text-yellow-300`,
-                  children: [d.consumeMoney ?? `-`, ` `]
+                  children: [nodeData.consumeMoney ?? `-`, ` `]
                 }), `特惠币`]
               })]
             })]
@@ -14125,31 +14128,31 @@ var RhWebappNodeComp = Y.memo(({
             }), X.jsx(`div`, {
               className: `absolute inset-x-0 -bottom-1 h-[25%] bg-gradient-to-t from-[#141414] to-transparent pointer-events-none`
             })]
-          }), re && d.loading && X.jsx(`div`, {
+          }), re && nodeData.loading && X.jsx(`div`, {
             className: `absolute inset-0 flex items-center justify-center bg-black/40 z-20`,
             children: X.jsx(L, {
               size: 22,
               className: `animate-spin text-white drop-shadow`
             })
-          }), (d.webappTags?.length || d.webappDesc) && X.jsx(`div`, {
+          }), (nodeData.webappTags?.length || nodeData.webappDesc) && X.jsx(`div`, {
             className: `absolute inset-0 flex flex-col justify-end z-10 pointer-events-none opacity-0 group-hover/node:opacity-100 group-focus-within/node:opacity-100 transition-opacity duration-300`,
             children: X.jsxs(`div`, {
               className: `max-h-[75%] overflow-auto custom-scrollbar nowheel px-3 pt-14 pb-3 flex flex-col gap-2 nodrag pointer-events-auto bg-gradient-to-t from-black via-black/85 to-transparent`,
               onWheel: e => e.stopPropagation(),
-              children: [d.webappTags && d.webappTags.length > 0 && X.jsx(`div`, {
+              children: [nodeData.webappTags && nodeData.webappTags.length > 0 && X.jsx(`div`, {
                 className: `flex flex-wrap gap-1`,
-                children: d.webappTags.map(e => X.jsxs(`span`, {
+                children: nodeData.webappTags.map(e => X.jsxs(`span`, {
                   className: `text-[10px] text-pink-200 bg-pink-500/20 rounded px-1.5 py-0.5`,
                   children: [`#`, e]
                 }, e))
-              }), d.webappDesc && X.jsx(`div`, {
+              }), nodeData.webappDesc && X.jsx(`div`, {
                 className: `text-[12px] text-gray-100 leading-relaxed rh-app-desc`,
                 dangerouslySetInnerHTML: {
-                  __html: As(d.webappDesc.length > 30 ? d.webappDesc.slice(0, 30) + `...` : d.webappDesc)
+                  __html: As(nodeData.webappDesc.length > 30 ? nodeData.webappDesc.slice(0, 30) + `...` : nodeData.webappDesc)
                 }
               })]
             })
-          }), f && !re && !d.webappDesc && !d.webappTags?.length && X.jsx(`div`, {
+          }), webappId && !re && !nodeData.webappDesc && !nodeData.webappTags?.length && X.jsx(`div`, {
             className: `absolute inset-0 flex items-center justify-center text-gray-700 pointer-events-none`,
             children: X.jsx(Ot, {
               size: 40
@@ -14162,38 +14165,40 @@ var RhWebappNodeComp = Y.memo(({
         })]
       }), K]
     });
-  }),
+}),
   VideoExtractNodeComp = Y.memo(({
     id: e,
     data: n,
     selected: r
   }) => {
+// ── 状态 ──
     let {
-        updateNodeData: i,
-        getNodes: a,
-        getEdges: o
+        updateNodeData: updateNodeData,
+        getNodes: getNodes,
+        getEdges: getEdges
       } = Gt(),
-      s = n,
+      nodeData = n,
       c = Y.useRef(null),
       [l, u] = Y.useState(null),
       [d, f] = Y.useState(false),
-      [p, m] = Y.useState(n.mode || `count`),
-      [h, g] = Y.useState(n.intervalSec || 2),
-      [_, v] = Y.useState(n.frameCount || 9),
-      [y, b] = Y.useState(n.sensitivity || 30),
-      [x] = Y.useState(n.hiddenIndices || []),
+      [mode, setMode] = Y.useState(n.mode || `count`),
+      [intervalSec, setIntervalSec] = Y.useState(n.intervalSec || 2),
+      [frameCount, setFrameCount] = Y.useState(n.frameCount || 9),
+      [sensitivity, setSensitivity] = Y.useState(n.sensitivity || 30),
+      [hiddenIndices] = Y.useState(n.hiddenIndices || []),
       S = Y.useRef(null),
-      [C, w] = Y.useState(0),
+      [progress, setProgress] = Y.useState(0),
       [T, E] = Y.useState(0);
+    // ── 回调 ──
     Y.useEffect(() => {
-      i(e, {
-        mode: p,
-        intervalSec: h,
-        frameCount: _,
-        sensitivity: y,
-        hiddenIndices: x
+      updateNodeData(e, {
+        mode: mode,
+        intervalSec: intervalSec,
+        frameCount: frameCount,
+        sensitivity: sensitivity,
+        hiddenIndices: hiddenIndices
       });
-    }, [p, h, _, y, x, e, i]);
+    }, [mode, intervalSec, frameCount, sensitivity, hiddenIndices, e, updateNodeData]);
     let O = t({
         handleType: `target`
       }),
@@ -14233,26 +14238,26 @@ var RhWebappNodeComp = Y.memo(({
         } catch {
           t = n;
         }
-        i(e, {
+        updateNodeData(e, {
           videoUrl: n,
           videoName: t,
           errorMessage: undefined
         });
-      } else !n && A.current && (A.current = ``, l || i(e, {
+      } else !n && A.current && (A.current = ``, l || updateNodeData(e, {
         videoUrl: undefined,
         videoName: undefined
       }));
-    }, [k, l, e, i]), Y.useEffect(() => {
-      i(e, {
+    }, [k, l, e, updateNodeData]), Y.useEffect(() => {
+      updateNodeData(e, {
         onExtractFrames: N
       });
-    }, [l, p, h, _, y]);
+    }, [l, mode, intervalSec, frameCount, sensitivity]);
     let j = t => {
         let n = t.target.files?.[0];
         if (!n) return;
         u(n);
         let r = URL.createObjectURL(n);
-        s.videoUrl = r, s.videoName = n.name, i(e, {
+        nodeData.videoUrl = r, nodeData.videoName = n.name, updateNodeData(e, {
           videoUrl: r,
           videoName: n.name,
           errorMessage: undefined,
@@ -14273,20 +14278,20 @@ var RhWebappNodeComp = Y.memo(({
           if (a === 0 || o === 0) throw Error(`Video dimensions not available`);
           (a > 800 || o > 800) && (a > o ? (o = Math.round(o * 800 / a), a = 800) : (a = Math.round(a * 800 / o), o = 800)), n.width = a, n.height = o, r.drawImage(t, 0, 0, a, o);
           let c = n.toDataURL(`image/jpeg`, .8),
-            l = [...(s.allExtractedImages || []), c];
-          i(e, {
+            l = [...(nodeData.allExtractedImages || []), c];
+          updateNodeData(e, {
             allExtractedImages: l,
             extractedImages: l
-          }), s.onShowToast?.(`已截取当前帧`);
+          }), nodeData.onShowToast?.(`已截取当前帧`);
         } catch (e) {
-          console.error(`Manual capture failed:`, e), s.onShowToast?.(`截取失败，可能是跨域限制或视频未就绪`);
+          console.error(`Manual capture failed:`, e), nodeData.onShowToast?.(`截取失败，可能是跨域限制或视频未就绪`);
         }
       },
       N = async () => {
         let t = ``;
         if (l) t = URL.createObjectURL(l);else {
-          let n = o(),
-            r = a(),
+          let n = getEdges(),
+            r = getNodes(),
             i = n.filter(t => t.target === e);
           for (let e of i) {
             let n = r.find(t => t.id === e.source);
@@ -14316,10 +14321,10 @@ var RhWebappNodeComp = Y.memo(({
           }
         }
         if (!t) {
-          s.onShowToast?.(`请先上传视频或连接包含视频的节点`);
+          nodeData.onShowToast?.(`请先上传视频或连接包含视频的节点`);
           return;
         }
-        i(e, {
+        updateNodeData(e, {
           loading: true,
           errorMessage: undefined,
           progress: 0,
@@ -14347,17 +14352,17 @@ var RhWebappNodeComp = Y.memo(({
               n.addEventListener(`seeked`, r), n.currentTime = e;
             }),
             d = [];
-          if (p === `count`) {
-            let e = Math.max(1, _),
+          if (mode === `count`) {
+            let e = Math.max(1, frameCount),
               t = r / (e + 1);
             for (let n = 1; n <= e; n++) d.push(n * t);
-          } else if (p === `interval`) {
-            let e = Math.max(.5, h);
+          } else if (mode === `interval`) {
+            let e = Math.max(.5, intervalSec);
             for (let t = e; t < r; t += e) d.push(t);
-          } else if (p === `first_last`) d.push(0), d.push(Math.max(0, r - .1));else if (p === `manual`) {
-            s.onShowToast?.(`手动模式请直接在上方播放器中截取`);
+          } else if (mode === `first_last`) d.push(0), d.push(Math.max(0, r - .1));else if (mode === `manual`) {
+            nodeData.onShowToast?.(`手动模式请直接在上方播放器中截取`);
             return;
-          } else if (p === `smart`) {
+          } else if (mode === `smart`) {
             let t = document.createElement(`canvas`);
             t.width = 16, t.height = 16;
             let a = t.getContext(`2d`, {
@@ -14371,9 +14376,9 @@ var RhWebappNodeComp = Y.memo(({
                 n.addEventListener(`seeked`, r), n.currentTime = e;
               }),
               s = null,
-              c = 195840 * (.01 + .24 * ((100 - y) / 100) ** 2);
+              c = 195840 * (.01 + .24 * ((100 - sensitivity) / 100) ** 2);
             for (let t = .5; t < r; t += .5) {
-              i(e, {
+              updateNodeData(e, {
                 progress: Math.round(t / r * 50)
               });
               let n = await o(t);
@@ -14388,41 +14393,41 @@ var RhWebappNodeComp = Y.memo(({
               s = n;
             }
           }
-          d.length === 0 && p === `smart` && d.push(r / 2);
+          d.length === 0 && mode === `smart` && d.push(r / 2);
           let f = [];
           for (let t = 0; t < d.length; t++) {
-            i(e, {
+            updateNodeData(e, {
               progress: 50 + Math.round(t / d.length * 50)
             });
             let n = await u(d[t]);
-            f.push(n), i(e, {
+            f.push(n), updateNodeData(e, {
               extractedImages: [...f]
             });
           }
-          i(e, {
+          updateNodeData(e, {
             loading: false,
             progress: 100,
             allExtractedImages: f,
             extractedImages: f,
             hiddenIndices: [],
             imageUrl: undefined
-          }), s.onShowToast?.(`抽帧完成！共提取 ${f.length} 张图片`), n.src = ``, n.load();
+          }), nodeData.onShowToast?.(`抽帧完成！共提取 ${f.length} 张图片`), n.src = ``, n.load();
         } catch (t) {
-          console.error(`Frame extraction failed:`, t), i(e, {
+          console.error(`Frame extraction failed:`, t), updateNodeData(e, {
             loading: false,
             errorMessage: t.message || `抽帧失败，可能是视频格式或跨域限制`
           });
         }
       },
       P = async e => {
-        if (e.stopPropagation(), !s.extractedImages || s.extractedImages.length === 0) {
-          s.onShowToast?.(`没有提取出的图片可复制`);
+        if (e.stopPropagation(), !nodeData.extractedImages || nodeData.extractedImages.length === 0) {
+          nodeData.onShowToast?.(`没有提取出的图片可复制`);
           return;
         }
         try {
           let e = {
               type: `mutiwindow-images`,
-              images: s.extractedImages
+              images: nodeData.extractedImages
             },
             t = JSON.stringify(e);
           try {
@@ -14430,13 +14435,14 @@ var RhWebappNodeComp = Y.memo(({
           } catch {
             localStorage.setItem(`mutiwindow-clipboard`, t);
           }
-          s.onShowToast?.(`已复制 ${s.extractedImages.length} 张图片`);
+          nodeData.onShowToast?.(`已复制 ${nodeData.extractedImages.length} 张图片`);
         } catch {
-          s.onShowToast?.(`复制失败`);
+          nodeData.onShowToast?.(`复制失败`);
         }
       };
+    // ── 渲染 ──
     return X.jsxs(`div`, {
-      className: `relative group/node w-full h-full min-w-[280px] ${p === `manual` ? `min-h-[380px]` : `min-h-[220px]`}`,
+      className: `relative group/node w-full h-full min-w-[280px] ${mode === `manual` ? `min-h-[380px]` : `min-h-[220px]`}`,
       children: [X.jsx(si, {
         id: e,
         data: n,
@@ -14448,7 +14454,7 @@ var RhWebappNodeComp = Y.memo(({
       }), X.jsx(ci, {
         visible: !!r,
         minWidth: 280,
-        minHeight: p === `manual` ? 380 : 220
+        minHeight: mode === `manual` ? 380 : 220
       }), X.jsxs(`div`, {
         className: `w-full h-full bg-[#1c1c1c] rounded-xl overflow-hidden border shadow-xl transition-all duration-300 flex flex-col ${r ? `border-[#555]` : `border-[#333] hover:border-[#444]`}`,
         children: [X.jsx(_r, {
@@ -14466,28 +14472,28 @@ var RhWebappNodeComp = Y.memo(({
           className: `flex-1 flex flex-col overflow-hidden relative`,
           children: [X.jsxs(`div`, {
             className: `flex-1 bg-[#111] p-4 overflow-y-auto relative border-b border-[#2a2a2a] custom-scrollbar nowheel nopan nodrag flex flex-col gap-4`,
-            children: [s.allExtractedImages && s.allExtractedImages.length > 0 && X.jsxs(`button`, {
+            children: [nodeData.allExtractedImages && nodeData.allExtractedImages.length > 0 && X.jsxs(`button`, {
               onClick: e => P(e),
               className: `absolute top-2 right-2 z-10 text-[10px] text-blue-400 hover:text-blue-300 flex items-center gap-1 px-2 py-1 rounded bg-[#222]/90 hover:bg-[#333] transition-colors`,
               children: [X.jsx(on, {
                 size: 12
               }), ` 复制全部`]
-            }), s.errorMessage && X.jsxs(`div`, {
+            }), nodeData.errorMessage && X.jsxs(`div`, {
               className: `flex flex-col items-center justify-center h-full gap-2 text-red-400 p-4 text-center`,
               children: [X.jsx(pt, {
                 size: 24
               }), X.jsx(`span`, {
                 className: `text-xs break-words`,
-                children: s.errorMessage
+                children: nodeData.errorMessage
               })]
-            }), p === `manual` && s.videoUrl && !s.errorMessage && X.jsxs(`div`, {
+            }), mode === `manual` && nodeData.videoUrl && !nodeData.errorMessage && X.jsxs(`div`, {
               className: `flex flex-col gap-3 bg-[#1a1a1a] p-3 rounded-lg border border-[#333] flex-shrink-0`,
               children: [X.jsx(`video`, {
                 ref: S,
-                src: s.videoUrl,
+                src: nodeData.videoUrl,
                 crossOrigin: `anonymous`,
                 className: `w-full aspect-video bg-black rounded`,
-                onLoadedMetadata: e => w(e.currentTarget.duration),
+                onLoadedMetadata: e => setProgress(e.currentTarget.duration),
                 onTimeUpdate: e => E(e.currentTarget.currentTime),
                 playsInline: true,
                 muted: true
@@ -14503,7 +14509,7 @@ var RhWebappNodeComp = Y.memo(({
                 }), X.jsx(`input`, {
                   type: `range`,
                   min: `0`,
-                  max: C || 100,
+                  max: progress || 100,
                   step: `0.01`,
                   value: T,
                   onChange: e => {
@@ -14512,7 +14518,7 @@ var RhWebappNodeComp = Y.memo(({
                   className: `flex-1 accent-white min-w-0`
                 }), X.jsx(`button`, {
                   onClick: () => {
-                    S.current && (S.current.currentTime = Math.min(C, S.current.currentTime + .033));
+                    S.current && (S.current.currentTime = Math.min(progress, S.current.currentTime + .033));
                   },
                   className: `px-2 py-1.5 bg-[#2a2a2a] rounded-md hover:bg-[#333] text-gray-300 transition-colors`,
                   title: `前进1帧`,
@@ -14525,17 +14531,17 @@ var RhWebappNodeComp = Y.memo(({
                   }), `截取`]
                 })]
               })]
-            }), !s.errorMessage && s.allExtractedImages && s.allExtractedImages.length > 0 ? X.jsxs(`div`, {
+            }), !nodeData.errorMessage && nodeData.allExtractedImages && nodeData.allExtractedImages.length > 0 ? X.jsxs(`div`, {
               className: `flex flex-col h-full gap-3`,
               children: [X.jsx(`div`, {
                 className: `flex justify-between items-center px-1`,
                 children: X.jsxs(`span`, {
                   className: `text-xs text-gray-400 font-medium`,
-                  children: [`已提取 `, s.allExtractedImages.length, ` 帧 (当前生效 `, s.extractedImages?.length || 0, ` 帧)`]
+                  children: [`已提取 `, nodeData.allExtractedImages.length, ` 帧 (当前生效 `, nodeData.extractedImages?.length || 0, ` 帧)`]
                 })
               }), X.jsx(`div`, {
                 className: `grid grid-cols-[repeat(auto-fill,minmax(110px,1fr))] gap-3 auto-rows-max`,
-                children: s.allExtractedImages.map((e, t) => x.includes(t) ? null : X.jsxs(`div`, {
+                children: nodeData.allExtractedImages.map((e, t) => hiddenIndices.includes(t) ? null : X.jsxs(`div`, {
                   className: `aspect-video bg-black rounded-lg border relative group/img border-[#333] overflow-hidden`,
                   children: [X.jsx(`img`, {
                     src: e,
@@ -14557,9 +14563,9 @@ var RhWebappNodeComp = Y.memo(({
                           } catch {
                             localStorage.setItem(`mutiwindow-clipboard`, t);
                           }
-                          s.onShowToast?.(`已复制当前帧，请在空白处粘贴 (Ctrl+V)`);
+                          nodeData.onShowToast?.(`已复制当前帧，请在空白处粘贴 (Ctrl+V)`);
                         } catch {
-                          s.onShowToast?.(`复制失败`);
+                          nodeData.onShowToast?.(`复制失败`);
                         }
                       },
                       className: `p-2 bg-[#222] hover:bg-white rounded-full text-gray-300 hover:text-black transition-all shadow-lg`,
@@ -14571,22 +14577,22 @@ var RhWebappNodeComp = Y.memo(({
                   })]
                 }, t))
               })]
-            }) : !s.errorMessage && !(p === `manual` && s.videoUrl) ? X.jsx(`div`, {
+            }) : !nodeData.errorMessage && !(mode === `manual` && nodeData.videoUrl) ? X.jsx(`div`, {
               className: `flex items-center justify-center h-full min-h-[120px]`,
-              children: s.loading ? X.jsxs(`div`, {
+              children: nodeData.loading ? X.jsxs(`div`, {
                 className: `flex flex-col items-center gap-3`,
                 children: [X.jsx(L, {
                   size: 24,
                   className: `animate-spin text-gray-400`
                 }), X.jsxs(`span`, {
                   className: `text-xs text-gray-400`,
-                  children: [`正在处理... `, s.progress, `%`]
+                  children: [`正在处理... `, nodeData.progress, `%`]
                 }), X.jsx(`div`, {
                   className: `w-32 h-1 bg-[#333] rounded-full overflow-hidden`,
                   children: X.jsx(`div`, {
                     className: `h-full bg-white transition-all duration-300`,
                     style: {
-                      width: `${s.progress}%`
+                      width: `${nodeData.progress}%`
                     }
                   })
                 })]
@@ -14597,7 +14603,7 @@ var RhWebappNodeComp = Y.memo(({
             }) : null]
           }), X.jsxs(`div`, {
             className: `p-4 bg-[#1a1a1a] flex flex-col gap-4 nodrag border-t border-[#2a2a2a]`,
-            children: [s.videoUrl ? X.jsxs(`div`, {
+            children: [nodeData.videoUrl ? X.jsxs(`div`, {
               className: `w-full flex items-center justify-between bg-[#111] rounded-lg px-3 py-2.5 border border-[#333]`,
               children: [X.jsxs(`div`, {
                 className: `flex items-center gap-2 overflow-hidden`,
@@ -14606,8 +14612,8 @@ var RhWebappNodeComp = Y.memo(({
                   className: `text-gray-400 flex-shrink-0`
                 }), X.jsx(`span`, {
                   className: `text-xs text-gray-300 truncate`,
-                  title: s.videoName,
-                  children: s.videoName || `已连接视频`
+                  title: nodeData.videoName,
+                  children: nodeData.videoName || `已连接视频`
                 })]
               }), X.jsx(`button`, {
                 onClick: () => c.current?.click(),
@@ -14635,8 +14641,8 @@ var RhWebappNodeComp = Y.memo(({
                   className: `text-[11px] text-gray-400 font-medium`,
                   children: `抽帧模式`
                 }), X.jsxs(`select`, {
-                  value: p,
-                  onChange: e => m(e.target.value),
+                  value: mode,
+                  onChange: e => setMode(e.target.value),
                   className: `w-full bg-[#222] border border-[#333] rounded-md px-3 py-2 text-xs text-gray-200 outline-none focus:border-white transition-colors`,
                   children: [X.jsx(`option`, {
                     value: `count`,
@@ -14655,7 +14661,7 @@ var RhWebappNodeComp = Y.memo(({
                     children: `手动截取 (拖动轨道截取)`
                   })]
                 })]
-              }), p === `count` && X.jsxs(`div`, {
+              }), mode === `count` && X.jsxs(`div`, {
                 className: `flex flex-col gap-2`,
                 children: [X.jsx(`label`, {
                   className: `text-[11px] text-gray-400 font-medium`,
@@ -14664,11 +14670,11 @@ var RhWebappNodeComp = Y.memo(({
                   type: `number`,
                   min: `1`,
                   max: `100`,
-                  value: _,
-                  onChange: e => v(Number(e.target.value)),
+                  value: frameCount,
+                  onChange: e => setFrameCount(Number(e.target.value)),
                   className: `w-full bg-[#222] border border-[#333] rounded-md px-3 py-2 text-xs text-gray-200 outline-none focus:border-white transition-colors`
                 })]
-              }), p === `interval` && X.jsxs(`div`, {
+              }), mode === `interval` && X.jsxs(`div`, {
                 className: `flex flex-col gap-2`,
                 children: [X.jsx(`label`, {
                   className: `text-[11px] text-gray-400 font-medium`,
@@ -14678,11 +14684,11 @@ var RhWebappNodeComp = Y.memo(({
                   min: `0.5`,
                   max: `3600`,
                   step: `0.5`,
-                  value: h,
-                  onChange: e => g(Number(e.target.value)),
+                  value: intervalSec,
+                  onChange: e => setIntervalSec(Number(e.target.value)),
                   className: `w-full bg-[#222] border border-[#333] rounded-md px-3 py-2 text-xs text-gray-200 outline-none focus:border-white transition-colors`
                 })]
-              }), p === `smart` && X.jsxs(`div`, {
+              }), mode === `smart` && X.jsxs(`div`, {
                 className: `flex flex-col gap-2`,
                 children: [X.jsxs(`div`, {
                   className: `flex justify-between`,
@@ -14691,14 +14697,14 @@ var RhWebappNodeComp = Y.memo(({
                     children: `检测敏感度`
                   }), X.jsx(`span`, {
                     className: `text-[11px] text-gray-500`,
-                    children: y
+                    children: sensitivity
                   })]
                 }), X.jsx(`input`, {
                   type: `range`,
                   min: `1`,
                   max: `100`,
-                  value: y,
-                  onChange: e => b(Number(e.target.value)),
+                  value: sensitivity,
+                  onChange: e => setSensitivity(Number(e.target.value)),
                   className: `w-full accent-white`
                 }), X.jsx(`span`, {
                   className: `text-[10px] text-gray-500`,
@@ -14717,12 +14723,12 @@ var RhWebappNodeComp = Y.memo(({
                   className: `text-xs font-medium`,
                   children: d ? `收起配置` : `配置`
                 })]
-              }), p !== `manual` && X.jsxs(`button`, {
-                className: `px-5 py-2 rounded-full text-xs font-medium flex items-center gap-2 transition-all ${!s.videoUrl || s.loading ? `bg-[#2a2a2a] text-gray-500 cursor-not-allowed` : `bg-white text-black hover:bg-gray-200 shadow-md`}`,
+              }), mode !== `manual` && X.jsxs(`button`, {
+                className: `px-5 py-2 rounded-full text-xs font-medium flex items-center gap-2 transition-all ${!nodeData.videoUrl || nodeData.loading ? `bg-[#2a2a2a] text-gray-500 cursor-not-allowed` : `bg-white text-black hover:bg-gray-200 shadow-md`}`,
                 onClick: e => {
-                  e.stopPropagation(), s.videoUrl && !s.loading ? N() : s.videoUrl || s.onShowToast?.(`请先上传或连接视频`);
+                  e.stopPropagation(), nodeData.videoUrl && !nodeData.loading ? N() : nodeData.videoUrl || nodeData.onShowToast?.(`请先上传或连接视频`);
                 },
-                children: [s.loading ? `正在处理...` : `开始处理`, X.jsx(Ot, {
+                children: [nodeData.loading ? `正在处理...` : `开始处理`, X.jsx(Ot, {
                   size: 14
                 })]
               })]
@@ -14735,7 +14741,7 @@ var RhWebappNodeComp = Y.memo(({
         })]
       })]
     });
-  }),
+}),
   Ps = B();
 // [✔ 已确认] Fs — loadVideo
 function Fs(e, t) {
@@ -14886,73 +14892,75 @@ var VideoToGifNodeComp = Y.memo(({
   data: n,
   selected: r
 }) => {
+// ── 状态 ──
   let {
-      updateNodeData: i
+      updateNodeData: updateNodeData
     } = Gt(),
-    a = n,
+    nodeData = n,
     o = Y.useRef(null),
-    [s, c] = Y.useState(n.fps || 10),
-    [l, u] = Y.useState(n.maxSize || 480),
-    [d, f] = Y.useState(n.colors || 256),
-    [p, m] = Y.useState(n.speed || 1),
-    [h, g] = Y.useState(0),
-    [_, v] = Y.useState(0),
-    [y, b] = Y.useState(0),
-    x = t({
+    [fps, setFps] = Y.useState(n.fps || 10),
+    [maxSize, setMaxSize] = Y.useState(n.maxSize || 480),
+    [colors, setColors] = Y.useState(n.colors || 256),
+    [speed, setSpeed] = Y.useState(n.speed || 1),
+    [gifProgress, setGifProgress] = Y.useState(0),
+    [frameIndex, setFrameIndex] = Y.useState(0),
+    [outputIndex, setOutputIndex] = Y.useState(0),
+    targetHandles = t({
       handleType: `target`
     }),
-    S = ut(Y.useMemo(() => x.map(e => e.source), [x])),
-    C = Y.useRef(``);
+    sourceNodes = ut(Y.useMemo(() => targetHandles.map(e => e.source), [targetHandles])),
+    videoRef = Y.useRef(``);
   Y.useEffect(() => {
-    let t = Ws(Array.isArray(S) ? S : S ? [S] : []);
-    if (t && t !== C.current) {
-      C.current = t;
+    let t = Ws(Array.isArray(sourceNodes) ? sourceNodes : sourceNodes ? [sourceNodes] : []);
+    if (t && t !== videoRef.current) {
+      videoRef.current = t;
       let n = `connected_video.mp4`;
       try {
         let e = new URL(t).pathname.split(`/`).pop();
         e && e.includes(`.`) && (n = e);
       } catch {}
-      i(e, {
+      updateNodeData(e, {
         videoUrl: t,
         videoName: n,
         errorMessage: undefined
       });
-    } else !t && C.current && (C.current = ``, i(e, {
+    } else !t && videoRef.current && (videoRef.current = ``, updateNodeData(e, {
       videoUrl: undefined,
       videoName: undefined
     }));
-  }, [S, e, i]), Y.useEffect(() => {
-    if (!a.videoUrl) {
-      g(0);
+  }, [sourceNodes, e, updateNodeData]), Y.useEffect(() => {
+    if (!nodeData.videoUrl) {
+      setGifProgress(0);
       return;
     }
     let e = false;
-    return Rs(a.videoUrl).then(t => {
-      e || !t || (g(t), v(0), b(t));
+    return Rs(nodeData.videoUrl).then(t => {
+      e || !t || (setGifProgress(t), setFrameIndex(0), setOutputIndex(t));
     }).catch(() => {}), () => {
       e = true;
     };
-  }, [a.videoUrl]), Y.useEffect(() => {
-    i(e, {
-      fps: s,
-      maxSize: l,
-      colors: d,
-      speed: p
+  }, [nodeData.videoUrl]), Y.useEffect(() => {
+    updateNodeData(e, {
+      fps: fps,
+      maxSize: maxSize,
+      colors: colors,
+      speed: speed
     });
-  }, [s, l, d, p, e, i]);
+  }, [fps, maxSize, colors, speed, e, updateNodeData]);
   let w = t => {
       let n = t.target.files?.[0];
       if (!n) return;
       let r = URL.createObjectURL(n);
-      a.onAddImage?.(e, r), t.target.value = ``;
+      nodeData.onAddImage?.(e, r), t.target.value = ``;
     },
+    // ── 回调 ──
     T = Y.useCallback(async () => {
-      let t = a.videoUrl;
+      let t = nodeData.videoUrl;
       if (!t) {
-        a.onShowToast?.(`请先上传视频或连接包含视频的节点`);
+        nodeData.onShowToast?.(`请先上传视频或连接包含视频的节点`);
         return;
       }
-      i(e, {
+      updateNodeData(e, {
         loading: true,
         progress: 0,
         errorMessage: undefined,
@@ -14960,18 +14968,18 @@ var VideoToGifNodeComp = Y.memo(({
       });
       try {
         let n = await Ls(t, {
-            fps: s,
-            maxSize: l,
-            colors: d,
-            speed: p,
-            startTime: h ? _ : 0,
-            endTime: h ? y : undefined,
-            onProgress: t => i(e, {
+            fps: fps,
+            maxSize: maxSize,
+            colors: colors,
+            speed: speed,
+            startTime: gifProgress ? frameIndex : 0,
+            endTime: gifProgress ? outputIndex : undefined,
+            onProgress: t => updateNodeData(e, {
               progress: Math.round(t * 100)
             })
           }),
           r = URL.createObjectURL(n.blob);
-        i(e, {
+        updateNodeData(e, {
           loading: false,
           progress: 100,
           resultInfo: {
@@ -14980,17 +14988,18 @@ var VideoToGifNodeComp = Y.memo(({
             frameCount: n.frameCount,
             size: n.size
           }
-        }), a.onSpawnImageNode?.(e, r, `GIF`);
+        }), nodeData.onSpawnImageNode?.(e, r, `GIF`);
       } catch (t) {
-        i(e, {
+        updateNodeData(e, {
           loading: false,
           errorMessage: t?.message || `GIF 生成失败`
-        }), a.onShowToast?.(t?.message || `GIF 生成失败`);
+        }), nodeData.onShowToast?.(t?.message || `GIF 生成失败`);
       }
-    }, [a.videoUrl, s, l, d, p, _, y, h, e, i, a]),
-    E = !!a.loading,
-    D = !!a.resultInfo,
-    O = !!a.videoUrl;
+    }, [nodeData.videoUrl, fps, maxSize, colors, speed, frameIndex, outputIndex, gifProgress, e, updateNodeData, nodeData]),
+    E = !!nodeData.loading,
+    D = !!nodeData.resultInfo,
+    O = !!nodeData.videoUrl;
+  // ── 渲染 ──
   return X.jsxs(`div`, {
     className: `relative group/node w-full h-full min-w-[300px] min-h-[200px]`,
     children: [X.jsx(si, {
@@ -15030,22 +15039,22 @@ var VideoToGifNodeComp = Y.memo(({
             className: `text-[11px]`,
             children: `上传视频 或 左侧连接视频节点`
           })]
-        }), a.errorMessage && X.jsxs(`div`, {
+        }), nodeData.errorMessage && X.jsxs(`div`, {
           className: `flex items-center gap-1.5 text-[11px] text-red-400`,
           children: [X.jsx(pt, {
             size: 13,
             className: `shrink-0`
           }), X.jsx(`span`, {
             className: `break-words`,
-            children: a.errorMessage
+            children: nodeData.errorMessage
           })]
         }), X.jsxs(`div`, {
           className: `grid grid-cols-4 gap-2`,
           children: [X.jsxs(`label`, {
             className: `nodrag flex flex-col gap-1 text-[10px] text-gray-500`,
             children: [`清晰度`, X.jsx(`select`, {
-              value: l,
-              onChange: e => u(Number(e.target.value)),
+              value: maxSize,
+              onChange: e => setMaxSize(Number(e.target.value)),
               className: `nodrag bg-[#222] border border-[#333] rounded px-1.5 py-1 text-[11px] text-gray-200 outline-none focus:border-[#555]`,
               children: zs.map(e => X.jsxs(`option`, {
                 value: e,
@@ -15055,8 +15064,8 @@ var VideoToGifNodeComp = Y.memo(({
           }), X.jsxs(`label`, {
             className: `nodrag flex flex-col gap-1 text-[10px] text-gray-500`,
             children: [`帧率`, X.jsx(`select`, {
-              value: s,
-              onChange: e => c(Number(e.target.value)),
+              value: fps,
+              onChange: e => setFps(Number(e.target.value)),
               className: `nodrag bg-[#222] border border-[#333] rounded px-1.5 py-1 text-[11px] text-gray-200 outline-none focus:border-[#555]`,
               children: Bs.map(e => X.jsxs(`option`, {
                 value: e,
@@ -15066,8 +15075,8 @@ var VideoToGifNodeComp = Y.memo(({
           }), X.jsxs(`label`, {
             className: `nodrag flex flex-col gap-1 text-[10px] text-gray-500`,
             children: [`速度`, X.jsx(`select`, {
-              value: p,
-              onChange: e => m(Number(e.target.value)),
+              value: speed,
+              onChange: e => setSpeed(Number(e.target.value)),
               className: `nodrag bg-[#222] border border-[#333] rounded px-1.5 py-1 text-[11px] text-gray-200 outline-none focus:border-[#555]`,
               children: Vs.map(e => X.jsx(`option`, {
                 value: e.value,
@@ -15077,8 +15086,8 @@ var VideoToGifNodeComp = Y.memo(({
           }), X.jsxs(`label`, {
             className: `nodrag flex flex-col gap-1 text-[10px] text-gray-500`,
             children: [`色彩`, X.jsx(`select`, {
-              value: d,
-              onChange: e => f(Number(e.target.value)),
+              value: colors,
+              onChange: e => setColors(Number(e.target.value)),
               className: `nodrag bg-[#222] border border-[#333] rounded px-1.5 py-1 text-[11px] text-gray-200 outline-none focus:border-[#555]`,
               children: Hs.map(e => X.jsx(`option`, {
                 value: e.value,
@@ -15086,7 +15095,7 @@ var VideoToGifNodeComp = Y.memo(({
               }, e.value))
             })]
           })]
-        }), h > 0 && X.jsxs(`div`, {
+        }), gifProgress > 0 && X.jsxs(`div`, {
           className: `nodrag flex items-center gap-2 text-[10px] text-gray-400`,
           children: [X.jsx(`span`, {
             className: `shrink-0`,
@@ -15094,36 +15103,36 @@ var VideoToGifNodeComp = Y.memo(({
           }), X.jsx(`input`, {
             type: `range`,
             min: 0,
-            max: h,
+            max: gifProgress,
             step: .1,
-            value: _,
-            onChange: e => v(Math.min(parseFloat(e.target.value), y - .1)),
+            value: frameIndex,
+            onChange: e => setFrameIndex(Math.min(parseFloat(e.target.value), outputIndex - .1)),
             className: `nodrag flex-1 accent-blue-500`
           }), X.jsx(`input`, {
             type: `range`,
             min: 0,
-            max: h,
+            max: gifProgress,
             step: .1,
-            value: y,
-            onChange: e => b(Math.max(parseFloat(e.target.value), _ + .1)),
+            value: outputIndex,
+            onChange: e => setOutputIndex(Math.max(parseFloat(e.target.value), frameIndex + .1)),
             className: `nodrag flex-1 accent-blue-500`
           }), X.jsxs(`span`, {
             className: `shrink-0 tabular-nums w-20 text-right`,
-            children: [_.toFixed(1), `-`, y.toFixed(1), `s`]
+            children: [frameIndex.toFixed(1), `-`, outputIndex.toFixed(1), `s`]
           })]
-        }), a.resultInfo && X.jsxs(`div`, {
+        }), nodeData.resultInfo && X.jsxs(`div`, {
           className: `text-[10px] text-gray-400 flex items-center gap-2 flex-wrap`,
           children: [X.jsxs(`span`, {
-            children: [a.resultInfo.width, `×`, a.resultInfo.height]
+            children: [nodeData.resultInfo.width, `×`, nodeData.resultInfo.height]
           }), X.jsx(`span`, {
             children: `·`
           }), X.jsxs(`span`, {
-            children: [a.resultInfo.frameCount, ` 帧`]
+            children: [nodeData.resultInfo.frameCount, ` 帧`]
           }), X.jsx(`span`, {
             children: `·`
           }), X.jsx(`span`, {
             className: `text-blue-400`,
-            children: Us(a.resultInfo.size)
+            children: Us(nodeData.resultInfo.size)
           })]
         }), X.jsxs(`div`, {
           className: `mt-auto flex items-center gap-2`,
@@ -15142,7 +15151,7 @@ var VideoToGifNodeComp = Y.memo(({
               children: [X.jsx(Nn, {
                 size: 13,
                 className: `animate-spin`
-              }), ` 生成中 `, a.progress || 0, `%`]
+              }), ` 生成中 `, nodeData.progress || 0, `%`]
             }) : X.jsxs(X.Fragment, {
               children: [X.jsx(ct, {
                 size: 13
@@ -15254,255 +15263,258 @@ var ImageCompressNodeComp = Y.memo(({
   data: n,
   selected: r
 }) => {
-  let {
-      updateNodeData: i
-    } = Gt(),
-    a = n,
-    o = Y.useRef(null),
-    [s, c] = Y.useState(n.maxSize ?? 0),
-    [l, u] = Y.useState(n.quality ?? .8),
-    [d, f] = Y.useState(n.format || `image/jpeg`),
-    [p, m] = Y.useState(!!n.targetKB),
-    [h, g] = Y.useState(n.targetKB || 200),
-    _ = t({
-      handleType: `target`
-    }),
-    v = ut(Y.useMemo(() => _.map(e => e.source), [_])),
-    y = Y.useMemo(() => tc(Array.isArray(v) ? v : v ? [v] : []), [v]);
-  Y.useEffect(() => {
-    i(e, {
-      imageUrls: y
-    });
-  }, [y, e, i]), Y.useEffect(() => {
-    i(e, {
-      maxSize: s,
-      quality: l,
-      format: d,
-      targetKB: p ? h : undefined
-    });
-  }, [s, l, d, p, h, e, i]);
-  let b = t => {
-      let n = t.target.files;
-      !n || n.length === 0 || (Array.from(n).forEach(t => {
-        let n = URL.createObjectURL(t);
-        a.onAddImage?.(e, n);
-      }), t.target.value = ``);
-    },
-    x = Y.useCallback(async () => {
-      let t = y;
-      if (!t || t.length === 0) {
-        a.onShowToast?.(`请先上传图片或连接包含图片的节点`);
-        return;
-      }
+// ── 状态 ──
+    let {
+        updateNodeData: i
+      } = Gt(),
+      nodeData = n,
+      fileInputRef = Y.useRef(null),
+      [maxSize, setMaxSize] = Y.useState(n.maxSize ?? 0),
+      [quality, setQuality] = Y.useState(n.quality ?? .8),
+      [format, setFormat] = Y.useState(n.format || `image/jpeg`),
+      [useTargetKB, setUseTargetKB] = Y.useState(!!n.targetKB),
+      [targetKB, setTargetKB] = Y.useState(n.targetKB || 200),
+      handles = t({
+        handleType: `target`
+      }),
+      connectedSources = ut(Y.useMemo(() => handles.map(e => e.source), [handles])),
+      imageUrls = Y.useMemo(() => tc(Array.isArray(connectedSources) ? connectedSources : connectedSources ? [connectedSources] : []), [connectedSources]);
+    Y.useEffect(() => {
       i(e, {
-        loading: true,
-        progress: 0,
-        errorMessage: undefined,
-        resultInfo: undefined
+        imageUrls: imageUrls
       });
-      let n = [],
-        r = 0,
-        o = 0,
-        c = ``;
-      for (let a = 0; a < t.length; a++) {
-        try {
-          let e = await Xs(t[a], {
-            maxSize: s,
-            quality: l,
-            format: d,
-            targetKB: p ? h : undefined
-          });
-          n.push({
-            url: e.dataUrl,
-            label: `压缩图 ${a + 1}`
-          }), r += e.originalSize, o += e.size;
-        } catch (e) {
-          c ||= e?.message || `压缩失败`;
+    }, [imageUrls, e, i]), Y.useEffect(() => {
+      i(e, {
+        maxSize: maxSize,
+        quality: quality,
+        format: format,
+        targetKB: useTargetKB ? targetKB : undefined
+      });
+    }, [maxSize, quality, format, useTargetKB, targetKB, e, i]);
+    // ── 回调 ──
+    let handleFileChange = evt => {
+        let files = evt.target.files;
+        !files || files.length === 0 || (Array.from(files).forEach(file => {
+          let objectUrl = URL.createObjectURL(file);
+          nodeData.onAddImage?.(e, objectUrl);
+        }), evt.target.value = ``);
+      },
+      handleCompress = Y.useCallback(async () => {
+        let urls = imageUrls;
+        if (!urls || urls.length === 0) {
+          nodeData.onShowToast?.(`请先上传图片或连接包含图片的节点`);
+          return;
         }
         i(e, {
-          progress: Math.round((a + 1) / t.length * 100)
+          loading: true,
+          progress: 0,
+          errorMessage: undefined,
+          resultInfo: undefined
         });
-      }
-      if (n.length === 0) {
+        let results = [],
+          totalOriginal = 0,
+          totalSize = 0,
+          errorMsg = ``;
+        for (let idx = 0; idx < urls.length; idx++) {
+          try {
+            let compressResult = await Xs(urls[idx], {
+              maxSize: maxSize,
+              quality: quality,
+              format: format,
+              targetKB: useTargetKB ? targetKB : undefined
+            });
+            results.push({
+              url: compressResult.dataUrl,
+              label: `压缩图 ${idx + 1}`
+            }), totalOriginal += compressResult.originalSize, totalSize += compressResult.size;
+          } catch (err) {
+            errorMsg ||= err?.message || `压缩失败`;
+          }
+          i(e, {
+            progress: Math.round((idx + 1) / urls.length * 100)
+          });
+        }
+        if (results.length === 0) {
+          i(e, {
+            loading: false,
+            errorMessage: errorMsg || `压缩失败`
+          }), nodeData.onShowToast?.(errorMsg || `压缩失败`);
+          return;
+        }
         i(e, {
           loading: false,
-          errorMessage: c || `压缩失败`
-        }), a.onShowToast?.(c || `压缩失败`);
-        return;
-      }
-      i(e, {
-        loading: false,
-        resultInfo: {
-          count: n.length,
-          totalOriginal: r,
-          totalSize: o
-        }
-      }), a.onPushImagesToImageBox && a.onPushImagesToImageBox(e, n) || n.forEach(t => a.onSpawnImageNode?.(e, t.url, t.label)), c && a.onShowToast?.(`部分图片压缩失败：${c}`);
-    }, [y, s, l, d, p, h, e, i, a]),
-    S = !!a.loading,
-    C = !!a.resultInfo,
-    w = d === `image/png`,
-    T = y.length;
-  return X.jsxs(`div`, {
-    className: `relative group/node w-full h-full min-w-[300px] min-h-[200px]`,
-    children: [X.jsx(si, {
-      id: e,
-      data: n,
-      defaultTitle: `图片压缩`,
-      icon: X.jsx(ft, {
-        size: 11,
-        className: `text-gray-500`
-      }),
-      floating: true
-    }), X.jsx(ci, {
-      visible: !!r,
-      minWidth: 300,
-      minHeight: 200
-    }), X.jsxs(`div`, {
-      className: `w-full h-full bg-[#1c1c1c] rounded-xl overflow-hidden border shadow-xl transition-all duration-300 flex flex-col drag-handle cursor-move ${r ? `border-[#555]` : `border-[#333] hover:border-[#444]`}`,
-      children: [X.jsx(_r, {
-        type: `target`,
-        position: J.Left
-      }), X.jsx(`input`, {
-        type: `file`,
-        ref: o,
-        multiple: true,
-        style: {
-          display: `none`
-        },
-        accept: `image/*`,
-        onChange: b
+          resultInfo: {
+            count: results.length,
+            totalOriginal: totalOriginal,
+            totalSize: totalSize
+          }
+        }), nodeData.onPushImagesToImageBox && nodeData.onPushImagesToImageBox(e, results) || results.forEach(result => nodeData.onSpawnImageNode?.(e, result.url, result.label)), errorMsg && nodeData.onShowToast?.(`部分图片压缩失败：${errorMsg}`);
+      }, [imageUrls, maxSize, quality, format, useTargetKB, targetKB, e, i, nodeData]),
+      isLoading = !!nodeData.loading,
+      hasResult = !!nodeData.resultInfo,
+      isPng = format === `image/png`,
+      imageCount = imageUrls.length;
+    // ── 渲染 ──
+    return X.jsxs(`div`, {
+      className: `relative group/node w-full h-full min-w-[300px] min-h-[200px]`,
+      children: [X.jsx(si, {
+        id: e,
+        data: n,
+        defaultTitle: `图片压缩`,
+        icon: X.jsx(ft, {
+          size: 11,
+          className: `text-gray-500`
+        }),
+        floating: true
+      }), X.jsx(ci, {
+        visible: !!r,
+        minWidth: 300,
+        minHeight: 200
       }), X.jsxs(`div`, {
-        className: `flex-1 p-3 flex flex-col gap-2.5`,
-        children: [T === 0 ? X.jsxs(`button`, {
-          onClick: () => o.current?.click(),
-          className: `nodrag flex flex-col items-center justify-center gap-1.5 py-3 rounded-lg border border-dashed border-[#3a3a3a] text-gray-500 hover:text-blue-400 hover:border-blue-500/50 transition-colors`,
-          children: [X.jsx(jn, {
-            size: 20
-          }), X.jsx(`span`, {
-            className: `text-[11px]`,
-            children: `上传图片 或 左侧连接图片节点`
-          })]
-        }) : X.jsxs(`div`, {
-          className: `text-[11px] text-gray-400`,
-          children: [`已连接 `, X.jsx(`span`, {
-            className: `text-blue-400`,
-            children: T
-          }), ` 张图片`]
-        }), a.errorMessage && X.jsxs(`div`, {
-          className: `flex items-center gap-1.5 text-[11px] text-red-400`,
-          children: [X.jsx(pt, {
-            size: 13,
-            className: `shrink-0`
-          }), X.jsx(`span`, {
-            className: `break-words`,
-            children: a.errorMessage
-          })]
+        className: `w-full h-full bg-[#1c1c1c] rounded-xl overflow-hidden border shadow-xl transition-all duration-300 flex flex-col drag-handle cursor-move ${r ? `border-[#555]` : `border-[#333] hover:border-[#444]`}`,
+        children: [X.jsx(_r, {
+          type: `target`,
+          position: J.Left
+        }), X.jsx(`input`, {
+          type: `file`,
+          ref: fileInputRef,
+          multiple: true,
+          style: {
+            display: `none`
+          },
+          accept: `image/*`,
+          onChange: handleFileChange
         }), X.jsxs(`div`, {
-          className: `grid grid-cols-3 gap-2`,
-          children: [X.jsxs(`label`, {
-            className: `nodrag flex flex-col gap-1 text-[10px] text-gray-500`,
-            children: [`尺寸`, X.jsx(`select`, {
-              value: s,
-              onChange: e => c(Number(e.target.value)),
-              className: `nodrag bg-[#222] border border-[#333] rounded px-1.5 py-1 text-[11px] text-gray-200 outline-none focus:border-[#555]`,
-              children: Zs.map(e => X.jsx(`option`, {
-                value: e.value,
-                children: e.label
-              }, e.value))
-            })]
-          }), X.jsxs(`label`, {
-            className: `nodrag flex flex-col gap-1 text-[10px] text-gray-500`,
-            children: [`清晰度`, X.jsx(`select`, {
-              value: l,
-              disabled: w || p,
-              onChange: e => u(Number(e.target.value)),
-              className: `nodrag bg-[#222] border border-[#333] rounded px-1.5 py-1 text-[11px] text-gray-200 outline-none focus:border-[#555] disabled:opacity-40`,
-              children: Qs.map(e => X.jsx(`option`, {
-                value: e.value,
-                children: e.label
-              }, e.value))
-            })]
-          }), X.jsxs(`label`, {
-            className: `nodrag flex flex-col gap-1 text-[10px] text-gray-500`,
-            children: [`格式`, X.jsx(`select`, {
-              value: d,
-              onChange: e => f(e.target.value),
-              className: `nodrag bg-[#222] border border-[#333] rounded px-1.5 py-1 text-[11px] text-gray-200 outline-none focus:border-[#555]`,
-              children: $s.map(e => X.jsx(`option`, {
-                value: e.value,
-                children: e.label
-              }, e.value))
-            })]
-          })]
-        }), !w && X.jsxs(`label`, {
-          className: `nodrag flex items-center gap-2 text-[10px] text-gray-400`,
-          children: [X.jsx(`input`, {
-            type: `checkbox`,
-            checked: p,
-            onChange: e => m(e.target.checked),
-            className: `nodrag accent-blue-500`
-          }), X.jsx(`span`, {
-            children: `限制目标大小`
-          }), p && X.jsxs(X.Fragment, {
-            children: [X.jsx(`input`, {
-              type: `number`,
-              min: 10,
-              max: 2e4,
-              value: h,
-              onChange: e => g(Math.max(10, Number(e.target.value) || 10)),
-              className: `nodrag w-16 bg-[#222] border border-[#333] rounded px-1.5 py-0.5 text-[11px] text-gray-200 outline-none focus:border-[#555]`
+          className: `flex-1 p-3 flex flex-col gap-2.5`,
+          children: [imageCount === 0 ? X.jsxs(`button`, {
+            onClick: () => fileInputRef.current?.click(),
+            className: `nodrag flex flex-col items-center justify-center gap-1.5 py-3 rounded-lg border border-dashed border-[#3a3a3a] text-gray-500 hover:text-blue-400 hover:border-blue-500/50 transition-colors`,
+            children: [X.jsx(jn, {
+              size: 20
             }), X.jsx(`span`, {
-              children: `KB`
+              className: `text-[11px]`,
+              children: `上传图片 或 左侧连接图片节点`
             })]
-          })]
-        }), a.resultInfo && X.jsxs(`div`, {
-          className: `text-[10px] text-gray-400 flex items-center gap-2 flex-wrap`,
-          children: [X.jsxs(`span`, {
-            children: [a.resultInfo.count, ` 张`]
-          }), X.jsx(`span`, {
-            children: `·`
-          }), a.resultInfo.totalOriginal ? X.jsxs(`span`, {
-            children: [ec(a.resultInfo.totalOriginal), ` → `, X.jsx(`span`, {
+          }) : X.jsxs(`div`, {
+            className: `text-[11px] text-gray-400`,
+            children: [`已连接 `, X.jsx(`span`, {
               className: `text-blue-400`,
-              children: ec(a.resultInfo.totalSize)
+              children: imageCount
+            }), ` 张图片`]
+          }), nodeData.errorMessage && X.jsxs(`div`, {
+            className: `flex items-center gap-1.5 text-[11px] text-red-400`,
+            children: [X.jsx(pt, {
+              size: 13,
+              className: `shrink-0`
+            }), X.jsx(`span`, {
+              className: `break-words`,
+              children: nodeData.errorMessage
             })]
-          }) : X.jsx(`span`, {
-            className: `text-blue-400`,
-            children: ec(a.resultInfo.totalSize)
+          }), X.jsxs(`div`, {
+            className: `grid grid-cols-3 gap-2`,
+            children: [X.jsxs(`label`, {
+              className: `nodrag flex flex-col gap-1 text-[10px] text-gray-500`,
+              children: [`尺寸`, X.jsx(`select`, {
+                value: maxSize,
+                onChange: evt => setMaxSize(Number(evt.target.value)),
+                className: `nodrag bg-[#222] border border-[#333] rounded px-1.5 py-1 text-[11px] text-gray-200 outline-none focus:border-[#555]`,
+                children: Zs.map(opt => X.jsx(`option`, {
+                  value: opt.value,
+                  children: opt.label
+                }, opt.value))
+              })]
+            }), X.jsxs(`label`, {
+              className: `nodrag flex flex-col gap-1 text-[10px] text-gray-500`,
+              children: [`清晰度`, X.jsx(`select`, {
+                value: quality,
+                disabled: isPng || useTargetKB,
+                onChange: evt => setQuality(Number(evt.target.value)),
+                className: `nodrag bg-[#222] border border-[#333] rounded px-1.5 py-1 text-[11px] text-gray-200 outline-none focus:border-[#555] disabled:opacity-40`,
+                children: Qs.map(opt => X.jsx(`option`, {
+                  value: opt.value,
+                  children: opt.label
+                }, opt.value))
+              })]
+            }), X.jsxs(`label`, {
+              className: `nodrag flex flex-col gap-1 text-[10px] text-gray-500`,
+              children: [`格式`, X.jsx(`select`, {
+                value: format,
+                onChange: evt => setFormat(evt.target.value),
+                className: `nodrag bg-[#222] border border-[#333] rounded px-1.5 py-1 text-[11px] text-gray-200 outline-none focus:border-[#555]`,
+                children: $s.map(opt => X.jsx(`option`, {
+                  value: opt.value,
+                  children: opt.label
+                }, opt.value))
+              })]
+            })]
+          }), !isPng && X.jsxs(`label`, {
+            className: `nodrag flex items-center gap-2 text-[10px] text-gray-400`,
+            children: [X.jsx(`input`, {
+              type: `checkbox`,
+              checked: useTargetKB,
+              onChange: evt => setUseTargetKB(evt.target.checked),
+              className: `nodrag accent-blue-500`
+            }), X.jsx(`span`, {
+              children: `限制目标大小`
+            }), useTargetKB && X.jsxs(X.Fragment, {
+              children: [X.jsx(`input`, {
+                type: `number`,
+                min: 10,
+                max: 2e4,
+                value: targetKB,
+                onChange: evt => setTargetKB(Math.max(10, Number(evt.target.value) || 10)),
+                className: `nodrag w-16 bg-[#222] border border-[#333] rounded px-1.5 py-0.5 text-[11px] text-gray-200 outline-none focus:border-[#555]`
+              }), X.jsx(`span`, {
+                children: `KB`
+              })]
+            })]
+          }), nodeData.resultInfo && X.jsxs(`div`, {
+            className: `text-[10px] text-gray-400 flex items-center gap-2 flex-wrap`,
+            children: [X.jsxs(`span`, {
+              children: [nodeData.resultInfo.count, ` 张`]
+            }), X.jsx(`span`, {
+              children: `·`
+            }), nodeData.resultInfo.totalOriginal ? X.jsxs(`span`, {
+              children: [ec(nodeData.resultInfo.totalOriginal), ` → `, X.jsx(`span`, {
+                className: `text-blue-400`,
+                children: ec(nodeData.resultInfo.totalSize)
+              })]
+            }) : X.jsx(`span`, {
+              className: `text-blue-400`,
+              children: ec(nodeData.resultInfo.totalSize)
+            })]
+          }), X.jsxs(`div`, {
+            className: `mt-auto flex items-center gap-2`,
+            children: [X.jsx(`button`, {
+              onClick: () => fileInputRef.current?.click(),
+              className: `nodrag flex items-center justify-center h-8 w-8 rounded-md text-gray-300 bg-[#2a2a2a] hover:bg-[#333] border border-[#333] transition-colors`,
+              title: `上传图片`,
+              children: X.jsx(jn, {
+                size: 14
+              })
+            }), X.jsx(`button`, {
+              onClick: handleCompress,
+              disabled: isLoading || imageCount === 0,
+              className: `nodrag flex-1 flex items-center justify-center gap-1.5 h-8 rounded-md text-[12px] font-medium bg-white text-[#141414] hover:bg-gray-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors`,
+              children: isLoading ? X.jsxs(X.Fragment, {
+                children: [X.jsx(Nn, {
+                  size: 13,
+                  className: `animate-spin`
+                }), ` 压缩中 `, nodeData.progress || 0, `%`]
+              }) : X.jsxs(X.Fragment, {
+                children: [X.jsx(ct, {
+                  size: 13
+                }), ` `, hasResult ? `重新免费压缩` : `免费压缩`, imageCount > 1 ? `（${imageCount}张）` : ``]
+              })
+            })]
           })]
-        }), X.jsxs(`div`, {
-          className: `mt-auto flex items-center gap-2`,
-          children: [X.jsx(`button`, {
-            onClick: () => o.current?.click(),
-            className: `nodrag flex items-center justify-center h-8 w-8 rounded-md text-gray-300 bg-[#2a2a2a] hover:bg-[#333] border border-[#333] transition-colors`,
-            title: `上传图片`,
-            children: X.jsx(jn, {
-              size: 14
-            })
-          }), X.jsx(`button`, {
-            onClick: x,
-            disabled: S || T === 0,
-            className: `nodrag flex-1 flex items-center justify-center gap-1.5 h-8 rounded-md text-[12px] font-medium bg-white text-[#141414] hover:bg-gray-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors`,
-            children: S ? X.jsxs(X.Fragment, {
-              children: [X.jsx(Nn, {
-                size: 13,
-                className: `animate-spin`
-              }), ` 压缩中 `, a.progress || 0, `%`]
-            }) : X.jsxs(X.Fragment, {
-              children: [X.jsx(ct, {
-                size: 13
-              }), ` `, C ? `重新免费压缩` : `免费压缩`, T > 1 ? `（${T}张）` : ``]
-            })
-          })]
+        }), X.jsx(_r, {
+          type: `source`,
+          position: J.Right,
+          id: `main-output`
         })]
-      }), X.jsx(_r, {
-        type: `source`,
-        position: J.Right,
-        id: `main-output`
       })]
-    })]
-  });
+    });
 });
 function rc(e) {
   try {
@@ -16005,339 +16017,342 @@ var FaceMosaicNodeComp = Y.memo(({
   data: n,
   selected: r
 }) => {
-  let {
-      updateNodeData: i
-    } = Gt(),
-    a = n,
-    o = Y.useRef(null),
-    [s, c] = Y.useState(n.mode || `mosaic`),
-    [l, u] = Y.useState(n.strength ?? .5),
-    [d, f] = Y.useState(n.color || `#000000`),
-    [p, m] = Y.useState(false),
-    h = t({
-      handleType: `target`
-    }),
-    g = ut(Y.useMemo(() => h.map(e => e.source), [h])),
-    _ = Y.useMemo(() => Sc(Array.isArray(g) ? g : g ? [g] : []), [g]);
-  Y.useEffect(() => {
-    i(e, {
-      imageUrls: _
-    });
-  }, [_, e, i]), Y.useEffect(() => {
-    i(e, {
-      mode: s,
-      strength: l,
-      color: d
-    });
-  }, [s, l, d, e, i]);
-  let {
-      useThumbnail: v
-    } = pr(),
-    y = t => {
-      let n = t.target.files;
-      !n || n.length === 0 || (Array.from(n).forEach(t => {
-        let n = URL.createObjectURL(t);
-        a.onAddImage?.(e, n);
-      }), t.target.value = ``);
-    },
-    b = Y.useCallback(t => {
-      a.onPushImagesToImageBox && a.onPushImagesToImageBox(e, t) || t.forEach(t => a.onSpawnImageNode?.(e, t.url, t.label));
-    }, [e, a]),
-    x = Y.useCallback(async () => {
-      let t = _;
-      if (!t || t.length === 0) {
-        a.onShowToast?.(`请先上传图片或连接包含图片的节点`);
-        return;
-      }
+// ── 状态 ──
+    let {
+        updateNodeData: i
+      } = Gt(),
+      nodeData = n,
+      fileInputRef = Y.useRef(null),
+      [mode, setMode] = Y.useState(n.mode || `mosaic`),
+      [strength, setStrength] = Y.useState(n.strength ?? .5),
+      [color, setColor] = Y.useState(n.color || `#000000`),
+      [showManualMosaic, setShowManualMosaic] = Y.useState(false),
+      handles = t({
+        handleType: `target`
+      }),
+      connectedSources = ut(Y.useMemo(() => handles.map(e => e.source), [handles])),
+      imageUrls = Y.useMemo(() => Sc(Array.isArray(connectedSources) ? connectedSources : connectedSources ? [connectedSources] : []), [connectedSources]);
+    Y.useEffect(() => {
       i(e, {
-        loading: true,
-        progress: 0,
-        errorMessage: undefined,
-        resultInfo: undefined,
-        resultUrls: undefined
+        imageUrls: imageUrls
       });
-      let n = [],
-        r = 0,
-        o = ``,
-        c = xc.find(e => e.mode === s)?.label || `打码`;
-      for (let a = 0; a < t.length; a++) {
-        try {
-          let e = await _c(t[a], {
-              mode: s,
-              strength: l,
-              color: d
-            }),
-            i = await ii(e.dataUrl, {
-              preferThumbnail: true,
-              subfolder: `canvas/face_mosaic`
-            });
-          n.push({
-            url: i.url,
-            label: `${c} ${a + 1}`
-          }), r += e.faceCount;
-        } catch (e) {
-          o ||= e?.message || `打码失败`;
+    }, [imageUrls, e, i]), Y.useEffect(() => {
+      i(e, {
+        mode: mode,
+        strength: strength,
+        color: color
+      });
+    }, [mode, strength, color, e, i]);
+    let {
+        useThumbnail: useThumbnail
+      } = pr(),
+      // ── 回调 ──
+      handleFileChange = evt => {
+        let files = evt.target.files;
+        !files || files.length === 0 || (Array.from(files).forEach(file => {
+          let objectUrl = URL.createObjectURL(file);
+          nodeData.onAddImage?.(e, objectUrl);
+        }), evt.target.value = ``);
+      },
+      pushImages = Y.useCallback(images => {
+        nodeData.onPushImagesToImageBox && nodeData.onPushImagesToImageBox(e, images) || images.forEach(img => nodeData.onSpawnImageNode?.(e, img.url, img.label));
+      }, [e, nodeData]),
+      handleAiMosaic = Y.useCallback(async () => {
+        let urls = imageUrls;
+        if (!urls || urls.length === 0) {
+          nodeData.onShowToast?.(`请先上传图片或连接包含图片的节点`);
+          return;
         }
         i(e, {
-          progress: Math.round((a + 1) / t.length * 100)
+          loading: true,
+          progress: 0,
+          errorMessage: undefined,
+          resultInfo: undefined,
+          resultUrls: undefined
         });
-      }
-      if (n.length === 0) {
+        let results = [],
+          faceTotal = 0,
+          errorMsg = ``,
+          modeLabel = xc.find(opt => opt.mode === mode)?.label || `打码`;
+        for (let idx = 0; idx < urls.length; idx++) {
+          try {
+            let mosaicResult = await _c(urls[idx], {
+                mode: mode,
+                strength: strength,
+                color: color
+              }),
+              uploaded = await ii(mosaicResult.dataUrl, {
+                preferThumbnail: true,
+                subfolder: `canvas/face_mosaic`
+              });
+            results.push({
+              url: uploaded.url,
+              label: `${modeLabel} ${idx + 1}`
+            }), faceTotal += mosaicResult.faceCount;
+          } catch (err) {
+            errorMsg ||= err?.message || `打码失败`;
+          }
+          i(e, {
+            progress: Math.round((idx + 1) / urls.length * 100)
+          });
+        }
+        if (results.length === 0) {
+          i(e, {
+            loading: false,
+            errorMessage: errorMsg || `打码失败`
+          }), nodeData.onShowToast?.(errorMsg || `打码失败`);
+          return;
+        }
+        let resultUrls = results.map(result => result.url);
         i(e, {
           loading: false,
-          errorMessage: o || `打码失败`
-        }), a.onShowToast?.(o || `打码失败`);
-        return;
-      }
-      let u = n.map(e => e.url);
-      i(e, {
-        loading: false,
-        resultInfo: {
-          count: n.length,
-          faceTotal: r
-        },
-        resultUrls: u
-      }), b(n), r === 0 && a.onShowToast?.(`未检测到人脸`), o && a.onShowToast?.(`部分图片处理失败：${o}`);
-    }, [_, s, l, d, e, i, a, b]),
-    S = Y.useCallback(async t => {
-      m(false), i(e, {
-        loading: true,
-        progress: 0,
-        errorMessage: undefined,
-        resultInfo: undefined,
-        resultUrls: undefined
-      });
-      try {
-        let n = (await ii(t, {
-          preferThumbnail: true,
-          subfolder: `canvas/face_mosaic`
-        })).url;
-        b([{
-          url: n,
-          label: `手动打码`
-        }]), i(e, {
           resultInfo: {
-            count: 1,
-            faceTotal: 0
+            count: results.length,
+            faceTotal: faceTotal
           },
-          resultUrls: [n],
-          loading: false
+          resultUrls: resultUrls
+        }), pushImages(results), faceTotal === 0 && nodeData.onShowToast?.(`未检测到人脸`), errorMsg && nodeData.onShowToast?.(`部分图片处理失败：${errorMsg}`);
+      }, [imageUrls, mode, strength, color, e, i, nodeData, pushImages]),
+      handleManualSave = Y.useCallback(async dataUrl => {
+        setShowManualMosaic(false), i(e, {
+          loading: true,
+          progress: 0,
+          errorMessage: undefined,
+          resultInfo: undefined,
+          resultUrls: undefined
         });
-      } catch {
-        b([{
-          url: t,
-          label: `手动打码`
-        }]), i(e, {
-          resultInfo: {
-            count: 1,
-            faceTotal: 0
-          },
-          resultUrls: [t],
-          loading: false
-        });
-      }
-    }, [b, e, i]),
-    C = !!a.loading,
-    w = _.length;
-  return X.jsxs(`div`, {
-    className: `relative group/node w-full h-full min-w-[320px] min-h-[250px]`,
-    children: [X.jsx(si, {
-      id: e,
-      data: n,
-      defaultTitle: `人脸打码`,
-      icon: X.jsx(j, {
-        size: 11,
-        className: `text-gray-500`
-      }),
-      floating: true
-    }), X.jsx(ci, {
-      visible: !!r,
-      minWidth: 320,
-      minHeight: 250
-    }), X.jsxs(`div`, {
-      className: `w-full h-full bg-[#1c1c1c] rounded-xl overflow-hidden border shadow-xl transition-all duration-300 flex flex-col drag-handle cursor-move ${r ? `border-[#555]` : `border-[#333] hover:border-[#444]`}`,
-      children: [X.jsx(_r, {
-        type: `target`,
-        position: J.Left
-      }), X.jsx(`input`, {
-        type: `file`,
-        ref: o,
-        multiple: true,
-        style: {
-          display: `none`
-        },
-        accept: `image/*`,
-        onChange: y
+        try {
+          let uploaded = (await ii(dataUrl, {
+            preferThumbnail: true,
+            subfolder: `canvas/face_mosaic`
+          })).url;
+          pushImages([{
+            url: uploaded,
+            label: `手动打码`
+          }]), i(e, {
+            resultInfo: {
+              count: 1,
+              faceTotal: 0
+            },
+            resultUrls: [uploaded],
+            loading: false
+          });
+        } catch {
+          pushImages([{
+            url: dataUrl,
+            label: `手动打码`
+          }]), i(e, {
+            resultInfo: {
+              count: 1,
+              faceTotal: 0
+            },
+            resultUrls: [dataUrl],
+            loading: false
+          });
+        }
+      }, [pushImages, e, i]),
+      isLoading = !!nodeData.loading,
+      imageCount = imageUrls.length;
+    // ── 渲染 ──
+    return X.jsxs(`div`, {
+      className: `relative group/node w-full h-full min-w-[320px] min-h-[250px]`,
+      children: [X.jsx(si, {
+        id: e,
+        data: n,
+        defaultTitle: `人脸打码`,
+        icon: X.jsx(j, {
+          size: 11,
+          className: `text-gray-500`
+        }),
+        floating: true
+      }), X.jsx(ci, {
+        visible: !!r,
+        minWidth: 320,
+        minHeight: 250
       }), X.jsxs(`div`, {
-        className: `flex-1 p-3 flex flex-col gap-2.5`,
-        children: [w === 0 ? X.jsxs(`button`, {
-          onClick: () => o.current?.click(),
-          className: `nodrag flex flex-col items-center justify-center gap-1.5 py-3 rounded-lg border border-dashed border-[#3a3a3a] text-gray-500 hover:text-blue-400 hover:border-blue-500/50 transition-colors`,
-          children: [X.jsx(jn, {
-            size: 20
-          }), X.jsx(`span`, {
-            className: `text-[11px]`,
-            children: `上传图片 或 左侧连接图片节点`
-          })]
-        }) : X.jsxs(`div`, {
-          className: `text-[11px] text-gray-400`,
-          children: [`已连接 `, X.jsx(`span`, {
-            className: `text-blue-400`,
-            children: w
-          }), ` 张图片`]
-        }), a.errorMessage && X.jsxs(`div`, {
-          className: `flex items-center gap-1.5 text-[11px] text-red-400`,
-          children: [X.jsx(pt, {
-            size: 13,
-            className: `shrink-0`
-          }), X.jsx(`span`, {
-            className: `break-words`,
-            children: a.errorMessage
-          })]
-        }), X.jsx(`div`, {
-          className: `grid grid-cols-4 gap-1.5`,
-          children: xc.map(({
-            mode: e,
-            label: t,
-            icon: n
-          }) => X.jsxs(`button`, {
-            onClick: () => c(e),
-            className: `nodrag flex flex-col items-center justify-center gap-1 py-1.5 rounded-md text-[11px] border transition-colors ${s === e ? `bg-blue-600 text-white border-blue-500` : `text-gray-300 bg-[#222] hover:bg-[#2a2a2a] border-[#333]`}`,
-            children: [X.jsx(n, {
-              size: 14
-            }), t]
-          }, e))
-        }), X.jsxs(`label`, {
-          className: `nodrag flex items-center gap-2 text-[10px] text-gray-400`,
-          children: [X.jsx(`span`, {
-            className: `w-8`,
-            children: s === `grid` ? `密度` : s === `bar` ? `透明度` : `程度`
-          }), X.jsx(`input`, {
-            type: `range`,
-            min: 0,
-            max: 1,
-            step: .05,
-            value: l,
-            onChange: e => u(Number(e.target.value)),
-            className: `nodrag accent-blue-500 flex-1`
-          }), X.jsxs(`span`, {
-            className: `w-8 text-right text-gray-500`,
-            children: [Math.round(l * 100), `%`]
-          })]
-        }), (s === `bar` || s === `grid`) && X.jsxs(`div`, {
-          className: `nodrag flex items-center gap-2 text-[10px] text-gray-400`,
-          children: [X.jsx(`span`, {
-            className: `w-8`,
-            children: `颜色`
+        className: `w-full h-full bg-[#1c1c1c] rounded-xl overflow-hidden border shadow-xl transition-all duration-300 flex flex-col drag-handle cursor-move ${r ? `border-[#555]` : `border-[#333] hover:border-[#444]`}`,
+        children: [X.jsx(_r, {
+          type: `target`,
+          position: J.Left
+        }), X.jsx(`input`, {
+          type: `file`,
+          ref: fileInputRef,
+          multiple: true,
+          style: {
+            display: `none`
+          },
+          accept: `image/*`,
+          onChange: handleFileChange
+        }), X.jsxs(`div`, {
+          className: `flex-1 p-3 flex flex-col gap-2.5`,
+          children: [imageCount === 0 ? X.jsxs(`button`, {
+            onClick: () => fileInputRef.current?.click(),
+            className: `nodrag flex flex-col items-center justify-center gap-1.5 py-3 rounded-lg border border-dashed border-[#3a3a3a] text-gray-500 hover:text-blue-400 hover:border-blue-500/50 transition-colors`,
+            children: [X.jsx(jn, {
+              size: 20
+            }), X.jsx(`span`, {
+              className: `text-[11px]`,
+              children: `上传图片 或 左侧连接图片节点`
+            })]
+          }) : X.jsxs(`div`, {
+            className: `text-[11px] text-gray-400`,
+            children: [`已连接 `, X.jsx(`span`, {
+              className: `text-blue-400`,
+              children: imageCount
+            }), ` 张图片`]
+          }), nodeData.errorMessage && X.jsxs(`div`, {
+            className: `flex items-center gap-1.5 text-[11px] text-red-400`,
+            children: [X.jsx(pt, {
+              size: 13,
+              className: `shrink-0`
+            }), X.jsx(`span`, {
+              className: `break-words`,
+              children: nodeData.errorMessage
+            })]
           }), X.jsx(`div`, {
-            className: `flex items-center gap-1.5 flex-1`,
-            children: [`#000000`, `#ffffff`, `#ef4444`, `#22c55e`, `#3b82f6`, `#eab308`, `#a855f7`, `#ec4899`].map(e => X.jsx(`button`, {
-              onClick: () => f(e),
-              className: `w-4 h-4 rounded-full border border-[#333] ${d === e ? `ring-2 ring-blue-500 ring-offset-1 ring-offset-[#1c1c1c]` : ``}`,
-              style: {
-                backgroundColor: e
-              }
-            }, e))
-          })]
-        }), a.resultInfo && X.jsxs(`div`, {
-          className: `text-[10px] text-gray-400 flex items-center gap-2 flex-wrap`,
-          children: [X.jsxs(`span`, {
-            children: [a.resultInfo.count, ` 张`]
-          }), a.resultInfo.faceTotal > 0 && X.jsxs(X.Fragment, {
+            className: `grid grid-cols-4 gap-1.5`,
+            children: xc.map(({
+              mode: modeOpt,
+              label: label,
+              icon: icon
+            }) => X.jsxs(`button`, {
+              onClick: () => setMode(modeOpt),
+              className: `nodrag flex flex-col items-center justify-center gap-1 py-1.5 rounded-md text-[11px] border transition-colors ${mode === modeOpt ? `bg-blue-600 text-white border-blue-500` : `text-gray-300 bg-[#222] hover:bg-[#2a2a2a] border-[#333]`}`,
+              children: [X.jsx(icon, {
+                size: 14
+              }), label]
+            }, modeOpt))
+          }), X.jsxs(`label`, {
+            className: `nodrag flex items-center gap-2 text-[10px] text-gray-400`,
             children: [X.jsx(`span`, {
-              children: `·`
+              className: `w-8`,
+              children: mode === `grid` ? `密度` : mode === `bar` ? `透明度` : `程度`
+            }), X.jsx(`input`, {
+              type: `range`,
+              min: 0,
+              max: 1,
+              step: .05,
+              value: strength,
+              onChange: evt => setStrength(Number(evt.target.value)),
+              className: `nodrag accent-blue-500 flex-1`
             }), X.jsxs(`span`, {
-              children: [`共 `, X.jsx(`span`, {
-                className: `text-blue-400`,
-                children: a.resultInfo.faceTotal
-              }), ` 张人脸`]
+              className: `w-8 text-right text-gray-500`,
+              children: [Math.round(strength * 100), `%`]
+            })]
+          }), (mode === `bar` || mode === `grid`) && X.jsxs(`div`, {
+            className: `nodrag flex items-center gap-2 text-[10px] text-gray-400`,
+            children: [X.jsx(`span`, {
+              className: `w-8`,
+              children: `颜色`
+            }), X.jsx(`div`, {
+              className: `flex items-center gap-1.5 flex-1`,
+              children: [`#000000`, `#ffffff`, `#ef4444`, `#22c55e`, `#3b82f6`, `#eab308`, `#a855f7`, `#ec4899`].map(colorHex => X.jsx(`button`, {
+                onClick: () => setColor(colorHex),
+                className: `w-4 h-4 rounded-full border border-[#333] ${color === colorHex ? `ring-2 ring-blue-500 ring-offset-1 ring-offset-[#1c1c1c]` : ``}`,
+                style: {
+                  backgroundColor: colorHex
+                }
+              }, colorHex))
+            })]
+          }), nodeData.resultInfo && X.jsxs(`div`, {
+            className: `text-[10px] text-gray-400 flex items-center gap-2 flex-wrap`,
+            children: [X.jsxs(`span`, {
+              children: [nodeData.resultInfo.count, ` 张`]
+            }), nodeData.resultInfo.faceTotal > 0 && X.jsxs(X.Fragment, {
+              children: [X.jsx(`span`, {
+                children: `·`
+              }), X.jsxs(`span`, {
+                children: [`共 `, X.jsx(`span`, {
+                  className: `text-blue-400`,
+                  children: nodeData.resultInfo.faceTotal
+                }), ` 张人脸`]
+              })]
+            })]
+          }), nodeData.resultUrls && nodeData.resultUrls.length > 0 && X.jsx(`div`, {
+            className: `nodrag nowheel mt-1 mb-2 grid grid-cols-2 gap-1.5 max-h-[140px] overflow-y-auto pr-1`,
+            style: {
+              scrollbarWidth: `thin`
+            },
+            children: nodeData.resultUrls.map((resultUrl, idx) => {
+              let thumbnailUrl = useThumbnail && Lr(resultUrl, 420, `image`) || resultUrl;
+              return X.jsxs(`div`, {
+                className: `relative aspect-video bg-[#111] rounded-md overflow-hidden border border-[#333] group`,
+                children: [X.jsx(`img`, {
+                  src: thumbnailUrl,
+                  alt: `result-${idx}`,
+                  className: `w-full h-full object-cover`,
+                  loading: `lazy`,
+                  onError: evt => {
+                    let img = evt.currentTarget;
+                    img.src !== resultUrl && (img.src = resultUrl);
+                  },
+                  onDoubleClick: evt => {
+                    evt.stopPropagation(), nodeData.onZoom?.(e, resultUrl, thumbnailUrl);
+                  }
+                }), X.jsx(`div`, {
+                  className: `absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors pointer-events-none`
+                }), X.jsx(`button`, {
+                  className: `absolute top-1 right-1 p-1 bg-black/60 text-gray-300 hover:text-white rounded opacity-0 group-hover:opacity-100 transition-opacity`,
+                  onClick: evt => {
+                    evt.stopPropagation(), nodeData.onZoom?.(e, resultUrl, thumbnailUrl);
+                  },
+                  title: `放大查看`,
+                  children: X.jsx(rt, {
+                    size: 12
+                  })
+                })]
+              }, idx);
+            })
+          }), X.jsxs(`div`, {
+            className: `mt-auto flex items-center gap-2`,
+            children: [X.jsx(`button`, {
+              onClick: () => fileInputRef.current?.click(),
+              className: `nodrag flex items-center justify-center h-8 w-8 rounded-md text-gray-300 bg-[#2a2a2a] hover:bg-[#333] border border-[#333] transition-colors`,
+              title: `上传图片`,
+              children: X.jsx(jn, {
+                size: 14
+              })
+            }), X.jsxs(`button`, {
+              onClick: () => {
+                if (imageCount === 0) {
+                  nodeData.onShowToast?.(`请先上传或连接图片`);
+                  return;
+                }
+                setShowManualMosaic(true);
+              },
+              disabled: imageCount === 0,
+              className: `nodrag flex items-center justify-center gap-1 h-8 px-2.5 rounded-md text-[12px] text-gray-300 bg-[#2a2a2a] hover:bg-[#333] border border-[#333] disabled:opacity-40 disabled:cursor-not-allowed transition-colors`,
+              title: `手动打码`,
+              children: [X.jsx(Ut, {
+                size: 13
+              }), ` 手动`]
+            }), X.jsx(`button`, {
+              onClick: handleAiMosaic,
+              disabled: isLoading || imageCount === 0,
+              className: `nodrag flex-1 flex items-center justify-center gap-1.5 h-8 rounded-md text-[12px] font-medium bg-white text-[#141414] hover:bg-gray-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors`,
+              children: isLoading ? X.jsxs(X.Fragment, {
+                children: [X.jsx(Nn, {
+                  size: 13,
+                  className: `animate-spin`
+                }), ` 处理中 `, nodeData.progress || 0, `%`]
+              }) : X.jsxs(X.Fragment, {
+                children: [X.jsx(ct, {
+                  size: 13
+                }), ` AI打码`, imageCount > 1 ? `（${imageCount}张）` : ``]
+              })
             })]
           })]
-        }), a.resultUrls && a.resultUrls.length > 0 && X.jsx(`div`, {
-          className: `nodrag nowheel mt-1 mb-2 grid grid-cols-2 gap-1.5 max-h-[140px] overflow-y-auto pr-1`,
-          style: {
-            scrollbarWidth: `thin`
-          },
-          children: a.resultUrls.map((t, n) => {
-            let r = v && Lr(t, 420, `image`) || t;
-            return X.jsxs(`div`, {
-              className: `relative aspect-video bg-[#111] rounded-md overflow-hidden border border-[#333] group`,
-              children: [X.jsx(`img`, {
-                src: r,
-                alt: `result-${n}`,
-                className: `w-full h-full object-cover`,
-                loading: `lazy`,
-                onError: e => {
-                  let n = e.currentTarget;
-                  n.src !== t && (n.src = t);
-                },
-                onDoubleClick: n => {
-                  n.stopPropagation(), a.onZoom?.(e, t, r);
-                }
-              }), X.jsx(`div`, {
-                className: `absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors pointer-events-none`
-              }), X.jsx(`button`, {
-                className: `absolute top-1 right-1 p-1 bg-black/60 text-gray-300 hover:text-white rounded opacity-0 group-hover:opacity-100 transition-opacity`,
-                onClick: n => {
-                  n.stopPropagation(), a.onZoom?.(e, t, r);
-                },
-                title: `放大查看`,
-                children: X.jsx(rt, {
-                  size: 12
-                })
-              })]
-            }, n);
-          })
-        }), X.jsxs(`div`, {
-          className: `mt-auto flex items-center gap-2`,
-          children: [X.jsx(`button`, {
-            onClick: () => o.current?.click(),
-            className: `nodrag flex items-center justify-center h-8 w-8 rounded-md text-gray-300 bg-[#2a2a2a] hover:bg-[#333] border border-[#333] transition-colors`,
-            title: `上传图片`,
-            children: X.jsx(jn, {
-              size: 14
-            })
-          }), X.jsxs(`button`, {
-            onClick: () => {
-              if (w === 0) {
-                a.onShowToast?.(`请先上传或连接图片`);
-                return;
-              }
-              m(true);
-            },
-            disabled: w === 0,
-            className: `nodrag flex items-center justify-center gap-1 h-8 px-2.5 rounded-md text-[12px] text-gray-300 bg-[#2a2a2a] hover:bg-[#333] border border-[#333] disabled:opacity-40 disabled:cursor-not-allowed transition-colors`,
-            title: `手动打码`,
-            children: [X.jsx(Ut, {
-              size: 13
-            }), ` 手动`]
-          }), X.jsx(`button`, {
-            onClick: x,
-            disabled: C || w === 0,
-            className: `nodrag flex-1 flex items-center justify-center gap-1.5 h-8 rounded-md text-[12px] font-medium bg-white text-[#141414] hover:bg-gray-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors`,
-            children: C ? X.jsxs(X.Fragment, {
-              children: [X.jsx(Nn, {
-                size: 13,
-                className: `animate-spin`
-              }), ` 处理中 `, a.progress || 0, `%`]
-            }) : X.jsxs(X.Fragment, {
-              children: [X.jsx(ct, {
-                size: 13
-              }), ` AI打码`, w > 1 ? `（${w}张）` : ``]
-            })
-          })]
+        }), X.jsx(_r, {
+          type: `source`,
+          position: J.Right,
+          id: `main-output`
         })]
-      }), X.jsx(_r, {
-        type: `source`,
-        position: J.Right,
-        id: `main-output`
+      }), showManualMosaic && imageUrls[0] && X.jsx(bc, {
+        imageUrl: imageUrls[0],
+        onSave: handleManualSave,
+        onClose: () => setShowManualMosaic(false)
       })]
-    }), p && _[0] && X.jsx(bc, {
-      imageUrl: _[0],
-      onSave: S,
-      onClose: () => m(false)
-    })]
-  });
+    });
 });
 function wc(e) {
   return e instanceof HTMLVideoElement ? {
@@ -16565,153 +16580,156 @@ var CompareNodeComp = Y.memo(({
     data: n,
     selected: r
   }) => {
+// ── 状态 ──
     let {
         updateNodeData: i
       } = Gt(),
-      a = n,
-      [o, s] = Y.useState(n.split ?? .5),
-      [c, l] = Y.useState(n.orientation || `v`),
-      [u, d] = Y.useState(false),
-      [f, p] = Y.useState(``),
-      [m, h] = Y.useState(0),
-      g = Y.useRef(null),
-      _ = Y.useRef(false),
-      v = Y.useRef(null),
-      y = Y.useRef(null),
-      b = Y.useRef(null),
-      x = Y.useRef(null),
-      S = t({
+      nodeData = n,
+      [split, setSplit] = Y.useState(n.split ?? .5),
+      [orientation, setOrientation] = Y.useState(n.orientation || `v`),
+      [isPlaying, setIsPlaying] = Y.useState(false),
+      [busyAction, setBusyAction] = Y.useState(``),
+      [recordProgress, setRecordProgress] = Y.useState(0),
+      containerRef = Y.useRef(null),
+      isDragging = Y.useRef(false),
+      videoARef = Y.useRef(null),
+      videoBRef = Y.useRef(null),
+      imgARef = Y.useRef(null),
+      imgBRef = Y.useRef(null),
+      handles = t({
         handleType: `target`
       }),
-      C = ut(Y.useMemo(() => S.map(e => e.source), [S])),
-      [w, T] = Y.useMemo(() => {
-        let e = Array.isArray(C) ? C : C ? [C] : [],
-          t = [];
-        for (let n of S) {
-          let r = e.find(e => e.id === n.source)?.data,
-            i = Ic(r);
-          if (i && !t.some(e => e.url === i) && t.push({
-            url: i,
-            kind: Fc(i)
-          }), t.length >= 2) break;
+      connectedSources = ut(Y.useMemo(() => handles.map(e => e.source), [handles])),
+      [sourceA, sourceB] = Y.useMemo(() => {
+        let sourcesArr = Array.isArray(connectedSources) ? connectedSources : connectedSources ? [connectedSources] : [],
+          list = [];
+        for (let handle of handles) {
+          let handleData = sourcesArr.find(src => src.id === handle.source)?.data,
+            url = Ic(handleData);
+          if (url && !list.some(item => item.url === url) && list.push({
+            url: url,
+            kind: Fc(url)
+          }), list.length >= 2) break;
         }
-        return [t[0] || null, t[1] || null];
-      }, [C, S]);
+        return [list[0] || null, list[1] || null];
+      }, [connectedSources, handles]);
     Y.useEffect(() => {
       i(e, {
-        split: o,
-        orientation: c
+        split: split,
+        orientation: orientation
       });
-    }, [o, c, e, i]);
-    let E = Y.useCallback((e, t) => {
-        let n = g.current;
-        if (!n) return;
-        let r = n.getBoundingClientRect(),
-          i = c === `v` ? (e - r.left) / r.width : (t - r.top) / r.height;
-        s(Math.max(0, Math.min(1, i)));
-      }, [c]),
-      D = e => {
-        e.stopPropagation(), _.current = true, e.target.setPointerCapture?.(e.pointerId), E(e.clientX, e.clientY);
+    }, [split, orientation, e, i]);
+    // ── 回调 ──
+    let handlePointerUpdate = Y.useCallback((clientX, clientY) => {
+        let el = containerRef.current;
+        if (!el) return;
+        let rect = el.getBoundingClientRect(),
+          ratio = orientation === `v` ? (clientX - rect.left) / rect.width : (clientY - rect.top) / rect.height;
+        setSplit(Math.max(0, Math.min(1, ratio)));
+      }, [orientation]),
+      handlePointerDown = evt => {
+        evt.stopPropagation(), isDragging.current = true, evt.target.setPointerCapture?.(evt.pointerId), handlePointerUpdate(evt.clientX, evt.clientY);
       },
-      O = e => {
-        _.current && E(e.clientX, e.clientY);
+      handlePointerMove = evt => {
+        isDragging.current && handlePointerUpdate(evt.clientX, evt.clientY);
       },
-      k = e => {
-        _.current = false, e.target.releasePointerCapture?.(e.pointerId);
+      handlePointerUp = evt => {
+        isDragging.current = false, evt.target.releasePointerCapture?.(evt.pointerId);
       },
-      A = w?.kind === `video` || T?.kind === `video`,
-      j = !!w && !!T,
-      M = a.labelA || `A`,
-      N = a.labelB || `B`,
-      P = Y.useCallback(() => {
-        let e = !u;
-        d(e), [v.current, y.current].forEach(t => {
-          t && (e ? t.play().catch(() => {}) : t.pause());
+      hasVideo = sourceA?.kind === `video` || sourceB?.kind === `video`,
+      hasBoth = !!sourceA && !!sourceB,
+      labelA = nodeData.labelA || `A`,
+      labelB = nodeData.labelB || `B`,
+      handlePlayPause = Y.useCallback(() => {
+        let nextPlaying = !isPlaying;
+        setIsPlaying(nextPlaying), [videoARef.current, videoBRef.current].forEach(ref => {
+          ref && (nextPlaying ? ref.play().catch(() => {}) : ref.pause());
         });
-      }, [u]),
-      F = Y.useCallback(() => {
-        let e = v.current,
-          t = y.current;
-        e && t && Math.abs(e.currentTime - t.currentTime) > .15 && (t.currentTime = e.currentTime);
+      }, [isPlaying]),
+      handleSyncTime = Y.useCallback(() => {
+        let va = videoARef.current,
+          vb = videoBRef.current;
+        va && vb && Math.abs(va.currentTime - vb.currentTime) > .15 && (vb.currentTime = va.currentTime);
       }, []),
-      I = () => {
-        s(.5), [v.current, y.current].forEach(e => {
-          e && (e.currentTime = 0);
+      handleReset = () => {
+        setSplit(.5), [videoARef.current, videoBRef.current].forEach(ref => {
+          ref && (ref.currentTime = 0);
         });
       },
-      L = Y.useCallback(() => {
-        let e = w?.kind === `video` ? v.current : b.current,
-          t = T?.kind === `video` ? y.current : x.current;
-        return !e || !t ? null : [e, t];
-      }, [w, T]),
-      ee = Y.useCallback(async () => {
-        let t = L();
-        if (t) {
-          p(`export`);
+      getMediaElements = Y.useCallback(() => {
+        let elA = sourceA?.kind === `video` ? videoARef.current : imgARef.current,
+          elB = sourceB?.kind === `video` ? videoBRef.current : imgBRef.current;
+        return !elA || !elB ? null : [elA, elB];
+      }, [sourceA, sourceB]),
+      handleExportImage = Y.useCallback(async () => {
+        let mediaEls = getMediaElements();
+        if (mediaEls) {
+          setBusyAction(`export`);
           try {
-            let n = await ii(await jc(await Mc(t[0], t[1], {
+            let exportedUrl = await ii(await jc(await Mc(mediaEls[0], mediaEls[1], {
               mode: `slider`,
-              orientation: c,
-              split: o,
+              orientation: orientation,
+              split: split,
               drawDivider: true
             })), {
               preferThumbnail: true,
               subfolder: `canvas/compare`
             });
-            a.onSpawnImageNode?.(e, n.url, `对比图`), a.onShowToast?.(`已生成对比图节点`);
-          } catch (e) {
-            a.onShowToast?.(e?.message || `生成对比图失败`);
+            nodeData.onSpawnImageNode?.(e, exportedUrl.url, `对比图`), nodeData.onShowToast?.(`已生成对比图节点`);
+          } catch (err) {
+            nodeData.onShowToast?.(err?.message || `生成对比图失败`);
           } finally {
-            p(``);
+            setBusyAction(``);
           }
         }
-      }, [L, c, o, e, a]),
-      R = Y.useCallback(async () => {
-        let t = L();
-        if (t) {
-          p(`record`), h(0);
+      }, [getMediaElements, orientation, split, e, nodeData]),
+      handleRecord = Y.useCallback(async () => {
+        let mediaEls = getMediaElements();
+        if (mediaEls) {
+          setBusyAction(`record`), setRecordProgress(0);
           try {
             let {
-                blob: n,
-                ext: r
+                blob: blob,
+                ext: ext
               } = await Pc({
-                a: t[0],
-                b: t[1],
+                a: mediaEls[0],
+                b: mediaEls[1],
                 mode: `slider`,
-                orientation: c,
+                orientation: orientation,
                 durationMs: 4e3,
                 fps: 30,
-                onProgress: e => h(Math.round(e * 100))
+                onProgress: progress => setRecordProgress(Math.round(progress * 100))
               }),
-              i = await ii(await jc(n), {
+              uploaded = await ii(await jc(blob), {
                 subfolder: `canvas/compare`
               }),
-              o = /\.(mp4|webm|mov)($|\?)/i.test(i.url) ? i.url : `${i.url}#.${r}`;
-            a.onSpawnImageNode?.(e, o, `对比视频`), a.onShowToast?.(`已生成对比视频节点，可连「视频转GIF」转 GIF`);
-          } catch (e) {
-            a.onShowToast?.(e?.message || `录制失败`);
+              finalUrl = /\.(mp4|webm|mov)($|\?)/i.test(uploaded.url) ? uploaded.url : `${uploaded.url}#.${ext}`;
+            nodeData.onSpawnImageNode?.(e, finalUrl, `对比视频`), nodeData.onShowToast?.(`已生成对比视频节点，可连「视频转GIF」转 GIF`);
+          } catch (err) {
+            nodeData.onShowToast?.(err?.message || `录制失败`);
           } finally {
-            p(``), h(0);
+            setBusyAction(``), setRecordProgress(0);
           }
         }
-      }, [L, c, e, a]),
-      B = (e, t) => e.kind === `video` ? X.jsx(`video`, {
-        ref: t ? v : y,
-        src: e.url,
+      }, [getMediaElements, orientation, e, nodeData]),
+      renderSource = (source, isA) => source.kind === `video` ? X.jsx(`video`, {
+        ref: isA ? videoARef : videoBRef,
+        src: source.url,
         crossOrigin: `anonymous`,
         className: `absolute inset-0 w-full h-full object-contain bg-black`,
         muted: true,
         loop: true,
         playsInline: true,
-        onTimeUpdate: t ? F : undefined
+        onTimeUpdate: isA ? handleSyncTime : undefined
       }) : X.jsx(`img`, {
-        ref: t ? b : x,
-        src: e.url,
+        ref: isA ? imgARef : imgBRef,
+        src: source.url,
         crossOrigin: `anonymous`,
-        alt: t ? `A` : `B`,
+        alt: isA ? `A` : `B`,
         className: `absolute inset-0 w-full h-full object-contain bg-black`,
         draggable: false
       });
+    // ── 渲染 ──
     return X.jsxs(`div`, {
       className: `relative group/node w-full h-full min-w-[360px] min-h-[300px]`,
       children: [X.jsx(si, {
@@ -16734,32 +16752,32 @@ var CompareNodeComp = Y.memo(({
           position: J.Left
         }), X.jsx(`div`, {
           className: `relative flex-1 m-2 rounded-lg overflow-hidden bg-black select-none`,
-          children: j ? X.jsxs(`div`, {
-            ref: g,
+          children: hasBoth ? X.jsxs(`div`, {
+            ref: containerRef,
             className: `nodrag absolute inset-0`,
-            onPointerDown: D,
-            onPointerMove: O,
-            onPointerUp: k,
+            onPointerDown: handlePointerDown,
+            onPointerMove: handlePointerMove,
+            onPointerUp: handlePointerUp,
             style: {
-              cursor: c === `v` ? `ew-resize` : `ns-resize`,
+              cursor: orientation === `v` ? `ew-resize` : `ns-resize`,
               touchAction: `none`
             },
-            children: [B(T, false), X.jsx(`div`, {
+            children: [renderSource(sourceB, false), X.jsx(`div`, {
               className: `absolute inset-0`,
               style: {
-                clipPath: c === `v` ? `inset(0 ${(1 - o) * 100}% 0 0)` : `inset(0 0 ${(1 - o) * 100}% 0)`
+                clipPath: orientation === `v` ? `inset(0 ${(1 - split) * 100}% 0 0)` : `inset(0 0 ${(1 - split) * 100}% 0)`
               },
-              children: B(w, true)
+              children: renderSource(sourceA, true)
             }), X.jsx(`div`, {
               className: `absolute bg-white/90 shadow-[0_0_6px_rgba(0,0,0,0.6)] pointer-events-none`,
-              style: c === `v` ? {
-                left: `${o * 100}%`,
+              style: orientation === `v` ? {
+                left: `${split * 100}%`,
                 top: 0,
                 bottom: 0,
                 width: 2,
                 transform: `translateX(-1px)`
               } : {
-                top: `${o * 100}%`,
+                top: `${split * 100}%`,
                 left: 0,
                 right: 0,
                 height: 2,
@@ -16767,7 +16785,7 @@ var CompareNodeComp = Y.memo(({
               },
               children: X.jsx(`div`, {
                 className: `absolute bg-white rounded-full flex items-center justify-center shadow-lg text-[#141414]`,
-                style: c === `v` ? {
+                style: orientation === `v` ? {
                   top: `50%`,
                   left: `50%`,
                   width: 26,
@@ -16780,7 +16798,7 @@ var CompareNodeComp = Y.memo(({
                   height: 26,
                   transform: `translate(-50%, -50%)`
                 },
-                children: c === `v` ? X.jsx(tt, {
+                children: orientation === `v` ? X.jsx(tt, {
                   size: 14
                 }) : X.jsx(ln, {
                   size: 14
@@ -16788,10 +16806,10 @@ var CompareNodeComp = Y.memo(({
               })
             }), X.jsx(`span`, {
               className: `absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded bg-black/60 text-[10px] text-white pointer-events-none`,
-              children: M
+              children: labelA
             }), X.jsx(`span`, {
               className: `absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded bg-black/60 text-[10px] text-white pointer-events-none`,
-              children: N
+              children: labelB
             })]
           }) : X.jsxs(`div`, {
             className: `absolute inset-0 flex flex-col items-center justify-center gap-2 text-gray-500`,
@@ -16802,33 +16820,33 @@ var CompareNodeComp = Y.memo(({
               children: `连接 2 个图片 / 视频节点进行对比`
             }), X.jsxs(`span`, {
               className: `text-[10px] text-gray-600`,
-              children: [`已连接 `, [w, T].filter(Boolean).length, ` / 2`]
+              children: [`已连接 `, [sourceA, sourceB].filter(Boolean).length, ` / 2`]
             })]
           })
         }), X.jsxs(`div`, {
           className: `flex items-center gap-2 px-2.5 pb-2.5`,
           children: [X.jsx(`button`, {
-            onClick: () => l(e => e === `v` ? `h` : `v`),
+            onClick: () => setOrientation(prev => prev === `v` ? `h` : `v`),
             className: `nodrag flex items-center justify-center h-7 w-7 rounded-md text-gray-300 bg-[#2a2a2a] hover:bg-[#333] border border-[#333] transition-colors`,
-            title: c === `v` ? `切换为上下对比` : `切换为左右对比`,
-            children: c === `v` ? X.jsx(tt, {
+            title: orientation === `v` ? `切换为上下对比` : `切换为左右对比`,
+            children: orientation === `v` ? X.jsx(tt, {
               size: 14
             }) : X.jsx(ln, {
               size: 14
             })
           }), X.jsx(`button`, {
-            onClick: I,
+            onClick: handleReset,
             className: `nodrag flex items-center justify-center h-7 w-7 rounded-md text-gray-300 bg-[#2a2a2a] hover:bg-[#333] border border-[#333] transition-colors`,
             title: `重置`,
             children: X.jsx(z, {
               size: 14
             })
-          }), A && X.jsx(`button`, {
-            onClick: P,
-            disabled: !j,
+          }), hasVideo && X.jsx(`button`, {
+            onClick: handlePlayPause,
+            disabled: !hasBoth,
             className: `nodrag flex items-center justify-center h-7 w-7 rounded-md text-gray-300 bg-[#2a2a2a] hover:bg-[#333] border border-[#333] disabled:opacity-40 transition-colors`,
-            title: u ? `暂停` : `播放`,
-            children: u ? X.jsx(wt, {
+            title: isPlaying ? `暂停` : `播放`,
+            children: isPlaying ? X.jsx(wt, {
               size: 14
             }) : X.jsx(ct, {
               size: 14
@@ -16836,26 +16854,26 @@ var CompareNodeComp = Y.memo(({
           }), X.jsxs(`div`, {
             className: `ml-auto flex items-center gap-1.5`,
             children: [X.jsxs(`button`, {
-              onClick: ee,
-              disabled: !j || !!f,
+              onClick: handleExportImage,
+              disabled: !hasBoth || !!busyAction,
               className: `nodrag flex items-center justify-center gap-1 h-7 px-2.5 rounded-md text-[11px] text-gray-300 bg-[#2a2a2a] hover:bg-[#333] border border-[#333] disabled:opacity-40 transition-colors`,
               title: `生成对比图节点`,
-              children: [f === `export` ? X.jsx(Nn, {
+              children: [busyAction === `export` ? X.jsx(Nn, {
                 size: 13,
                 className: `animate-spin`
               }) : X.jsx(mn, {
                 size: 13
               }), ` 导图`]
             }), X.jsx(`button`, {
-              onClick: R,
-              disabled: !j || !!f,
+              onClick: handleRecord,
+              disabled: !hasBoth || !!busyAction,
               className: `nodrag flex items-center justify-center gap-1 h-7 px-2.5 rounded-md text-[11px] text-gray-300 bg-[#2a2a2a] hover:bg-[#333] border border-[#333] disabled:opacity-40 transition-colors`,
               title: `生成对比视频节点（可连视频转GIF）`,
-              children: f === `record` ? X.jsxs(X.Fragment, {
+              children: busyAction === `record` ? X.jsxs(X.Fragment, {
                 children: [X.jsx(Nn, {
                   size: 13,
                   className: `animate-spin`
-                }), ` `, m, `%`]
+                }), ` `, recordProgress, `%`]
               }) : X.jsxs(X.Fragment, {
                 children: [X.jsx(Ke, {
                   size: 13
@@ -16870,7 +16888,7 @@ var CompareNodeComp = Y.memo(({
         })]
       })]
     });
-  }),
+}),
   TextConcatNodeComp = Y.memo(({
     id: e,
     data: n,
@@ -17418,38 +17436,39 @@ var Jc = Y.forwardRef(({
     data: n,
     selected: r
   }) => {
+// ── 状态 ──
     let {
-        updateNodeData: i,
-        getNode: a,
-        setNodes: o
+        updateNodeData: updateNodeData,
+        getNode: getNode,
+        setNodes: setNodes
       } = Gt(),
-      [s, c] = Y.useState(75),
-      [l, u] = Y.useState(false),
-      [d, f] = Y.useState(n.panoType || `sphere`),
-      p = a(e)?.measured?.width,
-      m = a(e)?.measured?.height;
+      [fov, setFov] = Y.useState(75),
+      [isFullscreen, setFullscreen] = Y.useState(false),
+      [panoType, setPanoType] = Y.useState(n.panoType || `sphere`),
+      measuredWidth = getNode(e)?.measured?.width,
+      measuredHeight = getNode(e)?.measured?.height;
     Y.useEffect(() => {
       let e = [10, 50, 150, 300].map(e => setTimeout(() => window.dispatchEvent(new Event(`resize`)), e));
       return () => e.forEach(clearTimeout);
-    }, [l, r, p, m]);
-    let [h, g] = Y.useState(n.highQuality === undefined ? false : n.highQuality),
-      [_, v] = Y.useState(false),
-      [y, b] = Y.useState(null),
-      x = Y.useRef(null),
-      S = Y.useRef(null),
-      [C, w] = Y.useState(n.aspectRatio || `16:9`),
-      [T, E] = Y.useState({
+    }, [isFullscreen, r, measuredWidth, measuredHeight]);
+    let [highQuality, setHighQuality] = Y.useState(n.highQuality === undefined ? false : n.highQuality),
+      [isCapturing, setCapturing] = Y.useState(false),
+      [captureMode, setCaptureMode] = Y.useState(null),
+      orbitControlsRef = Y.useRef(null),
+      viewerRef = Y.useRef(null),
+      [aspectRatio, setAspectRatio] = Y.useState(n.aspectRatio || `16:9`),
+      [customRatio, setCustomRatio] = Y.useState({
         w: 16,
         h: 9
       }),
-      D = C === `custom` ? `${T.w}/${T.h}` : C.replace(`:`, `/`);
+      ratioExpr = aspectRatio === `custom` ? `${customRatio.w}/${customRatio.h}` : aspectRatio.replace(`:`, `/`);
     Y.useEffect(() => {
-      i(e, {
-        aspectRatio: C,
-        highQuality: h
+      updateNodeData(e, {
+        aspectRatio: aspectRatio,
+        highQuality: highQuality
       });
-    }, [C, h, e]), Y.useEffect(() => {
-      o(t => t.map(t => {
+    }, [aspectRatio, highQuality, e]), Y.useEffect(() => {
+      setNodes(t => t.map(t => {
         if (t.id === e) {
           let e = t.measured?.width || t.width || 512,
             n = Math.round(e / (16 / 9)),
@@ -17466,44 +17485,45 @@ var Jc = Y.forwardRef(({
         return t;
       }));
     }, [e]);
-    let [O, k] = Y.useState(null),
-      A = e => {
-        k(e), setTimeout(() => k(null), 2500);
+    let [toastMsg, setToastMsg] = Y.useState(null),
+      flashToast = e => {
+        setToastMsg(e), setTimeout(() => setToastMsg(null), 2500);
       },
-      j = e => e >= 12 ? `正在截取12大视角…` : e >= 4 ? `正在截取四大视角…` : `正在截取当前视角…`,
-      M = e => e >= 12 ? `twelve` : e >= 4 ? `four` : `current`;
+      toastTextForCount = e => e >= 12 ? `正在截取12大视角…` : e >= 4 ? `正在截取四大视角…` : `正在截取当前视角…`,
+      captureModeForCount = e => e >= 12 ? `twelve` : e >= 4 ? `four` : `current`;
     Y.useEffect(() => {
-      if (!l) return;
+      if (!isFullscreen) return;
       let e = e => {
         e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement;
       };
       return window.addEventListener(`keydown`, e), () => {
         window.removeEventListener(`keydown`, e);
       };
-    }, [l, n.showToast]);
-    let N = ut(t({
+    }, [isFullscreen, n.showToast]);
+    let incomingSources = ut(t({
         handleType: `target`
       }).map(e => e.source)),
-      P = Y.useMemo(() => {
-        if (N) {
-          let e = (Array.isArray(N) ? N : [N]).find(e => {
+      resolvedImageUrl = Y.useMemo(() => {
+        if (incomingSources) {
+          let e = (Array.isArray(incomingSources) ? incomingSources : [incomingSources]).find(e => {
             let t = e?.data?.imageUrl;
             return !!(t && !t.startsWith(`data:video/`) && !t.startsWith(`data:audio/`) && !t.startsWith(`data:text/`));
           });
           if (e) return e.data.imageUrl;
         }
         return n.imageUrl ? n.imageUrl : null;
-      }, [N, n.imageUrl]),
-      F = Y.useCallback(async (t = [0]) => {
-        if (x.current) {
-          if (b(M(t.length)), A(j(t.length)), v(true), !a(e)) {
-            v(false);
+      }, [incomingSources, n.imageUrl]),
+      // ── 回调 ──
+      handleCapture = Y.useCallback(async (t = [0]) => {
+        if (orbitControlsRef.current) {
+          if (setCaptureMode(captureModeForCount(t.length)), flashToast(toastTextForCount(t.length)), setCapturing(true), !getNode(e)) {
+            setCapturing(false);
             return;
           }
           try {
-            let r = await S.current?.capture(t, D);
+            let r = await viewerRef.current?.capture(t, ratioExpr);
             if (r && r.length > 0) {
-              if (t.length === 1 && r[0] && i(e, {
+              if (t.length === 1 && r[0] && updateNodeData(e, {
                 imageUrl: r[0]
               }), typeof n.onCaptureToBox == `function`) {
                 let i = r.map((e, n) => ({
@@ -17512,15 +17532,16 @@ var Jc = Y.forwardRef(({
                 }));
                 n.onCaptureToBox(e, i);
               }
-              typeof n.showToast == `function` && n.showToast(`已截图并放入图片盒子`), A(`截图已放入图片盒子`);
+              typeof n.showToast == `function` && n.showToast(`已截图并放入图片盒子`), flashToast(`截图已放入图片盒子`);
             }
           } catch (e) {
-            console.error(`Screenshot failed`, e), A(`截图失败，请重试`);
+            console.error(`Screenshot failed`, e), flashToast(`截图失败，请重试`);
           } finally {
-            v(false), b(null);
+            setCapturing(false), setCaptureMode(null);
           }
         }
-      }, [e, i, n, D, a]);
+      }, [e, updateNodeData, n, ratioExpr, getNode]);
+    // ── 渲染 ──
     return X.jsxs(`div`, {
       className: `flex flex-col items-center group/node transition-shadow duration-200 w-full h-full ${r ? `z-50` : `z-10`}`,
       children: [X.jsx(si, {
@@ -17546,7 +17567,7 @@ var Jc = Y.forwardRef(({
           height: `100%`
         },
         onWheel: e => {
-          e.stopPropagation(), c(t => {
+          e.stopPropagation(), setFov(t => {
             let n = t + (e.deltaY > 0 ? 5 : -5);
             return Math.min(Math.max(n, 30), 120);
           });
@@ -17556,7 +17577,7 @@ var Jc = Y.forwardRef(({
           children: X.jsx(`div`, {
             className: `w-12 h-1.5 bg-white/20 rounded-full pointer-events-none`
           })
-        }), P ? X.jsxs(`div`, {
+        }), resolvedImageUrl ? X.jsxs(`div`, {
           className: `absolute inset-0 cursor-move nowheel nodrag z-0 overflow-hidden bg-black`,
           children: [X.jsx(yt, {
             resize: {
@@ -17564,11 +17585,11 @@ var Jc = Y.forwardRef(({
             },
             gl: {
               preserveDrawingBuffer: true,
-              antialias: h,
+              antialias: highQuality,
               alpha: true,
               powerPreference: `high-performance`
             },
-            dpr: h ? window.devicePixelRatio ? Math.max(window.devicePixelRatio, 2) : 2 : [1, 1.5],
+            dpr: highQuality ? window.devicePixelRatio ? Math.max(window.devicePixelRatio, 2) : 2 : [1, 1.5],
             style: {
               position: `absolute`,
               top: 0,
@@ -17578,39 +17599,39 @@ var Jc = Y.forwardRef(({
               display: `block`
             },
             children: X.jsx(Jc, {
-              ref: S,
-              url: P,
-              panoType: d,
-              fov: s,
-              highQuality: h,
-              orbitControlsRefLocal: x
+              ref: viewerRef,
+              url: resolvedImageUrl,
+              panoType: panoType,
+              fov: fov,
+              highQuality: highQuality,
+              orbitControlsRefLocal: orbitControlsRef
             })
           }), X.jsxs(`div`, {
-            className: `absolute top-1/2 left-4 -translate-y-1/2 flex flex-col items-center gap-1 z-30 bg-black/60 p-1.5 rounded-xl backdrop-blur-md border border-white/10 shadow-lg nodrag transition-opacity duration-300 ${_ ? `opacity-100 pointer-events-none` : `opacity-0 group-hover/image:opacity-100`}`,
+            className: `absolute top-1/2 left-4 -translate-y-1/2 flex flex-col items-center gap-1 z-30 bg-black/60 p-1.5 rounded-xl backdrop-blur-md border border-white/10 shadow-lg nodrag transition-opacity duration-300 ${isCapturing ? `opacity-100 pointer-events-none` : `opacity-0 group-hover/image:opacity-100`}`,
             onClick: e => e.stopPropagation(),
             children: [X.jsx(`button`, {
-              className: `p-2.5 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-all active:scale-95 ${y === `current` ? `text-white bg-white/10` : ``}`,
-              onClick: () => F([0]),
+              className: `p-2.5 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-all active:scale-95 ${captureMode === `current` ? `text-white bg-white/10` : ``}`,
+              onClick: () => handleCapture([0]),
               title: `当前视角截图`,
               children: X.jsx(Qe, {
                 size: 16,
-                className: y === `current` ? `animate-spin` : ``
+                className: captureMode === `current` ? `animate-spin` : ``
               })
             }), X.jsx(`button`, {
-              className: `p-2.5 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-all active:scale-95 ${y === `four` ? `text-white bg-white/10` : ``}`,
-              onClick: () => F([90, 180, 270, 0]),
+              className: `p-2.5 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-all active:scale-95 ${captureMode === `four` ? `text-white bg-white/10` : ``}`,
+              onClick: () => handleCapture([90, 180, 270, 0]),
               title: `四大视角截图 (90, 180, 270, 0度)`,
               children: X.jsx(Tn, {
                 size: 16,
-                className: y === `four` ? `animate-spin` : ``
+                className: captureMode === `four` ? `animate-spin` : ``
               })
             }), X.jsx(`button`, {
-              className: `p-2.5 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-all active:scale-95 ${y === `twelve` ? `text-white bg-white/10` : ``}`,
-              onClick: () => F([0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330]),
+              className: `p-2.5 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-all active:scale-95 ${captureMode === `twelve` ? `text-white bg-white/10` : ``}`,
+              onClick: () => handleCapture([0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330]),
               title: `12大视角截图 (每30度)`,
               children: X.jsx(_e, {
                 size: 16,
-                className: y === `twelve` ? `animate-spin` : ``
+                className: captureMode === `twelve` ? `animate-spin` : ``
               })
             })]
           }), X.jsxs(`div`, {
@@ -17620,8 +17641,8 @@ var Jc = Y.forwardRef(({
               className: `text-[10px] text-gray-400 px-2 whitespace-nowrap shrink-0`,
               children: `截图比例`
             }), X.jsxs(`select`, {
-              value: C,
-              onChange: e => w(e.target.value),
+              value: aspectRatio,
+              onChange: e => setAspectRatio(e.target.value),
               className: `bg-transparent text-gray-200 text-[10px] pl-1 pr-4 py-0.5 outline-none cursor-pointer appearance-none text-center font-bold shrink-0`,
               style: {
                 WebkitAppearance: `none`,
@@ -17644,12 +17665,12 @@ var Jc = Y.forwardRef(({
                 className: `bg-[#222]`,
                 children: `自定义`
               })]
-            }), C === `custom` && X.jsxs(`div`, {
+            }), aspectRatio === `custom` && X.jsxs(`div`, {
               className: `flex items-center gap-1 ml-2 mr-2 border-l border-white/20 pl-2 shrink-0`,
               children: [X.jsx(`input`, {
                 type: `number`,
-                value: T.w,
-                onChange: e => E(t => ({
+                value: customRatio.w,
+                onChange: e => setCustomRatio(t => ({
                   ...t,
                   w: Number(e.target.value)
                 })),
@@ -17659,24 +17680,24 @@ var Jc = Y.forwardRef(({
                 children: `:`
               }), X.jsx(`input`, {
                 type: `number`,
-                value: T.h,
-                onChange: e => E(t => ({
+                value: customRatio.h,
+                onChange: e => setCustomRatio(t => ({
                   ...t,
                   h: Number(e.target.value)
                 })),
                 className: `w-8 bg-transparent text-gray-200 text-[10px] outline-none text-center border-b border-transparent focus:border-white/50 min-w-[32px]`
               })]
             })]
-          }), O && X.jsx(`div`, {
+          }), toastMsg && X.jsx(`div`, {
             className: `absolute top-0 left-1/2 z-50 pointer-events-none nodrag flex items-center justify-center`,
             children: X.jsx(`div`, {
               className: `animate-[dropIn_2.5s_cubic-bezier(0.175,0.885,0.32,1.275)_forwards] bg-[#0a0a0a]/90 backdrop-blur-xl border border-white/30 px-6 py-3 rounded-2xl shadow-[0_10px_30px_rgba(0,0,0,0.5)] flex items-center gap-2 mt-12`,
               children: X.jsx(`span`, {
                 className: `text-white font-bold tracking-wider text-sm`,
-                children: O
+                children: toastMsg
               })
             })
-          }), _ && X.jsx(`div`, {
+          }), isCapturing && X.jsx(`div`, {
             className: `absolute inset-0 z-40 pointer-events-none nodrag flex items-center justify-center bg-black/20 backdrop-blur-[1px]`,
             children: X.jsxs(`div`, {
               className: `bg-black/80 border border-white/20 rounded-2xl px-5 py-3 shadow-2xl flex items-center gap-3`,
@@ -17687,7 +17708,7 @@ var Jc = Y.forwardRef(({
                 children: `截图处理中…`
               })]
             })
-          }), !_ && X.jsx(`div`, {
+          }), !isCapturing && X.jsx(`div`, {
             className: `absolute inset-0 pointer-events-none z-[5]`,
             style: {
               display: `flex`,
@@ -17697,7 +17718,7 @@ var Jc = Y.forwardRef(({
             children: X.jsx(`div`, {
               className: `border-[2px] border-dashed border-white/30 shadow-[0_0_0_9999px_rgba(0,0,0,0.4)] transition-all duration-300`,
               style: {
-                aspectRatio: D,
+                aspectRatio: ratioExpr,
                 height: `100%`,
                 maxHeight: `100%`,
                 maxWidth: `100%`
@@ -17708,7 +17729,7 @@ var Jc = Y.forwardRef(({
             title: `全屏漫游`,
             onPointerDown: e => e.stopPropagation(),
             onClick: e => {
-              e.preventDefault(), e.stopPropagation(), u(true);
+              e.preventDefault(), e.stopPropagation(), setFullscreen(true);
             },
             children: X.jsx(bt, {
               size: 18
@@ -17760,8 +17781,8 @@ var Jc = Y.forwardRef(({
                   className: `text-[10px] text-gray-400 whitespace-nowrap`,
                   children: `截图比例`
                 }), X.jsxs(`select`, {
-                  value: C,
-                  onChange: e => w(e.target.value),
+                  value: aspectRatio,
+                  onChange: e => setAspectRatio(e.target.value),
                   className: `flex-1 min-w-0 bg-[#111] text-gray-300 text-[10px] px-1 py-0.5 rounded border border-[#444] outline-none cursor-pointer focus:border-white/50`,
                   children: [X.jsx(`option`, {
                     value: `16:9`,
@@ -17776,12 +17797,12 @@ var Jc = Y.forwardRef(({
                     value: `custom`,
                     children: `自定义`
                   })]
-                }), C === `custom` && X.jsxs(`div`, {
+                }), aspectRatio === `custom` && X.jsxs(`div`, {
                   className: `flex items-center gap-1`,
                   children: [X.jsx(`input`, {
                     type: `number`,
-                    value: T.w,
-                    onChange: e => E(t => ({
+                    value: customRatio.w,
+                    onChange: e => setCustomRatio(t => ({
                       ...t,
                       w: Number(e.target.value)
                     })),
@@ -17791,8 +17812,8 @@ var Jc = Y.forwardRef(({
                     children: `:`
                   }), X.jsx(`input`, {
                     type: `number`,
-                    value: T.h,
-                    onChange: e => E(t => ({
+                    value: customRatio.h,
+                    onChange: e => setCustomRatio(t => ({
                       ...t,
                       h: Number(e.target.value)
                     })),
@@ -17814,8 +17835,8 @@ var Jc = Y.forwardRef(({
                   className: `flex items-center gap-1.5 cursor-pointer`,
                   children: [X.jsx(`input`, {
                     type: `checkbox`,
-                    checked: h,
-                    onChange: e => g(e.target.checked),
+                    checked: highQuality,
+                    onChange: e => setHighQuality(e.target.checked),
                     className: `w-3 h-3 rounded border-[#444] bg-[#111] accent-white`
                   }), X.jsx(`span`, {
                     className: `text-[10px] text-gray-400 select-none`,
@@ -17823,9 +17844,9 @@ var Jc = Y.forwardRef(({
                     children: `高画质`
                   })]
                 }), X.jsxs(`select`, {
-                  value: d,
+                  value: panoType,
                   onChange: t => {
-                    f(t.target.value), i(e, {
+                    setPanoType(t.target.value), updateNodeData(e, {
                       panoType: t.target.value
                     });
                   },
@@ -17845,14 +17866,14 @@ var Jc = Y.forwardRef(({
             children: X.jsxs(`button`, {
               type: `button`,
               className: `w-full py-2.5 bg-white hover:bg-gray-200 text-black text-sm font-bold rounded-lg flex items-center justify-center gap-2 transition-all shrink-0 shadow-[0_0_20px_rgba(255,255,255,0.15)] transform hover:scale-[1.02]`,
-              onClick: () => F(),
+              onClick: () => handleCapture(),
               children: [X.jsx(Qe, {
                 size: 16
               }), ` 截图并生成节点`]
             })
           })]
         })]
-      }), l && P && Un.createPortal(X.jsxs(`div`, {
+      }), isFullscreen && resolvedImageUrl && Un.createPortal(X.jsxs(`div`, {
         className: `fixed inset-0 z-[9999] bg-[#0a0a0a] flex flex-col`,
         onClick: e => e.stopPropagation(),
         children: [X.jsxs(`div`, {
@@ -17860,7 +17881,7 @@ var Jc = Y.forwardRef(({
           children: [X.jsxs(`button`, {
             className: `bg-white hover:bg-gray-200 text-black px-5 py-2.5 rounded-lg flex items-center gap-2 shadow-[0_0_20px_rgba(255,255,255,0.2)] transition-all transform hover:scale-105`,
             onClick: () => {
-              F();
+              handleCapture();
             },
             children: [X.jsx(Qe, {
               size: 18
@@ -17870,7 +17891,7 @@ var Jc = Y.forwardRef(({
             })]
           }), X.jsx(`button`, {
             className: `bg-black/50 hover:bg-white/10 text-white p-2.5 rounded-lg backdrop-blur border border-white/10 transition-colors`,
-            onClick: () => u(false),
+            onClick: () => setFullscreen(false),
             children: X.jsx(yn, {
               size: 22
             })
@@ -17882,8 +17903,8 @@ var Jc = Y.forwardRef(({
             className: `text-[12px] text-gray-400 px-3 whitespace-nowrap`,
             children: `截图比例`
           }), X.jsxs(`select`, {
-            value: C,
-            onChange: e => w(e.target.value),
+            value: aspectRatio,
+            onChange: e => setAspectRatio(e.target.value),
             className: `bg-transparent text-gray-200 text-[12px] pl-2 pr-6 py-1 outline-none cursor-pointer appearance-none text-center font-bold`,
             style: {
               WebkitAppearance: `none`,
@@ -17906,12 +17927,12 @@ var Jc = Y.forwardRef(({
               className: `bg-[#222]`,
               children: `自定义`
             })]
-          }), C === `custom` && X.jsxs(`div`, {
+          }), aspectRatio === `custom` && X.jsxs(`div`, {
             className: `flex items-center gap-2 ml-3 mr-3 border-l border-white/20 pl-3`,
             children: [X.jsx(`input`, {
               type: `number`,
-              value: T.w,
-              onChange: e => E(t => ({
+              value: customRatio.w,
+              onChange: e => setCustomRatio(t => ({
                 ...t,
                 w: Number(e.target.value)
               })),
@@ -17921,8 +17942,8 @@ var Jc = Y.forwardRef(({
               children: `:`
             }), X.jsx(`input`, {
               type: `number`,
-              value: T.h,
-              onChange: e => E(t => ({
+              value: customRatio.h,
+              onChange: e => setCustomRatio(t => ({
                 ...t,
                 h: Number(e.target.value)
               })),
@@ -17942,7 +17963,7 @@ var Jc = Y.forwardRef(({
               margin: `auto`
             },
             onWheel: e => {
-              e.stopPropagation(), c(t => {
+              e.stopPropagation(), setFov(t => {
                 let n = t + (e.deltaY > 0 ? 5 : -5);
                 return Math.min(Math.max(n, 30), 120);
               });
@@ -17953,10 +17974,10 @@ var Jc = Y.forwardRef(({
               },
               gl: {
                 preserveDrawingBuffer: true,
-                antialias: h,
+                antialias: highQuality,
                 powerPreference: `high-performance`
               },
-              dpr: h ? window.devicePixelRatio ? Math.max(window.devicePixelRatio, 2) : 2 : [1, 1.5],
+              dpr: highQuality ? window.devicePixelRatio ? Math.max(window.devicePixelRatio, 2) : 2 : [1, 1.5],
               style: {
                 position: `absolute`,
                 top: 0,
@@ -17965,50 +17986,50 @@ var Jc = Y.forwardRef(({
                 height: `100%`
               },
               children: X.jsx(Jc, {
-                url: P,
-                panoType: d,
-                fov: s,
-                highQuality: h,
-                orbitControlsRefLocal: x
+                url: resolvedImageUrl,
+                panoType: panoType,
+                fov: fov,
+                highQuality: highQuality,
+                orbitControlsRefLocal: orbitControlsRef
               })
             }), X.jsxs(`div`, {
-              className: `absolute top-1/2 left-4 -translate-y-1/2 flex flex-col items-center gap-2 z-10 bg-black/60 p-2.5 rounded-2xl backdrop-blur-md border border-white/10 shadow-lg nodrag ${_ ? `pointer-events-none` : ``}`,
+              className: `absolute top-1/2 left-4 -translate-y-1/2 flex flex-col items-center gap-2 z-10 bg-black/60 p-2.5 rounded-2xl backdrop-blur-md border border-white/10 shadow-lg nodrag ${isCapturing ? `pointer-events-none` : ``}`,
               onClick: e => e.stopPropagation(),
               children: [X.jsx(`button`, {
-                className: `p-3 text-gray-400 hover:text-white hover:bg-white/10 rounded-xl transition-all active:scale-95 ${y === `current` ? `text-white bg-white/10` : ``}`,
-                onClick: () => F([0]),
+                className: `p-3 text-gray-400 hover:text-white hover:bg-white/10 rounded-xl transition-all active:scale-95 ${captureMode === `current` ? `text-white bg-white/10` : ``}`,
+                onClick: () => handleCapture([0]),
                 title: `当前视角截图`,
                 children: X.jsx(Qe, {
                   size: 20,
-                  className: y === `current` ? `animate-spin` : ``
+                  className: captureMode === `current` ? `animate-spin` : ``
                 })
               }), X.jsx(`button`, {
-                className: `p-3 text-gray-400 hover:text-white hover:bg-white/10 rounded-xl transition-all active:scale-95 ${y === `four` ? `text-white bg-white/10` : ``}`,
-                onClick: () => F([90, 180, 270, 0]),
+                className: `p-3 text-gray-400 hover:text-white hover:bg-white/10 rounded-xl transition-all active:scale-95 ${captureMode === `four` ? `text-white bg-white/10` : ``}`,
+                onClick: () => handleCapture([90, 180, 270, 0]),
                 title: `四大视角截图 (90, 180, 270, 0度)`,
                 children: X.jsx(Tn, {
                   size: 20,
-                  className: y === `four` ? `animate-spin` : ``
+                  className: captureMode === `four` ? `animate-spin` : ``
                 })
               }), X.jsx(`button`, {
-                className: `p-3 text-gray-400 hover:text-white hover:bg-white/10 rounded-xl transition-all active:scale-95 ${y === `twelve` ? `text-white bg-white/10` : ``}`,
-                onClick: () => F([0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330]),
+                className: `p-3 text-gray-400 hover:text-white hover:bg-white/10 rounded-xl transition-all active:scale-95 ${captureMode === `twelve` ? `text-white bg-white/10` : ``}`,
+                onClick: () => handleCapture([0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330]),
                 title: `12大视角截图 (每30度)`,
                 children: X.jsx(_e, {
                   size: 20,
-                  className: y === `twelve` ? `animate-spin` : ``
+                  className: captureMode === `twelve` ? `animate-spin` : ``
                 })
               })]
-            }), O && X.jsx(`div`, {
+            }), toastMsg && X.jsx(`div`, {
               className: `absolute top-0 left-1/2 z-50 pointer-events-none nodrag flex items-center justify-center`,
               children: X.jsx(`div`, {
                 className: `animate-[dropIn_2.5s_cubic-bezier(0.175,0.885,0.32,1.275)_forwards] bg-[#0a0a0a]/90 backdrop-blur-xl border border-white/30 px-8 py-4 rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.6)] flex items-center gap-3 mt-16`,
                 children: X.jsx(`span`, {
                   className: `text-white font-bold text-xl tracking-wider`,
-                  children: O
+                  children: toastMsg
                 })
               })
-            }), _ && X.jsx(`div`, {
+            }), isCapturing && X.jsx(`div`, {
               className: `absolute inset-0 z-40 pointer-events-none nodrag flex items-center justify-center bg-black/20 backdrop-blur-[1px]`,
               children: X.jsxs(`div`, {
                 className: `bg-black/80 border border-white/20 rounded-2xl px-6 py-4 shadow-2xl flex items-center gap-3`,
@@ -18019,7 +18040,7 @@ var Jc = Y.forwardRef(({
                   children: `截图处理中…`
                 })]
               })
-            }), !_ && X.jsx(`div`, {
+            }), !isCapturing && X.jsx(`div`, {
               className: `absolute inset-0 pointer-events-none z-[5]`,
               style: {
                 display: `flex`,
@@ -18029,7 +18050,7 @@ var Jc = Y.forwardRef(({
               children: X.jsx(`div`, {
                 className: `border-[2px] border-dashed border-white/30 shadow-[0_0_0_9999px_rgba(0,0,0,0.6)] transition-all duration-300`,
                 style: {
-                  aspectRatio: D,
+                  aspectRatio: ratioExpr,
                   height: `100%`,
                   maxHeight: `100%`,
                   maxWidth: `100%`
@@ -18040,7 +18061,7 @@ var Jc = Y.forwardRef(({
         })]
       }), document.body)]
     });
-  }),
+}),
   Xc = [{
     id: `stand`,
     label: `站立`,
@@ -26203,19 +26224,20 @@ var Director3DNodeComp = Y.memo(({
   data: n,
   selected: r
 }) => {
+// ── 状态 ──
   let {
-      updateNodeData: i
+      updateNodeData: updateNodeData
     } = Gt(),
-    a = n,
-    [o, s] = Y.useState(false),
-    c = a.imageUrl,
-    l = t({
+    nodeData = n,
+    [isOpen, setOpen] = Y.useState(false),
+    thumbUrl = nodeData.imageUrl,
+    targets = t({
       handleType: `target`
     }),
-    u = ut(Y.useMemo(() => l.map(e => e.source), [l])),
-    d = Y.useMemo(() => {
-      if (!u) return null;
-      let e = Array.isArray(u) ? u : [u];
+    sourceList = ut(Y.useMemo(() => targets.map(e => e.source), [targets])),
+    resolvedImageUrl = Y.useMemo(() => {
+      if (!sourceList) return null;
+      let e = Array.isArray(sourceList) ? sourceList : [sourceList];
       for (let t of e) {
         if (!t) continue;
         let e = t.data?.imageUrl;
@@ -26227,12 +26249,13 @@ var Director3DNodeComp = Y.memo(({
         }
       }
       return null;
-    }, [u]),
-    f = Y.useCallback(async t => {
-      s(false);
+    }, [sourceList]),
+    // ── 回调 ──
+    handleExit = Y.useCallback(async t => {
+      setOpen(false);
       let n = [],
         r = [],
-        o = new Set(a.syncedCaptureIds || []);
+        o = new Set(nodeData.syncedCaptureIds || []);
       if (t.project.cameras.forEach(e => {
         e.captures && e.captures.forEach(t => {
           r.push(t.id), o.has(t.id) || n.push({
@@ -26240,11 +26263,11 @@ var Director3DNodeComp = Y.memo(({
             label: e.name || `机位截图`
           });
         });
-      }), n.length > 0 && a.onCaptureToBox?.(e, n), i(e, {
+      }), n.length > 0 && nodeData.onCaptureToBox?.(e, n), updateNodeData(e, {
         directorProject: t.project,
         syncedCaptureIds: r
       }), t.thumbnailDataUrl) {
-        i(e, {
+        updateNodeData(e, {
           imageUrl: t.thumbnailDataUrl
         });
         try {
@@ -26254,7 +26277,7 @@ var Director3DNodeComp = Y.memo(({
             thumbMaxDim: 480,
             thumbQuality: 75
           });
-          n.url && /^https?:\/\//i.test(n.url) && i(e, {
+          n.url && /^https?:\/\//i.test(n.url) && updateNodeData(e, {
             imageUrl: n.url,
             thumbnailUrl: n.thumbnailUrl
           });
@@ -26262,7 +26285,8 @@ var Director3DNodeComp = Y.memo(({
           console.warn(`[Director3DNode] 缩略图 URL 化失败，保留 base64`, e);
         }
       }
-    }, [e, i, a]);
+    }, [e, updateNodeData, nodeData]);
+  // ── 渲染 ──
   return X.jsxs(`div`, {
     className: `relative w-full h-full flex flex-col group/node`,
     children: [X.jsx(ci, {
@@ -26279,9 +26303,9 @@ var Director3DNodeComp = Y.memo(({
       })
     }), X.jsxs(`div`, {
       className: `relative flex-1 bg-[#151515] rounded-xl overflow-hidden border border-[#333] shadow-xl cursor-pointer`,
-      onClick: () => s(true),
-      children: [c ? X.jsx(`img`, {
-        src: c,
+      onClick: () => setOpen(true),
+      children: [thumbUrl ? X.jsx(`img`, {
+        src: thumbUrl,
         className: `w-full h-full object-cover`,
         alt: `导演台预览`
       }) : X.jsxs(`div`, {
@@ -26298,7 +26322,7 @@ var Director3DNodeComp = Y.memo(({
         children: X.jsxs(`button`, {
           className: `flex items-center gap-1.5 px-3 py-2 bg-white/90 hover:bg-white text-black text-xs font-medium rounded-full shadow-lg transition-colors`,
           onClick: e => {
-            e.stopPropagation(), s(true);
+            e.stopPropagation(), setOpen(true);
           },
           children: [X.jsx(bt, {
             size: 13
@@ -26313,10 +26337,10 @@ var Director3DNodeComp = Y.memo(({
       type: `source`,
       position: J.Right,
       variant: `large`
-    }), o && Un.createPortal(X.jsx(wh, {
-      initialProject: a.directorProject ?? null,
-      initialPanoramaUrl: d,
-      onExit: f
+    }), isOpen && Un.createPortal(X.jsx(wh, {
+      initialProject: nodeData.directorProject ?? null,
+      initialPanoramaUrl: resolvedImageUrl,
+      onExit: handleExit
     }), document.body)]
   });
 });
@@ -26802,25 +26826,26 @@ var Ph = () => `img-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     data: i,
     selected: a
   }) => {
+// ── 状态 ──
     let {
-        updateNodeData: o
+        updateNodeData: updateNodeData
       } = Gt(),
-      s = Y.useRef(null),
-      c = i.images || [],
-      l = Math.min(Math.max(0, i.activeIndex ?? 0), Math.max(0, c.length - 1)),
-      u = i.expanded ?? false,
-      d = i.selectedIds || [],
-      f = c[l],
-      [p, m] = Y.useState(false),
-      [h, g] = Y.useState(null),
-      [_, v] = Y.useState(null),
-      [y, b] = Y.useState(null),
-      [x, C] = Y.useState(null);
+      fileInputRef = Y.useRef(null),
+      images = i.images || [],
+      activeIndex = Math.min(Math.max(0, i.activeIndex ?? 0), Math.max(0, images.length - 1)),
+      isExpanded = i.expanded ?? false,
+      selectedIds = i.selectedIds || [],
+      activeImage = images[activeIndex],
+      [isDragOver, setDragOver] = Y.useState(false),
+      [menuIndex, setMenuIndex] = Y.useState(null),
+      [menuPos, setMenuPos] = Y.useState(null),
+      [dragIndex, setDragIndex] = Y.useState(null),
+      [dragOverIndex, setDragOverIndex] = Y.useState(null);
     Y.useEffect(() => {
-      if (h === null) return;
+      if (menuIndex === null) return;
       let e = e => {
           let t = e.target;
-          !t.closest(`[data-thumb-menu]`) && !t.closest(`[data-thumb-menu-portal]`) && (g(null), v(null));
+          !t.closest(`[data-thumb-menu]`) && !t.closest(`[data-thumb-menu-portal]`) && (setMenuIndex(null), setMenuPos(null));
         },
         t = window.setTimeout(() => {
           window.addEventListener(`mousedown`, e, true), window.addEventListener(`click`, e, true);
@@ -26828,19 +26853,20 @@ var Ph = () => `img-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       return () => {
         window.clearTimeout(t), window.removeEventListener(`mousedown`, e, true), window.removeEventListener(`click`, e, true);
       };
-    }, [h]);
-    let w = Y.useCallback(t => o(e, {
+    }, [menuIndex]);
+    // ── 回调 ──
+    let setSelectedIds = Y.useCallback(t => updateNodeData(e, {
         selectedIds: t
-      }), [e, o]),
-      T = Y.useCallback(e => {
-        let t = new Set(d);
-        t.has(e) ? t.delete(e) : t.add(e), w(Array.from(t));
-      }, [d, w]),
-      E = c.length > 0 && d.length === c.length,
-      D = Y.useCallback(() => {
-        w(E ? [] : c.map(e => e.id));
-      }, [E, c, w]),
-      O = Y.useCallback(async t => {
+      }), [e, updateNodeData]),
+      toggleSelectId = Y.useCallback(e => {
+        let t = new Set(selectedIds);
+        t.has(e) ? t.delete(e) : t.add(e), setSelectedIds(Array.from(t));
+      }, [selectedIds, setSelectedIds]),
+      isAllSelected = images.length > 0 && selectedIds.length === images.length,
+      toggleSelectAll = Y.useCallback(() => {
+        setSelectedIds(isAllSelected ? [] : images.map(e => e.id));
+      }, [isAllSelected, images, setSelectedIds]),
+      addImages = Y.useCallback(async t => {
         if (t.length === 0) return;
         let n = await Promise.all(t.map(async e => {
             let t;
@@ -26858,66 +26884,66 @@ var Ph = () => `img-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
               createdAt: Date.now()
             };
           })),
-          r = [...c, ...n];
-        o(e, {
+          r = [...images, ...n];
+        updateNodeData(e, {
           images: r,
           activeIndex: r.length - 1
         });
-      }, [c, e, o]),
-      k = Y.useCallback(t => {
-        let n = c[t],
-          r = c.filter((e, n) => n !== t);
-        o(e, {
+      }, [images, e, updateNodeData]),
+      deleteImage = Y.useCallback(t => {
+        let n = images[t],
+          r = images.filter((e, n) => n !== t);
+        updateNodeData(e, {
           images: r,
-          activeIndex: Math.min(l, Math.max(0, r.length - 1)),
-          selectedIds: n ? d.filter(e => e !== n.id) : d
+          activeIndex: Math.min(activeIndex, Math.max(0, r.length - 1)),
+          selectedIds: n ? selectedIds.filter(e => e !== n.id) : selectedIds
         });
-      }, [l, c, e, d, o]),
-      A = Y.useCallback(() => {
-        if (d.length === 0) return;
-        let t = new Set(d),
-          n = c.filter(e => !t.has(e.id));
-        o(e, {
+      }, [activeIndex, images, e, selectedIds, updateNodeData]),
+      deleteSelected = Y.useCallback(() => {
+        if (selectedIds.length === 0) return;
+        let t = new Set(selectedIds),
+          n = images.filter(e => !t.has(e.id));
+        updateNodeData(e, {
           images: n,
-          activeIndex: Math.min(l, Math.max(0, n.length - 1)),
+          activeIndex: Math.min(activeIndex, Math.max(0, n.length - 1)),
           selectedIds: []
         });
-      }, [l, c, e, d, o]),
-      j = Y.useCallback(t => {
-        t < 0 || t >= c.length || o(e, {
+      }, [activeIndex, images, e, selectedIds, updateNodeData]),
+      setActiveIndex = Y.useCallback(t => {
+        t < 0 || t >= images.length || updateNodeData(e, {
           activeIndex: t
         });
-      }, [e, c.length, o]),
-      M = Y.useCallback((t, n) => {
-        if (t === n || t < 0 || n < 0 || t >= c.length || n >= c.length) return;
-        let r = c.slice(),
+      }, [e, images.length, updateNodeData]),
+      reorderImages = Y.useCallback((t, n) => {
+        if (t === n || t < 0 || n < 0 || t >= images.length || n >= images.length) return;
+        let r = images.slice(),
           [i] = r.splice(t, 1);
         r.splice(n, 0, i), i.id;
-        let a = l,
-          s = c[l]?.id;
-        s && (a = r.findIndex(e => e.id === s), a < 0 && (a = 0)), o(e, {
+        let a = activeIndex,
+          s = images[activeIndex]?.id;
+        s && (a = r.findIndex(e => e.id === s), a < 0 && (a = 0)), updateNodeData(e, {
           images: r,
           activeIndex: a
         });
-      }, [l, e, c, o]),
-      N = Y.useCallback(() => {
-        c.length <= 1 || j((l - 1 + c.length) % c.length);
-      }, [l, c.length, j]),
-      P = Y.useCallback(() => {
-        c.length <= 1 || j((l + 1) % c.length);
-      }, [l, c.length, j]),
-      F = Y.useCallback(t => {
-        o(e, {
+      }, [activeIndex, e, images, updateNodeData]),
+      goPrev = Y.useCallback(() => {
+        images.length <= 1 || setActiveIndex((activeIndex - 1 + images.length) % images.length);
+      }, [activeIndex, images.length, setActiveIndex]),
+      goNext = Y.useCallback(() => {
+        images.length <= 1 || setActiveIndex((activeIndex + 1) % images.length);
+      }, [activeIndex, images.length, setActiveIndex]),
+      setExpanded = Y.useCallback(t => {
+        updateNodeData(e, {
           expanded: t
         });
-      }, [e, o]),
-      I = t({
+      }, [e, updateNodeData]),
+      incomingEdges = t({
         handleType: `target`
       }),
-      L = ut(Y.useMemo(() => I.map(e => e.source), [I])),
-      ee = Y.useMemo(() => {
-        if (!L) return [];
-        let e = Array.isArray(L) ? L : [L],
+      sourceList = ut(Y.useMemo(() => incomingEdges.map(e => e.source), [incomingEdges])),
+      upstreamImages = Y.useMemo(() => {
+        if (!sourceList) return [];
+        let e = Array.isArray(sourceList) ? sourceList : [sourceList],
           t = [];
         return e.forEach(e => {
           e && (typeof e.data?.imageUrl == `string` && (e.data.imageUrl.startsWith(`http`) || e.data.imageUrl.startsWith(`data:image`)) && t.push({
@@ -26935,8 +26961,8 @@ var Ph = () => `img-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
             });
           }));
         }), t;
-      }, [L]),
-      R = Y.useCallback(async e => {
+      }, [sourceList]),
+      readFiles = Y.useCallback(async e => {
         let t = Array.from(e).filter(e => e.type.startsWith(`image/`));
         return (await Promise.all(t.map(e => new Promise(t => {
           let n = new FileReader();
@@ -26946,13 +26972,13 @@ var Ph = () => `img-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
           }), n.onerror = () => t(null), n.readAsDataURL(e);
         })))).filter(Boolean);
       }, []),
-      z = Y.useCallback(async e => {
-        let t = await R(e);
-        t.length !== 0 && O(t.map(e => ({
+      onFilesPicked = Y.useCallback(async e => {
+        let t = await readFiles(e);
+        t.length !== 0 && addImages(t.map(e => ({
           ...e,
           source: `upload`
         })));
-      }, [O, R]);
+      }, [addImages, readFiles]);
     Y.useEffect(() => {
       if (!a) return;
       let e = async e => {
@@ -26961,29 +26987,29 @@ var Ph = () => `img-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
         if (t && (t.tagName === `INPUT` || t.tagName === `TEXTAREA` || t.isContentEditable)) return;
         let n = Array.from(e.clipboardData.items).filter(e => e.kind === `file` && e.type.startsWith(`image/`)).map(e => e.getAsFile()).filter(Boolean);
         if (n.length > 0) {
-          e.preventDefault(), e.stopPropagation(), e.stopImmediatePropagation(), O((await R(n)).map(e => ({
+          e.preventDefault(), e.stopPropagation(), e.stopImmediatePropagation(), addImages((await readFiles(n)).map(e => ({
             ...e,
             source: `paste`
           })));
           return;
         }
         let r = e.clipboardData.getData(`text/plain`).trim();
-        r && (r.startsWith(`http`) || r.startsWith(`data:image/`)) && (e.preventDefault(), e.stopPropagation(), e.stopImmediatePropagation(), O([{
+        r && (r.startsWith(`http`) || r.startsWith(`data:image/`)) && (e.preventDefault(), e.stopPropagation(), e.stopImmediatePropagation(), addImages([{
           url: r,
           source: `paste`
         }]));
       };
       return window.addEventListener(`paste`, e, true), () => window.removeEventListener(`paste`, e, true);
-    }, [a, O, R]);
-    let B = Y.useCallback(async e => {
-        if (e.preventDefault(), e.stopPropagation(), m(false), y !== null) {
-          b(null), C(null);
+    }, [a, addImages, readFiles]);
+    let onDrop = Y.useCallback(async e => {
+        if (e.preventDefault(), e.stopPropagation(), setDragOver(false), dragIndex !== null) {
+          setDragIndex(null), setDragOverIndex(null);
           return;
         }
         if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-          let t = await R(e.dataTransfer.files);
+          let t = await readFiles(e.dataTransfer.files);
           if (t.length > 0) {
-            O(t.map(e => ({
+            addImages(t.map(e => ({
               ...e,
               source: `drop`
             })));
@@ -26991,46 +27017,46 @@ var Ph = () => `img-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
           }
         }
         let t = e.dataTransfer.getData(`text/plain`) || e.dataTransfer.getData(`text/uri-list`);
-        t && (t.startsWith(`http`) || t.startsWith(`data:image/`)) && O([{
+        t && (t.startsWith(`http`) || t.startsWith(`data:image/`)) && addImages([{
           url: t,
           source: `drop`
         }]);
-      }, [O, R, y]),
-      te = Y.useCallback(e => {
-        e.preventDefault(), e.stopPropagation(), y === null && (p || m(true));
-      }, [p, y]),
-      ne = Y.useCallback(e => {
-        e.currentTarget === e.target && m(false);
+      }, [addImages, readFiles, dragIndex]),
+      onDragOver = Y.useCallback(e => {
+        e.preventDefault(), e.stopPropagation(), dragIndex === null && (isDragOver || setDragOver(true));
+      }, [isDragOver, dragIndex]),
+      onDragLeave = Y.useCallback(e => {
+        e.currentTarget === e.target && setDragOver(false);
       }, []),
-      re = Y.useCallback(() => {
-        if (ee.length === 0) {
+      importFromEdges = Y.useCallback(() => {
+        if (upstreamImages.length === 0) {
           i.onShowToast?.(`当前没有上游连线提供图片`);
           return;
         }
-        let e = new Set(c.map(e => e.url)),
-          t = ee.filter(t => !e.has(t.url));
+        let e = new Set(images.map(e => e.url)),
+          t = upstreamImages.filter(t => !e.has(t.url));
         if (t.length === 0) {
           i.onShowToast?.(`上游连线图片已全部导入`);
           return;
         }
-        O(t.map(e => ({
+        addImages(t.map(e => ({
           url: e.url,
           source: `connect`
         }))), i.onShowToast?.(`已导入 ${t.length} 张连线图`);
-      }, [O, i.onShowToast, c, ee]),
-      ie = Y.useCallback(e => {
-        if (e.stopPropagation(), !f) return;
+      }, [addImages, i.onShowToast, images, upstreamImages]),
+      downloadImage = Y.useCallback(e => {
+        if (e.stopPropagation(), !activeImage) return;
         let t = document.createElement(`a`);
-        t.href = f.url, t.download = f.label || `image-${Date.now()}.png`, document.body.appendChild(t), t.click(), document.body.removeChild(t);
-      }, [f]),
-      ae = Y.useCallback(t => {
-        t.stopPropagation(), f && i.onZoom?.(e, undefined, f.url);
-      }, [f, i.onZoom, e]),
-      se = Y.useCallback(e => {
-        e.stopPropagation(), f && i.onSendToActiveTab?.(f.url);
-      }, [f, i.onSendToActiveTab]),
-      ce = c.length,
-      le = Y.useCallback(async e => {
+        t.href = activeImage.url, t.download = activeImage.label || `image-${Date.now()}.png`, document.body.appendChild(t), t.click(), document.body.removeChild(t);
+      }, [activeImage]),
+      zoomImage = Y.useCallback(t => {
+        t.stopPropagation(), activeImage && i.onZoom?.(e, undefined, activeImage.url);
+      }, [activeImage, i.onZoom, e]),
+      sendToActiveTab = Y.useCallback(e => {
+        e.stopPropagation(), activeImage && i.onSendToActiveTab?.(activeImage.url);
+      }, [activeImage, i.onSendToActiveTab]),
+      imageCount = images.length,
+      copyImage = Y.useCallback(async e => {
         let t = i.onShowToast;
         try {
           let n = new Image();
@@ -27061,10 +27087,10 @@ var Ph = () => `img-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
           }
         }
       }, [i.onShowToast]),
-      V = Y.useCallback(async () => {
+      sendToJianying = Y.useCallback(async () => {
         let e = i.onShowToast,
-          t = new Set(d),
-          n = t.size > 0 ? c.filter(e => t.has(e.id)) : c;
+          t = new Set(selectedIds),
+          n = t.size > 0 ? images.filter(e => t.has(e.id)) : images;
         if (n.length === 0) {
           e?.(`没有可发送的图片`);
           return;
@@ -27075,20 +27101,21 @@ var Ph = () => `img-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
           fileName: Kn(e.url, `png`)
         })));
         e?.(r.message);
-      }, [c, d, i.onShowToast]),
-      H = Y.useCallback((e, t) => {
+      }, [images, selectedIds, i.onShowToast]),
+      downloadUrl = Y.useCallback((e, t) => {
         if (!e) return;
         let n = document.createElement(`a`);
         n.href = e, n.download = t || `image-${Date.now()}.png`, document.body.appendChild(n), n.click(), document.body.removeChild(n);
       }, []);
+    // ── 渲染 ──
     return X.jsxs(`div`, {
       className: `relative w-full h-full group/node`,
       children: [X.jsx(ci, {
         visible: !!a,
         minWidth: 240,
-        minHeight: u ? 280 : 200
+        minHeight: isExpanded ? 280 : 200
       }), X.jsx(`input`, {
-        ref: s,
+        ref: fileInputRef,
         type: `file`,
         accept: `image/*`,
         multiple: true,
@@ -27096,7 +27123,7 @@ var Ph = () => `img-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
           display: `none`
         },
         onChange: async e => {
-          e.target.files && (await z(e.target.files), e.target.value = ``);
+          e.target.files && (await onFilesPicked(e.target.files), e.target.value = ``);
         }
       }), X.jsx(`div`, {
         className: `absolute -top-12 left-1/2 -translate-x-1/2 z-20 opacity-0 group-hover/node:opacity-100 transition-opacity pointer-events-none group-hover/node:pointer-events-auto nodrag pb-4`,
@@ -27106,7 +27133,7 @@ var Ph = () => `img-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
             className: `p-1.5 text-gray-400 hover:text-white hover:bg-[#333] rounded-md`,
             title: `从连线图一键导入`,
             onClick: e => {
-              e.stopPropagation(), re();
+              e.stopPropagation(), importFromEdges();
             },
             children: X.jsx(ye, {
               size: 14
@@ -27115,16 +27142,16 @@ var Ph = () => `img-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
             className: `p-1.5 text-gray-400 hover:text-white hover:bg-[#333] rounded-md`,
             title: `添加本地图片`,
             onClick: e => {
-              e.stopPropagation(), s.current?.click();
+              e.stopPropagation(), fileInputRef.current?.click();
             },
             children: X.jsx(r, {
               size: 14
             })
-          }), ce > 0 && X.jsx(`button`, {
+          }), imageCount > 0 && X.jsx(`button`, {
             className: `p-1.5 text-gray-400 hover:text-emerald-400 hover:bg-[#333] rounded-md`,
-            title: d.length > 0 ? `发送选中 ${d.length} 张到剪映` : `发送全部到剪映`,
+            title: selectedIds.length > 0 ? `发送选中 ${selectedIds.length} 张到剪映` : `发送全部到剪映`,
             onClick: e => {
-              e.stopPropagation(), V();
+              e.stopPropagation(), sendToJianying();
             },
             children: X.jsx(`svg`, {
               viewBox: `0 0 1389 1024`,
@@ -27136,20 +27163,20 @@ var Ph = () => `img-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
                 d: `M1140.11 150.95l243.537-120.088c0 33.024 0.24 63.046 0 93.188-0.24 22.096 6.124 48.636-3.843 65.208-9.607 15.611-36.266 21.015-55.6 30.622L737.457 510.852c6.004 3.482 10.327 6.485 15.01 8.766 204.99 101.834 410.1 203.428 615.208 304.902 12.13 6.004 16.212 12.49 15.972 25.819-0.84 45.753-0.24 91.506-0.24 141.103l-239.935-118.407c-12.97 24.498-23.537 50.197-39.028 72.293-37.227 53.199-91.507 77.456-154.913 77.697-250.742 0.96-501.365 0.96-752.107 0.24-97.271 0-176.289-65.328-190.94-161.638C0 817.915 3.604 772.642 6.005 728.33c0.48-9.247 14.05-20.775 24.258-25.819 111.681-56.44 223.723-111.801 335.764-167.402l47.555-23.657c-125.972-62.685-249.782-124.89-374.312-185.655-24.859-12.009-37.228-26.78-35.066-55.24 2.882-40.59-1.441-81.9 5.044-121.649C23.057 64.367 103.395 0.6 189.257 0.6 443.844 0.6 698.429 0.96 952.894 0.36c87.904-0.24 157.315 60.524 181.933 134.858l5.164 15.732z m-566.332-8.767H207.51a105.677 105.677 0 0 0-27.98 3.603c-20.415 5.524-31.343 21.135-33.505 43.232-1.921 20.054 3.363 31.943 24.018 42.03 125.851 60.524 250.982 122.49 375.153 185.895 21.616 11.048 38.188 11.169 60.043 0 125.132-63.406 251.223-125.13 376.715-187.696 6.364-3.122 15.13-7.686 16.812-13.21 12.009-40.95-13.57-74.094-56.681-74.094l-368.308 0.36z m0 736.857H949.89c31.223 0 48.035-16.812 49.356-47.795a67.009 67.009 0 0 0-0.24-18.974c-1.561-5.524-4.803-12.85-9.487-15.13-134.498-67.25-268.996-134.138-403.854-200.307a26.9 26.9 0 0 0-20.775 0 86586.855 86586.855 0 0 0-408.897 202.348c-3.843 2.041-9.007 6.364-9.367 10.087-4.203 38.188 11.528 70.852 55 70.371 123.93-1.44 248.1-0.48 372.27-0.48v-0.12z`
               })
             })
-          }), !u && f && X.jsxs(X.Fragment, {
+          }), !isExpanded && activeImage && X.jsxs(X.Fragment, {
             children: [X.jsx(`div`, {
               className: `w-px h-4 bg-[#333] mx-1`
             }), X.jsx(`button`, {
               className: `p-1.5 text-gray-400 hover:text-white hover:bg-[#333] rounded-md`,
               title: `放大`,
-              onClick: ae,
+              onClick: zoomImage,
               children: X.jsx(rt, {
                 size: 14
               })
             }), X.jsx(`button`, {
               className: `p-1.5 text-gray-400 hover:text-white hover:bg-[#333] rounded-md`,
               title: `发送到左侧网站`,
-              onClick: se,
+              onClick: sendToActiveTab,
               children: X.jsx(Rn, {
                 size: 14
               })
@@ -27157,7 +27184,7 @@ var Ph = () => `img-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
               className: `p-1.5 text-gray-400 hover:text-white hover:bg-[#333] rounded-md`,
               title: `复制当前图片到剪贴板`,
               onClick: e => {
-                e.stopPropagation(), f && le(f.url);
+                e.stopPropagation(), activeImage && copyImage(activeImage.url);
               },
               children: X.jsx(on, {
                 size: 14
@@ -27165,7 +27192,7 @@ var Ph = () => `img-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
             }), X.jsx(`button`, {
               className: `p-1.5 text-gray-400 hover:text-white hover:bg-[#333] rounded-md`,
               title: `下载当前图片`,
-              onClick: ie,
+              onClick: downloadImage,
               children: X.jsx(mn, {
                 size: 14
               })
@@ -27185,27 +27212,27 @@ var Ph = () => `img-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
           className: `!mb-0`
         }), X.jsxs(`div`, {
           className: `flex items-center gap-1 nodrag`,
-          children: [u && ce > 0 && X.jsxs(X.Fragment, {
+          children: [isExpanded && imageCount > 0 && X.jsxs(X.Fragment, {
             children: [X.jsxs(`button`, {
               onClick: e => {
-                e.stopPropagation(), D();
+                e.stopPropagation(), toggleSelectAll();
               },
               className: `px-1.5 py-0.5 rounded hover:bg-[#333] text-gray-400 hover:text-white inline-flex items-center gap-1 text-[10px]`,
-              title: E ? `取消全选` : `全选`,
-              children: [E ? X.jsx(ue, {
+              title: isAllSelected ? `取消全选` : `全选`,
+              children: [isAllSelected ? X.jsx(ue, {
                 size: 10
               }) : X.jsx(oe, {
                 size: 10
               }), X.jsx(`span`, {
                 children: `全选`
               })]
-            }), d.length > 0 && X.jsxs(X.Fragment, {
+            }), selectedIds.length > 0 && X.jsxs(X.Fragment, {
               children: [X.jsxs(`span`, {
                 className: `text-gray-300 text-[10px]`,
-                children: [`已选 `, d.length]
+                children: [`已选 `, selectedIds.length]
               }), X.jsx(`button`, {
                 onClick: e => {
-                  e.stopPropagation(), A();
+                  e.stopPropagation(), deleteSelected();
                 },
                 className: `px-1.5 py-0.5 rounded hover:bg-[#333] hover:text-red-400 text-gray-400 inline-flex items-center gap-1 text-[10px]`,
                 title: `删除已选`,
@@ -27216,26 +27243,26 @@ var Ph = () => `img-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
             })]
           }), X.jsxs(`button`, {
             onClick: e => {
-              e.stopPropagation(), F(!u);
+              e.stopPropagation(), setExpanded(!isExpanded);
             },
             className: `px-1.5 py-0.5 rounded hover:bg-[#333] text-gray-400 hover:text-white inline-flex items-center gap-1 text-[10px] transition-colors`,
-            title: u ? `折叠为单图` : `展开为缩略图网格`,
-            children: [u ? X.jsx(ft, {
+            title: isExpanded ? `折叠为单图` : `展开为缩略图网格`,
+            children: [isExpanded ? X.jsx(ft, {
               size: 11
             }) : X.jsx(bt, {
               size: 11
             }), X.jsx(`span`, {
-              children: u ? `折叠` : `展开`
+              children: isExpanded ? `折叠` : `展开`
             })]
           })]
         })]
       }), X.jsxs(`div`, {
         className: `relative w-full h-full flex-1 min-h-0`,
         children: [X.jsxs(`div`, {
-          className: `bg-[#1c1c1c] rounded-xl overflow-hidden border shadow-xl transition-all duration-300 w-full h-full flex flex-col ${a ? `border-[#555]` : p ? `border-gray-400` : `border-[#333] hover:border-[#444]`}`,
-          onDrop: B,
-          onDragOver: te,
-          onDragLeave: ne,
+          className: `bg-[#1c1c1c] rounded-xl overflow-hidden border shadow-xl transition-all duration-300 w-full h-full flex flex-col ${a ? `border-[#555]` : isDragOver ? `border-gray-400` : `border-[#333] hover:border-[#444]`}`,
+          onDrop: onDrop,
+          onDragOver: onDragOver,
+          onDragLeave: onDragLeave,
           children: [X.jsx(_r, {
             type: `target`,
             position: J.Left,
@@ -27246,10 +27273,10 @@ var Ph = () => `img-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
             id: `active`
           }), X.jsxs(`div`, {
             className: `flex-1 bg-[#121212] flex items-center justify-center relative overflow-hidden`,
-            children: [ce === 0 && X.jsxs(`div`, {
+            children: [imageCount === 0 && X.jsxs(`div`, {
               className: `flex flex-col items-center justify-center absolute inset-0 bg-[#151515] hover:bg-[#1a1a1a] transition-colors cursor-pointer group`,
               onClick: e => {
-                e.stopPropagation(), s.current?.click();
+                e.stopPropagation(), fileInputRef.current?.click();
               },
               children: [X.jsx(`div`, {
                 className: `w-12 h-12 rounded-xl bg-[#222] border border-dashed border-[#444] group-hover:border-blue-500/50 flex flex-col items-center justify-center transition-all`,
@@ -27261,23 +27288,23 @@ var Ph = () => `img-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
                 className: `text-[10px] text-gray-500 mt-2`,
                 children: `拖拽 / 粘贴 / 点击添加图片`
               })]
-            }), !u && f && X.jsxs(X.Fragment, {
+            }), !isExpanded && activeImage && X.jsxs(X.Fragment, {
               children: [X.jsx(`img`, {
-                src: f.url,
-                alt: f.label || `图片 ${l + 1}`,
+                src: activeImage.url,
+                alt: activeImage.label || `图片 ${activeIndex + 1}`,
                 className: `w-full h-full object-contain cursor-pointer`,
                 draggable: false,
                 loading: `lazy`,
                 decoding: `async`,
                 onDoubleClick: t => {
-                  t.stopPropagation(), i.onZoom?.(e, undefined, f.url);
+                  t.stopPropagation(), i.onZoom?.(e, undefined, activeImage.url);
                 }
-              }), ce > 1 && X.jsx(X.Fragment, {
+              }), imageCount > 1 && X.jsx(X.Fragment, {
                 children: X.jsxs(`div`, {
                   className: `absolute bottom-1.5 left-1/2 -translate-x-1/2 flex items-center gap-1.5 px-1.5 py-1 rounded-full bg-black/60 backdrop-blur-sm opacity-0 group-hover/node:opacity-100 transition-opacity`,
                   children: [X.jsx(`button`, {
                     onClick: e => {
-                      e.stopPropagation(), N();
+                      e.stopPropagation(), goPrev();
                     },
                     className: `w-6 h-6 rounded-full bg-black/60 hover:bg-black/80 text-white flex items-center justify-center`,
                     title: `上一张`,
@@ -27286,10 +27313,10 @@ var Ph = () => `img-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
                     })
                   }), X.jsxs(`span`, {
                     className: `px-1 text-[10px] text-white tabular-nums select-none`,
-                    children: [l + 1, `/`, ce]
+                    children: [activeIndex + 1, `/`, imageCount]
                   }), X.jsx(`button`, {
                     onClick: e => {
-                      e.stopPropagation(), P();
+                      e.stopPropagation(), goNext();
                     },
                     className: `w-6 h-6 rounded-full bg-black/60 hover:bg-black/80 text-white flex items-center justify-center`,
                     title: `下一张`,
@@ -27299,16 +27326,16 @@ var Ph = () => `img-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
                   })]
                 })
               })]
-            }), u && ce > 0 && X.jsx(`div`, {
+            }), isExpanded && imageCount > 0 && X.jsx(`div`, {
               className: `absolute inset-0 overflow-auto p-2 nowheel`,
               children: X.jsxs(`div`, {
                 className: `grid gap-1.5`,
                 style: {
                   gridTemplateColumns: `repeat(auto-fill, minmax(72px, 1fr))`
                 },
-                children: [c.map((t, r) => {
-                  let a = d.includes(t.id),
-                    o = r === l;
+                children: [images.map((t, r) => {
+                  let a = selectedIds.includes(t.id),
+                    o = r === activeIndex;
                   return X.jsxs(`div`, {
                     draggable: true,
                     onDragStart: e => {
@@ -27316,26 +27343,26 @@ var Ph = () => `img-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
                       try {
                         e.dataTransfer.setData(`text/plain`, String(r));
                       } catch {}
-                      b(r);
+                      setDragIndex(r);
                     },
                     onDragEnter: e => {
-                      e.preventDefault(), e.stopPropagation(), y !== null && y !== r && C(r);
+                      e.preventDefault(), e.stopPropagation(), dragIndex !== null && dragIndex !== r && setDragOverIndex(r);
                     },
                     onDragOver: e => {
-                      y !== null && (e.preventDefault(), e.stopPropagation(), e.dataTransfer.dropEffect = `move`, x !== r && C(r));
+                      dragIndex !== null && (e.preventDefault(), e.stopPropagation(), e.dataTransfer.dropEffect = `move`, dragOverIndex !== r && setDragOverIndex(r));
                     },
                     onDragLeave: e => {
-                      y !== null && e.stopPropagation();
+                      dragIndex !== null && e.stopPropagation();
                     },
                     onDrop: e => {
-                      y !== null && (e.preventDefault(), e.stopPropagation(), y !== r && M(y, r), b(null), C(null));
+                      dragIndex !== null && (e.preventDefault(), e.stopPropagation(), dragIndex !== r && reorderImages(dragIndex, r), setDragIndex(null), setDragOverIndex(null));
                     },
                     onDragEnd: e => {
-                      e.stopPropagation(), b(null), C(null);
+                      e.stopPropagation(), setDragIndex(null), setDragOverIndex(null);
                     },
-                    className: `relative aspect-square rounded-md overflow-hidden border cursor-grab active:cursor-grabbing group/thumb transition-all nodrag ${x === r && y !== null && y !== r ? `border-blue-400 ring-2 ring-blue-400/60 scale-[1.03]` : o ? `border-blue-500` : a ? `border-emerald-500` : `border-[#333]`} ${y === r ? `opacity-40` : ``}`,
+                    className: `relative aspect-square rounded-md overflow-hidden border cursor-grab active:cursor-grabbing group/thumb transition-all nodrag ${dragOverIndex === r && dragIndex !== null && dragIndex !== r ? `border-blue-400 ring-2 ring-blue-400/60 scale-[1.03]` : o ? `border-blue-500` : a ? `border-emerald-500` : `border-[#333]`} ${dragIndex === r ? `opacity-40` : ``}`,
                     onClick: e => {
-                      e.stopPropagation(), e.shiftKey || e.ctrlKey || e.metaKey ? j(r) : T(t.id);
+                      e.stopPropagation(), e.shiftKey || e.ctrlKey || e.metaKey ? setActiveIndex(r) : toggleSelectId(t.id);
                     },
                     onDoubleClick: n => {
                       n.stopPropagation(), i.onZoom?.(e, undefined, t.url);
@@ -27346,7 +27373,7 @@ var Ph = () => `img-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
                       className: `w-full h-full bg-[#0e0e0e]`
                     }), X.jsx(`button`, {
                       onClick: e => {
-                        e.stopPropagation(), T(t.id);
+                        e.stopPropagation(), toggleSelectId(t.id);
                       },
                       className: `absolute top-1 left-1 w-4 h-4 rounded flex items-center justify-center transition-colors ${a ? `bg-emerald-500 text-white` : `bg-black/50 text-gray-300 group-hover/thumb:bg-black/70`}`,
                       title: a ? `取消选择` : `选择`,
@@ -27365,18 +27392,18 @@ var Ph = () => `img-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
                         onMouseDown: e => e.stopPropagation(),
                         onDoubleClick: e => e.stopPropagation(),
                         onClick: e => {
-                          if (e.stopPropagation(), h === r) g(null), v(null);else {
+                          if (e.stopPropagation(), menuIndex === r) setMenuIndex(null), setMenuPos(null);else {
                             let t = e.currentTarget.getBoundingClientRect(),
                               n = t.right - 130;
                             n < 8 && (n = 8), n + 130 > window.innerWidth - 8 && (n = window.innerWidth - 8 - 130);
                             let i = t.bottom + 4;
-                            i + 220 > window.innerHeight - 8 && (i = t.top - 220 - 4), g(r), v({
+                            i + 220 > window.innerHeight - 8 && (i = t.top - 220 - 4), setMenuIndex(r), setMenuPos({
                               top: i,
                               left: n
                             });
                           }
                         },
-                        className: `w-4 h-4 rounded bg-black/60 text-gray-200 hover:bg-blue-500 hover:text-white flex items-center justify-center transition-opacity ${h === r ? `opacity-100` : `opacity-0 group-hover/thumb:opacity-100`}`,
+                        className: `w-4 h-4 rounded bg-black/60 text-gray-200 hover:bg-blue-500 hover:text-white flex items-center justify-center transition-opacity ${menuIndex === r ? `opacity-100` : `opacity-0 group-hover/thumb:opacity-100`}`,
                         title: `更多操作`,
                         children: X.jsx(n, {
                           size: 10
@@ -27386,7 +27413,7 @@ var Ph = () => `img-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
                   }, t.id);
                 }), X.jsx(`button`, {
                   onClick: e => {
-                    e.stopPropagation(), s.current?.click();
+                    e.stopPropagation(), fileInputRef.current?.click();
                   },
                   className: `aspect-square rounded-md border border-dashed border-[#444] hover:border-blue-500/50 hover:bg-[#1a1a1a] text-gray-500 hover:text-blue-400 flex items-center justify-center transition-colors nodrag`,
                   title: `添加图片`,
@@ -27395,7 +27422,7 @@ var Ph = () => `img-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
                   })
                 })]
               })
-            }), p && X.jsx(`div`, {
+            }), isDragOver && X.jsx(`div`, {
               className: `absolute inset-0 bg-blue-500/10 border-2 border-dashed border-blue-400 flex items-center justify-center pointer-events-none`,
               children: X.jsxs(`div`, {
                 className: `px-3 py-1.5 rounded-md bg-[#1c1c1c] border border-blue-500/40 text-blue-300 text-xs flex items-center gap-1.5`,
@@ -27405,26 +27432,26 @@ var Ph = () => `img-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
               })
             })]
           })]
-        }), h !== null && _ && c[h] && Un.createPortal(X.jsx(`div`, {
+        }), menuIndex !== null && menuPos && images[menuIndex] && Un.createPortal(X.jsx(`div`, {
           "data-thumb-menu-portal": true,
           className: `fixed z-[99999] min-w-[130px] bg-[#1c1c1c] border border-[#333] rounded-md shadow-2xl p-1 nodrag nowheel`,
           style: {
-            top: _.top,
-            left: _.left
+            top: menuPos.top,
+            left: menuPos.left
           },
           onClick: e => e.stopPropagation(),
           onContextMenu: e => e.preventDefault(),
           children: (() => {
-            let t = h,
-              n = c[t],
+            let t = menuIndex,
+              n = images[t],
               r = () => {
-                g(null), v(null);
+                setMenuIndex(null), setMenuPos(null);
               };
             return X.jsxs(X.Fragment, {
               children: [X.jsxs(`button`, {
                 className: `w-full text-left px-2 py-1.5 text-[11px] text-gray-300 hover:bg-[#333] hover:text-white rounded flex items-center gap-2`,
                 onClick: () => {
-                  le(n.url), r();
+                  copyImage(n.url), r();
                 },
                 children: [X.jsx(on, {
                   size: 11,
@@ -27435,7 +27462,7 @@ var Ph = () => `img-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
               }), X.jsxs(`button`, {
                 className: `w-full text-left px-2 py-1.5 text-[11px] text-gray-300 hover:bg-[#333] hover:text-white rounded flex items-center gap-2`,
                 onClick: () => {
-                  H(n.url, n.label), r();
+                  downloadUrl(n.url, n.label), r();
                 },
                 children: [X.jsx(mn, {
                   size: 11,
@@ -27465,10 +27492,10 @@ var Ph = () => `img-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
                 }), X.jsx(`span`, {
                   children: `发送`
                 })]
-              }), t !== l && X.jsxs(`button`, {
+              }), t !== activeIndex && X.jsxs(`button`, {
                 className: `w-full text-left px-2 py-1.5 text-[11px] text-gray-300 hover:bg-[#333] hover:text-white rounded flex items-center gap-2`,
                 onClick: () => {
-                  j(t), r();
+                  setActiveIndex(t), r();
                 },
                 children: [X.jsx(bt, {
                   size: 11,
@@ -27481,7 +27508,7 @@ var Ph = () => `img-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
               }), X.jsxs(`button`, {
                 className: `w-full text-left px-2 py-1.5 text-[11px] text-red-400 hover:bg-[#333] rounded flex items-center gap-2`,
                 onClick: () => {
-                  k(t), r();
+                  deleteImage(t), r();
                 },
                 children: [X.jsx(S, {
                   size: 11
@@ -27494,7 +27521,7 @@ var Ph = () => `img-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
         }), document.body)]
       })]
     });
-  }),
+}),
   Lh = [{
     name: `暗黄`,
     value: `rgba(180,160,60,0.25)`
