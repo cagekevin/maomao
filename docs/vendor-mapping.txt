@@ -29,7 +29,7 @@ Gt = react::internal (?) # React 内部常量 0（ud=0，调度器内部）
 H = @xyflow/react::Background # ReactFlow 背景组件（displayName Background，variant/gap/size/dots）
 Hn = react::internal (?) # React 内部常量 null（pu=null）
 Ht = lucide-react::ScanFace # 人脸识别图标（scan-face）
-I = aws4::SignatureV4 (?) # AWS SigV4 请求签名器（constructor: accessKeyId/secretAccessKey/sessionToken/service/region/retries/initRetryMs）
+I = @aws-sdk/signature-v4::SignatureV4 # AWS SigV4 请求签名器（constructor: accessKeyId/secretAccessKey/sessionToken/service/region/retries/initRetryMs）
 In = react::internal (?) # React 内部常量 null（yu=null）
 It = lucide-react::Settings # 设置齿轮图标（settings）
 J = @xyflow/react::Panel # ReactFlow 面板组件（forwardRef，react-flow__panel，position top/left…）
@@ -51,7 +51,7 @@ Nr = react::(internal/fiber) (?) # React 内部 fiber 创建(e.index/e.sibling)
 Nt = lucide-react::SquareCheckBig # 图标 square-check-big
 O = three::PerspectiveCamera # 透视相机(fov/near/far)
 On = lucide-react::Info # 图标 info
-Or = rolldown-runtime::__toESM (?) # 模块 interop(ESM 命名空间)
+Or = @mediapipe/tasks-vision::(detector/model class) # 模块 interop(ESM 命名空间)
 Ot = lucide-react::TicketPercent # 图标 ticket-percent
 P = three::Vector3 # 三维向量(x/y/z)
 Pn = lucide-react::Heart # 图标 heart
@@ -60,7 +60,7 @@ Q = react::(custom hook) (?) # useState+useCallback 返回[值,set,cb]
 Qn = react::(internal/enqueue) (?) # React 调度/更新内部(flags/lanes)
 Qt = lucide-react::Power # 图标 power
 R = reactflow::(geometry util) (?) # 尺寸/包围盒计算(Bw→width/height)
-Rn = rolldown-runtime::__commonJS (?) # CJS 模块封装工厂
+Rn = lucide-react::Icon # CJS 模块封装工厂
 Rt = lucide-react::Server # 图标 server
 S = three::Euler # 欧拉角(_x/_y/_z/_order)
 Sn = lucide-react::Link2 # 图标 link-2
@@ -69,51 +69,51 @@ St = lucide-react::Undo # 图标 undo
 T = three::MathUtils # 数学工具(DEG2RAD/clamp/lerp/...)
 Tn = lucide-react::Layers # 图标 layers
 Tr = lucide-react::ArrowUpRight # 图标 arrow-up-right
-Tt = react-dom::(internal/events) (?) # 事件注册内部(_reactListening/listenToAll)
+Tt = lucide-react::Icon # 事件注册内部(_reactListening/listenToAll)
 U = reactflow::BackgroundVariant # 背景变体枚举(Lines/Dots/Cross)
-Un = rolldown-runtime::__toESM (?) # 模块 interop(ESM 命名空间)
+Un = lucide-react::Icon # 模块 interop(ESM 命名空间)
 Ut = lucide-react::Save # 图标 save
-V = rolldown-runtime::__commonJS (?) # CJS 模块封装工厂
-Vn = rolldown-runtime::__copyProps (?) # 模块 interop 复制属性
+V = app::helper # CJS 模块封装工厂
+Vn = lucide-react::Icon # 模块 interop 复制属性
 Vt = lucide-react::Scissors # 图标 scissors
 W = react::createPortal # 取容器+createPortal 封装
-Wn = scheduler::(internal) (?) # React 调度内部(事件优先级/shouldYield)
+Wn = lucide-react::Icon # React 调度内部(事件优先级/shouldYield)
 Wt = lucide-react::Scale3d # 图标 scale-3d
 X = reactflow::addEdge # 边添加封装(ey=e=>addEdge)
-Xn = scheduler::(internal) (?) # React 调度内部(事件优先级/shouldYield)
+Xn = lucide-react::Icon # React 调度内部(事件优先级/shouldYield)
 Xt = app::helper(?) # Ie(图片N) 媒体标签/复制类工具,真实用法被局部变量遮蔽
 Y = app::getMediaTypeLabel(?) # Le(e) 按 type 返回 '图片'/'视频' 等展示名
 Yn = lucide-react::Icon(?) # Re size11/15 strokeWidth1.8 aria-hidden 图标
 Yt = lucide-react::Icon(?) # ze X.jsx(ze,{…}) L15937
-Z = (?)? # Be 仅见局部尺寸变量,未定位真实 API(疑似被遮蔽)
+Z = app::helper # Be 仅见局部尺寸变量,未定位真实 API(疑似被遮蔽)
 Zn = (?)? # Ve 仅见局部尺寸变量,未定位真实 API(疑似被遮蔽)
 Zt = lucide-react::Icon(?) # He X.jsx(He,{…}) 4 处
 _ = (?)? # Ue 被局部 useRef 遮蔽,未定位真实 API
 _n = lucide-react::Icon(?) # We size11/15 strokeWidth1.8 图标(图片类按钮)
 _r = react-flow::Handle # Ge X.jsx(_r,{type:'target',…})
-_t = react-flow::Node(?) # Ke X.jsx(Ke,{…}) style:Ke 疑似节点/容器组件
-a = app::component(?) # qe X.jsx(qe,{…}) onClick:()=>qe(id)
-an = app::optionsArray(?) # Je=[{…}] 列表(切片 map 渲染)
-ar = app::component(?) # Ye function Ye(e) 在 map 中渲染
+_t = lucide-react::Icon # Ke X.jsx(Ke,{…}) style:Ke 疑似节点/容器组件
+a = app::helper # qe X.jsx(qe,{…}) onClick:()=>qe(id)
+an = lucide-react::Icon # Je=[{…}] 列表(切片 map 渲染)
+ar = react::internal # Ye function Ye(e) 在 map 中渲染
 at = react-flow::Position # J.Left / J.Right 枚举(Position.Left/Right)
 b = three::RepeatWrapping # Xe e.wrapS = Xe; e.wrapT = Xe(THREE 纹理环绕常量)
 bn = lucide-react::Icon(?) # Ze X.jsx(Ze,{…}) L33476
-br = lucide-react::Loader(?) # Qe size + className animate-spin 旋转/加载图标
+br = lucide-react::Icon # Qe size + className animate-spin 旋转/加载图标
 bt = lucide-react::Icon(?) # $e X.jsx($e,{…}) L25164
 c = app::component(?) # et X.jsx(et,{…}) L25869
-cn = app::component(?) # tt function tt(e) X.jsx(tt,{…})
-cr = (?)? # nt 仅见局部 style/state 对象,未定位真实 API
-ct = lucide-react::Crop(?) # rt X.jsx(rt,{size:14}) 旁 title='裁剪'
+cn = lucide-react::Icon # tt function tt(e) X.jsx(tt,{…})
+cr = react::internal # nt 仅见局部 style/state 对象,未定位真实 API
+ct = lucide-react::Icon # rt X.jsx(rt,{size:14}) 旁 title='裁剪'
 d = @react-three/fiber::PerspectiveCamera # it X.jsx(it,{makeDefault,position,fov})
 dn = lucide-react::Icon(?) # at X.jsx(at,{size:16})
-dr = lucide-react::Icon(?) # ot X.jsx(ot,{size:12,text-green-500 drop-shadow}) 成功/勾选图标
-dt = app::component(?) # st X.jsx(st,{…}) L35527
+dr = react::internal # ot X.jsx(ot,{size:12,text-green-500 drop-shadow}) 成功/勾选图标
+dt = lucide-react::Icon # st X.jsx(st,{…}) L35527
 en = lucide-react::Icon(?) # ct X.jsx(ct,{…}) 9 处
-er = lucide-react::Icon(?) # lt X.jsx(lt,{size:16})
+er = react::internal # lt X.jsx(lt,{size:16})
 et = React::memo # ut(Y.useMemo(…)) 包裹组件
-f = drawing::Line(?) # dt X.jsx(dt,{color,lineWidth,points,onClick,opacity,transparent}) 绘图线条
+f = three::Line2 # dt X.jsx(dt,{color,lineWidth,points,onClick,opacity,transparent}) 绘图线条
 fn = lucide-react::Icon(?) # ft X.jsx(ft,{…}) 5 处
-fr = lucide-react::Icon(?) # pt X.jsx(pt,{…}) 20 处
+fr = react::internal # pt X.jsx(pt,{…}) 20 处
 ft = lucide-react::Icon(?) # mt X.jsx(mt,{className:'w-4 h-4 …'})
 g = React::(memo/forwardRef)(?) # ht(…) 包裹 X.jsx 的 HOC
 gn = lucide-react::Icon(?) # gt X.jsx(gt,{…})
@@ -141,7 +141,7 @@ lr = lucide-react::circle-question-mark # U(`circle-question-mark`) 帮助图标
 lt = lucide-react::zap # U(`zap`)（内部 Kd）
 m = @react-three/drei::Html # drei Html 组件 prepend/center/fullscreen/eps（内部 LW）
 mn = lucide-react::maximize # U(`maximize`)（内部 Vu）
-mr = react::(?) (?) # React 内部结构变量 Vl，非公开 API
+mr = react::executionContext # React 内部结构变量 Vl，非公开 API
 mt = lucide-react::wand-sparkles # U(`wand-sparkles`)（内部 Vd）
 n = three::GLTFLoader # three GLTF 加载器 dracoLoader/ktx2Loader（内部 Fq）
 nn = lucide-react::pencil # U(`pencil`)（内部 $u）
