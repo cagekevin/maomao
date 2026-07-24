@@ -1,4 +1,4 @@
-# vendor.js 导出映射 (192个，7条噪声已清理)
+# vendor.js 导出映射 (186个有效，7条噪声已清理)
 # 格式: 导出名 = 库::API # 说明
 
 A = three::RGBAFormat # THREE 纹理格式常量 1023（LT=1022/RT=1023… 同组为 THREE 像素格式），用于 Texture.format

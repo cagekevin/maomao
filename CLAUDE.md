@@ -27,7 +27,7 @@ npm run build
 > - 保持原样不重写：`src/vendor/`（`vendor.js`/`rolldown-runtime.js` 是运行时依赖，可 import 引用，不改内容）、`dist/`（构建产物）、`reference/App.original.js`（原始参考）、`*.css`
 > - 入口：前端唯一入口是 `src/entry.js`（`index.html` 直接引用）；`src/main.tsx` 已删除，不要再创建或引用。
 > - 端口：前端扩展（Chrome 加载 `dist/`）· localTool `:18080` · 网关 `:9004`
-> - 先读：本文件 → 查函数查 `docs/func-mapping.txt` + `docs/var-mapping.txt` → 查节点查 `docs/节点组件契约表.md` → 查事件查 `docs/事件总线字典.md` → 查 vendor 查 `docs/vendor-mapping.txt` → 查存储查 `docs/KV存储键读写面.md`
+> - 先读：本文件 → 查函数查 `docs/func-mapping.txt` + `docs/var-mapping.txt` → 查节点查 `docs/节点组件契约表.md` → 查事件查 `docs/事件总线字典.md` → 查 vendor 查 `docs/vendor-mapping.txt`（186 条映射）并优先引用 `src/vendor-readable.js`（可读翻译层）→ 查存储查 `docs/KV存储键读写面.md`
 > - 诊断工具：`node scripts/vendor-lookup.cjs <name>`（查混淆名来源）、`npm run build && node scripts/check-build.cjs`（不用 Chrome 验证）
 > - 事实源：代码 > git > 审计文档；`docs/04-api` 等是 AI 提纯，**非事实源**，改码前须 grep 源码复核
 > - 已知噪音（别修）：`9004` 未实现 API 的 `404`、`RootErrorBoundary` 的 `null` 异常
@@ -56,7 +56,7 @@ npm run build
 | `src/App.js` | ★ V1 引擎核心（当前运行，原 `src/_engine/App.js` 扁平化而来），约 4.4 万行。已**解耦拆分**：业务逻辑分散在 `src/config/`、`src/utils/`、`src/services/`、`src/components/`、`src/hooks/`、`src/contexts/` 子模块，`App.js` 本身保留混淆变量名并 `import` 这些子模块。★ 主权威运行/修改文件。 |
 | `src/config.js` | 集中配置层（原 `src/_engine/config.js`），修改端点或开关时动它。 |
 | `src/react-bridge.ts` | JSX runtime 桥接，从 `window.__React` 取 React 供 `@vitejs/plugin-react` 的 JSX transform 用（配合 `vite.config.ts` 的 alias）。 |
-| `src/vendor/` | 第三方/运行时原版产物。可 import 引用其导出，**不要直接修改文件内容**（`vendor.js`/`rolldown-runtime.js`）。 |
+| `src/vendor/` | 第三方/运行时原版产物。可 import 引用其导出，**不要直接修改文件内容**（`vendor.js`/`rolldown-runtime.js`）。`src/vendor-readable.js` 是**只读的翻译层**：把 vendor.js 的混淆导出名映射成 `库::API` 可读名并 re-export，供业务代码按语义名引用；它本身不改 vendor.js 内容。 |
 | `localTool/` | 本地工具服务，基于 Node/TS，使用 sql.js(WASM) 存储。 |
 | `apimart-gateway/` | AI 网关，基于 Python FastAPI。 |
 | `scripts/` | 反编译/拆分辅助脚本，不是运行所需。 |
@@ -143,6 +143,42 @@ return X.jsxs("div", { className: "pl-overlay", children: [
 - **无视噪音**：别修 `9004` 未实现 API 的 `404`、`RootErrorBoundary` 的 `null` 异常。
 - **先理解后修改**：改码前确认影响范围，必要时查映射表和专题文档。
 
+### 3.6 vendor 翻译层规范（改码涉及 vendor 时必看）
+
+`vendor.js` 是 1.66MB 反编译混淆产物，是运行时硬依赖，**永远不改其内容**（§3.2 红线）。为此项目建了 `src/vendor-readable.js` 翻译层，业务代码不要直接按混淆短名 import vendor.js，统一走它。
+
+**铁律**：
+- ❌ 禁止手改 `src/vendor/vendor.js`、`src/vendor/rolldown-runtime.js`。
+- ❌ 禁止手改 `src/vendor-readable.js`（它是自动生成产物，重生成会覆盖）。
+- ❌ 禁止把 `vendor-readable.js` 当"事实证据"去反推某个混淆名属于哪个库（循环论证）；验证真实库/API 须回 `vendor.js` 末尾 `export{ 本地名 as 短名 }` 块，定位 minified 定义体判定。
+
+**引用方式（正确）**：
+```js
+// ✅ 从翻译层按可读名 import
+import { createElement, MeshStandardMaterial, Cropper, IconImages } from "../vendor-readable.js";
+```
+```js
+// ❌ 不要从 vendor.js 按混淆短名 import
+import { Ar, D, B, An } from "../vendor/vendor.js"; // 不可读、易漂、难维护
+```
+
+**遇到 `Xx is not defined` / 不认识某个 vendor 名时**：
+1. `node scripts/vendor-lookup.cjs <Xx>` 查映射；
+2. 映射里若是 `(?)`（存疑，如 `Mr/Nr/Q/R/Zn/_/jr`），功能上**仍可直接 import 用**，只是不确定它到底是哪个库——不要为了消除"存疑"去瞎猜改映射；
+3. 映射里若无此名，说明它可能是 vendor.js 导出但没进 mapping，回 vendor.js 末尾 export 块确认短名后补映射。
+
+**需要新增 / 修正 vendor 映射时（D 阶段工作，小步提交）**：
+1. 在 `docs/vendor-mapping.txt` 加/改一行：`短名 = 库::API # 依据`（依据必须来自 vendor.js 定义体，不是 vendor-readable.js）；
+2. 重生成翻译层（保持 **186 条基准、0 重复 0 空名**）：
+   ```bash
+   node scripts/_gen-vr.cjs   # 严格解析，输出 src/vendor-readable.js
+   # 校验：node -e "..." 数导出=186、重复=0、空名=0
+   ```
+3. 三层验证：`npm run build` ✅ → `node scripts/check-build.cjs` ✅ → `node scripts/safety-net.cjs --check` ✅；
+4. 提交信息带 `feat(vendor):` / `fix(vendor):`，并同步更新 `HANDOFF.md` 的 D 阶段进度（如 D-3 清理、续研结果合并）。
+
+> 生成脚本 `scripts/_gen-vr.cjs` 为临时脚本，用完即删；如需重建可参考 `docs/vendor-mapping.txt` 格式自行写一次性脚本，不要把它当常驻工具。
+
 ---
 
 ## 4. V2 归档状态说明
@@ -171,7 +207,8 @@ return X.jsxs("div", { className: "pl-overlay", children: [
 | `docs/archive/PROJECT_ORIGIN.md` | 项目来历 + 命名/版本澄清，**以它为准** | 🟢 高 |
 | `docs/archive/ARCHITECTURE.md`（常驻版 `02-architecture.md`） | 三层架构事实，红线以本文档 §3 为准 | 🟢 高 |
 | `docs/archive/FUNCTION_MAP.md` | App.js 行号索引，改画布功能前先查；行号会漂移 | 🟡 行号已漂 |
-| `docs/vendor-mapping.txt` | vendor.js 199 个导出 → 库::API 映射。报 `Xx is not defined` 时先查这个。 | 🟢 高 |
+| `src/vendor-readable.js` | **只读翻译层**（186 导出，0 重复 0 空名）。把 vendor.js 混淆名 re-export 为 `库::API` 可读名，业务代码优先从这里 import，不要自己从 vendor.js 按混淆名 import。禁止手改，改映射须改 `vendor-mapping.txt` 后重生成。 | 🟢 高 |
+| `docs/vendor-mapping.txt` | vendor.js 186 个导出 → 库::API 映射（含 `(?)` 存疑标记）。报 `Xx is not defined` 时先查这个；验证来源须以 vendor.js 末尾 `export{...}` 块为准，勿用 vendor-readable.js 当证据（循环）。 | 🟢 高 |
 | `docs/节点组件契约表.md` | 26 个节点的 props/callbacks/output/连接关系。改节点时必查。 | 🟢 高 |
 | `docs/事件总线字典.md` | 27 个 CustomEvent 的派发/消费/detail。拆组件时必查。 | 🟢 高 |
 | `docs/KV存储键读写面.md` | 23 个 KV 键的读写位置/GAS 同步/数据结构。 | 🟡 字典级 |

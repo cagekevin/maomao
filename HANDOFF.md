@@ -8,9 +8,9 @@
 
 | 项目 | 值 |
 |------|-----|
-| 分支 | `main` @ `2e579dd`（已推送） |
+| 分支 | `main` @ `0fa05ab`（已推送） |
 | App.js | 44,684 行，27 个节点函数体全部语义化完成 |
-| 当前阶段 | **D. vendor翻译层**（vendor-readable.js 已完成；73 条存疑 AI 验证完成，待合并修正回 vendor-mapping.txt）|
+| 当前阶段 | **D. vendor翻译层**（D-1 ✅ 建 vendor-readable.js 186条；D-2 ✅ 73条存疑验证+24修正合并回 mapping；D-3 ⏸️ 清理过时 `#` 描述；`Mr/Nr/Q/R/Zn/_/jr` 续研未尽）|
 
 ---
 
@@ -66,13 +66,15 @@ merge-rewrites— 合并 AB 代码块到 App.js（有已知缺陷，优先手动
 A.注释化 ✅ → B.重命名 ✅ → C.函数体重写 ✅ → D.vendor翻译层 📍 → E.新代码直连 ⏸️ → F.旧代码替换 ⏸️
 ```
 
-**D 阶段**：建 `src/vendor-readable.js`（192 导出→标准库翻译层，0 重复 0 空名），vendor.js 原样不动。
+**D 阶段**：建 `src/vendor-readable.js`（186 导出→标准库翻译层，0 重复 0 空名），vendor.js 原样不动。
+
+> 数字变更说明：早期"192 导出"是旧解析脚本容错偏宽的虚高值；经 D-2 严格解析，`docs/vendor-mapping.txt` 真实有效映射为 **186 条**，与 `vendor-readable.js` 导出数一致。`CLAUDE.md`、`docs/` 中凡出现"199 / 192"之处均指 186。
 
 ### D 阶段进度详情（2026-07-24）
 
-**D-1. vendor-readable.js** ✅ 已完成（commit `6fedfc9` / `cd94bdb`）
-- 输入：`docs/vendor-mapping.txt` 192 有效映射（7 条噪声已清理）
-- 输出：`src/vendor-readable.js` 192 导出，0 重复、0 空名
+**D-1. vendor-readable.js** ✅ 已完成（commit `6fedfc9` / `cd94bdb` / `16efa09`）
+- 输入：`docs/vendor-mapping.txt` 186 有效映射（7 条噪声已清理）
+- 输出：`src/vendor-readable.js` 186 导出，0 重复、0 空名
 - `npm run build` ✅、check-build 7 项 ✅，vendor 体积不变（tree-shaking）
 
 **D-2. vendor-mapping.txt 73 条存疑验证** ✅ 4 个 AI 已完成
