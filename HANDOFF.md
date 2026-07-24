@@ -10,7 +10,7 @@
 |------|-----|
 | 分支 | `main` @ `0fa05ab`（已推送） |
 | App.js | 44,684 行，27 个节点函数体全部语义化完成 |
-| 当前阶段 | **D. vendor翻译层**（D-1 ✅ 建 vendor-readable.js 186条；D-2 ✅ 73条存疑验证+24修正合并回 mapping；D-3 ⏸️ 清理过时 `#` 描述；`Mr/Nr/Q/R/Zn/_/jr` 续研未尽）|
+| 当前阶段 | **D. vendor翻译层**（D-1 ✅ 建 vendor-readable.js 186条；D-2 ✅ 73条存疑验证+24修正合并回 mapping；D-3 ✅ 清理24条过时描述；`Mr/Nr/Q/R/Zn/_/jr` + `g` 续研未尽）|
 
 ---
 
@@ -98,10 +98,14 @@ A.注释化 ✅ → B.重命名 ✅ → C.函数体重写 ✅ → D.vendor翻译
 2. ✅ 重新生成 `vendor-readable.js`：**186 条导出，0 重复 0 空名**（之前 192 条为旧脚本容错偏宽的虚高数字，186 是严格解析的真实覆盖）
 3. ✅ 三层验证通过：`npm run build` ✅、`check-build` 7 项 ✅、`safety-net --check` ✅（物理/JSX/产物指纹均无破坏）
 
-**D-2 仍未结清**：
+**D-3 已完成（2026-07-24）**：
+- ✅ 24 条已修正条目的旧 `#` 注释已按新映射重写（依据 TASK-01~04 验证理由，证据来自 `vendor.js` 定义体，非 `vendor-readable.js` 循环证据）
+- value 全部保持不动（仅改描述）；`npm run build` ✅ / `check-build` ✅ / `safety-net --check` ✅ 三层验证通过
+
+**仍未结清**：
 - `Mr / Nr / Q / R`（AI01 4 条存疑）—— 续研结果回来后再合并
 - `Zn / _ / jr`（3 条保留 `(?)`）—— 无 sourcemap 不强求
-- D-3 待办：vendor-mapping.txt 中已修正条目对应的 # 描述还是旧的（如 Z 的 "未定位真实 API" 已不准确），需要按映射重写描述
+- `g`（TASK-03 第 11 条修正，应为 `react::createPortal` HOC）—— **D-2 合并时被漏掉**，value 仍是 `React::(memo/forwardRef)(?)`，但已被计入"186 个有效"。待补：把 value 改为 `react::createPortal` 并重生成 `vendor-readable.js`（g 可读名同步）、三层验证后提交
 
 ---
 
