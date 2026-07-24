@@ -113,7 +113,7 @@ export { f as Line2 } from "./vendor/vendor.js";
 export { fn as Icon_21 } from "./vendor/vendor.js";
 export { fr as ReactInternal_14 } from "./vendor/vendor.js";
 export { ft as Icon_22 } from "./vendor/vendor.js";
-export { g as Ex_g } from "./vendor/vendor.js";
+export { g as createPortalHOC } from "./vendor/vendor.js";
 export { gn as Icon_23 } from "./vendor/vendor.js";
 export { gr as Icon_24 } from "./vendor/vendor.js";
 export { gt as Iconvolume2 } from "./vendor/vendor.js";

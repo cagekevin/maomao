@@ -102,10 +102,14 @@ A.注释化 ✅ → B.重命名 ✅ → C.函数体重写 ✅ → D.vendor翻译
 - ✅ 24 条已修正条目的旧 `#` 注释已按新映射重写（依据 TASK-01~04 验证理由，证据来自 `vendor.js` 定义体，非 `vendor-readable.js` 循环证据）
 - value 全部保持不动（仅改描述）；`npm run build` ✅ / `check-build` ✅ / `safety-net --check` ✅ 三层验证通过
 
+**g 已完成（2026-07-24，本提交）**：
+- value 由 `React::(memo/forwardRef)(?)` 改为 `react::createPortalHOC`（与 `W`=createPortal 原始函数区分，避免重名可读名）
+- `vendor-readable.js` 同步 `export { g as Ex_g }` → `export { g as createPortalHOC }`（忠实于 mapping 的单条重生成，不整体重跑脚本以免引入 185 行非预期 diff）
+- 仍 186 导出、0 重复 0 空名；`npm run build` / `check-build` / `safety-net --check` 三层验证通过
+
 **仍未结清**：
 - `Mr / Nr / Q / R`（AI01 4 条存疑）—— 续研结果回来后再合并
 - `Zn / _ / jr`（3 条保留 `(?)`）—— 无 sourcemap 不强求
-- `g`（TASK-03 第 11 条修正，应为 `react::createPortal` HOC）—— **D-2 合并时被漏掉**，value 仍是 `React::(memo/forwardRef)(?)`，但已被计入"186 个有效"。待补：把 value 改为 `react::createPortal` 并重生成 `vendor-readable.js`（g 可读名同步）、三层验证后提交
 
 ---
 

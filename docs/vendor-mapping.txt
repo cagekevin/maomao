@@ -115,7 +115,7 @@ f = three::Line2 # three Line2 组件（MG=H.forwardRef 3D 粗线，points/color
 fn = lucide-react::Icon(?) # ft X.jsx(ft,{…}) 5 处
 fr = react::internal # React 内部常量（Ul=null，值 null，位于 L8 常量块）
 ft = lucide-react::Icon(?) # mt X.jsx(mt,{className:'w-4 h-4 …'})
-g = React::(memo/forwardRef)(?) # ht(…) 包裹 X.jsx 的 HOC
+g = react::createPortalHOC # React createPortal HOC 包装（qU=function(e,t,n){return (0,W.jsx)(JU,{children:e,container:t,state:n})}），非 memo/forwardRef
 gn = lucide-react::Icon(?) # gt X.jsx(gt,{…})
 gr = lucide-react::Icon(?) # _t X.jsx(_t,{…}) 6 处
 gt = lucide-react::volume-2 # U(`volume-2`) 图标组件（内部 zd）
