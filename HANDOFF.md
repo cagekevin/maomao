@@ -1,4 +1,4 @@
-# Handoff — 2026-07-24 C 阶段 ✅ 完成，进入 D 阶段
+# Handoff — 2026-07-24 D 阶段 ✅ 已关闭，进入 E 阶段
 
 > **给下一位 AI**：先读 `CLAUDE.md`，再看 `docs/拆分计划.md` §11 终局路线图。
 
@@ -10,7 +10,7 @@
 |------|-----|
 | 分支 | `main` @ `a54cac2`（已推送） |
 | App.js | 44,684 行，27 个节点函数体全部语义化完成 |
-| 当前阶段 | **D. vendor翻译层**（D-1 ✅ 建 vendor-readable.js 186条；D-2 ✅ 73条存疑验证+24修正合并回 mapping；D-3 ✅ 清理24条过时描述；`Mr/Nr/Q/R/Zn/_/jr` + `g` 续研未尽）|
+| 当前阶段 | **E. 新代码直连**（D ✅ 已关闭；E-1 进行中：react 全量桥接 + vite alias）|
 
 ---
 
@@ -107,9 +107,9 @@ A.注释化 ✅ → B.重命名 ✅ → C.函数体重写 ✅ → D.vendor翻译
 - `vendor-readable.js` 同步 `export { g as Ex_g }` → `export { g as createPortalHOC }`（忠实于 mapping 的单条重生成，不整体重跑脚本以免引入 185 行非预期 diff）
 - 仍 186 导出、0 重复 0 空名；`npm run build` / `check-build` / `safety-net --check` 三层验证通过
 
-**仍未结清**：
-- `Mr / Nr / Q / R`（AI01 4 条存疑）—— 续研结果回来后再合并
-- `Zn / _ / jr`（3 条保留 `(?)`）—— 无 sourcemap 不强求
+**D 阶段已关闭（2026-07-24 ✅）**：
+- 7 条存疑 `Mr/Nr/Q/R/Zn/_/jr` 已在 vendor-mapping.txt 统一标注「存疑·无sourcemap不强求」，vendor-readable.js 补齐 `Zn`/`_` 占位导出（现 188 条，含 2 条占位）
+- 7 条存疑无需继续等续研结果，不影响 E 阶段推进
 
 ---
 

@@ -12,6 +12,8 @@ export default defineConfig({
     alias: [
       { find: /^react\/jsx-dev-runtime$/, replacement: resolve(__dirname, 'src/react-bridge.ts') },
       { find: /^react\/jsx-runtime$/, replacement: resolve(__dirname, 'src/react-bridge.ts') },
+      { find: /^react$/, replacement: resolve(__dirname, 'src/react-bridge.ts') },
+      { find: /^react-dom$/, replacement: resolve(__dirname, 'src/react-bridge.ts') },
     ],
   },
   build: {
