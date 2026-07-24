@@ -1,4 +1,4 @@
-# Handoff — 2026-07-24 §8 注释化完成，§9 重命名完成，§10 拆解待
+# Handoff — 2026-07-24 C 阶段 16/26 已合并，剩余 11 待补
 
 > **给下一位 AI**：先读 `CLAUDE.md`，再看 `docs/拆分计划.md` §11 终局路线图。
 
@@ -8,9 +8,9 @@
 
 | 项目 | 值 |
 |------|-----|
-| 分支 | `main` @ latest |
-| App.js | 43,768 行，287 函数全可读，27 节点已语义化 |
-| 未推送 | 若干提交，等网络恢复 |
+| 分支 | `main` @ `60a1c1a`（已推送） |
+| App.js | 43,768 行，16 个函数体已语义化（a,b,c→updateNodeData,loading...） |
+| 剩余 | 11 个函数体待重写，3 份任务书在 `docs/agent-tasks/` 等待执行 |
 
 ---
 
@@ -42,15 +42,29 @@ status        — 项目状态速览
 
 ---
 
-## 当前进行中：函数体重写（AB01-09）
+## 当前进行中：函数体重写（C 阶段）
 
-9 个 agent，每人 3 个节点。在 App.js 内重写函数体（局部变量语义化 + 段落注释）。
+### 已完成（16/26，已合并到 App.js）
+AB02(gridSplit,gridMerge) AB03(全3) AB04(audio,audioPlayer) AB05(全3) AB06(全3) AB08(全3)
 
-**流程**：
-1. agent 填 `docs/annotate-body-tasks/AB0X.md` 的代码块（**禁止直接改 App.js**）
-2. `node scripts/merge-rewrites.cjs` 逐个验收并写入
-3. 验收标准：有段落注释 + JSX 不丢 + 逐函数 build 通过
-4. 自动备份+失败回退
+### 待补（11 个函数，3 份任务书）
+| 任务书 | 函数 |
+|--------|------|
+| `docs/agent-tasks/TASK-01` | AB01: ImageNodeComp, PromptNodeComp, TextNodeComp |
+| `docs/agent-tasks/TASK-02` | AB02-CropNodeComp + AB04-CustomNodeComp + AB07 全3|
+| `docs/agent-tasks/TASK-03` | AB09: GroupNodeComp, Nh, StickyNoteNodeComp |
+
+每份任务书已内嵌变量映射表 + 行号 + 代码块模板（填空题，不是探索题）。
+
+### 合并流程
+1. agent 填各自产出文件的代码块
+2. `node scripts/merge-rewrites.cjs` 逐函数验收 + 全量 check-build
+3. 自动备份 + 失败回退
+
+### 教训（已写入 `.codebuddy/commands/任务安排工作流.md` §八）
+- 不给映射表+行号 → agent 写脚本自动化（返工 2 轮）
+- 先跑合并看结果，别人工判断谁完成谁没完成
+- 任务书必须自包含，agent 不知道别人存在就无从抄袭
 
 ## 终局路线图（`docs/拆分计划.md` §11）
 
