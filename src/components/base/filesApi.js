@@ -10,6 +10,20 @@
 import { API_BASE } from './apiBase.js'
 const SUBFOLDER = 'tasks'
 
+/**
+ * 相对 /files/ 路径 → 完整可访问 URL。
+ * 画布运行在 localhost:5180 / chrome-extension:// 下，若 dataURL 外置只存了相对路径
+ * （老数据 base64Externalize 返回相对 /files/...），<img src="/files/..."> 会被解析成错误源 → 破图。
+ * 读取画布/资源时统一补全为绝对 URL（对齐后端 resources.ts 的 toAbsoluteFileUrl 惯例）。
+ * @param {string} url 相对路径（/files/...）或已是绝对 URL / data: / blob:
+ * @returns {string} 补全后的 URL（非 /files/ 相对路径的原样返回）
+ */
+export function toAbsoluteFileUrl(url) {
+  if (!url || typeof url !== 'string') return url
+  if (url.startsWith('/files/')) return `${API_BASE}${url}`
+  return url
+}
+
 // 类型 → 扩展名（生成面板按扩展名分类展示）
 const EXT_BY_TYPE = {
   image: 'png',
@@ -25,6 +39,60 @@ function safeName(base, ext) {
   const pad = (n) => String(n).padStart(2, '0')
   const ts = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`
   return `${clean}_${ts}.${ext}`
+}
+
+/**
+ * 把内联 dataURL 落盘为本地文件 URL（「将内联资源转为URL / 清理缓存」核心）。
+ * 语义对齐官方后端 base64Externalize.saveBase64ToFile：
+ *  - 文件名 = sha1(base64 内容) 前 16 位 + 扩展名 → 幂等去重，重复转换不重复落盘；
+ *  - 落盘失败返回 null，调用方保留原 base64（绝不删图）。
+ * 走 localTool /api/files/upload，返回 http://127.0.0.1:18080/files/<subfolder>/<name>。
+ * @param {string} dataUrl 形如 data:image/png;base64,xxxx
+ * @param {string} [subfolder] 落盘子目录，默认 canvas（与官方 base64Externalize 一致）
+ * @returns {Promise<string|null>} 落盘 URL；失败返回 null
+ */
+export async function saveInlineToLocal(dataUrl, subfolder = 'canvas') {
+  if (!dataUrl || !dataUrl.startsWith('data:')) return null
+  try {
+    const blob = dataUrlToBlob(dataUrl)
+    const fileExt = extFromMime(dataUrl) || 'png'
+    // sha1 去重：同一 base64 → 同一文件名（对齐官方 saveBase64ToFile 惯例）
+    const hash = await sha1Hex(blob)
+    const filename = `${hash}.${fileExt}`
+    const fd = new FormData()
+    fd.append('file', blob, filename)
+    fd.append('subfolder', subfolder)
+    const res = await fetch(`${API_BASE}/api/files/upload`, { method: 'POST', body: fd })
+    if (!res.ok) {
+      console.warn('[filesApi] 内联资源落盘失败', res.status)
+      return null
+    }
+    const data = await res.json().catch(() => ({}))
+    return data.url || null
+  } catch (e) {
+    console.warn('[filesApi] 内联资源落盘失败:', e)
+    return null
+  }
+}
+
+/** data: URL → 扩展名（不带点），按 mime 推导 */
+function extFromMime(dataUrl) {
+  const m = /^data:([^;,]+)/.exec(dataUrl)?.[1]
+  if (!m) return null
+  const subtype = m.split('/')[1]?.toLowerCase()
+  const map = { jpeg: 'jpg', 'svg+xml': 'svg', 'quicktime': 'mov' }
+  return map[subtype] || subtype || null
+}
+
+/** blob → sha1 十六进制（Web Crypto），供幂等去重；失败返回空串 */
+async function sha1Hex(blob) {
+  try {
+    const buf = await blob.arrayBuffer()
+    const digest = await crypto.subtle.digest('SHA-1', buf)
+    return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, '0')).join('')
+  } catch {
+    return `${Date.now()}`
+  }
 }
 
 /** data: URL → Blob（base64 或 urlencoded） */

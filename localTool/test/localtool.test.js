@@ -144,14 +144,14 @@ test('方案②·KV set 含 base64 的 JSON 画布对象 → value 变为 /files
   const getRes = makeRes();
   await kvMod.handleKvGet(makeGetReq(), getRes, new URL('http://x/api/kv/get?key=canvas-state-v1-proj-test'));
   const saved = parseResBody(getRes);
-  assert.ok(saved.nodes[0].data.imageUrl.startsWith('/files/canvas/'), `imageUrl 应外置为 /files 路径, got=${saved.nodes[0].data.imageUrl}`);
+  assert.ok(saved.nodes[0].data.imageUrl.startsWith('http://127.0.0.1:18080/files/canvas/'), `imageUrl 应外置为绝对 /files URL, got=${saved.nodes[0].data.imageUrl}`);
   // 无 base64 的字段保持原样
   assert.equal(saved.nodes[1].data.imageUrl, 'http://example.com/normal.png');
   // 文本节点不受影响
   assert.equal(saved.nodes[1].data.text, 'hello');
 
   // 磁盘应存在该文件，且内容与原图一致
-  const diskPath = path.join(TEST_DIR, 'uploads', saved.nodes[0].data.imageUrl.replace('/files/', ''));
+  const diskPath = path.join(TEST_DIR, 'uploads', saved.nodes[0].data.imageUrl.replace(/^http:\/\/127\.0\.0\.1:18080\/files\//, ''));
   assert.ok(fs.existsSync(diskPath), '磁盘应存在外置文件');
   assert.ok(RED_PNG_BUFFER.equals(fs.readFileSync(diskPath)), '落盘内容应与原图一致');
 });
@@ -172,7 +172,7 @@ test('方案②·外置幂等：相同 base64 写两次 → 磁盘只一个文�
   const url2 = parseResBody(getRes2).nodes[0].data.imageUrl;
 
   assert.equal(url1, url2, '相同 base64 应映射同一 URL');
-  const diskPath = path.join(TEST_DIR, 'uploads', url1.replace('/files/', ''));
+  const diskPath = path.join(TEST_DIR, 'uploads', url1.replace(/^http:\/\/127\.0\.0\.1:18080\/files\//, ''));
   assert.ok(fs.existsSync(diskPath));
   // 目录下只有 1 个 canvas 文件（幂等不重复落盘）
   const canvasDir = path.join(TEST_DIR, 'uploads', 'canvas');
@@ -189,8 +189,8 @@ test('方案②·裸 base64 形态（img_orig_*）：整串外置为 URL', async
   await kvMod.handleKvGet(makeGetReq(), getRes, new URL('http://x/api/kv/get?key=img_orig_node1_1'));
   // 裸 base64 读回的是 URL 字符串
   const saved = parseResBody(getRes);
-  assert.ok(typeof saved === 'string' && saved.startsWith('/files/canvas/'), `img_orig_* 应外置为 URL, got=${saved}`);
-  const diskPath = path.join(TEST_DIR, 'uploads', saved.replace('/files/', ''));
+  assert.ok(typeof saved === 'string' && saved.startsWith('http://127.0.0.1:18080/files/canvas/'), `img_orig_* 应外置为绝对 URL, got=${saved}`);
+  const diskPath = path.join(TEST_DIR, 'uploads', saved.replace(/^http:\/\/127\.0\.0\.1:18080\/files\//, ''));
   assert.ok(fs.existsSync(diskPath));
   assert.ok(RED_PNG_BUFFER.equals(fs.readFileSync(diskPath)));
 });
@@ -625,12 +625,12 @@ test('helpers·paginatedResult 结构', () => {
 // 方案②工具函数直接单测
 // ══════════════════════════════════════════════════════════════
 
-test('工具·saveBase64ToFile 返回 URL 且幂等', () => {
+test('工具·saveBase64ToFile 返回绝对 URL 且幂等', () => {
   const url1 = b64Mod.saveBase64ToFile(RED_PNG_DATA_URI);
   const url2 = b64Mod.saveBase64ToFile(RED_PNG_DATA_URI);
-  assert.ok(url1 && url1.startsWith('/files/canvas/'));
+  assert.ok(url1 && url1.startsWith('http://127.0.0.1:18080/files/canvas/'), `应返回绝对 URL, got=${url1}`);
   assert.equal(url1, url2, '相同内容幂等');
-  const diskPath = path.join(TEST_DIR, 'uploads', url1.replace('/files/', ''));
+  const diskPath = path.join(TEST_DIR, 'uploads', url1.replace(/^http:\/\/127\.0\.0\.1:18080\/files\//, ''));
   assert.ok(fs.existsSync(diskPath));
   assert.ok(RED_PNG_BUFFER.equals(fs.readFileSync(diskPath)));
 });

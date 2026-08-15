@@ -16,7 +16,7 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { getUploadDir } from '../db/database.js';
+import { getUploadDir, LOCAL_FILE_BASE } from '../db/database.js';
 import { ensureDir, resolveUploadTarget, sanitizeFilename } from './fileStore.js';
 
 /** data URI 正则：匹配 data:image/png;base64,xxxx 或 data:video/... */
@@ -63,18 +63,30 @@ export function saveBase64ToFile(dataUri: string): string | null {
   const { savedPath, urlPath } = resolveUploadTarget(subfolder, stableName);
   ensureDir(path.dirname(savedPath));
 
+  // 返回【绝对】URL：urlPath 是相对路径（/files/...），若直接存 KV，画布运行在
+  // localhost:5180 / chrome-extension:// 下会被解析成错误源 → 刷新后破图。
+  // 与 resources.ts 的 toAbsoluteFileUrl 同一惯例（resources.ts:61-65）。
+  const absoluteUrl = toAbsoluteFileUrl(urlPath);
+
   // 已存在则直接返回 URL（幂等，不重复落盘）
   if (fs.existsSync(savedPath)) {
-    return urlPath;
+    return absoluteUrl;
   }
 
   try {
     const buf = Buffer.from(base64Data, 'base64');
     fs.writeFileSync(savedPath, buf);
-    return urlPath;
+    return absoluteUrl;
   } catch {
     return null;
   }
+}
+
+/** 相对 /files/ 路径 → 完整可访问 URL（对齐 resources.ts 的 toAbsoluteFileUrl 惯例）。 */
+function toAbsoluteFileUrl(relativePath: string): string {
+  if (!relativePath) return relativePath;
+  if (/^https?:\/\//i.test(relativePath)) return relativePath;
+  return `${LOCAL_FILE_BASE}${relativePath.replace(/^\/files\//, '')}`;
 }
 
 /** MIME 到扩展名的映射（小写，带点） */
