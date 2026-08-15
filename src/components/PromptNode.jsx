@@ -10,6 +10,7 @@ import ExpandablePanel from './base/ExpandablePanel.jsx'
 import GenerateButton from './base/GenerateButton.jsx'
 import ModelSelect from './base/ModelSelect.jsx'
 import PromptInput from './base/PromptInput.jsx'
+import MaterialStrip from './base/MaterialStrip.jsx'
 import ResizeFullscreenHandle from './base/ResizeFullscreenHandle.jsx'
 import GeneratingOverlay from './base/GeneratingOverlay.jsx'
 import PromptLibraryButton from './base/PromptLibraryButton.jsx'
@@ -53,7 +54,17 @@ export default function PromptNode({ id, data, selected }) {
   // 同步 Agent(update_node) 写入 node.data 的外部变更到本地 state：
   // 否则 Agent 改了 data.aspectRatio / selectedModel，UI 与生成参数仍用旧 state。
   useSyncNodeData(data, { aspectRatio: setAspectRatio, selectedModel: setSelectedModel, quality: setQuality, imageSize: setImageSize })
-  const { setNodes } = useReactFlow()
+  const { setNodes, setEdges, getEdges } = useReactFlow()
+
+  // 断连线：点击素材缩略图红色 ×，删除该素材来源节点 → 本节点的连线。
+  // 仅对来自连线的素材有效（有 sourceNodeId）；data.images（剧本盒子资产）无来源连线，不处理。
+  const disconnectSource = useCallback(
+    (sourceNodeId) => {
+      if (!sourceNodeId) return
+      setEdges((es) => es.filter((e) => !(e.source === sourceNodeId && e.target === id)))
+    },
+    [id, setEdges]
+  )
   // 用户手动选择 → 写回 node.data，让 data 始终是真实状态（Agent read_canvas 读到最新）
   const patchData = useCallback((patch) => {
     setNodes((ns) => ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, ...patch } } : n)))
@@ -242,32 +253,8 @@ export default function PromptNode({ id, data, selected }) {
       {/* 展开的提示词面板。手柄由节点在 children 里渲染（targetRef=textarea，写回 data.inputWidth/inputHeight）。 */}
       <ExpandablePanel expanded={expanded} minWidth={500}>
         <div className="space-y-3">
-          {/* 素材缩略图区 */}
-          {(refImages.length > 0 || refTexts.length > 0) && (
-            <div className="flex flex-wrap gap-2 mb-1">
-              {refImages.map((img, i) => {
-                const name = `图片${i + 1}`
-                return (
-                  <div key={img.id} className="w-10 h-10 rounded-md overflow-hidden relative group bg-black cursor-grab active:cursor-grabbing nodrag nopan" title={img.isConnected ? '已连线的图片' : '上传的图片'}>
-                    <img src={toAbsoluteFileUrl(img.url)} className="w-full h-full object-cover opacity-80 pointer-events-none" alt={name} />
-                    <div className="absolute inset-0 bg-blue-500/10 pointer-events-none" />
-                    <button type="button" className="absolute bottom-0 left-0 right-0 bg-blue-500/80 hover:bg-blue-500 text-2xs text-white text-center py-0.5 truncate cursor-pointer transition-colors" title={`点击插入 @${name}`} onClick={(e) => { e.stopPropagation(); insertMention(name) }}>{name}</button>
-                    <span className="absolute top-0 right-0 p-0.5 bg-black/50 hover:bg-red-500/80 rounded-bl-md cursor-pointer opacity-0 group-hover:opacity-100 transition-all"><X size={10} className="text-white" /></span>
-                  </div>
-                )
-              })}
-              {refTexts.map((t, i) => {
-                const name = `文本${i + 1}`
-                return (
-                  <div key={t.id} className="h-8 px-2 bg-surface-hover border border-edge-muted rounded flex items-center gap-1 text-caption text-gray-300 hover:bg-surface-hover-strong hover:border-blue-500 hover:text-blue-400 transition-colors cursor-pointer group/text relative" title={t.text} onClick={(e) => { e.stopPropagation(); insertMention(name) }}>
-                    <LinkIcon size={10} />
-                    <span className="max-w-[80px] truncate">{name} ({t.label})</span>
-                    <span className="absolute -top-1 -right-1 p-0.5 bg-black hover:bg-red-500 rounded-full cursor-pointer opacity-0 group-hover/text:opacity-100 transition-all"><X size={10} className="text-white" /></span>
-                  </div>
-                )
-              })}
-            </div>
-          )}
+          {/* 素材缩略图区（通用组件 MaterialStrip，以生图节点为标准：缩略图 + 底部@插入 + 右上×断线） */}
+          <MaterialStrip images={refImages} texts={refTexts} onInsert={insertMention} onDisconnect={disconnectSource} />
 
           {/* 提示词输入（基座 PromptInput，含 @素材弹层） */}
           <PromptInput

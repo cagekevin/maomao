@@ -2,6 +2,17 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ===== 全局：输入控件聚焦去蓝框（统一覆盖浏览器默认 focus outline） =====
+ * 节点内的 textarea / input / select 聚焦时，浏览器默认会加蓝色 outline（--xy 或原生）。
+ * 各节点虽已尽量加 outline-none，但难保全部覆盖；这里在全局统一去掉，
+ * 节点需要的自定义聚焦态（如 focus:border-*）仍由节点自身 class 提供。 */
+input:focus,
+textarea:focus,
+select:focus {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
 /* ===== 全局暗色 ===== */
 html,
 body,

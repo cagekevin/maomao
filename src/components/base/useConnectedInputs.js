@@ -162,10 +162,12 @@ export function useConnectedInputs(nodeId) {
           return
         }
         const r = getNodeOutput(src, e.sourceHandle)
-        out.images.push(...r.images)
-        out.texts.push(...r.texts)
-        out.videos.push(...r.videos)
-        out.audios.push(...r.audios)
+        // 给每个上游产出补 sourceNodeId = 来源节点 id，供下游「断连线/溯源」用
+        // （getNodeOutput 返回的 item.id 可能是子项 id / 数组索引前缀，不可靠）。
+        out.images.push(...r.images.map((it) => ({ ...it, sourceNodeId: src.id })))
+        out.texts.push(...r.texts.map((it) => ({ ...it, sourceNodeId: src.id })))
+        out.videos.push(...r.videos.map((it) => ({ ...it, sourceNodeId: src.id })))
+        out.audios.push(...r.audios.map((it) => ({ ...it, sourceNodeId: src.id })))
       })
     // 读取端兜底：上游图片 URL 统一补全相对 /files/ 路径为绝对 URL，
     // 下游所有引用 connected.images[].url 的 <img> 自动拿到可访问地址（刷新不破图）。

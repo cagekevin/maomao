@@ -1,4 +1,5 @@
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useCallback } from 'react'
+import { useReactFlow } from '@xyflow/react'
 import {
   Clapperboard, Plus, Expand, Download, Trash2, Play,
   AlertCircle, Settings, Link as LinkIcon, RefreshCw, Coins
@@ -12,6 +13,7 @@ import ResizeFullscreenHandle from './base/ResizeFullscreenHandle.jsx'
 import GeneratingOverlay from './base/GeneratingOverlay.jsx'
 import PromptLibraryButton from './base/PromptLibraryButton.jsx'
 import JianyingIcon from './JianyingIcon.jsx'
+import MaterialStrip from './base/MaterialStrip.jsx'
 import { useNodeResize, useOutsideClick } from './base/hooks.js'
 import { useConnectedInputs } from './base/useConnectedInputs.js'
 import { useMediaDegrade } from './base/useMediaDegrade.js'
@@ -36,6 +38,15 @@ export default function DiscountVideoNode({ id, data, selected }) {
 
   // 通用连线数据传递：读取直接上游节点的图片/文本作为参考素材
   const connected = useConnectedInputs(id)
+  const { setEdges } = useReactFlow()
+  // 断开连线：素材缩略图红色 × → 删除该来源节点 → 本节点的连线（仅对有 sourceNodeId 的素材）
+  const disconnectSource = useCallback(
+    (sourceNodeId) => {
+      if (!sourceNodeId) return
+      setEdges((es) => es.filter((e) => !(e.source === sourceNodeId && e.target === id)))
+    },
+    [id, setEdges]
+  )
   const [prompt, setPrompt] = useState(data.prompt || '')
   const [ratio, setRatio] = useState(data.size || '16:9')
   const [resolution, setResolution] = useState(data.resolution || '1080p')
@@ -239,22 +250,8 @@ export default function DiscountVideoNode({ id, data, selected }) {
       {/* 展开的提示词面板。手柄由节点在 children 里渲染（targetRef=textarea，写回 data.inputWidth/inputHeight）。 */}
       <ExpandablePanel expanded={expanded} minWidth={500}>
         <div className="space-y-3">
-          {/* 素材缩略图（仅显示真实上游/上传的素材，无上游则隐藏） */}
-          {(connected.images.length > 0 || connected.texts.length > 0) && (
-            <div className="flex flex-wrap gap-2 mb-1">
-              {connected.images.map((img, i) => (
-                <div key={img.id || i} className="w-10 h-10 rounded-md overflow-hidden border border-edge-muted relative group bg-black cursor-grab active:cursor-grabbing nodrag nopan" title="连线图片 (点击底部标签插入到提示词)">
-                  <LazyImage src={img.url} alt="Ref" className="w-full h-full" imgClassName="w-full h-full object-cover pointer-events-none" />
-                </div>
-              ))}
-              {connected.texts.map((t, i) => (
-                <div key={t.id || i} className="h-8 px-2 bg-surface-hover border border-edge-muted rounded flex items-center gap-1 text-caption text-gray-300 hover:bg-surface-hover-strong hover:border-blue-500 hover:text-blue-400 transition-colors cursor-help group/text" title={t.text || t.label}>
-                  <LinkIcon size={10} />
-                  <span className="max-w-[80px] truncate">{t.label || '参考文本'}</span>
-                </div>
-              ))}
-            </div>
-          )}
+          {/* 素材缩略图区（通用组件 MaterialStrip，以生图节点为标准） */}
+          <MaterialStrip images={connected.images} texts={connected.texts} onInsert={(name) => setPrompt((p) => (p ? `${p} @${name} ` : `@${name} `))} onDisconnect={disconnectSource} />
 
           {/* 提示词输入 */}
           <div className="flex items-start gap-2">
