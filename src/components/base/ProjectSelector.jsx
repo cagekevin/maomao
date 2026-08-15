@@ -27,8 +27,12 @@ export default function ProjectSelector({ onSwitch, onCreate }) {
   const handleCreate = () => {
     const trimmed = name.trim()
     if (!trimmed) return
+    // 先把「旧项目 id」传给宿主（App.handleCreateProject）：
+    // 新建项目会先改 currentProjectId，宿主需用【旧 id】保存旧画布，
+    // 否则 persistCanvas(getCurrentProject().id) 会把旧节点误存进新项目 key（bug：新项目=旧内容）。
+    const prevProjectId = currentProjectId
     const proj = createProject(trimmed)
-    if (onCreate) onCreate(proj)
+    if (onCreate) onCreate(proj, prevProjectId)
     setModal(null)
     setName('')
   }

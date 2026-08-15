@@ -1,15 +1,48 @@
 /**
- * 剪贴板公共工具 —— 集中「复制」能力，供画布/节点/面板复用，消除各处重复实现。
+ * 剪贴板公共工具 —— 集中「复制 / 粘贴清洗」能力，供画布/节点/面板复用，消除各处重复实现。
  *
  * 覆盖：
  *  - copyImageToClipboard(url)：图片本身复制到剪贴板（image/png），可粘到其它软件
  *    对齐官方 Ei（H_.jsx:10044 canvas→toBlob）与 ImageBoxNode.copyImage。
  *  - copyText(text)：纯文本复制（clipboard.writeText）
+ *  - sanitizePastedText(raw)：粘贴文本清洗 —— 丢弃所有样式/富文本残留，只留干净纯文本。
  *  - downloadUrl(url, filename)：下载文件（fetch blob → a.download）
  *
  * 说明：复制「节点组」走 App.jsx 的 copySelectedNodes（含连线关系，独立于本模块）；
  * 复制「链接」用 copyText 即可。
  */
+
+/**
+ * 粘贴文本清洗（纯文本化）：把从剪贴板/富文本带过来的「样式与格式残留」全部丢弃，只留干净纯文本。
+ * 覆盖场景：粘贴网页/表格/Word 内容时常见的一类脏字符与格式。
+ *  - 零宽 / 不可见字符（BOM、零宽空格、软连字符、LRM/RLM 等）
+ *  - 控制字符（C0 控制区，保留换行符）
+ *  - 统一换行（\r\n → \n）
+ *  - 表格 Tab 分隔 → 单个空格；连续空格 → 单个空格
+ *  - 压缩多余空行（3+ 个换行 → 2 个）
+ * @param {string} raw 原始文本
+ * @returns {string} 清洗后的纯文本
+ */
+export function sanitizePastedText(raw) {
+  if (!raw) return ''
+  return String(raw)
+    // 去零宽 / 软连字符 / BOM / LRM / RLM 等不可见字符
+    .replace(/[\u200b\ufeff\u00ad\u200e\u200f\u2060]/g, '')
+    // 去 C0 控制字符（保留 \n 换行 0x0a 与 \t 由下一步统一处理）
+    .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, '')
+    // 统一换行
+    .replace(/\r\n?/g, '\n')
+    // 表格 Tab 分隔 → 空格
+    .replace(/\t+/g, ' ')
+    // 连续空格（含全角空格）→ 单个半角空格
+    .replace(/[ \u3000]+/g, ' ')
+    // 行首/行尾多余空格
+    .replace(/[ ]+\n/g, '\n')
+    .replace(/\n[ ]+/g, '\n')
+    // 压缩多余空行
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
 
 /** 把图片 URL 复制成 image/png 到剪贴板。返回 { ok, msg }，调用方负责 toast。 */
 export async function copyImageToClipboard(url) {

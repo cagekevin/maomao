@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react'
 import { detectFileType, isAssetUrl } from './mediaType.js'
+import { isEditableTarget } from './hooks.js'
+import { sanitizePastedText } from './clipboard.js'
 import { showToast } from './toastStore.js'
 
 /**
@@ -126,6 +128,10 @@ export function useAssetDropPaste({ addNode, screenToFlowPosition, onPasteNodeGr
   // 粘贴：文件（图片/视频/音频）→ imageNode；mutiwindow-images → imageNode 网格；纯文本 → textNode
   const onPaste = useCallback(
     (e) => {
+      // 焦点在输入框/文本域/contenteditable 内时，粘贴应走原生行为（把文本粘进输入框），
+      // 不拦截、不建节点。修复「提示词输入框内光标闪烁时 Ctrl+V 被误判成新建文本节点」bug。
+      // 与快捷键/右键菜单共用 isEditableTarget 判定（复刻 H_.jsx:1316-1323 Xn）。
+      if (isEditableTarget(e)) return
       const items = e.clipboardData?.items
       if (!items) return
       // 落点：最近鼠标位置优先，回退到视图中心（flow 坐标）
@@ -168,7 +174,10 @@ export function useAssetDropPaste({ addNode, screenToFlowPosition, onPasteNodeGr
                   return
                 }
               } catch {}
-              addNode('textNode', pos, { text: text.trim(), expanded: false })
+              // 普通文本 → textNode：经 sanitizePastedText 清洗，丢弃网页/表格带来的富文本残留（零宽字符/Tab/多余空行等）。
+              // 注意：内部 mutiwindow-* JSON 已在上面用原始 text 解析过，这里只对普通文本清洗，不破坏 JSON。
+              const cleanText = sanitizePastedText(text)
+              if (cleanText) addNode('textNode', pos, { text: cleanText, expanded: false })
             }
           })
           return
@@ -183,12 +192,26 @@ export function useAssetDropPaste({ addNode, screenToFlowPosition, onPasteNodeGr
 
 /**
  * 注册全局粘贴监听（window paste → onPaste）。宿主在组件里调用一次即可。
+ *
+ * 附带一层「contenteditable 纯文本化」保险：contenteditable 原生粘贴会带入 HTML 样式，
+ * 这里拦截、清洗为纯文本后手动插入。textarea/input 原生粘贴本就是纯文本（不可能带样式），
+ * 按「绝不可能贴样式的地方不加保险」原则不做拦截，交给 onPaste/浏览器原生。
  * @param {Function} onPaste
  */
 export function useGlobalPaste(onPaste) {
   useEffect(() => {
     if (!onPaste) return
-    const handler = (e) => onPaste(e)
+    const handler = (e) => {
+      const t = e.target
+      // 仅 contenteditable 富文本目标需要清洗：读到纯文本 → 清洗 → 插入光标处，阻止原生带样式粘贴
+      if (t && (t.isContentEditable || (t.closest && t.closest('[contenteditable="true"]')))) {
+        e.preventDefault()
+        const text = e.clipboardData?.getData('text/plain') || ''
+        document.execCommand('insertText', false, sanitizePastedText(text))
+        return
+      }
+      onPaste(e)
+    }
     window.addEventListener('paste', handler)
     return () => window.removeEventListener('paste', handler)
   }, [onPaste])

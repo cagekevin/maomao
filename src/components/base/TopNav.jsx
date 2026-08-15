@@ -19,8 +19,10 @@ import { sGet, sSet } from './storageAdapter.js'
  *  - onToggleAgent    切换 AI 助手回调
  */
 
-// 演示头像占位（TopNav 多处共用，统一避免散落硬编码）
-const AVATAR_URL = 'https://api.dicebear.com/9.x/thumbs/svg?seed=yimao'
+// 用户头像：本地图片（public/user-avatar.jpg，由桌面「Zoomable image.jpg」复制而来）
+const AVATAR_URL = '/user-avatar.jpg'
+// 头像加载失败兜底（复刻官方占位习惯）
+const AVATAR_FALLBACK = 'https://api.dicebear.com/9.x/thumbs/svg?seed=maomao'
 
 export default function TopNav({ view, onNavigate, onSwitchProject, onCreateProject, agentOpen, onToggleAgent }) {
   const tabs = [
@@ -88,14 +90,6 @@ export default function TopNav({ view, onNavigate, onSwitchProject, onCreateProj
       {/* 左侧：Logo */}
       <div className="flex items-center gap-6">
         <div className="flex items-center gap-2 cursor-pointer relative group/logo" onClick={() => onNavigate('canvas')} title="返回画布">
-          {/* 官方红猫 Logo SVG（Vr.jsx L3287） */}
-          <svg viewBox="0 0 20.7624 28.8621" xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none">
-            <path
-              d="M20.7624 0C0.868225 2.29614 0.393066 20.877 0 28.8621L1.21155 28.8621C1.21155 21.9207 4.94049 21.4546 8.42853 20.6113C13.6559 19.3462 17.0903 14.3184 17.95 10.2493L15.8051 9.17358L16.9758 7.71509C18.1466 6.25684 19.2449 4.14502 20.7624 0L20.7624 0Z"
-              fill="rgb(210,2,7)"
-              fillRule="evenodd"
-            />
-          </svg>
           <div className="text-white font-bold text-lg italic tracking-wider">猫猫画布</div>
           {/* hover 官网入口 */}
           <div className="absolute left-0 top-full mt-2 bg-surface border border-edge rounded-lg shadow-xl opacity-0 invisible group-hover/logo:opacity-100 group-hover/logo:visible transition-all duration-300 delay-500 z-50 overflow-hidden whitespace-nowrap p-1">
@@ -103,7 +97,7 @@ export default function TopNav({ view, onNavigate, onSwitchProject, onCreateProj
               onClick={(e) => { e.stopPropagation(); window.open('https://www.1mao.cc', '_blank') }}
               className="text-sm text-gray-300 hover:text-white hover:bg-surface-hover-strong px-3 py-2 rounded-md flex items-center gap-2 cursor-pointer"
             >
-              访问官网 (1mao.cc)
+              访问官网
             </div>
           </div>
         </div>
@@ -143,15 +137,16 @@ export default function TopNav({ view, onNavigate, onSwitchProject, onCreateProj
               alt="avatar"
               className="w-full h-full rounded-full object-cover"
               draggable={false}
+              onError={(t) => { if (t.target.src !== AVATAR_FALLBACK) t.target.src = AVATAR_FALLBACK }}
             />
           </button>
           {/* hover 用户菜单（复刻官方 Component797，含「同步设置」区块） */}
           <div className="absolute right-0 top-full mt-2 w-64 bg-surface border border-edge rounded-xl shadow-2xl opacity-0 invisible group-hover/avatar:opacity-100 group-hover/avatar:visible transition-all duration-200 z-float overflow-hidden flex flex-col">
             {/* 头部：头像 + 昵称 */}
             <div className="p-4 border-b border-edge flex items-center gap-3">
-              <img src={AVATAR_URL} alt="avatar" className="w-10 h-10 rounded-full object-cover border border-edge-muted" draggable={false} />
+              <img src={AVATAR_URL} alt="avatar" className="w-10 h-10 rounded-full object-cover border border-edge-muted" draggable={false} onError={(t) => { if (t.target.src !== AVATAR_FALLBACK) t.target.src = AVATAR_FALLBACK }} />
               <div className="flex flex-col">
-                <div className="text-white font-bold text-sm truncate">一毛用户</div>
+                <div className="text-white font-bold text-sm truncate">画布用户</div>
                 <div className="text-gray-400 text-xs">未绑定手机号</div>
               </div>
             </div>

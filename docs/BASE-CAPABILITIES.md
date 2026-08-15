@@ -54,7 +54,7 @@
 | **纯逻辑工厂** | `buildCanvasAgentTools(ctx)` | 脱离 React 构建工具 Map（测试/非 hook 环境用） | `buildCanvasAgentTools(fakeCtx)` |
 | **schema 生成** | `buildCanvasAgentToolSchemas()` | OpenAI function calling 格式工具描述数组 | 直接喂 LLM `tools` 字段 |
 | **工具名清单** | `CANVAS_AGENT_TOOL_NAMES` | 全部工具名数组 | 枚举/校验 |
-| **工具逻辑验证** | `npm run test:tools` | 8 项核心逻辑测试（建/删/改/连线/查询/去重/不可变更新） | `node scripts/test_agent_tools.cjs` |
+| **工具逻辑验证** | `npm run test:tools` | 14 项测试（8 核心逻辑：建/删/改/连线/查询/去重/不可变更新 + 6 demo 规则） | `node scripts/test_agent_tools.cjs` |
 
 ### 工具清单（当前 17 个）
 
@@ -91,7 +91,7 @@
 | **走 localTool** | （默认） | 请求发到 `http://127.0.0.1:18080/api/agent/canvas-assistant/chat`，localTool 转发到支持 function calling 的 LLM（前提：localTool 已配 `LLM_CHAT_BASE_URL`） |
 | **直连 OpenAI 兼容** | `VITE_LLM_CHAT_BASE_URL` + `VITE_LLM_CHAT_API_KEY` + `VITE_LLM_CHAT_MODEL` | 直接指到支持 function calling 的端点（魔搭/DeepSeek/OpenAI） |
 
-> 配置见 `prototypes/react-nodes/.env.example`（复制为 `.env` 生效）。
+> 配置见根目录 `.env.example`（复制为 `.env` 生效）。
 
 ### 复刻要点（对应官方）
 

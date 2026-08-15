@@ -17,6 +17,7 @@ localTool 运维/调试脚本。统一入口：`cd localTool && npm run <脚本�
 | `npm run db -- --table tasks --json` | 结果以 JSON 数组输出（接 jq/AI） |
 | `npm run db -- --logs [download\|upload\|proxy\|error\|official\|passthrough]` | 查 localTool 日志，支持按前缀/关键词过滤 |
 | `npm run db -- --task <node_id>` | 同一节点的所有任务进度/status/结果URL形态比对（丢图定位） |
+| `npm run db -- --lifecycle <id>` | **完整生命周期一键查**：数据库完整记录 + 后端日志 + 前端日志全链路（id 可为 task_id 或 node_id）。前端日志经 `POST /api/logs`（`localTool/src/routes/logs.ts`）以 `[frontend]` 前缀落盘，与后端日志同文件，可 grep 全链路定位任务"假完成/数据中断"等异常 |
 | `npm run db -- --lost-check` | **丢图体检**：tasks 远程URL未落盘 / 失败任务 / 磁盘↔资源一致性 / 日志下载失败与上传400 |
 | `npm run db -- --vacuum` | 压缩数据库（自动备份 + 完整性检查 + 端口冲突检测） |
 

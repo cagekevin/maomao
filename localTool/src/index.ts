@@ -16,6 +16,7 @@ import { json, sendError } from './utils/helpers.js';
 import { handleKvGet, handleKvSet, handleKvDelete } from './routes/kv.js';
 import { handleUpload, handleRead, handleThumbnail, handleMkdir, handleMove, handleOpen, handleOpenDir, handleList } from './routes/files.js';
 import { handleTasksGet, handleTasksSave, handleTasksBatchSave, handleTasksDelete, handleTasksBatchDelete, handleTasksClear } from './routes/tasks.js';
+import { handleLogsPost } from './routes/logs.js';
 import { handleResourcesGet, handleResourcesSave, handleResourcesBatchSave, handleResourcesDelete, handleResourcesClear, handleResourcesRescan, handleResourcesRename } from './routes/resources.js';
 import { handleStatus, handleProxy, handleJianyingSend, handleGatewayTask } from './routes/system.js';
 import { handleProjectsGet, handleProjectsSave } from './routes/projects.js';
@@ -213,6 +214,10 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
     // ── 系统 ──
     if (pathname === '/api/status' && method === 'GET') {
       return await handleStatus(req, res);
+    }
+    // 前端日志上报（[frontend] 前缀打进 localtool_18080.log，与后端日志同文件）
+    if (pathname === '/api/logs' && method === 'POST') {
+      return await handleLogsPost(req, res);
     }
 
     // ── KV ──

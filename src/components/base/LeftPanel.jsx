@@ -1,9 +1,9 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react'
+import React, { useMemo, useEffect, useRef } from 'react'
 import { Clock, FolderOpen, Sparkles } from 'lucide-react'
 import TaskCenter from './TaskCenter.jsx'
 import GeneratedView from './GeneratedView.jsx'
 import AssetLibrary from './AssetLibrary.jsx'
-import { useTasks } from './taskStore.js'
+import { useTasks, usePanel, setPanel } from './taskStore.js'
 import { useAssets } from './assetStore.js'
 
 // 三个 tab 配置：任务中心 / 生成 / 素材（生成在中间）
@@ -17,10 +17,14 @@ const TABS = [
  * 左侧滑出面板：收起态是一条竖着的窄工具栏（图标 + 未读角标），
  * 点击图标滑出面板，内部用 tab 切换「任务中心 / 素材库」。
  * 点击面板外部 → 收起；点击收起箭头 → 收起。
+ *
+ * 展开/活动 tab 状态存于全局（taskStore.usePanel），使「生成任务时自动弹出任务中心」
+ * （reportGenerate → openTaskCenter）能控制本面板。
  */
 export default function LeftPanel() {
-  const [activeTab, setActiveTab] = useState('tasks')
-  const [expanded, setExpanded] = useState(false)
+  const { expanded, activeTab } = usePanel()
+  const setActiveTab = (key) => setPanel({ activeTab: key })
+  const setExpanded = (v) => setPanel({ expanded: v })
   const tasks = useTasks()
   const assets = useAssets()
   const panelRef = useRef(null)

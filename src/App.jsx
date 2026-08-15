@@ -30,7 +30,7 @@ import ScriptBoxNode from './components/ScriptBoxNode.jsx'
 import GhostTargetNode from './components/GhostTargetNode.jsx'
 import AgentPanel from './components/AgentPanel.jsx'
 import LeftPanel from './components/base/LeftPanel.jsx'
-import { switchProject, loadCanvasState, saveCanvasState, getCurrentProject, initProjects } from './components/base/projectStore.js'
+import { switchProject, loadCanvasState, saveCanvasState, getCurrentProject, initProjects, useProjects } from './components/base/projectStore.js'
 import { logger } from './components/base/logger.js'
 import { useNodePosition } from './components/base/hooks.js'
 import CustomEdge from './components/CustomEdge.jsx'
@@ -92,7 +92,14 @@ function Canvas() {
   const [nodes, setNodes, onNodesChange] = useNodesState([])
   const [edges, setEdges, onEdgesChange] = useEdgesState([])
 
-  // 异步加载当前项目画布快照（KV）
+  // 响应式订阅当前项目 id（projectStore，useSyncExternalStore）。
+  // 修复画布「加载/保存 key 错位」：initProjects() 异步从后端覆盖 currentProjectId
+  // （后端 lastOpened=proj_mssij9sn_b04a1，而本地 localStorage 可能仍是 default），
+  // 若画布加载 effect 只用挂载时的旧 id，就会读到错项目快照，而保存又写到新 id → 刷新丢节点。
+  // 订阅 currentProjectId 后，initProjects 覆盖一完成，加载 effect 即重跑并加载正确项目。
+  const { currentProjectId: activeProjectId } = useProjects()
+
+  // 异步加载当前项目画布快照（KV）：依赖 activeProjectId，跟随「当前项目」变化而重载。
   const [canvasLoaded, setCanvasLoaded] = React.useState(false)
   React.useEffect(() => {
     let cancelled = false
@@ -107,8 +114,9 @@ function Canvas() {
       // 无 saved（首次）：保留演示画布
     }).catch(() => { setCanvasLoaded(true) })
     return () => { cancelled = true }
+    // 依赖 activeProjectId：项目切换/initProjects 覆盖时重新加载对应项目画布
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [activeProjectId])
 
   /* ====================================================================
    * 多窗口画布同步检测（复刻官方 H_.jsx:480-492 + 870-880）
@@ -233,27 +241,40 @@ function Canvas() {
     []
   )
 
-  // 切换项目：保存当前画布快照（KV）→ 切换 → 异步加载目标项目快照 → 重置历史（对齐官方 Vr.jsx）
+  // 自动保存（防抖）：节点/连线变化后延迟写入画布快照（KV），避免「新建节点后直接刷新丢失」。
+  // 之前只有切换/新建项目时保存，画布变更无落盘 → 刷新即丢。这里用 600ms 防抖合并频繁变更，
+  // canvasLoaded 跳过「首次从 KV 读回」那一次，避免把读回内容当用户改动重复保存并广播冲突。
+  const autoSaveTimer = React.useRef(null)
+  React.useEffect(() => {
+    if (!canvasLoaded) return
+    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current)
+    autoSaveTimer.current = setTimeout(() => {
+      persistCanvas(getCurrentProject().id)
+    }, 600)
+    return () => {
+      if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current)
+    }
+  }, [nodes, edges, canvasLoaded, persistCanvas])
+
+  // 切换项目：保存当前画布快照（KV）→ 切换 → 目标项目快照由「加载 effect（依赖 activeProjectId）」统一重载 → 重置历史（对齐官方 Vr.jsx）。
+  // 不再手动 loadCanvasState：switchProject 更新 currentProjectId 后，加载 effect 会自动加载目标项目，避免双重加载竞态。
   const handleSwitchProject = useCallback(
     (targetId) => {
       persistCanvas(getCurrentProject().id)
       switchProject(targetId)
       setNodes([])
       setEdges([])
-      loadCanvasState(targetId).then((saved) => {
-        const next = saved && saved.nodes ? saved : { nodes: [], edges: [] }
-        setNodes(next.nodes)
-        setEdges(next.edges || [])
-      }).catch(() => {})
       history.clear?.()
       logger.info('项目', 'switch', { targetId })
     },
     [setNodes, setEdges, history, persistCanvas]
   )
 
-  // 新建项目：先保存当前画布快照（KV，对齐官方切走前自动持久化）→ 清空画布（store 已在 ProjectSelector 中创建并切换到新项目）
-  const handleCreateProject = useCallback(() => {
-    persistCanvas(getCurrentProject().id)
+  // 新建项目：先用【旧项目 id】保存旧画布（prevProjectId 由 ProjectSelector 传入），再清空画布。
+  // 注意不能再用 getCurrentProject().id：createProject 已把 currentProjectId 切到新项目，
+  // 若此时 persistCanvas(新id) 会把旧节点误存进新项目 key（bug：新项目=旧内容）。
+  const handleCreateProject = useCallback((proj, prevProjectId) => {
+    if (prevProjectId) persistCanvas(prevProjectId)
     setNodes([])
     setEdges([])
     history.clear?.()
@@ -672,6 +693,14 @@ function Canvas() {
     [addNode, setNodes, setEdges, menu.close]
   )
 
+  // 点击空白：关闭菜单并清理连接拖拽残留（反悔时不留 ghost 线，修复「拉出节点后取消，线仍在」bug）。
+  // 普通右键菜单下无 ghost，filter 为空操作，安全复用。
+  const handlePaneClick = useCallback(() => {
+    menu.close()
+    setNodes((ns) => ns.filter((n) => n.id !== 'ghost-target'))
+    setEdges((es) => es.filter((e) => e.id !== 'ghost-edge'))
+  }, [menu, setNodes, setEdges])
+
   // 统一建节点入口（单一数据源）：
   //   - 从端口拖出到空白（state.connection 存在）→ 复用同一份 canvas 菜单项，但建节点时自动连线 + 清 ghost；
   //   - 空白处右键（无 connection）→ 普通建节点。
@@ -1025,7 +1054,10 @@ function Canvas() {
 
         {/* 内容区：画布为基座，多开/设置整页覆盖（官方 visible/invisible 覆盖层形态） */}
         <div ref={menu.containerRef} className="relative flex-1 min-h-0">
+        {/* key=activeProjectId 对齐官方 Vr.jsx L3683 key={Z}：项目切换时强制重挂载整个画布，
+            保证每个项目的画布状态完全隔离（清空旧节点 + 加载对应项目），修复「新项目加载到旧内容」 */}
         <ReactFlow
+          key={activeProjectId}
           nodes={visibleNodes}
           edges={edges}
           onNodesChange={onNodesChangeForEdges}
@@ -1044,7 +1076,7 @@ function Canvas() {
           onNodeContextMenu={menu.onNodeContextMenu}
           onSelectionContextMenu={menu.onSelectionContextMenu}
           onSelectionEnd={menu.onSelectionEnd}
-          onPaneClick={menu.onPaneClick}
+          onPaneClick={handlePaneClick}
           onDragOver={onDragOver}
           onDrop={onDrop}
           proOptions={proOptions}

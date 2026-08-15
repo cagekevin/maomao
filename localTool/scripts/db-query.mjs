@@ -72,6 +72,7 @@ function usage() {
   node scripts/db-query.mjs --table <表> --json     结果以 JSON 数组输出
   node scripts/db-query.mjs --logs [关键词]          查日志（关键词可为 download/upload/proxy/error 等前缀）
   node scripts/db-query.mjs --task <node_id>        同一节点的所有任务进度/结果URL比对
+  node scripts/db-query.mjs --lifecycle <id>        完整生命周期一键查（数据库记录 + 后端日志 + 前端日志全链路；id 可为 task_id 或 node_id）
   node scripts/db-query.mjs --lost-check            丢图体检（tasks/磁盘/资源一致性 + 日志异常）
   node scripts/db-query.mjs --vacuum                 压缩数据库（需先停 localTool，自动备份+完整性检查）
 库路径: ${DB_PATH}
@@ -317,6 +318,61 @@ function runLostCheck(db) {
   console.log('\n=== 体检结束。若 [1][2][4] 有命中，说明存在丢图/失败，需结合日志定位。===');
 }
 
+// ── 完整生命周期：一键查一个任务的「数据库记录 + 后端日志 + 前端日志」全链路 ──
+// 输入可以是 task_id（如 task_msu70t3m_hug53）或 node_id（如 textNode-xxx）。
+// 前端日志已由 logger.js 上报 localTool POST /api/logs，落盘带 [frontend] 前缀（localTool/src/routes/logs.ts）。
+function runLifecycle(db, id) {
+  const isTask = /^task[_-]/.test(id);
+  console.log(`=== 任务完整生命周期查询: ${id}（${isTask ? '按 task_id' : '按 node_id'}）===\n`);
+
+  // 1) 数据库记录
+  if (isTask) {
+    const rows = queryAllLike(db, `SELECT * FROM tasks WHERE task_id = ?`, [id]);
+    if (!rows.length) {
+      console.log('[数据库] 该 task_id 无记录');
+    } else {
+      console.log('[数据库] tasks 完整记录（含全部诊断字段）:');
+      for (const [k, v] of Object.entries(rows[0])) {
+        let s = v === null || v === undefined ? 'NULL' : (typeof v === 'string' ? v : JSON.stringify(v));
+        if (s.length > 500) s = s.slice(0, 500) + `…(+${s.length - 500})`;
+        console.log(`  ${k}: ${s}`);
+      }
+    }
+  } else {
+    const rows = queryAllLike(db, `SELECT task_id, node_id, status, progress, model_name, custom_output_type, created_at, result_url, error_msg FROM tasks WHERE node_id = ? ORDER BY created_at DESC`, [id]);
+    if (!rows.length) {
+      console.log('[数据库] 该 node 无任务记录');
+    } else {
+      console.log(`[数据库] node ${id} 共 ${rows.length} 条任务（按创建时间倒序）:`);
+      console.log('  task_id | status | progress | model | type | created_at | 结果形态 | error');
+      for (const r of rows) {
+        const url = r.result_url || '';
+        const form = url.startsWith('data:') ? 'base64' : /127\.0\.0\.1:18080\/files/.test(url) ? '本地文件' : /^https?:\/\//.test(url) ? '远程URL⚠️' : url ? '其他' : '(无)';
+        const err = (r.error_msg || r.error_message || '').toString().slice(0, 40);
+        console.log(`  ${r.task_id} | ${r.status} | ${r.progress} | ${r.model_name} | ${r.custom_output_type || '-'} | ${r.created_at} | ${form} | ${err}`);
+      }
+    }
+  }
+
+  // 2) 日志时间线（后端日志 + 前端上报日志，同文件 localtool_18080.log）
+  console.log(`\n[日志] 全链路时间线（数据库 + 后端 [backend/服务] + 前端 [frontend]）:`);
+  const lines = readLogLines();
+  const hit = lines
+    .map((l, i) => ({ i: i + 1, l }))
+    .filter(x => x.l.includes(id));
+  if (!hit.length) {
+    console.log('  (日志中无该 task_id/node_id 的记录)');
+  } else {
+    // 标注来源：前端上报行含 [frontend]，其余为后端
+    for (const x of hit) {
+      const src = x.l.includes('[frontend]') ? '前端' : '后端';
+      console.log(`  [${src}] L${x.i}: ${x.l}`);
+    }
+  }
+
+  console.log(`\n=== 生命周期查询完成。若数据库中 request_data/response_data/result_url 为空，且日志无该任务记录，说明任务数据链路中断（未落库/未落日志）。 ===`);
+}
+
 // 兼容 sql.js 的带参查询（db-query 里 queryAllLike 处理 ? 占位）
 function queryAllLike(db, sql, params = []) {
   const stmt = db.prepare(sql);
@@ -355,6 +411,13 @@ async function main() {
   // 0.2) 同节点任务比对
   if (hasArg('--task')) {
     runTaskCompare(db, getArg('--task'));
+    db.close();
+    return;
+  }
+
+  // 0.2.1) 完整生命周期（数据库 + 后端日志 + 前端日志 全链路一键查）
+  if (hasArg('--lifecycle')) {
+    runLifecycle(db, getArg('--lifecycle'));
     db.close();
     return;
   }

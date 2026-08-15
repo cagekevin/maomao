@@ -5,7 +5,7 @@ import ShortcutSettings from './sections/ShortcutSettings.jsx'
 
 /**
  * 设置主框架（侧栏 + 舞台）。
- * 风格照抄一毛官方 Vr.jsx 设置页：
+ * 风格照抄官方 Vr.jsx 设置页：
  *   - 容器 absolute inset-0 bg-canvas（覆盖画布，纯黑）
  *   - 侧栏 w-48，导航项激活 text-blue-500 font-bold border-edge bg-surface-active
  *   - 内容区 p-6 bg-canvas，内部 max-w-4xl 卡片布局

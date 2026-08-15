@@ -1,9 +1,12 @@
 # 节点类型 → 混淆组件映射（sync-mapping 生成）
 
-来源: G:\01画布项目\一毛AI画布多端合一版本1.4.2\src\bundle\httpClient-BknZwXjG_components\shared.js
+> ⚠️ **性质说明**：本表是「官方混淆源码 → 文件名」的逆向映射，由 `npm run sync:mapping` 生成，用于查「某节点在 1mao 混淆包里叫什么」。表中「文件存在 ✔」指向的是**已移除的 `src/bundle/` 混淆产物**，不是当前原型文件。
+> 当前原型节点清单以 `src/components/*.jsx`（各节点一个文件，`*Node.jsx` 命名）为准，本表仅供参考对照，不代表原型实际文件结构。
+
+来源: G:\01画布项目\猫猫AI画布多端合一版本1.4.2\src\bundle\httpClient-BknZwXjG_components\shared.js
 生成时间: 2026-08-13T00:46:30.784Z
 
-| 节点类型 | 混淆符号 | 文件名 | 文件存在 |
+| 节点类型 | 混淆符号 | 文件名 | 文件存在（指 src/bundle，已移除） |
 | --- | --- | --- | --- |
 | group | `_cmp_Og` | `Og.jsx` | ✔ |
 | imageNode | `_cmp_xi` | `xi.jsx` | ✔ |

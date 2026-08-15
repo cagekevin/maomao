@@ -8,7 +8,7 @@
  *  - 画布快照 canvas-state-v1-${projectId} 走 KV（跨端共享，见 kvStore）。
  */
 import { useSyncExternalStore } from 'react'
-import { storageGet, storageSet, storageDelete, CANVAS_STATE_PREFIX } from './kvStore.js'
+import { storageGet, storageSet, storageDelete, kvGet, kvSet, CANVAS_STATE_PREFIX } from './kvStore.js'
 import { fetchProjects, saveProjects } from './projectsApi.js'
 import { sGet, sSet } from './storageAdapter.js'
 
@@ -70,6 +70,9 @@ export function initProjects() {
       if (list.length > 0) {
         projects = list
         currentProjectId = data.lastOpened && list.some((p) => p.id === data.lastOpened) ? data.lastOpened : list[0].id
+        // 对齐官方 Vr.jsx L1104-1108：当前项目变化即持久化 lastOpenedProject。
+        // 让 localStorage 与后端 lastOpened 同步，避免「刷新后短暂闪 default 再跳到正确项目」。
+        persist()
         notify()
       }
     })
@@ -113,10 +116,27 @@ export async function loadCanvasState(projectId) {
   }
 }
 export async function saveCanvasState(projectId, nodes, edges) {
+  const key = CANVAS_STATE_PREFIX + (projectId || currentProjectId)
   try {
-    await storageSet(CANVAS_STATE_PREFIX + (projectId || currentProjectId), { nodes, edges })
+    // 对齐官方 shared.js L1405：空画布跳过保存，防止空画布覆盖已有历史（误清空保护）。
+    if (!nodes || nodes.length === 0) {
+      return { success: false, skipped: true }
+    }
+    // 对齐官方 shared.js L1416：版本冲突检测。每次保存用 Date.now() 作为版本号写入 <key>_version，
+    // 若远程已有更高版本（另一窗口/设备先写了更新的画布），拒绝本次覆盖，防旧数据冲掉新数据。
+    const version = Date.now()
+    const remoteRaw = await kvGet(`${key}_version`)
+    const remoteVer = remoteRaw ? parseInt(String(remoteRaw), 10) : 0
+    if (remoteVer > version) {
+      console.warn('[projectStore] 画布版本冲突，拒绝覆盖:', { key, remoteVer, version })
+      return { success: false, skipped: true, conflictVersion: remoteVer }
+    }
+    await storageSet(key, { nodes, edges })
+    await kvSet(`${key}_version`, version)
+    return { success: true, skipped: false }
   } catch (e) {
     console.warn('[projectStore] 保存画布快照失败（KV 不可用？）:', e?.message)
+    return { success: false, skipped: false }
   }
 }
 
@@ -148,8 +168,9 @@ export function switchProject(id) {
 export function deleteProject(id) {
   if (projects.length <= 1) return false
   projects = projects.filter((p) => p.id !== id)
-  // 异步删除画布快照（KV）
+  // 异步删除画布快照（KV）及对应 _version 版本 key
   storageDelete(CANVAS_STATE_PREFIX + id).catch(() => {})
+  storageDelete(CANVAS_STATE_PREFIX + id + '_version').catch(() => {})
   if (currentProjectId === id) currentProjectId = projects[0].id
   persist()
   notify()

@@ -85,8 +85,45 @@ function getSnapshot() {
   return tasks
 }
 
+// ── 左侧面板全局状态（对齐官方 setShowTaskList：生成任务时自动弹出任务中心）──
+// 官方 H_.jsx 在每次提交生成任务时调用 H?.(true)（即 setShowTaskList(true)）弹出任务中心。
+// 我们统一契约里所有生成节点都走 reportGenerate，故在这里触发 openTaskCenter()，覆盖面最全
+// （节点生成 / Agent trigger_generation / 任务中心重试 提交任务都会自动弹面板切到任务中心）。
+let panel = { expanded: false, activeTab: 'tasks' }
+const panelListeners = new Set()
+function notifyPanel() {
+  panelListeners.forEach((l) => l())
+}
+function panelSubscribe(cb) {
+  panelListeners.add(cb)
+  return () => panelListeners.delete(cb)
+}
+function getPanelSnapshot() {
+  return panel
+}
+/** 读取当前面板状态（供非 React 环境/持久化使用） */
+export function getPanel() {
+  return panel
+}
+/** 设置面板状态（保留未指定字段） */
+export function setPanel(next) {
+  panel = { ...panel, ...next }
+  notifyPanel()
+}
+/** 自动弹出任务中心（展开面板 + 切到「任务中心」tab） */
+export function openTaskCenter() {
+  panel = { expanded: true, activeTab: 'tasks' }
+  notifyPanel()
+}
+/** 订阅面板状态（LeftPanel 使用） */
+export function usePanel() {
+  return useSyncExternalStore(panelSubscribe, getPanelSnapshot)
+}
+
 // 节点生成时上报任务（生成中 → 完成/失败）。返回更新函数。
 export function reportGenerate(nodeId, type, prompt, meta = {}) {
+  // 对齐官方：提交生成任务时自动弹出任务中心
+  openTaskCenter()
   // 结束同 nodeId 之前未完成的任务
   const old = tasks.find((t) => t.nodeId === nodeId && (t.status === 'running' || t.status === 'pending'))
   tasks = tasks.filter((t) => t !== old)

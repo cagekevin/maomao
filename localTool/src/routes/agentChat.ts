@@ -72,7 +72,7 @@ function getConfig(): AgentChatConfig {
 }
 
 /** 前端系统 prompt 中已含 A1 自身约束；本地准则仅做「画布操作范式」增强。 */
-const CANVAS_AGENT_RULES = `你是 1mao 画布助手，正在帮助用户操作当前打开的画布。
+const CANVAS_AGENT_RULES = `你是猫猫画布助手，正在帮助用户操作当前打开的画布。
 
 【基本原则】
 - 用户要求操作画布时，默认目标就是当前已打开的画布。先调用 list_nodes 了解现有节点，

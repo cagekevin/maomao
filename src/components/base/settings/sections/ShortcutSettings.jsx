@@ -4,7 +4,7 @@ import shortcutData from '../data/shortcuts.json'
 
 /**
  * 设置分区 · 快捷键
- * 风格照抄一毛官方设置页卡片（bg-surface rounded-xl border-edge-subtle，头 p-4 border-b）。
+ * 风格照抄官方设置页卡片（bg-surface rounded-xl border-edge-subtle，头 p-4 border-b）。
  * 数据来自 ../data/shortcuts.json（真实画布快捷键，与 useCanvasShortcuts 对齐）。
  */
 export default function ShortcutSettings() {

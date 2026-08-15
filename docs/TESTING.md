@@ -1,7 +1,7 @@
 # 原型测试地基（react-nodes）
 
 > 本目录的测试体系，作为原型（`prototypes/react-nodes`）开发 / 提交 / 交付前的质量门禁。
-> 借鉴了 1mao（根目录 `scripts/`）的 health-check / safety-net 思想，并按原型（jsx + vite + 插件）做了适配。
+> 借鉴了原产品（根目录 `scripts/`）的 health-check / safety-net 思想，并按原型（jsx + vite + 插件）做了适配。
 
 ## 一、快速上手
 
@@ -33,7 +33,7 @@ npm run build            # 构建插件包（dist/）
 3. **构建** —— `npm run build` 能否成功
 4. **统一测试门禁** —— `test:all` 是否通过
 5. **TDZ 风险扫描** —— 扫 `src` 下所有 `.jsx/.js` 的 TDZ / 未定义 / 非函数调用（防 `Cannot access 'x' before initialization`）
-6. **dist 构建产物基线** —— 借鉴 1mao `safety-net.cjs`：对比 `dist/` 各文件大小，防意外增删 / 体积异常（基线存于 `scripts/dist-snapshot.json`，dist 有意义的更新后需重新生成基线）
+6. **dist 构建产物基线** —— 借鉴原产品 `safety-net.cjs`：对比 `dist/` 各文件大小，防意外增删 / 体积异常（基线存于 `scripts/dist-snapshot.json`，dist 有意义的更新后需重新生成基线）
 
 > ⚠️ **dist 基线**：首次运行自动生成快照（仅记录）。之后每次对比；若你**刻意改了构建产物**（新增资源/插件文件），运行后会有差异提示，确认没问题后删除 `scripts/dist-snapshot.json` 重新生成即可。
 

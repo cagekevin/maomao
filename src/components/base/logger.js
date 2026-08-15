@@ -5,7 +5,8 @@
  *   [log] 14:23:45 | 生成 | success | {nodeId, type}
  *
  * level 对齐 console 方法：info / warn / error。
- * 接真系统：把 console 换成上报 /api/logs（或 postMessage 给 localTool），格式不变。
+ * 已接真系统：console 输出 + fire-and-forget 上报 localTool POST /api/logs
+ * （localTool 打 [frontend] 前缀落盘 localtool_18080.log，与后端日志同文件，全链路 grep）。
  *
  * ─────────────────────────────────────────────
  * 【重要】只记录「高价值、不可还原」的日志：
@@ -35,8 +36,43 @@ function stringify(detail) {
   }
 }
 
+import { API_BASE } from './apiBase.js'
+
+// 上报去重：同一 (category+action) 在极短时间内的批量上报合并，避免高频噪音刷爆日志文件。
+const _lastReport = { key: '', ts: 0 }
+const REPORT_MIN_GAP = 200 // ms
+
+// fire-and-forget 上报到 localTool（POST /api/logs）。失败静默、不阻塞主链路。
+function reportToBackend({ category, action, detail, level, taskId, nodeId }) {
+  const now = Date.now()
+  const key = `${category}:${action}:${stringify(detail)}`
+  if (key === _lastReport.key && now - _lastReport.ts < REPORT_MIN_GAP) return
+  _lastReport.key = key
+  _lastReport.ts = now
+  try {
+    fetch(`${API_BASE}/api/logs`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        timestamp: new Date().toISOString(),
+        level,
+        category,
+        action,
+        detail,
+        taskId: taskId || '',
+        nodeId: nodeId || ''
+      }),
+      keepalive: true
+    }).catch(() => {})
+  } catch {
+    /* 静默 */
+  }
+}
+
 /**
  * 记录一条操作日志。
+ * 同时：console 输出 + fire-and-forget 上报 localTool（POST /api/logs → [frontend] 落盘）。
+ * 这样后端/AI 能 grep 数据库 + 后端日志 + 前端日志 全链路查一个任务的完整生命周期。
  * @param {string} category 分类（建节点/删节点/连线/生成/项目…）
  * @param {string} action   动作（如 'create'）
  * @param {*}      detail   详情（可 JSON 序列化）
@@ -47,6 +83,17 @@ export function log(category, action, detail, level = 'info') {
   if (level === 'error') console.error(msg)
   else if (level === 'warn') console.warn(msg)
   else console.log(msg)
+
+  // 从 detail 中提取 taskId / nodeId，便于按任务/节点全链路 grep
+  let taskId = ''
+  let nodeId = ''
+  if (detail && typeof detail === 'object') {
+    if (typeof detail.taskId === 'string') taskId = detail.taskId
+    if (typeof detail.task_id === 'string') taskId = detail.task_id
+    if (typeof detail.nodeId === 'string') nodeId = detail.nodeId
+    if (typeof detail.node_id === 'string') nodeId = detail.node_id
+  }
+  reportToBackend({ category, action, detail, level, taskId, nodeId })
 }
 
 export const logger = {

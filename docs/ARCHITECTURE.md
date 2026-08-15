@@ -47,7 +47,7 @@
 ## 二、架构分层（原则 1 落到结构）
 
 ```
-prototypes/react-nodes/src/
+src/
 ├── main.jsx               入口：挂载 <App/>
 ├── App.jsx                ① 画布宿主（原则1：只懂画布，不懂节点）
 └── components/

@@ -1,5 +1,5 @@
 ﻿# =====================================================================
-# 一毛AI画布 — 一键启动器 (launch-all)  [Windows / PowerShell]
+# 猫猫AI画布 — 一键启动器 (launch-all)  [Windows / PowerShell]
 # ---------------------------------------------------------------------
 # 依次拉起：API 网关 (:9004)  +  本地服务 localTool (:18080，托管【原型】前端)
 # 说明：localTool 在 18080 同时托管【原型构建产物】(根目录 dist/) 与后端 API，
@@ -336,7 +336,7 @@ function Start-Watchdog {
 function Show-Dashboard {
     Clear-Host
     Write-Host "========================================" -ForegroundColor Cyan
-    Write-Host "   一毛AI画布 — 本地服务控制台" -ForegroundColor White
+    Write-Host "   猫猫AI画布 — 本地服务控制台" -ForegroundColor White
     Write-Host "========================================" -ForegroundColor Cyan
 
     Write-Log "`n📊 当前状态：" "Info"

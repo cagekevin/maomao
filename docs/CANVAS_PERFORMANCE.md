@@ -1,9 +1,9 @@
 # 画布性能优化 — 官方机制探析与原型落地对照
 
 > 面向对象：ReactFlow 画布（节点数量大、含大量图片/视频媒体节点时）。
-> 参考源码：`src/bundle/httpClient-BknZwXjG_components/`（官方混淆产物）
-> 关键文件：`shared.js`（工具/上下文）、`H_.jsx`（主画布）、`V_.jsx`（性能 CSS）、`_Component131.jsx`（LOD Provider）、`_Component122.jsx`（LOD 计算）、`xi.jsx`/`Zo.jsx`/`bo.jsx`（媒体节点）、`Lg.jsx`（懒加载）、`Mg.jsx`/`Pg.jsx`（边特效）。
-> 原型现状：`prototypes/react-nodes/src/`
+> 参考源码（历史）：`src/bundle/httpClient-BknZwXjG_components/`（官方混淆产物，**该目录已移除，仅供溯源对照**）
+> 关键文件（历史符号）：`shared.js`、`H_.jsx`、`V_.jsx`、`_Component131.jsx`、`_Component122.jsx`、`xi.jsx`/`Zo.jsx`/`bo.jsx`、`Lg.jsx`、`Mg.jsx`/`Pg.jsx` 等。
+> 原型现状：`src/`（对应 `App.jsx` / `index.css` / `components/base/` 下的 `LodListener`/`LodProvider`/`useLod`/`useMediaDegrade`/`LazyImage`/`CustomEdge`/`ConnectionLine`）
 
 ---
 
