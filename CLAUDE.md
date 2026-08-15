@@ -145,6 +145,19 @@ npm run check:health  # 工程健康全量检查
 * **不丢图增强**：localTool 拿到 CDN url 后 `saveRemoteUrl`（基于 `sha1(url)` 幂等）转存本地。
 * **降级策略**：下载失败仍返回 CDN 链接 + WARN，**绝不抛 500 阻断生图**。
 * **丢图排查主入口**：`cd localTool && npm run db -- --lost-check`；日志看 `[download] FAIL`。外因多为 CDN 需代理/VPN 抖动。
+* **查任务主入口（查任何任务/日志/全链路，一律用这个脚本）**：
+  ```bash
+  cd localTool && node scripts/db-query.mjs --lifecycle <id>
+  ```
+  id 三种都可：`task_id`（`task_xxx`）/ **`thread_id`**（Lovart 上游"室外 ID"，即 task_id 去掉 `task_` 前缀）/ `node_id`。脚本自动判定，用 `thread_id` 或 `task_id` 时把「数据库完整记录 + 网关后端日志 + 前端上报日志」全链路一次拉出（`[poll]` 记 `thread=xxx`、`[submit]` 记 `task_id=task_xxx`，双键匹配）。
+  > **强调：查任务就用它，不要自己造查询。** 它覆盖：单任务全链路 `--lifecycle`、按节点比对 `--task`、日志过滤 `--logs`、丢图 `--lost-check`、全局搜 `--search`、任意 SQL `--sql`。
+
+* **查任务全链路三步走（前端可见 ID 贯穿到 Lovart 状态）**：
+  前端任务中心的 `task_id`（用户可见）就是贯穿主 ID。链路已打通：前端 `proxyRequest` 带 `taskId` → localTool `/api/proxy` 读它并透传网关 → 网关返回 Lovart `thread_id` → localTool 把「前端 task_id ↔ thread_id」关联落库（`tasks` 表 `thread_id` 列）。三步查询：
+  1. **用前端 task_id 查关联 + 全链路**：`node scripts/db-query.mjs --lifecycle <前端任务中心显示的id>` → 得到 `thread_id`。
+  2. **拿 thread_id 查任务是否结束**：`LOVART_ACCESS_KEY=ak LOVART_SECRET_KEY=sk HTTPS_PROXY=http://127.0.0.1:7897 node scripts/db-query.mjs --lovart-status <thread_id>`（自动走代理，连 Lovart `/chat/status`）。
+  3. **拿 thread_id 查任务结果（出图 URL/文本）**：同上命令换 `--lovart-result`（连 `/chat/result`）。
+  > 凭据与代理端口从网关进程 env 取（`ps eww $(lsof -tiTCP:9004 -sTCP:LISTEN | head -1)` 里 `LOVART_ACCESS_KEY/LOVART_SECRET_KEY`，代理用 7897）；连 Lovart 必须开 VPN/代理，脚本已内置代理探测（`HTTPS_PROXY` 等环境变量 + 常见端口）。
 * **出站代理**：localTool 原生 `fetch` 不继承系统代理；经 `localTool/src/utils/netProxy.ts` 的 `fetchWithProxy`（直连→环境变量→探测本机代理端口→隧道）兜底。
 
 > 前端原型（`src/`）通过 `proxyMode=local-tool` 把所有请求打到 localTool `:18080`，再由 localTool 转发网关 `:9004` → Lovart（需 VPN）。
@@ -272,6 +285,7 @@ npm run check:health  # 工程健康全量检查
 | 要改画布前端 | 改 `src/` → `npm run test:smoke` → `npm run build`；严禁直接手改 dist |
 | 要新增画布节点 | 按 `docs/README.md` 节点规范 + `docs/node-types-map.md`，放 `src/components/` |
 | 画布问题排查（节点/边/布局/保存） | **第一步必跑** `cd localTool && node scripts/db-query.mjs --canvas-health`（见 §六.0 铁律）|
+| **查任务/查日志/全链路**（task_id / thread_id 室外ID / node_id） | **主入口** `cd localTool && node scripts/db-query.mjs --lifecycle <id>`（见 §四.2「查任务主入口」）。其余：`--logs` 日志、`--task` 节点比对、`--lost-check` 丢图 |
 | 改 localTool 后端 | `cd localTool && npm test`（全量，三个测试文件）|
 | 丢图排查 | `cd localTool && npm run db -- --lost-check` |
 | 提交前验证 | 前端 `npm run test:smoke`+`npm run build`+`npm run check:health`；**localTool 改动另跑 `cd localTool && npm test`** |

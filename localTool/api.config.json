@@ -6,7 +6,7 @@
       "base_url": "http://127.0.0.1:9004",
       "protocol": "apimart",
       "image_request_mode": "openai",
-      "image_mode": "sync",
+      "image_mode": "async",
       "enabled": true,
       "isPrimary": true,
       "image_models": [
@@ -44,14 +44,14 @@
           "id": "nano-bn-2-lite",
           "label": "Nano Banana 2 Lite",
           "streaming": false,
-          "promptOnly": true
+          "promptOnly": false
         }
       ],
       "chat_models": [
         {
           "id": "lovart-chat",
-          "label": "Lovart-chat",
-          "streaming": true,
+          "label": "Lovart 设计 Agent",
+          "streaming": false,
           "promptOnly": false
         }
       ],
@@ -72,13 +72,13 @@
           "id": "seedance-2.0-mini",
           "label": "Seedance 2.0 Mini",
           "streaming": false,
-          "promptOnly": true
+          "promptOnly": false
         },
         {
           "id": "minimax-h3",
           "label": "MiniMax H3",
           "streaming": false,
-          "promptOnly": true
+          "promptOnly": false
         },
         {
           "id": "kling-v3-omni",
@@ -196,152 +196,26 @@
       ],
       "chat_models": [
         {
-          "id": "deepseek-ai/DeepSeek-V4-Flash-0731",
-          "label": "deepseek-ai/DeepSeek-V4-Flash-0731",
-          "streaming": false,
-          "promptOnly": false
-        },
-        {
-          "id": "deepseek-ai/DeepSeek-V4-Pro",
-          "label": "deepseek-ai/DeepSeek-V4-Pro",
-          "streaming": false,
-          "promptOnly": false
-        },
-        {
-          "id": "MusePublic/Qwen-Image-Edit",
-          "label": "MusePublic/Qwen-Image-Edit",
-          "streaming": false,
-          "promptOnly": false
-        },
-        {
-          "id": "Qwen/Qwen-Image-Edit",
-          "label": "Qwen/Qwen-Image-Edit",
-          "streaming": false,
-          "promptOnly": false
-        },
-        {
           "id": "Qwen/Qwen3-14B",
           "label": "Qwen3-14B",
-          "streaming": true,
-          "promptOnly": false
-        },
-        {
-          "id": "Qwen/Qwen3-235B-A22B",
-          "label": "Qwen/Qwen3-235B-A22B",
           "streaming": false,
           "promptOnly": false
         },
         {
-          "id": "Qwen/Qwen3-235B-A22B-Instruct-2507",
-          "label": "Qwen/Qwen3-235B-A22B-Instruct-2507",
+          "id": "Qwen/Qwen3-32B",
+          "label": "Qwen3-32B",
           "streaming": false,
           "promptOnly": false
         },
         {
-          "id": "Qwen/Qwen3-235B-A22B-Thinking-2507",
-          "label": "Qwen/Qwen3-235B-A22B-Thinking-2507",
+          "id": "MiniMax/MiniMax-M2.5",
+          "label": "MiniMax-M2.5",
           "streaming": false,
           "promptOnly": false
         },
         {
-          "id": "Qwen/Qwen3-30B-A3B",
-          "label": "Qwen/Qwen3-30B-A3B",
-          "streaming": false,
-          "promptOnly": false
-        },
-        {
-          "id": "Qwen/Qwen3-30B-A3B-Thinking-2507",
-          "label": "Qwen/Qwen3-30B-A3B-Thinking-2507",
-          "streaming": false,
-          "promptOnly": false
-        },
-        {
-          "id": "Qwen/Qwen3-4B",
-          "label": "Qwen/Qwen3-4B",
-          "streaming": false,
-          "promptOnly": false
-        },
-        {
-          "id": "Qwen/Qwen3-8B",
-          "label": "Qwen3-8B",
-          "streaming": true,
-          "promptOnly": false
-        },
-        {
-          "id": "Qwen/Qwen3-Coder-30B-A3B-Instruct",
-          "label": "Qwen/Qwen3-Coder-30B-A3B-Instruct",
-          "streaming": false,
-          "promptOnly": false
-        },
-        {
-          "id": "Qwen/Qwen3-Next-80B-A3B-Instruct",
-          "label": "Qwen/Qwen3-Next-80B-A3B-Instruct",
-          "streaming": false,
-          "promptOnly": false
-        },
-        {
-          "id": "Qwen/Qwen3-Next-80B-A3B-Thinking",
-          "label": "Qwen/Qwen3-Next-80B-A3B-Thinking",
-          "streaming": false,
-          "promptOnly": false
-        },
-        {
-          "id": "Qwen/Qwen3-VL-235B-A22B-Instruct",
-          "label": "Qwen/Qwen3-VL-235B-A22B-Instruct",
-          "streaming": false,
-          "promptOnly": false
-        },
-        {
-          "id": "Qwen/Qwen3-VL-8B-Instruct",
-          "label": "Qwen/Qwen3-VL-8B-Instruct",
-          "streaming": false,
-          "promptOnly": false
-        },
-        {
-          "id": "Qwen/Qwen3-VL-8B-Thinking",
-          "label": "Qwen/Qwen3-VL-8B-Thinking",
-          "streaming": false,
-          "promptOnly": false
-        },
-        {
-          "id": "Qwen/Qwen3.5-122B-A10B",
-          "label": "Qwen/Qwen3.5-122B-A10B",
-          "streaming": false,
-          "promptOnly": false
-        },
-        {
-          "id": "Qwen/Qwen3.5-27B",
-          "label": "Qwen/Qwen3.5-27B",
-          "streaming": false,
-          "promptOnly": false
-        },
-        {
-          "id": "Qwen/Qwen3.5-35B-A3B",
-          "label": "Qwen/Qwen3.5-35B-A3B",
-          "streaming": false,
-          "promptOnly": false
-        },
-        {
-          "id": "Qwen/Qwen3.5-397B-A17B",
-          "label": "Qwen/Qwen3.5-397B-A17B",
-          "streaming": false,
-          "promptOnly": false
-        },
-        {
-          "id": "Shanghai_AI_Laboratory/Intern-S1-mini",
-          "label": "Shanghai_AI_Laboratory/Intern-S1-mini",
-          "streaming": false,
-          "promptOnly": false
-        },
-        {
-          "id": "XGenerationLab/XiYanSQL-QwenCoder-32B-2412",
-          "label": "XGenerationLab/XiYanSQL-QwenCoder-32B-2412",
-          "streaming": false,
-          "promptOnly": false
-        },
-        {
-          "id": "XGenerationLab/XiYanSQL-QwenCoder-32B-2504",
-          "label": "XGenerationLab/XiYanSQL-QwenCoder-32B-2504",
+          "id": "ZhipuAI/GLM-4.7-Flash",
+          "label": "GLM-4.7-Flash",
           "streaming": false,
           "promptOnly": false
         }

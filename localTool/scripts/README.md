@@ -17,7 +17,9 @@ localTool 运维/调试脚本。统一入口：`cd localTool && npm run <脚本�
 | `npm run db -- --table tasks --json` | 结果以 JSON 数组输出（接 jq/AI） |
 | `npm run db -- --logs [download\|upload\|proxy\|error\|official\|passthrough]` | 查 localTool 日志，支持按前缀/关键词过滤 |
 | `npm run db -- --task <node_id>` | 同一节点的所有任务进度/status/结果URL形态比对（丢图定位） |
-| `npm run db -- --lifecycle <id>` | **完整生命周期一键查**：数据库完整记录 + 后端日志 + 前端日志全链路（id 可为 task_id 或 node_id）。前端日志经 `POST /api/logs`（`localTool/src/routes/logs.ts`）以 `[frontend]` 前缀落盘，与后端日志同文件，可 grep 全链路定位任务"假完成/数据中断"等异常 |
+| `npm run db -- --lifecycle <id>` | **完整生命周期一键查**：数据库完整记录 + 后端日志 + 前端日志全链路。id 可为 **task_id** / **thread_id**（Lovart 上游"室外 ID"，即 task_id 去掉 `task_` 前缀）/ **node_id**。thread_id 模式自动转 `task_id="task_"+thread_id` 查库，并同时按 `thread_id` 与 `task_id` 双键 grep 日志（`[poll]/[confirm]` 行记 `thread=xxx`，`[submit]` 行记 `task_id=task_xxx`），实现"上游 ID → 本地任务 → 全链路日志"打通。前端日志经 `POST /api/logs`（`localTool/src/routes/logs.ts`）以 `[frontend]` 前缀落盘，与后端日志同文件，可 grep 全链路定位任务"假完成/数据中断"等异常 |
+| `npm run db -- --lovart-status <thread_id>` | 拿 Lovart 上游 thread_id 直接向 Lovart 查任务状态（是否结束）。HMAC-SHA256 签名，凭据用环境变量 `LOVART_ACCESS_KEY/LOVART_SECRET_KEY`（与网关一致），base 用 `LOVART_BASE_URL`；自动走 `HTTPS_PROXY` 等环境变量代理或探测本机代理端口（连 Lovart 需 VPN/代理） |
+| `npm run db -- --lovart-result <thread_id>` | 同上，查任务**结果**（出图 URL / 生成文本），连 `/chat/result` |
 | `npm run db -- --lost-check` | **丢图体检**：tasks 远程URL未落盘 / 失败任务 / 磁盘↔资源一致性 / 日志下载失败与上传400 |
 | `npm run db -- --vacuum` | 压缩数据库（自动备份 + 完整性检查 + 端口冲突检测） |
 
