@@ -38,7 +38,7 @@ export default function DiscountVideoNode({ id, data, selected }) {
 
   // 通用连线数据传递：读取直接上游节点的图片/文本作为参考素材
   const connected = useConnectedInputs(id)
-  const { setEdges } = useReactFlow()
+  const { setEdges, setNodes } = useReactFlow()
   // 断开连线：素材缩略图红色 × → 删除该来源节点 → 本节点的连线（仅对有 sourceNodeId 的素材）
   const disconnectSource = useCallback(
     (sourceNodeId) => {
@@ -48,11 +48,34 @@ export default function DiscountVideoNode({ id, data, selected }) {
     [id, setEdges]
   )
   const [prompt, setPrompt] = useState(data.prompt || '')
+  // 提示词落盘：本地 state + 写回 node.data（支持函数式更新）。
+  // 复用画布快照 KV（App.jsx 600ms 防抖 autoSave）→ 手动输入的提示词刷新不丢。
+  const patchData = useCallback(
+    (patch) => {
+      setNodes((ns) => ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, ...patch } } : n)))
+    },
+    [id, setNodes]
+  )
+  const setPromptPersist = useCallback(
+    (v) => {
+      setPrompt((prev) => {
+        const next = typeof v === 'function' ? v(prev) : v
+        patchData({ prompt: next })
+        return next
+      })
+    },
+    [patchData]
+  )
   const [ratio, setRatio] = useState(data.size || '16:9')
   const [resolution, setResolution] = useState(data.resolution || '1080p')
   const [seconds, setSeconds] = useState(data.selectedSeconds || '10')
   const [selectedModel, setSelectedModel] = useState(data.selectedModel || 'runway-gen3')
   const [expanded, setExpanded] = useState(data.expanded === undefined ? true : data.expanded)
+  // 抽屉展开/收起落盘（写回 node.data.expanded，刷新保持开合状态）
+  const toggleExpanded = useCallback(
+    () => setExpanded((v) => { const next = !v; patchData({ expanded: next }); return next }),
+    [patchData]
+  )
   const [videoUrl, setVideoUrl] = useState(data.videoUrl || '')
   const [showRatioMenu, setShowRatioMenu] = useState(false)
 
@@ -128,6 +151,12 @@ export default function DiscountVideoNode({ id, data, selected }) {
       setVideoUrl(r.url)
       setVidPrefs({ model: selectedModel, size: ratio, resolution, seconds })
     },
+    // 【精准节点回填】异步视频任务刷新后恢复轮询完成的广播 → 写回本节点，节点卡片自动恢复显示。
+    // 视频唯一异步模式，均有 pollTaskId；data.videoUrl 有外部同步 effect 会把值同步到本地 state。
+    onRecover: ({ resultUrl }) => {
+      setVideoUrl(resultUrl)
+      patchData({ videoUrl: resultUrl })
+    },
   })
 
   // 外部写入 videoUrl（如视频处理节点 spawn 输出）→ 同步到本地 state，使节点显示/可下载该视频
@@ -200,7 +229,7 @@ export default function DiscountVideoNode({ id, data, selected }) {
           背景/边框/阴影已由 NodeShell 主容器提供，这里只保留布局与点击行为 */}
       <div
         className="relative cursor-pointer group/display flex flex-col w-full flex-1 min-h-0"
-        onClick={() => setExpanded((v) => !v)}
+        onClick={toggleExpanded}
       >
         <div className={`flex items-center justify-center absolute inset-0 rounded-xl overflow-hidden ${videoUrl ? '' : 'bg-surface-strong'}`}>
           {/* 性能模式媒体降级：缩小时隐藏视频（复刻官方"图片视频已隐藏"） */}
@@ -251,7 +280,7 @@ export default function DiscountVideoNode({ id, data, selected }) {
       <ExpandablePanel expanded={expanded} minWidth={500}>
         <div className="space-y-3">
           {/* 素材缩略图区（通用组件 MaterialStrip，以生图节点为标准） */}
-          <MaterialStrip images={connected.images} texts={connected.texts} onInsert={(name) => setPrompt((p) => (p ? `${p} @${name} ` : `@${name} `))} onDisconnect={disconnectSource} />
+          <MaterialStrip images={connected.images} texts={connected.texts} onInsert={(name) => setPromptPersist((p) => (p ? `${p} @${name} ` : `@${name} `))} onDisconnect={disconnectSource} />
 
           {/* 提示词输入 */}
           <div className="flex items-start gap-2">
@@ -268,7 +297,7 @@ export default function DiscountVideoNode({ id, data, selected }) {
                 }}
                 placeholder="描述你想要的视频内容 (输入 @ 调出素材)..."
                 value={prompt}
-                onChange={(e) => setPrompt(e.target.value)}
+                onChange={(e) => setPromptPersist(e.target.value)}
                 onWheel={(e) => e.stopPropagation()}
               />
             </div>

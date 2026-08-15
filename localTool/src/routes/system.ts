@@ -9,6 +9,7 @@ import { createGunzip, createInflate, createBrotliDecompress } from 'node:zlib';
 import { json, parseJsonBody, readRawBody, sendError } from '../utils/helpers.js';
 import { resolveProviderTarget, type ResolvedTarget } from './providers.js';
 import { fetchWithProxy } from '../utils/netProxy.js';
+import { persistThreadId } from './tasks.js';
 
 const VERSION = '1.4.2';
 const PORT = Number(process.env.PORT) || 18080;
@@ -247,6 +248,10 @@ async function handleProxyFormData(req: IncomingMessage, res: ServerResponse, ta
     const elapsed = Date.now() - _proxyStart;
     const resBody = Buffer.from(await fetchRes.arrayBuffer());
     console.log(`[proxy] ${new Date().toISOString().replace('T',' ').slice(0,19)} | ${method} ${targetUrl} | ${fetchRes.status} | ${elapsed}ms`);
+    // 打通全链路日志：从网关提交响应提取 Lovart 上游 thread_id 落库（FormData 形态）
+    // 前端 task_id 经 x-task-id header 传入（FormData 形态走 header，JSON 形态走 body.taskId）
+    const frontTaskId = req.headers['x-task-id'] as string || '';
+    extractAndPersistThreadId(resBody, frontTaskId);
 
     // 透传响应头（排除 hop-by-hop）
     const resHeaders: Record<string, string> = {};
@@ -281,6 +286,38 @@ async function handleProxyFormData(req: IncomingMessage, res: ServerResponse, ta
   }
 }
 
+/**
+ * 从网关异步提交响应中提取 task_id（= "task_" + Lovart 上游 thread_id）并落库。
+ *
+ * 网关响应形态（见 main.py _do_submit）：
+ *  - 图片/普通：{ code:200, data:[ { status:'submitted', task_id:'task_xxx' } ] }
+ *  - 视频：     { code:200, data:{ id:'task_xxx', status:'submitted', task_id:'task_xxx' } }
+ *  - chat/同步：无 task_id（不落库）
+ * 提取到 task_id 后去掉 "task_" 前缀即 Lovart 上游 thread_id，写入 tasks 表，打通
+ * "拿 thread_id 直接向 Lovart 查状态" 的链路。仅对真实网关提交响应生效，其余原样返回，零副作用。
+ */
+function extractAndPersistThreadId(resBody: Buffer, frontTaskId = '') {
+  try {
+    const parsed = JSON.parse(resBody.toString('utf-8'));
+    const data = (parsed && typeof parsed === 'object' && 'data' in parsed) ? parsed.data : null;
+    if (!data) return;
+    // 兼容数组（图片）与对象（视频）两种 data 形态
+    const arr = Array.isArray(data) ? data : [data];
+    for (const it of arr) {
+      if (!it || typeof it !== 'object') continue;
+      const taskId = it.task_id || it.id;
+      if (typeof taskId !== 'string' || !taskId.startsWith('task_')) continue;
+      const threadId = taskId.slice('task_'.length);
+      if (!threadId) continue;
+      // 网关 task_id 为准落库，thread_id 作关联键；frontTaskId（前端自造 id）同时补上 thread_id，
+      // 打通「前端 ID → Lovart thread_id」关联查询。persistThreadId 是 async，fire-and-forget + catch 吞错。
+      persistThreadId(threadId, taskId, {}, frontTaskId).catch((e) =>
+        console.error(`[persistThreadId] 落库失败: ${e?.message}`));
+      return; // 一个响应一个任务即可
+    }
+  } catch { /* 非 JSON 或解析失败：原样透传，不落库 */ }
+}
+
 async function handleProxyJson(req: IncomingMessage, res: ServerResponse): Promise<void> {
   const _proxyStart = Date.now();
   const body = (await parseJsonBody(req)) as {
@@ -289,11 +326,13 @@ async function handleProxyJson(req: IncomingMessage, res: ServerResponse): Promi
     headers?: Record<string, string>;
     body?: unknown;
     cookie?: string;
+    taskId?: string; // 前端自造 task_id（贯穿链路主键），透传给网关关联 Lovart thread_id
   } | null;
 
   if (!body || !body.url) {
     return sendError(res, 'Missing url in JSON body', 400);
   }
+  const frontTaskId = typeof body.taskId === 'string' ? body.taskId : '';
 
   // ── [fix:特惠视频] 自指重写 → apimart-gateway ──
   // 特惠视频节点 discountVideoApiUrl 经前端 Kn()/lt() 处理成 `http://127.0.0.1:18080/api`
@@ -317,6 +356,8 @@ async function handleProxyJson(req: IncomingMessage, res: ServerResponse): Promi
   if (body.cookie) {
     headers['Cookie'] = body.cookie;
   }
+  // 贯穿链路：透传前端 task_id 给网关，网关据此与 Lovart thread_id 关联
+  if (frontTaskId) headers['X-Task-Id'] = frontTaskId;
 
   // 供应商分派：openai 协议注入 Bearer key（apimart 协议 authHeader 为 undefined，保持原行为）
   if (resolved.authHeader) {
@@ -388,6 +429,8 @@ async function handleProxyJson(req: IncomingMessage, res: ServerResponse): Promi
     const elapsed = Date.now() - _proxyStart;
     const resBody = Buffer.from(await fetchRes.arrayBuffer());
     console.log(`[proxy] ${new Date().toISOString().replace('T',' ').slice(0,19)} | ${body.method || 'POST'} ${body.url} | ${fetchRes.status} | ${elapsed}ms`);
+    // 打通全链路日志：从网关提交响应提取 Lovart 上游 thread_id 落库（仅 JSON 提交响应命中，SSE 流式分支不走到这）
+    extractAndPersistThreadId(resBody, frontTaskId);
 
     const resHeaders: Record<string, string> = {};
     // P0-3 会修改 body 长度，content-length 必须移除让 Node 自动计算

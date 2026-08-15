@@ -39,6 +39,14 @@ const PROTOCOLS = [
   { value: 'apimart', label: 'apimart（Lovart 网关）' },
   { value: 'openai', label: 'OpenAI 兼容' },
 ]
+// 协议 → 需要哪些字段（打基础：按协议动态显隐字段，不写死成一套表单）。
+// 当前 apimart/openai 都是「远程 HTTP 类」→ 需要 base_url + key + 请求形态/同步异步。
+// 将来加 CLI 类协议（codex / jimeng / gemini-cli）时，它们【无 base_url、无 key】（靠本机
+// 登录态），只需把它加入下面对应集合，表单自动隐藏 base_url/key/请求形态，不用改表单结构。
+// ⚠️ 铁律（见文件头契约表）：只在后端已实现该协议后才加进 PROTOCOLS 下拉；这里只是「字段显隐」能力。
+const HTTP_PROTOCOLS = ['apimart', 'openai'] // 远程 HTTP 类：需 base_url + key + 请求形态
+const CLI_PROTOCOLS = [] // 本地 CLI 类：无 base_url / key（未来 codex/jimeng/gemini-cli）
+const isHttpProtocol = (protocol) => HTTP_PROTOCOLS.includes(protocol)
 // ⚠️ 图片请求形态白名单：对应后端 SUPPORTED_IMAGE_REQUEST_MODES（4 选 1）。
 // 后端 generate_ai_image 按 effective_image_request_mode 分派发什么 body；删任一选项，
 // 配对应平台（如用 openai-json 的 agnes）时后端无法正确发请求。禁止删，见文件头契约表。
@@ -95,45 +103,56 @@ export default function ProviderForm({ p, testing, fetching, testResult, onUpdat
               {PROTOCOLS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
           </Field>
-          <Field label="请求地址" hint="OpenAI 兼容端点或 localTool 网关">
-            {/* base_url 是环境部署地址，内置 provider 也应始终可改（readonly 只锁核心结构字段） */}
-            <input value={p.base_url || ''} onChange={(e) => onUpdate({ base_url: e.target.value })} disabled={false} className={inputCls} placeholder="https://api.example.com 或 http://127.0.0.1:9004" />
-          </Field>
-          {/* image_request_mode：图片请求形态（4 选 1），后端 generate_ai_image 据此发 body。
-              不同平台支持的格式不同（agnes 会被嗅探成 openai-json）。契约必填字段，禁止删！ */}
-          <Field label="图片请求形态">
-            <select value={p.image_request_mode || 'openai'} onChange={(e) => onUpdate({ image_request_mode: e.target.value })} disabled={false} className={selectCls}>
-              {REQUEST_MODES.map((m) => <option key={m} value={m}>{m}</option>)}
-            </select>
-          </Field>
-          {/* image_mode：生图同步/异步。前端 imageApi.js 据此决定走 SSE 等待还是 task_id 轮询。
-             本项目扩展字段（官方没有），localTool 透传，与协议无关。禁止删 */}
-          <Field label="生图请求方式" hint="同步=等待结果返回；异步=先提交再轮询结果">
-            <select value={p.image_mode === 'async' ? 'async' : 'sync'} onChange={(e) => onUpdate({ image_mode: e.target.value })} disabled={false} className={selectCls}>
-              <option value="sync">同步（等待结果）</option>
-              <option value="async">异步（轮询任务）</option>
-            </select>
-          </Field>
-        </div>
-      </Section>
-
-      <Section title="密钥与认证" desc="Key 仅存 localTool .env，不回显明文">
-        <div className="flex items-center gap-2 max-w-xl">
-          <div className="relative flex-1">
-            <KeyRound size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-600" />
-            {/* key 是每个用户独立的敏感信息(存 env)，即使内置 readonly provider 也应始终可填/改；readonly 只禁核心结构字段 */}
-            <input type={showKey ? 'text' : 'password'} value={keyValue} onChange={handleKeyChange} disabled={false} placeholder={hasSavedKey ? '已保存（输入新值覆盖）' : 'sk-...'} className={`${inputCls} pl-9`} />
-          </div>
-          <button type="button" onClick={() => setShowKey((v) => !v)} className="p-2.5 text-gray-400 hover:text-white hover:bg-surface-hover rounded-lg transition-colors cursor-pointer border-none bg-transparent" title={showKey ? '隐藏' : '显示'}>
-            {showKey ? <EyeOff size={16} /> : <Eye size={16} />}
-          </button>
-          {hasSavedKey && (
-            <button type="button" onClick={handleClearKey} className="p-2.5 text-red-400 hover:bg-red-500/10 rounded-lg transition-colors cursor-pointer border-none bg-transparent" title="清除 Key">
-              <Trash2 size={16} />
-            </button>
+          {/* 请求地址：仅远程 HTTP 类协议显示；CLI 类（未来 codex/jimeng/gemini-cli）无 base_url 自动隐藏 */}
+          {isHttpProtocol(p.protocol) && (
+            <Field label="请求地址" hint="OpenAI 兼容端点或 localTool 网关">
+              {/* base_url 是环境部署地址，内置 provider 也应始终可改（readonly 只锁核心结构字段） */}
+              <input value={p.base_url || ''} onChange={(e) => onUpdate({ base_url: e.target.value })} disabled={false} className={inputCls} placeholder="https://api.example.com 或 http://127.0.0.1:9004" />
+            </Field>
+          )}
+          {/* image_request_mode / image_mode：仅远程 HTTP 类显示；CLI 类走本机进程范式不适用 */}
+          {isHttpProtocol(p.protocol) && (
+            <>
+              {/* image_request_mode：图片请求形态（4 选 1），后端 generate_ai_image 据此发 body。
+                  不同平台支持的格式不同（agnes 会被嗅探成 openai-json）。契约必填字段，禁止删！ */}
+              <Field label="图片请求形态">
+                <select value={p.image_request_mode || 'openai'} onChange={(e) => onUpdate({ image_request_mode: e.target.value })} disabled={false} className={selectCls}>
+                  {REQUEST_MODES.map((m) => <option key={m} value={m}>{m}</option>)}
+                </select>
+              </Field>
+              {/* image_mode：生图同步/异步。前端 imageApi.js 据此决定走 SSE 等待还是 task_id 轮询。
+                 本项目扩展字段（官方没有），localTool 透传，与协议无关。禁止删 */}
+              <Field label="生图请求方式" hint="同步=等待结果返回；异步=先提交再轮询结果">
+                <select value={p.image_mode === 'async' ? 'async' : 'sync'} onChange={(e) => onUpdate({ image_mode: e.target.value })} disabled={false} className={selectCls}>
+                  <option value="sync">同步（等待结果）</option>
+                  <option value="async">异步（轮询任务）</option>
+                </select>
+              </Field>
+            </>
           )}
         </div>
       </Section>
+
+      {/* 密钥区：仅远程 HTTP 类显示；CLI 类（未来 codex/jimeng/gemini-cli）无 key、靠本机登录态 */}
+      {isHttpProtocol(p.protocol) && (
+        <Section title="密钥与认证" desc="Key 仅存 localTool .env，不回显明文">
+          <div className="flex items-center gap-2 max-w-xl">
+            <div className="relative flex-1">
+              <KeyRound size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-600" />
+              {/* key 是每个用户独立的敏感信息(存 env)，即使内置 readonly provider 也应始终可填/改；readonly 只禁核心结构字段 */}
+              <input type={showKey ? 'text' : 'password'} value={keyValue} onChange={handleKeyChange} disabled={false} placeholder={hasSavedKey ? '已保存（输入新值覆盖）' : 'sk-...'} className={`${inputCls} pl-9`} />
+            </div>
+            <button type="button" onClick={() => setShowKey((v) => !v)} className="p-2.5 text-gray-400 hover:text-white hover:bg-surface-hover rounded-lg transition-colors cursor-pointer border-none bg-transparent" title={showKey ? '隐藏' : '显示'}>
+              {showKey ? <EyeOff size={16} /> : <Eye size={16} />}
+            </button>
+            {hasSavedKey && (
+              <button type="button" onClick={handleClearKey} className="p-2.5 text-red-400 hover:bg-red-500/10 rounded-lg transition-colors cursor-pointer border-none bg-transparent" title="清除 Key">
+                <Trash2 size={16} />
+              </button>
+            )}
+          </div>
+        </Section>
+      )}
 
       <Section title="连接测试" desc="验证连通性 / 拉取远端模型">
         <div className="flex items-center gap-3 flex-wrap">

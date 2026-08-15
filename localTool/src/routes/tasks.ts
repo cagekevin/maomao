@@ -13,6 +13,7 @@ const SNAKE_TO_CAMEL: Record<string, string> = {
   model_name: 'modelName', created_at: 'createdAt', not_found_count: 'notFoundCount',
   custom_result_data: 'customResultData', custom_raw_response: 'customRawResponse',
   request_data: 'requestData', response_data: 'responseData', media_meta: 'mediaMeta', extra_fields: 'extraFields',
+  thread_id: 'threadId', poll_task_id: 'pollTaskId',
 };
 const CAMEL_TO_SNAKE: Record<string, string> = {};
 for (const [k, v] of Object.entries(SNAKE_TO_CAMEL)) CAMEL_TO_SNAKE[v] = k;
@@ -47,6 +48,7 @@ const ALLOWED_TASK_COLUMNS = new Set([
   'error_message', 'custom_output_type', 'channel_name', 'model_name', 'progress',
   'created_at', 'not_found_count', 'custom_result_data', 'custom_raw_response',
   'request_data', 'response_data', 'media_meta', 'extra_fields', 'type', 'status',
+  'thread_id', 'poll_task_id',
 ]);
 
 function taskToRow(task: Record<string, unknown>) {
@@ -168,4 +170,37 @@ export async function handleTasksClear(req: IncomingMessage, res: ServerResponse
   }
   debouncedSaveDb();
   return json(res, { deleted: result.changes });
+}
+
+/**
+ * 持久化网关返回的 Lovart 上游 thread_id（打通"拿 thread_id 去 Lovart 查状态"链路）。
+ *
+ * 背景：thread_id 来自 Lovart `/chat` 返回，网关把它拼成 task_id（= "task_" + thread_id）返回给调用方。
+ * 前端节点自造的任务 id 与它无关，故此前 thread_id 无落库。这里由 localTool 在 /api/proxy 转发
+ * 网关响应时调用本函数，把 thread_id 写进 tasks 表（task_id 已有行则合并，无则新增占位行）。
+ *
+ * @param threadId Lovart 上游真实 ID（task_id 去掉 task_ 前缀）
+ * @param taskId   网关返回的 task_id（="task_"+threadId）
+ * @param meta     可选补充字段（node_id / prompt / model_name 等），供无前端落库时仍可追溯
+ */
+export async function persistThreadId(threadId: string, taskId: string, meta: Record<string, unknown> = {}, frontTaskId = '') {
+  if (!threadId || !taskId) return;
+  const db = await getDb(); // getDb 是 async（sql.js 内存库首次需异步初始化），必须 await，否则拿到 Promise 无法 upsert
+  // 网关 task_id 行：thread_id 为关联键
+  upsertTask(db, {
+    task_id: taskId,
+    thread_id: threadId,
+    created_at: Date.now(),
+    ...meta,
+  });
+  // 前端自造 task_id 行：若已存在（前端 /api/tasks/save 写入），补上 thread_id，实现「前端 ID → thread_id」关联
+  if (frontTaskId) {
+    const existingFront = queryOne(db, `SELECT task_id FROM tasks WHERE task_id = ?`, [frontTaskId]);
+    if (existingFront) {
+      run(db, `UPDATE tasks SET thread_id = ? WHERE task_id = ?`, [threadId, frontTaskId]);
+    } else {
+      upsertTask(db, { task_id: frontTaskId, thread_id: threadId, created_at: Date.now() });
+    }
+  }
+  debouncedSaveDb();
 }

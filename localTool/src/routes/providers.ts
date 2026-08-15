@@ -384,6 +384,16 @@ export async function handleProvidersPut(req: IncomingMessage, res: ServerRespon
   return json(res, { providers: merged.map(publicProvider) });
 }
 
+// 【打基础】连接测试的探测路径「按协议表驱动」（可插拔，不堆 if）。
+// 将来加新协议（gemini → /v1beta、volcengine → /api/v3、runninghub → /openapi/v2）只需
+// 在这里补一条映射 + 在 PROBE_ORDER 里加名字，主探测逻辑无需改。
+const PROBE_PATHS: Record<string, string> = {
+  openai: '/v1/models',
+  apimart: '/health',
+};
+// auto 时依次探测的顺序（先试通用的 openai，再试 apimart）
+const PROBE_ORDER = ['openai', 'apimart'];
+
 export async function handleProviderTest(req: IncomingMessage, res: ServerResponse): Promise<void> {
   const body = (await parseJsonBody(req)) as { id?: string; url?: string; key?: string; protocol?: string } | null;
   if (!body) return sendError(res, 'Empty body', 400);
@@ -421,29 +431,29 @@ export async function handleProviderTest(req: IncomingMessage, res: ServerRespon
   };
 
   try {
-    if (protocol === 'openai') {
-      const r = await probe('/v1/models');
-      return json(res, { ok: r.ok, status: r.status, protocol: 'openai', detectedProtocol: 'openai', url: base + '/v1/models' });
+    // 表驱动探测：显式协议只探它的路径；auto 按 PROBE_ORDER 依次试
+    if (protocol !== 'auto' && PROBE_PATHS[protocol]) {
+      const r = await probe(PROBE_PATHS[protocol]);
+      return json(res, { ok: r.ok, status: r.status, protocol, detectedProtocol: protocol, url: base + PROBE_PATHS[protocol] });
     }
-    if (protocol === 'apimart') {
-      const r = await probe('/health');
-      return json(res, { ok: r.ok, status: r.status, protocol: 'apimart', detectedProtocol: 'apimart', url: base + '/health' });
-    }
-    // auto：依次探测
-    const openai = await probe('/v1/models');
-    if (openai.ok) {
-      return json(res, { ok: true, status: openai.status, protocol: 'openai', detectedProtocol: 'openai', url: base + '/v1/models' });
-    }
-    const apimart = await probe('/health');
-    if (apimart.ok) {
-      return json(res, { ok: true, status: apimart.status, protocol: 'apimart', detectedProtocol: 'apimart', url: base + '/health' });
+    const probes: Record<string, number> = {};
+    let firstStatus = 0;
+    for (const proto of PROBE_ORDER) {
+      const path = PROBE_PATHS[proto];
+      if (!path) continue;
+      const r = await probe(path);
+      probes[proto] = r.status;
+      firstStatus = firstStatus || r.status;
+      if (r.ok) {
+        return json(res, { ok: true, status: r.status, protocol: proto, detectedProtocol: proto, url: base + path, probes });
+      }
     }
     return json(res, {
       ok: false,
-      status: openai.status || apimart.status,
+      status: firstStatus,
       protocol: 'unknown',
       detectedProtocol: null,
-      probes: { openai: openai.status, apimart: apimart.status },
+      probes,
       url: base,
     });
   } catch (e) {

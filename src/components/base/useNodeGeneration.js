@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState, useEffect } from 'react'
-import { reportGenerate, registerTaskRetry, unregisterTaskRetry } from './taskStore.js'
+import { reportGenerate, registerTaskRetry, unregisterTaskRetry, setCurrentTaskId } from './taskStore.js'
 import { logger } from './logger.js'
 
 /**
@@ -41,7 +41,7 @@ import { logger } from './logger.js'
  *   stop() 目前只清 loading/error，不中断网络请求（真 API 的中断需 AbortController，
  *   待接真引擎时在 run 内用 AbortSignal 实现，start/stop 对外接口不变）。
  */
-export function useNodeGeneration({ nodeId, type, validate, run, onSuccess }) {
+export function useNodeGeneration({ nodeId, type, validate, run, onSuccess, onRecover }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -49,6 +49,8 @@ export function useNodeGeneration({ nodeId, type, validate, run, onSuccess }) {
   runRef.current = run
   const onSuccessRef = useRef(onSuccess)
   onSuccessRef.current = onSuccess
+  const onRecoverRef = useRef(onRecover)
+  onRecoverRef.current = onRecover
   const validateRef = useRef(validate)
   validateRef.current = validate
   const typeRef = useRef(type)
@@ -63,13 +65,17 @@ export function useNodeGeneration({ nodeId, type, validate, run, onSuccess }) {
     setError('')
     const t = typeRef.current || {}
     const taskCtl = reportGenerate(nodeId, t.type, t.prompt, { modelName: t.modelName })
+    // 把前端 task_id 设为「当前任务」，供 proxyRequest 加 X-Task-Id header 贯穿链路（关联 Lovart thread_id）
+    setCurrentTaskId(taskCtl.taskId || '')
     taskCtl.progress(5, '准备中…')
     logger.info('生成', 'start', { nodeId, type: t.type, prompt: t.prompt })
     try {
       const r = await runRef.current({ progress: (p, stage) => taskCtl.progress(p, stage) })
       if (r?.ok) {
         onSuccessRef.current?.(r, taskCtl)
-        taskCtl.done(r.doneUrl || r.url || '')
+        // 防御：done 只接收字符串结果 URL（上游偶发返回对象会触发 taskStore.done 的 .startsWith 崩）
+        const rawUrl = r.doneUrl || r.url
+        taskCtl.done(typeof rawUrl === 'string' ? rawUrl : '')
         logger.info('生成', 'success', { nodeId, type: t.type })
       } else {
         setError(r?.error || '生成失败')
@@ -94,6 +100,25 @@ export function useNodeGeneration({ nodeId, type, validate, run, onSuccess }) {
     if (!nodeId) return
     registerTaskRetry(nodeId, () => startRef.current())
     return () => unregisterTaskRetry(nodeId)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nodeId])
+
+  // 【精准节点回填】监听异步任务恢复轮询的完成广播（pollTask.js 发 mutiwindow-task-completed）。
+  // 只有「任务归属的节点」（detail.nodeId === 本 nodeId）才响应 → 精准：其他在跑的/不相关的节点忽略。
+  // 收到后回调 onRecover(detail)，由各节点把 resultUrl 写回 node.data（刷新后节点卡片自动恢复显示结果）。
+  // 用 ref 存最新 onRecover，监听只在挂载时注册一次，避免每次渲染重建。
+  useEffect(() => {
+    if (!nodeId) return
+    const handler = (e) => {
+      const d = e?.detail
+      if (!d) return
+      // 只认本节点 + 已完成 + 有结果 URL 的广播，其余忽略（精准）
+      if (d.nodeId !== nodeId) return
+      if (d.status !== 'completed' || !d.resultUrl) return
+      onRecoverRef.current?.(d)
+    }
+    window.addEventListener('mutiwindow-task-completed', handler)
+    return () => window.removeEventListener('mutiwindow-task-completed', handler)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nodeId])
 

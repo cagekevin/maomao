@@ -12,6 +12,7 @@
  */
 import { resolveRefImages } from './refImage.js'
 import { API_BASE } from './apiBase.js'
+import { getCurrentTaskId, setTaskPollId } from './taskStore.js'
 
 /** 目标端点：openai 用伪协议；apimart 用 base_url + /v1/{path}。 */
 function buildTargetUrl(provider, path) {
@@ -28,6 +29,9 @@ async function proxyRequest({ provider, url, method = 'POST', body }) {
   const payload = { url, method }
   if (body) payload.body = JSON.stringify(body)
   if (provider?.id) payload.providerId = provider.id
+  // 贯穿链路：把前端 task_id 带给 localTool/网关，关联 Lovart thread_id（见 taskStore.currentTaskId）
+  const frontTaskId = getCurrentTaskId()
+  if (frontTaskId) payload.taskId = frontTaskId
   const res = await fetch(`${API_BASE}/api/proxy`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -60,6 +64,11 @@ async function generateAsync({ provider, url, genBody, timeoutMs }, onProgress) 
     return /^网络错误/.test(e?.message || '') ? fail(e.message) : fail(`提交失败：${e?.message || '提交异常'}`)
   }
   if (!taskId) return fail(`上游未返回任务 id`)
+
+  // 【取舍】把网关返回的可查询 task_id 回填到当前任务记录（前端 task_id 主键）。
+  // 这样刷新网页后，恢复轮询（pollTask.js）能靠它查 /api/v1/gateway/task/{id} 继续拿结果。
+  // 不存的话刷新后 taskId 丢失，任务就断了。文本/生图 sync 无此值，不走到这里。
+  setTaskPollId(getCurrentTaskId(), taskId)
 
   // 轮询
   const pollUrl = buildTargetUrl(provider, `tasks/${taskId}`)

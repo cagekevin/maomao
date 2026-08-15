@@ -54,6 +54,7 @@ const AGENT_MODELS = (() => {
 })()
 
 const PANEL_WIDTH_KEY = 'agent_panel_width'
+const AGENT_DRAFT_KEY = 'agent_draft' // 聊天框输入草稿（未发送内容落盘 localStorage，刷新不丢）
 const MIN_WIDTH = 320
 const MAX_WIDTH = 720
 const DEFAULT_WIDTH = 380
@@ -103,8 +104,8 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
     provider: agentProvider
   })
 
-  // 输入 + 图片
-  const [input, setInput] = useState('')
+  // 输入 + 图片（input 草稿从 localStorage 恢复，刷新不丢未发送内容）
+  const [input, setInput] = useState(() => { try { return sGet(AGENT_DRAFT_KEY) || '' } catch { return '' } })
   const [attachments, setAttachments] = useState([])
   const [uploading, setUploading] = useState(false)
 
@@ -183,6 +184,7 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
     const attach = attachments.length > 0 ? attachments.map(({ type, url }) => ({ type, url })) : undefined
     setAttachments([])
     setInput('')
+    try { sSet(AGENT_DRAFT_KEY, '') } catch { /* ignore */ } // 已发送 → 清空草稿
     Promise.resolve(send(text, attach)).catch((e) => console.error('[Agent] send 失败:', e))
   }
 
@@ -325,7 +327,7 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
           )}
           <textarea
             value={input}
-            onChange={(e) => setInput(e.target.value)}
+            onChange={(e) => { setInput(e.target.value); try { sSet(AGENT_DRAFT_KEY, e.target.value) } catch { /* ignore */ } }}
             onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() } }}
             placeholder="输入消息，回车发送，Shift+Enter 换行"
             rows={2}

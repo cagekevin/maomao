@@ -32,7 +32,7 @@ import { buildAllModels, resolveProviderModel } from './base/providerModels.js'
 export default function TextNode({ id, data, selected }) {
   // 通用连线数据传递：读取直接上游节点的文本/图片作为参考输入
   const connected = useConnectedInputs(id)
-  const { setEdges } = useReactFlow()
+  const { setEdges, getNodes, setNodes } = useReactFlow()
   // 断开连线：素材缩略图红色 × → 删除该来源节点 → 本节点的连线（仅对有 sourceNodeId 的素材）
   const disconnectSource = useCallback(
     (sourceNodeId) => {
@@ -44,7 +44,47 @@ export default function TextNode({ id, data, selected }) {
   const [prompt, setPrompt] = useState(data.prompt || '')
   const [text, setText] = useState(data.text || '')
   const [autoSplit, setAutoSplit] = useState(data.autoSplit || false)
+
+  // ── 输入落盘：本地 state + 同步写回 node.data（不可变更新）──
+  // 复用画布快照 KV（App.jsx 600ms 防抖 autoSave 只存 node.data，不存组件 useState）
+  // → 手动输入的文字随画布快照落盘，刷新/切换项目不丢。
+  // 只 re-render 本节点（setState 本来就会），无「全画布刷新」；自动保存已有 600ms 防抖，无需额外防抖。
+  const patchData = useCallback(
+    (patch) => {
+      setNodes((ns) => ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, ...patch } } : n)))
+    },
+    [id, setNodes]
+  )
+  const setPromptPersist = useCallback(
+    (v) => {
+      setPrompt((prev) => {
+        const next = typeof v === 'function' ? v(prev) : v
+        patchData({ prompt: next })
+        return next
+      })
+    },
+    [patchData]
+  )
+  const setTextPersist = useCallback(
+    (v) => {
+      setText((prev) => {
+        const next = typeof v === 'function' ? v(prev) : v
+        patchData({ text: next })
+        return next
+      })
+    },
+    [patchData]
+  )
+  const setAutoSplitPersist = useCallback(
+    (v) => { setAutoSplit(v); patchData({ autoSplit: v }) },
+    [patchData]
+  )
   const [expanded, setExpanded] = useState(data.expanded === undefined ? true : data.expanded)
+  // 抽屉展开/收起也落盘（写回 node.data.expanded，复用画布快照 KV，刷新保持开合状态）
+  const toggleExpanded = useCallback(
+    () => setExpanded((v) => { const next = !v; patchData({ expanded: next }); return next }),
+    [patchData]
+  )
   const [editingText, setEditingText] = useState(false)
   // 记住上次选择的模型（跨节点/跨会话）；初始用记忆值，无记忆回退 gpt-4o-mini
   const { prefs: textPrefs, set: setTextPrefs } = useNodePrefs('textNode', { model: '' })
@@ -101,10 +141,16 @@ export default function TextNode({ id, data, selected }) {
       const refUrls = refImages.map((img) => img.url)
       // 文本为非流式请求：上报「连接本地服务」→「上游生成中」两个阶段
       progress?.(10, '正在连接本地服务…')
+      // 对齐官方 H_.jsx Lr（6141-6152）：只有勾选「自动拆分」才把 system 换成
+      // 「智能内容拆分助手」要求返回严格 JSON {items:[{title,content}]}；
+      // 未勾选时 system 是普通助手（不加任何 JSON 指令）。
+      const sysContent = autoSplit
+        ? `你是一个智能内容拆分助手。请先仔细观察用户提供的图片内容，然后基于图片内容进行拆分。你必须将内容拆分成多个独立的部分，并返回一个严格的JSON对象，包含一个 items 数组，数组中的每个对象包含 title 和 content 两个字段。请直接返回纯JSON字符串，不要包含任何额外的解释文字或Markdown代码块。`
+        : 'You are a helpful assistant.'
       const r = await chatCompletions({
         provider: useProvider,
         messages: [
-          { role: 'system', content: 'You are a helpful assistant that outputs strict JSON.' },
+          { role: 'system', content: sysContent },
           { role: 'user', content: prompt || text || '' }
         ],
         model: modelId,
@@ -115,7 +161,36 @@ export default function TextNode({ id, data, selected }) {
       return { ok: true, content: r.content }
     },
     onSuccess: (r) => {
-      setText(r.content)
+      // 勾选「自动拆分」：解析 AI 返回的严格 JSON {items:[{title,content}]}，每个 item 生成一个文本节点
+      // 并自动连线（对齐官方 H_.jsx Lr 6326-6380：strip ```json → JSON.parse → items → 新建 textNode 网格 + 连线）。
+      // 解析失败则降级为普通文本（不阻断）。
+      if (autoSplit && typeof r.content === 'string') {
+        let items = []
+        try {
+          const clean = r.content.replace(/```json/g, '').replace(/```/g, '').trim()
+          const parsed = JSON.parse(clean)
+          items = parsed.items || parsed
+        } catch (e) {
+          console.warn('[TextNode] 自动拆分 JSON 解析失败，降级为普通文本:', e)
+          items = []
+        }
+        if (Array.isArray(items) && items.length > 0) {
+          const me = getNodes().find((n) => n.id === id)
+          const baseX = (me?.position.x ?? 100) + (me?.measured?.width ?? 420) + 60
+          const baseY = me?.position.y ?? 100
+          const newNodes = items.map((it, n) => ({
+            id: `text-split-${id}-${n}-${Date.now()}`,
+            type: 'textNode',
+            position: { x: baseX, y: baseY + n * 250 },
+            data: { text: typeof it === 'string' ? it : it.content, label: typeof it === 'string' ? `Text ${n + 1}` : it.title, expanded: false },
+          }))
+          const newEdges = newNodes.map((nn) => ({ id: `e-${id}-${nn.id}`, source: id, target: nn.id, sourceHandle: 'main-output' }))
+          setNodes((ns) => ns.concat(newNodes))
+          setEdges((es) => es.concat(newEdges))
+          return
+        }
+      }
+      setTextPersist(r.content)
       // 文本结果落盘成 txt → 生成面板「文本」tab 收录（异步，失败不影响节点显示）
       if (typeof r.content === 'string' && r.content.trim()) {
         saveTextToTasks(r.content, 'text').catch(() => {})
@@ -138,7 +213,7 @@ export default function TextNode({ id, data, selected }) {
       ? [{ key: 'upload', icon: <Plus size={12} />, title: '上传图片', onClick: () => fileRef.current?.click() }]
       : []),
     { key: 'copy', icon: <Copy size={12} />, title: '复制文本', onClick: () => navigator.clipboard?.writeText(text) },
-    { key: 'toggle', icon: expanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />, title: expanded ? '收起输入' : '展开输入', onClick: () => setExpanded((v) => !v) }
+    { key: 'toggle', icon: expanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />, title: expanded ? '收起输入' : '展开输入', onClick: toggleExpanded }
   ]
 
   return (
@@ -169,7 +244,7 @@ export default function TextNode({ id, data, selected }) {
           // 排除按钮/输入框避免误触；textarea 非编辑时只读（readOnly），单击可切换抽屉，
           // 编辑靠双击触发（onDoubleClick 进 editingText），互不冲突。
           if (!editingText && !(e.target instanceof HTMLButtonElement) && !(e.target instanceof HTMLInputElement)) {
-            setExpanded((v) => !v)
+            toggleExpanded()
           }
         }}
       >
@@ -212,7 +287,7 @@ export default function TextNode({ id, data, selected }) {
                 placeholder=""
                 value={text}
                 readOnly={!editingText}
-                onChange={(e) => setText(e.target.value)}
+                onChange={(e) => setTextPersist(e.target.value)}
                 onBlur={() => setEditingText(false)}
                 onWheel={(e) => e.stopPropagation()}
               />
@@ -239,17 +314,17 @@ export default function TextNode({ id, data, selected }) {
       <ExpandablePanel expanded={expanded} minWidth={420}>
         <div className="space-y-3">
           {/* 素材缩略图区（通用组件 MaterialStrip，以生图节点为标准） */}
-          <MaterialStrip images={refImages} texts={refTexts} onInsert={(name) => setPrompt((p) => (p ? `${p} @${name} ` : `@${name} `))} onDisconnect={disconnectSource} />
+          <MaterialStrip images={refImages} texts={refTexts} onInsert={(name) => setPromptPersist((p) => (p ? `${p} @${name} ` : `@${name} `))} onDisconnect={disconnectSource} />
 
           {/* 提示词输入（基座 PromptInput） */}
           <PromptInput
             ref={promptInputRef}
             value={prompt}
-            onChange={setPrompt}
+            onChange={setPromptPersist}
             placeholder="输入提示词 (输入 @ 调出素材)..."
             refImages={refImages}
             refTexts={refTexts}
-            onInsert={(name) => setPrompt((p) => (p ? `${p} @${name} ` : `@${name} `))}
+            onInsert={(name) => setPromptPersist((p) => (p ? `${p} @${name} ` : `@${name} `))}
             inputWidth={data.inputWidth}
             inputHeight={data.inputHeight}
           />
@@ -258,7 +333,7 @@ export default function TextNode({ id, data, selected }) {
           <div className="flex items-center justify-between pt-2 border-t border-edge-faint">
             <div className="flex items-center gap-1.5">
               <label className="flex items-center gap-1.5 cursor-pointer h-6 px-2 text-caption-sm text-gray-400 hover:text-gray-200 select-none bg-transparent hover:bg-surface-hover border border-transparent hover:border-edge rounded transition-colors">
-                <input type="checkbox" checked={autoSplit} onChange={(e) => setAutoSplit(e.target.checked)} className="accent-blue-500 rounded sm:w-3 sm:h-3" />
+                <input type="checkbox" checked={autoSplit} onChange={(e) => setAutoSplitPersist(e.target.checked)} className="accent-blue-500 rounded sm:w-3 sm:h-3" />
                 自动拆分
               </label>
 
@@ -303,7 +378,7 @@ export default function TextNode({ id, data, selected }) {
           style={{ fontSize: '14px', lineHeight: 1.8, color: '#e5e7eb' }}
           placeholder="输入文本内容..."
           value={text}
-          onChange={(e) => setText(e.target.value)}
+          onChange={(e) => setTextPersist(e.target.value)}
         />
       </FullscreenModal>
 
@@ -315,7 +390,7 @@ export default function TextNode({ id, data, selected }) {
           style={{ fontSize: '14px', lineHeight: 1.8, color: '#e5e7eb' }}
           placeholder="输入提示词..."
           value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
+          onChange={(e) => setPromptPersist(e.target.value)}
         />
       </FullscreenModal>
     </NodeShell>

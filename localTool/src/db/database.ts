@@ -293,7 +293,7 @@ export function debouncedSaveDb(): void {
 
 function initTables(db: any): void {
   db.run(`CREATE TABLE IF NOT EXISTS kv (key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at INTEGER NOT NULL DEFAULT (unixepoch()))`);
-  db.run(`CREATE TABLE IF NOT EXISTS tasks (task_id TEXT PRIMARY KEY, node_id TEXT, prompt TEXT, result_url TEXT, thumbnail_url TEXT, error_msg TEXT, custom_output_type TEXT, channel_name TEXT, model_name TEXT, progress INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL DEFAULT 0, not_found_count INTEGER NOT NULL DEFAULT 0, custom_result_data TEXT, custom_raw_response TEXT, request_data TEXT, response_data TEXT, media_meta TEXT, extra_fields TEXT)`);
+  db.run(`CREATE TABLE IF NOT EXISTS tasks (task_id TEXT PRIMARY KEY, node_id TEXT, prompt TEXT, result_url TEXT, thumbnail_url TEXT, error_msg TEXT, custom_output_type TEXT, channel_name TEXT, model_name TEXT, progress INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL DEFAULT 0, not_found_count INTEGER NOT NULL DEFAULT 0, custom_result_data TEXT, custom_raw_response TEXT, request_data TEXT, response_data TEXT, media_meta TEXT, extra_fields TEXT, thread_id TEXT)`);
   db.run(`CREATE TABLE IF NOT EXISTS resources (id TEXT PRIMARY KEY, url TEXT NOT NULL, type TEXT NOT NULL, source TEXT, folder TEXT, name TEXT, page_url TEXT, page_title TEXT, is_favorite INTEGER NOT NULL DEFAULT 0, timestamp INTEGER NOT NULL DEFAULT 0)`);
   db.run(`CREATE TABLE IF NOT EXISTS projects (id TEXT PRIMARY KEY, name TEXT NOT NULL, is_last_opened INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL DEFAULT 0)`);
   db.run(`CREATE INDEX IF NOT EXISTS idx_tasks_created_at ON tasks(created_at)`);
@@ -307,6 +307,11 @@ function initTables(db: any): void {
   try { db.run(`ALTER TABLE tasks ADD COLUMN type TEXT`); } catch { /* 列已存在 */ }
   try { db.run(`ALTER TABLE tasks ADD COLUMN status TEXT`); } catch { /* 列已存在 */ }
   try { db.run(`ALTER TABLE tasks ADD COLUMN error_message TEXT`); } catch { /* 列已存在 */ }
+  try { db.run(`ALTER TABLE tasks ADD COLUMN thread_id TEXT`); } catch { /* 列已存在 */ }
+  // poll_task_id：前端异步任务（生图/视频）提交后从网关拿到的「可轮询查询 task_id」。
+  // 【取舍】只对异步任务存它：刷新网页后前端能靠它查 /api/v1/gateway/task/{id} 恢复任务状态。
+  // 文本/生图 sync 是同步阻塞、无 task_id，故不存（刷新断即断，官方同此），存了也查不了。
+  try { db.run(`ALTER TABLE tasks ADD COLUMN poll_task_id TEXT`); } catch { /* 列已存在 */ }
 }
 
 export function closeDb(): void {

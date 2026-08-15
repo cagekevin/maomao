@@ -10,6 +10,7 @@
  */
 import { resolveRefImages } from './refImage.js'
 import { API_BASE } from './apiBase.js'
+import { getCurrentTaskId, setTaskPollId } from './taskStore.js'
 
 /** 目标端点：openai 用伪协议；apimart 用 base_url + /v1/{path}。 */
 function buildTargetUrl(provider, path) {
@@ -26,6 +27,9 @@ async function proxyRequest({ provider, url, method = 'POST', body }) {
   const payload = { url, method }
   if (body) payload.body = JSON.stringify(body)
   if (provider?.id) payload.providerId = provider.id
+  // 贯穿链路：把前端 task_id 带给 localTool/网关，关联 Lovart thread_id（见 taskStore.currentTaskId）
+  const frontTaskId = getCurrentTaskId()
+  if (frontTaskId) payload.taskId = frontTaskId
   const res = await fetch(`${API_BASE}/api/proxy`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -57,7 +61,9 @@ async function readSseImageUrl(res, onProgress) {
         try {
           const evt = JSON.parse(raw)
           if (typeof evt.progress === 'number') onProgress?.(evt.progress)
-          const imgUrl = evt?.results?.[0]?.url || evt?.result?.images?.[0]?.url
+          // url 可能是数组（网关 result.images[0].url:[...]）或字符串，统一取字符串
+          const rawUrl = evt?.results?.[0]?.url ?? evt?.result?.images?.[0]?.url
+          const imgUrl = Array.isArray(rawUrl) ? rawUrl[0] : rawUrl
           if (evt.status === 'succeeded' && imgUrl) urlFound = imgUrl
           if (evt.status === 'failed' || evt.error) throw new Error(evt.error || evt.failure_reason || '生成失败')
         } catch (e) { /* 忽略单条 JSON 解析失败 */ }
@@ -113,6 +119,11 @@ async function generateAsync({ provider, url, genBody, timeoutMs }, onProgress) 
   }
   if (!taskId) return fail(`上游未返回任务 id`)
 
+  // 【取舍】把网关返回的可查询 task_id 回填到当前任务记录，供刷新后恢复轮询
+  // （pollTask.js）按 /api/v1/gateway/task/{id} 查结果。仅异步 async 模式走到这；
+  // sync/SSE 模式同步等待、无 task_id，不存（刷新断即断，官方同此）。
+  setTaskPollId(getCurrentTaskId(), taskId)
+
   // 轮询
   const pollUrl = buildTargetUrl(provider, `tasks/${taskId}`)
   const start = Date.now()
@@ -122,7 +133,9 @@ async function generateAsync({ provider, url, genBody, timeoutMs }, onProgress) 
       const pr = await proxyRequest({ provider, url: pollUrl, method: 'GET' })
       const pj = await pr.json()
       const pd = pj?.data ?? pj
-      const imgUrl = pd?.result?.images?.[0]?.url || pd?.results?.[0]?.url
+      // 网关 result.images[0].url 是数组（APIMart 规范 `{url:[...]}`），需取 [0]；兼容字符串
+      const rawUrl = pd?.result?.images?.[0]?.url ?? pd?.results?.[0]?.url
+      const imgUrl = Array.isArray(rawUrl) ? rawUrl[0] : rawUrl
       if (imgUrl) return ok(imgUrl)
       if (pd?.status === 'failed' || pd?.status === 'error') {
         return fail(pd?.error?.message || pd?.error || '上游任务失败')

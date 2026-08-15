@@ -69,6 +69,20 @@ export default function PromptNode({ id, data, selected }) {
   const patchData = useCallback((patch) => {
     setNodes((ns) => ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, ...patch } } : n)))
   }, [id, setNodes])
+  // 提示词落盘：本地 state + 写回 node.data（支持函数式更新）。
+  // 复用画布快照 KV（App.jsx 600ms 防抖 autoSave）→ 手动输入的提示词刷新不丢。
+  const setPromptPersist = useCallback((v) => {
+    setPrompt((prev) => {
+      const next = typeof v === 'function' ? v(prev) : v
+      patchData({ prompt: next })
+      return next
+    })
+  }, [patchData])
+  // 抽屉展开/收起落盘（写回 node.data.expanded，刷新保持开合状态）
+  const toggleExpanded = useCallback(
+    () => setExpanded((v) => { const next = !v; patchData({ expanded: next }); return next }),
+    [patchData]
+  )
   const fileRef = useRef(null)
   const promptInputRef = useRef(null) // 提示词 textarea ref（供面板右下角手柄拖拽改尺寸）
   // 三个下拉菜单容器（画质/格式/数量）：ref 绑外层 relative，使「按钮+菜单」都在内，点外部才关
@@ -131,6 +145,12 @@ export default function PromptNode({ id, data, selected }) {
       // 记忆本次参数（模型/比例/尺寸），供新建节点复用
       setImgPrefs({ model: selectedModel, aspectRatio, imageSize })
     },
+    // 【精准节点回填】异步任务刷新后恢复轮询完成的广播 → 把结果写回本节点，节点卡片自动恢复显示图。
+    // 仅生图 async 模式会命中（有 pollTaskId）；sync 同步无任务广播。
+    onRecover: ({ resultUrl }) => {
+      setImageUrl(resultUrl)
+      patchData({ imageUrl: resultUrl })
+    },
   })
 
   // 图片可选比例（含 1:3 / 3:1 极端竖/横比例，不含 1:2 / 2:1）
@@ -151,7 +171,7 @@ export default function PromptNode({ id, data, selected }) {
   const refImages = [...(connected.images || []), ...(data.images?.length ? data.images : [])]
   const refTexts = [...(connected.texts || []), ...(data.texts?.length ? data.texts : [])]
 
-  const insertMention = (name) => setPrompt((p) => (p ? `${p} @${name} ` : `@${name} `))
+  const insertMention = (name) => setPromptPersist((p) => (p ? `${p} @${name} ` : `@${name} `))
   const hasImage = !!imageUrl
 
   // 下载生成的图片（<a download> 触发浏览器保存）
@@ -211,7 +231,7 @@ export default function PromptNode({ id, data, selected }) {
           背景/边框/阴影已由 NodeShell 主容器提供，这里只保留布局与点击行为 */}
       <div
         className="relative cursor-pointer group/image w-full flex flex-col flex-1 min-h-0"
-        onClick={() => setExpanded((v) => !v)}
+        onClick={toggleExpanded}
       >
         <div className={`flex items-center justify-center absolute inset-0 rounded-xl overflow-hidden ${hasImage ? '' : 'bg-canvas'}`}>
           {/* 性能模式媒体降级：缩小时隐藏生图结果（复刻官方"图片已隐藏"） */}
@@ -260,7 +280,7 @@ export default function PromptNode({ id, data, selected }) {
           <PromptInput
             ref={promptInputRef}
             value={prompt}
-            onChange={setPrompt}
+            onChange={setPromptPersist}
             placeholder="描述你想要的画面 (输入 @ 调出素材)..."
             refImages={refImages}
             refTexts={refTexts}

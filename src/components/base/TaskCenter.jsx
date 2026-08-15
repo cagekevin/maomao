@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react'
 import { Search, Filter, MoreVertical, Copy, Play, RotateCw, Trash2, X, RefreshCw, ChevronDown, Download, Image as ImageIcon } from 'lucide-react'
 import { useTasks, statusDotClass, statusLabel, typeLabel, removeTask, retryTask, clearTasksBy, clearAllTasks } from './taskStore.js'
+import { pollOneTask } from './pollTask.js'
 import { showToast } from './toastStore.js'
 import { makeAssetDragProps } from './useAssetDragToCanvas.js'
 
@@ -234,8 +235,16 @@ function TaskCard({ task, moreOpen, onToggleMore, onCopy, onRetry, onRemove, onP
           {isActive ? (
             <span className="w-6 h-6 flex items-center justify-center"><RotateCw size={12} className="animate-spin text-blue-400" /></span>
           ) : (
-            <button className="w-6 h-6 flex items-center justify-center rounded-md text-muted hover:text-white hover:bg-surface-hover-2 transition-colors cursor-pointer border-none" title="刷新状态" onClick={onRetry}>
+            <button className="w-6 h-6 flex items-center justify-center rounded-md text-muted hover:text-white hover:bg-surface-hover-2 transition-colors cursor-pointer border-none" title="再来一次" onClick={onRetry}>
               <RefreshCw size={12} />
+            </button>
+          )}
+          {/* 【取舍】刷新状态按钮：仅对有 pollTaskId 的异步任务（生图/视频）显示，
+              手动触发一次 pollOneTask 重新查网关状态（对齐官方 handleRefreshTask）。
+              文本/生图 sync 同步任务无 pollTaskId，不显示（官方同此）。 */}
+          {!isActive && task.pollTaskId && (
+            <button className="w-6 h-6 flex items-center justify-center rounded-md text-muted hover:text-white hover:bg-surface-hover-2 transition-colors cursor-pointer border-none" title="刷新状态" onClick={() => { pollOneTask(task) }}>
+              <RotateCw size={12} />
             </button>
           )}
           <div className="relative">

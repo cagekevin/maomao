@@ -18,6 +18,14 @@ import { saveResultToTasks } from './filesApi.js'
 let tasks = []
 const listeners = new Set()
 
+// ── 当前任务贯穿 ID（打通前端 task_id → 网关 thread_id 的关联查询）──
+// 前端自造 task_id 是任务主键，但它从不传给 localTool/网关，导致和 Lovart thread_id 断链。
+// 这里用模块级变量暂存「当前正在生成的前端 task_id」，imageApi/videoApi 的 proxyRequest
+// 读取它并加 X-Task-Id header 贯穿到链路，localTool/网关据此把前端 task_id ↔ thread_id 关联落库。
+let currentTaskId = ''
+export function setCurrentTaskId(id) { currentTaskId = typeof id === 'string' ? id : '' }
+export function getCurrentTaskId() { return currentTaskId }
+
 // ── 启动时从后端加载历史任务 ──
 let loaded = false
 export function initTasks() {
@@ -85,6 +93,11 @@ function getSnapshot() {
   return tasks
 }
 
+/** 非 React 环境读取当前任务列表（供轮询/脚本等模块级使用）。 */
+export function getTasks() {
+  return tasks
+}
+
 // ── 左侧面板全局状态（对齐官方 setShowTaskList：生成任务时自动弹出任务中心）──
 // 官方 H_.jsx 在每次提交生成任务时调用 H?.(true)（即 setShowTaskList(true)）弹出任务中心。
 // 我们统一契约里所有生成节点都走 reportGenerate，故在这里触发 openTaskCenter()，覆盖面最全
@@ -137,6 +150,8 @@ export function reportGenerate(nodeId, type, prompt, meta = {}) {
   notify()
   persist(task) // 后端持久化
   return {
+    // 前端自造任务 id（贯穿链路主键），供 useNodeGeneration 传给 proxyRequest 加 X-Task-Id header
+    taskId: task.id,
     // 更新进度（可带阶段文案，如「已转发到生成网关…」，供任务中心展示当前进行到哪一步）
     progress: (p, stage) => {
       const stageLabel = typeof stage === 'string' && stage ? stage : task.stageLabel || ''
@@ -146,12 +161,14 @@ export function reportGenerate(nodeId, type, prompt, meta = {}) {
     },
     // 标记完成（可带结果缩略图）
     done: (resultUrl) => {
-      tasks = tasks.map((t) => (t.id === task.id ? { ...t, status: 'completed', progress: 100, resultUrl: resultUrl || '' } : t))
+      // 防御：resultUrl 必须是字符串（历史 bug：上游偶发返回对象/undefined，导致 .startsWith 崩）
+      const safeUrl = typeof resultUrl === 'string' ? resultUrl : ''
+      tasks = tasks.map((t) => (t.id === task.id ? { ...t, status: 'completed', progress: 100, resultUrl: safeUrl } : t))
       notify()
-      persist({ ...task, status: 'completed', progress: 100, resultUrl: resultUrl || '' })
+      persist({ ...task, status: 'completed', progress: 100, resultUrl: safeUrl })
       // 生成结果落盘 tasks 目录（对齐官方 Ce.uploadFile），使「生成」面板能收录。
       // 异步执行，失败不影响主流程（节点显示/任务中心仍用原始 url）。
-      if (resultUrl && !resultUrl.startsWith('blob:')) {
+      if (safeUrl && !safeUrl.startsWith('blob:')) {
         saveResultToTasks(resultUrl, task.type).then((persistedUrl) => {
           if (persistedUrl) {
             tasks = tasks.map((t) => (t.id === task.id ? { ...t, resultUrl: persistedUrl } : t))
@@ -168,6 +185,36 @@ export function reportGenerate(nodeId, type, prompt, meta = {}) {
       persist({ ...task, status: 'failed', errorMsg: errorMsg || '生成失败' })
     }
   }
+}
+
+/**
+ * 通用任务字段更新：按 id 合并 patch，同步内存 + 后端落库。
+ * 用途：异步任务恢复轮询（见 pollTask.js）拿到新状态/结果后回写任务记录。
+ * 【取舍】不新建 setter，统一走这里，避免散落多处改 tasks 的写法。
+ */
+export function patchTask(id, patch) {
+  if (!id || !patch) return
+  let changed = false
+  tasks = tasks.map((t) => {
+    if (t.id === id) { changed = true; return { ...t, ...patch } }
+    return t
+  })
+  if (changed) {
+    notify()
+    const cur = tasks.find((t) => t.id === id)
+    if (cur) persist(cur)
+  }
+}
+
+/**
+ * 异步任务（生图/视频）提交后回填「可轮询查询的网关 task_id」。
+ * @param {string} taskId 前端自造任务 id（taskStore 主键）
+ * @param {string} pollTaskId 网关返回的 task_id（= task_<thread_id>），用于 /api/v1/gateway/task 查询
+ * 【取舍】只对异步任务写它；文本/生图 sync 同步阻塞无 task_id，不写（写了也查不了）。
+ */
+export function setTaskPollId(taskId, pollTaskId) {
+  if (!taskId || !pollTaskId) return
+  patchTask(taskId, { pollTaskId })
 }
 
 export function removeTask(id) {

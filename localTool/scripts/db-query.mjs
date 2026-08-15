@@ -35,6 +35,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import net from 'node:net';
+import tls from 'node:tls';
+import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import initSqlJs from 'sql.js';
 
@@ -72,7 +74,9 @@ function usage() {
   node scripts/db-query.mjs --table <表> --json     结果以 JSON 数组输出
   node scripts/db-query.mjs --logs [关键词]          查日志（关键词可为 download/upload/proxy/error 等前缀）
   node scripts/db-query.mjs --task <node_id>        同一节点的所有任务进度/结果URL比对
-  node scripts/db-query.mjs --lifecycle <id>        完整生命周期一键查（数据库记录 + 后端日志 + 前端日志全链路；id 可为 task_id 或 node_id）
+  node scripts/db-query.mjs --lifecycle <id>        完整生命周期一键查（数据库 + 后端日志 + 前端日志全链路；id 可为 task_id / thread_id(Lovart上游室外ID) / node_id）
+  node scripts/db-query.mjs --lovart-status <thread_id>  直接拿 Lovart 上游 thread_id 查任务状态（是否结束；HMAC 签名）
+  node scripts/db-query.mjs --lovart-result <thread_id>  拿 Lovart 上游 thread_id 查任务结果（出图URL/生成文本；同上凭据/base 约定）
   node scripts/db-query.mjs --canvas-health [proj]  画布数据结构体检（节点/边统计 + 无id边/重复id边/悬空边高亮；缺省取最近更新的快照）
   node scripts/db-query.mjs --lost-check            丢图体检（tasks/磁盘/资源一致性 + 日志异常）
   node scripts/db-query.mjs --vacuum                 压缩数据库（需先停 localTool，自动备份+完整性检查）
@@ -246,6 +250,186 @@ function runLogs() {
     for (const l of abnormal.slice(-15)) console.log('  ' + l);
   }
   if (!shown.length) console.log('(无匹配日志)');
+}
+
+// ── 走代理的 HTTPS GET（CONNECT 隧道）──
+// 连 Lovart 必须走 VPN/代理（直连超时，CLAUDE.md §五.1）。原生 fetch 不走系统代理，这里用
+// node:net + node:tls 手动实现 HTTP CONNECT 隧道，代理来源：环境变量 HTTPS_PROXY/HTTP_PROXY/ALL_PROXY
+// 或探测本机常见代理端口（与网关 lovart_client._detect_proxy_url 一致）。
+
+// 异步探测代理端口（返回可用端口或 null）
+function probeProxyPort(timeoutMs = 500) {
+  const ports = [7897, 7890, 1087, 1080, 8888, 8118];
+  return new Promise((resolve) => {
+    let i = 0;
+    const tryNext = () => {
+      if (i >= ports.length) return resolve(null);
+      const port = ports[i++];
+      const sock = net.connect(port, '127.0.0.1');
+      sock.setTimeout(timeoutMs);
+      sock.once('connect', () => { sock.destroy(); resolve(port); });
+      sock.once('error', () => { sock.destroy(); tryNext(); });
+      sock.once('timeout', () => { sock.destroy(); tryNext(); });
+    };
+    tryNext();
+  });
+}
+
+// 发起一次走代理（或直连）的 HTTPS GET，返回 { status, body }。resolveProxy 为 true 时先探测代理。
+function lovartGet(host, pathStr, headers, proxyHost, proxyPort) {
+  return new Promise((resolve, reject) => {
+    const connect = (proxy) => {
+      if (proxy) {
+        // CONNECT 隧道
+        const sock = net.connect(proxy.port, proxy.host, () => {
+          sock.write(`CONNECT ${host}:443 HTTP/1.1\r\nHost: ${host}:443\r\n\r\n`);
+        });
+        let cb = '';
+        sock.on('data', (d) => {
+          cb += d.toString();
+          if (cb.includes('\r\n\r\n')) {
+            const status = cb.split('\r\n')[0];
+            if (!status.includes('200')) return reject(new Error(`代理 CONNECT 失败: ${status}`));
+            // 隧道建立 → 升级 TLS
+            const t = tls.connect({ socket: sock, servername: host }, () => {
+              const req = t.request ? t.request({ method: 'GET', path: pathStr, headers }) : null;
+              // 用 raw 写 HTTP 请求（兼容 tls socket 无 request 方法）
+              t.write(`GET ${pathStr} HTTP/1.1\r\nHost: ${host}\r\n${Object.entries(headers).map(([k, v]) => `${k}: ${v}`).join('\r\n')}\r\nConnection: close\r\n\r\n`);
+              readResponse(t, resolve, reject);
+            });
+            t.on('error', (e) => reject(new Error(`TLS 失败: ${e.message}`)));
+          }
+        });
+        sock.on('error', (e) => reject(new Error(`代理连接失败: ${e.message}`)));
+      } else {
+        // 直连
+        const t = tls.connect({ host, port: 443, servername: host }, () => {
+          t.write(`GET ${pathStr} HTTP/1.1\r\nHost: ${host}\r\n${Object.entries(headers).map(([k, v]) => `${k}: ${v}`).join('\r\n')}\r\nConnection: close\r\n\r\n`);
+        });
+        t.on('error', (e) => reject(new Error(`直连失败: ${e.message}`)));
+        readResponse(t, resolve, reject);
+      }
+    };
+    connect(proxyHost && proxyPort ? { host: proxyHost, port: proxyPort } : null);
+  });
+}
+
+function readResponse(stream, resolve, reject) {
+  let raw = '';
+  stream.on('data', (c) => { raw += c.toString(); });
+  stream.on('end', () => {
+    const split = raw.indexOf('\r\n\r\n');
+    if (split < 0) return reject(new Error('无效 HTTP 响应'));
+    const head = raw.slice(0, split);
+    const body = raw.slice(split + 4);
+    const statusLine = head.split('\r\n')[0];
+    const status = parseInt(statusLine.split(' ')[1], 10) || 0;
+    resolve({ status, body });
+  });
+  stream.on('error', (e) => reject(new Error(`读取响应失败: ${e.message}`)));
+}
+
+// ── 拿 Lovart 上游 thread_id 直接向 Lovart 查任务信息 ──
+// 对齐 apimart-gateway/lovart_client.py 的 HMAC-SHA256 签名（GET /v1/openapi/chat/{status|result}?thread_id=xxx）。
+// endpoint: '/v1/openapi/chat/status'（任务状态）或 '/v1/openapi/chat/result'（任务结果：出图URL/文本）。
+// 凭据：环境变量 LOVART_ACCESS_KEY / LOVART_SECRET_KEY（与网关一致）；base 默认 https://lgw.lovart.ai，可用 LOVART_BASE_URL 覆盖。
+// 需联网连 Lovart（VPN/代理），脚本自动走 HTTPS_PROXY 等环境变量代理或探测本机代理端口。
+async function runLovartQuery(threadId, endpoint, label) {
+  const ak = process.env['LOVART_ACCESS_KEY'] || getArg('--ak', '');
+  const sk = process.env['LOVART_SECRET_KEY'] || getArg('--sk', '');
+  if (!ak || !sk) {
+    console.error('[ABORT] 缺少 Lovart 凭据。请设置环境变量 LOVART_ACCESS_KEY / LOVART_SECRET_KEY（或 --ak / --sk）。');
+    process.exit(1);
+  }
+  const base = (process.env['LOVART_BASE_URL'] || 'https://lgw.lovart.ai').replace(/\/+$/, '');
+  const method = 'GET';
+  const pathStr = endpoint;
+  const host = base.replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+  const fullPath = `${pathStr}?thread_id=${encodeURIComponent(threadId)}`;
+
+  // HMAC-SHA256 签名：sig = HMAC(sk, "{method}\n{path}\n{ts}")
+  const ts = String(Math.floor(Date.now() / 1000));
+  const sig = crypto.createHmac('sha256', sk).update(`${method}\n${pathStr}\n${ts}`).digest('hex');
+  const headers = {
+    'X-Access-Key': ak,
+    'X-Timestamp': ts,
+    'X-Signature': sig,
+    'X-Signed-Method': method,
+    'X-Signed-Path': pathStr,
+    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) LovartRelay/1.0',
+    'Content-Type': 'application/json',
+  };
+
+  console.log(`正在向 Lovart 查询任务状态: thread_id=${threadId}`);
+  console.log(`GET ${base}${fullPath}\n`);
+
+  // 代理探测：环境变量优先，其次探测本机代理端口
+  const envProxy = (() => {
+    for (const k of ['HTTPS_PROXY', 'https_proxy', 'HTTP_PROXY', 'http_proxy', 'ALL_PROXY', 'all_proxy']) {
+      const v = process.env[k];
+      if (v) {
+        try { const u = new URL(v); return { host: u.hostname, port: Number(u.port) || 7890 }; } catch { /* ignore */ }
+      }
+    }
+    return null;
+  })();
+  let res;
+  let lastErr = null;
+  // 尝试顺序：环境变量代理 → 探测到的端口 → 直连
+  const attempts = [];
+  if (envProxy) attempts.push(envProxy);
+  attempts.push(null); // 直连兜底
+  if (!envProxy) {
+    const probe = await probeProxyPort();
+    if (probe) attempts.push({ host: '127.0.0.1', port: probe });
+  }
+  for (const proxy of attempts) {
+    try {
+      res = await lovartGet(host, fullPath, headers, proxy?.host, proxy?.port);
+      if (res) break;
+    } catch (e) {
+      lastErr = e;
+      if (proxy) console.error(`  ↳ 代理 ${proxy.host}:${proxy.port} 失败: ${e.message}`);
+    }
+  }
+  if (!res) {
+    console.error(`[ERROR] 请求 Lovart 失败（直连/代理均不可达）: ${lastErr?.message}`);
+    process.exit(1);
+  }
+
+  let data = null;
+  try { data = JSON.parse(res.body); } catch { /* 非 JSON */ }
+
+  if (res.status >= 400) {
+    const msg = data && (data.message || data.error) || `HTTP ${res.status}`;
+    console.error(`[ERROR] Lovart 返回 ${res.status}: ${msg}`);
+    process.exit(1);
+  }
+
+  // 与网关 _request 一致：优先取 data 层；data.code!=0 视为业务错误
+  if (data && typeof data === 'object' && data.code) {
+    console.error(`[ERROR] Lovart 业务错误 code=${data.code}: ${data.message || '未知'}`);
+    process.exit(1);
+  }
+  const payload = (data && typeof data === 'object' && 'data' in data) ? data.data : data;
+
+  console.log(`=== Lovart 任务${label} ===`);
+  console.log(JSON.stringify(payload, null, 2));
+  const status = payload && payload.status;
+  if (status) console.log(`\n状态: ${status}`);
+  // 结果里可能带 artifacts（图片/视频/文本），status 结束时可额外提示
+  const items = payload && payload.items;
+  if (items && Array.isArray(items) && items.length) console.log(`\n含 ${items.length} 个结果项（可查看 artifacts 取 URL）`);
+}
+
+// 查任务状态（是否结束）
+async function runLovartStatus(threadId) {
+  return runLovartQuery(threadId, '/v1/openapi/chat/status', '状态');
+}
+
+// 查任务结果（出图 URL / 生成文本）
+async function runLovartResult(threadId) {
+  return runLovartQuery(threadId, '/v1/openapi/chat/result', '结果');
 }
 
 // ── 同节点任务比对：列出某 node 的所有任务，各条进度/status/结果URL/是否本地 ──
@@ -437,17 +621,47 @@ function listCanvasKeys(db, onlyLatest = false) {
 }
 
 // ── 完整生命周期：一键查一个任务的「数据库记录 + 后端日志 + 前端日志」全链路 ──
-// 输入可以是 task_id（如 task_msu70t3m_hug53）或 node_id（如 textNode-xxx）。
+// 输入可以是：
+//   - task_id    （如 task_msu70t3m_hug53）
+//   - thread_id  （Lovart 上游真实 ID，即 task_id 去掉 task_ 前缀，如 msu70t3m_hug53）—— 网关日志的
+//                 [poll]/[confirm] 行用 thread=xxx 记录，此模式能把「室外 ID（上游 thread_id）」与本地
+//                 task 记录、全链路日志关联起来，是打通全链路日志的核心查询键。
+//   - node_id    （如 textNode-xxx）—— 列出该节点所有任务。
+// 自动判定：不以 task_/task- 开头且「task_+id」在 tasks 表命中 → 按 thread_id（转 task_id）查；
+//           否则按 node_id 查任务列表。
 // 前端日志已由 logger.js 上报 localTool POST /api/logs，落盘带 [frontend] 前缀（localTool/src/routes/logs.ts）。
 function runLifecycle(db, id) {
   const isTask = /^task[_-]/.test(id);
-  console.log(`=== 任务完整生命周期查询: ${id}（${isTask ? '按 task_id' : '按 node_id'}）===\n`);
+  const taskId = isTask ? id : 'task_' + id; // thread_id → task_id（全链路日志里两种格式都会出现）
+  let mode = isTask ? 'task_id' : 'thread_id';
+  // 标题的 mode 需在判定后输出，但判定依赖 rows；先占位，query 后回填 mode 再打印
+  console.log(`=== 任务完整生命周期查询: ${id} ===\n`);
 
   // 1) 数据库记录
+  let rows;
   if (isTask) {
-    const rows = queryAllLike(db, `SELECT * FROM tasks WHERE task_id = ?`, [id]);
+    rows = queryAllLike(db, `SELECT * FROM tasks WHERE task_id = ?`, [id]);
+  } else {
+    // 先按 thread_id 转 task_id 精确查（室外 ID 直达）；未命中再按 node_id 查任务列表
+    rows = queryAllLike(db, `SELECT * FROM tasks WHERE task_id = ?`, [taskId]);
     if (!rows.length) {
-      console.log('[数据库] 该 task_id 无记录');
+      rows = queryAllLike(db, `SELECT task_id, node_id, status, progress, model_name, custom_output_type, created_at, result_url, error_msg FROM tasks WHERE node_id = ? ORDER BY created_at DESC`, [id]);
+      mode = rows.length ? 'node_id' : 'thread_id';
+    }
+  }
+
+  console.log(`(按 ${mode} 查询)`);
+
+  if (rows.length) {
+    if (mode === 'node_id') {
+      console.log(`[数据库] node ${id} 共 ${rows.length} 条任务（按创建时间倒序）:`);
+      console.log('  task_id | status | progress | model | type | created_at | 结果形态 | error');
+      for (const r of rows) {
+        const url = r.result_url || '';
+        const form = url.startsWith('data:') ? 'base64' : /127\.0\.0\.1:18080\/files/.test(url) ? '本地文件' : /^https?:\/\//.test(url) ? '远程URL⚠️' : url ? '其他' : '(无)';
+        const err = (r.error_msg || r.error_message || '').toString().slice(0, 40);
+        console.log(`  ${r.task_id} | ${r.status} | ${r.progress} | ${r.model_name} | ${r.custom_output_type || '-'} | ${r.created_at} | ${form} | ${err}`);
+      }
     } else {
       console.log('[数据库] tasks 完整记录（含全部诊断字段）:');
       for (const [k, v] of Object.entries(rows[0])) {
@@ -457,29 +671,19 @@ function runLifecycle(db, id) {
       }
     }
   } else {
-    const rows = queryAllLike(db, `SELECT task_id, node_id, status, progress, model_name, custom_output_type, created_at, result_url, error_msg FROM tasks WHERE node_id = ? ORDER BY created_at DESC`, [id]);
-    if (!rows.length) {
-      console.log('[数据库] 该 node 无任务记录');
-    } else {
-      console.log(`[数据库] node ${id} 共 ${rows.length} 条任务（按创建时间倒序）:`);
-      console.log('  task_id | status | progress | model | type | created_at | 结果形态 | error');
-      for (const r of rows) {
-        const url = r.result_url || '';
-        const form = url.startsWith('data:') ? 'base64' : /127\.0\.0\.1:18080\/files/.test(url) ? '本地文件' : /^https?:\/\//.test(url) ? '远程URL⚠️' : url ? '其他' : '(无)';
-        const err = (r.error_msg || r.error_message || '').toString().slice(0, 40);
-        console.log(`  ${r.task_id} | ${r.status} | ${r.progress} | ${r.model_name} | ${r.custom_output_type || '-'} | ${r.created_at} | ${form} | ${err}`);
-      }
-    }
+    console.log(mode === 'node_id' ? '[数据库] 该 node 无任务记录' : '[数据库] 该 task_id/thread_id 无记录');
   }
 
   // 2) 日志时间线（后端日志 + 前端上报日志，同文件 localtool_18080.log）
+  // 日志里同一任务两种格式都出现：[poll]/[confirm] 用 thread=xxx，[submit]/[submit:parse] 用 task_id=task_xxx。
+  // 因此按 id 与 task_+id 双键匹配，确保 thread_id 能贯通 submit→poll 全链路。
   console.log(`\n[日志] 全链路时间线（数据库 + 后端 [backend/服务] + 前端 [frontend]）:`);
   const lines = readLogLines();
   const hit = lines
     .map((l, i) => ({ i: i + 1, l }))
-    .filter(x => x.l.includes(id));
+    .filter(x => x.l.includes(id) || x.l.includes(taskId));
   if (!hit.length) {
-    console.log('  (日志中无该 task_id/node_id 的记录)');
+    console.log('  (日志中无该 task_id/thread_id/node_id 的记录)');
   } else {
     // 标注来源：前端上报行含 [frontend]，其余为后端
     for (const x of hit) {
@@ -521,6 +725,19 @@ async function main() {
   // 0.1) 查日志（不需开库）
   if (hasArg('--logs')) {
     runLogs();
+    return;
+  }
+
+  // 0.15) 直接拿 Lovart 上游 thread_id 查任务状态/结果（不需开库，需联网 + 凭据）
+  if (hasArg('--lovart-status') || hasArg('--lovart-result')) {
+    const isResult = hasArg('--lovart-result');
+    const tid = isResult ? getArg('--lovart-result') : getArg('--lovart-status');
+    if (!tid) {
+      console.error(`[ABORT] 缺少 thread_id。用法: --lovart-${isResult ? 'result' : 'status'} <thread_id>`);
+      process.exit(1);
+    }
+    if (isResult) await runLovartResult(tid);
+    else await runLovartStatus(tid);
     return;
   }
 
