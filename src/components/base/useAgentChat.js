@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useCanvasAgentTools } from './useCanvasAgentTools.js'
 import { sGet, sSet } from './storageAdapter.js'
+import { kvGet, kvSet } from './kvStore.js'
 import { API_BASE } from './apiBase.js'
 import { normalizeImageUrlForSend } from './imageUrl.js'
 
@@ -54,7 +55,7 @@ const DEMO_MODE = import.meta.env?.VITE_AGENT_DEMO === '1'
 /** 历史持久化键 */
 const historyKey = (agentKey) => `agent_history_${agentKey || 'canvas-assistant'}`
 
-/** 从 localStorage 读历史（官方 nr(n)，原型本地版） */
+/** 从 localStorage 读历史（快速，localTool 断开也能用；官方 nr(n)，原型本地版） */
 function loadHistory(agentKey) {
   try {
     const raw = sGet(historyKey(agentKey))
@@ -65,13 +66,26 @@ function loadHistory(agentKey) {
   }
 }
 
-/** 保存历史到 localStorage（官方 ir(n)，原型本地版） */
+/** 从 KV 异步读跨端历史（多窗口/多设备共享；KV 不可用返回 null 走 localStorage 兜底） */
+async function loadHistoryKv(agentKey) {
+  try {
+    const v = await kvGet(historyKey(agentKey))
+    return Array.isArray(v) ? v : null
+  } catch {
+    return null
+  }
+}
+
+/** 保存历史：localStorage 同步（兜底）+ KV 异步（跨端共享，fire-and-forget 失败不影响本地） */
 function saveHistory(agentKey, messages) {
   try {
     sSet(historyKey(agentKey), JSON.stringify(messages))
   } catch {
     /* 忽略写失败 */
   }
+  // 跨端共享：把历史写到 localTool KV，多窗口/设备连同一 localTool 时共享。
+  // 失败静默（KV 不可用就用 localStorage，不阻断）。
+  kvSet(historyKey(agentKey), messages).catch(() => {})
 }
 
 /** SSE 解析（复刻官方 dr 内 v 函数：按 data: 前缀解析 delta，含 content/reasoning/tool_calls） */
@@ -219,11 +233,24 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
   useEffect(() => { systemRef.current = systemPrompt }, [systemPrompt])
   useEffect(() => { messagesRef.current = messages }, [messages])
 
-  // 初始加载历史（复刻官方 dr useEffect：nr(n) 读历史）
+  // 初始加载历史（复刻官方 dr useEffect：nr(n) 读历史）。
+  // 先读 localStorage（同步，快速渲染 + 断开兜底），再异步读 KV 跨端版本，
+  // 若 KV 有更全的历史则覆盖（实现多窗口/设备共享）。
   useEffect(() => {
+    let cancelled = false
     const hist = loadHistory(agentKey)
     setMessages(hist)
     messagesRef.current = hist
+    loadHistoryKv(agentKey).then((kvHist) => {
+      if (cancelled) return
+      if (Array.isArray(kvHist) && kvHist.length >= hist.length) {
+        setMessages(kvHist)
+        messagesRef.current = kvHist
+        // 本地兜底也同步成 KV 版本，避免下次启动回退到旧的 localStorage
+        try { sSet(historyKey(agentKey), JSON.stringify(kvHist)) } catch { /* ignore */ }
+      }
+    }).catch(() => {})
+    return () => { cancelled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [agentKey])
 

@@ -115,6 +115,34 @@ export async function loadCanvasState(projectId) {
     return null
   }
 }
+
+// 【④ 不存不该存的】画布快照落盘前清理 ReactFlow 运行时 UI 态。
+// ReactFlow 的 nodes 在交互时会带 selected / dragging / measured / handles 等运行时字段，
+// 这些是「会话态」不是「数据」，不该进 KV 快照（否则污染存储、加大体积）。
+// 白名单：只保留恢复画布必需的 id / type / position / data，及用户手动缩放过的 width/height。
+// edges 同理只保留 source/target/type/data 等必要字段。
+const NODE_KEEP = ['id', 'type', 'position', 'data', 'width', 'height']
+const EDGE_KEEP = ['id', 'source', 'target', 'sourceHandle', 'targetHandle', 'type', 'data', 'label']
+function sanitizeNodes(nodes) {
+  if (!Array.isArray(nodes)) return nodes
+  return nodes.map((n) => {
+    const out = {}
+    for (const k of NODE_KEEP) {
+      if (n[k] !== undefined && n[k] !== null) out[k] = n[k]
+    }
+    return out
+  })
+}
+function sanitizeEdges(edges) {
+  if (!Array.isArray(edges)) return edges
+  return edges.map((e) => {
+    const out = {}
+    for (const k of EDGE_KEEP) {
+      if (e[k] !== undefined && e[k] !== null) out[k] = e[k]
+    }
+    return out
+  })
+}
 export async function saveCanvasState(projectId, nodes, edges) {
   const key = CANVAS_STATE_PREFIX + (projectId || currentProjectId)
   try {
@@ -131,7 +159,8 @@ export async function saveCanvasState(projectId, nodes, edges) {
       console.warn('[projectStore] 画布版本冲突，拒绝覆盖:', { key, remoteVer, version })
       return { success: false, skipped: true, conflictVersion: remoteVer }
     }
-    await storageSet(key, { nodes, edges })
+    // 【④】落盘前清理 ReactFlow 运行时 UI 态（selected/dragging/measured 等），只存必要字段
+    await storageSet(key, { nodes: sanitizeNodes(nodes), edges: sanitizeEdges(edges) })
     await kvSet(`${key}_version`, version)
     return { success: true, skipped: false }
   } catch (e) {

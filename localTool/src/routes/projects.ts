@@ -44,16 +44,27 @@ export async function handleProjectsSave(req: IncomingMessage, res: ServerRespon
   const db = await getDb();
   beginTx(db);
   try {
-    run(db, 'DELETE FROM projects');
-    let lastId = lastOpened;
     const now = Math.floor(Date.now() / 1000);
+    const incomingIds: string[] = [];
     for (const p of body.projects) {
       const id = String(p?.id || '').trim();
       const name = String(p?.name || '').trim();
       if (!id) continue;
-      if (!lastId && !lastId) lastId = id;
+      incomingIds.push(id);
       const isLast = id === lastOpened ? 1 : 0;
-      run(db, 'INSERT INTO projects (id, name, is_last_opened, created_at) VALUES (?, ?, ?, ?)', [id, name, isLast, now]);
+      // 【② 优化】增量 upsert：存在则更新 name/lastOpened（保留 created_at），不存在才 INSERT。
+      // 替代旧的「DELETE 全部 + 重建」，避免项目多时每次全量删插的低效与 id 重建。
+      const existing = queryOne(db, 'SELECT id FROM projects WHERE id = ?', [id]);
+      if (existing) {
+        run(db, 'UPDATE projects SET name = ?, is_last_opened = ? WHERE id = ?', [name, isLast, id]);
+      } else {
+        run(db, 'INSERT INTO projects (id, name, is_last_opened, created_at) VALUES (?, ?, ?, ?)', [id, name, isLast, now]);
+      }
+    }
+    // 删除不在传入列表里的旧项目（处理前端删除项目场景）
+    if (incomingIds.length > 0) {
+      const placeholders = incomingIds.map(() => '?').join(',');
+      run(db, `DELETE FROM projects WHERE id NOT IN (${placeholders})`, incomingIds);
     }
     // 若 lastOpened 指定的项目不存在于传入列表，回退到第一个
     const exists = queryOne(db, 'SELECT id FROM projects WHERE id = ?', [lastOpened]);

@@ -1,7 +1,7 @@
 import React from 'react'
 import ProjectSelector from './ProjectSelector.jsx'
 import { showToast } from './toastStore.js'
-import { sGet, sSet } from './storageAdapter.js'
+import { uploadConfig, downloadConfig } from './cloudSync.js'
 
 /**
  * 顶部导航栏（复刻官方 Vr.jsx L3281 `Component806`，h-16）。
@@ -30,58 +30,22 @@ export default function TopNav({ view, onNavigate, onSwitchProject, onCreateProj
     { key: 'accounts', label: '多开' },
   ]
 
-  // 云端同步（原型模拟）：备份/恢复「多开 + 项目 + 预设提示词」等配置。
-  // 复刻官方 ba/xa（Vr.jsx L1755 / L1781）的「users 等 9 类键整表备份/覆盖恢复」语义：
-  // 原型无后端，用 localStorage 模拟；只收集原型实际存在的配置键（多开/项目/预设提示词），
-  // 缺失的官方键（membership/modelSchedules 等）原型无对应数据，跳过。
-  const CLOUD_KEY = 'yimao_cloud_backup'
-  // 官方 9 类键 → 原型 localStorage key（不存在则上传时跳过）
-  const CLOUD_KEYS = [
-    { key: 'users', ls: 'yimao_accounts', label: '多开账号' },
-    { key: 'projects', ls: 'projects', label: '项目' },
-    { key: 'lastOpenedProject', ls: 'lastOpenedProject', label: '当前项目' },
-    { key: 'presetPrompts', ls: 'yimao_preset_prompts', label: '预设提示词' },
-  ]
-
-  const readLS = (k) => {
-    try { return sGet(k) } catch { return null }
-  }
-  const writeLS = (k, v) => {
-    try { sSet(k, v) } catch { /* ignore */ }
+  // 云端配置同步：点按钮即同步（当前用 cloudSync 模拟 localStorage 载体，流程跑通后对接真实云端）。
+  // 同步内容：API 配置（providers）+ 预设提示词 + 项目（用户确认，其他不同步）。
+  // 载体隔离在 cloudSync.js：将来接真实云端只改 uploadConfig/downloadConfig 两个函数。
+  const handleCloudUpload = async () => {
+    const r = await uploadConfig()
+    if (!r.ok) showToast(r.error || '同步失败', { type: 'info' })
+    else showToast(`【配置】已同步到云端（${r.count} 项）`, { type: 'success' })
   }
 
-  const handleCloudUpload = () => {
-    const data = {}
-    for (const c of CLOUD_KEYS) {
-      const v = readLS(c.ls)
-      if (v !== null) data[c.key] = v
-    }
-    if (Object.keys(data).length === 0) { showToast('本地没有可同步的配置数据', { type: 'info' }); return }
-    writeLS(CLOUD_KEY, JSON.stringify(data))
-    showToast(`【配置】已同步到云端（${Object.keys(data).length} 项）`, { type: 'success' })
-  }
-
-  const handleCloudDownload = () => {
-    const raw = readLS(CLOUD_KEY)
-    if (!raw) { showToast('云端没有配置数据', { type: 'info' }); return }
-    try {
-      const data = JSON.parse(raw)
-      const keys = Object.keys(data)
-      if (keys.length === 0) { showToast('云端没有新的配置数据', { type: 'info' }); return }
-      // 云端用官方键名（users/projects/...），写回时映射到原型 localStorage 键（ls）
-      let written = 0
-      for (const k of keys) {
-        const map = CLOUD_KEYS.find((c) => c.key === k)
-        if (map && data[k] !== null && data[k] !== undefined) {
-          writeLS(map.ls, data[k])
-          written++
-        }
-      }
-      showToast(`【配置】已从云端同步到本地（${written} 项）`, { type: 'success' })
-      // 官方 xa 恢复后 reload，让各 store（多开/项目/预设）重新从 localStorage 加载
+  const handleCloudDownload = async () => {
+    const r = await downloadConfig()
+    if (!r.ok) showToast(r.error || '下载失败', { type: r.hasCloud ? 'error' : 'info' })
+    else {
+      showToast(`【配置】已从云端同步到本地（${r.count} 项）`, { type: 'success' })
+      // 恢复后 reload，让各 store（项目/预设/API 配置）重新加载生效
       setTimeout(() => window.location.reload(), 1000)
-    } catch {
-      showToast('云端数据解析失败', { type: 'error' })
     }
   }
 
