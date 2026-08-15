@@ -1,0 +1,66 @@
+{
+  "_meta": {
+    "purpose": "给 analyze_regions.cjs 产出的 region/signal 分类补「人话标签」，供 gen_map.cjs 生成 MODULE_MAP §3。纯数据，不改构建源。",
+    "grounding": "region 标签的判定依据全部来自 scripts/analyze_regions.cjs 的 RULES 正则（非臆测）；symbol 级标签依据 region 归属 + signals + compRefs 推断。置信度见各条 confidence。",
+    "disclaimer": "symbol 级标签为「静态推断」，未经运行期验证；改代码前请以实际代码为准，本标签仅作快速定位参考。"
+  },
+  "regions": {
+    "core:account": {
+      "label": "账号与鉴权层",
+      "what": "多账号切换、API Key / 登录态（cookie / users / auth / token / login）管理",
+      "evidence": "analyze_regions RULES: /cookie|users|auth|token|login/",
+      "confidence": "high"
+    },
+    "core:localEngine": {
+      "label": "本地引擎对接层",
+      "what": "检测本地引擎(127.0.0.1:18080)状态、KV/文件读写(/api/kv,/api/files)、代理转发(/api/proxy)、剪映下发(/api/jianying/send)",
+      "evidence": "RULES: /127\\.0\\.0\\.1|localTool|/api/status|/api/kv|/api/files|/api/proxy/",
+      "confidence": "high"
+    },
+    "core:storage": {
+      "label": "本地持久化层",
+      "what": "localforage / chrome.storage 封装；画布状态(canvas-state-v1)与设置读写",
+      "evidence": "RULES: /localforage|chrome\\.storage|canvas-state-v1|setItem|getItem/",
+      "confidence": "high"
+    },
+    "panel:mr": {
+      "label": "主工作区面板树",
+      "what": "mr 根面板下的 8 个核心子面板：节点画布 / 资源库 / 提示词库 / 多账号 UI 等的组装层",
+      "evidence": "panelOf[mr] 子树（analyze_regions 面板归属算法）",
+      "confidence": "high"
+    },
+    "shared": {
+      "label": "共享绑定 / 公共状态",
+      "what": "跨组件共享的常量、store、公共 hooks（如 G 被账号与本地引擎多处引用）",
+      "evidence": "binding 类顶层符号统一归入 shared（analyze_regions 第 108 行）",
+      "confidence": "medium"
+    },
+    "ui-misc": {
+      "label": "UI 杂项",
+      "what": "未被面板树覆盖、也未命中核心规则的展示层组件（数量最多，41 个）",
+      "evidence": "默认归类（非 panel、未命中任何 RULES）",
+      "confidence": "medium"
+    }
+  },
+  "symbols": {
+    "mr":  { "label": "应用根组件 AppRoot", "note": "组装本地引擎+存储+多账号+资源+分享；signals: localTool/localforage/chrome.storage/canvas-state-v1/cookie/transitResources/share", "confidence": "high" },
+    "G":   { "label": "共享 store / 状态中心", "note": "被 Pt / Qt / Qn / mr 引用（账号与本地引擎共用）", "confidence": "medium" },
+    "Mt":  { "label": "本地引擎状态检测/初始化", "note": "signal localTool", "confidence": "high" },
+    "Xt":  { "label": "本地引擎操作（文件/资源）", "note": "signal localTool", "confidence": "high" },
+    "en":  { "label": "本地引擎调用封装", "note": "signal localTool", "confidence": "high" },
+    "Qn":  { "label": "本地引擎核心逻辑", "note": "被 mr 引用；signal localTool；compRefs G", "confidence": "high" },
+    "$n":  { "label": "本地引擎地址构造（127.0.0.1）", "note": "signal 127.0.0.1", "confidence": "high" },
+    "Pt":  { "label": "账号逻辑（一）", "note": "被 mr 引用；compRefs G", "confidence": "high" },
+    "Qt":  { "label": "账号 UI/逻辑（二）", "note": "compRefs G", "confidence": "high" },
+    "Zn":  { "label": "账号逻辑（三）", "note": "独立，core:account", "confidence": "medium" },
+    "qt":  { "label": "持久化存储封装", "note": "core:storage（localforage/chrome.storage 封装）", "confidence": "high" },
+    "Jt":  { "label": "主面板子组件（一）", "note": "panel:mr", "confidence": "medium" },
+    "Yt":  { "label": "主面板子组件（二）", "note": "被 mr 引用；panel:mr", "confidence": "medium" },
+    "Zt":  { "label": "主面板子组件（三）", "note": "panel:mr", "confidence": "medium" },
+    "$t":  { "label": "主面板子组件（四）", "note": "被 $t 引用 Qt；panel:mr", "confidence": "medium" },
+    "an":  { "label": "主面板子组件（五）", "note": "panel:mr", "confidence": "medium" },
+    "Fn":  { "label": "主面板子组件（六）", "note": "panel:mr", "confidence": "medium" },
+    "Xn":  { "label": "主面板子组件（七）", "note": "panel:mr", "confidence": "medium" },
+    "fr":  { "label": "主面板子组件（八）", "note": "panel:mr", "confidence": "medium" }
+  }
+}

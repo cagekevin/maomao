@@ -1,0 +1,39 @@
+{
+  "name": "react-nodes-prototype",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "check:jsx": "node scripts/check-jsx.mjs",
+    "extract:tw": "node scripts/extract-tailwind.mjs",
+    "sync:mapping": "node scripts/sync-mapping.mjs",
+    "test:smoke": "node scripts/smoke_test.cjs",
+    "test:regression": "node scripts/regression_test.cjs",
+    "test:tools": "node scripts/test_agent_tools.cjs",
+    "test:all": "node scripts/run_all_tests.cjs",
+    "test": "npm run test:all",
+    "check:health": "node scripts/health-check.cjs"
+  },
+  "dependencies": {
+    "@xyflow/react": "^12.3.5",
+    "dagre": "^0.8.5",
+    "gifenc": "^1.0.3",
+    "lucide-react": "^0.451.0",
+    "mediabunny": "^1.54.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-image-crop": "^11.1.2"
+  },
+  "devDependencies": {
+    "@types/dagre": "^0.7.54",
+    "@vitejs/plugin-react": "^4.3.1",
+    "autoprefixer": "^10.4.19",
+    "playwright": "^1.62.1",
+    "postcss": "^8.4.38",
+    "tailwindcss": "^3.4.4",
+    "vite": "^5.3.1"
+  }
+}

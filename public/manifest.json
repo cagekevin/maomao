@@ -1,0 +1,60 @@
+{
+  "manifest_version": 3,
+  "name": "一毛AI画布插件",
+  "version": "1.4.2",
+  "localToolChanged": false,
+  "description": "一毛AI插件端，包含多账号管理和AI生图画布功能。",
+  "changelog": "【新功能】\n- 新增「发送到剪映」：图片/视频/音频等素材节点与素材库文件可一键导入剪映专业版素材库（需本地引擎，Windows）\n- 支持批量选中多个素材一次性发送到剪映\n- 新增「在线提示词库」：生图节点提示词下拉新增「本地配置」「云端提示词库」入口，支持类别/标签筛选、搜索、收藏与最近使用\n\n【优化与改进】\n- 节点操作栏（toolbar）统一为悬浮样式\n- 修复编组收起后，跨编组的连线消失的问题：收起后连线会自动连接到编组左右两个端点\n\n【问题修复】\n- 修复部分场景下界面无法加载（白屏）的问题",
+  "permissions": [
+    "contextMenus",
+    "storage",
+    "unlimitedStorage",
+    "cookies",
+    "activeTab",
+    "scripting",
+    "tabs",
+    "sidePanel",
+    "downloads"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "side_panel": {
+    "default_path": "index.html"
+  },
+  "action": {
+    "default_title": "打开一毛AI助手",
+    "default_icon": {
+      "16": "icon16.png",
+      "48": "icon48.png",
+      "128": "icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icon16.png",
+    "48": "icon48.png",
+    "128": "icon128.png"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "logo.svg",
+        "*.svg",
+        "*.png",
+        "*.jpg",
+        "*.jpeg",
+        "mediapipe/*",
+        "mediapipe/wasm/*"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
+    }
+  ]
+}

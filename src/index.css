@@ -1,0 +1,463 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ===== 全局暗色 ===== */
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  background: #0f0f0f;
+  color: #e5e5e5;
+  font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto,
+    sans-serif;
+}
+
+/* ===== React Flow 画布暗色覆盖（画布底 #0d0c0c，见 docs/39 §1） ===== */
+.react-flow {
+  background: #0d0c0c;
+}
+.react-flow__attribution {
+  background: transparent;
+  color: #555;
+}
+.react-flow__background {
+  background-color: #0d0c0c;
+}
+.react-flow__node {
+  font-size: inherit;
+}
+
+/* ===== 编组节点：覆盖 React Flow 默认 .react-flow__node-group =====
+ * 默认样式自带 border + padding:10px + 背景 + 圆角，会导致「两层边框」：
+ * 外层正方形带边框、内层 GroupNode 圆角大。这里清掉外层装饰，只保留内层 GroupNode 的样式。 */
+.react-flow__node-group.yimao-group-node {
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background-color: transparent;
+  width: auto;
+  height: auto;
+  text-align: left;
+}
+/* 编组节点选中时：去掉 React Flow 默认的蓝色/亮色选中 box-shadow，
+ * 只保留 NodeShell 的灰色 border-edge-strong 边框，与其它节点一致。
+ *
+ * 【可能原因（仅推测，未完全确认）】只有编组节点出现选中蓝边，其它节点（type 为
+ * textNode / imageNode 等自定义类型）没有，推测是 React Flow 默认主题给
+ * `.react-flow__node-group.selectable.selected` 套了一层 `box-shadow`
+ * （--xy-node-boxshadow-selected，默认 `0 0 0 0.5px #999`），在深色画布上
+ * 放大/与背景叠加后看起来偏蓝/偏亮；而其它节点类型不匹配该选择器，故不受影响。
+ * 这里对编组节点显式 box-shadow:none 清除。 */
+.react-flow__node-group.yimao-group-node.selectable.selected,
+.react-flow__node-group.yimao-group-node.selectable:focus,
+.react-flow__node-group.yimao-group-node.selectable:focus-visible {
+  box-shadow: none;
+}
+
+/* ===== 节点选中白色柔光（复刻编译 CSS .react-flow__node.selected） ===== */
+.react-flow__node.selected {
+  filter: drop-shadow(0 0 40px #ffffff26) drop-shadow(0 0 80px #ffffff1a);
+  outline: none !important;
+}
+
+/* ===== 统一动画（keyframes 集中管理，原散落在组件内联 <style> 中） ===== */
+/* 整理结果确认弹窗入场（复刻 H_.jsx:11993） */
+@keyframes animate-slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+.animate-slide-up {
+  animation: animate-slide-up 0.18s ease-out;
+}
+/* 左侧面板滑出（原 LeftPanel 内联 panelIn） */
+@keyframes panelIn {
+  from {
+    transform: translateX(-16px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+.animate-panel-in {
+  animation: panelIn 0.22s ease-out;
+}
+/* 设置页淡入（原 AccountsSettings 内联 fadeIn） */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animate-fade-in {
+  animation: fadeIn 0.2s ease-out;
+}
+/* 生成中遮罩动画（原 GeneratingOverlay 内联 npbSpin/Glow/Shimmer/genTipIn，
+   被组件内联 style 以动画名引用，故保留原 keyframes 名） */
+@keyframes npbSpin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+@keyframes npbGlow {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+@keyframes npbShimmer {
+  0% {
+    transform: translateX(-120%) skewX(-20deg);
+  }
+  100% {
+    transform: translateX(220%) skewX(-20deg);
+  }
+}
+@keyframes genTipIn {
+  0% {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ===== 小地图样式（复刻 H_.jsx:12096-12097 _shared.P MiniMap） ===== */
+.react-flow__minimap {
+  background: #222 !important;
+  border: 1px solid #333;
+  border-radius: 8px;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6);
+  overflow: hidden;
+}
+.react-flow__minimap-mask {
+  fill: #0d0c0c80;
+}
+.react-flow__minimap-node {
+  fill: #444 !important;
+}
+
+
+/* ===== 节点标题（_Component8 同款） ===== */
+.drag-handle {
+  cursor: move;
+}
+.nodrag {
+  cursor: default;
+}
+
+/* ===== custom-scrollbar（文本/下拉等复用） ===== */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #3a3a3a;
+  border-radius: 999px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #4a4a4a;
+}
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #3a3a3a transparent;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  scrollbar-width: none;
+}
+
+/* ===== 自定义连接端口（cust-handle 系列，复刻 shared.js CSS） ===== */
+.cust-handle-wrap {
+  position: absolute;
+  z-index: 100;
+  cursor: crosshair;
+  pointer-events: auto;
+  transform-origin: center center;
+  transition: opacity 160ms ease;
+  --cust-shift-x: 0px;
+  --cust-shift-y: 0px;
+  --cust-anchor-x: 50%;
+}
+.cust-handle-dot,
+.cust-handle-ring,
+.cust-handle-plus {
+  position: absolute;
+  pointer-events: none;
+  transform-origin: center;
+}
+.cust-handle-dot {
+  top: 50%;
+  left: var(--cust-anchor-x);
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: #6b7280;
+  border: 1px solid #1f2937;
+  box-shadow: 0 0 4px rgba(0, 0, 0, 0.6);
+  transform: translate(-50%, -50%) scale(1);
+  opacity: 1;
+  transition: opacity 180ms ease, transform 220ms cubic-bezier(0.4, 1.6, 0.6, 1);
+}
+.cust-handle-ring {
+  top: 50%;
+  left: var(--cust-anchor-x);
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  border: 2px solid rgba(255, 255, 255, 0.7);
+  background: rgba(255, 255, 255, 0.05);
+  transform: translate(-50%, -50%) scale(0.3);
+  opacity: 0;
+  transition: opacity 220ms ease, transform 280ms cubic-bezier(0.34, 1.56, 0.64, 1),
+    box-shadow 220ms ease, border-color 220ms ease;
+}
+.cust-handle-plus {
+  top: 50%;
+  left: var(--cust-anchor-x);
+  width: 18px;
+  height: 18px;
+  transform: translate(calc(-50% + var(--cust-shift-x)), calc(-50% + var(--cust-shift-y)))
+    scale(0.3) rotate(-90deg);
+  opacity: 0;
+  transition: opacity 200ms ease 40ms, transform 220ms cubic-bezier(0.34, 1.56, 0.64, 1) 0ms;
+  color: #fff;
+}
+.cust-handle-plus::before,
+.cust-handle-plus::after {
+  content: '';
+  position: absolute;
+  background: currentColor;
+  border-radius: 2px;
+  top: 50%;
+  left: 50%;
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.8);
+}
+.cust-handle-plus::before {
+  width: 14px;
+  height: 2px;
+  transform: translate(-50%, -50%);
+}
+.cust-handle-plus::after {
+  width: 2px;
+  height: 14px;
+  transform: translate(-50%, -50%);
+}
+.cust-handle-wrap:hover .cust-handle-dot {
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(0.4);
+}
+.cust-handle-wrap:hover .cust-handle-ring {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+  border-color: rgba(255, 255, 255, 0.85);
+  box-shadow: 0 0 16px rgba(255, 255, 255, 0.35), 0 0 36px rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.08);
+}
+.cust-handle-wrap:hover .cust-handle-plus {
+  opacity: 1;
+  transform: translate(calc(-50% + var(--cust-shift-x)), calc(-50% + var(--cust-shift-y)))
+    scale(1) rotate(0deg);
+}
+.cust-handle-wrap .react-flow__handle.connectingto ~ .cust-handle-ring,
+.cust-handle-wrap .react-flow__handle.connectingfrom ~ .cust-handle-ring,
+.cust-handle-wrap:active .cust-handle-ring {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1.15);
+  border-color: #fff;
+  box-shadow: 0 0 22px rgba(255, 255, 255, 0.6), 0 0 48px rgba(255, 255, 255, 0.25);
+}
+.cust-handle-wrap .react-flow__handle.connectingto ~ .cust-handle-plus,
+.cust-handle-wrap .react-flow__handle.connectingfrom ~ .cust-handle-plus {
+  opacity: 1;
+  transform: translate(calc(-50% + var(--cust-shift-x)), calc(-50% + var(--cust-shift-y)))
+    scale(1.1) rotate(0deg);
+}
+.cust-handle-wrap .react-flow__handle.connectingto ~ .cust-handle-dot,
+.cust-handle-wrap .react-flow__handle.connectingfrom ~ .cust-handle-dot {
+  opacity: 0;
+}
+.cust-handle-wrap.is-small .cust-handle-dot {
+  width: 8px;
+  height: 8px;
+}
+.cust-handle-wrap.is-small .cust-handle-ring {
+  width: 32px;
+  height: 32px;
+}
+.cust-handle-wrap.is-small .cust-handle-plus {
+  width: 14px;
+  height: 14px;
+}
+.cust-handle-wrap.is-small .cust-handle-plus::before {
+  width: 12px;
+  height: 2px;
+}
+.cust-handle-wrap.is-small .cust-handle-plus::after {
+  width: 2px;
+  height: 12px;
+}
+
+/* ===== 连接节点跑马灯边框（复刻 shared.js:644 cust-marquee-rotate） ===== */
+@property --cust-marquee-angle {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
+@keyframes cust-marquee-rotate {
+  to {
+    --cust-marquee-angle: 360deg;
+  }
+}
+.react-flow__node:has(.react-flow__handle.connectingto)::before {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: inherit;
+  padding: 2px;
+  background: conic-gradient(
+    from var(--cust-marquee-angle, 0deg),
+    rgba(255, 255, 255, 0) 0deg,
+    rgba(255, 255, 255, 0.95) 30deg,
+    rgba(180, 210, 255, 0.95) 70deg,
+    rgba(255, 255, 255, 0) 130deg,
+    rgba(255, 255, 255, 0) 360deg
+  );
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+  animation: cust-marquee-rotate 1.6s linear infinite;
+  filter: drop-shadow(0 0 8px rgba(180, 210, 255, 0.55));
+  z-index: 1000;
+  box-sizing: border-box;
+}
+
+/* ===== 连线特效（复刻 shared.js:11057 Ag / custom-edge-flow-style） ===== */
+.cust-edge-base,
+.cust-edge-glow,
+.cust-edge-hit {
+  fill: none !important;
+}
+.cust-edge-base {
+  stroke: rgba(255, 255, 255, 0.28);
+  stroke-width: 1.4;
+  transition: stroke 200ms ease, stroke-width 200ms ease;
+}
+.cust-edge-glow {
+  stroke: rgba(180, 210, 255, 0.18);
+  stroke-width: 6;
+  filter: blur(3px);
+  opacity: 0;
+  transition: opacity 200ms ease;
+  pointer-events: none;
+}
+.cust-edge-hit {
+  stroke: transparent;
+  stroke-width: 22;
+  pointer-events: stroke;
+  cursor: pointer;
+}
+/* 选中 / 关联激活 -> 显示彗星 + 加亮 base */
+.react-flow__edge.selected .cust-edge-base,
+.cust-edge-base.is-active {
+  stroke: rgba(255, 255, 255, 0.7);
+  stroke-width: 1.8;
+}
+.react-flow__edge.selected .cust-edge-glow,
+.cust-edge-glow.is-active {
+  opacity: 0.7;
+}
+.react-flow__edge.selected .cust-edge-comet,
+.cust-edge-comet.is-active {
+  opacity: 1;
+}
+.cust-edge-comet {
+  opacity: 0;
+  transition: opacity 200ms ease;
+  pointer-events: none;
+}
+/* hover 时也能感知 */
+.react-flow__edge:hover .cust-edge-base {
+  stroke: rgba(255, 255, 255, 0.5);
+}
+.react-flow__edge:hover .cust-edge-glow {
+  opacity: 0.45;
+}
+.react-flow__edge:hover .cust-edge-comet {
+  opacity: 0.9;
+}
+
+/* =====================================================================
+ * 画布性能优化（复刻官方 V_.jsx：LOD 分级渲染降级 + 大画布轻量模式）
+ * 由 LodListener 把 lod-1/2/3 挂到 .react-flow，这里定义对应样式；
+ * 与各节点内部 useMediaDegrade 的 JS 隐藏互为兜底。
+ * 注：官方另有 viewport-moving / pan-performance-mode / is-large-canvas
+ * 的预留 CSS，但官方代码从未添加这些 class，故原型不引入（避免死样式）。
+ * ===================================================================== */
+/* lod-1（zoom <= 0.5）：视频解码代价最高，先隐藏 */
+.react-flow.lod-1 .react-flow__node video {
+  display: none;
+}
+/* lod-2（zoom <= 0.3）：再隐藏图片，节点保留外形与 handle 用于连线 */
+.react-flow.lod-2 .react-flow__node img {
+  visibility: hidden;
+}
+/* lod-3（zoom <= 0.2）：兜底全局降级 */
+.react-flow.lod-3 .react-flow__node iframe {
+  display: none;
+}
+.react-flow.lod-3 .react-flow__node textarea {
+  visibility: hidden;
+}
+.react-flow.lod-3 .react-flow__node input {
+  visibility: hidden;
+}
+.react-flow.lod-3 .react-flow__node button {
+  visibility: hidden;
+}
+.react-flow.lod-3 .react-flow__node .nodrag {
+  opacity: 0;
+  pointer-events: none;
+}
+.react-flow.lod-3 .react-flow__node .node-content {
+  display: none;
+}
+.react-flow.lod-3 .react-flow__node {
+  opacity: 0.8;
+  transition: opacity 0.2s;
+}
+
+/* 大画布轻量模式：仅收窄 hit 区降低命中测试成本（复刻 V_.jsx:55-60）。
+   由 App.jsx 在节点数 > 100 时给 .react-flow 加 performance-large-canvas class。
+   连线彗星/辉光的开关由 CustomEdge 按「可视区 + 低 LOD」逐边决定。 */
+.react-flow.performance-large-canvas .cust-edge-hit {
+  stroke-width: 16 !important;
+}

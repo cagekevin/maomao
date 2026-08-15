@@ -1,0 +1,236 @@
+{
+  "proxy_mode_local_tool": {
+    "desc": "画布请求唯一出口标识：proxyMode=local-tool",
+    "severity": "critical",
+    "scopes": [
+      "src/bundle",
+      "localTool/src"
+    ],
+    "hits": {
+      "src/bundle/App-BX6o9fW5_components/Vr.jsx": 3,
+      "src/bundle/httpClient-BknZwXjG_components/H_.jsx": 16,
+      "src/bundle/httpClient-BknZwXjG_components/shared.js": 3,
+      "src/bundle/httpClient-BknZwXjG_components/Un.jsx": 4,
+      "src/bundle/ShareAppPage-C4RerI9i.js": 1,
+      "localTool/src/routes/resources.ts": 4
+    },
+    "total": 31
+  },
+  "port_18080": {
+    "desc": "localTool 固定端口 127.0.0.1:18080",
+    "severity": "critical",
+    "scopes": [
+      "src/bundle",
+      "localTool/src",
+      "public/background.js"
+    ],
+    "hits": {
+      "src/bundle/App-BX6o9fW5_components/Tr.jsx": 1,
+      "src/bundle/endpointConfig-Bt85xi8d.js": 5,
+      "localTool/src/db/database.ts": 2,
+      "localTool/src/index.ts": 5,
+      "localTool/src/routes/files.ts": 1,
+      "localTool/src/routes/official.ts": 17,
+      "localTool/src/routes/passthrough.ts": 3,
+      "localTool/src/routes/resources.ts": 2,
+      "localTool/src/routes/system.ts": 8,
+      "public/background.js": 2
+    },
+    "total": 46
+  },
+  "port_9004": {
+    "desc": "apimart-gateway 固定端口 9004（前端经变量拼接，故 bundle 内无字面量）",
+    "severity": "critical",
+    "scopes": [
+      "localTool/src",
+      "apimart-gateway"
+    ],
+    "hits": {
+      "localTool/src/routes/system.ts": 4,
+      "localTool/src/utils/netProxy.ts": 1
+    },
+    "total": 5
+  },
+  "api_proxy_path": {
+    "desc": "代理转发唯一入口 /api/proxy；localTool 负责剥信封/异步转同步",
+    "severity": "critical",
+    "scopes": [
+      "src/bundle",
+      "localTool/src"
+    ],
+    "hits": {
+      "src/bundle/httpClient-BknZwXjG_components/shared.js": 4,
+      "localTool/src/index.ts": 3,
+      "localTool/src/routes/official.ts": 1,
+      "localTool/src/routes/system.ts": 3,
+      "localTool/src/utils/netProxy.ts": 1
+    },
+    "total": 12
+  },
+  "x_proxy_url_header": {
+    "desc": "代理上游地址头 x-proxy-url（常态指向 :9004）",
+    "severity": "high",
+    "scopes": [
+      "src/bundle",
+      "localTool/src"
+    ],
+    "hits": {
+      "localTool/src/routes/files.ts": 1,
+      "localTool/src/routes/system.ts": 1
+    },
+    "total": 2
+  },
+  "public_platform": {
+    "desc": "localTool 自研平台接口前缀 /public/platform（替代官方 1mao）",
+    "severity": "high",
+    "scopes": [
+      "src/bundle",
+      "localTool/src"
+    ],
+    "hits": {
+      "src/bundle/httpClient-BknZwXjG_components/shared.js": 2,
+      "localTool/src/index.ts": 6,
+      "localTool/src/routes/passthrough.ts": 1,
+      "localTool/src/routes/platform.ts": 5
+    },
+    "total": 14
+  },
+  "envelope_code_data": {
+    "desc": "前后端信封结构 {code,data}：localTool 剥信封对齐画布硬编码",
+    "severity": "critical",
+    "scopes": [
+      "src/bundle",
+      "localTool/src",
+      "apimart-gateway"
+    ],
+    "hits": {
+      "src/bundle/App-BX6o9fW5_components/shared.js": 1,
+      "src/bundle/App-BX6o9fW5_components/Vr.jsx": 1,
+      "localTool/src/routes/system.ts": 5
+    },
+    "total": 7
+  },
+  "kv_canvas_state_v1": {
+    "desc": "画布状态持久化 KV 键 canvas-state-v1",
+    "severity": "medium",
+    "scopes": [
+      "src/bundle",
+      "localTool/src",
+      "public/background.js"
+    ],
+    "hits": {
+      "src/bundle/App-BX6o9fW5_components/Vr.jsx": 2,
+      "src/bundle/httpClient-BknZwXjG_components/shared.js": 2,
+      "localTool/src/routes/admin.ts": 2
+    },
+    "total": 6
+  },
+  "kv_active_api_endpoint": {
+    "desc": "当前 API endpoint 持久化 KV 键 active_api_endpoint",
+    "severity": "medium",
+    "scopes": [
+      "src/bundle",
+      "localTool/src"
+    ],
+    "hits": {
+      "src/bundle/endpointConfig-Bt85xi8d.js": 1,
+      "localTool/src/routes/admin.ts": 1,
+      "localTool/src/routes/official.ts": 6,
+      "localTool/src/routes/passthrough.ts": 1
+    },
+    "total": 9
+  },
+  "kv_transit_resources": {
+    "desc": "转场资源持久化 KV 键 transitResources（高频 24 处，改名务必全同步）",
+    "severity": "medium",
+    "scopes": [
+      "src/bundle",
+      "localTool/src"
+    ],
+    "hits": {
+      "src/bundle/App-BX6o9fW5_components/Vr.jsx": 7,
+      "src/bundle/httpClient-BknZwXjG_components/Co.jsx": 1,
+      "src/bundle/httpClient-BknZwXjG_components/c_.jsx": 2,
+      "src/bundle/httpClient-BknZwXjG_components/H_.jsx": 6,
+      "src/bundle/httpClient-BknZwXjG_components/shared.js": 1,
+      "src/bundle/httpClient-BknZwXjG_components/Un.jsx": 2,
+      "src/bundle/httpClient-BknZwXjG_components/Zo.jsx": 1,
+      "src/bundle/httpClient-BknZwXjG_components/_Component118.jsx": 2,
+      "src/bundle/ShareAppPage-C4RerI9i.js": 2
+    },
+    "total": 24
+  },
+  "kv_api_configs": {
+    "desc": "API 配置持久化 KV 键 api_configs",
+    "severity": "medium",
+    "scopes": [
+      "src/bundle",
+      "localTool/src"
+    ],
+    "hits": {
+      "src/bundle/App-BX6o9fW5_components/Vr.jsx": 3,
+      "src/bundle/httpClient-BknZwXjG_components/shared.js": 1
+    },
+    "total": 4
+  },
+  "local_tool_label": {
+    "desc": "模式标签 local-tool（与 proxyMode 关联，但区分独立字符串）",
+    "severity": "low",
+    "scopes": [
+      "src/bundle",
+      "localTool/src"
+    ],
+    "hits": {
+      "src/bundle/App-BX6o9fW5_components/Vr.jsx": 3,
+      "src/bundle/httpClient-BknZwXjG_components/H_.jsx": 2,
+      "src/bundle/httpClient-BknZwXjG_components/shared.js": 2,
+      "src/bundle/httpClient-BknZwXjG_components/Un.jsx": 4,
+      "localTool/src/routes/resources.ts": 4
+    },
+    "total": 15
+  },
+  "scriptbox_node_type": {
+    "desc": "剧本盒子节点类型 scriptBoxNode（引擎拆分时该字符串是 UI 挂载关键，不可变）",
+    "severity": "critical",
+    "scopes": [
+      "src/bundle"
+    ],
+    "hits": {
+      "src/bundle/httpClient-BknZwXjG_components/As.jsx": 1,
+      "src/bundle/httpClient-BknZwXjG_components/bo.jsx": 2,
+      "src/bundle/httpClient-BknZwXjG_components/H_.jsx": 22,
+      "src/bundle/httpClient-BknZwXjG_components/shared.js": 3
+    },
+    "total": 28
+  },
+  "scriptbox_callbacks": {
+    "desc": "剧本盒子 9 个引擎回调名（挂到 node.data.onXxx，组件只调不实现；改名必须组件/引擎/注入三方同步）",
+    "severity": "critical",
+    "scopes": [
+      "src/bundle"
+    ],
+    "hits": {
+      "src/bundle/httpClient-BknZwXjG_components/c_.jsx": 12,
+      "src/bundle/httpClient-BknZwXjG_components/H_.jsx": 65
+    },
+    "total": 77
+  },
+  "scriptbox_downstream": {
+    "desc": "剧本盒子连线下游节点类型 promptNode/discountVideoNode（scriptbox 只连这两种）",
+    "severity": "high",
+    "scopes": [
+      "src/bundle"
+    ],
+    "hits": {
+      "src/bundle/App-BX6o9fW5_components/shared.js": 10,
+      "src/bundle/httpClient-BknZwXjG_components/bo.jsx": 2,
+      "src/bundle/httpClient-BknZwXjG_components/Co.jsx": 2,
+      "src/bundle/httpClient-BknZwXjG_components/c_.jsx": 2,
+      "src/bundle/httpClient-BknZwXjG_components/es.jsx": 2,
+      "src/bundle/httpClient-BknZwXjG_components/H_.jsx": 78,
+      "src/bundle/httpClient-BknZwXjG_components/shared.js": 3,
+      "src/bundle/httpClient-BknZwXjG_components/Zo.jsx": 2
+    },
+    "total": 101
+  }
+}

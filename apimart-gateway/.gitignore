@@ -1,0 +1,10 @@
+# 网关运行日志（统一收纳到 logs/，由启动脚本生成，非源码）
+logs/
+# 兼容：历史散落在根目录的旧日志
+apimart_9004.log
+apimart_9004.err.log
+
+# Python 虚拟环境 & 依赖
+venv/
+__pycache__/
+*.pyc

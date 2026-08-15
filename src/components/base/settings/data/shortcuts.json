@@ -1,0 +1,12 @@
+{
+  "shortcuts": [
+    { "action": "撤销", "id": "undo", "keys": "Ctrl/Cmd + Z" },
+    { "action": "重做", "id": "redo", "keys": "Ctrl/Cmd + Shift + Z" },
+    { "action": "全选节点", "id": "select-all", "keys": "Ctrl/Cmd + A" },
+    { "action": "复制节点", "id": "duplicate", "keys": "Ctrl/Cmd + D" },
+    { "action": "整理画布", "id": "arrange", "keys": "Ctrl/Cmd + L" },
+    { "action": "新建文本节点", "id": "add-text", "keys": "Q" },
+    { "action": "新建生图节点", "id": "add-image", "keys": "W" },
+    { "action": "新建特惠视频节点", "id": "add-video", "keys": "E" }
+  ]
+}

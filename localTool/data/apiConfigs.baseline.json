@@ -1,0 +1,82 @@
+{
+  "apiConfigs": [
+    {
+      "id": "tehuishipin",
+      "name": "localTool 第三方 API",
+      "url": "{VITE_API_BASE_URL}",
+      "key": "",
+      "provider": "自托管",
+      "readonly": true,
+      "default": true,
+      "models": [
+        {
+          "id": "lovart-chat",
+          "type": "text",
+          "label": "Lovart 设计 Agent",
+          "streaming": true
+        },
+        {
+          "id": "gpt-image-2-low",
+          "type": "image",
+          "label": "GPT Image 2 Low"
+        },
+        {
+          "id": "gpt-image-2-medium",
+          "type": "image",
+          "label": "GPT Image 2 Medium"
+        },
+        {
+          "id": "gpt-image-2",
+          "type": "image",
+          "label": "GPT Image 2"
+        },
+        {
+          "id": "nano-bn-pro",
+          "type": "image",
+          "label": "Nano Banana Pro"
+        },
+        {
+          "id": "nano-bn-2",
+          "type": "image",
+          "label": "Nano Banana 2"
+        },
+        {
+          "id": "nano-bn-2-lite",
+          "type": "image",
+          "label": "Nano Banana 2 Lite",
+          "promptOnly": true
+        },
+        {
+          "id": "seedance-2.0-fast",
+          "type": "video",
+          "label": "Seedance 2.0 Fast"
+        },
+        {
+          "id": "seedance-2",
+          "type": "video",
+          "label": "Seedance 2"
+        },
+        {
+          "id": "seedance-2.0-mini",
+          "type": "video",
+          "label": "Seedance 2.0 Mini",
+          "promptOnly": true
+        },
+        {
+          "id": "minimax-h3",
+          "type": "video",
+          "label": "MiniMax H3",
+          "promptOnly": true
+        },
+        {
+          "id": "kling-v3-omni",
+          "type": "video",
+          "label": "Kling V3 Omni"
+        }
+      ]
+    }
+  ],
+  "discountVideoModel": "seedance-2.0-mini\nseedance-2.0-fast\nseedance-2\nminimax-h3\nkling-v3-omni",
+  "drawingModel": "gpt-image-2-low\ngpt-image-2-medium\nano-bn-2-lite\nano-bn-2\nano-bn-pro",
+  "textModel": "lovart-chat"
+}
