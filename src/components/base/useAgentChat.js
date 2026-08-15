@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useCanvasAgentTools } from './useCanvasAgentTools.js'
 import { sGet, sSet } from './storageAdapter.js'
 import { API_BASE } from './apiBase.js'
+import { normalizeImageUrlForSend } from './imageUrl.js'
 
 /**
  * ════════════════════════════════════════════════════════════════
@@ -336,7 +337,13 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
       setError(null)
 
       const userMsg = { role: 'user', content: text, createdAt: Date.now() }
-      if (attachments && attachments.length > 0) userMsg.attachments = attachments
+      // 发送端归一化：附件图统一成后端可访问地址（blob→data、相对→绝对），后端不丢图；
+      // 只认 base64 的 provider（refFormat:'base64'）→ 统一转 base64
+      if (attachments && attachments.length > 0) {
+        userMsg.attachments = await Promise.all(
+          attachments.map(async (a) => ({ ...a, url: await normalizeImageUrlForSend(a?.url, { preferBase64: provider?.refFormat === 'base64' }) }))
+        )
+      }
 
       let history = [...messagesRef.current, userMsg]
       setMessages(history)
@@ -464,7 +471,7 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
         abortRef.current = null
       }
     },
-    [sending, model, roundTrip, callTool, agentKey]
+    [sending, model, roundTrip, callTool, agentKey, provider]
   )
 
   /** 停止（复刻官方 stop） */

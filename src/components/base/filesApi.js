@@ -8,21 +8,11 @@
  * 导致生成面板空。这里补上落盘：data:/blob → multipart file；http → fileUrl(幂等下载)。
  */
 import { API_BASE } from './apiBase.js'
+export { toAbsoluteFileUrl } from './imageUrl.js'
 const SUBFOLDER = 'tasks'
 
-/**
- * 相对 /files/ 路径 → 完整可访问 URL。
- * 画布运行在 localhost:5180 / chrome-extension:// 下，若 dataURL 外置只存了相对路径
- * （老数据 base64Externalize 返回相对 /files/...），<img src="/files/..."> 会被解析成错误源 → 破图。
- * 读取画布/资源时统一补全为绝对 URL（对齐后端 resources.ts 的 toAbsoluteFileUrl 惯例）。
- * @param {string} url 相对路径（/files/...）或已是绝对 URL / data: / blob:
- * @returns {string} 补全后的 URL（非 /files/ 相对路径的原样返回）
- */
-export function toAbsoluteFileUrl(url) {
-  if (!url || typeof url !== 'string') return url
-  if (url.startsWith('/files/')) return `${API_BASE}${url}`
-  return url
-}
+// toAbsoluteFileUrl 已收敛到 imageUrl.js（统一图片 URL 归一化入口）。
+// 此处 re-export 兼容既有引用，逻辑单一来源在 imageUrl.js。
 
 // 类型 → 扩展名（生成面板按扩展名分类展示）
 const EXT_BY_TYPE = {
@@ -71,6 +61,35 @@ export async function saveInlineToLocal(dataUrl, subfolder = 'canvas') {
     return data.url || null
   } catch (e) {
     console.warn('[filesApi] 内联资源落盘失败:', e)
+    return null
+  }
+}
+
+/**
+ * 直接把 File/Blob 上传到 localTool（对齐官方 H_.jsx onDrop 的 hi(file,{subfolder})）。
+ * 区别于 saveInlineToLocal（dataURL → 落盘）：这里直接 multipart 传原始文件，
+ * 避免视频等大文件先转 dataURL 再转 Blob 的两段大内存拷贝。
+ * 上传成功返回 http://127.0.0.1:18080/files/<subfolder>/<name>；失败返回 null。
+ * @param {File|Blob} file 原始文件
+ * @param {string} [subfolder] 落盘子目录，默认 canvas/drop（对齐官方）
+ * @param {string} [filename] 可选自定义文件名（默认用 file.name）
+ * @returns {Promise<string|null>}
+ */
+export async function uploadFileToLocal(file, subfolder = 'canvas/drop', filename) {
+  if (!file) return null
+  try {
+    const fd = new FormData()
+    fd.append('file', file, filename || file.name || 'upload')
+    fd.append('subfolder', subfolder)
+    const res = await fetch(`${API_BASE}/api/files/upload`, { method: 'POST', body: fd })
+    if (!res.ok) {
+      console.warn('[filesApi] 文件上传失败', res.status)
+      return null
+    }
+    const data = await res.json().catch(() => ({}))
+    return data.url || null
+  } catch (e) {
+    console.warn('[filesApi] 文件上传失败:', e)
     return null
   }
 }

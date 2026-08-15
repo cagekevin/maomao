@@ -192,7 +192,9 @@ export async function generateImage({ provider, prompt, model, size, n, aspectRa
   if (size && hasRatio) genBody.resolution = size
   if (size) genBody.image_size = String(size).toUpperCase()
   if (quality && quality !== 'auto') genBody.quality = quality
-  const refImages = await resolveRefImages(images)
+  // refFormat:'base64' 的 provider（只认 base64 的后端）→ 参考图统一转 base64 再发；
+  // 否则走默认（URL，网关 resolve_attachments 统一转 CDN）。
+  const refImages = await resolveRefImages(images, { preferBase64: provider?.refFormat === 'base64' })
   if (refImages.length > 0) genBody.image_urls = refImages
 
   const url = buildTargetUrl(provider, 'images/generations')

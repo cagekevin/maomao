@@ -1,9 +1,8 @@
 import React from 'react'
 import {
-  Type, Image as ImageIcon, Clapperboard, Combine, AudioLines, Box,
-  Grid3X3, Globe, Film, FileArchive, Shuffle,
-  Contrast, Link as LinkIcon, ImageDown, Wand2, StickyNote,
-  FileUp, Grid2X2, Puzzle, FolderTree
+  Type, Image as ImageIcon, Clapperboard, Box,
+  Grid3X3, Globe, Film, Shuffle,
+  ImageDown, Wand2, Grid2X2, FolderTree
 } from 'lucide-react'
 
 /**
@@ -27,39 +26,41 @@ export const paletteCategories = [
 // 完整节点目录（复刻 H_.jsx _i，图标用 lucide 等价）
 export const paletteNodes = [
   // --- 文本工具 ---
-  { type: 'textNode', label: '文本', icon: Type, cat: 'text', data: { text: '' }, builtin: true },
-  { type: 'textConcatNode', label: '文本拼接', icon: Combine, cat: 'text' },
-  { type: 'audioNode', label: '听音断句', icon: AudioLines, cat: 'text' },
+  // textNode（文本）与顶部 Q 快捷重复，子分类不再列出（由顶部快捷 + 节点面板添加）
 
   // --- 图片工具 ---
-  { type: 'promptNode', label: '图片', icon: ImageIcon, cat: 'image', data: { prompt: '' }, builtin: true },
-  { type: 'imageNode', label: '图片节点', icon: ImageIcon, cat: 'image', data: { images: [] }, builtin: true },
+  // promptNode（图片/生图）与顶部 W 快捷重复，子分类不再列出
+  { type: 'imageNode', label: '图片视频素材节点', icon: ImageIcon, cat: 'image', data: { images: [] }, builtin: true },
   { type: 'imageBoxNode', label: '图片盒子', icon: Box, cat: 'image', data: { images: [], activeIndex: 0, expanded: false }, builtin: true },
   { type: 'gridSplitNode', label: '图片切分', icon: Grid3X3, cat: 'image', data: { imageUrl: '', extractedImages: [], rows: 3, cols: 3, splitMode: 'grid', hLines: [0.5], vLines: [0.5], lassoShapes: [], titlePattern: '#{num}', sendToImageBox: false }, builtin: true },
   { type: 'gridMergeNode', label: '图片拼图', icon: Grid2X2, cat: 'image', data: { mergeMode: 'grid', rows: 3, cols: 3, cellSize: 512, aspectRatio: '1:1', autoSize: true, titlePattern: '', longDirection: 'vertical', longGap: 0, longTargetSize: 1024, longAutoSize: true, bgColor: 'transparent', overlayState: { layers: [], canvasWidth: 1024, canvasHeight: 1024, bgColor: 'transparent' } }, builtin: true },
-  { type: 'panoramaNode', label: '全景图', icon: Globe, cat: 'image' },
+  { type: 'panoramaNode', label: '全景图', icon: Globe, cat: 'image', builtin: true, data: { panoType: 'sphere', highQuality: false, aspectRatio: '16:9', imageUrl: '' } },
   { type: 'director3dNode', label: '3D导演台', icon: Film, cat: 'image' },
-  { type: 'imageCompressNode', label: '图片压缩', icon: FileArchive, cat: 'image' },
-  { type: 'faceMosaicNode', label: '人脸打码', icon: Shuffle, cat: 'image' },
-  { type: 'compareNode', label: '对比工具', icon: Contrast, cat: 'image' },
-  { type: 'urlToImageNode', label: '网址转图片', icon: LinkIcon, cat: 'image' },
+  { type: 'faceMosaicNode', label: '人脸打码', icon: Shuffle, cat: 'image', builtin: true, data: { mode: 'mosaic', strength: 0.5, color: '#000000', imageUrls: [] } },
 
   // --- 视频工具 ---
-  { type: 'discountVideoNode', label: '视频', icon: Clapperboard, cat: 'video', data: { prompt: '' }, builtin: true },
-  { type: 'videoNode', label: '其他视频', icon: Film, cat: 'video', data: { prompt: '' } },
-  { type: 'videoExtractNode', label: '视频抽帧', icon: ImageDown, cat: 'video' },
+  // discountVideoNode（特惠视频）与顶部 E 快捷重复，子分类不再列出
+  { type: 'videoExtractNode', label: '视频抽帧', icon: ImageDown, cat: 'video', builtin: true, data: { videoUrl: '', videoName: '' } },
   { type: 'videoProcessNode', label: '视频处理', icon: Wand2, cat: 'video', badge: { text: 'NEW', tone: 'new' }, builtin: true, data: { mode: 'trim', sourceOrder: [], timelineTracks: [], audioFormat: 'm4a', trimStart: 0, trimEnd: 4, resizeWidth: 1280, resizeHeight: 720, targetFps: 30 } },
 
   // --- 其他工具 ---
   { type: 'group', label: '编组', icon: FolderTree, cat: 'other', builtin: true },
-  { type: 'scriptBoxNode', label: '剧本盒子', icon: Clapperboard, cat: 'other', builtin: true, data: { step: 1, story: '', globalStyle: '', shots: [], assets: [] } },
-  { type: 'customNode', label: '万能节点', icon: Puzzle, cat: 'other' },
-  { type: 'stickyNoteNode', label: '便签', icon: StickyNote, cat: 'other', data: { text: '', fontSize: 24, bgColor: 'rgba(180,160,60,0.25)', textColor: 'rgba(255,255,255,0.92)' } },
-  { type: 'fileToUrlNode', label: '文件转链接', icon: FileUp, cat: 'other' }
+  { type: 'scriptBoxNode', label: '剧本盒子', icon: Clapperboard, cat: 'other', builtin: true, data: { step: 1, story: '', globalStyle: '', shots: [], assets: [] } }
+]
+
+/** 顶部快捷（Q/W/E）专属、不进入子分类展示、但仍可创建的内置节点 */
+const HIDDEN_TOP_LEVEL_NODES = [
+  { type: 'textNode', label: '文本', cat: 'text', data: { text: '' } },
+  { type: 'promptNode', label: '图片', cat: 'image', data: { prompt: '' } },
+  { type: 'discountVideoNode', label: '特惠视频', cat: 'video', data: { prompt: '' } }
 ]
 
 // 便捷：按 type 查目录项
-export const getPaletteNode = (type) => paletteNodes.find((n) => n.type === type)
+// 注意：顶部 QWE 快捷创建的 textNode/promptNode/discountVideoNode 已从子分类展示移出，
+// 但仍是合法可创建节点（AI 工具 create_node 校验、defaultNodeData 兜底依赖这里），故单独补一份。
+export const getPaletteNode = (type) =>
+  paletteNodes.find((n) => n.type === type) ||
+  HIDDEN_TOP_LEVEL_NODES.find((n) => n.type === type)
 
 // 便捷：按分类取节点
 export const getNodesByCategory = (cat) => paletteNodes.filter((n) => n.cat === cat)

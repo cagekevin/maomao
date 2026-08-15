@@ -19,9 +19,10 @@ function buildTargetUrl(provider) {
 }
 
 /** 把参考图附加到最后一条 user 消息（content 转数组 + image_url 块）。 */
-async function attachImages(messages, images) {
+async function attachImages(messages, images, provider) {
   if (!images?.length) return messages
-  const refUrls = await resolveRefImages(images)
+  // refFormat:'base64' 的 provider（只认 base64 的后端）→ 参考图统一转 base64 再发
+  const refUrls = await resolveRefImages(images, { preferBase64: provider?.refFormat === 'base64' })
   if (!refUrls.length) return messages
   const blocks = toImageContentBlocks(refUrls)
   const userIdx = messages.length - 1
@@ -80,7 +81,7 @@ async function post(payload, signal) {
  * @returns {{ ok:boolean, content?:string, error?:string, aborted?:boolean }}
  */
 export async function chatCompletions({ provider, messages, model, images, temperature = 0.1, responseFormat, signal }) {
-  const finalMessages = await attachImages(messages, images)
+  const finalMessages = await attachImages(messages, images, provider)
   const body = { model, messages: finalMessages, temperature, stream: false }
   if (responseFormat === 'json_object' || responseFormat === 'json') body.response_format = { type: responseFormat }
   const payload = { url: buildTargetUrl(provider), method: 'POST', body: JSON.stringify(body) }

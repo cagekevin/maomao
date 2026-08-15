@@ -10,7 +10,7 @@ import {
   useEdgesState,
   useReactFlow
 } from '@xyflow/react'
-import { Type, Image as ImageIcon, Clapperboard, Trash2, Copy, Zap, RefreshCw, Folder, FolderOpen } from 'lucide-react'
+import { Type, Image as ImageIcon, Clapperboard, Trash2, Copy, Zap, RefreshCw, Folder, FolderOpen, Pin, PinOff, Upload } from 'lucide-react'
 import CanvasToolbar from './components/base/CanvasToolbar.jsx'
 import ArrangeConfirm from './components/base/ArrangeConfirm.jsx'
 import { useArrangeCanvas } from './components/base/useArrangeCanvas.js'
@@ -25,6 +25,9 @@ import ImageBoxNode from './components/ImageBoxNode.jsx'
 import GridSplitNode from './components/GridSplitNode.jsx'
 import GridMergeNode from './components/GridMergeNode.jsx'
 import VideoProcessNode from './components/VideoProcessNode.jsx'
+import FaceMosaicNode from './components/FaceMosaicNode.jsx'
+import PanoramaNode from './components/PanoramaNode.jsx'
+import Director3DNode from './components/Director3DNode.jsx'
 import GroupNode from './components/GroupNode.jsx'
 import ScriptBoxNode from './components/ScriptBoxNode.jsx'
 import GhostTargetNode from './components/GhostTargetNode.jsx'
@@ -39,7 +42,7 @@ import ContextMenu from './components/base/ContextMenu.jsx'
 import { useContextMenu } from './components/base/useContextMenu.js'
 import { useCanvasHistory } from './components/base/useCanvasHistory.js'
 import { useCanvasShortcuts } from './components/base/useCanvasShortcuts.js'
-import { paletteCategories, getNodesByCategory, defaultNodeData } from './components/base/NodePalette.jsx'
+import { paletteCategories, getNodesByCategory, defaultNodeData, getPaletteNode } from './components/base/NodePalette.jsx'
 import LodProvider from './components/base/LodProvider.jsx'
 import LodListener from './components/base/LodListener.jsx'
 import ToastContainer from './components/base/ToastContainer.jsx'
@@ -71,6 +74,9 @@ const nodeTypes = {
   gridSplitNode: GridSplitNode,
   gridMergeNode: GridMergeNode,
   videoProcessNode: VideoProcessNode,
+  faceMosaicNode: FaceMosaicNode,
+  panoramaNode: PanoramaNode,
+  director3dNode: Director3DNode,
   group: GroupNode,
   scriptBoxNode: ScriptBoxNode,
   ghostTarget: GhostTargetNode
@@ -293,6 +299,18 @@ function Canvas() {
   // 统一新建节点落点（公共 base）：posAtMenu 右键位置 / posAtCenter 视图中央
   const { posAtMenu, posAtCenter } = useNodePosition()
 
+  // 「固定到右键菜单第一层」的节点集合（复刻官方 H_.jsx pt，默认固定 3 个常用，
+  // 持久化到 app_settings.pinnedTools，刷新不丢）。固定项在小工具子菜单里有图钉开关，
+  // 固定的节点直接渲染在右键菜单第一层，不用每次钻子菜单。
+  const [pinnedTools, setPinnedTools] = React.useState(() => getSetting('pinnedTools') || ['imageBoxNode', 'gridSplitNode', 'panoramaNode'])
+  const togglePinTool = useCallback((type) => {
+    setPinnedTools((prev) => {
+      const next = prev.includes(type) ? prev.filter((t) => t !== type) : [...prev, type]
+      setSetting('pinnedTools', next)
+      return next
+    })
+  }, [])
+
   // 后端化初始化：任务中心从 /api/tasks 加载历史任务；项目系统从 /api/projects 加载项目（对齐官方）
   React.useEffect(() => {
     initTasks()
@@ -345,6 +363,14 @@ function Canvas() {
       if (type === 'videoProcessNode') {
         // 视频处理对齐官方 Gc.jsx：min 520×620
         Object.assign(newNode, { width: 520, height: 620, style: { width: 520, height: 620 } })
+      }
+      if (type === 'panoramaNode') {
+        // 全景图对齐官方 Zl.jsx：16:9 固定比例（keepAspectRatio），初始 640×360
+        Object.assign(newNode, { width: 640, height: 360, style: { width: 640, height: 360 } })
+      }
+      if (type === 'director3dNode') {
+        // 3D 导演台对齐官方 Dg.jsx：初始尺寸
+        Object.assign(newNode, { width: 420, height: 300, style: { width: 420, height: 300 } })
       }
       const nextNodes = [...nodesRef.current, newNode]
       // 若带 connection：自动创建 source→新节点 的边
@@ -645,11 +671,19 @@ function Canvas() {
    * 素材拖入 / 粘贴（复刻 H_.jsx:10201-10350 onDragOver ki / onDrop Ai + handlePaste）
    * 统一收敛到 useAssetDropPaste hook：App 只挂事件，具体建节点逻辑在 hook 里。
    * ==================================================================== */
-  const { onDragOver, onDrop, onPaste } = useAssetDropPaste({
+  const { onDragOver, onDrop, onPaste, createNodeFromFile } = useAssetDropPaste({
     addNode: (type, pos, data) => addNode(type, pos, data),
     screenToFlowPosition,
     onPasteNodeGroup: pasteNodeGroup
   })
+
+  // 右键菜单「上传」隐藏文件输入（复刻官方 Re.current）：选中文件 → 复用 createNodeFromFile 建素材节点
+  const uploadRef = useRef(null)
+  const handleUploadFile = useCallback((e) => {
+    const file = e.target.files?.[0]
+    if (file) createNodeFromFile(file, posAtCenter())
+    e.target.value = ''
+  }, [createNodeFromFile, posAtCenter])
   // 全局粘贴监听（文档级）
   useGlobalPaste(onPaste)
 
@@ -660,31 +694,76 @@ function Canvas() {
 
   // 空白处菜单：快速添加节点 + 小工具子菜单（复刻 H_.jsx:12232-12340）
   const canvasMenuItems = (state) => {
-    // 小工具子菜单：按分类列出目录节点（复刻 H_.jsx:12290-12340 的 at/vi/_i）
+    // 单个目录节点的菜单项 + 图钉（固定到第一层）尾随按钮。复刻官方 H_.jsx:12317-12335：
+    // 小工具子菜单里每项右侧一个图钉，点一下从子菜单「固定」到右键菜单第一层直接展示。
+    const toolItem = (n) => {
+      const pinned = pinnedTools.includes(n.type)
+      return {
+        key: n.type,
+        icon: n.icon,
+        label: n.label,
+        badge: n.badge,
+        onClick: () => addNodeFromMenu(n.type),
+        // trailing 为函数形式 → ContextMenu 渲染时实例化（不随 pinnedTools 变化重建 item 数组）
+        trailing: () => (
+          <button
+            type="button"
+            className={`p-1 mr-1 rounded transition-colors ${pinned ? 'text-white hover:text-gray-200' : 'text-gray-500 hover:text-gray-300'}`}
+            title={pinned ? '已固定到右键菜单，点击取消' : '固定到右键菜单'}
+            onClick={(e) => { e.stopPropagation(); togglePinTool(n.type) }}
+          >
+            {pinned ? <Pin size={14} /> : <PinOff size={14} className="opacity-30" />}
+          </button>
+        )
+      }
+    }
+
+    // 小工具子菜单：列出「所有」节点（含已固定的），每项带图钉——用户主动点图钉
+    // 把常用节点「固定」到一级菜单 / 取消固定。复刻官方 H_.jsx:12307-12335：
+    // 子菜单永远显示全部，图钉高亮区分固定态，已固定的同时在一级菜单直接展示。
+    // scriptBoxNode 已在一级菜单直接展示（「剧本盒子」硬编码项），小工具子菜单不再重复列出
+    const EXCLUDED_FROM_SUBMENU = ['scriptBoxNode']
     const toolsSubmenu = paletteCategories
       .map((cat) => {
-        const catNodes = getNodesByCategory(cat.key)
+        const catNodes = getNodesByCategory(cat.key).filter((n) => !EXCLUDED_FROM_SUBMENU.includes(n.type))
         if (catNodes.length === 0) return null
         return {
           key: `tools-${cat.key}`,
           label: cat.label,
-          items: catNodes.map((n) => ({
-            key: n.type,
-            icon: n.icon,
-            label: n.label,
-            badge: n.badge,
-            onClick: () => addNodeFromMenu(n.type)
-          }))
+          items: catNodes.map(toolItem)
         }
       })
       .filter(Boolean)
+
+    // 已固定到第一层的节点（复刻官方 H_.jsx:12380-12395：pt 集合直接渲染在菜单顶层）
+    const pinnedItems = pinnedTools
+      .map((type) => getPaletteNode(type))
+      .filter(Boolean)
+      .map((n) => ({
+        key: `pinned-${n.type}`,
+        icon: n.icon,
+        label: n.label,
+        badge: n.badge,
+        onClick: () => addNodeFromMenu(n.type)
+      }))
 
     return [
       { key: 'text', icon: <Type size={16} className="text-green-500" />, label: '文本', shortcut: 'Q', onClick: () => addNodeFromMenu('textNode') },
       { key: 'image', icon: <ImageIcon size={16} className="text-blue-400" />, label: '图片', shortcut: 'W', onClick: () => addNodeFromMenu('promptNode') },
       { key: 'video', icon: <Clapperboard size={16} className="text-yellow-500" />, label: '视频', shortcut: 'E', onClick: () => addNodeFromMenu('discountVideoNode') },
+      { key: 'scriptBox', icon: <Clapperboard size={16} className="text-fuchsia-300" />, label: '剧本盒子', badge: { text: 'Beta', tone: 'new' }, onClick: () => addNodeFromMenu('scriptBoxNode') },
       { type: 'divider' },
-      ...toolsSubmenu
+      // 小工具子菜单（未固定项 + 图钉）
+      ...(toolsSubmenu.length
+        ? [
+            { key: 'tools', icon: <Zap size={13} className="text-gray-400" />, label: '小工具', items: toolsSubmenu },
+            { type: 'divider' }
+          ]
+        : []),
+      // 已固定节点直接渲染在第一层（复刻官方 pt）
+      ...pinnedItems,
+      { type: 'divider' },
+      { key: 'upload', icon: <Upload size={16} className="text-gray-400" />, label: '上传', onClick: () => uploadRef.current?.click() }
     ]
   }
 
@@ -1252,6 +1331,15 @@ function Canvas() {
 
             {/* 右键菜单（基座 ContextMenu，挂载于画布外层） */}
             <ContextMenu state={menu.state} items={menuItems} onClose={menu.close} containerRef={menu.containerRef} />
+
+            {/* 右键菜单「上传」隐藏文件输入（复刻官方 Re，选中文件建素材节点） */}
+            <input
+              ref={uploadRef}
+              type="file"
+              accept="image/*,video/*,audio/*,text/plain"
+              style={{ display: 'none' }}
+              onChange={handleUploadFile}
+            />
           </>
         )}
 

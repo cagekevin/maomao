@@ -3,6 +3,7 @@ import { useAgentChat } from './base/useAgentChat.js'
 import { useProviders, load as loadProviders } from './base/settings/providerStore.js'
 import AgentMessage from './AgentMessage.jsx'
 import { sGet, sSet } from './base/storageAdapter.js'
+import { toAbsoluteFileUrl } from './base/filesApi.js'
 
 /**
  * ════════════════════════════════════════════════════════════════
@@ -311,7 +312,7 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
             <div className="flex flex-wrap gap-2 px-2 pt-2">
               {attachments.map((a, i) => (
                 <span key={i} className="relative w-12 h-12 rounded-md overflow-hidden border border-edge group">
-                  <img src={a.localUrl || a.url} alt="" className="w-full h-full object-cover" />
+                  <img src={toAbsoluteFileUrl(a.localUrl || a.url)} alt="" className="w-full h-full object-cover" />
                   <button type="button" onClick={() => removeAttachment(i)} className="absolute top-0 right-0 w-4 h-4 bg-black/70 hover:bg-black text-white text-caption flex items-center justify-center rounded-bl-md" title="移除">×</button>
                 </span>
               ))}

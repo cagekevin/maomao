@@ -16,7 +16,7 @@ import PromptLibraryButton from './base/PromptLibraryButton.jsx'
 import { useNodeResize } from './base/hooks.js'
 import { useConnectedInputs } from './base/useConnectedInputs.js'
 import { useNodeGeneration } from './base/useNodeGeneration.js'
-import { saveTextToTasks } from './base/filesApi.js'
+import { saveTextToTasks, toAbsoluteFileUrl } from './base/filesApi.js'
 import { useProviders, load as loadProviders } from './base/settings/providerStore.js'
 import { chatCompletions } from './base/chatApi.js'
 import { useNodePrefs } from './base/nodePrefs.js'
@@ -235,7 +235,7 @@ export default function TextNode({ id, data, selected }) {
             <div className="flex flex-wrap gap-2 mb-1">
               {refImages.map((img, i) => (
                 <div key={img.id || i} className="w-8 h-8 rounded overflow-hidden border border-blue-500/50 relative group bg-black" title="通过 @ 选中的素材">
-                  <img src={img.url} className="w-full h-full object-cover opacity-80" alt="素材" />
+                  <img src={toAbsoluteFileUrl(img.url)} className="w-full h-full object-cover opacity-80" alt="素材" />
                 </div>
               ))}
               {refTexts.map((t, i) => (

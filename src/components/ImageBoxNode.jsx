@@ -12,6 +12,7 @@ import { useConnectedInputs } from './base/useConnectedInputs.js'
 import { useMediaDegrade } from './base/useMediaDegrade.js'
 import LazyImage from './base/LazyImage.jsx'
 import { showToast } from './base/toastStore.js'
+import { toAbsoluteFileUrl } from './base/filesApi.js'
 
 /**
  * 图片盒子节点（复刻官方 Rg.jsx / imageBoxNode）。
@@ -668,7 +669,7 @@ export default function ImageBoxNode({ id, data, selected }) {
     {/* 放大查看大图 */}
     <FullscreenModal open={!!zoomView} title="查看大图" onClose={() => setZoomView(null)}>
       <div className="w-full h-full flex items-center justify-center bg-canvas">
-        {zoomView && <img src={zoomView} alt="大图" className="max-w-full max-h-full object-contain" draggable={false} />}
+        {zoomView && <img src={toAbsoluteFileUrl(zoomView)} alt="大图" className="max-w-full max-h-full object-contain" draggable={false} />}
       </div>
     </FullscreenModal>
     </>

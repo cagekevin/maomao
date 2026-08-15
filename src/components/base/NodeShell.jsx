@@ -122,7 +122,10 @@ export default function NodeShell({
   // 且 ExpandablePanel / HoverToolbar 是 absolute 定位于节点外（top-full / -top-12），
   // overflow-hidden 会把它们裁掉。背景层只需提供视觉外壳，不承担裁剪。
   // 必须是 flex flex-col：各节点内部主容器 div 用 flex-1 填满高度，依赖父级是 flex 容器。
-  const mainShellClassName = `w-full flex-1 min-h-0 flex flex-col bg-surface-raised rounded-xl border shadow-xl transition-colors duration-200 ${selected ? 'border-edge-strong' : 'border-edge hover:border-edge-muted'}`
+  // 主容器背景层：加 drag-handle cursor-move，让节点主体（内容区之外的空白/背景）可拖拽移动。
+  // 各节点内容区需去掉整块 nodrag，只给真正的交互控件（按钮/输入/textarea）标 nodrag，
+  // 否则内容区撑满主容器会把可拖区域盖住（只剩标题栏可拖）。
+  const mainShellClassName = `w-full flex-1 min-h-0 flex flex-col bg-surface-raised rounded-xl border shadow-xl transition-colors duration-200 drag-handle cursor-move ${selected ? 'border-edge-strong' : 'border-edge hover:border-edge-muted'}`
 
   // 订阅当前节点尺寸，用于根 div inline style
   const { width, height } = useNodeSize(id)

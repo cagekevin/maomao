@@ -99,7 +99,8 @@ export async function generateVideo({ provider, prompt, model, size, resolution,
   if (size && size !== 'Auto') genBody.size = size
   if (resolution) genBody.resolution = resolution
   if (seconds) genBody.duration = String(seconds)
-  const refImages = await resolveRefImages(images)
+  // refFormat:'base64' 的 provider（只认 base64 的后端）→ 参考图统一转 base64 再发
+  const refImages = await resolveRefImages(images, { preferBase64: provider?.refFormat === 'base64' })
   if (refImages.length > 0) genBody.image_urls = refImages
 
   const url = buildTargetUrl(provider, 'videos/generations')

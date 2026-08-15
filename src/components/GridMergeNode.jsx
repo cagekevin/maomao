@@ -8,6 +8,7 @@ import { useConnectedInputs } from './base/useConnectedInputs.js'
 import { useMediaDegrade } from './base/useMediaDegrade.js'
 import { useNodeResize } from './base/hooks.js'
 import { showToast } from './base/toastStore.js'
+import { toAbsoluteFileUrl } from './base/filesApi.js'
 
 /* ════════════════════════════════════════════════════════════════
  * 图片拼图节点（复刻官方 Yo.jsx / gridMergeNode）
@@ -409,7 +410,7 @@ export default function GridMergeNode({ id, data, selected }) {
             className="bg-canvas rounded border border-edge flex items-center justify-center relative overflow-hidden nodrag"
             style={{ minHeight: 160, maxHeight: 360 }}
           >
-            {preview && <img src={preview} alt="Preview" className="max-w-full max-h-[360px] object-contain block pointer-events-none" />}
+            {preview && <img src={toAbsoluteFileUrl(preview)} alt="Preview" className="max-w-full max-h-[360px] object-contain block pointer-events-none" />}
 
             {/* grid 模式：可拖拽 cell 网格层（复刻官方自由组合拼图） */}
             {mergeMode === 'grid' && (
@@ -477,7 +478,7 @@ export default function GridMergeNode({ id, data, selected }) {
                     >
                       {n && (
                         <>
-                          <img src={n} alt="" className="absolute inset-0 w-full h-full object-cover pointer-events-none" />
+                          <img src={toAbsoluteFileUrl(n)} alt="" className="absolute inset-0 w-full h-full object-cover pointer-events-none" />
                           <span className="absolute top-1 right-1 px-1 py-px rounded text-meta font-mono pointer-events-none ${isDragTo ? 'bg-blue-500 text-white' : 'bg-black/60 text-white/80'}">
                             {t + 1}
                           </span>
@@ -548,7 +549,7 @@ export default function GridMergeNode({ id, data, selected }) {
                       className={`relative rounded-[2px] overflow-hidden transition-all flex-1 cursor-grab active:cursor-grabbing ${isDragFrom ? 'opacity-30 ring-2 ring-blue-300' : ''} ${isDragTo ? 'ring-2 ring-blue-400 bg-blue-400/15' : ''}`}
                       style={{ minWidth: longDirection === 'horizontal' ? 40 : 0, minHeight: longDirection === 'vertical' ? 40 : 0 }}
                     >
-                      <img src={n} alt="" className="absolute inset-0 w-full h-full object-cover pointer-events-none" />
+                      <img src={toAbsoluteFileUrl(n)} alt="" className="absolute inset-0 w-full h-full object-cover pointer-events-none" />
                       <span className={`absolute m-1 px-1 py-px rounded text-meta font-mono pointer-events-none ${isDragTo ? 'bg-blue-500 text-white' : 'bg-black/60 text-white/80'}`}>
                         {t + 1}
                       </span>

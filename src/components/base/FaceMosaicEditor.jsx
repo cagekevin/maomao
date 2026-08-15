@@ -1,0 +1,249 @@
+import React, { useState, useRef, useEffect, useCallback } from 'react'
+import { createPortal } from 'react-dom'
+import { X, Check, Undo2, Redo2, RotateCcw, ScanFace, LayoutGrid, Ban, Grid3X3, Waves } from 'lucide-react'
+import { detectFaces, drawMosaicOnBox, MOSAIC_MODES, MOSAIC_PALETTE } from './faceMosaic.js'
+
+/**
+ * 人脸打码 · 手动编辑器（完整复刻官方 _Component55.jsx）。
+ *
+ * 全屏遮罩：加载图片到 canvas，用户拖拽框选要打码的区域，
+ * 也可「自动识别人脸」一键框出所有脸；支持撤销/重做/重置 + 模式/强度/颜色。
+ * 完成 → onSave(dataUrl)；取消 → onClose。
+ */
+export default function FaceMosaicEditor({ imageUrl, onSave, onClose }) {
+  const canvasRef = useRef(null)
+  const wrapRef = useRef(null)
+  const origImgRef = useRef(null) // 原始 Image（mosaic/blur 需要原图做像素源）
+  const historyRef = useRef([]) // getImageData 快照栈
+  const [mode, setMode] = useState('mosaic')
+  const [strength, setStrength] = useState(0.5)
+  const [color, setColor] = useState('#000000')
+  const [dims, setDims] = useState({ w: 0, h: 0 })
+  const [scale, setScale] = useState(1)
+  const [recognizing, setRecognizing] = useState(false)
+  const [dragStart, setDragStart] = useState(null)
+  const [dragBox, setDragBox] = useState(null)
+  const [histIdx, setHistIdx] = useState(0)
+
+  // 快照当前 canvas 入历史栈（复刻官方 D，用于撤销/重做）
+  const pushSnapshot = useCallback(() => {
+    const c = canvasRef.current
+    const ctx = c?.getContext('2d')
+    if (!c || !ctx) return
+    const data = ctx.getImageData(0, 0, c.width, c.height)
+    const next = historyRef.current.slice(0, histIdx + 1)
+    next.push(data)
+    historyRef.current = next
+    setHistIdx(next.length - 1)
+  }, [histIdx])
+
+  const restoreSnapshot = useCallback((i) => {
+    const c = canvasRef.current
+    const ctx = c?.getContext('2d')
+    if (!c || !ctx || !historyRef.current[i]) return
+    ctx.putImageData(historyRef.current[i], 0, 0)
+    setHistIdx(i)
+  }, [])
+
+  // 加载图片
+  useEffect(() => {
+    const img = new Image()
+    img.crossOrigin = 'anonymous'
+    img.onload = () => {
+      const c = canvasRef.current
+      const ctx = c?.getContext('2d')
+      if (!c || !ctx) return
+      c.width = img.naturalWidth
+      c.height = img.naturalHeight
+      ctx.drawImage(img, 0, 0)
+      origImgRef.current = img
+      setDims({ w: img.naturalWidth, h: img.naturalHeight })
+      historyRef.current = [ctx.getImageData(0, 0, c.width, c.height)]
+      setHistIdx(0)
+      // 缩放适配容器
+      const el = wrapRef.current
+      if (el) {
+        const scale = Math.min((el.clientWidth - 32) / img.naturalWidth, (el.clientHeight - 32) / img.naturalHeight, 1)
+        setScale(scale > 0 ? scale : 1)
+      }
+    }
+    img.onerror = () => onClose()
+    img.src = imageUrl
+  }, [imageUrl, onClose])
+
+  // 屏幕坐标 → 图片坐标（复刻官方 k）
+  const toCanvasPos = (cx, cy) => {
+    const rect = canvasRef.current.getBoundingClientRect()
+    const x = (cx - rect.left) / scale
+    const y = (cy - rect.top) / scale
+    return { x: Math.max(0, Math.min(dims.w, x)), y: Math.max(0, Math.min(dims.h, y)) }
+  }
+
+  const onPointerDown = (e) => {
+    const p = toCanvasPos(e.clientX, e.clientY)
+    setDragStart(p)
+    setDragBox({ x: p.x, y: p.y, w: 0, h: 0 })
+  }
+  const onPointerMove = (e) => {
+    if (!dragStart) return
+    const p = toCanvasPos(e.clientX, e.clientY)
+    setDragBox({ x: Math.min(dragStart.x, p.x), y: Math.min(dragStart.y, p.y), w: Math.abs(p.x - dragStart.x), h: Math.abs(p.y - dragStart.y) })
+  }
+  const onPointerUp = () => {
+    if (dragBox && dragBox.w > 4 && dragBox.h > 4) {
+      const c = canvasRef.current
+      const ctx = c?.getContext('2d')
+      const src = origImgRef.current
+      if (c && ctx && src) {
+        const box = { x: Math.round(dragBox.x), y: Math.round(dragBox.y), w: Math.round(dragBox.w), h: Math.round(dragBox.h) }
+        drawMosaicOnBox(ctx, mode === 'bar' || mode === 'grid' ? src : c, box, mode, strength, 'rect', color)
+        pushSnapshot()
+      }
+    }
+    setDragStart(null)
+    setDragBox(null)
+  }
+
+  const canUndo = histIdx > 0
+  const canRedo = histIdx < historyRef.current.length - 1
+
+  // 键盘快捷键（复刻官方 _Component55）：Ctrl+Z 撤销 / Ctrl+Shift+Z、Ctrl+Y 重做 / Esc 关闭
+  useEffect(() => {
+    const onKey = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+        e.preventDefault()
+        if (e.shiftKey) { if (canRedo) restoreSnapshot(histIdx + 1) }
+        else if (canUndo) restoreSnapshot(histIdx - 1)
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
+        e.preventDefault()
+        if (canRedo) restoreSnapshot(histIdx + 1)
+      } else if (e.key === 'Escape') {
+        onClose()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [canUndo, canRedo, histIdx, restoreSnapshot, onClose])
+
+  const autoDetect = async () => {
+    const c = canvasRef.current
+    const ctx = c?.getContext('2d')
+    const src = origImgRef.current
+    if (!c || !ctx || !src) return
+    setRecognizing(true)
+    try {
+      const boxes = await detectFaces(imageUrl)
+      if (boxes.length === 0) return
+      const shape = mode === 'mosaic' || mode === 'blur' ? 'ellipse' : 'rect'
+      for (const b of boxes) {
+        drawMosaicOnBox(ctx, mode === 'bar' || mode === 'grid' ? src : c, b, mode, strength, shape, color)
+      }
+      pushSnapshot()
+    } finally {
+      setRecognizing(false)
+    }
+  }
+
+  return createPortal(
+    <div className="fixed inset-0 z-[9999] bg-black/80 flex flex-col" onClick={onClose}>
+      {/* 顶栏 */}
+      <div className="flex items-center justify-between px-4 py-2.5 bg-[#1c1c1c] border-b border-[#333]" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center gap-2">
+          <span className="text-[13px] text-gray-200 font-medium">人脸打码 · 手动编辑</span>
+          <span className="text-[11px] text-gray-500">在图上拖拽框选要打码的区域</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <button onClick={onClose} className="flex items-center gap-1 px-2.5 h-7 rounded-md text-[12px] text-gray-300 bg-[#2a2a2a] hover:bg-[#333] border border-[#333] cursor-pointer border-none">
+            <X size={13} /> 取消
+          </button>
+          <button
+            onClick={() => { const c = canvasRef.current; if (c) onSave(c.toDataURL('image/png')) }}
+            className="flex items-center gap-1 px-3 h-7 rounded-md text-[12px] font-medium bg-white text-[#141414] hover:bg-gray-200 cursor-pointer border-none"
+          >
+            <Check size={13} /> 完成
+          </button>
+        </div>
+      </div>
+
+      {/* 工具条 */}
+      <div className="flex items-center gap-2 px-4 py-2 bg-[#181818] border-b border-[#2a2a2a] flex-wrap" onClick={(e) => e.stopPropagation()}>
+        {MOSAIC_MODES.map((m) => (
+          <button
+            key={m.mode}
+            onClick={() => setMode(m.mode)}
+            className={`flex items-center gap-1 px-2.5 h-7 rounded-md text-[12px] border transition-colors cursor-pointer ${mode === m.mode ? 'bg-blue-600 text-white border-blue-500' : 'text-gray-300 bg-[#2a2a2a] hover:bg-[#333] border-[#333]'}`}
+          >
+            <ModeIcon mode={m.mode} size={13} /> {m.label}
+          </button>
+        ))}
+        {mode !== 'bar' && (
+          <label className="flex items-center gap-1.5 text-[11px] text-gray-400 ml-1">
+            {mode === 'grid' ? '密度' : '程度'}
+            <input type="range" min={0} max={1} step={0.05} value={strength} onChange={(e) => setStrength(Number(e.target.value))} className="accent-blue-500 w-28" />
+          </label>
+        )}
+        {(mode === 'bar' || mode === 'grid') && (
+          <>
+            <div className="w-px h-5 bg-[#333] mx-1" />
+            <div className="flex items-center gap-1">
+              {MOSAIC_PALETTE.map((c) => (
+                <button
+                  key={c}
+                  onClick={() => setColor(c)}
+                  className={`w-4 h-4 rounded-full border border-[#333] cursor-pointer ${color === c ? 'ring-2 ring-blue-500 ring-offset-1 ring-offset-[#181818]' : ''}`}
+                  style={{ backgroundColor: c }}
+                  title={c}
+                />
+              ))}
+            </div>
+          </>
+        )}
+        <div className="w-px h-5 bg-[#333] mx-1" />
+        <button onClick={autoDetect} disabled={recognizing} className="flex items-center gap-1 px-2.5 h-7 rounded-md text-[12px] text-gray-300 bg-[#2a2a2a] hover:bg-[#333] border border-[#333] disabled:opacity-40 cursor-pointer">
+          <ScanFace size={13} /> {recognizing ? '识别中…' : '自动识别人脸'}
+        </button>
+        <button onClick={() => canUndo && restoreSnapshot(histIdx - 1)} disabled={!canUndo} className="flex items-center gap-1 px-2 h-7 rounded-md text-[12px] text-gray-300 bg-[#2a2a2a] hover:bg-[#333] border border-[#333] disabled:opacity-40 cursor-pointer" title="撤销 (Ctrl+Z)">
+          <Undo2 size={14} />
+        </button>
+        <button onClick={() => canRedo && restoreSnapshot(histIdx + 1)} disabled={!canRedo} className="flex items-center gap-1 px-2 h-7 rounded-md text-[12px] text-gray-300 bg-[#2a2a2a] hover:bg-[#333] border border-[#333] disabled:opacity-40 cursor-pointer" title="前进 (Ctrl+Shift+Z)">
+          <Redo2 size={14} />
+        </button>
+        <button onClick={() => canUndo && restoreSnapshot(0)} disabled={!canUndo} className="flex items-center gap-1 px-2 h-7 rounded-md text-[12px] text-gray-300 bg-[#2a2a2a] hover:bg-[#333] border border-[#333] disabled:opacity-40 cursor-pointer" title="重置">
+          <RotateCcw size={14} />
+        </button>
+      </div>
+
+      {/* 画布区 */}
+      <div ref={wrapRef} className="flex-1 overflow-auto flex items-center justify-center p-4" onClick={(e) => e.stopPropagation()}>
+        <div className="relative" style={{ width: dims.w * scale, height: dims.h * scale }}>
+          <canvas
+            ref={canvasRef}
+            onPointerDown={onPointerDown}
+            onPointerMove={onPointerMove}
+            onPointerUp={onPointerUp}
+            onPointerLeave={onPointerUp}
+            style={{ width: dims.w * scale, height: dims.h * scale, cursor: 'crosshair', touchAction: 'none' }}
+            className="block bg-[#111]"
+          />
+          {dragBox && (
+            <div
+              className="absolute border-2 border-blue-400 bg-blue-400/20 pointer-events-none"
+              style={{ left: dragBox.x * scale, top: dragBox.y * scale, width: dragBox.w * scale, height: dragBox.h * scale }}
+            />
+          )}
+        </div>
+      </div>
+    </div>,
+    document.body
+  )
+}
+
+function ModeIcon({ mode, size }) {
+  switch (mode) {
+    case 'mosaic': return <LayoutGrid size={size} />
+    case 'bar': return <Ban size={size} />
+    case 'grid': return <Grid3X3 size={size} />
+    case 'blur': return <Waves size={size} />
+    default: return <LayoutGrid size={size} />
+  }
+}

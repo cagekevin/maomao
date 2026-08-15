@@ -1,15 +1,20 @@
 import React, { memo, useRef, useState, useEffect } from 'react'
+import { toAbsoluteFileUrl } from './filesApi.js'
 
 /**
  * 懒加载图片（复刻官方 Lg.jsx）
  * 外层用 div 占位，IntersectionObserver（rootMargin 120px）判断进入视口附近
  * 才真正挂载 <img>，避免大画布多图节点一次性解码全部图片。
  *
+ * 读取端破图兜底：src 若是相对 /files/ 路径（后端外置/存量数据），统一补全为
+ * 绝对 URL，避免在画布环境（localhost:5180 / chrome-extension://）解析成错误源破图。
+ *
  * props：
  *  - src, alt, className, onDoubleClick（透传给外层 div）
  *  - imgClassName：img 内部类名（默认 w-full h-full object-cover）
  */
 function LazyImage({ src, alt = '', className, onDoubleClick, imgClassName = 'w-full h-full object-cover' }) {
+  const resolvedSrc = toAbsoluteFileUrl(src || '')
   const ref = useRef(null)
   const [visible, setVisible] = useState(false)
 
@@ -35,8 +40,8 @@ function LazyImage({ src, alt = '', className, onDoubleClick, imgClassName = 'w-
 
   return (
     <div ref={ref} className={className} onDoubleClick={onDoubleClick}>
-      {visible && src ? (
-        <img src={src} alt={alt || ''} loading="lazy" decoding="async" draggable={false} className={imgClassName} onDragStart={(e) => e.preventDefault()} />
+      {visible && resolvedSrc ? (
+        <img src={resolvedSrc} alt={alt || ''} loading="lazy" decoding="async" draggable={false} className={imgClassName} onDragStart={(e) => e.preventDefault()} />
       ) : null}
     </div>
   )

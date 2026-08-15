@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react'
 import { Search, Filter, MoreVertical, Copy, Play, RotateCw, Trash2, X, RefreshCw, ChevronDown, Download, Image as ImageIcon } from 'lucide-react'
 import { useTasks, statusDotClass, statusLabel, typeLabel, removeTask, retryTask, clearTasksBy, clearAllTasks } from './taskStore.js'
 import { showToast } from './toastStore.js'
+import { makeAssetDragProps } from './useAssetDragToCanvas.js'
 
 const TYPE_ICON = {
   image: ImageIcon,
@@ -147,11 +148,7 @@ export default function TaskCenter() {
             <img
               src={previewUrl}
               alt="预览"
-              draggable
-              onDragStart={(e) => {
-                // 拖到画布时复用「URL 文本拖入」通道（useAssetDropPaste.onDrop → isAssetUrl → imageNode）
-                try { e.dataTransfer.setData('text/plain', previewUrl); e.dataTransfer.effectAllowed = 'copy' } catch { /* ignore */ }
-              }}
+              {...makeAssetDragProps({ url: previewUrl, name: '预览', type: 'image' })}
               className="max-h-[80vh] max-w-full rounded-lg object-contain cursor-grab active:cursor-grabbing"
               onLoad={(e) => {
                 const el = e.currentTarget
@@ -300,11 +297,7 @@ function TaskCard({ task, moreOpen, onToggleMore, onCopy, onRetry, onRemove, onP
             <img
               src={task.resultUrl}
               alt={task.modelName || '结果图'}
-              draggable
-              onDragStart={(e) => {
-                // 拖到画布时复用「URL 文本拖入」通道 → imageNode
-                try { e.dataTransfer.setData('text/plain', task.resultUrl); e.dataTransfer.effectAllowed = 'copy' } catch { /* ignore */ }
-              }}
+              {...makeAssetDragProps({ url: task.resultUrl, name: task.modelName || '结果图', type: task.type })}
               onLoad={(e) => {
                 const el = e.currentTarget
                 if (el.naturalWidth && el.naturalHeight) setThumbDims({ w: el.naturalWidth, h: el.naturalHeight })

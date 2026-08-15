@@ -4,6 +4,9 @@ import { useLocalToolStatus } from './useLocalToolStatus.js'
 import { fetchResources, rescanResources, deleteResource, renameResource, openLocalFolder, openFileDir, relativePathFromUrl } from './resourcesApi.js'
 import { showToast } from './toastStore.js'
 import { API_BASE } from './apiBase.js'
+import { useAssetDragToCanvas, fetchText } from './useAssetDragToCanvas.js'
+import { toAbsoluteFileUrl } from './filesApi.js'
+import { isAudio } from './mediaType.js'
 
 // 类型过滤 pill（沿用素材库 AssetLibrary 的小圆按钮形式）
 const TYPE_FILTERS = [
@@ -22,23 +25,7 @@ const TYPE_BADGE = {
 
 const PAGE_SIZE = 20 // 每次加载 20 个，点击翻页（对齐官方 Un.jsx 默认 pageSize:20）
 
-// 文本内容缓存（避免滚动时重复 fetch）
-const textCache = new Map()
-function fetchText(url) {
-  if (textCache.has(url)) return Promise.resolve(textCache.get(url))
-  return fetch(url)
-    .then((r) => (r.ok ? r.text() : ''))
-    .then((t) => {
-      textCache.set(url, t)
-      return t
-    })
-    .catch(() => '')
-}
-
-function isAudio(type, url) {
-  return type === 'audio' || (type && type.startsWith('audio')) || /\.(flac|mp3|wav|ogg|m4a|aac|opus|wma|aiff)(\?|$)/i.test(url || '')
-}
-
+// fetchText/textCache 统一收敛到 useAssetDragToCanvas.js；isAudio 统一到 mediaType.js
 // 文字资源单元格：默认展示文件内容（前几行）
 function TextResourceCell({ url, name }) {
   const [text, setText] = useState('')
@@ -237,19 +224,8 @@ export default function GeneratedView() {
     setFolder(parent)
   }, [folder])
 
-  // 拖到画布建节点（与素材库一致）：图片/视频/音频 → imageNode，文字 → textNode
-  const onDragStart = (e, a) => {
-    if (a.type === 'folder') return
-    const text = textCache.get(a.url)
-    e.dataTransfer.setData('application/x-yimao-asset', JSON.stringify({ url: a.url, name: a.name, type: a.type, text }))
-    e.dataTransfer.effectAllowed = 'copy'
-    // 文字内容异步补全（dataTransfer 在拖拽期间可多次 setData）
-    if (a.type === 'text' && !text) {
-      fetchText(a.url).then((t) => {
-        if (t) e.dataTransfer.setData('application/x-yimao-asset', JSON.stringify({ url: a.url, name: a.name, type: a.type, text: t }))
-      })
-    }
-  }
+  // 拖到画布建节点：统一走 useAssetDragToCanvas（图片/视频/音频 → imageNode，文字 → textNode）
+  const { assetDragProps } = useAssetDragToCanvas()
 
   return (
     <div className="h-full flex flex-col overflow-hidden relative">
@@ -380,8 +356,7 @@ export default function GeneratedView() {
                 return (
                   <div
                     key={a.id}
-                    draggable={!isFolder}
-                    onDragStart={(e) => onDragStart(e, a)}
+                    {...assetDragProps(a, { disable: isFolder })}
                     className={`group relative aspect-square bg-surface-deep rounded-xl overflow-hidden transition-colors ${isFolder ? 'border border-edge cursor-pointer hover:border-[#4a4a4a]' : 'border border-[#242424] hover:border-edge-raised cursor-grab active:cursor-grabbing'}`}
                     onClick={() => {
                       if (isFolder) setFolder(folder === 'tasks' ? `tasks/${a.name}` : `${folder}/${a.name}`)
@@ -493,7 +468,8 @@ export default function GeneratedView() {
                 <audio src={preview.url} controls className="w-full" />
               </div>
             ) : (
-              <img src={preview.url} alt={preview.name} className="max-h-[75vh] max-w-full rounded-lg object-contain" />
+              <img src={toAbsoluteFileUrl(preview.url)} alt={preview.name} {...assetDragProps({ url: toAbsoluteFileUrl(preview.url), name: preview.name, type: preview.type })}
+                className="max-h-[75vh] max-w-full rounded-lg object-contain cursor-grab active:cursor-grabbing" />
             )}
             <p className="text-xs text-muted m-0">{preview.name} · {preview.folder}</p>
             <button className="px-4 py-1.5 rounded-lg bg-surface-hover text-body hover:bg-surface-hover-strong text-xs cursor-pointer border-none" onClick={() => setPreview(null)}>关闭</button>

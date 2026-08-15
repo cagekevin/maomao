@@ -86,6 +86,42 @@ function renderIcon(icon, size = 16, className = '') {
   return React.createElement(icon, { size, className })
 }
 
+// 渲染小工具面板里的单个节点项（支持尾随图钉，复刻 H_.jsx:12317-12335）
+function renderToolLeaf(child, onClose) {
+  return (
+    <div
+      key={child.key}
+      className="group/titem flex items-center rounded-lg hover:bg-white/10 transition-colors"
+    >
+      <button
+        className="flex-1 min-w-0 flex items-center rounded-lg px-2.5 py-1.5 text-body-sm text-gray-200 hover:text-white text-left gap-2"
+        onClick={(e) => {
+          e.stopPropagation()
+          child.onClick?.(e)
+          if (child.closeOnClick !== false) onClose()
+        }}
+      >
+        {renderIcon(child.icon, 15, 'text-white shrink-0')}
+        <span className="truncate">{child.label}</span>
+        {child.badge && (
+          <span className={`rounded px-1 py-0.5 text-2xs font-semibold ${child.badge.tone === 'new' ? 'bg-emerald-500/20 text-emerald-300' : 'bg-fuchsia-500/20 text-fuchsia-300'}`}>
+            {child.badge.text}
+          </span>
+        )}
+      </button>
+      {/* 尾随插槽：官方图钉「固定到右键菜单」/ 其他操作按钮 */}
+      {child.trailing && (
+        <span
+          className="shrink-0 flex items-center"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {typeof child.trailing === 'function' ? child.trailing() : child.trailing}
+        </span>
+      )}
+    </div>
+  )
+}
+
 // 渲染菜单项（支持 divider / submenu）
 function renderItems(items, onClose) {
   return (items || []).map((item, index) => {
@@ -119,6 +155,9 @@ function renderItems(items, onClose) {
       )
     }
     // 分组子菜单（item.items）：渲染为带标题的小工具面板（复刻 H_.jsx:12301-12340 的 vi/_i）
+    // items 支持两种形态：
+    //   - 普通节点项 [{key, icon, label, badge, onClick, trailing}] → 直接网格
+    //   - 分类块     [{key, label, items:[节点项]}]（child 带 items）→ 每块一个标题 + 内部节点网格
     if (item.items && item.items.length) {
       return (
         <div key={item.key} className="relative group/tools">
@@ -127,35 +166,33 @@ function renderItems(items, onClose) {
             onClick={(e) => e.stopPropagation()}
           >
             <span className="flex items-center gap-2">
+              {renderIcon(item.icon, 13)}
               <span>{item.label}</span>
             </span>
             <span className="text-xl text-gray-400 leading-none">›</span>
           </button>
           {/* 分组子菜单（工具面板）：同样 group-hover 展开 + before 桥防抖（见上一条注释） */}
           <div
-            className={`absolute left-full top-0 ml-2 bg-surface-menu border border-white/[0.04] rounded-2xl shadow-popover p-2 w-[300px] z-dropdown hidden group-hover/tools:block before:content-[''] before:absolute before:-left-3 before:top-0 before:w-3 before:h-full`}
+            className={`absolute left-full top-0 ml-2 bg-surface-menu border border-white/[0.04] rounded-2xl shadow-popover p-2 w-[360px] z-dropdown hidden group-hover/tools:block before:content-[''] before:absolute before:-left-3 before:top-0 before:w-3 before:h-full`}
           >
-            <div className="grid grid-cols-2 gap-0.5">
-              {item.items.map((child) => (
-                <button
-                  key={child.key}
-                  className="flex items-center rounded-lg hover:bg-white/10 transition-colors px-2.5 py-1.5 text-body-sm text-gray-200 hover:text-white text-left gap-2"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    child.onClick?.(e)
-                    if (child.closeOnClick !== false) onClose()
-                  }}
-                >
-                  {renderIcon(child.icon, 15, 'text-white shrink-0')}
-                  <span className="truncate">{child.label}</span>
-                  {child.badge && (
-                    <span className={`rounded px-1 py-0.5 text-2xs font-semibold ${child.badge.tone === 'new' ? 'bg-emerald-500/20 text-emerald-300' : 'bg-fuchsia-500/20 text-fuchsia-300'}`}>
-                      {child.badge.text}
-                    </span>
-                  )}
-                </button>
-              ))}
-            </div>
+            {/* 提示行（复刻 H_.jsx:12301「勾选可固定到右键菜单」） */}
+            <div className="px-1 pb-1 text-2xs text-gray-500">勾选可固定到右键菜单</div>
+            {item.items.map((child) =>
+              child.items && child.items.length ? (
+                // 分类块：标题 + 内部节点网格
+                <div key={child.key} className="mb-1.5 last:mb-0">
+                  <div className="px-1 py-1 text-2xs text-gray-500">{child.label}</div>
+                  <div className="grid grid-cols-2 gap-0.5">
+                    {child.items.map((leaf) => renderToolLeaf(leaf, onClose))}
+                  </div>
+                </div>
+              ) : (
+                // 扁平节点列表
+                <div key={child.key} className="grid grid-cols-2 gap-0.5">
+                  {child.items ? null : renderToolLeaf(child, onClose)}
+                </div>
+              )
+            )}
           </div>
         </div>
       )

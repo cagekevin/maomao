@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { useStore } from '@xyflow/react'
 import { collectAssets } from './scriptBoxPrompts.js'
+import { toAbsoluteFileUrl } from './filesApi.js'
 
 /**
  * ════════════════════════════════════════════════════════════════
@@ -166,6 +167,9 @@ export function useConnectedInputs(nodeId) {
         out.videos.push(...r.videos)
         out.audios.push(...r.audios)
       })
+    // 读取端兜底：上游图片 URL 统一补全相对 /files/ 路径为绝对 URL，
+    // 下游所有引用 connected.images[].url 的 <img> 自动拿到可访问地址（刷新不破图）。
+    out.images = out.images.map((im) => (im && im.url ? { ...im, url: toAbsoluteFileUrl(im.url) } : im))
     return out
   }, [nodeId, nodes, edges])
 }

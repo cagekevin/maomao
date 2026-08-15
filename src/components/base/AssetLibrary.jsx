@@ -4,6 +4,9 @@ import { useLocalToolStatus } from './useLocalToolStatus.js'
 import { fetchResources, rescanResources, deleteResource, renameResource, openLocalFolder, openFileDir, relativePathFromUrl } from './resourcesApi.js'
 import { showToast } from './toastStore.js'
 import { API_BASE } from './apiBase.js'
+import { useAssetDragToCanvas, fetchText } from './useAssetDragToCanvas.js'
+import { toAbsoluteFileUrl } from './filesApi.js'
+import { isAudio } from './mediaType.js'
 
 // 目录 pill（folder 前缀对齐本地磁盘 migrated/materials 结构，与后端 /api/resources 一一对应）
 const FOLDER_PILLS = [
@@ -23,23 +26,7 @@ const TYPE_BADGE = {
 
 const PAGE_SIZE = 20 // 每次加载 20 个，无限滚动追加
 
-// 文本内容缓存（避免滚动时重复 fetch）
-const textCache = new Map()
-function fetchText(url) {
-  if (textCache.has(url)) return Promise.resolve(textCache.get(url))
-  return fetch(url)
-    .then((r) => (r.ok ? r.text() : ''))
-    .then((t) => {
-      textCache.set(url, t)
-      return t
-    })
-    .catch(() => '')
-}
-
-function isAudio(type, url) {
-  return type === 'audio' || (type && type.startsWith('audio')) || /\.(flac|mp3|wav|ogg|m4a|aac|opus|wma|aiff)(\?|$)/i.test(url || '')
-}
-
+// fetchText/textCache 统一收敛到 useAssetDragToCanvas.js；isAudio 统一到 mediaType.js
 // 文字素材单元格：默认展示文件内容（前几行）
 function TextAssetCell({ url, name }) {
   const [text, setText] = useState('')
@@ -270,18 +257,7 @@ export default function AssetLibrary() {
     return false
   }
 
-  const onDragStart = (e, a) => {
-    // 素材拖到画布：写自定义 MIME，画布 onDrop 按 type 建节点（text→textNode，其它→imageNode）
-    const text = textCache.get(a.url)
-    e.dataTransfer.setData('application/x-yimao-asset', JSON.stringify({ url: a.url, name: a.name, type: a.type, text }))
-    e.dataTransfer.effectAllowed = 'copy'
-    // 文字内容异步补全（dataTransfer 在拖拽期间可多次 setData）
-    if (a.type === 'text' && !text) {
-      fetchText(a.url).then((t) => {
-        if (t) e.dataTransfer.setData('application/x-yimao-asset', JSON.stringify({ url: a.url, name: a.name, type: a.type, text: t }))
-      })
-    }
-  }
+  const { assetDragProps } = useAssetDragToCanvas()
 
   return (
     <div className="h-full flex flex-col overflow-hidden relative" onDragOver={(e) => { e.preventDefault(); setDragOver(true) }} onDragLeave={() => setDragOver(false)} onDrop={onDrop}>
@@ -406,8 +382,7 @@ export default function AssetLibrary() {
                 return (
                   <div
                     key={a.id}
-                    draggable={!isFolder}
-                    onDragStart={(e) => { if (!isFolder) onDragStart(e, a) }}
+                    {...assetDragProps(a, { disable: isFolder })}
                     className={`group relative aspect-square bg-surface rounded-xl overflow-hidden transition-colors ${isFolder ? 'border border-edge cursor-pointer hover:border-[#4a4a4a]' : 'border border-[#242424] cursor-grab active:cursor-grabbing hover:border-edge-raised'}`}
                     onClick={() => {
                       if (isFolder) setFolder(currentFolder === 'migrated' ? `migrated/${a.name}` : `${currentFolder}/${a.name}`)
@@ -506,7 +481,7 @@ export default function AssetLibrary() {
                 <audio src={preview.url} controls className="w-full" />
               </div>
             ) : (
-              <img src={preview.url} alt={preview.name} className="max-h-[75vh] max-w-full rounded-lg object-contain" />
+              <img src={toAbsoluteFileUrl(preview.url)} alt={preview.name} className="max-h-[75vh] max-w-full rounded-lg object-contain" />
             )}
             <p className="text-xs text-muted m-0">{preview.name} · {preview.folder}</p>
             <button className="px-4 py-1.5 rounded-lg bg-surface-hover text-body hover:bg-surface-hover-strong text-xs cursor-pointer border-none" onClick={() => setPreview(null)}>关闭</button>

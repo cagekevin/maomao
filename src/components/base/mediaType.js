@@ -54,3 +54,13 @@ export function detectFileType(file) {
 export function isAssetUrl(url) {
   return typeof url === 'string' && (url.startsWith('http') || url.startsWith('data:') || url.startsWith('blob:'))
 }
+
+/**
+ * 判断是否为音频素材（type 字段或 URL 扩展名）。
+ * 收敛 AssetLibrary / GeneratedView 各自重复的实现，统一放这里。
+ * @param {string} [type] 素材 type（如 'audio'）
+ * @param {string} [url] 素材 URL（按扩展名兜底）
+ */
+export function isAudio(type, url) {
+  return type === 'audio' || (type && type.startsWith('audio')) || /\.(flac|mp3|wav|ogg|m4a|aac|opus|wma|aiff)(\?|$)/i.test(url || '')
+}

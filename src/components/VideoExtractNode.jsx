@@ -6,6 +6,7 @@ import { useConnectedInputs } from './base/useConnectedInputs.js'
 import { useMediaDegrade } from './base/useMediaDegrade.js'
 import { showToast } from './base/toastStore.js'
 import { sSet } from './base/storageAdapter.js'
+import { toAbsoluteFileUrl } from './base/filesApi.js'
 
 /**
  * 视频抽帧节点（复刻官方 ec.jsx / videoExtractNode）。
@@ -347,7 +348,7 @@ export default function VideoExtractNode({ id, data, selected }) {
         {/* 内容+底部 一体容器（对齐官方 Component1462） */}
         <div className="flex-1 flex flex-col overflow-hidden relative">
           {/* 内容区（对齐官方 Component1428） */}
-          <div className="flex-1 bg-surface-black p-4 overflow-y-auto relative border-b border-edge-faint custom-scrollbar nowheel nopan nodrag flex flex-col gap-4">
+          <div className="flex-1 bg-surface-black p-4 overflow-y-auto relative border-b border-edge-faint custom-scrollbar nowheel nopan flex flex-col gap-4">
             {extractedImages.length > 0 && (
               <button
                 onClick={copyAll}
@@ -424,7 +425,7 @@ export default function VideoExtractNode({ id, data, selected }) {
                       key={idx}
                       className="aspect-video bg-black rounded-lg border relative group/img border-edge overflow-hidden"
                     >
-                      <img src={img} loading="lazy" decoding="async" className="w-full h-full object-cover" />
+                      <img src={toAbsoluteFileUrl(img)} loading="lazy" decoding="async" className="w-full h-full object-cover" />
                       <div className="absolute inset-0 bg-black/60 opacity-0 group-hover/img:opacity-100 transition-opacity flex items-center justify-center gap-3">
                         <button
                           onClick={(e) => { e.stopPropagation(); copySingle(img) }}

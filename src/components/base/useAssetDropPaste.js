@@ -3,6 +3,7 @@ import { detectFileType, isAssetUrl } from './mediaType.js'
 import { isEditableTarget } from './hooks.js'
 import { sanitizePastedText } from './clipboard.js'
 import { showToast } from './toastStore.js'
+import { uploadFileToLocal } from './filesApi.js'
 
 /**
  * 画布素材「拖入 + 粘贴」hook（复刻官方 H_.jsx:10201-10350 onDragOver ki / onDrop Ai + handlePaste）。
@@ -65,13 +66,23 @@ export function useAssetDropPaste({ addNode, screenToFlowPosition, onPasteNodeGr
         return
       }
       if (type === 'other' || type === 'empty') return
-      // 图片/视频/音频：读 dataURL → imageNode（ImageNode 自动识别类型展示）
-      const fr = new FileReader()
-      fr.onload = () => {
-        addNode('imageNode', pos, { imageUrl: fr.result, label: file.name })
-        showToast(`已导入${type === 'image' ? '图片' : type === 'video' ? '视频' : '音频'}「${file.name}」`)
-      }
-      fr.readAsDataURL(file)
+      // 图片/视频/音频：优先直接上传 localTool 成 /files/ URL（对齐官方 H_.jsx onDrop hi(file)），
+      // 避免把大视频 dataURL 塞进画布快照导致刷新丢失；上传失败（localTool 离线等）才 fallback 到 dataURL。
+      ;(async () => {
+        const url = await uploadFileToLocal(file, 'canvas/drop')
+        if (url) {
+          addNode('imageNode', pos, { imageUrl: url, label: file.name })
+          showToast(`已导入${type === 'image' ? '图片' : type === 'video' ? '视频' : '音频'}「${file.name}」`)
+          return
+        }
+        // 上传失败 → fallback 读 dataURL 建节点（刷新可依赖 KV 自动外置兜底）
+        const fr = new FileReader()
+        fr.onload = () => {
+          addNode('imageNode', pos, { imageUrl: fr.result, label: file.name })
+          showToast(`已导入${type === 'image' ? '图片' : type === 'video' ? '视频' : '音频'}「${file.name}」`)
+        }
+        fr.readAsDataURL(file)
+      })()
     },
     [addNode]
   )
@@ -187,7 +198,8 @@ export function useAssetDropPaste({ addNode, screenToFlowPosition, onPasteNodeGr
     [createNodeFromFile, addNode, pastePos]
   )
 
-  return { onDragOver, onDrop, onPaste }
+  // createNodeFromFile 供右键菜单「上传」复用（对齐官方 Re.current 隐藏 file input → 建素材节点）
+  return { onDragOver, onDrop, onPaste, createNodeFromFile }
 }
 
 /**

@@ -4,6 +4,7 @@ import {
   Box, Eye, EyeOff, Lock, Unlock, Brush, Trash2,
   ChevronsUp, ChevronUp, ChevronDown, ChevronsDown, Maximize, X
 } from 'lucide-react'
+import { toAbsoluteFileUrl } from './filesApi.js'
 
 /* ════════════════════════════════════════════════════════════════
  * 叠加图层编辑器（复刻官方 Uo.jsx，图片拼图 overlay 模式）
@@ -620,7 +621,7 @@ export default function OverlayEditor({ state, onChange, upstreamUrls }) {
           }}
         >
           {/* 合成预览图（object-fill 铺满画布） */}
-          {preview && <img src={preview} alt="Preview" className="absolute inset-0 w-full h-full object-fill pointer-events-none" />}
+          {preview && <img src={toAbsoluteFileUrl(preview)} alt="Preview" className="absolute inset-0 w-full h-full object-fill pointer-events-none" />}
 
           {/* 透明图层选择框（平时透明，选中时蓝色；不承载图片，只做选中/拖动/手柄） */}
           {!paintLayerId &&
@@ -790,7 +791,7 @@ export default function OverlayEditor({ state, onChange, upstreamUrls }) {
                 <button className="text-gray-400 hover:text-white cursor-pointer" onClick={(e) => { e.stopPropagation(); updateLayer(layer.id, { locked: !layer.locked }) }} title="锁定">
                   {layer.locked ? <Lock size={11} /> : <Unlock size={11} />}
                 </button>
-                <img src={layer.imageUrl} alt="" className="w-6 h-6 object-cover rounded pointer-events-none" />
+                <img src={toAbsoluteFileUrl(layer.imageUrl)} alt="" className="w-6 h-6 object-cover rounded pointer-events-none" />
                 <span className="flex-1 truncate text-gray-300">图层 {layer.zIndex}</span>
                 <button className="text-gray-400 hover:text-orange-300 cursor-pointer" onClick={(e) => { e.stopPropagation(); setPaintLayerId(layer.id); setSelectedId(layer.id) }} title="涂抹擦除"><Brush size={11} /></button>
                 <button className="text-gray-400 hover:text-red-300 cursor-pointer" onClick={(e) => { e.stopPropagation(); removeLayer(layer.id) }} title="删除"><Trash2 size={11} /></button>

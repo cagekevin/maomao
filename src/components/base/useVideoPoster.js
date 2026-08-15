@@ -26,6 +26,10 @@ export function useVideoPoster(url, enabled) {
     v.preload = 'metadata'
     v.muted = true
     v.playsInline = true
+    // 对跨域 URL（如 localTool 的 http://127.0.0.1:18080/files/...）必须设 anonymous，
+    // 否则 canvas 抓帧会被「Tainted canvases」污染导致 toDataURL 抛错、封面失败。
+    // localTool 已返回 Access-Control-Allow-Origin:*；dataURL 同源加此属性无副作用。
+    if (typeof url === 'string' && url.startsWith('http')) v.crossOrigin = 'anonymous'
     v.onloadeddata = () => {
       try { v.currentTime = 0.05 /* 微调到首帧，部分视频首帧是黑的 */ } catch {}
     }

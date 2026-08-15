@@ -697,9 +697,10 @@ export default function VideoProcessNode({ id, data, selected }) {
         ns.concat([
           {
             id: nid,
-            type: 'discountVideoNode',
+            type: 'imageNode',
             position: { x: baseX, y: baseY },
-            data: { videoUrl: url, label: name, expanded: true, prompt: '' },
+            // mediaType:'video'：blob 视频 URL 无扩展名/前缀，靠显式类型让 imageNode 正确渲染视频
+            data: { imageUrl: url, mediaType: 'video', label: name, expanded: true },
             style: { width: 420, height: 380 }
           }
         ])

@@ -1,7 +1,7 @@
 import React, { useState, useRef, useCallback } from 'react'
 import {
   Image as ImageIcon, Video, Music, FileText, Plus, Crop,
-  Pencil, Send, Download, Play
+  Pencil, Send, Download, Play, FileArchive
 } from 'lucide-react'
 import { useReactFlow } from '@xyflow/react'
 import NodeShell from './base/NodeShell.jsx'
@@ -12,6 +12,9 @@ import { detectMediaType } from './base/mediaType.js'
 import { useMediaDegrade } from './base/useMediaDegrade.js'
 import { useFitNodeRatio } from './base/useFitNodeRatio.js'
 import { useVideoPoster } from './base/useVideoPoster.js'
+import { toAbsoluteFileUrl, saveInlineToLocal } from './base/filesApi.js'
+import { compressImage } from './base/imageCompress.js'
+import { showToast } from './base/toastStore.js'
 
 /**
  * 图片节点（复刻原 xi.jsx / imageNode）
@@ -29,7 +32,8 @@ import { useVideoPoster } from './base/useVideoPoster.js'
 export default function ImageNode({ id, data, selected }) {
   const fileRef = useRef(null)
   const videoRef = useRef(null) // 播放视频元素（大播放按钮手势触发的 play() 用）
-  const url = data.imageUrl || data.url || ''
+  // 读取端兜底：相对 /files/ 路径统一补全为绝对 URL，刷新不破图
+  const url = toAbsoluteFileUrl(data.imageUrl || data.url || '') || ''
   const { setNodes } = useReactFlow()
 
   // 编辑器开合（复刻官方：同一编辑器，initialTool 决定入口工具）。null=关闭。
@@ -90,6 +94,37 @@ export default function ImageNode({ id, data, selected }) {
     a.remove()
   }, [url, data.label, type])
 
+  // 压缩中状态（按钮显示 loading，防重复点击）
+  const [compressing, setCompressing] = useState(false)
+
+  // hover「压缩」：点一下自动压缩图片，并原位覆盖（写回 data.imageUrl，节点位置不变）。
+  // 默认参数 quality 0.8（压缩 80%）走 imageCompress.js；写回后落盘 localTool，
+  // 避免 data: base64 刷新丢失（对齐 handleEditorSave 原位覆盖语义）。
+  const handleCompress = useCallback(async () => {
+    if (!url || type !== 'image' || compressing) return
+    setCompressing(true)
+    try {
+      const { dataUrl, size, originalSize } = await compressImage(url, { quality: 0.8 })
+      if (!dataUrl) throw new Error('压缩失败')
+      // 原位覆盖：先写回节点图（立即生效），再异步落盘换 URL
+      setNodes((ns) =>
+        ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, imageUrl: dataUrl, url: dataUrl } } : n))
+      )
+      const saved = await saveInlineToLocal(dataUrl, 'canvas')
+      if (saved && saved !== dataUrl) {
+        setNodes((ns) =>
+          ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, imageUrl: saved, url: saved } } : n))
+        )
+      }
+      const ratio = originalSize ? `（${(size / originalSize * 100).toFixed(1)}%）` : ''
+      showToast(`压缩完成 ${(size / 1024).toFixed(1)}KB${ratio}`)
+    } catch (e) {
+      showToast(e?.message || '压缩失败')
+    } finally {
+      setCompressing(false)
+    }
+  }, [url, type, compressing, id, setNodes])
+
   const DEMO_IMAGE = data.demoImage || 'https://picsum.photos/seed/imagenode/400/260'
   const defaultTitle = type === 'video' ? '视频' : type === 'audio' ? '音频' : type === 'text' ? '文本文件' : '图片'
   const titleIcon = type === 'video' ? <Video size={11} /> : type === 'audio' ? <Music size={11} /> : type === 'text' ? <FileText size={11} /> : <ImageIcon size={11} />
@@ -118,6 +153,7 @@ export default function ImageNode({ id, data, selected }) {
       show: type === 'image', // 标记只对图片
     },
     { key: 'send', icon: <Send size={14} />, title: '发送到左侧网站', hoverClass: 'hover:text-blue-400' },
+    { key: 'compress', icon: <FileArchive size={14} />, title: '压缩图片（80%）', onClick: handleCompress, show: type === 'image' && !!url },
     { key: 'download', icon: <Download size={14} />, title: '下载', onClick: handleDownload, show: !!url }
   ]
 

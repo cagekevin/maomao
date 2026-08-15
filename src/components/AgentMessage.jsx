@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { toAbsoluteFileUrl } from './base/filesApi.js'
 
 /**
  * ════════════════════════════════════════════════════════════════
@@ -81,7 +82,7 @@ export default function AgentMessage({ message }) {
             <div className="flex flex-wrap gap-1 justify-end">
               {message.attachments.map((a, i) => (
                 <a key={i} href={a.url} target="_blank" rel="noreferrer" className="block w-20 h-20 rounded-md overflow-hidden border border-white/20 hover:border-white/50 transition-colors" title="点击新窗口打开">
-                  <img src={a.url} alt="" className="w-full h-full object-cover" />
+                  <img src={toAbsoluteFileUrl(a.url)} alt="" className="w-full h-full object-cover" />
                 </a>
               ))}
             </div>

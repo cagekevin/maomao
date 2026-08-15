@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { Loader2, Wand2, User, Image as ImageIcon, Package, Plus, MoreVertical, Upload, RefreshCw, Trash2 } from 'lucide-react'
 import { ZgPrompt } from '../base/scriptBoxPrompts.js'
 import { useOutsideClick } from '../base/hooks.js'
+import { toAbsoluteFileUrl } from '../base/filesApi.js'
 
 /**
  * 剧本盒子 步骤2「准备资产」：角色/场景/道具三栏 + 资产卡(选中框/视频上传状态/more菜单) +
@@ -140,7 +141,7 @@ function AssetCard({ asset, idx, data, updateData, callbacks, onOpen, onTogglePi
       {/* 缩略图（点击打开抽屉） */}
       <div className="w-11 h-11 shrink-0 rounded-md overflow-hidden bg-surface-1 flex items-center justify-center cursor-pointer" onClick={onOpen}>
         {asset.loading ? <Loader2 size={13} className="animate-spin text-gray-400" />
-          : asset.imageUrl ? <img src={asset.imageUrl} alt={asset.name} className="w-full h-full object-cover" />
+          : asset.imageUrl ? <img src={toAbsoluteFileUrl(asset.imageUrl)} alt={asset.name} className="w-full h-full object-cover" />
             : asset.has ? <span className="text-emerald-400 text-body-xs">✓</span>
               : <span className="text-caption text-gray-500">+ 待生成</span>}
       </div>

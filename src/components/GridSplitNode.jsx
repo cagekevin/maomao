@@ -8,6 +8,7 @@ import { useConnectedInputs } from './base/useConnectedInputs.js'
 import { useMediaDegrade } from './base/useMediaDegrade.js'
 import { useNodeResize } from './base/hooks.js'
 import { showToast } from './base/toastStore.js'
+import { toAbsoluteFileUrl } from './base/filesApi.js'
 
 /* ════════════════════════════════════════════════════════════════
  * 图片切分节点（复刻官方 Lo.jsx / gridSplitNode）
@@ -161,7 +162,7 @@ export default function GridSplitNode({ id, data, selected }) {
   // ---- 上游图片（复刻 Lo.jsx F：data.imageUrl 优先，否则取上游 imageUrl）----
   const connected = useConnectedInputs(id)
   const upstreamImg = connected.images[0]?.url
-  const imageUrl = data.imageUrl || (typeof upstreamImg === 'string' ? upstreamImg : '') || ''
+  const imageUrl = toAbsoluteFileUrl(data.imageUrl || (typeof upstreamImg === 'string' ? upstreamImg : '') || '')
 
   // 画布引用
   const mainCanvasRef = useRef(null)

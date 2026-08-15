@@ -18,6 +18,7 @@ import { useNodeResize, useOutsideClick } from './base/hooks.js'
 import { useConnectedInputs } from './base/useConnectedInputs.js'
 import { useMediaDegrade } from './base/useMediaDegrade.js'
 import { useNodeGeneration } from './base/useNodeGeneration.js'
+import { toAbsoluteFileUrl } from './base/filesApi.js'
 import { useProviders, load as loadProviders } from './base/settings/providerStore.js'
 import { generateImage } from './base/imageApi.js'
 import { useNodePrefs } from './base/nodePrefs.js'
@@ -248,7 +249,7 @@ export default function PromptNode({ id, data, selected }) {
                 const name = `图片${i + 1}`
                 return (
                   <div key={img.id} className="w-10 h-10 rounded-md overflow-hidden relative group bg-black cursor-grab active:cursor-grabbing nodrag nopan" title={img.isConnected ? '已连线的图片' : '上传的图片'}>
-                    <img src={img.url} className="w-full h-full object-cover opacity-80 pointer-events-none" alt={name} />
+                    <img src={toAbsoluteFileUrl(img.url)} className="w-full h-full object-cover opacity-80 pointer-events-none" alt={name} />
                     <div className="absolute inset-0 bg-blue-500/10 pointer-events-none" />
                     <button type="button" className="absolute bottom-0 left-0 right-0 bg-blue-500/80 hover:bg-blue-500 text-2xs text-white text-center py-0.5 truncate cursor-pointer transition-colors" title={`点击插入 @${name}`} onClick={(e) => { e.stopPropagation(); insertMention(name) }}>{name}</button>
                     <span className="absolute top-0 right-0 p-0.5 bg-black/50 hover:bg-red-500/80 rounded-bl-md cursor-pointer opacity-0 group-hover:opacity-100 transition-all"><X size={10} className="text-white" /></span>

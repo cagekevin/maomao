@@ -1,6 +1,7 @@
 import React, { useState, useRef, forwardRef } from 'react'
 import { X, Link as LinkIcon } from 'lucide-react'
 import { useOutsideClick } from './hooks.js'
+import { toAbsoluteFileUrl } from './filesApi.js'
 
 /**
  * 提示词输入区（复刻各节点 contentEditable 提示词 + @素材弹层）。
@@ -107,7 +108,7 @@ const PromptInput = forwardRef(function PromptInput(
                       onClick={() => insert(item.name)}
                     >
                       {item.url ? (
-                        <img src={item.url} className="w-full h-full object-cover" alt="" />
+                        <img src={toAbsoluteFileUrl(item.url)} className="w-full h-full object-cover" alt="" />
                       ) : (
                         <div className="w-full h-full bg-surface-1 flex flex-col items-center justify-center p-1 text-center">
                           <LinkIcon size={16} className="text-blue-400 opacity-80 mb-1" />
