@@ -53,6 +53,7 @@ import LocalToolConnectModal from './components/base/LocalToolConnectModal.jsx'
 import EmptyCanvasGuide from './components/base/EmptyCanvasGuide.jsx'
 import { initTasks } from './components/base/taskStore.js'
 import { createGroupFromNodes, ungroupNodes } from './components/base/groupNodes.js'
+import { saveInlineToLocal } from './components/base/filesApi.js'
 
 /* ======================================================================
  * 【区 1】常量与配置区
@@ -109,7 +110,13 @@ function Canvas() {
       setCanvasLoaded(true)
       if (saved && saved.nodes) {
         setNodes(saved.nodes)
-        setEdges(saved.edges || [])
+        // 兜底：历史快照里可能有旧 onConnect 建的「无 id」边 → 补唯一 id，
+        // 否则 EdgeRenderer 用 undefined 作 key 触发重复 key 警告。
+        const loadedEdges = (saved.edges || []).map((e, i) => ({
+          ...e,
+          id: e.id || `loaded-edge-${e.source}_${e.target}-${i}-${Date.now()}`
+        }))
+        setEdges(loadedEdges)
       }
       // 无 saved（首次）：保留演示画布
     }).catch(() => { setCanvasLoaded(true) })
@@ -559,39 +566,80 @@ function Canvas() {
     setArrangeSnapshot(null)
   }, [])
 
-  // 清理缓存（复刻官方 Ki 语义的「原型本地版」）：
-  // 遍历节点，把 data 里体积超过阈值的内联 dataURL 大资源（图片/视频/缩略图）置空释放，
-  // 减轻内存负担（官方转 /files/ 本地 URL；原型无后端，改为释放超大内联数据）。
-  // 阈值 100KB；只清 data:image|data:video 前缀的字段；不可变局部更新（原则 3）。
-  const DATAURL_THRESHOLD = 100 * 1024
-  const CLEAN_FIELDS = ['imageUrl', 'videoUrl', 'thumbnailUrl']
-  const handleClearCache = useCallback(() => {
-    let clearedCount = 0
-    let clearedBytes = 0
-    let changed = false
-    const next = nodesRef.current.map((n) => {
-      const d = n.data || {}
-      const patches = {}
-      for (const f of CLEAN_FIELDS) {
-        const v = d[f]
-        if (typeof v === 'string' && v.startsWith('data:') && v.length > DATAURL_THRESHOLD) {
-          patches[f] = ''
-          clearedCount++
-          clearedBytes += v.length
+  // 清理缓存（复刻官方 Ki 语义）：把画布内联 base64 资源真正转为本地 /files/ URL，而非删除。
+  // 对齐官方后端 base64Externalize 的做法：
+  //  1) 深度遍历节点 data，把所有 data:image/video/audio;base64 字段（含 imageBoxNode 的 images 数组、
+  //     imageUrl / videoUrl / thumbnailUrl / poster 等）逐个落盘为 /files/ URL（sha1 幂等去重）；
+  //  2) 落盘成功的字段用 URL 替换；失败字段保留原 base64（绝不删图，图片不丢）；
+  //  3) localTool 离线时无法落盘 → 保留原图并提示，不做任何删除。
+  const handleClearCache = useCallback(async () => {
+    // 递归克隆 data 并把内联 dataURL 字段替换为本地 URL（不可变更新，原则 3）。
+    // 返回 { data: 新对象, converted, failed }；failed 表示该字段保留原 base64。
+    const externalizeNodeData = async (nodeData) => {
+      let converted = 0
+      let failed = 0
+      const walk = async (obj) => {
+        if (Array.isArray(obj)) {
+          return Promise.all(obj.map((it) => (it && typeof it === 'object' ? walk(it) : it)))
         }
+        if (!obj || typeof obj !== 'object') return obj
+        const out = {}
+        for (const key of Object.keys(obj)) {
+          const val = obj[key]
+          if (typeof val === 'string' && val.startsWith('data:')) {
+            const url = await saveInlineToLocal(val)
+            if (url && url !== val) {
+              out[key] = url
+              converted++
+            } else {
+              out[key] = val // 落盘失败保留原图，不丢
+              failed++
+            }
+          } else if (val && typeof val === 'object') {
+            out[key] = await walk(val)
+          } else {
+            out[key] = val
+          }
+        }
+        return out
       }
-      if (Object.keys(patches).length === 0) return n
-      changed = true
-      return { ...n, data: { ...d, ...patches } }
-    })
+      return { data: await walk(nodeData), converted, failed }
+    }
+
+    // 1. localTool 离线无法落盘 → 保留原图，绝不删除
+    if (!localTool.isConnected) {
+      showToast('本地引擎未连接，无法将内联资源转为 URL（已保留原图）', { type: 'warning' })
+      return
+    }
+    // 2. 逐节点深度外置内联资源
+    let convertedTotal = 0
+    let failedTotal = 0
+    let changed = false
+    const next = []
+    for (const n of nodesRef.current) {
+      const { data: newData, converted, failed } = await externalizeNodeData(n.data)
+      convertedTotal += converted
+      failedTotal += failed
+      if (converted > 0 || failed > 0) {
+        changed = true
+        next.push({ ...n, data: newData })
+      } else {
+        next.push(n)
+      }
+    }
+    // 3. 无内联资源 → 提示并返回
     if (!changed) {
-      showToast('没有需要清理的大内联资源', { type: 'info' })
+      showToast('画布中没有需要转换的内联资源', { type: 'info' })
       return
     }
     setNodes(next)
     history.record({ nodes: next, edges: edgesRef.current })
-    showToast(`已清理 ${clearedCount} 个大内联资源（约 ${(clearedBytes / 1024).toFixed(0)}KB）`, { type: 'success' })
-  }, [setNodes, history])
+    if (failedTotal > 0) {
+      showToast(`已转换 ${convertedTotal} 个内联资源，${failedTotal} 个保留原图（转换失败）`, { type: 'warning' })
+    } else {
+      showToast(`已将 ${convertedTotal} 个内联资源转为本地 URL`, { type: 'success' })
+    }
+  }, [localTool.isConnected, setNodes, history])
 
   /* ====================================================================
    * 素材拖入 / 粘贴（复刻 H_.jsx:10201-10350 onDragOver ki / onDrop Ai + handlePaste）
@@ -687,7 +735,7 @@ function Canvas() {
       if (!conn) return
       addNode(type, { x: conn.dropPosition.x, y: conn.dropPosition.y }, defaultNodeData(type), conn)
       setNodes((ns) => ns.filter((n) => n.id !== 'ghost-target'))
-      setEdges((es) => es.filter((e) => e.id !== 'ghost-edge'))
+      setEdges((es) => es.filter((e) => !e.id.startsWith('ghost-edge-')))
       menu.close()
     },
     [addNode, setNodes, setEdges, menu.close]
@@ -698,7 +746,7 @@ function Canvas() {
   const handlePaneClick = useCallback(() => {
     menu.close()
     setNodes((ns) => ns.filter((n) => n.id !== 'ghost-target'))
-    setEdges((es) => es.filter((e) => e.id !== 'ghost-edge'))
+    setEdges((es) => es.filter((e) => !e.id.startsWith('ghost-edge-')))
   }, [menu, setNodes, setEdges])
 
   // 统一建节点入口（单一数据源）：
@@ -797,9 +845,15 @@ function Canvas() {
   })
 
   // 连线：连到真实节点时建边（isValid 连接）
+  // ⚠️ params 是 Connection 类型（只有 source/target/sourceHandle/targetHandle，无 id）。
+  // 直接 { ...params } 塞进 edges 会让边【没有 id】→ EdgeRenderer 用 undefined 作 key →
+  // 多条边 key 重复 → React key 警告。必须补唯一 id（对齐官方 addEdge 的 xy-edge__ 前缀）。
   const onConnect = useCallback(
     (params) => {
-      const nextEdges = [...edgesRef.current, { ...params, type: 'default', animated: false }]
+      const baseId = `xy-edge__${params.source}_${params.target}`
+      const dup = edgesRef.current.some((e) => e.id === baseId)
+      const id = dup ? `${baseId}_${Date.now()}` : baseId
+      const nextEdges = [...edgesRef.current, { ...params, id, type: 'default', animated: false }]
       setEdges(nextEdges)
       history.record({ nodes: nodesRef.current, edges: nextEdges })
       // 不记连线日志（同建节点）
@@ -833,12 +887,15 @@ function Canvas() {
             draggable: false
           })
       )
-      // 建 ghost-edge（fromNode → ghost-target）
+      // 建 ghost-edge（fromNode → ghost-target）。
+      // ⚠️ id 必须唯一（用时间戳）：固定 'ghost-edge' 在连续快速触发 onConnectEnd 时
+      // 可能因 setState 批处理出现两条同 id 边 → React key 重复警告（EdgeRenderer）。
+      // 清理点统一按前缀 'ghost-edge-' 过滤（见下方 onConnectEnd/handlePaneClick/菜单确认）。
       setEdges((es) =>
         es
-          .filter((e) => e.id !== 'ghost-edge')
+          .filter((e) => !e.id.startsWith('ghost-edge-'))
           .concat({
-            id: 'ghost-edge',
+            id: 'ghost-edge-' + Date.now(),
             source: t.fromNode.id,
             sourceHandle: t.fromHandle.id || null,
             target: 'ghost-target',
@@ -940,6 +997,12 @@ function Canvas() {
   )
 
   const proOptions = useMemo(() => ({ hideAttribution: true }), [])
+
+  // React Flow 002 警告防护：nodeTypes/edgeTypes 已是模块级常量（引用稳定），
+  // 这里再用 useMemo 包裹传入，确保任何重渲染/重挂载下引用绝对一致，
+  // 从根源消除「created a new nodeTypes or edgeTypes object」提示（React Flow 官方推荐做法）。
+  const stableNodeTypes = useMemo(() => nodeTypes, [])
+  const stableEdgeTypes = useMemo(() => edgeTypes, [])
 
   // 折叠 group 时隐藏其子节点（React Flow 官方推荐用 hidden 字段，替代自研 opacity 方案）。
   // hidden:true 让 React Flow 原生不渲染、不交互、不占布局；展开时自动恢复。
@@ -1067,8 +1130,8 @@ function Canvas() {
           onConnectEnd={onConnectEnd}
           onEdgeDoubleClick={onEdgeDoubleClick}
           onEdgesDelete={onEdgesDelete}
-          nodeTypes={nodeTypes}
-          edgeTypes={edgeTypes}
+          nodeTypes={stableNodeTypes}
+          edgeTypes={stableEdgeTypes}
           connectionLineComponent={ConnectionLine}
           connectionRadius={60}
           deleteKeyCode={['Backspace', 'Delete']}

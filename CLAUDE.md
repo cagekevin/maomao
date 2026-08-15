@@ -201,6 +201,18 @@ npm run check:health  # 工程健康全量检查
 
 ## 六、 运维排障速查 (Quick Reference)
 
+### 0. 画布问题排查铁律（最高优先，先对齐再回应）
+
+> 用户报**画布任何问题**（节点缺失/错位、连线异常、边 id 报错、key 警告、布局、保存异常等），AI **必须先跑**
+> `cd localTool && node scripts/db-query.mjs --canvas-health [projectId]`
+> 拿到当前画布**真实数据结构快照**（节点数/边数/类型分布/无 id 边/重复 id 边/悬空边），再回应用户。
+> 禁止在没查画布状态前直接猜测或下结论（避免「用户说 A、AI 说 B」）。
+> - `--canvas-health` 缺省取最近更新的画布快照；可传 projectId（如 `proj-xxx`）指定。
+> - 覆盖：数据结构类（节点/边/布局/保存）。**UI 视觉类**（样式、错位观感）查不到，需结合截图或
+>   `--logs` 前端上报日志（`logger.js` 已上报 localTool `/api/logs`）。
+> - 常见判读：无 id 边 → EdgeRenderer 用 undefined 作 key 触发重复 key 警告（App.jsx `onConnect` 需补 id）；
+>   重复 id/悬空边 → 数据链路错误。
+
 ### 1. 启动方式
 
 * **一键启动 (推荐)**：先开 VPN。
@@ -254,6 +266,7 @@ npm run check:health  # 工程健康全量检查
 | 要查官方权益转发 | `localTool/src/routes/official.ts`（中转+短缓存，不伪造权限） |
 | 要改画布前端 | 改 `src/` → `npm run test:smoke` → `npm run build`；严禁直接手改 dist |
 | 要新增画布节点 | 按 `docs/README.md` 节点规范 + `docs/node-types-map.md`，放 `src/components/` |
+| 画布问题排查（节点/边/布局/保存） | **第一步必跑** `cd localTool && node scripts/db-query.mjs --canvas-health`（见 §六.0 铁律）|
 | 改 localTool 后端 | `cd localTool && npm test`（全量，三个测试文件）|
 | 丢图排查 | `cd localTool && npm run db -- --lost-check` |
 | 提交前验证 | 前端 `npm run test:smoke`+`npm run build`+`npm run check:health`；**localTool 改动另跑 `cd localTool && npm test`** |
