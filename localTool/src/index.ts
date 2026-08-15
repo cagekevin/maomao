@@ -28,6 +28,7 @@ import { handleProvidersGet, handleProvidersPut, handleProviderTest, handleProvi
 // catch-all 兜底透传：未命中本地具名路由的请求原样转发官方（详见 routes/passthrough.ts 文件头）
 // 这是「改 dist base 指向 18080」的硬前置——否则未接管的 /api/* 会直接 404。
 import { handlePassthrough } from './routes/passthrough.js';
+import { initLogWriter } from './utils/logWriter.js';
 
 // ── 轻量 .env 加载（无 dotenv 依赖，localTool 仅 sql.js 一个运行时依赖）──
 // 读取 <localTool 根>/<项目根>/localTool/.env，注入 process.env。
@@ -64,6 +65,10 @@ const __dirname = path.dirname(__filename);
 
 // 必须在 __dirname 定义之后调用（TDZ：const 声明前访问会抛 ReferenceError）
 loadDotEnv();
+// 进程内接管 console → 按天轮转 + 自动删过期日志（替代 launch-all.ps1 的 stdout 重定向）。
+// ⚠️ 须在 loadDotEnv() 之后、服务启动早期调用：晚调会漏掉前面的日志输出。
+//    同时保持【只调用一次】（initLogWriter 内部幂等，勿重复接管 console）。
+initLogWriter();
 
 const PORT = Number(process.env.PORT) || 18080;
 const VERSION = '1.4.2';

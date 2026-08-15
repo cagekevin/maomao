@@ -73,6 +73,7 @@ function usage() {
   node scripts/db-query.mjs --logs [关键词]          查日志（关键词可为 download/upload/proxy/error 等前缀）
   node scripts/db-query.mjs --task <node_id>        同一节点的所有任务进度/结果URL比对
   node scripts/db-query.mjs --lifecycle <id>        完整生命周期一键查（数据库记录 + 后端日志 + 前端日志全链路；id 可为 task_id 或 node_id）
+  node scripts/db-query.mjs --canvas-health [proj]  画布数据结构体检（节点/边统计 + 无id边/重复id边/悬空边高亮；缺省取最近更新的快照）
   node scripts/db-query.mjs --lost-check            丢图体检（tasks/磁盘/资源一致性 + 日志异常）
   node scripts/db-query.mjs --vacuum                 压缩数据库（需先停 localTool，自动备份+完整性检查）
 库路径: ${DB_PATH}
@@ -318,6 +319,123 @@ function runLostCheck(db) {
   console.log('\n=== 体检结束。若 [1][2][4] 有命中，说明存在丢图/失败，需结合日志定位。===');
 }
 
+// ── 画布数据结构体检：对齐「AI 排查画布问题」的第一步 ──
+// 输出：节点/边统计 + 无 id 边 + 重复 id 边 + 悬空边（source/target 指向不存在的节点）。
+// 目的：用户报画布任何问题（节点/边/布局/保存），AI 先跑本命令拿当前真实快照，再回应，
+// 避免「各说各话」。UI 视觉类查不到，需结合日志/截图（见 CLAUDE.md 排查铁律）。
+function runCanvasHealth(db, projectId) {
+  // 1) 找目标快照 key：给定 projectId → canvas-state-v1-<projId>；缺省 → 最近更新的 canvas 快照
+  const prefix = 'canvas-state-v1-';
+  let key = null;
+  if (projectId) {
+    key = `${prefix}${projectId}`;
+    const exists = queryOneLike(db, `SELECT key FROM kv WHERE key = ?`, [key]);
+    if (!exists) {
+      console.log(`[ABORT] 未找到画布快照: ${key}`);
+      console.log('  可用项目（--tables 里 kv 键含 canvas-state-v1- 前缀）：');
+      listCanvasKeys(db).forEach((k) => console.log(`    ${k}`));
+      return;
+    }
+  } else {
+    const row = listCanvasKeys(db, true); // 最近更新的一条
+    if (!row) {
+      console.log('(无画布快照，画布为空)');
+      return;
+    }
+    key = row.key;
+    console.log(`(未指定 projectId，取最近更新的画布快照: ${key})\n`);
+  }
+
+  const row = queryOneLike(db, `SELECT key, value, updated_at FROM kv WHERE key = ?`, [key]);
+  if (!row) {
+    console.log(`(无记录: ${key})`);
+    return;
+  }
+  // updated_at 是 SQLite unixepoch()（秒级），需 ×1000 转毫秒（区别于 tasks.created_at 的毫秒级）
+  const ts = row.updated_at ? new Date(Number(row.updated_at) * 1000).toISOString() : '?';
+  let state = null;
+  try {
+    state = JSON.parse(row.value);
+  } catch (e) {
+    console.log(`[ERROR] 画布快照 JSON 解析失败: ${e.message}`);
+    return;
+  }
+  const nodes = Array.isArray(state.nodes) ? state.nodes : [];
+  const edges = Array.isArray(state.edges) ? state.edges : [];
+
+  console.log(`=== 画布数据结构体检 ===`);
+  console.log(`项目快照: ${key}`);
+  console.log(`保存时间: ${ts}`);
+  console.log(`节点数: ${nodes.length} | 边数: ${edges.length}\n`);
+
+  // 2) 节点类型分布 + 节点 id 唯一性
+  const nodeIds = new Set();
+  const dupNodeIds = [];
+  const typeCount = {};
+  for (const n of nodes) {
+    const id = n && n.id;
+    if (typeof id === 'string') {
+      if (nodeIds.has(id)) dupNodeIds.push(id);
+      nodeIds.add(id);
+    }
+    const t = (n && n.type) || '(无type)';
+    typeCount[t] = (typeCount[t] || 0) + 1;
+  }
+  console.log('节点类型分布:');
+  for (const [t, c] of Object.entries(typeCount)) console.log(`  ${t}: ${c}`);
+
+  // 3) 边体检：无 id / 重复 id / 悬空边
+  const noIdEdges = [];
+  const dupEdgeIds = [];
+  const edgeIdSeen = new Set();
+  const danglingEdges = [];
+  const missingIdCount = 0;
+  for (const e of edges) {
+    const id = e && e.id;
+    if (typeof id !== 'string' || !id) {
+      noIdEdges.push(e);
+      continue;
+    }
+    if (edgeIdSeen.has(id)) dupEdgeIds.push(id);
+    edgeIdSeen.add(id);
+    const s = e.source, t = e.target;
+    if ((typeof s !== 'string' || !nodeIds.has(s)) || (typeof t !== 'string' || !nodeIds.has(t))) {
+      danglingEdges.push({ id, source: s, target: t });
+    }
+  }
+
+  console.log('\n边体检:');
+  if (!noIdEdges.length && !dupEdgeIds.length && !danglingEdges.length) {
+    console.log('  ✓ 无问题（全部边都有唯一 id 且两端节点存在）');
+  } else {
+    if (noIdEdges.length) {
+      console.log(`  ✗ 无 id 边: ${noIdEdges.length} 条（EdgeRenderer 会用 undefined 作 key → 重复 key 警告）`);
+      for (const e of noIdEdges.slice(0, 10)) console.log(`      ${e.source || '?'} → ${e.target || '?'}`);
+    }
+    if (dupEdgeIds.length) {
+      console.log(`  ✗ 重复 id 边: ${dupEdgeIds.length} 条`);
+      for (const id of [...new Set(dupEdgeIds)].slice(0, 10)) console.log(`      ${id}`);
+    }
+    if (danglingEdges.length) {
+      console.log(`  ✗ 悬空边（source/target 指向不存在节点）: ${danglingEdges.length} 条`);
+      for (const e of danglingEdges.slice(0, 10)) console.log(`      ${e.id}: ${e.source} → ${e.target}`);
+    }
+  }
+
+  console.log('\n=== 体检结束。若发现无 id/重复/悬空边，即为数据结构问题；UI 视觉类问题请结合截图/日志排查。 ===');
+}
+
+// 列出所有 canvas 快照 key（可排除 _version 后缀）；onlyLatest 时返回 updated_at 最大的一条
+function listCanvasKeys(db, onlyLatest = false) {
+  const prefix = 'canvas-state-v1-';
+  const rows = queryAllLike(db,
+    `SELECT key, updated_at FROM kv WHERE key LIKE ? AND key NOT LIKE '%_version'`,
+    [`${prefix}%`]);
+  rows.sort((a, b) => Number(a.updated_at) - Number(b.updated_at));
+  if (onlyLatest) return rows.length ? rows[rows.length - 1] : null;
+  return rows.map((r) => r.key);
+}
+
 // ── 完整生命周期：一键查一个任务的「数据库记录 + 后端日志 + 前端日志」全链路 ──
 // 输入可以是 task_id（如 task_msu70t3m_hug53）或 node_id（如 textNode-xxx）。
 // 前端日志已由 logger.js 上报 localTool POST /api/logs，落盘带 [frontend] 前缀（localTool/src/routes/logs.ts）。
@@ -418,6 +536,13 @@ async function main() {
   // 0.2.1) 完整生命周期（数据库 + 后端日志 + 前端日志 全链路一键查）
   if (hasArg('--lifecycle')) {
     runLifecycle(db, getArg('--lifecycle'));
+    db.close();
+    return;
+  }
+
+  // 0.2.2) 画布数据结构体检（AI 排查画布问题的第一步）
+  if (hasArg('--canvas-health')) {
+    runCanvasHealth(db, getArg('--canvas-health') || null);
     db.close();
     return;
   }

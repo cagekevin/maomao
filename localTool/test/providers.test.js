@@ -2,7 +2,9 @@
  * providers（多供应商）单元测试
  * ------------------------------------------------------------
  * 运行：node --test test/*.test.js        （在 localTool/ 下）
- * 注意：必须先构建（npm test 会先跑 tsc）使 dist 反映最新 src。
+ * 注意：必须先构建使 dist 反映最新 src（npm test 会先跑 tsc 编译）。
+ * ⚠️ 本测试 import 的是编译产物 dist/routes/*.js。改 src 后若只跑 `tsc --noEmit`
+ *    （不产出 dist）就测，会测到旧逻辑导致误判失败/通过。请一律 `npm test`（自带 tsc）。
  *
  * 隔离策略：
  *   - MAOMAO_DATA_DIR 指向临时目录 → providers.json 落在临时目录
@@ -218,6 +220,7 @@ test('apimart 拉取模型：/v1/models 按 category 归类', async () => {
     await providersMod.handleProviderFetchModels(req, res, 'lv');
     const data = JSON.parse(res.body);
     assert.deepEqual(data.image_models.map((m) => m.id), ['gpt-image-2']);
+    // apimart 按 category 正常收录 chat（文本节点下拉需要）
     assert.deepEqual(data.chat_models.map((m) => m.id), ['lovart-chat']);
     assert.deepEqual(data.video_models.map((m) => m.id), ['seedance-2']);
     assert.equal(data.modelCount, 3);

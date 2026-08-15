@@ -280,19 +280,16 @@ function Start-LocalTool {
         Push-Location $dir
         try { node dist/index.js } finally { Pop-Location }
     } else {
-        $logDir = Join-Path $dir "logs"
-        if (-not (Test-Path $logDir)) { New-Item -ItemType Directory -Force -Path $logDir | Out-Null }
-
+        # 日志改由 localTool 进程内接管（logWriter.ts 按天轮转 + 自动删 7 天前），
+        # 不再用 Start-Process 重定向 stdout/err，避免双写单文件。
         Start-Process -FilePath "node" -ArgumentList (Join-Path $dir "dist\index.js") `
-            -RedirectStandardOutput (Join-Path $logDir "localtool_18080.log") `
-            -RedirectStandardError (Join-Path $logDir "localtool_18080.err.log") `
             -WindowStyle Hidden -WorkingDirectory $dir
 
         if (Wait-PortReady -Port $Config.LocalTool.Port -TimeoutSec 25) {
-            Write-Log "  ✅ LocalTool 已启动 (日志: localTool\logs\localtool_18080.log)" "Success"
+            Write-Log "  ✅ LocalTool 已启动 (日志: localTool\logs\localtool_18080_YYYY-MM-DD.log，自动轮转)" "Success"
             return $true
         }
-        Write-Log "  ❌ LocalTool 启动超时，请查看 localTool\logs\localtool_18080.err.log" "Error"
+        Write-Log "  ❌ LocalTool 启动超时，请查看 localTool\logs\ 下当日日志" "Error"
         return $false
     }
 }

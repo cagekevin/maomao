@@ -485,8 +485,8 @@ export async function handleProviderFetchModels(req: IncomingMessage, res: Serve
     }
 
     // apimart（Lovart 网关）：/v1/models 返回 OpenAI 风格列表且每条带 category（image/video/chat）。
-    // ⚠️ 忽略 category=chat：Lovart 的 chat 是「设计 Agent」纯中转，不是真正的文本聊天模型
-    // （不支持 function calling，用户也不需要），若拉取会混进文本节点下拉。故 apimart 只收 image/video。
+    // chat/text 模型【必须正常收录】——文本节点下拉依赖。曾有版本误判「chat 是设计 Agent
+    // 纯中转、剔除掉」，导致文本模型缺失的回归（providers.test.js 也断言 chat 应收，勿改回）。
     const byCat: Record<string, ProviderModel[]> = { image: [], chat: [], video: [] };
     for (const m of rawModels) {
       if (typeof m?.id !== 'string' || !m.id) continue;
@@ -495,7 +495,7 @@ export async function handleProviderFetchModels(req: IncomingMessage, res: Serve
       const cat = String(m.category || '').toLowerCase();
       if (cat === 'image') byCat.image.push(model);
       else if (cat === 'video') byCat.video.push(model);
-      // chat/text/未知分类：apimart 一律不收（见上注释）
+      else if (cat === 'chat' || cat === 'text') byCat.chat.push(model);
     }
     return json(res, {
       image_models: byCat.image,
