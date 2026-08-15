@@ -221,6 +221,9 @@ npm run check:health  # 工程健康全量检查
   * localTool: `cd localTool && npm run build && node dist/index.js`
   * 网关: `cd apimart-gateway && python -m uvicorn main:app --host 127.0.0.1 --port 9004`
 * **仅前端原型**：`npm run dev`（localhost:5180，无需后端即可看画布）
+* **git 推送（必须走代理 7897）**：GitHub 推送直连常超时/被断，**每次 push 都用 7897 代理**：
+  `HTTPS_PROXY=http://127.0.0.1:7897 HTTP_PROXY=http://127.0.0.1:7897 git push origin main`
+  （若在代理 `git push` 之外还要传输大文件，速度慢属正常，等待写对象完成即可。）
 
 ### 2. 常见问题速查
 
