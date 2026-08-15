@@ -133,7 +133,7 @@ function AssetCard({ asset, idx, data, updateData, callbacks, onOpen, onTogglePi
   useOutsideClick(moreRef, more, () => setMore(false))
 
   return (
-    <div className={`w-full min-w-0 flex items-center gap-2 p-2 bg-[#181818] border rounded-lg transition-colors ${selected ? 'border-blue-500/70' : asset.picked ? 'border-emerald-500/60' : 'border-edge-faint hover:border-edge-muted'}`}>
+    <div className={`w-full min-w-0 flex items-center gap-2 p-2 bg-surface-strong border rounded-lg transition-colors ${selected ? 'border-blue-500/70' : asset.picked ? 'border-emerald-500/60' : 'border-edge-faint hover:border-edge-muted'}`}>
       {/* 选中框 */}
       <div className="flex flex-col items-center gap-1">
         <input type="checkbox" checked={!!asset.picked} onChange={onTogglePick} className="nodrag cursor-pointer" />

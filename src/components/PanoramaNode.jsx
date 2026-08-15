@@ -124,7 +124,7 @@ export default function PanoramaNode({ id, data, selected }) {
     <>
       <span className="text-[10px] text-gray-400 px-2 whitespace-nowrap shrink-0">截图比例</span>
       <select value={aspectRatio} onChange={(e) => setAspectRatio(e.target.value)} className="bg-transparent text-gray-200 text-[10px] pl-1 pr-4 py-0.5 outline-none cursor-pointer text-center font-bold">
-        {RATIO_OPTIONS.map((r) => <option key={r} value={r} className="bg-[#222]">{r === 'custom' ? '自定义' : r}</option>)}
+        {RATIO_OPTIONS.map((r) => <option key={r} value={r} className="bg-surface-1">{r === 'custom' ? '自定义' : r}</option>)}
       </select>
       {aspectRatio === 'custom' && (
         <div className="flex items-center gap-1 ml-2 mr-2 border-l border-white/20 pl-2 shrink-0">
@@ -235,7 +235,7 @@ export default function PanoramaNode({ id, data, selected }) {
               <select
                 value={panoType}
                 onChange={(e) => { setPanoType(e.target.value); setNodes((ns) => ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, panoType: e.target.value } } : n))) }}
-                className="bg-[#111] text-gray-300 text-[10px] px-1 py-0.5 rounded border border-[#444] outline-none cursor-pointer"
+                className="bg-surface-black text-gray-300 text-caption px-1 py-0.5 rounded border border-edge-muted outline-none cursor-pointer"
               >
                 <option value="sphere">球状全景</option>
                 <option value="cylinder">柱状全景</option>
@@ -284,7 +284,7 @@ export default function PanoramaNode({ id, data, selected }) {
             </button>
           </div>
         ) : (
-          <div className="w-full h-full flex flex-col items-center justify-center text-gray-600 bg-[#151515]">
+          <div className="w-full h-full flex flex-col items-center justify-center text-gray-600 bg-surface-muted">
             <Upload size={24} className="mb-2" />
             <div className="text-sm">等待输入全景图</div>
             <div className="text-xs mt-1 text-gray-500">请将图片节点连接到此节点</div>

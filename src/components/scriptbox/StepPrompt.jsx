@@ -37,7 +37,7 @@ export default function StepPrompt({ data, updateData, callbacks }) {
   const commitField = () => { if (editing) patchShot(editing.idx, editing.field, editVal); setEditing(null) }
 
   const cardFor = (s, i) => (
-    <div className="relative flex flex-col gap-2 p-3 bg-[#181818] border border-edge-faint rounded-lg">
+    <div className="relative flex flex-col gap-2 p-3 bg-surface-strong border border-edge-faint rounded-lg">
       {/* 每镜头独立连线端口（复刻官方 c_.jsx：shot-${id} source，右侧，用统一默认端口外观） */}
       <CustomHandle position="right" variant="small" handleId={`shot-${s.id}`} top="50%" />
       <div className="flex items-center gap-2 text-caption-sm">
@@ -114,7 +114,7 @@ export default function StepPrompt({ data, updateData, callbacks }) {
     <div className="flex flex-col gap-3">
       {/* 视图切换 + 批量 */}
       <div className="flex items-center gap-2">
-        <div className="flex bg-[#181818] rounded-lg p-0.5">
+        <div className="flex bg-surface-strong rounded-lg p-0.5">
           <button className={`flex items-center gap-1.5 px-3 py-1 text-caption-sm rounded-md ${view === 'list' ? 'bg-surface-hover text-white' : 'text-gray-400'}`} onClick={() => setView('list')}><Columns2 size={11} /> 列表</button>
           <button className={`flex items-center gap-1.5 px-3 py-1 text-caption-sm rounded-md ${view === 'grid' ? 'bg-surface-hover text-white' : 'text-gray-400'}`} onClick={() => setView('grid')}><LayoutGrid size={11} /> 单镜头</button>
         </div>

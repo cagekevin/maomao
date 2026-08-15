@@ -191,7 +191,7 @@ export default function DiscountVideoNode({ id, data, selected }) {
         className="relative cursor-pointer group/display flex flex-col w-full flex-1 min-h-0"
         onClick={() => setExpanded((v) => !v)}
       >
-        <div className={`flex items-center justify-center absolute inset-0 rounded-xl overflow-hidden ${videoUrl ? '' : 'bg-[#121212]'}`}>
+        <div className={`flex items-center justify-center absolute inset-0 rounded-xl overflow-hidden ${videoUrl ? '' : 'bg-surface-strong'}`}>
           {/* 性能模式媒体降级：缩小时隐藏视频（复刻官方"图片视频已隐藏"） */}
           {videoUrl && !loading && !error && hideVideo && (
             <div className="flex flex-col items-center justify-center gap-1 absolute inset-0 bg-surface-muted">

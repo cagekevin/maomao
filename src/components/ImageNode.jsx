@@ -183,12 +183,12 @@ export default function ImageNode({ id, data, selected }) {
           relative 必须保留——内部空态/播放图标是 absolute inset-0 定位，依赖本容器做定位上下文 */}
       <div className="relative w-full flex flex-col flex-1">
         <div
-          className="flex-1 p-0 bg-[#121212] flex items-center justify-center relative overflow-hidden"
+          className="flex-1 p-0 bg-surface-strong flex items-center justify-center relative overflow-hidden"
           style={{ minHeight: 160 }}
         >
           {/* 性能模式媒体降级：缩小时隐藏图片/视频/音频（复刻官方"图片视频已隐藏"） */}
           {hideMedia && (
-            <div className="absolute inset-0 flex items-center justify-center bg-[#121212]">
+            <div className="absolute inset-0 flex items-center justify-center bg-surface-strong">
               <div className="flex flex-col items-center gap-1 opacity-60">
                 <ImageIcon size={18} className="text-gray-600" />
                 <span className="text-meta text-gray-500">性能模式已隐藏</span>

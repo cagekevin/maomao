@@ -104,7 +104,7 @@ export default function ScriptBoxNode({ id, data, selected }) {
           <Clapperboard size={14} className="text-gray-500" />
           <span className="text-body-sm text-gray-300 font-medium">{d.projectName || '剧本盒子'}</span>
           {genMask && (
-            <span className="flex items-center gap-1.5 text-caption-sm text-gray-400 bg-[#262626] px-2.5 py-1 rounded-full">
+            <span className="flex items-center gap-1.5 text-caption-sm text-gray-400 bg-surface-subtle px-2.5 py-1 rounded-full">
               <Loader2 size={11} className="animate-spin text-emerald-400" />
               生成中 {d.genChars || 0} 字 · {genSecs}s
             </span>

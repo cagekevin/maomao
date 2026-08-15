@@ -178,7 +178,7 @@ export default function FaceMosaicNode({ id, data, selected }) {
         {count === 0 ? (
           <button
             onClick={() => fileRef.current?.click()}
-            className="nodrag flex flex-col items-center justify-center gap-1.5 py-3 rounded-lg border border-dashed border-[#3a3a3a] text-gray-500 hover:text-blue-400 hover:border-blue-500/50 transition-colors cursor-pointer"
+            className="nodrag flex flex-col items-center justify-center gap-1.5 py-3 rounded-lg border border-dashed border-edge-raised text-gray-500 hover:text-blue-400 hover:border-blue-500/50 transition-colors cursor-pointer"
           >
             <Upload size={20} />
             <span className="text-[11px]">上传图片 或 左侧连接图片节点</span>
@@ -189,7 +189,7 @@ export default function FaceMosaicNode({ id, data, selected }) {
             {/* 输入图缩略图：上传的图片立即在此显示 */}
             <div className="grid grid-cols-4 gap-1.5">
               {imageUrls().map((u, i) => (
-                <div key={i} className="relative aspect-square bg-[#111] rounded-md overflow-hidden border border-[#333] group">
+                <div key={i} className="relative aspect-square bg-surface-black rounded-md overflow-hidden border border-edge group">
                   <img src={u} alt={`input-${i}`} className="w-full h-full object-cover" loading="lazy" decoding="async" />
                 </div>
               ))}
@@ -210,7 +210,7 @@ export default function FaceMosaicNode({ id, data, selected }) {
             <button
               key={m.mode}
               onClick={() => setMode(m.mode)}
-              className={`nodrag flex flex-col items-center justify-center gap-1 py-1.5 rounded-md text-[11px] border transition-colors cursor-pointer ${mode === m.mode ? 'bg-blue-600 text-white border-blue-500' : 'text-gray-300 bg-[#222] hover:bg-[#2a2a2a] border-[#333]'}`}
+              className={`nodrag flex flex-col items-center justify-center gap-1 py-1.5 rounded-md text-caption-sm border transition-colors cursor-pointer ${mode === m.mode ? 'bg-blue-600 text-white border-blue-500' : 'text-gray-300 bg-surface-1 hover:bg-surface-hover border-edge'}`}
             >
               {m.label}
             </button>
@@ -233,7 +233,7 @@ export default function FaceMosaicNode({ id, data, selected }) {
                 <button
                   key={c}
                   onClick={() => setColor(c)}
-                  className={`w-4 h-4 rounded-full border border-[#333] cursor-pointer ${color === c ? 'ring-2 ring-blue-500 ring-offset-1 ring-offset-[#1c1c1c]' : ''}`}
+                  className={`w-4 h-4 rounded-full border border-edge cursor-pointer ${color === c ? 'ring-2 ring-blue-500 ring-offset-1 ring-offset-surface-raised' : ''}`}
                   style={{ backgroundColor: c }}
                 />
               ))}
@@ -258,7 +258,7 @@ export default function FaceMosaicNode({ id, data, selected }) {
         {resultUrls.length > 0 && (
           <div className="nodrag nowheel mt-1 mb-2 grid grid-cols-2 gap-1.5 max-h-[140px] overflow-y-auto pr-1 custom-scrollbar">
             {resultUrls.map((u, i) => (
-              <div key={i} className="relative aspect-video bg-[#111] rounded-md overflow-hidden border border-[#333] group">
+              <div key={i} className="relative aspect-video bg-surface-black rounded-md overflow-hidden border border-edge group">
                 <img src={toAbsoluteFileUrl(u)} alt={`result-${i}`} className="w-full h-full object-cover" loading="lazy" decoding="async" onClick={() => setZoomUrl(u)} />
                 <div className="absolute top-1 right-1 p-1 bg-black/60 text-gray-300 rounded opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => setZoomUrl(u)}>
                   <ImageIcon size={12} />
@@ -272,7 +272,7 @@ export default function FaceMosaicNode({ id, data, selected }) {
         <div className="mt-auto flex items-center gap-2">
           <button
             onClick={() => fileRef.current?.click()}
-            className="nodrag flex items-center justify-center h-8 w-8 rounded-md text-gray-300 bg-[#2a2a2a] hover:bg-[#333] border border-[#333] transition-colors cursor-pointer"
+            className="nodrag flex items-center justify-center h-8 w-8 rounded-md text-gray-300 bg-surface-hover hover:bg-surface-hover-strong border border-edge transition-colors cursor-pointer"
             title="上传图片"
           >
             <Upload size={14} />
@@ -280,7 +280,7 @@ export default function FaceMosaicNode({ id, data, selected }) {
           <button
             onClick={() => { if (count === 0) { showToast('请先上传或连接图片'); return } setManualOpen(true) }}
             disabled={count === 0}
-            className="nodrag flex items-center justify-center gap-1 h-8 px-2.5 rounded-md text-[12px] text-gray-300 bg-[#2a2a2a] hover:bg-[#333] border border-[#333] disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+            className="nodrag flex items-center justify-center gap-1 h-8 px-2.5 rounded-md text-[12px] text-gray-300 bg-surface-hover hover:bg-surface-hover-strong border border-edge disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
             title="手动打码"
           >
             <Wand2 size={13} /> 手动

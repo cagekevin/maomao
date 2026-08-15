@@ -128,7 +128,7 @@ export default function Director3DNode({ id, data, selected }) {
     >
       {/* 主体：静态缩略图 / 占位；双击进入全屏 */}
       <div
-        className="relative flex-1 bg-[#151515] rounded-xl overflow-hidden border border-[#333] shadow-xl cursor-pointer"
+        className="relative flex-1 bg-surface-muted rounded-xl overflow-hidden border border-edge shadow-xl cursor-pointer"
         style={{ minHeight: 200 }}
         onDoubleClick={(e) => { e.stopPropagation(); setOpen(true) }}
       >
