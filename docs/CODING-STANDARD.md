@@ -116,7 +116,10 @@
 | 3 | `filesApi.js` / `imageUrl.js` | `toAbsoluteFileUrl` 有 re-export 与独立 `imageUrl.js` 两处，引用分散 | 明确 `imageUrl.js` 为唯一来源，`filesApi.js` 只 re-export |
 | 4 | 各节点 hover 栏 / 底部按钮 | 部分直接 `lucide` 图标 + 裸 class，部分用 `HoverToolbar`/`ToolbarButton` | 统一走 `HoverToolbar` + `ToolbarButton` |
 
-> 收敛原则：**先规范、后重构**。新增代码一律按本页规范写；存量不一致列入上表，按优先级分批迁移，每批 `npm run test:smoke` + `npm run build` 验证。
+> 收敛原则：**先规范、后重构；渐进收敛、别强行批量**。
+> - 新增代码一律按本页规范写（用 token / 走单一入口）。
+> - 存量不一致（上表）**改到哪个文件顺手收敛哪个**，不为了"清零"强行批量改——裸色值多在 scriptbox/设置面板/director3d 等非核心处，且很多 `#xxx`（如 `#27272a`/`#181818`/`#121212`）**没有精确对应的 token**，硬改会引入视觉回归。核心生成节点（PromptNode/TextNode/DiscountVideo/ImageNode）已基本用 token。
+> - 每批收敛跑 `npm run test:smoke` + `npm run build` 验证。
 
 ---
 
