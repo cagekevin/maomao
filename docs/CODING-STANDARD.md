@@ -23,6 +23,24 @@
 
 ---
 
+## 〇.5、文档现状（哪些有效，哪些已删）
+
+> 已清理过期文档，当前 docs/ 根目录只剩有效规范。**文档若有更新，直接改文件；本页 §四「已知不一致」是实测得出，改了代码要同步更新。**
+
+| 文档 | 状态 | 说明 |
+|------|------|------|
+| `CLAUDE.md`（根目录） | ✅ 有效 | 工程现状总纲 |
+| `ARCHITECTURE.md` | ✅ 有效 | 设计原则 + 新增节点流程 |
+| `BASE-CAPABILITIES.md` | ✅ 有效 | base/ 能力清单 |
+| `TESTING.md` | ✅ 有效 | 测试体系权威 |
+| `CANVAS_PERFORMANCE.md` | ✅ 有效 | 性能机制对照（含状态标注） |
+| `node-types-map.md` | ✅ 有效 | 官方节点↔混淆映射（指向已移除 src/bundle，仅供对照） |
+| `README.md` | ✅ 有效 | 结构/启动/复刻范围 |
+| `tailwind-tokens.md` | ❌ **已删** | 从旧 `src/bundle`（已删）dump 的 class 频次表，非 token 规范；token 唯一真相 = `tailwind.config.js` |
+| `CODING-STANDARD.md` | ✅ 本页 | 本总纲 |
+
+---
+
 ## 一、功能单一入口（最易踩坑，先记牢）
 
 > 原则：**同一个能力只允许一个实现入口**。新增逻辑优先查这里有没有现成入口，有就照用，绝不另起一套正则/工具/浮层。
@@ -93,11 +111,10 @@
 
 | # | 位置 | 问题 | 收敛方向 |
 |---|------|------|---------|
-| 1 | 约 25 个文件（`useConnectedInputs.js`/`videoApi.js`/`useAgentChat.js`/`assetStore.js`/`VideoProcessNode.jsx` 等） | 各自手写媒体扩展名正则 / `startsWith('data:')`，绕过 `mediaType.js` | 收敛到 `mediaType.js` 的 `detectMediaType`/`isAudio` |
-| 2 | 56 个文件里大量 `bg-[#1c1c1c]`/`text-gray-500`/`text-[10px]`/`z-[9999]` | 裸色值/裸字号/裸 z-index，绕过 `tailwind.config.js` token | 迁移到 token（`bg-surface-raised`/`text-muted`/`text-caption`/`z-modal`） |
+| 1 | 少数业务文件手写媒体正则（`useConnectedInputs.js`/`useAgentChat.js`/`VideoProcessNode.jsx`/`ImageBoxNode.jsx` 等）绕过 `mediaType.js` | 手写扩展名正则 / `startsWith('data:')`，与 `detectMediaType` 逻辑重复 | 优先收敛到 `mediaType.js`；`director3d/` 是独立子系统不强制 |
+| 2 | 裸色值集中在新增节点（`PanoramaNode`/`FaceMosaicNode`/`Director3DNode`/`FaceMosaicEditor`）+ 部分 base 面板 + `scriptbox/` | `bg-[#…]`/`text-gray-…`/`text-[Npx]`/`z-[N]` 绕过 `tailwind.config.js` token | 迁移到 token（`bg-surface-*`/`text-*`/`text-caption`/`z-*`）；**存量核心节点已基本用 token，收敛只针对上述几处** |
 | 3 | `filesApi.js` / `imageUrl.js` | `toAbsoluteFileUrl` 有 re-export 与独立 `imageUrl.js` 两处，引用分散 | 明确 `imageUrl.js` 为唯一来源，`filesApi.js` 只 re-export |
 | 4 | 各节点 hover 栏 / 底部按钮 | 部分直接 `lucide` 图标 + 裸 class，部分用 `HoverToolbar`/`ToolbarButton` | 统一走 `HoverToolbar` + `ToolbarButton` |
-| 5 | `tailwind-tokens.md` | 内容是从旧混淆源码 dump 的 class 频次表，不是 token 设计规范 | token 权威以 `tailwind.config.js` 为准；此文件仅作频次参考 |
 
 > 收敛原则：**先规范、后重构**。新增代码一律按本页规范写；存量不一致列入上表，按优先级分批迁移，每批 `npm run test:smoke` + `npm run build` 验证。
 

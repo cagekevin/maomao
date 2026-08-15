@@ -245,12 +245,14 @@ npm run check:health  # 工程健康全量检查
 | 文档 | 用途 | 信任度 |
 | --- | --- | --- |
 | `docs/TESTING.md` | **测试体系权威**（命令/分层/断言） | 🟢 高 |
+| `docs/NEW-NODE-GUIDE.md` | **新建节点权威流程**（骨架/数据范式/4处注册/管线产出契约/常见坑） | 🟢 高 |
+| `docs/NODE-DESIGN-SPEC.md` | **节点设计规范**（视觉DNA/板块规划/设置项7形态/操作交互） | 🟢 高 |
 | `docs/README.md` | 原型结构 + 节点设计规范 | 🟢 高 |
 | `docs/ARCHITECTURE.md` | 原型架构与设计规范（注意：文档内路径前缀 `prototypes/react-nodes/src/` 为旧写法，实际即根目录 `src/`） | 🟢 高 |
 | `docs/BASE-CAPABILITIES.md` | 通用能力地基规范 | 🟢 高 |
 | `docs/node-types-map.md` | 节点类型 → 1mao 混淆符号映射（`npm run sync:mapping` 生成，参考对照用，非原型文件清单） | 🟢 高 |
 | `docs/CANVAS_PERFORMANCE.md` | 画布性能规范 | 🟢 高 |
-| `docs/tailwind-tokens.md` | Tailwind 样式令牌 | 🟢 高 |
+| `tailwind.config.js` | **样式令牌唯一真相**（`tailwind-tokens.md` 已删，勿再引用） | 🟢 高 |
 | `daily/` | 执行日志 | 🟢 高 |
 | `docs/1mao-docs/` | 原产品逆向/后端/专题文档（含 27-AI操控画布、31-自研节点、33-剧本盒、34-素材、35-缩略图等；历史参考，部分已落地部分规划） | 🟡 参考 |
 | `reference-1mao/` | 1mao 混淆还原可读源码（只读参考） | 🟡 参考 |

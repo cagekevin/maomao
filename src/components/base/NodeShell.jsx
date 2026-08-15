@@ -48,37 +48,99 @@ function useNodeSize(id) {
  *  - sizeMode                         'width-fixed'（默认，生图）| 'area-fixed'（特惠视频）
  *  - baseSize                         area-fixed 的面积基准（默认 380）
  *  - handleVariant                    'large'|'small'
+ *  - showHandles                      是否渲染默认左右端口（默认 true；自定义端口节点设 false）
+ *  - showTitle                        是否渲染标题栏（默认 true）
+ *  - titleRight                       标题右侧操作组（absolute 浮在标题右，不占布局）
  *  - className                        追加到根 div 的 class
  *  - style                            追加到根 div 的 inline style（如 { minHeight: 640 }
  *                                      可让宽节点即使 store n.height 没生效也撑出最小高度）
  *  - wrapperRef                       暴露根 div ref（供右下角手柄拖拽改整体尺寸）
+ *  - syncSize                         是否强制同步尺寸（默认 true；编组等特殊节点设 false）
  *  - children                         节点内容（hover栏 + 主显示框 + 展开面板）
  *
  * ════════════════════════════════════════════════════════════════
- * 【新建节点指南：如何写得和通用节点一致】
+ * 【新建节点指南 · 权威范本（后续 AI 建节点先读这个）】
  * ════════════════════════════════════════════════════════════════
  *
- * 1. 高度怎么保持自适应（无限画布，内容多了不能滚动）
- *    · 节点外壳：NodeShell 根 div 用 min-height（不是固定 height），内容多会自然撑高。
- *    · 但 ReactFlow 的 node.height 是固定值，若内容撑开超过它，端口定位会错位。
- *    · 复合节点（如剧本盒子）做法：用 ResizeObserver 监听主容器高度，
- *      变化时用 useNodeResize(id).onMainBoxResize(w, h) 写回 node.height + updateNodeInternals，
- *      让 ReactFlow wrapper 跟随 → 端口不错位。参考 ScriptBoxNode.jsx。
- *    · 简单节点通常无需自适应：内容固定在 NodeShell 的固定尺寸内即可。
+ * 一句话：外壳用 NodeShell，节点只写「业务专属内容」，绝不手写外壳/端口/背景/尺寸。
+ * 参考节点（从简到繁）：TextNode / PromptNode → ImageBoxNode / GridSplitNode → ScriptBoxNode（复合）。
  *
- * 2. 怎么写才能和通用节点保持一致
- *    · 一律用 NodeShell 作为外壳（尺寸/标题/端口/主容器背景都内置），不要自己手写外壳。
- *    · 内容包在 NodeShell 的 children 里；背景/边框/阴影由 NodeShell 主容器统一提供，
- *      节点内部不要再写 bg-surface-raised、rounded、border、shadow（会重复/不一致）。
- *    · 端口用 CustomHandle（要 id 用 handleId、要位置用 top 参数），别自创样式。
- *    · 参考 TextNode / PromptNode / DiscountVideoNode 的写法。
+ * ── 0. 标准节点骨架（照抄）──
+ *   return (
+ *     <NodeShell id label defaultTitle icon selected handleVariant aspectRatio defaultHeight wrapperRef>
+ *       <HoverToolbar buttons={toolbarButtons} />                       // hover 胶囊栏（可选）
+ *       <input type="file" ref hidden />                               // 上传（可选）
+ *       <div className="relative flex flex-col w-full flex-1 min-h-0"> // 主显示框（唯一必须 children）
+ *         ...业务内容（用 flex-1 填满，别用 h-full）...
+ *         <ResizeFullscreenHandle targetRef={wrapperRef} onResizeEnd={onMainBoxResize} />
+ *       </div>
+ *       <ExpandablePanel expanded minWidth>...</ExpandablePanel>       // 展开面板（可选）
+ *       <FullscreenModal open onClose>...</FullscreenModal>             // 全屏弹层（可选）
+ *     </NodeShell>
+ *   )
  *
- * 3. 如果不保持一致，要怎么样才最合理
- *    · 先确认差异是「业务内容」还是「外壳」：业务内容差异正常（放 children）；
- *      外壳差异（背景/端口/尺寸行为）应优先收敛到 NodeShell，而不是在节点里特判。
- *    · 确实需要 NodeShell 不提供的通用能力（如：不需要端口 → showHandles={false}、
- *      需要额外端口 → 自己渲染 CustomHandle）时，才在节点层扩展，并在注释里说明原因，
- *      避免下一个 AI 以为是自己写错了。
+ * ── 1. 外壳与样式（最高频）──
+ *   · 外壳全用 NodeShell：尺寸/标题/端口/主容器背景/边框/阴影内置，禁止手写外壳。
+ *   · children 里不要再写 bg-surface-raised / rounded-xl / border / shadow——主容器已提供，
+ *     重复写会出双重外框、颜色不一致（见 ARCHITECTURE.md §9.3）。背景层不裁 children，只供视觉。
+ *   · 样式全用 token（bg-surface-1 / text-body / border-edge / text-caption），token 在
+ *     tailwind.config.js。禁止新写裸色值 bg-[#1c1c1c] / text-gray-500 / text-[10px] / z-[9999]。
+ *
+ * ── 2. 尺寸 / 高度自适应 ──
+ *   · 根 div 尺寸 = ReactFlow node.width/height（NodeShell 用 useNodeSize 从 store 订阅，
+ *     非 w-full/h-full 跟随父容器），端口基于中点定位。别在节点里另写一套尺寸逻辑。
+ *   · 简单节点：内容固定在 NodeShell 尺寸内即可。复合节点（内容撑高超 node.height）：
+ *     ResizeObserver 监听 → useNodeResize(id).onMainBoxResize(w,h) 写回 node.height +
+ *     updateNodeInternals，否则端口错位。参考 ScriptBoxNode.jsx。
+ *   · 文本区用 flex-1（父已是 flex），别用 h-full（百分比在 flex 下解析为 auto → 塌缩）。
+ *   · 右下角手柄 ResizeFullscreenHandle + onMainBoxResize（写 node.width/height）；
+ *     面板内「部件」只写 node.data.inputWidth/inputHeight（如 PromptInput 的 textarea）。
+ *   · 比例 aspectRatio / sizeMode / keepAspect 由 NodeShell 管，别手写 resize。
+ *
+ * ── 3. 端口 ──
+ *   · 默认左右 CustomHandle 已由 NodeShell 渲染。要多端口/指定位置：CustomHandle（handleId/top），
+ *     别自创端口样式。不需要端口 → showHandles={false}（如 ImageBoxNode 用自定义 in/active 口）。
+ *
+ * ── 4. 拖拽 / 交互 ──
+ *   · 主显示框用 drag-handle cursor-move（可拖动）；交互控件（按钮/输入/textarea）标 nodrag。
+ *     别给整个 children 标 nodrag，否则内容区盖住可拖区域、只剩标题栏能拖。
+ *   · onClick 放节点自身 children 内层 div，别依赖 NodeShell 主容器层。
+ *   · hover 按钮统一 HoverToolbar + ToolbarButton，别手写胶囊栏（ImageBoxNode 手写是历史遗留，别模仿）。
+ *
+ * ── 5. 数据状态（通读全部节点后的统一范式，先想清楚）──
+ *   统一范式（TextNode/PromptNode/DiscountVideo/GridSplit/GridMerge 全部一致）：
+ *   · **useState 存 UI 状态**：所有节点都用 `useState(data.xxx)` 初始化（prompt/text/rows/cols/ratio…）。
+ *   · **setNodes 不可变更新写回 data**：改状态时 `setNodes(ns => ns.map(n => n.id===id
+ *     ? {...n, data:{...n.data,...patch}} : n))`，非目标节点 : n 原样返回。
+ *   · **外部写 data → 同步回本地 state**：用 useEffect 监听 `data.xxx`，变化时 setState 刷新
+ *     （GridSplit/GridMerge/DiscountVideo 都这么做）。若外部是 Agent 批量写，用 `useSyncNodeData(data, setters)`。
+ *   · 例外（别当通用范式）：ImageBoxNode 直接读 data.images、不复制 state——因为它是「多图容器」，
+ *     数据量大且常被连线/剧本盒子读写，直接读 data 避免副本失控。单参数节点照统一范式即可。
+ *   · 判断准则（ARCHITECTURE.md §三）：数据会不会被引擎/连线/持久化/复制读写。
+ *   · ⚠️ 不要把「手写 setNodes」当范式：可抽 `updateData` 帮助函数（如 ImageBoxNode），
+ *     但不要引入新 state 管理库。
+ *
+ * ── 6. 通用能力走单一入口（见 docs/CODING-STANDARD.md §一，别各写各的）──
+ *   · 媒体判断 mediaType.js；URL 归一 imageUrl.js；弹提示 toastStore.showToast；
+ *     落盘 filesApi.js；压缩 imageCompress.js；复制/下载 clipboard.js；缩略图 base/LazyImage.jsx。
+ *   · 生成流程 useNodeGeneration；模型下拉 ModelSelect；提示词 PromptInput；按钮 GenerateButton。
+ *   · 参数记忆 useNodePrefs（记住上次模型/比例/尺寸，跨节点复用）。
+ *   · ⚠️ 已知重复（历史遗留，新代码别模仿、逐步收敛）：ImageBoxNode 手写 makeThumb/copyImage/downloadUrl，
+ *     应分别用 imageCompress / clipboard.js。
+ *
+ * ── 7. 注册（4 处同步，漏一处 → 要么建不出 / 要么下游拿不到数据）──
+ *   · components/base/NodePalette.jsx paletteNodes 加一行 { type, label, icon, cat, data, builtin:true }。
+ *   · App.jsx nodeTypes 加一行 type → 组件。
+ *   · **base/useConnectedInputs.js 的 NODE_OUTPUTS 加一行**（有产出的节点必须登记，否则下游连线拿不到数据；
+ *     数组型产出 extractedImages[] 用 arrayImages 归一）。这是最容易漏的一处。
+ *   · 新增 base 能力登记 docs/BASE-CAPABILITIES.md；数据契约写交接文档。
+ *
+ * ── 8. 验证门禁 ──
+ *   · npm run test:smoke + npm run test:regression + npm run build 三道门全绿。
+ *
+ * 判断准则：差异是「业务内容」→ 放 children（正常）；差异是「外壳/端口/尺寸行为」→ 优先收敛到
+ * NodeShell，不在节点里特判。确实需要 NodeShell 不提供的通用能力时，才在节点层扩展并注释原因，
+ * 避免下一个 AI 以为写错了。
  * ════════════════════════════════════════════════════════════════
  */
 export default function NodeShell({

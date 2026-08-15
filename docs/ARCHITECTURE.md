@@ -2,7 +2,7 @@
 
 > **这份文档是「为什么」，不是「规则清单」。** 它从设计原则出发，推导出本原型该长什么样、数据该怎么流动、代码该怎么写。
 > 新增节点 / 改节点 / 接真引擎前先读它，先理解「为什么这样设计」，再动手。
-> 配套：`SCRIPTBOX-HANDOFF.md`（剧本盒子专属）、`node-types-map.md`（官方节点映射）、`tailwind-tokens.md`（样式令牌）、`README.md`（启动/测试）。
+> 配套：`SCRIPTBOX-HANDOFF.md`（剧本盒子专属）、`node-types-map.md`（官方节点映射）、`tailwind.config.js`（样式令牌唯一真相）、`README.md`（启动/测试）。
 
 ---
 
