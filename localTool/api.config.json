@@ -98,135 +98,33 @@
       "enabled": true,
       "image_models": [
         {
-          "id": "MedAIBase/AntAngelMed",
-          "label": "MedAIBase/AntAngelMed",
-          "streaming": false,
-          "promptOnly": false
-        },
-        {
-          "id": "meituan-longcat/LongCat-Flash-Lite",
-          "label": "meituan-longcat/LongCat-Flash-Lite",
-          "streaming": false,
-          "promptOnly": false
-        },
-        {
-          "id": "mistralai/Mistral-Large-Instruct-2407",
-          "label": "mistralai/Mistral-Large-Instruct-2407",
-          "streaming": false,
-          "promptOnly": false
-        },
-        {
-          "id": "opencompass/CompassJudger-1-32B-Instruct",
-          "label": "opencompass/CompassJudger-1-32B-Instruct",
-          "streaming": false,
-          "promptOnly": false
-        },
-        {
-          "id": "OpenGVLab/InternVL3_5-241B-A28B",
-          "label": "OpenGVLab/InternVL3_5-241B-A28B",
-          "streaming": false,
-          "promptOnly": false
-        },
-        {
-          "id": "PaddlePaddle/ERNIE-4.5-0.3B-PT",
-          "label": "PaddlePaddle/ERNIE-4.5-0.3B-PT",
-          "streaming": false,
-          "promptOnly": false
-        },
-        {
-          "id": "PaddlePaddle/ERNIE-4.5-21B-A3B-PT",
-          "label": "PaddlePaddle/ERNIE-4.5-21B-A3B-PT",
-          "streaming": false,
-          "promptOnly": false
-        },
-        {
-          "id": "PaddlePaddle/ERNIE-4.5-300B-A47B-PT",
-          "label": "PaddlePaddle/ERNIE-4.5-300B-A47B-PT",
-          "streaming": false,
-          "promptOnly": false
-        },
-        {
-          "id": "PaddlePaddle/ERNIE-4.5-VL-28B-A3B-PT",
-          "label": "PaddlePaddle/ERNIE-4.5-VL-28B-A3B-PT",
-          "streaming": false,
-          "promptOnly": false
-        },
-        {
-          "id": "Shanghai_AI_Laboratory/Intern-S1",
-          "label": "Shanghai_AI_Laboratory/Intern-S1",
-          "streaming": false,
-          "promptOnly": false
-        },
-        {
-          "id": "Shanghai_AI_Laboratory/Intern-S2-Preview",
-          "label": "Shanghai_AI_Laboratory/Intern-S2-Preview",
-          "streaming": false,
-          "promptOnly": false
-        },
-        {
-          "id": "stepfun-ai/Step-3.5-Flash",
-          "label": "stepfun-ai/Step-3.5-Flash",
-          "streaming": false,
-          "promptOnly": false
-        },
-        {
-          "id": "stepfun-ai/Step-3.7-Flash",
-          "label": "stepfun-ai/Step-3.7-Flash",
-          "streaming": false,
-          "promptOnly": false
-        },
-        {
-          "id": "Tencent-Hunyuan/Hy3",
-          "label": "Tencent-Hunyuan/Hy3",
-          "streaming": false,
-          "promptOnly": false
-        },
-        {
-          "id": "ZhipuAI/GLM-4.7-Flash",
-          "label": "GLM-4.7-Flash",
-          "streaming": true,
-          "promptOnly": false
-        },
-        {
-          "id": "ZhipuAI/GLM-5.2",
-          "label": "ZhipuAI/GLM-5.2",
+          "id": "MusePublic/Qwen-Image-Edit",
+          "label": "GQwen-Image-Edit",
           "streaming": false,
           "promptOnly": false
         }
       ],
       "chat_models": [
         {
-          "id": "Qwen/Qwen3-14B",
-          "label": "Qwen3-14B",
+          "id": "deepseek-ai/DeepSeek-V4-Flash-0731",
+          "label": "DeepSeek-V4-Flash",
           "streaming": false,
           "promptOnly": false
         },
         {
-          "id": "Qwen/Qwen3-32B",
-          "label": "Qwen3-32B",
+          "id": "deepseek-ai/DeepSeek-V4-Pro",
+          "label": "DeepSeek-V4-Pro",
           "streaming": false,
           "promptOnly": false
         },
         {
-          "id": "MiniMax/MiniMax-M2.5",
-          "label": "MiniMax-M2.5",
-          "streaming": false,
-          "promptOnly": false
-        },
-        {
-          "id": "ZhipuAI/GLM-4.7-Flash",
-          "label": "GLM-4.7-Flash",
+          "id": "Qwen/Qwen3.5-27B",
+          "label": "Qwen/Qwen3.5-27B",
           "streaming": false,
           "promptOnly": false
         }
       ],
       "video_models": [
-        {
-          "id": "MiniMax/MiniMax-M1-80k",
-          "label": "MiniMax/MiniMax-M1-80k",
-          "streaming": false,
-          "promptOnly": false
-        },
         {
           "id": "MiniMax/MiniMax-M3",
           "label": "MiniMax/MiniMax-M3",
