@@ -1,48 +1,30 @@
 /**
  * ════════════════════════════════════════════════════════════════
- * 会话隔离数据层（对齐大雄 canvas-agent 的多对话架构）
+ * 会话隔离数据层（对齐 taskStore/providerStore 的 useSyncExternalStore 范式）
  * ════════════════════════════════════════════════════════════════
  *
- * 【解决什么问题】
- * 之前 AI 助手是"单一会话"：历史只存一份，启用的 Skill 是全局的（agent_active_skills），
- * 无法开多个对话、每个对话独立的历史与 Skill。本模块引入多对话（conversation）隔离。
+ * 【为什么重构】见 docs/10。原实现是"current 内存镜像 + cache + 手动 captureActiveConversation"
+ * 三套状态，靠各处手动同步，导致：
+ *   - 挂载早期 AgentPanel 的 effect 用空 current 覆盖 localStorage 真实记录 → 刷新丢历史
+ *   - 落盘时机靠手动 capture，漏调/时序错就丢或覆盖
+ * 本次改为「单一数据源 + 自动落盘」，对齐 taskStore/providerStore 范式。
  *
- * 【数据模型 —— 对齐大雄的"完整对话状态对象"】
- *  conversations: [{ id, title, ts, updatedAt, ...对话状态 }]
- *  activeConversationId: 当前对话 id
- *  每个对话独立持有（对齐大雄 conv.*，全部走 capture/apply 切换隔离）：
- *   - messages：    该对话的历史消息
- *   - skills：      该对话启用的 Skill（per-conversation）
- *   - attachments： 该对话的参考图
- *   - draft：       该对话的输入框草稿
- *   - workflow：    该对话的任务状态对象（对齐大雄 conv.workflow）
- *                   { id, status, nodeIds, steerQueue, startedAt, updatedAt }，
- *                   status ∈ planning/creating_nodes/ready/running/stopping/completed/failed。
- *                   用于：判定该对话是否 busy（running/steer）、steer 队列 per-conversation。
- *   - pending：     该对话未完成的 LLM 任务（对齐大雄 conv.pending）
- *                   { conversationId, text, attachments }，
- *                   发送时写入、完成后清除；刷新后据此自动恢复上次操作。
- *   - memory：      该对话提炼的记忆（对齐大雄 conv.memory）
- *                   { summary, facts, lastPlan, lastSharedStyle, notes }，
- *                   从 present_plan/execute_plan 提炼 lastPlan，供多轮上下文。
+ * 【单一数据源】
+ *   state = { conversations: [], activeId }  模块级单例，从 localStorage 加载。
+ *   所有变更统一走 _commit(nextState)：生成新 state + notify 订阅者 + 自动写 localStorage。
  *
- * 【"内存镜像"模式（对齐大雄 agentState.messages 只是当前对话镜像）】
- *  本 store 持有一个 `current` 快照（当前对话在内存中的全部状态）。
- *  调用方（useAgentChat / AgentPanel）用 setCurrentSnapshot() 把 React state 同步进来，
- *  切换/新建/删除对话时：
- *   - captureActiveConversation()：把 current 写回 conversations（切换/新建前必调，防串对话）
- *   - applyConversation(id)：       把目标对话加载进 current（切换/新建后）
- *  这样全部对话状态按对话天然隔离，不串台。
+ * 【写盘时机】
+ *   - hydrated=false（尚未从 localStorage 恢复当前对话）时，_commit 只更新内存、不落盘，
+ *     避免挂载早期用空数据覆盖已有记录。
+ *   - applyConversation（恢复/切换）成功后 hydrated=true，此后所有变更自动落盘。
  *
  * 【存储】
- *  conversations 存 localStorage（chrome 插件则走 storageAdapter 的 chrome.storage）。
- * 纯逻辑、无 React 依赖，可独立单测。UI 将来重构时本层可原样复用。
+ *   conversations 存 localStorage（storageAdapter）。纯逻辑、无 React 依赖。
  *
- * 【与旧数据的迁移】
- *  旧版是单会话（agent_history_<key> 存 messages + agent_active_skills 全局 skill）。
- *  首次启动若 conversations 为空且有旧数据，可调 importLegacy() 迁移成一个对话。
+ * 【对外 API 保持不变】（useAgentChat / AgentPanel / useCanvasAgentTools 依赖）
  * ════════════════════════════════════════════════════════════════
  */
+import { useSyncExternalStore } from 'react'
 import { sGet, sSet } from './storageAdapter.js'
 
 const CONVERSATIONS_KEY = 'agent_conversations'
@@ -55,14 +37,60 @@ function emptyMemory() {
   return { summary: '', facts: [], lastPlan: null, lastSharedStyle: '', notes: [] }
 }
 
-/** 当前对话的内存镜像（由调用方 setCurrentSnapshot 同步；workflow/pending/memory 为运行时状态） */
-let current = {
-  messages: [], skills: [], attachments: [], draft: '',
-  workflow: null, pending: null, memory: emptyMemory(),
+/** 单一数据源 */
+let state = loadState()
+/** 是否已恢复过当前对话（applyConversation 置 true；未恢复前禁止落盘，防挂载覆盖） */
+let hydrated = false
+
+/** 订阅者 */
+const listeners = new Set()
+
+function subscribe(cb) {
+  listeners.add(cb)
+  return () => listeners.delete(cb)
+}
+function getSnapshot() {
+  return state
 }
 
-/** conversations 数组内存缓存（避免每次 get 都读 localStorage） */
-let cache = null
+/** useConversationStore()：订阅画布会话状态（对齐 taskStore 的 useTasks 用法） */
+export function useConversationStore() {
+  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
+}
+
+/** 从 localStorage 加载初始 state */
+function loadState() {
+  let conversations = []
+  try {
+    const raw = sGet(CONVERSATIONS_KEY)
+    const arr = raw ? JSON.parse(raw) : []
+    conversations = (Array.isArray(arr) ? arr : []).map(normalizeConversation).filter(Boolean)
+  } catch {
+    conversations = []
+  }
+  let activeId = ''
+  try {
+    const id = sGet(ACTIVE_KEY)
+    activeId = typeof id === 'string' && id ? id : ''
+  } catch {
+    activeId = ''
+  }
+  return { conversations, activeId }
+}
+
+/** 统一提交：生成新 state + 通知 + 落盘（hydrated 后才写 localStorage，防挂载覆盖） */
+function commit(next) {
+  state = next
+  listeners.forEach((l) => l())
+  if (hydrated) {
+    try {
+      sSet(CONVERSATIONS_KEY, JSON.stringify(state.conversations.map(normalizeConversation)))
+      sSet(ACTIVE_KEY, state.activeId || '')
+    } catch {
+      /* 忽略写失败 */
+    }
+  }
+}
 
 /** 生成唯一 id（对齐大雄 uid('ac')） */
 function uid(prefix) {
@@ -90,119 +118,6 @@ export function normalizeConversation(c) {
   if (c.workflow === undefined) c.workflow = null
   if (c.pending === undefined) c.pending = null
   return c
-}
-
-/** 从存储加载 conversations（内存缓存 + localStorage 兜底） */
-function load() {
-  if (cache) return cache
-  try {
-    const raw = sGet(CONVERSATIONS_KEY)
-    const arr = raw ? JSON.parse(raw) : []
-    cache = (Array.isArray(arr) ? arr : []).map(normalizeConversation).filter(Boolean)
-  } catch {
-    cache = []
-  }
-  return cache
-}
-
-/** 持久化 conversations（含结构规范化） */
-function save() {
-  try {
-    sSet(CONVERSATIONS_KEY, JSON.stringify((cache || []).map(normalizeConversation)))
-  } catch {
-    /* 忽略写失败 */
-  }
-}
-
-/** 读当前对话 id */
-export function getActiveConversationId() {
-  try {
-    const id = sGet(ACTIVE_KEY)
-    return typeof id === 'string' && id ? id : ''
-  } catch {
-    return ''
-  }
-}
-
-/** 写当前对话 id */
-function setActiveConversationId(id) {
-  try {
-    sSet(ACTIVE_KEY, id || '')
-  } catch {
-    /* 忽略写失败 */
-  }
-}
-
-/** 全量对话列表（浅拷贝，供 UI 渲染对话列表用） */
-export function getConversations() {
-  return load().map((c) => ({
-    ...c,
-    messages: [...c.messages],
-    skills: [...c.skills],
-    attachments: [...c.attachments],
-    workflow: normalizeWorkflow(c.workflow),
-    pending: normalizePending(c.pending),
-    memory: normalizeMemory(c.memory),
-  }))
-}
-
-/** 读当前对话的内存镜像副本 */
-export function getCurrentSnapshot() {
-  return {
-    messages: [...current.messages],
-    skills: [...current.skills],
-    attachments: [...current.attachments],
-    draft: current.draft,
-    workflow: current.workflow ? { ...current.workflow, steerQueue: [...(current.workflow.steerQueue || [])] } : null,
-    pending: current.pending ? { ...current.pending, attachments: [...(current.pending.attachments || [])] } : null,
-    memory: current.memory ? { ...current.memory, facts: [...current.memory.facts], notes: [...current.memory.notes] } : emptyMemory(),
-  }
-}
-
-/** 同步调用方（React state）的当前对话内存态到本 store（只覆盖传入字段，其余保留） */
-export function setCurrentSnapshot(snap) {
-  current = {
-    messages: Array.isArray(snap?.messages) ? snap.messages : current.messages,
-    skills: Array.isArray(snap?.skills) ? snap.skills : current.skills,
-    attachments: Array.isArray(snap?.attachments) ? snap.attachments : current.attachments,
-    draft: typeof snap?.draft === 'string' ? snap.draft : current.draft,
-    workflow: snap?.workflow ? normalizeWorkflow(snap.workflow) : current.workflow,
-    pending: snap?.pending !== undefined ? normalizePending(snap.pending) : current.pending,
-    memory: snap?.memory ? normalizeMemory(snap.memory) : current.memory,
-  }
-}
-
-/** 读当前对话的 workflow（未归一化副本；无则 null） */
-export function getCurrentWorkflow() {
-  return current.workflow ? { ...current.workflow, steerQueue: [...(current.workflow.steerQueue || [])] } : null
-}
-
-/** 原地补丁当前对话的 workflow（运行时状态，不落盘；供 execute_plan/useAgentChat 更新 status/steerQueue 等） */
-export function patchCurrentWorkflow(patch = {}) {
-  const wf = current.workflow ? { ...current.workflow } : { status: 'planning', nodeIds: [], steerQueue: [] }
-  const next = { ...wf, ...patch, steerQueue: Array.isArray(patch?.steerQueue) ? patch.steerQueue : (wf.steerQueue || []) }
-  current.workflow = normalizeWorkflow(next)
-  return current.workflow
-}
-
-/** 读当前对话的 pending（副本；无则 null） */
-export function getCurrentPending() {
-  return current.pending ? { ...current.pending, attachments: [...(current.pending.attachments || [])] } : null
-}
-
-/** 设置/清除当前对话的 pending（对齐大雄 conv.pending；刷新后据此恢复任务） */
-export function setCurrentPending(p) {
-  current.pending = normalizePending(p)
-}
-
-/** 读当前对话的 memory（副本；无则空记忆） */
-export function getCurrentMemory() {
-  return current.memory ? normalizeMemory(current.memory) : emptyMemory()
-}
-
-/** 更新当前对话的 memory（对齐大雄 conv.memory；提炼 lastPlan 等） */
-export function setCurrentMemory(m) {
-  current.memory = normalizeMemory(m)
 }
 
 /** 归一 workflow：保证结构完整（对齐大雄 conv.workflow） */
@@ -240,136 +155,198 @@ export function normalizeMemory(m) {
   }
 }
 
+/** 读当前对话 id */
+export function getActiveConversationId() {
+  return state.activeId || ''
+}
+
+/** 全量对话列表（浅拷贝，供 UI 渲染对话列表用） */
+export function getConversations() {
+  return state.conversations.map((c) => ({
+    ...c,
+    messages: [...c.messages],
+    skills: [...c.skills],
+    attachments: [...c.attachments],
+    workflow: normalizeWorkflow(c.workflow),
+    pending: normalizePending(c.pending),
+    memory: normalizeMemory(c.memory),
+  }))
+}
+
+/** 读当前对话对象（内部；无则 null） */
+function getActiveConv() {
+  return state.conversations.find((c) => c.id === state.activeId) || null
+}
+
+/** 读当前对话的快照副本（对外） */
+export function getCurrentSnapshot() {
+  const conv = getActiveConv()
+  return {
+    messages: conv ? [...conv.messages] : [],
+    skills: conv ? [...conv.skills] : [],
+    attachments: conv ? [...conv.attachments] : [],
+    draft: conv?.draft || '',
+    workflow: conv?.workflow ? { ...conv.workflow, steerQueue: [...(conv.workflow.steerQueue || [])] } : null,
+    pending: conv?.pending ? { ...conv.pending, attachments: [...(conv.pending.attachments || [])] } : null,
+    memory: conv?.memory ? normalizeMemory(conv.memory) : emptyMemory(),
+  }
+}
+
+/**
+ * 同步当前对话的内存态（只覆盖传入字段，其余保留）。
+ * 重构后这是唯一写入口之一：更新 active 对话并自动落盘。
+ */
+export function setCurrentSnapshot(snap) {
+  const conv = getActiveConv()
+  if (!conv) return
+  const next = {
+    ...conv,
+    messages: Array.isArray(snap?.messages) ? snap.messages.slice(-AGENT_MSG_MAX) : conv.messages,
+    skills: Array.isArray(snap?.skills) ? snap.skills.map((s) => ({ ...s })) : conv.skills,
+    attachments: Array.isArray(snap?.attachments) ? snap.attachments.map((a) => ({ ...a })) : conv.attachments,
+    draft: typeof snap?.draft === 'string' ? snap.draft : conv.draft,
+    workflow: snap?.workflow ? normalizeWorkflow(snap.workflow) : conv.workflow,
+    pending: snap?.pending !== undefined ? normalizePending(snap.pending) : conv.pending,
+    memory: snap?.memory ? normalizeMemory(snap.memory) : conv.memory,
+    updatedAt: Date.now(),
+  }
+  commit({
+    ...state,
+    conversations: state.conversations.map((c) => (c.id === conv.id ? next : c)),
+  })
+}
+
+/** 读当前对话的 workflow（副本；无则 null） */
+export function getCurrentWorkflow() {
+  return getActiveConv()?.workflow ? { ...getActiveConv().workflow, steerQueue: [...(getActiveConv().workflow.steerQueue || [])] } : null
+}
+
+/** 原地补丁当前对话的 workflow（运行时状态；更新后落盘） */
+export function patchCurrentWorkflow(patch = {}) {
+  const conv = getActiveConv()
+  if (!conv) return null
+  const wf = conv.workflow ? { ...conv.workflow } : { status: 'planning', nodeIds: [], steerQueue: [] }
+  const nextWf = normalizeWorkflow({ ...wf, ...patch, steerQueue: Array.isArray(patch?.steerQueue) ? patch.steerQueue : (wf.steerQueue || []) })
+  commit({
+    ...state,
+    conversations: state.conversations.map((c) => (c.id === conv.id ? { ...c, workflow: nextWf, updatedAt: Date.now() } : c)),
+  })
+  return nextWf
+}
+
+/** 读当前对话的 pending（副本；无则 null） */
+export function getCurrentPending() {
+  const p = getActiveConv()?.pending
+  return p ? { ...p, attachments: [...(p.attachments || [])] } : null
+}
+
+/** 设置/清除当前对话的 pending（刷新后据此恢复任务） */
+export function setCurrentPending(p) {
+  const conv = getActiveConv()
+  if (!conv) return
+  commit({
+    ...state,
+    conversations: state.conversations.map((c) => (c.id === conv.id ? { ...c, pending: normalizePending(p), updatedAt: Date.now() } : c)),
+  })
+}
+
+/** 读当前对话的 memory（副本；无则空记忆） */
+export function getCurrentMemory() {
+  return getActiveConv()?.memory ? normalizeMemory(getActiveConv().memory) : emptyMemory()
+}
+
+/** 更新当前对话的 memory（提炼 lastPlan 等） */
+export function setCurrentMemory(m) {
+  const conv = getActiveConv()
+  if (!conv) return
+  commit({
+    ...state,
+    conversations: state.conversations.map((c) => (c.id === conv.id ? { ...c, memory: normalizeMemory(m), updatedAt: Date.now() } : c)),
+  })
+}
+
 /** 确保至少有一个对话；没有则建一个空的，并设为当前。返回当前对话 id */
 export function ensureActiveConversation() {
-  const list = load()
-  let activeId = getActiveConversationId()
-  if (activeId && list.some((c) => c.id === activeId)) return activeId
-  // 优先取第一个
-  if (list.length > 0) {
-    const first = list[0]
-    setActiveConversationId(first.id)
-    return first.id
+  let { conversations, activeId } = state
+  if (activeId && conversations.some((c) => c.id === activeId)) return activeId
+  if (conversations.length > 0) {
+    commit({ ...state, activeId: conversations[0].id })
+    return conversations[0].id
   }
-  // 完全没有 → 建一个空对话
   const conv = normalizeConversation({ id: uid('ac'), title: '对话', messages: [], skills: [], draft: '' })
-  list.unshift(conv)
-  setActiveConversationId(conv.id)
-  save()
+  commit({ conversations: [conv], activeId: conv.id })
   return conv.id
 }
 
-/** 把 current 写回当前对话（切换/新建前必调，防止消息/Skill 串台） */
+/**
+ * 把当前对话写回 conversations（对外兼容；重构后 setCurrentSnapshot 已自动落盘，此函数基本不再需要）。
+ * 保留兼容，但不做挂载期覆盖（内部由 commit 的 hydrated 守卫兜底）。
+ */
 export function captureActiveConversation() {
-  const list = load()
-  const activeId = getActiveConversationId()
-  const idx = list.findIndex((c) => c.id === activeId)
-  const base = idx >= 0 ? list[idx] : normalizeConversation({ id: activeId || uid('ac'), title: '对话' })
-  if (idx < 0) list.unshift(base)
-  base.messages = current.messages.slice(-AGENT_MSG_MAX)
-  base.skills = current.skills.map((s) => ({ ...s }))
-  base.attachments = current.attachments.map((a) => ({ ...a }))
-  base.draft = current.draft
-  base.workflow = current.workflow ? normalizeWorkflow(current.workflow) : null
-  base.pending = current.pending ? normalizePending(current.pending) : null
-  base.memory = normalizeMemory(current.memory)
-  base.updatedAt = Date.now()
-  // 标题：首条用户消息前 30 字
-  const firstUser = current.messages.find((m) => m.role === 'user' && m.content)
-  if (firstUser?.content && (!base.title || base.title === '对话' || base.title === '新对话')) {
-    base.title = String(firstUser.content).slice(0, 30)
-  }
-  save()
-  return base
+  // 无额外动作：setCurrentSnapshot 已把 active 对话写回并落盘。
+  // 保留导出仅兼容旧调用方；若 activeId 无效则返回 null。
+  if (!getActiveConv()) return null
+  return getActiveConv()
 }
 
-/** 把某对话加载进 current（切换/新建后调用），返回快照供调用方 setState */
+/** 把某对话加载进当前（恢复/切换），hydrated 置 true，返回快照 */
 export function applyConversation(id) {
-  const list = load()
-  // 目标不存在时回退到当前对话；当前也没有则建一个兜底空对话，保证始终有可用对话
-  let conv = list.find((c) => c.id === id)
+  let conv = state.conversations.find((c) => c.id === id)
+  // 目标不存在 → 回退当前；当前也没有 → 建空对话兜底
   if (!conv) {
-    const activeId = getActiveConversationId()
-    conv = list.find((c) => c.id === activeId) || null
+    const active = state.conversations.find((c) => c.id === state.activeId)
+    conv = active || null
   }
   if (!conv) {
-    const list2 = load()
-    const blank = normalizeConversation({ id: uid('ac'), title: '对话', messages: [], skills: [], draft: '' })
-    list2.unshift(blank)
-    cache = list2
-    setActiveConversationId(blank.id)
-    save()
-    conv = blank
+    conv = normalizeConversation({ id: uid('ac'), title: '对话', messages: [], skills: [], draft: '' })
+    commit({ conversations: [conv], activeId: conv.id })
   }
-  setActiveConversationId(conv.id)
-  current = {
-    messages: (conv.messages || []).slice(-AGENT_MSG_MAX),
-    skills: (conv.skills || []).map((s) => ({ ...s })),
-    attachments: (conv.attachments || []).map((a) => ({ ...a })),
-    draft: conv.draft || '',
-    workflow: normalizeWorkflow(conv.workflow),
-    pending: normalizePending(conv.pending),
-    memory: normalizeMemory(conv.memory),
-  }
+  hydrated = true // 已从存储恢复，此后允许落盘
+  commit({ ...state, activeId: conv.id })
   return getCurrentSnapshot()
 }
 
-/** 新建对话：先 capture 当前，再建空对话并设为当前，返回新对话 id 与快照 */
+/** 新建对话：把当前对话先落盘，再建空对话并设为当前，返回新对话 id 与快照 */
 export function newConversation() {
-  captureActiveConversation()
   const conv = normalizeConversation({ id: uid('ac'), title: '新对话', messages: [], skills: [], draft: '' })
-  const list = load()
-  list.unshift(conv)
-  setActiveConversationId(conv.id)
-  save()
-  const snap = applyConversation(conv.id)
-  return { id: conv.id, snapshot: snap }
+  commit({ conversations: [conv, ...state.conversations], activeId: conv.id })
+  return { id: conv.id, snapshot: getCurrentSnapshot() }
 }
 
-/** 切换对话：先 capture 当前，再 apply 目标，返回目标快照 */
+/** 切换对话：apply 目标，返回目标快照 */
 export function switchConversation(id) {
-  if (!id || id === getActiveConversationId()) return getCurrentSnapshot()
-  captureActiveConversation()
+  if (!id || id === state.activeId) return getCurrentSnapshot()
   return applyConversation(id)
 }
 
-/** 删除对话：capture 当前后删除；删空则建新对话。返回 { activeId, snapshot } */
+/** 删除对话：删空则建新对话。返回 { activeId, snapshot } */
 export function deleteConversation(id) {
-  captureActiveConversation()
-  const list = load()
-  const remaining = list.filter((c) => c.id !== id)
-  cache = remaining
+  const remaining = state.conversations.filter((c) => c.id !== id)
   if (remaining.length > 0) {
-    const next = remaining[0]
-    setActiveConversationId(next.id)
-    const snap = applyConversation(next.id)
-    return { activeId: next.id, snapshot: snap }
+    commit({ conversations: remaining, activeId: remaining[0].id })
+    return { activeId: remaining[0].id, snapshot: getCurrentSnapshot() }
   }
-  // 全删空 → 建一个空对话
   const conv = normalizeConversation({ id: uid('ac'), title: '新对话', messages: [], skills: [], draft: '' })
-  cache = [conv]
-  setActiveConversationId(conv.id)
-  save()
-  const snap = applyConversation(conv.id)
-  return { activeId: conv.id, snapshot: snap }
+  commit({ conversations: [conv], activeId: conv.id })
+  return { activeId: conv.id, snapshot: getCurrentSnapshot() }
 }
 
 /** 重命名当前对话标题（UI 可选） */
 export function renameActiveConversation(title) {
-  captureActiveConversation()
-  const list = load()
-  const idx = list.findIndex((c) => c.id === getActiveConversationId())
-  if (idx >= 0) {
-    list[idx].title = String(title || '').slice(0, 30) || list[idx].title
-    save()
-  }
+  const conv = getActiveConv()
+  if (!conv) return
+  commit({
+    ...state,
+    conversations: state.conversations.map((c) =>
+      c.id === conv.id ? { ...c, title: (String(title || '').slice(0, 30) || c.title), updatedAt: Date.now() } : c
+    ),
+  })
 }
 
 /** 从旧单会话数据迁移：conversations 为空且有旧 messages/skills 时，迁成一个对话 */
 export function importLegacy({ messages, skills }) {
   if (!Array.isArray(messages) || messages.length === 0) return null
-  const list = load()
-  if (list.length > 0) return null // 已有对话，不迁移
+  if (state.conversations.length > 0) return null // 已有对话，不迁移
   const firstUser = messages.find((m) => m.role === 'user' && m.content)
   const conv = normalizeConversation({
     id: uid('ac'),
@@ -382,14 +359,14 @@ export function importLegacy({ messages, skills }) {
     pending: null,
     memory: emptyMemory(),
   })
-  cache = [conv]
-  setActiveConversationId(conv.id)
-  save()
-  return applyConversation(conv.id)
+  hydrated = true
+  commit({ conversations: [conv], activeId: conv.id })
+  return getCurrentSnapshot()
 }
 
 /** 重置 store 内存缓存（测试/硬重置用） */
 export function resetConversationCache() {
-  cache = null
-  current = { messages: [], skills: [], attachments: [], draft: '', workflow: null, pending: null, memory: emptyMemory() }
+  state = { conversations: [], activeId: '' }
+  hydrated = false
+  listeners.forEach((l) => l())
 }

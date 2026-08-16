@@ -10,7 +10,7 @@ import { loadAgentChatModel } from './base/settings/agentModelStore.js'
 import { getAllSkills, markSkillUsed, getSkillUsage, upsertCustomSkill, deleteCustomSkill } from './base/skillStore.js'
 import { sGet, sSet } from './base/storageAdapter.js'
 import { toAbsoluteFileUrl } from './base/filesApi.js'
-import { setCurrentSnapshot, captureActiveConversation } from './base/conversationStore.js'
+import { setCurrentSnapshot } from './base/conversationStore.js'
 
 /**
  * ════════════════════════════════════════════════════════════════
@@ -142,9 +142,10 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
   const [skillSlashOpen, setSkillSlashOpen] = useState(false)
   const skillSlashRef = useRef(null)
   useOutsideClick(skillSlashRef, skillSlashOpen, () => setSkillSlashOpen(false))
+  // skills 变化 → 同步到 conversationStore（重构后 setCurrentSnapshot 内部自动落盘，
+  // 且带 hydrated 时序守卫：挂载早期不会用空数据覆盖 localStorage 已有记录）
   useEffect(() => {
     setCurrentSnapshot({ skills: activeSkills })
-    try { captureActiveConversation() } catch { /* ignore */ }
   }, [activeSkills])
   const applySkill = (skill) => {
     setActiveSkills((prev) => {
@@ -215,9 +216,9 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
     setInputMode(mode)
     try { sSet('agent_input_mode', mode) } catch { /* ignore */ }
   }
+  // attachments 变化 → 同步到 conversationStore（自动落盘，带 hydrated 时序守卫）
   useEffect(() => {
     setCurrentSnapshot({ attachments })
-    try { captureActiveConversation() } catch { /* ignore */ }
   }, [attachments])
 
   const [modelOpen, setModelOpen] = useState(false)

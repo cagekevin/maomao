@@ -20,7 +20,9 @@ import { toAbsoluteFileUrl } from './base/filesApi.js'
 
 /** 思考过程折叠面板（复刻 Sr.jsx） */
 function Reasoning({ text, streaming }) {
-  const [open, setOpen] = useState(true)
+  // 默认折叠：仅流式进行中（streaming=true）才展开显示"思考中"；
+  // 历史消息（streaming=false/undefined）默认折叠，刷新后不展开（修复：原本 useState(true) 刷新后必展开）
+  const [open, setOpen] = useState(!!streaming)
   const [done, setDone] = useState(false)
   const prevStreaming = useRef(streaming)
   useEffect(() => {
