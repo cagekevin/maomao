@@ -49,6 +49,10 @@ export function useNodeGeneration({ nodeId, type, validate, run, onSuccess, onRe
   const [error, setError] = useState('')
   // AbortController：stop() 真中断请求（Step C）。run 执行器接收 signal 并传给底层 API（Step A 已支持）。
   const abortRef = useRef(null)
+  // 【R4 防重入】同步 runningRef 原子防重：start 入口立即置位、finally 复位。
+  // 旧实现用闭包 `loading`（重渲染后才更新），快速双击时第二次仍读到旧 false → 并发生图。
+  // ref 同步更新，第二次 start 立即被拒，根治并发浪费（TASK-016 #6）。
+  const runningRef = useRef(false)
 
   const runRef = useRef(run)
   runRef.current = run
@@ -62,9 +66,11 @@ export function useNodeGeneration({ nodeId, type, validate, run, onSuccess, onRe
   typeRef.current = type
 
   const start = useCallback(async () => {
-    if (loading) return false
+    // 【R4 防重入】同步 runningRef 原子防重（比闭包 loading 可靠，第二次立即被拒）
+    if (loading || runningRef.current) return false
+    runningRef.current = true
     const v = validateRef.current?.()
-    if (v) { setError(v); return false }
+    if (v) { setError(v); runningRef.current = false; return false }
 
     setLoading(true)
     setError('')
@@ -121,6 +127,7 @@ export function useNodeGeneration({ nodeId, type, validate, run, onSuccess, onRe
       return { ok: false, error: msg }
     } finally {
       setLoading(false)
+      runningRef.current = false // 【R4】原子防重复位
     }
   }, [loading, nodeId])
 

@@ -43,7 +43,11 @@ export function createGroupFromNodes(nodes, selectedIds) {
   const gy = minY - pad
   const gw = maxX - minX + pad * 2
   const gh = maxY - minY + pad * 2
-  const groupId = `group-${Date.now().toString(36)}`
+  // 【R4】groupId 用 crypto.randomUUID()（无碰撞），替代 Date.now 毫秒 id（Agent 批量并发建组时可能碰撞）。
+  // fallback：老环境/测试无 randomUUID 时用 Date.now + 随机后缀保证不重复。
+  const groupId = typeof crypto !== 'undefined' && crypto.randomUUID
+    ? `group-${crypto.randomUUID()}`
+    : `group-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
 
   const groupNode = {
     id: groupId,

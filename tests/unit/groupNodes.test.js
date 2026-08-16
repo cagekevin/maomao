@@ -55,3 +55,27 @@ describe('编组算法 §2.2', () => {
     expect(ug.error).toContain('不存在')
   })
 })
+
+describe('R4 groupId 无碰撞（crypto.randomUUID 替代 Date.now）', () => {
+  const twoNodes = [
+    { id: 'a', type: 'textNode', data: {}, position: { x: 0, y: 0 }, style: { width: 100, height: 100 } },
+    { id: 'b', type: 'promptNode', data: {}, position: { x: 200, y: 0 }, style: { width: 100, height: 100 } },
+  ]
+
+  it('多次编组生成不同 id', () => {
+    const ids = new Set()
+    for (let i = 0; i < 10; i++) {
+      const r = createGroupFromNodes(twoNodes, ['a', 'b'])
+      expect(r.ok).toBe(true)
+      ids.add(r.groupId)
+    }
+    expect(ids.size).toBe(10) // 全部唯一，无碰撞
+  })
+
+  it('id 以 group- 开头且包含随机段', () => {
+    const r = createGroupFromNodes(twoNodes, ['a', 'b'])
+    expect(r.groupId.startsWith('group-')).toBe(true)
+    // crypto.randomUUID 形式：group-xxxxxxxx-xxxx-...
+    expect(r.groupId.length).toBeGreaterThan('group-'.length + 10)
+  })
+})

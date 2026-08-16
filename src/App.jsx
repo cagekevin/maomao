@@ -380,6 +380,20 @@ function Canvas() {
     return () => clearTimeout(t)
   }, [])
 
+  // 【R1 系统性根因治理】持久化失败统一上报：storageAdapter 的 sSet/sRemove 失败会
+  // publish('persist:failed')。这里挂全局监听器，节流 toast（5s 窗口最多一次），避免
+  // 高频写入失败刷屏，又让「数据保存失败」对用户有感知（不再静默丢失）。
+  React.useEffect(() => {
+    let lastToast = 0
+    const off = subscribe('persist:failed', () => {
+      const now = Date.now()
+      if (now - lastToast < 5000) return
+      lastToast = now
+      showToast('部分数据保存失败，请检查浏览器存储空间/权限', { type: 'error' })
+    })
+    return off
+  }, [])
+
   // LOD 视口缩放等级（基座 LodListener/LodProvider）
   const [lodLevel, setLodLevel] = React.useState(0)
 

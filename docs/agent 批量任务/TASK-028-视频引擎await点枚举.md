@@ -35,7 +35,7 @@ R2 系统性根因：异步操作无总超时导致「loading 永不结束」。
 | 1 | `readVideoMetadata` | videoEngine.js L98 | `await xc(blob)`（构造 `new Input`，内部读 Blob） | 损坏/超大 Blob 解析卡死 | 无 | 函数级总超时 `withTimeout(readVideoMetadata(blob), 30_000)` |
 | 2 | `readVideoMetadata` | videoEngine.js L100 | `await input.canRead()` | 解码首帧挂起（容器可识别但流损坏） | 无 | 函数级总超时覆盖 |
 | 3 | `readVideoMetadata` | videoEngine.js L101 | `await input.getPrimaryVideoTrack()` | 轨道枚举挂起 | 无 | 函数级总超时覆盖 |
-| 4 | `readVideoMetadata` | videoEngine.js L103-108 | `await Promise.all([input.getDurationFromMetadata(), track.getDisplayWidth(), track.getDisplayHeight(), track.computePacketStats(120).catch(()=>null)])` | 元数据/包统计计算卡死 | 无（`computePacketStats` 有 `.catch` 兜底非超时） | 函数级总超时覆盖 |
+| 4 | `readVideoMetadata` | videoEngine.js L103（`await Promise.all`，体 L104-108） | `await Promise.all([input.getDurationFromMetadata(), track.getDisplayWidth(), track.getDisplayHeight(), track.computePacketStats(120).catch(()=>null)])` | 元数据/包统计计算卡死 | 无（`computePacketStats` 有 `.catch` 兜底非超时） | 函数级总超时覆盖 |
 | 5 | `readVideoMetadata` | videoEngine.js L109 | `await input.computeDuration()`（兜底，仅在 `getDurationFromMetadata` 返回 falsy 时走） | 全量解码时长卡死 | 无 | 函数级总超时覆盖 |
 
 > 注：该函数由 `VideoProcessNode.jsx` L402 在 `useEffect` 内调用（读元数据），不在 `handleProcess` 主处理链；但**死等同样会导致该源元数据永远 pending**，建议单独包或随 `handleProcess` 之外另包。
@@ -87,7 +87,9 @@ R2 系统性根因：异步操作无总超时导致「loading 永不结束」。
 
 ### 4.5 其他（非死等但相关）
 - `uploadResult`（L455-468）：`await uploadFileToLocal`（L460）已自带网络超时（localTool 网关层），且有 try/catch 降级，不在本任务"解码死等"范畴，但理论上也可包总超时（非必需）。
-- `Tc` 重采样（L51-59）：`ctx.startRendering()` 在 `concatVideos` L316 内被 await，已被函数级总超时覆盖。
+- `Tc` 重采样（L51-59）：**注意 L58 `return ctx.startRendering()` 未加 `await`**——`OfflineAudioContext.startRendering()` 返回 Promise，此处直接 `return` 该 Promise（而非 `await`）。调用方 `concatVideos` L316 用 `await audioSink.add(await Tc(buf))` 的 `await Tc(buf)` 会正确等待此 Promise，因此不会泄漏、已被函数级总超时（#28）覆盖；但 L58 本身是"裸 return 异步"写法，单独列出以防审计遗漏。
+- `ProgressController.cancel()`（L90-93，L92 `await Promise.allSettled(...)`）：属**用户主动取消路径**（由 VideoProcessNode L1448-1451 触发），非解码死等点；但它是 `withTimeout` 超时后释放资源的关键入口（见 5.4），故在此标注。
+- `concatVideos` catch 内 `await outputTarget.cancel()`（L335）：取消/超时清理路径，非死等点，已在 4.3 说明。
 
 ---
 

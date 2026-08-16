@@ -7,7 +7,11 @@
  *  - 非插件环境直接读写 localStorage（同步），与现有行为一致
  *
  * 使用：页面入口调用一次 initStorage()（App.tsx onMount），此后配置读写走 sGet/sSet。
+ *
+ * 【R1 系统性根因治理】写入失败不再静默吞掉：sSet/sRemove 任一持久化失败都发布
+ * `persist:failed` 事件（含 key），由全局监听器节流上报 toast。调用方无需逐个改。
  */
+import { publish } from './eventBus.js'
 
 /** 是否运行在 Chrome 扩展环境 */
 export function isChromeExtension() {
@@ -16,6 +20,13 @@ export function isChromeExtension() {
   } catch {
     return false
   }
+}
+
+/** 写入失败上报（统一事件，全局监听器节流 toast；测试可替换全局 publish） */
+function reportPersistFailure(key, error) {
+  try {
+    publish('persist:failed', { key, error: error?.message || String(error || '') })
+  } catch { /* 事件上报本身失败不阻断写入流程 */ }
 }
 
 const KEY_PREFIX = 'yimao:'
@@ -55,20 +66,29 @@ export function sGet(key) {
 export function sSet(key, value) {
   const fullKey = KEY_PREFIX + key
   if (!isChromeExtension()) {
-    try { localStorage.setItem(fullKey, value) } catch { /* ignore */ }
+    try { localStorage.setItem(fullKey, value) } catch (e) { reportPersistFailure(key, e) }
     return
   }
   cache.set(key, value)
-  try { chrome.storage.local.set({ [fullKey]: value }) } catch { /* ignore */ }
+  try {
+    // 【R1】接 chrome.storage.local.set 的 callback，异步失败也能感知（原裸 try/catch 覆盖不到异步错误）
+    chrome.storage.local.set({ [fullKey]: value }, () => {
+      if (chrome?.runtime?.lastError) reportPersistFailure(key, new Error(chrome.runtime.lastError.message))
+    })
+  } catch (e) { reportPersistFailure(key, e) }
 }
 
 /** 同步删（插件环境同步删内存 + 异步删存储） */
 export function sRemove(key) {
   const fullKey = KEY_PREFIX + key
   if (!isChromeExtension()) {
-    try { localStorage.removeItem(fullKey) } catch { /* ignore */ }
+    try { localStorage.removeItem(fullKey) } catch (e) { reportPersistFailure(key, e) }
     return
   }
   cache.delete(key)
-  try { chrome.storage.local.remove(fullKey) } catch { /* ignore */ }
+  try {
+    chrome.storage.local.remove(fullKey, () => {
+      if (chrome?.runtime?.lastError) reportPersistFailure(key, new Error(chrome.runtime.lastError.message))
+    })
+  } catch (e) { reportPersistFailure(key, e) }
 }
