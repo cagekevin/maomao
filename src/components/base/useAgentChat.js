@@ -91,8 +91,8 @@ const CANVAS_AGENT_RULES = `你是猫猫画布助手，正在帮助用户操作�
 - 需要看节点内容时用 get_node_details；需要连线结构用 list_edges。
 
 【创建】
-- 新建节点用 create_node，type 枚举：textNode（文本）、promptNode（提示词/生成配置）、discountVideoNode（视频）、imageNode（图片）。
-- 提示词/生成配置节点务必填 prompt；图片节点填 label 作说明。
+- 新建节点用 create_node，type 可选：textNode（文本）/promptNode（生图）/discountVideoNode（视频）/imageNode（图片）/scriptBoxNode（剧本盒）/group（编组）。
+- 内容：textNode/promptNode/discountVideoNode 填 prompt；imageNode 填 label；scriptBoxNode 填 prompt(故事文字)。各类型一个任务建 1 个即可，不要重复建同类节点。
 - 批量创建多个同类节点用 batch_create_nodes；多个并行连线用 batch_connect_nodes。
 
 【修改与生成】
@@ -529,7 +529,13 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
 
       const assistant = { role: 'assistant', content: acc.content || '', model, createdAt: Date.now() }
       if (acc.reasoning) assistant.reasoning = acc.reasoning
-      if (acc.toolCalls.length > 0) assistant.tool_calls = acc.toolCalls.filter((t) => t.function?.name)
+      // 【根因修复】必须基于「过滤后的真实 tool_calls」判断，而非 acc.toolCalls.length。
+      // parseSSEChunk 会为每段 tool_calls 创建占位（name 可能为空），若流里 tool_calls 的 name
+      // 未拼全/为空，acc.toolCalls 有占位但 filter 后为空 → 旧代码 `if(acc.toolCalls.length>0)`
+      // 仍设 `tool_calls:[]`（空数组）→ 存进历史 → 下次发给 LLM 报 Empty tool_calls。
+      // 改为：filter 后非空才设，空则完全不设，杜绝空数组。
+      const realCalls = acc.toolCalls.filter((t) => t.function?.name)
+      if (realCalls.length > 0) assistant.tool_calls = realCalls
       return assistant
     },
     [endpoint, model, toolSchemas, provider]

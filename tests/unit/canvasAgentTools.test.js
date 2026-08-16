@@ -93,6 +93,36 @@ describe('画布 Agent 工具层 §2.5', () => {
     expect(node.width).toBe(420)
   })
 
+  it('create_node scriptBoxNode：prompt 同时映射到 story（剧本盒第一步读 story）', () => {
+    const ctx = makeCtx()
+    const t = buildCanvasAgentTools(ctx)
+    const story = '小猫跳舞的故事'
+    const r = t.create_node({ type: 'scriptBoxNode', prompt: story })
+    expect(r.ok).toBe(true)
+    const node = ctx.getNodes().find((n) => n.id === r.data.id)
+    expect(node.data.story).toBe(story) // 剧本盒剧情框能读到故事
+    expect(node.data.prompt).toBe(story) // 同时保留 prompt
+  })
+
+  it('create_node scriptBoxNode：返回回显 story 已写入（收敛终止信号，AI 据此知道自己写完了）', () => {
+    const ctx = makeCtx()
+    const t = buildCanvasAgentTools(ctx)
+    const story = '小猫跳舞的故事'
+    const r = t.create_node({ type: 'scriptBoxNode', prompt: story })
+    expect(r.ok).toBe(true)
+    // 剧本盒返回必须带 story 已写入的确认，AI 才能感知任务完成并停止（否则反复建盒死循环）
+    expect(r.data.story_written).toBe(true)
+    expect(r.data.story).toBe(story)
+  })
+
+  it('create_node scriptBoxNode 无 prompt：story 为空（不误写）', () => {
+    const ctx = makeCtx()
+    const t = buildCanvasAgentTools(ctx)
+    const r = t.create_node({ type: 'scriptBoxNode' })
+    const node = ctx.getNodes().find((n) => n.id === r.data.id)
+    expect(node.data.story).toBe('')
+  })
+
   it('batch_create_nodes 批量建', () => {
     const ctx = makeCtx()
     const t = buildCanvasAgentTools(ctx)

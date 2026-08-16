@@ -535,6 +535,16 @@ describe('useAgentChat · parseSSEChunk 深度（SSE 增量解析）', () => {
     expect(acc.toolCalls.map((t) => t.function.name)).toEqual(['a', 'b'])
   })
 
+  it('SSE tool_calls 无 name（仅 index）：产生空占位（根因——filter 后为空需判断）', () => {
+    const acc = { content: '', reasoning: '', toolCalls: [] }
+    // 模型只发 index + id，无 function.name（某些模型/网关流式占位）
+    parseSSEChunk('data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_x","function":{}}]}}]}', acc)
+    expect(acc.toolCalls).toHaveLength(1) // 产生了占位
+    expect(acc.toolCalls[0].function.name).toBe('') // name 为空
+    // 关键：filter 后应为空数组，roundTrip 据此不应设 tool_calls（避免发 tool_calls:[]）
+    expect(acc.toolCalls.filter((t) => t.function?.name)).toHaveLength(0)
+  })
+
   it('[DONE] 标记：直接跳过，不污染 acc', () => {
     const acc = { content: '已有', reasoning: '', toolCalls: [] }
     parseSSEChunk('data: [DONE]', acc)

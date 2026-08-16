@@ -75,6 +75,28 @@ export function clearPendingGenerations() {
  *   失败：{ ok: false, error: '原因' }   // error 永远是人话，可直接喂 LLM
  *   每个工具是「读画布快照 + 返回结果」的纯操作，不持有内部状态。
  *
+ * 【返回信号铁律（新增工具必读）】
+ *   每个工具必须返回「让 LLM 能判断任务是否完成」的明确信号，否则 LLM 会把没看到
+ *   成果当作「没做完」而反复调用 → 死循环（撞 MAX_TOOL_ROUNDS）。
+ *   - 建节点类：返回新节点 id；若节点接收了内容参数（如 prompt/story），回显该内容以确认已写入。
+ *   - 触发生成类：返回 resultUrl / 数量 / 状态等「成果证据」，对齐 generate_node。
+ *   - 改/删/连线类：返回被影响的对象 id / 数量。
+ *   判据：LLM 看到本工具返回后，能否确信「任务已完成、可以停」？不能 → 补信号。
+ *   （这条原则由 create_node 的剧本盒场景踩坑暴露，但适用于所有工具，非剧本盒独有。）
+ *
+ * 【工具描述平等原则（新增/修改工具必读）】
+ *   AI 助手是通用助手，所有工具（及各节点类型）对 AI 同等重要，不存在「主角」。
+ *   给 AI 的 description / 参数说明必须：
+ *   - 句式、详略一致（一句话讲清「做什么 + 关键参数」），不要把一个工具写得很长很特殊。
+ *   - 只讲「AI 该怎么用」（做什么、传什么），不泄露内部实现/机制（引擎、流程、字段映射等）。
+ *   - 各节点类型平等并列说明；某类型确有特有约束（如剧本盒建 1 个即防循环）可并列带出，但不单独强调。
+ *   一旦某个工具被写得特殊，AI 会倾向过度使用/误用它 → 行为不稳定、出错。
+ *
+ * 【工具排序原则（新增工具必读）】
+ *   AGENT_TOOLS 数组顺序 = 模型选择优先级（模型倾向先选靠前的工具）。
+ *   常用工具放前面（频率优先），低频工具放后面；别把新工具一律塞末尾。
+ *   当前顺序已按此分组：读 → 节点增删 → 改 → 连线 → 生成 → 视图 → 保护/撤销/组织。
+ *
  * 【何时用 / 何时不用】
  *   用：Agent 面板、自动化脚本、测试驱动画布时统一走这里。
  *   不用：节点内部 UI 交互（那是节点自己的事）；手写一次性操作（直接 setNodes）。
@@ -145,12 +167,16 @@ const UPDATE_NODE_WHITELIST = ['prompt', 'label', 'selectedModel', 'aspectRatio'
 const createNodeTool = {
   name: 'create_node',
   description:
-    '创建单个节点。type 枚举：textNode(文本)/promptNode(生图)/discountVideoNode(视频)/imageNode(图片)/scriptBoxNode(剧本盒)/group(编组)。可传 prompt、label、position；connectFrom 可在建节点同时从某节点拉线。返回新节点 id。',
+    '创建单个节点。type 指定节点类型（可选值见 type 参数说明），prompt 填该类型对应的内容，可选 label、position、connectFrom。返回新节点 id。',
   parameters: {
     type: 'object',
     properties: {
-      type: { type: 'string', enum: ['textNode', 'promptNode', 'imageNode', 'discountVideoNode', 'scriptBoxNode', 'group'], description: '节点类型' },
-      prompt: { type: 'string', description: '提示词/生成内容（textNode/promptNode/discountVideoNode 适用）' },
+      type: {
+        type: 'string',
+        enum: ['textNode', 'promptNode', 'imageNode', 'discountVideoNode', 'scriptBoxNode', 'group'],
+        description: '节点类型：textNode=文本(prompt=内容)/promptNode=生图(prompt=画面提示词)/imageNode=图片(label=说明)/discountVideoNode=视频(prompt=视频提示词)/scriptBoxNode=剧本盒(prompt=故事文字)/group=编组'
+      },
+      prompt: { type: 'string', description: '提示词/内容；scriptBoxNode(剧本盒) 填故事文字' },
       label: { type: 'string', description: '节点标题（可选）' },
       position: { type: 'object', properties: { x: { type: 'number' }, y: { type: 'number' } }, description: '画布坐标（可选，默认视窗中心）' },
       connectFrom: { type: 'string', description: '从该节点拉一条连线到新节点（可选）' }
@@ -162,6 +188,10 @@ const createNodeTool = {
     if (!type || !getPaletteNode(type)) return { ok: false, error: `未知节点类型：${type}。可选：${['textNode', 'promptNode', 'imageNode', 'discountVideoNode', 'scriptBoxNode', 'group'].join('、')}` }
     const { getNodes, setNodes, setEdges, screenToFlowPosition } = ctx
     const data = { ...defaultNodeData(type), ...(args.label ? { label: args.label } : {}), ...(args.prompt ? { prompt: args.prompt } : {}) }
+    // scriptBoxNode 读 data.story（而非 prompt），故把 AI 写的 prompt(故事) 映射到 story。
+    // 同时下方返回回显 story_written:true，让 AI 确认"已写入"而停止；否则它会反复建盒
+    // （通用「返回信号」铁律见文件头）。
+    if (type === 'scriptBoxNode' && args.prompt) data.story = String(args.prompt)
     // 无 position 时用视窗中心（浏览器环境）。window 兜底：非浏览器（测试/SSR）用 {0,0}。
     const vw = typeof window !== 'undefined' ? window.innerWidth : 0
     const vh = typeof window !== 'undefined' ? window.innerHeight : 0
@@ -183,7 +213,14 @@ const createNodeTool = {
     }
     setNodes(nextNodes)
     if (nextEdges.length) setEdges((es) => [...es, ...nextEdges])
-    return { ok: true, data: { id, position: newNode.position, connected: nextEdges.length > 0 } }
+    // 【收敛信号】剧本盒回显 story 已写入（story_written:true），AI 据此确认任务完成、停止。
+    // 根因：此前不回显，AI 写完故事却看不到确认 → 反复建盒 → 撞 MAX_TOOL_ROUNDS 死循环（详见上方注释）。
+    const dataOut = { id, position: newNode.position, connected: nextEdges.length > 0 }
+    if (type === 'scriptBoxNode') {
+      dataOut.story_written = true
+      dataOut.story = data.story || ''
+    }
+    return { ok: true, data: dataOut }
   }
 }
 
@@ -731,7 +768,10 @@ const groupNodesTool = {
  * Agent / 测试 / 脚本统一从这里取（getAgentTools）。
  */
 // 工具顺序 = 暴露给模型的重要性优先级（模型倾向先选靠前的工具）。
-// 分组：①读（先了解画布）②节点增删 ③节点改 ④连线 ⑤生成/编排 ⑥视图/聚焦 ⑦保护/撤销/组织。
+// 【排序原则】常用工具放前面（频率优先），低频工具放后面。
+// 当前分组：①读（操作前先了解画布，几乎每次任务都用）②节点增删（建节点最高频）
+// ③节点改 ④连线 ⑤生成/编排 ⑥视图/聚焦（低频）⑦保护/撤销/组织（最低频）。
+// 新增工具时按使用频率插入对应分组，别一股脑塞末尾——放前面 AI 才更可能选到。
 const AGENT_TOOLS = [
   // ① 读（操作前先了解画布）
   readCanvasTool,
