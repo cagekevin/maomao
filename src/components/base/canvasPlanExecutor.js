@@ -125,23 +125,26 @@ export async function executePlan({ ctx, generations = [], autoRun = true, model
     return { status: resultUrl ? 'completed' : 'failed', resultUrl }
   }
 
-  // ── Wave 1：独立批 ──
+  // ── Wave 1：独立批（Step E 并行化：先串行建节点避免 addNodes 竞态，再并行跑图提升效率）──
+  const wave1 = []
   for (let i = 0; i < independent.length; i++) {
     const step = independent[i]
     const anchor = nextAnchor(ctx, base, entries.length)
-    const nodeId = await createGenNode(step, step.index ?? i, anchor)
-    const entry = { id: step.id || `step_${i + 1}`, stepId: step.id, nodeId, phase: 'independent' }
-    if (autoRun) {
-      const r = await runNode(nodeId, step)
+    const nodeId = await createGenNode(step, step.index ?? i, anchor) // 建节点串行
+    const entry = { id: step.id || `step_${i + 1}`, stepId: step.id, nodeId, phase: 'independent', status: 'ready', resultUrl: '', error: '' }
+    byId.set(entry.id, entry)
+    entries.push(entry)
+    wave1.push({ nodeId, step, entry })
+  }
+  // 并行跑图（独立批之间无依赖，Promise.all 并发；不同 nodeId 的 setNodes 写回不冲突）
+  if (autoRun && wave1.length > 0) {
+    const results = await Promise.all(wave1.map(({ nodeId, step }) => runNode(nodeId, step)))
+    wave1.forEach(({ entry }, i) => {
+      const r = results[i]
       entry.status = r.status
       entry.resultUrl = r.resultUrl || ''
       entry.error = r.error || ''
-    } else {
-      entry.status = 'ready'
-      entry.resultUrl = ''
-    }
-    byId.set(entry.id, entry)
-    entries.push(entry)
+    })
   }
 
   // ── Wave 2：依赖批（仅当独立批全部成功）──
