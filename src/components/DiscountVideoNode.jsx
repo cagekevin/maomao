@@ -133,10 +133,11 @@ export default function DiscountVideoNode({ id, data, selected }) {
     nodeId: id,
     type: { type: 'video', prompt: prompt || '', modelName: selectedModel },
     validate: () => (prompt?.trim() ? '' : '请输入提示词'),
-    run: async ({ progress }) => {
+    run: async ({ progress, signal }) => {
       // 从「providerId::modelId」解析出实际 provider 和 modelId（跨 provider 选模型）
       const { provider: useProvider, modelId } = resolveProviderModel(providers, selectedModel, primary)
       const refUrls = connected.images.map((img) => img.url)
+      // signal 支持真取消（Step C）
       return generateVideo({
         provider: useProvider,
         prompt: prompt || '',
@@ -145,7 +146,7 @@ export default function DiscountVideoNode({ id, data, selected }) {
         resolution,
         seconds,
         images: refUrls,
-      }, (pct, stage) => progress(Math.max(10, Math.min(98, Math.round(pct))), stage))
+      }, (pct, stage) => progress(Math.max(10, Math.min(98, Math.round(pct))), stage), signal)
     },
     onSuccess: (r) => {
       setVideoUrl(r.url)

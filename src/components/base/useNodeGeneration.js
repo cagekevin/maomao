@@ -45,6 +45,8 @@ import { logger } from './logger.js'
 export function useNodeGeneration({ nodeId, type, validate, run, onSuccess, onRecover }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  // AbortController：stop() 真中断请求（Step C）。run 执行器接收 signal 并传给底层 API（Step A 已支持）。
+  const abortRef = useRef(null)
 
   const runRef = useRef(run)
   runRef.current = run
@@ -64,6 +66,10 @@ export function useNodeGeneration({ nodeId, type, validate, run, onSuccess, onRe
 
     setLoading(true)
     setError('')
+    // 每次 start 重建 AbortController（旧请求先取消，避免并发）
+    abortRef.current?.abort()
+    const ctl = new AbortController()
+    abortRef.current = ctl
     const t = typeRef.current || {}
     const taskCtl = reportGenerate(nodeId, t.type, t.prompt, { modelName: t.modelName })
     // 把前端 task_id 设为「当前任务」，供 proxyRequest 加 X-Task-Id header 贯穿链路（关联 Lovart thread_id）
@@ -71,7 +77,8 @@ export function useNodeGeneration({ nodeId, type, validate, run, onSuccess, onRe
     taskCtl.progress(5, '准备中…')
     logger.info('生成', 'start', { nodeId, type: t.type, prompt: t.prompt })
     try {
-      const r = await runRef.current({ progress: (p, stage) => taskCtl.progress(p, stage) })
+      // signal 传给 run 执行器（各节点可透传给 generateImage/generateVideo 实现真取消）
+      const r = await runRef.current({ progress: (p, stage) => taskCtl.progress(p, stage), signal: ctl.signal })
       if (r?.ok) {
         onSuccessRef.current?.(r, taskCtl)
         // 防御：done 只接收字符串结果 URL（上游偶发返回对象会触发 taskStore.done 的 .startsWith 崩）
@@ -92,6 +99,12 @@ export function useNodeGeneration({ nodeId, type, validate, run, onSuccess, onRe
         return { ok: false, error: r?.error || '生成失败' }
       }
     } catch (e) {
+      if (e?.name === 'AbortError') {
+        // 用户停止：不报错，返回取消标记，由调用方处理
+        setError('')
+        taskCtl.fail('已停止')
+        return { ok: false, error: '已停止', aborted: true }
+      }
       console.error('[useNodeGeneration] 生成异常:', e?.message)
       setError(e?.message || '生成失败')
       taskCtl.fail(e?.message || '生成失败')
@@ -101,7 +114,11 @@ export function useNodeGeneration({ nodeId, type, validate, run, onSuccess, onRe
     }
   }, [loading, nodeId])
 
-  const stop = useCallback(() => setLoading(false), [])
+  // stop：真中断底层请求（Step C）。请求经 signal 传到 imageApi/videoApi，abort 后 fetch/轮询中断。
+  const stop = useCallback(() => {
+    abortRef.current?.abort()
+    setLoading(false)
+  }, [])
 
   // 「再来一次」注册：让任务中心重试 / Agent trigger_generation 能驱动本节点
   const startRef = useRef(start)

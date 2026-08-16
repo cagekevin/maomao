@@ -133,7 +133,7 @@ export default function TextNode({ id, data, selected }) {
     nodeId: id,
     type: { type: 'text', prompt: prompt || text || '', modelName: selectedModel },
     validate: () => ((prompt || text)?.trim() ? '' : '请输入提示词或文本'),
-    run: async ({ progress }) => {
+    run: async ({ progress, signal }) => {
       // 从「providerId::modelId」解析出实际 provider 和 modelId（跨 provider 选模型）
       const { provider: useProvider, modelId } = resolveProviderModel(providers, selectedModel, primary)
       // 参考图：把连线上游/上传的图传给 AI（让 AI 看图反推提示词/理解图片）。
@@ -154,7 +154,8 @@ export default function TextNode({ id, data, selected }) {
           { role: 'user', content: prompt || text || '' }
         ],
         model: modelId,
-        images: refUrls
+        images: refUrls,
+        signal // 支持真取消（Step C）
       })
       progress?.(30, '上游生成中…')
       if (!r.ok) return { ok: false, error: r.error || '生成失败' }

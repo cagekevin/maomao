@@ -147,11 +147,11 @@ export default function PromptNode({ id, data, selected }) {
     nodeId: id,
     type: { type: 'image', prompt: prompt || '', modelName: selectedModel },
     validate: () => (prompt?.trim() ? '' : '请输入提示词'),
-    run: async ({ progress }) => {
+    run: async ({ progress, signal }) => {
       // 从「providerId::modelId」解析出实际 provider 和 modelId（跨 provider 选模型）
       const { provider: useProvider, modelId } = resolveProviderModel(providers, selectedModel, primary)
       const refUrls = refImages.map((img) => img.url)
-      // 图生图：把连线上游产出的参考图传下去（网关 image_urls 字段）
+      // 图生图：把连线上游产出的参考图传下去（网关 image_urls 字段）；signal 支持真取消（Step C）
       return generateImage({
         provider: useProvider,
         prompt: prompt || '',
@@ -161,7 +161,7 @@ export default function PromptNode({ id, data, selected }) {
         aspectRatio,
         quality,
         images: refUrls,
-      }, (pct) => progress(Math.max(15, Math.min(98, Math.round(pct)))))
+      }, (pct) => progress(Math.max(15, Math.min(98, Math.round(pct)))), signal)
     },
     onSuccess: (r) => {
       setImageUrl(r.url)
