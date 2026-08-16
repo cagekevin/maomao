@@ -165,7 +165,7 @@ function nextAnchor(ctx, base, index, perRow = 3) {
  *                    对齐大雄图像模式的 attachment_indices → 图生图）
  * @returns {Promise<{workflow, entries}>} entries: [{id,status,resultUrl,nodeId,error}]
  */
-export async function executePlan({ ctx, generations = [], autoRun = true, model = '', defaults = {}, referenceImages = [] }) {
+export async function executePlan({ ctx, generations = [], autoRun = true, model = '', defaults = {}, referenceImages = [], globalContract = null, artifacts = null }) {
   const steps = (generations || []).filter((s) => s && (s.prompt || s.title))
   if (steps.length === 0) return { workflow: { status: 'failed', error: '计划为空' }, entries: [] }
 
@@ -200,9 +200,15 @@ export async function executePlan({ ctx, generations = [], autoRun = true, model
     const resolution = normalizeResolution(step.resolution || defaults.resolution)
     const finalModel = model || defaults.model || ''
     const quality = step.quality || defaults.quality || 'auto'
+    // 【global_contract 逐字锁】执行层兜底锁定统一风格契约到 prompt 头部（对齐大雄，双保险：即使规划层漏带，执行层也补）
+    const gcText = [globalContract?.visual_positioning, globalContract?.unified_style_prompt, globalContract?.unified_negative_prompt]
+      .filter(Boolean)
+      .map((t, i) => ['视觉整体定位：', '统一风格提示词：', '统一负面提示词：'][i] + t)
+      .join('\n')
+    const lockedPrompt = gcText ? `[统一风格锁定]\n${gcText}\n\n${step.prompt || ''}` : (step.prompt || '')
     const data = {
       label: step.title || `步骤 ${index + 1}`,
-      prompt: step.prompt || '',
+      prompt: lockedPrompt,
       aspectRatio: ratio,
       imageSize: resolution,
       quality,
@@ -286,6 +292,22 @@ export async function executePlan({ ctx, generations = [], autoRun = true, model
       } else if (depMode === 'product_reference') {
         const productStep = steps[0]
         step = { ...step, prompt: buildProductReferencePrompt(productStep, step.prompt || '', '') }
+      }
+      // 【artifact 跨步资产注入】（对齐大雄 input_artifact_ids）：依赖步声明要消费哪些前序成果资产时，
+      // 从 artifacts 表取对应 url 显式写进 data.images（与连线并存，双保险）。硬校验：声明了但资产表无 url → 失败。
+      const inIds = Array.isArray(step.input_artifact_ids) ? step.input_artifact_ids.map(String) : []
+      if (inIds.length && Array.isArray(artifacts)) {
+        const matched = artifacts.filter((a) => inIds.includes(String(a.id)) && a.url).map((a) => a.url)
+        if (matched.length && !stepRefImages(step).length) {
+          step = { ...step, referenceImages: matched }
+        } else if (matched.length === 0) {
+          // 依赖步声明了 artifact 但资产表无对应 url → 明确报错（防 prompt 口头猜依赖）
+          entry.status = 'failed'
+          entry.error = `步骤 ${step.id} 声明 input_artifact_ids=${inIds.join(',')} 但资产表无对应 url`
+          byId.set(entry.id, entry)
+          entries.push(entry)
+          continue
+        }
       }
       const anchor = nextAnchor(ctx, base, entries.length)
       const nodeId = await createGenNode(step, step.index ?? i, anchor)

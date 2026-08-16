@@ -34,7 +34,11 @@ const AGENT_MSG_MAX = 60
 
 /** 空对话记忆（对齐大雄 agentEmptyConversationMemory） */
 function emptyMemory() {
-  return { summary: '', facts: [], lastPlan: null, lastSharedStyle: '', notes: [] }
+  return {
+    summary: '', facts: [], lastPlan: null, lastSharedStyle: '', notes: [],
+    global_contract: null, // 统一风格契约 {visual_positioning, unified_style_prompt, unified_negative_prompt}（对齐大雄 global_contract）
+    artifacts: null,       // 跨步成果资产 [{id,type,title,description,nodeId?,url?}]（对齐大雄 plan.artifacts）
+  }
 }
 
 /** 单一数据源 */
@@ -156,6 +160,14 @@ export function normalizeMemory(m) {
     lastPlan: m.lastPlan || null,
     lastSharedStyle: typeof m.lastSharedStyle === 'string' ? m.lastSharedStyle : base.lastSharedStyle,
     notes: Array.isArray(m.notes) ? m.notes.slice() : base.notes,
+    global_contract: (m && m.global_contract && typeof m.global_contract === 'object')
+      ? {
+          visual_positioning: String(m.global_contract.visual_positioning || '').trim(),
+          unified_style_prompt: String(m.global_contract.unified_style_prompt || '').trim(),
+          unified_negative_prompt: String(m.global_contract.unified_negative_prompt || '').trim(),
+        }
+      : null,
+    artifacts: Array.isArray(m?.artifacts) ? m.artifacts.map((a) => ({ ...a })) : null,
   }
 }
 
@@ -266,6 +278,38 @@ export function setCurrentMemory(m) {
   commit({
     ...state,
     conversations: state.conversations.map((c) => (c.id === conv.id ? { ...c, memory: normalizeMemory(m), updatedAt: Date.now() } : c)),
+  })
+}
+
+/* ── 统一风格契约 global_contract + 跨步成果 artifact（对齐大雄，per-conversation）── */
+
+/** 读当前对话的统一风格契约（无则 null） */
+export function getCurrentGlobalContract() {
+  return getActiveConv()?.memory?.global_contract || null
+}
+
+/** 写当前对话的统一风格契约（阶段1 产出，逐字锁定每步） */
+export function setCurrentGlobalContract(c) {
+  const conv = getActiveConv()
+  if (!conv) return
+  commit({
+    ...state,
+    conversations: state.conversations.map((x) => (x.id === conv.id ? { ...x, memory: normalizeMemory({ ...x.memory, global_contract: c || null }), updatedAt: Date.now() } : x)),
+  })
+}
+
+/** 读当前对话的跨步成果资产（无则 null） */
+export function getCurrentArtifacts() {
+  return getActiveConv()?.memory?.artifacts || null
+}
+
+/** 写当前对话的跨步成果资产（[{id,type,title,description,nodeId?,url?}]） */
+export function setCurrentArtifacts(arr) {
+  const conv = getActiveConv()
+  if (!conv) return
+  commit({
+    ...state,
+    conversations: state.conversations.map((x) => (x.id === conv.id ? { ...x, memory: normalizeMemory({ ...x.memory, artifacts: Array.isArray(arr) && arr.length ? arr : null }), updatedAt: Date.now() } : x)),
   })
 }
 

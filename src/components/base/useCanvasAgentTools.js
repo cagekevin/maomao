@@ -9,6 +9,8 @@ import {
   getActiveAiUndoStack, pushActiveAiUndo, popActiveAiUndo,
   getActivePendingGenerations, setActivePendingGenerations,
   getAwaitingConfirm, setAwaitingConfirm,
+  getCurrentGlobalContract, setCurrentGlobalContract,
+  getCurrentArtifacts, setCurrentArtifacts,
 } from './conversationStore.js'
 import { sGet, sSet } from './storageAdapter.js'
 
@@ -579,7 +581,7 @@ const triggerGenerationTool = {
  */
 const presentPlanTool = {
   name: 'show_plan_for_confirm',
-  description: '把生成策划展示给用户确认（execute_plan 前调用）。用户确认后才可执行。',
+  description: '把生成策划展示给用户确认（execute_plan 前调用）。用户确认后才可执行。可传 global_contract（统一风格契约三字段，逐字锁定每步）与 artifacts（跨步成果资产声明）。',
   parameters: {
     type: 'object',
     properties: {
@@ -587,6 +589,20 @@ const presentPlanTool = {
       generations: {
         type: 'array',
         description: '步骤数组。每项 { id, title, prompt, ratio, resolution, depends_on_previous, dependency_mode }',
+        items: { type: 'object' }
+      },
+      global_contract: {
+        type: 'object',
+        description: '统一风格契约 { visual_positioning, unified_style_prompt, unified_negative_prompt }，阶段1产出、逐字锁定每步',
+        properties: {
+          visual_positioning: { type: 'string' },
+          unified_style_prompt: { type: 'string' },
+          unified_negative_prompt: { type: 'string' },
+        }
+      },
+      artifacts: {
+        type: 'array',
+        description: '跨步成果资产声明 [{id,type,title,description}]，id 被后续步 input_artifact_ids 引用',
         items: { type: 'object' }
       }
     },
@@ -596,6 +612,10 @@ const presentPlanTool = {
     const gens = Array.isArray(args.generations) ? args.generations : []
     const planText = String(args.plan_text || '').trim()
     if (!planText) return { ok: false, error: 'plan_text 为空' }
+    // 暂存统一风格契约 + 跨步成果资产（per-conversation，供 execute_plan 消费/续轮回灌，对齐大雄 global_contract/artifacts）
+    const gc = args.global_contract && typeof args.global_contract === 'object' ? args.global_contract : null
+    if (gc) setCurrentGlobalContract(gc)
+    if (Array.isArray(args.artifacts) && args.artifacts.length) setCurrentArtifacts(args.artifacts)
     // 暂存 generations（用户确认后 execute_plan 可用）；plan_text 由 useAgentChat 展示为用户可见策划
     setPendingGenerations(gens)
     // 【Step D 确认态】show_plan_for_confirm 后进入"待确认"，execute_plan 未确认时被拒（防止 LLM 直接出图）
@@ -626,7 +646,9 @@ const executePlanTool = {
       },
       auto_run: { type: 'boolean', description: '是否自动触发生成（默认 true）。false 时只建节点不跑，供用户确认' },
       model: { type: 'string', description: '生图默认模型（可选）' },
-      referenceImages: { type: 'array', items: { type: 'string' }, description: '参考图 url 数组（可选；整批共享，写进所有生图节点作参考。若用 attachment_indices 则按步精确指定，优先于它）' }
+      referenceImages: { type: 'array', items: { type: 'string' }, description: '参考图 url 数组（可选；整批共享，写进所有生图节点作参考。若用 attachment_indices 则按步精确指定，优先于它）' },
+      global_contract: { type: 'object', description: '统一风格契约 {visual_positioning, unified_style_prompt, unified_negative_prompt}，逐字锁定每步 prompt 头部' },
+      artifacts: { type: 'array', items: { type: 'object' }, description: '跨步成果资产 [{id,type,title,description,nodeId?,url?}]，供依赖步 input_artifact_ids 注入参考图' }
     },
     required: ['generations']
   },
@@ -662,7 +684,18 @@ const executePlanTool = {
         }
         return g
       })
-      const result = await executePlan({ ctx, generations: resolvedGens, autoRun, model, defaults: panel, referenceImages: globalRefs })
+      // 【统一风格契约 global_contract】（对齐大雄）：取阶段1/本次的契约，把三字段逐字锁到每个 generation 的 prompt 头部，
+      // 保证电商套图（13张同品牌）每步都带统一风格/负面提示词。
+      const gc = args.global_contract && typeof args.global_contract === 'object' ? args.global_contract : (getCurrentGlobalContract() || {})
+      const gcText = [gc.visual_positioning, gc.unified_style_prompt, gc.unified_negative_prompt]
+        .filter(Boolean)
+        .map((t, i) => ['视觉整体定位：', '统一风格提示词：', '统一负面提示词：'][i] + t)
+        .join('\n')
+      const lockedGens = gcText
+        ? resolvedGens.map((g) => ({ ...g, prompt: `[统一风格锁定]\n${gcText}\n\n${g.prompt || ''}` }))
+        : resolvedGens
+      const artifactTable = Array.isArray(args.artifacts) && args.artifacts.length ? args.artifacts : (getCurrentArtifacts() || [])
+      const result = await executePlan({ ctx, generations: lockedGens, autoRun, model, defaults: panel, referenceImages: globalRefs, globalContract: gc, artifacts: artifactTable })
       if (!result || !result.entries) {
         patchCurrentWorkflow({ status: 'failed', updatedAt: Date.now() })
         return { ok: false, error: '计划执行失败' }

@@ -16,6 +16,10 @@ vi.mock('../../src/components/base/conversationStore.js', () => ({
   getCurrentMemory: vi.fn(() => ({ summary: '', facts: [], lastPlan: null, lastSharedStyle: '', notes: [] })),
   setCurrentMemory: vi.fn(),
   patchCurrentWorkflow: vi.fn(() => ({})),
+  getCurrentGlobalContract: vi.fn(() => null),
+  setCurrentGlobalContract: vi.fn(),
+  getCurrentArtifacts: vi.fn(() => null),
+  setCurrentArtifacts: vi.fn(),
 }))
 vi.mock('../../src/components/base/taskStore.js', () => ({
   runNodeGeneration: vi.fn(async () => ({ ok: true, resultUrl: 'http://r/x.png' })),
