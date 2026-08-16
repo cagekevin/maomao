@@ -144,8 +144,9 @@ function loadHistory(agentKey) {
   }
 }
 
-/** SSE 解析（复刻官方 dr 内 v 函数：按 data: 前缀解析 delta，含 content/reasoning/tool_calls） */
-function parseSSEChunk(line, acc) {
+/** SSE 解析（复刻官方 dr 内 v 函数：按 data: 前缀解析 delta，含 content/reasoning/tool_calls）。
+ *  导出供单测（AI 助手前端逻辑核心：多轮工具循环依赖它对 SSE 流式结果的解析）。 */
+export function parseSSEChunk(line, acc) {
   if (!line.startsWith('data:')) return
   const payload = line.slice(5).trim()
   if (!payload || payload === '[DONE]') return
@@ -177,8 +178,9 @@ function parseSSEChunk(line, acc) {
  *   - memory（对话记忆，对齐大雄 conv.memory）注入最近策划 lastPlan，供多轮上下文；
  *   - 消息里已有 system（历史恢复）则跳过注入，避免重复。
  *  @param {Array} skills 启用的 Skill 数组 [{name, content}]
- *  @param {object} memory 对话记忆 { lastPlan? } */
-function buildRequestMessages(messages, systemPrompt, enhance = true, skills = [], memory = null) {
+ *  @param {object} memory 对话记忆 { lastPlan? }
+ *  导出供单测（AI 助手前端逻辑核心：确认发给 LLM 的 messages 组装正确）。 */
+export function buildRequestMessages(messages, systemPrompt, enhance = true, skills = [], memory = null) {
   const out = []
   const hasSystem = messages.some((m) => m.role === 'system')
   if (!hasSystem && enhance) {

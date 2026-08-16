@@ -3,6 +3,30 @@ import { chatCompletions } from './chatApi.js'
 import { generateImage } from './imageApi.js'
 import { resolveProviderModel, buildAllModels } from './providerModels.js'
 
+/** 去掉 ```json 围栏、只保留首个 {...} 块（对齐官方 Ar/Ir 的解析）。
+ *  顶层纯函数，导出供单测（剧本盒纯逻辑）。 */
+export function parseJsonText(raw) {
+  let s = String(raw || '')
+    .replace(/```json/gi, '')
+    .replace(/```/g, '')
+    .trim()
+  const f = s.indexOf('{')
+  const p = s.lastIndexOf('}')
+  if (f >= 0 && p > f) s = s.slice(f, p + 1)
+  try {
+    return { ok: true, data: JSON.parse(s) }
+  } catch {
+    return { ok: false, data: null }
+  }
+}
+
+/** 是否使用 json_object（deepseek/claude 不强制，对齐官方 r 判定）。
+ *  顶层纯函数，导出供单测（剧本盒纯逻辑）。 */
+export function useJsonObject(modelId) {
+  const m = String(modelId || '').toLowerCase()
+  return !m.includes('deepseek') && !m.includes('claude')
+}
+
 /**
  * 剧本盒子 —— 引擎层（接真系统，经 localTool /api/proxy → 供应商）。
  *
@@ -44,28 +68,6 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
   // ═══════════════════════════════════════════════════════════════
   // 公共工具（纯函数，无副作用）
   // ═══════════════════════════════════════════════════════════════
-
-  /** 去掉 ```json 围栏、只保留首个 {...} 块（对齐官方 Ar/Ir 的解析）。 */
-  function parseJsonText(raw) {
-    let s = String(raw || '')
-      .replace(/```json/gi, '')
-      .replace(/```/g, '')
-      .trim()
-    const f = s.indexOf('{')
-    const p = s.lastIndexOf('}')
-    if (f >= 0 && p > f) s = s.slice(f, p + 1)
-    try {
-      return { ok: true, data: JSON.parse(s) }
-    } catch {
-      return { ok: false, data: null }
-    }
-  }
-
-  /** 是否使用 json_object（deepseek/claude 不强制，对齐官方 r 判定）。 */
-  function useJsonObject(modelId) {
-    const m = String(modelId || '').toLowerCase()
-    return !m.includes('deepseek') && !m.includes('claude')
-  }
 
   /** 解析「文本模型」→ { provider, modelId }（对齐官方 Ir/Ar 的文本模型，多 provider 版）。 */
   function resolveTextModel() {
@@ -499,8 +501,9 @@ function matchAsset(text, name) {
   }
 }
 
-/** 对白字符串 → 每行「说话者：完整原句」格式（对齐官方 Ir 内嵌解析 + Nr）。 */
-function dialogueLines(dialogue) {
+/** 对白字符串 → 每行「说话者：完整原句」格式（对齐官方 Ir 内嵌解析 + Nr）。
+ *  导出供单测（剧本盒纯逻辑）。 */
+export function dialogueLines(dialogue) {
   if (!dialogue) return ''
   return String(dialogue)
     .split('\n')
@@ -517,8 +520,9 @@ function dialogueLines(dialogue) {
     .join('\n')
 }
 
-/** 单个分镜的 user content（对齐官方 Nr）：镜头编号/时长/景别/光影/运镜/描述/对白/音效/风格/涉及资源。 */
-function assembleShotUser(shot, refAssets, globalStyle) {
+/** 单个分镜的 user content（对齐官方 Nr）：镜头编号/时长/景别/光影/运镜/描述/对白/音效/风格/涉及资源。
+ *  导出供单测（剧本盒纯逻辑）。 */
+export function assembleShotUser(shot, refAssets, globalStyle) {
   const assetNames = refAssets.map((a) => a.name).filter(Boolean)
   const assetLine = assetNames.length
     ? `本分镜涉及以下资源，请在画面里自然呈现，并在画面描述里用 @名称 引用：${assetNames.map((a) => `@${a}`).join('、')}`

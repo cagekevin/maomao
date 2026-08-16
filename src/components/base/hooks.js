@@ -83,21 +83,10 @@ export function useSizeSync(id, aspectRatio, opts = {}) {
   useEffect(() => {
     const n = getNodes().find((x) => x.id === id)
     if (!n) return
-    let w, h
-    if (ratio) {
-      if (mode === 'area-fixed') {
-        w = Math.round(Math.sqrt(ratio) * baseSize)
-        h = Math.round(baseSize / Math.sqrt(ratio))
-      } else {
-        // width-fixed：宽度固定为当前宽度（或默认宽）
-        w = n.style?.width ?? n.width ?? defaultWidth
-        h = Math.round(w / ratio)
-      }
-    } else {
-      // Auto：用默认尺寸
-      w = n.style?.width ?? n.width ?? defaultWidth
-      h = defaultHeight
-    }
+    // 尺寸计算收敛到纯函数 computeSizeSync（width-fixed / area-fixed / Auto），可单测
+    const { width: w, height: h } = computeSizeSync(ratio, {
+      mode, currentWidth: n.style?.width ?? n.width ?? defaultWidth, defaultWidth, defaultHeight, baseSize,
+    })
     const changed =
       (n.style?.height ?? n.height) !== h || (n.style?.width ?? n.width) !== w
     if (changed) {
@@ -117,11 +106,41 @@ export function useSizeSync(id, aspectRatio, opts = {}) {
 
 /**
  * 解析 '16:9' / '1:1' / 'Auto' → 宽高比数值或 null。
+ *  纯函数，导出供单测（useSizeSync 尺寸计算的输入解析）。
  */
 export function parseAspect(aspectRatio) {
   if (!aspectRatio || aspectRatio === 'Auto') return null
   const m = aspectRatio.match(/^(\d+(?:\.\d+)?)\s*[:：]\s*(\d+(?:\.\d+)?)$/)
   return m ? parseFloat(m[1]) / parseFloat(m[2]) : null
+}
+
+/**
+ * 纯函数：按比例计算节点目标尺寸（useSizeSync 的算法核心，抽出供单测）。
+ *  - ratio=null（Auto/无比例）→ 返回默认尺寸
+ *  - mode='width-fixed'（生图节点）：宽固定 currentWidth，高 = 宽 ÷ 比例
+ *  - mode='area-fixed'（特惠视频）：宽 = sqrt(比例)*base，高 = base/sqrt(比例)
+ * @param {number|null} ratio  宽高比值（parseAspect 的产物）
+ * @param {object} opts { mode, currentWidth, defaultWidth, defaultHeight, baseSize }
+ * @returns {{width, height}}
+ */
+export function computeSizeSync(ratio, opts = {}) {
+  const mode = opts.mode || 'width-fixed'
+  const defaultWidth = opts.defaultWidth ?? 420
+  const defaultHeight = opts.defaultHeight ?? 420
+  const baseSize = opts.baseSize ?? 380
+  const currentWidth = opts.currentWidth ?? defaultWidth
+  if (ratio) {
+    if (mode === 'area-fixed') {
+      return {
+        width: Math.round(Math.sqrt(ratio) * baseSize),
+        height: Math.round(baseSize / Math.sqrt(ratio)),
+      }
+    }
+    // width-fixed：宽度固定为当前宽度（或默认宽）
+    return { width: currentWidth, height: Math.round(currentWidth / ratio) }
+  }
+  // Auto / 无比例：默认尺寸
+  return { width: currentWidth, height: defaultHeight }
 }
 
 /**

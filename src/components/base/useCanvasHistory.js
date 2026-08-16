@@ -1,23 +1,24 @@
 import { useState, useRef, useCallback } from 'react'
+import { HistoryStack } from './historyStack.js'
 
 /**
  * 画布撤销/重做历史栈 hook（复刻 H_.jsx:475-478,881-925 的 fn/hn/_n/vn 机制）。
  *
- * 机制要点（与源码一致）：
- *  - 历史最多保留 MAX=15 条
- *  - 每次「非撤销/重做」触发的画布变化都通过 record() 压栈，并截断被 redo 覆盖的分支
- *  - undo/redo 期间用 suppressRef 抑制重复记录（含 600ms 延迟窗口，复刻源码 setTimeout）
+ * 核心逻辑已下沉到纯类 HistoryStack（historyStack.js），本 hook 只做两件事：
+ *  - 用 ref 持有 HistoryStack 实例（不随渲染重建）
+ *  - 把纯类的状态变化桥接到 React state（history/index → canUndo/canRedo 渲染）
  *
  * @param getSnapshot 返回当前 { nodes, edges } 快照的函数
  * @param apply       应用 { nodes, edges } 到画布
- * @returns { canUndo, canRedo, record, undo, redo }
+ * @returns { canUndo, canRedo, record, undo, redo, clear }
  */
 export function useCanvasHistory(getSnapshot, apply) {
-  const MAX = 15
-  const [history, setHistory] = useState([])
-  const [index, setIndex] = useState(-1)
-  const suppressRef = useRef(false)
-  const branchRef = useRef(-1)
+  // React state 镜像（供渲染 canUndo/canRedo 与 record 闭包用）
+  const [version, setVersion] = useState(0)
+  // 纯类实例：真实历史栈（不随渲染重建）
+  const stackRef = useRef(new HistoryStack())
+  const suppressTimerRef = useRef(null)
+  const stack = stackRef.current
 
   // 记录一次画布变化（复刻 H_.jsx:881-897）。
   // snapshot：可显式传入本次操作后的最新 { nodes, edges }。
@@ -26,52 +27,44 @@ export function useCanvasHistory(getSnapshot, apply) {
   // 必须显式传快照，否则 record 会拿到旧的 nodes 导致 undo 丢失新增节点。
   const record = useCallback(
     (snapshot) => {
-      if (suppressRef.current) return
-      setHistory((h) => {
-        const next = h.slice(0, branchRef.current + 1)
-        next.push(snapshot || getSnapshot())
-        if (next.length > MAX) next.shift()
-        return next
-      })
-      setIndex((i) => {
-        const ni = Math.min(i + 1, MAX - 1)
-        branchRef.current = ni
-        return ni
-      })
+      stack.push(snapshot || getSnapshot())
+      setVersion((v) => v + 1)
     },
-    [getSnapshot]
+    [stack, getSnapshot]
   )
+
+  // undo/redo 结束后启动 600ms 抑制窗口（复刻源码 setTimeout）
+  const scheduleRelease = useCallback(() => {
+    if (suppressTimerRef.current) clearTimeout(suppressTimerRef.current)
+    suppressTimerRef.current = setTimeout(() => stack.releaseSuppress(), 600)
+  }, [stack])
 
   // 撤销（复刻 Gn）
   const undo = useCallback(() => {
-    if (index > 0) {
-      suppressRef.current = true
-      const snap = history[index - 1]
+    const snap = stack.undo()
+    if (snap) {
       apply(snap)
-      setIndex(index - 1)
-      branchRef.current = index - 1
-      setTimeout(() => (suppressRef.current = false), 600)
+      setVersion((v) => v + 1)
+      scheduleRelease()
     }
-  }, [history, index, apply])
+  }, [stack, apply, scheduleRelease])
 
   // 重做（复刻 Kn）
   const redo = useCallback(() => {
-    if (index < history.length - 1) {
-      suppressRef.current = true
-      const snap = history[index + 1]
+    const snap = stack.redo()
+    if (snap) {
       apply(snap)
-      setIndex(index + 1)
-      branchRef.current = index + 1
-      setTimeout(() => (suppressRef.current = false), 600)
+      setVersion((v) => v + 1)
+      scheduleRelease()
     }
-  }, [history, index, apply])
+  }, [stack, apply, scheduleRelease])
 
   // 清空历史（切换/新建项目时调用，避免跨项目残留撤销栈）
   const clear = useCallback(() => {
-    setHistory([])
-    setIndex(-1)
-    branchRef.current = -1
-  }, [])
+    if (suppressTimerRef.current) clearTimeout(suppressTimerRef.current)
+    stack.clear()
+    setVersion((v) => v + 1)
+  }, [stack])
 
-  return { canUndo: index > 0, canRedo: index < history.length - 1, record, undo, redo, clear }
+  return { canUndo: stack.canUndo, canRedo: stack.canRedo, record, undo, redo, clear }
 }
