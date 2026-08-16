@@ -6,10 +6,13 @@ const { spawnSync } = require('child_process');
 const path = require('path');
 const ROOT = path.resolve(__dirname, '..');
 
+// 门禁套件说明：
+//  - L2 vitest run 已是全量（含 canvasAgentTools.test.js），故不重复单跑 L3，避免连续起
+//    两个 vitest 进程导致偶发失败（spawnSync 串行 + vitest 进程清理时序问题）。
+//  - Agent 工具层另由 esbuild 版 test_agent_tools.cjs 覆盖（更快更稳，作为工具层门禁）。
 const suites = [
   { name: '冒烟测试 (Tier 2)', cmd: 'node', args: ['scripts/smoke_test.cjs'] },
-  { name: 'L2 纯逻辑单测 (Vitest)', cmd: 'npx', args: ['vitest', 'run'] },
-  { name: 'L3 Agent 工具层 (Vitest)', cmd: 'npx', args: ['vitest', 'run', 'tests/unit/canvasAgentTools.test.js'] },
+  { name: 'L2/L3 纯逻辑+工具单测 (Vitest, 全量)', cmd: 'npx', args: ['vitest', 'run'] },
   { name: '回归测试 (SSR / L1)', cmd: 'node', args: ['scripts/regression_test.cjs'] },
   { name: 'Agent 工具测试 (esbuild)', cmd: 'node', args: ['scripts/test_agent_tools.cjs'] },
 ];
