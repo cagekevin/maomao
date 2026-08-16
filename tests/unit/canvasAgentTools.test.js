@@ -21,14 +21,18 @@ vi.mock('../../src/components/base/taskStore.js', () => ({
   runNodeGeneration: vi.fn(async () => ({ ok: true, resultUrl: 'http://r/x.png' })),
   isNodeRegistered: vi.fn(() => true),
 }))
-vi.mock('../../src/components/base/canvasPlanExecutor.js', () => ({
-  executePlan: vi.fn(async () => ({ workflow: { status: 'completed' }, entries: [{ status: 'completed', nodeId: 'n1', resultUrl: 'http://r/x.png' }] })),
-}))
+vi.mock('../../src/components/base/canvasPlanExecutor.js', async (importOriginal) => {
+  const actual = await importOriginal()
+  return {
+    ...actual, // 保留真实纯函数（buildFusionPrompt/buildProductReferencePrompt 等）
+    executePlan: vi.fn(async () => ({ workflow: { status: 'completed' }, entries: [{ status: 'completed', nodeId: 'n1', resultUrl: 'http://r/x.png' }] })),
+  }
+})
 
 import { buildCanvasAgentTools, CANVAS_AGENT_TOOL_NAMES, getNodeImageUrl, setCurrentReferenceImages } from '../../src/components/base/useCanvasAgentTools.js'
 import * as convStore from '../../src/components/base/conversationStore.js'
 import * as taskStore from '../../src/components/base/taskStore.js'
-import { executePlan as mockExecutePlan } from '../../src/components/base/canvasPlanExecutor.js'
+import { executePlan as mockExecutePlan, buildFusionPrompt, buildProductReferencePrompt } from '../../src/components/base/canvasPlanExecutor.js'
 
 function makeCtx(initialNodes = [], initialEdges = []) {
   let nodes = [...initialNodes]
@@ -407,6 +411,23 @@ describe('画布 Agent 工具层 §2.5', () => {
     expect(arg.generations[1].referenceImages).toEqual(['http://ref/2.png'])
     // 无索引的步骤不注入 per-step referenceImages（执行器会回退整批共享）
     expect(arg.generations[2].referenceImages).toBeUndefined()
+  })
+
+  it('buildFusionPrompt：挂全部前序成功图 + 改写为融合提示词（对齐大雄）', () => {
+    const prev = [{ prompt: '一只黑猫' }, { prompt: '一只橘猫' }]
+    const prompt = buildFusionPrompt(prev, '让它们打架')
+    expect(prompt).toContain('图1（黑猫）')
+    expect(prompt).toContain('图2（橘猫）')
+    expect(prompt).toContain('融合')
+    expect(prompt).toContain('保持各主体外形与关键特征')
+  })
+
+  it('buildProductReferencePrompt：只挂产品定稿 + 产品一致性约束（对齐大雄）', () => {
+    const product = { prompt: '零食包装定稿' }
+    const prompt = buildProductReferencePrompt(product, '详情页画面', '')
+    expect(prompt).toContain('产品定稿')
+    expect(prompt).toContain('唯一产品一致性参考')
+    expect(prompt).toContain('详情页画面')
   })
 
   it('execute_plan 无 generations 且无暂存 → 报错（不死循环/不崩溃）', async () => {

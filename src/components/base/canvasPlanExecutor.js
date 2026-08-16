@@ -15,6 +15,109 @@
  */
 import { runNodeGeneration, isNodeRegistered } from './taskStore.js'
 
+/* ════════════════════════════════════════════════════════════════
+ * 依赖批 prompt 改写工程（对齐大雄 agentBuildFusionPrompt /
+ * agentBuildProductReferencePrompt 等，纯函数、无副作用、可独立单测）
+ * ────────────────────────────────────────────────────────────────
+ * 大雄在依赖批不是「只连线」，而是把下游 prompt 重建为「挂前序成功图 + 改写后的提示词」，
+ * 保证产品一致性 / 融合的画面约束强于「仅连线读 data.imageUrl」。这 6 个函数是纯函数，
+ * 直接平移自大雄 canvas-agent.js L10055-10172（同名简化去前缀）。
+ */
+/** 剥离「【统一设定·不可变更】」前缀 */
+function stripSharedStylePrefix(text = '') {
+  return String(text || '')
+    .replace(/【统一设定[·・]?不可变更】[^\n]*/g, ' ')
+    .replace(/统一设定[·・]?不可变更[：:][^\n]*/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+/** 是否像「融合」指令 */
+function looksLikeFusionPrompt(text = '') {
+  return /组合|结合|合成|融合|拼在一起|合并|合在一起|放在一起|拼合|合成为|合成一张|合成一图|把这[两三三四五六七八九十\d]+张|将这[两三三四五六七八九十\d]+张/.test(String(text || ''))
+}
+/** 从融合 prompt 抽动作（打架/互动/融合等） */
+function cleanFusionActionText(basePrompt = '', userText = '') {
+  let base = stripSharedStylePrefix(basePrompt)
+  const user = String(userText || '').trim()
+  base = base
+    .replace(/请严格参考[\s\S]*?(?=(?:将|把|生成|创作|描绘|一只|一个|场景|画面|$))/g, '')
+    .replace(/将(?:图\s*\d+|它们|以上|前面)[^\n。]*融合[^\n。]*/g, '')
+    .replace(/保持各主体外形与关键特征一致[^\n。]*/g, '')
+    .replace(/统一光影[、,，]?透视与色彩[^\n。]*/g, '')
+    .replace(/构图自然协调[^\n。]*/g, '')
+    .replace(/高质量成像[^\n。]*/g, '')
+    .replace(/用户原意[：:]\s*/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+  const actionPatterns = [
+    /(?:再|然后)?(?:生成|创作|制作)?(?:一张)?(?:这只|该|这些)?[^\n，。]{0,20}?(?:猫[^，。]{0,12}狗|狗[^，。]{0,12}猫)[^，。]{0,20}?(?:打架|互动|对峙|追逐|奔跑|拥抱|同框|一起)[^，。]{0,20}/,
+    /(?:再|然后)?(?:生成|创作|制作)?(?:一张)?[^\n，。]{0,30}?(?:打架|互动|对峙|追逐|奔跑|拥抱|同框|融合|组合)[^，。]{0,30}/
+  ]
+  for (const re of actionPatterns) {
+    const um = user.match(re)
+    if (um) {
+      return um[0]
+        .replace(/^(?:先|再|然后)/, '')
+        .replace(/^(?:生成|创作|制作)(?:一张|一幅)?/, '')
+        .trim() || um[0].trim()
+    }
+  }
+  if (base && base.length < 80 && /打架|互动|融合|组合|场景|同框|一起/.test(base)) return base
+  const parts = user.split(/[，。；;\n]/).map((s) => s.trim()).filter(Boolean)
+  const last = parts.reverse().find((s) => /打架|互动|融合|组合|场景|同框|一起|对峙/.test(s))
+  if (last) return last.replace(/^(?:再|然后)?(?:生成|创作|制作)(?:一张|一幅)?/, '').trim() || last
+  return base || user || '将参考图中的主体自然融合到同一完整画面中，动作与场景协调，构图清晰。'
+}
+/** 从 prompt 抽主体短标签（如"黑猫"） */
+function extractSubjectLabel(text = '', index = 0) {
+  let t = stripSharedStylePrefix(text)
+  t = t
+    .replace(/请严格参考[^。\n]*/g, ' ')
+    .replace(/用户原意[：:][^。\n]*/g, ' ')
+    .replace(/将它们融合为同一张完整画面[^。\n]*/g, ' ')
+    .replace(/保持各主体外形与关键特征一致[^。\n]*/g, ' ')
+    .replace(/【统一设定[·・]?不可变更】/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+  if (!t) return `素材${index + 1}`
+  const relative = t.match(/与[^，。；\n]{1,20}?的([\u4e00-\u9fffA-Za-z0-9]{1,12}?(?:猫猫|猫咪|黑猫|橘猫|白猫|猫|狗狗|小狗|犬|狗|包装|产品|场景))/)
+  if (relative && relative[1]) return relative[1].slice(0, 12)
+  const animal = t.match(/(?:一只|一个|一位)(?!与)([\u4e00-\u9fffA-Za-z0-9]{1,12}?(?:猫猫|猫咪|黑猫|橘猫|白猫|猫|狗狗|小狗|犬|狗|老虎|狮子|小熊|兔子|小鸟|金鱼|女孩|男孩|男人|女人|人物|包装|产品))/)
+  if (animal && animal[1]) return animal[1].slice(0, 12)
+  const patterns = [
+    /([\u4e00-\u9fffA-Za-z0-9]{0,8}?(?:狗狗|小狗|犬|狗|猫猫|猫咪|黑猫|橘猫|白猫|猫|老虎|狮子|小熊|兔子|小鸟|金鱼|女孩|男孩|男人|女人|人物|包装|产品|场景|背景))/,
+    /([\u4e00-\u9fff]{1,8}(?:包装|产品|三视图|主图|详情页))/
+  ]
+  for (const re of patterns) {
+    const m = t.match(re)
+    if (m && m[1] && !/^与/.test(m[1])) return m[1].slice(0, 12)
+  }
+  const first = (t.split(/[，。；;\n]/)[0] || t).replace(/^(?:与|和|的|及)\s*/, '')
+  return first.slice(0, 12) || `素材${index + 1}`
+}
+/** 融合批：挂全部前序成功图 + 改写为融合提示词 */
+export function buildFusionPrompt(prevGens, userText = '') {
+  const labels = prevGens.map((g, i) => {
+    const short = extractSubjectLabel(g.prompt || g.professionalPrompt || '', i)
+    return `图${i + 1}（${short || '素材'}）`
+  }).join('、')
+  const action = cleanFusionActionText(prevGens[prevGens.length - 1]?.prompt || '', userText)
+  let prompt = `请严格参考${labels}（按参考图数组顺序），将参考图中的主体自然融合到同一完整画面：${action}`
+  prompt = prompt.replace(/：请严格参考/g, '：').replace(/\s+/g, ' ').trim()
+  if (!/保持各主体外形|外形与关键特征/.test(prompt)) {
+    prompt += '。保持各主体外形与关键特征与参考图一致，统一光影与透视，构图自然协调。'
+  }
+  return prompt
+}
+/** 产品参考批：只挂产品定稿 + 改写为产品一致性提示词 */
+export function buildProductReferencePrompt(productGen, pagePrompt = '', userText = '') {
+  const product = extractSubjectLabel(productGen?.prompt || '产品定稿', 0)
+  const page = stripSharedStylePrefix(pagePrompt || '').trim()
+  const user = String(userText || '').trim()
+  const head = `严格参考图1（产品定稿：${product}）作为唯一产品一致性参考。后续画面必须保持同一包装外形、材质、Logo、标签版式与品牌识别完全一致，只更换页面构图与文案层级，不要把多张页面融合成一张。`
+  return `${head}${page ? `\n${page}` : ''}${user && !page.includes(user) ? `\n用户原意：${user}` : ''}`
+}
+
 /** 是否带前序依赖（对齐大雄 stepDependsOnPrevious） */
 function dependsOnPrevious(step) {
   if (!step) return false
@@ -173,7 +276,17 @@ export async function executePlan({ ctx, generations = [], autoRun = true, model
   if (dependent.length) {
     const prevFailed = entries.filter((e) => e.status !== 'completed').length
     for (let i = 0; i < dependent.length; i++) {
-      const step = dependent[i]
+      let step = dependent[i]
+      // 【依赖批 prompt 改写】（对齐大雄 L10218/L10277/L10284）：依赖步不是只连线，而是按 dependency_mode 重建下游 prompt，
+      // 保证产品一致性(fusion/product_reference)的画面约束强于「仅连线读 data.imageUrl」。
+      const depMode = String(step?.dependency_mode || '').toLowerCase()
+      if (depMode === 'fusion') {
+        const prevSteps = steps.filter((s) => s !== step && (s.prompt || s.title))
+        step = { ...step, prompt: prevSteps.length ? buildFusionPrompt(prevSteps, step.prompt || '') : cleanFusionActionText(step.prompt || '', '') }
+      } else if (depMode === 'product_reference') {
+        const productStep = steps[0]
+        step = { ...step, prompt: buildProductReferencePrompt(productStep, step.prompt || '', '') }
+      }
       const anchor = nextAnchor(ctx, base, entries.length)
       const nodeId = await createGenNode(step, step.index ?? i, anchor)
       const entry = { id: step.id || `dep_${i + 1}`, stepId: step.id, nodeId, phase: 'dependent' }
