@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { createGroupFromNodes, ungroupNodes } from '../../src/components/base/groupNodes.js'
+import { createGroupFromNodes, ungroupNodes, deleteNodesWithCascade } from '../../src/components/base/groupNodes.js'
 
 describe('编组算法 §2.2', () => {
   const nodes = [
@@ -77,5 +77,40 @@ describe('R4 groupId 无碰撞（crypto.randomUUID 替代 Date.now）', () => {
     expect(r.groupId.startsWith('group-')).toBe(true)
     // crypto.randomUUID 形式：group-xxxxxxxx-xxxx-...
     expect(r.groupId.length).toBeGreaterThan('group-'.length + 10)
+  })
+})
+
+describe('R3 deleteNodesWithCascade 级联删除（删 group 不留孤儿）', () => {
+  const groupNodes = [
+    { id: 'g', type: 'group', data: {}, position: { x: 0, y: 0 }, style: { width: 500, height: 500 } },
+    { id: 'child1', type: 'imageNode', data: {}, position: { x: 40, y: 40 }, parentId: 'g' },
+    { id: 'child2', type: 'textNode', data: {}, position: { x: 60, y: 60 }, parentId: 'g' },
+    { id: 'outer', type: 'textNode', data: {}, position: { x: 500, y: 500 } },
+  ]
+  const edges = [
+    { id: 'e1', source: 'g', target: 'child1' },
+    { id: 'e2', source: 'child1', target: 'child2' },
+    { id: 'e3', source: 'child2', target: 'outer' },
+  ]
+
+  it('删 group 父节点 → 级联删除其所有子节点，不留孤儿', () => {
+    const r = deleteNodesWithCascade(groupNodes, edges, 'g')
+    // g + child1 + child2 全删，outer 保留
+    expect(r.nodes.map((n) => n.id)).toEqual(['outer'])
+    // 边全删：e1/e2 连被删节点；e3 连到被删的 child2（其 source 待删）也应删 → 无残留孤儿边
+    expect(r.edges).toHaveLength(0)
+    expect(r.deleted).toEqual(expect.arrayContaining(['g', 'child1', 'child2']))
+  })
+
+  it('删普通节点 → 只删自身，不误删其他', () => {
+    const r = deleteNodesWithCascade(groupNodes, edges, 'child1')
+    expect(r.nodes.map((n) => n.id)).toEqual(['g', 'child2', 'outer'])
+    expect(r.deleted).toEqual(['child1'])
+  })
+
+  it('批量删除含 group → 级联删其子孙', () => {
+    const r = deleteNodesWithCascade(groupNodes, edges, ['g', 'outer'])
+    expect(r.nodes).toHaveLength(0) // g + child1 + child2 + outer 全删
+    expect(r.edges).toHaveLength(0)
   })
 })

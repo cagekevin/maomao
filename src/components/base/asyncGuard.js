@@ -26,17 +26,24 @@ export function isTimeoutError(e) {
 }
 
 /**
- * 给 Promise 加超时。超时后 reject TimeoutError（可传 AbortSignal 供底层真正取消）。
+ * 给 Promise 加超时。超时后 reject TimeoutError。
  * @param {Promise} promise
  * @param {number} ms 超时毫秒
  * @param {string} [message] 超时文案
- * @param {AbortSignal} [signal] 可选，用于超时时取消底层请求
+ * @param {AbortSignal} [signal] 可选，超时时 abort 它（供底层真正取消，避免资源泄漏）
+ * @param {Function} [onTimeout] 可选，超时时回调（在 reject 前调用，供调用方主动 cancel 底层任务）
  * @returns {Promise}
  */
-export function withTimeout(promise, ms, message = '操作超时', signal) {
+export function withTimeout(promise, ms, message = '操作超时', signal, onTimeout) {
   return new Promise((resolve, reject) => {
     if (!(ms > 0)) return resolve(promise)
     const timer = setTimeout(() => {
+      try { onTimeout?.() } catch { /* 取消回调失败不阻断 */ }
+      // 中止底层信号：优先标准 abort()，跨环境（jsdom/老浏览器）用 dispatchEvent fallback
+      try {
+        if (signal?.abort) signal.abort()
+        else signal?.dispatchEvent?.(new Event('abort'))
+      } catch { /* 忽略 */ }
       reject(new TimeoutError(message))
     }, ms)
     const done = () => clearTimeout(timer)

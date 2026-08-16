@@ -100,3 +100,31 @@ export function ungroupNodes(nodes, groupId) {
     )
   return { ok: true, nodes: next }
 }
+
+/**
+ * 级联删除节点（R3 系统性根因治理）：删除目标节点及其**所有子孙**（`parentId` 属于待删集合的
+ * 递归收集），并删除相关边。根治「删 group 父节点留孤儿子节点」（用户侧 + AI 侧同源缺陷）。
+ *
+ * @param {Array} nodes 当前全部节点
+ * @param {Array} edges 当前全部边
+ * @param {Array<string>|string} ids 要删除的节点 id（单个或多个）
+ * @returns {{ nodes: Array, edges: Array, deleted: string[] }} 删除后的 nodes/edges + 实际删除的 id 集合
+ */
+export function deleteNodesWithCascade(nodes, edges, ids) {
+  const seed = new Set(Array.isArray(ids) ? ids.map(String) : [String(ids)])
+  // 递归收集：任何 parentId 属于待删集合的节点也要删（含多层嵌套）
+  const toDelete = new Set(seed)
+  let grew = true
+  while (grew) {
+    grew = false
+    for (const n of nodes) {
+      if (n.parentId && toDelete.has(String(n.parentId)) && !toDelete.has(String(n.id))) {
+        toDelete.add(String(n.id))
+        grew = true
+      }
+    }
+  }
+  const nextNodes = nodes.filter((n) => !toDelete.has(String(n.id)))
+  const nextEdges = edges.filter((e) => !toDelete.has(String(e.source)) && !toDelete.has(String(e.target)))
+  return { nodes: nextNodes, edges: nextEdges, deleted: [...toDelete] }
+}

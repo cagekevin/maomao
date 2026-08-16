@@ -10,6 +10,7 @@ import { useConnectedInputs } from './base/useConnectedInputs.js'
 import { useMediaDegrade } from './base/useMediaDegrade.js'
 import { useNodeResize } from './base/hooks.js'
 import { showToast } from './base/toastStore.js'
+import { withTimeout, isTimeoutError } from './base/asyncGuard.js'
 import {
   readVideoMetadata,
   processVideo,
@@ -802,17 +803,24 @@ export default function VideoProcessNode({ id, data, selected }) {
     try {
       let result
       if (mode === 'toGif') {
-        // 视频转 GIF：输入是 URL（videoToGif 内部用 video 元素加载），无需 blob 下载
-        const gif = await videoToGif(currentUrl, {
-          fps: gifFps,
-          maxSize: gifMaxSize,
-          colors: gifColors,
-          speed: gifSpeed,
-          startTime: gifCrop ? gifStart : 0,
-          endTime: gifCrop ? gifEnd : undefined,
-          onProgress: (p) =>
-            setNodes((ns) => ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, progress: Math.round(p * 100) } } : n)))
-        })
+        // 视频转 GIF：输入是 URL（videoToGif 内部用 video 元素加载），无需 blob 下载。
+        // 【R2 视频治理】包总超时（60s），超时 abort 底层 + 取消，防逐帧 seek 卡死永久 loading（TASK-028 #31-32）
+        const gif = await withTimeout(
+          videoToGif(currentUrl, {
+            fps: gifFps,
+            maxSize: gifMaxSize,
+            colors: gifColors,
+            speed: gifSpeed,
+            startTime: gifCrop ? gifStart : 0,
+            endTime: gifCrop ? gifEnd : undefined,
+            onProgress: (p) =>
+              setNodes((ns) => ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, progress: Math.round(p * 100) } } : n)))
+          }),
+          60000,
+          'GIF 生成超时（可能解码卡死）',
+          abort.signal,
+          () => { try { controller.cancel() } catch {} }
+        )
         const url = URL.createObjectURL(gif.blob)
         const outputName = `${stripExt(currentName || 'video')}_gif.gif`
         setNodes((ns) =>
@@ -849,12 +857,19 @@ export default function VideoProcessNode({ id, data, selected }) {
             ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, progress: Math.round(((i + 1) / clips.length) * 20) } } : n))
           )
         }
-        result = await concatVideos(blobs, {
-          segments: clips.map((c) => ({ start: c.sourceStart, end: c.sourceEnd, muted: c.muted })),
-          controller,
-          onProgress: (p) =>
-            setNodes((ns) => ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, progress: 20 + Math.round(p * 80) } } : n)))
-        })
+        // 【R2 视频治理】concat 包总超时（每片段 90s 下限 5min），防 for await 长循环卡死（TASK-028 #15-29）
+        result = await withTimeout(
+          concatVideos(blobs, {
+            segments: clips.map((c) => ({ start: c.sourceStart, end: c.sourceEnd, muted: c.muted })),
+            controller,
+            onProgress: (p) =>
+              setNodes((ns) => ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, progress: 20 + Math.round(p * 80) } } : n)))
+          }),
+          Math.max(5 * 60 * 1000, blobs.length * 90 * 1000),
+          '视频拼接超时（可能解码卡死）',
+          abort.signal,
+          () => { try { controller.cancel() } catch {} }
+        )
       } else {
         const clip = mode === 'trim' ? clips[0] : undefined
         const src = currentUrl
@@ -870,7 +885,14 @@ export default function VideoProcessNode({ id, data, selected }) {
         if (mode === 'trim') opts = { mode, start: clip.sourceStart, end: clip.sourceEnd, ...baseOpts }
         else if (mode === 'extractAudio') opts = { mode, format: audioFormat, ...baseOpts }
         else opts = { mode, width: outW, height: outH, fps: targetFps, ...baseOpts }
-        result = await processVideo(blob, opts)
+        // 【R2 视频治理】processVideo 包总超时（5min），防 conversion.execute 编码卡死（TASK-028 #6-14）
+        result = await withTimeout(
+          processVideo(blob, opts),
+          5 * 60 * 1000,
+          '视频处理超时（可能编码卡死）',
+          abort.signal,
+          () => { try { controller.cancel() } catch {} }
+        )
       }
 
       const uploaded = await uploadResult(result.blob, { subfolder: 'canvas/video-process' })
@@ -910,7 +932,11 @@ export default function VideoProcessNode({ id, data, selected }) {
         showToast(mode === 'concat' ? '视频拼接完成' : '视频处理完成')
       }
     } catch (e) {
-      if (e instanceof ConversionCanceled || abort.signal.aborted || controller.isCanceled) {
+      // 【R2 视频治理】超时优先于取消判断：withTimeout 超时会 abort + cancel（设置 aborted/isCanceled），
+      // 若先判取消会把超时误归为取消而静默。isTimeoutError 在前，超时明确 fail 提示。
+      if (isTimeoutError(e)) {
+        fail(e instanceof Error ? e.message : '视频处理超时')
+      } else if (e instanceof ConversionCanceled || abort.signal.aborted || controller.isCanceled) {
         setNodes((ns) => ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, loading: false, progress: 0, errorMessage: undefined } } : n)))
       } else {
         fail(e instanceof Error ? e.message : '视频处理失败')

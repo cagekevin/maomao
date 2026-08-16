@@ -38,6 +38,38 @@ describe('asyncGuard.withTimeout（R2 统一异步超时）', () => {
     const p = Promise.resolve('v')
     expect(await withTimeout(p, 0)).toBe('v')
   })
+
+  it('超时触发 onTimeout 回调（供取消底层任务）', async () => {
+    const never = new Promise(() => {})
+    const onTimeout = vi.fn()
+    const p = withTimeout(never, 1000, '超时', undefined, onTimeout)
+    p.catch(() => {})
+    await vi.advanceTimersByTimeAsync(1001)
+    expect(onTimeout).toHaveBeenCalledTimes(1)
+    await expect(p).rejects.toThrow('超时')
+  })
+
+  it('超时中止传入的 signal（真实定时器；jsdom 的 AbortSignal 无 abort()，走 dispatchEvent fallback）', async () => {
+    vi.useRealTimers()
+    const never = new Promise(() => {})
+    const ctl = new AbortController()
+    let aborted = false
+    ctl.signal.addEventListener('abort', () => { aborted = true })
+    const p = withTimeout(never, 30, '超时', ctl.signal)
+    p.catch(() => {})
+    expect(aborted).toBe(false)
+    await new Promise((r) => setTimeout(r, 60))
+    expect(aborted).toBe(true)
+  })
+
+  it('正常完成时不触发 onTimeout 也不 abort signal', async () => {
+    const ctl = new AbortController()
+    const onTimeout = vi.fn()
+    const p = withTimeout(Promise.resolve('v'), 5000, '超时', ctl.signal, onTimeout)
+    expect(await p).toBe('v')
+    expect(onTimeout).not.toHaveBeenCalled()
+    expect(ctl.signal.aborted).toBe(false)
+  })
 })
 
 describe('asyncGuard.loadImageWithTimeout（统一图片加载入口）', () => {

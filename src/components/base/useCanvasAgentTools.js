@@ -2,7 +2,7 @@ import { useCallback, useMemo } from 'react'
 import { useReactFlow } from '@xyflow/react'
 import { getPaletteNode, defaultNodeData } from './NodePalette.jsx'
 import { runNodeGeneration } from './taskStore.js'
-import { createGroupFromNodes } from './groupNodes.js'
+import { createGroupFromNodes, deleteNodesWithCascade } from './groupNodes.js'
 import { executePlan } from './canvasPlanExecutor.js'
 import {
   patchCurrentWorkflow, setCurrentMemory, getCurrentMemory,
@@ -318,9 +318,11 @@ const deleteNodeTool = {
     const id = str(args.nodeId)
     const exists = getNodes().some((n) => n.id === id)
     if (!exists) return { ok: false, error: `节点不存在：${id}` }
-    setNodes((ns) => ns.filter((n) => n.id !== id))
-    setEdges((es) => es.filter((e) => e.source !== id && e.target !== id))
-    return { ok: true, data: { id } }
+    // R3：级联删除该节点及其子孙（删 group 不留孤儿子节点）
+    const { nodes, edges, deleted } = deleteNodesWithCascade(getNodes(), getEdges(), id)
+    setNodes(nodes)
+    setEdges(edges)
+    return { ok: true, data: { id, deletedCount: deleted.length } }
   }
 }
 
@@ -336,10 +338,12 @@ const batchDeleteNodesTool = {
   execute(args, ctx) {
     const ids = Array.isArray(args.nodeIds) ? args.nodeIds.map(String) : []
     if (!ids.length) return { ok: false, error: 'nodeIds 数组为空' }
-    const { getNodes, setNodes, setEdges } = ctx
-    setNodes((ns) => ns.filter((n) => !ids.includes(n.id)))
-    setEdges((es) => es.filter((e) => !ids.includes(e.source) && !ids.includes(e.target)))
-    return { ok: true, data: { deleted: ids } }
+    const { getNodes, getEdges, setNodes, setEdges } = ctx
+    // R3：批量删除也级联删选中 group 的子孙节点
+    const { nodes, edges, deleted } = deleteNodesWithCascade(getNodes(), getEdges(), ids)
+    setNodes(nodes)
+    setEdges(edges)
+    return { ok: true, data: { deleted, deletedCount: deleted.length } }
   }
 }
 

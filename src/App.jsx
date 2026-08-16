@@ -59,7 +59,7 @@ import LocalToolConnectModal from './components/base/LocalToolConnectModal.jsx'
 import EmptyCanvasGuide from './components/base/EmptyCanvasGuide.jsx'
 import { initTasks } from './components/base/taskStore.js'
 import { initTaskRecovery } from './components/base/pollTask.js'
-import { createGroupFromNodes, ungroupNodes } from './components/base/groupNodes.js'
+import { createGroupFromNodes, ungroupNodes, deleteNodesWithCascade } from './components/base/groupNodes.js'
 import { saveInlineToLocal } from './components/base/filesApi.js'
 
 /* ======================================================================
@@ -463,11 +463,10 @@ function Canvas() {
     [setNodes, setEdges, history]
   )
 
-  // 删除节点及其相连边
+  // 删除节点及其相连边 + 级联删除其子孙（R3：删 group 不留孤儿子节点）
   const deleteNode = useCallback(
     (id) => {
-      const nextNodes = nodesRef.current.filter((n) => n.id !== id)
-      const nextEdges = edgesRef.current.filter((e) => e.source !== id && e.target !== id)
+      const { nodes: nextNodes, edges: nextEdges } = deleteNodesWithCascade(nodesRef.current, edgesRef.current, id)
       setNodes(nextNodes)
       setEdges(nextEdges)
       history.record({ nodes: nextNodes, edges: nextEdges })
@@ -965,8 +964,8 @@ function Canvas() {
         danger: true,
         onClick: () => {
           const sel = nodesRef.current.filter((n) => n.selected).map((n) => n.id)
-          const nextNodes = nodesRef.current.filter((n) => !sel.includes(n.id))
-          const nextEdges = edgesRef.current.filter((e) => !sel.includes(e.source) && !sel.includes(e.target))
+          // R3：多选删除也级联删选中 group 的子孙节点（防留孤儿）
+          const { nodes: nextNodes, edges: nextEdges } = deleteNodesWithCascade(nodesRef.current, edgesRef.current, sel)
           setNodes(nextNodes)
           setEdges(nextEdges)
           history.record({ nodes: nextNodes, edges: nextEdges })
@@ -1259,7 +1258,11 @@ function Canvas() {
 
     // group 尺寸只由用户手动拖动调整，不根据子节点自动伸缩
     if (changed) setNodes(cur)
-  }, [setNodes])
+    // R3：位置拖拽进撤销栈（最高频操作）。无论是否跨组，拖拽结束后 React Flow 已把
+    // 新 position 写进 nodesRef.current，这里统一 record，使「移动节点/改组归属」都可 Ctrl+Z。
+    // 只 record 节点位置相关快照，避免进入 suppress 竞态（TASK-013#2 由 useCanvasHistory 处理）。
+    history.record({ nodes: nodesRef.current, edges: edgesRef.current })
+  }, [setNodes, history])
 
   /* ====================================================================
    * 【区 6】渲染区
