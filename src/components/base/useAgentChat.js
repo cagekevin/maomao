@@ -55,6 +55,12 @@ import {
  *  - assistant: { role:'assistant', content, reasoning?, tool_calls?, streaming?, model, createdAt }
  *  - tool:      { role:'tool', content:JSON字符串, tool_call_id, createdAt }
  *  - system:    { role:'system', content }
+ *
+ * 【本实现的关键设计：统一消息同步】
+ *  messages（React state，驱动 UI 渲染）与 messagesRef（ref，供异步闭包读取最新历史）
+ *  必须始终保持一致。所有「追加/替换/清空」一律走下方辅助函数（appendMsg/setHistory/
+ *  updateLastStreaming/stripStreaming），杜绝"改 setMessages 忘改 ref"导致的 ref 漂移
+ *  ——那是过去"一改就崩"的根源。
  * ════════════════════════════════════════════════════════════════
  */
 
@@ -263,7 +269,8 @@ export function demoPlan(text, callTool) {
 
   // 1) 创建节点
   if (/创建|新建|生成|添加|画|放一个|建一个|帮我.*(节点|图|视频)/i.test(t) && type) {
-    calls.push({ name: 'create_node', args: { type, ...(prompt ? { prompt } : {}), ...(type === 'promptNode' ? { label: '生图节点' } : type === 'discountVideoNode' ? { label: '视频节点' } : { label: '文本节点' }) } })
+    const label = type === 'promptNode' ? '生图节点' : type === 'discountVideoNode' ? '视频节点' : '文本节点'
+    calls.push({ name: 'create_node', args: { type, ...(prompt ? { prompt } : {}), label } })
   }
 
   // 2) 连接：「把 A 连到 B」「连接 text-1 和 prompt-1」
@@ -278,13 +285,13 @@ export function demoPlan(text, callTool) {
     }
   }
 
-  // 3) 删除：「删除 X」
+  // 3) 删除：「删除 X」。中文删除动词不被 [\w-]+ 匹配，故在全部 token 里取第一个非动词的当节点 id。
+  //    （例：删除 text-1 → ['删除','text-1'] → text-1；把 text-1 删掉 → ['text-1'] → text-1）
   if (/删除|移除|删掉|delete/i.test(t)) {
-    const m = text.match(/([\w-]+)/g)
-    if (m) {
-      const id = m.find((s) => s && s !== '删除' && s !== '删除')
-      if (id) calls.push({ name: 'delete_node', args: { nodeId: id } })
-    }
+    const tokens = text.match(/([\w-]+)/g) || []
+    const DELETE_VERBS = new Set(['删除', '移除', '删掉', 'delete'])
+    const id = tokens.find((s) => !DELETE_VERBS.has(s.toLowerCase()))
+    if (id) calls.push({ name: 'delete_node', args: { nodeId: id } })
   }
 
   // 4) 查看画布
@@ -309,7 +316,7 @@ export function demoPlan(text, callTool) {
  *  - provider:     可选，AI 助手实际使用的供应商（来自 API 设置）。传了则经 /api/proxy
  *                  转发到该供应商（保留 function calling + SSE），选的模型才真正生效；
  *                  不传则回退走 localTool /api/agent/:id/chat（env 配的 LLM）。
- * @returns { messages, sending, error, model, setModel, send, stop, clear }
+ * @returns { messages, sending, error, model, setModel, send, stop, clear, ... }
  */
 export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '', defaultModel = CHAT_MODEL, provider = null, skills = [], onConversationChange = null } = {}) {
   const [messages, setMessages] = useState([])
@@ -344,6 +351,59 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
   useEffect(() => { skillsRef.current = skills }, [skills])
   useEffect(() => { messagesRef.current = messages }, [messages])
 
+  /**
+   * ── 消息同步辅助（唯一入口，杜绝 ref 与 state 漂移）──
+   * messages 是 React state（驱动 UI），messagesRef 是 ref（供异步闭包读最新历史）。
+   * 所有对消息的修改必须经这里，保证两者始终一致。
+   */
+  // 追加一条消息（同步 state + ref）
+  const appendMsg = useCallback((msg) => {
+    setMessages((prev) => [...prev, msg])
+    messagesRef.current = [...messagesRef.current, msg]
+  }, [])
+
+  // 整体替换历史（同步 state + ref）
+  const setHistory = useCallback((next) => {
+    setMessages(next)
+    messagesRef.current = next
+  }, [])
+
+  // 更新最后一条 streaming assistant 的增量（不新增，原地改最后一条）
+  const updateLastStreaming = useCallback((delta) => {
+    setMessages((prev) => {
+      const next = [...prev]
+      const last = next[next.length - 1]
+      if (last && last.role === 'assistant' && last.streaming) {
+        next[next.length - 1] = {
+          ...last,
+          content: delta.content,
+          reasoning: delta.reasoning || undefined,
+          tool_calls: delta.toolCalls.filter((t) => t.function?.name)
+        }
+      }
+      return next
+    })
+  }, [])
+
+  // 结束流式：把最后一条 streaming 占位替换为完整 assistant
+  const endStreaming = useCallback((assistant) => {
+    setMessages((prev) => {
+      const next = [...prev]
+      next[next.length - 1] = { ...assistant, streaming: false }
+      messagesRef.current = next
+      return next
+    })
+  }, [])
+
+  // 清理所有 streaming 残留占位（循环中途出错可能残留多轮 streaming:true 占位）
+  const stripStreaming = useCallback(() => {
+    setMessages((prev) => {
+      const next = prev.filter((m) => !m.streaming)
+      messagesRef.current = next
+      return next
+    })
+  }, [])
+
   // 初始加载会话（对齐大雄：从 conversations 恢复当前对话；旧单会话数据迁移一次）。
   useEffect(() => {
     // 1) 确保至少一个对话
@@ -354,8 +414,7 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
     const snap = migrated || applyConversation(activeId)
     // 3) 同步内存态（当前对话的 messages）到本 hook state
     setActiveConversationId(getActiveConversationId())
-    setMessages(snap.messages)
-    messagesRef.current = snap.messages
+    setHistory(snap.messages)
     setConversations(getConversations())
     // 4) 把当前对话的 skills/draft/attachments 交给 UI 层（AgentPanel 据此恢复 activeSkills、输入框草稿与参考图）
     if (snap.skills?.length || snap.draft || snap.attachments?.length) onConversationChangeRef.current?.(snap)
@@ -366,9 +425,7 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
     if (pending && pending.text && pending.conversationId === getActiveConversationId()) {
       queueMicrotask(() => {
         // 在对话里插入一条"恢复中"占位提示（对齐大雄占位）
-        const recMsg = { role: 'assistant', content: '正在恢复上次未完成的操作…', createdAt: Date.now() }
-        setMessages((prev) => [...prev, recMsg])
-        messagesRef.current = [...messagesRef.current, recMsg]
+        appendMsg({ role: 'assistant', content: '正在恢复上次未完成的操作…', createdAt: Date.now() })
         sendRef.current?.(pending.text, pending.attachments || [])
       })
     }
@@ -472,45 +529,60 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
     [endpoint, model, toolSchemas, provider]
   )
 
+  /** 执行一批工具调用并回填 tool 消息（send 的真实分支与 Demo 分支共用）。
+   *  tools: [{ name, args, callId? }] → 逐个 callTool，把 tool 消息 append 到历史。 */
+  const runToolCalls = useCallback((tools, callIdFor = () => '') => {
+    for (const tc of tools) {
+      let args = {}
+      if (tc.function?.arguments) {
+        try { args = JSON.parse(tc.function.arguments) } catch (e) { console.warn('[Agent] 工具参数 JSON.parse 失败:', tc.function?.name, tc.function?.arguments, e) }
+      }
+      const result = callTool(tc.function?.name, args)
+      appendMsg({
+        role: 'tool',
+        content: result.ok ? JSON.stringify({ ok: true, ...result.data }) : JSON.stringify({ ok: false, error: result.error }),
+        tool_call_id: callIdFor(tc),
+        createdAt: Date.now()
+      })
+      // Skill 三阶段阶段1：present_plan 把策划展示给用户（作为一条 assistant 消息，可见规划）
+      if (tc.function?.name === 'present_plan' && result.ok && result.data?.plan_text) {
+        appendMsg({ role: 'assistant', content: `生成策划：\n${result.data.plan_text}`, model, createdAt: Date.now(), awaiting_confirm: true })
+      }
+    }
+  }, [callTool, appendMsg, model])
+
   /** 发送（复刻官方 dr:2786-2895 的 send：SSE + 多轮工具循环） */
   const send = useCallback(
     async (text, attachments) => {
-      // sendingRef 同步防护：React state 更新是异步的，快速双击会读到旧值 sending=false → 并发双发。
-      // 用 ref 兜底，进入即锁定，finally 才释放。
+      // ── 保护：空内容直接返回 ──
+      if (!text.trim() && (!attachments || attachments.length === 0)) return
+
       // ── steer（补充指令，#7）：任务进行中再发送 → 排入当前对话 workflow.steerQueue（per-conversation），
-      //     不打断当前任务，结束后自动执行。队列挂在 workflow 上，切换对话不串台（对齐大雄）。──
+      //    不打断当前任务，结束后自动执行。队列挂在 workflow 上，切换对话不串台（对齐大雄）。──
       if (sendingRef.current) {
-        if (!text.trim() && (!attachments || attachments.length === 0)) return
         const wf = getCurrentWorkflow() || patchCurrentWorkflow({ status: 'running' })
         patchCurrentWorkflow({ steerQueue: [...(wf.steerQueue || []), { text, attachments: attachments || [] }] })
-        // 消息区插入一条"已排队"user 消息，提示用户已接收（对齐大雄 statusLabel 已排队）
-        const steerMsg = { role: 'user', content: text, createdAt: Date.now(), steer: true, statusLabel: '已排队' }
-        setMessages((prev) => [...prev, steerMsg])
-        messagesRef.current = [...messagesRef.current, steerMsg]
+        appendMsg({ role: 'user', content: text, createdAt: Date.now(), steer: true, statusLabel: '已排队' })
         try { captureActiveConversation() } catch { /* 忽略 */ } // 落盘队列，切对话不丢
         return
       }
-      if (!text.trim() && (!attachments || attachments.length === 0)) return
+
+      // ── 准备：锁定发送、置 planning、写 pending（供刷新恢复）──
       sendingRef.current = true
       setError(null)
-      // 状态机置 planning（运行中）；创建 per-conversation workflow（含 steerQueue），写入 pending 供刷新恢复
       stateMachineRef.current.start({ status: 'planning' })
       setCurrentSnapshot({ messages: messagesRef.current, skills: skillsRef.current, draft: '', attachments: [] })
       patchCurrentWorkflow({ status: 'planning', steerQueue: getCurrentWorkflow()?.steerQueue || [], startedAt: Date.now() })
       setCurrentPending({ conversationId: getActiveConversationId(), text, attachments: attachments || [] })
 
+      // 构造 user 消息（附件归一化：blob→data、相对→绝对；只认 base64 的 provider 转 base64）
       const userMsg = { role: 'user', content: text, createdAt: Date.now(), skills: skillsRef.current.slice() }
-      // 发送端归一化：附件图统一成后端可访问地址（blob→data、相对→绝对），后端不丢图；
-      // 只认 base64 的 provider（refFormat:'base64'）→ 统一转 base64
       if (attachments && attachments.length > 0) {
         userMsg.attachments = await Promise.all(
           attachments.map(async (a) => ({ ...a, url: await normalizeImageUrlForSend(a?.url, { preferBase64: provider?.refFormat === 'base64' }) }))
         )
       }
-
-      let history = [...messagesRef.current, userMsg]
-      setMessages(history)
-      messagesRef.current = history
+      setHistory([...messagesRef.current, userMsg])
       setSending(true)
 
       const controller = new AbortController()
@@ -531,105 +603,58 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
               })),
               createdAt: Date.now()
             }
-            setMessages((prev) => [...prev, assistantMsg])
-            let msgs = [...history, assistantMsg]
+            appendMsg(assistantMsg)
             // 执行每个工具并回填 tool 结果
             for (const [i, p] of plan.entries()) {
-              const result = callTool(p.name, p.args)
-              const toolMsg = {
+              appendMsg({
                 role: 'tool',
-                content: result.ok ? JSON.stringify({ ok: true, ...result.data }) : JSON.stringify({ ok: false, error: result.error }),
+                content: (() => {
+                  const r = callTool(p.name, p.args)
+                  return r.ok ? JSON.stringify({ ok: true, ...r.data }) : JSON.stringify({ ok: false, error: r.error })
+                })(),
                 tool_call_id: assistantMsg.tool_calls[i].id,
                 createdAt: Date.now()
-              }
-              setMessages((prev) => [...prev, toolMsg])
-              msgs = [...msgs, toolMsg]
+              })
             }
             // 最后补一条 assistant 总结
             const done = plan.map((p) => p.name).join('、')
-            const summary = { role: 'assistant', content: `已执行画布操作：${done}。${plan.some((p) => p.name === 'create_node') ? '新节点已创建。' : ''}${plan.some((p) => p.name === 'connect_nodes') ? '已建立连线。' : ''}${plan.some((p) => p.name === 'delete_node') ? '节点已删除。' : ''}`, model, createdAt: Date.now() }
-            setMessages((prev) => [...prev, summary])
-            msgs = [...msgs, summary]
-            messagesRef.current = msgs
+            appendMsg({
+              role: 'assistant',
+              content: `已执行画布操作：${done}。${plan.some((p) => p.name === 'create_node') ? '新节点已创建。' : ''}${plan.some((p) => p.name === 'connect_nodes') ? '已建立连线。' : ''}${plan.some((p) => p.name === 'delete_node') ? '节点已删除。' : ''}`,
+              model, createdAt: Date.now()
+            })
           } else {
-            const reply = { role: 'assistant', content: '（演示模式）我暂时只会演示这些画布操作：创建节点（生图/视频/文本）、连接两个节点、删除节点、查看画布、适配视图。试试说「创建一个生图节点」或「连接 text-1 和 image-1」。', model, createdAt: Date.now() }
-            setMessages((prev) => [...prev, reply])
-            messagesRef.current = [...history, reply]
+            appendMsg({ role: 'assistant', content: '（演示模式）我暂时只会演示这些画布操作：创建节点（生图/视频/文本）、连接两个节点、删除节点、查看画布、适配视图。试试说「创建一个生图节点」或「连接 text-1 和 image-1」。', model, createdAt: Date.now() })
           }
           // Demo 分支落盘交给 finally 统一处理（captureActiveConversation），这里只 return
           abortRef.current = null
           return
         }
 
-        let msgs = history
+        // ── 真实模式：多轮工具循环（≤ MAX_TOOL_ROUNDS）──
         let round = 0
         for (; round < MAX_TOOL_ROUNDS; round++) {
           // 追加流式 assistant 占位（复刻官方）
-          const placeholder = { role: 'assistant', content: '', model, streaming: true, createdAt: Date.now() }
-          setMessages((prev) => [...prev, placeholder])
-          msgs = [...msgs, placeholder]
+          appendMsg({ role: 'assistant', content: '', model, streaming: true, createdAt: Date.now() })
 
           const assistant = await roundTrip(
-            buildRequestMessages(msgs, systemRef.current, true, skillsRef.current, getCurrentMemory()),
+            buildRequestMessages(messagesRef.current, systemRef.current, true, skillsRef.current, getCurrentMemory()),
             controller.signal,
-            (delta) => {
-              setMessages((prev) => {
-                const next = [...prev]
-                const last = next[next.length - 1]
-                if (last && last.role === 'assistant' && last.streaming) {
-                  next[next.length - 1] = {
-                    ...last,
-                    content: delta.content,
-                    reasoning: delta.reasoning || undefined,
-                    tool_calls: delta.toolCalls.filter((t) => t.function?.name)
-                  }
-                }
-                return next
-              })
-            }
+            (delta) => updateLastStreaming(delta)
           )
-          // 结束流式
-          setMessages((prev) => {
-            const next = [...prev]
-            next[next.length - 1] = { ...assistant, streaming: false }
-            return next
-          })
-          msgs = [...msgs.slice(0, -1), { ...assistant, streaming: false }]
+          // 结束流式（把占位替换为完整 assistant）
+          endStreaming(assistant)
 
           // 无工具调用 → 结束
           if (!assistant.tool_calls || assistant.tool_calls.length === 0) break
 
-          // 执行工具（替代官方 lr()：callTool 来自 useCanvasAgentTools）
-          for (const tc of assistant.tool_calls) {
-            let args = {}
-            if (tc.function?.arguments) {
-              try { args = JSON.parse(tc.function.arguments) } catch (e) { console.warn('[Agent] 工具参数 JSON.parse 失败:', tc.function?.name, tc.function?.arguments, e) }
-            }
-            const result = callTool(tc.function?.name, args)
-            const toolMsg = {
-              role: 'tool',
-              content: result.ok ? JSON.stringify({ ok: true, ...result.data }) : JSON.stringify({ ok: false, error: result.error }),
-              tool_call_id: tc.id,
-              createdAt: Date.now()
-            }
-            setMessages((prev) => [...prev, toolMsg])
-            msgs = [...msgs, toolMsg]
-            // Skill 三阶段阶段1：present_plan 把策划展示给用户（作为一条 assistant 消息，可见规划）
-            if (tc.function?.name === 'present_plan' && result.ok && result.data?.plan_text) {
-              // awaiting_confirm 标记：AgentMessage 据此渲染「确认执行」按钮（Step F）
-              const planMsg = { role: 'assistant', content: `生成策划：\n${result.data.plan_text}`, model, createdAt: Date.now(), awaiting_confirm: true }
-              setMessages((prev) => [...prev, planMsg])
-              msgs = [...msgs, planMsg]
-            }
-          }
+          // 执行工具并回填结果
+          runToolCalls(assistant.tool_calls, (tc) => tc.id)
         }
         // 多轮工具循环走满上限仍未收敛（LLM 反复调工具不自收敛）→ 提示用户，避免"停住但无说明"
         if (round === MAX_TOOL_ROUNDS && assistant.tool_calls && assistant.tool_calls.length > 0) {
-          const notice = { role: 'assistant', content: `已连续执行 ${MAX_TOOL_ROUNDS} 轮工具调用仍未完成，已自动停止（避免死循环）。你可以告诉我下一步，或继续补充指令。`, model, createdAt: Date.now() }
-          setMessages((prev) => [...prev, notice])
-          msgs = [...msgs, notice]
+          appendMsg({ role: 'assistant', content: `已连续执行 ${MAX_TOOL_ROUNDS} 轮工具调用仍未完成，已自动停止（避免死循环）。你可以告诉我下一步，或继续补充指令。`, model, createdAt: Date.now() })
         }
-        messagesRef.current = msgs
       } catch (e) {
         ok = false
         if (e?.name === 'AbortError') {
@@ -641,11 +666,7 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
           stateMachineRef.current.setStatus('failed') // #7 失败态 → 可重试（retry）
         }
         // 清理所有 streaming 残留占位（不只最后一个）：循环中途出错可能残留多轮 streaming:true 占位
-        setMessages((prev) => {
-          const next = prev.filter((m) => !m.streaming)
-          messagesRef.current = next
-          return next
-        })
+        stripStreaming()
       } finally {
         // 无论成功/失败/中止都落盘当前对话（对齐大雄：capture 快照到 conversations，per-conversation 持久化）
         setCurrentSnapshot({ messages: messagesRef.current, skills: skillsRef.current, draft: '' })
@@ -667,7 +688,8 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
         if (next) sendRef.current?.(next.text, next.attachments)
       }
     },
-    [sending, model, roundTrip, callTool, agentKey, provider]
+    // 依赖：roundTrip 闭包了 model/provider/toolSchemas；sendRef 用于 steer 续跑（下方 useRef 保持最新）
+    [sending, model, roundTrip, callTool, runToolCalls, appendMsg, setHistory, updateLastStreaming, endStreaming, stripStreaming, agentKey, provider]
   )
 
   /** 保存 send 引用，供 finally 里自动处理 steer 队列（useCallback 无法自调用） */
@@ -697,9 +719,7 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
           attachments.map(async (a) => ({ ...a, url: await normalizeImageUrlForSend(a?.url, { preferBase64: provider?.refFormat === 'base64' }) }))
         )
       }
-      let history = [...messagesRef.current, userMsg]
-      setMessages(history)
-      messagesRef.current = history
+      setHistory([...messagesRef.current, userMsg])
 
       // 参考图 url（供图生图）
       const referenceImages = (userMsg.attachments || []).map((a) => a.url).filter(Boolean)
@@ -720,15 +740,11 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
         const ok = res && (res.ok === true || (res.ok === undefined && !res.error))
         const entries = res?.data?.entries || []
         const doneCount = entries.filter((e) => e.status === 'completed').length
-        const resultMsg = { role: 'assistant', content: ok ? `已在画布生图：${entries.length} 张${doneCount ? `，完成 ${doneCount} 张` : ''}` : (`生图失败：${res?.error || ''}`), mode: 'image', createdAt: Date.now() }
-        setMessages((prev) => [...prev, resultMsg])
-        messagesRef.current = [...messagesRef.current, resultMsg]
+        appendMsg({ role: 'assistant', content: ok ? `已在画布生图：${entries.length} 张${doneCount ? `，完成 ${doneCount} 张` : ''}` : (`生图失败：${res?.error || ''}`), mode: 'image', createdAt: Date.now() })
         if (!ok) setError(res?.error || '图像模式生图失败')
       } catch (e) {
         setError(e?.message || '图像模式生图失败')
-        const errMsg = { role: 'assistant', content: `生图异常：${e?.message || e}`, mode: 'image', createdAt: Date.now() }
-        setMessages((prev) => [...prev, errMsg])
-        messagesRef.current = [...messagesRef.current, errMsg]
+        appendMsg({ role: 'assistant', content: `生图异常：${e?.message || e}`, mode: 'image', createdAt: Date.now() })
       } finally {
         setCurrentSnapshot({ messages: messagesRef.current, skills: skillsRef.current, draft: '' })
         patchCurrentWorkflow({ status: 'completed', updatedAt: Date.now() })
@@ -739,7 +755,7 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
         sendingRef.current = false
       }
     },
-    [callTool, provider]
+    [callTool, provider, appendMsg, setHistory]
   )
 
   /** 停止（复刻官方 stop）：状态机置 stopping，中止当前请求 */
@@ -752,61 +768,55 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
   const clear = useCallback(() => {
     abortRef.current?.abort()
     abortRef.current = null
-    setMessages([])
-    messagesRef.current = []
+    setHistory([])
     setError(null)
     // 落盘当前对话为空（messages/attachments/workflow/pending/memory 一并清空）
     setCurrentSnapshot({ messages: [], skills: skillsRef.current, draft: '', attachments: [], workflow: null, pending: null, memory: { summary: '', facts: [], lastPlan: null, lastSharedStyle: '', notes: [] } })
     try { captureActiveConversation() } catch { /* ignore */ }
     stateMachineRef.current.setStatus('idle')
-  }, [agentKey])
+  }, [agentKey, setHistory])
 
   /** 刷新对话列表 state（供 UI 渲染） */
   const refreshConversations = useCallback(() => {
     setConversations(getConversations())
   }, [])
 
+  // 对话切换公共流程（#9）：capture 当前 → 经 store 得到新对话 → 同步本 hook 的
+  // messages/ref/activeId，重置 error，重载状态机（load 隔离各对话状态），通知 UI 层恢复 skills/草稿。
+  // newChat/switchChat/deleteChat 三者的差异仅是"store 调用 + 新 id 来源"，故收敛成一个辅助。
+  // 注意：切换前只 setCurrentSnapshot（暂存），与 switchConversation 内部的落盘逻辑配合，勿额外 captureActiveConversation。
+  const applyConversationState = useCallback((targetId, snapshot) => {
+    setActiveConversationId(targetId)
+    setHistory(snapshot.messages)
+    setError(null)
+    refreshConversations()
+    stateMachineRef.current.load(targetId)
+    onConversationChangeRef.current?.(snapshot)
+  }, [setHistory, refreshConversations])
+
   /** 新建对话（#9）：capture 当前 → 建空对话并切换；通知 UI 层更新 skills/草稿 */
   const newChat = useCallback(() => {
     if (sendingRef.current) return
     setCurrentSnapshot({ messages: messagesRef.current, skills: skillsRef.current, draft: '' })
     const { id, snapshot } = newConversation()
-    setActiveConversationId(id)
-    setMessages(snapshot.messages)
-    messagesRef.current = snapshot.messages
-    setError(null)
-    refreshConversations()
-    stateMachineRef.current.load(id)
-    onConversationChangeRef.current?.(snapshot) // UI 恢复该对话的 skills/草稿
-  }, [refreshConversations])
+    applyConversationState(id, snapshot)
+  }, [applyConversationState])
 
   /** 切换对话（#9） */
   const switchChat = useCallback((id) => {
     if (sendingRef.current || !id || id === getActiveConversationId()) return
     setCurrentSnapshot({ messages: messagesRef.current, skills: skillsRef.current, draft: '' })
     const snapshot = switchConversation(id)
-    setActiveConversationId(id)
-    setMessages(snapshot.messages)
-    messagesRef.current = snapshot.messages
-    setError(null)
-    refreshConversations()
-    stateMachineRef.current.load(id)
-    onConversationChangeRef.current?.(snapshot)
-  }, [refreshConversations])
+    applyConversationState(id, snapshot)
+  }, [applyConversationState])
 
   /** 删除对话（#9）：删除后自动切到下一个；若全删空则建新对话 */
   const deleteChat = useCallback((id) => {
     if (sendingRef.current) return
     setCurrentSnapshot({ messages: messagesRef.current, skills: skillsRef.current, draft: '' })
     const { activeId, snapshot } = deleteConversation(id)
-    setActiveConversationId(activeId)
-    setMessages(snapshot.messages)
-    messagesRef.current = snapshot.messages
-    setError(null)
-    refreshConversations()
-    stateMachineRef.current.load(activeId)
-    onConversationChangeRef.current?.(snapshot)
-  }, [refreshConversations])
+    applyConversationState(activeId, snapshot)
+  }, [applyConversationState])
 
   return { messages, sending, error, model, setModel, send, sendImageMode, stop, clear, stateAction, conversations, activeConversationId, newChat, switchChat, deleteChat, refreshConversations }
 }

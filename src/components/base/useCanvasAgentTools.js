@@ -133,6 +133,10 @@ const MUTATING_TOOLS = new Set([
 /** AI 撤销栈上限（分组事务可回滚步数）；【Step D】栈存在 conversationStore per-conversation，不再模块级 */
 const MAX_AI_UNDO = 20
 
+// update_node 白名单字段（对齐官方 update_node，防 LLM 乱改任意 data 造成失同步）。
+// 提为模块常量：避免每次 execute 重建数组；description/parameters 与之一致（含 locked）。
+const UPDATE_NODE_WHITELIST = ['prompt', 'label', 'selectedModel', 'aspectRatio', 'resolution', 'seconds', 'text', 'locked']
+
 /**
  * 建节点工具（复刻官方 create_node + batch_create_nodes）。
  * type 从 NodePalette 目录取（getPaletteNode），默认给默认 data；prompt/label 可覆盖。
@@ -253,7 +257,7 @@ const batchDeleteNodesTool = {
  */
 const updateNodeTool = {
   name: 'update_node',
-  description: '更新节点数据。白名单字段：prompt(提示词)、label(标题)、selectedModel(模型)、aspectRatio(宽高比 如 16:9)、resolution(分辨率 如 720p)、seconds(视频秒数)、text(文本内容)。只改传入字段，不影响其他。',
+  description: '更新节点数据。白名单字段：prompt(提示词)、label(标题)、selectedModel(模型)、aspectRatio(宽高比 如 16:9)、resolution(分辨率 如 720p)、seconds(视频秒数)、text(文本内容)、locked(锁定)。只改传入字段，不影响其他。',
   parameters: {
     type: 'object',
     properties: {
@@ -264,7 +268,8 @@ const updateNodeTool = {
       aspectRatio: { type: 'string', description: '如 16:9 / 9:16 / 1:1' },
       resolution: { type: 'string', description: '如 720p / 1080p' },
       seconds: { type: 'string', description: '视频秒数' },
-      text: { type: 'string', description: '文本节点内容' }
+      text: { type: 'string', description: '文本节点内容' },
+      locked: { type: 'boolean', description: '锁定状态（true=锁定）' }
     },
     required: ['nodeId']
   },
@@ -273,10 +278,8 @@ const updateNodeTool = {
     const id = str(args.nodeId)
     const node = getNodes().find((n) => n.id === id)
     if (!node) return { ok: false, error: `节点不存在：${id}` }
-    // 白名单字段（对齐官方 update_node，防 LLM 乱改任意 data 造成失同步）
-    const WHITELIST = ['prompt', 'label', 'selectedModel', 'aspectRatio', 'resolution', 'seconds', 'text', 'locked']
     const patch = {}
-    for (const k of WHITELIST) {
+    for (const k of UPDATE_NODE_WHITELIST) {
       if (args[k] !== undefined) patch[k] = args[k]
     }
     if (Object.keys(patch).length === 0) return { ok: true, data: { id, unchanged: true } }

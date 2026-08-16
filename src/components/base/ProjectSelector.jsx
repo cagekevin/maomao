@@ -96,6 +96,10 @@ export default function ProjectSelector({ onSwitch, onCreate }) {
           <button type="button" onClick={openRename} className="w-full text-left px-3 py-2.5 text-sm text-gray-300 hover:bg-surface-hover-strong hover:text-white flex items-center gap-2 cursor-pointer border-none bg-transparent">
             <Pencil size={14} /> 重命名项目
           </button>
+          {/* 导入/导出走 eventBus（职责分离）：ProjectSelector 是纯 UI 菜单，只发"用户点了导入/导出"的信号，
+              不 import 任何导入导出逻辑。真正的业务实现（导出=exportAll 打包下载 JSON；导入=读 .json→importAll→reload）
+              由 App.jsx subscribe('project:import'/'project:export') 承接落地。这样改导出格式只动 App，本组件无需改动；
+              将来有其它入口要触发导入导出，也只需 publish 同名事件复用同一套逻辑。 */}
           <button type="button" onClick={() => publish('project:import')} className="w-full text-left px-3 py-2.5 text-sm text-gray-300 hover:bg-surface-hover-strong hover:text-white flex items-center gap-2 cursor-pointer border-none bg-transparent">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
             导入项目

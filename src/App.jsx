@@ -1257,7 +1257,17 @@ function Canvas() {
           onSwitchProject={handleSwitchProject}
           onCreateProject={handleCreateProject}
           agentOpen={agentOpen}
-          onToggleAgent={() => setAgentOpen((v) => !v)}
+          onToggleAgent={() => {
+            // 在非画布视图（设置/多开）点 AI 助手按钮：AgentPanel 只在 canvas 视图渲染，
+            // 且会被 SettingsFrame/AccountsSettings 覆盖。故先强制打开面板 + 切回画布，
+            // 让用户回到画布看到面板（而不是点了没反应）。画布内则正常 toggle 开关。
+            if (view !== 'canvas') {
+              setAgentOpen(true)
+              setView('canvas')
+            } else {
+              setAgentOpen((v) => !v)
+            }
+          }}
         />
 
         {/* 内容区：画布为基座，多开/设置整页覆盖（官方 visible/invisible 覆盖层形态） */}

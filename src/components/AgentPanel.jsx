@@ -7,7 +7,7 @@ import { buildAllModels } from './base/providerModels.js'
 import { useOutsideClick } from './base/hooks.js'
 import { setGenParams, getGenParams } from './base/useCanvasAgentTools.js'
 import { loadAgentChatModel } from './base/settings/agentModelStore.js'
-import { getAllSkills, markSkillUsed, getSkillUsage, upsertCustomSkill, deleteCustomSkill } from './base/skillStore.js'
+import { getAllSkills, markSkillUsed } from './base/skillStore.js'
 import { sGet, sSet } from './base/storageAdapter.js'
 import { toAbsoluteFileUrl } from './base/filesApi.js'
 import { setCurrentSnapshot, setAwaitingConfirm } from './base/conversationStore.js'
@@ -52,7 +52,7 @@ const PANEL_WIDTH_KEY = 'agent_panel_width'
 const AGENT_DRAFT_KEY = 'agent_draft'
 const MIN_WIDTH = 320
 const MAX_WIDTH = 720
-const DEFAULT_WIDTH = 380
+const DEFAULT_WIDTH = 400
 
 const SHORTCUTS = [
   '生成赛博朋克猫咪图',
@@ -142,6 +142,10 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
   const [skillSlashOpen, setSkillSlashOpen] = useState(false)
   const skillSlashRef = useRef(null)
   useOutsideClick(skillSlashRef, skillSlashOpen, () => setSkillSlashOpen(false))
+  // 底部「Skill」按钮 → 应用 Skill 下拉（管理已移至设置页 AI 助手分区，面板只做「使用」）
+  const [skillPickOpen, setSkillPickOpen] = useState(false)
+  const skillPickRef = useRef(null)
+  useOutsideClick(skillPickRef, skillPickOpen, () => setSkillPickOpen(false))
   // skills 变化 → 同步到 conversationStore（重构后 setCurrentSnapshot 内部自动落盘，
   // 且带 hydrated 时序守卫：挂载早期不会用空数据覆盖 localStorage 已有记录）
   useEffect(() => {
@@ -154,36 +158,9 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
       return [...prev, { id: skill.id, name: skill.name, description: skill.description, content: skill.content }]
     })
   }
-
-  // Skill 管理面板：默认收起，以浮层形式覆盖消息区
-  const [skillManagerOpen, setSkillManagerOpen] = useState(false)
-  const [viewSkill, setViewSkill] = useState(null)
-  const [skillForm, setSkillForm] = useState({ id: '', name: '', description: '', content: '' })
-  const skillManagerRef = useRef(null)
-  useOutsideClick(skillManagerRef, skillManagerOpen, () => setSkillManagerOpen(false))
-  const resetSkillForm = (seed) => setSkillForm({ id: seed?.id || '', name: seed?.name || '', description: seed?.description || '', content: seed?.content || '' })
-  const openSkillManager = (seed) => {
-    resetSkillForm(seed || null)
-    setSkillManagerOpen(true)
-  }
-  const closeSkillManager = () => { setSkillManagerOpen(false); resetSkillForm() }
-  const saveSkillFromForm = () => {
-    const name = skillForm.name.trim()
-    const content = skillForm.content.trim()
-    if (!name) return alert('请填写 Skill 名称')
-    if (!content) return alert('请填写 Skill 内容')
-    const saved = upsertCustomSkill({ id: skillForm.id || undefined, name, description: skillForm.description.trim(), content })
-    setAllSkills(getAllSkills())
-    resetSkillForm(saved || null)
-  }
+  // 移除 Skill（已启用列表里去掉）：应用 Skill 后，用户可在已启用 chip 上点 ✕ 撤销
   const removeSkill = (id) => {
-    const s = getAllSkills().find((x) => x.id === id)
-    if (!s || s.builtin) return
-    if (!window.confirm(`删除 Skill「${s.name}」？此操作不可撤销。`)) return
-    deleteCustomSkill(id)
     setActiveSkills((prev) => prev.filter((a) => a.id !== id))
-    if (skillForm.id === id) resetSkillForm()
-    setAllSkills(getAllSkills())
   }
 
   const handleConversationChange = useCallback((snap) => {
@@ -481,7 +458,7 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
                       {s.name}
                     </button>
                   ))}
-                  <button type="button" onClick={() => openSkillManager()} className="text-caption-sm text-gray-500 hover:text-gray-300 px-2 py-1">更多</button>
+                  <span className="text-caption text-gray-600 px-2 py-1">输入 / 可快速调用更多 Skill</span>
                 </div>
               )}
             </div>
@@ -499,113 +476,6 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
           )}
           {error && <div className="text-red-400 text-xs bg-red-950/30 border border-red-800/30 rounded-md px-3 py-2">{error}</div>}
         </div>
-
-        {/* Skill 管理浮层：覆盖消息区，按需展开 */}
-        {skillManagerOpen && (
-          <div ref={skillManagerRef} className="absolute inset-0 bg-surface-deep border-t border-edge-faint flex flex-col z-20">
-            <div className="flex items-center justify-between px-3 py-2 border-b border-edge-faint">
-              <strong className="text-white text-sm">Skill 预设</strong>
-              <button type="button" onClick={closeSkillManager} className="p-1 text-gray-400 hover:text-white hover:bg-surface-hover rounded-md transition-colors" title="关闭">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
-                </svg>
-              </button>
-            </div>
-            <div className="flex-1 overflow-y-auto px-3 py-3 space-y-3 custom-scrollbar">
-              <div className="bg-canvas border border-edge rounded-lg p-2.5 flex flex-col gap-2">
-                <input
-                  type="text"
-                  maxLength={80}
-                  value={skillForm.name}
-                  onChange={(e) => setSkillForm((f) => ({ ...f, name: e.target.value }))}
-                  placeholder="Skill 名称，例如：电商主图"
-                  className="w-full bg-transparent text-gray-200 text-sm px-2 py-1.5 rounded border border-transparent focus:border-blue-500 focus:outline-none"
-                />
-                <input
-                  type="text"
-                  maxLength={300}
-                  value={skillForm.description}
-                  onChange={(e) => setSkillForm((f) => ({ ...f, description: e.target.value }))}
-                  placeholder="简短说明（可选）"
-                  className="w-full bg-transparent text-gray-200 text-sm px-2 py-1.5 rounded border border-transparent focus:border-blue-500 focus:outline-none"
-                />
-                <textarea
-                  rows={4}
-                  maxLength={100000}
-                  value={skillForm.content}
-                  onChange={(e) => setSkillForm((f) => ({ ...f, content: e.target.value }))}
-                  placeholder="输入需要 Agent 始终遵循的完整 Skill 指令……"
-                  className="w-full bg-transparent text-gray-200 text-sm px-2 py-1.5 rounded border border-transparent focus:border-blue-500 focus:outline-none resize-none"
-                  style={{ minHeight: '80px', maxHeight: '140px' }}
-                />
-                <div className="flex items-center justify-between gap-2">
-                  <button type="button" onClick={() => resetSkillForm()} className="px-2.5 py-1 text-xs text-gray-400 hover:text-gray-200 hover:bg-surface rounded-md transition-colors">清空</button>
-                  <button type="button" onClick={saveSkillFromForm} className="px-3 py-1 text-xs bg-white hover:bg-gray-200 text-black rounded-md transition-colors cursor-pointer">
-                    {skillForm.id ? '更新 Skill' : '保存 Skill'}
-                  </button>
-                </div>
-              </div>
-              <div className="text-caption text-gray-500">已保存 <span className="text-gray-600">输入 / 可快速调用</span></div>
-              {allSkills.length === 0 ? (
-                <div className="text-caption text-gray-600 text-center py-6 leading-relaxed">还没有 Skill 预设<br />保存后可在输入框输入 / 快速调用</div>
-              ) : (
-                <div className="flex flex-col gap-1.5">
-                  {allSkills.map((s) => {
-                    const on = activeSkills.some((a) => a.id === s.id)
-                    const used = getSkillUsage(s.id)
-                    return (
-                      <div key={s.id} className="flex items-center gap-1 bg-canvas border border-edge-faint rounded-md px-2 py-1.5 min-w-0">
-                        <button type="button" onClick={() => applySkill(s)} className="flex-1 min-w-0 text-left group" title={`应用到当前对话：${s.name}`}>
-                          <span className="block text-sm text-gray-200 truncate">{s.name}{s.builtin ? <span className="text-caption text-gray-600 ml-1">内置</span> : ''}{on ? <span className="text-caption text-emerald-400 ml-1">已启用</span> : ''}</span>
-                          <span className="block text-caption text-gray-500 truncate">{s.description || (s.content || '').slice(0, 60)}{used ? ` · 已用 ${used} 次` : ''}</span>
-                        </button>
-                        <button type="button" onClick={() => setViewSkill(s)} className="shrink-0 p-1 text-gray-500 hover:text-white hover:bg-surface rounded transition-colors" title="查看完整内容">
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" />
-                          </svg>
-                        </button>
-                        <button type="button" onClick={() => resetSkillForm(s)} className="shrink-0 p-1 text-gray-500 hover:text-white hover:bg-surface rounded transition-colors" title="编辑">
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
-                          </svg>
-                        </button>
-                        {!s.builtin && (
-                          <button type="button" onClick={() => removeSkill(s.id)} className="shrink-0 p-1 text-gray-500 hover:text-red-400 hover:bg-surface rounded transition-colors" title="删除此 Skill">
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                              <polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                            </svg>
-                          </button>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Skill 查看弹层 */}
-        {viewSkill && (
-          <div className="absolute inset-0 bg-surface-deep flex flex-col z-30">
-            <div className="flex items-center justify-between px-3 py-2 border-b border-edge-faint">
-              <strong className="text-white text-sm">{viewSkill.name}{viewSkill.builtin ? <span className="text-caption text-gray-600 ml-1">内置</span> : ''}</strong>
-              <button type="button" onClick={() => setViewSkill(null)} className="p-1 text-gray-400 hover:text-white hover:bg-surface-hover rounded-md transition-colors" title="关闭">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
-                </svg>
-              </button>
-            </div>
-            <div className="flex-1 overflow-y-auto px-3 py-3 space-y-2 custom-scrollbar">
-              {viewSkill.description && <div className="text-caption text-gray-400">{viewSkill.description}</div>}
-              <pre className="text-sm text-gray-300 bg-canvas border border-edge rounded-md p-2.5 whitespace-pre-wrap break-words" style={{ fontFamily: 'inherit' }}>{viewSkill.content}</pre>
-              <div className="flex items-center gap-2 justify-end">
-                <button type="button" onClick={() => { resetSkillForm(viewSkill); setViewSkill(null) }} className="px-2.5 py-1 text-xs text-gray-400 hover:text-gray-200 hover:bg-surface rounded-md transition-colors">编辑</button>
-                <button type="button" onClick={() => { applySkill(viewSkill); setViewSkill(null) }} className="px-3 py-1 text-xs bg-white hover:bg-gray-200 text-black rounded-md transition-colors cursor-pointer">应用到对话</button>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* 底部 OneBox 输入区 */}
@@ -792,22 +662,49 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
                 )}
               </span>
 
-              {/* Skill 管理按钮 */}
-              <button
-                type="button"
-                onClick={() => openSkillManager()}
-                disabled={sending}
-                className={`shrink-0 flex items-center gap-1 px-2 py-1 text-xs rounded-md transition-colors whitespace-nowrap disabled:opacity-50 ${activeSkills.length > 0 ? 'text-emerald-300 hover:bg-surface' : 'text-gray-400 hover:text-gray-200 hover:bg-surface'}`}
-                title={activeSkills.length > 0 ? `已启用 ${activeSkills.map((s) => s.name).join('、')}` : '管理 Skill'}
-              >
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                  <polyline points="14 2 14 8 20 8" />
-                  <line x1="16" y1="13" x2="8" y2="13" />
-                  <line x1="16" y1="17" x2="8" y2="17" />
-                </svg>
-                <span>Skill{activeSkills.length > 0 ? `(${activeSkills.length})` : ''}</span>
-              </button>
+              {/* Skill 应用按钮：点击弹「应用/取消 Skill」下拉（管理已移至设置页 AI 助手分区） */}
+              <span ref={skillPickRef} className="relative">
+                <button
+                  type="button"
+                  onClick={() => setSkillPickOpen((v) => !v)}
+                  disabled={sending}
+                  className={`shrink-0 flex items-center gap-1 px-2 py-1 text-xs rounded-md transition-colors whitespace-nowrap disabled:opacity-50 ${activeSkills.length > 0 ? 'text-emerald-300 hover:bg-surface' : 'text-gray-400 hover:text-gray-200 hover:bg-surface'}`}
+                  title={activeSkills.length > 0 ? `已启用 ${activeSkills.map((s) => s.name).join('、')}` : '应用 Skill'}
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                    <polyline points="14 2 14 8 20 8" />
+                    <line x1="16" y1="13" x2="8" y2="13" />
+                    <line x1="16" y1="17" x2="8" y2="17" />
+                  </svg>
+                  <span>Skill{activeSkills.length > 0 ? `(${activeSkills.length})` : ''}</span>
+                </button>
+                {skillPickOpen && (
+                  <div className="absolute bottom-full left-0 mb-1 w-[240px] max-h-[280px] overflow-y-auto bg-surface border border-edge rounded-lg shadow-2xl z-50 py-1 custom-scrollbar">
+                    {allSkills.length === 0 ? (
+                      <div className="px-3 py-2 text-xs text-gray-500 text-center">暂无 Skill</div>
+                    ) : allSkills.map((s) => {
+                      const on = activeSkills.some((a) => a.id === s.id)
+                      return (
+                        <button
+                          key={s.id}
+                          type="button"
+                          onClick={() => {
+                            if (on) removeSkill(s.id)
+                            else applySkill(s)
+                            setSkillPickOpen(false)
+                          }}
+                          className={`w-full flex items-center gap-2 text-left px-2 py-1.5 text-caption-sm rounded-md transition-colors ${on ? 'text-emerald-300' : 'text-gray-300 hover:bg-surface-hover hover:text-white'}`}
+                        >
+                          <span className="shrink-0 w-4 text-gray-600">{on ? '✓' : ''}</span>
+                          <span className="flex-1 truncate">{s.name}</span>
+                          <span className="text-caption text-gray-600 shrink-0">{s.builtin ? '内置' : ''}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+              </span>
 
               {/* 图片上传 */}
               <input ref={fileRef} type="file" accept="image/*" multiple onChange={handleFiles} className="hidden" />
