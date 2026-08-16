@@ -18,9 +18,10 @@ npm run build            # 构建插件包（dist/）
 | 命令 | 说明 | 阻塞? |
 |---|---|---|
 | `npm run test:smoke` | 静态检查：JSX 语法 / ReactFlow API 误用 / 节点注册 / 依赖 | 是 |
+| `npm run test:unit` | **vitest 全量单元测试**（`tests/unit/` 下 24 文件/244 用例：剧本盒引擎/AI 工具/纯函数/管线契约等） | 是 |
 | `npm run test:regression` | SSR 渲染 4 个核心节点 + 断言关键结构 class（能渲染不崩） | 是 |
 | `npm run test:tools` | Agent 工具层验证（create/delete/update/connect/read_canvas） | 是 |
-| `npm run test:all` | **统一门禁**：上面三者一次跑完，任一失败退出码 1 | 是 |
+| `npm run test:all` | **统一门禁**：smoke + vitest全量单测 + regression + tools 一次跑完，任一失败退出码 1 | 是 |
 | `npm test` | 等价 `test:all` | 是 |
 | `npm run check:health` | **工程健康度全量检查**（见下节） | 是 |
 
@@ -45,9 +46,18 @@ scripts/
 ├── _smoke_checks.cjs       # 冒烟检查明细（含 ReactFlow useReactFlow 白名单等）
 ├── regression_test.cjs     # 回归：SSR 渲染节点 + class 断言
 ├── test_agent_tools.cjs    # Agent 工具单测
-├── run_all_tests.cjs       # 统一门禁聚合脚本
+├── run_all_tests.cjs       # 统一门禁聚合脚本（smoke + vitest + regression + tools）
 ├── health-check.cjs        # 工程健康度全量检查
 └── dist-snapshot.json      # dist 基线快照（自动生成，勿手改）
+
+tests/
+├── setup.mjs               # vitest 全局 setup（jsdom 等）
+└── unit/                   # vitest 单元测试（`npm run test:unit` 全量跑）
+    ├── scriptBoxEngine.test.js      # 剧本盒引擎回调 + 纯函数（含分批并发/toast/JSON解析）
+    ├── scriptBoxPrompts.test.js     # 剧本盒纯函数（ZgPrompt/hlAt/collectAssets 等）
+    ├── canvasAgentTools.test.js     # AI 画布工具层（24 工具，含改名后契约）
+    ├── useConnectedInputs.test.js   # 管线契约（getNodeOutput）
+    └── ...（其余纯函数/逻辑单测）
 ```
 
 ## 五、常见问题
@@ -63,7 +73,8 @@ scripts/
 ### 3. 改代码触发 TDZ / 未定义
 `check:health` 的 TDZ 扫描会提示。典型场景：在 `const x = useState(...)` 定义前就 `useXxx(x)` 调用（参考 DiscountVideoNode 的修复：把依赖的 hook 调用移到 state 定义之后）。
 
-## 六、后续可补（非必须）
+## 六、已补 / 后续可补
 
-- **Playwright E2E**：真实浏览器验证画布交互（节点拖拽 / 连线 / 编组拖入拖出 / 折叠展开）。依赖已装，但尚未配置用例。对画布类应用价值最高，是 SSR 测不到的层。
-- **纯函数单测**：`groupNodes`（编组算法）、`imageApi.resolveImagePixel`（尺寸像素表）、`useConnectedInputs`（group 聚合）等纯逻辑值得针对性单测。
+- ✅ **已补 vitest 单测**（2026-08-16）：`tests/unit/` 下 24 文件 / 244 用例，覆盖剧本盒引擎（回调/分批并发/toast/@资产高亮）、AI 画布工具层、管线契约、各纯函数。
+- ✅ **已补 Playwright E2E 部分用例**：`tests/e2e/` 已有节点渲染（`nodes.render.spec.js`）与剧本盒状态机（`scriptBox.spec.js`），`npm run test:e2e` 可跑。
+- 🟡 **仍可补**：`groupNodes`（编组算法）、`imageApi.resolveImagePixel`（尺寸像素表）等更细纯逻辑；真实浏览器交互（节点拖拽/连线/编组折叠）的 E2E 覆盖可再扩充。

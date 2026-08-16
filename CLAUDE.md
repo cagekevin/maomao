@@ -24,7 +24,8 @@
 ```bash
 npm run dev           # 开发服务器（默认 5180）
 npm run build         # 构建校验 + 回灌 dist/
-npm test              # 统一测试门禁（smoke + regression + tools）
+npm test              # 统一测试门禁（= test:all：smoke + vitest全量单测 + regression + tools）
+npm run test:unit     # vitest 全量单元测试（tests/unit/ 下 24 文件/244 用例，今天补的主力验证）
 npm run test:smoke    # AI 默认自检：冒烟质量门（极快）
 npm run check:health  # 工程健康全量检查
 ```
@@ -130,13 +131,15 @@ node scripts/task-inspect.mjs --canvas-health   # 画布结构体检
 ```
 0. npm run dev           ← 预览改动（非校验）
 1. npm run test:smoke    ← 冒烟质量门（每次改动都跑，默认自检）
-2. npm run build         ← 构建校验 + 回灌 dist/（确认编译通过）
-3. npm run test:regression ← 节点注册表 + 脚本盒引擎回归（改了节点/引擎跑）
-4. npm run test:tools    ← 画布 Agent 工具单元验证（改了 agent 工具跑）
-5. npm run check:health  ← 全量健康度（较大改动或提交前，0 错 0 警为佳）
+2. npm run test:unit     ← vitest 全量单元测试（tests/unit/ 下 24 文件/244 用例；
+                           剧本盒引擎/AI 工具/纯函数等改动必跑，今天补的主力验证）
+3. npm run build         ← 构建校验 + 回灌 dist/（确认编译通过）
+4. npm run test:regression ← 节点注册表 + 脚本盒引擎回归（改了节点/引擎跑）
+5. npm run test:tools    ← 画布 Agent 工具验证（改了 agent 工具跑）
+6. npm run check:health  ← 全量健康度（较大改动或提交前，0 错 0 警为佳）
 ```
 
-> 命令速查（详见 `docs/TESTING.md`，权威）：`npm test` = smoke+regression+tools 全跑；单项 `npm run test:smoke`/`test:regression`/`test:tools`；`npm run check:health` 全量编排。
+> 命令速查（详见 `docs/TESTING.md`，权威）：**`npm test`（= `npm run test:all`）= 冒烟 + vitest 全量单测 + 回归 + Agent 工具** 四件套一次跑完，提交前首选；单项：`npm run test:smoke`（冒烟）/`test:unit`（vitest 单测）/`test:regression`（SSR 回归）/`test:tools`（Agent 工具）；`npm run check:health` 全量编排（含构建 + 测试 + TDZ + dist 基线）。
 > 当前无 husky/pre-commit 强制钩子，验证靠自觉。
 
 ### 3.2 localTool 改动必测
@@ -302,4 +305,4 @@ node scripts/task-inspect.mjs --canvas-health   # 画布结构体检
 | **查图/视频/任务/日志/全链路**（task_id / thread_id 室外ID / node_id） | **主入口** `cd localTool && node scripts/task-inspect.mjs --lifecycle <id>`（见 §四.2「查任务主入口」）。其余：`--logs` 日志、`--task` 节点比对、`--lost-check` 丢图、`--consistency` 三层一致性断言 |
 | 改 localTool 后端 | `cd localTool && npm test`（全量，三个测试文件）|
 | 丢图排查 | `cd localTool && npm run inspect -- --lost-check`（或 `npm run db -- --lost-check`）|
-| 提交前验证 | 前端 `npm run test:smoke`+`npm run build`+`npm run check:health`；**localTool 改动另跑 `cd localTool && npm test`** |
+| 提交前验证 | 前端 `npm test`（= smoke+vitest全量单测+regression+tools）+`npm run build`；较大改动加 `npm run check:health`；**localTool 改动另跑 `cd localTool && npm test`** |
