@@ -73,17 +73,14 @@ export default function PromptNode({ id, data, selected }) {
   // 提示词落盘：本地 state + 写回 node.data（支持函数式更新）。
   // 复用画布快照 KV（App.jsx 600ms 防抖 autoSave）→ 手动输入的提示词刷新不丢。
   const setPromptPersist = useCallback((v) => {
-    setPrompt((prev) => {
-      const next = typeof v === 'function' ? v(prev) : v
-      patchData({ prompt: next })
-      return next
-    })
-  }, [patchData])
-  // 抽屉展开/收起落盘（写回 node.data.expanded，刷新保持开合状态）
-  const toggleExpanded = useCallback(
-    () => setExpanded((v) => { const next = !v; patchData({ expanded: next }); return next }),
-    [patchData]
-  )
+    setPrompt((prev) => (typeof v === 'function' ? v(prev) : v))
+  }, [])
+  // 抽屉展开/收起
+  const toggleExpanded = useCallback(() => setExpanded((v) => !v), [])
+  // 【React 反模式修复】「写回 node.data」不再在 setState updater 里做（那会在渲染期间 setNodes → BatchProvider 警告）。
+  // 改为监听本地 state 变化，用 useEffect 同步落盘（effect 内 setState 合法，不在渲染期）。
+  React.useEffect(() => { patchData({ prompt }) }, [prompt]) // eslint-disable-line react-hooks/exhaustive-deps
+  React.useEffect(() => { patchData({ expanded }) }, [expanded]) // eslint-disable-line react-hooks/exhaustive-deps
   const fileRef = useRef(null)
   const promptInputRef = useRef(null) // 提示词 textarea ref（供面板右下角手柄拖拽改尺寸）
 

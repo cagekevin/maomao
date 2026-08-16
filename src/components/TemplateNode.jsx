@@ -136,18 +136,15 @@ export default function TemplateNode({ id, data, selected }) {
 
   // 提示词落盘：本地 state + 写回 node.data（支持函数式更新；刷新不丢）
   const setPromptPersist = useCallback((v) => {
-    setPrompt((prev) => {
-      const next = typeof v === 'function' ? v(prev) : v
-      patchData({ prompt: next })
-      return next
-    })
-  }, [patchData])
+    setPrompt((prev) => (typeof v === 'function' ? v(prev) : v))
+  }, [])
 
-  // 抽屉展开/收起落盘（写回 node.data.expanded，刷新保持开合）
-  const toggleExpanded = useCallback(
-    () => setExpanded((v) => { const next = !v; patchData({ expanded: next }); return next }),
-    [patchData]
-  )
+  // 抽屉展开/收起
+  const toggleExpanded = useCallback(() => setExpanded((v) => !v), [])
+  // 【React 反模式修复】「写回 node.data」不在 setState updater 里做（渲染期间 setNodes → BatchProvider 警告），
+  // 改用 useEffect 同步落盘。
+  React.useEffect(() => { patchData({ prompt }) }, [prompt]) // eslint-disable-line react-hooks/exhaustive-deps
+  React.useEffect(() => { patchData({ expanded }) }, [expanded]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ─── 4. refs + 尺寸写回（通用）───
   const wrapperRef = useRef(null)      // NodeShell 根 div（供主框手柄拖拽）

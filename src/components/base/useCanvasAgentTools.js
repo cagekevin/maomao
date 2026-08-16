@@ -658,7 +658,7 @@ const presentPlanTool = {
       plan_text: { type: 'string', description: '策划说明（给用户看的规划摘要：目标、几步、每步用途）' },
       generations: {
         type: 'array',
-        description: '步骤数组。每项 { id, title, prompt, ratio, resolution, depends_on_previous, dependency_mode }',
+        description: '【可选】步骤数组。每项 { id, title, prompt, ratio, resolution, depends_on_previous, dependency_mode }。此参数仅作冗余兜底：主通道是你在回复正文里输出 generations JSON（对齐大雄：generations 不强制随工具参数传输）。若正文已给出，此处可省略。',
         items: { type: 'object' }
       },
       global_contract: {
@@ -676,7 +676,9 @@ const presentPlanTool = {
         items: { type: 'object' }
       }
     },
-    required: ['plan_text', 'generations']
+    // 对齐大雄：门禁只依赖 plan_text（几十字文本，永不因超大 JSON 传输失败）。
+    // generations 不再是 required，避免把 11 个长 prompt 塞进 tool_calls.arguments 导致 SSE 解析失败。
+    required: ['plan_text']
   },
   execute(args, ctx) {
     const gens = Array.isArray(args.generations) ? args.generations : []
@@ -693,7 +695,7 @@ const presentPlanTool = {
     // memory 提炼（对齐大雄 conv.memory.lastPlan）：把阶段1策划记入当前对话，供多轮上下文
     const mem = getCurrentMemory()
     setCurrentMemory({ ...mem, lastPlan: { plan_text: planText, generations: gens, ts: Date.now() } })
-    return { ok: true, data: { presented: true, plan_text: planText, generations_count: gens.length, awaiting_confirm: true } }
+    return { ok: true, data: { presented: true, plan_text: planText, generations: gens, generations_count: gens.length, awaiting_confirm: true } }
   }
 }
 
@@ -711,7 +713,7 @@ const executePlanTool = {
     properties: {
       generations: {
         type: 'array',
-        description: '步骤数组。每项 { id, title, prompt, ratio, resolution, depends_on_previous, dependency_mode, use_attachments, attachment_indices }。attachment_indices 是 0-based 数组，指向本轮用户参考图的编号（参考图1→0，参考图2→1），仅当该步要基于某参考图图生图时填',
+        description: '【可选】步骤数组。每项 { id, title, prompt, ratio, resolution, depends_on_previous, dependency_mode, use_attachments, attachment_indices }。attachment_indices 是 0-based 数组，指向本轮用户参考图的编号（参考图1→0，参考图2→1），仅当该步要基于某参考图图生图时填。此参数仅作兜底：若阶段1 已把 generations 暂存（回复正文/ show_plan_for_confirm），这里可省略，系统自动从暂存读取。',
         items: { type: 'object' }
       },
       auto_run: { type: 'boolean', description: '是否自动触发生成（默认 true）。false 时只建节点不跑，供用户确认' },
@@ -720,7 +722,9 @@ const executePlanTool = {
       global_contract: { type: 'object', description: '统一风格契约 {visual_positioning, unified_style_prompt, unified_negative_prompt}，逐字锁定每步 prompt 头部' },
       artifacts: { type: 'array', items: { type: 'object' }, description: '跨步成果资产 [{id,type,title,description,nodeId?,url?}]，供依赖步 input_artifact_ids 注入参考图' }
     },
-    required: ['generations']
+    // 对齐大雄：generations 主通道是阶段1 暂存（回复正文解析），execute_plan 不再 required。
+    // 仅当暂存为空时才要求 LLM 在参数里补传（兜底）。
+    required: []
   },
   execute: async (args, ctx) => {
     try {
@@ -729,14 +733,14 @@ const executePlanTool = {
       if (getAwaitingConfirm()) {
         return { ok: false, error: '策划尚未确认，请先确认后再执行。' }
       }
-      // 优先用本次传入的 generations；若空则用阶段1 show_plan_for_confirm 暂存的（Skill 三阶段）
-      let gens = Array.isArray(args.generations) ? args.generations : []
+      // 对齐大雄：generations 主通道是「阶段1 暂存」（回复正文解析 / show_plan_for_confirm 传入），
+      // 内存非 null 优先读取，避免阶段3 再让 LLM 扛超大 JSON；仅当内存为空才用本次参数兜底。
+      const pending = getPendingGenerations()
+      let gens = (Array.isArray(pending) && pending.length) ? pending : (Array.isArray(args.generations) ? args.generations : [])
+      clearPendingGenerations()
       if (gens.length === 0) {
-        const pending = getPendingGenerations()
-        gens = pending || []
-        clearPendingGenerations()
+        return { ok: false, error: 'generations 为空：请在 execute_plan 的 generations 参数中给出本次生图计划（每步一张图），或先让 AI 在阶段1 回复正文里输出 generations JSON。' }
       }
-      if (gens.length === 0) return { ok: false, error: 'generations 为空' }
       const autoRun = args.auto_run !== false
       // 【模型锁定】用面板生图参数区（getGenParams）作为默认；LLM 显式传 model 则优先。
       const panel = getGenParams()

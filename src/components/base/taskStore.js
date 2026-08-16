@@ -274,25 +274,53 @@ export function isNodeRegistered(nodeId) {
   return !!nodeId && retryRegistry.has(nodeId)
 }
 
+/* ── 生图并发上限（限制同时真正在跑的生成数）──
+ * 无论 AI 一次批量生成多少个节点/任务（execute_plan 可能规划 13 张），
+ * 同一时刻最多只有 MAX_CONCURRENT_GEN 个会真正触发（点开始）。
+ * 超出上限的第 N 个【不自动触发、不排队】——直接跳过，让节点保持「待生成」，
+ * 由用户手动点击该节点发起。避免设计「排队中」按钮，也避免一次打爆上游。
+ */
+const MAX_CONCURRENT_GEN = 6
+let genActive = 0
+
 /**
  * 按 nodeId 直接触发节点生成（供 Agent generate_node / 测试 / 脚本调用）。
  * 复用 useNodeGeneration 注册到 retryRegistry 的回调（即该节点的 start）。
  *
- * 【异步执行器地基】现在透传 start() 的 promise 结果：
+ * 【生图并发上限】本函数限制同时真正在跑的生成数：
+ *  - 当前活跃 < MAX_CONCURRENT_GEN(6) → 占槽、真正触发、完成后释放；
+ *  - 当前活跃已到上限 → 直接返回 false（= 未触发），节点保持待生成，由用户手动点。
+ *    不新增状态/字段，调用方按「未触发」处理（executePlan 标 ready，不报失败）。
+ *
+ * 【异步执行器地基】透传 start() 的 promise 结果：
  *  - 节点用新版 useNodeGeneration（start 返回 { ok, resultUrl }）→ 本函数返回该 promise，
  *    调用方可 `await runNodeGeneration(id)` 拿到已落盘的 resultUrl（供前序依赖/多图编排）。
  *  - 旧版回调（返回 true/false）→ 透传原返回值，向后兼容。
  *
  * @param {string} nodeId
- * @returns {false | true | Promise<{ok:boolean, resultUrl?:string, error?:string}>}
+ * @returns {Promise<false | true | {ok:boolean, resultUrl?:string, error?:string}>}
  */
-export function runNodeGeneration(nodeId) {
+export async function runNodeGeneration(nodeId) {
   if (!nodeId) return false
+  // 并发上限：已满则返回 false（未触发），节点保持待生成，用户手动点
+  if (genActive >= MAX_CONCURRENT_GEN) {
+    console.warn(`[taskStore] 生图并发已达上限 ${MAX_CONCURRENT_GEN}，跳过节点 ${nodeId}（保持待生成，用户可手动触发）`)
+    return false
+  }
+  genActive++
+  try {
+    return await runNodeGenerationNow(nodeId)
+  } finally {
+    genActive = Math.max(0, genActive - 1)
+  }
+}
+
+async function runNodeGenerationNow(nodeId) {
   const fn = retryRegistry.get(nodeId)
   if (fn) {
     try {
       const p = fn()
-      return p && typeof p.then === 'function' ? p : true
+      return p && typeof p.then === 'function' ? await p : true
     } catch (e) {
       console.error('[taskStore] runNodeGeneration 触发失败:', e)
       return { ok: false, error: e?.message || '触发失败' }

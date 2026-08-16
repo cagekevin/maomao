@@ -55,7 +55,7 @@ from fastapi import Depends, FastAPI, Request
 from fastapi.responses import JSONResponse, StreamingResponse, Response, PlainTextResponse
 
 from contract import normalize_body
-from lovart_client import LovartClient, LovartError, close_http_client, _get_http_client
+from lovart_client import LovartClient, LovartError, close_http_client, _get_http_client, _get_local_http_client
 
 
 # ============================================================================
@@ -635,7 +635,10 @@ class TaskService:
                 host = (urlparse(u).hostname or "").lower()
                 if host in ("127.0.0.1", "localhost", "0.0.0.0", "[::1]"):
                     try:
-                        cli = await _get_http_client()
+                        # 本机回环 URL：必须用 trust_env=False 的本地直连池下载。
+                        # httpx 默认 trust_env=True 会把 127.0.0.1 请求误发给系统代理（7897）→ 502；
+                        # 用本地直连池绕过系统代理，本地文件直连取回。上传到 Lovart CDN 仍走 LovartClient（代理路径不受影响）。
+                        cli = await _get_local_http_client()
                         dl = await cli.get(u, timeout=30)
                         dl.raise_for_status()
                         raw = dl.content

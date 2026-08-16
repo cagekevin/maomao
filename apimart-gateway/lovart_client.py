@@ -74,17 +74,31 @@ async def _get_http_client(use_proxy: bool = False) -> httpx.AsyncClient:
             _http_client_pool = target
     return target
 
+# ── 本机回环直连池（trust_env=False）──
+# 专门用于下载「本机回环 URL」（127.0.0.1 / localhost 上的参考图）：
+# httpx 默认 trust_env=True 会读 macOS 系统代理（如 7897），把本地 127.0.0.1 请求也错误发给代理
+# → 代理处理本地地址失败返回 502（resolve_attachments 下载本地参考图报 502 的根因）。
+# 本池纯直连、不信任系统代理；只服务本地文件下载，绝不用于 Lovart 外网（Lovart 走 _get_http_client 原逻辑）。
+_http_local_client_pool: Optional[httpx.AsyncClient] = None
+
+async def _get_local_http_client() -> httpx.AsyncClient:
+    global _http_local_client_pool
+    if _http_local_client_pool is None:
+        _http_local_client_pool = httpx.AsyncClient(verify=_ssl_ctx, limits=httpx.Limits(max_keepalive_connections=10, max_connections=50), trust_env=False)
+    return _http_local_client_pool
+
 def _is_conn_error(e: Exception) -> bool:
     """判断是否为「连接类」错误（直连不通，值得换代理重试）。"""
     return isinstance(e, (httpx.ConnectError, httpx.ConnectTimeout, httpx.NetworkError))
 
 async def close_http_client() -> None:
-    global _http_client_pool, _http_proxy_client_pool
-    for pool in (_http_client_pool, _http_proxy_client_pool):
+    global _http_client_pool, _http_proxy_client_pool, _http_local_client_pool
+    for pool in (_http_client_pool, _http_proxy_client_pool, _http_local_client_pool):
         if pool is not None:
             await pool.aclose()
     _http_client_pool = None
     _http_proxy_client_pool = None
+    _http_local_client_pool = None
 
 class LovartError(Exception):
     def __init__(self, message: str, http_status: int = 502, code: int = 0):

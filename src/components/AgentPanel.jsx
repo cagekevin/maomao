@@ -699,19 +699,54 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
                 )}
               </span> */}
 
-              {/* 生图模型选择（常驻：选择用哪个图像模型来生图，随时可切换） */}
-              <span className="shrink-0" title="选择生图模型">
-                <ModelSelect
-                  value={genModel}
-                  onChange={onGenModel}
-                  models={genModels}
-                  placeholder="生图模型"
-                  popupTo="up"
-                  showDivider={false}
-                />
+              {/* Skill 应用按钮：第1位（最左）——点击弹「应用/取消 Skill」下拉（管理已移至设置页 AI 助手分区） */}
+              <span ref={skillPickRef} className="relative">
+                <button
+                  type="button"
+                  onClick={() => setSkillPickOpen((v) => !v)}
+                  disabled={sending}
+                  className={`shrink-0 flex items-center gap-1 px-2 py-1 text-xs rounded-md transition-colors whitespace-nowrap disabled:opacity-50 ${activeSkills.length > 0 ? 'text-emerald-300 hover:bg-surface' : 'text-gray-400 hover:text-gray-200 hover:bg-surface'}`}
+                  title={activeSkills.length > 0 ? `已启用 ${activeSkills.map((s) => s.name).join('、')}` : '应用 Skill'}
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                    <polyline points="14 2 14 8 20 8" />
+                    <line x1="16" y1="13" x2="8" y2="13" />
+                    <line x1="16" y1="17" x2="8" y2="17" />
+                  </svg>
+                  <span>{activeSkills.length === 0
+                    ? 'Skill'
+                    : `Skill·${activeSkills.map((s) => (s.name || '').slice(0, 6)).join('、')}`}
+                  </span>
+                </button>
+                {skillPickOpen && (
+                  <div className="absolute bottom-full left-0 mb-1 w-[240px] max-h-[280px] overflow-y-auto bg-surface border border-edge rounded-lg shadow-2xl z-50 py-1 custom-scrollbar">
+                    {allSkills.length === 0 ? (
+                      <div className="px-3 py-2 text-xs text-gray-500 text-center">暂无 Skill</div>
+                    ) : allSkills.map((s) => {
+                      const on = activeSkills.some((a) => a.id === s.id)
+                      return (
+                        <button
+                          key={s.id}
+                          type="button"
+                          onClick={() => {
+                            if (on) removeSkill(s.id)
+                            else applySkill(s)
+                            setSkillPickOpen(false)
+                          }}
+                          className={`w-full flex items-center gap-2 text-left px-2 py-1.5 text-caption-sm rounded-md transition-colors ${on ? 'text-emerald-300' : 'text-gray-300 hover:bg-surface-hover hover:text-white'}`}
+                        >
+                          <span className="shrink-0 w-4 text-gray-600">{on ? '✓' : ''}</span>
+                          <span className="flex-1 truncate">{s.name}</span>
+                          <span className="text-caption text-gray-600 shrink-0">{s.builtin ? '内置' : ''}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
               </span>
 
-              {/* 生图参数按钮 */}
+              {/* 生图参数按钮：第2位——选择画质/比例/渲染质量 */}
               <span ref={genImgMenuRef} className="relative">
                 <button
                   type="button"
@@ -750,51 +785,20 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
                 )}
               </span>
 
-              {/* Skill 应用按钮：点击弹「应用/取消 Skill」下拉（管理已移至设置页 AI 助手分区） */}
-              <span ref={skillPickRef} className="relative">
-                <button
-                  type="button"
-                  onClick={() => setSkillPickOpen((v) => !v)}
-                  disabled={sending}
-                  className={`shrink-0 flex items-center gap-1 px-2 py-1 text-xs rounded-md transition-colors whitespace-nowrap disabled:opacity-50 ${activeSkills.length > 0 ? 'text-emerald-300 hover:bg-surface' : 'text-gray-400 hover:text-gray-200 hover:bg-surface'}`}
-                  title={activeSkills.length > 0 ? `已启用 ${activeSkills.map((s) => s.name).join('、')}` : '应用 Skill'}
-                >
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                    <polyline points="14 2 14 8 20 8" />
-                    <line x1="16" y1="13" x2="8" y2="13" />
-                    <line x1="16" y1="17" x2="8" y2="17" />
-                  </svg>
-                  <span>Skill{activeSkills.length > 0 ? `(${activeSkills.length})` : ''}</span>
-                </button>
-                {skillPickOpen && (
-                  <div className="absolute bottom-full left-0 mb-1 w-[240px] max-h-[280px] overflow-y-auto bg-surface border border-edge rounded-lg shadow-2xl z-50 py-1 custom-scrollbar">
-                    {allSkills.length === 0 ? (
-                      <div className="px-3 py-2 text-xs text-gray-500 text-center">暂无 Skill</div>
-                    ) : allSkills.map((s) => {
-                      const on = activeSkills.some((a) => a.id === s.id)
-                      return (
-                        <button
-                          key={s.id}
-                          type="button"
-                          onClick={() => {
-                            if (on) removeSkill(s.id)
-                            else applySkill(s)
-                            setSkillPickOpen(false)
-                          }}
-                          className={`w-full flex items-center gap-2 text-left px-2 py-1.5 text-caption-sm rounded-md transition-colors ${on ? 'text-emerald-300' : 'text-gray-300 hover:bg-surface-hover hover:text-white'}`}
-                        >
-                          <span className="shrink-0 w-4 text-gray-600">{on ? '✓' : ''}</span>
-                          <span className="flex-1 truncate">{s.name}</span>
-                          <span className="text-caption text-gray-600 shrink-0">{s.builtin ? '内置' : ''}</span>
-                        </button>
-                      )
-                    })}
-                  </div>
-                )}
+              {/* 生图模型选择：第3位——选择用哪个图像模型来生图，随时可切换 */}
+              <span className="shrink-0" title="选择生图模型">
+                <ModelSelect
+                  value={genModel}
+                  onChange={onGenModel}
+                  models={genModels}
+                  placeholder="生图模型"
+                  popupTo="up"
+                  showDivider={false}
+                />
               </span>
 
-              {/* 图片上传 */}
+              {/* 图片上传：暂时隐藏（如需恢复，取消下方注释即可） */}
+              {/*
               <input ref={fileRef} type="file" accept="image/*,.md,.markdown,.txt" multiple onChange={handleFiles} className="hidden" />
               <button
                 type="button"
@@ -809,6 +813,7 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
                   <polyline points="21 15 16 10 5 21" />
                 </svg>
               </button>
+              */}
             </div>
 
             {/* 发送/停止 */}

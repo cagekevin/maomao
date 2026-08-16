@@ -23,6 +23,8 @@ import {
   setCurrentMemory,
   setAwaitingConfirm,
   getAwaitingConfirm,
+  setActivePendingGenerations,
+  getActivePendingGenerations,
 } from './conversationStore.js'
 
 /**
@@ -125,9 +127,12 @@ const CANVAS_AGENT_RULES = `你是猫猫画布助手，正在帮助用户操作�
 // 对齐大雄 AGENT_FORMAT_INSTRUCTION：generations 是执行唯一真相；Skill 原文无损绑定。
 const SKILL_EXECUTION_RULES = `【Skill 驱动的批量生图（三阶段，对齐大雄）】
 当本轮启用了 Skill，你必须按 Skill 的要求用三阶段完成批量生图：
-【阶段1 · 策划】：先规划一个可执行的 generations 数组（每张图一个步骤），每步含 { id, title, prompt, ratio, resolution, depends_on_previous, dependency_mode }，然后调用 show_plan_for_confirm 工具（传 plan_text 策划说明 + generations）把策划展示给用户确认。**不要**在阶段1直接 execute_plan。
-【阶段2 · 等待确认】：展示策划后停止工具调用，输出文字请用户确认或补充。用户确认后进入阶段2。
-【阶段3 · 执行】：用户确认后，调用 execute_plan 工具（传 generations 数组）执行，并简要说明开始生成。
+【阶段1 · 策划】：先规划 generations 数组（每张图一个步骤），每步含 { id, title, prompt, ratio, resolution, depends_on_previous, dependency_mode }。**在回复正文里**用代码块输出完整 generations JSON（格式见下），然后调用 show_plan_for_confirm 工具（只传 plan_text 策划说明即可，generations 可省略）把策划展示给用户确认。**不要**在阶段1直接 execute_plan。
+- 正文 generations JSON 格式（用 json 代码块包裹）：
+  { "plan": { "goal": "目标", "steps_summary": ["步1", "步2"] }, "generations": [ { "id": "g1", "title": "标题", "prompt": "完整可直接生图的中文视觉描述", "ratio": "1:1", "resolution": "1x", "depends_on_previous": false, "dependency_mode": "none" } ] }
+- 前端会自动从你的回复正文里解析并暂存这个 generations，供阶段3 执行使用，所以你**不需要**通过 show_plan_for_confirm 参数再传一遍超大 generations。
+【阶段2 · 等待确认】：展示策划后停止工具调用，输出文字请用户确认或补充。用户确认后进入阶段3。
+【阶段3 · 执行】：用户确认后，调用 execute_plan 工具执行（系统已自动从阶段1 暂存的 generations 读取，**不要**再传 generations 参数）。若系统提示 generations 为空，才在 execute_plan 参数里补传。
 
 【规划规则】
 - Skill 的角色定位、页面结构、文案规则是不可覆盖的约束；不要把 Skill 当风格参考。
@@ -136,6 +141,45 @@ const SKILL_EXECUTION_RULES = `【Skill 驱动的批量生图（三阶段，对�
 - 需要保持前序结果一致性时，后续步骤 depends_on_previous=true、dependency_mode=product_reference（执行器会用前序成功图当参考图）。
 - 数量：默认每步 count=1；只有用户明确要求"一次出 N 张同构图"才在某步 count>1；"5主图+8详情"是多个步骤，不是 count=13。
 - 【统一风格契约（对齐大雄 global_contract）】阶段1 策划须先给出 global_contract 三字段：visual_positioning（视觉整体定位）、unified_style_prompt（统一风格提示词）、unified_negative_prompt（统一负面提示词），并在 show_plan_for_confirm 里传 global_contract；后续每步 prompt 头部必须原样携带这三项，不可改写、不可省略。`
+
+/**
+ * 从 LLM 回复正文里解析 plan + generations（对齐大雄 parseAgentResponse）。
+ * 大雄：generations 由 LLM 在普通回复里以 JSON 输出，前端解析暂存，不走工具参数。
+ * 返回 { plan, generations }；解析不到 generations 时返回空数组（不 throw）。
+ */
+export function parseGenerationsFromReply(content = '') {
+  const text = String(content || '')
+  let plan = null
+  let generations = []
+  // 1) 优先提取 ```json ... ``` 代码块
+  let jsonStr = ''
+  const blockMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/)
+  if (blockMatch && blockMatch[1] && blockMatch[1].trim()) {
+    jsonStr = blockMatch[1].trim()
+  }
+  // 2) 没有代码块，尝试找最大的 {...} 或 [...] JSON
+  if (!jsonStr) {
+    const objMatch = text.match(/\{[\s\S]*\}/)
+    if (objMatch) jsonStr = objMatch[0]
+  }
+  if (!jsonStr) return { plan: null, generations: [] }
+  let parsed = null
+  try {
+    parsed = JSON.parse(jsonStr)
+  } catch (e) {
+    // 3) 解析失败：剥离 markdown 围栏再试
+    try {
+      parsed = JSON.parse(jsonStr.replace(/^```(?:json)?/m, '').replace(/```$/m, '').trim())
+    } catch (e2) {
+      return { plan: null, generations: [] }
+    }
+  }
+  if (parsed && typeof parsed === 'object') {
+    if (parsed.plan && typeof parsed.plan === 'object') plan = parsed.plan
+    if (Array.isArray(parsed.generations)) generations = parsed.generations.filter((g) => g && typeof g === 'object')
+  }
+  return { plan, generations }
+}
 
 /** 旧单会话历史键（仅用于首次迁移到多对话；会话隔离后消息存 conversationStore） */
 const historyKey = (agentKey) => `agent_history_${agentKey || 'canvas-assistant'}`
@@ -668,8 +712,15 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
         createdAt: Date.now()
       })
       // Skill 三阶段阶段1：show_plan_for_confirm 把策划展示给用户（作为一条 assistant 消息，可见规划）
-      if (tc.function?.name === 'show_plan_for_confirm' && result?.ok && result.data?.plan_text) {
-        appendMsg({ role: 'assistant', content: `生成策划：\n${result.data.plan_text}`, model, createdAt: Date.now(), awaiting_confirm: true })
+      // 门禁只依赖工具成功（result?.ok），与 plan_text/generations 传输彻底解耦（对齐大雄：门禁由前端本地构造）。
+      if (tc.function?.name === 'show_plan_for_confirm' && result?.ok) {
+        const planText = result.data?.plan_text || '（策划已生成，请确认）'
+        // 【对齐大雄】generations 挂到确认消息上，供前端渲染步骤卡片（agentGenCardHtml 等价物）。
+        // 来源优先级：回复正文解析暂存（主） > 工具参数传入。都来自 per-conversation pendingGenerations。
+        const confirmGens = Array.isArray(result.data?.generations) && result.data.generations.length
+          ? result.data.generations
+          : (getActivePendingGenerations() || [])
+        appendMsg({ role: 'assistant', content: `生成策划：\n${planText}`, generations: confirmGens, model, createdAt: Date.now(), awaiting_confirm: true })
       }
       // 【TASK-009 执行摘要】execute_plan 返回 logs → 渲染一条带逐步进度的「执行摘要」消息（对齐大雄折叠面板）
       // 修复 #1 后 result 是真对象，此判断才真正生效
@@ -802,6 +853,13 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
           )
           // 结束流式（把占位替换为完整 assistant）
           endStreaming(assistant)
+
+          // 【对齐大雄】阶段1 的 generations 主通道：从 LLM 回复正文解析并暂存（不走工具参数超大 JSON）。
+          // 若正文含 plan+generations JSON，解析后写入 per-conversation 暂存，供阶段3 execute_plan 从内存读。
+          const { generations: replyGens } = parseGenerationsFromReply(assistant.content)
+          if (Array.isArray(replyGens) && replyGens.length > 0) {
+            setActivePendingGenerations(replyGens)
+          }
 
           // 无工具调用 → 结束
           if (!assistant.tool_calls || assistant.tool_calls.length === 0) break

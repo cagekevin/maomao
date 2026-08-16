@@ -58,24 +58,21 @@ export default function DiscountVideoNode({ id, data, selected }) {
   )
   const setPromptPersist = useCallback(
     (v) => {
-      setPrompt((prev) => {
-        const next = typeof v === 'function' ? v(prev) : v
-        patchData({ prompt: next })
-        return next
-      })
+      setPrompt((prev) => (typeof v === 'function' ? v(prev) : v))
     },
-    [patchData]
+    []
   )
   const [ratio, setRatio] = useState(data.size || '16:9')
   const [resolution, setResolution] = useState(data.resolution || '1080p')
   const [seconds, setSeconds] = useState(data.selectedSeconds || '10')
   const [selectedModel, setSelectedModel] = useState(data.selectedModel || 'runway-gen3')
   const [expanded, setExpanded] = useState(data.expanded === undefined ? true : data.expanded)
-  // 抽屉展开/收起落盘（写回 node.data.expanded，刷新保持开合状态）
-  const toggleExpanded = useCallback(
-    () => setExpanded((v) => { const next = !v; patchData({ expanded: next }); return next }),
-    [patchData]
-  )
+  // 抽屉展开/收起
+  const toggleExpanded = useCallback(() => setExpanded((v) => !v), [])
+  // 【React 反模式修复】「写回 node.data」不在 setState updater 里做（渲染期间 setNodes → BatchProvider 警告），
+  // 改用 useEffect 同步落盘。
+  React.useEffect(() => { patchData({ prompt }) }, [prompt]) // eslint-disable-line react-hooks/exhaustive-deps
+  React.useEffect(() => { patchData({ expanded }) }, [expanded]) // eslint-disable-line react-hooks/exhaustive-deps
   const [videoUrl, setVideoUrl] = useState(data.videoUrl || '')
   const [showRatioMenu, setShowRatioMenu] = useState(false)
 

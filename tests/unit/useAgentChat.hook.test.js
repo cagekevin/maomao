@@ -46,6 +46,8 @@ vi.mock('../../src/components/base/conversationStore.js', () => {
     setCurrentSnapshot: vi.fn(),
     setAwaitingConfirm: vi.fn(),
     getAwaitingConfirm: vi.fn(() => false),
+    getActivePendingGenerations: vi.fn(() => null),
+    setActivePendingGenerations: vi.fn(),
     getCurrentMemory: vi.fn(() => ({ summary: '', facts: [], lastPlan: null, lastSharedStyle: '', notes: [] })),
     setCurrentMemory: vi.fn(),
     newConversation: vi.fn(() => {
@@ -64,7 +66,7 @@ vi.mock('../../src/components/base/conversationStore.js', () => {
   }
 })
 
-import { useAgentChat, buildRequestMessages, parseSSEChunk } from '../../src/components/base/useAgentChat.js'
+import { useAgentChat, buildRequestMessages, parseSSEChunk, parseGenerationsFromReply } from '../../src/components/base/useAgentChat.js'
 import * as convStore from '../../src/components/base/conversationStore.js'
 
 // ── SSE 流构造助手 ──
@@ -662,5 +664,50 @@ describe('useAgentChat · parseSSEChunk 深度（SSE 增量解析）', () => {
     // 没有 name 段 → name 为空字符串（roundTrip 会用 .filter(t=>t.function?.name) 过滤掉空 name 的）
     expect(acc.toolCalls[0].function.name).toBe('')
     expect(acc.toolCalls[0].function.arguments).toBe('{"x":1}')
+  })
+})
+
+// ════════════════════════════════════════════════════════════════════
+// parseGenerationsFromReply（对齐大雄 parseAgentResponse：从 LLM 回复正文解析 generations）
+// 阶段1 的 generations 主通道走回复正文 JSON，前端解析暂存，不走工具参数超大 JSON。
+// ════════════════════════════════════════════════════════════════════
+describe('useAgentChat · parseGenerationsFromReply（回复正文解析）', () => {
+  it('解析 ```json 代码块里的 plan + generations', () => {
+    const content = '我先规划一下：\n```json\n{ "plan": { "goal": "做5张主图" }, "generations": [ { "id": "g1", "title": "主图1", "prompt": "猫" } ] }\n```\n请确认。'
+    const { plan, generations } = parseGenerationsFromReply(content)
+    expect(plan).toEqual({ goal: '做5张主图' })
+    expect(generations).toHaveLength(1)
+    expect(generations[0].id).toBe('g1')
+    expect(generations[0].prompt).toBe('猫')
+  })
+
+  it('无代码块时回退提取最大 {...} JSON', () => {
+    const content = '规划如下 { "generations": [ { "id": "g2", "title": "详情1", "prompt": "狗" } ] } 请确认'
+    const { generations } = parseGenerationsFromReply(content)
+    expect(generations).toHaveLength(1)
+    expect(generations[0].prompt).toBe('狗')
+  })
+
+  it('没有 generations 字段 → 返回空数组，不 throw', () => {
+    const { plan, generations } = parseGenerationsFromReply('这是一段普通策划文字，没有 JSON。')
+    expect(plan).toBeNull()
+    expect(generations).toEqual([])
+  })
+
+  it('坏 JSON → 返回空数组，不 throw', () => {
+    const { generations } = parseGenerationsFromReply('```json\n{ 这不是合法json\n```')
+    expect(generations).toEqual([])
+  })
+
+  it('generations 含非对象项时过滤掉', () => {
+    const content = '```json\n{ "generations": [ { "id": "g1" }, "bad", null ] }\n```'
+    const { generations } = parseGenerationsFromReply(content)
+    expect(generations).toHaveLength(1)
+    expect(generations[0].id).toBe('g1')
+  })
+
+  it('空 content / 空串 → 空结果', () => {
+    expect(parseGenerationsFromReply('').generations).toEqual([])
+    expect(parseGenerationsFromReply(undefined).generations).toEqual([])
   })
 })

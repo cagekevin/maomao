@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react'
+import React, { useState, useRef, useCallback, useEffect } from 'react'
 import { useReactFlow } from '@xyflow/react'
 import {
   FileText, Plus, Copy, ChevronDown, ChevronUp, Loader2,
@@ -57,34 +57,26 @@ export default function TextNode({ id, data, selected }) {
   )
   const setPromptPersist = useCallback(
     (v) => {
-      setPrompt((prev) => {
-        const next = typeof v === 'function' ? v(prev) : v
-        patchData({ prompt: next })
-        return next
-      })
+      setPrompt((prev) => (typeof v === 'function' ? v(prev) : v))
     },
-    [patchData]
+    []
   )
   const setTextPersist = useCallback(
     (v) => {
-      setText((prev) => {
-        const next = typeof v === 'function' ? v(prev) : v
-        patchData({ text: next })
-        return next
-      })
+      setText((prev) => (typeof v === 'function' ? v(prev) : v))
     },
-    [patchData]
+    []
   )
-  const setAutoSplitPersist = useCallback(
-    (v) => { setAutoSplit(v); patchData({ autoSplit: v }) },
-    [patchData]
-  )
+  const setAutoSplitPersist = useCallback((v) => { setAutoSplit(v) }, [])
   const [expanded, setExpanded] = useState(data.expanded === undefined ? true : data.expanded)
-  // 抽屉展开/收起也落盘（写回 node.data.expanded，复用画布快照 KV，刷新保持开合状态）
-  const toggleExpanded = useCallback(
-    () => setExpanded((v) => { const next = !v; patchData({ expanded: next }); return next }),
-    [patchData]
-  )
+  // 抽屉展开/收起
+  const toggleExpanded = useCallback(() => setExpanded((v) => !v), [])
+  // 【React 反模式修复】「写回 node.data」不再在 setState updater 里做（那会在渲染期间 setNodes → BatchProvider 警告）。
+  // 改为监听本地 state 变化，用 useEffect 同步落盘（effect 内 setState 合法，不在渲染期）。
+  useEffect(() => { patchData({ prompt }) }, [prompt]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { patchData({ text }) }, [text]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { patchData({ autoSplit }) }, [autoSplit]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { patchData({ expanded }) }, [expanded]) // eslint-disable-line react-hooks/exhaustive-deps
   const [editingText, setEditingText] = useState(false)
   // 记住上次选择的模型（跨节点/跨会话）；初始用记忆值，无记忆回退 gpt-4o-mini
   const { prefs: textPrefs, set: setTextPrefs } = useNodePrefs('textNode', { model: '' })

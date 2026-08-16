@@ -289,7 +289,9 @@ export async function executePlan({ ctx, generations = [], autoRun = true, model
     const ready = await waitForNodeReady(nodeId)
     if (!ready) return { status: 'failed', error: `节点 ${nodeId} 未注册生成契约（渲染超时）` }
     const res = await runNodeGeneration(nodeId)
-    if (!res) return { status: 'failed', error: `节点 ${nodeId} 未注册生成契约` }
+    // 【未触发（false）】：节点未注册 / 或并发已达上限被跳过——都视为「待生成」，不报失败，
+    // 节点保持 ready（画布上就是「还没生成」的自然样子，用户可手动点触发）。
+    if (!res) return { status: 'ready', error: '' }
     if (res.ok === false) return { status: 'failed', error: res.error || '生成失败' }
     const resultUrl = res.resultUrl || ''
     // 【live 节点防悬空（对齐大雄 liveNodeById）】await 完成后重新查节点，

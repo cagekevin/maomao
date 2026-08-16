@@ -74,6 +74,49 @@ function ToolCallChip({ name, args }) {
   )
 }
 
+/** 生成步骤卡片（对齐大雄 agentExecutionPromptsHtml：阶段1 把 generations 渲染成可检查的步骤列表） */
+function GenerationStepsCard({ generations }) {
+  const [open, setOpen] = useState(true)
+  const list = (generations || []).filter((g) => g && typeof g === 'object')
+  if (!list.length) return null
+  return (
+    <div className="mt-2 border border-edge-faint rounded-md bg-[#0a0a0a]">
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center gap-1.5 px-2.5 py-1.5 text-caption-sm text-gray-400 hover:text-gray-300 transition-colors"
+      >
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={`transition-transform ${open ? 'rotate-90' : ''}`}>
+          <polyline points="9 18 15 12 9 6" />
+        </svg>
+        <span className="font-medium">生成步骤方案</span>
+        <span className="ml-auto text-caption text-gray-600">{list.length} 条</span>
+      </button>
+      {open && (
+        <div className="px-3 pb-2 space-y-2 border-t border-edge-subtle">
+          {list.map((g, i) => {
+            const title = String(g?.title || g?.role || `步骤 ${i + 1}`).trim()
+            const prompt = String(g?.professionalPrompt || g?.prompt || g?.plannedPrompt || '').trim()
+            const ratio = String(g?.ratio || '').trim()
+            const res = String(g?.resolution || '').trim()
+            const meta = [ratio && `比例 ${ratio}`, res && `${res}`].filter(Boolean).join(' · ')
+            return (
+              <div key={g?.id || i} className="text-body-xs leading-relaxed">
+                <div className="flex items-center gap-1.5 text-gray-300">
+                  <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-surface border border-edge-subtle text-caption-sm text-gray-400 flex-shrink-0">{i + 1}</span>
+                  <span className="font-medium truncate">{title}</span>
+                  {meta && <span className="ml-auto text-caption text-gray-600 flex-shrink-0">{meta}</span>}
+                </div>
+                {prompt && <div className="mt-0.5 pl-[22px] text-gray-500 whitespace-pre-wrap break-words">{prompt}</div>}
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
 /** 消息气泡主组件（复刻 Cr.jsx） */
 export default function AgentMessage({ message, onConfirmPlan, onRetryStep }) {
   if (message.role === 'user') {
@@ -135,6 +178,8 @@ export default function AgentMessage({ message, onConfirmPlan, onRetryStep }) {
               {message.streaming && <span className="inline-block w-1 h-3 bg-gray-400 ml-0.5 animate-pulse align-middle" />}
             </div>
           )}
+          {/* 【对齐大雄】阶段1 generations → 渲染步骤卡片（可折叠，用户确认前检查每步） */}
+          <GenerationStepsCard generations={message.generations} />
           {/* Skill 阶段2：待确认策划 → 渲染确认按钮（Step F；仅前端按钮翻转 awaitingConfirm） */}
           {message.awaiting_confirm && !message.streaming && (
             <button
