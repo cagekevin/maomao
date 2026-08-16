@@ -201,24 +201,35 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
     setCurrentSnapshot({ attachments })
   }, [attachments])
 
-  // 【选中图→输入框】用户选中带图节点时，把它的图作为图片附件加进输入框（正常缩略图，可删）。
-  // 编号不随选中/删除重算——只在发送时按输入框当前顺序计算（参考图1/2/3）。nodeId 记录来源，
-  // 供改图时 AI 精确定位原节点。
+  // 【选中图→待确认引用】（对齐大雄 ghost 语义，防误触）：用户选中画布带图节点时，
+  // 图先进「待确认」列表（pendingImageNodes），不直接进正式附件。用户点输入框/发送时才
+  // 确认转正式（confirmPendingImages），此时按输入框顺序定编号。避免拖动/查看画布误塞图。
+  const [pendingImageNodes, setPendingImageNodes] = useState([])
   useEffect(() => {
     if (!Array.isArray(selectedImageNodes)) return
-    setAttachments((prev) => {
-      const exist = new Set(prev.filter((a) => a.url).map((a) => a.url))
-      const next = prev.slice()
-      let changed = false
-      for (const n of selectedImageNodes) {
-        if (!n?.url || exist.has(n.url)) continue
-        next.push({ type: 'image', url: n.url, localUrl: n.url, label: n.label || '', nodeId: n.nodeId || '', nodeType: n.nodeType || '' })
-        exist.add(n.url)
-        changed = true
-      }
-      return changed ? next : prev
-    })
+    setPendingImageNodes(
+      selectedImageNodes.map((n) => ({ url: n.url, label: n.label || '', nodeId: n.nodeId || '', nodeType: n.nodeType || '' })).filter((n) => n.url)
+    )
   }, [selectedImageNodes])
+  // 确认待引用图 → 并入正式附件（定编号）；按 url 去重（已存在跳过）
+  const confirmPendingImages = useCallback(() => {
+    setPendingImageNodes((pending) => {
+      if (!pending.length) return pending
+      setAttachments((prev) => {
+        const exist = new Set(prev.filter((a) => a.url).map((a) => a.url))
+        const next = prev.slice()
+        let changed = false
+        for (const n of pending) {
+          if (!n?.url || exist.has(n.url)) continue
+          next.push({ type: 'image', url: n.url, localUrl: n.url, label: n.label || '', nodeId: n.nodeId || '', nodeType: n.nodeType || '' })
+          exist.add(n.url)
+          changed = true
+        }
+        return changed ? next : prev
+      })
+      return [] // 确认后清空待引用
+    })
+  }, [])
 
   const [modelOpen, setModelOpen] = useState(false)
   const modelRef = useRef(null)
@@ -277,23 +288,29 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
 
   // 发送
   const handleSend = (overrideText) => {
+    // 待发图 = 正式附件 + 待确认引用（灰态），按序去重合并后随本次发出；发送后清空两者
+    const allImages = [...attachments, ...pendingImageNodes]
+      .filter((a) => a?.url)
+      .filter((a, i, arr) => arr.findIndex((x) => x.url === a.url) === i)
     const text = (typeof overrideText === 'string' ? overrideText : input).trim()
-    if ((!text && attachments.length === 0) || (sending && stateAction !== 'steer')) return
+    if ((!text && allImages.length === 0) || (sending && stateAction !== 'steer')) return
     if (inputMode === 'image') {
-      const attach = attachments.length > 0 ? attachments.map(({ type, url, nodeId, label }) => ({ type, url, nodeId, label })) : []
+      const attach = allImages.map(({ url, nodeId, label }) => ({ type: 'image', url, nodeId, label }))
       setAttachments([])
+      setPendingImageNodes([])
       setInput('')
       try { sSet(AGENT_DRAFT_KEY, '') } catch { /* ignore */ }
       Promise.resolve(sendImageMode(text, attach)).catch((e) => console.error('[Agent] 图像模式 send 失败:', e))
       return
     }
-    if (attachments.length > 0 && !isVision) {
+    if (allImages.length > 0 && !isVision) {
       const fallback = VISION_MODELS[0]
       alert(`当前模型 ${model} 不支持视觉，请切换到 ${fallback} 等视觉模型后再发送`)
       return
     }
-    const attach = attachments.length > 0 ? attachments.map(({ type, url, nodeId, label }) => ({ type, url, nodeId, label })) : undefined
+    const attach = allImages.length > 0 ? allImages.map(({ url, nodeId, label }) => ({ type: 'image', url, nodeId, label })) : undefined
     setAttachments([])
+    setPendingImageNodes([])
     setInput('')
     try { sSet(AGENT_DRAFT_KEY, '') } catch { /* ignore */ }
     Promise.resolve(send(text, attach)).catch((e) => console.error('[Agent] send 失败:', e))
@@ -536,6 +553,23 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
             </div>
           )}
 
+          {/* 待确认引用（选中画布图未确认，防误触）：点输入框/发送才并入正式附件 */}
+          {pendingImageNodes.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2 px-3 pt-2.5">
+              <span className="text-caption text-gray-500">待引用：</span>
+              {pendingImageNodes.map((a, i) => (
+                <span key={`${a.url}-${i}`} className="relative w-10 h-10 rounded-lg overflow-hidden border border-edge group">
+                  <img src={toAbsoluteFileUrl(a.url)} alt="" className="w-full h-full object-cover" />
+                  <button type="button" onClick={() => setPendingImageNodes((prev) => prev.filter((_, j) => j !== i))} className="absolute inset-0 flex items-center justify-center bg-black/60 text-white opacity-0 group-hover:opacity-100 transition-opacity" title="移除该待引用图">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+
           {/* 输入方式切换（智能对话 / 图像直连生图）—— 作为输入框的"输入方式"标识，紧贴输入框 */}
           <div className="flex items-center gap-1 px-2.5 pt-2">
             <div className="flex items-center gap-0.5 p-0.5 rounded-lg bg-surface/50 border border-edge-faint shrink-0">
@@ -561,6 +595,7 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
           <textarea
             ref={textareaRef}
             value={input}
+            onFocus={confirmPendingImages}
             onChange={(e) => {
               const v = e.target.value
               setInput(v)
