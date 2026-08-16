@@ -22,8 +22,9 @@ function buildTargetUrl(provider, path) {
 function ok(url) { return { ok: true, url } }
 function fail(error) { return { ok: false, error } }
 
-/** 经 localTool /api/proxy 转发（GET/POST）。失败抛错由调用方兜底。 */
-async function proxyRequest({ provider, url, method = 'POST', body }) {
+/** 经 localTool /api/proxy 转发（GET/POST）。失败抛错由调用方兜底。
+ * @param {AbortSignal} [signal] 可选取消信号：abort 时中断 fetch（Step A 可取消地基，向后兼容，不传照常工作）。 */
+async function proxyRequest({ provider, url, method = 'POST', body }, signal) {
   const payload = { url, method }
   if (body) payload.body = JSON.stringify(body)
   if (provider?.id) payload.providerId = provider.id
@@ -34,6 +35,7 @@ async function proxyRequest({ provider, url, method = 'POST', body }) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
+    ...(signal ? { signal } : {}),
   })
   if (!res.ok) {
     const j = await res.json().catch(() => ({}))
@@ -43,13 +45,18 @@ async function proxyRequest({ provider, url, method = 'POST', body }) {
 }
 
 /** 从 SSE 响应流中提取第一个成功图片 url（兼容 {results[].url} 与 {result.images[].url}）。 */
-async function readSseImageUrl(res, onProgress) {
+async function readSseImageUrl(res, onProgress, signal) {
   const reader = res.body.getReader()
   const decoder = new TextDecoder('utf-8')
   let buffer = ''
   let urlFound = ''
   try {
     while (true) {
+      if (signal?.aborted) {
+        const err = new Error('Aborted')
+        err.name = 'AbortError'
+        throw err
+      }
       const { done, value } = await reader.read()
       if (done) break
       buffer += decoder.decode(value, { stream: true })
@@ -76,7 +83,7 @@ async function readSseImageUrl(res, onProgress) {
 }
 
 /** 同步模式：URL 带 ?wait=1，读 SSE 流拿图片 url。 */
-async function generateSync({ provider, url, genBody }, onProgress) {
+async function generateSync({ provider, url, genBody }, onProgress, signal) {
   let waitUrl = url
   try {
     const u = new URL(url)
@@ -86,25 +93,26 @@ async function generateSync({ provider, url, genBody }, onProgress) {
 
   try {
     onProgress?.(10, '正在连接本地服务…')
-    const res = await proxyRequest({ provider, url: waitUrl, method: 'POST', body: genBody })
+    const res = await proxyRequest({ provider, url: waitUrl, method: 'POST', body: genBody }, signal)
     // 响应头到达 → localTool 已连上并转发到网关/上游
     onProgress?.(20, '已转发到生成网关…')
     // 上游 SSE progress(0-100) 归一化映射到 [30,90]，避免覆盖阶段基准
     const stageProgress = (p) => onProgress?.(30 + Math.round(Math.min(100, Math.max(0, p || 0)) * 0.6), '上游生成中…')
-    const imgUrl = await readSseImageUrl(res, stageProgress)
+    const imgUrl = await readSseImageUrl(res, stageProgress, signal)
     return imgUrl ? ok(imgUrl) : fail('上游未返回图片')
   } catch (e) {
+    if (e?.name === 'AbortError') throw e // 取消信号：原样抛出，由调用方（useNodeGeneration）处理为"已取消"
     return /^网络错误/.test(e?.message || '') ? fail(e.message) : fail(`生图失败：${e?.message || '同步请求异常'}`)
   }
 }
 
 /** 异步模式：提交拿 task_id → 轮询 /v1/tasks/{id} 到 completed。 */
-async function generateAsync({ provider, url, genBody, timeoutMs }, onProgress) {
+async function generateAsync({ provider, url, genBody, timeoutMs }, onProgress, signal) {
   // 提交
   let taskId
   try {
     onProgress?.(10, '正在连接本地服务…')
-    const res = await proxyRequest({ provider, url, method: 'POST', body: genBody })
+    const res = await proxyRequest({ provider, url, method: 'POST', body: genBody }, signal)
     onProgress?.(20, '已提交到生成网关…')
     const json = await res.json()
     const data = json?.data ?? json
@@ -115,6 +123,7 @@ async function generateAsync({ provider, url, genBody, timeoutMs }, onProgress) 
     const direct = data?.results?.[0]?.url || data?.result?.images?.[0]?.url || json?.results?.[0]?.url
     if (!taskId && direct) return ok(direct)
   } catch (e) {
+    if (e?.name === 'AbortError') throw e // 取消：原样抛出，由调用方处理
     return /^网络错误/.test(e?.message || '') ? fail(e.message) : fail(`提交失败：${e?.message || '提交异常'}`)
   }
   if (!taskId) return fail(`上游未返回任务 id`)
@@ -129,8 +138,13 @@ async function generateAsync({ provider, url, genBody, timeoutMs }, onProgress) 
   const start = Date.now()
   while (Date.now() - start < timeoutMs) {
     await new Promise((r) => setTimeout(r, 3000))
+    if (signal?.aborted) {
+      const err = new Error('Aborted')
+      err.name = 'AbortError'
+      throw err
+    }
     try {
-      const pr = await proxyRequest({ provider, url: pollUrl, method: 'GET' })
+      const pr = await proxyRequest({ provider, url: pollUrl, method: 'GET' }, signal)
       const pj = await pr.json()
       const pd = pj?.data ?? pj
       // 网关 result.images[0].url 是数组（APIMart 规范 `{url:[...]}`），需取 [0]；兼容字符串
@@ -142,6 +156,7 @@ async function generateAsync({ provider, url, genBody, timeoutMs }, onProgress) 
       }
       onProgress?.(30 + Math.min(60, Math.round((Date.now() - start) / 3000) * 10), '上游生成中…')
     } catch (e) {
+      if (e?.name === 'AbortError') throw e // 取消：原样抛出
       return fail(`轮询失败：${e?.message || '轮询异常'}`)
     }
   }
@@ -195,9 +210,10 @@ export function resolveImagePixel(ratio, size) {
  * @param {object} opts
  *   - provider, prompt, model, size(档位 1K/2K), n, aspectRatio(比例), quality(质量), images?
  * @param {function} [onProgress] (percent)
+ * @param {AbortSignal} [signal] 可选取消信号（Step A；不传向后兼容）
  * @returns {{ ok:boolean, url?:string, error?:string }}
  */
-export async function generateImage({ provider, prompt, model, size, n, aspectRatio, quality, images }, onProgress) {
+export async function generateImage({ provider, prompt, model, size, n, aspectRatio, quality, images }, onProgress, signal) {
   const genBody = { prompt, model, n: n || 1 }
   const hasRatio = aspectRatio && aspectRatio !== 'Auto' && aspectRatio !== 'auto'
   // 比例非 Auto → 查表转精确像素作 size；否则用传入的档位/默认
@@ -213,6 +229,6 @@ export async function generateImage({ provider, prompt, model, size, n, aspectRa
   const url = buildTargetUrl(provider, 'images/generations')
   const mode = provider?.image_mode === 'async' ? 'async' : 'sync'
   return mode === 'async'
-    ? generateAsync({ provider, url, genBody, timeoutMs: 300000 }, onProgress)
-    : generateSync({ provider, url, genBody }, onProgress)
+    ? generateAsync({ provider, url, genBody, timeoutMs: 300000 }, onProgress, signal)
+    : generateSync({ provider, url, genBody }, onProgress, signal)
 }

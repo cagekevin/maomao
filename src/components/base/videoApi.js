@@ -24,8 +24,9 @@ function buildTargetUrl(provider, path) {
 function ok(url) { return { ok: true, url } }
 function fail(error) { return { ok: false, error } }
 
-/** 经 localTool /api/proxy 转发（GET/POST）。失败抛错由调用方兜底。 */
-async function proxyRequest({ provider, url, method = 'POST', body }) {
+/** 经 localTool /api/proxy 转发（GET/POST）。失败抛错由调用方兜底。
+ * @param {AbortSignal} [signal] 可选取消信号（Step A，向后兼容，不传照常工作）。 */
+async function proxyRequest({ provider, url, method = 'POST', body }, signal) {
   const payload = { url, method }
   if (body) payload.body = JSON.stringify(body)
   if (provider?.id) payload.providerId = provider.id
@@ -36,6 +37,7 @@ async function proxyRequest({ provider, url, method = 'POST', body }) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
+    ...(signal ? { signal } : {}),
   })
   if (!res.ok) {
     const j = await res.json().catch(() => ({}))
@@ -45,12 +47,12 @@ async function proxyRequest({ provider, url, method = 'POST', body }) {
 }
 
 /** 异步模式（视频唯一模式）：提交拿 task_id → 轮询到 completed。 */
-async function generateAsync({ provider, url, genBody, timeoutMs }, onProgress) {
+async function generateAsync({ provider, url, genBody, timeoutMs }, onProgress, signal) {
   // 提交
   let taskId
   try {
     onProgress?.(10, '正在连接本地服务…')
-    const res = await proxyRequest({ provider, url, method: 'POST', body: genBody })
+    const res = await proxyRequest({ provider, url, method: 'POST', body: genBody }, signal)
     onProgress?.(20, '已提交到生成网关…')
     const json = await res.json()
     const data = json?.data ?? json
@@ -61,6 +63,7 @@ async function generateAsync({ provider, url, genBody, timeoutMs }, onProgress) 
     const direct = data?.result?.videos?.[0]?.url || data?.results?.[0]?.url || json?.result?.videos?.[0]?.url
     if (!taskId && direct) return ok(direct)
   } catch (e) {
+    if (e?.name === 'AbortError') throw e // 取消：原样抛出，由调用方处理
     return /^网络错误/.test(e?.message || '') ? fail(e.message) : fail(`提交失败：${e?.message || '提交异常'}`)
   }
   if (!taskId) return fail(`上游未返回任务 id`)
@@ -75,8 +78,13 @@ async function generateAsync({ provider, url, genBody, timeoutMs }, onProgress) 
   const start = Date.now()
   while (Date.now() - start < timeoutMs) {
     await new Promise((r) => setTimeout(r, 5000))
+    if (signal?.aborted) {
+      const err = new Error('Aborted')
+      err.name = 'AbortError'
+      throw err
+    }
     try {
-      const pr = await proxyRequest({ provider, url: pollUrl, method: 'GET' })
+      const pr = await proxyRequest({ provider, url: pollUrl, method: 'GET' }, signal)
       const pj = await pr.json()
       const pd = pj?.data ?? pj
       const vidUrl = pd?.result?.videos?.[0]?.url || pd?.result?.images?.[0]?.url || pd?.results?.[0]?.url
@@ -86,6 +94,7 @@ async function generateAsync({ provider, url, genBody, timeoutMs }, onProgress) 
       }
       onProgress?.(30 + Math.min(60, Math.round((Date.now() - start) / 5000) * 10), '上游生成中…')
     } catch (e) {
+      if (e?.name === 'AbortError') throw e // 取消：原样抛出
       return fail(`轮询失败：${e?.message || '轮询异常'}`)
     }
   }
@@ -101,9 +110,10 @@ async function generateAsync({ provider, url, genBody, timeoutMs }, onProgress) 
  *   - seconds: 时长（秒）
  *   - images?: string[] 参考图（图生视频，可选）。网关认 body.image_urls。
  * @param {function} [onProgress] (percent)
+ * @param {AbortSignal} [signal] 可选取消信号（Step A；不传向后兼容）
  * @returns {{ ok:boolean, url?:string, error?:string }}
  */
-export async function generateVideo({ provider, prompt, model, size, resolution, seconds, images }, onProgress) {
+export async function generateVideo({ provider, prompt, model, size, resolution, seconds, images }, onProgress, signal) {
   const genBody = { prompt, model }
   if (size && size !== 'Auto') genBody.size = size
   if (resolution) genBody.resolution = resolution
@@ -113,5 +123,5 @@ export async function generateVideo({ provider, prompt, model, size, resolution,
   if (refImages.length > 0) genBody.image_urls = refImages
 
   const url = buildTargetUrl(provider, 'videos/generations')
-  return generateAsync({ provider, url, genBody, timeoutMs: 600000 }, onProgress)
+  return generateAsync({ provider, url, genBody, timeoutMs: 600000 }, onProgress, signal)
 }
