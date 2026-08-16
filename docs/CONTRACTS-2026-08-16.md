@@ -319,7 +319,7 @@ discountVideo→特惠视频  custom→万能  rhWebapp→AI应用
 
 - **画布状态 key 前缀**：`canvas-state-v1-`（`CANVAS_STATE_PREFIX`）→ 走 localTool KV（`/api/kv/*`）。
 - **非画布配置**（projects/users/app_settings/api_configs）→ 浏览器 localStorage。
-- 画布图片来源与保存完整链路见 `docs/06-画布图片来源与保存完整链路-2026-08-16.md`。
+- 画布图片来源与保存完整链路见 `docs/AI助手开发历史/06-画布图片来源与保存完整链路-2026-08-16.md`。
 - 任务 ID 全链路见 `docs/03-任务ID全链路-2026-08-16.md`。
 - KV 存储设计见 `docs/05-KV存储设计-2026-08-16.md`。
 
@@ -343,7 +343,7 @@ discountVideo→特惠视频  custom→万能  rhWebapp→AI应用
 ## 8. 相关文档索引
 - `docs/03-任务ID全链路-2026-08-16.md` — 任务 ID 贯穿全链路详解
 - `docs/05-KV存储设计-2026-08-16.md` — KV 存储设计
-- `docs/06-画布图片来源与保存完整链路-2026-08-16.md` — 图片 URL 机制
+- `docs/AI助手开发历史/06-画布图片来源与保存完整链路-2026-08-16.md` — 图片 URL 机制
 - `docs/04-API设置设计-2026-08-16.md` — Provider 字段契约
 - `apimart-gateway/contract.py` — 网关字段海关（可执行映射）
 - `localTool/src/routes/*.ts` — 后端路由实现（契约代码落点）
