@@ -125,6 +125,30 @@ const num = (v, fb) => {
   return Number.isFinite(n) ? n : fb
 }
 
+/**
+ * 提取节点「主图 URL」（纯函数，导出供 AgentPanel/App 引用带图节点用）。
+ * 覆盖常见图字段形态：data.imageUrl / data.url（字符串）、data.images / data.imageUrls（数组）。
+ * images 数组元素兼容字符串（url）与对象（{ url } 或 { imageUrl }）。无图返回空串。
+ * 设计取舍：只取「主图」一个 URL（用户选中节点即引用其首图），保证简单、可复用现有图片附件链路。
+ */
+export function getNodeImageUrl(node) {
+  const d = node?.data || {}
+  for (const key of ['imageUrl', 'url']) {
+    if (typeof d[key] === 'string' && d[key]) return d[key]
+  }
+  for (const key of ['images', 'imageUrls']) {
+    const arr = Array.isArray(d[key]) ? d[key] : []
+    for (const item of arr) {
+      if (typeof item === 'string' && item) return item
+      if (item && typeof item === 'object') {
+        const u = item.url || item.imageUrl
+        if (typeof u === 'string' && u) return u
+      }
+    }
+  }
+  return ''
+}
+
 /* ════════════════════════════════════════════════════════════════
  * AI 独立撤回（undo_ai）—— 与用户手动撤销【完全隔离】
  * ────────────────────────────────────────────────────────────────

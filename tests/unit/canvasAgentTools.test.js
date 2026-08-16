@@ -25,7 +25,7 @@ vi.mock('../../src/components/base/canvasPlanExecutor.js', () => ({
   executePlan: vi.fn(async () => ({ workflow: { status: 'completed' }, entries: [{ status: 'completed', nodeId: 'n1', resultUrl: 'http://r/x.png' }] })),
 }))
 
-import { buildCanvasAgentTools, CANVAS_AGENT_TOOL_NAMES } from '../../src/components/base/useCanvasAgentTools.js'
+import { buildCanvasAgentTools, CANVAS_AGENT_TOOL_NAMES, getNodeImageUrl } from '../../src/components/base/useCanvasAgentTools.js'
 import * as convStore from '../../src/components/base/conversationStore.js'
 import { executePlan as mockExecutePlan } from '../../src/components/base/canvasPlanExecutor.js'
 
@@ -147,6 +147,19 @@ describe('画布 Agent 工具层 §2.5', () => {
     const ctx = makeCtx()
     const t = buildCanvasAgentTools(ctx)
     expect(t.delete_node({ nodeId: 'x' }).ok).toBe(false)
+  })
+
+  it('getNodeImageUrl：提取节点主图 URL（imageUrl 字符串）', () => {
+    expect(getNodeImageUrl({ data: { imageUrl: 'http://a/1.png' } })).toBe('http://a/1.png')
+    expect(getNodeImageUrl({ data: { url: 'http://a/2.png' } })).toBe('http://a/2.png')
+    expect(getNodeImageUrl({ data: {} })).toBe('')
+  })
+
+  it('getNodeImageUrl：支持 images/imageUrls 数组（字符串或对象）', () => {
+    expect(getNodeImageUrl({ data: { images: [{ url: 'http://a/3.png' }, { url: 'http://a/4.png' }] } })).toBe('http://a/3.png')
+    expect(getNodeImageUrl({ data: { images: ['http://a/5.png'] } })).toBe('http://a/5.png')
+    expect(getNodeImageUrl({ data: { imageUrls: [{ imageUrl: 'http://a/6.png' }] } })).toBe('http://a/6.png')
+    expect(getNodeImageUrl({ data: { images: [] } })).toBe('')
   })
 
   it('batch_delete_nodes 批量删', () => {

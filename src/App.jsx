@@ -32,6 +32,7 @@ import GroupNode from './components/GroupNode.jsx'
 import ScriptBoxNode from './components/ScriptBoxNode.jsx'
 import GhostTargetNode from './components/GhostTargetNode.jsx'
 import AgentPanel from './components/AgentPanel.jsx'
+import { getNodeImageUrl } from './components/base/useCanvasAgentTools.js'
 import LeftPanel from './components/base/LeftPanel.jsx'
 import { switchProject, loadCanvasState, saveCanvasState, getCurrentProject, initProjects, useProjects } from './components/base/projectStore.js'
 import { logger } from './components/base/logger.js'
@@ -232,6 +233,11 @@ function Canvas() {
   const edgesRef = React.useRef(edges)
   React.useEffect(() => { nodesRef.current = nodes }, [nodes])
   React.useEffect(() => { edgesRef.current = edges }, [edges])
+
+  // 当前选中的「带图节点」列表（供 AgentPanel 引用：用户选中带图节点 → 输入框出现缩略图）。
+  // 只存 id/type/label + 主图 URL（getNodeImageUrl 提取），不存整个 node（避免状态过大）。
+  // 在 onNodesChangeForEdges 的 select 变化里同步更新。
+  const [selectedImageNodes, setSelectedImageNodes] = React.useState([])
 
   // 历史栈（基座 useCanvasHistory）：record 需显式传最新快照，避免异步 setState 取到旧值
   const history = useCanvasHistory(
@@ -1123,6 +1129,14 @@ function Canvas() {
           }
         })
 
+        // 【选中锚点】算出当前选中的「带图节点」，传给 AgentPanel 供引用（选中图→输入框缩略图）。
+        // 只取有主图 URL 的节点，存 { nodeId, nodeType, label, url }，不存整个 node。
+        const selImg = currentNodes
+          .filter((n) => selectedIds.has(n.id))
+          .map((n) => ({ nodeId: n.id, nodeType: n.type, label: n.data?.label || n.data?.projectName || '', url: getNodeImageUrl(n) }))
+          .filter((n) => n.url)
+        setSelectedImageNodes(selImg)
+
         setEdges((eds) => {
           let changed = false
           const next = eds.map((ed) => {
@@ -1375,6 +1389,7 @@ function Canvas() {
               open={agentOpen}
               onClose={() => setAgentOpen(false)}
               systemPrompt={''}
+              selectedImageNodes={selectedImageNodes}
             />
 
             {/* 左侧滑出面板：任务中心 + 素材库（fixed 覆盖层，不依赖画布容器） */}

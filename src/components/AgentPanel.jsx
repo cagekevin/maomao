@@ -72,7 +72,7 @@ function loadWidth() {
   return DEFAULT_WIDTH
 }
 
-export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt = '', open, onClose, onWidthChange, onEnabledChange }) {
+export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt = '', open, onClose, onWidthChange, onEnabledChange, selectedImageNodes = [] }) {
   const [width, setWidth] = useState(loadWidth)
   const [dragging, setDragging] = useState(false)
 
@@ -200,6 +200,25 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
   useEffect(() => {
     setCurrentSnapshot({ attachments })
   }, [attachments])
+
+  // 【选中图→输入框】用户选中带图节点时，把它的图作为图片附件加进输入框（可删）。
+  // 只加「当前选中且尚不在输入框」的图；用户删掉 chip 后不会自动加回（依赖 selectedImageNodes，
+  // 删除不改变它）。nodeId 记录来源，供发送时定位/去重。
+  useEffect(() => {
+    if (!Array.isArray(selectedImageNodes)) return
+    setAttachments((prev) => {
+      const exist = new Set(prev.filter((a) => a.url).map((a) => a.url))
+      const next = prev.slice()
+      let changed = false
+      for (const n of selectedImageNodes) {
+        if (!n?.url || exist.has(n.url)) continue
+        next.push({ type: 'image', url: n.url, localUrl: n.url, label: n.label || '', nodeId: n.nodeId || '', nodeType: n.nodeType || '' })
+        exist.add(n.url)
+        changed = true
+      }
+      return changed ? next : prev
+    })
+  }, [selectedImageNodes])
 
   const [modelOpen, setModelOpen] = useState(false)
   const modelRef = useRef(null)

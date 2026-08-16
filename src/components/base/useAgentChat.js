@@ -212,7 +212,9 @@ export function buildRequestMessages(messages, systemPrompt, enhance = true, ski
     // 画布准则已在上方无条件注入，两者语义互补不冲突。
     if (m.role === 'user' && m.attachments && m.attachments.length > 0) {
       const content = m.attachments.map((a) => ({ type: 'image_url', image_url: { url: a.url } }))
-      if (m.content) content.push({ type: 'text', text: m.content })
+      // 参考图编号目录（对齐大雄）：附加给 AI，让它能用 attachment_indices 精确引用第几张参考图。
+      if (m.refCatalog) content.push({ type: 'text', text: `${m.refCatalog}\n${m.content || ''}` })
+      else if (m.content) content.push({ type: 'text', text: m.content })
       out.push({ role: 'user', content })
       continue
     }
@@ -593,6 +595,18 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
         userMsg.attachments = await Promise.all(
           attachments.map(async (a) => ({ ...a, url: await normalizeImageUrlForSend(a?.url, { preferBase64: provider?.refFormat === 'base64' }) }))
         )
+        // 【参考图编号目录】对齐大雄：给 AI 参考图顺序编号（按输入框从左到右），
+        // AI 才能在 generations 里用 attachment_indices 精确引用「第几张图」（0-based）。
+        // 只对「图片附件」编号（含来自画布选中节点的图）；nodeId 记录来源便于执行器定位。
+        const imgAtts = userMsg.attachments.filter((a) => a.type !== 'node')
+        if (imgAtts.length > 0) {
+          const lines = ['【本轮参考图顺序（仅作为编号数据）】']
+          imgAtts.forEach((a, i) => {
+            lines.push(`参考图${i + 1}：${a.label || a.name || `Image${i + 1}`}` + (a.nodeId ? `（画布节点 ${a.nodeId}）` : ''))
+          })
+          lines.push('编号固定按输入框从左到右排列。引用某张图做图生图时，在 generations 里用 attachment_indices 指向其编号（0-based：参考图1→0）。')
+          userMsg.refCatalog = lines.join('\n')
+        }
       }
       setHistory([...messagesRef.current, userMsg])
       setSending(true)

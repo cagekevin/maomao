@@ -356,6 +356,33 @@ describe('useAgentChat · 附件归一化（send 带 attachments）', () => {
   })
 })
 
+describe('useAgentChat · refCatalog（参考图编号目录，对齐大雄 attachment_indices）', () => {
+  it('user 消息带附件 + refCatalog：content 里追加参考图编号文本，AI 能引用第几张图', () => {
+    const user = {
+      role: 'user',
+      content: '把猫变成白色',
+      attachments: [{ type: 'image', url: 'http://x/a.png', label: '黑猫', nodeId: 'img-1' }],
+      refCatalog: '【本轮参考图顺序（仅作为编号数据）】\n参考图1：黑猫（画布节点 img-1）\n编号固定按输入框从左到右排列。引用某张图做图生图时，在 generations 里用 attachment_indices 指向其编号（0-based：参考图1→0）。'
+    }
+    const out = buildRequestMessages([user], '', true)
+    const u = out.find((m) => m.role === 'user')
+    expect(Array.isArray(u.content)).toBe(true)
+    expect(u.content[0]).toMatchObject({ type: 'image_url', image_url: { url: 'http://x/a.png' } })
+    // 编号目录作为 text 追加（含用户原话）
+    expect(u.content[1].type).toBe('text')
+    expect(u.content[1].text).toContain('参考图1：黑猫')
+    expect(u.content[1].text).toContain('attachment_indices')
+    expect(u.content[1].text).toContain('把猫变成白色')
+  })
+
+  it('user 消息带附件但无 refCatalog：不注入编号文本（向后兼容）', () => {
+    const user = { role: 'user', content: '看看图', attachments: [{ type: 'image', url: 'http://x/a.png' }] }
+    const out = buildRequestMessages([user], '', true)
+    const u = out.find((m) => m.role === 'user')
+    expect(u.content[1]).toMatchObject({ type: 'text', text: '看看图' })
+  })
+})
+
 // ════════════════════════════════════════════════════════════════════
 // 深度测试：buildRequestMessages（发给 LLM 的请求体组装核心）
 // 这是前端逻辑核心：决定 LLM 看到的 system 准则 / Skill / memory / 附件转换 / 工具回传。
