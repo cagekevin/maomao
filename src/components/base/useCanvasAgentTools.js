@@ -847,8 +847,23 @@ const moveNodeTool = {
     const id = str(args.nodeId)
     if (!getNodes().some((n) => n.id === id)) return { ok: false, error: `节点不存在：${id}` }
     const pos = { x: num(args.position?.x, 0), y: num(args.position?.y, 0) }
-    setNodes((ns) => ns.map((n) => (n.id === id ? { ...n, position: pos } : n)))
-    return { ok: true, data: { id, position: pos } }
+    // 【R3】AI 移动 group 子节点时：React Flow 里子节点 position 是相对父组的坐标，但 move_node
+    // 传的是绝对坐标。若目标在组内，需换算成相对父组坐标，否则视觉错位（对齐用户侧 handleNodeDragStop）。
+    const target = getNodes().find((n) => n.id === id)
+    let finalPos = pos
+    if (target?.parentId) {
+      let px = 0, py = 0, pid = target.parentId, guard = 0
+      const all = getNodes()
+      while (pid && guard++ < 20) {
+        const p = all.find((n) => n.id === pid)
+        if (!p) break
+        px += p.position.x; py += p.position.y
+        pid = p.parentId
+      }
+      finalPos = { x: pos.x - px, y: pos.y - py }
+    }
+    setNodes((ns) => ns.map((n) => (n.id === id ? { ...n, position: finalPos } : n)))
+    return { ok: true, data: { id, position: finalPos } }
   }
 }
 

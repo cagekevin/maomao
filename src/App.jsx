@@ -481,20 +481,15 @@ function Canvas() {
     setEdges((eds) => eds.map((e) => ({ ...e, selected: true })))
   }, [setNodes, setEdges])
 
-  // 克隆当前选中的节点（复刻 Ctrl+D，简化：只克隆节点，偏移 40px）
+  // 克隆当前选中的节点（复刻 Ctrl+D）。R3：用统一子图克隆，保留组关系 + 连线（不再丢边/空壳）
   const duplicateSelected = useCallback(() => {
-    const selected = nodesRef.current.filter((n) => n.selected)
-    if (selected.length === 0) return
-    const clones = selected.map((n) => ({
-      ...n,
-      id: `${n.type}-clone-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-      position: { x: (n.position?.x || 0) + 40, y: (n.position?.y || 0) + 40 },
-      selected: true
-    }))
-    const nextNodes = [...nodesRef.current, ...clones]
+    const selectedIds = nodesRef.current.filter((n) => n.selected).map((n) => n.id)
+    if (selectedIds.length === 0) return
+    const { nodes: nextNodes, edges: nextEdges } = duplicateSelectedWithEdges(nodesRef.current, edgesRef.current, selectedIds)
     setNodes(nextNodes)
-    history.record({ nodes: nextNodes, edges: edgesRef.current })
-  }, [setNodes, history])
+    setEdges(nextEdges)
+    history.record({ nodes: nextNodes, edges: nextEdges })
+  }, [setNodes, setEdges, history])
 
   // 编组选中节点（Ctrl+G；与右键菜单/Agent 共用 createGroupFromNodes）
   const groupSelected = useCallback(() => {

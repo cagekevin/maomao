@@ -172,23 +172,21 @@ export function duplicateSelectedWithEdges(nodes, edges, selectedIds, makeId) {
         selected: true,
       }
     })
-  // 重映射克隆体内部的边（两端都在克隆集合内的），及原选中边界（source/target 任一端在克隆内）
+  // 原边全部保留；对「至少一端被克隆」的边，额外生成一条克隆边（映射到克隆体）。
+  // 组内边（两端都被克隆）→ 克隆边两端都映射到新 id；边界（一端克隆一端外部）→ 只映射克隆端。
   const sourceIds = new Set(toClone)
-  const clonedEdgeIds = new Set()
-  const remappedEdges = edges.map((e) => {
+  const remappedEdges = [...edges]
+  for (const e of edges) {
     const sIn = sourceIds.has(String(e.source))
     const tIn = sourceIds.has(String(e.target))
-    // 边两端都被克隆（组内边）→ 完整重映射到克隆体
-    if (sIn && tIn) {
-      clonedEdgeIds.add(e.id)
-      return { ...e, id: `e-${idMap.get(String(e.source))}-${idMap.get(String(e.target))}`, source: idMap.get(String(e.source)), target: idMap.get(String(e.target)), selected: true }
-    }
-    // 边一端在克隆内、一端在外 → 复制到克隆体（保持与原外部节点连接）
-    if (sIn || tIn) {
-      clonedEdgeIds.add(e.id)
-      return { ...e, id: `${e.id}-dup-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, source: sIn ? idMap.get(String(e.source)) : e.source, target: tIn ? idMap.get(String(e.target)) : e.target, selected: true }
-    }
-    return e
-  })
+    if (!sIn && !tIn) continue
+    remappedEdges.push({
+      ...e,
+      id: `${e.id}-dup-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      source: sIn ? idMap.get(String(e.source)) : e.source,
+      target: tIn ? idMap.get(String(e.target)) : e.target,
+      selected: true,
+    })
+  }
   return { nodes: [...nodes, ...clones], edges: remappedEdges, clones }
 }
