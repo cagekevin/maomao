@@ -8,7 +8,7 @@ import {
   patchCurrentWorkflow, setCurrentMemory, getCurrentMemory,
   getActiveAiUndoStack, pushActiveAiUndo, popActiveAiUndo,
   getActivePendingGenerations, setActivePendingGenerations,
-  setAwaitingConfirm, // Step F 启用确认态硬约束时再加 getAwaitingConfirm
+  getAwaitingConfirm, setAwaitingConfirm,
 } from './conversationStore.js'
 
 /* ════════════════════════════════════════════════════════════════
@@ -538,9 +538,11 @@ const executePlanTool = {
   },
   execute: async (args, ctx) => {
     try {
-      // 【Step D：确认态状态已建立（awaitingConfirm 由 present_plan 置 true），
-      //  硬约束 + 确认按钮在 Step F 启用，避免此时 Skill 三阶段卡死（功能不回归）。】
-      // 【Step F 在此加】if (getAwaitingConfirm()) return { ok:false, error:'策划尚未确认，请先确认后再执行。' }
+      // 【Step F 确认态硬约束】present_plan 后 awaitingConfirm=true，未确认前拒绝 execute_plan
+      // （无论是否带 generations），防止 LLM 在用户未确认时直接出图。仅前端确认按钮翻转。
+      if (getAwaitingConfirm()) {
+        return { ok: false, error: '策划尚未确认，请先确认后再执行。' }
+      }
       // 优先用本次传入的 generations；若空则用阶段1 present_plan 暂存的（Skill 三阶段）
       let gens = Array.isArray(args.generations) ? args.generations : []
       if (gens.length === 0) {

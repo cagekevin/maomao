@@ -10,7 +10,7 @@ import { loadAgentChatModel } from './base/settings/agentModelStore.js'
 import { getAllSkills, markSkillUsed, getSkillUsage, upsertCustomSkill, deleteCustomSkill } from './base/skillStore.js'
 import { sGet, sSet } from './base/storageAdapter.js'
 import { toAbsoluteFileUrl } from './base/filesApi.js'
-import { setCurrentSnapshot } from './base/conversationStore.js'
+import { setCurrentSnapshot, setAwaitingConfirm } from './base/conversationStore.js'
 
 /**
  * ════════════════════════════════════════════════════════════════
@@ -300,6 +300,13 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
     Promise.resolve(send(text, attach)).catch((e) => console.error('[Agent] send 失败:', e))
   }
 
+  // Skill 阶段2 确认：翻转 awaitingConfirm 并通知 LLM 按策划执行（Step F）
+  const handleConfirmPlan = useCallback(() => {
+    setAwaitingConfirm(false)
+    try { sSet(AGENT_DRAFT_KEY, '') } catch { /* ignore */ }
+    Promise.resolve(send('已确认，请按刚才展示的策划执行。')).catch((e) => console.error('[Agent] 确认后 send 失败:', e))
+  }, [send])
+
   // 快捷建议发送
   const sendShortcut = (text) => {
     setInput(text)
@@ -479,7 +486,7 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
               )}
             </div>
           )}
-          {messages.map((m, i) => <AgentMessage key={i} message={m} />)}
+          {messages.map((m, i) => <AgentMessage key={i} message={m} onConfirmPlan={handleConfirmPlan} />)}
           {sending && (
             <div className="flex items-center gap-2 text-gray-500 text-xs">
               <span className="flex gap-1">

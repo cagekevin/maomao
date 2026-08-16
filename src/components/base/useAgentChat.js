@@ -616,7 +616,8 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
             msgs = [...msgs, toolMsg]
             // Skill 三阶段阶段1：present_plan 把策划展示给用户（作为一条 assistant 消息，可见规划）
             if (tc.function?.name === 'present_plan' && result.ok && result.data?.plan_text) {
-              const planMsg = { role: 'assistant', content: `生成策划：\n${result.data.plan_text}\n\n确认后我会按此开始生成。你可以补充或调整。`, model, createdAt: Date.now() }
+              // awaiting_confirm 标记：AgentMessage 据此渲染「确认执行」按钮（Step F）
+              const planMsg = { role: 'assistant', content: `生成策划：\n${result.data.plan_text}`, model, createdAt: Date.now(), awaiting_confirm: true }
               setMessages((prev) => [...prev, planMsg])
               msgs = [...msgs, planMsg]
             }

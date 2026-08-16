@@ -75,7 +75,7 @@ function ToolCallChip({ name, args }) {
 }
 
 /** 消息气泡主组件（复刻 Cr.jsx） */
-export default function AgentMessage({ message }) {
+export default function AgentMessage({ message, onConfirmPlan }) {
   if (message.role === 'user') {
     const skillNames = (message.skills || []).map((s) => s?.name || s?.id || '').filter(Boolean)
     return (
@@ -134,6 +134,20 @@ export default function AgentMessage({ message }) {
               {message.content}
               {message.streaming && <span className="inline-block w-1 h-3 bg-gray-400 ml-0.5 animate-pulse align-middle" />}
             </div>
+          )}
+          {/* Skill 阶段2：待确认策划 → 渲染确认按钮（Step F；仅前端按钮翻转 awaitingConfirm） */}
+          {message.awaiting_confirm && !message.streaming && (
+            <button
+              type="button"
+              onClick={onConfirmPlan}
+              disabled={!onConfirmPlan}
+              className="mt-2 inline-flex items-center gap-1 px-3 py-1.5 text-xs bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg transition-colors cursor-pointer disabled:opacity-50"
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+              确认，按此执行
+            </button>
           )}
         </div>
       </div>
