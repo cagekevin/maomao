@@ -59,7 +59,7 @@ import LocalToolConnectModal from './components/base/LocalToolConnectModal.jsx'
 import EmptyCanvasGuide from './components/base/EmptyCanvasGuide.jsx'
 import { initTasks } from './components/base/taskStore.js'
 import { initTaskRecovery } from './components/base/pollTask.js'
-import { createGroupFromNodes, ungroupNodes, deleteNodesWithCascade } from './components/base/groupNodes.js'
+import { createGroupFromNodes, ungroupNodes, deleteNodesWithCascade, duplicateSelectedWithEdges } from './components/base/groupNodes.js'
 import { saveInlineToLocal } from './components/base/filesApi.js'
 
 /* ======================================================================
