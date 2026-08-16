@@ -15,8 +15,14 @@ localTool/dist/
 # 根前端 dist/：src/bundle/ 经 `npm run build` 回灌的运行时产物，
 # 运行只读、每次 build 必变，属构建产物，不入库（见 CLAUDE.md §四.2/§四.5）。
 dist/
-# 原型回归测试 esbuild 临时 bundle（scripts/regression_test.cjs 运行期生成，不入库）
+# 回归测试 esbuild 临时 bundle（scripts/regression_test.cjs 运行期生成，不入库）
 prototypes/react-nodes/.regression-entry.cjs
+.regression-entry.cjs
+.regression-entry.css
+# Playwright E2E 运行产物（test-results/ / playwright-report/ / results.json 每次跑都会生成，不入库）
+test-results/
+playwright-report/
+tests/e2e/results.json
 
 # Vite / TS 构建缓存与类型增量
 .vite/

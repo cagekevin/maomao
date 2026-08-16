@@ -79,6 +79,11 @@ function getSnapshot() {
   return assets
 }
 
+/** 读取当前内存素材列表（供测试/非 React 场景） */
+export function getAssets() {
+  return assets
+}
+
 function genId() {
   return 'asset_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7)
 }
@@ -140,6 +145,7 @@ export function clearAssets() {
 export function loadAssets() {
   assets = load()
   notify()
+  return assets
 }
 
 // React hook：订阅素材列表

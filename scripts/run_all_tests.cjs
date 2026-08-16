@@ -8,8 +8,10 @@ const ROOT = path.resolve(__dirname, '..');
 
 const suites = [
   { name: '冒烟测试 (Tier 2)', cmd: 'node', args: ['scripts/smoke_test.cjs'] },
-  { name: '回归测试 (SSR)', cmd: 'node', args: ['scripts/regression_test.cjs'] },
-  { name: 'Agent 工具测试', cmd: 'node', args: ['scripts/test_agent_tools.cjs'] },
+  { name: 'L2 纯逻辑单测 (Vitest)', cmd: 'npx', args: ['vitest', 'run'] },
+  { name: 'L3 Agent 工具层 (Vitest)', cmd: 'npx', args: ['vitest', 'run', 'tests/unit/canvasAgentTools.test.js'] },
+  { name: '回归测试 (SSR / L1)', cmd: 'node', args: ['scripts/regression_test.cjs'] },
+  { name: 'Agent 工具测试 (esbuild)', cmd: 'node', args: ['scripts/test_agent_tools.cjs'] },
 ];
 
 let allPass = true;

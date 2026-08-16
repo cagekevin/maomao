@@ -38,11 +38,12 @@ export function detectMediaType(url) {
  */
 export function detectFileType(file) {
   if (!file) return 'other'
+  const type = file.type || ''
   const name = (file.name || '').toLowerCase()
-  if (file.type.startsWith('image/') || RE_IMAGE.test(name)) return 'image'
-  if (file.type.startsWith('video/') || RE_VIDEO.test(name)) return 'video'
-  if (file.type.startsWith('audio/') || RE_AUDIO.test(name)) return 'audio'
-  if (file.type.startsWith('text/') || RE_TEXT.test(name)) return 'text'
+  if (type.startsWith('image/') || RE_IMAGE.test(name)) return 'image'
+  if (type.startsWith('video/') || RE_VIDEO.test(name)) return 'video'
+  if (type.startsWith('audio/') || RE_AUDIO.test(name)) return 'audio'
+  if (type.startsWith('text/') || RE_TEXT.test(name)) return 'text'
   return 'other'
 }
 

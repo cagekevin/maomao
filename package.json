@@ -13,6 +13,8 @@
     "test:smoke": "node scripts/smoke_test.cjs",
     "test:regression": "node scripts/regression_test.cjs",
     "test:tools": "node scripts/test_agent_tools.cjs",
+    "test:unit": "vitest run",
+    "test:e2e": "playwright test",
     "test:all": "node scripts/run_all_tests.cjs",
     "test": "npm run test:all",
     "check:health": "node scripts/health-check.cjs"
@@ -34,12 +36,15 @@
     "zustand": "^4.5.7"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
     "@types/dagre": "^0.7.54",
     "@vitejs/plugin-react": "^4.3.1",
     "autoprefixer": "^10.4.19",
+    "jsdom": "^25.0.1",
     "playwright": "^1.62.1",
     "postcss": "^8.4.38",
     "tailwindcss": "^3.4.4",
-    "vite": "^5.3.1"
+    "vite": "^5.3.1",
+    "vitest": "^2.1.8"
   }
 }
