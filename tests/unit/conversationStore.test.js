@@ -4,13 +4,19 @@ import {
   deleteConversation, applyConversation, importLegacy, getCurrentSnapshot, setCurrentSnapshot,
   getCurrentMemory, setCurrentMemory, patchCurrentWorkflow, getCurrentWorkflow,
   setCurrentPending, getCurrentPending, getActiveAiUndoStack, pushActiveAiUndo, popActiveAiUndo,
-  normalizeConversation,
+  normalizeConversation, setAgentKey, getActiveConversationId, getConversations,
 } from '../../src/components/base/conversationStore.js'
 
 beforeEach(() => {
   localStorage.clear()
   resetConversationCache()
 })
+
+/** 在每个项目（agentKey）之间切换前，重置内存缓存，模拟「从未初始化该项目」的干净状态 */
+function switchToProject(projectId) {
+  resetConversationCache()
+  setAgentKey(`canvas-assistant-${projectId}`)
+}
 
 describe('会话隔离数据层 §2.15', () => {
   it('ensureActiveConversation 在没有对话时建空对话并设为当前', () => {
@@ -123,12 +129,80 @@ describe('会话隔离数据层 §2.15', () => {
     // 未 apply（hydrated=false）：内存可写入，但不落盘
     setCurrentSnapshot({ messages: [{ role: 'user', content: '临时' }] })
     expect(getCurrentSnapshot().messages).toHaveLength(1) // 内存已更新
-    const persisted = localStorage.getItem('yimao:agent_conversations')
+    const persisted = localStorage.getItem('yimao:agent_conversations_canvas-assistant')
     expect(persisted).toBeNull() // 关键：未 hydrated 前不落盘，防挂载覆盖
     applyConversation(id)
     setCurrentSnapshot({ messages: [{ role: 'user', content: '正式' }] })
-    const persisted2 = localStorage.getItem('yimao:agent_conversations')
+    const persisted2 = localStorage.getItem('yimao:agent_conversations_canvas-assistant')
     expect(persisted2).toBeTruthy() // 已 hydrated，落盘
     expect(getCurrentSnapshot().messages).toHaveLength(1)
+  })
+})
+
+describe('按项目隔离会话（project 作为最顶层）', () => {
+  it('不同项目（agentKey）的会话互相独立，不串话', () => {
+    // 项目 A：建对话 + 存一条消息
+    switchToProject('projA')
+    const aId = ensureActiveConversation()
+    applyConversation(aId)
+    setCurrentSnapshot({ messages: [{ role: 'user', content: '项目A的绘画' }] })
+
+    // 切到项目 B：会话全新（新项目 = 空会话），不继承 A 的消息
+    switchToProject('projB')
+    expect(getActiveConversationId()).toBe('') // 未建对话，无 active
+    expect(getConversations()).toHaveLength(0) // 项目 B 无任何对话
+    const bId = ensureActiveConversation()
+    applyConversation(bId)
+    expect(getCurrentSnapshot().messages).toEqual([]) // 全新空会话
+    setCurrentSnapshot({ messages: [{ role: 'user', content: '项目B的绘画' }] })
+
+    // 切回项目 A：会话恢复为 A 自己的内容
+    switchToProject('projA')
+    expect(getCurrentSnapshot().messages[0].content).toBe('项目A的绘画')
+    // B 的内容不影响 A
+    expect(getCurrentSnapshot().messages).toHaveLength(1)
+  })
+
+  it('新建项目 = 新 agentKey → 该项目绘画全新（无历史）', () => {
+    // 项目 A 有会话
+    switchToProject('projA')
+    const aId = ensureActiveConversation()
+    applyConversation(aId)
+    setCurrentSnapshot({ messages: [{ role: 'user', content: '旧项目内容' }] })
+
+    // 模拟「新建项目 C」：全新 agentKey，无任何历史会话
+    switchToProject('projC')
+    expect(getConversations()).toHaveLength(0)
+    const cId = ensureActiveConversation()
+    applyConversation(cId)
+    expect(getCurrentSnapshot().messages).toEqual([]) // 全新，不含旧项目内容
+  })
+
+  it('setAgentKey 相同 key 时幂等（不重置已有会话）', () => {
+    switchToProject('projD')
+    const dId = ensureActiveConversation()
+    applyConversation(dId)
+    setCurrentSnapshot({ messages: [{ role: 'user', content: 'D 内容' }] })
+
+    // 再次 setAgentKey 同一项目：不重置，会话保留
+    resetConversationCache()
+    setAgentKey('canvas-assistant-projD')
+    expect(getCurrentSnapshot().messages[0].content).toBe('D 内容')
+  })
+
+  it('不同项目的对话列表互不影响', () => {
+    switchToProject('projE')
+    const e1 = ensureActiveConversation()
+    applyConversation(e1)
+    newConversation() // E 有 2 个对话
+    expect(getConversations().length).toBe(2)
+
+    switchToProject('projF')
+    const f1 = ensureActiveConversation()
+    applyConversation(f1)
+    expect(getConversations().length).toBe(1) // F 只有 1 个
+
+    switchToProject('projE')
+    expect(getConversations().length).toBe(2) // E 仍是 2 个
   })
 })

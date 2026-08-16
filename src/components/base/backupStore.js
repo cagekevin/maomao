@@ -30,8 +30,6 @@ const LS_KEYS = [
   'projects',                     // 项目列表（projectStore）
   'lastOpenedProject',            // 上次打开项目（projectStore）
   'app_settings',                 // 应用设置（appSettings）
-  'agent_conversations',          // AI 对话历史（conversationStore）
-  'agent_active_conversation_id', // AI 当前对话（conversationStore）
   'agent_skills',                 // 自定义 Skill（skillStore）
   'agent_skill_usage',            // Skill 使用次数（skillStore）
   'agent_chat_model',             // AI 聊天模型（agentModelStore）
@@ -41,6 +39,24 @@ const LS_KEYS = [
   'yimao_node_prefs',             // 节点偏好（nodePrefs）
   'yimao_accounts',               // 账号环境（accountsStore）
 ]
+
+/**
+ * AI 会话键（conversationStore 按 agentKey=项目隔离）：每项目一套会话存储。
+ * 项目列表读自 projects 键；键形如 agent_conversations_canvas-assistant-<projectId>。
+ * @param {Array} projects 项目列表（{id}）
+ * @returns {string[]} 所有项目的会话键
+ */
+function conversationKeys(projects) {
+  const keys = []
+  const list = Array.isArray(projects) ? projects : []
+  const ids = new Set(list.map((p) => p && p.id).filter(Boolean))
+  ids.add(getCurrentProjectId())
+  for (const id of ids) {
+    keys.push(`agent_conversations_canvas-assistant-${id}`)
+    keys.push(`agent_active_conversation_id_canvas-assistant-${id}`)
+  }
+  return keys
+}
 
 /** 读 localStorage 某键（容错） */
 function readLS(k) {
@@ -78,6 +94,12 @@ function getCurrentProjectId() {
 export async function exportAll() {
   const ls = {}
   for (const k of LS_KEYS) {
+    const v = readLS(k)
+    if (v !== undefined) ls[k] = v
+  }
+  // AI 会话（按项目隔离）：动态收集所有项目的会话键
+  const projectsForConv = Array.isArray(ls.projects) ? ls.projects : []
+  for (const k of conversationKeys(projectsForConv)) {
     const v = readLS(k)
     if (v !== undefined) ls[k] = v
   }

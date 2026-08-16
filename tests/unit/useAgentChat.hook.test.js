@@ -45,6 +45,7 @@ vi.mock('../../src/components/base/conversationStore.js', () => {
     captureActiveConversation: vi.fn(),
     setCurrentSnapshot: vi.fn(),
     setAwaitingConfirm: vi.fn(),
+    getAwaitingConfirm: vi.fn(() => false),
     getCurrentMemory: vi.fn(() => ({ summary: '', facts: [], lastPlan: null, lastSharedStyle: '', notes: [] })),
     setCurrentMemory: vi.fn(),
     newConversation: vi.fn(() => {
@@ -64,6 +65,7 @@ vi.mock('../../src/components/base/conversationStore.js', () => {
 })
 
 import { useAgentChat, buildRequestMessages, parseSSEChunk } from '../../src/components/base/useAgentChat.js'
+import * as convStore from '../../src/components/base/conversationStore.js'
 
 // ── SSE 流构造助手 ──
 function sseChunks(deltas) {
@@ -94,6 +96,11 @@ beforeEach(() => {
   vi.clearAllMocks()
   callTool.mockReset()
   callTool.mockReturnValue({ ok: true, data: { nodeId: 'n1' } })
+  // 重置三阶段门禁 mock 状态：默认非待确认（防上一个测试的 mockReturnValue 污染后续）
+  vi.mocked(convStore.setAwaitingConfirm).mockImplementation((v) => {
+    vi.mocked(convStore.getAwaitingConfirm).mockReturnValue(v === true)
+  })
+  vi.mocked(convStore.getAwaitingConfirm).mockReturnValue(false)
   fetchMock = vi.fn()
   vi.stubGlobal('fetch', fetchMock)
 })
@@ -156,6 +163,52 @@ describe('useAgentChat · 真实模式 SSE 编排', () => {
     expect(toolMsg.tool_call_id).toBe('call_1')
     expect(result.current.messages.at(-1).content).toBe('已创建生图节点。')
     expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('复合忙判定：任务进行中（发送锁 + 状态机 running）再次 send 走 steer，不触发第二次请求', async () => {
+    // 第一轮 fetch 挂起（pending），保证发送锁保持 true、状态机 running
+    fetchMock.mockImplementation((url, opts) => new Promise(() => {}))
+    const { result } = renderHook(() => useAgentChat())
+    // 发起第一轮
+    act(() => { result.current.send('第一轮任务').catch(() => {}) })
+    await waitFor(() => expect(result.current.sending).toBe(true))
+    const fetchCallsBefore = fetchMock.mock.calls.length
+
+    // 任务进行中再发 → 应走 steer（不触发第二次 fetch），user 消息带 steer 标记
+    act(() => { result.current.send('插一句补充').catch(() => {}) })
+    await waitFor(() => {
+      expect(result.current.messages.some((m) => m.steer === true && m.content === '插一句补充')).toBe(true)
+    })
+    // 关键：没有第二次真实请求（steer 只是排队，不打断）
+    expect(fetchMock.mock.calls.length).toBe(fetchCallsBefore)
+  })
+
+  it('三阶段门禁：show_plan_for_confirm 后暂停循环，不再继续第二轮（等用户确认，防自言自语）', async () => {
+    // 模拟 show_plan_for_confirm 工具：调用后进入"待确认"（setAwaitingConfirm(true) 且 getAwaitingConfirm 返回 true）
+    callTool.mockImplementation((name) => {
+      if (name === 'show_plan_for_confirm') {
+        vi.mocked(convStore.setAwaitingConfirm).mockImplementation((v) => { vi.mocked(convStore.getAwaitingConfirm).mockReturnValue(v === true) })
+        convStore.setAwaitingConfirm(true)
+        return { ok: true, data: { presented: true, plan_text: '一套策划', generations_count: 2, awaiting_confirm: true } }
+      }
+      return { ok: true, data: { nodeId: 'n1' } }
+    })
+    // 第一轮：show_plan_for_confirm；如果门禁失效，会有第二轮 fetch（执行 execute_plan 或输出）
+    fetchMock
+      .mockResolvedValueOnce(toolStream('call_1', 'show_plan_for_confirm', '{"plan_text":"一套策划","generations":[]}'))
+      .mockResolvedValueOnce(textStream('不该出现的第二轮'))
+
+    const { result } = renderHook(() => useAgentChat())
+    await act(async () => {
+      await result.current.send('帮我策划一套图')
+    })
+
+    // 关键：show_plan_for_confirm 后立即暂停 → 只有 1 次 LLM 请求，没有第二轮
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    // workflow 进入 awaiting_confirm
+    expect(vi.mocked(convStore.patchCurrentWorkflow)).toHaveBeenCalledWith(expect.objectContaining({ status: 'awaiting_confirm' }))
+    // sending 释放（等待用户确认，不锁死）
+    expect(result.current.sending).toBe(false)
   })
 
   it('stop 中止：进行中调 stop → error=已停止，sending 回 false', async () => {

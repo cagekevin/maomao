@@ -106,6 +106,70 @@ describe('画布 Agent 工具层 §2.5', () => {
     expect(node.width).toBe(420)
   })
 
+  it('create_node promptNode 应用 aspectRatio + resolution（9:16 + 1080p→1K）', () => {
+    const ctx = makeCtx()
+    const t = buildCanvasAgentTools(ctx)
+    const r = t.create_node({ type: 'promptNode', prompt: '奥特曼打怪兽', aspectRatio: '9:16', resolution: '1080p' })
+    expect(r.ok).toBe(true)
+    const node = ctx.getNodes().find((n) => n.id === r.data.id)
+    // 比例写入 data.aspectRatio（PromptNode 组件读取）
+    expect(node.data.aspectRatio).toBe('9:16')
+    // 分辨率 1080p 映射到 data.imageSize=1K（组件读取 imageSize 而非 resolution）
+    expect(node.data.imageSize).toBe('1K')
+    expect(node.data.resolution).toBeUndefined()
+  })
+
+  it('create_node promptNode resolution=4K 映射到 imageSize=4K；1440p→2K', () => {
+    // 每次用独立 ctx（节点 id 用 Date.now()，同毫秒并发会撞 id，故分开断言）
+    const c1 = makeCtx()
+    const r4 = buildCanvasAgentTools(c1).create_node({ type: 'promptNode', resolution: '4K' })
+    expect(c1.getNodes().find((n) => n.id === r4.data.id).data.imageSize).toBe('4K')
+    const c2 = makeCtx()
+    const r2 = buildCanvasAgentTools(c2).create_node({ type: 'promptNode', resolution: '1440p' })
+    expect(c2.getNodes().find((n) => n.id === r2.data.id).data.imageSize).toBe('2K')
+  })
+
+  it('create_node 非生图节点不写 aspectRatio/resolution', () => {
+    const ctx = makeCtx()
+    const t = buildCanvasAgentTools(ctx)
+    const r = t.create_node({ type: 'textNode', prompt: 'x', aspectRatio: '9:16', resolution: '1080p' })
+    const node = ctx.getNodes().find((n) => n.id === r.data.id)
+    expect(node.data.aspectRatio).toBeUndefined()
+    expect(node.data.imageSize).toBeUndefined()
+  })
+
+  it('create_node 有选中节点时放在其右侧 +100、顶部对齐（对齐参考项目 viewportAnchor）', () => {
+    // 选中节点：position.x=200, width=420, y=300 → 新节点 x=200+420+100=720, y=300
+    const ctx = makeCtx([{ id: 'sel', type: 'promptNode', selected: true, position: { x: 200, y: 300 }, width: 420, data: {} }])
+    const t = buildCanvasAgentTools(ctx)
+    const r = t.create_node({ type: 'promptNode', prompt: '新图' })
+    expect(r.ok).toBe(true)
+    const node = ctx.getNodes().find((n) => n.id === r.data.id)
+    expect(node.position.x).toBe(200 + 420 + 100)
+    expect(node.position.y).toBe(300)
+  })
+
+  it('create_node 多个选中节点取最右边界 + 100、y 取最小顶部', () => {
+    const ctx = makeCtx([
+      { id: 'a', type: 'promptNode', selected: true, position: { x: 0, y: 100 }, width: 400, data: {} },
+      { id: 'b', type: 'promptNode', selected: true, position: { x: 300, y: 50 }, width: 300, data: {} }, // 最右：300+300=600
+    ])
+    const t = buildCanvasAgentTools(ctx)
+    const r = t.create_node({ type: 'promptNode' })
+    const node = ctx.getNodes().find((n) => n.id === r.data.id)
+    expect(node.position.x).toBe(300 + 300 + 100) // 最右边界 600 + 100
+    expect(node.position.y).toBe(50) // 最小顶部
+  })
+
+  it('create_node 显式传 position 时优先使用，不自动计算', () => {
+    const ctx = makeCtx([{ id: 'sel', type: 'promptNode', selected: true, position: { x: 200, y: 300 }, width: 420, data: {} }])
+    const t = buildCanvasAgentTools(ctx)
+    const r = t.create_node({ type: 'promptNode', position: { x: 999, y: 888 } })
+    const node = ctx.getNodes().find((n) => n.id === r.data.id)
+    expect(node.position.x).toBe(999)
+    expect(node.position.y).toBe(888)
+  })
+
   it('create_node scriptBoxNode：prompt 同时映射到 story（剧本盒第一步读 story）', () => {
     const ctx = makeCtx()
     const t = buildCanvasAgentTools(ctx)
@@ -263,13 +327,27 @@ describe('画布 Agent 工具层 §2.5', () => {
     expect(t.get_node_details({ nodeId: 'z' }).ok).toBe(false)
   })
 
-  it('generate_node 触发并等待结果', async () => {
+  it('generate_node 拿到 resultUrl → 返回已完成收敛信号（completed:true，不再重复）', async () => {
     const ctx = makeCtx([{ id: 'a', type: 'promptNode', data: {}, position: {} }])
     const t = buildCanvasAgentTools(ctx)
     const r = await t.generate_node({ nodeId: 'a' })
     expect(r.ok).toBe(true)
     expect(r.data.resultUrl).toBe('http://r/x.png')
+    // 对齐参考项目收敛信号：resultUrl 非空 = 已完成，明确"无需重复操作"
+    expect(r.data.completed).toBe(true)
+    expect(r.data.submitted).toBeUndefined() // 不再出现"已提交待完成"的误导信号
+    expect(r.data.note).toContain('无需重复操作')
+  })
+
+  it('generate_node resultUrl 为空 → 返回提交中信号（submitted:true, completed:false），提示勿重复触发', async () => {
+    vi.mocked(taskStore.runNodeGeneration).mockResolvedValueOnce({ ok: true, resultUrl: '' })
+    const ctx = makeCtx([{ id: 'a', type: 'promptNode', data: {}, position: {} }])
+    const t = buildCanvasAgentTools(ctx)
+    const r = await t.generate_node({ nodeId: 'a' })
+    expect(r.ok).toBe(true)
+    expect(r.data.completed).toBe(false)
     expect(r.data.submitted).toBe(true)
+    expect(r.data.note).toContain('请勿重复触发')
   })
 
   it('generate_node 失败：返回带 nodeId（供对话侧「重试此步骤」定位节点）', async () => {

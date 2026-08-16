@@ -209,7 +209,7 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
   useEffect(() => {
     if (!Array.isArray(selectedImageNodes)) return
     setPendingImageNodes(
-      selectedImageNodes.map((n) => ({ url: n.url, label: n.label || '', nodeId: n.nodeId || '', nodeType: n.nodeType || '' })).filter((n) => n.url)
+      selectedImageNodes.map((n) => ({ url: n.url, label: n.label || '', nodeId: n.nodeId || '', nodeType: n.nodeType || '', x: n.x || 0, y: n.y || 0 })).filter((n) => n.url)
     )
   }, [selectedImageNodes])
   // 确认待引用图 → 并入正式附件（定编号）；按 url 去重（已存在跳过）
@@ -222,7 +222,7 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
         let changed = false
         for (const n of pending) {
           if (!n?.url || exist.has(n.url)) continue
-          next.push({ type: 'image', url: n.url, localUrl: n.url, label: n.label || '', nodeId: n.nodeId || '', nodeType: n.nodeType || '' })
+          next.push({ type: 'image', url: n.url, localUrl: n.url, label: n.label || '', nodeId: n.nodeId || '', nodeType: n.nodeType || '', x: n.x || 0, y: n.y || 0 })
           exist.add(n.url)
           changed = true
         }
@@ -296,7 +296,7 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
     const text = (typeof overrideText === 'string' ? overrideText : input).trim()
     if ((!text && allImages.length === 0) || (sending && stateAction !== 'steer')) return
     if (inputMode === 'image') {
-      const attach = allImages.map(({ url, nodeId, label }) => ({ type: 'image', url, nodeId, label }))
+      const attach = allImages.map(({ url, nodeId, label, x, y }) => ({ type: 'image', url, nodeId, label, x: x || 0, y: y || 0 }))
       setAttachments([])
       setPendingImageNodes([])
       setInput('')
@@ -309,7 +309,7 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
       alert(`当前模型 ${model} 不支持视觉，请切换到 ${fallback} 等视觉模型后再发送`)
       return
     }
-    const attach = allImages.length > 0 ? allImages.map(({ url, nodeId, label }) => ({ type: 'image', url, nodeId, label })) : undefined
+    const attach = allImages.length > 0 ? allImages.map(({ url, nodeId, label, x, y }) => ({ type: 'image', url, nodeId, label, x: x || 0, y: y || 0 })) : undefined
     setAttachments([])
     setPendingImageNodes([])
     setInput('')

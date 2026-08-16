@@ -216,6 +216,41 @@ const MAX_AI_UNDO = 20
 const UPDATE_NODE_WHITELIST = ['prompt', 'label', 'selectedModel', 'aspectRatio', 'resolution', 'seconds', 'text', 'locked']
 
 /**
+ * 分辨率 → 画质档位（imageSize）映射。PromptNode 的画质档是 1K/2K/4K，
+ * LLM 可能传 720p/1080p/1440p/2K/4K，这里统一归一：1080p→1K、1440p/2K→2K、4K→4K，
+ * 兜底 1K。未知/空值返回 null（调用方不设置）。
+ */
+function normalizeResolution(res) {
+  if (!res) return null
+  const r = String(res).trim().toLowerCase()
+  if (r.includes('4k')) return '4K'
+  if (r.includes('1440') || r.includes('2k')) return '2K'
+  return '1K' // 720p / 1080p / 默认
+}
+
+/** 取节点宽度（ReactFlow 测量后）：优先 width，其次 measured.width，兜底 280（对齐参考项目 nodeRect 兜底 w=280） */
+function nodeWidth(n) {
+  const w = Number(n?.width) || Number(n?.measured?.width) || 0
+  return w > 0 ? w : 280
+}
+
+/**
+ * 新建节点默认位置 —— 对齐参考项目（daxiong-canvas-plugins canvas-agent 的 viewportAnchor）。
+ * 1) 有选中节点：放在「选中区最右边界 + 100px」处，y 对齐选中区顶部（水平排列、顶部对齐）。
+ * 2) 无选中：放视口中心（screenToFlowPosition 屏幕中心 → 画布世界坐标）。
+ */
+function computeCreatePosition(nodes, screenToFlowPosition, vw, vh) {
+  const selected = (nodes || []).filter((n) => n.selected)
+  if (selected.length > 0) {
+    const right = Math.max(...selected.map((n) => Number(n.position?.x || 0) + nodeWidth(n)))
+    const top = Math.min(...selected.map((n) => Number(n.position?.y || 0)))
+    return { x: right + 100, y: top }
+  }
+  // 无选中 → 视口中心（浏览器环境；非浏览器/测试兜底 {0,0}）
+  return screenToFlowPosition?.({ x: (vw || 0) / 2, y: (vh || 0) / 2 }) || { x: 0, y: 0 }
+}
+
+/**
  * 建节点工具（复刻官方 create_node + batch_create_nodes）。
  * type 从 NodePalette 目录取（getPaletteNode），默认给默认 data；prompt/label 可覆盖。
  * 返回新建节点 id 列表，供后续连线/改节点用。
@@ -223,7 +258,7 @@ const UPDATE_NODE_WHITELIST = ['prompt', 'label', 'selectedModel', 'aspectRatio'
 const createNodeTool = {
   name: 'create_node',
   description:
-    '创建单个节点。type 指定节点类型（可选值见 type 参数说明），prompt 填该类型对应的内容，可选 label、position、connectFrom。返回新节点 id。',
+    '创建单个节点。type 指定节点类型（可选值见 type 参数说明），prompt 填该类型对应的内容，可选 label、position、connectFrom、aspectRatio、resolution。返回新节点 id。',
   parameters: {
     type: 'object',
     properties: {
@@ -234,6 +269,8 @@ const createNodeTool = {
       },
       prompt: { type: 'string', description: '提示词/内容；scriptBoxNode(剧本盒) 填故事文字' },
       label: { type: 'string', description: '节点标题（可选）' },
+      aspectRatio: { type: 'string', description: '生图比例，如 9:16 / 16:9 / 1:1 / 3:4 / 4:3（仅 promptNode/discountVideoNode 生效，可选）' },
+      resolution: { type: 'string', description: '生图画质档位：720p/1080p/1440p/2K/4K，会映射到 1K/2K/4K（仅 promptNode/discountVideoNode 生效，可选）' },
       position: { type: 'object', properties: { x: { type: 'number' }, y: { type: 'number' } }, description: '画布坐标（可选，默认视窗中心）' },
       connectFrom: { type: 'string', description: '从该节点拉一条连线到新节点（可选）' }
     },
@@ -244,16 +281,24 @@ const createNodeTool = {
     if (!type || !getPaletteNode(type)) return { ok: false, error: `未知节点类型：${type}。可选：${['textNode', 'promptNode', 'imageNode', 'discountVideoNode', 'scriptBoxNode', 'group'].join('、')}` }
     const { getNodes, setNodes, setEdges, screenToFlowPosition } = ctx
     const data = { ...defaultNodeData(type), ...(args.label ? { label: args.label } : {}), ...(args.prompt ? { prompt: args.prompt } : {}) }
+    // 生图类节点：把 AI 传的 aspectRatio / resolution 写进 data（PromptNode 读 data.aspectRatio / data.imageSize）。
+    // 之前这两个参数被忽略，导致「让 AI 建 9:16 节点」比例不生效。
+    if (['promptNode', 'discountVideoNode'].includes(type)) {
+      if (args.aspectRatio) data.aspectRatio = str(args.aspectRatio)
+      if (args.resolution) data.imageSize = normalizeResolution(str(args.resolution))
+    }
     // scriptBoxNode 读 data.story（而非 prompt），故把 AI 写的 prompt(故事) 映射到 story。
     // 同时下方返回回显 story_written:true，让 AI 确认"已写入"而停止；否则它会反复建盒
     // （通用「返回信号」铁律见文件头）。
     if (type === 'scriptBoxNode' && args.prompt) data.story = String(args.prompt)
-    // 无 position 时用视窗中心（浏览器环境）。window 兜底：非浏览器（测试/SSR）用 {0,0}。
+    // 位置：优先用 LLM 显式传的 position；否则按参考项目（daxiong-canvas-plugins canvas-agent）
+    // 的「空位自动计算」放新节点——有节点时在最右侧节点右侧水平追加、顶部对齐，避免重叠；
+    // 画布无节点时才放视窗中心。这样 AI 建多个节点会自动横向排开，不乱叠。
     const vw = typeof window !== 'undefined' ? window.innerWidth : 0
     const vh = typeof window !== 'undefined' ? window.innerHeight : 0
     const position = args.position
       ? { x: num(args.position.x, 0), y: num(args.position.y, 0) }
-      : screenToFlowPosition?.({ x: vw / 2, y: vh / 2 }) || { x: 0, y: 0 }
+      : computeCreatePosition(getNodes(), screenToFlowPosition, vw, vh)
     const id = `${type}-${Date.now()}`
     const newNode = { id, type, position: { ...position }, data }
     // 生图节点默认 420×420（对齐 App.jsx addNode，避免端口跑偏）
@@ -378,6 +423,13 @@ const updateNodeTool = {
     const patch = {}
     for (const k of UPDATE_NODE_WHITELIST) {
       if (args[k] !== undefined) patch[k] = args[k]
+    }
+    // 生图画质：LLM 传 resolution（720p/1080p/2K/4K）→ 映射到组件实际读取的 imageSize（1K/2K/4K）。
+    // 否则写 data.resolution 组件不读，比例/画质改动对用户不可见。
+    if (patch.resolution !== undefined) {
+      const norm = normalizeResolution(patch.resolution)
+      if (norm) patch.imageSize = norm
+      delete patch.resolution
     }
     if (Object.keys(patch).length === 0) return { ok: true, data: { id, unchanged: true } }
     setNodes((ns) => ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, ...patch } } : n)))
@@ -572,9 +624,22 @@ const triggerGenerationTool = {
     if (res.ok === false) {
       return { ok: false, error: res.error || '生成失败', nodeId: id }
     }
-    // res 可能是 { ok:true, resultUrl }（新版 start）或 true（旧回调）→ resultUrl 兜底空串
+    // res 可能是 { ok:true, resultUrl }（新版 start，await 到生成完成）或 true（旧回调）→ resultUrl 兜底空串
     const resultUrl = res.resultUrl || ''
-    return { ok: true, data: { id, submitted: true, resultUrl, note: '已触发生成并等待完成' } }
+    // 【收敛信号】对齐参考项目（daxiong canvas-agent）：给 AI 明确的「完成/进行中」状态，
+    // 而不是一律写死"已提交等待完成"（那会误导 AI 以为没生成完 → 重复触发/重复建节点）。
+    // - resultUrl 非空 → 生成已完成，明确告知"已生成"，不再需要任何重复操作。
+    // - resultUrl 为空 → 已提交但仍在异步后台生成，明确告知"生成中、请勿重复触发"。
+    if (resultUrl) {
+      return {
+        ok: true,
+        data: { id, completed: true, resultUrl, note: '已在画布完成生成，结果已回填节点，无需重复操作' },
+      }
+    }
+    return {
+      ok: true,
+      data: { id, completed: false, submitted: true, resultUrl: '', note: '已提交生成（异步后台进行中），请勿重复触发或重复建同类节点' },
+    }
   }
 }
 

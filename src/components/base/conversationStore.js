@@ -9,26 +9,34 @@
  *   - 落盘时机靠手动 capture，漏调/时序错就丢或覆盖
  * 本次改为「单一数据源 + 自动落盘」，对齐 taskStore/providerStore 范式。
  *
- * 【单一数据源】
- *   state = { conversations: [], activeId }  模块级单例，从 localStorage 加载。
- *   所有变更统一走 _commit(nextState)：生成新 state + notify 订阅者 + 自动写 localStorage。
+ * 【单一数据源 → 按 agentKey 隔离（本项目=按项目隔离）】
+ *   states = { [agentKey]: { conversations: [], activeId } }  模块级 Map，按 agentKey 从
+ *   localStorage 各自加载。所有变更统一走 _commit(nextState)：更新当前 agentKey 的 state
+ *   + notify 订阅者 + 自动写 localStorage（键带 agentKey 后缀，天然按项目分开）。
+ *   - 项目切换/新建时，调用方（App）通过 setAgentKey('canvas-assistant-<projectId>') 切换，
+ *     使 AI 会话跟随项目走，project 作为最顶层；新建项目即新 agentKey → 会话全新。
  *
  * 【写盘时机】
- *   - hydrated=false（尚未从 localStorage 恢复当前对话）时，_commit 只更新内存、不落盘，
- *     避免挂载早期用空数据覆盖已有记录。
- *   - applyConversation（恢复/切换）成功后 hydrated=true，此后所有变更自动落盘。
+ *   - hydratedSet[agentKey]=false（尚未从 localStorage 恢复当前对话）时，_commit 只更新内存、
+ *     不落盘，避免挂载早期用空数据覆盖已有记录。
+ *   - applyConversation（恢复/切换）成功后置 true，此后所有变更自动落盘。
  *
  * 【存储】
- *   conversations 存 localStorage（storageAdapter）。纯逻辑、无 React 依赖。
+ *   conversations 存 localStorage（storageAdapter），键 agent_conversations_<agentKey> /
+ *   agent_active_conversation_id_<agentKey>。纯逻辑、无 React 依赖。
  *
- * 【对外 API 保持不变】（useAgentChat / AgentPanel / useCanvasAgentTools 依赖）
+ * 【对外 API 保持不变】（useAgentChat / AgentPanel / useCanvasAgentTools 依赖；新增 setAgentKey）
  * ════════════════════════════════════════════════════════════════
  */
 import { useSyncExternalStore } from 'react'
 import { sGet, sSet } from './storageAdapter.js'
 
-const CONVERSATIONS_KEY = 'agent_conversations'
-const ACTIVE_KEY = 'agent_active_conversation_id'
+/**
+ * 存储键按 agentKey 隔离（每项目一个 agentKey → 每项目一套会话）。
+ * 键形如 agent_conversations_canvas-assistant-<projectId>，天然按项目分开。
+ */
+const convKey = (k) => `agent_conversations_${k}`
+const activeKey = (k) => `agent_active_conversation_id_${k}`
 /** 每对话消息上限（对齐大雄 AGENT_MSG_MAX = 60，防无限膨胀） */
 const AGENT_MSG_MAX = 60
 
@@ -41,10 +49,13 @@ function emptyMemory() {
   }
 }
 
-/** 单一数据源 */
-let state = loadState()
-/** 是否已恢复过当前对话（applyConversation 置 true；未恢复前禁止落盘，防挂载覆盖） */
-let hydrated = false
+/**
+ * 单一数据源改为「按 agentKey 隔离」：每个 agentKey（本项目=每项目）一份 { conversations, activeId }。
+ * 这样 AI 会话跟随项目走，项目作为最顶层，互不串话。
+ */
+const states = {}           // { [agentKey]: { conversations, activeId } }
+const hydratedSet = {}      // { [agentKey]: boolean } 该 key 是否已恢复过当前对话
+let currentAgentKey = 'canvas-assistant'  // 当前生效的 agentKey（由 setAgentKey 设置）
 
 /** 订阅者 */
 const listeners = new Set()
@@ -54,19 +65,28 @@ function subscribe(cb) {
   return () => listeners.delete(cb)
 }
 function getSnapshot() {
-  return state
+  return states[currentAgentKey] || { conversations: [], activeId: '' }
 }
 
-/** useConversationStore()：订阅画布会话状态（对齐 taskStore 的 useTasks 用法） */
+/** useConversationStore()：订阅当前 agentKey 的会话状态（对齐 taskStore 的 useTasks 用法） */
 export function useConversationStore() {
   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
 }
 
-/** 从 localStorage 加载初始 state */
-function loadState() {
+/** 设置当前 agentKey（项目切换/新建时调用）。若该 key 首次出现则从 localStorage 加载。 */
+export function setAgentKey(key) {
+  const k = key || 'canvas-assistant'
+  if (k === currentAgentKey) return
+  currentAgentKey = k
+  if (!states[k]) initState(k)
+  listeners.forEach((l) => l())
+}
+
+/** 从 localStorage 加载某个 agentKey 的初始 state */
+function initState(k) {
   let conversations = []
   try {
-    const raw = sGet(CONVERSATIONS_KEY)
+    const raw = sGet(convKey(k))
     const arr = raw ? JSON.parse(raw) : []
     conversations = (Array.isArray(arr) ? arr : []).map(normalizeConversation).filter(Boolean)
   } catch {
@@ -74,22 +94,63 @@ function loadState() {
   }
   let activeId = ''
   try {
-    const id = sGet(ACTIVE_KEY)
+    const id = sGet(activeKey(k))
     activeId = typeof id === 'string' && id ? id : ''
   } catch {
     activeId = ''
   }
+  // 兼容迁移：改造前会话存固定键 agent_conversations（无项目后缀）。
+  // 仅当「默认项目(canvas-assistant-default)」且新键无数据时，从旧键迁一次，避免历史会话丢失。
+  if (conversations.length === 0 && k === 'canvas-assistant-default') {
+    const migrated = migrateLegacyGlobal()
+    if (migrated) {
+      conversations = migrated.conversations
+      activeId = migrated.activeId
+      // 迁移后立即落盘到新键
+      try {
+        sSet(convKey(k), JSON.stringify(conversations.map(normalizeConversation)))
+        sSet(activeKey(k), activeId || '')
+      } catch { /* 忽略写失败 */ }
+    }
+  }
+  states[k] = { conversations, activeId }
+}
+
+/** 从旧固定键 agent_conversations 迁移一次（改造前会话归属默认项目） */
+function migrateLegacyGlobal() {
+  let conversations = []
+  try {
+    const raw = sGet('agent_conversations')
+    const arr = raw ? JSON.parse(raw) : []
+    conversations = (Array.isArray(arr) ? arr : []).map(normalizeConversation).filter(Boolean)
+  } catch {
+    conversations = []
+  }
+  if (conversations.length === 0) return null
+  let activeId = ''
+  try {
+    const id = sGet('agent_active_conversation_id')
+    activeId = typeof id === 'string' && id && conversations.some((c) => c.id === id) ? id : conversations[0].id
+  } catch {
+    activeId = conversations[0].id
+  }
   return { conversations, activeId }
 }
 
-/** 统一提交：生成新 state + 通知 + 落盘（hydrated 后才写 localStorage，防挂载覆盖） */
+/** 读取当前 agentKey 的 state（确保已初始化） */
+function getState() {
+  if (!states[currentAgentKey]) initState(currentAgentKey)
+  return states[currentAgentKey]
+}
+
+/** 统一提交：更新当前 agentKey 的 state + 通知 + 落盘（hydrated 后才写 localStorage，防挂载覆盖） */
 function commit(next) {
-  state = next
+  states[currentAgentKey] = next
   listeners.forEach((l) => l())
-  if (hydrated) {
+  if (hydratedSet[currentAgentKey]) {
     try {
-      sSet(CONVERSATIONS_KEY, JSON.stringify(state.conversations.map(normalizeConversation)))
-      sSet(ACTIVE_KEY, state.activeId || '')
+      sSet(convKey(currentAgentKey), JSON.stringify(next.conversations.map(normalizeConversation)))
+      sSet(activeKey(currentAgentKey), next.activeId || '')
     } catch {
       /* 忽略写失败 */
     }
@@ -174,12 +235,12 @@ export function normalizeMemory(m) {
 
 /** 读当前对话 id */
 export function getActiveConversationId() {
-  return state.activeId || ''
+  return getState().activeId || ''
 }
 
 /** 全量对话列表（浅拷贝，供 UI 渲染对话列表用） */
 export function getConversations() {
-  return state.conversations.map((c) => ({
+  return getState().conversations.map((c) => ({
     ...c,
     messages: [...c.messages],
     skills: [...c.skills],
@@ -192,7 +253,7 @@ export function getConversations() {
 
 /** 读当前对话对象（内部；无则 null） */
 function getActiveConv() {
-  return state.conversations.find((c) => c.id === state.activeId) || null
+  return getState().conversations.find((c) => c.id === getState().activeId) || null
 }
 
 /** 读当前对话的快照副本（对外） */
@@ -228,8 +289,8 @@ export function setCurrentSnapshot(snap) {
     updatedAt: Date.now(),
   }
   commit({
-    ...state,
-    conversations: state.conversations.map((c) => (c.id === conv.id ? next : c)),
+    ...getState(),
+    conversations: getState().conversations.map((c) => (c.id === conv.id ? next : c)),
   })
 }
 
@@ -245,8 +306,8 @@ export function patchCurrentWorkflow(patch = {}) {
   const wf = conv.workflow ? { ...conv.workflow } : { status: 'planning', nodeIds: [], steerQueue: [] }
   const nextWf = normalizeWorkflow({ ...wf, ...patch, steerQueue: Array.isArray(patch?.steerQueue) ? patch.steerQueue : (wf.steerQueue || []) })
   commit({
-    ...state,
-    conversations: state.conversations.map((c) => (c.id === conv.id ? { ...c, workflow: nextWf, updatedAt: Date.now() } : c)),
+    ...getState(),
+    conversations: getState().conversations.map((c) => (c.id === conv.id ? { ...c, workflow: nextWf, updatedAt: Date.now() } : c)),
   })
   return nextWf
 }
@@ -262,8 +323,8 @@ export function setCurrentPending(p) {
   const conv = getActiveConv()
   if (!conv) return
   commit({
-    ...state,
-    conversations: state.conversations.map((c) => (c.id === conv.id ? { ...c, pending: normalizePending(p), updatedAt: Date.now() } : c)),
+    ...getState(),
+    conversations: getState().conversations.map((c) => (c.id === conv.id ? { ...c, pending: normalizePending(p), updatedAt: Date.now() } : c)),
   })
 }
 
@@ -277,8 +338,8 @@ export function setCurrentMemory(m) {
   const conv = getActiveConv()
   if (!conv) return
   commit({
-    ...state,
-    conversations: state.conversations.map((c) => (c.id === conv.id ? { ...c, memory: normalizeMemory(m), updatedAt: Date.now() } : c)),
+    ...getState(),
+    conversations: getState().conversations.map((c) => (c.id === conv.id ? { ...c, memory: normalizeMemory(m), updatedAt: Date.now() } : c)),
   })
 }
 
@@ -294,8 +355,8 @@ export function setCurrentGlobalContract(c) {
   const conv = getActiveConv()
   if (!conv) return
   commit({
-    ...state,
-    conversations: state.conversations.map((x) => (x.id === conv.id ? { ...x, memory: normalizeMemory({ ...x.memory, global_contract: c || null }), updatedAt: Date.now() } : x)),
+    ...getState(),
+    conversations: getState().conversations.map((x) => (x.id === conv.id ? { ...x, memory: normalizeMemory({ ...x.memory, global_contract: c || null }), updatedAt: Date.now() } : x)),
   })
 }
 
@@ -309,8 +370,8 @@ export function setCurrentArtifacts(arr) {
   const conv = getActiveConv()
   if (!conv) return
   commit({
-    ...state,
-    conversations: state.conversations.map((x) => (x.id === conv.id ? { ...x, memory: normalizeMemory({ ...x.memory, artifacts: Array.isArray(arr) && arr.length ? arr : null }), updatedAt: Date.now() } : x)),
+    ...getState(),
+    conversations: getState().conversations.map((x) => (x.id === conv.id ? { ...x, memory: normalizeMemory({ ...x.memory, artifacts: Array.isArray(arr) && arr.length ? arr : null }), updatedAt: Date.now() } : x)),
   })
 }
 
@@ -328,8 +389,8 @@ export function pushActiveAiUndo(snapshot) {
   const stack = [...(conv.aiUndoStack || []), snapshot]
   if (stack.length > 20) stack.shift()
   commit({
-    ...state,
-    conversations: state.conversations.map((c) => (c.id === conv.id ? { ...c, aiUndoStack: stack, updatedAt: Date.now() } : c)),
+    ...getState(),
+    conversations: getState().conversations.map((c) => (c.id === conv.id ? { ...c, aiUndoStack: stack, updatedAt: Date.now() } : c)),
   })
 }
 
@@ -340,8 +401,8 @@ export function popActiveAiUndo() {
   const stack = [...conv.aiUndoStack]
   const popped = stack.pop()
   commit({
-    ...state,
-    conversations: state.conversations.map((c) => (c.id === conv.id ? { ...c, aiUndoStack: stack, updatedAt: Date.now() } : c)),
+    ...getState(),
+    conversations: getState().conversations.map((c) => (c.id === conv.id ? { ...c, aiUndoStack: stack, updatedAt: Date.now() } : c)),
   })
   return popped
 }
@@ -356,8 +417,8 @@ export function setActivePendingGenerations(gens) {
   const conv = getActiveConv()
   if (!conv) return
   commit({
-    ...state,
-    conversations: state.conversations.map((c) => (c.id === conv.id ? { ...c, pendingGenerations: Array.isArray(gens) && gens.length ? gens : null, updatedAt: Date.now() } : c)),
+    ...getState(),
+    conversations: getState().conversations.map((c) => (c.id === conv.id ? { ...c, pendingGenerations: Array.isArray(gens) && gens.length ? gens : null, updatedAt: Date.now() } : c)),
   })
 }
 
@@ -371,8 +432,8 @@ export function setAwaitingConfirm(v) {
   const conv = getActiveConv()
   if (!conv) return
   commit({
-    ...state,
-    conversations: state.conversations.map((c) => (c.id === conv.id ? { ...c, awaitingConfirm: !!v, updatedAt: Date.now() } : c)),
+    ...getState(),
+    conversations: getState().conversations.map((c) => (c.id === conv.id ? { ...c, awaitingConfirm: !!v, updatedAt: Date.now() } : c)),
   })
 }
 
@@ -387,17 +448,18 @@ export function setCurrentRefImages(urls = []) {
   if (!conv) return
   const next = Array.isArray(urls) ? urls.filter(Boolean) : []
   commit({
-    ...state,
-    conversations: state.conversations.map((c) => (c.id === conv.id ? { ...c, referenceImages: next, updatedAt: Date.now() } : c)),
+    ...getState(),
+    conversations: getState().conversations.map((c) => (c.id === conv.id ? { ...c, referenceImages: next, updatedAt: Date.now() } : c)),
   })
 }
 
 /** 确保至少有一个对话；没有则建一个空的，并设为当前。返回当前对话 id */
 export function ensureActiveConversation() {
-  let { conversations, activeId } = state
+  const st = getState()
+  let { conversations, activeId } = st
   if (activeId && conversations.some((c) => c.id === activeId)) return activeId
   if (conversations.length > 0) {
-    commit({ ...state, activeId: conversations[0].id })
+    commit({ ...st, activeId: conversations[0].id })
     return conversations[0].id
   }
   const conv = normalizeConversation({ id: uid('ac'), title: '对话', messages: [], skills: [], draft: '' })
@@ -418,37 +480,40 @@ export function captureActiveConversation() {
 
 /** 把某对话加载进当前（恢复/切换），hydrated 置 true，返回快照 */
 export function applyConversation(id) {
-  let conv = state.conversations.find((c) => c.id === id)
+  const st = getState()
+  let conv = st.conversations.find((c) => c.id === id)
   // 目标不存在 → 回退当前；当前也没有 → 建空对话兜底
   if (!conv) {
-    const active = state.conversations.find((c) => c.id === state.activeId)
+    const active = st.conversations.find((c) => c.id === st.activeId)
     conv = active || null
   }
   if (!conv) {
     conv = normalizeConversation({ id: uid('ac'), title: '对话', messages: [], skills: [], draft: '' })
     commit({ conversations: [conv], activeId: conv.id })
   }
-  hydrated = true // 已从存储恢复，此后允许落盘
-  commit({ ...state, activeId: conv.id })
+  hydratedSet[currentAgentKey] = true // 已从存储恢复，此后允许落盘
+  commit({ ...st, activeId: conv.id })
   return getCurrentSnapshot()
 }
 
 /** 新建对话：把当前对话先落盘，再建空对话并设为当前，返回新对话 id 与快照 */
 export function newConversation() {
+  const st = getState()
   const conv = normalizeConversation({ id: uid('ac'), title: '新对话', messages: [], skills: [], draft: '' })
-  commit({ conversations: [conv, ...state.conversations], activeId: conv.id })
+  commit({ conversations: [conv, ...st.conversations], activeId: conv.id })
   return { id: conv.id, snapshot: getCurrentSnapshot() }
 }
 
 /** 切换对话：apply 目标，返回目标快照 */
 export function switchConversation(id) {
-  if (!id || id === state.activeId) return getCurrentSnapshot()
+  if (!id || id === getState().activeId) return getCurrentSnapshot()
   return applyConversation(id)
 }
 
 /** 删除对话：删空则建新对话。返回 { activeId, snapshot } */
 export function deleteConversation(id) {
-  const remaining = state.conversations.filter((c) => c.id !== id)
+  const st = getState()
+  const remaining = st.conversations.filter((c) => c.id !== id)
   if (remaining.length > 0) {
     commit({ conversations: remaining, activeId: remaining[0].id })
     return { activeId: remaining[0].id, snapshot: getCurrentSnapshot() }
@@ -463,8 +528,8 @@ export function renameActiveConversation(title) {
   const conv = getActiveConv()
   if (!conv) return
   commit({
-    ...state,
-    conversations: state.conversations.map((c) =>
+    ...getState(),
+    conversations: getState().conversations.map((c) =>
       c.id === conv.id ? { ...c, title: (String(title || '').slice(0, 30) || c.title), updatedAt: Date.now() } : c
     ),
   })
@@ -473,7 +538,7 @@ export function renameActiveConversation(title) {
 /** 从旧单会话数据迁移：conversations 为空且有旧 messages/skills 时，迁成一个对话 */
 export function importLegacy({ messages, skills }) {
   if (!Array.isArray(messages) || messages.length === 0) return null
-  if (state.conversations.length > 0) return null // 已有对话，不迁移
+  if (getState().conversations.length > 0) return null // 已有对话，不迁移
   const firstUser = messages.find((m) => m.role === 'user' && m.content)
   const conv = normalizeConversation({
     id: uid('ac'),
@@ -486,14 +551,14 @@ export function importLegacy({ messages, skills }) {
     pending: null,
     memory: emptyMemory(),
   })
-  hydrated = true
+  hydratedSet[currentAgentKey] = true
   commit({ conversations: [conv], activeId: conv.id })
   return getCurrentSnapshot()
 }
 
-/** 重置 store 内存缓存（测试/硬重置用） */
+/** 重置 store 内存缓存（测试/硬重置用）：清空所有 agentKey 的缓存 */
 export function resetConversationCache() {
-  state = { conversations: [], activeId: '' }
-  hydrated = false
+  for (const k of Object.keys(states)) delete states[k]
+  for (const k of Object.keys(hydratedSet)) delete hydratedSet[k]
   listeners.forEach((l) => l())
 }

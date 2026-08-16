@@ -94,6 +94,95 @@ describe('AI 助手 buildRequestMessages（发 LLM 消息组装）§2.15', () =>
     expect(sys.some((m) => m.content === '已有')).toBe(true) // 历史 system 保留
     expect(out.some((m) => m.role === 'user' && m.content === 'hi')).toBe(true)
   })
+
+  it('空 tool_calls 数组被过滤：不发给 LLM（防 Empty tool_calls 报错）', () => {
+    // 历史里可能残留 tool_calls: [] 的脏数据（旧版本修复前存的），必须被过滤掉，
+    // 否则原样发给 LLM → 触发 `Empty tool_calls is not supported in message`。
+    const msgs = [
+      { role: 'user', content: '建一个节点' },
+      { role: 'assistant', content: '', tool_calls: [] },               // 空数组（脏数据）
+      { role: 'assistant', content: '有真实调用', tool_calls: [{ id: 'c1', type: 'function', function: { name: 'create_node', arguments: '{}' } }] },
+      { role: 'tool', content: '{"ok":true}', tool_call_id: 'c1' },
+    ]
+    const out = buildRequestMessages(msgs, '', false)
+    const assistant = out.filter((m) => m.role === 'assistant')
+    // 空 tool_calls 的 assistant 不带该字段；真实 tool_calls 的 assistant 正常保留
+    expect(assistant.find((m) => m.content === '')?.tool_calls).toBeUndefined()
+    expect(assistant.find((m) => m.content === '有真实调用')?.tool_calls).toHaveLength(1)
+    // 关键：任何发给 LLM 的消息都不含空数组 tool_calls
+    for (const m of out) {
+      if (m.tool_calls !== undefined) expect(m.tool_calls.length).toBeGreaterThan(0)
+    }
+    // tool_call_id 仍正常透传
+    expect(out.find((m) => m.role === 'tool')?.tool_call_id).toBe('c1')
+  })
+
+  it('孤儿 tool 消息被过滤：无对应 tool_calls 的 tool 消息不发给 LLM', () => {
+    // 场景：tool 消息的 tool_call_id 找不到任何 assistant 声明的 tool_calls（历史不完整/脏数据）
+    const msgs = [
+      { role: 'user', content: '生成' },
+      { role: 'assistant', content: '', tool_calls: [] },               // 空 tool_calls，被过滤
+      { role: 'tool', content: '{"ok":true}', tool_call_id: 'c_orphan' }, // 孤儿：c_orphan 无对应声明
+    ]
+    const out = buildRequestMessages(msgs, '', false)
+    expect(out.filter((m) => m.role === 'tool')).toHaveLength(0) // 孤儿 tool 被丢弃
+    // assistant 空 tool_calls 也被过滤，不带 tool_calls 字段
+    expect(out.filter((m) => m.role === 'assistant')[0]?.tool_calls).toBeUndefined()
+  })
+
+  it('正常 assistant(tool_calls) + tool 配对透传，tool_call_id 匹配', () => {
+    const msgs = [
+      { role: 'user', content: '生成' },
+      { role: 'assistant', content: '', tool_calls: [{ id: 'c_real', type: 'function', function: { name: 'create_node', arguments: '{}' } }] },
+      { role: 'tool', content: '{"ok":true}', tool_call_id: 'c_real' },
+    ]
+    const out = buildRequestMessages(msgs, '', false)
+    const tool = out.find((m) => m.role === 'tool')
+    expect(tool).toBeTruthy()
+    expect(tool.tool_call_id).toBe('c_real')
+    expect(out.find((m) => m.role === 'assistant')?.tool_calls).toHaveLength(1)
+  })
+
+  it('配对后 tool_call_id 不重复消费：同 id 第二条 tool 消息被丢弃', () => {
+    const msgs = [
+      { role: 'assistant', content: '', tool_calls: [{ id: 'c1', type: 'function', function: { name: 'read_canvas', arguments: '{}' } }] },
+      { role: 'tool', content: '{"ok":true}', tool_call_id: 'c1' },
+      { role: 'tool', content: '{"ok":false}', tool_call_id: 'c1' }, // 重复：c1 已被消费
+    ]
+    const out = buildRequestMessages(msgs, '', false)
+    const tools = out.filter((m) => m.role === 'tool')
+    expect(tools).toHaveLength(1) // 只保留第一条
+  })
+
+  it('参考图附件带画布坐标 x/y 时，坐标以文本附给 LLM（对齐参考项目传 xy）', () => {
+    const msgs = [{
+      role: 'user',
+      content: '按这张图改',
+      attachments: [
+        { type: 'image', url: '/files/a.png', nodeId: 'n1', x: 100, y: 200 },
+      ],
+    }]
+    const out = buildRequestMessages(msgs, '', false)
+    const user = out.find((m) => m.role === 'user')
+    // 图片转 image_url
+    expect(user.content[0].type).toBe('image_url')
+    // 坐标文本附加在 content 里，LLM 能感知参考图来自画布哪个位置
+    const text = user.content.find((c) => c.type === 'text')?.text || ''
+    expect(text).toContain('画布坐标 x=100, y=200')
+  })
+
+  it('参考图附件无坐标时不附加坐标文本（不误写）', () => {
+    const msgs = [{
+      role: 'user',
+      content: '生成一张图',
+      attachments: [{ type: 'image', url: '/files/b.png' }], // 无 x/y
+    }]
+    const out = buildRequestMessages(msgs, '', false)
+    const user = out.find((m) => m.role === 'user')
+    const text = user.content.find((c) => c.type === 'text')?.text || ''
+    expect(text).not.toContain('画布坐标')
+    expect(text).toContain('生成一张图')
+  })
 })
 
 // 复用 demoPlan 的补充断言（与 demoPlan.test.js 互补，验证与状态机无关的边界）

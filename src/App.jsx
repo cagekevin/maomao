@@ -54,6 +54,7 @@ import TopNav from './components/base/TopNav.jsx'
 import { showToast } from './components/base/toastStore.js'
 import { getSetting, setSetting } from './components/base/appSettings.js'
 import { subscribe } from './components/base/eventBus.js'
+import { setAgentKey } from './components/base/conversationStore.js'
 import { exportAll, importAll, backupToBlob } from './components/base/backupStore.js'
 import { uploadConfig, downloadConfig } from './components/base/cloudSync.js'
 import { useLocalToolStatus } from './components/base/useLocalToolStatus.js'
@@ -281,18 +282,34 @@ function Canvas() {
     }
   }, [nodes, edges, canvasLoaded, persistCanvas])
 
+  // AI 会话按项目隔离：project 作为最顶层，每个项目一套 AI 会话（对话/绘画）。
+  // agentKey = canvas-assistant-<projectId>，conversationStore 据此隔离存储；
+  // 新建项目 = 新 projectId = 新 agentKey → 该项目的绘画/会话全新。
+  const agentKeyForProject = useCallback((projectId) => `canvas-assistant-${projectId || 'default'}`, [])
+  // 切换项目时同步 AI 会话隔离键（conversationStore 内部切换 + 通知订阅者重载）
+  const syncAgentKey = useCallback((projectId) => {
+    setAgentKey(agentKeyForProject(projectId))
+  }, [agentKeyForProject])
+
+  // 挂载 / 当前项目变化时，同步 AI 会话隔离键（agentKey）。initProjects 异步覆盖项目后，
+  // activeProjectId 变化也会触发这里，确保 AI 会话始终跟随当前项目。
+  React.useEffect(() => {
+    syncAgentKey(activeProjectId)
+  }, [activeProjectId, syncAgentKey])
+
   // 切换项目：保存当前画布快照（KV）→ 切换 → 目标项目快照由「加载 effect（依赖 activeProjectId）」统一重载 → 重置历史（对齐官方 Vr.jsx）。
   // 不再手动 loadCanvasState：switchProject 更新 currentProjectId 后，加载 effect 会自动加载目标项目，避免双重加载竞态。
   const handleSwitchProject = useCallback(
     (targetId) => {
       persistCanvas(getCurrentProject().id)
-      switchProject(targetId)
+      const target = switchProject(targetId)
+      syncAgentKey(target?.id || targetId)
       setNodes([])
       setEdges([])
       history.clear?.()
       logger.info('项目', 'switch', { targetId })
     },
-    [setNodes, setEdges, history, persistCanvas]
+    [setNodes, setEdges, history, persistCanvas, syncAgentKey]
   )
 
   // 新建项目：先用【旧项目 id】保存旧画布（prevProjectId 由 ProjectSelector 传入），再清空画布。
@@ -300,11 +317,12 @@ function Canvas() {
   // 若此时 persistCanvas(新id) 会把旧节点误存进新项目 key（bug：新项目=旧内容）。
   const handleCreateProject = useCallback((proj, prevProjectId) => {
     if (prevProjectId) persistCanvas(prevProjectId)
+    syncAgentKey(proj?.id)  // 新项目 → 新 agentKey → 该项目 AI 会话全新
     setNodes([])
     setEdges([])
     history.clear?.()
     logger.info('项目', 'create', { name: getCurrentProject().name })
-  }, [setNodes, setEdges, history, persistCanvas])
+  }, [setNodes, setEdges, history, persistCanvas, syncAgentKey])
 
   // 【推送到云端】收集本地全量配置/用户数据通过 CloudSyncEngine 推送（不含画布）。
   const handlePushToCloud = useCallback(async () => {
@@ -1156,10 +1174,19 @@ function Canvas() {
         })
 
         // 【选中锚点】算出当前选中的「带图节点」，传给 AgentPanel 供引用（选中图→输入框缩略图）。
-        // 只取有主图 URL 的节点，存 { nodeId, nodeType, label, url }，不存整个 node。
+        // 对齐参考项目（daxiong-canvas-plugins canvas-agent agentBuildAttachmentsFromNodes）：
+        // 除 nodeId/type/label/url 外，把节点的画布坐标 position(x/y) 一并传给 AI，
+        // 让 LLM 感知参考图来自画布哪个位置。
         const selImg = currentNodes
           .filter((n) => selectedIds.has(n.id))
-          .map((n) => ({ nodeId: n.id, nodeType: n.type, label: n.data?.label || n.data?.projectName || '', url: getNodeImageUrl(n) }))
+          .map((n) => ({
+            nodeId: n.id,
+            nodeType: n.type,
+            label: n.data?.label || n.data?.projectName || '',
+            url: getNodeImageUrl(n),
+            x: Number(n.position?.x) || 0,
+            y: Number(n.position?.y) || 0,
+          }))
           .filter((n) => n.url)
         setSelectedImageNodes(selImg)
 
@@ -1416,8 +1443,10 @@ function Canvas() {
               <EmptyCanvasGuide onAdd={(type) => addNode(type, posAtCenter(), defaultNodeData(type))} />
             )}
             {/* 画布 AI 助手面板（复刻官方 _Component40；open 时右侧浮出）；设置/AI 助手按钮已在顶部导航栏右侧 */}
+            {/* agentKey 按项目派生 + key=projectId 强制重挂载：AI 会话跟随项目，项目切换/新建即切换会话 */}
             <AgentPanel
-              agentKey="canvas-assistant"
+              key={activeProjectId}
+              agentKey={agentKeyForProject(activeProjectId)}
               open={agentOpen}
               onClose={() => setAgentOpen(false)}
               systemPrompt={''}

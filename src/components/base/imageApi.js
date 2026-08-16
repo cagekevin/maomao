@@ -96,8 +96,15 @@ async function generateSync({ provider, url, genBody }, onProgress, signal) {
     const res = await proxyRequest({ provider, url: waitUrl, method: 'POST', body: genBody }, signal)
     // 响应头到达 → localTool 已连上并转发到网关/上游
     onProgress?.(20, '已转发到生成网关…')
-    // 上游 SSE progress(0-100) 归一化映射到 [30,90]，避免覆盖阶段基准
-    const stageProgress = (p) => onProgress?.(30 + Math.round(Math.min(100, Math.max(0, p || 0)) * 0.6), '上游生成中…')
+    // 上游 SSE progress(0-100) 归一化映射到 [30,90]，避免覆盖阶段基准。
+    // 【单调递增兜底】上游 progress 可能不单调（时而 100 时而 0 → 90 掉回 30），
+    // 用已到达最大值封住，保证进度条只前进不后退。
+    let reached = 0
+    const stageProgress = (p) => {
+      const mapped = 30 + Math.round(Math.min(100, Math.max(0, p || 0)) * 0.6)
+      if (mapped > reached) reached = mapped
+      onProgress?.(reached, '上游生成中…')
+    }
     const imgUrl = await readSseImageUrl(res, stageProgress, signal)
     return imgUrl ? ok(imgUrl) : fail('上游未返回图片')
   } catch (e) {

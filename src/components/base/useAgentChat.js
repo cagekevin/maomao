@@ -22,6 +22,7 @@ import {
   getCurrentMemory,
   setCurrentMemory,
   setAwaitingConfirm,
+  getAwaitingConfirm,
 } from './conversationStore.js'
 
 /**
@@ -84,8 +85,10 @@ const DEMO_MODE = import.meta.env?.VITE_AGENT_DEMO === '1'
 const CANVAS_AGENT_RULES = `你是猫猫画布助手，正在帮助用户操作当前打开的画布。
 
 【基本原则】
+- 用户有 ADHD，需要高效回复。
 - 用户要求操作画布时，默认目标就是当前已打开的画布。先调用 list_nodes 了解现有节点，再执行任务；不要臆造节点 id，不要假设画布为空。
 - 不要模拟鼠标点击，不要要求用户手动复制 JSON。直接用工具完成画布操作。
+- 【简短收尾】工具执行完后用一句话确认结果即可，立即停止调用。
 
 【读取】
 - 操作前先 list_nodes（获取全部节点 id/type/标题/坐标）。
@@ -101,6 +104,7 @@ const CANVAS_AGENT_RULES = `你是猫猫画布助手，正在帮助用户操作�
 - 改任意原始字段才用 update_node_any_field，且只改必要字段，不要抹掉其他 data。
 - 用户要求生成内容时，用 generate_node 触发已有节点（先确保该节点有提示词），或 create_node(promptNode, prompt=...) 后 generate_node。
 - 生成任务提交后应说明「已在画布开始生成」，不要在没有结果时声称「已生成」。
+- 【生成即完成】generate_node 提交成功后，本轮任务即视为完成：不要再次调用 generate_node，也不要再 create_node 建同类节点或重复触发。生成是异步后台任务，你提交后停下即可，结果会自动回填节点。
 - 【改图（参考图图生图）】用户引用了参考图（本轮有「参考图编号目录」）并要求改图时，用 execute_plan 批量改图：每步 generations 里填 use_attachments=true 和 attachment_indices（0-based，参考图1→0）精确指向要用哪几张参考图；prompt 只写修改意图 + 保持不变部分，不写「参考第 N 张」这类执行层编号。改图必须本轮带参考图，不要默认参考上一轮结果。若用户说「分别/各自/每张」或「图1变白、图2变黑」这类一对一改图，输出 N 个 generation（N=图数），每个 attachment_indices 只含一张。
 - 【主动聚焦】生成/创建/修改某个节点后，主动调用 focus_node 把该节点居中聚焦给用户看，让用户一眼看到成果；一次对话聚焦最近操作的那个节点即可，不要频繁跳动。
 
@@ -185,6 +189,8 @@ export function parseSSEChunk(line, acc) {
  *  导出供单测（AI 助手前端逻辑核心：确认发给 LLM 的 messages 组装正确）。 */
 export function buildRequestMessages(messages, systemPrompt, enhance = true, skills = [], memory = null) {
   const out = []
+  // 工具消息配对：assistant 声明 tool_calls 时登记其 id，后续 tool 消息需命中才保留（防孤儿 tool 消息）
+  const pendingToolIds = new Set()
   // 画布准则（CANVAS_AGENT_RULES）始终注入（enhance 控制），不因历史已含 system 而跳过。
   // 【bug 修复】旧实现 `hasSystem=messages.some(system)` 为真时：既不注入准则（L186 不满足），
   //   又在遍历时 `if(role==='system') continue` 把历史 system 一并丢弃 → 恢复旧对话时 LLM 收到 0 条 system、
@@ -224,13 +230,49 @@ export function buildRequestMessages(messages, systemPrompt, enhance = true, ski
     if (m.role === 'user' && m.attachments && m.attachments.length > 0) {
       const content = m.attachments.map((a) => ({ type: 'image_url', image_url: { url: a.url } }))
       // 参考图编号目录（对齐大雄）：附加给 AI，让它能用 attachment_indices 精确引用第几张参考图。
-      if (m.refCatalog) content.push({ type: 'text', text: `${m.refCatalog}\n${m.content || ''}` })
+      // 对齐参考项目（daxiong-canvas-plugins canvas-agent）：参考图附件带画布坐标 x/y，
+      // 这里把坐标以文本形式附给 LLM，让它感知每张参考图来自画布哪个位置。
+      const coordLines = m.attachments
+        .map((a, i) => (a.x != null || a.y != null ? `参考图${i + 1}：画布坐标 x=${Number(a.x) || 0}, y=${Number(a.y) || 0}` : ''))
+        .filter(Boolean)
+      if (m.refCatalog) content.push({ type: 'text', text: `${m.refCatalog}\n${coordLines.join('\n')}\n${m.content || ''}` })
+      else if (coordLines.length > 0) content.push({ type: 'text', text: `${coordLines.join('\n')}\n${m.content || ''}` })
       else if (m.content) content.push({ type: 'text', text: m.content })
       out.push({ role: 'user', content })
       continue
     }
+    // 【工具消息配对】OpenAI 协议要求 role:'tool' 消息必须紧跟一条带 tool_calls 的
+    // assistant 消息，且 tool_call_id 能匹配到某个 tool_call。历史里可能残留「孤儿 tool 消息」
+    // （其对应 assistant 的 tool_calls 因空/异常被过滤，或消息序列不完整），若不处理会触发后端
+    // `messages with role "tool" must be a response to a preceeding message with "tool_calls"`。
+    // 这里维护待配对集合：assistant 声明 tool_calls → 登记 id；tool 消息需命中才保留，否则丢弃。
+    // tool_call_id 集合（含已声明待消费的 id），跨消息累积，直到被 tool 消息消费。
+    if (m.role === 'assistant') {
+      const realCalls = (m.tool_calls || []).filter((t) => t && t.function && t.function.name)
+      // 只带「非空」的 tool_calls：空数组([])是 truthy，若不过滤会原样发给 LLM，
+      // 触发后端 `Empty tool_calls is not supported in message`。
+      if (realCalls.length > 0) {
+        for (const t of realCalls) if (t.id) pendingToolIds.add(t.id)
+        const obj = { role: m.role, content: m.content || '', tool_calls: realCalls }
+        if (m.reasoning) obj.reasoning = m.reasoning
+        out.push(obj)
+      }
+      // 空/无 tool_calls 的 assistant：直接透传（不带 tool_calls 字段）
+      else {
+        const obj = { role: m.role, content: m.content || '' }
+        if (m.reasoning) obj.reasoning = m.reasoning
+        out.push(obj)
+      }
+      continue
+    }
+    if (m.role === 'tool') {
+      // tool 消息必须能匹配前面声明的 tool_call_id，否则是孤儿，丢弃（否则后端报错）
+      if (!m.tool_call_id || !pendingToolIds.has(m.tool_call_id)) continue
+      pendingToolIds.delete(m.tool_call_id)
+      out.push({ role: 'tool', content: m.content || '', tool_call_id: m.tool_call_id })
+      continue
+    }
     const obj = { role: m.role, content: m.content || '' }
-    if (m.tool_calls) obj.tool_calls = m.tool_calls
     if (m.tool_call_id) obj.tool_call_id = m.tool_call_id
     out.push(obj)
   }
@@ -399,6 +441,12 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
   const abortRef = useRef(null)
   // 同步的发送态，防「sending state 是异步更新、快速双击读到旧值」导致的并发双发
   const sendingRef = useRef(false)
+  // 【复合忙判定】对齐大雄 agentIsTaskBusy：不只是发送锁，还复合「状态机是否运行中」。
+  // 防止 sendingRef 异常提前释放、或上轮任务尚未真正收尾时，用户又开新一轮（并发双发/插话串台）。
+  // 读 ref 不依赖渲染，可直接在 async send/sendImageMode 闭包里安全调用。
+  const isAgentBusy = useCallback(() => {
+    return sendingRef.current || !!stateMachineRef.current?.isRunning?.()
+  }, [])
   // 输入状态机（#7）：推导 send/stop/steer/retry/idle；每次状态变化回写 action
   const stateMachineRef = useRef(new InputStateMachine({ onChange: (snap, action) => {
     setStateAction(action)
@@ -436,11 +484,13 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
       const next = [...prev]
       const last = next[next.length - 1]
       if (last && last.role === 'assistant' && last.streaming) {
+        // 只保留真实 tool_calls（name 非空）；为空则不设该字段，杜绝空数组进历史 → LLM 报 Empty tool_calls
+        const realCalls = delta.toolCalls.filter((t) => t.function?.name)
         next[next.length - 1] = {
           ...last,
           content: delta.content,
           reasoning: delta.reasoning || undefined,
-          tool_calls: delta.toolCalls.filter((t) => t.function?.name)
+          ...(realCalls.length > 0 ? { tool_calls: realCalls } : {})
         }
       }
       return next
@@ -641,7 +691,8 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
 
       // ── steer（补充指令，#7）：任务进行中再发送 → 排入当前对话 workflow.steerQueue（per-conversation），
       //    不打断当前任务，结束后自动执行。队列挂在 workflow 上，切换对话不串台（对齐大雄）。──
-      if (sendingRef.current) {
+      //    忙判定用复合 isAgentBusy()（发送锁 + 状态机 running），防 sendingRef 异常/未收尾时并发双发。
+      if (isAgentBusy()) {
         const wf = getCurrentWorkflow() || patchCurrentWorkflow({ status: 'running' })
         patchCurrentWorkflow({ steerQueue: [...(wf.steerQueue || []), { text, attachments: attachments || [] }] })
         appendMsg({ role: 'user', content: text, createdAt: Date.now(), steer: true, statusLabel: '已排队' })
@@ -685,6 +736,7 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
       abortRef.current = controller
       let ok = true // 标记本次发送是否成功（finally 据此写 workflow.status）
       let aborted = false // 标记是否被用户停止（区分 stopped/failed）
+      let pausedForConfirm = false // 三阶段门禁：show_plan_for_confirm 后是否暂停等用户确认（需在 try 外声明，finally 才可访问且避免 TDZ）
       try {
         // ── Demo 模式（VITE_AGENT_DEMO='1'）：本地规则引擎模拟，不走真实 LLM ──
         if (DEMO_MODE) {
@@ -728,6 +780,8 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
         // ── 真实模式：多轮工具循环（≤ MAX_TOOL_ROUNDS）──
         let round = 0
         let assistant // 提升到循环外：供循环结束后判断是否「走满上限仍不收敛」（否则访问 for 块级变量会 ReferenceError）
+        // 【三阶段门禁】是否因 show_plan_for_confirm（待用户确认策划）而提前暂停循环。
+        // 对齐大雄 awaiting_confirm：展示策划后 stop 工具循环，等用户确认，不再让 AI 继续自言自语/重复推演。
         for (; round < MAX_TOOL_ROUNDS; round++) {
           // 追加流式 assistant 占位（复刻官方）
           appendMsg({ role: 'assistant', content: '', model, streaming: true, createdAt: Date.now() })
@@ -745,6 +799,13 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
 
           // 执行工具并回填结果（TASK-006 #1：await 异步工具，确保回填真实结果而非 Promise）
           await runToolCalls(assistant.tool_calls, (tc) => tc.id)
+
+          // 三阶段门禁：本轮执行了 show_plan_for_confirm → 进入"待确认"，立即停循环等用户确认。
+          // 否则 AI 会在下一轮继续调 execute_plan（被拒）或继续输出 → 自言自语。
+          if (getAwaitingConfirm()) {
+            pausedForConfirm = true
+            break
+          }
         }
         // 多轮工具循环走满上限仍未收敛（LLM 反复调工具不自收敛）→ 提示用户，避免"停住但无说明"
         if (round === MAX_TOOL_ROUNDS && assistant.tool_calls && assistant.tool_calls.length > 0) {
@@ -767,6 +828,17 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
         setCurrentSnapshot({ messages: messagesRef.current, skills: skillsRef.current, draft: '' })
         // 更新 workflow 终态（completed/failed/stopped）；清除 pending（任务已有结果，不再需要刷新恢复）
         const wfStatus = !ok ? (aborted ? 'stopped' : 'failed') : 'completed'
+        // 【三阶段门禁】展示策划后暂停：workflow 置 awaiting_confirm，状态机同步，等待用户确认按钮。
+        // 不清空 pending（用户确认后 send('已确认，请按策划执行') 会重建），也不再自动执行 steer 队列。
+        if (pausedForConfirm) {
+          patchCurrentWorkflow({ status: 'awaiting_confirm', updatedAt: Date.now() })
+          try { captureActiveConversation() } catch { /* 忽略 */ }
+          stateMachineRef.current.setStatus('awaiting_confirm')
+          setSending(false)
+          sendingRef.current = false
+          abortRef.current = null
+          return
+        }
         patchCurrentWorkflow({ status: wfStatus, updatedAt: Date.now() })
         setCurrentPending(null)
         try { captureActiveConversation() } catch { /* 落盘失败忽略 */ }
@@ -784,7 +856,7 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
       }
     },
     // 依赖：roundTrip 闭包了 model/provider/toolSchemas；sendRef 用于 steer 续跑（下方 useRef 保持最新）
-    [sending, model, roundTrip, callTool, runToolCalls, appendMsg, setHistory, updateLastStreaming, endStreaming, stripStreaming, agentKey, provider]
+    [sending, model, roundTrip, callTool, runToolCalls, appendMsg, setHistory, updateLastStreaming, endStreaming, stripStreaming, agentKey, provider, isAgentBusy]
   )
 
   /** 保存 send 引用，供 finally 里自动处理 steer 队列（useCallback 无法自调用） */
@@ -801,7 +873,7 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
     async (text, attachments = []) => {
       const prompt = String(text || '').trim()
       if (!prompt && (!attachments || attachments.length === 0)) return
-      if (sendingRef.current) return
+      if (isAgentBusy()) return // 复合忙判定（发送锁 + 状态机 running），防并发双发
       if (!prompt) { setError('图像模式请输入最终生图提示词'); return }
       sendingRef.current = true
       setSending(true)
@@ -865,7 +937,7 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
         sendingRef.current = false
       }
     },
-    [callTool, provider, appendMsg, setHistory]
+    [callTool, provider, appendMsg, setHistory, isAgentBusy]
   )
 
   /** 停止（复刻官方 stop）：状态机置 stopping，中止当前请求 */
