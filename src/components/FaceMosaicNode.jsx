@@ -3,7 +3,6 @@ import { useReactFlow } from '@xyflow/react'
 import { Upload, ScanFace, Loader2, AlertCircle, Image as ImageIcon, Wand2, Shuffle } from 'lucide-react'
 import NodeShell from './base/NodeShell.jsx'
 import HoverToolbar from './base/HoverToolbar.jsx'
-import FullscreenModal from './base/FullscreenModal.jsx'
 import { useConnectedInputs } from './base/useConnectedInputs.js'
 import { useMediaDegrade } from './base/useMediaDegrade.js'
 import { uploadFileToLocal, toAbsoluteFileUrl } from './base/filesApi.js'
@@ -50,7 +49,7 @@ export default function FaceMosaicNode({ id, data, selected }) {
   const [errorMessage, setErrorMessage] = useState(data.errorMessage || '')
   const [resultInfo, setResultInfo] = useState(data.resultInfo || null)
   const [resultUrls, setResultUrls] = useState(data.resultUrls || [])
-  const [zoomUrl, setZoomUrl] = useState(null) // 放大查看
+  const zoomRef = useRef(null) // 原生 <dialog> 查看大图
 
   // 写回模式/参数（复刻官方 useEffect r(e,{mode,strength,color})）
   useEffect(() => {
@@ -259,8 +258,8 @@ export default function FaceMosaicNode({ id, data, selected }) {
           <div className="nodrag nowheel mt-1 mb-2 grid grid-cols-2 gap-1.5 max-h-[140px] overflow-y-auto pr-1 custom-scrollbar">
             {resultUrls.map((u, i) => (
               <div key={i} className="relative aspect-video bg-surface-black rounded-md overflow-hidden border border-edge group">
-                <img src={toAbsoluteFileUrl(u)} alt={`result-${i}`} className="w-full h-full object-cover" loading="lazy" decoding="async" onClick={() => setZoomUrl(u)} />
-                <div className="absolute top-1 right-1 p-1 bg-black/60 text-gray-300 rounded opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => setZoomUrl(u)}>
+                <img src={toAbsoluteFileUrl(u)} alt={`result-${i}`} className="w-full h-full object-cover" loading="lazy" decoding="async" onDoubleClick={(e) => { e.stopPropagation(); zoomRef.current?.showModal() }} />
+                <div className="absolute top-1 right-1 p-1 bg-black/60 text-gray-300 rounded opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => zoomRef.current?.showModal()}>
                   <ImageIcon size={12} />
                 </div>
               </div>
@@ -312,12 +311,20 @@ export default function FaceMosaicNode({ id, data, selected }) {
         />
       )}
 
-      {/* 放大查看 */}
-      <FullscreenModal open={!!zoomUrl} title="查看大图" onClose={() => setZoomUrl(null)}>
-        <div className="w-full h-full flex items-center justify-center bg-canvas">
-          <img src={toAbsoluteFileUrl(zoomUrl)} alt="大图" className="max-w-full max-h-full object-contain" draggable={false} />
-        </div>
-      </FullscreenModal>
+      {/* 放大查看（原生 <dialog>，双击或点图标打开，点图/Esc 关闭，无外框） */}
+      <dialog
+        ref={zoomRef}
+        onClick={(e) => { if (e.target === e.currentTarget) e.currentTarget.close() }}
+        className="m-0 w-screen h-screen max-w-none max-h-none bg-black/85 border-0 p-0 backdrop:bg-black/85"
+      >
+        <img
+          src={toAbsoluteFileUrl(resultUrls[0])}
+          alt="大图"
+          onClick={(e) => e.currentTarget.closest('dialog')?.close()}
+          className="w-full h-full object-contain cursor-zoom-out"
+          draggable={false}
+        />
+      </dialog>
     </NodeShell>
   )
 }

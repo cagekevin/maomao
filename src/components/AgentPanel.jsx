@@ -37,13 +37,6 @@ const DEFAULT_MODELS = [
   'Qwen/Qwen3-14B'
 ]
 
-// 内置视觉模型集合（发送图片前校验；env 可追加 VITE_AGENT_VISION_MODELS，逗号分隔）
-const VISION_MODELS = (() => {
-  const env = import.meta.env?.VITE_AGENT_VISION_MODELS || ''
-  const base = ['gpt-4o', 'gpt-4o-vision-preview', 'gpt-4-vision-preview', 'Qwen/Qwen3-14B']
-  return env ? Array.from(new Set([...base, ...env.split(',').map((s) => s.trim()).filter(Boolean)])) : base
-})()
-
 // env 覆盖模型列表
 const AGENT_MODELS = (() => {
   const env = import.meta.env?.VITE_AGENT_MODELS || ''
@@ -238,8 +231,6 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
   const scrollRef = useRef(null)
   const textareaRef = useRef(null)
 
-  const isVision = useMemo(() => VISION_MODELS.includes(model), [model])
-
   useEffect(() => {
     try { sSet(PANEL_WIDTH_KEY, String(width)) } catch { /* ignore */ }
   }, [width])
@@ -304,11 +295,8 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
       Promise.resolve(sendImageMode(text, attach)).catch((e) => console.error('[Agent] 图像模式 send 失败:', e))
       return
     }
-    if (allImages.length > 0 && !isVision) {
-      const fallback = VISION_MODELS[0]
-      alert(`当前模型 ${model} 不支持视觉，请切换到 ${fallback} 等视觉模型后再发送`)
-      return
-    }
+    // 【移除视觉模型硬编码拦截】「模型是否支持视觉」无法靠名单判断（机器/AI 都不确定，
+    // 只有实际测试才知道），且拦截会阻止带图发送。这里直接放行，有图就带上一起发。
     const attach = allImages.length > 0 ? allImages.map(({ url, nodeId, label, x, y }) => ({ type: 'image', url, nodeId, label, x: x || 0, y: y || 0 })) : undefined
     setAttachments([])
     setPendingImageNodes([])

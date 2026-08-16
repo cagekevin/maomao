@@ -18,6 +18,7 @@ export default function AgentChatSettings() {
   const saved = loadAgentChatModel()
   const [providerId, setProviderId] = React.useState(saved?.providerId || '')
   const [modelId, setModelId] = React.useState(saved?.modelId || '')
+  const [streamMode, setStreamMode] = React.useState(saved?.streamMode || 'stream')
 
   React.useEffect(() => {
     if (!providers || providers.length === 0) load().catch(() => {})
@@ -42,7 +43,7 @@ export default function AgentChatSettings() {
     const first = models[0] || ''
     setModelId(first)
     if (pid && first) {
-      saveAgentChatModel({ providerId: pid, modelId: first })
+      saveAgentChatModel({ providerId: pid, modelId: first, streamMode })
       showToast(`AI 聊天模型已设为 ${first}`, { type: 'success' })
     }
   }
@@ -50,9 +51,15 @@ export default function AgentChatSettings() {
   const handleModelChange = (mid) => {
     setModelId(mid)
     if (providerId && mid) {
-      saveAgentChatModel({ providerId, modelId: mid })
+      saveAgentChatModel({ providerId, modelId: mid, streamMode })
       showToast(`AI 聊天模型已设为 ${mid}`, { type: 'success' })
     }
+  }
+
+  const handleStreamModeChange = (mode) => {
+    setStreamMode(mode)
+    saveAgentChatModel({ providerId, modelId, streamMode: mode })
+    showToast(mode === 'non-stream' ? '已设为非流式（不支持工具调用，仅对话）' : '已设为流式', { type: 'success' })
   }
 
   return (
@@ -68,7 +75,7 @@ export default function AgentChatSettings() {
           {chatProviders.length === 0 ? (
             <div className="text-xs text-zinc-500 py-6 text-center border border-dashed border-edge rounded-xl">暂无可用的聊天供应商，请先在「第三方 API 配置」添加并拉取聊天模型</div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-3xl">
               <label className="block">
                 <span className="block text-xs text-zinc-400 mb-1.5">聊天供应商</span>
                 <select value={selectedProvider?.id || ''} onChange={(e) => handleProviderChange(e.target.value)} className={selectCls}>
@@ -96,6 +103,14 @@ export default function AgentChatSettings() {
                   ) : modelOptions.map((m) => (
                     <option key={m} value={m}>{m}</option>
                   ))}
+                </select>
+              </label>
+
+              <label className="block">
+                <span className="block text-xs text-zinc-400 mb-1.5">响应方式</span>
+                <select value={streamMode} onChange={(e) => handleStreamModeChange(e.target.value)} className={selectCls}>
+                  <option value="stream">流式（推荐，支持工具调用）</option>
+                  <option value="non-stream">非流式（仅对话，不支持工具）</option>
                 </select>
               </label>
             </div>

@@ -6,7 +6,6 @@ import {
 import { useReactFlow } from '@xyflow/react'
 import NodeShell from './base/NodeShell.jsx'
 import HoverToolbar from './base/HoverToolbar.jsx'
-import FullscreenModal from './base/FullscreenModal.jsx'
 import ImageEditor from './base/ImageEditor.jsx'
 import { detectMediaType } from './base/mediaType.js'
 import { useMediaDegrade } from './base/useMediaDegrade.js'
@@ -42,8 +41,8 @@ export default function ImageNode({ id, data, selected }) {
   // 视频播放态（复刻官方 xi.jsx `s`）：false=显示海报+播放按钮，true=渲染 <video controls autoPlay>
   const [playing, setPlaying] = useState(false)
 
-  // 查看大图弹窗（复刻官方 xi.jsx onDoubleClick → onZoom 看大图）。图片双击打开全屏查看。
-  const [zoomView, setZoomView] = useState(false)
+  // 查看大图：原生 <dialog> 弹层（双击图片 → showModal，点图/Esc 关闭，无外框/标题栏）。
+  const dialogRef = useRef(null)
 
   // 内容类型：优先显式 data.mediaType（blob: 等无扩展名/前缀的 URL 无法靠字符串判断，
   // 由产出方明确标注，如视频处理节点的 audio/video 输出），否则统一走 detectMediaType
@@ -230,7 +229,7 @@ export default function ImageNode({ id, data, selected }) {
           {type === 'image' && !hideMedia.includes('image') && displayUrl && (
             <img src={displayUrl} alt="Content" loading="lazy" decoding="async"
               onLoad={fitFromImage}
-              onDoubleClick={(e) => { e.stopPropagation(); setZoomView(true) }}
+              onDoubleClick={(e) => { e.stopPropagation(); dialogRef.current?.showModal() }}
               className="w-full h-full object-contain cursor-pointer rounded-lg" draggable={false} />
           )}
           {/* 视频（复刻官方 xi.jsx：未播放显示海报+播放按钮，点击播放 → <video controls autoPlay>）
@@ -322,12 +321,20 @@ export default function ImageNode({ id, data, selected }) {
       />
     )}
 
-    {/* 查看大图（复刻官方 onDoubleClick → onZoom 全屏看大图） */}
-    <FullscreenModal open={zoomView} title="查看大图" onClose={() => setZoomView(false)}>
-      <div className="w-full h-full flex items-center justify-center bg-canvas">
-        <img src={displayUrl} alt="大图" className="max-w-full max-h-full object-contain" draggable={false} />
-      </div>
-    </FullscreenModal>
+    {/* 查看大图：原生 <dialog>，仅一张图片铺满，点图或 Esc 关闭，无任何外框/标题栏 */}
+    <dialog
+      ref={dialogRef}
+      onClick={(e) => { if (e.target === e.currentTarget) e.currentTarget.close() }}
+      className="m-0 w-screen h-screen max-w-none max-h-none bg-black/85 border-0 p-0 backdrop:bg-black/85"
+    >
+      <img
+        src={displayUrl}
+        alt="大图"
+        onClick={(e) => e.currentTarget.closest('dialog')?.close()}
+        className="w-full h-full object-contain cursor-zoom-out"
+        draggable={false}
+      />
+    </dialog>
     </>
   )
 }

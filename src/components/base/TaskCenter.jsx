@@ -1,9 +1,10 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useRef } from 'react'
 import { Search, Filter, MoreVertical, Copy, Play, RotateCw, Trash2, X, RefreshCw, ChevronDown, Download, Image as ImageIcon } from 'lucide-react'
 import { useTasks, statusDotClass, statusLabel, typeLabel, removeTask, retryTask, clearTasksBy, clearAllTasks } from './taskStore.js'
 import { pollOneTask } from './pollTask.js'
 import { showToast } from './toastStore.js'
 import { makeAssetDragProps } from './useAssetDragToCanvas.js'
+import { useOutsideClick } from './hooks.js'
 
 const TYPE_ICON = {
   image: ImageIcon,
@@ -42,6 +43,8 @@ export default function TaskCenter() {
   const [typeFilter, setTypeFilter] = useState('')
   const [moreOpenId, setMoreOpenId] = useState(null)
   const [cleanOpen, setCleanOpen] = useState(false)
+  const cleanRef = useRef(null) // 顶部「清理」下拉容器 ref，点击外部自动关闭
+  useOutsideClick(cleanRef, cleanOpen, () => setCleanOpen(false))
   // 大图预览（点击缩略图打开，右下角显示像素；官方 Ln.jsx 同款交互）
   const [previewUrl, setPreviewUrl] = useState(null)
   const [previewDims, setPreviewDims] = useState(null) // { w, h }
@@ -60,7 +63,6 @@ export default function TaskCenter() {
 
   const runningCount = tasks.filter((t) => t.status === 'running' || t.status === 'pending').length
   const failedCount = tasks.filter((t) => t.status === 'failed').length
-  const completedCount = tasks.filter((t) => t.status === 'completed').length
 
   const copyPrompt = (t) => {
     try { navigator.clipboard.writeText(t.prompt || ''); showToast('已复制提示词', { type: 'success' }) } catch { /* ignore */ }
@@ -78,15 +80,15 @@ export default function TaskCenter() {
         </button>
         <span className="text-caption-sm text-muted">{runningCount} 生成中 · {failedCount} 失败</span>
         <div className="ml-auto flex items-center gap-1">
-          <button className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-caption-sm text-muted hover:text-white hover:bg-surface-hover-2 transition-colors cursor-pointer border-none" onClick={() => setCleanOpen((v) => !v)}>
-            <Trash2 size={12} /> 清理 <ChevronDown size={11} />
+          {/* 三个点（⋮）下拉：只保留「清理失败任务(红) + 清理全部任务(白)」 */}
+          <button className="flex items-center justify-center w-8 h-8 rounded-lg text-muted hover:text-white hover:bg-surface-hover-2 transition-colors cursor-pointer border-none" onClick={() => setCleanOpen((v) => !v)} title="清理任务">
+            <MoreVertical size={15} />
           </button>
-          <div className="relative">
+          <div ref={cleanRef} className="relative">
             {cleanOpen && (
               <div className="absolute right-0 top-full mt-1 bg-surface-1 border border-edge rounded-lg shadow-xl p-1 z-20 w-44 nowheel nopan nodrag">
-                <CleanItem label={`清理失败任务 (${failedCount})`} onClick={() => { clearTasksBy((t) => t.status === 'failed'); setCleanOpen(false) }} />
-                <CleanItem label={`清理已完成任务 (${completedCount})`} onClick={() => { clearTasksBy((t) => t.status === 'completed'); setCleanOpen(false) }} />
-                <CleanItem label={`清空全部任务 (${tasks.length})`} onClick={() => { clearAllTasks(); setCleanOpen(false) }} danger />
+                <CleanItem label={`清理失败任务 (${failedCount})`} onClick={() => { clearTasksBy((t) => t.status === 'failed'); setCleanOpen(false) }} danger />
+                <CleanItem label={`清理全部任务 (${tasks.length})`} onClick={() => { clearAllTasks(); setCleanOpen(false) }} />
               </div>
             )}
           </div>
@@ -128,6 +130,7 @@ export default function TaskCenter() {
                 task={t}
                 moreOpen={moreOpenId === t.id}
                 onToggleMore={() => setMoreOpenId(moreOpenId === t.id ? null : t.id)}
+                onCloseMore={() => setMoreOpenId(null)}
                 onCopy={() => copyPrompt(t)}
                 onRetry={() => {
                   const ok = retryTask(t.id)
@@ -185,8 +188,10 @@ function CleanItem({ label, onClick, danger }) {
 }
 
 // 单条任务卡片（对齐官方 jn.jsx）
-function TaskCard({ task, moreOpen, onToggleMore, onCopy, onRetry, onRemove, onPreview }) {
+function TaskCard({ task, moreOpen, onToggleMore, onCloseMore, onCopy, onRetry, onRemove, onPreview }) {
   const [showData, setShowData] = useState(false)
+  const menuRef = useRef(null) // 任务卡片「⋮」更多菜单容器 ref，点击外部自动关闭
+  useOutsideClick(menuRef, moreOpen, () => onCloseMore?.())
   // 缩略图像素尺寸（缩略图 onLoad 读取 naturalWidth/Height，右下角显示，无需打开大图）
   const [thumbDims, setThumbDims] = useState(null)
   const TypeIcon = TYPE_ICON[task.type] || ImageIcon
@@ -247,7 +252,7 @@ function TaskCard({ task, moreOpen, onToggleMore, onCopy, onRetry, onRemove, onP
               <RotateCw size={12} />
             </button>
           )}
-          <div className="relative">
+          <div ref={menuRef} className="relative">
             <button className="w-6 h-6 flex items-center justify-center rounded-md text-muted hover:text-white hover:bg-surface-hover-2 transition-colors cursor-pointer border-none" onClick={onToggleMore}>
               <MoreVertical size={13} />
             </button>

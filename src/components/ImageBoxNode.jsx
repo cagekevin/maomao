@@ -7,7 +7,6 @@ import {
 import { useReactFlow } from '@xyflow/react'
 import NodeShell from './base/NodeShell.jsx'
 import CustomHandle from './CustomHandle.jsx'
-import FullscreenModal from './base/FullscreenModal.jsx'
 import { useConnectedInputs } from './base/useConnectedInputs.js'
 import { useMediaDegrade } from './base/useMediaDegrade.js'
 import LazyImage from './base/LazyImage.jsx'
@@ -46,8 +45,15 @@ export default function ImageBoxNode({ id, data, selected }) {
   const [menuPos, setMenuPos] = useState(null)
   const [dragFrom, setDragFrom] = useState(null)
   const [dragTo, setDragTo] = useState(null)
-  // 放大查看大图（官方 onZoom）
-  const [zoomView, setZoomView] = useState(null) // 当前放大的图片 url
+  // 放大查看大图（原生 <dialog>）：zoomUrl 存当前图，openZoom 打开弹层
+  const [zoomUrl, setZoomUrl] = useState(null)
+  const zoomRef = useRef(null)
+  const openZoom = useCallback((url) => {
+    if (!url) return
+    setZoomUrl(url)
+    // 等 state 提交后再 showModal，确保 img src 已更新
+    requestAnimationFrame(() => zoomRef.current?.showModal())
+  }, [])
 
   // ---- 从 data 读状态（与官方 Rg.jsx 一致，不复制到本地 state，避免失控）----
   const images = data.images || []
@@ -442,7 +448,7 @@ export default function ImageBoxNode({ id, data, selected }) {
           {!expanded && current && (
             <>
               <div className="w-px h-4 bg-surface-hover-strong mx-1" />
-              <button className="p-1.5 text-gray-400 hover:text-white hover:bg-surface-hover-strong rounded-md cursor-pointer border-none" title="放大" onClick={(e) => { e.stopPropagation(); if (current) setZoomView(current.url) }}>
+              <button className="p-1.5 text-gray-400 hover:text-white hover:bg-surface-hover-strong rounded-md cursor-pointer border-none" title="放大" onClick={(e) => { e.stopPropagation(); openZoom(current.url) }}>
                 <ZoomIn size={14} />
               </button>
               <button className="p-1.5 text-gray-400 hover:text-white hover:bg-surface-hover-strong rounded-md cursor-pointer border-none" title="复制当前图片到剪贴板" onClick={(e) => { e.stopPropagation(); if (current) copyImage(current.url) }}>
@@ -488,7 +494,7 @@ export default function ImageBoxNode({ id, data, selected }) {
                   draggable={false}
                   loading="lazy"
                   decoding="async"
-                  onDoubleClick={(e) => { e.stopPropagation(); setZoomView(current.url) }}
+                  onDoubleClick={(e) => { e.stopPropagation(); openZoom(current.url) }}
                 />
               )}
               {images.length > 1 && (
@@ -555,7 +561,7 @@ export default function ImageBoxNode({ id, data, selected }) {
                       }}
                       onDoubleClick={(e) => {
                         e.stopPropagation()
-                        setZoomView(img.url)
+                        openZoom(img.url)
                       }}
                       title={img.label || (isSel ? '点击取消选择' : '点击选择 (按住 Ctrl 设为默认图)')}
                     >
@@ -643,7 +649,7 @@ export default function ImageBoxNode({ id, data, selected }) {
                   <Download size={11} className="text-gray-400" />
                   <span>下载</span>
                 </button>
-                <button className="w-full text-left px-2 py-1.5 text-caption-sm text-gray-300 hover:bg-surface-hover-strong hover:text-white rounded flex items-center gap-2 cursor-pointer" onClick={() => { setZoomView(img.url); close() }}>
+                <button className="w-full text-left px-2 py-1.5 text-caption-sm text-gray-300 hover:bg-surface-hover-strong hover:text-white rounded flex items-center gap-2 cursor-pointer" onClick={() => { openZoom(img.url); close() }}>
                   <ZoomIn size={11} className="text-gray-400" />
                   <span>放大查看</span>
                 </button>
@@ -666,12 +672,22 @@ export default function ImageBoxNode({ id, data, selected }) {
       )
     )}
 
-    {/* 放大查看大图 */}
-    <FullscreenModal open={!!zoomView} title="查看大图" onClose={() => setZoomView(null)}>
-      <div className="w-full h-full flex items-center justify-center bg-canvas">
-        {zoomView && <img src={toAbsoluteFileUrl(zoomView)} alt="大图" className="max-w-full max-h-full object-contain" draggable={false} />}
-      </div>
-    </FullscreenModal>
+    {/* 放大查看大图（原生 <dialog>，双击/点放大/菜单放大打开，点图/Esc 关闭，无外框） */}
+    <dialog
+      ref={zoomRef}
+      onClick={(e) => { if (e.target === e.currentTarget) e.currentTarget.close() }}
+      className="m-0 w-screen h-screen max-w-none max-h-none bg-black/85 border-0 p-0 backdrop:bg-black/85"
+    >
+      {zoomUrl && (
+        <img
+          src={toAbsoluteFileUrl(zoomUrl)}
+          alt="大图"
+          onClick={(e) => e.currentTarget.closest('dialog')?.close()}
+          className="w-full h-full object-contain cursor-zoom-out"
+          draggable={false}
+        />
+      )}
+    </dialog>
     </>
   )
 }

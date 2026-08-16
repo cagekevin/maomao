@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useCanvasAgentTools, getGenParams, setCurrentReferenceImages } from './useCanvasAgentTools.js'
 import { sGet } from './storageAdapter.js'
+import { loadAgentChatModel } from './settings/agentModelStore.js'
+import { logger } from './logger.js'
 import { API_BASE } from './apiBase.js'
 import { normalizeImageUrlForSend } from './imageUrl.js'
 import { InputStateMachine } from './inputStateMachine.js'
@@ -597,23 +599,37 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
   // 组装端点：默认走 localTool /api/agent/{agentKey}/chat；env 可覆盖
   const endpoint = CHAT_BASE_URL || `${API_BASE}/api/agent/${encodeURIComponent(agentKey)}/chat`
 
-  /** 单次 SSE 请求，返回 { role:'assistant', content, reasoning?, tool_calls? }（复刻官方 dr:2579-2778 的 v） */
+  /** 单次 SSE 请求，返回 { role:'assistant', content, reasoning?, tool_calls? }（复刻官方 dr:2579-2778 的 v）。
+   *  支持流式（stream:true + SSE）与非流式（stream:false + 普通 JSON）两种模型：
+   *  - 流式（默认）：传 tools（function calling），SSE 逐块解析。
+   *  - 非流式：AI 助手设置里标注「非流式」时走这里——模型不支持工具调用，
+   *    故不传 tools，按普通 JSON 响应解析（choices[0].message.content），仅纯对话。 */
   const roundTrip = useCallback(
     async (requestMessages, signal, onStream) => {
+      // 读取 AI 助手聊天模型配置：判断是否非流式（non-stream 模型不支持工具，仅对话）
+      const streamMode = loadAgentChatModel()?.streamMode || 'stream'
+      const isNonStream = streamMode === 'non-stream'
+
+      // 非流式：不传 tools/tool_choice（模型不支持，传了也没用）；stream 置 false。
       const llmBody = {
         model,
         messages: requestMessages,
-        tools: toolSchemas,
-        tool_choice: 'auto',
-        stream: true,
-        temperature: 0.6
+        stream: !isNonStream,
+        temperature: 0.6,
+        ...(isNonStream
+          ? {}
+          : { tools: toolSchemas, tool_choice: 'auto' })
       }
       // 是否走「多 provider /api/proxy 转发」：provider 存在时（如魔搭，支持 function calling）
       const useProxy = !!provider
+      // 非流式响应是普通 JSON，Accept 无需 text/event-stream
+      const accept = isNonStream ? 'application/json' : 'text/event-stream'
+      // 【链路日志】请求到网关：走 proxy 还是直接 /api/agent，模型、流式模式、消息数、是否带工具
+      logger.info('AI助手', '请求', { via: useProxy ? 'proxy' : 'agent', provider: provider?.id || '', model, stream: !isNonStream, msgCount: requestMessages.length, tools: isNonStream ? 0 : (toolSchemas || []).length })
       const res = useProxy
         ? await fetch(`${API_BASE}/api/proxy`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
+            headers: { 'Content-Type': 'application/json', Accept: accept },
             body: JSON.stringify({
               url: (provider?.protocol === 'openai' ? 'openai://chat/completions' : (provider?.base_url || '').replace(/\/$/, '') + '/v1/chat/completions'),
               providerId: provider?.id,
@@ -626,15 +642,31 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              Accept: 'text/event-stream',
+              Accept: accept,
               ...(CHAT_API_KEY ? { Authorization: `Bearer ${CHAT_API_KEY}` } : {})
             },
             body: JSON.stringify(llmBody),
             signal
           })
       if (!res.ok) {
+        // 【链路日志】请求失败：状态码
+        logger.error('AI助手', '请求失败', { status: res.status, via: useProxy ? 'proxy' : 'agent', model })
         throw new Error(await parseAgentError(res, useProxy ? '代理转发失败' : '调用失败'))
       }
+      // 【链路日志】到网关成功拿到响应头（HTTP 状态）
+      logger.info('AI助手', '响应', { status: res.status, via: useProxy ? 'proxy' : 'agent', stream: !isNonStream })
+
+      // ── 非流式：普通 JSON 响应，直接解析 choices[0].message ──
+      if (isNonStream) {
+        const json = await res.json().catch(() => ({}))
+        const msg = json?.choices?.[0]?.message || {}
+        const assistant = { role: 'assistant', content: String(msg.content || ''), model, createdAt: Date.now() }
+        onStream?.({ content: assistant.content, reasoning: '', toolCalls: [] })
+        logger.info('AI助手', '非流式结果', { contentLen: assistant.content.length })
+        return assistant
+      }
+
+      // ── 流式：SSE 逐块解析 ──
       const reader = res.body.getReader()
       const decoder = new TextDecoder('utf-8')
       let buffer = ''
@@ -686,6 +718,8 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
       // 改为：filter 后非空才设，空则完全不设，杜绝空数组。
       const realCalls = acc.toolCalls.filter((t) => t.function?.name)
       if (realCalls.length > 0) assistant.tool_calls = realCalls
+      // 【链路日志】流式响应完成：内容长度 + 触发的工具调用
+      logger.info('AI助手', '流式结果', { contentLen: assistant.content.length, toolCallCount: realCalls.length, toolNames: realCalls.map((t) => t.function?.name) })
       return assistant
     },
     [endpoint, model, toolSchemas, provider]
@@ -704,6 +738,9 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
         try { args = JSON.parse(tc.function.arguments) } catch (e) { console.warn('[Agent] 工具参数 JSON.parse 失败:', tc.function?.name, tc.function?.arguments, e) }
       }
       const result = await callTool(tc.function?.name, args)
+      // 【链路日志】工具执行结果：工具名 + 成功/失败（失败带 error），供排查 AI 调工具环节
+      if (result?.ok) logger.info('AI助手', '工具', { name: tc.function?.name, ok: true })
+      else logger.error('AI助手', '工具失败', { name: tc.function?.name, error: result?.error || '' })
       appendMsg({
         role: 'tool',
         // 失败时也携带 result.nodeId（若工具失败返回了），供对话侧「重试此步骤」定位节点（对齐大雄）
@@ -825,6 +862,9 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
       }
       setHistory([...messagesRef.current, userMsg])
       setSending(true)
+
+      // 【链路日志】AI 助手发送：内容摘要 + 附件（图片）数，供排查发送环节
+      logger.info('AI助手', '发送', { text: String(text).slice(0, 80), attachCount: (userMsg.attachments || []).length, skillCount: (userMsg.skills || []).length })
 
       const controller = new AbortController()
       abortRef.current = controller
@@ -957,6 +997,8 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
 
       // 参考图 url（供图生图）
       const referenceImages = (userMsg.attachments || []).map((a) => a.url).filter(Boolean)
+      // 【链路日志】图像模式发送：提示词摘要 + 参考图数（供排查图生图链路）
+      logger.info('AI助手', '图像发送', { prompt: prompt.slice(0, 80), refImageCount: referenceImages.length })
       const panel = getGenParams()
       // 【TASK-008】多参考图「分别改图」拆分（对齐大雄）：命中「分别/各自/每张/都改成…」语义时，
       // 拆成 N 个独立 generation（每步 attachment_indices:[i] 只挂自己那张），否则整批塞单 generation。

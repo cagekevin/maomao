@@ -1,4 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react'
+
 import { Grid3X3, PanelsTopLeft, Layers, Loader2 } from 'lucide-react'
 import { useReactFlow } from '@xyflow/react'
 import NodeShell from './base/NodeShell.jsx'
@@ -88,6 +89,14 @@ export default function GridMergeNode({ id, data, selected }) {
   const { isHidden } = useMediaDegrade()
   const { onMainBoxResize } = useNodeResize(id)
   const contentRef = useRef(null)
+  // 双击预览图查看大图（原生 <dialog>）
+  const [zoomUrl, setZoomUrl] = useState(null)
+  const zoomRef = useRef(null)
+  const openZoom = useCallback((url) => {
+    if (!url) return
+    setZoomUrl(url)
+    requestAnimationFrame(() => zoomRef.current?.showModal())
+  }, [])
 
   // ---- 状态（复刻 Yo.jsx 1-52 行）----
   const gridSize = typeof data.gridSize === 'number' ? data.gridSize : undefined
@@ -382,6 +391,7 @@ export default function GridMergeNode({ id, data, selected }) {
   )
 
   return (
+    <>
     <NodeShell
       id={id}
       label={data.label}
@@ -407,6 +417,7 @@ export default function GridMergeNode({ id, data, selected }) {
           <div
             className="bg-canvas rounded border border-edge flex items-center justify-center relative overflow-hidden nodrag"
             style={{ minHeight: 160, maxHeight: 360 }}
+            onDoubleClick={(e) => { e.stopPropagation(); openZoom(preview) }}
           >
             {preview && <img src={toAbsoluteFileUrl(preview)} alt="Preview" className="max-w-full max-h-[360px] object-contain block pointer-events-none" />}
 
@@ -681,5 +692,23 @@ export default function GridMergeNode({ id, data, selected }) {
 
       <CustomHandle position="right" handleId="batch-output" variant="small" />
     </NodeShell>
+
+    {/* 预览大图（原生 <dialog>，双击预览打开，点图/Esc 关闭，无外框） */}
+    <dialog
+      ref={zoomRef}
+      onClick={(e) => { if (e.target === e.currentTarget) e.currentTarget.close() }}
+      className="m-0 w-screen h-screen max-w-none max-h-none bg-black/85 border-0 p-0 backdrop:bg-black/85"
+    >
+      {zoomUrl && (
+        <img
+          src={toAbsoluteFileUrl(zoomUrl)}
+          alt="大图"
+          onClick={(e) => e.currentTarget.closest('dialog')?.close()}
+          className="w-full h-full object-contain cursor-zoom-out"
+          draggable={false}
+        />
+      )}
+    </dialog>
+    </>
   )
 }

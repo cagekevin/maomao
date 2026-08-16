@@ -83,6 +83,14 @@ export default function PromptNode({ id, data, selected }) {
   React.useEffect(() => { patchData({ expanded }) }, [expanded]) // eslint-disable-line react-hooks/exhaustive-deps
   const fileRef = useRef(null)
   const promptInputRef = useRef(null) // 提示词 textarea ref（供面板右下角手柄拖拽改尺寸）
+  // 双击大图：原生 <dialog> 弹窗（无外框、无背景容器，只显示图片）
+  const zoomRef = useRef(null)
+  const [zoomUrl, setZoomUrl] = useState(null)
+  const openZoom = useCallback((url) => {
+    if (!url) return
+    setZoomUrl(url)
+    requestAnimationFrame(() => zoomRef.current?.showModal())
+  }, [])
 
   // 【刷新不丢·根治】挂载时若 data.imageUrl 为空，从任务中心按 nodeId 拉取已完成任务的持久化 resultUrl 回填。
   // 覆盖两类场景：① 旧代码生成的存量节点（onSuccess 从未写回 data.imageUrl）；② 落盘/写回竞态导致 data 里没存持久 URL。
@@ -284,6 +292,7 @@ export default function PromptNode({ id, data, selected }) {
       <div
         className="relative cursor-pointer group/image w-full flex flex-col flex-1 min-h-0"
         onClick={toggleExpanded}
+        onDoubleClick={(e) => { e.stopPropagation(); openZoom(imageUrl) }}
       >
         <div className={`flex items-center justify-center absolute inset-0 rounded-xl overflow-hidden ${hasImage ? '' : 'bg-canvas'}`}>
           {/* 性能模式媒体降级：缩小时隐藏生图结果（复刻官方"图片已隐藏"） */}
@@ -404,7 +413,7 @@ export default function PromptNode({ id, data, selected }) {
             targetRef=textarea（promptInputRef），onResizeEnd → onInputResize 写回
             node.data.inputWidth/inputHeight，PromptInput 的 textarea 读这个 data 渲染。
             输入框是面板里的部件，不参与端口定位，所以只写 data，不改 node.width/height。 */}
-        <ResizeFullscreenHandle
+          <ResizeFullscreenHandle
           targetRef={promptInputRef}
           minWidth={200}
           maxWidth={900}
@@ -413,6 +422,23 @@ export default function PromptNode({ id, data, selected }) {
           onResizeEnd={onInputResize}
         />
       </ExpandablePanel>
+
+      {/* 双击大图：原生 <dialog> 弹窗，无外框无背景容器，点图/Esc/点空白关闭 */}
+      <dialog
+        ref={zoomRef}
+        onClick={(e) => { if (e.target === e.currentTarget) e.currentTarget.close() }}
+        className="m-0 w-screen h-screen max-w-none max-h-none bg-black/85 border-0 p-0 backdrop:bg-black/85"
+      >
+        {zoomUrl && (
+          <img
+            src={zoomUrl}
+            alt="大图"
+            onClick={(e) => e.currentTarget.closest('dialog')?.close()}
+            className="w-full h-full object-contain cursor-zoom-out"
+            draggable={false}
+          />
+        )}
+      </dialog>
     </NodeShell>
   )
 }
