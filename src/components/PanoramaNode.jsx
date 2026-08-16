@@ -237,9 +237,9 @@ export default function PanoramaNode({ id, data, selected }) {
       titleRight={(
         panoUrl ? (
           <div className="flex items-center gap-2 nodrag">
-            <button onClick={() => setConfigOpen((v) => !v)} className="flex items-center gap-1 text-caption text-gray-400 hover:text-white transition-colors cursor-pointer border-none" title="全景设置">
-              <Settings size={13} />
-              <span className="text-[11px]">{configOpen ? '收起设置' : '全景设置'}</span>
+            <button onClick={() => setConfigOpen((v) => !v)} className="node-btn-settings" title="全景设置">
+              <Settings size={12} />
+              <span>{configOpen ? '收起设置' : '全景设置'}</span>
             </button>
             {configOpen && (
               <select

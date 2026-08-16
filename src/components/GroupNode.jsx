@@ -96,7 +96,7 @@ export default function GroupNode({ id, data, selected }) {
         <button
           type="button"
           onClick={toggleCollapse}
-          className="hover:bg-surface-hover rounded p-0.5 transition-colors cursor-pointer border-none bg-transparent"
+          className="node-btn-settings"
           title="折叠"
         >
           <ChevronsUpDown className="w-4 h-4 text-subtle" />

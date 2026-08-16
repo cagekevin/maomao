@@ -2,6 +2,30 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ============================================================
+ * 全局统一按钮样式（节点复用，改一处全生效）
+ *  - node-btn-primary  生成/主操作按钮，参考图像生成节点 GenerateButton
+ *  - node-btn-settings 右上角设置/模式按钮，参考图像切分 GridSplit
+ * 新建节点直接引用这些类，不要各自手写一套。
+ * ============================================================ */
+@layer components {
+  /* 生成 / 开始 / 运行 / 合成 等主操作按钮（GenerateButton 灰底胶囊 + 白圆） */
+  .node-btn-primary {
+    @apply flex items-center gap-1.5 bg-surface-hover rounded-full border border-edge px-3 py-1 text-caption-sm text-white hover:border-gray-500 transition-colors cursor-pointer disabled:cursor-not-allowed;
+  }
+  .node-btn-primary .node-btn-primary-icon {
+    @apply bg-white text-black w-6 h-6 rounded-full flex items-center justify-center hover:bg-gray-200 transition-colors;
+  }
+
+  /* 右上角设置 / 模式切换按钮（GridSplit 分段按钮基底） */
+  .node-btn-settings {
+    @apply px-1.5 py-0.5 rounded text-caption flex items-center gap-1 border transition-colors cursor-pointer bg-surface-hover border-edge text-gray-200 hover:text-white;
+  }
+  .node-btn-settings.is-active {
+    @apply bg-blue-500/15 border-blue-500/60 text-blue-300;
+  }
+}
+
 /* ===== 全局：输入控件聚焦去蓝框（统一覆盖浏览器默认 focus outline） =====
  * 节点内的 textarea / input / select 聚焦时，浏览器默认会加蓝色 outline（--xy 或原生）。
  * 各节点虽已尽量加 outline-none，但难保全部覆盖；这里在全局统一去掉，

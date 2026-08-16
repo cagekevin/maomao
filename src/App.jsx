@@ -10,7 +10,7 @@ import {
   useEdgesState,
   useReactFlow
 } from '@xyflow/react'
-import { Type, Image as ImageIcon, Clapperboard, Trash2, Copy, Zap, RefreshCw, Folder, FolderOpen, Pin, PinOff, Upload } from 'lucide-react'
+import { Type, Image as ImageIcon, Clapperboard, Trash2, Copy, Zap, RefreshCw, Folder, FolderOpen, Pin, PinOff, Upload, Repeat } from 'lucide-react'
 import CanvasToolbar from './components/base/CanvasToolbar.jsx'
 import ArrangeConfirm from './components/base/ArrangeConfirm.jsx'
 import { useArrangeCanvas } from './components/base/useArrangeCanvas.js'
@@ -18,6 +18,7 @@ import { useAssetDropPaste, useGlobalPaste } from './components/base/useAssetDro
 import { copyImageToClipboard } from './components/base/clipboard.js'
 import TextNode from './components/TextNode.jsx'
 import ImageNode from './components/ImageNode.jsx'
+import LoopNode from './components/LoopNode.jsx'
 import PromptNode from './components/PromptNode.jsx'
 import DiscountVideoNode from './components/DiscountVideoNode.jsx'
 import VideoExtractNode from './components/VideoExtractNode.jsx'
@@ -54,6 +55,7 @@ import { showToast } from './components/base/toastStore.js'
 import { getSetting, setSetting } from './components/base/appSettings.js'
 import { subscribe } from './components/base/eventBus.js'
 import { exportAll, importAll, backupToBlob } from './components/base/backupStore.js'
+import { uploadConfig, downloadConfig } from './components/base/cloudSync.js'
 import { useLocalToolStatus } from './components/base/useLocalToolStatus.js'
 import LocalToolConnectModal from './components/base/LocalToolConnectModal.jsx'
 import EmptyCanvasGuide from './components/base/EmptyCanvasGuide.jsx'
@@ -71,6 +73,7 @@ import { saveInlineToLocal } from './components/base/filesApi.js'
 const nodeTypes = {
   textNode: TextNode,
   imageNode: ImageNode,
+  loopNode: LoopNode,
   promptNode: PromptNode,
   discountVideoNode: DiscountVideoNode,
   videoExtractNode: VideoExtractNode,
@@ -302,6 +305,20 @@ function Canvas() {
     history.clear?.()
     logger.info('项目', 'create', { name: getCurrentProject().name })
   }, [setNodes, setEdges, history, persistCanvas])
+
+  // 【推送到云端】收集本地全量配置/用户数据通过 CloudSyncEngine 推送（不含画布）。
+  const handlePushToCloud = useCallback(async () => {
+    return uploadConfig((msg) => showToast(msg, { type: 'info' }))
+  }, [])
+
+  // 【从云端拉取】CloudSyncEngine.pull → 覆盖恢复配置/用户数据，延迟刷新让各 store 重新加载生效。
+  const handlePullFromCloud = useCallback(async () => {
+    const r = await downloadConfig((msg) => showToast(msg, { type: 'info' }))
+    if (r.ok) {
+      setTimeout(() => window.location.reload(), 1200)
+    }
+    return r
+  }, [])
 
   // 完整导入/导出（对齐官方 yimao 工作流备份）：承接 project:import / project:export 事件。
   // 导出：exportAll 打包 → 下载 JSON；导入：选 .json → importAll 写回 → 刷新应用。
@@ -830,6 +847,7 @@ function Canvas() {
     return [
       { key: 'text', icon: <Type size={16} className="text-green-500" />, label: '文本', shortcut: 'Q', onClick: () => addNodeFromMenu('textNode') },
       { key: 'image', icon: <ImageIcon size={16} className="text-blue-400" />, label: '图片', shortcut: 'W', onClick: () => addNodeFromMenu('promptNode') },
+      { key: 'loop', icon: <Repeat size={16} className="text-fuchsia-400" />, label: '循环', onClick: () => addNodeFromMenu('loopNode') },
       { key: 'video', icon: <Clapperboard size={16} className="text-yellow-500" />, label: '视频', shortcut: 'E', onClick: () => addNodeFromMenu('discountVideoNode') },
       { key: 'scriptBox', icon: <Clapperboard size={16} className="text-fuchsia-300" />, label: '剧本盒子', badge: { text: 'Beta', tone: 'new' }, onClick: () => addNodeFromMenu('scriptBoxNode') },
       { type: 'divider' },
@@ -1282,6 +1300,8 @@ function Canvas() {
           onNavigate={setView}
           onSwitchProject={handleSwitchProject}
           onCreateProject={handleCreateProject}
+          onPushToCloud={handlePushToCloud}
+          onPullFromCloud={handlePullFromCloud}
           agentOpen={agentOpen}
           onToggleAgent={() => {
             // 在非画布视图（设置/多开）点 AI 助手按钮：AgentPanel 只在 canvas 视图渲染，

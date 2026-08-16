@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
-import { Clapperboard, Copy, Download, Settings, Camera, AlertCircle, Upload, Loader2 } from 'lucide-react'
+import { Clapperboard, Copy, Download, Settings, Camera, AlertCircle, Upload, Loader2, ArrowUp } from 'lucide-react'
 import { Handle, Position, NodeResizer } from '@xyflow/react'
 import NodeTitle from './NodeTitle.jsx'
 import { useConnectedInputs } from './base/useConnectedInputs.js'
@@ -572,11 +572,13 @@ export default function VideoExtractNode({ id, data, selected }) {
               </button>
               {mode !== 'manual' && (
                 <button
-                  className={`px-5 py-2 rounded-full text-xs font-medium flex items-center gap-2 transition-all cursor-pointer border-none ${!videoUrl || loading ? 'bg-surface-hover text-gray-500 cursor-not-allowed' : 'bg-white text-black hover:bg-gray-200 shadow-md'}`}
+                  className={`node-btn-primary px-4 py-1.5 ${!videoUrl || loading ? 'opacity-50 cursor-not-allowed' : ''}`}
                   onClick={(e) => { e.stopPropagation(); if (videoUrl && !loading) startExtract(); else if (!videoUrl) showToast('请先上传或连接视频') }}
                 >
-                  {loading ? '正在处理...' : '开始处理'}
-                  <Camera size={14} />
+                  <span>{loading ? '正在处理...' : '开始处理'}</span>
+                  <span className="node-btn-primary-icon">
+                    <ArrowUp size={14} strokeWidth={3} />
+                  </span>
                 </button>
               )}
             </div>

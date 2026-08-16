@@ -1,7 +1,6 @@
 import React from 'react'
 import ProjectSelector from './ProjectSelector.jsx'
 import { showToast } from './toastStore.js'
-import { uploadConfig, downloadConfig } from './cloudSync.js'
 
 /**
  * 顶部导航栏（复刻官方 Vr.jsx L3281 `Component806`，h-16）。
@@ -24,28 +23,33 @@ const AVATAR_URL = '/user-avatar.jpg'
 // 头像加载失败兜底（复刻官方占位习惯）
 const AVATAR_FALLBACK = 'https://api.dicebear.com/9.x/thumbs/svg?seed=maomao'
 
-export default function TopNav({ view, onNavigate, onSwitchProject, onCreateProject, agentOpen, onToggleAgent }) {
+export default function TopNav({ view, onNavigate, onSwitchProject, onCreateProject, agentOpen, onToggleAgent, onPushToCloud, onPullFromCloud }) {
   const tabs = [
     { key: 'canvas', label: '画布' },
     { key: 'accounts', label: '多开' },
   ]
 
-  // 云端配置同步：点按钮即同步（当前用 cloudSync 模拟 localStorage 载体，流程跑通后对接真实云端）。
-  // 同步内容：API 配置（providers）+ 预设提示词 + 项目（用户确认，其他不同步）。
-  // 载体隔离在 cloudSync.js：将来接真实云端只改 uploadConfig/downloadConfig 两个函数。
-  const handleCloudUpload = async () => {
-    const r = await uploadConfig()
-    if (!r.ok) showToast(r.error || '同步失败', { type: 'info' })
-    else showToast(`【配置】已同步到云端（${r.count} 项）`, { type: 'success' })
+  // 【推送到云端】核心业务数据（当前画布 nodes/edges + 配置）→ CloudSyncEngine.push
+  const handlePushToCloud = async () => {
+    if (!onPushToCloud) { showToast('推送功能未接入', { type: 'info' }); return }
+    try {
+      const r = await onPushToCloud()
+      if (!r?.ok) showToast(r?.error || '推送失败', { type: 'error' })
+      else showToast(`已推送到云端（${r.count} 项数据）`, { type: 'success' })
+    } catch (e) {
+      showToast(e?.message || '推送失败', { type: 'error' })
+    }
   }
 
-  const handleCloudDownload = async () => {
-    const r = await downloadConfig()
-    if (!r.ok) showToast(r.error || '下载失败', { type: r.hasCloud ? 'error' : 'info' })
-    else {
-      showToast(`【配置】已从云端同步到本地（${r.count} 项）`, { type: 'success' })
-      // 恢复后 reload，让各 store（项目/预设/API 配置）重新加载生效
-      setTimeout(() => window.location.reload(), 1000)
+  // 【从云端拉取】CloudSyncEngine.pull → 解析并覆盖当前画布/配置
+  const handlePullFromCloud = async () => {
+    if (!onPullFromCloud) { showToast('拉取功能未接入', { type: 'info' }); return }
+    try {
+      const r = await onPullFromCloud()
+      if (!r?.ok) showToast(r?.error || '拉取失败', { type: 'error' })
+      else showToast(`已从云端拉取（${r.count} 项数据）`, { type: 'success' })
+    } catch (e) {
+      showToast(e?.message || '拉取失败', { type: 'error' })
     }
   }
 
@@ -114,24 +118,26 @@ export default function TopNav({ view, onNavigate, onSwitchProject, onCreateProj
                 <div className="text-gray-400 text-xs">未绑定手机号</div>
               </div>
             </div>
-            {/* 同步设置区块（复刻官方 Component788：上传云端 / 从云端下载） */}
+            {/* 同步设置区块：推送到云端 / 从云端拉取 */}
             <div className="p-2 border-b border-edge">
               <div className="px-2 py-1 text-xs text-gray-500 font-bold">同步设置</div>
+              {/* 【推送到云端】核心业务数据（画布）推送到云端 */}
               <button
                 type="button"
-                onClick={handleCloudUpload}
+                onClick={handlePushToCloud}
                 className="w-full text-left px-2 py-2 text-sm text-gray-300 hover:bg-surface-hover-strong hover:text-white rounded-md flex items-center gap-2 transition-colors cursor-pointer border-none bg-transparent"
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
-                上传云端
+                推送到云端
               </button>
+              {/* 【从云端拉取】从云端拉取并覆盖当前画布/配置 */}
               <button
                 type="button"
-                onClick={handleCloudDownload}
+                onClick={handlePullFromCloud}
                 className="w-full text-left px-2 py-2 text-sm text-gray-300 hover:bg-surface-hover-strong hover:text-white rounded-md flex items-center gap-2 transition-colors cursor-pointer border-none bg-transparent"
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></svg>
-                从云端下载
+                从云端拉取
               </button>
             </div>
           </div>

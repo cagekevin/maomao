@@ -372,9 +372,7 @@ export default function GridMergeNode({ id, data, selected }) {
   const modeBtn = (mode, label, icon, title) => (
     <button
       key={mode}
-      className={`px-1.5 py-0.5 rounded text-caption flex items-center gap-1 border transition-colors cursor-pointer ${
-        mergeMode === mode ? 'bg-blue-500/15 border-blue-500/60 text-blue-300' : 'bg-surface-hover border-edge text-gray-400 hover:text-white'
-      }`}
+      className={`node-btn-settings ${mergeMode === mode ? 'is-active' : ''}`}
       onClick={() => setMergeMode(mode)}
       title={title}
     >
@@ -673,7 +671,7 @@ export default function GridMergeNode({ id, data, selected }) {
             <button
               onClick={handleMerge}
               disabled={mergeMode === 'overlay' ? overlayState.layers.length === 0 : connected.images.length === 0}
-              className={`flex-1 py-1.5 rounded text-xs transition-colors ${(mergeMode === 'overlay' ? overlayState.layers.length > 0 : connected.images.length > 0) ? 'bg-blue-600 text-white hover:bg-blue-500 cursor-pointer' : 'bg-surface-hover-strong text-gray-500 cursor-not-allowed'}`}
+              className="node-btn-primary flex-1 justify-center"
             >
               开始合成
             </button>

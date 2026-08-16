@@ -1,85 +1,171 @@
 /**
- * 云端配置同步适配层（原型模拟版）。
+ * 云端全量同步适配层（对接标准同步引擎 CloudSyncEngine）。
  *
- * 【设计意图】把「配置同步到云端」的载体隔离在这里，TopNav 只调 upload/download，
+ * 【设计意图】把「数据同步到云端」的载体隔离在这里，TopNav 只调 upload/download，
  * 不关心云端到底是什么。
- *  - 当前【模拟】：用 localStorage 存一份「云端备份」`yimao_cloud_backup`，模拟上传/下载成功。
- *  - 将来【接真实云端】：只需改本模块 uploadToCloud/downloadFromCloud 两个函数
- *    （对接 WebDAV / OSS / 官方 /sync/* 等），TopNav 和同步逻辑零改动。
+ *  - 载体：CloudSyncEngine（Google Apps Script，见下方引擎代码）。
+ *  - 之前是 localStorage 模拟假数据；现直接替换为真实云端收发（引擎代码原样保留）。
  *
- * 【要同步什么】用户确认：API 配置（providers）+ 预设提示词（presetPrompts）+ 项目（projects）。
- * 其余（账号 users、会员、设置等）本机单用户，暂不同步。
+ * 【同步内容】全量配置/用户数据同步（用户确认体积小，全部进云端）：
+ *  - localStorage 用户数据/配置：复用 backupStore 的 LS_KEYS 权威清单
+ *    （项目、应用设置、自定义 Skill、预设、节点偏好、账号环境等）
+ *  - API 配置（providers）：走 localTool /api/providers（独立于 localStorage）
+ *
+ * 【不同步】画布/会话性/本机临时数据：
+ *  - 所有项目画布快照（canvas-state-v1-*）：画布内容属业务数据，仅留在本机 localTool，不同步。
+ *  - AI 对话历史（agent_conversations）与当前对话 id（agent_active_conversation_id）：含隐私。
+ *  - lastOpenedProject（上次打开哪个项目）：本机会话偏好。
+ *  - yimao_asset_library（素材库）：存的是本地 URL 引用（http://127.0.0.1:18080/files/...），
+ *    指向本机 localTool 磁盘文件，跨设备无意义，不同步。
+ *
+ * ⚠️ 含用户数据（账号环境/API key 等），同步到云端需注意保密。
  */
 import { providerApi } from './settings/settingsApi.js'
-import { loadPresets, savePresets } from './promptManager.js'
 import { fetchProjects, saveProjects } from './projectsApi.js'
 import { sGet, sSet } from './storageAdapter.js'
 
-// 模拟云端备份的 localStorage key
-const CLOUD_KEY = 'yimao_cloud_backup'
+/* ======================================================================
+ * 【标准同步引擎】原样保留，勿改动内部通讯逻辑。
+ * 仅需在 config.gasUrl 填入你的 GAS 部署 URL。
+ * ====================================================================== */
+const CloudSyncEngine = {
+config: {
+gasUrl: "https://script.google.com/macros/s/AKfycbwI6PvC1v8Bv1E-0aKGx1PQ3AIH5SIUUKjTeDHtq5UxxF3qFFHj8DCr1QvflPDqFdI5/exec" // 请保持原样，我后续会自己填
+},
+isSyncing: false,
 
-/** 读取本地某个 key（容错） */
+async callGateway(action, data = null) {
+if (!this.config.gasUrl || this.config.gasUrl.includes("填入")) throw new Error("未配置有效的 GAS URL");
+if (this.isSyncing) throw new Error("系统正在通信中，请勿频繁操作");
+
+this.isSyncing = true;
+try {
+const res = await fetch(this.config.gasUrl, {
+method: 'POST',
+redirect: 'follow',
+headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+body: JSON.stringify({ action: action, data: data })
+});
+
+const text = await res.text();
+if (text.includes("<html")) {
+throw new Error("权限拦截，请确保 GAS 设为了【所有人】访问");
+}
+
+const jsonRes = JSON.parse(text);
+if (jsonRes.error) throw new Error(jsonRes.error);
+return jsonRes;
+} catch (err) {
+throw new Error(err.message);
+} finally {
+this.isSyncing = false;
+}
+},
+
+async push(dataObj, onProgress, onSuccess, onError) {
+if(onProgress) onProgress("正在同步至云端...");
+try {
+const res = await this.callGateway("push_data", dataObj);
+if(onSuccess) onSuccess(res.msg || "同步成功");
+return true;
+} catch(e) {
+if(onError) onError(e.message);
+return false;
+}
+},
+
+async pull(onProgress, onSuccess, onError) {
+if(onProgress) onProgress("正在从云端读取数据...");
+try {
+const res = await this.callGateway("pull_data");
+if(onSuccess) onSuccess("拉取成功");
+return res.data;
+} catch(e) {
+if(onError) onError(e.message);
+return null;
+}
+}
+};
+/* ===================== 引擎代码结束（勿改动以上内容） ===================== */
+
+/** 读取本地某个 key（容错，JSON 解析） */
 function readLS(k) {
-  try { return sGet(k) } catch { return null }
+  try {
+    const v = sGet(k)
+    if (v === null || v === undefined) return undefined
+    try { return JSON.parse(v) } catch { return v }
+  } catch { return undefined }
 }
 /** 写本地某个 key（容错） */
 function writeLS(k, v) {
-  try { sSet(k, v) } catch { /* ignore */ }
+  try { sSet(k, typeof v === 'string' ? v : JSON.stringify(v)) } catch { /* ignore */ }
+}
+
+/** 当前项目 id（从项目列表取当前，优先 lastOpenedProject） */
+function getCurrentProjectId() {
+  try {
+    const projects = readLS('projects')
+    if (Array.isArray(projects) && projects.length) {
+      const last = readLS('lastOpenedProject')
+      if (last && projects.some((p) => p.id === last)) return last
+      return projects[0].id
+    }
+  } catch { /* ignore */ }
+  return 'default'
 }
 
 /**
- * 收集本地要同步的配置 → 生成云端 JSON。
- * @returns {Promise<object|null>} { type:'cloud_config', version:1, updatedAt, data:{providers,presetPrompts,projects} }
+ * 收集本地全部要同步的数据 → 生成云端 JSON。
+ * @returns {Promise<object|null>}
+ *  { type:'cloud_config', version:4, updatedAt, data:{ [lsKey]: value, providers } }
  */
 async function collectLocal() {
-  const data = {}
-  // 1) API 配置：从 localTool /api/providers 读（key 已脱敏，只同步配置结构）
+  const ls = {}
+  // 1) localStorage 全量用户数据/配置：复用 backupStore 权威清单
+  for (const k of LS_KEYS) {
+    const v = readLS(k)
+    if (v !== undefined) ls[k] = v
+  }
+  // 2) API 配置：从 localTool /api/providers 读（key 已脱敏，同步配置结构）
   try {
     const { providers } = await providerApi.getProviders()
-    if (Array.isArray(providers) && providers.length) data.providers = providers
+    if (Array.isArray(providers) && providers.length) ls.providers = providers
   } catch { /* localTool 未连则跳过 API 配置 */ }
-  // 2) 预设提示词：localStorage
-  try {
-    const presets = loadPresets()
-    if (Array.isArray(presets) && presets.length) data.presetPrompts = presets
-  } catch { /* ignore */ }
-  // 3) 项目：从 localTool /api/projects 读（跨端权威源）
-  try {
-    const { projects } = await fetchProjects()
-    if (Array.isArray(projects) && projects.length) data.projects = projects
-  } catch { /* localTool 未连则跳过项目 */ }
 
-  if (Object.keys(data).length === 0) return null
+  if (Object.keys(ls).length === 0) return null
   return {
     type: 'cloud_config',
-    version: 1,
+    version: 4,
     updatedAt: Date.now(),
-    data,
+    data: ls,
   }
 }
 
-/** 把云端 JSON 覆盖写回本地配置。@returns {Promise<number>} 恢复的项数 */
+/**
+ * 把云端 JSON 覆盖写回本地。@returns {Promise<number>} 恢复的条目数
+ */
 async function restoreLocal(cloud) {
-  const data = cloud?.data
-  if (!data || typeof data !== 'object') return 0
+  const ls = cloud?.data
+  if (!ls || typeof ls !== 'object') return 0
   let written = 0
-  // API 配置：全量保存到 localTool
-  if (Array.isArray(data.providers)) {
+  // 1) localStorage 全量覆盖（只写我们备份清单里的键，避免误写未知键）
+  for (const k of LS_KEYS) {
+    if (ls[k] !== undefined) {
+      try { writeLS(k, ls[k]); written++ } catch { /* ignore */ }
+    }
+  }
+  // 2) API 配置：全量保存到 localTool
+  if (Array.isArray(ls.providers)) {
     try {
-      await providerApi.saveProviders(data.providers)
-      // 回写 api.config.json 消除双源漂移（对齐 providerStore.save 的做法）
-      providerApi.syncConfigBase(data.providers).catch(() => {})
+      await providerApi.saveProviders(ls.providers)
+      providerApi.syncConfigBase(ls.providers).catch(() => {})
       written++
     } catch { /* ignore */ }
   }
-  // 预设提示词：覆盖 localStorage
-  if (Array.isArray(data.presetPrompts)) {
-    try { savePresets(data.presetPrompts); written++ } catch { /* ignore */ }
-  }
-  // 项目：全量保存到 localTool（后端权威源）+ localStorage 兜底由项目 store 刷新时读
-  if (Array.isArray(data.projects)) {
+  // 3) 项目列表同步到 localTool（后端权威源，localStorage 兜底由项目 store 刷新时读）
+  if (Array.isArray(ls.projects)) {
     try {
-      await saveProjects(data.projects, data.projects[0]?.id || '')
+      await saveProjects(ls.projects.map((p) => ({ id: p.id, name: p.name })), getCurrentProjectId())
       written++
     } catch { /* ignore */ }
   }
@@ -87,15 +173,22 @@ async function restoreLocal(cloud) {
 }
 
 /**
- * 上传云端：收集本地配置 → 同步到云端（当前模拟存 localStorage）。
- * @returns {{ ok:boolean, count:number, error?:string }}
+ * 上传云端：收集本地全量配置/用户数据 → 通过 CloudSyncEngine.push 同步到云端。
+ * @param {Function} [onProgress] 进度回调（showToast 用）
+ * @returns {Promise<{ ok:boolean, count:number, error?:string }>}
  */
-export async function uploadConfig() {
+export async function uploadConfig(onProgress) {
   const cloud = await collectLocal()
-  if (!cloud) return { ok: false, count: 0, error: '本地没有可同步的配置数据' }
+  if (!cloud) return { ok: false, count: 0, error: '本地没有可同步的数据' }
   try {
-    writeLS(CLOUD_KEY, JSON.stringify(cloud))
-    const n = Object.keys(cloud.data).length
+    const ok = await CloudSyncEngine.push(
+      cloud,
+      onProgress,
+      () => {},
+      (msg) => { throw new Error(msg) }
+    )
+    if (!ok) return { ok: false, count: 0, error: '同步失败（引擎返回失败）' }
+    const n = Object.keys(cloud.data || {}).length
     return { ok: true, count: n }
   } catch (e) {
     return { ok: false, count: 0, error: e?.message || '同步失败' }
@@ -103,18 +196,46 @@ export async function uploadConfig() {
 }
 
 /**
- * 从云端下载：拉取云端 JSON → 覆盖恢复本地配置（当前模拟读 localStorage）。
- * @returns {{ ok:boolean, count:number, hasCloud:boolean, error?:string }}
+ * 从云端拉取：CloudSyncEngine.pull → 解析 → 覆盖恢复本地配置/用户数据。
+ * @param {Function} [onProgress] 进度回调（showToast 用）
+ * @returns {Promise<{ ok:boolean, count:number, hasCloud:boolean, error?:string }>}
  */
-export async function downloadConfig() {
-  const raw = readLS(CLOUD_KEY)
-  if (!raw) return { ok: false, count: 0, hasCloud: false, error: '云端没有配置数据' }
+export async function downloadConfig(onProgress) {
+  let cloud
   try {
-    const cloud = JSON.parse(raw)
+    cloud = await CloudSyncEngine.pull(
+      onProgress,
+      () => {},
+      (msg) => { throw new Error(msg) }
+    )
+  } catch (e) {
+    return { ok: false, count: 0, hasCloud: false, error: e?.message || '拉取失败' }
+  }
+  if (cloud == null) return { ok: false, count: 0, hasCloud: false, error: '云端没有数据' }
+  try {
     const count = await restoreLocal(cloud)
-    if (count === 0) return { ok: false, count: 0, hasCloud: true, error: '云端没有新的配置数据' }
+    if (count === 0) return { ok: false, count: 0, hasCloud: true, error: '云端没有新的数据' }
     return { ok: true, count, hasCloud: true }
   } catch {
     return { ok: false, count: 0, hasCloud: true, error: '云端数据解析失败' }
   }
 }
+
+// 保留引擎导出（供需要直接调用引擎的调用方用），但日常同步请走 uploadConfig/downloadConfig。
+export { CloudSyncEngine }
+
+/* ── localStorage 备份清单（复用 backupStore 权威清单，全量同步）──
+ * 注：agent_conversations / agent_active_conversation_id（AI 对话历史）含隐私不同步；
+ * lastOpenedProject（上次打开项目）本机会话偏好不同步；
+ * yimao_asset_library（素材库）为本地 URL 引用，跨设备无意义不同步。 */
+const LS_KEYS = [
+  'projects',                     // 项目列表（projectStore）
+  'app_settings',                 // 应用设置（appSettings）
+  'agent_skills',                 // 自定义 Skill（skillStore）
+  'agent_skill_usage',            // Skill 使用次数（skillStore）
+  'agent_chat_model',             // AI 聊天模型（agentModelStore）
+  'yimao_preset_prompts',         // 提示词预设（promptManager）
+  'yimao_preset_recent',          // 预设最近使用（promptManager）
+  'yimao_node_prefs',             // 节点偏好（nodePrefs）
+  'yimao_accounts',               // 账号环境（accountsStore）
+]

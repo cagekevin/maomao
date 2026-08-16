@@ -1123,7 +1123,6 @@ export default function VideoProcessNode({ id, data, selected }) {
 
   return (
     <div className={`relative group/node w-full h-full min-w-[520px] min-h-[620px]`} data-node-id={id}>
-      <NodeTitle defaultTitle="视频处理" icon={<Clapperboard size={11} className="text-gray-500" />} floating />
       <NodeResizer
         minWidth={520}
         minHeight={620}
@@ -1137,6 +1136,8 @@ export default function VideoProcessNode({ id, data, selected }) {
         className={`w-full h-full bg-[#1b1b1b] rounded-lg overflow-hidden border shadow-xl flex flex-col drag-handle cursor-move ${selected ? 'border-[#666]' : 'border-[#343434] hover:border-[#484848]'}`}
       >
         <input ref={fileRef} type="file" accept="video/*" className="hidden" onChange={onUpload} />
+        {/* 标题（框内 mb-1，与 NodeShell 节点一致） */}
+        <NodeTitle defaultTitle="视频处理" icon={<Clapperboard size={11} className="text-gray-500" />} />
         <div ref={contentRef} className="flex-1 min-h-0 p-3 flex flex-col gap-3 overflow-y-auto custom-scrollbar nowheel">
           {/* 模式切换 */}
           <div className="grid grid-cols-5 gap-1.5">
@@ -1455,7 +1456,7 @@ export default function VideoProcessNode({ id, data, selected }) {
             <button
               onClick={handleProcess}
               disabled={!canRun || loading}
-              className={`nodrag flex-1 h-9 rounded-md bg-inverse text-inverse-strong text-body-xs font-medium flex items-center justify-center gap-1.5 disabled:opacity-40`}
+              className={`nodrag node-btn-primary flex-1 justify-center`}
             >
               {loading ? (
                 <>

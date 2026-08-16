@@ -1,6 +1,6 @@
 import React from 'react'
 import {
-  Type, Image as ImageIcon, Clapperboard, Box,
+  Type, Image as ImageIcon, Clapperboard, Box, Repeat,
   Grid3X3, Globe, Film, Shuffle,
   ImageDown, Wand2, Grid2X2, FolderTree
 } from 'lucide-react'
@@ -37,6 +37,7 @@ export const paletteNodes = [
   { type: 'panoramaNode', label: '全景图', icon: Globe, cat: 'image', builtin: true, data: { panoType: 'sphere', highQuality: false, aspectRatio: '16:9', imageUrl: '' } },
   { type: 'director3dNode', label: '3D导演台', icon: Film, cat: 'image' },
   { type: 'faceMosaicNode', label: '人脸打码', icon: Shuffle, cat: 'image', builtin: true, data: { mode: 'mosaic', strength: 0.5, color: '#000000', imageUrls: [] } },
+  { type: 'loopNode', label: '循环生成', icon: Repeat, cat: 'image', builtin: true, data: { splitMethod: 'newline' } },
 
   // --- 视频工具 ---
   // discountVideoNode（特惠视频）与顶部 E 快捷重复，子分类不再列出

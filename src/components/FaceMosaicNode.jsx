@@ -288,7 +288,7 @@ export default function FaceMosaicNode({ id, data, selected }) {
           <button
             onClick={handleAI}
             disabled={loading || count === 0}
-            className="nodrag flex-1 flex items-center justify-center gap-1.5 h-8 rounded-md text-[12px] font-medium bg-white text-[#141414] hover:bg-gray-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+            className="nodrag node-btn-primary flex-1 justify-center"
           >
             {loading ? (
               <>

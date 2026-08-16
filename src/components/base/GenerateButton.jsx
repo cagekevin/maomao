@@ -64,7 +64,7 @@ export default function GenerateButton({
           {cost}
         </span>
       )}
-      <span className="flex items-center gap-1 mr-3 text-xs text-gray-300 group-hover/btn:text-white">{label}</span>
+      <span className="flex items-center gap-1 mr-3 text-xs text-white">{label}</span>
       <span className="bg-white text-black w-6 h-6 rounded-full flex items-center justify-center hover:bg-gray-200 transition-colors">
         <ArrowUp size={14} strokeWidth={3} />
       </span>

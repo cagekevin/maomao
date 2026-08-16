@@ -584,9 +584,7 @@ export default function GridSplitNode({ id, data, selected }) {
   const modeBtn = (mode, label, icon, title) => (
     <button
       key={mode}
-      className={`px-1.5 py-0.5 rounded text-caption flex items-center gap-1 border transition-colors cursor-pointer ${
-        splitMode === mode ? 'bg-blue-500/15 border-blue-500/60 text-blue-300' : 'bg-surface-hover border-edge text-gray-400 hover:text-white'
-      }`}
+      className={`node-btn-settings ${splitMode === mode ? 'is-active' : ''}`}
       onClick={() => setSplitMode(mode)}
       title={title}
     >
@@ -902,13 +900,12 @@ export default function GridSplitNode({ id, data, selected }) {
               <span>图片盒子</span>
             </label>
             <button
-              className={`flex-1 flex items-center justify-between bg-surface-hover rounded-full p-1 pl-3 border border-edge transition-colors cursor-pointer group/btn ${
-                imageUrl ? 'hover:border-gray-500' : 'opacity-50 cursor-not-allowed'
-              }`}
-              onClick={imageUrl ? handleSplit : undefined}
+              className="node-btn-primary flex-1 justify-between"
+              disabled={!imageUrl}
+              onClick={handleSplit}
             >
-              <span className="text-xs text-gray-300 group-hover/btn:text-white">批量切分</span>
-              <span className="bg-white text-black w-6 h-6 rounded-full flex items-center justify-center hover:bg-gray-200 transition-colors">
+              <span>批量切分</span>
+              <span className="node-btn-primary-icon">
                 <ArrowRight size={14} strokeWidth={3} />
               </span>
             </button>

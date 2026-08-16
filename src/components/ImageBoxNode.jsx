@@ -401,21 +401,21 @@ export default function ImageBoxNode({ id, data, selected }) {
         <div className="flex items-center gap-1 nodrag">
           {expanded && images.length > 0 && (
             <>
-              <button className="px-1.5 py-0.5 rounded hover:bg-surface-hover-strong text-gray-400 hover:text-white inline-flex items-center gap-1 text-caption cursor-pointer border-none" title={allSelected ? '取消全选' : '全选'} onClick={(e) => { e.stopPropagation(); toggleSelectAll() }}>
+              <button className="node-btn-settings" title={allSelected ? '取消全选' : '全选'} onClick={(e) => { e.stopPropagation(); toggleSelectAll() }}>
                 {allSelected ? <ListChecks size={10} /> : <Check size={10} />}
                 <span>全选</span>
               </button>
               {selectedIds.length > 0 && (
                 <>
                   <span className="text-gray-300 text-caption">已选 {selectedIds.length}</span>
-                  <button className="px-1.5 py-0.5 rounded hover:bg-surface-hover-strong hover:text-red-400 text-gray-400 inline-flex items-center gap-1 text-caption cursor-pointer border-none" title="删除已选" onClick={(e) => { e.stopPropagation(); removeSelected() }}>
+                  <button className="node-btn-settings hover:text-red-400" title="删除已选" onClick={(e) => { e.stopPropagation(); removeSelected() }}>
                     <Trash2 size={10} />
                   </button>
                 </>
               )}
             </>
           )}
-          <button className="px-1.5 py-0.5 rounded hover:bg-surface-hover-strong text-gray-400 hover:text-white inline-flex items-center gap-1 text-caption transition-colors cursor-pointer border-none" title={expanded ? '折叠为单图' : '展开为缩略图网格'} onClick={(e) => { e.stopPropagation(); toggleExpand() }}>
+          <button className="node-btn-settings" title={expanded ? '折叠为单图' : '展开为缩略图网格'} onClick={(e) => { e.stopPropagation(); toggleExpand() }}>
             {expanded ? <List size={11} /> : <Grid2X2 size={11} />}
             <span>{expanded ? '折叠' : '展开'}</span>
           </button>
