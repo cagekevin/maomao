@@ -27,6 +27,7 @@
  *   wf.rollback(ctx)  // 清理本次建的节点
  * ════════════════════════════════════════════════════════════════
  */
+import { publish } from './eventBus.js'
 
 /** 运行中状态集合（对齐 InputStateMachine RUNNING） */
 const RUNNING = new Set(['planning', 'creating_nodes', 'ready', 'running'])
@@ -58,6 +59,8 @@ export function createWorkflow({ conversationId = '', onStatusChange = null } = 
     status = next
     onStatusChange?.(status)
     listeners.forEach((l) => l(status))
+    // 事件广播（对齐大雄 publish）：workflow 状态变化对外发布，供非 React 模块订阅
+    publish('agent:workflow-status', { workflowId: wf.id, conversationId, status })
   }
 
   const wf = {
@@ -111,6 +114,8 @@ export function createWorkflow({ conversationId = '', onStatusChange = null } = 
     /** 用户确认：退出确认态（仅此翻转；不做语义消息识别） */
     confirm() {
       awaitingConfirm = false
+      setStatus('planning') // 确认后回到可执行态
+      publish('agent:workflow-confirmed', { workflowId: wf.id, conversationId })
       return wf
     },
 

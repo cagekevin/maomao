@@ -120,8 +120,12 @@ export async function executePlan({ ctx, generations = [], autoRun = true, model
     if (!res) return { status: 'failed', error: `节点 ${nodeId} 未注册生成契约` }
     if (res.ok === false) return { status: 'failed', error: res.error || '生成失败' }
     const resultUrl = res.resultUrl || ''
-    // 写回节点 data.imageUrl（供下游 useConnectedInputs 读到）
-    ctx.setNodes((ns) => ns.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, imageUrl: resultUrl } } : n)))
+    // 【live 节点防悬空（对齐大雄 liveNodeById）】await 完成后重新查节点，
+    // 防节点在生成期间被删除/合并（409）导致对悬空对象写回。节点已消失则跳过写回。
+    const live = (ctx.getNodes?.() || []).find((n) => n.id === nodeId)
+    if (live) {
+      ctx.setNodes((ns) => ns.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, imageUrl: resultUrl } } : n)))
+    }
     return { status: resultUrl ? 'completed' : 'failed', resultUrl }
   }
 
