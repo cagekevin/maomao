@@ -40,6 +40,25 @@ describe('多步编排执行器 executePlan §2.5/2.6', () => {
     expect(r.entries).toHaveLength(1)
   })
 
+  it('全局单飞锁：已有计划执行中，再次 executePlan 被拒绝（防重复计费/重复建节点）', async () => {
+    // 让第一个 executePlan 挂起（runNodeGeneration 不 resolve），锁保持持有
+    let release
+    const gate = new Promise((res) => { release = res })
+    vi.mocked(runNodeGeneration).mockReturnValueOnce(gate.then(() => ({ ok: true, resultUrl: 'http://r/a.png' })))
+    const ctx = makeCtx()
+    const p1 = executePlan({ ctx, generations: [{ id: 'g1', prompt: '猫' }] }) // 不 await，挂起中
+
+    // 第二个 executePlan 应因单飞锁被拒
+    const r2 = await executePlan({ ctx, generations: [{ id: 'g2', prompt: '狗' }] })
+    expect(r2.workflow.status).toBe('failed')
+    expect(r2.workflow.error).toContain('正在执行')
+
+    // 释放第一个，await 完成以释放锁（避免污染后续测试）
+    release()
+    const r1 = await p1
+    expect(r1.workflow.status).toBe('completed')
+  })
+
   it('独立批（Wave1）：并行建节点 + 触发 + 写回 imageUrl，status=completed', async () => {
     const ctx = makeCtx()
     const r = await executePlan({

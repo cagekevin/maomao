@@ -15,6 +15,11 @@
  */
 import { runNodeGeneration, isNodeRegistered } from './taskStore.js'
 
+/* ── 全局单飞锁（对齐大雄 __canvasAgentGenRunning）──
+ * 同一时刻只允许一套 executePlan 批量生成在跑。防止「用户手动点节点生成 + AI 触发」
+ * 或「两个入口同时调 execute_plan」时，并行跑两套生成 → 重复建节点 / 重复计费。 */
+let executingPlan = false
+
 /* ════════════════════════════════════════════════════════════════
  * 依赖批 prompt 改写工程（对齐大雄 agentBuildFusionPrompt /
  * agentBuildProductReferencePrompt 等，纯函数、无副作用、可独立单测）
@@ -200,8 +205,12 @@ function nextAnchor(ctx, base, index, perRow = 3) {
 export async function executePlan({ ctx, generations = [], autoRun = true, model = '', defaults = {}, referenceImages = [], globalContract = null, artifacts = null, onLog = null, userText = '' }) {
   const log = (level, message) => { try { onLog?.({ level, message }) } catch { /* 日志失败不阻断执行 */ } }
   const steps = (generations || []).filter((s) => s && (s.prompt || s.title))
+  // 全局单飞锁：同一时刻只允许一套批量生成在跑，防重复计费/重复建节点
+  if (executingPlan) return { workflow: { status: 'failed', error: '已有计划正在执行，请稍后再试' }, entries: [] }
   if (steps.length === 0) return { workflow: { status: 'failed', error: '计划为空' }, entries: [] }
+  executingPlan = true
   log('info', `开始执行计划：共 ${steps.length} 步（独立批 ${steps.filter((s) => !dependsOnPrevious(s)).length} + 依赖批 ${steps.filter((s) => dependsOnPrevious(s)).length}）`)
+  try {
 
   const entries = []
   const byId = new Map() // step.id -> { nodeId, resultUrl, status }
@@ -437,4 +446,7 @@ export async function executePlan({ ctx, generations = [], autoRun = true, model
     log('info', `已建 ${entries.length} 个节点，等待确认后执行`)
   }
   return { workflow: { status, steps: steps.length }, entries }
+  } finally {
+    executingPlan = false // 无论成功/失败/异常都释放单飞锁
+  }
 }

@@ -683,6 +683,49 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
     }
   }, [callTool, appendMsg, model])
 
+  /**
+   * Demo 模式（VITE_AGENT_DEMO='1'）：本地规则引擎模拟，不走真实 LLM。
+   * 抽独立函数让 send 主流程更清晰（send 里只剩「保护 → steer → 准备 → 真实循环 → 收尾」）。
+   * @returns {boolean} true = 已走 Demo 分支处理完，调用方应提前 return（收尾交给 finally）
+   */
+  const runDemoMode = useCallback(async (text) => {
+    const plan = demoPlan(text, callTool)
+    if (plan.length > 0) {
+      // 模拟 assistant 决策（工具调用）
+      const assistantMsg = {
+        role: 'assistant', content: '', model,
+        tool_calls: plan.map((p, i) => ({
+          id: `call_demo_${Date.now()}_${i}`, type: 'function',
+          function: { name: p.name, arguments: JSON.stringify(p.args) }
+        })),
+        createdAt: Date.now()
+      }
+      appendMsg(assistantMsg)
+      // 执行每个工具并回填 tool 结果（TASK-006 #1：await 异步工具，避免 Promise 被序列化）
+      for (const [i, p] of plan.entries()) {
+        const r = await callTool(p.name, p.args)
+        appendMsg({
+          role: 'tool',
+          content: r?.ok ? JSON.stringify({ ok: true, ...(r.data || {}) }) : JSON.stringify({ ok: false, error: r?.error }),
+          tool_call_id: assistantMsg.tool_calls[i].id,
+          createdAt: Date.now()
+        })
+      }
+      // 最后补一条 assistant 总结
+      const done = plan.map((p) => p.name).join('、')
+      appendMsg({
+        role: 'assistant',
+        content: `已执行画布操作：${done}。${plan.some((p) => p.name === 'create_node') ? '新节点已创建。' : ''}${plan.some((p) => p.name === 'connect_nodes') ? '已建立连线。' : ''}${plan.some((p) => p.name === 'delete_node') ? '节点已删除。' : ''}`,
+        model, createdAt: Date.now()
+      })
+    } else {
+      appendMsg({ role: 'assistant', content: '（演示模式）我暂时只会演示这些画布操作：创建节点（生图/视频/文本）、连接两个节点、删除节点、查看画布、适配视图。试试说「创建一个生图节点」或「连接 text-1 和 image-1」。', model, createdAt: Date.now() })
+    }
+    // Demo 分支落盘交给 finally 统一处理（captureActiveConversation），这里只 return
+    abortRef.current = null
+    return true
+  }, [appendMsg, callTool, model])
+
   /** 发送（复刻官方 dr:2786-2895 的 send：SSE + 多轮工具循环） */
   const send = useCallback(
     async (text, attachments) => {
@@ -738,43 +781,9 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
       let aborted = false // 标记是否被用户停止（区分 stopped/failed）
       let pausedForConfirm = false // 三阶段门禁：show_plan_for_confirm 后是否暂停等用户确认（需在 try 外声明，finally 才可访问且避免 TDZ）
       try {
-        // ── Demo 模式（VITE_AGENT_DEMO='1'）：本地规则引擎模拟，不走真实 LLM ──
+        // ── Demo 模式（VITE_AGENT_DEMO='1'）：本地规则引擎模拟，不走真实 LLM（逻辑抽到 runDemoMode）──
         if (DEMO_MODE) {
-          const plan = demoPlan(text, callTool)
-          if (plan.length > 0) {
-            // 模拟 assistant 决策（工具调用）
-            const assistantMsg = {
-              role: 'assistant', content: '', model,
-              tool_calls: plan.map((p, i) => ({
-                id: `call_demo_${Date.now()}_${i}`, type: 'function',
-                function: { name: p.name, arguments: JSON.stringify(p.args) }
-              })),
-              createdAt: Date.now()
-            }
-            appendMsg(assistantMsg)
-            // 执行每个工具并回填 tool 结果（TASK-006 #1：await 异步工具，避免 Promise 被序列化）
-            for (const [i, p] of plan.entries()) {
-              const r = await callTool(p.name, p.args)
-              appendMsg({
-                role: 'tool',
-                content: r?.ok ? JSON.stringify({ ok: true, ...(r.data || {}) }) : JSON.stringify({ ok: false, error: r?.error }),
-                tool_call_id: assistantMsg.tool_calls[i].id,
-                createdAt: Date.now()
-              })
-            }
-            // 最后补一条 assistant 总结
-            const done = plan.map((p) => p.name).join('、')
-            appendMsg({
-              role: 'assistant',
-              content: `已执行画布操作：${done}。${plan.some((p) => p.name === 'create_node') ? '新节点已创建。' : ''}${plan.some((p) => p.name === 'connect_nodes') ? '已建立连线。' : ''}${plan.some((p) => p.name === 'delete_node') ? '节点已删除。' : ''}`,
-              model, createdAt: Date.now()
-            })
-          } else {
-            appendMsg({ role: 'assistant', content: '（演示模式）我暂时只会演示这些画布操作：创建节点（生图/视频/文本）、连接两个节点、删除节点、查看画布、适配视图。试试说「创建一个生图节点」或「连接 text-1 和 image-1」。', model, createdAt: Date.now() })
-          }
-          // Demo 分支落盘交给 finally 统一处理（captureActiveConversation），这里只 return
-          abortRef.current = null
-          return
+          if (await runDemoMode(text)) return // 收尾交给 finally
         }
 
         // ── 真实模式：多轮工具循环（≤ MAX_TOOL_ROUNDS）──
@@ -856,7 +865,7 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
       }
     },
     // 依赖：roundTrip 闭包了 model/provider/toolSchemas；sendRef 用于 steer 续跑（下方 useRef 保持最新）
-    [sending, model, roundTrip, callTool, runToolCalls, appendMsg, setHistory, updateLastStreaming, endStreaming, stripStreaming, agentKey, provider, isAgentBusy]
+    [sending, model, roundTrip, callTool, runToolCalls, runDemoMode, appendMsg, setHistory, updateLastStreaming, endStreaming, stripStreaming, agentKey, provider, isAgentBusy]
   )
 
   /** 保存 send 引用，供 finally 里自动处理 steer 队列（useCallback 无法自调用） */
