@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react'
+import React, { useState, useRef, useCallback, useEffect } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { useReactFlow, useStore } from '@xyflow/react'
 import { createPortal } from 'react-dom'
@@ -30,6 +30,7 @@ export default function PanoramaNode({ id, data, selected }) {
   const [capturing, setCapturing] = useState(false)
   const [shotKind, setShotKind] = useState(null) // 'current'|'four'|'twelve'
   const [toast, setToast] = useState(null)
+  const [imgError, setImgError] = useState(false) // 【R2 治理】主全景图加载失败占位（TASK-018#4 静默）
   const [aspectRatio, setAspectRatio] = useState(data.aspectRatio || '16:9')
   const [customDim, setCustomDim] = useState({ w: 16, h: 9 })
   const [configOpen, setConfigOpen] = useState(false)
@@ -52,6 +53,15 @@ export default function PanoramaNode({ id, data, selected }) {
     const h = n?.height ?? n?.style?.height ?? 360
     return { w, h }
   })
+
+  // 【R2 治理】panoUrl 变化时重置图片错误态（换图后可重试加载）
+  const prevPanoRef = useRef(panoUrl)
+  useEffect(() => {
+    if (prevPanoRef.current !== panoUrl) {
+      prevPanoRef.current = panoUrl
+      setImgError(false)
+    }
+  }, [panoUrl])
 
   // 截图（复刻官方 F：在全屏球体里选视角裁切输出局部）
   const doCapture = useCallback(
@@ -251,13 +261,22 @@ export default function PanoramaNode({ id, data, selected }) {
       <div className="relative bg-black group/image" style={{ width: nodeSize.w, height: nodeSize.h }}>
         {panoUrl ? (
           <div className="absolute inset-0 cursor-move overflow-hidden">
-            {/* 完整全景图（等距展开） */}
-            <img
-              src={panoUrl}
-              alt="全景图"
-              draggable={false}
-              className="w-full h-full object-contain"
-            />
+            {/* 完整全景图（等距展开）；加载失败显示占位（R2：不再静默空白） */}
+            {imgError ? (
+              <div className="w-full h-full flex flex-col items-center justify-center text-red-400/80 bg-surface-muted">
+                <span className="text-sm font-medium">全景图加载失败</span>
+                <span className="text-xs mt-1 text-red-400/60">图片可能已失效或跨域不可访问</span>
+              </div>
+            ) : (
+              <img
+                src={panoUrl}
+                alt="全景图"
+                draggable={false}
+                onError={() => setImgError(true)}
+                onLoad={() => setImgError(false)}
+                className="w-full h-full object-contain"
+              />
+            )}
 
             {/* 顶部拖拽 grip */}
             <div className="absolute top-0 left-0 w-full h-8 z-20 flex items-start justify-center pt-2 cursor-grab active:cursor-grabbing hover:bg-white/5 transition-colors opacity-0 group-hover/image:opacity-100 pointer-events-none">

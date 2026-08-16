@@ -35,6 +35,17 @@ function stripSharedStylePrefix(text = '') {
 function looksLikeFusionPrompt(text = '') {
   return /组合|结合|合成|融合|拼在一起|合并|合在一起|放在一起|拼合|合成为|合成一张|合成一图|把这[两三三四五六七八九十\d]+张|将这[两三三四五六七八九十\d]+张/.test(String(text || ''))
 }
+/** 是否像「系列套图」指令（对齐大雄 agentLooksLikeSeriesPrompt L10058）：详情页/主图/系列产品图等，同品牌多张需产品一致性 */
+function looksLikeSeriesPrompt(text = '') {
+  const t = String(text || '')
+  // ① 套图/系列/批量等直接触发词（如「详情页套图」「系列产品图」「一组产品图」）
+  if (/(套图|系列|批量|一组|若干|多张).{0,20}(详情|主图|产品图|详情页)|(详情页|主图|产品图|海报|banner|宣传图|首页图).{0,20}(套图|系列|多张|几张|若干|一组|批量)/.test(t)) return true
+  // ② 数量表达的主图/详情页套图（如「5主图+8详情页」「生成4张详情页」「3张主图」）——最常见电商表达
+  if (/(\d+|[一二三四五六七八九十两])张?(主图|详情页|详情图|产品图|海报|banner|宣传图)/.test(t)) return true
+  // ③ 「主图+详情」组合表达（如「5主图+8详情」「主图和详情页」）
+  if (/(主图|详情页|详情图).{0,8}[+＋和与、,，](详情页|详情图|详情|主图)/.test(t)) return true
+  return false
+}
 /** 从融合 prompt 抽动作（打架/互动/融合等） */
 function cleanFusionActionText(basePrompt = '', userText = '') {
   let base = stripSharedStylePrefix(basePrompt)
@@ -126,24 +137,43 @@ function dependsOnPrevious(step) {
   return false
 }
 
-/** 比例归一：square/1:1 → '1:1'，story/9:16 → '9:16'，landscape/16:9 → '16:9' */
+/** 比例归一：square/1:1 → '1:1'，story/9:16 → '9:16'，landscape/16:9 → '16:9'。
+ *  TASK-007 2.4：补中文写法（9比16/竖图/横图/方图/九比十六等）。 */
 function normalizeRatio(ratio) {
-  const r = String(ratio || '').toLowerCase().trim()
-  if (r === 'square' || r === '1:1') return '1:1'
-  if (r === 'story' || r === '9:16') return '9:16'
-  if (r === 'landscape' || r === '16:9') return '16:9'
-  if (r === 'portrait' || r === '3:4') return '3:4'
-  if (r) return r
+  const r = String(ratio || '').trim().toLowerCase().replace(/\s+/g, '')
+  if (r === 'square' || r === '1:1' || r === '方图' || r === '方形' || r === '一比一') return '1:1'
+  if (r === 'story' || r === '9:16' || r === '9比16' || r === '九比十六' || r === '竖图' || r === '竖屏' || r === '竖版') return '9:16'
+  if (r === 'landscape' || r === '16:9' || r === '16比9' || r === '十六比九' || r === '横图' || r === '横屏' || r === '横版') return '16:9'
+  if (r === 'portrait' || r === '3:4' || r === '3比4' || r === '三比四' || r === '竖版三比四') return '3:4'
+  if (r === '4:3' || r === '4比3' || r === '四比三') return '4:3'
+  if (r === '3:2' || r === '3比2' || r === '三比二') return '3:2'
+  if (r === '2:3' || r === '2比3' || r === '二比三') return '2:3'
+  if (r === '1:3' || r === '1比3' || r === '一比三') return '1:3'
+  if (r === '3:1' || r === '3比1' || r === '三比一') return '3:1'
+  if (r === '21:9' || r === '21比9') return '21:9'
+  if (r === '9:21' || r === '9比21') return '9:21'
+  if (r) return ratio
   return 'Auto'
 }
 
 /** 档位归一：1k/1K → '1K'，2k/4k 同理 */
 function normalizeResolution(res) {
-  const r = String(res || '').toLowerCase().trim()
-  if (r === '1k') return '1K'
-  if (r === '2k') return '2K'
-  if (r === '4k') return '4K'
+  const r = String(res || '').trim().toLowerCase().replace(/\s+/g, '')
+  if (r === '1k' || r === '1k' || r === '1080' || r === '高清') return '1K'
+  if (r === '2k' || r === '2k' || r === '超清') return '2K'
+  if (r === '4k' || r === '4k') return '4K'
   return '1K'
+}
+
+/** 画质归一：high/高画质 → 'high'，medium/中画质 → 'medium'，low/低画质 → 'low' */
+function normalizeQuality(q) {
+  const v = String(q || '').trim().toLowerCase().replace(/\s+/g, '')
+  if (!v) return 'auto'
+  if (v === 'high' || v === '高' || v === '高画质' || v === '最高' || v === '超高') return 'high'
+  if (v === 'medium' || v === '中' || v === '中画质' || v === '标准' || v === '一般') return 'medium'
+  if (v === 'low' || v === '低' || v === '低画质' || v === '节能') return 'low'
+  if (v === 'auto' || v === '自动') return 'auto'
+  return q
 }
 
 /** 放置新节点的锚点：就近放到已有节点右侧（简单实现；复杂可对齐大雄 getViewportAnchor） */
@@ -163,18 +193,22 @@ function nextAnchor(ctx, base, index, perRow = 3) {
  *  - defaults        { model, ratio, resolution } 面板生图默认参数（对齐大雄 resolveFinalGenParams）
  *  - referenceImages 参考图 url 数组（可选；写进每个生图节点 data.images，实现"参考图+提示词直连生图"，
  *                    对齐大雄图像模式的 attachment_indices → 图生图）
+ *  - onLog            可选 ({ level:'info'|'ok'|'warn'|'error', message }) 逐步进度日志回调
+ *                     （对齐大雄 executor onLog → workflowLogs → 折叠执行摘要）
  * @returns {Promise<{workflow, entries}>} entries: [{id,status,resultUrl,nodeId,error}]
  */
-export async function executePlan({ ctx, generations = [], autoRun = true, model = '', defaults = {}, referenceImages = [], globalContract = null, artifacts = null }) {
+export async function executePlan({ ctx, generations = [], autoRun = true, model = '', defaults = {}, referenceImages = [], globalContract = null, artifacts = null, onLog = null, userText = '' }) {
+  const log = (level, message) => { try { onLog?.({ level, message }) } catch { /* 日志失败不阻断执行 */ } }
   const steps = (generations || []).filter((s) => s && (s.prompt || s.title))
   if (steps.length === 0) return { workflow: { status: 'failed', error: '计划为空' }, entries: [] }
+  log('info', `开始执行计划：共 ${steps.length} 步（独立批 ${steps.filter((s) => !dependsOnPrevious(s)).length} + 依赖批 ${steps.filter((s) => dependsOnPrevious(s)).length}）`)
 
   const entries = []
   const byId = new Map() // step.id -> { nodeId, resultUrl, status }
 
   // 分批：独立批 / 依赖批（对齐大雄）
   const independent = steps.filter((s) => !dependsOnPrevious(s))
-  const dependent = steps.filter((s) => dependsOnPrevious(s))
+  let dependent = steps.filter((s) => dependsOnPrevious(s))
 
   // 基础锚点：当前画布最右节点右侧，或固定 40,40
   const nodes = ctx.getNodes()
@@ -199,7 +233,7 @@ export async function executePlan({ ctx, generations = [], autoRun = true, model
     const ratio = normalizeRatio(step.ratio || defaults.ratio)
     const resolution = normalizeResolution(step.resolution || defaults.resolution)
     const finalModel = model || defaults.model || ''
-    const quality = step.quality || defaults.quality || 'auto'
+    const quality = normalizeQuality(step.quality || defaults.quality || 'auto')
     // 【global_contract 逐字锁】执行层兜底锁定统一风格契约到 prompt 头部（对齐大雄，双保险：即使规划层漏带，执行层也补）
     const gcText = [globalContract?.visual_positioning, globalContract?.unified_style_prompt, globalContract?.unified_negative_prompt]
       .filter(Boolean)
@@ -215,9 +249,13 @@ export async function executePlan({ ctx, generations = [], autoRun = true, model
       ...(finalModel ? { selectedModel: finalModel } : {}),
       // 参考图（对齐大雄图像模式 attachment_indices → 图生图）：写进节点 data.images，PromptNode 生图时自动作参考。
       // 优先用该步自己的 referenceImages（execute_plan 按 attachment_indices 解析后的），否则用整批共享的。
-      ...(stepRefImages(step).length
-        ? { images: stepRefImages(step).map((u) => (typeof u === 'string' ? { url: u, name: 'reference' } : u)) }
-        : (referenceImages && referenceImages.length ? { images: referenceImages.map((u) => (typeof u === 'string' ? { url: u, name: 'reference' } : u)) } : {})),
+      // 【TASK-012 缺口 1】use_attachments === false（product_reference 步）时：不写任何用户参考图到 data.images，
+      // 只靠 Wave2 连线读产品定稿，避免"用户上传图 + 产品定稿"两张混喂（对齐大雄 L10213）。
+      ...(step.use_attachments === false
+        ? {}
+        : (stepRefImages(step).length
+          ? { images: stepRefImages(step).map((u) => (typeof u === 'string' ? { url: u, name: 'reference' } : u)) }
+          : (referenceImages && referenceImages.length ? { images: referenceImages.map((u) => (typeof u === 'string' ? { url: u, name: 'reference' } : u)) } : {}))),
     }
     ctx.addNodes([{ id: nodeId, type: 'promptNode', position: anchor, data, width: 420, height: 420 }])
     // 建节点即锁：强制写回锁定值，防后续 React 渲染覆盖（对齐大雄 L152-153）
@@ -251,7 +289,7 @@ export async function executePlan({ ctx, generations = [], autoRun = true, model
     if (live) {
       ctx.setNodes((ns) => ns.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, imageUrl: resultUrl } } : n)))
       // 完成时再锁一次参数（对齐大雄 L248 finishAgentNodeImages 末尾 lock），防 update_node/重渲染回落
-      lockNodeSettings(nodeId, { m: model || defaults.model, ratio: normalizeRatio(step.ratio || defaults.ratio), resolution: normalizeResolution(step.resolution || defaults.resolution), quality: step.quality || defaults.quality || 'auto' })
+      lockNodeSettings(nodeId, { m: model || defaults.model, ratio: normalizeRatio(step.ratio || defaults.ratio), resolution: normalizeResolution(step.resolution || defaults.resolution), quality: normalizeQuality(step.quality || defaults.quality || 'auto') })
     }
     return { status: resultUrl ? 'completed' : 'failed', resultUrl }
   }
@@ -266,6 +304,8 @@ export async function executePlan({ ctx, generations = [], autoRun = true, model
     byId.set(entry.id, entry)
     entries.push(entry)
     wave1.push({ nodeId, step, entry })
+    // 【进度日志】每步开始：挂载参考图数（该步自己的 referenceImages > 整批 referenceImages）
+    log('info', `第 ${i + 1} 步「${step.title || entry.id}」开始生成，挂载参考图 ${stepRefImages(step).length || referenceImages.length} 张`)
   }
   // 并行跑图（独立批之间无依赖，Promise.all 并发；不同 nodeId 的 setNodes 写回不冲突）
   if (autoRun && wave1.length > 0) {
@@ -275,23 +315,57 @@ export async function executePlan({ ctx, generations = [], autoRun = true, model
       entry.status = r.status
       entry.resultUrl = r.resultUrl || ''
       entry.error = r.error || ''
+      // 【进度日志】每步结果
+      log(r.status === 'completed' ? 'ok' : 'error', `第 ${i + 1} 步「${entry.id}」${r.status === 'completed' ? '完成' : `失败：${r.error || '未知错误'}`}`)
     })
   }
 
   // ── Wave 2：依赖批（仅当独立批全部成功）──
-  if (dependent.length) {
+  if (dependent.length || (userText && looksLikeFusionPrompt(userText))) {
+    // 【TASK-012 缺口 3】融合兜底（对齐大雄 L10250）：用户要融合但模型没给任何 fusion 步 → 自动追加融合步。
+    // 仅在「多步 + 用户原文含融合意图 + 无显式 fusion 依赖步」时触发，避免干扰显式规划。
+    const fusionIntent = typeof userText === 'string' && looksLikeFusionPrompt(userText)
+    const hasFusion = dependent.some((s) => String(s.dependency_mode || '').toLowerCase() === 'fusion')
+    if (fusionIntent && !hasFusion && steps.length >= 2) {
+      const fusionStep = {
+        id: `__auto_fusion_${Date.now()}`,
+        title: '融合成品',
+        prompt: buildFusionPrompt(steps, userText || ''),
+        dependency_mode: 'fusion',
+        depends_on_previous: true,
+        use_attachments: false,
+      }
+      dependent = [...dependent, fusionStep]
+      log('info', '检测到融合意图但无 fusion 步，自动追加融合成品步')
+    }
+
     const prevFailed = entries.filter((e) => e.status !== 'completed').length
     for (let i = 0; i < dependent.length; i++) {
       let step = dependent[i]
-      // 【依赖批 prompt 改写】（对齐大雄 L10218/L10277/L10284）：依赖步不是只连线，而是按 dependency_mode 重建下游 prompt，
-      // 保证产品一致性(fusion/product_reference)的画面约束强于「仅连线读 data.imageUrl」。
+      // 【TASK-012 缺口 2】套图自动识别（对齐大雄 L10058/L10209）：对话含"详情页套图/系列"等但 LLM 漏标
+      // dependency_mode 时，把未标模式的依赖步强制为 product_reference（第1步当产品定稿，后续步保持一致）。
+      const seriesHint = typeof userText === 'string' && looksLikeSeriesPrompt(userText)
       const depMode = String(step?.dependency_mode || '').toLowerCase()
-      if (depMode === 'fusion') {
+      if (seriesHint && depMode !== 'fusion' && !depMode) {
+        step = {
+          ...step,
+          dependency_mode: 'product_reference',
+          use_attachments: false,
+          prompt: buildProductReferencePrompt(steps[0], step.prompt || '', ''),
+        }
+      } else if (depMode === 'fusion') {
+        // 【依赖批 prompt 改写】（对齐大雄 L10218/L10277/L10284）：依赖步不是只连线，而是按 dependency_mode 重建下游 prompt，
+        // 保证产品一致性(fusion/product_reference)的画面约束强于「仅连线读 data.imageUrl」。
         const prevSteps = steps.filter((s) => s !== step && (s.prompt || s.title))
         step = { ...step, prompt: prevSteps.length ? buildFusionPrompt(prevSteps, step.prompt || '') : cleanFusionActionText(step.prompt || '', '') }
       } else if (depMode === 'product_reference') {
         const productStep = steps[0]
-        step = { ...step, prompt: buildProductReferencePrompt(productStep, step.prompt || '', '') }
+        step = {
+          ...step,
+          // 【TASK-012 缺口 1】对齐大雄 L10213：product_reference 步只挂产品定稿，禁止再叠用户上传参考图
+          use_attachments: false,
+          prompt: buildProductReferencePrompt(productStep, step.prompt || '', ''),
+        }
       }
       // 【artifact 跨步资产注入】（对齐大雄 input_artifact_ids）：依赖步声明要消费哪些前序成果资产时，
       // 从 artifacts 表取对应 url 显式写进 data.images（与连线并存，双保险）。硬校验：声明了但资产表无 url → 失败。
@@ -314,12 +388,24 @@ export async function executePlan({ ctx, generations = [], autoRun = true, model
       const entry = { id: step.id || `dep_${i + 1}`, stepId: step.id, nodeId, phase: 'dependent' }
 
       // 前序依赖：把「已成功的独立批节点」连到本步节点（下游 useConnectedInputs 自动读其 imageUrl 当参考图）
-      const prevOk = entries.filter((e) => e.status === 'completed' && e.nodeId)
+      const prevOkAll = entries.filter((e) => e.status === 'completed' && e.nodeId)
+      // 精确取前序：若 step 显式声明 depends_on_steps，只取这些 id 的成功结果；否则用全部成功前序
+      const depSteps = Array.isArray(step.depends_on_steps) && step.depends_on_steps.length ? step.depends_on_steps.map(String) : []
+      const prevOk = depSteps.length
+        ? prevOkAll.filter((e) => depSteps.includes(String(e.stepId)) || depSteps.includes(String(e.id)))
+        : prevOkAll
+      // 跳过文案带成功/总数（对齐大雄「前置步骤未完成，已跳过融合」+ 重试引导，我们补充成功计数）
+      const indepTotal = independent.length
+      const indepOk = entries.filter((e) => e.phase === 'independent' && e.status === 'completed').length
+      log('info', `依赖步 ${i + 1}「${entry.id}」开始，连接前序成功节点 ${prevOk.length} 个`)
       if (prevFailed > 0 || prevOk.length === 0) {
         entry.status = 'failed'
-        entry.error = prevFailed > 0 ? '前置步骤未全部成功，已跳过' : '无前序成功结果，已跳过'
+        entry.error = prevFailed > 0
+          ? `前置步骤未全部成功（成功 ${indepOk} / 共 ${indepTotal}），依赖步骤已跳过，请在画布节点中重试前序`
+          : '无前序成功结果，已跳过'
+        log('warn', entry.error)
       } else {
-        // 建连线：每个前序结果节点 → 本步节点
+        // 建连线：每个命中的前序结果节点 → 本步节点
         const edges = prevOk.map((e) => ({ id: `e-plan-${nodeId}-${e.nodeId}`, source: e.nodeId, target: nodeId }))
         ctx.addEdges(edges)
         if (autoRun) {
@@ -327,9 +413,11 @@ export async function executePlan({ ctx, generations = [], autoRun = true, model
           entry.status = r.status
           entry.resultUrl = r.resultUrl || ''
           entry.error = r.error || ''
+          log(r.status === 'completed' ? 'ok' : 'error', `依赖步 ${i + 1}「${entry.id}」${r.status === 'completed' ? '完成' : `失败：${r.error || '未知错误'}`}`)
         } else {
           entry.status = 'ready'
           entry.resultUrl = ''
+          log('info', `依赖步 ${i + 1}「${entry.id}」已就绪，等待确认`)
         }
       }
       byId.set(entry.id, entry)
@@ -340,5 +428,13 @@ export async function executePlan({ ctx, generations = [], autoRun = true, model
   const anyFailed = entries.some((e) => e.status === 'failed')
   const anyDone = entries.some((e) => e.status === 'completed')
   const status = autoRun ? (anyFailed && anyDone ? 'completed_with_errors' : anyFailed ? 'failed' : 'completed') : 'ready'
+  const doneCount = entries.filter((e) => e.status === 'completed').length
+  const failCount = entries.filter((e) => e.status === 'failed').length
+  if (autoRun) {
+    log(anyFailed ? (anyDone ? 'warn' : 'error') : 'ok',
+      anyFailed ? `执行结束：完成 ${doneCount} 步，失败 ${failCount} 步${anyDone ? '（可重试失败项）' : ''}` : `执行完成：共 ${doneCount} 步全部成功`)
+  } else {
+    log('info', `已建 ${entries.length} 个节点，等待确认后执行`)
+  }
   return { workflow: { status, steps: steps.length }, entries }
 }

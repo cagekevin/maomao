@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from 'react'
-import { Search, Plus, Bot, Sparkles } from 'lucide-react'
+import React, { useMemo, useRef, useState } from 'react'
+import { Search, Plus, Bot, Sparkles, Upload, Download } from 'lucide-react'
 import { getAllSkills, upsertCustomSkill, deleteCustomSkill } from '../../skillStore.js'
 import { showToast } from '../../toastStore.js'
 
@@ -23,6 +23,7 @@ export default function SkillSettings() {
   const [keyword, setKeyword] = useState('')
   const [form, setForm] = useState(emptyForm())
   const [isNew, setIsNew] = useState(false)
+  const mdFileRef = useRef(null)
 
   const list = useMemo(() => {
     let result = allSkills
@@ -80,6 +81,52 @@ export default function SkillSettings() {
     setForm(emptyForm())
   }
 
+  // .md 导入为自定义预设（对齐大雄「保存为预设」语义；content 走 upsertCustomSkill 内置 mojibake 清洗）
+  const handleMdImport = (e) => {
+    const files = e.target.files
+    if (!files || files.length === 0) return
+    try {
+      Array.from(files).forEach((f) => {
+        if (!/\.(md|markdown|txt)$/i.test(f.name)) return
+        const reader = new FileReader()
+        reader.onload = () => {
+          const text = String(reader.result || '')
+          const name = f.name.replace(/\.(md|markdown|txt)$/i, '')
+          const saved = upsertCustomSkill({ name, description: '', content: text })
+          if (saved) {
+            setAllSkills(getAllSkills())
+            setSelectedId(saved.id)
+            setIsNew(false)
+            setForm({ id: saved.id, name: saved.name, description: saved.description, content: saved.content })
+            showToast(`已导入 Skill「${saved.name}」`, { type: 'success' })
+          } else {
+            showToast(`导入失败：${name} 缺少名称或内容`, { type: 'error' })
+          }
+        }
+        reader.onerror = () => showToast(`读取失败：${f.name}`, { type: 'error' })
+        reader.readAsText(f, 'utf-8')
+      })
+    } finally {
+      e.target.value = ''
+    }
+  }
+
+  // .md 导出当前选中 Skill（Blob 下载）
+  const handleMdExport = () => {
+    const target = selected || (isNew && form.name ? form : null)
+    if (!target || !target.content) return showToast('请先选择一个有内容的 Skill', { type: 'warning' })
+    const blob = new Blob([target.content], { type: 'text/markdown;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${target.name || 'skill'}.md`
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    URL.revokeObjectURL(url)
+    showToast(`已导出 ${a.download}`, { type: 'success' })
+  }
+
   return (
     <section className="bg-surface border border-edge-subtle rounded-xl overflow-hidden">
       {/* Header */}
@@ -125,13 +172,29 @@ export default function SkillSettings() {
             ))}
           </div>
 
-          {/* 新建 */}
-          <div className="p-4">
+          {/* 新建 + 导入/导出 */}
+          <div className="p-4 flex gap-2">
             <button
               onClick={handleNew}
-              className="w-full h-9 rounded-xl bg-white text-black text-xs font-medium flex items-center justify-center gap-2 hover:bg-zinc-200 transition cursor-pointer border-none"
+              className="flex-1 h-9 rounded-xl bg-white text-black text-xs font-medium flex items-center justify-center gap-1.5 hover:bg-zinc-200 transition cursor-pointer border-none"
             >
-              <Plus size={14} /> 新建 Skill
+              <Plus size={14} /> 新建
+            </button>
+            <input ref={mdFileRef} type="file" accept=".md,.markdown,.txt" multiple onChange={handleMdImport} className="hidden" />
+            <button
+              onClick={() => mdFileRef.current?.click()}
+              className="h-9 rounded-xl bg-surface-1 text-xs text-zinc-300 px-3 flex items-center justify-center gap-1.5 hover:bg-surface-hover transition cursor-pointer border-none"
+              title="导入 .md 为自定义 Skill"
+            >
+              <Upload size={14} /> 导入
+            </button>
+            <button
+              onClick={handleMdExport}
+              disabled={!selected && !(isNew && form.name)}
+              className="h-9 rounded-xl bg-surface-1 text-xs text-zinc-300 px-3 flex items-center justify-center gap-1.5 hover:bg-surface-hover transition cursor-pointer border-none disabled:opacity-40 disabled:cursor-not-allowed"
+              title="导出当前 Skill 为 .md"
+            >
+              <Download size={14} /> 导出
             </button>
           </div>
 

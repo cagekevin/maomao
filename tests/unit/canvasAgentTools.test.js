@@ -20,6 +20,8 @@ vi.mock('../../src/components/base/conversationStore.js', () => ({
   setCurrentGlobalContract: vi.fn(),
   getCurrentArtifacts: vi.fn(() => null),
   setCurrentArtifacts: vi.fn(),
+  getCurrentRefImages: vi.fn(() => []),
+  setCurrentRefImages: vi.fn(),
 }))
 vi.mock('../../src/components/base/taskStore.js', () => ({
   runNodeGeneration: vi.fn(async () => ({ ok: true, resultUrl: 'http://r/x.png' })),
@@ -56,11 +58,13 @@ function makeCtx(initialNodes = [], initialEdges = []) {
 beforeEach(() => {
   vi.clearAllMocks()
   // 配对状态：getX 始终读 __state，setX 写 __state（用例可直接翻转 __state 模拟前端确认）
-  convStore.__state = { awaiting: false, pending: null }
+  convStore.__state = { awaiting: false, pending: null, refImages: [] }
   vi.mocked(convStore.getAwaitingConfirm).mockImplementation(() => convStore.__state.awaiting)
   vi.mocked(convStore.setAwaitingConfirm).mockImplementation((v) => { convStore.__state.awaiting = !!v })
   vi.mocked(convStore.getPendingGenerations).mockImplementation(() => convStore.__state.pending)
   vi.mocked(convStore.setPendingGenerations).mockImplementation((g) => { convStore.__state.pending = g })
+  vi.mocked(convStore.getCurrentRefImages).mockImplementation(() => convStore.__state.refImages)
+  vi.mocked(convStore.setCurrentRefImages).mockImplementation((u) => { convStore.__state.refImages = Array.isArray(u) ? u : [] })
 })
 
 describe('画布 Agent 工具层 §2.5', () => {

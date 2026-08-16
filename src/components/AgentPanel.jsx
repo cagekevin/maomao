@@ -7,7 +7,7 @@ import { buildAllModels } from './base/providerModels.js'
 import { useOutsideClick } from './base/hooks.js'
 import { setGenParams, getGenParams } from './base/useCanvasAgentTools.js'
 import { loadAgentChatModel } from './base/settings/agentModelStore.js'
-import { getAllSkills, markSkillUsed } from './base/skillStore.js'
+import { getAllSkills, markSkillUsed, repairMojibakeText } from './base/skillStore.js'
 import { sGet, sSet } from './base/storageAdapter.js'
 import { toAbsoluteFileUrl } from './base/filesApi.js'
 import { setCurrentSnapshot, setAwaitingConfirm } from './base/conversationStore.js'
@@ -343,6 +343,18 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
     try {
       for (let i = 0; i < files.length; i++) {
         const f = files[i]
+        // .md/.markdown/.txt → 导入为 Skill（对齐大雄 setAgentSkillFile：文件名即 Skill 名，content 即文本）
+        if (/\.(md|markdown|txt)$/i.test(f.name)) {
+          try {
+            const text = await readTextFile(f)
+            const name = f.name.replace(/\.(md|markdown|txt)$/i, '')
+            applySkill({ id: `skill_file_${Date.now()}_${i}`, name, description: '', content: repairMojibakeText(text) })
+            showToast(`已导入 Skill「${name}」`, { type: 'success' })
+          } catch (err) {
+            showToast(`Skill 导入失败：${err?.message || err}`, { type: 'error' })
+          }
+          continue
+        }
         if (!f.type.startsWith('image/')) continue
         const localUrl = URL.createObjectURL(f)
         try {
@@ -783,7 +795,7 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
               </span>
 
               {/* 图片上传 */}
-              <input ref={fileRef} type="file" accept="image/*" multiple onChange={handleFiles} className="hidden" />
+              <input ref={fileRef} type="file" accept="image/*,.md,.markdown,.txt" multiple onChange={handleFiles} className="hidden" />
               <button
                 type="button"
                 onClick={() => fileRef.current?.click()}
@@ -832,5 +844,15 @@ function blobToDataURL(file) {
     reader.onload = () => resolve(reader.result)
     reader.onerror = () => reject(new Error('读取失败'))
     reader.readAsDataURL(file)
+  })
+}
+
+/** File → text（用于 .md/.markdown/.txt Skill 导入） */
+function readTextFile(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(String(reader.result || ''))
+    reader.onerror = () => reject(new Error('读取失败'))
+    reader.readAsText(file, 'utf-8')
   })
 }

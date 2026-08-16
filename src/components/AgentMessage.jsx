@@ -158,41 +158,70 @@ export default function AgentMessage({ message, onConfirmPlan, onRetryStep }) {
     let text = message.content
     let ok = true
     let nodeId = ''
+    let failedEntries = []
     try {
       const r = JSON.parse(message.content)
       ok = !!r.ok
       nodeId = r.nodeId || ''
       text = r.error || (r.ok ? `操作成功${r.nodeId ? `：${r.nodeId}` : ''}` : '操作失败')
+      // 【TASK-007 2.1】execute_plan 计划返回 entries：把失败的步收集出来，逐个提供「重试此步」（对齐大雄 retryAgentGeneration）
+      if (Array.isArray(r.data?.entries)) {
+        failedEntries = r.data.entries.filter((e) => e && e.status === 'failed' && e.nodeId)
+      }
     } catch { /* keep raw */ }
-    // 失败且带 nodeId（generate_node 失败已回传）→ 显示「重试此步骤」（对齐大雄 retryAgentGeneration）
+    // 失败且带 nodeId（generate_node 失败已回传）→ 显示「重试此步骤」；execute_plan 多失败步 → 逐项重试
     const canRetry = !ok && !!nodeId && typeof onRetryStep === 'function'
+    const hasFailedSteps = failedEntries.length > 0 && typeof onRetryStep === 'function'
     return (
       <div className="flex justify-start">
-        <div className="max-w-[85%] inline-flex items-center gap-1.5 text-caption-sm text-gray-500 bg-canvas border border-edge-subtle rounded-md px-2 py-1">
-          {ok ? (
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-green-500">
-              <polyline points="20 6 9 17 4 12" />
-            </svg>
-          ) : (
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-red-400">
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
-          )}
-          <span>{text}</span>
-          {canRetry && (
-            <button
-              type="button"
-              onClick={() => onRetryStep(nodeId)}
-              className="ml-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded border border-edge hover:border-blue-400 text-gray-400 hover:text-blue-300 transition-colors"
-              title="重新生成此步骤（只重试失败项，不影响其他已完成卡片）"
-            >
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="23 4 23 10 17 10" />
-                <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+        <div className="max-w-[85%] inline-flex flex-col items-start gap-1.5 text-caption-sm text-gray-500 bg-canvas border border-edge-subtle rounded-md px-2 py-1">
+          <div className="inline-flex items-center gap-1.5">
+            {ok && !hasFailedSteps ? (
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-green-500">
+                <polyline points="20 6 9 17 4 12" />
               </svg>
-              <span>重试</span>
-            </button>
+            ) : (
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-red-400">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            )}
+            <span>{hasFailedSteps ? `计划执行：${failedEntries.length} 步失败` : text}</span>
+            {canRetry && (
+              <button
+                type="button"
+                onClick={() => onRetryStep(nodeId)}
+                className="ml-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded border border-edge hover:border-blue-400 text-gray-400 hover:text-blue-300 transition-colors"
+                title="重新生成此步骤（只重试失败项，不影响其他已完成卡片）"
+              >
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="23 4 23 10 17 10" />
+                  <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+                </svg>
+                <span>重试</span>
+              </button>
+            )}
+          </div>
+          {hasFailedSteps && (
+            <div className="flex flex-col gap-1 pl-1">
+              {failedEntries.map((e) => (
+                <div key={e.nodeId} className="inline-flex items-center gap-2">
+                  <span className="text-red-400/80 truncate max-w-[220px]">{e.error || '生成失败'}</span>
+                  <button
+                    type="button"
+                    onClick={() => onRetryStep(e.nodeId)}
+                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded border border-edge hover:border-blue-400 text-gray-400 hover:text-blue-300 transition-colors"
+                    title={`重试此步（${e.id || ''}）`}
+                  >
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="23 4 23 10 17 10" />
+                      <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+                    </svg>
+                    <span>重试此步</span>
+                  </button>
+                </div>
+              ))}
+            </div>
           )}
         </div>
       </div>

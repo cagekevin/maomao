@@ -44,6 +44,7 @@ vi.mock('../../src/components/base/conversationStore.js', () => {
     patchCurrentWorkflow: vi.fn((p) => ({ steerQueue: [], ...p })),
     captureActiveConversation: vi.fn(),
     setCurrentSnapshot: vi.fn(),
+    setAwaitingConfirm: vi.fn(),
     getCurrentMemory: vi.fn(() => ({ summary: '', facts: [], lastPlan: null, lastSharedStyle: '', notes: [] })),
     setCurrentMemory: vi.fn(),
     newConversation: vi.fn(() => {

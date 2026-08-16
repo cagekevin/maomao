@@ -15,14 +15,15 @@
  * @returns {Promise<{ dataUrl, blob, width, height, size, originalSize }>}
  */
 import { toAbsoluteFileUrl } from './imageUrl.js'
+import { loadImageWithTimeout } from './asyncGuard.js'
 
 export async function compressImage(url, opts = {}) {
   const { quality = 0.8, format = 'image/jpeg', maxSize = 0 } = opts
   const src = toAbsoluteFileUrl(url || '')
   if (!src) throw new Error('无图片可压缩')
 
-  // 加载图片（跨域允许 canvas 不污染；blob/data 本地直接可用）
-  const img = await loadImage(src)
+  // 加载图片（跨域允许 canvas 不污染；blob/data 本地直接可用）。用统一入口带超时，避免失效图永久挂起（R2）
+  const img = await loadImageWithTimeout(src, { timeoutMs: 20000 })
   let { naturalWidth: w, naturalHeight: h } = img
   if (!w || !h) throw new Error('无法获取图片尺寸')
 
@@ -49,13 +50,21 @@ export async function compressImage(url, opts = {}) {
   }
   ctx.drawImage(img, 0, 0, w, h)
 
-  const dataUrl = canvas.toDataURL(format, quality)
+  // 【R2 治理】toDataURL 跨域污染时抛 SecurityError，必须兜底成明确错误（TASK-015#2 静默吞错）
+  let dataUrl
+  try {
+    dataUrl = canvas.toDataURL(format, quality)
+  } catch (e) {
+    throw new Error(`图片压缩失败：画布被跨域污染（${e?.name || 'SecurityError'}），请改用本地文件或允许跨域`)
+  }
   const blob = dataUrlToBlob(dataUrl)
 
-  // 原图体积（尽力获取，失败不阻断）
+  // 原图体积（尽力获取，失败不阻断；fetch 也加超时防挂起）
   let originalSize = 0
   try {
-    originalSize = (await (await fetch(src)).blob()).size
+    const res = await fetch(src)
+    const buf = await res.blob()
+    originalSize = buf.size
   } catch {
     try {
       originalSize = atob(src.split(',')[1] || '').length
@@ -63,17 +72,6 @@ export async function compressImage(url, opts = {}) {
   }
 
   return { dataUrl, blob, width: w, height: h, size: blob.size, originalSize }
-}
-
-/** 加载图片 → HTMLImageElement（跨域 anonymous，避免 canvas 被污染） */
-function loadImage(src) {
-  return new Promise((resolve, reject) => {
-    const img = new Image()
-    img.crossOrigin = 'anonymous'
-    img.onload = () => resolve(img)
-    img.onerror = () => reject(new Error('图片加载失败'))
-    img.src = src
-  })
 }
 
 /** data: URL → Blob */

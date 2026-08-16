@@ -21,6 +21,7 @@ import {
   setCurrentPending,
   getCurrentMemory,
   setCurrentMemory,
+  setAwaitingConfirm,
 } from './conversationStore.js'
 
 /**
@@ -336,6 +337,49 @@ export function demoPlan(text, callTool) {
  *                  不传则回退走 localTool /api/agent/:id/chat（env 配的 LLM）。
  * @returns { messages, sending, error, model, setModel, send, stop, clear, ... }
  */
+
+/* ════════════════════════════════════════════════════════════════
+ * 图像模式「每参考图一对一改图」拆分（对齐大雄 agentLooksLikePerReferenceEdit
+ * L2259 + agentExpandPerReferenceGenerations L2334）。纯函数、无副作用。
+ * ────────────────────────────────────────────────────────────────
+ * 用户说「分别把图1变白、图2变黑」「每张各自生成一张」这类语义时，
+ * 把整批参考图拆成 N 个独立 generation，每步 attachment_indices:[i] 只挂自己那张，
+ * 让底层 execute_plan / canvasPlanExecutor 按步精确图生图。非分别语义保持原单 generation 行为。
+ */
+export function imageModeLooksLikePerReferenceEdit(text = '', attachCount = 0) {
+  if (attachCount < 2) return false // 单张/无图不拆（对齐大雄 L2262）
+  const t = String(text || '')
+  // 情况 A：直接「分别/各自/逐一/逐个/每张/各出/各改…」（对齐大雄 L2263）
+  if (/(分别|各自|逐一|逐个|每张|各出|各改|各变成|分别改成|分别变成|分别做成)/.test(t)) return true
+  // 情况 B：多对象 + 分别/都/各自/改成/变成/换成（对齐大雄 L2264）
+  if (/(这两|这两张|这两个|这几张|这几个|全部|两只|两张|两个|几只|几张).{0,16}(分别|都|各自|改成|变成|换成)/.test(t)) return true
+  // 情况 C：都/全部改成/变成/换成（对齐大雄 L2265）
+  if (/(都改成|都变成|都换成|全部改成|全部变成)/.test(t)) return true
+  // 情况 D：多个「目标 + 变化动词」逐一改（对齐大雄 L2266-2267，补强单字「变」与无标点并列）
+  //   - 覆盖「图1变白、图2变黑」「图1变成红色图2变成蓝色」「第1张变X、第2张变Y」等
+  const perTargets = t.match(/图\s*\d+\s*(?:变成|改成|换成|变为|变)|第\s*\d+\s*张\s*(?:变成|改成|换成|变为|变)/g) || []
+  if (perTargets.length >= 2) return true
+  // 情况 E：逗号分隔的多个「变成X」目标（对齐大雄 L2266-2267 原逻辑）
+  const targets = t.match(/变成[^，,。；;\n]{1,12}/g) || []
+  if (targets.length >= 2) return true
+  return false
+}
+
+/** 构造「每参考图一对一」的 N 个 generation（对齐大雄 agentExpandPerReferenceGenerations L2334） */
+export function buildPerReferenceGenerations(referenceImages = [], prompt = '', panel = {}) {
+  return referenceImages.map((url, i) => ({
+    id: `direct_image_${Date.now()}_ref${i + 1}`,
+    title: `参考图${i + 1}`,
+    prompt: String(prompt || '').trim() || '基于该参考图生成一张图',
+    ratio: panel.ratio || 'Auto',
+    resolution: panel.resolution || '1K',
+    depends_on_previous: false,
+    dependency_mode: 'none',
+    use_attachments: true,
+    attachment_indices: [i],
+  }))
+}
+
 export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '', defaultModel = CHAT_MODEL, provider = null, skills = [], onConversationChange = null } = {}) {
   const [messages, setMessages] = useState([])
   const [sending, setSending] = useState(false)
@@ -554,24 +598,37 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
   )
 
   /** 执行一批工具调用并回填 tool 消息（send 的真实分支与 Demo 分支共用）。
-   *  tools: [{ name, args, callId? }] → 逐个 callTool，把 tool 消息 append 到历史。 */
-  const runToolCalls = useCallback((tools, callIdFor = () => '') => {
+   *  tools: [{ name, args, callId? }] → 逐个 callTool，把 tool 消息 append 到历史。
+   *  【TASK-006 #1 修复】execute_plan/generate_node/trigger_generation 等是 async 工具，
+   *  callTool 返回 Promise。旧实现同步 for 循环拿 `result.ok` 全是 undefined →
+   *  回填 LLM `{ok:false,error:undefined}` → 误判失败 → 撞 MAX_TOOL_ROUNDS 死循环 + 重复建节点。
+   *  改为 async + 逐个 await，确保回填真实结果（await 普通对象/值也安全，不改变行为）。 */
+  const runToolCalls = useCallback(async (tools, callIdFor = () => '') => {
     for (const tc of tools) {
       let args = {}
       if (tc.function?.arguments) {
         try { args = JSON.parse(tc.function.arguments) } catch (e) { console.warn('[Agent] 工具参数 JSON.parse 失败:', tc.function?.name, tc.function?.arguments, e) }
       }
-      const result = callTool(tc.function?.name, args)
+      const result = await callTool(tc.function?.name, args)
       appendMsg({
         role: 'tool',
         // 失败时也携带 result.nodeId（若工具失败返回了），供对话侧「重试此步骤」定位节点（对齐大雄）
-        content: result.ok ? JSON.stringify({ ok: true, ...result.data }) : JSON.stringify({ ok: false, error: result.error, ...(result.nodeId ? { nodeId: result.nodeId } : {}) }),
+        content: result?.ok ? JSON.stringify({ ok: true, ...(result.data || {}) }) : JSON.stringify({ ok: false, error: result?.error, ...(result?.nodeId ? { nodeId: result.nodeId } : {}) }),
         tool_call_id: callIdFor(tc),
         createdAt: Date.now()
       })
       // Skill 三阶段阶段1：show_plan_for_confirm 把策划展示给用户（作为一条 assistant 消息，可见规划）
-      if (tc.function?.name === 'show_plan_for_confirm' && result.ok && result.data?.plan_text) {
+      if (tc.function?.name === 'show_plan_for_confirm' && result?.ok && result.data?.plan_text) {
         appendMsg({ role: 'assistant', content: `生成策划：\n${result.data.plan_text}`, model, createdAt: Date.now(), awaiting_confirm: true })
+      }
+      // 【TASK-009 执行摘要】execute_plan 返回 logs → 渲染一条带逐步进度的「执行摘要」消息（对齐大雄折叠面板）
+      // 修复 #1 后 result 是真对象，此判断才真正生效
+      if (tc.function?.name === 'execute_plan' && result?.ok && Array.isArray(result.data?.logs) && result.data.logs.length > 0) {
+        const lines = result.data.logs.map((l) => {
+          const mark = l.level === 'error' ? '❌' : l.level === 'warn' ? '⚠️' : l.level === 'ok' ? '✅' : '·'
+          return `${mark} ${l.message}`
+        })
+        appendMsg({ role: 'assistant', content: `执行摘要：\n${lines.join('\n')}`, model, createdAt: Date.now(), execution_summary: true })
       }
     }
   }, [callTool, appendMsg, model])
@@ -643,14 +700,12 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
               createdAt: Date.now()
             }
             appendMsg(assistantMsg)
-            // 执行每个工具并回填 tool 结果
+            // 执行每个工具并回填 tool 结果（TASK-006 #1：await 异步工具，避免 Promise 被序列化）
             for (const [i, p] of plan.entries()) {
+              const r = await callTool(p.name, p.args)
               appendMsg({
                 role: 'tool',
-                content: (() => {
-                  const r = callTool(p.name, p.args)
-                  return r.ok ? JSON.stringify({ ok: true, ...r.data }) : JSON.stringify({ ok: false, error: r.error })
-                })(),
+                content: r?.ok ? JSON.stringify({ ok: true, ...(r.data || {}) }) : JSON.stringify({ ok: false, error: r?.error }),
                 tool_call_id: assistantMsg.tool_calls[i].id,
                 createdAt: Date.now()
               })
@@ -688,8 +743,8 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
           // 无工具调用 → 结束
           if (!assistant.tool_calls || assistant.tool_calls.length === 0) break
 
-          // 执行工具并回填结果
-          runToolCalls(assistant.tool_calls, (tc) => tc.id)
+          // 执行工具并回填结果（TASK-006 #1：await 异步工具，确保回填真实结果而非 Promise）
+          await runToolCalls(assistant.tool_calls, (tc) => tc.id)
         }
         // 多轮工具循环走满上限仍未收敛（LLM 反复调工具不自收敛）→ 提示用户，避免"停住但无说明"
         if (round === MAX_TOOL_ROUNDS && assistant.tool_calls && assistant.tool_calls.length > 0) {
@@ -764,15 +819,22 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
       // 参考图 url（供图生图）
       const referenceImages = (userMsg.attachments || []).map((a) => a.url).filter(Boolean)
       const panel = getGenParams()
-      const gens = [{
-        id: `direct_image_${Date.now()}`,
-        title: '直接生图',
-        prompt,
-        ratio: panel.ratio || 'Auto',
-        resolution: panel.resolution || '1K',
-        depends_on_previous: false,
-        dependency_mode: 'none',
-      }]
+      // 【TASK-008】多参考图「分别改图」拆分（对齐大雄）：命中「分别/各自/每张/都改成…」语义时，
+      // 拆成 N 个独立 generation（每步 attachment_indices:[i] 只挂自己那张），否则整批塞单 generation。
+      // 必须先把参考图写入模块级 refPool，execute_plan 的 attachment_indices 才能按编号取到图。
+      setCurrentReferenceImages(referenceImages)
+      const perRef = referenceImages.length >= 2 && imageModeLooksLikePerReferenceEdit(prompt, referenceImages.length)
+      const gens = perRef
+        ? buildPerReferenceGenerations(referenceImages, prompt, panel)
+        : [{
+            id: `direct_image_${Date.now()}`,
+            title: '直接生图',
+            prompt,
+            ratio: panel.ratio || 'Auto',
+            resolution: panel.resolution || '1K',
+            depends_on_previous: false,
+            dependency_mode: 'none',
+          }]
 
       try {
         // 复用 execute_plan 工具（canvasPlanExecutor）在画布建节点 + 带参考图直连生图
@@ -780,7 +842,15 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
         const ok = res && (res.ok === true || (res.ok === undefined && !res.error))
         const entries = res?.data?.entries || []
         const doneCount = entries.filter((e) => e.status === 'completed').length
-        appendMsg({ role: 'assistant', content: ok ? `已在画布生图：${entries.length} 张${doneCount ? `，完成 ${doneCount} 张` : ''}` : (`生图失败：${res?.error || ''}`), mode: 'image', createdAt: Date.now() })
+        const logs = Array.isArray(res?.data?.logs) ? res.data.logs : []
+        const summary = ok
+          ? `已在画布生图：${entries.length} 张${doneCount ? `，完成 ${doneCount} 张` : ''}`
+          : `生图失败：${res?.error || ''}`
+        // 【TASK-009】图像模式也展示执行摘要（对齐大雄 workflowLogs）：多参考图拆分/依赖批时有逐步进度可见
+        const withLogs = logs.length
+          ? `${summary}\n\n执行摘要：\n${logs.map((l) => `${l.level === 'error' ? '❌' : l.level === 'warn' ? '⚠️' : l.level === 'ok' ? '✅' : '·'} ${l.message}`).join('\n')}`
+          : summary
+        appendMsg({ role: 'assistant', content: withLogs, mode: 'image', createdAt: Date.now(), ...(logs.length ? { execution_summary: true } : {}) })
         if (!ok) setError(res?.error || '图像模式生图失败')
       } catch (e) {
         setError(e?.message || '图像模式生图失败')
@@ -810,11 +880,13 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
     abortRef.current = null
     setHistory([])
     setError(null)
+    // 【TASK-006 #6】清空时一并重置 awaitingConfirm + pendingGenerations，否则 clear 后 execute_plan 永久被拒（策划未确认残留）
+    setAwaitingConfirm(false)
     // 落盘当前对话为空（messages/attachments/workflow/pending/memory 一并清空）
-    setCurrentSnapshot({ messages: [], skills: skillsRef.current, draft: '', attachments: [], workflow: null, pending: null, memory: { summary: '', facts: [], lastPlan: null, lastSharedStyle: '', notes: [] } })
+    setCurrentSnapshot({ messages: [], skills: skillsRef.current, draft: '', attachments: [], workflow: null, pending: null, memory: { summary: '', facts: [], lastPlan: null, lastSharedStyle: '', notes: [] }, pendingGenerations: null, awaitingConfirm: false })
     try { captureActiveConversation() } catch { /* ignore */ }
     stateMachineRef.current.setStatus('idle')
-  }, [agentKey, setHistory])
+  }, [agentKey, setHistory, setAwaitingConfirm])
 
   /** 刷新对话列表 state（供 UI 渲染） */
   const refreshConversations = useCallback(() => {

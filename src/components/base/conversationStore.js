@@ -125,6 +125,7 @@ export function normalizeConversation(c) {
   if (!Array.isArray(c.aiUndoStack)) c.aiUndoStack = [] // AI 撤销栈快照 [{nodes,edges,action}]
   if (c.pendingGenerations === undefined) c.pendingGenerations = null // Skill 阶段1 策划暂存
   if (typeof c.awaitingConfirm !== 'boolean') c.awaitingConfirm = false // Skill 阶段2 确认态
+  if (!Array.isArray(c.referenceImages)) c.referenceImages = [] // 本轮用户引用的参考图 URL（per-conversation，防跨对话泄漏）
   return c
 }
 
@@ -372,6 +373,22 @@ export function setAwaitingConfirm(v) {
   commit({
     ...state,
     conversations: state.conversations.map((c) => (c.id === conv.id ? { ...c, awaitingConfirm: !!v, updatedAt: Date.now() } : c)),
+  })
+}
+
+/** 读当前对话「本轮用户引用的参考图」URL 数组（per-conversation，TASK-006 #7 防跨对话泄漏） */
+export function getCurrentRefImages() {
+  return getActiveConv()?.referenceImages || []
+}
+
+/** 写当前对话「本轮用户引用的参考图」URL 数组 */
+export function setCurrentRefImages(urls = []) {
+  const conv = getActiveConv()
+  if (!conv) return
+  const next = Array.isArray(urls) ? urls.filter(Boolean) : []
+  commit({
+    ...state,
+    conversations: state.conversations.map((c) => (c.id === conv.id ? { ...c, referenceImages: next, updatedAt: Date.now() } : c)),
   })
 }
 

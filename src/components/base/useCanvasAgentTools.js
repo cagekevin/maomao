@@ -11,6 +11,7 @@ import {
   getAwaitingConfirm, setAwaitingConfirm,
   getCurrentGlobalContract, setCurrentGlobalContract,
   getCurrentArtifacts, setCurrentArtifacts,
+  getCurrentRefImages, setCurrentRefImages,
 } from './conversationStore.js'
 import { sGet, sSet } from './storageAdapter.js'
 
@@ -49,16 +50,16 @@ export function getGenParams() {
 /* ════════════════════════════════════════════════════════════════
  * 当前对话「用户引用的参考图」URL 数组（对齐大雄 attachment_indices）
  * ────────────────────────────────────────────────────────────────
- * 用户选中画布带图节点/上传图片 → useAgentChat.send 时写入本模块级变量；
+ * 用户选中画布带图节点/上传图片 → useAgentChat.send 时写入【当前对话】（per-conversation，
+ * TASK-006 #7：改下沉到 conversationStore，切对话自动隔离，避免模块级单例跨对话泄漏旧参考图）；
  * execute_plan 工具读取它，按 AI 输出的 attachment_indices（0-based）精确取对应 URL，
- * 写进每个 generation 的 referenceImages（该步图生图参考）。类似 getGenParams 模式。
+ * 写进每个 generation 的 referenceImages（该步图生图参考）。
  */
-let currentRefImages = []
 export function setCurrentReferenceImages(urls = []) {
-  currentRefImages = Array.isArray(urls) ? urls.filter(Boolean) : []
+  setCurrentRefImages(urls)
 }
 export function getCurrentReferenceImages() {
-  return currentRefImages
+  return getCurrentRefImages()
 }
 
 /* ════════════════════════════════════════════════════════════════
@@ -695,7 +696,11 @@ const executePlanTool = {
         ? resolvedGens.map((g) => ({ ...g, prompt: `[统一风格锁定]\n${gcText}\n\n${g.prompt || ''}` }))
         : resolvedGens
       const artifactTable = Array.isArray(args.artifacts) && args.artifacts.length ? args.artifacts : (getCurrentArtifacts() || [])
-      const result = await executePlan({ ctx, generations: lockedGens, autoRun, model, defaults: panel, referenceImages: globalRefs, globalContract: gc, artifacts: artifactTable })
+      // 【TASK-012】套图/融合兜底需要用户原文（seriesHint/fusionIntent）。优先 LLM 带 user_text，否则用阶段1策划 plan_text 兜底。
+      const userText = String(args.user_text || getCurrentMemory()?.lastPlan?.plan_text || '').trim()
+      // 【TASK-009 进度日志】executor 逐步 onLog → 收集进 logs，随结果返回，供 useAgentChat 渲染折叠「执行摘要」（对齐大雄 workflowLogs）
+      const logs = []
+      const result = await executePlan({ ctx, generations: lockedGens, autoRun, model, defaults: panel, referenceImages: globalRefs, globalContract: gc, artifacts: artifactTable, onLog: (it) => { try { logs.push(it) } catch { /* 忽略 */ } }, userText })
       if (!result || !result.entries) {
         patchCurrentWorkflow({ status: 'failed', updatedAt: Date.now() })
         return { ok: false, error: '计划执行失败' }
@@ -705,7 +710,7 @@ const executePlanTool = {
       // memory 提炼：把执行计划记入当前对话（对齐大雄 conv.memory.lastPlan）
       const mem = getCurrentMemory()
       setCurrentMemory({ ...mem, lastPlan: { plan_text: args.plan_text || mem?.lastPlan?.plan_text || '', generations: gens, ts: Date.now() } })
-      return { ok: true, data: { workflow: result.workflow, entries: result.entries } }
+      return { ok: true, data: { workflow: result.workflow, entries: result.entries, logs } }
     } catch (e) {
       patchCurrentWorkflow({ status: 'failed', updatedAt: Date.now() })
       return { ok: false, error: `计划执行异常：${e?.message || e}` }
