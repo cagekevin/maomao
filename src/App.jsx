@@ -51,6 +51,8 @@ import AccountsSettings from './components/base/settings/sections/AccountsSettin
 import TopNav from './components/base/TopNav.jsx'
 import { showToast } from './components/base/toastStore.js'
 import { getSetting, setSetting } from './components/base/appSettings.js'
+import { subscribe } from './components/base/eventBus.js'
+import { exportAll, importAll, backupToBlob } from './components/base/backupStore.js'
 import { useLocalToolStatus } from './components/base/useLocalToolStatus.js'
 import LocalToolConnectModal from './components/base/LocalToolConnectModal.jsx'
 import EmptyCanvasGuide from './components/base/EmptyCanvasGuide.jsx'
@@ -294,6 +296,54 @@ function Canvas() {
     history.clear?.()
     logger.info('项目', 'create', { name: getCurrentProject().name })
   }, [setNodes, setEdges, history, persistCanvas])
+
+  // 完整导入/导出（对齐官方 yimao 工作流备份）：承接 project:import / project:export 事件。
+  // 导出：exportAll 打包 → 下载 JSON；导入：选 .json → importAll 写回 → 刷新应用。
+  React.useEffect(() => {
+    const handleExport = async () => {
+      try {
+        const backup = await exportAll()
+        const blob = backupToBlob(backup)
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `yimao-workflow-backup-${new Date().toISOString().split('T')[0]}.json`
+        a.click()
+        URL.revokeObjectURL(url)
+        showToast('工作流备份导出成功', { type: 'success' })
+      } catch (e) {
+        console.error('[App] 导出失败:', e)
+        showToast('导出失败：' + (e?.message || '未知错误'), { type: 'error' })
+      }
+    }
+    const handleImport = () => {
+      const input = document.createElement('input')
+      input.type = 'file'
+      input.accept = '.json,application/json'
+      input.onchange = async (e) => {
+        const file = e.target.files?.[0]
+        if (!file) return
+        const reader = new FileReader()
+        reader.onload = async (ev) => {
+          try {
+            const backup = JSON.parse(ev.target?.result)
+            const res = await importAll(backup)
+            if (!res.ok) throw new Error(res.error || '导入失败')
+            showToast(`导入成功（${res.ls} 配置 + ${res.canvas} 画布），即将刷新应用`, { type: 'success' })
+            setTimeout(() => window.location.reload(), 1500)
+          } catch (err) {
+            console.error('[App] 导入失败:', err)
+            showToast('导入失败：文件格式不正确', { type: 'error' })
+          }
+        }
+        reader.readAsText(file)
+      }
+      input.click()
+    }
+    const offImport = subscribe('project:import', handleImport)
+    const offExport = subscribe('project:export', handleExport)
+    return () => { offImport(); offExport() }
+  }, [])
 
   // 右键菜单状态（基座 useContextMenu）
   const menu = useContextMenu()
