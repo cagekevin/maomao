@@ -11,6 +11,7 @@
  *   recordRecent(id) / getRecent()
  */
 import { sGet, sSet } from './storageAdapter.js'
+import { publish } from './eventBus.js'
 
 const STORAGE_KEY = 'yimao_preset_prompts'
 const RECENT_KEY = 'yimao_preset_recent'
@@ -83,11 +84,8 @@ export function createPreset() {
 // 保存并广播（跨节点同步提示词库）
 export function saveAndNotify(presets) {
   savePresets(presets)
-  try {
-    window.dispatchEvent(new CustomEvent('yimao:presetsChanged', { detail: presets }))
-  } catch {
-    // ignore
-  }
+  // 广播预设变化（经 eventBus，解耦 window）：PromptLibrary 等订阅同步
+  publish('presets-changed', presets)
 }
 
 // 最近使用 id 列表（去重 + 上限 50）

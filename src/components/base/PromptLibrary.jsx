@@ -7,6 +7,7 @@ import {
   TYPE_LABEL, TYPE_TAG_CLASS, CATEGORY_OPTIONS
 } from './promptManager.js'
 import { showToast } from './toastStore.js'
+import { subscribe } from './eventBus.js'
 
 /**
  * 提示词库大弹窗（复刻 maomao/src/components/prompts/PromptLibrary.jsx）。
@@ -33,11 +34,10 @@ export default function PromptLibrary({ open, onClose, onUse, defaultCategory = 
   const [localPresets, setLocalPresets] = useState(() => loadPresets())
   const presets = presetPrompts || localPresets
 
-  // 监听外部 presetsChanged 广播，保持同步
+  // 监听外部 presets-changed 广播（经 eventBus），保持同步
   useEffect(() => {
-    const onChanged = (e) => setLocalPresets(e.detail || loadPresets())
-    window.addEventListener('yimao:presetsChanged', onChanged)
-    return () => window.removeEventListener('yimao:presetsChanged', onChanged)
+    const onChanged = (presets) => setLocalPresets(presets || loadPresets())
+    return subscribe('presets-changed', onChanged)
   }, [])
 
   // 打开时重置状态

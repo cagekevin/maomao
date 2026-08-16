@@ -2,6 +2,7 @@ import { useCallback, useRef, useState, useEffect } from 'react'
 import { reportGenerate, registerTaskRetry, unregisterTaskRetry, setCurrentTaskId } from './taskStore.js'
 import { saveResultToTasks } from './filesApi.js'
 import { logger } from './logger.js'
+import { subscribe } from './eventBus.js'
 
 /**
  * ════════════════════════════════════════════════════════════════
@@ -130,22 +131,20 @@ export function useNodeGeneration({ nodeId, type, validate, run, onSuccess, onRe
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nodeId])
 
-  // 【精准节点回填】监听异步任务恢复轮询的完成广播（pollTask.js 发 mutiwindow-task-completed）。
+  // 【精准节点回填】监听异步任务恢复轮询的完成广播（taskStore/pollTask 发 agent:task-completed，经 eventBus）。
   // 只有「任务归属的节点」（detail.nodeId === 本 nodeId）才响应 → 精准：其他在跑的/不相关的节点忽略。
   // 收到后回调 onRecover(detail)，由各节点把 resultUrl 写回 node.data（刷新后节点卡片自动恢复显示结果）。
   // 用 ref 存最新 onRecover，监听只在挂载时注册一次，避免每次渲染重建。
   useEffect(() => {
     if (!nodeId) return
-    const handler = (e) => {
-      const d = e?.detail
+    const handler = (d) => {
       if (!d) return
       // 只认本节点 + 已完成 + 有结果 URL 的广播，其余忽略（精准）
       if (d.nodeId !== nodeId) return
       if (d.status !== 'completed' || !d.resultUrl) return
       onRecoverRef.current?.(d)
     }
-    window.addEventListener('mutiwindow-task-completed', handler)
-    return () => window.removeEventListener('mutiwindow-task-completed', handler)
+    return subscribe('agent:task-completed', handler)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nodeId])
 

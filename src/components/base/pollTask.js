@@ -23,6 +23,7 @@
  */
 import { API_BASE } from './apiBase.js'
 import { getTasks, patchTask } from './taskStore.js'
+import { publish } from './eventBus.js'
 
 // 轮询节流：单进程内两次全量扫描最小间隔（ms）
 const POLL_INTERVAL = 5000
@@ -75,12 +76,8 @@ export async function pollOneTask(task) {
   if (status === 'completed') {
     const resultUrl = extractResultUrl(data, task.type)
     patchTask(task.id, { status: 'completed', progress: 100, resultUrl })
-    // 广播完成事件：任务中心/节点监听后回写（对齐官方 mutiwindow-task-completed）
-    try {
-      window.dispatchEvent(new CustomEvent('mutiwindow-task-completed', {
-        detail: { taskId: task.id, nodeId: task.nodeId, resultUrl, type: task.type, status: 'completed' }
-      }))
-    } catch { /* 非浏览器环境忽略 */ }
+    // 广播完成事件：节点监听 agent:task-completed 回写（经 eventBus，解耦 window）
+    publish('agent:task-completed', { taskId: task.id, nodeId: task.nodeId, resultUrl, type: task.type, status: 'completed' })
     return true
   }
   if (status === 'failed' || status === 'error') {

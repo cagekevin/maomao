@@ -14,6 +14,7 @@
 import { useSyncExternalStore } from 'react'
 import { fetchTasks, saveTask, deleteTask, batchDeleteTasks, clearAllTasksApi } from './tasksApi.js'
 import { saveResultToTasks } from './filesApi.js'
+import { publish } from './eventBus.js'
 
 let tasks = []
 const listeners = new Set()
@@ -185,11 +186,8 @@ export function reportGenerate(nodeId, type, prompt, meta = {}) {
             // 【画布同步】落盘成功 → 把持久化 URL 广播给对应节点（PromptNode 等监听后写回 data.imageUrl）。
             // 否则节点 data.imageUrl 只存「上游原始 URL」，刷新后若该 URL 失效/是临时地址 → 画布丢图，
             // 而任务中心读的是已落盘的 /files/tasks/ URL → 任务中心有图、画布没图的错位。
-            try {
-              window.dispatchEvent(new CustomEvent('mutiwindow-task-completed', {
-                detail: { taskId: task.id, nodeId: task.nodeId, resultUrl: persistedUrl, type: task.type, status: 'completed' }
-              }))
-            } catch { /* 非浏览器环境忽略 */ }
+            // 任务完成广播（经 eventBus，解耦 window）：节点监听 agent:task-completed 回写结果
+            publish('agent:task-completed', { taskId: task.id, nodeId: task.nodeId, resultUrl: persistedUrl, type: task.type, status: 'completed' })
           }
         })
       }
