@@ -27,6 +27,7 @@ vi.mock('../../src/components/base/canvasPlanExecutor.js', () => ({
 
 import { buildCanvasAgentTools, CANVAS_AGENT_TOOL_NAMES, getNodeImageUrl, setCurrentReferenceImages } from '../../src/components/base/useCanvasAgentTools.js'
 import * as convStore from '../../src/components/base/conversationStore.js'
+import * as taskStore from '../../src/components/base/taskStore.js'
 import { executePlan as mockExecutePlan } from '../../src/components/base/canvasPlanExecutor.js'
 
 function makeCtx(initialNodes = [], initialEdges = []) {
@@ -257,6 +258,16 @@ describe('画布 Agent 工具层 §2.5', () => {
     expect(r.ok).toBe(true)
     expect(r.data.resultUrl).toBe('http://r/x.png')
     expect(r.data.submitted).toBe(true)
+  })
+
+  it('generate_node 失败：返回带 nodeId（供对话侧「重试此步骤」定位节点）', async () => {
+    vi.mocked(taskStore.runNodeGeneration).mockResolvedValueOnce({ ok: false, error: '模型超时' })
+    const ctx = makeCtx([{ id: 'a', type: 'promptNode', data: {}, position: {} }])
+    const t = buildCanvasAgentTools(ctx)
+    const r = await t.generate_node({ nodeId: 'a' })
+    expect(r.ok).toBe(false)
+    expect(r.nodeId).toBe('a') // 失败也带 nodeId
+    expect(r.error).toBe('模型超时')
   })
 
   it('show_plan_for_confirm 暂存策划并进入待确认', async () => {

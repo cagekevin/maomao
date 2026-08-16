@@ -11,6 +11,7 @@ import { getAllSkills, markSkillUsed } from './base/skillStore.js'
 import { sGet, sSet } from './base/storageAdapter.js'
 import { toAbsoluteFileUrl } from './base/filesApi.js'
 import { setCurrentSnapshot, setAwaitingConfirm } from './base/conversationStore.js'
+import { runNodeGeneration } from './base/taskStore.js'
 import { showToast } from './base/toastStore.js'
 
 /**
@@ -323,6 +324,12 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
     Promise.resolve(send('已确认，请按刚才展示的策划执行。')).catch((e) => console.error('[Agent] 确认后 send 失败:', e))
   }, [send])
 
+  // 单步失败重试：点击失败 tool 卡片的「重试」，只重跑该 nodeId（复用 taskStore 已注册的生成契约，对齐大雄 retryAgentGeneration）
+  const handleRetryStep = useCallback((nodeId) => {
+    if (!nodeId) return
+    runNodeGeneration(nodeId)
+  }, [])
+
   // 快捷建议发送
   const sendShortcut = (text) => {
     setInput(text)
@@ -514,7 +521,7 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
               )}
             </div>
           )}
-          {messages.map((m, i) => <AgentMessage key={i} message={m} onConfirmPlan={handleConfirmPlan} />)}
+          {messages.map((m, i) => <AgentMessage key={i} message={m} onConfirmPlan={handleConfirmPlan} onRetryStep={handleRetryStep} />)}
           {sending && (
             <div className="flex items-center gap-2 text-gray-500 text-xs">
               <span className="flex gap-1">

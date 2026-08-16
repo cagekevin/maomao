@@ -545,10 +545,11 @@ const triggerGenerationTool = {
     // await 它可拿到已落盘的持久 resultUrl（供前序依赖/多图编排复用）。
     const res = await runNodeGeneration(id)
     if (!res) {
-      return { ok: false, error: `节点 ${id} 未注册生成契约（类型 ${node.type} 暂不支持由 Agent 驱动）` }
+      // 失败也带 nodeId，供对话侧「重试此步骤」定位节点（对齐大雄 retryAgentGeneration）
+      return { ok: false, error: `节点 ${id} 未注册生成契约（类型 ${node.type} 暂不支持由 Agent 驱动）`, nodeId: id }
     }
     if (res.ok === false) {
-      return { ok: false, error: res.error || '生成失败' }
+      return { ok: false, error: res.error || '生成失败', nodeId: id }
     }
     // res 可能是 { ok:true, resultUrl }（新版 start）或 true（旧回调）→ resultUrl 兜底空串
     const resultUrl = res.resultUrl || ''

@@ -75,7 +75,7 @@ function ToolCallChip({ name, args }) {
 }
 
 /** 消息气泡主组件（复刻 Cr.jsx） */
-export default function AgentMessage({ message, onConfirmPlan }) {
+export default function AgentMessage({ message, onConfirmPlan, onRetryStep }) {
   if (message.role === 'user') {
     const skillNames = (message.skills || []).map((s) => s?.name || s?.id || '').filter(Boolean)
     return (
@@ -157,11 +157,15 @@ export default function AgentMessage({ message, onConfirmPlan }) {
   if (message.role === 'tool') {
     let text = message.content
     let ok = true
+    let nodeId = ''
     try {
       const r = JSON.parse(message.content)
       ok = !!r.ok
+      nodeId = r.nodeId || ''
       text = r.error || (r.ok ? `操作成功${r.nodeId ? `：${r.nodeId}` : ''}` : '操作失败')
     } catch { /* keep raw */ }
+    // 失败且带 nodeId（generate_node 失败已回传）→ 显示「重试此步骤」（对齐大雄 retryAgentGeneration）
+    const canRetry = !ok && !!nodeId && typeof onRetryStep === 'function'
     return (
       <div className="flex justify-start">
         <div className="max-w-[85%] inline-flex items-center gap-1.5 text-caption-sm text-gray-500 bg-canvas border border-edge-subtle rounded-md px-2 py-1">
@@ -176,6 +180,20 @@ export default function AgentMessage({ message, onConfirmPlan }) {
             </svg>
           )}
           <span>{text}</span>
+          {canRetry && (
+            <button
+              type="button"
+              onClick={() => onRetryStep(nodeId)}
+              className="ml-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded border border-edge hover:border-blue-400 text-gray-400 hover:text-blue-300 transition-colors"
+              title="重新生成此步骤（只重试失败项，不影响其他已完成卡片）"
+            >
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="23 4 23 10 17 10" />
+                <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+              </svg>
+              <span>重试</span>
+            </button>
+          )}
         </div>
       </div>
     )
