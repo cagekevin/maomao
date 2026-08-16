@@ -201,9 +201,9 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
     setCurrentSnapshot({ attachments })
   }, [attachments])
 
-  // 【选中图→输入框】用户选中带图节点时，把它的图作为图片附件加进输入框（可删）。
-  // 只加「当前选中且尚不在输入框」的图；用户删掉 chip 后不会自动加回（依赖 selectedImageNodes，
-  // 删除不改变它）。nodeId 记录来源，供发送时定位/去重。
+  // 【选中图→输入框】用户选中带图节点时，把它的图作为图片附件加进输入框（正常缩略图，可删）。
+  // 编号不随选中/删除重算——只在发送时按输入框当前顺序计算（参考图1/2/3）。nodeId 记录来源，
+  // 供改图时 AI 精确定位原节点。
   useEffect(() => {
     if (!Array.isArray(selectedImageNodes)) return
     setAttachments((prev) => {
@@ -280,7 +280,7 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
     const text = (typeof overrideText === 'string' ? overrideText : input).trim()
     if ((!text && attachments.length === 0) || (sending && stateAction !== 'steer')) return
     if (inputMode === 'image') {
-      const attach = attachments.length > 0 ? attachments.map(({ type, url }) => ({ type, url })) : []
+      const attach = attachments.length > 0 ? attachments.map(({ type, url, nodeId, label }) => ({ type, url, nodeId, label })) : []
       setAttachments([])
       setInput('')
       try { sSet(AGENT_DRAFT_KEY, '') } catch { /* ignore */ }
@@ -292,7 +292,7 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
       alert(`当前模型 ${model} 不支持视觉，请切换到 ${fallback} 等视觉模型后再发送`)
       return
     }
-    const attach = attachments.length > 0 ? attachments.map(({ type, url }) => ({ type, url })) : undefined
+    const attach = attachments.length > 0 ? attachments.map(({ type, url, nodeId, label }) => ({ type, url, nodeId, label })) : undefined
     setAttachments([])
     setInput('')
     try { sSet(AGENT_DRAFT_KEY, '') } catch { /* ignore */ }
