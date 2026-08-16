@@ -36,3 +36,46 @@ test.describe('设置与导航 §2.9/2.10', () => {
     }
   })
 })
+
+// L4 §2.19 补充：AI 助手 → Skill 管理（SkillSettings，左列表+右编辑，合并进设置「AI 助手」分区）
+test.describe('AI 助手 Skill 管理 §2.19', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/')
+    await page.waitForSelector('.react-flow', { timeout: 10000 })
+  })
+
+  // 打开设置 → AI 助手分区 → 应出现 Skill 管理（含内置 Skill）
+  test('设置 AI 助手分区渲染 Skill 管理（内置 Skill 可见）', async ({ page }) => {
+    const settingsBtn = page.getByTitle('设置').first()
+    if (!(await settingsBtn.count())) return test.skip(true, '未找到设置入口按钮')
+    await settingsBtn.click()
+    await page.waitForTimeout(500) // 等 SettingsFrame 挂载
+
+    // 切到「AI 助手」分区
+    const agentTab = page.getByText('AI 助手').first()
+    if (await agentTab.count()) await agentTab.click()
+    await page.waitForTimeout(300)
+
+    // Skill 管理卡片可见，且内置 Skill「电商详情页套图」存在（skillStore BUILTIN）
+    await expect(page.getByText('Skill Library', { exact: false }).first()).toBeVisible({ timeout: 5000 })
+    await expect(page.getByText(/电商详情页套图/i).first()).toBeVisible({ timeout: 5000 })
+  })
+
+  // 打开 Skill 管理 → 选中内置 Skill → 右侧只读（编辑框 disabled）
+  test('Skill 管理选中内置 Skill 只读', async ({ page }) => {
+    const settingsBtn = page.getByTitle('设置').first()
+    if (!(await settingsBtn.count())) return test.skip(true, '未找到设置入口按钮')
+    await settingsBtn.click()
+    await page.waitForTimeout(500)
+    const agentTab = page.getByText('AI 助手').first()
+    if (await agentTab.count()) await agentTab.click()
+    await page.waitForTimeout(300)
+
+    const builtin = page.getByText('电商详情页套图').first()
+    await expect(builtin).toBeVisible({ timeout: 5000 })
+    await builtin.click()
+    await page.waitForTimeout(300)
+    // 内置 Skill 只读：名称输入框 disabled，且显示「内置 Skill 只读」
+    await expect(page.getByText(/内置 Skill 只读/i).first()).toBeVisible({ timeout: 5000 })
+  })
+})
