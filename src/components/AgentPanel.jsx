@@ -11,6 +11,7 @@ import { getAllSkills, markSkillUsed } from './base/skillStore.js'
 import { sGet, sSet } from './base/storageAdapter.js'
 import { toAbsoluteFileUrl } from './base/filesApi.js'
 import { setCurrentSnapshot, setAwaitingConfirm } from './base/conversationStore.js'
+import { showToast } from './base/toastStore.js'
 
 /**
  * ════════════════════════════════════════════════════════════════
@@ -175,6 +176,8 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
   const [chatListOpen, setChatListOpen] = useState(false)
   const chatListRef = useRef(null)
   useOutsideClick(chatListRef, chatListOpen, () => setChatListOpen(false))
+  // 新建对话短锁：新建后 1s 内禁用按钮，避免用户狂点出十几个空对话
+  const newChatLock = useRef(false)
 
   const { messages, sending, error, model, setModel, send, sendImageMode, stop, clear, stateAction, conversations, activeConversationId, newChat, switchChat, deleteChat } = useAgentChat({
     agentKey,
@@ -358,7 +361,19 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
           <span className="text-white text-sm font-medium">AI 助手</span>
         </div>
         <div className="flex items-center gap-0.5">
-          <button type="button" onClick={newChat} disabled={sending} className="p-1.5 text-gray-400 hover:text-white hover:bg-surface-hover rounded-md transition-colors disabled:opacity-40" title="新建对话">
+          <button
+            type="button"
+            disabled={sending || newChatLock.current}
+            onClick={() => {
+              if (newChatLock.current) return
+              newChat()
+              showToast('已新建对话', { type: 'success' })
+              newChatLock.current = true
+              setTimeout(() => { newChatLock.current = false }, 1000)
+            }}
+            className="p-1.5 text-gray-400 hover:text-white hover:bg-surface-hover rounded-md transition-colors disabled:opacity-40"
+            title="新建对话"
+          >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
             </svg>

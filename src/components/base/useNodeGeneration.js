@@ -3,6 +3,7 @@ import { reportGenerate, registerTaskRetry, unregisterTaskRetry, setCurrentTaskI
 import { saveResultToTasks } from './filesApi.js'
 import { logger } from './logger.js'
 import { subscribe } from './eventBus.js'
+import { showToast } from './toastStore.js'
 
 /**
  * ════════════════════════════════════════════════════════════════
@@ -95,9 +96,13 @@ export function useNodeGeneration({ nodeId, type, validate, run, onSuccess, onRe
         }
         return { ok: true, resultUrl: '' }
       } else {
-        setError(r?.error || '生成失败')
-        taskCtl.fail(r?.error || '生成失败')
-        return { ok: false, error: r?.error || '生成失败' }
+        const msg = r?.error || '生成失败'
+        setError(msg)
+        taskCtl.fail(msg)
+        // 生成失败：统一 logger + 全局 toast（节点内红字易忽略；logger 供全链路排查）
+        logger.error('生成', 'fail', { nodeId, type: t.type, prompt: t.prompt, error: msg })
+        showToast(msg, { type: 'error' })
+        return { ok: false, error: msg }
       }
     } catch (e) {
       if (e?.name === 'AbortError') {
@@ -107,9 +112,13 @@ export function useNodeGeneration({ nodeId, type, validate, run, onSuccess, onRe
         return { ok: false, error: '已停止', aborted: true }
       }
       console.error('[useNodeGeneration] 生成异常:', e?.message)
-      setError(e?.message || '生成失败')
-      taskCtl.fail(e?.message || '生成失败')
-      return { ok: false, error: e?.message || '生成失败' }
+      const msg = e?.message || '生成失败'
+      setError(msg)
+      taskCtl.fail(msg)
+      // 生成异常：统一 logger + 全局 toast（用户主动停止 AbortError 除外）
+      logger.error('生成', 'fail', { nodeId, type: t.type, prompt: t.prompt, error: msg })
+      showToast(msg, { type: 'error' })
+      return { ok: false, error: msg }
     } finally {
       setLoading(false)
     }

@@ -3,6 +3,8 @@ import { NodeResizer, useStore } from '@xyflow/react'
 import NodeTitle from '../NodeTitle.jsx'
 import CustomHandle from '../CustomHandle.jsx'
 import { useSizeSync } from './hooks.js'
+import ErrorBoundary from './ErrorBoundary.jsx'
+import { logger } from './logger.js'
 
 // ReactFlow store 选择器：订阅单个节点的当前 width/height。
 // 目的：让根 div 的 inline width/height 永远等于 ReactFlow 的 node.width/height。
@@ -224,8 +226,17 @@ export default function NodeShell({
         />
       )}
 
-      {/* 主容器背景层：统一背景/圆角/边框/阴影/选中边框（见 mainShellClassName） */}
-      <div className={mainShellClassName}>{children}</div>
+      {/* 主容器背景层：统一背景/圆角/边框/阴影/选中边框（见 mainShellClassName）。
+          用局部 ErrorBoundary 包住 children：单个节点渲染崩溃只降级该节点，不影响整个画布。
+          onError 上报 logger（生成/渲染异常全链路可查）。 */}
+      <div className={mainShellClassName}>
+        <ErrorBoundary
+          variant="node"
+          onError={(error) => logger.error('节点渲染', 'error', { nodeId: id, error: error?.message || String(error) })}
+        >
+          {children}
+        </ErrorBoundary>
+      </div>
 
       {/* 端口统一渲染，相对根 div 定位 → 在 wrapper 中点。
           剧本盒子等复合节点用 showHandles={false} 关闭，改用内部每镜头/每输出口端口 */}

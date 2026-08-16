@@ -182,8 +182,11 @@ export function parseSSEChunk(line, acc) {
  *  导出供单测（AI 助手前端逻辑核心：确认发给 LLM 的 messages 组装正确）。 */
 export function buildRequestMessages(messages, systemPrompt, enhance = true, skills = [], memory = null) {
   const out = []
-  const hasSystem = messages.some((m) => m.role === 'system')
-  if (!hasSystem && enhance) {
+  // 画布准则（CANVAS_AGENT_RULES）始终注入（enhance 控制），不因历史已含 system 而跳过。
+  // 【bug 修复】旧实现 `hasSystem=messages.some(system)` 为真时：既不注入准则（L186 不满足），
+  //   又在遍历时 `if(role==='system') continue` 把历史 system 一并丢弃 → 恢复旧对话时 LLM 收到 0 条 system、
+  //   画布准则丢失。现改为：准则无条件注入 + 历史 system 在遍历中保留（见下方不再 continue 跳过）。
+  if (enhance) {
     out.push({ role: 'system', content: CANVAS_AGENT_RULES })
     if (systemPrompt) out.push({ role: 'system', content: systemPrompt })
   } else if (systemPrompt) {
@@ -205,7 +208,8 @@ export function buildRequestMessages(messages, systemPrompt, enhance = true, ski
     })
   }
   for (const m of messages) {
-    if (m.role === 'system') continue
+    // 历史 system 保留（不再 continue 丢弃）：恢复旧对话时保留旧的用户/上下文 system，
+    // 画布准则已在上方无条件注入，两者语义互补不冲突。
     if (m.role === 'user' && m.attachments && m.attachments.length > 0) {
       const content = m.attachments.map((a) => ({ type: 'image_url', image_url: { url: a.url } }))
       if (m.content) content.push({ type: 'text', text: m.content })
@@ -635,11 +639,12 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
 
         // ── 真实模式：多轮工具循环（≤ MAX_TOOL_ROUNDS）──
         let round = 0
+        let assistant // 提升到循环外：供循环结束后判断是否「走满上限仍不收敛」（否则访问 for 块级变量会 ReferenceError）
         for (; round < MAX_TOOL_ROUNDS; round++) {
           // 追加流式 assistant 占位（复刻官方）
           appendMsg({ role: 'assistant', content: '', model, streaming: true, createdAt: Date.now() })
 
-          const assistant = await roundTrip(
+          assistant = await roundTrip(
             buildRequestMessages(messagesRef.current, systemRef.current, true, skillsRef.current, getCurrentMemory()),
             controller.signal,
             (delta) => updateLastStreaming(delta)

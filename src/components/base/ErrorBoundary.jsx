@@ -2,11 +2,13 @@ import React from 'react'
 import { AlertTriangle, RotateCcw } from 'lucide-react'
 
 /**
- * 崩溃页面（Error Boundary）。
+ * 崩溃边界（Error Boundary）。
  *
- * 捕获画布/组件渲染错误，显示画面中央的崩溃页 + 「重新载入」按钮：
- *  - 重新载入：清空错误状态重新渲染（软恢复）；若仍失败可强制整页刷新（硬恢复）。
- * 使用方式：在 main.jsx 包住 <App />。
+ * 捕获画布/组件渲染错误。两种粒度：
+ *  - variant="full"（默认）：根级全屏崩溃页（main.jsx 包 <App/> 用）。
+ *  - variant="node"：节点内局部错误框（NodeShell 包每个节点内容用），
+ *    单个节点崩溃只在该节点内降级，不影响整个画布/其它节点。
+ *  - onError：可选回调（上报后端等），node 粒度默认传 logger。
  */
 export default class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -20,6 +22,7 @@ export default class ErrorBoundary extends React.Component {
 
   componentDidCatch(error, errorInfo) {
     this.setState({ errorInfo })
+    this.props.onError?.(error, errorInfo)
     // 上报错误（可接后端 /api/logs）
     console.error('[ErrorBoundary]', error, errorInfo)
   }
@@ -33,8 +36,26 @@ export default class ErrorBoundary extends React.Component {
   }
 
   render() {
+    if (!this.state.hasError) return this.props.children
+    const err = this.state.error
+    // 节点内局部错误框（NodeShell 用）：不破坏节点尺寸/端口定位，只占内容区
+    if (this.props.variant === 'node') {
+      return (
+        <div className="flex flex-col items-center justify-center gap-2 w-full h-full min-h-[120px] p-3 text-center">
+          <AlertTriangle size={20} className="text-amber-400" />
+          <div className="text-caption-sm text-gray-300">该节点渲染出错</div>
+          <button
+            type="button"
+            className="px-3 py-1 text-caption-sm bg-surface-hover hover:bg-surface-hover-strong text-gray-200 rounded-md cursor-pointer border-none"
+            onClick={this.handleReload}
+          >
+            重新载入
+          </button>
+        </div>
+      )
+    }
+    // 根级全屏崩溃页（main.jsx 用）
     if (this.state.hasError) {
-      const err = this.state.error
       return (
         <div className="fixed inset-0 z-overlay-error bg-input flex items-center justify-center">
           <div className="flex flex-col items-center gap-5 max-w-[420px] px-6 text-center">
