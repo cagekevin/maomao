@@ -31,6 +31,16 @@ function isLocalTarget(url: URL): boolean {
   return /^10\.|^192\.168\.|^172\.(1[6-9]|2\d|3[01])\./.test(host);
 }
 
+/** 需强制走代理的域名后缀（Lovart 系：API lgw.lovart.ai + CDN a.lovart.ai 等）。
+ * 这些域名本机必须经代理才能访问，直连必然失败（TLS 断开/超时）。 */
+const PROXY_REQUIRED_HOST_SUFFIXES = ['lovart.ai'];
+
+/** 该 host 是否属于「需强制走代理」的域名（后缀匹配，覆盖所有子域名） */
+function requiresProxy(host: string): boolean {
+  const h = String(host || '').toLowerCase();
+  return PROXY_REQUIRED_HOST_SUFFIXES.some((s) => h === s || h.endsWith('.' + s));
+}
+
 /** 从环境变量解析代理地址，返回形如 http://host:port 的 URL，无则返回 null */
 function proxyFromEnv(): string | null {
   const candidates = [
@@ -93,8 +103,11 @@ export async function resolveProxy(): Promise<string | null> {
     }
   }
 
+  // 【偶发修复】null（无可用代理）不缓存：代理可能随时启动/恢复（Clash/V2Ray 切换、抖动），
+  // 若缓存 null 60 秒，期间所有走代理的下载（如 Lovart CDN）都直连失败持续报错。
+  // 置 _cacheTime=0 使下次调用立即重新探测，代理一恢复就能用。
   _cachedProxy = null;
-  _cacheTime = now;
+  _cacheTime = 0;
   return null;
 }
 
@@ -262,13 +275,31 @@ function proxyResponse(status: number, headers: Headers, body: Buffer): Response
  */
 export async function fetchWithProxy(input: string | URL, init?: RequestInit): Promise<Response> {
   const url = new URL(String(input));
+  const host = url.hostname.toLowerCase();
 
   // 本地目标 / http 目标：直连（CONNECT 隧道仅适合 https）
   if (url.protocol !== 'https:' || isLocalTarget(url)) {
     return fetch(url.toString(), init);
   }
 
-  // 先直连（公网直连可达的最优路径，性能最好）
+  // 【B 优化】需强制走代理的域名（Lovart 系）：直接走代理，跳过无谓的直连碰壁。
+  // 这些域名本机必须经代理才能访问，直连必然失败（TLS 断开/超时）；
+  // 直接走代理既稳定又高效，也不依赖「直连失败→探测代理」这条易受探测缓存影响的路径。
+  if (requiresProxy(host)) {
+    const proxy = await resolveProxy();
+    if (proxy) {
+      try {
+        return await proxyRequest(proxy, url.toString(), init);
+      } catch (proxyErr) {
+        // 代理也失败：抛代理错误（调用方降级）
+        throw proxyErr;
+      }
+    }
+    // 无可用代理：退回直连（调用方降级，至少尝试一次）
+    return fetch(url.toString(), init);
+  }
+
+  // 其余公网：先直连（公网直连可达的最优路径），失败再走代理
   try {
     return await fetch(url.toString(), init);
   } catch {
