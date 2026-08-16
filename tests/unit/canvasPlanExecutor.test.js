@@ -1,129 +1,157 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-// 隔离 taskStore（真实生成需后端），用 fake 立即成功
+// 多步编排执行器：隔离 runNodeGeneration（真实生图 → 落盘 resultUrl）与 isNodeRegistered
 vi.mock('../../src/components/base/taskStore.js', () => ({
-  runNodeGeneration: vi.fn(async () => ({ ok: true, resultUrl: 'http://result/x.png' })),
+  runNodeGeneration: vi.fn(async () => ({ ok: true, resultUrl: 'http://r/ok.png' })),
   isNodeRegistered: vi.fn(() => true),
 }))
 
 import { executePlan } from '../../src/components/base/canvasPlanExecutor.js'
+import { runNodeGeneration } from '../../src/components/base/taskStore.js'
 
+// 最小 ctx：addNodes 记录、addEdges 记录、setNodes 写回 imageUrl、getNodes 反映最新
 function makeCtx(initialNodes = []) {
   let nodes = [...initialNodes]
   let edges = []
   return {
+    nodes: () => nodes,
+    edges: () => edges,
     getNodes: () => nodes,
     addNodes: (ns) => { nodes = [...nodes, ...ns] },
     addEdges: (es) => { edges = [...edges, ...es] },
     setNodes: (fn) => { nodes = typeof fn === 'function' ? fn(nodes) : fn },
-    _getEdges: () => edges,
-    _getNodes: () => nodes,
   }
 }
 
 beforeEach(() => { vi.clearAllMocks() })
 
-describe('canvasPlanExecutor.executePlan §2.15', () => {
-  it('空计划 → {status:"failed",error:"计划为空"}', async () => {
-    const r = await executePlan({ ctx: makeCtx(), generations: [], autoRun: true })
+describe('多步编排执行器 executePlan §2.5/2.6', () => {
+  it('空计划 → workflow 失败 + 空 entries', async () => {
+    const ctx = makeCtx()
+    const r = await executePlan({ ctx, generations: [] })
     expect(r.workflow.status).toBe('failed')
-    expect(r.workflow.error).toBe('计划为空')
     expect(r.entries).toEqual([])
+    expect(runNodeGeneration).not.toHaveBeenCalled()
   })
 
-  it('独立批并行建节点 + 触发生成 + 写回 resultUrl', async () => {
+  it('无 prompt/title 的步骤被过滤', async () => {
+    const ctx = makeCtx()
+    const r = await executePlan({ ctx, generations: [{ id: 'x' }, { id: 'y', prompt: '猫' }] })
+    expect(r.entries).toHaveLength(1)
+  })
+
+  it('独立批（Wave1）：并行建节点 + 触发 + 写回 imageUrl，status=completed', async () => {
     const ctx = makeCtx()
     const r = await executePlan({
       ctx,
       generations: [
-        { id: 'g1', prompt: '猫', ratio: 'square', resolution: '1k' },
+        { id: 'g1', prompt: '猫', ratio: 'square' },
         { id: 'g2', prompt: '狗', ratio: 'story' },
       ],
-      autoRun: true,
     })
+    expect(ctx.nodes()).toHaveLength(2)
+    expect(ctx.nodes().every((n) => n.type === 'promptNode')).toBe(true)
+    // 比例归一：square→1:1，story→9:16
+    expect(ctx.nodes()[0].data.aspectRatio).toBe('1:1')
+    expect(ctx.nodes()[1].data.aspectRatio).toBe('9:16')
+    // 每个节点生成结果已写回 imageUrl
+    expect(ctx.nodes().every((n) => n.data.imageUrl === 'http://r/ok.png')).toBe(true)
     expect(r.entries).toHaveLength(2)
-    expect(r.entries.every((e) => e.status === 'completed')).toBe(true)
-    // 节点已建（promptNode × 2）
-    const nodes = ctx._getNodes()
-    expect(nodes.filter((n) => n.type === 'promptNode')).toHaveLength(2)
-    // ratio 归一：square→1:1, story→9:16；resolution 1k→1K
-    const byData = nodes.find((n) => n.data.prompt === '猫')
-    expect(byData.data.aspectRatio).toBe('1:1')
-    expect(byData.data.imageSize).toBe('1K')
-    const dog = nodes.find((n) => n.data.prompt === '狗')
-    expect(dog.data.aspectRatio).toBe('9:16')
+    expect(r.entries.every((e) => e.status === 'completed' && e.resultUrl === 'http://r/ok.png')).toBe(true)
+    expect(r.workflow.status).toBe('completed')
+    expect(runNodeGeneration).toHaveBeenCalledTimes(2)
   })
 
-  it('依赖批在独立批全部成功时建「前序→本步」连线（下游自动读参考图）', async () => {
+  it('依赖批（Wave2）：前置全部成功时与前序节点连线，并触发', async () => {
     const ctx = makeCtx()
     const r = await executePlan({
       ctx,
       generations: [
-        { id: 'g1', prompt: '底图', ratio: 'landscape' },
-        { id: 'g2', prompt: '变体', depends_on_previous: true },
+        { id: 'g1', prompt: '主图', depends_on_previous: true }, // 依赖批（此处无独立批，应被跳过）
       ],
-      autoRun: true,
     })
-    expect(r.entries).toHaveLength(2)
-    const edges = ctx._getEdges()
-    // g1 成功 → g2 应有一条来自 g1 节点的边
-    expect(edges.length).toBe(1)
-    const g1Node = ctx._getNodes().find((n) => n.data.prompt === '底图')
-    expect(edges[0].source).toBe(g1Node.id)
+    // 无独立批成功 → 依赖批无前序，跳过
+    expect(r.entries[0].status).toBe('failed')
+    expect(r.entries[0].error).toContain('无前序成功结果')
+
+    // 独立批成功 + 依赖批成功
+    vi.clearAllMocks()
+    const ctx2 = makeCtx()
+    const r2 = await executePlan({
+      ctx: ctx2,
+      generations: [
+        { id: 'base', prompt: '底图' },
+        { id: 'dep', prompt: '变体', depends_on_previous: true },
+      ],
+    })
+    expect(r2.entries[0].status).toBe('completed')
+    expect(r2.entries[1].status).toBe('completed')
+    // 建了 1 条连线：base → dep
+    expect(ctx2.edges()).toHaveLength(1)
+    expect(ctx2.edges()[0].source).toBe(r2.entries[0].nodeId)
+    expect(ctx2.edges()[0].target).toBe(r2.entries[1].nodeId)
   })
 
-  it('独立批有失败 → 依赖批跳过（不建边、状态 failed）', async () => {
-    const { runNodeGeneration } = await import('../../src/components/base/taskStore.js')
-    runNodeGeneration.mockImplementation(async (id) => ({ ok: false, error: '生成失败' }))
+  it('依赖批：前置任一步失败 → 整批跳过（不生成）', async () => {
     const ctx = makeCtx()
+    // 强制第一个节点生成失败
+    runNodeGeneration.mockImplementationOnce(async () => ({ ok: false, error: '生成失败' }))
     const r = await executePlan({
       ctx,
       generations: [
-        { id: 'g1', prompt: '底图' },
-        { id: 'g2', prompt: '变体', depends_on_previous: true },
+        { id: 'base', prompt: '底图' },
+        { id: 'dep', prompt: '变体', depends_on_previous: true },
       ],
-      autoRun: true,
     })
     expect(r.entries[0].status).toBe('failed')
     expect(r.entries[1].status).toBe('failed')
     expect(r.entries[1].error).toContain('前置步骤未全部成功')
-    expect(ctx._getEdges().length).toBe(0)
+    // 没为 dep 建连线
+    expect(ctx.edges()).toHaveLength(0)
   })
 
-  it('autoRun=false 只建节点不触发生成（ready 态）', async () => {
+  it('autoRun=false：只建节点不触发，status=ready', async () => {
     const ctx = makeCtx()
     const r = await executePlan({
       ctx,
-      generations: [{ id: 'g1', prompt: '草图' }],
       autoRun: false,
+      generations: [{ id: 'g1', prompt: '猫' }],
     })
-    expect(r.workflow.status).toBe('ready')
+    expect(ctx.nodes()).toHaveLength(1)
+    expect(ctx.nodes()[0].data.imageUrl).toBeUndefined()
     expect(r.entries[0].status).toBe('ready')
-    expect(ctx._getNodes().filter((n) => n.type === 'promptNode')).toHaveLength(1)
+    expect(r.workflow.status).toBe('ready')
+    expect(runNodeGeneration).not.toHaveBeenCalled()
   })
 
-  it('锚点就近排布：每 3 个换一行（列×480 / 行×520）', async () => {
+  it('参考图：写进每个生图节点 data.images', async () => {
     const ctx = makeCtx()
-    await executePlan({
+    const r = await executePlan({
       ctx,
-      generations: [{ id: 'a', prompt: '1' }, { id: 'b', prompt: '2' }, { id: 'c', prompt: '3' }, { id: 'd', prompt: '4' }],
-      autoRun: false,
+      generations: [{ id: 'g1', prompt: '猫' }],
+      referenceImages: ['http://r/ref.png'],
     })
-    const nodes = ctx._getNodes().filter((n) => n.type === 'promptNode')
-    // 第1个在第0列，第4个应换到第0列下一行（row=1）
-    expect(nodes[0].position.x).toBe(120) // base.x = maxX(0)+120
-    expect(nodes[3].position.y).toBe(40 + 520) // 第二行
+    const imgs = ctx.nodes()[0].data.images
+    expect(imgs).toHaveLength(1)
+    expect(imgs[0].url).toBe('http://r/ref.png')
   })
 
-  it('参考图写入节点 data.images（图生图）', async () => {
+  it('模型/比例/分辨率：每步显式 > 面板 defaults > 内置默认', async () => {
     const ctx = makeCtx()
-    await executePlan({
+    const r = await executePlan({
       ctx,
-      generations: [{ id: 'g1', prompt: '猫', ratio: '1:1' }],
-      autoRun: false,
-      referenceImages: ['/files/ref.png'],
+      model: 'gpt-image-2',
+      defaults: { model: 'default-model', ratio: 'landscape', resolution: '2K' },
+      generations: [
+        { id: 'explicit', prompt: '猫', ratio: 'portrait', resolution: '4K' }, // 显式优先
+        { id: 'inherit', prompt: '狗' }, // 继承 defaults
+      ],
     })
-    const node = ctx._getNodes().find((n) => n.data.prompt === '猫')
-    expect(node.data.images[0]).toMatchObject({ url: '/files/ref.png', name: 'reference' })
+    const byId = Object.fromEntries(r.entries.map((e) => [e.id, ctx.nodes().find((n) => n.id === e.nodeId)]))
+    expect(byId.explicit.data.aspectRatio).toBe('3:4') // portrait→3:4
+    expect(byId.explicit.data.imageSize).toBe('4K')
+    expect(byId.explicit.data.selectedModel).toBe('gpt-image-2')
+    expect(byId.inherit.data.aspectRatio).toBe('16:9') // landscape→16:9
+    expect(byId.inherit.data.imageSize).toBe('2K')
   })
 })

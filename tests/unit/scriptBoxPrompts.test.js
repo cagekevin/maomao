@@ -29,12 +29,24 @@ describe('剧本盒纯函数 §2.7/2.17', () => {
     expect(dialogueText([{ role: 'A', text: '1' }, { role: 'B', text: '2' }])).toBe('A: 1 / B: 2')
   })
 
-  it('hlAt：@资产名 高亮为 span.at', () => {
-    const r = hlAt('@小红帽 走进森林')
+  it('hlAt：只高亮真实资产名（传资产列表），非资产 @ 不高亮', () => {
+    const r = hlAt('@小红帽 走进 @幽暗森林 还有 @路人', ['小红帽', '幽暗森林'])
     expect(r).toContain('<span class="at">@小红帽</span>')
-    expect(r).toContain('走进森林')
-    // XSS 转义
-    expect(hlAt('<script>')).toContain('&lt;script&gt;')
+    expect(r).toContain('<span class="at">@幽暗森林</span>')
+    expect(r).not.toContain('<span class="at">@路人</span>') // 非资产名不高亮
+    expect(r).toContain('走进')
+  })
+
+  it('hlAt：长名优先匹配，@小马妈妈 不被 @小马 吃掉', () => {
+    const r = hlAt('@小马妈妈 和 @小马', ['小马', '小马妈妈'])
+    expect(r).toContain('<span class="at">@小马妈妈</span>')
+    expect(r).toContain('<span class="at">@小马</span>')
+  })
+
+  it('hlAt：未传资产列表/空列表 → 不高亮任何 @，仅做 XSS 转义', () => {
+    expect(hlAt('@小红帽 你好')).not.toContain('class="at"')
+    expect(hlAt('@小红帽', [])).not.toContain('class="at"')
+    expect(hlAt('<script>@x')).toContain('&lt;script&gt;') // XSS 转义仍生效
   })
 
   it('matchAsset：@名 后一位非中英数才算合法（防误匹配）', () => {

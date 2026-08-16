@@ -142,7 +142,7 @@ export default function PromptNode({ id, data, selected }) {
 
   // 统一生成契约（useNodeGeneration）：收敛「reportGenerate + 进度 + 成功双写(taskStore+node.data) + 失败 + retry注册」。
   // 真实生图：经 localTool /api/proxy → 选中的 provider /v1/images/generations（节点式：可跨 provider 选模型）。
-  // 同步/异步由该 provider.image_mode 决定（API 设置页「图片生成模式」）。Agent 的 trigger_generation 也走这里。
+  // 同步/异步由该 provider.image_mode 决定（API 设置页「图片生成模式」）。Agent 的 generate_node 也走这里。
   const { loading, error, stop: onStop, start: handleGenerate } = useNodeGeneration({
     nodeId: id,
     type: { type: 'image', prompt: prompt || '', modelName: selectedModel },

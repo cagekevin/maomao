@@ -97,8 +97,8 @@ const CANVAS_AGENT_RULES = `你是猫猫画布助手，正在帮助用户操作�
 
 【修改与生成】
 - 改节点用 update_node（白名单字段 prompt/label/selectedModel/aspectRatio/resolution/seconds/text）。
-- 改任意原始字段才用 update_node_raw，且只改必要字段，不要抹掉其他 data。
-- 用户要求生成内容时，用 trigger_generation 触发已有节点（先确保该节点有提示词），或 create_node(promptNode, prompt=...) 后 trigger_generation。
+- 改任意原始字段才用 update_node_any_field，且只改必要字段，不要抹掉其他 data。
+- 用户要求生成内容时，用 generate_node 触发已有节点（先确保该节点有提示词），或 create_node(promptNode, prompt=...) 后 generate_node。
 - 生成任务提交后应说明「已在画布开始生成」，不要在没有结果时声称「已生成」。
 - 【主动聚焦】生成/创建/修改某个节点后，主动调用 focus_node 把该节点居中聚焦给用户看，让用户一眼看到成果；一次对话聚焦最近操作的那个节点即可，不要频繁跳动。
 
@@ -119,7 +119,7 @@ const CANVAS_AGENT_RULES = `你是猫猫画布助手，正在帮助用户操作�
 // 对齐大雄 AGENT_FORMAT_INSTRUCTION：generations 是执行唯一真相；Skill 原文无损绑定。
 const SKILL_EXECUTION_RULES = `【Skill 驱动的批量生图（三阶段，对齐大雄）】
 当本轮启用了 Skill，你必须按 Skill 的要求用三阶段完成批量生图：
-【阶段1 · 策划】：先规划一个可执行的 generations 数组（每张图一个步骤），每步含 { id, title, prompt, ratio, resolution, depends_on_previous, dependency_mode }，然后调用 present_plan 工具（传 plan_text 策划说明 + generations）把策划展示给用户确认。**不要**在阶段1直接 execute_plan。
+【阶段1 · 策划】：先规划一个可执行的 generations 数组（每张图一个步骤），每步含 { id, title, prompt, ratio, resolution, depends_on_previous, dependency_mode }，然后调用 show_plan_for_confirm 工具（传 plan_text 策划说明 + generations）把策划展示给用户确认。**不要**在阶段1直接 execute_plan。
 【阶段2 · 等待确认】：展示策划后停止工具调用，输出文字请用户确认或补充。用户确认后进入阶段2。
 【阶段3 · 执行】：用户确认后，调用 execute_plan 工具（传 generations 数组）执行，并简要说明开始生成。
 
@@ -546,8 +546,8 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
         tool_call_id: callIdFor(tc),
         createdAt: Date.now()
       })
-      // Skill 三阶段阶段1：present_plan 把策划展示给用户（作为一条 assistant 消息，可见规划）
-      if (tc.function?.name === 'present_plan' && result.ok && result.data?.plan_text) {
+      // Skill 三阶段阶段1：show_plan_for_confirm 把策划展示给用户（作为一条 assistant 消息，可见规划）
+      if (tc.function?.name === 'show_plan_for_confirm' && result.ok && result.data?.plan_text) {
         appendMsg({ role: 'assistant', content: `生成策划：\n${result.data.plan_text}`, model, createdAt: Date.now(), awaiting_confirm: true })
       }
     }

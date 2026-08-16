@@ -34,7 +34,7 @@ export function getGenParams() {
  * Skill 三阶段：阶段1 策划暂存（pendingGenerations）
  * ────────────────────────────────────────────────────────────────
  * 对齐大雄三阶段（理解→规划→执行）：
- *  - 阶段1 策划：LLM 调 present_plan 输出策划，前端展示给用户确认，generations 暂存当前对话。
+ *  - 阶段1 策划：LLM 调 show_plan_for_confirm 输出策划，前端展示给用户确认，generations 暂存当前对话。
  *  - 用户确认后（下一轮），LLM 调 execute_plan；若 execute_plan 没传 generations 则用暂存的。
  * 【Step D 下沉】原为模块级变量（多对话串话、刷新丢）。现存 conversationStore 的
  * per-conversation pendingGenerations，随对话自动落盘、刷新不丢、多对话不串。
@@ -125,7 +125,7 @@ const num = (v, fb) => {
 const MUTATING_TOOLS = new Set([
   'create_node', 'batch_create_nodes',
   'delete_node', 'batch_delete_nodes',
-  'update_node', 'update_node_raw',
+  'update_node', 'update_node_any_field',
   'connect_nodes', 'batch_connect_nodes', 'delete_edge',
   'move_node', 'group_nodes', 'lock_node',
   'execute_plan', // 多步编排：一次改多个节点，整体入 AI 撤销栈（undo_ai 可整体撤回）
@@ -145,7 +145,7 @@ const UPDATE_NODE_WHITELIST = ['prompt', 'label', 'selectedModel', 'aspectRatio'
 const createNodeTool = {
   name: 'create_node',
   description:
-    '在当前画布创建节点。type 枚举来自节点目录：textNode(文本)、promptNode(图片/生图)、discountVideoNode(视频)、imageNode(图片节点)、scriptBoxNode(剧本盒子)、group(编组) 等。可指定 prompt/label/position；可选 connectFrom 表示从某节点拉一条连线到新节点。返回新建节点的 id。',
+    '创建单个节点。type 枚举：textNode(文本)/promptNode(生图)/discountVideoNode(视频)/imageNode(图片)/scriptBoxNode(剧本盒)/group(编组)。可传 prompt、label、position；connectFrom 可在建节点同时从某节点拉线。返回新节点 id。',
   parameters: {
     type: 'object',
     properties: {
@@ -190,7 +190,7 @@ const createNodeTool = {
 /** 批量建节点（batch_create_nodes）—— 复用 createNode，逐个建并返回 id 列表 */
 const batchCreateNodesTool = {
   name: 'batch_create_nodes',
-  description: '批量创建多个节点，适合一次搭建整条生成流程（提示词→配置→视频/图片）。每个元素结构与 create_node 相同，connectFrom 可用数组内前面建好的 id。',
+  description: '批量创建多个节点（元素结构与 create_node 相同）。适合一次搭建整条流程。返回全部新节点 id。',
   parameters: {
     type: 'object',
     properties: {
@@ -214,7 +214,7 @@ const batchCreateNodesTool = {
 /** 删除节点（delete_node）—— 连带删除相连边 */
 const deleteNodeTool = {
   name: 'delete_node',
-  description: '删除指定节点及其相连的所有连线。删除后该节点 id 失效，不可再引用。',
+  description: '删除指定节点及其所有相连连线。删除后 id 失效。',
   parameters: {
     type: 'object',
     properties: { nodeId: { type: 'string', description: '要删除的节点 id' } },
@@ -257,7 +257,7 @@ const batchDeleteNodesTool = {
  */
 const updateNodeTool = {
   name: 'update_node',
-  description: '更新节点数据。白名单字段：prompt(提示词)、label(标题)、selectedModel(模型)、aspectRatio(宽高比 如 16:9)、resolution(分辨率 如 720p)、seconds(视频秒数)、text(文本内容)、locked(锁定)。只改传入字段，不影响其他。',
+  description: '更新节点可编辑字段（白名单）。可改：prompt(提示词)、label(标题)、selectedModel(模型)、aspectRatio(宽高比 16:9/9:16/1:1)、resolution(720p/1080p)、seconds(秒数)、text(文本)、locked(锁定)。只改传入字段。',
   parameters: {
     type: 'object',
     properties: {
@@ -289,12 +289,12 @@ const updateNodeTool = {
 }
 
 /**
- * 更新节点任意原始字段（update_node_raw）—— 高级。
- * 对齐官方 update_node_raw：nodeId + patch 直接合并进 data。⚠️ 只改必要字段，避免覆盖其他数据。
+ * 更新节点任意原始字段（update_node_any_field）—— 高级。
+ * 对齐官方 update_node_raw（原型改名 update_node_any_field）：nodeId + patch 直接合并进 data。⚠️ 只改必要字段，避免覆盖其他数据。
  */
 const updateNodeRawTool = {
-  name: 'update_node_raw',
-  description: '直接更新节点的任意原始 data 字段（高级）。入参 patch 会整体合并进 node.data。仅改必要字段，避免覆盖其他数据。',
+  name: 'update_node_any_field',
+  description: '直接改节点任意原始 data 字段（高级）。patch 整体合并进 node.data，仅改必要字段避免覆盖。',
   parameters: {
     type: 'object',
     properties: {
@@ -318,7 +318,7 @@ const updateNodeRawTool = {
 /** 连线（connect_nodes）—— source 输出流向 target */
 const connectNodesTool = {
   name: 'connect_nodes',
-  description: '连接两个节点表示数据流（source 的输出流向 target）。',
+  description: '连接两节点（source 输出流向 target）。',
   parameters: {
     type: 'object',
     properties: { source: { type: 'string', description: '数据源节点 id' }, target: { type: 'string', description: '数据目标节点 id' } },
@@ -361,7 +361,7 @@ const batchConnectNodesTool = {
 /** 删除连线（delete_edge） */
 const deleteEdgeTool = {
   name: 'delete_edge',
-  description: '删除指定连线。可传 edgeId，或传 source+target 按端点删除。',
+  description: '删除指定连线。传 edgeId，或传 source+target 按两端点删。',
   parameters: {
     type: 'object',
     properties: {
@@ -391,7 +391,7 @@ const deleteEdgeTool = {
 /** 列出所有节点（list_nodes）—— 只读 */
 const listNodesTool = {
   name: 'list_nodes',
-  description: '列出画布上所有节点，返回每个节点的 id/type/label/坐标。操作画布前应先调用本工具了解现有结构。',
+  description: '列出全部节点（id/type/label/坐标）。改画布前先调它了解结构。',
   parameters: { type: 'object', properties: {}, required: [] },
   execute(args, ctx) {
     const nodes = ctx.getNodes().map((n) => ({
@@ -418,7 +418,7 @@ const listEdgesTool = {
 /** 读单个节点详情（get_node_details）—— 只读 */
 const getNodeDetailsTool = {
   name: 'get_node_details',
-  description: '读取指定节点的完整 data（提示词、模型、尺寸、生成结果 URL 等）。',
+  description: '读取指定节点完整 data（提示词/模型/尺寸/结果 URL 等）。',
   parameters: { type: 'object', properties: { nodeId: { type: 'string' } }, required: ['nodeId'] },
   execute(args, ctx) {
     const id = str(args.nodeId)
@@ -431,7 +431,7 @@ const getNodeDetailsTool = {
 /** 读整个画布结构（read_canvas）—— list_nodes + list_edges 合并，供 Agent 一次看清 */
 const readCanvasTool = {
   name: 'read_canvas',
-  description: '读取整个画布当前结构（所有节点 + 所有连线），用于了解画布全貌后再执行操作。',
+  description: '一次读取画布全貌（所有节点+连线，含各节点提示词与生成结果）。要了解全局时优先用它。',
   parameters: { type: 'object', properties: {}, required: [] },
   execute(args, ctx) {
     const nodes = ctx.getNodes().map((n) => ({
@@ -452,13 +452,13 @@ const readCanvasTool = {
 }
 
 /**
- * 触发节点生成（trigger_generation）
+ * 触发生成（generate_node）
  * 走统一生成契约：useNodeGeneration 已把各节点的 start 注册到 taskStore.retryRegistry，
  * 这里按 nodeId 调用 runNodeGeneration 即可驱动「真」生成（含进度 + 任务中心 + node.data 双写）。
  */
 const triggerGenerationTool = {
-  name: 'trigger_generation',
-  description: '触发指定节点的生成任务并等待其完成，返回结果 URL。生成为异步过程，本工具会一直等到图生成完成。调用前确保该节点已有提示词。返回 resultUrl 供后续步骤用作参考图/前序依赖。',
+  name: 'generate_node',
+  description: '触发生成并等待完成，返回结果 URL（供后续做参考图/前序依赖）。调用前该节点须已有提示词。',
   parameters: { type: 'object', properties: { nodeId: { type: 'string', description: '要触发生成的节点 id' } }, required: ['nodeId'] },
   execute: async (args, ctx) => {
     const id = str(args.nodeId)
@@ -487,8 +487,8 @@ const triggerGenerationTool = {
  * 是 Skill（5主图+8详情 等大批量任务）的执行引擎。
  */
 const presentPlanTool = {
-  name: 'present_plan',
-  description: '展示你的生成策划给用户确认（Skill 阶段1）。在调用 execute_plan 之前，先调本工具把规划说明和 generations 计划呈现给用户。前端会把 plan_text 显示为策划，用户确认后再执行。',
+  name: 'show_plan_for_confirm',
+  description: '把生成策划展示给用户确认（execute_plan 前调用）。用户确认后才可执行。',
   parameters: {
     type: 'object',
     properties: {
@@ -507,7 +507,7 @@ const presentPlanTool = {
     if (!planText) return { ok: false, error: 'plan_text 为空' }
     // 暂存 generations（用户确认后 execute_plan 可用）；plan_text 由 useAgentChat 展示为用户可见策划
     setPendingGenerations(gens)
-    // 【Step D 确认态】present_plan 后进入"待确认"，execute_plan 未确认时被拒（防止 LLM 直接出图）
+    // 【Step D 确认态】show_plan_for_confirm 后进入"待确认"，execute_plan 未确认时被拒（防止 LLM 直接出图）
     setAwaitingConfirm(true)
     // memory 提炼（对齐大雄 conv.memory.lastPlan）：把阶段1策划记入当前对话，供多轮上下文
     const mem = getCurrentMemory()
@@ -524,7 +524,7 @@ const presentPlanTool = {
  */
 const executePlanTool = {
   name: 'execute_plan',
-  description: '批量执行一个生成计划（多张图/多步骤）。输入 generations 数组，每步含 prompt、比例、分辨率、是否依赖前序结果。执行器会按依赖分批建节点并触发生成，返回每步结果 URL。适合"做5张主图+8张详情页"这类大批量任务。',
+  description: '按计划批量建节点并生成（多图/多步骤）。输入 generations（每步含 prompt/比例/分辨率/是否依赖前序），按依赖分批执行，返回每步结果 URL。适合大批量任务。',
   parameters: {
     type: 'object',
     properties: {
@@ -541,12 +541,12 @@ const executePlanTool = {
   },
   execute: async (args, ctx) => {
     try {
-      // 【Step F 确认态硬约束】present_plan 后 awaitingConfirm=true，未确认前拒绝 execute_plan
+      // 【Step F 确认态硬约束】show_plan_for_confirm 后 awaitingConfirm=true，未确认前拒绝 execute_plan
       // （无论是否带 generations），防止 LLM 在用户未确认时直接出图。仅前端确认按钮翻转。
       if (getAwaitingConfirm()) {
         return { ok: false, error: '策划尚未确认，请先确认后再执行。' }
       }
-      // 优先用本次传入的 generations；若空则用阶段1 present_plan 暂存的（Skill 三阶段）
+      // 优先用本次传入的 generations；若空则用阶段1 show_plan_for_confirm 暂存的（Skill 三阶段）
       let gens = Array.isArray(args.generations) ? args.generations : []
       if (gens.length === 0) {
         const pending = getPendingGenerations()
@@ -582,7 +582,7 @@ const executePlanTool = {
 /** 视图适配（fit_view）—— zoom 到能看到所有节点 */
 const fitViewTool = {
   name: 'fit_view',
-  description: '缩放画布视图以显示所有节点（类似 Ctrl+L 前的适配）。',
+  description: '缩放视口以显示全部节点。',
   parameters: { type: 'object', properties: { padding: { type: 'number', description: '留白比例，默认 0.2' } }, required: [] },
   execute(args, ctx) {
     const padding = num(args.padding, 0.2)
@@ -618,7 +618,7 @@ const zoomOutTool = {
 /** 定位/聚焦某节点（focus_node）—— 居中视口到指定节点 */
 const focusNodeTool = {
   name: 'focus_node',
-  description: '把画布视口居中到指定节点并适度放大，便于聚焦查看该节点。',
+  description: '视口居中到指定节点并放大，聚焦查看。',
   parameters: { type: 'object', properties: { nodeId: { type: 'string', description: '要聚焦的节点 id' }, zoom: { type: 'number', description: '聚焦后的缩放级别（可选，默认 1.0）' } }, required: ['nodeId'] },
   execute(args, ctx) {
     const id = str(args.nodeId)
@@ -641,7 +641,7 @@ const focusNodeTool = {
  */
 const lockNodeTool = {
   name: 'lock_node',
-  description: '锁定或解锁节点。传 nodeId 锁定单个节点；传 type（如 promptNode/imageNode）锁定该类型全部节点。锁定后节点不可拖动、不可编辑。',
+  description: '锁定/解锁节点：传 nodeId 锁单个，或传 type 锁该类型全部。锁定后不可拖动/编辑。',
   parameters: {
     type: 'object',
     properties: {
@@ -679,7 +679,7 @@ const lockNodeTool = {
  */
 const undoAiTool = {
   name: 'undo_ai',
-  description: '撤回 AI 刚才那步画布操作（只影响 AI 自己通过工具改的画布，与用户手动 Ctrl+Z 撤销完全隔离）。可逐次撤回 AI 的写操作（含一次多步编排）。',
+  description: '撤回 AI 上一步画布操作（仅 AI 自己改的，与用户 Ctrl+Z 隔离）。',
   parameters: { type: 'object', properties: {}, required: [] },
   execute(args, ctx) {
     const snap = popActiveAiUndo() // 当前对话的 AI 撤销栈（Step D，多对话不串）
@@ -693,7 +693,7 @@ const undoAiTool = {
 /** 移动节点（move_node） */
 const moveNodeTool = {
   name: 'move_node',
-  description: '移动指定节点到新坐标。',
+  description: '把指定节点移动到新坐标 (x, y)。',
   parameters: {
     type: 'object',
     properties: { nodeId: { type: 'string' }, position: { type: 'object', properties: { x: { type: 'number' }, y: { type: 'number' } }, required: ['x', 'y'] } },
@@ -712,7 +712,7 @@ const moveNodeTool = {
 /** 编组（group_nodes）—— 把多个节点放进一个编组（真实现：与右键「编组」共用 createGroupFromNodes） */
 const groupNodesTool = {
   name: 'group_nodes',
-  description: '把多个节点编入一个编组。节点需至少 2 个且均非 group 类型、未在其它组内。',
+  description: '把多个节点编成一组（至少 2 个，均非 group 且未在其它组内）。',
   parameters: { type: 'object', properties: { nodeIds: { type: 'array', items: { type: 'string' } } }, required: ['nodeIds'] },
   execute(args, ctx) {
     const ids = Array.isArray(args.nodeIds) ? args.nodeIds.map(String) : []
@@ -730,27 +730,36 @@ const groupNodesTool = {
  *  - 在此数组登记。
  * Agent / 测试 / 脚本统一从这里取（getAgentTools）。
  */
+// 工具顺序 = 暴露给模型的重要性优先级（模型倾向先选靠前的工具）。
+// 分组：①读（先了解画布）②节点增删 ③节点改 ④连线 ⑤生成/编排 ⑥视图/聚焦 ⑦保护/撤销/组织。
 const AGENT_TOOLS = [
+  // ① 读（操作前先了解画布）
+  readCanvasTool,
+  listNodesTool,
+  listEdgesTool,
+  getNodeDetailsTool,
+  // ② 节点增删
   createNodeTool,
   batchCreateNodesTool,
   deleteNodeTool,
   batchDeleteNodesTool,
+  // ③ 节点改
   updateNodeTool,
   updateNodeRawTool,
+  // ④ 连线
   connectNodesTool,
   batchConnectNodesTool,
   deleteEdgeTool,
-  listNodesTool,
-  listEdgesTool,
-  getNodeDetailsTool,
-  readCanvasTool,
+  // ⑤ 生成/编排
   triggerGenerationTool,
-  presentPlanTool,
   executePlanTool,
+  presentPlanTool,
+  // ⑥ 视图/聚焦
+  focusNodeTool,
   fitViewTool,
   zoomInTool,
   zoomOutTool,
-  focusNodeTool,
+  // ⑦ 保护/撤销/组织
   lockNodeTool,
   undoAiTool,
   moveNodeTool,

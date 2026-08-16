@@ -4,7 +4,7 @@ import { useEffect, useRef } from 'react'
  * 节点 data 外部变更 → 本地 state 同步 hook。
  *
  * 【为什么需要它】
- * Agent 的 update_node / update_node_raw 通过 setNodes 直接改写 node.data
+ * Agent 的 update_node / update_node_any_field 通过 setNodes 直接改写 node.data
  * （如 aspectRatio、prompt、selectedModel）。但各节点组件把这类字段做成本地
  * useState 初始化（只在挂载时读一次 data），外部改 data 后 state 不会跟着变，
  * 导致 UI 与生成参数停留在旧值 —— 表现为「Agent 说改成功了，但画布没变」。

@@ -128,7 +128,7 @@ export default function DiscountVideoNode({ id, data, selected }) {
 
   // 统一生成契约（useNodeGeneration）：收敛「reportGenerate + 进度 + 成功双写 + 失败 + retry注册」。
   // 真实视频生成：经 localTool /api/proxy → 选中的 provider /v1/videos/generations（节点式：可跨 provider 选模型）。
-  // Agent 的 trigger_generation 也走这里。
+  // Agent 的 generate_node 也走这里。
   const { loading, error, stop: onStop, start: handleGenerate } = useNodeGeneration({
     nodeId: id,
     type: { type: 'video', prompt: prompt || '', modelName: selectedModel },

@@ -110,7 +110,7 @@ export function getTasks() {
 // ── 左侧面板全局状态（对齐官方 setShowTaskList：生成任务时自动弹出任务中心）──
 // 官方 H_.jsx 在每次提交生成任务时调用 H?.(true)（即 setShowTaskList(true)）弹出任务中心。
 // 我们统一契约里所有生成节点都走 reportGenerate，故在这里触发 openTaskCenter()，覆盖面最全
-// （节点生成 / Agent trigger_generation / 任务中心重试 提交任务都会自动弹面板切到任务中心）。
+// （节点生成 / Agent generate_node / 任务中心重试 提交任务都会自动弹面板切到任务中心）。
 let panel = { expanded: false, activeTab: 'tasks' }
 const panelListeners = new Set()
 function notifyPanel() {
@@ -275,7 +275,7 @@ export function isNodeRegistered(nodeId) {
 }
 
 /**
- * 按 nodeId 直接触发节点生成（供 Agent trigger_generation / 测试 / 脚本调用）。
+ * 按 nodeId 直接触发节点生成（供 Agent generate_node / 测试 / 脚本调用）。
  * 复用 useNodeGeneration 注册到 retryRegistry 的回调（即该节点的 start）。
  *
  * 【异步执行器地基】现在透传 start() 的 promise 结果：

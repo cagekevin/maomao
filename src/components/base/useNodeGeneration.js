@@ -15,7 +15,7 @@ import { subscribe } from './eventBus.js'
  *   → 成功写 node.data + taskCtl.done / 失败 setError + taskCtl.fail
  *   → registerTaskRetry 注册「再来一次」
  * PromptNode / TextNode / DiscountVideoNode 各重复约 40 行，
- * 且 Agent 的 trigger_generation 工具是死桩（没接真实生成）。
+ * 且 Agent 的 generate_node 工具是死桩（没接真实生成）。
  * 未来 28 个节点逐个接真引擎时，若没有统一契约，每个节点都要重复踩一遍坑，
  * 还容易「任务中心有结果、节点卡片没结果」或反之的不一致。
  *
@@ -86,7 +86,7 @@ export function useNodeGeneration({ nodeId, type, validate, run, onSuccess, onRe
         const rawUrl = r.doneUrl || r.url
         taskCtl.done(typeof rawUrl === 'string' ? rawUrl : '')
         logger.info('生成', 'success', { nodeId, type: t.type })
-        // 【异步执行器地基】start 返回已落盘的持久 URL，供 AI 助手的 trigger_generation /
+        // 【异步执行器地基】start 返回已落盘的持久 URL，供 AI 助手的 generate_node /
         // 前序依赖 / 多图编排拿到结果（图生成完成即落盘到 uploads/tasks/，url 稳定可复用）。
         // 落盘失败（saveResultToTasks 返回 null）回退上游原始 url。
         if (typeof rawUrl === 'string' && rawUrl) {
@@ -121,7 +121,7 @@ export function useNodeGeneration({ nodeId, type, validate, run, onSuccess, onRe
     setLoading(false)
   }, [])
 
-  // 「再来一次」注册：让任务中心重试 / Agent trigger_generation 能驱动本节点
+  // 「再来一次」注册：让任务中心重试 / Agent generate_node 能驱动本节点
   const startRef = useRef(start)
   startRef.current = start
   useEffect(() => {

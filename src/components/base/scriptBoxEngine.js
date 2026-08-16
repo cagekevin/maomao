@@ -1,7 +1,8 @@
-import { buildShotImageUser, getImageGenSys, collectAssets, ZgPrompt, IMAGE_GEN_TYPES, IMAGE_GEN_DEFAULT, SCRIPT_WRITER_SYSTEM, SHOT_DIRECTOR_SYSTEM } from './scriptBoxPrompts.js'
+import { buildShotImageUser, getImageGenSys, collectAssets, ZgPrompt, IMAGE_GEN_TYPES, IMAGE_GEN_DEFAULT, SCRIPT_WRITER_SYSTEM, SCRIPT_WRITER_FORMAT, SHOT_DIRECTOR_SYSTEM } from './scriptBoxPrompts.js'
 import { chatCompletions } from './chatApi.js'
 import { generateImage } from './imageApi.js'
 import { resolveProviderModel, buildAllModels } from './providerModels.js'
+import { showToast } from './toastStore.js'
 
 /** 去掉 ```json 围栏、只保留首个 {...} 块（对齐官方 Ar/Ir 的解析）。
  *  顶层纯函数，导出供单测（剧本盒纯逻辑）。 */
@@ -87,9 +88,23 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
     return resolveProviderModel(providers, value, primary)
   }
 
-  /** 通知宿主 toast（通过 window 事件冒泡给 ToastContainer，不依赖 React 上下文）。 */
-  function toast(msg) {
-    try { window.dispatchEvent(new CustomEvent('yimao:toast', { detail: { msg } })) } catch { /* ignore */ }
+  /**
+   * 通知宿主 toast —— 走统一 store（toastStore.showToast → ToastContainer 顶部渲染）。
+   * 背景：旧实现用 window 事件 `yimao:toast` 但「只发不收」（无订阅方，见 docs/实时总线… §五），
+   * 报错被静默吞掉、用户看不到。改走 toastStore 后所有提示（含配置缺失/失败）显示到统一位置。
+   * @param {string} msg 提示内容
+   * @param {'success'|'error'|'warning'|'info'} [type] 状态档；未传时按内容关键词自动分档：
+   *   - 含「已生成/已加入/开始/完成」等 → success（成功/进行提示）
+   *   - 其余一律 → error（剧本盒引擎 toast 绝大多数是失败/配置缺失/上游错误等需醒目提示，
+   *     上游错误文本（如「网络错误」）无法穷举关键词，故默认按 error 处理，避免漏显红条）
+   */
+  function toast(msg, type) {
+    const m = String(msg || '')
+    let t = type
+    if (!t) {
+      t = /已生成|已加入|开始批量|已完成|开始上传/.test(m) ? 'success' : 'error'
+    }
+    showToast(m, { type: t, duration: t === 'error' ? 5000 : undefined })
   }
 
   // ═══════════════════════════════════════════════════════════════
@@ -102,7 +117,8 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
     const { provider, modelId } = resolveTextModel()
     if (!provider || !modelId) { toast('请先在「设置」中配置文本大模型'); return }
 
-    // 拼 system：customScriptPrompt(或默认编剧模板) + 镜头数要求 + 全局风格要求（对齐官方 Ar）
+    // 拼 system：创作部分（customScriptPrompt 可覆盖默认编剧模板）+ 固定输出格式（不可覆盖）+ 镜头数 + 风格。
+    // 输出 JSON 结构（SCRIPT_WRITER_FORMAT）是引擎解析契约，必须始终固定追加，即使用户自定义了创作提示词也不丢失。
     const scriptPrompt = (d.customScriptPrompt || '').trim() || SCRIPT_WRITER_SYSTEM
     const shotCount = d.shotCount
     const countReq = typeof shotCount === 'number' && shotCount > 0
@@ -112,7 +128,7 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
     const styleReq = style
       ? `\n【统一视觉风格（用户指定，最高优先级）】用户已明确指定整部片子的统一视觉风格为「${style}」。你必须在返回的 globalStyle 字段中原样输出「${style}」，不得自行更换、翻译或扩写风格名；同时所有分镜画面与资产外观都要严格贴合该风格。`
       : ''
-    const system = scriptPrompt + countReq + styleReq
+    const system = scriptPrompt + SCRIPT_WRITER_FORMAT + countReq + styleReq
 
     updateData({ genMask: true, genChars: 0 })
     const ac = new AbortController()
@@ -264,7 +280,7 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
   // ═══════════════════════════════════════════════════════════════
   // 步骤3 分镜提示词（对齐官方 Ir）
   // ═══════════════════════════════════════════════════════════════
-  const onGenerateShotPrompts = async (shotIds) => {
+  const onGenerateShotPrompts = async (shotIds, feedback) => {
     const d = getData()
     const shots = d.shots || []
     // 分派目标：单 id / 数组 / 全部（对齐官方 Ir）
@@ -288,7 +304,7 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
     // 标记命中镜头 promptLoading
     updateData({ shots: shots.map((s) => (target.some((t) => t.id === s.id) ? { ...s, promptLoading: true } : s)) })
 
-    await Promise.all(target.map(async (shot) => {
+    const genShot = async (shot) => {
       try {
         const ac = new AbortController()
         abortMap.set(`shot-${shot.id}`, ac)
@@ -299,7 +315,8 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
         const user = assembleShotUser(shot, refAssets, globalStyle) +
           (imageConstraint ? `\n【生图强制约束，仅作用于 prompt】\n${imageConstraint}` : '') +
           (videoConstraint ? `\n【生视频强制约束，仅作用于 videoPrompt】\n${videoConstraint}` : '') +
-          `\n【videoPrompt 格式硬性要求】videoPrompt 必须以“【时长 ${seconds}秒】”单独一行开头，随后换行书写视频内容。`
+          `\n【videoPrompt 格式硬性要求】videoPrompt 必须以“【时长 ${seconds}秒】”单独一行开头，随后换行书写视频内容。` +
+          (feedback && String(feedback).trim() ? `\n【用户本次修改意见（必须严格遵循）】${String(feedback).trim()}` : '')
 
         const r = await chatCompletions({
           provider,
@@ -331,7 +348,14 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
         updateData({ shots: getData().shots.map((s) => (s.id === shot.id ? { ...s, promptLoading: false } : s)) })
         if (!/abort/i.test(e?.message || '')) toast(e?.message || '分镜提示词生成失败')
       }
-    }))
+    }
+
+    // 分批并发：每批最多 6 个，避免十几个镜头一次性并发打爆外部 API。
+    // 一批 6 个并发，全部完成后才发下一批。
+    const BATCH = 6
+    for (let i = 0; i < target.length; i += BATCH) {
+      await Promise.all(target.slice(i, i + BATCH).map((s) => genShot(s)))
+    }
     toast(Array.isArray(shotIds) && shotIds.length ? '已生成该分镜提示词' : `已生成 ${target.length} 个分镜提示词`)
   }
 

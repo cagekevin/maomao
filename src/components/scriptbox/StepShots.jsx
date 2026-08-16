@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react'
 import { Loader2, Plus, Trash2 } from 'lucide-react'
-import { SHOT_TYPES, LIGHTS, SOUNDS, MOTIONS, dialogueText, hlAt } from '../base/scriptBoxPrompts.js'
+import { SHOT_TYPES, LIGHTS, MOTIONS, dialogueText, hlAt } from '../base/scriptBoxPrompts.js'
 import { useOutsideClick } from '../base/hooks.js'
 
 /**
@@ -127,7 +127,7 @@ export default function StepShots({ data, updateData, callbacks }) {
           <table className="w-full table-fixed text-caption-sm border-collapse">
             <thead>
               <tr className="bg-[#171717]">
-                {[['镜号', '5%'], ['时长', '6%'], ['画面描述', '26%'], ['景别', '9%'], ['光影', '11%'], ['对白/旁白', '18%'], ['音效', '11%'], ['运镜', '10%'], ['', '4%']].map(([h, w], k) => (
+                {[['镜号', '4%'], ['时长', '5%'], ['画面描述', '29%'], ['景别', '7%'], ['光影', '14%'], ['对白/旁白', '16%'], ['音效', '12%'], ['运镜', '8%'], ['', '5%']].map(([h, w], k) => (
                   <th key={k} style={{ width: w }} className="text-left px-2 py-1.5 text-gray-500 font-normal whitespace-nowrap">{h}</th>
                 ))}
               </tr>
@@ -143,12 +143,12 @@ export default function StepShots({ data, updateData, callbacks }) {
                     <input value={parseInt(s.duration) || 3} onChange={(e) => patchShot(i, 'duration', `${parseInt(e.target.value) || 3}s`)} className="w-8 bg-transparent text-gray-300 text-caption-sm outline-none nodrag" />
                   </td>
                   <td className="px-2 py-1.5" title="双击编辑">
-                    <div className="text-gray-200 line-clamp-2 break-words cursor-text hover:bg-surface-1 rounded px-1 -mx-1" onDoubleClick={() => openField(i, 'description', '画面描述')} dangerouslySetInnerHTML={{ __html: hlAt(s.description) || '<span class="text-gray-600">双击编辑画面描述</span>' }} />
+                    <div className="text-gray-200 line-clamp-2 break-words cursor-text hover:bg-surface-1 rounded px-1 -mx-1" onDoubleClick={() => openField(i, 'description', '画面描述')} dangerouslySetInnerHTML={{ __html: hlAt(s.description, (d.assets || []).map((a) => a.name)) || '<span class="text-gray-600">双击编辑画面描述</span>' }} />
                   </td>
                   <td className="px-1.5 py-1.5 whitespace-nowrap"><DropTable opts={SHOT_TYPES} val={s.shotType} onPick={(v) => patchShot(i, 'shotType', v)} /></td>
                   <td className="px-1.5 py-1.5 whitespace-nowrap"><DropTable opts={LIGHTS} val={s.lighting} onPick={(v) => patchShot(i, 'lighting', v)} /></td>
-                  <td className="px-2 py-1.5"><div className="text-gray-300 truncate cursor-text hover:bg-surface-1 rounded px-1 -mx-1" title="双击编辑" onDoubleClick={() => openDlg(i)}>{dialogueText(s.dialogue) || <span className="text-gray-600">双击编辑</span>}</div></td>
-                  <td className="px-1.5 py-1.5 whitespace-nowrap"><DropTable opts={SOUNDS} val={s.sound} onPick={(v) => patchShot(i, 'sound', v)} /></td>
+                  <td className="px-2 py-1.5"><div className="text-gray-300 line-clamp-2 break-words cursor-text hover:bg-surface-1 rounded px-1 -mx-1" title="双击编辑" onDoubleClick={() => openDlg(i)}>{dialogueText(s.dialogue) || <span className="text-gray-600">双击编辑</span>}</div></td>
+                  <td className="px-2 py-1.5"><div className="text-gray-300 line-clamp-2 break-words cursor-text hover:bg-surface-1 rounded px-1 -mx-1" title="双击编辑" onDoubleClick={() => openField(i, 'sound', '音效')}>{s.sound || <span className="text-gray-600">双击编辑</span>}</div></td>
                   <td className="px-1.5 py-1.5 whitespace-nowrap"><DropTable opts={MOTIONS} val={s.motion} onPick={(v) => patchShot(i, 'motion', v)} /></td>
                   <td className="px-2 py-1.5"><button className="text-gray-600 hover:text-red-400" title="删除" onClick={() => delShot(i)}><Trash2 size={11} /></button></td>
                 </tr>
@@ -186,7 +186,7 @@ function DropTable({ opts, val, onPick }) {
   useOutsideClick(ref, open, () => setOpen(false))
   return (
     <div ref={ref} className="relative" onClick={(e) => e.stopPropagation()}>
-      <button className="w-full text-left text-gray-300 text-caption-sm px-1.5 py-0.5 rounded hover:bg-surface-hover whitespace-nowrap" onClick={() => setOpen(!open)}>{val || '选择'}</button>
+      <button className="w-full text-left text-gray-300 text-caption-sm px-1.5 py-0.5 rounded hover:bg-surface-hover line-clamp-2 break-words block" title={val || '选择'} onClick={() => setOpen(!open)}>{val || '选择'}</button>
       {open && (
         <div className="absolute z-modal mt-1 bg-surface-menu border border-edge rounded-lg shadow-2xl py-1 min-w-[90px]">
           {opts.map((o) => (

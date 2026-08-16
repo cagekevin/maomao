@@ -35,6 +35,13 @@ export function useScriptBoxEngine(nodeId, data) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // providers 实时镜像到 ref：引擎实例经 useRef 只创建一次（跨 render 稳定），
+  // 若 getProviderState 直接闭包捕获「首次 render 的 providers」（此时异步加载未完成 → 空数组），
+  // 之后 providers 加载完成也不会更新闭包 → 引擎永远读到空供应商 → 生成一直报「请先配置模型」。
+  // 故用 providersRef 在每次 render 同步最新值，getProviderState 读 ref.current，打破闭包过期。
+  const providersRef = useRef(providers)
+  providersRef.current = providers
+
   // 引擎实例用 ref 缓存，跨 render 稳定（不因 data 变化重建导致子组件重渲染）
   const engineRef = useRef(null)
   if (!engineRef.current) {
@@ -48,8 +55,9 @@ export function useScriptBoxEngine(nodeId, data) {
       setEdges,
       getNodes,
       // 供应商解析（接真系统）：返回 { providers, primary }，供引擎选模型/转发
+      // 注意：读 providersRef.current 而非闭包捕获的 providers，避免闭包过期读到空数组。
       getProviderState: () => {
-        const list = providers || []
+        const list = providersRef.current || []
         return { providers: list, primary: list.find((p) => p.isPrimary) || list[0] || null }
       },
       // 连线：经 addNodes 建下游节点，位置用 screenToFlowPosition 算落点基准

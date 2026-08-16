@@ -4,7 +4,7 @@
  * 覆盖：
  *  1. conversationStore 的工作流状态（pendingGenerations/aiUndoStack/awaitingConfirm）per-conversation
  *  2. 多对话隔离（不串话）
- *  3. 确认态：present_plan 置 awaitingConfirm → execute_plan 校验拒绝 → confirm 翻转 → 放行
+ *  3. 确认态：show_plan_for_confirm 置 awaitingConfirm → execute_plan 校验拒绝 → confirm 翻转 → 放行
  *
  * 运行：node scripts/test_workflow_complete.mjs
  * 说明：conversationStore 依赖 storageAdapter（localStorage），此处 mock 全局 localStorage。
@@ -30,15 +30,15 @@ const assert = (cond, msg) => {
   console.log('PASS:', msg)
 }
 
-// ── 1. 确认态：present_plan → awaitingConfirm；execute_plan 校验；confirm → 放行 ──
+// ── 1. 确认态：show_plan_for_confirm → awaitingConfirm；execute_plan 校验；confirm → 放行 ──
 console.log('\n── 确认态硬约束 ──')
 resetConversationCache()
 ensureActiveConversation() // 建一个对话
 
-// present_plan 后 awaitingConfirm=true
+// show_plan_for_confirm 后 awaitingConfirm=true
 setActivePendingGenerations([{ id: 'g1', prompt: '图1' }])
 setAwaitingConfirm(true)
-assert(getAwaitingConfirm() === true, 'present_plan 后 awaitingConfirm=true')
+assert(getAwaitingConfirm() === true, 'show_plan_for_confirm 后 awaitingConfirm=true')
 assert(getActivePendingGenerations()?.length === 1, 'pendingGenerations 已暂存')
 
 // execute_plan 校验：未确认拒绝

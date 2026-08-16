@@ -46,10 +46,10 @@ export default function ToastContainer() {
   if (items.length === 0) return null
 
   const ICONS = {
-    success: <CheckCircle2 size={16} className="text-emerald-300" />,
-    error: <XCircle size={16} className="text-rose-300" />,
-    warning: <AlertTriangle size={16} className="text-amber-300" />,
-    info: <Info size={16} className="text-blue-300" />,
+    success: <CheckCircle2 size={12} className="text-emerald-300" />,
+    error: <XCircle size={12} className="text-rose-300" />,
+    warning: <AlertTriangle size={12} className="text-amber-300" />,
+    info: <Info size={12} className="text-blue-300" />,
   }
   // doc39 §3.2 状态色模板（/10 填充 + /30 描边 + 20px/0.15 柔光）
   const COLORS = {
@@ -60,16 +60,16 @@ export default function ToastContainer() {
   }
 
   return createPortal(
-    <div className="fixed top-4 left-1/2 -translate-x-1/2 z-ceiling-1 flex flex-col items-center gap-2 pointer-events-none">
+    <div className="fixed top-4 left-1/2 -translate-x-1/2 z-ceiling-1 flex flex-col items-center gap-1.5 pointer-events-none">
       {items.map((t) => (
         <div
           key={t.id}
-          className={`pointer-events-auto flex items-center gap-2 px-4 py-2.5 rounded-xl border bg-gradient-to-b ${COLORS[t.type] || COLORS.info} text-gray-200 text-sm shadow-xl backdrop-blur-sm animate-slide-up`}
+          className={`pointer-events-auto flex items-center gap-1.5 px-3 py-1.5 rounded-lg border bg-gradient-to-b ${COLORS[t.type] || COLORS.info} text-gray-200 text-xs shadow-lg backdrop-blur-sm animate-slide-up`}
         >
           {ICONS[t.type] || ICONS.info}
           <span className="whitespace-nowrap">{t.message}</span>
-          <button type="button" className="ml-1 text-gray-400 hover:text-white transition-colors" onClick={() => close(t.id)} title="关闭">
-            <X size={14} />
+          <button type="button" className="ml-0.5 text-gray-400 hover:text-white transition-colors" onClick={() => close(t.id)} title="关闭">
+            <X size={11} />
           </button>
         </div>
       ))}

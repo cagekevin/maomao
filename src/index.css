@@ -472,3 +472,12 @@ body,
 .react-flow.performance-large-canvas .cust-edge-hit {
   stroke-width: 16 !important;
 }
+
+/* ===== 剧本盒 @资产 引用高亮（hlAt 输出的 span.at，青色以便快速定位） ===== */
+.at {
+  color: #67e8f9; /* cyan-300 */
+  font-weight: 600;
+  background: rgba(103, 232, 249, 0.08);
+  border-radius: 3px;
+  padding: 0 2px;
+}

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 // 隔离依赖：AI 撤销栈 / 真实生成 / 多步执行器
-let awaitingFlag = false
+// 状态（awaiting / pending）用 beforeEach 内 vi.mocked 配对闭包管理，避免模块级变量在 vi.mock 工厂下 TDZ 怪异
 vi.mock('../../src/components/base/conversationStore.js', () => ({
   pushActiveAiUndo: vi.fn(),
   popActiveAiUndo: vi.fn(() => null),
@@ -9,10 +9,10 @@ vi.mock('../../src/components/base/conversationStore.js', () => ({
   setActivePendingGenerations: vi.fn(),
   getActivePendingGenerations: vi.fn(() => null),
   setPendingGenerations: vi.fn(),
-  getPendingGenerations: vi.fn(() => null),
+  getPendingGenerations: vi.fn(),
   clearPendingGenerations: vi.fn(),
-  setAwaitingConfirm: vi.fn((v) => { awaitingFlag = !!v }),
-  getAwaitingConfirm: vi.fn(() => awaitingFlag),
+  setAwaitingConfirm: vi.fn(),
+  getAwaitingConfirm: vi.fn(),
   getCurrentMemory: vi.fn(() => ({ summary: '', facts: [], lastPlan: null, lastSharedStyle: '', notes: [] })),
   setCurrentMemory: vi.fn(),
   patchCurrentWorkflow: vi.fn(() => ({})),
@@ -26,6 +26,8 @@ vi.mock('../../src/components/base/canvasPlanExecutor.js', () => ({
 }))
 
 import { buildCanvasAgentTools, CANVAS_AGENT_TOOL_NAMES } from '../../src/components/base/useCanvasAgentTools.js'
+import * as convStore from '../../src/components/base/conversationStore.js'
+import { executePlan as mockExecutePlan } from '../../src/components/base/canvasPlanExecutor.js'
 
 function makeCtx(initialNodes = [], initialEdges = []) {
   let nodes = [...initialNodes]
@@ -42,7 +44,15 @@ function makeCtx(initialNodes = [], initialEdges = []) {
   }
 }
 
-beforeEach(() => { vi.clearAllMocks(); awaitingFlag = false })
+beforeEach(() => {
+  vi.clearAllMocks()
+  // 配对状态：getX 始终读 __state，setX 写 __state（用例可直接翻转 __state 模拟前端确认）
+  convStore.__state = { awaiting: false, pending: null }
+  vi.mocked(convStore.getAwaitingConfirm).mockImplementation(() => convStore.__state.awaiting)
+  vi.mocked(convStore.setAwaitingConfirm).mockImplementation((v) => { convStore.__state.awaiting = !!v })
+  vi.mocked(convStore.getPendingGenerations).mockImplementation(() => convStore.__state.pending)
+  vi.mocked(convStore.setPendingGenerations).mockImplementation((g) => { convStore.__state.pending = g })
+})
 
 describe('画布 Agent 工具层 §2.5', () => {
   it('共 24 个工具注册', () => {
@@ -138,10 +148,10 @@ describe('画布 Agent 工具层 §2.5', () => {
     expect(ctx.getNodes()[0].data.prompt).toBe('P')
   })
 
-  it('update_node_raw 合并任意字段', () => {
+  it('update_node_any_field 合并任意字段', () => {
     const ctx = makeCtx([{ id: 'a', type: 'promptNode', data: {}, position: {} }])
     const t = buildCanvasAgentTools(ctx)
-    const r = t.update_node_raw({ nodeId: 'a', patch: { custom: 1, imageUrl: '/f.png' } })
+    const r = t.update_node_any_field({ nodeId: 'a', patch: { custom: 1, imageUrl: '/f.png' } })
     expect(r.ok).toBe(true)
     expect(ctx.getNodes()[0].data.custom).toBe(1)
   })
@@ -197,27 +207,26 @@ describe('画布 Agent 工具层 §2.5', () => {
     expect(t.get_node_details({ nodeId: 'z' }).ok).toBe(false)
   })
 
-  it('trigger_generation 触发并等待结果', async () => {
+  it('generate_node 触发并等待结果', async () => {
     const ctx = makeCtx([{ id: 'a', type: 'promptNode', data: {}, position: {} }])
     const t = buildCanvasAgentTools(ctx)
-    const r = await t.trigger_generation({ nodeId: 'a' })
+    const r = await t.generate_node({ nodeId: 'a' })
     expect(r.ok).toBe(true)
     expect(r.data.resultUrl).toBe('http://r/x.png')
     expect(r.data.submitted).toBe(true)
   })
 
-  it('present_plan 暂存策划并进入待确认', async () => {
-    const conv = await import('../../src/components/base/conversationStore.js')
+  it('show_plan_for_confirm 暂存策划并进入待确认', async () => {
     const ctx = makeCtx()
     const t = buildCanvasAgentTools(ctx)
-    const r = t.present_plan({ plan_text: '做5张主图', generations: [{ id: 'g1', prompt: '猫' }] })
+    const r = await t.show_plan_for_confirm({ plan_text: '做5张主图', generations: [{ id: 'g1', prompt: '猫' }] })
     expect(r.ok).toBe(true)
-    expect(conv.setAwaitingConfirm).toHaveBeenCalledWith(true)
+    expect(convStore.setAwaitingConfirm).toHaveBeenCalledWith(true)
+    expect(convStore.__state.awaiting).toBe(true)
   })
 
   it('execute_plan 未确认被拒', async () => {
-    const conv = await import('../../src/components/base/conversationStore.js')
-    conv.setAwaitingConfirm(true) // 模拟 present_plan 已暂存、进入待确认
+    convStore.__state.awaiting = true // 模拟 show_plan_for_confirm 已暂存、进入待确认
     const ctx = makeCtx()
     const t = buildCanvasAgentTools(ctx)
     const r = await t.execute_plan({ generations: [{ id: 'g1', prompt: '猫' }] })
@@ -283,5 +292,53 @@ describe('画布 Agent 工具层 §2.5', () => {
     // 包一层 try：工具不存在时 buildCanvasAgentTools 的 map 里没有该 key → 返回 undefined 调用报错
     const r = t.call_no_such_tool ? t.call_no_such_tool({}) : { ok: false, error: '未知工具' }
     expect(r.ok).toBe(false)
+  })
+
+  // ── Skill 三阶段确认门禁闭环（AI 编排关键防护）──
+  it('show_plan_for_confirm → 返回 awaiting_confirm:true（进入待确认态）', async () => {
+    convStore.__state.awaiting = false
+    const ctx = makeCtx()
+    const t = buildCanvasAgentTools(ctx)
+    const r = await t.show_plan_for_confirm({ plan_text: '生成5张主图', generations: [{ id: 'g1', prompt: '猫' }] })
+    expect(r.ok).toBe(true)
+    expect(r.data.awaiting_confirm).toBe(true)
+    // 阶段1 后处于待确认 → execute_plan 被拒（Step F 硬约束）
+    const blocked = await t.execute_plan({ generations: [{ id: 'g1', prompt: '猫' }] })
+    expect(blocked.ok).toBe(false)
+    expect(blocked.error).toContain('尚未确认')
+    expect(mockExecutePlan).not.toHaveBeenCalled()
+  })
+
+  it('用户确认（awaiting=false）后 execute_plan 放行执行', async () => {
+    convStore.__state.awaiting = false // 模拟用户已确认（前端翻转 awaiting）
+    const ctx = makeCtx()
+    const t = buildCanvasAgentTools(ctx)
+    const r = await t.execute_plan({ generations: [{ id: 'g1', prompt: '猫' }] })
+    expect(r.ok).toBe(true)
+    expect(mockExecutePlan).toHaveBeenCalledTimes(1)
+    const arg = mockExecutePlan.mock.calls[0][0]
+    expect(arg.generations[0].prompt).toBe('猫')
+  })
+
+  it('execute_plan 未传 generations 且无暂存 → 报错（不死循环/不崩溃）', async () => {
+    convStore.__state.awaiting = false
+    convStore.__state.pending = null
+    const ctx = makeCtx()
+    const t = buildCanvasAgentTools(ctx)
+    const r = await t.execute_plan({}) // 无 generations 也无暂存
+    expect(r.ok).toBe(false)
+    expect(r.error).toContain('generations 为空')
+    expect(mockExecutePlan).not.toHaveBeenCalled()
+  })
+
+  it('execute_plan 无 generations 且无暂存 → 报错（不死循环/不崩溃）', async () => {
+    convStore.__state.awaiting = false
+    convStore.__state.pending = null
+    const ctx = makeCtx()
+    const t = buildCanvasAgentTools(ctx)
+    const r = await t.execute_plan({}) // 无 generations 也无暂存
+    expect(r.ok).toBe(false)
+    expect(r.error).toContain('generations 为空')
+    expect(mockExecutePlan).not.toHaveBeenCalled()
   })
 })
