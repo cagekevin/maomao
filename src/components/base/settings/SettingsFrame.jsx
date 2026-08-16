@@ -1,7 +1,8 @@
 import React from 'react'
-import { ChevronDown, Settings as SettingsIcon, Keyboard } from 'lucide-react'
+import { ChevronDown, Settings as SettingsIcon, Keyboard, Bot } from 'lucide-react'
 import ApiSettings from './sections/ApiSettings.jsx'
 import ShortcutSettings from './sections/ShortcutSettings.jsx'
+import AgentChatSettings from './sections/AgentChatSettings.jsx'
 
 /**
  * 设置主框架（侧栏 + 舞台）。
@@ -12,6 +13,7 @@ import ShortcutSettings from './sections/ShortcutSettings.jsx'
  */
 const SECTIONS = [
   { key: 'api', label: '第三方API配置', icon: SettingsIcon, comp: 'ApiSettings' },
+  { key: 'agent', label: 'AI 助手', icon: Bot, comp: 'AgentChatSettings' },
   { key: 'shortcut', label: '快捷键', icon: Keyboard, comp: 'ShortcutSettings' },
 ]
 
@@ -71,6 +73,8 @@ function renderSection(key) {
   switch (key) {
     case 'api':
       return <ApiSettings />
+    case 'agent':
+      return <AgentChatSettings />
     case 'shortcut':
       return <ShortcutSettings />
     default:

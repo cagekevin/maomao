@@ -3,6 +3,46 @@ import { useReactFlow } from '@xyflow/react'
 import { getPaletteNode, defaultNodeData } from './NodePalette.jsx'
 import { runNodeGeneration } from './taskStore.js'
 import { createGroupFromNodes } from './groupNodes.js'
+import { executePlan } from './canvasPlanExecutor.js'
+import { patchCurrentWorkflow, setCurrentMemory, getCurrentMemory } from './conversationStore.js'
+
+/* ════════════════════════════════════════════════════════════════
+ * AI 生图默认参数（genParams）—— 由 AgentPanel 生图参数区设置，execute_plan 读取。
+ * ────────────────────────────────────────────────────────────────
+ * 对齐大雄 canvas-agent：Agent 面板有独立的生图参数（provider/model/ratio/resolution），
+ * 执行器用它作为批量出图的默认参数。这里用模块级变量传递（类似 taskStore.currentTaskId 模式）：
+ *  - AgentPanel 生图参数区变化 → setGenParams() 写入
+ *  - execute_plan 工具读取 genParams 传给 canvasPlanExecutor
+ * 为什么用模块级而非贯穿 props：execute_plan 在工具层（非组件树），props 贯穿 AgentPanel →
+ * useAgentChat → useCanvasAgentTools 链路过长、改动大。模块级单例符合 currentTaskId 既有模式。
+ * 注：模型 value 用 providerId::modelId（对齐 buildAllModels/resolveProviderModel）。
+ */
+let genParams = { model: '', ratio: 'Auto', resolution: '1K' }
+export function setGenParams(patch = {}) {
+  genParams = { ...genParams, ...patch }
+}
+export function getGenParams() {
+  return genParams
+}
+
+/* ════════════════════════════════════════════════════════════════
+ * Skill 三阶段：阶段1 策划暂存（pendingGenerations）
+ * ────────────────────────────────────────────────────────────────
+ * 对齐大雄三阶段（理解→规划→执行）：
+ *  - 阶段1 策划：LLM 调 present_plan 输出策划，前端展示给用户确认，generations 暂存此处。
+ *  - 用户确认后（下一轮），LLM 调 execute_plan；若 execute_plan 没传 generations 则用暂存的。
+ * 用模块级暂存（同 genParams 模式），避免贯穿 props 链路过长。
+ */
+let pendingGenerations = null
+export function setPendingGenerations(gens) {
+  pendingGenerations = Array.isArray(gens) && gens.length ? gens : null
+}
+export function getPendingGenerations() {
+  return pendingGenerations
+}
+export function clearPendingGenerations() {
+  pendingGenerations = null
+}
 
 /**
  * ════════════════════════════════════════════════════════════════
@@ -55,6 +95,38 @@ const num = (v, fb) => {
   const n = Number(v)
   return Number.isFinite(n) ? n : fb
 }
+
+/* ════════════════════════════════════════════════════════════════
+ * AI 独立撤回（undo_ai）—— 与用户手动撤销【完全隔离】
+ * ────────────────────────────────────────────────────────────────
+ * 【为什么单独做一套，而不是复用 App 的 useCanvasHistory（Ctrl+Z）】
+ *  1. 用户撤销（Ctrl+Z）撤销的是【用户手动】的操作，走 useCanvasHistory；
+ *     AI 通过工具改画布是 setNodes/setEdges 直接改，不会进用户的撤销栈。
+ *  2. 若让 AI 也写用户的撤销栈，会出现「AI 改 → 用户按 Ctrl+Z 把 AI 的改动也撤了」，
+ *     两套语义混在一起，用户分不清撤的是谁的，后续维护也难。
+ *  3. 所以拆成两套：用户撤销管用户的，AI 撤回只管 AI 自己的，互不污染。
+ *
+ * 【升级为分组事务（多步快照栈）】
+ *  早期只存"最近一步"快照（undo_ai 只能撤一步）。但 execute_plan 一次会改多个节点
+ *  （一次编排 = 建多个节点+连线+触发），用户要能【整体撤回整个编排】。故升级为
+ *  aiUndoStack 快照栈：每个写工具执行前 push 改前快照，undo_ai 弹出最近一个恢复，
+ *  上限 MAX_AI_UNDO 步。这样 execute_plan 作为一个写操作 push 一次，undo_ai 整体撤回。
+ *
+ * 【实现】在 buildCanvasAgentTools 里对"会改画布的写工具"统一 wrap：
+ *  执行前捕获 { nodes, edges } push 进 aiUndoStack。集中在 wrap 一处，不碰每个工具内部。
+ */
+const MUTATING_TOOLS = new Set([
+  'create_node', 'batch_create_nodes',
+  'delete_node', 'batch_delete_nodes',
+  'update_node', 'update_node_raw',
+  'connect_nodes', 'batch_connect_nodes', 'delete_edge',
+  'move_node', 'group_nodes', 'lock_node',
+  'execute_plan', // 多步编排：一次改多个节点，整体入 AI 撤销栈（undo_ai 可整体撤回）
+])
+/** AI 撤销栈上限（分组事务可回滚步数） */
+const MAX_AI_UNDO = 20
+/** AI 写操作快照栈：每项 { nodes, edges, action }（写操作前的画布）；undo_ai 弹出最近一个恢复。 */
+const aiUndoStack = []
 
 /**
  * 建节点工具（复刻官方 create_node + batch_create_nodes）。
@@ -378,18 +450,117 @@ const readCanvasTool = {
  */
 const triggerGenerationTool = {
   name: 'trigger_generation',
-  description: '触发指定节点的生成任务。生成为异步过程，提交后立即返回。调用前确保该节点已有提示词。',
-  parameters: { type: 'object', properties: { nodeId: { type: 'string' } }, required: ['nodeId'] },
-  execute(args, ctx) {
+  description: '触发指定节点的生成任务并等待其完成，返回结果 URL。生成为异步过程，本工具会一直等到图生成完成。调用前确保该节点已有提示词。返回 resultUrl 供后续步骤用作参考图/前序依赖。',
+  parameters: { type: 'object', properties: { nodeId: { type: 'string', description: '要触发生成的节点 id' } }, required: ['nodeId'] },
+  execute: async (args, ctx) => {
     const id = str(args.nodeId)
     const node = ctx.getNodes().find((n) => n.id === id)
     if (!node) return { ok: false, error: `节点不存在：${id}` }
     // 通过统一契约触发真实生成（节点须已用 useNodeGeneration 注册 start）。
-    const triggered = runNodeGeneration(id)
-    if (!triggered) {
+    // 【异步执行器地基】runNodeGeneration 新版透传 start() 的 promise（{ ok, resultUrl }），
+    // await 它可拿到已落盘的持久 resultUrl（供前序依赖/多图编排复用）。
+    const res = await runNodeGeneration(id)
+    if (!res) {
       return { ok: false, error: `节点 ${id} 未注册生成契约（类型 ${node.type} 暂不支持由 Agent 驱动）` }
     }
-    return { ok: true, data: { id, submitted: true, note: '已触发生成（走 useNodeGeneration 统一契约）' } }
+    if (res.ok === false) {
+      return { ok: false, error: res.error || '生成失败' }
+    }
+    // res 可能是 { ok:true, resultUrl }（新版 start）或 true（旧回调）→ resultUrl 兜底空串
+    const resultUrl = res.resultUrl || ''
+    return { ok: true, data: { id, submitted: true, resultUrl, note: '已触发生成并等待完成' } }
+  }
+}
+
+/**
+ * 多步编排（execute_plan）
+ * 接收一个 generations 计划（多张图/多步骤，含前序依赖），批量建节点并执行。
+ * 对齐大雄 canvas-agent：按 depends_on_previous 分独立批+依赖批，依赖批用前序结果当参考图。
+ * 是 Skill（5主图+8详情 等大批量任务）的执行引擎。
+ */
+const presentPlanTool = {
+  name: 'present_plan',
+  description: '展示你的生成策划给用户确认（Skill 阶段1）。在调用 execute_plan 之前，先调本工具把规划说明和 generations 计划呈现给用户。前端会把 plan_text 显示为策划，用户确认后再执行。',
+  parameters: {
+    type: 'object',
+    properties: {
+      plan_text: { type: 'string', description: '策划说明（给用户看的规划摘要：目标、几步、每步用途）' },
+      generations: {
+        type: 'array',
+        description: '步骤数组。每项 { id, title, prompt, ratio, resolution, depends_on_previous, dependency_mode }',
+        items: { type: 'object' }
+      }
+    },
+    required: ['plan_text', 'generations']
+  },
+  execute(args, ctx) {
+    const gens = Array.isArray(args.generations) ? args.generations : []
+    const planText = String(args.plan_text || '').trim()
+    if (!planText) return { ok: false, error: 'plan_text 为空' }
+    // 暂存 generations（用户确认后 execute_plan 可用）；plan_text 由 useAgentChat 展示为用户可见策划
+    setPendingGenerations(gens)
+    // memory 提炼（对齐大雄 conv.memory.lastPlan）：把阶段1策划记入当前对话，供多轮上下文
+    const mem = getCurrentMemory()
+    setCurrentMemory({ ...mem, lastPlan: { plan_text: planText, generations: gens, ts: Date.now() } })
+    return { ok: true, data: { presented: true, plan_text: planText, generations_count: gens.length } }
+  }
+}
+
+/**
+ * 多步编排（execute_plan）
+ * 接收一个 generations 计划（多张图/多步骤，含前序依赖），批量建节点并执行。
+ * 对齐大雄 canvas-agent：按 depends_on_previous 分独立批+依赖批，依赖批用前序结果当参考图。
+ * 是 Skill（5主图+8详情 等大批量任务）的执行引擎。
+ */
+const executePlanTool = {
+  name: 'execute_plan',
+  description: '批量执行一个生成计划（多张图/多步骤）。输入 generations 数组，每步含 prompt、比例、分辨率、是否依赖前序结果。执行器会按依赖分批建节点并触发生成，返回每步结果 URL。适合"做5张主图+8张详情页"这类大批量任务。',
+  parameters: {
+    type: 'object',
+    properties: {
+      generations: {
+        type: 'array',
+        description: '步骤数组。每项 { id, title, prompt, ratio, resolution, depends_on_previous, dependency_mode }',
+        items: { type: 'object' }
+      },
+      auto_run: { type: 'boolean', description: '是否自动触发生成（默认 true）。false 时只建节点不跑，供用户确认' },
+      model: { type: 'string', description: '生图默认模型（可选）' },
+      referenceImages: { type: 'array', items: { type: 'string' }, description: '参考图 url 数组（可选；写进生图节点作图生图参考，对齐大雄图像模式）' }
+    },
+    required: ['generations']
+  },
+  execute: async (args, ctx) => {
+    try {
+      // 优先用本次传入的 generations；若空则用阶段1 present_plan 暂存的（Skill 三阶段）
+      let gens = Array.isArray(args.generations) ? args.generations : []
+      if (gens.length === 0) {
+        const pending = getPendingGenerations()
+        gens = pending || []
+        clearPendingGenerations()
+      }
+      if (gens.length === 0) return { ok: false, error: 'generations 为空' }
+      const autoRun = args.auto_run !== false
+      // 【模型锁定】用面板生图参数区（getGenParams）作为默认；LLM 显式传 model 则优先。
+      const panel = getGenParams()
+      const model = str(args.model) || panel.model
+      // workflow 贯穿（对齐大雄）：执行开始 → running；执行结束 → completed/failed。状态写入当前对话 workflow。
+      patchCurrentWorkflow({ status: 'running', updatedAt: Date.now() })
+      const refImgs = Array.isArray(args.referenceImages) ? args.referenceImages.filter(Boolean) : []
+      const result = await executePlan({ ctx, generations: gens, autoRun, model, defaults: panel, referenceImages: refImgs })
+      if (!result || !result.entries) {
+        patchCurrentWorkflow({ status: 'failed', updatedAt: Date.now() })
+        return { ok: false, error: '计划执行失败' }
+      }
+      const anyFailed = result.entries.some((e) => e.status === 'failed')
+      patchCurrentWorkflow({ status: anyFailed ? 'completed_with_errors' : 'completed', updatedAt: Date.now() })
+      // memory 提炼：把执行计划记入当前对话（对齐大雄 conv.memory.lastPlan）
+      const mem = getCurrentMemory()
+      setCurrentMemory({ ...mem, lastPlan: { plan_text: args.plan_text || mem?.lastPlan?.plan_text || '', generations: gens, ts: Date.now() } })
+      return { ok: true, data: { workflow: result.workflow, entries: result.entries } }
+    } catch (e) {
+      patchCurrentWorkflow({ status: 'failed', updatedAt: Date.now() })
+      return { ok: false, error: `计划执行异常：${e?.message || e}` }
+    }
   }
 }
 
@@ -402,6 +573,105 @@ const fitViewTool = {
     const padding = num(args.padding, 0.2)
     ctx.fitView?.({ padding, duration: 300 })
     return { ok: true, data: { fit: true } }
+  }
+}
+
+/** 放大视口（zoom_in）—— 补齐幽灵工具，避免后端准则调用它时报"未知工具" */
+const zoomInTool = {
+  name: 'zoom_in',
+  description: '放大画布视口（zoom in）。',
+  parameters: { type: 'object', properties: { factor: { type: 'number', description: '放大倍数（可选，默认 1.2）' } }, required: [] },
+  execute(args, ctx) {
+    const factor = num(args.factor, 1.2)
+    ctx.zoomIn?.({ duration: 200, factor: factor <= 0 ? 1.2 : factor })
+    return { ok: true, data: { zoomed: 'in', factor } }
+  }
+}
+
+/** 缩小视口（zoom_out） */
+const zoomOutTool = {
+  name: 'zoom_out',
+  description: '缩小画布视口（zoom out）。',
+  parameters: { type: 'object', properties: { factor: { type: 'number', description: '缩小倍数（可选，默认 1.2）' } }, required: [] },
+  execute(args, ctx) {
+    const factor = num(args.factor, 1.2)
+    ctx.zoomOut?.({ duration: 200, factor: factor <= 0 ? 1.2 : factor })
+    return { ok: true, data: { zoomed: 'out', factor } }
+  }
+}
+
+/** 定位/聚焦某节点（focus_node）—— 居中视口到指定节点 */
+const focusNodeTool = {
+  name: 'focus_node',
+  description: '把画布视口居中到指定节点并适度放大，便于聚焦查看该节点。',
+  parameters: { type: 'object', properties: { nodeId: { type: 'string', description: '要聚焦的节点 id' }, zoom: { type: 'number', description: '聚焦后的缩放级别（可选，默认 1.0）' } }, required: ['nodeId'] },
+  execute(args, ctx) {
+    const id = str(args.nodeId)
+    const node = ctx.getNodes().find((n) => n.id === id)
+    if (!node) return { ok: false, error: `节点不存在：${id}` }
+    const pos = node.position || { x: 0, y: 0 }
+    const w = (node.measured?.width ?? 0) / 2
+    const h = (node.measured?.height ?? 0) / 2
+    const zoom = num(args.zoom, 1.0)
+    ctx.setCenter?.(pos.x + w, pos.y + h, { zoom: zoom <= 0 ? 1.0 : zoom, duration: 300 })
+    return { ok: true, data: { id, centered: { x: pos.x, y: pos.y }, zoom } }
+  }
+}
+
+/**
+ * 锁定/解锁节点（lock_node）。
+ * - 支持按 nodeId 锁单个，或按 type 锁该类型所有节点（如「把所有生图节点锁定」）。
+ * - 同时写 data.locked + node.draggable/selectable=false，让 NodeShell 真正消费锁定效果
+ *   （渲染锁图标 + 禁拖动/编辑），避免"locked 只是死字段、节点还能拖"的假能力。
+ */
+const lockNodeTool = {
+  name: 'lock_node',
+  description: '锁定或解锁节点。传 nodeId 锁定单个节点；传 type（如 promptNode/imageNode）锁定该类型全部节点。锁定后节点不可拖动、不可编辑。',
+  parameters: {
+    type: 'object',
+    properties: {
+      nodeId: { type: 'string', description: '要锁定的节点 id（可选；与 type 二选一）' },
+      type: { type: 'string', description: '按节点类型批量锁定，如 promptNode（生图）/imageNode（图片）/textNode（文本）（可选）' },
+      locked: { type: 'boolean', description: 'true=锁定，false=解锁，默认 true' }
+    },
+    required: []
+  },
+  execute(args, ctx) {
+    const locked = args.locked !== false
+    const { getNodes, setNodes } = ctx
+    let targets = []
+    if (str(args.nodeId)) {
+      const n = getNodes().find((x) => x.id === args.nodeId)
+      if (!n) return { ok: false, error: `节点不存在：${args.nodeId}` }
+      targets = [n]
+    } else if (str(args.type)) {
+      targets = getNodes().filter((n) => n.type === args.type)
+      if (targets.length === 0) return { ok: false, error: `没有 ${args.type} 类型的节点` }
+    } else {
+      return { ok: false, error: '需提供 nodeId 或 type' }
+    }
+    const ids = targets.map((n) => n.id)
+    setNodes((ns) => ns.map((n) => (ids.includes(n.id) ? { ...n, data: { ...n.data, locked }, draggable: !locked, selectable: !locked } : n)))
+    return { ok: true, data: { locked, ids } }
+  }
+}
+
+/**
+ * 撤回 AI 刚才那步操作（undo_ai）。
+ * 与用户 Ctrl+Z 完全隔离：从 aiUndoStack 弹出最近一次 AI 写操作前的快照并恢复。
+ * 支持分组事务：execute_plan 一次编排（建多节点+连线+触发）push 一次，undo_ai 整体撤回。
+ * 见文件头部 MUTATING_TOOLS / aiUndoStack 的抉择说明。
+ */
+const undoAiTool = {
+  name: 'undo_ai',
+  description: '撤回 AI 刚才那步画布操作（只影响 AI 自己通过工具改的画布，与用户手动 Ctrl+Z 撤销完全隔离）。可逐次撤回 AI 的写操作（含一次多步编排）。',
+  parameters: { type: 'object', properties: {}, required: [] },
+  execute(args, ctx) {
+    const snap = aiUndoStack.pop()
+    if (!snap) return { ok: false, error: '没有可撤回的 AI 操作' }
+    ctx.setNodes(snap.nodes)
+    ctx.setEdges(snap.edges)
+    return { ok: true, data: { reverted: snap.action || '上一步操作', remaining: aiUndoStack.length } }
   }
 }
 
@@ -460,7 +730,14 @@ const AGENT_TOOLS = [
   getNodeDetailsTool,
   readCanvasTool,
   triggerGenerationTool,
+  presentPlanTool,
+  executePlanTool,
   fitViewTool,
+  zoomInTool,
+  zoomOutTool,
+  focusNodeTool,
+  lockNodeTool,
+  undoAiTool,
   moveNodeTool,
   groupNodesTool
 ]
@@ -475,7 +752,13 @@ export function buildCanvasAgentTools(ctx) {
   const map = {}
   for (const t of AGENT_TOOLS) {
     const execute = t.execute
+    const isMutating = MUTATING_TOOLS.has(t.name)
     map[t.name] = (args) => {
+      // 对"会改画布的写工具"统一捕获改前快照，push 进 AI 撤销栈（集中一处，不散落到各工具）
+      if (isMutating) {
+        aiUndoStack.push({ nodes: ctx.getNodes(), edges: ctx.getEdges(), action: t.name })
+        if (aiUndoStack.length > MAX_AI_UNDO) aiUndoStack.shift() // 栈上限，丢弃最旧
+      }
       try {
         return execute(args, ctx)
       } catch (e) {

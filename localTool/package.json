@@ -9,8 +9,10 @@
     "start": "node dist/index.js",
     "dev": "tsc && node dist/index.js",
     "test": "tsc && node --test test/*.test.js",
-    "db": "node scripts/db-query.mjs",
-    "db:vacuum": "node scripts/db-query.mjs --vacuum"
+    "inspect": "node scripts/task-inspect.mjs",
+    "inspect:vacuum": "node scripts/task-inspect.mjs --vacuum",
+    "db": "node scripts/task-inspect.mjs",
+    "db:vacuum": "node scripts/task-inspect.mjs --vacuum"
   },
   "dependencies": {
     "jimp": "^0.22.12",

@@ -1,6 +1,6 @@
-# 一毛画布 · React 原型
+# 猫猫画布 · React 原型
 
-静态高保真复刻一毛画布节点 + 通用能力地基，用于视觉确认与后续移植到其他 React 项目。当前为可维护工程（`src/`），构建产物为 Chrome 扩展 `dist/`。
+静态高保真复刻猫猫画布节点 + 通用能力地基，用于视觉确认与后续移植到其他 React 项目。当前为可维护工程（`src/`），后端化走 localTool（`:18080`）+ apimart-gateway（`:9004`）。
 
 ## 文档指引（开发前必读）
 
@@ -10,6 +10,8 @@
 > - **`ARCHITECTURE.md`** ← **设计规范**：为什么这样设计、新增节点流程、接真系统路径（注意：文档内路径前缀 `prototypes/react-nodes/src/` 为旧写法，实际即根目录 `src/`）
 >
 > 一句话：**弹提示用 `showToast`、新节点用 `NodeShell`、缩小时藏媒体用 `useMediaDegrade`、拖入素材用 `useAssetDropPaste`、操作画布（供 Agent/自动化）用 `useCanvasAgentTools`**。
+
+> - **`CONTRACTS-2026-08-16.md`** ← **契约全集（以代码为准）**：后端路由/KV/文件/任务/网关/图片URL归一化/任务状态/节点类型/贯穿ID 全部契约，AI 改代码前必读，含易错断点陷阱。
 
 ## 启动
 

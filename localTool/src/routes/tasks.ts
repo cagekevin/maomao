@@ -177,29 +177,31 @@ export async function handleTasksClear(req: IncomingMessage, res: ServerResponse
  *
  * 背景：thread_id 来自 Lovart `/chat` 返回，网关把它拼成 task_id（= "task_" + thread_id）返回给调用方。
  * 前端节点自造的任务 id 与它无关，故此前 thread_id 无落库。这里由 localTool 在 /api/proxy 转发
- * 网关响应时调用本函数，把 thread_id 写进 tasks 表（task_id 已有行则合并，无则新增占位行）。
+ * 网关响应时调用本函数，把 thread_id 写进 tasks 表。
+ *
+ * ⚠️ 关键修复（避免任务中心"多出来一个空任务"）：
+ *   早期实现会为「网关 task_id」单独 upsert 一条占位行，而该行的 node_id/type/status 全为空，
+ *   于是一次生图在任务中心产生两条记录：① 前端 task（有 nodeId，正常展示）② 网关 task_id 行（nodeId=null，垃圾）。
+ *   轮询（pollTask.js）用的是前端任务行上的 pollTaskId 直接打网关，并不依赖这条网关行；
+ *   所以这里【只为前端 frontTaskId 行补 thread_id】，绝不再为网关 task_id 单独建行，杜绝重复垃圾任务。
  *
  * @param threadId Lovart 上游真实 ID（task_id 去掉 task_ 前缀）
- * @param taskId   网关返回的 task_id（="task_"+threadId）
+ * @param taskId   网关返回的 task_id（="task_"+threadId）——仅用于关联/调试，不再落库成独立任务行
  * @param meta     可选补充字段（node_id / prompt / model_name 等），供无前端落库时仍可追溯
  */
 export async function persistThreadId(threadId: string, taskId: string, meta: Record<string, unknown> = {}, frontTaskId = '') {
-  if (!threadId || !taskId) return;
+  if (!threadId) return;
   const db = await getDb(); // getDb 是 async（sql.js 内存库首次需异步初始化），必须 await，否则拿到 Promise 无法 upsert
-  // 网关 task_id 行：thread_id 为关联键
-  upsertTask(db, {
-    task_id: taskId,
-    thread_id: threadId,
-    created_at: Date.now(),
-    ...meta,
-  });
-  // 前端自造 task_id 行：若已存在（前端 /api/tasks/save 写入），补上 thread_id，实现「前端 ID → thread_id」关联
+  // 只处理前端自造 task_id 行：把 thread_id 关联进去，供 pollTask 轮询用。
   if (frontTaskId) {
     const existingFront = queryOne(db, `SELECT task_id FROM tasks WHERE task_id = ?`, [frontTaskId]);
     if (existingFront) {
+      // 前端行已存在：直接补 thread_id（合并，不新建）
       run(db, `UPDATE tasks SET thread_id = ? WHERE task_id = ?`, [threadId, frontTaskId]);
     } else {
-      upsertTask(db, { task_id: frontTaskId, thread_id: threadId, created_at: Date.now() });
+      // 前端行尚未落库（网关响应早于前端 save 的极小概率）：以其 task_id 建行并带 thread_id。
+      // 注意用 frontTaskId（前端 id，后续前端 save 同 id 会合并），绝不新建网关 task_id 行（那是 nodeId=null 的垃圾来源）。
+      upsertTask(db, { task_id: frontTaskId, thread_id: threadId, created_at: Date.now(), ...meta });
     }
   }
   debouncedSaveDb();

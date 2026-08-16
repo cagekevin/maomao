@@ -89,8 +89,16 @@ function subscribe(cb) {
   return () => listeners.delete(cb)
 }
 
+// 展示用快照（供 useTasks / 任务中心 UI）：过滤掉 nodeId 为空的无效任务。
+// 这类任务是网关占位垃圾行（persistThreadId 旧逻辑为网关 task_id 单独建的空行），
+// 没有归属节点，不应在任务中心展示。用快照缓存保证引用稳定，避免 useSyncExternalStore 无限重渲染。
+// 注意：轮询用的 getTasks() 仍返回完整原始数组（含无 nodeId 的行），不影响异步任务恢复逻辑。
+let snapshotCache = null
 function getSnapshot() {
-  return tasks
+  if (!snapshotCache || snapshotCache.source !== tasks) {
+    snapshotCache = { source: tasks, list: tasks.filter((t) => t.nodeId) }
+  }
+  return snapshotCache.list
 }
 
 /** 非 React 环境读取当前任务列表（供轮询/脚本等模块级使用）。 */
@@ -174,6 +182,14 @@ export function reportGenerate(nodeId, type, prompt, meta = {}) {
             tasks = tasks.map((t) => (t.id === task.id ? { ...t, resultUrl: persistedUrl } : t))
             notify()
             persist({ ...task, status: 'completed', progress: 100, resultUrl: persistedUrl })
+            // 【画布同步】落盘成功 → 把持久化 URL 广播给对应节点（PromptNode 等监听后写回 data.imageUrl）。
+            // 否则节点 data.imageUrl 只存「上游原始 URL」，刷新后若该 URL 失效/是临时地址 → 画布丢图，
+            // 而任务中心读的是已落盘的 /files/tasks/ URL → 任务中心有图、画布没图的错位。
+            try {
+              window.dispatchEvent(new CustomEvent('mutiwindow-task-completed', {
+                detail: { taskId: task.id, nodeId: task.nodeId, resultUrl: persistedUrl, type: task.type, status: 'completed' }
+              }))
+            } catch { /* 非浏览器环境忽略 */ }
           }
         })
       }
@@ -249,16 +265,40 @@ export function retryTask(id) {
 }
 
 /**
+ * 检查某节点是否已注册生成契约（供多步执行器在 addNodes 后等待节点渲染 + effect 注册）。
+ * 场景：执行器用 ctx.addNodes 直接建节点，React 异步渲染后 PromptNode 才在 useNodeGeneration
+ * effect 里 registerTaskRetry。执行器需轮询本函数确认注册完成，再 runNodeGeneration，否则
+ * runNodeGeneration 会因找不到回调返回 false（见 canvasPlanExecutor.js）。
+ * @param {string} nodeId
+ * @returns {boolean}
+ */
+export function isNodeRegistered(nodeId) {
+  return !!nodeId && retryRegistry.has(nodeId)
+}
+
+/**
  * 按 nodeId 直接触发节点生成（供 Agent trigger_generation / 测试 / 脚本调用）。
  * 复用 useNodeGeneration 注册到 retryRegistry 的回调（即该节点的 start）。
- * 返回是否成功触发。
+ *
+ * 【异步执行器地基】现在透传 start() 的 promise 结果：
+ *  - 节点用新版 useNodeGeneration（start 返回 { ok, resultUrl }）→ 本函数返回该 promise，
+ *    调用方可 `await runNodeGeneration(id)` 拿到已落盘的 resultUrl（供前序依赖/多图编排）。
+ *  - 旧版回调（返回 true/false）→ 透传原返回值，向后兼容。
+ *
+ * @param {string} nodeId
+ * @returns {false | true | Promise<{ok:boolean, resultUrl?:string, error?:string}>}
  */
 export function runNodeGeneration(nodeId) {
   if (!nodeId) return false
   const fn = retryRegistry.get(nodeId)
   if (fn) {
-    try { fn() } catch (e) { console.error('[taskStore] runNodeGeneration 触发失败:', e) }
-    return true
+    try {
+      const p = fn()
+      return p && typeof p.then === 'function' ? p : true
+    } catch (e) {
+      console.error('[taskStore] runNodeGeneration 触发失败:', e)
+      return { ok: false, error: e?.message || '触发失败' }
+    }
   }
   console.warn('[taskStore] runNodeGeneration 未找到节点回调 nodeId=', nodeId)
   return false

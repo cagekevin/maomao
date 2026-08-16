@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState, useEffect } from 'react'
 import { reportGenerate, registerTaskRetry, unregisterTaskRetry, setCurrentTaskId } from './taskStore.js'
+import { saveResultToTasks } from './filesApi.js'
 import { logger } from './logger.js'
 
 /**
@@ -77,18 +78,27 @@ export function useNodeGeneration({ nodeId, type, validate, run, onSuccess, onRe
         const rawUrl = r.doneUrl || r.url
         taskCtl.done(typeof rawUrl === 'string' ? rawUrl : '')
         logger.info('生成', 'success', { nodeId, type: t.type })
+        // 【异步执行器地基】start 返回已落盘的持久 URL，供 AI 助手的 trigger_generation /
+        // 前序依赖 / 多图编排拿到结果（图生成完成即落盘到 uploads/tasks/，url 稳定可复用）。
+        // 落盘失败（saveResultToTasks 返回 null）回退上游原始 url。
+        if (typeof rawUrl === 'string' && rawUrl) {
+          const persistedUrl = await saveResultToTasks(rawUrl, t.type).catch(() => null)
+          return { ok: true, resultUrl: persistedUrl || rawUrl }
+        }
+        return { ok: true, resultUrl: '' }
       } else {
         setError(r?.error || '生成失败')
         taskCtl.fail(r?.error || '生成失败')
+        return { ok: false, error: r?.error || '生成失败' }
       }
     } catch (e) {
       console.error('[useNodeGeneration] 生成异常:', e?.message)
       setError(e?.message || '生成失败')
       taskCtl.fail(e?.message || '生成失败')
+      return { ok: false, error: e?.message || '生成失败' }
     } finally {
       setLoading(false)
     }
-    return true
   }, [loading, nodeId])
 
   const stop = useCallback(() => setLoading(false), [])

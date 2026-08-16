@@ -12,7 +12,7 @@ import { detectMediaType } from './base/mediaType.js'
 import { useMediaDegrade } from './base/useMediaDegrade.js'
 import { useFitNodeRatio } from './base/useFitNodeRatio.js'
 import { useVideoPoster } from './base/useVideoPoster.js'
-import { toAbsoluteFileUrl, saveInlineToLocal } from './base/filesApi.js'
+import { toAbsoluteFileUrl, saveInlineToLocal, uploadFileToLocal } from './base/filesApi.js'
 import { compressImage } from './base/imageCompress.js'
 import { showToast } from './base/toastStore.js'
 
@@ -125,6 +125,36 @@ export default function ImageNode({ id, data, selected }) {
     }
   }, [url, type, compressing, id, setNodes])
 
+  // 「上传/替换」真正读取所选文件（修复：此前 fileRef input 无 onChange，选完不读 → 上传按钮失效）。
+  // 图片/视频/音频：优先上传 localTool 成 /files/ 持久 URL（刷新不丢），失败回退 dataURL 内联（仍可显示，靠 base64 外置兜底）。
+  // 文本文件：读文本写回 data.text，节点切到文本态。
+  const handleFileSelect = useCallback(async (e) => {
+    const f = e.target.files?.[0]
+    e.target.value = ''
+    if (!f) return
+    if (f.type.startsWith('text/') || detectMediaType(f.name) === 'text') {
+      const fr = new FileReader()
+      fr.onload = () => {
+        setNodes((ns) =>
+          ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, text: fr.result, mediaType: 'text', imageUrl: undefined, url: undefined } } : n))
+        )
+        showToast(`已导入文本「${f.name}」`)
+      }
+      fr.readAsText(f)
+      return
+    }
+    // 图片/视频/音频：上传落盘（mediaType 交由 detectMediaType 由 URL 判断）
+    let url = await uploadFileToLocal(f, 'canvas/drop', f.name)
+    if (!url) {
+      url = await new Promise((res) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => res(null); r.readAsDataURL(f) })
+    }
+    if (!url) { showToast('上传失败'); return }
+    setNodes((ns) =>
+      ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, imageUrl: url, url, mediaType: undefined, text: undefined } } : n))
+    )
+    showToast(`已替换为「${f.name}」`)
+  }, [id, setNodes])
+
   const DEMO_IMAGE = data.demoImage || 'https://picsum.photos/seed/imagenode/400/260'
   const defaultTitle = type === 'video' ? '视频' : type === 'audio' ? '音频' : type === 'text' ? '文本文件' : '图片'
   const titleIcon = type === 'video' ? <Video size={11} /> : type === 'audio' ? <Music size={11} /> : type === 'text' ? <FileText size={11} /> : <ImageIcon size={11} />
@@ -177,6 +207,7 @@ export default function ImageNode({ id, data, selected }) {
         style={{ display: 'none' }}
         accept="image/*,video/*,audio/*,text/plain"
         multiple
+        onChange={handleFileSelect}
       />
 
       {/* 主容器：背景/边框/阴影已由 NodeShell 主容器提供，这里只保留布局。

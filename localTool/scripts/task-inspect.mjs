@@ -1,35 +1,49 @@
 #!/usr/bin/env node
 /**
- * localTool 数据库维护 CLI（查库 + 压缩）
+ * 查任务 / 查图 / 查视频 / 丢图体检 —— 本地库排查工具（AI 首选）
  * ------------------------------------------------------------
- * 用途：查询 localTool 的 sql.js 数据库（~/.maomao-localtool/localtool.db），
- *       省去每次手写 initSqlJs 打开库的样板；并内置 VACUUM 压缩能力。
- *       查询为【只读】——绝不写库、绝不触发落盘，可放心在服务运行时查看；
- *       VACUUM 压缩会写盘，故自动检测 localTool 是否在运行，运行中则拒绝执行。
+ * 【就是干这个的】用户说「查一下这个任务 / 查这张图 / 图不见了 / 刷新没图 / 丢图」时，
+ *   用它一条命令断言"这个任务/图此刻到底在哪一层断的"：
+ *   - 查一条任务全链路（数据库+后端+前端日志）      → 直接贴 id：`--lifecycle <id>`
+ *   - 查某节点历次生成结果                          →  `--task <node_id>`
+ *   - 三层一致性断言（画布↔任务中心↔磁盘）          →  `--consistency [proj]`
+ *   - 全库丢图体检                                  →  `--lost-check`
+ *   - 画布结构体检（节点/边）                       →  `--canvas-health [proj]`
+ *   - 拿 thread_id 直查 Lovart 上游状态/结果        →  `--lovart-status / --lovart-result`
+ * 次要用途：通用查库（--tables/--table/--sql/--search/--kv）+ VACUUM 压缩（--vacuum）。
+ *
+ * 数据都来自 localTool 的 sql.js 数据库（~/.maomao-localtool/localtool.db）+ 磁盘 + 日志，
+ * 不依赖前端运行，只读安全，服务运行时也可调用（--vacuum 除外）。
  *
  * 表结构（见 localTool/src/db/database.ts initTables）：
- *   - kv        (key TEXT PRIMARY KEY, value TEXT, updated_at INTEGER)
+ *   - kv        (key TEXT PRIMARY KEY, value TEXT, updated_at INTEGER)  画布快照 canvas-state-v1-<projId>
  *   - tasks     (task_id, node_id, prompt, result_url, thumbnail_url, error_msg,
  *                custom_output_type, channel_name, model_name, progress,
  *                created_at, not_found_count, custom_result_data, custom_raw_response,
- *                request_data, response_data, media_meta, extra_fields, type, status, error_message)
+ *                request_data, response_data, media_meta, extra_fields, type, status, error_message,
+ *                thread_id, poll_task_id)
  *   - resources (id, url, type, source, folder, name, page_url, page_title,
  *                is_favorite, timestamp)
  *
  * 用法（cd localTool 后执行）：
- *   node scripts/db-query.mjs --tables                      列出所有表及行数
- *   node scripts/db-query.mjs --table tasks                 查看 tasks 表所有列 + 前 20 行
- *   node scripts/db-query.mjs --table tasks --limit 5       限制行数
- *   node scripts/db-query.mjs --sql "SELECT * FROM kv"     直接执行任意只读 SQL
- *   node scripts/db-query.mjs --sql "SELECT * FROM tasks WHERE task_id=?" --arg abc123
- *   node scripts/db-query.mjs --search keyword             在 kv/tasks/resources 里模糊搜关键字
- *   node scripts/db-query.mjs --kv 键名模糊匹配             查 kv 表（值默认截断前 200 字符）
- *   node scripts/db-query.mjs --table tasks --json         以 JSON 数组输出（便于 jq/AI 分析）
- *   node scripts/db-query.mjs --sql "..." --json           同上，任意 SQL 结果转 JSON
- *   node scripts/db-query.mjs --vacuum                     压缩数据库（需先停 localTool，自动备份+完整性检查）
+ *   # ── 查任务 / 图 / 视频（AI 改 bug 首选）──
+ *   node scripts/task-inspect.mjs --lifecycle <id>  一条任务全链路（id 可为 task_id / thread_id / node_id）
+ *   node scripts/task-inspect.mjs <task_id>         自然语言：直接贴 id 即查全链路（等价 --lifecycle）
+ *   node scripts/task-inspect.mjs --task <node_id>  某节点历次生成比对
+ *   node scripts/task-inspect.mjs --consistency [proj]  三层一致性断言（画布↔任务中心↔磁盘）
+ *   node scripts/task-inspect.mjs --lost-check      全库丢图体检
+ *   node scripts/task-inspect.mjs --canvas-health [proj]  画布节点/边体检
+ *   # ── 通用查库 / 日志 / 压缩 ──
+ *   node scripts/task-inspect.mjs --tables / --table tasks / --sql "..." / --search k / --kv k
+ *   node scripts/task-inspect.mjs --logs [关键词]
+ *   node scripts/task-inspect.mjs --vacuum          压缩数据库（需先停 localTool）
+ *   # ── 连 Lovart 上游 ──
+ *   node scripts/task-inspect.mjs --lovart-status <thread_id>
+ *   node scripts/task-inspect.mjs --lovart-result <thread_id>
  *
  * 环境变量：
  *   MAOMAO_DATA_DIR  指定数据目录（默认 ~/.maomao-localtool），单测/隔离环境用。
+ *   LOVART_ACCESS_KEY/LOVART_SECRET_KEY/LOVART_BASE_URL/HTTPS_PROXY  供 --lovart-* 使用。
  */
 import fs from 'node:fs';
 import os from 'node:os';
@@ -64,22 +78,24 @@ function checkPortInUse(port) {
 const argv = process.argv.slice(2);
 
 function usage() {
-  console.log(`localTool 数据库维护工具（查库 + 查日志 + 压缩）
+  console.log(`localTool 数据库维护 + 图片/视频生命周期排查工具（AI 排查"一张图/视频从生成到画布到上游"全链路 + 丢图断言）
 用法:
-  node scripts/db-query.mjs --tables                列出所有表及行数
-  node scripts/db-query.mjs --table <表名> [--limit N]  查看表列 + 前 N 行(默认20)
-  node scripts/db-query.mjs --sql "<SQL>" [--arg v]...  直接执行只读 SQL（? 占位符用 --arg）
-  node scripts/db-query.mjs --search <关键字>        在 kv/tasks/resources 模糊搜索
-  node scripts/db-query.mjs --kv <键名>             查 kv 表（支持模糊匹配，值截断200字符）
-  node scripts/db-query.mjs --table <表> --json     结果以 JSON 数组输出
-  node scripts/db-query.mjs --logs [关键词]          查日志（关键词可为 download/upload/proxy/error 等前缀）
-  node scripts/db-query.mjs --task <node_id>        同一节点的所有任务进度/结果URL比对
-  node scripts/db-query.mjs --lifecycle <id>        完整生命周期一键查（数据库 + 后端日志 + 前端日志全链路；id 可为 task_id / thread_id(Lovart上游室外ID) / node_id）
-  node scripts/db-query.mjs --lovart-status <thread_id>  直接拿 Lovart 上游 thread_id 查任务状态（是否结束；HMAC 签名）
-  node scripts/db-query.mjs --lovart-result <thread_id>  拿 Lovart 上游 thread_id 查任务结果（出图URL/生成文本；同上凭据/base 约定）
-  node scripts/db-query.mjs --canvas-health [proj]  画布数据结构体检（节点/边统计 + 无id边/重复id边/悬空边高亮；缺省取最近更新的快照）
-  node scripts/db-query.mjs --lost-check            丢图体检（tasks/磁盘/资源一致性 + 日志异常）
-  node scripts/db-query.mjs --vacuum                 压缩数据库（需先停 localTool，自动备份+完整性检查）
+  node scripts/task-inspect.mjs --tables       列出所有表及行数
+  node scripts/task-inspect.mjs --table <表名> [--limit N]  查看表列 + 前 N 行(默认20)
+  node scripts/task-inspect.mjs --sql "<SQL>" [--arg v]...  直接执行只读 SQL（? 占位符用 --arg）
+  node scripts/task-inspect.mjs --search <关键字>  在 kv/tasks/resources 模糊搜索
+  node scripts/task-inspect.mjs --kv <键名>   查 kv 表（支持模糊匹配，值截断200字符）
+  node scripts/task-inspect.mjs --table <表> --json  结果以 JSON 数组输出
+  node scripts/task-inspect.mjs --logs [关键词]  查日志（关键词可为 download/upload/proxy/error 等前缀）
+  node scripts/task-inspect.mjs --task <node_id>  同一节点的所有任务进度/结果URL比对
+  node scripts/task-inspect.mjs <id>              直接贴 id 查全链路（等价 --lifecycle；id 可为 task_id / thread_id / node_id，AI 说"查任务"直接用这个）
+  node scripts/task-inspect.mjs --lifecycle <id>  完整生命周期一键查（数据库 + 后端日志 + 前端日志全链路；id 可为 task_id / thread_id(Lovart上游室外ID) / node_id）
+  node scripts/task-inspect.mjs --lovart-status <thread_id>  直接拿 Lovart 上游 thread_id 查任务状态（是否结束；HMAC 签名）
+  node scripts/task-inspect.mjs --lovart-result <thread_id>  拿 Lovart 上游 thread_id 查任务结果（出图URL/生成文本；同上凭据/base 约定）
+  node scripts/task-inspect.mjs --canvas-health [proj]  画布数据结构体检（节点/边统计 + 无id边/重复id边/悬空边高亮；缺省取最近更新的快照）
+  node scripts/task-inspect.mjs --lost-check   丢图体检（tasks/磁盘/资源一致性 + 日志异常）
+  node scripts/task-inspect.mjs --consistency [proj]  【三层一致性断言】画布快照节点 imageUrl ↔ 任务中心 result_url ↔ 磁盘文件 三方 URL 是否对得上（定位"刷新丢图/错位"根因）
+  node scripts/task-inspect.mjs --vacuum      压缩数据库（需先停 localTool，自动备份+完整性检查）
 库路径: ${DB_PATH}
 日志目录: ${LOGS_DIR}
 环境变量: MAOMAO_DATA_DIR 可指定数据目录（默认 ~/.maomao-localtool）
@@ -460,6 +476,105 @@ function runTaskCompare(db, nodeId) {
   if (failCount) console.log(`⚠️  其中 ${failCount} 条未完成/失败`);
 }
 
+// ── 三层一致性断言：画布快照节点 URL ↔ 任务中心 result_url ↔ 磁盘文件 ──
+// 目标：帮 AI 定位"刷新丢图 / 画布与任务中心错位 / 文件缺失"这类 bug 的根因。
+// 对每个画布节点的媒体 URL，交叉校验：
+//   [A] 画布快照里有该 URL 吗？               （无 → 快照没写回，刷新必丢）
+//   [B] 任务中心 tasks 里该 nodeId 有 completed+result_url 吗？（无 → 任务中心断链）
+//   [C] 该 URL 对应的磁盘文件存在吗？          （无 → 文件没落盘 / 已删）
+// 输出：每个节点三列状态，标出具体断点。
+function runConsistencyCheck(db, projectId) {
+  const prefix = 'canvas-state-v1-';
+  let key = null;
+  if (projectId) {
+    key = `${prefix}${projectId}`;
+    const exists = queryOneLike(db, `SELECT key FROM kv WHERE key = ?`, [key]);
+    if (!exists) {
+      console.log(`[ABORT] 未找到画布快照: ${key}`);
+      console.log('  可用画布快照：');
+      listCanvasKeys(db).forEach((k) => console.log(`    ${k}`));
+      return;
+    }
+  } else {
+    const row = listCanvasKeys(db, true);
+    if (!row) { console.log('(无画布快照)'); return; }
+    key = row.key;
+    console.log(`(未指定 projectId，取最近更新的画布快照: ${key})\n`);
+  }
+  const row = queryOneLike(db, `SELECT key, value, updated_at FROM kv WHERE key = ?`, [key]);
+  if (!row) { console.log(`(无记录: ${key})`); return; }
+  let state = null;
+  try { state = JSON.parse(row.value); } catch (e) { console.log(`[ERROR] 画布快照 JSON 解析失败: ${e.message}`); return; }
+  const nodes = Array.isArray(state.nodes) ? state.nodes : [];
+
+  console.log(`=== 三层一致性断言（画布 ↔ 任务中心 ↔ 磁盘）===\n`);
+  console.log(`项目快照: ${key}`);
+  console.log(`节点数: ${nodes.length}\n`);
+
+  // 磁盘根目录：~/maomao-localtool/uploads（与脚本的 DATA_DIR 一致）
+  const uploadsRoot = path.join(DATA_DIR, 'uploads');
+  const toDiskPath = (url) => {
+    // http://127.0.0.1:18080/files/<subfolder>/<name> → ~/.maomao-localtool/uploads/<subfolder>/<name>
+    const m = /\/files\/([^?#]+)/.exec(url || '');
+    if (!m) return null;
+    return path.join(uploadsRoot, decodeURIComponent(m[1]));
+  };
+
+  // 收集节点媒体 URL（含 imageUrl / videoUrl / images[] 数组 / poster 等）
+  const collectMediaUrls = (n) => {
+    const urls = [];
+    const d = (n && n.data) || {};
+    for (const k of ['imageUrl', 'videoUrl', 'thumbnailUrl', 'poster', 'url']) {
+      if (typeof d[k] === 'string' && d[k]) urls.push({ field: k, url: d[k] });
+    }
+    if (Array.isArray(d.images)) {
+      for (const it of d.images) {
+        const u = typeof it === 'string' ? it : (it && it.url);
+        if (typeof u === 'string' && u) urls.push({ field: 'images[]', url: u });
+      }
+    }
+    return urls;
+  };
+
+  let okCount = 0, issueCount = 0, orphanCount = 0;
+  for (const n of nodes) {
+    const nodeId = n && n.id;
+    const type = (n && n.type) || '(无type)';
+    const urls = collectMediaUrls(n);
+    if (!urls.length) continue; // 无媒体的节点跳过
+
+    // [B] 任务中心：该 nodeId 最近的 completed + result_url
+    const taskRow = queryOneLike(db,
+      `SELECT task_id, status, result_url, created_at FROM tasks WHERE node_id = ? AND status = 'completed' AND result_url IS NOT NULL AND result_url <> '' ORDER BY created_at DESC LIMIT 1`,
+      [nodeId]);
+
+    console.log(`\n■ ${type} ${nodeId}`);
+    for (const { field, url } of urls) {
+      const isLocal = /\/files\//.test(url);
+      const diskPath = toDiskPath(url);
+      const diskExists = diskPath ? fs.existsSync(diskPath) : null;
+      const taskMatches = taskRow && taskRow.result_url === url;
+      const hasTaskUrl = !!(taskRow && taskRow.result_url);
+
+      // [A] 画布快照里有该 URL（这里本身就是，恒 true；真正要断的是"是否落本地"）
+      let a = isLocal ? '本地URL' : (url.startsWith('data:') ? 'base64内联' : (url.startsWith('blob:') ? 'blob临时⚠️' : '远程/其他'));
+      let b = hasTaskUrl ? (taskMatches ? `任务中心一致✓` : `任务中心另有URL⚠️`) : `任务中心无记录✗`;
+      let c = diskExists === null ? '非本地(不查磁盘)' : (diskExists ? '磁盘存在✓' : '磁盘缺失✗');
+
+      const problematic = !isLocal || url.startsWith('blob:') || (diskExists === false) || (hasTaskUrl && !taskMatches);
+      if (problematic) { issueCount++; if (!hasTaskUrl && !url.startsWith('data:')) orphanCount++; }
+      else okCount++;
+
+      console.log(`  [${field}] ${String(url).slice(0, 90)}`);
+      console.log(`      A=${a} | B=${b} | C=${c}${problematic ? '  ⚠️' : ''}`);
+    }
+  }
+
+  console.log(`\n=== 一致性断言结束 ==="`);
+  console.log(`正常节点: ${okCount} 处 | 异常: ${issueCount} 处 | 画布有但任务中心无: ${orphanCount} 处`);
+  console.log(`提示: A=blob临时 → 刷新会失效; B=无记录/不一致 → 任务中心与画布错位; C=磁盘缺失 → 文件未落盘或已删。`);
+}
+
 // ── 丢图体检：全局比对 tasks/results/磁盘，把"可能丢的图"列出来 ──
 function runLostCheck(db) {
   console.log('=== 丢图体检（tasks ↔ resources ↔ 磁盘 一致性比对）===\n');
@@ -695,7 +810,7 @@ function runLifecycle(db, id) {
   console.log(`\n=== 生命周期查询完成。若数据库中 request_data/response_data/result_url 为空，且日志无该任务记录，说明任务数据链路中断（未落库/未落日志）。 ===`);
 }
 
-// 兼容 sql.js 的带参查询（db-query 里 queryAllLike 处理 ? 占位）
+// 兼容 sql.js 的带参查询（queryAllLike 处理 ? 占位）
 function queryAllLike(db, sql, params = []) {
   const stmt = db.prepare(sql);
   try { stmt.bind(params); } catch { /* 无占位符 */ }
@@ -751,6 +866,13 @@ async function main() {
   }
 
   // 0.2.1) 完整生命周期（数据库 + 后端日志 + 前端日志 全链路一键查）
+  // 自然语言：直接贴一个 id（task_id / thread_id / node_id）也等价 --lifecycle，AI 不用记前缀。
+  const bareId = argv[0] && !argv[0].startsWith('--') ? argv[0] : null;
+  if (bareId) {
+    runLifecycle(db, bareId);
+    db.close();
+    return;
+  }
   if (hasArg('--lifecycle')) {
     runLifecycle(db, getArg('--lifecycle'));
     db.close();
@@ -760,6 +882,13 @@ async function main() {
   // 0.2.2) 画布数据结构体检（AI 排查画布问题的第一步）
   if (hasArg('--canvas-health')) {
     runCanvasHealth(db, getArg('--canvas-health') || null);
+    db.close();
+    return;
+  }
+
+  // 0.25) 三层一致性断言（画布 ↔ 任务中心 ↔ 磁盘）
+  if (hasArg('--consistency')) {
+    runConsistencyCheck(db, getArg('--consistency') || null);
     db.close();
     return;
   }

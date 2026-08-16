@@ -19,8 +19,9 @@ import { useNodeResize, useOutsideClick } from './base/hooks.js'
 import { useConnectedInputs } from './base/useConnectedInputs.js'
 import { useMediaDegrade } from './base/useMediaDegrade.js'
 import { useNodeGeneration } from './base/useNodeGeneration.js'
-import { toAbsoluteFileUrl } from './base/filesApi.js'
+import { toAbsoluteFileUrl, saveResultToTasks } from './base/filesApi.js'
 import { useProviders, load as loadProviders } from './base/settings/providerStore.js'
+import { fetchTasks } from './base/tasksApi.js'
 import { generateImage } from './base/imageApi.js'
 import { useNodePrefs } from './base/nodePrefs.js'
 import { useSyncNodeData } from './base/useSyncNodeData.js'
@@ -54,7 +55,7 @@ export default function PromptNode({ id, data, selected }) {
   // 同步 Agent(update_node) 写入 node.data 的外部变更到本地 state：
   // 否则 Agent 改了 data.aspectRatio / selectedModel，UI 与生成参数仍用旧 state。
   useSyncNodeData(data, { aspectRatio: setAspectRatio, selectedModel: setSelectedModel, quality: setQuality, imageSize: setImageSize })
-  const { setNodes, setEdges, getEdges } = useReactFlow()
+  const { setNodes, setEdges, getEdges, getNodes, addNodes } = useReactFlow()
 
   // 断连线：点击素材缩略图红色 ×，删除该素材来源节点 → 本节点的连线。
   // 仅对来自连线的素材有效（有 sourceNodeId）；data.images（剧本盒子资产）无来源连线，不处理。
@@ -85,6 +86,28 @@ export default function PromptNode({ id, data, selected }) {
   )
   const fileRef = useRef(null)
   const promptInputRef = useRef(null) // 提示词 textarea ref（供面板右下角手柄拖拽改尺寸）
+
+  // 【刷新不丢·根治】挂载时若 data.imageUrl 为空，从任务中心按 nodeId 拉取已完成任务的持久化 resultUrl 回填。
+  // 覆盖两类场景：① 旧代码生成的存量节点（onSuccess 从未写回 data.imageUrl）；② 落盘/写回竞态导致 data 里没存持久 URL。
+  // 任务中心 resultUrl 是已落盘到 /files/tasks/ 的持久地址，回填后随画布快照自动保存，刷新不再丢图。
+  const recoveredRef = useRef(false)
+  React.useEffect(() => {
+    if (recoveredRef.current) return
+    recoveredRef.current = true
+    if (data.imageUrl) return // 已有图，不覆盖
+    let cancelled = false
+    fetchTasks({ pageSize: 1000 }).then((d) => {
+      if (cancelled) return
+      const items = (d && d.items) || []
+      const hit = items.find((t) => t.nodeId === id && t.status === 'completed' && t.resultUrl)
+      if (hit && hit.resultUrl) {
+        setImageUrl(hit.resultUrl)
+        patchData({ imageUrl: hit.resultUrl })
+      }
+    }).catch(() => {})
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   // 三个下拉菜单容器（画质/格式/数量）：ref 绑外层 relative，使「按钮+菜单」都在内，点外部才关
   const imgMenuRef = useRef(null)
   const countMenuRef = useRef(null)
@@ -142,12 +165,44 @@ export default function PromptNode({ id, data, selected }) {
     },
     onSuccess: (r) => {
       setImageUrl(r.url)
+      // 写回 node.data.imageUrl，供复制图片（copyNodeImage）、复制节点等读取 node.data 的入口拿到结果
+      patchData({ imageUrl: r.url })
+      // 【刷新不丢】把生成结果落盘到 localTool 的 /files/tasks/，再用持久化 URL 覆盖写回 data.imageUrl。
+      // 否则若上游返回的是外链/临时地址，刷新后节点会因 URL 失效而丢图（taskStore 的落盘只回写任务中心，不回写节点）。
+      if (r.url && !/^blob:/.test(r.url)) {
+        saveResultToTasks(r.url, 'image').then((persistedUrl) => {
+          if (persistedUrl && persistedUrl !== r.url) {
+            setImageUrl(persistedUrl)
+            patchData({ imageUrl: persistedUrl })
+          }
+        }).catch(() => {})
+      }
       // 记忆本次参数（模型/比例/尺寸），供新建节点复用
       setImgPrefs({ model: selectedModel, aspectRatio, imageSize })
     },
     // 【精准节点回填】异步任务刷新后恢复轮询完成的广播 → 把结果写回本节点，节点卡片自动恢复显示图。
     // 仅生图 async 模式会命中（有 pollTaskId）；sync 同步无任务广播。
     onRecover: ({ resultUrl }) => {
+      // 【异步安全兜底】节点在生成期间被删除/合并而消失 → 用结果重建节点（复用原 id 保持任务关联），
+      // 避免「任务中心有图、画布没图」错位。吸收大雄 canvas-agent 的「live 节点消失→结果重建」经验。
+      if (!getNodes().some((n) => n.id === id)) {
+        // 原节点已不在画布：用原 id + 生图节点类型重建，带 resultUrl 与 label/prompt，放固定偏移位置。
+        // 注意 addNodes 重复同 id 会告警，但此处仅在「确认不存在」时走，安全。
+        addNodes([{
+          id,
+          type: 'promptNode',
+          position: { x: 100, y: 100 },
+          data: {
+            ...(data?.label ? { label: data.label } : {}),
+            ...(data?.prompt ? { prompt: data.prompt } : {}),
+            imageUrl: resultUrl,
+            aspectRatio: data?.aspectRatio || 'Auto',
+          },
+          width: 420,
+          height: 420,
+        }])
+        return
+      }
       setImageUrl(resultUrl)
       patchData({ imageUrl: resultUrl })
     },

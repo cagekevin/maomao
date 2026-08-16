@@ -75,9 +75,27 @@ function ToolCallChip({ name, args }) {
 /** 消息气泡主组件（复刻 Cr.jsx） */
 export default function AgentMessage({ message }) {
   if (message.role === 'user') {
+    const skillNames = (message.skills || []).map((s) => s?.name || s?.id || '').filter(Boolean)
     return (
       <div className="flex justify-end">
         <div className="max-w-[85%] flex flex-col items-end gap-1">
+          {/* 已使用 Skill 标签（对齐大雄：user 消息显示本轮用到的 Skill） */}
+          {skillNames.length > 0 && (
+            <div className="flex flex-wrap gap-1 justify-end">
+              <span className="text-caption text-gray-600">已使用 Skill</span>
+              {skillNames.map((n, i) => (
+                <span key={i} className="inline-flex items-center gap-1 text-caption-sm text-gray-300 bg-surface border border-edge-faint rounded-md px-1.5 py-0.5">
+                  <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                    <polyline points="14 2 14 8 20 8" />
+                    <line x1="16" y1="13" x2="8" y2="13" />
+                    <line x1="16" y1="17" x2="8" y2="17" />
+                  </svg>
+                  {n}
+                </span>
+              ))}
+            </div>
+          )}
           {message.attachments && message.attachments.length > 0 && (
             <div className="flex flex-wrap gap-1 justify-end">
               {message.attachments.map((a, i) => (
@@ -130,10 +148,18 @@ export default function AgentMessage({ message }) {
     } catch { /* keep raw */ }
     return (
       <div className="flex justify-start">
-        <div className="max-w-[85%] text-caption-sm text-gray-500 bg-canvas border border-edge-subtle rounded-md px-2 py-1">
-          <span className={ok ? 'text-green-500' : 'text-red-400'}>{'●'}</span>
-          {' '}
-          {text}
+        <div className="max-w-[85%] inline-flex items-center gap-1.5 text-caption-sm text-gray-500 bg-canvas border border-edge-subtle rounded-md px-2 py-1">
+          {ok ? (
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-green-500">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+          ) : (
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-red-400">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          )}
+          <span>{text}</span>
         </div>
       </div>
     )

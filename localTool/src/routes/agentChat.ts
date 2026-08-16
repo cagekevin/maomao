@@ -168,9 +168,14 @@ export async function handleAgentChat(
 
   const msgs = [...(messages as Record<string, unknown>[])];
 
-  // 2. 可选插入「画布操作准则」system（前端已过滤入参 system，直接 unshift）
+  // 2. 画布操作准则默认由前端 useAgentChat 注入（覆盖 proxy/agent 两条路径，单一来源）。
+  //    后端仅在显式开启 AI_CANVAS_ENHANCE='1' 且消息里没有 system 时兜底注入，
+  //    避免默认双份重复（旧实现默认 unshift 导致与前端注入重复）。
   if (cfg.enhance) {
-    msgs.unshift({ role: 'system', content: cfg.rules });
+    const hasSystem = msgs.some((m: any) => m && m.role === 'system');
+    if (!hasSystem) {
+      msgs.unshift({ role: 'system', content: cfg.rules });
+    }
   }
 
   // 3. 透传上游（带超时，覆盖整个请求+流透传；前端取消信号联动）

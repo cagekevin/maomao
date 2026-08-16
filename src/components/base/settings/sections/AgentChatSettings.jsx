@@ -1,0 +1,113 @@
+import React from 'react'
+import { Bot, Check } from 'lucide-react'
+import { useProviders, load } from '../providerStore.js'
+import { showToast } from '../../toastStore.js'
+import { loadAgentChatModel, saveAgentChatModel } from '../agentModelStore.js'
+
+/**
+ * 设置分区 · AI 助手聊天模型。
+ * 全局指定「AI 助手」聊天用哪个供应商 + 哪个模型（影响 AgentPanel 的对话模型）。
+ * 与供应商编辑无关：这里只是从已配置供应商的 chat_models 里选一个当默认聊天模型。
+ */
+const selectCls = 'w-full bg-canvas border border-edge text-gray-300 text-sm px-3 py-2 rounded-lg outline-none focus:border-blue-500 transition-colors disabled:opacity-50'
+
+export default function AgentChatSettings() {
+  const { providers } = useProviders()
+  // 当前配置（providerId + modelId）
+  const saved = loadAgentChatModel()
+  const [providerId, setProviderId] = React.useState(saved?.providerId || '')
+  const [modelId, setModelId] = React.useState(saved?.modelId || '')
+
+  React.useEffect(() => {
+    if (!providers || providers.length === 0) load().catch(() => {})
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // 可作聊天用的供应商（有 chat_models 或有默认模型；含内置 providerscope/主供应商）
+  const chatProviders = (providers || []).filter((p) => {
+    const hasChat = Array.isArray(p.chat_models) && p.chat_models.length > 0
+    return hasChat || p.isPrimary
+  })
+
+  const selectedProvider = chatProviders.find((p) => p.id === providerId) || chatProviders[0] || null
+  // 当前选中供应商的聊天模型列表（chat_models；没有则空）
+  const chatModels = (selectedProvider?.chat_models || []).map((m) => m.id || m.label || m).filter(Boolean)
+  const modelOptions = Array.from(new Set(chatModels))
+  // 当前生效模型（UI 显示用）：优先本地已选，否则该供应商第一个
+  const effectiveModelId = modelOptions.includes(modelId) ? modelId : (modelOptions[0] || '')
+
+  const handleProviderChange = (pid) => {
+    setProviderId(pid)
+    const p = chatProviders.find((x) => x.id === pid)
+    const models = (p?.chat_models || []).map((m) => m.id || m.label || m).filter(Boolean)
+    const first = models[0] || ''
+    setModelId(first)
+    // 无实际选择时不写入空配置
+    if (pid && first) {
+      saveAgentChatModel({ providerId: pid, modelId: first })
+      showToast(`AI 聊天模型已设为 ${first}`, { type: 'success' })
+    }
+  }
+
+  const handleModelChange = (mid) => {
+    setModelId(mid)
+    if (providerId && mid) {
+      saveAgentChatModel({ providerId, modelId: mid })
+      showToast(`AI 聊天模型已设为 ${mid}`, { type: 'success' })
+    }
+  }
+
+  return (
+    <section className="bg-surface border border-edge-subtle rounded-xl overflow-hidden">
+      <div className="px-5 py-3.5 border-b border-edge-subtle flex items-baseline justify-between">
+        <h3 className="text-sm text-gray-200 flex items-center gap-2"><Bot size={15} className="text-gray-500" /> AI 助手聊天模型</h3>
+        <p className="text-xs text-gray-500">选择画布 AI 助手的对话模型</p>
+      </div>
+      <div className="px-5 py-4">
+        <p className="text-xs text-gray-600 mb-4">AI 助手在画布右侧面板的对话会用这里指定的模型。默认取聊天供应商的第一个模型；可在此手动指定。</p>
+
+        {chatProviders.length === 0 ? (
+          <div className="text-xs text-gray-600 py-6 text-center border border-dashed border-edge rounded-lg">暂无可用的聊天供应商，请先在「第三方 API 配置」添加并拉取聊天模型</div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl">
+            <label className="block">
+              <span className="block text-xs text-gray-400 mb-1.5">聊天供应商</span>
+              <select value={selectedProvider?.id || ''} onChange={(e) => handleProviderChange(e.target.value)} className={selectCls}>
+                {chatProviders.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name || p.id}{p.isPrimary ? '（主）' : ''}
+                  </option>
+                ))}
+              </select>
+              {selectedProvider && modelOptions.length === 0 && (
+                <span className="block text-caption-sm text-yellow-500 mt-1">该供应商暂无聊天模型，请先在模型清单中添加</span>
+              )}
+            </label>
+
+            <label className="block">
+              <span className="block text-xs text-gray-400 mb-1.5">聊天模型</span>
+              <select
+                value={effectiveModelId}
+                onChange={(e) => handleModelChange(e.target.value)}
+                disabled={modelOptions.length === 0}
+                className={selectCls}
+              >
+                {modelOptions.length === 0 ? (
+                  <option value="">暂无模型</option>
+                ) : modelOptions.map((m) => (
+                  <option key={m} value={m}>{m}</option>
+                ))}
+              </select>
+            </label>
+          </div>
+        )}
+
+        {providerId && modelId && (
+          <div className="mt-4 inline-flex items-center gap-1.5 text-caption-sm text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-full">
+            <Check size={12} /> 当前 AI 聊天模型：{modelId}
+          </div>
+        )}
+      </div>
+    </section>
+  )
+}

@@ -1,0 +1,184 @@
+/**
+ * 多步编排执行器（canvasPlanExecutor）—— 对标大雄 canvas-agent 的 plan-executor。
+ *
+ * 【它解决什么】把「generations」计划（多张图/多步骤，含前序依赖）转成画布节点流程并执行：
+ *   1. 按 depends_on_previous 分「独立批(Wave1) + 依赖批(Wave2)」（对齐大雄 plan-executor）
+ *   2. Wave1：并行建 promptNode + 触发 + await 拿 resultUrl，写回 data.imageUrl
+ *   3. Wave2：依赖批仅当独立批全部成功才执行，用「前序节点连线」让下游自动拿到前序图当参考图
+ *   4. autoRun=false 时只建节点不触发生成（ready 态，供用户确认后手动跑）
+ *
+ * 【为什么用「连线」而非「运行时注入 data.images」做前序依赖】
+ *  useConnectedInputs 靠「连线」把上游产出传给下游（getNodeOutput 读上游 data.imageUrl）。
+ *  建 A→B 连线后，B 生成时自动读到 A 的图当参考图，无需手动注入、无需改下游节点代码。
+ *
+ * 【依赖第 1 步异步执行器】触发用 taskStore.runNodeGeneration（await 拿已落盘 resultUrl）。
+ */
+import { runNodeGeneration, isNodeRegistered } from './taskStore.js'
+
+/** 是否带前序依赖（对齐大雄 stepDependsOnPrevious） */
+function dependsOnPrevious(step) {
+  if (!step) return false
+  if (step.depends_on_previous === true || step.use_previous_results === true) return true
+  if (Array.isArray(step.depends_on_steps) && step.depends_on_steps.length) return true
+  return false
+}
+
+/** 比例归一：square/1:1 → '1:1'，story/9:16 → '9:16'，landscape/16:9 → '16:9' */
+function normalizeRatio(ratio) {
+  const r = String(ratio || '').toLowerCase().trim()
+  if (r === 'square' || r === '1:1') return '1:1'
+  if (r === 'story' || r === '9:16') return '9:16'
+  if (r === 'landscape' || r === '16:9') return '16:9'
+  if (r === 'portrait' || r === '3:4') return '3:4'
+  if (r) return r
+  return 'Auto'
+}
+
+/** 档位归一：1k/1K → '1K'，2k/4k 同理 */
+function normalizeResolution(res) {
+  const r = String(res || '').toLowerCase().trim()
+  if (r === '1k') return '1K'
+  if (r === '2k') return '2K'
+  if (r === '4k') return '4K'
+  return '1K'
+}
+
+/** 放置新节点的锚点：就近放到已有节点右侧（简单实现；复杂可对齐大雄 getViewportAnchor） */
+function nextAnchor(ctx, base, index, perRow = 3) {
+  const col = index % perRow
+  const row = Math.floor(index / perRow)
+  return { x: base.x + col * 480, y: base.y + row * 520 }
+}
+
+/**
+ * 执行一个 generations 计划。
+ * @param {object} opts
+ *  - ctx             useReactFlow() 能力（getNodes/addNodes/addEdges/...）
+ *  - generations     计划步骤数组
+ *  - autoRun         默认 true；false 时只建节点不触发
+ *  - model           生图默认模型（可选；未传时用 defaults.model）
+ *  - defaults        { model, ratio, resolution } 面板生图默认参数（对齐大雄 resolveFinalGenParams）
+ *  - referenceImages 参考图 url 数组（可选；写进每个生图节点 data.images，实现"参考图+提示词直连生图"，
+ *                    对齐大雄图像模式的 attachment_indices → 图生图）
+ * @returns {Promise<{workflow, entries}>} entries: [{id,status,resultUrl,nodeId,error}]
+ */
+export async function executePlan({ ctx, generations = [], autoRun = true, model = '', defaults = {}, referenceImages = [] }) {
+  const steps = (generations || []).filter((s) => s && (s.prompt || s.title))
+  if (steps.length === 0) return { workflow: { status: 'failed', error: '计划为空' }, entries: [] }
+
+  const entries = []
+  const byId = new Map() // step.id -> { nodeId, resultUrl, status }
+
+  // 分批：独立批 / 依赖批（对齐大雄）
+  const independent = steps.filter((s) => !dependsOnPrevious(s))
+  const dependent = steps.filter((s) => dependsOnPrevious(s))
+
+  // 基础锚点：当前画布最右节点右侧，或固定 40,40
+  const nodes = ctx.getNodes()
+  const maxX = nodes.length ? Math.max(...nodes.map((n) => (n.position?.x || 0) + (n.width || 400))) : 0
+  const base = { x: maxX + 120, y: 40 }
+
+  // 建一个 promptNode 并设参数。
+  // 参数优先级对齐大雄 resolveFinalGenParams：generations 每步显式字段 > 面板 defaults（model/ratio/resolution）。
+  const createGenNode = async (step, index, anchor) => {
+    const nodeId = `plan-${step.id || `step_${index + 1}`}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
+    const ratio = normalizeRatio(step.ratio || defaults.ratio)
+    const resolution = normalizeResolution(step.resolution || defaults.resolution)
+    const finalModel = model || defaults.model || ''
+    const quality = step.quality || defaults.quality || 'auto'
+    const data = {
+      label: step.title || `步骤 ${index + 1}`,
+      prompt: step.prompt || '',
+      aspectRatio: ratio,
+      imageSize: resolution,
+      quality,
+      ...(finalModel ? { selectedModel: finalModel } : {}),
+      // 参考图（对齐大雄图像模式 attachment_indices → 图生图）：写进节点 data.images，PromptNode 生图时自动作参考
+      ...(referenceImages && referenceImages.length ? { images: referenceImages.map((u) => (typeof u === 'string' ? { url: u, name: 'reference' } : u)) } : {}),
+    }
+    ctx.addNodes([{ id: nodeId, type: 'promptNode', position: anchor, data, width: 420, height: 420 }])
+    return nodeId
+  }
+
+  // 等待节点渲染 + useNodeGeneration effect 注册 start（最多 5s）。直接 addNodes 后 React 异步渲染，
+  // PromptNode 挂载时才 registerTaskRetry；不等就直接 runNodeGeneration 会因找不到回调返回 false。
+  const waitForNodeReady = (nodeId, timeout = 5000) => new Promise((resolve) => {
+    const start = Date.now()
+    const tick = () => {
+      if (isNodeRegistered(nodeId)) return resolve(true)
+      if (Date.now() - start > timeout) return resolve(false)
+      setTimeout(tick, 60)
+    }
+    tick()
+  })
+
+  // 触发并 await 结果，写回 data.imageUrl
+  const runNode = async (nodeId, step) => {
+    const ready = await waitForNodeReady(nodeId)
+    if (!ready) return { status: 'failed', error: `节点 ${nodeId} 未注册生成契约（渲染超时）` }
+    const res = await runNodeGeneration(nodeId)
+    if (!res) return { status: 'failed', error: `节点 ${nodeId} 未注册生成契约` }
+    if (res.ok === false) return { status: 'failed', error: res.error || '生成失败' }
+    const resultUrl = res.resultUrl || ''
+    // 写回节点 data.imageUrl（供下游 useConnectedInputs 读到）
+    ctx.setNodes((ns) => ns.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, imageUrl: resultUrl } } : n)))
+    return { status: resultUrl ? 'completed' : 'failed', resultUrl }
+  }
+
+  // ── Wave 1：独立批 ──
+  for (let i = 0; i < independent.length; i++) {
+    const step = independent[i]
+    const anchor = nextAnchor(ctx, base, entries.length)
+    const nodeId = await createGenNode(step, step.index ?? i, anchor)
+    const entry = { id: step.id || `step_${i + 1}`, stepId: step.id, nodeId, phase: 'independent' }
+    if (autoRun) {
+      const r = await runNode(nodeId, step)
+      entry.status = r.status
+      entry.resultUrl = r.resultUrl || ''
+      entry.error = r.error || ''
+    } else {
+      entry.status = 'ready'
+      entry.resultUrl = ''
+    }
+    byId.set(entry.id, entry)
+    entries.push(entry)
+  }
+
+  // ── Wave 2：依赖批（仅当独立批全部成功）──
+  if (dependent.length) {
+    const prevFailed = entries.filter((e) => e.status !== 'completed').length
+    for (let i = 0; i < dependent.length; i++) {
+      const step = dependent[i]
+      const anchor = nextAnchor(ctx, base, entries.length)
+      const nodeId = await createGenNode(step, step.index ?? i, anchor)
+      const entry = { id: step.id || `dep_${i + 1}`, stepId: step.id, nodeId, phase: 'dependent' }
+
+      // 前序依赖：把「已成功的独立批节点」连到本步节点（下游 useConnectedInputs 自动读其 imageUrl 当参考图）
+      const prevOk = entries.filter((e) => e.status === 'completed' && e.nodeId)
+      if (prevFailed > 0 || prevOk.length === 0) {
+        entry.status = 'failed'
+        entry.error = prevFailed > 0 ? '前置步骤未全部成功，已跳过' : '无前序成功结果，已跳过'
+      } else {
+        // 建连线：每个前序结果节点 → 本步节点
+        const edges = prevOk.map((e) => ({ id: `e-plan-${nodeId}-${e.nodeId}`, source: e.nodeId, target: nodeId }))
+        ctx.addEdges(edges)
+        if (autoRun) {
+          const r = await runNode(nodeId, step)
+          entry.status = r.status
+          entry.resultUrl = r.resultUrl || ''
+          entry.error = r.error || ''
+        } else {
+          entry.status = 'ready'
+          entry.resultUrl = ''
+        }
+      }
+      byId.set(entry.id, entry)
+      entries.push(entry)
+    }
+  }
+
+  const anyFailed = entries.some((e) => e.status === 'failed')
+  const anyDone = entries.some((e) => e.status === 'completed')
+  const status = autoRun ? (anyFailed && anyDone ? 'completed_with_errors' : anyFailed ? 'failed' : 'completed') : 'ready'
+  return { workflow: { status, steps: steps.length }, entries }
+}

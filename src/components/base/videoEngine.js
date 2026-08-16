@@ -28,6 +28,7 @@ import {
   VideoSampleSource
 } from 'mediabunny'
 import { GIFEncoder, quantize, applyPalette } from 'gifenc'
+import { uploadFileToLocal } from './filesApi.js'
 
 /** clamp：保证是偶数且 ≥2 */
 function Sc(v) {
@@ -443,10 +444,25 @@ export async function videoToGif(url, t = {}) {
 }
 
 /**
- * 上传/持久化（官方 hi）。原型无后端，直接生成本地 object URL（与 ImageNode spawn 一致）。
+ * 上传/持久化（官方 hi）。
+ * 【修复】此前原型直接 URL.createObjectURL 生成临时地址，刷新即失效 → 视频处理产物丢失。
+ * 现在真正落盘到 localTool（POST /api/files/upload），返回持久 /files/ URL。
+ * 落盘失败返回临时 blob URL 兜底（绝不阻塞/抛错，主流程不受影响）。
+ * @param {Blob|string} blob 处理后的文件（Blob）或已持久 URL（字符串原样返回）
+ * @param {{ subfolder?: string }} [opts] 落盘子目录（默认 canvas/video-process）
  * @returns {{ url: string, thumbnailUrl?: string }}
  */
 export async function uploadResult(blob, _opts = {}) {
   if (typeof blob === 'string') return { url: blob }
-  return { url: URL.createObjectURL(blob) }
+  const subfolder = _opts?.subfolder || 'canvas/video-process'
+  try {
+    const name = (blob.name || `video_${Date.now()}.${blob.type?.split('/')[1] || 'mp4'}`).replace(/[\\/:*?"<>|]/g, '_')
+    const url = await uploadFileToLocal(blob, subfolder, name)
+    if (url) return { url }
+    console.warn('[videoEngine] 视频产物落盘失败，降级为临时 URL（刷新后不可用）')
+    return { url: URL.createObjectURL(blob) }
+  } catch (e) {
+    console.warn('[videoEngine] 视频产物落盘异常，降级为临时 URL:', e)
+    return { url: URL.createObjectURL(blob) }
+  }
 }

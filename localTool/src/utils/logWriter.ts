@@ -14,7 +14,7 @@
  * ⚠️ 改动日志机制时注意：本模块已接管 console → 自动写日志文件，
  *    launch-all.ps1 里 localTool 的 Start-Process 必须【不带】-RedirectStandardOutput/Error，
  *    否则与这里重复写文件。若再新增启动脚本，同样别对 localTool 做 stdout/err 重定向。
- * 日志目录与 db-query.mjs 的 LOGS_DIR（localTool/logs）保持一致，查询脚本
+ * 日志目录与 task-inspect.mjs 的 LOGS_DIR（localTool/logs）保持一致，查询脚本
  * readLogLines 已读全部 .log，按天轮转天然兼容。
  */
 import fs from 'node:fs';
@@ -23,7 +23,7 @@ import { fileURLToPath } from 'node:url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-// localTool/logs（与 db-query.mjs 的 LOGS_DIR 一致）
+// localTool/logs（与 task-inspect.mjs 的 LOGS_DIR 一致）
 const LOGS_DIR = path.join(__dirname, '..', '..', 'logs');
 const BASE_NAME = 'localtool_18080';
 
