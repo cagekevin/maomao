@@ -117,6 +117,10 @@ export function normalizeConversation(c) {
   // workflow / pending：缺省为 null（可空）
   if (c.workflow === undefined) c.workflow = null
   if (c.pending === undefined) c.pending = null
+  // 工作流运行时状态（per-conversation，Step D 下沉，防模块级串话）
+  if (!Array.isArray(c.aiUndoStack)) c.aiUndoStack = [] // AI 撤销栈快照 [{nodes,edges,action}]
+  if (c.pendingGenerations === undefined) c.pendingGenerations = null // Skill 阶段1 策划暂存
+  if (typeof c.awaitingConfirm !== 'boolean') c.awaitingConfirm = false // Skill 阶段2 确认态
   return c
 }
 
@@ -262,6 +266,68 @@ export function setCurrentMemory(m) {
   commit({
     ...state,
     conversations: state.conversations.map((c) => (c.id === conv.id ? { ...c, memory: normalizeMemory(m), updatedAt: Date.now() } : c)),
+  })
+}
+
+/* ── 工作流运行时状态（per-conversation，Step D；替代模块级 aiUndoStack/pendingGenerations）── */
+
+/** 读当前对话的 AI 撤销栈（副本） */
+export function getActiveAiUndoStack() {
+  return [...(getActiveConv()?.aiUndoStack || [])]
+}
+
+/** 压入 AI 撤销快照（上限 20） */
+export function pushActiveAiUndo(snapshot) {
+  const conv = getActiveConv()
+  if (!conv) return
+  const stack = [...(conv.aiUndoStack || []), snapshot]
+  if (stack.length > 20) stack.shift()
+  commit({
+    ...state,
+    conversations: state.conversations.map((c) => (c.id === conv.id ? { ...c, aiUndoStack: stack, updatedAt: Date.now() } : c)),
+  })
+}
+
+/** 弹出最近 AI 撤销快照 */
+export function popActiveAiUndo() {
+  const conv = getActiveConv()
+  if (!conv || !(conv.aiUndoStack || []).length) return null
+  const stack = [...conv.aiUndoStack]
+  const popped = stack.pop()
+  commit({
+    ...state,
+    conversations: state.conversations.map((c) => (c.id === conv.id ? { ...c, aiUndoStack: stack, updatedAt: Date.now() } : c)),
+  })
+  return popped
+}
+
+/** 读当前对话的 Skill 阶段1 策划暂存（副本） */
+export function getActivePendingGenerations() {
+  return getActiveConv()?.pendingGenerations || null
+}
+
+/** 设置/清除当前对话的 Skill 策划暂存 */
+export function setActivePendingGenerations(gens) {
+  const conv = getActiveConv()
+  if (!conv) return
+  commit({
+    ...state,
+    conversations: state.conversations.map((c) => (c.id === conv.id ? { ...c, pendingGenerations: Array.isArray(gens) && gens.length ? gens : null, updatedAt: Date.now() } : c)),
+  })
+}
+
+/** 读当前对话的 Skill 确认态 */
+export function getAwaitingConfirm() {
+  return !!getActiveConv()?.awaitingConfirm
+}
+
+/** 设置当前对话的 Skill 确认态（仅前端确认按钮翻转） */
+export function setAwaitingConfirm(v) {
+  const conv = getActiveConv()
+  if (!conv) return
+  commit({
+    ...state,
+    conversations: state.conversations.map((c) => (c.id === conv.id ? { ...c, awaitingConfirm: !!v, updatedAt: Date.now() } : c)),
   })
 }
 

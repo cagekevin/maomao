@@ -4,7 +4,12 @@ import { getPaletteNode, defaultNodeData } from './NodePalette.jsx'
 import { runNodeGeneration } from './taskStore.js'
 import { createGroupFromNodes } from './groupNodes.js'
 import { executePlan } from './canvasPlanExecutor.js'
-import { patchCurrentWorkflow, setCurrentMemory, getCurrentMemory } from './conversationStore.js'
+import {
+  patchCurrentWorkflow, setCurrentMemory, getCurrentMemory,
+  getActiveAiUndoStack, pushActiveAiUndo, popActiveAiUndo,
+  getActivePendingGenerations, setActivePendingGenerations,
+  setAwaitingConfirm, // Step F 启用确认态硬约束时再加 getAwaitingConfirm
+} from './conversationStore.js'
 
 /* ════════════════════════════════════════════════════════════════
  * AI 生图默认参数（genParams）—— 由 AgentPanel 生图参数区设置，execute_plan 读取。
@@ -29,19 +34,21 @@ export function getGenParams() {
  * Skill 三阶段：阶段1 策划暂存（pendingGenerations）
  * ────────────────────────────────────────────────────────────────
  * 对齐大雄三阶段（理解→规划→执行）：
- *  - 阶段1 策划：LLM 调 present_plan 输出策划，前端展示给用户确认，generations 暂存此处。
+ *  - 阶段1 策划：LLM 调 present_plan 输出策划，前端展示给用户确认，generations 暂存当前对话。
  *  - 用户确认后（下一轮），LLM 调 execute_plan；若 execute_plan 没传 generations 则用暂存的。
- * 用模块级暂存（同 genParams 模式），避免贯穿 props 链路过长。
+ * 【Step D 下沉】原为模块级变量（多对话串话、刷新丢）。现存 conversationStore 的
+ * per-conversation pendingGenerations，随对话自动落盘、刷新不丢、多对话不串。
+ * 保留 setPendingGenerations/getPendingGenerations/clearPendingGenerations 导出兼容调用方，
+ * 内部改走 conversationStore。
  */
-let pendingGenerations = null
 export function setPendingGenerations(gens) {
-  pendingGenerations = Array.isArray(gens) && gens.length ? gens : null
+  setActivePendingGenerations(Array.isArray(gens) && gens.length ? gens : null)
 }
 export function getPendingGenerations() {
-  return pendingGenerations
+  return getActivePendingGenerations()
 }
 export function clearPendingGenerations() {
-  pendingGenerations = null
+  setActivePendingGenerations(null)
 }
 
 /**
@@ -123,10 +130,8 @@ const MUTATING_TOOLS = new Set([
   'move_node', 'group_nodes', 'lock_node',
   'execute_plan', // 多步编排：一次改多个节点，整体入 AI 撤销栈（undo_ai 可整体撤回）
 ])
-/** AI 撤销栈上限（分组事务可回滚步数） */
+/** AI 撤销栈上限（分组事务可回滚步数）；【Step D】栈存在 conversationStore per-conversation，不再模块级 */
 const MAX_AI_UNDO = 20
-/** AI 写操作快照栈：每项 { nodes, edges, action }（写操作前的画布）；undo_ai 弹出最近一个恢复。 */
-const aiUndoStack = []
 
 /**
  * 建节点工具（复刻官方 create_node + batch_create_nodes）。
@@ -499,10 +504,12 @@ const presentPlanTool = {
     if (!planText) return { ok: false, error: 'plan_text 为空' }
     // 暂存 generations（用户确认后 execute_plan 可用）；plan_text 由 useAgentChat 展示为用户可见策划
     setPendingGenerations(gens)
+    // 【Step D 确认态】present_plan 后进入"待确认"，execute_plan 未确认时被拒（防止 LLM 直接出图）
+    setAwaitingConfirm(true)
     // memory 提炼（对齐大雄 conv.memory.lastPlan）：把阶段1策划记入当前对话，供多轮上下文
     const mem = getCurrentMemory()
     setCurrentMemory({ ...mem, lastPlan: { plan_text: planText, generations: gens, ts: Date.now() } })
-    return { ok: true, data: { presented: true, plan_text: planText, generations_count: gens.length } }
+    return { ok: true, data: { presented: true, plan_text: planText, generations_count: gens.length, awaiting_confirm: true } }
   }
 }
 
@@ -531,6 +538,9 @@ const executePlanTool = {
   },
   execute: async (args, ctx) => {
     try {
+      // 【Step D：确认态状态已建立（awaitingConfirm 由 present_plan 置 true），
+      //  硬约束 + 确认按钮在 Step F 启用，避免此时 Skill 三阶段卡死（功能不回归）。】
+      // 【Step F 在此加】if (getAwaitingConfirm()) return { ok:false, error:'策划尚未确认，请先确认后再执行。' }
       // 优先用本次传入的 generations；若空则用阶段1 present_plan 暂存的（Skill 三阶段）
       let gens = Array.isArray(args.generations) ? args.generations : []
       if (gens.length === 0) {
@@ -667,11 +677,11 @@ const undoAiTool = {
   description: '撤回 AI 刚才那步画布操作（只影响 AI 自己通过工具改的画布，与用户手动 Ctrl+Z 撤销完全隔离）。可逐次撤回 AI 的写操作（含一次多步编排）。',
   parameters: { type: 'object', properties: {}, required: [] },
   execute(args, ctx) {
-    const snap = aiUndoStack.pop()
+    const snap = popActiveAiUndo() // 当前对话的 AI 撤销栈（Step D，多对话不串）
     if (!snap) return { ok: false, error: '没有可撤回的 AI 操作' }
     ctx.setNodes(snap.nodes)
     ctx.setEdges(snap.edges)
-    return { ok: true, data: { reverted: snap.action || '上一步操作', remaining: aiUndoStack.length } }
+    return { ok: true, data: { reverted: snap.action || '上一步操作', remaining: getActiveAiUndoStack().length } }
   }
 }
 
@@ -754,10 +764,9 @@ export function buildCanvasAgentTools(ctx) {
     const execute = t.execute
     const isMutating = MUTATING_TOOLS.has(t.name)
     map[t.name] = (args) => {
-      // 对"会改画布的写工具"统一捕获改前快照，push 进 AI 撤销栈（集中一处，不散落到各工具）
+      // 对"会改画布的写工具"统一捕获改前快照，push 进当前对话的 AI 撤销栈（集中一处，不散落到各工具）
       if (isMutating) {
-        aiUndoStack.push({ nodes: ctx.getNodes(), edges: ctx.getEdges(), action: t.name })
-        if (aiUndoStack.length > MAX_AI_UNDO) aiUndoStack.shift() // 栈上限，丢弃最旧
+        pushActiveAiUndo({ nodes: ctx.getNodes(), edges: ctx.getEdges(), action: t.name })
       }
       try {
         return execute(args, ctx)
