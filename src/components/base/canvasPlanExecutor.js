@@ -78,6 +78,9 @@ export async function executePlan({ ctx, generations = [], autoRun = true, model
   const maxX = nodes.length ? Math.max(...nodes.map((n) => (n.position?.x || 0) + (n.width || 400))) : 0
   const base = { x: maxX + 120, y: 40 }
 
+  // 取某步自己的参考图（execute_plan 按 attachment_indices 解析后写入 step.referenceImages，URL 数组）。
+  const stepRefImages = (step) => (Array.isArray(step?.referenceImages) ? step.referenceImages.filter(Boolean) : [])
+
   // 建一个 promptNode 并设参数。
   // 参数优先级对齐大雄 resolveFinalGenParams：generations 每步显式字段 > 面板 defaults（model/ratio/resolution）。
   const createGenNode = async (step, index, anchor) => {
@@ -93,8 +96,11 @@ export async function executePlan({ ctx, generations = [], autoRun = true, model
       imageSize: resolution,
       quality,
       ...(finalModel ? { selectedModel: finalModel } : {}),
-      // 参考图（对齐大雄图像模式 attachment_indices → 图生图）：写进节点 data.images，PromptNode 生图时自动作参考
-      ...(referenceImages && referenceImages.length ? { images: referenceImages.map((u) => (typeof u === 'string' ? { url: u, name: 'reference' } : u)) } : {}),
+      // 参考图（对齐大雄图像模式 attachment_indices → 图生图）：写进节点 data.images，PromptNode 生图时自动作参考。
+      // 优先用该步自己的 referenceImages（execute_plan 按 attachment_indices 解析后的），否则用整批共享的。
+      ...(stepRefImages(step).length
+        ? { images: stepRefImages(step).map((u) => (typeof u === 'string' ? { url: u, name: 'reference' } : u)) }
+        : (referenceImages && referenceImages.length ? { images: referenceImages.map((u) => (typeof u === 'string' ? { url: u, name: 'reference' } : u)) } : {})),
     }
     ctx.addNodes([{ id: nodeId, type: 'promptNode', position: anchor, data, width: 420, height: 420 }])
     return nodeId

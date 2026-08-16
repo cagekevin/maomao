@@ -31,6 +31,21 @@ export function getGenParams() {
 }
 
 /* ════════════════════════════════════════════════════════════════
+ * 当前对话「用户引用的参考图」URL 数组（对齐大雄 attachment_indices）
+ * ────────────────────────────────────────────────────────────────
+ * 用户选中画布带图节点/上传图片 → useAgentChat.send 时写入本模块级变量；
+ * execute_plan 工具读取它，按 AI 输出的 attachment_indices（0-based）精确取对应 URL，
+ * 写进每个 generation 的 referenceImages（该步图生图参考）。类似 getGenParams 模式。
+ */
+let currentRefImages = []
+export function setCurrentReferenceImages(urls = []) {
+  currentRefImages = Array.isArray(urls) ? urls.filter(Boolean) : []
+}
+export function getCurrentReferenceImages() {
+  return currentRefImages
+}
+
+/* ════════════════════════════════════════════════════════════════
  * Skill 三阶段：阶段1 策划暂存（pendingGenerations）
  * ────────────────────────────────────────────────────────────────
  * 对齐大雄三阶段（理解→规划→执行）：
@@ -585,18 +600,18 @@ const presentPlanTool = {
  */
 const executePlanTool = {
   name: 'execute_plan',
-  description: '按计划批量建节点并生成（多图/多步骤）。输入 generations（每步含 prompt/比例/分辨率/是否依赖前序），按依赖分批执行，返回每步结果 URL。适合大批量任务。',
+  description: '按计划批量建节点并生成（多图/多步骤）。输入 generations（每步含 prompt/比例/分辨率/是否依赖前序），按依赖分批执行，返回每步结果 URL。用户引用了参考图时，用每步 attachment_indices（0-based，指向参考图编号）精确指定该步用哪几张图做图生图。适合大批量任务。',
   parameters: {
     type: 'object',
     properties: {
       generations: {
         type: 'array',
-        description: '步骤数组。每项 { id, title, prompt, ratio, resolution, depends_on_previous, dependency_mode }',
+        description: '步骤数组。每项 { id, title, prompt, ratio, resolution, depends_on_previous, dependency_mode, use_attachments, attachment_indices }。attachment_indices 是 0-based 数组，指向本轮用户参考图的编号（参考图1→0，参考图2→1），仅当该步要基于某参考图图生图时填',
         items: { type: 'object' }
       },
       auto_run: { type: 'boolean', description: '是否自动触发生成（默认 true）。false 时只建节点不跑，供用户确认' },
       model: { type: 'string', description: '生图默认模型（可选）' },
-      referenceImages: { type: 'array', items: { type: 'string' }, description: '参考图 url 数组（可选；写进生图节点作图生图参考，对齐大雄图像模式）' }
+      referenceImages: { type: 'array', items: { type: 'string' }, description: '参考图 url 数组（可选；整批共享，写进所有生图节点作参考。若用 attachment_indices 则按步精确指定，优先于它）' }
     },
     required: ['generations']
   },
@@ -621,8 +636,18 @@ const executePlanTool = {
       const model = str(args.model) || panel.model
       // workflow 贯穿（对齐大雄）：执行开始 → running；执行结束 → completed/failed。状态写入当前对话 workflow。
       patchCurrentWorkflow({ status: 'running', updatedAt: Date.now() })
-      const refImgs = Array.isArray(args.referenceImages) ? args.referenceImages.filter(Boolean) : []
-      const result = await executePlan({ ctx, generations: gens, autoRun, model, defaults: panel, referenceImages: refImgs })
+      // 【参考图解析】用户引用的参考图池（useAgentChat.send 时写入）；AI 用每步 attachment_indices 精确指定。
+      const refPool = getCurrentReferenceImages()
+      const globalRefs = Array.isArray(args.referenceImages) ? args.referenceImages.filter(Boolean) : []
+      const resolvedGens = (gens || []).map((g) => {
+        const idxs = Array.isArray(g?.attachment_indices) ? g.attachment_indices.map((i) => Number(i)).filter((i) => Number.isFinite(i) && i >= 0) : []
+        if (idxs.length > 0 && refPool.length > 0) {
+          // 该步按编号精确取参考图（对齐大雄 attachment_indices）
+          return { ...g, referenceImages: idxs.filter((i) => i < refPool.length).map((i) => refPool[i]).filter(Boolean) }
+        }
+        return g
+      })
+      const result = await executePlan({ ctx, generations: resolvedGens, autoRun, model, defaults: panel, referenceImages: globalRefs })
       if (!result || !result.entries) {
         patchCurrentWorkflow({ status: 'failed', updatedAt: Date.now() })
         return { ok: false, error: '计划执行失败' }

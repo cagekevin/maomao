@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useCanvasAgentTools, getGenParams } from './useCanvasAgentTools.js'
+import { useCanvasAgentTools, getGenParams, setCurrentReferenceImages } from './useCanvasAgentTools.js'
 import { sGet } from './storageAdapter.js'
 import { API_BASE } from './apiBase.js'
 import { normalizeImageUrlForSend } from './imageUrl.js'
@@ -100,6 +100,7 @@ const CANVAS_AGENT_RULES = `你是猫猫画布助手，正在帮助用户操作�
 - 改任意原始字段才用 update_node_any_field，且只改必要字段，不要抹掉其他 data。
 - 用户要求生成内容时，用 generate_node 触发已有节点（先确保该节点有提示词），或 create_node(promptNode, prompt=...) 后 generate_node。
 - 生成任务提交后应说明「已在画布开始生成」，不要在没有结果时声称「已生成」。
+- 【改图（参考图图生图）】用户引用了参考图（本轮有「参考图编号目录」）并要求改图时，用 execute_plan 批量改图：每步 generations 里填 use_attachments=true 和 attachment_indices（0-based，参考图1→0）精确指向要用哪几张参考图；prompt 只写修改意图 + 保持不变部分，不写「参考第 N 张」这类执行层编号。改图必须本轮带参考图，不要默认参考上一轮结果。若用户说「分别/各自/每张」或「图1变白、图2变黑」这类一对一改图，输出 N 个 generation（N=图数），每个 attachment_indices 只含一张。
 - 【主动聚焦】生成/创建/修改某个节点后，主动调用 focus_node 把该节点居中聚焦给用户看，让用户一眼看到成果；一次对话聚焦最近操作的那个节点即可，不要频繁跳动。
 
 【锁定】
@@ -607,6 +608,8 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
           lines.push('编号固定按输入框从左到右排列。引用某张图做图生图时，在 generations 里用 attachment_indices 指向其编号（0-based：参考图1→0）。')
           userMsg.refCatalog = lines.join('\n')
         }
+        // 参考图 URL 池写入模块级：execute_plan 工具按 AI 的 attachment_indices 精确取用（对齐大雄）
+        setCurrentReferenceImages(imgAtts.map((a) => a.url).filter(Boolean))
       }
       setHistory([...messagesRef.current, userMsg])
       setSending(true)

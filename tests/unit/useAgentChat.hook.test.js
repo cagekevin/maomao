@@ -24,6 +24,8 @@ const toolSchemas = [{ type: 'function', function: { name: 'create_node' } }]
 vi.mock('../../src/components/base/useCanvasAgentTools.js', () => ({
   useCanvasAgentTools: () => ({ toolSchemas, callTool }),
   getGenParams: () => ({ model: '', ratio: 'Auto', resolution: '1K' }),
+  setCurrentReferenceImages: vi.fn(),
+  getCurrentReferenceImages: () => [],
 }))
 
 // ── mock 会话数据层：内存独立，避免跨测试污染 ──

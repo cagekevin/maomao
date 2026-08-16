@@ -25,7 +25,7 @@ vi.mock('../../src/components/base/canvasPlanExecutor.js', () => ({
   executePlan: vi.fn(async () => ({ workflow: { status: 'completed' }, entries: [{ status: 'completed', nodeId: 'n1', resultUrl: 'http://r/x.png' }] })),
 }))
 
-import { buildCanvasAgentTools, CANVAS_AGENT_TOOL_NAMES, getNodeImageUrl } from '../../src/components/base/useCanvasAgentTools.js'
+import { buildCanvasAgentTools, CANVAS_AGENT_TOOL_NAMES, getNodeImageUrl, setCurrentReferenceImages } from '../../src/components/base/useCanvasAgentTools.js'
 import * as convStore from '../../src/components/base/conversationStore.js'
 import { executePlan as mockExecutePlan } from '../../src/components/base/canvasPlanExecutor.js'
 
@@ -372,6 +372,30 @@ describe('画布 Agent 工具层 §2.5', () => {
     expect(r.ok).toBe(false)
     expect(r.error).toContain('generations 为空')
     expect(mockExecutePlan).not.toHaveBeenCalled()
+  })
+
+  it('execute_plan：按 attachment_indices 精确取用户参考图（对齐大雄，每步独立）', async () => {
+    convStore.__state.awaiting = false
+    // 参考图池 = 用户引用图的 URL 数组（useAgentChat.send 写入）
+    setCurrentReferenceImages(['http://ref/1.png', 'http://ref/2.png'])
+    const ctx = makeCtx()
+    const t = buildCanvasAgentTools(ctx)
+    // AI 规划：step1 用参考图1(→0)，step2 用参考图2(→1)，step3 无索引（用整批共享）
+    const r = await t.execute_plan({
+      generations: [
+        { id: 'g1', prompt: '把猫变白', use_attachments: true, attachment_indices: [0] },
+        { id: 'g2', prompt: '把狗变黑', use_attachments: true, attachment_indices: [1] },
+        { id: 'g3', prompt: '普通图', use_attachments: false },
+      ],
+      referenceImages: ['http://ref/global.png'],
+    })
+    expect(r.ok).toBe(true)
+    const arg = mockExecutePlan.mock.calls[0][0]
+    // 每步按索引解析成自己的 referenceImages
+    expect(arg.generations[0].referenceImages).toEqual(['http://ref/1.png'])
+    expect(arg.generations[1].referenceImages).toEqual(['http://ref/2.png'])
+    // 无索引的步骤不注入 per-step referenceImages（执行器会回退整批共享）
+    expect(arg.generations[2].referenceImages).toBeUndefined()
   })
 
   it('execute_plan 无 generations 且无暂存 → 报错（不死循环/不崩溃）', async () => {
