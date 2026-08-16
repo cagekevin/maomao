@@ -10,6 +10,7 @@ import {
   getActivePendingGenerations, setActivePendingGenerations,
   getAwaitingConfirm, setAwaitingConfirm,
 } from './conversationStore.js'
+import { sGet, sSet } from './storageAdapter.js'
 
 /* ════════════════════════════════════════════════════════════════
  * AI 生图默认参数（genParams）—— 由 AgentPanel 生图参数区设置，execute_plan 读取。
@@ -22,9 +23,22 @@ import {
  * useAgentChat → useCanvasAgentTools 链路过长、改动大。模块级单例符合 currentTaskId 既有模式。
  * 注：模型 value 用 providerId::modelId（对齐 buildAllModels/resolveProviderModel）。
  */
-let genParams = { model: '', ratio: 'Auto', resolution: '1K' }
+const GEN_PARAMS_KEY = 'canvasAgentGenParams'
+const DEFAULT_GEN_PARAMS = { model: '', ratio: 'Auto', resolution: '1K' }
+/** 惰性加载持久化的生图参数（对齐大雄「设为默认」持久化；刷新/重启不丢） */
+function loadGenParams() {
+  try {
+    const raw = sGet(GEN_PARAMS_KEY)
+    const parsed = raw ? JSON.parse(raw) : null
+    return parsed && typeof parsed === 'object' ? { ...DEFAULT_GEN_PARAMS, ...parsed } : { ...DEFAULT_GEN_PARAMS }
+  } catch {
+    return { ...DEFAULT_GEN_PARAMS }
+  }
+}
+let genParams = loadGenParams()
 export function setGenParams(patch = {}) {
   genParams = { ...genParams, ...patch }
+  try { sSet(GEN_PARAMS_KEY, JSON.stringify(genParams)) } catch { /* 持久化失败仅降级为内存 */ }
 }
 export function getGenParams() {
   return genParams

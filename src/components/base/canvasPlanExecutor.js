@@ -81,6 +81,14 @@ export async function executePlan({ ctx, generations = [], autoRun = true, model
   // 取某步自己的参考图（execute_plan 按 attachment_indices 解析后写入 step.referenceImages，URL 数组）。
   const stepRefImages = (step) => (Array.isArray(step?.referenceImages) ? step.referenceImages.filter(Boolean) : [])
 
+  // 【模型二次锁定】建节点/跑节点后强制写回 selectedModel/比例/分辨率，防 React 重渲染把模型回落默认
+  // （对齐大雄 lockAgentNodeSettings）。合并而非覆盖，避免清掉 images 等字段。model 为空时不写 selectedModel（不污染）。
+  const lockNodeSettings = (nodeId, { m = model, ratio, resolution, quality } = {}) => {
+    ctx.setNodes((ns) => ns.map((n) => (n.id === nodeId
+      ? { ...n, data: { ...n.data, ...(m ? { selectedModel: m } : {}), aspectRatio: ratio, imageSize: resolution, quality } }
+      : n)))
+  }
+
   // 建一个 promptNode 并设参数。
   // 参数优先级对齐大雄 resolveFinalGenParams：generations 每步显式字段 > 面板 defaults（model/ratio/resolution）。
   const createGenNode = async (step, index, anchor) => {
@@ -103,6 +111,8 @@ export async function executePlan({ ctx, generations = [], autoRun = true, model
         : (referenceImages && referenceImages.length ? { images: referenceImages.map((u) => (typeof u === 'string' ? { url: u, name: 'reference' } : u)) } : {})),
     }
     ctx.addNodes([{ id: nodeId, type: 'promptNode', position: anchor, data, width: 420, height: 420 }])
+    // 建节点即锁：强制写回锁定值，防后续 React 渲染覆盖（对齐大雄 L152-153）
+    lockNodeSettings(nodeId, { m: finalModel, ratio, resolution, quality })
     return nodeId
   }
 
@@ -131,6 +141,8 @@ export async function executePlan({ ctx, generations = [], autoRun = true, model
     const live = (ctx.getNodes?.() || []).find((n) => n.id === nodeId)
     if (live) {
       ctx.setNodes((ns) => ns.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, imageUrl: resultUrl } } : n)))
+      // 完成时再锁一次参数（对齐大雄 L248 finishAgentNodeImages 末尾 lock），防 update_node/重渲染回落
+      lockNodeSettings(nodeId, { m: model || defaults.model, ratio: normalizeRatio(step.ratio || defaults.ratio), resolution: normalizeResolution(step.resolution || defaults.resolution), quality: step.quality || defaults.quality || 'auto' })
     }
     return { status: resultUrl ? 'completed' : 'failed', resultUrl }
   }
