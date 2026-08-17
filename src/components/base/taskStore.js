@@ -46,9 +46,9 @@ export function initTasks() {
     .catch((e) => logger.warn('taskStore', '加载历史任务失败（localTool 未连？）', e?.message))
 }
 
-// 后端保存（fire-and-forget，失败仅降级为内存态）
+// 后端保存（fire-and-forget，失败仅降级为内存态，前端流程不受影响）
 function persist(task) {
-  saveTask(task).catch(() => {})
+  saveTask(task).catch((e) => logger.warn('task', 'persist-fail', { taskId: task?.id, error: e?.message }))
 }
 
 // 状态 → 圆点/文字 颜色（对齐官方 An）

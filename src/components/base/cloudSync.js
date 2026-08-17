@@ -7,8 +7,8 @@
  *  - 之前是 localStorage 模拟假数据；现直接替换为真实云端收发（引擎代码原样保留）。
  *
  * 【同步内容】全量配置/用户数据同步（用户确认体积小，全部进云端）：
- *  - localStorage 用户数据/配置：复用 backupStore 的 LS_KEYS 权威清单
- *    （项目、应用设置、自定义 Skill、预设、节点偏好、账号环境等）
+ *  - localStorage 用户数据/配置：由 contracts.js STORAGE_KEYS 权威登记生成
+ *    （getLocalKeys() 减去下方 SYNC_EXCLUDE 不同步清单；项目、应用设置、自定义 Skill、预设、节点偏好、账号环境等）
  *  - API 配置（providers）：走 localTool /api/providers（独立于 localStorage）
  *
  * 【不同步】画布/会话性/本机临时数据：
@@ -17,9 +17,11 @@
  *  - lastOpenedProject（上次打开哪个项目）：本机会话偏好。
  *  - yimao_asset_library（素材库）：存的是本地 URL 引用（http://127.0.0.1:18080/files/...），
  *    指向本机 localTool 磁盘文件，跨设备无意义，不同步。
+ *  - agent_draft / mutiwindow-clipboard：临时数据（输入草稿 / 跨窗口剪贴板），不同步。
  *
  * ⚠️ 含用户数据（账号环境/API key 等），同步到云端需注意保密。
  */
+import { getLocalKeys } from './contracts.js'
 import { providerApi } from './settings/settingsApi.js'
 import { fetchProjects, saveProjects } from './projectsApi.js'
 import { contentGet, contentSet } from './contentStore.js'
@@ -225,18 +227,11 @@ export async function downloadConfig(onProgress) {
 // 保留引擎导出（供需要直接调用引擎的调用方用），但日常同步请走 uploadConfig/downloadConfig。
 export { CloudSyncEngine }
 
-/* ── localStorage 备份清单（复用 backupStore 权威清单，全量同步）──
- * 注：agent_conversations / agent_active_conversation_id（AI 对话历史）含隐私不同步；
- * lastOpenedProject（上次打开项目）本机会话偏好不同步；
- * yimao_asset_library（素材库）为本地 URL 引用，跨设备无意义不同步。 */
-const LS_KEYS = [
-  'projects',                     // 项目列表（projectStore）
-  'app_settings',                 // 应用设置（appSettings）
-  'agent_skills',                 // 自定义 Skill（skillStore）
-  'agent_skill_usage',            // Skill 使用次数（skillStore）
-  'agent_chat_model',             // AI 聊天模型（agentModelStore）
-  'yimao_preset_prompts',         // 提示词预设（promptManager）
-  'yimao_preset_recent',          // 预设最近使用（promptManager）
-  'yimao_node_prefs',             // 节点偏好（nodePrefs）
-  'yimao_accounts',               // 账号环境（accountsStore）
-]
+/* ── localStorage 同步清单：由 contracts.js STORAGE_KEYS 权威登记生成（getLocalKeys()），
+ * 显式排除不适合跨设备同步的键（与文件头【不同步】原则一致）：
+ *  - lastOpenedProject / agent_draft：本机/临时偏好（不同步）
+ *  - yimao_asset_library：本地 URL 引用，跨设备无意义（不同步）
+ *  - mutiwindow-clipboard：跨窗口临时剪贴板（不同步）
+ *  AI 会话键（agent_conversations_*）含隐私，本就为 pattern 键不在 getLocalKeys() 内。 */
+const SYNC_EXCLUDE = new Set(['lastOpenedProject', 'yimao_asset_library', 'agent_draft', 'mutiwindow-clipboard'])
+const LS_KEYS = getLocalKeys().filter((k) => !SYNC_EXCLUDE.has(k))

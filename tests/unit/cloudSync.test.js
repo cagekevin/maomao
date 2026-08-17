@@ -6,6 +6,7 @@
  * 策略：node 环境；mock fetch 让 callGateway 走通；providerApi/projectsApi 用 stub。
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { contentClearCache } from '../../src/components/base/contentStore.js'
 
 // 复用 setup.mjs 强制 mock 的全局 fetch（Node 原生 fetch 不可配置，vi.stubGlobal 会静默失效）
 const fetchMock = globalThis.fetch
@@ -32,6 +33,7 @@ beforeEach(() => {
   fetchMock.mockClear()
   CloudSyncEngine.isSyncing = false
   localStorage.clear()
+  contentClearCache()
 })
 afterEach(() => {})
 
@@ -105,5 +107,29 @@ describe('cloudSync — uploadConfig / downloadConfig 边界', () => {
     const res = await uploadConfig(() => {})
     expect(res.ok).toBe(true)
     expect(res.count).toBeGreaterThan(0)
+  })
+
+  it('同步清单由 contracts.js getLocalKeys() 生成：真实设置进云，排除本机/临时/本地引用键', async () => {
+    const { contentSet } = await import('../../src/components/base/contentStore.js')
+    // 真实设置（此前未进手写清单，收口后应同步）
+    contentSet('agent_panel_width', '320')
+    contentSet('agent_input_mode', 'agent')
+    // 不同步清单：本机偏好 / 本地 URL 素材 / 临时草稿 / 跨窗口剪贴板
+    contentSet('lastOpenedProject', 'p1')
+    contentSet('yimao_asset_library', [{ id: 'a' }])
+    contentSet('agent_draft', '草稿')
+    contentSet('mutiwindow-clipboard', 'clip')
+    fetchMock.mockResolvedValue(jsonResp({ msg: 'ok' }))
+    const res = await uploadConfig(() => {})
+    expect(res.ok).toBe(true)
+    // callGateway body = { action, data: cloud }，cloud.data 才是 ls 清单
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body)
+    const ls = body.data.data
+    expect(ls.agent_panel_width).toBe('320')
+    expect(ls.agent_input_mode).toBe('agent')
+    expect(ls.lastOpenedProject).toBeUndefined()
+    expect(ls.yimao_asset_library).toBeUndefined()
+    expect(ls.agent_draft).toBeUndefined()
+    expect(ls.mutiwindow_clipboard).toBeUndefined()
   })
 })

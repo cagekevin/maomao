@@ -22,23 +22,13 @@
  *   canvas: { [projectId]: { nodes, edges } }   // 各项目画布快照
  * }
  */
+import { getLocalKeys } from './contracts.js'
 import { contentGet, contentSet } from './contentStore.js'
 import { loadCanvasState, saveCanvasState } from './projectStore.js'
 
-/** localStorage 备份清单（所有该备份的用户数据/配置键） */
-const LS_KEYS = [
-  'projects',                     // 项目列表（projectStore）
-  'lastOpenedProject',            // 上次打开项目（projectStore）
-  'app_settings',                 // 应用设置（appSettings）
-  'agent_skills',                 // 自定义 Skill（skillStore）
-  'agent_skill_usage',            // Skill 使用次数（skillStore）
-  'agent_chat_model',             // AI 聊天模型（agentModelStore）
-  'yimao_preset_prompts',         // 提示词预设（promptManager）
-  'yimao_preset_recent',          // 预设最近使用（promptManager）
-  'yimao_asset_library',          // 素材库（assetStore）
-  'yimao_node_prefs',             // 节点偏好（nodePrefs）
-  'yimao_accounts',               // 账号环境（accountsStore）
-]
+/** localStorage 备份清单 —— 由 contracts.js STORAGE_KEYS 权威登记生成（getLocalKeys()）。
+ *  新增存储键先在 contracts.js 登记即自动进备份，禁止再手写清单（防漂移漏备份）。 */
+const LS_KEYS = getLocalKeys()
 
 /**
  * AI 会话键（conversationStore 按 agentKey=项目隔离）：每项目一套会话存储。

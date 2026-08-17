@@ -26,6 +26,8 @@
  */
 const listeners = new Map() // event -> Set<fn>
 
+import { logger } from './logger.js'
+
 /** 订阅事件，返回取消函数 */
 export function subscribe(event, fn) {
   if (!event || typeof fn !== 'function') return () => {}
@@ -42,7 +44,7 @@ export function publish(event, payload) {
   const set = listeners.get(event)
   if (!set) return
   set.forEach((fn) => {
-    try { fn(payload) } catch (e) { console.error(`[eventBus] ${event} 订阅者异常:`, e?.message || e) }
+    try { fn(payload) } catch (e) { logger.warn('eventBus', `${event} 订阅者异常`, e?.message || String(e)) }
   })
 }
 

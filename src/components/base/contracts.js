@@ -295,11 +295,11 @@ export const STORAGE_KEYS = {
     note: '视口捕获隐藏标记',
   },
 
-  // ── 云同步引用清单（cloudSync.js / backupStore.js）───────────────
-  // 注意：cloudSync 和 backupStore 各自维护 LS_KEYS 清单，内容略有差异。
-  //   cloudSync 缺：lastOpenedProject、yimao_asset_library（有意跳过）
-  //   backupStore 全量包含
-  // 后续应统一从本表生成清单，消除两份清单的差异。
+  // ── 备份/云同步清单（backupStore.js / cloudSync.js）──────────────
+  // 已统一从本表 getLocalKeys() 生成，禁止再手写清单（防漂移漏备份）：
+  //   backupStore 全量导出；cloudSync 用 SYNC_EXCLUDE 显式排除
+  //   （lastOpenedProject / yimao_asset_library / agent_draft / mutiwindow-clipboard）。
+  // 新增本表 local 键即自动进入备份与同步。
 }
 
 /** 获取所有 localStorage 后端键列表（不含动态键模板、不含已迁移旧键） */
