@@ -17,8 +17,12 @@ import { runNodeGeneration, isNodeRegistered } from './taskStore.js'
 
 /* ── 全局单飞锁（对齐大雄 __canvasAgentGenRunning）──
  * 同一时刻只允许一套 executePlan 批量生成在跑。防止「用户手动点节点生成 + AI 触发」
- * 或「两个入口同时调 execute_plan」时，并行跑两套生成 → 重复建节点 / 重复计费。 */
+ * 或「两个入口同时调 execute_plan」时，并行跑两套生成 → 重复建节点 / 重复计费。
+ * 带启动时间戳 + 超时兜底：若执行异常未走 finally 释放（理论不会发生），超过
+ * EXECUTING_PLAN_TIMEOUT 后下一次进入自动释放，避免全局锁永久死锁（TASK-055 Gap A）。 */
 let executingPlan = false
+let executingPlanSince = 0
+const EXECUTING_PLAN_TIMEOUT = 120000
 
 /* ════════════════════════════════════════════════════════════════
  * 依赖批 prompt 改写工程（对齐大雄 agentBuildFusionPrompt /
@@ -185,7 +189,8 @@ function normalizeQuality(q) {
 function nextAnchor(ctx, base, index, perRow = 3) {
   const col = index % perRow
   const row = Math.floor(index / perRow)
-  return { x: base.x + col * 480, y: base.y + row * 520 }
+  // 纵向间距 750，与 Ctrl+D 复制偏移对齐（图片节点高 + 抽屉高，避免重叠）
+  return { x: base.x + col * 480, y: base.y + row * 750 }
 }
 
 /**
@@ -206,9 +211,16 @@ export async function executePlan({ ctx, generations = [], autoRun = true, model
   const log = (level, message) => { try { onLog?.({ level, message }) } catch { /* 日志失败不阻断执行 */ } }
   const steps = (generations || []).filter((s) => s && (s.prompt || s.title))
   // 全局单飞锁：同一时刻只允许一套批量生成在跑，防重复计费/重复建节点
-  if (executingPlan) return { workflow: { status: 'failed', error: '已有计划正在执行，请稍后再试' }, entries: [] }
+  if (executingPlan) {
+    // 超时兜底：异常未释放时自动解锁（防御性，正常路径由 finally 释放）
+    if (Date.now() - executingPlanSince < EXECUTING_PLAN_TIMEOUT) {
+      return { workflow: { status: 'failed', error: '已有计划正在执行，请稍后再试' }, entries: [] }
+    }
+    executingPlan = false
+  }
   if (steps.length === 0) return { workflow: { status: 'failed', error: '计划为空' }, entries: [] }
   executingPlan = true
+  executingPlanSince = Date.now()
   log('info', `开始执行计划：共 ${steps.length} 步（独立批 ${steps.filter((s) => !dependsOnPrevious(s)).length} + 依赖批 ${steps.filter((s) => dependsOnPrevious(s)).length}）`)
   try {
 
@@ -450,5 +462,6 @@ export async function executePlan({ ctx, generations = [], autoRun = true, model
   return { workflow: { status, steps: steps.length }, entries }
   } finally {
     executingPlan = false // 无论成功/失败/异常都释放单飞锁
+    executingPlanSince = 0
   }
 }

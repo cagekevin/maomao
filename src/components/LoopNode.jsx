@@ -3,7 +3,7 @@ import { useReactFlow } from '@xyflow/react'
 import { Repeat, Play, ChevronDown } from 'lucide-react'
 import NodeShell from './base/NodeShell.jsx'
 import { useConnectedInputs } from './base/useConnectedInputs.js'
-import { showToast } from './base/toastStore.js'
+import { showToast, toastWarning } from './base/toastStore.js' // 保留阻断校验提示
 import { useSyncNodeData } from './base/useSyncNodeData.js'
 import { useOutsideClick } from './base/hooks.js'
 
@@ -158,7 +158,7 @@ export default function LoopNode({ id, data, selected }) {
     if (running) return
     // 逐段遍历全部显示段（N 段文案就建 N 个节点，count 只控制 UI 显示，不限制建节点数）
     const segs = displaySegs
-    if (segs.length === 0) { showToast('没有可生成的提示词（请连接上游文本节点或手动填写每段提示词）'); return }
+    if (segs.length === 0) { toastWarning('没有可生成的提示词（请连接上游文本节点或手动填写每段提示词）'); return }
 
     // 统一参考图：循环节点从自己上游接到的图片（连线），塞给每个生图节点当参考图
     const refImages = (connected.images || []).map((img) => ({ url: img.url, name: img.label || `参考图 ${img.id || ''}` })).filter((x) => x.url)
@@ -180,7 +180,7 @@ export default function LoopNode({ id, data, selected }) {
       newNodes.push({
         id: nodeId,
         type: 'promptNode',
-        position: { x: baseX, y: baseY + i * 460 },
+        position: { x: baseX, y: baseY + i * 750 },
         data: {
           prompt,                          // 该段文案填进生图节点提示词
           aspectRatio: '1:1',
@@ -195,7 +195,7 @@ export default function LoopNode({ id, data, selected }) {
 
     addNodes(newNodes)
     addEdges(newEdges)
-    showToast(`已生成 ${newNodes.length} 个下游生图节点，请逐个点生成`)
+    // 下游节点已生成在画布，结果可见，无需 toast
     setRunning(false)
   }
 

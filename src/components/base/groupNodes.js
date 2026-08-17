@@ -7,6 +7,9 @@
  * 纯函数，由右键菜单 / Agent 工具用 setNodes 应用，UI 与两端复用。
  */
 
+// Ctrl+D 复制偏移：与原节点左对齐，向下偏移 750（实测最合理，约等于图片节点高 + 抽屉高）
+const DUPLICATE_OFFSET_Y = 750
+
 /** 节点的实际尺寸（style 优先，其次 measured，兜底默认 420/420，对齐官方） */
 function nodeSize(n) {
   return {
@@ -159,7 +162,9 @@ export function duplicateSelectedWithEdges(nodes, edges, selectedIds, makeId) {
   const mk = makeId || ((n) => `${n.type || 'node'}-clone-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
   // 先建立 id 映射（所有被克隆节点）
   for (const n of nodes) if (toClone.has(String(n.id))) idMap.set(String(n.id), mk(n))
-  // 生成克隆节点：重映射 id + parentId（指向新 group id），偏移 40px
+  // 生成克隆节点：重映射 id + parentId（指向新 group id）。
+  // Ctrl+D 复制：与原节点左对齐（x 不变），向下偏移「图片节点宽 + 抽屉宽」(920)。
+  // 组内子节点随父节点移动（相对坐标不加偏移），顶层节点才施加偏移。
   const clones = nodes
     .filter((n) => toClone.has(String(n.id)))
     .map((n) => {
@@ -168,7 +173,10 @@ export function duplicateSelectedWithEdges(nodes, edges, selectedIds, makeId) {
         ...n,
         id: newId,
         ...(n.parentId && idMap.has(String(n.parentId)) ? { parentId: idMap.get(String(n.parentId)) } : { parentId: undefined }),
-        position: { x: (n.position?.x || 0) + 40, y: (n.position?.y || 0) + 40 },
+        position: {
+          x: n.position?.x || 0,
+          y: (n.position?.y || 0) + (n.parentId ? 0 : DUPLICATE_OFFSET_Y),
+        },
         selected: true,
       }
     })
