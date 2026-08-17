@@ -187,6 +187,9 @@ export function normalizeConversation(c) {
   if (c.pendingGenerations === undefined) c.pendingGenerations = null // Skill 阶段1 策划暂存
   if (typeof c.awaitingConfirm !== 'boolean') c.awaitingConfirm = false // Skill 阶段2 确认态
   if (!Array.isArray(c.referenceImages)) c.referenceImages = [] // 本轮用户引用的参考图 URL（per-conversation，防跨对话泄漏）
+  // 【对齐大雄 runMode】执行分级：'auto'（默认，直接出 generations 执行，不展示 plan 门禁）/
+  // 'semi'（半自动，出 generations 后展示 plan 确认再执行）。大雄 agentNormalizeRunModeState(1468)。
+  if (String(c.runMode || 'auto').toLowerCase() !== 'semi') c.runMode = 'auto'
   return c
 }
 
@@ -268,6 +271,89 @@ export function getCurrentSnapshot() {
     pending: conv?.pending ? { ...conv.pending, attachments: [...(conv.pending.attachments || [])] } : null,
     memory: conv?.memory ? normalizeMemory(conv.memory) : emptyMemory(),
   }
+}
+
+/* ════════════════════════════════════════════════════════════════════
+ * 跨轮图数据源（对齐大雄执行层的「跨轮图记忆」机制）
+ * ────────────────────────────────────────────────────────────────────
+ * 【完整逻辑】fresh-task 下历史图/上一轮生成图一律不进 LLM 上下文，跨轮用图（"改上一张图"）靠执行层
+ *   从当前对话历史里反查原图。本模块三个函数就是执行层反查的「数据源」：
+ *   - getLastUserReferenceImages：本轮无图时，回退用「最近一条带图 user 消息」的图（对齐 agentLastUserAttachments）。
+ *   - getLastGeneratedImages：取「最近一次 execute_plan 生成的结果图」（对齐 agentLastResults）。
+ *       数据来自 useAgentChat 在 execute_plan 成功后回填到 assistant 消息的 lastResults。
+ *   - getCurrentImageMap：把「上一轮生成图(图1~M) + 本轮附件(图M+1~N)」统一编号，供 execute_plan
+ *       把 prompt 里的「图N」翻译成参考图、按 direct_refs 反查原图（对齐 agentCurrentImageMap）。
+ *
+ * 【与参考项目大雄的差距对照（差距③执行层）】大雄在 executeAgentGenerations 时：
+ *   - agentLastResults()（4250 行）取最近生成结果图；
+ *   - agentLastUserAttachments()（4258 行）本轮无图回退上一轮用户图；
+ *   - agentCurrentImageMap()（4265 行）统一编号「图1~图M+N」。
+ *   我们对齐前：execute_plan 只认本轮 refPool（getCurrentReferenceImages），跨轮无图就找不到图。
+ *   对齐后：本模块提供上述三数据源，execute_plan 支持跨轮回退 + direct_refs/「图N」解析。
+ */
+/** 向前找当前对话里最近一条带图 user 消息，返回其参考图 url 数组（对齐大雄 agentLastUserAttachments）。 */
+export function getLastUserReferenceImages() {
+  const conv = getActiveConv()
+  const msgs = conv?.messages || []
+  for (let i = msgs.length - 1; i >= 0; i--) {
+    const m = msgs[i]
+    if (m?.role !== 'user') continue
+    const imgs = Array.isArray(m.attachments) ? m.attachments.filter((a) => a && a.url) : []
+    if (imgs.length > 0) return imgs.map((a) => a.url).filter(Boolean)
+  }
+  return []
+}
+
+/** 【对齐大雄 agentLastResults】向前找当前对话里最近一条带生成结果图的 assistant 消息，返回其结果图数组。
+ *  结果图来自 execute_plan 成功回填到 assistant 消息的 lastResults（useAgentChat.runToolCalls 回填）。
+ *  ⚠️ 消费方：只有 getCurrentImageMap() 用它做「图1~图M」编号供 direct_refs 引用，execute_plan **不直接
+ *  调用它自动挂历史生成图**——对齐大雄 use_last_outputs=false「跨轮 lastResults 彻底关闭」，只有 LLM
+ *  用 direct_refs 显式引用历史图时才用。图本体不进 LLM 上下文，执行层反查原图 url。 */
+export function getLastGeneratedImages() {
+  const conv = getActiveConv()
+  const msgs = conv?.messages || []
+  for (let i = msgs.length - 1; i >= 0; i--) {
+    const m = msgs[i]
+    if (m?.role !== 'assistant') continue
+    const lr = Array.isArray(m.lastResults) ? m.lastResults.filter((r) => r && r.url) : []
+    if (lr.length > 0) return lr
+  }
+  return []
+}
+
+/** 【对齐大雄 agentCurrentImageMap】统一编号映射：上一轮生成图(图1~图M) + 当前附件(图M+1~图M+N)。
+ *  返回 [{ num, url, name, source:'gen'|'att' }]。**两个消费方**（改前必读）：
+ *   ① 执行层：execute_plan（useCanvasAgentTools.js）用它把 direct_refs 的 url 反查成「图N」，翻译 prompt 里的「图N」；
+ *   ② 发送层：useAgentChat.send 把它传给 buildRequestMessages 的 imageCatalog，注入 LLM（「当前可引用的图」），
+ *      让 LLM 在 generations 里能用「图N」+ direct_refs 精确引用历史图/上一轮生成图（图本体不进 LLM 上下文）。
+ *  数据源：上一轮生成图来自 getLastGeneratedImages()（assistant 消息的 lastResults，由 useAgentChat 在
+ *  execute_plan 成功后回填）；当前附件来自 getCurrentSnapshot().attachments。 */
+export function getCurrentImageMap() {
+  const genResults = getLastGeneratedImages()
+  const attachments = getCurrentSnapshot().attachments || []
+  const map = []
+  genResults.forEach((r, i) => map.push({ num: i + 1, url: r.url, name: r.name || `图${i + 1}`, source: 'gen' }))
+  const offset = genResults.length
+  attachments.filter((a) => a && a.url).forEach((a, i) => map.push({ num: offset + i + 1, url: a.url, name: a.name || a.label || `图${offset + i + 1}`, source: 'att' }))
+  return map
+}
+
+/** 【对齐大雄 agentGetRunMode】读当前对话执行分级（'auto' | 'semi'），缺省 'auto'。 */
+export function getCurrentRunMode() {
+  const conv = getActiveConv()
+  const mode = String(conv?.runMode || 'auto').toLowerCase()
+  return mode === 'semi' ? 'semi' : 'auto'
+}
+
+/** 【对齐大雄 agentSetRunMode】写当前对话执行分级（auto 直接执行 / semi 半自动确认）。 */
+export function setCurrentRunMode(mode) {
+  const conv = getActiveConv()
+  if (!conv) return
+  const next = String(mode || 'auto').toLowerCase() === 'semi' ? 'semi' : 'auto'
+  commit({
+    ...getState(),
+    conversations: getState().conversations.map((c) => (c.id === conv.id ? { ...c, runMode: next, updatedAt: Date.now() } : c)),
+  })
 }
 
 /**
@@ -356,7 +442,14 @@ export function setCurrentGlobalContract(c) {
   if (!conv) return
   commit({
     ...getState(),
-    conversations: getState().conversations.map((x) => (x.id === conv.id ? { ...x, memory: normalizeMemory({ ...x.memory, global_contract: c || null }), updatedAt: Date.now() } : x)),
+    conversations: getState().conversations.map((x) => (x.id === conv.id ? { ...x, memory: normalizeMemory({
+      ...x.memory,
+      global_contract: c || null,
+      // 【对齐大雄 agentCaptureActiveConversation】统一风格契约写入时同步 lastSharedStyle：
+      // 大雄从最后 assistant 消息的 shared_style 提炼 memory.lastSharedStyle，续轮 fresh-task 时注入。
+      // 我们统一风格走 global_contract，故在此映射，保证 memory.lastSharedStyle 有承载。
+      lastSharedStyle: (c && (c.unified_style_prompt || c.visual_positioning)) ? String(c.unified_style_prompt || c.visual_positioning || '').trim() : x.memory.lastSharedStyle,
+    }), updatedAt: Date.now() } : x)),
   })
 }
 

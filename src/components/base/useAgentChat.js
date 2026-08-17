@@ -135,6 +135,12 @@ import {
 // 复刻官方 shared.js:2536 `var ur = 8`（多轮工具循环硬上限）
 const MAX_TOOL_ROUNDS = 8
 
+// 【非流式模型工具调用开关】
+// - true ：非流式模型也传 tools/tool_choice，并在响应里解析 tool_calls（用于测试模型/网关是否支持 function calling）。
+// - false：非流式模型不传 tools，仅纯对话（默认，兼容不支持 function calling 的非流式模型）。
+// 一键切换，改这一处即可。
+const ENABLE_TOOLS_ON_NON_STREAM = false
+
 // LLM 端点配置（env 可覆盖；默认走 localTool 18080，与 docs/27 一致）
 const CHAT_BASE_URL = import.meta.env?.VITE_LLM_CHAT_BASE_URL || ''
 const CHAT_API_KEY = import.meta.env?.VITE_LLM_CHAT_API_KEY || ''
@@ -770,30 +776,28 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
   /** 单次 SSE 请求，返回 { role:'assistant', content, reasoning?, tool_calls? }（复刻官方 dr:2579-2778 的 v）。
    *  支持流式（stream:true + SSE）与非流式（stream:false + 普通 JSON）两种模型：
    *  - 流式（默认）：传 tools（function calling），SSE 逐块解析。
-   *  - 非流式：AI 助手设置里标注「非流式」时走这里——模型不支持工具调用，
-   *    故不传 tools，按普通 JSON 响应解析（choices[0].message.content），仅纯对话。 */
+   *  - 非流式：AI 助手设置里标注「非流式」时走普通 JSON 响应解析。默认不开工具（部分模型
+   *    不支持 function calling）；若模型/网关支持，可把下方 enableToolsOnNonStream 置 true 测试。 */
   const roundTrip = useCallback(
     async (requestMessages, signal, onStream) => {
       // 读取 AI 助手聊天模型配置：判断是否非流式（non-stream 模型不支持工具，仅对话）
       const streamMode = loadAgentChatModel()?.streamMode || 'stream'
       const isNonStream = streamMode === 'non-stream'
-
-      // 非流式：不传 tools/tool_choice（模型不支持，传了也没用）；stream 置 false。
+      // 非流式默认不传 tools；开启顶部 ENABLE_TOOLS_ON_NON_STREAM 开关后两者都传（保持工具调用能力）。
+      const withTools = !isNonStream || ENABLE_TOOLS_ON_NON_STREAM
       const llmBody = {
         model,
         messages: requestMessages,
         stream: !isNonStream,
         temperature: 0.6,
-        ...(isNonStream
-          ? {}
-          : { tools: toolSchemas, tool_choice: 'auto' })
+        ...(withTools ? { tools: toolSchemas, tool_choice: 'auto' } : {})
       }
       // 是否走「多 provider /api/proxy 转发」：provider 存在时（如魔搭，支持 function calling）
       const useProxy = !!provider
       // 非流式响应是普通 JSON，Accept 无需 text/event-stream
       const accept = isNonStream ? 'application/json' : 'text/event-stream'
       // 【链路日志】请求到网关：走 proxy 还是直接 /api/agent，模型、流式模式、消息数、是否带工具
-      logger.info('AI助手', '请求', { via: useProxy ? 'proxy' : 'agent', provider: provider?.id || '', model, stream: !isNonStream, msgCount: requestMessages.length, tools: isNonStream ? 0 : (toolSchemas || []).length })
+      logger.info('AI助手', '请求', { via: useProxy ? 'proxy' : 'agent', provider: provider?.id || '', model, stream: !isNonStream, msgCount: requestMessages.length, tools: withTools ? (toolSchemas || []).length : 0 })
       const res = useProxy
         ? await fetch(`${API_BASE}/api/proxy`, {
             method: 'POST',
@@ -829,8 +833,17 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
         const json = await res.json().catch(() => ({}))
         const msg = json?.choices?.[0]?.message || {}
         const assistant = { role: 'assistant', content: String(msg.content || ''), model, createdAt: Date.now() }
-        onStream?.({ content: assistant.content, reasoning: '', toolCalls: [] })
-        logger.info('AI助手', '非流式结果', { contentLen: assistant.content.length })
+        // 【非流式工具】若开启 ENABLE_TOOLS_ON_NON_STREAM，响应里可能带 tool_calls（OpenAI 兼容
+        //   格式：message.tool_calls: [{ id, type, function:{ name, arguments } }]）。解析后放进
+        //   assistant，send 主循环即按工具调用处理（过滤空 name、多轮循环收敛）。
+        if (ENABLE_TOOLS_ON_NON_STREAM && Array.isArray(msg.tool_calls)) {
+          const calls = msg.tool_calls
+            .map((tc) => tc?.function?.name ? { id: tc.id || '', type: tc.type || 'function', function: { name: tc.function.name, arguments: tc.function.arguments || '' } } : null)
+            .filter(Boolean)
+          if (calls.length > 0) assistant.tool_calls = calls
+        }
+        onStream?.({ content: assistant.content, reasoning: '', toolCalls: assistant.tool_calls || [] })
+        logger.info('AI助手', '非流式结果', { contentLen: assistant.content.length, toolCallCount: (assistant.tool_calls || []).length })
         return assistant
       }
 

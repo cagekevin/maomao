@@ -5,6 +5,8 @@ import {
   getCurrentMemory, setCurrentMemory, patchCurrentWorkflow, getCurrentWorkflow,
   setCurrentPending, getCurrentPending, getActiveAiUndoStack, pushActiveAiUndo, popActiveAiUndo,
   normalizeConversation, setAgentKey, getActiveConversationId, getConversations,
+  getLastUserReferenceImages, getLastGeneratedImages, getCurrentImageMap,
+  getCurrentRunMode, setCurrentRunMode,
 } from '../../src/components/base/conversationStore.js'
 
 beforeEach(() => {
@@ -204,5 +206,60 @@ describe('按项目隔离会话（project 作为最顶层）', () => {
 
     switchToProject('projE')
     expect(getConversations().length).toBe(2) // E 仍是 2 个
+  })
+})
+
+describe('跨轮图引用数据源（对齐大雄 agentLastUserAttachments / agentLastResults / agentCurrentImageMap）', () => {
+  function setup(msgs) {
+    const id = ensureActiveConversation()
+    applyConversation(id)
+    setCurrentSnapshot({ messages: msgs })
+    return id
+  }
+
+  it('getLastUserReferenceImages：向前找最近带图 user 消息，返回其参考图 url', () => {
+    setup([
+      { role: 'user', content: '轮1', attachments: [{ url: 'http://x/a.png' }] },
+      { role: 'assistant', content: 'ok1' },
+      { role: 'user', content: '轮2', attachments: [{ url: 'http://x/b.png' }, { url: 'http://x/c.png' }] },
+    ])
+    expect(getLastUserReferenceImages()).toEqual(['http://x/b.png', 'http://x/c.png'])
+  })
+
+  it('getLastGeneratedImages：向前找最近带生成结果图的 assistant 消息（lastResults）', () => {
+    setup([
+      { role: 'assistant', content: '旧', lastResults: [{ url: 'http://x/old.png' }] },
+      { role: 'user', content: '轮' },
+      { role: 'assistant', content: '新', lastResults: [{ url: 'http://x/new1.png' }, { url: 'http://x/new2.png' }] },
+    ])
+    const r = getLastGeneratedImages()
+    expect(r).toHaveLength(2)
+    expect(r[0].url).toBe('http://x/new1.png')
+  })
+
+  it('getCurrentImageMap：上一轮生成图(图1~M) + 当前附件(图M+1~N) 统一编号', () => {
+    const id = setup([
+      { role: 'assistant', content: '生成', lastResults: [{ url: 'http://x/gen1.png', name: '主图' }] },
+    ])
+    // 设置当前附件（画布选中/上传的参考图）
+    setCurrentSnapshot({ messages: getCurrentSnapshot().messages, attachments: [{ url: 'http://x/att.png', label: '参考' }] })
+    const map = getCurrentImageMap()
+    expect(map).toEqual([
+      { num: 1, url: 'http://x/gen1.png', name: '主图', source: 'gen' },
+      { num: 2, url: 'http://x/att.png', name: '参考', source: 'att' },
+    ])
+    expect(map[0].num).toBe(1)
+    expect(map[1].num).toBe(2)
+  })
+
+  it('runMode 分级：默认 auto，setCurrentRunMode 可切 semi，normalizeConversation 归一非法值', () => {
+    setup([])
+    expect(getCurrentRunMode()).toBe('auto') // 默认 auto（对齐大雄）
+    setCurrentRunMode('semi')
+    expect(getCurrentRunMode()).toBe('semi')
+    setCurrentRunMode('Semi') // 大小写归一
+    expect(getCurrentRunMode()).toBe('semi')
+    setCurrentRunMode('garbage') // 非法值归一为 auto
+    expect(getCurrentRunMode()).toBe('auto')
   })
 })

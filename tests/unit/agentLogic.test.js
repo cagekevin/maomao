@@ -83,16 +83,15 @@ describe('AI 助手 buildRequestMessages（发 LLM 消息组装）§2.15', () =>
     expect(user.content).toEqual([{ type: 'image_url', image_url: { url: '/files/a.png' } }, { type: 'text', text: '看图' }])
   })
 
-  it('已有 system 的历史消息 → 补注入画布准则 + systemPrompt，并保留历史 system', () => {
+  it('【fresh-task】历史消息（含 system）不进 LLM：只保留本轮 user + 前置注入的准则/systemPrompt', () => {
+    // fresh-task 对齐大雄：历史消息整体丢弃（连历史 system 也不回传），只发本轮 user + 注入的准则/systemPrompt。
     const out = buildRequestMessages([{ role: 'system', content: '已有' }, { role: 'user', content: 'hi' }], '外部准则', true, [], null)
-    // 【bug 修复】hasSystem 不再跳过准则注入：enhance=true 时注入 CANVAS_AGENT_RULES + systemPrompt，
-    //   且历史 system 在遍历中保留（不再 continue 跳过）→ 共 3 条 system，画布准则不丢失。
     const sys = out.filter((m) => m.role === 'system')
-    expect(sys).toHaveLength(3)
+    expect(sys).toHaveLength(2) // 画布准则 + 外部准则（历史 system「已有」被丢弃）
     expect(sys[0].content).toContain('猫猫画布助手') // 画布准则
     expect(sys[1].content).toBe('外部准则') // 传入的 systemPrompt
-    expect(sys.some((m) => m.content === '已有')).toBe(true) // 历史 system 保留
-    expect(out.some((m) => m.role === 'user' && m.content === 'hi')).toBe(true)
+    expect(sys.some((m) => m.content === '已有')).toBe(false) // 历史 system 不回传
+    expect(out.some((m) => m.role === 'user' && m.content === 'hi')).toBe(true) // 本轮 user 保留
   })
 
   it('空 tool_calls 数组被过滤：不发给 LLM（防 Empty tool_calls 报错）', () => {

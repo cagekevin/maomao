@@ -10,7 +10,7 @@ import {
   useEdgesState,
   useReactFlow
 } from '@xyflow/react'
-import { Type, Image as ImageIcon, Clapperboard, Trash2, Copy, Zap, RefreshCw, Folder, FolderOpen, Pin, PinOff, Upload, Repeat } from 'lucide-react'
+import { Type, Image as ImageIcon, Clapperboard, Trash2, Copy, Zap, RefreshCw, Folder, FolderOpen, Pin, PinOff, Upload } from 'lucide-react'
 import CanvasToolbar from './components/base/CanvasToolbar.jsx'
 import ArrangeConfirm from './components/base/ArrangeConfirm.jsx'
 import { useArrangeCanvas } from './components/base/useArrangeCanvas.js'
@@ -862,7 +862,6 @@ function Canvas() {
     return [
       { key: 'text', icon: <Type size={16} className="text-green-500" />, label: '文本', shortcut: 'Q', onClick: () => addNodeFromMenu('textNode') },
       { key: 'image', icon: <ImageIcon size={16} className="text-blue-400" />, label: '图片', shortcut: 'W', onClick: () => addNodeFromMenu('promptNode') },
-      { key: 'loop', icon: <Repeat size={16} className="text-fuchsia-400" />, label: '循环', onClick: () => addNodeFromMenu('loopNode') },
       { key: 'video', icon: <Clapperboard size={16} className="text-yellow-500" />, label: '视频', shortcut: 'E', onClick: () => addNodeFromMenu('discountVideoNode') },
       { key: 'scriptBox', icon: <Clapperboard size={16} className="text-fuchsia-300" />, label: '剧本盒子', badge: { text: 'Beta', tone: 'new' }, onClick: () => addNodeFromMenu('scriptBoxNode') },
       { type: 'divider' },

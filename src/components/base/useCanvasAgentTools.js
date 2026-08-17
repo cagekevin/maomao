@@ -12,6 +12,8 @@ import {
   getCurrentGlobalContract, setCurrentGlobalContract,
   getCurrentArtifacts, setCurrentArtifacts,
   getCurrentRefImages, setCurrentRefImages,
+  getLastUserReferenceImages, getCurrentImageMap,
+  getCurrentRunMode, getCurrentSnapshot,
 } from './conversationStore.js'
 import { sGet, sSet } from './storageAdapter.js'
 
@@ -137,6 +139,28 @@ export function clearPendingGenerations() {
  *   当前所有工具操作 ReactFlow 内存画布（原型阶段）。
  *   接真引擎时：若 Agent 改走服务端，把 setNodes/setEdges 换成调 localTool 状态接口即可；
  *   工具签名与返回信封不变，LLM 侧无感知。
+ *
+ * ══ ★ 参考图「跨轮图记忆」数据流总览（改 execute_plan/参考图前必读）★ ══
+ * 整条链路跨 useAgentChat / conversationStore / 本文件三个地方，改前先看这条流，别断线：
+ *
+ *   【写入侧（本轮参考图）】useAgentChat.send 构造本轮 userMsg 时（本文件 setCurrentReferenceImages）：
+ *      本轮带图 → getCurrentReferenceImages()（per-conversation，覆盖写）；本轮无图则置空。
+ *
+ *   【读取侧（execute_plan 参考图三来源，见 executePlanTool 头注释）】
+ *      ① direct_refs：LLM 显式引用历史图/上一轮生成图（url 数组），配合 getCurrentImageMap 反查「图N」。
+ *      ② attachment_indices：从 refPool（= getCurrentReferenceImages()，空则回退 getLastUserReferenceImages()）按编号取图。
+ *      ③ 无图不挂：use_attachments=false（对齐大雄 agentForceNoStaleLastOutputs）。
+ *      ⚠️ 绝不自动挂历史生成图（use_last_outputs=false 原则）——只有 direct_refs 显式引用才用历史图。
+ *
+ *   【回填侧（供下轮引用上一轮生成图）】useAgentChat.runToolCalls 里 execute_plan 成功后，
+ *      把结果图 url 回填到 assistant 消息的 lastResults（对齐大雄 agentLastResults）。
+ *
+ *   【下轮引用】conversationStore.getCurrentImageMap() 读 lastResults（上一轮生成图）+ 本轮附件，
+ *      统一编号「图1~图M+N」；useAgentChat 把它传给 buildRequestMessages 的 imageCatalog 注入 LLM，
+ *      LLM 就能用「图N」+ direct_refs 精确引用。token 编解码见 refToken.js。
+ *
+ *   【内存落盘】以上 per-conversation 状态（refImages/lastResults 所在消息/memory）都走 conversationStore，
+ *      切对话自动隔离、刷新不丢。不要在别处另建模块级单例，否则多对话串话。
  * ════════════════════════════════════════════════════════════════
  */
 
@@ -651,7 +675,7 @@ const triggerGenerationTool = {
  */
 const presentPlanTool = {
   name: 'show_plan_for_confirm',
-  description: '把生成策划展示给用户确认（execute_plan 前调用）。用户确认后才可执行。可传 global_contract（统一风格契约三字段，逐字锁定每步）与 artifacts（跨步成果资产声明）。',
+  description: '把生成策划展示出来（execute_plan 前调用，展示规划文字与步骤）。是否需用户确认由运行模式决定：半自动需确认后才可执行（execute_plan 会被拒到用户确认）；全自动直接执行（本工具返回 awaiting_confirm:false，你可直接继续 execute_plan）。可传 global_contract（统一风格契约三字段，逐字锁定每步）与 artifacts（跨步成果资产声明）。',
   parameters: {
     type: 'object',
     properties: {
@@ -690,12 +714,17 @@ const presentPlanTool = {
     if (Array.isArray(args.artifacts) && args.artifacts.length) setCurrentArtifacts(args.artifacts)
     // 暂存 generations（用户确认后 execute_plan 可用）；plan_text 由 useAgentChat 展示为用户可见策划
     setPendingGenerations(gens)
-    // 【Step D 确认态】show_plan_for_confirm 后进入"待确认"，execute_plan 未确认时被拒（防止 LLM 直接出图）
-    setAwaitingConfirm(true)
+    // 【对齐大雄 runMode 分级】是否进入"待确认"门禁：
+    //   - 有 Skill：必然三阶段，进入 awaiting（Skill 需要用户确认策划）。
+    //   - 无 Skill + semi：进入 awaiting（半自动：规划后确认再执行，对齐大雄 6282/7774）。
+    //   - 无 Skill + auto（默认）：不进入 awaiting（全自动：规划后直接执行，不弹确认按钮，对齐大雄 6283）。
+    const hasSkillNow = Array.isArray(getCurrentSnapshot()?.skills) && getCurrentSnapshot().skills.length > 0
+    const needConfirm = hasSkillNow || getCurrentRunMode() === 'semi'
+    setAwaitingConfirm(needConfirm)
     // memory 提炼（对齐大雄 conv.memory.lastPlan）：把阶段1策划记入当前对话，供多轮上下文
     const mem = getCurrentMemory()
     setCurrentMemory({ ...mem, lastPlan: { plan_text: planText, generations: gens, ts: Date.now() } })
-    return { ok: true, data: { presented: true, plan_text: planText, generations: gens, generations_count: gens.length, awaiting_confirm: true } }
+    return { ok: true, data: { presented: true, plan_text: planText, generations: gens, generations_count: gens.length, awaiting_confirm: needConfirm } }
   }
 }
 
@@ -704,16 +733,47 @@ const presentPlanTool = {
  * 接收一个 generations 计划（多张图/多步骤，含前序依赖），批量建节点并执行。
  * 对齐大雄 canvas-agent：按 depends_on_previous 分独立批+依赖批，依赖批用前序结果当参考图。
  * 是 Skill（5主图+8详情 等大批量任务）的执行引擎。
+ *
+ * ── 参考图解析的完整逻辑（对齐大雄执行层，含优先级）──
+ * ① direct_refs（优先，仅独立步骤）：LLM 在 generation 带 direct_refs（引用历史图/上一轮生成图 url），
+ *    本工具用 getCurrentImageMap() 把 url 反查成「图N」，把 prompt 里的「图N」翻译成「第X张参考图」，
+ *    referenceImages 精确取该 url。对齐大雄 10638：`direct_refs && !isPrevDep`。
+ * ② attachment_indices（use_attachments + 0-based 索引取 refPool）：本轮 user 带图 → send 写入
+ *    getCurrentReferenceImages；本轮无图 → 回退 getLastUserReferenceImages()（对齐 agentLastUserAttachments）。
+ *    对齐大雄 10649-10669：use_attachments 且按索引取本轮/回退的参考图。
+ * ③ 无参考图：不挂任何图，use_attachments=false（对齐 agentForceNoStaleLastOutputs）。
+ *    ⚠️ 跨轮生成结果图（agentLastResults / getLastGeneratedImages）绝不自动挂——对齐大雄 use_last_outputs=false
+ *    「跨轮 lastResults 彻底关闭」，只有 direct_refs 明确引用历史图时才用。
+ *
+ * ── 大雄完整字段模型（daxiong-canvas-plugins/canvas-agent，权威对照）──
+ * generations 每项（748/834 行 JSON 格式）：
+ *   { id, title, type(three_view|main|detail|variant|edit|fusion|other), role(product_hero|main|detail|...),
+ *     prompt, count, ratio, resolution, use_last_outputs, use_attachments, attachment_indices:[],
+ *     depends_on_previous, dependency_mode(none|product_reference|fusion), notes, input_artifact_ids, output_artifact_id }
+ * 参考图解析优先级（agentForceNoStaleLastOutputs 2958 + 无Skill 路径 10634）：
+ *   独立步骤(非 depends_on_previous/use_previous_results/product_reference/fusion)：
+ *     direct_refs 非空 → 用 direct_refs；否则 use_attachments → attachment_indices 取参考图；否则不挂。
+ *   依赖前序步骤：depends_on_previous=true, use_previous_results=true，挂用户参考图(attachment_indices) + 前序结果。
+ *   use_last_outputs 恒 false（跨轮 lastResults 彻底关闭，防"无参考图却挂历史图"）。
+ * 跨轮回退（仅 Skill 路径 runAgentGenerations 8697）：
+ *   attachRefs = 本轮图 ? 本轮图 : agentLastUserAttachments()（上一轮用户带的图）。
+ * 无 Skill 路径（agentCollectRunAttachments 10465）：只认本轮用户明确提供的参考图，禁止历史附件自动挂。
+ *
+ * ── 我们对齐前的问题（"反推图一却全反推" 反复改不对的根因之一）──
+ *   1. direct_refs 与 attachment_indices 优先级搞反（大雄 direct_refs 优先、仅独立步骤）。
+ *   2. attachment_indices 未严格按 use_attachments 语义（大雄：无附件时清空 attachment_indices）。
+ *   3. 曾考虑自动挂历史生成图——违反大雄 use_last_outputs=false 原则。
+ *   对齐后：严格按上述 ①②③ 解析，优先级与清空规则与大雄一致。
  */
 const executePlanTool = {
   name: 'execute_plan',
-  description: '按计划批量建节点并生成（多图/多步骤）。输入 generations（每步含 prompt/比例/分辨率/是否依赖前序），按依赖分批执行，返回每步结果 URL。用户引用了参考图时，用每步 attachment_indices（0-based，指向参考图编号）精确指定该步用哪几张图做图生图。适合大批量任务。',
+  description: '按计划批量建节点并生成（多图/多步骤）。输入 generations（每步含 prompt/比例/分辨率/是否依赖前序），按依赖分批执行，返回每步结果 URL。引用参考图有两种方式：①本轮用户参考图用 attachment_indices（0-based，参考图1→0）；②引用历史图/上一轮生成图用 direct_refs（把 system 里「当前可引用的图」中对应图的 url 填进该步 direct_refs 数组，prompt 里写「图N」，执行层自动反查）。适合大批量任务。',
   parameters: {
     type: 'object',
     properties: {
       generations: {
         type: 'array',
-        description: '【可选】步骤数组。每项 { id, title, prompt, ratio, resolution, depends_on_previous, dependency_mode, use_attachments, attachment_indices }。attachment_indices 是 0-based 数组，指向本轮用户参考图的编号（参考图1→0，参考图2→1），仅当该步要基于某参考图图生图时填。此参数仅作兜底：若阶段1 已把 generations 暂存（回复正文/ show_plan_for_confirm），这里可省略，系统自动从暂存读取。',
+        description: '【可选】步骤数组。每项 { id, title, prompt, ratio, resolution, depends_on_previous, dependency_mode, use_attachments, attachment_indices, direct_refs }。attachment_indices 是 0-based 数组，指向本轮用户参考图的编号（参考图1→0，参考图2→1），仅当该步要基于某参考图图生图时填。direct_refs 是数组，项 { url, name? }，引用 system 里「当前可引用的图」（图N，含上一轮生成图），prompt 里用「图N」指代。此参数仅作兜底：若阶段1 已把 generations 暂存（回复正文/ show_plan_for_confirm），这里可省略，系统自动从暂存读取。',
         items: { type: 'object' }
       },
       auto_run: { type: 'boolean', description: '是否自动触发生成（默认 true）。false 时只建节点不跑，供用户确认' },
@@ -747,16 +807,50 @@ const executePlanTool = {
       const model = str(args.model) || panel.model
       // workflow 贯穿（对齐大雄）：执行开始 → running；执行结束 → completed/failed。状态写入当前对话 workflow。
       patchCurrentWorkflow({ status: 'running', updatedAt: Date.now() })
-      // 【参考图解析】用户引用的参考图池（useAgentChat.send 时写入）；AI 用每步 attachment_indices 精确指定。
-      const refPool = getCurrentReferenceImages()
+      // 【参考图解析】本轮用户参考图池（useAgentChat.send 时写入）+ 跨轮回退。
+      // 【对齐大雄 agentLastUserAttachments】本轮无图时回退到「当前对话最近一条带图 user 消息」的图，
+      //   让"改上一张图"在本轮无图时也能执行（跨轮图记忆靠执行层反查，不进 LLM 上下文）。
+      let refPool = getCurrentReferenceImages()
+      if (!Array.isArray(refPool) || refPool.length === 0) refPool = getLastUserReferenceImages()
       const globalRefs = Array.isArray(args.referenceImages) ? args.referenceImages.filter(Boolean) : []
+      // 【对齐大雄 direct_refs + agentCurrentImageMap + agentForceNoStaleLastOutputs】参考图解析优先级：
+      //   ① 独立步骤（非依赖前序）且带 direct_refs → 直接用 direct_refs（引用历史图/上一轮生成图 url），
+      //      用 agentCurrentImageMap 统一编号把 prompt 里的「图N」翻译成「第X张参考图」；
+      //   ② 否则走 attachment_indices 挂本轮/回退的参考图（refPool）。
+      //   ③ 跨轮生成结果图（agentLastResults）绝不自动挂——对齐大雄 use_last_outputs=false「跨轮 lastResults 彻底关闭」，
+      //      只有 direct_refs 明确引用历史图时才用（大雄无 Skill 路径如此）。
+      const imgMap = getCurrentImageMap()
+      const cnMap = { '一': '1', '二': '2', '三': '3', '四': '4', '五': '5', '六': '6', '七': '7', '八': '8', '九': '9', '十': '10' }
       const resolvedGens = (gens || []).map((g) => {
-        const idxs = Array.isArray(g?.attachment_indices) ? g.attachment_indices.map((i) => Number(i)).filter((i) => Number.isFinite(i) && i >= 0) : []
-        if (idxs.length > 0 && refPool.length > 0) {
-          // 该步按编号精确取参考图（对齐大雄 attachment_indices）
-          return { ...g, referenceImages: idxs.filter((i) => i < refPool.length).map((i) => refPool[i]).filter(Boolean) }
+        const isPrevDep = !!(g?.depends_on_previous || g?.use_previous_results || g?.dependency_mode === 'product_reference' || g?.dependency_mode === 'fusion')
+        // ① 独立步骤 + direct_refs → 优先用 direct_refs（对齐大雄 10638：`direct_refs && !isPrevDep`）
+        if (!isPrevDep && Array.isArray(g?.direct_refs) && g.direct_refs.length > 0) {
+          const refs = g.direct_refs.filter((r) => r && r.url)
+          if (refs.length > 0) {
+            let prompt = String(g.prompt || '')
+            prompt = prompt.replace(/图\s*([一二三四五六七八九十])/g, (m, cn) => `图${cnMap[cn] || cn}`)
+            const roleDescs = []
+            refs.forEach((ref, i) => {
+              const entry = imgMap.find((m) => m.url === ref.url)
+              if (entry) {
+                const re = new RegExp(`图\\s*${entry.num}(?![0-9])`, 'g')
+                prompt = prompt.replace(re, `第${i + 1}张参考图`)
+              }
+              roleDescs.push(`第${i + 1}张`)
+            })
+            if (roleDescs.length > 1) prompt = `[参考图顺序：${roleDescs.join('、')}，与下方参考图数组一一对应]\n${prompt}`
+            return { ...g, prompt, referenceImages: refs.map((r) => r.url).filter(Boolean) }
+          }
         }
-        return g
+        // ② attachment_indices → 挂本轮/回退的参考图（对齐大雄 10649-10669：use_attachments 且按索引取 refPool）
+        const idxs = Array.isArray(g?.attachment_indices) ? g.attachment_indices.map((i) => Number(i)).filter((i) => Number.isFinite(i) && i >= 0) : []
+        const useAttach = (refPool.length > 0) && (g?.use_attachments === true || idxs.length > 0)
+        if (useAttach) {
+          return { ...g, referenceImages: (idxs.length ? idxs : Array.from({ length: refPool.length }, (_, i) => i))
+            .filter((i) => i >= 0 && i < refPool.length).map((i) => refPool[i]).filter(Boolean) }
+        }
+        // ③ 无参考图：不挂任何图（对齐大雄 agentForceNoStaleLastOutputs：无附件时 use_attachments=false、清空 attachment_indices）
+        return { ...g, use_attachments: false, referenceImages: undefined }
       })
       // 【统一风格契约 global_contract】（对齐大雄）：取阶段1/本次的契约，把三字段逐字锁到每个 generation 的 prompt 头部，
       // 保证电商套图（13张同品牌）每步都带统一风格/负面提示词。

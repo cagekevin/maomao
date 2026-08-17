@@ -22,6 +22,10 @@ vi.mock('../../src/components/base/conversationStore.js', () => ({
   setCurrentArtifacts: vi.fn(),
   getCurrentRefImages: vi.fn(() => []),
   setCurrentRefImages: vi.fn(),
+  getLastUserReferenceImages: vi.fn(() => []),
+  getCurrentImageMap: vi.fn(() => []),
+  getCurrentRunMode: vi.fn(() => 'auto'),
+  getCurrentSnapshot: vi.fn(() => ({ skills: [] })),
 }))
 vi.mock('../../src/components/base/taskStore.js', () => ({
   runNodeGeneration: vi.fn(async () => ({ ok: true, resultUrl: 'http://r/x.png' })),
@@ -361,12 +365,40 @@ describe('画布 Agent 工具层 §2.5', () => {
   })
 
   it('show_plan_for_confirm 暂存策划并进入待确认', async () => {
+    // Skill 场景：有 Skill → 必进入 awaiting 确认（对齐大雄：Skill 三阶段需确认策划）
+    vi.mocked(convStore.getCurrentSnapshot).mockReturnValue({ skills: [{ name: 'x' }] })
     const ctx = makeCtx()
     const t = buildCanvasAgentTools(ctx)
     const r = await t.show_plan_for_confirm({ plan_text: '做5张主图', generations: [{ id: 'g1', prompt: '猫' }] })
     expect(r.ok).toBe(true)
     expect(convStore.setAwaitingConfirm).toHaveBeenCalledWith(true)
     expect(convStore.__state.awaiting).toBe(true)
+  })
+
+  it('【对齐大雄 全自动 auto】无 Skill + auto：show_plan_for_confirm 不进入 awaiting（规划后直接执行，不弹确认）', async () => {
+    convStore.__state.awaiting = false
+    vi.mocked(convStore.getCurrentRunMode).mockReturnValue('auto')
+    vi.mocked(convStore.getCurrentSnapshot).mockReturnValue({ skills: [] }) // 无 Skill
+    const ctx = makeCtx()
+    const t = buildCanvasAgentTools(ctx)
+    const r = await t.show_plan_for_confirm({ plan_text: '做1张猫图', generations: [{ id: 'g1', prompt: '一只猫' }] })
+    expect(r.ok).toBe(true)
+    // 关键：auto 无 Skill 不进入 awaiting → awaiting_confirm:false，execute_plan 不被拒（可直接执行）
+    expect(r.data.awaiting_confirm).toBe(false)
+    expect(convStore.__state.awaiting).toBe(false)
+  })
+
+  it('【对齐大雄 半自动 semi】无 Skill + semi：show_plan_for_confirm 进入 awaiting（规划后确认再执行）', async () => {
+    convStore.__state.awaiting = false
+    vi.mocked(convStore.getCurrentRunMode).mockReturnValue('semi')
+    const ctx = makeCtx()
+    const t = buildCanvasAgentTools(ctx)
+    const r = await t.show_plan_for_confirm({ plan_text: '做1张猫图', generations: [{ id: 'g1', prompt: '一只猫' }] })
+    expect(r.ok).toBe(true)
+    expect(r.data.awaiting_confirm).toBe(true)
+    expect(convStore.__state.awaiting).toBe(true)
+    // 恢复默认 runMode，避免污染后续用例
+    vi.mocked(convStore.getCurrentRunMode).mockReturnValue('auto')
   })
 
   it('execute_plan 未确认被拒', async () => {
@@ -441,6 +473,8 @@ describe('画布 Agent 工具层 §2.5', () => {
   // ── Skill 三阶段确认门禁闭环（AI 编排关键防护）──
   it('show_plan_for_confirm → 返回 awaiting_confirm:true（进入待确认态）', async () => {
     convStore.__state.awaiting = false
+    // Skill 场景：有 Skill → 必进入 awaiting 确认
+    vi.mocked(convStore.getCurrentSnapshot).mockReturnValue({ skills: [{ name: 'x' }] })
     const ctx = makeCtx()
     const t = buildCanvasAgentTools(ctx)
     const r = await t.show_plan_for_confirm({ plan_text: '生成5张主图', generations: [{ id: 'g1', prompt: '猫' }] })
@@ -497,6 +531,49 @@ describe('画布 Agent 工具层 §2.5', () => {
     expect(arg.generations[1].referenceImages).toEqual(['http://ref/2.png'])
     // 无索引的步骤不注入 per-step referenceImages（执行器会回退整批共享）
     expect(arg.generations[2].referenceImages).toBeUndefined()
+  })
+
+  it('【对齐大雄 agentLastUserAttachments】本轮无图时 execute_plan 回退用历史 user 图（attachment_indices 精确取）', async () => {
+    convStore.__state.awaiting = false
+    convStore.__state.refImages = [] // 本轮无参考图
+    // 历史 user 图（当前对话最近一条带图 user 消息，模拟 getLastUserReferenceImages 返回）
+    vi.mocked(convStore.getLastUserReferenceImages).mockReturnValue(['http://hist/1.png', 'http://hist/2.png'])
+    const ctx = makeCtx()
+    const t = buildCanvasAgentTools(ctx)
+    const r = await t.execute_plan({
+      generations: [
+        { id: 'g1', prompt: '把上一张改白', use_attachments: true, attachment_indices: [0] },
+        { id: 'g2', prompt: '把上一张改黑', use_attachments: true, attachment_indices: [1] },
+      ],
+    })
+    expect(r.ok).toBe(true)
+    const arg = mockExecutePlan.mock.calls[0][0]
+    // 每步按索引精确取历史图（对齐大雄「本轮无图回退上一轮用户图」）
+    expect(arg.generations[0].referenceImages).toEqual(['http://hist/1.png'])
+    expect(arg.generations[1].referenceImages).toEqual(['http://hist/2.png'])
+  })
+
+  it('【对齐大雄 direct_refs】execute_plan 按图编号引用历史/生成图，prompt 里「图N」翻译成「第X张参考图」', async () => {
+    convStore.__state.awaiting = false
+    convStore.__state.refImages = []
+    // 当前可引用图编号映射：图1=上一轮生成，图2=上一轮生成（agentCurrentImageMap）
+    vi.mocked(convStore.getCurrentImageMap).mockReturnValue([
+      { num: 1, url: 'http://x/gen1.png', name: '主图', source: 'gen' },
+      { num: 2, url: 'http://x/gen2.png', name: '详情', source: 'gen' },
+    ])
+    const ctx = makeCtx()
+    const t = buildCanvasAgentTools(ctx)
+    const r = await t.execute_plan({
+      generations: [
+        { id: 'g1', prompt: '把图1改成红色，图2保持不变', direct_refs: [{ url: 'http://x/gen1.png' }, { url: 'http://x/gen2.png' }] },
+      ],
+    })
+    expect(r.ok).toBe(true)
+    const arg = mockExecutePlan.mock.calls[0][0]
+    // prompt 里「图1」「图2」被翻译成「第1张参考图」「第2张参考图」
+    expect(arg.generations[0].prompt).toContain('把第1张参考图改成红色，第2张参考图保持不变')
+    // referenceImages 精确取 direct_refs 的 url
+    expect(arg.generations[0].referenceImages).toEqual(['http://x/gen1.png', 'http://x/gen2.png'])
   })
 
   it('buildFusionPrompt：挂全部前序成功图 + 改写为融合提示词（对齐大雄）', () => {

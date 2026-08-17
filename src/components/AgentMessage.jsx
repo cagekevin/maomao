@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { toAbsoluteFileUrl } from './base/filesApi.js'
 import LazyImage from './base/LazyImage.jsx'
+import PromptConfirmCard from './PromptConfirmCard.jsx'
 
 /** 直观判断：一个 URL 是否该渲染成图片。
  *  - 跳过临时协议：blob:/ipfs:/ipns:（持久化后必破图）
@@ -194,8 +195,13 @@ function GenerationStepsCard({ generations }) {
   )
 }
 
-/** 消息气泡主组件（复刻 Cr.jsx） */
-export default function AgentMessage({ message, onConfirmPlan, onRetryStep }) {
+/** 消息气泡主组件（复刻 Cr.jsx）
+ *  @param {object} message
+ *  @param {Function} onConfirmPlan 阶段2 一次性确认整个策划（generations 通道）
+ *  @param {Function} onRetryStep   重试失败步骤
+ *  @param {Function} [onPromptAction] prompts 逐条确认通道：{ action, prompts, index?, text? } →
+ *      应用后写回消息并可能触发出图（prompts 通道，对齐大雄 confirm/edit/save/reopen/regenerate/confirm-all） */
+export default function AgentMessage({ message, onConfirmPlan, onRetryStep, onPromptAction }) {
   if (message.role === 'user') {
     const skillNames = (message.skills || []).map((s) => s?.name || s?.id || '').filter(Boolean)
     return (
@@ -257,6 +263,19 @@ export default function AgentMessage({ message, onConfirmPlan, onRetryStep }) {
           )}
           {/* 【对齐大雄】阶段1 generations → 渲染步骤卡片（可折叠，用户确认前检查每步） */}
           <GenerationStepsCard generations={message.generations} />
+          {/* 【对齐大雄 prompts 通道 · 保留为可选能力，当前不激活】
+             大雄的 prompts 逐条确认是其「思维模式」遗留，当前大雄 thinkingModeOn=false 已废弃（见
+             promptFlow.js 文件头「★ 重要」）。我们保留此渲染 + PromptConfirmCard，但 assistant 消息
+             默认不带 prompts（走 generations 快速执行通道，见 useAgentChat 文件头路径表），故本卡片
+             默认不出现。若未来要恢复「逐条确认提示词」，把 prompts 灌到 assistant 消息即可，UI/状态机已就绪。 */}
+          {message.prompts && message.prompts.length > 0 && !message.streaming && (
+            <PromptConfirmCard
+              prompts={message.prompts}
+              requestedCount={message.requestedCount}
+              onUpdatePrompts={(newPrompts) => onPromptAction?.({ action: 'update', assistantContent: message.content, prompts: newPrompts })}
+              onGenerate={(generations) => onPromptAction?.({ action: 'generate', assistantContent: message.content, generations })}
+            />
+          )}
           {/* Skill 阶段2：待确认策划 → 渲染确认按钮（Step F；仅前端按钮翻转 awaitingConfirm） */}
           {message.awaiting_confirm && !message.streaming && (
             <button
