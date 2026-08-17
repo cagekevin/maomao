@@ -12,6 +12,7 @@ import ModelSelect from './base/ModelSelect.jsx'
 import PromptInput from './base/PromptInput.jsx'
 import MaterialStrip from './base/MaterialStrip.jsx'
 import ResizeFullscreenHandle from './base/ResizeFullscreenHandle.jsx'
+import FullscreenModal from './base/FullscreenModal.jsx'
 import GeneratingOverlay from './base/GeneratingOverlay.jsx'
 import PromptLibraryButton from './base/PromptLibraryButton.jsx'
 import JianyingIcon from './JianyingIcon.jsx'
@@ -42,6 +43,23 @@ export default function PromptNode({ id, data, selected }) {
   const connected = useConnectedInputs(id)
   const [expanded, setExpanded] = useState(data.expanded === undefined ? true : data.expanded)
   const [prompt, setPrompt] = useState(data.prompt || '')
+
+  // 参考输入 = 连线上游的产出（useConnectedInputs）+ 自身 data.images/texts。
+  // 为什么合并两处：useConnectedInputs 是「通用连线机制」（任意上游节点 → 本节点）；
+  // data.images 是剧本盒子连下游时用 collectAssets 按 @资产名 匹配后塞给本节点的资产参考图（更精准）。
+  // 上游为空 + data 无图 → 两者都空 → 素材区隐藏，绝不显示假示例。
+  // 【必须放在 prompt 定义之后、useNodeGeneration 之前】否则其 config 闭包首帧访问会触发 TDZ。
+  const refImages = [...(connected.images || []), ...(data.images?.length ? data.images : [])]
+  const refTexts = [...(connected.texts || []), ...(data.texts?.length ? data.texts : [])]
+
+  // 【修复】上游文本节点连进来时，文字只进入 refTexts（素材区），不会被自动填进 prompt。
+  // 构造「有效提示词」= 本地 prompt + 上游文本 合并：两者都参与生成，
+  // 本地写的主提示词在前，上游文本节点/资产文字追加在后，一起送进生图请求。
+  // 多个上游文本节点自动合并；多个上游图片节点也已在 refImages 中合并。
+  const upstreamText = refTexts.map((t) => (t.text || '').trim()).filter(Boolean).join('\n')
+  const effectivePrompt = [prompt?.trim(), upstreamText].filter(Boolean).join('\n') || ''
+  // 提示词输入框双击全屏编辑（复刻 TextNode 的交互：ResizeFullscreenHandle 双击 → 弹层）
+  const [fullscreenPrompt, setFullscreenPrompt] = useState(false)
   // 记住上次选择的比例/尺寸/模型（跨节点/跨会话）；初始用记忆值，无记忆回退默认
   const { prefs: imgPrefs, set: setImgPrefs } = useNodePrefs('promptNode', { model: '', aspectRatio: 'Auto', imageSize: '1K' })
   const [aspectRatio, setAspectRatio] = useState(data.aspectRatio || imgPrefs.aspectRatio || 'Auto')
@@ -150,8 +168,9 @@ export default function PromptNode({ id, data, selected }) {
   // 同步/异步由该 provider.image_mode 决定（API 设置页「图片生成模式」）。Agent 的 generate_node 也走这里。
   const { loading, error, stop: onStop, start: handleGenerate } = useNodeGeneration({
     nodeId: id,
-    type: { type: 'image', prompt: prompt || '', modelName: selectedModel },
-    validate: () => (prompt?.trim() ? '' : '请输入提示词'),
+    type: { type: 'image', prompt: effectivePrompt || '', modelName: selectedModel },
+    // 前置校验：本地 prompt 或上游文本任一非空即可生图
+    validate: () => (effectivePrompt?.trim() ? '' : '请输入提示词'),
     run: async ({ progress, signal }) => {
       // 从「providerId::modelId」解析出实际 provider 和 modelId（跨 provider 选模型）
       const { provider: useProvider, modelId } = resolveProviderModel(providers, selectedModel, primary)
@@ -159,7 +178,7 @@ export default function PromptNode({ id, data, selected }) {
       // 图生图：把连线上游产出的参考图传下去（网关 image_urls 字段）；signal 支持真取消（Step C）
       return generateImage({
         provider: useProvider,
-        prompt: prompt || '',
+        prompt: effectivePrompt || '',
         model: modelId,
         size: imageSize,
         n: count,
@@ -223,13 +242,6 @@ export default function PromptNode({ id, data, selected }) {
     { value: 'high', label: '高质量' }
   ]
   const costMap = { 'dall-e-3': 4 }
-
-  // 参考输入 = 连线上游的产出（useConnectedInputs）+ 自身 data.images/texts。
-  // 为什么合并两处：useConnectedInputs 是「通用连线机制」（任意上游节点 → 本节点）；
-  // data.images 是剧本盒子连下游时用 collectAssets 按 @资产名 匹配后塞给本节点的资产参考图（更精准）。
-  // 上游为空 + data 无图 → 两者都空 → 素材区隐藏，绝不显示假示例。
-  const refImages = [...(connected.images || []), ...(data.images?.length ? data.images : [])]
-  const refTexts = [...(connected.texts || []), ...(data.texts?.length ? data.texts : [])]
 
   const insertMention = (name) => setPromptPersist((p) => (p ? `${p} @${name} ` : `@${name} `))
   const hasImage = !!imageUrl
@@ -363,15 +375,15 @@ export default function PromptNode({ id, data, selected }) {
                   <div className="absolute bottom-full left-0 mb-1 w-56 bg-surface-1 border border-edge rounded-lg shadow-xl p-3 z-50 flex flex-col gap-3" onClick={(e) => e.stopPropagation()}>
                     <div>
                       <div className="text-caption text-gray-500 mb-2">画质</div>
-                      <div className="flex gap-1.5">{sizeOptions.map((s) => <button key={s} type="button" className={`flex-1 py-1.5 text-caption-sm rounded-md border transition-colors ${imageSize === s ? 'bg-surface-hover-strong border-edge-strong text-white' : 'bg-surface border-transparent text-gray-400 hover:bg-surface-hover'}`} onClick={() => { setImageSize(s); setImgPrefs({ imageSize: s }); patchData({ imageSize: s }) }}>{s}</button>)}</div>
+                      <div className="flex gap-1.5">{sizeOptions.map((s) => <button key={s} type="button" className={`flex-1 py-1.5 text-caption-sm rounded-md border transition-colors ${imageSize === s ? 'bg-surface-hover-strong border-edge-strong text-white' : 'bg-surface border-transparent text-gray-400 hover:bg-surface-hover'}`} onClick={() => { setShowImgMenu(false); setImageSize(s); setImgPrefs({ imageSize: s }); requestAnimationFrame(() => patchData({ imageSize: s })) }}>{s}</button>)}</div>
                     </div>
                     <div>
                       <div className="text-caption text-gray-500 mb-2">比例</div>
-                      <div className="flex flex-wrap gap-1.5">{ratioOptions.map((r) => <button key={r} type="button" className={`px-3 py-1.5 text-caption-sm rounded-md border transition-colors ${aspectRatio === r ? 'bg-surface-hover-strong border-edge-strong text-white' : 'bg-surface border-transparent text-gray-400 hover:bg-surface-hover'}`} onClick={() => { setAspectRatio(r); setImgPrefs({ aspectRatio: r }); patchData({ aspectRatio: r }) }}>{r}</button>)}</div>
+                      <div className="flex flex-wrap gap-1.5">{ratioOptions.map((r) => <button key={r} type="button" className={`px-3 py-1.5 text-caption-sm rounded-md border transition-colors ${aspectRatio === r ? 'bg-surface-hover-strong border-edge-strong text-white' : 'bg-surface border-transparent text-gray-400 hover:bg-surface-hover'}`} onClick={() => { setShowImgMenu(false); setAspectRatio(r); setImgPrefs({ aspectRatio: r }); requestAnimationFrame(() => patchData({ aspectRatio: r })) }}>{r}</button>)}</div>
                     </div>
                     <div>
                       <div className="text-caption text-gray-500 mb-2">渲染质量</div>
-                      <div className="flex gap-1.5">{qualityOptions.map((q) => <button key={q.value} type="button" className={`flex-1 py-1.5 text-caption-sm rounded-md border transition-colors ${quality === q.value ? 'bg-surface-hover-strong border-edge-strong text-white' : 'bg-surface border-transparent text-gray-400 hover:bg-surface-hover'}`} onClick={() => { setQuality(q.value); patchData({ quality: q.value }) }}>{q.label}</button>)}</div>
+                      <div className="flex gap-1.5">{qualityOptions.map((q) => <button key={q.value} type="button" className={`flex-1 py-1.5 text-caption-sm rounded-md border transition-colors ${quality === q.value ? 'bg-surface-hover-strong border-edge-strong text-white' : 'bg-surface border-transparent text-gray-400 hover:bg-surface-hover'}`} onClick={() => { setShowImgMenu(false); setQuality(q.value); setImgPrefs({ quality: q.value }); requestAnimationFrame(() => patchData({ quality: q.value })) }}>{q.label}</button>)}</div>
                     </div>
                   </div>
                 )}
@@ -419,9 +431,22 @@ export default function PromptNode({ id, data, selected }) {
           maxWidth={900}
           minHeight={60}
           maxHeight={400}
+          onRequestFullscreen={() => setFullscreenPrompt(true)}
           onResizeEnd={onInputResize}
         />
       </ExpandablePanel>
+
+      {/* 全屏弹层（复刻 TextNode）：提示词输入框双击 → 全屏编辑提示词 */}
+      <FullscreenModal open={fullscreenPrompt} title="编辑提示词 - 生图" onClose={() => setFullscreenPrompt(false)}>
+        <textarea
+          autoFocus
+          className="flex-1 w-full min-h-0 bg-canvas text-gray-100 outline-none custom-scrollbar resize-none p-4 rounded"
+          style={{ fontSize: '14px', lineHeight: 1.8, color: '#e5e7eb' }}
+          placeholder="描述你想要的画面 (输入 @ 调出素材)..."
+          value={prompt}
+          onChange={(e) => setPromptPersist(e.target.value)}
+        />
+      </FullscreenModal>
 
       {/* 双击大图：原生 <dialog> 弹窗，无外框无背景容器，点图/Esc/点空白关闭 */}
       <dialog

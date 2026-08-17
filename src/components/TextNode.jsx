@@ -43,6 +43,13 @@ export default function TextNode({ id, data, selected }) {
   )
   const [prompt, setPrompt] = useState(data.prompt || '')
   const [text, setText] = useState(data.text || '')
+
+  // 参考输入：自身上传图片（在 images 定义后并入）+ 连线上游产出。
+  // refTexts / effectivePrompt 不依赖 images，先定义在 useNodeGeneration 之前，避免 TDZ。
+  const refTexts = connected.texts || []
+  // 有效提示词 = 本地 prompt/文本 + 上游文本（多文本节点合并），两者都参与生成
+  const upstreamText = refTexts.map((t) => (t.text || '').trim()).filter(Boolean).join('\n')
+  const effectivePrompt = [prompt?.trim() || text?.trim(), upstreamText].filter(Boolean).join('\n') || ''
   const [autoSplit, setAutoSplit] = useState(data.autoSplit || false)
 
   // ── 输入落盘：本地 state + 同步写回 node.data（不可变更新）──
@@ -82,6 +89,8 @@ export default function TextNode({ id, data, selected }) {
   const { prefs: textPrefs, set: setTextPrefs } = useNodePrefs('textNode', { model: '' })
   const [selectedModel, setSelectedModel] = useState(data.selectedModel || textPrefs.model || 'gpt-4o-mini')
   const [images, setImages] = useState(data.images || [])
+  // 自身上传图片 + 连线上游图片，多上游图片节点自动合并
+  const refImages = [...(connected.images || []), ...images.map((u, i) => ({ id: `img-${i}`, url: u, label: `图片${i + 1}` }))]
   const textAreaRef = useRef(null)
   const fileRef = useRef(null)
   const promptInputRef = useRef(null) // 提示词 textarea ref（供面板右下角手柄拖拽改尺寸）
@@ -123,8 +132,9 @@ export default function TextNode({ id, data, selected }) {
   // Agent 的 generate_node 也走这里。
   const { loading, error, stop: onStop, start: handleGenerate } = useNodeGeneration({
     nodeId: id,
-    type: { type: 'text', prompt: prompt || text || '', modelName: selectedModel },
-    validate: () => ((prompt || text)?.trim() ? '' : '请输入提示词或文本'),
+    type: { type: 'text', prompt: effectivePrompt || '', modelName: selectedModel },
+    // 前置校验：本地 prompt/文本 或上游文本任一非空即可生成
+    validate: () => (effectivePrompt?.trim() ? '' : '请输入提示词或文本'),
     run: async ({ progress, signal }) => {
       // 从「providerId::modelId」解析出实际 provider 和 modelId（跨 provider 选模型）
       const { provider: useProvider, modelId } = resolveProviderModel(providers, selectedModel, primary)
@@ -143,7 +153,7 @@ export default function TextNode({ id, data, selected }) {
         provider: useProvider,
         messages: [
           { role: 'system', content: sysContent },
-          { role: 'user', content: prompt || text || '' }
+          { role: 'user', content: effectivePrompt || '' }
         ],
         model: modelId,
         images: refUrls,
@@ -198,8 +208,6 @@ export default function TextNode({ id, data, selected }) {
   }
 
   const loadingIcon = <Loader2 size={12} className="animate-spin flex-shrink-0" style={{ color: 'rgb(210,2,7)' }} />
-  const refImages = [...(connected.images || []), ...images.map((u, i) => ({ id: `img-${i}`, url: u, label: `图片${i + 1}` }))]
-  const refTexts = connected.texts || []
 
   const toolbarButtons = [
     ...(images.length === 0

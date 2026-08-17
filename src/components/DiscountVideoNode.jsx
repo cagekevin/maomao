@@ -10,6 +10,7 @@ import ExpandablePanel from './base/ExpandablePanel.jsx'
 import GenerateButton from './base/GenerateButton.jsx'
 import ModelSelect from './base/ModelSelect.jsx'
 import ResizeFullscreenHandle from './base/ResizeFullscreenHandle.jsx'
+import FullscreenModal from './base/FullscreenModal.jsx'
 import GeneratingOverlay from './base/GeneratingOverlay.jsx'
 import PromptLibraryButton from './base/PromptLibraryButton.jsx'
 import JianyingIcon from './JianyingIcon.jsx'
@@ -38,6 +39,9 @@ export default function DiscountVideoNode({ id, data, selected }) {
 
   // 通用连线数据传递：读取直接上游节点的图片/文本作为参考素材
   const connected = useConnectedInputs(id)
+  // 上游文本合并（多个文本节点自动聚合；data.texts 额外资产也并入），作为提示词的一部分
+  const refTexts = [...(connected.texts || []), ...(data.texts?.length ? data.texts : [])]
+  const upstreamText = refTexts.map((t) => (t.text || '').trim()).filter(Boolean).join('\n')
   const { setEdges, setNodes } = useReactFlow()
   // 断开连线：素材缩略图红色 × → 删除该来源节点 → 本节点的连线（仅对有 sourceNodeId 的素材）
   const disconnectSource = useCallback(
@@ -48,6 +52,10 @@ export default function DiscountVideoNode({ id, data, selected }) {
     [id, setEdges]
   )
   const [prompt, setPrompt] = useState(data.prompt || '')
+  // 有效提示词 = 本地 prompt + 上游文本，两者都参与生成
+  const effectivePrompt = [prompt?.trim(), upstreamText].filter(Boolean).join('\n') || ''
+  // 提示词输入框双击全屏编辑（复刻 TextNode 的交互：ResizeFullscreenHandle 双击 → 弹层）
+  const [fullscreenPrompt, setFullscreenPrompt] = useState(false)
   // 提示词落盘：本地 state + 写回 node.data（支持函数式更新）。
   // 复用画布快照 KV（App.jsx 600ms 防抖 autoSave）→ 手动输入的提示词刷新不丢。
   const patchData = useCallback(
@@ -128,8 +136,9 @@ export default function DiscountVideoNode({ id, data, selected }) {
   // Agent 的 generate_node 也走这里。
   const { loading, error, stop: onStop, start: handleGenerate } = useNodeGeneration({
     nodeId: id,
-    type: { type: 'video', prompt: prompt || '', modelName: selectedModel },
-    validate: () => (prompt?.trim() ? '' : '请输入提示词'),
+    type: { type: 'video', prompt: effectivePrompt || '', modelName: selectedModel },
+    // 前置校验：本地 prompt 或上游文本任一非空即可生成
+    validate: () => (effectivePrompt?.trim() ? '' : '请输入提示词'),
     run: async ({ progress, signal }) => {
       // 从「providerId::modelId」解析出实际 provider 和 modelId（跨 provider 选模型）
       const { provider: useProvider, modelId } = resolveProviderModel(providers, selectedModel, primary)
@@ -137,7 +146,7 @@ export default function DiscountVideoNode({ id, data, selected }) {
       // signal 支持真取消（Step C）
       return generateVideo({
         provider: useProvider,
-        prompt: prompt || '',
+        prompt: effectivePrompt || '',
         model: modelId,
         size: ratio,
         resolution,
@@ -372,9 +381,22 @@ export default function DiscountVideoNode({ id, data, selected }) {
           maxWidth={900}
           minHeight={60}
           maxHeight={400}
+          onRequestFullscreen={() => setFullscreenPrompt(true)}
           onResizeEnd={onInputResize}
         />
       </ExpandablePanel>
+
+      {/* 全屏弹层（复刻 TextNode）：提示词输入框双击 → 全屏编辑提示词 */}
+      <FullscreenModal open={fullscreenPrompt} title="编辑提示词 - 特惠视频" onClose={() => setFullscreenPrompt(false)}>
+        <textarea
+          autoFocus
+          className="flex-1 w-full min-h-0 bg-canvas text-gray-100 outline-none custom-scrollbar resize-none p-4 rounded"
+          style={{ fontSize: '14px', lineHeight: 1.8, color: '#e5e7eb' }}
+          placeholder="描述你想要的视频内容 (输入 @ 调出素材)..."
+          value={prompt}
+          onChange={(e) => setPromptPersist(e.target.value)}
+        />
+      </FullscreenModal>
     </NodeShell>
   )
 }

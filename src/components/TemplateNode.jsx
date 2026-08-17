@@ -10,6 +10,7 @@ import ModelSelect from './base/ModelSelect.jsx'
 import PromptInput from './base/PromptInput.jsx'
 import MaterialStrip from './base/MaterialStrip.jsx'
 import ResizeFullscreenHandle from './base/ResizeFullscreenHandle.jsx'
+import FullscreenModal from './base/FullscreenModal.jsx'
 import GeneratingOverlay from './base/GeneratingOverlay.jsx'
 // ═══ 基座 hook（统一范式）═══
 import { useNodeResize, useOutsideClick } from './base/hooks.js'
@@ -111,6 +112,13 @@ export default function TemplateNode({ id, data, selected }) {
   const { isHidden } = useMediaDegrade()
   const hideResult = isHidden('image')
 
+  // 上游合并：图片 + 文本（多个上游节点自动聚合；data.images/texts 额外资产也并入）
+  const refImages = [...(connected.images || []), ...(data.images?.length ? data.images : [])]
+  const refTexts = [...(connected.texts || []), ...(data.texts?.length ? data.texts : [])]
+  // 有效提示词 = 本地 prompt + 上游文本（多文本节点合并），两者都参与生成
+  const upstreamText = refTexts.map((t) => (t.text || '').trim()).filter(Boolean).join('\n')
+  const effectivePrompt = [prompt?.trim(), upstreamText].filter(Boolean).join('\n') || ''
+
   // ─── 2. ReactFlow 数据写回（统一范式）───
   const { setNodes, setEdges } = useReactFlow()
 
@@ -123,6 +131,10 @@ export default function TemplateNode({ id, data, selected }) {
   const [expanded, setExpanded] = useState(data.expanded === undefined ? true : data.expanded)
   const [prompt, setPrompt] = useState(data.prompt || '')
   const [imageUrl, setImageUrl] = useState(data.imageUrl || '')
+  // 全屏编辑：提示词输入框双击 → 全屏编辑提示词（复刻 TextNode）
+  const [fullscreenPrompt, setFullscreenPrompt] = useState(false)
+  // 全屏查看：主框双击 → 全屏查看生成结果（替代原 showToast('全屏') 占位）
+  const [fullscreenResult, setFullscreenResult] = useState(false)
 
   // 参数记忆：记住上次选的模型/比例，新建节点默认沿用（跨节点/跨会话）
   // 【模板】type 换成你的节点 type（如 'textNode'），默认值按需改
@@ -170,17 +182,23 @@ export default function TemplateNode({ id, data, selected }) {
   }, [])
 
   // ─── 6. 生成契约（通用；无生成能力的节点删掉本块 + GenerateButton）───
-  // useNodeGeneration：统一「提交任务 → 进度 → 成功双写(taskStore + node.data) / 失败」
+  // useNodeGeneration：统一「提交任务 → 进度 → 成功双写(taskStore + node.data) / 失败 / 手动重试」。
+  // 【错误/重试规范，见 docs/09】错误已由契约按 type 分类并映射文案（genErrors.js）：
+  //   - 网络/超时层由 API 层 withRetry 自动重试；上游失败不自动重试，交给「再来一次」。
+  //   - 本节点禁止自写 if (/网络错误/.test(msg)) 等判断，只读 gen.error 展示即可。
+  //   - 若要刷新后恢复结果（节点消失重建），可传 onRecover: (d) => { setImageUrl(d.resultUrl); patchData({ imageUrl: d.resultUrl }) }。
   const gen = useNodeGeneration({
     nodeId: id,
-    type: { type: 'image', prompt, modelName: selectedModel },  // 任务上报信息
-    validate: () => (prompt.trim() ? '' : '请输入提示词'),        // 前置校验，返回错误文案或空串
+    type: { type: 'image', prompt: effectivePrompt, modelName: selectedModel },  // 任务上报信息
+    // 前置校验：本地 prompt 或上游文本任一非空即可生图
+    validate: () => (effectivePrompt?.trim() ? '' : '请输入提示词'),
     run: async ({ progress }) => generateImage({                  // 真执行器（换成你的 API）
       model: selectedModel,
-      prompt,
+      prompt: effectivePrompt,
+      refImages,
       aspectRatio,
     }, progress),
-    onSuccess: (r) => {                                          // 成功回写 node.data
+    onSuccess: (r) => {                                          // 成功回写 node.data（落盘已由契约内部完成）
       setImageUrl(r.url)
       patchData({ imageUrl: r.url })
       setMyPrefs({ model: selectedModel, aspectRatio })
@@ -242,12 +260,12 @@ export default function TemplateNode({ id, data, selected }) {
           </div>
         )}
 
-        {/* 右下角手柄：拖拽改主框尺寸 + 双击全屏（通用） */}
+        {/* 右下角手柄：拖拽改主框尺寸 + 双击全屏查看结果（通用） */}
         <ResizeFullscreenHandle
           targetRef={wrapperRef}
           minWidth={320}
           minHeight={200}
-          onRequestFullscreen={() => showToast('全屏')}
+          onRequestFullscreen={() => setFullscreenResult(true)}
           onResizeEnd={onMainBoxResize}
         />
       </div>
@@ -296,14 +314,46 @@ export default function TemplateNode({ id, data, selected }) {
           </div>
         </div>
 
-        {/* 面板右下角手柄：拖拽改输入框尺寸（通用；PromptInput 的 textarea 做 targetRef） */}
+        {/* 面板右下角手柄：拖拽改输入框尺寸 + 双击全屏编辑提示词（通用；PromptInput 的 textarea 做 targetRef） */}
         <ResizeFullscreenHandle
           targetRef={promptInputRef}
           minWidth={360}
           minHeight={80}
+          onRequestFullscreen={() => setFullscreenPrompt(true)}
           onResizeEnd={onInputResize}
         />
       </ExpandablePanel>
+
+      {/* 全屏弹层：提示词输入框双击 → 全屏编辑提示词（复刻 TextNode） */}
+      <FullscreenModal open={fullscreenPrompt} title="编辑提示词 - 模板" onClose={() => setFullscreenPrompt(false)}>
+        <textarea
+          autoFocus
+          className="flex-1 w-full min-h-0 bg-canvas text-gray-100 outline-none custom-scrollbar resize-none p-4 rounded"
+          style={{ fontSize: '14px', lineHeight: 1.8, color: '#e5e7eb' }}
+          placeholder="描述内容，输入 @ 引用素材..."
+          value={prompt}
+          onChange={(e) => setPromptPersist(e.target.value)}
+        />
+      </FullscreenModal>
+
+      {/* 全屏弹层：主框双击 → 查看生成结果（替代原 showToast 占位） */}
+      <FullscreenModal
+        open={fullscreenResult}
+        title="查看生成结果"
+        onClose={() => setFullscreenResult(false)}
+      >
+        {imageUrl ? (
+          <img
+            src={imageUrl}
+            alt="生成结果"
+            className="max-w-full max-h-full object-contain rounded"
+          />
+        ) : (
+          <div className="flex-1 flex items-center justify-center text-gray-500 text-sm">
+            暂无生成结果
+          </div>
+        )}
+      </FullscreenModal>
 
       {/* 生成中遮罩（通用；可选） */}
       {gen.loading && <GeneratingOverlay label="生成中…" />}
@@ -358,7 +408,7 @@ export default function TemplateNode({ id, data, selected }) {
  *     const newNodes = items.map((item, i) => ({
  *       id: `out-${id}-${i}-${ts}-${Math.random().toString(36).slice(2, 6)}`,
  *       type: 'promptNode',                          // 下游节点类型（或 imageNode）
- *       position: { x: baseX, y: baseY + i * 460 },  // 纵向排列，避免重叠
+ *       position: { x: baseX, y: baseY + i * 750 },  // 纵向排列，避免重叠
  *       data: { prompt: item },                      // 填好下游的 data
  *       width: 420, height: 420,
  *     }))

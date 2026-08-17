@@ -22,17 +22,26 @@ let seq = 0
 
 const DURATION = 3000 // 默认 3s 自动消失
 
+// 分级默认时长：失败停留更久，让用户看清；中性 info 最短。
+const DEFAULT_DURATION = {
+  success: 2500,
+  info: 2500,
+  warning: 3500,
+  error: 4000,
+}
+
 /**
  * 弹一条提示。
  * @param {string} message 提示内容
  * @param {Object} [opts]
  * @param {'success'|'error'|'warning'|'info'} [opts.type='info'] 状态档（决定配色）
- * @param {number} [opts.duration=3000] 显示时长(ms)；0 = 不自动消失
+ * @param {number} [opts.duration] 显示时长(ms)；0 = 不自动消失；缺省按分级取 DEFAULT_DURATION
  * @returns {number} toast id（可用于手动关闭）
  */
-export function showToast(message, { type = 'info', duration = DURATION } = {}) {
+export function showToast(message, { type = 'info', duration } = {}) {
   const id = ++seq
-  toasts = [...toasts, { id, message: String(message ?? ''), type, duration }]
+  const finalDuration = duration ?? DEFAULT_DURATION[type] ?? DURATION
+  toasts = [...toasts, { id, message: String(message ?? ''), type, duration: finalDuration }]
   emit()
   return id
 }
@@ -64,3 +73,13 @@ export function getToasts() {
 function emit() {
   listeners.forEach((l) => l())
 }
+
+/**
+ * 语义化快捷出口。业务代码优先用这四个，无需记忆 type 字符串，分级默认时长自动生效。
+ * 约定：仅当用户「无法直接从界面感知结果」时才弹——后台保存、跨域复制失败、云端推送、
+ * 降级有损等；用户一眼能看出的结果（粘贴图片到画布、复制节点）不要弹，属于噪音。
+ */
+export const toastSuccess = (message, opts) => showToast(message, { ...opts, type: 'success' })
+export const toastError = (message, opts) => showToast(message, { ...opts, type: 'error' })
+export const toastWarning = (message, opts) => showToast(message, { ...opts, type: 'warning' })
+export const toastInfo = (message, opts) => showToast(message, { ...opts, type: 'info' })
