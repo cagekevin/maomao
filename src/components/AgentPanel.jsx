@@ -10,7 +10,7 @@ import { loadAgentChatModel } from './base/settings/agentModelStore.js'
 import { getAllSkills, markSkillUsed, repairMojibakeText } from './base/skillStore.js'
 import { sGet, sSet } from './base/storageAdapter.js'
 import { toAbsoluteFileUrl } from './base/filesApi.js'
-import { setCurrentSnapshot, setAwaitingConfirm } from './base/conversationStore.js'
+import { setCurrentSnapshot, setAwaitingConfirm, getCurrentRunMode, setCurrentRunMode } from './base/conversationStore.js'
 import { runNodeGeneration } from './base/taskStore.js'
 import { showToast } from './base/toastStore.js'
 
@@ -173,7 +173,7 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
   // 新建对话短锁：新建后 1s 内禁用按钮，避免用户狂点出十几个空对话
   const newChatLock = useRef(false)
 
-  const { messages, sending, error, model, setModel, send, sendImageMode, stop, clear, stateAction, conversations, activeConversationId, newChat, switchChat, deleteChat } = useAgentChat({
+  const { messages, sending, error, model, setModel, send, sendImageMode, stop, clear, stateAction, conversations, activeConversationId, newChat, switchChat, deleteChat, updateMessageByContent, executePlanDirect } = useAgentChat({
     agentKey,
     systemPrompt,
     defaultModel: defaultAgentModel,
@@ -189,6 +189,14 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
   const setInputModeAndPersist = (mode) => {
     setInputMode(mode)
     try { sSet('agent_input_mode', mode) } catch { /* ignore */ }
+  }
+  // 【对齐大雄 runMode 分级】执行分级：auto（默认，无 Skill 时 LLM 直接出 generations 执行、不展示 plan）/
+  // semi（半自动，无 Skill 时也展示 plan 确认再执行）。对应大雄 agentSetRunMode/agentToggleRunMode。
+  const [runMode, setRunModeState] = useState(() => { try { return getCurrentRunMode() || 'auto' } catch { return 'auto' } })
+  const setRunModeAndPersist = (mode) => {
+    const next = mode === 'semi' ? 'semi' : 'auto'
+    setRunModeState(next)
+    setCurrentRunMode(next)
   }
   // attachments 变化 → 同步到 conversationStore（自动落盘，带 hydrated 时序守卫）
   useEffect(() => {
@@ -311,6 +319,23 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
     try { sSet(AGENT_DRAFT_KEY, '') } catch { /* ignore */ }
     Promise.resolve(send('已确认，请按刚才展示的策划执行。')).catch((e) => console.error('[Agent] 确认后 send 失败:', e))
   }, [send])
+
+  // 【对齐大雄 prompts 逐条确认通道 · 保留为可选能力，当前不激活】
+  //  大雄 prompts 逐条确认是其「思维模式」遗留（thinkingModeOn=false 已废弃，见 promptFlow.js 头「★ 重要」），
+  //  大雄当前走 generations 快速执行（我们已对齐）。此 handler 仅在 assistant 消息带 prompts 时被
+  //  PromptConfirmCard 触发；默认不触发（走 generations 通道）。若未来要恢复逐条确认，此链路已就绪。
+  //  - update：把确认后的 prompts 写回对应 assistant 消息（updateMessageByContent，渲染同步 + 落盘）
+  //  - generate：全部确认后把 prompts 转的 generations 交给 execute_plan 直接生图（executePlanDirect，对齐大雄 runAgentGenerations）
+  const handlePromptAction = useCallback(({ action, assistantContent, prompts, generations }) => {
+    if (action === 'update') {
+      updateMessageByContent(assistantContent, { prompts })
+    } else if (action === 'generate') {
+      if (typeof showToast === 'function') showToast('正在执行全部提示词…', 'info')
+      Promise.resolve(executePlanDirect(generations))
+        .then((r) => { if (!r.ok && typeof showToast === 'function') showToast(r.error || '生成失败', 'error') })
+        .catch((e) => console.error('[Agent] prompts 全确认生图失败:', e))
+    }
+  }, [updateMessageByContent, executePlanDirect])
 
   // 单步失败重试：点击失败 tool 卡片的「重试」，只重跑该 nodeId（复用 taskStore 已注册的生成契约，对齐大雄 retryAgentGeneration）
   const handleRetryStep = useCallback((nodeId) => {
@@ -521,7 +546,7 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
               )}
             </div>
           )}
-          {messages.map((m, i) => <AgentMessage key={i} message={m} onConfirmPlan={handleConfirmPlan} onRetryStep={handleRetryStep} />)}
+          {messages.map((m, i) => <AgentMessage key={i} message={m} onConfirmPlan={handleConfirmPlan} onRetryStep={handleRetryStep} onPromptAction={handlePromptAction} />)}
           {sending && (
             <div className="flex items-center gap-2 text-gray-500 text-xs">
               <span className="flex gap-1">
@@ -643,7 +668,7 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
 
           {/* 工具栏 */}
           <div className="flex items-center justify-between gap-2 px-2 pb-2">
-            <div className="flex items-center gap-1 flex-wrap min-w-0">
+            <div className="flex items-center gap-0.5 min-w-0">
               {/* ────────────────────────────────────────────────────────────
                   【已注释】左下角聊天模型（AI 助手对话模型）选择按钮。
                   为什么去掉：AI 助手的聊天模型已在「设置 → AI 助手」分区统一指定，
@@ -693,7 +718,7 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
                   type="button"
                   onClick={() => setSkillPickOpen((v) => !v)}
                   disabled={sending}
-                  className={`shrink-0 flex items-center gap-1 px-2 py-1 text-xs rounded-md transition-colors whitespace-nowrap disabled:opacity-50 ${activeSkills.length > 0 ? 'text-emerald-300 hover:bg-surface' : 'text-gray-400 hover:text-gray-200 hover:bg-surface'}`}
+                  className={`shrink-0 flex items-center gap-1 px-1.5 py-1 text-xs rounded-md transition-colors whitespace-nowrap disabled:opacity-50 ${activeSkills.length > 0 ? 'text-emerald-300 hover:bg-surface' : 'text-gray-400 hover:text-gray-200 hover:bg-surface'}`}
                   title={activeSkills.length > 0 ? `已启用 ${activeSkills.map((s) => s.name).join('、')}` : '应用 Skill'}
                 >
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -704,7 +729,7 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
                   </svg>
                   <span>{activeSkills.length === 0
                     ? 'Skill'
-                    : `Skill·${activeSkills.map((s) => (s.name || '').slice(0, 6)).join('、')}`}
+                    : `Skill·${activeSkills.map((s) => (s.name || '').slice(0, 4)).join('、')}`}
                   </span>
                 </button>
                 {skillPickOpen && (
@@ -734,12 +759,37 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
                 )}
               </span>
 
+              {/* 【对齐大雄 agentRunModeBtn】执行分级按钮（自动/半自动），固定显示在工具栏（一直可见）。
+                  放在 Skill 按钮之后、发送按钮之前（对齐大雄 agent-panel.html 89-92：Skills → runMode → 发送）。
+                  全自动（默认，对齐大雄 6283「一次规划后直接执行」）：无 Skill 时规划照常展示但不弹确认、直接执行；
+                  半自动（对齐大雄 6282「规划后确认再执行」）：无 Skill 时规划后需确认再执行。
+                  仅智能（agent）模式生效；图像模式不走分级（直连生图）。
+                  ⚠️ 大雄选 Skill 不会自动切 runMode（Skill 与 runMode 独立，Skill 三阶段始终需确认策划）。 */}
+              <button
+                type="button"
+                onClick={() => setRunModeAndPersist(runMode === 'auto' ? 'semi' : 'auto')}
+                disabled={inputMode === 'image' || sending}
+                className={`shrink-0 flex items-center gap-1 px-1.5 py-1 text-xs rounded-md transition-colors whitespace-nowrap disabled:opacity-50 ${inputMode !== 'agent'
+                  ? 'text-gray-600 cursor-default'
+                  : runMode === 'semi'
+                    ? 'bg-surface-hover-strong text-white border border-edge'
+                    : 'text-gray-400 hover:text-gray-200 hover:bg-surface border border-transparent'}`}
+                title={inputMode === 'image' ? '图像模式不走分级' : (runMode === 'semi' ? '半自动：规划后需确认再执行' : '全自动：规划后直接执行，不用确认')}
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 8V4H8" />
+                  <rect x="4" y="4" width="16" height="16" rx="2" />
+                  <path d="M4 10h16" />
+                </svg>
+                <span>{runMode === 'semi' ? '半自动' : '全自动'}</span>
+              </button>
+
               {/* 生图参数按钮：第2位——选择画质/比例/渲染质量 */}
               <span ref={genImgMenuRef} className="relative">
                 <button
                   type="button"
                   onClick={(e) => { e.stopPropagation(); setGenImgMenuOpen((v) => !v) }}
-                  className="shrink-0 flex items-center gap-1 px-2 py-1 text-xs text-gray-400 hover:text-gray-200 hover:bg-surface rounded-md transition-colors whitespace-nowrap"
+                  className="shrink-0 flex items-center gap-1 px-1.5 py-1 text-xs text-gray-400 hover:text-gray-200 hover:bg-surface rounded-md transition-colors whitespace-nowrap"
                   title="生图参数"
                 >
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -750,7 +800,7 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
                   <span className="hidden sm:inline truncate max-w-[70px]">{genSize} · {genRatio}</span>
                 </button>
                 {genImgMenuOpen && (
-                  <div className="absolute bottom-full right-0 mb-1 w-60 max-h-[calc(100vh-200px)] overflow-y-auto bg-surface-1 border border-edge rounded-lg shadow-xl p-3 z-50 flex flex-col gap-3 custom-scrollbar" onClick={(e) => e.stopPropagation()}>
+                  <div className="absolute bottom-full left-0 mb-1 w-60 max-h-[calc(100vh-200px)] overflow-y-auto bg-surface-1 border border-edge rounded-lg shadow-xl p-3 z-50 flex flex-col gap-3 custom-scrollbar" onClick={(e) => e.stopPropagation()}>
                     <div>
                       <div className="text-caption text-gray-500 mb-2">画质</div>
                       <div className="flex gap-1.5">{genSizeOptions.map((s) => (
