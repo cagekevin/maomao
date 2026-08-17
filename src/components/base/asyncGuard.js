@@ -11,6 +11,8 @@
  *  - loadImageWithTimeout(url, ms?, opts?)：图片加载 + 超时 + crossOrigin + 取消，统一图片入口。
  */
 
+import { IMAGE_LOAD_TIMEOUT } from './config.js'
+
 /** 超时错误（统一类型，便于调用方用 isTimeoutError 区分"超时"与"真实失败"） */
 export class TimeoutError extends Error {
   constructor(message = '操作超时') {
@@ -61,7 +63,7 @@ export function withTimeout(promise, ms, message = '操作超时', signal, onTim
  * @returns {Promise<HTMLImageElement>}
  */
 export function loadImageWithTimeout(url, opts = {}) {
-  const { timeoutMs = 20000, crossOrigin = 'anonymous' } = opts
+  const { timeoutMs = IMAGE_LOAD_TIMEOUT, crossOrigin = 'anonymous' } = opts
   return new Promise((resolve, reject) => {
     const img = new Image()
     img.crossOrigin = crossOrigin

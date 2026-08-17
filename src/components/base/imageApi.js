@@ -11,6 +11,8 @@
 import { resolveRefImages } from './refImage.js'
 import { API_BASE } from './apiBase.js'
 import { getCurrentTaskId, setTaskPollId } from './taskStore.js'
+import { GEN_TIMEOUT, GEN_POLL_INTERVAL } from './config.js'
+import { classifyError } from './genErrors.js'
 
 /** 目标端点：openai 用伪协议；apimart 用 base_url + /v1/{path}。 */
 function buildTargetUrl(provider, path) {
@@ -114,7 +116,8 @@ async function generateSync({ provider, url, genBody }, onProgress, signal) {
     return imgUrl ? ok(imgUrl) : fail('上游未返回图片')
   } catch (e) {
     if (e?.name === 'AbortError') throw e // 取消信号：原样抛出，由调用方（useNodeGeneration）处理为"已取消"
-    return /^网络错误/.test(e?.message || '') ? fail(e.message) : fail(`生图失败：${e?.message || '同步请求异常'}`)
+    const c = classifyError(e)
+    return c.type === 'network' ? fail(c.message) : fail(`生图失败：${c.message || '同步请求异常'}`)
   }
 }
 
@@ -136,7 +139,8 @@ async function generateAsync({ provider, url, genBody, timeoutMs }, onProgress, 
     if (!taskId && direct) return ok(direct)
   } catch (e) {
     if (e?.name === 'AbortError') throw e // 取消：原样抛出，由调用方处理
-    return /^网络错误/.test(e?.message || '') ? fail(e.message) : fail(`提交失败：${e?.message || '提交异常'}`)
+    const c = classifyError(e)
+    return c.type === 'network' ? fail(c.message) : fail(`提交失败：${c.message || '提交异常'}`)
   }
   if (!taskId) return fail(`上游未返回任务 id`)
 
@@ -149,7 +153,7 @@ async function generateAsync({ provider, url, genBody, timeoutMs }, onProgress, 
   const pollUrl = buildTargetUrl(provider, `tasks/${taskId}`)
   const start = Date.now()
   while (Date.now() - start < timeoutMs) {
-    await new Promise((r) => setTimeout(r, 3000))
+    await new Promise((r) => setTimeout(r, GEN_POLL_INTERVAL))
     if (signal?.aborted) {
       const err = new Error('Aborted')
       err.name = 'AbortError'
@@ -169,7 +173,8 @@ async function generateAsync({ provider, url, genBody, timeoutMs }, onProgress, 
       onProgress?.(30 + Math.min(60, Math.round((Date.now() - start) / 3000) * 10), '上游生成中…')
     } catch (e) {
       if (e?.name === 'AbortError') throw e // 取消：原样抛出
-      return fail(`轮询失败：${e?.message || '轮询异常'}`)
+      const c = classifyError(e)
+      return c.type === 'network' ? fail(c.message) : fail(`轮询失败：${c.message || '轮询异常'}`)
     }
   }
   return fail('轮询超时')
@@ -241,6 +246,6 @@ export async function generateImage({ provider, prompt, model, size, n, aspectRa
   const url = buildTargetUrl(provider, 'images/generations')
   const mode = provider?.image_mode === 'async' ? 'async' : 'sync'
   return mode === 'async'
-    ? generateAsync({ provider, url, genBody, timeoutMs: 300000 }, onProgress, signal)
+    ? generateAsync({ provider, url, genBody, timeoutMs: GEN_TIMEOUT }, onProgress, signal)
     : generateSync({ provider, url, genBody }, onProgress, signal)
 }

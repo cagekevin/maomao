@@ -10,10 +10,11 @@
 import { API_BASE } from './apiBase.js'
 import { httpRequest } from './httpClient.js'
 import { logger } from './logger.js'
+import { UPLOAD_TIMEOUT } from './config.js'
 export { toAbsoluteFileUrl } from './imageUrl.js'
 const SUBFOLDER = 'tasks'
 // multipart/大文件上传统一参数：较长超时 + 不自动重试（避免重复上传）
-const UPLOAD_OPTS = { timeoutMs: 60000, retries: 0 }
+const UPLOAD_OPTS = { timeoutMs: UPLOAD_TIMEOUT, retries: 0 }
 
 // toAbsoluteFileUrl 已收敛到 imageUrl.js（统一图片 URL 归一化入口）。
 // 此处 re-export 兼容既有引用，逻辑单一来源在 imageUrl.js。

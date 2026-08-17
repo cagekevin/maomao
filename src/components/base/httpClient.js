@@ -15,6 +15,7 @@
  */
 import { withTimeout, TimeoutError, isTimeoutError } from './asyncGuard.js'
 import { logger } from './logger.js'
+import { HTTP_DEFAULT_TIMEOUT } from './config.js'
 
 /** 网络错误（fetch 本身失败：断网/连接被拒/跨域），区别于 HTTP 状态错误 */
 export class NetworkError extends Error {
@@ -58,7 +59,7 @@ export async function httpRequest(url, {
   headers,
   body,
   signal,
-  timeoutMs = 15000,
+  timeoutMs = HTTP_DEFAULT_TIMEOUT,
   retries = 3,
   retryDelay = 500,
   parseJson = true,

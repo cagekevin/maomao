@@ -19,6 +19,7 @@ import { useState, useCallback, useEffect } from 'react'
 import { logger } from './logger.js'
 import { httpRequest } from './httpClient.js'
 import { API_BASE } from './apiBase.js'
+import { LOCAL_TOOL_PING_TIMEOUT } from './config.js'
 
 const DEFAULT_PORT = 18080
 const POLL_CONNECTED_MS = 15000 // 已连接：15s 轮询一次（官方 Wl）
@@ -40,7 +41,7 @@ export function useLocalToolStatus() {
       const data = await httpRequest(`${API_BASE}/api/status`, {
         method: 'GET',
         headers: { 'Content-Type': 'application/json' },
-        timeoutMs: 5000,
+        timeoutMs: LOCAL_TOOL_PING_TIMEOUT,
         retries: 0,
       })
       logger.info('useLocalToolStatus', '/api/status 响应', data?.status)

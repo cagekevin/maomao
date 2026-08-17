@@ -317,10 +317,14 @@ export function getKvKeyPatterns() {
 }
 
 /**
- * 错误类型登记区（错误降级/重试的单一事实来源）。
- * ⚠️ 现状：错误分类/文案散落，尚未集中。这里是收敛起点。
- * 新增错误：先登记 type 与其降级策略，禁止各节点自写 if(/网络错误/) 判断。
+ * 错误类型登记区（错误降级/重试的单一事实来源，实现见 genErrors.js classifyError）。
+ * ⚠️ 新增错误：先登记 type 与其降级策略，禁止各节点自写 if(/网络错误/) 判断。
+ * retryable=true 仅限网络/超时（可自动重试）；业务失败不重试（防封号）。
  */
 export const GEN_ERRORS = {
-  // TODO(收敛)：集中错误分类 GenErrorType / errorMessageByType / withRetry
+  abort:    { label: '已取消',       retryable: false },
+  timeout:  { label: '请求超时',     retryable: true },
+  network:  { label: '网络错误',     retryable: true },
+  http:     { label: '服务错误',     retryable: false },
+  business: { label: '上游业务错误', retryable: false },
 }

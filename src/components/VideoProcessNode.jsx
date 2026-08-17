@@ -23,6 +23,7 @@ import {
 } from './base/videoEngine.js'
 import { generateId } from './base/idGen.js'
 import { httpRequest } from './base/httpClient.js'
+import { DOWNLOAD_TIMEOUT, VIDEO_DOWNLOAD_TIMEOUT } from './base/config.js'
 
 /* ════════════════════════════════════════════════════════════════
  * 视频处理节点（复刻官方 Gc.jsx + fc.jsx 合并的 videoProcessNode）
@@ -398,7 +399,7 @@ export default function VideoProcessNode({ id, data, selected }) {
       metaInFlight.current.add(s.sourceId)
       ;(async () => {
         try {
-          const blob = await httpRequest(s.url, { parseJson: false, retries: 0, timeoutMs: 30000, label: 'readVideoMeta' }).then((r) => r.blob())
+          const blob = await httpRequest(s.url, { parseJson: false, retries: 0, timeoutMs: DOWNLOAD_TIMEOUT, label: 'readVideoMeta' }).then((r) => r.blob())
           const meta = await readVideoMetadata(blob)
           setSourceMetadata((prev) => {
             const next = { ...prev, [s.sourceId]: meta }
@@ -847,7 +848,7 @@ export default function VideoProcessNode({ id, data, selected }) {
         const blobs = []
         for (let i = 0; i < clips.length; i++) {
           const clip = clips[i]
-          const blob = localFile && clip.url === localUrl ? localFile : await httpRequest(clip.url, { parseJson: false, retries: 0, timeoutMs: 90000, label: 'downloadClip', signal: abort.signal }).then((r) => r.blob())
+          const blob = localFile && clip.url === localUrl ? localFile : await httpRequest(clip.url, { parseJson: false, retries: 0, timeoutMs: VIDEO_DOWNLOAD_TIMEOUT, label: 'downloadClip', signal: abort.signal }).then((r) => r.blob())
           blobs.push(blob)
           setNodes((ns) =>
             ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, progress: Math.round(((i + 1) / clips.length) * 20) } } : n))
@@ -869,7 +870,7 @@ export default function VideoProcessNode({ id, data, selected }) {
       } else {
         const clip = mode === 'trim' ? clips[0] : undefined
         const src = currentUrl
-        const blob = localFile && src === localUrl ? localFile : await httpRequest(src, { parseJson: false, retries: 0, timeoutMs: 90000, label: 'downloadVideo', signal: abort.signal }).then((r) => r.blob())
+        const blob = localFile && src === localUrl ? localFile : await httpRequest(src, { parseJson: false, retries: 0, timeoutMs: VIDEO_DOWNLOAD_TIMEOUT, label: 'downloadVideo', signal: abort.signal }).then((r) => r.blob())
         const baseOpts = {
           controller,
           onProgress: (p) => setNodes((ns) => ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, progress: Math.round(p * 100) } } : n)))

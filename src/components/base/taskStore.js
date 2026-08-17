@@ -17,6 +17,7 @@ import { fetchTasks, saveTask, deleteTask, batchDeleteTasks, clearAllTasksApi } 
 import { saveResultToTasks } from './filesApi.js'
 import { publish } from './eventBus.js'
 import { generateId } from './idGen.js'
+import { GEN_MAX_CONCURRENT } from './config.js'
 
 let tasks = []
 const listeners = new Set()
@@ -282,7 +283,7 @@ export function isNodeRegistered(nodeId) {
  * 超出上限的第 N 个【不自动触发、不排队】——直接跳过，让节点保持「待生成」，
  * 由用户手动点击该节点发起。避免设计「排队中」按钮，也避免一次打爆上游。
  */
-const MAX_CONCURRENT_GEN = 6
+const MAX_CONCURRENT_GEN = GEN_MAX_CONCURRENT
 let genActive = 0
 
 /**

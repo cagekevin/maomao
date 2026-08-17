@@ -15,6 +15,7 @@
 import { logger } from './logger.js'
 import { httpRequest } from './httpClient.js'
 import { API_BASE } from './apiBase.js'
+import { IMAGE_FETCH_TIMEOUT } from './config.js'
 
 /** 相对 /files/ 路径 → 完整可访问 URL（对齐后端 resources.ts / base64Externalize 惯例）。 */
 export function toAbsoluteFileUrl(url) {
@@ -42,7 +43,7 @@ export function normalizeImageUrl(url) {
  */
 export async function blobToDataUrl(u) {
   try {
-    const res = await httpRequest(u, { timeoutMs: 10000, retries: 0, parseJson: false })
+    const res = await httpRequest(u, { timeoutMs: IMAGE_FETCH_TIMEOUT, retries: 0, parseJson: false })
     const blob = await res.blob()
     return await new Promise((resolve, reject) => {
       const fr = new FileReader()
@@ -68,7 +69,7 @@ export async function urlToDataUrl(u) {
   if (u.startsWith('data:')) return u // 已是 base64，直接返回
   const absolute = toAbsoluteFileUrl(u) // 相对 /files/ 先补全
   try {
-    const res = await httpRequest(absolute, { timeoutMs: 10000, retries: 0, parseJson: false })
+    const res = await httpRequest(absolute, { timeoutMs: IMAGE_FETCH_TIMEOUT, retries: 0, parseJson: false })
     const blob = await res.blob()
     return await new Promise((resolve, reject) => {
       const fr = new FileReader()

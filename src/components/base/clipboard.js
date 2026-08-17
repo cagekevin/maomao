@@ -15,6 +15,7 @@
 
 import { logger } from './logger.js'
 import { httpRequest } from './httpClient.js'
+import { DOWNLOAD_TIMEOUT } from './config.js'
 
 /**
  * 粘贴文本清洗（纯文本化）：把从剪贴板/富文本带过来的「样式与格式残留」全部丢弃，只留干净纯文本。
@@ -112,7 +113,7 @@ export async function downloadBlob(blob, filename) {
 export async function downloadUrl(url, filename) {
   if (!url) return { ok: false, msg: '没有可下载的内容' }
   try {
-    const res = await httpRequest(url, { timeoutMs: 30000, retries: 0, parseJson: false })
+    const res = await httpRequest(url, { timeoutMs: DOWNLOAD_TIMEOUT, retries: 0, parseJson: false })
     const blob = await res.blob()
     return await downloadBlob(blob, filename)
   } catch (e) {

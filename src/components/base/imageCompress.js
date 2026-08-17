@@ -17,6 +17,7 @@
 import { toAbsoluteFileUrl } from './imageUrl.js'
 import { loadImageWithTimeout } from './asyncGuard.js'
 import { httpRequest } from './httpClient.js'
+import { IMAGE_LOAD_TIMEOUT } from './config.js'
 
 export async function compressImage(url, opts = {}) {
   const { quality = 0.8, format = 'image/jpeg', maxSize = 0 } = opts
@@ -24,7 +25,7 @@ export async function compressImage(url, opts = {}) {
   if (!src) throw new Error('无图片可压缩')
 
   // 加载图片（跨域允许 canvas 不污染；blob/data 本地直接可用）。用统一入口带超时，避免失效图永久挂起（R2）
-  const img = await loadImageWithTimeout(src, { timeoutMs: 20000 })
+  const img = await loadImageWithTimeout(src, { timeoutMs: IMAGE_LOAD_TIMEOUT })
   let { naturalWidth: w, naturalHeight: h } = img
   if (!w || !h) throw new Error('无法获取图片尺寸')
 
@@ -63,7 +64,7 @@ export async function compressImage(url, opts = {}) {
   // 原图体积（尽力获取，失败不阻断；fetch 也加超时防挂起）
   let originalSize = 0
   try {
-    const res = await httpRequest(src, { timeoutMs: 20000, retries: 0, parseJson: false })
+    const res = await httpRequest(src, { timeoutMs: IMAGE_LOAD_TIMEOUT, retries: 0, parseJson: false })
     const buf = await res.blob()
     originalSize = buf.size
   } catch {

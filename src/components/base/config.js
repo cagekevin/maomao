@@ -36,3 +36,33 @@ export const AGENT_MODELS = (() => {
   const env = import.meta.env?.VITE_AGENT_MODELS || ''
   return env ? env.split(',').map((s) => s.trim()).filter(Boolean) : DEFAULT_AGENT_MODELS
 })()
+
+// ── 异步超时（ms）───────────────────────────────────────────────
+/** httpClient 默认超时 */
+export const HTTP_DEFAULT_TIMEOUT = 15000
+/** localTool 探活 / 拖拽文本读取（短超时，快失败） */
+export const LOCAL_TOOL_PING_TIMEOUT = 5000
+/** 图片 URL → blob 读取（imageUrl.js） */
+export const IMAGE_FETCH_TIMEOUT = 10000
+/** 图片压缩 / 图像加载（imageCompress.js、asyncGuard.js） */
+export const IMAGE_LOAD_TIMEOUT = 20000
+/** 通用下载 / 读视频元数据（clipboard.js、VideoProcessNode） */
+export const DOWNLOAD_TIMEOUT = 30000
+/** 大视频下载（VideoProcessNode） */
+export const VIDEO_DOWNLOAD_TIMEOUT = 90000
+/** 文件上传（filesApi.js） */
+export const UPLOAD_TIMEOUT = 60000
+
+// ── 生成轮询超时（ms）───────────────────────────────────────────
+/** 生图 async 模式轮询总超时 */
+export const GEN_TIMEOUT = 300000
+/** 视频 async 模式轮询总超时 */
+export const VIDEO_TIMEOUT = 600000
+
+// ── 轮询间隔（ms）───────────────────────────────────────────────
+export const GEN_POLL_INTERVAL = 3000
+export const VIDEO_POLL_INTERVAL = 5000
+
+// ── 并发上限 ────────────────────────────────────────────────────
+/** 生图同时真正触发上限（超出跳过，见 taskStore） */
+export const GEN_MAX_CONCURRENT = 6
