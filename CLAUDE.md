@@ -120,11 +120,23 @@ node scripts/task-inspect.mjs --canvas-health   # 画布结构体检
 * **设计语言**：参照 `docs/BASE-CAPABILITIES.md`；节点视觉/交互规范见 `docs/README.md`「节点设计规范」。
 * **运行形态**：Chrome 扩展（MV3）。`public/manifest.json` + `background.js` + `icon*.png` 为插件壳；`src/` 编译后由 `vite.config.js`（`base:'./'`，兼容 `chrome-extension://`）打包进 `dist/`。存储经 `src/components/base/contentStore.js`（横切存储权威入口，按 STORAGE_KEYS 自动路由 local/KV/native，底层 `storageAdapter.js` 走 `chrome.storage` 插件环境）。`npm run dev` 预览画布，`npm run build` 出 `dist/`。
 
+* **3D 导演台（director3d）**：`src/components/director3d/` 是**从外部下载的开源仓库**（storyai-3d-director-desk）集成进来的，**非本仓库自有代码**。由 `Director3DNode` 双击进入。⚠️ **边界**：它基本独立于主画布（有自己的 store/schema/编辑器，TS 实现）。**不为它写测试、不纳入测试维护、不主动重构**；改动只做"必要的最小集成"，改前先读文件头注释。要查它怎么用，看 `spec/TESTING.md` §八 批6 已标注"不开测"。
+
 > 与 history 区别：旧版 `src/bundle/` 是混淆还原源码；当前 `src/` 是直接可读可维护的工程，构建产物仍是 Chrome 扩展 `dist/`。
 
 ---
 
 ## 三、 修改代码步骤与提交前验证流程（不跑不许提交）
+
+### 3.0 写代码第一步：先定契约、先想测试（最高优先）
+
+> **任何新功能/改动，动手写业务代码前，先回答这两个问题**——不是写完再补，是写之前就想清楚：
+
+1. **先定契约**：这个功能输入/输出是什么？状态放哪、走哪个唯一入口（见 `spec/CONTEXT.md`）？和哪些模块发生数据交互？→ 契约先定，代码按契约写，避免"写一半发现串层"。
+2. **先想测试**：逻辑能不能抽成纯函数（放 `base/*.js`）？能抽就先给它**设计测试锚点**（输入→输出的具体断言），再实现。**纯逻辑层（store/api/工具/引擎）是测试主战场，逻辑边写边锁**；组件只补"关键交互 + 防崩"（20/80），不为覆盖率而测。
+
+> **分层时机**：纯逻辑 `base/*.js` → 边写边补单测；hook → mock 依赖锁返回值；组件 → 只补关键交互。详细 SOP 见 `spec/TESTING.md` §〇 + §六。
+> **director3d 除外**：外部开源仓库，不做测试（见 §二）。
 
 ### 3.1 改动流程（通用，所有 `src/` 改动都走）
 

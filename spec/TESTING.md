@@ -257,8 +257,8 @@ describe('MyNode', () => {
   3. **批 3** 业务 hook：`nodePrefs`（从批 1 移入）`useArrangeCanvas` `useAssetDragToCanvas` `useAssetDropPaste` `useContextMenu` `useVideoPoster` `useLocalToolStatus` `useFitNodeRatio` `useMediaDegrade` `useNodeGeneration` `useScriptBoxData` `useScriptBoxEngine` `useCanvasAgentTools`
   4. **批 4** 顶层节点组件（剩余 12）：`Comet` `ConnectionLine` `CustomEdge` `CustomHandle` `DiscountVideoNode` `GhostTargetNode` `ImageBoxNode` `JianyingIcon` `NodeTitle` `ScriptBoxNode` `AgentMessage` `AgentPanel`
   5. **批 5** base UI 组件（高频优先）：`ContextMenu` `AssetLibrary` `CanvasToolbar` `GeneratedView` `ImageEditor` `OverlayEditor` `TaskCenter` `TopNav` `PromptInput` `ModelSelect` `NodePalette` `ProjectSelector` 及次级 UI / settings 各 section
-  6. **批 6** director3d 逻辑层/store（0→全）：`directorStore` `directorSelectors` `directorProject` `cameraGeometry` `cameraTarget` `poseSchema` `viewportAspect*` `adapters` `panoramaMath` `viewportAspectFrame` `gltfImport` `humanoidRig` `localModelImport` `panoramaImport` `modelLibraryCatalog` `mannequinPosePresets` `skeletonMappings` `bodyTypes` `mannequinPose` `ue4MannequinRig` `ue4MannequinPoseApplication` `exportProjectJson` `importProjectJson` `captureBridge` `hostBridge` `screenshotExport`
-  7. **批 7** director3d React 组件 + E2E 收口：`App` `DirectorDeskShell` `DirectorCanvas` `SceneRoot` 等组件（smoke 级）+ 新增 `generation.flow` / `director3d` / `clipboard.group` E2E 场景
+  6. ~~**批 6** director3d 逻辑层/store（0→全）~~ —— **已取消：不开测**。`director3d/` 是**外部下载的开源仓库**（storyai-3d-director-desk），非本仓库自有代码，不纳入测试维护（见 CLAUDE.md §二）。原列表（`directorStore` `cameraGeometry` `panoramaMath` `exportProjectJson` 等）不再作为待办。
+  7. ~~**批 7** director3d React 组件 + E2E 收口~~ —— **已取消：不开测**（同上）。`generation.flow` / `director3d` E2E 不新增。
 
 > ⚠️ §八 属历史批次记录，含会过期的具体数字/待办。**保鲜机制下不再主动维护**（见 §九）；现状以「跑 `npm run test:unit` 的结果」为准。
 
