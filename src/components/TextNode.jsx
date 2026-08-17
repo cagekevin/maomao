@@ -113,7 +113,7 @@ export default function TextNode({ id, data, selected }) {
 
   // 挂载时确保供应商已加载（若未打开设置页，providers 为空 → 拉取主供应商；load 幂等）
   React.useEffect(() => {
-    if (!providers || providers.length === 0) loadProviders().catch(() => {})
+    if (!providers || providers.length === 0) loadProviders().catch((e) => logger.warn('provider', 'load-fail', { error: e?.message }))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -197,7 +197,7 @@ export default function TextNode({ id, data, selected }) {
       setTextPersist(r.content)
       // 文本结果落盘成 txt → 生成面板「文本」tab 收录（异步，失败不影响节点显示）
       if (typeof r.content === 'string' && r.content.trim()) {
-        saveTextToTasks(r.content, 'text').catch(() => {})
+        saveTextToTasks(r.content, 'text').catch((e) => logger.warn('task', 'persist-fail', { error: e?.message }))
       }
     },
   })

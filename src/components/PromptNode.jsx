@@ -24,6 +24,7 @@ import { useMediaDegrade } from './base/useMediaDegrade.js'
 import { useNodeGeneration } from './base/useNodeGeneration.js'
 import { toAbsoluteFileUrl, saveResultToTasks } from './base/filesApi.js'
 import { useProviders, load as loadProviders } from './base/settings/providerStore.js'
+import { logger } from './base/logger.js'
 import { fetchTasks } from './base/tasksApi.js'
 import { generateImage } from './base/imageApi.js'
 import { useNodePrefs } from './base/nodePrefs.js'
@@ -129,7 +130,7 @@ export default function PromptNode({ id, data, selected }) {
         setImageUrl(hit.resultUrl)
         patchData({ imageUrl: hit.resultUrl })
       }
-    }).catch(() => {})
+    }).catch((e) => logger.warn('task', 'restore-fail', { nodeId: id, error: e?.message }))
     return () => { cancelled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -150,7 +151,7 @@ export default function PromptNode({ id, data, selected }) {
 
   // 挂载时确保供应商已加载
   React.useEffect(() => {
-    if (!providers || providers.length === 0) loadProviders().catch(() => {})
+    if (!providers || providers.length === 0) loadProviders().catch((e) => logger.warn('provider', 'load-fail', { error: e?.message }))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -201,7 +202,7 @@ export default function PromptNode({ id, data, selected }) {
             setImageUrl(persistedUrl)
             patchData({ imageUrl: persistedUrl })
           }
-        }).catch(() => {})
+        }).catch((e) => logger.warn('task', 'persist-fail', { nodeId: id, error: e?.message }))
       }
       // 记忆本次参数（模型/比例/尺寸），供新建节点复用
       setImgPrefs({ model: selectedModel, aspectRatio, imageSize })

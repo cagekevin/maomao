@@ -23,6 +23,7 @@
 import { providerApi } from './settings/settingsApi.js'
 import { fetchProjects, saveProjects } from './projectsApi.js'
 import { contentGet, contentSet } from './contentStore.js'
+import { logger } from './logger.js'
 
 /* ======================================================================
  * 【标准同步引擎】原样保留，勿改动内部通讯逻辑。
@@ -158,7 +159,7 @@ async function restoreLocal(cloud) {
   if (Array.isArray(ls.providers)) {
     try {
       await providerApi.saveProviders(ls.providers)
-      providerApi.syncConfigBase(ls.providers).catch(() => {})
+      providerApi.syncConfigBase(ls.providers).catch((e) => logger.warn('sync', 'config-sync-fail', { error: e?.message }))
       written++
     } catch { /* ignore */ }
   }

@@ -11,6 +11,7 @@ import { useSyncExternalStore } from 'react'
 import { providerApi } from './settingsApi.js'
 import { contentSetAsync } from '../contentStore.js'
 import { generateId } from '../idGen.js'
+import { logger } from '../logger.js'
 
 // useSyncExternalStore 要求：数据变化时 getSnapshot 必须返回「新引用」，
 // 否则 React 用 Object.is 判定无变化 → 不触发渲染（表现：按钮没反应、页面空白/卡）。
@@ -184,7 +185,7 @@ export async function save() {
         base_url: primary.base_url,
         protocol: primary.protocol,
         updatedAt: Date.now(),
-      }).catch(() => {})
+      }).catch((e) => logger.warn('provider', 'endpoint-persist-fail', { providerId: primary.id, error: e?.message }))
     }
     return { ok: true }
   } catch (e) {

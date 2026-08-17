@@ -116,7 +116,7 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
   useOutsideClick(genImgMenuRef, genImgMenuOpen, () => setGenImgMenuOpen(false))
 
   useEffect(() => {
-    if (!providers || providers.length === 0) loadProviders().catch(() => {})
+    if (!providers || providers.length === 0) loadProviders().catch((e) => logger.warn('provider', 'load-fail', { error: e?.message }))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 

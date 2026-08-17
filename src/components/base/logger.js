@@ -63,7 +63,7 @@ function reportToBackend({ category, action, detail, level, taskId, nodeId }) {
         nodeId: nodeId || ''
       }),
       keepalive: true
-    }).catch(() => {})
+    }).catch(() => {}) // fire-and-forget：日志上报失败静默；本文件内禁止调 logger 自身（会递归）
   } catch {
     /* 静默 */
   }

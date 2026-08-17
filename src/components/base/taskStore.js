@@ -376,14 +376,14 @@ export function clearTasksBy(predicate) {
   if (removed.length > 0) {
     tasks = tasks.filter((t) => !predicate(t))
     notify()
-    batchDeleteTasks(removed.map((t) => t.id)).catch(() => {})
+    batchDeleteTasks(removed.map((t) => t.id)).catch(() => {}) // fire-and-forget，后端删除失败不影响前端
   }
 }
 export function clearAllTasks() {
   if (tasks.length > 0) {
     tasks = []
     notify()
-    clearAllTasksApi().catch(() => {})
+    clearAllTasksApi().catch(() => {}) // fire-and-forget，后端清空失败下次再清
   }
 }
 

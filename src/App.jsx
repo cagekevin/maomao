@@ -255,7 +255,7 @@ function Canvas() {
   // 保存画布并广播到其他窗口（复刻官方 H_.jsx:870-880：保存后 postMessage CANVAS_SAVED）
   const persistCanvas = React.useCallback(
     (projectId) => {
-      saveCanvasState(projectId, nodesRef.current, edgesRef.current).catch(() => {})
+      saveCanvasState(projectId, nodesRef.current, edgesRef.current).catch((e) => logger.warn('canvas', 'save-fail', { projectId, error: e?.message }))
       try {
         const channel = new BroadcastChannel('yimao_canvas_sync')
         channel.postMessage({ type: 'CANVAS_SAVED', projectId, tabId: tabIdRef.current })

@@ -23,6 +23,7 @@ import { showToast } from './base/toastStore.js'
 import { generateImage } from './base/imageApi.js'
 import { toAbsoluteFileUrl } from './base/filesApi.js'
 import { useProviders, load as loadProviders } from './base/settings/providerStore.js'
+import { logger } from './base/logger.js'
 import { buildAllModels } from './base/providerModels.js'
 
 /**
@@ -178,7 +179,7 @@ export default function TemplateNode({ id, data, selected }) {
   const { providers } = useProviders()
   const models = buildAllModels(providers, 'image')
   React.useEffect(() => {
-    if (!providers || providers.length === 0) loadProviders().catch(() => {})
+    if (!providers || providers.length === 0) loadProviders().catch((e) => logger.warn('provider', 'load-fail', { error: e?.message }))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 

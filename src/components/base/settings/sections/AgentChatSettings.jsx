@@ -1,6 +1,7 @@
 import React from 'react'
 import { Bot, Check } from 'lucide-react'
 import { useProviders, load } from '../providerStore.js'
+import { logger } from '../../logger.js'
 import { showToast } from '../../toastStore.js'
 import { loadAgentChatModel, saveAgentChatModel } from '../agentModelStore.js'
 import SkillSettings from './SkillSettings.jsx'
@@ -21,7 +22,7 @@ export default function AgentChatSettings() {
   const [streamMode, setStreamMode] = React.useState(saved?.streamMode || 'stream')
 
   React.useEffect(() => {
-    if (!providers || providers.length === 0) load().catch(() => {})
+    if (!providers || providers.length === 0) load().catch((e) => logger.warn('provider', 'load-fail', { error: e?.message }))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 

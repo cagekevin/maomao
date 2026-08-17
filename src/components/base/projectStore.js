@@ -43,7 +43,7 @@ function persist() {
   saveProjects(
     projects.map((p) => ({ id: p.id, name: p.name })),
     currentProjectId
-  ).catch(() => {})
+  ).catch(() => {}) // fire-and-forget，后端保存失败下次 persist 再同步
 }
 
 // 启动时从后端加载项目（以后端为准，覆盖本地兜底）
@@ -187,8 +187,8 @@ export function deleteProject(id) {
   if (projects.length <= 1) return false
   projects = projects.filter((p) => p.id !== id)
   // 异步删除画布快照（KV）及对应 _version 版本 key
-  contentDeleteAsync(CANVAS_STATE_PREFIX + id).catch(() => {})
-  contentDeleteAsync(CANVAS_STATE_PREFIX + id + '_version').catch(() => {})
+  contentDeleteAsync(CANVAS_STATE_PREFIX + id).catch(() => {}) // fire-and-forget，KV 删除失败不影响主流程
+  contentDeleteAsync(CANVAS_STATE_PREFIX + id + '_version').catch(() => {}) // fire-and-forget
   if (currentProjectId === id) currentProjectId = projects[0].id
   persist()
   notify()

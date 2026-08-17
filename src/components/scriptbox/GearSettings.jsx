@@ -4,6 +4,7 @@ import {
   IMAGE_GEN_TYPES, defaultImageGenTemplates
 } from '../base/scriptBoxPrompts.js'
 import { useProviders, load as loadProviders } from '../base/settings/providerStore.js'
+import { logger } from '../base/logger.js'
 import { buildAllModels } from '../base/providerModels.js'
 import ModelSelect from '../base/ModelSelect.jsx'
 
@@ -29,7 +30,7 @@ export default function GearSettings({ data, updateData, onClose }) {
   // 值用 `providerId::modelId`，保存后引擎经 resolveProviderModel 解析回 provider + modelId。
   const { providers } = useProviders()
   useEffect(() => {
-    if (!providers || providers.length === 0) loadProviders().catch(() => {})
+    if (!providers || providers.length === 0) loadProviders().catch((e) => logger.warn('provider', 'load-fail', { error: e?.message }))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
   const chatModels = buildAllModels(providers, 'chat')

@@ -120,7 +120,7 @@ export default function DiscountVideoNode({ id, data, selected }) {
 
   // 挂载时确保供应商已加载
   React.useEffect(() => {
-    if (!providers || providers.length === 0) loadProviders().catch(() => {})
+    if (!providers || providers.length === 0) loadProviders().catch((e) => logger.warn('provider', 'load-fail', { error: e?.message }))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 

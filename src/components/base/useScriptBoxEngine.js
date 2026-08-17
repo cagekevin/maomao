@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import { useReactFlow } from '@xyflow/react'
 import { createScriptBoxEngine } from './scriptBoxEngine.js'
 import { useProviders, load as loadProviders } from './settings/providerStore.js'
+import { logger } from './logger.js'
 
 /**
  * 剧本盒子 —— 引擎回调注入 hook（对应官方 H_.jsx 的注入机制 A/B）。
@@ -31,7 +32,7 @@ export function useScriptBoxEngine(nodeId, data) {
   const { providers } = useProviders()
   // 首次挂载确保供应商已加载（生成/生图前必须有 provider，否则解析不到模型）
   useEffect(() => {
-    if (!providers || providers.length === 0) loadProviders().catch(() => {})
+    if (!providers || providers.length === 0) loadProviders().catch((e) => logger.warn('provider', 'load-fail', { error: e?.message }))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
