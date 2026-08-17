@@ -114,4 +114,24 @@ describe('useNodeGeneration', () => {
     expect(result.current.error).toBe('')
     expect(showToast).not.toHaveBeenCalled()
   })
+
+  it('stop() 真中断：把 abort 传播给传给 run 的 signal', async () => {
+    let capturedSignal = null
+    let resolveRun
+    const run = vi.fn(({ signal }) => {
+      capturedSignal = signal
+      return new Promise((res) => { resolveRun = res })
+    })
+    const { result } = renderHook(() => useNodeGeneration({
+      nodeId: 'n1', type: { type: 'image', prompt: 'x' }, run,
+    }))
+    await act(async () => { result.current.start() })
+    expect(capturedSignal).toBeDefined()
+    expect(capturedSignal.aborted).toBe(false)
+    // stop() 应真中断：abort 传给 run 的 signal（run 执行器据此取消底层 fetch/轮询）
+    await act(async () => { result.current.stop() })
+    expect(capturedSignal.aborted).toBe(true)
+    // 结算未完成的 run，避免 pending promise
+    await act(async () => { resolveRun?.({ ok: false, aborted: true }) })
+  })
 })

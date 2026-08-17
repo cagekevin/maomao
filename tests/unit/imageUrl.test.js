@@ -1,5 +1,26 @@
-import { describe, it, expect } from 'vitest'
-import { toAbsoluteFileUrl, normalizeImageUrl } from '../../src/components/base/imageUrl.js'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { toAbsoluteFileUrl, normalizeImageUrl, normalizeImageUrlForSend, normalizeImageUrlsForSend } from '../../src/components/base/imageUrl.js'
+
+// blobToDataUrl / urlToDataUrl 依赖 httpClient 与 FileReader（node 无原生实现），在此 mock。
+vi.mock('../../src/components/base/httpClient.js', () => ({
+  httpRequest: vi.fn(),
+}))
+// mock logger，避免转换失败时告警刷屏污染测试输出
+vi.mock('../../src/components/base/logger.js', () => ({
+  logger: { warn: vi.fn(), info: vi.fn(), error: vi.fn() },
+}))
+
+import { httpRequest } from '../../src/components/base/httpClient.js'
+
+// node 环境无 FileReader：stub 一个，readAsDataURL 直接产出预设 dataURL（配合 httpRequest mock 返回 {_dataUrl}）。
+function stubFileReader() {
+  globalThis.FileReader = class {
+    readAsDataURL(blob) {
+      this.result = (blob && blob._dataUrl) || 'data:image/png;base64,stubdata'
+      this.onload?.()
+    }
+  }
+}
 
 // API_BASE 在 apiBase.js 硬编码为 http://127.0.0.1:18080
 describe('imageUrl §2.17', () => {
@@ -22,5 +43,65 @@ describe('imageUrl §2.17', () => {
   it('normalizeImageUrl 等价于 toAbsoluteFileUrl', () => {
     expect(normalizeImageUrl('/files/b.png')).toBe('http://127.0.0.1:18080/files/b.png')
     expect(normalizeImageUrl('http://y/z.jpg')).toBe('http://y/z.jpg')
+  })
+})
+
+// ── normalizeImageUrlForSend：发送端 URL 归一化（发图给 AI / 网关的关键转换）──
+// 覆盖分支：非字符串 / /files/ 补全 / http·data·裸base64 原样 / blob→data /
+// preferBase64 时 data 原样 + http·files·blob 全转 base64 / 数组过滤空值 / 转换失败降级空串。
+describe('imageUrl · normalizeImageUrlForSend（发送端归一化）', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    stubFileReader()
+  })
+
+  it('非字符串 → 空串（丢弃）', async () => {
+    await expect(normalizeImageUrlForSend(null)).resolves.toBe('')
+    await expect(normalizeImageUrlForSend(undefined)).resolves.toBe('')
+    await expect(normalizeImageUrlForSend(123)).resolves.toBe('')
+  })
+
+  it('/files/ 相对 → 补全为绝对 http（网关可访问）', async () => {
+    await expect(normalizeImageUrlForSend('/files/a.png')).resolves.toBe('http://127.0.0.1:18080/files/a.png')
+  })
+
+  it('http / data / 裸 base64 → 原样（网关 resolve_attachments 可处理，不 fetch）', async () => {
+    await expect(normalizeImageUrlForSend('http://x/a.png')).resolves.toBe('http://x/a.png')
+    await expect(normalizeImageUrlForSend('data:image/png;base64,xxx')).resolves.toBe('data:image/png;base64,xxx')
+    await expect(normalizeImageUrlForSend('iVBORw0KGgo=')).resolves.toBe('iVBORw0KGgo=')
+    // 这些分支不应触发网络请求
+    expect(httpRequest).not.toHaveBeenCalled()
+  })
+
+  it('blob: → 拉取并转 data: base64', async () => {
+    httpRequest.mockResolvedValueOnce({ blob: async () => ({ _dataUrl: 'data:image/png;base64,blobdata' }) })
+    const out = await normalizeImageUrlForSend('blob:http://127.0.0.1:5180/uuid')
+    expect(out).toBe('data:image/png;base64,blobdata')
+    expect(httpRequest).toHaveBeenCalledTimes(1)
+  })
+
+  it('blob 转换失败 → 降级空串（调用方丢弃该图，不阻断）', async () => {
+    httpRequest.mockRejectedValueOnce(new Error('fetch fail'))
+    await expect(normalizeImageUrlForSend('blob:http://x/abc')).resolves.toBe('')
+  })
+
+  it('preferBase64=true：data: 已是 base64 → 原样返回，不 fetch', async () => {
+    const out = await normalizeImageUrlForSend('data:image/png;base64,xxx', { preferBase64: true })
+    expect(out).toBe('data:image/png;base64,xxx')
+    expect(httpRequest).not.toHaveBeenCalled()
+  })
+
+  it('preferBase64=true：/files/ 相对 → 补全后转 base64', async () => {
+    httpRequest.mockResolvedValueOnce({ blob: async () => ({ _dataUrl: 'data:image/jpeg;base64,filesdata' }) })
+    const out = await normalizeImageUrlForSend('/files/c.png', { preferBase64: true })
+    expect(out).toBe('data:image/jpeg;base64,filesdata')
+    // 应先用补全后的绝对地址请求
+    expect(httpRequest).toHaveBeenCalledWith('http://127.0.0.1:18080/files/c.png', expect.anything())
+  })
+
+  it('normalizeImageUrlsForSend：数组逐个归一 + 过滤空值', async () => {
+    httpRequest.mockResolvedValueOnce({ blob: async () => ({ _dataUrl: 'data:image/png;base64,b1' }) })
+    const out = await normalizeImageUrlsForSend(['http://x/a.png', 'blob:http://x/b', '', null, undefined])
+    expect(out).toEqual(['http://x/a.png', 'data:image/png;base64,b1'])
   })
 })

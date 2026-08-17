@@ -762,3 +762,23 @@ describe('useAgentChat · parseGenerationsFromReply（回复正文解析）', ()
     expect(parseGenerationsFromReply(undefined).generations).toEqual([])
   })
 })
+
+// ── AI 助手全链路：发图 → localTool 透传上游 400 → 前端显示真实错误 ──
+// 对应今日排查链路：上传图 → buildRequestMessages 转 image_url → 经 localTool 转发 →
+// 上游非视觉模型拒图返回 400（SSE）→ localTool 剥壳透传 error JSON → 前端 parseAgentError
+// 读到 error.message 并显示（而非只显示状态码 400）。此测试验证全链路的最后一环：前端拿到错误。
+describe('useAgentChat · 全链路 400 错误透传（发图被拒）', () => {
+  it('LLM 返回 400 + error.message → 前端 error 显示真实原因（不只状态码）', async () => {
+    // 模拟 localTool /api/proxy 透传的上游 400 错误（剥壳后的 JSON，含 error.message）
+    fetchMock.mockResolvedValue(new Response(
+      JSON.stringify({ error: { message: 'model does not support image_url' } }),
+      { status: 400, statusText: 'Bad Request', headers: { 'content-type': 'application/json' } }
+    ))
+    const { result } = renderHook(() => useAgentChat())
+    await act(async () => {
+      await result.current.send('看看这张图', [{ type: 'image', url: 'http://x/a.png' }])
+    })
+    // 关键断言：前端展示的是上游真实错误信息，而非仅"400"
+    expect(result.current.error).toContain('model does not support image_url')
+  })
+})
