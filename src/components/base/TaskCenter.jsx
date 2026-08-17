@@ -4,6 +4,7 @@ import { useTasks, statusDotClass, statusLabel, typeLabel, removeTask, retryTask
 import { pollOneTask } from './pollTask.js'
 import { showToast } from './toastStore.js'
 import { makeAssetDragProps } from './useAssetDragToCanvas.js'
+import VideoThumbnail from './VideoThumbnail.jsx'
 import { useOutsideClick } from './hooks.js'
 
 const TYPE_ICON = {
@@ -295,7 +296,11 @@ function TaskCard({ task, moreOpen, onToggleMore, onCloseMore, onCopy, onRetry, 
           onClick={() => { if (typeof onPreview === 'function' && task.type === 'image') onPreview(task.resultUrl) }}
         >
           {task.type === 'video' ? (
-            <video src={task.resultUrl} className="w-full h-full object-cover" muted />
+            <VideoThumbnail
+              src={task.resultUrl}
+              className="w-full h-full"
+              onActivate={() => { if (typeof onPreview === 'function') onPreview(task.resultUrl) }}
+            />
           ) : (
             <img
               src={task.resultUrl}

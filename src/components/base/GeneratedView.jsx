@@ -7,6 +7,7 @@ import { API_BASE } from './apiBase.js'
 import { useAssetDragToCanvas, fetchText } from './useAssetDragToCanvas.js'
 import { toAbsoluteFileUrl } from './filesApi.js'
 import { isAudio } from './mediaType.js'
+import VideoThumbnail from './VideoThumbnail.jsx'
 
 // 类型过滤 pill（沿用素材库 AssetLibrary 的小圆按钮形式）
 const TYPE_FILTERS = [
@@ -376,14 +377,11 @@ export default function GeneratedView() {
                     ) : a.type === 'text' ? (
                       <TextResourceCell url={a.url} name={a.name} />
                     ) : a.type === 'video' || (a.type && a.type.startsWith('video')) ? (
-                      <div className="w-full h-full flex items-center justify-center relative">
-                        {a.url ? <video src={a.url} className="w-full h-full object-cover" muted /> : <Play size={20} className="text-faint" />}
-                        <span className="absolute inset-0 flex items-center justify-center">
-                          <span className="w-7 h-7 rounded-full bg-black/45 flex items-center justify-center">
-                            <Play size={12} className="text-white ml-0.5" />
-                          </span>
-                        </span>
-                      </div>
+                      a.url ? (
+                        <VideoThumbnail src={a.url} size="sm" className="w-full h-full" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-faint"><Play size={20} /></div>
+                      )
                     ) : (
                       <div className="w-full h-full bg-cover bg-center" style={{ backgroundImage: a.url ? `url(${a.url})` : undefined }}>
                         {!a.url && <div className="w-full h-full flex items-center justify-center text-subtle"><FileText size={18} /></div>}

@@ -28,6 +28,8 @@ npm test              # 统一测试门禁（= test:all：smoke + vitest全量�
 npm run test:unit     # vitest 全量单元测试（tests/unit/ 下 24 文件/244 用例，今天补的主力验证）
 npm run test:smoke    # AI 默认自检：冒烟质量门（极快）
 npm run check:health  # 工程健康全量检查
+npm run type-check    # tsc --noEmit 类型检查（仅校验 .ts/.tsx，渐进式 strict）
+npm run lint          # eslint 全量规范检查
 ```
 
 ### ⚠️ 查任务/查图/查视频铁律（改这些 bug 前必跑，不要自己造查询）
@@ -140,7 +142,8 @@ node scripts/task-inspect.mjs --canvas-health   # 画布结构体检
 ```
 
 > 命令速查（详见 `docs/TESTING.md`，权威）：**`npm test`（= `npm run test:all`）= 冒烟 + vitest 全量单测 + 回归 + Agent 工具** 四件套一次跑完，提交前首选；单项：`npm run test:smoke`（冒烟）/`test:unit`（vitest 单测）/`test:regression`（SSR 回归）/`test:tools`（Agent 工具）；`npm run check:health` 全量编排（含构建 + 测试 + TDZ + dist 基线）。
-> 当前无 husky/pre-commit 强制钩子，验证靠自觉。
+> 提交前 `pre-commit` 钩子自动跑 `lint-staged`(仅暂存文件 eslint --fix) + `type-check`；`main` 分支的 push/PR 由 `.github/workflows/ci.yml` 云端跑 type-check + lint + 单测。
+> **写完代码跑哪个**：平时 `npm run type-check` + `lint` + `test:unit`；改画布/地基或合 main 前再跑 `npm test` 全量兜底（regression/tools 已含在内）。
 
 ### 3.2 localTool 改动必测
 

@@ -1,0 +1,90 @@
+// @vitest-environment node
+/**
+ * filesApi 单测（批 2，API 封装层）。
+ * 覆盖：saveInlineToLocal / saveResultToTasks / saveTextToTasks / uploadFileToLocal
+ * 的成功路径与各类边界（非 data:/blob:/空/fetch 失败 → null，不抛）。
+ * 策略：node + mock fetch（/api/files/upload）。依赖全局 Blob/FormData/atob/
+ * crypto.subtle（node 18+ 自带；缺失时 stub）。
+ */
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+
+// 保证 webcrypto 可用（sha1Hex 用 crypto.subtle.digest）
+if (!globalThis.crypto?.subtle) {
+  globalThis.crypto = {
+    subtle: {
+      digest: async () => new Uint8Array(20).fill(0xab).buffer,
+    },
+  }
+}
+
+const fetchMock = globalThis.fetch
+
+const api = await import('../../src/components/base/filesApi.js')
+
+function uploadResp(url) {
+  return { ok: true, status: 200, json: async () => ({ url }) }
+}
+function failResp() {
+  return { ok: false, status: 500, json: async () => ({}) }
+}
+
+beforeEach(() => fetchMock.mockReset())
+afterEach(() => vi.unstubAllGlobals())
+
+const DATA_PNG = 'data:image/png;base64,iVBORw0KGgo='
+
+describe('filesApi — saveInlineToLocal', () => {
+  it('合法 data: URL → 落盘返回 18080 绝对地址', async () => {
+    fetchMock.mockResolvedValue(uploadResp('http://127.0.0.1:18080/files/canvas/abc.png'))
+    const url = await api.saveInlineToLocal(DATA_PNG)
+    expect(url).toBe('http://127.0.0.1:18080/files/canvas/abc.png')
+  })
+  it('非 data: URL → 返回 null（不抛）', async () => {
+    expect(await api.saveInlineToLocal('http://x/y.png')).toBeNull()
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+  it('上传失败 → 返回 null', async () => {
+    fetchMock.mockResolvedValue(failResp())
+    expect(await api.saveInlineToLocal(DATA_PNG)).toBeNull()
+  })
+})
+
+describe('filesApi — saveResultToTasks', () => {
+  it('data: 结果 → 落盘 tasks 目录返回 url', async () => {
+    fetchMock.mockResolvedValue(uploadResp('http://127.0.0.1:18080/files/tasks/gen.png'))
+    expect(await api.saveResultToTasks(DATA_PNG, 'image')).toBe('http://127.0.0.1:18080/files/tasks/gen.png')
+  })
+  it('blob: 临时地址 → 直接返回 null（上传无意义）', async () => {
+    expect(await api.saveResultToTasks('blob:http://x/y', 'image')).toBeNull()
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+  it('http 上游 url → fileUrl 幂等下载落盘', async () => {
+    fetchMock.mockResolvedValue(uploadResp('http://127.0.0.1:18080/files/tasks/up.png'))
+    expect(await api.saveResultToTasks('http://cdn/x.png', 'image')).toBe('http://127.0.0.1:18080/files/tasks/up.png')
+  })
+  it('空 url → null', async () => {
+    expect(await api.saveResultToTasks('', 'image')).toBeNull()
+  })
+})
+
+describe('filesApi — saveTextToTasks', () => {
+  it('合法文本 → 落盘 txt 返回 url', async () => {
+    fetchMock.mockResolvedValue(uploadResp('http://127.0.0.1:18080/files/tasks/gen.txt'))
+    expect(await api.saveTextToTasks('hello world')).toBe('http://127.0.0.1:18080/files/tasks/gen.txt')
+  })
+  it('空/非字符串 → null', async () => {
+    expect(await api.saveTextToTasks('   ')).toBeNull()
+    expect(await api.saveTextToTasks(123)).toBeNull()
+  })
+})
+
+describe('filesApi — uploadFileToLocal', () => {
+  it('原始 File/Blob → 落盘返回 url', async () => {
+    fetchMock.mockResolvedValue(uploadResp('http://127.0.0.1:18080/files/canvas/drop/a.png'))
+    const file = new Blob(['x'], { type: 'image/png' })
+    expect(await api.uploadFileToLocal(file)).toBe('http://127.0.0.1:18080/files/canvas/drop/a.png')
+  })
+  it('无 file → null', async () => {
+    expect(await api.uploadFileToLocal(null)).toBeNull()
+  })
+})

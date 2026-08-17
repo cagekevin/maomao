@@ -1,4 +1,5 @@
 import { defineConfig } from 'vitest/config'
+import path from 'path'
 
 export default defineConfig({
   test: {
@@ -9,7 +10,7 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      // 让纯逻辑测试可解析相对 import 的源文件
+      '@': path.resolve(__dirname, './src'),
     },
   },
 })

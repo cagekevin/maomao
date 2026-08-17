@@ -58,7 +58,7 @@ describe('logger §日志格式', () => {
   })
 
   it('level=info 调 console.log，输出含 category/action', () => {
-    log('生成', 'start', { nodeId: 'n1' })
+    log('生成', 'start', { nodeId: 'n1' }, 'info')
     expect(infoSpy).toHaveBeenCalledTimes(1)
     const out = infoSpy.mock.calls[0][0]
     expect(out).toContain('[info]')

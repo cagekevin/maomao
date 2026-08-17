@@ -100,7 +100,7 @@ describe('nodePrefs —— 节点上次参数记忆', () => {
     const { result } = renderHook(() => useNodePrefs('textNode', { model: 'a', size: '1K' }))
     act(() => { result.current.set({ model: 'b' }) })
     expect(result.current.prefs).toEqual({ model: 'b', size: '1K' })
-    const stored = JSON.parse(prefsMem.get('node_prefs'))
+    const stored = JSON.parse(prefsMem.get('yimao_node_prefs'))
     expect(stored.textNode).toEqual({ model: 'b', size: '1K' })
   })
 
@@ -109,7 +109,7 @@ describe('nodePrefs —— 节点上次参数记忆', () => {
     act(() => { result.current.set({ ratio: '16:9' }) })
     act(() => { result.current.set({ size: '2K' }) })
     expect(result.current.prefs).toEqual({ model: 'a', ratio: '16:9', size: '2K' })
-    const stored = JSON.parse(prefsMem.get('node_prefs'))
+    const stored = JSON.parse(prefsMem.get('yimao_node_prefs'))
     expect(stored.textNode.size).toBe('2K')
   })
 
@@ -120,18 +120,18 @@ describe('nodePrefs —— 节点上次参数记忆', () => {
     // 修改 textNode 不影响 imageNode 的内存状态
     expect(b.result.current.prefs.model).toBe('img')
     // 持久化时仅写入各自 type 的 key（set 才落盘，默认值不单独落盘）
-    const stored = JSON.parse(prefsMem.get('node_prefs'))
+    const stored = JSON.parse(prefsMem.get('yimao_node_prefs'))
     expect(stored.textNode.model).toBe('a2')
     expect(stored.imageNode).toBeUndefined()
     // 再次 set imageNode 后两个 key 共存且互不覆盖
     act(() => { b.result.current.set({ model: 'img2' }) })
-    const stored2 = JSON.parse(prefsMem.get('node_prefs'))
+    const stored2 = JSON.parse(prefsMem.get('yimao_node_prefs'))
     expect(stored2.textNode.model).toBe('a2')
     expect(stored2.imageNode.model).toBe('img2')
   })
 
   it('loadAll 容错：损坏 JSON 返回 {}（初始化退回纯 defaults）', () => {
-    prefsMem.set('node_prefs', '{ broken json')
+    prefsMem.set('yimao_node_prefs', '{ broken json')
     const { result } = renderHook(() => useNodePrefs('textNode', { model: 'a' }))
     // 损坏 JSON 不应抛错，应退回纯默认值
     expect(result.current.prefs).toEqual({ model: 'a' })

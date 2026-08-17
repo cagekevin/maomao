@@ -1,8 +1,14 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import path from 'path'
 
 export default defineConfig({
   plugins: [react()],
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, './src'),
+    },
+  },
   base: './', // 相对路径：兼容 Chrome 插件（side panel 通过 chrome-extension:// 加载）
   build: {
     outDir: 'dist',

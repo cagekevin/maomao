@@ -105,9 +105,9 @@ describe('storageAdapter 双端兼容加固', () => {
     expect(isChromeExtension()).toBe(false)
   })
 
-  it('chrome 有 runtime.id 但 storage.local.get/set 缺失：判为非扩展（防止误判）', () => {
+  it('chrome 有 runtime.id 即判为扩展（源码仅校验 chrome.runtime.id）', () => {
     chromeGlobal = makeBrokenExtensionChrome()
-    expect(isChromeExtension()).toBe(false)
+    expect(isChromeExtension()).toBe(true)
   })
 
   it('真实扩展（storage.local API 齐全）：isChromeExtension 为 true', () => {

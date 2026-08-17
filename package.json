@@ -17,7 +17,18 @@
     "test:e2e": "playwright test",
     "test:all": "node scripts/run_all_tests.cjs",
     "test": "npm run test:all",
-    "check:health": "node scripts/health-check.cjs"
+    "check:health": "node scripts/health-check.cjs",
+    "type-check": "tsc --noEmit",
+    "lint": "eslint . --ext .ts,.tsx,.js,.jsx",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,jsx}": [
+      "eslint --fix"
+    ]
+  },
+  "overrides": {
+    "typescript": "^5.6.0"
   },
   "dependencies": {
     "@mediapipe/tasks-vision": "^1.0.1",
@@ -40,9 +51,17 @@
     "@testing-library/dom": "^10.4.1",
     "@testing-library/react": "^16.3.2",
     "@types/dagre": "^0.7.54",
+    "@types/node": "^20.19.43",
+    "@types/react": "^18.3.31",
+    "@types/react-dom": "^18.3.7",
+    "@typescript-eslint/eslint-plugin": "^7.18.0",
+    "typescript": "^5.6.0",
+    "@typescript-eslint/parser": "^7.18.0",
     "@vitejs/plugin-react": "^4.3.1",
     "autoprefixer": "^10.4.19",
+    "husky": "^9.1.7",
     "jsdom": "^25.0.1",
+    "lint-staged": "^15.5.2",
     "playwright": "^1.62.1",
     "postcss": "^8.4.38",
     "tailwindcss": "^3.4.4",

@@ -20,6 +20,7 @@ import { useConnectedInputs } from './base/useConnectedInputs.js'
 import { useMediaDegrade } from './base/useMediaDegrade.js'
 import { useVideoPoster } from './base/useVideoPoster.js'
 import LazyImage from './base/LazyImage.jsx'
+import VideoThumbnail from './base/VideoThumbnail.jsx'
 import { useNodeGeneration } from './base/useNodeGeneration.js'
 import { useProviders, load as loadProviders } from './base/settings/providerStore.js'
 import { generateVideo } from './base/videoApi.js'
@@ -88,6 +89,7 @@ export default function DiscountVideoNode({ id, data, selected }) {
   // 注意：必须在 videoUrl state 定义之后调用，否则触发 TDZ「Cannot access before initialization」
   const posterUrl = useVideoPoster(videoUrl)
   const fileRef = useRef(null)
+  const videoRef = useRef(null) // 主视频元素（点击播放按钮用）
   const promptInputRef = useRef(null) // 提示词 textarea ref（供面板右下角手柄拖拽改尺寸）
   const ratioMenuRef = useRef(null) // 比例/分辨率/时长菜单容器（点击外部关闭）
   useOutsideClick(ratioMenuRef, showRatioMenu, () => setShowRatioMenu(false))
@@ -248,24 +250,16 @@ export default function DiscountVideoNode({ id, data, selected }) {
             </div>
           )}
           {videoUrl && !hideVideo && (
-            <>
-              <video
-                src={videoUrl}
-                poster={posterUrl || data.poster || ''}
-                preload="none"
-                className={`max-w-full w-full h-full object-contain block rounded-lg ${loading ? 'opacity-50 blur-sm' : ''}`}
-                controls={false}
-                autoPlay={false}
-                muted={false}
-              />
-              {!loading && (
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                  <div className="w-12 h-12 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center opacity-70 hover:opacity-100 hover:bg-black/70 transition-all nodrag pointer-events-auto" title="播放视频">
-                    <Play className="text-white w-6 h-6" fill="currentColor" />
-                  </div>
-                </div>
-              )}
-            </>
+            <VideoThumbnail
+              videoRef={videoRef}
+              src={videoUrl}
+              poster={posterUrl || data.poster || ''}
+              muted={false}
+              fit="contain"
+              size="lg"
+              className={`w-full h-full rounded-lg ${loading ? 'opacity-50 blur-sm' : ''}`}
+              onActivate={() => videoRef.current?.play()}
+            />
           )}
           {loading && (
             <GeneratingOverlay label="生成中..." backgroundUrl={videoUrl} category="video" />

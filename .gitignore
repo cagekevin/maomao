@@ -60,6 +60,14 @@ readable/
 # 100644 冲突反复刷屏，故整体忽略，本地自行 chmod +x（见 docs 提及的启动方式）。
 launch-all.command
 
+# ── 测试运行产物（AI 跑 vitest 时重定向/扫描生成的日志与清单，非源码，不入库）──
+vitest_*.txt
+out_*.txt
+hastest.txt
+# 其它测试输出重定向日志（形如 xxx_test.log / coverage 报告等）
+*.test.log
+coverage/
+
 # ── 运行时日志（启动脚本落盘，含 [proxy] 转发明细）──
 logs/
 *.log
