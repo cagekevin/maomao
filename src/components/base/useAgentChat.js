@@ -798,6 +798,11 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
       const accept = isNonStream ? 'application/json' : 'text/event-stream'
       // 【链路日志】请求到网关：走 proxy 还是直接 /api/agent，模型、流式模式、消息数、是否带工具
       logger.info('AI助手', '请求', { via: useProxy ? 'proxy' : 'agent', provider: provider?.id || '', model, stream: !isNonStream, msgCount: requestMessages.length, tools: withTools ? (toolSchemas || []).length : 0 })
+      // 【为何不迁到 httpClient.js】本请求是 SSE 流式读取 body 流 + 非流式普通 JSON 双模式，
+      // 且可走两条链路（provider 存在走 /api/proxy 转发、否则直连 /api/agent/...），响应需逐块
+      // 解析 event 并驱动多轮工具循环（roundTrip 由 useAgentChat 的 SSE 循环逐行消费），与
+      // httpClient 的 parseJson/扁平错误语义冲突；已内建 signal 取消（abortRef）+ 下方按 status
+      // 分类抛错 + AbortError 原样上抛三层异步治理，故保留原生 fetch。
       const res = useProxy
         ? await fetch(`${API_BASE}/api/proxy`, {
             method: 'POST',
