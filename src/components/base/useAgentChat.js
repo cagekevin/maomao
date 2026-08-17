@@ -8,6 +8,7 @@ import { normalizeImageUrlForSend } from './imageUrl.js'
 import { InputStateMachine } from './inputStateMachine.js'
 import {
   ensureActiveConversation,
+  setAgentKey,
   importLegacy,
   applyConversation,
   newConversation,
@@ -27,6 +28,7 @@ import {
   getAwaitingConfirm,
   setActivePendingGenerations,
   getActivePendingGenerations,
+  getCurrentImageMap,
 } from './conversationStore.js'
 
 /**
@@ -68,6 +70,66 @@ import {
  *  updateLastStreaming/stripStreaming），杜绝"改 setMessages 忘改 ref"导致的 ref 漂移
  *  ——那是过去"一改就崩"的根源。
  * ════════════════════════════════════════════════════════════════
+ *
+ * ══════════════════════════════════════════════════════════════════════════════
+ * ★★★ 与参考项目大雄（daxiong-canvas-plugins/canvas-agent）的全部路径对齐设计 ★★★
+ * ══════════════════════════════════════════════════════════════════════════════
+ * 本文件是 AI 助手的「唯一发送入口」；大雄有独立多条发送路径，我们用「工具循环 + 三阶段门禁」
+ * 做了架构级简化统一。下表是权威地图：每条路径大雄怎么走、我们怎么走、对齐状态。改动前先看表，
+ * 不要凭记忆改——过去反复推翻就是因为缺这张地图。
+ *
+ * ── 一、发送路径（大雄 sendAgentMessage 8170 入口；我们统一在 send/sendImageMode）──
+ * | 大雄路径 | 大雄入口 | 我们实现 | 对齐状态 |
+ * |---|---|---|---|
+ * | 图像模式直连生图 | agentSendDirectImageMessage(8132) | sendImageMode(本文件) 直连 execute_plan | ✅ 已对齐 |
+ * | 常规：理解→规划→执行 | agentRunUnderstandingStage(6806)→plan→execute | send + 工具循环(≤8轮) + 三阶段门禁 | ✅ 已对齐 |
+ * | 常规：无 Skill 单阶段直出 | agentRunPlanningFromUnderstanding(6996) | 同上（工具循环内 execute_plan） | ✅ 已对齐 |
+ * | 修改意见（不重跑理解） | agentApplyRevisePlanning(6595, messages:[]) | steer 队列(823) + 新 send | ⚠️ 简化对齐 |
+ * | 重新生成某条 prompt | regenerateAgentPrompts(8619) | 未单独实现（靠工具循环重发） | ⚠️ 大雄该功能依附已废弃的 prompts 通道 |
+ * | prompts 逐条确认/编辑/反悔/全确认 | confirm/edit/save-edit/reopen/confirm-all(8500-8577) | 【大雄已废弃】见下 | 🟡 保留为可选能力，当前不激活 |
+ *
+ * > ⚠️ prompts 逐条确认通道是大雄「思维模式」遗留，当前大雄 thinkingModeOn=false（5262/7302/9723）、
+ * > 主要路径清空 prompts（7690/7725/7784），该通道是死代码；大雄当前走 generations 快速执行（我们已对齐）。
+ * > 我们保留 promptFlow.js + PromptConfirmCard.jsx 作为可选增强，但 assistant 消息默认不带 prompts、
+ * > 不走该通道。详见 promptFlow.js 文件头「★ 重要」说明。
+ *
+ * ── 二、执行分级 runMode（对齐大雄 agentGetRunMode/agentSetRunMode）★ 为什么简单任务不 plan ★ ──
+ *   用户反馈「发个信息它就执行 plan」的根因：我们此前所有任务都让 LLM 调 show_plan_for_confirm 并强制
+ *   进入 awaiting 确认态（plan），而大雄是有分级的，不是每个任务都要确认。对齐后（实现见
+ *   useCanvasAgentTools.js presentPlanTool）：show_plan_for_confirm 仍保留（规划文字/步骤卡片照常展示），
+ *   但「是否进入 awaiting 确认门禁」按 runMode + Skill 决定：
+ *   - runMode 存 conversationStore（per-conversation，默认 'auto'），AgentPanel 有切换（全自动/半自动）。
+ *   - 全自动 auto（默认，对齐大雄 6283「一次规划后直接执行」）：无 Skill 时 show_plan_for_confirm
+ *     **不进入 awaiting** → 规划照常展示，但不弹确认按钮，LLM 继续 execute_plan 直接执行。
+ *   - 半自动 semi（对齐大雄 6282「完整规划和提示词生成后，确认再执行」）：无 Skill 时进入 awaiting →
+ *     展示确认门禁，用户确认后才 execute_plan（对齐大雄 7774 semi 门禁）。
+ *   - Skill：无论 runMode 都走三阶段（理解→规划→执行），进入 awaiting（Skill 需要策划确认）。
+ *   对应大雄：auto 模式规划后直接执行（7774 只在 semi 才展示门禁）；Skill 三阶段独立确认。
+ *
+ * ── 三、三阶段流（大雄：理解→规划→执行；我们：工具循环内）──
+ *   阶段1 理解：LLM 输出自然语言直出 + generations JSON（回复正文解析暂存，对齐大雄 6828/995）。
+ *   阶段2 规划确认：show_plan_for_confirm 展示策划，进入 awaiting_confirm 门禁停循环（对齐大雄 923-926）。
+ *   阶段3 执行：用户确认后 execute_plan 读取暂存 generations 批量生图（对齐大雄 738-744）。
+ *
+ * ── 三、fresh-task（所有 LLM 发送路径，最核心）──
+ *   大雄 agentFreshTaskHistoryMessages() 恒返回 []（5 个发送点 6806/6996/8306/8619/6595 全用它）；
+ *   历史消息（含文字+图）不进 LLM 上下文。我们 buildRequestMessages 是唯一组装点，统一 fresh-task：
+ *   只发本轮 user + memory 注入（agentMemoryPromptBlock 对应物：摘要/风格/已确认/备注 + lastPlan +
+ *   global_contract）+ 当前可引用图编号（agentCurrentImageMap）。详见 buildRequestMessages 头注释。
+ *
+ * ── 四、执行层跨轮图（对齐大雄 executeAgentGenerations 8695 / 无Skill 10634）──
+ *   参考图解析优先级（execute_plan 实现，见 useCanvasAgentTools.js）：
+ *   ① direct_refs 优先（仅独立步骤，agentCurrentImageMap 翻译「图N」）；② attachment_indices
+ *   （use_attachments + 取 refPool）；③ 无图不挂（agentForceNoStaleLastOutputs）。
+ *   跨轮 lastResults 彻底关闭（use_last_outputs=false）——绝不自动挂历史生成图。
+ *
+ * ── 五、记录在案的历史反复（为什么之前改了多轮）──
+ *   1. 初版全量历史含图回传（buildRequestMessages 遍历所有 messages 内联 image_url）→「全反推」。
+ *   2. 曾用 isCurrent 标记区分本轮——历史消息残留该标记，判断失效（已弃用）。
+ *   3. execute_plan 参考图优先级曾搞反（attachment_indices 优先于 direct_refs）——已按大雄修正。
+ *   4. 曾考虑自动挂历史生成图——违反 use_last_outputs=false 原则（已避免）。
+ *   本轮已把这三处根治，并在此留档，勿再推翻。
+ * ══════════════════════════════════════════════════════════════════════════════
  */
 
 // 复刻官方 shared.js:2536 `var ur = 8`（多轮工具循环硬上限）
@@ -223,17 +285,55 @@ export function parseSSEChunk(line, acc) {
   }
 }
 
-/** 把消息数组转成请求体 messages（复刻官方 dr:2584-2623，含附件转 image_url）。
- *  画布操作准则在前端统一注入（单一来源，覆盖 proxy/agent 两条路径）：
- *   - enhance 默认开：unshift CANVAS_AGENT_RULES；
- *   - 若调用方显式传 systemPrompt（外部应用/未来 Skill），拼接在准则之后；
- *   - 启用的 Skill 无损注入（content 原文 + SKILL_EXECUTION_RULES，对齐大雄）；
- *   - memory（对话记忆，对齐大雄 conv.memory）注入最近策划 lastPlan，供多轮上下文；
- *   - 消息里已有 system（历史恢复）则跳过注入，避免重复。
- *  @param {Array} skills 启用的 Skill 数组 [{name, content}]
- *  @param {object} memory 对话记忆 { lastPlan? }
+/** ══════════════════════════════════════════════════════════════════════════════
+ *  buildRequestMessages —— AI 助手「发 LLM 的 messages」组装核心（fresh-task）
+ * ══════════════════════════════════════════════════════════════════════════════
+ *
+ * 【一句话】把「本轮 user 消息 + system 注入（准则/Skill/memory/可引用图编号）」组装成发给 LLM 的
+ *   messages；历史轮次消息（含文字与图）一律不进 LLM 上下文——彻底对齐大雄 fresh-task。
+ *
+ * ── 完整逻辑（数据流）──
+ * 1. system 注入（按序）：
+ *    a. CANVAS_AGENT_RULES 画布准则（无条件，enhance=true 时）＋ 外部 systemPrompt；
+ *    b. 启用的 Skill 无损注入（content 原文 + SKILL_EXECUTION_RULES）；
+ *    c. memory 注入（对齐大雄 agentMemoryPromptBlock）：摘要 / 统一风格 / 已确认信息 / 备注
+ *       ＋ lastPlan（最近策划）＋ global_contract（统一风格契约）——跨轮记忆全靠它承载；
+ *    d. 当前可引用图编号目录（对齐大雄 agentCurrentImageMap）：上一轮生成图(图1~M) + 本轮参考图(图M+1~N)，
+ *       让 LLM 能在 generations 里用「图N」+ direct_refs 精确引用历史图/生成图。
+ * 2. 主体消息：只保留「本轮」user 消息（messages 里最后一个 user = 本轮，send 开头刚 setHistory 追加）
+ *    及同轮工具循环产生的 assistant/tool。本轮带图则内联本轮图 image_url + refCatalog（attachment_indices）；
+ *    本轮不带图则不内联任何历史图。
+ *
+ * ── 为什么这样设计（「反推图一却全反推」的根治）──
+ * 历史轮次的图与 refCatalog 若进入 LLM 上下文，会同时触发两个放大器：
+ *   - 真图堆积：各轮真图全部 image_url 内联，模型"看得见"就会处理；
+ *   - 撞号：各轮 refCatalog 都从「1」重编，多个「参考图1」并存，模型无法消歧 → 全反推。
+ * 本函数彻底阻断二者：历史轮次（含图、含 refCatalog、含文字）一律不进上下文，故不撞号、不堆积。
+ *
+ * ── 与参考项目大雄（daxiong-canvas-plugins/canvas-agent）的差距对照 ──
+ * 差距① 发送层（本函数解决）：大雄 agentFreshTaskHistoryMessages() 恒返回 []（历史不回传），
+ *        本轮图在顶层 images 由后端转 OpenAI；我们历史一度全量含图回传。现对齐为 fresh-task。
+ * 差距② 表示层（refToken.js + 执行层解决）：大雄把历史图编码成
+ *        [参考图1:name]{{agent-ref url=... name=... node=... x=.. y=..}} token 存历史文本，
+ *        用 agentCollectKnownRefCatalog + agentParseRefTokensFromText 反查原图；LLM 上下文里
+ *        一张历史图都没有。我们历史上直接堆原图 URL 进上下文。现新增 refToken.js（encodeRefToken /
+ *        parseRefTokensFromText）对齐 token 化，历史图仍不进 LLM 上下文。
+ * 差距③ 执行层（useCanvasAgentTools.execute_plan 解决）：大雄 agentLastUserAttachments（本轮无图回退
+ *        上一轮用户图）+ agentLastResults（最近生成结果图）+ agentCurrentImageMap（统一编号图1~M+N）
+ *        支撑「改上一张图」；execute_plan 用 direct_refs/「图N」反查原图。我们 execute_plan 现也实现
+ *        跨轮回退 + direct_refs 解析，跨轮用图靠执行层反查，不进 LLM 上下文。
+ *
+ * 【结论】大雄靠「fresh-task + memory 注入 + token 化 + 执行层反查」四件套实现跨轮记忆；
+ *   我们已完整对齐这套架构，唯一差异是传输层（大雄顶层 images、我们 image_url 内联，最终都是 OpenAI 格式）。
+ *
+ *  @param {Array}  messages       完整对话历史（send 时含本轮 user；本函数只取「最后一个 user 及其之后」）
+ *  @param {string} systemPrompt   外部 systemPrompt（拼接在画布准则之后）
+ *  @param {boolean} enhance        是否注入画布准则（默认 true）
+ *  @param {Array}  skills         启用的 Skill 数组 [{name, content}]
+ *  @param {object} memory         对话记忆 { summary?, facts?, lastSharedStyle?, notes?, lastPlan?, global_contract? }
+ *  @param {Array}  [imageCatalog] 当前可引用图编号目录 [{num,url,name,source}]（对齐大雄 agentCurrentImageMap）
  *  导出供单测（AI 助手前端逻辑核心：确认发给 LLM 的 messages 组装正确）。 */
-export function buildRequestMessages(messages, systemPrompt, enhance = true, skills = [], memory = null) {
+export function buildRequestMessages(messages, systemPrompt, enhance = true, skills = [], memory = null, imageCatalog = []) {
   const out = []
   // 工具消息配对：assistant 声明 tool_calls 时登记其 id，后续 tool 消息需命中才保留（防孤儿 tool 消息）
   const pendingToolIds = new Set()
@@ -254,6 +354,22 @@ export function buildRequestMessages(messages, systemPrompt, enhance = true, ski
   if (skillTexts.length > 0) {
     out.push({ role: 'system', content: `${skillTexts.join('\n\n')}\n\n${SKILL_EXECUTION_RULES}` })
   }
+  // memory 注入（对齐大雄 agentMemoryPromptBlock）：让 LLM 记住本对话历史与记忆，而不靠原始消息回传。
+  // 【彻底对齐大雄】本函数采用 fresh-task：只把「本轮」user 消息 + memory 注入给 LLM，
+  // 历史轮次的消息（含文字与图）一律不回传（对齐大雄 agentFreshTaskHistoryMessages() => []）。
+  // 跨轮记忆靠下面 memory 注入（摘要/统一风格/已确认信息/备注/最近策划/统一风格契约）承载。
+  const memLines = []
+  if (memory && typeof memory === 'object') {
+    if (memory.summary) memLines.push(`【本对话摘要】${memory.summary}`)
+    if (memory.lastSharedStyle) memLines.push(`【本对话统一风格】${memory.lastSharedStyle}`)
+    if (Array.isArray(memory.facts) && memory.facts.length) {
+      memLines.push(`【本对话已确认信息】\n${memory.facts.slice(-12).map((f) => `- ${f.k}: ${f.v}`).join('\n')}`)
+    }
+    if (Array.isArray(memory.notes) && memory.notes.length) {
+      memLines.push(`【本对话备注】${memory.notes.slice(-8).join('；')}`)
+    }
+  }
+  if (memLines.length > 0) out.push({ role: 'system', content: memLines.join('\n') })
   // memory 注入（对齐大雄 conv.memory.lastPlan）：让 LLM 记住本对话最近策划过什么
   if (memory && memory.lastPlan && (memory.lastPlan.plan_text || memory.lastPlan.generations?.length)) {
     const planLines = (memory.lastPlan.generations || []).map((g) => `- ${g.title || g.id || ''}: ${String(g.prompt || '').slice(0, 80)}`).join('\n')
@@ -270,21 +386,50 @@ export function buildRequestMessages(messages, systemPrompt, enhance = true, ski
       content: `【本对话统一风格契约（逐字锁定，每步必须原样带入 prompt 头部）】\n视觉整体定位：${gc.visual_positioning || ''}\n统一风格提示词：${gc.unified_style_prompt || ''}\n统一负面提示词：${gc.unified_negative_prompt || ''}`,
     })
   }
-  for (const m of messages) {
-    // 历史 system 保留（不再 continue 丢弃）：恢复旧对话时保留旧的用户/上下文 system，
-    // 画布准则已在上方无条件注入，两者语义互补不冲突。
+  // 【对齐大雄 agentCurrentImageMap】把「当前可引用的图」以统一编号注入 system，让 LLM 能在 generations 里用
+  // 「图N」+ direct_refs 精确引用历史图/上一轮生成图（图本体不进 LLM 上下文，执行层按编号反查原图）。
+  // 图1~图M = 上一轮生成结果图；图M+1~图M+N = 本轮用户带的参考图。
+  if (Array.isArray(imageCatalog) && imageCatalog.length > 0) {
+    const lines = ['【当前可引用的图（供图生图时精确引用，用「图N」编号）】']
+    imageCatalog.forEach((img) => {
+      lines.push(`图${img.num}：${img.name || `图${img.num}`}${img.source === 'gen' ? '（上一轮生成）' : '（本轮参考图）'}`)
+    })
+    lines.push('在 generations 某步里，若需引用这些图，把其 url 填进该步的 direct_refs 数组，并在 prompt 里写「图N」；执行层会自动把它当作该步参考图。')
+    out.push({ role: 'system', content: lines.join('\n') })
+  }
+  // ── fresh-task（彻底对齐大雄 agentFreshTaskHistoryMessages() => []）──
+  // 历史轮次的消息（含文字与图）一律不进 LLM 上下文，只发「本轮」user 消息（messages 里
+  // 最后一个 user = 本轮，send 开头刚 setHistory 追加）及同轮工具循环产生的 assistant/tool。
+  // 跨轮记忆靠上方 memory 注入（摘要/统一风格/已确认信息/备注/最近策划/统一风格契约）承载；
+  // 跨轮「改上一张图」靠执行层回退（execute_plan 的 getLastUserReferenceImages，对齐大雄
+  // agentLastUserAttachments）——图本体不进 LLM 上下文，执行层反查原图。
+  // 这彻底消除「跨轮真图堆积 + refCatalog 每轮从 1 重编撞号」导致的「反推图一却全反推」。
+  let lastUserIdx = -1
+  for (let i = 0; i < messages.length; i++) {
+    if (messages[i].role === 'user') lastUserIdx = i
+  }
+  const lastUser = lastUserIdx >= 0 ? messages[lastUserIdx] : null
+  const currentHasImages = !!lastUser && lastUser.attachments && lastUser.attachments.length > 0
+  for (let i = lastUserIdx < 0 ? 0 : lastUserIdx; i < messages.length; i++) {
+    const m = messages[i]
     if (m.role === 'user' && m.attachments && m.attachments.length > 0) {
-      const content = m.attachments.map((a) => ({ type: 'image_url', image_url: { url: a.url } }))
-      // 参考图编号目录（对齐大雄）：附加给 AI，让它能用 attachment_indices 精确引用第几张参考图。
-      // 对齐参考项目（daxiong-canvas-plugins canvas-agent）：参考图附件带画布坐标 x/y，
-      // 这里把坐标以文本形式附给 LLM，让它感知每张参考图来自画布哪个位置。
-      const coordLines = m.attachments
-        .map((a, i) => (a.x != null || a.y != null ? `参考图${i + 1}：画布坐标 x=${Number(a.x) || 0}, y=${Number(a.y) || 0}` : ''))
-        .filter(Boolean)
-      if (m.refCatalog) content.push({ type: 'text', text: `${m.refCatalog}\n${coordLines.join('\n')}\n${m.content || ''}` })
-      else if (coordLines.length > 0) content.push({ type: 'text', text: `${coordLines.join('\n')}\n${m.content || ''}` })
-      else if (m.content) content.push({ type: 'text', text: m.content })
-      out.push({ role: 'user', content })
+      if (currentHasImages && i === lastUserIdx) {
+        // 本轮：内联本轮图 + refCatalog/坐标（供 attachment_indices 精确引用）
+        const content = m.attachments.map((a) => ({ type: 'image_url', image_url: { url: a.url } }))
+        // 参考图编号目录（对齐大雄）：附加给 AI，让它能用 attachment_indices 精确引用第几张参考图。
+        // 对齐参考项目（daxiong-canvas-plugins canvas-agent）：参考图附件带画布坐标 x/y，
+        // 这里把坐标以文本形式附给 LLM，让它感知每张参考图来自画布哪个位置。
+        const coordLines = m.attachments
+          .map((a, i) => (a.x != null || a.y != null ? `参考图${i + 1}：画布坐标 x=${Number(a.x) || 0}, y=${Number(a.y) || 0}` : ''))
+          .filter(Boolean)
+        if (m.refCatalog) content.push({ type: 'text', text: `${m.refCatalog}\n${coordLines.join('\n')}\n${m.content || ''}` })
+        else if (coordLines.length > 0) content.push({ type: 'text', text: `${coordLines.join('\n')}\n${m.content || ''}` })
+        else if (m.content) content.push({ type: 'text', text: m.content })
+        out.push({ role: 'user', content })
+      } else {
+        // 历史 user 消息：图不进上下文，仅保留纯文字（不含 refCatalog/坐标，避免撞号干扰）
+        out.push({ role: 'user', content: m.content || '' })
+      }
       continue
     }
     // 【工具消息配对】OpenAI 协议要求 role:'tool' 消息必须紧跟一条带 tool_calls 的
@@ -526,6 +671,17 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
 
   // 更新最后一条 streaming assistant 的增量（不新增，原地改最后一条）
   const updateLastStreaming = useCallback((delta) => {
+    // 【与 endStreaming 同源修复】同步更新 messagesRef.current，避免异步回调导致落盘读到空占位。
+    messagesRef.current = messagesRef.current.map((m, i) => {
+      if (i !== messagesRef.current.length - 1 || m.role !== 'assistant' || !m.streaming) return m
+      const realCalls = delta.toolCalls.filter((t) => t.function?.name)
+      return {
+        ...m,
+        content: delta.content,
+        reasoning: delta.reasoning || undefined,
+        ...(realCalls.length > 0 ? { tool_calls: realCalls } : {})
+      }
+    })
     setMessages((prev) => {
       const next = [...prev]
       const last = next[next.length - 1]
@@ -545,10 +701,15 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
 
   // 结束流式：把最后一条 streaming 占位替换为完整 assistant
   const endStreaming = useCallback((assistant) => {
+    // 【修复】必须在回调外同步更新 messagesRef.current：send 的 finally 落盘时同步读取 ref，
+    //   若更新放在 setMessages 回调内（异步），落盘会拿到空的 streaming 占位 → AI 回复丢失。
+    //   与 appendMsg/setHistory 一致：ref 始终同步、立即可用。
+    messagesRef.current = messagesRef.current.map((m, i) =>
+      i === messagesRef.current.length - 1 ? { ...assistant, streaming: false } : m
+    )
     setMessages((prev) => {
       const next = [...prev]
       next[next.length - 1] = { ...assistant, streaming: false }
-      messagesRef.current = next
       return next
     })
   }, [])
@@ -564,6 +725,13 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
 
   // 初始加载会话（对齐大雄：从 conversations 恢复当前对话；旧单会话数据迁移一次）。
   useEffect(() => {
+    // 0) 【修复刷新丢记录】先把 conversationStore 的 currentAgentKey 同步到本 hook 的 agentKey。
+    //    根因：store 的 currentAgentKey 由 App 的 syncAgentKey effect 异步设置，而本 effect 同步执行；
+    //    若 agentKey 在挂载期变化（如 activeProjectId 首帧 undefined → 真实 id），二者可能错位，
+    //    导致 ensureActiveConversation/applyConversation 在错误的 key 上读/建空对话，真实数据
+    //    （存在正确 key 的 localStorage）未被加载 → 表现为「刷新后聊天记录丢失」。
+    //    这里在恢复前强制对齐 key，彻底消除该竞态（setAgentKey 内部已做 key 相同则跳过）。
+    setAgentKey(agentKey)
     // 1) 确保至少一个对话
     const activeId = ensureActiveConversation()
     // 2) 旧单会话数据迁移：conversations 为空且存在旧历史时，迁成一个对话
@@ -761,12 +929,24 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
       }
       // 【TASK-009 执行摘要】execute_plan 返回 logs → 渲染一条带逐步进度的「执行摘要」消息（对齐大雄折叠面板）
       // 修复 #1 后 result 是真对象，此判断才真正生效
-      if (tc.function?.name === 'execute_plan' && result?.ok && Array.isArray(result.data?.logs) && result.data.logs.length > 0) {
-        const lines = result.data.logs.map((l) => {
-          const mark = l.level === 'error' ? '❌' : l.level === 'warn' ? '⚠️' : l.level === 'ok' ? '✅' : '·'
-          return `${mark} ${l.message}`
-        })
-        appendMsg({ role: 'assistant', content: `执行摘要：\n${lines.join('\n')}`, model, createdAt: Date.now(), execution_summary: true })
+      if (tc.function?.name === 'execute_plan' && result?.ok) {
+        const logsArr = Array.isArray(result.data?.logs) ? result.data.logs : []
+        // 【对齐大雄 agentLastResults】把本轮生成结果图 url 存到 assistant 消息的 lastResults，
+        //   供后续轮「改上一张生成图」时执行层跨轮取最近生成图（图不进 LLM 上下文，执行层反查原图）。
+        const entriesArr = Array.isArray(result.data?.entries) ? result.data.entries : []
+        const lastResults = entriesArr
+          .filter((e) => e && e.status === 'completed' && e.resultUrl)
+          .map((e) => ({ url: e.resultUrl, name: e.stepId || e.id || `图${(e.stepId || e.id || '').toString().slice(0, 12)}`, nodeId: e.nodeId || '' }))
+        if (logsArr.length > 0) {
+          const lines = logsArr.map((l) => {
+            const mark = l.level === 'error' ? '❌' : l.level === 'warn' ? '⚠️' : l.level === 'ok' ? '✅' : '·'
+            return `${mark} ${l.message}`
+          })
+          appendMsg({ role: 'assistant', content: `执行摘要：\n${lines.join('\n')}`, model, createdAt: Date.now(), execution_summary: true, lastResults })
+        } else if (lastResults.length > 0) {
+          // 无日志但有结果图：也记录 lastResults，避免跨轮引用丢数据源
+          appendMsg({ role: 'assistant', content: `已完成 ${lastResults.length} 张图。`, model, createdAt: Date.now(), execution_summary: true, lastResults })
+        }
       }
     }
   }, [callTool, appendMsg, model])
@@ -880,6 +1060,12 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
         // ── 真实模式：多轮工具循环（≤ MAX_TOOL_ROUNDS）──
         let round = 0
         let assistant // 提升到循环外：供循环结束后判断是否「走满上限仍不收敛」（否则访问 for 块级变量会 ReferenceError）
+        // 【对齐大雄 runMode 分级】执行分级决定「是否弹执行确认门禁」：
+        //   - 全自动 auto（默认，对齐大雄 agentSetRunMode 6283）：完整规划后直接执行——show_plan_for_confirm
+        //     仍会输出规划/generations 供展示，但**不进入 awaiting 确认态**，LLM 继续 execute_plan 直接执行（不弹确认按钮）。
+        //   - 半自动 semi（对齐大雄 6282）：show_plan_for_confirm 进入 awaiting 确认态，展示确认门禁，用户确认后才 execute_plan。
+        //   - Skill：无论 runMode 都走三阶段确认（Skill 需要用户确认策划）。
+        // 具体「是否进入 awaiting」由 useCanvasAgentTools 的 show_plan_for_confirm 按 runMode 决定（见 presentPlanTool）。
         // 【三阶段门禁】是否因 show_plan_for_confirm（待用户确认策划）而提前暂停循环。
         // 对齐大雄 awaiting_confirm：展示策划后 stop 工具循环，等用户确认，不再让 AI 继续自言自语/重复推演。
         for (; round < MAX_TOOL_ROUNDS; round++) {
@@ -887,7 +1073,7 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
           appendMsg({ role: 'assistant', content: '', model, streaming: true, createdAt: Date.now() })
 
           assistant = await roundTrip(
-            buildRequestMessages(messagesRef.current, systemRef.current, true, skillsRef.current, getCurrentMemory()),
+            buildRequestMessages(messagesRef.current, systemRef.current, true, skillsRef.current, getCurrentMemory(), getCurrentImageMap()),
             controller.signal,
             (delta) => updateLastStreaming(delta)
           )
@@ -1111,5 +1297,30 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
     applyConversationState(activeId, snapshot)
   }, [applyConversationState])
 
-  return { messages, sending, error, model, setModel, send, sendImageMode, stop, clear, stateAction, conversations, activeConversationId, newChat, switchChat, deleteChat, refreshConversations }
+  // 【对齐大雄 prompts 逐条确认通道】更新某条 assistant 消息的字段（如 prompts 确认状态），
+  //   同步 state + ref + 落盘。供 AgentPanel 的 PromptConfirmCard 在确认/修改/反悔后写回。
+  //   @param {string} assistantContent 定位该 assistant 消息（用内容做弱标识，防消息结构漂移）
+  //   @param {object} patch            要更新的字段（如 { prompts: [...], requestedCount }）
+  const updateMessageByContent = useCallback((assistantContent, patch) => {
+    if (!assistantContent) return
+    const next = messagesRef.current.map((m) =>
+      (m.role === 'assistant' && m.content === assistantContent) ? { ...m, ...patch } : m
+    )
+    setHistory(next)
+    setCurrentSnapshot({ messages: next, skills: skillsRef.current, draft: '' })
+    try { captureActiveConversation() } catch { /* ignore */ }
+  }, [setHistory])
+
+  // 【对齐大雄 runAgentGenerations（prompts 通道）】prompts 逐条确认全部确认后，把生成的
+  //   generations 直接交给 execute_plan 触发生图（不走 LLM，对齐大雄 confirmed prompts → runAgentGenerations）。
+  //   @param {Array} generations 从 prompts 转换的生图计划
+  //   @returns {Promise<{ok:boolean, error?:string}>}
+  const executePlanDirect = useCallback(async (generations) => {
+    if (!Array.isArray(generations) || generations.length === 0) return { ok: false, error: 'generations 为空' }
+    const res = await callTool('execute_plan', { generations, auto_run: true })
+    const ok = res && (res.ok === true || (res.ok === undefined && !res.error))
+    return { ok, error: res?.error || '' }
+  }, [callTool])
+
+  return { messages, sending, error, model, setModel, send, sendImageMode, stop, clear, stateAction, conversations, activeConversationId, newChat, switchChat, deleteChat, refreshConversations, updateMessageByContent, executePlanDirect }
 }

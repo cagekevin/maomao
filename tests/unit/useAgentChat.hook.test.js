@@ -41,6 +41,7 @@ vi.mock('../../src/components/base/conversationStore.js', () => {
   const conversations = [{ id: 'c1', title: '对话1' }, { id: 'c2', title: '对话2' }]
   return {
     ensureActiveConversation: vi.fn(() => activeId),
+    setAgentKey: vi.fn(),
     applyConversation: vi.fn((id) => ({ id, messages: [], skills: [], draft: '', attachments: [] })),
     getActiveConversationId: vi.fn(() => activeId),
     getConversations: vi.fn(() => conversations),
@@ -56,6 +57,8 @@ vi.mock('../../src/components/base/conversationStore.js', () => {
     setActivePendingGenerations: vi.fn(),
     getCurrentMemory: vi.fn(() => ({ summary: '', facts: [], lastPlan: null, lastSharedStyle: '', notes: [] })),
     setCurrentMemory: vi.fn(),
+    getCurrentImageMap: vi.fn(() => []),
+    getCurrentRunMode: vi.fn(() => 'auto'),
     newConversation: vi.fn(() => {
       const id = `c_new_${Date.now()}`
       activeId = id
@@ -445,6 +448,49 @@ describe('useAgentChat · refCatalog（参考图编号目录，对齐大雄 atta
     const u = out.find((m) => m.role === 'user')
     expect(u.content[1]).toMatchObject({ type: 'text', text: '看看图' })
   })
+
+  it('【fresh-task 彻底对齐大雄】历史 user 消息（含图/文字）全部不进 LLM 上下文，只发本轮 user', () => {
+    // 第1/2/3轮历史 user 消息都带图 + refCatalog + 文字，第4轮本轮也带图（本轮 = messages 最后一个 user）
+    const history = [
+      { role: 'user', content: '轮1', attachments: [{ type: 'image', url: 'http://x/a.png' }], refCatalog: '参考图1：A' },
+      { role: 'assistant', content: 'ok1' },
+      { role: 'user', content: '轮2', attachments: [{ type: 'image', url: 'http://x/b.png' }], refCatalog: '参考图1：B' },
+      { role: 'assistant', content: 'ok2' },
+      { role: 'user', content: '轮3', attachments: [{ type: 'image', url: 'http://x/c.png' }], refCatalog: '参考图1：C' },
+      { role: 'assistant', content: 'ok3' },
+      { role: 'user', content: '反推图一', attachments: [{ type: 'image', url: 'http://x/d.png' }], refCatalog: '参考图1：D' },
+    ]
+    const out = buildRequestMessages(history, '', true)
+    // 历史轮次被丢弃：只保留本轮 user（含本轮图内联）
+    const users = out.filter((m) => m.role === 'user')
+    expect(users).toHaveLength(1)
+    expect(Array.isArray(users[0].content)).toBe(true)
+    expect(users[0].content[0]).toMatchObject({ type: 'image_url', image_url: { url: 'http://x/d.png' } })
+    // 整条请求里只有本轮这张图（http://x/d.png），历史 a/b/c 三张真图一律不出现
+    const allImageUrls = out.flatMap((m) => (Array.isArray(m.content) ? m.content : []))
+      .filter((c) => c.type === 'image_url')
+      .map((c) => c.image_url.url)
+    expect(allImageUrls).toEqual(['http://x/d.png'])
+    // 历史 user 文字也不回传（对齐大雄 messages:[]）
+    expect(out.some((m) => m.role === 'user' && m.content === '轮1')).toBe(false)
+  })
+
+  it('【fresh-task】本轮不带图：只发本轮纯文字，历史 user（含图）一律不进上下文', () => {
+    const history = [
+      { role: 'user', content: '轮1', attachments: [{ type: 'image', url: 'http://x/a.png' }], refCatalog: '参考图1：A' },
+      { role: 'assistant', content: 'ok1' },
+      { role: 'user', content: '本轮纯文字不带图' },
+    ]
+    const out = buildRequestMessages(history, '', true)
+    // 无任何 image_url（历史图不进上下文）
+    const allImageUrls = out.flatMap((m) => (Array.isArray(m.content) ? m.content : []))
+      .filter((c) => c.type === 'image_url')
+    expect(allImageUrls).toHaveLength(0)
+    // 只保留本轮 user 纯文字，历史 user 丢弃
+    const users = out.filter((m) => m.role === 'user')
+    expect(users).toHaveLength(1)
+    expect(users[0].content).toBe('本轮纯文字不带图')
+  })
 })
 
 // ════════════════════════════════════════════════════════════════════
@@ -488,19 +534,18 @@ describe('useAgentChat · buildRequestMessages 深度（请求体组装）', () 
     expect(out[0]).toMatchObject({ role: 'system', content: '外部系统指令' })
   })
 
-  it('历史消息已含 system（恢复旧对话）：补注入画布准则 + 保留历史 system', () => {
-    // 【bug 修复后】buildRequestMessages 不再因 hasSystem 而跳过准则注入，也不丢弃历史 system：
-    //  - 准则（CANVAS_AGENT_RULES）无条件注入（enhance=true 时）；
-    //  - 历史 system 在遍历中保留。
-    //  → 恢复旧对话时 LLM 至少收到 1 条画布准则，画布操作能力不丢失。
+  it('【fresh-task】历史 system 不进 LLM：只保留注入的画布准则，历史消息（含 system）丢弃', () => {
+    // fresh-task 对齐大雄：历史轮次整体不进上下文，历史 system 也不回传；画布准则始终注入。
     const withSys = [{ role: 'system', content: '旧的历史 system' }, ...base]
     const out = buildRequestMessages(withSys, '', true)
-    // 首条应是补注入的画布准则
+    // 首条是补注入的画布准则（无条件，画布操作能力不丢失）
     expect(out[0].role).toBe('system')
     expect(out[0].content).toContain('猫猫画布助手')
-    // 历史 system 也被保留（两条 system：准则 + 旧历史）
-    expect(out.filter((m) => m.role === 'system').length).toBeGreaterThanOrEqual(2)
-    expect(out.some((m) => m.role === 'system' && m.content === '旧的历史 system')).toBe(true)
+    // 历史 system 不回传（fresh-task 只发本轮 + 注入的 system）
+    expect(out.some((m) => m.role === 'system' && m.content === '旧的历史 system')).toBe(false)
+    // 本轮 user 及同轮工具消息仍保留（工具配对协议不破坏）
+    expect(out.some((m) => m.role === 'user')).toBe(true)
+    expect(out.some((m) => m.role === 'tool')).toBe(true)
   })
 
   it('Skill 无损注入：原文包成 ==== Skill 文档 ==== 且不 rewrite，并追加 SKILL_EXECUTION_RULES', () => {
@@ -542,7 +587,7 @@ describe('useAgentChat · buildRequestMessages 深度（请求体组装）', () 
   })
 
   it('附件转 image_url：user 带 attachments → content 变为数组，image_url 在前、原文 text 在后', () => {
-    const msgs = [{ role: 'user', content: '看这张图', attachments: [{ type: 'image', url: 'http://x/r.png' }] }]
+    const msgs = [{ role: 'user', content: '看这张图', attachments: [{ type: 'image', url: 'http://x/r.png' }], isCurrent: true }]
     const out = buildRequestMessages(msgs, '', true)
     const u = out.find((m) => m.role === 'user')
     expect(Array.isArray(u.content)).toBe(true)
