@@ -29,7 +29,7 @@
  * ════════════════════════════════════════════════════════════════
  */
 import { useSyncExternalStore } from 'react'
-import { sGet, sSet } from './storageAdapter.js'
+import { contentGet, contentSet } from './contentStore.js'
 
 /**
  * 存储键按 agentKey 隔离（每项目一个 agentKey → 每项目一套会话）。
@@ -86,15 +86,14 @@ export function setAgentKey(key) {
 function initState(k) {
   let conversations = []
   try {
-    const raw = sGet(convKey(k))
-    const arr = raw ? JSON.parse(raw) : []
+    const arr = contentGet(convKey(k))
     conversations = (Array.isArray(arr) ? arr : []).map(normalizeConversation).filter(Boolean)
   } catch {
     conversations = []
   }
   let activeId = ''
   try {
-    const id = sGet(activeKey(k))
+    const id = contentGet(activeKey(k))
     activeId = typeof id === 'string' && id ? id : ''
   } catch {
     activeId = ''
@@ -108,8 +107,8 @@ function initState(k) {
       activeId = migrated.activeId
       // 迁移后立即落盘到新键
       try {
-        sSet(convKey(k), JSON.stringify(conversations.map(normalizeConversation)))
-        sSet(activeKey(k), activeId || '')
+        contentSet(convKey(k), conversations.map(normalizeConversation))
+        contentSet(activeKey(k), activeId || '')
       } catch { /* 忽略写失败 */ }
     }
   }
@@ -120,8 +119,7 @@ function initState(k) {
 function migrateLegacyGlobal() {
   let conversations = []
   try {
-    const raw = sGet('agent_conversations')
-    const arr = raw ? JSON.parse(raw) : []
+    const arr = contentGet('agent_conversations')
     conversations = (Array.isArray(arr) ? arr : []).map(normalizeConversation).filter(Boolean)
   } catch {
     conversations = []
@@ -129,7 +127,7 @@ function migrateLegacyGlobal() {
   if (conversations.length === 0) return null
   let activeId = ''
   try {
-    const id = sGet('agent_active_conversation_id')
+    const id = contentGet('agent_active_conversation_id')
     activeId = typeof id === 'string' && id && conversations.some((c) => c.id === id) ? id : conversations[0].id
   } catch {
     activeId = conversations[0].id
@@ -149,8 +147,8 @@ function commit(next) {
   listeners.forEach((l) => l())
   if (hydratedSet[currentAgentKey]) {
     try {
-      sSet(convKey(currentAgentKey), JSON.stringify(next.conversations.map(normalizeConversation)))
-      sSet(activeKey(currentAgentKey), next.activeId || '')
+      contentSet(convKey(currentAgentKey), next.conversations.map(normalizeConversation))
+      contentSet(activeKey(currentAgentKey), next.activeId || '')
     } catch {
       /* 忽略写失败 */
     }

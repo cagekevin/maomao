@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
+import { contentClearCache } from '../../src/components/base/contentStore.js'
 import {
   resetConversationCache, ensureActiveConversation, newConversation, switchConversation,
   deleteConversation, applyConversation, importLegacy, getCurrentSnapshot, setCurrentSnapshot,
@@ -11,6 +12,7 @@ import {
 
 beforeEach(() => {
   localStorage.clear()
+  contentClearCache()
   resetConversationCache()
 })
 

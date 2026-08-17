@@ -99,8 +99,8 @@ describe('cloudSync — uploadConfig / downloadConfig 边界', () => {
 
   it('uploadConfig 有数据且 push 成功 → ok:true + count', async () => {
     // 写入一些可同步的本地数据
-    const { sSet } = await import('../../src/components/base/storageAdapter.js')
-    sSet('app_settings', JSON.stringify({ theme: 'dark' }))
+    const { contentSet } = await import('../../src/components/base/contentStore.js')
+    contentSet('app_settings', { theme: 'dark' })
     fetchMock.mockResolvedValue(jsonResp({ msg: 'ok' }))
     const res = await uploadConfig(() => {})
     expect(res.ok).toBe(true)

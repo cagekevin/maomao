@@ -6,7 +6,7 @@
  * 策略：storageAdapter 走真实内存 localStorage（setup.mjs 提供），projectStore 用内存 stub。
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { sGet, sSet } from '../../src/components/base/storageAdapter.js'
+import { contentGet, contentSet, contentClearCache } from '../../src/components/base/contentStore.js'
 
 // ── stub projectStore：内存画布快照 ──
 const canvasStore = new Map()
@@ -23,13 +23,14 @@ const { exportAll, importAll, backupToBlob } = await import('../../src/component
 beforeEach(() => {
   localStorage.clear()
   canvasStore.clear()
+  contentClearCache()
 })
 
 describe('backupStore — 导出 exportAll', () => {
   it('收集 LS_KEYS 清单里存在的值并打包', async () => {
-    sSet('projects', JSON.stringify([{ id: 'p1', name: 'P1' }]))
-    sSet('app_settings', JSON.stringify({ theme: 'dark' }))
-    sSet('yimao_node_prefs', JSON.stringify({ textNode: { model: 'x' } }))
+    contentSet('projects', [{ id: 'p1', name: 'P1' }])
+    contentSet('app_settings', { theme: 'dark' })
+    contentSet('yimao_node_prefs', { textNode: { model: 'x' } })
     canvasStore.set('p1', { nodes: [{ id: 'n1' }], edges: [] })
 
     const backup = await exportAll()
@@ -50,9 +51,9 @@ describe('backupStore — 导出 exportAll', () => {
   })
 
   it('动态收集 AI 会话键（按项目隔离）', async () => {
-    sSet('projects', JSON.stringify([{ id: 'p1' }, { id: 'p2' }]))
-    sSet('agent_conversations_canvas-assistant-p1', JSON.stringify({ messages: [] }))
-    sSet('agent_active_conversation_id_canvas-assistant-p1', 'c1')
+    contentSet('projects', [{ id: 'p1' }, { id: 'p2' }])
+    contentSet('agent_conversations_canvas-assistant-p1', { messages: [] })
+    contentSet('agent_active_conversation_id_canvas-assistant-p1', 'c1')
     const backup = await exportAll()
     expect(backup.ls['agent_conversations_canvas-assistant-p1']).toEqual({ messages: [] })
     expect(backup.ls['agent_active_conversation_id_canvas-assistant-p1']).toBe('c1')
@@ -73,7 +74,7 @@ describe('backupStore — 导入 importAll', () => {
     expect(res.ok).toBe(true)
     expect(res.ls).toBe(2)
     expect(res.canvas).toBe(1)
-    expect(JSON.parse(sGet('app_settings'))).toEqual({ theme: 'light' })
+    expect(contentGet('app_settings')).toEqual({ theme: 'light' })
     expect(canvasStore.get('pa')).toEqual({ nodes: [{ id: 'x' }], edges: [{ id: 'e' }] })
   })
 

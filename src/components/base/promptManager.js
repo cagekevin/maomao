@@ -10,7 +10,7 @@
  *   saveAndNotify(list)  —— 保存后广播 'yimao:presetsChanged'，方便跨节点同步
  *   recordRecent(id) / getRecent()
  */
-import { sGet, sSet } from './storageAdapter.js'
+import { contentGet, contentSet } from './contentStore.js'
 import { publish } from './eventBus.js'
 
 const STORAGE_KEY = 'yimao_preset_prompts'
@@ -30,12 +30,11 @@ export const DEFAULT_PRESETS = [
   { id: 'pp_demo_spring', title: '春天散文', type: 'text', prompt: '写一段关于春天的散文，清新自然，多用比喻', enabled: true }
 ]
 
-// 读取本地 JSON（容错）
+// 读取本地（容错）
 function readJSON(key, fallback) {
   try {
-    const raw = sGet(key)
-    if (!raw) return fallback
-    const val = JSON.parse(raw)
+    const val = contentGet(key)
+    if (val === undefined || val === null) return fallback
     return Array.isArray(val) ? val : fallback
   } catch {
     return fallback
@@ -44,7 +43,7 @@ function readJSON(key, fallback) {
 
 function writeJSON(key, val) {
   try {
-    sSet(key, JSON.stringify(val))
+    contentSet(key, val)
   } catch {
     // 忽略（隐私模式等）
   }

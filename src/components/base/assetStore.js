@@ -16,7 +16,7 @@
  * 素材列表改为 GET /api/resources?folder=xxx，UI 不变。
  */
 import { useSyncExternalStore } from 'react'
-import { sGet, sSet } from './storageAdapter.js'
+import { contentGet, contentSet } from './contentStore.js'
 
 const STORAGE_KEY = 'yimao_asset_library'
 const listeners = new Set()
@@ -32,16 +32,12 @@ const DEFAULT_ASSETS = [
 ]
 
 function load() {
-  try {
-    const raw = sGet(STORAGE_KEY)
-    if (raw) return JSON.parse(raw)
-    // 首次：seed 演示素材
-    const seeded = DEFAULT_ASSETS.map((a) => ({ ...a, ts: Date.now() }))
-    try { sSet(STORAGE_KEY, JSON.stringify(seeded)) } catch { /* ignore */ }
-    return seeded
-  } catch {
-    return DEFAULT_ASSETS
-  }
+  const raw = contentGet(STORAGE_KEY)
+  if (Array.isArray(raw) && raw.length > 0) return raw
+  // 首次：seed 演示素材
+  const seeded = DEFAULT_ASSETS.map((a) => ({ ...a, ts: Date.now() }))
+  contentSet(STORAGE_KEY, seeded)
+  return seeded
 }
 
 // 初始化素材列表（必须在 DEFAULT_ASSETS 与 load 定义之后）
@@ -58,11 +54,7 @@ export const FOLDERS = [
 ]
 
 function persist() {
-  try {
-    sSet(STORAGE_KEY, JSON.stringify(assets))
-  } catch {
-    /* ignore */
-  }
+  contentSet(STORAGE_KEY, assets)
 }
 
 function notify() {

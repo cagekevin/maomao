@@ -22,7 +22,7 @@
  *   canvas: { [projectId]: { nodes, edges } }   // 各项目画布快照
  * }
  */
-import { sGet, sSet } from './storageAdapter.js'
+import { contentGet, contentSet } from './contentStore.js'
 import { loadCanvasState, saveCanvasState } from './projectStore.js'
 
 /** localStorage 备份清单（所有该备份的用户数据/配置键） */
@@ -58,19 +58,18 @@ function conversationKeys(projects) {
   return keys
 }
 
-/** 读 localStorage 某键（容错） */
+/** 读 contentStore 某键（容错） */
 function readLS(k) {
   try {
-    const v = sGet(k)
-    if (v === null || v === undefined) return undefined
-    try { return JSON.parse(v) } catch { return v }
+    const v = contentGet(k)
+    return v !== undefined ? v : undefined
   } catch { return undefined }
 }
 
-/** 写 localStorage 某键（容错） */
+/** 写 contentStore 某键（容错） */
 function writeLS(k, v) {
   try {
-    sSet(k, typeof v === 'string' ? v : JSON.stringify(v))
+    contentSet(k, v)
   } catch { /* ignore */ }
 }
 

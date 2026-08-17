@@ -22,7 +22,7 @@
  */
 import { providerApi } from './settings/settingsApi.js'
 import { fetchProjects, saveProjects } from './projectsApi.js'
-import { sGet, sSet } from './storageAdapter.js'
+import { contentGet, contentSet } from './contentStore.js'
 
 /* ======================================================================
  * 【标准同步引擎】原样保留，勿改动内部通讯逻辑。
@@ -88,17 +88,17 @@ return null;
 };
 /* ===================== 引擎代码结束（勿改动以上内容） ===================== */
 
-/** 读取本地某个 key（容错，JSON 解析） */
+/** 读取本地某个 key（容错，contentGet 已内置 JSON 解析） */
 function readLS(k) {
   try {
-    const v = sGet(k)
+    const v = contentGet(k)
     if (v === null || v === undefined) return undefined
-    try { return JSON.parse(v) } catch { return v }
+    return v
   } catch { return undefined }
 }
-/** 写本地某个 key（容错） */
+/** 写本地某个 key（容错，contentSet 已内置 JSON 序列化） */
 function writeLS(k, v) {
-  try { sSet(k, typeof v === 'string' ? v : JSON.stringify(v)) } catch { /* ignore */ }
+  try { contentSet(k, v) } catch { /* ignore */ }
 }
 
 /** 当前项目 id（从项目列表取当前，优先 lastOpenedProject） */

@@ -32,14 +32,13 @@
  * 接真系统：可改为后端 KV（app_settings / node_prefs），本模块是纯前端唯一数据源。
  */
 import { useState, useCallback } from 'react'
-import { sGet, sSet } from './storageAdapter.js'
+import { contentGet, contentSet } from './contentStore.js'
 
 const STORAGE_KEY = 'yimao_node_prefs'
 
 function loadAll() {
   try {
-    const raw = sGet(STORAGE_KEY)
-    const parsed = raw ? JSON.parse(raw) : {}
+    const parsed = contentGet(STORAGE_KEY)
     return parsed && typeof parsed === 'object' ? parsed : {}
   } catch {
     return {}
@@ -66,7 +65,7 @@ export function useNodePrefs(type, defaults = {}) {
         try {
           const all = loadAll()
           all[type] = next
-          sSet(STORAGE_KEY, JSON.stringify(all))
+          contentSet(STORAGE_KEY, all)
         } catch { /* ignore */ }
         return next
       })

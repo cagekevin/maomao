@@ -7,15 +7,13 @@
  * - streamMode: 'stream'（流式，默认）| 'non-stream'（非流式，仅支持普通 JSON 响应的模型/API）
  * 与 agent_input_mode / agent_panel_width 等前端偏好一致，轻量即时，无需网络。
  */
-import { sGet, sSet } from '../storageAdapter.js'
+import { contentGet, contentSet } from '../contentStore.js'
 
 export const AGENT_CHAT_MODEL_KEY = 'agent_chat_model'
 
 export function loadAgentChatModel() {
   try {
-    const raw = sGet(AGENT_CHAT_MODEL_KEY)
-    if (!raw) return null
-    const parsed = JSON.parse(raw)
+    const parsed = contentGet(AGENT_CHAT_MODEL_KEY)
     if (parsed && typeof parsed === 'object' && parsed.providerId && parsed.modelId) {
       return {
         providerId: parsed.providerId,
@@ -31,10 +29,10 @@ export function loadAgentChatModel() {
 export function saveAgentChatModel(cfg) {
   try {
     const cur = loadAgentChatModel() || {}
-    sSet(AGENT_CHAT_MODEL_KEY, JSON.stringify({
+    contentSet(AGENT_CHAT_MODEL_KEY, {
       providerId: cfg?.providerId ?? cur.providerId ?? '',
       modelId: cfg?.modelId ?? cur.modelId ?? '',
       streamMode: cfg?.streamMode ?? cur.streamMode ?? 'stream',
-    }))
+    })
   } catch { /* 忽略 */ }
 }

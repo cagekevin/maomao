@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useCanvasAgentTools, getGenParams, setCurrentReferenceImages } from './useCanvasAgentTools.js'
-import { sGet } from './storageAdapter.js'
+import { contentGet } from './contentStore.js'
 import { loadAgentChatModel } from './settings/agentModelStore.js'
 import { logger } from './logger.js'
 import { API_BASE } from './apiBase.js'
@@ -257,8 +257,7 @@ const historyKey = (agentKey) => `agent_history_${agentKey || 'canvas-assistant'
 /** 从 localStorage 读旧单会话历史（首次启动迁移用，对齐大雄"messages → conversations"迁移） */
 function loadHistory(agentKey) {
   try {
-    const raw = sGet(historyKey(agentKey))
-    const arr = raw ? JSON.parse(raw) : []
+    const arr = contentGet(historyKey(agentKey))
     return Array.isArray(arr) ? arr : []
   } catch {
     return []

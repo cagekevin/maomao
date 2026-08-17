@@ -8,7 +8,7 @@
  * 【存储】内置 skill（代码常量）+ 用户自定义（localStorage，key=agent_skills）。
  *  - 内置 skill 始终存在；用户自定义可增删。
  */
-import { sGet, sSet } from './storageAdapter.js'
+import { contentGet, contentSet } from './contentStore.js'
 
 const SKILLS_KEY = 'agent_skills'
 
@@ -111,8 +111,7 @@ export function getBuiltinSkills() {
 /** 读用户自定义 skill（localStorage） */
 export function getCustomSkills() {
   try {
-    const raw = sGet(SKILLS_KEY)
-    const arr = raw ? JSON.parse(raw) : []
+    const arr = contentGet(SKILLS_KEY)
     return Array.isArray(arr) ? arr : []
   } catch {
     return []
@@ -122,7 +121,7 @@ export function getCustomSkills() {
 /** 保存用户自定义 skill 列表 */
 export function saveCustomSkills(list) {
   try {
-    sSet(SKILLS_KEY, JSON.stringify(Array.isArray(list) ? list : []))
+    contentSet(SKILLS_KEY, Array.isArray(list) ? list : [])
   } catch { /* 忽略写失败 */ }
 }
 
@@ -165,8 +164,7 @@ export function deleteCustomSkill(id) {
 const USAGE_KEY = 'agent_skill_usage' // { [skillId]: count }
 function getUsageMap() {
   try {
-    const raw = sGet(USAGE_KEY)
-    const m = raw ? JSON.parse(raw) : {}
+    const m = contentGet(USAGE_KEY)
     return m && typeof m === 'object' ? m : {}
   } catch {
     return {}
@@ -177,7 +175,7 @@ export function markSkillUsed(id) {
   const m = getUsageMap()
   const next = (Number(m[id]) || 0) + 1
   m[id] = next
-  try { sSet(USAGE_KEY, JSON.stringify(m)) } catch { /* 忽略 */ }
+  try { contentSet(USAGE_KEY, m) } catch { /* 忽略 */ }
   return next
 }
 /** 读某 Skill 使用次数 */

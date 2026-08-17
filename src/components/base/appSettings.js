@@ -7,7 +7,7 @@
  * 本模块提供统一的 read/write + React hook，App 层用它初始化各 state 并在变化时写回。
  */
 import { useSyncExternalStore } from 'react'
-import { sGet, sSet } from './storageAdapter.js'
+import { contentGet, contentSet } from './contentStore.js'
 
 const KEY = 'app_settings'
 
@@ -22,8 +22,7 @@ let settings = load()
 
 function load() {
   try {
-    const raw = sGet(KEY)
-    const parsed = raw ? JSON.parse(raw) : {}
+    const parsed = contentGet(KEY)
     return { ...DEFAULTS, ...(parsed && typeof parsed === 'object' ? parsed : {}) }
   } catch {
     return { ...DEFAULTS }
@@ -33,7 +32,7 @@ function load() {
 // 订阅（供 useAppSettings）
 const listeners = new Set()
 function save() {
-  try { sSet(KEY, JSON.stringify(settings)) } catch { /* ignore */ }
+  try { contentSet(KEY, settings) } catch { /* ignore */ }
 }
 function notify() {
   listeners.forEach((l) => l())

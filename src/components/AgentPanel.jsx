@@ -8,7 +8,7 @@ import { useOutsideClick } from './base/hooks.js'
 import { setGenParams, getGenParams } from './base/useCanvasAgentTools.js'
 import { loadAgentChatModel } from './base/settings/agentModelStore.js'
 import { getAllSkills, markSkillUsed, repairMojibakeText } from './base/skillStore.js'
-import { sGet, sSet } from './base/storageAdapter.js'
+import { contentGet, contentSet } from './base/contentStore.js'
 import { toAbsoluteFileUrl } from './base/filesApi.js'
 import { setCurrentSnapshot, setAwaitingConfirm, getCurrentRunMode, setCurrentRunMode } from './base/conversationStore.js'
 import { runNodeGeneration } from './base/taskStore.js'
@@ -59,7 +59,7 @@ const SHORTCUTS = [
 /** 面板宽度（localStorage 记忆） */
 function loadWidth() {
   try {
-    const t = sGet(PANEL_WIDTH_KEY)
+    const t = contentGet(PANEL_WIDTH_KEY)
     const n = t ? Number(t) : NaN
     if (Number.isFinite(n)) return Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, n))
   } catch { /* ignore */ }
@@ -163,7 +163,7 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
     if (Array.isArray(snap?.attachments)) setAttachments(snap.attachments)
     if (typeof snap?.draft === 'string') {
       setInput(snap.draft)
-      try { sSet(AGENT_DRAFT_KEY, snap.draft) } catch { /* ignore */ }
+      try { contentSet(AGENT_DRAFT_KEY, snap.draft) } catch { /* ignore */ }
     }
   }, [])
 
@@ -182,13 +182,13 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
     onConversationChange: handleConversationChange
   })
 
-  const [input, setInput] = useState(() => { try { return sGet(AGENT_DRAFT_KEY) || '' } catch { return '' } })
+  const [input, setInput] = useState(() => { try { return contentGet(AGENT_DRAFT_KEY) || '' } catch { return '' } })
   const [attachments, setAttachments] = useState([])
   const [uploading, setUploading] = useState(false)
-  const [inputMode, setInputMode] = useState(() => { try { return sGet('agent_input_mode') || 'agent' } catch { return 'agent' } })
+  const [inputMode, setInputMode] = useState(() => { try { return contentGet('agent_input_mode') || 'agent' } catch { return 'agent' } })
   const setInputModeAndPersist = (mode) => {
     setInputMode(mode)
-    try { sSet('agent_input_mode', mode) } catch { /* ignore */ }
+    try { contentSet('agent_input_mode', mode) } catch { /* ignore */ }
   }
   // 【对齐大雄 runMode 分级】执行分级：auto（默认，无 Skill 时 LLM 直接出 generations 执行、不展示 plan）/
   // semi（半自动，无 Skill 时也展示 plan 确认再执行）。对应大雄 agentSetRunMode/agentToggleRunMode。
@@ -240,7 +240,7 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
   const textareaRef = useRef(null)
 
   useEffect(() => {
-    try { sSet(PANEL_WIDTH_KEY, String(width)) } catch { /* ignore */ }
+    try { contentSet(PANEL_WIDTH_KEY, String(width)) } catch { /* ignore */ }
   }, [width])
   useEffect(() => {
     if (open) onWidthChange?.(width)
@@ -299,7 +299,7 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
       setAttachments([])
       setPendingImageNodes([])
       setInput('')
-      try { sSet(AGENT_DRAFT_KEY, '') } catch { /* ignore */ }
+      try { contentSet(AGENT_DRAFT_KEY, '') } catch { /* ignore */ }
       Promise.resolve(sendImageMode(text, attach)).catch((e) => console.error('[Agent] 图像模式 send 失败:', e))
       return
     }
@@ -309,14 +309,14 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
     setAttachments([])
     setPendingImageNodes([])
     setInput('')
-    try { sSet(AGENT_DRAFT_KEY, '') } catch { /* ignore */ }
+    try { contentSet(AGENT_DRAFT_KEY, '') } catch { /* ignore */ }
     Promise.resolve(send(text, attach)).catch((e) => console.error('[Agent] send 失败:', e))
   }
 
   // Skill 阶段2 确认：翻转 awaitingConfirm 并通知 LLM 按策划执行（Step F）
   const handleConfirmPlan = useCallback(() => {
     setAwaitingConfirm(false)
-    try { sSet(AGENT_DRAFT_KEY, '') } catch { /* ignore */ }
+    try { contentSet(AGENT_DRAFT_KEY, '') } catch { /* ignore */ }
     Promise.resolve(send('已确认，请按刚才展示的策划执行。')).catch((e) => console.error('[Agent] 确认后 send 失败:', e))
   }, [send])
 
@@ -631,7 +631,7 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
             onChange={(e) => {
               const v = e.target.value
               setInput(v)
-              try { sSet(AGENT_DRAFT_KEY, v) } catch { /* ignore */ }
+              try { contentSet(AGENT_DRAFT_KEY, v) } catch { /* ignore */ }
               setSkillSlashOpen(v === '/')
             }}
             onKeyDown={(e) => {

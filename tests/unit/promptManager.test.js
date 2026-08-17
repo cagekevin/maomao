@@ -4,25 +4,25 @@
  * 严格基于 src/components/base/promptManager.js 真实导出编写。
  */
 import { beforeEach, afterEach, describe, it, expect, vi } from 'vitest'
+import { contentClearCache, contentGet, contentSet } from '../../src/components/base/contentStore.js'
 import * as pm from '../../src/components/base/promptManager.js'
-import { sGet, sSet } from '../../src/components/base/storageAdapter.js'
 
-const STORAGE_KEY = 'yimao_preset_prompts' // 对齐 promptManager.js 内部 STORAGE_KEY（storageAdapter 还会加 yimao: 前缀）
+const STORAGE_KEY = 'yimao_preset_prompts' // 对齐 promptManager.js 内部 STORAGE_KEY
 const RECENT_KEY = 'yimao_preset_recent' // 对齐 promptManager.js 内部 RECENT_KEY
 
-// storageAdapter 会给 key 加 'yimao:' 前缀，统一经 sGet 读回避免前缀不一致
 const readStored = (key) => {
-  const raw = sGet(key)
-  return raw ? JSON.parse(raw) : null
+  return contentGet(key) ?? null
 }
 
 beforeEach(() => {
   localStorage.clear()
+  contentClearCache()
 })
 
 afterEach(() => {
   vi.restoreAllMocks()
   localStorage.clear()
+  contentClearCache()
 })
 
 describe('ensureIds', () => {
@@ -60,7 +60,7 @@ describe('loadPresets / savePresets', () => {
   })
 
   it('旧数据缺 id 时被补齐并写回', () => {
-    sSet(STORAGE_KEY, JSON.stringify([{ title: '旧', type: 'text', prompt: 'p' }]))
+    contentSet(STORAGE_KEY, [{ title: '旧', type: 'text', prompt: 'p' }])
     const list = pm.loadPresets()
     expect(list[0].id).toBeTruthy()
     const reread = readStored(STORAGE_KEY)

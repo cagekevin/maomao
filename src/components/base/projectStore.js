@@ -8,9 +8,9 @@
  *  - 画布快照 canvas-state-v1-${projectId} 走 KV（跨端共享，见 kvStore）。
  */
 import { useSyncExternalStore } from 'react'
-import { storageGet, storageSet, storageDelete, kvGet, kvSet, CANVAS_STATE_PREFIX } from './kvStore.js'
+import { CANVAS_STATE_PREFIX } from './kvStore.js'
 import { fetchProjects, saveProjects } from './projectsApi.js'
-import { sGet, sSet } from './storageAdapter.js'
+import { contentGet, contentSet, contentGetAsync, contentSetAsync, contentDeleteAsync } from './contentStore.js'
 
 const PROJECTS_KEY = 'projects'
 const LAST_OPENED_KEY = 'lastOpenedProject'
@@ -21,40 +21,24 @@ let loaded = false // 是否已从后端加载过
 let lastSavedVersion = 0 // 画布版本号单调递增保底（同毫秒连续保存时自增）
 const listeners = new Set()
 
-function loadJSON(key, fallback) {
-  try {
-    const raw = sGet(key)
-    return raw ? JSON.parse(raw) : fallback
-  } catch {
-    return fallback
-  }
-}
-
-function saveJSON(key, val) {
-  try {
-    sSet(key, JSON.stringify(val))
-  } catch {
-    /* ignore */
-  }
-}
-
 function loadProjects() {
-  const list = loadJSON(PROJECTS_KEY, null)
+  const list = contentGet(PROJECTS_KEY)
   if (Array.isArray(list) && list.length > 0) return list
   const seeded = [{ id: 'default', name: '默认项目' }]
-  saveJSON(PROJECTS_KEY, seeded)
+  contentSet(PROJECTS_KEY, seeded)
   return seeded
 }
 
 function loadLastOpened() {
-  const v = loadJSON(LAST_OPENED_KEY, 'default')
-  return typeof v === 'string' && v ? v : 'default'
+  const v = contentGet(LAST_OPENED_KEY)
+  const id = typeof v === 'string' && v ? v : 'default'
+  return id
 }
 
-// 持久化：双写 localStorage + localTool 后端（fire-and-forget）
+// 持久化：双写 contentStore (localStorage) + localTool 后端（fire-and-forget）
 function persist() {
-  saveJSON(PROJECTS_KEY, projects)
-  saveJSON(LAST_OPENED_KEY, currentProjectId)
+  contentSet(PROJECTS_KEY, projects)
+  contentSet(LAST_OPENED_KEY, currentProjectId)
   saveProjects(
     projects.map((p) => ({ id: p.id, name: p.name })),
     currentProjectId
@@ -109,7 +93,7 @@ function genId() {
 // 读写当前项目画布快照（走 KV，异步）。key 为 canvas-state-v1- 前缀 → 自动分流到 localTool KV。
 export async function loadCanvasState(projectId) {
   try {
-    const v = await storageGet(CANVAS_STATE_PREFIX + (projectId || currentProjectId))
+    const v = await contentGetAsync(CANVAS_STATE_PREFIX + (projectId || currentProjectId))
     return v && typeof v === 'object' ? v : null
   } catch (e) {
     console.warn('[projectStore] 读取画布快照失败（KV 不可用？）:', e?.message)
@@ -157,15 +141,15 @@ export async function saveCanvasState(projectId, nodes, edges) {
     const now = Date.now()
     const version = now > lastSavedVersion ? now : lastSavedVersion + 1
     lastSavedVersion = version
-    const remoteRaw = await kvGet(`${key}_version`)
+    const remoteRaw = await contentGetAsync(`${key}_version`)
     const remoteVer = remoteRaw ? parseInt(String(remoteRaw), 10) : 0
     if (remoteVer > version) {
       console.warn('[projectStore] 画布版本冲突，拒绝覆盖:', { key, remoteVer, version })
       return { success: false, skipped: true, conflictVersion: remoteVer }
     }
     // 【④】落盘前清理 ReactFlow 运行时 UI 态（selected/dragging/measured 等），只存必要字段
-    await storageSet(key, { nodes: sanitizeNodes(nodes), edges: sanitizeEdges(edges) })
-    await kvSet(`${key}_version`, version)
+    await contentSetAsync(key, { nodes: sanitizeNodes(nodes), edges: sanitizeEdges(edges) })
+    await contentSetAsync(`${key}_version`, version)
     return { success: true, skipped: false }
   } catch (e) {
     console.warn('[projectStore] 保存画布快照失败（KV 不可用？）:', e?.message)
@@ -202,8 +186,8 @@ export function deleteProject(id) {
   if (projects.length <= 1) return false
   projects = projects.filter((p) => p.id !== id)
   // 异步删除画布快照（KV）及对应 _version 版本 key
-  storageDelete(CANVAS_STATE_PREFIX + id).catch(() => {})
-  storageDelete(CANVAS_STATE_PREFIX + id + '_version').catch(() => {})
+  contentDeleteAsync(CANVAS_STATE_PREFIX + id).catch(() => {})
+  contentDeleteAsync(CANVAS_STATE_PREFIX + id + '_version').catch(() => {})
   if (currentProjectId === id) currentProjectId = projects[0].id
   persist()
   notify()
