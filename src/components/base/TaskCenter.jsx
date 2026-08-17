@@ -237,20 +237,8 @@ function TaskCard({ task, moreOpen, onToggleMore, onCloseMore, onCopy, onRetry, 
           <button className="w-6 h-6 flex items-center justify-center rounded-md text-muted hover:text-white hover:bg-surface-hover-2 transition-colors cursor-pointer border-none" title="复制提示词" onClick={onCopy}>
             <Copy size={12} />
           </button>
-          {isActive ? (
+          {isActive && (
             <span className="w-6 h-6 flex items-center justify-center"><RotateCw size={12} className="animate-spin text-blue-400" /></span>
-          ) : (
-            <button className="w-6 h-6 flex items-center justify-center rounded-md text-muted hover:text-white hover:bg-surface-hover-2 transition-colors cursor-pointer border-none" title="再来一次" onClick={onRetry}>
-              <RefreshCw size={12} />
-            </button>
-          )}
-          {/* 【取舍】刷新状态按钮：仅对有 pollTaskId 的异步任务（生图/视频）显示，
-              手动触发一次 pollOneTask 重新查网关状态（对齐官方 handleRefreshTask）。
-              文本/生图 sync 同步任务无 pollTaskId，不显示（官方同此）。 */}
-          {!isActive && task.pollTaskId && (
-            <button className="w-6 h-6 flex items-center justify-center rounded-md text-muted hover:text-white hover:bg-surface-hover-2 transition-colors cursor-pointer border-none" title="刷新状态" onClick={() => { pollOneTask(task) }}>
-              <RotateCw size={12} />
-            </button>
           )}
           <div ref={menuRef} className="relative">
             <button className="w-6 h-6 flex items-center justify-center rounded-md text-muted hover:text-white hover:bg-surface-hover-2 transition-colors cursor-pointer border-none" onClick={onToggleMore}>
@@ -260,6 +248,7 @@ function TaskCard({ task, moreOpen, onToggleMore, onCloseMore, onCopy, onRetry, 
               <div className="absolute right-0 top-full mt-1 bg-surface-1 border border-edge rounded-lg shadow-xl p-1 z-30 w-40 nowheel nopan nodrag">
                 {isCompleted && <MenuBtn icon={Download} label="下载结果" onClick={downloadResult} />}
                 <MenuBtn icon={RefreshCw} label="再来一次" onClick={onRetry} />
+                {!isActive && task.pollTaskId && <MenuBtn icon={RotateCw} label="刷新状态" onClick={() => pollOneTask(task)} />}
                 <MenuBtn icon={Copy} label="复制任务信息" onClick={onCopy} />
                 <div className="h-[1px] bg-surface-hover-strong my-1" />
                 <MenuBtn icon={Trash2} label="删除任务" onClick={onRemove} danger />

@@ -617,7 +617,7 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
             rows={1}
             disabled={sending}
             className="w-full bg-transparent text-gray-200 text-sm px-3 py-2.5 resize-none focus:outline-none disabled:opacity-60"
-            style={{ minHeight: '44px', maxHeight: '120px' }}
+            style={{ minHeight: '72px', maxHeight: '160px' }}
           />
 
           {/* Skill / 快捷调用下拉：锚定在输入框正下方，向上弹出紧贴 textarea */}
