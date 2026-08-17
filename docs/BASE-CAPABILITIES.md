@@ -25,6 +25,21 @@
 
 ---
 
+## 一.5、存储键与错误重试基础设施（收口规范，docs/08 + docs/09）★ 新键/新 API 必读
+
+> **两套「集中登记 + 统一收口」地基**：存储键集中登记、错误分类统一。新增存储键或新的生成 API 前先读这里，禁止散落硬编码。
+
+| 能力 | 文件 | 一句话 | 用法 |
+|------|------|--------|------|
+| **存储键中央登记表** | `storageKeys.js` | 所有存储键的单一事实来源（`StorageKeys` 枚举 + `StorageDomain` 介质域 + 动态键工厂 + `LS_KEYS` 权威清单） | 新键先 `StorageKeys.XXX` 登记并标介质域；业务代码 `import { StorageKeys } from './storageKeys.js'` 用裸键，禁止写字符串字面量 |
+| **错误分类** | `genErrors.js` | 错误类型枚举 `GenErrorType` + `classifyError` 推导 + `isAutoRetryable` + `errorMessageByType` 文案映射 | API 失败统一 `{ok:false,error,type}`；`useNodeGeneration`/节点只读 `type` 决策，禁止 `if(/网络错误/)` 判断 |
+| **自动重试** | `apiBase.js` `withRetry()` | 仅网络/超时层指数退避自动重试（`RETRY` 预算 3 次） | `generateSync/Async` 的 fetch 阶段包 `withRetry`；上游业务失败不自动重试（交给「再来一次」） |
+| **脏数据迁移** | `storageAdapter.js` `migrateLegacyKeys()` | 启动时把历史 `yimao:yimao_*` 双重前缀脏键搬到 `yimao:*` 裸键 | 无需手动调；`main.jsx` 的 `initStorage()` 已触发 |
+
+> **规范依据**：`docs/08-存储键集中登记与收口规范`、`docs/09-节点错误降级与重试收敛策略`。新存储键 / 新 API / 新节点生成必须先读这两篇，按里面的强制规则与决策表执行。
+
+---
+
 ## 二、画布级能力（宿主 App 已接好，扩展直接调）
 
 | 能力 | 文件 | 一句话 | 用法 |
@@ -213,6 +228,8 @@ showToast('处理中...', { duration: 0 })           // 0 = 不自动消失
 | 整理画布 | `useArrangeCanvas()` | ❌ 手写 dagre |
 | 裁剪/标记图片 | `<ImageEditor>` | ❌ 手写裁剪 |
 | 缩略图替换（接真系统） | 复用 useMediaDegrade + 换 thumbnailUrl | ❌ 重写降级 |
+| 新增存储键 | `StorageKeys.XXX` 登记（storageKeys.js） | ❌ 写字符串字面量 |
+| 新生成 API / 错误处理 | `classifyError` + `withRetry`（genErrors.js / apiBase.js） | ❌ 自写重试 / if(/网络错误/) |
 
 ---
 

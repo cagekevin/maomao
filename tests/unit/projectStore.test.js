@@ -87,4 +87,29 @@ describe('项目系统 §2.8', () => {
     expect(r.success).toBe(false)
     expect(r.conflictVersion).toBeTruthy()
   })
+
+  it('saveCanvasState 版本号单调递增（TASK-053②）', async () => {
+    const n = [{ id: 'n1', type: 'textNode', data: {}, position: {} }]
+    await projectStore.saveCanvasState('default', n, [])
+    const v1 = Number(mem.get('canvas-state-v1-default_version'))
+    await projectStore.saveCanvasState('default', n, [])
+    const v2 = Number(mem.get('canvas-state-v1-default_version'))
+    await projectStore.saveCanvasState('default', n, [])
+    const v3 = Number(mem.get('canvas-state-v1-default_version'))
+    // 同一会话内连续保存版本号必须严格递增（同毫秒也自增，避免新旧倒挂）
+    expect(v1).toBeGreaterThan(0)
+    expect(v2).toBeGreaterThan(v1)
+    expect(v3).toBeGreaterThan(v2)
+  })
+
+  it('saveCanvasState 与远程同版本号时自增不误判冲突', async () => {
+    const n = [{ id: 'n1', type: 'textNode', data: {}, position: {} }]
+    await projectStore.saveCanvasState('default', n, [])
+    const v1 = Number(mem.get('canvas-state-v1-default_version'))
+    // 远程版本与本地相同（同毫秒碰撞场景）：应自增写入，而非误判冲突
+    mem.set('canvas-state-v1-default_version', String(v1))
+    const r = await projectStore.saveCanvasState('default', n, [])
+    expect(r.success).toBe(true)
+    expect(Number(mem.get('canvas-state-v1-default_version'))).toBeGreaterThan(v1)
+  })
 })

@@ -16,3 +16,20 @@ if (typeof globalThis.localStorage === 'undefined') {
 if (typeof globalThis.sessionStorage === 'undefined') {
   globalThis.sessionStorage = new MemStorage()
 }
+
+// jsdom 环境缺 ResizeObserver / matchMedia / canvas.getContext，
+// 部分组件（GridSplit/GridMerge 用 ResizeObserver 做自适应高度、节点面板用 matchMedia）会崩。
+class ResizeObserverStub {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+if (typeof globalThis.ResizeObserver === 'undefined') {
+  globalThis.ResizeObserver = ResizeObserverStub
+}
+if (typeof globalThis.matchMedia === 'undefined') {
+  globalThis.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} })
+}
+if (typeof globalThis.HTMLCanvasElement !== 'undefined' && !globalThis.HTMLCanvasElement.prototype.getContext) {
+  globalThis.HTMLCanvasElement.prototype.getContext = () => ({})
+}

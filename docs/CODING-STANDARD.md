@@ -18,6 +18,8 @@
 | 写样式（用 token 不用裸色值） | `tailwind.config.js`（token 定义）+ 本页 §二 | 背景/文字/边框/字号/z-index 全走 token |
 | 弹提示 / 判断媒体 / URL 归一 | 本页 §一（单一入口清单） | 遇到 X 就用 Y，禁止各写各的 |
 | 测试 / 验证门禁 | `TESTING.md` | smoke/regression/tools/health 四层 |
+| 存储键 / 数据收口 | `docs/08-存储键集中登记与收口规范` | 新增存储键先 `StorageKeys` 登记，禁止散落字面量 |
+| 错误降级 / 重试 | `docs/09-节点错误降级与重试收敛策略` | API 失败带 `type`，节点按 `type` 决策，禁 if(/网络错误/) |
 
 > 本页不是替代上面文档，而是**强制它们成为唯一依据**，并把最易犯的错写成禁令。
 
@@ -37,6 +39,8 @@
 | `node-types-map.md` | ✅ 有效 | 官方节点↔混淆映射（指向已移除 src/bundle，仅供对照） |
 | `README.md` | ✅ 有效 | 结构/启动/复刻范围 |
 | `tailwind-tokens.md` | ❌ **已删** | 从旧 `src/bundle`（已删）dump 的 class 频次表，非 token 规范；token 唯一真相 = `tailwind.config.js` |
+| `08-存储键集中登记与收口规范` | ✅ 有效 | 存储键 `StorageKeys` 中央登记 + 脏键迁移 + 动态键工厂 |
+| `09-节点错误降级与重试收敛策略` | ✅ 有效 | 错误分类 `GenErrorType` + `withRetry` 自动重试 + 文案映射 |
 | `CODING-STANDARD.md` | ✅ 本页 | 本总纲 |
 
 ---
@@ -62,8 +66,10 @@
 | 画布操作（供 Agent/自动化） | `base/useCanvasAgentTools.js` | 工具 Map + schema | ❌ App.jsx 里散落逻辑 |
 | 全屏弹层 | `base/FullscreenModal.jsx` | `<FullscreenModal open onClose>` | ❌ 每处重写全屏遮罩 |
 | 新增/删除/改节点写回 | `useReactFlow().setNodes` 不可变局部更新 | 只改目标节点，非目标 `: n` | ❌ 全局造新引用 / 直接改 state |
+| 存取本地/会话数据 | `base/storageKeys.js` `StorageKeys`（中央登记） | `import { StorageKeys } from './base/storageKeys.js'` → `sGet(StorageKeys.XXX)` | ❌ 写字符串字面量 / 手拼 `yimao_` 前缀 |
+| 生成失败/重试决策 | `base/genErrors.js`（分类）+ `base/apiBase.js` `withRetry` | 失败看 `type` 决策，`errorMessageByType` 文案 | ❌ 自写 `if(/网络错误/)` / 自写重试循环 |
 
-**接真系统提示**：上面的 base 能力大多已接 localTool / 网关。新增功能时优先复用，别在节点里硬编码后端地址。
+**接真系统提示**：上面的 base 能力大多已接 localTool / 网关。新增功能时优先复用，别在节点里硬编码后端地址。**存储键规范详见 `docs/08`，错误重试规范详见 `docs/09`。**
 
 ---
 

@@ -76,5 +76,6 @@ tests/
 ## 六、已补 / 后续可补
 
 - ✅ **已补 vitest 单测**（2026-08-16）：`tests/unit/` 下 24 文件 / 244 用例，覆盖剧本盒引擎（回调/分批并发/toast/@资产高亮）、AI 画布工具层、管线契约、各纯函数。
+- ✅ **已补「算法与逻辑层」单测（阶段一，2026-08-17）**：`tests/unit/` 新增 5 文件 / 54 用例，覆盖 `promptManager`（预设 CRUD+持久化+卡片映射）、`resourcesApi`（fetch 封装全 mock）、`pollTask`（轮询状态机+结果 URL 提取）、`faceMosaic`（detector 单例+打码模式）、`videoEngine`（ProgressController 取消传播）。详见 `docs/10-测试覆盖补齐计划-2026-08-17.md`。
 - ✅ **已补 Playwright E2E 部分用例**：`tests/e2e/` 已有节点渲染（`nodes.render.spec.js`）与剧本盒状态机（`scriptBox.spec.js`），`npm run test:e2e` 可跑。
-- 🟡 **仍可补**：`groupNodes`（编组算法）、`imageApi.resolveImagePixel`（尺寸像素表）等更细纯逻辑；真实浏览器交互（节点拖拽/连线/编组折叠）的 E2E 覆盖可再扩充。
+- 🟡 **仍可补**：后端路由层（`localTool/src/routes/*`、`utils/*`）、业务 Hook 层（`use*` 桥接）、settings 目录、12+ 个大型业务节点组件单测；既有 `logger.test.js`(×2) / `toastStore.test.js`(×1) pre-existing 失败待修。详见计划文档。

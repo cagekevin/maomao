@@ -65,7 +65,7 @@ src/
     base/                    # 通用能力地基（NodeShell/CanvasToolbar/useArrangeCanvas/useCanvasAgentTools/Toast/ImageEditor/OverlayEditor/设置面板…）
 ```
 
-> 新增节点遵循 `BASE-CAPABILITIES.md` 与 `ARCHITECTURE.md` 规范；节点中文名→英文 type 映射见 `node-types-map.md`（由 `npm run sync:mapping` 生成）。
+> 新增节点遵循 `BASE-CAPABILITIES.md` 与 `ARCHITECTURE.md` 规范；节点中文名→英文 type 映射以 `src/components/` 下实际节点组件为准（旧产物 `node-types-map.md` 已随 `src/bundle` 移除而废弃）。
 
 ## 复刻范围
 
@@ -83,9 +83,8 @@ src/
 | --- | --- | --- |
 | `check-jsx.mjs` | `npm run check:jsx` | esbuild 批量校验 `src/components/**/*.jsx` 语法 |
 | `extract-tailwind.mjs` | `npm run extract:tw` | 从 `src/` 抽取 Tailwind class 到 `src/index.css` 白名单 |
-| `sync-mapping.mjs` | `npm run sync:mapping` | 生成 `node-types-map.md`（节点类型映射） |
 
-> 说明：`extract-tailwind` / `sync-mapping` 现扫描 `src/`（原型源码），不再依赖已移除的 `src/bundle/` 混淆产物。
+> 说明：`extract-tailwind` 现扫描 `src/`（原型源码）。`sync-mapping.mjs` 因依赖已移除的 `src/bundle/` 混淆产物已失效，其产物 `node-types-map.md` 已从仓库删除；节点类型映射改以 `src/components/` 实际组件为准。
 
 ## 移植到其他 React 项目
 

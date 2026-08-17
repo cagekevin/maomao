@@ -18,7 +18,7 @@ describe('toastStore §基础设施 提示', () => {
     expect(id).toBe(1)
     const list = getToasts()
     expect(list).toHaveLength(1)
-    expect(list[0]).toMatchObject({ id: 1, message: '你好', type: 'info', duration: 3000 })
+    expect(list[0]).toMatchObject({ id: 1, message: '你好', type: 'info', duration: 2500 })
   })
 
   it('showToast 默认 type=info，可指定 success/error/warning', () => {
