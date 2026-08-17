@@ -149,8 +149,8 @@ export default function Director3DNode({ id, data, selected }) {
         </div>
       </div>
 
-      <CustomHandle type="target" position="left" variant="large" />
-      <CustomHandle type="source" position="right" variant="large" />
+      <CustomHandle type="target" position="left" variant="small" />
+      <CustomHandle type="source" position="right" variant="small" />
 
       {open &&
         createPortal(

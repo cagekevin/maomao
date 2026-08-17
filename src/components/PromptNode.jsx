@@ -292,6 +292,7 @@ export default function PromptNode({ id, data, selected }) {
       selected={selected}
       minWidth={160}
       minHeight={160}
+      handleVariant="small"
       aspectRatio={aspectRatio}
       defaultHeight={420}
     >

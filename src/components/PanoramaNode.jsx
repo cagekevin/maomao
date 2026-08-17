@@ -233,6 +233,7 @@ export default function PanoramaNode({ id, data, selected }) {
       keepAspect
       aspectRatio="16:9"
       defaultHeight={360}
+      handleVariant="small"
       className="min-w-[320px] min-h-[240px]"
       titleRight={(
         panoUrl ? (
