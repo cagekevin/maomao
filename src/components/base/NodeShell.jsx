@@ -189,7 +189,7 @@ export default function NodeShell({
   // 主容器背景层：加 drag-handle cursor-move，让节点主体（内容区之外的空白/背景）可拖拽移动。
   // 各节点内容区需去掉整块 nodrag，只给真正的交互控件（按钮/输入/textarea）标 nodrag，
   // 否则内容区撑满主容器会把可拖区域盖住（只剩标题栏可拖）。
-  const mainShellClassName = `w-full flex-1 min-h-0 flex flex-col bg-surface-raised rounded-xl border shadow-xl transition-colors duration-200 drag-handle cursor-move ${selected ? 'border-edge-strong' : 'border-edge hover:border-edge-muted'}`
+  const mainShellClassName = `relative w-full flex-1 min-h-0 flex flex-col bg-surface-raised rounded-xl border shadow-xl transition-colors duration-200 drag-handle cursor-move ${selected ? 'border-edge-strong' : 'border-edge hover:border-edge-muted'}`
 
   // 订阅当前节点尺寸，用于根 div inline style
   const { width, height } = useNodeSize(id)
@@ -236,16 +236,17 @@ export default function NodeShell({
         >
           {children}
         </ErrorBoundary>
-      </div>
 
-      {/* 端口统一渲染，相对根 div 定位 → 在 wrapper 中点。
-          剧本盒子等复合节点用 showHandles={false} 关闭，改用内部每镜头/每输出口端口 */}
-      {showHandles && (
-        <>
-          <CustomHandle position="left" variant={handleVariant} />
-          <CustomHandle position="right" variant={handleVariant} />
-        </>
-      )}
+        {/* 端口统一渲染在「主框内部」，相对主框定位 → 圆心精确贴在带圆角边框的节点边缘上。
+            之前相对根 div（含标题区、flex items-center）定位，导致图片/视频节点端口偏离主框边缘。
+            剧本盒子等复合节点用 showHandles={false} 关闭，改用内部每镜头/每输出口端口 */}
+        {showHandles && (
+          <>
+            <CustomHandle position="left" variant={handleVariant} />
+            <CustomHandle position="right" variant={handleVariant} />
+          </>
+        )}
+      </div>
     </div>
   )
 }

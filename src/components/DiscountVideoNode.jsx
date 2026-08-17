@@ -225,6 +225,7 @@ export default function DiscountVideoNode({ id, data, selected }) {
       sizeMode="area-fixed"
       baseSize={380}
       className="min-w-[200px] min-h-[200px]"
+      handleVariant="small"
     >
       {/* hover 操作栏（loading 时隐藏） */}
       {!loading && <HoverToolbar buttons={toolbarButtons} loading={false} />}

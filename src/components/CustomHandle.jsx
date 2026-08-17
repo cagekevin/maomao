@@ -12,12 +12,11 @@ export default function CustomHandle({ className = '', variant = 'large', positi
   const size = variant === 'large' ? 48 : 32
   const half = size / 2
   const ref = useRef(null)
-  // 端口向节点外侧偏移量（复刻 _Component12.jsx）。
-  // 为什么往外移：端口圆很大（48px），若中心贴着节点边缘，圆会有一半伸到节点外、
-  // 一半缩在节点内。用 left/right:-outerOffset 把整个大圆整体外移 16px，
-  // 让「大圆的中心」对准节点边缘，露出的可点击/可视区域更饱满，
-  // 而 ReactFlow 的连线锚点仍按节点边界计算（--cust-anchor-x 固定 50%），互不影响。
-  const outerOffset = 16
+  // 端口圆心相对「主框边缘」的偏移：用 half（尺寸的一半）让整个圆整体外移到
+  // 「圆心恰好落在主框边缘上」——左端口 left:-half、右端口 right:-half。
+  // 之前固定 -16 对 large(48) 偏小 8px、且相对根 div 定位导致图片/视频节点端口偏离主框。
+  // 现在 CustomHandle 已渲染在主框内部（NodeShell），-half 即可让圆心精确贴边。
+  const outerOffset = half
 
   // 复刻 mousemove 追踪（--cust-shift-x/y）。
   // 说明：下面三个 span（.cust-handle-dot/ring/plus）的位置/位移都由 index.css 里
