@@ -12,6 +12,7 @@
  *    status:'pending'|'running'|'completed'|'failed', progress, errorMsg, resultUrl, createdAt }
  */
 import { useSyncExternalStore } from 'react'
+import { logger } from './logger.js'
 import { fetchTasks, saveTask, deleteTask, batchDeleteTasks, clearAllTasksApi } from './tasksApi.js'
 import { saveResultToTasks } from './filesApi.js'
 import { publish } from './eventBus.js'
@@ -255,10 +256,10 @@ export function retryTask(id) {
   const t = tasks.find((x) => x.id === id)
   const fn = t ? retryRegistry.get(t.nodeId) : undefined
   if (fn) {
-    try { fn() } catch (e) { console.error('[taskStore] 触发节点重试失败:', e) }
+    try { fn() } catch (e) { logger.error('gen', 'retry-trigger-fail', { nodeId: t?.nodeId, error: e?.message }) }
     return true
   }
-  console.warn('[taskStore] 未找到任务对应节点的重试回调 nodeId=', t?.nodeId)
+  logger.warn('gen', 'retry-callback-missing', { taskId: id, nodeId: t?.nodeId })
   return false
 }
 
@@ -304,7 +305,7 @@ export async function runNodeGeneration(nodeId) {
   if (!nodeId) return false
   // 并发上限：已满则返回 false（未触发），节点保持待生成，用户手动点
   if (genActive >= MAX_CONCURRENT_GEN) {
-    console.warn(`[taskStore] 生图并发已达上限 ${MAX_CONCURRENT_GEN}，跳过节点 ${nodeId}（保持待生成，用户可手动触发）`)
+    logger.warn('gen', 'concurrency-limit-skip', { nodeId, limit: MAX_CONCURRENT_GEN })
     return false
   }
   genActive++
@@ -322,11 +323,11 @@ async function runNodeGenerationNow(nodeId) {
       const p = fn()
       return p && typeof p.then === 'function' ? await p : true
     } catch (e) {
-      console.error('[taskStore] runNodeGeneration 触发失败:', e)
+      logger.error('gen', 'run-trigger-fail', { nodeId, error: e?.message })
       return { ok: false, error: e?.message || '触发失败' }
     }
   }
-  console.warn('[taskStore] runNodeGeneration 未找到节点回调 nodeId=', nodeId)
+  logger.warn('gen', 'run-callback-missing', { nodeId })
   return false
 }
 

@@ -1,5 +1,6 @@
 import React from 'react'
 import { AlertTriangle, RotateCcw } from 'lucide-react'
+import { logger } from './logger.js'
 
 /**
  * 崩溃边界（Error Boundary）。
@@ -23,8 +24,9 @@ export default class ErrorBoundary extends React.Component {
   componentDidCatch(error, errorInfo) {
     this.setState({ errorInfo })
     this.props.onError?.(error, errorInfo)
-    // 上报错误（可接后端 /api/logs）
-    console.error('[ErrorBoundary]', error, errorInfo)
+    // 统一日志上报（TASK-056 2.1）：走 logger 而非裸 console，接 localTool /api/logs 落盘，
+    // 崩溃日志与全链路日志同源，便于后端/AI grep 排查（原裸 console.error 绕过统一日志）。
+    logger.error('ErrorBoundary', 'componentDidCatch', { message: error?.message || String(error), error: String(error), stack: errorInfo?.componentStack || '' })
   }
 
   handleReload = () => {
