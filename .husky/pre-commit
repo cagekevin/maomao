@@ -1,3 +1,3 @@
-# 提交门禁：仅做类型检查（lint 交由 CI 在 push/PR 时跑，不卡本地提交）
+# 提交门禁：类型检查（lint 已移除，门禁靠 type-check + 测试）
 echo "▶ type-check (tsc --noEmit)"
 npm run type-check
