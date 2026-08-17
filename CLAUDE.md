@@ -115,10 +115,10 @@ node scripts/task-inspect.mjs --canvas-health   # 画布结构体检
 
 * **技术栈**：Vite + React 18 + `@xyflow/react`(React Flow) + Tailwind。开发服务器 `localhost:5180`。
 * **入口**：`src/main.jsx` → `src/App.jsx`。
-* **节点体系**：`src/components/*.jsx`，每个节点一个文件（如 `TextNode`/`ImageNode`/`PromptNode`/`DiscountVideoNode`/`VideoExtract`/`ImageBox`/`GridSplit`/`GridMerge`/`VideoProcess`/`Group`/`ScriptBox`/`GhostTarget`）。新增节点遵循 `docs/README.md` 与 `docs/node-types-map.md` 规范。
+* **节点体系**：`src/components/*.jsx`，每个节点一个文件（如 `TextNode`/`ImageNode`/`PromptNode`/`DiscountVideoNode`/`VideoExtract`/`ImageBox`/`GridSplit`/`GridMerge`/`VideoProcess`/`Group`/`ScriptBox`/`GhostTarget`）。**新增节点权威流程 → `spec/NEW-NODE-GUIDE.md`**（NodeShell 外壳 + 4 处注册同步 + NODE_OUTPUTS 管线契约，顶层规则见 `spec/CONTEXT.md` §一·5）。
 * **通用能力地基**：`src/components/base/`（`NodeShell` 统一外框、`CanvasToolbar`、`useArrangeCanvas`、`useCanvasAgentTools` 脚本盒引擎、Toast、ImageEditor、OverlayEditor、设置面板、AI 助手面板 AgentPanel 等）。
 * **设计语言**：参照 `docs/BASE-CAPABILITIES.md`；节点视觉/交互规范见 `docs/README.md`「节点设计规范」。
-* **运行形态**：Chrome 扩展（MV3）。`public/manifest.json` + `background.js` + `icon*.png` 为插件壳；`src/` 编译后由 `vite.config.js`（`base:'./'`，兼容 `chrome-extension://`）打包进 `dist/`。存储经 `src/components/base/storageAdapter.js` 走 `chrome.storage`（插件环境）。`npm run dev` 预览画布，`npm run build` 出 `dist/`。
+* **运行形态**：Chrome 扩展（MV3）。`public/manifest.json` + `background.js` + `icon*.png` 为插件壳；`src/` 编译后由 `vite.config.js`（`base:'./'`，兼容 `chrome-extension://`）打包进 `dist/`。存储经 `src/components/base/contentStore.js`（横切存储权威入口，按 STORAGE_KEYS 自动路由 local/KV/native，底层 `storageAdapter.js` 走 `chrome.storage` 插件环境）。`npm run dev` 预览画布，`npm run build` 出 `dist/`。
 
 > 与 history 区别：旧版 `src/bundle/` 是混淆还原源码；当前 `src/` 是直接可读可维护的工程，构建产物仍是 Chrome 扩展 `dist/`。
 
@@ -294,7 +294,7 @@ node scripts/task-inspect.mjs --canvas-health   # 画布结构体检
 **🔴 必读入口（按任务）**
 | 文档 | 用途 |
 | --- | --- |
-| `spec/CONTEXT.md` | **写码决策地图（唯一中心）**：代码组织 / 横切 7 块入口 / 并发治理 / 安全密钥 / 数据一致性 |
+| `spec/CONTEXT.md` | **写码决策地图（唯一中心）**：顶层架构（画布编排×节点体系×地基收口×收口准则）/ 代码组织 / 横切 7 块入口 / 并发治理 / 安全密钥 / 数据一致性 |
 | `spec/TESTING.md` | **测试体系权威**：命令/分层/SOP/输出规范 |
 | `spec/NEW-NODE-GUIDE.md` | **新建节点权威流程**（高频：骨架/注册/契约/常见坑） |
 | `tailwind.config.js` | **样式令牌唯一真相**（禁裸色值，勿再引用已删的 tailwind-tokens.md） |

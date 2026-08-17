@@ -11,7 +11,7 @@
 ### A. 状态放哪（3 问决策）
 ```
 Q1 需跨组件共享？ → 是 → store；否 → Q2
-Q2 需持久化？     → 是 → store + storageAdapter；否 → Q3
+Q2 需持久化？     → 是 → store + `contentStore`（见 §二④）；否 → Q3
 Q3 单组件内部临时？→ 是 → 组件 useState
 ```
 - store 统一模式：模块级状态 + `subscribe` + `useSyncExternalStore` 快照（**快照引用要稳定**，变更才换新引用，否则无限重渲染）。
@@ -21,14 +21,59 @@ Q3 单组件内部临时？→ 是 → 组件 useState
 `数据桥接`(useConnectedInputs/useSyncNodeData) / `交互`(useCanvasShortcuts/useContextMenu/useAssetDropPaste) / `能力`(useMediaDegrade/useVideoPoster/useFitNodeRatio) / `引擎`(useScriptBoxEngine/useNodeGeneration) / `状态`(useAgentChat) / `lod`(base/lod.jsx 的 useLod + LodProvider，画布性能降级数据源，内部自带缩放监听)。
 - 命名 `useXxx`；hook 只封装逻辑，不写 UI；纯逻辑可单测。
 
-### C. 配置集中（`src/components/base/config.js`，待建）
+### C. 配置集中（`src/components/base/config.js`，已建）
 - 环境变量（`import.meta.env.VITE_*`）集中读一次；魔法数字/超时/阈值命名常量。禁止各文件裸读 env、裸写数字。
 
 ### D. 组件目录（渐进迁移，不强制批量）
 `components/nodes/`（节点）/ `panels/`（面板）/ `scriptbox/`（剧本盒）/ `base/`（基座+横切）/ `edges/`（连线）。
 - 新增组件放对应子目录，**不新增平铺顶层**；存量改到哪个顺手迁到哪。
 
-> 详情见 `docs/代码组织结构规范.md`（可迭代）。
+> 详情见 `spec/代码组织结构规范.md`（可迭代）。
+
+---
+
+## 一·5、顶层架构（画布编排 × 节点体系）
+
+> **顶层 = 全项目最高层的「骨架与红线」。** 通用机制（横切/并发/安全/一致性）见下文 §二~§五；
+> 本层只讲「整个画布怎么组织、节点怎么进来」这两件最高层的事。改画布/节点先读本层，再往下走。
+> **定位：只写"放哪/唯一入口/红线"，机制明细看代码注释与 `spec/NEW-NODE-GUIDE.md`。**
+
+### A. 画布核心编排（唯一中心：`src/App.jsx`）
+- **App.jsx 是唯一编排中心**，`Canvas` 组件内分 6 区：常量配置 / 状态 / 能力 / 菜单 / 事件 / 渲染（搜 `【区 N】` 注释定位）。
+- **画布状态**：`nodes/edges` 用 `useNodesState/useEdgesState`；**必须同时维护 `nodesRef/edgesRef` 最新快照**——能力区（【区 3】）读 `nodesRef.current` 取最新值。**原因**：reactflow 的 `onNodesChange` 回调构建在 `useCallback` 闭包中，若回调直接引用 `nodes`，会给所有已注册回调绑定**旧闭包**（拿不到后续最新值）；只有 `ref` 是稳定引用、能始终读到最新快照。直接读 state 取旧值 = 撤销丢新增 / 批量写回错位（FINAL-057 系列已验证为高风险点）。
+- **项目系统链路**：`currentProjectId`（projectStore，useSyncExternalStore）→ 画布快照走 localTool KV（`canvas-state-v1-{projectId}`）加载 + **600ms 防抖自动保存** + 多窗口 `BroadcastChannel('yimao_canvas_sync')` 冲突提示。
+- **历史栈**：`useCanvasHistory`，`record` 必须**显式传最新快照**（`nodesRef/edgesRef`），禁异步 setState 取旧值。
+- **AI 会话按项目隔离**：`agentKey = canvas-assistant-<projectId>`，conversationStore 据此隔离存储（新建项目 = 新会话）。
+- **连线统一入口**：用户连线走 `onConnect`（edge id 去重 + 记历史）；拖到空白走 `onConnectEnd`（建 ghost-target + 弹连接菜单）。⚠️ **程序化建边也必须复用 onConnect 语义**（勿直接 `setEdges` 绕过——FINAL-057 D 未修，改动面大，谨慎）。
+- **性能降级**：`LodProvider + useLod`（viewportMoving / nodeCount / edgeFxLimit），见 `base/lod.jsx`。
+
+### B. 节点体系（顶层规则）
+- **单源节点目录**：`base/NodePalette.jsx` 的 `paletteNodes` 是**唯一节点目录**（type/label/icon/cat/data/builtin），右键菜单/节点面板/`defaultNodeData` 都从它派生。
+- **⚠️ 顶层红线：新增节点必须 4 处同步**（详细流程见 `spec/NEW-NODE-GUIDE.md` §六）：
+  1. `NodePalette.jsx` `paletteNodes` 登记；
+  2. `App.jsx` `nodeTypes` 加 `type → 组件`（⚠️ 当前仍是**手写平行表**，与 palette 双维护，漏了=节点建不出来，是已知回归陷阱）；
+  3. `useConnectedInputs.js` 的 `NODE_OUTPUTS` 声明产出（**最易漏**，漏了下游连了线也拿不到数据）；
+  4. 文档/交接登记。
+- **节点统一范式**：外壳用 NodeShell（禁止手写外壳）；UI 用 `useState(data.xxx)`、写回用 `setNodes` 不可变更新；上游数据走 `useConnectedInputs`。详见 NEW-NODE-GUIDE.md。
+- **管线契约**：`useConnectedInputs.js` 的 `NODE_OUTPUTS` 是「下游自动拿上游数据」的唯一声明，有产出的节点必须登记，数组型用 `arrayImages` 归一。
+
+### C. 地基统一收口（怎么设计 / 怎么收口）
+> **每套地基遵循同一收口思路：纯逻辑下沉纯类/纯函数 → UI/React 只做桥接 → 单一入口。** 改地基先读文件头注释（代码即知识）。以下是被反复验证过的收口规范：
+
+1. **撤销/历史**：`historyStack.js`（纯类，可单测）持逻辑，`useCanvasHistory.js`（hook）只桥接 React；`record` 必须**显式传最新快照**（异步 setState 会取旧值 → undo 丢新增）。画布类操作统一走它，勿自建撤销。
+2. **节点生成统一契约**：`useNodeGeneration.js` 收敛"提交→进度→成功双写(taskStore+node.data)/失败"样板，节点**禁止**手写生成样板（以前每节点重复 ~40 行）；`run` 执行器接 `AbortSignal` 供 stop 真中断。
+3. **错误/异步收口**：`genErrors.js`（classifyError 分类）+ `asyncGuard.js`（withTimeout 超时）统一；禁止节点自写 `if(/网络错误/)`、禁止无超时 Promise。决策见 §三。
+
+### D. 收口准则（何时统一集中管理）【顶层决策规范】
+> **规则：任何逻辑若「手写 ≥3 次」，必须抽统一入口集中管理；除非存在「必须不能收口」的硬约束。**
+>
+> **判断两步**：
+> 1. **计数**：这段逻辑是否已/将在 ≥3 处重复手写？（写新代码前先想"会不会再来一次"）
+> 2. **例外**：是否有必须各自独立的硬理由？——性能独占 / 领域硬隔离 / 上游契约钉死 / 安全隔离。**有才可不收口**，且必须在该处注释原因（不设 deadline）。
+>
+> **落地**：抽到对应层的唯一入口（通用纯工具→§二⑥、业务能力→§二⑤、存储→§二④、生成→`useNodeGeneration`、撤销→`useCanvasHistory`、下载→§二⑦），并在 `contracts.js`/对应登记表落地。已存在的重复手写 → 见 §六 待办逐一收敛。
+>
+> **反面警示**：收口不是"建个文件就行"，必须**让所有调用走它、堵死绕道**（如 `idGen.js` 已收口，但 `accountsStore`/`ShortcutSettings` 仍手写 `Date.now().toString` 绕过——已收口却仍绕道=更糟）。
 
 ---
 
@@ -39,16 +84,16 @@ Q3 单组件内部临时？→ 是 → 组件 useState
 | ① 通信 | `eventBus.js` (publish/subscribe) | 瞬时事件广播；事件先登记 `contracts.js` EVENTS | ❌ eventBus 存状态 / store 发事件 |
 | ② 表现 | `toastStore.js` (toastSuccess/Error/Warning/Info) | 业务只调语义化 4 档 | ❌ `showToast('x',{type})` 混写 |
 | ③ 观测 | `logger.js` (logger.info/warn/error) | 记录+上报，供排查 | ❌ 裸 `console.log/warn/error` |
-| ④ 持久化 | `storageAdapter` + `*Store` | 数据存取；存储键走登记 | ❌ 散落字符串字面量 |
+| ④ 持久化 | **`contentStore`**（横切存储权威入口）+ `storageAdapter`/`kvStore`（底层） | 业务读写走 `contentStore`（按 STORAGE_KEYS 自动路由 local/KV/native）；`storageAdapter` 是底层，业务**禁止**直调 | ❌ 直调 storageAdapter / 散落字符串字面量 |
 | ⑤ 能力 | `mediaType`/`clipboard`/`filesApi`/`imageUrl`... | 业务能力单一入口 | ❌ 手写正则/URL拼接/压缩 |
-| ⑥ 工具 | `src/base/utils.js`（待建）genId/formatTime/deepClone/throttle | 通用纯工具 | ❌ 手写 `Date.now().toString(36)`/`Math.random` 造 ID |
+| ⑥ 工具 | genId 已落 `base/idGen.js`；deepClone/formatTime/throttle/debounce **待统一**（见 §六 待办） | 通用纯工具 | ❌ 手写 `Date.now().toString(36)`/`Math.random` 造 ID |
 | ⑦ 下载 | `clipboard.downloadUrl` | 文件下载/导出 | ❌ 自写 `createObjectURL + a.download` |
 
 **协作**：弹提示→②；记日志→③；广播→①；存数据→④；算/转换→⑤⑥；下载→⑦。**不越层**（toast 不写日志、logger 不弹提示）。
 
 **登记表**：`src/components/base/contracts.js`（EVENTS/STORAGE_KEYS/GEN_ERRORS）——新增事件/存储键/错误类型先登记再实现。
 
-> 详情见 `docs/横切基础设施分层.md`（可迭代）。
+> 详情见 `spec/横切基础设施分层.md`（可迭代）。
 
 ---
 
@@ -57,7 +102,7 @@ Q3 单组件内部临时？→ 是 → 组件 useState
 **铁律：打爆上游 = 大忌。** 并发必须受控，绝不无限叠加。
 
 ### 并发治理（全局统一，当前只治了生图一处）
-- **生图**：`taskStore.MAX_CONCURRENT_GEN = 6`（已实现，超出跳过待用户手动点）。
+- **生图**：`config.js` `GEN_MAX_CONCURRENT = 6`（已实现，taskStore 引用，超出跳过待用户手动点）。
 - **待统一**：视频生成 / 图片压缩 / 文件上传 / Agent 批量任务的并发**尚无全局治理**。
 - 设计目标：全局信号量/并发池，各操作分预算（生图 N/视频 M/上传 K/压缩 P），超限**排队或跳过**（生图=跳过，其他=排队）。
 - **新增任何会并发触发上游/耗资源的操作，先想"并发上限是多少、超了怎么办"**。
@@ -84,7 +129,7 @@ Q3 单组件内部临时？→ 是 → 组件 useState
 
 ## 五、数据一致性防线（画布 ↔ 任务 ↔ 磁盘）
 
-- **唯一 ID 铁律**：nodeId/edgeId/taskId 生成与去重集中（走 utils.genId），禁止各造各的。
+- **唯一 ID 铁律**：nodeId/edgeId/taskId 生成与去重集中（走 `base/idGen.js` 的 `generateId`），禁止各造各的。
 - **字段映射集中**：前端 camelCase ↔ 后端 snake_case 以 CONTRACTS 为准，禁止散落转换。
 - **快照稳定**：所有 store 的 getSnapshot 引用缓存（防无限重渲染）。
 - **新增 store/持久化**：自查"会不会产生画布↔任务↔磁盘不一致"（CLAUDE §四 有运行时排查脚本，写码时主动规避）。
@@ -108,6 +153,16 @@ Q3 单组件内部临时？→ 是 → 组件 useState
 - 🟡 `07-Toast` / `08-存储键` / `09-日志` / `01-06` / `实时总线` / `CONTRACTS-2026-08-16` → 机制以本文件 §二 + 对应代码注释为准
 
 **新增机制**：能靠代码注释表达的就写注释（不建文档、不立 ADR）；确需全局决策的才在本文件登记（横跨 ≥2 处 → 代码注释写清收口原因与红线 + 本文件登记），并在 `contracts.js` 落地。**临时调查产物不落盘成正式文档。**
+
+### 顶层已知待办（已确认、未修，后续立项）
+> 来源：`docs/agent 批量任务/FINAL-收口缺口核实终稿`（人工核实）。改动前先查，避免重复踩/重复提。
+> 工具统一 → §二⑥；其余多为中风险重构，改前需评估下游。
+1. **通用工具统一**：deepClone / formatTime / throttle / debounce 尚无集中实现（genId 已在 `base/idGen.js`），业务零散手写（如 `JSON.parse(JSON.stringify())`）。
+2. **nodeTypes 单源化**：`App.jsx nodeTypes` 与 `NodePalette` 双维护，漏登记=节点建不出来（FINAL-057 B，中风险）。
+3. **程序化建边统一走 onConnect**：部分节点直接 `setEdges` 绕过 onConnect 校验/撤销栈（FINAL-057 D，改动面大）。
+4. **统一节点错误降级/重试收敛**：节点级 catch 大多只 setState 不收敛（FINAL-056，架构级）。
+5. **本地预览收口**：`URL.createObjectURL` 手写 ≥10 处（节点选图预览/视频加载），无统一入口（区分于下载 `downloadUrl`，这是「临时预览 URL」，应抽 `imageUrl`/能力层统一，含 revoke 清理）。
+6. **已收口却仍绕道的反例**：`idGen.js` 已收口，但 `accountsStore`/`ShortcutSettings` 仍手写 `Date.now().toString` 造 ID → 需收敛回 `generateId`（先 grep 全库堵死绕道）。
 
 > **铁律**：**别为"文档齐全"而写文档。** 维护文档 = 维护负担 = 会过期。让代码当知识，本文件当地图，文档只补代码表达不了的决策。
 
