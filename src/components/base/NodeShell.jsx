@@ -232,7 +232,7 @@ export default function NodeShell({
       <div className={mainShellClassName}>
         <ErrorBoundary
           variant="node"
-          onError={(error) => logger.error('节点渲染', 'error', { nodeId: id, error: error?.message || String(error) })}
+          onError={(error) => logger.error('error', 'node-render', { nodeId: id, error: error?.message || String(error) })}
         >
           {children}
         </ErrorBoundary>

@@ -6,7 +6,7 @@ import HoverToolbar from './base/HoverToolbar.jsx'
 import { useConnectedInputs } from './base/useConnectedInputs.js'
 import { useMediaDegrade } from './base/useMediaDegrade.js'
 import { uploadFileToLocal, toAbsoluteFileUrl } from './base/filesApi.js'
-import { showToast } from './base/toastStore.js'
+import { showToast, toastError, toastWarning } from './base/toastStore.js'
 import { applyMosaic, MOSAIC_MODES, MOSAIC_PALETTE } from './base/faceMosaic.js'
 import FaceMosaicEditor from './base/FaceMosaicEditor.jsx'
 
@@ -92,7 +92,7 @@ export default function FaceMosaicNode({ id, data, selected }) {
   // AI 打码（复刻官方 b）
   const handleAI = async () => {
     const urls = imageUrls()
-    if (urls.length === 0) { showToast('请先上传图片或连接包含图片的节点'); return }
+    if (urls.length === 0) { toastWarning('请先上传图片或连接包含图片的节点'); return }
     setLoading(true)
     setProgress(0)
     setErrorMessage('')
@@ -115,15 +115,15 @@ export default function FaceMosaicNode({ id, data, selected }) {
     if (results.length === 0) {
       setLoading(false)
       setErrorMessage(firstErr || '打码失败')
-      showToast(firstErr || '打码失败')
+      toastError(firstErr || '打码失败')
       return
     }
     setLoading(false)
     setResultInfo({ count: results.length, faceTotal: faceCount })
     setResultUrls(results.map((r) => r.url))
     outputResults(results)
-    if (faceCount === 0) showToast('未检测到人脸')
-    if (firstErr) showToast(`部分图片处理失败：${firstErr}`)
+    if (faceCount === 0) toastWarning('未检测到人脸')
+    if (firstErr) toastError(`部分图片处理失败：${firstErr}`)
   }
 
   // 手动打码保存（复刻官方 x：editor onSave）
@@ -277,7 +277,7 @@ export default function FaceMosaicNode({ id, data, selected }) {
             <Upload size={14} />
           </button>
           <button
-            onClick={() => { if (count === 0) { showToast('请先上传或连接图片'); return } setManualOpen(true) }}
+            onClick={() => { if (count === 0) { toastWarning('请先上传或连接图片'); return } setManualOpen(true) }}
             disabled={count === 0}
             className="nodrag flex items-center justify-center gap-1 h-8 px-2.5 rounded-md text-[12px] text-gray-300 bg-surface-hover hover:bg-surface-hover-strong border border-edge disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
             title="手动打码"

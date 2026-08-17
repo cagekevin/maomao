@@ -10,7 +10,7 @@ import CustomHandle from './CustomHandle.jsx'
 import { useConnectedInputs } from './base/useConnectedInputs.js'
 import { useMediaDegrade } from './base/useMediaDegrade.js'
 import LazyImage from './base/LazyImage.jsx'
-import { showToast } from './base/toastStore.js'
+import { showToast, toastError, toastWarning } from './base/toastStore.js'
 import { toAbsoluteFileUrl } from './base/filesApi.js'
 
 /**
@@ -219,17 +219,17 @@ export default function ImageBoxNode({ id, data, selected }) {
   const importFromConnection = useCallback(() => {
     const ups = upstreamImages()
     if (ups.length === 0) {
-      showToast('当前没有上游连线提供图片')
+      toastWarning('当前没有上游连线提供图片')
       return
     }
     const existing = new Set(images.map((n) => n.url))
     const fresh = ups.filter((n) => !existing.has(n.url))
     if (fresh.length === 0) {
-      showToast('上游连线图片已全部导入')
+      // 节点已显示导入的图片，结果可见，无需 toast
       return
     }
     addImages(fresh.map((n) => ({ url: n.url, source: 'connect' })))
-    showToast(`已导入 ${fresh.length} 张连线图`)
+    // 节点已显示导入的图片，结果可见，无需 toast
   }, [upstreamImages, images, addImages])
 
   // ---- 文件读取（对齐官方 te/ne：只收 image/，读成 dataURL）----
@@ -366,13 +366,13 @@ export default function ImageBoxNode({ id, data, selected }) {
       const blob = await new Promise((res) => canvas.toBlob(res, 'image/png'))
       if (!blob) throw new Error('blob null')
       await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
-      showToast('图片已复制，可以在画布中粘贴')
+      // 复制图片后用户可在画布粘贴，结果可见，无需 toast
     } catch {
       try {
         await navigator.clipboard.writeText(url)
-        showToast('图片链接已复制（直接复制图片失败）')
+        toastWarning('图片链接已复制（直接复制图片失败）')
       } catch {
-        showToast('复制失败，可能因跨域或权限限制')
+        toastError('复制失败，可能因跨域或权限限制')
       }
     }
   }, [])
@@ -488,7 +488,7 @@ export default function ImageBoxNode({ id, data, selected }) {
             <>
               {!hideImage && (
                 <img
-                  src={current.url}
+                  src={toAbsoluteFileUrl(current.url)}
                   alt={current.label || `图片 ${activeIndex + 1}`}
                   className="w-full h-full object-contain cursor-pointer"
                   draggable={false}
@@ -565,7 +565,7 @@ export default function ImageBoxNode({ id, data, selected }) {
                       }}
                       title={img.label || (isSel ? '点击取消选择' : '点击选择 (按住 Ctrl 设为默认图)')}
                     >
-                      <LazyImage src={img.thumb || img.url} alt={img.label || ''} className="w-full h-full" imgClassName="w-full h-full object-cover bg-[#0e0e0e]" />
+                      <LazyImage src={toAbsoluteFileUrl(img.thumb || img.url)} alt={img.label || ''} className="w-full h-full" imgClassName="w-full h-full object-cover bg-[#0e0e0e]" />
                       <button
                         className={`absolute top-1 left-1 w-4 h-4 rounded flex items-center justify-center transition-colors cursor-pointer border-none ${isSel ? 'bg-emerald-500 text-white' : 'bg-black/50 text-gray-300 group-hover/thumb:bg-black/70'}`}
                         onClick={(e) => { e.stopPropagation(); toggleSelect(img.id) }}

@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { Loader2, Image as ImageIcon, Video, LayoutGrid, Columns2, RefreshCw, Link2, Wand2, Copy, Check } from 'lucide-react'
 import { dialogueText, hlAt, IMAGE_GEN_TYPES, IMAGE_GEN_DEFAULT } from '../base/scriptBoxPrompts.js'
 import CustomHandle from '../CustomHandle.jsx'
+import { toastWarning } from '../base/toastStore.js'
 
 /** 长段提示词一键排版：每个句号类标点（。！？；）后回车换行，标点留在行尾。
  *  纯字符串处理，不破坏 @资产名 引用。供编辑弹窗打开时预格式化。 */
@@ -111,7 +112,7 @@ export default function StepPrompt({ data, updateData, callbacks }) {
                   <span className="text-meta text-gray-400 px-1 py-px rounded bg-surface-1">{s.imgGen.label}</span>
                   <span className="text-meta text-gray-600">{new Date(s.imgGen.ts).toLocaleTimeString()}</span>
                   <div className="flex-1" />
-                  <button className="flex items-center gap-0.5 text-meta text-gray-400 hover:text-white" onClick={() => { navigator.clipboard?.writeText(s.imgGen.prompt).catch(() => {}); setCopied((c) => ({ ...c, [i]: true })); setTimeout(() => setCopied((c) => ({ ...c, [i]: false })), 1200) }}>
+                  <button className="flex items-center gap-0.5 text-meta text-gray-400 hover:text-white" onClick={() => { navigator.clipboard?.writeText(s.imgGen.prompt).catch(() => toastWarning('复制提示词失败')); setCopied((c) => ({ ...c, [i]: true })); setTimeout(() => setCopied((c) => ({ ...c, [i]: false })), 1200) }}>
                     {copied[i] ? <Check size={9} className="text-emerald-400" /> : <Copy size={9} />} {copied[i] ? '已复制' : '复制'}
                   </button>
                   <button className="px-1.5 py-0.5 text-meta rounded bg-surface-hover hover:bg-surface-hover-strong text-gray-300" onClick={() => patchShot(i, 'prompt', s.imgGen.prompt)}>应用到生图</button>

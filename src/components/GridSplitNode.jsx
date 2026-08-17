@@ -7,7 +7,7 @@ import CustomHandle from './CustomHandle.jsx'
 import { useConnectedInputs } from './base/useConnectedInputs.js'
 import { useMediaDegrade } from './base/useMediaDegrade.js'
 import { useNodeResize } from './base/hooks.js'
-import { showToast } from './base/toastStore.js'
+import { showToast, toastWarning } from './base/toastStore.js' // 保留阻断校验提示
 import { toAbsoluteFileUrl } from './base/filesApi.js'
 
 /* ════════════════════════════════════════════════════════════════
@@ -541,25 +541,25 @@ export default function GridSplitNode({ id, data, selected }) {
   // ---- 批量切分（复刻 Lo.jsx G → onSplit；这里组件内直接生成）----
   const handleSplit = useCallback(() => {
     if (!imageUrl) {
-      showToast('请先连接包含图片的节点')
+      toastWarning('请先连接包含图片的节点')
       return
     }
     const valid = (data.extractedImages || []).filter((x) => typeof x === 'string' && !!x)
     if (valid.length === 0) {
-      showToast('没有可用的切片，请先连接图片')
+      toastWarning('没有可用的切片，请先连接图片')
       return
     }
     // sendToImageBox：推送已有图片盒子，没有则新建一个（简化：统一生成 imageNode 网格）
     const items = valid.map((url, i) => ({ url, label: titlePattern.replace('{num}', String(i + 1)) }))
     spawnImageNodes(items)
-    showToast(`已生成 ${items.length} 张切片`)
+    // 切片节点已生成在画布，结果可见，无需 toast
   }, [imageUrl, data.extractedImages, titlePattern, spawnImageNodes])
 
   // ---- 单块切出（复刻 Lo.jsx ue → onSplitOne）----
   const handleSplitOne = useCallback(
     (index) => {
       if (!imageUrl) {
-        showToast('请先连接包含图片的节点')
+        toastWarning('请先连接包含图片的节点')
         return
       }
       const list = data.extractedImages || []

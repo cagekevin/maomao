@@ -13,7 +13,7 @@ import { useFitNodeRatio } from './base/useFitNodeRatio.js'
 import { useVideoPoster } from './base/useVideoPoster.js'
 import { toAbsoluteFileUrl, saveInlineToLocal, uploadFileToLocal } from './base/filesApi.js'
 import { compressImage } from './base/imageCompress.js'
-import { showToast } from './base/toastStore.js'
+import { showToast, toastError } from './base/toastStore.js'
 
 /**
  * 图片节点（复刻原 xi.jsx / imageNode）
@@ -116,9 +116,9 @@ export default function ImageNode({ id, data, selected }) {
         )
       }
       const ratio = originalSize ? `（${(size / originalSize * 100).toFixed(1)}%）` : ''
-      showToast(`压缩完成 ${(size / 1024).toFixed(1)}KB${ratio}`)
+      // 压缩结果在节点上可见，无需 toast
     } catch (e) {
-      showToast(e?.message || '压缩失败')
+      toastError(e?.message || '压缩失败')
     } finally {
       setCompressing(false)
     }
@@ -137,7 +137,7 @@ export default function ImageNode({ id, data, selected }) {
         setNodes((ns) =>
           ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, text: fr.result, mediaType: 'text', imageUrl: undefined, url: undefined } } : n))
         )
-        showToast(`已导入文本「${f.name}」`)
+        // 节点已切到文本态，结果可见，无需 toast
       }
       fr.readAsText(f)
       return
@@ -147,11 +147,11 @@ export default function ImageNode({ id, data, selected }) {
     if (!url) {
       url = await new Promise((res) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => res(null); r.readAsDataURL(f) })
     }
-    if (!url) { showToast('上传失败'); return }
+    if (!url) { toastError('上传失败'); return }
     setNodes((ns) =>
       ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, imageUrl: url, url, mediaType: undefined, text: undefined } } : n))
     )
-    showToast(`已替换为「${f.name}」`)
+    // 节点已显示新图，结果可见，无需 toast
   }, [id, setNodes])
 
   const DEMO_IMAGE = data.demoImage || 'https://picsum.photos/seed/imagenode/400/260'
