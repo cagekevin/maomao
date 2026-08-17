@@ -396,6 +396,28 @@ async function handleProxyJson(req: IncomingMessage, res: ServerResponse): Promi
 
     clearTimeout(timeout);
 
+    // ── 上游 4xx 错误：不走流式 pipe，读 body 透传真实错误（否则前端只看到状态码，看不到原因）──
+    // 常见场景：上游模型拒绝请求（如不支持视觉的模型收到 image_url）返回 400 且 content-type 可能是
+    // text/event-stream，若按下方流式分支 pipe，前端 parseAgentError 读到的是一堆 SSE 文本而非错误 JSON，
+    // 只能显示"400"。故 4xx 一律读原始 body，保留 status 透传，前端能拿到 error.message。
+    if (fetchRes.status >= 400) {
+      const errBody = Buffer.from(await fetchRes.arrayBuffer());
+      const errText = errBody.toString('utf-8');
+      // 尽量剥 SSE 包裹：data: {...} → 提取其中 JSON；否则原样透传文本
+      let out = errText;
+      try {
+        const m = errText.match(/^data:\s*(\{.*\})\s*$/m);
+        if (m) {
+          out = JSON.stringify(JSON.parse(m[1]));
+        }
+      } catch { /* 剥壳失败保持原文本 */ }
+      console.log(`[proxy] ${new Date().toISOString().replace('T',' ').slice(0,19)} | ${body.method || 'POST'} ${body.url} | ERR ${fetchRes.status} | ${out.slice(0, 300)}`);
+      const errHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
+      res.writeHead(fetchRes.status, errHeaders);
+      res.end(out);
+      return;
+    }
+
     // ── 流式转发：SSE 响应不缓冲，解析 data: 行后逐 JSON 块 pipe ──
     const jsonResponseCt = fetchRes.headers.get('content-type') || '';
     if (jsonResponseCt.includes('text/event-stream')) {
