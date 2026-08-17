@@ -915,7 +915,7 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
     for (const tc of tools) {
       let args = {}
       if (tc.function?.arguments) {
-        try { args = JSON.parse(tc.function.arguments) } catch (e) { console.warn('[Agent] 工具参数 JSON.parse 失败:', tc.function?.name, tc.function?.arguments, e) }
+        try { args = JSON.parse(tc.function.arguments) } catch (e) { logger.warn('Agent', '工具参数 JSON.parse 失败', { name: tc.function?.name, arguments: tc.function?.arguments, error: e }) }
       }
       const result = await callTool(tc.function?.name, args)
       // 【链路日志】工具执行结果：工具名 + 成功/失败（失败带 error），供排查 AI 调工具环节

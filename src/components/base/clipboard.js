@@ -12,6 +12,8 @@
  * 复制「链接」用 copyText 即可。
  */
 
+import { logger } from './logger.js'
+
 /**
  * 粘贴文本清洗（纯文本化）：把从剪贴板/富文本带过来的「样式与格式残留」全部丢弃，只留干净纯文本。
  * 覆盖场景：粘贴网页/表格/Word 内容时常见的一类脏字符与格式。
@@ -64,7 +66,7 @@ export async function copyImageToClipboard(url) {
     await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
     return { ok: true, msg: '图片已复制，可在画布或其它软件中粘贴' }
   } catch (e) {
-    console.warn('[clipboard] 复制图片失败（canvas 跨域等）:', e?.message)
+    logger.warn('clipboard', '复制图片失败（canvas 跨域等）', e?.message)
     // 退化为复制链接（对齐官方 fallback 思路）
     try {
       await navigator.clipboard.writeText(url)
@@ -102,7 +104,7 @@ export async function downloadUrl(url, filename) {
     URL.revokeObjectURL(objUrl)
     return { ok: true, msg: '已开始下载' }
   } catch (e) {
-    console.warn('[clipboard] 下载失败:', e?.message)
+    logger.warn('clipboard', '下载失败', e?.message)
     return { ok: false, msg: '下载失败' }
   }
 }

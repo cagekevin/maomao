@@ -117,7 +117,7 @@ export function useNodeGeneration({ nodeId, type, validate, run, onSuccess, onRe
         taskCtl.fail('已停止')
         return { ok: false, error: '已停止', aborted: true }
       }
-      console.error('[useNodeGeneration] 生成异常:', e?.message)
+      logger.error('useNodeGeneration', '生成异常', e?.message)
       const msg = e?.message || '生成失败'
       setError(msg)
       taskCtl.fail(msg)

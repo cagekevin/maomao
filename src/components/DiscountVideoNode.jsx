@@ -25,6 +25,7 @@ import { useNodeGeneration } from './base/useNodeGeneration.js'
 import { useProviders, load as loadProviders } from './base/settings/providerStore.js'
 import { generateVideo } from './base/videoApi.js'
 import { useNodePrefs } from './base/nodePrefs.js'
+import { logger } from './base/logger.js'
 import { buildAllModels, resolveProviderModel } from './base/providerModels.js'
 
 /**
@@ -207,7 +208,7 @@ export default function DiscountVideoNode({ id, data, selected }) {
             icon: <JianyingIcon size={14} />,
             title: '发送到剪映素材库',
             hoverClass: 'hover:text-emerald-400',
-            onClick: () => console.log('发送到剪映素材库')
+            onClick: () => logger.info('DiscountVideoNode', '发送到剪映素材库')
           },
           { key: 'delete', icon: <Trash2 size={14} />, title: '删除', hoverClass: 'hover:text-red-500', onClick: () => setVideoUrl('') }
         ]

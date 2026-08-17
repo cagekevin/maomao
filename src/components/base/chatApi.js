@@ -9,6 +9,7 @@
  *    网关提取后经 resolve_attachments 处理。url 经 refImage.js 统一解析（blob:→data base64）。
  */
 import { resolveRefImages, toImageContentBlocks } from './refImage.js'
+import { logger } from './logger.js'
 
 import { API_BASE } from './apiBase.js'
 
@@ -31,7 +32,7 @@ async function attachImages(messages, images, provider) {
     ? [...last.content]
     : [{ type: 'text', text: typeof last.content === 'string' ? last.content : String(last.content || '') }]
   contentArr.push(...blocks)
-  console.log(`[chatApi] 附加 ${refUrls.length} 张参考图到 user 消息`)
+  logger.info('chatApi', '附加参考图到 user 消息', refUrls.length)
   return messages.map((m, i) => (i === userIdx ? { ...m, content: contentArr } : m))
 }
 
@@ -49,7 +50,7 @@ async function post(payload, signal) {
       signal,
     })
   } catch (e) {
-    console.error('[chatApi] 网络异常:', e?.message)
+    logger.error('chatApi', '网络异常', e?.message)
     return e?.name === 'AbortError'
       ? { ok: false, aborted: true, error: '已停止' }
       : { ok: false, error: `网络错误：${e.message}` }

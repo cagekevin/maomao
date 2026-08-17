@@ -12,6 +12,7 @@
  *
  * 收敛原则：任何新增节点/面板要显示或发送图片，一律用这里，不各写各的 URL 处理。
  */
+import { logger } from './logger.js'
 import { API_BASE } from './apiBase.js'
 
 /** 相对 /files/ 路径 → 完整可访问 URL（对齐后端 resources.ts / base64Externalize 惯例）。 */
@@ -49,7 +50,7 @@ export async function blobToDataUrl(u) {
       fr.readAsDataURL(blob)
     })
   } catch (e) {
-    console.warn(`[imageUrl] blob 转 dataURL 失败:`, e.message)
+    logger.warn('imageUrl', 'blob 转 dataURL 失败', e.message)
     return ''
   }
 }
@@ -76,7 +77,7 @@ export async function urlToDataUrl(u) {
       fr.readAsDataURL(blob)
     })
   } catch (e) {
-    console.warn(`[imageUrl] URL 转 base64 失败:`, e.message)
+    logger.warn('imageUrl', 'URL 转 base64 失败', e.message)
     return ''
   }
 }

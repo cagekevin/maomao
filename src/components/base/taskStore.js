@@ -41,7 +41,7 @@ export function initTasks() {
         notify()
       }
     })
-    .catch((e) => console.warn('[taskStore] 加载历史任务失败（localTool 未连？）:', e?.message))
+    .catch((e) => logger.warn('taskStore', '加载历史任务失败（localTool 未连？）', e?.message))
 }
 
 // 后端保存（fire-and-forget，失败仅降级为内存态）

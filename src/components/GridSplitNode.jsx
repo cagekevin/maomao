@@ -9,6 +9,7 @@ import { useMediaDegrade } from './base/useMediaDegrade.js'
 import { useNodeResize } from './base/hooks.js'
 import { showToast, toastWarning } from './base/toastStore.js' // 保留阻断校验提示
 import { toAbsoluteFileUrl } from './base/filesApi.js'
+import { logger } from './base/logger.js'
 
 /* ════════════════════════════════════════════════════════════════
  * 图片切分节点（复刻官方 Lo.jsx / gridSplitNode）
@@ -290,7 +291,7 @@ export default function GridSplitNode({ id, data, selected }) {
           )
         }
       } catch (e) {
-        console.error('Failed to pre-crop images:', e)
+        logger.error('GridSplitNode', 'Failed to pre-crop images', e)
       }
     })()
     return () => {

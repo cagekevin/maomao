@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useRef } from 'react'
 import { Search, Filter, MoreVertical, Copy, Play, RotateCw, Trash2, X, RefreshCw, ChevronDown, Download, Image as ImageIcon } from 'lucide-react'
 import { useTasks, statusDotClass, statusLabel, typeLabel, removeTask, retryTask, clearTasksBy, clearAllTasks } from './taskStore.js'
+import { logger } from './logger.js'
 import { pollOneTask } from './pollTask.js'
 import { showToast } from './toastStore.js'
 import { makeAssetDragProps } from './useAssetDragToCanvas.js'
@@ -220,7 +221,7 @@ function TaskCard({ task, moreOpen, onToggleMore, onCloseMore, onCopy, onRetry, 
       URL.revokeObjectURL(objUrl)
       showToast('已开始下载', { type: 'success' })
     } catch (err) {
-      console.warn('[TaskCenter] 下载失败:', err?.message)
+      logger.warn('TaskCenter', '下载失败', err?.message)
       showToast('下载失败', { type: 'error' })
     }
   }

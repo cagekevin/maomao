@@ -13,6 +13,7 @@ import { toAbsoluteFileUrl } from './base/filesApi.js'
 import { setCurrentSnapshot, setAwaitingConfirm, getCurrentRunMode, setCurrentRunMode } from './base/conversationStore.js'
 import { runNodeGeneration } from './base/taskStore.js'
 import { showToast } from './base/toastStore.js'
+import { logger } from './base/logger.js'
 
 /**
  * ════════════════════════════════════════════════════════════════
@@ -300,7 +301,7 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
       setPendingImageNodes([])
       setInput('')
       try { contentSet(AGENT_DRAFT_KEY, '') } catch { /* ignore */ }
-      Promise.resolve(sendImageMode(text, attach)).catch((e) => console.error('[Agent] 图像模式 send 失败:', e))
+      Promise.resolve(sendImageMode(text, attach)).catch((e) => logger.error('Agent', '图像模式 send 失败', e))
       return
     }
     // 【移除视觉模型硬编码拦截】「模型是否支持视觉」无法靠名单判断（机器/AI 都不确定，
@@ -310,14 +311,14 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
     setPendingImageNodes([])
     setInput('')
     try { contentSet(AGENT_DRAFT_KEY, '') } catch { /* ignore */ }
-    Promise.resolve(send(text, attach)).catch((e) => console.error('[Agent] send 失败:', e))
+    Promise.resolve(send(text, attach)).catch((e) => logger.error('Agent', 'send 失败', e))
   }
 
   // Skill 阶段2 确认：翻转 awaitingConfirm 并通知 LLM 按策划执行（Step F）
   const handleConfirmPlan = useCallback(() => {
     setAwaitingConfirm(false)
     try { contentSet(AGENT_DRAFT_KEY, '') } catch { /* ignore */ }
-    Promise.resolve(send('已确认，请按刚才展示的策划执行。')).catch((e) => console.error('[Agent] 确认后 send 失败:', e))
+    Promise.resolve(send('已确认，请按刚才展示的策划执行。')).catch((e) => logger.error('Agent', '确认后 send 失败', e))
   }, [send])
 
   // 【对齐大雄 prompts 逐条确认通道 · 保留为可选能力，当前不激活】
@@ -333,7 +334,7 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
       if (typeof showToast === 'function') showToast('正在执行全部提示词…', 'info')
       Promise.resolve(executePlanDirect(generations))
         .then((r) => { if (!r.ok && typeof showToast === 'function') showToast(r.error || '生成失败', 'error') })
-        .catch((e) => console.error('[Agent] prompts 全确认生图失败:', e))
+        .catch((e) => logger.error('Agent', 'prompts 全确认生图失败', e))
     }
   }, [updateMessageByContent, executePlanDirect])
 

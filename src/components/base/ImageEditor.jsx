@@ -7,6 +7,7 @@ import {
 } from 'lucide-react'
 import ReactCrop, { centerCrop, makeAspectCrop } from 'react-image-crop'
 import 'react-image-crop/dist/ReactCrop.css'
+import { logger } from './logger.js'
 
 /**
  * 全屏图片编辑器（复刻官方 _Component129.jsx 图片编辑 / ImageNode 的「裁剪」「标记」入口）。
@@ -117,7 +118,7 @@ export default function ImageEditor({ imageUrl, initialTool = 'pencil', onSave, 
         }
         setHistory([ctx.getImageData(0, 0, canvas.width, canvas.height)])
       } catch (err) {
-        console.warn('[ImageEditor] 图片绘制失败（跨域污染？）:', err.message)
+        logger.warn('ImageEditor', '图片绘制失败（跨域污染？）', err.message)
       }
     }
     // 图片加载：dataURL/blob 无需 crossOrigin；http 跨域图先试 crossOrigin（保证 canvas 不被

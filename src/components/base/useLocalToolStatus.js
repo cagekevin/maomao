@@ -16,6 +16,7 @@
  * 原型无此开关，默认 false（即始终启用连接检测）。
  */
 import { useState, useCallback, useEffect } from 'react'
+import { logger } from './logger.js'
 import { API_BASE } from './apiBase.js'
 
 const DEFAULT_PORT = 18080
@@ -40,7 +41,7 @@ export function useLocalToolStatus() {
       })
       if (res.ok) {
         const data = await res.json().catch(() => ({}))
-        console.log('[useLocalToolStatus] /api/status 响应:', data?.status)
+        logger.info('useLocalToolStatus', '/api/status 响应', data?.status)
         if (data?.status === 'ok') {
           setStatus((s) =>
             s.isConnected && s.version === data.version && s.message === data.message
@@ -69,7 +70,7 @@ export function useLocalToolStatus() {
   useEffect(() => {
     if (disableLocalTool) return
     const interval = status.isConnected ? POLL_CONNECTED_MS : POLL_DISCONNECTED_MS
-    console.log(`[useLocalToolStatus] 检测间隔 ${interval}ms, isConnected=${status.isConnected}`)
+    logger.info('useLocalToolStatus', '检测间隔', { interval, isConnected: status.isConnected })
     const id = setInterval(check, interval)
     return () => clearInterval(id)
   }, [status.isConnected, check, disableLocalTool])

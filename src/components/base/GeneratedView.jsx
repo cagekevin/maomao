@@ -6,6 +6,7 @@ import { showToast } from './toastStore.js'
 import { API_BASE } from './apiBase.js'
 import { useAssetDragToCanvas, fetchText } from './useAssetDragToCanvas.js'
 import { toAbsoluteFileUrl } from './filesApi.js'
+import { logger } from './logger.js'
 import { isAudio } from './mediaType.js'
 import VideoThumbnail from './VideoThumbnail.jsx'
 
@@ -117,7 +118,7 @@ export default function GeneratedView() {
       setTotal(data.total || 0)
       setTotalPages(data.totalPages || 1)
     } catch (e) {
-      console.warn('[GeneratedView] 加载失败（localTool 未连？）:', e?.message)
+      logger.warn('GeneratedView', '加载失败（localTool 未连？）', e?.message)
       if (token === resetTokenRef.current) setItems([])
     } finally {
       if (token === resetTokenRef.current) setLoading(false)
@@ -138,7 +139,7 @@ export default function GeneratedView() {
       setTotalPages(data.totalPages || 1)
       setPage(data.page || target)
     } catch (e) {
-      console.warn('[GeneratedView] 翻页加载失败:', e?.message)
+      logger.warn('GeneratedView', '翻页加载失败', e?.message)
     } finally {
       if (token === resetTokenRef.current) setLoading(false)
     }

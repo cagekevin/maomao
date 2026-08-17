@@ -6,6 +6,7 @@ import { showToast } from './toastStore.js'
 import { API_BASE } from './apiBase.js'
 import { useAssetDragToCanvas, fetchText } from './useAssetDragToCanvas.js'
 import { toAbsoluteFileUrl } from './filesApi.js'
+import { logger } from './logger.js'
 import { isAudio } from './mediaType.js'
 
 // 目录 pill（folder 前缀对齐本地磁盘 migrated/materials 结构，与后端 /api/resources 一一对应）
@@ -119,7 +120,7 @@ export default function AssetLibrary() {
       setTotal(data.total || 0)
       setHasMore((data.items || []).length < (data.total || 0))
     } catch (e) {
-      console.warn('[AssetLibrary] 加载失败（localTool 未连？）:', e?.message)
+      logger.warn('AssetLibrary', '加载失败（localTool 未连？）', e?.message)
       if (token === resetTokenRef.current) setItems([])
     } finally {
       if (token === resetTokenRef.current) setLoading(false)

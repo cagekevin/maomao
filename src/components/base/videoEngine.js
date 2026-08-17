@@ -28,6 +28,7 @@ import {
   VideoSampleSource
 } from 'mediabunny'
 import { GIFEncoder, quantize, applyPalette } from 'gifenc'
+import { logger } from './logger.js'
 import { uploadFileToLocal } from './filesApi.js'
 
 /** clamp：保证是偶数且 ≥2 */
@@ -459,10 +460,10 @@ export async function uploadResult(blob, _opts = {}) {
     const name = (blob.name || `video_${Date.now()}.${blob.type?.split('/')[1] || 'mp4'}`).replace(/[\\/:*?"<>|]/g, '_')
     const url = await uploadFileToLocal(blob, subfolder, name)
     if (url) return { url }
-    console.warn('[videoEngine] 视频产物落盘失败，降级为临时 URL（刷新后不可用）')
+    logger.warn('videoEngine', '视频产物落盘失败，降级为临时 URL（刷新后不可用）')
     return { url: URL.createObjectURL(blob) }
   } catch (e) {
-    console.warn('[videoEngine] 视频产物落盘异常，降级为临时 URL:', e)
+    logger.warn('videoEngine', '视频产物落盘异常，降级为临时 URL', e)
     return { url: URL.createObjectURL(blob) }
   }
 }

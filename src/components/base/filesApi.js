@@ -8,6 +8,7 @@
  * 导致生成面板空。这里补上落盘：data:/blob → multipart file；http → fileUrl(幂等下载)。
  */
 import { API_BASE } from './apiBase.js'
+import { logger } from './logger.js'
 export { toAbsoluteFileUrl } from './imageUrl.js'
 const SUBFOLDER = 'tasks'
 
@@ -54,13 +55,13 @@ export async function saveInlineToLocal(dataUrl, subfolder = 'canvas') {
     fd.append('subfolder', subfolder)
     const res = await fetch(`${API_BASE}/api/files/upload`, { method: 'POST', body: fd })
     if (!res.ok) {
-      console.warn('[filesApi] 内联资源落盘失败', res.status)
+      logger.warn('filesApi', '内联资源落盘失败', res.status)
       return null
     }
     const data = await res.json().catch(() => ({}))
     return data.url || null
   } catch (e) {
-    console.warn('[filesApi] 内联资源落盘失败:', e)
+    logger.warn('filesApi', '内联资源落盘失败', e)
     return null
   }
 }
@@ -83,13 +84,13 @@ export async function uploadFileToLocal(file, subfolder = 'canvas/drop', filenam
     fd.append('subfolder', subfolder)
     const res = await fetch(`${API_BASE}/api/files/upload`, { method: 'POST', body: fd })
     if (!res.ok) {
-      console.warn('[filesApi] 文件上传失败', res.status)
+      logger.warn('filesApi', '文件上传失败', res.status)
       return null
     }
     const data = await res.json().catch(() => ({}))
     return data.url || null
   } catch (e) {
-    console.warn('[filesApi] 文件上传失败:', e)
+    logger.warn('filesApi', '文件上传失败', e)
     return null
   }
 }
@@ -147,7 +148,7 @@ export async function saveResultToTasks(url, type) {
       fd.append('filename', safeName('generated', ext))
       const res = await fetch(`${API_BASE}/api/files/upload`, { method: 'POST', body: fd })
       if (!res.ok) {
-        console.warn('[filesApi] data 落盘失败', res.status)
+        logger.warn('filesApi', 'data 落盘失败', res.status)
         return null
       }
       const data = await res.json().catch(() => ({}))
@@ -161,13 +162,13 @@ export async function saveResultToTasks(url, type) {
       body: JSON.stringify({ fileUrl: url, subfolder: SUBFOLDER, filename: safeName('generated', ext) }),
     })
     if (!res.ok) {
-      console.warn('[filesApi] fileUrl 落盘失败', res.status)
+      logger.warn('filesApi', 'fileUrl 落盘失败', res.status)
       return null
     }
     const data = await res.json().catch(() => ({}))
     return data.url || null
   } catch (e) {
-    console.warn('[filesApi] 落盘 tasks 失败:', e)
+    logger.warn('filesApi', '落盘 tasks 失败', e)
     return null
   }
 }
@@ -194,13 +195,13 @@ export async function saveTextToTasks(text, name) {
     fd.append('filename', filename)
     const res = await fetch(`${API_BASE}/api/files/upload`, { method: 'POST', body: fd })
     if (!res.ok) {
-      console.warn('[filesApi] 文本落盘失败', res.status)
+      logger.warn('filesApi', '文本落盘失败', res.status)
       return null
     }
     const data = await res.json().catch(() => ({}))
     return data.url || null
   } catch (e) {
-    console.warn('[filesApi] 文本落盘 tasks 失败:', e)
+    logger.warn('filesApi', '文本落盘 tasks 失败', e)
     return null
   }
 }

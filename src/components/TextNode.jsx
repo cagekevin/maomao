@@ -23,6 +23,7 @@ import { useProviders, load as loadProviders } from './base/settings/providerSto
 import { chatCompletions } from './base/chatApi.js'
 import { useNodePrefs } from './base/nodePrefs.js'
 import { buildAllModels, resolveProviderModel } from './base/providerModels.js'
+import { logger } from './base/logger.js'
 
 /**
  * 文本节点（复刻原 Co.jsx / textNode）
@@ -174,7 +175,7 @@ export default function TextNode({ id, data, selected }) {
           const parsed = JSON.parse(clean)
           items = parsed.items || parsed
         } catch (e) {
-          console.warn('[TextNode] 自动拆分 JSON 解析失败，降级为普通文本:', e)
+          logger.warn('TextNode', '自动拆分 JSON 解析失败，降级为普通文本', e)
           items = []
         }
         if (Array.isArray(items) && items.length > 0) {

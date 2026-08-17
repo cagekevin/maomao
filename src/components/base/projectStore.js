@@ -11,6 +11,7 @@ import { useSyncExternalStore } from 'react'
 import { CANVAS_STATE_PREFIX } from './kvStore.js'
 import { fetchProjects, saveProjects } from './projectsApi.js'
 import { contentGet, contentSet, contentGetAsync, contentSetAsync, contentDeleteAsync } from './contentStore.js'
+import { logger } from './logger.js'
 
 const PROJECTS_KEY = 'projects'
 const LAST_OPENED_KEY = 'lastOpenedProject'
@@ -61,7 +62,7 @@ export function initProjects() {
         notify()
       }
     })
-    .catch((e) => console.warn('[projectStore] 加载项目失败（localTool 未连？）:', e?.message))
+    .catch((e) => logger.warn('projectStore', '加载项目失败（localTool 未连？）', e?.message))
 }
 
 // 缓存快照对象，保证 useSyncExternalStore 的 getSnapshot 返回稳定引用（避免无限重渲染）
@@ -96,7 +97,7 @@ export async function loadCanvasState(projectId) {
     const v = await contentGetAsync(CANVAS_STATE_PREFIX + (projectId || currentProjectId))
     return v && typeof v === 'object' ? v : null
   } catch (e) {
-    console.warn('[projectStore] 读取画布快照失败（KV 不可用？）:', e?.message)
+    logger.warn('projectStore', '读取画布快照失败（KV 不可用？）', e?.message)
     return null
   }
 }
@@ -144,7 +145,7 @@ export async function saveCanvasState(projectId, nodes, edges) {
     const remoteRaw = await contentGetAsync(`${key}_version`)
     const remoteVer = remoteRaw ? parseInt(String(remoteRaw), 10) : 0
     if (remoteVer > version) {
-      console.warn('[projectStore] 画布版本冲突，拒绝覆盖:', { key, remoteVer, version })
+      logger.warn('projectStore', '画布版本冲突，拒绝覆盖', { key, remoteVer, version })
       return { success: false, skipped: true, conflictVersion: remoteVer }
     }
     // 【④】落盘前清理 ReactFlow 运行时 UI 态（selected/dragging/measured 等），只存必要字段
@@ -152,7 +153,7 @@ export async function saveCanvasState(projectId, nodes, edges) {
     await contentSetAsync(`${key}_version`, version)
     return { success: true, skipped: false }
   } catch (e) {
-    console.warn('[projectStore] 保存画布快照失败（KV 不可用？）:', e?.message)
+    logger.warn('projectStore', '保存画布快照失败（KV 不可用？）', e?.message)
     return { success: false, skipped: false }
   }
 }

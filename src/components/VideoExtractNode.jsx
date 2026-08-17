@@ -7,6 +7,7 @@ import { useMediaDegrade } from './base/useMediaDegrade.js'
 import { showToast } from './base/toastStore.js'
 import { contentSet } from './base/contentStore.js'
 import { toAbsoluteFileUrl } from './base/filesApi.js'
+import { logger } from './base/logger.js'
 
 /**
  * 视频抽帧节点（复刻官方 ec.jsx / videoExtractNode）。
@@ -268,7 +269,7 @@ export default function VideoExtractNode({ id, data, selected }) {
       video.src = ''
       video.load()
     } catch (err) {
-      console.error('Frame extraction failed:', err)
+      logger.error('VideoExtractNode', 'Frame extraction failed', err)
       setLoading(false)
       setErrorMessage(err.message || '抽帧失败，可能是视频格式或跨域限制')
     }

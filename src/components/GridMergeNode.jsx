@@ -11,6 +11,7 @@ import ImageZoomDialog from './base/ImageZoomDialog.jsx'
 import { useNodeResize } from './base/hooks.js'
 import { showToast } from './base/toastStore.js'
 import { toAbsoluteFileUrl } from './base/filesApi.js'
+import { logger } from './base/logger.js'
 
 /* ════════════════════════════════════════════════════════════════
  * 图片拼图节点（复刻官方 Yo.jsx / gridMergeNode）
@@ -297,7 +298,7 @@ export default function GridMergeNode({ id, data, selected }) {
         }
         return null
       } catch (e) {
-        console.error('renderToCanvas failed', e)
+        logger.error('GridMergeNode', 'renderToCanvas failed', e)
         return null
       }
     },
