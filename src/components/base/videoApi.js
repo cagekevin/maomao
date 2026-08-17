@@ -25,6 +25,11 @@ function ok(url) { return { ok: true, url } }
 function fail(error) { return { ok: false, error } }
 
 /** 经 localTool /api/proxy 转发（GET/POST）。失败抛错由调用方兜底。
+ *
+ * 【为何不迁到 httpClient.js】本模块是轮询语义（async 提交 + 轮询 /v1/tasks/{id}）+ 嵌套
+ * error 信封（j.error.message），与 httpClient 的 parseJson/扁平错误消息语义冲突；且已内建
+ * signal 取消、AbortError 原样上抛、轮询 timeoutMs 超时三层异步治理，故保留原生 fetch。
+ * 调用方（useNodeGeneration）负责把错误归入 Timeout/Abort/网络 分类。
  * @param {AbortSignal} [signal] 可选取消信号（Step A，向后兼容，不传照常工作）。 */
 async function proxyRequest({ provider, url, method = 'POST', body }, signal) {
   const payload = { url, method }

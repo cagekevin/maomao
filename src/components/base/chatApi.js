@@ -37,7 +37,12 @@ async function attachImages(messages, images, provider) {
 }
 
 /**
- * 经 localTool /api/proxy 转发，返回统一信封。
+ * 经 localTool /api/proxy 转发，返回统一信封（不抛错）。
+ *
+ * 【为何不迁到 httpClient.js】本模块返回统一信封 {ok, content|error|aborted}（而非抛错），
+ * 且错误文案来自嵌套 error 信封（json.error.message）——与 httpClient 抛扁平错误消息的
+ * 语义冲突；已内建 signal 取消 + AbortError 归入 aborted 分类。调用方（useAgentChat）
+ * 基于该信封驱动 SSE 流程，故保留原生 fetch。
  * @returns {{ ok:boolean, content?:string, error?:string, aborted?:boolean }}
  */
 async function post(payload, signal) {
