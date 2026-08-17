@@ -39,9 +39,13 @@ export async function handleLogsPost(req: IncomingMessage, res: ServerResponse):
     }
   }
 
-  const tag = [taskId, nodeId].filter(Boolean).join(' ');
+  // taskId/nodeId 单独带出（#taskId=.../#nodeId=...），便于按任务/节点一键 grep
+  const tags = [
+    taskId ? `#taskId=${taskId}` : '',
+    nodeId ? `#nodeId=${nodeId}` : '',
+  ].filter(Boolean).join(' ');
   const cat = category ? `[${category}]` : '';
-  console.log(`[frontend][${level}]${cat} ${action} ${timestamp}${tag ? ` #${tag}` : ''}${detailText ? ` ${detailText}` : ''}`);
+  console.log(`[frontend][${level}]${cat} ${action} ${timestamp}${tags ? ` ${tags}` : ''}${detailText ? ` ${detailText}` : ''}`);
 
   return json(res, { ok: true });
 }

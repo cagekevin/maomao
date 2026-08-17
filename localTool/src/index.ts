@@ -12,19 +12,9 @@ import { fileURLToPath } from 'node:url';
 import { execSync } from 'node:child_process';
 import { createServer } from 'node:net';
 import { getDb, closeDb, getUploadDir, getDataDir, backupDb, startBackupSchedule } from './db/database.js';
-import { json, sendError } from './utils/helpers.js';
-import { handleKvGet, handleKvSet, handleKvDelete } from './routes/kv.js';
-import { handleUpload, handleRead, handleThumbnail, handleMkdir, handleMove, handleOpen, handleOpenDir, handleList } from './routes/files.js';
-import { handleTasksGet, handleTasksSave, handleTasksBatchSave, handleTasksDelete, handleTasksBatchDelete, handleTasksClear } from './routes/tasks.js';
-import { handleLogsPost } from './routes/logs.js';
-import { handleResourcesGet, handleResourcesSave, handleResourcesBatchSave, handleResourcesDelete, handleResourcesClear, handleResourcesRescan, handleResourcesRename } from './routes/resources.js';
-import { handleStatus, handleProxy, handleJianyingSend, handleGatewayTask } from './routes/system.js';
-import { handleProjectsGet, handleProjectsSave } from './routes/projects.js';
-import { handlePluginManifest, handleWorkflowAppsByProject, handleBuiltin, handleModels } from './routes/platform.js';
-import { handleAdminStats, handleAdminCleanup, handleAdminExport, handleAdminImport, handleAdminKvList, handleAdminClearCache } from './routes/admin.js';
-import { handleOfficialUser, handleOfficialEntitlements, handleOfficialVipCheck, handleOfficialInvalidate } from './routes/official.js';
-import { handleAgentChat } from './routes/agentChat.js';
-import { handleProvidersGet, handleProvidersPut, handleProviderTest, handleProviderFetchModels, handleConfigBasePut } from './routes/providers.js';
+import { sendError } from './utils/helpers.js';
+// 声明式路由表：所有具名路由集中在 router.ts，新增端点只加一行（详见 docs/11）
+import { routes, matchRoute } from './router.js';
 // catch-all 兜底透传：未命中本地具名路由的请求原样转发官方（详见 routes/passthrough.ts 文件头）
 // 这是「改 dist base 指向 18080」的硬前置——否则未接管的 /api/* 会直接 404。
 import { handlePassthrough } from './routes/passthrough.js';
@@ -216,243 +206,41 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
   }
 
   try {
-    // ── 系统 ──
-    if (pathname === '/api/status' && method === 'GET') {
-      return await handleStatus(req, res);
-    }
-    // 前端日志上报（[frontend] 前缀打进 localtool_18080.log，与后端日志同文件）
-    if (pathname === '/api/logs' && method === 'POST') {
-      return await handleLogsPost(req, res);
-    }
+    // ── 阶段 2：具名路由 + 中间件（按路由表顺序；详见 router.ts）──
+    const matched = matchRoute(routes, method, pathname);
 
-    // ── KV ──
-    if (pathname === '/api/kv/get' && method === 'GET') {
-      return await handleKvGet(req, res, url);
-    }
-    if (pathname === '/api/kv/set' && method === 'POST') {
-      return await handleKvSet(req, res);
-    }
-    if (pathname === '/api/kv/delete' && method === 'POST') {
-      return await handleKvDelete(req, res, url);
-    }
-
-    // ── 文件操作 ──
-    if (pathname === '/api/files/upload' && method === 'POST') {
-      return await handleUpload(req, res);
-    }
-    if (pathname === '/api/files/read' && method === 'GET') {
-      return await handleRead(req, res, url);
-    }
-    if (pathname === '/api/files/thumbnail' && method === 'GET') {
-      return await handleThumbnail(req, res, url);
-    }
-    if (pathname === '/api/files/mkdir' && method === 'POST') {
-      return await handleMkdir(req, res);
-    }
-    if (pathname === '/api/files/move' && method === 'POST') {
-      return await handleMove(req, res);
-    }
-    if (pathname === '/api/files/open' && method === 'GET') {
-      return await handleOpen(req, res, url);
-    }
-    if (pathname === '/api/files/open-dir' && method === 'GET') {
-      return await handleOpenDir(req, res, url);
-    }
-    if (pathname === '/api/files/list' && method === 'GET') {
-      return await handleList(req, res, url);
-    }
-
-    // ── Tasks ──
-    if (pathname === '/api/tasks' && method === 'GET') {
-      return await handleTasksGet(req, res, url);
-    }
-    if (pathname === '/api/tasks/save' && method === 'POST') {
-      return await handleTasksSave(req, res);
-    }
-    if (pathname === '/api/tasks/batch-save' && method === 'POST') {
-      return await handleTasksBatchSave(req, res);
-    }
-    if (pathname === '/api/tasks/delete' && method === 'POST') {
-      return await handleTasksDelete(req, res, url);
-    }
-    if (pathname === '/api/tasks/batch-delete' && method === 'POST') {
-      return await handleTasksBatchDelete(req, res);
-    }
-    if (pathname === '/api/tasks/clear' && method === 'POST') {
-      return await handleTasksClear(req, res);
-    }
-
-    // ── Projects ──
-    if (pathname === '/api/projects' && method === 'GET') {
-      return await handleProjectsGet(req, res);
-    }
-    if (pathname === '/api/projects/save' && method === 'POST') {
-      return await handleProjectsSave(req, res);
-    }
-
-    // ── Resources ──
-    if (pathname === '/api/resources' && method === 'GET') {
-      return await handleResourcesGet(req, res, url);
-    }
-    if (pathname === '/api/resources/save' && method === 'POST') {
-      return await handleResourcesSave(req, res);
-    }
-    if (pathname === '/api/resources/batch-save' && method === 'POST') {
-      return await handleResourcesBatchSave(req, res);
-    }
-    if (pathname === '/api/resources/delete' && method === 'POST') {
-      return await handleResourcesDelete(req, res, url);
-    }
-    if (pathname === '/api/resources/clear' && method === 'POST') {
-      return await handleResourcesClear(req, res);
-    }
-    if (pathname === '/api/resources/rescan' && method === 'POST') {
-      return await handleResourcesRescan(req, res);
-    }
-    if (pathname === '/api/resources/rename' && method === 'POST') {
-      return await handleResourcesRename(req, res, url);
-    }
-
-    // ── 代理 ──
-    if (pathname === '/api/proxy' && method === 'POST') {
-      return await handleProxy(req, res);
-    }
-
-    // ── 特惠视频任务查询（App 全局 setInterval 直连，见 system.ts handleGatewayTask）──
-    // 必须放在 catch-all 兜底之前，否则被透传官方 → 404「任务未找到或已被清理」
-    if (/^\/api\/v1\/gateway\/task\/[^/]+$/.test(pathname) && method === 'GET') {
-      return await handleGatewayTask(req, res, url);
-    }
-
-    // ── 剪映 ──
-    if (pathname === '/api/jianying/send' && method === 'POST') {
-      return await handleJianyingSend(req, res);
-    }
-
-    // ── 平台 ──
-    if (pathname === '/plugin/manifest.json' && method === 'GET') {
-      return await handlePluginManifest(req, res);
-    }
-    if (pathname.startsWith('/api/workflow-apps/by-project/') && method === 'GET') {
-      return await handleWorkflowAppsByProject(req, res, url);
-    }
-    // 内置模型（本地静态兜底，数据来自 apimart-gateway Lovart 模型定义）
-    // 这两个路由是【自研替换官方 1mao 平台接口】的预备实现：在自托管模式下
-    // 替代官方 1mao 的对应能力，返回本地静态常量，不连官方 1mao 也不实时连 Lovart。
-    // 注意：前端 fetchBuiltin/Xi 实际请求带 /api 前缀（/api/public/platform/*），
-    // 故此处注册须带 /api 前缀，否则 404（docs/01 变更#1 复测发现的前后端前缀错位）
-    if (pathname === '/api/public/platform/builtin' && method === 'GET') {
-      return await handleBuiltin(req, res);
-    }
-    if (pathname === '/api/public/platform/models' && method === 'GET') {
-      return await handleModels(req, res);
-    }
-
-    // ── 官方权益接口转发层（docs/20）──
-    // 账号/权益/会员判定 100% 在官方远程；本层只做中转 + 短缓存，不取代官方判定。
-    if (pathname === '/api/user/info' && method === 'GET') {
-      return await handleOfficialUser(req, res);
-    }
-    if (pathname === '/api/user/model-entitlements' && method === 'GET') {
-      return await handleOfficialEntitlements(req, res);
-    }
-    if (/^\/api\/agent\/[^/]+\/vip-check$/.test(pathname) && method === 'GET') {
-      return await handleOfficialVipCheck(req, res, url);
-    }
-    // ── AI 操控画布：A1 本地 Agent chat（SSE 透传，docs/27）──
-    // 必须在 catch-all passthrough 之前注册，否则 A1 助手 /agent/*/chat 被透传官方。
-    if (/^\/api\/agent\/[^/]+\/chat$/.test(pathname) && method === 'POST') {
-      const m = pathname.match(/^\/api\/agent\/([^/]+)\/chat$/);
-      return await handleAgentChat(req, res, m ? m[1] : '');
-    }
-    if (pathname === '/api/official/entitlements/invalidate' && method === 'POST') {
-      return await handleOfficialInvalidate(req, res);
-    }
-
-    // ── 多供应商（docs/providers）──
-    if (pathname === '/api/providers' && method === 'GET') {
-      return await handleProvidersGet(req, res);
-    }
-    if (pathname === '/api/providers' && method === 'PUT') {
-      return await handleProvidersPut(req, res);
-    }
-    if (pathname === '/api/config/base' && method === 'PUT') {
-      return await handleConfigBasePut(req, res);
-    }
-    if (pathname === '/api/providers/test-connection' && method === 'POST') {
-      return await handleProviderTest(req, res);
-    }
-    if (/^\/api\/providers\/[^/]+\/fetch-models$/.test(pathname) && method === 'POST') {
-      const m = pathname.match(/^\/api\/providers\/([^/]+)\/fetch-models$/);
-      return await handleProviderFetchModels(req, res, m ? m[1] : '');
-    }
-
-    // ── 管理 ──
-    if (pathname === '/api/admin/stats' && method === 'GET') {
-      return await handleAdminStats(req, res);
-    }
-    if (pathname === '/api/admin/kv-list' && method === 'GET') {
-      return await handleAdminKvList(req, res);
-    }
-    if (pathname === '/api/admin/clear-cache' && method === 'POST') {
-      return await handleAdminClearCache(req, res);
-    }
-    if (pathname === '/api/admin/cleanup' && method === 'POST') {
-      return await handleAdminCleanup(req, res);
-    }
-    if (pathname === '/api/admin/export' && method === 'GET') {
-      return await handleAdminExport(req, res);
-    }
-    if (pathname === '/api/admin/import' && method === 'POST') {
-      return await handleAdminImport(req, res);
-    }
-
-    // ── sync/default 本地兜底（A2）──
-    if (pathname === '/api/sync/default' && method === 'GET') {
-      try {
-        const baselinePath = path.join(__dirname, '..', 'data', 'apiConfigs.baseline.json');
-        const raw = fs.readFileSync(baselinePath, 'utf-8');
-        const replaced = raw.replace(/\{VITE_API_BASE_URL\}/g, `http://127.0.0.1:${PORT}`);
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(replaced);
-        return;
-      } catch {
-        return json(res, { apiConfigs: [] }); // 降级：无基线文件时返空
+    if (matched && !matched.route.catchAll) {
+      // 该路由专属中间件（预留钩子：统一鉴权 / body 限制等，返回 false 则中断）
+      for (const mw of matched.route.middleware ?? []) {
+        const ok = await mw(req, res, url);
+        if (ok === false) return;
       }
+      await matched.route.handler(req, res, url);
+      return;
     }
 
-    // ── assets/upload 别名（L5）──
-    if ((pathname === '/api/assets/upload' || pathname === '/api/upload/app-asset') && method === 'POST') {
-      return await handleUpload(req, res);
-    }
-
-    // ── 画布前端页面托管（兜底 GET）──
+    // ── 阶段 3：画布前端页面托管（兜底 GET，须在 catch-all 之前）──
     if (method === 'GET' && !pathname.startsWith('/api/') && !pathname.startsWith('/plugin/') && !pathname.startsWith('/files/')) {
       if (handleFrontendPage(res, pathname)) return;
     }
 
-    // ── catch-all 兜底透传（必须放在所有具名路由之后、404 之前）──
+    // ── 阶段 4：catch-all 兜底透传 ──
+    // 【顺序铁律】阶段 2(具名) → 阶段 3(前端托管) → 阶段 4(catch-all) → 阶段 5(404)，
+    // 不得把阶段 4 提前到阶段 3 之前，否则 /files/x、/plugin/y 未命中路径无法正确 404。
+    // 【红线】handlePassthrough 对 /files/、/plugin/ 未命中路径返回 false，
+    // 绝不可无脑 `return handler()`，否则 404 逻辑丢失。
     //
     // 【为什么加这一层】2026-08-01 确立原则：不再区分「哪些请求该直连官方」，
     // 全部走 localTool——即使目的地仍是官方，也经 localTool 转发。
     // localTool 由此从「白名单路由服务」升级为「唯一出口网关」。
-    //
-    // 【为什么是硬前置】长期目标要改 dist，把前端 base 从官方地址改指 18080。
-    // 但上面的路由是逐条 `pathname === '...'` 精确匹配，未注册的一律落到下面的 404。
-    // 若先改 base 而没有本层，登录/支付/上传凭证等未接管接口会当场 404，功能损坏。
-    // 有了本层，改 base 就是零风险操作：未接管请求原样透传，行为不变，只多绕一跳。
-    //
-    // 【顺序为何关键】具名路由必须优先于本层。否则本地已实现的能力
-    //（如 /public/platform/builtin 的本地静态模型清单）会被透传到官方、被官方响应覆盖，
-    // 等于白实现。反过来，后续想接管任何接口，只需在上面加一条具名路由，
-    // 它自动优先命中，**dist 一行都不用再改**。
-    //
     // 相关文档：docs/21 §六（执行前置）、docs/01 §〇（长期目标总纲）
-    if (await handlePassthrough(req, res, url)) return;
+    if (matched?.route.catchAll) {
+      if (await handlePassthrough(req, res, url)) return;   // 成功透传才 return
+      sendError(res, 'Not Found', 404);                     // 失败才 404（原 index.ts:456）
+      return;
+    }
 
-    // ── 404 ──
-    // 走到这里只剩「本地专属路径」（/files/、/plugin/）未命中的情况，
-    // 这类请求转发给官方没有意义，故由 passthrough 返回 false 交回此处。
+    // ── 阶段 5：完全未命中 → 404 ──
     sendError(res, 'Not Found', 404);
   } catch (e) {
     console.error(`[error] ${pathname}:`, e);

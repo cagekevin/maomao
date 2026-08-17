@@ -363,13 +363,15 @@ test('[logWriter] initLogWriter 幂等（多次调用不重复接管 console）'
 });
 
 // ════════════════════════════════════════════════════════════════════════
-// index.ts 装配要点（静态读取 dist/index.js 校验注册与顺序）
+// 路由表装配要点
+// 路由声明式集中在 dist/router.js；index.js 只负责调度 + 顺序。
 // ════════════════════════════════════════════════════════════════════════
+const routerSrc = fs.readFileSync(path.join(DIST, 'router.js'), 'utf-8');
 const indexSrc = fs.readFileSync(path.join(DIST, 'index.js'), 'utf-8');
 
 test('[index] 关键业务路由均已注册（logs/projects/kv/files/passthrough）', () => {
   for (const seg of ['/api/logs', '/api/projects', '/api/kv/get', '/api/files/upload', 'handlePassthrough']) {
-    assert.ok(indexSrc.includes(seg), 'index.js 应含 ' + seg);
+    assert.ok(routerSrc.includes(seg), 'router.js 应含 ' + seg);
   }
 });
 
