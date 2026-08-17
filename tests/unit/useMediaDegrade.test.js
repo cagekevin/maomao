@@ -13,7 +13,7 @@ import { renderHook } from '@testing-library/react'
 import { createElement } from 'react'
 
 const { useMediaDegrade } = await import('../../src/components/base/useMediaDegrade.js')
-const { LodContext } = await import('../../src/components/base/useLod.js')
+const { LodContext } = await import('../../src/components/base/lod.jsx')
 
 function renderWithLod(lodLevel) {
   return renderHook(() => useMediaDegrade(), {

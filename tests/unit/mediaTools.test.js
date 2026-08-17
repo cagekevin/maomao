@@ -7,10 +7,10 @@ import { renderHook, act } from '@testing-library/react'
 // 1. useMediaDegrade.js
 // 依赖 useLod()（LodContext）。mock useLod 返回不同 lodLevel。
 // ───────────────────────────────────────────────────────────
-vi.mock('../../src/components/base/useLod.js', () => ({
+vi.mock('../../src/components/base/lod.jsx', () => ({
   useLod: vi.fn(() => ({ lodLevel: 0 })),
 }))
-import { useLod } from '../../src/components/base/useLod.js'
+import { useLod } from '../../src/components/base/lod.jsx'
 import { useMediaDegrade } from '../../src/components/base/useMediaDegrade.js'
 
 describe('useMediaDegrade —— lodLevel→hideMedia 映射', () => {
