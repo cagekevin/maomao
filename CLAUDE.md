@@ -1,5 +1,7 @@
 # CLAUDE.md · 猫猫画布（React 原型 + 自研后端）
 
+> **本文件定位：项目认知入口。每个 AI 进来第一步读它**，了解"这是什么项目、技术栈、架构、目录、红线、怎么启动"。
+> 读完按任务再读对应入口：**写代码 → `spec/CONTEXT.md`（决策地图）**；**写/改测试 → `spec/TESTING.md`（测试权威）**。三文件互补不重叠（见 §七.0）。
 > **最后更新**：2026-08-15（主力开发为 `src/` 可维护原型；原产品混淆还原代码仅作只读参考，逆向脚本已归档 `scripts/1mao-scripts/`）
 
 ## ⚠️ 最新情况（改动前必读）
@@ -12,7 +14,8 @@
 ├── public/                     ← 静态资源
 ├── index.html + vite.config.js + tailwind.config.js + package.json
 ├── scripts/                    ← 测试地基（smoke/regression/tools/health-check），见 scripts/README.md
-├── docs/                       ← 文档（TESTING.md 是测试体系权威；README/ARCHITECTURE 讲原型）
+├── spec/                       ← 🏛️ 权威规范（永不误删）：CONTEXT.md（写码决策）/ TESTING.md（测试）/ NEW-NODE-GUIDE.md / 横切分层 / 代码组织
+├── docs/                       ← 临时/历史文档（调查产物，可过时可清理，不维护）
 └── reference-1mao/             ← 【只读参考】原产品混淆还原代码（查实现用，不直接改）
 ```
 
@@ -140,7 +143,7 @@ node scripts/task-inspect.mjs --canvas-health   # 画布结构体检
 6. npm run check:health  ← 全量健康度（较大改动或提交前，0 错 0 警为佳）
 ```
 
-> 命令速查（详见 `docs/TESTING.md`，权威）：**`npm test`（= `npm run test:all`）= 冒烟 + vitest 全量单测 + 回归 + Agent 工具** 四件套一次跑完，提交前首选；单项：`npm run test:smoke`（冒烟）/`test:unit`（vitest 单测）/`test:regression`（SSR 回归）/`test:tools`（Agent 工具）；`npm run check:health` 全量编排（含构建 + 测试 + TDZ + dist 基线）。
+> 命令速查（详见 `spec/TESTING.md`，权威）：**`npm test`（= `npm run test:all`）= 冒烟 + vitest 全量单测 + 回归 + Agent 工具** 四件套一次跑完，提交前首选；单项：`npm run test:smoke`（冒烟）/`test:unit`（vitest 单测）/`test:regression`（SSR 回归）/`test:tools`（Agent 工具）；`npm run check:health` 全量编排（含构建 + 测试 + TDZ + dist 基线）。
 > 提交前 `pre-commit` 钩子自动跑 `type-check`；`main` 分支的 push/PR 由 `.github/workflows/ci.yml` 云端跑 type-check + 单测。lint 已移除（弊大于利，门禁靠类型检查 + 测试）。
 > **写完代码跑哪个**：平时 `npm run type-check` + `test:unit`；改画布/地基或合 main 前再跑 `npm test` 全量兜底（regression/tools 已含在内）。
 
@@ -272,24 +275,45 @@ node scripts/task-inspect.mjs --canvas-health   # 画布结构体检
 
 ## 七、 文档导航与场景速查
 
-### 1. 文档导航（信任度）
+### 0. 三入口分工（AI 进入必读流程）
 
-| 文档 | 用途 | 信任度 |
-| --- | --- | --- |
-| `docs/TESTING.md` | **测试体系权威**（命令/分层/断言） | 🟢 高 |
-| `docs/NEW-NODE-GUIDE.md` | **新建节点权威流程**（骨架/数据范式/4处注册/管线产出契约/常见坑） | 🟢 高 |
-| `docs/NODE-DESIGN-SPEC.md` | **节点设计规范**（视觉DNA/板块规划/设置项7形态/操作交互） | 🟢 高 |
-| `docs/README.md` | 原型结构 + 节点设计规范 | 🟢 高 |
-| `docs/ARCHITECTURE.md` | 原型架构与设计规范（注意：文档内路径前缀 `prototypes/react-nodes/src/` 为旧写法，实际即根目录 `src/`） | 🟢 高 |
-| `docs/BASE-CAPABILITIES.md` | 通用能力地基规范 | 🟢 高 |
-| `docs/node-types-map.md` | 节点类型 → 1mao 混淆符号映射（`npm run sync:mapping` 生成，参考对照用，非原型文件清单） | 🟢 高 |
-| `docs/CANVAS_PERFORMANCE.md` | 画布性能规范 | 🟢 高 |
-| `tailwind.config.js` | **样式令牌唯一真相**（`tailwind-tokens.md` 已删，勿再引用） | 🟢 高 |
-| `daily/` | 执行日志 | 🟢 高 |
-| `docs/1mao-docs/` | 原产品逆向/后端/专题文档（含 27-AI操控画布、31-自研节点、33-剧本盒、34-素材、35-缩略图等；历史参考，部分已落地部分规划） | 🟡 参考 |
-| `reference-1mao/` | 1mao 混淆还原可读源码（只读参考） | 🟡 参考 |
-| `scripts/1mao-scripts/` | 归档的逆转/扩展脚本（不跑） | 🚫 归档 |
-| `docs/逆向专用_ai 禁止读/` | 还原方法论与中间产物 | 🚫 AI 禁止读 |
+> **本文件（CLAUDE.md）= 项目认知入口，每个 AI 第一站。** 读完它了解"项目是什么"后，按任务类型再读对应入口：
+
+| 任务类型 | 必读 | 定位 |
+|---------|------|------|
+| 任何任务第一步 | **CLAUDE.md（本文件）** | 项目认知：技术栈/架构/目录/红线/启动 |
+| 写代码 | **`spec/CONTEXT.md`** | 决策地图：功能放哪 / 调哪个唯一入口 / 机制红线 |
+| 写/改测试 | **`spec/TESTING.md`** | 测试权威：命令/分层/SOP/输出规范 |
+
+> 三个文件**互补不重叠**：CLAUDE 管"项目是什么"，CONTEXT 管"写码怎么决策"，TESTING 管"测试怎么做"。机制细节看对应代码注释（代码即知识）。
+
+### 1. 文档导航（精简：只列必要，其余看代码）
+
+> **原则：别维护一堆文档。** 机制知识看代码注释（代码即知识）；下面是**真正需要读的少数入口**。
+
+**🔴 必读入口（按任务）**
+| 文档 | 用途 |
+| --- | --- |
+| `spec/CONTEXT.md` | **写码决策地图（唯一中心）**：代码组织 / 横切 7 块入口 / 并发治理 / 安全密钥 / 数据一致性 |
+| `spec/TESTING.md` | **测试体系权威**：命令/分层/SOP/输出规范 |
+| `spec/NEW-NODE-GUIDE.md` | **新建节点权威流程**（高频：骨架/注册/契约/常见坑） |
+| `tailwind.config.js` | **样式令牌唯一真相**（禁裸色值，勿再引用已删的 tailwind-tokens.md） |
+
+**🟡 按需参考（不用日常维护；用到了才看）**
+| 文档 | 用途 |
+| --- | --- |
+| `docs/NODE-DESIGN-SPEC.md` / `docs/ARCHITECTURE.md` | 节点长什么样 / 设计原则（ARCHITECTURE 路径前缀 `prototypes/...` 为旧写法，实际即根 `src/`） |
+| `docs/BASE-CAPABILITIES.md` | base 能力清单（**已并入 CONTEXT §二 横切层**，仅深挖用） |
+| `docs/CANVAS_PERFORMANCE.md` / `docs/node-types-map.md` | 性能 / 节点类型映射（生成产物） |
+| `docs/1mao-docs/` | 原产品逆向/专题（历史参考） |
+
+**🚫 归档/禁止（不读）**
+| 目录 | 说明 |
+| --- | --- |
+| `reference-1mao/` | 混淆还原只读源码（查实现用，不直接改） |
+| `scripts/1mao-scripts/` | 归档逆向脚本（不跑） |
+| `docs/逆向专用_ai 禁止读/` | 还原方法论（AI 禁止读） |
+| `daily/` | 执行日志（不导航，不用维护） |
 
 > 读 `docs/` 任意方案前先确认其状态是「已完成」还是「规划中」，避免把规划当现状。
 

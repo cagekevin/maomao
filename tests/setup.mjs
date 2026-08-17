@@ -49,3 +49,12 @@ if (typeof globalThis.fetch === 'function' || globalThis.fetch === undefined) {
     writable: true,
   })
 }
+
+// jsdom 不实现 Element.prototype.scrollTo / scrollIntoView，
+// 聊天面板、节点面板等组件在 effect 里调用会抛 "not implemented" 导致测试崩。
+if (typeof globalThis.Element !== 'undefined' && !globalThis.Element.prototype.scrollTo) {
+  globalThis.Element.prototype.scrollTo = function () {}
+}
+if (typeof globalThis.HTMLElement !== 'undefined' && !globalThis.HTMLElement.prototype.scrollIntoView) {
+  globalThis.HTMLElement.prototype.scrollIntoView = function () {}
+}
