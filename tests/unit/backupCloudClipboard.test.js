@@ -115,9 +115,9 @@ describe('backupStore.js', () => {
     memLS.set('lastOpenedProject', JSON.stringify('p1'))
     memLS.set('app_settings', JSON.stringify({ theme: 'dark' }))
     memLS.set('agent_skills', JSON.stringify({}))
-    memLS.set('accounts', JSON.stringify({})) // 裸键（storageKeys 中央登记，原 yimao_accounts）
+    memLS.set('yimao_accounts', JSON.stringify({})) // 对齐 LS_KEYS 登记的 yimao_accounts
     const out = await backupStore.exportAll()
-    for (const k of ['projects', 'lastOpenedProject', 'app_settings', 'agent_skills', 'accounts']) {
+    for (const k of ['projects', 'lastOpenedProject', 'app_settings', 'agent_skills', 'yimao_accounts']) {
       expect(out.ls[k]).toBeDefined()
     }
   })

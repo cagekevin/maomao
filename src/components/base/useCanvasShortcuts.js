@@ -39,8 +39,9 @@ export function useCanvasShortcuts(handlers = {}) {
       const mod = e.ctrlKey || e.metaKey
       const key = e.key.toLowerCase()
 
-      // 无修饰键快速添加：Q / W / E
+      // 无修饰键快速添加：Q / W / E（选中文本时跳过，避免编辑文本误触）
       if (!e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
+        if (hasSelectionText()) return
         if (key === 'q') { e.preventDefault(); onAdd?.('textNode'); return }
         if (key === 'w') { e.preventDefault(); onAdd?.('promptNode'); return }
         if (key === 'e') { e.preventDefault(); onAdd?.('discountVideoNode'); return }

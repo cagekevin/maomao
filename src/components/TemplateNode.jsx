@@ -115,9 +115,7 @@ export default function TemplateNode({ id, data, selected }) {
   // 上游合并：图片 + 文本（多个上游节点自动聚合；data.images/texts 额外资产也并入）
   const refImages = [...(connected.images || []), ...(data.images?.length ? data.images : [])]
   const refTexts = [...(connected.texts || []), ...(data.texts?.length ? data.texts : [])]
-  // 有效提示词 = 本地 prompt + 上游文本（多文本节点合并），两者都参与生成
-  const upstreamText = refTexts.map((t) => (t.text || '').trim()).filter(Boolean).join('\n')
-  const effectivePrompt = [prompt?.trim(), upstreamText].filter(Boolean).join('\n') || ''
+  // 注意：effectivePrompt 依赖下方声明的 prompt state，故计算延后到 prompt 初始化之后
 
   // ─── 2. ReactFlow 数据写回（统一范式）───
   const { setNodes, setEdges } = useReactFlow()
@@ -141,6 +139,9 @@ export default function TemplateNode({ id, data, selected }) {
   const { prefs: myPrefs, set: setMyPrefs } = useNodePrefs('templateNode', { model: '', aspectRatio: '1:1' })
   const [aspectRatio, setAspectRatio] = useState(data.aspectRatio || myPrefs.aspectRatio || '1:1')
   const [selectedModel, setSelectedModel] = useState(data.selectedModel || myPrefs.model || '')
+  // 有效提示词 = 本地 prompt + 上游文本（多文本节点合并），两者都参与生成；延后到 prompt 初始化后避免 TDZ
+  const upstreamText = refTexts.map((t) => (t.text || '').trim()).filter(Boolean).join('\n')
+  const effectivePrompt = [prompt?.trim(), upstreamText].filter(Boolean).join('\n') || ''
 
   // 外部同步：Agent update_node 改 data 时，把变更同步回本地 state（否则 UI 不跟变）
   // 【模板】把所有「由 data 初始化的 state」都列进来

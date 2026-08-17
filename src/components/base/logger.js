@@ -79,7 +79,8 @@ function reportToBackend({ category, action, detail, level, taskId, nodeId }) {
  * @param {'info'|'warn'|'error'} level
  */
 export function log(category, action, detail, level = 'info') {
-  const msg = `[log] ${fmtTime()} | ${category} | ${action}${detail != null ? ` | ${stringify(detail)}` : ''}`
+  const levelTag = level === 'error' ? 'error' : level === 'warn' ? 'warn' : 'info'
+  const msg = `[${levelTag}] ${fmtTime()} | ${category} | ${action}${detail != null ? ` | ${stringify(detail)}` : ''}`
   if (level === 'error') console.error(msg)
   else if (level === 'warn') console.warn(msg)
   else console.log(msg)

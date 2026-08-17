@@ -16,6 +16,7 @@
  */
 import { sGet, sSet, sRemove } from './storageAdapter.js'
 import { API_BASE } from './apiBase.js'
+import { logger } from './logger.js'
 
 // 画布类 key 前缀（对齐官方 Ar.CANVAS_STATE_PREFIX，localTool KV 侧会带此前缀）
 export const CANVAS_STATE_PREFIX = 'canvas-state-v1-'
@@ -60,7 +61,16 @@ export async function storageGet(key) {
 
 /** 统一写入：KV 前缀 → localTool KV；否则 chrome.storage(插件)/localStorage。 */
 export async function storageSet(key, value) {
-  if (isKvKey(key)) return kvSet(key, value)
+  if (isKvKey(key)) {
+    try {
+      return await kvSet(key, value)
+    } catch (e) {
+      // KV 失败降级到本地存储，标记 degraded（画布类数据不丢）
+      sSet(key, typeof value === 'string' ? value : JSON.stringify(value))
+      logger.warn(`KV 写入失败，降级 localStorage: ${key}`, e)
+      return { ok: true, degraded: true }
+    }
+  }
   sSet(key, typeof value === 'string' ? value : JSON.stringify(value))
   return { ok: true }
 }

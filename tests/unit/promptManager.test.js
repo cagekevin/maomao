@@ -7,8 +7,8 @@ import { beforeEach, afterEach, describe, it, expect, vi } from 'vitest'
 import * as pm from '../../src/components/base/promptManager.js'
 import { sGet, sSet } from '../../src/components/base/storageAdapter.js'
 
-const STORAGE_KEY = 'preset_prompts' // 裸键（storageKeys 中央登记，原 yimao_preset_prompts）
-const RECENT_KEY = 'preset_recent' // 裸键（原 yimao_preset_recent）
+const STORAGE_KEY = 'yimao_preset_prompts' // 对齐 promptManager.js 内部 STORAGE_KEY（storageAdapter 还会加 yimao: 前缀）
+const RECENT_KEY = 'yimao_preset_recent' // 对齐 promptManager.js 内部 RECENT_KEY
 
 // storageAdapter 会给 key 加 'yimao:' 前缀，统一经 sGet 读回避免前缀不一致
 const readStored = (key) => {

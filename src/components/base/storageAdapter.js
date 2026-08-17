@@ -75,7 +75,14 @@ export function sSet(key, value) {
     chrome.storage.local.set({ [fullKey]: value }, () => {
       if (chrome?.runtime?.lastError) reportPersistFailure(key, new Error(chrome.runtime.lastError.message))
     })
-  } catch (e) { reportPersistFailure(key, e) }
+  } catch (e) {
+    // 同步抛错：先尝试回退 localStorage，回退成功（数据未丢）则不报失败
+    try {
+      localStorage.setItem(fullKey, value)
+    } catch {
+      reportPersistFailure(key, e)
+    }
+  }
 }
 
 /** 同步删（插件环境同步删内存 + 异步删存储） */

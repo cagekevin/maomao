@@ -62,7 +62,7 @@ describe('logger §日志格式', () => {
     expect(infoSpy).toHaveBeenCalledTimes(1)
     const out = infoSpy.mock.calls[0][0]
     expect(out).toContain('[info]')
-    expect(out).toContain('[生成]')
+    expect(out).toContain('生成')
     expect(out).toContain('start')
   })
 

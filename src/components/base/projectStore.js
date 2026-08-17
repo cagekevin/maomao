@@ -18,6 +18,7 @@ const LAST_OPENED_KEY = 'lastOpenedProject'
 let projects = loadProjects()
 let currentProjectId = loadLastOpened()
 let loaded = false // 是否已从后端加载过
+let lastSavedVersion = 0 // 画布版本号单调递增保底（同毫秒连续保存时自增）
 const listeners = new Set()
 
 function loadJSON(key, fallback) {
@@ -152,7 +153,10 @@ export async function saveCanvasState(projectId, nodes, edges) {
     }
     // 对齐官方 shared.js L1416：版本冲突检测。每次保存用 Date.now() 作为版本号写入 <key>_version，
     // 若远程已有更高版本（另一窗口/设备先写了更新的画布），拒绝本次覆盖，防旧数据冲掉新数据。
-    const version = Date.now()
+    // 单调递增保底：同毫秒内连续保存时 Date.now() 不变，需保证严格递增（否则 v2 不 > v1）。
+    const now = Date.now()
+    const version = now > lastSavedVersion ? now : lastSavedVersion + 1
+    lastSavedVersion = version
     const remoteRaw = await kvGet(`${key}_version`)
     const remoteVer = remoteRaw ? parseInt(String(remoteRaw), 10) : 0
     if (remoteVer > version) {

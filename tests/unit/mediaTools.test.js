@@ -91,7 +91,7 @@ describe('nodePrefs —— 节点上次参数记忆', () => {
   })
 
   it('初始化合并上次存储的参数（存储覆盖默认值）', () => {
-    prefsMem.set('node_prefs', JSON.stringify({ textNode: { model: 'saved', ratio: '16:9' } }))
+    prefsMem.set('yimao_node_prefs', JSON.stringify({ textNode: { model: 'saved', ratio: '16:9' } }))
     const { result } = renderHook(() => useNodePrefs('textNode', { model: 'default', size: '1K' }))
     expect(result.current.prefs).toEqual({ model: 'saved', size: '1K', ratio: '16:9' })
   })
