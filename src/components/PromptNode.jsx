@@ -16,6 +16,7 @@ import FullscreenModal from './base/FullscreenModal.jsx'
 import GeneratingOverlay from './base/GeneratingOverlay.jsx'
 import ImageZoomDialog from './base/ImageZoomDialog.jsx'
 import PromptLibraryButton from './base/PromptLibraryButton.jsx'
+import { downloadUrl } from './base/clipboard.js'
 import JianyingIcon from './JianyingIcon.jsx'
 import { useNodeResize, useOutsideClick } from './base/hooks.js'
 import { useConnectedInputs } from './base/useConnectedInputs.js'
@@ -257,13 +258,7 @@ export default function PromptNode({ id, data, selected }) {
     } catch {}
     if (!/\.[a-z0-9]{2,5}$/i.test(filename)) filename += (filename ? '.' : '') + 'png'
     if (!filename) filename = 'generated.png'
-    const a = document.createElement('a')
-    a.href = imageUrl
-    a.download = filename
-    a.rel = 'noopener'
-    document.body.appendChild(a)
-    a.click()
-    a.remove()
+    downloadUrl(imageUrl, filename)
   }
 
   // hover 操作栏按钮

@@ -14,6 +14,7 @@ import { useFitNodeRatio } from './base/useFitNodeRatio.js'
 import { useVideoPoster } from './base/useVideoPoster.js'
 import { toAbsoluteFileUrl, saveInlineToLocal, uploadFileToLocal } from './base/filesApi.js'
 import { compressImage } from './base/imageCompress.js'
+import { downloadUrl } from './base/clipboard.js'
 import { showToast, toastError } from './base/toastStore.js'
 
 /**
@@ -85,13 +86,7 @@ export default function ImageNode({ id, data, selected }) {
     const ext = (filename.match(/\.[a-z0-9]{2,5}$/i) || [])[0] || (type !== 'image' ? `.${extMap[type] || 'bin'}` : '')
     if (filename && !ext) filename += ext
     if (!filename) filename = `image-${type || 'content'}${ext || '.png'}`
-    const a = document.createElement('a')
-    a.href = url
-    a.download = filename
-    a.rel = 'noopener'
-    document.body.appendChild(a)
-    a.click()
-    a.remove()
+    downloadUrl(url, filename)
   }, [url, data.label, type])
 
   // 压缩中状态（按钮显示 loading，防重复点击）

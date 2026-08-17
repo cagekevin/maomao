@@ -21,6 +21,7 @@ import {
   ProgressController,
   ConversionCanceled
 } from './base/videoEngine.js'
+import { generateId } from './base/idGen.js'
 
 /* ════════════════════════════════════════════════════════════════
  * 视频处理节点（复刻官方 Gc.jsx + fc.jsx 合并的 videoProcessNode）
@@ -83,7 +84,7 @@ const stripExt = (name) => (name || '').replace(/\.[^.]+$/, '') || 'video'
 const formatDuration = (s) => (Number.isFinite(s) ? `${Math.floor(s / 60)}:${Math.floor(s % 60).toString().padStart(2, '0')}` : '0:00')
 const evenRound = (v) => Math.max(2, Math.round(v / 2) * 2)
 const round2 = (v) => Number(v.toFixed(2))
-const makeId = (p) => `${p}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+const makeId = (p) => `${p}-${generateId('v')}`
 const nameFromUrl = (url) => {
   if (url.startsWith('data:')) return 'video.mp4'
   if (url.startsWith('blob:')) return 'local-video.mp4'
@@ -693,7 +694,7 @@ export default function VideoProcessNode({ id, data, selected }) {
       const me = getNodes().find((n) => n.id === id)
       const baseX = (me?.position.x ?? 100) + (me?.measured?.width ?? 540) + 60
       const baseY = me?.position.y ?? 100
-      const nid = `video-${id}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
+      const nid = `video-${id}-${generateId('v')}`
       setNodes((ns) =>
         ns.concat([
           {
@@ -716,7 +717,7 @@ export default function VideoProcessNode({ id, data, selected }) {
       const me = getNodes().find((n) => n.id === id)
       const baseX = (me?.position.x ?? 100) + (me?.measured?.width ?? 540) + 60
       const baseY = me?.position.y ?? 100
-      const nid = `audio-${id}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
+      const nid = `audio-${id}-${generateId('a')}`
       setNodes((ns) =>
         ns.concat([
           {
@@ -740,7 +741,7 @@ export default function VideoProcessNode({ id, data, selected }) {
       const me = getNodes().find((n) => n.id === id)
       const baseX = (me?.position.x ?? 100) + (me?.measured?.width ?? 540) + 60
       const baseY = me?.position.y ?? 100
-      const nid = `gif-${id}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
+      const nid = `gif-${id}-${generateId('g')}`
       setNodes((ns) =>
         ns.concat([
           {

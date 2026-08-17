@@ -17,6 +17,7 @@
  */
 import { useSyncExternalStore } from 'react'
 import { contentGet, contentSet } from './contentStore.js'
+import { generateId } from './idGen.js'
 
 const STORAGE_KEY = 'yimao_asset_library'
 const listeners = new Set()
@@ -77,7 +78,7 @@ export function getAssets() {
 }
 
 function genId() {
-  return 'asset_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7)
+  return generateId('asset')
 }
 
 // 判断文件类型（图片/视频/音频/文字/其他）

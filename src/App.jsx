@@ -15,7 +15,7 @@ import CanvasToolbar from './components/base/CanvasToolbar.jsx'
 import ArrangeConfirm from './components/base/ArrangeConfirm.jsx'
 import { useArrangeCanvas } from './components/base/useArrangeCanvas.js'
 import { useAssetDropPaste, useGlobalPaste } from './components/base/useAssetDropPaste.js'
-import { copyImageToClipboard } from './components/base/clipboard.js'
+import { copyImageToClipboard, downloadBlob } from './components/base/clipboard.js'
 import TextNode from './components/TextNode.jsx'
 import ImageNode from './components/ImageNode.jsx'
 import LoopNode from './components/LoopNode.jsx'
@@ -63,6 +63,7 @@ import { initTasks } from './components/base/taskStore.js'
 import { initTaskRecovery } from './components/base/pollTask.js'
 import { createGroupFromNodes, ungroupNodes, deleteNodesWithCascade, duplicateSelectedWithEdges } from './components/base/groupNodes.js'
 import { saveInlineToLocal } from './components/base/filesApi.js'
+import { generateId } from './components/base/idGen.js'
 
 /* ======================================================================
  * 【区 1】常量与配置区
@@ -154,7 +155,7 @@ function Canvas() {
    *    这是「模型调度 / 内置模型详情」两个独立功能面板的窗口内事件，
    *    属功能缺失而非窗口机制，应单独评估开发，不并入本多窗口模块。
    * ==================================================================== */
-  const tabIdRef = React.useRef(`tab-${Date.now()}-${Math.random()}`)
+  const tabIdRef = React.useRef(generateId('tab'))
   const [canvasConflict, setCanvasConflict] = React.useState(false)
   React.useEffect(() => {
     let channel
@@ -170,7 +171,7 @@ function Canvas() {
         }
       }
     } catch (err) {
-      console.warn('[Canvas] BroadcastChannel 不可用:', err?.message)
+      logger.warn('Canvas', 'BroadcastChannel 不可用', err?.message)
     }
     return () => { try { channel?.close() } catch { /* ignore */ } }
   }, [])
@@ -260,7 +261,7 @@ function Canvas() {
         channel.postMessage({ type: 'CANVAS_SAVED', projectId, tabId: tabIdRef.current })
         channel.close()
       } catch (err) {
-        console.warn('[Canvas] 广播画布同步失败:', err?.message)
+        logger.warn('Canvas', '广播画布同步失败', err?.message)
       }
     },
     []
@@ -344,15 +345,11 @@ function Canvas() {
       try {
         const backup = await exportAll()
         const blob = backupToBlob(backup)
-        const url = URL.createObjectURL(blob)
-        const a = document.createElement('a')
-        a.href = url
-        a.download = `yimao-workflow-backup-${new Date().toISOString().split('T')[0]}.json`
-        a.click()
-        URL.revokeObjectURL(url)
+        const filename = `yimao-workflow-backup-${new Date().toISOString().split('T')[0]}.json`
+        await downloadBlob(blob, filename)
         showToast('工作流备份导出成功', { type: 'success' })
       } catch (e) {
-        console.error('[App] 导出失败:', e)
+        logger.error('App', '导出失败', e)
         showToast('导出失败：' + (e?.message || '未知错误'), { type: 'error' })
       }
     }
@@ -372,7 +369,7 @@ function Canvas() {
             showToast(`导入成功（${res.ls} 配置 + ${res.canvas} 画布），即将刷新应用`, { type: 'success' })
             setTimeout(() => window.location.reload(), 1500)
           } catch (err) {
-            console.error('[App] 导入失败:', err)
+            logger.error('App', '导入失败', err)
             showToast('导入失败：文件格式不正确', { type: 'error' })
           }
         }
@@ -622,7 +619,7 @@ function Canvas() {
     const d = (s + l) / 2
     const f = new Map()
     const p = e.map((x) => {
-      const id = `${x.type}-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`
+      const id = `${x.type}-${generateId('n')}`
       f.set(x.id, id)
       const data = JSON.parse(JSON.stringify(x.data || {}))
       return { ...x, id, position: { x: pos.x + (x.position?.x ?? 0) - u, y: pos.y + (x.position?.y ?? 0) - d }, selected: true, data }

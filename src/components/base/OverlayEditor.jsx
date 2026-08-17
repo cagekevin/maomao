@@ -22,7 +22,8 @@ import { toAbsoluteFileUrl } from './filesApi.js'
  * 能力：图层导入/排序/显隐/锁定/删除/涂抹擦除恢复、画布尺寸、全屏聚焦、属性面板
  * ════════════════════════════════════════════════════════════════ */
 
-const genId = () => `ov-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
+import { generateId } from './idGen.js'
+const genId = () => generateId('ov')
 const loadImage = (src) =>
   new Promise((resolve) => {
     if (!src) return resolve(null)

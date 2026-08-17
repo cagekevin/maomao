@@ -3,9 +3,11 @@ import {
   getBuiltinSkills, getCustomSkills, getAllSkills, findSkill,
   upsertCustomSkill, deleteCustomSkill, markSkillUsed, getSkillUsage,
 } from '../../src/components/base/skillStore.js'
+import { contentClearCache } from '../../src/components/base/contentStore.js'
 
 beforeEach(() => {
   localStorage.clear()
+  contentClearCache() // 清 contentStore 内存缓存，防跨测试污染
 })
 
 describe('Skill 系统 §2.19', () => {

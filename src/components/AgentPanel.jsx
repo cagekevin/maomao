@@ -14,6 +14,7 @@ import { setCurrentSnapshot, setAwaitingConfirm, getCurrentRunMode, setCurrentRu
 import { runNodeGeneration } from './base/taskStore.js'
 import { showToast } from './base/toastStore.js'
 import { logger } from './base/logger.js'
+import { AGENT_MODELS } from './base/config.js'
 
 /**
  * ════════════════════════════════════════════════════════════════
@@ -30,20 +31,7 @@ import { logger } from './base/logger.js'
  * ════════════════════════════════════════════════════════════════
  */
 
-const DEFAULT_MODELS = [
-  'gpt-4o-mini',
-  'gpt-4o',
-  'gpt-4o-vision-preview',
-  'deepseek-chat',
-  'Qwen/Qwen3-14B'
-]
-
-// env 覆盖模型列表
-const AGENT_MODELS = (() => {
-  const env = import.meta.env?.VITE_AGENT_MODELS || ''
-  return env ? env.split(',').map((s) => s.trim()).filter(Boolean) : DEFAULT_MODELS
-})()
-
+// 模型列表从 config.js 读取（env VITE_AGENT_MODELS 可覆盖）
 const PANEL_WIDTH_KEY = 'agent_panel_width'
 const AGENT_DRAFT_KEY = 'agent_draft'
 const MIN_WIDTH = 320
@@ -85,7 +73,7 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
   // AI 助手的可选模型：该 provider 的 chat_models；无则内置列表兜底
   const agentModels = useMemo(() => {
     const fromProvider = (agentProvider?.chat_models || []).map((m) => m.id || m.label || m).filter(Boolean)
-    return fromProvider.length > 0 ? fromProvider : (AGENT_MODELS.length > 0 ? AGENT_MODELS : DEFAULT_MODELS)
+    return fromProvider.length > 0 ? fromProvider : AGENT_MODELS
   }, [agentProvider])
   // AI 助手默认模型：优先「设置」里指定的聊天模型（用户显式选择，应直接生效，不依赖 providers 是否加载）；
   // 否则该 provider 第一个模型兜底。修复：刷新时 providers 异步加载，首次渲染若 providers 为空，
@@ -95,7 +83,7 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
     if (cfg?.modelId) return cfg.modelId
     return ''
   }, [])
-  const defaultAgentModel = configuredModel ? configuredModel : (agentModels[0] || DEFAULT_MODELS[0])
+  const defaultAgentModel = configuredModel ? configuredModel : agentModels[0]
 
   // ── 生图参数 ──
   const genModels = useMemo(() => buildAllModels(providers || [], 'image'), [providers])

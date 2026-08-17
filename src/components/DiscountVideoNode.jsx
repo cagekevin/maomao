@@ -12,6 +12,7 @@ import ModelSelect from './base/ModelSelect.jsx'
 import ResizeFullscreenHandle from './base/ResizeFullscreenHandle.jsx'
 import FullscreenModal from './base/FullscreenModal.jsx'
 import GeneratingOverlay from './base/GeneratingOverlay.jsx'
+import { downloadUrl } from './base/clipboard.js'
 import PromptLibraryButton from './base/PromptLibraryButton.jsx'
 import JianyingIcon from './JianyingIcon.jsx'
 import MaterialStrip from './base/MaterialStrip.jsx'
@@ -187,13 +188,7 @@ export default function DiscountVideoNode({ id, data, selected }) {
     } catch {}
     if (!/\.[a-z0-9]{2,5}$/i.test(filename)) filename += (filename ? '.' : '') + 'mp4'
     if (!filename) filename = 'video.mp4'
-    const a = document.createElement('a')
-    a.href = videoUrl
-    a.download = filename
-    a.rel = 'noopener'
-    document.body.appendChild(a)
-    a.click()
-    a.remove()
+    downloadUrl(videoUrl, filename)
   }
 
   // hover 操作栏按钮

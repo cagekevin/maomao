@@ -12,14 +12,10 @@
  */
 import { contentGet, contentSet } from './contentStore.js'
 import { publish } from './eventBus.js'
+import { generateId } from './idGen.js'
 
 const STORAGE_KEY = 'yimao_preset_prompts'
 const RECENT_KEY = 'yimao_preset_recent'
-
-// 生成短 id
-function generateId() {
-  return 'pp_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8)
-}
 
 // 内置示例预设（首次使用、或本地清空时兜底展示，方便直观看到效果）
 export const DEFAULT_PRESETS = [
@@ -52,7 +48,7 @@ function writeJSON(key, val) {
 // 补齐 id（旧数据可能没 id）
 export function ensureIds(presets) {
   if (!Array.isArray(presets)) return []
-  return presets.map((p) => (p.id ? p : { ...p, id: generateId() }))
+  return presets.map((p) => (p.id ? p : { ...p, id: generateId('pp') }))
 }
 
 // 加载预设列表；首次使用（本地为空）→ 写入内置示例
@@ -77,7 +73,7 @@ export function savePresets(presets) {
 
 // 新建空预设模板
 export function createPreset() {
-  return { id: generateId(), title: '', type: 'all', prompt: '', enabled: true }
+  return { id: generateId('pp'), title: '', type: 'all', prompt: '', enabled: true }
 }
 
 // 保存并广播（跨节点同步提示词库）

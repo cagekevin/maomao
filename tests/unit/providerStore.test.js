@@ -29,7 +29,14 @@ vi.mock('../../src/components/base/settings/settingsApi.js', () => ({
   },
 }))
 vi.mock('../../src/components/base/kvStore.js', () => ({
-  kvSet: (...a) => h.mockKvSet(...a),
+  storageGet: vi.fn(),
+  storageSet: (...a) => h.mockKvSet(...a),
+  storageDelete: vi.fn(),
+  isKvKey: vi.fn(() => false),
+  CANVAS_STATE_PREFIX: 'canvas-state-v1-',
+  kvGet: vi.fn(),
+  kvSet: vi.fn(),
+  kvDelete: vi.fn(),
 }))
 
 
@@ -190,7 +197,7 @@ describe('providerStore §4 供应商数据层', () => {
       expect(me.api_key).toBe('sk-secret')
       expect(me.clear_key).toBeUndefined()
       expect(me.name).toBe('已改')
-      // 主供应商回写 kv
+      // 主供应商回写 KV
       expect(h.mockKvSet).toHaveBeenCalledWith('active_api_endpoint', expect.objectContaining({ providerId: id }))
     })
 

@@ -2,6 +2,7 @@ import React, { useState, useMemo, useRef } from 'react'
 import { Search, Filter, MoreVertical, Copy, Play, RotateCw, Trash2, X, RefreshCw, ChevronDown, Download, Image as ImageIcon } from 'lucide-react'
 import { useTasks, statusDotClass, statusLabel, typeLabel, removeTask, retryTask, clearTasksBy, clearAllTasks } from './taskStore.js'
 import { logger } from './logger.js'
+import { downloadUrl } from './clipboard.js'
 import { pollOneTask } from './pollTask.js'
 import { showToast } from './toastStore.js'
 import { makeAssetDragProps } from './useAssetDragToCanvas.js'
@@ -202,24 +203,16 @@ function TaskCard({ task, moreOpen, onToggleMore, onCloseMore, onCopy, onRetry, 
   const isActive = task.status === 'running' || task.status === 'pending'
   const isCompleted = task.status === 'completed'
 
-  // 真实下载任务结果（fetch blob → a.download，可控文件名）
+  // 真实下载任务结果（fetch blob → downloadUrl，可控文件名）
   const downloadResult = async (e) => {
     if (e?.stopPropagation) e.stopPropagation()
     if (!task.resultUrl) { showToast('没有可下载的结果', { type: 'warning' }); return }
     try {
-      const res = await fetch(task.resultUrl)
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const blob = await res.blob()
-      const objUrl = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = objUrl
       const ext = task.type === 'video' ? '.mp4' : task.type === 'text' ? '.txt' : '.png'
-      a.download = `${task.modelName || 'task'}_${Date.now()}${ext}`
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      URL.revokeObjectURL(objUrl)
-      showToast('已开始下载', { type: 'success' })
+      const filename = `${task.modelName || 'task'}_${Date.now()}${ext}`
+      const res = await downloadUrl(task.resultUrl, filename)
+      if (res?.ok) showToast('已开始下载', { type: 'success' })
+      else showToast('下载失败', { type: 'error' })
     } catch (err) {
       logger.warn('TaskCenter', '下载失败', err?.message)
       showToast('下载失败', { type: 'error' })

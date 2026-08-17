@@ -7,6 +7,7 @@ import { useMediaDegrade } from './base/useMediaDegrade.js'
 import { showToast } from './base/toastStore.js'
 import { contentSet } from './base/contentStore.js'
 import { toAbsoluteFileUrl } from './base/filesApi.js'
+import { downloadUrl } from './base/clipboard.js'
 import { logger } from './base/logger.js'
 
 /**
@@ -439,10 +440,7 @@ export default function VideoExtractNode({ id, data, selected }) {
                           onClick={(e) => {
                             e.stopPropagation()
                             try {
-                              const a = document.createElement('a')
-                              a.href = img
-                              a.download = `frame-${idx + 1}.jpg`
-                              a.click()
+                              downloadUrl(img, `frame-${idx + 1}.jpg`)
                             } catch {}
                           }}
                           className="p-2 bg-surface-1 hover:bg-white rounded-full text-gray-300 hover:text-black transition-all shadow-lg cursor-pointer border-none"

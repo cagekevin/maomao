@@ -6,6 +6,7 @@ import { useConnectedInputs } from './base/useConnectedInputs.js'
 import { showToast, toastWarning } from './base/toastStore.js' // 保留阻断校验提示
 import { useSyncNodeData } from './base/useSyncNodeData.js'
 import { useOutsideClick } from './base/hooks.js'
+import { generateId } from './base/idGen.js'
 
 /**
  * 循环节点（逐像素对齐大雄 Infinite-Canvas 的 smart-loop）。
@@ -176,7 +177,7 @@ export default function LoopNode({ id, data, selected }) {
     segs.forEach((seg, i) => {
       const prompt = promptForSegment(seg, i)
       if (!prompt) return
-      const nodeId = `loop-out-${id}-${i}-${ts}-${Math.random().toString(36).slice(2, 6)}`
+      const nodeId = `loop-out-${id}-${i}-${ts}-${generateId('o')}`
       newNodes.push({
         id: nodeId,
         type: 'promptNode',

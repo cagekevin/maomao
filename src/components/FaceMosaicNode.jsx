@@ -10,6 +10,7 @@ import { showToast, toastError, toastWarning } from './base/toastStore.js'
 import { applyMosaic, MOSAIC_MODES, MOSAIC_PALETTE } from './base/faceMosaic.js'
 import FaceMosaicEditor from './base/FaceMosaicEditor.jsx'
 import ImageZoomDialog from './base/ImageZoomDialog.jsx'
+import { generateId } from './base/idGen.js'
 
 /**
  * 人脸打码节点（完整复刻官方 Cl.jsx / faceMosaicNode）。
@@ -79,7 +80,7 @@ export default function FaceMosaicNode({ id, data, selected }) {
       const baseX = (me?.position.x ?? 100) + (me?.measured?.width ?? 320) + 60
       const baseY = me?.position.y ?? 100
       const list = items.map((it, i) => ({
-        id: `face-mosaic-${id}-${Date.now()}-${i}-${Math.random().toString(36).slice(2, 6)}`,
+        id: `face-mosaic-${id}-${i}-${generateId('fm')}`,
         type: 'imageNode',
         position: { x: baseX, y: baseY + i * 260 },
         data: { imageUrl: it.url, label: it.label },

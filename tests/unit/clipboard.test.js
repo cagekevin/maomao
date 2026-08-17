@@ -7,7 +7,7 @@
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 
-const { sanitizePastedText, copyText, copyImageToClipboard, downloadUrl } = await import(
+const { sanitizePastedText, copyText, copyImageToClipboard, downloadUrl, downloadBlob } = await import(
   '../../src/components/base/clipboard.js'
 )
 
@@ -143,5 +143,33 @@ describe('clipboard — downloadUrl', () => {
     const res = await downloadUrl('http://x/f')
     expect(res.ok).toBe(false)
     expect(res.msg).toContain('下载失败')
+  })
+})
+
+describe('clipboard — downloadBlob（直接下载已有 Blob）', () => {
+  it('有 Blob：创建 a 链接触发下载并释放 URL', async () => {
+    const blob = new Blob(['data'], { type: 'text/plain' })
+    const createEl = vi.spyOn(document, 'createElement')
+    const revoke = vi.fn()
+    vi.stubGlobal('URL', { createObjectURL: () => 'blob:u', revokeObjectURL: revoke })
+    const res = await downloadBlob(blob, 'out.txt')
+    expect(createEl).toHaveBeenCalledWith('a')
+    expect(revoke).toHaveBeenCalledWith('blob:u')
+    expect(res.ok).toBe(true)
+  })
+
+  it('无 Blob：返回 ok:false 不抛', async () => {
+    const res = await downloadBlob(null, 'x.txt')
+    expect(res.ok).toBe(false)
+    expect(res.msg).toContain('没有可下载的内容')
+  })
+
+  it('默认文件名 download（未传 filename）', async () => {
+    const createEl = vi.spyOn(document, 'createElement')
+    vi.stubGlobal('URL', { createObjectURL: () => 'blob:u', revokeObjectURL: vi.fn() })
+    const res = await downloadBlob(new Blob(['x']))
+    expect(res.ok).toBe(true)
+    const anchor = createEl.mock.results[0]?.value
+    expect(anchor?.download).toBe('download')
   })
 })

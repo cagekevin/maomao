@@ -7,6 +7,7 @@ import CustomHandle from './CustomHandle.jsx'
 import { useConnectedInputs } from './base/useConnectedInputs.js'
 import { toAbsoluteFileUrl, saveInlineToLocal } from './base/filesApi.js'
 import { Director3DOverlay } from './director3d/App.tsx'
+import { generateId } from './base/idGen.js'
 
 /**
  * 3D 导演台节点（复刻开源 storyai-3d-director-desk，与"一毛"一致）。
@@ -56,7 +57,7 @@ export default function Director3DNode({ id, data, selected }) {
         })
       )
       const newImages = persisted.map((url, i) => ({
-        id: `img-${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${i}`,
+        id: `img-${generateId('img')}-${i}`,
         url,
         label: images[i]?.fileName || `导演台截图 ${i + 1}`,
         source: 'gen',

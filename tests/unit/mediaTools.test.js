@@ -12,6 +12,7 @@ vi.mock('../../src/components/base/lod.jsx', () => ({
 }))
 import { useLod } from '../../src/components/base/lod.jsx'
 import { useMediaDegrade } from '../../src/components/base/useMediaDegrade.js'
+import { contentClearCache } from '../../src/components/base/contentStore.js'
 
 describe('useMediaDegrade —— lodLevel→hideMedia 映射', () => {
   beforeEach(() => {
@@ -82,6 +83,7 @@ describe('nodePrefs —— 节点上次参数记忆', () => {
   beforeEach(() => {
     prefsMem.clear()
     localStorage.clear()
+    contentClearCache() // 清 contentStore 内存缓存，防跨测试污染
     vi.clearAllMocks()
   })
 

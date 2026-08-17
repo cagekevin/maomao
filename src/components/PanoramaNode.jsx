@@ -7,6 +7,7 @@ import NodeShell from './base/NodeShell.jsx'
 import HoverToolbar from './base/HoverToolbar.jsx'
 import { useConnectedInputs } from './base/useConnectedInputs.js'
 import PanoViewer from './base/PanoViewer.jsx'
+import { generateId } from './base/idGen.js'
 
 /**
  * 720 全景图节点（复刻官方 Zl.jsx / panoramaNode）。
@@ -84,7 +85,7 @@ export default function PanoramaNode({ id, data, selected }) {
             .map((e) => e.target)
             .filter((tid) => getNodes().find((n) => n.id === tid)?.type === 'imageBoxNode')
           const newImages = shots.map((url, i) => ({
-            id: `img-${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${i}`,
+            id: `img-${generateId('img')}-${i}`,
             url,
             label: `全景截图 ${angles[i] || 0}度`,
             source: 'gen',

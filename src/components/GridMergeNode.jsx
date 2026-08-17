@@ -12,6 +12,7 @@ import { useNodeResize } from './base/hooks.js'
 import { showToast } from './base/toastStore.js'
 import { toAbsoluteFileUrl } from './base/filesApi.js'
 import { logger } from './base/logger.js'
+import { generateId } from './base/idGen.js'
 
 /* ════════════════════════════════════════════════════════════════
  * 图片拼图节点（复刻官方 Yo.jsx / gridMergeNode）
@@ -343,7 +344,7 @@ export default function GridMergeNode({ id, data, selected }) {
       const me = getNodes().find((n) => n.id === id)
       const baseX = (me?.position.x ?? 100) + (me?.measured?.width ?? 400) + 50
       const baseY = me?.position.y ?? 100
-      const nid = `merged-${id}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
+      const nid = `merged-${id}-${generateId('m')}`
       setNodes((ns) =>
         ns.concat([{ id: nid, type: 'imageNode', position: { x: baseX, y: baseY }, data: { imageUrl: url, label: `合并结果`, expanded: false }, style: { width: 320, height: 320 } }])
       )

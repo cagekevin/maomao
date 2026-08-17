@@ -2,6 +2,7 @@ import React, { useMemo, useRef, useState } from 'react'
 import { Search, Plus, Bot, Sparkles, Upload, Download } from 'lucide-react'
 import { getAllSkills, upsertCustomSkill, deleteCustomSkill } from '../../skillStore.js'
 import { showToast } from '../../toastStore.js'
+import { downloadBlob } from '../../clipboard.js'
 
 const inputCls =
   'w-full bg-canvas border border-edge text-zinc-200 text-sm px-3 py-2.5 rounded-xl outline-none placeholder:text-zinc-600 focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/10 transition disabled:opacity-50'
@@ -116,15 +117,9 @@ export default function SkillSettings() {
     const target = selected || (isNew && form.name ? form : null)
     if (!target || !target.content) return showToast('请先选择一个有内容的 Skill', { type: 'warning' })
     const blob = new Blob([target.content], { type: 'text/markdown;charset=utf-8' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `${target.name || 'skill'}.md`
-    document.body.appendChild(a)
-    a.click()
-    a.remove()
-    URL.revokeObjectURL(url)
-    showToast(`已导出 ${a.download}`, { type: 'success' })
+    const filename = `${target.name || 'skill'}.md`
+    downloadBlob(blob, filename)
+    showToast(`已导出 ${filename}`, { type: 'success' })
   }
 
   return (

@@ -4,6 +4,7 @@ import { contentGet } from './contentStore.js'
 import { loadAgentChatModel } from './settings/agentModelStore.js'
 import { logger } from './logger.js'
 import { API_BASE } from './apiBase.js'
+import { LLM_CHAT_BASE_URL, LLM_CHAT_API_KEY, LLM_CHAT_MODEL, AGENT_DEMO_MODE } from './config.js'
 import { normalizeImageUrlForSend } from './imageUrl.js'
 import { InputStateMachine } from './inputStateMachine.js'
 import {
@@ -141,14 +142,14 @@ const MAX_TOOL_ROUNDS = 8
 // 一键切换，改这一处即可。
 const ENABLE_TOOLS_ON_NON_STREAM = false
 
-// LLM 端点配置（env 可覆盖；默认走 localTool 18080，与 docs/27 一致）
-const CHAT_BASE_URL = import.meta.env?.VITE_LLM_CHAT_BASE_URL || ''
-const CHAT_API_KEY = import.meta.env?.VITE_LLM_CHAT_API_KEY || ''
-const CHAT_MODEL = import.meta.env?.VITE_LLM_CHAT_MODEL || 'gpt-4o-mini'
+// LLM 端点配置（从 config.js 读取，env 可覆盖；默认走 localTool 18080，与 docs/27 一致）
+const CHAT_BASE_URL = LLM_CHAT_BASE_URL
+const CHAT_API_KEY = LLM_CHAT_API_KEY
+const CHAT_MODEL = LLM_CHAT_MODEL
 
-// Demo 模式：VITE_AGENT_DEMO='1' 时，不发真实 LLM 请求，
+// Demo 模式：AGENT_DEMO_MODE 为 true 时，不发真实 LLM 请求，
 // 用本地规则引擎模拟「说一句话 → 调工具 → 画布变化」。方便没配 LLM key 也能演示。
-const DEMO_MODE = import.meta.env?.VITE_AGENT_DEMO === '1'
+const DEMO_MODE = AGENT_DEMO_MODE
 
 // ── 画布操作准则（单一来源，前端注入）──
 // 原设计把准则放后端 agentChat.ts unshift，但默认路径（provider 存在）走 /api/proxy，

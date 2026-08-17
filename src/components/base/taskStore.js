@@ -16,6 +16,7 @@ import { logger } from './logger.js'
 import { fetchTasks, saveTask, deleteTask, batchDeleteTasks, clearAllTasksApi } from './tasksApi.js'
 import { saveResultToTasks } from './filesApi.js'
 import { publish } from './eventBus.js'
+import { generateId } from './idGen.js'
 
 let tasks = []
 const listeners = new Set()
@@ -79,7 +80,7 @@ export function typeLabel(type) {
 }
 
 function genId() {
-  return 'task_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7)
+  return generateId('task')
 }
 
 function notify() {

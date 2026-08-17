@@ -7,6 +7,7 @@
  *  - copyText(text)：纯文本复制（clipboard.writeText）
  *  - sanitizePastedText(raw)：粘贴文本清洗 —— 丢弃所有样式/富文本残留，只留干净纯文本。
  *  - downloadUrl(url, filename)：下载文件（fetch blob → a.download）
+ *  - downloadBlob(blob, filename)：直接下载已有 Blob（备份 JSON / 文本导出等）
  *
  * 说明：复制「节点组」走 App.jsx 的 copySelectedNodes（含连线关系，独立于本模块）；
  * 复制「链接」用 copyText 即可。
@@ -87,13 +88,10 @@ export async function copyText(text) {
   }
 }
 
-/** 下载文件（fetch blob → a.download）。返回 { ok, msg }。 */
-export async function downloadUrl(url, filename) {
-  if (!url) return { ok: false, msg: '没有可下载的内容' }
+/** 下载已有 Blob（a.download）。返回 { ok, msg }。所有 a.download 下载统一走这里。 */
+export async function downloadBlob(blob, filename) {
+  if (!blob) return { ok: false, msg: '没有可下载的内容' }
   try {
-    const res = await fetch(url)
-    if (!res.ok) throw new Error(`HTTP ${res.status}`)
-    const blob = await res.blob()
     const objUrl = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = objUrl
@@ -103,6 +101,20 @@ export async function downloadUrl(url, filename) {
     document.body.removeChild(a)
     URL.revokeObjectURL(objUrl)
     return { ok: true, msg: '已开始下载' }
+  } catch (e) {
+    logger.warn('clipboard', '下载失败', e?.message)
+    return { ok: false, msg: '下载失败' }
+  }
+}
+
+/** 下载文件（fetch blob → a.download）。返回 { ok, msg }。 */
+export async function downloadUrl(url, filename) {
+  if (!url) return { ok: false, msg: '没有可下载的内容' }
+  try {
+    const res = await fetch(url)
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    const blob = await res.blob()
+    return await downloadBlob(blob, filename)
   } catch (e) {
     logger.warn('clipboard', '下载失败', e?.message)
     return { ok: false, msg: '下载失败' }

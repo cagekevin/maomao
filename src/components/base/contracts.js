@@ -132,6 +132,14 @@ export const STORAGE_KEYS = {
     note: '应用设置：{ performanceMode, minimapOn, agentOpen }',
   },
 
+  // ── 供应商配置（providerStore）─────────────────────────────────────
+  active_api_endpoint: {
+    domain: 'settings',
+    store: 'settings/providerStore.js',
+    backend: 'kv',
+    note: '当前生效的主供应商 endpoint（跨端读取，写入 localTool KV）',
+  },
+
   // ── AI 聊天模型（agentModelStore）──────────────────────────────────
   agent_chat_model: {
     domain: 'agent',

@@ -10,6 +10,7 @@ import { useNodeResize } from './base/hooks.js'
 import { showToast, toastWarning } from './base/toastStore.js' // 保留阻断校验提示
 import { toAbsoluteFileUrl } from './base/filesApi.js'
 import { logger } from './base/logger.js'
+import { generateId } from './base/idGen.js'
 
 /* ════════════════════════════════════════════════════════════════
  * 图片切分节点（复刻官方 Lo.jsx / gridSplitNode）
@@ -38,7 +39,7 @@ const pairs = (arr) => {
   for (let i = 0; i < t.length - 1; i++) out.push([t[i], t[i + 1]])
   return out
 }
-const genId = () => `lasso-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
+const genId = () => generateId('lasso')
 const SNAP = 0.04
 const snapEdge = (p) => {
   const t = p.y, b = 1 - p.y, l = p.x, r = 1 - p.x
@@ -524,7 +525,7 @@ export default function GridSplitNode({ id, data, selected }) {
         const r = Math.floor(n / colsCount)
         const c = n % colsCount
         return {
-          id: `split-${id}-${Date.now()}-${n}-${Math.random().toString(36).slice(2, 5)}`,
+          id: `split-${id}-${n}-${generateId('s')}`,
           type: 'imageNode',
           position: { x: baseX + c * 330, y: baseY + r * 330 },
           data: { imageUrl: item.url, label: item.label, expanded: false },

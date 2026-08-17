@@ -9,6 +9,7 @@
 
 // Ctrl+D 复制偏移：与原节点左对齐，向下偏移 750（实测最合理，约等于图片节点高 + 抽屉高）
 const DUPLICATE_OFFSET_Y = 750
+import { generateId } from './idGen.js'
 
 /** 节点的实际尺寸（style 优先，其次 measured，兜底默认 420/420，对齐官方） */
 function nodeSize(n) {
@@ -50,7 +51,7 @@ export function createGroupFromNodes(nodes, selectedIds) {
   // fallback：老环境/测试无 randomUUID 时用 Date.now + 随机后缀保证不重复。
   const groupId = typeof crypto !== 'undefined' && crypto.randomUUID
     ? `group-${crypto.randomUUID()}`
-    : `group-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+    : generateId('group')
 
   const groupNode = {
     id: groupId,
@@ -159,7 +160,7 @@ export function duplicateSelectedWithEdges(nodes, edges, selectedIds, makeId) {
     }
   }
   const idMap = new Map() // 原 id → 新 id
-  const mk = makeId || ((n) => `${n.type || 'node'}-clone-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
+  const mk = makeId || ((n) => `${n.type || 'node'}-clone-${generateId('c')}`)
   // 先建立 id 映射（所有被克隆节点）
   for (const n of nodes) if (toClone.has(String(n.id))) idMap.set(String(n.id), mk(n))
   // 生成克隆节点：重映射 id + parentId（指向新 group id）。
@@ -190,7 +191,7 @@ export function duplicateSelectedWithEdges(nodes, edges, selectedIds, makeId) {
     if (!sIn && !tIn) continue
     remappedEdges.push({
       ...e,
-      id: `${e.id}-dup-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      id: `${e.id}-dup-${generateId('d')}`,
       source: sIn ? idMap.get(String(e.source)) : e.source,
       target: tIn ? idMap.get(String(e.target)) : e.target,
       selected: true,

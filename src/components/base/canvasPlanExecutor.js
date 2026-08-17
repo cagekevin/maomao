@@ -14,6 +14,7 @@
  * 【依赖第 1 步异步执行器】触发用 taskStore.runNodeGeneration（await 拿已落盘 resultUrl）。
  */
 import { runNodeGeneration, isNodeRegistered } from './taskStore.js'
+import { generateId } from './idGen.js'
 
 /* ── 全局单飞锁（对齐大雄 __canvasAgentGenRunning）──
  * 同一时刻只允许一套 executePlan 批量生成在跑。防止「用户手动点节点生成 + AI 触发」
@@ -250,7 +251,7 @@ export async function executePlan({ ctx, generations = [], autoRun = true, model
   // 建一个 promptNode 并设参数。
   // 参数优先级对齐大雄 resolveFinalGenParams：generations 每步显式字段 > 面板 defaults（model/ratio/resolution）。
   const createGenNode = async (step, index, anchor) => {
-    const nodeId = `plan-${step.id || `step_${index + 1}`}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
+    const nodeId = `plan-${step.id || `step_${index + 1}`}-${generateId('p')}`
     const ratio = normalizeRatio(step.ratio || defaults.ratio)
     const resolution = normalizeResolution(step.resolution || defaults.resolution)
     const finalModel = model || defaults.model || ''

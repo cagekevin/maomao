@@ -10,9 +10,11 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
 
 const { useNodePrefs } = await import('../../src/components/base/nodePrefs.js')
+const { contentClearCache } = await import('../../src/components/base/contentStore.js')
 
 beforeEach(() => {
   localStorage.clear()
+  contentClearCache() // 清 contentStore 内存缓存，防跨测试污染
 })
 
 describe('useNodePrefs', () => {

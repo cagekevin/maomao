@@ -30,6 +30,7 @@
  */
 import { useSyncExternalStore } from 'react'
 import { contentGet, contentSet } from './contentStore.js'
+import { generateId } from './idGen.js'
 
 /**
  * 存储键按 agentKey 隔离（每项目一个 agentKey → 每项目一套会话）。
@@ -157,7 +158,7 @@ function commit(next) {
 
 /** 生成唯一 id（对齐大雄 uid('ac')） */
 function uid(prefix) {
-  return `${prefix || 'ac'}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+  return generateId(prefix || 'ac')
 }
 
 /** 保证一个对话的结构完整（数组字段缺省补齐、workflow/pending/memory 归一） */
@@ -194,7 +195,7 @@ export function normalizeConversation(c) {
 /** 归一 workflow：保证结构完整（对齐大雄 conv.workflow） */
 export function normalizeWorkflow(w) {
   if (!w || typeof w !== 'object') return null
-  if (!w.id) w.id = `awf_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`
+  if (!w.id) w.id = generateId('awf')
   if (!w.status) w.status = 'planning'
   if (!Array.isArray(w.nodeIds)) w.nodeIds = []
   if (!Array.isArray(w.steerQueue)) w.steerQueue = []

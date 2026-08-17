@@ -13,6 +13,8 @@ import LazyImage from './base/LazyImage.jsx'
 import ImageZoomDialog from './base/ImageZoomDialog.jsx'
 import { showToast, toastError, toastWarning } from './base/toastStore.js'
 import { toAbsoluteFileUrl } from './base/filesApi.js'
+import { generateId } from './base/idGen.js'
+import { downloadUrl as clipboardDownload } from './base/clipboard.js'
 
 /**
  * 图片盒子节点（复刻官方 Rg.jsx / imageBoxNode）。
@@ -111,7 +113,7 @@ export default function ImageBoxNode({ id, data, selected }) {
           let thumb
           try { thumb = await makeThumb(it.url) } catch { thumb = undefined }
           return {
-            id: `img-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+            id: generateId('img'),
             url: it.url,
             thumb,
             label: it.label || '',
@@ -380,13 +382,7 @@ export default function ImageBoxNode({ id, data, selected }) {
 
   // ---- 下载（对齐官方 W / ae）----
   const downloadUrl = useCallback((url, name) => {
-    if (!url) return
-    const a = document.createElement('a')
-    a.href = url
-    a.download = name || `image-${Date.now()}.png`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
+    clipboardDownload(url, name || `image-${Date.now()}.png`)
   }, [])
 
   // 标题图标（对齐官方 _Component30）

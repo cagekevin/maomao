@@ -9,7 +9,8 @@
  */
 import { useSyncExternalStore } from 'react'
 import { providerApi } from './settingsApi.js'
-import { kvSet } from '../kvStore.js'
+import { contentSetAsync } from '../contentStore.js'
+import { generateId } from '../idGen.js'
 
 // useSyncExternalStore 要求：数据变化时 getSnapshot 必须返回「新引用」，
 // 否则 React 用 Object.is 判定无变化 → 不触发渲染（表现：按钮没反应、页面空白/卡）。
@@ -41,12 +42,9 @@ export function useProviders() {
   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
 }
 
-function genId() {
-  return 'p_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7)
-}
 function emptyProvider() {
   return {
-    id: genId(),
+    id: generateId('p'),
     name: '新供应商',
     base_url: '',
     protocol: 'openai',
@@ -180,7 +178,7 @@ export async function save() {
     // 对齐官方 active_api_endpoint（KV）：把主供应商写入 localTool KV，供跨端读取当前生效 endpoint
     const primary = (data.providers || state.providers).find((p) => p.isPrimary) || (data.providers || state.providers)[0]
     if (primary) {
-      kvSet('active_api_endpoint', {
+      contentSetAsync('active_api_endpoint', {
         providerId: primary.id,
         name: primary.name,
         base_url: primary.base_url,

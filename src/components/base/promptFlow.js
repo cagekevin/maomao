@@ -37,6 +37,8 @@
  *   - confirmAllPrompts：全部 pending/current/editing 置 confirmed（保留 skipped），触发转 generations。
  */
 
+import { generateId } from './idGen.js'
+
 /** prompts 状态常量（对齐大雄 normalizePrompts 的 status 语义） */
 export const PROMPT_STATUS = {
   PENDING: 'pending',
@@ -163,7 +165,7 @@ export function advanceToNextOrGenerate(prompts) {
   if (!next.some((p) => p.status === PROMPT_STATUS.PENDING || p.status === PROMPT_STATUS.CURRENT || p.status === PROMPT_STATUS.EDITING)) {
     const confirmed = next.filter((p) => p.status === PROMPT_STATUS.CONFIRMED)
     const generations = confirmed.map((p) => ({
-      id: `prompt_${Math.random().toString(36).slice(2, 8)}`,
+      id: generateId('prompt'),
       title: p.title || p.prompt?.slice(0, 30) || '生成',
       prompt: p.prompt,
       count: p.count || 1,

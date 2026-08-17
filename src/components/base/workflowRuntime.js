@@ -28,6 +28,7 @@
  * ════════════════════════════════════════════════════════════════
  */
 import { publish } from './eventBus.js'
+import { generateId } from './idGen.js'
 
 /** 运行中状态集合（对齐 InputStateMachine RUNNING） */
 const RUNNING = new Set(['planning', 'creating_nodes', 'ready', 'running'])
@@ -243,7 +244,7 @@ export function createWorkflow({ conversationId = '', onStatusChange = null } = 
   }
 
   // 唯一 id
-  wf.id = `wf_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`
+  wf.id = generateId('wf')
 
   return wf
 }
