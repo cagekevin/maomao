@@ -1,7 +1,7 @@
 import React from 'react'
 import { getBezierPath, Position } from '@xyflow/react'
 import CometParticles from './base/CometParticles.jsx'
-import { useLod } from './base/useLod.js'
+import { useLod } from './base/lod.jsx'
 
 /**
  * 拖拽中的临时连线（复刻原 Pg.jsx）

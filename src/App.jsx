@@ -45,8 +45,7 @@ import { useContextMenu } from './components/base/useContextMenu.js'
 import { useCanvasHistory } from './components/base/useCanvasHistory.js'
 import { useCanvasShortcuts } from './components/base/useCanvasShortcuts.js'
 import { paletteCategories, getNodesByCategory, defaultNodeData, getPaletteNode } from './components/base/NodePalette.jsx'
-import LodProvider from './components/base/LodProvider.jsx'
-import LodListener from './components/base/LodListener.jsx'
+import LodProvider, { useLod } from './components/base/lod.jsx'
 import ToastContainer from './components/base/ToastContainer.jsx'
 import SettingsFrame from './components/base/settings/SettingsFrame.jsx'
 import AccountsSettings from './components/base/settings/sections/AccountsSettings.jsx'
@@ -429,8 +428,6 @@ function Canvas() {
     return off
   }, [])
 
-  // LOD 视口缩放等级（基座 LodListener/LodProvider）
-  const [lodLevel, setLodLevel] = React.useState(0)
 
   /* ====================================================================
    * 【区 3】能力区
@@ -1309,7 +1306,7 @@ function Canvas() {
    * ReactFlow 画布 + 覆盖层（右键菜单）
    * ==================================================================== */
   return (
-    <LodProvider value={{ lodLevel, viewportMoving: false, nodeCount: nodes.length, handleFollowLimit: 60, edgeFxLimit: 50 }}>
+    <LodProvider enablePerformanceMode={performanceMode} nodeCount={nodes.length}>
       {/* 顶层：flex 纵向布局（复刻官方 Vr.jsx L3274 flex h-screen flex-col） */}
       <div className="flex flex-col h-screen bg-canvas font-sans text-gray-200">
         {/* 本地引擎未连接全屏提醒（完整复刻官方 Vr.jsx L3274-3280 挂载 _cmp_Tr） */}
@@ -1407,15 +1404,8 @@ function Canvas() {
             </div>
           )}
           {/* 性能模式横幅（复刻 H_.jsx:11966-11971：ge 开 且 lodLevel>=2 时顶部黄条） */}
-          {/* lodLevel 由下方 LodListener 计算（缩放越小 level 越高）：>=2 缩到 ≤0.3，>=3 缩到 ≤0.2 */}
-          {performanceMode && lodLevel >= 2 && (
-            <Panel position="top-center" className="mt-4 pointer-events-none">
-              <div className="bg-yellow-500/20 border border-yellow-500/50 text-yellow-200 px-4 py-2 rounded-full text-xs font-bold shadow-lg backdrop-blur-sm flex items-center gap-2 animate-pulse">
-                <Zap size={14} className="text-yellow-400" />
-                {lodLevel === 3 ? '已进入全局性能模式 (图片视频已隐藏)' : '低缩放性能模式 (图片已隐藏)'}
-              </div>
-            </Panel>
-          )}
+          {/* lodLevel 由 LodProvider 内部监听缩放自动算（缩放越小 level 越高）：>=2 缩到 ≤0.3，>=3 缩到 ≤0.2 */}
+          <LodPerformanceBanner performanceMode={performanceMode} />
           {/* 画布在其他窗口被修改警告条（复刻官方 H_.jsx:11984-11991：Sn 时红色横幅，点击刷新页面） */}
           {canvasConflict && (
             <Panel position="top-center" className="mt-16 pointer-events-none">
@@ -1429,10 +1419,9 @@ function Canvas() {
               </div>
             </Panel>
           )}
-          {/* LOD 视口缩放监听（基座 LodListener）。
-              enablePerformanceMode=false 时 LodListener 会清空 lod class 并把 lodLevel 置 0，
+          {/* LOD 视口缩放监听已收进 LodProvider 内部（lod.jsx）：
+              enablePerformanceMode=false 时内部清空 lod class 并令 lodLevel=0，
               因此「性能模式关 → 节点不隐藏媒体、横幅不弹」天然成立（各节点用 useLod 读 lodLevel）。 */}
-          <LodListener onLodChange={setLodLevel} enablePerformanceMode={performanceMode} />
         </ReactFlow>
 
         {/* 画布专属覆盖层：仅画布视图渲染（对齐官方 V 视图互斥，避免叠到设置/多开上） */}
@@ -1502,6 +1491,22 @@ function Canvas() {
         </div>
       </div>
     </LodProvider>
+  )
+}
+
+// 性能模式黄条（复刻 H_.jsx:11966-11971）：性能模式开且 lodLevel>=2 时顶部黄条。
+// 抽为子组件是因为 lodLevel 已收进 LodProvider 内部，需在 Provider 内用 useLod() 读，
+// 而非在 Canvas 外层读已删除的 App 级 state。
+function LodPerformanceBanner({ performanceMode }) {
+  const { lodLevel } = useLod()
+  if (!performanceMode || lodLevel < 2) return null
+  return (
+    <Panel position="top-center" className="mt-4 pointer-events-none">
+      <div className="bg-yellow-500/20 border border-yellow-500/50 text-yellow-200 px-4 py-2 rounded-full text-xs font-bold shadow-lg backdrop-blur-sm flex items-center gap-2 animate-pulse">
+        <Zap size={14} className="text-yellow-400" />
+        {lodLevel === 3 ? '已进入全局性能模式 (图片视频已隐藏)' : '低缩放性能模式 (图片已隐藏)'}
+      </div>
+    </Panel>
   )
 }
 
