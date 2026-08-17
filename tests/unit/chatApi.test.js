@@ -10,7 +10,8 @@ const fetchMock = globalThis.fetch
 
 vi.mock('../../src/components/base/refImage.js', () => ({
   resolveRefImages: vi.fn(async () => []),
-  toImageContentBlocks: vi.fn(() => []),
+  // 纯函数：mock 成与源码一致的实现，便于断言聊天消息里图片块的形态
+  toImageContentBlocks: vi.fn((urls) => (urls || []).map((url) => ({ type: 'image_url', image_url: { url } }))),
 }))
 
 const { chatCompletions } = await import('../../src/components/base/chatApi.js')
@@ -44,7 +45,44 @@ describe('chatApi — chatCompletions 成功', () => {
     expect(body.providerId).toBe('p1')
   })
 
-  it('有参考图时调用 resolveRefImages', async () => {
+  it('apimart 协议 → targetUrl 拼 base_url + /v1/chat/completions', async () => {
+    fetchMock.mockResolvedValue(proxyResp({ data: { choices: [{ message: { content: 'x' } }] } }))
+    await chatCompletions({ provider: { protocol: 'apimart', base_url: 'https://api.example.com/' }, model: 'm', messages: [] })
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body)
+    // 去掉末尾 /，base_url + /v1/chat/completions
+    expect(body.url).toBe('https://api.example.com/v1/chat/completions')
+  })
+
+  it('openai 协议 → targetUrl 用伪协议 openai://chat/completions', async () => {
+    fetchMock.mockResolvedValue(proxyResp({ data: { choices: [{ message: { content: 'x' } }] } }))
+    await chatCompletions({ provider: { protocol: 'openai', base_url: 'ignored' }, model: 'm', messages: [] })
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body)
+    expect(body.url).toBe('openai://chat/completions')
+  })
+
+  // /api/proxy 负载结构：外层 { url, method, body: '<inner json>', providerId? }，内层才是 { model, messages, temperature, stream }
+  // 注意：有参考图时 attachImages 先触发 logger.info → 上报 /api/logs（也是 fetch），
+  // 故 chat 请求不一定是 calls[0]；用最后一条（chatCompletions 只发一次 chat post）取内层 body。
+  function innerBody() {
+    const outer = JSON.parse(fetchMock.mock.calls.at(-1)[1].body)
+    return JSON.parse(outer.body)
+  }
+
+  it('responseFormat 传给 response_format', async () => {
+    fetchMock.mockResolvedValue(proxyResp({ data: { choices: [{ message: { content: 'x' } }] } }))
+    await chatCompletions({ provider: {}, model: 'm', messages: [], responseFormat: 'json_object' })
+    expect(innerBody().response_format).toEqual({ type: 'json_object' })
+  })
+
+  it('temperature 默认 0.1 且 stream=false', async () => {
+    fetchMock.mockResolvedValue(proxyResp({ data: { choices: [{ message: { content: 'x' } }] } }))
+    await chatCompletions({ provider: {}, model: 'm', messages: [] })
+    expect(innerBody().temperature).toBe(0.1)
+    expect(innerBody().stream).toBe(false)
+  })
+
+  it('有参考图时调用 resolveRefImages 并追加 image_url 内容块到末条 user 消息', async () => {
+    resolveRefImages.mockResolvedValue(['http://ref/x.png'])
     fetchMock.mockResolvedValue(proxyResp({ data: { choices: [{ message: { content: 'x' } }] } }))
     await chatCompletions({
       provider: {},
@@ -53,6 +91,36 @@ describe('chatApi — chatCompletions 成功', () => {
       images: ['blob:abc'],
     })
     expect(resolveRefImages).toHaveBeenCalledWith(['blob:abc'], expect.any(Object))
+    const msgs = innerBody().messages
+    const last = msgs[msgs.length - 1]
+    // 末条 user 消息 content 转成数组，末尾追加 image_url 块
+    expect(Array.isArray(last.content)).toBe(true)
+    expect(last.content).toEqual([
+      { type: 'text', text: 'hi' },
+      { type: 'image_url', image_url: { url: 'http://ref/x.png' } },
+    ])
+  })
+
+  it('无参考图（images 空）→ 不调 resolveRefImages，消息原样', async () => {
+    resolveRefImages.mockClear()
+    fetchMock.mockResolvedValue(proxyResp({ data: { choices: [{ message: { content: 'x' } }] } }))
+    await chatCompletions({ provider: {}, model: 'm', messages: [{ role: 'user', content: 'hi' }], images: [] })
+    expect(resolveRefImages).not.toHaveBeenCalled()
+    expect(innerBody().messages).toEqual([{ role: 'user', content: 'hi' }])
+  })
+
+  it('resolveRefImages 返回空 → 不追加图片块', async () => {
+    resolveRefImages.mockResolvedValue([])
+    fetchMock.mockResolvedValue(proxyResp({ data: { choices: [{ message: { content: 'x' } }] } }))
+    await chatCompletions({ provider: {}, model: 'm', messages: [{ role: 'user', content: 'hi' }], images: ['blob:x'] })
+    expect(innerBody().messages).toEqual([{ role: 'user', content: 'hi' }])
+  })
+
+  it('refFormat=base64 → resolveRefImages 传 preferBase64', async () => {
+    resolveRefImages.mockResolvedValue([])
+    fetchMock.mockResolvedValue(proxyResp({ data: { choices: [{ message: { content: 'x' } }] } }))
+    await chatCompletions({ provider: { refFormat: 'base64' }, model: 'm', messages: [], images: ['http://x/a.png'] })
+    expect(resolveRefImages).toHaveBeenCalledWith(['http://x/a.png'], { preferBase64: true })
   })
 })
 
@@ -86,5 +154,20 @@ describe('chatApi — 错误路径', () => {
     const res = await chatCompletions({ provider: {}, model: 'm', messages: [] })
     expect(res.ok).toBe(false)
     expect(res.error).toContain('未返回文本')
+  })
+
+  it('响应 JSON 解析失败 → 失败信封（含 HTTP 状态）', async () => {
+    fetchMock.mockResolvedValue({ ok: true, status: 200, json: async () => { throw new Error('bad json') } })
+    const res = await chatCompletions({ provider: {}, model: 'm', messages: [] })
+    expect(res.ok).toBe(false)
+    expect(res.error).toContain('响应解析失败')
+    expect(res.error).toContain('200')
+  })
+
+  it('HTTP 失败但无 message → 兜底 HTTP 状态', async () => {
+    fetchMock.mockResolvedValue(proxyResp({}, false, 500))
+    const res = await chatCompletions({ provider: {}, model: 'm', messages: [] })
+    expect(res.ok).toBe(false)
+    expect(res.error).toContain('HTTP 500')
   })
 })

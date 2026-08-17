@@ -6,6 +6,7 @@ import { showToast } from './toastStore.js'
 import { API_BASE } from './apiBase.js'
 import { useAssetDragToCanvas, fetchText } from './useAssetDragToCanvas.js'
 import { toAbsoluteFileUrl } from './filesApi.js'
+import { httpRequest } from './httpClient.js'
 import { logger } from './logger.js'
 import { isAudio } from './mediaType.js'
 import VideoThumbnail from './VideoThumbnail.jsx'
@@ -206,15 +207,15 @@ export default function GeneratedView() {
   const createFolder = async (name) => {
     if (!name || !connected) return false
     try {
-      const res = await fetch(`${API_BASE}/api/files/mkdir`, {
+      await httpRequest(`${API_BASE}/api/files/mkdir`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ folder: folder === 'tasks' ? `tasks/${name}` : `${folder}/${name}` }),
+        retries: 0,
+        label: 'createFolder',
       })
-      if (res.ok) {
-        reset(true)
-        return true
-      }
+      reset(true)
+      return true
     } catch { /* ignore */ }
     return false
   }

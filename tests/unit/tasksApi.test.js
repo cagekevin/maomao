@@ -63,8 +63,33 @@ describe('tasksApi — 成功路径', () => {
 })
 
 describe('tasksApi — 错误路径', () => {
-  it('非 2xx 抛带 HTTP 状态的错误', async () => {
+  it('fetchTasks 非 2xx 抛带 HTTP 状态的错误', async () => {
     fetchMock.mockResolvedValue(jsonResp({}, false, 500))
     await expect(api.fetchTasks()).rejects.toThrow('HTTP 500')
+  })
+
+  it('saveTask 非 2xx 抛错', async () => {
+    fetchMock.mockResolvedValue(jsonResp({}, false, 400))
+    await expect(api.saveTask({})).rejects.toThrow('saveTask failed: HTTP 400')
+  })
+
+  it('batchSaveTasks 非空数组但 2xx 失败抛错', async () => {
+    fetchMock.mockResolvedValue(jsonResp({}, false, 500))
+    await expect(api.batchSaveTasks([{ task_id: 'a' }])).rejects.toThrow('batchSaveTasks failed: HTTP 500')
+  })
+
+  it('deleteTask 非 2xx 抛错', async () => {
+    fetchMock.mockResolvedValue(jsonResp({}, false, 500))
+    await expect(api.deleteTask('t1')).rejects.toThrow('deleteTask failed: HTTP 500')
+  })
+
+  it('batchDeleteTasks 非空 ids 但失败抛错', async () => {
+    fetchMock.mockResolvedValue(jsonResp({}, false, 500))
+    await expect(api.batchDeleteTasks(['a'])).rejects.toThrow('batchDeleteTasks failed: HTTP 500')
+  })
+
+  it('clearAllTasksApi 非 2xx 抛错', async () => {
+    fetchMock.mockResolvedValue(jsonResp({}, false, 500))
+    await expect(api.clearAllTasksApi()).rejects.toThrow('clearTasks failed: HTTP 500')
   })
 })

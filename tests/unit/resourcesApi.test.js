@@ -27,7 +27,7 @@ describe('fetchResources', () => {
     const data = { items: [{ id: '1' }], total: 1, page: 1, pageSize: 60, totalPages: 1 }
     const fetchMock = mockFetchOnce(data)
     const r = await ra.fetchResources()
-    expect(fetchMock).toHaveBeenCalledWith(`${API_BASE}/api/resources?page=1&pageSize=60`)
+    expect(fetchMock.mock.calls[0][0]).toBe(`${API_BASE}/api/resources?page=1&pageSize=60`)
     expect(r).toEqual(data)
   })
 
@@ -52,8 +52,14 @@ describe('rescanResources', () => {
   it('POST rescan 并返回 json', async () => {
     const fetchMock = mockFetchOnce({ scanned: 3 })
     const r = await ra.rescanResources()
-    expect(fetchMock).toHaveBeenCalledWith(`${API_BASE}/api/resources/rescan`, { method: 'POST' })
+    expect(fetchMock.mock.calls[0][0]).toBe(`${API_BASE}/api/resources/rescan`)
+    expect(fetchMock.mock.calls[0][1].method).toBe('POST')
     expect(r.scanned).toBe(3)
+  })
+
+  it('非 2xx 抛错', async () => {
+    mockFetchOnce({ error: 'x' }, { ok: false, status: 500 })
+    await expect(ra.rescanResources()).rejects.toThrow(/HTTP 500/)
   })
 })
 
@@ -63,17 +69,27 @@ describe('deleteResource', () => {
     await ra.deleteResource('a/b c')
     expect(fetchMock.mock.calls[0][0]).toContain('delete?id=' + encodeURIComponent('a/b c'))
   })
+
+  it('非 2xx 抛错', async () => {
+    mockFetchOnce({ error: 'x' }, { ok: false, status: 500 })
+    await expect(ra.deleteResource('id1')).rejects.toThrow(/HTTP 500/)
+  })
 })
 
 describe('saveResource', () => {
   it('POST JSON body', async () => {
     const fetchMock = mockFetchOnce({ ok: true })
     const res = await ra.saveResource({ id: '1', isFavorite: true })
-    expect(fetchMock).toHaveBeenCalledWith(`${API_BASE}/api/resources/save`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: '1', isFavorite: true })
-    })
+    const [reqUrl, init] = fetchMock.mock.calls[0]
+    expect(reqUrl).toBe(`${API_BASE}/api/resources/save`)
+    expect(init.method).toBe('POST')
+    expect(init.headers['Content-Type']).toBe('application/json')
+    expect(JSON.parse(init.body)).toEqual({ id: '1', isFavorite: true })
+  })
+
+  it('非 2xx 抛错', async () => {
+    mockFetchOnce({ error: 'x' }, { ok: false, status: 400 })
+    await expect(ra.saveResource({ id: '1' })).rejects.toThrow(/HTTP 400/)
   })
 })
 
@@ -89,7 +105,7 @@ describe('renameResource', () => {
 
   it('失败时优先用后端 error 文案', async () => {
     mockFetchOnce({ error: '重名冲突' }, { ok: false, status: 409 })
-    await expect(ra.renameResource('1', 'x')).rejects.toThrow('重名冲突')
+    await expect(ra.renameResource('1', 'x')).rejects.toThrow(/重名冲突/)
   })
 })
 
@@ -114,6 +130,16 @@ describe('openLocalFolder / openFileDir', () => {
     const fetchMock = mockFetchOnce({ path: '/d' })
     await ra.openFileDir('tasks/a.png')
     expect(fetchMock.mock.calls[0][0]).toContain('open-dir?filepath=' + encodeURIComponent('tasks/a.png'))
+  })
+
+  it('openLocalFolder 非 2xx 抛错', async () => {
+    mockFetchOnce({ error: 'x' }, { ok: false, status: 500 })
+    await expect(ra.openLocalFolder('tasks')).rejects.toThrow(/HTTP 500/)
+  })
+
+  it('openFileDir 非 2xx 抛错', async () => {
+    mockFetchOnce({ error: 'x' }, { ok: false, status: 500 })
+    await expect(ra.openFileDir('tasks/a.png')).rejects.toThrow(/HTTP 500/)
   })
 })
 

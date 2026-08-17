@@ -6,6 +6,7 @@ import { showToast } from './toastStore.js'
 import { API_BASE } from './apiBase.js'
 import { useAssetDragToCanvas, fetchText } from './useAssetDragToCanvas.js'
 import { toAbsoluteFileUrl } from './filesApi.js'
+import { httpRequest } from './httpClient.js'
 import { logger } from './logger.js'
 import { isAudio } from './mediaType.js'
 
@@ -174,8 +175,8 @@ export default function AssetLibrary() {
         const fd = new FormData()
         fd.append('subfolder', currentFolder)
         fd.append('file', f, f.name)
-        const res = await fetch(`${API_BASE}/api/files/upload`, { method: 'POST', body: fd })
-        if (res.ok) ok++
+        await httpRequest(`${API_BASE}/api/files/upload`, { method: 'POST', body: fd, retries: 0, label: 'upload' })
+        ok++
       } catch { /* 单个失败继续 */ }
     }
     if (ok > 0) {
@@ -245,15 +246,15 @@ export default function AssetLibrary() {
   const createFolder = async (name) => {
     if (!name || !connected) return false
     try {
-      const res = await fetch(`${API_BASE}/api/files/mkdir`, {
+      await httpRequest(`${API_BASE}/api/files/mkdir`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ folder: `${currentFolder}/${name}` }),
+        retries: 0,
+        label: 'createFolder',
       })
-      if (res.ok) {
-        reset(true)
-        return true
-      }
+      reset(true)
+      return true
     } catch { /* ignore */ }
     return false
   }

@@ -17,6 +17,7 @@
  */
 import { useState, useCallback, useEffect } from 'react'
 import { logger } from './logger.js'
+import { httpRequest } from './httpClient.js'
 import { API_BASE } from './apiBase.js'
 
 const DEFAULT_PORT = 18080
@@ -35,21 +36,21 @@ export function useLocalToolStatus() {
       return
     }
     try {
-      const res = await fetch(`${API_BASE}/api/status`, {
+      // httpRequest 统一请求层：带 5s 超时（localTool 未起时快速失败），HTTP 非 2xx 抛错
+      const data = await httpRequest(`${API_BASE}/api/status`, {
         method: 'GET',
         headers: { 'Content-Type': 'application/json' },
+        timeoutMs: 5000,
+        retries: 0,
       })
-      if (res.ok) {
-        const data = await res.json().catch(() => ({}))
-        logger.info('useLocalToolStatus', '/api/status 响应', data?.status)
-        if (data?.status === 'ok') {
-          setStatus((s) =>
-            s.isConnected && s.version === data.version && s.message === data.message
-              ? s
-              : { ...s, isConnected: true, version: data.version || '', message: data.message || '' }
-          )
-          return
-        }
+      logger.info('useLocalToolStatus', '/api/status 响应', data?.status)
+      if (data?.status === 'ok') {
+        setStatus((s) =>
+          s.isConnected && s.version === data.version && s.message === data.message
+            ? s
+            : { ...s, isConnected: true, version: data.version || '', message: data.message || '' }
+        )
+        return
       }
       setStatus((s) => (s.isConnected ? { ...s, isConnected: false } : s))
     } catch {

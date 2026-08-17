@@ -13,6 +13,7 @@
  * 收敛原则：任何新增节点/面板要显示或发送图片，一律用这里，不各写各的 URL 处理。
  */
 import { logger } from './logger.js'
+import { httpRequest } from './httpClient.js'
 import { API_BASE } from './apiBase.js'
 
 /** 相对 /files/ 路径 → 完整可访问 URL（对齐后端 resources.ts / base64Externalize 惯例）。 */
@@ -41,7 +42,7 @@ export function normalizeImageUrl(url) {
  */
 export async function blobToDataUrl(u) {
   try {
-    const res = await fetch(u)
+    const res = await httpRequest(u, { timeoutMs: 10000, retries: 0, parseJson: false })
     const blob = await res.blob()
     return await new Promise((resolve, reject) => {
       const fr = new FileReader()
@@ -67,8 +68,7 @@ export async function urlToDataUrl(u) {
   if (u.startsWith('data:')) return u // 已是 base64，直接返回
   const absolute = toAbsoluteFileUrl(u) // 相对 /files/ 先补全
   try {
-    const res = await fetch(absolute)
-    if (!res.ok) return ''
+    const res = await httpRequest(absolute, { timeoutMs: 10000, retries: 0, parseJson: false })
     const blob = await res.blob()
     return await new Promise((resolve, reject) => {
       const fr = new FileReader()

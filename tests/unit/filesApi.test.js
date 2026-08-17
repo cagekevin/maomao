@@ -67,6 +67,43 @@ describe('filesApi — saveResultToTasks', () => {
   })
 })
 
+describe('filesApi — saveResultToTasks 类型→扩展名映射', () => {
+  const DATA_PNG = 'data:image/png;base64,iVBORw0KGgo='
+  /** 从上传请求的 FormData 里取 file 的原始文件名 */
+  function fdFilename(opts) {
+    const fd = opts.body
+    for (const [k, v] of fd.entries()) {
+      if (k === 'file') return v.name
+    }
+    return ''
+  }
+  it('type=image → .png', async () => {
+    fetchMock.mockResolvedValue(uploadResp('http://x/a.png'))
+    await api.saveResultToTasks(DATA_PNG, 'image')
+    expect(fdFilename(fetchMock.mock.calls[0][1])).toMatch(/\.png$/)
+  })
+  it('type=text → .txt', async () => {
+    fetchMock.mockResolvedValue(uploadResp('http://x/a.txt'))
+    await api.saveResultToTasks(DATA_PNG, 'text')
+    expect(fdFilename(fetchMock.mock.calls[0][1])).toMatch(/\.txt$/)
+  })
+  it('type=video → .mp4', async () => {
+    fetchMock.mockResolvedValue(uploadResp('http://x/a.mp4'))
+    await api.saveResultToTasks(DATA_PNG, 'video')
+    expect(fdFilename(fetchMock.mock.calls[0][1])).toMatch(/\.mp4$/)
+  })
+  it('type=audio → .m4a', async () => {
+    fetchMock.mockResolvedValue(uploadResp('http://x/a.m4a'))
+    await api.saveResultToTasks(DATA_PNG, 'audio')
+    expect(fdFilename(fetchMock.mock.calls[0][1])).toMatch(/\.m4a$/)
+  })
+  it('未知 type → 兜底 .bin', async () => {
+    fetchMock.mockResolvedValue(uploadResp('http://x/a.bin'))
+    await api.saveResultToTasks(DATA_PNG, 'weird')
+    expect(fdFilename(fetchMock.mock.calls[0][1])).toMatch(/\.bin$/)
+  })
+})
+
 describe('filesApi — saveTextToTasks', () => {
   it('合法文本 → 落盘 txt 返回 url', async () => {
     fetchMock.mockResolvedValue(uploadResp('http://127.0.0.1:18080/files/tasks/gen.txt'))
@@ -76,6 +113,25 @@ describe('filesApi — saveTextToTasks', () => {
     expect(await api.saveTextToTasks('   ')).toBeNull()
     expect(await api.saveTextToTasks(123)).toBeNull()
   })
+  it('自定义 name 前缀清洗非法字符/空格', async () => {
+    fetchMock.mockResolvedValue(uploadResp('http://x/t.txt'))
+    await api.saveTextToTasks('内容', 'a/b:c*d?e')
+    const [, opts] = fetchMock.mock.calls[0]
+    for (const [k, v] of opts.body.entries()) {
+      if (k === 'file') expect(v.name).toMatch(/^a_b_c_d_e_\d{8}_\d{6}\.txt$/)
+    }
+  })
+  it('上传失败（!res.ok）→ null 不抛', async () => {
+    fetchMock.mockResolvedValue(failResp())
+    expect(await api.saveTextToTasks('hi')).toBeNull()
+  })
+  it('fetch reject → null 不抛', async () => {
+    // 首次（落盘上传）抛错；后续（logger 上报 /api/logs）正常，避免未捕获拒绝
+    fetchMock
+      .mockImplementationOnce(async () => { throw new Error('net') })
+      .mockResolvedValue({ ok: true, status: 200, json: async () => ({}) })
+    expect(await api.saveTextToTasks('hi')).toBeNull()
+  })
 })
 
 describe('filesApi — uploadFileToLocal', () => {
@@ -84,7 +140,29 @@ describe('filesApi — uploadFileToLocal', () => {
     const file = new Blob(['x'], { type: 'image/png' })
     expect(await api.uploadFileToLocal(file)).toBe('http://127.0.0.1:18080/files/canvas/drop/a.png')
   })
+  it('自定义 subfolder 与 filename 生效', async () => {
+    fetchMock.mockResolvedValue(uploadResp('http://x/u.png'))
+    const file = new File(['x'], 'drop.png', { type: 'image/png' })
+    await api.uploadFileToLocal(file, 'gen', 'custom.png')
+    const [, opts] = fetchMock.mock.calls[0]
+    const fd = opts.body
+    for (const [k, v] of fd.entries()) {
+      if (k === 'subfolder') expect(v).toBe('gen')
+      if (k === 'file') expect(v.name).toBe('custom.png')
+    }
+  })
   it('无 file → null', async () => {
     expect(await api.uploadFileToLocal(null)).toBeNull()
+  })
+  it('上传失败（!res.ok）→ null 不抛', async () => {
+    fetchMock.mockResolvedValue(failResp())
+    expect(await api.uploadFileToLocal(new Blob(['x']))).toBeNull()
+  })
+  it('fetch reject → null 不抛', async () => {
+    // 首次（上传）抛错；后续（logger 上报）正常
+    fetchMock
+      .mockImplementationOnce(async () => { throw new Error('net') })
+      .mockResolvedValue({ ok: true, status: 200, json: async () => ({}) })
+    expect(await api.uploadFileToLocal(new Blob(['x']))).toBeNull()
   })
 })

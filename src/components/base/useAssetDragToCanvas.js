@@ -1,3 +1,5 @@
+import { httpRequest } from './httpClient.js'
+
 /**
  * 素材拖拽到画布的【唯一发起端】公共 hook（对齐官方 H_.jsx onDrop 的素材通道）。
  *
@@ -23,7 +25,7 @@
 const textCache = new Map()
 function fetchText(url) {
   if (textCache.has(url)) return Promise.resolve(textCache.get(url))
-  return fetch(url)
+  return httpRequest(url, { timeoutMs: 5000, retries: 0, parseJson: false })
     .then((r) => (r.ok ? r.text() : ''))
     .then((t) => {
       textCache.set(url, t)

@@ -16,6 +16,7 @@
  */
 import { toAbsoluteFileUrl } from './imageUrl.js'
 import { loadImageWithTimeout } from './asyncGuard.js'
+import { httpRequest } from './httpClient.js'
 
 export async function compressImage(url, opts = {}) {
   const { quality = 0.8, format = 'image/jpeg', maxSize = 0 } = opts
@@ -62,7 +63,7 @@ export async function compressImage(url, opts = {}) {
   // 原图体积（尽力获取，失败不阻断；fetch 也加超时防挂起）
   let originalSize = 0
   try {
-    const res = await fetch(src)
+    const res = await httpRequest(src, { timeoutMs: 20000, retries: 0, parseJson: false })
     const buf = await res.blob()
     originalSize = buf.size
   } catch {

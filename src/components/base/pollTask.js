@@ -21,6 +21,7 @@
  * 工作量大且要动网关，本期不做。若后续需要，在网关 chat_completions 加异步
  * 分支 + 本模块放开 type 限制即可。
  */
+import { httpRequest } from './httpClient.js'
 import { API_BASE } from './apiBase.js'
 import { getTasks, patchTask } from './taskStore.js'
 import { publish } from './eventBus.js'
@@ -62,7 +63,7 @@ export async function pollOneTask(task) {
   if (!pollTaskId) return false
   let res
   try {
-    res = await fetch(`${API_BASE}/api/v1/gateway/task/${encodeURIComponent(pollTaskId)}`)
+    res = await httpRequest(`${API_BASE}/api/v1/gateway/task/${encodeURIComponent(pollTaskId)}`, { parseJson: false })
   } catch (e) {
     // 网络抖动/网关未起：不误判失败，下轮再试（保持 running，避免刷新后误报 failed）
     return false

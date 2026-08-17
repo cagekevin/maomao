@@ -94,7 +94,7 @@ describe('kvStore kvGet', () => {
   })
   it('非 ok 响应抛错（含 status）', async () => {
     fetchImpl.mockResolvedValue(notOk(500))
-    await expect(kvGet('x')).rejects.toThrow(/KV get x 失败 \(500\)/)
+    await expect(kvGet('x')).rejects.toThrow(/HTTP 500/)
   })
   it('fetch 网络异常透传 reject', async () => {
     fetchImpl.mockRejectedValue(new Error('network down'))
@@ -118,7 +118,7 @@ describe('kvStore kvSet', () => {
   })
   it('非 ok 响应抛错（含 status）', async () => {
     fetchImpl.mockResolvedValue(notOk(503))
-    await expect(kvSet('k1', 1)).rejects.toThrow(/KV set k1 失败 \(503\)/)
+    await expect(kvSet('k1', 1)).rejects.toThrow(/HTTP 503/)
   })
 })
 
@@ -135,7 +135,7 @@ describe('kvStore kvDelete', () => {
   })
   it('非 ok 响应抛错', async () => {
     fetchImpl.mockResolvedValue(notOk(500))
-    await expect(kvDelete('k1')).rejects.toThrow(/KV delete k1 失败 \(500\)/)
+    await expect(kvDelete('k1')).rejects.toThrow(/HTTP 500/)
   })
   it('删不存在的 key 仍返回 ok（契约约定）', async () => {
     fetchImpl.mockResolvedValue(okJson({ ok: true }))

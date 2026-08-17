@@ -8,9 +8,12 @@
  * 导致生成面板空。这里补上落盘：data:/blob → multipart file；http → fileUrl(幂等下载)。
  */
 import { API_BASE } from './apiBase.js'
+import { httpRequest } from './httpClient.js'
 import { logger } from './logger.js'
 export { toAbsoluteFileUrl } from './imageUrl.js'
 const SUBFOLDER = 'tasks'
+// multipart/大文件上传统一参数：较长超时 + 不自动重试（避免重复上传）
+const UPLOAD_OPTS = { timeoutMs: 60000, retries: 0 }
 
 // toAbsoluteFileUrl 已收敛到 imageUrl.js（统一图片 URL 归一化入口）。
 // 此处 re-export 兼容既有引用，逻辑单一来源在 imageUrl.js。
@@ -53,12 +56,7 @@ export async function saveInlineToLocal(dataUrl, subfolder = 'canvas') {
     const fd = new FormData()
     fd.append('file', blob, filename)
     fd.append('subfolder', subfolder)
-    const res = await fetch(`${API_BASE}/api/files/upload`, { method: 'POST', body: fd })
-    if (!res.ok) {
-      logger.warn('filesApi', '内联资源落盘失败', res.status)
-      return null
-    }
-    const data = await res.json().catch(() => ({}))
+    const data = await httpRequest(`${API_BASE}/api/files/upload`, { method: 'POST', body: fd, ...UPLOAD_OPTS })
     return data.url || null
   } catch (e) {
     logger.warn('filesApi', '内联资源落盘失败', e)
@@ -82,12 +80,7 @@ export async function uploadFileToLocal(file, subfolder = 'canvas/drop', filenam
     const fd = new FormData()
     fd.append('file', file, filename || file.name || 'upload')
     fd.append('subfolder', subfolder)
-    const res = await fetch(`${API_BASE}/api/files/upload`, { method: 'POST', body: fd })
-    if (!res.ok) {
-      logger.warn('filesApi', '文件上传失败', res.status)
-      return null
-    }
-    const data = await res.json().catch(() => ({}))
+    const data = await httpRequest(`${API_BASE}/api/files/upload`, { method: 'POST', body: fd, ...UPLOAD_OPTS })
     return data.url || null
   } catch (e) {
     logger.warn('filesApi', '文件上传失败', e)
@@ -146,26 +139,17 @@ export async function saveResultToTasks(url, type) {
       fd.append('file', blob, `result_${Date.now()}.${ext}`)
       fd.append('subfolder', SUBFOLDER)
       fd.append('filename', safeName('generated', ext))
-      const res = await fetch(`${API_BASE}/api/files/upload`, { method: 'POST', body: fd })
-      if (!res.ok) {
-        logger.warn('filesApi', 'data 落盘失败', res.status)
-        return null
-      }
-      const data = await res.json().catch(() => ({}))
+      const data = await httpRequest(`${API_BASE}/api/files/upload`, { method: 'POST', body: fd, ...UPLOAD_OPTS })
       return data.url || null
     }
 
     // http(s) 上游 url → fileUrl 幂等下载落盘
-    const res = await fetch(`${API_BASE}/api/files/upload`, {
+    const data = await httpRequest(`${API_BASE}/api/files/upload`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ fileUrl: url, subfolder: SUBFOLDER, filename: safeName('generated', ext) }),
+      ...UPLOAD_OPTS,
     })
-    if (!res.ok) {
-      logger.warn('filesApi', 'fileUrl 落盘失败', res.status)
-      return null
-    }
-    const data = await res.json().catch(() => ({}))
     return data.url || null
   } catch (e) {
     logger.warn('filesApi', '落盘 tasks 失败', e)
@@ -193,12 +177,7 @@ export async function saveTextToTasks(text, name) {
     fd.append('file', blob, filename)
     fd.append('subfolder', SUBFOLDER)
     fd.append('filename', filename)
-    const res = await fetch(`${API_BASE}/api/files/upload`, { method: 'POST', body: fd })
-    if (!res.ok) {
-      logger.warn('filesApi', '文本落盘失败', res.status)
-      return null
-    }
-    const data = await res.json().catch(() => ({}))
+    const data = await httpRequest(`${API_BASE}/api/files/upload`, { method: 'POST', body: fd, ...UPLOAD_OPTS })
     return data.url || null
   } catch (e) {
     logger.warn('filesApi', '文本落盘 tasks 失败', e)

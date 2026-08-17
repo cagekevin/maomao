@@ -131,7 +131,7 @@ describe('clipboard — downloadUrl', () => {
     const revoke = vi.fn()
     vi.stubGlobal('URL', { createObjectURL: () => 'blob:u', revokeObjectURL: revoke })
     const res = await downloadUrl('http://x/f', 'file.txt')
-    expect(fetchSpy).toHaveBeenCalledWith('http://x/f')
+    expect(fetchSpy.mock.calls[0][0]).toBe('http://x/f')
     expect(createEl).toHaveBeenCalledWith('a')
     expect(revoke).toHaveBeenCalledWith('blob:u')
     expect(res.ok).toBe(true)

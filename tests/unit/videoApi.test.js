@@ -17,13 +17,27 @@ vi.mock('../../src/components/base/taskStore.js', () => ({
 }))
 
 const { generateVideo } = await import('../../src/components/base/videoApi.js')
+const { resolveRefImages } = await import('../../src/components/base/refImage.js')
+const { getCurrentTaskId, setTaskPollId } = await import('../../src/components/base/taskStore.js')
 
 function jsonResp(obj, ok = true, status = 200) {
   return { ok, status, json: async () => obj }
 }
 
+/** 读提交/轮询请求的 body 里的 url（即后端要转发的上游 url） */
+function submittedUrl() {
+  const body = JSON.parse(fetchMock.mock.calls[0][1].body)
+  return body.url
+}
+
 beforeEach(() => {
-  fetchMock.mockClear()
+  fetchMock.mockReset()
+  resolveRefImages.mockReset()
+  resolveRefImages.mockResolvedValue([])
+  getCurrentTaskId.mockReset()
+  getCurrentTaskId.mockReturnValue(null)
+  setTaskPollId.mockReset()
+  vi.restoreAllMocks()
   // 加速轮询里的 setTimeout(5000)
   vi.spyOn(global, 'setTimeout').mockImplementation((fn) => Promise.resolve().then(fn))
 })
@@ -57,6 +71,70 @@ describe('videoApi — generateVideo async 成功', () => {
     expect(res.ok).toBe(true)
     expect(res.url).toBe('http://x/d.mp4')
   })
+
+  it('openai 协议 → 提交 url 用伪协议 openai://videos/generations', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResp({ data: { result: { videos: [{ url: 'http://x/o.mp4' }] } } }))
+    const res = await generateVideo({ provider: { protocol: 'openai' }, prompt: 'x', model: 'm' })
+    expect(res.ok).toBe(true)
+    expect(submittedUrl()).toBe('openai://videos/generations')
+  })
+
+  it('genBody 构造：size/resolution/seconds 都进提交 body', async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonResp({ data: [{ status: 'submitted', task_id: 'T1' }] }))
+      .mockResolvedValueOnce(jsonResp({ data: { result: { videos: [{ url: 'http://x/v.mp4' }] } } }))
+    await generateVideo({ provider: {}, prompt: 'x', model: 'm', size: '16:9', resolution: '1080p', seconds: 5 })
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body)
+    const genBody = JSON.parse(body.body)
+    expect(genBody.size).toBe('16:9')
+    expect(genBody.resolution).toBe('1080p')
+    expect(genBody.duration).toBe('5')
+  })
+
+  it('size=Auto → 不写 size 字段', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResp({ data: { result: { videos: [{ url: 'http://x/v.mp4' }] } } }))
+    await generateVideo({ provider: {}, prompt: 'x', model: 'm', size: 'Auto' })
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body)
+    const genBody = JSON.parse(body.body)
+    expect(genBody.size).toBeUndefined()
+  })
+
+  it('参考图 → resolveRefImages 且写 image_urls', async () => {
+    resolveRefImages.mockResolvedValue(['http://ref/a.png'])
+    fetchMock.mockResolvedValueOnce(jsonResp({ data: { result: { videos: [{ url: 'http://x/v.mp4' }] } } }))
+    await generateVideo({ provider: {}, prompt: 'x', model: 'm', images: ['blob:x'] })
+    expect(resolveRefImages).toHaveBeenCalledWith(['blob:x'], { preferBase64: false })
+    const genBody = JSON.parse(JSON.parse(fetchMock.mock.calls[0][1].body).body)
+    expect(genBody.image_urls).toEqual(['http://ref/a.png'])
+  })
+
+  it('refFormat=base64 → resolveRefImages 传 preferBase64', async () => {
+    resolveRefImages.mockResolvedValue([])
+    fetchMock.mockResolvedValueOnce(jsonResp({ data: { result: { videos: [{ url: 'http://x/v.mp4' }] } } }))
+    await generateVideo({ provider: { refFormat: 'base64' }, prompt: 'x', model: 'm', images: ['http://x/a.png'] })
+    expect(resolveRefImages).toHaveBeenCalledWith(['http://x/a.png'], { preferBase64: true })
+  })
+
+  it('异步提交成功后回填 setTaskPollId(taskId, pollTaskId)', async () => {
+    getCurrentTaskId.mockReturnValue('front-task-1')
+    fetchMock
+      .mockResolvedValueOnce(jsonResp({ data: [{ status: 'submitted', task_id: 'T9' }] }))
+      .mockResolvedValueOnce(jsonResp({ data: { result: { videos: [{ url: 'http://x/v.mp4' }] } } }))
+    await generateVideo({ provider: {}, prompt: 'x', model: 'm' })
+    expect(setTaskPollId).toHaveBeenCalledWith('front-task-1', 'T9')
+    // 提交请求也带 taskId 贯穿
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body)
+    expect(body.taskId).toBe('front-task-1')
+  })
+
+  it('onProgress 收到阶段回调', async () => {
+    const progress = vi.fn()
+    fetchMock
+      .mockResolvedValueOnce(jsonResp({ data: [{ status: 'submitted', task_id: 'T1' }] }))
+      .mockResolvedValueOnce(jsonResp({ data: { result: { videos: [{ url: 'http://x/v.mp4' }] } } }))
+    await generateVideo({ provider: {}, prompt: 'x', model: 'm' }, progress)
+    expect(progress).toHaveBeenCalled()
+  })
 })
 
 describe('videoApi — 错误路径', () => {
@@ -81,5 +159,28 @@ describe('videoApi — 错误路径', () => {
     const res = await generateVideo({ provider: {}, prompt: 'x', model: 'm' })
     expect(res.ok).toBe(false)
     expect(res.error).toContain('提交失败')
+  })
+
+  it('轮询返回 status=failed → 用上游错误文案', async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonResp({ data: [{ status: 'submitted', task_id: 'T1' }] }))
+      .mockResolvedValueOnce(jsonResp({ data: { status: 'failed', error: { message: 'timeout upstream' } } }))
+    const res = await generateVideo({ provider: {}, prompt: 'x', model: 'm' })
+    expect(res.ok).toBe(false)
+    expect(res.error).toBe('timeout upstream')
+  })
+
+  it('轮询无结果直到超时 → 轮询超时', async () => {
+    // 第一次提交返回 task_id；之后轮询永远返回 pending，让循环一直跑到 timeoutMs
+    fetchMock
+      .mockResolvedValueOnce(jsonResp({ data: [{ status: 'submitted', task_id: 'T1' }] }))
+      .mockResolvedValue(jsonResp({ data: { status: 'pending' } }))
+    // setTimeout 保持加速（立即触发）；仅用 Date.now 让每次循环都越过 600000 上限 → 立刻超时
+    let t = 0
+    vi.spyOn(Date, 'now').mockImplementation(() => (t += 600001))
+    const res = await generateVideo({ provider: {}, prompt: 'x', model: 'm' })
+    expect(res.ok).toBe(false)
+    expect(res.error).toBe('轮询超时')
+    vi.spyOn(Date, 'now').mockRestore()
   })
 })
