@@ -97,6 +97,10 @@ scripts/report-chunks.json
 # 注：scripts/archived/{tools,beautify,semantic-map}/ 是归档的原始脚本源码（非副本），
 # 应随仓库分发供后续 AI 查阅，故不在此忽略（见 scripts/archived/README.md）。
 
+# ── 临时产物目录（本地生成、可随时重建，不入库）──
+Temp/
+tmp/
+
 # ── 外部学习仓库 / 第三方工具（他人仓库与嵌套 git 仓库，仅本地参考用，不入库）──
 infinite-canvas别人仓库学习专用/
 # tools/ 下均为第三方仓库副本（ProPainter-Webui 等嵌套 git 仓库 + ProPainter 空仓库），

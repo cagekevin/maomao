@@ -18,7 +18,7 @@ Q3 单组件内部临时？→ 是 → 组件 useState
 - 禁止：组件内 useState 存本应全局共享的数据；组件直接改模块级变量。
 
 ### B. Hook 分类（每个 hook 属且只属一类）
-`数据桥接`(useConnectedInputs/useSyncNodeData) / `交互`(useCanvasShortcuts/useContextMenu/useAssetDropPaste) / `能力`(useMediaDegrade/useVideoPoster/useFitNodeRatio) / `引擎`(useScriptBoxEngine/useNodeGeneration) / `状态`(useAgentChat)。
+`数据桥接`(useConnectedInputs/useSyncNodeData) / `交互`(useCanvasShortcuts/useContextMenu/useAssetDropPaste) / `能力`(useMediaDegrade/useVideoPoster/useFitNodeRatio) / `引擎`(useScriptBoxEngine/useNodeGeneration) / `状态`(useAgentChat) / `lod`(base/lod.jsx 的 useLod + LodProvider，画布性能降级数据源，内部自带缩放监听)。
 - 命名 `useXxx`；hook 只封装逻辑，不写 UI；纯逻辑可单测。
 
 ### C. 配置集中（`src/components/base/config.js`，待建）
