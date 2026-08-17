@@ -10,6 +10,7 @@ import CustomHandle from './CustomHandle.jsx'
 import { useConnectedInputs } from './base/useConnectedInputs.js'
 import { useMediaDegrade } from './base/useMediaDegrade.js'
 import LazyImage from './base/LazyImage.jsx'
+import ImageZoomDialog from './base/ImageZoomDialog.jsx'
 import { showToast, toastError, toastWarning } from './base/toastStore.js'
 import { toAbsoluteFileUrl } from './base/filesApi.js'
 
@@ -672,22 +673,8 @@ export default function ImageBoxNode({ id, data, selected }) {
       )
     )}
 
-    {/* 放大查看大图（原生 <dialog>，双击/点放大/菜单放大打开，点图/Esc 关闭，无外框） */}
-    <dialog
-      ref={zoomRef}
-      onClick={(e) => { if (e.target === e.currentTarget) e.currentTarget.close() }}
-      className="m-0 w-screen h-screen max-w-none max-h-none bg-black/85 border-0 p-0 backdrop:bg-black/85"
-    >
-      {zoomUrl && (
-        <img
-          src={toAbsoluteFileUrl(zoomUrl)}
-          alt="大图"
-          onClick={(e) => e.currentTarget.closest('dialog')?.close()}
-          className="w-full h-full object-contain cursor-zoom-out"
-          draggable={false}
-        />
-      )}
-    </dialog>
+    {/* 放大查看大图：共享 ImageZoomDialog */}
+    <ImageZoomDialog ref={zoomRef} url={zoomUrl} />
     </>
   )
 }

@@ -14,6 +14,7 @@ import MaterialStrip from './base/MaterialStrip.jsx'
 import ResizeFullscreenHandle from './base/ResizeFullscreenHandle.jsx'
 import FullscreenModal from './base/FullscreenModal.jsx'
 import GeneratingOverlay from './base/GeneratingOverlay.jsx'
+import ImageZoomDialog from './base/ImageZoomDialog.jsx'
 import PromptLibraryButton from './base/PromptLibraryButton.jsx'
 import JianyingIcon from './JianyingIcon.jsx'
 import { useNodeResize, useOutsideClick } from './base/hooks.js'
@@ -448,22 +449,8 @@ export default function PromptNode({ id, data, selected }) {
         />
       </FullscreenModal>
 
-      {/* 双击大图：原生 <dialog> 弹窗，无外框无背景容器，点图/Esc/点空白关闭 */}
-      <dialog
-        ref={zoomRef}
-        onClick={(e) => { if (e.target === e.currentTarget) e.currentTarget.close() }}
-        className="m-0 w-screen h-screen max-w-none max-h-none bg-black/85 border-0 p-0 backdrop:bg-black/85"
-      >
-        {zoomUrl && (
-          <img
-            src={zoomUrl}
-            alt="大图"
-            onClick={(e) => e.currentTarget.closest('dialog')?.close()}
-            className="w-full h-full object-contain cursor-zoom-out"
-            draggable={false}
-          />
-        )}
-      </dialog>
+      {/* 双击大图：共享 ImageZoomDialog */}
+      <ImageZoomDialog ref={zoomRef} url={zoomUrl} />
     </NodeShell>
   )
 }

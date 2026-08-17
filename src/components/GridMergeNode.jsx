@@ -7,6 +7,7 @@ import CustomHandle from './CustomHandle.jsx'
 import OverlayEditor, { renderOverlayCanvas } from './base/OverlayEditor.jsx'
 import { useConnectedInputs } from './base/useConnectedInputs.js'
 import { useMediaDegrade } from './base/useMediaDegrade.js'
+import ImageZoomDialog from './base/ImageZoomDialog.jsx'
 import { useNodeResize } from './base/hooks.js'
 import { showToast } from './base/toastStore.js'
 import { toAbsoluteFileUrl } from './base/filesApi.js'
@@ -693,22 +694,8 @@ export default function GridMergeNode({ id, data, selected }) {
       <CustomHandle position="right" handleId="batch-output" variant="small" />
     </NodeShell>
 
-    {/* 预览大图（原生 <dialog>，双击预览打开，点图/Esc 关闭，无外框） */}
-    <dialog
-      ref={zoomRef}
-      onClick={(e) => { if (e.target === e.currentTarget) e.currentTarget.close() }}
-      className="m-0 w-screen h-screen max-w-none max-h-none bg-black/85 border-0 p-0 backdrop:bg-black/85"
-    >
-      {zoomUrl && (
-        <img
-          src={toAbsoluteFileUrl(zoomUrl)}
-          alt="大图"
-          onClick={(e) => e.currentTarget.closest('dialog')?.close()}
-          className="w-full h-full object-contain cursor-zoom-out"
-          draggable={false}
-        />
-      )}
-    </dialog>
+    {/* 预览大图：共享 ImageZoomDialog */}
+    <ImageZoomDialog ref={zoomRef} url={zoomUrl} />
     </>
   )
 }

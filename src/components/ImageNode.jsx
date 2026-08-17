@@ -7,6 +7,7 @@ import { useReactFlow } from '@xyflow/react'
 import NodeShell from './base/NodeShell.jsx'
 import HoverToolbar from './base/HoverToolbar.jsx'
 import ImageEditor from './base/ImageEditor.jsx'
+import ImageZoomDialog from './base/ImageZoomDialog.jsx'
 import { detectMediaType } from './base/mediaType.js'
 import { useMediaDegrade } from './base/useMediaDegrade.js'
 import { useFitNodeRatio } from './base/useFitNodeRatio.js'
@@ -321,20 +322,8 @@ export default function ImageNode({ id, data, selected }) {
       />
     )}
 
-    {/* 查看大图：原生 <dialog>，仅一张图片铺满，点图或 Esc 关闭，无任何外框/标题栏 */}
-    <dialog
-      ref={dialogRef}
-      onClick={(e) => { if (e.target === e.currentTarget) e.currentTarget.close() }}
-      className="m-0 w-screen h-screen max-w-none max-h-none bg-black/85 border-0 p-0 backdrop:bg-black/85"
-    >
-      <img
-        src={displayUrl}
-        alt="大图"
-        onClick={(e) => e.currentTarget.closest('dialog')?.close()}
-        className="w-full h-full object-contain cursor-zoom-out"
-        draggable={false}
-      />
-    </dialog>
+    {/* 查看大图：共享 ImageZoomDialog（滚轮缩放/拖拽/双击关闭 + 复制图片/下载） */}
+    <ImageZoomDialog ref={dialogRef} url={displayUrl} />
     </>
   )
 }

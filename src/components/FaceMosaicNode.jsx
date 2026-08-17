@@ -9,6 +9,7 @@ import { uploadFileToLocal, toAbsoluteFileUrl } from './base/filesApi.js'
 import { showToast, toastError, toastWarning } from './base/toastStore.js'
 import { applyMosaic, MOSAIC_MODES, MOSAIC_PALETTE } from './base/faceMosaic.js'
 import FaceMosaicEditor from './base/FaceMosaicEditor.jsx'
+import ImageZoomDialog from './base/ImageZoomDialog.jsx'
 
 /**
  * 人脸打码节点（完整复刻官方 Cl.jsx / faceMosaicNode）。
@@ -312,19 +313,8 @@ export default function FaceMosaicNode({ id, data, selected }) {
       )}
 
       {/* 放大查看（原生 <dialog>，双击或点图标打开，点图/Esc 关闭，无外框） */}
-      <dialog
-        ref={zoomRef}
-        onClick={(e) => { if (e.target === e.currentTarget) e.currentTarget.close() }}
-        className="m-0 w-screen h-screen max-w-none max-h-none bg-black/85 border-0 p-0 backdrop:bg-black/85"
-      >
-        <img
-          src={toAbsoluteFileUrl(resultUrls[0])}
-          alt="大图"
-          onClick={(e) => e.currentTarget.closest('dialog')?.close()}
-          className="w-full h-full object-contain cursor-zoom-out"
-          draggable={false}
-        />
-      </dialog>
+      {/* 查看大图：共享 ImageZoomDialog（resultUrls[0] 为当前结果图） */}
+      <ImageZoomDialog ref={zoomRef} url={resultUrls[0]} />
     </NodeShell>
   )
 }
