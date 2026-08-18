@@ -125,8 +125,12 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
     // 拼 system：创作部分（customScriptPrompt 可覆盖默认编剧模板）+ 固定输出格式（不可覆盖）+ 镜头数 + 风格。
     // 输出 JSON 结构（SCRIPT_WRITER_FORMAT）是引擎解析契约，必须始终固定追加，即使用户自定义了创作提示词也不丢失。
     const scriptPrompt = (d.customScriptPrompt || '').trim() || SCRIPT_WRITER_SYSTEM
-    const shotCount = d.shotCount
-    const countReq = typeof shotCount === 'number' && shotCount > 0
+    // 镜头数量：预设(10/20/30/50) 为 number；自定义模式 shotCount==='custom' 时取 customCount
+    // 数字；auto 或未提供有效数字时由模型按剧情节奏决定。
+    const shotCountRaw = d.shotCount === 'custom' ? d.customCount : d.shotCount
+    const shotCountNum = Number(shotCountRaw)
+    const shotCount = Number.isFinite(shotCountNum) && shotCountNum > 0 ? Math.floor(shotCountNum) : null
+    const countReq = shotCount != null
       ? `\n【镜头数量要求】请严格生成约 ${shotCount} 个分镜（shots 数组长度尽量接近 ${shotCount}），按剧情节奏合理分配，不要为凑数硬加无意义镜头。`
       : '\n【镜头数量要求】根据剧情体量自动决定合理的分镜数量。'
     const style = (d.globalStyle || '').trim()

@@ -104,7 +104,7 @@ export default function StepShots({ data, updateData, callbacks }) {
           </div>
           <div className="flex items-center gap-1.5 mt-1.5">
             <span className="text-caption text-gray-500">自定义</span>
-            <input type="number" min="1" max="300" placeholder="1~300" value={d.customCount || ''} onChange={(e) => { setCustomCount(e.target.value); setShotCount('custom') }} className="w-20 bg-surface-strong border border-edge rounded-md px-2 py-0.5 text-caption-sm text-gray-200 outline-none nodrag" />
+            <input type="number" min="1" max="300" placeholder="1~300" value={d.customCount || ''} onChange={(e) => { const v = e.target.value; setCustomCount(v); setShotCount(v === '' ? 'auto' : Number(v)) }} className="w-20 bg-surface-strong border border-edge rounded-md px-2 py-0.5 text-caption-sm text-gray-200 outline-none nodrag" />
           </div>
         </div>
 
