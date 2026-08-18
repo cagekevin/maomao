@@ -15,12 +15,19 @@ export default defineConfig({
     include: ['tests/unit/**/*.test.{js,jsx}'],
     globals: true,
     setupFiles: ['tests/setup.mjs'],
-    // 并发优化：forks 池默认懒启动、minForks 偏低导致整包跑得慢（约 11-17s）。
-    // 显式调高 worker 并发后，本机（10 核）整包降至约 5s。maxWorkers 用数字避免
-    // 低核 CI 机器超载；如需按核数自适应可改用 '50%'。
+    // 并发优化：forks 池默认懒启动、minForks 偏低导致整包跑得慢。
+    // 注意：Windows 下 fork 进程各自独立占内存，并发过高 + 系统可用内存不足时，
+    // worker 会被 OOM 杀掉（"Worker exited unexpectedly"）。这里把并发压到 3 并给
+    // 每个 worker 显式堆上限，平衡速度与内存峰值；内存紧张时可进一步降到 2/1。
     pool: 'forks',
-    maxWorkers: 8,
-    minWorkers: 2,
+    maxWorkers: 3,
+    minWorkers: 1,
+    poolOptions: {
+      forks: {
+        // 单 worker Node 堆上限，防止组件测试（jsdom+React）单个进程内存失控
+        execArgv: ['--max-old-space-size=1024'],
+      },
+    },
   },
   resolve: {
     alias: {
