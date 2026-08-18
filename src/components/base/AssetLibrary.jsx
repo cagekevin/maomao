@@ -98,6 +98,26 @@ export default function AssetLibrary() {
   const pageRef = useRef(1)
   const loadingRef = useRef(false)
   const resetTokenRef = useRef(0)
+  // 顶部标签行拖拽：按住左右拖动 = 横向滚动（标签超出一行可拖看后面），拖动超阈值不误触 pill 点击
+  const pillScrollRef = useRef(null)
+  const pillDragRef = useRef({ down: false, startX: 0, startScroll: 0, moved: false })
+  const onPillMouseDown = (e) => {
+    const el = pillScrollRef.current
+    if (!el) return
+    pillDragRef.current = { down: true, startX: e.clientX, startScroll: el.scrollLeft, moved: false }
+  }
+  const onPillMouseMove = (e) => {
+    const d = pillDragRef.current
+    const el = pillScrollRef.current
+    if (!d.down || !el) return
+    const dx = e.clientX - d.startX
+    if (Math.abs(dx) > 4) d.moved = true
+    el.scrollLeft = d.startScroll - dx
+  }
+  const endPillDrag = () => { pillDragRef.current.down = false }
+  const onPillClickCapture = (e) => {
+    if (pillDragRef.current.moved) { e.stopPropagation(); e.preventDefault() }
+  }
 
   const currentFolder = folder || 'migrated' // 当前目录前缀（用于拉取/打开本地/上传落点）
   // 返回上一级（在子目录时）
@@ -265,17 +285,25 @@ export default function AssetLibrary() {
     <div className="h-full flex flex-col overflow-hidden relative" onDragOver={(e) => { e.preventDefault(); setDragOver(true) }} onDragLeave={() => setDragOver(false)} onDrop={onDrop}>
       {/* 顶部：目录 pill + 「⋯」菜单（打开本地目录 / 新建文件夹） */}
       <div className="px-2.5 pt-2.5 flex items-center gap-1.5 flex-shrink-0 relative">
-        <div className="flex gap-1.5 flex-wrap items-center flex-1">
+        <div
+          ref={pillScrollRef}
+          onMouseDown={onPillMouseDown}
+          onMouseMove={onPillMouseMove}
+          onMouseUp={endPillDrag}
+          onMouseLeave={endPillDrag}
+          onClickCapture={onPillClickCapture}
+          className="flex gap-1.5 items-center flex-1 min-w-0 overflow-x-auto whitespace-nowrap cursor-grab active:cursor-grabbing select-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
+        >
           {/* 返回上一级（进入子文件夹后可回退） */}
           {folder !== 'migrated' && (
-            <button className="flex items-center gap-1 px-2 py-1 rounded-full text-caption-sm text-body hover:bg-surface-hover cursor-pointer border-none bg-surface-2" onClick={back} title="返回上级">
+            <button className="flex shrink-0 items-center gap-1 px-2 py-1 rounded-full text-caption-sm text-body hover:bg-surface-hover cursor-pointer border-none bg-surface-2" onClick={back} title="返回上级">
               <ChevronLeft size={12} /> {folder.split('/').pop()}
             </button>
           )}
           {FOLDER_PILLS.map((f) => (
             <button
               key={f.key}
-              className={`px-2.5 py-1 rounded-full text-caption-sm transition-all cursor-pointer border-none ${folder === f.folder ? 'bg-white text-[#141414] font-medium' : 'bg-surface-2 text-muted hover:text-primary'}`}
+              className={`shrink-0 px-2.5 py-1 rounded-full text-caption-sm transition-all cursor-pointer border-none ${folder === f.folder ? 'bg-white text-[#141414] font-medium' : 'bg-surface-2 text-muted hover:text-primary'}`}
               onClick={() => setFolder(f.folder)}
             >
               {f.label}

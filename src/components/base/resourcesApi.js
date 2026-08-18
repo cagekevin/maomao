@@ -13,11 +13,11 @@
 import { httpRequest, httpPost } from './httpClient.js'
 import { API_BASE } from './apiBase.js'
 
-/** 分页查询资源（folder eqOrPrefix 匹配：'tasks' 会命中 tasks 及其子目录 tasks/xxx） */
+/** 分页查询资源（folder 精确匹配当前层级：进入某目录只显示该目录自身的内容，不含子孙目录） */
 export async function fetchResources({ folder, page = 1, pageSize = 60, type } = {}) {
   const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) })
   const filters = {}
-  if (folder) filters.folder = { eqOrPrefix: folder }
+  if (folder) filters.folder = folder // 精确等值匹配当前层级
   if (type) filters.type = type
   if (Object.keys(filters).length) params.set('filters', JSON.stringify(filters))
   return httpRequest(`${API_BASE}/api/resources?${params.toString()}`, { label: 'fetchResources' }) // { items, total, page, pageSize, totalPages }

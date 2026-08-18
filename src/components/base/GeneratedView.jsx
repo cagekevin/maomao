@@ -105,6 +105,27 @@ export default function GeneratedView() {
 
   const resetTokenRef = useRef(0)
 
+  // 顶部标签行拖拽：按住左右拖动 = 横向滚动（标签超出一行可拖看后面），拖动超阈值不误触 pill 点击
+  const pillScrollRef = useRef(null)
+  const pillDragRef = useRef({ down: false, startX: 0, startScroll: 0, moved: false })
+  const onPillMouseDown = (e) => {
+    const el = pillScrollRef.current
+    if (!el) return
+    pillDragRef.current = { down: true, startX: e.clientX, startScroll: el.scrollLeft, moved: false }
+  }
+  const onPillMouseMove = (e) => {
+    const d = pillDragRef.current
+    const el = pillScrollRef.current
+    if (!d.down || !el) return
+    const dx = e.clientX - d.startX
+    if (Math.abs(dx) > 4) d.moved = true
+    el.scrollLeft = d.startScroll - dx
+  }
+  const endPillDrag = () => { pillDragRef.current.down = false }
+  const onPillClickCapture = (e) => {
+    if (pillDragRef.current.moved) { e.stopPropagation(); e.preventDefault() }
+  }
+
   // 重置并加载第一页（目录/类型变化时）
   const reset = useCallback(async (rescan = false) => {
     if (!connected) return
@@ -234,16 +255,24 @@ export default function GeneratedView() {
     <div className="h-full flex flex-col overflow-hidden relative">
       {/* 顶部：类型过滤 pill（文件操作收进右侧「⋯」菜单，保持简洁） */}
       <div className="px-2.5 pt-2.5 flex items-center gap-1.5 flex-shrink-0 relative">
-        <div className="flex gap-1.5 flex-wrap items-center flex-1">
+        <div
+          ref={pillScrollRef}
+          onMouseDown={onPillMouseDown}
+          onMouseMove={onPillMouseMove}
+          onMouseUp={endPillDrag}
+          onMouseLeave={endPillDrag}
+          onClickCapture={onPillClickCapture}
+          className="flex gap-1.5 items-center flex-1 min-w-0 overflow-x-auto whitespace-nowrap cursor-grab active:cursor-grabbing select-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
+        >
           {folder !== 'tasks' && (
-            <button className="flex items-center gap-1 px-2 py-1 rounded-full text-caption-sm text-body hover:bg-surface-hover cursor-pointer border-none bg-surface-2" onClick={back} title="返回上级">
+            <button className="flex shrink-0 items-center gap-1 px-2 py-1 rounded-full text-caption-sm text-body hover:bg-surface-hover cursor-pointer border-none bg-surface-2" onClick={back} title="返回上级">
               <ChevronLeft size={12} /> {folder.split('/').pop()}
             </button>
           )}
           {TYPE_FILTERS.map((f) => (
             <button
               key={f.key}
-              className={`px-2.5 py-1 rounded-full text-caption-sm transition-all cursor-pointer border-none ${typeFilter === f.key ? 'bg-white text-[#141414] font-medium' : 'bg-surface-2 text-muted hover:text-primary'}`}
+              className={`shrink-0 px-2.5 py-1 rounded-full text-caption-sm transition-all cursor-pointer border-none ${typeFilter === f.key ? 'bg-white text-[#141414] font-medium' : 'bg-surface-2 text-muted hover:text-primary'}`}
               onClick={() => setTypeFilter(f.key)}
             >
               {f.label}

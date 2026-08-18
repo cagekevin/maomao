@@ -240,7 +240,8 @@ function Start-Gateway {
 }
 
 # ── 🖥️ 构建【原型】前端（npm run build → 根目录 dist/，供 localTool 在 18080 托管）──
-function Build-Prototype {
+# [已注释] 前端已提前手动 build，启动流程不再自动构建
+<# function Build-Prototype {
     Write-Log "`n🛠️ 正在构建原型前端（npm run build → dist/）..." "Info"
     Push-Location $ScriptDir
     try {
@@ -260,7 +261,7 @@ function Build-Prototype {
     }
     Write-Log "  ✅ 原型已构建（dist\index.html）" "Success"
     return $true
-}
+} #>
 
 function Start-LocalTool {
     param([switch]$RunInForeground)
@@ -300,7 +301,8 @@ function Start-Watchdog {
     if (-not (Acquire-WatchdogLock)) { exit 1 }
 
     Write-Log "`n📡 正在启动服务群..." "Info"
-    if (-not (Build-Prototype)) { Release-WatchdogLock; exit 1 }
+    # [已注释] 前端已提前手动 build，启动流程不再调用 Build-Prototype
+    # if (-not (Build-Prototype)) { Release-WatchdogLock; exit 1 }
     $null = Start-Gateway
     $null = Start-LocalTool
     Start-Sleep -Seconds 1

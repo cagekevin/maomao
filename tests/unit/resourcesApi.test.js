@@ -31,14 +31,14 @@ describe('fetchResources', () => {
     expect(r).toEqual(data)
   })
 
-  it('folder/type 写入 filters JSON', async () => {
+  it('folder/type 写入 filters JSON（folder 精确匹配当前层级，不含子孙目录）', async () => {
     const fetchMock = mockFetchOnce({ items: [] })
     await ra.fetchResources({ folder: 'tasks', type: 'image', page: 2, pageSize: 10 })
     const url = fetchMock.mock.calls[0][0]
     expect(url).toContain('page=2&pageSize=10')
     const m = url.match(/filters=([^&]+)/)
     const filters = JSON.parse(decodeURIComponent(m[1]))
-    expect(filters.folder).toEqual({ eqOrPrefix: 'tasks' })
+    expect(filters.folder).toBe('tasks')
     expect(filters.type).toBe('image')
   })
 
