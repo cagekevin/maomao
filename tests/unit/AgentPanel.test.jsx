@@ -217,8 +217,8 @@ describe('AgentPanel — sending 态', () => {
 describe('AgentPanel — 消息与错误渲染', () => {
   it('渲染用户与助手消息（传给 AgentMessage）', () => {
     h.setAgentState({ messages: [
-      { role: 'user', content: '帮我生成一张图' },
-      { role: 'assistant', content: '好的' },
+      { id: 'm1', role: 'user', content: '帮我生成一张图' },
+      { id: 'm2', role: 'assistant', content: '好的' },
     ] })
     render(<AgentPanel {...OPEN_PROPS} />)
     expect(screen.getByTestId('msg-user')).toBeTruthy()
@@ -312,7 +312,7 @@ describe('AgentPanel — 对话管理', () => {
   })
 
   it('点击清空对话 → confirm 后 clear', () => {
-    h.setAgentState({ messages: [{ role: 'user', content: 'x' }] })
+    h.setAgentState({ messages: [{ id: 'm1', role: 'user', content: 'x' }] })
     vi.spyOn(window, 'confirm').mockReturnValue(true)
     render(<AgentPanel {...OPEN_PROPS} />)
     fireEvent.click(screen.getByTitle('清空对话'))
@@ -321,7 +321,7 @@ describe('AgentPanel — 对话管理', () => {
   })
 
   it('清空对话取消确认 → 不 clear', () => {
-    h.setAgentState({ messages: [{ role: 'user', content: 'x' }] })
+    h.setAgentState({ messages: [{ id: 'm1', role: 'user', content: 'x' }] })
     vi.spyOn(window, 'confirm').mockReturnValue(false)
     render(<AgentPanel {...OPEN_PROPS} />)
     fireEvent.click(screen.getByTitle('清空对话'))

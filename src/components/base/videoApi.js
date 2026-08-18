@@ -10,7 +10,7 @@
  *
  * 网关契约：body { model, prompt, size(如 16:9), image_urls(参考图可选) }。
  */
-import { resolveRefImages } from './refImage.js'
+import { normalizeImageUrlsForSend } from './imageUrl.js'
 import { API_BASE } from './apiBase.js'
 import { getCurrentTaskId, setTaskPollId } from './taskStore.js'
 import { VIDEO_TIMEOUT, VIDEO_POLL_INTERVAL } from './config.js'
@@ -128,7 +128,7 @@ export async function generateVideo({ provider, prompt, model, size, resolution,
   if (resolution) genBody.resolution = resolution
   if (seconds) genBody.duration = String(seconds)
   // refFormat:'base64' 的 provider（只认 base64 的后端）→ 参考图统一转 base64 再发
-  const refImages = await resolveRefImages(images, { preferBase64: provider?.refFormat === 'base64' })
+  const refImages = await normalizeImageUrlsForSend(images, { preferBase64: provider?.refFormat === 'base64' })
   if (refImages.length > 0) genBody.image_urls = refImages
 
   const url = buildTargetUrl(provider, 'videos/generations')

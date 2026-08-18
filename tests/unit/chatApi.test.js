@@ -2,20 +2,24 @@
 /**
  * chatApi 单测（批 2，API 封装层）。
  * 覆盖：chatCompletions 成功返回 content / 网络异常 / AbortError / 上游无文本。
- * 策略：node + mock fetch + mock refImage（resolveRefImages / toImageContentBlocks）。
+ * 策略：node + mock fetch + mock imageUrl（normalizeImageUrlsForSend / toImageContentBlocks）。
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 
 const fetchMock = globalThis.fetch
 
-vi.mock('../../src/components/base/refImage.js', () => ({
-  resolveRefImages: vi.fn(async () => []),
+vi.mock('../../src/components/base/imageUrl.js', () => ({
+  normalizeImageUrlsForSend: vi.fn(async () => []),
   // 纯函数：mock 成与源码一致的实现，便于断言聊天消息里图片块的形态
   toImageContentBlocks: vi.fn((urls) => (urls || []).map((url) => ({ type: 'image_url', image_url: { url } }))),
+  // 其他导出不需要 mock
+  toAbsoluteFileUrl: vi.fn((u) => u),
+  normalizeImageUrl: vi.fn((u) => u),
+  normalizeImageUrlForSend: vi.fn(async (u) => u),
 }))
 
 const { chatCompletions } = await import('../../src/components/base/chatApi.js')
-const { resolveRefImages } = await import('../../src/components/base/refImage.js')
+const { normalizeImageUrlsForSend } = await import('../../src/components/base/imageUrl.js')
 
 function proxyResp(obj, ok = true, status = 200) {
   return { ok, status, json: async () => obj }
@@ -81,8 +85,8 @@ describe('chatApi — chatCompletions 成功', () => {
     expect(innerBody().stream).toBe(false)
   })
 
-  it('有参考图时调用 resolveRefImages 并追加 image_url 内容块到末条 user 消息', async () => {
-    resolveRefImages.mockResolvedValue(['http://ref/x.png'])
+  it('有参考图时调用 normalizeImageUrlsForSend 并追加 image_url 内容块到末条 user 消息', async () => {
+    normalizeImageUrlsForSend.mockResolvedValue(['http://ref/x.png'])
     fetchMock.mockResolvedValue(proxyResp({ data: { choices: [{ message: { content: 'x' } }] } }))
     await chatCompletions({
       provider: {},
@@ -90,7 +94,7 @@ describe('chatApi — chatCompletions 成功', () => {
       messages: [{ role: 'user', content: 'hi' }],
       images: ['blob:abc'],
     })
-    expect(resolveRefImages).toHaveBeenCalledWith(['blob:abc'], expect.any(Object))
+    expect(normalizeImageUrlsForSend).toHaveBeenCalledWith(['blob:abc'], expect.any(Object))
     const msgs = innerBody().messages
     const last = msgs[msgs.length - 1]
     // 末条 user 消息 content 转成数组，末尾追加 image_url 块
@@ -101,26 +105,26 @@ describe('chatApi — chatCompletions 成功', () => {
     ])
   })
 
-  it('无参考图（images 空）→ 不调 resolveRefImages，消息原样', async () => {
-    resolveRefImages.mockClear()
+  it('无参考图（images 空）→ 不调 normalizeImageUrlsForSend，消息原样', async () => {
+    normalizeImageUrlsForSend.mockClear()
     fetchMock.mockResolvedValue(proxyResp({ data: { choices: [{ message: { content: 'x' } }] } }))
     await chatCompletions({ provider: {}, model: 'm', messages: [{ role: 'user', content: 'hi' }], images: [] })
-    expect(resolveRefImages).not.toHaveBeenCalled()
+    expect(normalizeImageUrlsForSend).not.toHaveBeenCalled()
     expect(innerBody().messages).toEqual([{ role: 'user', content: 'hi' }])
   })
 
-  it('resolveRefImages 返回空 → 不追加图片块', async () => {
-    resolveRefImages.mockResolvedValue([])
+  it('normalizeImageUrlsForSend 返回空 → 不追加图片块', async () => {
+    normalizeImageUrlsForSend.mockResolvedValue([])
     fetchMock.mockResolvedValue(proxyResp({ data: { choices: [{ message: { content: 'x' } }] } }))
     await chatCompletions({ provider: {}, model: 'm', messages: [{ role: 'user', content: 'hi' }], images: ['blob:x'] })
     expect(innerBody().messages).toEqual([{ role: 'user', content: 'hi' }])
   })
 
-  it('refFormat=base64 → resolveRefImages 传 preferBase64', async () => {
-    resolveRefImages.mockResolvedValue([])
+  it('refFormat=base64 → normalizeImageUrlsForSend 传 preferBase64', async () => {
+    normalizeImageUrlsForSend.mockResolvedValue([])
     fetchMock.mockResolvedValue(proxyResp({ data: { choices: [{ message: { content: 'x' } }] } }))
     await chatCompletions({ provider: { refFormat: 'base64' }, model: 'm', messages: [], images: ['http://x/a.png'] })
-    expect(resolveRefImages).toHaveBeenCalledWith(['http://x/a.png'], { preferBase64: true })
+    expect(normalizeImageUrlsForSend).toHaveBeenCalledWith(['http://x/a.png'], { preferBase64: true })
   })
 })
 

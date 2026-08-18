@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { getDb, getUploadDir, saveDb, queryAll, queryOne, run, LOCAL_FILE_BASE } from '../db/database.js';
 import { json, parseJsonBody, sendError } from '../utils/helpers.js';
-import { runOrphanGc } from '../utils/orphanGc.js';
+import { runReferenceGc } from '../utils/orphanGc.js';
 
 // ── GET /api/admin/stats ──
 export async function handleAdminStats(_req: IncomingMessage, res: ServerResponse): Promise<void> {
@@ -85,25 +85,9 @@ export async function handleAdminClearCache(req: IncomingMessage, res: ServerRes
 
 // ── POST /api/admin/cleanup ──
 export async function handleAdminCleanup(_req: IncomingMessage, res: ServerResponse): Promise<void> {
-  const db = await getDb();
-  const uploadDir = getUploadDir();
-
-  // 收集所有被引用的 URL（从 resources 和 tasks 两个表）
-  const refUrls = new Set<string>();
-  const resUrls = queryAll(db, 'SELECT url FROM resources') as Array<{ url: string }>;
-  for (const r of resUrls) refUrls.add(r.url);
-  const taskUrls = queryAll(db, 'SELECT result_url, thumbnail_url FROM tasks') as Array<{ result_url?: string; thumbnail_url?: string }>;
-  for (const t of taskUrls) {
-    if (t.result_url) refUrls.add(t.result_url);
-    if (t.thumbnail_url) refUrls.add(t.thumbnail_url);
-  }
-
-  // 方案②配套（docs/41 §2.7①）：KV 表里被外置成 /files/ URL 的图片引用
-  // 也要纳入"被引用集合"，否则节点删除后磁盘文件会成为孤儿无限累积。
-  const kvValues = queryAll(db, 'SELECT value FROM kv') as Array<{ value: string }>;
-  const kvValueStrings = kvValues.map((r) => r.value).filter((v): v is string => typeof v === 'string');
-
-  const gc = runOrphanGc(kvValueStrings, uploadDir, refUrls, false);
+  // 引用收集统一收敛在 runReferenceGc（orphanGc.ts）：resources 表 url + tasks 表 url + KV 全部 value。
+  // 删除入口尾部也会调用同一函数，保证"全库引用"口径唯一（docs/13 §3.5.3）。
+  const gc = await runReferenceGc(false);
 
   return json(res, {
     scanned: gc.scanned,

@@ -6,9 +6,9 @@
  *
  * 参考图（images）：
  *  - user message 的 content 为数组时支持 { type:'image_url', image_url:{url} }，
- *    网关提取后经 resolve_attachments 处理。url 经 refImage.js 统一解析（blob:→data base64）。
+ *    网关提取后经 resolve_attachments 处理。url 经 imageUrl.js 统一解析（blob:→data base64）。
  */
-import { resolveRefImages, toImageContentBlocks } from './refImage.js'
+import { normalizeImageUrlsForSend, toImageContentBlocks } from './imageUrl.js'
 import { logger } from './logger.js'
 
 import { API_BASE } from './apiBase.js'
@@ -23,7 +23,7 @@ function buildTargetUrl(provider) {
 async function attachImages(messages, images, provider) {
   if (!images?.length) return messages
   // refFormat:'base64' 的 provider（只认 base64 的后端）→ 参考图统一转 base64 再发
-  const refUrls = await resolveRefImages(images, { preferBase64: provider?.refFormat === 'base64' })
+  const refUrls = await normalizeImageUrlsForSend(images, { preferBase64: provider?.refFormat === 'base64' })
   if (!refUrls.length) return messages
   const blocks = toImageContentBlocks(refUrls)
   const userIdx = messages.length - 1

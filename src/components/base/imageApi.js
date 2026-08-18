@@ -8,7 +8,7 @@
  *  - sync ：URL 带 ?wait=1 → 网关同步 SSE 返回（progress + status:succeeded + results[].url）
  *  - async：提交返回 [{status:"submitted", task_id}] → 轮询 GET /v1/tasks/{id} 到 completed
  */
-import { resolveRefImages } from './refImage.js'
+import { normalizeImageUrlsForSend } from './imageUrl.js'
 import { API_BASE } from './apiBase.js'
 import { getCurrentTaskId, setTaskPollId } from './taskStore.js'
 import { GEN_TIMEOUT, GEN_POLL_INTERVAL } from './config.js'
@@ -223,7 +223,7 @@ export function resolveImagePixel(ratio, size) {
  * 同时保留 image_size（档位）与 resolution 供网关/apimart 使用。
  *  - apimart(Lovart) 网关：size 给像素，网关 parse_size 直接命中精确像素分支原样用。
  *  - openai 直连（魔搭等）：size=像素 是 OpenAI 标准格式，可直接被接受。
- * 参考图（图生图）：网关 /v1/images/generations 认 image_urls 字段，blob: 由 refImage 先转 data base64。
+ * 参考图（图生图）：网关 /v1/images/generations 认 image_urls 字段，blob: 由 imageUrl.js 先转 data base64。
  * @param {object} opts
  *   - provider, prompt, model, size(档位 1K/2K), n, aspectRatio(比例), quality(质量), images?
  * @param {function} [onProgress] (percent)
@@ -240,7 +240,7 @@ export async function generateImage({ provider, prompt, model, size, n, aspectRa
   if (quality && quality !== 'auto') genBody.quality = quality
   // refFormat:'base64' 的 provider（只认 base64 的后端）→ 参考图统一转 base64 再发；
   // 否则走默认（URL，网关 resolve_attachments 统一转 CDN）。
-  const refImages = await resolveRefImages(images, { preferBase64: provider?.refFormat === 'base64' })
+  const refImages = await normalizeImageUrlsForSend(images, { preferBase64: provider?.refFormat === 'base64' })
   if (refImages.length > 0) genBody.image_urls = refImages
 
   const url = buildTargetUrl(provider, 'images/generations')

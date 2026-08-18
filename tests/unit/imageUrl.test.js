@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { toAbsoluteFileUrl, normalizeImageUrl, normalizeImageUrlForSend, normalizeImageUrlsForSend } from '../../src/components/base/imageUrl.js'
+import { toAbsoluteFileUrl, normalizeImageUrl, normalizeImageUrlForSend, normalizeImageUrlsForSend, toImageContentBlocks } from '../../src/components/base/imageUrl.js'
 
 // blobToDataUrl / urlToDataUrl 依赖 httpClient 与 FileReader（node 无原生实现），在此 mock。
 vi.mock('../../src/components/base/httpClient.js', () => ({
@@ -103,5 +103,21 @@ describe('imageUrl · normalizeImageUrlForSend（发送端归一化）', () => {
     httpRequest.mockResolvedValueOnce({ blob: async () => ({ _dataUrl: 'data:image/png;base64,b1' }) })
     const out = await normalizeImageUrlsForSend(['http://x/a.png', 'blob:http://x/b', '', null, undefined])
     expect(out).toEqual(['http://x/a.png', 'data:image/png;base64,b1'])
+  })
+})
+
+// ── toImageContentBlocks：网关 chat 消息内容块 ──
+describe('imageUrl · toImageContentBlocks', () => {
+  it('URL 数组 → image_url 内容块', () => {
+    const blocks = toImageContentBlocks(['http://x/a.png', 'http://x/b.png'])
+    expect(blocks).toEqual([
+      { type: 'image_url', image_url: { url: 'http://x/a.png' } },
+      { type: 'image_url', image_url: { url: 'http://x/b.png' } },
+    ])
+  })
+
+  it('空/undefined → 空数组', () => {
+    expect(toImageContentBlocks()).toEqual([])
+    expect(toImageContentBlocks(null)).toEqual([])
   })
 })

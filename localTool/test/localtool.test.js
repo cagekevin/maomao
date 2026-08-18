@@ -871,3 +871,77 @@ test('Files·mkdir 创建目录', async () => {
   assert.deepEqual(parseResBody(res), { ok: true });
   assert.ok(fs.existsSync(target));
 });
+
+// ══════════════════════════════════════════════════════════════
+// docs/13 文件生命周期：删除入口只删记录、删盘统一由引用感知 GC 裁决
+// ══════════════════════════════════════════════════════════════
+test('docs13·删除 task 不删盘：磁盘文件仍在（GC 裁决，不因任务删除误删画布引用）', async () => {
+  const uploadDir = path.join(TEST_DIR, 'uploads');
+  const tasksDir = path.join(uploadDir, 'tasks');
+  fs.mkdirSync(tasksDir, { recursive: true });
+
+  // 在画布 KV 中引用一个 tasks 文件（模拟"清空任务但画布仍用"的场景）
+  const fileRel = 'tasks/aaa.png';
+  const absPath = path.join(uploadDir, fileRel);
+  fs.writeFileSync(absPath, RED_PNG_BUFFER);
+  const url = `http://127.0.0.1:18080/files/${fileRel}`;
+
+  // 把该文件登记进 tasks 表
+  await tasksMod.handleTasksSave(makeJsonReq({ taskId: 't1', resultUrl: url, prompt: 'p' }), makeRes());
+  // 画布 KV 引用同一文件
+  await kvMod.handleKvSet(makeJsonReq({ key: 'canvas-state-v1-p', value: JSON.stringify({ nodes: [{ id: 'n1', data: { imageUrl: url } }] }) }), makeRes());
+
+  // 删除任务 → 只删记录，不删盘（旧实现会 deleteLocalFile 误删）
+  await tasksMod.handleTasksDelete(makeJsonReq(), makeRes(), new URL('http://x/api/tasks/delete?id=t1'));
+  // 尾部 GC 因画布 KV 仍引用 → 不删文件
+  assert.ok(fs.existsSync(absPath), '删除任务后画布引用的文件应保留');
+
+  // 再清空画布引用（删除 KV），触发 GC 回收
+  await kvMod.handleKvDelete(makeJsonReq(), makeRes(), new URL('http://x/api/kv/delete?key=canvas-state-v1-p'));
+  await gcMod.runReferenceGc(false);
+  assert.ok(!fs.existsSync(absPath), '全库无引用后 GC 应回收孤儿文件');
+});
+
+test('docs13·删除 resource 不删盘 + GC 回收真正的孤儿', async () => {
+  const uploadDir = path.join(TEST_DIR, 'uploads');
+  const migratedDir = path.join(uploadDir, 'migrated');
+  fs.mkdirSync(migratedDir, { recursive: true });
+
+  // 一个被 resources 表引用的文件（素材库）
+  const keptRel = 'migrated/keep.png';
+  const keptAbs = path.join(uploadDir, keptRel);
+  fs.writeFileSync(keptAbs, RED_PNG_BUFFER);
+  const keptUrl = `http://127.0.0.1:18080/files/${keptRel}`;
+  await resourcesMod.handleResourcesSave(makeJsonReq({ id: 'local-migrated-keep.png', url: keptUrl, type: 'image', folder: 'migrated', name: 'keep.png' }), makeRes());
+
+  // 一个磁盘有、但全库无引用的孤儿（如 AI 资产落盘后未入库且画布删除）
+  const orphanRel = 'migrated/orphan.png';
+  const orphanAbs = path.join(uploadDir, orphanRel);
+  fs.writeFileSync(orphanAbs, RED_PNG_BUFFER);
+
+  // 删除被引用的 resource → 不删盘
+  await resourcesMod.handleResourcesDelete(makeJsonReq(), makeRes(), new URL('http://x/api/resources/delete?id=local-migrated-keep.png'));
+  // 删除后尾部 GC：keep.png 已无 resources/tasks/KV 引用 → 成为孤儿被回收
+  assert.ok(!fs.existsSync(keptAbs), '删除 resource 后该文件成为孤儿，GC 应回收');
+  // orphan.png 本无引用 → 也被回收
+  assert.ok(!fs.existsSync(orphanAbs), '无引用孤儿文件应被 GC 回收');
+});
+
+test('docs13·resources clear 只删记录不 rmSync 整目录', async () => {
+  const uploadDir = path.join(TEST_DIR, 'uploads');
+  const migratedDir = path.join(uploadDir, 'migrated');
+  fs.mkdirSync(migratedDir, { recursive: true });
+
+  // 造一个被 resources 引用 + 画布 KV 也引用的文件
+  const fileRel = 'migrated/shared.png';
+  const absPath = path.join(uploadDir, fileRel);
+  fs.writeFileSync(absPath, RED_PNG_BUFFER);
+  const url = `http://127.0.0.1:18080/files/${fileRel}`;
+  await resourcesMod.handleResourcesSave(makeJsonReq({ id: 'local-migrated-shared.png', url, type: 'image', folder: 'migrated', name: 'shared.png' }), makeRes());
+  await kvMod.handleKvSet(makeJsonReq({ key: 'canvas-state-v1-p', value: JSON.stringify({ nodes: [{ id: 'n1', data: { imageUrl: url } }] }) }), makeRes());
+
+  // clear（deleteFiles=true 旧行为会 rmSync 整目录，画布引用的文件会被连带删除）
+  await resourcesMod.handleResourcesClear(makeJsonReq({ deleteFiles: true }), makeRes());
+  // 画布 KV 仍引用 → GC 保留
+  assert.ok(fs.existsSync(absPath), 'clear 后画布引用的文件应保留（不再 rmSync 一刀切）');
+});

@@ -182,11 +182,7 @@ function PromptHub() {
     searchIme.current = createImeInput((v) => setDebouncedKeyword(v), 200)
   }
 
-  // 切换来源/关键词时重置分页
-  useEffect(() => {
-    setVisibleCount(24)
-  }, [sourceFilter, debouncedKeyword])
-
+  // 注：历史上曾用 visibleCount 做分页，已移除（列表全量渲染 filtered）。勿再引入 setVisibleCount 类未声明状态。
   // 首屏：先秒显缓存，再静默拉取最新
   useEffect(() => {
     const cached = getCachedPromptHub()

@@ -1,5 +1,6 @@
 /**
  * 统一图片 URL 归一化模块 —— 「前端图片形式统一」的唯一出口。
+ * 参考图 URL 归一化唯一入口，refImage.js 已折叠至此。
  *
  * 背景：前端图片 URL 有 4 种形式——绝对 http(s) / data: base64 / blob: / 相对 /files/。
  * 若不统一：
@@ -123,4 +124,14 @@ export async function normalizeImageUrlsForSend(images, opts = {}) {
     if (resolved) out.push(resolved)
   }
   return out
+}
+
+/**
+ * 把参考图 URL 数组转成网关 chat 契约的 messages 内容块：
+ * [{ type: 'image_url', image_url: { url } }, ...]
+ * 用于聊天消息让 AI 看图反推提示词。
+ * @param {string[]} urls 已 normalize 的网关可用 URL
+ */
+export function toImageContentBlocks(urls) {
+  return (urls || []).map((url) => ({ type: 'image_url', image_url: { url } }))
 }

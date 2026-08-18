@@ -5,9 +5,10 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
-import { getDb, getUploadDir, queryAll, queryOne, run, debouncedSaveDb, deleteLocalFile } from '../db/database.js';
+import { getDb, getUploadDir, queryAll, queryOne, run, debouncedSaveDb } from '../db/database.js';
 import { json, parseJsonBody, sendError, parsePagination, buildPaginatedQuery, paginatedResult } from '../utils/helpers.js';
 import { writeUploadBuffer } from '../utils/fileStore.js';
+import { runReferenceGc } from '../utils/orphanGc.js';
 
 // ── rescan：扫描 upload 目录，把磁盘文件/文件夹元数据同步进 resources 表 ──
 const RESCAN_FILE_TYPE: Record<string, string> = {
@@ -279,10 +280,11 @@ export async function handleResourcesDelete(req: IncomingMessage, res: ServerRes
   if (!id) return sendError(res, 'Missing id parameter', 400);
 
   const db = await getDb();
-  const row = queryOne(db, 'SELECT url FROM resources WHERE id = ?', [id]) as { url?: string } | undefined;
   run(db, 'DELETE FROM resources WHERE id = ?', [id]);
-  if (row?.url) deleteLocalFile(db, row.url);
   debouncedSaveDb();
+  // 只删记录，删盘统一交给引用感知 GC（docs/13）：不再 deleteLocalFile，
+  // 且该文件可能仍被画布 KV 或 tasks 引用，由 GC 全库引用裁决是否回收。
+  await runReferenceGc(false);
   return json(res, { ok: true });
 }
 
@@ -290,28 +292,20 @@ export async function handleResourcesClear(req: IncomingMessage, res: ServerResp
   const body = (await parseJsonBody(req)) as { folder?: string; deleteFiles?: boolean } | null;
   const db = await getDb();
 
+  // 只删记录，绝不删盘（docs/13）：
+  // 原实现 deleteFiles=true 时用 fs.rmSync(recursive) 整目录递归删 / fs.unlinkSync 循环逐个删，
+  // 这是最危险的删盘——不看任何引用，画布/其它文件夹引用的文件也会被连带删除。
+  // 现在删盘统一交给引用感知 GC（含画布 KV + tasks + resources 全库引用）在删除后裁决回收。
+  // deleteFiles 参数仅作兼容保留（不再触发任何删盘动作）。
   if (body?.folder) {
     const result = run(db, 'DELETE FROM resources WHERE folder = ?', [body.folder]);
-    if (body.deleteFiles) {
-      const folderPath = path.join(getUploadDir(), body.folder);
-      if (fs.existsSync(folderPath)) fs.rmSync(folderPath, { recursive: true, force: true });
-    }
     debouncedSaveDb();
+    await runReferenceGc(false);
     return json(res, { deleted: result.changes });
   } else {
     const result = run(db, 'DELETE FROM resources');
-    if (body?.deleteFiles) {
-      const uploadDir = getUploadDir();
-      try {
-        for (const entry of fs.readdirSync(uploadDir, { withFileTypes: true })) {
-          if (!entry.isDirectory() || entry.name === '.thumbnails' || entry.name === 'tasks') continue;
-          for (const file of fs.readdirSync(path.join(uploadDir, entry.name))) {
-            fs.unlinkSync(path.join(uploadDir, entry.name, file));
-          }
-        }
-      } catch { /* ignore */ }
-    }
     debouncedSaveDb();
+    await runReferenceGc(false);
     return json(res, { deleted: result.changes });
   }
 }

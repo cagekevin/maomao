@@ -2,14 +2,18 @@
 /**
  * videoApi 单测（批 2，API 封装层）。
  * 覆盖：generateVideo 强制 async（提交→轮询→取 url）；无 task_id 失败；网络错误分支。
- * 策略：node + mock fetch（顺序响应）+ mock refImage/taskStore + mock setTimeout 加速轮询。
+ * 策略：node + mock fetch（顺序响应）+ mock imageUrl/taskStore + mock setTimeout 加速轮询。
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 
 const fetchMock = globalThis.fetch
 
-vi.mock('../../src/components/base/refImage.js', () => ({
-  resolveRefImages: vi.fn(async () => []),
+vi.mock('../../src/components/base/imageUrl.js', () => ({
+  normalizeImageUrlsForSend: vi.fn(async () => []),
+  toAbsoluteFileUrl: vi.fn((u) => u),
+  normalizeImageUrl: vi.fn((u) => u),
+  normalizeImageUrlForSend: vi.fn(async (u) => u),
+  toImageContentBlocks: vi.fn((u) => []),
 }))
 vi.mock('../../src/components/base/taskStore.js', () => ({
   getCurrentTaskId: vi.fn(() => null),
@@ -17,7 +21,7 @@ vi.mock('../../src/components/base/taskStore.js', () => ({
 }))
 
 const { generateVideo } = await import('../../src/components/base/videoApi.js')
-const { resolveRefImages } = await import('../../src/components/base/refImage.js')
+const { normalizeImageUrlsForSend } = await import('../../src/components/base/imageUrl.js')
 const { getCurrentTaskId, setTaskPollId } = await import('../../src/components/base/taskStore.js')
 
 function jsonResp(obj, ok = true, status = 200) {
@@ -32,8 +36,8 @@ function submittedUrl() {
 
 beforeEach(() => {
   fetchMock.mockReset()
-  resolveRefImages.mockReset()
-  resolveRefImages.mockResolvedValue([])
+  normalizeImageUrlsForSend.mockReset()
+  normalizeImageUrlsForSend.mockResolvedValue([])
   getCurrentTaskId.mockReset()
   getCurrentTaskId.mockReturnValue(null)
   setTaskPollId.mockReset()
@@ -99,20 +103,20 @@ describe('videoApi — generateVideo async 成功', () => {
     expect(genBody.size).toBeUndefined()
   })
 
-  it('参考图 → resolveRefImages 且写 image_urls', async () => {
-    resolveRefImages.mockResolvedValue(['http://ref/a.png'])
+  it('参考图 → normalizeImageUrlsForSend 且写 image_urls', async () => {
+    normalizeImageUrlsForSend.mockResolvedValue(['http://ref/a.png'])
     fetchMock.mockResolvedValueOnce(jsonResp({ data: { result: { videos: [{ url: 'http://x/v.mp4' }] } } }))
     await generateVideo({ provider: {}, prompt: 'x', model: 'm', images: ['blob:x'] })
-    expect(resolveRefImages).toHaveBeenCalledWith(['blob:x'], { preferBase64: false })
+    expect(normalizeImageUrlsForSend).toHaveBeenCalledWith(['blob:x'], { preferBase64: false })
     const genBody = JSON.parse(JSON.parse(fetchMock.mock.calls[0][1].body).body)
     expect(genBody.image_urls).toEqual(['http://ref/a.png'])
   })
 
-  it('refFormat=base64 → resolveRefImages 传 preferBase64', async () => {
-    resolveRefImages.mockResolvedValue([])
+  it('refFormat=base64 → normalizeImageUrlsForSend 传 preferBase64', async () => {
+    normalizeImageUrlsForSend.mockResolvedValue([])
     fetchMock.mockResolvedValueOnce(jsonResp({ data: { result: { videos: [{ url: 'http://x/v.mp4' }] } } }))
     await generateVideo({ provider: { refFormat: 'base64' }, prompt: 'x', model: 'm', images: ['http://x/a.png'] })
-    expect(resolveRefImages).toHaveBeenCalledWith(['http://x/a.png'], { preferBase64: true })
+    expect(normalizeImageUrlsForSend).toHaveBeenCalledWith(['http://x/a.png'], { preferBase64: true })
   })
 
   it('异步提交成功后回填 setTaskPollId(taskId, pollTaskId)', async () => {

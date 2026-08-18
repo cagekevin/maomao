@@ -3,8 +3,9 @@
  */
 
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { getDb, queryAll, queryOne, run, debouncedSaveDb, beginTx, commitTx, rollbackTx, deleteLocalFile } from '../db/database.js';
+import { getDb, queryAll, queryOne, run, debouncedSaveDb, beginTx, commitTx, rollbackTx } from '../db/database.js';
 import { json, parseJsonBody, sendError, parsePagination, buildPaginatedQuery, paginatedResult } from '../utils/helpers.js';
+import { runReferenceGc } from '../utils/orphanGc.js';
 
 const SNAKE_TO_CAMEL: Record<string, string> = {
   task_id: 'taskId', node_id: 'nodeId', result_url: 'resultUrl', thumbnail_url: 'thumbnailUrl',
@@ -134,11 +135,11 @@ export async function handleTasksDelete(req: IncomingMessage, res: ServerRespons
   if (!id) return sendError(res, 'Missing id parameter', 400);
 
   const db = await getDb();
-  const task = queryOne(db, 'SELECT result_url, thumbnail_url FROM tasks WHERE task_id = ?', [id]) as { result_url?: string; thumbnail_url?: string } | undefined;
   run(db, 'DELETE FROM tasks WHERE task_id = ?', [id]);
-  if (task?.result_url) deleteLocalFile(db, task.result_url);
-  if (task?.thumbnail_url) deleteLocalFile(db, task.thumbnail_url);
   debouncedSaveDb();
+  // 只删记录，删盘统一交给引用感知 GC（docs/13）：此处不再 deleteLocalFile，
+  // 因为 deleteLocalFile 只查 tasks/resources 表、不查画布 KV，会误删画布仍在引用的图（问题2 根因）。
+  await runReferenceGc(false);
   return json(res, { ok: true });
 }
 
@@ -147,28 +148,21 @@ export async function handleTasksBatchDelete(req: IncomingMessage, res: ServerRe
   if (!body || !body.ids || !Array.isArray(body.ids)) return sendError(res, 'Missing ids array', 400);
 
   const db = await getDb();
-  const placeholders = body.ids.map(() => '?').join(', ');
-  const rows = queryAll(db, `SELECT result_url, thumbnail_url FROM tasks WHERE task_id IN (${placeholders})`, body.ids) as Array<{ result_url?: string; thumbnail_url?: string }>;
   for (const id of body.ids) run(db, 'DELETE FROM tasks WHERE task_id = ?', [id]);
-  const seen = new Set<string>();
-  for (const row of rows) {
-    if (row.result_url && !seen.has(row.result_url)) { seen.add(row.result_url); deleteLocalFile(db, row.result_url); }
-    if (row.thumbnail_url && !seen.has(row.thumbnail_url)) { seen.add(row.thumbnail_url); deleteLocalFile(db, row.thumbnail_url); }
-  }
   debouncedSaveDb();
+  // 只删记录，删盘统一交给引用感知 GC（docs/13）
+  await runReferenceGc(false);
   return json(res, { deleted: body.ids.length });
 }
 
 export async function handleTasksClear(req: IncomingMessage, res: ServerResponse): Promise<void> {
   const db = await getDb();
-  const rows = queryAll(db, 'SELECT result_url, thumbnail_url FROM tasks') as Array<{ result_url?: string; thumbnail_url?: string }>;
   const result = run(db, 'DELETE FROM tasks');
-  const seen = new Set<string>();
-  for (const row of rows) {
-    if (row.result_url && !seen.has(row.result_url)) { seen.add(row.result_url); deleteLocalFile(db, row.result_url); }
-    if (row.thumbnail_url && !seen.has(row.thumbnail_url)) { seen.add(row.thumbnail_url); deleteLocalFile(db, row.thumbnail_url); }
-  }
   debouncedSaveDb();
+  // 只删记录，删盘统一交给引用感知 GC（docs/13）：
+  // 此前 handleTasksClear 会 deleteLocalFile 逐个删盘，而 deleteLocalFile 不查画布 KV，
+  // 导致"清空任务"把画布仍在引用的图一起删掉 → 图片 404（问题2 根因）。
+  await runReferenceGc(false);
   return json(res, { deleted: result.changes });
 }
 

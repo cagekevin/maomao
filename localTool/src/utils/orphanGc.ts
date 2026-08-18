@@ -17,6 +17,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { extractFilesUrls } from './base64Externalize.js';
+import { getDb, getUploadDir, queryAll } from '../db/database.js';
 
 export interface GcResult {
   scanned: number;
@@ -108,4 +109,37 @@ export function runOrphanGc(
 
   walk(uploadDir);
   return result;
+}
+
+/**
+ * 引用感知 GC 的统一入口：收集全库引用（resources 表 url + tasks 表 url + KV 全部 value）后执行孤儿回收。
+ *
+ * 设计背景（docs/13 §3.5）：删除接口「只删记录、绝不删盘」，删盘统一交给本函数裁决。
+ * 引用来源必须覆盖三类，缺一不可：
+ *   - resources 表 url：用户"存进素材库但没放画布"的图只在此表，漏了会被误删 → 素材丢失；
+ *   - tasks 表 result_url / thumbnail_url：AI 任务结果；
+ *   - KV 表全部 value（含 canvas-state-*）：画布节点引用。
+ *
+ * 由删除入口（tasks/resources 删除/清空）尾部调用，让"引用消失 → 文件回收"窗口趋近于零；
+ * 也供 /api/admin/cleanup 手动触发复用，保证引用收集口径只有一处。
+ *
+ * @param dryRun 为 true 时只统计不删除（人工核查用）
+ */
+export async function runReferenceGc(dryRun = false): Promise<GcResult> {
+  const db = await getDb();
+  const uploadDir = getUploadDir();
+
+  const refUrls = new Set<string>();
+  const resUrls = queryAll(db, 'SELECT url FROM resources') as Array<{ url: string }>;
+  for (const r of resUrls) if (r.url) refUrls.add(r.url);
+  const taskUrls = queryAll(db, 'SELECT result_url, thumbnail_url FROM tasks') as Array<{ result_url?: string; thumbnail_url?: string }>;
+  for (const t of taskUrls) {
+    if (t.result_url) refUrls.add(t.result_url);
+    if (t.thumbnail_url) refUrls.add(t.thumbnail_url);
+  }
+
+  const kvValues = queryAll(db, 'SELECT value FROM kv') as Array<{ value: string }>;
+  const kvValueStrings = kvValues.map((r) => r.value).filter((v): v is string => typeof v === 'string');
+
+  return runOrphanGc(kvValueStrings, uploadDir, refUrls, dryRun);
 }
