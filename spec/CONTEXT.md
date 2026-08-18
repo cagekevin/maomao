@@ -49,11 +49,11 @@ Q3 单组件内部临时？→ 是 → 组件 useState
 
 ### B. 节点体系（顶层规则）
 - **单源节点目录**：`base/NodePalette.jsx` 的 `paletteNodes` 是**唯一节点目录**（type/label/icon/cat/data/builtin），右键菜单/节点面板/`defaultNodeData` 都从它派生。
-- **⚠️ 顶层红线：新增节点必须 4 处同步**（详细流程见 `spec/NEW-NODE-GUIDE.md` §六）：
-  1. `NodePalette.jsx` `paletteNodes` 登记；
-  2. `App.jsx` `nodeTypes` 加 `type → 组件`（⚠️ 当前仍是**手写平行表**，与 palette 双维护，漏了=节点建不出来，是已知回归陷阱）；
-  3. `useConnectedInputs.js` 的 `NODE_OUTPUTS` 声明产出（**最易漏**，漏了下游连了线也拿不到数据）；
-  4. 文档/交接登记。
+- **⚠️ 顶层红线：新增节点必须 3 处同步**（详细流程见 `spec/NEW-NODE-GUIDE.md` §六）：
+  1. `NodePalette.jsx` `paletteNodes` 登记（含 `component` 字段 = 画布渲染组件，`buildNodeTypeComponents` 自动派生 `App.jsx nodeTypes`，**不再手写平行表**）；
+  2. `useConnectedInputs.js` 的 `NODE_OUTPUTS` 声明产出（**最易漏**，漏了下游连了线也拿不到数据）；
+  3. 文档/交接登记。
+  - **例外**：`director3dNode`（WebGL 无法 SSR，palette 不持 component）与 `ghostTarget`（连线占位）由 `App.jsx` 派生后显式补充；新增此类「不可 SSR / 占位」节点才改 `App.jsx`。
 - **节点统一范式**：外壳用 NodeShell（禁止手写外壳）；UI 用 `useState(data.xxx)`、写回用 `setNodes` 不可变更新；上游数据走 `useConnectedInputs`。详见 NEW-NODE-GUIDE.md。
 - **管线契约**：`useConnectedInputs.js` 的 `NODE_OUTPUTS` 是「下游自动拿上游数据」的唯一声明，有产出的节点必须登记，数组型用 `arrayImages` 归一。
 
@@ -85,7 +85,7 @@ Q3 单组件内部临时？→ 是 → 组件 useState
 | ② 表现 | `toastStore.js` (toastSuccess/Error/Warning/Info) | 业务只调语义化 4 档 | ❌ `showToast('x',{type})` 混写 |
 | ③ 观测 | `logger.js` (logger.info/warn/error) | 记录+上报，供排查 | ❌ 裸 `console.log/warn/error` |
 | ④ 持久化 | **`contentStore`**（横切存储权威入口）+ `storageAdapter`/`kvStore`（底层） | 业务读写走 `contentStore`（按 STORAGE_KEYS 自动路由 local/KV/native）；`storageAdapter` 是底层，业务**禁止**直调 | ❌ 直调 storageAdapter / 散落字符串字面量 |
-| ⑤ 能力 | `mediaType`/`clipboard`/`filesApi`/`imageUrl`... | 业务能力单一入口 | ❌ 手写正则/URL拼接/压缩 |
+| ⑤ 能力 | `mediaType`/`clipboard`/`filesApi`/`imageUrl`/`previewUrl`... | 业务能力单一入口；`previewUrl` 管「本地预览 Blob 的 create/引用计数/revoke」 | ❌ 手写正则/URL拼接/压缩；❌ 节点手写 `URL.createObjectURL`（预览场景统一走 `previewUrl`） |
 | ⑥ 工具 | genId 已落 `base/idGen.js`；deepClone/formatTime/throttle/debounce **待统一**（见 §六 待办） | 通用纯工具 | ❌ 手写 `Date.now().toString(36)`/`Math.random` 造 ID |
 | ⑦ 下载 | `clipboard.downloadUrl` | 文件下载/导出 | ❌ 自写 `createObjectURL + a.download` |
 
@@ -158,11 +158,13 @@ Q3 单组件内部临时？→ 是 → 组件 useState
 > 来源：`docs/agent 批量任务/FINAL-收口缺口核实终稿`（人工核实）。改动前先查，避免重复踩/重复提。
 > 工具统一 → §二⑥；其余多为中风险重构，改前需评估下游。
 1. **通用工具统一**：deepClone / formatTime / throttle / debounce 尚无集中实现（genId 已在 `base/idGen.js`），业务零散手写（如 `JSON.parse(JSON.stringify())`）。
-2. **nodeTypes 单源化**：`App.jsx nodeTypes` 与 `NodePalette` 双维护，漏登记=节点建不出来（FINAL-057 B，中风险）。
+2. ~~nodeTypes 单源化~~ ✅ **已完成**（2026-08-18）：`NodePalette` 每项加 `component` 字段，`buildNodeTypeComponents()` 派生 `App.jsx nodeTypes`，删掉 15 条手写平行表；新增节点 4 处同步降 3 处。**例外**：`director3dNode`（WebGL 不持 component）+ `ghostTarget`（占位）由 `App.jsx` 派生后显式补充。
 3. **程序化建边统一走 onConnect**：部分节点直接 `setEdges` 绕过 onConnect 校验/撤销栈（FINAL-057 D，改动面大）。
 4. **统一节点错误降级/重试收敛**：节点级 catch 大多只 setState 不收敛（FINAL-056，架构级）。
-5. **本地预览收口**：`URL.createObjectURL` 手写 ≥10 处（节点选图预览/视频加载），无统一入口（区分于下载 `downloadUrl`，这是「临时预览 URL」，应抽 `imageUrl`/能力层统一，含 revoke 清理）。
+5. ~~本地预览收口~~ ✅ **已收口**（`base/previewUrl.js`，2026-08-18）：节点预览 `URL.createObjectURL` 已统一走 `previewUrl.create/release`（引用计数，减到 0 才 revoke）。**边界**：下载走 `clipboard`、持久化降级走 `videoEngine`、跨节点产物喂 spawn（`VideoProcessNode` GIF）与外部仓库 `director3d` **不纳入**，勿再收。
 6. **已收口却仍绕道的反例**：`idGen.js` 已收口，但 `accountsStore`/`ShortcutSettings` 仍手写 `Date.now().toString` 造 ID → 需收敛回 `generateId`（先 grep 全库堵死绕道）。
+
+7. **预览 URL 卸载释放缺口**（审计 2026-08-18 发现，未修，守「行为不变」）：`TextNode`/`FaceMosaicNode`/`VideoExtractNode` 的预览 blob URL（现走 `previewUrl.create`）在**组件卸载/素材替换**时未 `release`，属既有泄漏（原 `URL.createObjectURL` 同样从未 revoke）。收口时未补是因其「图片仅增不减且被下游 `useConnectedInputs` 读取」，擅自加卸载释放可能改变行为边界，故单独立项。修法：各节点新增卸载 cleanup 对 `previewUrl.release` 全部预览 URL。
 
 > **铁律**：**别为"文档齐全"而写文档。** 维护文档 = 维护负担 = 会过期。让代码当知识，本文件当地图，文档只补代码表达不了的决策。
 
