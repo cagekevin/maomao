@@ -327,9 +327,12 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
     logger.info('scriptBox', '生成分镜提示词·开始', { nodeId, count: target.length, provider: provider?.id, model: modelId, feedback: !!feedback })
 
     const genShot = async (shot) => {
-      // 只在真正发起该分镜请求时置 loading → 动画精确反映「当前正在请求的分镜」，
-      // 不是批量开始就全亮（避免 8 个卡片一起转、与实际并发不符）。
-      updateData({ shots: getData().shots.map((s) => (s.id === shot.id ? { ...s, promptLoading: true } : s)) })
+      // 每个分镜发起时打一条日志（逐镜跟踪批量进度）
+      logger.info('scriptBox', '生成分镜提示词·单镜开始', { nodeId, shotId: shot.id, index: shot.index })
+      // 只在真正发起该分镜请求时置 loading → 动画精确反映「当前正在请求的分镜」。
+      // 注意：必须用函数式更新基于「最新 data」计算，避免并发时 getData() 读到旧引用
+      // 导致多个分镜的 loading 互相覆盖、动画闪现/产生不了。
+      updateData((latest) => ({ shots: (latest.shots || []).map((s) => (s.id === shot.id ? { ...s, promptLoading: true } : s)) }))
       try {
         const ac = new AbortController()
         abortMap.set(`shot-${shot.id}`, ac)
@@ -356,41 +359,53 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
         })
         abortMap.delete(`shot-${shot.id}`)
         if (!r.ok) {
-          updateData({ shots: getData().shots.map((s) => (s.id === shot.id ? { ...s, promptLoading: false } : s)) })
+          updateData((latest) => ({ shots: (latest.shots || []).map((s) => (s.id === shot.id ? { ...s, promptLoading: false } : s)) }))
           if (!r.aborted) toast(r.error || '分镜提示词生成失败')
           logger.error('scriptBox', '生成分镜提示词·单镜失败', { nodeId, shotId: shot.id, error: r.error })
           return
         }
         const parsed = parseJsonText(r.content)
         if (!parsed.ok) {
-          updateData({ shots: getData().shots.map((s) => (s.id === shot.id ? { ...s, promptLoading: false } : s)) })
+          updateData((latest) => ({ shots: (latest.shots || []).map((s) => (s.id === shot.id ? { ...s, promptLoading: false } : s)) }))
           toast('模型输出的提示词 JSON 不完整，请重试')
           logger.error('scriptBox', '生成分镜提示词·JSON解析失败', { nodeId, shotId: shot.id })
           return
         }
         const { prompt, videoPrompt } = parsed.data || {}
-        updateData({ shots: getData().shots.map((s) => (s.id === shot.id ? { ...s, prompt: prompt || '', videoPrompt: videoPrompt || '', promptLoading: false } : s)) })
+        updateData((latest) => ({ shots: (latest.shots || []).map((s) => (s.id === shot.id ? { ...s, prompt: prompt || '', videoPrompt: videoPrompt || '', promptLoading: false } : s)) }))
       } catch (e) {
         abortMap.delete(`shot-${shot.id}`)
-        updateData({ shots: getData().shots.map((s) => (s.id === shot.id ? { ...s, promptLoading: false } : s)) })
+        updateData((latest) => ({ shots: (latest.shots || []).map((s) => (s.id === shot.id ? { ...s, promptLoading: false } : s)) }))
         if (!/abort/i.test(e?.message || '')) toast(e?.message || '分镜提示词生成失败')
         if (!/abort/i.test(e?.message || '')) logger.error('scriptBox', '生成分镜提示词·单镜异常', { nodeId, shotId: shot.id, error: e?.message })
         else logger.warn('scriptBox', '生成分镜提示词·单镜已中止', { nodeId, shotId: shot.id })
       }
     }
 
-    // 分批并发：每批最多 4 个，批间串行 + 批间隔，真正平缓发送，避免一次并发打满连接。
-    // 【稳定性】每批完成后等待 BATCH_INTERVAL_MS，给浏览器到 localTool(18080) 的连接释放窗口，
-    // 避免长 chat 请求持续占满连接池导致 status/其他请求排队超时。
-    // 动画精确：只对当前批次的 4 个分镜显示 loading（genShot 内单独置），完成即熄，下一批再亮。
-    const BATCH = 4
-    const BATCH_INTERVAL_MS = 800
-    for (let i = 0; i < target.length; i += BATCH) {
-      await Promise.all(target.slice(i, i + BATCH).map((s) => genShot(s)))
-      if (i + BATCH < target.length) {
-        await new Promise((r) => setTimeout(r, BATCH_INTERVAL_MS))
+    // 【滑动窗口并发】同时最多 4 个分镜在途，但每个分镜「启动之间」隔 START_GAP_MS 毫秒
+    // （不是 4 个同一秒全部发出），让连接平缓建立，避免瞬时打满连接池。
+    //  - 逐个启动分镜，每个之间 sleep START_GAP_MS
+    //  - 在途达到 MAX_CONCURRENT(4) 时，等其中一个完成再启动下一个（窗口保持 ≤4）
+    // 每个分镜发起时打一条「单镜开始」日志；动画精确：genShot 内单独置 loading。
+    const MAX_CONCURRENT = 4
+    const START_GAP_MS = 500
+    const pool = new Set()
+    let next = 0
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+    while (next < target.length) {
+      const shot = target[next]
+      next += 1
+      const p = genShot(shot).finally(() => pool.delete(p))
+      pool.add(p)
+      if (pool.size >= MAX_CONCURRENT) {
+        // 在途已达 4：等其中一个完成再继续（释放一个名额）
+        await Promise.race([...pool])
+      } else if (next < target.length) {
+        // 启动下一个分镜之前，先隔 START_GAP_MS
+        await sleep(START_GAP_MS)
       }
     }
+    await Promise.all([...pool])
     toast(Array.isArray(shotIds) && shotIds.length ? '已生成该分镜提示词' : `已生成 ${target.length} 个分镜提示词`)
     logger.info('scriptBox', '生成分镜提示词·完成', { nodeId, count: target.length })
   }

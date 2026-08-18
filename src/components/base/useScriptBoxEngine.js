@@ -50,9 +50,16 @@ export function useScriptBoxEngine(nodeId, data) {
     engineRef.current = createScriptBoxEngine({
       // 读最新 data：经 useReactFlow().getNode 实时取（O(1) hash 查，替 getNodes().find），避免闭包捕获旧值
       getData: () => getNode(nodeId)?.data ?? data ?? {},
-      // 写回 node.data：经 setNodes 不可变更新（引擎唯一写回通道）
+      // 写回 node.data：经 setNodes 不可变更新（引擎唯一写回通道）。
+      // 支持两种形态：对象 patch（直接合并）或函数 `(latestData) => patch`（基于最新 data 计算，
+      // 供并发场景下安全合并，避免 getData() 读到旧引用导致状态互相覆盖）。
       updateData: (patch) =>
-        setNodes((ns) => ns.map((n) => (n.id === nodeId ? { ...n, data: { ...(n.data || {}), ...patch } } : n))),
+        setNodes((ns) => ns.map((n) => {
+          if (n.id !== nodeId) return n
+          const latest = n.data || {}
+          const resolved = typeof patch === 'function' ? patch(latest) : patch
+          return { ...n, data: { ...latest, ...resolved } }
+        })),
       nodeId,
       setEdges,
       getNodes,
