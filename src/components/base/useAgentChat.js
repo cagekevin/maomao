@@ -129,7 +129,8 @@ const withMsgId = (m) => (m && typeof m === 'object' && m.id ? m : { ...m, id: g
  * > ⚠️ prompts 逐条确认通道是大雄「思维模式」遗留，当前大雄 thinkingModeOn=false（5262/7302/9723）、
  * > 主要路径清空 prompts（7690/7725/7784），该通道是死代码；大雄当前走 generations 快速执行（我们已对齐）。
  * > 我们保留 promptFlow.js + PromptConfirmCard.jsx 作为可选增强，但 assistant 消息默认不带 prompts、
- * > 不走该通道。详见 promptFlow.js 文件头「★ 重要」说明。
+ * > 不走该通道。详见 promptFlow.js 文件头「★ 重要」。
+ * > 【追加：保留决策已确认，2026-08-18】人类明确决策**不删、也不接入/补全**，维持保留。后续 AI 直接跳过此通道，勿当待办。
  *
  * ── 二、执行分级 runMode（对齐大雄 agentGetRunMode/agentSetRunMode）★ 为什么简单任务不 plan ★ ──
  *   用户反馈「发个信息它就执行 plan」的根因：我们此前所有任务都让 LLM 调 show_plan_for_confirm 并强制

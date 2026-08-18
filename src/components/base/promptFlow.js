@@ -25,6 +25,14 @@
  *   3. 当前不激活 = 不走该路径，不会影响 generations 主通道。
  *   → 若你不想要这个保留能力，可删除 promptFlow.js / PromptConfirmCard.jsx / AgentMessage 里的接入块。
  *
+ * ⚠️ 【追加：保留决策已确认，2026-08-18】人类 CEO 明确决策：**不删除，原样保留**，本段以下为追加说明：
+ *   - 人类确认：删掉无实质价值（功能完好但无数据触发），保留可避免"若未来要恢复逐条确认"时需从 git 找回；
+ *     且删改死代码改坏了更麻烦。故**维持保留**，此前的"可删除"提示不再作为动作依据。
+ *   - 本通道**当前是死代码**（assistant 消息默认不带 prompts，0 活跃调用）——这是**已知、已确认**的状态，
+ *     **不要尝试"补全/激活/接入"它**，也不要再为此立项重构。
+ *   - 后续 AI 读到本模块：**直接跳过**，它是"决策保留的已废弃历史能力"，不是待办、不是待开发、不是 bug。
+ *     主路径是 generations 快速执行通道（见 useAgentChat 文件头路径表），与此无关。
+ *
  * ── prompts 状态机（对齐大雄 8500-8577 + ensureCurrentPrompt 982 + _triggerGenerationsIfAllDone 8447）──
  *   status 取值：pending(待处理) → current(当前待确认) → confirmed(已确认) / editing(内联编辑中) / skipped(跳过)。
  *   推进规则：

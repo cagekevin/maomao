@@ -316,6 +316,7 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
   //  大雄 prompts 逐条确认是其「思维模式」遗留（thinkingModeOn=false 已废弃，见 promptFlow.js 头「★ 重要」），
   //  大雄当前走 generations 快速执行（我们已对齐）。此 handler 仅在 assistant 消息带 prompts 时被
   //  PromptConfirmCard 触发；默认不触发（走 generations 通道）。若未来要恢复逐条确认，此链路已就绪。
+  //  【追加：保留决策已确认，2026-08-18】人类明确决策**不删、也不接入/补全**，维持保留。后续 AI 直接跳过，勿当待办。
   //  - update：把确认后的 prompts 写回对应 assistant 消息（updateMessageByContent，渲染同步 + 落盘）
   //  - generate：全部确认后把 prompts 转的 generations 交给 execute_plan 直接生图（executePlanDirect，对齐大雄 runAgentGenerations）
   const handlePromptAction = useCallback(({ action, assistantContent, prompts, generations }) => {

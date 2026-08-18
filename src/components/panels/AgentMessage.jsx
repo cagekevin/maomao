@@ -271,7 +271,8 @@ function AgentMessage({ message, onConfirmPlan, onRetryStep, onPromptAction }) {
              大雄的 prompts 逐条确认是其「思维模式」遗留，当前大雄 thinkingModeOn=false 已废弃（见
              promptFlow.js 文件头「★ 重要」）。我们保留此渲染 + PromptConfirmCard，但 assistant 消息
              默认不带 prompts（走 generations 快速执行通道，见 useAgentChat 文件头路径表），故本卡片
-             默认不出现。若未来要恢复「逐条确认提示词」，把 prompts 灌到 assistant 消息即可，UI/状态机已就绪。 */}
+             默认不出现。若未来要恢复「逐条确认提示词」，把 prompts 灌到 assistant 消息即可，UI/状态机已就绪。
+             【追加：保留决策已确认，2026-08-18】人类明确决策**不删、也不接入/补全**，维持保留。后续 AI 直接跳过此块。 */}
           {message.prompts && message.prompts.length > 0 && !message.streaming && (
             <PromptConfirmCard
               prompts={message.prompts}
