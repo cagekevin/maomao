@@ -153,6 +153,19 @@ function flatten(obj, p = '', out = {}) {
   return out;
 }
 
+// ── 7. 决策渠道门禁（ADR 必须为空；CLAUDE 决策铁律必须存在）──
+// 硬约束：docs/adr/ 非本项目决策渠道（见 CLAUDE.md「🔒 决策记录铁律」）。
+// 若出现 ADR 文件 → error 阻断；若决策铁律被误删 → error 阻断。不靠 AI 自觉，靠门禁拦截。
+console.log('\n🔒 决策渠道门禁');
+const adrDir = path.join(ROOT, 'docs/adr');
+const adrFiles = fs.existsSync(adrDir)
+  ? fs.readdirSync(adrDir).filter((f) => /\.md$/.test(f))
+  : [];
+check('docs/adr/ 无 ADR 文件（决策渠道 = CONTEXT + 代码注释）', adrFiles.length === 0, adrFiles.length ? `发现: ${adrFiles.join(', ')}` : '');
+
+const claude = fs.existsSync(path.join(ROOT, 'CLAUDE.md')) ? fs.readFileSync(path.join(ROOT, 'CLAUDE.md'), 'utf-8') : '';
+check('CLAUDE.md 含「决策记录铁律」', /决策记录铁律/.test(claude), '铁律被删除会破坏决策渠道一致性');
+
 console.log('\n═'.repeat(54));
 console.log(`  结论: ${errors ? `❌ ${errors} 处错误` : '✅ 无错误'}${warns ? `，⚠️ ${warns} 处警告` : ''}`);
 console.log('═'.repeat(54));
