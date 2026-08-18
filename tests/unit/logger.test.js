@@ -26,11 +26,11 @@ describe('config.js §API_BASE 日志与配置', () => {
   it('所有 API 层统一从这里取 API_BASE（被引用）', async () => {
     // 硬证据：直接读 API 层源码，断言其 import 语句确实引用了 config.js
     // （videoApi.js 已薄壳化，config 消费方收敛到深模块 proxyGenerate.js）
+    // kvStore.js 的 KV 转发已收口到 localToolApi.js，不再直接依赖 config.js，故不在硬证据清单
     const apiFiles = [
       'proxyGenerate.js',
-      'tasksApi.js',
+      'localToolApi.js',
       'filesApi.js',
-      'kvStore.js',
       'logger.js',
     ]
     for (const f of apiFiles) {
@@ -39,11 +39,13 @@ describe('config.js §API_BASE 日志与配置', () => {
     }
     // 软证据：衍生 API 层能成功 import（依赖解析未断）
     const videoApi = await import('../../src/components/base/videoApi.js')
-    const tasksApi = await import('../../src/components/base/tasksApi.js')
+    const localToolApi = await import('../../src/components/base/localToolApi.js')
     const filesApi = await import('../../src/components/base/filesApi.js')
+    const kvStore = await import('../../src/components/base/kvStore.js')
     expect(videoApi).toBeTruthy()
-    expect(tasksApi).toBeTruthy()
+    expect(localToolApi).toBeTruthy()
     expect(filesApi).toBeTruthy()
+    expect(kvStore).toBeTruthy()
   })
 })
 

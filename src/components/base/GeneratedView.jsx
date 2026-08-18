@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react'
 import { FolderOpen, Image as ImageIcon, Play, FileText, Music, Copy, Trash2, FolderPlus, ChevronLeft, MoreVertical, Pencil } from 'lucide-react'
 import { useLocalToolStatus } from './useLocalToolStatus.js'
-import { fetchResources, rescanResources, deleteResource, renameResource, openLocalFolder, openFileDir, relativePathFromUrl } from './resourcesApi.js'
+import { fetchResources, rescanResources, deleteResource, renameResource, openLocalFolder, openFileDir, relativePathFromUrl } from './localToolApi.js'
 import { showToast } from './toastStore.js'
 import { API_BASE } from './config.js'
 import { useAssetDragToCanvas, fetchText } from './useAssetDragToCanvas.js'

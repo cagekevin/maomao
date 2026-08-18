@@ -82,12 +82,14 @@ npm run build            # 构建插件包（dist/）
 
 日常改代码后，提交前跑一次 `npm test` 即可。
 
+> ⚠️ **AI 助手跑测试（防挂起）**：改哪个文件就只跑它对应测试 `npx vitest run tests/unit/xxx.test.js`（涉及跨模块 import 才连带跑相关文件），最后才全量 `npm run test:unit` 兜底。勿裸调 `npx vitest`（默认 watch 挂住）。
+
 ## 二、命令总览
 
 | 命令 | 说明 | 阻塞? |
 |---|---|---|
 | `npm run test:smoke` | 静态检查：JSX 语法 / ReactFlow API 误用 / 节点注册 / 依赖 | 是 |
-| `npm run test:unit` | **vitest 全量单元测试**（`tests/unit/` 下所有用例；数量见运行结果，勿写死——保鲜铁律 §九） | 是 |
+| `npm run test:unit` | **vitest 全量单元测试**（`tests/unit/` 下所有用例；数量见运行结果，勿写死——保鲜铁律 §九）。单次运行入口，跑完即退；勿裸调 `npx vitest`（watch 挂住） | 是 |
 | `npm run test:regression` | SSR 渲染 4 个核心节点 + 断言关键结构 class（能渲染不崩） | 是 |
 | `npm run test:tools` | Agent 工具层验证（create/delete/update/connect/read_canvas） | 是 |
 | `npm run test:all` | **统一门禁**：smoke + vitest全量单测 + regression + tools 一次跑完，任一失败退出码 1 | 是 |

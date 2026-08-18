@@ -37,6 +37,9 @@ function FaceMosaicNode({ id, data, selected }) {
   // 图片来源：手动上传的 imageUrl + 连接上游收集的图片 URL（复刻官方 Sl）
   const connected = useConnectedInputs(id)
   const [localImages, setLocalImages] = useState(data.imageUrls || [])
+
+  // 卸载时释放所有预览 Blob URL，避免内存泄漏（对齐 VideoProcessNode / AgentPanel）
+  useEffect(() => () => { localImages.forEach((u) => previewUrls.release(u)) }, [localImages])
   const imageUrls = useCallback(() => {
     const list = [...localImages]
     const seen = new Set(list)

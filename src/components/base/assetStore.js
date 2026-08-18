@@ -21,7 +21,7 @@ import { contentGet, contentSet, createDebouncedPersist } from './contentStore.j
 import { generateId } from './idGen.js'
 import { httpRequest } from './httpClient.js'
 import { API_BASE } from './config.js'
-import { rescanResources } from './resourcesApi.js'
+import { rescanResources } from './localToolApi.js'
 import { saveInlineToLocal } from './filesApi.js'
 import { logger } from './logger.js'
 

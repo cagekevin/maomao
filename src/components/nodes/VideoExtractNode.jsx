@@ -52,6 +52,9 @@ function VideoExtractNode({ id, data, selected }) {
   const [videoUrl, setVideoUrl] = useState(data.videoUrl || '')
   const [videoName, setVideoName] = useState(data.videoName || '')
 
+  // 卸载时释放预览 Blob URL，避免内存泄漏（对齐 VideoProcessNode / AgentPanel）
+  useEffect(() => () => { previewUrls.release(videoUrl) }, [videoUrl])
+
   // 抽帧结果
   const [loading, setLoading] = useState(false)
   const [progress, setProgress] = useState(0)
@@ -93,6 +96,7 @@ function VideoExtractNode({ id, data, selected }) {
     const f = e.target.files?.[0]
     if (!f) return
     setFile(f)
+    previewUrls.release(videoUrl) // 替换前释放旧预览，避免计数错位
     setVideoUrl(previewUrls.create(f))
     setVideoName(f.name)
     setErrorMessage('')

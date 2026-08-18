@@ -11,10 +11,8 @@ import { contentClearCache } from '../../src/components/base/contentStore.js'
 // 复用 setup.mjs 强制 mock 的全局 fetch（Node 原生 fetch 不可配置，vi.stubGlobal 会静默失效）
 const fetchMock = globalThis.fetch
 
-vi.mock('../../src/components/base/settings/settingsApi.js', () => ({
+vi.mock('../../src/components/base/localToolApi.js', () => ({
   providerApi: { saveProviders: vi.fn(), syncConfigBase: vi.fn() },
-}))
-vi.mock('../../src/components/base/projectsApi.js', () => ({
   fetchProjects: vi.fn(),
   saveProjects: vi.fn(),
 }))

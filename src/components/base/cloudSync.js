@@ -22,8 +22,7 @@
  * ⚠️ 含用户数据（账号环境/API key 等），同步到云端需注意保密。
  */
 import { getLocalKeys } from './contracts.js'
-import { providerApi } from './settings/settingsApi.js'
-import { fetchProjects, saveProjects } from './projectsApi.js'
+import { providerApi, fetchProjects, saveProjects } from './localToolApi.js'
 import { contentGet, contentSet } from './contentStore.js'
 import { logger } from './logger.js'
 

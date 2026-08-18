@@ -81,7 +81,7 @@ vi.mock('../../src/components/base/filesApi.js', () => ({ toAbsoluteFileUrl: (x)
 
 const mockFetchTasks = vi.fn(async () => ({ items: [] }))
 vi.mock('../../src/components/base/settings/providerStore.js', () => ({ useProviders: () => ({ providers: [] }), load: vi.fn(() => Promise.resolve()) }))
-vi.mock('../../src/components/base/tasksApi.js', () => ({ fetchTasks: (...a) => mockFetchTasks(...a) }))
+vi.mock('../../src/components/base/localToolApi.js', () => ({ fetchTasks: (...a) => mockFetchTasks(...a) }))
 const mockGenerateImage = vi.fn(async () => ({ url: 'http://gen.local/img.png' }))
 vi.mock('../../src/components/base/imageApi.js', () => ({ generateImage: (...a) => mockGenerateImage(...a) }))
 vi.mock('../../src/components/base/providerModels.js', () => ({ buildAllModels: vi.fn(() => []), resolveProviderModel: vi.fn(() => ({ provider: {}, modelId: 'm' })) }))

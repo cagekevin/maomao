@@ -10,7 +10,7 @@
 import { useSyncExternalStore } from 'react'
 import { useStoreSelector } from './useStoreSelector.js'
 import { CANVAS_STATE_PREFIX } from './kvStore.js'
-import { fetchProjects, saveProjects } from './projectsApi.js'
+import { fetchProjects, saveProjects } from './localToolApi.js'
 import { contentGet, contentSet, contentGetAsync, contentSetAsync, contentDeleteAsync, createDebouncedPersist } from './contentStore.js'
 import { logger } from './logger.js'
 

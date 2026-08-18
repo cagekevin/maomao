@@ -1,4 +1,4 @@
-// 回归测试：filesApi.js、tasksApi.js、projectsApi.js
+// 回归测试：filesApi.js、localToolApi.js（tasks/projects 收口）
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import {
   saveInlineToLocal,
@@ -13,8 +13,9 @@ import {
   deleteTask,
   batchDeleteTasks,
   clearAllTasksApi,
-} from '../../src/components/base/tasksApi.js'
-import { fetchProjects, saveProjects } from '../../src/components/base/projectsApi.js'
+  fetchProjects,
+  saveProjects,
+} from '../../src/components/base/localToolApi.js'
 
 const API_BASE = 'http://127.0.0.1:18080'
 

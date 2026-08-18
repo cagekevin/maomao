@@ -27,14 +27,12 @@ vi.mock('../../src/components/base/projectStore.js', () => ({
 }))
 
 // ── cloudSync 依赖：providerApi / projectsApi（隔离网络）──
-vi.mock('../../src/components/base/settings/settingsApi.js', () => ({
+vi.mock('../../src/components/base/localToolApi.js', () => ({
   providerApi: {
     getProviders: vi.fn(async () => ({ providers: [] })),
     saveProviders: vi.fn(async () => ({ ok: true })),
     syncConfigBase: vi.fn(async () => ({ ok: true })),
   },
-}))
-vi.mock('../../src/components/base/projectsApi.js', () => ({
   fetchProjects: vi.fn(async () => ({ projects: [], lastOpened: '' })),
   saveProjects: vi.fn(async () => ({ ok: true })),
 }))

@@ -8,7 +8,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 
 const fetchMock = globalThis.fetch
 
-const api = await import('../../src/components/base/projectsApi.js')
+const api = await import('../../src/components/base/localToolApi.js')
 
 function jsonResp(obj, ok = true, status = 200) {
   return { ok, status, json: async () => obj }

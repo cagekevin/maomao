@@ -102,6 +102,8 @@ function TextNode({ id, data, selected }) {
   const { prefs: textPrefs, set: setTextPrefs } = useNodePrefs('textNode', { model: '' })
   const [selectedModel, setSelectedModel] = useState(data.selectedModel || textPrefs.model || 'gpt-4o-mini')
   const [images, setImages] = useState(data.images || [])
+  // 卸载时释放所有预览 Blob URL，避免内存泄漏（对齐 VideoProcessNode / AgentPanel）
+  useEffect(() => () => { images.forEach((u) => previewUrls.release(u)) }, [images])
   // 自身上传图片 + 连线上游图片，多上游图片节点自动合并
   const refImages = [...(connected.images || []), ...images.map((u, i) => ({ id: `img-${i}`, url: u, label: `图片${i + 1}` }))]
   const textAreaRef = useRef(null)

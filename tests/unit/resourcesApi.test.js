@@ -5,7 +5,7 @@
  */
 import { beforeEach, afterEach, describe, it, expect, vi } from 'vitest'
 import { API_BASE } from '../../src/components/base/config.js'
-import * as ra from '../../src/components/base/resourcesApi.js'
+import * as ra from '../../src/components/base/localToolApi.js'
 
 function mockFetchOnce(body, { ok = true, status = 200 } = {}) {
   const res = { ok, status, json: async () => body, text: async () => JSON.stringify(body) }

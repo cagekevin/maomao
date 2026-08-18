@@ -15,32 +15,14 @@
  *  - 错误体 { error: "<英文message>" }
  */
 import { sGet, sSet, sRemove } from './storageAdapter.js'
-import { httpRequest } from './httpClient.js'
-import { API_BASE } from './config.js'
+import { kvGet, kvSet, kvDelete } from './localToolApi.js'
 import { logger } from './logger.js'
 
 // 画布类 key 前缀（对齐官方 Ar.CANVAS_STATE_PREFIX，localTool KV 侧会带此前缀）
 export const CANVAS_STATE_PREFIX = 'canvas-state-v1-'
 
-/** 底层 KV 读取：返回解析后的值；key 不存在返回 null。 */
-export async function kvGet(key) {
-  return httpRequest(`${API_BASE}/api/kv/get?key=${encodeURIComponent(key)}`, { label: 'kvGet' }) // null 或解析后的值
-}
-
-/** 底层 KV 写入：对象/数组/数字自动 stringify，返回 {ok:true}。 */
-export async function kvSet(key, value) {
-  return httpRequest(`${API_BASE}/api/kv/set`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ key, value }),
-    label: 'kvSet',
-  })
-}
-
-/** 底层 KV 删除：删不存在也返回 {ok:true}。 */
-export async function kvDelete(key) {
-  return httpRequest(`${API_BASE}/api/kv/delete?key=${encodeURIComponent(key)}`, { method: 'POST', label: 'kvDelete' })
-}
+// kvGet / kvSet / kvDelete 底层转发已收口到 localToolApi.js（深模块），此处 re-export 兼容既有引用
+export { kvGet, kvSet, kvDelete }
 
 /** 判断 key 是否走 KV（画布类前缀走 localTool KV，对齐官方 Kr/Fr 分流） */
 export function isKvKey(key) {

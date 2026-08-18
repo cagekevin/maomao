@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
-// 隔离 taskStore 的 IO 依赖（tasksApi/filesApi 走 fetch → localTool），
+// 隔离 taskStore 的 IO 依赖（localToolApi/filesApi 走 fetch → localTool），
 // 只验证纯逻辑：状态映射、类型映射、面板状态、任务清理、重试注册、进度落库节流。
-vi.mock('../../src/components/base/tasksApi.js', () => ({
+vi.mock('../../src/components/base/localToolApi.js', () => ({
   fetchTasks: vi.fn(async () => ({ items: [] })),
   saveTask: vi.fn(async () => {}),
   deleteTask: vi.fn(async () => {}),
@@ -12,7 +12,7 @@ vi.mock('../../src/components/base/tasksApi.js', () => ({
 vi.mock('../../src/components/base/filesApi.js', () => ({
   saveResultToTasks: vi.fn(async () => null),
 }))
-import { saveTask } from '../../src/components/base/tasksApi.js'
+import { saveTask } from '../../src/components/base/localToolApi.js'
 
 const {
   statusDotClass,

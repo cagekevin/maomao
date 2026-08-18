@@ -14,7 +14,7 @@
 import { useSyncExternalStore } from 'react'
 import { logger } from './logger.js'
 import { createDebouncedPersist } from './contentStore.js'
-import { fetchTasks, saveTask, deleteTask, batchDeleteTasks, clearAllTasksApi } from './tasksApi.js'
+import { fetchTasks, saveTask, deleteTask, batchDeleteTasks, clearAllTasksApi } from './localToolApi.js'
 import { saveResultToTasks } from './filesApi.js'
 import { publish } from './eventBus.js'
 import { generateId } from './idGen.js'

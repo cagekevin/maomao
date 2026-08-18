@@ -9,7 +9,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 // 全局 fetch 已在 tests/setup.mjs 强制 mock 为 vi.fn()，此处取共享实例。
 const fetchMock = globalThis.fetch
 
-const api = await import('../../src/components/base/tasksApi.js')
+const api = await import('../../src/components/base/localToolApi.js')
 
 function jsonResp(obj, ok = true, status = 200) {
   return { ok, status, json: async () => obj }
