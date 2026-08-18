@@ -23,7 +23,7 @@ const AVATAR_URL = '/user-avatar.jpg'
 // 头像加载失败兜底（复刻官方占位习惯）
 const AVATAR_FALLBACK = 'https://api.dicebear.com/9.x/thumbs/svg?seed=maomao'
 
-export default function TopNav({ view, onNavigate, onSwitchProject, onCreateProject, agentOpen, onToggleAgent, onPushToCloud, onPullFromCloud }) {
+function TopNav({ view, onNavigate, onSwitchProject, onCreateProject, agentOpen, onToggleAgent, onPushToCloud, onPullFromCloud }) {
   const tabs = [
     { key: 'canvas', label: '画布' },
     { key: 'accounts', label: '多开' },
@@ -58,7 +58,7 @@ export default function TopNav({ view, onNavigate, onSwitchProject, onCreateProj
       {/* 左侧：Logo */}
       <div className="flex items-center gap-6">
         <div className="flex items-center gap-2 cursor-pointer" onClick={() => onNavigate('canvas')} title="返回画布">
-          <img src="/webicon.png" alt="猫猫画布" className="w-[30px] h-[30px] object-contain" draggable={false} />
+          <img src="/webicon.png" alt="猫猫画布" className="w-[30px] h-[30px] object-contain" draggable={false} loading="lazy" decoding="async" />
           <div className="text-white font-bold text-lg italic tracking-wider">猫猫画布</div>
         </div>
 
@@ -97,6 +97,8 @@ export default function TopNav({ view, onNavigate, onSwitchProject, onCreateProj
               alt="avatar"
               className="w-full h-full rounded-full object-cover"
               draggable={false}
+              loading="lazy"
+              decoding="async"
               onError={(t) => { if (t.target.src !== AVATAR_FALLBACK) t.target.src = AVATAR_FALLBACK }}
             />
           </button>
@@ -104,7 +106,7 @@ export default function TopNav({ view, onNavigate, onSwitchProject, onCreateProj
           <div className="absolute right-0 top-full mt-2 w-64 bg-surface border border-edge rounded-xl shadow-2xl opacity-0 invisible group-hover/avatar:opacity-100 group-hover/avatar:visible transition-all duration-200 z-float overflow-hidden flex flex-col">
             {/* 头部：头像 + 昵称 */}
             <div className="p-4 border-b border-edge flex items-center gap-3">
-              <img src={AVATAR_URL} alt="avatar" className="w-10 h-10 rounded-full object-cover border border-edge-muted" draggable={false} onError={(t) => { if (t.target.src !== AVATAR_FALLBACK) t.target.src = AVATAR_FALLBACK }} />
+              <img src={AVATAR_URL} alt="avatar" className="w-10 h-10 rounded-full object-cover border border-edge-muted" draggable={false} loading="lazy" decoding="async" onError={(t) => { if (t.target.src !== AVATAR_FALLBACK) t.target.src = AVATAR_FALLBACK }} />
               <div className="flex flex-col">
                 <div className="text-white font-bold text-sm truncate">画布用户</div>
                 <div className="text-gray-400 text-xs">未绑定手机号</div>
@@ -169,3 +171,5 @@ export default function TopNav({ view, onNavigate, onSwitchProject, onCreateProj
     </header>
   )
 }
+
+export default React.memo(TopNav)

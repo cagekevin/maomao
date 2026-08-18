@@ -8,7 +8,7 @@ import React from 'react'
  * @param hoverClass hover 时的颜色/背景 class（默认灰色→白）
  * @param onClick 点击回调
  */
-export default function ToolbarButton({ icon, title, hoverClass = 'hover:text-white', onClick }) {
+function ToolbarButton({ icon, title, hoverClass = 'hover:text-white', onClick }) {
   return (
     <button
       type="button"
@@ -23,3 +23,5 @@ export default function ToolbarButton({ icon, title, hoverClass = 'hover:text-wh
     </button>
   )
 }
+
+export default React.memo(ToolbarButton)

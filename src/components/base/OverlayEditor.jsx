@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react'
-import { useDebouncedEffect } from './utils.js'
+import { useDebouncedEffect, createRafBatch } from './utils.js'
 import { createPortal } from 'react-dom'
 import {
   Box, Eye, EyeOff, Lock, Unlock, Brush, Trash2,
@@ -269,6 +269,8 @@ export default function OverlayEditor({ state, onChange, upstreamUrls }) {
         layerId: layer.id,
         startX: e.clientX,
         startY: e.clientY,
+        // P3 注意点②：rect 在 pointerdown 缓存一次（rotate 分支用），move 内不再读；拖拽期画布不变尺寸
+        rect: boardRef.current?.getBoundingClientRect() || null,
         origX: layer.x,
         origY: layer.y,
         origScale: layer.scale,
@@ -285,10 +287,12 @@ export default function OverlayEditor({ state, onChange, upstreamUrls }) {
   // 拖拽移动/缩放/旋转（复刻 Uo.jsx useEffect[v]）
   useEffect(() => {
     if (!dragRef.current) return
-    const onMove = (e) => {
+    // P3：move 高频 → rAF 合并（last-args-wins，move 直接用最新坐标算绝对值）；
+    // rotate 的 rect 已在 beginDrag（pointerdown）缓存，move 内不再 getBoundingClientRect。
+    const batch = createRafBatch((clientX, clientY) => {
       const d = dragRef.current
-      const dx = (e.clientX - d.startX) / display.scale
-      const dy = (e.clientY - d.startY) / display.scale
+      const dx = (clientX - d.startX) / display.scale
+      const dy = (clientY - d.startY) / display.scale
       if (d.mode === 'move') {
         updateLayer(d.layerId, { x: d.origX + dx, y: d.origY + dy })
       } else if (d.mode === 'scale') {
@@ -296,15 +300,17 @@ export default function OverlayEditor({ state, onChange, upstreamUrls }) {
         const scale = Math.max(0.05, (right - d.origX) / d.width)
         updateLayer(d.layerId, { scale })
       } else if (d.mode === 'rotate') {
-        const rect = boardRef.current?.getBoundingClientRect()
+        const rect = d.rect
         if (!rect) return
-        const px = (e.clientX - rect.left) / display.scale
-        const py = (e.clientY - rect.top) / display.scale
+        const px = (clientX - rect.left) / display.scale
+        const py = (clientY - rect.top) / display.scale
         const deg = (Math.atan2(py - d.origCenterY, px - d.origCenterX) * 180) / Math.PI + 90
         updateLayer(d.layerId, { rotation: deg })
       }
-    }
+    })
+    const onMove = (e) => batch(e.clientX, e.clientY)
     const onUp = () => {
+      batch.flush() // 松手补最后一帧，避免位置差一帧
       dragRef.current = null
     }
     window.addEventListener('mousemove', onMove)
@@ -312,6 +318,7 @@ export default function OverlayEditor({ state, onChange, upstreamUrls }) {
     return () => {
       window.removeEventListener('mousemove', onMove)
       window.removeEventListener('mouseup', onUp)
+      batch.cancel()
     }
   }, [display.scale, updateLayer])
 

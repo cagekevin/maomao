@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { Sparkles, X, Search, Plus, Check, Pencil, Trash2, List, Clock } from 'lucide-react'
 import {
@@ -8,6 +8,7 @@ import {
 } from './promptManager.js'
 import { showToast } from './toastStore.js'
 import { subscribe } from './eventBus.js'
+import { createImeInput } from './utils.js'
 
 /**
  * 提示词库大弹窗（复刻 maomao/src/components/prompts/PromptLibrary.jsx）。
@@ -22,13 +23,20 @@ import { subscribe } from './eventBus.js'
  *  - defaultCategory 默认分类（image/video/text/''）
  *  - presetPrompts 可选的预设数组覆盖（不传则从本地读）
  */
-export default function PromptLibrary({ open, onClose, onUse, defaultCategory = '', presetPrompts }) {
+function PromptLibrary({ open, onClose, onUse, defaultCategory = '', presetPrompts }) {
   const [activeTab, setActiveTab] = useState('mine') // mine | recent
   const [searchKeyword, setSearchKeyword] = useState('')
+  const [debouncedKeyword, setDebouncedKeyword] = useState('') // P2：过滤用防抖值（输入即时、过滤停顿后触发）
   const [selectedCategory, setSelectedCategory] = useState(defaultCategory)
   const [editingIndex, setEditingIndex] = useState(-1)
   const [showNewForm, setShowNewForm] = useState(false)
   const [formData, setFormData] = useState({ title: '', type: 'all', prompt: '' })
+
+  // P2/P12：搜索 IME 感知防抖提交（组字中不触发过滤，组字结束补提交一次）
+  const searchIme = useRef(null)
+  if (searchIme.current == null) {
+    searchIme.current = createImeInput((v) => setDebouncedKeyword(v), 200)
+  }
 
   // 预设列表：外部传入优先，否则本地读
   const [localPresets, setLocalPresets] = useState(() => loadPresets())
@@ -45,6 +53,8 @@ export default function PromptLibrary({ open, onClose, onUse, defaultCategory = 
     if (open) {
       setSelectedCategory(defaultCategory)
       setSearchKeyword('')
+      setDebouncedKeyword('')
+      searchIme.current?.cancel()
       setActiveTab('mine')
       setEditingIndex(-1)
       setShowNewForm(false)
@@ -58,8 +68,8 @@ export default function PromptLibrary({ open, onClose, onUse, defaultCategory = 
   const displayCards = useMemo(() => {
     let list = activeTab === 'recent' ? recentCards : cards
     if (selectedCategory) list = list.filter((c) => c.category === selectedCategory)
-    return searchCards(list, searchKeyword)
-  }, [activeTab, recentCards, cards, selectedCategory, searchKeyword])
+    return searchCards(list, debouncedKeyword)
+  }, [activeTab, recentCards, cards, selectedCategory, debouncedKeyword])
 
   const handleUse = (card) => {
     recordRecent(card.id)
@@ -128,7 +138,12 @@ export default function PromptLibrary({ open, onClose, onUse, defaultCategory = 
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-faint" />
             <input
               value={searchKeyword}
-              onChange={(e) => setSearchKeyword(e.target.value)}
+              onChange={(e) => {
+                setSearchKeyword(e.target.value)
+                searchIme.current?.onChange(e.target.value, e.nativeEvent.isComposing)
+              }}
+              onCompositionEnd={(e) => searchIme.current?.onCompositionEnd(e.target.value)}
+              onBlur={() => searchIme.current?.cancel()}
               placeholder="搜索标题或提示词内容"
               className="w-full h-[34px] bg-surface border border-edge rounded-[10px] pl-9 pr-3 text-body text-body-sm outline-none focus:border-edge-strong box-border"
             />
@@ -286,3 +301,5 @@ export default function PromptLibrary({ open, onClose, onUse, defaultCategory = 
     document.body
   )
 }
+
+export default React.memo(PromptLibrary)

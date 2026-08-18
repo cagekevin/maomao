@@ -8,6 +8,7 @@
  *  - save() 时：_apiKey 非空 → api_key；_clearKey → clear_key；否则不传（沿用）
  */
 import { useSyncExternalStore } from 'react'
+import { useStoreSelector } from '../useStoreSelector.js'
 import { providerApi } from './settingsApi.js'
 import { contentSetAsync } from '../contentStore.js'
 import { generateId } from '../idGen.js'
@@ -41,6 +42,12 @@ function getSnapshot() {
 }
 export function useProviders() {
   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
+}
+
+/** 原子订阅：只订阅 providers 列表（P5）。只读供应商列表的消费方（useScriptBoxEngine 等）
+ *  不随 dirty/loading/testResult 等 UI 态变更连坐重渲染。 */
+export function useProvidersList() {
+  return useStoreSelector(subscribe, getSnapshot, (s) => s.providers)
 }
 
 function emptyProvider() {

@@ -12,7 +12,7 @@ import { Handle } from '@xyflow/react'
  * id: null」（见 App.jsx onConnectEnd 建 ghost-edge 的 target=ghost-target）。
  * 加一个透明 Handle 让 React Flow 能解析幽灵边，且节点本体仍不可见（style 1x1 透明）。
  */
-export default function GhostTargetNode() {
+function GhostTargetNode() {
   return (
     <Handle
       type="target"
@@ -33,3 +33,4 @@ export default function GhostTargetNode() {
     />
   )
 }
+export default React.memo(GhostTargetNode)

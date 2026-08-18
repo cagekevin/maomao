@@ -12,10 +12,12 @@ import { renderHook } from '@testing-library/react'
 
 const setNodes = vi.fn()
 const getNodes = vi.fn(() => [{ id: 'n1', width: 400, height: 100, style: { width: 400, height: 100 } }])
+// P7：useFitNodeRatio 改为 getNode(id) 实时读（替 getNodes().find），测试 mock 需同步提供
+const getNode = vi.fn((id) => getNodes().find((n) => n.id === id))
 const updateNodeInternals = vi.fn()
 
 vi.mock('@xyflow/react', () => ({
-  useReactFlow: () => ({ getNodes, setNodes, screenToFlowPosition: (p) => p }),
+  useReactFlow: () => ({ getNodes, getNode, setNodes, screenToFlowPosition: (p) => p }),
   useUpdateNodeInternals: () => updateNodeInternals,
 }))
 
@@ -56,12 +58,12 @@ describe('useFitNodeRatio', () => {
 
   it('fitFromImage / fitFromVideo 透传到 fitByRatio（读取节点尺寸）', () => {
     const { result } = renderHook(() => useFitNodeRatio('n1'))
-    getNodes.mockClear()
+    getNode.mockClear()
     result.current.fitFromImage({ currentTarget: { naturalWidth: 800, naturalHeight: 400 } })
     // handler 透传 media 尺寸 → fitByRatio 读取当前节点尺寸
-    expect(getNodes).toHaveBeenCalled()
-    getNodes.mockClear()
+    expect(getNode).toHaveBeenCalled()
+    getNode.mockClear()
     result.current.fitFromVideo({ currentTarget: { videoWidth: 1600, videoHeight: 400 } })
-    expect(getNodes).toHaveBeenCalled()
+    expect(getNode).toHaveBeenCalled()
   })
 })

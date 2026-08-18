@@ -16,7 +16,7 @@ import { useNodeResize } from './hooks.js'
  * @returns {Function} fitByRatio(naturalW, naturalH) 传入媒体真实宽高即调整节点形状
  */
 export function useFitNodeRatio(id) {
-  const { getNodes } = useReactFlow()
+  const { getNode } = useReactFlow()
   const { onMainBoxResize } = useNodeResize(id)
 
   const fitByRatio = useCallback(
@@ -24,14 +24,14 @@ export function useFitNodeRatio(id) {
       if (!naturalW || !naturalH) return
       const ratio = naturalW / naturalH
       if (!isFinite(ratio) || ratio <= 0) return
-      const curNode = getNodes().find((n) => n.id === id)
+      const curNode = getNode(id)
       const curW = curNode?.width ?? curNode?.style?.width ?? 260
       const h = Math.round(curW / ratio)
       const clamped = Math.min(900, Math.max(80, h))
       if (Math.abs(clamped - (curNode?.height ?? curNode?.style?.height ?? 0)) < 4) return
       onMainBoxResize(Math.round(curW), clamped)
     },
-    [id, getNodes, onMainBoxResize]
+    [id, getNode, onMainBoxResize]
   )
 
   // 便捷绑定：图片 img.onLoad / 视频 video.onLoadedMetadata 直接透传

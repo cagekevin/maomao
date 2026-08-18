@@ -1,7 +1,10 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+// @vitest-environment jsdom
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import {
-  FOLDERS, detectAssetType, filterByFolder, addAssets, removeAsset, clearAssets, loadAssets, getAssets,
+  FOLDERS, detectAssetType, filterByFolder, addAssets, removeAsset, clearAssets, loadAssets, getAssets, flushPersist,
 } from '../../src/components/base/assetStore.js'
+
+const STORAGE_KEY = 'yimao:yimao_asset_library' // storageAdapter 对键加 yimao: 前缀
 
 beforeEach(() => {
   clearAssets()
@@ -55,5 +58,50 @@ describe('素材库数据层 §2.18', () => {
   it('clearAssets 清空', () => {
     clearAssets()
     expect(getAssets()).toHaveLength(0)
+  })
+})
+
+describe('assetStore P4 落盘节流', () => {
+  beforeEach(() => {
+    // 排空文件级 beforeEach 用真实定时器排的待落盘（避免脏 timer 污染假定时器窗口，导致后续 schedule 不排程）
+    flushPersist()
+    vi.useFakeTimers()
+    localStorage.removeItem(STORAGE_KEY)
+  })
+  afterEach(() => { vi.useRealTimers() })
+
+  it('高频变更（addAssets/removeAsset）在防抖窗口内不触发落盘，窗口结束只落盘 1 次', () => {
+    clearAssets()
+    addAssets([{ url: '/a.png', type: 'image' }])
+    expect(localStorage.getItem(STORAGE_KEY)).toBeNull()
+    addAssets([{ url: '/b.png', type: 'image' }])
+    removeAsset(getAssets()[0].id)
+    expect(localStorage.getItem(STORAGE_KEY)).toBeNull()
+    vi.advanceTimersByTime(300)
+    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY))
+    expect(Array.isArray(saved)).toBe(true)
+    // 窗口内 3 次变更合并为最终态：加了 2 个、删了 1 个 → 只剩 1 个
+    expect(saved).toHaveLength(1)
+  })
+
+  it('flushPersist 强制立即落盘（供页面卸载兜底）', () => {
+    clearAssets()
+    addAssets([{ url: '/c.png', type: 'image' }])
+    expect(localStorage.getItem(STORAGE_KEY)).toBeNull()
+    flushPersist()
+    expect(localStorage.getItem(STORAGE_KEY)).not.toBeNull()
+    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY))
+    expect(saved).toHaveLength(1)
+  })
+
+  it('flushPersist 后防抖窗口内不重复落盘', () => {
+    const setSpy = vi.spyOn(Storage.prototype, 'setItem')
+    clearAssets()
+    addAssets([{ url: '/d.png', type: 'image' }])
+    flushPersist()
+    const writesBefore = setSpy.mock.calls.filter(([k]) => k === STORAGE_KEY).length
+    vi.advanceTimersByTime(300) // 原定时器已清，不应再写
+    const writesAfter = setSpy.mock.calls.filter(([k]) => k === STORAGE_KEY).length
+    expect(writesAfter).toBe(writesBefore)
   })
 })

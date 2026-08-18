@@ -14,12 +14,13 @@ import { renderHook, act } from '@testing-library/react'
 
 const setNodes = vi.fn()
 const getNodes = vi.fn(() => [{ id: 'sb1', data: { shots: [] } }])
+const getNode = vi.fn((nid) => getNodes().find((n) => n.id === nid))
 const setEdges = vi.fn()
 const addNodes = vi.fn()
 const screenToFlowPosition = vi.fn(() => ({ x: 5, y: 7 }))
 
 vi.mock('@xyflow/react', () => ({
-  useReactFlow: () => ({ getNodes, setNodes, setEdges, addNodes, screenToFlowPosition }),
+  useReactFlow: () => ({ getNodes, getNode, setNodes, setEdges, addNodes, screenToFlowPosition }),
 }))
 
 const engineCallbacks = {
@@ -31,18 +32,19 @@ const createScriptBoxEngine = vi.fn((cfg) => ({ ...engineCallbacks, __cfg: cfg }
 vi.mock('../../src/components/base/scriptBoxEngine.js', () => ({ createScriptBoxEngine: (...a) => createScriptBoxEngine(...a) }))
 
 const loadProviders = vi.fn(() => Promise.resolve())
-const useProviders = vi.fn(() => ({ providers: [{ id: 'p1', isPrimary: true }] }))
-vi.mock('../../src/components/base/settings/providerStore.js', () => ({ useProviders: (...a) => useProviders(...a), load: (...a) => loadProviders(...a) }))
+const useProvidersList = vi.fn(() => [{ id: 'p1', isPrimary: true }])
+vi.mock('../../src/components/base/settings/providerStore.js', () => ({ useProvidersList: (...a) => useProvidersList(...a), load: (...a) => loadProviders(...a) }))
 
 const { useScriptBoxEngine } = await import('../../src/components/base/useScriptBoxEngine.js')
 
 beforeEach(() => {
   setNodes.mockClear()
   getNodes.mockClear()
+  getNode.mockClear()
   addNodes.mockClear()
   createScriptBoxEngine.mockClear()
   loadProviders.mockClear()
-  useProviders.mockReturnValue({ providers: [{ id: 'p1', isPrimary: true }] })
+  useProvidersList.mockReturnValue([{ id: 'p1', isPrimary: true }])
 })
 
 function injectCall() {

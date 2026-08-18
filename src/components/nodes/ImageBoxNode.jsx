@@ -36,7 +36,7 @@ import { downloadUrl as clipboardDownload } from '../base/clipboard.js'
  *   portal 缩略图更多菜单（fixed 定位）
  *   <FullscreenModal> 放大查看大图 </FullscreenModal>
  */
-export default function ImageBoxNode({ id, data, selected }) {
+function ImageBoxNode({ id, data, selected }) {
   const { setNodes } = useReactFlow()
   const { isHidden } = useMediaDegrade()
   const hideImage = isHidden('image')
@@ -690,3 +690,4 @@ function ChevronRightIcon() {
     </svg>
   )
 }
+export default React.memo(ImageBoxNode)

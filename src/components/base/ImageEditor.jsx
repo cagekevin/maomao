@@ -8,6 +8,7 @@ import {
 import ReactCrop, { centerCrop, makeAspectCrop } from 'react-image-crop'
 import 'react-image-crop/dist/ReactCrop.css'
 import { logger } from './logger.js'
+import { createRafBatch } from './utils.js'
 
 /**
  * 全屏图片编辑器（复刻官方 _Component129.jsx 图片编辑 / ImageNode 的「裁剪」「标记」入口）。
@@ -145,11 +146,15 @@ export default function ImageEditor({ imageUrl, initialTool = 'pencil', onSave, 
     setZoom(clampZoom(Math.min((vp.clientWidth - 32) / imgSize.w, (vp.clientHeight - 32) / imgSize.h, 1)))
   }, [imgSize, clampZoom])
 
-  // 滚轮缩放（画布区）
+  // 滚轮缩放（画布区）；P3：高频 → rAF 合并 setZoom（last-args-wins，每帧只按最新 deltaY 缩放一次）
+  const wheelRaf = useRef(null)
+  if (wheelRaf.current == null) {
+    wheelRaf.current = createRafBatch((deltaY) => setZoom((z) => clampZoom(z * (deltaY < 0 ? 1.1 : 0.9))))
+  }
   const onWheel = useCallback((e) => {
     e.preventDefault()
-    setZoom((z) => clampZoom(z * (e.deltaY < 0 ? 1.1 : 0.9)))
-  }, [clampZoom])
+    wheelRaf.current(e.deltaY)
+  }, [])
 
   // 空格平移
   useEffect(() => {
@@ -171,17 +176,22 @@ export default function ImageEditor({ imageUrl, initialTool = 'pencil', onSave, 
   }, [])
   useEffect(() => {
     if (!panning) return
-    const move = (e) => {
+    // P3：move 高频 → rAF 合并 scrollLeft/Top 写入（last-args-wins，move 直接用最新坐标算绝对滚动量）
+    const batch = createRafBatch((clientX, clientY) => {
       const vp = viewportRef.current
       if (vp) {
-        vp.scrollLeft = scrollRef.current.scrollLeft - (e.clientX - scrollRef.current.x)
-        vp.scrollTop = scrollRef.current.scrollTop - (e.clientY - scrollRef.current.y)
+        vp.scrollLeft = scrollRef.current.scrollLeft - (clientX - scrollRef.current.x)
+        vp.scrollTop = scrollRef.current.scrollTop - (clientY - scrollRef.current.y)
       }
+    })
+    const move = (e) => batch(e.clientX, e.clientY)
+    const up = () => {
+      batch.flush() // 松手补最后一帧，避免视口差一帧
+      setPanning(false)
     }
-    const up = () => setPanning(false)
     window.addEventListener('mousemove', move)
     window.addEventListener('mouseup', up)
-    return () => { window.removeEventListener('mousemove', move); window.removeEventListener('mouseup', up) }
+    return () => { window.removeEventListener('mousemove', move); window.removeEventListener('mouseup', up); batch.cancel() }
   }, [panning])
 
   // 事件坐标 → canvas 像素坐标（复刻官方 ce()）

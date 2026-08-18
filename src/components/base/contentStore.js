@@ -22,6 +22,9 @@
  *   subscribe(key, cb)          subscribeAll(cb)
  *   getSnapshot()               getKeySnapshot(key)
  *
+ *   落盘节流
+ *   createDebouncedPersist(write, delay)   高频变更合并落盘（见下方原语注释，P4）
+ *
  * ── 迁移路径 ──
  *   1. 先在 STORAGE_KEYS 登记键
  *   2. 把 store 中 sGet/sSet → content.get/set
@@ -49,6 +52,21 @@ const globalListeners = new Set()
 /** 已 warning 的未登记键集合（防重复 warning） */
 const warnedKeys = new Set()
 
+/** P6：动态键模板 → 编译后正则的模块级缓存（findPatternEntry 循环内不再每次 new RegExp）。
+ *  模板键有限（contracts.js 登记的量级），按模板 lazy 编译一次，天然防无限膨胀。 */
+const patternRegexCache = new Map()
+function getPatternRegex(k) {
+  let re = patternRegexCache.get(k)
+  if (!re) {
+    // 按 {xxx} 拆分 → 转义各段 → 用 .+ 拼接（避免先替换 .+ 再被转义）
+    const parts = k.split(/\{[^}]+\}/)
+    const escaped = parts.map((p) => p.replace(/[.+^$()|[\]\\]/g, '\\$&')).join('.+')
+    re = new RegExp('^' + escaped + '$')
+    patternRegexCache.set(k, re)
+  }
+  return re
+}
+
 // ─────────────────────────────────────────────────────────────────
 // 内部工具
 // ─────────────────────────────────────────────────────────────────
@@ -66,11 +84,8 @@ function tryParse(s) {
 function findPatternEntry(key) {
   for (const [k, v] of Object.entries(STORAGE_KEYS)) {
     if (!v.pattern) continue
-    // 按 {xxx} 拆分 → 转义各段 → 用 .+ 拼接（避免先替换 .+ 再被转义）
-    const parts = k.split(/\{[^}]+\}/)
-    const escaped = parts.map((p) => p.replace(/[.+^$()|[\]\\]/g, '\\$&')).join('.+')
     try {
-      if (new RegExp('^' + escaped + '$').test(key)) return v
+      if (getPatternRegex(k).test(key)) return v
     } catch { /* 忽略无效正则 */ }
   }
   return null
@@ -315,6 +330,54 @@ export function contentGetKeySnapshot(key) {
 // ─────────────────────────────────────────────────────────────────
 // 维护
 // ─────────────────────────────────────────────────────────────────
+
+/**
+ * 落盘节流原语（P4）：高频变更时合并落盘，消除主线程长任务（整数组/整包 JSON.stringify）。
+ * 用法（各 store）：
+ *   const persistDebounced = createDebouncedPersist(() => contentSet(KEY, 最新状态))
+ *   function notify() { persistDebounced.schedule(); listeners.forEach((l) => l()) }
+ * 语义：
+ *  - schedule()：标记待落盘；窗口（delay ms）内多次调用只落盘 1 次。
+ *    write 必须是「读当前最新状态」的 thunk——flush 时才执行，天然把窗口内多次变更合并为最终态。
+ *  - flush()：强制立即落盘（供组件卸载兜底；本原语自动注册 pagehide 触发 flush，防极端刷新丢数据）。
+ *  - cancel()：取消未落盘写（测试/重置用）。
+ * 注意：通知订阅者（notify）保持即时，只有「落盘」被节流——UI 响应性不受影响。
+ */
+export function createDebouncedPersist(write, delay = 300) {
+  let timer = null
+  let pending = false
+  function schedule() {
+    pending = true
+    if (timer) return
+    timer = setTimeout(() => {
+      timer = null
+      pending = false
+      write()
+    }, delay)
+  }
+  function flush() {
+    if (timer) {
+      clearTimeout(timer)
+      timer = null
+    }
+    if (pending) {
+      pending = false
+      write()
+    }
+  }
+  function cancel() {
+    if (timer) {
+      clearTimeout(timer)
+      timer = null
+    }
+    pending = false
+  }
+  // 页面退出时强制落盘，避免防抖窗口内关闭/刷新丢最后变更
+  if (typeof window !== 'undefined') {
+    window.addEventListener('pagehide', flush)
+  }
+  return { schedule, flush, cancel }
+}
 
 /**
  * 清除内容缓存（用于测试/重置）。

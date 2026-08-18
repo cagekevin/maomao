@@ -33,6 +33,8 @@ vi.mock('@xyflow/react', () => ({
   useReactFlow: () => ({
     setNodes: (...a) => h.setNodesMock(...a),
     getNodes: () => h.state.nodes,
+    // P7：FaceMosaicNode 输出用 getNode(id) 读自身位置（替 getNodes().find），mock 需同步提供
+    getNode: (id) => h.state.nodes.find((n) => n.id === id),
     addNodes: () => {},
     addEdges: () => {},
   }),

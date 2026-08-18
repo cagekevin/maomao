@@ -18,6 +18,7 @@ import PromptLibraryButton from '../base/PromptLibraryButton.jsx'
 import { useNodeResize } from '../base/hooks.js'
 import { useConnectedInputs } from '../base/useConnectedInputs.js'
 import { useNodeGeneration } from '../base/useNodeGeneration.js'
+import { debounce } from '../base/utils.js'
 import { buildSpawnNodes, applySpawnSnapshot, makeChildId } from '../base/deriveNodes.js'
 import { useCanvasEdges } from '../base/CanvasEdgesContext.jsx'
 import { saveTextToTasks, toAbsoluteFileUrl } from '../base/filesApi.js'
@@ -33,10 +34,10 @@ import previewUrls from '../base/previewUrl.js'
  * 已迁移到基座：NodeShell + HoverToolbar + ExpandablePanel + ModelSelect + GenerateButton + PromptInput。
  * 保留差异化：文本编辑区（双击编辑）、自动拆分、预设菜单。
  */
-export default function TextNode({ id, data, selected }) {
+function TextNode({ id, data, selected }) {
   // 通用连线数据传递：读取直接上游节点的文本/图片作为参考输入
   const connected = useConnectedInputs(id)
-  const { setEdges, getEdges, getNodes, setNodes } = useReactFlow()
+  const { setEdges, getEdges, getNodes, getNode, setNodes } = useReactFlow()
   const history = useCanvasEdges()
   // 断开连线：素材缩略图红色 × → 删除该来源节点 → 本节点的连线（仅对有 sourceNodeId 的素材）
   const disconnectSource = useCallback(
@@ -57,16 +58,21 @@ export default function TextNode({ id, data, selected }) {
   const effectivePrompt = [prompt?.trim() || text?.trim(), upstreamText].filter(Boolean).join('\n') || ''
   const [autoSplit, setAutoSplit] = useState(data.autoSplit || false)
 
-  // ── 输入落盘：本地 state + 同步写回 node.data（不可变更新）──
+  // ── 输入落盘：本地 state + 防抖写回 node.data（不可变更新）──
   // 复用画布快照 KV（App.jsx 600ms 防抖 autoSave 只存 node.data，不存组件 useState）
   // → 手动输入的文字随画布快照落盘，刷新/切换项目不丢。
-  // 只 re-render 本节点（setState 本来就会），无「全画布刷新」；自动保存已有 600ms 防抖，无需额外防抖。
+  // P2：prompt/text 持续输入走 debouncedPatch（200ms 防抖合并），避免每键 setNodes 全图 node 数组重建；
+  // 卸载时 flush 兜底（防抖窗口内输入不丢）。autoSplit/expanded 是低频切换，保持即时写回。
   const patchData = useCallback(
     (patch) => {
       setNodes((ns) => ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, ...patch } } : n)))
     },
     [id, setNodes]
   )
+  const debouncedPatch = useRef(null)
+  if (debouncedPatch.current == null) {
+    debouncedPatch.current = debounce(patchData, 200)
+  }
   const setPromptPersist = useCallback(
     (v) => {
       setPrompt((prev) => (typeof v === 'function' ? v(prev) : v))
@@ -85,10 +91,12 @@ export default function TextNode({ id, data, selected }) {
   const toggleExpanded = useCallback(() => setExpanded((v) => !v), [])
   // 【React 反模式修复】「写回 node.data」不再在 setState updater 里做（那会在渲染期间 setNodes → BatchProvider 警告）。
   // 改为监听本地 state 变化，用 useEffect 同步落盘（effect 内 setState 合法，不在渲染期）。
-  useEffect(() => { patchData({ prompt }) }, [prompt]) // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { patchData({ text }) }, [text]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { debouncedPatch.current({ prompt }) }, [prompt]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { debouncedPatch.current({ text }) }, [text]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { patchData({ autoSplit }) }, [autoSplit]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { patchData({ expanded }) }, [expanded]) // eslint-disable-line react-hooks/exhaustive-deps
+  // 卸载前 flush 最后一次待提交（避免防抖窗口内丢数据）
+  useEffect(() => () => { debouncedPatch.current?.flush() }, [])
   const [editingText, setEditingText] = useState(false)
   // 记住上次选择的模型（跨节点/跨会话）；初始用记忆值，无记忆回退 gpt-4o-mini
   const { prefs: textPrefs, set: setTextPrefs } = useNodePrefs('textNode', { model: '' })
@@ -183,7 +191,7 @@ export default function TextNode({ id, data, selected }) {
           items = []
         }
         if (Array.isArray(items) && items.length > 0) {
-          const me = getNodes().find((n) => n.id === id)
+          const me = getNode(id)
           const baseX = (me?.position.x ?? 100) + (me?.measured?.width ?? 420) + 60
           const baseY = me?.position.y ?? 100
           const spawned = buildSpawnNodes(
@@ -407,3 +415,4 @@ export default function TextNode({ id, data, selected }) {
     </NodeShell>
   )
 }
+export default React.memo(TextNode)

@@ -3,6 +3,7 @@ import { Search, Plus, Bot, Sparkles, Upload, Download } from 'lucide-react'
 import { getAllSkills, upsertCustomSkill, deleteCustomSkill } from '../../skillStore.js'
 import { showToast } from '../../toastStore.js'
 import { downloadBlob } from '../../clipboard.js'
+import { createImeInput } from '../../utils.js'
 
 const inputCls =
   'w-full bg-canvas border border-edge text-zinc-200 text-sm px-3 py-2.5 rounded-xl outline-none placeholder:text-zinc-600 focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/10 transition disabled:opacity-50'
@@ -22,20 +23,27 @@ export default function SkillSettings() {
   const [selectedId, setSelectedId] = useState('')
   const [category, setCategory] = useState('all')
   const [keyword, setKeyword] = useState('')
+  const [debouncedKeyword, setDebouncedKeyword] = useState('') // P2：过滤用防抖值
   const [form, setForm] = useState(emptyForm())
   const [isNew, setIsNew] = useState(false)
   const mdFileRef = useRef(null)
+
+  // P2/P12：搜索 IME 感知防抖提交（组字中不触发过滤，组字结束补提交一次）
+  const searchIme = useRef(null)
+  if (searchIme.current == null) {
+    searchIme.current = createImeInput((v) => setDebouncedKeyword(v), 200)
+  }
 
   const list = useMemo(() => {
     let result = allSkills
     if (category === 'builtin') result = result.filter((s) => s.builtin)
     if (category === 'custom') result = result.filter((s) => !s.builtin)
-    if (keyword.trim()) {
-      const k = keyword.toLowerCase()
+    if (debouncedKeyword.trim()) {
+      const k = debouncedKeyword.toLowerCase()
       result = result.filter((s) => s.name?.toLowerCase().includes(k) || s.description?.toLowerCase().includes(k))
     }
     return result
-  }, [allSkills, category, keyword])
+  }, [allSkills, category, debouncedKeyword])
 
   const selected = allSkills.find((s) => s.id === selectedId) || null
   const readonly = !!(selected && selected.builtin && !isNew)
@@ -145,7 +153,12 @@ export default function SkillSettings() {
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
               <input
                 value={keyword}
-                onChange={(e) => setKeyword(e.target.value)}
+                onChange={(e) => {
+                  setKeyword(e.target.value)
+                  searchIme.current?.onChange(e.target.value, e.nativeEvent.isComposing)
+                }}
+                onCompositionEnd={(e) => searchIme.current?.onCompositionEnd(e.target.value)}
+                onBlur={() => searchIme.current?.cancel()}
                 placeholder="搜索 Skill"
                 className="w-full h-9 bg-canvas border border-edge rounded-xl pl-9 pr-3 text-xs text-zinc-300 outline-none focus:border-blue-500/50"
               />

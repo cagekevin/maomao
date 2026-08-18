@@ -10,6 +10,7 @@ import { executePlan } from '../../src/components/base/canvasPlanExecutor.js'
 import { runNodeGeneration } from '../../src/components/base/taskStore.js'
 
 // 最小 ctx：addNodes 记录、addEdges 记录、setNodes 写回 imageUrl、getNodes 反映最新
+// P7：executor 的 live 检查用 ctx.getNode（O(1)），mock 需提供（返回当前节点或 undefined）
 function makeCtx(initialNodes = []) {
   let nodes = [...initialNodes]
   let edges = []
@@ -17,6 +18,7 @@ function makeCtx(initialNodes = []) {
     nodes: () => nodes,
     edges: () => edges,
     getNodes: () => nodes,
+    getNode: (id) => nodes.find((n) => n.id === id),
     addNodes: (ns) => { nodes = [...nodes, ...ns] },
     addEdges: (es) => { edges = [...edges, ...es] },
     setNodes: (fn) => { nodes = typeof fn === 'function' ? fn(nodes) : fn },

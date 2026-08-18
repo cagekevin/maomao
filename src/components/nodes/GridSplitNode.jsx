@@ -13,6 +13,7 @@ import { logger } from '../base/logger.js'
 import { generateId } from '../base/idGen.js'
 import { buildSpawnNodes, applySpawnSnapshot } from '../base/deriveNodes.js'
 import { useCanvasEdges } from '../base/CanvasEdgesContext.jsx'
+import { createRafBatch } from '../base/utils.js'
 
 /* ════════════════════════════════════════════════════════════════
  * 图片切分节点（复刻官方 Lo.jsx / gridSplitNode）
@@ -140,8 +141,8 @@ const GRID_PRESETS = [
 ]
 const LASSO_CURSOR = `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='6' cy='6' r='3'/><circle cx='6' cy='18' r='3'/><line x1='20' y1='4' x2='8.12' y2='15.88'/><line x1='14.47' y1='14.48' x2='20' y2='20'/><line x1='8.12' y1='8.12' x2='12' y2='12'/></svg>") 4 4, crosshair`
 
-export default function GridSplitNode({ id, data, selected }) {
-  const { setNodes, getNodes, setEdges, getEdges } = useReactFlow()
+function GridSplitNode({ id, data, selected }) {
+  const { setNodes, getNodes, getNode, setEdges, getEdges } = useReactFlow()
   const history = useCanvasEdges()
   const { isHidden } = useMediaDegrade()
   const { onMainBoxResize } = useNodeResize(id)
@@ -181,7 +182,7 @@ export default function GridSplitNode({ id, data, selected }) {
     const ro = new ResizeObserver(() => {
       const h = el.offsetHeight
       if (!h) return
-      const n = getNodes().find((x) => x.id === id)
+      const n = getNode(id)
       const curH = n?.height ?? n?.style?.height ?? 0
       if (Math.abs(h - curH) < 4) return
       const curW = n?.width ?? n?.style?.width ?? 280
@@ -189,7 +190,7 @@ export default function GridSplitNode({ id, data, selected }) {
     })
     ro.observe(el)
     return () => ro.disconnect()
-  }, [id, getNodes, onMainBoxResize])
+  }, [id, getNode, onMainBoxResize])
 
   // ---- 切分计算 cells（复刻 Lo.jsx I）----
   const cells = useMemo(() => {
@@ -399,22 +400,29 @@ export default function GridSplitNode({ id, data, selected }) {
     if (!dragLine) return
     const el = mainCanvasRef.current
     if (!el) return
+    // P3 注意点②：rect 在拖拽起点缓存一次（画布尺寸拖拽期不变），move 内不再读
     const rect = el.getBoundingClientRect()
-    const onMove = (e) => {
+    // P3：move 高频 → rAF 合并 setHLines/setVLines（last-args-wins，直接用最新坐标算绝对值）
+    const batch = createRafBatch((clientX, clientY) => {
       if (dragLine.type === 'h') {
-        const v = clamp((e.clientY - rect.top) / rect.height, 0.01, 0.99)
+        const v = clamp((clientY - rect.top) / rect.height, 0.01, 0.99)
         setHLines((arr) => norm(arr.map((line, i) => (i === dragLine.index ? v : line))))
       } else {
-        const v = clamp((e.clientX - rect.left) / rect.width, 0.01, 0.99)
+        const v = clamp((clientX - rect.left) / rect.width, 0.01, 0.99)
         setVLines((arr) => norm(arr.map((line, i) => (i === dragLine.index ? v : line))))
       }
+    })
+    const onMove = (e) => batch(e.clientX, e.clientY)
+    const onUp = () => {
+      batch.flush() // 松手补最后一帧，避免差一帧
+      setDragLine(null)
     }
-    const onUp = () => setDragLine(null)
     window.addEventListener('mousemove', onMove)
     window.addEventListener('mouseup', onUp)
     return () => {
       window.removeEventListener('mousemove', onMove)
       window.removeEventListener('mouseup', onUp)
+      batch.cancel()
     }
   }, [dragLine])
 
@@ -451,14 +459,15 @@ export default function GridSplitNode({ id, data, selected }) {
   useEffect(() => {
     if (splitMode !== 'lasso') return
     const el = () => (fullscreen ? fullCanvasRef.current : mainCanvasRef.current)
-    const onMove = (e) => {
+    // P3 注意点②：rect 在绘制起点缓存一次（画布尺寸绘制期不变），move 内不再 getBoundingClientRect
+    const elRef = el()
+    const rect = elRef ? elRef.getBoundingClientRect() : null
+    // P3：move 高频 → rAF 合并（先做采样/去抖，再用最新坐标追加点到形状）
+    const batch = createRafBatch((clientX, clientY) => {
       const rec = activeCellIdRef.current
-      if (!rec) return
-      const elRef = el()
-      if (!elRef) return
-      const rect = elRef.getBoundingClientRect()
-      const x = clamp((e.clientX - rect.left) / rect.width, 0, 1)
-      const y = clamp((e.clientY - rect.top) / rect.height, 0, 1)
+      if (!rec || !rect) return
+      const x = clamp((clientX - rect.left) / rect.width, 0, 1)
+      const y = clamp((clientY - rect.top) / rect.height, 0, 1)
       const dx = x - rec.lastX
       const dy = y - rec.lastY
       if (dx * dx + dy * dy < 0.0006) return
@@ -467,10 +476,12 @@ export default function GridSplitNode({ id, data, selected }) {
       setLassoShapes((arr) =>
         arr.map((s) => (s.id === rec.id ? { ...s, points: [...s.points, { x, y }] } : s))
       )
-    }
+    })
+    const onMove = (e) => batch(e.clientX, e.clientY)
     const onUp = () => {
       const rec = activeCellIdRef.current
       if (!rec) return
+      batch.flush() // 松手补最后一帧，避免形状尾部缺一段
       activeCellIdRef.current = null
       const edge = activeLasso
       setActiveLasso(null)
@@ -493,6 +504,7 @@ export default function GridSplitNode({ id, data, selected }) {
     return () => {
       window.removeEventListener('mousemove', onMove)
       window.removeEventListener('mouseup', onUp)
+      batch.cancel()
     }
   }, [splitMode, fullscreen, activeLasso])
 
@@ -520,7 +532,7 @@ export default function GridSplitNode({ id, data, selected }) {
   const spawnImageNodes = useCallback(
     (list) => {
       if (!list || list.length === 0) return
-      const me = getNodes().find((n) => n.id === id)
+      const me = getNode(id)
       const baseX = (me?.position.x ?? 100) + (me?.measured?.width ?? 400) + 50
       const baseY = me?.position.y ?? 100
       const colsCount = Math.max(1, Math.ceil(Math.sqrt(list.length)))
@@ -1010,3 +1022,4 @@ export default function GridSplitNode({ id, data, selected }) {
     </>
   )
 }
+export default React.memo(GridSplitNode)

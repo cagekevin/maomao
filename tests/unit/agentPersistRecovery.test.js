@@ -50,6 +50,7 @@ describe('AI 助手会话刷新恢复（真实 store）', () => {
     convStore.setAgentKey('canvas-assistant-projZ')
     const r1 = renderHook(() => useAgentChat({ agentKey: 'canvas-assistant-projZ', provider: null }))
     await act(async () => { await r1.result.current.send('你好') })
+    convStore.flushPersist() // P4 落盘节流：send 走防抖落盘，主动刷盘后断言最终态
     const persisted = localStorage.getItem('yimao:agent_conversations_canvas-assistant-projZ')
     expect(persisted).toBeTruthy()
     // 关键：assistant 消息（AI 回复）也应完整落盘，而非只保留 user
@@ -69,6 +70,7 @@ describe('AI 助手会话刷新恢复（真实 store）', () => {
     convStore.setAgentKey('canvas-assistant-projX')
     const r1 = renderHook(() => useAgentChat({ agentKey: 'canvas-assistant-projX', provider: null }))
     await act(async () => { await r1.result.current.send('项目X的消息') })
+    convStore.flushPersist() // P4 落盘节流：send 走防抖落盘，主动刷盘后断言最终态
     expect(localStorage.getItem('yimao:agent_conversations_canvas-assistant-projX')).toBeTruthy()
 
     // 模拟刷新且时序错位：store 的 currentAgentKey 仍在 default，而 hook 已用 projX 挂载。

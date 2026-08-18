@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { deepClone, formatTime, debounce, throttle, useDebouncedEffect } from '../../src/components/base/utils.js'
+import { deepClone, formatTime, debounce, throttle, useDebouncedEffect, createImeInput, createRafBatch } from '../../src/components/base/utils.js'
 import { renderHook } from '@testing-library/react'
 
 describe('deepClone', () => {
@@ -69,6 +69,87 @@ describe('debounce', () => {
     vi.advanceTimersByTime(200)
     expect(fn).not.toHaveBeenCalled()
   })
+
+  it('flush 立即执行最后一次待提交（失焦/卸载落盘兜底）', () => {
+    const fn = vi.fn()
+    const d = debounce(fn, 100)
+    d(1)
+    d(2)
+    d(3)
+    d.flush()
+    expect(fn).toHaveBeenCalledTimes(1)
+    expect(fn).toHaveBeenCalledWith(3)
+    // flush 后再推进窗口：不再重复触发
+    vi.advanceTimersByTime(200)
+    expect(fn).toHaveBeenCalledTimes(1)
+  })
+
+  it('无待提交时 flush 不调用 fn', () => {
+    const fn = vi.fn()
+    const d = debounce(fn, 100)
+    d.flush()
+    expect(fn).not.toHaveBeenCalled()
+  })
+})
+
+describe('createImeInput（P2/P12 输入提交 IME 门控）', () => {
+  beforeEach(() => { vi.useFakeTimers() })
+  afterEach(() => { vi.useRealTimers() })
+
+  it('连续非组字输入：防抖窗口内只提交 1 次，提交最新值', () => {
+    const submit = vi.fn()
+    const i = createImeInput(submit, 200)
+    i.onChange('a', false)
+    i.onChange('ab', false)
+    i.onChange('abc', false)
+    expect(submit).not.toHaveBeenCalled()
+    vi.advanceTimersByTime(199)
+    expect(submit).not.toHaveBeenCalled()
+    vi.advanceTimersByTime(1)
+    expect(submit).toHaveBeenCalledTimes(1)
+    expect(submit).toHaveBeenCalledWith('abc')
+  })
+
+  it('compositionstart~compositionend 组字期间：不提交（即使窗口过了）', () => {
+    const submit = vi.fn()
+    const i = createImeInput(submit, 200)
+    i.onChange('你', true)
+    i.onChange('你们', true)
+    i.onChange('你们好', true)
+    vi.advanceTimersByTime(500)
+    expect(submit).not.toHaveBeenCalled()
+  })
+
+  it('compositionend 后补提交 1 次（组字完成不丢）', () => {
+    const submit = vi.fn()
+    const i = createImeInput(submit, 200)
+    i.onChange('你', true)
+    i.onChange('你们好', true)
+    i.onCompositionEnd('你们好')
+    expect(submit).toHaveBeenCalledTimes(1)
+    expect(submit).toHaveBeenCalledWith('你们好')
+  })
+
+  it('组字中会取消此前非组字的待提交，结束后只提交组字最终值', () => {
+    const submit = vi.fn()
+    const i = createImeInput(submit, 200)
+    i.onChange('a', false) // 排了一个待提交 'a'
+    i.onChange('a你', true) // 组字开始 → 取消 'a' 的待提交
+    vi.advanceTimersByTime(500)
+    expect(submit).not.toHaveBeenCalled()
+    i.onCompositionEnd('a你好')
+    expect(submit).toHaveBeenCalledTimes(1)
+    expect(submit).toHaveBeenCalledWith('a你好')
+  })
+
+  it('cancel 取消未执行的提交', () => {
+    const submit = vi.fn()
+    const i = createImeInput(submit, 200)
+    i.onChange('x', false)
+    i.cancel()
+    vi.advanceTimersByTime(300)
+    expect(submit).not.toHaveBeenCalled()
+  })
 })
 
 describe('throttle', () => {
@@ -113,6 +194,62 @@ describe('useDebouncedEffect', () => {
     const fn = vi.fn()
     renderHook(() => useDebouncedEffect(fn, [1], 100, false))
     await vi.advanceTimersByTimeAsync(200)
+    expect(fn).not.toHaveBeenCalled()
+  })
+})
+
+describe('createRafBatch（P3 高频事件 rAF 合并原语）', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['requestAnimationFrame', 'cancelAnimationFrame', 'setTimeout', 'clearTimeout'] })
+  })
+  afterEach(() => { vi.useRealTimers() })
+
+  it('一帧内多次调用：只执行 1 次，用最后一次入参', () => {
+    const fn = vi.fn()
+    const b = createRafBatch(fn)
+    b(1)
+    b(2)
+    b(3)
+    expect(fn).not.toHaveBeenCalled()
+    vi.advanceTimersByTime(16)
+    expect(fn).toHaveBeenCalledTimes(1)
+    expect(fn).toHaveBeenCalledWith(3)
+  })
+
+  it('跨多帧：每帧只执行 1 次，未触发时不重复执行', () => {
+    const fn = vi.fn()
+    const b = createRafBatch(fn)
+    b(1)
+    vi.advanceTimersByTime(16)
+    b(2)
+    b(3)
+    vi.advanceTimersByTime(16)
+    expect(fn).toHaveBeenCalledTimes(2)
+    expect(fn).toHaveBeenLastCalledWith(3)
+    // 无新调用的一帧：不再触发
+    vi.advanceTimersByTime(16)
+    expect(fn).toHaveBeenCalledTimes(2)
+  })
+
+  it('flush：立即执行最后一次（拖拽松手不差一帧）', () => {
+    const fn = vi.fn()
+    const b = createRafBatch(fn)
+    b(1)
+    b(2)
+    b.flush()
+    expect(fn).toHaveBeenCalledTimes(1)
+    expect(fn).toHaveBeenCalledWith(2)
+    // flush 后不再有待执行帧
+    vi.advanceTimersByTime(16)
+    expect(fn).toHaveBeenCalledTimes(1)
+  })
+
+  it('cancel：丢弃未执行的最后一帧', () => {
+    const fn = vi.fn()
+    const b = createRafBatch(fn)
+    b(1)
+    b.cancel()
+    vi.advanceTimersByTime(16)
     expect(fn).not.toHaveBeenCalled()
   })
 })

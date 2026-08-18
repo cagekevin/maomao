@@ -40,7 +40,7 @@ import React, { useRef, useState, useLayoutEffect } from 'react'
  *  - onClose      关闭回调
  *  - containerRef 画布容器 ref（坐标基准 + 防溢出基准，需与本组件挂在同一个 relative div）
  */
-export default function ContextMenu({ state, items, onClose, containerRef }) {
+function ContextMenu({ state, items, onClose, containerRef }) {
   const menuRef = useRef(null)
   const [pos, setPos] = useState({ top: 0, left: 0 })
 
@@ -75,6 +75,8 @@ export default function ContextMenu({ state, items, onClose, containerRef }) {
     </div>
   )
 }
+
+export default React.memo(ContextMenu)
 
 // 统一渲染 icon：支持「组件引用（函数 / forwardRef 对象）」或「React 元素」两种形式
 function renderIcon(icon, size = 16, className = '') {

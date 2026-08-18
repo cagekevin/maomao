@@ -49,9 +49,10 @@ function makeCtx(initialNodes = [], initialEdges = []) {
   let edges = [...initialEdges]
   return {
     getNodes: () => nodes,
-    setNodes: (fn) => { nodes = typeof fn === 'function' ? fn(nodes) : fn },
+    // P11：setNodes/setEdges 用 vi.fn 包装，便于断言「批量写合并为单次调用」
+    setNodes: vi.fn((fn) => { nodes = typeof fn === 'function' ? fn(nodes) : fn }),
     getEdges: () => edges,
-    setEdges: (fn) => { edges = typeof fn === 'function' ? fn(edges) : fn },
+    setEdges: vi.fn((fn) => { edges = typeof fn === 'function' ? fn(edges) : fn }),
     addNodes: (ns) => { nodes = [...nodes, ...ns] },
     screenToFlowPosition: (p) => p || { x: 0, y: 0 },
     fitView: vi.fn(), zoomIn: vi.fn(), zoomOut: vi.fn(), setCenter: vi.fn(),
@@ -182,6 +183,50 @@ describe('画布 Agent 工具层 §2.5', () => {
     expect(r.data.ids).toHaveLength(2)
   })
 
+  it('P11 batch_create_nodes 单次 setNodes 写回（循环内不逐条写）', () => {
+    const ctx = makeCtx()
+    const t = buildCanvasAgentTools(ctx)
+    const r = t.batch_create_nodes({ nodes: [{ type: 'textNode' }, { type: 'promptNode' }, { type: 'imageNode' }] })
+    expect(r.ok).toBe(true)
+    expect(ctx.getNodes()).toHaveLength(3)
+    expect(ctx.setNodes).toHaveBeenCalledTimes(1) // 合并为一次批量写
+    expect(ctx.setEdges).not.toHaveBeenCalled()   // 无 connectFrom 不触发边写
+  })
+
+  it('P11 batch_create_nodes connectFrom 边合并为单次 setEdges', () => {
+    const ctx = makeCtx([{ id: 'a', type: 'textNode', data: {}, position: {} }])
+    const t = buildCanvasAgentTools(ctx)
+    const r = t.batch_create_nodes({ nodes: [{ type: 'textNode', connectFrom: 'a' }, { type: 'textNode', connectFrom: 'a' }] })
+    expect(r.ok).toBe(true)
+    expect(ctx.setNodes).toHaveBeenCalledTimes(1)
+    expect(ctx.setEdges).toHaveBeenCalledTimes(1)
+    expect(ctx.getEdges()).toHaveLength(2)
+  })
+
+  it('P11 batch_create_nodes 位置与逐条 create_node 完全一致（合并写不改变布局语义）', () => {
+    // 基线：逐条 create_node（受选中节点锚定，位置确定性）
+    const c1 = makeCtx([{ id: 'sel', type: 'textNode', selected: true, position: { x: 0, y: 0 }, width: 300, data: {} }])
+    const t1 = buildCanvasAgentTools(c1)
+    const seqPos = [t1.create_node({ type: 'textNode' }).data.position, t1.create_node({ type: 'textNode' }).data.position]
+    // P11：批量建（合并为单次写）
+    const c2 = makeCtx([{ id: 'sel', type: 'textNode', selected: true, position: { x: 0, y: 0 }, width: 300, data: {} }])
+    const t2 = buildCanvasAgentTools(c2)
+    const b = t2.batch_create_nodes({ nodes: [{ type: 'textNode' }, { type: 'textNode' }] })
+    const batchPos = b.data.ids.map((id) => c2.getNodes().find((n) => n.id === id).position)
+    expect(batchPos).toEqual(seqPos)
+    expect(c2.setNodes).toHaveBeenCalledTimes(1)
+  })
+
+  it('P11 batch_create_nodes 含非法类型：合法照建、非法跳过并保留错误', () => {
+    const ctx = makeCtx()
+    const t = buildCanvasAgentTools(ctx)
+    const r = t.batch_create_nodes({ nodes: [{ type: 'textNode' }, { type: 'nope' }] })
+    expect(r.ok).toBe(true) // 有合法节点仍成功
+    expect(r.data.ids).toHaveLength(1)
+    expect(ctx.getNodes()).toHaveLength(1)
+    expect(ctx.setNodes).toHaveBeenCalledTimes(1)
+  })
+
   it('delete_node 连带删边', () => {
     const ctx = makeCtx(
       [{ id: 'a', type: 'textNode', data: {}, position: {} }, { id: 'b', type: 'textNode', data: {}, position: {} }],
@@ -265,6 +310,34 @@ describe('画布 Agent 工具层 §2.5', () => {
     const t = buildCanvasAgentTools(ctx)
     const r = t.batch_connect_nodes({ connections: [{ source: 'a', target: 'b' }, { source: 'b', target: 'c' }] })
     expect(r.data.connected).toBe(2)
+  })
+
+  it('P11 batch_connect_nodes 单次 setEdges 写回（循环内不逐条写）', () => {
+    const ctx = makeCtx([{ id: 'a' }, { id: 'b' }, { id: 'c' }, { id: 'd' }])
+    const t = buildCanvasAgentTools(ctx)
+    const r = t.batch_connect_nodes({ connections: [{ source: 'a', target: 'b' }, { source: 'b', target: 'c' }, { source: 'c', target: 'd' }] })
+    expect(r.ok).toBe(true)
+    expect(r.data.connected).toBe(3)
+    expect(ctx.getEdges()).toHaveLength(3)
+    expect(ctx.setEdges).toHaveBeenCalledTimes(1)
+  })
+
+  it('P11 batch_connect_nodes 去重：重复连线计成功但只写一次', () => {
+    const ctx = makeCtx([{ id: 'a' }, { id: 'b' }])
+    const t = buildCanvasAgentTools(ctx)
+    const r = t.batch_connect_nodes({ connections: [{ source: 'a', target: 'b' }, { source: 'a', target: 'b' }] })
+    expect(r.data.connected).toBe(2) // 已存在连线仍计成功（对齐原语义）
+    expect(ctx.getEdges()).toHaveLength(1)
+    expect(ctx.setEdges).toHaveBeenCalledTimes(1)
+  })
+
+  it('P11 batch_connect_nodes 非法端点不写边、不计数', () => {
+    const ctx = makeCtx([{ id: 'a' }, { id: 'b' }])
+    const t = buildCanvasAgentTools(ctx)
+    const r = t.batch_connect_nodes({ connections: [{ source: 'a', target: 'b' }, { source: 'x', target: 'a' }] })
+    expect(r.data.connected).toBe(1) // 仅合法的一条
+    expect(ctx.getEdges()).toHaveLength(1)
+    expect(ctx.setEdges).toHaveBeenCalledTimes(1)
   })
 
   it('delete_edge 按 edgeId 或端点删', () => {

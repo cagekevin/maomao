@@ -10,13 +10,19 @@ import { describe, it, expect } from 'vitest'
 const mod = await import('../../src/components/base/NodePalette.jsx')
 const { buildNodeTypeComponents, paletteNodes, builtinNodeTypes } = mod
 
+// React.memo/forwardRef 在 React 19 返回带 $$typeof 标记的对象而非裸函数，
+// P1 节点 memo 化后 nodeTypes 值仍是合法 React 组件类型，故用「函数 或 React 元素类型」判断。
+const isReactComponent = (v) =>
+  typeof v === 'function' ||
+  (typeof v === 'object' && v !== null && typeof v.$$typeof === 'symbol')
+
 describe('NodePalette.buildNodeTypeComponents（nodeTypes 单源化）', () => {
   it('返回 type → 组件函数 映射', () => {
     const map = buildNodeTypeComponents()
     expect(map).toBeTypeOf('object')
     for (const [type, comp] of Object.entries(map)) {
       expect(typeof type).toBe('string')
-      expect(typeof comp).toBe('function') // React 组件是函数
+      expect(isReactComponent(comp), `${type} 不是合法 React 组件类型`).toBe(true) // React 组件类型（函数 或 memo/forwardRef）
     }
   })
 
@@ -35,15 +41,15 @@ describe('NodePalette.buildNodeTypeComponents（nodeTypes 单源化）', () => {
 
   it('含顶部快捷 HIDDEN 节点（textNode/promptNode/discountVideoNode）', () => {
     const map = buildNodeTypeComponents()
-    expect(map.textNode).toBeTypeOf('function')
-    expect(map.promptNode).toBeTypeOf('function')
-    expect(map.discountVideoNode).toBeTypeOf('function')
+    expect(isReactComponent(map.textNode), 'textNode 非合法组件类型').toBe(true)
+    expect(isReactComponent(map.promptNode), 'promptNode 非合法组件类型').toBe(true)
+    expect(isReactComponent(map.discountVideoNode), 'discountVideoNode 非合法组件类型').toBe(true)
   })
 
   it('除 director3dNode 外每个 palette 目录项都有 component 字段（单源前提）', () => {
     for (const n of paletteNodes) {
       if (n.type === 'director3dNode') continue // WebGL 重依赖例外，由 App 补
-      expect(n.component, `paletteNodes[${n.type}] 缺 component`).toBeTypeOf('function')
+      expect(isReactComponent(n.component), `paletteNodes[${n.type}] 缺 component`).toBe(true)
     }
   })
 

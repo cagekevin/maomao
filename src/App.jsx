@@ -21,7 +21,7 @@ import Director3DNode from './components/nodes/Director3DNode.jsx'
 import AgentPanel from './components/panels/AgentPanel.jsx'
 import { getNodeImageUrl } from './components/base/useCanvasAgentTools.js'
 import LeftPanel from './components/base/LeftPanel.jsx'
-import { switchProject, loadCanvasState, saveCanvasState, getCurrentProject, initProjects, useProjects } from './components/base/projectStore.js'
+import { switchProject, loadCanvasState, saveCanvasState, getCurrentProject, initProjects, useCurrentProjectId } from './components/base/projectStore.js'
 import { logger } from './components/base/logger.js'
 import { useNodePosition } from './components/base/hooks.js'
 import CustomEdge from './components/edges/CustomEdge.jsx'
@@ -51,7 +51,7 @@ import { initTaskRecovery } from './components/base/pollTask.js'
 import { createGroupFromNodes, ungroupNodes, deleteNodesWithCascade, duplicateSelectedWithEdges } from './components/base/groupNodes.js'
 import { saveInlineToLocal } from './components/base/filesApi.js'
 import { generateId } from './components/base/idGen.js'
-import { deepClone } from './components/base/utils.js'
+import { deepClone, createRafBatch } from './components/base/utils.js'
 
 /* ======================================================================
  * 【区 1】常量与配置区
@@ -89,7 +89,7 @@ function Canvas() {
   // （后端 lastOpened=proj_mssij9sn_b04a1，而本地 localStorage 可能仍是 default），
   // 若画布加载 effect 只用挂载时的旧 id，就会读到错项目快照，而保存又写到新 id → 刷新丢节点。
   // 订阅 currentProjectId 后，initProjects 覆盖一完成，加载 effect 即重跑并加载正确项目。
-  const { currentProjectId: activeProjectId } = useProjects()
+  const activeProjectId = useCurrentProjectId()
 
   // 异步加载当前项目画布快照（KV）：依赖 activeProjectId，跟随「当前项目」变化而重载。
   const [canvasLoaded, setCanvasLoaded] = React.useState(false)
@@ -227,8 +227,13 @@ function Canvas() {
   // 当前缩放百分比（监听 viewport 变化，驱动左下角 zoom% 显示）。
   // 接真系统：若需在缩小到某级做额外事（如隐藏 toolbar 部分按钮），可直接读 lodLevel state（见下）。
   const [zoomPercent, setZoomPercent] = React.useState(100)
+  // P3：viewport 高频变化（拖拽/滚轮缩放）→ rAF 合并 setState，避免一帧内多次重渲染
+  const viewportRaf = React.useRef(null)
+  if (viewportRaf.current == null) {
+    viewportRaf.current = createRafBatch((zoom) => setZoomPercent(Math.round((zoom || 1) * 100)))
+  }
   const onViewportChange = React.useCallback((v) => {
-    setZoomPercent(Math.round((v?.zoom || 1) * 100))
+    viewportRaf.current?.(v?.zoom || 1)
   }, [])
 
   // 始终指向最新 nodes/edges（撤销/重做取快照用）

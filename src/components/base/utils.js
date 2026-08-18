@@ -34,15 +34,68 @@ export function formatTime(ts = Date.now(), opts = {}) {
   try { return d.toLocaleString('zh-CN', { hour12: false }) } catch { return '' }
 }
 
-/** 防抖（返回包装函数 + cancel） */
+/** 防抖（返回包装函数 + cancel + flush） */
 export function debounce(fn, ms) {
   let timer = null
+  let lastArgs = null
   const wrapped = (...args) => {
+    lastArgs = args
     if (timer) clearTimeout(timer)
     timer = setTimeout(() => { timer = null; fn(...args) }, ms)
   }
   wrapped.cancel = () => { if (timer) { clearTimeout(timer); timer = null } }
+  // flush：立即执行最后一次待提交（失焦/卸载落盘兜底，避免防抖窗口内丢数据）
+  wrapped.flush = () => {
+    if (timer) { clearTimeout(timer); timer = null }
+    if (lastArgs) fn(...lastArgs)
+    lastArgs = null
+  }
   return wrapped
+}
+
+/**
+ * IME 感知的输入提交工厂（P2/P12 收口原语，替代散落的手写 setTimeout 防抖）。
+ *
+ * 场景：中文/日文输入法组字期间，onChange 会携带「组字中间态」频繁触发；
+ * 若直接防抖提交（搜索/落盘/写 store），会拿未组完的拼音去搜索，体验抖动。
+ * 本工厂用 isComposing 门控：组字中仅缓存最新值不提交；组字结束立即提交一次；
+ * 非组字输入走 debounce 合并（连续输入窗口内只提交 1 次，提交最新值）。
+ *
+ * 用法（与 AgentPanel isComposing 范式对齐）：
+ *   const submit = createImeInput((v) => setQuery(v), 200)
+ *   <input
+ *     value={q}
+ *     onChange={(e) => submit.onChange(e.target.value, e.nativeEvent.isComposing)}
+ *     onCompositionEnd={(e) => submit.onCompositionEnd(e.target.value)}
+ *   />
+ *
+ * 语义：
+ *  - onChange(value, composing=true)：组字中 → 仅缓存，不提交、不调度。
+ *  - onChange(value, composing=false)：非组字 → 重置防抖窗口，窗口内多次输入只提交 1 次（最新值）。
+ *  - onCompositionEnd(value)：组字结束 → 立即提交一次（补触发，避免组字完成不提交）。
+ *  - cancel()：取消未执行的提交（卸载/重置兜底）。
+ */
+export function createImeInput(submit, ms = 200) {
+  const d = debounce(submit, ms)
+  let latest = ''
+  return {
+    onChange(value, composing = false) {
+      latest = value
+      if (composing) {
+        d.cancel() // 组字中：取消可能存在的待提交（避免拼音中间态触发）
+        return
+      }
+      d(latest)
+    },
+    onCompositionEnd(value) {
+      latest = value
+      d.cancel()
+      submit(latest) // 组字结束立即提交一次
+    },
+    cancel() {
+      d.cancel()
+    }
+  }
 }
 
 /** 节流（返回包装函数 + cancel） */
@@ -63,6 +116,49 @@ export function throttle(fn, ms) {
     }
   }
   wrapped.cancel = () => { if (timer) { clearTimeout(timer); timer = null } }
+  return wrapped
+}
+
+/**
+ * rAF 合并原语（P3 收口：高频 pointermove/wheel 合并到每帧只执行 1 次）。
+ *
+ * 场景：拖拽/缩放手柄/滚轮缩放等高频事件，若每个事件都同步做状态更新/样式写入，
+ * 一帧内会重复计算多次，浪费主线程。本原语只记录「最新入参」，由 requestAnimationFrame
+ * 合并到下一帧统一执行一次 fn（last-args-wins）。
+ *
+ * 用法（对齐方案 P3 注意点）：
+ *  - 入参是「绝对值/最新值」时直接透传：`const batch = createRafBatch((x, y) => ...)`，move 里 `batch(e.clientX, e.clientY)`。
+ *  - 入参是「累计增量」时：move 里累加到 pending 再 `batch(pending)`，fn 里消费后清零（保证每帧增量不丢）。
+ *  - end/卸载前必须 flush() 最后一次状态，否则松手位置差一帧；真正结束用 cancel() 丢弃待执行帧。
+ *
+ * 返回：
+ *  - wrapped(...args)：记录最新入参并调度一帧
+ *  - wrapped.flush()：取消待执行帧并立即执行最后一次（拖拽结束收尾）
+ *  - wrapped.cancel()：丢弃未执行的最后一帧（真正结束/卸载）
+ */
+export function createRafBatch(fn) {
+  let rafId = null
+  let lastArgs = null
+  const wrapped = (...args) => {
+    lastArgs = args
+    if (rafId != null) return
+    rafId = requestAnimationFrame(() => {
+      rafId = null
+      const a = lastArgs
+      lastArgs = null
+      if (a) fn(...a)
+    })
+  }
+  wrapped.flush = () => {
+    if (rafId != null) { cancelAnimationFrame(rafId); rafId = null }
+    const a = lastArgs
+    lastArgs = null
+    if (a) fn(...a)
+  }
+  wrapped.cancel = () => {
+    if (rafId != null) { cancelAnimationFrame(rafId); rafId = null }
+    lastArgs = null
+  }
   return wrapped
 }
 

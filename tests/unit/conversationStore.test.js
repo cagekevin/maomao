@@ -7,7 +7,7 @@ import {
   setCurrentPending, getCurrentPending, getActiveAiUndoStack, pushActiveAiUndo, popActiveAiUndo,
   normalizeConversation, setAgentKey, getActiveConversationId, getConversations,
   getLastUserReferenceImages, getLastGeneratedImages, getCurrentImageMap,
-  getCurrentRunMode, setCurrentRunMode,
+  getCurrentRunMode, setCurrentRunMode, flushPersist,
 } from '../../src/components/base/conversationStore.js'
 
 beforeEach(() => {
@@ -18,6 +18,7 @@ beforeEach(() => {
 
 /** 在每个项目（agentKey）之间切换前，重置内存缓存，模拟「从未初始化该项目」的干净状态 */
 function switchToProject(projectId) {
+  flushPersist() // P4 落盘节流：切项目前先把上一个项目的待落盘变更刷下去
   resetConversationCache()
   setAgentKey(`canvas-assistant-${projectId}`)
 }
@@ -128,6 +129,24 @@ describe('会话隔离数据层 §2.15', () => {
     expect(c.workflow).toBeNull()
   })
 
+  it('normalizeConversation 给无 id 消息补稳定唯一 id，已有 id 保留（P15 列表 key 锚点）', () => {
+    const c = normalizeConversation({
+      title: 'X',
+      messages: [
+        { role: 'user', content: 'a' },
+        { role: 'assistant', content: 'b', id: 'keep-me' },
+      ],
+    })
+    // 无 id 的消息被补上唯一 id；已有 id 的消息保留
+    expect(c.messages[0].id).toBeTruthy()
+    expect(c.messages[1].id).toBe('keep-me')
+    expect(c.messages[0].id).not.toBe(c.messages[1].id)
+    // 幂等：二次归一化不改变已补的 id（保证列表 key 稳定）
+    const again = normalizeConversation(c)
+    expect(again.messages[0].id).toBe(c.messages[0].id)
+    expect(again.messages[1].id).toBe('keep-me')
+  })
+
   it('hydrated 守卫：未 apply 前 setCurrentSnapshot 不落盘（内存可改，但不写 localStorage）', () => {
     const id = ensureActiveConversation()
     // 未 apply（hydrated=false）：内存可写入，但不落盘
@@ -137,6 +156,7 @@ describe('会话隔离数据层 §2.15', () => {
     expect(persisted).toBeNull() // 关键：未 hydrated 前不落盘，防挂载覆盖
     applyConversation(id)
     setCurrentSnapshot({ messages: [{ role: 'user', content: '正式' }] })
+    flushPersist() // P4 落盘节流：主动刷盘，立即读到最终落盘态
     const persisted2 = localStorage.getItem('yimao:agent_conversations_canvas-assistant')
     expect(persisted2).toBeTruthy() // 已 hydrated，落盘
     expect(getCurrentSnapshot().messages).toHaveLength(1)
@@ -189,6 +209,7 @@ describe('按项目隔离会话（project 作为最顶层）', () => {
     setCurrentSnapshot({ messages: [{ role: 'user', content: 'D 内容' }] })
 
     // 再次 setAgentKey 同一项目：不重置，会话保留
+    flushPersist() // P4 落盘节流：重置缓存前先刷盘，确保重读时能取到已落盘数据
     resetConversationCache()
     setAgentKey('canvas-assistant-projD')
     expect(getCurrentSnapshot().messages[0].content).toBe('D 内容')

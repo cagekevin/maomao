@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { memo, useEffect, useRef, useState } from 'react'
 import { toAbsoluteFileUrl } from '../base/filesApi.js'
 import LazyImage from '../base/LazyImage.jsx'
 import PromptConfirmCard from './PromptConfirmCard.jsx'
@@ -101,7 +101,7 @@ function renderContentWithImages(text) {
  */
 
 /** 思考过程折叠面板（复刻 Sr.jsx） */
-function Reasoning({ text, streaming }) {
+const Reasoning = memo(function Reasoning({ text, streaming }) {
   // 默认折叠：仅流式进行中（streaming=true）才展开显示"思考中"；
   // 历史消息（streaming=false/undefined）默认折叠，刷新后不展开（修复：原本 useState(true) 刷新后必展开）
   const [open, setOpen] = useState(!!streaming)
@@ -136,10 +136,10 @@ function Reasoning({ text, streaming }) {
       )}
     </div>
   )
-}
+})
 
 /** 工具调用标签（复刻 _Component34.jsx） */
-function ToolCallChip({ name, args }) {
+const ToolCallChip = memo(function ToolCallChip({ name, args }) {
   let display = args || ''
   try {
     const obj = JSON.parse(args || '{}')
@@ -154,10 +154,10 @@ function ToolCallChip({ name, args }) {
       {display && <span className="text-purple-400 truncate max-w-[200px]">{display}</span>}
     </span>
   )
-}
+})
 
 /** 生成步骤卡片（对齐大雄 agentExecutionPromptsHtml：阶段1 把 generations 渲染成可检查的步骤列表） */
-function GenerationStepsCard({ generations }) {
+const GenerationStepsCard = memo(function GenerationStepsCard({ generations }) {
   const [open, setOpen] = useState(true)
   const list = (generations || []).filter((g) => g && typeof g === 'object')
   if (!list.length) return null
@@ -197,7 +197,7 @@ function GenerationStepsCard({ generations }) {
       )}
     </div>
   )
-}
+})
 
 /** 消息气泡主组件（复刻 Cr.jsx）
  *  @param {object} message
@@ -205,7 +205,7 @@ function GenerationStepsCard({ generations }) {
  *  @param {Function} onRetryStep   重试失败步骤
  *  @param {Function} [onPromptAction] prompts 逐条确认通道：{ action, prompts, index?, text? } →
  *      应用后写回消息并可能触发出图（prompts 通道，对齐大雄 confirm/edit/save/reopen/regenerate/confirm-all） */
-export default function AgentMessage({ message, onConfirmPlan, onRetryStep, onPromptAction }) {
+function AgentMessage({ message, onConfirmPlan, onRetryStep, onPromptAction }) {
   if (message.role === 'user') {
     const skillNames = (message.skills || []).map((s) => s?.name || s?.id || '').filter(Boolean)
     return (
@@ -232,7 +232,7 @@ export default function AgentMessage({ message, onConfirmPlan, onRetryStep, onPr
             <div className="flex flex-wrap gap-1 justify-end">
               {message.attachments.map((a, i) => (
                 <a key={i} href={a.url} target="_blank" rel="noreferrer" className="block w-20 h-20 rounded-md overflow-hidden border border-white/20 hover:border-white/50 transition-colors" title="点击新窗口打开">
-                  <img src={toAbsoluteFileUrl(a.url)} alt="" className="w-full h-full object-cover" />
+                  <LazyImage src={a.url} alt="" className="w-full h-full" />
                 </a>
               ))}
             </div>
@@ -375,3 +375,5 @@ export default function AgentMessage({ message, onConfirmPlan, onRetryStep, onPr
 
   return null
 }
+
+export default memo(AgentMessage)

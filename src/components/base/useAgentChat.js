@@ -6,6 +6,7 @@ import { API_BASE } from './apiBase.js'
 import { LLM_CHAT_BASE_URL, LLM_CHAT_API_KEY, LLM_CHAT_MODEL, AGENT_DEMO_MODE } from './config.js'
 import { normalizeImageUrlForSend } from './imageUrl.js'
 import { InputStateMachine } from './inputStateMachine.js'
+import { generateId } from './idGen.js'
 // 纯函数层 + 运行时逻辑下沉（职责模块化拆分，见 agentCore.js / agentRuntime.js 头注释）
 import {
   MAX_TOOL_ROUNDS,
@@ -49,6 +50,11 @@ import {
   getActivePendingGenerations,
   getCurrentImageMap,
 } from './conversationStore.js'
+
+// P15 列表 key 收口：给消息补稳定唯一 id（已有 id 保留）。appendMsg/setHistory 统一走它，
+// 保证 AgentPanel 的 messages.map 可用 key={m.id}（此前无 id，只能 key={i}，插入/删除会错位）。
+// 幂等：二次调用不改已补 id。
+const withMsgId = (m) => (m && typeof m === 'object' && m.id ? m : { ...m, id: generateId('msg') })
 
 /**
  * ════════════════════════════════════════════════════════════════
@@ -241,14 +247,16 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
    */
   // 追加一条消息（同步 state + ref）
   const appendMsg = useCallback((msg) => {
-    setMessages((prev) => [...prev, msg])
-    messagesRef.current = [...messagesRef.current, msg]
+    const m = withMsgId(msg)
+    setMessages((prev) => [...prev, m])
+    messagesRef.current = [...messagesRef.current, m]
   }, [])
 
-  // 整体替换历史（同步 state + ref）
+  // 整体替换历史（同步 state + ref；P15：统一补稳定消息 id，保证 AgentPanel 列表 key 稳定）
   const setHistory = useCallback((next) => {
-    setMessages(next)
-    messagesRef.current = next
+    const normalized = (Array.isArray(next) ? next : []).map(withMsgId)
+    setMessages(normalized)
+    messagesRef.current = normalized
   }, [])
 
   // 更新最后一条 streaming assistant 的增量（不新增，原地改最后一条）

@@ -9,7 +9,7 @@ import { Play } from 'lucide-react'
  * - 用原生 <video>，preload="metadata" 让首帧海报快速出现（比 preload="none" 快）。
  * - 播放按钮是 button，点击 stopPropagation 后触发 onActivate（由父组件决定：播放 / 打开预览）。
  */
-export default function VideoThumbnail({
+function VideoThumbnail({
   src,
   poster,
   muted = true,
@@ -53,3 +53,5 @@ export default function VideoThumbnail({
     </div>
   )
 }
+
+export default React.memo(VideoThumbnail)

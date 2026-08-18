@@ -1,4 +1,5 @@
 import React, { useState, useCallback } from 'react'
+import { createRafBatch } from './utils.js'
 
 /**
  * 右下角「拖拽改尺寸 + 双击全屏」手柄（复刻 _Component23.jsx）。
@@ -53,22 +54,29 @@ export default function ResizeFullscreenHandle({
 
       const startX = e.clientX
       const startY = e.clientY
-      const rect = el.getBoundingClientRect()
+      const rect = el.getBoundingClientRect() // P3 注意点②：rect 起点缓存一次，move 内不再读
       const baseW = el.offsetWidth
       const baseH = el.offsetHeight
       // ReactFlow 缩放修正：getBoundingClientRect 是屏幕尺寸，需换算回逻辑尺寸
       const scaleX = baseW ? rect.width / baseW : 1
       const scaleY = baseH ? rect.height / baseH : 1
 
-      const move = (ev) => {
-        const dw = (ev.clientX - startX) / (scaleX || 1)
-        const dh = (ev.clientY - startY) / (scaleY || 1)
+      // P3：move 高频 → rAF 合并样式写入（last-args-wins，move 直接用最新坐标算绝对尺寸）；
+      // 松手 flush 补最后一帧，避免差一帧。P10：拖拽期挂 will-change 提升合成层，结束移除。
+      const batch = createRafBatch((clientX, clientY) => {
+        const dw = (clientX - startX) / (scaleX || 1)
+        const dh = (clientY - startY) / (scaleY || 1)
         el.style.width = `${Math.max(minWidth, Math.min(maxWidth, baseW + dw))}px`
         el.style.height = `${Math.max(minHeight, Math.min(maxHeight, baseH + dh))}px`
-      }
+      })
+      el.style.willChange = 'width, height'
+
+      const move = (ev) => batch(ev.clientX, ev.clientY)
       const up = () => {
+        batch.flush() // 松手补最后一帧，否则位置差一帧
         window.removeEventListener('mousemove', move)
         window.removeEventListener('mouseup', up)
+        el.style.willChange = '' // P10：拖拽结束移除 will-change，避免长期挂占内存
         onResizeEnd?.(el.offsetWidth, el.offsetHeight)
       }
       window.addEventListener('mousemove', move)

@@ -145,7 +145,7 @@ function useNodeSize(id) {
  * 避免下一个 AI 以为写错了。
  * ════════════════════════════════════════════════════════════════
  */
-export default function NodeShell({
+function NodeShell({
   id,
   label,
   defaultTitle,
@@ -250,3 +250,4 @@ export default function NodeShell({
     </div>
   )
 }
+export default React.memo(NodeShell)

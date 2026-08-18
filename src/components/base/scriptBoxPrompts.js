@@ -74,6 +74,22 @@ export function dialogueText(arr) {
     .join(' / ')
 }
 
+/** P6：@资产名高亮正则缓存——按「排序后名字列表」缓存编译结果，避免 hlAt 每次渲染重排 new RegExp。
+ *  资产名集合有限（每个剧本盒子的资产数几十量级），带 size 上限防无限膨胀。 */
+const HIGHLIGHT_RE_CACHE = new Map()
+const HIGHLIGHT_RE_CACHE_MAX = 200
+function getHighlightPattern(sorted) {
+  const key = sorted.join('\u0001')
+  let re = HIGHLIGHT_RE_CACHE.get(key)
+  if (!re) {
+    // 名称按长度从长到短排序 + 正则转义，短名放后面避免先匹配吃掉长名
+    re = new RegExp(`(@(?:${sorted.map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')}))`, 'g')
+    if (HIGHLIGHT_RE_CACHE.size >= HIGHLIGHT_RE_CACHE_MAX) HIGHLIGHT_RE_CACHE.clear()
+    HIGHLIGHT_RE_CACHE.set(key, re)
+  }
+  return re
+}
+
 /**
  * @资产名 → 青色高亮 HTML（用于画面描述/提示词展示）。
  *
@@ -93,7 +109,7 @@ export function hlAt(text, assetNames) {
   if (names.length === 0) return s
   // 名称按长度从长到短排序 + 正则转义，短名放后面避免先匹配吃掉长名
   const sorted = [...names].sort((a, b) => b.length - a.length)
-  const pattern = new RegExp(`(@(?:${sorted.map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')}))`, 'g')
+  const pattern = getHighlightPattern(sorted)
   return s.split(pattern).map((part) => {
     if (part.startsWith('@') && sorted.includes(part.slice(1))) {
       return `<span class="at">${part}</span>`

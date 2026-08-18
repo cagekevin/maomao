@@ -16,7 +16,7 @@ import CustomHandle from '../edges/CustomHandle.jsx'
  *
  * 由 React Flow 父子节点机制承载：作为父节点，子节点通过 parentId 挂在其下。
  */
-export default function GroupNode({ id, data, selected }) {
+function GroupNode({ id, data, selected }) {
   const { setNodes } = useReactFlow()
   const collapsed = data?.collapsed || false
   const name = data?.name || '编组'
@@ -110,3 +110,4 @@ export default function GroupNode({ id, data, selected }) {
     </NodeShell>
   )
 }
+export default React.memo(GroupNode)

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { memo, useState } from 'react'
 import {
   ensureCurrentPrompt, confirmPrompt, editPrompt, savePromptEdit,
   cancelPromptEdit, reopenPrompt, confirmAllPrompts, PROMPT_STATUS,
@@ -7,12 +7,12 @@ import {
 const P = PROMPT_STATUS
 
 /** 状态图标（对齐大雄 3848：✓/×/▶/○） */
-function StatusIcon({ status }) {
+const StatusIcon = memo(function StatusIcon({ status }) {
   if (status === P.CONFIRMED) return <span className="text-emerald-400">✓</span>
   if (status === P.SKIPPED) return <span className="text-gray-500">×</span>
   if (status === P.CURRENT || status === P.EDITING) return <span className="text-sky-400">▶</span>
   return <span className="text-gray-600">○</span>
-}
+})
 
 /**
  * ════════════════════════════════════════════════════════════════
@@ -36,7 +36,7 @@ function StatusIcon({ status }) {
  *  @param {Function} onGenerate(generations)     全部确认后触发生图（执行 generations）
  *  @param {number} [requestedCount] 用户请求数量（用于数量校验提示，对齐大雄 3838）
  */
-export default function PromptConfirmCard({ prompts = [], onUpdatePrompts, onGenerate, requestedCount = 0 }) {
+function PromptConfirmCard({ prompts = [], onUpdatePrompts, onGenerate, requestedCount = 0 }) {
   const [draft, setDraft] = useState('') // 当前 editing 项的编辑草稿
   if (!Array.isArray(prompts) || prompts.length === 0) return null
 
@@ -128,3 +128,5 @@ export default function PromptConfirmCard({ prompts = [], onUpdatePrompts, onGen
     </div>
   )
 }
+
+export default memo(PromptConfirmCard)

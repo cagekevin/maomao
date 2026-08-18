@@ -90,8 +90,8 @@ const GRID_PRESETS = [
   { label: '5×1', rows: 5, cols: 1 }
 ]
 
-export default function GridMergeNode({ id, data, selected }) {
-  const { setNodes, getNodes, getEdges, setEdges } = useReactFlow()
+function GridMergeNode({ id, data, selected }) {
+  const { setNodes, getNodes, getNode, getEdges, setEdges } = useReactFlow()
   const history = useCanvasEdges()
   const { isHidden } = useMediaDegrade()
   const { onMainBoxResize } = useNodeResize(id)
@@ -179,7 +179,7 @@ export default function GridMergeNode({ id, data, selected }) {
     const ro = new ResizeObserver(() => {
       const h = el.offsetHeight
       if (!h) return
-      const n = getNodes().find((x) => x.id === id)
+      const n = getNode(id)
       const curH = n?.height ?? n?.style?.height ?? 0
       if (Math.abs(h - curH) < 4) return
       const curW = n?.width ?? n?.style?.width ?? 320
@@ -187,7 +187,7 @@ export default function GridMergeNode({ id, data, selected }) {
     })
     ro.observe(el)
     return () => ro.disconnect()
-  }, [id, getNodes, onMainBoxResize])
+  }, [id, getNode, onMainBoxResize])
 
   // ---- 渲染到 canvas（复刻 Yo.jsx pe）----
   const renderToCanvas = useCallback(
@@ -343,7 +343,7 @@ export default function GridMergeNode({ id, data, selected }) {
   // 生成合成图片节点（复刻 Yo.jsx onSpawnImageNode）
   const spawnMergedImage = useCallback(
     (url) => {
-      const me = getNodes().find((n) => n.id === id)
+      const me = getNode(id)
       const baseX = (me?.position.x ?? 100) + (me?.measured?.width ?? 400) + 50
       const baseY = me?.position.y ?? 100
       const nid = `merged-${id}-${generateId('m')}`
@@ -357,7 +357,7 @@ export default function GridMergeNode({ id, data, selected }) {
       setEdges((es) => es.concat(spawned.edges))
       history?.record(snapshot)
     },
-    [id, getNodes, getEdges, setNodes, setEdges, history]
+    [id, getNode, getEdges, setNodes, setEdges, history]
   )
 
   // 交换 grid cell（拖拽）
@@ -708,3 +708,4 @@ export default function GridMergeNode({ id, data, selected }) {
     </>
   )
 }
+export default React.memo(GridMergeNode)

@@ -11,7 +11,7 @@ import { useLod } from '../base/lod.jsx'
  * LOD 降级（复刻 Pg.jsx 的 f = o < 2）：lodLevel >= 2（缩到很小）时关闭辉光与粒子流，
  * 只保留基础线，节省大画布性能。
  */
-export default function ConnectionLine({ fromX, fromY, toX, toY }) {
+function ConnectionLine({ fromX, fromY, toX, toY }) {
   const { lodLevel = 0 } = useLod()
   const [path] = getBezierPath({
     sourceX: fromX,
@@ -37,3 +37,4 @@ export default function ConnectionLine({ fromX, fromY, toX, toY }) {
     </g>
   )
 }
+export default React.memo(ConnectionLine)

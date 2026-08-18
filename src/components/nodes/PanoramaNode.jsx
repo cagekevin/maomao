@@ -25,8 +25,8 @@ import { useCanvasEdges } from '../base/CanvasEdgesContext.jsx'
 
 const RATIO_OPTIONS = ['16:9', '9:16', '1:1', 'custom']
 
-export default function PanoramaNode({ id, data, selected }) {
-  const { setNodes, getNodes, getEdges, setEdges } = useReactFlow()
+function PanoramaNode({ id, data, selected }) {
+  const { setNodes, getNodes, getNode, getEdges, setEdges } = useReactFlow()
   const history = useCanvasEdges()
   const connected = useConnectedInputs(id)
   const [panoType, setPanoType] = useState(data.panoType || 'sphere') // 球/柱
@@ -86,7 +86,7 @@ export default function PanoramaNode({ id, data, selected }) {
           const boxes = getEdges()
             .filter((e) => e.source === id)
             .map((e) => e.target)
-            .filter((tid) => getNodes().find((n) => n.id === tid)?.type === 'imageBoxNode')
+            .filter((tid) => getNode(tid)?.type === 'imageBoxNode')
           const newImages = shots.map((url, i) => ({
             id: `img-${generateId('img')}-${i}`,
             url,
@@ -107,7 +107,7 @@ export default function PanoramaNode({ id, data, selected }) {
             }))
           } else {
             // 无图片盒子下游：新建图片盒子 + 自动连线
-            const me = getNodes().find((n) => n.id === id)
+            const me = getNode(id)
             const boxId = generateId('imageBoxNode')
             const spawned = buildSpawnNodes(
               { id, position: { x: (me?.position.x ?? 100) + (me?.measured?.width ?? 640) + 60, y: me?.position.y ?? 100 } },
@@ -326,3 +326,4 @@ export default function PanoramaNode({ id, data, selected }) {
     </NodeShell>
   )
 }
+export default React.memo(PanoramaNode)

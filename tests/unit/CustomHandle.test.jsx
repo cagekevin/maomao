@@ -97,9 +97,15 @@ describe('CustomHandle — 变体与定位', () => {
 })
 
 describe('CustomHandle — 鼠标追踪（--cust-shift-x/y）', () => {
+  beforeEach(() => {
+    // P3：mousemove 经 rAF 合并成每帧一次更新，断言前需推进一帧
+    vi.useFakeTimers()
+  })
+
   afterEach(() => {
     h.handleProps.length = 0
     vi.restoreAllMocks()
+    vi.useRealTimers()
   })
 
   function setup(props) {
@@ -112,6 +118,7 @@ describe('CustomHandle — 鼠标追踪（--cust-shift-x/y）', () => {
     const { wrap } = setup({ position: 'left' })
     // wrap 尺寸为 0x0，圆心在 (0,0)；鼠标在 (-40, 30)：dx=clamp(-40*0.35,-14,14)=-14，dy=clamp(30*0.35)=10.5
     fireEvent.mouseMove(wrap, { clientX: -40, clientY: 30 })
+    vi.advanceTimersByTime(16)
     expect(wrap.style.getPropertyValue('--cust-shift-x')).toBe('-14px')
     expect(wrap.style.getPropertyValue('--cust-shift-y')).toBe('10.5px')
   })
@@ -119,6 +126,7 @@ describe('CustomHandle — 鼠标追踪（--cust-shift-x/y）', () => {
   it('左端口 shift-x 只偏左（≤0），即使鼠标在右侧也归 0', () => {
     const { wrap } = setup({ position: 'left' })
     fireEvent.mouseMove(wrap, { clientX: 100, clientY: 0 })
+    vi.advanceTimersByTime(16)
     // dx = clamp(100*0.35, ±14) = 14，但 isLeft 强制 Math.min(0, dx) = 0
     expect(wrap.style.getPropertyValue('--cust-shift-x')).toBe('0px')
   })
@@ -126,6 +134,7 @@ describe('CustomHandle — 鼠标追踪（--cust-shift-x/y）', () => {
   it('右端口 shift-x 只偏右（≥0），即使鼠标在左侧也归 0', () => {
     const { wrap } = setup({ position: 'right' })
     fireEvent.mouseMove(wrap, { clientX: -100, clientY: 0 })
+    vi.advanceTimersByTime(16)
     // dx = clamp(-100*0.35, ±14) = -14，但 isRight 强制 Math.max(0, dx) = 0
     expect(wrap.style.getPropertyValue('--cust-shift-x')).toBe('0px')
   })
@@ -133,6 +142,7 @@ describe('CustomHandle — 鼠标追踪（--cust-shift-x/y）', () => {
   it('mouseleave 将偏移归零', () => {
     const { wrap } = setup({ position: 'right' })
     fireEvent.mouseMove(wrap, { clientX: 50, clientY: 50 })
+    vi.advanceTimersByTime(16)
     expect(wrap.style.getPropertyValue('--cust-shift-x')).not.toBe('0px')
     fireEvent.mouseLeave(wrap)
     expect(wrap.style.getPropertyValue('--cust-shift-x')).toBe('0px')
@@ -142,11 +152,13 @@ describe('CustomHandle — 鼠标追踪（--cust-shift-x/y）', () => {
   it('卸载后不再响应 mousemove（监听已清理，不泄漏）', () => {
     const { view, wrap } = setup({ position: 'right' })
     fireEvent.mouseMove(wrap, { clientX: 50, clientY: 0 })
+    vi.advanceTimersByTime(16)
     expect(wrap.style.getPropertyValue('--cust-shift-x')).toBe('14px')
     view.unmount()
     // 重置后再次触发 mousemove：若监听未清理会重新设置 CSS 变量
     wrap.style.setProperty('--cust-shift-x', '0px')
     fireEvent.mouseMove(wrap, { clientX: 50, clientY: 0 })
+    vi.advanceTimersByTime(16)
     expect(wrap.style.getPropertyValue('--cust-shift-x')).toBe('0px')
   })
 })

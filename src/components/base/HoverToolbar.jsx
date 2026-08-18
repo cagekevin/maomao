@@ -11,7 +11,7 @@ import ToolbarButton from './ToolbarButton.jsx'
  *  - loading   是否显示 loading 图标（可选）
  *  - loadingIcon  loading 图标节点（默认无）
  */
-export default function HoverToolbar({ buttons = [], loading = false, loadingIcon = null }) {
+function HoverToolbar({ buttons = [], loading = false, loadingIcon = null }) {
   const visible = buttons.filter((b) => b.show !== false)
   if (visible.length === 0 && !loading) return null
 
@@ -32,3 +32,5 @@ export default function HoverToolbar({ buttons = [], loading = false, loadingIco
     </div>
   )
 }
+
+export default React.memo(HoverToolbar)

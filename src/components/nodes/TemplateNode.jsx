@@ -25,6 +25,7 @@ import { toAbsoluteFileUrl } from '../base/filesApi.js'
 import { useProviders, load as loadProviders } from '../base/settings/providerStore.js'
 import { logger } from '../base/logger.js'
 import { buildAllModels } from '../base/providerModels.js'
+import { debounce } from '../base/utils.js'
 
 /**
  * ════════════════════════════════════════════════════════════════
@@ -105,7 +106,7 @@ import { buildAllModels } from '../base/providerModels.js'
  *  - 按钮 hover 统一 hover:bg-surface-hover + hover:text-white
  */
 
-export default function TemplateNode({ id, data, selected }) {
+function TemplateNode({ id, data, selected }) {
   // ─── 1. 上游数据 + 性能降级（通用）───
   // useConnectedInputs：读取直接上游节点的产出（图片/文本）作为参考输入；空则渲染空态
   const connected = useConnectedInputs(id)
@@ -152,13 +153,20 @@ export default function TemplateNode({ id, data, selected }) {
   const setPromptPersist = useCallback((v) => {
     setPrompt((prev) => (typeof v === 'function' ? v(prev) : v))
   }, [])
+  // P2：prompt 持续输入走防抖写回（避免每键 setNodes 全图 node 数组重建）；卸载 flush 兜底
+  const debouncedPatch = useRef(null)
+  if (debouncedPatch.current == null) {
+    debouncedPatch.current = debounce(patchData, 200)
+  }
 
   // 抽屉展开/收起
   const toggleExpanded = useCallback(() => setExpanded((v) => !v), [])
   // 【React 反模式修复】「写回 node.data」不在 setState updater 里做（渲染期间 setNodes → BatchProvider 警告），
   // 改用 useEffect 同步落盘。
-  React.useEffect(() => { patchData({ prompt }) }, [prompt]) // eslint-disable-line react-hooks/exhaustive-deps
+  React.useEffect(() => { debouncedPatch.current({ prompt }) }, [prompt]) // eslint-disable-line react-hooks/exhaustive-deps
   React.useEffect(() => { patchData({ expanded }) }, [expanded]) // eslint-disable-line react-hooks/exhaustive-deps
+  // 卸载前 flush 最后一次待提交（避免防抖窗口内丢数据）
+  React.useEffect(() => () => { debouncedPatch.current?.flush() }, [])
 
   // ─── 4. refs + 尺寸写回（通用）───
   const wrapperRef = useRef(null)      // NodeShell 根 div（供主框手柄拖拽）
@@ -464,3 +472,4 @@ export default function TemplateNode({ id, data, selected }) {
  *   }, [id, getNodes, onMainBoxResize])
  *   // 主容器加 ref={contentRef}；去掉固定 height（只留 minHeight），否则内容溢出到框外。
  */
+export default React.memo(TemplateNode)

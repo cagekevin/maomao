@@ -238,6 +238,19 @@ const MAX_AI_UNDO = 20
 // 提为模块常量：避免每次 execute 重建数组；description/parameters 与之一致（含 locked）。
 const UPDATE_NODE_WHITELIST = ['prompt', 'label', 'selectedModel', 'aspectRatio', 'resolution', 'seconds', 'text', 'locked']
 
+/** P6：中文数字 → 阿拉伯数字映射（图一~图十 → 图1~图10）。提为模块常量，避免 execute_plan 每次重建。 */
+const CN_TO_ARABIC = { '一': '1', '二': '2', '三': '3', '四': '4', '五': '5', '六': '6', '七': '7', '八': '8', '九': '9', '十': '10' }
+/** P6：按「图N」编号缓存对应正则（entry.num 动态插值），避免 refs.forEach 内重复 new RegExp。编号取值有限，天然防膨胀。 */
+const FIG_NUM_RE_CACHE = new Map()
+function getFigNumRegex(num) {
+  let re = FIG_NUM_RE_CACHE.get(num)
+  if (!re) {
+    re = new RegExp(`图\\s*${num}(?![0-9])`, 'g')
+    FIG_NUM_RE_CACHE.set(num, re)
+  }
+  return re
+}
+
 /**
  * 分辨率 → 画质档位（imageSize）映射。PromptNode 的画质档是 1K/2K/4K，
  * LLM 可能传 720p/1080p/1440p/2K/4K，这里统一归一：1080p→1K、1440p/2K→2K、4K→4K，
@@ -274,6 +287,48 @@ function computeCreatePosition(nodes, screenToFlowPosition, vw, vh) {
 }
 
 /**
+ * P11：建节点的纯构建函数（无副作用）。create_node / batch_create_nodes 共用，
+ * 避免批量建在循环内逐条 setNodes（N 个节点触发 N 次全量重渲染）。
+ * @param currentNodes 当前节点快照（批量时传「虚拟增长」的数组，保持横向自动布局）
+ * @returns { error? } 或 { id, newNode, edges }
+ */
+function buildCreateNode(args, ctx, currentNodes) {
+  const type = str(args.type)
+  // agent 可创建的节点类型白名单（不含剧本盒等复合节点）。
+  // 用白名单而非 getPaletteNode：即使调色板里新增了剧本盒等类型，agent 也不会被允许创建。
+  const ALLOWED_TYPES = ['textNode', 'promptNode', 'imageNode', 'discountVideoNode', 'group']
+  if (!type || !ALLOWED_TYPES.includes(type)) return { error: `未知节点类型：${type}。可选：${ALLOWED_TYPES.join('、')}` }
+  const data = { ...defaultNodeData(type), ...(args.label ? { label: args.label } : {}), ...(args.prompt ? { prompt: args.prompt } : {}) }
+  // 生图类节点：把 AI 传的 aspectRatio / resolution 写进 data（PromptNode 读 data.aspectRatio / data.imageSize）。
+  // 之前这两个参数被忽略，导致「让 AI 建 9:16 节点」比例不生效。
+  if (['promptNode', 'discountVideoNode'].includes(type)) {
+    if (args.aspectRatio) data.aspectRatio = str(args.aspectRatio)
+    if (args.resolution) data.imageSize = normalizeResolution(str(args.resolution))
+  }
+  // 位置：优先用 LLM 显式传的 position；否则按参考项目（daxiong-canvas-plugins canvas-agent）
+  // 的「空位自动计算」放新节点——有节点时在最右侧节点右侧水平追加、顶部对齐，避免重叠；
+  // 画布无节点时才放视窗中心。这样 AI 建多个节点会自动横向排开，不乱叠。
+  const vw = typeof window !== 'undefined' ? window.innerWidth : 0
+  const vh = typeof window !== 'undefined' ? window.innerHeight : 0
+  const position = args.position
+    ? { x: num(args.position.x, 0), y: num(args.position.y, 0) }
+    : computeCreatePosition(currentNodes, ctx.screenToFlowPosition, vw, vh)
+  const id = generateId(type)
+  const newNode = { id, type, position: { ...position }, data }
+  // 生图节点默认 420×420（对齐 App.jsx addNode，避免端口跑偏）
+  if (type === 'promptNode') Object.assign(newNode, { width: 420, height: 420, style: { width: 420, height: 420 } })
+
+  let edges = []
+  if (args.connectFrom) {
+    const src = currentNodes.find((n) => n.id === args.connectFrom)
+    if (src) {
+      edges = [{ id: `e-${src.id}-${id}`, source: src.id, sourceHandle: null, target: id, type: 'default', animated: false }]
+    }
+  }
+  return { id, newNode, edges }
+}
+
+/**
  * 建节点工具（复刻官方 create_node + batch_create_nodes）。
  * type 从白名单取（textNode/promptNode/imageNode/discountVideoNode/group），默认给默认 data；prompt/label 可覆盖。
  * 返回新建节点 id 列表，供后续连线/改节点用。
@@ -300,47 +355,16 @@ const createNodeTool = {
     required: ['type']
   },
   execute(args, ctx) {
-    const type = str(args.type)
-    // agent 可创建的节点类型白名单（不含剧本盒等复合节点）。
-    // 用白名单而非 getPaletteNode：即使调色板里新增了剧本盒等类型，agent 也不会被允许创建。
-    const ALLOWED_TYPES = ['textNode', 'promptNode', 'imageNode', 'discountVideoNode', 'group']
-    if (!type || !ALLOWED_TYPES.includes(type)) return { ok: false, error: `未知节点类型：${type}。可选：${ALLOWED_TYPES.join('、')}` }
-    const { getNodes, setNodes, setEdges, screenToFlowPosition } = ctx
-    const data = { ...defaultNodeData(type), ...(args.label ? { label: args.label } : {}), ...(args.prompt ? { prompt: args.prompt } : {}) }
-    // 生图类节点：把 AI 传的 aspectRatio / resolution 写进 data（PromptNode 读 data.aspectRatio / data.imageSize）。
-    // 之前这两个参数被忽略，导致「让 AI 建 9:16 节点」比例不生效。
-    if (['promptNode', 'discountVideoNode'].includes(type)) {
-      if (args.aspectRatio) data.aspectRatio = str(args.aspectRatio)
-      if (args.resolution) data.imageSize = normalizeResolution(str(args.resolution))
-    }
-    // 位置：优先用 LLM 显式传的 position；否则按参考项目（daxiong-canvas-plugins canvas-agent）
-    // 的「空位自动计算」放新节点——有节点时在最右侧节点右侧水平追加、顶部对齐，避免重叠；
-    // 画布无节点时才放视窗中心。这样 AI 建多个节点会自动横向排开，不乱叠。
-    const vw = typeof window !== 'undefined' ? window.innerWidth : 0
-    const vh = typeof window !== 'undefined' ? window.innerHeight : 0
-    const position = args.position
-      ? { x: num(args.position.x, 0), y: num(args.position.y, 0) }
-      : computeCreatePosition(getNodes(), screenToFlowPosition, vw, vh)
-    const id = generateId(type)
-    const newNode = { id, type, position: { ...position }, data }
-    // 生图节点默认 420×420（对齐 App.jsx addNode，避免端口跑偏）
-    if (type === 'promptNode') Object.assign(newNode, { width: 420, height: 420, style: { width: 420, height: 420 } })
-
-    const nextNodes = [...getNodes(), newNode]
-    let nextEdges = []
-    if (args.connectFrom) {
-      const src = getNodes().find((n) => n.id === args.connectFrom)
-      if (src) {
-        nextEdges = [{ id: `e-${src.id}-${id}`, source: src.id, sourceHandle: null, target: id, type: 'default', animated: false }]
-      }
-    }
-    setNodes(nextNodes)
-    if (nextEdges.length) setEdges((es) => [...es, ...nextEdges])
-    return { ok: true, data: { id, position: newNode.position, connected: nextEdges.length > 0 } }
+    const { getNodes, setNodes, setEdges } = ctx
+    const built = buildCreateNode(args, ctx, getNodes())
+    if (built.error) return { ok: false, error: built.error }
+    setNodes([...getNodes(), built.newNode])
+    if (built.edges.length) setEdges((es) => [...es, ...built.edges])
+    return { ok: true, data: { id: built.id, position: built.newNode.position, connected: built.edges.length > 0 } }
   }
 }
 
-/** 批量建节点（batch_create_nodes）—— 复用 createNode，逐个建并返回 id 列表 */
+/** 批量建节点（batch_create_nodes）—— 复用 buildCreateNode，基于虚拟节点数组连续布局，一次写回 */
 const batchCreateNodesTool = {
   name: 'batch_create_nodes',
   description: '批量创建多个节点（元素结构与 create_node 相同）。适合一次搭建整条流程。返回全部新节点 id。',
@@ -353,12 +377,24 @@ const batchCreateNodesTool = {
   },
   execute(args, ctx) {
     if (!Array.isArray(args.nodes) || args.nodes.length === 0) return { ok: false, error: 'nodes 数组为空' }
+    const { setNodes, setEdges } = ctx
+    // P11：批量建——先基于「虚拟节点数组」逐条构建（保持横向自动布局，与逐条 create_node 位置一致），
+    // 再单次 setNodes/setEdges 写回，避免 N 个节点触发 N 次全量 setNodes（ReactFlow 重渲染风暴）。
+    // 注意点：单次 setNodes 节点极多时仍可能卡，必要时分批（每批 ≤50）用 rAF 切帧（见收口方案 P11）。
+    let virtual = ctx.getNodes()
     const ids = []
+    const newEdges = []
     let lastError = null
     for (const one of args.nodes) {
-      const r = createNodeTool.execute(one, ctx)
-      if (r.ok) ids.push(r.data.id)
-      else lastError = r.error
+      const built = buildCreateNode(one, ctx, virtual)
+      if (built.error) { lastError = built.error; continue }
+      virtual = [...virtual, built.newNode]
+      ids.push(built.id)
+      if (built.edges.length) newEdges.push(...built.edges)
+    }
+    if (ids.length) {
+      setNodes(virtual)
+      if (newEdges.length) setEdges((es) => [...es, ...newEdges])
     }
     return { ok: ids.length > 0, data: { ids }, ...(lastError && ids.length === 0 ? { error: lastError } : {}) }
   }
@@ -479,6 +515,20 @@ const updateNodeRawTool = {
   }
 }
 
+/**
+ * P11：连线的纯构建函数（无副作用）。connect_nodes / batch_connect_nodes 共用。
+ * @param currentEdges 当前边快照（批量时传「虚拟增长」数组，保证去重语义与逐条一致）
+ * @returns { status: 'created', edge } | { status: 'already' } | { status: 'error', error }
+ */
+function buildConnect(conn, ctx, currentEdges) {
+  const source = str(conn.source)
+  const target = str(conn.target)
+  if (!ctx.getNodes().some((n) => n.id === source)) return { status: 'error', error: `源节点不存在：${source}` }
+  if (!ctx.getNodes().some((n) => n.id === target)) return { status: 'error', error: `目标节点不存在：${target}` }
+  if (currentEdges.some((e) => e.source === source && e.target === target)) return { status: 'already' }
+  return { status: 'created', edge: { id: generateId('e'), source, sourceHandle: null, target, type: 'default', animated: false } }
+}
+
 /** 连线（connect_nodes）—— source 输出流向 target */
 const connectNodesTool = {
   name: 'connect_nodes',
@@ -489,19 +539,18 @@ const connectNodesTool = {
     required: ['source', 'target']
   },
   execute(args, ctx) {
-    const { getNodes, getEdges, setEdges } = ctx
+    const { getEdges, setEdges } = ctx
     const source = str(args.source)
     const target = str(args.target)
-    if (!getNodes().some((n) => n.id === source)) return { ok: false, error: `源节点不存在：${source}` }
-    if (!getNodes().some((n) => n.id === target)) return { ok: false, error: `目标节点不存在：${target}` }
-    const exists = getEdges().some((e) => e.source === source && e.target === target)
-    if (exists) return { ok: true, data: { source, target, alreadyConnected: true } }
-    setEdges((es) => [...es, { id: generateId('e'), source, sourceHandle: null, target, type: 'default', animated: false }])
+    const built = buildConnect(args, ctx, getEdges())
+    if (built.status === 'error') return { ok: false, error: built.error }
+    if (built.status === 'already') return { ok: true, data: { source, target, alreadyConnected: true } }
+    setEdges((es) => [...es, built.edge])
     return { ok: true, data: { source, target } }
   }
 }
 
-/** 批量连线（batch_connect_nodes） */
+/** 批量连线（batch_connect_nodes）—— 复用 buildConnect，累计新边单次 setEdges 写回 */
 const batchConnectNodesTool = {
   name: 'batch_connect_nodes',
   description: '批量连接多个节点对，每个元素 { source, target }。',
@@ -513,11 +562,22 @@ const batchConnectNodesTool = {
   execute(args, ctx) {
     const list = Array.isArray(args.connections) ? args.connections : []
     if (!list.length) return { ok: false, error: 'connections 为空' }
+    const { setEdges } = ctx
+    // P11：批量连——先累计新边，单次 setEdges 写回，避免 N 条连线触发 N 次全量 setEdges（ReactFlow 重渲染风暴）。
+    let virtualEdges = ctx.getEdges()
+    const newEdges = []
     let okCount = 0
     for (const c of list) {
-      const r = connectNodesTool.execute(c, ctx)
-      if (r.ok) okCount++
+      const built = buildConnect(c, ctx, virtualEdges)
+      if (built.status === 'created') {
+        virtualEdges = [...virtualEdges, built.edge]
+        newEdges.push(built.edge)
+        okCount++
+      } else if (built.status === 'already') {
+        okCount++ // 去重：已存在连线计成功（对齐原 connectNodesTool ok:true 语义）
+      }
     }
+    if (newEdges.length) setEdges((es) => [...es, ...newEdges])
     return { ok: true, data: { connected: okCount, total: list.length } }
   }
 }
@@ -811,7 +871,6 @@ const executePlanTool = {
       //   ③ 跨轮生成结果图（agentLastResults）绝不自动挂——对齐大雄 use_last_outputs=false「跨轮 lastResults 彻底关闭」，
       //      只有 direct_refs 明确引用历史图时才用（大雄无 Skill 路径如此）。
       const imgMap = getCurrentImageMap()
-      const cnMap = { '一': '1', '二': '2', '三': '3', '四': '4', '五': '5', '六': '6', '七': '7', '八': '8', '九': '9', '十': '10' }
       const resolvedGens = (gens || []).map((g) => {
         const isPrevDep = !!(g?.depends_on_previous || g?.use_previous_results || g?.dependency_mode === 'product_reference' || g?.dependency_mode === 'fusion')
         // ① 独立步骤 + direct_refs → 优先用 direct_refs（对齐大雄 10638：`direct_refs && !isPrevDep`）
@@ -819,12 +878,12 @@ const executePlanTool = {
           const refs = g.direct_refs.filter((r) => r && r.url)
           if (refs.length > 0) {
             let prompt = String(g.prompt || '')
-            prompt = prompt.replace(/图\s*([一二三四五六七八九十])/g, (m, cn) => `图${cnMap[cn] || cn}`)
+            prompt = prompt.replace(/图\s*([一二三四五六七八九十])/g, (m, cn) => `图${CN_TO_ARABIC[cn] || cn}`)
             const roleDescs = []
             refs.forEach((ref, i) => {
               const entry = imgMap.find((m) => m.url === ref.url)
               if (entry) {
-                const re = new RegExp(`图\\s*${entry.num}(?![0-9])`, 'g')
+                const re = getFigNumRegex(entry.num)
                 prompt = prompt.replace(re, `第${i + 1}张参考图`)
               }
               roleDescs.push(`第${i + 1}张`)

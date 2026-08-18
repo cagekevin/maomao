@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { X, Check, Undo2, Redo2, RotateCcw, ScanFace, LayoutGrid, Ban, Grid3X3, Waves } from 'lucide-react'
 import { detectFaces, drawMosaicOnBox, MOSAIC_MODES, MOSAIC_PALETTE } from './faceMosaic.js'
+import { createRafBatch } from './utils.js'
 
 /**
  * 人脸打码 · 手动编辑器（完整复刻官方 _Component55.jsx）。
@@ -24,6 +25,9 @@ export default function FaceMosaicEditor({ imageUrl, onSave, onClose }) {
   const [dragStart, setDragStart] = useState(null)
   const [dragBox, setDragBox] = useState(null)
   const [histIdx, setHistIdx] = useState(0)
+  // P3：框选手势期缓存 { rect, batch }；dragBoxRef 供 onPointerUp 读最新框（state 异步，避免差一帧）
+  const dragGesture = useRef(null)
+  const dragBoxRef = useRef(null)
 
   // 快照当前 canvas 入历史栈（复刻官方 D，用于撤销/重做）
   const pushSnapshot = useCallback(() => {
@@ -80,16 +84,34 @@ export default function FaceMosaicEditor({ imageUrl, onSave, onClose }) {
   }
 
   const onPointerDown = (e) => {
+    const rect = canvasRef.current.getBoundingClientRect()
     const p = toCanvasPos(e.clientX, e.clientY)
     setDragStart(p)
-    setDragBox({ x: p.x, y: p.y, w: 0, h: 0 })
+    const box = { x: p.x, y: p.y, w: 0, h: 0 }
+    dragBoxRef.current = box
+    setDragBox(box)
+    // P3：move 高频 → rAF 合并 setDragBox；rect 在 pointerdown 缓存一次，move 内不再读
+    const batch = createRafBatch((clientX, clientY) => {
+      const start = dragStart
+      if (!start) return
+      const x = (clientX - rect.left) / scale
+      const y = (clientY - rect.top) / scale
+      const px = Math.max(0, Math.min(dims.w, x))
+      const py = Math.max(0, Math.min(dims.h, y))
+      const next = { x: Math.min(start.x, px), y: Math.min(start.y, py), w: Math.abs(px - start.x), h: Math.abs(py - start.y) }
+      dragBoxRef.current = next
+      setDragBox(next)
+    })
+    dragGesture.current = { batch }
   }
   const onPointerMove = (e) => {
     if (!dragStart) return
-    const p = toCanvasPos(e.clientX, e.clientY)
-    setDragBox({ x: Math.min(dragStart.x, p.x), y: Math.min(dragStart.y, p.y), w: Math.abs(p.x - dragStart.x), h: Math.abs(p.y - dragStart.y) })
+    dragGesture.current?.batch(e.clientX, e.clientY)
   }
   const onPointerUp = () => {
+    dragGesture.current?.batch.flush() // 松手补最后一帧，避免漏最后一段拖拽
+    dragGesture.current = null
+    const dragBox = dragBoxRef.current
     if (dragBox && dragBox.w > 4 && dragBox.h > 4) {
       const c = canvasRef.current
       const ctx = c?.getContext('2d')
@@ -102,6 +124,7 @@ export default function FaceMosaicEditor({ imageUrl, onSave, onClose }) {
     }
     setDragStart(null)
     setDragBox(null)
+    dragBoxRef.current = null
   }
 
   const canUndo = histIdx > 0
@@ -228,7 +251,7 @@ export default function FaceMosaicEditor({ imageUrl, onSave, onClose }) {
           {dragBox && (
             <div
               className="absolute border-2 border-blue-400 bg-blue-400/20 pointer-events-none"
-              style={{ left: dragBox.x * scale, top: dragBox.y * scale, width: dragBox.w * scale, height: dragBox.h * scale }}
+              style={{ left: dragBox.x * scale, top: dragBox.y * scale, width: dragBox.w * scale, height: dragBox.h * scale, willChange: 'left, top, width, height' }}
             />
           )}
         </div>

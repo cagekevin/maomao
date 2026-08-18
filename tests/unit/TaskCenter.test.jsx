@@ -164,7 +164,8 @@ describe('TaskCenter — 过滤与搜索', () => {
     fireEvent.click(screen.getByText('过滤'))
     fireEvent.change(screen.getByPlaceholderText('搜索提示词或渠道...'), { target: { value: '猫' } })
     expect(screen.getByText('猫')).toBeTruthy()
-    expect(screen.queryByText('狗')).toBeNull()
+    // P2：过滤经 200ms 防抖后生效（输入即时、过滤停顿后触发）
+    return waitFor(() => expect(screen.queryByText('狗')).toBeNull())
   })
 
   it('状态下拉筛选 → 只显示失败', () => {

@@ -8,9 +8,10 @@
  *  - 画布快照 canvas-state-v1-${projectId} 走 KV（跨端共享，见 kvStore）。
  */
 import { useSyncExternalStore } from 'react'
+import { useStoreSelector } from './useStoreSelector.js'
 import { CANVAS_STATE_PREFIX } from './kvStore.js'
 import { fetchProjects, saveProjects } from './projectsApi.js'
-import { contentGet, contentSet, contentGetAsync, contentSetAsync, contentDeleteAsync } from './contentStore.js'
+import { contentGet, contentSet, contentGetAsync, contentSetAsync, contentDeleteAsync, createDebouncedPersist } from './contentStore.js'
 import { logger } from './logger.js'
 
 const PROJECTS_KEY = 'projects'
@@ -36,14 +37,26 @@ function loadLastOpened() {
   return id
 }
 
-// 持久化：双写 contentStore (localStorage) + localTool 后端（fire-and-forget）
-function persist() {
+// P4 落盘节流：项目切换/重命名等离散操作同步 stringify + 双写（localStorage + 后端）节流合并，
+// 消除高频切换时的重复 JSON.stringify 与 saveProjects 网络请求。通知订阅者保持即时。
+// write 是「读当前最新 projects/currentProjectId」的 thunk——flush 时才执行，合并窗口内最终态。
+// 兜底：createDebouncedPersist 自动注册 pagehide flush，极端刷新/关闭不丢最后变更。
+const persistDebounced = createDebouncedPersist(() => {
   contentSet(PROJECTS_KEY, projects)
   contentSet(LAST_OPENED_KEY, currentProjectId)
   saveProjects(
     projects.map((p) => ({ id: p.id, name: p.name })),
     currentProjectId
   ).catch(() => {}) // fire-and-forget，后端保存失败下次 persist 再同步
+}, 300)
+
+function persist() {
+  persistDebounced.schedule()
+}
+
+/** 强制立即落盘（页面卸载兜底 / 测试用） */
+export function flushPersist() {
+  persistDebounced.flush()
 }
 
 // 启动时从后端加载项目（以后端为准，覆盖本地兜底）
@@ -204,4 +217,10 @@ export function renameProject(id, name) {
 
 export function useProjects() {
   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
+}
+
+/** 原子订阅：只订阅当前项目 id（P5）。App 等大组件只用 currentProjectId 时，
+ *  避免 projects 列表变更（新建/重命名）连坐整组件重渲染。 */
+export function useCurrentProjectId() {
+  return useStoreSelector(subscribe, getSnapshot, (s) => s.currentProjectId)
 }

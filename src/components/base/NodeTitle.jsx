@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react'
  * 节点标题栏（复刻原 _Component8.jsx）
  * 显示小图标 + 名称，双击可改名，支持拖拽（drag-handle）
  */
-export default function NodeTitle({ label, defaultTitle, icon, className = '', floating = false }) {
+function NodeTitle({ label, defaultTitle, icon, className = '', floating = false }) {
   const [val, setVal] = useState(label || defaultTitle)
   const [editing, setEditing] = useState(false)
 
@@ -62,3 +62,4 @@ export default function NodeTitle({ label, defaultTitle, icon, className = '', f
     </div>
   )
 }
+export default React.memo(NodeTitle)

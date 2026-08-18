@@ -16,7 +16,7 @@
  */
 import React from 'react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 
 // 捕获 setNodes/setEdges 传入的 updater 并执行，得到更新后的 nodes/edges（供断言 data 变更）
 const h = vi.hoisted(() => {
@@ -193,8 +193,8 @@ describe('DiscountVideoNode — 提示词与素材', () => {
     setup()
     const ta = screen.getByPlaceholderText('描述你想要的视频内容 (输入 @ 调出素材)...')
     fireEvent.change(ta, { target: { value: '日落航拍' } })
-    // useEffect 同步 patchData({ prompt })
-    expect(nodeData().prompt).toBe('日落航拍')
+    // P2：prompt 持续输入经 debouncedPatch（200ms）防抖写回 node.data
+    return waitFor(() => expect(nodeData().prompt).toBe('日落航拍'))
   })
 
   it('点击素材 @插入 → 提示词追加 @素材A 并落盘', () => {
@@ -202,7 +202,8 @@ describe('DiscountVideoNode — 提示词与素材', () => {
     fireEvent.click(screen.getByTestId('insert'))
     const ta = screen.getByPlaceholderText('描述你想要的视频内容 (输入 @ 调出素材)...')
     expect(ta.value).toBe('@素材A ')
-    expect(nodeData().prompt).toBe('@素材A ')
+    // P2：插入后提示词经防抖写回 node.data
+    return waitFor(() => expect(nodeData().prompt).toBe('@素材A '))
   })
 
   it('断开素材连线 → setEdges 过滤该来源节点到本节点的边', () => {

@@ -18,12 +18,14 @@
 import { forwardRef, useState, useRef, useCallback, useEffect } from 'react'
 import { toAbsoluteFileUrl } from './imageUrl.js'
 import { copyImageToClipboard, downloadUrl } from './clipboard.js'
+import { createRafBatch } from './utils.js'
 
 const ImageZoomDialog = forwardRef(function ImageZoomDialog({ url }, ref) {
   const [scale, setScale] = useState(1)
   const [offset, setOffset] = useState({ x: 0, y: 0 })
   const dragging = useRef(false)
   const lastPointer = useRef({ x: 0, y: 0 })
+  const imgRef = useRef(null) // P10：拖拽期给 img 挂 will-change
   const [copied, setCopied] = useState(false)
   const [copyErr, setCopyErr] = useState(false)
 
@@ -42,40 +44,60 @@ const ImageZoomDialog = forwardRef(function ImageZoomDialog({ url }, ref) {
     }
   }, [url])
 
-  // 原生 wheel 监听（非被动），确保缩放生效
+  // 原生 wheel 监听（非被动），确保缩放生效；P3：增量累计 + rAF 合并到每帧一次 setScale
   useEffect(() => {
     const node = typeof ref === 'function' ? null : ref?.current
     if (!node) return
+    let pending = 0
+    const batch = createRafBatch((delta) => {
+      pending = 0
+      setScale((s) => Math.min(Math.max(0.1, s + delta), 10))
+    })
     const onWheel = (e) => {
       e.preventDefault()
-      const delta = -e.deltaY * 0.0015
-      setScale((s) => Math.min(Math.max(0.1, s + delta), 10))
+      pending += -e.deltaY * 0.0015
+      batch(pending)
     }
     node.addEventListener('wheel', onWheel, { passive: false })
-    return () => node.removeEventListener('wheel', onWheel)
+    return () => {
+      node.removeEventListener('wheel', onWheel)
+      batch.cancel()
+    }
   })
 
-  // window 级拖拽，避免 setPointerCapture 吞掉按钮点击
+  // window 级拖拽，避免 setPointerCapture 吞掉按钮点击；P3：平移增量 rAF 合并 + P10 will-change
   useEffect(() => {
+    let pending = { x: 0, y: 0 }
+    const batch = createRafBatch((dx, dy) => {
+      pending = { x: 0, y: 0 }
+      setOffset((o) => ({ x: o.x + dx, y: o.y + dy }))
+    })
     const onMove = (e) => {
       if (!dragging.current) return
-      const dx = e.clientX - lastPointer.current.x
-      const dy = e.clientY - lastPointer.current.y
-      setOffset((o) => ({ x: o.x + dx, y: o.y + dy }))
+      pending.x += e.clientX - lastPointer.current.x
+      pending.y += e.clientY - lastPointer.current.y
       lastPointer.current = { x: e.clientX, y: e.clientY }
+      batch(pending.x, pending.y)
     }
-    const onUp = () => { dragging.current = false }
+    const onUp = () => {
+      dragging.current = false
+      batch.flush() // 松手补最后一帧，避免差一帧
+      if (imgRef.current) imgRef.current.style.willChange = '' // P10：拖拽结束移除
+    }
     window.addEventListener('pointermove', onMove)
     window.addEventListener('pointerup', onUp)
     return () => {
       window.removeEventListener('pointermove', onMove)
       window.removeEventListener('pointerup', onUp)
+      batch.cancel()
     }
   }, [])
 
   const onPointerDown = useCallback((e) => {
     dragging.current = true
     lastPointer.current = { x: e.clientX, y: e.clientY }
+    // P10：拖拽期挂 will-change（transform 会被高频改写，提示浏览器提前建合成层）
+    if (imgRef.current) imgRef.current.style.willChange = 'transform'
   }, [])
 
   const close = useCallback((e) => {
@@ -112,6 +134,7 @@ const ImageZoomDialog = forwardRef(function ImageZoomDialog({ url }, ref) {
           style={{ cursor: dragging.current ? 'grabbing' : 'grab' }}
         >
           <img
+            ref={imgRef}
             src={src}
             alt="大图"
             onClick={(e) => e.stopPropagation()}

@@ -98,7 +98,7 @@ export function splitByMethod(text, method) {
   }
 }
 
-export default function LoopNode({ id, data, selected }) {
+function LoopNode({ id, data, selected }) {
   // 上游连线：读取直接上游节点的文本（textNode 产出 data.text）
   const connected = useConnectedInputs(id)
   const { setNodes, setEdges, getNodes, getEdges } = useReactFlow()
@@ -286,3 +286,4 @@ export default function LoopNode({ id, data, selected }) {
     </NodeShell>
   )
 }
+export default React.memo(LoopNode)

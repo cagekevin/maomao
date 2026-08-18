@@ -8,6 +8,7 @@ import {
 import { getPromptHubSources } from './promptSources.js'
 import { toastWarning } from './toastStore.js'
 import LazyImage from './LazyImage.jsx'
+import { createImeInput } from './utils.js'
 
 const fmtDate = (s) => {
   if (!s) return '—'
@@ -53,16 +54,16 @@ const HubCard = React.memo(function HubCard({ it, onOpen }) {
   )
 })
 
-function DetailRow({ label, children }) {
+const DetailRow = React.memo(function DetailRow({ label, children }) {
   return (
     <div className="flex gap-2 text-meta">
       <span className="text-muted w-12 shrink-0">{label}</span>
       <div className="flex-1 min-w-0">{children}</div>
     </div>
   )
-}
+})
 
-function HubDetail({ it, onClose }) {
+const HubDetail = React.memo(function HubDetail({ it, onClose }) {
   const refs = Array.isArray(it.referenceImageUrls) ? it.referenceImageUrls : []
   return (
     <div className="absolute inset-0 z-20 bg-input flex flex-col">
@@ -138,18 +139,18 @@ function HubDetail({ it, onClose }) {
       </div>
     </div>
   )
-}
+})
 
-function HubLoading() {
+const HubLoading = React.memo(function HubLoading() {
   return (
     <div className="flex-1 flex flex-col items-center justify-center gap-2 text-muted">
       <RefreshCw size={22} className="animate-spin" />
       <span className="text-body-sm">加载中…</span>
     </div>
   )
-}
+})
 
-function HubEmpty({ keyword, source }) {
+const HubEmpty = React.memo(function HubEmpty({ keyword, source }) {
   return (
     <div className="flex-1 flex flex-col items-center justify-center gap-2 text-muted px-6 text-center">
       <ImageOff size={28} />
@@ -159,9 +160,9 @@ function HubEmpty({ keyword, source }) {
       <span className="text-caption-sm">换个关键词或来源试试</span>
     </div>
   )
-}
+})
 
-export default function PromptHub() {
+function PromptHub() {
   const [items, setItems] = useState([])
   const [status, setStatus] = useState('idle') // idle | loading | ready | error
   const [error, setError] = useState('')
@@ -172,15 +173,14 @@ export default function PromptHub() {
   const [openId, setOpenId] = useState(null)
 
   const sources = useMemo(() => getSources(), [])
-  const [srcErrors, setSrcErrors] = useState([])
   const [expanded, setExpanded] = useState(false)
   const warnedRef = useRef(false)
 
-  // 搜索输入防抖（原生 setTimeout，200ms）
-  useEffect(() => {
-    const t = setTimeout(() => setDebouncedKeyword(keyword), 200)
-    return () => clearTimeout(t)
-  }, [keyword])
+  // P2/P12：搜索输入防抖 + IME 门控（替代原手写 setTimeout；组字中不触发过滤，组字结束补提交一次）
+  const searchIme = useRef(null)
+  if (searchIme.current == null) {
+    searchIme.current = createImeInput((v) => setDebouncedKeyword(v), 200)
+  }
 
   // 切换来源/关键词时重置分页
   useEffect(() => {
@@ -204,7 +204,6 @@ export default function PromptHub() {
         setStatus(res.items.length ? 'ready' : 'error')
         setError(res.items.length ? '' : '未加载到任何提示词')
         const errs = getPromptHubErrors()
-        setSrcErrors(errs)
         if (errs.length && !warnedRef.current) {
           warnedRef.current = true
           toastWarning(`${errs.length} 个源加载失败，其余正常显示`)
@@ -227,7 +226,6 @@ export default function PromptHub() {
         setStatus(res.items.length ? 'ready' : 'error')
         setError(res.items.length ? '' : '未加载到任何提示词')
         const errs = getPromptHubErrors()
-        setSrcErrors(errs)
         if (errs.length && !warnedRef.current) {
           warnedRef.current = true
           toastWarning(`${errs.length} 个源加载失败，其余正常显示`)
@@ -282,7 +280,7 @@ export default function PromptHub() {
               onClick={() => setExpanded((v) => !v)}
               className="px-2 py-1 rounded text-caption-sm border border-edge-subtle text-muted hover:bg-surface-faint"
             >
-              {expanded ? '收起' : `更多(${sources.length - 6})`}
+              {expanded ? '收起' : '更多'}
             </button>
           )}
         </div>
@@ -294,7 +292,12 @@ export default function PromptHub() {
           <Search size={15} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted" />
           <input
             value={keyword}
-            onChange={(e) => setKeyword(e.target.value)}
+            onChange={(e) => {
+              setKeyword(e.target.value)
+              searchIme.current?.onChange(e.target.value, e.nativeEvent.isComposing)
+            }}
+            onCompositionEnd={(e) => searchIme.current?.onCompositionEnd(e.target.value)}
+            onBlur={() => searchIme.current?.cancel()}
             placeholder="搜索提示词…"
             className="w-full pl-8 pr-2 py-1.5 rounded bg-surface-2 text-body-sm outline-none focus:ring-1 focus:ring-blue-500"
           />
@@ -303,12 +306,6 @@ export default function PromptHub() {
           {status === 'loading' ? '加载中…' : `共 ${filtered.length} 条提示词`}
         </div>
       </div>
-
-      {srcErrors.length > 0 && (
-        <div className="mx-3 mt-2 text-caption-sm text-amber-300/80 truncate" title={srcErrors.map((e) => e.error).join('；')}>
-          部分源加载失败，已显示其余内容
-        </div>
-      )}
 
       {status === 'loading' ? (
         <HubLoading />
@@ -344,3 +341,5 @@ export default function PromptHub() {
     </div>
   )
 }
+
+export default React.memo(PromptHub)

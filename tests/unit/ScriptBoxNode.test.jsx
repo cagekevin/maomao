@@ -57,7 +57,7 @@ vi.mock('../../src/components/base/FullscreenModal.jsx', () => ({ default: ({ op
 vi.mock('../../src/components/base/useScriptBoxData.js', () => ({ useScriptBoxData: () => ({ updateData: (...a) => h.updateData(...a) }) }))
 // 引擎 hook：mock createScriptBoxEngine → 返回稳定引擎实例，验证真实注入链路
 vi.mock('../../src/components/base/scriptBoxEngine.js', () => ({ createScriptBoxEngine: () => h.engine }))
-vi.mock('../../src/components/base/settings/providerStore.js', () => ({ useProviders: () => ({ providers: [] }), load: vi.fn(async () => {}) }))
+vi.mock('../../src/components/base/settings/providerStore.js', () => ({ useProviders: () => ({ providers: [] }), useProvidersList: () => [], load: vi.fn(async () => {}) }))
 vi.mock('../../src/components/base/logger.js', () => ({ logger: { warn: vi.fn() } }))
 vi.mock('../../src/components/base/hooks.js', () => ({ useOutsideClick: () => {}, useNodeResize: () => ({ onMainBoxResize: vi.fn() }) }))
 // 上游输入接入 hook：mock 返回空（测试默认无上游连线），避免依赖 @xyflow/react 的 useStore

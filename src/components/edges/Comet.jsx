@@ -9,7 +9,7 @@ import CometParticles from '../base/CometParticles.jsx'
  *  - 外层 <g> 的 is-active 态（控制粒子流显隐）
  *  - 指定 mpath 指向的隐藏 path id
  */
-export default function Comet({ pathRef, edgeId, isActive }) {
+function Comet({ pathRef, edgeId, isActive }) {
   const mpathId = `cust-edge-mpath-${edgeId}`
   const pathTarget = pathRef || mpathId
 
@@ -19,3 +19,4 @@ export default function Comet({ pathRef, edgeId, isActive }) {
     </g>
   )
 }
+export default React.memo(Comet)

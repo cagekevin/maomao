@@ -8,7 +8,7 @@ import Comet from './Comet.jsx'
  * 选中或关联时 is-active → 渲染 Comet 彗星流光。
  * 需配合 App.jsx 里把 edge data 标记 relatedToSelected 才生效。
  */
-export default function CustomEdge({
+function CustomEdge({
   id,
   sourceX,
   sourceY,
@@ -92,3 +92,4 @@ export default function CustomEdge({
     </>
   )
 }
+export default React.memo(CustomEdge)

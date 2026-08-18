@@ -142,10 +142,13 @@ export function useConnectedInputs(nodeId) {
   return useMemo(() => {
     const out = { images: [], texts: [], videos: [], audios: [] }
     if (!nodeId) return out
+    // P7：双层遍历改 Map——edges×nodes 的 find 每次 O(n)，建一次 nodeById 索引后按 id O(1) 查。
+    // Map 在 useMemo 内随 nodes 引用变化重建，不会缓存过期。
+    const nodeById = new Map(nodes.map((n) => [n.id, n]))
     edges
       .filter((e) => e.target === nodeId)
       .forEach((e) => {
-        const src = nodes.find((n) => n.id === e.source)
+        const src = nodeById.get(e.source)
         if (!src) return
         // 编组作为出口：聚合组内所有子节点（非隐藏）的产出，统一接到下游。
         // 这样把文本/图片等拖进 group 范围内（成为子节点），下游连到 group 的 source 口即可收到全部。

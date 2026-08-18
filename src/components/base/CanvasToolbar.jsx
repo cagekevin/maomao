@@ -34,7 +34,7 @@ import { LayoutGrid, Map, Maximize, RefreshCw, Zap } from 'lucide-react'
  * @param {Function} [props.onClearCache] 清理缓存（App 传入：释放节点内大 dataURL 资源）
  * @param {boolean} [props.localToolConnected] 本地引擎是否连接（左上角第一个对号/断开按钮）
  */
-export default function CanvasToolbar({
+function CanvasToolbar({
   minimapOn,
   onToggleMinimap,
   onArrange,
@@ -117,3 +117,5 @@ export default function CanvasToolbar({
     </div>
   )
 }
+
+export default React.memo(CanvasToolbar)

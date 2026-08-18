@@ -9,6 +9,7 @@ import { toAbsoluteFileUrl } from './filesApi.js'
 import { httpRequest } from './httpClient.js'
 import { logger } from './logger.js'
 import { isAudio } from './mediaType.js'
+import LazyImage from './LazyImage.jsx'
 
 // 目录 pill（folder 前缀对齐本地磁盘 migrated/materials 结构，与后端 /api/resources 一一对应）
 const FOLDER_PILLS = [
@@ -30,7 +31,7 @@ const PAGE_SIZE = 20 // 每次加载 20 个，无限滚动追加
 
 // fetchText/textCache 统一收敛到 useAssetDragToCanvas.js；isAudio 统一到 mediaType.js
 // 文字素材单元格：默认展示文件内容（前几行）
-function TextAssetCell({ url, name }) {
+const TextAssetCell = React.memo(function TextAssetCell({ url, name }) {
   const [text, setText] = useState('')
   useEffect(() => {
     let alive = true
@@ -47,10 +48,10 @@ function TextAssetCell({ url, name }) {
       )}
     </div>
   )
-}
+})
 
 // 文字素材预览：完整展示文件内容
-function TextPreview({ url, name }) {
+const TextPreview = React.memo(function TextPreview({ url, name }) {
   const [text, setText] = useState('')
   useEffect(() => {
     let alive = true
@@ -67,7 +68,7 @@ function TextPreview({ url, name }) {
       </pre>
     </div>
   )
-}
+})
 
 /**
  * 素材库 tab —— 与本地磁盘文件一一对应（从 localTool /api/resources 读取 migrated/materials 目录，rescan 收录），
@@ -75,7 +76,7 @@ function TextPreview({ url, name }) {
  * 顶部「⋯」菜单含「打开本地目录」「新建文件夹」（对齐官方素材 tab）。
  * 上传文件真实落盘到后端 /api/files/upload；删除走 /api/resources/delete。预览/拖拽建节点保留。
  */
-export default function AssetLibrary() {
+function AssetLibrary() {
   const { status } = useLocalToolStatus()
   const connected = status.isConnected
 
@@ -440,10 +441,10 @@ export default function AssetLibrary() {
                           </span>
                         </span>
                       </div>
+                    ) : a.url ? (
+                      <LazyImage src={a.url} alt={a.name} className="w-full h-full" />
                     ) : (
-                      <div className="w-full h-full bg-cover bg-center" style={{ backgroundImage: a.url ? `url(${a.url})` : undefined }}>
-                        {!a.url && <div className="w-full h-full flex items-center justify-center text-subtle"><FileText size={18} /></div>}
-                      </div>
+                      <div className="w-full h-full flex items-center justify-center text-subtle"><FileText size={18} /></div>
                     )}
 
                     {/* 类型角标（文件夹/文字不显示黄色图标） */}
@@ -521,3 +522,5 @@ export default function AssetLibrary() {
     </div>
   )
 }
+
+export default React.memo(AssetLibrary)

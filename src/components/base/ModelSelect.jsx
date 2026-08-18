@@ -24,7 +24,7 @@ function badgeMeta(badge) {
  *  - placeholder 未选时文案（默认「选择模型」）
  *  - costMap     模型→币消耗映射（可选，显示在选项右侧）
  */
-export default function ModelSelect({
+function ModelSelect({
   value,
   onChange,
   models = [],
@@ -97,3 +97,5 @@ export default function ModelSelect({
     </div>
   )
 }
+
+export default React.memo(ModelSelect)

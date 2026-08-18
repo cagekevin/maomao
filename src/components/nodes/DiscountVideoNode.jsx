@@ -28,6 +28,7 @@ import { generateVideo } from '../base/videoApi.js'
 import { useNodePrefs } from '../base/nodePrefs.js'
 import { logger } from '../base/logger.js'
 import { buildAllModels, resolveProviderModel } from '../base/providerModels.js'
+import { debounce } from '../base/utils.js'
 
 /**
  * 特惠视频节点（复刻原 As.jsx / discountVideoNode）
@@ -35,7 +36,7 @@ import { buildAllModels, resolveProviderModel } from '../base/providerModels.js'
  * 保留差异化：主显示区、比例/分辨率/时长菜单、素材区、提示词输入。
  * 性能降级用通用 useMediaDegrade：lodLevel>=3 藏视频（与官方横幅 yt===3 一致）。
  */
-export default function DiscountVideoNode({ id, data, selected }) {
+function DiscountVideoNode({ id, data, selected }) {
   // 性能模式媒体降级（通用 hook）：hideVideo = isHidden('video')，即 lodLevel>=3
   const { isHidden } = useMediaDegrade()
   const hideVideo = isHidden('video')
@@ -73,6 +74,11 @@ export default function DiscountVideoNode({ id, data, selected }) {
     },
     []
   )
+  // P2：prompt 持续输入走防抖写回（避免每键 setNodes 全图 node 数组重建）；卸载 flush 兜底
+  const debouncedPatch = useRef(null)
+  if (debouncedPatch.current == null) {
+    debouncedPatch.current = debounce(patchData, 200)
+  }
   const [ratio, setRatio] = useState(data.size || '16:9')
   const [resolution, setResolution] = useState(data.resolution || '1080p')
   const [seconds, setSeconds] = useState(data.selectedSeconds || '10')
@@ -82,8 +88,10 @@ export default function DiscountVideoNode({ id, data, selected }) {
   const toggleExpanded = useCallback(() => setExpanded((v) => !v), [])
   // 【React 反模式修复】「写回 node.data」不在 setState updater 里做（渲染期间 setNodes → BatchProvider 警告），
   // 改用 useEffect 同步落盘。
-  React.useEffect(() => { patchData({ prompt }) }, [prompt]) // eslint-disable-line react-hooks/exhaustive-deps
+  React.useEffect(() => { debouncedPatch.current({ prompt }) }, [prompt]) // eslint-disable-line react-hooks/exhaustive-deps
   React.useEffect(() => { patchData({ expanded }) }, [expanded]) // eslint-disable-line react-hooks/exhaustive-deps
+  // 卸载前 flush 最后一次待提交（避免防抖窗口内丢数据）
+  React.useEffect(() => () => { debouncedPatch.current?.flush() }, [])
   const [videoUrl, setVideoUrl] = useState(data.videoUrl || '')
   const [showRatioMenu, setShowRatioMenu] = useState(false)
 
@@ -391,3 +399,4 @@ export default function DiscountVideoNode({ id, data, selected }) {
     </NodeShell>
   )
 }
+export default React.memo(DiscountVideoNode)

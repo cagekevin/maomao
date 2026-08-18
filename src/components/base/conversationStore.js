@@ -29,7 +29,7 @@
  * ════════════════════════════════════════════════════════════════
  */
 import { useSyncExternalStore } from 'react'
-import { contentGet, contentSet } from './contentStore.js'
+import { contentGet, contentSet, createDebouncedPersist } from './contentStore.js'
 import { generateId } from './idGen.js'
 
 /**
@@ -57,6 +57,25 @@ function emptyMemory() {
 const states = {}           // { [agentKey]: { conversations, activeId } }
 const hydratedSet = {}      // { [agentKey]: boolean } 该 key 是否已恢复过当前对话
 let currentAgentKey = 'canvas-assistant'  // 当前生效的 agentKey（由 setAgentKey 设置）
+
+// P4 落盘节流：commit 每次变更全量 stringify + 落盘是热路径（流式/轮询/记忆提炼高频触发），
+// 防抖合并成最终态一次落盘。通知订阅者（notify）保持即时，只有「落盘」被节流。
+// write 是「读当前最新 state」的 thunk——flush 时才执行，天然合并窗口内多次 commit 的最终态。
+// 兜底：createDebouncedPersist 自动注册 pagehide flush，极端刷新/关闭不丢最后变更。
+const persistDebounced = createDebouncedPersist(() => {
+  if (!hydratedSet[currentAgentKey]) return // 未恢复不落盘（防挂载覆盖）
+  const next = states[currentAgentKey]
+  if (!next) return
+  try {
+    contentSet(convKey(currentAgentKey), next.conversations.map(normalizeConversation))
+    contentSet(activeKey(currentAgentKey), next.activeId || '')
+  } catch { /* 忽略写失败 */ }
+}, 300)
+
+/** 强制立即落盘当前 agentKey 会话（页面卸载兜底 / 测试用） */
+export function flushPersist() {
+  persistDebounced.flush()
+}
 
 /** 订阅者 */
 const listeners = new Set()
@@ -146,14 +165,7 @@ function getState() {
 function commit(next) {
   states[currentAgentKey] = next
   listeners.forEach((l) => l())
-  if (hydratedSet[currentAgentKey]) {
-    try {
-      contentSet(convKey(currentAgentKey), next.conversations.map(normalizeConversation))
-      contentSet(activeKey(currentAgentKey), next.activeId || '')
-    } catch {
-      /* 忽略写失败 */
-    }
-  }
+  if (hydratedSet[currentAgentKey]) persistDebounced.schedule()
 }
 
 /** 生成唯一 id（对齐大雄 uid('ac')） */
@@ -165,6 +177,12 @@ function uid(prefix) {
 export function normalizeConversation(c) {
   if (!c || typeof c !== 'object') return null
   if (!Array.isArray(c.messages)) c.messages = []
+  // P15 列表 key：保证每条消息有稳定唯一 id（无 id 的补一个，已有保留；幂等——补过的对象带 id，
+  // 二次归一化直接返回原引用，不重生成 → 列表 key 稳定不重挂载）。
+  c.messages = c.messages.map((m) => {
+    if (!m || typeof m !== 'object' || m.id) return m
+    return { ...m, id: generateId('msg') }
+  })
   if (!Array.isArray(c.skills)) c.skills = []
   if (!Array.isArray(c.attachments)) c.attachments = []
   if (typeof c.title !== 'string') c.title = c.title || '对话'

@@ -222,15 +222,14 @@ export async function executePlan({ ctx, generations = [], autoRun = true, model
   if (steps.length === 0) return { workflow: { status: 'failed', error: '计划为空' }, entries: [] }
   executingPlan = true
   executingPlanSince = Date.now()
-  log('info', `开始执行计划：共 ${steps.length} 步（独立批 ${steps.filter((s) => !dependsOnPrevious(s)).length} + 依赖批 ${steps.filter((s) => dependsOnPrevious(s)).length}）`)
+  // P8：独立批/依赖批分区一次，日志计数复用同一结果（消除重复全量 filter）
+  const independent = steps.filter((s) => !dependsOnPrevious(s))
+  let dependent = steps.filter((s) => dependsOnPrevious(s))
+  log('info', `开始执行计划：共 ${steps.length} 步（独立批 ${independent.length} + 依赖批 ${dependent.length}）`)
   try {
 
   const entries = []
   const byId = new Map() // step.id -> { nodeId, resultUrl, status }
-
-  // 分批：独立批 / 依赖批（对齐大雄）
-  const independent = steps.filter((s) => !dependsOnPrevious(s))
-  let dependent = steps.filter((s) => dependsOnPrevious(s))
 
   // 基础锚点：当前画布最右节点右侧，或固定 40,40
   const nodes = ctx.getNodes()
@@ -309,7 +308,7 @@ export async function executePlan({ ctx, generations = [], autoRun = true, model
     const resultUrl = res.resultUrl || ''
     // 【live 节点防悬空（对齐大雄 liveNodeById）】await 完成后重新查节点，
     // 防节点在生成期间被删除/合并（409）导致对悬空对象写回。节点已消失则跳过写回。
-    const live = (ctx.getNodes?.() || []).find((n) => n.id === nodeId)
+    const live = ctx.getNode?.(nodeId)
     if (live) {
       ctx.setNodes((ns) => ns.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, imageUrl: resultUrl } } : n)))
       // 完成时再锁一次参数（对齐大雄 L248 finishAgentNodeImages 末尾 lock），防 update_node/重渲染回落

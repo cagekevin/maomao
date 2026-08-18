@@ -36,6 +36,9 @@ export const MAX_TOOL_ROUNDS = 8
 // 一键切换，改这一处即可。
 export const ENABLE_TOOLS_ON_NON_STREAM = false
 
+/** P6：删除节点工具的动词集合——提为模块常量，避免 parseIntent 每次调用重建 Set */
+const DELETE_VERBS = new Set(['删除', '移除', '删掉', 'delete'])
+
 // ── 画布操作准则（单一来源，前端注入）──
 // 原设计把准则放后端 agentChat.ts unshift，但默认路径（provider 存在）走 /api/proxy，
 // 后端 agentChat.ts 不参与 → 准则在默认形态下是死代码。现改为前端在 useAgentChat 统一注入，
@@ -431,7 +434,6 @@ export function demoPlan(text, callTool) {
   //    （例：删除 text-1 → ['删除','text-1'] → text-1；把 text-1 删掉 → ['text-1'] → text-1）
   if (/删除|移除|删掉|delete/i.test(t)) {
     const tokens = text.match(/([\w-]+)/g) || []
-    const DELETE_VERBS = new Set(['删除', '移除', '删掉', 'delete'])
     const id = tokens.find((s) => !DELETE_VERBS.has(s.toLowerCase()))
     if (id) calls.push({ name: 'delete_node', args: { nodeId: id } })
   }

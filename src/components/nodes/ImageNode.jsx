@@ -32,7 +32,7 @@ import { openAssetLibrary } from '../base/taskStore.js'
  * 通用能力抽到 base/：useMediaDegrade（性能降级）、useFitNodeRatio（宽高比自适应）、
  * useVideoPoster（视频首帧封面）、detectMediaType（类型判断）。
  */
-export default function ImageNode({ id, data, selected }) {
+function ImageNode({ id, data, selected }) {
   const fileRef = useRef(null)
   const videoRef = useRef(null) // 播放视频元素（大播放按钮手势触发的 play() 用）
   // 读取端兜底：相对 /files/ 路径统一补全为绝对 URL，刷新不破图
@@ -336,3 +336,4 @@ export default function ImageNode({ id, data, selected }) {
     </>
   )
 }
+export default React.memo(ImageNode)

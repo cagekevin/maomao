@@ -1,12 +1,13 @@
 import React, { useEffect, useRef } from 'react'
 import { Handle } from '@xyflow/react'
+import { createRafBatch } from '../base/utils.js'
 
 /**
  * 自定义连接端口（复刻原 _Component12.jsx）
  * 大号（48px）用于特惠视频节点，小号（32px）用于文本/图片节点。
  * position: 'left' | 'right'
  */
-export default function CustomHandle({ className = '', variant = 'large', position, handleId, top }) {
+function CustomHandle({ className = '', variant = 'large', position, handleId, top }) {
   const isLeft = position === 'left'
   const isRight = position === 'right'
   const size = variant === 'large' ? 48 : 32
@@ -26,18 +27,22 @@ export default function CustomHandle({ className = '', variant = 'large', positi
   useEffect(() => {
     const el = ref.current
     if (!el) return
-    const move = (e) => {
+    // P3：mousemove 高频 → rAF 合并；getBoundingClientRect 从「每事件一次」降到「每帧一次」
+    // （句柄 hover 期间画布不 pan，rect 在帧内取值即可，无需 pointerdown 缓存到拖拽结束）。
+    const batch = createRafBatch((clientX, clientY) => {
       const r = el.getBoundingClientRect()
       const cx = r.left + r.width / 2
       const cy = r.top + r.height / 2
-      let dx = Math.max(-14, Math.min(14, (e.clientX - cx) * 0.35))
-      let dy = Math.max(-14, Math.min(14, (e.clientY - cy) * 0.35))
+      let dx = Math.max(-14, Math.min(14, (clientX - cx) * 0.35))
+      let dy = Math.max(-14, Math.min(14, (clientY - cy) * 0.35))
       if (isLeft) dx = Math.min(0, dx)
       else if (isRight) dx = Math.max(0, dx)
       el.style.setProperty('--cust-shift-x', `${dx}px`)
       el.style.setProperty('--cust-shift-y', `${dy}px`)
-    }
+    })
+    const move = (e) => batch(e.clientX, e.clientY)
     const reset = () => {
+      batch.cancel()
       el.style.setProperty('--cust-shift-x', '0px')
       el.style.setProperty('--cust-shift-y', '0px')
     }
@@ -46,6 +51,7 @@ export default function CustomHandle({ className = '', variant = 'large', positi
     return () => {
       el.removeEventListener('mousemove', move)
       el.removeEventListener('mouseleave', reset)
+      batch.cancel()
     }
   }, [isLeft, isRight])
 
@@ -94,3 +100,4 @@ export default function CustomHandle({ className = '', variant = 'large', positi
     </div>
   )
 }
+export default React.memo(CustomHandle)

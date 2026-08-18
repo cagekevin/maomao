@@ -12,12 +12,18 @@
  * 素材字段：{ id, folder, type, url, name, size, ts }
  *  type: 'image' | 'video' | 'audio'
  *
- * 接真系统：upload() 改为 POST /api/resources（folder 参数）、
- * 素材列表改为 GET /api/resources?folder=xxx，UI 不变。
+ * 接真系统：本 store 是前端本地缓存（localStorage）；
+ * 「发送到素材库」（sendToAssetLibrary）现已同时把 URL 素材落盘到 localTool
+ * （POST /api/files/upload，subfolder=folder）并 rescan，素材库面板（读 /api/resources）可读到。
  */
 import { useSyncExternalStore } from 'react'
-import { contentGet, contentSet } from './contentStore.js'
+import { contentGet, contentSet, createDebouncedPersist } from './contentStore.js'
 import { generateId } from './idGen.js'
+import { httpRequest } from './httpClient.js'
+import { API_BASE } from './apiBase.js'
+import { rescanResources } from './resourcesApi.js'
+import { saveInlineToLocal } from './filesApi.js'
+import { logger } from './logger.js'
 
 const STORAGE_KEY = 'yimao_asset_library'
 const listeners = new Set()
@@ -54,13 +60,19 @@ export const FOLDERS = [
   { key: 'materials', label: '素材池', folder: 'materials' }
 ]
 
-function persist() {
-  contentSet(STORAGE_KEY, assets)
-}
+// P4 落盘节流：高频变更（拖入/批量生成/上传进度）合并落盘，消除主线程长任务。
+// write 是「读当前最新 assets」的 thunk —— flush 时才执行，天然把窗口内多次变更合并为最终态。
+// 通知订阅者（notify）保持即时，只有「落盘」被节流，UI 响应性不受影响。
+const persistDebounced = createDebouncedPersist(() => contentSet(STORAGE_KEY, assets), 300)
 
 function notify() {
-  persist()
+  persistDebounced.schedule()
   listeners.forEach((l) => l())
+}
+
+/** 强制立即落盘（页面卸载兜底 / 测试用）；createDebouncedPersist 已自动注册 pagehide 兜底 */
+export function flushPersist() {
+  persistDebounced.flush()
 }
 
 function subscribe(cb) {
@@ -130,6 +142,11 @@ export function addAssets(items, folder = 'materials') {
  * - 默认落入「素材池(materials)」目录；可传 folder 覆盖（如 'tasks'）；
  * - 名称优先用传入 name，否则用 URL 文件名，再否则「未命名」。
  * 返回新增的素材数组（供调用方 toast / 其它联动）。
+ *
+ * 【后端落盘】此前只写前端 localStorage，素材库面板读的是后端 /api/resources，两套割裂导致
+ * 「已发送但面板看不到」。现补上：把 URL 素材经 localTool 落盘到对应 folder 目录（幂等 sha1 去重），
+ * 落盘成功后 rescan，素材库面板即可读到。data: → multipart；http(s) → fileUrl 下载落盘。
+ * blob: 是本地临时地址，不落盘（调用方应传 data:/http）。
  */
 export function sendToAssetLibrary(url, { name, folder = 'materials', type } = {}) {
   if (!url) return []
@@ -139,11 +156,43 @@ export function sendToAssetLibrary(url, { name, folder = 'materials', type } = {
     if (fromUrl && !/^blob:|^data:/.test(url)) fname = fromUrl
   } catch {}
   const assetName = (name && String(name).trim()) || fname
-  return addAssets(
-    [{ url, name: assetName, type: type || detectAssetType({ name: fname, type: '' }) }],
-    folder
-  )
+  const detectedType = type || detectAssetType({ name: fname, type: '' })
+  const added = addAssets([{ url, name: assetName, type: detectedType }], folder)
+
+  // 异步后端落盘（不阻塞、失败不抛——前端 store 仍保留，只是面板稍后 rescan 可见）
+  if (url && !url.startsWith('blob:')) {
+    persistUrlToBackend(url, folder)
+  }
+  return added
 }
+
+/** 把单个 URL 素材落盘到后端指定 folder 目录，成功后 rescan。 */
+async function persistUrlToBackend(url, folder) {
+  try {
+    if (url.startsWith('data:')) {
+      // 本地 base64 → multipart 上传（复用 filesApi 的 dataURL 落盘，subfolder 传 folder）
+      await saveInlineToLocal(url, folder)
+    } else {
+      // http(s) 上游 url → fileUrl 幂等下载落盘（对齐 saveResultToTasks 范式，subfolder 用 folder）。
+      // ⚠️ 不传 filename：后端 saveRemoteUrl 用「sha1(url) + URL basename」做幂等文件名，
+      // 传带时间戳的 filename 会让同名 URL 每次生成新文件名 → 重复下载，破坏幂等。
+      await httpRequest(`${API_BASE}/api/files/upload`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fileUrl: url, subfolder: folder }),
+        timeoutMs: 60000,
+        retries: 0,
+        label: 'sendToAssetLibrary',
+      })
+    }
+    // 落盘后 rescan，让素材库面板（读 /api/resources）能收到新素材
+    await rescanResources()
+  } catch (e) {
+    logger.warn('assetStore', '发送到素材库落盘失败', e?.message)
+  }
+}
+
+
 
 export function removeAsset(id) {
   assets = assets.filter((a) => a.id !== id)

@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { useReactFlow } from '@xyflow/react'
 import { createScriptBoxEngine } from './scriptBoxEngine.js'
-import { useProviders, load as loadProviders } from './settings/providerStore.js'
+import { useProvidersList, load as loadProviders } from './settings/providerStore.js'
 import { logger } from './logger.js'
 
 /**
@@ -25,11 +25,12 @@ import { logger } from './logger.js'
  * @param data    节点当前 data（仅兜底；引擎主要经 getNodes 实时读最新 data）
  */
 export function useScriptBoxEngine(nodeId, data) {
-  const { getNodes, setNodes, setEdges, addNodes, screenToFlowPosition } = useReactFlow()
+  const { getNodes, getNode, setNodes, setEdges, addNodes, screenToFlowPosition } = useReactFlow()
 
   // 供应商（多 provider，接真系统）：引擎经 getProviderState 实时读 providers + 主供应商，
   // 生成/生图时按模型 value（providerId::modelId）解析到对应 provider 再经 /api/proxy 转发。
-  const { providers } = useProviders()
+  // P5 原子订阅：只订阅 providers 列表，不随 providerStore 的 dirty/loading/testResult 连坐重渲染。
+  const providers = useProvidersList()
   // 首次挂载确保供应商已加载（生成/生图前必须有 provider，否则解析不到模型）
   useEffect(() => {
     if (!providers || providers.length === 0) loadProviders().catch((e) => logger.warn('provider', 'load-fail', { error: e?.message }))
@@ -47,8 +48,8 @@ export function useScriptBoxEngine(nodeId, data) {
   const engineRef = useRef(null)
   if (!engineRef.current) {
     engineRef.current = createScriptBoxEngine({
-      // 读最新 data：经 useReactFlow().getNodes 实时取，避免闭包捕获旧值
-      getData: () => getNodes().find((n) => n.id === nodeId)?.data ?? data ?? {},
+      // 读最新 data：经 useReactFlow().getNode 实时取（O(1) hash 查，替 getNodes().find），避免闭包捕获旧值
+      getData: () => getNode(nodeId)?.data ?? data ?? {},
       // 写回 node.data：经 setNodes 不可变更新（引擎唯一写回通道）
       updateData: (patch) =>
         setNodes((ns) => ns.map((n) => (n.id === nodeId ? { ...n, data: { ...(n.data || {}), ...patch } } : n))),

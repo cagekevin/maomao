@@ -23,8 +23,8 @@ import previewUrls from '../base/previewUrl.js'
  *  - 手动：打开 FaceMosaicEditor 全屏编辑器，拖拽框选 + 自动识别人脸
  *  - 结果：成功输出 imageNode（与官方 onSpawnImageNode 对齐）
  */
-export default function FaceMosaicNode({ id, data, selected }) {
-  const { setNodes, getNodes } = useReactFlow()
+function FaceMosaicNode({ id, data, selected }) {
+  const { setNodes, getNodes, getNode } = useReactFlow()
   const { hideMedia } = useMediaDegrade()
   const fileRef = useRef(null)
 
@@ -77,7 +77,7 @@ export default function FaceMosaicNode({ id, data, selected }) {
   // 输出结果（复刻官方 y）：spawn imageNode（原型无 imageBox 直连，统一 spawn）
   const outputResults = useCallback(
     (items) => {
-      const me = getNodes().find((n) => n.id === id)
+      const me = getNode(id)
       const baseX = (me?.position?.x ?? 100) + (me?.measured?.width ?? 320) + 60
       const baseY = me?.position?.y ?? 100
       const list = items.map((it, i) => ({
@@ -89,7 +89,7 @@ export default function FaceMosaicNode({ id, data, selected }) {
       }))
       setNodes((ns) => [...ns, ...list])
     },
-    [id, getNodes, setNodes]
+    [id, getNode, setNodes]
   )
 
   // AI 打码（复刻官方 b）
@@ -334,3 +334,4 @@ function dataUrlToBlob(dataUrl, mime) {
 function MODE_LABEL(mode) {
   return MOSAIC_MODES.find((m) => m.mode === mode)?.label || '打码'
 }
+export default React.memo(FaceMosaicNode)

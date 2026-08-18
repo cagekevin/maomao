@@ -36,7 +36,7 @@ import previewUrls from '../base/previewUrl.js'
  *  - 单帧/全部复制（mutiwindow-images 格式，可 Ctrl+V 粘贴成图片节点）
  *  - 带进度条、错误提示
  */
-export default function VideoExtractNode({ id, data, selected }) {
+function VideoExtractNode({ id, data, selected }) {
   const connected = useConnectedInputs(id)
   const { isHidden } = useMediaDegrade()
   const hideVideo = isHidden('video')
@@ -591,3 +591,4 @@ export default function VideoExtractNode({ id, data, selected }) {
     </div>
   )
 }
+export default React.memo(VideoExtractNode)

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 
 /**
  * 生成中遮罩（复刻官方 Ti.jsx + Di.jsx）。
@@ -118,7 +118,8 @@ const GEN_TIPS = [
 
 export default function GeneratingOverlay({ label = '生成中...', backgroundUrl = '', category = 'general' }) {
   // 按 category 过滤灵感 tips（image/video 专属 + general 兜底），对齐官方 Di.jsx
-  const pool = GEN_TIPS.filter((t) => t.category === category || t.category === 'general')
+  // P8：useMemo 缓存过滤结果，避免 category 不变时每次渲染重跑 133 条 filter
+  const pool = useMemo(() => GEN_TIPS.filter((t) => t.category === category || t.category === 'general'), [category])
   const [tipIdx, setTipIdx] = useState(() => Math.floor(Math.random() * Math.max(1, pool.length)))
   const [show, setShow] = useState(true)
 

@@ -8,7 +8,7 @@ import { showToast } from './toastStore.js'
 import { makeAssetDragProps } from './useAssetDragToCanvas.js'
 import VideoThumbnail from './VideoThumbnail.jsx'
 import { useOutsideClick } from './hooks.js'
-import { formatTime } from './utils.js'
+import { formatTime, createImeInput } from './utils.js'
 
 const TYPE_ICON = {
   image: ImageIcon,
@@ -35,10 +35,11 @@ const TYPE_FILTERS = [
  * Header：标题+总数+过滤toggle+关闭；过滤区：搜索/状态下拉/类型下拉/一键清理；
  * 卡片：状态圆点+文案 · 类型+模型 · 操作；提示词；时间；进度条；错误块；缩略图；更多菜单。
  */
-export default function TaskCenter() {
+function TaskCenter() {
   const tasks = useTasks()
   const [showFilter, setShowFilter] = useState(false)
   const [keyword, setKeyword] = useState('')
+  const [debouncedKeyword, setDebouncedKeyword] = useState('') // P2：过滤用防抖值
   const [statusFilter, setStatusFilter] = useState('')
   const [typeFilter, setTypeFilter] = useState('')
   const [moreOpenId, setMoreOpenId] = useState(null)
@@ -49,20 +50,36 @@ export default function TaskCenter() {
   const [previewUrl, setPreviewUrl] = useState(null)
   const [previewDims, setPreviewDims] = useState(null) // { w, h }
 
+  // P2/P12：搜索 IME 感知防抖提交（组字中不触发过滤，组字结束补提交一次）
+  const searchIme = useRef(null)
+  if (searchIme.current == null) {
+    searchIme.current = createImeInput((v) => setDebouncedKeyword(v), 200)
+  }
+
   const filtered = useMemo(() => {
     let list = tasks
     if (statusFilter === 'running') list = list.filter((t) => t.status === 'running' || t.status === 'pending')
     else if (statusFilter) list = list.filter((t) => t.status === statusFilter)
     if (typeFilter) list = list.filter((t) => t.type === typeFilter)
-    if (keyword.trim()) {
-      const kw = keyword.trim().toLowerCase()
+    if (debouncedKeyword.trim()) {
+      const kw = debouncedKeyword.trim().toLowerCase()
       list = list.filter((t) => (t.prompt || '').toLowerCase().includes(kw) || (t.channelName || '').toLowerCase().includes(kw))
     }
     return list
-  }, [tasks, statusFilter, typeFilter, keyword])
+  }, [tasks, statusFilter, typeFilter, debouncedKeyword])
 
-  const runningCount = tasks.filter((t) => t.status === 'running' || t.status === 'pending').length
-  const failedCount = tasks.filter((t) => t.status === 'failed').length
+  // P8：运行/失败计数合并为单次遍历，避免每次渲染跑两次全量 filter
+  const counts = useMemo(() => {
+    let running = 0
+    let failed = 0
+    for (const t of tasks) {
+      if (t.status === 'running' || t.status === 'pending') running++
+      else if (t.status === 'failed') failed++
+    }
+    return { running, failed }
+  }, [tasks])
+  const runningCount = counts.running
+  const failedCount = counts.failed
 
   const copyPrompt = (t) => {
     try { navigator.clipboard.writeText(t.prompt || ''); showToast('已复制提示词', { type: 'success' }) } catch { /* ignore */ }
@@ -102,7 +119,12 @@ export default function TaskCenter() {
             <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-faint" />
             <input
               value={keyword}
-              onChange={(e) => setKeyword(e.target.value)}
+              onChange={(e) => {
+                setKeyword(e.target.value)
+                searchIme.current?.onChange(e.target.value, e.nativeEvent.isComposing)
+              }}
+              onCompositionEnd={(e) => searchIme.current?.onCompositionEnd(e.target.value)}
+              onBlur={() => searchIme.current?.cancel()}
               placeholder="搜索提示词或渠道..."
               className="w-full h-[32px] bg-input border border-edge rounded-lg pl-8 pr-3 text-primary text-body-xs outline-none focus:border-edge-strong box-border"
             />
@@ -179,16 +201,16 @@ export default function TaskCenter() {
   )
 }
 
-function CleanItem({ label, onClick, danger }) {
+const CleanItem = React.memo(function CleanItem({ label, onClick, danger }) {
   return (
     <button className={`w-full flex items-center px-2 py-1.5 rounded-md text-caption-sm transition-colors cursor-pointer border-none text-left ${danger ? 'text-red-400 hover:bg-red-500/10' : 'text-[#bbb] hover:bg-surface-hover-2 hover:text-white'}`} onClick={onClick}>
       {label}
     </button>
   )
-}
+})
 
 // 单条任务卡片（对齐官方 jn.jsx）
-function TaskCard({ task, moreOpen, onToggleMore, onCloseMore, onCopy, onRetry, onRemove, onPreview }) {
+const TaskCard = React.memo(function TaskCard({ task, moreOpen, onToggleMore, onCloseMore, onCopy, onRetry, onRemove, onPreview }) {
   const [showData, setShowData] = useState(false)
   const menuRef = useRef(null) // 任务卡片「⋮」更多菜单容器 ref，点击外部自动关闭
   useOutsideClick(menuRef, moreOpen, () => onCloseMore?.())
@@ -327,12 +349,14 @@ function TaskCard({ task, moreOpen, onToggleMore, onCloseMore, onCopy, onRetry, 
       )}
     </div>
   )
-}
+})
 
-function MenuBtn({ icon: Icon, label, onClick, danger }) {
+const MenuBtn = React.memo(function MenuBtn({ icon: Icon, label, onClick, danger }) {
   return (
     <button className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-caption-sm transition-colors cursor-pointer border-none text-left ${danger ? 'text-red-400 hover:bg-red-500/10' : 'text-body hover:bg-surface-hover-2 hover:text-white'}`} onClick={onClick}>
       <Icon size={12} /> {label}
     </button>
   )
-}
+})
+
+export default React.memo(TaskCenter)

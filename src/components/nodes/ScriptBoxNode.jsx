@@ -25,7 +25,7 @@ import GearSettings from '../scriptbox/GearSettings.jsx'
  *
  * 三步状态机：①确认镜头 ②准备资产 ③合成提示词（可点击切换，不自动连跑）。
  */
-export default function ScriptBoxNode({ id, data, selected }) {
+function ScriptBoxNode({ id, data, selected }) {
   // 数据读写通道（读 data 直接用 props，写经 updateData）
   const { updateData } = useScriptBoxData(id)
 
@@ -62,7 +62,7 @@ export default function ScriptBoxNode({ id, data, selected }) {
   // 而要「内容自然撑开 → 节点高度跟随 → 外框贴合内容」。用 ResizeObserver 监听主容器高度变化，
   // 写回 node.height + updateNodeInternals，让 ReactFlow 节点 wrapper（含端口定位）也跟随。
   // 注意：必须去掉固定 height（只留 minHeight），否则根 div 高度被锁死、内容溢出到框外。
-  const { getNodes } = useReactFlow()
+  const { getNodes, getNode } = useReactFlow()
   const { onMainBoxResize } = useNodeResize(id)
   const contentRef = useRef(null)
   useEffect(() => {
@@ -71,7 +71,7 @@ export default function ScriptBoxNode({ id, data, selected }) {
     const ro = new ResizeObserver(() => {
       const h = el.offsetHeight
       if (!h) return
-      const n = getNodes().find((x) => x.id === id)
+      const n = getNode(id)
       const curH = n?.height ?? n?.style?.height ?? 0
       // 差值小于阈值不写回，避免写回→NodeShell minHeight 变化→再触发的循环抖动
       if (Math.abs(h - curH) < 4) return
@@ -80,7 +80,7 @@ export default function ScriptBoxNode({ id, data, selected }) {
     })
     ro.observe(el)
     return () => ro.disconnect()
-  }, [id, getNodes, onMainBoxResize])
+  }, [id, getNode, onMainBoxResize])
 
   // 生成遮罩计时
   const genMask = !!d.genMask
@@ -207,3 +207,4 @@ function StepNav({ step, setStep, shots, assets }) {
     </div>
   )
 }
+export default React.memo(ScriptBoxNode)

@@ -72,7 +72,7 @@ export function useNodeExpanded(initial = true) {
  * @param opts { mode, defaultWidth, defaultHeight, baseSize }
  */
 export function useSizeSync(id, aspectRatio, opts = {}) {
-  const { getNodes, setNodes } = useReactFlow()
+  const { getNode, setNodes } = useReactFlow()
   const updateNodeInternals = useUpdateNodeInternals()
   const mode = opts.mode || 'width-fixed'
   const defaultWidth = opts.defaultWidth ?? 420
@@ -81,7 +81,7 @@ export function useSizeSync(id, aspectRatio, opts = {}) {
   const ratio = parseAspect(aspectRatio)
 
   useEffect(() => {
-    const n = getNodes().find((x) => x.id === id)
+    const n = getNode(id)
     if (!n) return
     // 尺寸计算收敛到纯函数 computeSizeSync（width-fixed / area-fixed / Auto），可单测
     const { width: w, height: h } = computeSizeSync(ratio, {
@@ -99,7 +99,7 @@ export function useSizeSync(id, aspectRatio, opts = {}) {
       )
       updateNodeInternals(id)
     }
-  }, [id, ratio, mode, defaultWidth, defaultHeight, baseSize, getNodes, setNodes, updateNodeInternals])
+  }, [id, ratio, mode, defaultWidth, defaultHeight, baseSize, getNode, setNodes, updateNodeInternals])
 
   return ratio
 }

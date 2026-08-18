@@ -19,8 +19,8 @@ import { useCanvasEdges } from '../base/CanvasEdgesContext.jsx'
  *  - 双击节点主体 → 全屏打开 3D 导演台
  *  - 退出时回写 directorProject + 截图（对齐 onCaptureToBox 送图片盒子）
  */
-export default function Director3DNode({ id, data, selected }) {
-  const { setNodes, getNodes, getEdges, setEdges } = useReactFlow()
+function Director3DNode({ id, data, selected }) {
+  const { setNodes, getNodes, getNode, getEdges, setEdges } = useReactFlow()
   const history = useCanvasEdges()
   const connected = useConnectedInputs(id)
   const [open, setOpen] = useState(false)
@@ -44,7 +44,7 @@ export default function Director3DNode({ id, data, selected }) {
       const boxes = getEdges()
         .filter((e) => e.source === id)
         .map((e) => e.target)
-        .filter((tid) => getNodes().find((n) => n.id === tid)?.type === 'imageBoxNode')
+        .filter((tid) => getNode(tid)?.type === 'imageBoxNode')
       // 并发落盘：data: base64 → /files/ 绝对 URL；已是 http/绝对路径原样保留
       const persisted = await Promise.all(
         images.map(async (im) => {
@@ -77,7 +77,7 @@ export default function Director3DNode({ id, data, selected }) {
           return { ...n, data: { ...n.data, images: merged, activeIndex: merged.length - 1 } }
         }))
       } else {
-        const me = getNodes().find((n) => n.id === id)
+        const me = getNode(id)
         const boxId = generateId('imageBoxNode')
         const spawned = buildSpawnNodes(
           { id, position: { x: (me?.position.x ?? 100) + (me?.measured?.width ?? 640) + 60, y: me?.position.y ?? 100 } },
@@ -176,3 +176,4 @@ export default function Director3DNode({ id, data, selected }) {
     </NodeShell>
   )
 }
+export default React.memo(Director3DNode)

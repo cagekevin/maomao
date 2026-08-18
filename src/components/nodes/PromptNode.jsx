@@ -33,6 +33,7 @@ import { generateImage } from '../base/imageApi.js'
 import { useNodePrefs } from '../base/nodePrefs.js'
 import { useSyncNodeData } from '../base/useSyncNodeData.js'
 import { buildAllModels, resolveProviderModel } from '../base/providerModels.js'
+import { debounce } from '../base/utils.js'
 
 /**
  * 生图节点（复刻原 bo.jsx / promptNode）
@@ -40,7 +41,7 @@ import { buildAllModels, resolveProviderModel } from '../base/providerModels.js'
  * 保留差异化：主图片框、素材缩略图区、画质/比例/渲染质量菜单、请求格式、批量 xN。
  * 性能降级用通用 useMediaDegrade：lodLevel>=2 藏生图结果（与官方横幅"图片已隐藏"一致）。
  */
-export default function PromptNode({ id, data, selected }) {
+function PromptNode({ id, data, selected }) {
   // 性能模式媒体降级（通用 hook）：hideResult = isHidden('image')，即 lodLevel>=2
   const { isHidden } = useMediaDegrade()
   const hideResult = isHidden('image')
@@ -94,17 +95,25 @@ export default function PromptNode({ id, data, selected }) {
   const patchData = useCallback((patch) => {
     setNodes((ns) => ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, ...patch } } : n)))
   }, [id, setNodes])
-  // 提示词落盘：本地 state + 写回 node.data（支持函数式更新）。
+  // 提示词落盘：本地 state + 防抖写回 node.data（支持函数式更新）。
   // 复用画布快照 KV（App.jsx 600ms 防抖 autoSave）→ 手动输入的提示词刷新不丢。
+  // P2：prompt 持续输入走 debouncedPatch（200ms 防抖合并），避免每键 setNodes 全图 node 数组重建；
+  // 卸载时 flush 兜底（防抖窗口内输入不丢）。expanded 是低频切换，保持即时写回。
   const setPromptPersist = useCallback((v) => {
     setPrompt((prev) => (typeof v === 'function' ? v(prev) : v))
   }, [])
+  const debouncedPatch = useRef(null)
+  if (debouncedPatch.current == null) {
+    debouncedPatch.current = debounce(patchData, 200)
+  }
   // 抽屉展开/收起
   const toggleExpanded = useCallback(() => setExpanded((v) => !v), [])
   // 【React 反模式修复】「写回 node.data」不再在 setState updater 里做（那会在渲染期间 setNodes → BatchProvider 警告）。
   // 改为监听本地 state 变化，用 useEffect 同步落盘（effect 内 setState 合法，不在渲染期）。
-  React.useEffect(() => { patchData({ prompt }) }, [prompt]) // eslint-disable-line react-hooks/exhaustive-deps
+  React.useEffect(() => { debouncedPatch.current({ prompt }) }, [prompt]) // eslint-disable-line react-hooks/exhaustive-deps
   React.useEffect(() => { patchData({ expanded }) }, [expanded]) // eslint-disable-line react-hooks/exhaustive-deps
+  // 卸载前 flush 最后一次待提交（避免防抖窗口内丢数据）
+  React.useEffect(() => () => { debouncedPatch.current?.flush() }, [])
   const fileRef = useRef(null)
   const promptInputRef = useRef(null) // 提示词 textarea ref（供面板右下角手柄拖拽改尺寸）
   // 双击大图：原生 <dialog> 弹窗（无外框、无背景容器，只显示图片）
@@ -466,3 +475,4 @@ export default function PromptNode({ id, data, selected }) {
     </NodeShell>
   )
 }
+export default React.memo(PromptNode)

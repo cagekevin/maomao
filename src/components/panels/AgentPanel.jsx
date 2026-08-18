@@ -543,7 +543,7 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
               )}
             </div>
           )}
-          {messages.map((m, i) => <AgentMessage key={i} message={m} onConfirmPlan={handleConfirmPlan} onRetryStep={handleRetryStep} onPromptAction={handlePromptAction} />)}
+          {messages.map((m) => <AgentMessage key={m.id} message={m} onConfirmPlan={handleConfirmPlan} onRetryStep={handleRetryStep} onPromptAction={handlePromptAction} />)}
           {sending && (
             <div className="flex items-center gap-2 text-gray-500 text-xs">
               <span className="flex gap-1">

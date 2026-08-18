@@ -13,6 +13,7 @@
  */
 import { useSyncExternalStore } from 'react'
 import { logger } from './logger.js'
+import { createDebouncedPersist } from './contentStore.js'
 import { fetchTasks, saveTask, deleteTask, batchDeleteTasks, clearAllTasksApi } from './tasksApi.js'
 import { saveResultToTasks } from './filesApi.js'
 import { publish } from './eventBus.js'
@@ -168,6 +169,13 @@ export function reportGenerate(nodeId, type, prompt, meta = {}) {
   tasks = [task, ...tasks]
   notify()
   persist(task) // 后端持久化
+  // P4 进度落库节流：progress 高频（流式/轮询/拖拽）触发，防抖合并成最终态一次落库。
+  // write 是「读当前内存任务」的 thunk——flush 时若任务已被删除则跳过（避免误重建）。
+  // 创建(done/fail) 保持即时落库，仅中间进度被合并；done/fail 先 cancel 防晚到的进度覆盖终态。
+  const progressPersist = createDebouncedPersist(() => {
+    const cur = tasks.find((t) => t.id === task.id)
+    if (cur) persist(cur)
+  }, 200)
   return {
     // 前端自造任务 id（贯穿链路主键），供 useNodeGeneration 传给 proxyRequest 加 X-Task-Id header
     taskId: task.id,
@@ -176,7 +184,7 @@ export function reportGenerate(nodeId, type, prompt, meta = {}) {
       const stageLabel = typeof stage === 'string' && stage ? stage : task.stageLabel || ''
       tasks = tasks.map((t) => (t.id === task.id ? { ...t, status: 'running', progress: p, stageLabel } : t))
       notify()
-      persist({ ...task, status: 'running', progress: p, stageLabel }) // 同步后端进度
+      progressPersist.schedule() // 合并高频进度落库（窗口内只写最终态）
     },
     // 标记完成（可带结果缩略图）
     done: (resultUrl) => {
@@ -184,6 +192,7 @@ export function reportGenerate(nodeId, type, prompt, meta = {}) {
       const safeUrl = typeof resultUrl === 'string' ? resultUrl : ''
       tasks = tasks.map((t) => (t.id === task.id ? { ...t, status: 'completed', progress: 100, resultUrl: safeUrl } : t))
       notify()
+      progressPersist.cancel() // 取消未落的进度写，避免晚于 completed 覆盖终态
       persist({ ...task, status: 'completed', progress: 100, resultUrl: safeUrl })
       // 生成结果落盘 tasks 目录（对齐官方 Ce.uploadFile），使「生成」面板能收录。
       // 异步执行，失败不影响主流程（节点显示/任务中心仍用原始 url）。
@@ -206,6 +215,7 @@ export function reportGenerate(nodeId, type, prompt, meta = {}) {
     fail: (errorMsg) => {
       tasks = tasks.map((t) => (t.id === task.id ? { ...t, status: 'failed', errorMsg: errorMsg || '生成失败' } : t))
       notify()
+      progressPersist.cancel() // 同 done：取消未落的进度写
       persist({ ...task, status: 'failed', errorMsg: errorMsg || '生成失败' })
     }
   }

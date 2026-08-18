@@ -27,6 +27,7 @@ import { useCanvasEdges } from '../base/CanvasEdgesContext.jsx'
 import { httpRequest } from '../base/httpClient.js'
 import previewUrls from '../base/previewUrl.js'
 import { DOWNLOAD_TIMEOUT, VIDEO_DOWNLOAD_TIMEOUT } from '../base/config.js'
+import { createRafBatch } from '../base/utils.js'
 
 /* ════════════════════════════════════════════════════════════════
  * 视频处理节点（复刻官方 Gc.jsx + fc.jsx 合并的 videoProcessNode）
@@ -158,8 +159,8 @@ function captureFrame(url, atTime, quality = 0.55) {
   })
 }
 
-export default function VideoProcessNode({ id, data, selected }) {
-  const { setNodes, getNodes, getEdges, setEdges } = useReactFlow()
+function VideoProcessNode({ id, data, selected }) {
+  const { setNodes, getNodes, getNode, getEdges, setEdges } = useReactFlow()
   const history = useCanvasEdges()
   const { isHidden } = useMediaDegrade()
   const { onMainBoxResize } = useNodeResize(id)
@@ -195,6 +196,7 @@ export default function VideoProcessNode({ id, data, selected }) {
   // refs
   const videoRef = useRef(null) // u
   const scrubRef = useRef(null) // d
+  const scrubDrag = useRef(null) // P3：scrub 手势期 { batch, rect }
   const fileRef = useRef(null) // a
   const metaInFlight = useRef(new Set()) // f
   const thumbUrls = useRef([]) // p
@@ -593,10 +595,23 @@ export default function VideoProcessNode({ id, data, selected }) {
     [currentClip, totalDuration, snapTo, currentUrl]
   )
 
+  // P3：scrub 高频 → pointerdown 建一次 batch + rect 缓存，move 只 batch（每帧一次 setPlayhead+video.currentTime），up flush
   const onScrubPointer = (e) => {
-    const rect = e.currentTarget.getBoundingClientRect()
-    setPlayhead(((e.clientX - rect.left) / rect.width) * totalDuration)
-    e.currentTarget.setPointerCapture(e.pointerId)
+    if (!scrubDrag.current) {
+      const rect = e.currentTarget.getBoundingClientRect()
+      const batch = createRafBatch((clientX) => {
+        const r = scrubDrag.current?.rect
+        if (!r) return
+        setPlayhead(((clientX - r.left) / r.width) * totalDuration)
+      })
+      scrubDrag.current = { batch, rect }
+      e.currentTarget.setPointerCapture(e.pointerId)
+    }
+    scrubDrag.current.batch(e.clientX)
+  }
+  const flushScrub = () => {
+    scrubDrag.current?.batch.flush() // 松手补最后一帧，避免播放头差一帧
+    scrubDrag.current = null
   }
 
   const onDragTrimHandle = (e, side) => {
@@ -605,17 +620,20 @@ export default function VideoProcessNode({ id, data, selected }) {
     const clip = currentClip
     const rect = scrubRef.current?.getBoundingClientRect()
     if (!rect || !clip || !totalDuration) return
-    const move = (ev) => {
-      const v = round2(snapTo(Math.max(0, Math.min(totalDuration, ((ev.clientX - rect.left) / rect.width) * totalDuration)), [playheadTime]))
+    // P3：move 高频 → rAF 合并 updateClip；rect 起点缓存，move 内不再读
+    const batch = createRafBatch((clientX) => {
+      const v = round2(snapTo(Math.max(0, Math.min(totalDuration, ((clientX - rect.left) / rect.width) * totalDuration)), [playheadTime]))
       if (side === 'start') updateClip(clip.id, { sourceStart: Math.min(v, clip.sourceEnd - 0.05) })
       else updateClip(clip.id, { sourceEnd: Math.max(v, clip.sourceStart + 0.05) })
-    }
+    })
+    const move = (ev) => batch(ev.clientX)
     const up = () => {
+      batch.flush() // 松手补最后一帧，避免入出点差一帧
       window.removeEventListener('pointermove', move)
       window.removeEventListener('pointerup', up)
       window.removeEventListener('pointercancel', up)
     }
-    move(e.nativeEvent)
+    batch(e.nativeEvent.clientX)
     window.addEventListener('pointermove', move)
     window.addEventListener('pointerup', up, { once: true })
     window.addEventListener('pointercancel', up, { once: true })
@@ -629,21 +647,24 @@ export default function VideoProcessNode({ id, data, selected }) {
     if (!clip) return
     const startX = e.clientX
     const startTimeline = clip.timelineStart
-    const move = (ev) => {
-      const dx = (ev.clientX - startX) / PX_PER_SEC
+    // P3：move 高频 → rAF 合并（elementsFromPoint + updateClip 从每事件一次降到每帧一次）
+    const batch = createRafBatch((clientX, clientY) => {
+      const dx = (clientX - startX) / PX_PER_SEC
       const candidate = Math.max(0, startTimeline + dx)
       const snapTargets = [0, playheadTime, ...tracks.flatMap((t) => t.clips.filter((c) => c.id !== clipId).flatMap((c) => [c.timelineStart, c.timelineStart + c.duration]))]
       const a = snapTo(candidate, snapTargets)
       const b = snapTo(candidate + clip.duration, snapTargets)
       const moved = Math.abs(a - candidate) <= Math.abs(b - (candidate + clip.duration)) ? a : b - clip.duration
-      const el = document.elementsFromPoint(ev.clientX, ev.clientY).find((n) => n.getAttribute('data-track-id'))
+      const el = document.elementsFromPoint(clientX, clientY).find((n) => n.getAttribute('data-track-id'))
       const newTrackId = el ? el.getAttribute('data-track-id') : undefined
       updateClip(clipId, {
         timelineStart: round2(Math.max(0, moved)),
         ...(newTrackId ? { trackId: newTrackId } : {})
       })
-    }
+    })
+    const move = (ev) => batch(ev.clientX, ev.clientY)
     const up = () => {
+      batch.flush() // 松手补最后一帧，避免片段位置差一帧
       window.removeEventListener('pointermove', move)
       window.removeEventListener('pointerup', up)
       window.removeEventListener('pointercancel', up)
@@ -694,7 +715,7 @@ export default function VideoProcessNode({ id, data, selected }) {
 
   const spawnVideoNode = useCallback(
     (url, name) => {
-      const me = getNodes().find((n) => n.id === id)
+      const me = getNode(id)
       const baseX = (me?.position.x ?? 100) + (me?.measured?.width ?? 540) + 60
       const baseY = me?.position.y ?? 100
       const nid = `video-${id}-${generateId('v')}`
@@ -715,12 +736,12 @@ export default function VideoProcessNode({ id, data, selected }) {
       setEdges((es) => es.concat(spawned.edges))
       history?.record(snapshot)
     },
-    [id, getNodes, getEdges, setNodes, setEdges, history]
+    [id, getNode, getEdges, setNodes, setEdges, history]
   )
 
   const spawnAudioNode = useCallback(
     (url, name) => {
-      const me = getNodes().find((n) => n.id === id)
+      const me = getNode(id)
       const baseX = (me?.position.x ?? 100) + (me?.measured?.width ?? 540) + 60
       const baseY = me?.position.y ?? 100
       const nid = `audio-${id}-${generateId('a')}`
@@ -741,13 +762,13 @@ export default function VideoProcessNode({ id, data, selected }) {
       setEdges((es) => es.concat(spawned.edges))
       history?.record(snapshot)
     },
-    [id, getNodes, getEdges, setNodes, setEdges, history]
+    [id, getNode, getEdges, setNodes, setEdges, history]
   )
 
   // GIF 结果 spawn 成图片节点（gif 是图片，mediaType:'image'）
   const spawnGifNode = useCallback(
     (url, name) => {
-      const me = getNodes().find((n) => n.id === id)
+      const me = getNode(id)
       const baseX = (me?.position.x ?? 100) + (me?.measured?.width ?? 540) + 60
       const baseY = me?.position.y ?? 100
       const nid = `gif-${id}-${generateId('g')}`
@@ -1068,7 +1089,7 @@ export default function VideoProcessNode({ id, data, selected }) {
     const ro = new ResizeObserver(() => {
       const h = el.offsetHeight
       if (!h) return
-      const n = getNodes().find((x) => x.id === id)
+      const n = getNode(id)
       const curH = n?.height ?? n?.style?.height ?? 0
       if (Math.abs(h - curH) < 4) return
       const curW = n?.width ?? n?.style?.width ?? 540
@@ -1076,7 +1097,7 @@ export default function VideoProcessNode({ id, data, selected }) {
     })
     ro.observe(el)
     return () => ro.disconnect()
-  }, [id, getNodes, onMainBoxResize])
+  }, [id, getNode, onMainBoxResize])
 
   /* ---------- trim 模式的入出点 scrubber（复刻官方 ze） ---------- */
   const trimScrubber = currentClip && (
@@ -1088,6 +1109,7 @@ export default function VideoProcessNode({ id, data, selected }) {
         onPointerMove={(e) => {
           if (e.buttons === 1) onScrubPointer(e)
         }}
+        onPointerUp={flushScrub}
       >
         <div className="absolute inset-0 flex">
           {(thumbnails[currentClip.sourceId] || []).map((u) => (
@@ -1542,3 +1564,4 @@ export default function VideoProcessNode({ id, data, selected }) {
     </div>
   )
 }
+export default React.memo(VideoProcessNode)

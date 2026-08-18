@@ -162,7 +162,14 @@ function checkReactFlowApis(ROOT) {
 /** 检查 3：nodeTypes 单源（NodePalette component 字段）与组件文件对应。
  *  注：nodeTypes 已由 NodePalette.buildNodeTypeComponents 派生（ADR-002），不再从 App.jsx 提取平行表。
  *  这里改为校验派生源：NodePalette 的 component 字段 → 组件文件存在 + default 导出；
- *  例外（director3dNode/ghostTarget）由 App.jsx 派生后补充，另校验其 .jsx。 */
+ *  例外（director3dNode/ghostTarget）由 App.jsx 派生后补充，另校验其 .jsx。
+ *  组件 2026-08-18 已归类 nodes/ 子目录，优先查 src/components/nodes/，平铺路径兜底。 */
+function resolveCompFile(ROOT, comp) {
+  const sub = path.join(ROOT, 'src/components/nodes', comp + '.jsx');
+  if (fs.existsSync(sub)) return sub;
+  const flat = path.join(ROOT, 'src/components', comp + '.jsx');
+  return fs.existsSync(flat) ? flat : sub;
+}
 function checkNodeTypes(ROOT) {
   const palette = read(path.join(ROOT, 'src/components/base/NodePalette.jsx'));
   const comps = [...palette.matchAll(/component:\s*(\w+Node)/g)].map((x) => x[1]);
@@ -175,7 +182,7 @@ function checkNodeTypes(ROOT) {
 
   // 1) 派生源：NodePalette component 字段 → 组件文件校验
   for (const comp of comps) {
-    const compFile = path.join(ROOT, 'src/components', comp + '.jsx');
+    const compFile = resolveCompFile(ROOT, comp);
     if (!fs.existsSync(compFile)) {
       pass = false;
       details.push(`  ✖ palette component '${comp}' -> '${comp}.jsx' 不存在`);
@@ -193,7 +200,7 @@ function checkNodeTypes(ROOT) {
   const app = read(path.join(ROOT, 'src/App.jsx'));
   const extras = [...app.matchAll(/(director3dNode|ghostTarget)\s*:\s*(\w+Node)/g)].map((x) => [x[1], x[2]]);
   for (const [type, comp] of extras) {
-    const compFile = path.join(ROOT, 'src/components', comp + '.jsx');
+    const compFile = resolveCompFile(ROOT, comp);
     if (!fs.existsSync(compFile) || !/export\s+default/.test(read(compFile))) {
       pass = false;
       details.push(`  ✖ 例外 '${type}' -> '${comp}.jsx' 缺失或未导出 default`);

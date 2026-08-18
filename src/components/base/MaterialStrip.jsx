@@ -1,6 +1,6 @@
 import React from 'react'
 import { X, Link as LinkIcon } from 'lucide-react'
-import { toAbsoluteFileUrl } from './filesApi.js'
+import LazyImage from './LazyImage.jsx'
 
 /**
  * 素材缩略图条（生图/文本/视频等节点的「下方素材参考区」通用组件）。
@@ -20,7 +20,7 @@ import { toAbsoluteFileUrl } from './filesApi.js'
  *  - onInsert (name) => void   点击蓝色 @标签插入到提示词/文本框
  *  - onDisconnect (sourceNodeId) => void   点击红色 × 断开该来源节点 → 本节点的连线
  */
-export default function MaterialStrip({ images = [], texts = [], onInsert, onDisconnect }) {
+function MaterialStrip({ images = [], texts = [], onInsert, onDisconnect }) {
   if (images.length === 0 && texts.length === 0) return null
   return (
     <div className="flex flex-wrap gap-2 mb-1">
@@ -29,7 +29,7 @@ export default function MaterialStrip({ images = [], texts = [], onInsert, onDis
         const canDisconnect = !!img.sourceNodeId
         return (
           <div key={img.id || img.url || i} className="w-10 h-10 rounded-md overflow-hidden relative group bg-black cursor-grab active:cursor-grabbing nodrag nopan" title={canDisconnect ? '已连线的素材' : '上传的素材'}>
-            <img src={toAbsoluteFileUrl(img.url)} className="w-full h-full object-cover opacity-80 pointer-events-none" alt={name} />
+            <LazyImage src={img.url} alt={name} className="w-full h-full" imgClassName="w-full h-full object-cover opacity-80 pointer-events-none" />
             <div className="absolute inset-0 bg-blue-500/10 pointer-events-none" />
             <button type="button" className="absolute bottom-0 left-0 right-0 bg-blue-500/80 hover:bg-blue-500 text-2xs text-white text-center py-0.5 truncate cursor-pointer transition-colors" title={`点击插入 @${name}`} onClick={(e) => { e.stopPropagation(); onInsert?.(name) }}>{name}</button>
             {canDisconnect && (
@@ -54,3 +54,5 @@ export default function MaterialStrip({ images = [], texts = [], onInsert, onDis
     </div>
   )
 }
+
+export default React.memo(MaterialStrip)

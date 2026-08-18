@@ -18,7 +18,7 @@ import { subscribe, getToasts, dismissToast } from './toastStore.js'
  *  - success 绿 / error 红 / warning 黄 / info 蓝，填充 /10 + 描边 /30 + 柔光；
  *  - 多条纵向堆叠，自动消失。
  */
-export default function ToastContainer() {
+function ToastContainer() {
   const [items, setItems] = useState(getToasts())
   const timers = useRef(new Map())
 
@@ -77,3 +77,5 @@ export default function ToastContainer() {
     document.body
   )
 }
+
+export default React.memo(ToastContainer)

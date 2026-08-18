@@ -10,6 +10,7 @@ import { httpRequest } from './httpClient.js'
 import { logger } from './logger.js'
 import { isAudio } from './mediaType.js'
 import VideoThumbnail from './VideoThumbnail.jsx'
+import LazyImage from './LazyImage.jsx'
 
 // 类型过滤 pill（沿用素材库 AssetLibrary 的小圆按钮形式）
 const TYPE_FILTERS = [
@@ -30,7 +31,7 @@ const PAGE_SIZE = 20 // 每次加载 20 个，点击翻页（对齐官方 Un.jsx
 
 // fetchText/textCache 统一收敛到 useAssetDragToCanvas.js；isAudio 统一到 mediaType.js
 // 文字资源单元格：默认展示文件内容（前几行）
-function TextResourceCell({ url, name }) {
+const TextResourceCell = React.memo(function TextResourceCell({ url, name }) {
   const [text, setText] = useState('')
   useEffect(() => {
     let alive = true
@@ -47,10 +48,10 @@ function TextResourceCell({ url, name }) {
       )}
     </div>
   )
-}
+})
 
 // 文字预览：完整展示文件内容
-function TextPreview({ url, name }) {
+const TextPreview = React.memo(function TextPreview({ url, name }) {
   const [text, setText] = useState('')
   useEffect(() => {
     let alive = true
@@ -68,7 +69,7 @@ function TextPreview({ url, name }) {
       </pre>
     </div>
   )
-}
+})
 
 /**
  * 生成 tab —— 对齐官方资源面板「生成」(generated) 视图的数据逻辑（Vr.jsx ft()/kr() + Un.jsx），
@@ -83,7 +84,7 @@ function TextPreview({ url, name }) {
  *  - 文件夹可进入（tasks 子目录）；卡片悬停：打开目录/复制/删除
  * UI 采用本原型暗色风格（过滤 pill 沿用素材库形式），数据逻辑与官方一致。
  */
-export default function GeneratedView() {
+function GeneratedView() {
   const { status } = useLocalToolStatus()
   const connected = status.isConnected
 
@@ -413,10 +414,10 @@ export default function GeneratedView() {
                       ) : (
                         <div className="w-full h-full flex items-center justify-center text-faint"><Play size={20} /></div>
                       )
+                    ) : a.url ? (
+                      <LazyImage src={a.url} alt={a.name} className="w-full h-full" />
                     ) : (
-                      <div className="w-full h-full bg-cover bg-center" style={{ backgroundImage: a.url ? `url(${a.url})` : undefined }}>
-                        {!a.url && <div className="w-full h-full flex items-center justify-center text-subtle"><FileText size={18} /></div>}
-                      </div>
+                      <div className="w-full h-full flex items-center justify-center text-subtle"><FileText size={18} /></div>
                     )}
 
                     {/* 类型角标（文字不显示，避免黄色图标干扰） */}
@@ -508,3 +509,5 @@ export default function GeneratedView() {
     </div>
   )
 }
+
+export default React.memo(GeneratedView)

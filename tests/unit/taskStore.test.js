@@ -1,7 +1,7 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 // 隔离 taskStore 的 IO 依赖（tasksApi/filesApi 走 fetch → localTool），
-// 只验证纯逻辑：状态映射、类型映射、面板状态、任务清理、重试注册。
+// 只验证纯逻辑：状态映射、类型映射、面板状态、任务清理、重试注册、进度落库节流。
 vi.mock('../../src/components/base/tasksApi.js', () => ({
   fetchTasks: vi.fn(async () => ({ items: [] })),
   saveTask: vi.fn(async () => {}),
@@ -12,6 +12,7 @@ vi.mock('../../src/components/base/tasksApi.js', () => ({
 vi.mock('../../src/components/base/filesApi.js', () => ({
   saveResultToTasks: vi.fn(async () => null),
 }))
+import { saveTask } from '../../src/components/base/tasksApi.js'
 
 const {
   statusDotClass,
@@ -138,5 +139,55 @@ describe('taskStore §2.6 重试注册/触发', () => {
     expect(isNodeRegistered('nodeZ')).toBe(true)
     unregisterTaskRetry('nodeZ')
     expect(isNodeRegistered('nodeZ')).toBe(false)
+  })
+})
+
+describe('taskStore §P4 进度落库节流', () => {
+  beforeEach(() => { vi.useFakeTimers() })
+  afterEach(() => { vi.useRealTimers() })
+
+  it('高频 progress 在防抖窗口内只落库 1 次（创建即时 + 进度合并为最终态）', () => {
+    saveTask.mockClear()
+    const handle = reportGenerate('n1', 'image', 'p1')
+    expect(saveTask).toHaveBeenCalledTimes(1) // 创建即时
+    handle.progress(10, '阶段A')
+    handle.progress(40, '阶段B')
+    handle.progress(70, '阶段C')
+    expect(saveTask).toHaveBeenCalledTimes(1) // 窗口内未落
+    vi.advanceTimersByTime(200)
+    expect(saveTask).toHaveBeenCalledTimes(2) // 合并落 1 次，写最终态
+    const last = saveTask.mock.calls.at(-1)[0]
+    expect(last.id).toBe(handle.taskId)
+    expect(last.progress).toBe(70)
+    expect(last.stageLabel).toBe('阶段C')
+  })
+
+  it('done 取消未落进度写，即时落完成态且不被晚到的进度覆盖', () => {
+    saveTask.mockClear()
+    const handle = reportGenerate('n2', 'image', 'p2')
+    saveTask.mockClear() // 只统计完成路径的落库
+    handle.progress(30, '阶段')
+    handle.done('/result.png')
+    expect(saveTask).toHaveBeenCalledTimes(1)
+    const last = saveTask.mock.calls.at(-1)[0]
+    expect(last.status).toBe('completed')
+    expect(last.progress).toBe(100)
+    expect(last.resultUrl).toBe('/result.png')
+    vi.advanceTimersByTime(400)
+    expect(saveTask).toHaveBeenCalledTimes(1) // 无晚到的进度覆盖终态
+  })
+
+  it('fail 同 done：取消未落进度写，即时落失败态', () => {
+    saveTask.mockClear()
+    const handle = reportGenerate('n3', 'image', 'p3')
+    saveTask.mockClear()
+    handle.progress(50, '阶段')
+    handle.fail('网络错误')
+    expect(saveTask).toHaveBeenCalledTimes(1)
+    const last = saveTask.mock.calls.at(-1)[0]
+    expect(last.status).toBe('failed')
+    expect(last.errorMsg).toBe('网络错误')
+    vi.advanceTimersByTime(400)
+    expect(saveTask).toHaveBeenCalledTimes(1)
   })
 })
