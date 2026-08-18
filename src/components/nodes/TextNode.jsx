@@ -18,6 +18,8 @@ import PromptLibraryButton from '../base/PromptLibraryButton.jsx'
 import { useNodeResize } from '../base/hooks.js'
 import { useConnectedInputs } from '../base/useConnectedInputs.js'
 import { useNodeGeneration } from '../base/useNodeGeneration.js'
+import { buildSpawnNodes, applySpawnSnapshot, makeChildId } from '../base/deriveNodes.js'
+import { useCanvasEdges } from '../base/CanvasEdgesContext.jsx'
 import { saveTextToTasks, toAbsoluteFileUrl } from '../base/filesApi.js'
 import { useProviders, load as loadProviders } from '../base/settings/providerStore.js'
 import { chatCompletions } from '../base/chatApi.js'
@@ -34,7 +36,8 @@ import previewUrls from '../base/previewUrl.js'
 export default function TextNode({ id, data, selected }) {
   // 通用连线数据传递：读取直接上游节点的文本/图片作为参考输入
   const connected = useConnectedInputs(id)
-  const { setEdges, getNodes, setNodes } = useReactFlow()
+  const { setEdges, getEdges, getNodes, setNodes } = useReactFlow()
+  const history = useCanvasEdges()
   // 断开连线：素材缩略图红色 × → 删除该来源节点 → 本节点的连线（仅对有 sourceNodeId 的素材）
   const disconnectSource = useCallback(
     (sourceNodeId) => {
@@ -183,15 +186,20 @@ export default function TextNode({ id, data, selected }) {
           const me = getNodes().find((n) => n.id === id)
           const baseX = (me?.position.x ?? 100) + (me?.measured?.width ?? 420) + 60
           const baseY = me?.position.y ?? 100
-          const newNodes = items.map((it, n) => ({
-            id: `text-split-${id}-${n}-${Date.now()}`,
-            type: 'textNode',
-            position: { x: baseX, y: baseY + n * 250 },
-            data: { text: typeof it === 'string' ? it : it.content, label: typeof it === 'string' ? `Text ${n + 1}` : it.title, expanded: false },
-          }))
-          const newEdges = newNodes.map((nn) => ({ id: `e-${id}-${nn.id}`, source: id, target: nn.id, sourceHandle: 'main-output' }))
-          setNodes((ns) => ns.concat(newNodes))
-          setEdges((es) => es.concat(newEdges))
+          const spawned = buildSpawnNodes(
+            { id, position: { x: baseX, y: baseY } },
+            items.map((it, n) => ({
+              id: makeChildId('text-split'),
+              type: 'textNode',
+              position: { x: baseX, y: baseY + n * 250 },
+              data: { text: typeof it === 'string' ? it : it.content, label: typeof it === 'string' ? `Text ${n + 1}` : it.title, expanded: false },
+            })),
+            { sourceHandle: 'main-output' }
+          )
+          const snapshot = applySpawnSnapshot(getNodes(), getEdges(), spawned)
+          setNodes((ns) => ns.concat(spawned.childNodes))
+          setEdges((es) => es.concat(spawned.edges))
+          history?.record(snapshot)
           return
         }
       }

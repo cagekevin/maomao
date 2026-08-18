@@ -29,6 +29,7 @@ import ConnectionLine from './components/edges/ConnectionLine.jsx'
 import ContextMenu from './components/base/ContextMenu.jsx'
 import { useContextMenu } from './components/base/useContextMenu.js'
 import { useCanvasHistory } from './components/base/useCanvasHistory.js'
+import { CanvasEdgesProvider } from './components/base/CanvasEdgesContext.jsx'
 import { useCanvasShortcuts } from './components/base/useCanvasShortcuts.js'
 import { paletteCategories, getNodesByCategory, defaultNodeData, getPaletteNode, buildNodeTypeComponents } from './components/base/NodePalette.jsx'
 import LodProvider, { useLod } from './components/base/lod.jsx'
@@ -1316,6 +1317,7 @@ function Canvas() {
         <div ref={menu.containerRef} className="relative flex-1 min-h-0">
         {/* key=activeProjectId 对齐官方 Vr.jsx L3683 key={Z}：项目切换时强制重挂载整个画布，
             保证每个项目的画布状态完全隔离（清空旧节点 + 加载对应项目），修复「新项目加载到旧内容」 */}
+        <CanvasEdgesProvider history={history}>
         <ReactFlow
           key={activeProjectId}
           nodes={visibleNodes}
@@ -1395,6 +1397,7 @@ function Canvas() {
               enablePerformanceMode=false 时内部清空 lod class 并令 lodLevel=0，
               因此「性能模式关 → 节点不隐藏媒体、横幅不弹」天然成立（各节点用 useLod 读 lodLevel）。 */}
         </ReactFlow>
+        </CanvasEdgesProvider>
 
         {/* 画布专属覆盖层：仅画布视图渲染（对齐官方 V 视图互斥，避免叠到设置/多开上） */}
         {view === 'canvas' && (

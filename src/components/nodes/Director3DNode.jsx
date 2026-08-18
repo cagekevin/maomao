@@ -8,6 +8,8 @@ import { useConnectedInputs } from '../base/useConnectedInputs.js'
 import { toAbsoluteFileUrl, saveInlineToLocal } from '../base/filesApi.js'
 import { Director3DOverlay } from '../director3d/App.tsx'
 import { generateId } from '../base/idGen.js'
+import { buildSpawnNodes, applySpawnSnapshot } from '../base/deriveNodes.js'
+import { useCanvasEdges } from '../base/CanvasEdgesContext.jsx'
 
 /**
  * 3D 导演台节点（复刻开源 storyai-3d-director-desk，与"一毛"一致）。
@@ -19,6 +21,7 @@ import { generateId } from '../base/idGen.js'
  */
 export default function Director3DNode({ id, data, selected }) {
   const { setNodes, getNodes, getEdges, setEdges } = useReactFlow()
+  const history = useCanvasEdges()
   const connected = useConnectedInputs(id)
   const [open, setOpen] = useState(false)
   // 缩略图显示：兼容相对 /files/ 路径（刷新后需补全为绝对 URL 才不破图）
@@ -76,19 +79,25 @@ export default function Director3DNode({ id, data, selected }) {
       } else {
         const me = getNodes().find((n) => n.id === id)
         const boxId = generateId('imageBoxNode')
-        const newBox = {
-          id: boxId,
-          type: 'imageBoxNode',
-          position: { x: (me?.position.x ?? 100) + (me?.measured?.width ?? 640) + 60, y: me?.position.y ?? 100 },
-          style: { width: 420, height: 420 },
-          data: { images: newImages, activeIndex: newImages.length - 1, expanded: newImages.length > 1, label: '图片盒子' },
-        }
-        setNodes((ns) => [...ns, newBox])
-        setEdges((es) => [...es, { id: `e-${id}-${boxId}`, source: id, target: boxId, targetHandle: null }])
+        const spawned = buildSpawnNodes(
+          { id, position: { x: (me?.position.x ?? 100) + (me?.measured?.width ?? 640) + 60, y: me?.position.y ?? 100 } },
+          [{
+            id: boxId,
+            type: 'imageBoxNode',
+            position: { x: (me?.position.x ?? 100) + (me?.measured?.width ?? 640) + 60, y: me?.position.y ?? 100 },
+            style: { width: 420, height: 420 },
+            data: { images: newImages, activeIndex: newImages.length - 1, expanded: newImages.length > 1, label: '图片盒子' },
+          }],
+          { targetHandle: null }
+        )
+        const snapshot = applySpawnSnapshot(getNodes(), getEdges(), spawned)
+        setNodes((ns) => ns.concat(spawned.childNodes))
+        setEdges((es) => es.concat(spawned.edges))
+        history?.record(snapshot)
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [id, getNodes, getEdges, setNodes, setEdges]
+    [id, getNodes, getEdges, setNodes, setEdges, history]
   )
 
   // 退出导演台：回写工程 + 截图（缩略图落盘成 /files/ URL，刷新不破图）

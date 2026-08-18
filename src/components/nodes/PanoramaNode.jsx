@@ -8,6 +8,8 @@ import HoverToolbar from '../base/HoverToolbar.jsx'
 import { useConnectedInputs } from '../base/useConnectedInputs.js'
 import PanoViewer from '../base/PanoViewer.jsx'
 import { generateId } from '../base/idGen.js'
+import { buildSpawnNodes, applySpawnSnapshot } from '../base/deriveNodes.js'
+import { useCanvasEdges } from '../base/CanvasEdgesContext.jsx'
 
 /**
  * 720 全景图节点（复刻官方 Zl.jsx / panoramaNode）。
@@ -25,6 +27,7 @@ const RATIO_OPTIONS = ['16:9', '9:16', '1:1', 'custom']
 
 export default function PanoramaNode({ id, data, selected }) {
   const { setNodes, getNodes, getEdges, setEdges } = useReactFlow()
+  const history = useCanvasEdges()
   const connected = useConnectedInputs(id)
   const [panoType, setPanoType] = useState(data.panoType || 'sphere') // 球/柱
   const [fullscreen, setFullscreen] = useState(false) // 全景漫游（球体视图）
@@ -106,15 +109,21 @@ export default function PanoramaNode({ id, data, selected }) {
             // 无图片盒子下游：新建图片盒子 + 自动连线
             const me = getNodes().find((n) => n.id === id)
             const boxId = generateId('imageBoxNode')
-            const newBox = {
-              id: boxId,
-              type: 'imageBoxNode',
-              position: { x: (me?.position.x ?? 100) + (me?.measured?.width ?? 640) + 60, y: me?.position.y ?? 100 },
-              style: { width: 420, height: 420 },
-              data: { images: newImages, activeIndex: newImages.length - 1, expanded: newImages.length > 1, label: '图片盒子' },
-            }
-            setNodes((ns) => [...ns, newBox])
-            setEdges((es) => [...es, { id: `e-${id}-${boxId}`, source: id, target: boxId, targetHandle: null }])
+            const spawned = buildSpawnNodes(
+              { id, position: { x: (me?.position.x ?? 100) + (me?.measured?.width ?? 640) + 60, y: me?.position.y ?? 100 } },
+              [{
+                id: boxId,
+                type: 'imageBoxNode',
+                position: { x: (me?.position.x ?? 100) + (me?.measured?.width ?? 640) + 60, y: me?.position.y ?? 100 },
+                style: { width: 420, height: 420 },
+                data: { images: newImages, activeIndex: newImages.length - 1, expanded: newImages.length > 1, label: '图片盒子' },
+              }],
+              { targetHandle: null }
+            )
+            const snapshot = applySpawnSnapshot(getNodes(), getEdges(), spawned)
+            setNodes((ns) => ns.concat(spawned.childNodes))
+            setEdges((es) => es.concat(spawned.edges))
+            history?.record(snapshot)
           }
           setToast('截图已放入图片盒子')
         }

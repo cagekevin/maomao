@@ -45,7 +45,7 @@ Q3 单组件内部临时？→ 是 → 组件 useState
 - **项目系统链路**：`currentProjectId`（projectStore，useSyncExternalStore）→ 画布快照走 localTool KV（`canvas-state-v1-{projectId}`）加载 + **600ms 防抖自动保存** + 多窗口 `BroadcastChannel('yimao_canvas_sync')` 冲突提示。
 - **历史栈**：`useCanvasHistory`，`record` 必须**显式传最新快照**（`nodesRef/edgesRef`），禁异步 setState 取旧值。
 - **AI 会话按项目隔离**：`agentKey = canvas-assistant-<projectId>`，conversationStore 据此隔离存储（新建项目 = 新会话）。
-- **连线统一入口**：用户连线走 `onConnect`（edge id 去重 + 记历史）；拖到空白走 `onConnectEnd`（建 ghost-target + 弹连接菜单）。⚠️ **程序化建边也必须复用 onConnect 语义**（勿直接 `setEdges` 绕过——FINAL-057 D 未修，改动面大，谨慎）。
+- **连线统一入口**：用户连线走 `onConnect`（edge id 去重 + 记历史）；拖到空白走 `onConnectEnd`（建 ghost-target + 弹连接菜单）；**程序化建子节点+连线走 `base/deriveNodes.js`**（`buildSpawnNodes` + `CanvasEdgesContext.record` 原子进 undo，FINAL-057 D 已收口，见 §六 待办第 3 条）。
 - **性能降级**：`LodProvider + useLod`（viewportMoving / nodeCount / edgeFxLimit），见 `base/lod.jsx`。
 
 ### B. 节点体系（顶层规则）
@@ -175,7 +175,7 @@ Q3 单组件内部临时？→ 是 → 组件 useState
 > 工具统一 → §二⑥；其余多为中风险重构，改前需评估下游。
 1. ~~通用工具统一~~ ✅ **已收口**（`base/utils.js`，2026-08-18）：新增 `deepClone` / `formatTime`（含 `mode:'time'` HH:mm:ss、`mode:'file'` yyyymmdd_HHmmss）/ `debounce` / `throttle` / `useDebouncedEffect`。已替换 App.jsx deepClone、TaskCenter/logger/filesApi formatTime、GridMergeNode/OverlayEditor 预览 debounce、画布 node/edge 造 ID 8 处（Panorama/Director3D/useCanvasAgentTools/PromptLibraryButton/App.jsx addNode）。**边界**：`director3d` 外部仓库不纳入（其 cloneJsonValue/throttle 保留手写）；时序敏感 debounce（`useCanvasHistory` 抑制窗口、`useAgentChat` 流式 flush）与 `ghost-edge`（前缀分隔符 `-` 依赖清理）**保留手写**。
 2. ~~nodeTypes 单源化~~ ✅ **已完成**（2026-08-18）：`NodePalette` 每项加 `component` 字段，`buildNodeTypeComponents()` 派生 `App.jsx nodeTypes`，删掉 15 条手写平行表；新增节点 4 处同步降 3 处。**例外**：`director3dNode`（WebGL 不持 component）+ `ghostTarget`（占位）由 `App.jsx` 派生后显式补充。
-3. **程序化建边统一走 onConnect**：部分节点直接 `setEdges` 绕过 onConnect 校验/撤销栈（FINAL-057 D，改动面大）。
+3. ~~程序化建边统一~~ ✅ **已收口**（2026-08-18）：新增 `base/deriveNodes.js`（`buildSpawnNodes`/`applySpawnSnapshot`/`makeChildId` 纯函数）+ `CanvasEdgesContext.jsx`（App.jsx 注入 `history.record`）。9 处「建子节点+连线」收敛为统一契约并**原子进 undo 栈**（修复"派生节点不可撤销"缺口）：TextNode/VideoProcessNode×3/GridSplitNode/GridMergeNode/PanoramaNode/Director3DNode/LoopNode。**边界**：`scriptBoxEngine` 是注入式引擎（脚本批量生成不进 undo）保留 `addNodes`/`setEdges`；`onConnect` 手连（`xy-edge__`）与 `onConnectEnd` ghost-edge 保持原样。
 4. **统一节点错误降级/重试收敛**：节点级 catch 大多只 setState 不收敛（FINAL-056，架构级）。
 5. ~~本地预览收口~~ ✅ **已收口**（`base/previewUrl.js`，2026-08-18）：节点预览 `URL.createObjectURL` 已统一走 `previewUrl.create/release`（引用计数，减到 0 才 revoke）。**边界**：下载走 `clipboard`、持久化降级走 `videoEngine`、跨节点产物喂 spawn（`VideoProcessNode` GIF）与外部仓库 `director3d` **不纳入**，勿再收。
 6. ~~已收口却仍绕道的反例~~ ✅ **已修**（2026-08-18）：`accountsStore`/`ShortcutSettings` 手写 `Date.now().toString` 已收敛回 `generateId('env'/'sc')`。**教训**：收口后需 grep 全库堵死绕道，别让「已收口却仍绕道=更糟」。

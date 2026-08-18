@@ -22,6 +22,8 @@ import {
   ConversionCanceled
 } from '../base/videoEngine.js'
 import { generateId } from '../base/idGen.js'
+import { buildSpawnNodes, applySpawnSnapshot } from '../base/deriveNodes.js'
+import { useCanvasEdges } from '../base/CanvasEdgesContext.jsx'
 import { httpRequest } from '../base/httpClient.js'
 import previewUrls from '../base/previewUrl.js'
 import { DOWNLOAD_TIMEOUT, VIDEO_DOWNLOAD_TIMEOUT } from '../base/config.js'
@@ -157,7 +159,8 @@ function captureFrame(url, atTime, quality = 0.55) {
 }
 
 export default function VideoProcessNode({ id, data, selected }) {
-  const { setNodes, getNodes, setEdges } = useReactFlow()
+  const { setNodes, getNodes, getEdges, setEdges } = useReactFlow()
+  const history = useCanvasEdges()
   const { isHidden } = useMediaDegrade()
   const { onMainBoxResize } = useNodeResize(id)
   const contentRef = useRef(null)
@@ -695,21 +698,24 @@ export default function VideoProcessNode({ id, data, selected }) {
       const baseX = (me?.position.x ?? 100) + (me?.measured?.width ?? 540) + 60
       const baseY = me?.position.y ?? 100
       const nid = `video-${id}-${generateId('v')}`
-      setNodes((ns) =>
-        ns.concat([
-          {
-            id: nid,
-            type: 'imageNode',
-            position: { x: baseX, y: baseY },
-            // mediaType:'video'：blob 视频 URL 无扩展名/前缀，靠显式类型让 imageNode 正确渲染视频
-            data: { imageUrl: url, mediaType: 'video', label: name, expanded: true },
-            style: { width: 420, height: 380 }
-          }
-        ])
+      const spawned = buildSpawnNodes(
+        { id, position: { x: baseX, y: baseY } },
+        [{
+          id: nid,
+          type: 'imageNode',
+          position: { x: baseX, y: baseY },
+          // mediaType:'video'：blob 视频 URL 无扩展名/前缀，靠显式类型让 imageNode 正确渲染视频
+          data: { imageUrl: url, mediaType: 'video', label: name, expanded: true },
+          style: { width: 420, height: 380 }
+        }],
+        { sourceHandle: 'main-output' }
       )
-      setEdges((es) => es.concat([{ id: `e-${id}-${nid}`, source: id, target: nid, sourceHandle: 'main-output' }]))
+      const snapshot = applySpawnSnapshot(getNodes(), getEdges(), spawned)
+      setNodes((ns) => ns.concat(spawned.childNodes))
+      setEdges((es) => es.concat(spawned.edges))
+      history?.record(snapshot)
     },
-    [id, getNodes, setNodes, setEdges]
+    [id, getNodes, getEdges, setNodes, setEdges, history]
   )
 
   const spawnAudioNode = useCallback(
@@ -718,21 +724,24 @@ export default function VideoProcessNode({ id, data, selected }) {
       const baseX = (me?.position.x ?? 100) + (me?.measured?.width ?? 540) + 60
       const baseY = me?.position.y ?? 100
       const nid = `audio-${id}-${generateId('a')}`
-      setNodes((ns) =>
-        ns.concat([
-          {
-            id: nid,
-            type: 'imageNode',
-            position: { x: baseX, y: baseY },
-            // mediaType:'audio'：blob 音频 URL 无扩展名/前缀，靠显式类型让 imageNode 正确渲染音频
-            data: { imageUrl: url, mediaType: 'audio', label: name, expanded: false },
-            style: { width: 320, height: 200 }
-          }
-        ])
+      const spawned = buildSpawnNodes(
+        { id, position: { x: baseX, y: baseY } },
+        [{
+          id: nid,
+          type: 'imageNode',
+          position: { x: baseX, y: baseY },
+          // mediaType:'audio'：blob 音频 URL 无扩展名/前缀，靠显式类型让 imageNode 正确渲染音频
+          data: { imageUrl: url, mediaType: 'audio', label: name, expanded: false },
+          style: { width: 320, height: 200 }
+        }],
+        { sourceHandle: 'main-output' }
       )
-      setEdges((es) => es.concat([{ id: `e-${id}-${nid}`, source: id, target: nid, sourceHandle: 'main-output' }]))
+      const snapshot = applySpawnSnapshot(getNodes(), getEdges(), spawned)
+      setNodes((ns) => ns.concat(spawned.childNodes))
+      setEdges((es) => es.concat(spawned.edges))
+      history?.record(snapshot)
     },
-    [id, getNodes, setNodes, setEdges]
+    [id, getNodes, getEdges, setNodes, setEdges, history]
   )
 
   // GIF 结果 spawn 成图片节点（gif 是图片，mediaType:'image'）
@@ -742,20 +751,23 @@ export default function VideoProcessNode({ id, data, selected }) {
       const baseX = (me?.position.x ?? 100) + (me?.measured?.width ?? 540) + 60
       const baseY = me?.position.y ?? 100
       const nid = `gif-${id}-${generateId('g')}`
-      setNodes((ns) =>
-        ns.concat([
-          {
-            id: nid,
-            type: 'imageNode',
-            position: { x: baseX, y: baseY },
-            data: { imageUrl: url, mediaType: 'image', label: name, expanded: false },
-            style: { width: 360, height: 260 }
-          }
-        ])
+      const spawned = buildSpawnNodes(
+        { id, position: { x: baseX, y: baseY } },
+        [{
+          id: nid,
+          type: 'imageNode',
+          position: { x: baseX, y: baseY },
+          data: { imageUrl: url, mediaType: 'image', label: name, expanded: false },
+          style: { width: 360, height: 260 }
+        }],
+        { sourceHandle: 'main-output' }
       )
-      setEdges((es) => es.concat([{ id: `e-${id}-${nid}`, source: id, target: nid, sourceHandle: 'main-output' }]))
+      const snapshot = applySpawnSnapshot(getNodes(), getEdges(), spawned)
+      setNodes((ns) => ns.concat(spawned.childNodes))
+      setEdges((es) => es.concat(spawned.edges))
+      history?.record(snapshot)
     },
-    [id, getNodes, setNodes, setEdges]
+    [id, getNodes, getEdges, setNodes, setEdges, history]
   )
 
   const handleProcess = useCallback(async () => {

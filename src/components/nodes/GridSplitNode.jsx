@@ -11,6 +11,8 @@ import { showToast, toastWarning } from '../base/toastStore.js' // 保留阻断�
 import { toAbsoluteFileUrl } from '../base/filesApi.js'
 import { logger } from '../base/logger.js'
 import { generateId } from '../base/idGen.js'
+import { buildSpawnNodes, applySpawnSnapshot } from '../base/deriveNodes.js'
+import { useCanvasEdges } from '../base/CanvasEdgesContext.jsx'
 
 /* ════════════════════════════════════════════════════════════════
  * 图片切分节点（复刻官方 Lo.jsx / gridSplitNode）
@@ -140,6 +142,7 @@ const LASSO_CURSOR = `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org
 
 export default function GridSplitNode({ id, data, selected }) {
   const { setNodes, getNodes, setEdges, getEdges } = useReactFlow()
+  const history = useCanvasEdges()
   const { isHidden } = useMediaDegrade()
   const { onMainBoxResize } = useNodeResize(id)
 
@@ -521,23 +524,27 @@ export default function GridSplitNode({ id, data, selected }) {
       const baseX = (me?.position.x ?? 100) + (me?.measured?.width ?? 400) + 50
       const baseY = me?.position.y ?? 100
       const colsCount = Math.max(1, Math.ceil(Math.sqrt(list.length)))
-      const newNodes = list.map((item, n) => {
-        const r = Math.floor(n / colsCount)
-        const c = n % colsCount
-        return {
-          id: `split-${id}-${n}-${generateId('s')}`,
-          type: 'imageNode',
-          position: { x: baseX + c * 330, y: baseY + r * 330 },
-          data: { imageUrl: item.url, label: item.label, expanded: false },
-          style: { width: 320, height: 320 }
-        }
-      })
-      const newEdges = newNodes.map((nn) => ({ id: `e-${id}-${nn.id}`, source: id, target: nn.id }))
-      setNodes((ns) => ns.concat(newNodes))
-      setEdges((es) => es.concat(newEdges))
-      return newNodes
+      const spawned = buildSpawnNodes(
+        { id, position: { x: baseX, y: baseY } },
+        list.map((item, n) => {
+          const r = Math.floor(n / colsCount)
+          const c = n % colsCount
+          return {
+            id: `split-${id}-${n}-${generateId('s')}`,
+            type: 'imageNode',
+            position: { x: baseX + c * 330, y: baseY + r * 330 },
+            data: { imageUrl: item.url, label: item.label, expanded: false },
+            style: { width: 320, height: 320 }
+          }
+        })
+      )
+      const snapshot = applySpawnSnapshot(getNodes(), getEdges(), spawned)
+      setNodes((ns) => ns.concat(spawned.childNodes))
+      setEdges((es) => es.concat(spawned.edges))
+      history?.record(snapshot)
+      return spawned.childNodes
     },
-    [id, getNodes, setNodes, setEdges]
+    [id, getNodes, getEdges, setNodes, setEdges, history]
   )
 
   // ---- 批量切分（复刻 Lo.jsx G → onSplit；这里组件内直接生成）----

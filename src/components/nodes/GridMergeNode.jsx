@@ -1,5 +1,7 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { useDebouncedEffect } from '../base/utils.js'
+import { buildSpawnNodes, applySpawnSnapshot } from '../base/deriveNodes.js'
+import { useCanvasEdges } from '../base/CanvasEdgesContext.jsx'
 
 import { Grid3X3, PanelsTopLeft, Layers, Loader2 } from 'lucide-react'
 import { useReactFlow } from '@xyflow/react'
@@ -89,7 +91,8 @@ const GRID_PRESETS = [
 ]
 
 export default function GridMergeNode({ id, data, selected }) {
-  const { setNodes, getNodes, setEdges } = useReactFlow()
+  const { setNodes, getNodes, getEdges, setEdges } = useReactFlow()
+  const history = useCanvasEdges()
   const { isHidden } = useMediaDegrade()
   const { onMainBoxResize } = useNodeResize(id)
   const contentRef = useRef(null)
@@ -344,12 +347,17 @@ export default function GridMergeNode({ id, data, selected }) {
       const baseX = (me?.position.x ?? 100) + (me?.measured?.width ?? 400) + 50
       const baseY = me?.position.y ?? 100
       const nid = `merged-${id}-${generateId('m')}`
-      setNodes((ns) =>
-        ns.concat([{ id: nid, type: 'imageNode', position: { x: baseX, y: baseY }, data: { imageUrl: url, label: `合并结果`, expanded: false }, style: { width: 320, height: 320 } }])
+      const spawned = buildSpawnNodes(
+        { id, position: { x: baseX, y: baseY } },
+        [{ id: nid, type: 'imageNode', position: { x: baseX, y: baseY }, data: { imageUrl: url, label: `合并结果`, expanded: false }, style: { width: 320, height: 320 } }],
+        { sourceHandle: 'merged-output' }
       )
-      setEdges((es) => es.concat([{ id: `e-${id}-${nid}`, source: id, target: nid, sourceHandle: 'merged-output' }]))
+      const snapshot = applySpawnSnapshot(getNodes(), getEdges(), spawned)
+      setNodes((ns) => ns.concat(spawned.childNodes))
+      setEdges((es) => es.concat(spawned.edges))
+      history?.record(snapshot)
     },
-    [id, getNodes, setNodes, setEdges]
+    [id, getNodes, getEdges, setNodes, setEdges, history]
   )
 
   // 交换 grid cell（拖拽）

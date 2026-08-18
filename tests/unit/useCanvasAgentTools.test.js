@@ -94,7 +94,7 @@ describe('buildCanvasAgentTools', () => {
     const tools = buildCanvasAgentTools(ctx)
     const res = tools.create_node({ type: 'textNode', prompt: '你好', position: { x: 1, y: 2 } })
     expect(res.ok).toBe(true)
-    expect(res.data.id).toMatch(/^textNode-/)
+    expect(res.data.id).toMatch(/^textNode_/)
     expect(ctx.setNodes).toHaveBeenCalled()
     // 写入的节点含正确 data
     const written = ctx.setNodes.mock.calls[0][0]

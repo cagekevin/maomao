@@ -7,6 +7,8 @@ import { showToast, toastWarning } from '../base/toastStore.js' // 保留阻断�
 import { useSyncNodeData } from '../base/useSyncNodeData.js'
 import { useOutsideClick } from '../base/hooks.js'
 import { generateId } from '../base/idGen.js'
+import { buildSpawnNodes, applySpawnSnapshot } from '../base/deriveNodes.js'
+import { useCanvasEdges } from '../base/CanvasEdgesContext.jsx'
 
 /**
  * 循环节点（逐像素对齐大雄 Infinite-Canvas 的 smart-loop）。
@@ -99,7 +101,8 @@ export function splitByMethod(text, method) {
 export default function LoopNode({ id, data, selected }) {
   // 上游连线：读取直接上游节点的文本（textNode 产出 data.text）
   const connected = useConnectedInputs(id)
-  const { setNodes, addNodes, addEdges, getNodes } = useReactFlow()
+  const { setNodes, setEdges, getNodes, getEdges } = useReactFlow()
+  const history = useCanvasEdges()
 
   // 从 data 初始化（splitMethod=newline）
   const [splitMethod, setSplitMethod] = useState(data.splitMethod || 'newline')
@@ -171,14 +174,13 @@ export default function LoopNode({ id, data, selected }) {
     setRunning(true)
     setError('')
 
-    const newNodes = []
-    const newEdges = []
     const ts = Date.now()
+    const specs = []
     segs.forEach((seg, i) => {
       const prompt = promptForSegment(seg, i)
       if (!prompt) return
       const nodeId = `loop-out-${id}-${i}-${ts}-${generateId('o')}`
-      newNodes.push({
+      specs.push({
         id: nodeId,
         type: 'promptNode',
         position: { x: baseX, y: baseY + i * 750 },
@@ -191,11 +193,13 @@ export default function LoopNode({ id, data, selected }) {
         width: 420,
         height: 420,
       })
-      newEdges.push({ id: `e-loop-${id}-${nodeId}`, source: id, target: nodeId })
     })
 
-    addNodes(newNodes)
-    addEdges(newEdges)
+    const spawned = buildSpawnNodes({ id, position: { x: baseX, y: baseY } }, specs)
+    const snapshot = applySpawnSnapshot(getNodes(), getEdges(), spawned)
+    setNodes((ns) => ns.concat(spawned.childNodes))
+    setEdges((es) => es.concat(spawned.edges))
+    history?.record(snapshot)
     // 下游节点已生成在画布，结果可见，无需 toast
     setRunning(false)
   }
