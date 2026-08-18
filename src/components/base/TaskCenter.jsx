@@ -239,7 +239,7 @@ const TaskCard = React.memo(function TaskCard({ task, moreOpen, onToggleMore, on
   }
 
   return (
-    <div className="px-1.5 py-2 flex flex-col gap-2 border-b border-edge-subtle last:border-b-0">
+    <div className="px-1.5 py-2 flex flex-col gap-2 border-b border-edge-subtle last:border-b-0" style={{ contentVisibility: 'auto', containIntrinsicSize: 'auto 140px' }}>
       {/* 第一行：状态圆点+文案 · 类型+模型 | 操作 */}
       <div className="flex items-center gap-1.5 min-w-0">
         <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${dot}`} />

@@ -204,7 +204,7 @@ function NodeShell({
     <div
       ref={wrapperRef}
       className={`relative flex flex-col items-center group/node min-w-[160px] min-h-[160px] ${selected ? 'z-50' : 'z-10'} ${className}`}
-      style={{ width: typeof inlineW === 'number' ? `${inlineW}px` : inlineW, minHeight: typeof inlineH === 'number' ? `${inlineH}px` : inlineH, ...extraStyle }}
+      style={{ width: typeof inlineW === 'number' ? `${inlineW}px` : inlineW, minHeight: typeof inlineH === 'number' ? `${inlineH}px` : inlineH, contain: 'layout style', ...extraStyle }}
     >
       {/* 标题：与所有节点完全一致（NodeTitle mb-1 self-start，宽度只包内容）。
           titleRight 操作组用绝对定位浮在标题右侧，不改变 NodeTitle 的位置/间距 */}

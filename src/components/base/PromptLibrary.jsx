@@ -205,6 +205,7 @@ function PromptLibrary({ open, onClose, onUse, defaultCategory = '', presetPromp
                     <div
                       key={card.id}
                       className="bg-surface border border-edge-faint rounded-[14px] p-4 flex flex-col gap-2.5 cursor-pointer transition-all hover:border-edge-muted hover:bg-surface-2"
+                      style={{ contentVisibility: 'auto', containIntrinsicSize: 'auto 180px' }}
                       onClick={() => handleUse(card)}
                     >
                       <div className="flex items-start justify-between gap-2.5">

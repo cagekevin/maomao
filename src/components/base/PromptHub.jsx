@@ -32,6 +32,7 @@ const HubCard = React.memo(function HubCard({ it, onOpen }) {
   return (
     <div
       className="group relative rounded-lg overflow-hidden border border-edge-subtle bg-surface-1 hover:border-blue-500 cursor-pointer transition-colors"
+      style={{ contentVisibility: 'auto', containIntrinsicSize: 'auto 220px' }}
       onClick={() => onOpen(it)}
     >
       <div className="relative aspect-[4/3] bg-surface-2">
@@ -169,7 +170,6 @@ function PromptHub() {
   const [sourceFilter, setSourceFilter] = useState('all')
   const [keyword, setKeyword] = useState('')
   const [debouncedKeyword, setDebouncedKeyword] = useState('')
-  const [visibleCount, setVisibleCount] = useState(24)
   const [openId, setOpenId] = useState(null)
 
   const sources = useMemo(() => getSources(), [])
@@ -249,11 +249,6 @@ function PromptHub() {
     })
   }, [items, sourceFilter, debouncedKeyword])
 
-  const visibleItems = useMemo(
-    () => filtered.slice(0, visibleCount),
-    [filtered, visibleCount]
-  )
-
   const openItem = useMemo(() => items.find((it) => it.id === openId) || null, [items, openId])
   const handleOpen = useCallback((it) => setOpenId(it.id), [])
 
@@ -314,21 +309,12 @@ function PromptHub() {
       ) : (
         <div
           className="flex-1 overflow-y-auto p-3"
-          onScroll={(e) => {
-            const el = e.currentTarget
-            if (el.scrollHeight - el.scrollTop - el.clientHeight < 120) {
-              setVisibleCount((c) => Math.min(c + 24, filtered.length))
-            }
-          }}
         >
           <div className="grid grid-cols-2 gap-3">
-            {visibleItems.map((it) => (
+            {filtered.map((it) => (
               <HubCard key={it.id} it={it} onOpen={handleOpen} />
             ))}
           </div>
-          {visibleCount < filtered.length && (
-            <div className="text-center text-caption-sm text-muted py-3">下滑加载更多…</div>
-          )}
         </div>
       )}
 
