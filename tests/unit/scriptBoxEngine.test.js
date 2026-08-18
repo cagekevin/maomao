@@ -78,6 +78,15 @@ describe('scriptBoxEngine · 纯导出函数', () => {
       expect(dialogueLines(null)).toBe('')
       expect(dialogueLines('')).toBe('')
     })
+    it('数组对白（UI 编辑后形态）→ 逐行解析为说话者/完整原句', () => {
+      // P2-⑤：dialogue 双态，UI 编辑后是数组 [{kind,role,text}]，必须逐行而非 String() 逗号拼接
+      const arr = [
+        { kind: '台词', role: '甲', text: '你好' },
+        { kind: '旁白', role: '', text: '天黑了' },
+      ]
+      expect(dialogueLines(arr)).toContain('说话者：甲，完整原句：你好')
+      expect(dialogueLines(arr)).toContain('旁白，完整原句：天黑了')
+    })
   })
 
   describe('assembleShotUser', () => {
@@ -180,5 +189,89 @@ describe('scriptBoxEngine · 引擎编排', () => {
     expect(store._edges.length).toBe(1)
     expect(store._edges[0].source).toBe('node-1')
     expect(store._edges[0].sourceHandle).toBe('shot-s1')
+  })
+
+  // ── P0-②：下游参考图字段名统一为 images（生图/生视频不再各用各的名字）──
+  it('onConnectShot 生图/生视频下游参考图字段统一为 images', async () => {
+    const assets = [{ id: 'asset-城堡', name: '城堡', imageUrl: '/files/城堡.png' }]
+    const { engine, addNodes } = makeEngine({
+      shots: [{ id: 's1', index: 1, description: '走进 @城堡', prompt: 'p', videoPrompt: 'v' }],
+      assets,
+    })
+    // 生图下游
+    engine.onConnectShot('s1', 'image')
+    const imgNode = addNodes.mock.calls[0][0][0]
+    expect(imgNode.type).toBe('promptNode')
+    expect(imgNode.data.images).toEqual([{ id: 'script-asset-asset-城堡', url: '/files/城堡.png' }])
+    expect(imgNode.data.refImages).toBeUndefined() // 不再使用 refImages 命名
+    // 生视频下游
+    addNodes.mockClear()
+    engine.onConnectShot('s1', 'video')
+    const vidNode = addNodes.mock.calls[0][0][0]
+    expect(vidNode.type).toBe('discountVideoNode')
+    expect(vidNode.data.images).toEqual([{ id: 'script-asset-asset-城堡', url: '/files/城堡.png' }])
+    expect(vidNode.data.refImages).toBeUndefined()
+  })
+
+  // ── P0-①：onConnectShots 支持 target，批量建对应下游类型 ──
+  it('onConnectShots(ids, "video") 批量建 discountVideoNode', async () => {
+    const { engine, addNodes } = makeEngine({
+      shots: [
+        { id: 's1', index: 1, description: '@城堡', prompt: 'p1', videoPrompt: 'v1' },
+        { id: 's2', index: 2, description: '@森林', prompt: 'p2', videoPrompt: 'v2' },
+      ],
+      assets: [{ id: 'a1', name: '城堡', imageUrl: '/f/1.png' }, { id: 'a2', name: '森林', imageUrl: '/f/2.png' }],
+    })
+    // onConnectShots 内部逐个调 onConnectShot（forEach），每次 addNodes 1 个节点
+    engine.onConnectShots(['s1', 's2'], 'video')
+    const allNodes = addNodes.mock.calls.flatMap((c) => c[0])
+    expect(allNodes).toHaveLength(2)
+    expect(allNodes.every((n) => n.type === 'discountVideoNode')).toBe(true)
+  })
+
+  it('onConnectShots 缺省 target 默认 "image"（兼容旧调用）', async () => {
+    const { engine, addNodes } = makeEngine({
+      shots: [{ id: 's1', index: 1, description: 'x', prompt: 'p', videoPrompt: 'v' }],
+    })
+    engine.onConnectShots(['s1'])
+    expect(addNodes).toHaveBeenCalledTimes(1)
+    expect(addNodes.mock.calls[0][0][0].type).toBe('promptNode')
+  })
+
+  // ── P1-③：按钮连下游透传宽高比/时长预填（复刻 App.jsx 对 shot- 端口的预填）──
+  it('onConnectShot 透传宽高比（image→aspectRatio；video→size+时长+durationFromScript）', async () => {
+    const { engine, addNodes } = makeEngine({
+      aspectRatio: '9:16',
+      shots: [{ id: 's1', index: 1, description: 'x', prompt: 'p', videoPrompt: 'v', duration: '7s' }],
+    })
+    // image 下游
+    engine.onConnectShot('s1', 'image')
+    const imgNode = addNodes.mock.calls[0][0][0]
+    expect(imgNode.data.aspectRatio).toBe('9:16')
+    addNodes.mockClear()
+    // video 下游
+    engine.onConnectShot('s1', 'video')
+    const vidNode = addNodes.mock.calls[0][0][0]
+    expect(vidNode.data.size).toBe('9:16')
+    expect(vidNode.data.selectedSeconds).toBe('7')
+    expect(vidNode.data.durationFromScript).toBe(true)
+  })
+
+  it('onConnectShot 宽高比 custom 用 customAspectRatio；4:4 归一为 1:1', async () => {
+    const { engine, addNodes } = makeEngine({
+      aspectRatio: 'custom',
+      customAspectRatio: '2:1',
+      shots: [{ id: 's1', index: 1, description: 'x', prompt: 'p', videoPrompt: 'v', duration: '5s' }],
+    })
+    engine.onConnectShot('s1', 'image')
+    expect(addNodes.mock.calls[0][0][0].data.aspectRatio).toBe('2:1')
+    addNodes.mockClear()
+
+    const { engine: e2, addNodes: addNodes2 } = makeEngine({
+      aspectRatio: '4:4',
+      shots: [{ id: 's2', index: 1, description: 'x', prompt: 'p', videoPrompt: 'v', duration: '5s' }],
+    })
+    e2.onConnectShot('s2', 'video')
+    expect(addNodes2.mock.calls[0][0][0].data.size).toBe('1:1')
   })
 })

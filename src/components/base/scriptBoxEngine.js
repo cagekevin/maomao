@@ -1,4 +1,4 @@
-import { buildShotImageUser, getImageGenSys, collectAssets, ZgPrompt, IMAGE_GEN_TYPES, IMAGE_GEN_DEFAULT, SCRIPT_WRITER_SYSTEM, SCRIPT_WRITER_FORMAT, SHOT_DIRECTOR_SYSTEM } from './scriptBoxPrompts.js'
+import { buildShotImageUser, getImageGenSys, collectAssets, matchAsset, ZgPrompt, IMAGE_GEN_TYPES, IMAGE_GEN_DEFAULT, SCRIPT_WRITER_SYSTEM, SCRIPT_WRITER_FORMAT, SHOT_DIRECTOR_SYSTEM } from './scriptBoxPrompts.js'
 import { chatCompletions } from './chatApi.js'
 import { generateImage } from './imageApi.js'
 import { resolveProviderModel, buildAllModels } from './providerModels.js'
@@ -310,7 +310,8 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
     const shotPrompt = (d.customShotPrompt || '').trim() || SHOT_DIRECTOR_SYSTEM
     const system = shotPrompt + QG_RULES
 
-    // 标记命中镜头 promptLoading
+    // 标记命中镜头 promptLoading（卡片级生成动画：StepPrompt 对每个 promptLoading 的分镜卡片
+    // 单独显示遮罩并锁定其内部操作，见 cardFor；批量时每镜各自独立，互不影响）
     updateData({ shots: shots.map((s) => (target.some((t) => t.id === s.id) ? { ...s, promptLoading: true } : s)) })
 
     const genShot = async (shot) => {
@@ -359,8 +360,8 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
       }
     }
 
-    // 分批并发：每批最多 6 个，避免十几个镜头一次性并发打爆外部 API。
-    // 一批 6 个并发，全部完成后才发下一批。
+    // 分批并发：每批最多 6 个，批间串行（保留正常业务并发）。
+    // 用户知情/等待提示由 StepPrompt 的卡片级生成遮罩承担（每个 promptLoading 分镜单独动画）。
     const BATCH = 6
     for (let i = 0; i < target.length; i += BATCH) {
       await Promise.all(target.slice(i, i + BATCH).map((s) => genShot(s)))
@@ -467,7 +468,21 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
     has.forEach((a) => onRetryVideoAssetUpload(a.id))
   }
 
-  // 连线（对齐官方 li）：按 target 建对应下游节点并自动连线，下游往右排布
+  // 连线（对齐官方 li）：按 target 建对应下游节点并自动连线，下游往右排布。
+  // 预填（P1-③）：复刻 App.jsx 对 shot- 端口建下游时的透传——
+  //   image→aspectRatio；video→size + selectedSeconds(分镜时长) + durationFromScript。
+  //   宽高比 custom 取 customAspectRatio；4:4 归一为 1:1（与官方 di 行为一致）。
+  const shotPrefill = (shot, type) => {
+    const d = getData()
+    const raw = String(d.aspectRatio || '16:9')
+    const ratio = raw === 'custom' ? String(d.customAspectRatio || '16:9') : raw
+    const o = ratio === '4:4' ? '1:1' : ratio
+    const seconds = String(Math.max(1, Number.parseInt(String(shot.duration || '5'), 10) || 5))
+    return type === 'video'
+      ? { size: o, selectedSeconds: seconds, durationFromScript: true }
+      : { aspectRatio: o }
+  }
+
   const onConnectShot = (shotId, target = 'image') => {
     if (!addNodes) return
     const d = getData()
@@ -476,7 +491,8 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
     const base = Date.now()
     const isImage = target !== 'video'
     const nodeId2 = `script-${isImage ? 'prompt' : 'video'}-${shotId}-${base}`
-    // 资产自动匹配：按该镜头里的 @资产名 收集「有图资产」作为参考图（复刻官方 Ra）
+    // 资产自动匹配：按该镜头里的 @资产名 收集「有图资产」作为参考图（复刻官方 Ra）。
+    // 参考图字段统一命名为 images（P0-②）：生图/生视频下游都用 images，与 useConnectedInputs 产出命名一致。
     const refImages = collectAssets(shot, d.assets)
     // 下游往右排布：以剧本盒子节点位置为基准，向右偏移
     let rightBase = { x: 0, y: 0 }
@@ -484,10 +500,12 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
       const self = getNodes().find((n) => n.id === nodeId)
       if (self?.position) rightBase = { x: self.position.x + (self.width ?? 900) + 120, y: self.position.y }
     }
+    const prefill = shotPrefill(shot, isImage ? 'image' : 'video')
+    const baseData = { ...prefill, images: refImages }
     addNodes([
       isImage
-        ? { id: nodeId2, type: 'promptNode', position: { x: rightBase.x, y: rightBase.y }, data: { label: `镜头${shot.index}图`, prompt: shot.prompt, images: refImages } }
-        : { id: nodeId2, type: 'discountVideoNode', position: { x: rightBase.x, y: rightBase.y }, data: { label: `镜头${shot.index}视频`, prompt: shot.videoPrompt, refImages } }
+        ? { id: nodeId2, type: 'promptNode', position: { x: rightBase.x, y: rightBase.y }, data: { ...baseData, label: `镜头${shot.index}图`, prompt: shot.prompt } }
+        : { id: nodeId2, type: 'discountVideoNode', position: { x: rightBase.x, y: rightBase.y }, data: { ...baseData, label: `镜头${shot.index}视频`, prompt: shot.videoPrompt } }
     ])
     if (setEdges && nodeId) {
       setEdges((es) => [
@@ -521,22 +539,24 @@ const QG_RULES = `
 
 【不可覆盖的最终规则】prompt 与 videoPrompt 每个字段最低 400 个中文字符，建议 450 至 700 字。videoPrompt 必须逐字保留输入中提供的具体角色名、完整对白/旁白和具体音效，并使用“具体角色名说：‘完整台词’”“旁白：‘完整原句’”“环境音/动作音：具体音效”的明确格式。禁止输出“角色说”“人物说”“他说”“她说”等泛称。所有 @名称 必须原样保留。只返回包含 prompt、videoPrompt 的纯 JSON。`
 
-/** @资产名 匹配（对齐官方 shared.js Fa）：检查所有命中位置，任一后一位合法即 true。 */
-function matchAsset(text, name) {
-  if (!text || !name) return false
-  let n = 0
-  while (true) {
-    n = text.indexOf(`@${name}`, n)
-    if (n < 0) return false
-    const after = text[n + 1 + name.length]
-    if (after === undefined || !/[\u4e00-\u9fa5A-Za-z0-9]/.test(after)) return true
-    n += 1
-  }
-}
-
 /** 对白字符串 → 每行「说话者：完整原句」格式（对齐官方 Ir 内嵌解析 + Nr）。
- *  导出供单测（剧本盒纯逻辑）。 */
+ *  兼容 dialogue 双态（P2-⑤）：数组形态（UI 编辑后 [{kind,role,text}]）逐行转字符串，
+ *  字符串形态（引擎产出）按行解析。导出供单测（剧本盒纯逻辑）。 */
 export function dialogueLines(dialogue) {
+  if (Array.isArray(dialogue)) {
+    return dialogue
+      .map((x) => {
+        if (!x || typeof x !== 'object') return ''
+        const role = String(x.role || '').trim()
+        const text = String(x.text || '').trim()
+        if (!text) return ''
+        return x.kind === '旁白'
+          ? `旁白，完整原句：${text}`
+          : `说话者：${role || '未指定角色'}，完整原句：${text}`
+      })
+      .filter(Boolean)
+      .join('\n')
+  }
   if (!dialogue) return ''
   return String(dialogue)
     .split('\n')

@@ -1,7 +1,8 @@
 import React, { useState, useRef } from 'react'
 import { Loader2, Plus, Trash2 } from 'lucide-react'
-import { SHOT_TYPES, LIGHTS, MOTIONS, dialogueText, hlAt } from '../base/scriptBoxPrompts.js'
+import { SHOT_TYPES, LIGHTS, MOTIONS, dialogueText, hlAt, patchShots } from '../base/scriptBoxPrompts.js'
 import { useOutsideClick } from '../base/hooks.js'
+import ScriptBoxModal from './ScriptBoxModal.jsx'
 
 /**
  * 剧本盒子 步骤1「确认镜头」：左栏控制 + 右栏分镜表格（复刻原型 renderV1）。
@@ -22,11 +23,8 @@ export default function StepShots({ data, updateData, callbacks }) {
   const setShotCount = (shotCount) => updateData({ shotCount })
   const setCustomCount = (customCount) => updateData({ customCount })
 
-  // 更新单个分镜字段
-  const patchShot = (idx, field, val) => {
-    const shots2 = shots.map((s, i) => (i === idx ? { ...s, [field]: val } : s))
-    updateData({ shots: shots2 })
-  }
+  // 更新单个分镜字段（复用纯函数 patchShots，收口 StepShots/StepPrompt 重复）
+  const patchShot = (idx, field, val) => updateData({ shots: patchShots(shots, idx, field, val) })
 
   // 对白数组 → 文本（可编辑）
   const dlgToText = (arr) => {
@@ -159,21 +157,19 @@ export default function StepShots({ data, updateData, callbacks }) {
         <button className="self-start flex items-center gap-1 px-2 py-1 mt-2 text-caption-sm text-gray-400 hover:text-white hover:bg-surface-1 rounded" onClick={addShot}><Plus size={11} /> 添加镜头</button>
       </div>
 
-      {/* 双击字段编辑弹窗 */}
+      {/* 双击字段编辑弹窗（统一节点内弹层容器） */}
       {editing && (
-        <Modal title={`编辑${editing.title}`} onClose={() => setEditing(null)}>
+        <ScriptBoxModal title={`编辑${editing.title}`} onClose={() => setEditing(null)} onOk={commitField}>
           <textarea autoFocus value={editVal} onChange={(e) => setEditVal(e.target.value)} className="w-full h-32 bg-surface-strong border border-edge rounded-lg p-2 text-body-xs text-gray-200 outline-none custom-scrollbar nodrag nowheel" />
           <div className="text-caption text-gray-500 mt-1">提示：用 @资产名 引用，如 @小马</div>
-          <ModalFooter onCancel={() => setEditing(null)} onOk={commitField} />
-        </Modal>
+        </ScriptBoxModal>
       )}
 
-      {/* 对白编辑器 */}
+      {/* 对白编辑器（统一节点内弹层容器） */}
       {dlgEditing !== null && (
-        <Modal title="编辑对白/旁白" onClose={() => setDlgEditing(null)}>
+        <ScriptBoxModal title="编辑对白/旁白" onClose={() => setDlgEditing(null)} onOk={commitDlg}>
           <textarea autoFocus value={dlgText} onChange={(e) => setDlgText(e.target.value)} placeholder="每行一条：角色名：台词（旁白写：旁白：内容）" className="w-full h-32 bg-surface-strong border border-edge rounded-lg p-2 text-body-xs text-gray-200 outline-none custom-scrollbar nodrag nowheel" />
-          <ModalFooter onCancel={() => setDlgEditing(null)} onOk={commitDlg} />
-        </Modal>
+        </ScriptBoxModal>
       )}
     </div>
   )
@@ -198,22 +194,4 @@ function DropTable({ opts, val, onPick }) {
   )
 }
 
-/** 通用弹窗容器（相对剧本盒子主容器定位，节点内部面板） */
-function Modal({ children, onClose, title }) {
-  return (
-    <div className="absolute inset-0 z-modal flex items-center justify-center bg-black/50" onClick={onClose}>
-      <div className="bg-surface-menu border border-edge rounded-xl p-4 w-[440px] shadow-2xl" onClick={(e) => e.stopPropagation()}>
-        <div className="text-body-xs text-gray-300 mb-2">{title}</div>
-        {children}
-      </div>
-    </div>
-  )
-}
-function ModalFooter({ onCancel, onOk }) {
-  return (
-    <div className="flex justify-end gap-2 mt-3">
-      <button className="px-3 py-1 text-caption-sm text-gray-400 hover:text-white" onClick={onCancel}>取消</button>
-      <button className="px-3 py-1 text-caption-sm bg-surface-hover hover:bg-surface-hover-strong text-gray-200 rounded-md" onClick={onOk}>确定</button>
-    </div>
-  )
-}
+

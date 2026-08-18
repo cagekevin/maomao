@@ -7,6 +7,7 @@ import { useProviders, load as loadProviders } from '../base/settings/providerSt
 import { logger } from '../base/logger.js'
 import { buildAllModels } from '../base/providerModels.js'
 import ModelSelect from '../base/ModelSelect.jsx'
+import ScriptBoxModal from './ScriptBoxModal.jsx'
 
 /**
  * 剧本盒子 齿轮设置弹窗（复刻原型 .gearModal）。
@@ -82,13 +83,19 @@ export default function GearSettings({ data, updateData, onClose }) {
     // 弹窗用 absolute inset-0 相对剧本盒子主容器定位（节点内面板）。
     // 注意：不要 createPortal 到 body + fixed inset-0——那会让弹窗脱离节点变成全屏遮罩，
     // 用户明确要求这些弹窗是「剧本盒子的一部分」，显示在节点内部。
-    <div className="absolute inset-0 z-modal flex items-center justify-center bg-black/50" onClick={onClose}>
-      <div className="w-[760px] h-[600px] max-h-[88vh] bg-surface-menu border border-edge-faint rounded-2xl shadow-2xl flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/[0.06] shrink-0">
-          <div className="text-body-sm text-gray-200 font-medium">总体设置</div>
-          <button className="text-gray-500 hover:text-white text-base hover:bg-white/5 rounded-md w-6 h-6 flex items-center justify-center" onClick={onClose}>×</button>
+    <ScriptBoxModal
+      title="总体设置"
+      onClose={onClose}
+      width={760}
+      height={600}
+      bodyClass="p-0 flex flex-col min-h-0 flex-1"
+      footer={
+        <div className="flex justify-end gap-2 px-5 py-3 border-t border-white/[0.06] shrink-0">
+          <button className="px-4 py-1.5 text-body-xs text-gray-400 hover:text-white" onClick={onClose}>取消</button>
+          <button className="px-4 py-1.5 text-body-xs bg-white/10 hover:bg-white/15 text-gray-100 rounded-lg transition-colors" onClick={save}>保存</button>
         </div>
-
+      }
+    >
         {/* 标签页 */}
         <div className="flex gap-1 px-5 pt-3 pb-2 shrink-0 overflow-x-auto custom-scrollbar">
           {TABS.map(([k, n]) => (
@@ -172,13 +179,7 @@ export default function GearSettings({ data, updateData, onClose }) {
             </div>
           )}
         </div>
-
-        <div className="flex justify-end gap-2 px-5 py-3 border-t border-white/[0.06] shrink-0">
-          <button className="px-4 py-1.5 text-body-xs text-gray-400 hover:text-white" onClick={onClose}>取消</button>
-          <button className="px-4 py-1.5 text-body-xs bg-white/10 hover:bg-white/15 text-gray-100 rounded-lg transition-colors" onClick={save}>保存</button>
-        </div>
-      </div>
-    </div>
+    </ScriptBoxModal>
   )
 }
 

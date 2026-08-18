@@ -118,6 +118,17 @@ export function hlAt(text, assetNames) {
   }).join('')
 }
 
+/** 更新 shots 数组中第 idx 个分镜（不可变更新，单一数据源）。
+ *  field 支持两种形态：字符串字段名（配合 val）或对象 patch（一次性合并多个字段）。
+ *  收口 StepShots / StepPrompt 各自的 patchShot 重复实现。纯函数，无副作用。
+ *  @returns 新 shots 数组 */
+export function patchShots(shots, idx, field, val) {
+  return (shots || []).map((s, i) => {
+    if (i !== idx) return s
+    return typeof field === 'object' && field !== null ? { ...s, ...field } : { ...s, [field]: val }
+  })
+}
+
 /** 判断文本 e 中是否存在合法的 `@资产名` 引用（复刻官方 shared.js Fa）。
  *  规则：`@名` 后一位必须是结尾或非中英数，防止 `@小马` 误匹配 `@小马妈妈`。 */
 export function matchAsset(text, name) {

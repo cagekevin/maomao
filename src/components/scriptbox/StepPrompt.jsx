@@ -1,8 +1,9 @@
 import React, { useState } from 'react'
 import { Loader2, Image as ImageIcon, Video, LayoutGrid, Columns2, RefreshCw, Link2, Wand2, Copy, Check } from 'lucide-react'
-import { dialogueText, hlAt, IMAGE_GEN_TYPES, IMAGE_GEN_DEFAULT } from '../base/scriptBoxPrompts.js'
+import { dialogueText, hlAt, patchShots, IMAGE_GEN_TYPES, IMAGE_GEN_DEFAULT } from '../base/scriptBoxPrompts.js'
 import CustomHandle from '../edges/CustomHandle.jsx'
 import { toastWarning } from '../base/toastStore.js'
+import ScriptBoxModal from './ScriptBoxModal.jsx'
 
 /** 长段提示词一键排版：每个句号类标点（。！？；）后回车换行，标点留在行尾。
  *  纯字符串处理，不破坏 @资产名 引用。供编辑弹窗打开时预格式化。 */
@@ -32,13 +33,7 @@ export default function StepPrompt({ data, updateData, callbacks }) {
   const [regenerating, setRegenerating] = useState(null) // 待重新生成的镜头 id（弹意见输入框）
   const [feedback, setFeedback] = useState('') // 重新生成时的用户修改意见
 
-  const patchShot = (idx, field, val) => {
-    const shots2 = shots.map((s, i) => {
-      if (i !== idx) return s
-      return typeof field === 'object' ? { ...s, ...field } : { ...s, [field]: val }
-    })
-    updateData({ shots: shots2 })
-  }
+  const patchShot = (idx, field, val) => updateData({ shots: patchShots(shots, idx, field, val) })
   const toggleSel = (idx) => {
     const s2 = new Set(selShots)
     if (s2.has(idx)) s2.delete(idx)
@@ -60,8 +55,13 @@ export default function StepPrompt({ data, updateData, callbacks }) {
     setEditing(null)
   }
 
-  const cardFor = (s, i) => (
-    <div className="relative flex flex-col gap-2 p-3 bg-surface-strong border border-edge-faint rounded-lg">
+  const cardFor = (s, i) => {
+    // 卡片级生成中动画遮罩：该分镜正在生成（promptLoading=分镜提示词 / imgGenLoading=关键帧等 AI 生图）时，
+    // 只给这一个卡片盖遮罩 + 锁定其内部所有操作（重新生成/生成关键帧/生图/生视频/编辑等），
+    // 其他分镜照常可用。「每块拆开」——批量生成时分镜各自独立动画、互不影响。
+    const cardBusy = !!(s.promptLoading || s.imgGenLoading)
+    return (
+    <div key={s.id ?? i} className="relative flex flex-col gap-2 p-3 bg-surface-strong border border-edge-faint rounded-lg">
       {/* 每镜头独立连线端口（复刻官方 c_.jsx：shot-${id} source，右侧，用统一默认端口外观） */}
       <CustomHandle position="right" variant="small" handleId={`shot-${s.id}`} top="50%" />
       <div className="flex items-center gap-2 text-caption-sm">
@@ -136,8 +136,17 @@ export default function StepPrompt({ data, updateData, callbacks }) {
           </div>
         </div>
       </div>
+
+      {/* 卡片级生成中动画遮罩：只遮当前正在生成的分镜，锁定其内部操作 */}
+      {cardBusy && (
+        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 bg-surface-strong/85 rounded-lg">
+          <Loader2 size={18} className="animate-spin text-emerald-400" />
+          <span className="text-caption-sm text-gray-300">{s.imgGenLoading ? '正在生成关键帧…' : '正在生成提示词…'}</span>
+        </div>
+      )}
     </div>
-  )
+    )
+  }
 
   return (
     <div className="flex flex-col gap-3">
@@ -157,9 +166,15 @@ export default function StepPrompt({ data, updateData, callbacks }) {
           <RefreshCw size={10} /> 批量生成提示词
         </button>
         {selShots.size > 0 && (
-          <button className="px-2 py-1 text-caption text-gray-300 bg-surface-1 hover:bg-surface-hover rounded" onClick={() => callbacks.onConnectShots?.([...selShots].map((i) => shots[i].id))}>
-            连选中的 {selShots.size} 镜下游
-          </button>
+          <span className="flex items-center gap-1">
+            <span className="text-caption text-gray-500">连选中的 {selShots.size} 镜：</span>
+            <button className="px-2 py-1 text-caption text-gray-300 bg-surface-1 hover:bg-surface-hover rounded" onClick={() => callbacks.onConnectShots?.([...selShots].map((i) => shots[i].id), 'image')}>
+              <ImageIcon size={10} className="inline mr-0.5" /> 生图
+            </button>
+            <button className="px-2 py-1 text-caption text-gray-300 bg-surface-1 hover:bg-surface-hover rounded" onClick={() => callbacks.onConnectShots?.([...selShots].map((i) => shots[i].id), 'video')}>
+              <Video size={10} className="inline mr-0.5" /> 生视频
+            </button>
+          </span>
         )}
         <span className="text-caption-sm text-gray-500">{shots.length} 镜</span>
       </div>
@@ -211,37 +226,29 @@ export default function StepPrompt({ data, updateData, callbacks }) {
         </div>
       )}
 
-      {/* 双击编辑弹窗（相对剧本盒子主容器定位，节点内部面板） */}
+      {/* 双击编辑弹窗（统一节点内弹层容器） */}
       {editing && (
-        <div className="absolute inset-0 z-modal flex items-center justify-center bg-black/50" onClick={() => setEditing(null)}>
-          <div className="bg-surface rounded-2xl p-4 w-[760px] shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            <div className="text-body-xs text-gray-300 mb-2">编辑{editing.title}</div>
-            <textarea autoFocus value={editVal} onChange={(e) => setEditVal(e.target.value)} className="w-full h-72 bg-transparent outline-none custom-scrollbar resize-none nodrag nowheel rounded-lg" style={{ fontSize: '14px', lineHeight: 1.8, color: '#e5e7eb' }} />
-            <div className="flex justify-end gap-2 mt-3">
-              <button className="px-3 py-1 text-caption-sm text-gray-400 hover:text-white" onClick={() => setEditing(null)}>取消</button>
-              <button className="px-3 py-1 text-caption-sm bg-surface-hover hover:bg-surface-hover-strong text-gray-200 rounded-md" onClick={commitField}>确定</button>
-            </div>
-          </div>
-        </div>
+        <ScriptBoxModal title={`编辑${editing.title}`} onClose={() => setEditing(null)} onOk={commitField} width={760}>
+          <textarea autoFocus value={editVal} onChange={(e) => setEditVal(e.target.value)} className="w-full h-72 bg-transparent outline-none custom-scrollbar resize-none nodrag nowheel rounded-lg" style={{ fontSize: '14px', lineHeight: 1.8, color: '#e5e7eb' }} />
+        </ScriptBoxModal>
       )}
 
       {/* 重新生成意见弹窗：带上用户本次修改意见一起发，避免随机重生成 */}
       {regenerating && (
-        <div className="absolute inset-0 z-modal flex items-center justify-center bg-black/50" onClick={() => setRegenerating(null)}>
-          <div className="bg-surface rounded-2xl p-4 w-[520px] shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            <div className="text-body-xs text-gray-300 mb-2">重新生成此镜头提示词</div>
-            <textarea autoFocus value={feedback} onChange={(e) => setFeedback(e.target.value)} placeholder="（可选）填写你的修改意见，会一起发给 AI。例如：更简洁、突出小狗站起来的动作、换成侧方环绕运镜…不填则按原镜头随机重生成。"
-              className="w-full h-28 bg-transparent outline-none custom-scrollbar resize-none nodrag nowheel rounded-lg" style={{ fontSize: '13px', lineHeight: 1.7, color: '#d4d4d8' }} />
-            <div className="flex justify-end gap-2 mt-3">
-              <button className="px-3 py-1 text-caption-sm text-gray-400 hover:text-white" onClick={() => setRegenerating(null)}>取消</button>
-              <button className="px-3 py-1 text-caption-sm bg-surface-hover hover:bg-surface-hover-strong text-gray-200 rounded-md" onClick={() => {
-                const id = regenerating
-                setRegenerating(null)
-                callbacks.onGenerateShotPrompts?.([id], feedback)
-              }}>重新生成</button>
-            </div>
-          </div>
-        </div>
+        <ScriptBoxModal
+          title="重新生成此镜头提示词"
+          onClose={() => setRegenerating(null)}
+          width={520}
+          onOk={() => {
+            const id = regenerating
+            setRegenerating(null)
+            callbacks.onGenerateShotPrompts?.([id], feedback)
+          }}
+          okText="重新生成"
+        >
+          <textarea autoFocus value={feedback} onChange={(e) => setFeedback(e.target.value)} placeholder="（可选）填写你的修改意见，会一起发给 AI。例如：更简洁、突出小狗站起来的动作、换成侧方环绕运镜…不填则按原镜头随机重生成。"
+            className="w-full h-28 bg-transparent outline-none custom-scrollbar resize-none nodrag nowheel rounded-lg" style={{ fontSize: '13px', lineHeight: 1.7, color: '#d4d4d8' }} />
+        </ScriptBoxModal>
       )}
     </div>
   )

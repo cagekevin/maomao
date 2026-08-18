@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   ZgPrompt, dialogueText, hlAt, matchAsset, collectAssets, buildShotPrompts,
-  buildShots, buildAssets, IMAGE_GEN_TYPES, getImageGenSys, ASSET_TEMPLATES,
+  buildShots, buildAssets, IMAGE_GEN_TYPES, getImageGenSys, ASSET_TEMPLATES, patchShots,
 } from '../../src/components/base/scriptBoxPrompts.js'
 
 describe('剧本盒纯函数 §2.7/2.17', () => {
@@ -109,5 +109,20 @@ describe('剧本盒纯函数 §2.7/2.17', () => {
     expect(getImageGenSys('keyframe')).toBe(IMAGE_GEN_TYPES.keyframe.sys)
     expect(getImageGenSys('keyframe', { keyframe: '自定义系统提示词' })).toBe('自定义系统提示词')
     expect(getImageGenSys('unknown')).toBe(IMAGE_GEN_TYPES.keyframe.sys) // 回退默认
+  })
+
+  it('patchShots：字符串字段更新第 idx 个分镜（不可变）', () => {
+    const shots = [{ id: 's1', duration: '3s' }, { id: 's2', duration: '5s' }]
+    const next = patchShots(shots, 0, 'duration', '7s')
+    expect(next[0]).toMatchObject({ id: 's1', duration: '7s' })
+    expect(next[1]).toMatchObject({ id: 's2', duration: '5s' }) // 未改动
+    expect(next).not.toBe(shots) // 新引用（不可变）
+    expect(shots[0].duration).toBe('3s') // 原数组不受影响
+  })
+
+  it('patchShots：对象 patch 一次性合并多字段', () => {
+    const shots = [{ id: 's1', prompt: '', videoPrompt: '' }]
+    const next = patchShots(shots, 0, { prompt: 'p', videoPrompt: 'v' })
+    expect(next[0]).toMatchObject({ id: 's1', prompt: 'p', videoPrompt: 'v' })
   })
 })
