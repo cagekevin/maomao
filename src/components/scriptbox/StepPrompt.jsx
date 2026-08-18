@@ -1,7 +1,6 @@
 import React, { useState } from 'react'
 import { Loader2, Image as ImageIcon, Video, LayoutGrid, Columns2, RefreshCw, Link2, Wand2, Copy, Check } from 'lucide-react'
 import { dialogueText, hlAt, patchShots, IMAGE_GEN_TYPES, IMAGE_GEN_DEFAULT } from '../base/scriptBoxPrompts.js'
-import CustomHandle from '../edges/CustomHandle.jsx'
 import { toastWarning } from '../base/toastStore.js'
 import ScriptBoxModal from './ScriptBoxModal.jsx'
 
@@ -62,8 +61,6 @@ export default function StepPrompt({ data, updateData, callbacks }) {
     const cardBusy = !!(s.promptLoading || s.imgGenLoading)
     return (
     <div key={s.id ?? i} className="relative flex flex-col gap-2 p-3 bg-surface-strong border border-edge-faint rounded-lg">
-      {/* 每镜头独立连线端口（复刻官方 c_.jsx：shot-${id} source，右侧，用统一默认端口外观） */}
-      <CustomHandle position="right" variant="small" handleId={`shot-${s.id}`} top="50%" />
       <div className="flex items-center gap-2 text-caption-sm">
         <span className="px-1.5 py-0.5 bg-surface-hover rounded text-gray-300">镜头 {s.index}</span>
         <span className="text-gray-500">{s.duration}</span>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { Clapperboard, Settings, Maximize2, Loader2 } from 'lucide-react'
-import { useReactFlow } from '@xyflow/react'
+import { useReactFlow, Handle } from '@xyflow/react'
 import NodeShell from '../base/NodeShell.jsx'
 import CustomHandle from '../edges/CustomHandle.jsx'
 import FullscreenModal from '../base/FullscreenModal.jsx'
@@ -153,6 +153,22 @@ function ScriptBoxNode({ id, data, selected }) {
               避免和步骤3的卡片级动画混成两套。步骤3分镜提示词的动画是卡片级的（StepPrompt cardFor）。 */}
         </div>
       </div>
+
+      {/* 恒定注册每个分镜的 source handle（对齐官方 c_.jsx：节点根部恒定渲染所有 shot- 端口）。
+          为什么恒定：这些端口不随「步骤」切换而卸载，从剧本盒子 source 出发的边永远能锚到
+          `shot-${id}` handle，杜绝「切到第1/2步时分镜卡片卸载 → handle 消失 → React Flow
+          setEdges 报 008 Couldn't create edge for source handle」。样式隐藏（对齐官方迷你视图
+          `!h-0 !w-0 !bg-transparent`），仅作 React Flow 注册锚点，连线视觉上从节点右侧出发。 */}
+      {(d.shots || []).map((s) => (
+        <Handle
+          key={s.id}
+          type="source"
+          position="right"
+          id={`shot-${s.id}`}
+          className="!absolute !h-0 !w-0 !min-w-0 !min-h-0 !border-0 !bg-transparent !opacity-0"
+          style={{ right: 0, top: '50%' }}
+        />
+      ))}
 
       {/* 齿轮设置弹窗 */}
       {settingsOpen && (
