@@ -1,4 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react'
+import { useDebouncedEffect } from '../base/utils.js'
 
 import { Grid3X3, PanelsTopLeft, Layers, Loader2 } from 'lucide-react'
 import { useReactFlow } from '@xyflow/react'
@@ -307,14 +308,12 @@ export default function GridMergeNode({ id, data, selected }) {
   )
 
   // ---- 预览（复刻 Yo.jsx useEffect[pe] debounce 250ms）----
-  useEffect(() => {
-    if (mergeMode === 'overlay') return
-    let timer
-    timer = window.setTimeout(async () => {
-      setPreview(await renderToCanvas(false))
-    }, 250)
-    return () => window.clearTimeout(timer)
-  }, [renderToCanvas, mergeMode])
+  useDebouncedEffect(
+    async () => { setPreview(await renderToCanvas(false)) },
+    [renderToCanvas, mergeMode],
+    250,
+    mergeMode !== 'overlay'
+  )
 
   // ---- 开始合成（复刻 Yo.jsx me）----
   const handleMerge = useCallback(async () => {

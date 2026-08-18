@@ -11,6 +11,7 @@ import { API_BASE } from './apiBase.js'
 import { httpRequest } from './httpClient.js'
 import { logger } from './logger.js'
 import { UPLOAD_TIMEOUT } from './config.js'
+import { formatTime } from './utils.js'
 export { toAbsoluteFileUrl } from './imageUrl.js'
 const SUBFOLDER = 'tasks'
 // multipart/大文件上传统一参数：较长超时 + 不自动重试（避免重复上传）
@@ -30,10 +31,7 @@ const EXT_BY_TYPE = {
 /** 文件名去非法字符 + 可读时间戳唯一化（到秒，如 20250815_142305） */
 function safeName(base, ext) {
   const clean = (base || '').replace(/[\\/:*?"<>|]/g, '_').replace(/\s+/g, '_') || 'result'
-  const d = new Date()
-  const pad = (n) => String(n).padStart(2, '0')
-  const ts = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`
-  return `${clean}_${ts}.${ext}`
+  return `${clean}_${formatTime(undefined, { mode: 'file' })}.${ext}`
 }
 
 /**
@@ -167,11 +165,8 @@ export async function saveResultToTasks(url, type) {
  */
 export async function saveTextToTasks(text, name) {
   if (typeof text !== 'string' || !text.trim()) return null
-  const safeName = (name || 'generated').replace(/[\\/:*?"<>|]/g, '_').replace(/\s+/g, '_') || 'generated'
-  const d = new Date()
-  const pad = (n) => String(n).padStart(2, '0')
-  const ts = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`
-  const filename = `${safeName}_${ts}.txt`
+  const safeBase = (name || 'generated').replace(/[\\/:*?"<>|]/g, '_').replace(/\s+/g, '_') || 'generated'
+  const filename = `${safeBase}_${formatTime(undefined, { mode: 'file' })}.txt`
   try {
     const blob = new Blob([text], { type: 'text/plain' })
     const fd = new FormData()

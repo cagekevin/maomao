@@ -20,11 +20,7 @@
  * ─────────────────────────────────────────────
  */
 
-function fmtTime() {
-  const d = new Date()
-  const pad = (n) => String(n).padStart(2, '0')
-  return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
-}
+import { formatTime } from './utils.js'
 
 function stringify(detail) {
   if (detail == null) return ''
@@ -80,7 +76,7 @@ function reportToBackend({ category, action, detail, level, taskId, nodeId }) {
  */
 export function log(category, action, detail, level = 'info') {
   const levelTag = level === 'error' ? 'error' : level === 'warn' ? 'warn' : 'info'
-  const msg = `[${levelTag}] ${fmtTime()} | ${category} | ${action}${detail != null ? ` | ${stringify(detail)}` : ''}`
+  const msg = `[${levelTag}] ${formatTime(undefined, { mode: 'time' })} | ${category} | ${action}${detail != null ? ` | ${stringify(detail)}` : ''}`
   if (level === 'error') console.error(msg)
   else if (level === 'warn') console.warn(msg)
   else console.log(msg)

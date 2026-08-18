@@ -3,6 +3,7 @@ import { Sparkles } from 'lucide-react'
 import { useReactFlow } from '@xyflow/react'
 import { useNodePosition } from './hooks.js'
 import PromptLibrary from './PromptLibrary.jsx'
+import { generateId } from './idGen.js'
 
 /**
  * 预设提示词按钮（复刻各节点底部「预设」入口 → 打开提示词库弹窗）。
@@ -27,7 +28,7 @@ export default function PromptLibraryButton({ category = 'text' }) {
     // 落点：统一视图中央（走公共 base，与 Q/W/E 等一致）
     const position = posAtCenter()
     const newNode = {
-      id: `textNode-${Date.now()}`,
+      id: generateId('textNode'),
       type: 'textNode',
       position,
       data: {

@@ -16,6 +16,7 @@ import {
   getCurrentRunMode, getCurrentSnapshot,
 } from './conversationStore.js'
 import { contentGet, contentSet } from './contentStore.js'
+import { generateId } from './idGen.js'
 
 /* ════════════════════════════════════════════════════════════════
  * AI 生图默认参数（genParams）—— 由 AgentPanel 生图参数区设置，execute_plan 读取。
@@ -322,7 +323,7 @@ const createNodeTool = {
     const position = args.position
       ? { x: num(args.position.x, 0), y: num(args.position.y, 0) }
       : computeCreatePosition(getNodes(), screenToFlowPosition, vw, vh)
-    const id = `${type}-${Date.now()}`
+    const id = generateId(type)
     const newNode = { id, type, position: { ...position }, data }
     // 生图节点默认 420×420（对齐 App.jsx addNode，避免端口跑偏）
     if (type === 'promptNode') Object.assign(newNode, { width: 420, height: 420, style: { width: 420, height: 420 } })
@@ -504,7 +505,7 @@ const connectNodesTool = {
     if (!getNodes().some((n) => n.id === target)) return { ok: false, error: `目标节点不存在：${target}` }
     const exists = getEdges().some((e) => e.source === source && e.target === target)
     if (exists) return { ok: true, data: { source, target, alreadyConnected: true } }
-    setEdges((es) => [...es, { id: `e-${source}-${target}-${Date.now()}`, source, sourceHandle: null, target, type: 'default', animated: false }])
+    setEdges((es) => [...es, { id: generateId('e'), source, sourceHandle: null, target, type: 'default', animated: false }])
     return { ok: true, data: { source, target } }
   }
 }

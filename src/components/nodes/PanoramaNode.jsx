@@ -105,7 +105,7 @@ export default function PanoramaNode({ id, data, selected }) {
           } else {
             // 无图片盒子下游：新建图片盒子 + 自动连线
             const me = getNodes().find((n) => n.id === id)
-            const boxId = `imageBoxNode-${Date.now()}`
+            const boxId = generateId('imageBoxNode')
             const newBox = {
               id: boxId,
               type: 'imageBoxNode',

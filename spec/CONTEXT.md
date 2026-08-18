@@ -173,7 +173,7 @@ Q3 单组件内部临时？→ 是 → 组件 useState
 ### 顶层已知待办（已确认、未修，后续立项）
 > 来源：`docs/agent 批量任务/FINAL-收口缺口核实终稿`（人工核实）。改动前先查，避免重复踩/重复提。
 > 工具统一 → §二⑥；其余多为中风险重构，改前需评估下游。
-1. **通用工具统一**：deepClone / formatTime / throttle / debounce 尚无集中实现（genId 已在 `base/idGen.js`），业务零散手写（如 `JSON.parse(JSON.stringify())`）。
+1. ~~通用工具统一~~ ✅ **已收口**（`base/utils.js`，2026-08-18）：新增 `deepClone` / `formatTime`（含 `mode:'time'` HH:mm:ss、`mode:'file'` yyyymmdd_HHmmss）/ `debounce` / `throttle` / `useDebouncedEffect`。已替换 App.jsx deepClone、TaskCenter/logger/filesApi formatTime、GridMergeNode/OverlayEditor 预览 debounce、画布 node/edge 造 ID 8 处（Panorama/Director3D/useCanvasAgentTools/PromptLibraryButton/App.jsx addNode）。**边界**：`director3d` 外部仓库不纳入（其 cloneJsonValue/throttle 保留手写）；时序敏感 debounce（`useCanvasHistory` 抑制窗口、`useAgentChat` 流式 flush）与 `ghost-edge`（前缀分隔符 `-` 依赖清理）**保留手写**。
 2. ~~nodeTypes 单源化~~ ✅ **已完成**（2026-08-18）：`NodePalette` 每项加 `component` 字段，`buildNodeTypeComponents()` 派生 `App.jsx nodeTypes`，删掉 15 条手写平行表；新增节点 4 处同步降 3 处。**例外**：`director3dNode`（WebGL 不持 component）+ `ghostTarget`（占位）由 `App.jsx` 派生后显式补充。
 3. **程序化建边统一走 onConnect**：部分节点直接 `setEdges` 绕过 onConnect 校验/撤销栈（FINAL-057 D，改动面大）。
 4. **统一节点错误降级/重试收敛**：节点级 catch 大多只 setState 不收敛（FINAL-056，架构级）。

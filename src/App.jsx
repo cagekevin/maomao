@@ -50,6 +50,7 @@ import { initTaskRecovery } from './components/base/pollTask.js'
 import { createGroupFromNodes, ungroupNodes, deleteNodesWithCascade, duplicateSelectedWithEdges } from './components/base/groupNodes.js'
 import { saveInlineToLocal } from './components/base/filesApi.js'
 import { generateId } from './components/base/idGen.js'
+import { deepClone } from './components/base/utils.js'
 
 /* ======================================================================
  * 【区 1】常量与配置区
@@ -103,7 +104,7 @@ function Canvas() {
         // 否则 EdgeRenderer 用 undefined 作 key 触发重复 key 警告。
         const loadedEdges = (saved.edges || []).map((e, i) => ({
           ...e,
-          id: e.id || `loaded-edge-${e.source}_${e.target}-${i}-${Date.now()}`
+          id: e.id || generateId('loaded-edge')
         }))
         setEdges(loadedEdges)
       }
@@ -411,7 +412,7 @@ function Canvas() {
   // 在 dropPosition 建节点并自动创建 source→新节点 的边；scriptBox 的 shot- 端口预填宽高比/时长。
   const addNode = useCallback(
     (type, position, data = {}, connection) => {
-      const id = `${type}-${Date.now()}`
+      const id = generateId(type)
       const nodeData = { label: '', ...data }
 
       // scriptBoxNode 的 shot- 端口 → promptNode/discountVideoNode 时预填（复刻 di:8667-8687）
@@ -596,7 +597,7 @@ function Canvas() {
     const p = e.map((x) => {
       const id = `${x.type}-${generateId('n')}`
       f.set(x.id, id)
-      const data = JSON.parse(JSON.stringify(x.data || {}))
+      const data = deepClone(x.data || {})
       return { ...x, id, position: { x: pos.x + (x.position?.x ?? 0) - u, y: pos.y + (x.position?.y ?? 0) - d }, selected: true, data }
     })
     const m = (n || []).map((x) => ({

@@ -8,6 +8,7 @@ import { showToast } from './toastStore.js'
 import { makeAssetDragProps } from './useAssetDragToCanvas.js'
 import VideoThumbnail from './VideoThumbnail.jsx'
 import { useOutsideClick } from './hooks.js'
+import { formatTime } from './utils.js'
 
 const TYPE_ICON = {
   image: ImageIcon,
@@ -28,10 +29,6 @@ const TYPE_FILTERS = [
   { key: 'video', label: '视频' },
   { key: 'text', label: '文本' }
 ]
-
-function fmtTime(ts) {
-  try { return new Date(ts).toLocaleString('zh-CN', { hour12: false }) } catch { return '' }
-}
 
 /**
  * 任务中心（对齐官方 Ln.jsx + jn.jsx 卡片）。
@@ -259,7 +256,7 @@ function TaskCard({ task, moreOpen, onToggleMore, onCloseMore, onCopy, onRetry, 
       </p>
 
       {/* 时间 */}
-      <div className="text-caption text-faint">{fmtTime(task.createdAt)}</div>
+      <div className="text-caption text-faint">{formatTime(task.createdAt)}</div>
 
       {/* 运行中：阶段文案 + 进度条 */}
       {isActive && (

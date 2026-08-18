@@ -1,4 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react'
+import { useDebouncedEffect } from './utils.js'
 import { createPortal } from 'react-dom'
 import {
   Box, Eye, EyeOff, Lock, Unlock, Brush, Trash2,
@@ -172,16 +173,11 @@ export default function OverlayEditor({ state, onChange, upstreamUrls }) {
 
   // 合成预览（复刻 Uo.jsx useEffect[E]：debounce）
   const [preview, setPreview] = useState(null)
-  useEffect(() => {
-    let timer
-    const delay = paintLayerId ? 60 : 200
-    timer = window.setTimeout(async () => {
-      const url = await renderOverlayCanvas(state)
-      setPreview(url)
-    }, delay)
-    return () => window.clearTimeout(timer)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [layers, canvasWidth, canvasHeight, state.bgColor, paintLayerId])
+  useDebouncedEffect(
+    async () => { const url = await renderOverlayCanvas(state); setPreview(url) },
+    [layers, canvasWidth, canvasHeight, state.bgColor, paintLayerId],
+    paintLayerId ? 60 : 200
+  )
 
   // Esc 退出全屏
   useEffect(() => {

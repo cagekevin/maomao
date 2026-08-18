@@ -75,7 +75,7 @@ export default function Director3DNode({ id, data, selected }) {
         }))
       } else {
         const me = getNodes().find((n) => n.id === id)
-        const boxId = `imageBoxNode-${Date.now()}`
+        const boxId = generateId('imageBoxNode')
         const newBox = {
           id: boxId,
           type: 'imageBoxNode',
