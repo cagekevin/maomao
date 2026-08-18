@@ -2,12 +2,12 @@ import React, { useState, useMemo, useCallback } from 'react'
 import { useReactFlow } from '@xyflow/react'
 import { createPortal } from 'react-dom'
 import { Box, Boxes, Camera, Maximize2, X } from 'lucide-react'
-import NodeShell from './base/NodeShell.jsx'
-import CustomHandle from './CustomHandle.jsx'
-import { useConnectedInputs } from './base/useConnectedInputs.js'
-import { toAbsoluteFileUrl, saveInlineToLocal } from './base/filesApi.js'
-import { Director3DOverlay } from './director3d/App.tsx'
-import { generateId } from './base/idGen.js'
+import NodeShell from '../base/NodeShell.jsx'
+import CustomHandle from '../edges/CustomHandle.jsx'
+import { useConnectedInputs } from '../base/useConnectedInputs.js'
+import { toAbsoluteFileUrl, saveInlineToLocal } from '../base/filesApi.js'
+import { Director3DOverlay } from '../director3d/App.tsx'
+import { generateId } from '../base/idGen.js'
 
 /**
  * 3D 导演台节点（复刻开源 storyai-3d-director-desk，与"一毛"一致）。

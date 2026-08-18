@@ -11,7 +11,7 @@ vi.mock('../../src/components/base/toastStore.js', () => ({ showToast: mocks.sho
 vi.mock('../../src/components/base/useSyncNodeData.js', () => ({ useSyncNodeData: mocks.useSyncNodeData }))
 vi.mock('../../src/components/base/hooks.js', () => ({ useOutsideClick: mocks.useOutsideClick }))
 
-import LoopNode from '../../src/components/LoopNode.jsx'
+import LoopNode from '../../src/components/nodes/LoopNode.jsx'
 beforeEach(() => { mocks.resetNodeMockState() })
 const setup = (props = {}) => render(<LoopNode id="lp1" data={{}} selected={false} {...props} />)
 

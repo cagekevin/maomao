@@ -69,7 +69,7 @@ beforeEach(() => {
   global.cancelAnimationFrame = (id) => clearTimeout(id)
 })
 
-import DiscountVideoNode from '../../src/components/DiscountVideoNode.jsx'
+import DiscountVideoNode from '../../src/components/nodes/DiscountVideoNode.jsx'
 
 function setup(data = {}) {
   return render(<DiscountVideoNode id="n1" data={data} selected={false} />)

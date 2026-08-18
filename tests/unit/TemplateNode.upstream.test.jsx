@@ -73,7 +73,7 @@ beforeEach(() => {
   global.cancelAnimationFrame = (id) => clearTimeout(id)
 })
 
-import TemplateNode from '../../src/components/TemplateNode.jsx'
+import TemplateNode from '../../src/components/nodes/TemplateNode.jsx'
 
 function setup(data = {}) {
   return render(<TemplateNode id="n1" data={data} selected={false} />)

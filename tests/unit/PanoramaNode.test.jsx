@@ -10,7 +10,7 @@ vi.mock('../../src/components/base/HoverToolbar.jsx', () => ({ default: mocks.Ho
 vi.mock('../../src/components/base/useConnectedInputs.js', () => ({ useConnectedInputs: mocks.useConnectedInputs }))
 vi.mock('../../src/components/base/PanoViewer.jsx', () => ({ default: mocks.PanoViewer }))
 
-import PanoramaNode from '../../src/components/PanoramaNode.jsx'
+import PanoramaNode from '../../src/components/nodes/PanoramaNode.jsx'
 beforeEach(() => { mocks.resetNodeMockState() })
 const setup = (props = {}) => render(<PanoramaNode id="pn1" data={{}} selected={false} {...props} />)
 

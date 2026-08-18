@@ -90,7 +90,7 @@ vi.mock('../../src/components/scriptbox/GearSettings.jsx', () => ({
   ),
 }))
 
-import ScriptBoxNode from '../../src/components/ScriptBoxNode.jsx'
+import ScriptBoxNode from '../../src/components/nodes/ScriptBoxNode.jsx'
 
 const nodeId = 'sb1'
 function setup(data = {}) {

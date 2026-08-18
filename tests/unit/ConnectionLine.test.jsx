@@ -42,7 +42,7 @@ vi.mock('../../src/components/base/lod.jsx', () => ({
   useLod: () => h.useLodMock(),
 }))
 
-import ConnectionLine from '../../src/components/ConnectionLine.jsx'
+import ConnectionLine from '../../src/components/edges/ConnectionLine.jsx'
 
 describe('ConnectionLine — 正常渲染（lodLevel < 2）', () => {
   afterEach(() => {

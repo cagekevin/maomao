@@ -39,7 +39,7 @@ vi.mock('@xyflow/react', () => ({
   ReactFlowProvider: ({ children }) => children,
 }))
 vi.mock('../../src/components/base/NodeShell.jsx', () => ({ default: mocks.NodeShell }))
-vi.mock('../../src/components/CustomHandle.jsx', () => ({ default: mocks.CustomHandle }))
+vi.mock('../../src/components/edges/CustomHandle.jsx', () => ({ default: mocks.CustomHandle }))
 vi.mock('../../src/components/base/useConnectedInputs.js', () => ({ useConnectedInputs: mocks.useConnectedInputs }))
 vi.mock('../../src/components/base/useMediaDegrade.js', () => ({ useMediaDegrade: mocks.useMediaDegrade }))
 vi.mock('../../src/components/base/LazyImage.jsx', () => ({ default: mocks.LazyImage }))
@@ -48,7 +48,7 @@ vi.mock('../../src/components/base/filesApi.js', () => ({ toAbsoluteFileUrl: moc
 vi.mock('../../src/components/base/clipboard.js', () => h.clipboardMock)
 vi.mock('../../src/components/base/ImageZoomDialog.jsx', () => ({ default: () => null }))
 
-import ImageBoxNode from '../../src/components/ImageBoxNode.jsx'
+import ImageBoxNode from '../../src/components/nodes/ImageBoxNode.jsx'
 
 const nodeId = 'ib1'
 function setup(data = {}, connected = { images: [], texts: [] }) {

@@ -2,15 +2,15 @@ import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { Grid3X3, SlidersHorizontal, Scissors, CircleCheck, RotateCcw, Expand, Trash2, X, Box, ArrowRight } from 'lucide-react'
 import { useReactFlow, Handle, Position } from '@xyflow/react'
-import NodeShell from './base/NodeShell.jsx'
-import CustomHandle from './CustomHandle.jsx'
-import { useConnectedInputs } from './base/useConnectedInputs.js'
-import { useMediaDegrade } from './base/useMediaDegrade.js'
-import { useNodeResize } from './base/hooks.js'
-import { showToast, toastWarning } from './base/toastStore.js' // 保留阻断校验提示
-import { toAbsoluteFileUrl } from './base/filesApi.js'
-import { logger } from './base/logger.js'
-import { generateId } from './base/idGen.js'
+import NodeShell from '../base/NodeShell.jsx'
+import CustomHandle from '../edges/CustomHandle.jsx'
+import { useConnectedInputs } from '../base/useConnectedInputs.js'
+import { useMediaDegrade } from '../base/useMediaDegrade.js'
+import { useNodeResize } from '../base/hooks.js'
+import { showToast, toastWarning } from '../base/toastStore.js' // 保留阻断校验提示
+import { toAbsoluteFileUrl } from '../base/filesApi.js'
+import { logger } from '../base/logger.js'
+import { generateId } from '../base/idGen.js'
 
 /* ════════════════════════════════════════════════════════════════
  * 图片切分节点（复刻官方 Lo.jsx / gridSplitNode）

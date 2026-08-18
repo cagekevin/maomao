@@ -4,13 +4,13 @@ import {
   Loader2, Music, X, Volume2, VolumeX, Plus, Film, AlertCircle, X as XIcon
 } from 'lucide-react'
 import { useReactFlow, NodeResizer } from '@xyflow/react'
-import NodeTitle from './NodeTitle.jsx'
-import CustomHandle from './CustomHandle.jsx'
-import { useConnectedInputs } from './base/useConnectedInputs.js'
-import { useMediaDegrade } from './base/useMediaDegrade.js'
-import { useNodeResize } from './base/hooks.js'
-import { showToast } from './base/toastStore.js'
-import { withTimeout, isTimeoutError } from './base/asyncGuard.js'
+import NodeTitle from '../base/NodeTitle.jsx'
+import CustomHandle from '../edges/CustomHandle.jsx'
+import { useConnectedInputs } from '../base/useConnectedInputs.js'
+import { useMediaDegrade } from '../base/useMediaDegrade.js'
+import { useNodeResize } from '../base/hooks.js'
+import { showToast } from '../base/toastStore.js'
+import { withTimeout, isTimeoutError } from '../base/asyncGuard.js'
 import {
   readVideoMetadata,
   processVideo,
@@ -20,11 +20,11 @@ import {
   uploadResult,
   ProgressController,
   ConversionCanceled
-} from './base/videoEngine.js'
-import { generateId } from './base/idGen.js'
-import { httpRequest } from './base/httpClient.js'
-import previewUrls from './base/previewUrl.js'
-import { DOWNLOAD_TIMEOUT, VIDEO_DOWNLOAD_TIMEOUT } from './base/config.js'
+} from '../base/videoEngine.js'
+import { generateId } from '../base/idGen.js'
+import { httpRequest } from '../base/httpClient.js'
+import previewUrls from '../base/previewUrl.js'
+import { DOWNLOAD_TIMEOUT, VIDEO_DOWNLOAD_TIMEOUT } from '../base/config.js'
 
 /* ════════════════════════════════════════════════════════════════
  * 视频处理节点（复刻官方 Gc.jsx + fc.jsx 合并的 videoProcessNode）

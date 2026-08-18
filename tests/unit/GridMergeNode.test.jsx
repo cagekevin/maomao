@@ -6,7 +6,7 @@ import { mocks } from './_nodeMocks.mjs'
 
 vi.mock('@xyflow/react', () => mocks.xyflow)
 vi.mock('../../src/components/base/NodeShell.jsx', () => ({ default: mocks.NodeShell }))
-vi.mock('../../src/components/CustomHandle.jsx', () => ({ default: mocks.CustomHandle }))
+vi.mock('../../src/components/edges/CustomHandle.jsx', () => ({ default: mocks.CustomHandle }))
 vi.mock('../../src/components/base/OverlayEditor.jsx', () => ({ OverlayEditor: mocks.OverlayEditor, renderOverlayCanvas: mocks.renderOverlayCanvas }))
 vi.mock('../../src/components/base/useConnectedInputs.js', () => ({ useConnectedInputs: mocks.useConnectedInputs }))
 vi.mock('../../src/components/base/useMediaDegrade.js', () => ({ useMediaDegrade: mocks.useMediaDegrade }))
@@ -14,7 +14,7 @@ vi.mock('../../src/components/base/hooks.js', () => ({ useNodeResize: mocks.useN
 vi.mock('../../src/components/base/toastStore.js', () => ({ showToast: mocks.showToast }))
 vi.mock('../../src/components/base/filesApi.js', () => ({ toAbsoluteFileUrl: mocks.toAbsoluteFileUrl }))
 
-import GridMergeNode from '../../src/components/GridMergeNode.jsx'
+import GridMergeNode from '../../src/components/nodes/GridMergeNode.jsx'
 beforeEach(() => { mocks.resetNodeMockState() })
 const setup = (props = {}) => render(<GridMergeNode id="gm1" data={{}} selected={false} {...props} />)
 

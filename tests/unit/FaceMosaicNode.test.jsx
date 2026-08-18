@@ -71,7 +71,7 @@ vi.mock('../../src/components/base/FaceMosaicEditor.jsx', () => ({
 vi.mock('../../src/components/base/ImageZoomDialog.jsx', () => ({ default: () => null }))
 vi.mock('../../src/components/base/previewUrl.js', () => ({ default: { create: () => 'http://preview.x' } }))
 
-import FaceMosaicNode from '../../src/components/FaceMosaicNode.jsx'
+import FaceMosaicNode from '../../src/components/nodes/FaceMosaicNode.jsx'
 
 const nodeId = 'fm1'
 function setup(data = {}, connected = { images: [], texts: [] }) {

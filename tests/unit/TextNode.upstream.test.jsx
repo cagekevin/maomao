@@ -69,7 +69,7 @@ beforeEach(() => {
   global.cancelAnimationFrame = (id) => clearTimeout(id)
 })
 
-import TextNode from '../../src/components/TextNode.jsx'
+import TextNode from '../../src/components/nodes/TextNode.jsx'
 
 function setup(data = {}) {
   return render(<TextNode id="n1" data={data} selected={false} />)

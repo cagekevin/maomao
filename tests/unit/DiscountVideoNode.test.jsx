@@ -104,7 +104,7 @@ vi.mock('../../src/components/base/useNodeGeneration.js', () => ({
   },
 }))
 
-import DiscountVideoNode from '../../src/components/DiscountVideoNode.jsx'
+import DiscountVideoNode from '../../src/components/nodes/DiscountVideoNode.jsx'
 
 const nodeId = 'n1'
 function setup(data = {}) {

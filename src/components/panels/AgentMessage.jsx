@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { toAbsoluteFileUrl } from './base/filesApi.js'
-import LazyImage from './base/LazyImage.jsx'
+import { toAbsoluteFileUrl } from '../base/filesApi.js'
+import LazyImage from '../base/LazyImage.jsx'
 import PromptConfirmCard from './PromptConfirmCard.jsx'
 
 /** 直观判断：一个 URL 是否该渲染成图片。

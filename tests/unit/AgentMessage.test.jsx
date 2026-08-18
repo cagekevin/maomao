@@ -22,9 +22,9 @@ vi.mock('../../src/components/base/filesApi.js', () => ({ toAbsoluteFileUrl: (u)
 vi.mock('../../src/components/base/LazyImage.jsx', () => ({
   default: ({ src }) => React.createElement('img', { src }),
 }))
-vi.mock('../../src/components/PromptConfirmCard.jsx', () => ({ default: mocks.Passthrough }))
+vi.mock('../../src/components/panels/PromptConfirmCard.jsx', () => ({ default: mocks.Passthrough }))
 
-import AgentMessage from '../../src/components/AgentMessage.jsx'
+import AgentMessage from '../../src/components/panels/AgentMessage.jsx'
 
 const noop = () => {}
 

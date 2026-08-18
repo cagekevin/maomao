@@ -24,9 +24,10 @@ Q3 单组件内部临时？→ 是 → 组件 useState
 ### C. 配置集中（`src/components/base/config.js`，已建）
 - 环境变量（`import.meta.env.VITE_*`）集中读一次；魔法数字/超时/阈值命名常量。禁止各文件裸读 env、裸写数字。
 
-### D. 组件目录（渐进迁移，不强制批量）
+### D. 组件目录（已批量归类，2026-08-18）
 `components/nodes/`（节点）/ `panels/`（面板）/ `scriptbox/`（剧本盒）/ `base/`（基座+横切）/ `edges/`（连线）。
-- 新增组件放对应子目录，**不新增平铺顶层**；存量改到哪个顺手迁到哪。
+- **顶层平铺组件已全部归类**（26 个）：nodes/ 17、edges/ 4、panels/ 3、base/ +2（NodeTitle/JianyingIcon 因被多节点+NodeShell 复用归横切层）。
+- 新增组件放对应子目录，**禁止新增平铺顶层**。
 
 > 详情见 `spec/代码组织结构规范.md`（可迭代）。
 

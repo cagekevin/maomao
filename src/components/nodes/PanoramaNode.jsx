@@ -3,11 +3,11 @@ import { Canvas } from '@react-three/fiber'
 import { useReactFlow, useStore } from '@xyflow/react'
 import { createPortal } from 'react-dom'
 import { Globe, Maximize2, X, Camera, Scan, Grid3X3, CircleDot, Upload, Settings } from 'lucide-react'
-import NodeShell from './base/NodeShell.jsx'
-import HoverToolbar from './base/HoverToolbar.jsx'
-import { useConnectedInputs } from './base/useConnectedInputs.js'
-import PanoViewer from './base/PanoViewer.jsx'
-import { generateId } from './base/idGen.js'
+import NodeShell from '../base/NodeShell.jsx'
+import HoverToolbar from '../base/HoverToolbar.jsx'
+import { useConnectedInputs } from '../base/useConnectedInputs.js'
+import PanoViewer from '../base/PanoViewer.jsx'
+import { generateId } from '../base/idGen.js'
 
 /**
  * 720 全景图节点（复刻官方 Zl.jsx / panoramaNode）。

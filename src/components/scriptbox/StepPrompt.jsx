@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { Loader2, Image as ImageIcon, Video, LayoutGrid, Columns2, RefreshCw, Link2, Wand2, Copy, Check } from 'lucide-react'
 import { dialogueText, hlAt, IMAGE_GEN_TYPES, IMAGE_GEN_DEFAULT } from '../base/scriptBoxPrompts.js'
-import CustomHandle from '../CustomHandle.jsx'
+import CustomHandle from '../edges/CustomHandle.jsx'
 import { toastWarning } from '../base/toastStore.js'
 
 /** 长段提示词一键排版：每个句号类标点（。！？；）后回车换行，标点留在行尾。

@@ -1,5 +1,5 @@
 import React from 'react'
-import CometParticles from './base/CometParticles.jsx'
+import CometParticles from '../base/CometParticles.jsx'
 
 /**
  * 彗星流光（复刻原 _Component111.jsx）

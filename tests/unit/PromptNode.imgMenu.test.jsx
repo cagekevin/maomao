@@ -67,7 +67,7 @@ vi.mock('../../src/components/base/ResizeFullscreenHandle.jsx', () => ({ default
 vi.mock('../../src/components/base/FullscreenModal.jsx', () => ({ default: () => null }))
 vi.mock('../../src/components/base/GeneratingOverlay.jsx', () => ({ default: () => null }))
 vi.mock('../../src/components/base/PromptLibraryButton.jsx', () => ({ default: () => null }))
-vi.mock('../../src/components/JianyingIcon.jsx', () => ({ default: () => null }))
+vi.mock('../../src/components/base/JianyingIcon.jsx', () => ({ default: () => null }))
 
 vi.mock('../../src/components/base/hooks.js', () => ({
   useNodeResize: () => ({ onInputResize: vi.fn() }),
@@ -105,7 +105,7 @@ beforeEach(() => {
   global.cancelAnimationFrame = (id) => clearTimeout(id)
 })
 
-import PromptNode from '../../src/components/PromptNode.jsx'
+import PromptNode from '../../src/components/nodes/PromptNode.jsx'
 
 function setup(data = {}) {
   return render(<PromptNode id="n1" data={data} selected={false} />)

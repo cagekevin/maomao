@@ -90,14 +90,14 @@ vi.mock('../../src/components/base/logger.js', () => ({ logger: { info: vi.fn(),
 vi.mock('../../src/components/base/config.js', () => ({ AGENT_MODELS: ['gpt-4o-mini'] }))
 vi.mock('../../src/components/base/previewUrl.js', () => ({ default: { create: vi.fn(() => 'blob:x'), release: vi.fn() } }))
 // AgentMessage 子组件用最小桩
-vi.mock('../../src/components/AgentMessage.jsx', () => ({
+vi.mock('../../src/components/panels/AgentMessage.jsx', () => ({
   default: ({ message }) => React.createElement('div', { 'data-testid': `msg-${message.role}` }, message.content || null),
 }))
 vi.mock('../../src/components/base/ModelSelect.jsx', () => ({
   default: () => React.createElement('span', null, 'ModelSelect'),
 }))
 
-import AgentPanel from '../../src/components/AgentPanel.jsx'
+import AgentPanel from '../../src/components/panels/AgentPanel.jsx'
 
 // jsdom(pretendToBeVisual) 的平滑 scrollTo / rAF 在部分组合下会持续递归耗尽内存；
 // AgentPanel 的滚动 effect 用到它们，测试环境固定为空操作。

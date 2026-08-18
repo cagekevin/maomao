@@ -37,7 +37,7 @@ const h = vi.hoisted(() => {
 })
 
 vi.mock('@xyflow/react', () => mocks.xyflow)
-vi.mock('../../src/components/NodeTitle.jsx', () => ({ default: mocks.NodeTitle }))
+vi.mock('../../src/components/base/NodeTitle.jsx', () => ({ default: mocks.NodeTitle }))
 vi.mock('../../src/components/base/useConnectedInputs.js', () => ({ useConnectedInputs: () => h.connected }))
 vi.mock('../../src/components/base/useMediaDegrade.js', () => ({ useMediaDegrade: mocks.useMediaDegrade }))
 vi.mock('../../src/components/base/toastStore.js', () => ({
@@ -50,7 +50,7 @@ vi.mock('../../src/components/base/logger.js', () => ({ logger: { info: vi.fn(),
 vi.mock('../../src/components/base/previewUrl.js', () => ({ default: { create: (...a) => h.previewCreate(...a), release: vi.fn() } }))
 vi.mock('../../src/components/base/filesApi.js', () => ({ toAbsoluteFileUrl: mocks.toAbsoluteFileUrl }))
 
-import VideoExtractNode from '../../src/components/VideoExtractNode.jsx'
+import VideoExtractNode from '../../src/components/nodes/VideoExtractNode.jsx'
 
 // jsdom 无 navigator.clipboard；复制逻辑依赖它，固定为可断言 mock
 Object.defineProperty(globalThis.navigator, 'clipboard', {

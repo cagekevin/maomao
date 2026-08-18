@@ -5,16 +5,16 @@ import {
   Check, ListChecks, Trash2, Grid2X2, List, MoreVertical
 } from 'lucide-react'
 import { useReactFlow } from '@xyflow/react'
-import NodeShell from './base/NodeShell.jsx'
-import CustomHandle from './CustomHandle.jsx'
-import { useConnectedInputs } from './base/useConnectedInputs.js'
-import { useMediaDegrade } from './base/useMediaDegrade.js'
-import LazyImage from './base/LazyImage.jsx'
-import ImageZoomDialog from './base/ImageZoomDialog.jsx'
-import { showToast, toastError, toastWarning } from './base/toastStore.js'
-import { toAbsoluteFileUrl } from './base/filesApi.js'
-import { generateId } from './base/idGen.js'
-import { downloadUrl as clipboardDownload } from './base/clipboard.js'
+import NodeShell from '../base/NodeShell.jsx'
+import CustomHandle from '../edges/CustomHandle.jsx'
+import { useConnectedInputs } from '../base/useConnectedInputs.js'
+import { useMediaDegrade } from '../base/useMediaDegrade.js'
+import LazyImage from '../base/LazyImage.jsx'
+import ImageZoomDialog from '../base/ImageZoomDialog.jsx'
+import { showToast, toastError, toastWarning } from '../base/toastStore.js'
+import { toAbsoluteFileUrl } from '../base/filesApi.js'
+import { generateId } from '../base/idGen.js'
+import { downloadUrl as clipboardDownload } from '../base/clipboard.js'
 
 /**
  * 图片盒子节点（复刻官方 Rg.jsx / imageBoxNode）。
