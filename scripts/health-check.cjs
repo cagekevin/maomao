@@ -166,6 +166,57 @@ check('docs/adr/ 无 ADR 文件（决策渠道 = CONTEXT + 代码注释）', adr
 const claude = fs.existsSync(path.join(ROOT, 'CLAUDE.md')) ? fs.readFileSync(path.join(ROOT, 'CLAUDE.md'), 'utf-8') : '';
 check('CLAUDE.md 含「决策记录铁律」', /决策记录铁律/.test(claude), '铁律被删除会破坏决策渠道一致性');
 
+// ── 8. 契约护栏扫描（预防写码绕过唯一入口）──
+// 扫「CONTEXT §二 已定义唯一入口 / §五 铁律」的绕过点，让 AI 写码后立即看到，
+// 当场改对 → 后期无需收口。设计为 warning（提示不阻断）：可能含合法/待确认场景，
+// 需人工核对；但能让后续 AI 一眼看到「这里绕过了 idGen / previewUrl / clipboard」。
+// 合法白名单（本身就是唯一入口实现 / 外部仓库 / 非 ID 用途的随机数）在排除列表中。
+console.log('\n🧱 契约护栏扫描（绕过唯一入口预防）');
+const scanFiles = (() => {
+  const out = [];
+  (function walk(d) {
+    for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+      const p = path.join(d, e.name);
+      if (e.isDirectory()) { walk(p); continue; }
+      if (!/\.(jsx|js|ts|tsx)$/.test(e.name)) continue;
+      const rel = path.relative(ROOT, p).replace(/\\/g, '/');
+      out.push({ rel, code: fs.readFileSync(p, 'utf-8') });
+    }
+  })(path.join(ROOT, 'src'));
+  return out;
+})();
+const isIn = (rel, patterns) => patterns.some((p) => rel.includes(p));
+// 唯一入口实现本身 / 外部仓库 / 测试，不扫
+const IGNORE = ['/idGen.js', '/previewUrl.js', '/clipboard.js', '/logger.js', '/director3d/', '/videoEngine.js'];
+// 契约护栏白名单：登记「已判定有意排除」的绕过点（带原因，防误报；新增排除点在此登记，
+// 不靠散落注释——见 CONTEXT §二⑤ / §六 决策渠道）。格式：{ rel, reason }
+const CONTRACT_WHITELIST = [
+  // VideoProcessNode 的 GIF 产物 URL 喂给 spawnGifNode 作持久节点源，非「组件预览」，不收 previewUrl
+  { rel: 'src/components/VideoProcessNode.jsx', reason: 'GIF 跨节点持久化产物，非预览语义' },
+];
+
+// 1) ID 绕道：应走 idGen.generateId（CONTEXT §五 ID 铁律 + §六#6）
+const idBypass = [];
+for (const { rel, code } of scanFiles) {
+  if (isIn(rel, IGNORE)) continue;
+  if (/Date\.now\(\)\.toString\(\)|'sc-'\s*\+\s*Date\.now\(\)\.toString\(36\)/.test(code)) idBypass.push(rel);
+}
+if (idBypass.length === 0) console.log('  ✅ ID 生成无绕过（均走 idGen.generateId）');
+else warn('ID 绕道', false, `发现 ${idBypass.length} 处，应改走 base/idGen.js generateId：\n     - ${idBypass.join('\n     - ')}`);
+
+// 2) 预览 URL 绕道：预览场景应走 previewUrl（CONTEXT §二⑤）
+const previewBypass = [];
+for (const { rel, code } of scanFiles) {
+  if (isIn(rel, IGNORE)) continue;
+  // 白名单内 = 已判定有意排除（带原因，见 CONTRACT_WHITELIST）
+  const wl = CONTRACT_WHITELIST.find((w) => rel.includes(w.rel));
+  if (wl) { console.log(`  ℹ️ 排除(已登记): ${rel}（${wl.reason}）`); continue; }
+  const m = [...code.matchAll(/URL\.createObjectURL/g)];
+  if (m.length) previewBypass.push(`${rel}（${m.length} 处）`);
+}
+if (previewBypass.length === 0) console.log('  ✅ 预览 URL 无绕过（均走 previewUrl）');
+else warn('预览 URL 绕道', false, `发现 ${previewBypass.length} 处，预览场景应走 base/previewUrl.js（下载/持久化/外部仓库除外）：\n     - ${previewBypass.join('\n     - ')}`);
+
 console.log('\n═'.repeat(54));
 console.log(`  结论: ${errors ? `❌ ${errors} 处错误` : '✅ 无错误'}${warns ? `，⚠️ ${warns} 处警告` : ''}`);
 console.log('═'.repeat(54));
