@@ -15,6 +15,9 @@ export default defineConfig({
     // 插件 CSP（manifest content_security_policy: script-src 'self'）不允许内联，交给 vite 外部化
     cssCodeSplit: false,
     sourcemap: false,
+    // vendor-3d（three.js 3D 引擎）是合理独立大 chunk（约 1MB，已 manualChunks 隔离不阻塞首屏），
+    // 调高阈值消除误报警告，而非为消警告硬拆导致更差。
+    chunkSizeWarningLimit: 1500,
     rollupOptions: {
       output: {
         manualChunks(id) {

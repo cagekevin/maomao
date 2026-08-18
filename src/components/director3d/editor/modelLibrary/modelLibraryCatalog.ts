@@ -275,9 +275,10 @@ const MODEL_LIBRARY_THUMB_NAME_MAP: Record<string, string> = {
 };
 
 const UPDATED_MODEL_THUMBNAIL_OVERRIDES: Record<string, string> = {
-  "deer_skull_low.fbx": new URL("../../../../模型库/户外出行/缩略图/鹿头骨.png", import.meta.url).href,
-  "drill_press_low.fbx": new URL("../../../../模型库/工具配件/缩略图/台钻.png", import.meta.url).href,
-  "thermus_low.fbx": new URL("../../../../模型库/户外出行/缩略图/保温瓶.png", import.meta.url).href,
+  // 模型库缩略图为运行时磁盘路径，vite 构建期解析不到 → 官方用 @vite-ignore 抑制该预期警告
+  "deer_skull_low.fbx": new URL(/* @vite-ignore */ "../../../../模型库/户外出行/缩略图/鹿头骨.png", import.meta.url).href,
+  "drill_press_low.fbx": new URL(/* @vite-ignore */ "../../../../模型库/工具配件/缩略图/台钻.png", import.meta.url).href,
+  "thermus_low.fbx": new URL(/* @vite-ignore */ "../../../../模型库/户外出行/缩略图/保温瓶.png", import.meta.url).href,
 };
 
 function createModelName(fileName: string) {
