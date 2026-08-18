@@ -9,106 +9,12 @@
  * 不走 provider.image_mode，也不用 sync。
  *
  * 网关契约：body { model, prompt, size(如 16:9), image_urls(参考图可选) }。
+ *
+ * 【薄壳】代理请求脚手架（buildTargetUrl / proxyFetch / 轮询 / 错误分类 / envelope）已收口到
+ * proxyGenerate.js 深模块；本文件仅负责「业务参数 → genBody + 委托 videoProxy」。
  */
 import { normalizeImageUrlsForSend } from './imageUrl.js'
-import { API_BASE } from './config.js'
-import { getCurrentTaskId, setTaskPollId } from './taskStore.js'
-import { VIDEO_TIMEOUT, VIDEO_POLL_INTERVAL } from './config.js'
-import { classifyError } from './genErrors.js'
-
-/** 目标端点：openai 用伪协议；apimart 用 base_url + /v1/{path}。 */
-function buildTargetUrl(provider, path) {
-  if ((provider?.protocol || 'apimart') === 'openai') return `openai://${path}`
-  return `${(provider?.base_url || '').replace(/\/$/, '')}/v1/${path}`
-}
-
-/** 统一响应信封：成功 {ok:true, url}，失败 {ok:false, error}。 */
-function ok(url) { return { ok: true, url } }
-function fail(error) { return { ok: false, error } }
-
-/** 经 localTool /api/proxy 转发（GET/POST）。失败抛错由调用方兜底。
- *
- * 【为何不迁到 httpClient.js】本模块是轮询语义（async 提交 + 轮询 /v1/tasks/{id}）+ 嵌套
- * error 信封（j.error.message），与 httpClient 的 parseJson/扁平错误消息语义冲突；且已内建
- * signal 取消、AbortError 原样上抛、轮询 timeoutMs 超时三层异步治理，故保留原生 fetch。
- * 调用方（useNodeGeneration）负责把错误归入 Timeout/Abort/网络 分类。
- * @param {AbortSignal} [signal] 可选取消信号（Step A，向后兼容，不传照常工作）。 */
-async function proxyRequest({ provider, url, method = 'POST', body }, signal) {
-  const payload = { url, method }
-  if (body) payload.body = JSON.stringify(body)
-  if (provider?.id) payload.providerId = provider.id
-  // 贯穿链路：把前端 task_id 带给 localTool/网关，关联 Lovart thread_id（见 taskStore.currentTaskId）
-  const frontTaskId = getCurrentTaskId()
-  if (frontTaskId) payload.taskId = frontTaskId
-  const res = await fetch(`${API_BASE}/api/proxy`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-    ...(signal ? { signal } : {}),
-  })
-  if (!res.ok) {
-    const j = await res.json().catch(() => ({}))
-    throw new Error(j?.error?.message || j?.message || j?.detail || `HTTP ${res.status}`)
-  }
-  return res
-}
-
-/** 异步模式（视频唯一模式）：提交拿 task_id → 轮询到 completed。 */
-async function generateAsync({ provider, url, genBody, timeoutMs }, onProgress, signal) {
-  // 提交
-  let taskId
-  try {
-    onProgress?.(10, '正在连接本地服务…')
-    const res = await proxyRequest({ provider, url, method: 'POST', body: genBody }, signal)
-    onProgress?.(20, '已提交到生成网关…')
-    const json = await res.json()
-    const data = json?.data ?? json
-    const tasks = Array.isArray(data) ? data : (Array.isArray(json) ? json : [])
-    const submitted = tasks.find((t) => t && (t.status === 'submitted' || t.task_id))
-    taskId = submitted?.task_id
-    // 部分供应商提交即返回结果（非任务形态）
-    const direct = data?.result?.videos?.[0]?.url || data?.results?.[0]?.url || json?.result?.videos?.[0]?.url
-    if (!taskId && direct) return ok(direct)
-  } catch (e) {
-    if (e?.name === 'AbortError') throw e // 取消：原样抛出，由调用方处理
-    const c = classifyError(e)
-    return c.type === 'network' ? fail(c.message) : fail(`提交失败：${c.message || '提交异常'}`)
-  }
-  if (!taskId) return fail(`上游未返回任务 id`)
-
-  // 【取舍】把网关返回的可查询 task_id 回填到当前任务记录（前端 task_id 主键）。
-  // 这样刷新网页后，恢复轮询（pollTask.js）能靠它查 /api/v1/gateway/task/{id} 继续拿结果。
-  // 不存的话刷新后 taskId 丢失，任务就断了。文本/生图 sync 无此值，不走到这里。
-  setTaskPollId(getCurrentTaskId(), taskId)
-
-  // 轮询
-  const pollUrl = buildTargetUrl(provider, `tasks/${taskId}`)
-  const start = Date.now()
-  while (Date.now() - start < timeoutMs) {
-    await new Promise((r) => setTimeout(r, VIDEO_POLL_INTERVAL))
-    if (signal?.aborted) {
-      const err = new Error('Aborted')
-      err.name = 'AbortError'
-      throw err
-    }
-    try {
-      const pr = await proxyRequest({ provider, url: pollUrl, method: 'GET' }, signal)
-      const pj = await pr.json()
-      const pd = pj?.data ?? pj
-      const vidUrl = pd?.result?.videos?.[0]?.url || pd?.result?.images?.[0]?.url || pd?.results?.[0]?.url
-      if (vidUrl) return ok(vidUrl)
-      if (pd?.status === 'failed' || pd?.status === 'error') {
-        return fail(pd?.error?.message || pd?.error || '上游任务失败')
-      }
-      onProgress?.(30 + Math.min(60, Math.round((Date.now() - start) / 5000) * 10), '上游生成中…')
-    } catch (e) {
-      if (e?.name === 'AbortError') throw e // 取消：原样抛出
-      const c = classifyError(e)
-      return c.type === 'network' ? fail(c.message) : fail(`轮询失败：${c.message || '轮询异常'}`)
-    }
-  }
-  return fail('轮询超时')
-}
+import { videoProxy } from './proxyGenerate.js'
 
 /**
  * 文生视频 / 图生视频。
@@ -131,6 +37,5 @@ export async function generateVideo({ provider, prompt, model, size, resolution,
   const refImages = await normalizeImageUrlsForSend(images, { preferBase64: provider?.refFormat === 'base64' })
   if (refImages.length > 0) genBody.image_urls = refImages
 
-  const url = buildTargetUrl(provider, 'videos/generations')
-  return generateAsync({ provider, url, genBody, timeoutMs: VIDEO_TIMEOUT }, onProgress, signal)
+  return videoProxy({ provider, genBody, onProgress, signal })
 }

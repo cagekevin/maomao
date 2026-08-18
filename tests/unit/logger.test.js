@@ -25,8 +25,9 @@ describe('config.js §API_BASE 日志与配置', () => {
 
   it('所有 API 层统一从这里取 API_BASE（被引用）', async () => {
     // 硬证据：直接读 API 层源码，断言其 import 语句确实引用了 config.js
+    // （videoApi.js 已薄壳化，config 消费方收敛到深模块 proxyGenerate.js）
     const apiFiles = [
-      'videoApi.js',
+      'proxyGenerate.js',
       'tasksApi.js',
       'filesApi.js',
       'kvStore.js',
