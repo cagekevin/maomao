@@ -17,6 +17,13 @@ describe('accountsStore §4 多开账号管理', () => {
     mod = await import('../../src/components/base/settings/accountsStore.js')
   })
 
+  // 造环境：浏览器端降级分支（非扩展）写入「开发测试网」测试数据（store 已不再预置演示假数据 env_demo_*）。
+  async function createEnv(name = '') {
+    if (name) mod.setFormName(name)
+    await mod.saveEnvironment(false)
+    return mod.useAccounts().envs.slice(-1)[0]
+  }
+
   // ── parseCookies 纯函数 ──
   describe('parseCookies', () => {
     it('空串返回 null', () => {
@@ -60,11 +67,12 @@ describe('accountsStore §4 多开账号管理', () => {
       expect(s.formName).toBe('')
       expect(s.formCookies).toBe('')
     })
-    it('openEditForm 回填目标环境', () => {
-      mod.openEditForm('env_demo_1')
+    it('openEditForm 回填目标环境', async () => {
+      const env = await createEnv('即梦小号')
+      mod.openEditForm(env.id)
       const s = mod.useAccounts()
       expect(s.formOpen).toBe(true)
-      expect(s.formEditId).toBe('env_demo_1')
+      expect(s.formEditId).toBe(env.id)
       expect(s.formName).toBe('即梦小号')
     })
     it('openEditForm 不存在的 id 不打开表单', () => {
@@ -94,15 +102,18 @@ describe('accountsStore §4 多开账号管理', () => {
 
   // ── 收藏 / 排序 / 删除（状态机）──
   describe('收藏/排序/删除', () => {
-    it('toggleFavorite 翻转 isFavorite 且不改其他字段', () => {
-      const before = mod.useAccounts().envs.find((e) => e.id === 'env_demo_1')
-      expect(before.isFavorite).toBe(false)
-      mod.toggleFavorite('env_demo_1')
-      const after = mod.useAccounts().envs.find((e) => e.id === 'env_demo_1')
+    it('toggleFavorite 翻转 isFavorite 且不改其他字段', async () => {
+      const env = await createEnv('即梦小号')
+      const before = mod.useAccounts().envs.find((e) => e.id === env.id)
+      expect(before.isFavorite).toBeUndefined()
+      mod.toggleFavorite(env.id)
+      const after = mod.useAccounts().envs.find((e) => e.id === env.id)
       expect(after.isFavorite).toBe(true)
       expect(after.name).toBe('即梦小号')
     })
-    it('moveEnv 调换顺序', () => {
+    it('moveEnv 调换顺序', async () => {
+      const e1 = await createEnv('A')
+      const e2 = await createEnv('B')
       const ids0 = mod.useAccounts().envs.map((e) => e.id)
       mod.moveEnv(0, 1)
       const ids1 = mod.useAccounts().envs.map((e) => e.id)
@@ -114,22 +125,24 @@ describe('accountsStore §4 多开账号管理', () => {
       mod.moveEnv(0, 0)
       expect(mod.useAccounts().envs.map((e) => e.id)).toEqual(ids0)
     })
-    it('requestDelete 二次确认才真正删除', () => {
+    it('requestDelete 二次确认才真正删除', async () => {
+      const env = await createEnv('即梦小号')
       const n0 = mod.useAccounts().envs.length
-      mod.requestDelete('env_demo_1') // 第一次：标记
-      expect(mod.useAccounts().confirmDeleteId).toBe('env_demo_1')
+      mod.requestDelete(env.id) // 第一次：标记
+      expect(mod.useAccounts().confirmDeleteId).toBe(env.id)
       expect(mod.useAccounts().envs).toHaveLength(n0) // 还没删
-      mod.requestDelete('env_demo_1') // 第二次：执行
+      mod.requestDelete(env.id) // 第二次：执行
       const s = mod.useAccounts()
       expect(s.confirmDeleteId).toBeNull()
       expect(s.envs).toHaveLength(n0 - 1)
-      expect(s.envs.find((e) => e.id === 'env_demo_1')).toBeUndefined()
+      expect(s.envs.find((e) => e.id === env.id)).toBeUndefined()
     })
     it('requestDelete 删除当前激活环境会清 activeId', async () => {
-      await mod.activateEnv('env_demo_1') // 非扩展：syncCookies 直接 return，activeId 同步设置
-      expect(mod.useAccounts().activeId).toBe('env_demo_1')
-      mod.requestDelete('env_demo_1')
-      mod.requestDelete('env_demo_1')
+      const env = await createEnv('即梦小号')
+      await mod.activateEnv(env.id) // 非扩展：syncCookies 直接 return，activeId 同步设置
+      expect(mod.useAccounts().activeId).toBe(env.id)
+      mod.requestDelete(env.id)
+      mod.requestDelete(env.id)
       expect(mod.useAccounts().activeId).toBeNull()
     })
   })
