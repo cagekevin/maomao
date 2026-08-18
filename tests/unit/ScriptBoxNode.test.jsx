@@ -47,6 +47,8 @@ vi.mock('@xyflow/react', () => ({
     addNodes: vi.fn(),
     screenToFlowPosition: () => ({ x: 0, y: 0 }),
   }),
+  // CustomHandle（节点内部端口）会渲染 Handle，mock 成 null 即可（测试不关心端口 DOM）
+  Handle: () => null,
 }))
 
 vi.mock('../../src/components/base/NodeShell.jsx', () => ({ default: ({ children }) => children }))
@@ -58,6 +60,8 @@ vi.mock('../../src/components/base/scriptBoxEngine.js', () => ({ createScriptBox
 vi.mock('../../src/components/base/settings/providerStore.js', () => ({ useProviders: () => ({ providers: [] }), load: vi.fn(async () => {}) }))
 vi.mock('../../src/components/base/logger.js', () => ({ logger: { warn: vi.fn() } }))
 vi.mock('../../src/components/base/hooks.js', () => ({ useOutsideClick: () => {}, useNodeResize: () => ({ onMainBoxResize: vi.fn() }) }))
+// 上游输入接入 hook：mock 返回空（测试默认无上游连线），避免依赖 @xyflow/react 的 useStore
+vi.mock('../../src/components/base/useConnectedInputs.js', () => ({ useConnectedInputs: () => ({ images: [], texts: [], videos: [], audios: [] }) }))
 
 // 三步子组件 mock：渲染内容标记 + 可点的引擎回调按钮（验证 UI 只调回调）
 vi.mock('../../src/components/scriptbox/StepShots.jsx', () => ({

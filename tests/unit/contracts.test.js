@@ -92,8 +92,8 @@ describe('STORAGE_KEYS 语义检查', () => {
 })
 
 describe('STORAGE_KEYS 内容验证', () => {
-  it('当前共有 27 个登记键', () => {
-    expect(Object.keys(STORAGE_KEYS).length).toBe(27)
+  it('当前共有 28 个登记键', () => {
+    expect(Object.keys(STORAGE_KEYS).length).toBe(28)
   })
 
   it('包含所有核心业务键', () => {

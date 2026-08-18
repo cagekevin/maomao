@@ -20,6 +20,8 @@ const {
   getPanel,
   setPanel,
   openTaskCenter,
+  openAssetLibrary,
+  togglePin,
   clearTasksBy,
   clearAllTasks,
   registerTaskRetry,
@@ -67,13 +69,28 @@ describe('taskStore §2.6 面板状态', () => {
   it('openTaskCenter 展开面板并切到任务中心 tab', () => {
     setPanel({ expanded: false, activeTab: 'generated' })
     openTaskCenter()
-    expect(getPanel()).toEqual({ expanded: true, activeTab: 'tasks' })
+    expect(getPanel()).toEqual({ expanded: true, activeTab: 'tasks', pinned: false })
   })
 
   it('setPanel 保留未指定字段', () => {
     setPanel({ expanded: true })
     expect(getPanel().activeTab).toBe('tasks')
     expect(getPanel().expanded).toBe(true)
+  })
+
+  it('togglePin 切换钉住状态，且 openTaskCenter/openAssetLibrary 保留 pinned', () => {
+    setPanel({ expanded: false, activeTab: 'generated', pinned: false })
+    togglePin()
+    expect(getPanel().pinned).toBe(true)
+    // 自动弹出任务中心不应清除钉住态
+    openTaskCenter()
+    expect(getPanel()).toEqual({ expanded: true, activeTab: 'tasks', pinned: true })
+    // 自动弹出素材库同样保留钉住态
+    setPanel({ activeTab: 'assets' })
+    openAssetLibrary()
+    expect(getPanel()).toEqual({ expanded: true, activeTab: 'assets', pinned: true })
+    togglePin()
+    expect(getPanel().pinned).toBe(false)
   })
 })
 
