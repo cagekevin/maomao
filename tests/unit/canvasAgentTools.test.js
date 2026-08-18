@@ -401,6 +401,38 @@ describe('画布 Agent 工具层 §2.5', () => {
     vi.mocked(convStore.getCurrentRunMode).mockReturnValue('auto')
   })
 
+  it('【对齐大雄 §12.1 真值表】hasSkillNow=true + auto：仍必进入 awaiting（Skill 三阶段优先级高于全自动）', async () => {
+    // 关键对照：即便 runMode='auto'（默认不确认），只要本轮有 Skill，needConfirm 仍为真。
+    // needConfirm = hasSkillNow || runMode==='semi'  → 此用例覆盖 hasSkillNow=true 分支。
+    convStore.__state.awaiting = false
+    vi.mocked(convStore.getCurrentRunMode).mockReturnValue('auto')
+    vi.mocked(convStore.getCurrentSnapshot).mockReturnValue({ skills: [{ name: 'poster', params: {} }] })
+    const ctx = makeCtx()
+    const t = buildCanvasAgentTools(ctx)
+    const r = await t.show_plan_for_confirm({ plan_text: '做5张主图+8详情', generations: [{ id: 'g1', prompt: '主图1' }] })
+    expect(r.ok).toBe(true)
+    expect(r.data.awaiting_confirm).toBe(true)
+    expect(convStore.__state.awaiting).toBe(true)
+    expect(convStore.setAwaitingConfirm).toHaveBeenCalledWith(true)
+  })
+
+  it('【对齐大雄 §12.1 真值表】hasSkillNow=false + auto：不进入 awaiting（全自动直接执行）', async () => {
+    // 真值表另一角：无 Skill 且 auto → needConfirm 为假。
+    convStore.__state.awaiting = false
+    vi.mocked(convStore.getCurrentRunMode).mockReturnValue('auto')
+    vi.mocked(convStore.getCurrentSnapshot).mockReturnValue({ skills: [] })
+    const ctx = makeCtx()
+    const t = buildCanvasAgentTools(ctx)
+    const r = await t.show_plan_for_confirm({ plan_text: '做1张猫图', generations: [{ id: 'g1', prompt: '一只猫' }] })
+    expect(r.ok).toBe(true)
+    expect(r.data.awaiting_confirm).toBe(false)
+    expect(convStore.__state.awaiting).toBe(false)
+    // 全自动：execute_plan 不被 awaiting 门禁拦截，可直接执行
+    convStore.__state.awaiting = false
+    const r2 = await t.execute_plan({ generations: [{ id: 'g1', prompt: '一只猫' }] })
+    expect(r2.ok).toBe(true)
+  })
+
   it('execute_plan 未确认被拒', async () => {
     convStore.__state.awaiting = true // 模拟 show_plan_for_confirm 已暂存、进入待确认
     const ctx = makeCtx()

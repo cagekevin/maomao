@@ -102,11 +102,21 @@ export async function roundTrip(ctx, requestMessages, signal, onStream) {
   // 【链路日志】到网关成功拿到响应头（HTTP 状态）
   logger.info('AI助手', '响应', { status: res.status, via: useProxy ? 'proxy' : 'agent', stream: !isNonStream })
 
-  // ── 非流式：普通 JSON 响应，直接解析 choices[0].message ──
+  // ── 非流式：普通 JSON 响应 ──
+  // 【加固】非流式一次性读取整个响应体，遇网关/代理缓冲断流、content-length 不符等会截断 JSON。
+  // 原 `res.json().catch(()=>({}))` 会把截断的非法 JSON 静默吞成 {} → content 变 '' →
+  // 文字与图片 URL 全丢且无任何提示（偶发、难定位）。改为：先读 text → 容错解析，解析失败
+  // 兜底为原始文本（渲染层仍能从文本抽 URL 出图），并打 ERROR 日志，绝不静默丢内容。
   if (isNonStream) {
-    const json = await res.json().catch(() => ({}))
+    const rawText = await res.text().catch(() => '')
+    const json = safeParseNonStreamJSON(rawText, logger)
     const msg = json?.choices?.[0]?.message || {}
-    const assistant = { role: 'assistant', content: String(msg.content || ''), model, createdAt: Date.now() }
+    // 【兜底】解析失败（被截断/非 JSON）时，把原始文本当 content 保留，避免整条回复消失。
+    // 渲染层 extractImageSpans 仍能从纯文本里抽 URL 渲染图片。
+    const content = (msg?.content != null && String(msg.content).length > 0)
+      ? String(msg.content)
+      : (rawText && !json ? rawText : '')
+    const assistant = { role: 'assistant', content, model, createdAt: Date.now() }
     // 【非流式工具】若开启 ENABLE_TOOLS_ON_NON_STREAM，响应里可能带 tool_calls（OpenAI 兼容
     //   格式：message.tool_calls: [{ id, type, function:{ name, arguments } }]）。解析后放进
     //   assistant，send 主循环即按工具调用处理（过滤空 name、多轮循环收敛）。
@@ -116,8 +126,10 @@ export async function roundTrip(ctx, requestMessages, signal, onStream) {
         .filter(Boolean)
       if (calls.length > 0) assistant.tool_calls = calls
     }
+    // 【链路日志】截断告警：原始文本非空但未能解析出正常 message，提示可能丢内容。
+    if (rawText && !json) logger.error('AI助手', '非流式解析失败(可能截断)', { rawLen: rawText.length, head: rawText.slice(0, 120) })
     onStream?.({ content: assistant.content, reasoning: '', toolCalls: assistant.tool_calls || [] })
-    logger.info('AI助手', '非流式结果', { contentLen: assistant.content.length, toolCallCount: (assistant.tool_calls || []).length })
+    logger.info('AI助手', '非流式结果', { contentLen: assistant.content.length, rawLen: rawText.length, toolCallCount: (assistant.tool_calls || []).length })
     return assistant
   }
 
@@ -176,6 +188,51 @@ export async function roundTrip(ctx, requestMessages, signal, onStream) {
   // 【链路日志】流式响应完成：内容长度 + 触发的工具调用
   logger.info('AI助手', '流式结果', { contentLen: assistant.content.length, toolCallCount: realCalls.length, toolNames: realCalls.map((t) => t.function?.name) })
   return assistant
+}
+
+/** ══════════════════════════════════════════════════════════════════════════════
+ *  safeParseNonStreamJSON —— 非流式响应体容错解析（加固截断场景）。
+ * ══════════════════════════════════════════════════════════════════════════════
+ *  非流式一次性读取整段 JSON，遇网关/代理断流会被截断成非法 JSON。此函数分级兜底：
+ *    1) 直接 JSON.parse（理想情况）；
+ *    2) 去掉首尾 ```json / ``` 围栏后重试（模型偶有代码块包裹）；
+ *    3) 抽取文本中「首个完整 {…} 对象」再解析（忽略前后多余文本，抵抗部分截断/包裹）；
+ *    4) 全失败返回 null（调用方兜底为原始文本，绝不静默丢内容）。
+ *
+ *  @param {string} rawText  响应体原文
+ *  @param {object} logger   链路日志（失败时 WARN，不抛）
+ *  @returns {object|null}   解析后的对象，或 null（表示需回退到原始文本）
+ */
+function safeParseNonStreamJSON(rawText, logger) {
+  if (!rawText || !rawText.trim()) return null
+  const candidate = (s) => { try { return JSON.parse(s) } catch { return undefined } }
+  // 1) 直接解析
+  let obj = candidate(rawText)
+  if (obj && typeof obj === 'object') return obj
+  // 2) 去 markdown 代码围栏（```json / ```）
+  const fenced = rawText.replace(/^[\s\S]*?```(?:json)?\s*/i, '').replace(/```[\s\S]*$/, '').trim()
+  obj = candidate(fenced)
+  if (obj && typeof obj === 'object') return obj
+  // 3) 抽取首个完整 {…} 对象（括号配平，抵抗前后多余文本 / 尾部截断）
+  const start = rawText.indexOf('{')
+  if (start >= 0) {
+    let depth = 0, inStr = false, esc = false
+    for (let i = start; i < rawText.length; i++) {
+      const ch = rawText[i]
+      if (inStr) {
+        if (esc) esc = false
+        else if (ch === '\\') esc = true
+        else if (ch === '"') inStr = false
+        continue
+      }
+      if (ch === '"') inStr = true
+      else if (ch === '{') depth++
+      else if (ch === '}') { depth--; if (depth === 0) { obj = candidate(rawText.slice(start, i + 1)); break } }
+    }
+    if (obj && typeof obj === 'object') return obj
+  }
+  logger?.warn?.('AI助手', '非流式 JSON 容错解析失败', { rawLen: rawText.length, head: rawText.slice(0, 120) })
+  return null
 }
 
 /** ══════════════════════════════════════════════════════════════════════════════
