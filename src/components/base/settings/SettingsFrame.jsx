@@ -12,13 +12,14 @@ import AgentChatSettings from './sections/AgentChatSettings.jsx'
  *   - 内容区 p-6 bg-canvas，内部 max-w-4xl 卡片布局
  */
 const SECTIONS = [
-  { key: 'api', label: '第三方API配置', icon: SettingsIcon, comp: 'ApiSettings' },
+  // 2026-08-18：AI 助手改得频繁，提到第一个，默认选中它
   { key: 'agent', label: 'AI 助手', icon: Bot, comp: 'AgentChatSettings' },
+  { key: 'api', label: '第三方API配置', icon: SettingsIcon, comp: 'ApiSettings' },
   { key: 'shortcut', label: '快捷键', icon: Keyboard, comp: 'ShortcutSettings' },
 ]
 
 export default function SettingsFrame() {
-  const [active, setActive] = React.useState('api')
+  const [active, setActive] = React.useState('agent')
   const [moreOpen, setMoreOpen] = React.useState(false)
 
   return (

@@ -220,14 +220,25 @@ export function parseGenerationsFromReply(content = '') {
  * 【结论】大雄靠「fresh-task + memory 注入 + token 化 + 执行层反查」四件套实现跨轮记忆；
  *   我们已完整对齐这套架构，唯一差异是传输层（大雄顶层 images、我们 image_url 内联，最终都是 OpenAI 格式）。
  *
- *  @param {Array}  messages       完整对话历史（send 时含本轮 user；本函数只取「最后一个 user 及其之后」）
+ *  @param {Array}  messages       完整对话历史（send 时含本轮 user；本函数只取「最近 historyTurns 轮」）
  *  @param {string} systemPrompt   外部 systemPrompt（拼接在画布准则之后）
  *  @param {boolean} enhance        是否注入画布准则（默认 true）
  *  @param {Array}  skills         启用的 Skill 数组 [{name, content}]
  *  @param {object} memory         对话记忆 { summary?, facts?, lastSharedStyle?, notes?, lastPlan?, global_contract? }
  *  @param {Array}  [imageCatalog] 当前可引用图编号目录 [{num,url,name,source}]（对齐大雄 agentCurrentImageMap）
+ *  @param {number} [historyTurns] 回传最近 N 轮「纯文字」历史的轮数上限（默认 0 = 维持 fresh-task，只发本轮）。
+ *                                  ⚠️【过渡方案·目前最优解·2026-08-18 决策注释】：
+ *                                  historyTurns>0 是解决「纯文字对话（如反推提示词→再优化）失忆」的过渡手段：
+ *                                  - 解决：上一轮 user/assistant 的纯文字不再被 fresh-task 砍掉，LLM 能接着上下文；
+ *                                  - 安全边界：只回传【文字】。历史轮次所有【图片附件一律不内联、图仍走 imageCatalog 编号 +
+ *                                    执行层 direct_refs 反查】——绝不把历史真图堆进 LLM 上下文（否则复发
+ *                                    「跨轮真图堆积 + refCatalog 每轮从 1 重编撞号 → 反推图一却全反推」）。
+ *                                  - 为什么是过渡：它直接放宽 fresh-task 的「连文字也砍」，但没治本。真正的治本是
+ *                                    补齐 memory 自动摘要（summary/facts 自动沉淀）+ 结构性历史，届时可移除本参数
+ *                                    回到纯 fresh-task + 更强 memory。当前在 memory 摘要未落地前，它是性价比最高的解。
+ *                                  - 调用方传 0（默认）→ 行为与旧版完全一致，不破坏既有单测与链路的反推安全。
  *  导出供单测（AI 助手前端逻辑核心：确认发给 LLM 的 messages 组装正确）。 */
-export function buildRequestMessages(messages, systemPrompt, enhance = true, skills = [], memory = null, imageCatalog = []) {
+export function buildRequestMessages(messages, systemPrompt, enhance = true, skills = [], memory = null, imageCatalog = [], historyTurns = 0) {
   const out = []
   // 工具消息配对：assistant 声明 tool_calls 时登记其 id，后续 tool 消息需命中才保留（防孤儿 tool 消息）
   const pendingToolIds = new Set()
@@ -291,20 +302,36 @@ export function buildRequestMessages(messages, systemPrompt, enhance = true, ski
     lines.push('在 generations 某步里，若需引用这些图，把其 url 填进该步的 direct_refs 数组，并在 prompt 里写「图N」；执行层会自动把它当作该步参考图。')
     out.push({ role: 'system', content: lines.join('\n') })
   }
-  // ── fresh-task（彻底对齐大雄 agentFreshTaskHistoryMessages() => []）──
-  // 历史轮次的消息（含文字与图）一律不进 LLM 上下文，只发「本轮」user 消息（messages 里
-  // 最后一个 user = 本轮，send 开头刚 setHistory 追加）及同轮工具循环产生的 assistant/tool。
-  // 跨轮记忆靠上方 memory 注入（摘要/统一风格/已确认信息/备注/最近策划/统一风格契约）承载；
-  // 跨轮「改上一张图」靠执行层回退（execute_plan 的 getLastUserReferenceImages，对齐大雄
-  // agentLastUserAttachments）——图本体不进 LLM 上下文，执行层反查原图。
-  // 这彻底消除「跨轮真图堆积 + refCatalog 每轮从 1 重编撞号」导致的「反推图一却全反推」。
+  // ── 上下文范围：fresh-task（historyTurns=0） 或 回传最近 N 轮纯文字（historyTurns>0）──
+  // 【过渡方案·2026-08-18 决策注释】默认 historyTurns=0 严格维持 fresh-task（对齐大雄
+  // agentFreshTaskHistoryMessages() => []）：历史轮次消息（含文字与图）一律不进 LLM 上下文。
+  // 但当 historyTurns>0 时，我们把「最近 historyTurns 轮」的历史【文字】回传给 LLM，以解决
+  // 「纯文字对话失忆」（如：先"反推这张图提示词"、再"把提示词优化一下"——后者必须知道前者
+  // 反推出的提示词文本）。安全边界（不可破坏）：图片永远只走上方 imageCatalog 编号 + 执行层
+  // direct_refs 反查，历史轮次【图片附件绝不内联进上下文】——否则复发「反推图一却全反推」。
+  // 详见函数头 JSDoc 的「过渡方案」说明。算 startIdx：定位最后一个 user（=本轮），
+  // 再向前多回溯 historyTurns 个 user 的起点，确保带上最近 N 轮（含每轮 assistant 文字）。
   let lastUserIdx = -1
   for (let i = 0; i < messages.length; i++) {
     if (messages[i].role === 'user') lastUserIdx = i
   }
   const lastUser = lastUserIdx >= 0 ? messages[lastUserIdx] : null
   const currentHasImages = !!lastUser && lastUser.attachments && lastUser.attachments.length > 0
-  for (let i = lastUserIdx < 0 ? 0 : lastUserIdx; i < messages.length; i++) {
+
+  // 计算回传起始下标：
+  //  - historyTurns<=0：startIdx = lastUserIdx（只发本轮 + 本轮工具循环）——即旧 fresh-task；
+  //  - historyTurns>0 ：从「最后一个 user 往前数 historyTurns 个 user」那个 user 处开始，
+  //    使最近 N 轮的 user + assistant 文字都能进上下文（tool 消息配对逻辑在后面逐条处理，不受影响）。
+  let startIdx = lastUserIdx < 0 ? 0 : lastUserIdx
+  if (historyTurns > 0 && lastUserIdx >= 0) {
+    let count = 0
+    for (let i = lastUserIdx; i >= 0; i--) {
+      if (messages[i].role === 'user') count++
+      if (count >= historyTurns) { startIdx = i; break }
+      if (i === 0) startIdx = 0
+    }
+  }
+  for (let i = startIdx; i < messages.length; i++) {
     const m = messages[i]
     if (m.role === 'user' && m.attachments && m.attachments.length > 0) {
       if (currentHasImages && i === lastUserIdx) {
@@ -321,7 +348,8 @@ export function buildRequestMessages(messages, systemPrompt, enhance = true, ski
         else if (m.content) content.push({ type: 'text', text: m.content })
         out.push({ role: 'user', content })
       } else {
-        // 历史 user 消息：图不进上下文，仅保留纯文字（不含 refCatalog/坐标，避免撞号干扰）
+        // 历史 user 消息（含 historyTurns 回溯范围内的）：图一律不进上下文，仅保留纯文字
+        // （不含 refCatalog/坐标，避免撞号干扰；也无 image_url，杜绝历史真图堆积）。
         out.push({ role: 'user', content: m.content || '' })
       }
       continue
@@ -357,6 +385,11 @@ export function buildRequestMessages(messages, systemPrompt, enhance = true, ski
       out.push({ role: 'tool', content: m.content || '', tool_call_id: m.tool_call_id })
       continue
     }
+    // 【过渡方案·2026-08-18】历史 system 一律不回传：historyTurns>0 提前 startIdx 后，
+    // 历史 system（旧注入/脏数据）可能落入循环范围，这里显式跳过——system 只认前置注入
+    // （CANVAS_AGENT_RULES / systemPrompt / Skill / memory / imageCatalog），历史 system 不回传，
+    // 保持与 fresh-task（historyTurns=0）一致的行为，避免「旧 system 覆盖新准则」。
+    if (m.role === 'system') continue
     const obj = { role: m.role, content: m.content || '' }
     if (m.tool_call_id) obj.tool_call_id = m.tool_call_id
     out.push(obj)

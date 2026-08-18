@@ -1,12 +1,25 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useCanvasAgentTools, getGenParams, setCurrentReferenceImages } from './useCanvasAgentTools.js'
-import { loadAgentChatModel } from './settings/agentModelStore.js'
+import { loadAgentChatModel, loadAgentHistoryTurns } from './settings/agentModelStore.js'
 import { logger } from './logger.js'
 import { API_BASE } from './apiBase.js'
 import { LLM_CHAT_BASE_URL, LLM_CHAT_API_KEY, LLM_CHAT_MODEL, AGENT_DEMO_MODE } from './config.js'
 import { normalizeImageUrlForSend } from './imageUrl.js'
 import { InputStateMachine } from './inputStateMachine.js'
 import { generateId } from './idGen.js'
+
+/**
+ * 【过渡方案·2026-08-18 决策注释】回传给 LLM 的「历史纯文字」轮数（由 AI 助手设置控制，不硬编码）。
+ * - 背景：fresh-task 为根治「反推图一却全反推」连历史文字也一并砍掉，导致纯文字对话
+ *   （如"反推这张图提示词"→"把提示词优化一下"）第二轮失去上下文。
+ * - 方案：让 buildRequestMessages 回传最近 N 轮的【纯文字】历史（图片仍编号化，绝不内联进上下文），
+ *   在保「图片不撞号」安全底线的前提下恢复文字连续性。
+ * - 取值（buildRequestMessages 第 7 参 historyTurns）：0=不回传、1=只上一轮、任意正数=最近 N 轮（大值≈不限）。
+ * - 由 useAgentChat 在每次 buildRequestMessages 调用时【实时】经 loadAgentHistoryTurns() 读取（不缓存），
+ *   用户在 AI 助手设置改「历史回传轮数」后即时生效。
+ * - 为何是过渡：真正的治本是补齐 memory 自动摘要（summary/facts 自动沉淀），届时可回退为 0
+ *   走纯 fresh-task + 更强 memory。当前是性价比最高的解（见 agentCore.js buildRequestMessages 头注释）。
+ */
 // 纯函数层 + 运行时逻辑下沉（职责模块化拆分，见 agentCore.js / agentRuntime.js 头注释）
 import {
   MAX_TOOL_ROUNDS,
@@ -489,7 +502,10 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
           appendMsg({ role: 'assistant', content: '', model, streaming: true, createdAt: Date.now() })
 
           assistant = await roundTrip(
-            buildRequestMessages(messagesRef.current, systemRef.current, true, skillsRef.current, getCurrentMemory(), getCurrentImageMap()),
+            // 【过渡方案·2026-08-18】historyTurns 实时读取（AI 助手设置可配）：
+            // 0=不回传、1=只上一轮、N=最近 N 轮纯文字历史（图片仍编号化 imageCatalog 图N，不内联，不破坏
+            // 「反推图一却全反推」安全底线）。见文件顶部注释 + agentCore.js buildRequestMessages 头注释。
+            buildRequestMessages(messagesRef.current, systemRef.current, true, skillsRef.current, getCurrentMemory(), getCurrentImageMap(), loadAgentHistoryTurns()),
             controller.signal,
             (delta) => updateLastStreaming(delta)
           )

@@ -3,7 +3,10 @@ import { Bot, Check } from 'lucide-react'
 import { useProviders, load } from '../providerStore.js'
 import { logger } from '../../logger.js'
 import { showToast } from '../../toastStore.js'
-import { loadAgentChatModel, saveAgentChatModel } from '../agentModelStore.js'
+import {
+  loadAgentChatModel, saveAgentChatModel,
+  loadAgentHistoryTurns, saveAgentHistoryTurns,
+} from '../agentModelStore.js'
 import SkillSettings from './SkillSettings.jsx'
 
 /**
@@ -20,6 +23,7 @@ export default function AgentChatSettings() {
   const [providerId, setProviderId] = React.useState(saved?.providerId || '')
   const [modelId, setModelId] = React.useState(saved?.modelId || '')
   const [streamMode, setStreamMode] = React.useState(saved?.streamMode || 'stream')
+  const [historyTurns, setHistoryTurns] = React.useState(() => String(loadAgentHistoryTurns())) // 历史回传轮数（数字输入，存字符串便于自由输入）
 
   React.useEffect(() => {
     if (!providers || providers.length === 0) load().catch((e) => logger.warn('provider', 'load-fail', { error: e?.message }))
@@ -61,6 +65,18 @@ export default function AgentChatSettings() {
     setStreamMode(mode)
     saveAgentChatModel({ providerId, modelId, streamMode: mode })
     showToast(mode === 'non-stream' ? '已设为非流式（不支持工具调用，仅对话）' : '已设为流式', { type: 'success' })
+  }
+
+  // 【过渡方案·2026-08-18】历史回传轮数：0=不回传、1=只上一轮、任意大=尽量多（≈不限）。
+  // 允许自由输入任意非负整数；非法输入忽略不保存。实时读，下次发送立即生效。
+  const handleHistoryTurnsChange = (e) => {
+    const raw = e.target.value
+    setHistoryTurns(raw) // 保留用户输入，允许临时为空/半输入
+    if (raw === '') return // 空：暂存，不保存（等填完）
+    const n = Number(raw)
+    if (!Number.isFinite(n) || n < 0) return // 非法（负号/非数字）不保存
+    saveAgentHistoryTurns(Math.floor(n))
+    showToast(n === 0 ? '已设为不回传历史' : n === 1 ? '已设为只回传上一轮' : `已设为回传最近 ${Math.floor(n)} 轮`, { type: 'success' })
   }
 
   return (
@@ -122,6 +138,30 @@ export default function AgentChatSettings() {
               <Check size={12} /> 当前 AI 聊天模型：{modelId}
             </div>
           )}
+        </div>
+      </section>
+
+      {/* 历史回传轮数（过渡方案·2026-08-18）：解决纯文字对话失忆 */}
+      <section className="bg-surface border border-edge-subtle rounded-xl overflow-hidden">
+        <div className="px-6 py-3.5 border-b border-edge-subtle flex items-baseline justify-between">
+          <h3 className="text-sm text-zinc-200 flex items-center gap-2"><Bot size={15} className="text-zinc-400" /> 历史回传轮数</h3>
+          <p className="text-xs text-zinc-500">让 AI 记得上一轮说过什么（仅文字）</p>
+        </div>
+        <div className="px-6 py-4 max-w-3xl">
+          <p className="text-xs text-zinc-500 mb-4">AI 助手默认只处理你最新的一句话（fresh-task 机制），可能导致「先反推提示词、再让它优化」时它忘了上文。这里可让它回传最近 N 轮对话的<b className="text-zinc-300">文字</b>。图片始终以编号引用、不会真图进上下文，不影响出图安全。</p>
+          <div className="flex items-center gap-3">
+            <input
+              type="number"
+              min="0"
+              step="1"
+              value={historyTurns}
+              onChange={handleHistoryTurnsChange}
+              className="w-32 bg-canvas border border-edge text-zinc-300 text-sm px-3 py-2 rounded-xl outline-none focus:border-blue-500 transition-colors"
+            />
+            <span className="text-xs text-zinc-500">
+              0 = 不回传（默认行为）· 1 = 只上一轮 · 任意大 = 尽量多（约等于不限）
+            </span>
+          </div>
         </div>
       </section>
 

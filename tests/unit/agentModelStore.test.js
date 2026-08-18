@@ -56,3 +56,54 @@ describe('agentModelStore §4 读取/保存 AI 聊天模型偏好', () => {
     expect(loadAgentChatModel()).toBeNull()
   })
 })
+
+// 【过渡方案·2026-08-18】历史回传轮数配置（0=不回传 / 1=上一轮 / 任意大≈不限）
+describe('agentModelStore §4.5 历史回传轮数 load/save', () => {
+  beforeEach(() => {
+    try { localStorage.clear() } catch { /* ignore */ }
+    vi.resetModules()
+  })
+
+  it('未设置时默认返回 6', async () => {
+    const { loadAgentHistoryTurns } = await import('../../src/components/base/settings/agentModelStore.js')
+    expect(loadAgentHistoryTurns()).toBe(6)
+  })
+
+  it('save 后 load 读回（支持 0）', async () => {
+    const m = await import('../../src/components/base/settings/agentModelStore.js')
+    m.saveAgentHistoryTurns(0)
+    expect(m.loadAgentHistoryTurns()).toBe(0)
+  })
+
+  it('save 1 → 读回 1（只上一轮）', async () => {
+    const m = await import('../../src/components/base/settings/agentModelStore.js')
+    m.saveAgentHistoryTurns(1)
+    expect(m.loadAgentHistoryTurns()).toBe(1)
+  })
+
+  it('大值（如 1000000）≈不限，读回原值', async () => {
+    const m = await import('../../src/components/base/settings/agentModelStore.js')
+    m.saveAgentHistoryTurns(1000000)
+    expect(m.loadAgentHistoryTurns()).toBe(1000000)
+  })
+
+  it('负数非法：不保存，保持原值', async () => {
+    const m = await import('../../src/components/base/settings/agentModelStore.js')
+    m.saveAgentHistoryTurns(5)
+    m.saveAgentHistoryTurns(-3)
+    expect(m.loadAgentHistoryTurns()).toBe(5)
+  })
+
+  it('非数字非法：不保存', async () => {
+    const m = await import('../../src/components/base/settings/agentModelStore.js')
+    m.saveAgentHistoryTurns(5)
+    m.saveAgentHistoryTurns('abc')
+    expect(m.loadAgentHistoryTurns()).toBe(5)
+  })
+
+  it('小数向下取整（输入 2.7 → 存 2）', async () => {
+    const m = await import('../../src/components/base/settings/agentModelStore.js')
+    m.saveAgentHistoryTurns(2.7)
+    expect(m.loadAgentHistoryTurns()).toBe(2)
+  })
+})
