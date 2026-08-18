@@ -308,12 +308,15 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
     // 【修复】必须在回调外同步更新 messagesRef.current：send 的 finally 落盘时同步读取 ref，
     //   若更新放在 setMessages 回调内（异步），落盘会拿到空的 streaming 占位 → AI 回复丢失。
     //   与 appendMsg/setHistory 一致：ref 始终同步、立即可用。
+    // 【key 稳定修复】替换时必须保留原占位消息的 id（assistant 对象可能无 id）——
+    //   否则 key={m.id} 变 undefined，AI 发消息（流式结束）时触发 React「列表缺 key」警告。
     messagesRef.current = messagesRef.current.map((m, i) =>
-      i === messagesRef.current.length - 1 ? { ...assistant, streaming: false } : m
+      i === messagesRef.current.length - 1 ? { ...assistant, id: m.id, streaming: false } : m
     )
     setMessages((prev) => {
       const next = [...prev]
-      next[next.length - 1] = { ...assistant, streaming: false }
+      const last = next[next.length - 1]
+      next[next.length - 1] = { ...assistant, id: last?.id, streaming: false }
       return next
     })
   }, [])

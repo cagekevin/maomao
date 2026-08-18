@@ -4,7 +4,6 @@ import { useReactFlow } from '@xyflow/react'
 import NodeShell from '../base/NodeShell.jsx'
 import CustomHandle from '../edges/CustomHandle.jsx'
 import FullscreenModal from '../base/FullscreenModal.jsx'
-import GeneratingOverlay from '../base/GeneratingOverlay.jsx'
 import { useScriptBoxData } from '../base/useScriptBoxData.js'
 import { useScriptBoxEngine } from '../base/useScriptBoxEngine.js'
 import { useConnectedInputs } from '../base/useConnectedInputs.js'
@@ -150,12 +149,8 @@ function ScriptBoxNode({ id, data, selected }) {
           {step === 1 && <StepShots {...stepProps} />}
           {step === 2 && <StepAssets {...stepProps} />}
           {step === 3 && <StepPrompt {...stepProps} />}
-          {/* 步骤1整节点生成剧本：用 GeneratingOverlay 动画遮罩（shimmer 扫光 + 旋转圆环 + TIPS 轮播）。
-              步骤3批量分镜提示词的动画是「卡片级」的（见 StepPrompt cardFor，每个分镜独立遮罩），
-              不在此处做整节点遮罩，避免盖住其他可操作的分镜。 */}
-          {genMask && (
-            <GeneratingOverlay label="正在生成分镜脚本…" category="text" />
-          )}
+          {/* 步骤1生成剧本不整节点遮罩：只用顶部标题栏的「生成中」spinner+计时（见标题栏 genMask），
+              避免和步骤3的卡片级动画混成两套。步骤3分镜提示词的动画是卡片级的（StepPrompt cardFor）。 */}
         </div>
       </div>
 

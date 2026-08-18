@@ -3,6 +3,7 @@ import { chatCompletions } from './chatApi.js'
 import { generateImage } from './imageApi.js'
 import { resolveProviderModel, buildAllModels } from './providerModels.js'
 import { showToast } from './toastStore.js'
+import { logger } from './logger.js'
 
 /** 去掉 ```json 围栏、只保留首个 {...} 块（对齐官方 Ar/Ir 的解析）。
  *  顶层纯函数，导出供单测（剧本盒纯逻辑）。 */
@@ -140,6 +141,7 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
     const system = scriptPrompt + SCRIPT_WRITER_FORMAT + countReq + styleReq
 
     updateData({ genMask: true, genChars: 0 })
+    logger.info('scriptBox', '生成剧本·开始', { nodeId, provider: provider?.id, model: modelId, storyLen: story.length, shotCount })
     const ac = new AbortController()
     abortMap.set('script', ac)
     try {
@@ -154,9 +156,10 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
           { role: 'user', content: story },
         ],
       })
-      if (!r.ok) { updateData({ genMask: false }); if (!r.aborted) toast(r.error || '脚本生成失败'); return }
+      if (!r.ok) { updateData({ genMask: false }); if (!r.aborted) toast(r.error || '脚本生成失败'); logger.error('scriptBox', '生成剧本·上游失败', { nodeId, error: r.error }); return }
+      logger.info('scriptBox', '生成剧本·上游返回', { nodeId, contentLen: (r.content || '').length })
       const parsed = parseJsonText(r.content)
-      if (!parsed.ok) { updateData({ genMask: false }); toast('模型输出的 JSON 不完整或格式有误，请重试'); return }
+      if (!parsed.ok) { updateData({ genMask: false }); toast('模型输出的 JSON 不完整或格式有误，请重试'); logger.error('scriptBox', '生成剧本·JSON解析失败', { nodeId }); return }
 
       const m = parsed.data
       const rawShots = Array.isArray(m) ? m : m.shots || []
@@ -218,10 +221,13 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
       })
       abortMap.delete('script')
       toast(`已生成 ${shots.length} 个分镜`)
+      logger.info('scriptBox', '生成剧本·成功', { nodeId, shots: shots.length, assets: assets.length, projectName, globalStyle })
     } catch (e) {
       abortMap.delete('script')
       updateData({ genMask: false })
       if (!/abort/i.test(e?.message || '')) toast(e?.message || '脚本生成失败')
+      if (!/abort/i.test(e?.message || '')) logger.error('scriptBox', '生成剧本·异常', { nodeId, error: e?.message })
+      else logger.warn('scriptBox', '生成剧本·已中止', { nodeId })
     }
   }
 
@@ -244,6 +250,7 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
       : ZgPrompt(asset.category, [asset.name, asset.description].filter(Boolean).join('，'), globalStyle, getData().customAssetTemplates)
 
     updateData({ assets: getData().assets.map((a) => (a.id === assetId ? { ...a, loading: true } : a)) })
+    logger.info('scriptBox', '生成资产图·开始', { nodeId, assetId, name: asset.name, provider: provider?.id, model: modelId, aspectRatio, imageSize })
     const ac = new AbortController()
     abortMap.set(`asset-${assetId}`, ac)
     try {
@@ -264,14 +271,19 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
               : a
           ),
         })
+        logger.info('scriptBox', '生成资产图·成功', { nodeId, assetId, url: r.url })
       } else {
         updateData({ assets: getData().assets.map((a) => (a.id === assetId ? { ...a, loading: false } : a)) })
         if (r && !r.aborted) toast(r.error || '资产参考图生成失败')
+        if (r && !r.aborted) logger.error('scriptBox', '生成资产图·上游失败', { nodeId, assetId, error: r.error })
+        else logger.warn('scriptBox', '生成资产图·已中止', { nodeId, assetId })
       }
     } catch (e) {
       abortMap.delete(`asset-${assetId}`)
       updateData({ assets: getData().assets.map((a) => (a.id === assetId ? { ...a, loading: false } : a)) })
       if (!/abort/i.test(e?.message || '')) toast(e?.message || '资产参考图生成失败')
+      if (!/abort/i.test(e?.message || '')) logger.error('scriptBox', '生成资产图·异常', { nodeId, assetId, error: e?.message })
+      else logger.warn('scriptBox', '生成资产图·已中止', { nodeId, assetId })
     }
   }
 
@@ -283,7 +295,9 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
       : assets.filter((a) => !a.imageUrl)
     if (target.length === 0) { toast(assets.length === 0 ? '暂无资产可生成，请先在第1步生成脚本' : '没有需要生成的项（可勾选指定资产）'); return }
     toast(`开始批量生成 ${target.length} 张参考图…`)
+    logger.info('scriptBox', '批量生成资产图·开始', { nodeId, count: target.length, ids: target.map((a) => a.id) })
     await Promise.all(target.map((a) => onGenerateAssetImage(a.id)))
+    logger.info('scriptBox', '批量生成资产图·完成', { nodeId, count: target.length })
   }
 
   // ═══════════════════════════════════════════════════════════════
@@ -310,11 +324,12 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
     const shotPrompt = (d.customShotPrompt || '').trim() || SHOT_DIRECTOR_SYSTEM
     const system = shotPrompt + QG_RULES
 
-    // 标记命中镜头 promptLoading（卡片级生成动画：StepPrompt 对每个 promptLoading 的分镜卡片
-    // 单独显示遮罩并锁定其内部操作，见 cardFor；批量时每镜各自独立，互不影响）
-    updateData({ shots: shots.map((s) => (target.some((t) => t.id === s.id) ? { ...s, promptLoading: true } : s)) })
+    logger.info('scriptBox', '生成分镜提示词·开始', { nodeId, count: target.length, provider: provider?.id, model: modelId, feedback: !!feedback })
 
     const genShot = async (shot) => {
+      // 只在真正发起该分镜请求时置 loading → 动画精确反映「当前正在请求的分镜」，
+      // 不是批量开始就全亮（避免 8 个卡片一起转、与实际并发不符）。
+      updateData({ shots: getData().shots.map((s) => (s.id === shot.id ? { ...s, promptLoading: true } : s)) })
       try {
         const ac = new AbortController()
         abortMap.set(`shot-${shot.id}`, ac)
@@ -343,12 +358,14 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
         if (!r.ok) {
           updateData({ shots: getData().shots.map((s) => (s.id === shot.id ? { ...s, promptLoading: false } : s)) })
           if (!r.aborted) toast(r.error || '分镜提示词生成失败')
+          logger.error('scriptBox', '生成分镜提示词·单镜失败', { nodeId, shotId: shot.id, error: r.error })
           return
         }
         const parsed = parseJsonText(r.content)
         if (!parsed.ok) {
           updateData({ shots: getData().shots.map((s) => (s.id === shot.id ? { ...s, promptLoading: false } : s)) })
           toast('模型输出的提示词 JSON 不完整，请重试')
+          logger.error('scriptBox', '生成分镜提示词·JSON解析失败', { nodeId, shotId: shot.id })
           return
         }
         const { prompt, videoPrompt } = parsed.data || {}
@@ -357,16 +374,25 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
         abortMap.delete(`shot-${shot.id}`)
         updateData({ shots: getData().shots.map((s) => (s.id === shot.id ? { ...s, promptLoading: false } : s)) })
         if (!/abort/i.test(e?.message || '')) toast(e?.message || '分镜提示词生成失败')
+        if (!/abort/i.test(e?.message || '')) logger.error('scriptBox', '生成分镜提示词·单镜异常', { nodeId, shotId: shot.id, error: e?.message })
+        else logger.warn('scriptBox', '生成分镜提示词·单镜已中止', { nodeId, shotId: shot.id })
       }
     }
 
-    // 分批并发：每批最多 6 个，批间串行（保留正常业务并发）。
-    // 用户知情/等待提示由 StepPrompt 的卡片级生成遮罩承担（每个 promptLoading 分镜单独动画）。
-    const BATCH = 6
+    // 分批并发：每批最多 4 个，批间串行 + 批间隔，真正平缓发送，避免一次并发打满连接。
+    // 【稳定性】每批完成后等待 BATCH_INTERVAL_MS，给浏览器到 localTool(18080) 的连接释放窗口，
+    // 避免长 chat 请求持续占满连接池导致 status/其他请求排队超时。
+    // 动画精确：只对当前批次的 4 个分镜显示 loading（genShot 内单独置），完成即熄，下一批再亮。
+    const BATCH = 4
+    const BATCH_INTERVAL_MS = 800
     for (let i = 0; i < target.length; i += BATCH) {
       await Promise.all(target.slice(i, i + BATCH).map((s) => genShot(s)))
+      if (i + BATCH < target.length) {
+        await new Promise((r) => setTimeout(r, BATCH_INTERVAL_MS))
+      }
     }
     toast(Array.isArray(shotIds) && shotIds.length ? '已生成该分镜提示词' : `已生成 ${target.length} 个分镜提示词`)
+    logger.info('scriptBox', '生成分镜提示词·完成', { nodeId, count: target.length })
   }
 
   // ═══════════════════════════════════════════════════════════════
@@ -383,6 +409,7 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
     const user = buildShotImageUser(shot, type, { globalStyle: d.globalStyle, assets: d.assets })
 
     updateData({ shots: d.shots.map((s) => (s.id === shotId ? { ...s, imgGenLoading: true } : s)) })
+    logger.info('scriptBox', 'AI生图提示词·开始', { nodeId, shotId, type })
     const ac = new AbortController()
     abortMap.set(`shotimg-${shotId}`, ac)
     try {
@@ -409,10 +436,15 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
         ),
       })
       if (!r.ok && !r.aborted) toast(r.error || '提示词生成失败')
+      if (r.ok && !r.aborted) logger.info('scriptBox', 'AI生图提示词·成功', { nodeId, shotId, type, promptLen: (prompt || '').length })
+      else if (!r.aborted) logger.error('scriptBox', 'AI生图提示词·失败', { nodeId, shotId, type, error: r.error })
+      else logger.warn('scriptBox', 'AI生图提示词·已中止', { nodeId, shotId })
     } catch (e) {
       abortMap.delete(`shotimg-${shotId}`)
       updateData({ shots: getData().shots.map((s) => (s.id === shotId ? { ...s, imgGenLoading: false } : s)) })
       if (!/abort/i.test(e?.message || '')) toast(e?.message || '提示词生成失败')
+      if (!/abort/i.test(e?.message || '')) logger.error('scriptBox', 'AI生图提示词·异常', { nodeId, shotId, type, error: e?.message })
+      else logger.warn('scriptBox', 'AI生图提示词·已中止', { nodeId, shotId })
     }
   }
 
