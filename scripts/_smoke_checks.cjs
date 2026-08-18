@@ -159,36 +159,49 @@ function checkReactFlowApis(ROOT) {
   return { name: 'reactflow API 调用合法性', pass, details };
 }
 
-/** 检查 3：App.jsx 注册的 nodeTypes 与组件文件对应 */
+/** 检查 3：nodeTypes 单源（NodePalette component 字段）与组件文件对应。
+ *  注：nodeTypes 已由 NodePalette.buildNodeTypeComponents 派生（ADR-002），不再从 App.jsx 提取平行表。
+ *  这里改为校验派生源：NodePalette 的 component 字段 → 组件文件存在 + default 导出；
+ *  例外（director3dNode/ghostTarget）由 App.jsx 派生后补充，另校验其 .jsx。 */
 function checkNodeTypes(ROOT) {
-  const app = read(path.join(ROOT, 'src/App.jsx'));
-  const nodeTypesRe = /nodeTypes\s*=\s*\{([\s\S]*?)\}/;
-  const m = app.match(nodeTypesRe);
+  const palette = read(path.join(ROOT, 'src/components/base/NodePalette.jsx'));
+  const comps = [...palette.matchAll(/component:\s*(\w+Node)/g)].map((x) => x[1]);
   let pass = true;
   const details = [];
 
-  if (!m) {
-    return { name: 'nodeTypes 注册', pass: false, details: ['  未找到 nodeTypes 定义'] };
+  if (comps.length === 0) {
+    return { name: 'nodeTypes 注册', pass: false, details: ['  NodePalette 未找到 component 字段'] };
   }
 
-  // 提取 "textNode: TextNode" 键值
-  const entries = [...m[1].matchAll(/(\w+Node)\s*:\s*(\w+)/g)].map((x) => [x[1], x[2]]);
-  for (const [type, comp] of entries) {
-    // 组件文件应存在且被 import
+  // 1) 派生源：NodePalette component 字段 → 组件文件校验
+  for (const comp of comps) {
     const compFile = path.join(ROOT, 'src/components', comp + '.jsx');
     if (!fs.existsSync(compFile)) {
       pass = false;
-      details.push(`  ✖ 节点类型 '${type}' -> 组件 '${comp}.jsx' 不存在`);
+      details.push(`  ✖ palette component '${comp}' -> '${comp}.jsx' 不存在`);
     } else {
-      details.push(`  ✔ ${type} -> ${comp}.jsx`);
+      details.push(`  ✔ palette ${comp}.jsx`);
     }
-    // 组件里应导出 default
     const content = read(compFile);
     if (!/export\s+default/.test(content)) {
       pass = false;
       details.push(`  ✖ ${comp}.jsx 未导出 default`);
     }
   }
+
+  // 2) 例外（App.jsx 派生后补充的 director3dNode/ghostTarget）
+  const app = read(path.join(ROOT, 'src/App.jsx'));
+  const extras = [...app.matchAll(/(director3dNode|ghostTarget)\s*:\s*(\w+Node)/g)].map((x) => [x[1], x[2]]);
+  for (const [type, comp] of extras) {
+    const compFile = path.join(ROOT, 'src/components', comp + '.jsx');
+    if (!fs.existsSync(compFile) || !/export\s+default/.test(read(compFile))) {
+      pass = false;
+      details.push(`  ✖ 例外 '${type}' -> '${comp}.jsx' 缺失或未导出 default`);
+    } else {
+      details.push(`  ✔ 例外 ${type} -> ${comp}.jsx`);
+    }
+  }
+
   return { name: 'nodeTypes 注册', pass, details };
 }
 

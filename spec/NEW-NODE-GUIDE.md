@@ -9,7 +9,7 @@
 
 ## 〇、一句话
 
-> **外壳用 NodeShell，节点只写「业务专属内容」，数据用「useState 存 UI + setNodes 写回 data」，通用能力走单一入口，注册必须 4 处同步。**
+> **外壳用 NodeShell，节点只写「业务专属内容」，数据用「useState 存 UI + setNodes 写回 data」，通用能力走单一入口，注册必须 3 处同步。**
 
 参考节点（从简到繁）：`TextNode`（最简）→ `PromptNode` / `DiscountVideoNode`（含生成+参数记忆）→ `GridSplitNode` / `GridMergeNode`（含高度自适应+自定义端口+管线产出）→ `ScriptBoxNode`（复合）。
 
@@ -133,18 +133,20 @@ useNodeResize(id).onMainBoxResize(w, h) 写回 node.height + updateNodeInternals
 
 ---
 
-## 六、注册（4 处同步，缺一不可）
+## 六、注册（3 处同步，缺一不可）
 
-新增节点**必须**在以下 4 处登记，漏任何一处都会出问题：
+新增节点**必须**在以下 3 处登记，漏任何一处都会出问题：
 
 | # | 位置 | 作用 | 漏了会怎样 |
 |---|------|------|-----------|
-| 1 | `components/base/NodePalette.jsx` `paletteNodes` 加 `{ type, label, icon, cat, data, builtin:true }` | 右键菜单/节点面板出现 | 右键找不到节点 |
-| 2 | `App.jsx` `nodeTypes` 加 `type → 组件` | 画布能渲染 | 建不出来 / 渲染异常 |
-| 3 | **`base/useConnectedInputs.js` `NODE_OUTPUTS` 加一行** | 下游连线拿你的产出 | **下游连了线也拿不到数据** |
-| 4 | `docs/BASE-CAPABILITIES.md` 登记新 base 能力 / 数据契约写交接文档 | 沉淀 | 后续 AI 不知道有这能力 |
+| 1 | `components/base/NodePalette.jsx` `paletteNodes` 加 `{ type, label, icon, cat, component, data, builtin:true }` | 右键菜单/节点面板出现 + **`buildNodeTypeComponents()` 自动派生画布 nodeTypes** | 右键找不到节点 / 画布渲染异常 |
+| 2 | **`base/useConnectedInputs.js` `NODE_OUTPUTS` 加一行** | 下游连线拿你的产出 | **下游连了线也拿不到数据** |
+| 3 | `docs/BASE-CAPABILITIES.md` 登记新 base 能力 / 数据契约写交接文档 | 沉淀 | 后续 AI 不知道有这能力 |
 
-> **第 3 处最容易被忽略**。`useConnectedInputs.js` 的 `NODE_OUTPUTS` 是「下游自动拿上游数据」的管线契约。有产出的节点必须在此声明（如 `imageBoxNode` → `data.images`、`videoExtractNode`/`gridSplitNode` → `data.extractedImages[]`）。数组型产出用 `arrayImages` 归一。不登记 = 下游的参考图/文本永远是空的。
+> **`component` 字段 = 画布渲染组件**（区别于 `icon`=工具栏小图标）。`App.jsx` 不再手写 `nodeTypes` 平行表，直接 `...buildNodeTypeComponents()` 派生（`spec/CONTEXT.md` §一·5.B）。
+> **例外**：`director3dNode`（WebGL 无法 SSR，palette 不持 component）与 `ghostTarget`（连线占位）由 `App.jsx` 派生后显式补充，新增此类节点才改 `App.jsx`。
+
+> **第 2 处最容易被忽略**。`useConnectedInputs.js` 的 `NODE_OUTPUTS` 是「下游自动拿上游数据」的管线契约。有产出的节点必须在此声明（如 `imageBoxNode` → `data.images`、`videoExtractNode`/`gridSplitNode` → `data.extractedImages[]`）。数组型产出用 `arrayImages` 归一。不登记 = 下游的参考图/文本永远是空的。
 
 ---
 

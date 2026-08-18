@@ -16,22 +16,8 @@ import ArrangeConfirm from './components/base/ArrangeConfirm.jsx'
 import { useArrangeCanvas } from './components/base/useArrangeCanvas.js'
 import { useAssetDropPaste, useGlobalPaste } from './components/base/useAssetDropPaste.js'
 import { copyImageToClipboard, downloadBlob } from './components/base/clipboard.js'
-import TextNode from './components/TextNode.jsx'
-import ImageNode from './components/ImageNode.jsx'
-import LoopNode from './components/LoopNode.jsx'
-import PromptNode from './components/PromptNode.jsx'
-import DiscountVideoNode from './components/DiscountVideoNode.jsx'
-import VideoExtractNode from './components/VideoExtractNode.jsx'
-import ImageBoxNode from './components/ImageBoxNode.jsx'
-import GridSplitNode from './components/GridSplitNode.jsx'
-import GridMergeNode from './components/GridMergeNode.jsx'
-import VideoProcessNode from './components/VideoProcessNode.jsx'
-import FaceMosaicNode from './components/FaceMosaicNode.jsx'
-import PanoramaNode from './components/PanoramaNode.jsx'
-import Director3DNode from './components/Director3DNode.jsx'
-import GroupNode from './components/GroupNode.jsx'
-import ScriptBoxNode from './components/ScriptBoxNode.jsx'
 import GhostTargetNode from './components/GhostTargetNode.jsx'
+import Director3DNode from './components/Director3DNode.jsx'
 import AgentPanel from './components/AgentPanel.jsx'
 import { getNodeImageUrl } from './components/base/useCanvasAgentTools.js'
 import LeftPanel from './components/base/LeftPanel.jsx'
@@ -44,7 +30,7 @@ import ContextMenu from './components/base/ContextMenu.jsx'
 import { useContextMenu } from './components/base/useContextMenu.js'
 import { useCanvasHistory } from './components/base/useCanvasHistory.js'
 import { useCanvasShortcuts } from './components/base/useCanvasShortcuts.js'
-import { paletteCategories, getNodesByCategory, defaultNodeData, getPaletteNode } from './components/base/NodePalette.jsx'
+import { paletteCategories, getNodesByCategory, defaultNodeData, getPaletteNode, buildNodeTypeComponents } from './components/base/NodePalette.jsx'
 import LodProvider, { useLod } from './components/base/lod.jsx'
 import ToastContainer from './components/base/ToastContainer.jsx'
 import SettingsFrame from './components/base/settings/SettingsFrame.jsx'
@@ -70,23 +56,12 @@ import { generateId } from './components/base/idGen.js'
  * nodeTypes / edgeTypes / 初始画布内容 / 画布参数
  * ====================================================================== */
 
-// 节点类型注册表：新增节点时在此登记 type → 组件
+// 节点类型注册表：由 NodePalette 单源派生（type→组件），不再手写平行表。
+// director3dNode（WebGL 重依赖，palette 不持 component）与 ghostTarget（连线占位）单独补充。
+// 新增常规节点只需改 palette 一处；仅新增「不可 SSR / 占位」节点才在此补例外。
 const nodeTypes = {
-  textNode: TextNode,
-  imageNode: ImageNode,
-  loopNode: LoopNode,
-  promptNode: PromptNode,
-  discountVideoNode: DiscountVideoNode,
-  videoExtractNode: VideoExtractNode,
-  imageBoxNode: ImageBoxNode,
-  gridSplitNode: GridSplitNode,
-  gridMergeNode: GridMergeNode,
-  videoProcessNode: VideoProcessNode,
-  faceMosaicNode: FaceMosaicNode,
-  panoramaNode: PanoramaNode,
+  ...buildNodeTypeComponents(),
   director3dNode: Director3DNode,
-  group: GroupNode,
-  scriptBoxNode: ScriptBoxNode,
   ghostTarget: GhostTargetNode
 }
 
