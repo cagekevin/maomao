@@ -181,6 +181,12 @@ Q3 单组件内部临时？→ 是 → 组件 useState
 6. ~~已收口却仍绕道的反例~~ ✅ **已修**（2026-08-18）：`accountsStore`/`ShortcutSettings` 手写 `Date.now().toString` 已收敛回 `generateId('env'/'sc')`。**教训**：收口后需 grep 全库堵死绕道，别让「已收口却仍绕道=更糟」。
 
 7. **预览 URL 卸载释放缺口**（审计 2026-08-18 发现，未修，守「行为不变」）：`TextNode`/`FaceMosaicNode`/`VideoExtractNode` 的预览 blob URL（现走 `previewUrl.create`）在**组件卸载/素材替换**时未 `release`，属既有泄漏（原 `URL.createObjectURL` 同样从未 revoke）。收口时未补是因其「图片仅增不减且被下游 `useConnectedInputs` 读取」，擅自加卸载释放可能改变行为边界，故单独立项。修法：各节点新增卸载 cleanup 对 `previewUrl.release` 全部预览 URL。
+8. ~~useAgentChat 职责模块化拆分~~ ✅ **已完成**（2026-08-18，候选1 中风险方案）：原单文件 `useAgentChat.js`（1345 行，7 类职责）拆成三层——
+   - **`base/agentCore.js`**（纯函数层，无副作用可单测）：`MAX_TOOL_ROUNDS`/`ENABLE_TOOLS_ON_NON_STREAM`/`CANVAS_AGENT_RULES`/`SKILL_EXECUTION_RULES` 常量与提示词 + `parseSSEChunk`/`parseGenerationsFromReply`/`buildRequestMessages`/`parseAgentError`/`demoPlan`/`imageModeLooksLikePerReferenceEdit`/`buildPerReferenceGenerations`/`historyKey`/`loadHistory`。
+   - **`base/agentRuntime.js`**（运行时逻辑，依赖注入）：`roundTrip`（LLM通信）/`runToolCalls`（工具执行）/`runDemoMode`。不持有 React 闭包，依赖经 ctx 注入。
+   - **`useAgentChat.js`**（hook 编排核心）：保留 send/sendImageMode/会话/状态机/**消息同步辅助**（appendMsg/setHistory/updateLastStreaming/endStreaming/stripStreaming，与 messagesRef 强耦合一改就崩，留在 hook），对两层做薄封装。
+   - **契约**：useAgentChat 顶部 `export { ... }` **re-export** agentCore 全部导出，既有单测/`scripts/test_agent_tools.cjs` import 路径不变。**改纯函数逻辑去 agentCore.js，别改 useAgentChat 的 re-export。**
+   - **边界**：`roundTrip`/`runToolCalls`/`runDemoMode` 与状态机/sendingRef/abortRef/messagesRef 的**竞态耦合仍留在 hook 封装层**，不强行下钻（那是"职责模块化"的收益边界，再拆会引入高耦合参数透传、破坏并发防护）。全量回归 119 文件/1308 用例通过。
 
 > **铁律**：**别为"文档齐全"而写文档。** 维护文档 = 维护负担 = 会过期。让代码当知识，本文件当地图，文档只补代码表达不了的决策。
 
