@@ -11,6 +11,7 @@ import { applyMosaic, MOSAIC_MODES, MOSAIC_PALETTE } from './base/faceMosaic.js'
 import FaceMosaicEditor from './base/FaceMosaicEditor.jsx'
 import ImageZoomDialog from './base/ImageZoomDialog.jsx'
 import { generateId } from './base/idGen.js'
+import previewUrls from './base/previewUrl.js'
 
 /**
  * 人脸打码节点（完整复刻官方 Cl.jsx / faceMosaicNode）。
@@ -66,7 +67,7 @@ export default function FaceMosaicNode({ id, data, selected }) {
     Array.from(files).forEach(async (file) => {
       try {
         const url = await uploadFileToLocal(file, 'canvas/face_mosaic')
-        const target = url || URL.createObjectURL(file)
+        const target = url || previewUrls.create(file)
         setLocalImages((prev) => [...prev, target])
       } catch { /* ignore */ }
     })

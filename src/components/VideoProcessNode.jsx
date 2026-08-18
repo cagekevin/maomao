@@ -23,6 +23,7 @@ import {
 } from './base/videoEngine.js'
 import { generateId } from './base/idGen.js'
 import { httpRequest } from './base/httpClient.js'
+import previewUrls from './base/previewUrl.js'
 import { DOWNLOAD_TIMEOUT, VIDEO_DOWNLOAD_TIMEOUT } from './base/config.js'
 
 /* ════════════════════════════════════════════════════════════════
@@ -444,7 +445,7 @@ export default function VideoProcessNode({ id, data, selected }) {
           try {
             const blob = await captureFrame(s.url, Math.max(0.05, (meta.duration * (i + 0.5)) / 6), 0.55)
             if (cancelled) return
-            const u = URL.createObjectURL(blob)
+            const u = previewUrls.create(blob)
             thumbUrls.current.push(u)
             urls.push(u)
           } catch {
@@ -470,8 +471,8 @@ export default function VideoProcessNode({ id, data, selected }) {
     return () => {
       abortRef.current?.abort()
       controllerRef.current?.cancel()
-      if (localUrl) URL.revokeObjectURL(localUrl)
-      thumbUrls.current.forEach((u) => URL.revokeObjectURL(u))
+      if (localUrl) previewUrls.release(localUrl)
+      thumbUrls.current.forEach((u) => previewUrls.release(u))
     }
   }, [localUrl])
 
@@ -667,8 +668,8 @@ export default function VideoProcessNode({ id, data, selected }) {
   const onUpload = (e) => {
     const file = e.target.files?.[0]
     if (!file) return
-    if (localUrl) URL.revokeObjectURL(localUrl)
-    const url = URL.createObjectURL(file)
+    if (localUrl) previewUrls.release(localUrl)
+    const url = previewUrls.create(file)
     setLocalFile(file)
     setLocalUrl(url)
     setNodes((ns) =>
@@ -821,6 +822,7 @@ export default function VideoProcessNode({ id, data, selected }) {
           abort.signal,
           () => { try { controller.cancel() } catch {} }
         )
+        // GIF 产物 URL 喂给 spawnGifNode 作持久节点源，非「组件预览」，不收进 previewUrl（见 CONTEXT §二⑤）
         const url = URL.createObjectURL(gif.blob)
         const outputName = `${stripExt(currentName || 'video')}_gif.gif`
         setNodes((ns) =>

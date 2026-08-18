@@ -15,6 +15,7 @@ import { runNodeGeneration } from './base/taskStore.js'
 import { showToast } from './base/toastStore.js'
 import { logger } from './base/logger.js'
 import { AGENT_MODELS } from './base/config.js'
+import previewUrls from './base/previewUrl.js'
 
 /**
  * ════════════════════════════════════════════════════════════════
@@ -285,6 +286,7 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
     if ((!text && allImages.length === 0) || (sending && stateAction !== 'steer')) return
     if (inputMode === 'image') {
       const attach = allImages.map(({ url, nodeId, label, x, y }) => ({ type: 'image', url, nodeId, label, x: x || 0, y: y || 0 }))
+      releaseAttachmentUrls(attachments)
       setAttachments([])
       setPendingImageNodes([])
       setInput('')
@@ -295,6 +297,7 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
     // 【移除视觉模型硬编码拦截】「模型是否支持视觉」无法靠名单判断（机器/AI 都不确定，
     // 只有实际测试才知道），且拦截会阻止带图发送。这里直接放行，有图就带上一起发。
     const attach = allImages.length > 0 ? allImages.map(({ url, nodeId, label, x, y }) => ({ type: 'image', url, nodeId, label, x: x || 0, y: y || 0 })) : undefined
+    releaseAttachmentUrls(attachments)
     setAttachments([])
     setPendingImageNodes([])
     setInput('')
@@ -358,12 +361,12 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
           continue
         }
         if (!f.type.startsWith('image/')) continue
-        const localUrl = URL.createObjectURL(f)
+        const localUrl = previewUrls.create(f)
         try {
           const dataUrl = await blobToDataURL(f)
           setAttachments((prev) => [...prev, { type: 'image', url: dataUrl, localUrl }])
         } catch (err) {
-          URL.revokeObjectURL(localUrl)
+          previewUrls.release(localUrl)
           alert(`图片读取失败：${err?.message || err}`)
         }
       }
@@ -373,10 +376,15 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
     }
   }
 
+  // 释放本地预览 blob 的 url（幂等：非 blob 预览 url 未登记，release 安全返回）
+  const releaseAttachmentUrls = (list) => {
+    ;(list || []).forEach((a) => { if (a?.localUrl) previewUrls.release(a.localUrl) })
+  }
+
   const removeAttachment = (idx) => {
     setAttachments((prev) => {
       const item = prev[idx]
-      if (item?.localUrl) URL.revokeObjectURL(item.localUrl)
+      if (item?.localUrl) previewUrls.release(item.localUrl)
       return prev.filter((_, i) => i !== idx)
     })
   }

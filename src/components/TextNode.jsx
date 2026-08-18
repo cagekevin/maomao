@@ -24,6 +24,7 @@ import { chatCompletions } from './base/chatApi.js'
 import { useNodePrefs } from './base/nodePrefs.js'
 import { buildAllModels, resolveProviderModel } from './base/providerModels.js'
 import { logger } from './base/logger.js'
+import previewUrls from './base/previewUrl.js'
 
 /**
  * 文本节点（复刻原 Co.jsx / textNode）
@@ -204,7 +205,7 @@ export default function TextNode({ id, data, selected }) {
 
   const uploadImage = (e) => {
     const f = e.target.files?.[0]
-    if (f) setImages((prev) => [...prev, URL.createObjectURL(f)])
+    if (f) setImages((prev) => [...prev, previewUrls.create(f)])
     e.target.value = ''
   }
 

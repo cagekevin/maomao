@@ -9,6 +9,7 @@ import { contentSet } from './base/contentStore.js'
 import { toAbsoluteFileUrl } from './base/filesApi.js'
 import { downloadUrl } from './base/clipboard.js'
 import { logger } from './base/logger.js'
+import previewUrls from './base/previewUrl.js'
 
 /**
  * 视频抽帧节点（复刻官方 ec.jsx / videoExtractNode）。
@@ -92,7 +93,7 @@ export default function VideoExtractNode({ id, data, selected }) {
     const f = e.target.files?.[0]
     if (!f) return
     setFile(f)
-    setVideoUrl(URL.createObjectURL(f))
+    setVideoUrl(previewUrls.create(f))
     setVideoName(f.name)
     setErrorMessage('')
     setExtractedImages([])
@@ -200,7 +201,7 @@ export default function VideoExtractNode({ id, data, selected }) {
       showToast('请先上传视频或连接包含视频的节点')
       return
     }
-    const src = file ? URL.createObjectURL(file) : videoUrl
+    const src = file ? previewUrls.create(file) : videoUrl
     setLoading(true)
     setErrorMessage('')
     setProgress(0)
