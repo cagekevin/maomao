@@ -73,7 +73,7 @@ Q3 单组件内部临时？→ 是 → 组件 useState
 >
 > **落地**：抽到对应层的唯一入口（通用纯工具→§二⑥、业务能力→§二⑤、存储→§二④、生成→`useNodeGeneration`、撤销→`useCanvasHistory`、下载→§二⑦），并在 `contracts.js`/对应登记表落地。已存在的重复手写 → 见 §六 待办逐一收敛。
 >
-> **反面警示**：收口不是"建个文件就行"，必须**让所有调用走它、堵死绕道**（如 `idGen.js` 已收口，但 `accountsStore`/`ShortcutSettings` 仍手写 `Date.now().toString` 绕过——已收口却仍绕道=更糟）。
+> **反面警示**：收口不是"建个文件就行"，必须**让所有调用走它、堵死绕道**（历史反例：`idGen.js` 已收口，但 `accountsStore`/`ShortcutSettings` 曾手写 `Date.now().toString` 绕过——已收口却仍绕道=更糟，已于 2026-08-18 修复）。
 
 ---
 
@@ -177,7 +177,7 @@ Q3 单组件内部临时？→ 是 → 组件 useState
 3. **程序化建边统一走 onConnect**：部分节点直接 `setEdges` 绕过 onConnect 校验/撤销栈（FINAL-057 D，改动面大）。
 4. **统一节点错误降级/重试收敛**：节点级 catch 大多只 setState 不收敛（FINAL-056，架构级）。
 5. ~~本地预览收口~~ ✅ **已收口**（`base/previewUrl.js`，2026-08-18）：节点预览 `URL.createObjectURL` 已统一走 `previewUrl.create/release`（引用计数，减到 0 才 revoke）。**边界**：下载走 `clipboard`、持久化降级走 `videoEngine`、跨节点产物喂 spawn（`VideoProcessNode` GIF）与外部仓库 `director3d` **不纳入**，勿再收。
-6. **已收口却仍绕道的反例**：`idGen.js` 已收口，但 `accountsStore`/`ShortcutSettings` 仍手写 `Date.now().toString` 造 ID → 需收敛回 `generateId`（先 grep 全库堵死绕道）。
+6. ~~已收口却仍绕道的反例~~ ✅ **已修**（2026-08-18）：`accountsStore`/`ShortcutSettings` 手写 `Date.now().toString` 已收敛回 `generateId('env'/'sc')`。**教训**：收口后需 grep 全库堵死绕道，别让「已收口却仍绕道=更糟」。
 
 7. **预览 URL 卸载释放缺口**（审计 2026-08-18 发现，未修，守「行为不变」）：`TextNode`/`FaceMosaicNode`/`VideoExtractNode` 的预览 blob URL（现走 `previewUrl.create`）在**组件卸载/素材替换**时未 `release`，属既有泄漏（原 `URL.createObjectURL` 同样从未 revoke）。收口时未补是因其「图片仅增不减且被下游 `useConnectedInputs` 读取」，擅自加卸载释放可能改变行为边界，故单独立项。修法：各节点新增卸载 cleanup 对 `previewUrl.release` 全部预览 URL。
 

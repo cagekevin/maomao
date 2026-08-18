@@ -1,6 +1,7 @@
 import React from 'react'
 import { Plus, Trash2, Keyboard } from 'lucide-react'
 import shortcutData from '../data/shortcuts.json'
+import { generateId } from '../../idGen.js'
 
 /**
  * 设置分区 · 快捷键
@@ -14,7 +15,7 @@ export default function ShortcutSettings() {
   const updateAction = (id, action) => setItems((list) => list.map((it) => (it.id === id ? { ...it, action } : it)))
   const removeItem = (id) => setItems((list) => list.filter((it) => it.id !== id))
   const addItem = () =>
-    setItems((list) => [...list, { id: 'sc-' + Date.now().toString(36), action: '新动作', keys: '' }])
+    setItems((list) => [...list, { id: generateId('sc'), action: '新动作', keys: '' }])
 
   return (
     <div className="group bg-surface rounded-xl overflow-hidden transition-all duration-300 pb-4 shadow-sm border border-edge-subtle">

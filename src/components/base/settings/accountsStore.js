@@ -11,6 +11,7 @@
  */
 import { useSyncExternalStore } from 'react'
 import { contentGet, contentSet } from '../contentStore.js'
+import { generateId } from '../idGen.js'
 
 const STORAGE_KEY = 'yimao_accounts'
 
@@ -247,7 +248,7 @@ export async function saveEnvironment(auto = false) {
       )
     } else {
       const newEnv = {
-        id: Date.now().toString(),
+        id: generateId('env'),
         name,
         siteName,
         siteUrl,
