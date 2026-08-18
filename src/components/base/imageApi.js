@@ -9,7 +9,7 @@
  *  - async：提交返回 [{status:"submitted", task_id}] → 轮询 GET /v1/tasks/{id} 到 completed
  */
 import { normalizeImageUrlsForSend } from './imageUrl.js'
-import { API_BASE } from './apiBase.js'
+import { API_BASE } from './config.js'
 import { getCurrentTaskId, setTaskPollId } from './taskStore.js'
 import { GEN_TIMEOUT, GEN_POLL_INTERVAL } from './config.js'
 import { classifyError } from './genErrors.js'

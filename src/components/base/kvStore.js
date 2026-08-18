@@ -16,7 +16,7 @@
  */
 import { sGet, sSet, sRemove } from './storageAdapter.js'
 import { httpRequest } from './httpClient.js'
-import { API_BASE } from './apiBase.js'
+import { API_BASE } from './config.js'
 import { logger } from './logger.js'
 
 // 画布类 key 前缀（对齐官方 Ar.CANVAS_STATE_PREFIX，localTool KV 侧会带此前缀）

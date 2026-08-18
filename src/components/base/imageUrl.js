@@ -15,7 +15,7 @@
  */
 import { logger } from './logger.js'
 import { httpRequest } from './httpClient.js'
-import { API_BASE } from './apiBase.js'
+import { API_BASE } from './config.js'
 import { IMAGE_FETCH_TIMEOUT } from './config.js'
 
 /** 相对 /files/ 路径 → 完整可访问 URL（对齐后端 resources.ts / base64Externalize 惯例）。 */

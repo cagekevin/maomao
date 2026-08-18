@@ -3,7 +3,7 @@
  * 数据层唯一发请求的地方；store/组件不直接 fetch。
  */
 import { httpRequest } from '../httpClient.js'
-import { API_BASE } from '../apiBase.js'
+import { API_BASE } from '../config.js'
 
 async function request(path, { method = 'GET', body, label } = {}) {
   return httpRequest(`${API_BASE}${path}`, {

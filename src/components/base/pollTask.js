@@ -22,7 +22,7 @@
  * 分支 + 本模块放开 type 限制即可。
  */
 import { httpRequest } from './httpClient.js'
-import { API_BASE } from './apiBase.js'
+import { API_BASE } from './config.js'
 import { getTasks, patchTask } from './taskStore.js'
 import { publish } from './eventBus.js'
 

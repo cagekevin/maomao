@@ -6,7 +6,7 @@
  *  - POST /api/projects/save     body { projects:[{id,name}], lastOpened }  → { ok:true }（全量覆盖）
  */
 import { httpRequest } from './httpClient.js'
-import { API_BASE } from './apiBase.js'
+import { API_BASE } from './config.js'
 
 /** 读项目列表 + 当前项目 */
 export async function fetchProjects() {

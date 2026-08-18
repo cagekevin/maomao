@@ -14,7 +14,7 @@
  * 都传最新值，前端内存仍以 useTasks 为准；后端只保证「刷新/重启后历史还在」。
  */
 import { httpRequest, httpPost } from './httpClient.js'
-import { API_BASE } from './apiBase.js'
+import { API_BASE } from './config.js'
 
 /** 读任务列表（分页），返回 { items, total } */
 export async function fetchTasks({ page = 1, pageSize = 200, keyword = '' } = {}) {

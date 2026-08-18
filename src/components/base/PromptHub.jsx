@@ -3,9 +3,8 @@ import {
   X, Search, ChevronLeft, ImageOff, RefreshCw,
 } from 'lucide-react'
 import {
-  getCachedPromptHub, loadPromptHub, getPromptHubErrors,
+  getCachedPromptHub, loadPromptHub, getPromptHubErrors, getPromptHubSources,
 } from './promptHubStore.js'
-import { getPromptHubSources } from './promptSources.js'
 import { toastWarning } from './toastStore.js'
 import LazyImage from './LazyImage.jsx'
 import { createImeInput } from './utils.js'

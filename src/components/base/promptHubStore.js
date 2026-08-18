@@ -12,7 +12,24 @@
  */
 
 import { contentGet, contentSet } from './contentStore.js'
-import { getPromptHubSources } from './promptSources.js'
+
+// ── 提示词社区库 — 数据源配置（原 promptSources.js，已合并至此） ──
+const PROMPT_HUB_REGISTRY_BASE =
+  'https://raw.githubusercontent.com/yukkcat/image-prompts/main/dist/sources'
+
+/** 内置源（搬运原版，禁止为空 url） */
+const DEFAULT_PROMPT_HUB_SOURCES = [
+  { id: 'banana-prompt-quicker', name: 'Banana Prompt Quicker', url: `${PROMPT_HUB_REGISTRY_BASE}/banana-prompt-quicker.json`, homepage: 'https://glidea.github.io/banana-prompt-quicker/' },
+  { id: 'davidwu-gpt-image2-prompts', name: 'DavidWu GPT Image 2', url: `${PROMPT_HUB_REGISTRY_BASE}/davidwu-gpt-image2-prompts.json`, homepage: 'https://github.com/davidwuw0811-boop/awesome-gpt-image2-prompts' },
+  { id: 'awesome-gpt-image', name: 'Awesome GPT Image', url: `${PROMPT_HUB_REGISTRY_BASE}/awesome-gpt-image.json`, homepage: 'https://github.com/ZeroLu/awesome-gpt-image' },
+  { id: 'awesome-gpt4o-image-prompts', name: 'Awesome GPT-4o', url: `${PROMPT_HUB_REGISTRY_BASE}/awesome-gpt4o-image-prompts.json`, homepage: 'https://github.com/ImgEdify/Awesome-GPT4o-Image-Prompts' },
+  { id: 'youmind-gpt-image-2', name: 'YouMind GPT Image 2', url: `${PROMPT_HUB_REGISTRY_BASE}/youmind-gpt-image-2.json`, homepage: 'https://github.com/YouMind-OpenLab/awesome-gpt-image-2' },
+  { id: 'youmind-nano-banana-pro', name: 'YouMind Nano Banana Pro', url: `${PROMPT_HUB_REGISTRY_BASE}/youmind-nano-banana-pro-prompts.json`, homepage: 'https://github.com/YouMind-OpenLab/awesome-nano-banana-pro-prompts' },
+]
+
+export function getPromptHubSources() {
+  return DEFAULT_PROMPT_HUB_SOURCES
+}
 
 const CACHE_KEY = 'yimao_prompt_hub_cache'
 const CACHE_TTL_MS = 1000 * 60 * 60 // 1 小时

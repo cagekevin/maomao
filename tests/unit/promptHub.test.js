@@ -8,10 +8,11 @@ vi.mock('../../src/components/base/contentStore.js', () => ({
 }))
 
 describe('提示词社区库 §2.19 数据源', () => {
-  it('DEFAULT_PROMPT_HUB_SOURCES 含 6 个源，且 id/name/url/homepage 齐全且非空', async () => {
-    const { DEFAULT_PROMPT_HUB_SOURCES } = await import('../../src/components/base/promptSources.js')
-    expect(DEFAULT_PROMPT_HUB_SOURCES).toHaveLength(6)
-    DEFAULT_PROMPT_HUB_SOURCES.forEach((s) => {
+  it('getPromptHubSources 含 6 个源，且 id/name/url/homepage 齐全且非空', async () => {
+    const { getPromptHubSources } = await import('../../src/components/base/promptHubStore.js')
+    const sources = getPromptHubSources()
+    expect(sources).toHaveLength(6)
+    sources.forEach((s) => {
       expect(s.id && s.name && s.url && s.homepage).toBeTruthy()
       expect(s.url.startsWith('https://')).toBe(true)
     })
@@ -27,8 +28,8 @@ describe('提示词社区库 §2.19 数据层', () => {
   })
 
   it('normalizeItems 兜底：缺 title/prompt 的条目被过滤，自动补 id', async () => {
-    const { DEFAULT_PROMPT_HUB_SOURCES } = await import('../../src/components/base/promptSources.js')
-    const src = DEFAULT_PROMPT_HUB_SOURCES[0]
+    const { getPromptHubSources } = await import('../../src/components/base/promptHubStore.js')
+    const src = getPromptHubSources()[0]
     const raw = [
       { title: 'A', prompt: 'p1', id: 'a' },
       { title: '', prompt: 'p2' }, // 无 title → 过滤
@@ -50,8 +51,8 @@ describe('提示词社区库 §2.19 数据层', () => {
   })
 
   it('相对 URL 转绝对：coverUrl/referenceImageUrls 按源 url 补全', async () => {
-    const { DEFAULT_PROMPT_HUB_SOURCES } = await import('../../src/components/base/promptSources.js')
-    const src = DEFAULT_PROMPT_HUB_SOURCES[0]
+    const { getPromptHubSources } = await import('../../src/components/base/promptHubStore.js')
+    const src = getPromptHubSources()[0]
     const raw = [{ title: 'A', prompt: 'p', coverUrl: './cover.png', referenceImageUrls: ['ref1.png', 'https://x.com/r2.jpg'] }]
     fetchImpl = (url) => (url === src.url ? Promise.resolve({ ok: true, json: () => Promise.resolve(raw) }) : Promise.reject(new Error('skip')))
     const { loadPromptHub } = await import('../../src/components/base/promptHubStore.js')
@@ -70,8 +71,8 @@ describe('提示词社区库 §2.19 数据层', () => {
   })
 
   it('缓存生效：TTL 内同源第二次拉取不重复 fetch', async () => {
-    const { DEFAULT_PROMPT_HUB_SOURCES } = await import('../../src/components/base/promptSources.js')
-    const src = DEFAULT_PROMPT_HUB_SOURCES[0]
+    const { getPromptHubSources } = await import('../../src/components/base/promptHubStore.js')
+    const src = getPromptHubSources()[0]
     const raw = [{ title: 'A', prompt: 'p' }]
     let calls = 0
     const okJson = (url) => (url === src.url ? (calls += 1, Promise.resolve({ ok: true, json: () => Promise.resolve(raw) })) : Promise.reject(new Error('skip')))
@@ -85,8 +86,8 @@ describe('提示词社区库 §2.19 数据层', () => {
   })
 
   it('getCachedPromptHub 同步秒显：未过期缓存直接返回数据，且不触发网络/订阅循环', async () => {
-    const { DEFAULT_PROMPT_HUB_SOURCES } = await import('../../src/components/base/promptSources.js')
-    const src = DEFAULT_PROMPT_HUB_SOURCES[0]
+    const { getPromptHubSources } = await import('../../src/components/base/promptHubStore.js')
+    const src = getPromptHubSources()[0]
     const raw = [{ title: 'A', prompt: 'p' }]
     fetchImpl = (url) => (url === src.url ? Promise.resolve({ ok: true, json: () => Promise.resolve(raw) }) : Promise.reject(new Error('skip')))
     const { loadPromptHub, getCachedPromptHub } = await import('../../src/components/base/promptHubStore.js')

@@ -11,7 +11,7 @@
  *  - GET  /api/files/open-dir?filepath=xxx    → 打开某文件所在目录（卡片「打开目录」按钮）
  */
 import { httpRequest, httpPost } from './httpClient.js'
-import { API_BASE } from './apiBase.js'
+import { API_BASE } from './config.js'
 
 /** 分页查询资源（folder 精确匹配当前层级：进入某目录只显示该目录自身的内容，不含子孙目录） */
 export async function fetchResources({ folder, page = 1, pageSize = 60, type } = {}) {

@@ -11,7 +11,7 @@
 import { normalizeImageUrlsForSend, toImageContentBlocks } from './imageUrl.js'
 import { logger } from './logger.js'
 
-import { API_BASE } from './apiBase.js'
+import { API_BASE } from './config.js'
 
 /** 目标端点：openai 用伪协议让 localTool 拼 base+key；apimart 用 base_url 原样透传。 */
 function buildTargetUrl(provider) {

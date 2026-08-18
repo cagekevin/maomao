@@ -32,7 +32,7 @@ function stringify(detail) {
   }
 }
 
-import { API_BASE } from './apiBase.js'
+import { API_BASE } from './config.js'
 
 // 上报去重：同一 (category+action) 在极短时间内的批量上报合并，避免高频噪音刷爆日志文件。
 const _lastReport = { key: '', ts: 0 }

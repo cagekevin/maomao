@@ -11,7 +11,7 @@
  * 网关契约：body { model, prompt, size(如 16:9), image_urls(参考图可选) }。
  */
 import { normalizeImageUrlsForSend } from './imageUrl.js'
-import { API_BASE } from './apiBase.js'
+import { API_BASE } from './config.js'
 import { getCurrentTaskId, setTaskPollId } from './taskStore.js'
 import { VIDEO_TIMEOUT, VIDEO_POLL_INTERVAL } from './config.js'
 import { classifyError } from './genErrors.js'

@@ -3,7 +3,7 @@ import { FolderOpen, Image as ImageIcon, Play, FileText, Music, Copy, Trash2, Fo
 import { useLocalToolStatus } from './useLocalToolStatus.js'
 import { fetchResources, rescanResources, deleteResource, renameResource, openLocalFolder, openFileDir, relativePathFromUrl } from './resourcesApi.js'
 import { showToast } from './toastStore.js'
-import { API_BASE } from './apiBase.js'
+import { API_BASE } from './config.js'
 import { useAssetDragToCanvas, fetchText } from './useAssetDragToCanvas.js'
 import { toAbsoluteFileUrl } from './filesApi.js'
 import { httpRequest } from './httpClient.js'

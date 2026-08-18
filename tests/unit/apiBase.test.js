@@ -1,14 +1,14 @@
 // @vitest-environment node
 /**
- * apiBase 单测（批 2，API 封装层）。
- * apiBase.js 仅导出 API_BASE 常量（localTool 后端固定地址），
- * 是统一入口契约，被所有 API 层 import。测其值符合原型阶段约定。
+ * API_BASE 常量单测（原 apiBase.js，已合并至 config.js）。
+ * API_BASE 是 localTool 后端固定地址，所有 API 层统一入口契约。
+ * 测其值符合原型阶段约定。
  */
 import { describe, it, expect } from 'vitest'
 
-const { API_BASE } = await import('../../src/components/base/apiBase.js')
+const { API_BASE } = await import('../../src/components/base/config.js')
 
-describe('apiBase — API_BASE 常量', () => {
+describe('config.js — API_BASE 常量', () => {
   it('指向 localTool 后端固定地址 18080', () => {
     expect(API_BASE).toBe('http://127.0.0.1:18080')
   })

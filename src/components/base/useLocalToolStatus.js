@@ -18,7 +18,7 @@
 import { useState, useCallback, useEffect } from 'react'
 import { logger } from './logger.js'
 import { httpRequest } from './httpClient.js'
-import { API_BASE } from './apiBase.js'
+import { API_BASE } from './config.js'
 import { LOCAL_TOOL_PING_TIMEOUT } from './config.js'
 
 const DEFAULT_PORT = 18080
