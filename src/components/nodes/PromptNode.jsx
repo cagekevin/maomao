@@ -18,6 +18,9 @@ import ImageZoomDialog from '../base/ImageZoomDialog.jsx'
 import PromptLibraryButton from '../base/PromptLibraryButton.jsx'
 import { downloadUrl } from '../base/clipboard.js'
 import JianyingIcon from '../base/JianyingIcon.jsx'
+import { showToast } from '../base/toastStore.js'
+import { sendToAssetLibrary } from '../base/assetStore.js'
+import { openAssetLibrary } from '../base/taskStore.js'
 import { useNodeResize, useOutsideClick } from '../base/hooks.js'
 import { useConnectedInputs } from '../base/useConnectedInputs.js'
 import { useMediaDegrade } from '../base/useMediaDegrade.js'
@@ -272,7 +275,19 @@ export default function PromptNode({ id, data, selected }) {
           { key: 'zoom', icon: <ZoomIn size={14} />, title: '放大' },
           { key: 'crop', icon: <Crop size={14} />, title: '裁剪' },
           { key: 'edit', icon: <Pencil size={14} />, title: '编辑' },
-          { key: 'send', icon: <Send size={14} />, title: '发送到左侧网站', hoverClass: 'hover:text-blue-400' },
+          {
+            key: 'send',
+            icon: <Send size={14} />,
+            title: '发送到素材库',
+            hoverClass: 'hover:text-blue-400',
+            onClick: () => {
+              if (!imageUrl) { showToast('没有可发送的素材', { type: 'error' }); return }
+              const name = (data.label && String(data.label).trim()) || ''
+              sendToAssetLibrary(imageUrl, { name, type: 'image' })
+              openAssetLibrary()
+              showToast('已发送到素材库', { type: 'success' })
+            }
+          },
           { key: 'jianying', icon: <JianyingIcon size={14} />, title: '发送到剪映素材库', hoverClass: 'hover:text-emerald-400' },
           { key: 'download', icon: <Download size={14} />, title: '下载', onClick: handleDownload }
         ]

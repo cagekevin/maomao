@@ -184,6 +184,15 @@ export const STORAGE_KEYS = {
     note: '素材库列表 [{id, folder, type, url, name, size, ts}]',
   },
 
+  // ── 提示词社区库（promptHubStore.js，联网 GitHub 源，非本地预设）──
+  // 注意：与 promptManager.js 的 yimao_preset_prompts（我的预设）是两回事。
+  yimao_prompt_hub_cache: {
+    domain: 'prompthub',
+    store: 'promptHubStore.js',
+    backend: 'local',
+    note: '提示词社区库各源拉取缓存 { [sourceId]: { items, fetchedAt, signature, lastError } }',
+  },
+
   // ── 节点偏好（nodePrefs）───────────────────────────────────────────
   yimao_node_prefs: {
     domain: 'pref',

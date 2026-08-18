@@ -1,16 +1,18 @@
 import React, { useMemo, useEffect, useRef } from 'react'
-import { Clock, FolderOpen, Sparkles } from 'lucide-react'
+import { Clock, FolderOpen, Sparkles, Pin, PinOff, BookOpen } from 'lucide-react'
 import TaskCenter from './TaskCenter.jsx'
 import GeneratedView from './GeneratedView.jsx'
 import AssetLibrary from './AssetLibrary.jsx'
-import { useTasks, usePanel, setPanel } from './taskStore.js'
+import PromptHub from './PromptHub.jsx'
+import { useTasks, usePanel, setPanel, getPanel, togglePin } from './taskStore.js'
 import { useAssets } from './assetStore.js'
 
-// 三个 tab 配置：任务中心 / 生成 / 素材（生成在中间）
+// tab 配置：任务 / 生成 / 素材 / 提示词库
 const TABS = [
-  { key: 'tasks', label: '任务中心', icon: Clock },
+  { key: 'tasks', label: '任务', icon: Clock },
   { key: 'generated', label: '生成', icon: Sparkles },
-  { key: 'assets', label: '素材', icon: FolderOpen }
+  { key: 'assets', label: '素材', icon: FolderOpen },
+  { key: 'prompts', label: '提示词', icon: BookOpen }
 ]
 
 /**
@@ -22,7 +24,7 @@ const TABS = [
  * （reportGenerate → openTaskCenter）能控制本面板。
  */
 export default function LeftPanel() {
-  const { expanded, activeTab } = usePanel()
+  const { expanded, activeTab, pinned } = usePanel()
   const setActiveTab = (key) => setPanel({ activeTab: key })
   const setExpanded = (v) => setPanel({ expanded: v })
   const tasks = useTasks()
@@ -36,6 +38,8 @@ export default function LeftPanel() {
   useEffect(() => {
     if (!expanded) return
     const onDown = (e) => {
+      // 钉住态：点击面板外部不收起
+      if (getPanel().pinned) return
       if (panelRef.current && !panelRef.current.contains(e.target)) setExpanded(false)
     }
     // 延时注册，避免展开瞬间的点击误关
@@ -80,8 +84,8 @@ export default function LeftPanel() {
       {/* 展开态：滑出面板 */}
       {expanded && (
         <div ref={panelRef} className="fixed left-3 top-2 bottom-2 z-sidebar w-[330px] bg-input border border-edge-faint rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-panel-in">
-          {/* 顶栏：tab 切换（点空白即可关闭，无需多余按钮） */}
-          <div className="h-[52px] border-b border-edge-subtle flex items-center px-3 gap-1 flex-shrink-0">
+          {/* 顶栏：tab 切换 + 钉住按钮 */}
+          <div className="h-[52px] border-b border-edge-subtle flex items-center pl-3 pr-2 gap-1 flex-shrink-0">
             <div className="flex-1 flex gap-1">
               {TABS.map((tab) => {
                 const Icon = tab.icon
@@ -98,11 +102,23 @@ export default function LeftPanel() {
                 )
               })}
             </div>
+            {/* 钉住按钮：钉住后点击面板外部不自动收起 */}
+            <button
+              title={pinned ? '已钉住（点击取消，点击外部不再自动关闭）' : '钉住面板（点击外部不再自动关闭）'}
+              aria-pressed={pinned}
+              className={`ml-1 w-[34px] h-[34px] flex items-center justify-center rounded-lg transition-colors cursor-pointer border-none ${pinned ? 'text-blue-400 bg-surface-1' : 'text-muted hover:text-body hover:bg-surface-faint'}`}
+              onClick={togglePin}
+            >
+              {pinned ? <PinOff size={15} /> : <Pin size={15} />}
+            </button>
           </div>
 
           {/* 内容区 */}
           <div className="flex-1 min-h-0">
-            {activeTab === 'tasks' ? <TaskCenter /> : activeTab === 'generated' ? <GeneratedView /> : <AssetLibrary />}
+            {activeTab === 'tasks' ? <TaskCenter />
+              : activeTab === 'generated' ? <GeneratedView />
+              : activeTab === 'assets' ? <AssetLibrary />
+              : <PromptHub />}
           </div>
         </div>
       )}
