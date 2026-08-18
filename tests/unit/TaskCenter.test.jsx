@@ -255,7 +255,7 @@ describe('TaskCenter — 大图预览', () => {
 
 describe('TaskCenter — 清理任务', () => {
   it('清理下拉 → 清理失败任务 + 清理全部任务', () => {
-    h.setTasks([makeTask({ status: 'failed' }), makeTask({ status: 'completed' })])
+    h.setTasks([makeTask({ id: 't1', status: 'failed' }), makeTask({ id: 't2', status: 'completed' })])
     render(<TaskCenter />)
     // 打开清理下拉（⋮ 顶部按钮）
     const moreBtns = document.querySelectorAll('button[title="清理任务"]')

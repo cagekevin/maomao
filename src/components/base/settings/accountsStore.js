@@ -15,7 +15,7 @@ import { generateId } from '../idGen.js'
 
 const STORAGE_KEY = 'yimao_accounts'
 
-// 演示环境占位常量（浏览器端/空态时 seed 的测试站点地址与头像，统一避免散落硬编码）
+// 演示环境占位常量（浏览器端降级新建环境时用的测试站点地址与头像，统一避免散落硬编码）
 export const TEST_SITE_URL = 'http://localhost:3000'
 export const TEST_AVATAR = 'https://api.dicebear.com/7.x/avataaars/svg?seed=test'
 
@@ -30,36 +30,25 @@ export function isExtensionEnv() {
   return typeof chrome !== 'undefined' && !!chrome?.runtime?.id
 }
 
-// 预置演示环境（官方默认 rn=[]；原型本地为空时 seed 演示数据，便于直观看到卡片列表）
-const DEFAULT_ENVS = [
-  {
-    id: 'env_demo_1',
-    name: '即梦小号',
-    siteName: '开发测试网',
-    siteUrl: TEST_SITE_URL,
-    avatar: TEST_AVATAR,
-    isFavorite: false,
-    cookies: [{ name: 'test', value: '123' }],
-  },
-  {
-    id: 'env_demo_2',
-    name: '即梦主号',
-    siteName: '开发测试网',
-    siteUrl: TEST_SITE_URL,
-    avatar: TEST_AVATAR,
-    isFavorite: false,
-    cookies: [{ name: 'test', value: '456' }],
-  },
-]
-
 function load() {
   try {
     const parsed = contentGet(STORAGE_KEY)
-    if (Array.isArray(parsed)) return parsed
-    try { contentSet(STORAGE_KEY, DEFAULT_ENVS) } catch { /* ignore */ }
-    return DEFAULT_ENVS
+    if (Array.isArray(parsed)) {
+      // 迁移清理：剔除早期预置的演示假数据（env_demo_* / 开发测试网 test cookie），
+      // 让多开列表不再出现预设假数据；用户真实新增的环境保留。
+      const cleaned = parsed.filter(
+        (e) => !String(e.id || '').startsWith('env_demo_') && !(e.siteName === '开发测试网' && (e.cookies || []).every((c) => c.name === 'test'))
+      )
+      if (cleaned.length !== parsed.length) {
+        try { contentSet(STORAGE_KEY, cleaned) } catch { /* ignore */ }
+      }
+      return cleaned
+    }
+    // 无历史数据时初始为空列表（不再预置演示假数据）
+    try { contentSet(STORAGE_KEY, []) } catch { /* ignore */ }
+    return []
   } catch {
-    return DEFAULT_ENVS
+    return []
   }
 }
 

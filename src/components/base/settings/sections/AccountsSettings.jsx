@@ -176,18 +176,6 @@ export default function AccountsSettings() {
 
       {/* ── 列表区（复刻官方 Component855）── */}
       <div className="flex-1 overflow-y-auto p-4 relative">
-        {/* 顶部：视频教程链接（复刻官方 Component830） */}
-        <div className="flex justify-between items-center mb-4">
-          <a
-            href="https://www.bilibili.com/video/BV1nWdbBREXv/?share_source=copy_web&vd_source=cebaf375056cef0735636bdd79543af1"
-            target="_blank"
-            rel="noreferrer"
-            className="text-xs text-gray-500 hover:text-gray-300 underline flex items-center gap-1 transition-colors bg-surface-1 px-3 py-1.5 rounded-full hover:bg-surface-hover-strong"
-          >
-            📺 如何一个网站登录多个账号？(视频教程)
-          </a>
-        </div>
-
         {/* 网格（复刻官方 Component854：2/3/4/5/6 列自适应） */}
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
           {/* 「保存当前环境」虚线卡（复刻官方 Component834：onClick=Sa(true) 直接保存） */}

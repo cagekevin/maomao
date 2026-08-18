@@ -57,17 +57,9 @@ export default function TopNav({ view, onNavigate, onSwitchProject, onCreateProj
     <header className="bg-canvas flex items-center justify-between px-4 relative z-topnav flex-shrink-0 h-16 pt-2 pb-2">
       {/* 左侧：Logo */}
       <div className="flex items-center gap-6">
-        <div className="flex items-center gap-2 cursor-pointer relative group/logo" onClick={() => onNavigate('canvas')} title="返回画布">
+        <div className="flex items-center gap-2 cursor-pointer" onClick={() => onNavigate('canvas')} title="返回画布">
+          <img src="/webicon.png" alt="猫猫画布" className="w-[30px] h-[30px] object-contain" draggable={false} />
           <div className="text-white font-bold text-lg italic tracking-wider">猫猫画布</div>
-          {/* hover 官网入口 */}
-          <div className="absolute left-0 top-full mt-2 bg-surface border border-edge rounded-lg shadow-xl opacity-0 invisible group-hover/logo:opacity-100 group-hover/logo:visible transition-all duration-300 delay-500 z-50 overflow-hidden whitespace-nowrap p-1">
-            <div
-              onClick={(e) => { e.stopPropagation(); window.open('https://www.1mao.cc', '_blank') }}
-              className="text-sm text-gray-300 hover:text-white hover:bg-surface-hover-strong px-3 py-2 rounded-md flex items-center gap-2 cursor-pointer"
-            >
-              访问官网
-            </div>
-          </div>
         </div>
 
         {/* 中央 pill tab 组 */}

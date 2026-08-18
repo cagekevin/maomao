@@ -67,6 +67,9 @@ hastest.txt
 # 其它测试输出重定向日志（形如 xxx_test.log / coverage 报告等）
 *.test.log
 coverage/
+# 临时调试探针测试（排查 OOM/挂起时生成的 __probe*.test.jsx，非正式用例，不入库）
+__probe*.test.jsx
+__probe*.test.js
 
 # ── 运行时日志（启动脚本落盘，含 [proxy] 转发明细）──
 logs/
