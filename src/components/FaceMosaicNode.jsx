@@ -78,8 +78,8 @@ export default function FaceMosaicNode({ id, data, selected }) {
   const outputResults = useCallback(
     (items) => {
       const me = getNodes().find((n) => n.id === id)
-      const baseX = (me?.position.x ?? 100) + (me?.measured?.width ?? 320) + 60
-      const baseY = me?.position.y ?? 100
+      const baseX = (me?.position?.x ?? 100) + (me?.measured?.width ?? 320) + 60
+      const baseY = me?.position?.y ?? 100
       const list = items.map((it, i) => ({
         id: `face-mosaic-${id}-${i}-${generateId('fm')}`,
         type: 'imageNode',

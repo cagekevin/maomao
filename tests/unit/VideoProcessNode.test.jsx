@@ -1,4 +1,11 @@
 // @vitest-environment jsdom
+/**
+ * VideoProcessNode 测试说明：
+ * 该组件为视频处理流程节点，改动的频率很低（近 60 次提交仅 6 次），且改动多为
+ * 样式/文案/参数微调，核心处理逻辑已收敛到 videoEngine 层（后者已有独立契约测试）。
+ * 按 spec/TESTING.md「测试不该成为负担」原则，本组件**刻意保持冒烟级**（仅防挂载崩溃），
+ * 不写深度交互断言。若未来该组件进入高频改动期，再按需升级为真实交互测试。
+ */
 import React from 'react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'

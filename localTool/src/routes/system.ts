@@ -365,16 +365,24 @@ async function handleProxyJson(req: IncomingMessage, res: ServerResponse): Promi
   }
 
   let fetchBody: string | undefined = (typeof body.body === 'string' && body.body) || undefined;
+  // 前端是否显式要求「非流式」（设置里选了非流式 → llmBody.stream = false）。
+  // 下游若把 stream:false 也当 SSE 返回，会因走流式分支被逐行过滤丢内容（AI 回复截断）。
+  // 这里提前解析前端意图，供响应分支决定是否走「完整 JSON 非流式」而非 SSE pipe。
+  let requestStream = true; // 默认流式
   if (fetchBody) {
     headers['Content-Type'] = 'application/json';
-    // 网关 chat/completions 默认 stream=true，但前端非流式请求用 T.json() 解析
-    if (body.url?.includes('/chat/completions') && !fetchBody.includes('"stream"')) {
-      try {
-        const p = JSON.parse(fetchBody);
+    try {
+      const p = JSON.parse(fetchBody);
+      // 只有显式写了 stream:false 才认定非流式；写 stream:true 或未写 → 流式
+      if (Object.prototype.hasOwnProperty.call(p, 'stream')) {
+        requestStream = p.stream !== false;
+      }
+      // 网关 chat/completions 默认 stream=true，但前端非流式请求用 T.json() 解析
+      if (body.url?.includes('/chat/completions') && !fetchBody.includes('"stream"')) {
         p.stream = false;
         fetchBody = JSON.stringify(p);
-      } catch { /* 解析失败保持原样 */ }
-    }
+      }
+    } catch { /* 解析失败保持原样 */ }
 
     // 同步/异步交给前端决定：前端请求体已带 wait / 或 URL 已带 ?wait=1 → 网关同步 SSE 返回；
     // 不带 → 网关异步提交返回 task_id，前端自行轮询。localTool 不再强制注入 wait（见 daily/15）。
@@ -419,8 +427,11 @@ async function handleProxyJson(req: IncomingMessage, res: ServerResponse): Promi
     }
 
     // ── 流式转发：SSE 响应不缓冲，解析 data: 行后逐 JSON 块 pipe ──
+    // 【尊重前端 stream 意图】即使上游返回 text/event-stream，只要前端显式要「非流式」
+    // （requestStream=false，设置里选了非流式），就走下方完整 arrayBuffer 非流式分支——
+    // 否则非流式完整 JSON 被 SSE parser 逐行过滤（无 data: 前缀的行丢弃）→ AI 回复截断/丢失。
     const jsonResponseCt = fetchRes.headers.get('content-type') || '';
-    if (jsonResponseCt.includes('text/event-stream')) {
+    if (jsonResponseCt.includes('text/event-stream') && requestStream) {
       const streamHeaders: Record<string, string> = {};
       const streamSkip = new Set(['transfer-encoding', 'connection', 'keep-alive', 'content-encoding', 'content-length']);
       fetchRes.headers.forEach((value, key) => {
@@ -465,10 +476,25 @@ async function handleProxyJson(req: IncomingMessage, res: ServerResponse): Promi
 
     // 协议翻译：剥 {code, data} 信封，前端直接拿到 data
     let finalBody: Buffer = resBody;
+    // 非流式但上游仍按 SSE 包裹返回（content-type=text/event-stream，前端要非流式）：
+    // 剥掉 data: 前缀，还原成纯 JSON，否则前端 res.json() 解析不到 choices → 内容丢失/截断。
+    let text = resBody.toString('utf-8');
+    if (/^data:\s*/.test(text) || (jsonResponseCt.includes('text/event-stream') && !text.trim().startsWith('{'))) {
+      try {
+        const joined = text.split('\n')
+          .map((l) => l.replace(/^data:\s*/i, '').trim())
+          .filter((l) => l && !l.startsWith(':') && l !== '[DONE]')
+          .join('');
+        const m = joined.match(/^(\{.*\})$/);
+        if (m) text = m[1];
+      } catch { /* 剥壳失败保持原样 */ }
+    }
     try {
-      const parsed = JSON.parse(resBody.toString('utf-8'));
+      const parsed = JSON.parse(text);
       if (parsed && typeof parsed === 'object' && 'code' in parsed && 'data' in parsed && !('error' in parsed)) {
         finalBody = Buffer.from(JSON.stringify(parsed.data));
+      } else {
+        finalBody = Buffer.from(text);
       }
     } catch { /* 非 JSON，原样透传 */ }
     // writeHead 不带 content-length → Node 自动 Transfer-Encoding: chunked 或计算实际长度

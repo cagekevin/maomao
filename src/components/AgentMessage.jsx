@@ -29,7 +29,11 @@ function extractImageSpans(text) {
     spans.push({ url: m[1], start: m.index, end: m.index + m[0].length })
   }
   // 3) 裸链接：http(s)://… 或 data:image/…
+  //    排除被 blob:/ipfs:/ipns: 协议前缀包裹的 URL（如 blob:http://… 会被正则剥离前缀误抓成 http://…，
+  //    与 isImageUrl 的「临时协议不渲染」契约冲突）
   for (const m of text.matchAll(/(https?:\/\/[^\s)]+|data:image\/[^\s"]+)/gi)) {
+    const before = text.slice(Math.max(0, m.index - 5), m.index)
+    if (/^(?:blob:|ipfs:|ipns:)$/.test(before)) continue
     spans.push({ url: m[0], start: m.index, end: m.index + m[0].length })
   }
   // 去重 + 只保留真正是图片的 + 按出现顺序

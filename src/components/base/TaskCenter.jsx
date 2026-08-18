@@ -236,7 +236,7 @@ function TaskCard({ task, moreOpen, onToggleMore, onCloseMore, onCopy, onRetry, 
             <span className="w-6 h-6 flex items-center justify-center"><RotateCw size={12} className="animate-spin text-blue-400" /></span>
           )}
           <div ref={menuRef} className="relative">
-            <button className="w-6 h-6 flex items-center justify-center rounded-md text-muted hover:text-white hover:bg-surface-hover-2 transition-colors cursor-pointer border-none" onClick={onToggleMore}>
+            <button className="w-6 h-6 flex items-center justify-center rounded-md text-muted hover:text-white hover:bg-surface-hover-2 transition-colors cursor-pointer border-none" onClick={onToggleMore} title="更多操作">
               <MoreVertical size={13} />
             </button>
             {moreOpen && (

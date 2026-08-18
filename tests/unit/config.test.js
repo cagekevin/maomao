@@ -1,0 +1,82 @@
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+
+/**
+ * config —— 集中配置契约测试。
+ * config.js 是 env 变量的唯一读取入口，业务代码不得散落 import.meta.env。
+ * 这里锁两类契约：
+ *  1) 默认值（无 env 时各常量取文档化默认）；
+ *  2) env 覆盖（VITE_AGENT_MODELS / VITE_AGENT_DEMO 等能正确改写输出）。
+ * 若有人绕过 config 直接读 env 或在别处新增 env 读取，本文件守护的默认/覆盖契约仍保持生效。
+ */
+const DEFAULT_MODELS = ['gpt-4o-mini', 'gpt-4o', 'gpt-4o-vision-preview', 'deepseek-chat', 'Qwen/Qwen3-14B']
+
+/** 重新加载 config 模块（顶层 const 在 import 时求值，需 resetModules 使 env 覆盖生效）。 */
+async function loadConfig() {
+  vi.resetModules()
+  return await import('../../src/components/base/config.js')
+}
+
+afterEach(() => {
+  vi.unstubAllEnvs()
+  vi.resetModules()
+})
+
+describe('config — 默认值契约（无 env）', () => {
+  it('LLM 配置默认值', async () => {
+    const c = await loadConfig()
+    expect(c.LLM_CHAT_BASE_URL).toBe('')
+    expect(c.LLM_CHAT_API_KEY).toBe('')
+    expect(c.LLM_CHAT_MODEL).toBe('gpt-4o-mini')
+  })
+
+  it('AGENT_DEMO_MODE 默认关闭，仅 VITE_AGENT_DEMO==="1" 才开启', async () => {
+    expect((await loadConfig()).AGENT_DEMO_MODE).toBe(false)
+  })
+
+  it('AGENT_MODELS 默认列表（5 个）', async () => {
+    const c = await loadConfig()
+    expect(c.AGENT_MODELS).toEqual(DEFAULT_MODELS)
+  })
+
+  it('超时/轮询/并发默认值', async () => {
+    const c = await loadConfig()
+    expect(c.HTTP_DEFAULT_TIMEOUT).toBe(15000)
+    expect(c.LOCAL_TOOL_PING_TIMEOUT).toBe(5000)
+    expect(c.IMAGE_FETCH_TIMEOUT).toBe(10000)
+    expect(c.IMAGE_LOAD_TIMEOUT).toBe(20000)
+    expect(c.DOWNLOAD_TIMEOUT).toBe(30000)
+    expect(c.VIDEO_DOWNLOAD_TIMEOUT).toBe(90000)
+    expect(c.UPLOAD_TIMEOUT).toBe(60000)
+    expect(c.GEN_TIMEOUT).toBe(300000)
+    expect(c.VIDEO_TIMEOUT).toBe(600000)
+    expect(c.GEN_POLL_INTERVAL).toBe(3000)
+    expect(c.VIDEO_POLL_INTERVAL).toBe(5000)
+    expect(c.GEN_MAX_CONCURRENT).toBe(6)
+  })
+})
+
+describe('config — env 覆盖契约', () => {
+  it('VITE_AGENT_MODELS 覆盖模型列表（逗号分隔、去空白、过滤空项）', async () => {
+    vi.stubEnv('VITE_AGENT_MODELS', 'deepseek-chat,  Qwen/Qwen3-14B ,,gpt-4o')
+    const c = await loadConfig()
+    expect(c.AGENT_MODELS).toEqual(['deepseek-chat', 'Qwen/Qwen3-14B', 'gpt-4o'])
+  })
+
+  it('VITE_AGENT_DEMO="1" 开启演示模式', async () => {
+    vi.stubEnv('VITE_AGENT_DEMO', '1')
+    expect((await loadConfig()).AGENT_DEMO_MODE).toBe(true)
+  })
+
+  it('VITE_AGENT_DEMO 非 "1"（如 "0"）不开启演示模式', async () => {
+    vi.stubEnv('VITE_AGENT_DEMO', '0')
+    expect((await loadConfig()).AGENT_DEMO_MODE).toBe(false)
+  })
+
+  it('LLM 配置可被 env 覆盖', async () => {
+    vi.stubEnv('VITE_LLM_CHAT_BASE_URL', 'https://llm.example.com')
+    vi.stubEnv('VITE_LLM_CHAT_MODEL', 'deepseek-r1')
+    const c = await loadConfig()
+    expect(c.LLM_CHAT_BASE_URL).toBe('https://llm.example.com')
+    expect(c.LLM_CHAT_MODEL).toBe('deepseek-r1')
+  })
+})

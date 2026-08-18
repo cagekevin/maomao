@@ -31,7 +31,8 @@ export default function ModelSelect({
   placeholder = '选择模型',
   costMap = {},
   popupTo = 'up',
-  showDivider = true
+  showDivider = true,
+  labelMaxWidth = ''
 }) {
   const [open, setOpen] = useState(false)
   const ref = useRef(null)
@@ -49,18 +50,18 @@ export default function ModelSelect({
   const selectedBadge = badgeMeta(badge(value))
 
   return (
-    <div className="relative nodrag flex items-center" ref={ref}>
+    <div className="relative nodrag flex items-center min-w-0" ref={ref}>
       {showDivider && <div className="w-[1px] h-3 bg-surface-3 flex-shrink-0 mr-1.5" />}
       <button
         type="button"
-        className="flex items-center gap-1 h-6 px-2 bg-transparent hover:bg-surface-hover border border-transparent hover:border-edge rounded text-caption-sm text-gray-300 transition-colors cursor-pointer"
+        className="flex items-center gap-1 h-6 px-2 min-w-0 bg-transparent hover:bg-surface-hover border border-transparent hover:border-edge rounded text-caption-sm text-gray-300 transition-colors cursor-pointer"
         onClick={(e) => { e.stopPropagation(); setOpen((v) => !v) }}
         title={value ? `${value}（${selectedBadge.label}）` : '选择模型'}
       >
         <span className={`shrink-0 px-1 rounded text-meta leading-[14px] border bg-white/10 ${selectedBadge.className}`}>
           {selectedBadge.label}
         </span>
-        <span className="whitespace-nowrap">{selectedItem?.label || value || placeholder}</span>
+        <span className={`whitespace-nowrap overflow-hidden text-ellipsis ${labelMaxWidth ? 'min-w-0' : ''}`} style={labelMaxWidth ? { maxWidth: labelMaxWidth } : undefined}>{selectedItem?.label || value || placeholder}</span>
       </button>
 
       {open && (

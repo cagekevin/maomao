@@ -820,8 +820,9 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
                 )}
               </span>
 
-              {/* 生图模型选择：第3位——选择用哪个图像模型来生图，随时可切换 */}
-              <span className="shrink-0" title="选择生图模型">
+              {/* 生图模型选择：第3位——选择用哪个图像模型来生图，随时可切换。
+                  labelMaxWidth 限制按钮上模型名的显示宽度，超长省略号，避免撑出输入框 */}
+              <span className="min-w-0" title="选择生图模型">
                 <ModelSelect
                   value={genModel}
                   onChange={onGenModel}
@@ -829,6 +830,7 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
                   placeholder="生图模型"
                   popupTo="up"
                   showDivider={false}
+                  labelMaxWidth="100px"
                 />
               </span>
 
@@ -851,9 +853,9 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
               */}
             </div>
 
-            {/* 发送/停止 */}
+            {/* 发送/停止（z-[60] 高于 ModelSelect 弹层 z-50，避免被向上弹出的模型下拉盖住） */}
             {sending && stateAction !== 'steer' ? (
-              <button type="button" onClick={stop} className="w-8 h-8 flex items-center justify-center bg-gray-600 hover:bg-gray-500 text-white rounded-full transition-colors cursor-pointer" title="停止">
+              <button type="button" onClick={stop} className="relative z-[60] w-8 h-8 flex items-center justify-center bg-gray-600 hover:bg-gray-500 text-white rounded-full transition-colors cursor-pointer" title="停止">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="white"><rect x="6" y="6" width="12" height="12" rx="2" /></svg>
               </button>
             ) : (
@@ -861,7 +863,7 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
                 type="button"
                 onClick={handleSend}
                 disabled={!canSend}
-                className={`w-8 h-8 flex items-center justify-center rounded-full transition-colors cursor-pointer ${canSend ? 'bg-white hover:bg-gray-200 text-black' : 'bg-surface-hover text-gray-500 cursor-not-allowed'}`}
+                className={`relative z-[60] w-8 h-8 flex items-center justify-center rounded-full transition-colors cursor-pointer ${canSend ? 'bg-white hover:bg-gray-200 text-black' : 'bg-surface-hover text-gray-500 cursor-not-allowed'}`}
                 title="发送"
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
