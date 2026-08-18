@@ -124,6 +124,27 @@ export function addAssets(items, folder = 'materials') {
   return added
 }
 
+/**
+ * 发送任意 URL 素材到素材库（节点「发送到素材库」统一入口）。
+ * - 自动按 URL/文件名推断类型（detectAssetType）；
+ * - 默认落入「素材池(materials)」目录；可传 folder 覆盖（如 'tasks'）；
+ * - 名称优先用传入 name，否则用 URL 文件名，再否则「未命名」。
+ * 返回新增的素材数组（供调用方 toast / 其它联动）。
+ */
+export function sendToAssetLibrary(url, { name, folder = 'materials', type } = {}) {
+  if (!url) return []
+  let fname = '未命名'
+  try {
+    const fromUrl = decodeURIComponent(new URL(url).pathname.split('/').pop() || '')
+    if (fromUrl && !/^blob:|^data:/.test(url)) fname = fromUrl
+  } catch {}
+  const assetName = (name && String(name).trim()) || fname
+  return addAssets(
+    [{ url, name: assetName, type: type || detectAssetType({ name: fname, type: '' }) }],
+    folder
+  )
+}
+
 export function removeAsset(id) {
   assets = assets.filter((a) => a.id !== id)
   notify()

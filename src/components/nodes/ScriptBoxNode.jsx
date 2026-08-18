@@ -2,9 +2,11 @@ import React, { useState, useEffect, useRef } from 'react'
 import { Clapperboard, Settings, Maximize2, Loader2 } from 'lucide-react'
 import { useReactFlow } from '@xyflow/react'
 import NodeShell from '../base/NodeShell.jsx'
+import CustomHandle from '../edges/CustomHandle.jsx'
 import FullscreenModal from '../base/FullscreenModal.jsx'
 import { useScriptBoxData } from '../base/useScriptBoxData.js'
 import { useScriptBoxEngine } from '../base/useScriptBoxEngine.js'
+import { useConnectedInputs } from '../base/useConnectedInputs.js'
 import { useOutsideClick, useNodeResize } from '../base/hooks.js'
 import StepShots from '../scriptbox/StepShots.jsx'
 import StepAssets from '../scriptbox/StepAssets.jsx'
@@ -32,6 +34,22 @@ export default function ScriptBoxNode({ id, data, selected }) {
   useScriptBoxEngine(id, data)
 
   const d = data || {}
+
+  // —— 上游输入接入（智能接受文本节点，接入剧情） ——
+  // 用 useConnectedInputs 读取「直接连到本剧本盒子」的上游文本（如 textNode 生成的文本），
+  // 作为剧情来源之一。设计：上游文本写入独立字段 data.upstreamStory，不覆盖用户手动输入的
+  // data.story；生成剧本时引擎会把两者合并（见 scriptBoxEngine.onGenerateScript）。
+  const connected = useConnectedInputs(id)
+  const upstreamText = (connected.texts || []).map((t) => (t.text || '').trim()).filter(Boolean).join('\n\n')
+  useEffect(() => {
+    // 上游文本变化时同步到 data.upstreamStory（不覆盖用户手填的 data.story）。
+    // 断线（upstreamText 为空）时清除残留的上游剧情，避免旧文本一直混入生成。
+    if (upstreamText && d.upstreamStory !== upstreamText) {
+      updateData({ upstreamStory: upstreamText })
+    } else if (!upstreamText && d.upstreamStory) {
+      updateData({ upstreamStory: '' })
+    }
+  }, [upstreamText, d.upstreamStory, updateData])
 
   // —— UI 状态（非数据，放组件本地） ——
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -99,6 +117,11 @@ export default function ScriptBoxNode({ id, data, selected }) {
           relative：作为剧本盒子内部所有弹窗（资产抽屉/编辑框/设置弹窗）的绝对定位基准。
           高度用 contentRef 自适应（无限画布：内容撑开时写回 node.height，外框跟随）。 */}
       <div ref={contentRef} className="relative flex flex-col w-full min-h-0">
+        {/* 输入端口（左侧 target，handleId='in'）：接收上游文本/剧情接入。
+            showHandles={false} 已关闭 NodeShell 默认端口，这里显式补一个可连的输入口，
+            让 textNode 等文本类上游能拖线连入剧本盒子作为剧情来源。 */}
+        <CustomHandle position="left" variant="small" handleId="in" top="50%" />
+
         {/* 顶部标题栏 */}
         <div className="flex items-center gap-2 px-4 py-2.5 border-b border-white/[0.08] w-full drag-handle cursor-move shrink-0">
           <Clapperboard size={14} className="text-gray-500" />

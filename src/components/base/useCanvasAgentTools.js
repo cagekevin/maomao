@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from 'react'
 import { useReactFlow } from '@xyflow/react'
-import { getPaletteNode, defaultNodeData } from './NodePalette.jsx'
+import { defaultNodeData } from './NodePalette.jsx'
 import { runNodeGeneration } from './taskStore.js'
 import { createGroupFromNodes, deleteNodesWithCascade } from './groupNodes.js'
 import { executePlan } from './canvasPlanExecutor.js'
@@ -112,18 +112,17 @@ export function clearPendingGenerations() {
  * 【返回信号铁律（新增工具必读）】
  *   每个工具必须返回「让 LLM 能判断任务是否完成」的明确信号，否则 LLM 会把没看到
  *   成果当作「没做完」而反复调用 → 死循环（撞 MAX_TOOL_ROUNDS）。
- *   - 建节点类：返回新节点 id；若节点接收了内容参数（如 prompt/story），回显该内容以确认已写入。
+ *   - 建节点类：返回新节点 id；若节点接收了内容参数（如 prompt），回显该内容以确认已写入。
  *   - 触发生成类：返回 resultUrl / 数量 / 状态等「成果证据」，对齐 generate_node。
  *   - 改/删/连线类：返回被影响的对象 id / 数量。
  *   判据：LLM 看到本工具返回后，能否确信「任务已完成、可以停」？不能 → 补信号。
- *   （这条原则由 create_node 的剧本盒场景踩坑暴露，但适用于所有工具，非剧本盒独有。）
  *
  * 【工具描述平等原则（新增/修改工具必读）】
  *   AI 助手是通用助手，所有工具（及各节点类型）对 AI 同等重要，不存在「主角」。
  *   给 AI 的 description / 参数说明必须：
  *   - 句式、详略一致（一句话讲清「做什么 + 关键参数」），不要把一个工具写得很长很特殊。
  *   - 只讲「AI 该怎么用」（做什么、传什么），不泄露内部实现/机制（引擎、流程、字段映射等）。
- *   - 各节点类型平等并列说明；某类型确有特有约束（如剧本盒建 1 个即防循环）可并列带出，但不单独强调。
+ *   - 各节点类型平等并列说明；某类型确有特有约束可并列带出，但不单独强调。
  *   一旦某个工具被写得特殊，AI 会倾向过度使用/误用它 → 行为不稳定、出错。
  *
  * 【工具排序原则（新增工具必读）】
@@ -276,7 +275,7 @@ function computeCreatePosition(nodes, screenToFlowPosition, vw, vh) {
 
 /**
  * 建节点工具（复刻官方 create_node + batch_create_nodes）。
- * type 从 NodePalette 目录取（getPaletteNode），默认给默认 data；prompt/label 可覆盖。
+ * type 从白名单取（textNode/promptNode/imageNode/discountVideoNode/group），默认给默认 data；prompt/label 可覆盖。
  * 返回新建节点 id 列表，供后续连线/改节点用。
  */
 const createNodeTool = {
@@ -288,10 +287,10 @@ const createNodeTool = {
     properties: {
       type: {
         type: 'string',
-        enum: ['textNode', 'promptNode', 'imageNode', 'discountVideoNode', 'scriptBoxNode', 'group'],
-        description: '节点类型：textNode=文本(prompt=内容)/promptNode=生图(prompt=画面提示词)/imageNode=图片(label=说明)/discountVideoNode=视频(prompt=视频提示词)/scriptBoxNode=剧本盒(prompt=故事文字)/group=编组'
+        enum: ['textNode', 'promptNode', 'imageNode', 'discountVideoNode', 'group'],
+        description: '节点类型：textNode=文本(prompt=内容)/promptNode=生图(prompt=画面提示词)/imageNode=图片(label=说明)/discountVideoNode=视频(prompt=视频提示词)/group=编组'
       },
-      prompt: { type: 'string', description: '提示词/内容；scriptBoxNode(剧本盒) 填故事文字' },
+      prompt: { type: 'string', description: '提示词/内容' },
       label: { type: 'string', description: '节点标题（可选）' },
       aspectRatio: { type: 'string', description: '生图比例，如 9:16 / 16:9 / 1:1 / 3:4 / 4:3（仅 promptNode/discountVideoNode 生效，可选）' },
       resolution: { type: 'string', description: '生图画质档位：720p/1080p/1440p/2K/4K，会映射到 1K/2K/4K（仅 promptNode/discountVideoNode 生效，可选）' },
@@ -302,7 +301,10 @@ const createNodeTool = {
   },
   execute(args, ctx) {
     const type = str(args.type)
-    if (!type || !getPaletteNode(type)) return { ok: false, error: `未知节点类型：${type}。可选：${['textNode', 'promptNode', 'imageNode', 'discountVideoNode', 'scriptBoxNode', 'group'].join('、')}` }
+    // agent 可创建的节点类型白名单（不含剧本盒等复合节点）。
+    // 用白名单而非 getPaletteNode：即使调色板里新增了剧本盒等类型，agent 也不会被允许创建。
+    const ALLOWED_TYPES = ['textNode', 'promptNode', 'imageNode', 'discountVideoNode', 'group']
+    if (!type || !ALLOWED_TYPES.includes(type)) return { ok: false, error: `未知节点类型：${type}。可选：${ALLOWED_TYPES.join('、')}` }
     const { getNodes, setNodes, setEdges, screenToFlowPosition } = ctx
     const data = { ...defaultNodeData(type), ...(args.label ? { label: args.label } : {}), ...(args.prompt ? { prompt: args.prompt } : {}) }
     // 生图类节点：把 AI 传的 aspectRatio / resolution 写进 data（PromptNode 读 data.aspectRatio / data.imageSize）。
@@ -311,10 +313,6 @@ const createNodeTool = {
       if (args.aspectRatio) data.aspectRatio = str(args.aspectRatio)
       if (args.resolution) data.imageSize = normalizeResolution(str(args.resolution))
     }
-    // scriptBoxNode 读 data.story（而非 prompt），故把 AI 写的 prompt(故事) 映射到 story。
-    // 同时下方返回回显 story_written:true，让 AI 确认"已写入"而停止；否则它会反复建盒
-    // （通用「返回信号」铁律见文件头）。
-    if (type === 'scriptBoxNode' && args.prompt) data.story = String(args.prompt)
     // 位置：优先用 LLM 显式传的 position；否则按参考项目（daxiong-canvas-plugins canvas-agent）
     // 的「空位自动计算」放新节点——有节点时在最右侧节点右侧水平追加、顶部对齐，避免重叠；
     // 画布无节点时才放视窗中心。这样 AI 建多个节点会自动横向排开，不乱叠。
@@ -338,14 +336,7 @@ const createNodeTool = {
     }
     setNodes(nextNodes)
     if (nextEdges.length) setEdges((es) => [...es, ...nextEdges])
-    // 【收敛信号】剧本盒回显 story 已写入（story_written:true），AI 据此确认任务完成、停止。
-    // 根因：此前不回显，AI 写完故事却看不到确认 → 反复建盒 → 撞 MAX_TOOL_ROUNDS 死循环（详见上方注释）。
-    const dataOut = { id, position: newNode.position, connected: nextEdges.length > 0 }
-    if (type === 'scriptBoxNode') {
-      dataOut.story_written = true
-      dataOut.story = data.story || ''
-    }
-    return { ok: true, data: dataOut }
+    return { ok: true, data: { id, position: newNode.position, connected: nextEdges.length > 0 } }
   }
 }
 

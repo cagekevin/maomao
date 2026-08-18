@@ -1,5 +1,6 @@
 import React, { memo, useRef, useState, useEffect } from 'react'
 import { toAbsoluteFileUrl } from './filesApi.js'
+import { ImageOff } from 'lucide-react'
 
 /**
  * 懒加载图片（复刻官方 Lg.jsx）
@@ -9,6 +10,9 @@ import { toAbsoluteFileUrl } from './filesApi.js'
  * 读取端破图兜底：src 若是相对 /files/ 路径（后端外置/存量数据），统一补全为
  * 绝对 URL，避免在画布环境（localhost:5180 / chrome-extension://）解析成错误源破图。
  *
+ * 加载失败兜底：img onError 时显示统一「破图占位」（图标 + 文案），并保留外层
+ * 容器比例/尺寸，避免浏览器默认破图裂图、或图片加载后撑开布局跳动。
+ *
  * props：
  *  - src, alt, className, onDoubleClick（透传给外层 div）
  *  - imgClassName：img 内部类名（默认 w-full h-full object-cover）
@@ -17,6 +21,7 @@ function LazyImage({ src, alt = '', className, onDoubleClick, imgClassName = 'w-
   const resolvedSrc = toAbsoluteFileUrl(src || '')
   const ref = useRef(null)
   const [visible, setVisible] = useState(false)
+  const [failed, setFailed] = useState(false)
 
   useEffect(() => {
     const el = ref.current
@@ -40,11 +45,26 @@ function LazyImage({ src, alt = '', className, onDoubleClick, imgClassName = 'w-
 
   return (
     <div ref={ref} className={className} onDoubleClick={onDoubleClick}>
-      {visible && resolvedSrc ? (
-        <img src={resolvedSrc} alt={alt || ''} loading="lazy" decoding="async" draggable={false} className={imgClassName} onDragStart={(e) => e.preventDefault()} />
+      {visible && resolvedSrc && !failed ? (
+        <img
+          src={resolvedSrc}
+          alt={alt || ''}
+          loading="lazy"
+          decoding="async"
+          draggable={false}
+          className={imgClassName}
+          onDragStart={(e) => e.preventDefault()}
+          onError={() => setFailed(true)}
+        />
+      ) : visible && failed ? (
+        <div className="w-full h-full flex flex-col items-center justify-center gap-1 bg-surface-2 text-faint select-none">
+          <ImageOff size={20} />
+          <span className="text-caption-sm">图片加载失败</span>
+        </div>
       ) : null}
     </div>
   )
 }
 
 export default memo(LazyImage)
+

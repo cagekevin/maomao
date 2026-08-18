@@ -100,12 +100,34 @@ function Canvas() {
       if (cancelled) return
       setCanvasLoaded(true)
       if (saved && saved.nodes) {
-        setNodes(saved.nodes)
+        // 兜底：历史快照里各节点类型可能缺 width/style/className/data.name 等结构字段
+        // （如早期「右键新建 group」未补 style/className），加载时统一补默认，与新建路径保持一致。
+        const rawNodes = saved.nodes.map((n) => applyNodeTypeDefaults(n))
+        // 兜底：折叠/展开 group 的子节点 hidden 必须与父 group 的 collapsed 状态对齐，
+        // 避免存量快照里「子节点残留 hidden:true 但父已展开」或「父折叠但子却可见」导致
+        // 子节点永久隐藏/误显（visibleNodes 只会在折叠时加 hidden，不会在展开时清除 hidden）。
+        const collapsedById = new Set(
+          rawNodes.filter((n) => n.type === 'group' && n.data?.collapsed).map((n) => n.id)
+        )
+        const loadedNodes = rawNodes.map((n) =>
+          n.parentId && collapsedById.has(n.parentId) ? { ...n, hidden: true }
+            : n.parentId && collapsedById.size ? { ...n, hidden: false }
+            : n
+        )
+        setNodes(loadedNodes)
         // 兜底：历史快照里可能有旧 onConnect 建的「无 id」边 → 补唯一 id，
         // 否则 EdgeRenderer 用 undefined 作 key 触发重复 key 警告。
+        // 同时修正「连到剧本盒子却缺 targetHandle」的历史坏边：scriptBoxNode 的输入口
+        // 固定为 handleId='in'（showHandles={false} 无默认口），旧边 targetHandle 是
+        // null/undefined 会触发 React Flow 的 "Couldn't create edge for target handle id: null"。
+        // 这里统一把 target 是 scriptBoxNode 的边 targetHandle 补成 'in'，让存量边立即生效。
+        const targetIsScriptBox = new Set(
+          loadedNodes.filter((n) => n.type === 'scriptBoxNode').map((n) => n.id)
+        )
         const loadedEdges = (saved.edges || []).map((e, i) => ({
           ...e,
-          id: e.id || generateId('loaded-edge')
+          id: e.id || generateId('loaded-edge'),
+          targetHandle: targetIsScriptBox.has(e.target) && !e.targetHandle ? 'in' : e.targetHandle
         }))
         setEdges(loadedEdges)
       }
@@ -408,6 +430,34 @@ function Canvas() {
    * 画布操作：addNode / deleteNode / selectAll / duplicateSelected
    * ==================================================================== */
 
+  // 各节点类型「结构默认」单源表：addNode 新建、快照加载还原都复用，
+  // 避免「右键/菜单新建」与「历史快照还原」两套路径字段不一致（如 group 缺 style/className）。
+  // 仅放与视觉/结构相关、缺失会出问题的字段：width/height/style/initialWidth/initialHeight/className/data.name。
+  const NODE_TYPE_DEFAULTS = {
+    promptNode: { width: 420, height: 420, style: { width: 420, height: 420 } },
+    gridSplitNode: { width: 280, style: { width: 280 } },
+    videoProcessNode: { width: 520, height: 620, style: { width: 520, height: 620 } },
+    panoramaNode: { width: 640, height: 360, style: { width: 640, height: 360 } },
+    director3dNode: { width: 420, height: 300, style: { width: 420, height: 300 } },
+    group: { width: 300, height: 200, style: { width: 300, height: 200 }, initialWidth: 300, initialHeight: 200, className: 'yimao-group-node' },
+  }
+  // 对已有 node 补缺失的结构默认（不覆盖已存在的字段），返回新 node 对象。
+  const applyNodeTypeDefaults = useCallback((node) => {
+    const d = NODE_TYPE_DEFAULTS[node.type]
+    if (!d) return node
+    const next = { ...node }
+    // 尺寸/style/initial 只在缺失时补（存量快照若已有正确值则不覆盖）
+    for (const k of ['width', 'height', 'initialWidth', 'initialHeight', 'className']) {
+      if (next[k] === undefined || next[k] === null) next[k] = d[k]
+    }
+    next.style = next.style ? { ...(d.style || {}), ...next.style } : (d.style || next.style)
+    // group 的 data.name 缺失兜底
+    if (node.type === 'group') {
+      next.data = { ...node.data, name: node.data?.name || '编组' }
+    }
+    return next
+  }, [])
+
   // 新增节点（复刻源码 di(type, position, data, connection)）
   // connection?: { source, sourceHandle, dropPosition } —— 从端口拖出到空白时，
   // 在 dropPosition 建节点并自动创建 source→新节点 的边；scriptBox 的 shot- 端口预填宽高比/时长。
@@ -435,30 +485,15 @@ function Canvas() {
       }
 
       const newNode = { id, type, position: { ...position }, data: nodeData }
-      if (type === 'promptNode') {
-        // 生图节点默认 420×420，避免端口跑偏
-        Object.assign(newNode, { width: 420, height: 420, style: { width: 420, height: 420 } })
-      }
-      if (type === 'gridSplitNode') {
-        // 图片切分对齐官方 Lo.jsx：固定窄容器 280px，图片区跟随图片比例
-        Object.assign(newNode, { width: 280, style: { width: 280 } })
-      }
-      if (type === 'videoProcessNode') {
-        // 视频处理对齐官方 Gc.jsx：min 520×620
-        Object.assign(newNode, { width: 520, height: 620, style: { width: 520, height: 620 } })
-      }
-      if (type === 'panoramaNode') {
-        // 全景图对齐官方 Zl.jsx：16:9 固定比例（keepAspectRatio），初始 640×360
-        Object.assign(newNode, { width: 640, height: 360, style: { width: 640, height: 360 } })
-      }
-      if (type === 'director3dNode') {
-        // 3D 导演台对齐官方 Dg.jsx：初始尺寸
-        Object.assign(newNode, { width: 420, height: 300, style: { width: 420, height: 300 } })
-      }
-      const nextNodes = [...nodesRef.current, newNode]
-      // 若带 connection：自动创建 source→新节点 的边
+      // 复用 NODE_TYPE_DEFAULTS 单源表，与「快照加载还原」保持一致（见加载 effect）
+      const nodeWithDefaults = applyNodeTypeDefaults(newNode)
+      const nextNodes = [...nodesRef.current, nodeWithDefaults]
+      // 若带 connection：自动创建 source→新节点 的边。
+      // 目标端口：剧本盒子（scriptBoxNode）只暴露 handleId='in' 的输入口（showHandles={false} 关了默认口），
+      // 若不带 targetHandle 会落成 null → React Flow 报 "Couldn't create edge for target handle id: null"。
+      // 因此当新节点是 scriptBoxNode 时，必须把边的 targetHandle 指到 'in'。
       const nextEdges = connection
-        ? [...edgesRef.current, { id: `e-${connection.source}-${id}`, source: connection.source, sourceHandle: connection.sourceHandle || null, target: id, type: 'default', animated: false }]
+        ? [...edgesRef.current, { id: `e-${connection.source}-${id}`, source: connection.source, sourceHandle: connection.sourceHandle || null, target: id, targetHandle: type === 'scriptBoxNode' ? 'in' : undefined, type: 'default', animated: false }]
         : edgesRef.current
       setNodes(nextNodes)
       if (connection) setEdges(nextEdges)
@@ -1222,13 +1257,21 @@ function Canvas() {
       return { x, y }
     }
     // 判定节点是否「大部分在 group 内」：重叠面积 ≥ 子节点面积的一半（50%）即算组内。
+    // 统一的 group 尺寸读取：优先 measured（React Flow NodeResizer 拖拽 resize 后写入
+    // node.width/height，即 measured），width 次之，style 仅作兜底。
+    // createGroupFromNodes 给 group 设了 style.width/height，但手动 resize 只更新 measured，
+    // 不回写 style —— 若优先读 style 会一直用编组创建时的旧尺寸，导致「缩放编组后子节点归属
+    // 判定/排序不更新」的 bug。insideGroup 判定与候选 group 排序必须共用同一来源。
+    const groupSize = (g) => ({
+      w: Number(g.measured?.width) || Number(g.width) || Number(g.style?.width) || 0,
+      h: Number(g.measured?.height) || Number(g.height) || Number(g.style?.height) || 0,
+    })
     // 这样比中心点判定更宽松直观：只要子节点一半以上落进 group，就算归组。
     const insideGroup = (nodeAbs, g) => {
       const gAbs = absPosOf(g.id)
-      const gW = Number(g.style?.width) || g.measured?.width || 0
-      const gH = Number(g.style?.height) || g.measured?.height || 0
-      const nW = Number(dragged.measured?.width) || Number(dragged.style?.width) || 100
-      const nH = Number(dragged.measured?.height) || Number(dragged.style?.height) || 60
+      const { w: gW, h: gH } = groupSize(g)
+      const nW = Number(dragged.measured?.width) || Number(dragged.width) || Number(dragged.style?.width) || 100
+      const nH = Number(dragged.measured?.height) || Number(dragged.height) || Number(dragged.style?.height) || 60
       const overlapW = Math.max(0, Math.min(nodeAbs.x + nW, gAbs.x + gW) - Math.max(nodeAbs.x, gAbs.x))
       const overlapH = Math.max(0, Math.min(nodeAbs.y + nH, gAbs.y + gH) - Math.max(nodeAbs.y, gAbs.y))
       const overlap = overlapW * overlapH
@@ -1237,10 +1280,14 @@ function Canvas() {
     }
 
     const draggedAbs = { x: dragged.position.x + (dragged.parentId ? absPosOf(dragged.parentId).x : 0), y: dragged.position.y + (dragged.parentId ? absPosOf(dragged.parentId).y : 0) }
-    // 候选 group：非折叠、不包含被拖节点自身；按面积小→大（优先最内层）
+    // 候选 group：非折叠、不包含被拖节点自身；按面积小→大（优先最内层）。排序尺寸必须与
+    // insideGroup 一致（用 groupSize），否则缩放编组后排序基于旧 style 会让「优先最内层」失效。
     const groups = cur
       .filter((n) => n.type === 'group' && !n.data?.collapsed && n.id !== dragged.id)
-      .sort((a, b) => (Number(a.style?.width) || 0) * (Number(a.style?.height) || 0) - (Number(b.style?.width) || 0) * (Number(b.style?.height) || 0))
+      .sort((a, b) => {
+        const sa = groupSize(a); const sb = groupSize(b)
+        return sa.w * sa.h - sb.w * sb.h
+      })
     const newParent = groups.find((g) => insideGroup(draggedAbs, g))
 
     if (newParent && dragged.parentId !== newParent.id) {

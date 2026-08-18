@@ -16,6 +16,8 @@ import { toAbsoluteFileUrl, saveInlineToLocal, uploadFileToLocal } from '../base
 import { compressImage } from '../base/imageCompress.js'
 import { downloadUrl } from '../base/clipboard.js'
 import { showToast, toastError } from '../base/toastStore.js'
+import { sendToAssetLibrary } from '../base/assetStore.js'
+import { openAssetLibrary } from '../base/taskStore.js'
 
 /**
  * 图片节点（复刻原 xi.jsx / imageNode）
@@ -177,7 +179,19 @@ export default function ImageNode({ id, data, selected }) {
       onClick: () => url && setEditor({ tool: 'pencil' }),
       show: type === 'image', // 标记只对图片
     },
-    { key: 'send', icon: <Send size={14} />, title: '发送到左侧网站', hoverClass: 'hover:text-blue-400' },
+    {
+      key: 'send',
+      icon: <Send size={14} />,
+      title: '发送到素材库',
+      hoverClass: 'hover:text-blue-400',
+      onClick: () => {
+        if (!url) { toastError('没有可发送的素材'); return }
+        const name = (data.label && String(data.label).trim()) || ''
+        sendToAssetLibrary(url, { name, type })
+        openAssetLibrary()
+        showToast('已发送到素材库', { type: 'success' })
+      }
+    },
     { key: 'compress', icon: <FileArchive size={14} />, title: '压缩图片（80%）', onClick: handleCompress, show: type === 'image' && !!url },
     { key: 'download', icon: <Download size={14} />, title: '下载', onClick: handleDownload, show: !!url }
   ]

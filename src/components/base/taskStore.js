@@ -114,7 +114,7 @@ export function getTasks() {
 // 官方 H_.jsx 在每次提交生成任务时调用 H?.(true)（即 setShowTaskList(true)）弹出任务中心。
 // 我们统一契约里所有生成节点都走 reportGenerate，故在这里触发 openTaskCenter()，覆盖面最全
 // （节点生成 / Agent generate_node / 任务中心重试 提交任务都会自动弹面板切到任务中心）。
-let panel = { expanded: false, activeTab: 'tasks' }
+let panel = { expanded: false, activeTab: 'tasks', pinned: false }
 const panelListeners = new Set()
 function notifyPanel() {
   panelListeners.forEach((l) => l())
@@ -137,8 +137,15 @@ export function setPanel(next) {
 }
 /** 自动弹出任务中心（展开面板 + 切到「任务中心」tab） */
 export function openTaskCenter() {
-  panel = { expanded: true, activeTab: 'tasks' }
-  notifyPanel()
+  setPanel({ expanded: true, activeTab: 'tasks' })
+}
+/** 自动弹出素材库（展开面板 + 切到「素材」tab），供节点「发送到素材库」后联动 */
+export function openAssetLibrary() {
+  setPanel({ expanded: true, activeTab: 'assets' })
+}
+/** 切换面板钉住状态（钉住后点击面板外部不再自动收起） */
+export function togglePin() {
+  setPanel({ pinned: !panel.pinned })
 }
 /** 订阅面板状态（LeftPanel 使用） */
 export function usePanel() {

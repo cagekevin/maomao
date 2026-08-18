@@ -112,8 +112,13 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
   // ═══════════════════════════════════════════════════════════════
   const onGenerateScript = async () => {
     const d = getData()
-    const story = (d.story || '').trim()
-    if (!story) { toast('请先输入剧情'); return }
+    // 剧情 = 用户手动输入 story + 连线上游文本节点接入的剧情（data.upstreamStory）。
+    // 上游文本是「智能接受文本节点接入剧情」的通道：textNode 连入剧本盒子后，其文本
+    // 作为剧情来源之一，与手填 story 合并后一起交给编剧模型生成分镜。
+    const userStory = (d.story || '').trim()
+    const upstreamStory = (d.upstreamStory || '').trim()
+    const story = [userStory, upstreamStory].filter(Boolean).join('\n\n')
+    if (!story) { toast('请先输入剧情或连接上游文本节点'); return }
     const { provider, modelId } = resolveTextModel()
     if (!provider || !modelId) { toast('请先在「设置」中配置文本大模型'); return }
 

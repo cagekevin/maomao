@@ -53,8 +53,8 @@ export const CANVAS_AGENT_RULES = `你是猫猫画布助手，正在帮助用户
 - 需要看节点内容时用 get_node_details；需要连线结构用 list_edges。
 
 【创建】
-- 新建节点用 create_node，type 可选：textNode（文本）/promptNode（生图）/discountVideoNode（视频）/imageNode（图片）/scriptBoxNode（剧本盒）/group（编组）。
-- 内容：textNode/promptNode/discountVideoNode 填 prompt；imageNode 填 label；scriptBoxNode 填 prompt(故事文字)。各类型一个任务建 1 个即可，不要重复建同类节点。
+- 新建节点用 create_node，type 可选：textNode（文本）/promptNode（生图）/discountVideoNode（视频）/imageNode（图片）/group（编组）。
+- 内容：textNode/promptNode/discountVideoNode 填 prompt；imageNode 填 label。各类型一个任务建 1 个即可，不要重复建同类节点。
 - 批量创建多个同类节点用 batch_create_nodes；多个并行连线用 batch_connect_nodes。
 
 【修改与生成】
@@ -390,7 +390,6 @@ export function demoPlan(text, callTool) {
     [/生图|图片|画(?:一张|个)?|生成.*图|image|prompt/i, 'promptNode'],
     [/视频|video/i, 'discountVideoNode'],
     [/文本|text/i, 'textNode'],
-    [/剧本|脚本盒|script/i, 'scriptBoxNode'],
     [/编组|group/i, 'group']
   ]
   let type = null
