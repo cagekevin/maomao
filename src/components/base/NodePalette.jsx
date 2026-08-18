@@ -26,11 +26,17 @@ import ScriptBoxNode from '../ScriptBoxNode.jsx'
 /**
  * 节点目录（复刻 H_.jsx:9423-9554 的 _i / vi）。
  *
- * 这是批量复刻 20+ 节点的「数据地基」：每个节点一行 { type, label, icon, cat, data, badge }，
+ * 这是批量复刻 20+ 节点的「数据地基」：每个节点一行 { type, label, icon, cat, component, data, badge }，
  * 新增节点时只需在此登记，右键菜单 / 节点面板即可自动接入。
  *
- * icon 存组件引用（渲染时由调用方实例化并加 size/className）。
- * builtin 标记 = 已在 components/ 下复刻出对应 .jsx 的节点。
+ * 字段说明：
+ *  - icon：工具栏小图标（lucide 组件引用，渲染时由调用方实例化）；
+ *  - component：画布渲染组件（.jsx 组件引用），是 App.jsx nodeTypes 的**唯一派生源**
+ *    （buildNodeTypeComponents() 单源，新增常规节点只需在此登记 component，勿再在 App.jsx 手写平行表）；
+ *  - builtin：标记 = 已在 components/ 下复刻出对应 .jsx 的节点。
+ *
+ * 例外：director3dNode（依赖 WebGL + import.meta.glob，无法 SSR）与 ghostTarget（连线占位）不在此登记
+ * component，由 App.jsx 派生后显式补充（新增此类「不可 SSR / 占位」节点才改 App.jsx）。
  */
 
 // 四个工具分类 tab（复刻 H_.jsx vi）
