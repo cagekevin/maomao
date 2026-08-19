@@ -26,6 +26,7 @@ import { chatCompletions } from '../base/chatApi.js'
 import { useNodePrefs } from '../base/nodePrefs.js'
 import { resolveProviderModel } from '../base/providerModels.js'
 import { logger } from '../base/logger.js'
+import { reportDegrade } from '../base/degrade.js'
 import previewUrls from '../base/previewUrl.js'
 
 /**
@@ -198,8 +199,11 @@ function TextNode({ id, data, selected }) {
       }
       setTextPersist(r.content)
       // 文本结果落盘成 txt → 生成面板「文本」tab 收录（异步，失败不影响节点显示）
+      // P1-3：统一经 reportDegrade 记录，避免只 catch 不提示（内网/权限问题时用户感知保存降级）
       if (typeof r.content === 'string' && r.content.trim()) {
-        saveTextToTasks(r.content, 'text').catch((e) => logger.warn('task', 'persist-fail', { error: e?.message }))
+        saveTextToTasks(r.content, 'text').catch((e) => {
+          reportDegrade({ layer: 'TextNode', key: 'saveTextToTasks', e })
+        })
       }
     },
   })

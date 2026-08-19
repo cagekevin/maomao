@@ -118,6 +118,10 @@
 * **快照稳定**：所有 store 的 getSnapshot 必须引用缓存。
 * **新增 store/持久化自查**：会不会产生画布↔任务↔磁盘不一致？写码时主动规避（排查脚本见 CLAUDE.md §四）。
 * **字符串契约零损伤（红线，改任何引用必须全量 grep 同步）**：`proxyMode=local-tool`、`127.0.0.1:18080`、`127.0.0.1:9004`、`/api/proxy`、`x-proxy-url`、画布硬编码字段 `t.data[0].url`、`{code,data}` 信封、SSE 事件格式。禁止局部替换漏网。
+* **本地后端地址单一来源（P0-4 红线）**：localTool 端口统一读 `config.js` 的 `LOCAL_TOOL_PORT`，全库禁止裸写 `18080`/`localhost:18080`/`127.0.0.1:18080`。前端 `API_BASE` 经 `VITE_API_BASE` env 覆盖；`public/background.js` 为独立 service worker 无法 import，单独声明但统一为 `127.0.0.1:18080` 并注释对齐原因。改地址只动 config.js（+ 必要时 background.js 顶部常量）。
+* **后端预留路由勿当死代码删（P0-4 红线）**：`admin.ts`/`official.ts`/`platform.ts`/`passthrough.ts` 存在但前端零调用的端点为「预留/上游转发」，改动前后端契约前先看 `contracts.js` 的 `BACKEND_ROUTES` 存档。
+* **画布快照 schema 版本化（P0-4 红线）**：`saveCanvasState` 落盘 `schemaVersion`（读 `contracts.js.CANVAS_SCHEMA_VERSION`）；`loadCanvasState` 兼容缺版本旧快照（视为 v1）。变更快照结构须提升版本 + 补迁移，禁止原地改旧结构影响可恢复性。
+* **降级透明度（P1-3 红线）**：关键降级（画布 KV→localStorage 等）统一走 `base/degrade.js` 的 `reportDegrade`（集中日志 + 可选 toast 节流），禁止各处散写 `logger.warn` 后静默，也禁止手写高频 toast 刷屏。
 * **生成链路真相源契约（红线，所有生成节点必守）**：任务中心为结果权威源，node.data 为渲染缓存副本。① `onSuccess` 必须把结果写回 node.data（`data.imageUrl`/`data.videoUrl`），否则刷新丢结果；② 异步可恢复节点必须传 `onRecover`，收到 `agent:task-completed` 广播回填 `resultUrl`；③ **文本类节点例外**——结果本体在 `data.text`、任务中心 `resultUrl` 为空，不套用 onRecover，由 data.text 随画布快照落盘恢复；④ 方向单向：写只走 `useNodeGeneration`，刷新后任务中心→节点回填，节点不回写任务中心。样板：PromptNode / DiscountVideoNode；机制见 `base/useNodeGeneration.js` 文件头。
 * **生成节点真相源自查表（新增/改节点必核，缺一项即违约）**：① 是否接入 `useNodeGeneration`？绕开 hook 自写 `reportGenerate`/进度/`setNodes` 即违约；② `onSuccess` 是否写回 `node.data`（`imageUrl`/`videoUrl`/`text`）？只 `setXxx` 不写 data = 刷新丢结果；③ 异步节点是否传 `onRecover`？缺 = 异步完成刷新不恢复（文本例外）；④ `onRecover` 是否对齐 PromptNode 的"节点消失重建"兜底？不一致即样板断裂；⑤ 结果字段命名是否统一（`imageUrl`/`videoUrl`/`text`）？禁双字段冗余（如 `ImageNode` 的 `url`+`imageUrl`）；⑥ 已知未接入节点（P1 待收口，新节点禁走此路）：`VideoExtractNode`（刷新丢结果）、`VideoProcessNode`、`ImageNode`、`GridSplit`、`Loop` 等共 13 个。
 * **数据一致性风险红线（刷新/离线/多端边界）**：① 离线态结果只存 `node.data`，重连不补登任务中心（未连时任务记录内存态，刷新即清）；② 文本结果纯靠 600ms autoSave 窗口，窗口内刷新即丢；③ sync 生图无 `pollTaskId`、无 `agent:task-completed` 广播，恢复全靠 `data.imageUrl` 副本，外链/临时地址即丢图；④ `blob:`/`data:` 地址永不落盘，两端皆丢；⑤ 多端仅 `_version` 冲突拒绝覆盖、不合并，`BroadcastChannel` 只广播事件不传数据；⑥ 画布 KV 降级 localStorage 后重连不回灌 KV，双源分裂。方向：任务中心回填为权威，画布旧副本只占位不回写。
@@ -159,7 +163,7 @@
 ### C. 🟡 顶层已知待办（改动前先查，看完删）
 
 * 🚧 **统一节点错误降级/重试收敛**：节点级 catch 大多只 setState 不收敛。未开工，改前先 grep 现有半成品。
-* 🚧 **预览 URL 卸载释放缺口**：`TextNode`/`FaceMosaicNode`/`VideoExtractNode` 预览卸载时未 release。未开工（单独立项，防改动行为边界）。
+* ✅ **预览 URL 卸载释放（P2-5）**：`VideoExtractNode` 抽帧现场创建的预览 URL 已在 `finally` 释放；项目切换/新建时 `App` 调用 `previewUrls.clear()` 统一清空。剩余卸载释放缺口待查（防改动边界）。
 * ✅ **性能优化绕道收口**：散落手写 `setTimeout` 防抖/深拷贝已收敛至 `base/utils.js`（`debounce`/`createRafBatch` 等），仅时序敏感处保留手写。
 
 ### D. ✅ 性能优化批次（已全部落地，仅留档案）

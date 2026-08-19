@@ -16,7 +16,7 @@
  */
 import { sGet, sSet, sRemove } from './storageAdapter.js'
 import { kvGet, kvSet, kvDelete } from './localToolApi.js'
-import { logger } from './logger.js'
+import { reportDegrade } from './degrade.js'
 import { CANVAS_STATE_PREFIX } from './contracts.js' // 单一来源：画布 KV 前缀统一在契约层
 
 // 画布类 key 前缀（对齐官方 Ar.CANVAS_STATE_PREFIX，localTool KV 侧会带此前缀）
@@ -45,9 +45,11 @@ export async function storageSet(key, value) {
     try {
       return await kvSet(key, value)
     } catch (e) {
-      // KV 失败降级到本地存储，标记 degraded（画布类数据不丢）
+      // KV 失败降级到本地存储，标记 degraded（画布类数据不丢）。
+      // P1-3 关键降级：画布 KV → localStorage 属于「跨端共享失效」，弹一次 toast 让用户感知
+      // （否则换设备/重装后画布"失踪"，且 localTool 连上后的跨端同步不再生效）。
       sSet(key, typeof value === 'string' ? value : JSON.stringify(value))
-      logger.warn(`KV 写入失败，降级 localStorage: ${key}`, e)
+      reportDegrade({ layer: 'kvStore', key, e, toast: '本地引擎存储不可用，画布暂存本地（跨设备同步可能丢失）' })
       return { ok: true, degraded: true }
     }
   }
