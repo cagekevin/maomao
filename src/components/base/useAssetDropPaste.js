@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react'
 import { detectFileType, isAssetUrl } from './mediaType.js'
-import { isEditableTarget } from './hooks.js'
 import { sanitizePastedText } from './clipboard.js'
 import { showToast } from './toastStore.js'
 import { uploadFileToLocal } from './filesApi.js'
@@ -136,66 +135,165 @@ export function useAssetDropPaste({ addNode, screenToFlowPosition, onPasteNodeGr
     [screenToFlowPosition, addNode, createNodeFromFile]
   )
 
-  // 粘贴：文件（图片/视频/音频）→ imageNode；mutiwindow-images → imageNode 网格；纯文本 → textNode
-  const onPaste = useCallback(
-    (e) => {
-      // 焦点在输入框/文本域/contenteditable 内时，粘贴应走原生行为（把文本粘进输入框），
-      // 不拦截、不建节点。修复「提示词输入框内光标闪烁时 Ctrl+V 被误判成新建文本节点」bug。
-      // 与快捷键/右键菜单共用 isEditableTarget 判定（复刻 H_.jsx:1316-1323 Xn）。
-      if (isEditableTarget(e)) return
-      const items = e.clipboardData?.items
-      if (!items) return
-      // 落点：最近鼠标位置优先，回退到视图中心（flow 坐标）
-      const pos = pastePos()
-      for (const item of items) {
-        if (item.kind === 'file') {
-          const type = item.type
-          if (type.startsWith('image/') || type.startsWith('video/') || type.startsWith('audio/')) {
-            e.preventDefault()
-            const file = item.getAsFile()
-            if (file) createNodeFromFile(file, pos)
-            return
-          }
-        } else if (item.kind === 'string' && item.type === 'text/plain') {
-          e.preventDefault()
-          item.getAsString((text) => {
-            if (text && text.trim()) {
-              // 内部节点 JSON：mutiwindow-nodes → 重建节点组（对齐官方 xi）；mutiwindow-images → 建 imageNode 网格（复刻官方 H_.jsx:9790-9828）
-              try {
-                const parsed = JSON.parse(text)
-                if (parsed?.type === 'mutiwindow-nodes') {
-                  // 粘贴节点组（含连线），交由宿主（App）解析重建
-                  if (typeof onPasteNodeGroup === 'function') {
-                    onPasteNodeGroup(text, pos)
-                  }
-                  return
-                }
-                if (parsed?.type === 'mutiwindow-images' && Array.isArray(parsed.images)) {
-                  const images = parsed.images
-                  if (images.length === 0) return
-                  images.forEach((img, i) => {
-                    const col = i % 6
-                    const row = Math.floor(i / 6)
-                    addNode('imageNode', { x: pos.x + col * 150, y: pos.y + row * 150 }, {
-                      imageUrl: img,
-                      label: `提取帧 ${i + 1}`
-                    })
-                  })
-                  showToast(`已粘贴 ${images.length} 张提取的图片`)
-                  return
-                }
-              } catch {}
-              // 普通文本 → textNode：经 sanitizePastedText 清洗，丢弃网页/表格带来的富文本残留（零宽字符/Tab/多余空行等）。
-              // 注意：内部 mutiwindow-* JSON 已在上面用原始 text 解析过，这里只对普通文本清洗，不破坏 JSON。
-              const cleanText = sanitizePastedText(text)
-              if (cleanText) addNode('textNode', pos, { text: cleanText, expanded: false })
-            }
-          })
+  // 建 textNode（普通文本，经 sanitize 清洗；内部 mutiwindow-* JSON 用原始 text 解析，不在此清洗）
+  const handleTextPaste = useCallback(
+    (rawText, pos) => {
+      if (!rawText || !rawText.trim()) return
+      try {
+        const parsed = JSON.parse(rawText)
+        if (parsed?.type === 'mutiwindow-nodes') {
+          // 粘贴节点组（含连线），交由宿主（App）解析重建
+          if (typeof onPasteNodeGroup === 'function') onPasteNodeGroup(rawText, pos)
           return
         }
-      }
+        if (parsed?.type === 'mutiwindow-images' && Array.isArray(parsed.images)) {
+          const images = parsed.images
+          if (images.length === 0) return
+          images.forEach((img, i) => {
+            const col = i % 6
+            const row = Math.floor(i / 6)
+            addNode('imageNode', { x: pos.x + col * 150, y: pos.y + row * 150 }, { imageUrl: img, label: `提取帧 ${i + 1}` })
+          })
+          showToast(`已粘贴 ${images.length} 张提取的图片`)
+          return
+        }
+      } catch {}
+      // 普通文本 → textNode
+      const cleanText = sanitizePastedText(rawText)
+      if (cleanText) addNode('textNode', pos, { text: cleanText, expanded: false })
     },
-    [createNodeFromFile, addNode, pastePos]
+    [addNode, onPasteNodeGroup]
+  )
+
+  // 从 text/html 里提取 <img src>（外部「复制图片」常是 text/html 带 <img>，而不是 image File）
+  const extractImgFromHtml = useCallback((html) => {
+    if (!html) return ''
+    // 用 DOMParser 解析（不依赖挂在 DOM 上），jsdom 可用；解析失败则正则兜底
+    try {
+      const doc = new DOMParser().parseFromString(String(html), 'text/html')
+      const img = doc.querySelector('img[src]')
+      if (img) return img.getAttribute('src') || ''
+    } catch {}
+    const m = String(html).match(/<img[^>]*\ssrc=["']([^"']+)["']/i)
+    return m ? m[1] : ''
+  }, [])
+
+  // 把 ClipboardItem 的 Blob 包装成 File（createNodeFromFile 需要 name/type 判型）。name 从 mime 推。
+  const blobToPastedFile = useCallback((blob, mime) => {
+    const name = (mime.split('/')[1] || 'image').replace(/[^a-z0-9]/gi, '') || 'image'
+    return new File([blob], name, { type: mime || blob.type || 'application/octet-stream' })
+  }, [])
+
+  // 读取 ClipboardItem 某类型的文本内容：getType 真浏览器返回 Blob、测试 mock 直接返回字符串，都兼容。
+  const readClipText = useCallback(async (item, type) => {
+    const got = await item.getType(type)
+    if (typeof got?.text === 'function') return got.text()
+    return typeof got === 'string' ? got : String(got ?? '')
+  }, [])
+
+  // 粘贴：优先 navigator.clipboard.read() 实时读剪贴板；失败/不可用回落 paste 事件同步数据。
+  // 【万全之策，修复三处根因】
+  //  1. 不再依赖「会被回收的 paste 事件 clipboardData 快照 + 异步 getAsString」→ read() 实时读 + 同步 getData。
+  //  2. contenteditable 只放行图片（图片→建节点），纯文本仍在可编辑区插入（不吞图）。
+  //  3. 全失败 → toast 提示，不静默。
+  // 焦点在 input/textarea（纯文本编辑，必不可能贴图片样式）时交给浏览器原生，不拦截。
+  const onPaste = useCallback(
+    (e) => {
+      const t = e?.target
+      const tag = t?.tagName
+      const isInputLike = tag === 'INPUT' || tag === 'TEXTAREA'
+      const isContentEditable = !!(t && (t.isContentEditable || (t.closest && t.closest('[contenteditable="true"]'))))
+      // input/textarea 内粘贴 → 走原生，不拦截、不建节点（纯文本无富文本风险，见 hook 头注释）
+      if (isInputLike) return
+
+      const pos = pastePos()
+
+      // ── 优先：实时读剪贴板（navigator.clipboard.read）──
+      const tryReadClipboard = async () => {
+        if (typeof navigator?.clipboard?.read !== 'function') return 'fallback'
+        try {
+          const items = await navigator.clipboard.read()
+          if (!items || items.length === 0) return 'fallback'
+          for (const item of items) {
+            const types = item.types || []
+            // 图片 Blob（image/*）→ 建 imageNode
+            const imgType = types.find((x) => x.startsWith('image/'))
+            if (imgType) {
+              const blob = await item.getType(imgType)
+              if (blob) { e.preventDefault?.(); createNodeFromFile(blobToPastedFile(blob, imgType), pos); return 'ok' }
+              continue
+            }
+            // text/html 里的 <img>（外部「复制图片」）→ 建 imageNode
+            if (types.includes('text/html')) {
+              const html = await readClipText(item, 'text/html')
+              const src = extractImgFromHtml(html)
+              if (src) {
+                e.preventDefault?.()
+                if (isAssetUrl(src)) addNode('imageNode', pos, { imageUrl: src })
+                else if (!isContentEditable) addNode('textNode', pos, { text: src, expanded: false })
+                return 'ok'
+              }
+            }
+            // text/plain → 文本链路。contenteditable 内纯文本交给 insertText（不建节点、不吞），
+            // 非可编辑区才走 handleTextPaste（mutiwindow-nodes/images / 普通文本）。
+            if (types.includes('text/plain')) {
+              const text = await readClipText(item, 'text/plain')
+              if (text && text.trim()) {
+                e.preventDefault?.()
+                if (isContentEditable) return 'ok'
+                handleTextPaste(text, pos)
+                return 'ok'
+              }
+            }
+          }
+          return 'fallback'
+        } catch {
+          return 'fallback'
+        }
+      }
+
+      // ── 兜底：paste 事件同步数据（read 失败/不可用）──
+      const trySyncEvent = () => {
+        const cd = e.clipboardData
+        if (!cd) return false
+        // 同步拿文本（不用异步 getAsString，避免事件结束快照回收读空）
+        const text = typeof cd.getData === 'function' ? cd.getData('text/plain') : ''
+        if (text && text.trim()) {
+          e.preventDefault?.()
+          if (!isContentEditable) handleTextPaste(text, pos)
+          return true
+        }
+        // 同步拿文件（getAsFile）
+        const items = cd.items
+        if (items) {
+          for (const item of items) {
+            if (item.kind === 'file') {
+              const type = item.type || ''
+              if (type.startsWith('image/') || type.startsWith('video/') || type.startsWith('audio/')) {
+                const file = item.getAsFile && item.getAsFile()
+                if (file) { e.preventDefault?.(); createNodeFromFile(file, pos); return true }
+              }
+            }
+          }
+        }
+        const files = cd.files
+        if (files && files.length) {
+          const file = files[0]
+          const type = detectFileType(file)
+          if (type !== 'other' && type !== 'empty') { createNodeFromFile(file, pos); return true }
+        }
+        return false
+      }
+
+      // 执行：read 优先 → sync 兜底；都落空 → toast（不静默）
+      ;(async () => {
+        const verdict = await tryReadClipboard()
+        if (verdict === 'ok') return
+        const done = trySyncEvent()
+        if (!done && !isContentEditable) showToast('粘贴失败，请重试')
+      })()
+    },
+    [createNodeFromFile, pastePos, addNode, handleTextPaste, extractImgFromHtml, blobToPastedFile, readClipText]
   )
 
   // createNodeFromFile 供右键菜单「上传」复用（对齐官方 Re.current 隐藏 file input → 建素材节点）
@@ -215,12 +313,19 @@ export function useGlobalPaste(onPaste) {
     if (!onPaste) return
     const handler = (e) => {
       const t = e.target
-      // 仅 contenteditable 富文本目标需要清洗：读到纯文本 → 清洗 → 插入光标处，阻止原生带样式粘贴
-      if (t && (t.isContentEditable || (t.closest && t.closest('[contenteditable="true"]')))) {
-        e.preventDefault()
-        const text = e.clipboardData?.getData('text/plain') || ''
-        document.execCommand('insertText', false, sanitizePastedText(text))
-        return
+      const isCE = t && (t.isContentEditable || (t.closest && t.closest('[contenteditable="true"]')))
+      // 仅 contenteditable 富文本需要清洗：读到纯文本 → 清洗 → 插入光标处，阻止原生带样式粘贴。
+      // 【万全之策】contenteditable 里如果是「图片」粘贴，必须放行到 onPaste 建节点（不能 insertText 吞掉）。
+      if (isCE) {
+        const isImagePaste = Array.from(e.clipboardData?.items || []).some(
+          (it) => it.kind === 'file' && it.type && it.type.startsWith('image/')
+        )
+        if (!isImagePaste) {
+          e.preventDefault()
+          const text = e.clipboardData?.getData('text/plain') || ''
+          document.execCommand('insertText', false, sanitizePastedText(text))
+          return
+        }
       }
       onPaste(e)
     }
