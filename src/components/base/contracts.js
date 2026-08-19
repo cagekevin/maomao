@@ -95,6 +95,12 @@ export const EVENTS = {
  *
  * 来源：`grep -rn "sGet\|sSet\|sRemove\|storageGet\|storageSet\|storageDelete" src/components` 提取，2026-08-17 核对。
  */
+/**
+ * 画布快照 KV 键前缀（P0-1 收口单一来源）。
+ * kvStore.js 运行时前缀与下方登记表模板统一引用本常量，消除双写 'canvas-state-v1-'。
+ */
+export const CANVAS_STATE_PREFIX = 'canvas-state-v1-'
+
 export const STORAGE_KEYS = {
   // ── 项目（projectStore）────────────────────────────────────────────
   projects: {
@@ -109,14 +115,14 @@ export const STORAGE_KEYS = {
     backend: 'local',
     note: '上次打开项目 id。刷新后自动恢复该项目',
   },
-  'canvas-state-v1-{projectId}': {
+  [`${CANVAS_STATE_PREFIX}{projectId}`]: {
     domain: 'project',
     store: 'projectStore.js',
     backend: 'kv',
     pattern: true,
     note: '画布快照：{ nodes, edges }。跨端共享，走 localTool KV',
   },
-  'canvas-state-v1-{projectId}_version': {
+  [`${CANVAS_STATE_PREFIX}{projectId}_version`]: {
     domain: 'project',
     store: 'projectStore.js',
     backend: 'kv',
