@@ -1,5 +1,0 @@
-chore: 提交工作区其余改动（SkillSettings 功能增强 + AI 工具文案/pipeline 文档脚本）
-
-- SkillSettings.jsx: 技能设置面板功能增强（342 增 / 113 删），新增 agent_skill_enabled 存储键
-- docs/文案相关的_ai 工具/: 新增文案相关 AI 工具文档、pipeline 处理脚本与 verifiers
-- contracts.test.js: STORAGE_KEYS 登记键数量同步更新为 29，并校验 agent_skill_enabled

@@ -234,7 +234,7 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
   // ═══════════════════════════════════════════════════════════════
   // 步骤2 资产参考图（对齐官方 Pr / Fr）
   // ═══════════════════════════════════════════════════════════════
-  const onGenerateAssetImage = async (assetId) => {
+  const onGenerateAssetImage = async (assetId, enqueuePatch) => {
     const assets = getData().assets || []
     const asset = assets.find((a) => a.id === assetId)
     if (!asset) return
@@ -249,7 +249,9 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
       ? asset.prompt
       : ZgPrompt(asset.category, [asset.name, asset.description].filter(Boolean).join('，'), globalStyle, getData().customAssetTemplates)
 
-    updateData({ assets: getData().assets.map((a) => (a.id === assetId ? { ...a, loading: true } : a)) })
+    // 单张：直接 updateData；批量：走 enqueuePatch 合并（P11 收口）
+    const commit = enqueuePatch || updateData
+    commit((latest) => ({ assets: (latest.assets || []).map((a) => (a.id === assetId ? { ...a, loading: true } : a)) }))
     logger.info('scriptBox', '生成资产图·开始', { nodeId, assetId, name: asset.name, provider: provider?.id, model: modelId, aspectRatio, imageSize })
     const ac = new AbortController()
     abortMap.set(`asset-${assetId}`, ac)
@@ -264,23 +266,23 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
       }, null)
       abortMap.delete(`asset-${assetId}`)
       if (r.ok && r.url) {
-        updateData({
-          assets: getData().assets.map((a) =>
+        commit((latest) => ({
+          assets: (latest.assets || []).map((a) =>
             a.id === assetId
               ? { ...a, loading: false, has: true, imageUrl: r.url, thumbnailUrl: r.url }
               : a
           ),
-        })
+        }))
         logger.info('scriptBox', '生成资产图·成功', { nodeId, assetId, url: r.url })
       } else {
-        updateData({ assets: getData().assets.map((a) => (a.id === assetId ? { ...a, loading: false } : a)) })
+        commit((latest) => ({ assets: (latest.assets || []).map((a) => (a.id === assetId ? { ...a, loading: false } : a)) }))
         if (r && !r.aborted) toast(r.error || '资产参考图生成失败')
         if (r && !r.aborted) logger.error('scriptBox', '生成资产图·上游失败', { nodeId, assetId, error: r.error })
         else logger.warn('scriptBox', '生成资产图·已中止', { nodeId, assetId })
       }
     } catch (e) {
       abortMap.delete(`asset-${assetId}`)
-      updateData({ assets: getData().assets.map((a) => (a.id === assetId ? { ...a, loading: false } : a)) })
+      commit((latest) => ({ assets: (latest.assets || []).map((a) => (a.id === assetId ? { ...a, loading: false } : a)) }))
       if (!/abort/i.test(e?.message || '')) toast(e?.message || '资产参考图生成失败')
       if (!/abort/i.test(e?.message || '')) logger.error('scriptBox', '生成资产图·异常', { nodeId, assetId, error: e?.message })
       else logger.warn('scriptBox', '生成资产图·已中止', { nodeId, assetId })
@@ -296,7 +298,25 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
     if (target.length === 0) { toast(assets.length === 0 ? '暂无资产可生成，请先在第1步生成脚本' : '没有需要生成的项（可勾选指定资产）'); return }
     toast(`开始批量生成 ${target.length} 张参考图…`)
     logger.info('scriptBox', '批量生成资产图·开始', { nodeId, count: target.length, ids: target.map((a) => a.id) })
-    await Promise.all(target.map((a) => onGenerateAssetImage(a.id)))
+    // P11 收口：批量生成期间多次资产写回合并为低频一次 setNodes（同 onGenerateShotPrompts 范式）
+    const patchQueue = []
+    let flushTimer = null
+    const flushPatches = () => {
+      if (flushTimer) { clearTimeout(flushTimer); flushTimer = null }
+      const q = patchQueue.splice(0)
+      if (!q.length) return
+      updateData((latest) => {
+        let d = latest
+        for (const apply of q) d = apply(d)
+        return d
+      })
+    }
+    const enqueuePatch = (apply) => {
+      patchQueue.push(apply)
+      if (flushTimer == null) flushTimer = setTimeout(flushPatches, 200)
+    }
+    await Promise.all(target.map((a) => onGenerateAssetImage(a.id, enqueuePatch)))
+    flushPatches()
     logger.info('scriptBox', '批量生成资产图·完成', { nodeId, count: target.length })
   }
 
@@ -326,13 +346,33 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
 
     logger.info('scriptBox', '生成分镜提示词·开始', { nodeId, count: target.length, provider: provider?.id, model: modelId, feedback: !!feedback })
 
+    // P11 收口：批量生成期间，多个分镜完成的写回合并为低频一次 setNodes，
+    // 避免「每完成一个分镜就全图 node 数组重建」导致画布节点多时频繁全量重算。
+    // 用带队列的 200ms 窗口合并（必须累积所有 patch，不能用普通 debounce 否则丢中间分镜）。
+    const patchQueue = []
+    let flushTimer = null
+    const flushPatches = () => {
+      if (flushTimer) { clearTimeout(flushTimer); flushTimer = null }
+      const q = patchQueue.splice(0)
+      if (!q.length) return
+      updateData((latest) => {
+        let d = latest
+        for (const apply of q) d = apply(d)
+        return d
+      })
+    }
+    const enqueuePatch = (apply) => {
+      patchQueue.push(apply)
+      if (flushTimer == null) flushTimer = setTimeout(flushPatches, 200)
+    }
+
     const genShot = async (shot) => {
       // 每个分镜发起时打一条日志（逐镜跟踪批量进度）
       logger.info('scriptBox', '生成分镜提示词·单镜开始', { nodeId, shotId: shot.id, index: shot.index })
       // 只在真正发起该分镜请求时置 loading → 动画精确反映「当前正在请求的分镜」。
       // 注意：必须用函数式更新基于「最新 data」计算，避免并发时 getData() 读到旧引用
       // 导致多个分镜的 loading 互相覆盖、动画闪现/产生不了。
-      updateData((latest) => ({ shots: (latest.shots || []).map((s) => (s.id === shot.id ? { ...s, promptLoading: true } : s)) }))
+      enqueuePatch((latest) => ({ shots: (latest.shots || []).map((s) => (s.id === shot.id ? { ...s, promptLoading: true } : s)) }))
       try {
         const ac = new AbortController()
         abortMap.set(`shot-${shot.id}`, ac)
@@ -359,23 +399,23 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
         })
         abortMap.delete(`shot-${shot.id}`)
         if (!r.ok) {
-          updateData((latest) => ({ shots: (latest.shots || []).map((s) => (s.id === shot.id ? { ...s, promptLoading: false } : s)) }))
+          enqueuePatch((latest) => ({ shots: (latest.shots || []).map((s) => (s.id === shot.id ? { ...s, promptLoading: false } : s)) }))
           if (!r.aborted) toast(r.error || '分镜提示词生成失败')
           logger.error('scriptBox', '生成分镜提示词·单镜失败', { nodeId, shotId: shot.id, error: r.error })
           return
         }
         const parsed = parseJsonText(r.content)
         if (!parsed.ok) {
-          updateData((latest) => ({ shots: (latest.shots || []).map((s) => (s.id === shot.id ? { ...s, promptLoading: false } : s)) }))
+          enqueuePatch((latest) => ({ shots: (latest.shots || []).map((s) => (s.id === shot.id ? { ...s, promptLoading: false } : s)) }))
           toast('模型输出的提示词 JSON 不完整，请重试')
           logger.error('scriptBox', '生成分镜提示词·JSON解析失败', { nodeId, shotId: shot.id })
           return
         }
         const { prompt, videoPrompt } = parsed.data || {}
-        updateData((latest) => ({ shots: (latest.shots || []).map((s) => (s.id === shot.id ? { ...s, prompt: prompt || '', videoPrompt: videoPrompt || '', promptLoading: false } : s)) }))
+        enqueuePatch((latest) => ({ shots: (latest.shots || []).map((s) => (s.id === shot.id ? { ...s, prompt: prompt || '', videoPrompt: videoPrompt || '', promptLoading: false } : s)) }))
       } catch (e) {
         abortMap.delete(`shot-${shot.id}`)
-        updateData((latest) => ({ shots: (latest.shots || []).map((s) => (s.id === shot.id ? { ...s, promptLoading: false } : s)) }))
+        enqueuePatch((latest) => ({ shots: (latest.shots || []).map((s) => (s.id === shot.id ? { ...s, promptLoading: false } : s)) }))
         if (!/abort/i.test(e?.message || '')) toast(e?.message || '分镜提示词生成失败')
         if (!/abort/i.test(e?.message || '')) logger.error('scriptBox', '生成分镜提示词·单镜异常', { nodeId, shotId: shot.id, error: e?.message })
         else logger.warn('scriptBox', '生成分镜提示词·单镜已中止', { nodeId, shotId: shot.id })
@@ -406,6 +446,8 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
       }
     }
     await Promise.all([...pool])
+    // 批量结束：立即把缓冲中最后一批分镜写回（避免等 200ms 窗口），并清掉待发定时器
+    flushPatches()
     toast(Array.isArray(shotIds) && shotIds.length ? '已生成该分镜提示词' : `已生成 ${target.length} 个分镜提示词`)
     logger.info('scriptBox', '生成分镜提示词·完成', { nodeId, count: target.length })
   }

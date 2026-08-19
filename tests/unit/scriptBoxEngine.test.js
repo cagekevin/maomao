@@ -31,6 +31,8 @@ const {
   createScriptBoxEngine,
 } = await import('../../src/components/base/scriptBoxEngine.js')
 
+const { chatCompletions } = await import('../../src/components/base/chatApi.js')
+
 describe('scriptBoxEngine · 纯导出函数', () => {
   describe('parseJsonText', () => {
     it('提取 ```json 代码块 → {ok:true,data}', () => {
@@ -273,5 +275,89 @@ describe('scriptBoxEngine · 引擎编排', () => {
     })
     e2.onConnectShot('s2', 'video')
     expect(addNodes2.mock.calls[0][0][0].data.size).toBe('1:1')
+  })
+})
+
+// ── P11 收口：批量生成期间多次分镜写回合并为低频一次 setNodes ──
+// 契约：① 合并生效（updateData/setNodes 调用次数显著少于 N×2）；
+//       ② 合并不丢数据（所有分镜 prompt 最终都完整写回）。
+describe('scriptBoxEngine · P11 批量写回合并', () => {
+  function makeBatchEngine(shots, assets = []) {
+    const store = { shots: shots.map((s) => ({ ...s })), assets }
+    // 真实记录每次 setNodes 调用（函数式补丁也计一次）；不直接应用，留给 flush 统一应用，
+    // 以模拟 ReactFlow 的「一次 setNodes = 一次全图重建」代价。
+    const setNodesCalls = []
+    const getData = vi.fn(() => store)
+    const updateData = vi.fn((patch) => {
+      setNodesCalls.push(patch)
+      const next = typeof patch === 'function' ? patch(store) : patch
+      store.shots = next.shots || store.shots
+      store.assets = next.assets || store.assets
+      return true
+    })
+    const getProviderState = vi.fn(() => ({ providers: [{ id: 'openai' }], primary: 'openai' }))
+    const engine = createScriptBoxEngine({
+      getData, updateData, addNodes: vi.fn(), setEdges: vi.fn(),
+      nodeId: 'node-batch', getNodes: vi.fn(() => []), getProviderState,
+    })
+    return { engine, store, updateData, setNodesCalls }
+  }
+
+  beforeEach(() => {
+    vi.useFakeTimers()
+    chatCompletions.mockReset()
+    chatCompletions.mockResolvedValue({
+      ok: true,
+      content: JSON.stringify({ prompt: '分镜画面提示词', videoPrompt: '【时长 5秒】视频内容' }),
+    })
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('批量生成 N 个分镜：setNodes 调用次数显著少于 N×2（合并生效），且所有 prompt 写回', async () => {
+    const N = 8
+    const shots = Array.from({ length: N }, (_, i) => ({
+      id: `s${i}`, index: i + 1, description: `镜头${i}`, prompt: '', videoPrompt: '',
+    }))
+    const { engine, store, updateData, setNodesCalls } = makeBatchEngine(shots)
+
+    // 立即 resolve → 分镜完成并入 200ms flush 窗口；START_GAP_MS=500 串行启动需推进足够时长
+    const p = engine.onGenerateShotPrompts()
+    await vi.advanceTimersByTimeAsync(N * 600 + 500) // 覆盖 N*START_GAP + flush 窗口
+    await p
+
+    // 契约①：合并生效——调用次数远低于朴素「每个分镜 loading 开/关 + 写 prompt ≈ 2N」次
+    expect(updateData.mock.calls.length).toBeLessThan(N * 2)
+    expect(updateData.mock.calls.length).toBeGreaterThan(0)
+    // 验证确实是「合并」而非「1 次全量」导致无法区分——至少比逐分镜写入少一截
+    expect(setNodesCalls.length).toBeLessThan(N * 2)
+
+    // 契约②：合并不丢数据——所有分镜 prompt 最终完整写回
+    expect(store.shots).toHaveLength(N)
+    for (const s of store.shots) {
+      expect(s.prompt).toBe('分镜画面提示词')
+      expect(s.videoPrompt).toBe('【时长 5秒】视频内容')
+      expect(s.promptLoading).toBe(false)
+    }
+  })
+
+  it('合并不丢数据：错误分镜（JSON 不完整）也正确回退且动画关闭', async () => {
+    const shots = [
+      { id: 'sa', index: 1, description: 'a', prompt: '', videoPrompt: '' },
+      { id: 'sb', index: 2, description: 'b', prompt: '', videoPrompt: '' },
+    ]
+    const { engine, store, updateData } = makeBatchEngine(shots)
+    // 第二个分镜返回非 JSON → 走「回退 + toast」分支，仍应并入合并 flush
+    chatCompletions.mockResolvedValueOnce({ ok: true, content: JSON.stringify({ prompt: 'ok-p', videoPrompt: 'ok-v' }) })
+    chatCompletions.mockResolvedValueOnce({ ok: true, content: '不是json' })
+
+    const p = engine.onGenerateShotPrompts()
+    await vi.advanceTimersByTimeAsync(shots.length * 600 + 500)
+    await p
+
+    expect(updateData.mock.calls.length).toBeLessThan(shots.length * 2)
+    expect(store.shots[0]).toMatchObject({ prompt: 'ok-p', promptLoading: false })
+    expect(store.shots[1]).toMatchObject({ prompt: '', promptLoading: false })
   })
 })
