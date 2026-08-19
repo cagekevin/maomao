@@ -10,6 +10,11 @@
  *
  * 【薄壳】代理请求脚手架（buildTargetUrl / proxyFetch / SSE 流 / 轮询 / 错误分类 / envelope）已
  * 收口到 proxyGenerate.js 深模块；本文件仅负责「业务参数 → genBody + 委托 imageProxy」。
+ *
+ * ⚠️【为何不走 httpClient.js（SSE 豁免红线）】本模块支持同步 SSE（?wait=1，需逐块消费
+ * progress/status/results 增量）与异步轮询双模式，流式增量与「业务失败走 envelope 而非抛 HttpError」
+ * 的语义与 httpClient 的「非 2xx 抛 HttpError + 自动重试」冲突；httpClient 自动重试会破坏流式/轮询节奏。
+ * 故保持独立 proxyGenerate 链路，并在模块内部自行处理 AbortSignal。禁止把它迁移到 httpClient.js。
  */
 import { normalizeImageUrlsForSend } from './imageUrl.js'
 import { imageProxy } from './proxyGenerate.js'

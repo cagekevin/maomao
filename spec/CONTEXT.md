@@ -118,6 +118,7 @@
 * **快照稳定**：所有 store 的 getSnapshot 必须引用缓存。
 * **新增 store/持久化自查**：会不会产生画布↔任务↔磁盘不一致？写码时主动规避（排查脚本见 CLAUDE.md §四）。
 * **字符串契约零损伤（红线，改任何引用必须全量 grep 同步）**：`proxyMode=local-tool`、`127.0.0.1:18080`、`127.0.0.1:9004`、`/api/proxy`、`x-proxy-url`、画布硬编码字段 `t.data[0].url`、`{code,data}` 信封、SSE 事件格式。禁止局部替换漏网。
+* **SSE 流式三件套豁免 httpClient（红线）**：`chatApi.js`/`imageApi.js`/`videoApi.js` 走独立 `proxyGenerate.js` 深模块（SSE 逐块/轮询 + envelope 语义），**禁止迁移到 `httpClient.js`**——httpClient 的「非 2xx 抛 HttpError + 网络/超时自动重试」会破坏流式增量、多轮工具循环与轮询节奏。三个文件头部均带「为何不走 httpClient」注释。新网络请求仍一律走 httpClient，本豁免仅限此三件套。
 * **本地后端地址单一来源（P0-4 红线）**：localTool 端口统一读 `config.js` 的 `LOCAL_TOOL_PORT`，全库禁止裸写 `18080`/`localhost:18080`/`127.0.0.1:18080`。前端 `API_BASE` 经 `VITE_API_BASE` env 覆盖；`public/background.js` 为独立 service worker 无法 import，单独声明但统一为 `127.0.0.1:18080` 并注释对齐原因。改地址只动 config.js（+ 必要时 background.js 顶部常量）。
 * **后端预留路由勿当死代码删（P0-4 红线）**：`admin.ts`/`official.ts`/`platform.ts`/`passthrough.ts` 存在但前端零调用的端点为「预留/上游转发」，改动前后端契约前先看 `contracts.js` 的 `BACKEND_ROUTES` 存档。
 * **画布快照 schema 版本化（P0-4 红线）**：`saveCanvasState` 落盘 `schemaVersion`（读 `contracts.js.CANVAS_SCHEMA_VERSION`）；`loadCanvasState` 兼容缺版本旧快照（视为 v1）。变更快照结构须提升版本 + 补迁移，禁止原地改旧结构影响可恢复性。

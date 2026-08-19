@@ -12,6 +12,11 @@
  *
  * 【薄壳】代理请求脚手架（buildTargetUrl / proxyFetch / 轮询 / 错误分类 / envelope）已收口到
  * proxyGenerate.js 深模块；本文件仅负责「业务参数 → genBody + 委托 videoProxy」。
+ *
+ * ⚠️【为何不走 httpClient.js（SSE 豁免红线）】本模块强制异步（提交 → 轮询 /v1/tasks/{id}），
+ * 结果经「任务轮询 + envelope」而非「非 2xx 抛 HttpError」交付；轮询节奏与手动退避语义和
+ * httpClient 的「网络/超时自动重试」冲突，自动重试会打乱轮询时序或误判。故保持独立 proxyGenerate
+ * 链路，并在模块内部自行处理 AbortSignal。禁止把它迁移到 httpClient.js。
  */
 import { normalizeImageUrlsForSend } from './imageUrl.js'
 import { videoProxy } from './proxyGenerate.js'

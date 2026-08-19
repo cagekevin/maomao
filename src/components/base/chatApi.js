@@ -10,6 +10,11 @@
  *
  * 【薄壳】代理请求脚手架（buildTargetUrl / proxyFetch / 嵌套错误解析 / 信封归一）已收口到
  * proxyGenerate.js 深模块；本文件仅负责「业务参数 → body + 委托 chatProxy」。
+ *
+ * ⚠️【为何不走 httpClient.js（SSE 豁免红线）】本模块走 SSE 流式（逐块解析 content/reasoning/tool_calls，
+ * 流中断视为业务语义而非传输错误），其错误语义与 httpClient 的「非 2xx 抛 HttpError + 网络/超时自动重试」
+ * 冲突；httpClient 的自动重试会破坏流式增量与多轮工具循环。故保持独立 proxyGenerate 链路，
+ * 并在模块内部自行处理 AbortSignal。禁止把它迁移到 httpClient.js。
  */
 import { normalizeImageUrlsForSend, toImageContentBlocks } from './imageUrl.js'
 import { logger } from './logger.js'
