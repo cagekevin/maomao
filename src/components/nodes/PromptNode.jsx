@@ -204,8 +204,8 @@ function PromptNode({ id, data, selected }) {
     },
     onSuccess: (r) => {
       setImageUrl(r.url)
-      // 写回 node.data.imageUrl，供复制图片（copyNodeImage）、复制节点等读取 node.data 的入口拿到结果
-      patchData({ imageUrl: r.url })
+      // 写回 node.data.imageUrl：由 resultKey:'imageUrl' 在 hook 内自动 patchData（P0-2-b），此处不再手写。
+      // 保留下方落盘逻辑：仅当上游返回临时地址、落盘后有持久 URL 时才再覆盖写 data.imageUrl。
       // 【刷新不丢】把生成结果落盘到 localTool 的 /files/tasks/，再用持久化 URL 覆盖写回 data.imageUrl。
       // 否则若上游返回的是外链/临时地址，刷新后节点会因 URL 失效而丢图（taskStore 的落盘只回写任务中心，不回写节点）。
       if (r.url && !/^blob:/.test(r.url)) {
@@ -243,8 +243,10 @@ function PromptNode({ id, data, selected }) {
         return
       }
       setImageUrl(resultUrl)
-      patchData({ imageUrl: resultUrl })
+      // 写回 node.data.imageUrl 由 recoverable+resultKey 在 hook 内自动回填（P0-2-b）
     },
+    resultKey: 'imageUrl',
+    recoverable: true,
   })
 
   // 图片可选比例（含 1:3 / 3:1 极端竖/横比例，不含 1:2 / 2:1）

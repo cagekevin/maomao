@@ -32,13 +32,26 @@ vi.mock('@xyflow/react', () => ({
 vi.mock('../../src/components/base/useNodeGeneration.js', () => ({
   useNodeGeneration: (config) => {
     genConfig = config
+    // 复刻真实 hook 的广播 handler：recoverable + resultKey 时自动写回（先于 onRecover），
+    // 以对齐 P0-2-b 声明式写回（节点不再手写 patchData）。先保存原 onRecover 避免覆盖造成递归。
+    const originalOnRecover = config.onRecover
+    genConfig.onRecover = (d) => {
+      if (config.recoverable && config.resultKey && d?.resultUrl) {
+        mockSetNodes((ns) => ns.map((n) => (n.id === config.nodeId ? { ...n, data: { ...n.data, [config.resultKey]: d.resultUrl } } : n)))
+      }
+      originalOnRecover?.(d)
+    }
     return {
       loading: false,
       error: null,
       stop: vi.fn(),
-      // 复刻真实 start：先执行 run，再回调 onSuccess（便于测试回填）
+      // 复刻真实 start：跑 run → resultKey 自动写回 → 回调 onSuccess（便于测试回填）
       start: vi.fn(async () => {
         const r = await config.run?.({ progress: () => {}, signal: { aborted: false } })
+        if (config.resultKey && (r?.url || r?.doneUrl)) {
+          const url = r.url || r.doneUrl
+          mockSetNodes((ns) => ns.map((n) => (n.id === config.nodeId ? { ...n, data: { ...n.data, [config.resultKey]: url } } : n)))
+        }
         config.onSuccess?.(r)
         return r
       }),
