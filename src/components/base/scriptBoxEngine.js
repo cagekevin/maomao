@@ -108,6 +108,65 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
     showToast(m, { type: t, duration: t === 'error' ? 5000 : undefined })
   }
 
+  /**
+   * 批量写回合并器（P11 收口，抽公共工具消除两份逐字重复）。
+   * 用「队列累积 + 200ms 窗口」把多次 updateData 合并为低频一次 setNodes，
+   * 避免每完成一个分镜/资产图就全图重建节点数组。必须累积所有 patch，
+   * 不能用普通 debounce（否则丢中间项）。
+   * @param {(fn:(latest)=>data)=>void} updateData 写回更新器
+   * @returns {{ enqueuePatch:(apply:(latest)=>data)=>void, flushPatches:()=>void }}
+   */
+  function createPatchBatcher(updateData, windowMs = 200) {
+    const patchQueue = []
+    let flushTimer = null
+    const flushPatches = () => {
+      if (flushTimer) { clearTimeout(flushTimer); flushTimer = null }
+      const q = patchQueue.splice(0)
+      if (!q.length) return
+      updateData((latest) => {
+        let d = latest
+        for (const apply of q) d = apply(d)
+        return d
+      })
+    }
+    const enqueuePatch = (apply) => {
+      patchQueue.push(apply)
+      if (flushTimer == null) flushTimer = setTimeout(flushPatches, windowMs)
+    }
+    return { enqueuePatch, flushPatches }
+  }
+
+  /**
+   * 统一「可中止生成」骨架（收口 AbortController 注册/注销 + catch 分级样板，4 处复用）。
+   * 职责（只收敛脚手架，不改任何业务写回语义）：
+   *  - 建 AbortController 注册到 abortMap（供 onStopScriptItem 真中止），finally 统一注销；
+   *  - 成功/业务失败分支由调用方 task 内部自行 return（各写回逻辑差异大，留在调用点）；
+   *  - 仅当 task 抛出未捕获异常时按 /abort/ 分级：中止→logger.warn（不扰用户）；
+   *    真错误→toast + logger.error（真实透传，见 CONTEXT §0 轻量兜底）；
+   *  - onReset：异常时清 loading 的写回落点（各调用点写回语义不同）。
+   * @param {string} key   abortMap 注册键（onStopScriptItem 真中止用，如 `shot-${id}`）
+   * @param {()=>void} onReset  异常/中止时复位 loading
+   * @param {(signal)=>Promise} task  业务异步任务（拿 signal 传给 API）
+   * @param {{logLabel:string,toastFail:string,ctx:object}} info 分级日志/提示文案
+   */
+  const runAbortable = async (key, onReset, task, info) => {
+    const ac = new AbortController()
+    abortMap.set(key, ac)
+    try {
+      await task(ac.signal)
+    } catch (e) {
+      onReset?.()
+      if (/abort/i.test(e?.message || '')) {
+        logger.warn('scriptBox', `${info.logLabel}·已中止`, info.ctx)
+      } else {
+        toast(e?.message || info.toastFail)
+        logger.error('scriptBox', `${info.logLabel}·异常`, { ...info.ctx, error: e?.message })
+      }
+    } finally {
+      abortMap.delete(key)
+    }
+  }
+
   // ═══════════════════════════════════════════════════════════════
   // 步骤1 剧本生成（对齐官方 Ar）
   // ═══════════════════════════════════════════════════════════════
@@ -142,15 +201,13 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
 
     updateData({ genMask: true, genChars: 0 })
     logger.info('scriptBox', '生成剧本·开始', { nodeId, provider: provider?.id, model: modelId, storyLen: story.length, shotCount })
-    const ac = new AbortController()
-    abortMap.set('script', ac)
-    try {
+    return runAbortable('script', () => updateData({ genMask: false }), async (signal) => {
       const r = await chatCompletions({
         provider,
         model: modelId,
         temperature: 0.7,
         responseFormat: useJsonObject(modelId) ? 'json_object' : undefined,
-        signal: ac.signal,
+        signal,
         messages: [
           { role: 'system', content: system },
           { role: 'user', content: story },
@@ -219,16 +276,9 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
         assets,
         pickedCount: 0,
       })
-      abortMap.delete('script')
       toast(`已生成 ${shots.length} 个分镜`)
       logger.info('scriptBox', '生成剧本·成功', { nodeId, shots: shots.length, assets: assets.length, projectName, globalStyle })
-    } catch (e) {
-      abortMap.delete('script')
-      updateData({ genMask: false })
-      if (!/abort/i.test(e?.message || '')) toast(e?.message || '脚本生成失败')
-      if (!/abort/i.test(e?.message || '')) logger.error('scriptBox', '生成剧本·异常', { nodeId, error: e?.message })
-      else logger.warn('scriptBox', '生成剧本·已中止', { nodeId })
-    }
+    }, { logLabel: '生成剧本', toastFail: '脚本生成失败', ctx: { nodeId } })
   }
 
   // ═══════════════════════════════════════════════════════════════
@@ -253,9 +303,7 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
     const commit = enqueuePatch || updateData
     commit((latest) => ({ assets: (latest.assets || []).map((a) => (a.id === assetId ? { ...a, loading: true } : a)) }))
     logger.info('scriptBox', '生成资产图·开始', { nodeId, assetId, name: asset.name, provider: provider?.id, model: modelId, aspectRatio, imageSize })
-    const ac = new AbortController()
-    abortMap.set(`asset-${assetId}`, ac)
-    try {
+    return runAbortable(`asset-${assetId}`, () => commit((latest) => ({ assets: (latest.assets || []).map((a) => (a.id === assetId ? { ...a, loading: false } : a)) })), async () => {
       const r = await generateImage({
         provider,
         prompt,
@@ -264,7 +312,6 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
         n: 1,
         aspectRatio,
       }, null)
-      abortMap.delete(`asset-${assetId}`)
       if (r.ok && r.url) {
         commit((latest) => ({
           assets: (latest.assets || []).map((a) =>
@@ -280,13 +327,7 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
         if (r && !r.aborted) logger.error('scriptBox', '生成资产图·上游失败', { nodeId, assetId, error: r.error })
         else logger.warn('scriptBox', '生成资产图·已中止', { nodeId, assetId })
       }
-    } catch (e) {
-      abortMap.delete(`asset-${assetId}`)
-      commit((latest) => ({ assets: (latest.assets || []).map((a) => (a.id === assetId ? { ...a, loading: false } : a)) }))
-      if (!/abort/i.test(e?.message || '')) toast(e?.message || '资产参考图生成失败')
-      if (!/abort/i.test(e?.message || '')) logger.error('scriptBox', '生成资产图·异常', { nodeId, assetId, error: e?.message })
-      else logger.warn('scriptBox', '生成资产图·已中止', { nodeId, assetId })
-    }
+    }, { logLabel: '生成资产图', toastFail: '资产参考图生成失败', ctx: { nodeId, assetId } })
   }
 
   // 批量生成资产参考图（对齐官方 Fr）：传数组=选中集；undefined=全部无图资产
@@ -299,22 +340,7 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
     toast(`开始批量生成 ${target.length} 张参考图…`)
     logger.info('scriptBox', '批量生成资产图·开始', { nodeId, count: target.length, ids: target.map((a) => a.id) })
     // P11 收口：批量生成期间多次资产写回合并为低频一次 setNodes（同 onGenerateShotPrompts 范式）
-    const patchQueue = []
-    let flushTimer = null
-    const flushPatches = () => {
-      if (flushTimer) { clearTimeout(flushTimer); flushTimer = null }
-      const q = patchQueue.splice(0)
-      if (!q.length) return
-      updateData((latest) => {
-        let d = latest
-        for (const apply of q) d = apply(d)
-        return d
-      })
-    }
-    const enqueuePatch = (apply) => {
-      patchQueue.push(apply)
-      if (flushTimer == null) flushTimer = setTimeout(flushPatches, 200)
-    }
+    const { enqueuePatch, flushPatches } = createPatchBatcher(updateData)
     await Promise.all(target.map((a) => onGenerateAssetImage(a.id, enqueuePatch)))
     flushPatches()
     logger.info('scriptBox', '批量生成资产图·完成', { nodeId, count: target.length })
@@ -349,22 +375,7 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
     // P11 收口：批量生成期间，多个分镜完成的写回合并为低频一次 setNodes，
     // 避免「每完成一个分镜就全图 node 数组重建」导致画布节点多时频繁全量重算。
     // 用带队列的 200ms 窗口合并（必须累积所有 patch，不能用普通 debounce 否则丢中间分镜）。
-    const patchQueue = []
-    let flushTimer = null
-    const flushPatches = () => {
-      if (flushTimer) { clearTimeout(flushTimer); flushTimer = null }
-      const q = patchQueue.splice(0)
-      if (!q.length) return
-      updateData((latest) => {
-        let d = latest
-        for (const apply of q) d = apply(d)
-        return d
-      })
-    }
-    const enqueuePatch = (apply) => {
-      patchQueue.push(apply)
-      if (flushTimer == null) flushTimer = setTimeout(flushPatches, 200)
-    }
+    const { enqueuePatch, flushPatches } = createPatchBatcher(updateData)
 
     const genShot = async (shot) => {
       // 每个分镜发起时打一条日志（逐镜跟踪批量进度）
@@ -373,9 +384,7 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
       // 注意：必须用函数式更新基于「最新 data」计算，避免并发时 getData() 读到旧引用
       // 导致多个分镜的 loading 互相覆盖、动画闪现/产生不了。
       enqueuePatch((latest) => ({ shots: (latest.shots || []).map((s) => (s.id === shot.id ? { ...s, promptLoading: true } : s)) }))
-      try {
-        const ac = new AbortController()
-        abortMap.set(`shot-${shot.id}`, ac)
+      return runAbortable(`shot-${shot.id}`, () => enqueuePatch((latest) => ({ shots: (latest.shots || []).map((s) => (s.id === shot.id ? { ...s, promptLoading: false } : s)) })), async (signal) => {
         // 收集该镜 @引用的有图资产（对齐官方 Ir 的 Fa 匹配）
         const shotText = `${shot.description || ''} ${shot.dialogue || ''} ${shot.prompt || ''} ${shot.videoPrompt || ''}`
         const refAssets = assets.filter((a) => a?.name && matchAsset(shotText, a.name))
@@ -391,13 +400,12 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
           model: modelId,
           temperature: 0.7,
           responseFormat: useJsonObject(modelId) ? 'json_object' : undefined,
-          signal: ac.signal,
+          signal,
           messages: [
             { role: 'system', content: system },
             { role: 'user', content: user },
           ],
         })
-        abortMap.delete(`shot-${shot.id}`)
         if (!r.ok) {
           enqueuePatch((latest) => ({ shots: (latest.shots || []).map((s) => (s.id === shot.id ? { ...s, promptLoading: false } : s)) }))
           if (!r.aborted) toast(r.error || '分镜提示词生成失败')
@@ -413,13 +421,7 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
         }
         const { prompt, videoPrompt } = parsed.data || {}
         enqueuePatch((latest) => ({ shots: (latest.shots || []).map((s) => (s.id === shot.id ? { ...s, prompt: prompt || '', videoPrompt: videoPrompt || '', promptLoading: false } : s)) }))
-      } catch (e) {
-        abortMap.delete(`shot-${shot.id}`)
-        enqueuePatch((latest) => ({ shots: (latest.shots || []).map((s) => (s.id === shot.id ? { ...s, promptLoading: false } : s)) }))
-        if (!/abort/i.test(e?.message || '')) toast(e?.message || '分镜提示词生成失败')
-        if (!/abort/i.test(e?.message || '')) logger.error('scriptBox', '生成分镜提示词·单镜异常', { nodeId, shotId: shot.id, error: e?.message })
-        else logger.warn('scriptBox', '生成分镜提示词·单镜已中止', { nodeId, shotId: shot.id })
-      }
+      }, { logLabel: '生成分镜提示词·单镜', toastFail: '分镜提示词生成失败', ctx: { nodeId, shotId: shot.id } })
     }
 
     // 【滑动窗口并发】同时最多 4 个分镜在途，但每个分镜「启动之间」隔 START_GAP_MS 毫秒
@@ -467,20 +469,17 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
 
     updateData({ shots: d.shots.map((s) => (s.id === shotId ? { ...s, imgGenLoading: true } : s)) })
     logger.info('scriptBox', 'AI生图提示词·开始', { nodeId, shotId, type })
-    const ac = new AbortController()
-    abortMap.set(`shotimg-${shotId}`, ac)
-    try {
+    return runAbortable(`shotimg-${shotId}`, () => updateData({ shots: getData().shots.map((s) => (s.id === shotId ? { ...s, imgGenLoading: false } : s)) }), async (signal) => {
       const r = await chatCompletions({
         provider,
         model: modelId,
         temperature: 0.7,
-        signal: ac.signal,
+        signal,
         messages: [
           { role: 'system', content: system },
           { role: 'user', content: user },
         ],
       })
-      abortMap.delete(`shotimg-${shotId}`)
       const parsed = r.ok ? parseJsonText(r.content) : { ok: false, data: null }
       const prompt = parsed.ok && typeof parsed.data === 'string' ? parsed.data
         : parsed.ok && parsed.data?.prompt ? parsed.data.prompt
@@ -496,13 +495,7 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
       if (r.ok && !r.aborted) logger.info('scriptBox', 'AI生图提示词·成功', { nodeId, shotId, type, promptLen: (prompt || '').length })
       else if (!r.aborted) logger.error('scriptBox', 'AI生图提示词·失败', { nodeId, shotId, type, error: r.error })
       else logger.warn('scriptBox', 'AI生图提示词·已中止', { nodeId, shotId })
-    } catch (e) {
-      abortMap.delete(`shotimg-${shotId}`)
-      updateData({ shots: getData().shots.map((s) => (s.id === shotId ? { ...s, imgGenLoading: false } : s)) })
-      if (!/abort/i.test(e?.message || '')) toast(e?.message || '提示词生成失败')
-      if (!/abort/i.test(e?.message || '')) logger.error('scriptBox', 'AI生图提示词·异常', { nodeId, shotId, type, error: e?.message })
-      else logger.warn('scriptBox', 'AI生图提示词·已中止', { nodeId, shotId })
-    }
+    }, { logLabel: 'AI生图提示词', toastFail: '提示词生成失败', ctx: { nodeId, shotId, type } })
   }
 
   // ═══════════════════════════════════════════════════════════════
