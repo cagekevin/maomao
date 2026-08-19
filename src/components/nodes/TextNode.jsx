@@ -17,15 +17,14 @@ import GeneratingOverlay from '../base/GeneratingOverlay.jsx'
 import PromptLibraryButton from '../base/PromptLibraryButton.jsx'
 import { useNodeResize } from '../base/hooks.js'
 import { useConnectedInputs } from '../base/useConnectedInputs.js'
-import { useNodeGeneration } from '../base/useNodeGeneration.js'
+import { useGenerateNode } from '../base/useGenerateNode.js'
 import { debounce } from '../base/utils.js'
 import { buildSpawnNodes, applySpawnSnapshot, makeChildId } from '../base/deriveNodes.js'
 import { useCanvasEdges } from '../base/CanvasEdgesContext.jsx'
 import { saveTextToTasks, toAbsoluteFileUrl } from '../base/filesApi.js'
-import { useProviders } from '../base/settings/providerStore.js'
 import { chatCompletions } from '../base/chatApi.js'
 import { useNodePrefs } from '../base/nodePrefs.js'
-import { buildAllModels, resolveProviderModel } from '../base/providerModels.js'
+import { resolveProviderModel } from '../base/providerModels.js'
 import { logger } from '../base/logger.js'
 import previewUrls from '../base/previewUrl.js'
 
@@ -119,35 +118,19 @@ function TextNode({ id, data, selected }) {
   //  - onInputResize：输入框手柄 → node.data.inputWidth/inputHeight（复刻官方）
   const { onMainBoxResize, onInputResize } = useNodeResize(id)
 
-  // 供应商配置（多 provider）：模型下拉聚合【所有 provider】的 chat_models（节点式选模型），
-  // 生成时按选中的 model 解析回对应 provider，经 /api/proxy 转发。
-  const { providers } = useProviders()
-  const primary = providers?.find((p) => p.isPrimary) || providers?.[0] || null
-  const models = buildAllModels(providers, 'chat')
-
-  // providers 加载后：若「未记忆模型」且节点没显式指定模型 → 默认用第一个 chat_model 的 key 并记忆
-  const defaultFromProvider = models[0]?.id
-  React.useEffect(() => {
-    if (!defaultFromProvider) return
-    if (textPrefs.model) return // 已有记忆，不覆盖
-    if (data.selectedModel) return // 节点显式指定，不覆盖
-    setSelectedModel(defaultFromProvider)
-    setTextPrefs({ model: defaultFromProvider })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [defaultFromProvider])
-
-  // 统一生成契约（useNodeGeneration）：收敛「reportGenerate + 进度 + 成功双写 + 失败 + retry注册」。
-  // 真实文本生成：经 localTool /api/proxy → 选中的 provider /v1/chat/completions（节点式：可跨 provider 选模型）。
-  // Agent 的 generate_node 也走这里。
-  // ── P0-2-c 文本特例：不接 resultKey / recoverable ──
-  // 图片/视频节点声明 resultKey+recoverable 由契约自动把 resultUrl 写回 node.data[imageUrl/videoUrl]。
-  // 文本结果本体在 data.text（run 只返回 content、无 url/doneUrl），任务中心 resultUrl 为空：
-  //  resultKey 成功时写 {[key]: r.url||doneUrl} → 永远不触发，无意义；
-  //  recoverable 广播回填 data[key]=resultUrl → 文本不适用（契约明示文本类节点不传 onRecover）。
-  // 故文本走 setTextPersist → effect 防抖写回 data.text（随画布快照恢复），与图片/视频节点写回路径正交。
-  const { loading, error, stop: onStop, start: handleGenerate } = useNodeGeneration({
+  // 供应商/模型 + 默认模型回填 + useNodeGeneration(统一契约) 收进 useGenerateNode（P0-2 收口）。
+  // 文本特例：模型域 'chat'（buildAllModels）与上报类型 'text' 不一致，故分 type/reportType 传。
+  // prefs/selectedModel 由本节点持有并传入（无死锁）；结果写在 data.text（随画布快照恢复），不接 resultKey/recoverable。
+  const { providers, primary, models, loading, error, stop: onStop, start: handleGenerate } = useGenerateNode({
     nodeId: id,
-    type: { type: 'text', prompt: effectivePrompt || '', modelName: selectedModel },
+    type: 'chat',
+    reportType: 'text',
+    prompt: effectivePrompt || '',
+    data,
+    prefs: textPrefs,
+    setPrefs: setTextPrefs,
+    selectedModel,
+    setSelectedModel,
     // 前置校验：本地 prompt/文本 或上游文本任一非空即可生成
     validate: () => (effectivePrompt?.trim() ? '' : '请输入提示词或文本'),
     run: async ({ progress, signal }) => {

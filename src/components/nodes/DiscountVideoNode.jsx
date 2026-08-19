@@ -22,12 +22,11 @@ import { useMediaDegrade } from '../base/useMediaDegrade.js'
 import { useVideoPoster } from '../base/useVideoPoster.js'
 import LazyImage from '../base/LazyImage.jsx'
 import VideoThumbnail from '../base/VideoThumbnail.jsx'
-import { useNodeGeneration } from '../base/useNodeGeneration.js'
-import { useProviders } from '../base/settings/providerStore.js'
+import { useGenerateNode } from '../base/useGenerateNode.js'
 import { generateVideo } from '../base/videoApi.js'
 import { useNodePrefs } from '../base/nodePrefs.js'
 import { logger } from '../base/logger.js'
-import { buildAllModels, resolveProviderModel } from '../base/providerModels.js'
+import { resolveProviderModel } from '../base/providerModels.js'
 import { debounce } from '../base/utils.js'
 
 /**
@@ -117,32 +116,24 @@ function DiscountVideoNode({ id, data, selected }) {
   const resOptions = ['480p', '720p', '1080p']
   const durationOptions = ['4', '6', '8', '10', '12', '15']
 
-  // 供应商配置（多 provider）：模型下拉聚合【所有 provider】的 video_models（节点式选模型），
-  // 生成时按选中的 model 解析回对应 provider，经 /api/proxy 转发。
-  const { providers } = useProviders()
-  const primary = providers?.find((p) => p.isPrimary) || providers?.[0] || null
-  const models = buildAllModels(providers, 'video')
-
   // 记住上次选择的模型/比例/分辨率/时长（跨节点/跨会话）
   const { prefs: vidPrefs, set: setVidPrefs } = useNodePrefs('discountVideoNode', { model: '', size: '16:9', resolution: '1080p', seconds: '10' })
 
-  // providers 加载后：若「未记忆模型」且节点没显式指定模型 → 默认用第一个 video_model 的 key 并记忆
-  const defaultFromProvider = models[0]?.id
-  React.useEffect(() => {
-    if (!defaultFromProvider) return
-    if (vidPrefs.model) return
-    if (data.selectedModel) return
-    setSelectedModel(defaultFromProvider)
-    setVidPrefs({ model: defaultFromProvider })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [defaultFromProvider])
-
-  // 统一生成契约（useNodeGeneration）：收敛「reportGenerate + 进度 + 成功双写 + 失败 + retry注册」。
-  // 真实视频生成：经 localTool /api/proxy → 选中的 provider /v1/videos/generations（节点式：可跨 provider 选模型）。
-  // Agent 的 generate_node 也走这里。
-  const { loading, error, stop: onStop, start: handleGenerate } = useNodeGeneration({
+  // 供应商/模型 + 默认模型回填 + useNodeGeneration(统一契约) 收进 useGenerateNode（P0-2 收口）。
+  // prefs/selectedModel 由本节点持有并传入（无死锁）；外部 data.videoUrl 变更同步也收进 sync。
+  const { providers, primary, models, loading, error, stop: onStop, start: handleGenerate } = useGenerateNode({
     nodeId: id,
-    type: { type: 'video', prompt: effectivePrompt || '', modelName: selectedModel },
+    type: 'video',
+    prompt: effectivePrompt || '',
+    data,
+    prefs: vidPrefs,
+    setPrefs: setVidPrefs,
+    selectedModel,
+    setSelectedModel,
+    // 收编外部同步：Agent 更新 / 视频处理 spawn 写回 data.videoUrl → 同步本地 state（替手写 effect）
+    sync: { videoUrl: setVideoUrl },
+    resultField: 'videoUrl',
+    recoverable: true,
     // 前置校验：本地 prompt 或上游文本任一非空即可生成
     validate: () => (effectivePrompt?.trim() ? '' : '请输入提示词'),
     run: async ({ progress, signal }) => {
@@ -162,26 +153,15 @@ function DiscountVideoNode({ id, data, selected }) {
     },
     onSuccess: (r) => {
       setVideoUrl(r.url)
-      // 【真相源契约】结果写回 node.data.videoUrl 由声明式 resultKey 自动完成（经 useNodeData，随画布快照落盘）。
-      // 此回调只负责本地 state 同步与业务记忆；写 node.data 的部分交由 resultKey({[videoUrl]: r.url})。
+      // 【真相源契约】data.videoUrl 写回由声明式 resultField:'videoUrl' 自动完成（经 useNodeData，随画布快照落盘）。
+      // 此回调只负责本地 state 同步与业务记忆。
       setVidPrefs({ model: selectedModel, size: ratio, resolution, seconds })
     },
-    // 【精准节点回填】异步视频任务刷新后恢复轮询完成的广播 → 写回本节点，节点卡片自动恢复显示。
-    // 视频唯一异步模式，均有 pollTaskId；data.videoUrl 有外部同步 effect 会把值同步到本地 state。
+    // 【精准节点回填】异步视频任务刷新后恢复轮询完成的广播 → 节点卡片自动恢复显示（data 回填由 recoverable 自动，此处同步本地 state 供渲染/下载）。
     onRecover: ({ resultUrl }) => {
-      // 写回 node.data.videoUrl 由声明式 recoverable 自动完成，此处只同步本地 state（供渲染/下载）。
       setVideoUrl(resultUrl)
     },
-    // ── P0-2-c 声明式写回：成功 / 广播恢复均自动 patchData({ videoUrl }) ──
-    resultKey: 'videoUrl',
-    recoverable: true,
   })
-
-  // 外部写入 videoUrl（如视频处理节点 spawn 输出）→ 同步到本地 state，使节点显示/可下载该视频
-  React.useEffect(() => {
-    if (data.videoUrl && data.videoUrl !== videoUrl) setVideoUrl(data.videoUrl)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data.videoUrl])
 
   const onUpload = () => fileRef.current?.click()
 

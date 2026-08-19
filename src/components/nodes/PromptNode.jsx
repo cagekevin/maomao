@@ -24,15 +24,13 @@ import { openAssetLibrary } from '../base/taskStore.js'
 import { useNodeResize, useOutsideClick } from '../base/hooks.js'
 import { useConnectedInputs } from '../base/useConnectedInputs.js'
 import { useMediaDegrade } from '../base/useMediaDegrade.js'
-import { useNodeGeneration } from '../base/useNodeGeneration.js'
+import { useGenerateNode } from '../base/useGenerateNode.js'
 import { toAbsoluteFileUrl, saveResultToTasks } from '../base/filesApi.js'
-import { useProviders } from '../base/settings/providerStore.js'
 import { logger } from '../base/logger.js'
 import { fetchTasks } from '../base/localToolApi.js'
 import { generateImage } from '../base/imageApi.js'
 import { useNodePrefs } from '../base/nodePrefs.js'
-import { useSyncNodeData } from '../base/useSyncNodeData.js'
-import { buildAllModels, resolveProviderModel } from '../base/providerModels.js'
+import { resolveProviderModel } from '../base/providerModels.js'
 import { debounce } from '../base/utils.js'
 
 /**
@@ -77,9 +75,7 @@ function PromptNode({ id, data, selected }) {
   const [imageUrl, setImageUrl] = useState(data.imageUrl || '')
   const [showImgMenu, setShowImgMenu] = useState(false)
   const [showCountMenu, setShowCountMenu] = useState(false)
-  // 同步 Agent(update_node) 写入 node.data 的外部变更到本地 state：
-  // 否则 Agent 改了 data.aspectRatio / selectedModel，UI 与生成参数仍用旧 state。
-  useSyncNodeData(data, { aspectRatio: setAspectRatio, selectedModel: setSelectedModel, quality: setQuality, imageSize: setImageSize })
+  // useSyncNodeData（Agent update_node 改 data → 同步本地 state）已收进 useGenerateNode 的 sync 参数，此处不再手写。
   const { setNodes, setEdges, getEdges, getNodes, addNodes } = useReactFlow()
 
   // 断连线：点击素材缩略图红色 ×，删除该素材来源节点 → 本节点的连线。
@@ -155,29 +151,22 @@ function PromptNode({ id, data, selected }) {
   // 输入框尺寸写回 node.data（基座 useNodeResize，复刻官方 inputWidth/inputHeight）
   const { onInputResize } = useNodeResize(id)
 
-  // 供应商配置（多 provider）：模型下拉聚合【所有 provider】的 image_models（节点式选模型），
-  // 生成时按选中的 model 解析回对应 provider，经 /api/proxy 转发。
-  const { providers } = useProviders()
-  const primary = providers?.find((p) => p.isPrimary) || providers?.[0] || null
-  const models = buildAllModels(providers, 'image')
-
-  // providers 加载后：若「未记忆模型」且节点没显式指定模型 → 默认用第一个模型的 key 并记忆
-  const defaultFromProvider = models[0]?.id
-  React.useEffect(() => {
-    if (!defaultFromProvider) return
-    if (imgPrefs.model) return // 已有记忆，不覆盖
-    if (data.selectedModel) return // 节点显式指定，不覆盖
-    setSelectedModel(defaultFromProvider)
-    setImgPrefs({ model: defaultFromProvider })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [defaultFromProvider])
-
-  // 统一生成契约（useNodeGeneration）：收敛「reportGenerate + 进度 + 成功双写(taskStore+node.data) + 失败 + retry注册」。
-  // 真实生图：经 localTool /api/proxy → 选中的 provider /v1/images/generations（节点式：可跨 provider 选模型）。
-  // 同步/异步由该 provider.image_mode 决定（API 设置页「图片生成模式」）。Agent 的 generate_node 也走这里。
-  const { loading, error, stop: onStop, start: handleGenerate } = useNodeGeneration({
+  // 供应商/模型 + useSyncNodeData(外部变更同步) + 默认模型回填 + useNodeGeneration(统一契约)
+  // 全部收进 useGenerateNode（P0-2 收口，第68+71行）。prefs/selectedModel 由本节点持有并传入（无死锁）。
+  // providers/primary/models 一并汇出供 run / ModelSelect 使用；任务上报提示词取 effectivePrompt。
+  const { providers, primary, models, loading, error, stop: onStop, start: handleGenerate } = useGenerateNode({
     nodeId: id,
-    type: { type: 'image', prompt: effectivePrompt || '', modelName: selectedModel },
+    type: 'image',
+    prompt: effectivePrompt || '',
+    data,
+    prefs: imgPrefs,
+    setPrefs: setImgPrefs,
+    selectedModel,
+    setSelectedModel,
+    // 收编 useSyncNodeData：Agent(update_node) 改 data 字段 → 同步本地 state（替原手写字段映射）
+    sync: { aspectRatio: setAspectRatio, selectedModel: setSelectedModel, quality: setQuality, imageSize: setImageSize },
+    resultField: 'imageUrl',
+    recoverable: true,
     // 前置校验：本地 prompt 或上游文本任一非空即可生图
     validate: () => (effectivePrompt?.trim() ? '' : '请输入提示词'),
     run: async ({ progress, signal }) => {
@@ -198,10 +187,9 @@ function PromptNode({ id, data, selected }) {
     },
     onSuccess: (r) => {
       setImageUrl(r.url)
-      // 写回 node.data.imageUrl：由 resultKey:'imageUrl' 在 hook 内自动 patchData（P0-2-b），此处不再手写。
-      // 保留下方落盘逻辑：仅当上游返回临时地址、落盘后有持久 URL 时才再覆盖写 data.imageUrl。
-      // 【刷新不丢】把生成结果落盘到 localTool 的 /files/tasks/，再用持久化 URL 覆盖写回 data.imageUrl。
-      // 否则若上游返回的是外链/临时地址，刷新后节点会因 URL 失效而丢图（taskStore 的落盘只回写任务中心，不回写节点）。
+      // data.imageUrl 已由 resultField:'imageUrl' 在 hook 内自动 patchData。
+      // 仅当上游返回临时地址、落盘后有持久 URL 时才再覆盖写 data.imageUrl（刷新不丢）。
+      // 否则若上游返回的是外链/临时地址，刷新后节点会因 URL 失效而丢图（taskStore 落盘只回写任务中心，不回写节点）。
       if (r.url && !/^blob:/.test(r.url)) {
         saveResultToTasks(r.url, 'image').then((persistedUrl) => {
           if (persistedUrl && persistedUrl !== r.url) {
@@ -213,7 +201,7 @@ function PromptNode({ id, data, selected }) {
       // 记忆本次参数（模型/比例/尺寸），供新建节点复用
       setImgPrefs({ model: selectedModel, aspectRatio, imageSize })
     },
-    // 【精准节点回填】异步任务刷新后恢复轮询完成的广播 → 把结果写回本节点，节点卡片自动恢复显示图。
+    // 【精准节点回填】异步任务刷新后恢复轮询完成的广播 → 节点恢复显示图（resultUrl 写回 data 由 recoverable 自动）。
     // 仅生图 async 模式会命中（有 pollTaskId）；sync 同步无任务广播。
     onRecover: ({ resultUrl }) => {
       // 【异步安全兜底】节点在生成期间被删除/合并而消失 → 用结果重建节点（复用原 id 保持任务关联），
@@ -237,10 +225,7 @@ function PromptNode({ id, data, selected }) {
         return
       }
       setImageUrl(resultUrl)
-      // 写回 node.data.imageUrl 由 recoverable+resultKey 在 hook 内自动回填（P0-2-b）
     },
-    resultKey: 'imageUrl',
-    recoverable: true,
   })
 
   // 图片可选比例（含 1:3 / 3:1 极端竖/横比例，不含 1:2 / 2:1）

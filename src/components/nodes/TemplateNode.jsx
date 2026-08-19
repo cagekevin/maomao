@@ -16,14 +16,11 @@ import GeneratingOverlay from '../base/GeneratingOverlay.jsx'
 import { useNodeResize, useOutsideClick } from '../base/hooks.js'
 import { useConnectedInputs } from '../base/useConnectedInputs.js'
 import { useMediaDegrade } from '../base/useMediaDegrade.js'
-import { useNodeGeneration } from '../base/useNodeGeneration.js'
+import { useGenerateNode } from '../base/useGenerateNode.js'
 import { useNodePrefs } from '../base/nodePrefs.js'
-import { useSyncNodeData } from '../base/useSyncNodeData.js'
 import { showToast } from '../base/toastStore.js'
 import { generateImage } from '../base/imageApi.js'
 import { toAbsoluteFileUrl } from '../base/filesApi.js'
-import { useProviders } from '../base/settings/providerStore.js'
-import { buildAllModels } from '../base/providerModels.js'
 import { debounce } from '../base/utils.js'
 
 /**
@@ -144,9 +141,7 @@ function TemplateNode({ id, data, selected }) {
   const upstreamText = refTexts.map((t) => (t.text || '').trim()).filter(Boolean).join('\n')
   const effectivePrompt = [prompt?.trim(), upstreamText].filter(Boolean).join('\n') || ''
 
-  // 外部同步：Agent update_node 改 data 时，把变更同步回本地 state（否则 UI 不跟变）
-  // 【模板】把所有「由 data 初始化的 state」都列进来
-  useSyncNodeData(data, { prompt: setPrompt, aspectRatio: setAspectRatio, selectedModel: setSelectedModel })
+  // 外部同步：Agent update_node 改 data 时，把变更同步回本地 state ——已收进 useGenerateNode 的 sync 参数。
 
   // 提示词落盘：本地 state + 写回 node.data（支持函数式更新；刷新不丢）
   const setPromptPersist = useCallback((v) => {
@@ -182,39 +177,39 @@ function TemplateNode({ id, data, selected }) {
     [id, setEdges]
   )
 
-  // ─── 5. 模型下拉（多 provider 聚合，通用）───
-  const { providers } = useProviders()
-  const models = buildAllModels(providers, 'image')
-
-  // ─── 6. 生成契约（通用；无生成能力的节点删掉本块 + GenerateButton）───
-  // useNodeGeneration：统一「提交任务 → 进度 → 成功双写(taskStore + node.data) / 失败 / 手动重试」。
-  // 【错误/重试规范，见 docs/09】错误已由契约按 type 分类并映射文案（genErrors.js）：
-  //   - 网络/超时层由 API 层 withRetry 自动重试；上游失败不自动重试，交给「再来一次」。
-  //   - 本节点禁止自写 if (/网络错误/.test(msg)) 等判断，只读 gen.error 展示即可。
-  //   - 若要刷新后恢复结果（节点消失重建），可传 onRecover: (d) => { setImageUrl(d.resultUrl); patchData({ imageUrl: d.resultUrl }) }。
-  const gen = useNodeGeneration({
+  // ─── 5. 模型下拉 + 生成契约（通用；已统一收进 useGenerateNode）───
+  // useGenerateNode 同时收敛：useProviders/models 聚合 + useSyncNodeData 外部同步 +
+  // useNodeGeneration 统一「提交任务 → 进度 → 成功双写 / 失败 / 重试」。prefs/selectedModel 由本节点持有。
+  // gen = { providers, primary, models, loading, error, start, stop }
+  const gen = useGenerateNode({
     nodeId: id,
-    type: { type: 'image', prompt: effectivePrompt, modelName: selectedModel },  // 任务上报信息
+    type: 'image',
+    prompt: effectivePrompt,                                  // 任务上报提示词
+    data,
+    prefs: myPrefs,
+    setPrefs: setMyPrefs,
+    selectedModel,
+    setSelectedModel,
+    // 【模板】把所有「由 data 初始化的 state」都放进 sync（外部变更同步，直接读 useGenerateNode 文档）
+    sync: { prompt: setPrompt, aspectRatio: setAspectRatio, selectedModel: setSelectedModel },
+    resultField: 'imageUrl',                                  // 成功 / 广播恢复自动 patchData({ imageUrl })
+    recoverable: true,
     // 前置校验：本地 prompt 或上游文本任一非空即可生图
     validate: () => (effectivePrompt?.trim() ? '' : '请输入提示词'),
-    run: async ({ progress }) => generateImage({                  // 真执行器（换成你的 API）
+    run: async ({ progress }) => generateImage({              // 真执行器（换成你的 API）
       model: selectedModel,
       prompt: effectivePrompt,
       refImages,
       aspectRatio,
     }, progress),
-    onSuccess: (r) => {                                          // 成功：本地 state + 业务记忆；写 node.data 交由 resultKey
+    onSuccess: (r) => {                                      // 成功：本地 state + 业务记忆；写 node.data 交由 resultField
       setImageUrl(r.url)
       setMyPrefs({ model: selectedModel, aspectRatio })
     },
-    // 【真相源契约·onRecover】任务中心完成广播（agent:task-completed）→ 写回 node.data 交由 recoverable 自动完成。
-    // 刷新后节点结果自动恢复（异步任务经轮询广播回填）。文本类节点（resultUrl 为空）不适用，无需传此回调。
+    // 【真相源契约·onRecover】任务中心完成广播 → 刷新后结果自动恢复（node.data 回填由 recoverable 自动完成）
     onRecover: ({ resultUrl }) => {
       setImageUrl(resultUrl)
     },
-    // ── P0-2-c 声明式写回：成功 / 广播恢复均自动 patchData({ imageUrl }) ──
-    resultKey: 'imageUrl',
-    recoverable: true,
   })
 
   // ─── 7. hover 工具栏按钮（通用；可选）───
@@ -313,7 +308,7 @@ function TemplateNode({ id, data, selected }) {
               <ModelSelect
                 value={selectedModel}
                 onChange={(m) => { setSelectedModel(m); setMyPrefs({ model: m }) }}
-                models={models}
+                models={gen.models}
               />
             </div>
 
