@@ -15,7 +15,7 @@
  * disableLocalTool：官方来自 context `Vl.disableLocalTool || window.__CANVAS_RUNTIME__.disableLocalTool`，
  * 原型无此开关，默认 false（即始终启用连接检测）。
  */
-import { useState, useCallback, useEffect } from 'react'
+import { useCallback, useEffect, useSyncExternalStore } from 'react'
 import { logger } from './logger.js'
 import { httpRequest } from './httpClient.js'
 import { API_BASE } from './config.js'
@@ -25,57 +25,105 @@ const DEFAULT_PORT = 18080
 const POLL_CONNECTED_MS = 15000 // 已连接：15s 轮询一次（官方 Wl）
 const POLL_DISCONNECTED_MS = 5000 // 未连接：5s 轮询一次（官方 Ul）
 
-export function useLocalToolStatus() {
-  // 官方 disableLocalTool：原型无该开关，恒 false
-  const disableLocalTool = false
+/**
+ * 单例共享状态：多个组件调用 useLocalToolStatus() 时复用同一份轮询，
+ * 避免每个实例各自 setInterval 导致请求翻倍。
+ */
+let sharedStatus = { isConnected: false, port: DEFAULT_PORT, version: '', message: '' }
+const listeners = new Set()
+let pollTimer = null
+let pollRunning = false
+const disableLocalTool = false // 原型无该开关，恒 false
 
-  const [status, setStatus] = useState({ isConnected: false, port: DEFAULT_PORT, version: '', message: '' })
+function emit() {
+  for (const l of listeners) l()
+}
 
-  const check = useCallback(async () => {
-    if (disableLocalTool) {
-      setStatus((s) => (s.isConnected ? { ...s, isConnected: false } : s))
-      return
+async function runCheck() {
+  if (disableLocalTool) {
+    if (sharedStatus.isConnected) {
+      sharedStatus = { ...sharedStatus, isConnected: false }
+      emit()
     }
-    try {
-      // httpRequest 统一请求层：带 5s 超时（localTool 未起时快速失败），HTTP 非 2xx 抛错
-      const data = await httpRequest(`${API_BASE}/api/status`, {
-        method: 'GET',
-        headers: { 'Content-Type': 'application/json' },
-        timeoutMs: LOCAL_TOOL_PING_TIMEOUT,
-        retries: 0,
-      })
-      logger.info('useLocalToolStatus', '/api/status 响应', data?.status)
-      if (data?.status === 'ok') {
-        setStatus((s) =>
-          s.isConnected && s.version === data.version && s.message === data.message
-            ? s
-            : { ...s, isConnected: true, version: data.version || '', message: data.message || '' }
-        )
-        return
+    return
+  }
+  try {
+    const data = await httpRequest(`${API_BASE}/api/status`, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+      timeoutMs: LOCAL_TOOL_PING_TIMEOUT,
+      retries: 0,
+    })
+    logger.info('useLocalToolStatus', '/api/status 响应', data?.status)
+    if (data?.status === 'ok') {
+      if (
+        !sharedStatus.isConnected ||
+        sharedStatus.version !== data.version ||
+        sharedStatus.message !== data.message
+      ) {
+        sharedStatus = {
+          ...sharedStatus,
+          isConnected: true,
+          version: data.version || '',
+          message: data.message || '',
+        }
+        emit()
       }
-      setStatus((s) => (s.isConnected ? { ...s, isConnected: false } : s))
-    } catch {
-      setStatus((s) => (s.isConnected ? { ...s, isConnected: false } : s))
-    }
-  }, [disableLocalTool])
-
-  // 挂载后立即检测一次（对齐官方 Gl 的 useEffect [r, e]）
-  useEffect(() => {
-    if (disableLocalTool) {
-      setStatus((s) => (s.isConnected ? { ...s, isConnected: false } : s))
       return
     }
-    check()
-  }, [check, disableLocalTool])
+    if (sharedStatus.isConnected) {
+      sharedStatus = { ...sharedStatus, isConnected: false }
+      emit()
+    }
+  } catch {
+    if (sharedStatus.isConnected) {
+      sharedStatus = { ...sharedStatus, isConnected: false }
+      emit()
+    }
+  }
+}
 
-  // 定时轮询（对齐官方 Gl 的 useEffect [t.isConnected, r, e]）
+function schedulePoll() {
+  if (disableLocalTool || pollRunning) return
+  pollRunning = true
+  const interval = sharedStatus.isConnected ? POLL_CONNECTED_MS : POLL_DISCONNECTED_MS
+  logger.info('useLocalToolStatus', '检测间隔', { interval, isConnected: sharedStatus.isConnected })
+  runCheck()
+  pollTimer = setInterval(runCheck, interval)
+}
+
+function restartPoll() {
+  if (pollTimer) clearInterval(pollTimer)
+  pollTimer = null
+  schedulePoll()
+}
+
+export function useLocalToolStatus() {
+  const subscribe = useCallback((cb) => {
+    listeners.add(cb)
+    // 首个订阅者启动轮询
+    if (listeners.size === 1) {
+      runCheck()
+      schedulePoll()
+    }
+    return () => {
+      listeners.delete(cb)
+      if (listeners.size === 0 && pollTimer) {
+        clearInterval(pollTimer)
+        pollTimer = null
+        pollRunning = false
+      }
+    }
+  }, [])
+
+  const getSnapshot = useCallback(() => sharedStatus, [])
+
+  const status = useSyncExternalStore(subscribe, getSnapshot)
+
+  // 连接状态变化时调整轮询频率
   useEffect(() => {
-    if (disableLocalTool) return
-    const interval = status.isConnected ? POLL_CONNECTED_MS : POLL_DISCONNECTED_MS
-    logger.info('useLocalToolStatus', '检测间隔', { interval, isConnected: status.isConnected })
-    const id = setInterval(check, interval)
-    return () => clearInterval(id)
-  }, [status.isConnected, check, disableLocalTool])
+    restartPoll()
+  }, [status.isConnected])
 
-  return { status, checkConnection: check }
+  return { status, checkConnection: runCheck }
 }

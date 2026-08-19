@@ -161,6 +161,12 @@ export const STORAGE_KEYS = {
     backend: 'local',
     note: 'Skill 使用次数统计：{ [skillId]: count }',
   },
+  agent_skill_enabled: {
+    domain: 'agent',
+    store: 'skillStore.js',
+    backend: 'local',
+    note: 'Skill 启用状态：{ [skillId]: boolean }。默认启用',
+  },
 
   // ── 提示词预设（promptManager）─────────────────────────────────────
   yimao_preset_prompts: {

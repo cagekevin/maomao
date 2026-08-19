@@ -163,6 +163,9 @@ export function sendToAssetLibrary(url, { name, folder = 'materials', type } = {
   if (url && !url.startsWith('blob:')) {
     persistUrlToBackend(url, folder)
   }
+  // 广播「已发送」事件：素材库面板（assetStore 与 AssetLibrary 互不相通）订阅后
+  // 自动切到落盘目录并重新 rescan 拉取，避免「点别处才刷新」的假象。
+  emitAssetSent(folder)
   return added
 }
 
@@ -214,4 +217,17 @@ export function loadAssets() {
 // React hook：订阅素材列表
 export function useAssets() {
   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
+}
+
+// ── 发送成功事件总线 ──
+// 问题背景：assetStore（落盘）与 AssetLibrary（读后端 /api/resources）是两套独立模块，
+// 互不相通。sendToAssetLibrary 落盘成功后，面板不会自动重新拉取，必须手动切目录才刷新
+// （用户体感「点别处才刷新」）。这里用一个轻量回调桥，发送成功后通知面板主动刷新。
+let assetSentListener = null
+export function onAssetSent(cb) {
+  assetSentListener = cb
+  return () => { if (assetSentListener === cb) assetSentListener = null }
+}
+export function emitAssetSent(folder) {
+  assetSentListener?.(folder)
 }

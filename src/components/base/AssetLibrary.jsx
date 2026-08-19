@@ -6,6 +6,7 @@ import { showToast } from './toastStore.js'
 import { API_BASE } from './config.js'
 import { useAssetDragToCanvas, fetchText } from './useAssetDragToCanvas.js'
 import { toAbsoluteFileUrl } from './filesApi.js'
+import { onAssetSent } from './assetStore.js'
 import { httpRequest } from './httpClient.js'
 import { logger } from './logger.js'
 import { isAudio } from './mediaType.js'
@@ -155,6 +156,15 @@ function AssetLibrary() {
     reset(true)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [connected, currentFolder])
+
+  // 订阅「发送到素材库」成功事件：自动切到落盘目录并重新 rescan 拉取，
+  // 解决此前「点完要切目录/点别处才刷新」的体感问题（assetStore 与面板互不相通）。
+  useEffect(() => {
+    return onAssetSent((folder) => {
+      const target = folder || 'materials'
+      setFolder(target) // 触发 currentFolder 变化 → 上面的 reset(true) 自动 rescan 刷新
+    })
+  }, [])
 
   // 加载下一页并追加（无限滚动）
   const loadMore = useCallback(async () => {

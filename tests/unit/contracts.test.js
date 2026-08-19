@@ -92,8 +92,8 @@ describe('STORAGE_KEYS 语义检查', () => {
 })
 
 describe('STORAGE_KEYS 内容验证', () => {
-  it('当前共有 28 个登记键', () => {
-    expect(Object.keys(STORAGE_KEYS).length).toBe(28)
+  it('当前共有 29 个登记键', () => {
+    expect(Object.keys(STORAGE_KEYS).length).toBe(29)
   })
 
   it('包含所有核心业务键', () => {
@@ -103,6 +103,7 @@ describe('STORAGE_KEYS 内容验证', () => {
     expect(keys).toContain('app_settings')
     expect(keys).toContain('agent_skills')
     expect(keys).toContain('agent_skill_usage')
+    expect(keys).toContain('agent_skill_enabled')
     expect(keys).toContain('agent_chat_model')
     expect(keys).toContain('yimao_preset_prompts')
     expect(keys).toContain('yimao_preset_recent')
