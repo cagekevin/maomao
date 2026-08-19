@@ -15,6 +15,7 @@
  */
 import { normalizeImageUrlsForSend } from './imageUrl.js'
 import { videoProxy } from './proxyGenerate.js'
+import { logger } from './logger.js'
 
 /**
  * 文生视频 / 图生视频。
@@ -37,5 +38,10 @@ export async function generateVideo({ provider, prompt, model, size, resolution,
   const refImages = await normalizeImageUrlsForSend(images, { preferBase64: provider?.refFormat === 'base64' })
   if (refImages.length > 0) genBody.image_urls = refImages
 
+  // 【B层】视频 genBody 组装结果：尺寸/清晰度/时长/参考图（定位发给网关的视频参数是否正确拼装）
+  logger.debug('视频', '[参数] genBody', {
+    model, prompt: String(prompt).slice(0, 100), size: genBody.size, resolution: genBody.resolution,
+    duration: genBody.duration, refCount: refImages.length, refFormat: provider?.refFormat || 'url',
+  }, { module: 'image' })
   return videoProxy({ provider, genBody, onProgress, signal })
 }

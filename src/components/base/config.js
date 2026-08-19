@@ -28,12 +28,40 @@ export const LLM_CHAT_MODEL = import.meta.env?.VITE_LLM_CHAT_MODEL || 'gpt-4o-mi
 /** VITE_AGENT_DEMO='1' 时启用演示模式（不发真实 LLM 请求，用规则引擎模拟） */
 export const AGENT_DEMO_MODE = import.meta.env?.VITE_AGENT_DEMO === '1'
 
-// ── 调试开关 ─────────────────────────────────────────────────────
-/** VITE_DEBUG_ASSET='1' 时，素材库相关详细排查日志（[SEND]/[PERSIST]/[UPLOAD] 等）
- *  才经 logger.debug 输出到 console；默认关闭，生产/日常完全安静。
- *  开启方式：项目根目录 .env 加 VITE_DEBUG_ASSET=1，或运行时设 window.__DEBUG_ASSET=true。 */
-export const DEBUG_ASSET =
-  import.meta.env?.VITE_DEBUG_ASSET === '1' || (typeof window !== 'undefined' && window.__DEBUG_ASSET === true)
+// ── 调试开关（通用 DEBUG，按模块分类）───────────────────────────────
+/** 通用调试开关。logger.debug(cat, act, det, { module }) 仅在对应模块位开启时输出到 console，
+ *  默认全部关闭，生产/日常完全安静，不上报后端。
+ *  开启方式（任一）：
+ *   - 根目录 .env 加 VITE_DEBUG_ALL=1（全开），或 VITE_DEBUG_<MODULE>=1（只开某模块）；
+ *   - 运行时设 window.__DEBUG_ALL=true（全开），或 window.__DEBUG_<MODULE>=true（只开某模块）。
+ *  模块位约定：'asset'（素材库）/ 'agent'（AI 助手）/ 'image'（图片生成全链路）。新增模块在 DEBUG_MODULES 登记，勿再散起第二个开关。
+ *
+ *  ⚠️ 演进规则（见 spec/CONTEXT.md §二）：
+ *   - 这是「第 2 个模块（agent）加入」后由单模块 DEBUG_ASSET 升级而来——触发条件就是
+ *     「≥2 个无关模块要排查日志」，此时不再新增 DEBUG_XXX 散开关，统一走本 DEBUG。
+ *   - DEBUG_ASSET 保留为别名（向后兼容既有引用），等价于 DEBUG 的 asset 模块位。 */
+export const DEBUG_MODULES = ['asset', 'agent', 'image'] // 支持的模块位（新增模块在此登记）
+
+const _debugOn = (key, upper) => {
+  if (import.meta.env?.[`VITE_DEBUG_${upper}`] === '1') return true
+  if (typeof window !== 'undefined' && window[`__DEBUG_${upper}`] === true) return true
+  return false
+}
+/** 总开关：VITE_DEBUG_ALL='1' / window.__DEBUG_ALL=true 时全开 */
+const DEBUG_ALL = _debugOn('all', 'ALL')
+
+/** 判断某模块位是否开启（未传入 module 时默认 false，需显式指定） */
+export function isDebugModuleOn(module) {
+  if (DEBUG_ALL) return true
+  if (!module) return false
+  const upper = String(module).toUpperCase()
+  if (DEBUG_MODULES.includes(module)) return _debugOn(module, upper)
+  return false
+}
+
+/** [兼容别名] 素材库模块位是否开启（DEBUG_MODULES 里的 'asset'），等价 isDebugModuleOn('asset')。
+ *  旧代码引用 DEBUG_ASSET 处无需改动。 */
+export const DEBUG_ASSET = isDebugModuleOn('asset')
 
 // ── AI 助手模型列表 ──────────────────────────────────────────────
 /** 默认模型列表，env 可覆盖 */

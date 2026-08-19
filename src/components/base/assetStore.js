@@ -149,7 +149,7 @@ export function addAssets(items, folder = 'migrated') {
  * blob: 是本地临时地址，不落盘（调用方应传 data:/http）。
  */
 export function sendToAssetLibrary(url, { name, folder = 'migrated', type } = {}) {
-  logger.debug('assetStore', '[SEND] sendToAssetLibrary 进入', { urlPrefix: String(url).slice(0, 60), folder, name })
+  logger.debug('assetStore', '[SEND] sendToAssetLibrary 进入', { urlPrefix: String(url).slice(0, 60), folder, name }, { module: 'asset' })
   if (!url) return []
   let fname = '未命名'
   try {
@@ -164,7 +164,7 @@ export function sendToAssetLibrary(url, { name, folder = 'migrated', type } = {}
   // 修复：blob: 是本地临时对象 URL，此前被直接短路丢弃（「发送到素材库」静默不落盘）。
   // 现改为用 filesApi.uploadFileToLocal 直接把 blob 作为文件上传落盘，与 data:/http 分支一致。
   if (url) {
-    logger.debug('assetStore', '[SEND] 准备落盘', { urlPrefix: String(url).slice(0, 60), folder })
+    logger.debug('assetStore', '[SEND] 准备落盘', { urlPrefix: String(url).slice(0, 60), folder }, { module: 'asset' })
     persistUrlToBackend(url, folder)
   }
   // 广播「已发送」事件：素材库面板（assetStore 与 AssetLibrary 互不相通）订阅后
@@ -175,26 +175,26 @@ export function sendToAssetLibrary(url, { name, folder = 'migrated', type } = {}
 
 /** 把单个 URL 素材落盘到后端指定 folder 目录，成功后 rescan。 */
 async function persistUrlToBackend(url, folder) {
-  logger.debug('assetStore', '[PERSIST] 开始', { kind: url.startsWith('data:') ? 'data' : url.startsWith('blob:') ? 'blob' : 'http', folder })
+  logger.debug('assetStore', '[PERSIST] 开始', { kind: url.startsWith('data:') ? 'data' : url.startsWith('blob:') ? 'blob' : 'http', folder }, { module: 'asset' })
   try {
     if (url.startsWith('data:')) {
       // 本地 base64 → multipart 上传（复用 filesApi 的 dataURL 落盘，subfolder 传 folder）
-      logger.debug('assetStore', '[PERSIST] 走 data 分支 saveInlineToLocal')
+      logger.debug('assetStore', '[PERSIST] 走 data 分支 saveInlineToLocal', null, { module: 'asset' })
       await saveInlineToLocal(url, folder)
-      logger.debug('assetStore', '[PERSIST] data 分支完成')
+      logger.debug('assetStore', '[PERSIST] data 分支完成', null, { module: 'asset' })
     } else if (url.startsWith('blob:')) {
       // 修复：blob: 是本地临时对象 URL，不能通过 fileUrl 下载（new URL 报错 / 浏览器回收）。
       // 改为 fetch 取 Blob 后作为文件上传，走与链路 A 一致的上传入口，保证「发送到素材库」对任意来源都落盘。
       try {
-        logger.debug('assetStore', '[PERSIST] 走 blob 分支 fetch', url)
+        logger.debug('assetStore', '[PERSIST] 走 blob 分支 fetch', url, { module: 'asset' })
         const resp = await fetch(url)
-        logger.debug('assetStore', '[PERSIST] blob fetch 响应', { ok: resp.ok, status: resp.status })
+        logger.debug('assetStore', '[PERSIST] blob fetch 响应', { ok: resp.ok, status: resp.status }, { module: 'asset' })
         const blob = await resp.blob()
         const mime = blob.type || 'image/png'
         const ext = EXT_BY_TYPE[detectAssetType({ name: '', type: mime })] || (mime.split('/')[1] || 'png')
         const file = new File([blob], `asset.${ext}`, { type: mime })
         await uploadFileToLocal(file, folder)
-        logger.debug('assetStore', '[PERSIST] blob 分支 uploadFileToLocal 完成')
+        logger.debug('assetStore', '[PERSIST] blob 分支 uploadFileToLocal 完成', null, { module: 'asset' })
       } catch (blobErr) {
         logger.warn('assetStore', 'blob 转文件失败，跳过落盘', blobErr?.message)
       }
@@ -202,21 +202,21 @@ async function persistUrlToBackend(url, folder) {
       // http(s) 上游 url → 模仿链路 A（面板上传）：先把远程内容 fetch 成 Blob，
       // 再用 uploadFileToLocal 走 multipart（file + subfolder）落盘，
       // 不再走 JSON fileUrl 的 saveRemoteUrl 分支（避免 data:/异常态/内部地址等坑）。
-      logger.debug('assetStore', '[PERSIST] 走 http 分支 fetch', url)
+      logger.debug('assetStore', '[PERSIST] 走 http 分支 fetch', url, { module: 'asset' })
       const resp = await fetch(url)
-      logger.debug('assetStore', '[PERSIST] http fetch 响应', { ok: resp.ok, status: resp.status })
+      logger.debug('assetStore', '[PERSIST] http fetch 响应', { ok: resp.ok, status: resp.status }, { module: 'asset' })
       if (!resp.ok) throw new Error(`下载素材失败：${resp.status}`)
       const blob = await resp.blob()
       const mime = blob.type || 'image/png'
       const ext = EXT_BY_TYPE[detectAssetType({ name: '', type: mime })] || (mime.split('/')[1] || 'png')
       const file = new File([blob], `asset.${ext}`, { type: mime })
       await uploadFileToLocal(file, folder)
-      logger.debug('assetStore', '[PERSIST] http 分支 uploadFileToLocal 完成')
+      logger.debug('assetStore', '[PERSIST] http 分支 uploadFileToLocal 完成', null, { module: 'asset' })
     }
     // 落盘后 rescan，让素材库面板（读 /api/resources）能收到新素材
-    logger.debug('assetStore', '[PERSIST] 落盘成功，准备 rescan')
+    logger.debug('assetStore', '[PERSIST] 落盘成功，准备 rescan', null, { module: 'asset' })
     await rescanResources()
-    logger.debug('assetStore', '[PERSIST] rescan 完成')
+    logger.debug('assetStore', '[PERSIST] rescan 完成', null, { module: 'asset' })
   } catch (e) {
     // 落盘失败不再弹错误 toast（避免「成功」与「失败」提示矛盾、误导用户）；
     // 仅保留日志，便于后续排查实际落盘情况。

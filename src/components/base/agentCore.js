@@ -26,6 +26,7 @@
  * ════════════════════════════════════════════════════════════════
  */
 import { contentGet } from './contentStore.js'
+import { logger } from './logger.js'
 
 // 复刻官方 shared.js:2536 `var ur = 8`（多轮工具循环硬上限）
 export const MAX_TOOL_ROUNDS = 8
@@ -331,6 +332,7 @@ export function buildRequestMessages(messages, systemPrompt, enhance = true, ski
       if (i === 0) startIdx = 0
     }
   }
+  let droppedOrphanTools = 0 // 【B层】被丢弃的孤儿 tool 消息数（配对失败）
   for (let i = startIdx; i < messages.length; i++) {
     const m = messages[i]
     if (m.role === 'user' && m.attachments && m.attachments.length > 0) {
@@ -380,7 +382,7 @@ export function buildRequestMessages(messages, systemPrompt, enhance = true, ski
     }
     if (m.role === 'tool') {
       // tool 消息必须能匹配前面声明的 tool_call_id，否则是孤儿，丢弃（否则后端报错）
-      if (!m.tool_call_id || !pendingToolIds.has(m.tool_call_id)) continue
+      if (!m.tool_call_id || !pendingToolIds.has(m.tool_call_id)) { droppedOrphanTools++; continue }
       pendingToolIds.delete(m.tool_call_id)
       out.push({ role: 'tool', content: m.content || '', tool_call_id: m.tool_call_id })
       continue
@@ -394,6 +396,8 @@ export function buildRequestMessages(messages, systemPrompt, enhance = true, ski
     if (m.tool_call_id) obj.tool_call_id = m.tool_call_id
     out.push(obj)
   }
+  // 【B层】发给 LLM 的消息组装结果：总消息数 + 丢弃的孤儿 tool 数 + 每条 role——定位 fresh-task/消息配对
+  logger.debug('AI助手', '[消息组装]', { outCount: out.length, droppedOrphanTools, historyTurns, startIdx, roles: out.map((m) => m.role) }, { module: 'agent' })
   return out
 }
 

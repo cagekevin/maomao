@@ -15,7 +15,7 @@ function makeCtx({ streamMode = 'stream', ENABLE_TOOLS_ON_NON_STREAM = false, to
     provider: useProxy ? (provider || { id: 'p1', protocol: 'openai', base_url: 'http://up' }) : null,
     apiBase: 'http://local',
     chatApiKey: '',
-    logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+    logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
     loadAgentChatModel: () => ({ streamMode, id: 'm1' }),
     parseAgentError: (res, fb) => `err:${res?.status || ''}:${fb}`,
     parseSSEChunk: vi.fn(),

@@ -84,9 +84,13 @@ export function useNodeGeneration({ nodeId, type, validate, run, onSuccess, onRe
     setCurrentTaskId(taskCtl.taskId || '')
     taskCtl.progress(5, '准备中…')
     logger.info('生成', 'start', { nodeId, type: t.type, prompt: t.prompt })
+    // 【B层】节点生成入口：prompt 摘要 + 节点类型（定位是哪个节点、发的什么提示词触发生图）
+    logger.debug('生成', '[节点] start', { nodeId, type: t.type, prompt: String(t.prompt || '').slice(0, 120), modelName: t.modelName }, { module: 'image' })
     try {
       // signal 传给 run 执行器（各节点可透传给 generateImage/generateVideo 实现真取消）
       const r = await runRef.current({ progress: (p, stage) => taskCtl.progress(p, stage), signal: ctl.signal })
+      // 【B层】run 执行器返回：ok + url（定位生成契约是否拿到结果）
+      logger.debug('生成', '[节点] run返回', { nodeId, ok: r?.ok, urlHead: r?.url ? String(r.url).slice(0, 80) : '', error: r?.error || '' }, { module: 'image' })
       if (r?.ok) {
         onSuccessRef.current?.(r, taskCtl)
         // 防御：done 只接收字符串结果 URL（上游偶发返回对象会触发 taskStore.done 的 .startsWith 崩）
@@ -98,6 +102,8 @@ export function useNodeGeneration({ nodeId, type, validate, run, onSuccess, onRe
         // 落盘失败（saveResultToTasks 返回 null）回退上游原始 url。
         if (typeof rawUrl === 'string' && rawUrl) {
           const persistedUrl = await saveResultToTasks(rawUrl, t.type).catch(() => null)
+          // 【B层】结果落盘：持久 URL 是否成功（定位刷新后图片是否可恢复）
+          logger.debug('生成', '[节点] 落盘', { nodeId, persisted: !!persistedUrl, urlHead: (persistedUrl || rawUrl).slice(0, 80) }, { module: 'image' })
           return { ok: true, resultUrl: persistedUrl || rawUrl }
         }
         return { ok: true, resultUrl: '' }
@@ -113,6 +119,7 @@ export function useNodeGeneration({ nodeId, type, validate, run, onSuccess, onRe
     } catch (e) {
       if (e?.name === 'AbortError') {
         // 用户停止：不报错，返回取消标记，由调用方处理
+        logger.debug('生成', '[节点] 用户停止', { nodeId }, { module: 'image' })
         setError('')
         taskCtl.fail('已停止')
         return { ok: false, error: '已停止', aborted: true }

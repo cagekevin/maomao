@@ -21,7 +21,7 @@
  */
 
 import { formatTime } from './utils.js'
-import { DEBUG_ASSET } from './config.js'
+import { isDebugModuleOn } from './config.js'
 
 function stringify(detail) {
   if (detail == null) return ''
@@ -100,11 +100,14 @@ export const logger = {
   warn: (cat, act, det) => log(cat, act, det, 'warn'),
   error: (cat, act, det) => log(cat, act, det, 'error'),
   /**
-   * debug 级别：仅当 DEBUG_ASSET 开启时 console 输出，且不上报后端（属排查噪音，不污染日志文件）。
-   * 用于素材库链路等排查细节（[SEND]/[PERSIST]/[UPLOAD]），默认完全安静。
+   * debug 级别：仅当指定模块位（logger.debug 第 4 参 { module }）开启时 console 输出，且不上报后端
+   * （属排查噪音，不污染日志文件）。模块位集中 config.js 的 DEBUG_MODULES，默认全部安静。
+   * 用法：logger.debug('AI助手', '动作', { detail }, { module: 'agent' })
+   *      logger.debug('assetStore', '[SEND] 进入', { ... }, { module: 'asset' })  // 等价旧 DEBUG_ASSET
    */
-  debug: (cat, act, det) => {
-    if (!DEBUG_ASSET) return
+  debug: (cat, act, det, opts) => {
+    const module = opts && opts.module
+    if (!isDebugModuleOn(module)) return
     const msg = `[debug] ${formatTime(undefined, { mode: 'time' })} | ${cat} | ${act}${det != null ? ` | ${stringify(det)}` : ''}`
     console.log(msg)
   }

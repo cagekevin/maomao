@@ -46,7 +46,7 @@ vi.mock('../../src/components/base/toastStore.js', () => ({
 }))
 vi.mock('../../src/components/base/contentStore.js', () => ({ contentSet: (...a) => h.contentSet(...a) }))
 vi.mock('../../src/components/base/clipboard.js', () => ({ downloadUrl: (...a) => h.downloadUrl(...a) }))
-vi.mock('../../src/components/base/logger.js', () => ({ logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), log: vi.fn() } }))
+vi.mock('../../src/components/base/logger.js', () => ({ logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), log: vi.fn(), debug: vi.fn() } }))
 vi.mock('../../src/components/base/previewUrl.js', () => ({ default: { create: (...a) => h.previewCreate(...a), release: vi.fn() } }))
 vi.mock('../../src/components/base/filesApi.js', () => ({ toAbsoluteFileUrl: mocks.toAbsoluteFileUrl }))
 

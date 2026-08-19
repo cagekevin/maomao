@@ -433,6 +433,9 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
       // ── 保护：空内容直接返回 ──
       if (!text.trim() && (!attachments || attachments.length === 0)) return
 
+      // 【B层】发送入口：原文摘要 + 附件数 + 模型/供应商——定位一次 send 的完整入参
+      logger.debug('AI助手', '[发送] 入口', { text: String(text).slice(0, 100), attachCount: (attachments || []).length, model, provider: provider?.id || '', busy: isAgentBusy() }, { module: 'agent' })
+
       // ── steer（补充指令，#7）：任务进行中再发送 → 排入当前对话 workflow.steerQueue（per-conversation），
       //    不打断当前任务，结束后自动执行。队列挂在 workflow 上，切换对话不串台（对齐大雄）。──
       //    忙判定用复合 isAgentBusy()（发送锁 + 状态机 running），防 sendingRef 异常/未收尾时并发双发。
@@ -484,6 +487,7 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
       let ok = true // 标记本次发送是否成功（finally 据此写 workflow.status）
       let aborted = false // 标记是否被用户停止（区分 stopped/failed）
       let pausedForConfirm = false // 三阶段门禁：show_plan_for_confirm 后是否暂停等用户确认（需在 try 外声明，finally 才可访问且避免 TDZ）
+      let round = 0 // 工具循环轮数（提升到 try 外：Demo/异常提前 return 时 finally 的 debug 也安全，否则 TDZ）
       try {
         // ── Demo 模式（VITE_AGENT_DEMO='1'）：本地规则引擎模拟，不走真实 LLM（逻辑抽到 runDemoMode）──
         if (DEMO_MODE) {
@@ -491,7 +495,6 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
         }
 
         // ── 真实模式：多轮工具循环（≤ MAX_TOOL_ROUNDS）──
-        let round = 0
         let assistant // 提升到循环外：供循环结束后判断是否「走满上限仍不收敛」（否则访问 for 块级变量会 ReferenceError）
         // 【对齐大雄 runMode 分级】执行分级决定「是否弹执行确认门禁」：
         //   - 全自动 auto（默认，对齐大雄 agentSetRunMode 6283）：完整规划后直接执行——show_plan_for_confirm
@@ -569,6 +572,7 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
           return
         }
         patchCurrentWorkflow({ status: wfStatus, updatedAt: Date.now() })
+        logger.debug('AI助手', '[发送] 终态', { status: wfStatus, rounds: round, pausedForConfirm, steerQueueLen: (getCurrentWorkflow()?.steerQueue || []).length }, { module: 'agent' })
         setCurrentPending(null)
         try { captureActiveConversation() } catch { /* 落盘失败忽略 */ }
         stateMachineRef.current.setStatus(ok ? 'idle' : 'failed')
@@ -627,6 +631,8 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
       // 必须先把参考图写入模块级 refPool，execute_plan 的 attachment_indices 才能按编号取到图。
       setCurrentReferenceImages(referenceImages)
       const perRef = referenceImages.length >= 2 && imageModeLooksLikePerReferenceEdit(prompt, referenceImages.length)
+      // 【B层】图像模式：是否触发「分别改图」拆分 + 拆出的 generation 数——定位多参考图链路
+      logger.debug('AI助手', '[图像] 拆分判定', { perRef, genCount: perRef ? gens.length : 1, refImageCount: referenceImages.length }, { module: 'agent' })
       const gens = perRef
         ? buildPerReferenceGenerations(referenceImages, prompt, panel)
         : [{
@@ -643,6 +649,8 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
         // 复用 execute_plan 工具（canvasPlanExecutor）在画布建节点 + 带参考图直连生图
         const res = await callTool('execute_plan', { generations: gens, auto_run: true, model: panel.model, referenceImages })
         const ok = res && (res.ok === true || (res.ok === undefined && !res.error))
+        // 【A层】图像模式结果：成功/失败 + 出图数——高价值，供排查图生图链路
+        logger.info('AI助手', '图像模式结果', { ok, entries: (res?.data?.entries || []).length, error: res?.error || '' })
         const entries = res?.data?.entries || []
         const doneCount = entries.filter((e) => e.status === 'completed').length
         const logs = Array.isArray(res?.data?.logs) ? res.data.logs : []

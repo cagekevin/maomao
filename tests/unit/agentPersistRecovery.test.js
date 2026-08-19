@@ -27,7 +27,7 @@ vi.mock('../../src/components/base/useCanvasAgentTools.js', () => ({
   getCurrentReferenceImages: () => [],
 }))
 vi.mock('../../src/components/base/logger.js', () => ({
-  logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), log: vi.fn() },
+  logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), log: vi.fn(), debug: vi.fn() },
 }))
 
 import { useAgentChat } from '../../src/components/base/useAgentChat.js'

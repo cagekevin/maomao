@@ -85,7 +85,7 @@
 
 > **协作规则（不越层）**：弹提示→②、记日志→③、广播→①、存数据→④、算/转换→⑤⑥、下载→⑦。**禁止越层**（toast 不写日志、logger 不弹提示）。新增事件/存储键/错误类型先到 `contracts.js` 登记再实现。
 
-> **debug 开关（查 bug 临时日志用）**：当前 `config.js` 的 `DEBUG_ASSET` 仅管素材库链路，默认关、仅 `logger.debug` 输出。当出现第 2 个无关模块也要排查日志时，升级为通用 `DEBUG`（按模块分类，仍集中 `config.js`，默认全关），不再新增第二个 `DEBUG_XXX` 散开关。详见 CLAUDE.md §3.2（改 bug 先加日志）。
+> **debug 开关（查 bug 临时日志用，已升级为通用 DEBUG）**：`config.js` 的 `DEBUG`（`isDebugModuleOn(module)`）按模块分类控制 `logger.debug` 输出，默认全关、不上报后端。模块位集中在 `DEBUG_MODULES = ['asset','agent','image']`（素材库 / AI 助手 / 图片生成全链路）。开启：`.env` 加 `VITE_DEBUG_ALL=1`（全开）或 `VITE_DEBUG_<MODULE>=1`（单模块），运行时 `window.__DEBUG_ALL` / `window.__DEBUG_<MODULE>`。`DEBUG_ASSET` 保留为 asset 模块位别名（旧引用不破）。**新增模块直接在 `DEBUG_MODULES` 登记，禁止再起独立散开关**。详见 CLAUDE.md §3.2（改 bug 先加日志）。
 
 ---
 

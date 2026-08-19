@@ -67,6 +67,12 @@ export async function roundTrip(ctx, requestMessages, signal, onStream) {
   const accept = isNonStream ? 'application/json' : 'text/event-stream'
   // 【链路日志】请求到网关：走 proxy 还是直接 /api/agent，模型、流式模式、消息数、是否带工具
   logger.info('AI助手', '请求', { via: useProxy ? 'proxy' : 'agent', provider: provider?.id || '', model, stream: !isNonStream, msgCount: requestMessages.length, tools: withTools ? (toolSchemas || []).length : 0 })
+  // 【B层】发往 LLM 的 messages 明细：每条约化（role + 是否有图 + content 长度 + 工具数）——定位发给模型的内容
+  logger.debug('AI助手', '[请求] messages', {
+    count: requestMessages.length,
+    roles: requestMessages.map((m) => m.role),
+    firstContentHead: requestMessages.find((m) => m.role === 'user')?.content ? String(requestMessages.find((m) => m.role === 'user').content).slice(0, 120) : '',
+  }, { module: 'agent' })
   // 【为何不迁到 httpClient.js】本请求是 SSE 流式读取 body 流 + 非流式普通 JSON 双模式，
   // 且可走两条链路（provider 存在走 /api/proxy 转发、否则直连 /api/agent/...），响应需逐块
   // 解析 event 并驱动多轮工具循环（roundTrip 由 useAgentChat 的 SSE 循环逐行消费），与
@@ -160,9 +166,11 @@ export async function roundTrip(ctx, requestMessages, signal, onStream) {
     }
   }
 
+  let _totalBytes = 0 // 【B层】累计收到的 SSE 字节数（定位流式是否被缓冲/断流）
   while (true) {
     const { done, value } = await reader.read()
     if (done) break
+    if (value && value.byteLength) _totalBytes += value.byteLength
     buffer += decoder.decode(value, { stream: true })
     const parts = buffer.split('\n\n')
     buffer = parts.pop() || ''
@@ -187,6 +195,7 @@ export async function roundTrip(ctx, requestMessages, signal, onStream) {
   if (realCalls.length > 0) assistant.tool_calls = realCalls
   // 【链路日志】流式响应完成：内容长度 + 触发的工具调用
   logger.info('AI助手', '流式结果', { contentLen: assistant.content.length, toolCallCount: realCalls.length, toolNames: realCalls.map((t) => t.function?.name) })
+  logger.debug('AI助手', '[流式] 完成', { bytes: _totalBytes, contentLen: assistant.content.length, reasoningLen: (assistant.reasoning || '').length, toolNames: realCalls.map((t) => t.function?.name) }, { module: 'agent' })
   return assistant
 }
 
@@ -252,6 +261,17 @@ function safeParseNonStreamJSON(rawText, logger) {
  *    - logger:     链路日志对象
  *    - getActivePendingGenerations: () => 读取当前对话暂存 generations
  */
+/** 【B层日志辅助】工具参数摘要：截断超长（如 generations 超大 JSON），防 debug 刷屏 */
+function safeSummarizeArgs(args) {
+  if (args == null) return ''
+  try {
+    const s = JSON.stringify(args)
+    return s && s.length > 300 ? `${s.slice(0, 300)}…(${s.length}字符)` : (s || '')
+  } catch {
+    return String(args).slice(0, 150)
+  }
+}
+
 export async function runToolCalls(ctx, tools, callIdFor = () => '') {
   const { callTool, appendMsg, model, logger, getActivePendingGenerations } = ctx
   for (const tc of tools) {
@@ -259,6 +279,7 @@ export async function runToolCalls(ctx, tools, callIdFor = () => '') {
     if (tc.function?.arguments) {
       try { args = JSON.parse(tc.function.arguments) } catch (e) { logger.warn('Agent', '工具参数 JSON.parse 失败', { name: tc.function?.name, arguments: tc.function?.arguments, error: e }) }
     }
+    logger.debug('AI助手', '[工具] 入参', { name: tc.function?.name, args: safeSummarizeArgs(args) }, { module: 'agent' })
     const result = await callTool(tc.function?.name, args)
     // 【链路日志】工具执行结果：工具名 + 成功/失败（失败带 error），供排查 AI 调工具环节
     if (result?.ok) logger.info('AI助手', '工具', { name: tc.function?.name, ok: true })

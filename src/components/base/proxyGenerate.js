@@ -20,6 +20,7 @@ import { API_BASE } from './config.js'
 import { getCurrentTaskId, setTaskPollId } from './taskStore.js'
 import { GEN_TIMEOUT, GEN_POLL_INTERVAL, VIDEO_TIMEOUT, VIDEO_POLL_INTERVAL } from './config.js'
 import { classifyError } from './genErrors.js'
+import { logger } from './logger.js'
 
 // ── 内部共享原语（调用方不可见）──────────────────────────────────────
 
@@ -55,6 +56,8 @@ function __buildProxyPayload({ provider, target, method = 'POST', body }) {
  * @param {AbortSignal} [signal]
  */
 async function __proxyFetch({ provider, target, method = 'POST', body }, signal) {
+  // 【B层】生图/视频/聊天 → 本地代理的真实请求发出：目标 + 方法 + body 摘要（定位请求是否发出/发到哪）
+  logger.debug('生图', '[请求] 发出', { target, method, bodyHead: body && typeof body === 'object' ? JSON.stringify(body).slice(0, 120) : String(body).slice(0, 120), taskId: getCurrentTaskId() }, { module: 'image' })
   const payload = __buildProxyPayload({ provider, target, method, body })
   const res = await fetch(`${API_BASE}/api/proxy`, {
     method: 'POST',
@@ -64,7 +67,10 @@ async function __proxyFetch({ provider, target, method = 'POST', body }, signal)
   })
   if (!res.ok) {
     const j = await res.json().catch(() => ({}))
-    throw new Error(j?.error?.message || j?.message || j?.detail || `HTTP ${res.status}`)
+    const msg = j?.error?.message || j?.message || j?.detail || `HTTP ${res.status}`
+    // 【B层】HTTP 非 2xx：响应码 + 后端错误信息（定位网关拒绝/超时）
+    logger.debug('生图', '[请求] HTTP失败', { target, status: res.status, msg }, { module: 'image' })
+    throw new Error(msg)
   }
   return res
 }
@@ -79,6 +85,7 @@ async function readSseUrl(res, onProgress, signal) {
   let buffer = ''
   let urlFound = ''
   let reached = 0
+  let _sseBytes = 0 // 【B层】累计收到的 SSE 字节数（定位流式是否缓冲/断流）
   const stageProgress = (p) => {
     const mapped = 30 + Math.round(Math.min(100, Math.max(0, p || 0)) * 0.6)
     if (mapped > reached) reached = mapped
@@ -93,6 +100,7 @@ async function readSseUrl(res, onProgress, signal) {
       }
       const { done, value } = await reader.read()
       if (done) break
+      if (value && value.byteLength) _sseBytes += value.byteLength
       buffer += decoder.decode(value, { stream: true })
       const lines = buffer.split('\n')
       buffer = lines.pop() || ''
@@ -112,6 +120,8 @@ async function readSseUrl(res, onProgress, signal) {
   } finally {
     reader.releaseLock()
   }
+  // 【B层】SSE 流结束：字节数 + 是否找到图片 url（定位同步生图是否拿到结果/中途断流）
+  logger.debug('生图', '[SSE] 完成', { bytes: _sseBytes, found: !!urlFound, urlHead: urlFound ? String(urlFound).slice(0, 80) : '' }, { module: 'image' })
   return urlFound
 }
 
@@ -131,6 +141,8 @@ async function pollUntilDone({ provider, url, genBody, extractUrl, pollInterval,
     const submitted = tasks.find((t) => t && (t.status === 'submitted' || t.task_id))
     taskId = submitted?.task_id
     const direct = extractUrl({ data, json })
+    // 【B层】异步模式提交：拿到网关 task_id（定位是否成功提交、有无直返结果）
+    logger.debug('生成', '[异步] 提交', { taskId, direct: !!direct }, { module: 'image' })
     if (!taskId && direct) return ok(direct)
   } catch (e) {
     if (e?.name === 'AbortError') throw e // 取消：原样抛出，由调用方处理
@@ -145,7 +157,9 @@ async function pollUntilDone({ provider, url, genBody, extractUrl, pollInterval,
 
   const pollUrl = buildTargetUrl(provider, `tasks/${taskId}`)
   const start = Date.now()
+  let _polls = 0 // 【B层】轮询次数
   while (Date.now() - start < timeoutMs) {
+    _polls++
     await new Promise((r) => setTimeout(r, pollInterval))
     if (signal?.aborted) {
       const err = new Error('Aborted')
@@ -157,8 +171,13 @@ async function pollUntilDone({ provider, url, genBody, extractUrl, pollInterval,
       const pj = await pr.json()
       const pd = pj?.data ?? pj
       const url = extractUrl({ data: pd, json: pj })
-      if (url) return ok(url)
+      if (url) {
+        // 【B层】轮询拿到结果：次数 + 耗时
+        logger.debug('生成', '[异步] 拿到结果', { taskId, polls: _polls, elapsedMs: Date.now() - start, urlHead: String(url).slice(0, 80) }, { module: 'image' })
+        return ok(url)
+      }
       if (pd?.status === 'failed' || pd?.status === 'error') {
+        logger.debug('生成', '[异步] 上游失败', { taskId, polls: _polls, elapsedMs: Date.now() - start, err: pd?.error?.message || pd?.error }, { module: 'image' })
         return fail(pd?.error?.message || pd?.error || '上游任务失败')
       }
       onProgress?.(30 + Math.min(60, Math.round((Date.now() - start) / pollInterval) * 10), '上游生成中…')
@@ -168,6 +187,7 @@ async function pollUntilDone({ provider, url, genBody, extractUrl, pollInterval,
       return c.type === 'network' ? fail(c.message) : fail(`轮询失败：${c.message || '轮询异常'}`)
     }
   }
+  logger.debug('生成', '[异步] 轮询超时', { taskId, polls: _polls, elapsedMs: Date.now() - start }, { module: 'image' })
   return fail('轮询超时')
 }
 
@@ -264,6 +284,8 @@ export async function imageProxy({ provider, genBody, onProgress, signal }) {
  */
 export async function videoProxy({ provider, genBody, onProgress, signal }) {
   const url = buildTargetUrl(provider, 'videos/generations')
+  // 【B层】视频代理开始：prompt 摘要 + 目标（定位视频提交是否进入轮询）
+  logger.debug('视频', '[视频] 开始', { prompt: String(genBody?.prompt || '').slice(0, 100), model: genBody?.model, size: genBody?.size, refCount: (genBody?.image_urls || []).length, taskId: getCurrentTaskId() }, { module: 'image' })
   return pollUntilDone(
     { provider, url, genBody, extractUrl: extractVideoUrl, pollInterval: VIDEO_POLL_INTERVAL, timeoutMs: VIDEO_TIMEOUT },
     onProgress,

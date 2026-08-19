@@ -17,6 +17,7 @@ import {
 } from './conversationStore.js'
 import { contentGet, contentSet } from './contentStore.js'
 import { generateId } from './idGen.js'
+import { logger } from './logger.js'
 
 /* ════════════════════════════════════════════════════════════════
  * AI 生图默认参数（genParams）—— 由 AgentPanel 生图参数区设置，execute_plan 读取。
@@ -173,6 +174,17 @@ export function clearPendingGenerations() {
 
 /** 把 args 里某字段归一为 string，缺省给 fallback */
 const str = (v, fb = '') => (typeof v === 'string' && v ? v : fb)
+
+/** 【B层日志辅助】工具参数摘要：截断过长字符串，避免 debug 刷屏（保留结构但限长） */
+function stringifyArgs(args) {
+  if (args == null) return ''
+  try {
+    const s = JSON.stringify(args)
+    return s && s.length > 400 ? `${s.slice(0, 400)}…(${s.length}字符)` : (s || '')
+  } catch {
+    return String(args).slice(0, 200)
+  }
+}
 
 /** 把 args 里某字段归一为 number（允许 '12'），非法给 fallback */
 const num = (v, fb) => {
@@ -1190,8 +1202,14 @@ export function useCanvasAgentTools() {
 
   const callTool = useCallback(
     (name, args = {}) => {
+      // 【B层】每个工具分发：工具名 + 参数摘要（截断防超大 JSON 刷屏）——定位 AI 调了哪个工具、传了什么
+      logger.debug('AI助手', '[工具] 分发', { name, args: stringifyArgs(args) }, { module: 'agent' })
       const fn = tools[name]
-      if (!fn) return { ok: false, error: `未知工具：${name}。可用：${AGENT_TOOLS.map((t) => t.name).join('、')}` }
+      if (!fn) {
+        // 【A层】未知工具：模型幻觉调了不存在的工具（异常，值得留痕）
+        logger.warn('AI助手', '未知工具', { name, available: AGENT_TOOLS.map((t) => t.name) })
+        return { ok: false, error: `未知工具：${name}。可用：${AGENT_TOOLS.map((t) => t.name).join('、')}` }
+      }
       return fn(args)
     },
     [tools]

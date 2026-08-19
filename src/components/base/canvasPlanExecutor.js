@@ -15,6 +15,7 @@
  */
 import { runNodeGeneration, isNodeRegistered } from './taskStore.js'
 import { generateId } from './idGen.js'
+import { logger } from './logger.js'
 
 /* ── 全局单飞锁（对齐大雄 __canvasAgentGenRunning）──
  * 同一时刻只允许一套 executePlan 批量生成在跑。防止「用户手动点节点生成 + AI 触发」
@@ -222,10 +223,13 @@ export async function executePlan({ ctx, generations = [], autoRun = true, model
   if (steps.length === 0) return { workflow: { status: 'failed', error: '计划为空' }, entries: [] }
   executingPlan = true
   executingPlanSince = Date.now()
+  // 【A层】执行计划入口：总步数 + 是否自动执行（高价值：定位 AI 批量出图的发起与规模）
+  logger.info('AI助手', '执行计划', { steps: steps.length, autoRun, model: model || defaults.model || '', hasGlobalContract: !!globalContract })
   // P8：独立批/依赖批分区一次，日志计数复用同一结果（消除重复全量 filter）
   const independent = steps.filter((s) => !dependsOnPrevious(s))
   let dependent = steps.filter((s) => dependsOnPrevious(s))
   log('info', `开始执行计划：共 ${steps.length} 步（独立批 ${independent.length} + 依赖批 ${dependent.length}）`)
+  logger.debug('AI助手', '[执行计划] 分批', { independent: independent.map((s) => s.id), dependent: dependent.map((s) => s.id) }, { module: 'agent' })
   try {
 
   const entries = []
@@ -279,6 +283,8 @@ export async function executePlan({ ctx, generations = [], autoRun = true, model
           : (referenceImages && referenceImages.length ? { images: referenceImages.map((u) => (typeof u === 'string' ? { url: u, name: 'reference' } : u)) } : {}))),
     }
     ctx.addNodes([{ id: nodeId, type: 'promptNode', position: anchor, data, width: 420, height: 420 }])
+    // 【B层】每步建节点：参考图来源（该步自己的 / 整批共享 / 无）——定位图生图参考挂载
+    logger.debug('AI助手', '[执行计划] 建节点', { nodeId, stepId: step.id || step.title, refCount: stepRefImages(step).length || (referenceImages ? referenceImages.length : 0), useAttachments: step.use_attachments }, { module: 'agent' })
     // 建节点即锁：强制写回锁定值，防后续 React 渲染覆盖（对齐大雄 L152-153）
     lockNodeSettings(nodeId, { m: finalModel, ratio, resolution, quality })
     return nodeId
@@ -459,6 +465,8 @@ export async function executePlan({ ctx, generations = [], autoRun = true, model
   } else {
     log('info', `已建 ${entries.length} 个节点，等待确认后执行`)
   }
+  // 【A层】执行计划终态：总完成/失败步数 + 状态——定位 AI 批量出图的最终成败（高价值）
+  logger.info('AI助手', '执行计划完成', { status, done: entries.filter((e) => e.status === 'completed').length, failed: entries.filter((e) => e.status === 'failed').length, total: entries.length })
   return { workflow: { status, steps: steps.length }, entries }
   } finally {
     executingPlan = false // 无论成功/失败/异常都释放单飞锁

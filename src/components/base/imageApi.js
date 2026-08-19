@@ -13,6 +13,7 @@
  */
 import { normalizeImageUrlsForSend } from './imageUrl.js'
 import { imageProxy } from './proxyGenerate.js'
+import { logger } from './logger.js'
 
 /** 比例 × 清晰度档位 → 精确像素 查表（复刻官方 H_.jsx oe 表）。 */
 const RATIO_PIXEL_TABLE = {
@@ -70,5 +71,11 @@ export async function generateImage({ provider, prompt, model, size, n, aspectRa
   const refImages = await normalizeImageUrlsForSend(images, { preferBase64: provider?.refFormat === 'base64' })
   if (refImages.length > 0) genBody.image_urls = refImages
 
+  // 【B层】genBody 组装结果：尺寸/参考图/质量（定位发给网关的生图参数是否正确拼装）
+  logger.debug('生图', '[参数] genBody', {
+    model, prompt: String(prompt).slice(0, 100), size: genBody.size, resolution: genBody.resolution,
+    image_size: genBody.image_size, quality: genBody.quality, refCount: refImages.length,
+    refFormat: provider?.refFormat || 'url',
+  }, { module: 'image' })
   return imageProxy({ provider, genBody, onProgress, signal })
 }

@@ -76,13 +76,13 @@ export async function saveInlineToLocal(dataUrl, subfolder = 'canvas') {
  */
 export async function uploadFileToLocal(file, subfolder = 'canvas/drop', filename) {
   if (!file) return null
-  logger.debug('filesApi', '[UPLOAD] 准备 multipart 上传', { subfolder, name: filename || file.name, size: file.size, type: file.type })
+  logger.debug('filesApi', '[UPLOAD] 准备 multipart 上传', { subfolder, name: filename || file.name, size: file.size, type: file.type }, { module: 'asset' })
   try {
     const fd = new FormData()
     fd.append('file', file, filename || file.name || 'upload')
     fd.append('subfolder', subfolder)
     const data = await httpRequest(`${API_BASE}/api/files/upload`, { method: 'POST', body: fd, ...UPLOAD_OPTS })
-    logger.debug('filesApi', '[UPLOAD] 完成', { url: data?.url, subfolder })
+    logger.debug('filesApi', '[UPLOAD] 完成', { url: data?.url, subfolder }, { module: 'asset' })
     return data.url || null
   } catch (e) {
     logger.warn('filesApi', '文件上传失败', e)

@@ -19,7 +19,7 @@ const unregisterTaskRetry = vi.fn()
 const setCurrentTaskId = vi.fn()
 const saveResultToTasks = vi.fn(async (url) => url + '?saved')
 const showToast = vi.fn()
-const logger = { info: vi.fn(), error: vi.fn() }
+const logger = { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() }
 const subscribe = vi.fn(() => vi.fn())
 
 vi.mock('../../src/components/base/taskStore.js', () => ({
