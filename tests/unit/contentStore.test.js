@@ -398,24 +398,35 @@ describe('动态键模式匹配', () => {
  * 未登记键 warning
  * ════════════════════════════════════════════════════════════════ */
 
-describe('未登记键 warning', () => {
-  it('contentGet 未登记键发出 warning', () => {
-    contentGet('unknown-key')
+describe('未登记键 编译期拦截（开发环境）', () => {
+  // 本块默认 NODE_ENV='test'（见文件顶部 vi.stubEnv），非 production → 应抛错拦截
+  it('contentGet 未登记字面量键直接抛错（开发环境）', () => {
+    expect(() => contentGet('unknown-key')).toThrow(/未登记的存储键/)
+  })
+
+  it('contentSet 未登记字面量键直接抛错（开发环境）', () => {
+    expect(() => contentSet('unknown-key', 'value')).toThrow(/未登记的存储键/)
+  })
+
+  it('未登记字面量键重复调用每次都抛（开发环境硬拦截）', () => {
+    expect(() => contentGet('unknown-key')).toThrow(/未登记的存储键/)
+    expect(() => contentGet('unknown-key')).toThrow(/未登记的存储键/)
+  })
+})
+
+describe('未登记键 生产环境降级（仅 warning 不抛）', () => {
+  // 模拟生产：NODE_ENV=production 时即便未登记字面量键也不抛，保持线上兼容
+  beforeEach(() => vi.stubEnv('NODE_ENV', 'production'))
+  afterEach(() => vi.stubEnv('NODE_ENV', 'test'))
+
+  it('contentGet 未登记字面量键在生产环境仅 warning 不抛', () => {
+    expect(contentGet('unknown-key')).toBeUndefined()
     expect(mockLogger.logger.warn).toHaveBeenCalled()
     expect(mockLogger.logger.warn.mock.calls[0][0]).toContain('unknown-key')
   })
 
-  it('contentSet 未登记键发出 warning', () => {
-    contentSet('unknown-key', 'value')
+  it('contentSet 未登记字面量键在生产环境仅 warning 不抛', () => {
+    expect(() => contentSet('unknown-key', 'value')).not.toThrow()
     expect(mockLogger.logger.warn).toHaveBeenCalled()
-  })
-
-  it('同一未登记键只 warning 一次', () => {
-    contentGet('unknown-key')
-    contentGet('unknown-key')
-    contentGet('unknown-key')
-    // 只 warning 一次
-    const warnCalls = mockLogger.logger.warn.mock.calls.filter((c) => c[0].includes('unknown-key'))
-    expect(warnCalls.length).toBe(1)
   })
 })

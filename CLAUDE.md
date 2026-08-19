@@ -2,7 +2,7 @@
 
 > **本文件定位：项目认知入口。每个 AI 进来第一步读它**，了解"这是什么项目、技术栈、架构、目录、红线、怎么启动"。
 > 读完按任务再读对应入口：**写代码 → `spec/CONTEXT.md`（决策地图）**；**写/改测试 → `spec/TESTING.md`（测试权威）**。三文件互补不重叠（见 §七.0）。
-> **最后更新**：2026-08-18（主力开发为 `src/` 可维护原型；原产品混淆还原代码仅作只读参考，逆向脚本已归档 `scripts/1mao-scripts/`；§三.1 更新「vitest 已默认 `watch:false`，单次跑不挂住」）
+> **最后更新**：2026-08-19（主力开发为 `src/` 可维护原型；原产品混淆还原代码仅作只读参考，逆向脚本已归档 `scripts/1mao-scripts/`；§二 技术栈/节点清单/存储路由已对齐 `package.json` 与 `src/components/nodes/` 真实状态；§三.1 更新「vitest 已默认 `watch:false`，单次跑不挂住」）
 
 ## ⚠️ 最新情况（改动前必读）
 
@@ -28,10 +28,10 @@
 npm run dev           # 开发服务器（默认 5180）
 npm run build         # 构建校验 + 回灌 dist/
 npm test              # 统一测试门禁（= test:all：smoke + vitest全量单测 + regression + tools）
-npm run test:unit     # vitest 全量单元测试（tests/unit/ 下 24 文件/244 用例，今天补的主力验证）
+npm run test:unit     # vitest 全量单元测试（tests/unit/ 下数十个文件，纯逻辑/引擎/store 为主）
 npm run test:smoke    # AI 默认自检：冒烟质量门（极快）
 npm run check:health  # 工程健康全量检查
-npm run type-check    # tsc --noEmit 类型检查（仅校验 .ts/.tsx，渐进式 strict）
+npm run type-check    # tsc --noEmit 类型检查（仅校验 .ts/.tsx，strict 暂未开启）
 ```
 
 ### ⚠️ 查任务/查图/查视频铁律（改这些 bug 前必跑，不要自己造查询）
@@ -131,12 +131,12 @@ node scripts/task-inspect.mjs --canvas-health   # 画布结构体检
 
 ## 二、 前端原型架构
 
-* **技术栈**：Vite + React 18 + `@xyflow/react`(React Flow) + Tailwind。开发服务器 `localhost:5180`。
+* **技术栈**：Vite + React 19（`package.json` 实测 `react@19.2.8`、`@types/react@^19` 已对齐）+ `@xyflow/react`(React Flow) + Tailwind。开发服务器 `localhost:5180`。tsconfig 暂未开启 `strict`/`checkJs`（`strict:false`），类型检查靠 `tsc --noEmit` + 测试门禁。
 * **入口**：`src/main.jsx` → `src/App.jsx`。
-* **节点体系**：`src/components/*.jsx`，每个节点一个文件（如 `TextNode`/`ImageNode`/`PromptNode`/`DiscountVideoNode`/`VideoExtract`/`ImageBox`/`GridSplit`/`GridMerge`/`VideoProcess`/`Group`/`ScriptBox`/`GhostTarget`）。**新增节点权威流程 → `spec/NEW-NODE-GUIDE.md`**（NodeShell 外壳 + 4 处注册同步 + NODE_OUTPUTS 管线契约，顶层规则见 `spec/CONTEXT.md` §一·5）。
+* **节点体系**：`src/components/nodes/*.jsx`，每个节点一个文件，**当前共 17 个**（TextNode/ImageNode/PromptNode/DiscountVideoNode/VideoExtractNode/ImageBoxNode/GridSplitNode/GridMergeNode/VideoProcessNode/GroupNode/ScriptBoxNode/GhostTargetNode/Director3DNode/FaceMosaicNode/LoopNode/PanoramaNode/TemplateNode）。**新增节点权威流程 → `spec/NEW-NODE-GUIDE.md`**（NodeShell 外壳 + 注册同步 + NODE_OUTPUTS 管线契约，顶层规则见 `spec/CONTEXT.md` §一·5）。
 * **通用能力地基**：`src/components/base/`（`NodeShell` 统一外框、`CanvasToolbar`、`useArrangeCanvas`、`useCanvasAgentTools` 脚本盒引擎、Toast、ImageEditor、OverlayEditor、设置面板、AI 助手面板 AgentPanel 等）。
 * **设计语言**：参照 `docs/BASE-CAPABILITIES.md`；节点视觉/交互规范见 `docs/README.md`「节点设计规范」。
-* **运行形态**：Chrome 扩展（MV3）。`public/manifest.json` + `background.js` + `icon*.png` 为插件壳；`src/` 编译后由 `vite.config.js`（`base:'./'`，兼容 `chrome-extension://`）打包进 `dist/`。存储经 `src/components/base/contentStore.js`（横切存储权威入口，按 STORAGE_KEYS 自动路由 local/KV/native，底层 `storageAdapter.js` 走 `chrome.storage` 插件环境）。`npm run dev` 预览画布，`npm run build` 出 `dist/`。
+* **运行形态**：Chrome 扩展（MV3）。`public/manifest.json` + `background.js` + `icon*.png` 为插件壳；`src/` 编译后由 `vite.config.js`（`base:'./'`，兼容 `chrome-extension://`）打包进 `dist/`。存储经 `src/components/base/contentStore.js`（横切存储权威入口，按 `STORAGE_KEYS.backend` 自动路由 local/KV/native：local 走 `storageAdapter.js`（chrome.storage 扩展环境）/原生 `localStorage`；kv 走 localTool KV；native 后端如 director3d 直写原生 `localStorage`）。`npm run dev` 预览画布，`npm run build` 出 `dist/`。
 
 * **3D 导演台（director3d）**：`src/components/director3d/` 是**从外部下载的开源仓库**（storyai-3d-director-desk）集成进来的，**非本仓库自有代码**。由 `Director3DNode` 双击进入。⚠️ **边界**：它基本独立于主画布（有自己的 store/schema/编辑器，TS 实现）。**不为它写测试、不纳入测试维护、不主动重构**；改动只做"必要的最小集成"，改前先读文件头注释。要查它怎么用，看 `spec/TESTING.md` §八 批6 已标注"不开测"。
 
@@ -176,7 +176,7 @@ node scripts/task-inspect.mjs --canvas-health   # 画布结构体检
 > 命令速查（详见 `spec/TESTING.md`，权威）：**`npm test`（= `npm run test:all`）= 冒烟 + vitest 全量单测 + 回归 + Agent 工具** 四件套一次跑完，提交前首选；单项：`npm run test:smoke`（冒烟）/`test:unit`（vitest 单测）/`test:regression`（SSR 回归）/`test:tools`（Agent 工具）；`npm run check:health` 全量编排（含构建 + 测试 + TDZ + dist 基线）。
 
 > ⚠️ **跑 vitest 单次**：`vitest.config.js` 已默认 `watch:false`，裸调 `npx vitest xxx` 也会单次跑完即退（不会挂住）。但**优先用脚本**（内部已配好）：`npm test` / `npm run test:unit`（全量）或 `npx vitest run tests/unit/xxx.test.js`（单文件）。需 watch 时显式 `npx vitest --watch`。若已误入 watch，`Ctrl+C` 或 `pkill -f vitest` 退出。
-> 提交前 `pre-commit` 钩子自动跑 `type-check`；`main` 分支的 push/PR 由 `.github/workflows/ci.yml` 云端跑 type-check + 单测。lint 已移除（弊大于利，门禁靠类型检查 + 测试）。
+> 提交前 `pre-commit` 钩子自动跑 `type-check`；`main` 分支的 push/PR 由 `.github/workflows/ci.yml` 云端跑 type-check + 单测。**全量 lint 门禁已移除（弊大于利，门禁靠类型检查 + 测试）**；但保留**单条存储键契约编译期拦截**（不恢复全量 eslint）：`npm run check:keys` 静态校验裸 `STORAGE_KEYS` key（挂 `npm run check:health`）+ `contentStore.checkRegistered` 在 dev 环境对未登记字面量 key 直接 throw。两者零新依赖、不碰 §3.1 的 lint 决策。
 > **写完代码跑哪个**：平时 `npm run type-check` + `test:unit`；改画布/地基或合 main 前再跑 `npm test` 全量兜底（regression/tools 已含在内）。
 
 ### 3.2 改 bug 先加日志、再动逻辑（最高优先）
@@ -260,6 +260,7 @@ node scripts/task-inspect.mjs --canvas-health   # 画布结构体检
 2. **禁止新文件循环 import 大模块**（TDZ）：跨模块引用走既有 barrel / 已导出符号。
 3. **React 单实例不可破**：整工程唯一 React 实例，✗ 不可新增独立 react/react-dom 实例。
 4. **字符串契约零损伤**（见 §五.5）：`proxyMode=local-tool`、`127.0.0.1:18080`、`127.0.0.1:9004`、`/api/proxy`、`x-proxy-url`、画布硬编码字段 `t.data[0].url`、`{code,data}` 信封——改任何引用必须全量 grep 同步。
+5. **存储键禁止裸字符串（P0 红线）**：所有存储读写（`content*/s*/storage*/kv*`）的 key 必须引用 `contracts.js` 的 `STORAGE_KEYS` 登记项，**禁止裸字符串字面量 key**。新增键先登记、改键名全量 grep、删键先确认无引用。编译期拦截：`npm run check:keys`（静态）；运行时拦截：`contentStore.checkRegistered` 在 dev 环境对未登记字面量 key 直接 throw（`scripts/check-storage-keys.mjs` + `src/components/base/contentStore.js` 为权威实现，改此机制须同步本红线）。
 5. **降复杂度优先**：能减少复杂度又不引入 bug 的改动都做（混淆短名改语义长名、抽公共、删冗余），被运行时契约钉死的除外。改完必须 `npm run build` 验证。
 
 ### 5.5 卡帕西编码准则 (Karpathy Rules)
