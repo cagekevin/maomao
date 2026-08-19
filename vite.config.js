@@ -26,7 +26,11 @@ export default defineConfig({
           // @react-three/fiber 会被误吸进 vendor-react，且 three 体积巨大应独立成 vendor-3d。
           if (id.includes('node_modules')) {
             if (id.includes('@react-three') || id.includes('/three/') || id.includes('three/build')) return 'vendor-3d'
-            if (id.includes('@xyflow')) return 'vendor-flow'
+            // @xyflow 不再独立成 chunk：它强依赖 react（peerDeps react>=17，模块顶部大量
+            // `import { useState } from 'react'`）。若拆成 vendor-flow 独立 chunk，会与
+            // vendor-react 形成循环 chunk，导致 vendor-flow 在 vendor-react 初始化完成前执行
+            // → 运行时 `reading 'useState'` 但 React 为 undefined 崩溃（2026-08-20 修复）。
+            // 让它随 react 归入 vendor-react（同 chunk 保证 React 先定义），消除循环。
             if (id.includes('mediabunny')) return 'vendor-media'
             if (id.includes('gifenc')) return 'vendor-media'
             if (id.includes('lucide-react')) return 'vendor-ui'
