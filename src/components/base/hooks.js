@@ -193,6 +193,83 @@ export function useNodeResize(id) {
 }
 
 /**
+ * 内容高度自适应 hook（无限画布：内容撑开时节点高度跟随，消除 ResizeObserver 循环告警）。
+ *
+ * 【收口背景】VideoProcess / GridSplit / ScriptBox / GridMerge 四个节点此前各自手写同一套
+ * ResizeObserver 高度自适应（监听 contentRef → onMainBoxResize 写回 node.height + updateNodeInternals）。
+ * 手写 ≥3 次必收口（CONTEXT §一·五C），此处抽公共实现，四节点复用。
+ *
+ * 【ResizeObserver loop 告警根因（2026-08-20 根治）】
+ * 旧实现每次回调都读 `getNode(id).height` 作 4px 阈值判定，但 setNodes 是异步批量更新，
+ * 回调执行时拿到的 node.height 仍是旧值 → 阈值永远基于滞后数据 → 写回后又触发尺寸变化 → 同帧内
+ * 反复触发，浏览器报 `ResizeObserver loop completed with undelivered notifications`。
+ *
+ * 【根治手段（行为等价，只改防抖来源与时机）】
+ *  1. lastWrittenH ref：基于「自己上次真正写回的高度」判断 4px 阈值，不读滞后的 node.height，
+ *     真正打破「读旧值→误判需更新→再写」的循环。
+ *  2. requestAnimationFrame：把 onMainBoxResize（setNodes）推迟到下一帧，不再同帧内反复触发
+ *     ResizeObserver，正是消除 loop 告警的直接手段。
+ *  3. 尺寸计算逻辑与 4px 阈值与原手写版完全一致，行为等价、仅修循环与告警。
+ *
+ * @param ref          contentRef：监听内容区高度的元素 ref（调用方 useRef + 绑定到内容区根 div）
+ * @param id           节点 id
+ * @param opts { minHeight?, fallbackWidth? }
+ *   - minHeight        写回时的最小高度（原各节点 Math.max(N, h) 的 N）
+ *   - fallbackWidth    拿不到 node.width 时的兜底宽度（原各节点 `n?.width ?? fallback`）
+ * @returns ref        调用方需把返回的 ref 绑到内容区根 div（用法见调用方）
+ */
+export function useContentHeightSync(ref, id, { minHeight = 0, fallbackWidth = 420 } = {}) {
+  const { getNode } = useReactFlow()
+  const { onMainBoxResize } = useNodeResize(id)
+
+  // 记录自己上次真正写回的高度（而非读滞后的 node.height），作为 4px 阈值防抖的判定来源。
+  // 避免「读旧值→误判需更新→再写回→再触发」的同帧循环（ResizeObserver loop 告警根因）。
+  const lastWrittenH = useRef(0)
+
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    let pendingRaf = 0
+    let reobserveRaf = 0
+    let ro = null
+
+    // 创建并挂载观察者。回调发现高度变化 → 先 disconnect（停止本轮观察），rAF 写回 node.height，
+    // 下一帧尺寸稳定后再重新 observe。这样写回（setNodes→wrapper 尺寸变）不会被同一 observation 周期
+    // 再次捕获，消除 `ResizeObserver loop completed` 告警（浏览器认为回调又触发了被观察元素尺寸变化）。
+    const mount = () => {
+      ro = new ResizeObserver(() => {
+        const h = el.offsetHeight
+        if (!h) return
+        // 阈值基于「自己上次写回的高度」，而非 getNode(id).height（滞后值），真正防抖
+        if (Math.abs(h - lastWrittenH.current) < 4) return
+        lastWrittenH.current = h
+        // 写回前先断开观察，避免写回引发的尺寸变化在当轮 observation 内被再次捕获
+        ro?.disconnect()
+        pendingRaf = requestAnimationFrame(() => {
+          pendingRaf = 0
+          const n = getNode(id)
+          const curW = n?.width ?? n?.style?.width ?? fallbackWidth
+          onMainBoxResize(Math.round(curW), Math.max(minHeight, Math.round(h)))
+          // 下一帧（写回已生效、尺寸稳定）重新开始观察
+          reobserveRaf = requestAnimationFrame(() => {
+            reobserveRaf = 0
+            mount()
+          })
+        })
+      })
+      try { ro.observe(el) } catch { /* noop */ }
+    }
+
+    mount()
+    return () => {
+      if (pendingRaf) cancelAnimationFrame(pendingRaf)
+      if (reobserveRaf) cancelAnimationFrame(reobserveRaf)
+      ro?.disconnect()
+    }
+  }, [ref, id, getNode, onMainBoxResize, minHeight, fallbackWidth])
+}
+
+/**
  * 统一「新建节点落点」计算（公共 base）。
  *
  * 所有新建节点入口共用此落点规则，避免各写各的导致不一致：

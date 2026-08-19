@@ -6,7 +6,7 @@ import NodeShell from '../base/NodeShell.jsx'
 import CustomHandle from '../edges/CustomHandle.jsx'
 import { useConnectedInputs } from '../base/useConnectedInputs.js'
 import { useMediaDegrade } from '../base/useMediaDegrade.js'
-import { useNodeResize } from '../base/hooks.js'
+import { useContentHeightSync } from '../base/hooks.js'
 import { showToast, toastWarning } from '../base/toastStore.js' // 保留阻断校验提示
 import { toAbsoluteFileUrl } from '../base/filesApi.js'
 import { loadImageWithTimeout } from '../base/asyncGuard.js'
@@ -140,8 +140,6 @@ function GridSplitNode({ id, data, selected }) {
   const { setNodes, getNodes, getNode, setEdges, getEdges } = useReactFlow()
   const history = useCanvasEdges()
   const { isHidden } = useMediaDegrade()
-  const { onMainBoxResize } = useNodeResize(id)
-
   // 内容区引用：高度自适应（内容撑多高，节点就多高，不留空白，复刻 ScriptBoxNode 自适应方案）
   const contentRef = useRef(null)
 
@@ -170,22 +168,8 @@ function GridSplitNode({ id, data, selected }) {
   const fullCanvasRef = useRef(null)
   const activeCellIdRef = useRef(null) // 当前绘制的 lasso 记录（mousemove 用）
 
-  // ---- 高度自适应（内容撑多高，节点就多高，不留空白；对齐 ScriptBoxNode 自适应方案）----
-  useEffect(() => {
-    const el = contentRef.current
-    if (!el) return
-    const ro = new ResizeObserver(() => {
-      const h = el.offsetHeight
-      if (!h) return
-      const n = getNode(id)
-      const curH = n?.height ?? n?.style?.height ?? 0
-      if (Math.abs(h - curH) < 4) return
-      const curW = n?.width ?? n?.style?.width ?? 280
-      onMainBoxResize(Math.round(curW), Math.max(120, Math.round(h)))
-    })
-    ro.observe(el)
-    return () => ro.disconnect()
-  }, [id, getNode, onMainBoxResize])
+  // ---- 高度自适应（内容撑多高，节点就多高，不留空白；收口到 useContentHeightSync）----
+  useContentHeightSync(contentRef, id, { minHeight: 120, fallbackWidth: 280 })
 
   // ---- 切分计算 cells（复刻 Lo.jsx I）----
   const cells = useMemo(() => {

@@ -445,28 +445,17 @@ function TemplateNode({ id, data, selected }) {
 
 /**
  * ════════════════════════════════════════════════════════════════
- * 【高度自适应骨架】内容撑高超过 node.height 时（参考 ScriptBoxNode）
+ * 【高度自适应】内容撑高超过 node.height 时（参考 ScriptBoxNode）
  * ════════════════════════════════════════════════════════════════
- * 简单节点（内容固定）无需。内容会撑高时用 ResizeObserver 写回 node.height：
+ * 简单节点（内容固定）无需。内容会撑高时，用公共 hook `useContentHeightSync`
+ * （src/components/base/hooks.js，VideoProcess/GridSplit/ScriptBox/GridMerge 统一收口）：
  *
  *   const contentRef = useRef(null)
- *   const { getNodes } = useReactFlow()
- *   const { onMainBoxResize } = useNodeResize(id)
- *   useEffect(() => {
- *     const el = contentRef.current
- *     if (!el) return
- *     const ro = new ResizeObserver(() => {
- *       const h = el.offsetHeight
- *       if (!h) return
- *       const n = getNodes().find((x) => x.id === id)
- *       const curH = n?.height ?? n?.style?.height ?? 0
- *       if (Math.abs(h - curH) < 4) return          // 阈值防抖，避免循环触发
- *       const curW = n?.width ?? n?.style?.width ?? 0
- *       onMainBoxResize(Math.round(curW), Math.max(600, Math.round(h)))
- *     })
- *     ro.observe(el)
- *     return () => ro.disconnect()
- *   }, [id, getNodes, onMainBoxResize])
+ *   useContentHeightSync(contentRef, id, { minHeight: 600, fallbackWidth: 900 })
  *   // 主容器加 ref={contentRef}；去掉固定 height（只留 minHeight），否则内容溢出到框外。
+ *
+ * ⚠️ 勿再手写 new ResizeObserver → onMainBoxResize 的旧模式：那会与 useContentHeightSync
+ *    重复，且旧写法「读滞后的 node.height 做 4px 阈值」会触发 ResizeObserver loop 告警
+ *    （已由 hook 内 ref 防抖 + rAF + disconnect-reobserve 根治）。
  */
 export default React.memo(TemplateNode)

@@ -69,6 +69,7 @@ const useConnectedInputs = () => connectedInputsState
 const setConnectedInputs = (v) => { connectedInputsState = v }
 const useMediaDegrade = () => ({ isHidden: () => false })
 const useNodeResize = () => ({ onInputResize: () => {} })
+const useContentHeightSync = () => {} // 内容高度自适应 hook（jsdom 无 ResizeObserver 反馈，测试用 no-op）
 const useOutsideClick = () => {}
 const useFitNodeRatio = () => ({})
 const useVideoPoster = () => ({ poster: null })
@@ -160,7 +161,7 @@ export const mocks = {
   FullscreenModal, GeneratingOverlay, PromptLibraryButton, PromptInput, ModelSelect,
   ImageEditor, OverlayEditor, LazyImage, CustomHandle, NodeTitle, GenerateButton,
   renderOverlayCanvas, useConnectedInputs, setConnectedInputs, useMediaDegrade,
-  useNodeResize, useOutsideClick, useFitNodeRatio, useVideoPoster, useNodePrefs,
+  useNodeResize, useContentHeightSync, useOutsideClick, useFitNodeRatio, useVideoPoster, useNodePrefs,
   useSyncNodeData, useNodeGeneration, getGenConfig, toastCalls, showToast, toastWarning, toastError,
   toAbsoluteFileUrl, saveResultToTasks, saveTextToTasks, saveInlineToLocal,
   uploadFileToLocal, useProviders, loadProviders, buildAllModels, resolveProviderModel,

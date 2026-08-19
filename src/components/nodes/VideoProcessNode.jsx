@@ -8,7 +8,7 @@ import NodeTitle from '../base/NodeTitle.jsx'
 import CustomHandle from '../edges/CustomHandle.jsx'
 import { useConnectedInputs } from '../base/useConnectedInputs.js'
 import { useMediaDegrade } from '../base/useMediaDegrade.js'
-import { useNodeResize } from '../base/hooks.js'
+import { useNodeResize, useContentHeightSync } from '../base/hooks.js'
 import { showToast } from '../base/toastStore.js'
 import { withTimeout, isTimeoutError } from '../base/asyncGuard.js'
 import {
@@ -1082,22 +1082,8 @@ function VideoProcessNode({ id, data, selected }) {
     )
   }
 
-  /* 高度自适应（复刻 GridMergeNode 用法） */
-  useEffect(() => {
-    const el = contentRef.current
-    if (!el) return
-    const ro = new ResizeObserver(() => {
-      const h = el.offsetHeight
-      if (!h) return
-      const n = getNode(id)
-      const curH = n?.height ?? n?.style?.height ?? 0
-      if (Math.abs(h - curH) < 4) return
-      const curW = n?.width ?? n?.style?.width ?? 540
-      onMainBoxResize(Math.round(curW), Math.max(620, Math.round(h)))
-    })
-    ro.observe(el)
-    return () => ro.disconnect()
-  }, [id, getNode, onMainBoxResize])
+  /* 高度自适应（收口到 useContentHeightSync：ref 防抖 + rAF 打破 ResizeObserver 同帧循环告警） */
+  useContentHeightSync(contentRef, id, { minHeight: 620, fallbackWidth: 540 })
 
   /* ---------- trim 模式的入出点 scrubber（复刻官方 ze） ---------- */
   const trimScrubber = currentClip && (

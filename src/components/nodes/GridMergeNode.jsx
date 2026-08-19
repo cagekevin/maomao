@@ -11,7 +11,7 @@ import OverlayEditor, { renderOverlayCanvas } from '../base/OverlayEditor.jsx'
 import { useConnectedInputs } from '../base/useConnectedInputs.js'
 import { useMediaDegrade } from '../base/useMediaDegrade.js'
 import ImageZoomDialog from '../base/ImageZoomDialog.jsx'
-import { useNodeResize } from '../base/hooks.js'
+import { useContentHeightSync } from '../base/hooks.js'
 import { showToast } from '../base/toastStore.js'
 import { toAbsoluteFileUrl } from '../base/filesApi.js'
 import { logger } from '../base/logger.js'
@@ -94,7 +94,6 @@ function GridMergeNode({ id, data, selected }) {
   const { setNodes, getNodes, getNode, getEdges, setEdges } = useReactFlow()
   const history = useCanvasEdges()
   const { isHidden } = useMediaDegrade()
-  const { onMainBoxResize } = useNodeResize(id)
   const contentRef = useRef(null)
   // 双击预览图查看大图（原生 <dialog>）
   const [zoomUrl, setZoomUrl] = useState(null)
@@ -172,22 +171,8 @@ function GridMergeNode({ id, data, selected }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mergeMode, rows, cols, cellSize, aspectRatio, autoSize, titlePattern, longDirection, longGap, longTargetSize, longAutoSize, bgColor, overlayState])
 
-  // ---- 高度自适应（内容撑多高，节点就多高）----
-  useEffect(() => {
-    const el = contentRef.current
-    if (!el) return
-    const ro = new ResizeObserver(() => {
-      const h = el.offsetHeight
-      if (!h) return
-      const n = getNode(id)
-      const curH = n?.height ?? n?.style?.height ?? 0
-      if (Math.abs(h - curH) < 4) return
-      const curW = n?.width ?? n?.style?.width ?? 320
-      onMainBoxResize(Math.round(curW), Math.max(160, Math.round(h)))
-    })
-    ro.observe(el)
-    return () => ro.disconnect()
-  }, [id, getNode, onMainBoxResize])
+  // ---- 高度自适应（内容撑多高，节点就多高；收口到 useContentHeightSync）----
+  useContentHeightSync(contentRef, id, { minHeight: 160, fallbackWidth: 320 })
 
   // ---- 渲染到 canvas（复刻 Yo.jsx pe）----
   const renderToCanvas = useCallback(

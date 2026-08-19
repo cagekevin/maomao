@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { Clapperboard, Settings, Maximize2, Loader2 } from 'lucide-react'
-import { useReactFlow, Handle } from '@xyflow/react'
+import { Handle } from '@xyflow/react'
 import NodeShell from '../base/NodeShell.jsx'
 import CustomHandle from '../edges/CustomHandle.jsx'
 import FullscreenModal from '../base/FullscreenModal.jsx'
 import { useScriptBoxEngine } from '../base/useScriptBoxEngine.js'
 import { useConnectedInputs } from '../base/useConnectedInputs.js'
-import { useOutsideClick, useNodeResize } from '../base/hooks.js'
+import { useOutsideClick, useContentHeightSync } from '../base/hooks.js'
 import StepShots from '../scriptbox/StepShots.jsx'
 import StepAssets from '../scriptbox/StepAssets.jsx'
 import StepPrompt from '../scriptbox/StepPrompt.jsx'
@@ -58,25 +58,9 @@ function ScriptBoxNode({ id, data, selected }) {
   // 而要「内容自然撑开 → 节点高度跟随 → 外框贴合内容」。用 ResizeObserver 监听主容器高度变化，
   // 写回 node.height + updateNodeInternals，让 ReactFlow 节点 wrapper（含端口定位）也跟随。
   // 注意：必须去掉固定 height（只留 minHeight），否则根 div 高度被锁死、内容溢出到框外。
-  const { getNodes, getNode } = useReactFlow()
-  const { onMainBoxResize } = useNodeResize(id)
   const contentRef = useRef(null)
-  useEffect(() => {
-    const el = contentRef.current
-    if (!el) return
-    const ro = new ResizeObserver(() => {
-      const h = el.offsetHeight
-      if (!h) return
-      const n = getNode(id)
-      const curH = n?.height ?? n?.style?.height ?? 0
-      // 差值小于阈值不写回，避免写回→NodeShell minHeight 变化→再触发的循环抖动
-      if (Math.abs(h - curH) < 4) return
-      const curW = n?.width ?? n?.style?.width ?? 900
-      onMainBoxResize(Math.round(curW), Math.max(600, Math.round(h)))
-    })
-    ro.observe(el)
-    return () => ro.disconnect()
-  }, [id, getNode, onMainBoxResize])
+  // 外框自适应收口到 useContentHeightSync（ref 防抖 + rAF 打破 ResizeObserver 同帧循环告警）
+  useContentHeightSync(contentRef, id, { minHeight: 600, fallbackWidth: 900 })
 
   // 生成遮罩计时
   const genMask = !!d.genMask
