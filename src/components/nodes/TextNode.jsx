@@ -145,6 +145,12 @@ function TextNode({ id, data, selected }) {
   // 统一生成契约（useNodeGeneration）：收敛「reportGenerate + 进度 + 成功双写 + 失败 + retry注册」。
   // 真实文本生成：经 localTool /api/proxy → 选中的 provider /v1/chat/completions（节点式：可跨 provider 选模型）。
   // Agent 的 generate_node 也走这里。
+  // ── P0-2-c 文本特例：不接 resultKey / recoverable ──
+  // 图片/视频节点声明 resultKey+recoverable 由契约自动把 resultUrl 写回 node.data[imageUrl/videoUrl]。
+  // 文本结果本体在 data.text（run 只返回 content、无 url/doneUrl），任务中心 resultUrl 为空：
+  //  resultKey 成功时写 {[key]: r.url||doneUrl} → 永远不触发，无意义；
+  //  recoverable 广播回填 data[key]=resultUrl → 文本不适用（契约明示文本类节点不传 onRecover）。
+  // 故文本走 setTextPersist → effect 防抖写回 data.text（随画布快照恢复），与图片/视频节点写回路径正交。
   const { loading, error, stop: onStop, start: handleGenerate } = useNodeGeneration({
     nodeId: id,
     type: { type: 'text', prompt: effectivePrompt || '', modelName: selectedModel },
