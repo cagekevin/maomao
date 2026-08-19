@@ -4,7 +4,6 @@ import { useReactFlow, Handle } from '@xyflow/react'
 import NodeShell from '../base/NodeShell.jsx'
 import CustomHandle from '../edges/CustomHandle.jsx'
 import FullscreenModal from '../base/FullscreenModal.jsx'
-import { useScriptBoxData } from '../base/useScriptBoxData.js'
 import { useScriptBoxEngine } from '../base/useScriptBoxEngine.js'
 import { useConnectedInputs } from '../base/useConnectedInputs.js'
 import { useOutsideClick, useNodeResize } from '../base/hooks.js'
@@ -18,7 +17,7 @@ import GearSettings from '../scriptbox/GearSettings.jsx'
  *
  * 数据模型：单一数据源 node.data（shots/assets/配置 + 9 个 onXxx 引擎回调）。
  * 职责铁律：
- *  - 本组件只「读 node.data」（直接读 data prop），任何编辑都经 useScriptBoxData.updateData 写回；
+ *  - 本组件只「读 node.data」（直接读 data prop），任何编辑都经 useScriptBoxEngine.updateData 写回；
  *  - 任何「生成/连线」都只调 d.onXxx?.(...)（引擎回调），本组件不做计算；
  *  - 引擎回调由 useScriptBoxEngine 注入 node.data.onXxx（经 setNodes/addNodes/坐标写回）；
  *  - 引擎（scriptBoxEngine.js）不依赖 UI，经 setNodes 写回；纯函数（scriptBoxPrompts.js）无副作用。
@@ -26,12 +25,9 @@ import GearSettings from '../scriptbox/GearSettings.jsx'
  * 三步状态机：①确认镜头 ②准备资产 ③合成提示词（可点击切换，不自动连跑）。
  */
 function ScriptBoxNode({ id, data, selected }) {
-  // 数据读写通道（读 data 直接用 props，写经 updateData）
-  const { updateData } = useScriptBoxData(id)
-
-  // 引擎回调：由 useScriptBoxEngine 创建并注入 node.data.onXxx（含连线，能建下游）。
-  // 本组件只调 d.onXxx?.(...)，不做引擎。
-  useScriptBoxEngine(id, data)
+  // 引擎：创建并注入 node.data.onXxx（含连线，能建下游），并返回统一写回通道 updateData。
+  // 写回经 updateData（对象或函数式 patch，并发安全）；生成/连线只调 d.onXxx?.(...)，本组件不做引擎。
+  const { updateData } = useScriptBoxEngine(id, data)
 
   const d = data || {}
 

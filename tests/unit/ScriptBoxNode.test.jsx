@@ -53,8 +53,17 @@ vi.mock('@xyflow/react', () => ({
 
 vi.mock('../../src/components/base/NodeShell.jsx', () => ({ default: ({ children }) => children }))
 vi.mock('../../src/components/base/FullscreenModal.jsx', () => ({ default: ({ open, children }) => (open ? <div data-testid="fullscreen">{children}</div> : null) }))
-// 数据读写 hook：updateData 记录调用（StepNav 切步用）
-vi.mock('../../src/components/base/useScriptBoxData.js', () => ({ useScriptBoxData: () => ({ updateData: (...a) => h.updateData(...a) }) }))
+// 数据读写通道：真实 useScriptBoxEngine 负责注入回调副作用，仅把返回的 updateData 指向 h.updateData 以记录调用（StepNav 切步用）
+vi.mock('../../src/components/base/useScriptBoxEngine.js', async (importOriginal) => {
+  const real = await importOriginal()
+  return {
+    ...real,
+    useScriptBoxEngine: (nodeId, data) => {
+      const r = real.useScriptBoxEngine(nodeId, data)
+      return { ...r, updateData: (...a) => h.updateData(...a) }
+    },
+  }
+})
 // 引擎 hook：mock createScriptBoxEngine → 返回稳定引擎实例，验证真实注入链路
 vi.mock('../../src/components/base/scriptBoxEngine.js', () => ({ createScriptBoxEngine: () => h.engine }))
 vi.mock('../../src/components/base/settings/providerStore.js', () => ({ useProviders: () => ({ providers: [] }), useProvidersList: () => [], load: vi.fn(async () => {}) }))

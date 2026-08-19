@@ -3,6 +3,7 @@ import { Loader2, Wand2, User, Image as ImageIcon, Package, Plus, MoreVertical, 
 import { ZgPrompt } from '../base/scriptBoxPrompts.js'
 import { useOutsideClick } from '../base/hooks.js'
 import { toAbsoluteFileUrl } from '../base/filesApi.js'
+import ImageZoomDialog from '../base/ImageZoomDialog.jsx'
 
 /**
  * 剧本盒子 步骤2「准备资产」：角色/场景/道具三栏 + 资产卡(选中框/视频上传状态/more菜单) +
@@ -21,6 +22,9 @@ export default function StepAssets({ data, updateData, callbacks }) {
   const pickedCount = d.pickedCount || 0
   // 当前选中编辑的资产 idx（点资产卡选中；默认 null 显示空态，不遮挡任何资产）
   const [editIdx, setEditIdx] = useState(null)
+  // 双击查看大图（复用通用 ImageZoomDialog，同生图节点）：zoomUrl 记录当前要放大的图片 URL
+  const zoomRef = React.useRef(null)
+  const [zoomUrl, setZoomUrl] = useState('')
 
   const CATS = [
     { k: 'character', n: '角色', icon: <User size={12} /> },
@@ -84,6 +88,7 @@ export default function StepAssets({ data, updateData, callbacks }) {
                         onUpload={() => uploadOne(a.id)}
                         onRetry={() => retryUpload(a.id)}
                         onEditPrompt={() => setEditIdx(gi)}
+                        onZoomClick={(url) => { setZoomUrl(url); zoomRef.current?.showModal() }}
                       />
                     )
                   })}
@@ -108,6 +113,8 @@ export default function StepAssets({ data, updateData, callbacks }) {
           )}
         </div>
       </div>
+      {/* 双击资产缩略图查看大图 */}
+      <ImageZoomDialog ref={zoomRef} url={zoomUrl} />
     </div>
   )
 }
@@ -127,7 +134,7 @@ function addAsset(updateData, cat, assets) {
 }
 
 /** 资产卡：缩略图 + 选中框 + 名称/描述 + 视频状态 + more 菜单 */
-function AssetCard({ asset, idx, data, updateData, callbacks, onOpen, onTogglePick, onDel, onUpload, onRetry, onEditPrompt, selected }) {
+function AssetCard({ asset, idx, data, updateData, callbacks, onOpen, onTogglePick, onDel, onUpload, onRetry, onEditPrompt, onZoomClick, selected }) {
   const [more, setMore] = useState(false)
   const moreRef = React.useRef(null)
   useOutsideClick(moreRef, more, () => setMore(false))
@@ -138,10 +145,10 @@ function AssetCard({ asset, idx, data, updateData, callbacks, onOpen, onTogglePi
       <div className="flex flex-col items-center gap-1">
         <input type="checkbox" checked={!!asset.picked} onChange={onTogglePick} className="nodrag cursor-pointer" />
       </div>
-      {/* 缩略图（点击打开抽屉） */}
-      <div className="w-11 h-11 shrink-0 rounded-md overflow-hidden bg-surface-1 flex items-center justify-center cursor-pointer" onClick={onOpen}>
+      {/* 缩略图（点击打开抽屉，双击查看大图） */}
+      <div className="w-11 h-11 shrink-0 rounded-md overflow-hidden bg-surface-1 flex items-center justify-center cursor-pointer nodrag" onClick={onOpen}>
         {asset.loading ? <Loader2 size={13} className="animate-spin text-gray-400" />
-          : asset.imageUrl ? <img src={toAbsoluteFileUrl(asset.imageUrl)} alt={asset.name} className="w-full h-full object-cover" />
+          : asset.imageUrl ? <img src={toAbsoluteFileUrl(asset.imageUrl)} alt={asset.name} className="w-full h-full object-cover" onDoubleClick={(e) => { e.stopPropagation(); onZoomClick?.(asset.imageUrl) }} />
             : asset.has ? <span className="text-emerald-400 text-body-xs">✓</span>
               : <span className="text-caption text-gray-500">+ 待生成</span>}
       </div>

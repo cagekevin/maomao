@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { classifyError, isRetryableError } from '../../src/components/base/genErrors.js'
+import { classifyError } from '../../src/components/base/genErrors.js'
 import { TimeoutError } from '../../src/components/base/asyncGuard.js'
 
 /**
@@ -63,19 +63,5 @@ describe('genErrors.classifyError — 识别优先级', () => {
   it('识别优先级：aborted 且带 status → 仍判 abort（取消优先于 http）', () => {
     const res = classifyError({ name: 'AbortError', message: 'x', status: 500 })
     expect(res.type).toBe('abort')
-  })
-})
-
-describe('genErrors.isRetryableError — 重试决策入口', () => {
-  it('仅 timeout / network 可重试', () => {
-    expect(isRetryableError(new TimeoutError())).toBe(true)
-    expect(isRetryableError(new TypeError('Failed to fetch'))).toBe(true)
-  })
-
-  it('abort / http / business 一律不可重试', () => {
-    expect(isRetryableError(new DOMException('x', 'AbortError'))).toBe(false)
-    expect(isRetryableError({ status: 404 })).toBe(false)
-    expect(isRetryableError(new Error('普通'))).toBe(false)
-    expect(isRetryableError(null)).toBe(false)
   })
 })

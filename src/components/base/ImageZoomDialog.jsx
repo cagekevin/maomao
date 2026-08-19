@@ -3,7 +3,9 @@
  *
  * 设计取舍：
  *  - 容器用原生 <dialog>（文档顶层、无 z-index 打架、Esc/点空白关闭稳定）。
- *  - 交互参考官方 1mao：滚轮缩放 + 拖拽平移 + 双击关闭。
+ *  - 交互参考官方 1mao：滚轮缩放 + 拖拽平移。
+ *    // 更新(2026-08)：关闭交互由「双击关闭」改为「点空白/关闭按钮关闭」——双击拖拽图时易误触关掉，
+ *    //  原「双击关闭」的语义（官方 1mao 参考）保留不删，仅关闭触发方式变更。
  *  - 缩放/拖拽监听：wheel 用原生非被动监听确保 preventDefault 生效；
  *    拖拽用 window 级 pointermove/up（而非 setPointerCapture），避免捕获指针吞掉按钮点击。
  *  - 初始大小：图片以 max-w-full max-h-full object-contain 适配视口，scale=1 即适配大小。
@@ -119,18 +121,19 @@ const ImageZoomDialog = forwardRef(function ImageZoomDialog({ url }, ref) {
   }, [url])
 
   const src = url ? toAbsoluteFileUrl(url) : ''
+  // 「点空白关闭」判断放内部容器 div（onClick）而非本 dialog：因容器 fixed inset-0 铺满覆盖本层，
+  //   dialog 的 e.target===currentTarget 永远不成立（死代码）。语义：点非图片/非工具栏的空白区即关闭。
 
   return (
     <dialog
       ref={setRef}
-      onClick={(e) => { if (e.target === e.currentTarget) e.currentTarget.close() }}
       className="m-0 w-screen h-screen max-w-none max-h-none bg-black/85 border-0 p-0 backdrop:bg-black/85"
     >
       {src && (
         <div
           className="fixed inset-0 flex items-center justify-center overflow-hidden select-none"
           onPointerDown={onPointerDown}
-          onDoubleClick={(e) => { e.stopPropagation(); close(e) }}
+          onClick={(e) => { if (e.target === e.currentTarget) close(e) }}
           style={{ cursor: dragging.current ? 'grabbing' : 'grab' }}
         >
           <img
@@ -138,7 +141,6 @@ const ImageZoomDialog = forwardRef(function ImageZoomDialog({ url }, ref) {
             src={src}
             alt="大图"
             onClick={(e) => e.stopPropagation()}
-            onDoubleClick={(e) => { e.stopPropagation(); close(e) }}
             style={{
               transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})`,
               transition: dragging.current ? 'none' : 'transform 0.08s ease-out',
@@ -166,10 +168,11 @@ const ImageZoomDialog = forwardRef(function ImageZoomDialog({ url }, ref) {
             onClick={(e) => e.stopPropagation()}
             onPointerDown={(e) => e.stopPropagation()}
           >
+            {/* 复制按钮：固定 min-w 让「复制图片/已复制/复制失败」三态切换不跳宽；成功态绿、失败态红橙 */}
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); handleCopy() }}
-              className="px-3 py-1 rounded-full hover:bg-white/15 transition-colors"
+              className={`px-3 py-1 rounded-full min-w-[88px] text-center transition-colors ${copied ? 'text-emerald-300 hover:bg-white/15' : copyErr ? 'text-red-300 hover:bg-white/15' : 'hover:bg-white/15'}`}
             >
               {copied ? '已复制 ✓' : copyErr ? '复制失败' : '复制图片'}
             </button>
@@ -181,7 +184,7 @@ const ImageZoomDialog = forwardRef(function ImageZoomDialog({ url }, ref) {
             >
               下载
             </button>
-            <span className="opacity-50 ml-1 hidden sm:inline">滚轮缩放 · 拖拽平移 · 双击关闭</span>
+            <span className="opacity-50 ml-1 hidden sm:inline">滚轮缩放 · 拖拽平移 · 点空白关闭</span>
           </div>
         </div>
       )}

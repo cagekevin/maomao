@@ -181,7 +181,7 @@ const hideMedia = lodLevel >= 2 // 按需调阈值
 | 通道 | 用途 |
 |---|---|
 | `setNodes` | 引擎生成/连线写回（B 型节点） |
-| `updateData`（`useScriptBoxData`） | UI 编辑写回（B 型节点） |
+| `updateData`（`useScriptBoxEngine`） | UI 编辑写回（B 型节点） |
 
 **写回铁律（原则3）**：
 1. **不可变局部更新**：只改目标字段，其余字段/节点保留旧引用。禁止原地 `push`/`赋值`。
@@ -222,8 +222,8 @@ const hideMedia = lodLevel >= 2 // 按需调阈值
 |---|---|---|
 | 范式 A（useState 型普通节点） | `src/components/TextNode.jsx` | 数据用 useState、纯 UI 状态用 useState、`useGenerate` 假生成、`NodeShell/HoverToolbar/GenerateButton/PromptInput` 基座组装 |
 | 范式 B（node.data 复合节点） | `src/components/ScriptBoxNode.jsx` + `src/components/scriptbox/StepShots.jsx` | 业务数据只读 data、编辑走 updateData、只调 `d.onXxx?.()`、纯 UI 状态留 useState |
-| 范式 B 数据写回通道 | `src/components/base/useScriptBoxData.js` | `updateData(patch)` 不可变写回（`setNodes` 里非目标节点 `: n` 原样返回） |
-| 范式 B 引擎注入 | `src/components/base/useScriptBoxEngine.js` | `useReactFlow()` 拿 setNodes/addNodes/坐标 → 建引擎 → 挂 node.data.onXxx |
+| 范式 B 数据写回通道 | `src/components/base/useScriptBoxEngine.js` | `updateData(patch)` 不可变写回（`setNodes` 里非目标节点 `: n` 原样返回）；支持函数式 patch 并发安全合并 |
+| 范式 B 引擎注入 | `src/components/base/useScriptBoxEngine.js` | `useReactFlow()` 拿 setNodes/addNodes/坐标 → 建引擎 → 挂 node.data.onXxx，并返回统一 updateData |
 | 范式 B 引擎实现 | `src/components/base/scriptBoxEngine.js` | `createScriptBoxEngine({getData,updateData,addNodes})` 返回回调，假实现标注真链路 |
 | 纯函数层（无副作用） | `src/components/base/scriptBoxPrompts.js` | 提示词模板 / 拼装函数，UI 与引擎都从这里取 |
 | 节点外壳 / 端口 / 尺寸 | `src/components/base/NodeShell.jsx` + `CustomHandle.jsx` + `base/hooks.js` | 所有节点的公共骨架，直接复用 |

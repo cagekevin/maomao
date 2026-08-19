@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useCallback } from 'react'
 import { useReactFlow } from '@xyflow/react'
 import { createScriptBoxEngine } from './scriptBoxEngine.js'
 import { useProvidersList, load as loadProviders } from './settings/providerStore.js'
@@ -15,7 +15,7 @@ import { logger } from './logger.js'
  * 为什么放剧本盒子自己的 hook 而不是 App.jsx：
  *  - 用 useReactFlow() 就能拿到 getNodes/setNodes/addNodes/screenToFlowPosition，
  *    无需 App 传参，App 保持通用画布壳，不变成垃圾场；
- *  - 剧本盒子专用逻辑聚在本模块，与 useScriptBoxData.js / scriptBoxEngine.js 同类。
+ *  - 剧本盒子专用逻辑聚在本模块，与 scriptBoxEngine.js 同类。
  *
  * 用法：在 ScriptBoxNode 内调用本 hook。它：
  *  - 创建并缓存一份 createScriptBoxEngine 实例（ref，跨 render 稳定）；
@@ -44,6 +44,20 @@ export function useScriptBoxEngine(nodeId, data) {
   const providersRef = useRef(providers)
   providersRef.current = providers
 
+  // 书写回通道（统一收口，ScriptBoxNode / Step 组件共用）：
+  // 支持对象 patch 与函数式 patch `(latestData)=>patch`（并发安全合并，避免读到旧引用导致状态互相覆盖）。
+  // 用 useCallback 保证跨 render 稳定（ScriptBoxNode 是 React.memo，稳定引用可减少无谓重渲染）。
+  const updateData = useCallback(
+    (patch) =>
+      setNodes((ns) => ns.map((n) => {
+        if (n.id !== nodeId) return n
+        const latest = n.data || {}
+        const resolved = typeof patch === 'function' ? patch(latest) : patch
+        return { ...n, data: { ...latest, ...resolved } }
+      })),
+    [nodeId, setNodes]
+  )
+
   // 引擎实例用 ref 缓存，跨 render 稳定（不因 data 变化重建导致子组件重渲染）
   const engineRef = useRef(null)
   if (!engineRef.current) {
@@ -53,13 +67,7 @@ export function useScriptBoxEngine(nodeId, data) {
       // 写回 node.data：经 setNodes 不可变更新（引擎唯一写回通道）。
       // 支持两种形态：对象 patch（直接合并）或函数 `(latestData) => patch`（基于最新 data 计算，
       // 供并发场景下安全合并，避免 getData() 读到旧引用导致状态互相覆盖）。
-      updateData: (patch) =>
-        setNodes((ns) => ns.map((n) => {
-          if (n.id !== nodeId) return n
-          const latest = n.data || {}
-          const resolved = typeof patch === 'function' ? patch(latest) : patch
-          return { ...n, data: { ...latest, ...resolved } }
-        })),
+      updateData,
       nodeId,
       setEdges,
       getNodes,
@@ -94,4 +102,6 @@ export function useScriptBoxEngine(nodeId, data) {
     // 仅挂载时注入一次；nodeId 变化时重新注入
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nodeId])
+
+  return { updateData }
 }

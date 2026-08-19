@@ -32,8 +32,3 @@ export function classifyError(e) {
   if (name === 'HttpError' || typeof e?.status === 'number') return { type: 'http', message, retryable: false }
   return { type: 'business', message, retryable: false }
 }
-
-/** 是否可自动重试（仅网络/超时；业务失败不重试，防封号）。 */
-export function isRetryableError(e) {
-  return classifyError(e).retryable
-}

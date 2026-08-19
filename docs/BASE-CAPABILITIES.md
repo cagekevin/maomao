@@ -210,7 +210,7 @@ showToast('处理中...', { duration: 0 })           // 0 = 不自动消失
 ## 六、脚本盒子（剧本盒子）引擎
 
 > 见 `ARCHITECTURE.md §七` 和 `SCRIPTBOX-HANDOFF.md`（专属交接文档）。
-> `scriptBoxEngine.js` / `useScriptBoxEngine.js` / `useScriptBoxData.js` / `scriptBoxPrompts.js` 已建好。
+> `scriptBoxEngine.js` / `useScriptBoxEngine.js` / `scriptBoxPrompts.js` 已建好。
 
 ---
 
