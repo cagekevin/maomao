@@ -22,7 +22,7 @@ import { debounce } from '../base/utils.js'
 import { buildSpawnNodes, applySpawnSnapshot, makeChildId } from '../base/deriveNodes.js'
 import { useCanvasEdges } from '../base/CanvasEdgesContext.jsx'
 import { saveTextToTasks, toAbsoluteFileUrl } from '../base/filesApi.js'
-import { useProviders, load as loadProviders } from '../base/settings/providerStore.js'
+import { useProviders } from '../base/settings/providerStore.js'
 import { chatCompletions } from '../base/chatApi.js'
 import { useNodePrefs } from '../base/nodePrefs.js'
 import { buildAllModels, resolveProviderModel } from '../base/providerModels.js'
@@ -124,12 +124,6 @@ function TextNode({ id, data, selected }) {
   const { providers } = useProviders()
   const primary = providers?.find((p) => p.isPrimary) || providers?.[0] || null
   const models = buildAllModels(providers, 'chat')
-
-  // 挂载时确保供应商已加载（若未打开设置页，providers 为空 → 拉取主供应商；load 幂等）
-  React.useEffect(() => {
-    if (!providers || providers.length === 0) loadProviders().catch((e) => logger.warn('provider', 'load-fail', { error: e?.message }))
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
 
   // providers 加载后：若「未记忆模型」且节点没显式指定模型 → 默认用第一个 chat_model 的 key 并记忆
   const defaultFromProvider = models[0]?.id

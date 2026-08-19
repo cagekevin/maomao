@@ -26,7 +26,7 @@ import { useConnectedInputs } from '../base/useConnectedInputs.js'
 import { useMediaDegrade } from '../base/useMediaDegrade.js'
 import { useNodeGeneration } from '../base/useNodeGeneration.js'
 import { toAbsoluteFileUrl, saveResultToTasks } from '../base/filesApi.js'
-import { useProviders, load as loadProviders } from '../base/settings/providerStore.js'
+import { useProviders } from '../base/settings/providerStore.js'
 import { logger } from '../base/logger.js'
 import { fetchTasks } from '../base/localToolApi.js'
 import { generateImage } from '../base/imageApi.js'
@@ -160,12 +160,6 @@ function PromptNode({ id, data, selected }) {
   const { providers } = useProviders()
   const primary = providers?.find((p) => p.isPrimary) || providers?.[0] || null
   const models = buildAllModels(providers, 'image')
-
-  // 挂载时确保供应商已加载
-  React.useEffect(() => {
-    if (!providers || providers.length === 0) loadProviders().catch((e) => logger.warn('provider', 'load-fail', { error: e?.message }))
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
 
   // providers 加载后：若「未记忆模型」且节点没显式指定模型 → 默认用第一个模型的 key 并记忆
   const defaultFromProvider = models[0]?.id

@@ -23,7 +23,7 @@ import { useVideoPoster } from '../base/useVideoPoster.js'
 import LazyImage from '../base/LazyImage.jsx'
 import VideoThumbnail from '../base/VideoThumbnail.jsx'
 import { useNodeGeneration } from '../base/useNodeGeneration.js'
-import { useProviders, load as loadProviders } from '../base/settings/providerStore.js'
+import { useProviders } from '../base/settings/providerStore.js'
 import { generateVideo } from '../base/videoApi.js'
 import { useNodePrefs } from '../base/nodePrefs.js'
 import { logger } from '../base/logger.js'
@@ -125,12 +125,6 @@ function DiscountVideoNode({ id, data, selected }) {
 
   // 记住上次选择的模型/比例/分辨率/时长（跨节点/跨会话）
   const { prefs: vidPrefs, set: setVidPrefs } = useNodePrefs('discountVideoNode', { model: '', size: '16:9', resolution: '1080p', seconds: '10' })
-
-  // 挂载时确保供应商已加载
-  React.useEffect(() => {
-    if (!providers || providers.length === 0) loadProviders().catch((e) => logger.warn('provider', 'load-fail', { error: e?.message }))
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
 
   // providers 加载后：若「未记忆模型」且节点没显式指定模型 → 默认用第一个 video_model 的 key 并记忆
   const defaultFromProvider = models[0]?.id

@@ -33,7 +33,21 @@ function setState(patch) {
   state = { ...state, ...patch }
   listeners.forEach((l) => l())
 }
+
+// ── 懒加载（P0-2-d）──
+// 首次有消费者订阅（useProviders / useProvidersList）且列表尚未加载时，后台自动 load() 一次，
+// 让节点/面板无需各自写「挂载 useEffect 里判断空则 load」样板。
+// autoLoadStarted 状态位：只触发一次，避免多消费者并发订阅时重复请求；也避免失败后在订阅循环里反复请求。
+let autoLoadStarted = false
+function ensureAutoLoad() {
+  if (autoLoadStarted) return
+  autoLoadStarted = true
+  if (state.providers.length === 0) {
+    load().catch((e) => logger.warn('provider', 'auto-load-fail', { error: e?.message }))
+  }
+}
 function subscribe(cb) {
+  ensureAutoLoad()
   listeners.add(cb)
   return () => listeners.delete(cb)
 }

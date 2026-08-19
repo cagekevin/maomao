@@ -22,8 +22,7 @@ import { useSyncNodeData } from '../base/useSyncNodeData.js'
 import { showToast } from '../base/toastStore.js'
 import { generateImage } from '../base/imageApi.js'
 import { toAbsoluteFileUrl } from '../base/filesApi.js'
-import { useProviders, load as loadProviders } from '../base/settings/providerStore.js'
-import { logger } from '../base/logger.js'
+import { useProviders } from '../base/settings/providerStore.js'
 import { buildAllModels } from '../base/providerModels.js'
 import { debounce } from '../base/utils.js'
 
@@ -186,10 +185,6 @@ function TemplateNode({ id, data, selected }) {
   // ─── 5. 模型下拉（多 provider 聚合，通用）───
   const { providers } = useProviders()
   const models = buildAllModels(providers, 'image')
-  React.useEffect(() => {
-    if (!providers || providers.length === 0) loadProviders().catch((e) => logger.warn('provider', 'load-fail', { error: e?.message }))
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
 
   // ─── 6. 生成契约（通用；无生成能力的节点删掉本块 + GenerateButton）───
   // useNodeGeneration：统一「提交任务 → 进度 → 成功双写(taskStore + node.data) / 失败 / 手动重试」。
