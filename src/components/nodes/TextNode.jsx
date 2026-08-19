@@ -197,6 +197,8 @@ function TextNode({ id, data, selected }) {
           return
         }
       }
+      // 【debug】确认 AI 生成结果 content 的实际内容/长度（排查"文字选中却复制空"）
+      logger.debug('TextNode', 'onSuccess content', { type: typeof r.content, len: typeof r.content === 'string' ? r.content.length : null, sample: typeof r.content === 'string' ? r.content.slice(0, 80) : r.content }, { module: 'text' })
       setTextPersist(r.content)
       // 文本结果落盘成 txt → 生成面板「文本」tab 收录（异步，失败不影响节点显示）
       // P1-3：统一经 reportDegrade 记录，避免只 catch 不提示（内网/权限问题时用户感知保存降级）
@@ -220,7 +222,11 @@ function TextNode({ id, data, selected }) {
     ...(images.length === 0
       ? [{ key: 'upload', icon: <Plus size={12} />, title: '上传图片', onClick: () => fileRef.current?.click() }]
       : []),
-    { key: 'copy', icon: <Copy size={12} />, title: '复制文本', onClick: () => navigator.clipboard?.writeText(text) },
+    { key: 'copy', icon: <Copy size={12} />, title: '复制文本', onClick: () => {
+      // 【debug】复制按钮点击时确认 text state 的实际值（排查复制空）
+      logger.debug('TextNode', 'copy button', { textType: typeof text, len: typeof text === 'string' ? text.length : null, sample: typeof text === 'string' ? text.slice(0, 80) : text }, { module: 'text' })
+      navigator.clipboard?.writeText(text)
+    } },
     { key: 'toggle', icon: expanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />, title: expanded ? '收起输入' : '展开输入', onClick: toggleExpanded }
   ]
 
@@ -290,7 +296,7 @@ function TextNode({ id, data, selected }) {
               )}
               <textarea
                 ref={textAreaRef}
-                className={`w-full flex-1 min-h-0 bg-transparent outline-none font-sans leading-relaxed custom-scrollbar nowheel resize-none ${editingText ? 'nodrag nopan' : ''}`}
+                className={`w-full flex-1 min-h-0 bg-transparent outline-none font-sans leading-relaxed custom-scrollbar nowheel resize-none nodrag ${editingText ? 'nopan' : ''}`}
                 style={{ fontSize: '14px', color: '#a1a1aa' }}
                 placeholder=""
                 value={text}
@@ -298,6 +304,17 @@ function TextNode({ id, data, selected }) {
                 onChange={(e) => setTextPersist(e.target.value)}
                 onBlur={() => setEditingText(false)}
                 onWheel={(e) => e.stopPropagation()}
+                onCopy={() => {
+                  // 【debug】排查"选中文字 Ctrl+C 但粘贴空"：复制时确认 selection 内容
+                  try {
+                    const sel = window.getSelection()
+                    logger.debug('TextNode', 'copy on textarea', {
+                      selectionText: sel ? sel.toString() : '(no sel)',
+                      selectionLen: sel ? sel.toString().length : 0,
+                      textStateLen: typeof text === 'string' ? text.length : null,
+                    }, { module: 'text' })
+                  } catch (e) { logger.debug('TextNode', 'copy selection read fail', { error: e?.message }, { module: 'text' }) }
+                }}
               />
             </>
           )}
