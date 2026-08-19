@@ -65,7 +65,7 @@
 ### C. 逻辑收口准则（手写 ≥3 次必收口）
 
 * **撤销/历史**：统一走 `historyStack.js`。
-* **节点生成**：统一走 `useNodeGeneration.js` 契约，禁止手写生成样板。
+* **节点生成**：统一走 `useGenerateNode.js`（聚合 providers/模型、默认模型回填、`useSyncNodeData` 外部同步后委托 `useNodeGeneration.js` 契约写回），禁止手写生成样板。四类生成节点（Prompt/Text/Template/DiscountVideo）改走该 hook，模型域与上报类型不一致时用 `reportType` 解耦。
 * **错误/异步**：统一走 `genErrors.js` + `asyncGuard.js`，禁止节点自写网络错误判定，禁止无超时 Promise。
 * **收口硬性豁免**：只有面临性能独占、领域硬隔离、上游契约钉死或安全隔离时允许不收口，且必须在代码处注释原因。
 
@@ -75,7 +75,7 @@
 
 | 模块 | 唯一入口 | 核心规则 | 🚫 严禁行为 |
 | --- | --- | --- | --- |
-| **① 通信** | `eventBus.js` | 瞬时事件广播；事件先在 `contracts.js` 登记。 | eventBus 存状态 / store 发事件 |
+| **① 通信** | `eventBus.js` | 瞬时事件广播；事件先在 `contracts.js` 登记（编译期由 `npm run check:events` 静态拦截裸事件名）。 | eventBus 存状态 / store 发事件 |
 | **② 表现** | `toastStore.js` | 业务只调语义化 4 档 (Success/Error/Warning/Info)。 | `showToast('x',{type})` 混写 |
 | **③ 观测** | `logger.js` | 记录+上报，供排查使用。 | 裸写 `console.log/warn/error` |
 | **④ 持久化** | `contentStore` | 横切存储权威入口；按 KEYS 自动路由底层存储。 | 业务直调 storageAdapter / 散落字符串 |

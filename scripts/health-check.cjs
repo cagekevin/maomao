@@ -41,7 +41,7 @@ const files = [
   ['src/main.jsx', '入口'],
   ['src/App.jsx', '画布壳'],
   ['src/index.css', '全局样式'],
-  ['src/components/base/apiBase.js', 'API 地址统一入口'],
+  ['src/components/base/config.js', 'API 地址统一入口（原 apiBase.js 已合并至此）'],
   ['src/components/base/storageAdapter.js', '存储适配（chrome.storage）'],
   ['src/components/base/groupNodes.js', '编组算法'],
   ['public/manifest.json', '插件 manifest'],
@@ -80,6 +80,24 @@ try {
   check('test:all (smoke+regression+tools)', true);
 } catch (e) {
   check('test:all', false, (e.stdout || e.message || '').slice(0, 120));
+}
+
+// ── 4.1 存储键契约静态校验（裸 key 编译期拦截，对应架构 P0-1）──
+console.log('\n🔑 存储键契约校验（npm run check:keys）');
+try {
+  execSync('npm run check:keys', { cwd: ROOT, stdio: 'pipe', timeout: 60000 });
+  check('check:keys (STORAGE_KEYS 裸 key 拦截)', true);
+} catch (e) {
+  check('check:keys', false, (e.stdout || e.message || '').slice(0, 160));
+}
+
+// ── 4.2 事件契约静态校验（裸事件名编译期拦截，对应架构 P0-1）──
+console.log('\n📡 事件契约校验（npm run check:events）');
+try {
+  execSync('npm run check:events', { cwd: ROOT, stdio: 'pipe', timeout: 60000 });
+  check('check:events (EVENTS 裸事件名拦截)', true);
+} catch (e) {
+  check('check:events', false, (e.stdout || e.message || '').slice(0, 160));
 }
 
 // ── 5. TDZ 风险扫描（扫 src 下 .jsx/.js）──
