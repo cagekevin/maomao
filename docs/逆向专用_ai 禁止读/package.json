@@ -9,7 +9,7 @@
     "@babel/parser": "^7.26.0",
     "@babel/traverse": "^7.26.0",
     "@babel/types": "^7.26.0",
-    "playwright": "^1.62.0",
+    "playwright": "^1.62.1",
     "prettier": "^3.4.0",
     "webcrack": "2.16.0"
   }

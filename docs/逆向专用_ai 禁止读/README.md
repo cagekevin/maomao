@@ -157,6 +157,7 @@ node extract_input.cjs C:\Users\xinye\Downloads\11\dist
 - `vite.config.ts`：`alias` + `dedupe:['react','react-dom']` + `force-jsx-for-js` 插件
 
 > 细节与模板见 `docs/成功复盘SOP.md` §2。
+> ⚠️ **shim 只是单实例的第一道关**：即使 shim 写对，若 webcrack 把 vendor 复制成多份（每份独立 `$.H` dispatcher），仍会真机报 `Cannot read properties of null (reading 'useState')`。这种「React 双实例」结构性问题见 **§8**（1.5.3 实战）。
 
 ### 3.2 后处理五类修复（fix_esm.cjs）
 
@@ -291,6 +292,8 @@ node extract_input.cjs C:\Users\xinye\Downloads\11\dist
 9. **cmd 包裹跑 node**：PowerShell 会把 webcrack 的 stderr 当 `RemoteException` 中断 node，用 `cmd /d /c "node ... > log 2>&1"` 包裹可完整跑完。
 10. **图标/样式「加载即崩」是头号坑**：扩展加载失败 99% 是 `dist/` 缺 `icon*.png` 或 `index.html` 漏样式 `<link>`（见 §3.3）。验收前先按 §3.5 清单核对，别急着怀疑工具。
 11. **换官方版本后，业务 CSS 文件名会变，必须用 run.cjs 的** `src/bundle/assets` **占位 + post-build 钩子动态识别，别写死旧版 CSS 名**（1.4.2=`src-DoQUrSOl.css`、1.4.3=`src-DQ-1CVtg.css`）。若某步没做好（`vendor-*.css` 0 字节 / index.html 引用不存在的 CSS / `src/bundle/assets` 悬空路径），按 **§3.6** 手动补兜底，改完跑 `verify_build.cjs` 确认「可进入真机验收」。
+12. **vendor 多副本 = React 双实例（1.5.3 头号新坑）**：webcrack 会把 `vendor-Z-adA07W.js` 完整复制到每个 `*_components/` 子目录，每份独立 `var $={H:null}`（React dispatcher）。App 用子目录副本、main 用根 vendor，两份 `$.H` 不互通 → 真机 `Cannot read properties of null (reading 'useState')`。**先 `find src/bundle -name vendor-Z-adA07W.js`**：若不止一个，删子目录副本、把 `./vendor-Z-adA07W.js` 引用改 `../vendor-Z-adA07W.js`，再配 `vite.config.ts` 的 `manualChunks` 把 react/vendor 合并进单 chunk（详见 §8）。这**不是** `fix_esm.cjs` 能解的 `ReferenceError`，别在 §4 范式里打转。
+13. **`Rr` 是工厂不是实例（1.5.3 实证）**：vendor 导出的 `Rr` 需 `Rr()` 调用才得到完整 React 主对象（含全部 hooks）。`_react_shim.js` 必须写 `const React = __e(__Rr(), 1)`（带调用），并加 `useState`/`createElement` 存在性断言早暴露单实例失败。用 §8.5 的 Node 探测脚本可在构建前确认。
 
 ---
 
@@ -344,3 +347,60 @@ node verify_ext.cjs
 - `output/project/src/bundle/` —— 已后处理干净的源码（约 170 jsx + 17 js，含 `*_components/component_map.json`，以实际生成为准）
 - `pipeline/fix_esm.cjs` —— 可复用后处理脚本
 - `verifiers/AI01_ext/verify_ext.cjs` + `report.json` —— 验收 harness 与报告
+
+---
+
+## 8. 1.5.3 实战新增心得（React 双实例 / vendor 多副本）
+
+> 以下来自 1.5.3 真机验收卡在 `Cannot read properties of null (reading 'useState')` 的排查。**这一条比 §3.1 的 shim 更隐蔽**：shim 只是让 `import 'react'` 走向单实例，但如果 **vendor 本身被复制成多份、每份独立的 dispatcher**，shim 再对也救不了。
+
+### 8.1 报错现象
+真机验收报 `TypeError: Cannot read properties of null (reading 'useState')`，栈顶指向 `App-C7SghiU5.js` 里一行 `e.useState = function(O){ return $.H.useState(O) }`。`$.H` 是 React 19 内部的 `ReactCurrentDispatcher.current`（hooks 转发槽位），初始为 `null`，本应由 react-dom 在 `createRoot().render()` 时填成真正的 dispatcher。它为 `null` 说明**渲染用的 react-dom 与组件用的 react 不是同一份实例**。
+
+### 8.2 真正的根因（三层，逐层才看清）
+1. **`Rr` 是工厂不是实例**：vendor 导出 `Rr`（经 `export{... a as Rr}`）其实是**工厂函数**，`Rr()` 才返回完整 React 主对象（含 `createElement`/`useState`/`Fragment` 等，version 19.2.7）。一开始误判 `Rr` 本身就是主对象、去掉了 `Rr()` 调用，结果 `React.useState` 为 undefined——**`_react_shim.js` 里必须写 `const React = __e(__Rr(), 1)`（带调用）**。可用 Node 直接 `import * as v from './vendor-Z-adA07W.js'; console.log(typeof v.Rr, Object.keys(v.Rr()).filter(k=>typeof v.Rr()[k]==='function'))` 验证。
+2. **vendor 被复制成多份**：webcrack 把 `vendor-Z-adA07W.js` 完整复制到了每个 `*_components/` 子目录（`App-C7SghiU5_components/`、`httpClient-*`、`src-*`×2、`assets/`），每份都是 1.66MB 独立文件，各自带 `var $={H:null,...}`。App 核心 `shared.js` 引用的是 **App 子目录副本**的 `Rr`，而入口 `main` 用 **根 vendor** 的 `Ir`（react-dom）——两套 React 的 `$.H` 互不相通，App 那份永不被设置。
+3. **manualChunks 没拦住内联**：`vite.config.ts` 原 `manualChunks` 按文件名把每个 `src/bundle/Xxx.js` 拆成独立 chunk，rolldown 把被 App 直接引用的 vendor react 子模块内联进 App chunk（App 从 1.1MB 含内联 React 可见），进一步复制出第三份 `$.H`。
+
+### 8.3 修复（三处，缺一不可）
+1. **`_react_shim.js`**：保留 `Rr()` 调用（工厂取实例），并加断言 `if (typeof React.useState!=='function'||typeof React.createElement!=='function') throw new Error('[react-shim] 单实例失败')` 早暴露问题。
+2. **`vite.config.ts` 的 `manualChunks`**：把 react/vendor/runtime 强制合并进**同一个** chunk，避免 dispatcher 被拆成多份：
+   ```ts
+   manualChunks(id) {
+     if (id.includes('src' + path.sep + 'bundle' + path.sep)) {
+       if (/(vendor|_react_shim|_jsx_runtime|rolldown-runtime)/.test(id)) return 'react-vendor';
+       return undefined; // 其余交给 rollup 默认拆包
+     }
+     return undefined;
+   }
+   ```
+3. **合并 vendor 多副本（关键）**：删掉所有**非根**的 `vendor-Z-adA07W.js`，并把子目录里 `from './vendor-Z-adA07W.js'` 全部改成 `from '../vendor-Z-adA07W.js'`，让全工程只有**一个**物理 vendor 文件、一个 `$.H`。可用一段 Node 脚本递归处理（删副本 + 改引用路径），比手改可靠。
+
+### 8.4 验证信号（判断是否修好）
+- 修复前：致命 `TypeError: ...useState` + `[RootErrorBoundary] 捕获到未处理异常` → 白屏。
+- 修复后：该错误消失，应用正常初始化、渲染、发起真实业务请求（日志出现 `useEffect:refreshCounter`、`Storage localToolEngine.get`、`HTTP GET https://www.1mao.cc/api/...`）。App chunk 从 ~1169KB 降到 ~288KB（React 不再重复内联）。
+- 剩下的 error 全是外部 **404**（接口/资源缺失），属运行环境噪声，非代码崩溃——按 §3.4 不算未达成。
+
+### 8.5 给下一位的排查脚本模板
+```js
+// 探测 vendor 里哪个导出是完整 React 主对象（Rr 是工厂）
+import * as v from './src/bundle/vendor-Z-adA07W.js';
+const Rr = v.Rr;
+const React = (typeof Rr === 'function') ? Rr() : Rr;
+console.log('Rr() 含 hooks:', ['useState','createElement','Fragment','createContext','forwardRef','memo'].filter(k=>typeof React[k]==='function'));
+console.log('version:', React.version); // 应为 19.2.7
+// 查 vendor 是否多副本
+const { execSync } = require('child_process');
+console.log(execSync('find src/bundle -name vendor-Z-adA07W.js').toString());
+```
+若 `find` 出来不止一个（根 + 子目录），**必出问题**，先做 §8.3 第 3 步合并。
+
+---
+
+## 9. 排错闭环补遗（1.5.3 新增案例）
+
+| 案例 | 报错 | 根因 | 修复点 |
+|------|------|------|--------|
+| `Cannot read properties of null (reading 'useState')` | App 内 `e.useState=function(O){return $.H.useState(O)}` 被调用时 `$.H` 为 null | ①`Rr` 是工厂需 `Rr()`；②vendor 被 webcrack 复制多份，App 用子目录副本的 `Rr`、main 用根 vendor 的 `Ir`，两套 `$.H` 不互通；③manualChunks 拆包把 react 内联进 App 复制出第三份 | 见 §8.3（shim 加 `Rr()` 调用 + manualChunks 合并 + 删子目录 vendor 副本统一引用） |
+
+> 该错误**不在 §4 的 `ReferenceError` 范式里**，也不是 `fix_esm.cjs` 能解的——它是 vendor 拆分/复制导致的「React 双实例」结构性问题，必须改 `vite.config.ts` + 合并 vendor 副本。若真机出现 `useState`/`useEffect` 为 null 类 `TypeError`，第一时间查 vendor 是否被复制多份（§8.5 脚本）。

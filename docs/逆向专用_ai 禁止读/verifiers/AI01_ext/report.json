@@ -1,0 +1,1134 @@
+{
+  "extId": "ngknkonfhfoemlkhllpeloemjkohfkge",
+  "events": [
+    {
+      "scope": "sw",
+      "kind": "error",
+      "text": "attach failed: sw.createCDPSession is not a function",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "warning",
+      "text": "A preload for 'chrome-extension://ngknkonfhfoemlkhllpeloemjkohfkge/assets/vendor-Z-adA07W.js' is found, but is not used because it is a cross-world extension resource mismatch.",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[useLocalTool] 设置检测间隔: 5000 ms, isConnected: false",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[useEffect:refreshCounter] refreshCounter 变化触发，当前值: 0",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[Storage] localToolEngine.get 被调用，key: users",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[Storage] 准备调用 lt.getKV(\"users\")",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[Storage] localToolEngine.get 被调用，key: resources_seeded_to_sqlite",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[Storage] 准备调用 lt.getKV(\"resources_seeded_to_sqlite\")",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[Storage] localToolEngine.get 被调用，key: transit_grid_cols",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[Storage] 准备调用 lt.getKV(\"transit_grid_cols\")",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[Storage] localToolEngine.get 被调用，key: projects",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[Storage] 准备调用 lt.getKV(\"projects\")",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[Storage] localToolEngine.get 被调用，key: presetPrompts",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[Storage] 准备调用 lt.getKV(\"presetPrompts\")",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[Storage] localToolEngine.get 被调用，key: globalTasks",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[Storage] 准备调用 lt.getKV(\"globalTasks\")",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[Storage] localToolEngine.get 被调用，key: customNodeTemplates",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[Storage] 准备调用 lt.getKV(\"customNodeTemplates\")",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[Storage] localToolEngine.get 被调用，key: api_configs",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[Storage] 准备调用 lt.getKV(\"api_configs\")",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[Storage] localToolEngine.get 被调用，key: cloud_storage_config",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[Storage] 准备调用 lt.getKV(\"cloud_storage_config\")",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[Storage] localToolEngine.get 被调用，key: modelSchedules",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[Storage] 准备调用 lt.getKV(\"modelSchedules\")",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[Storage] localToolEngine.get 被调用，key: app_settings",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[Storage] 准备调用 lt.getKV(\"app_settings\")",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[Storage] localToolEngine.get 被调用，key: membership",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[Storage] 准备调用 lt.getKV(\"membership\")",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[Storage] localToolEngine.get 被调用，key: auth_token",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[Storage] 准备调用 lt.getKV(\"auth_token\")",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "kvLoadedRef.current false",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[useEffect:storage] 开始从存储引擎加载设置...",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[Storage] localToolEngine.get 被调用，key: app_settings",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[Storage] 准备调用 lt.getKV(\"app_settings\")",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[Storage] localToolEngine.get 被调用，key: api_configs",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[Storage] 准备调用 lt.getKV(\"api_configs\")",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[HTTP GET] https://www.1mao.cc/api/sync/default",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[HTTP GET] https://www.1mao.cc/plugin/manifest.json",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[useLocalTool.getKV] 📥 响应状态: 200 OK",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[useLocalTool.getKV] 📥 响应状态: 200 OK",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[useLocalTool.getKV] 📥 响应状态: 200 OK",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[useLocalTool.getKV] 📥 响应状态: 200 OK",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[useLocalTool.getKV] 📥 响应状态: 200 OK",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[useLocalTool.getKV] 📥 响应状态: 200 OK",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[useLocalTool.getKV] 📥 响应状态: 200 OK",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[useLocalTool.getKV] 📥 响应状态: 200 OK",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[useLocalTool.getKV] 📥 响应状态: 200 OK",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[useLocalTool.getKV] 📥 响应状态: 200 OK",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[useLocalTool.getKV] 📥 响应状态: 200 OK",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[useLocalTool.getKV] 📥 响应状态: 200 OK",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[useLocalTool.getKV] 📥 响应状态: 200 OK",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[useLocalTool.getKV] 📥 响应状态: 200 OK",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[useLocalTool.getKV] 📥 响应状态: 200 OK",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[useLocalTool] 设置检测间隔: 5000 ms, isConnected: false",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[Storage] localToolEngine.get 被调用，key: agent_chat_history_default",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[Storage] 准备调用 lt.getKV(\"agent_chat_history_default\")",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[useLocalTool] 接收到响应数据: ok",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "warning",
+      "text": "[Storage] 拒绝保存空对象 {} 到 users",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "warning",
+      "text": "[Storage] 拒绝保存空数组 [] 到 users",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[Storage] localToolEngine.get 被调用，key: transit_grid_cols",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[Storage] 准备调用 lt.getKV(\"transit_grid_cols\")",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[Storage] localTool 中 globalTasks 不存在或为空",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[Storage] localToolEngine.get 被调用，key: tasks_seeded_to_sqlite",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[Storage] 准备调用 lt.getKV(\"tasks_seeded_to_sqlite\")",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[Storage] localTool 中 modelSchedules 不存在或为空",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[Storage] localToolEngine.get 被调用，key: lastOpenedProject",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[Storage] 准备调用 lt.getKV(\"lastOpenedProject\")",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[useLocalTool] 设置检测间隔: 15000 ms, isConnected: true",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[统一同步] 正在同步中，跳过此次触发",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[Storage] 加载 app_settings: 存在",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "result.useThumbnail true",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[Storage] localTool 中 membership 不存在或为空",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[Storage] localToolEngine.get 被调用，key: auth_token",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[Storage] 准备调用 lt.getKV(\"auth_token\")",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[useLocalTool.getKV] 📥 响应状态: 200 OK",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "2026/8/19 16:21:01 [Storage] 保存对象到 localTool users: 成功",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[useLocalTool.getKV] 📥 响应状态: 200 OK",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[useLocalTool.getKV] 📥 响应状态: 200 OK",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[useLocalTool.getKV] 📥 响应状态: 200 OK",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[useLocalTool.getKV] 📥 响应状态: 200 OK",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[useLocalTool.getKV] 📥 响应状态: 200 OK",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[useLocalTool] 接收到响应数据: ok",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[Storage] localTool 中 agent_chat_history_default 不存在或为空",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[Storage] localToolEngine.get 被调用，key: tasks_seeded_to_sqlite",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[Storage] 准备调用 lt.getKV(\"tasks_seeded_to_sqlite\")",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[useEffect:refreshCounter] 未检测到登录 Token",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[Storage] localToolEngine.get 被调用，key: old_membership",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[Storage] 准备调用 lt.getKV(\"old_membership\")",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[useLocalTool] 设置检测间隔: 15000 ms, isConnected: true",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[Storage] localToolEngine.get 被调用，key: canvas-state-v1-default",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[Storage] 准备调用 lt.getKV(\"canvas-state-v1-default\")",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[useLocalTool.getKV] 📥 响应状态: 200 OK",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[useLocalTool.getKV] 📥 响应状态: 200 OK",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[useLocalTool.getKV] 📥 响应状态: 200 OK",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[Storage] localTool 中 old_membership 不存在或为空",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[Storage] localToolEngine.get 被调用，key: canvas-state-v1-default_version",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[Storage] 准备调用 lt.getKV(\"canvas-state-v1-default_version\")",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[useLocalTool.getKV] 📥 响应状态: 200 OK",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[Canvas] 加载画布数据，当前版本号: 1787046633294",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[初始化完成] 当前 isLoggedIn: false",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[初始化完成] 当前 userInfo: empty",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[Storage] 保存到 localTool lastOpenedProject: 成功",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "Sync cloudStorageConfig to all imageToUrlNode instances",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[fetchDefaultConfig] 原始响应: {\"success\":true,\"data\":{\"success\":true,\"data\":{\"sd2Token\":\"\",\"textModel\":\"哈基米-3.1-pro\\n哈基米-3.5-flash-特惠版\\n全能Chat5.5\\n全能Chat5.6-luna\\n全能Chat5.6-sol\\n全能Chat5.6-terra\\n♣️Chat5.6-terra\\n♣️Chat5.6-luna\\n♣️Chat5.4-mini\\n♣️Chat5.6-sol\\n全能Chat5.4\\nqwen3.5-plus\",\"apiConfigs\":[{\"id\":\"default\",\"key\":\"\",\"url\":\"https://0.1mao.cc\",\"name\":\"内置\",\"showKey\":false,\"readonly\":true},{\"id\":\"tehuishipin\",\"key\":\"\",\"url\":\"{VITE_API_BASE_URL}\",\"name\":\"特惠节点\",\"showKey\":false,\"readonly\":true},{\"id\":\"yimaoAiApp\",\"name\":\"一毛AI应用\",\"url\":\"http://localhost:3000\",\"key\":\"\",\"showKey\":false,\"readonly\":true}],\"audioModel\":\"whisper-1\",\"videoModel\":\"\",\"drawingModel\":\"芭蕉生图2\\n芭蕉生图2-稳定版（1-2K）\\n芭蕉生图2-稳定版（4K）\\n全能IMG2-官版\\nimg2免费版💎\\nseedream-5.0-pro\\n全能IMG2-高清版-1k\\n全能IMG2-高清版-4k\\n全能IMG2(4K)\\n芭蕉生图pro-渠道B\\n芭蕉生图pr",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[fetchDefaultConfig] 提取的配置数据: {\n  \"sd2Token\": \"\",\n  \"textModel\": \"哈基米-3.1-pro\\n哈基米-3.5-flash-特惠版\\n全能Chat5.5\\n全能Chat5.6-luna\\n全能Chat5.6-sol\\n全能Chat5.6-terra\\n♣️Chat5.6-terra\\n♣️Chat5.6-luna\\n♣️Chat5.4-mini\\n♣️Chat5.6-sol\\n全能Chat5.4\\nqwen3.5-plus\",\n  \"apiConfigs\": [\n    {\n      \"id\": \"default\",\n      \"key\": \"\",\n      \"url\": \"https://0.1mao.cc\",\n      \"name\": \"内置\",\n      \"showKey\": false,\n      \"readonly\": true\n    },\n    {\n      \"id\": \"tehuishipin\",\n      \"key\": \"\",\n      \"url\": \"{VITE_API_BASE_URL}\",\n      \"name\": \"特惠节点\",\n      \"showKey\": false,\n      \"readonly\": true\n    },\n    {\n      \"id\": \"yimaoAiApp\",\n      \"name\": \"一毛AI应用\",\n      \"url\": \"http://localhost:3000\",\n      \"key\": \"\",\n      \"showKey\": false,\n      \"readonly\": true\n    }\n  ],\n  \"audioModel\": \"whisper-1\",\n  \"videoModel\": \"\",\n ",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[appSettingKvData] 配置数据: {defaultTextModel: 哈基米-3.1-pro\n哈基米-3.5-flash-特惠版\n全能Chat5.5\n全能Chat5.6-…Chat5.4-mini\n♣️Chat5.6-sol\n全能Chat5.4\nqwen3.5-plus, defaultDrawingModel: 芭蕉生图2\n芭蕉生图2-稳定版（1-2K）\n芭蕉生图2-稳定版（4K）\n全能IMG2-官版\nimg2…\n全能IMG2(4K)\n芭蕉生图pro-渠道B\n芭蕉生图pro-稳定版（1-4K）\n芭蕉生图极速版, defaultVideoModel: grok-video-3-pro\ngrok-video-3, defaultAudioModel: whisper-1, defaultSd2VideoModel: 🐚MiniMax-H3-768p-渠道A\n🐚MiniMax-H3-2K-渠道A\n👁️SayDa….5_Pro_图生视频\n🚀GK_1.5_Pro_图生视频_官版\n🎬视频去字幕\nsd2-音频生成}",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "defaultConfig?.apiConfigs [Object, Object, Object]",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[adjustApiConfigs] 加载配置数据 []",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[loadAppSettings] apiConfigs 合并结果: 系统内置 3 个 + 用户自定义 0 个",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[useEffect:apiConfigs监控] apiConfigs 发生变化！",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[useEffect:apiConfigs监控] 变化前: []",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[useEffect:apiConfigs监控] 变化后: [{\"id\":\"default\",\"key\":\"\",\"url\":\"https://0.1mao.cc\",\"name\":\"内置\",\"showKey\":false,\"readonly\":true},{\"id\":\"tehuishipin\",\"key\":\"\",\"url\":\"{VITE_API_BASE_URL}\",\"name\":\"特惠节点\",\"showKey\":false,\"readonly\":true},{\"id\":\"yimaoAiApp\",\"name\":\"一毛AI应用\",\"url\":\"http://localhost:3000\",\"key\":\"\",\"showKey\":false,\"readonly\":true}]",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "warning",
+      "text": "[Storage] 拒绝保存空对象 {} 到 users",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "warning",
+      "text": "[Storage] 拒绝保存空数组 [] 到 users",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "warning",
+      "text": "[Storage] 拒绝保存空对象 {} 到 api_configs",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "warning",
+      "text": "[Storage] 拒绝保存空数组 [] 到 api_configs",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "warning",
+      "text": "[Storage] 拒绝保存空对象 {} 到 customNodeTemplates",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "warning",
+      "text": "[Storage] 拒绝保存空数组 [] 到 customNodeTemplates",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "2026/8/19 16:21:02 [Storage] 保存对象到 localTool projects: 成功",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "2026/8/19 16:21:02 [Storage] 保存对象到 localTool users: 成功",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "2026/8/19 16:21:02 [Storage] 保存对象到 localTool api_configs: 成功",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "2026/8/19 16:21:02 [Storage] 保存对象到 localTool presetPrompts: 成功",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "2026/8/19 16:21:02 [Storage] 保存对象到 localTool customNodeTemplates: 成功",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "2026/8/19 16:21:02 [Storage] 保存对象到 localTool cloud_storage_config: 成功",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "error",
+      "text": "reqfail chrome-extension://ngknkonfhfoemlkhllpeloemjkohfkge/[object%20Object] net::ERR_FILE_NOT_FOUND",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "error",
+      "text": "Failed to load resource: net::ERR_FILE_NOT_FOUND",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[统一同步] 正在同步中，跳过此次触发",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "pageerror",
+      "text": "Failed to load image for thumbnail\nError: Failed to load image for thumbnail\n    at d.onerror (chrome-extension://ngknkonfhfoemlkhllpeloemjkohfkge/assets/yv.js:2:3208)",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "pageerror",
+      "text": "Failed to load image for thumbnail\nError: Failed to load image for thumbnail\n    at d.onerror (chrome-extension://ngknkonfhfoemlkhllpeloemjkohfkge/assets/yv.js:2:3208)",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "pageerror",
+      "text": "Failed to load image for thumbnail\nError: Failed to load image for thumbnail\n    at d.onerror (chrome-extension://ngknkonfhfoemlkhllpeloemjkohfkge/assets/yv.js:2:3208)",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "pageerror",
+      "text": "Failed to load image for thumbnail\nError: Failed to load image for thumbnail\n    at d.onerror (chrome-extension://ngknkonfhfoemlkhllpeloemjkohfkge/assets/yv.js:2:3208)",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "pageerror",
+      "text": "Failed to load image for thumbnail\nError: Failed to load image for thumbnail\n    at d.onerror (chrome-extension://ngknkonfhfoemlkhllpeloemjkohfkge/assets/yv.js:2:3208)",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "pageerror",
+      "text": "Failed to load image for thumbnail\nError: Failed to load image for thumbnail\n    at d.onerror (chrome-extension://ngknkonfhfoemlkhllpeloemjkohfkge/assets/yv.js:2:3208)",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "pageerror",
+      "text": "Failed to load image for thumbnail\nError: Failed to load image for thumbnail\n    at d.onerror (chrome-extension://ngknkonfhfoemlkhllpeloemjkohfkge/assets/yv.js:2:3208)",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "pageerror",
+      "text": "Failed to load image for thumbnail\nError: Failed to load image for thumbnail\n    at d.onerror (chrome-extension://ngknkonfhfoemlkhllpeloemjkohfkge/assets/yv.js:2:3208)",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "pageerror",
+      "text": "Failed to load image for thumbnail\nError: Failed to load image for thumbnail\n    at d.onerror (chrome-extension://ngknkonfhfoemlkhllpeloemjkohfkge/assets/yv.js:2:3208)",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "pageerror",
+      "text": "Failed to load image for thumbnail\nError: Failed to load image for thumbnail\n    at d.onerror (chrome-extension://ngknkonfhfoemlkhllpeloemjkohfkge/assets/yv.js:2:3208)",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "pageerror",
+      "text": "Failed to load image for thumbnail\nError: Failed to load image for thumbnail\n    at d.onerror (chrome-extension://ngknkonfhfoemlkhllpeloemjkohfkge/assets/yv.js:2:3208)",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "pageerror",
+      "text": "Failed to load image for thumbnail\nError: Failed to load image for thumbnail\n    at d.onerror (chrome-extension://ngknkonfhfoemlkhllpeloemjkohfkge/assets/yv.js:2:3208)",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "pageerror",
+      "text": "Failed to load image for thumbnail\nError: Failed to load image for thumbnail\n    at d.onerror (chrome-extension://ngknkonfhfoemlkhllpeloemjkohfkge/assets/yv.js:2:3208)",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "pageerror",
+      "text": "Failed to load image for thumbnail\nError: Failed to load image for thumbnail\n    at d.onerror (chrome-extension://ngknkonfhfoemlkhllpeloemjkohfkge/assets/yv.js:2:3208)",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "pageerror",
+      "text": "Failed to load image for thumbnail\nError: Failed to load image for thumbnail\n    at d.onerror (chrome-extension://ngknkonfhfoemlkhllpeloemjkohfkge/assets/yv.js:2:3208)",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "warning",
+      "text": "A preload for 'chrome-extension://ngknkonfhfoemlkhllpeloemjkohfkge/assets/vendor-Z-adA07W.js' is found, but is not used because it is a cross-world extension resource mismatch.",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "log",
+      "text": "[HTTP GET] https://www.1mao.cc/api/workflow-apps/index.html",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 ()",
+      "loc": null
+    },
+    {
+      "scope": "page",
+      "kind": "warning",
+      "text": "The resource chrome-extension://ngknkonfhfoemlkhllpeloemjkohfkge/assets/vendor-Z-adA07W.js was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally.",
+      "loc": null
+    }
+  ],
+  "errorCount": 61
+}
