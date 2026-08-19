@@ -324,9 +324,9 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
     if (action === 'update') {
       updateMessageByContent(assistantContent, { prompts })
     } else if (action === 'generate') {
-      if (typeof showToast === 'function') showToast('正在执行全部提示词…', 'info')
+      if (typeof showToast === 'function') showToast('正在执行全部提示词…', { type: 'info' })
       Promise.resolve(executePlanDirect(generations))
-        .then((r) => { if (!r.ok && typeof showToast === 'function') showToast(r.error || '生成失败', 'error') })
+        .then((r) => { if (!r.ok && typeof showToast === 'function') showToast(r.error || '生成失败', { type: 'error' }) })
         .catch((e) => logger.error('Agent', 'prompts 全确认生图失败', e))
     }
   }, [updateMessageByContent, executePlanDirect])

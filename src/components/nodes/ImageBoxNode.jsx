@@ -13,6 +13,7 @@ import LazyImage from '../base/LazyImage.jsx'
 import ImageZoomDialog from '../base/ImageZoomDialog.jsx'
 import { showToast, toastError, toastWarning } from '../base/toastStore.js'
 import { toAbsoluteFileUrl } from '../base/filesApi.js'
+import { loadImageWithTimeout } from '../base/asyncGuard.js'
 import { generateId } from '../base/idGen.js'
 import { downloadUrl as clipboardDownload } from '../base/clipboard.js'
 
@@ -74,34 +75,33 @@ function ImageBoxNode({ id, data, selected }) {
   )
 
   // ---- 缩略图生成（对齐官方 _cmp_Tr(url, 256, 0.7)：canvas 等比缩到 max 256，jpg 0.7）----
-  const makeThumb = useCallback((url, max = 256, quality = 0.7) => {
-    return new Promise((resolve) => {
-      if (!url) return resolve(undefined)
-      const img = new Image()
-      img.crossOrigin = 'anonymous'
-      img.onload = () => {
-        try {
-          let w = img.naturalWidth || img.width
-          let h = img.naturalHeight || img.height
-          if (!w || !h) return resolve(undefined)
-          if (w > max || h > max) {
-            if (w > h) { h = Math.round(h * max / w); w = max }
-            else { w = Math.round(w * max / h); h = max }
-          }
-          const canvas = document.createElement('canvas')
-          canvas.width = w
-          canvas.height = h
-          const ctx = canvas.getContext('2d')
-          if (!ctx) return resolve(undefined)
-          ctx.drawImage(img, 0, 0, w, h)
-          resolve(canvas.toDataURL('image/jpeg', quality))
-        } catch {
-          resolve(undefined)
-        }
+  const makeThumb = useCallback(async (url, max = 256, quality = 0.7) => {
+      if (!url) return undefined
+      // 图片加载收口到统一入口（超时兜底）；加载失败按原语义返回 undefined（不挂起）
+      let img
+      try {
+        img = await loadImageWithTimeout(url)
+      } catch {
+        return undefined
       }
-      img.onerror = () => resolve(undefined)
-      img.src = url
-    })
+      try {
+        let w = img.naturalWidth || img.width
+        let h = img.naturalHeight || img.height
+        if (!w || !h) return undefined
+        if (w > max || h > max) {
+          if (w > h) { h = Math.round(h * max / w); w = max }
+          else { w = Math.round(w * max / h); h = max }
+        }
+        const canvas = document.createElement('canvas')
+        canvas.width = w
+        canvas.height = h
+        const ctx = canvas.getContext('2d')
+        if (!ctx) return undefined
+        ctx.drawImage(img, 0, 0, w, h)
+        return canvas.toDataURL('image/jpeg', quality)
+      } catch {
+        return undefined
+      }
   }, [])
 
   // ---- 批量添加图片（生成缩略图 + 追加 + activeIndex 指向最后一张）----
@@ -353,13 +353,8 @@ function ImageBoxNode({ id, data, selected }) {
   // ---- 复制图片到剪贴板（对齐官方 ce：画布转 blob 写 image/png，失败退化为写链接）----
   const copyImage = useCallback(async (url) => {
     try {
-      const img = new Image()
-      img.crossOrigin = 'anonymous'
-      img.src = url
-      await new Promise((res, rej) => {
-        img.onload = res
-        img.onerror = () => rej(new Error('image load failed'))
-      })
+      // 图片加载收口到统一入口（超时兜底）；加载失败由外层 catch 退化为写链接
+      const img = await loadImageWithTimeout(url)
       const canvas = document.createElement('canvas')
       canvas.width = img.naturalWidth || img.width
       canvas.height = img.naturalHeight || img.height

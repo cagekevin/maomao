@@ -187,7 +187,7 @@ async function persistUrlToBackend(url, folder) {
       // 改为 fetch 取 Blob 后作为文件上传，走与链路 A 一致的上传入口，保证「发送到素材库」对任意来源都落盘。
       try {
         logger.debug('assetStore', '[PERSIST] 走 blob 分支 fetch', url, { module: 'asset' })
-        const resp = await fetch(url)
+        const resp = await httpRequest(url, { parseJson: false, retries: 0, label: 'assetStore.persistBlob' })
         logger.debug('assetStore', '[PERSIST] blob fetch 响应', { ok: resp.ok, status: resp.status }, { module: 'asset' })
         const blob = await resp.blob()
         const mime = blob.type || 'image/png'
@@ -203,9 +203,8 @@ async function persistUrlToBackend(url, folder) {
       // 再用 uploadFileToLocal 走 multipart（file + subfolder）落盘，
       // 不再走 JSON fileUrl 的 saveRemoteUrl 分支（避免 data:/异常态/内部地址等坑）。
       logger.debug('assetStore', '[PERSIST] 走 http 分支 fetch', url, { module: 'asset' })
-      const resp = await fetch(url)
+      const resp = await httpRequest(url, { parseJson: false, label: 'assetStore.persistHttp' })
       logger.debug('assetStore', '[PERSIST] http fetch 响应', { ok: resp.ok, status: resp.status }, { module: 'asset' })
-      if (!resp.ok) throw new Error(`下载素材失败：${resp.status}`)
       const blob = await resp.blob()
       const mime = blob.type || 'image/png'
       const ext = EXT_BY_TYPE[detectAssetType({ name: '', type: mime })] || (mime.split('/')[1] || 'png')

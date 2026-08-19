@@ -9,6 +9,7 @@ import { useMediaDegrade } from '../base/useMediaDegrade.js'
 import { useNodeResize } from '../base/hooks.js'
 import { showToast, toastWarning } from '../base/toastStore.js' // 保留阻断校验提示
 import { toAbsoluteFileUrl } from '../base/filesApi.js'
+import { loadImageWithTimeout } from '../base/asyncGuard.js'
 import { logger } from '../base/logger.js'
 import { generateId } from '../base/idGen.js'
 import { buildSpawnNodes, applySpawnSnapshot } from '../base/deriveNodes.js'
@@ -87,49 +88,43 @@ const bounds = (pts) => {
 
 // ---- 不规则形状裁剪（复刻 Io.jsx：clip path + drawImage → png）----
 function clipShape(src, points) {
-  return new Promise((resolve) => {
-    const img = new Image()
-    img.crossOrigin = 'anonymous'
-    img.onload = () => doClip(img)
-    img.onerror = () => {
-      const retry = new Image()
-      retry.src = src
-      retry.onload = () => doClip(retry)
-      retry.onerror = () => resolve(null)
+  function doClip(srcImg) {
+    try {
+      const w = srcImg.naturalWidth || srcImg.width
+      const h = srcImg.naturalHeight || srcImg.height
+      const b = bounds(points)
+      const c = b.minX * w
+      const d = b.minY * h
+      const cw = Math.max(1, (b.maxX - b.minX) * w)
+      const ch = Math.max(1, (b.maxY - b.minY) * h)
+      const canvas = document.createElement('canvas')
+      canvas.width = Math.round(cw)
+      canvas.height = Math.round(ch)
+      const ctx = canvas.getContext('2d')
+      if (!ctx) return null
+      ctx.save()
+      ctx.beginPath()
+      points.forEach((p, i) => {
+        const px = p.x * w - c
+        const py = p.y * h - d
+        if (i === 0) ctx.moveTo(px, py)
+        else ctx.lineTo(px, py)
+      })
+      ctx.closePath()
+      ctx.clip()
+      ctx.drawImage(srcImg, -c, -d, w, h)
+      ctx.restore()
+      return canvas.toDataURL('image/png')
+    } catch {
+      return null
     }
-    img.src = src
-    function doClip(srcImg) {
-      try {
-        const w = srcImg.naturalWidth || srcImg.width
-        const h = srcImg.naturalHeight || srcImg.height
-        const b = bounds(points)
-        const c = b.minX * w
-        const d = b.minY * h
-        const cw = Math.max(1, (b.maxX - b.minX) * w)
-        const ch = Math.max(1, (b.maxY - b.minY) * h)
-        const canvas = document.createElement('canvas')
-        canvas.width = Math.round(cw)
-        canvas.height = Math.round(ch)
-        const ctx = canvas.getContext('2d')
-        if (!ctx) return resolve(null)
-        ctx.save()
-        ctx.beginPath()
-        points.forEach((p, i) => {
-          const px = p.x * w - c
-          const py = p.y * h - d
-          if (i === 0) ctx.moveTo(px, py)
-          else ctx.lineTo(px, py)
-        })
-        ctx.closePath()
-        ctx.clip()
-        ctx.drawImage(srcImg, -c, -d, w, h)
-        ctx.restore()
-        resolve(canvas.toDataURL('image/png'))
-      } catch {
-        resolve(null)
-      }
-    }
-  })
+  }
+  // 图片加载收口到统一入口 loadImageWithTimeout（超时兜底）；保留原 onerror 一次性重试语义
+  return Promise.resolve()
+    .then(() => loadImageWithTimeout(src))
+    .catch(() => loadImageWithTimeout(src))
+    .then((img) => doClip(img))
+    .catch(() => null)
 }
 
 const GRID_PRESETS = [
@@ -255,18 +250,11 @@ function GridSplitNode({ id, data, selected }) {
     let cancelled = false
     ;(async () => {
       try {
-        const img = new Image()
-        img.crossOrigin = 'anonymous'
-        img.src = imageUrl
-        await new Promise((res) => {
-          img.onload = res
-          img.onerror = () => {
-            const retry = new Image()
-            retry.src = imageUrl
-            retry.onload = () => res()
-            retry.onerror = () => res()
-          }
-        })
+        // 图片加载收口到统一入口（超时兜底）；保留原 onerror 一次性重试语义
+        let img = null
+        try { img = await loadImageWithTimeout(imageUrl) }
+        catch { img = await loadImageWithTimeout(imageUrl) }
+        if (!img) return // 两次均失败：无可裁剪，跳过本次写回
         const iw = img.width
         const ih = img.height
         const out = []
