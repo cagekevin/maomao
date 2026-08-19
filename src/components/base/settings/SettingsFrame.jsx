@@ -1,7 +1,6 @@
 import React from 'react'
-import { ChevronDown, Settings as SettingsIcon, Keyboard, Bot } from 'lucide-react'
+import { ChevronDown, Settings as SettingsIcon, Bot } from 'lucide-react'
 import ApiSettings from './sections/ApiSettings.jsx'
-import ShortcutSettings from './sections/ShortcutSettings.jsx'
 import AgentChatSettings from './sections/AgentChatSettings.jsx'
 
 /**
@@ -15,7 +14,6 @@ const SECTIONS = [
   // 2026-08-18：AI 助手改得频繁，提到第一个，默认选中它
   { key: 'agent', label: 'AI 助手', icon: Bot, comp: 'AgentChatSettings' },
   { key: 'api', label: '第三方API配置', icon: SettingsIcon, comp: 'ApiSettings' },
-  { key: 'shortcut', label: '快捷键', icon: Keyboard, comp: 'ShortcutSettings' },
 ]
 
 export default function SettingsFrame() {
@@ -76,8 +74,6 @@ function renderSection(key) {
       return <ApiSettings />
     case 'agent':
       return <AgentChatSettings />
-    case 'shortcut':
-      return <ShortcutSettings />
     default:
       return <div className="text-center text-sm text-gray-500 py-16">该设置分区尚未实现</div>
   }

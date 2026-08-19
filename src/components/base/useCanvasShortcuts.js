@@ -33,6 +33,10 @@ export function useCanvasShortcuts(handlers = {}) {
 
   useEffect(() => {
     const onKeyDown = (e) => {
+      // 长按连发防护：keydown 在按住时会以系统速率重复触发，
+      // Q/W/E 快速建节点若不加 e.repeat 守卫会爆发式生成大量重叠节点。
+      if (e.repeat) return
+
       // 输入框内一律跳过
       if (isEditableTarget(e)) return
 

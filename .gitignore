@@ -115,3 +115,5 @@ infinite-canvas别人仓库学习专用/
 # tools/ 下均为第三方仓库副本（ProPainter-Webui 等嵌套 git 仓库 + ProPainter 空仓库），
 # 体积大且非本工程源码，整体忽略，避免嵌套仓库导致 add 失败。
 tools/
+
+.codebuddy/
