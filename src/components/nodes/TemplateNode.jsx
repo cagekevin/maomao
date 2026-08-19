@@ -208,18 +208,18 @@ function TemplateNode({ id, data, selected }) {
       refImages,
       aspectRatio,
     }, progress),
-    onSuccess: (r) => {                                          // 成功回写 node.data（落盘已由契约内部完成）
+    onSuccess: (r) => {                                          // 成功：本地 state + 业务记忆；写 node.data 交由 resultKey
       setImageUrl(r.url)
-      patchData({ imageUrl: r.url })
       setMyPrefs({ model: selectedModel, aspectRatio })
     },
-    // 【真相源契约·onRecover】任务中心完成广播（agent:task-completed）→ 把持久 resultUrl 写回 node.data。
-    // 刷新后节点结果自动恢复（异步任务经轮询广播回填）。单图节点只需 set + patchData 两步，
-    // 与 PromptNode.onRecover 对齐。文本类节点（resultUrl 为空）不适用，无需传此回调。
+    // 【真相源契约·onRecover】任务中心完成广播（agent:task-completed）→ 写回 node.data 交由 recoverable 自动完成。
+    // 刷新后节点结果自动恢复（异步任务经轮询广播回填）。文本类节点（resultUrl 为空）不适用，无需传此回调。
     onRecover: ({ resultUrl }) => {
       setImageUrl(resultUrl)
-      patchData({ imageUrl: resultUrl })
     },
+    // ── P0-2-c 声明式写回：成功 / 广播恢复均自动 patchData({ imageUrl }) ──
+    resultKey: 'imageUrl',
+    recoverable: true,
   })
 
   // ─── 7. hover 工具栏按钮（通用；可选）───

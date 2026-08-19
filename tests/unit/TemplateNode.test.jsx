@@ -39,7 +39,37 @@ vi.mock('../../src/components/base/GeneratingOverlay.jsx', () => ({ default: moc
 vi.mock('../../src/components/base/hooks.js', () => ({ useNodeResize: mocks.useNodeResize, useOutsideClick: mocks.useOutsideClick }))
 vi.mock('../../src/components/base/useConnectedInputs.js', () => ({ useConnectedInputs: mocks.useConnectedInputs }))
 vi.mock('../../src/components/base/useMediaDegrade.js', () => ({ useMediaDegrade: mocks.useMediaDegrade }))
-vi.mock('../../src/components/base/useNodeGeneration.js', () => ({ useNodeGeneration: mocks.useNodeGeneration }))
+// useNodeGeneration：记录 config，复刻真实 hook 的声明式写回（resultKey + recoverable）以对齐 P0-2-c。
+// 桩经 h.setNodes 写入 node.data，供断言「成功/广播回填」后 data 自动更新（不再依赖节点手写 patchData）。
+let genConfig = null
+const getGenConfig = () => genConfig
+vi.mock('../../src/components/base/useNodeGeneration.js', () => ({
+  useNodeGeneration: (config) => {
+    genConfig = config
+    // 复刻真实的广播 handler：recoverable + resultKey 且广播带 resultUrl 时先自动写回，再透传原 onRecover
+    const originalOnRecover = config.onRecover
+    genConfig.onRecover = (d) => {
+      if (config.recoverable && config.resultKey && d?.resultUrl) {
+        h.setNodes((ns) => ns.map((n) => (n.id === config.nodeId ? { ...n, data: { ...n.data, [config.resultKey]: d.resultUrl } } : n)))
+      }
+      originalOnRecover?.(d)
+    }
+    return {
+      loading: false,
+      error: null,
+      stop: () => {},
+      start: async () => {
+        const r = await config?.run?.({ progress: () => {}, signal: { aborted: false } })
+        if (config.resultKey && (r?.url || r?.doneUrl)) {
+          const url = r.url || r.doneUrl
+          h.setNodes((ns) => ns.map((n) => (n.id === config.nodeId ? { ...n, data: { ...n.data, [config.resultKey]: url } } : n)))
+        }
+        config?.onSuccess?.(r)
+        return r
+      },
+    }
+  },
+}))
 vi.mock('../../src/components/base/nodePrefs.js', () => ({ useNodePrefs: mocks.useNodePrefs }))
 vi.mock('../../src/components/base/useSyncNodeData.js', () => ({ useSyncNodeData: mocks.useSyncNodeData }))
 vi.mock('../../src/components/base/toastStore.js', () => ({ showToast: mocks.showToast, toastWarning: mocks.toastWarning, toastError: mocks.toastError }))
@@ -87,7 +117,7 @@ describe('TemplateNode', () => {
   it('onRecover（任务中心完成广播回填）→ 把持久 resultUrl 写回 data.imageUrl（刷新不丢）', () => {
     setup()
     // 触发 useNodeGeneration 的 onRecover 回调（模拟 agent:task-completed 广播精准回填）
-    const cfg = mocks.getGenConfig()
+    const cfg = getGenConfig()
     expect(cfg).toBeTruthy()
     act(() => cfg.onRecover({ resultUrl: 'http://127.0.0.1:18080/files/tasks/x.png' }))
     expect(nodeData().imageUrl).toBe('http://127.0.0.1:18080/files/tasks/x.png')
