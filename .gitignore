@@ -116,4 +116,5 @@ infinite-canvas别人仓库学习专用/
 # 体积大且非本工程源码，整体忽略，避免嵌套仓库导致 add 失败。
 tools/
 
-.codebuddy/
+# .codebuddy：保留 commands/(命令) 与 memory/ 入库；仅忽略 teams/ 运行态数据
+.codebuddy/teams/
