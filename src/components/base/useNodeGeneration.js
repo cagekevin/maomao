@@ -4,6 +4,7 @@ import { saveResultToTasks } from './filesApi.js'
 import { logger } from './logger.js'
 import { subscribe } from './eventBus.js'
 import { showToast } from './toastStore.js'
+import { useNodeData } from './useNodeData.js'
 
 /**
  * ════════════════════════════════════════════════════════════════
@@ -43,6 +44,13 @@ import { showToast } from './toastStore.js'
  *     run: async ({ progress }) => generateImage({...}, progress),  // 真执行器
  *     onSuccess: (r, ctx) => { setImageUrl(r.url); setImgPrefs({...}); },  // 成功回写 node.data
  *     onRecover: ({ resultUrl }) => { setImageUrl(resultUrl); patchData({ imageUrl: resultUrl }) },  // 广播回填（异步可恢复节点必传）
+ *     // ── P0-2-b 声明式写法（推荐，省去手写「写回 node.data」样板）──
+ *     resultKey: 'imageUrl',   // 声明后成功时自动 patchData({[resultKey]: r.url})
+ *     recoverable: true,       // 声明后收到 task-completed 自动回填 patchData({[resultKey]: resultUrl})
+ *     // 声明了 resultKey/recoverable 即可省略 onSuccess 与 onRecover 里的写 node.data 部分、
+ *     // 但 onSuccess 中 UI state 回写（如 setImageUrl）与业务逻辑仍需保留。
+ *     // 文本类节点（结果在 data.text、任务中心 resultUrl 为空）不传 recoverable。如 onRecover 不适用此自动回填，可省略。
+ *     // 注意：onRecover/onSuccess 与声明式并存时，若都写了同一字段会幂等双写（无害）。
  *   })
  *   // gen = { loading, error, start, stop }
  *
@@ -55,7 +63,13 @@ import { showToast } from './toastStore.js'
  *   stop() 目前只清 loading/error，不中断网络请求（真 API 的中断需 AbortController，
  *   待接真引擎时在 run 内用 AbortSignal 实现，start/stop 对外接口不变）。
  */
-export function useNodeGeneration({ nodeId, type, validate, run, onSuccess, onRecover }) {
+export function useNodeGeneration({ nodeId, type, validate, run, onSuccess, onRecover, resultKey, recoverable }) {
+  // P0-2-b：声明 resultKey/recoverable 后可省去节点手写「写回 node.data」样板（经 useNodeData 统一 patchData）
+  const { patchData } = useNodeData(nodeId)
+  const resultKeyRef = useRef(resultKey)
+  resultKeyRef.current = resultKey
+  const recoverableRef = useRef(!!recoverable)
+  recoverableRef.current = !!recoverable
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   // AbortController：stop() 真中断请求（Step C）。run 执行器接收 signal 并传给底层 API（Step A 已支持）。
@@ -103,6 +117,10 @@ export function useNodeGeneration({ nodeId, type, validate, run, onSuccess, onRe
       // 【B层】run 执行器返回：ok + url（定位生成契约是否拿到结果）
       logger.debug('生成', '[节点] run返回', { nodeId, ok: r?.ok, urlHead: r?.url ? String(r.url).slice(0, 80) : '', error: r?.error || '' }, { module: 'image' })
       if (r?.ok) {
+        // P0-2-b：声明 resultKey 后自动写回 node.data，省去各节点在 onSuccess 里手写 patchData({[xxx]: url})
+        const resultKey = resultKeyRef.current
+        const autoUrl = resultKey && (r.url || r.doneUrl)
+        if (autoUrl) patchData({ [resultKey]: autoUrl })
         onSuccessRef.current?.(r, taskCtl)
         // 防御：done 只接收字符串结果 URL（上游偶发返回对象会触发 taskStore.done 的 .startsWith 崩）
         const rawUrl = r.doneUrl || r.url
@@ -176,6 +194,11 @@ export function useNodeGeneration({ nodeId, type, validate, run, onSuccess, onRe
       // 只认本节点 + 已完成 + 有结果 URL 的广播，其余忽略（精准）
       if (d.nodeId !== nodeId) return
       if (d.status !== 'completed' || !d.resultUrl) return
+      // P0-2-b：声明 recoverable + resultKey 后自动回填 node.data[resultKey]，省去 onRecover 手写写回样板
+      if (recoverableRef.current) {
+        const resultKey = resultKeyRef.current
+        if (resultKey) patchData({ [resultKey]: d.resultUrl })
+      }
       onRecoverRef.current?.(d)
     }
     return subscribe('agent:task-completed', handler)
