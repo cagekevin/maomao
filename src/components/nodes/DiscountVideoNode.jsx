@@ -168,19 +168,19 @@ function DiscountVideoNode({ id, data, selected }) {
     },
     onSuccess: (r) => {
       setVideoUrl(r.url)
-      // 【真相源契约】把生成结果写回 node.data.videoUrl，随画布快照落盘。
-      // 修复：旧实现只 setVideoUrl（本地 state），不同步模式不写 data.videoUrl，
-      // 导致刷新后节点因 data 里没有持久 URL 而丢视频（结果只在任务中心）。
-      // 与 PromptNode.onSuccess 写 data.imageUrl 对齐；onRecover 再兜底广播回填。
-      patchData({ videoUrl: r.url })
+      // 【真相源契约】结果写回 node.data.videoUrl 由声明式 resultKey 自动完成（经 useNodeData，随画布快照落盘）。
+      // 此回调只负责本地 state 同步与业务记忆；写 node.data 的部分交由 resultKey({[videoUrl]: r.url})。
       setVidPrefs({ model: selectedModel, size: ratio, resolution, seconds })
     },
     // 【精准节点回填】异步视频任务刷新后恢复轮询完成的广播 → 写回本节点，节点卡片自动恢复显示。
     // 视频唯一异步模式，均有 pollTaskId；data.videoUrl 有外部同步 effect 会把值同步到本地 state。
     onRecover: ({ resultUrl }) => {
+      // 写回 node.data.videoUrl 由声明式 recoverable 自动完成，此处只同步本地 state（供渲染/下载）。
       setVideoUrl(resultUrl)
-      patchData({ videoUrl: resultUrl })
     },
+    // ── P0-2-c 声明式写回：成功 / 广播恢复均自动 patchData({ videoUrl }) ──
+    resultKey: 'videoUrl',
+    recoverable: true,
   })
 
   // 外部写入 videoUrl（如视频处理节点 spawn 输出）→ 同步到本地 state，使节点显示/可下载该视频

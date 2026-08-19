@@ -85,18 +85,33 @@ vi.mock('../../src/components/base/logger.js', () => ({ logger: { info: (...a) =
 vi.mock('../../src/components/base/clipboard.js', () => ({ downloadUrl: (...a) => h.downloadUrl(...a) }))
 vi.mock('../../src/components/base/videoApi.js', () => ({ generateVideo: vi.fn(async () => ({ url: 'http://gen.local/v.mp4' })) }))
 
-// useNodeGeneration：记录 config，返回可控 loading/error
+// useNodeGeneration：记录 config，返回可控 loading/error。
+// 桩复刻真实 hook 的声明式写回（resultKey + recoverable）以对齐 P0-2-c：
+// 节点 onSuccess/onRecover 不再手写 patchData，data.videoUrl 由 resultKey/recoverable 自动写回。
 let genConfig = null
 let genLoading = false
 vi.mock('../../src/components/base/useNodeGeneration.js', () => ({
   useNodeGeneration: (config) => {
     genConfig = config
+    // 复刻真实 hook 的广播 handler：recoverable + resultKey 且广播带 resultUrl 时自动写回 node.data
+    const originalOnRecover = config.onRecover
+    genConfig.onRecover = (d) => {
+      if (config.recoverable && config.resultKey && d?.resultUrl) {
+        h.setNodesMock((ns) => ns.map((n) => (n.id === config.nodeId ? { ...n, data: { ...n.data, [config.resultKey]: d.resultUrl } } : n)))
+      }
+      originalOnRecover?.(d)
+    }
     return {
       loading: genLoading,
       error: null,
       stop: vi.fn(),
+      // 复刻真实 start：跑 run → resultKey 自动写回 node.data → 回调 onSuccess（便于断言回填）
       start: vi.fn(async () => {
         const r = await config.run?.({ progress: () => {}, signal: { aborted: false } })
+        if (config.resultKey && (r?.url || r?.doneUrl)) {
+          const url = r.url || r.doneUrl
+          h.setNodesMock((ns) => ns.map((n) => (n.id === config.nodeId ? { ...n, data: { ...n.data, [config.resultKey]: url } } : n)))
+        }
         config.onSuccess?.(r)
         return r
       }),
