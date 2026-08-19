@@ -179,7 +179,18 @@ node scripts/task-inspect.mjs --canvas-health   # 画布结构体检
 > 提交前 `pre-commit` 钩子自动跑 `type-check`；`main` 分支的 push/PR 由 `.github/workflows/ci.yml` 云端跑 type-check + 单测。lint 已移除（弊大于利，门禁靠类型检查 + 测试）。
 > **写完代码跑哪个**：平时 `npm run type-check` + `test:unit`；改画布/地基或合 main 前再跑 `npm test` 全量兜底（regression/tools 已含在内）。
 
-### 3.2 localTool 改动必测
+### 3.2 改 bug 先加日志、再动逻辑（最高优先）
+
+**体感类 bug（不落盘/没反应/点了没用）第一反应是加日志让用户复现，不是猜根因改逻辑。**
+
+1. 在可疑链路加 `logger.debug(分类, 动作, 详情)`，仅 `DEBUG_ASSET` 开启时输出，默认安静、不上报后端。
+2. 开关集中 `config.js`：根目录 `.env` 加 `VITE_DEBUG_ASSET=1`，或运行时 `window.__DEBUG_ASSET=true`。业务代码禁散落 `console.log`，统一走 `logger`。
+3. 拿真实日志（前端 debug / Network / 后端 `[frontend]` 三方对齐）确认根因后再改；改完保留 `debug` 级日志，删临时 `info/warn` 噪音。
+4. **修复完成确认 `DEBUG_ASSET` 已关闭**：默认即关，勿在 `.env` 留 `VITE_DEBUG_ASSET=1`，运行时设的 `window.__DEBUG_ASSET` 排查完清掉。开关默认安静才提交。
+
+> 反例：节点「发送到素材库」不落盘曾直接改逻辑试错；正确做法是先 `logger.debug` 打印 `[SEND]/[PERSIST]/落盘路径`，一次复现即定位目录错配（materials↔migrated）。详见 `docs/10-发送到素材库不落盘-排查-2026-08-19.md`。
+
+### 3.3 localTool 改动必测
 
 > **凡改动 `localTool/src/**`，提交前必须跑 `cd localTool && npm test`**（先编译再测，全量用例覆盖 localtool.test / localtool.network / providers 三个文件，隔离临时库不碰真实数据）。理由：方案②改变了 KV 入库行为（base64→`/files/` 磁盘文件），无测试无法保证不回归。详见 `localTool/scripts/README.md`。
 

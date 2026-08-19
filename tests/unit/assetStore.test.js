@@ -13,9 +13,9 @@ beforeEach(() => {
 })
 
 describe('素材库数据层 §2.18', () => {
-  it('FOLDERS 配置含 6 个目录（all/generated/character/scene/prop/materials）', () => {
+  it('FOLDERS 配置含 6 个目录（all/generated/character/scene/prop/migrated）', () => {
     expect(FOLDERS).toHaveLength(6)
-    expect(FOLDERS.map((f) => f.key)).toEqual(['all', 'generated', 'character', 'scene', 'prop', 'materials'])
+    expect(FOLDERS.map((f) => f.key)).toEqual(['all', 'generated', 'character', 'scene', 'prop', 'migrated'])
   })
 
   it('detectAssetType 按 mime/扩展名分类', () => {
@@ -36,10 +36,10 @@ describe('素材库数据层 §2.18', () => {
     expect(gen.every((a) => a.folder === 'tasks')).toBe(true)
   })
 
-  it('addAssets 新增并置默认 folder=materials', () => {
+  it('addAssets 新增并置默认 folder=migrated', () => {
     const added = addAssets([{ url: '/files/x.png', name: '新图', type: 'image' }])
     expect(added).toHaveLength(1)
-    expect(added[0].folder).toBe('materials')
+    expect(added[0].folder).toBe('migrated')
     expect(added[0].id).toBeTruthy()
     expect(getAssets().find((a) => a.id === added[0].id)).toBeTruthy()
   })

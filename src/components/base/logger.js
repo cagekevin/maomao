@@ -21,6 +21,7 @@
  */
 
 import { formatTime } from './utils.js'
+import { DEBUG_ASSET } from './config.js'
 
 function stringify(detail) {
   if (detail == null) return ''
@@ -97,5 +98,14 @@ export const logger = {
   log,
   info: (cat, act, det) => log(cat, act, det, 'info'),
   warn: (cat, act, det) => log(cat, act, det, 'warn'),
-  error: (cat, act, det) => log(cat, act, det, 'error')
+  error: (cat, act, det) => log(cat, act, det, 'error'),
+  /**
+   * debug 级别：仅当 DEBUG_ASSET 开启时 console 输出，且不上报后端（属排查噪音，不污染日志文件）。
+   * 用于素材库链路等排查细节（[SEND]/[PERSIST]/[UPLOAD]），默认完全安静。
+   */
+  debug: (cat, act, det) => {
+    if (!DEBUG_ASSET) return
+    const msg = `[debug] ${formatTime(undefined, { mode: 'time' })} | ${cat} | ${act}${det != null ? ` | ${stringify(det)}` : ''}`
+    console.log(msg)
+  }
 }

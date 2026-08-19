@@ -13,6 +13,7 @@ import { logger } from './logger.js'
 import { UPLOAD_TIMEOUT } from './config.js'
 import { formatTime } from './utils.js'
 export { toAbsoluteFileUrl } from './imageUrl.js'
+export { EXT_BY_TYPE }
 const SUBFOLDER = 'tasks'
 // multipart/大文件上传统一参数：较长超时 + 不自动重试（避免重复上传）
 const UPLOAD_OPTS = { timeoutMs: UPLOAD_TIMEOUT, retries: 0 }
@@ -75,11 +76,13 @@ export async function saveInlineToLocal(dataUrl, subfolder = 'canvas') {
  */
 export async function uploadFileToLocal(file, subfolder = 'canvas/drop', filename) {
   if (!file) return null
+  logger.debug('filesApi', '[UPLOAD] 准备 multipart 上传', { subfolder, name: filename || file.name, size: file.size, type: file.type })
   try {
     const fd = new FormData()
     fd.append('file', file, filename || file.name || 'upload')
     fd.append('subfolder', subfolder)
     const data = await httpRequest(`${API_BASE}/api/files/upload`, { method: 'POST', body: fd, ...UPLOAD_OPTS })
+    logger.debug('filesApi', '[UPLOAD] 完成', { url: data?.url, subfolder })
     return data.url || null
   } catch (e) {
     logger.warn('filesApi', '文件上传失败', e)

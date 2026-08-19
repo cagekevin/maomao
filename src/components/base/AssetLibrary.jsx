@@ -6,19 +6,19 @@ import { showToast } from './toastStore.js'
 import { API_BASE } from './config.js'
 import { useAssetDragToCanvas, fetchText } from './useAssetDragToCanvas.js'
 import { toAbsoluteFileUrl } from './filesApi.js'
-import { onAssetSent } from './assetStore.js'
+import { onAssetSent, emitAssetSent } from './assetStore.js'
 import { httpRequest } from './httpClient.js'
 import { logger } from './logger.js'
 import { isAudio } from './mediaType.js'
 import LazyImage from './LazyImage.jsx'
 
-// 目录 pill（folder 前缀对齐本地磁盘 migrated/materials 结构，与后端 /api/resources 一一对应）
+// 目录 pill（folder 前缀对齐本地磁盘 migrated 结构，与后端 /api/resources 一一对应）
 const FOLDER_PILLS = [
   { key: 'all', label: '全部', folder: 'migrated' },
   { key: 'character', label: '人物', folder: 'migrated/人物' },
   { key: 'scene', label: '场景', folder: 'migrated/场景' },
   { key: 'prop', label: '道具', folder: 'migrated/道具' },
-  { key: 'materials', label: '素材池', folder: 'materials' },
+  { key: 'migrated', label: '素材库', folder: 'migrated' },
 ]
 
 const TYPE_BADGE = {
@@ -72,7 +72,7 @@ const TextPreview = React.memo(function TextPreview({ url, name }) {
 })
 
 /**
- * 素材库 tab —— 与本地磁盘文件一一对应（从 localTool /api/resources 读取 migrated/materials 目录，rescan 收录），
+ * 素材库 tab —— 与本地磁盘文件一一对应（从 localTool /api/resources 读取 migrated 目录，rescan 收录），
  * 目录 pill 沿用本原型小圆按钮形式，无限滚动（每次 20 个）。
  * 顶部「⋯」菜单含「打开本地目录」「新建文件夹」（对齐官方素材 tab）。
  * 上传文件真实落盘到后端 /api/files/upload；删除走 /api/resources/delete。预览/拖拽建节点保留。
@@ -161,7 +161,7 @@ function AssetLibrary() {
   // 解决此前「点完要切目录/点别处才刷新」的体感问题（assetStore 与面板互不相通）。
   useEffect(() => {
     return onAssetSent((folder) => {
-      const target = folder || 'materials'
+      const target = folder || 'migrated'
       setFolder(target) // 触发 currentFolder 变化 → 上面的 reset(true) 自动 rescan 刷新
     })
   }, [])
@@ -212,6 +212,9 @@ function AssetLibrary() {
     }
     if (ok > 0) {
       showToast(`已上传 ${ok} 个素材`, { type: 'success' })
+      // 修复：上传后未触发 rescan → 面板不刷新、用户「看不到刚传的图」。
+      // 主动广播事件，复用与链路 B 一致的「切目录 + rescan」刷新机制。
+      emitAssetSent(currentFolder)
       reset(true) // rescan 后刷新，保证与磁盘一致
     } else {
       showToast('上传失败', { type: 'error' })

@@ -28,6 +28,13 @@ export const LLM_CHAT_MODEL = import.meta.env?.VITE_LLM_CHAT_MODEL || 'gpt-4o-mi
 /** VITE_AGENT_DEMO='1' 时启用演示模式（不发真实 LLM 请求，用规则引擎模拟） */
 export const AGENT_DEMO_MODE = import.meta.env?.VITE_AGENT_DEMO === '1'
 
+// ── 调试开关 ─────────────────────────────────────────────────────
+/** VITE_DEBUG_ASSET='1' 时，素材库相关详细排查日志（[SEND]/[PERSIST]/[UPLOAD] 等）
+ *  才经 logger.debug 输出到 console；默认关闭，生产/日常完全安静。
+ *  开启方式：项目根目录 .env 加 VITE_DEBUG_ASSET=1，或运行时设 window.__DEBUG_ASSET=true。 */
+export const DEBUG_ASSET =
+  import.meta.env?.VITE_DEBUG_ASSET === '1' || (typeof window !== 'undefined' && window.__DEBUG_ASSET === true)
+
 // ── AI 助手模型列表 ──────────────────────────────────────────────
 /** 默认模型列表，env 可覆盖 */
 const DEFAULT_AGENT_MODELS = [
