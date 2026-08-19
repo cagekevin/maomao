@@ -6,10 +6,26 @@
  */
 import React from 'react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import { mocks } from './_nodeMocks.mjs'
 
-vi.mock('@xyflow/react', () => mocks.xyflow)
+// 覆盖 @xyflow/react：setNodes 真正执行 updater 维护 nodes state，供断言 patchData 写回 node.data
+const h = vi.hoisted(() => {
+  const state = { nodes: [] }
+  const setNodes = vi.fn((updater) => { state.nodes = typeof updater === 'function' ? updater(state.nodes) : updater })
+  return { state, setNodes }
+})
+vi.mock('@xyflow/react', () => ({
+  useReactFlow: () => ({
+    setNodes: (...a) => h.setNodes(...a),
+    setEdges: (...a) => a[0],
+    getNodes: () => h.state.nodes,
+    getEdges: () => [],
+  }),
+  Handle: () => null,
+  Position: { Left: 'left', Right: 'right', Top: 'top', Bottom: 'bottom' },
+  useStore: () => () => ({}),
+}))
 vi.mock('../../src/components/base/NodeShell.jsx', () => ({ default: mocks.NodeShell }))
 vi.mock('../../src/components/base/HoverToolbar.jsx', () => ({ default: mocks.HoverToolbar }))
 vi.mock('../../src/components/base/ExpandablePanel.jsx', () => ({ default: mocks.ExpandablePanel }))
@@ -34,10 +50,20 @@ vi.mock('../../src/components/base/providerModels.js', () => ({ buildAllModels: 
 
 import TemplateNode from '../../src/components/nodes/TemplateNode.jsx'
 
-beforeEach(() => { mocks.resetNodeMockState() })
+beforeEach(() => {
+  mocks.resetNodeMockState()
+  h.state.nodes = []
+  h.setNodes.mockClear()
+})
 
 function setup(props = {}) {
-  return render(<TemplateNode id="t1" data={{}} selected={false} {...props} />)
+  const id = props.id || 't1'
+  const data = props.data || {}
+  h.state.nodes = [{ id, data: { ...data } }]
+  return render(<TemplateNode id={id} data={{ ...data }} selected={false} />)
+}
+function nodeData(id = 't1') {
+  return h.state.nodes.find((n) => n.id === id)?.data
 }
 
 describe('TemplateNode', () => {
@@ -56,5 +82,14 @@ describe('TemplateNode', () => {
     fireEvent.click(screen.getByText('生成'))
     await waitFor(() => expect(mocks.generateImageCalls.n).toBeGreaterThan(0))
     expect(mocks.generateImageCalls.last).toBeTruthy()
+  })
+
+  it('onRecover（任务中心完成广播回填）→ 把持久 resultUrl 写回 data.imageUrl（刷新不丢）', () => {
+    setup()
+    // 触发 useNodeGeneration 的 onRecover 回调（模拟 agent:task-completed 广播精准回填）
+    const cfg = mocks.getGenConfig()
+    expect(cfg).toBeTruthy()
+    act(() => cfg.onRecover({ resultUrl: 'http://127.0.0.1:18080/files/tasks/x.png' }))
+    expect(nodeData().imageUrl).toBe('http://127.0.0.1:18080/files/tasks/x.png')
   })
 })

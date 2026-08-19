@@ -256,3 +256,12 @@ describe('DiscountVideoNode — 下载 / 删除 / 展开', () => {
     expect(nodeData().expanded).toBe(false)
   })
 })
+
+describe('DiscountVideoNode — 生成成功回填 node.data（真相源契约）', () => {
+  it('onSuccess 把生成结果写回 data.videoUrl（刷新不丢：节点持有结果副本）', async () => {
+    setup()
+    // 点生成 → mock start 走 run → onSuccess({url})；断言结果写回 node.data
+    fireEvent.click(screen.getByText('生成'))
+    await waitFor(() => expect(nodeData().videoUrl).toBe('http://gen.local/v.mp4'))
+  })
+})

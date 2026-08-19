@@ -25,6 +25,16 @@ import { showToast } from './toastStore.js'
  *  - 统一「再来一次」retry 注册
  *  - Agent / 测试 / 脚本通过 runNodeGeneration(nodeId) 驱动任意节点生成
  *
+ * 【真相源契约（节点必守，P0）】任务中心为结果权威源，node.data 为渲染缓存副本：
+ *  1. onSuccess 必须把结果写回 node.data（如 patchData({ imageUrl: r.url })），
+ *     否则刷新后节点因 data 无持久 URL 而丢结果（结果只在任务中心）。
+ *     对照样板：PromptNode / DiscountVideoNode.onSuccess 写 data.imageUrl / data.videoUrl。
+ *  2. 异步可恢复的节点必须声明 onRecover（见下），收到 agent:task-completed 广播
+ *     把持久 resultUrl 写回 node.data，刷新后自动恢复显示。
+ *  3. 文本类节点（结果本体在 data.text、任务中心 resultUrl 为空）不适用 onRecover，
+ *     由 data.text 随画布快照落盘恢复，无需传此回调。
+ *  4. 方向单向：写只走本契约，刷新后任务中心 → 节点回填，节点不回写任务中心。
+ *
  * 【用法】
  *   const gen = useNodeGeneration({
  *     nodeId: id,
@@ -32,6 +42,7 @@ import { showToast } from './toastStore.js'
  *     validate: () => (p.trim() ? '' : '请输入提示词'),          // 前置校验，返回错误文案或空串
  *     run: async ({ progress }) => generateImage({...}, progress),  // 真执行器
  *     onSuccess: (r, ctx) => { setImageUrl(r.url); setImgPrefs({...}); },  // 成功回写 node.data
+ *     onRecover: ({ resultUrl }) => { setImageUrl(resultUrl); patchData({ imageUrl: resultUrl }) },  // 广播回填（异步可恢复节点必传）
  *   })
  *   // gen = { loading, error, start, stop }
  *

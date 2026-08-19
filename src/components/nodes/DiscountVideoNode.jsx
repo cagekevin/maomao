@@ -168,6 +168,11 @@ function DiscountVideoNode({ id, data, selected }) {
     },
     onSuccess: (r) => {
       setVideoUrl(r.url)
+      // 【真相源契约】把生成结果写回 node.data.videoUrl，随画布快照落盘。
+      // 修复：旧实现只 setVideoUrl（本地 state），不同步模式不写 data.videoUrl，
+      // 导致刷新后节点因 data 里没有持久 URL 而丢视频（结果只在任务中心）。
+      // 与 PromptNode.onSuccess 写 data.imageUrl 对齐；onRecover 再兜底广播回填。
+      patchData({ videoUrl: r.url })
       setVidPrefs({ model: selectedModel, size: ratio, resolution, seconds })
     },
     // 【精准节点回填】异步视频任务刷新后恢复轮询完成的广播 → 写回本节点，节点卡片自动恢复显示。

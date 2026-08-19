@@ -75,7 +75,7 @@ const useVideoPoster = () => ({ poster: null })
 const useNodePrefs = () => ({ prefs: {}, set: () => {} })
 const useSyncNodeData = () => {}
 
-// useNodeGeneration：记录最近一次 config 供测试断言
+// useNodeGeneration：记录最近一次 config 供测试断言/触发 onSuccess/onRecover
 let lastGenConfig = null
 const useNodeGeneration = (config) => {
   lastGenConfig = config
@@ -90,6 +90,8 @@ const useNodeGeneration = (config) => {
     },
   }
 }
+// 测试可经 mocks.genConfig 取到最近 config，手动触发 onSuccess/onRecover 断言节点回填行为
+const getGenConfig = () => lastGenConfig
 
 // ── 网络 / 存储 stub ──
 const toastCalls = { show: 0, warn: 0, error: 0 }
@@ -159,7 +161,7 @@ export const mocks = {
   ImageEditor, OverlayEditor, LazyImage, CustomHandle, NodeTitle, GenerateButton,
   renderOverlayCanvas, useConnectedInputs, setConnectedInputs, useMediaDegrade,
   useNodeResize, useOutsideClick, useFitNodeRatio, useVideoPoster, useNodePrefs,
-  useSyncNodeData, useNodeGeneration, toastCalls, showToast, toastWarning, toastError,
+  useSyncNodeData, useNodeGeneration, getGenConfig, toastCalls, showToast, toastWarning, toastError,
   toAbsoluteFileUrl, saveResultToTasks, saveTextToTasks, saveInlineToLocal,
   uploadFileToLocal, useProviders, loadProviders, buildAllModels, resolveProviderModel,
   generateImageCalls, generateImage, chatCompletionsCalls, chatCompletions,
