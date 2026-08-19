@@ -2,6 +2,7 @@ import { buildShotImageUser, getImageGenSys, collectAssets, matchAsset, ZgPrompt
 import { chatCompletions } from './chatApi.js'
 import { generateImage } from './imageApi.js'
 import { resolveProviderModel, buildAllModels } from './providerModels.js'
+import { localizeAndStoreToLibrary, assetFolderOf, makeImageThumbnail } from './assetStore.js'
 import { showToast } from './toastStore.js'
 import { logger } from './logger.js'
 
@@ -42,7 +43,7 @@ export function useJsonObject(modelId) {
  * 并发安全：所有请求都是独立 fetch，无共享可变状态（chatApi/imageApi 同为纯函数）；
  * 每个可中止的生成都注册独立 AbortController 到 abortMap，互不影响（对齐官方 zt.current）。
  *
- * 9 个回调端点（挂到 node.data，由 useScriptBoxEngine 注入）：
+ * 10 个回调端点（挂到 node.data，由 useScriptBoxEngine 注入）：
  *  - onGenerateScript()              生成分镜 + 资产（剧情/风格/镜头数）
  *  - onGenerateAssetImage(id)        生成单个资产参考图
  *  - onGenerateAllAssetImages(ids?)  批量生成资产参考图
@@ -53,6 +54,7 @@ export function useJsonObject(modelId) {
  *  - onUploadAllVideoAssets()        上传全部资产素材
  *  - onConnectShot(id, target)       单镜头连下游（建 promptNode/discountVideoNode）
  *  - onConnectShots(ids, target)     批量连下游
+ *  - onGenerateTailFrameVariants(id) 抽上一镜尾帧→多角度生图→写回变体（P1-2）
  *
  * @param deps
  *  - getData(): () => node.data        读当前 data
@@ -63,7 +65,7 @@ export function useJsonObject(modelId) {
  *  - setEdges(updater)                 建边（onConnect* 自动连线用，可选）
  *  - getNodes()                        读节点位置（下游往右偏移用，可选）
  */
-export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, setEdges, getNodes, getProviderState }) {
+export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, setEdges, getNodes, getProviderState, captureVideoFrame: cf = captureVideoFrame }) {
   // ── AbortController 注册表（onStopScriptItem 真中止用，对齐官方 zt.current）──
   const abortMap = new Map()
 
@@ -313,14 +315,34 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
         aspectRatio,
       }, null)
       if (r.ok && r.url) {
+        // P2-1/P2-2：生图成功后把结果本地化落盘到素材库目录（migrated/{人物|场景|道具}），
+        // 并生成缩略图写回 thumbnailUrl（P0-3 分离字段；缩略图失败回退 imageUrl）。
+        // 彻底替换旧的「上游 https 直链」式临时/外部 URL，让下游生图/生视频引用持久 /files/ 地址。
+        let imageUrl = r.url
+        let thumbnailUrl = r.url
+        try {
+          const localized = await localizeAndStoreToLibrary(r.url, { name: asset.name, folder: assetFolderOf(asset.category) })
+          if (localized) imageUrl = localized
+        } catch (e) {
+          logger.warn('scriptBox', '资产图本地化落盘失败，保留原 URL', { nodeId, assetId, error: e?.message })
+        }
+        try {
+          const thumbData = await makeImageThumbnail(imageUrl, 480)
+          if (thumbData) {
+            const thumbLocal = await localizeAndStoreToLibrary(thumbData, { name: `${asset.name || 'asset'}_thumb`, folder: assetFolderOf(asset.category) })
+            if (thumbLocal) thumbnailUrl = thumbLocal
+          }
+        } catch (e) {
+          logger.debug('scriptBox', '资产图缩略图生成失败，回退 imageUrl', { nodeId, assetId, error: e?.message })
+        }
         commit((latest) => ({
           assets: (latest.assets || []).map((a) =>
             a.id === assetId
-              ? { ...a, loading: false, has: true, imageUrl: r.url, thumbnailUrl: r.url }
+              ? { ...a, loading: false, has: true, imageUrl, thumbnailUrl }
               : a
           ),
         }))
-        logger.info('scriptBox', '生成资产图·成功', { nodeId, assetId, url: r.url })
+        logger.info('scriptBox', '生成资产图·成功', { nodeId, assetId, url: imageUrl, thumbnailUrl })
       } else {
         commit((latest) => ({ assets: (latest.assets || []).map((a) => (a.id === assetId ? { ...a, loading: false } : a)) }))
         if (r && !r.aborted) toast(r.error || '资产参考图生成失败')
@@ -389,7 +411,21 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
         const shotText = `${shot.description || ''} ${shot.dialogue || ''} ${shot.prompt || ''} ${shot.videoPrompt || ''}`
         const refAssets = assets.filter((a) => a?.name && matchAsset(shotText, a.name))
         const seconds = Math.max(1, Number.parseInt(String(shot.duration || '5'), 10) || 5)
-        const user = assembleShotUser(shot, refAssets, globalStyle) +
+        // 全片镜头序（整部 story 位置）：idx 为该镜在 d.shots 中的下标，0-based 作 shotIndexInStory
+        const allShots = d.shots || target
+        const idx = allShots.findIndex((s) => s?.id === shot.id)
+        const prevShot = idx > 0 ? allShots[idx - 1] : undefined
+        const nextShot = idx >= 0 && idx < allShots.length - 1 ? allShots[idx + 1] : undefined
+        // P2-3 叙事密度（位置/承接/钩子）+ P2-4 分通道 negative 走 assembleShotUser opts
+        // （对齐官方 Ir：上下文 v + 出场分工 y + 负面黑名单 C，含通用负面。）
+        const user = assembleShotUser(shot, refAssets, globalStyle, {
+          imageNegative: d.imageNegative,
+          videoNegative: d.videoNegative,
+          totalShots: allShots.length || target.length,
+          shotIndexInStory: idx >= 0 ? idx : Math.max(0, (Number(shot.index) || 1) - 1),
+          prevShot,
+          nextShot,
+        }) +
           (imageConstraint ? `\n【生图强制约束，仅作用于 prompt】\n${imageConstraint}` : '') +
           (videoConstraint ? `\n【生视频强制约束，仅作用于 videoPrompt】\n${videoConstraint}` : '') +
           `\n【videoPrompt 格式硬性要求】videoPrompt 必须以“【时长 ${seconds}秒】”单独一行开头，随后换行书写视频内容。` +
@@ -420,7 +456,20 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
           return
         }
         const { prompt, videoPrompt } = parsed.data || {}
-        enqueuePatch((latest) => ({ shots: (latest.shots || []).map((s) => (s.id === shot.id ? { ...s, prompt: prompt || '', videoPrompt: videoPrompt || '', promptLoading: false } : s)) }))
+        let pText = prompt || ''
+        let vText = videoPrompt || ''
+        // 后处理：开启上一镜尾帧时，强制让 prompt/videoPrompt 显式含视觉起点引用标签
+        // （对齐官方「最终输出必须显式包含 @图片1」：prompt 查 @图片1，videoPrompt 查 @视频1 或 @图片1），
+        // 避免模型漏掉视觉起点引用。/[@＠]\s*(图片|视频)\s*1\b/i 双标签与官方一致。
+        const hasTailRef = shot.usePrevShotVideoTail && Array.isArray(shot.prevShotImageRefUrls) && shot.prevShotImageRefUrls.length
+        if (hasTailRef) {
+          const tagLine = '\n@图片1 复用上一镜视频尾帧作为本镜视觉起点（100% 视觉一致）。'
+          const pHasTag = /[@＠]\s*图片\s*1\b/i.test(pText)
+          const vHasTag = /[@＠]\s*(图片|视频)\s*1\b/i.test(vText)
+          if (pText && !pHasTag) pText += tagLine
+          if (vText && !vHasTag) vText += tagLine
+        }
+        enqueuePatch((latest) => ({ shots: (latest.shots || []).map((s) => (s.id === shot.id ? { ...s, prompt: pText, videoPrompt: vText, promptLoading: false } : s)) }))
       }, { logLabel: '生成分镜提示词·单镜', toastFail: '分镜提示词生成失败', ctx: { nodeId, shotId: shot.id } })
     }
 
@@ -529,24 +578,36 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
   }
 
   // ═══════════════════════════════════════════════════════════════
-  // 上传 / 连线（对齐官方 li / ui / ai / oi 的节点侧语义；上传素材走真网关标记）
+  // 上传 / 连线（对齐官方 li / ui / ai / oi 的节点侧语义；上传素材走真素材库落盘）
   // ═══════════════════════════════════════════════════════════════
-  const onRetryVideoAssetUpload = (assetId) => {
+  // P0-2 真化：原实现是 setTimeout 600ms 假成功。现改为真实调素材库落盘通道
+  // （assetStore.localizeAndStoreToLibrary → /files/migrated/{人物|场景|道具}）：
+  //   落盘成功 → videoStatus='uploaded' + imageUrl 改写为本地化 URL；
+  //   落盘失败 → videoStatus='failed' + videoError（依赖承诺，去假）。
+  const onRetryVideoAssetUpload = async (assetId) => {
     const d = getData()
     const asset = (d.assets || []).find((a) => a.id === assetId)
     if (!asset || !asset.imageUrl) return
-    updateData({ assets: d.assets.map((a) => (a.id === assetId ? { ...a, videoStatus: 'uploading' } : a)) })
-    // 真上传：asset 的 imageUrl 本地化到 /files/ 已有，标记为已上传（对齐 oi 成功分支）
-    setTimeout(() => {
-      updateData({ assets: getData().assets.map((a) => (a.id === assetId ? { ...a, videoStatus: 'uploaded' } : a)) })
-    }, 600)
+    updateData({ assets: d.assets.map((a) => (a.id === assetId ? { ...a, videoStatus: 'uploading', videoError: undefined } : a)) })
+    logger.info('scriptBox', '素材上传·开始', { nodeId, assetId, name: asset.name })
+    try {
+      const localized = await localizeAndStoreToLibrary(asset.imageUrl, { name: asset.name, folder: assetFolderOf(asset.category) })
+      updateData({ assets: getData().assets.map((a) => (a.id === assetId ? { ...a, videoStatus: 'uploaded', imageUrl: localized || a.imageUrl } : a)) })
+      toast(`已上传「${asset.name || '素材'}」到素材库`)
+      logger.info('scriptBox', '素材上传·成功', { nodeId, assetId, url: localized })
+    } catch (e) {
+      const msg = e?.message || '素材上传失败'
+      updateData({ assets: getData().assets.map((a) => (a.id === assetId ? { ...a, videoStatus: 'failed', videoError: msg } : a)) })
+      toast(msg)
+      logger.error('scriptBox', '素材上传·失败', { nodeId, assetId, error: msg })
+    }
   }
 
   const onUploadAllVideoAssets = () => {
     const d = getData()
     const has = (d.assets || []).filter((a) => a.imageUrl && a.videoStatus !== 'uploaded')
     if (has.length === 0) { toast('暂无已生成的图片资产'); return }
-    toast('已加入上传队列，请留意状态变化')
+    toast(`开始上传 ${has.length} 个素材…`)
     has.forEach((a) => onRetryVideoAssetUpload(a.id))
   }
 
@@ -587,7 +648,7 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
     addNodes([
       isImage
         ? { id: nodeId2, type: 'promptNode', position: { x: rightBase.x, y: rightBase.y }, data: { ...baseData, label: `镜头${shot.index}图`, prompt: shot.prompt } }
-        : { id: nodeId2, type: 'discountVideoNode', position: { x: rightBase.x, y: rightBase.y }, data: { ...baseData, label: `镜头${shot.index}视频`, prompt: shot.videoPrompt } }
+        : { id: nodeId2, type: 'discountVideoNode', position: { x: rightBase.x, y: rightBase.y }, data: { ...baseData, label: `镜头${shot.index}视频`, prompt: shot.videoPrompt, upstreamShotId: shot.id } }
     ])
     if (setEdges && nodeId) {
       setEdges((es) => [
@@ -597,6 +658,119 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
     }
   }
   const onConnectShots = (shotIds, target = 'image') => (shotIds || []).forEach((id) => onConnectShot(id, target))
+
+  // ═══════════════════════════════════════════════════════════════
+  // P1-2 尾帧变体生成（对齐官方 Qr）：抽上一镜视频尾帧 → 本地化 → 按角度生图 → 写回变体数组。
+  // 输入：当前 shotId（仅第 2 镜及以后可用）。输出走 shots[] 子字段（P1-1）。
+  // 依赖：上一镜连出的 discountVideoNode（data.upstreamShotId === 上一镜 id）的 videoUrl（已持久化）。
+  // ═══════════════════════════════════════════════════════════════
+  /** 读取上一镜连出的 discountVideoNode 视频结果 URL（P1-0 已验证持久化）。 */
+  const findPrevShotVideoUrl = (prevShotId) => {
+    if (!getNodes || !prevShotId) return ''
+    return getNodes()
+      .find((x) => x.type === 'discountVideoNode' && x.data?.upstreamShotId === prevShotId)?.data?.videoUrl || ''
+  }
+
+  const onGenerateTailFrameVariants = async (shotId) => {
+    const d = getData()
+    const shots = d.shots || []
+    const idx = shots.findIndex((s) => s.id === shotId)
+    if (idx < 1) { toast('仅第 2 镜及以后可用上一镜尾帧作视觉起点'); return }
+    const prevShot = shots[idx - 1]
+    const videoUrl = findPrevShotVideoUrl(prevShot.id)
+    if (!videoUrl) { toast('未找到上一镜的视频结果，请先生成上一镜视频'); return }
+    // 本镜 loading 置位 / 复位（尾帧可中止，注册 `tailframe-${id}`）
+    const patchShot = (apply) => updateData({ shots: (getData().shots || []).map((s) => (s.id === shotId ? apply(s) : s)) })
+    patchShot((s) => ({ ...s, tailFrameVariantsLoading: true, tailFrameVariantsError: undefined }))
+    logger.info('scriptBox', '尾帧变体·开始', { nodeId, shotId, prevShotId: prevShot.id, hasVideo: !!videoUrl })
+    return runAbortable(`tailframe-${shotId}`, () => patchShot((s) => ({ ...s, tailFrameVariantsLoading: false })), async (signal) => {
+      // 1) 抽上一镜尾帧 → dataURL → 本地化「原版尾帧」+ 缩略图（落 migrated/脚本/尾帧变体，对齐官方）
+      const frameData = await cf(videoUrl, 1)
+      let origUrl = frameData
+      let origThumb = frameData
+      try {
+        const localized = await localizeAndStoreToLibrary(frameData, { name: `prev-${prevShot.id}-tail`, folder: 'migrated/脚本/尾帧变体' })
+        if (localized) origUrl = localized
+        const thumbData = await makeImageThumbnail(origUrl, 480)
+        if (thumbData) {
+          const thumbLocal = await localizeAndStoreToLibrary(thumbData, { name: `prev-${prevShot.id}-tail_thumb`, folder: 'migrated/脚本/尾帧变体' })
+          if (thumbLocal) origThumb = thumbLocal
+        }
+      } catch (e) {
+        logger.warn('scriptBox', '尾帧本地化失败，保留原 dataURL', { nodeId, shotId, error: e?.message })
+      }
+      const original = { id: 'original', label: '原版尾帧', imageUrl: origUrl, thumbnailUrl: origThumb, loading: false }
+
+      // 2) 取角度集（过滤为已知角度），按官方「原版 + composed」布局：composed 先占位 loading
+      const angleIds = (Array.isArray(d.tailFrameAngleIds) ? d.tailFrameAngleIds : ['forward'])
+        .filter((e) => typeof e === 'string' && TAIL_ANGLE_BY_ID[e])
+      const { prompt: composePrompt, label: composeLabel } = buildTailComposePrompt(angleIds)
+      const composed = { id: 'composed', label: composeLabel, imageUrl: '', thumbnailUrl: undefined, loading: true }
+      const variants = [original, composed]
+      patchShot((s) => ({
+        ...s,
+        prevTailFrameVariants: variants,
+        selectedTailFrameVariantId: 'original',
+        usePrevShotVideoTail: !!s.usePrevShotVideoTail,
+        prevShotImageRefUrls: origUrl ? [origUrl] : [],
+      }))
+
+      // 3) 以「原版尾帧」为参考图（images:[origUrl]），调一次资产生图模型合成「综合图」→ 自动选中 composed
+      const { provider, modelId } = resolveImageModel()
+      if (provider && modelId && origUrl) {
+        const ams = d.assetModelSettings || {}
+        const aspectRatio = ams.globalAspectRatio || '16:9'
+        const imageSize = ams.globalSize || '2K'
+        const r = await generateImage({
+          provider,
+          prompt: composePrompt,
+          images: [origUrl],
+          model: modelId,
+          size: imageSize,
+          n: 1,
+          aspectRatio,
+        }, signal)
+        if (r.ok && r.url) {
+          let cUrl = r.url
+          let cThumb = undefined
+          try {
+            const loc = await localizeAndStoreToLibrary(r.url, { name: `prev-${prevShot.id}-composed`, folder: 'migrated/脚本/尾帧变体' })
+            if (loc) cUrl = loc
+            const thumbData = await makeImageThumbnail(cUrl, 480)
+            if (thumbData) {
+              const thumbLocal = await localizeAndStoreToLibrary(thumbData, { name: `prev-${prevShot.id}-composed_thumb`, folder: 'migrated/脚本/尾帧变体' })
+              if (thumbLocal) cThumb = thumbLocal
+            }
+          } catch (e) {
+            logger.warn('scriptBox', '尾帧综合图本地化失败，保留原 URL', { nodeId, shotId, error: e?.message })
+          }
+          patchShot((s) => ({
+            ...s,
+            prevTailFrameVariants: (s.prevTailFrameVariants || []).map((v) =>
+              v.id === 'composed' ? { ...v, imageUrl: cUrl, thumbnailUrl: cThumb, loading: false, errorMsg: undefined } : v
+            ),
+            selectedTailFrameVariantId: 'composed',
+            prevShotImageRefUrls: cUrl ? [cUrl] : s.prevShotImageRefUrls,
+          }))
+        } else {
+          patchShot((s) => ({
+            ...s,
+            prevTailFrameVariants: (s.prevTailFrameVariants || []).map((v) =>
+              v.id === 'composed' ? { ...v, loading: false, errorMsg: r.aborted ? '已取消' : (r.error || '综合图生成失败') } : v
+            ),
+            tailFrameVariantsError: r.aborted ? '已取消' : (r.error || '综合图生成失败，可重试'),
+          }))
+        }
+      } else if (!(provider && modelId)) {
+        patchShot((s) => ({ ...s, tailFrameVariantsError: '请先在「设置」中配置资产生图大模型' }))
+      }
+
+      // 4) 收尾：loading 复位
+      patchShot((s) => ({ ...s, tailFrameVariantsLoading: false }))
+      toast(`尾帧综合图生成完毕（原版 + 1 张综合图），已自动选中`, 'success')
+      logger.info('scriptBox', '尾帧变体·完成', { nodeId, shotId, angleIds, composedOk: !!origUrl })
+    }, { logLabel: '尾帧变体', toastFail: '尾帧变体生成失败', ctx: { nodeId, shotId } })
+  }
 
   return {
     onGenerateScript,
@@ -609,6 +783,7 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
     onUploadAllVideoAssets,
     onConnectShot,
     onConnectShots,
+    onGenerateTailFrameVariants,
   }
 }
 
@@ -655,25 +830,223 @@ export function dialogueLines(dialogue) {
     .join('\n')
 }
 
-/** 单个分镜的 user content（对齐官方 Nr）：镜头编号/时长/景别/光影/运镜/描述/对白/音效/风格/涉及资源。
- *  导出供单测（剧本盒纯逻辑）。 */
-export function assembleShotUser(shot, refAssets, globalStyle) {
-  const assetNames = refAssets.map((a) => a.name).filter(Boolean)
-  const assetLine = assetNames.length
-    ? `本分镜涉及以下资源，请在画面里自然呈现，并在画面描述里用 @名称 引用：${assetNames.map((a) => `@${a}`).join('、')}`
-    : '本分镜未引用具体资源，按画面描述生成即可，不要凭空加入无关角色/道具。'
+/** 尾帧变体角度表（对齐官方 _Component95.jsx 的 Jr：id/label/action）。
+ *  用于：综合图 prompt 的「镜头调整要求」+ composed 变体显示标签。导出供 UI/单测。 */
+export const TAIL_ANGLE_BY_ID = {
+  forward: { label: '镜头向前移动', action: '将摄像机向前（朝向画面主体方向）推进移动，让主体在画面中更突出、更近，画面边缘轻微向外裁剪，但保持主体相对位置居中' },
+  left: { label: '镜头向左移动', action: '将摄像机沿水平方向向左平移移动，画面显示更多主体右侧的空间，主体相对视觉重心略微右移' },
+  closeup: { label: '特写镜头', action: '将景别改为特写：聚焦到主体（人物脸部与肩颈），人物在画面中的占比显著放大，背景相应被进一步虚化/裁掉' },
+  right: { label: '镜头向右移动', action: '将摄像机沿水平方向向右平移移动，画面显示更多主体左侧的空间，主体相对视觉重心略微左移' },
+  rotateLeft45: { label: '镜头左转45°', action: '将摄像机绕垂直轴向左（逆时针）旋转约 45°，画面呈现主体的右后侧斜 45° 视角，更多看到主体右侧面与右后方背景' },
+  down: { label: '镜头向下移动', action: '将摄像机沿竖直方向向下平移移动，画面呈现略微的俯感，上方空间更多露出，主体相对位置上移' },
+  rotateRight45: { label: '镜头右转45°', action: '将摄像机绕垂直轴向右（顺时针）旋转约 45°，画面呈现主体的左前侧斜 45° 视角，更多看到主体左侧面与左前方背景' },
+  topDown: { label: '俯视视角', action: '将摄像机提升到主体正上方并向下俯视（俯视/顶视视角），摄像机光轴指向地面方向' },
+  faceCloseup: { label: '脸部特写镜头', action: '将景别改为脸部特写：人物的脸（含额头、下巴、耳朵）占画面核心区，眼神、表情、面部细节锐利清晰，人物发型/妆容保持 100% 不变' },
+  lowAngle: { label: '仰视视角', action: '将摄像机位置降低到主体下方并向上仰望（仰拍/低角度视角），让人物看起来更挺拔、更有气势，天花板或上方背景更多出现' },
+  wideAngle: { label: '广角镜头', action: '将镜头改为广角（较短焦距）：画面容纳更广阔的空间，四周有轻微但自然的广角透视感，人物与环境比例不变但环境展现更多' },
+  backFull: { label: '背后全身镜头', action: '将视角改为从人物正后方看的全身镜头：从头到脚完整入镜，人物背对镜头，能看到发型背面、服装背面、鞋履和前方场景' },
+  sideFull: { label: '正侧面全身镜头', action: '将视角改为从人物正侧面看的全身镜头：人物侧身完整入镜，能看到侧身轮廓、服装侧面与背景空间关系' },
+}
+
+/** 组装「尾帧综合图」生图 prompt 与显示标签（对齐官方 _Component95.jsx L6271-6275）。
+ *  原理：以尾帧原图为参考图（images:[…]），用一段固定提示词 + 每条镜头调整动作，
+ *  让模型产出「一张同时满足所有角度」的综合结果图。
+ *  @param {string[]} angleIds 已过滤为已知角度的 id 数组
+ *  @returns {{ prompt:string, label:string }}
+ *    - label 形如「镜头向前移动 + 特写镜头 + 镜头左转45°」
+ *    - prompt 含「请同时满足以下全部镜头调整要求，输出一张综合结果」 */
+export function buildTailComposePrompt(angleIds) {
+  const known = Array.isArray(angleIds) ? angleIds.map((e) => TAIL_ANGLE_BY_ID[e]).filter(Boolean) : []
+  const label = known.map((e) => e.label).join(' + ') || '换角度图'
+  const prompt = [
+    '先描述输入图像的关键特征：颜色、形状、大小、纹理、物体、背景、角色姿势、角色注视方向、服装/发型/妆容、光线方向与色彩、材质风格。',
+    '然后解释用户给的镜头指令应如何改变或修改画面（摄像机如何移动/旋转/景别如何变化）。',
+    '生成一张与参考图视觉风格 100% 保持一致的新图：同一人物（外貌、服装、发型、妆容、身体姿态、表情、位置比例完全相同）、同一场景（陈设、地面材质、背景物品、光影色彩完全不变）、同一道具（大小、颜色、摆放完全相同）。',
+    '除了用户明确要求的镜头运动/景别变化外，不要添加任何新物体、新角色，不要移除任何物体与角色，不跳切、不换风格、不改变画幅比例，不加任何文字、水印、边框、分割线、logo。',
+    '用户指令：',
+    '\n请同时满足以下全部镜头调整要求，输出一张综合结果：\n' + known.map((e, i) => `${i + 1}. ${e.action}`).join('\n'),
+  ].join('\n')
+  return { prompt, label }
+}
+
+/** 单个分镜的 user content（对齐官方 Nr + Ir：镜头信息 / 位置标注 / 上下文承接钩子 / 出场分工 /
+ *  风格锚定 / 眼线锁定 / 环境音三层 / 负面黑名单）。
+ *  导出供单测（剧本盒纯逻辑）。
+ *
+ *  opts 可选：
+ *  - shotIndexInStory  0-based 镜头在整部短片中的位置（缺省取 shot.index - 1）
+ *  - totalShots        全片总镜数（缺省取 shot.index）
+ *  - prevShot / nextShot  上一镜 / 下一镜对象（读 description 作「承接 / 钩子」）
+ *  - imageNegative / videoNegative  分通道负面词（用户设置，高优先级） */
+export function assembleShotUser(shot, refAssets, globalStyle, opts = {}) {
+  const assets = Array.isArray(refAssets) ? refAssets : []
+  // ── 位置标注：0-based 序号 + 开场/中段/结尾（对齐官方 u/d/m 判定）──
+  const u = Number.isFinite(Number(opts.shotIndexInStory))
+    ? Math.max(0, Number(opts.shotIndexInStory))
+    : Math.max(0, (Number(shot.index) || 1) - 1)
+  const d = Number.isFinite(Number(opts.totalShots)) && Number(opts.totalShots) >= u + 1
+    ? Number(opts.totalShots)
+    : Math.max(u + 1, Number(shot.index) || 1)
+  const m = u === 0 ? '开场镜' : u === d - 1 ? '结尾镜' : '中段镜'
+
+  const rows = [`镜头编号：${shot.index}`, `时长：${shot.duration || '5s'}`]
+  rows.push(shot.shotType ? `景别：${shot.shotType}` : '')
+  rows.push(shot.lighting ? `光影：${shot.lighting}` : '')
+  rows.push(shot.motion ? `运镜：${shot.motion}` : '')
+  rows.push(globalStyle ? `统一风格：${globalStyle}` : '')
+  rows.push(`本分镜在整部短片中的位置：第 ${u + 1} 镜 / 共 ${d} 镜（${m}）。`)
+  if (shot.description) rows.push(`画面描述：${shot.description}`)
+
+  // ── 剧情上下文块（视觉起点 / 上一镜承接 / 本镜职责 / 下一镜钩子，对齐官方 v）──
+  const prevRefs = Array.isArray(shot.prevShotImageRefUrls) ? shot.prevShotImageRefUrls.filter(Boolean) : []
+  const hasTail = !!shot.usePrevShotVideoTail
+  const ctx = []
+  if (hasTail && prevRefs.length) {
+    ctx.push('【视觉起点·必带约束】本镜的起始画面必须以 @图片1（即上一镜视频尾帧图，已作为参考图传入）为视觉起点：人物外貌/服装/发型/妆容/表情/姿态/位置、场景陈设/地面材质/背景物品、光线方向/色彩/材质、道具大小/颜色/摆放，必须与 @图片1 保持 100% 视觉一致。除了用户要求的具体镜头运动/景别变化外，不得添加任何新角色、新道具、新背景元素；不得改变画幅比例、不得跳切、不得更换美术风格。**重要：最终输出的 prompt 与 videoPrompt 文本中必须显式包含 "@图片1" 这一引用标签，让视频生成模型把 @图片1 当作首帧。**')
+  } else if (hasTail) {
+    ctx.push('【视觉起点·必带约束】本镜的起始画面必须与上一镜视频尾帧保持零帧硬切连续：人物位置、姿态、表情、服装、场景光线和色彩完全一致，不得发生瞬移或跳切。')
+  }
+  const prevDesc = opts.prevShot?.description && String(opts.prevShot.description).trim()
+  if (prevDesc) {
+    ctx.push(`【剧情承接：上一镜状态描述】${prevDesc}（本镜首秒必须从这一画面状态自然延续，人物位置、姿态、情绪、场景环境不得跳切、不得瞬移、不得更换服装/造型）。`)
+  }
+  if (shot.description) {
+    const seg = u <= Math.ceil(d * 0.2) ? '交代信息/建立悬念/锚定冲突' : u <= Math.ceil(d * 0.5) ? '冲突升级/情绪累积/压力堆叠' : u <= Math.ceil(d * 0.8) ? '情绪爆破/反转打脸/爽点释放' : '收束留钩/余韵钩子/为下一部或续作埋伏笔'
+    ctx.push(`【本镜剧情职责】请围绕本镜画面描述执行，并思考本段在整个戏剧曲线中的叙事功能：${seg}。画面必须服务于这一叙事目的，不要拍无效镜头。`)
+  }
+  const nextDesc = opts.nextShot?.description && String(opts.nextShot.description).trim()
+  if (nextDesc) {
+    ctx.push(`【剧情钩子：下一镜预告】${nextDesc}（本镜结尾 0.8-1 秒要把人物视线/动作/画面构图自然指向这个结果，做好镜头衔接准备，但不要提前剧透下一镜的核心事件）。`)
+  }
+  if (ctx.length) {
+    rows.push(`【本镜剧情上下文（服务于叙事节奏，写 prompt 与 videoPrompt 时请先吃透这一节再落笔）】\n${ctx.join('\n')}`)
+  }
+
+  // ── 出场分工（对齐官方 y：角色按核心/压迫位/背景位排布 + 场景 + 道具）──
+  const chars = assets.filter((a) => a.category === 'character')
+  const scenes = assets.filter((a) => a.category === 'scene')
+  const props = assets.filter((a) => a.category === 'prop')
+  const others = assets.filter((a) => a.category !== 'character' && a.category !== 'scene' && a.category !== 'prop')
+  const allNames = assets.map((a) => a.name).filter(Boolean)
+  const roleLines = []
+  if (chars.length) {
+    roleLines.push('【本分镜出场人物与叙事分工】（决定站位、景别、视线、动作权重，禁止把背景人物拍成与主角抢焦点）：')
+    chars.forEach((c, n) => {
+      roleLines.push(n === 0
+        ? `- @${c.name}｜核心人物（本镜焦点/情绪承担者，景别优先给近景/特写，光影给主光落脸）`
+        : n === 1
+          ? `- @${c.name}｜主压迫位/对手位（围绕核心人物互动，距离核心人物最近，动作先触发）`
+          : `- @${c.name}｜背景氛围位（不与核心人物对视、不抢焦点，仅作压力/氛围堆叠，景别优先全景/中景虚化）`)
+    })
+  }
+  if (scenes.length) {
+    roleLines.push(`【本分镜场景环境角色】${scenes.map((s) => `@${s.name}`).join('、')}：本镜全部动作必须发生在该场景内，场景细节必须与「资产清单」一致，场景不得变换、不得凭空新增外景/路人/NPC。`)
+  }
+  if (props.length) {
+    roleLines.push(`【本分镜关键道具】${props.map((s) => `@${s.name}`).join('、')}：这些道具必须在画面中准确呈现并承载叙事功能，不得遗漏或变成模糊背景。`)
+  }
+  if (others.length) {
+    roleLines.push(`【本分镜涉及资源】${others.map((a) => `@${a.name}`).filter(Boolean).join('、')}：请在画面里自然呈现，并在画面描述里用 @名称 引用。`)
+  }
+  if (roleLines.length) {
+    rows.push(roleLines.join('\n'))
+  } else if (allNames.length) {
+    rows.push(`本分镜涉及以下资源，请在画面里自然呈现，并在画面描述里用 @名称 引用：${allNames.map((a) => `@${a}`).join('、')}`)
+  } else {
+    rows.push('本分镜未引用具体资源，按画面描述生成即可，不要凭空加入无关角色/道具。')
+  }
+
+  // ── 风格锚定（对齐官方 b：具体参数而非空洞形容词）──
+  rows.push('【本镜风格锚定（写 prompt 时必须把这些具体参数写出来，不要用空洞形容词）】：\n- 景别与焦段：情绪爆破点/核心人物用 70mm-105mm 中近景或情绪近景，交代场景用 24mm-35mm 广角，细节用 85mm-135mm 特写。\n- 光影落位：核心人物的脸、手、眼睛必须有窄高光；情绪用冷/暖对比色光；阴影区压暗但保留暗部细节，不要纯黑死黑。\n- 材质细节微动作：衣服布料纹理、头发丝飘动、场景物体材质纹理必须清晰可见；把情绪具象成微动作，禁止空洞机械脸/空洞表情。')
+
+  // ── 眼线锁定（≥2 角色时，对齐官方 x）──
+  if (chars.length >= 2) {
+    rows.push(`【眼线锁定（时间轴内严格执行，角色之间不得乱对视）】：\n- 核心人物 @${chars[0].name}：本镜视线目标根据「画面描述」执行，最后 0.8 秒扫过全场并停在叙事钩点上。\n- 其他角色（压迫位/背景位）：眼线全程只锁 @${chars[0].name} 的脸、手或关键道具，彼此绝对不准对视、不准交流、不准互看；背景位人物不得突然转头或有大动作。`)
+  }
+
+  // ── 对白/旁白 + 环境音三层（对齐官方 S）──
   const dlg = dialogueLines(shot.dialogue)
-  return [
-    `镜头编号：${shot.index}`,
-    `时长：${shot.duration || '5s'}`,
-    shot.shotType ? `景别：${shot.shotType}` : '',
-    shot.lighting ? `光影：${shot.lighting}` : '',
-    shot.motion ? `运镜：${shot.motion}` : '',
-    shot.description ? `画面描述：${shot.description}` : '',
-    dlg ? `【必须原样带入 videoPrompt 的对白/旁白】\n${dlg}` : '',
-    shot.sound ? `【必须带入 videoPrompt 的音效】环境音/动作音：${shot.sound}` : '',
-    globalStyle ? `统一风格：${globalStyle}` : '',
-    assetLine,
-    'prompt 只描述可见画面（主体/动作/场景/景别/光影/色彩/视角），不要包含对白、旁白、音效、字幕等文字；videoPrompt 在画面基础上补充镜头运动与动态，并把本镜头的对白/旁白台词与音效自然融入（如“角色说：…”“环境音：…”），使其可直接用于视频生成。只返回 JSON。',
-  ].filter(Boolean).join('\n')
+  if (dlg) rows.push(`【对白/旁白（仅限人声层，必须逐字保留角色名与完整原句）】\n${dlg}`)
+  if (shot.sound) {
+    rows.push(`【环境音三层（必须原样带入 videoPrompt，并以此调度视频的音频节奏，不要只写成一句话"有xx声"）】：\n- 环境层（垫底氛围音，音量-18dB 以下）：根据场景空间属性自行合理补齐，如：空调低鸣/室外风噪/远处车流/室内混响/梦境空间耳压。\n- 音效/拟音层（动作触发，与画面帧精确同步）：环境音/动作音：${shot.sound}。每一个动作在对应秒级时间点有独立音效，不与环境层混淆。\n- 人声层（仅保留"对白/旁白"块中列出的台词与说话者，禁止新增旁白/独白/OS）：严格保留说话者姓名与完整原句，不得缩写/改写/漏句。`)
+  }
+
+  // ── 负面黑名单（对齐官方 C：通用负面 + 用户分通道）──
+  const negRows = ['【负面黑名单·绝对禁止出现】：']
+  negRows.push('- 通用负面（prompt + videoPrompt 同时遵守）：新增无关对白/新增旁白/互相对骂争吵、画面上乱飞出无关道具或文字/字幕/水印/外框黑边、NPC/路人/管理员/同学/无关围观群众入画（除非明确在资产清单中）、人物突然瞬移/换衣服/换发型/换瞳色/换体型、恋爱糖感特效（爱心/花瓣/柔光过度）、空洞大笑/空洞机械脸（无肌肉微动）、肢体结构错误/手指数量异常/五官错位。')
+  const imgNegRaw = opts.imageNegative && String(opts.imageNegative).trim()
+  const vidNegRaw = opts.videoNegative && String(opts.videoNegative).trim()
+  if (imgNegRaw) negRows.push(`【生图负面词·仅作用于 prompt】${imgNegRaw}`)
+  if (vidNegRaw) negRows.push(`【生视频负面词·仅作用于 videoPrompt】${vidNegRaw}`)
+  rows.push(negRows.join('\n'))
+
+  // ── 尾部格式约束（对齐官方 footer）──
+  rows.push('prompt 只描述可见画面（主体/动作/场景/景别/光影/色彩/视角/材质/焦段），不要包含对白、旁白、音效、字幕等文字信息；videoPrompt 在 prompt 画面基础上补充镜头连续运动与动态，并把对白/旁白/环境三层音效用"具体角色名说：……""环境层/拟音层/人声层：……"的结构自然融入，使其可直接用于视频生成。只返回包含 prompt、videoPrompt 两个字段的纯 JSON。')
+
+  return rows.filter(Boolean).join('\n')
+}
+
+/**
+ * 抽视频尾帧 → JPEG dataURL（P1-2）。复用 VideoExtractNode 的 canvas.drawImage 抽帧思路，
+ * 独立成模块顶层函数（纯浏览器实现）便于单测注入 mock；非浏览器环境直接抛错，由调用方降级/提示。
+ * @param {string} src  视频 URL（DiscountVideoNode.data.videoUrl，已持久化 /files/...）
+ * @param {number} [atFraction=1]  抽帧时刻（1 = 尾帧；0~1 按时长比例）
+ * @returns {Promise<string>} dataURL
+ */
+export async function captureVideoFrame(src, atFraction = 1) {
+  if (typeof document === 'undefined' || typeof HTMLVideoElement === 'undefined') {
+    throw new Error('浏览器环境不支持抽帧')
+  }
+  return new Promise((resolve, reject) => {
+    const video = document.createElement('video')
+    video.muted = true
+    video.playsInline = true
+    video.crossOrigin = 'anonymous'
+    video.preload = 'auto'
+    video.src = String(src || '')
+    let done = false
+    const finish = (err, dataUrl) => {
+      if (done) return
+      done = true
+      video.removeEventListener('loadeddata', onLoaded)
+      video.removeEventListener('error', onErr)
+      video.removeEventListener('seeked', onSeeked)
+      if (err) reject(err)
+      else resolve(dataUrl)
+    }
+    const onErr = () => finish(new Error('视频加载失败'))
+    const onSeeked = () => {
+      try {
+        const canvas = document.createElement('canvas')
+        const ctx = canvas.getContext('2d', { willReadFrequently: true })
+        if (!ctx) return finish(new Error('Canvas 不可用'))
+        let w = video.videoWidth
+        let h = video.videoHeight
+        if (!w || !h) return finish(new Error('视频尺寸不可用'))
+        if (w > 480 || h > 480) {
+          if (w > h) { h = Math.round(h * 480 / w); w = 480 } else { w = Math.round(w * 480 / h); h = 480 }
+        }
+        canvas.width = w
+        canvas.height = h
+        ctx.drawImage(video, 0, 0, w, h)
+        finish(null, canvas.toDataURL('image/jpeg', 0.8))
+      } catch (e) {
+        finish(e)
+      }
+    }
+    const onLoaded = () => {
+      try {
+        const duration = video.duration || 0
+        const t = Number.isFinite(duration) && duration > 0
+          ? Math.min(Math.max(duration * atFraction - 0.05, 0), Math.max(duration - 0.05, 0.001))
+          : 0
+        video.currentTime = t
+      } catch (e) {
+        finish(e)
+      }
+    }
+    video.addEventListener('loadeddata', onLoaded, { once: true })
+    video.addEventListener('seeked', onSeeked, { once: true })
+    video.addEventListener('error', onErr, { once: true })
+  })
 }

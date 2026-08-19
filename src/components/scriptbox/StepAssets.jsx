@@ -148,7 +148,7 @@ function AssetCard({ asset, idx, data, updateData, callbacks, onOpen, onTogglePi
       {/* 缩略图（点击打开抽屉，双击查看大图） */}
       <div className="w-11 h-11 shrink-0 rounded-md overflow-hidden bg-surface-1 flex items-center justify-center cursor-pointer nodrag" onClick={onOpen}>
         {asset.loading ? <Loader2 size={13} className="animate-spin text-gray-400" />
-          : asset.imageUrl ? <img src={toAbsoluteFileUrl(asset.imageUrl)} alt={asset.name} className="w-full h-full object-cover" onDoubleClick={(e) => { e.stopPropagation(); onZoomClick?.(asset.imageUrl) }} />
+          : asset.imageUrl ? <img src={toAbsoluteFileUrl(asset.thumbnailUrl || asset.imageUrl)} alt={asset.name} className="w-full h-full object-cover" onDoubleClick={(e) => { e.stopPropagation(); onZoomClick?.(asset.thumbnailUrl || asset.imageUrl) }} />
             : asset.has ? <span className="text-emerald-400 text-body-xs">✓</span>
               : <span className="text-caption text-gray-500">+ 待生成</span>}
       </div>

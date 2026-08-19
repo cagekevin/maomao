@@ -22,6 +22,17 @@ vi.mock('../../src/components/base/toastStore.js', () => {
   const showToast = vi.fn()
   return { showToast, toastStore: { showToast } }
 })
+vi.mock('../../src/components/base/assetStore.js', () => ({
+  localizeAndStoreToLibrary: vi.fn(),
+  assetFolderOf: vi.fn(() => 'migrated/人物'),
+  makeImageThumbnail: vi.fn(),
+  sendToAssetLibrary: vi.fn(),
+  getAssets: vi.fn(() => []),
+  useAssets: vi.fn(() => []),
+  FOLDERS: [],
+}))
+
+import { normalizeScriptBoxData, defaultScriptBoxTop, defaultShotFields, defaultAssetFields } from '../../src/components/base/scriptBoxSchema.js'
 
 const {
   parseJsonText,
@@ -109,6 +120,95 @@ describe('scriptBoxEngine · 纯导出函数', () => {
       const out = assembleShotUser({ index: 2, description: 'x' }, [], undefined)
       expect(out).toContain('本分镜未引用具体资源')
     })
+    it('P2-4：imageNegative 仅作用 prompt、videoNegative 仅作用 videoPrompt', () => {
+      const shot = { index: 2, description: 'x' }
+      const out = assembleShotUser(shot, [], '', { imageNegative: '勿模糊', videoNegative: '勿抖动' })
+      expect(out).toContain('【生图负面词·仅作用于 prompt】勿模糊')
+      expect(out).toContain('【生视频负面词·仅作用于 videoPrompt】勿抖动')
+    })
+    it('P1-3：开启上一镜尾帧且锁定参考 URL → 注入视觉起点约束', () => {
+      const shot = { index: 2, description: 'x', usePrevShotVideoTail: true, prevShotImageRefUrls: ['/files/tail.jpg'] }
+      const out = assembleShotUser(shot, [], '')
+      expect(out).toContain('【视觉起点·必带约束】')
+      expect(out).toContain('@图片1')
+    })
+    it('P1-3：未开启尾帧 → 不注入视觉起点', () => {
+      const out = assembleShotUser({ index: 2, description: 'x', prevShotImageRefUrls: ['/files/tail.jpg'] }, [], '')
+      expect(out).not.toContain('@图片1')
+    })
+    it('P2-3：首镜/末镜/中段分别命中对应位置语义', () => {
+      expect(assembleShotUser({ index: 1, description: 'x' }, [], '')).toContain('开场镜')
+      expect(assembleShotUser({ index: 3, description: 'x' }, [], '', { totalShots: 3 })).toContain('结尾镜')
+      expect(assembleShotUser({ index: 2, description: 'x' }, [], '', { totalShots: 3 })).toContain('中段镜')
+    })
+    it('对齐官方：位置标注（第 u+1/d 镜）+ 上一镜承接 + 下一镜钩子', () => {
+      const shot = { index: 2, description: 'x' }
+      const out = assembleShotUser(shot, [], '', {
+        totalShots: 3, shotIndexInStory: 1,
+        prevShot: { description: '@主角 走进房间' },
+        nextShot: { description: '@大灰狼 破门而入' },
+      })
+      expect(out).toContain('第 2 镜 / 共 3 镜')
+      expect(out).toContain('【剧情承接：上一镜状态描述】@主角 走进房间')
+      expect(out).toContain('【剧情钩子：下一镜预告】@大灰狼 破门而入')
+    })
+    it('对齐官方：命中四象限剧情职责（前 20% / 中段 / 后 80%+）', () => {
+      expect(assembleShotUser({ index: 1, description: 'x' }, [], '', { totalShots: 10, shotIndexInStory: 0 })).toContain('交代信息/建立悬念/锚定冲突')
+      expect(assembleShotUser({ index: 5, description: 'x' }, [], '', { totalShots: 10, shotIndexInStory: 4 })).toContain('冲突升级/情绪累积/压力堆叠')
+      expect(assembleShotUser({ index: 10, description: 'x' }, [], '', { totalShots: 10, shotIndexInStory: 9 })).toContain('收束留钩/余韵钩子')
+    })
+    it('对齐官方：通用负面黑名单始终注入', () => {
+      const out = assembleShotUser({ index: 1, description: 'x' }, [], '')
+      expect(out).toContain('【负面黑名单·绝对禁止出现】')
+      expect(out).toContain('通用负面（prompt + videoPrompt 同时遵守）')
+    })
+    it('对齐官方：出场分工按 class 拆核心/压迫位/背景位 + 场景 + 道具', () => {
+      const refs = [
+        { category: 'character', name: '小红帽' },
+        { category: 'character', name: '大灰狼' },
+        { category: 'scene', name: '森林' },
+        { category: 'prop', name: '篮子' },
+      ]
+      const out = assembleShotUser({ index: 2, description: 'x' }, refs, '')
+      expect(out).toContain('小红帽｜核心人物')
+      expect(out).toContain('大灰狼｜主压迫位/对手位')
+      expect(out).toContain('【本分镜场景环境角色】@森林')
+      expect(out).toContain('【本分镜关键道具】@篮子')
+    })
+  })
+})
+
+describe('scriptBoxSchema · normalizeScriptBoxData（P0-0）', () => {
+  it('缺字段旧数据归一化补齐顶层/分镜/资产默认，不丢存量', () => {
+    const raw = { story: '旧故事', shots: [{ id: 's1', description: '旧' }], assets: [{ id: 'a1', imageUrl: '/files/a.png' }] }
+    const d = normalizeScriptBoxData(raw)
+    expect(d.story).toBe('旧故事') // 存量保留
+    expect(d.imageNegative).toBe('') // 新字段补默认
+    expect(d.videoNegative).toBe('')
+    expect(Array.isArray(d.tailFrameAngleIds)).toBe(true)
+    // shot 子字段补齐 P1-1 连续性默认
+    const s = d.shots[0]
+    expect(s.usePrevShotVideoTail).toBe(false)
+    expect(s.prevShotImageRefUrls).toEqual([])
+    expect(s.prevTailFrameVariants).toEqual([])
+    expect(s.selectedTailFrameVariantId).toBe('original')
+    // asset 子字段：thumbnailUrl 缺省回退 imageUrl（P0-3）
+    expect(d.assets[0].thumbnailUrl).toBe('/files/a.png')
+  })
+  it('non-object 项兜底为空默认', () => {
+    const d = normalizeScriptBoxData({ shots: [null, 'x'], assets: [undefined] })
+    expect(d.shots.length).toBe(2)
+    expect(d.shots[1].usePrevShotVideoTail).toBe(false)
+    expect(d.assets[0].imageUrl).toBe('')
+  })
+  it('默认值对象为全新引用（防共享突变）', () => {
+    const a = defaultShotFields()
+    const b = defaultShotFields()
+    expect(a).toEqual(b)
+    a.usePrevShotVideoTail = true
+    expect(b.usePrevShotVideoTail).toBe(false)
+    expect(defaultScriptBoxTop().tailFrameAngleIds).toEqual(['forward', 'closeup', 'rotateLeft45'])
+    expect(defaultAssetFields().thumbnailUrl).toBe('')
   })
 })
 

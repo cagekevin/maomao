@@ -43,6 +43,9 @@ export default function GearSettings({ data, updateData, onClose }) {
   const [imageConstraint, setImageConstraint] = useState(d.imageGlobalConstraint || '')
   const [videoConstraint, setVideoConstraint] = useState(d.videoGlobalConstraint || '')
   const [customGlobalConstraint, setCustomGlobalConstraint] = useState(d.customGlobalConstraint || '')
+  // P0-1 分通道 negative：仅作用于生图 prompt / 生视频 videoPrompt（高优先级）
+  const [imageNegative, setImageNegative] = useState(d.imageNegative || '')
+  const [videoNegative, setVideoNegative] = useState(d.videoNegative || '')
   const [scriptPrompt, setScriptPrompt] = useState(d.customScriptPrompt ?? SCRIPT_WRITER_SYSTEM)
   const [shotPrompt, setShotPrompt] = useState(d.customShotPrompt ?? SHOT_DIRECTOR_SYSTEM)
   const [tpl, setTpl] = useState(d.customAssetTemplates || { ...ASSET_TEMPLATES })
@@ -68,6 +71,8 @@ export default function GearSettings({ data, updateData, onClose }) {
       imageGlobalConstraint: imageConstraint,
       videoGlobalConstraint: videoConstraint,
       customGlobalConstraint,
+      imageNegative,
+      videoNegative,
       customScriptPrompt: scriptPrompt,
       customShotPrompt: shotPrompt,
       customAssetTemplates: tpl,
@@ -140,6 +145,10 @@ export default function GearSettings({ data, updateData, onClose }) {
                   <Field label="图片"><textarea value={imageConstraint} onChange={(e) => setImageConstraint(e.target.value)} className="w-full bg-surface-strong border border-white/[0.06] rounded-md p-2 text-gray-200 text-caption-sm outline-none h-16 focus:border-white/20 custom-scrollbar nodrag nowheel" /></Field>
                   <Field label="视频"><textarea value={videoConstraint} onChange={(e) => setVideoConstraint(e.target.value)} className="w-full bg-surface-strong border border-white/[0.06] rounded-md p-2 text-gray-200 text-caption-sm outline-none h-16 focus:border-white/20 custom-scrollbar nodrag nowheel" /></Field>
                   <Field label="自定义"><textarea value={customGlobalConstraint} onChange={(e) => setCustomGlobalConstraint(e.target.value)} className="w-full bg-surface-strong border border-white/[0.06] rounded-md p-2 text-gray-200 text-caption-sm outline-none h-16 focus:border-white/20 custom-scrollbar nodrag nowheel" /></Field>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="图片负面词（仅生图 prompt）"><textarea value={imageNegative} onChange={(e) => setImageNegative(e.target.value)} className="w-full bg-surface-strong border border-white/[0.06] rounded-md p-2 text-gray-200 text-caption-sm outline-none h-16 focus:border-white/20 custom-scrollbar nodrag nowheel" /></Field>
+                  <Field label="视频负面词（仅生视频 videoPrompt）"><textarea value={videoNegative} onChange={(e) => setVideoNegative(e.target.value)} className="w-full bg-surface-strong border border-white/[0.06] rounded-md p-2 text-gray-200 text-caption-sm outline-none h-16 focus:border-white/20 custom-scrollbar nodrag nowheel" /></Field>
                 </div>
               </Section>
             </div>

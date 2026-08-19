@@ -1,6 +1,7 @@
 import { useEffect, useRef, useCallback } from 'react'
 import { useReactFlow } from '@xyflow/react'
 import { createScriptBoxEngine } from './scriptBoxEngine.js'
+import { normalizeScriptBoxData } from './scriptBoxSchema.js'
 import { useProvidersList, load as loadProviders } from './settings/providerStore.js'
 import { logger } from './logger.js'
 
@@ -62,8 +63,9 @@ export function useScriptBoxEngine(nodeId, data) {
   const engineRef = useRef(null)
   if (!engineRef.current) {
     engineRef.current = createScriptBoxEngine({
-      // 读最新 data：经 useReactFlow().getNode 实时取（O(1) hash 查，替 getNodes().find），避免闭包捕获旧值
-      getData: () => getNode(nodeId)?.data ?? data ?? {},
+      // 读最新 data：经 useReactFlow().getNode 实时取（O(1) hash 查，替 getNodes().find），避免闭包捕获旧值。
+      // P0-0 数据契约：读取前先 normalizeScriptBoxData 补齐缺省（旧画布/新建节点缺新字段不漂移）。
+      getData: () => normalizeScriptBoxData(getNode(nodeId)?.data ?? data ?? {}),
       // 写回 node.data：经 setNodes 不可变更新（引擎唯一写回通道）。
       // 支持两种形态：对象 patch（直接合并）或函数 `(latestData) => patch`（基于最新 data 计算，
       // 供并发场景下安全合并，避免 getData() 读到旧引用导致状态互相覆盖）。
@@ -96,7 +98,7 @@ export function useScriptBoxEngine(nodeId, data) {
 
   const callbacks = engineRef.current
 
-  // 把 9 回调写回 node.data.onXxx（官方注入点语义），保证复制/分享后回调仍在
+  // 把引擎全部回调写回 node.data.onXxx（官方注入点语义，含 P1-2 尾帧变体），保证复制/分享后回调仍在
   useEffect(() => {
     setNodes((ns) => ns.map((n) => (n.id === nodeId ? { ...n, data: { ...(n.data || {}), ...callbacks } } : n)))
     // 仅挂载时注入一次；nodeId 变化时重新注入

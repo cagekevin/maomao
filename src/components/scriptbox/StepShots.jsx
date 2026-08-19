@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react'
-import { Loader2, Plus, Trash2 } from 'lucide-react'
+import { Loader2, Plus, Trash2, Film, Link2 } from 'lucide-react'
 import { SHOT_TYPES, LIGHTS, MOTIONS, dialogueText, hlAt, patchShots } from '../base/scriptBoxPrompts.js'
 import { useOutsideClick } from '../base/hooks.js'
 import ScriptBoxModal from './ScriptBoxModal.jsx'
@@ -17,6 +17,7 @@ export default function StepShots({ data, updateData, callbacks }) {
   const [editVal, setEditVal] = useState('')
   const [dlgEditing, setDlgEditing] = useState(null) // 对白编辑器 idx
   const [dlgText, setDlgText] = useState('')
+  const [tfShotId, setTfShotId] = useState(null) // 尾帧变体浮层：当前查看的 shot id（P1-1）
 
   const setStory = (story) => updateData({ story })
   const setStyle = (globalStyle) => updateData({ globalStyle })
@@ -65,7 +66,14 @@ export default function StepShots({ data, updateData, callbacks }) {
       videoPrompt: '',
       promptLoading: false,
       connImg: false,
-      connVid: false
+      connVid: false,
+      // P1-1 连续性 + 尾帧变体默认（与 scriptBoxSchema defaultShotFields 一致）
+      usePrevShotVideoTail: false,
+      prevShotImageRefUrls: [],
+      prevTailFrameVariants: [],
+      selectedTailFrameVariantId: 'original',
+      tailFrameVariantsLoading: false,
+      tailFrameVariantsError: undefined
     }
     updateData({ shots: [...shots, newShot] })
   }
@@ -73,6 +81,24 @@ export default function StepShots({ data, updateData, callbacks }) {
     const shots2 = shots.filter((_, i) => i !== idx).map((s, i) => ({ ...s, index: i + 1 }))
     updateData({ shots: shots2 })
   }
+
+  // P1-1 尾帧变体选帧（浮层内）：写回 selectedTailFrameVariantId + usePrevShotVideoTail 开关 + prevShotImageRefUrls。
+  // 单次 updateData 一次性写回（避免多次 patch 读旧引用互相覆盖）。选「不使用尾帧」时 useTail=false、清参考 URL。
+  const selectTailFrame = (shotId, variant, useTail) => {
+    const idx = shots.findIndex((x) => x.id === shotId)
+    if (idx < 0) return
+    const url = useTail && variant?.imageUrl ? [variant.imageUrl] : []
+    updateData({
+      shots: shots.map((x, i) =>
+        i === idx
+          ? { ...x, usePrevShotVideoTail: useTail, selectedTailFrameVariantId: useTail ? (variant?.id || 'original') : 'original', prevShotImageRefUrls: url }
+          : x
+      ),
+    })
+    setTfShotId(null)
+  }
+  // 浮层内重试生成尾帧变体
+  const openTailFrame = (shotId) => { setTfShotId(shotId); callbacks.onGenerateTailFrameVariants?.(shotId) }
 
   return (
     <div className="grid grid-cols-[190px_1fr] gap-4">
@@ -148,7 +174,20 @@ export default function StepShots({ data, updateData, callbacks }) {
                   <td className="px-2 py-1.5"><div className="text-gray-300 line-clamp-2 break-words cursor-text hover:bg-surface-1 rounded px-1 -mx-1" title="双击编辑" onDoubleClick={() => openDlg(i)}>{dialogueText(s.dialogue) || <span className="text-gray-600">双击编辑</span>}</div></td>
                   <td className="px-2 py-1.5"><div className="text-gray-300 line-clamp-2 break-words cursor-text hover:bg-surface-1 rounded px-1 -mx-1" title="双击编辑" onDoubleClick={() => openField(i, 'sound', '音效')}>{s.sound || <span className="text-gray-600">双击编辑</span>}</div></td>
                   <td className="px-1.5 py-1.5 whitespace-nowrap"><DropTable opts={MOTIONS} val={s.motion} onPick={(v) => patchShot(i, 'motion', v)} /></td>
-                  <td className="px-2 py-1.5"><button className="text-gray-600 hover:text-red-400" title="删除" onClick={() => delShot(i)}><Trash2 size={11} /></button></td>
+                  <td className="px-2 py-1.5">
+                    <div className="flex items-center justify-end gap-1">
+                      {i > 0 && (
+                        <button
+                          className={`${s.tailFrameVariantsLoading ? 'text-gray-500' : s.usePrevShotVideoTail ? 'text-emerald-400' : 'text-gray-500 hover:text-white'}`}
+                          title={s.usePrevShotVideoTail ? '视觉起点已锁定于上一镜尾帧' : '生成/查看尾帧变体'}
+                          onClick={() => openTailFrame(s.id)}
+                        >
+                          {s.tailFrameVariantsLoading ? <Loader2 size={12} className="animate-spin" /> : s.usePrevShotVideoTail ? <Link2 size={12} /> : <Film size={12} />}
+                        </button>
+                      )}
+                      <button className="text-gray-600 hover:text-red-400" title="删除" onClick={() => delShot(i)}><Trash2 size={11} /></button>
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -171,6 +210,49 @@ export default function StepShots({ data, updateData, callbacks }) {
           <textarea autoFocus value={dlgText} onChange={(e) => setDlgText(e.target.value)} placeholder="每行一条：角色名：台词（旁白写：旁白：内容）" className="w-full h-32 bg-surface-strong border border-edge rounded-lg p-2 text-body-xs text-gray-200 outline-none custom-scrollbar nodrag nowheel" />
         </ScriptBoxModal>
       )}
+
+      {/* 尾帧变体浮层（P1-1）：展示 original + composed 变体，选帧写回视觉起点 */}
+      {tfShotId !== null && (() => {
+        const tfShot = shots.find((x) => x.id === tfShotId)
+        if (!tfShot) { setTfShotId(null); return null }
+        const variants = Array.isArray(tfShot.prevTailFrameVariants) ? tfShot.prevTailFrameVariants : []
+        return (
+          <ScriptBoxModal title={`镜头${tfShot.index} · 尾帧变体（视觉起点）`} onClose={() => setTfShotId(null)}>
+            {tfShot.tailFrameVariantsLoading && (
+              <div className="flex items-center gap-2 py-3 text-gray-400"><Loader2 size={14} className="animate-spin" /> 正在抽帧并生成变体…</div>
+            )}
+            {!tfShot.tailFrameVariantsLoading && tfShot.tailFrameVariantsError && (
+              <div className="text-red-400 text-caption-sm mb-2">{tfShot.tailFrameVariantsError}</div>
+            )}
+            <div className="flex flex-wrap gap-2">
+              {variants.map((v) => (
+                <button
+                  key={v.id}
+                  className={`flex flex-col items-center gap-1 border rounded-lg p-2 ${tfShot.selectedTailFrameVariantId === v.id ? 'border-white/60 bg-surface-hover' : 'border-edge hover:border-edge-strong'}`}
+                  onClick={() => selectTailFrame(tfShotId, v, true)}
+                >
+                  <img src={v.thumbnailUrl || v.imageUrl} alt="" className="w-24 h-16 object-cover rounded" />
+                  <span className="text-caption-xs text-gray-400">{v.id === 'original' ? '原始尾帧' : '重构变体'}</span>
+                </button>
+              ))}
+              {!tfShot.tailFrameVariantsLoading && variants.length === 0 && (
+                <div className="text-caption text-gray-500 w-full">
+                  {tfShot.tailFrameVariantsError ? '变体生成失败，可重试。' : '尚未生成变体，请点击「生成变体」。'}
+                </div>
+              )}
+            </div>
+            <div className="flex items-center justify-between mt-3">
+              <button
+                className={`text-caption-sm px-2 py-1 rounded border ${tfShot.usePrevShotVideoTail ? 'border-white/40 text-white' : 'border-edge text-gray-400 hover:border-edge-strong'}`}
+                onClick={() => selectTailFrame(tfShotId, null, false)}
+              >不使用尾帧</button>
+              {!tfShot.tailFrameVariantsLoading && (
+                <button className="text-caption-sm px-2 py-1 rounded border border-edge text-gray-300 hover:border-edge-strong" onClick={() => callbacks.onGenerateTailFrameVariants?.(tfShotId)}>重新生成变体</button>
+              )}
+            </div>
+          </ScriptBoxModal>
+        )
+      })()}
     </div>
   )
 }

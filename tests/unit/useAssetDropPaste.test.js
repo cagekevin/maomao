@@ -93,7 +93,7 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
     // 故意传一个不含 items 的 paste 事件（模拟 getAsFile 拿不到的场景）
     const e = { preventDefault: vi.fn(), target: document.createElement('div'), clipboardData: { items: [] } }
     await act(async () => { await result.current.onPaste(e) })
-    expect(e.preventDefault).toHaveBeenCalled()
+    // 补充路径（read() 异步）不依赖 e.preventDefault（异步期调用无效），只需验证节点被正确建立
     expect(uploadMock).toHaveBeenCalled()
     expect(opts.addNode).toHaveBeenCalledWith('imageNode', expect.any(Object), { imageUrl: 'http://local/png', label: 'png' })
   })
@@ -108,7 +108,7 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
   })
 
   // ── B. 纯文本 ─────────────────────────────────────────────────────
-  it('read() 返回纯文本 → sanitize 后建 textNode', async () => {
+  it('read() 返回纯文本 → sanitize 后建 textNode（清洗压缩）', async () => {
     installClipboard({ read: vi.fn().mockResolvedValue([textItem('  hello   world  ')]) })
     const opts = makeOpts()
     const { result } = renderHook(() => useAssetDropPaste(opts))
@@ -226,6 +226,26 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
     expect(msg.length).toBeGreaterThan(0)
   })
 
+  // ── 关键修复：text/plain 用「同步 getData」优先，避免 getAsString 异步被回收读空 ──
+  // 复现「复制节点偶发粘贴不上」：getAsString 回调不触发（或读空），但 getData 同步有值。
+  it('节点组 JSON：getAsString 不触发，但同步 getData 有值 → 仍建节点（防偶发粘贴不上）', async () => {
+    const json = JSON.stringify({ type: 'mutiwindow-nodes', nodes: [{ id: 'n1' }], edges: [] })
+    installClipboard({ read: vi.fn().mockRejectedValue(new Error('no')) })
+    const opts = makeOpts()
+    const { result } = renderHook(() => useAssetDropPaste(opts))
+    const e = {
+      preventDefault: vi.fn(),
+      target: document.createElement('div'),
+      // items 里有 text/plain 项，但 getAsString 永远不回调（模拟事件回收）
+      clipboardData: {
+        getData: (k) => (k === 'text/plain' ? json : null),
+        items: [{ kind: 'string', type: 'text/plain', getAsString: () => {} }],
+      },
+    }
+    await act(async () => { await result.current.onPaste(e) })
+    expect(opts.onPasteNodeGroup).toHaveBeenCalledWith(json, expect.any(Object))
+  })
+
   // ── 守卫：可编辑元素内粘贴被 isEditableTarget 跳过（input） ───────
   it('input 内粘贴 → 被 isEditableTarget 守卫跳过（不建节点、不进 read）', async () => {
     const readMock = vi.fn()
@@ -240,5 +260,101 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
     await act(async () => { await result.current.onPaste(e) })
     expect(readMock).not.toHaveBeenCalled()
     expect(opts.addNode).not.toHaveBeenCalled()
+  })
+
+  // ── 焦点卡编辑区：节点组 JSON 在 contenteditable / input 内也必须放行建节点 ──
+  // 根因：复制节点后若焦点落在编辑区，粘贴被「可编辑元素走原生」守卫吞掉 → 表现为
+  // 「复制节点粘贴不上」，且焦点一直卡在编辑区 → 后续所有节点粘贴都失败。JSON 应放行。
+  it('contenteditable 内粘贴节点组 JSON → 放行建节点（不退化塞进编辑框）', async () => {
+    const json = JSON.stringify({ type: 'mutiwindow-nodes', nodes: [{ id: 'n1' }], edges: [] })
+    const opts = makeOpts()
+    const { result } = renderHook(() => useAssetDropPaste(opts))
+    const ce = document.createElement('div')
+    ce.setAttribute('contenteditable', 'true')
+    const e = {
+      preventDefault: vi.fn(),
+      target: ce,
+      clipboardData: {
+        getData: (k) => (k === 'text/plain' ? json : null),
+        items: [{ kind: 'string', type: 'text/plain', getAsString: () => {} }],
+      },
+    }
+    await act(async () => { await result.current.onPaste(e) })
+    expect(opts.onPasteNodeGroup).toHaveBeenCalledWith(json, expect.any(Object))
+  })
+
+  it('input 内粘贴节点组 JSON → 放行建节点（不交给原生插入 JSON）', async () => {
+    const json = JSON.stringify({ type: 'mutiwindow-images', images: ['http://x/1.png'] })
+    const opts = makeOpts()
+    const { result } = renderHook(() => useAssetDropPaste(opts))
+    const e = {
+      preventDefault: vi.fn(),
+      target: document.createElement('input'),
+      clipboardData: {
+        getData: (k) => (k === 'text/plain' ? json : null),
+        items: [{ kind: 'string', type: 'text/plain', getAsString: () => {} }],
+      },
+    }
+    await act(async () => { await result.current.onPaste(e) })
+    expect(opts.addNode).toHaveBeenCalledWith('imageNode', expect.any(Object), { imageUrl: 'http://x/1.png', label: '提取帧 1' })
+  })
+
+  // ════════════════════════════════════════════════════════════════
+  // 文本节点两种复制语义（用户高频痛点）：
+  //   A. 工具栏「复制文本」→ writeText(节点里的文字) = 纯文本
+  //   B. 右键「复制」→ writeText(mutiwindow-nodes JSON) = 整个节点
+  // 要求：A 粘贴到画布建 textNode 且内容经 sanitize「彻底清洗」成干净纯文本
+  //       （用户核心诉求：粘贴表格/富文本时绝不当图片/带样式贴进来，必须清晰纯文本）；
+  //       A 粘贴到 textarea 走原生插入；B 无论焦点在哪都放行建节点组。
+  // ════════════════════════════════════════════════════════════════
+  function plainEvent(text, target) {
+    return {
+      preventDefault: vi.fn(),
+      target,
+      clipboardData: {
+        getData: (k) => (k === 'text/plain' ? text : null),
+        items: [{ kind: 'string', type: 'text/plain', getAsString: () => {} }],
+      },
+    }
+  }
+
+  it('复制文本节点里的文字 → 粘贴到画布：建 textNode 且内容被 sanitize 清洗（去缩进/空行）', async () => {
+    const original = '第一行\n    缩进的行\n\n\n结尾'
+    const opts = makeOpts()
+    const { result } = renderHook(() => useAssetDropPaste(opts))
+    await act(async () => { await result.current.onPaste(plainEvent(original, document.createElement('div'))) })
+    // sanitize 清洗：压缩连续空格/空行、去行首尾空格、trim
+    expect(opts.addNode).toHaveBeenCalledWith('textNode', expect.any(Object), { text: '第一行\n缩进的行\n\n结尾', expanded: false })
+  })
+
+  it('复制文本节点里的文字 → 粘贴到 textarea：走原生插入（不建节点）', async () => {
+    const opts = makeOpts()
+    const { result } = renderHook(() => useAssetDropPaste(opts))
+    await act(async () => { await result.current.onPaste(plainEvent('hello', document.createElement('textarea'))) })
+    expect(opts.addNode).not.toHaveBeenCalled()
+  })
+
+  it('复制文本节点里的文字（普通 JSON 但不含 mutiwindow 标记）→ 粘贴到画布：建 textNode 且被清洗', async () => {
+    const original = '{"a": 1, "b": [1,   2]}' // 合法 JSON 但非 mutiwindow → 当普通文本
+    const opts = makeOpts()
+    const { result } = renderHook(() => useAssetDropPaste(opts))
+    await act(async () => { await result.current.onPaste(plainEvent(original, document.createElement('div'))) })
+    expect(opts.addNode).toHaveBeenCalledWith('textNode', expect.any(Object), { text: '{"a": 1, "b": [1, 2]}', expanded: false })
+  })
+
+  it('复制整个文本节点（节点组 JSON）→ 粘贴到画布：重建节点组', async () => {
+    const json = JSON.stringify({ type: 'mutiwindow-nodes', nodes: [{ id: 'n1' }], edges: [] })
+    const opts = makeOpts()
+    const { result } = renderHook(() => useAssetDropPaste(opts))
+    await act(async () => { await result.current.onPaste(plainEvent(json, document.createElement('div'))) })
+    expect(opts.onPasteNodeGroup).toHaveBeenCalledWith(json, expect.any(Object))
+  })
+
+  it('复制整个文本节点（节点组 JSON）→ 粘贴到 textarea：放行建节点（不被吞）', async () => {
+    const json = JSON.stringify({ type: 'mutiwindow-nodes', nodes: [{ id: 'n1' }], edges: [] })
+    const opts = makeOpts()
+    const { result } = renderHook(() => useAssetDropPaste(opts))
+    await act(async () => { await result.current.onPaste(plainEvent(json, document.createElement('textarea'))) })
+    expect(opts.onPasteNodeGroup).toHaveBeenCalledWith(json, expect.any(Object))
   })
 })

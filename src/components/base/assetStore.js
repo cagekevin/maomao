@@ -60,6 +60,17 @@ export const FOLDERS = [
   { key: 'migrated', label: '素材库', folder: 'migrated' }
 ]
 
+/**
+ * 剧本分类 → 素材库目录的单一映射（剧本盒不自己拼路径，收口在 FOLDERS 语义）。
+ * character→migrated/人物、scene→migrated/场景、prop→migrated/道具，其它→migrated。
+ * @param {string} [category] character|scene|prop
+ * @returns {string} 落盘目录（与后端 folder 结构一致）
+ */
+export function assetFolderOf(category) {
+  const map = { character: 'migrated/人物', scene: 'migrated/场景', prop: 'migrated/道具' }
+  return map[category] || 'migrated'
+}
+
 // P4 落盘节流：高频变更（拖入/批量生成/上传进度）合并落盘，消除主线程长任务。
 // write 是「读当前最新 assets」的 thunk —— flush 时才执行，天然把窗口内多次变更合并为最终态。
 // 通知订阅者（notify）保持即时，只有「落盘」被节流，UI 响应性不受影响。
@@ -224,7 +235,74 @@ async function persistUrlToBackend(url, folder) {
   }
 }
 
+/**
+ * 剧本盒资产「真上传」通道（P0-2）：把任意来源素材图真正落盘并返回本地化 /files/ URL。
+ * 区别 sendToAssetLibrary（异步尽力落盘，不返回 URL）：本函数同步 await 落盘成功后返回
+ * `http://127.0.0.1:18080/files/<folder>/<name>`；失败 throw（调用方据此置 videoStatus='failed'）。
+ *  - data:           → saveInlineToLocal（sha1 幂等）
+ *  - blob: / http(s) → fetch 转 File 后 uploadFileToLocal
+ *  - 已是 /files/     → 原样返回
+ * 落盘成功后登记进素材库 store + 广播（AssetLibrary 面板自动刷新），与 sendToAssetLibrary 一致。
+ * @returns {Promise<string>} 本地化后的持久 URL
+ */
+export async function localizeAndStoreToLibrary(url, { name, folder = 'migrated' } = {}) {
+  const src = String(url || '')
+  if (!src) throw new Error('无素材可上传')
+  let localized = null
+  if (src.startsWith('data:')) {
+    localized = await saveInlineToLocal(src, folder)
+  } else if (src.startsWith('blob:') || /^https?:/i.test(src)) {
+    const resp = await httpRequest(src, { parseJson: false, retries: 0, label: 'assetStore.localize' })
+    const blob = await resp.blob()
+    const mime = blob.type || 'image/png'
+    const ext = EXT_BY_TYPE[detectAssetType({ name: '', type: mime })] || (mime.split('/')[1] || 'png')
+    const file = new File([blob], `${name || 'asset'}.${ext}`, { type: mime })
+    localized = await uploadFileToLocal(file, folder)
+  } else if (/^\/files\//.test(src) || /^https?:\/\/127\.0\.0\.1:\d+\/files\//.test(src)) {
+    localized = src // 已是本地持久 URL
+  } else {
+    throw new Error('不支持的素材来源')
+  }
+  if (!localized) throw new Error('素材落盘失败')
+  addAssets([{ url: localized, name: name || '剧本资产', type: 'image', folder }], folder)
+  emitAssetSent(folder)
+  rescanResources().catch(() => {})
+  return localized
+}
 
+/**
+ * 生成 480px 级缩略图（P2-2）：canvas 等比缩放原图和原缩略图到 maxDim，尽量小内存。
+ * 依赖浏览器 canvas；jsdom 无 canvas 时返回 null（调用方回退 imageUrl）。纯图像工具，无 store 副作用。
+ * @param {string} url 源图（可跨源图片需 CORS / 本地 /files/）
+ * @param {number} [maxDim=480]
+ * @returns {Promise<string|null>} dataURL 缩略图（jpeg 0.75）；失败 null
+ */
+export async function makeImageThumbnail(url, maxDim = 480) {
+  try {
+    if (typeof document === 'undefined' || typeof HTMLCanvasElement === 'undefined') return null
+    const img = new Image()
+    img.decoding = 'async'
+    img.crossOrigin = 'anonymous'
+    img.src = String(url || '')
+    await img.decode().catch(() => new Promise((resolve, reject) => {
+      img.onload = resolve; img.onerror = () => reject(new Error('image load failed'))
+    }))
+    const w = img.naturalWidth, h = img.naturalHeight
+    if (!w || !h) return null
+    let tw = w, th = h
+    if (Math.max(w, h) > maxDim) {
+      if (w > h) { th = Math.round(h * maxDim / w); tw = maxDim } else { tw = Math.round(w * maxDim / h); th = maxDim }
+    }
+    const canvas = document.createElement('canvas')
+    canvas.width = tw; canvas.height = th
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return null
+    ctx.drawImage(img, 0, 0, tw, th)
+    return canvas.toDataURL('image/jpeg', 0.75)
+  } catch {
+    return null
+  }
+}
 
 export function removeAsset(id) {
   assets = assets.filter((a) => a.id !== id)
