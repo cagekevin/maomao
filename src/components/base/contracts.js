@@ -349,3 +349,36 @@ export const GEN_ERRORS = {
   http:     { label: '服务错误',     retryable: false },
   business: { label: '上游业务错误', retryable: false },
 }
+
+/**
+ * 节点类型登记区（节点「上次参数」记忆 / 节点创建 的单一事实来源）。
+ *
+ * ⚠️ 新增节点：先在 nodePrefs 的 useNodePrefs(首参) 里用的类型名在此登记；
+ *   禁止散落裸字符串当 useNodePrefs 命名空间（拼错跨窗口默认参数会静默失效）。
+ *   编译期拦截见 `scripts/check-node-types.mjs`（npm run check:node-types）。
+ *
+ * 注：值为画布 node.type / useNodePrefs 首参的命名空间字符串；
+ *   director3dNode 依赖 WebGL 无法 SSR、ghostTarget 为连线占位，均一并登记。
+ */
+export const NODE_TYPES = {
+  imageNode:          'imageNode',
+  imageBoxNode:       'imageBoxNode',
+  gridSplitNode:      'gridSplitNode',
+  gridMergeNode:      'gridMergeNode',
+  panoramaNode:       'panoramaNode',
+  director3dNode:     'director3dNode',
+  faceMosaicNode:     'faceMosaicNode',
+  loopNode:           'loopNode',
+  videoExtractNode:   'videoExtractNode',
+  videoProcessNode:   'videoProcessNode',
+  group:              'group',
+  scriptBoxNode:      'scriptBoxNode',
+  textNode:           'textNode',
+  promptNode:         'promptNode',
+  templateNode:       'templateNode',
+  discountVideoNode:  'discountVideoNode',
+  ghostTarget:        'ghostTarget',
+}
+
+/** 节点类型值集合（check-node-types 比对用） */
+export const NODE_TYPE_SET = new Set(Object.values(NODE_TYPES))

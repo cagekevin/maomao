@@ -10,6 +10,7 @@
     "check:jsx": "node scripts/check-jsx.mjs",
     "check:keys": "node scripts/check-storage-keys.mjs",
     "check:events": "node scripts/check-events.mjs",
+    "check:node-types": "node scripts/check-node-types.mjs",
     "extract:tw": "node scripts/extract-tailwind.mjs",
     "sync:mapping": "node scripts/sync-mapping.mjs",
     "test:smoke": "node scripts/smoke_test.cjs",

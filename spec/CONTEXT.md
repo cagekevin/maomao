@@ -59,6 +59,7 @@
 * **程序化建节点+连线**：**唯一**走 `base/deriveNodes.js` 链路，原子进 undo。
 * **单源节点目录**：`base/NodePalette.jsx` 是唯一目录。
 * **⚠️ 新增节点必做 3 处同步**：1. Palette 登记；2. `useConnectedInputs.js` 声明产出（漏写会导致下游拿不到数据）；3. 文档登记。例外：`director3dNode` 与 `ghostTarget` 由 App.jsx 派生后补充。
+* **节点类型/参数记忆契约**：`useNodePrefs` 首参（节点命名空间）必须先登记 `contracts.js` 的 `NODE_TYPES`（编译期由 `npm run check:node-types` 拦截），禁止散落裸字符串当命名空间；拼错会让该节点「上次参数」跨窗口静默失效。
 * **节点统一范式**：外壳用 `NodeShell`（禁止手写外壳）；UI 用 `useState(data.xxx)`、写回用 `setNodes` 不可变更新；上游数据走 `useConnectedInputs`。详见 `spec/NEW-NODE-GUIDE.md`。
 * **管线契约**：`useConnectedInputs.js` 的 `NODE_OUTPUTS` 是「下游自动拿上游数据」的唯一声明，有产出的节点必须登记，数组型用 `arrayImages` 归一。
 

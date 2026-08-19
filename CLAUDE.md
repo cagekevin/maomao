@@ -30,8 +30,9 @@ npm run build         # 构建校验 + 回灌 dist/
 npm test              # 统一测试门禁（= test:all：smoke + vitest全量单测 + regression + tools）
 npm run test:unit     # vitest 全量单元测试（tests/unit/ 下数十个文件，纯逻辑/引擎/store 为主）
 npm run test:smoke    # AI 默认自检：冒烟质量门（极快）
-npm run check:health  # 工程健康全量检查（内含 check:keys + check:events + build + test:all + TDZ + dist 基线）
+npm run check:health  # 工程健康全量检查（内含 check:keys + check:events + check:node-types + build + test:all + TDZ + dist 基线）
 npm run check:events  # 事件契约静态校验：EVENTS 裸事件名编译期拦截（publish/subscribe 必须用 contracts.js 登记名）
+npm run check:node-types  # 节点类型静态校验：NODE_TYPES 裸 nodePrefs 命名空间拦截（useNodePrefs 首参必须登记）
 npm run type-check    # tsc --noEmit 类型检查（仅校验 .ts/.tsx，strict 暂未开启）
 ```
 

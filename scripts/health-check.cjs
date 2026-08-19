@@ -100,6 +100,15 @@ try {
   check('check:events', false, (e.stdout || e.message || '').slice(0, 160));
 }
 
+// ── 4.3 节点类型契约静态校验（useNodePrefs 裸命名空间编译期拦截，对应架构 P0-1）──
+console.log('\n🏷️ 节点类型契约校验（npm run check:node-types）');
+try {
+  execSync('npm run check:node-types', { cwd: ROOT, stdio: 'pipe', timeout: 60000 });
+  check('check:node-types (NODE_TYPES 裸 useNodePrefs 命名空间拦截)', true);
+} catch (e) {
+  check('check:node-types', false, (e.stdout || e.message || '').slice(0, 160));
+}
+
 // ── 5. TDZ 风险扫描（扫 src 下 .jsx/.js）──
 console.log('\n🛡️ TDZ 风险扫描（src/*.jsx/js）');
 const tdzPatterns = [
