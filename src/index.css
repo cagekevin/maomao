@@ -64,6 +64,27 @@ body,
   font-size: inherit;
 }
 
+/* ===== 框选时禁止浏览器把画布内/外的文本一起选中（按住 Shift 拖拽框选节点） =====
+ * 默认只给 .react-flow 及内部节点禁用文本选择，避免拖拽时触发原生选区；
+ * 真正可编辑的元素（输入框/文本域/可编辑容器）仍保留 user-select: text，
+ * 不影响节点内文本编辑。 */
+.react-flow,
+.react-flow__node,
+.react-flow__edge,
+.react-flow__pane,
+.react-flow__renderer,
+.react-flow__panel {
+  user-select: none;
+  -webkit-user-select: none;
+}
+.react-flow input,
+.react-flow textarea,
+.react-flow [contenteditable="true"],
+.react-flow [contenteditable=""] {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
 /* ===== 编组节点：覆盖 React Flow 默认 .react-flow__node-group =====
  * 默认样式自带 border + padding:10px + 背景 + 圆角，会导致「两层边框」：
  * 外层正方形带边框、内层 GroupNode 圆角大。这里清掉外层装饰，只保留内层 GroupNode 的样式。 */

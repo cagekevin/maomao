@@ -1327,6 +1327,18 @@ function Canvas() {
   }, [setNodes, history])
 
   /* ====================================================================
+   * 框选兜底：按住 Shift 在画布上拖拽框选时，若 mousedown 起点落在画布外的
+   * 文本上（顶栏/侧栏等），浏览器原生选区会延续到画布外。这里在画布区域
+   * 按下 Shift 的那一刻清掉已有选区，仅作用于框选交互、零渲染副作用。
+   * ==================================================================== */
+  const handleCanvasMouseDown = useCallback((e) => {
+    if (e.shiftKey) {
+      const sel = window.getSelection()
+      if (sel && sel.toString().length > 0) sel.removeAllRanges()
+    }
+  }, [])
+
+  /* ====================================================================
    * 【区 6】渲染区
    * ReactFlow 画布 + 覆盖层（右键菜单）
    * ==================================================================== */
@@ -1366,7 +1378,7 @@ function Canvas() {
         />
 
         {/* 内容区：画布为基座，多开/设置整页覆盖（官方 visible/invisible 覆盖层形态） */}
-        <div ref={menu.containerRef} className="relative flex-1 min-h-0">
+        <div ref={menu.containerRef} className="relative flex-1 min-h-0" onMouseDown={handleCanvasMouseDown}>
         {/* key=activeProjectId 对齐官方 Vr.jsx L3683 key={Z}：项目切换时强制重挂载整个画布，
             保证每个项目的画布状态完全隔离（清空旧节点 + 加载对应项目），修复「新项目加载到旧内容」 */}
         <CanvasEdgesProvider history={history}>
