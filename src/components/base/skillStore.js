@@ -182,3 +182,41 @@ export function markSkillUsed(id) {
 export function getSkillUsage(id) {
   return Number(getUsageMap()[id]) || 0
 }
+
+/* ── Skill 启用状态（localStorage 记录，内置 skill 默认启用，自定义默认启用）── */
+const ENABLED_KEY = 'agent_skill_enabled' // { [skillId]: boolean }
+function getEnabledMap() {
+  try {
+    const m = contentGet(ENABLED_KEY)
+    return m && typeof m === 'object' ? m : {}
+  } catch {
+    return {}
+  }
+}
+function saveEnabledMap(map) {
+  try { contentSet(ENABLED_KEY, map) } catch { /* 忽略 */ }
+}
+
+/** 判断某 skill 是否启用（默认启用） */
+export function isSkillEnabled(id) {
+  const m = getEnabledMap()
+  if (id in m) return !!m[id]
+  return true // 默认启用
+}
+
+/** 设置某 skill 启用/关闭
+ * 注意：写入新对象，避免与缓存/其他调用方共享同一引用（引用共享会导致 React 不重渲染）。
+ */
+export function setSkillEnabled(id, enabled) {
+  const m = { ...getEnabledMap() }
+  m[id] = !!enabled
+  saveEnabledMap(m)
+}
+
+/** 获取所有启用状态 map（供列表批量使用）
+ * 注意：返回新对象（断开引用共享），否则组件用 setEnabledMap 设置后
+ * 因引用未变被 React 判为「无变化」而不重渲染（表现为点了开关 UI 不立即刷新）。
+ */
+export function getAllEnabledMap() {
+  return { ...getEnabledMap() }
+}

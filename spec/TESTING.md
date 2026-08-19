@@ -83,6 +83,11 @@ npm run build            # 构建插件包（dist/）
 日常改代码后，提交前跑一次 `npm test` 即可。
 
 > ⚠️ **AI 助手跑测试（防挂起）**：改哪个文件就只跑它对应测试 `npx vitest run tests/unit/xxx.test.js`（涉及跨模块 import 才连带跑相关文件），最后才全量 `npm run test:unit` 兜底。勿裸调 `npx vitest`（默认 watch 挂住）。
+>
+> **根治「跑测试被误判为 watch 挂起」**：执行环境（IDE 工具）对命令行文本里含 `vitest` 字样做了启发式判断，一律当成 watch server 监控超时——但 vitest 实际已正常退出（`vitest.config.js` 设了 `watch:false`、`test:unit` 用 `vitest run` 单次）。**这是工具侧误报，非 vitest 真在 watch**。根治做法：
+> 1. 永远通过 **npm 脚本**跑（`npm run test:unit` / `npm test`），内部 `spawnSync` 同步执行、工具不会误判挂起（已验证干净退出）。
+> 2. 若必须裸调，用 `cmd /c "cd /d <repo> && npx vitest run ..."` 包裹，避免被当长任务监控。
+> 3. 不要用 `node node_modules/vitest/vitest.mjs run` 之类——命令里仍含 `vitest` 字样，同样会误判。
 
 ## 二、命令总览
 
@@ -142,7 +147,7 @@ tests/
 | 配置 | 值 | 说明 |
 |------|-----|------|
 | `environment` | `node` | 全局默认：纯逻辑单测走轻量 node，快 |
-| `environmentMatchGlobs` | `tests/unit/**/*.test.jsx → jsdom` | 组件测试**自动**归 jsdom，无需逐文件写注释 |
+| `environmentMatchGlobs` | `tests/unit/**/*.test.jsx → jsdom` | 组件测试按约定应**自动**归 jsdom，但实测对个别文件不生效（如 `ScriptBoxModal.test.jsx` 仍报 `document is not defined`），**兜底方案**：在文件第一行写 `// @vitest-environment jsdom`（已有 `AgentMessage.test.jsx` 这样写），与自动归类等效。详见 §六 决策表 |
 | `pool` | `forks` | fork 子进程池，隔离性好 |
 | `maxWorkers` / `minWorkers` | `8` / `2` | 并发优化：默认懒启动/低并发导致整包慢（11-17s），显式调高后 ~4-5s。低核 CI 机器可改 `'50%'` 自适应 |
 | `setupFiles` | `tests/setup.mjs` | 全局环境补丁 |
@@ -181,7 +186,7 @@ tests/
 | 被测对象 | 文件 | 环境 |
 |---------|------|------|
 | 纯函数 / store / api / 工具函数（无 React） | `tests/unit/xxx.test.js` | node（默认，无需声明） |
-| React 组件（节点 / 面板 / UI） | `tests/unit/Xxx.test.jsx` | **自动 jsdom**（vitest.config 的 environmentMatchGlobs 已处理，**不要写** `@vitest-environment jsdom` 注释） |
+| React 组件（节点 / 面板 / UI） | `tests/unit/Xxx.test.jsx` | **优先自动 jsdom**（`environmentMatchGlobs` 已处理）；若仍报 `document is not defined`，在**文件第一行**写 `// @vitest-environment jsdom` 兜底（与 `AgentMessage.test.jsx` 一致） |
 | React hook（useXxx） | `tests/unit/useXxx.test.js` | 需要 DOM → 在**文件第一行**写 `// @vitest-environment jsdom` |
 | 端到端 | `tests/e2e/xxx.spec.js` | playwright |
 

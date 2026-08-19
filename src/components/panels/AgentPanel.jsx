@@ -7,7 +7,7 @@ import { buildAllModels } from '../base/providerModels.js'
 import { useOutsideClick } from '../base/hooks.js'
 import { setGenParams, getGenParams } from '../base/useCanvasAgentTools.js'
 import { loadAgentChatModel } from '../base/settings/agentModelStore.js'
-import { getAllSkills, markSkillUsed, repairMojibakeText } from '../base/skillStore.js'
+import { getAllSkills, markSkillUsed, repairMojibakeText, isSkillEnabled } from '../base/skillStore.js'
 import { contentGet, contentSet } from '../base/contentStore.js'
 import { toAbsoluteFileUrl } from '../base/filesApi.js'
 import { setCurrentSnapshot, setAwaitingConfirm, getCurrentRunMode, setCurrentRunMode } from '../base/conversationStore.js'
@@ -122,7 +122,8 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
   }, [])
 
   // ── Skill 系统 ──
-  const [allSkills, setAllSkills] = useState(() => getAllSkills())
+  // 只展示已启用的 Skill（设置页中关闭的 Skill 不显示在可选列表里）
+  const [allSkills, setAllSkills] = useState(() => getAllSkills().filter((s) => isSkillEnabled(s.id)))
   const [activeSkills, setActiveSkills] = useState([])
   const [skillSlashOpen, setSkillSlashOpen] = useState(false)
   const skillSlashRef = useRef(null)

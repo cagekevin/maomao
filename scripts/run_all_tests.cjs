@@ -4,7 +4,18 @@
 // 用法：node scripts/run_all_tests.cjs   （或 npm run test:all）
 const { spawnSync } = require('child_process');
 const path = require('path');
+const fs = require('fs');
 const ROOT = path.resolve(__dirname, '..');
+
+// 直接定位 vitest bin，避免经 npx/npm 包装在 spawnSync 无 TTY 下出现 stdout 丢失 / 退出码异常。
+// 优先用 vitest.mjs（node 可直接执行），Windows 的 .cmd 包装不能用 node 跑。
+function findVitestBin() {
+  const candidates = [
+    path.join(ROOT, 'node_modules', 'vitest', 'vitest.mjs'),
+    path.join(ROOT, 'node_modules', '.bin', 'vitest' + (process.platform === 'win32' ? '.cmd' : '')),
+  ];
+  return candidates.find((p) => fs.existsSync(p)) || 'vitest';
+}
 
 // 门禁套件说明：
 //  - L2 vitest run 已是全量（含 canvasAgentTools.test.js），故不重复单跑 L3，避免连续起
@@ -12,7 +23,7 @@ const ROOT = path.resolve(__dirname, '..');
 //  - Agent 工具层另由 esbuild 版 test_agent_tools.cjs 覆盖（更快更稳，作为工具层门禁）。
 const suites = [
   { name: '冒烟测试 (Tier 2)', cmd: 'node', args: ['scripts/smoke_test.cjs'] },
-  { name: 'L2/L3 纯逻辑+工具单测 (Vitest, 全量)', cmd: 'npx', args: ['vitest', 'run'] },
+  { name: 'L2/L3 纯逻辑+工具单测 (Vitest, 全量)', cmd: process.execPath, args: [findVitestBin(), 'run'] },
   { name: '回归测试 (SSR / L1)', cmd: 'node', args: ['scripts/regression_test.cjs'] },
   { name: 'Agent 工具测试 (esbuild)', cmd: 'node', args: ['scripts/test_agent_tools.cjs'] },
 ];

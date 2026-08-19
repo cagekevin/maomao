@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 /**
  * 剧本盒子统一节点内弹层容器单测。
  * 保证收口后的 ScriptBoxModal 行为稳定：标题/默认页脚/自定义页脚/宽度/高度/遮罩点击关闭。

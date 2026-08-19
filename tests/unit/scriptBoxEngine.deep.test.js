@@ -22,7 +22,7 @@ describe('剧本盒引擎深度业务 §2.7', () => {
   let data, patches, addNodes
   const ctx = () => ({
     getData: () => data,
-    updateData: (p) => { data = { ...data, ...(typeof p === 'function' ? p(data) : p) }; patches.push(p) },
+    updateData: (p) => { const patch = typeof p === 'function' ? p(data) : p; data = { ...data, ...patch }; patches.push(patch) },
     getProviderState: () => providerState,
     nodeId: 'sb-1',
     setEdges: vi.fn(),

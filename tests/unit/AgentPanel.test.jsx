@@ -74,6 +74,7 @@ vi.mock('../../src/components/base/useCanvasAgentTools.js', () => ({ setGenParam
 vi.mock('../../src/components/base/skillStore.js', () => ({
   getAllSkills: () => h.skills,
   markSkillUsed: (...a) => h.markSkillUsed(...a),
+  isSkillEnabled: () => true,
   repairMojibakeText: (t) => t,
 }))
 vi.mock('../../src/components/base/contentStore.js', () => ({ contentGet: () => null, contentSet: vi.fn() }))
