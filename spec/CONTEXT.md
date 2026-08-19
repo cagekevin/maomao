@@ -158,6 +158,8 @@
 * **程序化建边**：`base/deriveNodes.js`（`buildSpawnNodes`/`makeChildId`）+ `CanvasEdgesContext.jsx`，9 处建子节点+连线统一并原子进 undo。边界：`scriptBoxEngine` 注入式引擎、`onConnect` 手连、`onConnectEnd` ghost-edge 保持原样。
 * **本地预览**：`base/previewUrl.js`（`create/release` 引用计数）。边界：下载走 `clipboard`、持久化降级走 `videoEngine`、`director3d` 不纳入。
 * **ID 生成**：`base/idGen.js` `generateId`。边界：`accountsStore`/`ShortcutSettings` 手写 `Date.now().toString` 已收敛回，勿再绕道。
+* **依赖同代纪律（P0-3）**：`@types/react`/`@types/react-dom` 必须与 `react`/`react-dom` 保持**同大版本**；`zustand` 单版本经 `package.json` 的 `overrides`（`^5.0.3`）锁定，防双实例。升级依赖时同步核对这三处，任一回退/错配即触发类型误报或双实例回归。`tsconfig` `skipLibCheck:true`/`strict:false` 为既有演进项，非紧急不缩紧。
+* **模型源唯一（P0-4）**：前端**唯一**模型源是 `base/providerModels.js` 的 `buildAllModels/resolveProviderModel`（本地 providers 聚合）；后端 `platform.ts` 的 `/api/public/platform/models` 前端**零调用**，归 `contracts.js` `BACKEND_ROUTES.RESERVED`（预留/上游转发）。新增模型下拉一律走 `buildAllModels`，勿再引第二套模型源。
 * **useAgentChat 三层拆分**：`agentCore.js`(纯函数)/`agentRuntime.js`(运行时)/`useAgentChat.js`(hook 编排)。契约：useAgentChat 顶部 re-export agentCore，**改纯函数去 agentCore.js**；roundTrip/runToolCalls 与状态机竞态耦合留在 hook 封装层，勿强行下钻。
 
 ### C. 🟡 顶层已知待办（改动前先查，看完删）
