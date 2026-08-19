@@ -108,3 +108,7 @@ export const VIDEO_POLL_INTERVAL = 5000
 // ── 并发上限 ────────────────────────────────────────────────────
 /** 生图同时真正触发上限（超出跳过，见 taskStore） */
 export const GEN_MAX_CONCURRENT = 6
+
+// ── 节点写回（useNodeData，P0-2 收口）────────────────────────────
+/** 节点 data 写回防抖窗口（useNodeData.patchDebounced 用） */
+export const NODE_PATCH_DEBOUNCE_MS = 200
