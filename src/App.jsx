@@ -22,6 +22,7 @@ import AgentPanel from './components/panels/AgentPanel.jsx'
 import { getNodeImageUrl } from './components/base/useCanvasAgentTools.js'
 import LeftPanel from './components/base/LeftPanel.jsx'
 import { switchProject, loadCanvasState, saveCanvasState, getCurrentProject, initProjects, useCurrentProjectId } from './components/base/projectStore.js'
+import previewUrls from './components/base/previewUrl.js'
 import { logger } from './components/base/logger.js'
 import { useNodePosition } from './components/base/hooks.js'
 import CustomEdge from './components/edges/CustomEdge.jsx'
@@ -100,6 +101,10 @@ function Canvas() {
       if (cancelled) return
       setCanvasLoaded(true)
       if (saved && saved.nodes) {
+        // P2-4 撤销/重做一致性：加载画布快照前清空 history 栈。否则走 project:import /
+        // initProjects / 外部 activeProjectId 重载路径时，旧项目的整图快照残留在栈内，
+        // 首次 Ctrl+Z 会用旧项目整图污染当前画布。
+        history.clear?.()
         // 兜底：历史快照里各节点类型可能缺 width/style/className/data.name 等结构字段
         // （如早期「右键新建 group」未补 style/className），加载时统一补默认，与新建路径保持一致。
         const rawNodes = saved.nodes.map((n) => applyNodeTypeDefaults(n))
@@ -311,6 +316,7 @@ function Canvas() {
       setNodes([])
       setEdges([])
       history.clear?.()
+      previewUrls.clear() // 项目切换：清空所有本地预览 URL（P2-5），避免跨项目泄漏
       logger.info('项目', 'switch', { targetId })
     },
     [setNodes, setEdges, history, persistCanvas, syncAgentKey]
@@ -325,6 +331,7 @@ function Canvas() {
     setNodes([])
     setEdges([])
     history.clear?.()
+    previewUrls.clear() // 新建项目：清空所有本地预览 URL（P2-5）
     logger.info('项目', 'create', { name: getCurrentProject().name })
   }, [setNodes, setEdges, history, persistCanvas, syncAgentKey])
 

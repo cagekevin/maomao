@@ -205,7 +205,10 @@ function VideoExtractNode({ id, data, selected }) {
       showToast('请先上传视频或连接包含视频的节点')
       return
     }
-    const src = file ? previewUrls.create(file) : videoUrl
+    // 仅当本次用上传 File 现场创建预览 URL 时才需在收尾释放；否则 src 即为状态里的 videoUrl，
+    // 生命周期已由组件卸载/替换素材时的 release 管理，此处不重复 revoke。
+    const ownUrl = file ? previewUrls.create(file) : null
+    const src = ownUrl || videoUrl
     setLoading(true)
     setErrorMessage('')
     setProgress(0)
@@ -278,6 +281,9 @@ function VideoExtractNode({ id, data, selected }) {
       logger.error('VideoExtractNode', 'Frame extraction failed', err)
       setLoading(false)
       setErrorMessage(err.message || '抽帧失败，可能是视频格式或跨域限制')
+    } finally {
+      // 收尾释放本次现场创建的预览 URL，避免重复上传/抽帧累积泄漏（P2-5）
+      if (ownUrl) previewUrls.release(ownUrl)
     }
   }
 
