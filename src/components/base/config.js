@@ -8,11 +8,17 @@
  */
 
 // ── localTool 后端地址 ───────────────────────────────────────────
-/** localTool 后端 API 地址（原 apiBase.js，已合并至此）。
- *  硬编码 http://127.0.0.1:18080 而非配置化：当前原型阶段前端 dev server 在 5180 端口，
- *  后端在 18080，跨端口需绝对地址；正式发布后页面部署到 localTool 18080 端口，同源仍可访问。
- *  若要支持局域网 / 远程 localTool，改为可配置项即可。 */
-export const API_BASE = 'http://127.0.0.1:18080'
+/** localTool 后端端口（单一来源，其余模块不做裸写 18080） */
+export const LOCAL_TOOL_PORT = 18080
+
+/**
+ * localTool 后端 API 地址（原 apiBase.js，已合并至此）。
+ * 可用 env VITE_API_BASE 覆盖（如局域网/远程 localTool）；缺省回落到本机 127.0.0.1:18080。
+ * 生产发布后页面部署到 localTool 18080 端口同源访问，仍可经 env 留空回落。
+ */
+export const API_BASE =
+  import.meta.env?.VITE_API_BASE?.replace(/\/+$/, '') ||
+  `http://127.0.0.1:${LOCAL_TOOL_PORT}`
 
 // ── LLM 聊天配置 ─────────────────────────────────────────────────
 /** LLM 端点 base URL（空则走 localTool 18080 代理） */

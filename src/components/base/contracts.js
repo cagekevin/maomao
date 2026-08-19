@@ -101,6 +101,13 @@ export const EVENTS = {
  */
 export const CANVAS_STATE_PREFIX = 'canvas-state-v1-'
 
+/**
+ * 画布快照 schema 版本号（P0-4 跨端对齐）。
+ * 写入 saveCanvasState 快照的 schemaVersion 字段；读取端按版本做兼容（旧结构缺字段默认补齐）。
+ * 变更快照结构（新增/重命名字段影响旧数据可恢复性）时 → 提升本版本号并补迁移，不宜原地覆盖旧结构。
+ */
+export const CANVAS_SCHEMA_VERSION = 1
+
 export const STORAGE_KEYS = {
   // ── 项目（projectStore）────────────────────────────────────────────
   projects: {
@@ -382,3 +389,35 @@ export const NODE_TYPES = {
 
 /** 节点类型值集合（check-node-types 比对用） */
 export const NODE_TYPE_SET = new Set(Object.values(NODE_TYPES))
+
+/**
+ * localTool 后端路由库存档（P0-4 死路由标注）。
+ *
+ * 目的：避免「前端改完后端炸 / 后端改契约前端无感知」。前端调用的端点集中登记，
+ * 后端侧存在但前端【零调用】的端点归类为「预留/上游转发」，改动它们不触发前端回归，
+ * 也防止误当 bug 删除。
+ *
+ * 前端【实际调用】的端点（改动需评估前端契约影响）：
+ *   GET/POST /api/status、/api/logs、/api/tasks*、/api/projects*、/api/resources*、
+ *   /api/files/*（upload/read/thumbnail/mkdir/move/open/open-dir/list）、
+ *   /api/providers*、/api/config/base、/api/kv/*、/api/proxy、/api/agent/:key/chat。
+ *   → 见 localToolApi.js / filesApi.js / logger.js / useLocalToolStatus.js / proxyGenerate.js 等。
+ *
+ * 后端存在、前端【零调用】= 预留/上游转发（勿当死代码删，勿随前后端契约盲改）：
+ *   admin.ts： /api/admin/stats、/api/admin/kv-list、/api/admin/clear-cache、
+ *              /api/admin/cleanup、/api/admin/export、/api/admin/import
+ *   official.ts：/api/user/info、/api/user/model-entitlements、/api/agent/:id/vip-check、
+ *              /api/official/entitlements/invalidate
+ *   platform.ts：/plugin/manifest.json、/api/workflow-apps/by-project/:id、
+ *              /public/platform/builtin、/public/platform/models
+ *   passthrough.ts（isLocalOnlyPath 判定后的上游转发补偿用）
+ *
+ * 注：/api/agent/:key/chat 前端在「未配 provider」时直连 localTool 这一端点；配了 provider
+ * 则走 /api/proxy。两端点都是生产路径，改动仍会影响直连链路。
+ */
+export const BACKEND_ROUTES = {
+  /** 前端真实调用、改动需评估前端契约的端点（见上注释清单） */
+  ACTIVE: 'localTool routes/* 中 frontend 实际使用集合',
+  /** 后端预留 / 上游转发端点（admin/official/platform/passthrough），前端零调用 */
+  RESERVED: 'admin.ts official.ts platform.ts passthrough.ts 中 frontend 零调用集合',
+}

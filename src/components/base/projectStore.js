@@ -10,6 +10,7 @@
 import { useSyncExternalStore } from 'react'
 import { useStoreSelector } from './useStoreSelector.js'
 import { CANVAS_STATE_PREFIX } from './kvStore.js'
+import { CANVAS_SCHEMA_VERSION } from './contracts.js'
 import { fetchProjects, saveProjects } from './localToolApi.js'
 import { contentGet, contentSet, contentGetAsync, contentSetAsync, contentDeleteAsync, createDebouncedPersist } from './contentStore.js'
 import { logger } from './logger.js'
@@ -108,7 +109,15 @@ function genId() {
 export async function loadCanvasState(projectId) {
   try {
     const v = await contentGetAsync(CANVAS_STATE_PREFIX + (projectId || currentProjectId))
-    return v && typeof v === 'object' ? v : null
+    if (!v || typeof v !== 'object') return null
+    // P0-4 兼容读取：旧快照无 schemaVersion（视为版本 1 + 缺字段），统一返回 { nodes, edges, schemaVersion }。
+    // 缺省字段由 App 加载侧的 applyNodeTypeDefaults 补齐，读取端不在此改结构，保持最小差异。
+    return {
+      ...v,
+      nodes: Array.isArray(v.nodes) ? v.nodes : null,
+      edges: Array.isArray(v.edges) ? v.edges : [],
+      schemaVersion: typeof v.schemaVersion === 'number' ? v.schemaVersion : 1,
+    }
   } catch (e) {
     logger.warn('projectStore', '读取画布快照失败（KV 不可用？）', e?.message)
     return null
@@ -162,7 +171,11 @@ export async function saveCanvasState(projectId, nodes, edges) {
       return { success: false, skipped: true, conflictVersion: remoteVer }
     }
     // 【④】落盘前清理 ReactFlow 运行时 UI 态（selected/dragging/measured 等），只存必要字段
-    await contentSetAsync(key, { nodes: sanitizeNodes(nodes), edges: sanitizeEdges(edges) })
+    await contentSetAsync(key, {
+      schemaVersion: CANVAS_SCHEMA_VERSION,
+      nodes: sanitizeNodes(nodes),
+      edges: sanitizeEdges(edges),
+    })
     await contentSetAsync(`${key}_version`, version)
     return { success: true, skipped: false }
   } catch (e) {

@@ -1,6 +1,10 @@
 // background.js
 // 监听扩展图标点击事件，打开侧边栏
-const DEFAULT_LOCAL_TOOL_BASE_URL = 'http://localhost:18080';
+// 本文件是 chrome 扩展 service worker，独立于前端 bundle，无法 import src/ 的 config.js；
+// 因此 localTool 默认地址在此单独声明，并统一为与 config.js LOCAL_TOOL_PORT 一致的 127.0.0.1:18080，
+// 避免 localhost/127.0.0.1 写法分裂。可经 chrome.storage.local.localToolBaseUrl 覆盖。
+const LOCAL_TOOL_PORT = 18080;
+const DEFAULT_LOCAL_TOOL_BASE_URL = `http://127.0.0.1:${LOCAL_TOOL_PORT}`;
 
 const getLocalToolBaseUrl = async () => {
   try {
@@ -90,7 +94,7 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
           formData.append('file', blob, filename);
           formData.append('subfolder', 'migrated');
 
-          const uploadRes = await fetch('http://127.0.0.1:18080/api/files/upload', {
+          const uploadRes = await fetch(`${await getLocalToolBaseUrl()}/api/files/upload`, {
             method: 'POST',
             body: formData,
           });
