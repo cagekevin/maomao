@@ -268,6 +268,10 @@ node scripts/task-inspect.mjs --canvas-health   # 画布结构体检
 * **精准修改**：只碰必须碰的，清理孤儿代码，每行修改可追溯明确目的。
 * **目标驱动**：任务转可验证目标，拆解执行。
 
+### 5.5.1 生成链路真相源契约（P0 红线，索引）
+
+> **任务中心为结果权威源，node.data 为渲染缓存副本；写只走 `useNodeGeneration`，刷新后任务中心单向回填节点，节点不回写。** 完整红线细则见 `spec/CONTEXT.md §五 数据一致性防线`；机制见 `src/components/base/useNodeGeneration.js` 文件头 JSDoc（改 hook 必须同步文件头）。
+
 ### 5.6 最小差异提交
 
 * 每次 commit 的 diff 尽量 ≤ 30 行；多步改动拆成单文件独立 commit，便于 `git reset --hard HEAD~1` 回退。
