@@ -112,11 +112,14 @@ export async function loadCanvasState(projectId) {
     if (!v || typeof v !== 'object') return null
     // P0-4 兼容读取：旧快照无 schemaVersion（视为版本 1 + 缺字段），统一返回 { nodes, edges, schemaVersion }。
     // 缺省字段由 App 加载侧的 applyNodeTypeDefaults 补齐，读取端不在此改结构，保持最小差异。
+    // P20 viewport：旧快照可能无 viewport（未存视窗），读取端归一为 null（App 侧回退 fitView 适配全图）。
+    const vp = v.viewport
     return {
       ...v,
       nodes: Array.isArray(v.nodes) ? v.nodes : null,
       edges: Array.isArray(v.edges) ? v.edges : [],
       schemaVersion: typeof v.schemaVersion === 'number' ? v.schemaVersion : 1,
+      viewport: vp && typeof vp === 'object' ? { x: Number(vp.x) || 0, y: Number(vp.y) || 0, zoom: Number(vp.zoom) || 1 } : null,
     }
   } catch (e) {
     logger.warn('projectStore', '读取画布快照失败（KV 不可用？）', e?.message)
@@ -157,7 +160,7 @@ function sanitizeEdges(edges) {
     return out
   })
 }
-export async function saveCanvasState(projectId, nodes, edges) {
+export async function saveCanvasState(projectId, nodes, edges, viewport) {
   const key = CANVAS_STATE_PREFIX + (projectId || currentProjectId)
   try {
     // 对齐官方 shared.js L1405：空画布跳过保存，防止空画布覆盖已有历史（误清空保护）。
@@ -177,10 +180,16 @@ export async function saveCanvasState(projectId, nodes, edges) {
       return { success: false, skipped: true, conflictVersion: remoteVer }
     }
     // 【④】落盘前清理 ReactFlow 运行时 UI 态（selected/dragging/measured 等），只存必要字段
+    // P20 viewport：视窗状态 { x, y, zoom }，仅当传入合法数值才存（否则留 undefined 不进 KV）。
+    let savedViewport
+    if (viewport && typeof viewport === 'object' && Number.isFinite(viewport.zoom)) {
+      savedViewport = { x: Number(viewport.x) || 0, y: Number(viewport.y) || 0, zoom: Number(viewport.zoom) || 1 }
+    }
     await contentSetAsync(key, {
       schemaVersion: CANVAS_SCHEMA_VERSION,
       nodes: sanitizeNodes(nodes),
       edges: sanitizeEdges(edges),
+      ...(savedViewport ? { viewport: savedViewport } : {}),
     })
     await contentSetAsync(`${key}_version`, version)
     return { success: true, skipped: false }

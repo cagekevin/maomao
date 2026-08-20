@@ -127,7 +127,7 @@ export const STORAGE_KEYS = {
     store: 'projectStore.js',
     backend: 'kv',
     pattern: true,
-    note: '画布快照：{ nodes, edges }。跨端共享，走 localTool KV',
+    note: '画布快照：{ nodes, edges, viewport }。跨端共享，走 localTool KV（P20 新增 viewport 视窗缩放/平移）',
   },
   [`${CANVAS_STATE_PREFIX}{projectId}_version`]: {
     domain: 'project',
@@ -159,6 +159,12 @@ export const STORAGE_KEYS = {
     store: 'agentModelStore.js',
     backend: 'local',
     note: 'AI 聊天模型配置：{ providerId, modelId, streamMode }',
+  },
+  agent_history_turns: {
+    domain: 'agent',
+    store: 'agentModelStore.js',
+    backend: 'local',
+    note: 'AI 助手历史回传轮数（默认 6，非负整数）',
   },
 
   // ── Skill（skillStore）─────────────────────────────────────────────

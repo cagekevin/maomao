@@ -135,6 +135,11 @@ function Canvas() {
           targetHandle: targetIsScriptBox.has(e.target) && !e.targetHandle ? 'in' : e.targetHandle
         }))
         setEdges(loadedEdges)
+        // P20 视窗状态恢复：快照里存了视窗（缩放/平移）则恢复，回到上次视角；
+        // 无视窗（旧快照/首次）不干预，保留 ReactFlow 默认 fitView 适配全图。
+        if (saved.viewport && Number.isFinite(saved.viewport.zoom)) {
+          setViewport({ x: saved.viewport.x, y: saved.viewport.y, zoom: saved.viewport.zoom }, { duration: 0 })
+        }
       }
       // 无 saved（首次）：保留演示画布
     }).catch(() => { setCanvasLoaded(true) })
@@ -185,7 +190,12 @@ function Canvas() {
   }, [getCurrentProject()?.id])
 
   // 视窗中心 → flow 坐标（Q/W/E 快速添加节点用）；适配用 fitView
-  const { screenToFlowPosition, fitView } = useReactFlow()
+  // P20 视窗状态持久化：getViewport 读取当前视窗、setViewport 恢复（刷新/切项目回到上次视角）。
+  const { screenToFlowPosition, fitView, getViewport, setViewport } = useReactFlow()
+  // 始终指向最新 viewport（onViewportChange 更新），persistCanvas 保存时无需实时 useReactFlow 查询
+  const viewportRef = React.useRef(null)
+  // 视窗拖拽/缩放结束后 600ms 防抖保存（P20），与 autoSave 节奏一致，避免高频移动反复写 KV
+  const viewportSaveTimer = React.useRef(null)
 
   // 画布 AI 助手面板开关（复刻官方 _Component40 的 open state），持久化到 app_settings
   const [agentOpen, setAgentOpen] = React.useState(() => getSetting('agentOpen'))
@@ -238,6 +248,7 @@ function Canvas() {
     viewportRaf.current = createRafBatch((zoom) => setZoomPercent(Math.round((zoom || 1) * 100)))
   }
   const onViewportChange = React.useCallback((v) => {
+    viewportRef.current = v || null
     viewportRaf.current?.(v?.zoom || 1)
   }, [])
 
@@ -264,7 +275,8 @@ function Canvas() {
   // 保存画布并广播到其他窗口（复刻官方 H_.jsx:870-880：保存后 postMessage CANVAS_SAVED）
   const persistCanvas = React.useCallback(
     (projectId) => {
-      saveCanvasState(projectId, nodesRef.current, edgesRef.current).catch((e) => logger.warn('canvas', 'save-fail', { projectId, error: e?.message }))
+      // P20：顺带把视窗状态（缩放/平移）存进快照，刷新/切项目后回到上次视角
+      saveCanvasState(projectId, nodesRef.current, edgesRef.current, viewportRef.current).catch((e) => logger.warn('canvas', 'save-fail', { projectId, error: e?.message }))
       try {
         const channel = new BroadcastChannel('yimao_canvas_sync')
         channel.postMessage({ type: 'CANVAS_SAVED', projectId, tabId: tabIdRef.current })
@@ -290,6 +302,19 @@ function Canvas() {
       if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current)
     }
   }, [nodes, edges, canvasLoaded, persistCanvas])
+
+  // P20 视窗拖拽/缩放结束 → 保存画布（顺带持久化视窗状态）。
+  // 用 useCallback + canvasLoaded 守卫：初始化 fitView 也会触发 onMoveEnd，
+  // 但此时 canvasLoaded 可能未置 true（首次加载中）→ 不存，避免把适配中的视窗误写回。
+  const handleViewportMoveEnd = React.useCallback(() => {
+    if (!canvasLoaded) return
+    if (!viewportRef.current) return // 尚无视窗信息（未发生实际移动）
+    // 与 autoSave 一致：600ms 防抖合并高频连续移动，最终态落一次盘
+    if (viewportSaveTimer.current) clearTimeout(viewportSaveTimer.current)
+    viewportSaveTimer.current = setTimeout(() => {
+      persistCanvas(getCurrentProject().id)
+    }, 600)
+  }, [canvasLoaded, persistCanvas])
 
   // AI 会话按项目隔离：project 作为最顶层，每个项目一套 AI 会话（对话/绘画）。
   // agentKey = canvas-assistant-<projectId>，conversationStore 据此隔离存储；
@@ -1434,6 +1459,7 @@ function Canvas() {
           fitView
           fitViewOptions={{ padding: 0.2, maxZoom: 1, minZoom: 0.05 }}
           onViewportChange={onViewportChange}
+          onMoveEnd={handleViewportMoveEnd}
           /* ===== 画布性能优化（复刻 H_.jsx:11958-11964）===== */
           elevateNodesOnSelect={false}
           elevateEdgesOnSelect={false}

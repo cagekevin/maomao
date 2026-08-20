@@ -79,6 +79,21 @@ describe('项目系统 §2.8', () => {
     expect(loaded.edges[0].selected).toBeUndefined()
   })
 
+  it('saveCanvasState 传入 viewport 后 loadCanvasState 可恢复视窗（P20）', async () => {
+    const nodes = [{ id: 'n1', type: 'textNode', data: {}, position: { x: 0, y: 0 } }]
+    const r = await projectStore.saveCanvasState('default', nodes, [], { x: 120, y: -50, zoom: 1.5 })
+    expect(r.success).toBe(true)
+    const loaded = await projectStore.loadCanvasState('default')
+    expect(loaded.viewport).toEqual({ x: 120, y: -50, zoom: 1.5 })
+  })
+
+  it('saveCanvasState 不传 viewport → 快照无 viewport 字段，loadCanvasState 返回 null（P20 兼容旧快照）', async () => {
+    const nodes = [{ id: 'n1', type: 'textNode', data: {}, position: { x: 0, y: 0 } }]
+    await projectStore.saveCanvasState('default', nodes, [])
+    const loaded = await projectStore.loadCanvasState('default')
+    expect(loaded.viewport).toBeNull()
+  })
+
   it('落盘白名单保留编组所需字段（parentId/extent/style/width/height）→ 刷新后尺寸与父关系不丢', async () => {
     // 模拟编组后的节点：group 带 width/height/style/initialWidth，子节点带 parentId + 相对坐标
     const group = { id: 'g1', type: 'group', position: { x: 160, y: 160 }, width: 780, height: 530, style: { width: 780, height: 530 }, initialWidth: 780, initialHeight: 530, data: { name: '编组' } }
