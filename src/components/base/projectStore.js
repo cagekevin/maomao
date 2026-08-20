@@ -127,9 +127,15 @@ export async function loadCanvasState(projectId) {
 // 【④ 不存不该存的】画布快照落盘前清理 ReactFlow 运行时 UI 态。
 // ReactFlow 的 nodes 在交互时会带 selected / dragging / measured / handles 等运行时字段，
 // 这些是「会话态」不是「数据」，不该进 KV 快照（否则污染存储、加大体积）。
-// 白名单：只保留恢复画布必需的 id / type / position / data，及用户手动缩放过的 width/height。
+// 白名单：只保留恢复画布必需的字段。
+// ⚠️ 必须保留 parentId 与 extent：编组后子节点以「相对父节点的坐标」存储，且带 parentId + extent:'parent'。
+// 旧白名单漏掉这俩，落盘后子节点丢失父子关系、却仍带着相对坐标被当作绝对坐标渲染，
+// 刷新后所有编组子节点跑到原点附近（位置全乱）；同时 React Flow 失去 extent 钳制约束。
+// ⚠️ 还要保留 style / initialWidth / initialHeight：group 节点的面积存在 style.width/height（渲染用）
+// 与 initialWidth/Height（React Flow getNodeDimensions fallback 用）。旧白名单漏掉它们，
+// 刷新后 group 矩形面积塌成 0×0（视觉缩成点），且框选命中判定因尺寸缺失而错乱。
 // edges 同理只保留 source/target/type/data 等必要字段。
-const NODE_KEEP = ['id', 'type', 'position', 'data', 'width', 'height']
+const NODE_KEEP = ['id', 'type', 'position', 'data', 'width', 'height', 'parentId', 'extent', 'style', 'initialWidth', 'initialHeight']
 const EDGE_KEEP = ['id', 'source', 'target', 'sourceHandle', 'targetHandle', 'type', 'data', 'label']
 function sanitizeNodes(nodes) {
   if (!Array.isArray(nodes)) return nodes
