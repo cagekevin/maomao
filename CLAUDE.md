@@ -318,6 +318,7 @@ node scripts/task-inspect.mjs --canvas-health   # 画布结构体检
 * **网关 502**：先查 VPN 是否连通 `lgw.lovart.ai:443`。
 * **字段对不上**：画布硬编码读 `t.data[0].url`，需 localTool 侧剥 `{code,data}` 信封对齐。
 * **构建/测试异常**：先 `npm run test:smoke` 看契约/React 单实例；再 `npm run check:health` 全量。
+* **⚠️ `vite build` 报 `Expected "..." but found "}"`**：根因是 **JSX 开标签属性列表里写了 `{/* 注释 */}`**（esbuild 不支持，属性区只认裸 `/* */`）。改回 `/* */` 即过。复现：`<div a={1} {/* x */} b={2}/>` 必报；`<div a={1} /* x */ b={2}/>` 正常。子元素区（`<div>{/* x */}</div>`）不受影响，别误改。
 * **改 localTool 后端**：`cd localTool && npm test`（全量，localtool.test / localtool.network / providers 三个文件）必跑。
 
 ### 3. 缓存清理（前端原型不涉及 KV 缓存；后端排障见下）

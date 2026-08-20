@@ -1423,7 +1423,9 @@ function Canvas() {
           elevateEdgesOnSelect={false}
           nodeOrigin={[0, 0]}
           onlyRenderVisibleElements={nodes.length > 20}
-          selectionOnDrag={nodes.length <= 80}
+          /* 框选统一走 React Flow 默认的 Shift+拖拽，关闭 selectionOnDrag，
+             避免与 panOnDrag 抢 mousedown 导致框选错位 */
+          selectionOnDrag={false}
           panOnDrag
           className={nodes.length > 100 ? 'performance-large-canvas' : undefined}
         >
