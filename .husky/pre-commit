@@ -1,5 +1,9 @@
 #!/bin/sh
-# 提交门禁：仅类型检查（快速，~1s）。全量单元测试已移到 pre-push（push 前才跑），
-# 避免每次 commit 都等全量测试（162 个文件约 20s）。lint 已移除。
+# 提交门禁：type-check（快）+ 只跑「改动相关」的单元测试（vitest --changed，~2-3s）。
+# 全量单元测试放 pre-push（push 前才跑，兜底）。
+# 设计取舍：commit 时用 --changed 早抓「本次改动」的回归，又不必每次等全量(20s)；push 前全量保安全。
+# lint 已移除（门禁靠类型检查 + 测试）。
 echo "▶ type-check (tsc --noEmit)"
 npm run type-check
+echo "▶ unit tests (vitest run --changed, 改动相关)"
+npx vitest run --changed

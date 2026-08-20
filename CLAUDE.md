@@ -176,7 +176,7 @@ node scripts/task-inspect.mjs --canvas-health   # 画布结构体检
 > 命令速查（详见 `spec/TESTING.md`，权威）：**`npm test`（= `npm run test:all`）= 冒烟 + vitest 全量单测 + 回归 + Agent 工具** 四件套一次跑完，提交前首选；单项：`npm run test:smoke`（冒烟）/`test:unit`（vitest 单测）/`test:regression`（SSR 回归）/`test:tools`（Agent 工具）；`npm run check:health` 全量编排（含构建 + 测试 + TDZ + dist 基线）。
 
 > ⚠️ **跑 vitest 单次**：`vitest.config.js` 已默认 `watch:false`，裸调 `npx vitest xxx` 也会单次跑完即退（不会挂住）。但**优先用脚本**（内部已配好）：`npm test` / `npm run test:unit`（全量）或 `npx vitest run tests/unit/xxx.test.js`（单文件）。需 watch 时显式 `npx vitest --watch`。若已误入 watch，`Ctrl+C` 或 `pkill -f vitest` 退出。
-> 提交前 `pre-commit` 钩子自动跑 `type-check`；`main` 分支的 push/PR 由 `.github/workflows/ci.yml` 云端跑 type-check + 单测。**全量 lint 门禁已移除（弊大于利，门禁靠类型检查 + 测试）**；但保留**单条存储键契约编译期拦截**（不恢复全量 eslint）：`npm run check:keys` 静态校验裸 `STORAGE_KEYS` key（挂 `npm run check:health`）+ `contentStore.checkRegistered` 在 dev 环境对未登记字面量 key 直接 throw。两者零新依赖、不碰 §3.1 的 lint 决策。
+> 提交前 `pre-commit` 钩子自动跑 `type-check` + `vitest run --changed`（只测改动相关，~2-3s）；**全量单测移到 `pre-push`**（push 前跑 `npm run test:unit` 兜底，避免每次 commit 等全量 ~20s，2026-08-21 起）。`main` 分支的 push/PR 由 `.github/workflows/ci.yml` 云端跑 type-check + 单测。**全量 lint 门禁已移除（弊大于利，门禁靠类型检查 + 测试）**；但保留**单条存储键契约编译期拦截**（不恢复全量 eslint）：`npm run check:keys` 静态校验裸 `STORAGE_KEYS` key（挂 `npm run check:health`）+ `contentStore.checkRegistered` 在 dev 环境对未登记字面量 key 直接 throw。两者零新依赖、不碰 §3.1 的 lint 决策。
 > **写完代码跑哪个**：平时 `npm run type-check` + `test:unit`；改画布/地基或合 main 前再跑 `npm test` 全量兜底（regression/tools 已含在内）。
 
 ### 3.2 改 bug 先加日志、再动逻辑（最高优先）

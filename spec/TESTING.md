@@ -56,18 +56,19 @@
 | **输出卫生** | 产物进 test-results/？不污染 git？ | ✅ 已规范 |
 | **影响面** | 改 A 模块，能否快速知道哪些测试受影响？ | 无影响面映射，靠全量跑兜底 |
 
-> **本仓库最值得补的三点**：① 提交钩子加 `test:unit`；② 定时器类测试强制 fake timers（防 flaky/挂起）；③ 有需要时建"模块→测试文件"影响面映射。
+> **本仓库最值得补的三点**：① 提交钩子已含 `vitest run --changed`（2026-08-21 起，改动相关测试守门）；② 定时器类测试强制 fake timers（防 flaky/挂起）；③ 有需要时建"模块→测试文件"影响面映射。
 
 ### 质量门禁守门点（测试在"何时"被强制跑）
 
 | 守门点 | 现状 | 说明 |
 |--------|------|------|
 | **手动全量** `npm run test:all` | ✅ 有效 | 冒烟 + vitest 单测 + SSR 回归 + Agent 工具，全绿才过 |
-| **提交钩子** `.husky/pre-commit` | ✅ 跑 `test:unit` + type-check | 提交前已有 `test:unit` 守门（实测 pre-commit 含 `"npm run test:unit"`），e2e 仍独立 |
+| **提交钩子** `.husky/pre-commit` | ✅ 跑 `type-check` + `vitest run --changed` | 提交前快速校验：类型检查 + **只跑改动相关**的单元测试（~2-3s），e2e 仍独立 |
+| **推送钩子** `.husky/pre-push` | ✅ 跑 `test:unit`（全量） | push 前跑全量单测兜底，避免 commit 每次等全量（162 文件约 20s） |
 | **e2e 纳入门禁** | ⚠️ `test:all` **不含 e2e** | e2e 需单独 `npm run test:e2e`（慢），默认不在统一门禁 |
 | **CI**（若有） | — | 若有 CI，应跑 `test:all` |
 
-> **判断**：测试要有"活门禁"才有守门价值。`test:unit` 加入 pre-commit 已落地（实测 `.husky/pre-commit` 含 `"npm run test:unit"`），提交即跑单测守门；e2e 保持独立（慢，按需跑 `npm run test:e2e`），不进统一门禁。
+> **判断**：测试要有"活门禁"才有守门价值。设计取舍（2026-08-21）：commit 阶段用 `vitest run --changed` 早抓「本次改动」回归（快），全量单测移到 `pre-push` 兜底（安全网不丢）。若想 commit 时也全量守门，把 pre-commit 的 `npx vitest run --changed` 换回 `npm run test:unit` 即可，代价是每次 commit 多等 ~20s。
 
 ### 现状覆盖面（2026-08-17）
 - `src/components/base/*.js`（纯逻辑）：59 个文件，几乎全部有对应 `tests/unit/*.test.js`（覆盖好，应作为主战场）。
