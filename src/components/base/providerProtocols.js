@@ -25,6 +25,21 @@ export const PROVIDER_PROTOCOLS = [
 /** CLI 本地类协议：不走 /api/proxy，用本机登录态。 */
 export const CLI_PROTOCOLS = ['jimeng', 'codex', 'gemini-cli']
 
+/** 协议显示名（M5-1，与后端 protocolAdapters.ts 的 PROVIDER_PROTOCOLS 一一对应）。 */
+export const PROVIDER_PROTOCOL_LABELS = {
+  openai: 'OpenAI 兼容',
+  apimart: 'apimart（Lovart 网关）',
+  gemini: 'Gemini',
+  volcengine: '火山方舟（Volcengine）',
+  runninghub: 'RunningHub',
+  jimeng: '即梦（CLI）',
+  codex: 'Codex（CLI）',
+  'gemini-cli': 'Gemini CLI',
+}
+
+/** 锁死平台 id：忽略单模型协议覆盖，只可改配置不可删除（M3 C1 / M5 G7，对齐后端 providers.ts FIXED_PROTOCOL_PROVIDER_IDS）。 */
+export const FIXED_PROTOCOL_PROVIDER_IDS = ['modelscope', 'volcengine', 'jimeng', 'runninghub']
+
 /** 是否走 /api/proxy 转发：CLI 类返回 false（调用方识别后走 CLI 专用通道）。 */
 export function isProxyProtocol(protocol) {
   return !CLI_PROTOCOLS.includes(protocol)

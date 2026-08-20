@@ -241,6 +241,73 @@ test('isProxyProtocol / PROVIDER_PROTOCOLS：CLI 不算 proxy，白名单齐全'
   );
 });
 
+// ── 模块 3：单模型协议覆盖（M3-2）+ 端点校验（M3-5） ──
+test('effectiveProtocol：命中 gemini 覆盖、非法回退 base、锁死平台无视覆盖（M3-2/C1）', async () => {
+  // 纯函数直测
+  assert.equal(providersMod.effectiveProtocol({ id: 'x', protocol: 'openai', model_protocols: { 'm1': 'gemini' } }, 'm1'), 'gemini');
+  // 未命中 → 回退 base
+  assert.equal(providersMod.effectiveProtocol({ id: 'x', protocol: 'openai', model_protocols: { 'm1': 'gemini' } }, 'm2'), 'openai');
+  // 非法值 → 回退 base
+  assert.equal(providersMod.effectiveProtocol({ id: 'x', protocol: 'openai', model_protocols: { 'm1': 'claude' } }, 'm1'), 'openai');
+  // 锁死平台（modelscope）→ 无视覆盖，返回全局协议
+  assert.equal(providersMod.effectiveProtocol({ id: 'modelscope', protocol: 'openai', model_protocols: { 'm1': 'gemini' } }, 'm1'), 'openai');
+  // 锁死平台（volcengine）→ 返回全局 volcengine
+  assert.equal(providersMod.effectiveProtocol({ id: 'volcengine', protocol: 'volcengine', model_protocols: { 'm1': 'gemini' } }, 'm1'), 'volcengine');
+});
+
+test('PUT normalizeModelProtocols：只保留 openai/gemini，其余丢弃（M3-2/C1）', async () => {
+  ensureTmp();
+  const putReq = makeReq({ providers: [seedProvider({
+    id: 'mp',
+    base_url: 'https://api.example.com/v1',
+    model_protocols: { 'ok-gemini': 'gemini', 'ok-openai': 'OPENAI', 'bad-claude': 'claude', 'bad-empty': '' },
+  })] });
+  const putRes = makeRes();
+  await providersMod.handleProvidersPut(putReq, putRes);
+  assert.equal(putRes.status, 200);
+
+  const getReq = makeReq();
+  const getRes = makeRes();
+  await providersMod.handleProvidersGet(getReq, getRes);
+  const list = JSON.parse(getRes.body).providers;
+  const mp = list.find((p) => p.id === 'mp');
+  assert.deepEqual(mp.model_protocols, { 'ok-gemini': 'gemini', 'ok-openai': 'openai' });
+});
+
+test('PUT 非法端点覆盖 → 400 而非 500（M3-5）', async () => {
+  ensureTmp();
+  const putReq = makeReq({ providers: [seedProvider({ id: 'ep-bad', image_generation_endpoint: 'not-a-path with space' })] });
+  const putRes = makeRes();
+  await providersMod.handleProvidersPut(putReq, putRes);
+  assert.equal(putRes.status, 400);
+});
+
+test('resolveProviderTarget：model_protocols 覆盖驱动走 gemini 适配器，未命中走通信协议（M3-2 穿透）', async () => {
+  ensureTmp();
+  const putReq = makeReq({ providers: [
+    seedProvider({
+      id: 'mo', protocol: 'openai', base_url: 'https://g.example', api_key: 'sk-g',
+      model_protocols: { 'img-x': 'gemini' },
+    }),
+    seedProvider({ id: 'modelscope', protocol: 'openai', base_url: 'https://ms.example', model_protocols: { 'img-x': 'gemini' } }),
+  ] });
+  const putRes = makeRes();
+  await providersMod.handleProvidersPut(putReq, putRes);
+  assert.equal(putRes.status, 200);
+
+  // 命中覆盖 → 走 gemini 适配器（透传 + Bearer）
+  const gm = providersMod.resolveProviderTarget('https://g.example/v1beta/models', 'mo', 'img-x');
+  assert.equal(gm.protocol, 'gemini');
+  assert.equal(gm.authHeader, 'Bearer sk-g');
+  // 未带 model → 回退全局 openai 协议（无适配器注入 key 到该 URL 前保持透传 + Bearer）
+  const open = providersMod.resolveProviderTarget('openai://chat/completions', 'mo');
+  assert.equal(open.protocol, 'openai');
+  assert.equal(open.url, 'https://g.example/v1/chat/completions');
+  // 锁死的 modelscope 无视覆盖 → 仍按 openai（id 锁死，前端本不可配覆盖）
+  const locked = providersMod.resolveProviderTarget('openai://chat/completions', 'modelscope', 'img-x');
+  assert.equal(locked.protocol, 'openai');
+});
+
 test('resolveProviderTarget：base_url 含 apimart.ai 但协议为 openai，按 openai 处理', async () => {
   ensureTmp();
   const putReq = makeReq({ providers: [
@@ -271,6 +338,21 @@ test('image_mode 同步/异步持久化与回退', async () => {
   assert.equal(data.providers.find((p) => p.id === 'syn').image_mode, 'sync');
   assert.equal(data.providers.find((p) => p.id === 'asy').image_mode, 'async');
   assert.equal(data.providers.find((p) => p.id === 'def').image_mode, 'sync'); // 回退 sync
+});
+
+test('chat_request_mode 持久化与回退', async () => {
+  ensureTmp();
+  const putReq = makeReq({ providers: [
+    seedProvider({ id: 'resp', chat_request_mode: 'responses' }),
+    seedProvider({ id: 'chat' }), // 不传 → 默认 chat
+    seedProvider({ id: 'bad', chat_request_mode: 'foo' }), // 非法 → 回退 chat
+  ] });
+  const putRes = makeRes();
+  await providersMod.handleProvidersPut(putReq, putRes);
+  const data = JSON.parse(putRes.body);
+  assert.equal(data.providers.find((p) => p.id === 'resp').chat_request_mode, 'responses');
+  assert.equal(data.providers.find((p) => p.id === 'chat').chat_request_mode, 'chat');   // 默认 chat
+  assert.equal(data.providers.find((p) => p.id === 'bad').chat_request_mode, 'chat');    // 非法回退 chat
 });
 
 test('apimart 拉取模型：/v1/models 按 category 归类', async () => {
@@ -321,4 +403,50 @@ test('PUT 后 GET 与 primary 回退一致', async () => {
   // getProvider 无参 → 回退 primary(b)
   assert.equal(providersMod.getProvider().id, 'b');
   assert.equal(providersMod.getProvider('a').id, 'a');
+});
+
+// ── 模块 4：平台专属字段归一（M4-1） ──
+test('PUT ms_loras 逐项归一：补默认字段 + strength 夹 [0,2]，非法项剔除（M4-1）', async () => {
+  ensureTmp();
+  const putReq = makeReq({ providers: [seedProvider({
+    id: 'ms-loras',
+    protocol: 'openai',
+    base_url: 'https://ms.example',
+    ms_loras: [
+      { id: 'l1', name: 'Lora一', target_model: 'x1', strength: 5 },   // 超出 → 夹到 2
+      { name: 'l2', strength: -3 },                                    // 负 → 夹到 0
+      null,                                                            // 非法项 → 剔除
+      { id: 'l3' },                                                    // 只有 id → 其余默认
+    ],
+  })] });
+  const putRes = makeRes();
+  await providersMod.handleProvidersPut(putReq, putRes);
+  assert.equal(putRes.status, 200);
+
+  const getReq = makeReq();
+  const getRes = makeRes();
+  await providersMod.handleProvidersGet(getReq, getRes);
+  const list = JSON.parse(getRes.body).providers;
+  const ms = list.find((p) => p.id === 'ms-loras');
+  assert.equal(ms.ms_loras.length, 3);
+  assert.equal(ms.ms_loras[0].strength, 2);
+  assert.equal(ms.ms_loras[1].strength, 0);
+  assert.equal(ms.ms_loras[1].enabled, true);   // 未显式禁用 → true
+  assert.equal(ms.ms_loras[2].strength, 1);     // 未给 → 默认 1
+});
+
+test('PUT volcengine 平台字段默认值 project_name=default / region=cn-beijing（M4-1）', async () => {
+  ensureTmp();
+  const putReq = makeReq({ providers: [seedProvider({
+    id: 'volcengine', protocol: 'volcengine', base_url: 'https://v.example',
+  })] });
+  const putRes = makeRes();
+  await providersMod.handleProvidersPut(putReq, putRes);
+
+  const getReq = makeReq();
+  const getRes = makeRes();
+  await providersMod.handleProvidersGet(getReq, getRes);
+  const vc = JSON.parse(getRes.body).providers.find((p) => p.id === 'volcengine');
+  assert.equal(vc.volcengine_project_name, 'default');
+  assert.equal(vc.volcengine_region, 'cn-beijing');
 });

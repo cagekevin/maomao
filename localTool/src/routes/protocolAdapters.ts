@@ -150,26 +150,31 @@ const adapters: ProviderAdapter[] = [
   cliAdapter('gemini-cli'),
 ];
 
-/** 按 provider 解析出目标。providerId 为空 → 原样透传（兼容无 provider 的调用）。 */
+/** 按 provider 解析出目标。providerId 为空 → 原样透传（兼容无 provider 的调用）。
+ *  protocolHint（M3-2）：由调用方按有效协议（effectiveProtocol，含单模型 model_protocols 覆盖）给出时，
+ *  优先用它选适配器；未给 → 退化按 provider.protocol 匹配（向后兼容，改前端前 C1 零改动）。
+ */
 export function resolveProviderTarget(
   rawUrl: string,
   providerId: string | null | undefined,
   getProvider: (id: string) => ApiProvider | undefined,
   readKey: (id: string) => string | undefined,
+  protocolHint?: ProviderProtocol,
 ): ResolvedTarget {
   if (!providerId) {
-    return { url: rawUrl, protocol: 'apimart' };
+    return { url: rawUrl, protocol: protocolHint || 'apimart' };
   }
   const p = getProvider(providerId);
   if (!p) {
-    return { url: rawUrl, protocol: 'apimart' };
+    return { url: rawUrl, protocol: protocolHint || 'apimart' };
   }
   const key = readKey(p.id);
-  // 找匹配的适配器：优先按 protocol 字段，再按 matches 嗅探（默认可覆盖）
-  const adapter = adapters.find((a) => (a.matches ? a.matches(p) : p.protocol === a.protocol));
+  // 模型协议覆盖优先；未给 hint → 按 provider.protocol 匹配（保持原有行为）
+  const prefer = protocolHint || p.protocol;
+  const adapter = adapters.find((a) => (a.matches ? a.matches({ ...p, protocol: prefer }) : prefer === a.protocol));
   if (!adapter) {
     // 未知协议：原样透传，不注入本地 key
-    return { url: rawUrl, protocol: p.protocol as ProviderProtocol, providerId: p.id };
+    return { url: rawUrl, protocol: prefer, providerId: p.id };
   }
   return adapter.resolve({ rawUrl, providerId: p.id, baseUrl: p.base_url, providerKey: key, provider: p });
 }

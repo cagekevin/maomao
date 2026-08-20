@@ -81,6 +81,7 @@ function emptyProvider() {
     chat_models: [],
     video_models: [],
     model_names: {},
+    model_protocols: {},
   }
 }
 
@@ -233,6 +234,12 @@ export async function save() {
         chat_models: p.chat_models || [],
         video_models: p.video_models || [],
         model_names: p.model_names || {},
+        model_protocols: p.model_protocols || {},
+        ms_loras: p.ms_loras || [],
+      }
+      if (p.protocol === 'volcengine') {
+        cleaned.volcengine_project_name = p.volcengine_project_name
+        cleaned.volcengine_region = p.volcengine_region
       }
       if (p._apiKey && p._apiKey.trim() && !p._apiKey.includes('••')) cleaned.api_key = p._apiKey.trim()
       if (p._clearKey === true) cleaned.clear_key = true

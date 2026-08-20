@@ -30,6 +30,64 @@ import { fetchWithProxy } from '../utils/netProxy.js';
 // ProviderProtocol 类型单一真相：见 protocolAdapters.ts（此处复用 import，禁止重复定义）。
 export type ModelType = 'image' | 'chat' | 'video';
 
+// ── 模块 3：单模型协议覆盖（C1/C2 契约 A.1#14，PER_MODEL_PROTOCOL_OPTIONS 钉死只 openai/gemini） ──
+export const PER_MODEL_PROTOCOL_OPTIONS: ProviderProtocol[] = ['openai', 'gemini'];
+export const FIXED_PROTOCOL_PROVIDER_IDS = ['modelscope', 'volcengine', 'jimeng', 'runninghub'];
+
+/**
+ * 单模型协议覆盖（M3-2，请求分派的单一真相）：
+ *  - 锁死平台（modelscope/volcengine/jimeng/runninghub）→ 无视覆盖，返回全局 protocol（C1）；
+ *  - 其余：model_protocols[model] 命中 openai/gemini → 返回覆盖；未命中/非法 → 回退全局 protocol。
+ */
+export function effectiveProtocol(provider: Pick<ApiProvider, 'id' | 'protocol'>, model = ''): ProviderProtocol {
+  const base = provider.protocol;
+  if (FIXED_PROTOCOL_PROVIDER_IDS.includes(provider.id)) return base;
+  const overrides = (provider as any).model_protocols || {};
+  const val = String(overrides[model] || '').toLowerCase();
+  if (PER_MODEL_PROTOCOL_OPTIONS.includes(val as ProviderProtocol)) return val as ProviderProtocol;
+  return base;
+}
+
+/** 规整 model_protocols：只保留 openai/gemini 合法值，非法丢弃（对齐 C1/C3）。 */
+function normalizeModelProtocols(raw: unknown): Record<string, string> {
+  if (!raw || typeof raw !== 'object') return {};
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(raw)) {
+    const val = String(v ?? '').toLowerCase();
+    if (k && PER_MODEL_PROTOCOL_OPTIONS.includes(val as ProviderProtocol)) out[k] = val;
+  }
+  return out;
+}
+
+/** 端点覆盖校验（M3-5）：http(s) 直接收尾斜杠；/开头按 base 相对路径；非法抛错。 */
+function normalizeEndpointOverride(value: string | undefined, label: string): string {
+  const e = (value || '').trim();
+  if (!e) return '';
+  if (e.length > 300 || /\s/.test(e)) throw new Error(`${label} 不合法`);
+  if (/^https?:\/\//i.test(e)) return e.replace(/\/$/, '');
+  if (!e.startsWith('/')) throw new Error(`${label} 需以 /v1/... 开头`);
+  return e;
+}
+
+/** 端模型 ms_loras 逐项归一（M4-1，契约 A.1#15）：每项补默认字段 + strength 夹到 [0,2]；非法项剔除。 */
+function normalizeMsLoras(raw: unknown): NonNullable<ApiProvider['ms_loras']> {
+  if (!Array.isArray(raw)) return [];
+  const out: NonNullable<ApiProvider['ms_loras']> = [];
+  for (const it of raw) {
+    if (!it || typeof it !== 'object') continue;
+    const s = Number((it as any).strength);
+    out.push({
+      id: typeof (it as any).id === 'string' ? (it as any).id : '',
+      name: typeof (it as any).name === 'string' ? (it as any).name : '',
+      target_model: typeof (it as any).target_model === 'string' ? (it as any).target_model : '',
+      strength: Number.isFinite(s) ? Math.min(2, Math.max(0, s)) : 1,
+      enabled: (it as any).enabled !== false,
+      note: typeof (it as any).note === 'string' ? (it as any).note : '',
+    });
+  }
+  return out;
+}
+
 export interface ProviderModel {
   id: string;
   label?: string;
@@ -43,6 +101,7 @@ export interface ApiProvider {
   base_url: string;            // API 基地址（对齐契约，旧版 url 兼容迁移）
   protocol: ProviderProtocol;
   image_request_mode: 'openai' | 'openai-json' | 'openai-video-proxy' | 'openai-responses';
+  chat_request_mode?: 'chat' | 'responses';  // 聊天请求形态：chat/completions（默认）vs responses（gpt-5.6 工具调用）
   image_mode?: 'sync' | 'async';  // 生图同步/异步模式：sync=URL带?wait=1走SSE；async=提交task_id后轮询
   enabled: boolean;
   primary?: boolean;           // 唯一主供应商标记（契约 primary，铁律①照本表）
@@ -343,6 +402,7 @@ function normalizeProvider(input: Partial<ApiProvider> & { api_key?: string }, p
     base_url,
     protocol,
     image_request_mode: input.image_request_mode ?? prev?.image_request_mode ?? 'openai',
+    chat_request_mode: input.chat_request_mode === 'responses' ? 'responses' : (prev?.chat_request_mode === 'responses' ? 'responses' : 'chat'),
     image_mode: input.image_mode === 'async' ? 'async' : 'sync',
     enabled: input.enabled !== false,
     primary,
@@ -352,10 +412,10 @@ function normalizeProvider(input: Partial<ApiProvider> & { api_key?: string }, p
     video_models,
     model_names,
     // 专属字段归一（契约 A.1#6/#7/#14-#20，默认空/默认 value，铁律①钉死）
-    image_generation_endpoint: typeof input.image_generation_endpoint === 'string' ? input.image_generation_endpoint.trim() : (prev?.image_generation_endpoint || ''),
-    image_edit_endpoint: typeof input.image_edit_endpoint === 'string' ? input.image_edit_endpoint.trim() : (prev?.image_edit_endpoint || ''),
-    model_protocols: (input.model_protocols && typeof input.model_protocols === 'object') ? input.model_protocols : (prev?.model_protocols || {}),
-    ms_loras: Array.isArray(input.ms_loras) ? input.ms_loras : (prev?.ms_loras || []),
+    image_generation_endpoint: normalizeEndpointOverride(input.image_generation_endpoint ?? prev?.image_generation_endpoint, 'image_generation_endpoint'),
+    image_edit_endpoint: normalizeEndpointOverride(input.image_edit_endpoint ?? prev?.image_edit_endpoint, 'image_edit_endpoint'),
+    model_protocols: normalizeModelProtocols((input.model_protocols && typeof input.model_protocols === 'object') ? input.model_protocols : prev?.model_protocols),
+    ms_loras: normalizeMsLoras(Array.isArray(input.ms_loras) ? input.ms_loras : (prev?.ms_loras || [])),
     ms_defaults_version: typeof input.ms_defaults_version === 'number' ? input.ms_defaults_version : (prev?.ms_defaults_version || 0),
     rh_apps: Array.isArray(input.rh_apps) ? input.rh_apps : (prev?.rh_apps || []),
     rh_workflows: Array.isArray(input.rh_workflows) ? input.rh_workflows : (prev?.rh_workflows || []),
@@ -416,7 +476,13 @@ export async function handleProvidersPut(req: IncomingMessage, res: ServerRespon
 
   for (const item of incoming) {
     const prev = existing.find((e) => e.id === item.id);
-    const norm = normalizeProvider(item, prev);
+    let norm: ApiProvider | null;
+    try {
+      norm = normalizeProvider(item, prev);
+    } catch (e) {
+      // 端点覆盖非法（M3-5）：给可操作 400，而非 500
+      return sendError(res, e instanceof Error ? `配置非法：${e.message}` : '配置非法', 400);
+    }
     if (!norm) continue;
     if (primaryId && norm.id !== primaryId) norm.primary = false;
     else if (!primaryId && prev?.primary) norm.primary = true;
@@ -907,6 +973,9 @@ function joinWithPrefixAbsorb(base: string, path: string): string {
  * 委托给可插拔协议适配器（protocolAdapters.ts）：openai/apimart 各自一个 adapter，
  * 将来加新平台只需新增 adapter 并注册，本函数主体不动。
  */
-export function resolveProviderTarget(rawUrl: string, providerId?: string | null): ResolvedTarget {
-  return resolveProviderTargetAdapter(rawUrl, providerId, getProvider, readProviderKey);
+export function resolveProviderTarget(rawUrl: string, providerId?: string | null, model?: string): ResolvedTarget {
+  // M3-2：单模型协议覆盖（model_protocols）决定本次请求走哪个适配器；锁死平台/未命中的 middleware = 全局。
+  const p = providerId ? getProvider(providerId) : undefined;
+  const protocolHint = p ? effectiveProtocol(p, model) : undefined;
+  return resolveProviderTargetAdapter(rawUrl, providerId, getProvider, readProviderKey, protocolHint);
 }

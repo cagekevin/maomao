@@ -1,6 +1,7 @@
 import React from 'react'
 import { Plus, Trash2, Star, Check, Server } from 'lucide-react'
 import { showToast } from '../../toastStore.js'
+import { PROVIDER_PROTOCOL_LABELS } from '../../providerProtocols.js'
 import { useProviders, load, select, add, update, setPrimary, remove, test, fetchModels, applyFetchedModels, closeFetchedModels, save } from '../providerStore.js'
 import ProviderForm from './ProviderForm.jsx'
 import FetchModelsModal from './FetchModelsModal.jsx'
@@ -103,8 +104,8 @@ export default function ApiSettings() {
                   </div>
                   <p className="text-xs text-zinc-500 mt-1 truncate">{selected.base_url || '未设置请求地址'}</p>
                 </div>
-                <span className={`text-xs px-2.5 py-1 rounded-full ${selected.protocol === 'openai' ? 'text-emerald-400 bg-emerald-500/10' : 'text-sky-400 bg-sky-500/10'}`}>
-                  {selected.protocol === 'openai' ? 'OpenAI 兼容' : 'apimart'}
+                <span className={`text-xs px-2.5 py-1 rounded-full ${selected.protocol === 'openai' ? 'text-emerald-400 bg-emerald-500/10' : selected.protocol === 'apimart' ? 'text-sky-400 bg-sky-500/10' : 'text-zinc-400 bg-surface-1'}`}>
+                  {PROVIDER_PROTOCOL_LABELS[selected.protocol] || selected.protocol}
                 </span>
               </div>
 
@@ -155,18 +156,20 @@ function ProviderListItem({ p, active, onSelect, onRemove }) {
       onClick={onSelect}
     >
       <span className={`flex-1 truncate text-sm ${active ? 'text-white' : 'text-zinc-300'}`}>{p.name || p.id}</span>
-      <span className={`text-[10px] px-1.5 py-0.5 rounded font-normal ${p.protocol === 'openai' ? 'text-emerald-400 bg-emerald-500/10' : 'text-sky-400 bg-sky-500/10'}`}>
-        {p.protocol === 'openai' ? 'OpenAI' : 'apimart'}
+      <span className={`text-[10px] px-1.5 py-0.5 rounded font-normal ${p.protocol === 'openai' ? 'text-emerald-400 bg-emerald-500/10' : p.protocol === 'apimart' ? 'text-sky-400 bg-sky-500/10' : 'text-zinc-500 bg-surface-1'}`}>
+        {p.protocol === 'openai' ? 'OpenAI' : p.protocol === 'apimart' ? 'apimart' : p.protocol}
       </span>
       {p.primary && <Star size={12} className="text-zinc-400 fill-zinc-400" />}
-      <button
-        type="button"
-        onClick={(e) => { e.stopPropagation(); onRemove() }}
-        className="text-zinc-600 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity border-none bg-transparent cursor-pointer p-0.5"
-        title="删除供应商"
-      >
-        <Trash2 size={13} />
-      </button>
+      {!p.readonly && (
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onRemove() }}
+          className="text-zinc-600 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity border-none bg-transparent cursor-pointer p-0.5"
+          title="删除供应商"
+        >
+          <Trash2 size={13} />
+        </button>
+      )}
     </div>
   )
 }

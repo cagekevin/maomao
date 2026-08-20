@@ -1,6 +1,7 @@
 import React from 'react'
 import { Trash2, Eye, EyeOff, KeyRound, RefreshCw, CircleDot, Check, AlertCircle, Star } from 'lucide-react'
 import ModelSection from './ModelSection.jsx'
+import { PROVIDER_PROTOCOLS, PROVIDER_PROTOCOL_LABELS, CLI_PROTOCOLS } from '../../providerProtocols.js'
 
 /**
  * 供应商编辑面板（ApiSettings 右侧主内容，样式对齐 SkillSettings 的 zinc 黑白系）。
@@ -12,15 +13,12 @@ import ModelSection from './ModelSection.jsx'
  * provider 契约字段，后端 localTool 和 apimart-gateway 会真实读取它们做协议分派。
  * 任何字段看似「当前没用到」都只是某个平台/模式暂时没激活，不代表后端不需要——
  * 一旦删掉，配别的平台时后端就不知道用哪种协议发请求。
+ *
+ * 协议下拉由 providerProtocols.js 的 PROVIDER_PROTOCOLS 单源驱动（M5-1），
+ * 加协议只需改后端 protocolAdapters.ts + 前端 providerProtocols.js，两处注册即可。
  */
-const PROTOCOLS = [
-  { value: 'apimart', label: 'apimart（Lovart 网关）' },
-  { value: 'openai', label: 'OpenAI 兼容' },
-]
-// 远程 HTTP 类：需 base_url + key + 请求形态；CLI 类（未来）无 base_url/key
-const HTTP_PROTOCOLS = ['apimart', 'openai']
-const CLI_PROTOCOLS = []
-const isHttpProtocol = (protocol) => HTTP_PROTOCOLS.includes(protocol)
+// 远程 HTTP 类：需 base_url + key + 请求形态；CLI 类无 base_url/key（本机登录态）
+const isHttpProtocol = (protocol) => !CLI_PROTOCOLS.includes(protocol)
 // 图片请求形态白名单：对应后端 SUPPORTED_IMAGE_REQUEST_MODES（4 选 1），禁止删
 const REQUEST_MODES = ['openai', 'openai-json', 'openai-video-proxy', 'openai-responses']
 const inputCls = 'w-full bg-canvas border border-edge rounded-xl px-3 py-2 text-sm text-zinc-200 focus:border-blue-500 focus:outline-none transition-colors placeholder:text-zinc-600 disabled:opacity-50'
@@ -48,6 +46,49 @@ function Field({ label, hint, children }) {
   )
 }
 
+/**
+ * 魔搭 ModelScope 专属 Lora 编辑面板（M5-2）。
+ * 由 provider id === 'modelscope' 触发，配置写在 ms_loras（后端 normalizeMsLoras 已逐项归一）。
+ * 每项：id / name / target_model / strength(0-2) / enabled。空 id 项新增行。
+ */
+function ModelscopeLoraSection({ p, onUpdate }) {
+  const list = Array.isArray(p.ms_loras) ? p.ms_loras : []
+  const patchLora = (i, patch) =>
+    onUpdate({ ms_loras: list.map((x, j) => (j === i ? { ...x, ...patch } : x)) })
+  const setStrength = (i, v) => {
+    let n = Number(v)
+    if (Number.isNaN(n)) n = 1
+    patchLora(i, { strength: Math.min(2, Math.max(0, n)) })
+  }
+  return (
+    <Section title="Lora 编辑" desc="魔搭模型微调 LoRA 参数（strength 0~2）">
+      <div className="flex flex-col gap-2">
+        {list.length === 0 && (
+          <div className="text-xs text-zinc-600 px-3 py-2 bg-canvas border border-dashed border-edge rounded-xl">暂无 LoRA，点击「添加 LoRA」</div>
+        )}
+        {list.map((l, i) => (
+          <div key={i} className="grid grid-cols-[1fr_1fr_1fr_64px_56px_auto] gap-2 items-center bg-canvas border border-edge rounded-xl px-3 py-2 text-xs">
+            <input value={l.target_model || ''} onChange={(e) => patchLora(i, { target_model: e.target.value })} className="bg-transparent outline-none placeholder:text-zinc-600 text-zinc-200" placeholder="目标模型" />
+            <input value={l.name || ''} onChange={(e) => patchLora(i, { name: e.target.value })} className="bg-transparent outline-none placeholder:text-zinc-600 text-zinc-200" placeholder="名称" />
+            <input value={l.id || ''} onChange={(e) => patchLora(i, { id: e.target.value })} className="bg-transparent outline-none placeholder:text-zinc-600 text-zinc-200" placeholder="LoRA id" />
+            <input type="number" min="0" max="2" step="0.1" value={l.strength} onChange={(e) => setStrength(i, e.target.value)} className="bg-transparent outline-none text-right text-zinc-200 w-full" />
+            <label className="flex items-center justify-center gap-1 text-zinc-500 cursor-pointer">
+              <input type="checkbox" checked={l.enabled !== false} onChange={(e) => patchLora(i, { enabled: e.target.checked })} className="accent-blue-500" />
+              <span className="text-[10px]">启用</span>
+            </label>
+            <button type="button" onClick={() => onUpdate({ ms_loras: list.filter((_, j) => j !== i) })} className="text-zinc-600 hover:text-red-500 border-none bg-transparent cursor-pointer p-1" title="删除 LoRA">
+              <Trash2 size={13} />
+            </button>
+          </div>
+        ))}
+        <button type="button" onClick={() => onUpdate({ ms_loras: [...list, { id: '', name: '', target_model: '', strength: 1, enabled: true, note: '' }] })} className="self-start inline-flex items-center gap-1 text-xs text-zinc-400 hover:text-white hover:bg-surface-hover px-2 py-1 rounded-md transition-colors cursor-pointer border-none bg-transparent">
+          添加 LoRA
+        </button>
+      </div>
+    </Section>
+  )
+}
+
 export default function ProviderForm({ p, testing, fetching, testResult, onUpdate, onSetPrimary, onRemove, onTest, onFetchModels }) {
   const [showKey, setShowKey] = React.useState(false)
   const readonly = !!p.readonly
@@ -70,12 +111,24 @@ export default function ProviderForm({ p, testing, fetching, testResult, onUpdat
           </Field>
           <Field label="协议">
             <select value={p.protocol} onChange={(e) => onUpdate({ protocol: e.target.value })} disabled={false} className={selectCls}>
-              {PROTOCOLS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+              {PROVIDER_PROTOCOLS.map((v) => <option key={v} value={v}>{PROVIDER_PROTOCOL_LABELS[v] || v}</option>)}
             </select>
           </Field>
-          {isHttpProtocol(p.protocol) && (
+          {isHttpProtocol(p.protocol) ? (
             <Field label="请求地址" hint="OpenAI 兼容端点或 localTool 网关">
               <input value={p.base_url || ''} onChange={(e) => onUpdate({ base_url: e.target.value })} disabled={false} className={inputCls} placeholder="https://api.example.com 或 http://127.0.0.1:9004" />
+            </Field>
+          ) : (
+            <Field label="请求地址" hint="CLI 本地协议：使用本机登录态，无需填写地址">
+              <input value={p.base_url || ''} onChange={(e) => onUpdate({ base_url: e.target.value })} disabled className={`${inputCls} opacity-60`} placeholder="CLI 协议无需请求地址" />
+            </Field>
+          )}
+          {p.protocol === 'volcengine' && (
+            <Field label="平台信息" hint="火山方舟独立部署参数">
+              <div className="grid grid-cols-2 gap-2">
+                <input value={p.volcengine_project_name || ''} onChange={(e) => onUpdate({ volcengine_project_name: e.target.value })} className={inputCls} placeholder="project_name（默认 default）" />
+                <input value={p.volcengine_region || ''} onChange={(e) => onUpdate({ volcengine_region: e.target.value })} className={inputCls} placeholder="region（默认 cn-beijing）" />
+              </div>
             </Field>
           )}
           {isHttpProtocol(p.protocol) && (
@@ -121,6 +174,8 @@ export default function ProviderForm({ p, testing, fetching, testResult, onUpdat
         </Section>
       )}
 
+      {p.id === 'modelscope' && <ModelscopeLoraSection p={p} onUpdate={onUpdate} />}
+
       <Section title="连接测试" desc="验证连通性 / 拉取远端模型">
         <div className="flex items-center gap-3 flex-wrap">
           <button type="button" onClick={onTest} disabled={testing} className="inline-flex items-center gap-2 px-4 h-9 text-xs rounded-xl bg-surface-1 text-zinc-300 hover:bg-surface-hover hover:text-blue-400 transition-colors cursor-pointer border-none disabled:opacity-50">
@@ -154,9 +209,13 @@ export default function ProviderForm({ p, testing, fetching, testResult, onUpdat
         {p.primary && (
           <span className="inline-flex items-center gap-1.5 text-xs text-zinc-400"><Star size={14} className="fill-zinc-400" /> 当前主供应商</span>
         )}
-        <button type="button" onClick={onRemove} className="inline-flex items-center gap-2 px-4 h-9 text-xs rounded-xl ml-auto text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer border-none bg-transparent">
-          <Trash2 size={14} /> 删除此配置
-        </button>
+        {readonly ? (
+          <span className="inline-flex items-center gap-1.5 text-xs text-zinc-500 ml-auto bg-surface-1 px-2 py-1 rounded-xl">内置平台，仅可改配置不可删除</span>
+        ) : (
+          <button type="button" onClick={onRemove} className="inline-flex items-center gap-2 px-4 h-9 text-xs rounded-xl ml-auto text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer border-none bg-transparent">
+            <Trash2 size={14} /> 删除此配置
+          </button>
+        )}
       </div>
     </div>
   )
