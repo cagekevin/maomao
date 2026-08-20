@@ -24,6 +24,11 @@
  * ════════════════════════════════════════════════════════════════
  */
 
+// 可插拔协议适配器：统一 URL 拼装（openai 伪协议 / apimart base_url），避免散落协议判断
+import { buildTargetUrl } from './providerProtocols.js'
+// 请求形态层：聊天 responses 形态（gpt-5.6 用 /v1/responses 带工具不再报错，M2-2/M2-4）
+import { resolveChatMode, buildResponsesChatBody, parseResponsesChatJson, parseResponsesSSEChunk } from './requestModes.js'
+
 /** ══════════════════════════════════════════════════════════════════════════════
  *  roundTrip —— 单次 LLM 请求（复刻官方 dr:2579-2778 的 v）。
  * ══════════════════════════════════════════════════════════════════════════════
@@ -54,13 +59,24 @@ export async function roundTrip(ctx, requestMessages, signal, onStream) {
   const isNonStream = streamMode === 'non-stream'
   // 非流式默认不传 tools；开启 ENABLE_TOOLS_ON_NON_STREAM 开关后两者都传（保持工具调用能力）。
   const withTools = !isNonStream || ENABLE_TOOLS_ON_NON_STREAM
-  const llmBody = {
-    model,
-    messages: requestMessages,
-    stream: !isNonStream,
-    temperature: 0.6,
-    ...(withTools ? { tools: toolSchemas, tool_choice: 'auto' } : {})
-  }
+  // 聊天请求形态（M2-2）：provider.chat_request_mode === 'responses' → /v1/responses（gpt-5.6 带工具）。
+  // 默认 chat，走 /v1/chat/completions，现有模型零改动。
+  const isResponsesChat = resolveChatMode(provider?.chat_request_mode) === 'responses'
+  const llmBody = isResponsesChat
+    ? buildResponsesChatBody({
+        model,
+        messages: requestMessages,
+        toolSchemas: withTools ? toolSchemas : [],
+        temperature: 0.6,
+        stream: !isNonStream,
+      })
+    : {
+        model,
+        messages: requestMessages,
+        stream: !isNonStream,
+        temperature: 0.6,
+        ...(withTools ? { tools: toolSchemas, tool_choice: 'auto' } : {})
+      }
   // 是否走「多 provider /api/proxy 转发」：provider 存在时（如魔搭，支持 function calling）
   const useProxy = !!provider
   // 非流式响应是普通 JSON，Accept 无需 text/event-stream
@@ -83,7 +99,7 @@ export async function roundTrip(ctx, requestMessages, signal, onStream) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Accept: accept },
         body: JSON.stringify({
-          url: (provider?.protocol === 'openai' ? 'openai://chat/completions' : (provider?.base_url || '').replace(/\/$/, '') + '/v1/chat/completions'),
+          url: buildTargetUrl(provider, isResponsesChat ? 'responses' : 'chat/completions'),
           providerId: provider?.id,
           method: 'POST',
           body: JSON.stringify(llmBody)
@@ -116,6 +132,20 @@ export async function roundTrip(ctx, requestMessages, signal, onStream) {
   if (isNonStream) {
     const rawText = await res.text().catch(() => '')
     const json = safeParseNonStreamJSON(rawText, logger)
+    // responses 形态：output[] 里取 message.content[].text + function_call（挂 unmooted，下面统一归一手）
+    if (isResponsesChat) {
+      const { content: rContent, toolCalls: rCalls } = parseResponsesChatJson(json || {})
+      const rAssistant = {
+        role: 'assistant',
+        content: rContent || (rawText && !json ? rawText : ''),
+        model, createdAt: Date.now(),
+      }
+      if (rCalls.length > 0) rAssistant.tool_calls = rCalls
+      if (rawText && !json) logger.error('AI助手', 'responses 非流式解析失败(可能截断)', { rawLen: rawText.length, head: rawText.slice(0, 120) })
+      onStream?.({ content: rAssistant.content, reasoning: '', toolCalls: rAssistant.tool_calls || [] })
+      logger.info('AI助手', 'responses 非流式结果', { contentLen: rAssistant.content.length, toolCallCount: rCalls.length })
+      return rAssistant
+    }
     const msg = json?.choices?.[0]?.message || {}
     // 【兜底】解析失败（被截断/非 JSON）时，把原始文本当 content 保留，避免整条回复消失。
     // 渲染层 extractImageSpans 仍能从纯文本里抽 URL 渲染图片。
@@ -176,12 +206,14 @@ export async function roundTrip(ctx, requestMessages, signal, onStream) {
     buffer = parts.pop() || ''
     for (const chunk of parts) {
       const before = acc.content.length + acc.reasoning.length + acc.toolCalls.length
-      parseSSEChunk(chunk, acc)
+      // 请求形态差异：responses 走自带 SSE 事件解析，chat/completions 走原 parseSSEChunk
+      if (isResponsesChat) parseResponsesSSEChunk(chunk, acc)
+      else parseSSEChunk(chunk, acc)
       if (acc.content.length + acc.reasoning.length + acc.toolCalls.length > before) scheduleFlush()
     }
   }
   buffer += decoder.decode()
-  if (buffer.trim()) parseSSEChunk(buffer, acc)
+  if (buffer.trim()) { if (isResponsesChat) parseResponsesSSEChunk(buffer, acc); else parseSSEChunk(buffer, acc) }
   flush()
 
   const assistant = { role: 'assistant', content: acc.content || '', model, createdAt: Date.now() }

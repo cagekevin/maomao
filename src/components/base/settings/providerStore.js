@@ -25,6 +25,7 @@ let state = {
   saving: false,
   testingId: null,
   fetchingId: null,
+  fetchedModels: null,
   testResult: null,
 }
 const listeners = new Set()
@@ -72,8 +73,9 @@ function emptyProvider() {
     protocol: 'openai',
     image_request_mode: 'openai',
     image_mode: 'sync',
+    chat_request_mode: 'chat',
     enabled: true,
-    isPrimary: false,
+    primary: false,
     readonly: false,
     image_models: [],
     chat_models: [],
@@ -88,7 +90,7 @@ export async function load() {
   try {
     const data = await providerApi.getProviders()
     const list = data.providers || []
-    const primary = list.find((p) => p.isPrimary) || list[0]
+    const primary = list.find((p) => p.primary) || list[0]
     setState({ providers: list, selectedId: primary ? primary.id : null, dirty: false })
   } finally {
     setState({ loading: false })
@@ -108,7 +110,7 @@ export function update(id, patch) {
 
 export function setPrimary(id) {
   setState({
-    providers: state.providers.map((p) => ({ ...p, isPrimary: p.id === id })),
+    providers: state.providers.map((p) => ({ ...p, primary: p.id === id })),
     dirty: true,
   })
 }
@@ -122,7 +124,7 @@ export function remove(id) {
   const target = state.providers.find((p) => p.id === id)
   if (!target) return
   let next = state.providers.filter((p) => p.id !== id)
-  if (target.isPrimary && next.length) next = next.map((p, i) => (i === 0 ? { ...p, isPrimary: true } : p))
+  if (target.primary && next.length) next = next.map((p, i) => (i === 0 ? { ...p, primary: true } : p))
   setState({
     providers: next,
     selectedId: state.selectedId === id ? next[0]?.id || null : state.selectedId,
@@ -168,12 +170,17 @@ export async function fetchModels(id) {
   try {
     const data = await providerApi.fetchModels(id)
     if (Array.isArray(data.image_models) && Array.isArray(data.chat_models) && Array.isArray(data.video_models)) {
-      update(id, {
-        image_models: data.image_models,
-        chat_models: data.chat_models,
-        video_models: data.video_models,
+      // 不直接全量写入：把拉取结果暂存，由 UI 弹窗让用户勾选后再 apply。
+      setState({
+        fetchedModels: {
+          id,
+          image_models: data.image_models,
+          chat_models: data.chat_models,
+          video_models: data.video_models,
+          warning: data.warning,
+        },
       })
-      return { ok: true, total: data.image_models.length + data.chat_models.length + data.video_models.length, warning: data.warning }
+      return { ok: true, pending: true, total: data.image_models.length + data.chat_models.length + data.video_models.length, warning: data.warning }
     }
     return { ok: false, warning: data.warning }
   } catch (e) {
@@ -181,6 +188,31 @@ export async function fetchModels(id) {
   } finally {
     setState({ fetchingId: null })
   }
+}
+
+/** 用户弹窗勾选后，把选定模型写入 provider（合并已有 + 勾选的新拉项）。 */
+export function applyFetchedModels(id, selected) {
+  const p = state.providers.find((x) => x.id === id)
+  if (!p || !selected) return
+  setState({
+    providers: state.providers.map((x) =>
+      x.id === id
+        ? {
+            ...x,
+            image_models: selected.image_models || [],
+            chat_models: selected.chat_models || [],
+            video_models: selected.video_models || [],
+          }
+        : x
+    ),
+    dirty: true,
+    fetchedModels: null,
+  })
+}
+
+/** 关闭拉取弹窗（取消，不写入）。 */
+export function closeFetchedModels() {
+  setState({ fetchedModels: null })
 }
 
 export async function save() {
@@ -194,8 +226,9 @@ export async function save() {
         protocol: p.protocol,
         image_request_mode: p.image_request_mode || 'openai',
         image_mode: p.image_mode === 'async' ? 'async' : 'sync',
+        chat_request_mode: p.chat_request_mode || 'chat',
         enabled: p.enabled !== false,
-        isPrimary: !!p.isPrimary,
+        primary: !!p.primary,
         image_models: p.image_models || [],
         chat_models: p.chat_models || [],
         video_models: p.video_models || [],
@@ -214,7 +247,7 @@ export async function save() {
       .then(() => setState({ configSynced: true }))
       .catch((e) => setState({ configSyncError: e.message }))
     // 对齐官方 active_api_endpoint（KV）：把主供应商写入 localTool KV，供跨端读取当前生效 endpoint
-    const primary = (data.providers || state.providers).find((p) => p.isPrimary) || (data.providers || state.providers)[0]
+    const primary = (data.providers || state.providers).find((p) => p.primary) || (data.providers || state.providers)[0]
     if (primary) {
       contentSetAsync('active_api_endpoint', {
         providerId: primary.id,

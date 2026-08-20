@@ -19,6 +19,8 @@
 import { normalizeImageUrlsForSend } from './imageUrl.js'
 import { imageProxy } from './proxyGenerate.js'
 import { logger } from './logger.js'
+// 请求形态层：responses 形态按 input[] + tools 构造请求体（PRD 翻车点 1，消灭死字段）
+import { buildResponsesImageBody, isResponsesMode } from './requestModes.js'
 
 /** 比例 × 清晰度档位 → 精确像素 查表（复刻官方 H_.jsx oe 表）。 */
 const RATIO_PIXEL_TABLE = {
@@ -64,8 +66,18 @@ export function resolveImagePixel(ratio, size) {
  * @returns {{ ok:boolean, url?:string, error?:string }}
  */
 export async function generateImage({ provider, prompt, model, size, n, aspectRatio, quality, images }, onProgress, signal) {
-  const genBody = { prompt, model, n: n || 1 }
   const hasRatio = aspectRatio && aspectRatio !== 'Auto' && aspectRatio !== 'auto'
+  const refImages = await normalizeImageUrlsForSend(images, { preferBase64: provider?.refFormat === 'base64' })
+
+  // responses 形态：按 input[] + tools 构造请求体（PROD 关键：消灭死字段，image_request_mode 真正生效）
+  if (isResponsesMode(provider?.image_request_mode)) {
+    const pixel = hasRatio ? resolveImagePixel(aspectRatio, size || '1K') : (size || '')
+    const genBody = buildResponsesImageBody({ model, prompt, images: refImages, size: pixel || undefined })
+    logger.debug('生图', '[参数] responses genBody', { model, prompt: String(prompt).slice(0, 100), refCount: refImages.length }, { module: 'image' })
+    return imageProxy({ provider, genBody, onProgress, signal })
+  }
+
+  const genBody = { prompt, model, n: n || 1 }
   // 比例非 Auto → 查表转精确像素作 size；否则用传入的档位/默认
   genBody.size = hasRatio ? resolveImagePixel(aspectRatio, size || '1K') : (size || '')
   if (size && hasRatio) genBody.resolution = size
@@ -73,7 +85,6 @@ export async function generateImage({ provider, prompt, model, size, n, aspectRa
   if (quality && quality !== 'auto') genBody.quality = quality
   // refFormat:'base64' 的 provider（只认 base64 的后端）→ 参考图统一转 base64 再发；
   // 否则走默认（URL，网关 resolve_attachments 统一转 CDN）。
-  const refImages = await normalizeImageUrlsForSend(images, { preferBase64: provider?.refFormat === 'base64' })
   if (refImages.length > 0) genBody.image_urls = refImages
 
   // 【B层】genBody 组装结果：尺寸/参考图/质量（定位发给网关的生图参数是否正确拼装）

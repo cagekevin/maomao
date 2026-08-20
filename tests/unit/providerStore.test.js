@@ -89,14 +89,14 @@ describe('providerStore §4 供应商数据层', () => {
       expect(mod.useProviders().selectedId).toBe(id)
     })
 
-    it('setPrimary 仅一个 isPrimary=true', () => {
+    it('setPrimary 仅一个 primary=true', () => {
       mod.add()
       mod.add()
       const ids = mod.useProviders().providers.map((p) => p.id)
       mod.setPrimary(ids[1])
       const s = mod.useProviders()
-      expect(s.providers.filter((p) => p.isPrimary)).toHaveLength(1)
-      expect(s.providers.find((p) => p.id === ids[1]).isPrimary).toBe(true)
+      expect(s.providers.filter((p) => p.primary)).toHaveLength(1)
+      expect(s.providers.find((p) => p.id === ids[1]).primary).toBe(true)
     })
 
     it('remove 删除目标，删的是主供应商则下个升任主', () => {
@@ -108,7 +108,7 @@ describe('providerStore §4 供应商数据层', () => {
       const s = mod.useProviders()
       expect(s.providers.find((p) => p.id === ids[0])).toBeUndefined()
       // ids[1] 升任 primary
-      expect(s.providers.find((p) => p.id === ids[1]).isPrimary).toBe(true)
+      expect(s.providers.find((p) => p.id === ids[1]).primary).toBe(true)
       // selectedId 跟随
       expect(s.selectedId).toBe(ids[1])
     })
@@ -125,8 +125,8 @@ describe('providerStore §4 供应商数据层', () => {
     it('load 拉取列表并选中主供应商', async () => {
       h.mockGetProviders.mockResolvedValue({
         providers: [
-          { id: 'a', name: 'A', isPrimary: false },
-          { id: 'b', name: 'B', isPrimary: true },
+          { id: 'a', name: 'A', primary: false },
+          { id: 'b', name: 'B', primary: true },
         ],
       })
       await mod.load()
@@ -177,7 +177,7 @@ describe('providerStore §4 供应商数据层', () => {
       expect(s.testResult.stage).toBe('async_endpoint_ok')
     })
 
-    it('fetchModels 更新三类模型并返回总数', async () => {
+    it('fetchModels 拉取结果暂存 fetchedModels（不直接写盘），applyFetchedModels 勾选后写入', async () => {
       mod.add()
       const id = mod.useProviders().selectedId
       h.mockFetchModels.mockResolvedValue({
@@ -186,10 +186,18 @@ describe('providerStore §4 供应商数据层', () => {
       const res = await mod.fetchModels(id)
       expect(res.ok).toBe(true)
       expect(res.total).toBe(3)
+      // 先暂存，provider 未被直接改写
+      const st = mod.useProviders().fetchedModels
+      expect(st).toMatchObject({ id, image_models: ['i1'], chat_models: ['c1', 'c2'], video_models: [] })
+      expect(mod.useProviders().providers.find((x) => x.id === id).image_models).toEqual([])
+      // 勾选后写入并清暂存、标 dirty
+      mod.applyFetchedModels(id, { image_models: st.image_models, chat_models: st.chat_models, video_models: st.video_models })
       const p = mod.useProviders().providers.find((x) => x.id === id)
       expect(p.image_models).toEqual(['i1'])
       expect(p.chat_models).toEqual(['c1', 'c2'])
       expect(p.video_models).toEqual([])
+      expect(mod.useProviders().dirty).toBe(true)
+      expect(mod.useProviders().fetchedModels).toBeNull()
     })
 
     it('fetchModels 返回结构缺字段返回 ok=false', async () => {
@@ -205,7 +213,7 @@ describe('providerStore §4 供应商数据层', () => {
       const id = mod.useProviders().selectedId
       // 模拟编辑：设置 _apiKey 与 _clearKey
       mod.update(id, { _apiKey: 'sk-secret', _clearKey: false, name: '已改' })
-      h.mockSaveProviders.mockResolvedValue({ providers: [{ id, name: '已改', isPrimary: true }] })
+      h.mockSaveProviders.mockResolvedValue({ providers: [{ id, name: '已改', primary: true }] })
       const res = await mod.save()
       expect(res.ok).toBe(true)
       // 校验 paylaod 构造

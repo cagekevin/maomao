@@ -1,8 +1,9 @@
 import React from 'react'
 import { Plus, Trash2, Star, Check, Server } from 'lucide-react'
 import { showToast } from '../../toastStore.js'
-import { useProviders, load, select, add, update, setPrimary, remove, test, fetchModels, save } from '../providerStore.js'
+import { useProviders, load, select, add, update, setPrimary, remove, test, fetchModels, applyFetchedModels, closeFetchedModels, save } from '../providerStore.js'
 import ProviderForm from './ProviderForm.jsx'
+import FetchModelsModal from './FetchModelsModal.jsx'
 
 /**
  * 设置分区 · 第三方 API 配置（双栏后台，样式对齐 SkillSettings 的 zinc 黑白系）。
@@ -12,7 +13,7 @@ import ProviderForm from './ProviderForm.jsx'
  * 逻辑不变，仅样式统一到 Skill 面板风格。
  */
 export default function ApiSettings() {
-  const { providers, selectedId, loading, dirty, saving, testingId, fetchingId, testResult } = useProviders()
+  const { providers, selectedId, loading, dirty, saving, testingId, fetchingId, fetchedModels, testResult } = useProviders()
 
   React.useEffect(() => {
     let cancelled = false
@@ -97,7 +98,7 @@ export default function ApiSettings() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <h3 className="text-base text-white font-medium truncate">{selected.name || '未命名供应商'}</h3>
-                    {selected.isPrimary && <Star size={14} className="text-zinc-400 fill-zinc-400" />}
+                    {selected.primary && <Star size={14} className="text-zinc-400 fill-zinc-400" />}
                     {selected.readonly && <span className="text-[10px] text-zinc-500 bg-surface-1 px-1.5 py-0.5 rounded-md">内置</span>}
                   </div>
                   <p className="text-xs text-zinc-500 mt-1 truncate">{selected.base_url || '未设置请求地址'}</p>
@@ -120,7 +121,23 @@ export default function ApiSettings() {
                   const r = await fetchModels(selected.id)
                   if (r.error) showToast('拉取模型失败：' + r.error, { type: 'error' })
                   else if (r.warning) showToast(r.warning, { type: 'warning' })
+                  else if (r.pending) showToast(`已拉取 ${r.total ?? 0} 个模型，请勾选要保存的`, { type: 'success' })
                   else showToast(`已拉取 ${r.total ?? 0} 个模型`, { type: 'success' })
+                }}
+              />
+
+              <FetchModelsModal
+                open={!!fetchedModels}
+                fetched={fetchedModels ? { image_models: fetchedModels.image_models, chat_models: fetchedModels.chat_models, video_models: fetchedModels.video_models } : null}
+                existing={selected ? { image_models: selected.image_models, chat_models: selected.chat_models, video_models: selected.video_models } : null}
+                fetching={fetchingId === selected?.id}
+                onClose={() => closeFetchedModels()}
+                onConfirm={(selectedModels) => {
+                  if (fetchedModels) {
+                    applyFetchedModels(fetchedModels.id, selectedModels)
+                    const total = (selectedModels.image_models?.length || 0) + (selectedModels.chat_models?.length || 0) + (selectedModels.video_models?.length || 0)
+                    showToast(`已保存 ${total} 个模型（记得点「保存更改」）`, { type: 'success' })
+                  }
                 }}
               />
             </div>
@@ -141,7 +158,7 @@ function ProviderListItem({ p, active, onSelect, onRemove }) {
       <span className={`text-[10px] px-1.5 py-0.5 rounded font-normal ${p.protocol === 'openai' ? 'text-emerald-400 bg-emerald-500/10' : 'text-sky-400 bg-sky-500/10'}`}>
         {p.protocol === 'openai' ? 'OpenAI' : 'apimart'}
       </span>
-      {p.isPrimary && <Star size={12} className="text-zinc-400 fill-zinc-400" />}
+      {p.primary && <Star size={12} className="text-zinc-400 fill-zinc-400" />}
       <button
         type="button"
         onClick={(e) => { e.stopPropagation(); onRemove() }}

@@ -19,15 +19,15 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { getDataDir } from '../db/database.js';
 import { json, parseJsonBody, sendError } from '../utils/helpers.js';
+// 可插拔协议适配器：各协议一个 adapter，统一分派转发目标（协议类型单一真相在此）
+import { resolveProviderTarget as resolveProviderTargetAdapter, PROVIDER_PROTOCOLS } from './protocolAdapters.js';
+import type { ProviderProtocol } from './protocolAdapters.js';
 // 走代理的出站 fetch：部分公网域（含 apimart/lovart 系）本机直连超时，必须经代理重试。
 // 测试/拉取模型若不走代理，会得到「连接失败: Connect Timeout」，前端误报「连接失败：未知」。
 import { fetchWithProxy } from '../utils/netProxy.js';
 
 // ── 类型 ──
-// 协议：apimart（Lovart / 异步任务 task_id 轮询形态）| openai（直连 OpenAI 兼容端点）
-// 扩展点：将来可加 gemini / volcengine / runninghub / CLI，前端协议下拉与 test 探测随之扩展。
-export type ProviderProtocol = 'apimart' | 'openai';
-
+// ProviderProtocol 类型单一真相：见 protocolAdapters.ts（此处复用 import，禁止重复定义）。
 export type ModelType = 'image' | 'chat' | 'video';
 
 export interface ProviderModel {
@@ -45,14 +45,28 @@ export interface ApiProvider {
   image_request_mode: 'openai' | 'openai-json' | 'openai-video-proxy' | 'openai-responses';
   image_mode?: 'sync' | 'async';  // 生图同步/异步模式：sync=URL带?wait=1走SSE；async=提交task_id后轮询
   enabled: boolean;
-  isPrimary?: boolean;         // 唯一主供应商标记（契约 primary）
+  primary?: boolean;           // 唯一主供应商标记（契约 primary，铁律①照本表）
   readonly?: boolean;          // 系统内置不可删
   // 模型按类型分三类（对齐契约 snake_case）
   image_models: ProviderModel[];
   chat_models: ProviderModel[];
   video_models: ProviderModel[];
   model_names: Record<string, string>;   // 单模型显示名覆盖
-  // key 只进 env，此三字段仅由 publicProvider() 在 GET 时生成（脱敏视图）
+  model_protocols?: Record<string, string>; // 单模型协议覆盖（仅 openai/gemini，契约 A.1#14）
+  // 端点覆盖（契约 A.1#6/#7）：http(s) 直接用，否则拼到 base_url 的 scheme://netloc
+  image_generation_endpoint?: string;
+  image_edit_endpoint?: string;
+  // 平台专属字段（契约 A.1#15-#20，当前协议未激活，按铁律①钉死不被删）
+  ms_loras?: Array<{ id?: string; name?: string; target_model?: string; strength?: number; enabled?: boolean; note?: string }>;
+  ms_defaults_version?: number;
+  rh_apps?: Array<Record<string, unknown>>;
+  rh_workflows?: Array<Record<string, unknown>>;
+  volcengine_project_name?: string;
+  volcengine_region?: string;
+  // key 仅作 PUT 输入传输字段（M4-2 安全红线），真相源 = .env（API_PROVIDER_{ID}_KEY）；
+  // API_PROVIDER 本地对象永不含明文 key，publicProvider() 用 readProviderKey 读 env 生成脱敏视图。
+  api_key?: string;
+  // 脱敏视图字段，仅由 publicProvider() 在 GET 时生成，不回明文
   has_key?: boolean;
   key_preview?: string;
   key_env?: string;
@@ -89,7 +103,7 @@ const DEFAULT_PROVIDERS: ApiProvider[] = [
     image_request_mode: 'openai',
     image_mode: 'sync',
     enabled: true,
-    isPrimary: true,
+    primary: true,
     readonly: true,
     image_models: [
       { id: 'gpt-image-2-low', label: 'GPT Image 2 Low' },
@@ -119,7 +133,7 @@ const DEFAULT_PROVIDERS: ApiProvider[] = [
     image_request_mode: 'openai',
     image_mode: 'sync',
     enabled: true,
-    isPrimary: false,
+    primary: false,
     readonly: true,
     // 魔搭 OpenAI 兼容端点支持 function calling，供 AI 助手驱动画布工具。
     // 本机直连被拒，需走代理（fetchWithProxy 已由 localTool /api/proxy 统一处理）。
@@ -165,17 +179,19 @@ function readEnvFileValue(envName: string): string | null {
   return null;
 }
 
-/** 读 provider 的 key：优先 process.env，兜底读 env 文件。
- *  modelscope（魔搭）特殊：若未单独配 API_PROVIDER_MODELSCOPE_KEY，
- *  兜底复用 LLM_CHAT_API_KEY（AI 助手在 .env 里已填的唯一一份魔搭 key），
- *  避免「前端 API 设置选魔搭走 /api/proxy」时因键名不同读到空 key 而上游 401。 */
+/** 读 provider 的 key：真相源 = .env（API_PROVIDER_{ID}_KEY，M4-2 安全红线，providers.json 永不含明文）。
+ *  - 先读 process.env（writeProviderKey 保存时热更新），再读 .env 文件（跨进程 / 重启兜底）
+ *  - modelscope（魔搭）特殊：两者都无 key 时，兜底复用 LLM_CHAT_API_KEY
+ *    （AI 助手在 .env 里已填的唯一一份魔搭 key），避免前端选魔搭走 /api/proxy 时读到空 key 而上游 401。 */
 export function readProviderKey(id: string): string {
   const envName = providerKeyEnv(id);
+  // 1) 真相源 process.env（PUT 保存时已热更新写入）
   const fromEnv = process.env[envName];
   if (fromEnv) return fromEnv;
+  // 2) .env 文件（进程重启 / 外部注入兜底）
   const fromFile = readEnvFileValue(envName);
   if (fromFile) return fromFile;
-  // modelscope 兜底：复用 AI 助手 LLM 通道的 key
+  // 3) modelscope 兜底：复用 AI 助手 LLM 通道的 key
   if (id === 'modelscope') {
     if (process.env.LLM_CHAT_API_KEY) return process.env.LLM_CHAT_API_KEY;
     const fallback = readEnvFileValue('LLM_CHAT_API_KEY');
@@ -247,11 +263,15 @@ export function loadProviders(): ApiProvider[] {
       p.image_request_mode = p.image_request_mode ?? 'openai';
       p.image_mode = p.image_mode === 'async' ? 'async' : 'sync';
       p.enabled = p.enabled !== false;
-      // 旧版明文 key 迁移到 env（仅首次）
+      // 旧版明文 key 迁移到 env（仅首次）：旧字段 key 与方案A残留的 api_key 统一剥离开到 env
       if (typeof p.key === 'string' && p.key) {
         writeProviderKey(p.id, p.key);
       }
+      if (typeof p.api_key === 'string' && p.api_key) {
+        writeProviderKey(p.id, p.api_key);
+      }
       delete p.key;
+      delete p.api_key;
       delete p.url;
       delete p.models;
       return p as ApiProvider;
@@ -269,9 +289,18 @@ export function saveProviders(providers: ApiProvider[]): void {
 function normalizeProvider(input: Partial<ApiProvider> & { api_key?: string }, prev?: ApiProvider): ApiProvider | null {
   if (!input || typeof input.id !== 'string' || !input.id.trim()) return null;
   const id = input.id.trim();
-  // 协议白名单：apimart / openai，非法回退 openai
-  const protocol: ProviderProtocol = input.protocol === 'apimart' ? 'apimart' : 'openai';
-  const isPrimary = input.isPrimary === true;
+  // 平台 id 锁协议：id 与协议同名（volcengine/jimeng/runninghub）→ 锁死协议，不接受用户改
+  const PROTOCOL_BY_FIXED_ID: Record<string, ProviderProtocol> = {
+    volcengine: 'volcengine',
+    jimeng: 'jimeng',
+    runninghub: 'runninghub',
+  };
+  // 协议白名单：PROVIDER_PROTOCOLS 8 选 1，非法回退 openai；平台 id 锁协议优先
+  const protocol: ProviderProtocol =
+    PROTOCOL_BY_FIXED_ID[id]
+    || (PROVIDER_PROTOCOLS.includes(input.protocol as ProviderProtocol) ? (input.protocol as ProviderProtocol) : 'openai');
+  // 向后兼容：旧运行时数据用 isPrimary，契约铁律①用 primary，两者都认
+  const primary = input.primary === true || (input as any).isPrimary === true;
   const readonly = prev ? !!prev.readonly : false;
 
   // readonly provider 只锁结构字段；base_url 是部署环境地址，允许用户覆盖（空则回退旧值）
@@ -297,7 +326,10 @@ function normalizeProvider(input: Partial<ApiProvider> & { api_key?: string }, p
 
   const model_names: Record<string, string> = (input.model_names && typeof input.model_names === 'object') ? input.model_names : (prev?.model_names || {});
 
-  // key 处理：只在 PUT 时写 env（api_key 有值则写，clear_key 则清）
+  // key 处理（M4-2 安全红线：key 只进 env，绝不落 providers.json）：
+  //  - api_key 有值 → 写 .env（唯一真相源），本地对象不存明文
+  //  - clear_key   → 清 .env
+  // 注意：绝不把明文 key 下发前端 / 落 JSON；publicProvider() 脱敏，前端只维护 env。
   if (typeof input.api_key === 'string' && input.api_key && input.api_key !== '***') {
     writeProviderKey(id, input.api_key);
   }
@@ -313,12 +345,22 @@ function normalizeProvider(input: Partial<ApiProvider> & { api_key?: string }, p
     image_request_mode: input.image_request_mode ?? prev?.image_request_mode ?? 'openai',
     image_mode: input.image_mode === 'async' ? 'async' : 'sync',
     enabled: input.enabled !== false,
-    isPrimary,
+    primary,
     readonly,
     image_models,
     chat_models,
     video_models,
     model_names,
+    // 专属字段归一（契约 A.1#6/#7/#14-#20，默认空/默认 value，铁律①钉死）
+    image_generation_endpoint: typeof input.image_generation_endpoint === 'string' ? input.image_generation_endpoint.trim() : (prev?.image_generation_endpoint || ''),
+    image_edit_endpoint: typeof input.image_edit_endpoint === 'string' ? input.image_edit_endpoint.trim() : (prev?.image_edit_endpoint || ''),
+    model_protocols: (input.model_protocols && typeof input.model_protocols === 'object') ? input.model_protocols : (prev?.model_protocols || {}),
+    ms_loras: Array.isArray(input.ms_loras) ? input.ms_loras : (prev?.ms_loras || []),
+    ms_defaults_version: typeof input.ms_defaults_version === 'number' ? input.ms_defaults_version : (prev?.ms_defaults_version || 0),
+    rh_apps: Array.isArray(input.rh_apps) ? input.rh_apps : (prev?.rh_apps || []),
+    rh_workflows: Array.isArray(input.rh_workflows) ? input.rh_workflows : (prev?.rh_workflows || []),
+    volcengine_project_name: typeof input.volcengine_project_name === 'string' ? input.volcengine_project_name : (prev?.volcengine_project_name || 'default'),
+    volcengine_region: typeof input.volcengine_region === 'string' ? input.volcengine_region : (prev?.volcengine_region || 'cn-beijing'),
   };
 }
 
@@ -329,14 +371,17 @@ export function getProvider(id?: string | null): ApiProvider | undefined {
     const found = list.find((p) => p.id === id);
     if (found) return found;
   }
-  return list.find((p) => p.isPrimary) || list[0];
+  return list.find((p) => p.primary) || list[0];
 }
 
 // ── 脱敏（GET 列表时 key 打码，key 不回明文）──
 function publicProvider(p: ApiProvider): ApiProvider {
   const envName = providerKeyEnv(p.id);
-  const hasKey = !!readProviderKey(p.id);
-  return { ...p, has_key: hasKey, key_preview: hasKey ? maskKey(readProviderKey(p.id)) : '', key_env: envName };
+  const key = readProviderKey(p.id);
+  const hasKey = !!key;
+  // 绝不回传明文 api_key：展开后显式剔除
+  const { api_key: _omit, ...safe } = p as ApiProvider & { api_key?: string };
+  return { ...safe, has_key: hasKey, key_preview: hasKey ? maskKey(key) : '', key_env: envName };
 }
 
 // ── 路由处理 ──
@@ -363,28 +408,41 @@ export async function handleProvidersPut(req: IncomingMessage, res: ServerRespon
     if (id) idSet.add(id);
   }
 
-  // 唯一化 primary：最后设置的 isPrimary=true 胜出
+  // 唯一化 primary：最后设置的 primary=true 胜出
   let primaryId: string | undefined;
   for (const item of incoming) {
-    if (item.isPrimary) primaryId = item.id;
+    if (item.primary) primaryId = item.id;
   }
 
   for (const item of incoming) {
     const prev = existing.find((e) => e.id === item.id);
     const norm = normalizeProvider(item, prev);
     if (!norm) continue;
-    if (primaryId && norm.id !== primaryId) norm.isPrimary = false;
-    else if (!primaryId && prev?.isPrimary) norm.isPrimary = true;
+    if (primaryId && norm.id !== primaryId) norm.primary = false;
+    else if (!primaryId && prev?.primary) norm.primary = true;
     merged.push(norm);
   }
 
-  // 至少要有一个 primary
-  if (!merged.some((p) => p.isPrimary) && merged.length > 0) {
-    merged[0].isPrimary = true;
+  // 至少要有一个 primary（避免 getProvider 退化为 list[0]）。
+  // 兜底选择优先级（原 #5 卫生死角修复）：
+  //   1) 原列表里 primary 且本次仍在 → 保留原主供应商（不悄悄换）
+  //   2) 否则第一个 enabled 的
+  //   3) 否则才退到 merged[0]
+  // 同时返回 warning，让前端感知「本次未指定 primary，已自动选定」而非静默改。
+  let primaryWarning: string | undefined;
+  if (!merged.some((p) => p.primary) && merged.length > 0) {
+    const prevPrimary = existing.find((e) => e.primary && merged.some((m) => m.id === e.id));
+    const fallback = prevPrimary
+      || merged.find((m) => m.enabled)
+      || merged[0];
+    fallback.primary = true;
+    primaryWarning = `未指定主供应商，已自动选「${fallback.name || fallback.id}」`;
   }
 
   saveProviders(merged);
-  return json(res, { providers: merged.map(publicProvider) });
+  const payload: Record<string, unknown> = { providers: merged.map(publicProvider) };
+  if (primaryWarning) payload.warning = primaryWarning;
+  return json(res, payload);
 }
 
 // 【打基础】连接测试的探测路径「按协议表驱动」（可插拔，不堆 if）。
@@ -442,22 +500,25 @@ export async function handleProviderTest(req: IncomingMessage, res: ServerRespon
 
   // 协议探测：auto 时先探 openai(/v1/models)，失败再探 apimart(/health)
   // 返回体带 body（上游原始响应体）与 err（网络/超时错误信息），供前端展示透传原始信息。
-  const probe = async (path: string): Promise<{ ok: boolean; status: number; body: string; err: string }> => {
+  const probe = async (path: string): Promise<{ ok: boolean; status: number; body: string; err: string; url: string }> => {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 8000);
+    // 用 joinWithPrefixAbsorb 吸收 base 已含 /v1 与 path 同前缀造成的重复（如 /v1/v1/models），
+    // 否则用户 base_url 填了 .../v1 又选 openai 协议时会拼出重复前缀 → 404。
+    const fullUrl = joinWithPrefixAbsorb(base, path);
     try {
       // 用 fetchWithProxy 而非原生 fetch：apimart/lovart 系公网域本机直连常超时，
       // 必须「直连失败→走代理重试」，否则测试永远报「连接失败」。
-      const r = await fetchWithProxy(base + path, { method: 'GET', headers, signal: controller.signal });
+      const r = await fetchWithProxy(fullUrl, { method: 'GET', headers, signal: controller.signal });
       clearTimeout(timeout);
       const body = await readBody(r);
-      return { ok: r.status >= 200 && r.status < 400, status: r.status, body, err: '' };
+      return { ok: r.status >= 200 && r.status < 400, status: r.status, body, err: '', url: fullUrl };
     } catch (e) {
       clearTimeout(timeout);
       const err = (e as Error).name === 'AbortError'
-        ? `请求超时(8s): ${base}${path}`
+        ? `请求超时(8s): ${fullUrl}`
         : `连接失败: ${(e as Error).message}`;
-      return { ok: false, status: 0, body: '', err };
+      return { ok: false, status: 0, body: '', err, url: fullUrl };
     }
   };
 
@@ -474,7 +535,7 @@ export async function handleProviderTest(req: IncomingMessage, res: ServerRespon
       const r = await probe(PROBE_PATHS[protocol]);
       // 失败时透传上游原始 body/错误（前端「连接失败：xxx」不再显示「未知」）
       const payload: Record<string, unknown> = {
-        ok: r.ok, status: r.status, protocol, detectedProtocol: protocol, url: base + PROBE_PATHS[protocol],
+        ok: r.ok, status: r.status, protocol, detectedProtocol: protocol, url: r.url,
       };
       if (!r.ok) payload.error = summarize(r);
       return json(res, payload);
@@ -490,7 +551,7 @@ export async function handleProviderTest(req: IncomingMessage, res: ServerRespon
       firstStatus = firstStatus || r.status;
       firstDetail = firstDetail || summarize(r);
       if (r.ok) {
-        return json(res, { ok: true, status: r.status, protocol: proto, detectedProtocol: proto, url: base + path, probes });
+        return json(res, { ok: true, status: r.status, protocol: proto, detectedProtocol: proto, url: r.url, probes });
       }
     }
     const payload: Record<string, unknown> = {
@@ -612,10 +673,12 @@ export async function handleProviderFetchModels(req: IncomingMessage, res: Serve
   const p = getProvider(id);
   if (!p) return sendError(res, `Provider not found: ${id}`, 404);
 
-  // 模型 URL 按协议拼：openai 兼容 → base/v1/models；apimart → base/models
-  // （apimart 的 base_url 已含 /v1 前缀，再拼 /v1/models 会得到 /v1/v1/models → 404）。
+  // 模型 URL 按协议拼：openai 兼容 → /v1/models；apimart → /models。
+  // 关键：必须用 joinWithPrefixAbsorb 吸收 base 已含 /v1 时的重复前缀
+  // （如 base=https://api.apimart.ai/v1 + openai 会拼成 /v1/v1/models → 404），
+  // 与测试连接的 probe 保持一致，否则拉取会因重复前缀 404。
   const modelsPath = p.protocol === 'apimart' ? '/models' : '/v1/models';
-  const modelsUrl = p.base_url.replace(/\/$/, '') + modelsPath;
+  const modelsUrl = joinWithPrefixAbsorb(p.base_url.replace(/\/$/, ''), modelsPath);
   const headers: Record<string, string> = { Accept: 'application/json' };
   const key = readProviderKey(p.id);
   if (key) headers['Authorization'] = `Bearer ${key}`;
@@ -633,35 +696,47 @@ export async function handleProviderFetchModels(req: IncomingMessage, res: Serve
     [...p.image_models, ...p.chat_models, ...p.video_models].forEach((m) => known.set(m.id, m));
     const rawModels: any[] = Array.isArray(data?.data) ? data.data : [];
 
-    if (p.protocol === 'openai') {
-      // OpenAI 兼容端点：/v1/models 无 category，按 id 关键字分类
-      const ids = rawModels.map((m: any) => m.id).filter(Boolean);
-      const classified = classifyOpenAIModels(ids, known);
-      return json(res, {
-        image_models: classified.image,
-        chat_models: classified.chat,
-        video_models: classified.video,
-        modelCount: ids.length,
-      });
+    // 分类策略：先按 id 关键字分类（classifyOpenAIModels：video → image → 兜底 chat），
+    // 再用官方返回的 category 字段（如网关 /v1/models 每项带 "category": "image"|"video"|"chat"）
+    // 做校正覆盖：官方给了明确分类且与关键字结果不同时，以官方为准。
+    // 无官方 category 的模型，直接沿用关键字分类（其内部已兜底到 chat）。
+    const CAT_MAP: Record<string, 'image' | 'chat' | 'video'> = {
+      image: 'image', img: 'image', images: 'image',
+      chat: 'chat', text: 'chat', llm: 'chat', language: 'chat',
+      video: 'video', vid: 'video',
+      // music 我们系统无对应栏（网关也不支持音频生成），不收录
+    };
+    // 第 1 步：全部模型先走关键字分类（含兜底）
+    const kw = classifyOpenAIModels(rawModels.map((m) => m.id), known);
+    const byId = new Map<string, { list: ProviderModel[] }>();
+    const classified = { image: kw.image, chat: kw.chat, video: kw.video };
+    (['image', 'chat', 'video'] as const).forEach((cat) => {
+      classified[cat].forEach((m) => byId.set(m.id, { list: classified[cat] }));
+    });
+    // 第 2 步：官方 category 校正覆盖关键字结果
+    for (const m of rawModels) {
+      if (!m || typeof m?.id !== 'string') continue;
+      const id = m.id;
+      const official = CAT_MAP[String(m.category || '').toLowerCase()];
+      if (!official) continue; // 无官方 category → 维持关键字分类
+      const bucket = byId.get(id);
+      if (!bucket) continue;
+      const current = bucket.list;
+      // 若当前关键字分类与官方一致，跳过
+      const officialList = classified[official];
+      if (officialList === current) continue;
+      // 从原列表移除，放入官方分类列表（保留已有 label）
+      const idx = current.findIndex((x) => x.id === id);
+      if (idx < 0) continue;
+      const [model] = current.splice(idx, 1);
+      officialList.push(model);
+      byId.set(id, { list: officialList });
     }
 
-    // apimart（Lovart 网关）：/v1/models 返回 OpenAI 风格列表且每条带 category（image/video/chat）。
-    // chat/text 模型【必须正常收录】——文本节点下拉依赖。曾有版本误判「chat 是设计 Agent
-    // 纯中转、剔除掉」，导致文本模型缺失的回归（providers.test.js 也断言 chat 应收，勿改回）。
-    const byCat: Record<string, ProviderModel[]> = { image: [], chat: [], video: [] };
-    for (const m of rawModels) {
-      if (typeof m?.id !== 'string' || !m.id) continue;
-      const prev = known.get(m.id);
-      const model: ProviderModel = prev || { id: m.id, label: m.id };
-      const cat = String(m.category || '').toLowerCase();
-      if (cat === 'image') byCat.image.push(model);
-      else if (cat === 'video') byCat.video.push(model);
-      else if (cat === 'chat' || cat === 'text') byCat.chat.push(model);
-    }
     return json(res, {
-      image_models: byCat.image,
-      chat_models: byCat.chat,
-      video_models: byCat.video,
+      image_models: classified.image,
+      chat_models: classified.chat,
+      video_models: classified.video,
       modelCount: rawModels.length,
     });
   } catch (e) {
@@ -677,6 +752,34 @@ function emptyModels() {
 // 解决「前端设置页改完 → providers.json 更新了、但 api.config.json 不变」的双源漂移：
 // 前端 save() 成功后调 PUT /api/config/base，把脱敏视图合并回写 json。
 // 保留顶层 _meta 和每个 provider 的 _comment（AI/人维护的注释骨架），只更新字段。
+//
+// 字段白名单（单一真相）：加新 provider 字段时，只需在此数组补一行 + normalizeProvider 补一行，
+// 避免「两份手写字段列表漏改一边」导致的双源漂移（原 #3 卫生死角已收敛）。
+// 注意：api_key / has_key / key_preview / key_env 等敏感/脱敏字段【绝不】进此白名单（config 可能进 git）。
+const CONFIG_SYNC_FIELDS: Array<{
+  key: keyof ApiProvider;
+  /** 写出条件：非空/非空数组/非空对象/真值，默认 truthy */
+  when?: (p: ApiProvider) => boolean;
+}> = [
+  { key: 'image_request_mode' },
+  { key: 'image_mode' },
+  { key: 'enabled' },
+  { key: 'primary' },
+  { key: 'image_models', when: (p) => Array.isArray(p.image_models) && p.image_models.length > 0 },
+  { key: 'chat_models', when: (p) => Array.isArray(p.chat_models) && p.chat_models.length > 0 },
+  { key: 'video_models', when: (p) => Array.isArray(p.video_models) && p.video_models.length > 0 },
+  { key: 'model_names', when: (p) => !!p.model_names && Object.keys(p.model_names).length > 0 },
+  { key: 'model_protocols', when: (p) => !!p.model_protocols && Object.keys(p.model_protocols).length > 0 },
+  { key: 'image_generation_endpoint' },
+  { key: 'image_edit_endpoint' },
+  { key: 'ms_loras', when: (p) => Array.isArray(p.ms_loras) && p.ms_loras.length > 0 },
+  { key: 'ms_defaults_version', when: (p) => typeof p.ms_defaults_version === 'number' && p.ms_defaults_version !== 0 },
+  { key: 'rh_apps', when: (p) => Array.isArray(p.rh_apps) && p.rh_apps.length > 0 },
+  { key: 'rh_workflows', when: (p) => Array.isArray(p.rh_workflows) && p.rh_workflows.length > 0 },
+  { key: 'volcengine_project_name' },
+  { key: 'volcengine_region' },
+];
+
 const CONFIG_FILE = process.env.MAOMAO_CONFIG_FILE || path.join(__dirname, '..', '..', 'api.config.json');
 
 export function syncConfigJson(providers: ApiProvider[]): void {
@@ -697,14 +800,12 @@ export function syncConfigJson(providers: ApiProvider[]): void {
       base_url: p.base_url,
       protocol: p.protocol,
     };
-    if (p.image_request_mode) out.image_request_mode = p.image_request_mode;
-    if (p.image_mode) out.image_mode = p.image_mode;
-    if (typeof p.enabled === 'boolean') out.enabled = p.enabled;
-    if (p.isPrimary) out.isPrimary = true;
-    if (p.image_models?.length) out.image_models = p.image_models;
-    if (p.chat_models?.length) out.chat_models = p.chat_models;
-    if (p.video_models?.length) out.video_models = p.video_models;
-    if (p.model_names && Object.keys(p.model_names).length) out.model_names = p.model_names;
+    // 白名单驱动写出（单一字段列表，消除手写 if 重复）
+    for (const f of CONFIG_SYNC_FIELDS) {
+      const val = (p as any)[f.key];
+      const ok = f.when ? f.when(p) : !!val;
+      if (ok) out[f.key as string] = val;
+    }
     // 保留原 json 里的注释，避免回写抹掉 AI/人写的说明
     if (old && typeof old._comment === 'string') out._comment = old._comment;
     return out;
@@ -730,27 +831,32 @@ export async function handleConfigBasePut(req: IncomingMessage, res: ServerRespo
 }
 
 /**
- * 把 OpenAI /v1/models 返回的 id 列表按关键字分类（对齐契约 classify_upstream_model）。
- * video: video/seedance/kling/wan/minimax/veo/sora...
- * chat : chat/gpt/claude/gemini/llama/qwen/deepseek/o1/o3/o4/sonnet/opus/mini
- * image: 其余默认
+ * 把 OpenAI /v1/models 返回的 id 列表按关键字分类（对齐参考实现 classify_upstream_model）。
+ * 判断顺序：video → image → 兜底 chat（与参考后端完全一致）。
+ *  - video: veo/sora/wan2/wanx/doubao-seedance/doubao-1/kling/hailuo/video/t2v-/i2v-/s2v
+ *           （在参考实现基础上补 seedance：其默认视频模型 seedance-2 等因缺 doubao- 前缀
+ *             会被原实现误分到 chat，这里补上避免视频模型错分到聊天）
+ *  - image: banana/image/dalle/imagen/flux/stable/sdxl/midjourney/nano-banana/ideogram/fal-ai/z-image/qwen-image/klein/seedream/doubao-seedream/text-to-image/image-to-image
+ *  - 兜底: chat（未知模型默认视为聊天，而非生图）
+ * 子串匹配（小写包含），不依赖前缀/锚点。
  */
 export function classifyOpenAIModels(ids: string[], known?: Map<string, ProviderModel>): {
   image: ProviderModel[];
   chat: ProviderModel[];
   video: ProviderModel[];
 } {
-  const VIDEO = /video|seedance|kling|wan[\d._-]|minimax|hunyuan-?video|veo|sora/i;
-  const CHAT = /chat|^gpt|claude|gemini|llama|qwen|deepseek|\bo1|\bo3|\bo4|sonnet|opus|-mini|gpt-/i;
+  const VIDEO_KEYS = ['veo', 'sora', 'wan2', 'wanx', 'doubao-seedance', 'seedance', 'doubao-1', 'kling', 'hailuo', 'video', 't2v-', 'i2v-', 's2v'];
+  const IMAGE_KEYS = ['banana', 'image', 'dalle', 'dall-e', 'imagen', 'flux', 'stable', 'sdxl', 'midjourney', 'nano-banana', 'ideogram', 'fal-ai', 'z-image', 'qwen-image', 'klein', 'seedream', 'doubao-seedream', 'text-to-image', 'image-to-image'];
   const image: ProviderModel[] = [];
   const chat: ProviderModel[] = [];
   const video: ProviderModel[] = [];
   for (const id of ids) {
     const prev = known?.get(id);
     const model: ProviderModel = prev || { id, label: id };
-    if (VIDEO.test(id)) video.push(model);
-    else if (CHAT.test(id)) chat.push(model);
-    else image.push(model);
+    const lc = id.toLowerCase();
+    if (VIDEO_KEYS.some((k) => lc.includes(k))) video.push(model);
+    else if (IMAGE_KEYS.some((k) => lc.includes(k))) image.push(model);
+    else chat.push(model);
   }
   return { image, chat, video };
 }
@@ -764,35 +870,43 @@ export interface ResolvedTarget {
 }
 
 /**
+ * 是否 apimart 协议。
+ * 判定唯一依据：provider.protocol === 'apimart'（单一真相，不做域名嗅探）。
+ * 背景：远程 api.apimart.ai 站若协议标为 openai（OpenAI 兼容），应按 openai 处理——
+ * 靠 base_url 含 'apimart.ai' 嗅探会把 openai 协议的站误判成 apimart，导致
+ * 前端发 `openai://<path>` 伪 URL 被后端 apimart 分支错拼（Invalid URL）。
+ * 真正的 apimart 协议站（如 Lovart，base=127.0.0.1:9004）protocol 本就标 apimart，靠字段即可识别。
+ */
+export function isApimartProvider(p: ApiProvider): boolean {
+  return p.protocol === 'apimart';
+}
+
+/**
+ * 端点拼接（对齐契约 provider_endpoint_url 的前缀吸收，03 §8 / 04 §H）：
+ * base 已以 /v1 结尾且 path 也以 /v1 开头 → 去掉重复前缀，避免拼出 /v1/v1/... 404。
+ * 例：base=https://api.apimart.ai/v1 + path=/v1/images/generations
+ *     → https://api.apimart.ai/v1/images/generations（吸收一个 /v1）
+ */
+function joinWithPrefixAbsorb(base: string, path: string): string {
+  const b = base.replace(/\/$/, '');
+  let p = path.startsWith('/') ? path : '/' + path;
+  // 前缀吸收：base 以 /v1|/v2|/v1beta|/api/v3 结尾 且 path 同前缀开头 → 去掉 path 的前缀
+  const prefixMatch = b.match(/((\/v1|\/v2|\/v1beta|\/api\/v3))$/);
+  if (prefixMatch) {
+    const pre = prefixMatch[2];
+    if (p.startsWith(pre + '/') || p === pre) {
+      p = p.slice(pre.length) || '/';
+    }
+  }
+  return b + p;
+}
+
+/**
  * 把前端传来的「原始 url」 + 可选 providerId 解析成真实转发目标。
  *
- * 约定（前端侧）：
- *   - 不传 providerId           → 行为不变（兼容现有调用，url 原样透传）
- *   - 传 providerId 且协议 apimart → url 原样透传（Lovart 走网关自身鉴权，不注入本地 key）
- *   - 传 providerId 且协议 openai → 前端 url 用相对形式 `openai://<path>`
- *                                   （如 openai://images/generations），此处拼成
- *                                   `${base_url}/v1/<path>`，并注入 Bearer key（从 env 读）
+ * 委托给可插拔协议适配器（protocolAdapters.ts）：openai/apimart 各自一个 adapter，
+ * 将来加新平台只需新增 adapter 并注册，本函数主体不动。
  */
 export function resolveProviderTarget(rawUrl: string, providerId?: string | null): ResolvedTarget {
-  if (!providerId) {
-    return { url: rawUrl, protocol: 'apimart' };
-  }
-  const p = getProvider(providerId);
-  if (!p) {
-    return { url: rawUrl, protocol: 'apimart' };
-  }
-  if (p.protocol !== 'openai') {
-    // apimart / 其它：原样透传，不注入本地 key
-    return { url: rawUrl, protocol: p.protocol, providerId: p.id };
-  }
-  // openai 协议：把 openai://<path> 拼成 base/v1/<path>
-  const m = rawUrl.match(/^openai:\/\/(.+)$/);
-  const key = readProviderKey(p.id);
-  if (!m) {
-    // 已是完整 url，直接透传并注入 key
-    return { url: rawUrl, authHeader: key ? `Bearer ${key}` : undefined, protocol: 'openai', providerId: p.id };
-  }
-  const sub = m[1].replace(/^\/+/, '');
-  const full = p.base_url.replace(/\/$/, '') + '/v1/' + sub;
-  return { url: full, authHeader: key ? `Bearer ${key}` : undefined, protocol: 'openai', providerId: p.id };
+  return resolveProviderTargetAdapter(rawUrl, providerId, getProvider, readProviderKey);
 }

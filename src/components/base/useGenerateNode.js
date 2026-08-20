@@ -56,7 +56,7 @@ export function useGenerateNode({
 }) {
   // ── 供应商/模型（统一选 provider / 模型下拉数据）──
   const { providers } = useProviders()
-  const primary = providers?.find((p) => p.isPrimary) || providers?.[0] || null
+  const primary = providers?.find((p) => p.primary) || providers?.[0] || null
   const models = buildAllModels(providers, type)
 
   // ── 收编 useSyncNodeData（第71行）：外部 data 变更 → 本地 state ──

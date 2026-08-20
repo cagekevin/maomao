@@ -19,6 +19,8 @@
 import { normalizeImageUrlsForSend, toImageContentBlocks } from './imageUrl.js'
 import { logger } from './logger.js'
 import { chatProxy } from './proxyGenerate.js'
+// 请求形态层：聊天 responses 形态构造请求体（chat_completions 默认，M2-2）
+import { resolveChatMode, buildResponsesChatBody } from './requestModes.js'
 
 /** 把参考图附加到最后一条 user 消息（content 转数组 + image_url 块）。 */
 async function attachImages(messages, images, provider) {
@@ -49,6 +51,11 @@ async function attachImages(messages, images, provider) {
  */
 export async function chatCompletions({ provider, messages, model, images, temperature = 0.1, responseFormat, signal }) {
   const finalMessages = await attachImages(messages, images, provider)
+  // responses 形态：input[] + tools 顶层 name 构造请求体；默认 chat/completions（M2-2）
+  if (resolveChatMode(provider?.chat_request_mode) === 'responses') {
+    const body = buildResponsesChatBody({ model, messages: finalMessages, temperature, responseFormat: responseFormat === 'json' ? 'json_schema' : responseFormat === 'json_object' ? 'json_schema' : responseFormat })
+    return chatProxy({ provider, body, signal })
+  }
   const body = { model, messages: finalMessages, temperature, stream: false }
   if (responseFormat === 'json_object' || responseFormat === 'json') body.response_format = { type: responseFormat }
   return chatProxy({ provider, body, signal })

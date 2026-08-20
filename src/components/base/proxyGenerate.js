@@ -21,14 +21,12 @@ import { getCurrentTaskId, setTaskPollId } from './taskStore.js'
 import { GEN_TIMEOUT, GEN_POLL_INTERVAL, VIDEO_TIMEOUT, VIDEO_POLL_INTERVAL } from './config.js'
 import { classifyError } from './genErrors.js'
 import { logger } from './logger.js'
+// 可插拔协议适配器：统一 buildTargetUrl（openai 伪协议 / apimart base_url 拼装）
+import { buildTargetUrl } from './providerProtocols.js'
+// 请求形态层：image_request_mode 驱动端点/响应解析（消灭死字段，PRD 翻车点 1）
+import { imageModePath, isResponsesMode, parseResponsesJson, resolveChatMode, parseResponsesChatJson } from './requestModes.js'
 
 // ── 内部共享原语（调用方不可见）──────────────────────────────────────
-
-/** 目标端点：openai 用伪协议；apimart 用 base_url + /v1/{path}。 */
-function buildTargetUrl(provider, path) {
-  if ((provider?.protocol || 'apimart') === 'openai') return `openai://${path}`
-  return `${(provider?.base_url || '').replace(/\/$/, '')}/v1/${path}`
-}
 
 /** 统一响应信封（生成类）：成功 {ok:true, url}，失败 {ok:false, error}。 */
 function ok(url) { return { ok: true, url } }
@@ -211,7 +209,9 @@ function extractVideoUrl({ data, json }) {
  * @returns {{ ok:boolean, content?:string, error?:string, aborted?:boolean }}
  */
 export async function chatProxy({ provider, body, signal }) {
-  const target = buildTargetUrl(provider, 'chat/completions')
+  // 请求形态：responses 走 /v1/responses 端点 + output[] 解析；默认 chat/completions（M2-2）
+  const responses = resolveChatMode(provider?.chat_request_mode) === 'responses'
+  const target = buildTargetUrl(provider, responses ? 'responses' : 'chat/completions')
   const payload = __buildProxyPayload({ provider, target, method: 'POST', body })
   let res
   try {
@@ -236,6 +236,11 @@ export async function chatProxy({ provider, body, signal }) {
     const msg = parseNestedError(json) || `HTTP ${res.status}`
     return { ok: false, error: msg }
   }
+  if (responses) {
+    const content = parseResponsesChatJson(json || {}).content
+    if (typeof content === 'string' && content.trim()) return { ok: true, content }
+    return { ok: false, error: '上游未返回文本内容' }
+  }
   const content = (json?.data ?? json)?.choices?.[0]?.message?.content
   if (typeof content === 'string' && content.trim()) return { ok: true, content }
   return { ok: false, error: '上游未返回文本内容' }
@@ -250,7 +255,26 @@ function parseNestedError(j) {
  * @returns {{ ok:boolean, url?:string, error?:string }}
  */
 export async function imageProxy({ provider, genBody, onProgress, signal }) {
-  const url = buildTargetUrl(provider, 'images/generations')
+  const mode = provider?.image_request_mode
+
+  // responses 形态：POST /v1/responses，非流式 JSON 直返 → 从 output[] / markdown 兜底提取图片 URL。
+  if (isResponsesMode(mode)) {
+    const url = buildTargetUrl(provider, imageModePath(mode))
+    try {
+      onProgress?.(10, '正在连接本地服务…')
+      const res = await __proxyFetch({ provider, target: url, method: 'POST', body: genBody }, signal)
+      onProgress?.(20, '已转发到生成网关…')
+      const imgUrl = parseResponsesJson(await res.json())
+      return imgUrl ? ok(imgUrl) : fail('上游未返回图片')
+    } catch (e) {
+      if (e?.name === 'AbortError') throw e // 取消信号：原样抛出
+      const c = classifyError(e)
+      return c.type === 'network' ? fail(c.message) : fail(`生图失败：${c.message || 'responses 请求异常'}`)
+    }
+  }
+
+  // 其余形态（openai / openai-json / 默认）：端点由形态决定（默认 images/generations，C1 零改动）。
+  const url = buildTargetUrl(provider, imageModePath(mode))
   if (provider?.image_mode === 'async') {
     return pollUntilDone(
       { provider, url, genBody, extractUrl: extractImageUrl, pollInterval: GEN_POLL_INTERVAL, timeoutMs: GEN_TIMEOUT },

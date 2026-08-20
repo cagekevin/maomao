@@ -33,7 +33,7 @@ export default function AgentChatSettings() {
   // 可作聊天用的供应商（有 chat_models 或有默认模型；含内置 providerscope/主供应商）
   const chatProviders = (providers || []).filter((p) => {
     const hasChat = Array.isArray(p.chat_models) && p.chat_models.length > 0
-    return hasChat || p.isPrimary
+    return hasChat || p.primary
   })
 
   const selectedProvider = chatProviders.find((p) => p.id === providerId) || chatProviders[0] || null
@@ -98,7 +98,7 @@ export default function AgentChatSettings() {
                 <select value={selectedProvider?.id || ''} onChange={(e) => handleProviderChange(e.target.value)} className={selectCls}>
                   {chatProviders.map((p) => (
                     <option key={p.id} value={p.id}>
-                      {p.name || p.id}{p.isPrimary ? '（主）' : ''}
+                      {p.name || p.id}{p.primary ? '（主）' : ''}
                     </option>
                   ))}
                 </select>

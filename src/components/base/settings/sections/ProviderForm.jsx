@@ -91,6 +91,12 @@ export default function ProviderForm({ p, testing, fetching, testResult, onUpdat
                   <option value="async">异步（轮询任务）</option>
                 </select>
               </Field>
+              <Field label="聊天请求形态" hint="gpt-5.6 等需选 responses 才能用工具调用">
+                <select value={p.chat_request_mode || 'chat'} onChange={(e) => onUpdate({ chat_request_mode: e.target.value })} disabled={false} className={selectCls}>
+                  <option value="chat">chat/completions（默认）</option>
+                  <option value="responses">responses</option>
+                </select>
+              </Field>
             </>
           )}
         </div>
@@ -140,12 +146,12 @@ export default function ProviderForm({ p, testing, fetching, testResult, onUpdat
       <ModelSection p={p} onUpdate={onUpdate} />
 
       <div className="flex items-center gap-2 flex-wrap bg-surface border border-edge-subtle rounded-xl px-6 py-4">
-        {!p.isPrimary && (
+        {!p.primary && (
           <button type="button" onClick={onSetPrimary} className="inline-flex items-center gap-2 px-4 h-9 text-xs rounded-xl text-yellow-300 hover:bg-yellow-500/10 border border-yellow-500/40 transition-colors cursor-pointer">
             <Star size={14} /> 设为主供应商
           </button>
         )}
-        {p.isPrimary && (
+        {p.primary && (
           <span className="inline-flex items-center gap-1.5 text-xs text-zinc-400"><Star size={14} className="fill-zinc-400" /> 当前主供应商</span>
         )}
         <button type="button" onClick={onRemove} className="inline-flex items-center gap-2 px-4 h-9 text-xs rounded-xl ml-auto text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer border-none bg-transparent">

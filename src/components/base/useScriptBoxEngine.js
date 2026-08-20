@@ -77,7 +77,7 @@ export function useScriptBoxEngine(nodeId, data) {
       // 注意：读 providersRef.current 而非闭包捕获的 providers，避免闭包过期读到空数组。
       getProviderState: () => {
         const list = providersRef.current || []
-        return { providers: list, primary: list.find((p) => p.isPrimary) || list[0] || null }
+        return { providers: list, primary: list.find((p) => p.primary) || list[0] || null }
       },
       // 连线：经 addNodes 建下游节点，位置用 screenToFlowPosition 算落点基准
       addNodes: (nodes) => {

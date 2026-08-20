@@ -33,7 +33,7 @@ function isLocalTarget(url: URL): boolean {
 
 /** 需强制走代理的域名后缀（Lovart 系：API lgw.lovart.ai + CDN a.lovart.ai 等）。
  * 这些域名本机必须经代理才能访问，直连必然失败（TLS 断开/超时）。 */
-const PROXY_REQUIRED_HOST_SUFFIXES = ['lovart.ai'];
+const PROXY_REQUIRED_HOST_SUFFIXES = ['lovart.ai', 'apimart.ai'];
 
 /** 该 host 是否属于「需强制走代理」的域名（后缀匹配，覆盖所有子域名） */
 function requiresProxy(host: string): boolean {

@@ -8,6 +8,7 @@ import { Readable, Transform } from 'node:stream';
 import { createGunzip, createInflate, createBrotliDecompress } from 'node:zlib';
 import { json, parseJsonBody, readRawBody, sendError } from '../utils/helpers.js';
 import { resolveProviderTarget, type ResolvedTarget } from './providers.js';
+import { isProxyProtocol } from './protocolAdapters.js';
 import { fetchWithProxy } from '../utils/netProxy.js';
 import { persistThreadId } from './tasks.js';
 
@@ -156,6 +157,10 @@ export async function handleProxy(req: IncomingMessage, res: ServerResponse): Pr
   if (proxyUrl) {
     const providerId = req.headers['x-proxy-provider'] as string | undefined;
     const resolved = resolveProviderTarget(proxyUrl, providerId);
+    // CLI 协议不走 /api/proxy（用本机登录态），明确拒绝而非裸走 HTTP，避免错误透传（失败可见）
+    if (resolved.protocol && !isProxyProtocol(resolved.protocol)) {
+      return sendError(res, `CLI 协议（${resolved.protocol}）不走代理，请走本地 CLI 通道`, 400);
+    }
     return handleProxyFormData(req, res, resolved.url, resolved.authHeader);
   }
 
@@ -350,6 +355,10 @@ async function handleProxyJson(req: IncomingMessage, res: ServerResponse): Promi
   //   - openai 协议 + `openai://<path>` → 拼成 `${base}/v1/<path>` 并注入 Bearer key
   //   - apimart 协议 → url 原样透传（Lovart 走网关自身鉴权）
   const resolved = resolveProviderTarget(body.url, (body as any).providerId);
+  // CLI 协议不走 /api/proxy，明确拒绝而非裸走 HTTP（失败可见）
+  if (resolved.protocol && !isProxyProtocol(resolved.protocol)) {
+    return sendError(res, `CLI 协议（${resolved.protocol}）不走代理，请走本地 CLI 通道`, 400);
+  }
   body.url = resolved.url;
 
   const headers: Record<string, string> = { ...body.headers };

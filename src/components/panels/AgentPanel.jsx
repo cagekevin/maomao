@@ -61,7 +61,7 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
   const [dragging, setDragging] = useState(false)
 
   const { providers } = useProviders()
-  const primary = providers?.find((p) => p.isPrimary) || providers?.[0] || null
+  const primary = providers?.find((p) => p.primary) || providers?.[0] || null
   // AI 助手实际使用的 provider：优先「设置」里指定的聊天供应商，否则回退 modelscope / 主供应商
   const agentProvider = useMemo(() => {
     const cfg = loadAgentChatModel()

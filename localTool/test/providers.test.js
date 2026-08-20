@@ -34,6 +34,7 @@ const ENV_FILE = process.env.MAOMAO_ENV_FILE;
 
 const dist = path.join(__dirname, '..', 'dist');
 const providersMod = await import(pathToFileURL(path.join(dist, 'routes', 'providers.js')));
+const protocolsMod = await import(pathToFileURL(path.join(dist, 'routes', 'protocolAdapters.js')));
 
 // 每个 test 复用同一临时目录；每次 PUT 都是全量覆盖，天然隔离。
 // test 之间不删目录，避免 ensureFile 写 providers.json 时目录不存在（ENOENT）。
@@ -70,7 +71,7 @@ const seedProvider = (over = {}) => ({
   protocol: 'openai',
   image_request_mode: 'openai',
   enabled: true,
-  isPrimary: true,
+  primary: true,
   image_models: [{ id: 'img-a', label: 'Image A' }],
   chat_models: [{ id: 'chat-a', label: 'Chat A' }],
   video_models: [],
@@ -127,31 +128,46 @@ test('key 只进 env，providers.json 不含明文', async () => {
 test('PUT primary 唯一化：最后标记的胜出', async () => {
   ensureTmp();
   const putReq = makeReq({ providers: [
-    seedProvider({ id: 'a', isPrimary: true }),
-    seedProvider({ id: 'b', isPrimary: false }),
-    seedProvider({ id: 'c', isPrimary: true }),
+    seedProvider({ id: 'a', primary: false }),
+    seedProvider({ id: 'b', primary: false }),
+    seedProvider({ id: 'c', primary: true }),
   ] });
   const putRes = makeRes();
   await providersMod.handleProvidersPut(putReq, putRes);
   const data = JSON.parse(putRes.body);
-  const primaries = data.providers.filter((p) => p.isPrimary);
+  const primaries = data.providers.filter((p) => p.primary);
   assert.equal(primaries.length, 1);
   assert.equal(primaries[0].id, 'c');
 });
 
-test('协议校验：apimart/openai 保留，非法回退 openai', async () => {
+test('协议校验：8 协议保留，真正非法回退 openai；id 锁协议', async () => {
   ensureTmp();
   const putReq = makeReq({ providers: [
     seedProvider({ id: 'ap', protocol: 'apimart' }),
     seedProvider({ id: 'op', protocol: 'openai' }),
-    seedProvider({ id: 'bad', protocol: 'volcengine' }),
+    seedProvider({ id: 'gm', protocol: 'gemini' }),
+    seedProvider({ id: 'vc', protocol: 'volcengine' }),
+    seedProvider({ id: 'rh', protocol: 'runninghub' }),
+    seedProvider({ id: 'jm', protocol: 'jimeng' }),
+    seedProvider({ id: 'cd', protocol: 'codex' }),
+    seedProvider({ id: 'gcl', protocol: 'gemini-cli' }),
+    seedProvider({ id: 'bad', protocol: 'foo' }),         // 真正非法 → 回退 openai
+    seedProvider({ id: 'volcengine', protocol: 'openai' }), // id 锁协议 → 强制 volcengine
   ] });
   const putRes = makeRes();
   await providersMod.handleProvidersPut(putReq, putRes);
   const data = JSON.parse(putRes.body);
-  assert.equal(data.providers.find((p) => p.id === 'ap').protocol, 'apimart');
-  assert.equal(data.providers.find((p) => p.id === 'op').protocol, 'openai');
-  assert.equal(data.providers.find((p) => p.id === 'bad').protocol, 'openai'); // 非法回退
+  const find = (id) => data.providers.find((p) => p.id === id).protocol;
+  assert.equal(find('ap'), 'apimart');
+  assert.equal(find('op'), 'openai');
+  assert.equal(find('gm'), 'gemini');
+  assert.equal(find('vc'), 'volcengine');
+  assert.equal(find('rh'), 'runninghub');
+  assert.equal(find('jm'), 'jimeng');
+  assert.equal(find('cd'), 'codex');
+  assert.equal(find('gcl'), 'gemini-cli');
+  assert.equal(find('bad'), 'openai');          // 非法回退
+  assert.equal(find('volcengine'), 'volcengine'); // id 锁协议
 });
 
 test('resolveProviderTarget：apimart 原样透传、openai 拼 base + 注入 Bearer', async () => {
@@ -164,18 +180,82 @@ test('resolveProviderTarget：apimart 原样透传、openai 拼 base + 注入 Be
   const putRes = makeRes();
   await providersMod.handleProvidersPut(putReq, putRes);
 
-  // apimart：无 providerId / 有 providerId 都原样
+  // apimart：无 providerId 原样；有 providerId 按 base 重拼 + 前缀吸收（契约 03 §8 / 04 §H）
   const noId = providersMod.resolveProviderTarget('http://x/v1/images', null);
   assert.equal(noId.url, 'http://x/v1/images');
   assert.equal(noId.authHeader, undefined);
+  // base=http://127.0.0.1:9004（无 /v1），rawUrl 含 /v1 → 重拼保留 /v1，吸收只在 base 已含 /v1 时
   const ap = providersMod.resolveProviderTarget('http://x/v1/gateway/generate', 'ap');
-  assert.equal(ap.url, 'http://x/v1/gateway/generate');
+  assert.equal(ap.url, 'http://127.0.0.1:9004/v1/gateway/generate');
   assert.equal(ap.authHeader, undefined);
 
   // openai：openai:// 前缀拼 base/v1/，注入 Bearer
   const op = providersMod.resolveProviderTarget('openai://images/generations', 'op');
   assert.equal(op.url, 'https://api.example.com/v1/images/generations');
   assert.equal(op.authHeader, 'Bearer sk-abc');
+});
+
+test('resolveProviderTarget：gemini/volcengine/runninghub 透传+注入 Bearer；CLI 透传不注入不抛错', async () => {
+  ensureTmp();
+  const putReq = makeReq({ providers: [
+    seedProvider({ id: 'gm', protocol: 'gemini', base_url: 'https://g.example', api_key: 'sk-g' }),
+    seedProvider({ id: 'vc', protocol: 'volcengine', base_url: 'https://v.example', api_key: 'sk-v' }),
+    seedProvider({ id: 'rh', protocol: 'runninghub', base_url: 'https://rh.example', api_key: 'sk-r' }),
+    seedProvider({ id: 'jm', protocol: 'jimeng' }),
+  ] });
+  const putRes = makeRes();
+  await providersMod.handleProvidersPut(putReq, putRes);
+
+  // gemini：前端已拼 /v1beta，此处透传 + 注入 Bearer（M1-3 HTTP 类）
+  const gm = providersMod.resolveProviderTarget('https://g.example/v1beta/models', 'gm');
+  assert.equal(gm.protocol, 'gemini');
+  assert.equal(gm.url, 'https://g.example/v1beta/models');
+  assert.equal(gm.authHeader, 'Bearer sk-g');
+
+  // volcengine / runninghub 同基线
+  const vc = providersMod.resolveProviderTarget('https://v.example/api/v3/models', 'vc');
+  assert.equal(vc.url, 'https://v.example/api/v3/models');
+  assert.equal(vc.authHeader, 'Bearer sk-v');
+  const rh = providersMod.resolveProviderTarget('https://rh.example/openapi/v2/models', 'rh');
+  assert.equal(rh.url, 'https://rh.example/openapi/v2/models');
+  assert.equal(rh.authHeader, 'Bearer sk-r');
+
+  // CLI：原样透传 + 协议标记，不注入 key、不抛错（审计修正 #2）
+  const cli = providersMod.resolveProviderTarget('cli://jimeng/images/generations', 'jm');
+  assert.equal(cli.protocol, 'jimeng');
+  assert.equal(cli.url, 'cli://jimeng/images/generations');
+  assert.equal(cli.authHeader, undefined);
+});
+
+test('isProxyProtocol / PROVIDER_PROTOCOLS：CLI 不算 proxy，白名单齐全', () => {
+  // M1-2/M1-3：CLI 类 false，HTTP 类 true
+  assert.equal(protocolsMod.isProxyProtocol('openai'), true);
+  assert.equal(protocolsMod.isProxyProtocol('gemini'), true);
+  assert.equal(protocolsMod.isProxyProtocol('jimeng'), false);
+  assert.equal(protocolsMod.isProxyProtocol('codex'), false);
+  assert.equal(protocolsMod.isProxyProtocol('gemini-cli'), false);
+  // M1-5/M1-2：8 协议白名单齐全，各含一个适配器（加协议只改数组 → adapters 长度）
+  assert.deepEqual(
+    [...protocolsMod.PROVIDER_PROTOCOLS].sort(),
+    ['openai', 'apimart', 'gemini', 'volcengine', 'runninghub', 'jimeng', 'codex', 'gemini-cli'].sort(),
+  );
+});
+
+test('resolveProviderTarget：base_url 含 apimart.ai 但协议为 openai，按 openai 处理', async () => {
+  ensureTmp();
+  const putReq = makeReq({ providers: [
+    seedProvider({ id: 'apm', protocol: 'openai', base_url: 'https://api.apimart.ai/v1', api_key: 'sk-apm' }),
+  ] });
+  const putRes = makeRes();
+  await providersMod.handleProvidersPut(putReq, putRes);
+
+  // 之前会被 isApimartProvider 的域名嗅探误判成 apimart，把 openai:// 错拼成 /v1/openai://...
+  // 现在按 protocol 字段判定 → openai 分支拼 base/v1/ + 注入 Bearer
+  const r = providersMod.resolveProviderTarget('openai://chat/completions', 'apm');
+  assert.equal(r.protocol, 'openai');
+  assert.equal(r.url, 'https://api.apimart.ai/v1/chat/completions');
+  assert.equal(r.authHeader, 'Bearer sk-apm');
+  assert.ok(!r.url.includes('openai://'), '不应把 openai:// 伪协议拼进真实 URL');
 });
 
 test('image_mode 同步/异步持久化与回退', async () => {
@@ -232,8 +312,8 @@ test('apimart 拉取模型：/v1/models 按 category 归类', async () => {
 test('PUT 后 GET 与 primary 回退一致', async () => {
   ensureTmp();
   const putReq = makeReq({ providers: [
-    seedProvider({ id: 'a', isPrimary: false }),
-    seedProvider({ id: 'b', isPrimary: true }),
+    seedProvider({ id: 'a', primary: false }),
+    seedProvider({ id: 'b', primary: true }),
   ] });
   const putRes = makeRes();
   await providersMod.handleProvidersPut(putReq, putRes);

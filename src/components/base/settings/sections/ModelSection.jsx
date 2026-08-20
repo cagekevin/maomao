@@ -7,8 +7,8 @@ import { Plus, Trash2, Image as ImageIcon, MessageSquare, Video as VideoIcon } f
  * 逻辑不变，仅样式统一到 Skill 面板风格。
  */
 const MODEL_CATS = [
-  { key: 'image_models', label: '生图模型', Icon: ImageIcon },
   { key: 'chat_models', label: '聊天模型', Icon: MessageSquare },
+  { key: 'image_models', label: '生图模型', Icon: ImageIcon },
   { key: 'video_models', label: '视频模型', Icon: VideoIcon },
 ]
 

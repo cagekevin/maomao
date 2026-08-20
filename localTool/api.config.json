@@ -8,7 +8,7 @@
       "image_request_mode": "openai",
       "image_mode": "async",
       "enabled": true,
-      "isPrimary": true,
+      "primary": true,
       "image_models": [
         {
           "id": "gpt-image-2-low",
@@ -23,12 +23,6 @@
           "promptOnly": false
         },
         {
-          "id": "gpt-image-2",
-          "label": "GPT Image 2",
-          "streaming": false,
-          "promptOnly": false
-        },
-        {
           "id": "nano-bn-pro",
           "label": "Nano Banana Pro",
           "streaming": false,
@@ -39,18 +33,12 @@
           "label": "Nano Banana 2",
           "streaming": false,
           "promptOnly": false
-        },
-        {
-          "id": "nano-bn-2-lite",
-          "label": "Nano Banana 2 Lite",
-          "streaming": false,
-          "promptOnly": false
         }
       ],
       "chat_models": [
         {
           "id": "lovart-chat",
-          "label": "Lovart 设计 Agent",
+          "label": "Lovart-chat",
           "streaming": false,
           "promptOnly": false
         }
@@ -86,7 +74,9 @@
           "streaming": false,
           "promptOnly": false
         }
-      ]
+      ],
+      "volcengine_project_name": "default",
+      "volcengine_region": "cn-beijing"
     },
     {
       "id": "modelscope",
@@ -94,12 +84,12 @@
       "base_url": "https://api-inference.modelscope.cn",
       "protocol": "openai",
       "image_request_mode": "openai",
-      "image_mode": "sync",
+      "image_mode": "async",
       "enabled": true,
       "image_models": [
         {
-          "id": "MusePublic/Qwen-Image-Edit",
-          "label": "GQwen-Image-Edit",
+          "id": "Qwen/Qwen-Image-Edit",
+          "label": "Qwen-Image-Edit",
           "streaming": false,
           "promptOnly": false
         }
@@ -112,113 +102,73 @@
           "promptOnly": false
         },
         {
-          "id": "deepseek-ai/DeepSeek-V4-Pro",
+          "id": "deepseek-ai/DeepSeek-V4-Pro-0813",
           "label": "DeepSeek-V4-Pro",
           "streaming": false,
           "promptOnly": false
         },
         {
-          "id": "Qwen/Qwen3.5-27B",
-          "label": "Qwen/Qwen3.5-27B",
+          "id": "Qwen/Qwen3-VL-8B-Thinking",
+          "label": "Qwen3-VL-8B-Thinking",
           "streaming": false,
           "promptOnly": false
         }
       ],
-      "video_models": [
-        {
-          "id": "MiniMax/MiniMax-M3",
-          "label": "MiniMax/MiniMax-M3",
-          "streaming": false,
-          "promptOnly": false
-        }
-      ]
+      "volcengine_project_name": "default",
+      "volcengine_region": "cn-beijing"
     },
     {
-      "id": "p_mt1c86v0_xxeyna",
+      "id": "p_mt1h4ycb_sfr3gu",
       "name": "apimart",
       "base_url": "https://api.apimart.ai/v1",
-      "protocol": "apimart",
+      "protocol": "openai",
       "image_request_mode": "openai",
       "image_mode": "async",
       "enabled": true,
       "image_models": [
         {
-          "id": "gpt-image-2-low",
-          "label": "GPT Image 2 Low",
-          "streaming": false,
-          "promptOnly": false
-        },
-        {
-          "id": "gpt-image-2-medium",
-          "label": "GPT Image 2 Medium",
-          "streaming": false,
-          "promptOnly": false
-        },
-        {
-          "id": "gpt-image-2",
-          "label": "GPT Image 2",
-          "streaming": false,
-          "promptOnly": false
-        },
-        {
-          "id": "nano-bn-pro",
-          "label": "Nano Banana Pro",
-          "streaming": false,
-          "promptOnly": false
-        },
-        {
-          "id": "nano-bn-2",
-          "label": "Nano Banana 2",
-          "streaming": false,
-          "promptOnly": false
-        },
-        {
-          "id": "nano-bn-2-lite",
-          "label": "Nano Banana 2 Lite",
+          "id": "gemini-3.1-flash-image-preview",
+          "label": "gemini-3.1-flash-image-preview",
           "streaming": false,
           "promptOnly": false
         }
       ],
       "chat_models": [
         {
-          "id": "lovart-chat",
-          "label": "Lovart 设计 Agent",
+          "id": "deepseek-v4-flash",
+          "label": "deepseek-v4-flash",
+          "streaming": false,
+          "promptOnly": false
+        },
+        {
+          "id": "gpt-5.6-luna",
+          "label": "gpt-5.6-luna",
+          "streaming": false,
+          "promptOnly": false
+        },
+        {
+          "id": "gpt-5.6-sol",
+          "label": "gpt-5.6-sol",
+          "streaming": false,
+          "promptOnly": false
+        },
+        {
+          "id": "gpt-5.6-terra",
+          "label": "gpt-5.6-terra",
           "streaming": false,
           "promptOnly": false
         }
       ],
       "video_models": [
         {
-          "id": "seedance-2.0-fast",
-          "label": "Seedance 2.0 Fast",
-          "streaming": false,
-          "promptOnly": false
-        },
-        {
-          "id": "seedance-2",
-          "label": "Seedance 2",
-          "streaming": false,
-          "promptOnly": false
-        },
-        {
-          "id": "kling-v3-omni",
-          "label": "Kling V3 Omni",
-          "streaming": false,
-          "promptOnly": false
-        },
-        {
           "id": "seedance-2.0-mini",
-          "label": "Seedance 2.0 Mini",
-          "streaming": false,
-          "promptOnly": false
-        },
-        {
-          "id": "minimax-h3",
-          "label": "MiniMax H3",
+          "label": "seedance-2.0-mini",
           "streaming": false,
           "promptOnly": false
         }
-      ]
+      ],
+      "volcengine_project_name": "default",
+      "volcengine_region": "cn-beijing"
     }
   ]
 }
