@@ -23,7 +23,7 @@
 import { build } from 'esbuild'
 import { readdirSync, statSync, readFileSync } from 'node:fs'
 import { join, resolve, extname } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url))
 const root = resolve(__dirname, '..')
@@ -53,7 +53,7 @@ function collectSources(dir, acc = []) {
 // ── 加载事件登记表 ──
 let EVENTS = {}
 try {
-  const mod = await import(resolve(root, 'src/components/base/contracts.js'))
+  const mod = await import(pathToFileURL(resolve(root, 'src/components/base/contracts.js')).href)
   EVENTS = mod.EVENTS || {}
 } catch (e) {
   console.error('  ✖ 无法加载 contracts.js 事件登记表：', e.message)

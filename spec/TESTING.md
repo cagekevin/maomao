@@ -50,7 +50,7 @@
 |------|---------|-----------|
 | **价值** | 测的是真实契约还是自证式断言？ | 逻辑层好；部分组件测试自证式（低价值） |
 | **速度** | 整包多久？单个测试多久？ | 整包 4.3s；单组件 388ms（并发已优化） |
-| **守门** | 提交/CI 时测试是否被强制跑？ | pre-commit 只 type-check，未跑测试 |
+| **守门** | 提交/CI 时测试是否被强制跑？ | pre-commit 已含 `test:unit`（外加 type-check）；e2e 独立按需跑 |
 | **确定性** | 有 flaky（偶发红）吗？定时器/真实网络是否隔离？ | 12 个测试用定时器，需 fake timers 规范（见「六·铁律」） |
 | **依赖一致** | package-lock 锁定？换机可复现？ | ✅ 已锁定 |
 | **输出卫生** | 产物进 test-results/？不污染 git？ | ✅ 已规范 |
@@ -63,11 +63,11 @@
 | 守门点 | 现状 | 说明 |
 |--------|------|------|
 | **手动全量** `npm run test:all` | ✅ 有效 | 冒烟 + vitest 单测 + SSR 回归 + Agent 工具，全绿才过 |
-| **提交钩子** `.husky/pre-commit` | ⚠️ **只跑 type-check，不跑测试** | 提交前无测试守门；测试仅靠手动跑 |
+| **提交钩子** `.husky/pre-commit` | ✅ 跑 `test:unit` + type-check | 提交前已有 `test:unit` 守门（实测 pre-commit 含 `"npm run test:unit"`），e2e 仍独立 |
 | **e2e 纳入门禁** | ⚠️ `test:all` **不含 e2e** | e2e 需单独 `npm run test:e2e`（慢），默认不在统一门禁 |
 | **CI**（若有） | — | 若有 CI，应跑 `test:all` |
 
-> **判断**：测试要有"活门禁"才有守门价值。若提交时不跑测试、e2e 不进门禁，这些测试就可能长期"绿假象"或没人跑。是否把 `test:unit` 加入 pre-commit、把 e2e 纳入 `test:all`，是产品决策——**默认推荐**：pre-commit 加 `test:unit`（4-5s 可接受），e2e 保持独立（慢，按需跑）。
+> **判断**：测试要有"活门禁"才有守门价值。`test:unit` 加入 pre-commit 已落地（实测 `.husky/pre-commit` 含 `"npm run test:unit"`），提交即跑单测守门；e2e 保持独立（慢，按需跑 `npm run test:e2e`），不进统一门禁。
 
 ### 现状覆盖面（2026-08-17）
 - `src/components/base/*.js`（纯逻辑）：59 个文件，几乎全部有对应 `tests/unit/*.test.js`（覆盖好，应作为主战场）。
@@ -267,7 +267,7 @@ describe('MyNode', () => {
 - 🟡 **仍可补（第二阶段全覆盖，2026-08-17 续，详见计划文档）**：当前 `src/components` 共 185 文件、已覆盖 48、仍有 **137 个零测试文件**待清零，按 7 批推进：
   1. ✅ **批 1 已完成**（2026-08-17）：`backupStore` `clipboard` `cloudSync` `imageCompress` `workflowRuntime` `hooks`(纯函数) `useCanvasHistory` `useSyncNodeData` —— 新增 8 个测试文件（`backupStore/clipboard/cloudSync/imageCompress/workflowRuntime/hooks/useCanvasHistory/useSyncNodeData.test.js`）。`nodePrefs` 实为 React hook，下移批 3。
   2. ✅ **批 2 已完成**（2026-08-17）：`apiBase` `chatApi` `imageApi` `videoApi` `filesApi` `tasksApi` `projectsApi` `settingsApi`(providerApi) —— 新增 8 个测试文件（48 用例）。关键基建：在 `tests/setup.mjs` 用 `Object.defineProperty` 强制 mock 全局 `fetch`（Node 原生 fetch 不可配置，`vi.stubGlobal` 失效）。
-  3. **批 3** 业务 hook：`nodePrefs`（从批 1 移入）`useArrangeCanvas` `useAssetDragToCanvas` `useAssetDropPaste` `useContextMenu` `useVideoPoster` `useLocalToolStatus` `useFitNodeRatio` `useMediaDegrade` `useNodeGeneration` `useScriptBoxData` `useScriptBoxEngine` `useCanvasAgentTools`
+  3. **批 3** 业务 hook：已落地 `useNodeGeneration` `useCanvasAgentTools`（实测有 `tests/unit/useNodeGeneration.test.js` / `canvasAgentTools.test.js`）；其余待补：`nodePrefs`（从批 1 移入）`useArrangeCanvas` `useAssetDragToCanvas` `useAssetDropPaste` `useContextMenu` `useVideoPoster` `useLocalToolStatus` `useFitNodeRatio` `useMediaDegrade` `useScriptBoxData` `useScriptBoxEngine`
   4. ✅ **批 4 已完成（2026-08-18）**：`ImageBoxNode` `AgentMessage` `AgentPanel` `Comet` `ConnectionLine` `CustomEdge` `CustomHandle` `DiscountVideoNode` `GhostTargetNode` `JianyingIcon` `NodeTitle` `ScriptBoxNode` —— 待补的 9 个节点已全部补齐（见下方阶段二续记录）。
   5. ✅ **批 5 已完成（2026-08-18）**：`TaskCenter`（`ContextMenu` `AssetLibrary` `CanvasToolbar` `GeneratedView` `ImageEditor` `OverlayEditor` `TopNav` `PromptInput` `ModelSelect` `NodePalette` `ProjectSelector` 等仍待补）
   6. ~~**批 6** director3d 逻辑层/store（0→全）~~ —— **已取消：不开测**。`director3d/` 是**外部下载的开源仓库**（storyai-3d-director-desk），非本仓库自有代码，不纳入测试维护（见 CLAUDE.md §二）。原列表（`directorStore` `cameraGeometry` `panoramaMath` `exportProjectJson` 等）不再作为待办。
