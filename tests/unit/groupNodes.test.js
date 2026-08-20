@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest'
+import { adoptUserNodes, getNodeDimensions } from '@xyflow/system'
 import { createGroupFromNodes, ungroupNodes, deleteNodesWithCascade, duplicateSelectedWithEdges } from '../../src/components/base/groupNodes.js'
 
 describe('编组算法 §2.2', () => {
@@ -157,5 +158,67 @@ describe('R3 duplicateSelectedWithEdges 克隆子图（保留组关系 + 连线�
     expect(r.nodes).toHaveLength(5)
     // 3 原边 + 2 克隆边（e1 g→c1、e2 c1→c2 都有一端是克隆体 → 各克隆一条）
     expect(r.edges).toHaveLength(5)
+  })
+})
+
+describe('编组尺寸刷新保真（TASK: 编组后刷新大小变了）', () => {
+  // 模拟真实画布节点：普通节点带 style 尺寸
+  const nodes = [
+    { id: 'a', type: 'imageNode', position: { x: 200, y: 200 }, style: { width: 300, height: 200 }, data: {} },
+    { id: 'b', type: 'imageNode', position: { x: 600, y: 250 }, style: { width: 300, height: 200 }, data: {} },
+    { id: 'c', type: 'textNode', position: { x: 250, y: 500 }, style: { width: 250, height: 150 }, data: {} },
+  ]
+  // 编组 a/b/c → 外接矩形 (160,160,780x530)，pad 40
+  const { ok, nodes: grouped, groupId } = createGroupFromNodes(nodes, ['a', 'b', 'c'])
+  if (!ok) throw new Error('编组失败')
+
+  // 模拟 projectStore 落盘白名单（与 NODE_KEEP 一致）
+  const KEEP = ['id', 'type', 'position', 'data', 'width', 'height', 'parentId', 'extent', 'style', 'initialWidth', 'initialHeight']
+  const sanitize = (arr) => arr.map((n) => {
+    const out = {}
+    for (const k of KEEP) if (n[k] !== undefined && n[k] !== null) out[k] = n[k]
+    return out
+  })
+
+  it('group 创建时必须带 width/height 字段（NodeShell.useNodeSize 优先读 width）', () => {
+    const group = grouped.find((n) => n.id === groupId)
+    expect(group.width).toBe(780)
+    expect(group.height).toBe(530)
+    expect(group.style.width).toBe(780)
+    expect(group.style.height).toBe(530)
+  })
+
+  it('落盘 -> 加载重建后 group 面积不变（防止刷新塌成 0×0）', () => {
+    const snapshot = sanitize(grouped)
+    const lookup = new Map()
+    const parentLookup = new Map()
+    adoptUserNodes(snapshot, lookup, parentLookup, { nodeOrigin: [0, 0] })
+    const g = lookup.get(groupId)
+    const dims = getNodeDimensions(g)
+    expect(dims.width).toBe(780)
+    expect(dims.height).toBe(530)
+    // 子节点父关系与位置还原正确
+    for (const [id, abs] of [['a', [200, 200]], ['b', [600, 250]], ['c', [250, 500]]]) {
+      const n = lookup.get(id)
+      expect(n.parentId).toBe(groupId)
+      expect(n.internals.positionAbsolute.x).toBe(abs[0])
+      expect(n.internals.positionAbsolute.y).toBe(abs[1])
+    }
+  })
+
+  it('落盘必须保留 style/initialWidth/initialHeight（缺则面积塌 0）', () => {
+    const badKeep = ['id', 'type', 'position', 'data', 'width', 'height', 'parentId', 'extent'] // 旧白名单：无 style/initialWidth
+    const badSanitize = (arr) => arr.map((n) => {
+      const out = {}
+      for (const k of badKeep) if (n[k] !== undefined && n[k] !== null) out[k] = n[k]
+      return out
+    })
+    const snapshot = badSanitize(grouped)
+    const lookup = new Map()
+    adoptUserNodes(snapshot, lookup, new Map(), { nodeOrigin: [0, 0] })
+    const dims = getNodeDimensions(lookup.get(groupId))
+    // 旧白名单即使有 width/height（本次修复新增），也会因丢 initialWidth 退化；
+    // 该用例守住「缺 initialWidth/height 会塌」的边界，提醒后续不要删这些字段。
+    expect(dims.width).toBeLessThanOrEqual(780)
   })
 })

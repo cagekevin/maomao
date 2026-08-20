@@ -79,6 +79,28 @@ describe('项目系统 §2.8', () => {
     expect(loaded.edges[0].selected).toBeUndefined()
   })
 
+  it('落盘白名单保留编组所需字段（parentId/extent/style/width/height）→ 刷新后尺寸与父关系不丢', async () => {
+    // 模拟编组后的节点：group 带 width/height/style/initialWidth，子节点带 parentId + 相对坐标
+    const group = { id: 'g1', type: 'group', position: { x: 160, y: 160 }, width: 780, height: 530, style: { width: 780, height: 530 }, initialWidth: 780, initialHeight: 530, data: { name: '编组' } }
+    const child = { id: 'a', type: 'imageNode', position: { x: 40, y: 40 }, parentId: 'g1', style: { width: 300, height: 200 }, data: {} }
+    const r = await projectStore.saveCanvasState('default', [group, child], [])
+    expect(r.success).toBe(true)
+    const loaded = await projectStore.loadCanvasState('default')
+    expect(loaded.nodes).toHaveLength(2)
+    const g = loaded.nodes.find((n) => n.type === 'group')
+    const c = loaded.nodes.find((n) => n.id === 'a')
+    // 尺寸保真：width/height/style/initialWidth 必须保留（否则刷新后 group 大小塌成 0）
+    expect(g.width).toBe(780)
+    expect(g.height).toBe(530)
+    expect(g.style.width).toBe(780)
+    expect(g.style.height).toBe(530)
+    expect(g.initialWidth).toBe(780)
+    // 父关系保真：子节点 parentId 必须保留（否则相对坐标被当绝对坐标 → 位置乱）
+    expect(c.parentId).toBe('g1')
+    // 运行时态仍被清理
+    expect(g.measured).toBeUndefined()
+  })
+
   it('saveCanvasState 版本冲突：远程版本更高拒绝覆盖', async () => {
     await projectStore.saveCanvasState('default', [{ id: 'n1', type: 'textNode', data: {}, position: {} }], [])
     // 模拟远程已有更高版本

@@ -58,6 +58,11 @@ export function createGroupFromNodes(nodes, selectedIds) {
     type: 'group',
     position: { x: gx, y: gy },
     style: { width: gw, height: gh },
+    // ⚠️ 必须同时写 width/height 字段（与 style 一致）：NodeShell.useNodeSize 读尺寸是
+    // `n.width ?? n.style?.width`，width 优先。仅写 style 时，落盘/刷新后若 width 未同步，
+    // 尺寸会塌成默认。写死 width/height + 白名单保存，刷新后尺寸必然保真。
+    width: gw,
+    height: gh,
     // 官方推荐：父节点有 style 尺寸时同时设 initialWidth/Height，保证首次测量前尺寸确定
     initialWidth: gw,
     initialHeight: gh,

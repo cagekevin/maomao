@@ -458,9 +458,20 @@ function Canvas() {
     const d = NODE_TYPE_DEFAULTS[node.type]
     if (!d) return node
     const next = { ...node }
+    // group 特殊：优先用折叠时记录的真实尺寸（expandedWidth/expandedHeight）兜底，
+    // 否则旧快照 group 尺寸字段全丢时，会硬编码回默认 300×200（"刷新后编组大小变了"的根因之一）。
+    // 仅当真实尺寸字段也缺失时才用类型默认值。
+    const fallbackW = node.type === 'group' && (node.data?.expandedWidth ?? node.data?.expandedHeight)
+      ? (node.data.expandedWidth || d.width)
+      : d.width
+    const fallbackH = node.type === 'group' && (node.data?.expandedWidth ?? node.data?.expandedHeight)
+      ? (node.data.expandedHeight || d.height)
+      : d.height
     // 尺寸/style/initial 只在缺失时补（存量快照若已有正确值则不覆盖）
     for (const k of ['width', 'height', 'initialWidth', 'initialHeight', 'className']) {
-      if (next[k] === undefined || next[k] === null) next[k] = d[k]
+      if (next[k] === undefined || next[k] === null) {
+        next[k] = k === 'width' ? fallbackW : k === 'height' ? fallbackH : d[k]
+      }
     }
     next.style = next.style ? { ...(d.style || {}), ...next.style } : (d.style || next.style)
     // group 的 data.name 缺失兜底
@@ -1154,13 +1165,18 @@ function Canvas() {
     [removeEdge]
   )
 
-  // deleteElements（CustomEdge 的 ✕ 按钮用）删除连线后，记录 undo 历史
-  const onEdgesDelete = useCallback(
-    (deleted) => {
-      if (!deleted || !deleted.length) return
-      const nextEdges = edgesRef.current.filter((ed) => !deleted.some((d) => d.id === ed.id))
-      history.record({ nodes: nodesRef.current, edges: nextEdges })
-      // 不记删线日志（同建节点）
+  // deleteElements 统一入口（Backspace/Delete 删节点/边、CustomEdge ✕ 删边都会触发）。
+  // 旧实现只绑 onEdgesDelete：删节点时节点本身不进 undo 历史，导致按 Delete 删节点后 Ctrl+Z 无反应。
+  // onDelete 一次性拿到被删的 { nodes, edges }，据此算出「删除后」完整快照并 record 一次，避免与删边重复入栈。
+  const onDelete = useCallback(
+    ({ nodes: dn, edges: de }) => {
+      if ((!dn || !dn.length) && (!de || !de.length)) return
+      const delNodeIds = new Set((dn || []).map((n) => n.id))
+      const delEdgeIds = new Set((de || []).map((e) => e.id))
+      const nextNodes = nodesRef.current.filter((n) => !delNodeIds.has(n.id))
+      const nextEdges = edgesRef.current.filter((e) => !delEdgeIds.has(e.id))
+      history.record({ nodes: nextNodes, edges: nextEdges })
+      // 不记删线/删节点日志
     },
     [history]
   )
@@ -1399,7 +1415,7 @@ function Canvas() {
           onConnect={onConnect}
           onConnectEnd={onConnectEnd}
           onEdgeDoubleClick={onEdgeDoubleClick}
-          onEdgesDelete={onEdgesDelete}
+          onDelete={onDelete}
           nodeTypes={stableNodeTypes}
           edgeTypes={stableEdgeTypes}
           connectionLineComponent={ConnectionLine}
