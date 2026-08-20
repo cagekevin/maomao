@@ -4,6 +4,8 @@
  */
 
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import fs from 'node:fs';
+import path from 'node:path';
 import { Readable, Transform } from 'node:stream';
 import { createGunzip, createInflate, createBrotliDecompress } from 'node:zlib';
 import { json, parseJsonBody, readRawBody, sendError } from '../utils/helpers.js';
@@ -11,6 +13,65 @@ import { resolveProviderTarget, type ResolvedTarget } from './providers.js';
 import { isProxyProtocol } from './protocolAdapters.js';
 import { fetchWithProxy } from '../utils/netProxy.js';
 import { persistThreadId } from './tasks.js';
+import { getUploadDir } from '../db/database.js';
+
+/**
+ * 把上游 response body 统一转成 Node Readable 流（兼容 Web ReadableStream 与 Node Readable）。
+ * fetch 原生返回 Web ReadableStream → Readable.fromWeb；netProxy 的 proxyResponse 走代理时
+ * body 已是 Node Readable（Readable.from）→ 直接用（再 fromWeb 会抛
+ * "The 'readableStream' argument must be an instance of ReadableStream"）。
+ */
+function toNodeReadable(upstreamBody: unknown): Readable {
+  if (upstreamBody instanceof Readable) return upstreamBody;
+  return Readable.fromWeb(upstreamBody as any);
+}
+
+const SELF_FILE_HOST_RE = /^(127\.0\.0\.1|localhost|::1)(:\d+)?$/i;
+
+/** 是否 localTool 本机 /files/ URL（请求体里这类地址上游（如 apimart）禁止回拉，需内联 base64）。 */
+function isSelfFileUrl(u: string): boolean {
+  try {
+    const parsed = new URL(u);
+    if (!SELF_FILE_HOST_RE.test(parsed.hostname)) return false;
+    return parsed.pathname.startsWith('/files/');
+  } catch { return false; }
+}
+
+/** 把请求体 JSON 里所有 localTool 本机 /files/ 图片 URL 内联成 data: base64（上游禁止回拉 18080）。 */
+async function inlineLocalImages(bodyStr: string): Promise<string> {
+  const urlRe = /(https?:\/\/[^\s"')\]}]+)/g;
+  const hits = new Set<string>();
+  let m: RegExpExecArray | null;
+  while ((m = urlRe.exec(bodyStr)) !== null) hits.add(m[1]);
+  const tasks: Array<{ from: string; to: string }> = [];
+  for (const u of hits) {
+    if (!isSelfFileUrl(u)) continue;
+    const urlPath = new URL(u).pathname; // /files/{subfolder}/{filename}
+    const rel = urlPath.replace(/^\/files\//, '');
+    const filePath = path.join(getUploadDir(), rel);
+    let dataUrl = '';
+    try {
+      if (fs.existsSync(filePath)) {
+        const buf = fs.readFileSync(filePath);
+        const ext = path.extname(filePath).toLowerCase().replace('.', '') || 'png';
+        const mime = ext === 'jpg' ? 'jpeg' : ext;
+        dataUrl = `data:image/${mime};base64,${buf.toString('base64')}`;
+      }
+    } catch { /* 读文件失败：保留原 URL，不阻断主流程 */ }
+    if (dataUrl) {
+      tasks.push({ from: u, to: dataUrl });
+      console.log(`[proxy:inline-img] ${new Date().toISOString().replace('T',' ').slice(0,19)} | ${u} -> data:image (${bufSizeText(dataUrl.length)})`);
+    }
+  }
+  if (!tasks.length) return bodyStr;
+  let out = bodyStr;
+  for (const t of tasks) out = out.split(t.from).join(t.to);
+  return out;
+}
+
+function bufSizeText(len: number): string {
+  return len > 1048576 ? `${(len / 1048576).toFixed(1)}MB` : `${Math.round(len / 1024)}KB`;
+}
 
 const VERSION = '1.4.2';
 const PORT = Number(process.env.PORT) || 18080;
@@ -230,7 +291,7 @@ async function handleProxyFormData(req: IncomingMessage, res: ServerResponse, ta
       streamHeaders['content-type'] = 'text/event-stream';
       res.writeHead(fetchRes.status, streamHeaders);
 
-      let bodyStream = Readable.fromWeb(fetchRes.body as any);
+      let bodyStream = toNodeReadable(fetchRes.body);
       const ce = fetchRes.headers.get('content-encoding') || '';
       if (ce === 'gzip' || ce === 'x-gzip') bodyStream = bodyStream.pipe(createGunzip());
       else if (ce === 'deflate') bodyStream = bodyStream.pipe(createInflate());
@@ -398,6 +459,20 @@ async function handleProxyJson(req: IncomingMessage, res: ServerResponse): Promi
     // 网关同步模式经通用 SSE 流式透传分支（下方）逐块 pipe，无需在此特判。
   }
 
+  // ── [fix:上游禁回拉本机] 直连公网上游时，把请求体里的 localTool 本机 /files/ 图片
+  //    内联成 data: base64 再转发（上游如 api.apimart.ai 拒绝回拉 127.0.0.1:18080 → 500
+  //    "port 18080 is not allowed"）。仅对「目标不是本机（9004 网关等本地链路）」生效，
+  //    本地网关自己 resolve_attachments 转 CDN，无需内联。 ──
+  let upstreamHost = '';
+  try { upstreamHost = new URL(body.url).hostname; } catch { /* 伪协议或非法，视为公网 */ }
+  const toLocalUpstream = upstreamHost === '127.0.0.1' || upstreamHost === 'localhost' || upstreamHost === '::1';
+  if (fetchBody && !toLocalUpstream) {
+    try {
+      const inlined = await inlineLocalImages(fetchBody);
+      if (inlined !== fetchBody) fetchBody = inlined;
+    } catch { /* 内联失败保持原 body，不阻断 */ }
+  }
+
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), PROXY_TIMEOUT_MS);
@@ -449,7 +524,7 @@ async function handleProxyJson(req: IncomingMessage, res: ServerResponse): Promi
       streamHeaders['content-type'] = 'text/event-stream';
       res.writeHead(fetchRes.status, streamHeaders);
 
-      let bodyStream = Readable.fromWeb(fetchRes.body as any);
+      let bodyStream = toNodeReadable(fetchRes.body);
       const ce = fetchRes.headers.get('content-encoding') || '';
       if (ce === 'gzip' || ce === 'x-gzip') bodyStream = bodyStream.pipe(createGunzip());
       else if (ce === 'deflate') bodyStream = bodyStream.pipe(createInflate());

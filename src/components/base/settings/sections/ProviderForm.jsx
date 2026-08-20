@@ -1,7 +1,7 @@
 import React from 'react'
 import { Trash2, Eye, EyeOff, KeyRound, RefreshCw, CircleDot, Check, AlertCircle, Star } from 'lucide-react'
 import ModelSection from './ModelSection.jsx'
-import { PROVIDER_PROTOCOLS, PROVIDER_PROTOCOL_LABELS, CLI_PROTOCOLS } from '../../providerProtocols.js'
+import { PROVIDER_PROTOCOL_LABELS, CLI_PROTOCOLS, GENERAL_PROTOCOLS, SPECIAL_PROTOCOLS } from '../../providerProtocols.js'
 
 /**
  * 供应商编辑面板（ApiSettings 右侧主内容，样式对齐 SkillSettings 的 zinc 黑白系）。
@@ -89,12 +89,14 @@ function ModelscopeLoraSection({ p, onUpdate }) {
   )
 }
 
-export default function ProviderForm({ p, testing, fetching, testResult, onUpdate, onSetPrimary, onRemove, onTest, onFetchModels }) {
+export default function ProviderForm({ p, testing, fetching, testResult, onUpdate, onSetPrimary, onRemove, onTest, onFetchModels, tab = 'general' }) {
   const [showKey, setShowKey] = React.useState(false)
   const readonly = !!p.readonly
   const hasSavedKey = !!p.has_key
   const preview = p.key_preview || (hasSavedKey ? '••••••••' : '')
   const keyValue = p._apiKey ?? (hasSavedKey ? preview : '')
+  // 协议下拉按 tab 隔离：通用平台只显示通用协议，专属平台只显示专属协议
+  const protocolOptions = tab === 'general' ? GENERAL_PROTOCOLS : SPECIAL_PROTOCOLS
   const handleKeyChange = (e) => {
     const v = e.target.value
     if (v && (v.includes('••') || v === preview)) return
@@ -110,8 +112,8 @@ export default function ProviderForm({ p, testing, fetching, testResult, onUpdat
             <input value={p.name || ''} onChange={(e) => onUpdate({ name: e.target.value })} disabled={false} className={inputCls} placeholder="如：Lovart" />
           </Field>
           <Field label="协议">
-            <select value={p.protocol} onChange={(e) => onUpdate({ protocol: e.target.value })} disabled={false} className={selectCls}>
-              {PROVIDER_PROTOCOLS.map((v) => <option key={v} value={v}>{PROVIDER_PROTOCOL_LABELS[v] || v}</option>)}
+            <select value={protocolOptions.includes(p.protocol) ? p.protocol : protocolOptions[0]} onChange={(e) => onUpdate({ protocol: e.target.value })} disabled={false} className={selectCls}>
+              {protocolOptions.map((v) => <option key={v} value={v}>{PROVIDER_PROTOCOL_LABELS[v] || v}</option>)}
             </select>
           </Field>
           {isHttpProtocol(p.protocol) ? (
@@ -121,14 +123,6 @@ export default function ProviderForm({ p, testing, fetching, testResult, onUpdat
           ) : (
             <Field label="请求地址" hint="CLI 本地协议：使用本机登录态，无需填写地址">
               <input value={p.base_url || ''} onChange={(e) => onUpdate({ base_url: e.target.value })} disabled className={`${inputCls} opacity-60`} placeholder="CLI 协议无需请求地址" />
-            </Field>
-          )}
-          {p.protocol === 'volcengine' && (
-            <Field label="平台信息" hint="火山方舟独立部署参数">
-              <div className="grid grid-cols-2 gap-2">
-                <input value={p.volcengine_project_name || ''} onChange={(e) => onUpdate({ volcengine_project_name: e.target.value })} className={inputCls} placeholder="project_name（默认 default）" />
-                <input value={p.volcengine_region || ''} onChange={(e) => onUpdate({ volcengine_region: e.target.value })} className={inputCls} placeholder="region（默认 cn-beijing）" />
-              </div>
             </Field>
           )}
           {isHttpProtocol(p.protocol) && (
@@ -142,12 +136,6 @@ export default function ProviderForm({ p, testing, fetching, testResult, onUpdat
                 <select value={p.image_mode === 'async' ? 'async' : 'sync'} onChange={(e) => onUpdate({ image_mode: e.target.value })} disabled={false} className={selectCls}>
                   <option value="sync">同步（等待结果）</option>
                   <option value="async">异步（轮询任务）</option>
-                </select>
-              </Field>
-              <Field label="聊天请求形态" hint="gpt-5.6 等需选 responses 才能用工具调用">
-                <select value={p.chat_request_mode || 'chat'} onChange={(e) => onUpdate({ chat_request_mode: e.target.value })} disabled={false} className={selectCls}>
-                  <option value="chat">chat/completions（默认）</option>
-                  <option value="responses">responses</option>
                 </select>
               </Field>
             </>
@@ -174,7 +162,22 @@ export default function ProviderForm({ p, testing, fetching, testResult, onUpdat
         </Section>
       )}
 
-      {p.id === 'modelscope' && <ModelscopeLoraSection p={p} onUpdate={onUpdate} />}
+      {/* 平台专属设置：只显示当前平台自己的参数，不跟通用配置混（方舟 project/region、魔搭 Lora 等） */}
+      {(p.protocol === 'volcengine' || p.id === 'modelscope') && (
+        <Section title="平台专属设置" desc={p.id === 'modelscope' ? 'ModelScope 专用参数' : '火山方舟专用参数'}>
+          {p.protocol === 'volcengine' && (
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="项目名称" hint="火山方舟独立部署参数">
+                <input value={p.volcengine_project_name || ''} onChange={(e) => onUpdate({ volcengine_project_name: e.target.value })} className={inputCls} placeholder="project_name（默认 default）" />
+              </Field>
+              <Field label="区域" hint="火山方舟独立部署参数">
+                <input value={p.volcengine_region || ''} onChange={(e) => onUpdate({ volcengine_region: e.target.value })} className={inputCls} placeholder="region（默认 cn-beijing）" />
+              </Field>
+            </div>
+          )}
+          {p.id === 'modelscope' && <ModelscopeLoraSection p={p} onUpdate={onUpdate} />}
+        </Section>
+      )}
 
       <Section title="连接测试" desc="验证连通性 / 拉取远端模型">
         <div className="flex items-center gap-3 flex-wrap">

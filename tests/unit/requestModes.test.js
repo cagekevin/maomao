@@ -52,11 +52,16 @@ describe('请求形态层（前端镜像）', () => {
     expect(u[0]).toMatchObject({ id: 'c1', function: { name: 'create_node', arguments: '{"x":1}' } })
   })
 
-  it('resolveChatMode：默认 chat，responses 系归 responses（M2-5 保守）', () => {
+  it('resolveChatMode：默认 chat，responses 系归 responses，gpt-5.6 自动归 responses（M2-5 保守）', () => {
     expect(resolveChatMode(undefined)).toBe('chat')
     expect(resolveChatMode('chat')).toBe('chat')
     expect(resolveChatMode('responses')).toBe('responses')
     expect(resolveChatMode('openai-responses')).toBe('responses')
+    // 未配置时按模型自动判断：gpt-5.6 系 → responses，其余 → chat
+    expect(resolveChatMode(undefined, 'gpt-5.6-luna')).toBe('responses')
+    expect(resolveChatMode(undefined, 'gpt-5.6-terra')).toBe('responses')
+    expect(resolveChatMode(undefined, 'deepseek-v4-flash')).toBe('chat')
+    expect(resolveChatMode(undefined, 'gpt-5.5')).toBe('chat')
   })
 
   it('buildResponsesChatBody：messages 映射 input + tool name 顶层（M2-2）', () => {

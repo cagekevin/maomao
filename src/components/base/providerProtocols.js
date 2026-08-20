@@ -22,6 +22,17 @@ export const PROVIDER_PROTOCOLS = [
   'openai', 'apimart', 'gemini', 'volcengine', 'runninghub', 'jimeng', 'codex', 'gemini-cli',
 ]
 
+/** 通用平台协议：标准 HTTP，只需 base_url+key，无平台专属参数（通用 tab）。 */
+export const GENERAL_PROTOCOLS = ['openai', 'apimart', 'gemini']
+
+/** 平台专属协议：需专属参数或 CLI（专属 tab），与通用平台完全隔离。 */
+export const SPECIAL_PROTOCOLS = ['volcengine', 'runninghub', 'jimeng', 'codex', 'gemini-cli']
+
+/** 是否通用平台（true=通用 tab；false=专属 tab）。 */
+export function isGeneralProtocol(protocol) {
+  return GENERAL_PROTOCOLS.includes(protocol)
+}
+
 /** CLI 本地类协议：不走 /api/proxy，用本机登录态。 */
 export const CLI_PROTOCOLS = ['jimeng', 'codex', 'gemini-cli']
 

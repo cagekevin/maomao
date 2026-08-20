@@ -104,11 +104,18 @@ test('SUPPORTED_IMAGE_REQUEST_MODES 含四形态（与 ProviderForm 一致）', 
   assert.deepEqual([...mod.SUPPORTED_IMAGE_REQUEST_MODES].sort(), ['openai', 'openai-json', 'openai-responses', 'openai-video-proxy'].sort());
 });
 
-test('resolveChatMode：默认 chat，responses 系归 responses（M2-2/M2-5）', () => {
+test('resolveChatMode：默认 chat，responses 系归 responses，gpt-5.6 自动归 responses（M2-2/M2-5）', () => {
+  // 手动配置优先
   assert.equal(mod.resolveChatMode(undefined), 'chat');
   assert.equal(mod.resolveChatMode('chat'), 'chat');
   assert.equal(mod.resolveChatMode('responses'), 'responses');
   assert.equal(mod.resolveChatMode('openai-responses'), 'responses');
+  // 未配置时按模型自动判断：gpt-5.6 系 → responses
+  assert.equal(mod.resolveChatMode(undefined, 'gpt-5.6-luna'), 'responses');
+  assert.equal(mod.resolveChatMode(undefined, 'gpt-5.6-terra'), 'responses');
+  // 非 gpt-5.6 → chat（deepseek 走 chat/completions）
+  assert.equal(mod.resolveChatMode(undefined, 'deepseek-v4-flash'), 'chat');
+  assert.equal(mod.resolveChatMode(undefined, 'gpt-5.5'), 'chat');
 });
 
 test('buildResponsesChatBody：messages 映射 input + tool name 顶层（M2-2 契约线）', () => {

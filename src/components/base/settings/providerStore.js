@@ -119,6 +119,7 @@ export function setPrimary(id) {
 export function add() {
   const np = emptyProvider()
   setState({ providers: [...state.providers, np], selectedId: np.id, dirty: true, testResult: null })
+  return np
 }
 
 export function remove(id) {
@@ -227,7 +228,6 @@ export async function save() {
         protocol: p.protocol,
         image_request_mode: p.image_request_mode || 'openai',
         image_mode: p.image_mode === 'async' ? 'async' : 'sync',
-        chat_request_mode: p.chat_request_mode || 'chat',
         enabled: p.enabled !== false,
         primary: !!p.primary,
         image_models: p.image_models || [],

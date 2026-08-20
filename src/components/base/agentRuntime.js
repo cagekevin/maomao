@@ -61,13 +61,14 @@ export async function roundTrip(ctx, requestMessages, signal, onStream) {
   const withTools = !isNonStream || ENABLE_TOOLS_ON_NON_STREAM
   // 聊天请求形态（M2-2）：provider.chat_request_mode === 'responses' → /v1/responses（gpt-5.6 带工具）。
   // 默认 chat，走 /v1/chat/completions，现有模型零改动。
-  const isResponsesChat = resolveChatMode(provider?.chat_request_mode) === 'responses'
+  const isResponsesChat = resolveChatMode(provider?.chat_request_mode, model) === 'responses'
   const llmBody = isResponsesChat
     ? buildResponsesChatBody({
         model,
         messages: requestMessages,
         toolSchemas: withTools ? toolSchemas : [],
-        temperature: 0.6,
+        // 注意：responses 端点（gpt-5.6 系）不支持 temperature 参数，
+        // 传了会报 "Unsupported parameter: 'temperature' is not supported with this model."
         stream: !isNonStream,
       })
     : {
@@ -89,21 +90,40 @@ export async function roundTrip(ctx, requestMessages, signal, onStream) {
     roles: requestMessages.map((m) => m.role),
     firstContentHead: requestMessages.find((m) => m.role === 'user')?.content ? String(requestMessages.find((m) => m.role === 'user').content).slice(0, 120) : '',
   }, { module: 'agent' })
+  // ── [debug] 非流式链路 · 跳①：请求形态判定 + body 构造 ──
+  logger.debug('AI助手', '[非流式] 跳①形态', {
+    streamMode, isNonStream, isResponsesChat, withTools,
+    bodyKeys: Object.keys(llmBody),
+    bodyStream: llmBody.stream,
+    msgCount: requestMessages.length,
+    hasImageInBody: JSON.stringify(llmBody).includes('image_url') || JSON.stringify(llmBody).includes('input_image'),
+  }, { module: 'agent' })
   // 【为何不迁到 httpClient.js】本请求是 SSE 流式读取 body 流 + 非流式普通 JSON 双模式，
   // 且可走两条链路（provider 存在走 /api/proxy 转发、否则直连 /api/agent/...），响应需逐块
   // 解析 event 并驱动多轮工具循环（roundTrip 由 useAgentChat 的 SSE 循环逐行消费），与
   // httpClient 的 parseJson/扁平错误语义冲突；已内建 signal 取消（abortRef）+ 下方按 status
   // 分类抛错 + AbortError 原样上抛三层异步治理，故保留原生 fetch。
+  // ── [debug] 非流式链路 · 跳②：fetch 发送（记录目标 URL + body 摘要） ──
+  const proxyBody = useProxy
+    ? {
+        url: buildTargetUrl(provider, isResponsesChat ? 'responses' : 'chat/completions'),
+        providerId: provider?.id,
+        method: 'POST',
+        body: JSON.stringify(llmBody)
+      }
+    : null
+  logger.debug('AI助手', '[非流式] 跳②发送', {
+    via: useProxy ? 'proxy' : 'agent',
+    target: useProxy ? proxyBody.url : endpoint,
+    bodyLen: JSON.stringify(llmBody).length,
+    hasImage: JSON.stringify(llmBody).includes('image_url') || JSON.stringify(llmBody).includes('input_image'),
+    accept,
+  }, { module: 'agent' })
   const res = useProxy
     ? await fetch(`${apiBase}/api/proxy`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Accept: accept },
-        body: JSON.stringify({
-          url: buildTargetUrl(provider, isResponsesChat ? 'responses' : 'chat/completions'),
-          providerId: provider?.id,
-          method: 'POST',
-          body: JSON.stringify(llmBody)
-        }),
+        body: JSON.stringify(proxyBody),
         signal
       })
     : await fetch(endpoint, {
@@ -132,6 +152,13 @@ export async function roundTrip(ctx, requestMessages, signal, onStream) {
   if (isNonStream) {
     const rawText = await res.text().catch(() => '')
     const json = safeParseNonStreamJSON(rawText, logger)
+    // ── [debug] 非流式链路 · 跳③：响应体读取 + 解析结果（定位"收不到回复"） ──
+    logger.debug('AI助手', '[非流式] 跳③响应体', {
+      rawLen: rawText.length,
+      jsonParsed: !!json,
+      rawHead: rawText.slice(0, 200),
+      isResponsesChat,
+    }, { module: 'agent' })
     // responses 形态：output[] 里取 message.content[].text + function_call（挂 unmooted，下面统一归一手）
     if (isResponsesChat) {
       const { content: rContent, toolCalls: rCalls } = parseResponsesChatJson(json || {})
@@ -142,11 +169,20 @@ export async function roundTrip(ctx, requestMessages, signal, onStream) {
       }
       if (rCalls.length > 0) rAssistant.tool_calls = rCalls
       if (rawText && !json) logger.error('AI助手', 'responses 非流式解析失败(可能截断)', { rawLen: rawText.length, head: rawText.slice(0, 120) })
+      logger.debug('AI助手', '[非流式] 跳③ responses解析', { rContentLen: rContent.length, rCallCount: rCalls.length, rCalls }, { module: 'agent' })
       onStream?.({ content: rAssistant.content, reasoning: '', toolCalls: rAssistant.tool_calls || [] })
       logger.info('AI助手', 'responses 非流式结果', { contentLen: rAssistant.content.length, toolCallCount: rCalls.length })
       return rAssistant
     }
     const msg = json?.choices?.[0]?.message || {}
+    logger.debug('AI助手', '[非流式] 跳③ chat解析', {
+      jsonKeys: json ? Object.keys(json) : [],
+      choicesLen: json?.choices?.length ?? 0,
+      msgKeys: Object.keys(msg),
+      msgContentType: typeof msg?.content,
+      msgContentLen: typeof msg?.content === 'string' ? msg.content.length : (msg?.content == null ? 0 : 'non-string'),
+      msgHasToolCalls: Array.isArray(msg?.tool_calls),
+    }, { module: 'agent' })
     // 【兜底】解析失败（被截断/非 JSON）时，把原始文本当 content 保留，避免整条回复消失。
     // 渲染层 extractImageSpans 仍能从纯文本里抽 URL 渲染图片。
     const content = (msg?.content != null && String(msg.content).length > 0)

@@ -518,6 +518,14 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
           )
           // 结束流式（把占位替换为完整 assistant）
           endStreaming(assistant)
+          // ── [debug] 非流式链路 · 跳④：roundTrip 返回（定位"前端拿到什么"） ──
+          logger.debug('AI助手', '[非流式] 跳④返回', {
+            contentLen: (assistant?.content || '').length,
+            hasToolCalls: Array.isArray(assistant?.tool_calls) && assistant.tool_calls.length > 0,
+            toolNames: (assistant?.tool_calls || []).map((t) => t.function?.name),
+            round,
+            roundTripOk: true,
+          }, { module: 'agent' })
 
           // 【对齐大雄】阶段1 的 generations 主通道：从 LLM 回复正文解析并暂存（不走工具参数超大 JSON）。
           // 若正文含 plan+generations JSON，解析后写入 per-conversation 暂存，供阶段3 execute_plan 从内存读。
@@ -527,6 +535,11 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
           }
 
           // 无工具调用 → 结束
+          logger.debug('AI助手', '[非流式] 跳④循环判定', {
+            toolCallsCount: assistant?.tool_calls?.length ?? 0,
+            willBreak: !assistant.tool_calls || assistant.tool_calls.length === 0,
+            round,
+          }, { module: 'agent' })
           if (!assistant.tool_calls || assistant.tool_calls.length === 0) break
 
           // 执行工具并回填结果（TASK-006 #1：await 异步工具，确保回填真实结果而非 Promise）

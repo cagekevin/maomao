@@ -7,6 +7,9 @@
  * 纯函数、无副作用。
  */
 
+/** 必须走 /v1/responses 的模型（chat/completions 不支持其工具调用）。单一真相，改规则两端同步。 */
+export const REQUIRES_RESPONSES_MODEL = /gpt-5\.6|gpt-5-6/
+
 /** 生图形态 → 端点 path（相对 provider base）。未知/空 → 默认 openai（M2-5 保守）。 */
 export function imageModePath(mode) {
   switch (mode) {
@@ -95,11 +98,20 @@ export function normalizeToolCalls(source) {
 }
 
 /**
- * 聊天形态归一（M2-2）：provider.chat_request_mode → 'responses' | 'chat'。
- * 默认 chat（现有 chat/completions 模型零改动，M2-5 保守）。
+ * 聊天形态归一（M2-2）：决定聊天走 /v1/responses 还是 /v1/chat/completions。
+ * 优先级：
+ *   1. 手动配置 provider.chat_request_mode === 'responses' → responses（用户显式指定）
+ *   2. 否则按模型自动判断：gpt-5.6 系（仅 responses 端点支持工具）→ responses
+ *   3. 默认 chat（现有 chat/completions 模型零改动，M2-5 保守）
+ * @param {string|undefined} mode provider.chat_request_mode
+ * @param {string} model 当前聊天模型名（用于自动判断）
  */
-export function resolveChatMode(mode) {
-  return isResponsesMode(mode) ? 'responses' : 'chat'
+export function resolveChatMode(mode, model = '') {
+  if (isResponsesMode(mode)) return 'responses'
+  // 自动判断：gpt-5.6 系模型在 chat/completions 不支持 tools，必须走 responses
+  const m = String(model || '').toLowerCase()
+  if (REQUIRES_RESPONSES_MODEL.test(m)) return 'responses'
+  return 'chat'
 }
 
 /**
@@ -120,13 +132,19 @@ export function buildResponsesChatBody({ model, messages = [], toolSchemas = [],
       })
       continue
     }
-    const items = Array.isArray(m?.content) ? m.content : [{ type: 'input_text', text: typeof m?.content === 'string' ? m.content : String(m?.content ?? '') }]
+    // Responses API 中 content 元素类型随角色而定：
+    //  - user:    input_text / input_image
+    //  - assistant: 只能 output_text / refusal（上游用 input_text 会报
+    //    "Invalid value: 'input_text'. Supported values are: 'output_text' and 'refusal'"）
+    const isAssistant = m?.role === 'assistant'
+    const items = Array.isArray(m?.content) ? m.content : [{ type: isAssistant ? 'output_text' : 'input_text', text: typeof m?.content === 'string' ? m.content : String(m?.content ?? '') }]
     const mapped = (items || []).map((c) => {
       if (c?.type === 'image_url') {
         const raw = c?.image_url?.url || c?.image_url
         return { type: 'input_image', image_url: raw, detail: c?.image_url?.detail }
       }
-      if (c?.type === 'text') return { type: 'input_text', text: c.text }
+      if (c?.type === 'text') return { type: isAssistant ? 'output_text' : 'input_text', text: c.text }
+      // 保留显式给出的 output_text（assistant 历史回传），其余原样透传
       return c
     })
     input.push({ role: m?.role, content: mapped })
@@ -183,14 +201,19 @@ export function parseResponsesChatJson(json) {
  *   response.function_call_arguments.delta（含 .done）拼工具名与参数。
  *   acc 与 parseSSEChunk 同构（{content, reasoning, toolCalls}），可无损并入 roundTrip 循环。
  */
-export function parseResponsesSSEChunk(line, acc = { content: '', reasoning: '', toolCalls: [] }) {
-  if (!line.startsWith('data:')) return
+function parseResponsesSSEDataLine(line, acc) {
   const payload = line.slice(5).trim()
   if (!payload || payload === '[DONE]') return
   try {
     const evt = JSON.parse(payload)
     const type = evt?.type
-    if (type === 'response.output_text.delta' && typeof evt?.delta === 'string') acc.content += evt.delta
+    // output_item.added（type=function_call）→ 真实上游在此时携带函数名与 call_id
+    //（function_call_arguments.delta/done 里没有 name，只有 arguments）。
+    if (type === 'response.output_item.added' && evt?.item?.type === 'function_call') {
+      acc.toolCalls[0] ||= { id: '', type: 'function', function: { name: '', arguments: '' } }
+      if (typeof evt.item.call_id === 'string' && !acc.toolCalls[0].id) acc.toolCalls[0].id = evt.item.call_id
+      if (typeof evt.item.name === 'string' && !acc.toolCalls[0].function.name) acc.toolCalls[0].function.name = evt.item.name
+    } else if (type === 'response.output_text.delta' && typeof evt?.delta === 'string') acc.content += evt.delta
     else if (type === 'response.reasoning_summary_text.delta' && typeof evt?.delta === 'string') acc.reasoning += evt.delta
     else if (type === 'response.response.delta' && Array.isArray(evt?.delta?.output_text)) {
       for (const o of evt.delta.output_text) if (typeof o?.text === 'string') acc.content += o.text
@@ -207,6 +230,25 @@ export function parseResponsesSSEChunk(line, acc = { content: '', reasoning: '',
     }
   } catch {
     /* 忽略单条解析失败 */
+  }
+}
+
+/**
+ * responses 聊天 SSE 增量解析（M2-3，流式）——兼容带 `event:` 前缀的 SSE 块。
+ * 上游（apimart responses 端点）返回标准 SSE 块形如：
+ *   event: response.output_text.delta\n
+ *   data: {"type":"response.output_text.delta",...}\n
+ *   \n
+ * roundTrip 按 \n\n 分块后，chunk 以 `event:` 开头，若按「整块必须 data: 开头」会全部漏解析
+ * （表现为 status 200 但 contentLen=0）。这里按行遍历，忽略 event:/空行，逐个解析 data: 行。
+ */
+export function parseResponsesSSEChunk(line, acc = { content: '', reasoning: '', toolCalls: [] }) {
+  if (!line) return
+  const lines = line.split('\n')
+  for (const l of lines) {
+    const t = l.trimEnd()
+    if (t.startsWith('data:')) parseResponsesSSEDataLine(t, acc)
+    // event: 行、空行、其他 SSE 元信息行：忽略
   }
 }
 

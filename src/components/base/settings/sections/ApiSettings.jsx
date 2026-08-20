@@ -1,7 +1,7 @@
 import React from 'react'
-import { Plus, Trash2, Star, Check, Server } from 'lucide-react'
+import { Plus, Trash2, Star, Check, Server, Layers, Boxes } from 'lucide-react'
 import { showToast } from '../../toastStore.js'
-import { PROVIDER_PROTOCOL_LABELS } from '../../providerProtocols.js'
+import { PROVIDER_PROTOCOL_LABELS, GENERAL_PROTOCOLS, SPECIAL_PROTOCOLS, isGeneralProtocol } from '../../providerProtocols.js'
 import { useProviders, load, select, add, update, setPrimary, remove, test, fetchModels, applyFetchedModels, closeFetchedModels, save } from '../providerStore.js'
 import ProviderForm from './ProviderForm.jsx'
 import FetchModelsModal from './FetchModelsModal.jsx'
@@ -11,10 +11,19 @@ import FetchModelsModal from './FetchModelsModal.jsx'
  *  - 顶部操作栏：标题 + 说明 + 保存（主按钮白底）+ 供应商统计
  *  - 左侧：供应商列表（协议标签/主标记/hover 删除），+ 添加供应商
  *  - 右侧：当前供应商编辑面板（ProviderForm）
- * 逻辑不变，仅样式统一到 Skill 面板风格。
+ *
+ * 【Tab 分流（平台专属颗粒与通用平台完全隔离）】
+ *  - Tab「通用平台」：标准 HTTP 平台（openai/apimart/gemini，只需 base_url+key，无专属参数）
+ *  - Tab「平台专属」：需专属参数或 CLI（volcengine/runninghub/jimeng/codex/gemini-cli）
+ *  两个 tab 的供应商列表完全分开，各自独立管理；协议下拉也按 tab 隔离（通用平台选不到专属协议，反之亦然）。
  */
+const isGeneralProvider = (p) => isGeneralProtocol(p?.protocol)
+const isSpecialProvider = (p) => !isGeneralProtocol(p?.protocol)
+
 export default function ApiSettings() {
   const { providers, selectedId, loading, dirty, saving, testingId, fetchingId, fetchedModels, testResult } = useProviders()
+  // tab：'general' 通用平台 | 'special' 平台专属
+  const [tab, setTab] = React.useState('general')
 
   React.useEffect(() => {
     let cancelled = false
@@ -22,7 +31,28 @@ export default function ApiSettings() {
     return () => { cancelled = true }
   }, [])
 
-  const selected = providers.find((p) => p.id === selectedId) || null
+  // 当前 tab 的供应商列表
+  const tabProviders = React.useMemo(
+    () => providers.filter((p) => (tab === 'general' ? isGeneralProvider(p) : isSpecialProvider(p))),
+    [providers, tab]
+  )
+  // 当前选中（优先当前 tab 里的）
+  const selected = tabProviders.find((p) => p.id === selectedId) || tabProviders[0] || null
+
+  // 切 tab：确保选中落在该 tab
+  const handleTabChange = (t) => {
+    setTab(t)
+    const list = providers.filter((p) => (t === 'general' ? isGeneralProvider(p) : isSpecialProvider(p)))
+    if (list.length) select(list[0].id)
+  }
+  // 添加供应商：按当前 tab 给默认协议（通用→openai；专属→volcengine）
+  const handleAdd = () => {
+    const np = add()
+    if (np) {
+      if (tab === 'general') update(np.id, { protocol: 'openai' })
+      else update(np.id, { protocol: 'volcengine' })
+    }
+  }
 
   const handleSave = async () => {
     const r = await save()
@@ -56,18 +86,35 @@ export default function ApiSettings() {
       <div className="flex gap-4 items-start">
         {/* 左侧：供应商列表 */}
         <aside className="w-[260px] shrink-0 flex flex-col gap-3">
+          {/* 供应商分类切换（通用平台默认显示；平台专属单独折叠） */}
+          <div className="flex rounded-lg bg-surface border border-edge-subtle p-0.5 text-xs">
+            <button
+              type="button"
+              onClick={() => handleTabChange('general')}
+              className={`flex-1 flex items-center justify-center gap-1.5 h-8 rounded-md transition-colors cursor-pointer border-none ${tab === 'general' ? 'bg-surface-hover text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
+            >
+              <Layers size={13} /> 通用平台
+            </button>
+            <button
+              type="button"
+              onClick={() => handleTabChange('special')}
+              className={`flex-1 flex items-center justify-center gap-1.5 h-8 rounded-md transition-colors cursor-pointer border-none ${tab === 'special' ? 'bg-surface-hover text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
+            >
+              <Boxes size={13} /> 平台专属
+            </button>
+          </div>
           <div className="bg-surface border border-edge-subtle rounded-xl overflow-hidden">
             <div className="px-4 py-3.5 border-b border-edge-subtle flex items-center justify-between">
-              <span className="text-sm text-zinc-200">供应商</span>
-              <span className="text-xs text-zinc-500 bg-surface-1 px-2 py-0.5 rounded-full">{providers.length}</span>
+              <span className="text-sm text-zinc-200">{tab === 'general' ? '通用平台' : '平台专属'}</span>
+              <span className="text-xs text-zinc-500 bg-surface-1 px-2 py-0.5 rounded-full">{tabProviders.length}</span>
             </div>
             <div className="p-2 space-y-1">
               {loading ? (
                 <div className="text-center text-xs text-zinc-500 py-6">加载中…</div>
-              ) : providers.length === 0 ? (
+              ) : tabProviders.length === 0 ? (
                 <div className="text-center text-xs text-zinc-500 py-6 border border-dashed border-edge rounded-lg">暂无供应商</div>
               ) : (
-                providers.map((p) => (
+                tabProviders.map((p) => (
                   <ProviderListItem
                     key={p.id}
                     p={p}
@@ -81,10 +128,10 @@ export default function ApiSettings() {
           </div>
           <button
             type="button"
-            onClick={add}
+            onClick={handleAdd}
             className="w-full h-9 bg-surface-1 text-zinc-400 rounded-xl hover:bg-surface-hover hover:text-zinc-200 transition-colors text-xs inline-flex items-center justify-center gap-1.5 cursor-pointer border-none"
           >
-            <Plus size={14} /> 添加供应商
+            <Plus size={14} /> 添加{tab === 'general' ? '通用' : '专属'}平台
           </button>
         </aside>
 
@@ -111,6 +158,7 @@ export default function ApiSettings() {
 
               <ProviderForm
                 p={selected}
+                tab={tab}
                 testing={testingId === selected.id}
                 fetching={fetchingId === selected.id}
                 testResult={selected.id === selectedId ? testResult : null}

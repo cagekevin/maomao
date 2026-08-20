@@ -210,7 +210,7 @@ function extractVideoUrl({ data, json }) {
  */
 export async function chatProxy({ provider, body, signal }) {
   // 请求形态：responses 走 /v1/responses 端点 + output[] 解析；默认 chat/completions（M2-2）
-  const responses = resolveChatMode(provider?.chat_request_mode) === 'responses'
+  const responses = resolveChatMode(provider?.chat_request_mode, body?.model) === 'responses'
   const target = buildTargetUrl(provider, responses ? 'responses' : 'chat/completions')
   const payload = __buildProxyPayload({ provider, target, method: 'POST', body })
   let res
