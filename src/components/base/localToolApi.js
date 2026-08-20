@@ -153,6 +153,7 @@ export const providerApi = {
   getProviders: () => request('/api/providers', { label: 'getProviders' }),
   saveProviders: (providers) => request('/api/providers', { method: 'PUT', body: { providers }, label: 'saveProviders' }),
   testConnection: (payload) => request('/api/providers/test-connection', { method: 'POST', body: payload, label: 'testConnection' }),
+  probeAsync: (payload) => request('/api/providers/probe-async', { method: 'POST', body: payload, label: 'probeAsync' }),
   fetchModels: (id) => request(`/api/providers/${encodeURIComponent(id)}/fetch-models`, { method: 'POST', label: 'fetchModels' }),
   syncConfigBase: (providers) => request('/api/config/base', { method: 'PUT', body: { providers }, label: 'syncConfigBase' }),
 }

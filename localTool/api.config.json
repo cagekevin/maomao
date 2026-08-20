@@ -132,6 +132,93 @@
           "promptOnly": false
         }
       ]
+    },
+    {
+      "id": "p_mt1c86v0_xxeyna",
+      "name": "apimart",
+      "base_url": "https://api.apimart.ai/v1",
+      "protocol": "apimart",
+      "image_request_mode": "openai",
+      "image_mode": "async",
+      "enabled": true,
+      "image_models": [
+        {
+          "id": "gpt-image-2-low",
+          "label": "GPT Image 2 Low",
+          "streaming": false,
+          "promptOnly": false
+        },
+        {
+          "id": "gpt-image-2-medium",
+          "label": "GPT Image 2 Medium",
+          "streaming": false,
+          "promptOnly": false
+        },
+        {
+          "id": "gpt-image-2",
+          "label": "GPT Image 2",
+          "streaming": false,
+          "promptOnly": false
+        },
+        {
+          "id": "nano-bn-pro",
+          "label": "Nano Banana Pro",
+          "streaming": false,
+          "promptOnly": false
+        },
+        {
+          "id": "nano-bn-2",
+          "label": "Nano Banana 2",
+          "streaming": false,
+          "promptOnly": false
+        },
+        {
+          "id": "nano-bn-2-lite",
+          "label": "Nano Banana 2 Lite",
+          "streaming": false,
+          "promptOnly": false
+        }
+      ],
+      "chat_models": [
+        {
+          "id": "lovart-chat",
+          "label": "Lovart 设计 Agent",
+          "streaming": false,
+          "promptOnly": false
+        }
+      ],
+      "video_models": [
+        {
+          "id": "seedance-2.0-fast",
+          "label": "Seedance 2.0 Fast",
+          "streaming": false,
+          "promptOnly": false
+        },
+        {
+          "id": "seedance-2",
+          "label": "Seedance 2",
+          "streaming": false,
+          "promptOnly": false
+        },
+        {
+          "id": "kling-v3-omni",
+          "label": "Kling V3 Omni",
+          "streaming": false,
+          "promptOnly": false
+        },
+        {
+          "id": "seedance-2.0-mini",
+          "label": "Seedance 2.0 Mini",
+          "streaming": false,
+          "promptOnly": false
+        },
+        {
+          "id": "minimax-h3",
+          "label": "MiniMax H3",
+          "streaming": false,
+          "promptOnly": false
+        }
+      ]
     }
   ]
 }

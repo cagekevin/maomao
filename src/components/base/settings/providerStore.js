@@ -136,7 +136,23 @@ export async function test(id) {
   setState({ testingId: id, testResult: null })
   try {
     const key = p._apiKey && p._apiKey.trim() ? p._apiKey.trim() : undefined
-    const data = await providerApi.testConnection({ id: p.id, base_url: p.base_url, key, protocol: p.protocol })
+    const payload = { id: p.id, base_url: p.base_url, key, protocol: p.protocol }
+    // 1) 通用连通性探测（含 GET 健康/模型端点，失败时透传上游原始 body）
+    let data = await providerApi.testConnection(payload)
+    // 2) apimart 异步协议：额外用假 task_id 嗅探异步端点，能区分
+    //    「key 无效(401/403) / 非 apimart(404) / 端点存在(400+invalid task id)」。
+    //    若通用探测已成功则跳过，避免无谓请求；失败时用异步嗅探结果补全诊断。
+    if (p.protocol === 'apimart' && !data?.ok) {
+      try {
+        const probe = await providerApi.probeAsync(payload)
+        // 优先展示异步嗅探的更精确原始信息；status 若为 0 则回填
+        data = probe.ok
+          ? { ...data, ...probe, ok: true }
+          : { ...data, ...probe, ok: false }
+      } catch {
+        // probe-async 本身失败时保留 test-connection 的原始信息
+      }
+    }
     setState({ testResult: data })
   } catch (e) {
     setState({ testResult: { ok: false, error: e.message } })

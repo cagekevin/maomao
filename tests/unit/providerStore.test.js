@@ -13,6 +13,7 @@ vi.mock('react', () => ({
 const h = vi.hoisted(() => ({
   mockGetProviders: vi.fn(),
   mockTestConnection: vi.fn(),
+  mockProbeAsync: vi.fn(),
   mockFetchModels: vi.fn(),
   mockSaveProviders: vi.fn(),
   mockSyncConfigBase: vi.fn(),
@@ -23,6 +24,7 @@ vi.mock('../../src/components/base/localToolApi.js', () => ({
   providerApi: {
     getProviders: (...a) => h.mockGetProviders(...a),
     testConnection: (...a) => h.mockTestConnection(...a),
+    probeAsync: (...a) => h.mockProbeAsync(...a),
     fetchModels: (...a) => h.mockFetchModels(...a),
     saveProviders: (...a) => h.mockSaveProviders(...a),
     syncConfigBase: (...a) => h.mockSyncConfigBase(...a),
@@ -46,6 +48,7 @@ describe('providerStore §4 供应商数据层', () => {
     vi.resetModules()
     h.mockGetProviders.mockReset()
     h.mockTestConnection.mockReset()
+    h.mockProbeAsync.mockReset()
     h.mockFetchModels.mockReset()
     h.mockSaveProviders.mockReset()
     h.mockSyncConfigBase.mockReset()
@@ -157,6 +160,21 @@ describe('providerStore §4 供应商数据层', () => {
       await mod.test(id)
       const s = mod.useProviders()
       expect(s.testResult).toEqual({ ok: false, error: 'conn refused' })
+    })
+
+    it('test apimart 通用探测失败时用 probe-async 补全诊断（透传原始错误）', async () => {
+      mod.add()
+      const id = mod.useProviders().selectedId
+      // 设为 apimart 协议，且 test-connection 返回失败
+      mod.update(id, { protocol: 'apimart' })
+      h.mockTestConnection.mockResolvedValue({ ok: false, status: 0, error: '连接失败: Connect Timeout' })
+      h.mockProbeAsync.mockResolvedValue({ ok: true, status: 400, stage: 'async_endpoint_ok', detail: 'Invalid task ID.' })
+      await mod.test(id)
+      const s = mod.useProviders()
+      // probe-async 确认异步端点存在 → 整体判 ok
+      expect(h.mockProbeAsync).toHaveBeenCalled()
+      expect(s.testResult.ok).toBe(true)
+      expect(s.testResult.stage).toBe('async_endpoint_ok')
     })
 
     it('fetchModels 更新三类模型并返回总数', async () => {

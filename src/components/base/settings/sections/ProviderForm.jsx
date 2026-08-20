@@ -124,9 +124,14 @@ export default function ProviderForm({ p, testing, fetching, testResult, onUpdat
             <CircleDot size={14} className={fetching ? 'animate-spin' : ''} /> {fetching ? '拉取中…' : '拉取模型'}
           </button>
           {testResult && (
-            <div className={`flex items-center gap-2 text-xs px-3 py-2 rounded-xl ${testResult.ok ? 'bg-emerald-500/10 text-emerald-300' : 'bg-red-500/10 text-red-300'}`}>
-              {testResult.ok ? <Check size={14} /> : <AlertCircle size={14} />}
-              {testResult.ok ? `连接成功（${testResult.detectedProtocol || testResult.protocol || ''} · ${testResult.status ?? ''}）` : `连接失败：${testResult.error || testResult.status || '未知'}`}
+            <div className={`flex flex-col gap-1 text-xs px-3 py-2 rounded-xl ${testResult.ok ? 'bg-emerald-500/10 text-emerald-300' : 'bg-red-500/10 text-red-300'}`}>
+              <div className="flex items-center gap-2">
+                {testResult.ok ? <Check size={14} /> : <AlertCircle size={14} />}
+                {testResult.ok ? `连接成功（${testResult.detectedProtocol || testResult.protocol || ''} · ${testResult.status ?? ''}${testResult.stage ? ' · ' + testResult.stage : ''}）` : `连接失败：${testResult.error || testResult.status || '未知'}`}
+              </div>
+              {testResult.detail && (
+                <div className="text-[11px] opacity-80 pl-6 break-all whitespace-pre-wrap">{testResult.detail}</div>
+              )}
             </div>
           )}
         </div>

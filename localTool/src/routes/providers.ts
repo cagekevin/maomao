@@ -19,6 +19,9 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { getDataDir } from '../db/database.js';
 import { json, parseJsonBody, sendError } from '../utils/helpers.js';
+// 走代理的出站 fetch：部分公网域（含 apimart/lovart 系）本机直连超时，必须经代理重试。
+// 测试/拉取模型若不走代理，会得到「连接失败: Connect Timeout」，前端误报「连接失败：未知」。
+import { fetchWithProxy } from '../utils/netProxy.js';
 
 // ── 类型 ──
 // 协议：apimart（Lovart / 异步任务 task_id 轮询形态）| openai（直连 OpenAI 兼容端点）
@@ -387,9 +390,13 @@ export async function handleProvidersPut(req: IncomingMessage, res: ServerRespon
 // 【打基础】连接测试的探测路径「按协议表驱动」（可插拔，不堆 if）。
 // 将来加新协议（gemini → /v1beta、volcengine → /api/v3、runninghub → /openapi/v2）只需
 // 在这里补一条映射 + 在 PROBE_ORDER 里加名字，主探测逻辑无需改。
+// 探测路径（对齐实测）：
+//   openai 兼容 → /v1/models（标准）
+//   apimart     → /models（apimart 的 base_url 已含 /v1 前缀，其根路径即 /v1/models；
+//                  实测 /health 不存在(404)、/v1/models 会拼成 /v1/v1/models(404)）
 const PROBE_PATHS: Record<string, string> = {
   openai: '/v1/models',
-  apimart: '/health',
+  apimart: '/models',
 };
 // auto 时依次探测的顺序（先试通用的 openai，再试 apimart）
 const PROBE_ORDER = ['openai', 'apimart'];
@@ -416,48 +423,188 @@ export async function handleProviderTest(req: IncomingMessage, res: ServerRespon
   const headers: Record<string, string> = { Accept: 'application/json' };
   if (key) headers['Authorization'] = `Bearer ${key}`;
 
-  // 协议探测：auto 时先探 openai(/v1/models)，失败再探 apimart(/v1/gateway/health)
-  const probe = async (path: string): Promise<{ ok: boolean; status: number }> => {
+  /**
+   * 读取上游响应体（JSON 优先，非 JSON 截断为纯文本）。
+   * 目的：把 apimart 等上游返回的原始错误信息透传回前端，而不是只给一个
+   * 「status: 0」让前端显示「连接失败：未知」。
+   */
+  const readBody = async (r: Response): Promise<string> => {
+    try {
+      const text = await r.text();
+      const t = text.trim();
+      if (!t) return '';
+      if (t.length <= 2000) return t;
+      return t.slice(0, 2000) + '…(截断)';
+    } catch {
+      return '';
+    }
+  };
+
+  // 协议探测：auto 时先探 openai(/v1/models)，失败再探 apimart(/health)
+  // 返回体带 body（上游原始响应体）与 err（网络/超时错误信息），供前端展示透传原始信息。
+  const probe = async (path: string): Promise<{ ok: boolean; status: number; body: string; err: string }> => {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 8000);
     try {
-      const r = await fetch(base + path, { method: 'GET', headers, signal: controller.signal });
+      // 用 fetchWithProxy 而非原生 fetch：apimart/lovart 系公网域本机直连常超时，
+      // 必须「直连失败→走代理重试」，否则测试永远报「连接失败」。
+      const r = await fetchWithProxy(base + path, { method: 'GET', headers, signal: controller.signal });
       clearTimeout(timeout);
-      return { ok: r.status >= 200 && r.status < 400, status: r.status };
-    } catch {
+      const body = await readBody(r);
+      return { ok: r.status >= 200 && r.status < 400, status: r.status, body, err: '' };
+    } catch (e) {
       clearTimeout(timeout);
-      return { ok: false, status: 0 };
+      const err = (e as Error).name === 'AbortError'
+        ? `请求超时(8s): ${base}${path}`
+        : `连接失败: ${(e as Error).message}`;
+      return { ok: false, status: 0, body: '', err };
     }
+  };
+
+  /** 把探测结果收敛成统一展示字段：优先原始 body，其次网络错误，兜底「HTTP n」 */
+  const summarize = (r: { ok: boolean; status: number; body: string; err: string }): string => {
+    if (r.body) return r.body;
+    if (r.err) return r.err;
+    return `HTTP ${r.status}`;
   };
 
   try {
     // 表驱动探测：显式协议只探它的路径；auto 按 PROBE_ORDER 依次试
     if (protocol !== 'auto' && PROBE_PATHS[protocol]) {
       const r = await probe(PROBE_PATHS[protocol]);
-      return json(res, { ok: r.ok, status: r.status, protocol, detectedProtocol: protocol, url: base + PROBE_PATHS[protocol] });
+      // 失败时透传上游原始 body/错误（前端「连接失败：xxx」不再显示「未知」）
+      const payload: Record<string, unknown> = {
+        ok: r.ok, status: r.status, protocol, detectedProtocol: protocol, url: base + PROBE_PATHS[protocol],
+      };
+      if (!r.ok) payload.error = summarize(r);
+      return json(res, payload);
     }
     const probes: Record<string, number> = {};
     let firstStatus = 0;
+    let firstDetail = '';
     for (const proto of PROBE_ORDER) {
       const path = PROBE_PATHS[proto];
       if (!path) continue;
       const r = await probe(path);
       probes[proto] = r.status;
       firstStatus = firstStatus || r.status;
+      firstDetail = firstDetail || summarize(r);
       if (r.ok) {
         return json(res, { ok: true, status: r.status, protocol: proto, detectedProtocol: proto, url: base + path, probes });
       }
     }
-    return json(res, {
+    const payload: Record<string, unknown> = {
       ok: false,
       status: firstStatus,
       protocol: 'unknown',
       detectedProtocol: null,
       probes,
       url: base,
-    });
+    };
+    if (firstDetail) payload.error = firstDetail;
+    return json(res, payload);
   } catch (e) {
     return json(res, { ok: false, error: (e as Error).message, protocol: 'unknown', detectedProtocol: null, url: base });
+  }
+}
+
+// ── probe-async：异步端点嗅探（对齐 docs/api-接入/04 §G.4，接 apimart 异步站的「命门」）──
+// 用**假 task_id** 请求 `GET {base}/v1/tasks/healthcheck_probe_do_not_submit`：
+//   - 400 + 错误含 invalid task id → 端点存在、Key 有效（apimart 异步协议确认）
+//   - 401/403 → Key 无效（透传上游原始 body）
+//   - 404     → 平台不支持 /v1/tasks/（非 apimart）
+//   - 其它    → 透传原始状态 + body
+export async function handleProviderProbeAsync(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  const body = (await parseJsonBody(req)) as { id?: string; url?: string; key?: string } | null;
+  if (!body) return sendError(res, 'Empty body', 400);
+
+  let url = body.url;
+  let key = body.key;
+  if (body.id && (!url || !key)) {
+    const p = getProvider(body.id);
+    if (p) {
+      url = url || p.base_url;
+      key = key || readProviderKey(p.id);
+    }
+  }
+  if (!url) return sendError(res, 'Missing url (or id)', 400);
+
+  const base = url.replace(/\/$/, '');
+  // 任务端点有两种拼法，依次探测避免 base 已含/未含 /v1 造成重复：
+  //   用户 base 填 https://host/v1     → 探 {base}/tasks/{id}
+  //   用户 base 填 https://host         → 探 {base}/v1/tasks/{id}
+  const taskId = 'healthcheck_probe_do_not_submit';
+  const candidates = [`${base}/tasks/${taskId}`, `${base}/v1/tasks/${taskId}`];
+  const headers: Record<string, string> = { Accept: 'application/json' };
+  if (key) headers['Authorization'] = `Bearer ${key}`;
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8000);
+  const probeUrl = `${candidates[0]}`;
+  try {
+    // 依次尝试候选 URL，取第一个「非连接级错误」的响应作为诊断依据
+    let result: { status: number; text: string; url: string } | null = null;
+    for (const cand of candidates) {
+      try {
+        // 同样走 fetchWithProxy：apimart 需经代理才能访问，直连会超时
+        const r = await fetchWithProxy(cand, { method: 'GET', headers, signal: controller.signal });
+        clearTimeout(timeout);
+        const rawBody = await r.text();
+        result = { status: r.status, text: (rawBody || '').trim(), url: cand };
+        // 401/403（key 无效）或 404（确认端点路径）即为决定性结论，无需再试
+        if (r.status === 401 || r.status === 403 || r.status === 404) break;
+        break; // 其余状态也以首个为准（已拿到响应）
+      } catch {
+        // 单个候选连接失败则换下一个；全部失败走下方 catch
+        continue;
+      }
+    }
+    if (!result) {
+      clearTimeout(timeout);
+      throw new Error('all candidates failed');
+    }
+    const { status, text, url: hitUrl } = result;
+    const detail = text && text.length <= 2000 ? text : (text ? text.slice(0, 2000) + '…(截断)' : '');
+    const lower = text.toLowerCase();
+
+    if (status === 401 || status === 403) {
+      return json(res, {
+        ok: false, status, protocol: 'apimart', detectedProtocol: 'apimart',
+        stage: 'key_invalid', url: hitUrl,
+        error: detail || `Key 无效（HTTP ${status}）`,
+      });
+    }
+    if (status === 404) {
+      return json(res, {
+        ok: false, status: 404, protocol: 'apimart', detectedProtocol: null,
+        stage: 'not_apimart', url: hitUrl,
+        error: detail || '该地址不支持 /tasks/*，可能不是 apimart 异步协议',
+      });
+    }
+    if ((status >= 400 && status < 500) && lower.includes('invalid task')) {
+      return json(res, {
+        ok: true, status, protocol: 'apimart', detectedProtocol: 'apimart',
+        stage: 'async_endpoint_ok', url: hitUrl,
+        detail: detail || '异步端点存在（返回 invalid task id，属预期）',
+      });
+    }
+    if (status >= 200 && status < 400) {
+      return json(res, {
+        ok: true, status, protocol: 'apimart', detectedProtocol: 'apimart',
+        stage: 'reachable', url: hitUrl, detail,
+      });
+    }
+    return json(res, {
+      ok: false, status, protocol: 'apimart', detectedProtocol: 'apimart',
+      stage: 'unknown', url: hitUrl,
+      error: detail || `HTTP ${status}`,
+    });
+  } catch (e) {
+    clearTimeout(timeout);
+    const err = (e as Error).name === 'AbortError'
+      ? `请求超时(8s): ${probeUrl}`
+      : `连接失败: ${(e as Error).message}`;
+    return json(res, { ok: false, status: 0, protocol: 'apimart', detectedProtocol: null, stage: 'network_error', url: candidates.join(' | '), error: err });
   }
 }
 
@@ -465,14 +612,18 @@ export async function handleProviderFetchModels(req: IncomingMessage, res: Serve
   const p = getProvider(id);
   if (!p) return sendError(res, `Provider not found: ${id}`, 404);
 
-  const modelsUrl = p.base_url.replace(/\/$/, '') + '/v1/models';
+  // 模型 URL 按协议拼：openai 兼容 → base/v1/models；apimart → base/models
+  // （apimart 的 base_url 已含 /v1 前缀，再拼 /v1/models 会得到 /v1/v1/models → 404）。
+  const modelsPath = p.protocol === 'apimart' ? '/models' : '/v1/models';
+  const modelsUrl = p.base_url.replace(/\/$/, '') + modelsPath;
   const headers: Record<string, string> = { Accept: 'application/json' };
   const key = readProviderKey(p.id);
   if (key) headers['Authorization'] = `Bearer ${key}`;
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 10000);
-    const fetchRes = await fetch(modelsUrl, { method: 'GET', headers, signal: controller.signal });
+    // 走 fetchWithProxy：apimart/lovart 系公网域本机直连超时，必须经代理。
+    const fetchRes = await fetchWithProxy(modelsUrl, { method: 'GET', headers, signal: controller.signal });
     clearTimeout(timeout);
     if (!fetchRes.ok) {
       return json(res, { ...emptyModels(), warning: `upstream ${fetchRes.status}, fell back to stored` });

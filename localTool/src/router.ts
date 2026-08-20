@@ -50,7 +50,7 @@ import {
 import { handleAgentChat } from './routes/agentChat.js';
 import {
   handleProvidersGet, handleProvidersPut, handleProviderTest, handleProviderFetchModels,
-  handleConfigBasePut,
+  handleProviderProbeAsync, handleConfigBasePut,
 } from './routes/providers.js';
 import { handlePassthrough } from './routes/passthrough.js';
 
@@ -183,6 +183,7 @@ export const routes: Route[] = [
   { method: 'PUT',  pattern: '/api/providers', handler: handleProvidersPut },
   { method: 'PUT',  pattern: '/api/config/base', handler: handleConfigBasePut },
   { method: 'POST', pattern: '/api/providers/test-connection', handler: handleProviderTest },
+  { method: 'POST', pattern: '/api/providers/probe-async', handler: handleProviderProbeAsync },
   { method: 'POST', pattern: /^\/api\/providers\/([^/]+)\/fetch-models$/, handler: providerFetchModelsHandler },
 
   // ── 管理 ──
