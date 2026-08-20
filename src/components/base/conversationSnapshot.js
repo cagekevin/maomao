@@ -1,0 +1,102 @@
+/**
+ * ════════════════════════════════════════════════════════════════
+ * 会话隔离数据层 —— 当前对话快照读写（D 类：runtime 状态）
+ * ════════════════════════════════════════════════════════════════
+ *
+ * 【拆分契约 · 2026-08-21】从 conversationStore.js 拆出的 D 类职能：
+ * "读写当前对话"的快照/workflow/pending/memory。依赖单向指向 conversationState 底座。
+ * 下游 conversationImageMap / conversationStore(聚合) 可再依赖本文件。
+ * 命名/导出不变，消费方无感知。
+ * ════════════════════════════════════════════════════════════════
+ */
+import {
+  getActiveConv, commit, getState, normalizeWorkflow, normalizePending, normalizeMemory,
+  emptyMemory, AGENT_MSG_MAX,
+} from './conversationState.js'
+
+/** 读当前对话的快照副本（对外） */
+export function getCurrentSnapshot() {
+  const conv = getActiveConv()
+  return {
+    messages: conv ? [...conv.messages] : [],
+    skills: conv ? [...conv.skills] : [],
+    attachments: conv ? [...conv.attachments] : [],
+    draft: conv?.draft || '',
+    workflow: conv?.workflow ? { ...conv.workflow, steerQueue: [...(conv.workflow.steerQueue || [])] } : null,
+    pending: conv?.pending ? { ...conv.pending, attachments: [...(conv.pending.attachments || [])] } : null,
+    memory: conv?.memory ? normalizeMemory(conv.memory) : emptyMemory(),
+  }
+}
+
+/**
+ * 同步当前对话的内存态（只覆盖传入字段，其余保留）。
+ * 重构后这是唯一写入口之一：更新 active 对话并自动落盘。
+ */
+export function setCurrentSnapshot(snap) {
+  const conv = getActiveConv()
+  if (!conv) return
+  const next = {
+    ...conv,
+    messages: Array.isArray(snap?.messages) ? snap.messages.slice(-AGENT_MSG_MAX) : conv.messages,
+    skills: Array.isArray(snap?.skills) ? snap.skills.map((s) => ({ ...s })) : conv.skills,
+    attachments: Array.isArray(snap?.attachments) ? snap.attachments.map((a) => ({ ...a })) : conv.attachments,
+    draft: typeof snap?.draft === 'string' ? snap.draft : conv.draft,
+    workflow: snap?.workflow ? normalizeWorkflow(snap.workflow) : conv.workflow,
+    pending: snap?.pending !== undefined ? normalizePending(snap.pending) : conv.pending,
+    memory: snap?.memory ? normalizeMemory(snap.memory) : conv.memory,
+    updatedAt: Date.now(),
+  }
+  commit({
+    ...getState(),
+    conversations: getState().conversations.map((c) => (c.id === conv.id ? next : c)),
+  })
+}
+
+/** 读当前对话的 workflow（副本；无则 null） */
+export function getCurrentWorkflow() {
+  return getActiveConv()?.workflow ? { ...getActiveConv().workflow, steerQueue: [...(getActiveConv().workflow.steerQueue || [])] } : null
+}
+
+/** 原地补丁当前对话的 workflow（运行时状态；更新后落盘） */
+export function patchCurrentWorkflow(patch = {}) {
+  const conv = getActiveConv()
+  if (!conv) return null
+  const wf = conv.workflow ? { ...conv.workflow } : { status: 'planning', nodeIds: [], steerQueue: [] }
+  const nextWf = normalizeWorkflow({ ...wf, ...patch, steerQueue: Array.isArray(patch?.steerQueue) ? patch.steerQueue : (wf.steerQueue || []) })
+  commit({
+    ...getState(),
+    conversations: getState().conversations.map((c) => (c.id === conv.id ? { ...c, workflow: nextWf, updatedAt: Date.now() } : c)),
+  })
+  return nextWf
+}
+
+/** 读当前对话的 pending（副本；无则 null） */
+export function getCurrentPending() {
+  const p = getActiveConv()?.pending
+  return p ? { ...p, attachments: [...(p.attachments || [])] } : null
+}
+
+/** 设置/清除当前对话的 pending（刷新后据此恢复任务） */
+export function setCurrentPending(p) {
+  const conv = getActiveConv()
+  if (!conv) return
+  commit({
+    ...getState(),
+    conversations: getState().conversations.map((c) => (c.id === conv.id ? { ...c, pending: normalizePending(p), updatedAt: Date.now() } : c)),
+  })
+}
+
+/** 读当前对话的 memory（副本；无则空记忆） */
+export function getCurrentMemory() {
+  return getActiveConv()?.memory ? normalizeMemory(getActiveConv().memory) : emptyMemory()
+}
+
+/** 更新当前对话的 memory（提炼 lastPlan 等） */
+export function setCurrentMemory(m) {
+  const conv = getActiveConv()
+  if (!conv) return
+  commit({
+    ...getState(),
+    conversations: getState().conversations.map((c) => (c.id === conv.id ? { ...c, memory: normalizeMemory(m), updatedAt: Date.now() } : c)),
+  })
+}

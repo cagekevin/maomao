@@ -1,4 +1,10 @@
 // @vitest-environment jsdom
+/**
+ * GridSplitNode 深度测试。
+ * 审计建议 P1：多图输入、切图逻辑、参数变更重渲染。
+ * 重点覆盖：空态校验、三种切分模式切换与各自控制区、网格预设与自定义行列。
+ * 预切图逻辑走真实 loadImageWithTimeout（异步，失败被逻辑吞掉），断言以稳定文本/禁用态为主。
+ */
 import React from 'react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
@@ -11,20 +17,58 @@ vi.mock('../../src/components/base/OverlayEditor.jsx', () => ({ OverlayEditor: m
 vi.mock('../../src/components/base/useConnectedInputs.js', () => ({ useConnectedInputs: mocks.useConnectedInputs }))
 vi.mock('../../src/components/base/useMediaDegrade.js', () => ({ useMediaDegrade: mocks.useMediaDegrade }))
 vi.mock('../../src/components/base/hooks.js', () => ({ useNodeResize: mocks.useNodeResize, useContentHeightSync: mocks.useContentHeightSync }))
-vi.mock('../../src/components/base/toastStore.js', () => ({ showToast: mocks.showToast }))
+vi.mock('../../src/components/base/toastStore.js', () => ({ showToast: mocks.showToast, toastWarning: mocks.toastWarning }))
 vi.mock('../../src/components/base/filesApi.js', () => ({ toAbsoluteFileUrl: mocks.toAbsoluteFileUrl }))
 
 import GridSplitNode from '../../src/components/nodes/GridSplitNode.jsx'
 beforeEach(() => { mocks.resetNodeMockState() })
 const setup = (props = {}) => render(<GridSplitNode id="gs1" data={{}} selected={false} {...props} />)
 
-describe('GridSplitNode', () => {
-  it('挂载不崩', () => { expect(setup().container).toBeTruthy() })
-  it('点击「拆分为图片」调用 setNodes 生成子图节点', () => {
-    mocks.setConnectedInputs({ images: [{ url: 'http://img/a.png' }], texts: [] })
+describe('GridSplitNode — 空态', () => {
+  it('无上游图片 → 显示「请连接图片」且批量切分禁用', () => {
     setup()
-    const btn = screen.queryByText('拆分为图片')
-    if (btn) fireEvent.click(btn)
-    expect(mocks.xyflowCalls.setNodes).toBeGreaterThanOrEqual(0) // 至少不崩；有输入时 >0
+    expect(screen.getByText('请连接图片')).toBeTruthy()
+    const btn = screen.getByText(/批量切分/).closest('button')
+    expect(btn).toBeTruthy()
+    expect(btn.disabled).toBe(true)
+  })
+})
+
+describe('GridSplitNode — 三种模式切换', () => {
+  it('默认规则网格：显示 2×2/3×3/4×4/1×5/5×1 预设', () => {
+    setup()
+    expect(screen.getByText('2×2')).toBeTruthy()
+    expect(screen.getByText('3×3')).toBeTruthy()
+    expect(screen.getByText('4×4')).toBeTruthy()
+    expect(screen.getByText('1×5')).toBeTruthy()
+    expect(screen.getByText('5×1')).toBeTruthy()
+  })
+
+  it('点预设 4×4 → 显示选中态（act 后仍渲染该预设）', () => {
+    setup()
+    fireEvent.click(screen.getByText('4×4'))
+    expect(screen.getByText('4×4')).toBeTruthy()
+  })
+
+  it('点「自定义」→ 显示行列输入框', () => {
+    setup()
+    fireEvent.click(screen.getByText('自定义'))
+    expect(screen.getByText('行')).toBeTruthy()
+    expect(screen.getByText('列')).toBeTruthy()
+  })
+
+  it('切到手动 → 显示行列数与「重置」', () => {
+    setup()
+    fireEvent.click(screen.getByText('手动'))
+    expect(screen.getByText(/^\d+ 行 × \d+ 列 = \d+ 块$/)).toBeTruthy()
+    expect(screen.getByText('重置')).toBeTruthy()
+  })
+
+  it('切到切刀 → 显示「已绘制」与全屏、清空', () => {
+    setup()
+    fireEvent.click(screen.getByText('切刀'))
+    expect(screen.getByText(/已绘制 \d+ 块/)).toBeTruthy()
+    expect(screen.getByText('全屏')).toBeTruthy()
+    expect(screen.getByText('清空')).toBeTruthy()
   })
 })

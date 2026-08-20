@@ -67,7 +67,9 @@ const renderOverlayCanvas = () => ({})
 let connectedInputsState = { images: [], texts: [] }
 const useConnectedInputs = () => connectedInputsState
 const setConnectedInputs = (v) => { connectedInputsState = v }
-const useMediaDegrade = () => ({ isHidden: () => false })
+// ImageNode 用 useMediaDegrade().hideMedia 直接做 includes 判断（'' / [] 等"不隐藏"空值）；
+// GridSplit/GridMerge 等用 isHidden()。两者都 stub，掩盖两种调用形态。
+const useMediaDegrade = () => ({ hideMedia: [], isHidden: () => false })
 const useNodeResize = () => ({ onInputResize: () => {} })
 const useContentHeightSync = () => {} // 内容高度自适应 hook（jsdom 无 ResizeObserver 反馈，测试用 no-op）
 const useOutsideClick = () => {}

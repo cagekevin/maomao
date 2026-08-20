@@ -1,6 +1,5 @@
 #!/bin/sh
-# 提交门禁：type-check + 单元测试（lint 已移除，门禁靠类型检查 + 测试）
+# 提交门禁：仅类型检查（快速，~1s）。全量单元测试已移到 pre-push（push 前才跑），
+# 避免每次 commit 都等全量测试（162 个文件约 20s）。lint 已移除。
 echo "▶ type-check (tsc --noEmit)"
 npm run type-check
-echo "▶ unit tests (vitest run)"
-npm run test:unit

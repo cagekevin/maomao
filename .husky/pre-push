@@ -1,0 +1,5 @@
+#!/bin/sh
+# 推送门禁：全量单元测试（push 前才跑，避免每次 commit 都等全量测试）
+# commit 阶段已做快速类型检查；全量测试放 push 前兜底。
+echo "▶ unit tests (vitest run, 全量)"
+npm run test:unit

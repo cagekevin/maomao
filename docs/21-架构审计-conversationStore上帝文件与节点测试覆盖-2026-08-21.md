@@ -1,6 +1,6 @@
 # 21 - 架构审计：conversationStore 上帝文件 + 节点 UI 测试覆盖 - 2026-08-21
 
-> **状态：🟡 审计完成，待实施**
+> **状态：🟢 已实施（2026-08-21）**
 > **日期**：2026-08-21
 > **性质**：架构债务审计（非 bug）。两个问题：① `conversationStore.js` 职责过载；② 节点 UI 测试覆盖不均。
 > **目标**：为明天动手提供精确的改动清单 + 风险排序。
@@ -162,3 +162,14 @@
 
 - **函数数**：原写"58 个导出函数" → 修正为 **44 个导出 + 12 个内部 helper = 56 个**。`export function` 实测仅 44 个，多算的 2 个来自 B 类 `persistDebounced` 重复计数。已同步修正 §0 / §1.1 / §1.2。
 - **调用面**：原写"10 个文件 import" → 修正为 **仅 4 个源码文件直接 import**（App.jsx / useAgentChat / useCanvasAgentTools / AgentPanel）。`agentCore` / `backupStore` 等仅注释提及。拆分回归面小于原判断，拆分风险等级相应下调（中 → 中低），§3 第二步"谨慎做"可适度放宽为"按 1.5 re-export 分层逐文件拆、每拆一步跑 `conversationStore.test.js` 回归"。
+
+### 实施记录（2026-08-21）
+
+- **conversationStore 拆分已落地**：按 §1.6 抽 `conversationState.js` 为共享 state 底座（自持 states/hydratedSet/currentAgentKey/listeners/persistDebounced + 落盘/订阅/隔离 + normalize 归一化 + useConversationStore/setAgentKey/flushPersist/resetConversationCache/markHydrated）。
+  - `conversationSnapshot.js`（D 类）：当前对话快照 workflow/pending/memory。
+  - `conversationAiState.js`（F 类）：runMode/global_contract/artifact/undo/pendingGenerations/awaitingConfirm/refImages（量最大，占原文件近半导出）。
+  - `conversationImageMap.js`（E 类）：跨轮图三数据源。
+  - `conversationStore.js` 瘦身为 A 类 CRUD + 聚合 re-export 入口；**44 个公开导出名与调用方 import 路径均不变**，4 个消费方零改动。
+  - 依赖方向单向无环：`state ← { snapshot, aiState } ← { imageMap, store }`。
+- **节点测试已补齐**：P0 VideoProcessNode（35→119 行）、P1 GridSplit / GridMerge / ImageNode / LoopNode 增补深度用例（模式切换/校验/来源/内容态/拆分契约）。
+- **验证**：全量单元测试 126 文件 / 1478 用例全部通过；`npm run build` 成功。
