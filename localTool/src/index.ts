@@ -72,9 +72,10 @@ const SILENT_LOG_PATHS = new Set([
   '/api/resources',
   '/api/resources/rescan',
   '/api/tasks',
-  '/api/proxy',
   '/api/providers',
 ]);
+// 注：/api/proxy 不在静默集——生图/对话链路请求须有主分行可追（L1-2.3，缺口 M5-d）。
+// system.ts handleProxy 内部另有 [proxy]:…ms 明细；此处主分行保留「有痕」基线。
 
 // ── 端口冲突检测 ──
 function checkPortAvailable(port: number): Promise<void> {

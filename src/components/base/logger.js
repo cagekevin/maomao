@@ -77,12 +77,7 @@ function reportToBackend({ category, action, detail, level, taskId, nodeId }) {
  */
 export function log(category, action, detail, level = 'info') {
   const levelTag = level === 'error' ? 'error' : level === 'warn' ? 'warn' : 'info'
-  const msg = `[${levelTag}] ${formatTime(undefined, { mode: 'time' })} | ${category} | ${action}${detail != null ? ` | ${stringify(detail)}` : ''}`
-  if (level === 'error') console.error(msg)
-  else if (level === 'warn') console.warn(msg)
-  else console.log(msg)
-
-  // 从 detail 中提取 taskId / nodeId，便于按任务/节点全链路 grep
+  // 从 detail 中提取 taskId / nodeId，便于按任务/节点全链路 grep（对齐后端 logs.ts 落盘 tag）
   let taskId = ''
   let nodeId = ''
   if (detail && typeof detail === 'object') {
@@ -91,6 +86,12 @@ export function log(category, action, detail, level = 'info') {
     if (typeof detail.nodeId === 'string') nodeId = detail.nodeId
     if (typeof detail.node_id === 'string') nodeId = detail.node_id
   }
+  const tags = [taskId ? `#taskId=${taskId}` : '', nodeId ? `#nodeId=${nodeId}` : ''].filter(Boolean).join(' ')
+  const msg = `[${levelTag}] ${formatTime(undefined, { mode: 'time' })} | ${category} | ${action}${detail != null ? ` | ${stringify(detail)}` : ''}${tags ? ` | ${tags}` : ''}`
+  if (level === 'error') console.error(msg)
+  else if (level === 'warn') console.warn(msg)
+  else console.log(msg)
+
   reportToBackend({ category, action, detail, level, taskId, nodeId })
 }
 
