@@ -10,7 +10,6 @@ import { loadAgentChatModel } from '../base/settings/agentModelStore.js'
 import { getAllSkills, markSkillUsed, repairMojibakeText, isSkillEnabled } from '../base/skillStore.js'
 import { contentGet, contentSet } from '../base/contentStore.js'
 import { toAbsoluteFileUrl } from '../base/filesApi.js'
-import { setCurrentSnapshot, setAwaitingConfirm, getCurrentRunMode, setCurrentRunMode } from '../base/conversationStore.js'
 import { runNodeGeneration } from '../base/taskStore.js'
 import { showToast } from '../base/toastStore.js'
 import { logger } from '../base/logger.js'
@@ -164,7 +163,9 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
   // 新建对话短锁：新建后 1s 内禁用按钮，避免用户狂点出十几个空对话
   const newChatLock = useRef(false)
 
-  const { messages, sending, error, model, setModel, send, sendImageMode, stop, clear, stateAction, conversations, activeConversationId, newChat, switchChat, deleteChat, updateMessageByContent, executePlanDirect } = useAgentChat({
+  const { messages, sending, error, model, setModel, send, sendImageMode, stop, clear, stateAction, conversations, activeConversationId, newChat, switchChat, deleteChat, updateMessageByContent, executePlanDirect,
+    // 展示→编排轴薄适配（收口 store 穿透）：这 4 个由 useAgentChat 回传，UI 不再直接 import conversationStore
+    setCurrentSnapshot, setAwaitingConfirm, getCurrentRunMode, setCurrentRunMode } = useAgentChat({
     agentKey,
     systemPrompt,
     defaultModel: defaultAgentModel,

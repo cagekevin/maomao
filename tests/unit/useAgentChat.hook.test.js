@@ -113,6 +113,7 @@ vi.mock('../../src/components/base/conversationStore.js', () => {
     setCurrentMemory: vi.fn(),
     getCurrentImageMap: vi.fn(() => []),
     getCurrentRunMode: vi.fn(() => 'auto'),
+    setCurrentRunMode: vi.fn(),
     newConversation: vi.fn(() => {
       const id = `c_new_${Date.now()}`
       activeId = id
@@ -922,5 +923,14 @@ describe('useAgentChat · 阶段1D 薄壳化（sending/activeId 订阅 store）'
     expect(result.current.activeConversationId).toBe('c1')
     act(() => { sharedConvStore.setActiveId('c9') })
     expect(result.current.activeConversationId).toBe('c9')
+  })
+
+  it('收口穿透：回传 AgentPanel 所需的 4 个 store 原子 handler（指向聚合层，非新造）', () => {
+    const { result } = renderHook(() => useAgentChat())
+    // 若将来用 hook 时忘回传、或改成局部新造，此断言即红（保证 AgentPanel 不直连 store 仍可用）
+    expect(result.current.setCurrentSnapshot).toBe(convStore.setCurrentSnapshot)
+    expect(result.current.setAwaitingConfirm).toBe(convStore.setAwaitingConfirm)
+    expect(result.current.getCurrentRunMode).toBe(convStore.getCurrentRunMode)
+    expect(result.current.setCurrentRunMode).toBe(convStore.setCurrentRunMode)
   })
 })

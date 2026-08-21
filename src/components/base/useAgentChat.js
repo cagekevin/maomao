@@ -64,6 +64,8 @@ import {
   setActivePendingGenerations,
   getActivePendingGenerations,
   getCurrentImageMap,
+  getCurrentRunMode,
+  setCurrentRunMode,
 } from './conversationStore.js'
 // 【消息单源 P5 基座】按字段订阅 store 的 messages（含 activeId 从 store 同步读），
 // 避免整包 useConversationStore() 订阅 → 流式高频更新连坐重渲染整个面板。
@@ -772,5 +774,9 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
     return { ok, error: res?.error || '' }
   }, [callTool])
 
-  return { messages, sending, error, model, setModel, send, sendImageMode, stop, clear, stateAction, conversations, activeConversationId, newChat, switchChat, deleteChat, updateMessageByContent, executePlanDirect }
+  return { messages, sending, error, model, setModel, send, sendImageMode, stop, clear, stateAction, conversations, activeConversationId, newChat, switchChat, deleteChat, updateMessageByContent, executePlanDirect,
+    // 【展示→编排轴薄适配（收口 AgentPanel 的 store 穿透）】回传 UI 会用到的 store 原子能力，
+    // 使 AgentPanel 不再直接 import conversationStore（唯一入口收敛到本 hook）。这些是 store 的稳定
+    // 模块级函数（透传引用，非拷贝），消息单源下已满足"UI 不直连持久层"的一步；未来如需可再 action 化。
+    setCurrentSnapshot, setAwaitingConfirm, getCurrentRunMode, setCurrentRunMode }
 }

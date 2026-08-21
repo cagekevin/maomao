@@ -50,11 +50,14 @@ const h = vi.hoisted(() => {
   const showToast = vi.fn()
   const setCurrentSnapshot = vi.fn((s) => snapshotSetter(s))
   const setCurrentRunMode = vi.fn()
-  const useAgentChat = vi.fn(() => ({ ...agentState, setModel, send, sendImageMode, stop, clear, stateAction: '', newChat, switchChat, deleteChat, updateMessageByContent: vi.fn(), executePlanDirect: vi.fn(async () => ({ ok: true })) }))
+  const setAwaitingConfirm = vi.fn()
+  const getCurrentRunMode = vi.fn(() => (agentState.runMode || 'auto'))
+  // 收口 store 穿透（2026-08-21）：AgentPanel 从 useAgentChat 解构这 4 个 handler，不再直连 conversationStore
+  const useAgentChat = vi.fn(() => ({ ...agentState, setModel, send, sendImageMode, stop, clear, stateAction: '', newChat, switchChat, deleteChat, updateMessageByContent: vi.fn(), executePlanDirect: vi.fn(async () => ({ ok: true })), setCurrentSnapshot, setAwaitingConfirm, getCurrentRunMode, setCurrentRunMode }))
 
   return {
     useAgentChat, send, sendImageMode, stop, clear, newChat, switchChat, deleteChat,
-    markSkillUsed, showToast, setCurrentSnapshot, setCurrentRunMode,
+    markSkillUsed, showToast, setCurrentSnapshot, setCurrentRunMode, setAwaitingConfirm, getCurrentRunMode,
     get agentState() { return agentState },
     setAgentState: (s) => { agentState = { ...agentState, ...s } },
     get skills() { return skills },
