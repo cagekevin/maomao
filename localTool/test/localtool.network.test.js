@@ -190,6 +190,29 @@ test('official·handleOfficialInvalidate 清缓存', async () => {
   assert.equal(fetchCount, 2, '失效后应重新 fetch');
 });
 
+// ══ B0·official vip 本地兜底冻结（缺口⑭⑤）══
+// handleOfficialVipCheck 对 canvas-assistant 且 AI_CANVAS_LOCAL !== '0' 时本地放行，
+// 返 {allowed:true,reason}，绝不外发官方。冻结此形态防 B3 信封收敛误包/误改造。
+test('official·vip-check 本地兜底返 {allowed:true,reason}（canvas-assistant）', async () => {
+  const prev = process.env.AI_CANVAS_LOCAL;
+  delete process.env.AI_CANVAS_LOCAL; // 默认开启本地放行
+  let fetchCount = 0;
+  mockFetchOnce((url) => { fetchCount++; return jsonResponse({ allowed: true }, 200); });
+  try {
+    const req = makeJsonReq();
+    req.headers['authorization'] = 'Bearer tok-vip-local';
+    req.url = '/api/agent/canvas-assistant/vip-check';
+    const res = makeRes();
+    await officialMod.handleOfficialVipCheck(req, res, new URL('http://x/api/agent/canvas-assistant/vip-check'));
+    assert.equal(res.status, 200);
+    assert.deepEqual(parseResBody(res), { allowed: true, reason: 'local canvas assistant' });
+    assert.equal(fetchCount, 0, '本地兜底不该外发官方');
+  } finally {
+    if (prev === undefined) delete process.env.AI_CANVAS_LOCAL; else process.env.AI_CANVAS_LOCAL = prev;
+    restoreFetch();
+  }
+});
+
 // ══════════════════════════════════════════════════════════════
 // passthrough
 // ══════════════════════════════════════════════════════════════

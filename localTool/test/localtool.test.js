@@ -621,6 +621,17 @@ test('helpers·paginatedResult 结构', () => {
   assert.deepEqual(r, { items: [1, 2], total: 25, page: 1, pageSize: 10, totalPages: 3 });
 });
 
+// ══ B0·错误信封形态冻结（B2 sendError 硬切的安全网）══
+// 现后端 sendError 只返 `{error: message}` 字符串形态（helpers.ts:16-18），无 code。
+// B2 升级为 `{error:{code,message}}` 前，此测试锁死当前字符串形态；一旦 B2 改动偏离，
+// 本测试立即变红以暴露「后端已改、前端未对齐」的窗口期。不传 code 时维持 `{error:message}`。
+test('helpers·sendError 冻结：当前返 {error:message} 字符串形态', async () => {
+  const res = makeRes();
+  helpersMod.sendError(res, '测试错误', 400);
+  assert.equal(res.status, 400);
+  assert.deepEqual(parseResBody(res), { error: '测试错误' });
+});
+
 // ══════════════════════════════════════════════════════════════
 // 方案②工具函数直接单测
 // ══════════════════════════════════════════════════════════════
@@ -839,15 +850,34 @@ test('Files·upload multipart 缺少文件 → 400', async () => {
   assert.equal(res.status, 400);
 });
 
-test('Files·thumbnail 为文件生成缩略图', async () => {
+// handleThumbnail 与 handleRead 一样走 createReadStream().pipe(res) 直返二进制流（<img src> 直链），
+// 必须用真正的 Writable 收集流数据（makeRes 无 write/once，无法接流）。断言头部 MIME 与字节内容。
+async function streamThumb(urlStr) {
+  const { Writable } = await import('node:stream');
+  const chunks = [];
+  let headers = null;
+  let status = 0;
+  const res = new Writable({
+    write(c, _enc, cb) { chunks.push(Buffer.from(c)); cb(); },
+    writev(items, cb) { for (const i of items) chunks.push(Buffer.from(i.chunk)); cb(); },
+  });
+  res.writeHead = (code, h) => { status = code; headers = h; return res; };
+  const done = new Promise((resolve, reject) => { res.on('finish', resolve); res.on('error', reject); });
+  await filesMod.handleThumbnail(makeGetReq(), res, new URL(urlStr));
+  await done;
+  return { status, headers, body: Buffer.concat(chunks) };
+}
+
+test('Files·thumbnail 为文件生成缩略图（直返二进制流）', async () => {
   // 先造一个磁盘文件
   const canvasDir = path.join(TEST_DIR, 'uploads', 'canvas');
   fs.mkdirSync(canvasDir, { recursive: true });
   fs.writeFileSync(path.join(canvasDir, 'thumb.png'), RED_PNG_BUFFER);
-  const res = makeRes();
-  await filesMod.handleThumbnail(makeGetReq(), res, new URL('http://x/api/files/thumbnail?url=' + encodeURIComponent('/files/canvas/thumb.png') + '&maxDim=100'));
-  const body = parseResBody(res);
-  assert.ok(body.thumbnailUrl, '应返回 thumbnailUrl');
+  const { status, headers, body } = await streamThumb('http://x/api/files/thumbnail?url=' + encodeURIComponent('/files/canvas/thumb.png') + '&maxDim=100');
+  assert.equal(status, 200);
+  assert.match(headers['Content-Type'] || '', /image\/png/, '应返回 PNG 二进制流（非 {thumbnailUrl} JSON）');
+  assert.equal(headers['Content-Length'], RED_PNG_BUFFER.length);
+  assert.ok(body.length > 0, '应返回缩略图二进制内容');
 });
 
 test('Files·thumbnail format 校验：webp 被拒回落源扩展名，白名单 jpeg 生效', async () => {
@@ -857,17 +887,13 @@ test('Files·thumbnail format 校验：webp 被拒回落源扩展名，白名单
   const abs = encodeURIComponent('/files/canvas/fmt.png');
 
   // webp：Jimp 0.22 无编码器 → 必须回落源扩展名 .png，绝不产出假 .webp
-  const resW = makeRes();
-  await filesMod.handleThumbnail(makeGetReq(), resW, new URL(`http://x/api/files/thumbnail?url=${abs}&maxDim=64&format=webp`));
-  const thumbW = parseResBody(resW).thumbnailUrl;
-  assert.ok(thumbW.endsWith('.png'), `webp 应回落源扩展名 png, got=${thumbW}`);
-  assert.ok(!thumbW.endsWith('.webp'), '不得产出 .webp 假文件');
+  const w = await streamThumb(`http://x/api/files/thumbnail?url=${abs}&maxDim=64&format=webp`);
+  assert.match(w.headers['Content-Type'] || '', /image\/png/, 'webp 应回落源扩展名 png（Content-Type 为 image/png）');
+  assert.ok(!/webp/.test(w.headers['Content-Type'] || ''), '不得产出 .webp 假文件');
 
-  // jpeg：白名单内 → 缩略图扩展名为 .jpg/.jpeg
-  const resJ = makeRes();
-  await filesMod.handleThumbnail(makeGetReq(), resJ, new URL(`http://x/api/files/thumbnail?url=${abs}&maxDim=64&format=jpeg`));
-  const thumbJ = parseResBody(resJ).thumbnailUrl;
-  assert.match(thumbJ, /\.(jpe?g)$/, `jpeg 应产出 .jpeg 缩略图, got=${thumbJ}`);
+  // jpeg：白名单内 → 缩略图 Content-Type 为 image/jpeg
+  const j = await streamThumb(`http://x/api/files/thumbnail?url=${abs}&maxDim=64&format=jpeg`);
+  assert.match(j.headers['Content-Type'] || '', /image\/jpeg/, 'jpeg 白名单应产出 image/jpeg');
 });
 
 test('Files·move 移动文件', async () => {

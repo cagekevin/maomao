@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 // 内存 KV / 项目后端 mock
 const mem = new Map()
+// fetchProjects 返回可变 payload（供 initProjects 回退链测试注入后端响应）
+const projectsPayload = { projects: [], lastOpened: '' }
 vi.mock('../../src/components/base/kvStore.js', () => ({
   storageGet: vi.fn(async (k) => (mem.has(k) ? mem.get(k) : null)),
   storageSet: vi.fn(async (k, v) => { mem.set(k, v) }),
@@ -11,7 +13,7 @@ vi.mock('../../src/components/base/kvStore.js', () => ({
   CANVAS_STATE_PREFIX: 'canvas-state-v1-',
 }))
 vi.mock('../../src/components/base/localToolApi.js', () => ({
-  fetchProjects: vi.fn(async () => ({ projects: [], lastOpened: '' })),
+  fetchProjects: vi.fn(async () => ({ ...projectsPayload })),
   saveProjects: vi.fn(async () => ({ ok: true })),
 }))
 
@@ -20,11 +22,37 @@ let projectStore
 beforeEach(async () => {
   mem.clear()
   localStorage.clear()
+  projectsPayload.projects = []
+  projectsPayload.lastOpened = ''
   vi.resetModules()
   projectStore = await import('../../src/components/base/projectStore.js')
 })
 
 describe('项目系统 §2.8', () => {
+  it('initProjects lastOpened 命中时切到该项目（B0·缺口⑪）', async () => {
+    projectsPayload.projects = [{ id: 'p1', name: 'P1' }, { id: 'p2', name: 'P2' }]
+    projectsPayload.lastOpened = 'p2'
+    projectStore.initProjects()
+    // initProjects 是同步触发 fetch，微任务后生效
+    await new Promise((r) => setTimeout(r, 0))
+    expect(projectStore.getCurrentProject().id).toBe('p2')
+  })
+
+  it('initProjects lastOpened 不存在时回退到 list[0]（B0·缺口⑪）', async () => {
+    projectsPayload.projects = [{ id: 'p1', name: 'P1' }, { id: 'p2', name: 'P2' }]
+    projectsPayload.lastOpened = 'ghost-not-exist'
+    projectStore.initProjects()
+    await new Promise((r) => setTimeout(r, 0))
+    expect(projectStore.getCurrentProject().id).toBe('p1')
+  })
+
+  it('initProjects 空列表时不做替换（保持 default 兜底）（B0·缺口⑪）', async () => {
+    projectsPayload.projects = []
+    projectStore.initProjects()
+    await new Promise((r) => setTimeout(r, 0))
+    expect(projectStore.getCurrentProject().id).toBe('default')
+  })
+
   it('默认项目存在', () => {
     expect(projectStore.getCurrentProject().id).toBe('default')
   })

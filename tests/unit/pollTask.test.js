@@ -58,6 +58,15 @@ describe('pollOneTask - 状态机', () => {
     expect(patchTask).toHaveBeenCalledWith('t2', { status: 'completed', progress: 100, resultUrl: 'http://i/1.png' })
   })
 
+  it('completed（code:1）成功态：后端 samenti gateway 把 code:200→1，仍按 data 识别', async () => {
+    // 缺口⑱：system.ts handleGatewayTask 把 apimart 返回的 code:200 改写成 code:1，
+    // 前端特惠轮询兼容该成功态（body={code:1, data:{...}}），必须仍判 completed。
+    mockFetchJson({ code: 1, data: { status: 'completed', result: { videos: [{ url: 'http://v/gw.mp4' }] } } })
+    const done = await poll.pollOneTask({ id: 't12', type: 'video', pollTaskId: 'p12' })
+    expect(done).toBe(true)
+    expect(patchTask).toHaveBeenCalledWith('t12', { status: 'completed', progress: 100, resultUrl: 'http://v/gw.mp4' })
+  })
+
   it('completed 视频走顶层 video_url 兜底', async () => {
     mockFetchJson(gw({ status: 'completed', video_url: 'http://v/top.mp4' }))
     await poll.pollOneTask({ id: 't3', type: 'video', pollTaskId: 'p3' })
