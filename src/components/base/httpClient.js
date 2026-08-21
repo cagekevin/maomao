@@ -38,6 +38,30 @@ export class HttpError extends Error {
 }
 
 /**
+ * 统一错误报文解析（B2：错误信封的唯一解析入口，禁止各处手写 data.error||data.detail 拆包）。
+ *
+ * 输入后端错误信封，输出可决策的 { code, message }：
+ *  - `{ error: string }`            → 字符串兜底（B0/B2 兼容后端旧形态，必须保留）
+ *  - `{ error: { code, message } }` → 结构化信封（B2 sendError 带 code 形态）
+ *  - `{ detail }` / `{ message }`   → 平铺兜底
+ * 优先级：error.code > error.message > error.detail > data.detail > data.message。
+ * @param {*} data 后端错误响应体（可能为 null/undefined）
+ * @returns {{ code: string, message: string }}
+ */
+export function extractErrorDetail(data) {
+  const src = data && typeof data === 'object' ? data : {}
+  if (typeof src.error === 'string') {
+    // 字符串错误信封兜底：{error:'msg'} → UNKNOWN（后端当前必返字符串，兜底不可删）
+    return { code: 'UNKNOWN', message: src.error }
+  }
+  const e = src.error && typeof src.error === 'object' ? src.error : {}
+  return {
+    code: e.code || 'UNKNOWN',
+    message: e.message || e.detail || src.detail || src.message || '',
+  }
+}
+
+/**
  * 统一 HTTP 请求。
  * @param {string} url
  * @param {object} [opts]
@@ -92,13 +116,13 @@ export async function httpRequest(url, {
         if (parseJson) {
           const data = await res.json().catch(() => ({}))
           if (!res.ok) {
-            const detail = data?.error || data?.detail || data?.message
-            const base = `${label ? label + ' failed: ' : ''}HTTP ${res.status}`
-            throw new HttpError(res.status, detail ? `${base}: ${detail}` : base, data)
+            // HttpError.message 只承载业务 message（B2）；HTTP 状态由 HttpError.status 单独暴露，不再拼前缀
+            const { message } = extractErrorDetail(data)
+            throw new HttpError(res.status, message, data)
           }
           return data
         }
-        if (!res.ok) throw new HttpError(res.status, `${label ? label + ' failed: ' : ''}HTTP ${res.status}`)
+        if (!res.ok) throw new HttpError(res.status, '')
         return res
       } catch (e) {
         // 外部取消：立即抛，不重试

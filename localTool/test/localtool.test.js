@@ -632,6 +632,18 @@ test('helpers·sendError 冻结：当前返 {error:message} 字符串形态', as
   assert.deepEqual(parseResBody(res), { error: '测试错误' });
 });
 
+// B2 新增：sendError 带 code（复用 GEN_ERRORS 字符串 key）→ `{error:{code,message}}`，message 保留供前端兜底。
+test('helpers·sendError·B2：传 code 返 {error:{code,message}}，不传仍 {error:message}', async () => {
+  const res = makeRes();
+  helpersMod.sendError(res, '磁盘已满', 500, 'business');
+  assert.equal(res.status, 500);
+  assert.deepEqual(parseResBody(res), { error: { code: 'business', message: '磁盘已满' } });
+
+  const resOld = makeRes();
+  helpersMod.sendError(resOld, '无 code 兼容', 400);
+  assert.deepEqual(parseResBody(resOld), { error: '无 code 兼容' });
+});
+
 // ══════════════════════════════════════════════════════════════
 // 方案②工具函数直接单测
 // ══════════════════════════════════════════════════════════════

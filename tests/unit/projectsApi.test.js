@@ -37,8 +37,8 @@ describe('projectsApi — 成功路径', () => {
 })
 
 describe('projectsApi — 错误路径', () => {
-  it('非 2xx 抛错误', async () => {
+  it('非 2xx 抛 HttpError，status 单独暴露', async () => {
     fetchMock.mockResolvedValue(jsonResp({}, false, 404))
-    await expect(api.fetchProjects()).rejects.toThrow('HTTP 404')
+    await expect(api.fetchProjects()).rejects.toMatchObject({ name: 'HttpError', status: 404, message: '' })
   })
 })

@@ -66,8 +66,8 @@ describe('settingsApi — 错误路径', () => {
     await expect(providerApi.getProviders()).rejects.toThrow('bad')
   })
 
-  it('无 detail/error 时回退 HTTP 状态', async () => {
+  it('无 detail/error 时 message 为空，status 单独暴露', async () => {
     fetchMock.mockResolvedValue(jsonResp({}, false, 500))
-    await expect(providerApi.getProviders()).rejects.toThrow('HTTP 500')
+    await expect(providerApi.getProviders()).rejects.toMatchObject({ name: 'HttpError', status: 500, message: '' })
   })
 })

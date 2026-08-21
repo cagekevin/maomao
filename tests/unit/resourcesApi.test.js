@@ -42,9 +42,9 @@ describe('fetchResources', () => {
     expect(filters.type).toBe('image')
   })
 
-  it('HTTP 非 2xx 抛错', async () => {
+  it('HTTP 非 2xx 抛 HttpError，message 取业务文案', async () => {
     mockFetchOnce({ error: 'x' }, { ok: false, status: 500 })
-    await expect(ra.fetchResources()).rejects.toThrow(/HTTP 500/)
+    await expect(ra.fetchResources()).rejects.toMatchObject({ name: 'HttpError', status: 500, message: 'x' })
   })
 })
 
@@ -57,9 +57,9 @@ describe('rescanResources', () => {
     expect(r.scanned).toBe(3)
   })
 
-  it('非 2xx 抛错', async () => {
+  it('非 2xx 抛 HttpError', async () => {
     mockFetchOnce({ error: 'x' }, { ok: false, status: 500 })
-    await expect(ra.rescanResources()).rejects.toThrow(/HTTP 500/)
+    await expect(ra.rescanResources()).rejects.toMatchObject({ name: 'HttpError', status: 500, message: 'x' })
   })
 })
 
@@ -70,9 +70,9 @@ describe('deleteResource', () => {
     expect(fetchMock.mock.calls[0][0]).toContain('delete?id=' + encodeURIComponent('a/b c'))
   })
 
-  it('非 2xx 抛错', async () => {
+  it('非 2xx 抛 HttpError', async () => {
     mockFetchOnce({ error: 'x' }, { ok: false, status: 500 })
-    await expect(ra.deleteResource('id1')).rejects.toThrow(/HTTP 500/)
+    await expect(ra.deleteResource('id1')).rejects.toMatchObject({ name: 'HttpError', status: 500, message: 'x' })
   })
 })
 
@@ -87,9 +87,9 @@ describe('saveResource', () => {
     expect(JSON.parse(init.body)).toEqual({ id: '1', isFavorite: true })
   })
 
-  it('非 2xx 抛错', async () => {
+  it('非 2xx 抛 HttpError', async () => {
     mockFetchOnce({ error: 'x' }, { ok: false, status: 400 })
-    await expect(ra.saveResource({ id: '1' })).rejects.toThrow(/HTTP 400/)
+    await expect(ra.saveResource({ id: '1' })).rejects.toMatchObject({ name: 'HttpError', status: 400, message: 'x' })
   })
 })
 
@@ -132,14 +132,14 @@ describe('openLocalFolder / openFileDir', () => {
     expect(fetchMock.mock.calls[0][0]).toContain('open-dir?filepath=' + encodeURIComponent('tasks/a.png'))
   })
 
-  it('openLocalFolder 非 2xx 抛错', async () => {
+  it('openLocalFolder 非 2xx 抛 HttpError', async () => {
     mockFetchOnce({ error: 'x' }, { ok: false, status: 500 })
-    await expect(ra.openLocalFolder('tasks')).rejects.toThrow(/HTTP 500/)
+    await expect(ra.openLocalFolder('tasks')).rejects.toMatchObject({ name: 'HttpError', status: 500, message: 'x' })
   })
 
-  it('openFileDir 非 2xx 抛错', async () => {
+  it('openFileDir 非 2xx 抛 HttpError', async () => {
     mockFetchOnce({ error: 'x' }, { ok: false, status: 500 })
-    await expect(ra.openFileDir('tasks/a.png')).rejects.toThrow(/HTTP 500/)
+    await expect(ra.openFileDir('tasks/a.png')).rejects.toMatchObject({ name: 'HttpError', status: 500, message: 'x' })
   })
 })
 

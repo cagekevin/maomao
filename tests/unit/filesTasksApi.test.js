@@ -227,9 +227,9 @@ describe('tasksApi §fetchTasks', () => {
     expect(reqUrl).toBe(`${API_BASE}/api/tasks?page=1&pageSize=200`)
   })
 
-  it('非 ok 抛错', async () => {
+  it('非 ok 抛 HttpError', async () => {
     fetchMock.mockResolvedValue(failRes(500))
-    await expect(fetchTasks()).rejects.toThrow('fetchTasks failed: HTTP 500')
+    await expect(fetchTasks()).rejects.toMatchObject({ name: 'HttpError', status: 500, message: '' })
   })
 })
 
@@ -246,9 +246,9 @@ describe('tasksApi §saveTask', () => {
     expect(JSON.parse(opts.body)).toEqual(task)
   })
 
-  it('非 ok 抛错', async () => {
+  it('非 ok 抛 HttpError', async () => {
     fetchMock.mockResolvedValue(failRes(400))
-    await expect(saveTask({})).rejects.toThrow('saveTask failed: HTTP 400')
+    await expect(saveTask({})).rejects.toMatchObject({ name: 'HttpError', status: 400, message: '' })
   })
 })
 
@@ -271,9 +271,9 @@ describe('tasksApi §batchSaveTasks', () => {
     expect(JSON.parse(opts.body)).toEqual(tasks)
   })
 
-  it('非 ok 抛错', async () => {
+  it('非 ok 抛 HttpError', async () => {
     fetchMock.mockResolvedValue(failRes(500))
-    await expect(batchSaveTasks([{ task_id: 'a' }])).rejects.toThrow('batchSaveTasks failed: HTTP 500')
+    await expect(batchSaveTasks([{ task_id: 'a' }])).rejects.toMatchObject({ name: 'HttpError', status: 500, message: '' })
   })
 })
 
@@ -286,9 +286,9 @@ describe('tasksApi §deleteTask / batchDeleteTasks / clear', () => {
     expect(opts.method).toBe('POST')
   })
 
-  it('deleteTask：非 ok 抛错', async () => {
+  it('deleteTask：非 ok 抛 HttpError', async () => {
     fetchMock.mockResolvedValue(failRes(500))
-    await expect(deleteTask('t1')).rejects.toThrow('deleteTask failed: HTTP 500')
+    await expect(deleteTask('t1')).rejects.toMatchObject({ name: 'HttpError', status: 500, message: '' })
   })
 
   it('batchDeleteTasks：空 ids 返回 { deleted: 0 }，不发请求', async () => {
@@ -316,9 +316,9 @@ describe('tasksApi §deleteTask / batchDeleteTasks / clear', () => {
     expect(opts.method).toBe('POST')
   })
 
-  it('clearAllTasksApi：非 ok 抛错', async () => {
+  it('clearAllTasksApi：非 ok 抛 HttpError', async () => {
     fetchMock.mockResolvedValue(failRes(500))
-    await expect(clearAllTasksApi()).rejects.toThrow('clearTasks failed: HTTP 500')
+    await expect(clearAllTasksApi()).rejects.toMatchObject({ name: 'HttpError', status: 500, message: '' })
   })
 })
 
@@ -338,9 +338,9 @@ describe('projectsApi §fetchProjects', () => {
     expect(reqUrl).toBe(`${API_BASE}/api/projects`)
   })
 
-  it('非 ok 抛错', async () => {
+  it('非 ok 抛 HttpError', async () => {
     fetchMock.mockResolvedValue(failRes(500))
-    await expect(fetchProjects()).rejects.toThrow('fetchProjects failed: HTTP 500')
+    await expect(fetchProjects()).rejects.toMatchObject({ name: 'HttpError', status: 500, message: '' })
   })
 })
 
@@ -363,8 +363,8 @@ describe('projectsApi §saveProjects', () => {
     expect(body.projects[0].name).toBe('项目A')
   })
 
-  it('非 ok 抛错', async () => {
+  it('非 ok 抛 HttpError', async () => {
     fetchMock.mockResolvedValue(failRes(500))
-    await expect(saveProjects([], 'p1')).rejects.toThrow('saveProjects failed: HTTP 500')
+    await expect(saveProjects([], 'p1')).rejects.toMatchObject({ name: 'HttpError', status: 500, message: '' })
   })
 })

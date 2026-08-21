@@ -40,22 +40,22 @@ describe('httpRequest — 成功', () => {
 /* ── HTTP 错误 ───────────────────────────────────────── */
 
 describe('httpRequest — HTTP 错误', () => {
-  it('带 error 字段', async () => {
+  it('带 error 字符串字段 → message 只承载业务文案（B2 去 HTTP 前缀）', async () => {
     mockFetch.mockResolvedValue({ ok: false, status: 400, json: () => Promise.resolve({ error: 'bad request' }) })
     await expect(httpRequest('/api/x')).rejects.toThrow(HttpError)
-    await expect(httpRequest('/api/x')).rejects.toMatchObject({ status: 400, message: 'HTTP 400: bad request' })
+    await expect(httpRequest('/api/x')).rejects.toMatchObject({ status: 400, message: 'bad request' })
   })
 
-  it('无 error 字段回落 HTTP {status}', async () => {
+  it('无 error 字段回落 message 为空（status 单独暴露）', async () => {
     mockFetch.mockResolvedValue({ ok: false, status: 500, json: () => Promise.resolve({}) })
-    await expect(httpRequest('/api/x')).rejects.toMatchObject({ status: 500, message: 'HTTP 500' })
+    await expect(httpRequest('/api/x')).rejects.toMatchObject({ status: 500, message: '' })
   })
 
-  it('label 前缀进错误消息', async () => {
-    mockFetch.mockResolvedValue({ ok: false, status: 500, json: () => Promise.resolve({}) })
+  it('label 不再拼入 HttpError.message（B2 去前缀）', async () => {
+    mockFetch.mockResolvedValue({ ok: false, status: 500, json: () => Promise.resolve({ detail: 'db down' }) })
     await expect(httpRequest('/api/x', { label: 'fetchTasks' })).rejects.toMatchObject({
       status: 500,
-      message: 'fetchTasks failed: HTTP 500',
+      message: 'db down',
     })
   })
 

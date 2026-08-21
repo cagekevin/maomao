@@ -13,8 +13,15 @@ export function json(res: ServerResponse, data: unknown, status = 200): void {
   res.end(body);
 }
 
-export function sendError(res: ServerResponse, message: string, status = 500): void {
-  json(res, { error: message }, status);
+/**
+ * 统一错误响应（B2 升级：支持错误信封带 code）。
+ * 兼容策略：不传 code 时维持旧形态 `{error: message}`（B0 冻结），
+ * 传 code（复用前端 contracts.js GEN_ERRORS 字符串 key：abort|timeout|network|http|business）
+ * 时输出 `{error: {code, message}}`；message 始终保留供前端字符串兜底。
+ */
+export function sendError(res: ServerResponse, message: string, status = 500, code?: string): void {
+  if (code) json(res, { error: { code, message } }, status);
+  else json(res, { error: message }, status);
 }
 
 export function parseJsonBody(req: IncomingMessage): Promise<unknown> {

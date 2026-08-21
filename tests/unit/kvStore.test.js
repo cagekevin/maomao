@@ -92,9 +92,9 @@ describe('kvStore kvGet', () => {
     const r = await kvGet('missing')
     expect(r).toBeNull()
   })
-  it('非 ok 响应抛错（含 status）', async () => {
+  it('非 ok 响应抛 HttpError（含 status，message 兜底空）', async () => {
     fetchImpl.mockResolvedValue(notOk(500))
-    await expect(kvGet('x')).rejects.toThrow(/HTTP 500/)
+    await expect(kvGet('x')).rejects.toMatchObject({ name: 'HttpError', status: 500, message: '' })
   })
   it('fetch 网络异常透传 reject', async () => {
     fetchImpl.mockRejectedValue(new Error('network down'))
@@ -116,9 +116,9 @@ describe('kvStore kvSet', () => {
     expect(opt.body).toBe(JSON.stringify({ key, value }))
     expect(r).toEqual({ ok: true })
   })
-  it('非 ok 响应抛错（含 status）', async () => {
+  it('非 ok 响应抛 HttpError', async () => {
     fetchImpl.mockResolvedValue(notOk(503))
-    await expect(kvSet('k1', 1)).rejects.toThrow(/HTTP 503/)
+    await expect(kvSet('k1', 1)).rejects.toMatchObject({ name: 'HttpError', status: 503, message: '' })
   })
 })
 
@@ -133,9 +133,9 @@ describe('kvStore kvDelete', () => {
     )
     expect(r).toEqual({ ok: true })
   })
-  it('非 ok 响应抛错', async () => {
+  it('非 ok 响应抛 HttpError', async () => {
     fetchImpl.mockResolvedValue(notOk(500))
-    await expect(kvDelete('k1')).rejects.toThrow(/HTTP 500/)
+    await expect(kvDelete('k1')).rejects.toMatchObject({ name: 'HttpError', status: 500, message: '' })
   })
   it('删不存在的 key 仍返回 ok（契约约定）', async () => {
     fetchImpl.mockResolvedValue(okJson({ ok: true }))
