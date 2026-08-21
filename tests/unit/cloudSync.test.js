@@ -12,11 +12,12 @@ import { contentClearCache } from '../../src/components/base/contentStore.js'
 const fetchMock = globalThis.fetch
 
 vi.mock('../../src/components/base/localToolApi.js', () => ({
-  providerApi: { saveProviders: vi.fn(), syncConfigBase: vi.fn() },
+  providerApi: { getProviders: vi.fn(), saveProviders: vi.fn(), syncConfigBase: vi.fn() },
   fetchProjects: vi.fn(),
   saveProjects: vi.fn(),
 }))
 
+const { providerApi } = await import('../../src/components/base/localToolApi.js')
 const { CloudSyncEngine, uploadConfig, downloadConfig } = await import(
   '../../src/components/base/cloudSync.js'
 )
@@ -29,6 +30,8 @@ function jsonResp(obj) {
 beforeEach(() => {
   globalThis.fetch = fetchMock
   fetchMock.mockClear()
+  providerApi.getProviders.mockReset()
+  providerApi.getProviders.mockResolvedValue({ data: null }) // 默认无 providers，与既有用例行为一致
   CloudSyncEngine.isSyncing = false
   localStorage.clear()
   contentClearCache()
@@ -105,6 +108,21 @@ describe('cloudSync — uploadConfig / downloadConfig 边界', () => {
     const res = await uploadConfig(() => {})
     expect(res.ok).toBe(true)
     expect(res.count).toBeGreaterThan(0)
+  })
+
+  it('localTool 未连（getProviders 抛错）→ collectLocal 跳过 API 配置，仍成功且不含 providers', async () => {
+    // 【R6 边角3】localTool 未连的降级路径：catch 静默跳过，不阻塞本地配置上传
+    const { contentSet } = await import('../../src/components/base/contentStore.js')
+    contentSet('app_settings', { theme: 'dark' })
+    providerApi.getProviders.mockRejectedValue(new Error('ECONNREFUSED'))
+    fetchMock.mockResolvedValue(jsonResp({ msg: 'ok' }))
+    const res = await uploadConfig(() => {})
+    expect(res.ok).toBe(true)
+    // callGateway body = { action, data: cloud }，cloud.data 才是 ls 清单
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body)
+    const ls = body.data.data
+    expect(ls.app_settings).toEqual({ theme: 'dark' }) // 本地配置仍上传
+    expect(ls.providers).toBeUndefined() // API 配置跳过
   })
 
   it('同步清单由 contracts.js getLocalKeys() 生成：真实设置进云，排除本机/临时/本地引用键', async () => {

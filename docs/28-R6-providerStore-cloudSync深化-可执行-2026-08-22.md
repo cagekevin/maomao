@@ -45,9 +45,24 @@
 
 ## 4. 验收
 
-- [ ] 4 个边角都有断言（或明确标注"已覆盖"）
-- [ ] `tests/unit/providerStore.test.js` + `tests/unit/cloudSync.test.js` 全绿
-- [ ] `npm test` 全绿
+- [x] 4 个边角都有断言（或明确标注"已覆盖"）
+- [x] `tests/unit/providerStore.test.js` + `tests/unit/cloudSync.test.js` 全绿
+- [x] `npm test` 全绿
+
+---
+
+## 4.1 执行结果（2026-08-22）
+
+4 边角核对与补断言：
+
+| 边角 | 现状 | 处理 |
+|---|---|---|
+| providerStore `test()` apimart 异步嗅探失败分支 | 仅覆盖 probe-async 成功补全；catch 保留原始信息分支（:156-158）无断言 | ✅ 补 1 条：probe-async 抛错时 testResult 保留 test-connection 原始信息 |
+| providerStore `fetchModels()` 缺字段返回 | 已覆盖（`返回结构缺字段返回 ok=false`） | ✅ 已覆盖 |
+| cloudSync 同步时 localTool 未连（catch 跳过） | `collectLocal` try/catch 降级（:132-136）无显式断言；原 mock 缺 getProviders 靠隐式抛错 | ✅ 补 1 条：getProviders 抛错 → 仍成功上传且 data 不含 providers |
+| providerStore 空 providers 时 `save()` 的 `active_api_endpoint` | `if (primary)` 保护（:259-267）无"不写 KV"断言 | ✅ 补 1 条：空 providers save 成功且不写 KV |
+
+- 测试：`cloudSync.test.js` 12 用例、`providerStore.test.js` 18 用例，全绿（30/30）。
 
 ---
 

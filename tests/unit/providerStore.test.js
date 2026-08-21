@@ -179,6 +179,18 @@ describe('providerStore §4 供应商数据层', () => {
       expect(s.testResult.stage).toBe('async_endpoint_ok')
     })
 
+    it('test apimart probe-async 本身抛错时保留 test-connection 原始信息（不覆盖）', async () => {
+      // 【R6 边角1】probe-async 失败（catch 空体）→ 保留 test-connection 的原始诊断，不被抹掉
+      mod.add()
+      const id = mod.useProviders().selectedId
+      mod.update(id, { protocol: 'apimart' })
+      h.mockTestConnection.mockResolvedValue({ ok: false, status: 0, error: '连接失败: Connect Timeout' })
+      h.mockProbeAsync.mockRejectedValue(new Error('probe down'))
+      await mod.test(id)
+      const s = mod.useProviders()
+      expect(s.testResult).toEqual({ ok: false, status: 0, error: '连接失败: Connect Timeout' })
+    })
+
     it('fetchModels 拉取结果暂存 fetchedModels（不直接写盘），applyFetchedModels 勾选后写入', async () => {
       mod.add()
       const id = mod.useProviders().selectedId
@@ -248,6 +260,14 @@ describe('providerStore §4 供应商数据层', () => {
       const res = await mod.save()
       expect(res.ok).toBe(false)
       expect(res.error).toBe('500')
+    })
+
+    it('save 空 providers 时不写 active_api_endpoint（无主供应商）', async () => {
+      // 【R6 边角4】空 providers 时 primary 为 undefined，跳过 KV 回写
+      h.mockSaveProviders.mockResolvedValue({ data: { providers: [] } })
+      const res = await mod.save()
+      expect(res.ok).toBe(true)
+      expect(h.mockKvSet).not.toHaveBeenCalled()
     })
   })
 })
