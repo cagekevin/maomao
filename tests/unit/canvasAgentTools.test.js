@@ -407,6 +407,21 @@ describe('画布 Agent 工具层 §2.5', () => {
     expect(r.error).toBe('模型超时')
   })
 
+  it('generate_node 节点不存在 → 回填可用 id 引导自愈（防 LLM 自猜 promptNode_1）', async () => {
+    const ctx = makeCtx([
+      { id: 'promptNode_real_a', type: 'promptNode', data: {}, position: {} },
+      { id: 'promptNode_real_b', type: 'promptNode', data: {}, position: {} },
+      { id: 'text_x', type: 'textNode', data: {}, position: {} },
+    ])
+    const t = buildCanvasAgentTools(ctx)
+    const r = await t.generate_node({ nodeId: 'promptNode_1' }) // 模型自猜的假 id
+    expect(r.ok).toBe(false)
+    expect(r.error).toContain('节点不存在：promptNode_1')
+    // 兜底引导：回填画布上真实可用的生图节点 id（而非只报错让模型卡死/重复建节点）
+    expect(r.error).toContain('promptNode_real_a')
+    expect(r.error).toContain('promptNode_real_b')
+  })
+
   it('show_plan_for_confirm 暂存策划并进入待确认', async () => {
     // Skill 场景：有 Skill → 必进入 awaiting 确认（对齐大雄：Skill 三阶段需确认策划）
     vi.mocked(convStore.getCurrentSnapshot).mockReturnValue({ skills: [{ name: 'x' }] })

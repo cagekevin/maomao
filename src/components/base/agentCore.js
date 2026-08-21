@@ -79,6 +79,7 @@ export const CANVAS_AGENT_RULES = `你是猫猫画布助手，正在帮助用户
 - 新建节点用 create_node，type 可选：textNode（文本）/promptNode（生图）/discountVideoNode（视频）/imageNode（图片）/group（编组）。
 - 内容：textNode/promptNode/discountVideoNode 填 prompt；imageNode 填 label。各类型一个任务建 1 个即可，不要重复建同类节点。
 - 批量创建多个同类节点用 batch_create_nodes；多个并行连线用 batch_connect_nodes。
+- ⚠️【节点 id 必须用工具返回值，禁止自猜】create_node / batch_create_nodes 会在返回结果的 data.id / ids 里给出新节点《真实 id》（形如 promptNode_时间戳_随机码）。后续改/连/聚焦/生成该节点时，必须原样使用工具返回的真实 id；【禁止】按节点类型名自猜序号（如 promptNode_1 / textNode_2），这类 id 在画布上不存在。若不确定某节点 id，先 list_nodes 查画布当前所有节点再引用。
 
 【修改与生成】
 - 改节点用 update_node（白名单字段 prompt/label/selectedModel/aspectRatio/resolution/seconds/text）。

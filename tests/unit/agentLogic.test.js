@@ -50,6 +50,15 @@ describe('AI 助手 buildRequestMessages（发 LLM 消息组装）§2.15', () =>
     expect(out[1]).toMatchObject({ role: 'user', content: 'hi' })
   })
 
+  it('系统提示含节点 id 强约束（禁止自猜 id，防 generate_node 节点不存在）', () => {
+    // 【根因回归】LLM 曾自猜 promptNode_1 导致「节点不存在」。删除此约束会破坏 generate_node 正确性。
+    const out = buildRequestMessages([{ role: 'user', content: 'hi' }], '', true, [], null)
+    const s = out[0].content
+    expect(s).toContain('必须原样使用工具返回的真实 id')
+    expect(s).toContain('禁止')
+    expect(s).toContain('自猜序号')
+  })
+
   it('enhance=false 且无 systemPrompt 时不注入', () => {
     const out = buildRequestMessages([{ role: 'user', content: 'hi' }], '', false, [], null)
     expect(out.some((m) => m.role === 'system')).toBe(false)

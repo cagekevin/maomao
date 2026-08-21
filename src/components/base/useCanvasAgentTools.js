@@ -700,7 +700,14 @@ const triggerGenerationTool = {
   execute: async (args, ctx) => {
     const id = str(args.nodeId)
     const node = ctx.getNodes().find((n) => n.id === id)
-    if (!node) return { ok: false, error: `节点不存在：${id}` }
+    if (!node) {
+      // 兜底自愈（2026-08-21）：LLM 可能自猜节点 id（如 promptNode_1）导致不存在。
+      // 回填「当前可用节点 id」列表引导模型用真实 id，而非只报错让模型卡死/重复建节点。
+      const all = ctx.getNodes()
+      const candidates = (all.some((n) => n.type === 'promptNode') ? all.filter((n) => n.type === 'promptNode') : all).map((n) => n.id)
+      const hint = candidates.length ? `。当前可用节点 id：${candidates.join('、')}` : ''
+      return { ok: false, error: `节点不存在：${id}${hint}。请使用工具返回的真实 id（如 create_node 的 data.id），不要自行推测节点 id。` }
+    }
     // 通过统一契约触发真实生成（节点须已用 useNodeGeneration 注册 start）。
     // 【异步执行器地基】runNodeGeneration 新版透传 start() 的 promise（{ ok, resultUrl }），
     // await 它可拿到已落盘的持久 resultUrl（供前序依赖/多图编排复用）。
