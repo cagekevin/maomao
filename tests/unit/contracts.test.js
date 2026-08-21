@@ -221,8 +221,8 @@ describe('EVENTS 结构完整性', () => {
 })
 
 describe('EVENTS 内容验证', () => {
-  it('当前共有 7 个登记事件', () => {
-    expect(Object.keys(EVENTS).length).toBe(7)
+  it('当前共有 5 个登记事件', () => {
+    expect(Object.keys(EVENTS).length).toBe(5)
   })
 
   it('包含所有核心事件', () => {
@@ -231,8 +231,6 @@ describe('EVENTS 内容验证', () => {
     expect(keys).toContain('presets-changed')
     expect(keys).toContain('project:import')
     expect(keys).toContain('project:export')
-    expect(keys).toContain('agent:workflow-status')
-    expect(keys).toContain('agent:workflow-confirmed')
     expect(keys).toContain('persist:failed')
   })
 })
