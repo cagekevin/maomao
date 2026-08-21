@@ -35,6 +35,51 @@ vi.mock('../../src/components/base/logger.js', () => ({
 }))
 
 // ── mock 会话数据层：内存独立，避免跨测试污染 ──
+// 【阶段1A 消息单源】useAgentChat 渲染走 useStoreSelector(subscribe, getState)（conversationState），
+//   消息写入走 setCurrentSnapshot/patchCurrentMessages（conversationStore）。为让「写入→订阅连通」，
+//   conversationState 与 conversationStore 的 mock 必须共享同一份内存 store（会话消息单源不变量）。
+const sharedConvStore = vi.hoisted(() => {
+  const state = {
+    activeId: 'c1',
+    sending: false,
+    conversations: [
+      { id: 'c1', title: '对话1', messages: [], skills: [], draft: '', attachments: [] },
+      { id: 'c2', title: '对话2', messages: [], skills: [], draft: '', attachments: [] },
+    ],
+  }
+  const listeners = new Set()
+  const getActiveConv = () => state.conversations.find((c) => c.id === state.activeId) || null
+  const notify = () => listeners.forEach((l) => l())
+  // 更新当前对话 messages（唯一写口；模拟 setCurrentSnapshot/patchCurrentMessages 的落 store 语义）
+  const setActiveMessages = (messages) => {
+    const conv = getActiveConv()
+    if (!conv) return
+    conv.messages = Array.isArray(messages) ? messages.slice(-60) : conv.messages
+    notify()
+  }
+  // 阶段1D：sending 运行态（模拟 store.setSending，订阅可读）
+  const setSendingState = (v) => {
+    state.sending = !!v
+    notify()
+  }
+  // 阶段1D：activeId 切换（newChat/switchChat/deleteChat 改 store.activeId，订阅可读）
+  const setActiveId = (id) => {
+    state.activeId = id
+    notify()
+  }
+  return {
+    state, listeners, getActiveConv, notify, setActiveMessages, setSendingState, setActiveId,
+    subscribe(cb) { listeners.add(cb); return () => listeners.delete(cb) },
+    getState() { return state },
+    reset() { state.activeId = 'c1'; state.sending = false; state.conversations.forEach((c) => { c.messages = [] }) },
+  }
+})
+
+vi.mock('../../src/components/base/conversationState.js', () => ({
+  subscribe: sharedConvStore.subscribe,
+  getState: sharedConvStore.getState,
+}))
+
 vi.mock('../../src/components/base/conversationStore.js', () => {
   let pending = null
   let activeId = 'c1'
@@ -50,7 +95,16 @@ vi.mock('../../src/components/base/conversationStore.js', () => {
     getCurrentWorkflow: vi.fn(() => null),
     patchCurrentWorkflow: vi.fn((p) => ({ steerQueue: [], ...p })),
     captureActiveConversation: vi.fn(),
-    setCurrentSnapshot: vi.fn(),
+    // 消息单源：setCurrentSnapshot / patchCurrentMessages / getCurrentSnapshot 落到共享内存 store
+    //   （useStoreSelector 读同一份 state → 写入立即可见，模拟生产环境 commit 同步链）。
+    setCurrentSnapshot: vi.fn((snap) => { if (snap && snap.messages !== undefined) sharedConvStore.setActiveMessages(snap.messages) }),
+    patchCurrentMessages: vi.fn((messages) => sharedConvStore.setActiveMessages(messages)),
+    getCurrentSnapshot: vi.fn(() => {
+      const c = sharedConvStore.getActiveConv()
+      return { messages: c ? [...c.messages] : [], skills: [], draft: '', attachments: [] }
+    }),
+    // 阶段1D：sending 落到共享 store（订阅可读）
+    setSending: vi.fn((v) => sharedConvStore.setSendingState(v)),
     setAwaitingConfirm: vi.fn(),
     getAwaitingConfirm: vi.fn(() => false),
     getActivePendingGenerations: vi.fn(() => null),
@@ -62,14 +116,17 @@ vi.mock('../../src/components/base/conversationStore.js', () => {
     newConversation: vi.fn(() => {
       const id = `c_new_${Date.now()}`
       activeId = id
+      sharedConvStore.setActiveId(id)
       return { id, snapshot: { id, messages: [], skills: [], draft: '', attachments: [] } }
     }),
     switchConversation: vi.fn((id) => {
       activeId = id
+      sharedConvStore.setActiveId(id)
       return { id, messages: [], skills: [], draft: '', attachments: [] }
     }),
     deleteConversation: vi.fn(() => {
       activeId = 'c1'
+      sharedConvStore.setActiveId('c1')
       return { activeId: 'c1', snapshot: { id: 'c1', messages: [], skills: [], draft: '', attachments: [] } }
     }),
   }
@@ -105,6 +162,7 @@ function toolCallDelta(index, { id, name, args } = {}) {
 let fetchMock
 beforeEach(() => {
   vi.clearAllMocks()
+  sharedConvStore.reset() // 消息单源隔离：清空共享 store 的 messages，防跨测试累积
   callTool.mockReset()
   callTool.mockReturnValue({ ok: true, data: { nodeId: 'n1' } })
   // 重置三阶段门禁 mock 状态：默认非待确认（防上一个测试的 mockReturnValue 污染后续）
@@ -780,5 +838,89 @@ describe('useAgentChat · 全链路 400 错误透传（发图被拒）', () => {
     })
     // 关键断言：前端展示的是上游真实错误信息，而非仅"400"
     expect(result.current.error).toContain('model does not support image_url')
+  })
+})
+
+// ── 阶段1B 卸载不 abort / 切 key abort（docs/25 §阶段1B）──
+// 卸载不断流（配合阶段1C 面板常驻）；切 agentKey 显式中断旧流（防项目串台）。
+describe('useAgentChat · 阶段1B 卸载不 abort / 切 key abort', () => {
+  it('组件卸载且 send 进行中 → 不触发 abort，流不被中断', async () => {
+    let capturedSignal
+    let resolveFetch
+    fetchMock.mockImplementation((_url, opts) => new Promise((resolve) => {
+      capturedSignal = opts.signal
+      resolveFetch = resolve
+      if (opts.signal) opts.signal.addEventListener('abort', () => {})
+    }))
+    const { result, unmount } = renderHook(() => useAgentChat({ agentKey: 'k1' }))
+    act(() => { result.current.send('挂起任务').catch(() => {}) })
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
+    expect(capturedSignal.aborted).toBe(false)
+    unmount() // 卸载——不得触发 abort（原 cleanup abort 已移除）
+    expect(capturedSignal.aborted).toBe(false)
+    // 收尾：让挂起的 fetch 正常结束，避免遗留 pending
+    act(() => { resolveFetch(textStream('卸载后仍完成')) })
+  })
+
+  it('切 agentKey → 旧流被显式 abort（运行态不串台），新 key 独立', async () => {
+    const signals = []
+    fetchMock.mockImplementation(() => new Promise(() => { /* 永不 resolve，保持进行中 */ }))
+    const { result, rerender } = renderHook(
+      ({ agentKey }) => useAgentChat({ agentKey }),
+      { initialProps: { agentKey: 'projA' } }
+    )
+    act(() => { result.current.send('任务A').catch(() => {}) })
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
+    const sig = fetchMock.mock.calls[0][1].signal
+    expect(sig.aborted).toBe(false)
+    rerender({ agentKey: 'projB' }) // 切 key → 中断旧流
+    expect(sig.aborted).toBe(true)
+  })
+})
+
+// ── 阶段1A 消息单源不变量 ──
+// 若有人重新引入「setMessages / messagesRef 本地消息副本」，下列断言即红（实现一变必红）。
+describe('useAgentChat · 消息单源（store 唯一真相）', () => {
+  it('渲染跟随 store：外部直接写 store → hook 重渲染读同一份（无本地消息副本）', async () => {
+    const { result } = renderHook(() => useAgentChat())
+    // 模拟「其他模块直接写 store」——若 hook 自持 messages 副本，此处不会更新渲染
+    act(() => {
+      sharedConvStore.setActiveMessages([{ role: 'user', content: '来自别的模块写入' }])
+    })
+    expect(result.current.messages).toEqual([{ role: 'user', content: '来自别的模块写入' }])
+    // 渲染的就是 store 数组本身（同一引用），单源不变量核心
+    expect(result.current.messages).toBe(sharedConvStore.getActiveConv().messages)
+  })
+
+  it('流式结束后占位替换为完整 assistant 且无 streaming 残留，内容与 store 一致', async () => {
+    fetchMock.mockResolvedValue(textStream('带一句回复'))
+    const { result } = renderHook(() => useAgentChat())
+    await act(async () => {
+      await result.current.send('发消息')
+    })
+    const storeConv = sharedConvStore.getActiveConv()
+    const last = storeConv.messages.at(-1)
+    expect(last.role).toBe('assistant')
+    expect(last.streaming).toBeFalsy() // 无 streaming 残留占位
+    expect(result.current.messages).toEqual(storeConv.messages)
+  })
+})
+
+// ── 阶段1D 薄壳化：sending / activeConversationId 为 store 字段订阅（非本地 useState）──
+describe('useAgentChat · 阶段1D 薄壳化（sending/activeId 订阅 store）', () => {
+  it('sending 单源：外部 setSending → hook 订阅重渲染', () => {
+    const { result } = renderHook(() => useAgentChat())
+    expect(result.current.sending).toBe(false)
+    act(() => { sharedConvStore.setSendingState(true) })
+    expect(result.current.sending).toBe(true)
+    act(() => { sharedConvStore.setSendingState(false) })
+    expect(result.current.sending).toBe(false)
+  })
+
+  it('activeConversationId 单源：跟随 store.activeId', () => {
+    const { result } = renderHook(() => useAgentChat())
+    expect(result.current.activeConversationId).toBe('c1')
+    act(() => { sharedConvStore.setActiveId('c9') })
+    expect(result.current.activeConversationId).toBe('c9')
   })
 })

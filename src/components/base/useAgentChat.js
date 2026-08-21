@@ -48,8 +48,8 @@ import {
   switchConversation,
   deleteConversation,
   captureActiveConversation,
-  getConversations,
   getActiveConversationId,
+  getCurrentSnapshot,
   setCurrentSnapshot,
   getCurrentWorkflow,
   patchCurrentWorkflow,
@@ -57,12 +57,18 @@ import {
   setCurrentPending,
   getCurrentMemory,
   setCurrentMemory,
+  patchCurrentMessages,
+  setSending,
   setAwaitingConfirm,
   getAwaitingConfirm,
   setActivePendingGenerations,
   getActivePendingGenerations,
   getCurrentImageMap,
 } from './conversationStore.js'
+// 【消息单源 P5 基座】按字段订阅 store 的 messages（含 activeId 从 store 同步读），
+// 避免整包 useConversationStore() 订阅 → 流式高频更新连坐重渲染整个面板。
+import { subscribe, getState } from './conversationState.js'
+import { useStoreSelector, shallowEqual } from './useStoreSelector.js'
 
 // P15 列表 key 收口：给消息补稳定唯一 id（已有 id 保留）。appendMsg/setHistory 统一走它，
 // 保证 AgentPanel 的 messages.map 可用 key={m.id}（此前无 id，只能 key={i}，插入/删除会错位）。
@@ -102,11 +108,13 @@ const withMsgId = (m) => (m && typeof m === 'object' && m.id ? m : { ...m, id: g
  *  - tool:      { role:'tool', content:JSON字符串, tool_call_id, createdAt }
  *  - system:    { role:'system', content }
  *
- * 【本实现的关键设计：统一消息同步】
- *  messages（React state，驱动 UI 渲染）与 messagesRef（ref，供异步闭包读取最新历史）
- *  必须始终保持一致。所有「追加/替换/清空」一律走下方辅助函数（appendMsg/setHistory/
- *  updateLastStreaming/stripStreaming），杜绝"改 setMessages 忘改 ref"导致的 ref 漂移
- *  ——那是过去"一改就崩"的根源。
+ * 【本实现的关键设计：消息单源化（阶段1A）】
+ *  store（conversationState.states[agentKey].conversations[activeId].messages）是消息唯一真相。
+ *  渲染：useStoreSelector(subscribe, getState) 按字段订阅 messages，流式高频更新只重渲染消息订阅者。
+ *  写入：一律走下方辅助函数（appendMsg/setHistory/updateLastStreaming/endStreaming/stripStreaming）——
+ *    低频（appendMsg/setHistory/stripStreaming）走 setCurrentSnapshot（落盘）；
+ *    高频流式（updateLastStreaming/endStreaming）走 patchCurrentMessages（仅通知不落盘，finally 统一落盘）。
+ *  异步闭包读最新历史：统一 getCurrentSnapshot().messages（commit 同步更新 store，无 ref 漂移问题）。
  * ════════════════════════════════════════════════════════════════
  *
  * ══════════════════════════════════════════════════════════════════════════════
@@ -216,13 +224,19 @@ export {
  */
 
 export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '', defaultModel = CHAT_MODEL, provider = null, skills = [], onConversationChange = null } = {}) {
-  const [messages, setMessages] = useState([])
-  const [sending, setSending] = useState(false)
+  // ── 消息单源（阶段1A）：不再自持 messages state，改为按字段订阅 store 的
+  //    conversations[activeId].messages。流式高频更新只重渲染消息订阅者，其余字段不连坐。
+  const messages = useStoreSelector(subscribe, getState, (s) => {
+    const cur = (s.conversations || []).find((c) => c.id === s.activeId)
+    return cur?.messages ?? []
+  }, shallowEqual)
+  // ── 阶段1D·薄壳化：sending / activeConversationId / conversations 改为 store 字段订阅（非本地 useState）──
+  const sending = useStoreSelector(subscribe, getState, (s) => !!s.sending, shallowEqual)
   const [error, setError] = useState(null)
   const [model, setModel] = useState(defaultModel)
-  // ── 会话隔离（#9）：多对话 + 当前对话 id + 对话列表 ──
-  const [activeConversationId, setActiveConversationId] = useState('')
-  const [conversations, setConversations] = useState([])
+  // ── 会话隔离（#9）：当前对话 id + 对话列表由 store 字段订阅（薄壳化，删本地 state + refreshConversations）──
+  const activeConversationId = useStoreSelector(subscribe, getState, (s) => s.activeId || '', shallowEqual)
+  const conversations = useStoreSelector(subscribe, getState, (s) => s.conversations || [], shallowEqual)
 
   // 工具层（替代官方 lr()）
   const { toolSchemas, callTool } = useCanvasAgentTools()
@@ -230,7 +244,6 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
   // ref 缓存（避免闭包旧值，对齐官方 g.current/h.current）
   const systemRef = useRef(systemPrompt)
   const skillsRef = useRef(skills)
-  const messagesRef = useRef([])
   const abortRef = useRef(null)
   // 同步的发送态，防「sending state 是异步更新、快速双击读到旧值」导致的并发双发
   const sendingRef = useRef(false)
@@ -252,32 +265,34 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
 
   useEffect(() => { systemRef.current = systemPrompt }, [systemPrompt])
   useEffect(() => { skillsRef.current = skills }, [skills])
-  useEffect(() => { messagesRef.current = messages }, [messages])
 
   /**
-   * ── 消息同步辅助（唯一入口，杜绝 ref 与 state 漂移）──
-   * messages 是 React state（驱动 UI），messagesRef 是 ref（供异步闭包读最新历史）。
-   * 所有对消息的修改必须经这里，保证两者始终一致。
+   * ── 消息同步辅助（唯一入口，全部落 store；无第二份可变数组）──
+   * 异步闭包内同步读 getCurrentSnapshot().messages 拿最新历史。
+   * 低频动作（appendMsg/setHistory/stripStreaming）走 setCurrentSnapshot（落盘）；
+   * 高频流式（updateLastStreaming/endStreaming）走 patchCurrentMessages（仅通知不落盘）。
    */
-  // 追加一条消息（同步 state + ref）
+  // 追加一条消息（低频；落盘）。单源：读 store 当前消息 + 追加 → setCurrentSnapshot（内部 300ms 落盘节流合并）。
+  //   工具循环内多次调用安全——每次读的都是最新 store，无第二份可变数组。
   const appendMsg = useCallback((msg) => {
     const m = withMsgId(msg)
-    setMessages((prev) => [...prev, m])
-    messagesRef.current = [...messagesRef.current, m]
+    setCurrentSnapshot({ messages: [...getCurrentSnapshot().messages, m] })
   }, [])
 
-  // 整体替换历史（同步 state + ref；P15：统一补稳定消息 id，保证 AgentPanel 列表 key 稳定）
+  // 整体替换历史（低频；落盘。P15：统一补稳定消息 id，保证 AgentPanel 列表 key 稳定）
   const setHistory = useCallback((next) => {
     const normalized = (Array.isArray(next) ? next : []).map(withMsgId)
-    setMessages(normalized)
-    messagesRef.current = normalized
+    setCurrentSnapshot({ messages: normalized })
   }, [])
 
-  // 更新最后一条 streaming assistant 的增量（不新增，原地改最后一条）
+  // 更新最后一条 streaming assistant 的增量（高频流式热路径；仅通知不落盘，最终态由 send finally 统一落盘）
   const updateLastStreaming = useCallback((delta) => {
-    // 【与 endStreaming 同源修复】同步更新 messagesRef.current，避免异步回调导致落盘读到空占位。
-    messagesRef.current = messagesRef.current.map((m, i) => {
-      if (i !== messagesRef.current.length - 1 || m.role !== 'assistant' || !m.streaming) return m
+    // 同步性：patchCurrentMessages 内部 commit 同步更新 store 并 notify，
+    //   调用后立即 getCurrentSnapshot() 即是最新 —— 杜绝异步回调读到空 streaming 占位。
+    const cur = getCurrentSnapshot().messages
+    const next = cur.map((m, i) => {
+      if (i !== cur.length - 1 || m.role !== 'assistant' || !m.streaming) return m
+      // 只保留真实 tool_calls（name 非空）；为空则不设该字段，杜绝空数组进历史 → LLM 报 Empty tool_calls
       const realCalls = delta.toolCalls.filter((t) => t.function?.name)
       return {
         ...m,
@@ -286,48 +301,23 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
         ...(realCalls.length > 0 ? { tool_calls: realCalls } : {})
       }
     })
-    setMessages((prev) => {
-      const next = [...prev]
-      const last = next[next.length - 1]
-      if (last && last.role === 'assistant' && last.streaming) {
-        // 只保留真实 tool_calls（name 非空）；为空则不设该字段，杜绝空数组进历史 → LLM 报 Empty tool_calls
-        const realCalls = delta.toolCalls.filter((t) => t.function?.name)
-        next[next.length - 1] = {
-          ...last,
-          content: delta.content,
-          reasoning: delta.reasoning || undefined,
-          ...(realCalls.length > 0 ? { tool_calls: realCalls } : {})
-        }
-      }
-      return next
-    })
+    patchCurrentMessages(next)
   }, [])
 
-  // 结束流式：把最后一条 streaming 占位替换为完整 assistant
+  // 结束流式：把最后一条 streaming 占位替换为完整 assistant（高频流式末拍；仅通知不落盘，finally 统一落盘）
   const endStreaming = useCallback((assistant) => {
-    // 【修复】必须在回调外同步更新 messagesRef.current：send 的 finally 落盘时同步读取 ref，
-    //   若更新放在 setMessages 回调内（异步），落盘会拿到空的 streaming 占位 → AI 回复丢失。
-    //   与 appendMsg/setHistory 一致：ref 始终同步、立即可用。
     // 【key 稳定修复】替换时必须保留原占位消息的 id（assistant 对象可能无 id）——
     //   否则 key={m.id} 变 undefined，AI 发消息（流式结束）时触发 React「列表缺 key」警告。
-    messagesRef.current = messagesRef.current.map((m, i) =>
-      i === messagesRef.current.length - 1 ? { ...assistant, id: m.id, streaming: false } : m
+    const cur = getCurrentSnapshot().messages
+    const next = cur.map((m, i) =>
+      i === cur.length - 1 ? { ...assistant, id: m.id, streaming: false } : m
     )
-    setMessages((prev) => {
-      const next = [...prev]
-      const last = next[next.length - 1]
-      next[next.length - 1] = { ...assistant, id: last?.id, streaming: false }
-      return next
-    })
+    patchCurrentMessages(next)
   }, [])
 
-  // 清理所有 streaming 残留占位（循环中途出错可能残留多轮 streaming:true 占位）
+  // 清理所有 streaming 残留占位（循环中途出错可能残留多轮 streaming:true 占位；低频；落盘）
   const stripStreaming = useCallback(() => {
-    setMessages((prev) => {
-      const next = prev.filter((m) => !m.streaming)
-      messagesRef.current = next
-      return next
-    })
+    setCurrentSnapshot({ messages: getCurrentSnapshot().messages.filter((m) => !m.streaming) })
   }, [])
 
   // 初始加载会话（对齐大雄：从 conversations 恢复当前对话；旧单会话数据迁移一次）。
@@ -345,10 +335,9 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
     const hist = loadHistory(agentKey)
     const migrated = hist.length > 0 ? importLegacy({ messages: hist, skills: skillsRef.current }) : null
     const snap = migrated || applyConversation(activeId)
-    // 3) 同步内存态（当前对话的 messages）到本 hook state
-    setActiveConversationId(getActiveConversationId())
+    // 3) 同步内存态：activeId / conversations 由 store 字段订阅（阶段1D 薄壳化，无需本地 state）——
+    //    ensureActiveConversation 已 commit 更新 store.activeId；conversations 直接订阅 store。
     setHistory(snap.messages)
-    setConversations(getConversations())
     // 4) 把当前对话的 skills/draft/attachments 交给 UI 层（AgentPanel 据此恢复 activeSkills、输入框草稿与参考图）
     if (snap.skills?.length || snap.draft || snap.attachments?.length) onConversationChangeRef.current?.(snap)
     // 5) 状态机按当前对话加载
@@ -365,9 +354,19 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [agentKey])
 
-  // 卸载时中止进行中的请求（复刻官方 dr:2571-2575）
+  // 【阶段1B】切 agentKey：中断旧 key 进行中的流（与卸载 abort 分离——卸载不 abort，切页/卸载不断流）。
+  // 背景：原实现用「依赖 [agentKey] 的 cleanup abort」，cleanup 在"组件卸载"与"agentKey 变化"都会触发，
+  // 误伤了"切页/面板关闭"场景（阶段1C 让 AgentPanel 常驻后卸载本不该断流）。故改为：
+  //  - 卸载：不 abort（本 effect 无 cleanup，组件卸载静默结束，异步流继续跑最终落 store）；
+  //  - 切 key：用 prevRef 对比只在「agentKey 真正变化」时显式中止旧流，防两个项目流串台。
+  // stop()/clear() 的显式 abort 不受影响；send 内 AbortController 生命周期不变。
+  const prevAgentKeyRef = useRef(agentKey)
   useEffect(() => {
-    return () => abortRef.current?.abort()
+    if (prevAgentKeyRef.current !== agentKey) {
+      abortRef.current?.abort()
+      abortRef.current = null
+    }
+    prevAgentKeyRef.current = agentKey
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [agentKey])
 
@@ -451,7 +450,7 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
       sendingRef.current = true
       setError(null)
       stateMachineRef.current.start({ status: 'planning' })
-      setCurrentSnapshot({ messages: messagesRef.current, skills: skillsRef.current, draft: '', attachments: [] })
+      setCurrentSnapshot({ messages: getCurrentSnapshot().messages, skills: skillsRef.current, draft: '', attachments: [] })
       patchCurrentWorkflow({ status: 'planning', steerQueue: getCurrentWorkflow()?.steerQueue || [], startedAt: Date.now() })
       setCurrentPending({ conversationId: getActiveConversationId(), text, attachments: attachments || [] })
 
@@ -476,7 +475,7 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
         // 参考图 URL 池写入模块级：execute_plan 工具按 AI 的 attachment_indices 精确取用（对齐大雄）
         setCurrentReferenceImages(imgAtts.map((a) => a.url).filter(Boolean))
       }
-      setHistory([...messagesRef.current, userMsg])
+      setHistory([...getCurrentSnapshot().messages, userMsg])
       setSending(true)
 
       // 【链路日志】AI 助手发送：内容摘要 + 附件（图片）数，供排查发送环节
@@ -512,7 +511,7 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
             // 【过渡方案·2026-08-18】historyTurns 实时读取（AI 助手设置可配）：
             // 0=不回传、1=只上一轮、N=最近 N 轮纯文字历史（图片仍编号化 imageCatalog 图N，不内联，不破坏
             // 「反推图一却全反推」安全底线）。见文件顶部注释 + agentCore.js buildRequestMessages 头注释。
-            buildRequestMessages(messagesRef.current, systemRef.current, true, skillsRef.current, getCurrentMemory(), getCurrentImageMap(), loadAgentHistoryTurns()),
+            buildRequestMessages(getCurrentSnapshot().messages, systemRef.current, true, skillsRef.current, getCurrentMemory(), getCurrentImageMap(), loadAgentHistoryTurns()),
             controller.signal,
             (delta) => updateLastStreaming(delta)
           )
@@ -570,7 +569,7 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
         stripStreaming()
       } finally {
         // 无论成功/失败/中止都落盘当前对话（对齐大雄：capture 快照到 conversations，per-conversation 持久化）
-        setCurrentSnapshot({ messages: messagesRef.current, skills: skillsRef.current, draft: '' })
+        setCurrentSnapshot({ messages: getCurrentSnapshot().messages, skills: skillsRef.current, draft: '' })
         // 更新 workflow 终态（completed/failed/stopped）；清除 pending（任务已有结果，不再需要刷新恢复）
         const wfStatus = !ok ? (aborted ? 'stopped' : 'failed') : 'completed'
         // 【三阶段门禁】展示策划后暂停：workflow 置 awaiting_confirm，状态机同步，等待用户确认按钮。
@@ -632,7 +631,7 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
           attachments.map(async (a) => ({ ...a, url: await normalizeImageUrlForSend(a?.url, { preferBase64: provider?.refFormat === 'base64' }) }))
         )
       }
-      setHistory([...messagesRef.current, userMsg])
+      setHistory([...getCurrentSnapshot().messages, userMsg])
 
       // 参考图 url（供图生图）
       const referenceImages = (userMsg.attachments || []).map((a) => a.url).filter(Boolean)
@@ -680,7 +679,7 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
         setError(e?.message || '图像模式生图失败')
         appendMsg({ role: 'assistant', content: `生图异常：${e?.message || e}`, mode: 'image', createdAt: Date.now() })
       } finally {
-        setCurrentSnapshot({ messages: messagesRef.current, skills: skillsRef.current, draft: '' })
+        setCurrentSnapshot({ messages: getCurrentSnapshot().messages, skills: skillsRef.current, draft: '' })
         patchCurrentWorkflow({ status: 'completed', updatedAt: Date.now() })
         setCurrentPending(null)
         try { captureActiveConversation() } catch { /* ignore */ }
@@ -712,28 +711,22 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
     stateMachineRef.current.setStatus('idle')
   }, [agentKey, setHistory, setAwaitingConfirm])
 
-  /** 刷新对话列表 state（供 UI 渲染） */
-  const refreshConversations = useCallback(() => {
-    setConversations(getConversations())
-  }, [])
-
-  // 对话切换公共流程（#9）：capture 当前 → 经 store 得到新对话 → 同步本 hook 的
-  // messages/ref/activeId，重置 error，重载状态机（load 隔离各对话状态），通知 UI 层恢复 skills/草稿。
-  // newChat/switchChat/deleteChat 三者的差异仅是"store 调用 + 新 id 来源"，故收敛成一个辅助。
+  // 对话切换公共流程（#9）：capture 当前 → 经 store 得到新对话 → 重置 error，重载状态机
+  //（load 隔离各对话状态），通知 UI 层恢复 skills/草稿。
+  //【阶段1D·薄壳化】activeId / conversations 改由 store 字段订阅（newChat/switchChat/deleteChat 内部 commit
+  // 已更新 store.activeId + conversations），不再需要本地 state 同步 → 移除 setActiveConversationId / refreshConversations。
   // 注意：切换前只 setCurrentSnapshot（暂存），与 switchConversation 内部的落盘逻辑配合，勿额外 captureActiveConversation。
   const applyConversationState = useCallback((targetId, snapshot) => {
-    setActiveConversationId(targetId)
     setHistory(snapshot.messages)
     setError(null)
-    refreshConversations()
     stateMachineRef.current.load(targetId)
     onConversationChangeRef.current?.(snapshot)
-  }, [setHistory, refreshConversations])
+  }, [setHistory])
 
   /** 新建对话（#9）：capture 当前 → 建空对话并切换；通知 UI 层更新 skills/草稿 */
   const newChat = useCallback(() => {
     if (sendingRef.current) return
-    setCurrentSnapshot({ messages: messagesRef.current, skills: skillsRef.current, draft: '' })
+    setCurrentSnapshot({ messages: getCurrentSnapshot().messages, skills: skillsRef.current, draft: '' })
     const { id, snapshot } = newConversation()
     applyConversationState(id, snapshot)
   }, [applyConversationState])
@@ -741,7 +734,7 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
   /** 切换对话（#9） */
   const switchChat = useCallback((id) => {
     if (sendingRef.current || !id || id === getActiveConversationId()) return
-    setCurrentSnapshot({ messages: messagesRef.current, skills: skillsRef.current, draft: '' })
+    setCurrentSnapshot({ messages: getCurrentSnapshot().messages, skills: skillsRef.current, draft: '' })
     const snapshot = switchConversation(id)
     applyConversationState(id, snapshot)
   }, [applyConversationState])
@@ -749,7 +742,7 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
   /** 删除对话（#9）：删除后自动切到下一个；若全删空则建新对话 */
   const deleteChat = useCallback((id) => {
     if (sendingRef.current) return
-    setCurrentSnapshot({ messages: messagesRef.current, skills: skillsRef.current, draft: '' })
+    setCurrentSnapshot({ messages: getCurrentSnapshot().messages, skills: skillsRef.current, draft: '' })
     const { activeId, snapshot } = deleteConversation(id)
     applyConversationState(activeId, snapshot)
   }, [applyConversationState])
@@ -760,7 +753,7 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
   //   @param {object} patch            要更新的字段（如 { prompts: [...], requestedCount }）
   const updateMessageByContent = useCallback((assistantContent, patch) => {
     if (!assistantContent) return
-    const next = messagesRef.current.map((m) =>
+    const next = getCurrentSnapshot().messages.map((m) =>
       (m.role === 'assistant' && m.content === assistantContent) ? { ...m, ...patch } : m
     )
     setHistory(next)
@@ -779,5 +772,5 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
     return { ok, error: res?.error || '' }
   }, [callTool])
 
-  return { messages, sending, error, model, setModel, send, sendImageMode, stop, clear, stateAction, conversations, activeConversationId, newChat, switchChat, deleteChat, refreshConversations, updateMessageByContent, executePlanDirect }
+  return { messages, sending, error, model, setModel, send, sendImageMode, stop, clear, stateAction, conversations, activeConversationId, newChat, switchChat, deleteChat, updateMessageByContent, executePlanDirect }
 }

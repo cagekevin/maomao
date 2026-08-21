@@ -3,17 +3,18 @@
  * 会话隔离数据层 —— 聚合入口 + 核心会话 CRUD（对齐 taskStore/providerStore 范式）
  * ════════════════════════════════════════════════════════════════
  *
- * 【拆分契约 · 2026-08-21】原"上帝文件"(674 行 / 44 导出)按关注点拆成 4 个实现文件 + 本聚合入口：
+ * 【拆分契约 · 2026-08-21】原"上帝文件"(674 行 / 44 导出)按关注点拆成 5 个实现文件 + 本聚合入口：
  *   - conversationState(共享 state/落盘/归一化底座)
  *   - conversationSnapshot(D：当前对话快照 workflow/pending/memory)
- *   - conversationAiState(F：contract/artifact/undo/pending/refImages/runMode)
+ *   - conversationAiState(F：contract/artifact/undo/refImages/runMode)
+ *   - conversationSkillState(F·阶段3：Skill 三阶段 pendingGenerations/awaitingConfirm)
  *   - conversationImageMap(E：跨轮图数据源)
  *   - conversationStore(本文件)：保留核心会话 CRUD(A 类) 并作为 re-export 聚合层。
  *
  * 【兼容性】调用方 import 路径与符号名全部不变（App/useAgentChat/useCanvasAgentTools/AgentPanel 零改动）：
  *   - 本文件内部定义的 A 类函数 re-export 自本模块；
- *   - D/E/F 与底座公开 API 通过 `export { x } from './xxx.js'` 原样 re-export。
- * 依赖方向单向无环：state ← { snapshot, aiState } ← { imageMap, store }。
+ *   - D/E/Skill/F 与底座公开 API 通过 `export { x } from './xxx.js'` 原样 re-export。
+ * 依赖方向单向无环：state ← { snapshot, aiState, skillState } ← { imageMap, store }。
  * ════════════════════════════════════════════════════════════════
  */
 import {
@@ -151,21 +152,24 @@ export function importLegacy({ messages, skills }) {
 // conversationState：底座公开 API（useConversationStore / setAgentKey / flushPersist /
 // resetConversationCache + 归一化 normalizeConversation / normalizeWorkflow / normalizePending / normalizeMemory）
 export {
-  useConversationStore, setAgentKey, flushPersist, resetConversationCache,
+  useConversationStore, setAgentKey, setSending, flushPersist, resetConversationCache,
   normalizeConversation, normalizeWorkflow, normalizePending, normalizeMemory,
 } from './conversationState.js'
 // conversationSnapshot：当前对话快照（D 类）
 export {
-  getCurrentSnapshot, setCurrentSnapshot, getCurrentWorkflow, patchCurrentWorkflow,
+  getCurrentSnapshot, setCurrentSnapshot, patchCurrentMessages, getCurrentWorkflow, patchCurrentWorkflow,
   getCurrentPending, setCurrentPending, getCurrentMemory, setCurrentMemory,
 } from './conversationSnapshot.js'
 // conversationAiState：AI 编排状态（F 类）
 export {
   getCurrentRunMode, setCurrentRunMode, getCurrentGlobalContract, setCurrentGlobalContract,
   getCurrentArtifacts, setCurrentArtifacts, getActiveAiUndoStack, pushActiveAiUndo, popActiveAiUndo,
-  getActivePendingGenerations, setActivePendingGenerations, getAwaitingConfirm, setAwaitingConfirm,
   getCurrentRefImages, setCurrentRefImages,
 } from './conversationAiState.js'
+// conversationSkillState：Skill 三阶段门禁状态（阶段3 编排轴子域化）
+export {
+  getActivePendingGenerations, setActivePendingGenerations, getAwaitingConfirm, setAwaitingConfirm,
+} from './conversationSkillState.js'
 // conversationImageMap：跨轮图数据源（E 类）
 export {
   getLastUserReferenceImages, getLastGeneratedImages, getCurrentImageMap,

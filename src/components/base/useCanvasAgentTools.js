@@ -1,5 +1,6 @@
 import { useCallback, useMemo } from 'react'
 import { useReactFlow } from '@xyflow/react'
+import { registerTool, getTools } from './toolRegistry.js'
 import { defaultNodeData } from './NodePalette.jsx'
 import { runNodeGeneration } from './taskStore.js'
 import { createGroupFromNodes, deleteNodesWithCascade } from './groupNodes.js'
@@ -1118,39 +1119,53 @@ const groupNodesTool = {
 // 当前分组：①读（操作前先了解画布，几乎每次任务都用）②节点增删（建节点最高频）
 // ③节点改 ④连线 ⑤生成/编排 ⑥视图/聚焦（低频）⑦保护/撤销/组织（最低频）。
 // 新增工具时按使用频率插入对应分组，别一股脑塞末尾——放前面 AI 才更可能选到。
-const AGENT_TOOLS = [
-  // ① 读（操作前先了解画布）
-  readCanvasTool,
-  listNodesTool,
-  listEdgesTool,
-  getNodeDetailsTool,
-  // ② 节点增删
-  createNodeTool,
-  batchCreateNodesTool,
-  deleteNodeTool,
-  batchDeleteNodesTool,
-  // ③ 节点改
-  updateNodeTool,
-  updateNodeRawTool,
-  // ④ 连线
-  connectNodesTool,
-  batchConnectNodesTool,
-  deleteEdgeTool,
-  // ⑤ 生成/编排
-  triggerGenerationTool,
-  executePlanTool,
-  presentPlanTool,
-  // ⑥ 视图/聚焦
-  focusNodeTool,
-  fitViewTool,
-  zoomInTool,
-  zoomOutTool,
-  // ⑦ 保护/撤销/组织
-  lockNodeTool,
-  undoAiTool,
-  moveNodeTool,
-  groupNodesTool
-]
+/**
+ * 工具轴注册表初始化（docs/25 · 阶段2）：模块加载时按优先级顺序注册全部工具。
+ * 顺序即模型选择优先级（常用在前、低频在后）——重构不得打乱分组顺序。
+ * AGENT_TOOLS 兼容别名 = getTools()（注册表 live 数组），下方
+ * buildCanvasAgentTools / buildCanvasAgentToolSchemas / CANVAS_AGENT_TOOL_NAMES / callTool 可用列表
+ * 全部继续读 AGENT_TOOLS 即可，加新工具只在下方 defs 里 registerTool 一条。
+ */
+const AGENT_TOOLS = (() => {
+  const defs = [
+    // ① 读（操作前先了解画布）
+    readCanvasTool,
+    listNodesTool,
+    listEdgesTool,
+    getNodeDetailsTool,
+    // ② 节点增删
+    createNodeTool,
+    batchCreateNodesTool,
+    deleteNodeTool,
+    batchDeleteNodesTool,
+    // ③ 节点改
+    updateNodeTool,
+    updateNodeRawTool,
+    // ④ 连线
+    connectNodesTool,
+    batchConnectNodesTool,
+    deleteEdgeTool,
+    // ⑤ 生成/编排
+    triggerGenerationTool,
+    executePlanTool,
+    presentPlanTool,
+    // ⑥ 视图/聚焦
+    focusNodeTool,
+    fitViewTool,
+    zoomInTool,
+    zoomOutTool,
+    // ⑦ 保护/撤销/组织
+    lockNodeTool,
+    undoAiTool,
+    moveNodeTool,
+    groupNodesTool
+  ]
+  for (const def of defs) {
+    // mutating 从 MUTATING_TOOLS 派生入注册条目（唯一真源）；write 工具统一压 AI 撤销栈
+    registerTool({ ...def, mutating: MUTATING_TOOLS.has(def.name) })
+  }
+  return getTools()
+})()
 
 /**
  * 构建工具 Map（纯函数，脱离 React 可测）。
@@ -1162,7 +1177,9 @@ export function buildCanvasAgentTools(ctx) {
   const map = {}
   for (const t of AGENT_TOOLS) {
     const execute = t.execute
-    const isMutating = MUTATING_TOOLS.has(t.name)
+    // 【docs/25 阶段2】mutating 由注册条目的 toolDef.mutating 派生（注册时从 MUTATING_TOOLS 派生），
+    //   取代旧的 MUTATING_TOOLS.has(t.name) 运行时判断，保证「写画布工具压撤销栈」与注册表单一真源一致。
+    const isMutating = !!t.mutating
     map[t.name] = (args) => {
       // 对"会改画布的写工具"统一捕获改前快照，push 进当前对话的 AI 撤销栈（集中一处，不散落到各工具）
       if (isMutating) {

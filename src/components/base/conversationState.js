@@ -41,10 +41,11 @@ export function emptyMemory() {
 }
 
 /**
- * 单一数据源改为「按 agentKey 隔离」：每个 agentKey（本项目=每项目）一份 { conversations, activeId }。
+ * 单一数据源改为「按 agentKey 隔离」：每个 agentKey（本项目=每项目）一份 { conversations, activeId, sending }。
  * 这样 AI 会话跟随项目走，项目作为最顶层，互不串话。
+ * sending = 运行态标志（是否正在发送/流式）。仅存内存、不落盘（persist 只序列化 conversations + activeId）。
  */
-const states = {}           // { [agentKey]: { conversations, activeId } }
+const states = {}           // { [agentKey]: { conversations, activeId, sending } }
 const hydratedSet = {}      // { [agentKey]: boolean } 该 key 是否已恢复过当前对话
 let currentAgentKey = 'canvas-assistant'  // 当前生效的 agentKey（由 setAgentKey 设置）
 
@@ -70,12 +71,13 @@ export function flushPersist() {
 /** 订阅者 */
 const listeners = new Set()
 
-function subscribe(cb) {
+/** 订阅当前 agentKey 状态变更（供 useStoreSelector 按字段订阅，避免整包订阅连坐重渲染） */
+export function subscribe(cb) {
   listeners.add(cb)
   return () => listeners.delete(cb)
 }
 function getSnapshot() {
-  return states[currentAgentKey] || { conversations: [], activeId: '' }
+  return states[currentAgentKey] || { conversations: [], activeId: '', sending: false }
 }
 
 /** useConversationStore()：订阅当前 agentKey 的会话状态（对齐 taskStore 的 useTasks 用法） */
@@ -122,7 +124,7 @@ function initState(k) {
       } catch { /* 忽略写失败 */ }
     }
   }
-  states[k] = { conversations, activeId }
+  states[k] = { conversations, activeId, sending: false }
 }
 
 /** 从旧固定键 agent_conversations 迁移一次（改造前会话归属默认项目） */
@@ -151,11 +153,23 @@ export function getState() {
   return states[currentAgentKey]
 }
 
-/** 统一提交：更新当前 agentKey 的 state + 通知 + 落盘（hydrated 后才写 localStorage，防挂载覆盖） */
-export function commit(next) {
+/** 统一提交：更新当前 agentKey 的 state + 通知；持久化由 persist 控制（hydrated 后才写 localStorage，防挂载覆盖）。
+ *  persist=false 用于流式热路径的"仅通知不落盘"（patchCurrentMessages），最终态由 send finally 统一落盘。 */
+export function commit(next, opts = {}) {
+  const { persist = true } = opts
   states[currentAgentKey] = next
   listeners.forEach((l) => l())
-  if (hydratedSet[currentAgentKey]) persistDebounced.schedule()
+  if (hydratedSet[currentAgentKey] && persist) persistDebounced.schedule()
+}
+
+/**
+ * 【阶段1D·薄壳化】设置当前 agentKey 的 sending 运行态标志。
+ * 仅内存、不落盘（persist 只序列化 conversations + activeId，sending 会被忽略）。
+ * 供 useAgentChat 订阅 sending（UI 展示"思考中"），与 sendingRef（异步闭包读）分离。
+ */
+export function setSending(sending) {
+  const st = getState()
+  commit({ ...st, sending: !!sending }, { persist: false })
 }
 
 /** 生成唯一 id（对齐大雄 uid('ac')） */

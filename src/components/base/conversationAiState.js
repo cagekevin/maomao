@@ -4,8 +4,10 @@
  * ════════════════════════════════════════════════════════════════
  *
  * 【拆分契约 · 2026-08-21】从 conversationStore.js 拆出的 F 类职能：
- * 统一风格契约 global_contract / 跨步成果 artifact / AI 撤销栈 / Skill 策划暂存与确认态 /
+ * 统一风格契约 global_contract / 跨步成果 artifact / AI 撤销栈 /
  * 参考图 refImages / 执行分级 runMode。全部 per-conversation。
+ * 【阶段3 · 2026-08-21】Skill 三阶段状态（pendingGenerations/awaitingConfirm）已抽至
+ * conversationSkillState.js（编排轴子域化）。本文件不再包含 Skill 门禁状态。
  * 依赖单向指向 conversationState 底座，命名/导出不变，消费方无感知。
  * ════════════════════════════════════════════════════════════════
  */
@@ -100,35 +102,7 @@ export function popActiveAiUndo() {
   return popped
 }
 
-/** 读当前对话的 Skill 阶段1 策划暂存（副本） */
-export function getActivePendingGenerations() {
-  return getActiveConv()?.pendingGenerations || null
-}
-
-/** 设置/清除当前对话的 Skill 策划暂存 */
-export function setActivePendingGenerations(gens) {
-  const conv = getActiveConv()
-  if (!conv) return
-  commit({
-    ...getState(),
-    conversations: getState().conversations.map((c) => (c.id === conv.id ? { ...c, pendingGenerations: Array.isArray(gens) && gens.length ? gens : null, updatedAt: Date.now() } : c)),
-  })
-}
-
-/** 读当前对话的 Skill 确认态 */
-export function getAwaitingConfirm() {
-  return !!getActiveConv()?.awaitingConfirm
-}
-
-/** 设置当前对话的 Skill 确认态（仅前端确认按钮翻转） */
-export function setAwaitingConfirm(v) {
-  const conv = getActiveConv()
-  if (!conv) return
-  commit({
-    ...getState(),
-    conversations: getState().conversations.map((c) => (c.id === conv.id ? { ...c, awaitingConfirm: !!v, updatedAt: Date.now() } : c)),
-  })
-}
+/* ── 参考图引用（per-conversation，防跨对话泄漏）── */
 
 /** 读当前对话「本轮用户引用的参考图」URL 数组（per-conversation，TASK-006 #7 防跨对话泄漏） */
 export function getCurrentRefImages() {

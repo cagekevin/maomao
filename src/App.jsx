@@ -1420,9 +1420,8 @@ function Canvas() {
           onPullFromCloud={handlePullFromCloud}
           agentOpen={agentOpen}
           onToggleAgent={() => {
-            // 在非画布视图（设置/多开）点 AI 助手按钮：AgentPanel 只在 canvas 视图渲染，
-            // 且会被 SettingsFrame/AccountsSettings 覆盖。故先强制打开面板 + 切回画布，
-            // 让用户回到画布看到面板（而不是点了没反应）。画布内则正常 toggle 开关。
+            // 在非画布视图（设置/多开）点 AI 助手按钮：【阶段1C】AgentPanel 现已任意视图常驻挂载
+            //（open 控 CSS 显隐）。点按钮统一切回画布并打开面板，让用户回到画布看到面板。画布内则正常 toggle。
             if (view !== 'canvas') {
               setAgentOpen(true)
               setView('canvas')
@@ -1528,17 +1527,6 @@ function Canvas() {
             {canvasLoaded && nodes.length === 0 && (
               <EmptyCanvasGuide onAdd={(type) => addNode(type, posAtCenter(), defaultNodeData(type))} />
             )}
-            {/* 画布 AI 助手面板（复刻官方 _Component40；open 时右侧浮出）；设置/AI 助手按钮已在顶部导航栏右侧 */}
-            {/* agentKey 按项目派生 + key=projectId 强制重挂载：AI 会话跟随项目，项目切换/新建即切换会话 */}
-            <AgentPanel
-              key={activeProjectId}
-              agentKey={agentKeyForProject(activeProjectId)}
-              open={agentOpen}
-              onClose={() => setAgentOpen(false)}
-              systemPrompt={''}
-              selectedImageNodes={selectedImageNodes}
-            />
-
             {/* 左侧滑出面板：任务中心 + 素材库（fixed 覆盖层，不依赖画布容器） */}
             <LeftPanel />
 
@@ -1580,6 +1568,20 @@ function Canvas() {
             />
           </>
         )}
+
+        {/* 画布 AI 助手面板（复刻官方 _Component40）——【阶段1C】任意视图常驻挂载，open 控制 CSS 显隐
+            （AgentPanel 内部已改 CSS hidden，不再条件卸载）。运行态（useAgentChat 流式/状态机）不因
+            收起/切页断流（配合阶段1B 卸载不 abort）。settings/accounts 用 z-float(100) 覆盖其 z-30，
+            切设置/多开页会被正确盖住不遮挡。agentKey 按项目派生 + key=projectId 强制重挂载：
+            AI 会话跟随项目，项目切换/新建即切换会话。 */}
+        <AgentPanel
+          key={activeProjectId}
+          agentKey={agentKeyForProject(activeProjectId)}
+          open={agentOpen}
+          onClose={() => setAgentOpen(false)}
+          systemPrompt={''}
+          selectedImageNodes={selectedImageNodes}
+        />
 
         {/* 多开整页：覆盖画布（复刻官方 V='accounts'，含新建表单+环境网格+⋮菜单） */}
         {view === 'accounts' && <AccountsSettings />}

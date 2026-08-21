@@ -397,7 +397,10 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
 
   const focusTextarea = () => textareaRef.current?.focus()
 
-  if (!open) return null
+  // 【docs/25 阶段1C】不再条件卸载（if !open return null）——面板常驻 DOM，open 控制 CSS 显隐。
+  //   这样 useAgentChat 始终挂载、运行态（流式/状态机）不因面板收起而断流（配合"切页不中断"）。
+  //   注意：open=false 时 onWidthChange 仍会报 0（见上 effect），保持宽度同步，勿删除。
+  //
 
   const AI_ICON = (
     <span className="w-7 h-7 rounded-full bg-gradient-to-br from-surface-hover to-[#1a1a1a] border border-edge flex items-center justify-center">
@@ -413,7 +416,7 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
   const canSend = (input.trim() || attachments.length > 0) && stateAction !== 'stopping'
 
   return (
-    <div className={`absolute top-0 right-0 bottom-0 bg-surface-deep border-l border-edge-faint flex flex-col z-30 shadow-2xl ${dragging ? 'select-none' : ''}`} style={{ width }}>
+    <div className={`absolute top-0 right-0 bottom-0 bg-surface-deep border-l border-edge-faint flex flex-col z-30 shadow-2xl ${open ? '' : 'hidden'} ${dragging ? 'select-none' : ''}`} style={{ width }}>
       {/* 宽度拖拽手柄 */}
       <div
         onMouseDown={startDrag}
