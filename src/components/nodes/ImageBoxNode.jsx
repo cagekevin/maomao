@@ -12,10 +12,11 @@ import { useMediaDegrade } from '../base/useMediaDegrade.js'
 import LazyImage from '../base/LazyImage.jsx'
 import ImageZoomDialog from '../base/ImageZoomDialog.jsx'
 import { showToast, toastError, toastWarning } from '../base/toastStore.js'
-import { toAbsoluteFileUrl } from '../base/filesApi.js'
 import { loadImageWithTimeout } from '../base/asyncGuard.js'
 import { generateId } from '../base/idGen.js'
 import { downloadUrl as clipboardDownload } from '../base/clipboard.js'
+
+import { useRenderImageResolver } from '../base/imageUrl.js'
 
 /**
  * 图片盒子节点（复刻官方 Rg.jsx / imageBoxNode）。
@@ -40,6 +41,7 @@ import { downloadUrl as clipboardDownload } from '../base/clipboard.js'
 function ImageBoxNode({ id, data, selected }) {
   const { setNodes } = useReactFlow()
   const { isHidden } = useMediaDegrade()
+  const render = useRenderImageResolver()
   const hideImage = isHidden('image')
 
   const fileRef = useRef(null)
@@ -480,7 +482,7 @@ function ImageBoxNode({ id, data, selected }) {
             <>
               {!hideImage && (
                 <img
-                  src={toAbsoluteFileUrl(current.url)}
+                  src={render(current.url)}
                   alt={current.label || `图片 ${activeIndex + 1}`}
                   className="w-full h-full object-contain cursor-pointer"
                   draggable={false}
@@ -557,7 +559,7 @@ function ImageBoxNode({ id, data, selected }) {
                       }}
                       title={img.label || (isSel ? '点击取消选择' : '点击选择 (按住 Ctrl 设为默认图)')}
                     >
-                      <LazyImage src={toAbsoluteFileUrl(img.thumb || img.url)} alt={img.label || ''} className="w-full h-full" imgClassName="w-full h-full object-cover bg-[#0e0e0e]" />
+                      <LazyImage src={img.thumb || img.url} alt={img.label || ''} className="w-full h-full" imgClassName="w-full h-full object-cover bg-[#0e0e0e]" />
                       <button
                         className={`absolute top-1 left-1 w-4 h-4 rounded flex items-center justify-center transition-colors cursor-pointer border-none ${isSel ? 'bg-emerald-500 text-white' : 'bg-black/50 text-gray-300 group-hover/thumb:bg-black/70'}`}
                         onClick={(e) => { e.stopPropagation(); toggleSelect(img.id) }}

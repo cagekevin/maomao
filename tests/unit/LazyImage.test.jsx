@@ -15,9 +15,24 @@ import React, { act } from 'react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 
-// toAbsoluteFileUrl：仅归一化相对 /files/ 路径；空串保持空（决定「无 src 不挂载」）
-vi.mock('../../src/components/base/filesApi.js', () => ({
-  toAbsoluteFileUrl: (u) => (u && u.startsWith('/files/') ? `ABS:${u}` : u || ''),
+/**
+ * 收口：LazyImage 显示出口统一走 useRenderImageResolver（原生 render 出口）——
+ * 本地 /files/ 走按需小图端点；外部 http / data: 回退原绝对地址；空串保持空。
+ */
+
+// 统一出口：resolveImageUrl(render) — 本地 /files/ → 缩略图端点；http 原样/补绝对；空/非字符串原样
+vi.mock('../../src/components/base/imageUrl.js', () => ({
+  useRenderImageResolver: () => (u) => {
+    if (!u || typeof u !== 'string') return u
+    if (u.startsWith('/files/')) return `THUMB${u}`
+    if (u.startsWith('http://127.0.0.1:18080/files/')) return `THUMB${u.slice(u.indexOf('/files/'))}`
+    return u
+  },
+}))
+
+// appSettings（thumbnailOn）：useRenderImageResolver 读取 —— mock 提供默认 true
+vi.mock('../../src/components/base/appSettings.js', () => ({
+  useAppSettings: () => ({ thumbnailOn: true }),
 }))
 
 import LazyImage from '../../src/components/base/LazyImage.jsx'
@@ -66,11 +81,18 @@ describe('LazyImage — 懒加载语义', () => {
     expect(img.getAttribute('src')).toBe('http://x/b.png')
   })
 
-  it('相对 /files/ 路径 → 经 toAbsoluteFileUrl 归一为绝对地址后挂载', () => {
+  it('相对 /files/ 路径 → 经 render 出按需小图端点（本地图收口）', () => {
     render(<LazyImage src="/files/pic.png" />)
     triggerIntersect([{ isIntersecting: true }])
     const img = document.querySelector('img')
-    expect(img.getAttribute('src')).toBe('ABS:/files/pic.png')
+    expect(img.getAttribute('src')).toBe('THUMB/files/pic.png')
+  })
+
+  it('绝对本地 URL → 还原相对出按需小图（DB 存量形态）', () => {
+    render(<LazyImage src="http://127.0.0.1:18080/files/tasks/x.png" />)
+    triggerIntersect([{ isIntersecting: true }])
+    const img = document.querySelector('img')
+    expect(img.getAttribute('src')).toBe('THUMB/files/tasks/x.png')
   })
 })
 

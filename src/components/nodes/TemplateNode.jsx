@@ -353,7 +353,7 @@ function TemplateNode({ id, data, selected }) {
       >
         {imageUrl ? (
           <img
-            src={imageUrl}
+            src={toAbsoluteFileUrl(imageUrl)}
             alt="生成结果"
             className="max-w-full max-h-full object-contain rounded"
           />

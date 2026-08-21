@@ -68,6 +68,9 @@ vi.mock('../../src/components/base/pollTask.js', () => ({ pollOneTask: (...a) =>
 vi.mock('../../src/components/base/toastStore.js', () => ({ showToast: (...a) => h.showToast(...a) }))
 vi.mock('../../src/components/base/useAssetDragToCanvas.js', () => ({ makeAssetDragProps: () => ({ draggable: true }) }))
 vi.mock('../../src/components/base/hooks.js', () => ({ useOutsideClick: () => {} }))
+vi.mock('../../src/components/base/imageUrl.js', () => ({
+  useRenderImageResolver: () => (u) => (u && u.startsWith('/files/') ? `THUMB${u}` : u || ''),
+}))
 vi.mock('../../src/components/base/VideoThumbnail.jsx', () => ({ default: ({ src, onActivate }) =>
   React.createElement('div', { 'data-testid': 'video-thumbnail', onClick: onActivate }, src) }))
 

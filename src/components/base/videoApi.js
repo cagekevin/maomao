@@ -39,6 +39,7 @@ export async function generateVideo({ provider, prompt, model, size, resolution,
   if (size && size !== 'Auto') genBody.size = size
   if (resolution) genBody.resolution = resolution
   if (seconds) genBody.duration = String(seconds)
+  // 发送统一出口守卫：参考图必经此归一（含缩略图端点自动还原原图），禁止绕过。见 imageUrl.js thumbnailToOriginal
   // refFormat:'base64' 的 provider（只认 base64 的后端）→ 参考图统一转 base64 再发
   const refImages = await normalizeImageUrlsForSend(images, { preferBase64: provider?.refFormat === 'base64' })
   if (refImages.length > 0) genBody.image_urls = refImages

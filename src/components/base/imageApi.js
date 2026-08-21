@@ -67,6 +67,7 @@ export function resolveImagePixel(ratio, size) {
  */
 export async function generateImage({ provider, prompt, model, size, n, aspectRatio, quality, images }, onProgress, signal) {
   const hasRatio = aspectRatio && aspectRatio !== 'Auto' && aspectRatio !== 'auto'
+  // 发送统一出口守卫：参考图必经此归一（含缩略图端点自动还原原图），禁止绕过。见 imageUrl.js thumbnailToOriginal
   const refImages = await normalizeImageUrlsForSend(images, { preferBase64: provider?.refFormat === 'base64' })
 
   // responses 形态：按 input[] + tools 构造请求体（PROD 关键：消灭死字段，image_request_mode 真正生效）

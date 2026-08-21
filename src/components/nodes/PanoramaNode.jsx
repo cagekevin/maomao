@@ -10,6 +10,7 @@ import PanoViewer from '../base/PanoViewer.jsx'
 import { generateId } from '../base/idGen.js'
 import { buildSpawnNodes, applySpawnSnapshot } from '../base/deriveNodes.js'
 import { useCanvasEdges } from '../base/CanvasEdgesContext.jsx'
+import { useRenderImageResolver } from '../base/imageUrl.js'
 
 /**
  * 720 全景图节点（复刻官方 Zl.jsx / panoramaNode）。
@@ -29,6 +30,7 @@ function PanoramaNode({ id, data, selected }) {
   const { setNodes, getNodes, getNode, getEdges, setEdges } = useReactFlow()
   const history = useCanvasEdges()
   const connected = useConnectedInputs(id)
+  const thumbResolve = useRenderImageResolver()
   const [panoType, setPanoType] = useState(data.panoType || 'sphere') // 球/柱
   const [fullscreen, setFullscreen] = useState(false) // 全景漫游（球体视图）
   const [capturing, setCapturing] = useState(false)
@@ -280,7 +282,7 @@ function PanoramaNode({ id, data, selected }) {
               </div>
             ) : (
               <img
-                src={panoUrl}
+                src={thumbResolve(panoUrl)}
                 alt="全景图"
                 draggable={false}
                 onError={() => setImgError(true)}

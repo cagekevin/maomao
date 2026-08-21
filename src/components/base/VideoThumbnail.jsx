@@ -1,5 +1,6 @@
 import React from 'react'
 import { Play } from 'lucide-react'
+import { toAbsoluteFileUrl } from './imageUrl.js'
 
 /**
  * 视频缩略图统一组件：静音封面 + 居中播放按钮。
@@ -28,8 +29,8 @@ function VideoThumbnail({
     <div className={`relative overflow-hidden bg-surface-muted ${className}`}>
       <video
         ref={videoRef}
-        src={src}
-        poster={poster}
+        src={toAbsoluteFileUrl(src || '')}
+        poster={poster ? toAbsoluteFileUrl(poster) : poster}
         muted={muted}
         playsInline
         preload="metadata"

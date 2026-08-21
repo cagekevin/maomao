@@ -458,6 +458,7 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
       // 构造 user 消息（附件归一化：blob→data、相对→绝对；只认 base64 的 provider 转 base64）
       const userMsg = { role: 'user', content: text, createdAt: Date.now(), skills: skillsRef.current.slice() }
       if (attachments && attachments.length > 0) {
+        // 发送统一出口守卫：附件图必经归一（含缩略图端点自动还原原图），禁止发 render 小图。见 imageUrl.js thumbnailToOriginal
         userMsg.attachments = await Promise.all(
           attachments.map(async (a) => ({ ...a, url: await normalizeImageUrlForSend(a?.url, { preferBase64: provider?.refFormat === 'base64' }) }))
         )
@@ -624,6 +625,7 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
 
       const userMsg = { role: 'user', content: prompt, createdAt: Date.now(), mode: 'image', skills: [] }
       if (attachments && attachments.length > 0) {
+        // 发送统一出口守卫：附件图必经归一（含缩略图端点自动还原原图），禁止发 render 小图。见 imageUrl.js thumbnailToOriginal
         userMsg.attachments = await Promise.all(
           attachments.map(async (a) => ({ ...a, url: await normalizeImageUrlForSend(a?.url, { preferBase64: provider?.refFormat === 'base64' }) }))
         )

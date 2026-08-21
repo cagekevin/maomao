@@ -30,6 +30,7 @@ import { logger } from '../base/logger.js'
 import { fetchTasks } from '../base/localToolApi.js'
 import { generateImage } from '../base/imageApi.js'
 import { useNodePrefs } from '../base/nodePrefs.js'
+import { useRenderImageResolver } from '../base/imageUrl.js'
 import { resolveProviderModel } from '../base/providerModels.js'
 import { debounce } from '../base/utils.js'
 
@@ -40,6 +41,7 @@ import { debounce } from '../base/utils.js'
  * 性能降级用通用 useMediaDegrade：lodLevel>=2 藏生图结果（与官方横幅"图片已隐藏"一致）。
  */
 function PromptNode({ id, data, selected }) {
+  const render = useRenderImageResolver()
   // 性能模式媒体降级（通用 hook）：hideResult = isHidden('image')，即 lodLevel>=2
   const { isHidden } = useMediaDegrade()
   const hideResult = isHidden('image')
@@ -319,7 +321,7 @@ function PromptNode({ id, data, selected }) {
           )}
           {hasImage && !hideResult && (
             <img
-              src={imageUrl}
+              src={render(imageUrl)}
               alt="Generated Content"
               loading="lazy"
               decoding="async"

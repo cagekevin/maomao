@@ -25,6 +25,7 @@ import { resolveChatMode, buildResponsesChatBody } from './requestModes.js'
 /** 把参考图附加到最后一条 user 消息（content 转数组 + image_url 块）。 */
 async function attachImages(messages, images, provider) {
   if (!images?.length) return messages
+  // 发送统一出口守卫：参考图必经此归一（含缩略图端点自动还原原图），禁止绕过。见 imageUrl.js thumbnailToOriginal
   // refFormat:'base64' 的 provider（只认 base64 的后端）→ 参考图统一转 base64 再发
   const refUrls = await normalizeImageUrlsForSend(images, { preferBase64: provider?.refFormat === 'base64' })
   if (!refUrls.length) return messages

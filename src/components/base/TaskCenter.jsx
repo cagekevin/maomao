@@ -7,6 +7,7 @@ import { pollOneTask } from './pollTask.js'
 import { showToast } from './toastStore.js'
 import { makeAssetDragProps } from './useAssetDragToCanvas.js'
 import VideoThumbnail from './VideoThumbnail.jsx'
+import { useRenderImageResolver } from './imageUrl.js'
 import { useOutsideClick } from './hooks.js'
 import { formatTime, createImeInput } from './utils.js'
 
@@ -211,6 +212,7 @@ const CleanItem = React.memo(function CleanItem({ label, onClick, danger }) {
 
 // 单条任务卡片（对齐官方 jn.jsx）
 const TaskCard = React.memo(function TaskCard({ task, moreOpen, onToggleMore, onCloseMore, onCopy, onRetry, onRemove, onPreview }) {
+  const render = useRenderImageResolver()
   const [showData, setShowData] = useState(false)
   const menuRef = useRef(null) // 任务卡片「⋮」更多菜单容器 ref，点击外部自动关闭
   useOutsideClick(menuRef, moreOpen, () => onCloseMore?.())
@@ -316,7 +318,7 @@ const TaskCard = React.memo(function TaskCard({ task, moreOpen, onToggleMore, on
             />
           ) : (
             <img
-              src={task.resultUrl}
+              src={render(task.resultUrl)}
               alt={task.modelName || '结果图'}
               {...makeAssetDragProps({ url: task.resultUrl, name: task.modelName || '结果图', type: task.type })}
               onLoad={(e) => {

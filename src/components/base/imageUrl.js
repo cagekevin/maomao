@@ -48,6 +48,35 @@ export function toRelativeFileUrl(u) {
 }
 
 /**
+ * 发送侧防御：把「缩略图端点 URL」还原成其背后对应的原图片地址。
+ *
+ * 背景：显示侧（scope='render'）会把本地图转换成 `/api/files/thumbnail?url=...&maxDim=640` 端点，
+ * 该 URL 是**小图**且仅供前端 `<img>` 显示。若历史上某处误把 render 结果当参考图塞进发送，网关会
+ * 收到缩略图端点（可能 404 或拿到小图/糊图）→ 参考图丢失。这是「发送带缩略图」的系统性隐患。
+ *
+ * 契约：发送侧禁止携带任何缩略图端点 URL。本函数遇到此类 URL：
+ *  1. 解析其 `query.url`（相对 /files/ 原图路径）；
+ *  2. 还原并补全为**原图绝对地址**（真实原始图片），保证发送的一律是原图；
+ *  3. 无法还原（无 url 参数 / 非法）→ 返回空串，由调用方丢弃该图（不静默发坏图）。
+ *
+ * 状态归属：这是图片 URL 归一化领域内的「发送统一出口守卫」，与 render 出口（buildThumbnailUrl）
+ * 对称、互斥。新增节点要发图片一律经此，禁止绕过。
+ * @param {string} u 可能是缩略图端点的 URL
+ * @returns {string} 原图绝对地址；无法还原返回 ''
+ */
+function thumbnailToOriginal(u) {
+  if (typeof u !== 'string' || !u) return ''
+  const qIndex = u.indexOf('?')
+  if (qIndex === -1) return ''
+  // 仅当确实命中缩略图端点路径才处理（避免误拆普通带 query 的原图 URL）。
+  const path = u.slice(0, qIndex)
+  if (!/\/files\/thumbnail$/.test(path)) return ''
+  const rel = new URLSearchParams(u.slice(qIndex + 1)).get('url')
+  if (!rel) return ''
+  return toAbsoluteFileUrl(rel)
+}
+
+/**
  * 构造本地文件按需出图端点 URL（END P0：render 显示链路取小图）。
  *  - url 形如 /files/subfolder/name 或对应绝对地址（内部转为相对）；
  *  - format 缺省不传 → 后端沿用源扩展名；传 'webp' → 同尺寸 webp(quality80 默认)。
@@ -186,6 +215,9 @@ export async function urlToDataUrl(u) {
  */
 export async function normalizeImageUrlForSend(u, opts = {}) {
   if (typeof u !== 'string') return ''
+  // 发送侧硬契约：禁止发送缩略图端点 URL。若误入 render 结果，先还原回原图再走后续归一。
+  const original = thumbnailToOriginal(u)
+  if (original) u = original
   if (opts.preferBase64) {
     // 只认 base64 的后端：任何形式都转 base64（data: 已是 base64 原样返回）
     return urlToDataUrl(u)

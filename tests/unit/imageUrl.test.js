@@ -104,6 +104,37 @@ describe('imageUrl · normalizeImageUrlForSend（发送端归一化）', () => {
     const out = await normalizeImageUrlsForSend(['http://x/a.png', 'blob:http://x/b', '', null, undefined])
     expect(out).toEqual(['http://x/a.png', 'data:image/png;base64,b1'])
   })
+
+  // ── 发送侧防线：缩略图端点 URL 绝不允许发出去（系统性根因治理，见 imageUrl.js thumbnailToOriginal）──
+  it('发送缩略图端点 URL → 自动还原为原图绝对地址（不把 render 小图发给网关）', async () => {
+    const thumb = buildThumbnailUrl('/files/tasks/x.png', { maxDim: 320 })
+    // 断言输入确实是缩略图端点（构造正确）
+    expect(thumb).toMatch(/\/api\/files\/thumbnail\?/)
+    const out = await normalizeImageUrlForSend(thumb)
+    expect(out).toBe('http://127.0.0.1:18080/files/tasks/x.png')
+    // 发送原生 /files/ 不应触发网络(还原后直接补绝对，不 fetch)
+    expect(httpRequest).not.toHaveBeenCalled()
+  })
+
+  it('发送缩略图端点（绝对本地形态）→ 还原为原图绝对地址', async () => {
+    const thumb = buildThumbnailUrl('http://127.0.0.1:18080/files/tasks/x.png', { maxDim: 320 })
+    const out = await normalizeImageUrlForSend(thumb)
+    expect(out).toBe('http://127.0.0.1:18080/files/tasks/x.png')
+  })
+
+  it('preferBase64=true 的缩略图端点 → 还原原图后转 base64（同样不发缩略图）', async () => {
+    httpRequest.mockResolvedValueOnce({ blob: async () => ({ _dataUrl: 'data:image/jpeg;base64,origdata' }) })
+    const thumb = buildThumbnailUrl('/files/tasks/x.png', { maxDim: 320 })
+    const out = await normalizeImageUrlForSend(thumb, { preferBase64: true })
+    expect(out).toBe('data:image/jpeg;base64,origdata')
+    // 应已还原为绝对原图地址再请求，而非请求缩略图端点
+    expect(httpRequest).toHaveBeenCalledWith('http://127.0.0.1:18080/files/tasks/x.png', expect.anything())
+  })
+
+  it('普通原图 URL（虽是绝对 http 但非缩略图）→ 原样透传，不受防线影响', async () => {
+    const out = await normalizeImageUrlForSend('http://127.0.0.1:18080/files/tasks/x.png')
+    expect(out).toBe('http://127.0.0.1:18080/files/tasks/x.png')
+  })
 })
 
 // ── resolveImageUrl：前端图片唯一出口（display=render 走按需小图 / send 走原图）──
