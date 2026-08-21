@@ -10,7 +10,7 @@
  */
 import { describe, it, expect, vi } from 'vitest'
 
-const mod = await import('../../src/components/base/useCanvasAgentTools.js')
+const mod = await import('../../src/components/agent/canvas/useCanvasAgentTools.js')
 const { getNodeImageUrl, buildCanvasAgentTools, buildCanvasAgentToolSchemas, CANVAS_AGENT_TOOL_NAMES } = mod
 
 describe('getNodeImageUrl', () => {

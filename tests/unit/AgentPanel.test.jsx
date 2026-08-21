@@ -66,14 +66,14 @@ const h = vi.hoisted(() => {
   }
 })
 
-vi.mock('../../src/components/base/useAgentChat.js', () => ({
+vi.mock('../../src/components/agent/runtime/useAgentChat.js', () => ({
   useAgentChat: (...a) => h.useAgentChat(...a),
 }))
 vi.mock('../../src/components/base/settings/providerStore.js', () => ({ useProviders: () => [], load: vi.fn(async () => {}) }))
 vi.mock('../../src/components/base/settings/agentModelStore.js', () => ({ loadAgentChatModel: () => ({}) }))
 vi.mock('../../src/components/base/providerModels.js', () => ({ buildAllModels: () => [] }))
 vi.mock('../../src/components/base/hooks.js', () => ({ useOutsideClick: () => {} }))
-vi.mock('../../src/components/base/useCanvasAgentTools.js', () => ({ setGenParams: vi.fn(), getGenParams: () => ({}) }))
+vi.mock('../../src/components/agent/canvas/useCanvasAgentTools.js', () => ({ setGenParams: vi.fn(), getGenParams: () => ({}) }))
 vi.mock('../../src/components/base/skillStore.js', () => ({
   getAllSkills: () => h.skills,
   markSkillUsed: (...a) => h.markSkillUsed(...a),
@@ -82,7 +82,7 @@ vi.mock('../../src/components/base/skillStore.js', () => ({
 }))
 vi.mock('../../src/components/base/contentStore.js', () => ({ contentGet: () => null, contentSet: vi.fn() }))
 vi.mock('../../src/components/base/filesApi.js', () => ({ toAbsoluteFileUrl: (u) => u }))
-vi.mock('../../src/components/base/conversationStore.js', () => ({
+vi.mock('../../src/components/agent/conversation/conversationStore.js', () => ({
   setCurrentSnapshot: (...a) => h.setCurrentSnapshot(...a),
   setAwaitingConfirm: vi.fn(),
   getCurrentRunMode: () => 'auto',

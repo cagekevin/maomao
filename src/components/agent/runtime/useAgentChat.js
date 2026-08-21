@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useCanvasAgentTools, getGenParams, setCurrentReferenceImages } from './useCanvasAgentTools.js'
-import { loadAgentChatModel, loadAgentHistoryTurns } from './settings/agentModelStore.js'
-import { logger } from './logger.js'
-import { API_BASE } from './config.js'
-import { LLM_CHAT_BASE_URL, LLM_CHAT_API_KEY, LLM_CHAT_MODEL, AGENT_DEMO_MODE } from './config.js'
-import { normalizeImageUrlForSend } from './imageUrl.js'
+import { useCanvasAgentTools, getGenParams, setCurrentReferenceImages } from '../canvas/useCanvasAgentTools.js'
+import { loadAgentChatModel, loadAgentHistoryTurns } from '../../base/settings/agentModelStore.js'
+import { logger } from '../../base/logger.js'
+import { API_BASE } from '../../base/config.js'
+import { LLM_CHAT_BASE_URL, LLM_CHAT_API_KEY, LLM_CHAT_MODEL, AGENT_DEMO_MODE } from '../../base/config.js'
+import { normalizeImageUrlForSend } from '../../base/imageUrl.js'
 import { InputStateMachine } from './inputStateMachine.js'
-import { generateId } from './idGen.js'
+import { generateId } from '../../base/idGen.js'
 
 /**
  * 【过渡方案·2026-08-18 决策注释】回传给 LLM 的「历史纯文字」轮数（由 AI 助手设置控制，不硬编码）。
@@ -66,11 +66,11 @@ import {
   getCurrentImageMap,
   getCurrentRunMode,
   setCurrentRunMode,
-} from './conversationStore.js'
+} from '../conversation/conversationStore.js'
 // 【消息单源 P5 基座】按字段订阅 store 的 messages（含 activeId 从 store 同步读），
 // 避免整包 useConversationStore() 订阅 → 流式高频更新连坐重渲染整个面板。
-import { subscribe, getState } from './conversationState.js'
-import { useStoreSelector, shallowEqual } from './useStoreSelector.js'
+import { subscribe, getState } from '../conversation/conversationState.js'
+import { useStoreSelector, shallowEqual } from '../../base/useStoreSelector.js'
 
 // P15 列表 key 收口：给消息补稳定唯一 id（已有 id 保留）。appendMsg/setHistory 统一走它，
 // 保证 AgentPanel 的 messages.map 可用 key={m.id}（此前无 id，只能 key={i}，插入/删除会错位）。

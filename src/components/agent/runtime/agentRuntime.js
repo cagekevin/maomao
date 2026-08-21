@@ -25,9 +25,9 @@
  */
 
 // 可插拔协议适配器：统一 URL 拼装（openai 伪协议 / apimart base_url），避免散落协议判断
-import { buildTargetUrl } from './providerProtocols.js'
+import { buildTargetUrl } from '../../base/providerProtocols.js'
 // 请求形态层：聊天 responses 形态（gpt-5.6 用 /v1/responses 带工具不再报错，M2-2/M2-4）
-import { resolveChatMode, buildResponsesChatBody, parseResponsesChatJson, parseResponsesSSEChunk } from './requestModes.js'
+import { resolveChatMode, buildResponsesChatBody, parseResponsesChatJson, parseResponsesSSEChunk } from '../../base/requestModes.js'
 
 /** ══════════════════════════════════════════════════════════════════════════════
  *  roundTrip —— 单次 LLM 请求（复刻官方 dr:2579-2778 的 v）。

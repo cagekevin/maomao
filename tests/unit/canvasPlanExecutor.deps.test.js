@@ -6,7 +6,7 @@ vi.mock('../../src/components/base/taskStore.js', () => ({
   isNodeRegistered: vi.fn(() => true),
 }))
 
-import { executePlan } from '../../src/components/base/canvasPlanExecutor.js'
+import { executePlan } from '../../src/components/agent/canvas/canvasPlanExecutor.js'
 import { runNodeGeneration } from '../../src/components/base/taskStore.js'
 
 function makeCtx() {

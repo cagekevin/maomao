@@ -19,8 +19,8 @@
  * ════════════════════════════════════════════════════════════════
  */
 import { useSyncExternalStore } from 'react'
-import { contentGet, contentSet, createDebouncedPersist } from './contentStore.js'
-import { generateId } from './idGen.js'
+import { contentGet, contentSet, createDebouncedPersist } from '../../base/contentStore.js'
+import { generateId } from '../../base/idGen.js'
 
 /**
  * 存储键按 agentKey 隔离（每项目一个 agentKey → 每项目一套会话）。

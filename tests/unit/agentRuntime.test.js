@@ -5,7 +5,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 //   - ENABLE_TOOLS_ON_NON_STREAM=false + 非流式模型 → 请求体不含 tools，响应解析不带 tool_calls
 //   - ENABLE_TOOLS_ON_NON_STREAM=true  + 非流式模型 → 请求体含 tools，响应带 tool_calls 时回填
 //   - 流式模型默认带 tools（无论开关）
-import { roundTrip } from '../../src/components/base/agentRuntime.js'
+import { roundTrip } from '../../src/components/agent/runtime/agentRuntime.js'
 
 function makeCtx({ streamMode = 'stream', ENABLE_TOOLS_ON_NON_STREAM = false, toolSchemas = [{ name: 'show_plan_for_confirm' }], provider = null, useProxy = false, onStream } = {}) {
   return {

@@ -1,9 +1,9 @@
 import { useCallback, useMemo } from 'react'
 import { useReactFlow } from '@xyflow/react'
-import { registerTool, getTools } from './toolRegistry.js'
-import { defaultNodeData } from './NodePalette.jsx'
-import { runNodeGeneration } from './taskStore.js'
-import { createGroupFromNodes, deleteNodesWithCascade } from './groupNodes.js'
+import { registerTool, getTools } from '../../base/toolRegistry.js'
+import { defaultNodeData } from '../../base/NodePalette.jsx'
+import { runNodeGeneration } from '../../base/taskStore.js'
+import { createGroupFromNodes, deleteNodesWithCascade } from '../../base/groupNodes.js'
 import { executePlan } from './canvasPlanExecutor.js'
 import {
   patchCurrentWorkflow, setCurrentMemory, getCurrentMemory,
@@ -15,10 +15,10 @@ import {
   getCurrentRefImages, setCurrentRefImages,
   getLastUserReferenceImages, getCurrentImageMap,
   getCurrentRunMode, getCurrentSnapshot,
-} from './conversationStore.js'
-import { contentGet, contentSet } from './contentStore.js'
-import { generateId } from './idGen.js'
-import { logger } from './logger.js'
+} from '../conversation/conversationStore.js'
+import { contentGet, contentSet } from '../../base/contentStore.js'
+import { generateId } from '../../base/idGen.js'
+import { logger } from '../../base/logger.js'
 
 /* ════════════════════════════════════════════════════════════════
  * AI 生图默认参数（genParams）—— 由 AgentPanel 生图参数区设置，execute_plan 读取。

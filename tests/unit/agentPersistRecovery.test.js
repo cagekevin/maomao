@@ -17,10 +17,10 @@
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { renderHook, act, waitFor } from '@testing-library/react'
-import * as convStore from '../../src/components/base/conversationStore.js'
+import * as convStore from '../../src/components/agent/conversation/conversationStore.js'
 
 const callTool = vi.fn()
-vi.mock('../../src/components/base/useCanvasAgentTools.js', () => ({
+vi.mock('../../src/components/agent/canvas/useCanvasAgentTools.js', () => ({
   useCanvasAgentTools: () => ({ toolSchemas: [], callTool }),
   getGenParams: () => ({ model: '', ratio: 'Auto', resolution: '1K' }),
   setCurrentReferenceImages: vi.fn(),
@@ -30,7 +30,7 @@ vi.mock('../../src/components/base/logger.js', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), log: vi.fn(), debug: vi.fn() },
 }))
 
-import { useAgentChat } from '../../src/components/base/useAgentChat.js'
+import { useAgentChat } from '../../src/components/agent/runtime/useAgentChat.js'
 
 describe('AI 助手会话刷新恢复（真实 store）', () => {
   beforeEach(() => {

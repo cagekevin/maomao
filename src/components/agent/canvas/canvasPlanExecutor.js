@@ -13,10 +13,10 @@
  *
  * 【依赖第 1 步异步执行器】触发用 taskStore.runNodeGeneration（await 拿已落盘 resultUrl）。
  */
-import { runNodeGeneration, isNodeRegistered } from './taskStore.js'
-import { generateId } from './idGen.js'
-import { logger } from './logger.js'
-import { toAbsoluteFileUrl } from './imageUrl.js'
+import { runNodeGeneration, isNodeRegistered } from '../../base/taskStore.js'
+import { generateId } from '../../base/idGen.js'
+import { logger } from '../../base/logger.js'
+import { toAbsoluteFileUrl } from '../../base/imageUrl.js'
 
 /* ── 全局单飞锁（对齐大雄 __canvasAgentGenRunning）──
  * 同一时刻只允许一套 executePlan 批量生成在跑。防止「用户手动点节点生成 + AI 触发」
