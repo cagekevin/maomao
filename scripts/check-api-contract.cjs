@@ -110,15 +110,21 @@ function loadHandlerTexts() {
 
 function findHandlerSource(handlerName, texts) {
   if (!handlerName) return null;
+  // 兼容 TS 类型注解：`const foo: Handler = (…)` / `const foo = (…)` / `function foo(…)`
   for (const [full, src] of texts) {
-    if (new RegExp(`(?:function\\s+${handlerName}\\s*\\(|const\\s+${handlerName}\\s*=|\\b${handlerName}\\s*=\\s*(?:\\(|async))`).test(src)) return full;
+    const re = new RegExp(
+      `(?:function\\s+${handlerName}\\s*\\(` +
+      `|const\\s+${handlerName}\\s*(?::\\s*[A-Za-z_$][\\w$<>, ]*)?\\s*=\\s*(?:\\(|async)` +
+      `|\\b${handlerName}\\s*=\\s*(?:\\(|async))`,
+    );
+    if (re.test(src)) return full;
   }
   return null;
 }
 
 function extractFunctionBody(src, name) {
   const re = new RegExp(
-    `(?:function\\s+${name}\\s*\\([^)]*\\)|const\\s+${name}\\s*=\\s*\\(?[^;{]*=>|\\b${name}\\s*=\\s*\\(?[^;{]*=>)[\\s\\S]*?\\{`,
+    `(?:function\\s+${name}\\s*\\([^)]*\\)|const\\s+${name}\\s*(?::\\s*[A-Za-z_$][\\w$<>, ]*)?\\s*=\\s*\\(?[^;{]*=>|\\b${name}\\s*=\\s*\\(?[^;{]*=>)[\\s\\S]*?\\{`,
   );
   const m = src.match(re);
   if (!m) return null;

@@ -2,7 +2,7 @@
 
 > **本文件定位：项目认知入口。每个 AI 进来第一步读它**，了解"这是什么项目、技术栈、架构、目录、红线、怎么启动"。
 > 读完按任务再读对应入口：**写代码 → `spec/CONTEXT.md`（决策地图）**；**写/改测试 → `spec/TESTING.md`（测试权威）**。三文件互补不重叠（见 §七.0）。
-> **最后更新**：2026-08-19（主力开发为 `src/` 可维护原型；原产品混淆还原代码仅作只读参考，逆向脚本已归档 `scripts/1mao-scripts/`；§二 技术栈/节点清单/存储路由已对齐 `package.json` 与 `src/components/nodes/` 真实状态；§三.1 更新「vitest 已默认 `watch:false`，单次跑不挂住」）
+> **最后更新**：2026-08-22（API 中转层收口：`{code:0,data}` 信封统一 + `contracts.js apiRegistry` 契约真源 + `npm run check:api` 双向校验，见 §五.7/§七.2；此前为 2026-08-19 主力开发 `src/` 可维护原型、逆向脚本归档、vitest watch:false）
 
 ## ⚠️ 最新情况（改动前必读）
 
@@ -33,6 +33,7 @@ npm run test:smoke    # AI 默认自检：冒烟质量门（极快）
 npm run check:health  # 工程健康全量检查（内含 check:keys + check:events + check:node-types + build + test:all + TDZ + dist 基线）
 npm run check:events  # 事件契约静态校验：EVENTS 裸事件名编译期拦截（publish/subscribe 必须用 contracts.js 登记名）
 npm run check:node-types  # 节点类型静态校验：NODE_TYPES 裸 nodePrefs 命名空间拦截（useNodePrefs 首参必须登记）
+npm run check:api     # API 契约双向校验：contracts.js apiRegistry ↔ localTool router.ts 互检（防白实现/镜像漂移/信封不符），挂 prebuild+pretest
 npm run type-check    # tsc --noEmit 类型检查（仅校验 .ts/.tsx，strict 暂未开启）
 ```
 
@@ -376,6 +377,7 @@ node scripts/task-inspect.mjs --canvas-health   # 画布结构体检
 | 场景 | 做法 |
 | --- | --- |
 | 要加平台接口（替代官方） | 改 `localTool/src/routes/platform.ts`（builtin/models/manifest）+ `projects.ts`（sync/default），返回本地静态兜底 |
+| 要改/查 API 端点 | **先看 `contracts.js apiRegistry`（前端↔后端唯一契约真源，55 条）+ 跑 `npm run check:api` 双向校验**；改端点须「加函数+登记」双动作，信封形态标 `ok/code-data/success-data/items` 或豁免 `stream/sse/raw/probe/stub` |
 | 要改代理/转发逻辑 | `localTool/src/routes/system.ts`（`/api/proxy` 剥信封/SSE/异步转同步） |
 | 要接新模型/视频能力 | 改 `apimart-gateway/lovart_client.py` 别名映射与规范化 |
 | 要查官方权益转发 | `localTool/src/routes/official.ts`（中转+短缓存，不伪造权限） |

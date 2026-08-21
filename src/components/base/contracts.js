@@ -389,7 +389,7 @@ export const NODE_TYPE_SET = new Set(Object.values(NODE_TYPES))
 /**
  * 前端调用的后端 API 端点（url 路径段）——图片按需出图等 URL 构造处唯一事实来源。
  * 新增/改动端点路径 → 先在此登记，禁止组件散写裸路径字面量。
- * 与 BACKEND_ROUTES 的 ACTIVE 清单一致：/api/files/thumbnail 为前端真实调用端点。
+ * 与下方 apiRegistry 的 ACTIVE 清单一致：/api/files/thumbnail 为前端真实调用端点（envelope: stream）。
  */
 export const API_ENDPOINTS = {
   /** 按需出图：GET {API_BASE}/api/files/thumbnail?url=<相对/subfolder/name>&maxDim=&format=
@@ -423,17 +423,11 @@ export const API_ENDPOINTS = {
  * 注：/api/agent/:key/chat 前端在「未配 provider」时直连 localTool 这一端点；配了 provider
  * 则走 /api/proxy。两端点都是生产路径，改动仍会影响直连链路。
  */
-export const BACKEND_ROUTES = {
-  /** 前端真实调用、改动需评估前端契约的端点（见上注释清单） */
-  ACTIVE: 'localTool routes/* 中 frontend 实际使用集合',
-  /** 后端预留 / 上游转发端点（admin/official/platform/passthrough），前端零调用 */
-  RESERVED: 'admin.ts official.ts platform.ts passthrough.ts 中 frontend 零调用集合',
-}
-
 /**
  * 中央端点登记表（apiRegistry）—— 前端函数 ↔ 后端 route 的双向映射唯一真源（docs/26-M2-a/C1）。
  *
- * 【为什么建】BACKEND_ROUTES 上方仅是无 program 化结构的字符串占位。本表以结构化数据承接
+ * 【为什么建】早期 `BACKEND_ROUTES` 仅是无 program 化结构的字符串占位（已删除，2026-08-22）。
+ * 本表以结构化数据承接
  * 「前端消费点 ↔ 后端 route pattern ↔ method ↔ 信封形状」，供 `scripts/check-api-contract.cjs`
  * 与 `localTool/src/router.ts` 的 `routes` 表正则互检（前端有后端无→warn 白实现；
  * 后端有前端无→info 待补；信封标注与 handler 形态不符→error）。
@@ -497,10 +491,10 @@ export const apiRegistry = {
   logs:                  { fn: 'logger 上报事件',                      method: 'POST',   path: '/api/logs',                   envelope: 'ok',       status: 'ACTIVE' },
   agentChat:             { fn: 'agentRuntime 直连 localTool A1',       method: 'POST',   path: '/api/agent/{id}/chat',        envelope: 'sse',      status: 'ACTIVE' },
   jianying:              { fn: '(前端零消费)',                          method: 'POST',   path: '/api/jianying/send',          envelope: 'stub',     status: 'RESERVED' },
-  /** platform 域 */
-  pluginManifest:        { fn: 'fetchPluginManifest',                 method: 'GET',    path: '/plugin/manifest.json',       envelope: 'code-data', status: 'ACTIVE' },
-  builtin:               { fn: 'fetchBuiltin',                        method: 'GET',    path: '/api/public/platform/builtin', envelope: 'success-data', status: 'ACTIVE' },
-  models:                { fn: 'Xi 拉取模型系列',                      method: 'GET',    path: '/api/public/platform/models', envelope: 'success-data', status: 'ACTIVE' },
+  /** platform 域（RESERVED：前端零消费——模型源是 providerModels.js 聚合，不走 platform；handler 保留为「自研替换官方」兜底） */
+  pluginManifest:        { fn: '(前端零消费·未实现)',                  method: 'GET',    path: '/plugin/manifest.json',       envelope: 'code-data', status: 'RESERVED' },
+  builtin:               { fn: '(前端零消费·模型走 providerModels.js)', method: 'GET', path: '/api/public/platform/builtin', envelope: 'success-data', status: 'RESERVED' },
+  models:                { fn: '(前端零消费·模型走 providerModels.js)', method: 'GET', path: '/api/public/platform/models', envelope: 'success-data', status: 'RESERVED' },
   workflowApps:          { fn: '(前端零消费)',                          method: 'GET',    path: '/api/workflow-apps/by-project/{id}', envelope: 'stub', status: 'RESERVED' },
   /** 官方权益转发（RESERVED：前端直连官方，本层就绪未接管） */
   officialUser:          { fn: '(前端零消费·直连官方)',                method: 'GET',    path: '/api/user/info',               envelope: 'code-data', status: 'RESERVED' },
