@@ -84,20 +84,21 @@ describe('多步编排执行器 executePlan §2.5/2.6', () => {
     expect(runNodeGeneration).toHaveBeenCalledTimes(2)
   })
 
-  it('依赖批（Wave2）：前置全部成功时与前序节点连线，并触发', async () => {
+  it('计划补种（原「无独立批→跳过」）：零独立步时首依赖步提升为独立种子并执行', async () => {
     const ctx = makeCtx()
     const r = await executePlan({
       ctx,
       generations: [
-        { id: 'g1', prompt: '主图', depends_on_previous: true }, // 依赖批（此处无独立批，应被跳过）
+        { id: 'g1', prompt: '主图', depends_on_previous: true },
       ],
     })
-    // 无独立批成功 → 依赖批无前序，跳过
-    expect(r.entries[0].status).toBe('failed')
-    expect(r.entries[0].error).toContain('无前序成功结果')
-
-    // 独立批成功 + 依赖批成功
-    vi.clearAllMocks()
+    // 机制升级：单依赖步无独立前序 → 被提升为独立种子，正常执行而非跳过
+    expect(r.entries).toHaveLength(1)
+    expect(r.entries[0].status).toBe('completed')
+    expect(r.entries[0].resultUrl).toBe('http://r/ok.png')
+    expect(runNodeGeneration).toHaveBeenCalledTimes(1)
+    // 提升后不建任何连线（其自身是种子）
+    expect(ctx.edges()).toHaveLength(0)
     const ctx2 = makeCtx()
     const r2 = await executePlan({
       ctx: ctx2,

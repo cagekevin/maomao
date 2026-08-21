@@ -62,6 +62,16 @@ export async function roundTrip(ctx, requestMessages, signal, onStream) {
   // 聊天请求形态（M2-2）：provider.chat_request_mode === 'responses' → /v1/responses（gpt-5.6 带工具）。
   // 默认 chat，走 /v1/chat/completions，现有模型零改动。
   const isResponsesChat = resolveChatMode(provider?.chat_request_mode, model) === 'responses'
+  // 【工具门禁】一次请求的关键判定日志：便于诊断「AI 是否拿到工具、为何不用」。
+  //  - toolSchemaCount=0            → toolSchemas 空（工具注册表问题，见 useCanvasAgentTools AGENT_TOOLS）
+  //  - withTools=false              → 模型被配成非流式 且 未开 ENABLE_TOOLS_ON_NON_STREAM（工具被主动关闭）
+  //  - withTools=true 且 count>0 但 AI 仍不调工具 → 属 LLM/网关侧行为（继续看下方「流式结果」的 toolCallCount）
+  logger.info('AI助手', '[工具门禁]', {
+    streamMode, isNonStream, withTools,
+    toolSchemaCount: Array.isArray(toolSchemas) ? toolSchemas.length : 0,
+    toolNames: Array.isArray(toolSchemas) ? toolSchemas.map((t) => t?.function?.name).filter(Boolean).slice(0, 20) : [],
+    model, isResponsesChat,
+  })
   const llmBody = isResponsesChat
     ? buildResponsesChatBody({
         model,

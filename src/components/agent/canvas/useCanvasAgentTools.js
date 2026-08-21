@@ -794,6 +794,19 @@ const presentPlanTool = {
     // memory 提炼（对齐大雄 conv.memory.lastPlan）：把阶段1策划记入当前对话，供多轮上下文
     const mem = getCurrentMemory()
     setCurrentMemory({ ...mem, lastPlan: { plan_text: planText, generations: gens, ts: Date.now() } })
+    // 【plan debug】阶段1 策划展示诊断（受 agent 模块 debug 开关控制）：
+    //   关注 gensCount 是否为 0（plan 没带步骤）、needConfirm 是否符合预期（Skill/semi 与否）。
+    logger.debug('AI助手', '[plan] show_plan_for_confirm', {
+      planTextLen: planText.length,
+      gensCount: gens.length,
+      gensIds: gens.map((g) => String(g?.id ?? g?.title ?? '').slice(0, 24)).filter(Boolean).slice(0, 40),
+      gensViaParam: Array.isArray(args.generations) && args.generations.length > 0,
+      hasSkill: hasSkillNow,
+      runMode: getCurrentRunMode(),
+      needConfirm,
+      gcApplied: !!gc,
+      artifactsCount: Array.isArray(args.artifacts) ? args.artifacts.length : 0,
+    }, { module: 'agent' })
     return { ok: true, data: { presented: true, plan_text: planText, generations: gens, generations_count: gens.length, awaiting_confirm: needConfirm } }
   }
 }
@@ -866,9 +879,11 @@ const executePlanTool = {
       // 对齐大雄：generations 主通道是「阶段1 暂存」（回复正文解析 / show_plan_for_confirm 传入），
       // 内存非 null 优先读取，避免阶段3 再让 LLM 扛超大 JSON；仅当内存为空才用本次参数兜底。
       const pending = getPendingGenerations()
-      let gens = (Array.isArray(pending) && pending.length) ? pending : (Array.isArray(args.generations) ? args.generations : [])
+      const pendingUsed = Array.isArray(pending) && pending.length > 0
+      let gens = pendingUsed ? pending : (Array.isArray(args.generations) ? args.generations : [])
       clearPendingGenerations()
       if (gens.length === 0) {
+        logger.debug('AI助手', '[plan] execute_plan 拒绝：generations 为空', { pendingUsed, argsGenCount: Array.isArray(args.generations) ? args.generations.length : 0 }, { module: 'agent' })
         return { ok: false, error: 'generations 为空：请在 execute_plan 的 generations 参数中给出本次生图计划（每步一张图），或先让 AI 在阶段1 回复正文里输出 generations JSON。' }
       }
       const autoRun = args.auto_run !== false
@@ -936,12 +951,40 @@ const executePlanTool = {
       const userText = String(args.user_text || getCurrentMemory()?.lastPlan?.plan_text || '').trim()
       // 【TASK-009 进度日志】executor 逐步 onLog → 收集进 logs，随结果返回，供 useAgentChat 渲染折叠「执行摘要」（对齐大雄 workflowLogs）
       const logs = []
+      // 【plan debug】阶段3 执行诊断（受 agent 模块 debug 开关控制）：
+      //   · gensSource        步骤来自「阶段1暂存」还是「本次参数」；
+      //   · refTypePerStep    每步参考图来源：direct_refs / attachment_indices / none（定位"图没挂上/挂错图"）；
+      //   · refMetrics         每步实际挂的参考图数量与首图 url 头（诊断引用错位）。
+      logger.debug('AI助手', '[plan] execute_plan 入参', {
+        gensSource: pendingUsed ? 'pending(阶段1暂存)' : 'args(本次参数)',
+        gensCount: gens.length,
+        stepIds: gens.map((g) => String(g?.id ?? g?.title ?? '').slice(0, 24)).filter(Boolean).slice(0, 40),
+        autoRun, model,
+        awaited: getAwaitingConfirm(),
+        refPoolLen: refPool.length, globalRefsLen: globalRefs.length,
+        gcApplied: !!gcText, artifactsCount: artifactTable.length,
+        refTypePerStep: resolvedGens.map((g) => g?.direct_refs?.length && !g?.depends_on_previous ? 'direct_refs' : (Array.isArray(g.referenceImages) && g.referenceImages.length ? 'attachment_indices' : 'none')),
+        refMetrics: resolvedGens.map((g) => ({
+          id: String(g?.id ?? g?.title ?? '').slice(0, 16),
+          n: Array.isArray(g.referenceImages) ? g.referenceImages.length : 0,
+          head: Array.isArray(g.referenceImages) && g.referenceImages[0] ? String(g.referenceImages[0]).slice(0, 48) : '',
+        })).slice(0, 40),
+      }, { module: 'agent' })
       const result = await executePlan({ ctx, generations: lockedGens, autoRun, model, defaults: panel, referenceImages: globalRefs, globalContract: gc, artifacts: artifactTable, onLog: (it) => { try { logs.push(it) } catch { /* 忽略 */ } }, userText })
       if (!result || !result.entries) {
+        logger.debug('AI助手', '[plan] execute_plan 失败：无 entries', { result }, { module: 'agent' })
         patchCurrentWorkflow({ status: 'failed', updatedAt: Date.now() })
         return { ok: false, error: '计划执行失败' }
       }
       const anyFailed = result.entries.some((e) => e.status === 'failed')
+      // 【plan debug】执行结果摘要：每步状态 + 失败详情 + 产出日志数。
+      logger.debug('AI助手', '[plan] execute_plan 完成', {
+        entriesCount: result.entries.length,
+        anyFailed,
+        status: result.workflow?.status,
+        stepStatuses: result.entries.map((e) => ({ id: String(e?.id ?? e?.stepId ?? '').slice(0, 16), status: e?.status, hasUrl: !!e?.resultUrl })).slice(0, 40),
+        logCount: logs.length,
+      }, { module: 'agent' })
       patchCurrentWorkflow({ status: anyFailed ? 'completed_with_errors' : 'completed', updatedAt: Date.now() })
       // memory 提炼：把执行计划记入当前对话（对齐大雄 conv.memory.lastPlan）
       const mem = getCurrentMemory()
@@ -949,6 +992,7 @@ const executePlanTool = {
       return { ok: true, data: { workflow: result.workflow, entries: result.entries, logs } }
     } catch (e) {
       patchCurrentWorkflow({ status: 'failed', updatedAt: Date.now() })
+      logger.error('AI助手', '[plan] execute_plan 异常', { message: e?.message || String(e) })
       return { ok: false, error: `计划执行异常：${e?.message || e}` }
     }
   }

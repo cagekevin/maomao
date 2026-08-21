@@ -228,8 +228,20 @@ export async function executePlan({ ctx, generations = [], autoRun = true, model
   // 【A层】执行计划入口：总步数 + 是否自动执行（高价值：定位 AI 批量出图的发起与规模）
   logger.info('AI助手', '执行计划', { steps: steps.length, autoRun, model: model || defaults.model || '', hasGlobalContract: !!globalContract })
   // P8：独立批/依赖批分区一次，日志计数复用同一结果（消除重复全量 filter）
-  const independent = steps.filter((s) => !dependsOnPrevious(s))
+  let independent = steps.filter((s) => !dependsOnPrevious(s))
   let dependent = steps.filter((s) => dependsOnPrevious(s))
+  // 【计划补种·机制兜底】详情/系列类计划若被 LLM 标成「全依赖、零独立种子步」（把第 1 步也误标
+  // depends_on_previous），则无任何可执行的前序 → 所有依赖步 prevOk.length===0 → 全链级联跳过、整单失败。
+  // 根因是计划缺一个独立「产品锚点」步。这里在执行业务前做确定性归一：无独立步时把第 1 个依赖步提升
+  // 为独立种子，保证链路一定有起始可执行节点；其余依赖步仍按其 dependency_mode 引用它做一致性锚点。
+  // 这是机制层兜底——不依赖 LLM 每次把计划给对，也不把「依赖步无前序」硬跑成错图。
+  if (independent.length === 0 && dependent.length > 0) {
+    const [seed, ...rest] = dependent
+    independent = [{ ...seed, depends_on_previous: false, use_previous_results: false }, ...independent]
+    dependent = rest
+    log('warn', `计划缺少独立种子步，已将「${seed.title || seed.id}」提升为独立首步作为一致性锚点（依赖步 ${dependent.length} 将以此为前序）`)
+    logger.debug('AI助手', '[执行计划] 计划补种', { promotedStepId: seed.id || seed.title, independentNow: independent.map((s) => s.id), dependentNow: dependent.map((s) => s.id) }, { module: 'agent' })
+  }
   log('info', `开始执行计划：共 ${steps.length} 步（独立批 ${independent.length} + 依赖批 ${dependent.length}）`)
   logger.debug('AI助手', '[执行计划] 分批', { independent: independent.map((s) => s.id), dependent: dependent.map((s) => s.id) }, { module: 'agent' })
   try {
