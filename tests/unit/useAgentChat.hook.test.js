@@ -21,7 +21,7 @@ import { renderHook, act, waitFor } from '@testing-library/react'
 // ── mock 工具层：返回可控 callTool ──
 const callTool = vi.fn()
 const toolSchemas = [{ type: 'function', function: { name: 'create_node' } }]
-vi.mock('../../src/components/base/useCanvasAgentTools.js', () => ({
+vi.mock('../../src/components/agent/canvas/useCanvasAgentTools.js', () => ({
   useCanvasAgentTools: () => ({ toolSchemas, callTool }),
   getGenParams: () => ({ model: '', ratio: 'Auto', resolution: '1K' }),
   setCurrentReferenceImages: vi.fn(),
@@ -75,12 +75,12 @@ const sharedConvStore = vi.hoisted(() => {
   }
 })
 
-vi.mock('../../src/components/base/conversationState.js', () => ({
+vi.mock('../../src/components/agent/conversation/conversationState.js', () => ({
   subscribe: sharedConvStore.subscribe,
   getState: sharedConvStore.getState,
 }))
 
-vi.mock('../../src/components/base/conversationStore.js', () => {
+vi.mock('../../src/components/agent/conversation/conversationStore.js', () => {
   let pending = null
   let activeId = 'c1'
   const conversations = [{ id: 'c1', title: '对话1' }, { id: 'c2', title: '对话2' }]
@@ -133,8 +133,8 @@ vi.mock('../../src/components/base/conversationStore.js', () => {
   }
 })
 
-import { useAgentChat, buildRequestMessages, parseSSEChunk, parseGenerationsFromReply } from '../../src/components/base/useAgentChat.js'
-import * as convStore from '../../src/components/base/conversationStore.js'
+import { useAgentChat, buildRequestMessages, parseSSEChunk, parseGenerationsFromReply } from '../../src/components/agent/runtime/useAgentChat.js'
+import * as convStore from '../../src/components/agent/conversation/conversationStore.js'
 
 // ── SSE 流构造助手 ──
 function sseChunks(deltas) {

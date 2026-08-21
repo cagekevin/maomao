@@ -6,7 +6,7 @@ vi.mock('../../src/components/base/taskStore.js', () => ({
   isNodeRegistered: vi.fn(() => true),
 }))
 
-import { executePlan } from '../../src/components/base/canvasPlanExecutor.js'
+import { executePlan } from '../../src/components/agent/canvas/canvasPlanExecutor.js'
 import { runNodeGeneration } from '../../src/components/base/taskStore.js'
 
 function makeCtx() {
@@ -19,6 +19,7 @@ function makeCtx() {
     addNodes: (ns) => { nodes = [...nodes, ...ns] },
     addEdges: (es) => { edges = [...edges, ...es] },
     setNodes: (fn) => { nodes = typeof fn === 'function' ? fn(nodes) : fn },
+    setEdges: (fn) => { edges = typeof fn === 'function' ? fn(edges) : fn },
   }
 }
 

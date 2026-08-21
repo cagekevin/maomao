@@ -14,7 +14,7 @@ const os = require('os');
 const { execSync } = require('child_process');
 
 const ROOT = path.resolve(__dirname, '..');
-const SRC = path.join(ROOT, 'src/components/base/useCanvasAgentTools.js');
+const SRC = path.join(ROOT, 'src/components/agent/canvas/useCanvasAgentTools.js');
 const OUT = path.join(os.tmpdir(), `useCanvasAgentTools.bundle-${Date.now()}.cjs`);
 
 // 1. 用 esbuild（vite 自带）打包为 CJS（esm=true 让 export 挂到 module.exports）
@@ -39,7 +39,7 @@ try {
 const mod = require(OUT);
 
 // 1.5 额外打包 useAgentChat.js 取 demoPlan（纯函数；react/@xyflow external，不真正调用 hook）
-const SRC_CHAT = path.join(ROOT, 'src/components/base/useAgentChat.js');
+const SRC_CHAT = path.join(ROOT, 'src/components/agent/runtime/useAgentChat.js');
 const OUT_CHAT = path.join(os.tmpdir(), `useAgentChat.bundle-${Date.now()}.cjs`);
 let modChat = null;
 try {

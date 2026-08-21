@@ -27,7 +27,6 @@
  *   wf.rollback(ctx)  // 清理本次建的节点
  * ════════════════════════════════════════════════════════════════
  */
-import { publish } from './eventBus.js'
 import { generateId } from './idGen.js'
 
 /** 运行中状态集合（对齐 InputStateMachine RUNNING） */
@@ -60,11 +59,6 @@ export function createWorkflow({ conversationId = '', onStatusChange = null } = 
     status = next
     onStatusChange?.(status)
     listeners.forEach((l) => l(status))
-    // 【预留广播】publish('agent:workflow-status') 是对齐大雄的对外事件广播，供未来非 React 模块订阅。
-    // ⚠️ 当前没有 eventBus.subscribe('agent:workflow-status') 的消费方，这不是 bug、不要删！
-    //    工作流状态的真正消费走本行上面的 onStatusChange 回调和 wf.subscribe(listeners)（工作流实例内聚）。
-    //    若未来要用全局广播，请从 eventBus.subscribe 订阅，避免与 wf.subscribe 两套并存造成混乱。
-    publish('agent:workflow-status', { workflowId: wf.id, conversationId, status })
   }
 
   const wf = {
@@ -119,9 +113,6 @@ export function createWorkflow({ conversationId = '', onStatusChange = null } = 
     confirm() {
       awaitingConfirm = false
       setStatus('planning') // 确认后回到可执行态
-      // 【预留广播】同 agent:workflow-status：当前无 eventBus 订阅方，不是 bug、不要删。
-      // 确认动作的实际消费由调用方在 confirm() 返回后处理；如需全局广播请经 eventBus.subscribe 订阅。
-      publish('agent:workflow-confirmed', { workflowId: wf.id, conversationId })
       return wf
     },
 

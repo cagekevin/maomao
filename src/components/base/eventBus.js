@@ -14,15 +14,13 @@
  *  - presets-changed        promptManager:88 发布 → PromptLibrary:40 订阅（预设库跨节点同步）
  *  - project:import         ProjectSelector:99 发布 → App:343 订阅（导入按钮→App 处理文件）
  *  - project:export         ProjectSelector:103 发布 → App:344 订阅（导出按钮→App 下载）
- *  - agent:workflow-status  workflowRuntime:63 发布 → 暂无 subscribe 订阅方（⚠️ 预留广播，勿当 bug 删，见 workflowRuntime 注释）
- *  - agent:workflow-confirmed workflowRuntime:118 发布 → 暂无 subscribe 订阅方（⚠️ 预留广播，勿当 bug 删）
  *  - persist:failed        storageAdapter 发布（sSet/sRemove 持久化失败）→ App 订阅（节流 toast「部分数据保存失败」）
  * 详细说明见 docs/实时总线-Event-Bus-全解-2026-08-16.md。新增事件统一用「领域:动作」命名。
  *
  * 【用法】
  *   import { publish, subscribe } from './eventBus.js'
- *   const off = subscribe('agent:workflow-status', (payload) => {...})
- *   publish('agent:workflow-status', { status: 'running' })
+ *   const off = subscribe('agent:task-completed', (payload) => {...})
+ *   publish('agent:task-completed', { taskId, nodeId, resultUrl })
  */
 const listeners = new Map() // event -> Set<fn>
 

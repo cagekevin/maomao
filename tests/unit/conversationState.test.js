@@ -1,11 +1,11 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import * as contentStore from '../../src/components/base/contentStore.js'
 const { contentClearCache } = contentStore
-import { subscribe, getState } from '../../src/components/base/conversationState.js'
+import { subscribe, getState } from '../../src/components/agent/conversation/conversationState.js'
 import {
   resetConversationCache, ensureActiveConversation, applyConversation, setAgentKey,
   flushPersist, getCurrentSnapshot, setCurrentSnapshot, patchCurrentMessages,
-} from '../../src/components/base/conversationStore.js'
+} from '../../src/components/agent/conversation/conversationStore.js'
 
 beforeEach(() => {
   localStorage.clear()

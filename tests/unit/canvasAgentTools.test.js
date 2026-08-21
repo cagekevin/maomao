@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 // 隔离依赖：AI 撤销栈 / 真实生成 / 多步执行器
 // 状态（awaiting / pending）用 beforeEach 内 vi.mocked 配对闭包管理，避免模块级变量在 vi.mock 工厂下 TDZ 怪异
-vi.mock('../../src/components/base/conversationStore.js', () => ({
+vi.mock('../../src/components/agent/conversation/conversationStore.js', () => ({
   pushActiveAiUndo: vi.fn(),
   popActiveAiUndo: vi.fn(() => null),
   getActiveAiUndoStack: vi.fn(() => []),
@@ -31,7 +31,7 @@ vi.mock('../../src/components/base/taskStore.js', () => ({
   runNodeGeneration: vi.fn(async () => ({ ok: true, resultUrl: 'http://r/x.png' })),
   isNodeRegistered: vi.fn(() => true),
 }))
-vi.mock('../../src/components/base/canvasPlanExecutor.js', async (importOriginal) => {
+vi.mock('../../src/components/agent/canvas/canvasPlanExecutor.js', async (importOriginal) => {
   const actual = await importOriginal()
   return {
     ...actual, // 保留真实纯函数（buildFusionPrompt/buildProductReferencePrompt 等）
@@ -39,10 +39,10 @@ vi.mock('../../src/components/base/canvasPlanExecutor.js', async (importOriginal
   }
 })
 
-import { buildCanvasAgentTools, CANVAS_AGENT_TOOL_NAMES, getNodeImageUrl, setCurrentReferenceImages } from '../../src/components/base/useCanvasAgentTools.js'
-import * as convStore from '../../src/components/base/conversationStore.js'
+import { buildCanvasAgentTools, CANVAS_AGENT_TOOL_NAMES, getNodeImageUrl, setCurrentReferenceImages } from '../../src/components/agent/canvas/useCanvasAgentTools.js'
+import * as convStore from '../../src/components/agent/conversation/conversationStore.js'
 import * as taskStore from '../../src/components/base/taskStore.js'
-import { executePlan as mockExecutePlan, buildFusionPrompt, buildProductReferencePrompt } from '../../src/components/base/canvasPlanExecutor.js'
+import { executePlan as mockExecutePlan, buildFusionPrompt, buildProductReferencePrompt } from '../../src/components/agent/canvas/canvasPlanExecutor.js'
 
 function makeCtx(initialNodes = [], initialEdges = []) {
   let nodes = [...initialNodes]

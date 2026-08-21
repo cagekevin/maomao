@@ -25,9 +25,9 @@
  * useAgentChat.hook.test.js / scripts/test_agent_tools.cjs）import 路径不变。
  * ════════════════════════════════════════════════════════════════
  */
-import { contentGet } from './contentStore.js'
-import { logger } from './logger.js'
-import { toImageContentBlocks } from './imageUrl.js'
+import { contentGet } from '../../base/contentStore.js'
+import { logger } from '../../base/logger.js'
+import { toImageContentBlocks } from '../../base/imageUrl.js'
 
 // 复刻官方 shared.js:2536 `var ur = 8`（多轮工具循环硬上限）
 export const MAX_TOOL_ROUNDS = 8

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { imageModeLooksLikePerReferenceEdit, buildPerReferenceGenerations } from '../../src/components/base/useAgentChat.js'
+import { imageModeLooksLikePerReferenceEdit, buildPerReferenceGenerations } from '../../src/components/agent/runtime/useAgentChat.js'
 
 /**
  * TASK-008 图像模式多参考图一对一拆分

@@ -52,18 +52,6 @@ export const EVENTS = {
     payload: '{}',
     note: '导出按钮 → App 下载。生产使用',
   },
-  'agent:workflow-status': {
-    from: ['workflowRuntime.js:66'],
-    to: [], // 预留，无订阅方（勿当 bug 删）
-    payload: '{ workflowId, conversationId, status }',
-    note: '工作流状态广播。⚠️ 预留广播',
-  },
-  'agent:workflow-confirmed': {
-    from: ['workflowRuntime.js:123'],
-    to: [], // 预留，无订阅方
-    payload: '{ workflowId, conversationId }',
-    note: '策划确认广播。⚠️ 预留广播',
-  },
   'persist:failed': {
     from: ['storageAdapter.js:28'],
     to: [], // 订阅方待核对

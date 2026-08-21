@@ -8,7 +8,7 @@ import {
   normalizeConversation, setAgentKey, getActiveConversationId, getConversations,
   getLastUserReferenceImages, getLastGeneratedImages, getCurrentImageMap,
   getCurrentRunMode, setCurrentRunMode, flushPersist,
-} from '../../src/components/base/conversationStore.js'
+} from '../../src/components/agent/conversation/conversationStore.js'
 
 beforeEach(() => {
   localStorage.clear()

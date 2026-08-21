@@ -1,9 +1,10 @@
 import { useCallback, useMemo } from 'react'
 import { useReactFlow } from '@xyflow/react'
-import { registerTool, getTools } from './toolRegistry.js'
-import { defaultNodeData } from './NodePalette.jsx'
-import { runNodeGeneration } from './taskStore.js'
-import { createGroupFromNodes, deleteNodesWithCascade } from './groupNodes.js'
+import { registerTool, getTools } from '../../base/toolRegistry.js'
+import { defaultNodeData } from '../../base/NodePalette.jsx'
+import { runNodeGeneration } from '../../base/taskStore.js'
+import { createGroupFromNodes, deleteNodesWithCascade } from '../../base/groupNodes.js'
+import { createCanvasHost } from './canvasHost.js'
 import { executePlan } from './canvasPlanExecutor.js'
 import {
   patchCurrentWorkflow, setCurrentMemory, getCurrentMemory,
@@ -15,10 +16,10 @@ import {
   getCurrentRefImages, setCurrentRefImages,
   getLastUserReferenceImages, getCurrentImageMap,
   getCurrentRunMode, getCurrentSnapshot,
-} from './conversationStore.js'
-import { contentGet, contentSet } from './contentStore.js'
-import { generateId } from './idGen.js'
-import { logger } from './logger.js'
+} from '../conversation/conversationStore.js'
+import { contentGet, contentSet } from '../../base/contentStore.js'
+import { generateId } from '../../base/idGen.js'
+import { logger } from '../../base/logger.js'
 
 /* ════════════════════════════════════════════════════════════════
  * AI 生图默认参数（genParams）—— 由 AgentPanel 生图参数区设置，execute_plan 读取。
@@ -368,11 +369,11 @@ const createNodeTool = {
     required: ['type']
   },
   execute(args, ctx) {
-    const { getNodes, setNodes, setEdges } = ctx
-    const built = buildCreateNode(args, ctx, getNodes())
+    const host = createCanvasHost(ctx)
+    const built = buildCreateNode(args, ctx, ctx.getNodes())
     if (built.error) return { ok: false, error: built.error }
-    setNodes([...getNodes(), built.newNode])
-    if (built.edges.length) setEdges((es) => [...es, ...built.edges])
+    host.appendNode(built.newNode)
+    if (built.edges.length) host.appendEdges(built.edges)
     return { ok: true, data: { id: built.id, position: built.newNode.position, connected: built.edges.length > 0 } }
   }
 }
@@ -390,12 +391,14 @@ const batchCreateNodesTool = {
   },
   execute(args, ctx) {
     if (!Array.isArray(args.nodes) || args.nodes.length === 0) return { ok: false, error: 'nodes 数组为空' }
-    const { setNodes, setEdges } = ctx
+    const host = createCanvasHost(ctx)
     // P11：批量建——先基于「虚拟节点数组」逐条构建（保持横向自动布局，与逐条 create_node 位置一致），
-    // 再单次 setNodes/setEdges 写回，避免 N 个节点触发 N 次全量 setNodes（ReactFlow 重渲染风暴）。
+    // 收集全部新建节点后，用 host.appendMany 单次 setNodes/setEdges 写回，
+    // 避免 N 个节点触发 N 次全量 setNodes（ReactFlow 重渲染风暴）。
     // 注意点：单次 setNodes 节点极多时仍可能卡，必要时分批（每批 ≤50）用 rAF 切帧（见收口方案 P11）。
     let virtual = ctx.getNodes()
     const ids = []
+    const createdNodes = []
     const newEdges = []
     let lastError = null
     for (const one of args.nodes) {
@@ -403,11 +406,11 @@ const batchCreateNodesTool = {
       if (built.error) { lastError = built.error; continue }
       virtual = [...virtual, built.newNode]
       ids.push(built.id)
+      createdNodes.push(built.newNode)
       if (built.edges.length) newEdges.push(...built.edges)
     }
-    if (ids.length) {
-      setNodes(virtual)
-      if (newEdges.length) setEdges((es) => [...es, ...newEdges])
+    if (createdNodes.length) {
+      host.appendMany({ nodes: createdNodes, edges: newEdges })
     }
     return { ok: ids.length > 0, data: { ids }, ...(lastError && ids.length === 0 ? { error: lastError } : {}) }
   }
@@ -423,14 +426,12 @@ const deleteNodeTool = {
     required: ['nodeId']
   },
   execute(args, ctx) {
-    const { getNodes, getEdges, setNodes, setEdges } = ctx
+    const host = createCanvasHost(ctx)
     const id = str(args.nodeId)
-    const exists = getNodes().some((n) => n.id === id)
+    const exists = host.getNodes().some((n) => n.id === id)
     if (!exists) return { ok: false, error: `节点不存在：${id}` }
     // R3：级联删除该节点及其子孙（删 group 不留孤儿子节点）
-    const { nodes, edges, deleted } = deleteNodesWithCascade(getNodes(), getEdges(), id)
-    setNodes(nodes)
-    setEdges(edges)
+    const deleted = host.deleteNodes(id)
     return { ok: true, data: { id, deletedCount: deleted.length } }
   }
 }
@@ -447,11 +448,9 @@ const batchDeleteNodesTool = {
   execute(args, ctx) {
     const ids = Array.isArray(args.nodeIds) ? args.nodeIds.map(String) : []
     if (!ids.length) return { ok: false, error: 'nodeIds 数组为空' }
-    const { getNodes, getEdges, setNodes, setEdges } = ctx
+    const host = createCanvasHost(ctx)
     // R3：批量删除也级联删选中 group 的子孙节点
-    const { nodes, edges, deleted } = deleteNodesWithCascade(getNodes(), getEdges(), ids)
-    setNodes(nodes)
-    setEdges(edges)
+    const deleted = host.deleteNodes(ids)
     return { ok: true, data: { deleted, deletedCount: deleted.length } }
   }
 }
@@ -480,9 +479,9 @@ const updateNodeTool = {
     required: ['nodeId']
   },
   execute(args, ctx) {
-    const { getNodes, setNodes } = ctx
+    const host = createCanvasHost(ctx)
     const id = str(args.nodeId)
-    const node = getNodes().find((n) => n.id === id)
+    const node = host.getNode(id)
     if (!node) return { ok: false, error: `节点不存在：${id}` }
     const patch = {}
     for (const k of UPDATE_NODE_WHITELIST) {
@@ -496,7 +495,7 @@ const updateNodeTool = {
       delete patch.resolution
     }
     if (Object.keys(patch).length === 0) return { ok: true, data: { id, unchanged: true } }
-    setNodes((ns) => ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, ...patch } } : n)))
+    host.updateNodeData(id, patch)
     return { ok: true, data: { id, updated: Object.keys(patch) } }
   }
 }
@@ -517,13 +516,13 @@ const updateNodeRawTool = {
     required: ['nodeId', 'patch']
   },
   execute(args, ctx) {
-    const { getNodes, setNodes } = ctx
+    const host = createCanvasHost(ctx)
     const id = str(args.nodeId)
-    const node = getNodes().find((n) => n.id === id)
+    const node = host.getNode(id)
     if (!node) return { ok: false, error: `节点不存在：${id}` }
     const patch = args.patch && typeof args.patch === 'object' ? args.patch : null
     if (!patch || Object.keys(patch).length === 0) return { ok: false, error: 'patch 为空' }
-    setNodes((ns) => ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, ...patch } } : n)))
+    host.updateNodeData(id, patch)
     return { ok: true, data: { id, updated: Object.keys(patch) } }
   }
 }
@@ -1028,21 +1027,21 @@ const lockNodeTool = {
     required: []
   },
   execute(args, ctx) {
+    const host = createCanvasHost(ctx)
     const locked = args.locked !== false
-    const { getNodes, setNodes } = ctx
     let targets = []
     if (str(args.nodeId)) {
-      const n = getNodes().find((x) => x.id === args.nodeId)
+      const n = host.getNode(args.nodeId)
       if (!n) return { ok: false, error: `节点不存在：${args.nodeId}` }
       targets = [n]
     } else if (str(args.type)) {
-      targets = getNodes().filter((n) => n.type === args.type)
+      targets = host.getNodes().filter((n) => n.type === args.type)
       if (targets.length === 0) return { ok: false, error: `没有 ${args.type} 类型的节点` }
     } else {
       return { ok: false, error: '需提供 nodeId 或 type' }
     }
     const ids = targets.map((n) => n.id)
-    setNodes((ns) => ns.map((n) => (ids.includes(n.id) ? { ...n, data: { ...n.data, locked }, draggable: !locked, selectable: !locked } : n)))
+    host.lockNodes(ids, locked)
     return { ok: true, data: { locked, ids } }
   }
 }
@@ -1060,8 +1059,8 @@ const undoAiTool = {
   execute(args, ctx) {
     const snap = popActiveAiUndo() // 当前对话的 AI 撤销栈（Step D，多对话不串）
     if (!snap) return { ok: false, error: '没有可撤回的 AI 操作' }
-    ctx.setNodes(snap.nodes)
-    ctx.setEdges(snap.edges)
+    // 整体恢复快照（undo_ai 是整数组替换，走 host.restoreNodesAndEdges，收口裸 ctx.setNodes/setEdges，见 M1 C1-1）
+    createCanvasHost(ctx).restoreNodesAndEdges(snap)
     return { ok: true, data: { reverted: snap.action || '上一步操作', remaining: getActiveAiUndoStack().length } }
   }
 }
@@ -1076,17 +1075,17 @@ const moveNodeTool = {
     required: ['nodeId', 'position']
   },
   execute(args, ctx) {
-    const { getNodes, setNodes } = ctx
+    const host = createCanvasHost(ctx)
     const id = str(args.nodeId)
-    if (!getNodes().some((n) => n.id === id)) return { ok: false, error: `节点不存在：${id}` }
+    if (!host.getNodes().some((n) => n.id === id)) return { ok: false, error: `节点不存在：${id}` }
     const pos = { x: num(args.position?.x, 0), y: num(args.position?.y, 0) }
     // 【R3】AI 移动 group 子节点时：React Flow 里子节点 position 是相对父组的坐标，但 move_node
     // 传的是绝对坐标。若目标在组内，需换算成相对父组坐标，否则视觉错位（对齐用户侧 handleNodeDragStop）。
-    const target = getNodes().find((n) => n.id === id)
+    const target = host.getNode(id)
     let finalPos = pos
     if (target?.parentId) {
       let px = 0, py = 0, pid = target.parentId, guard = 0
-      const all = getNodes()
+      const all = host.getNodes()
       while (pid && guard++ < 20) {
         const p = all.find((n) => n.id === pid)
         if (!p) break
@@ -1095,7 +1094,7 @@ const moveNodeTool = {
       }
       finalPos = { x: pos.x - px, y: pos.y - py }
     }
-    setNodes((ns) => ns.map((n) => (n.id === id ? { ...n, position: finalPos } : n)))
+    host.updateNodePosition(id, finalPos)
     return { ok: true, data: { id, position: finalPos } }
   }
 }
@@ -1108,9 +1107,10 @@ const groupNodesTool = {
   execute(args, ctx) {
     const ids = Array.isArray(args.nodeIds) ? args.nodeIds.map(String) : []
     if (ids.length < 2) return { ok: false, error: 'nodeIds 至少 2 个' }
-    const res = createGroupFromNodes(ctx.getNodes(), ids)
+    const host = createCanvasHost(ctx)
+    const res = createGroupFromNodes(host.getNodes(), ids)
     if (!res.ok) return { ok: false, error: res.error || '编组失败' }
-    ctx.setNodes(res.nodes)
+    host.replaceNodes(res.nodes) // 整体替换节点数组（收口裸 ctx.setNodes，见 M1 C1-1）
     return { ok: true, data: { groupId: res.groupId, grouped: ids } }
   }
 }
