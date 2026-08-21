@@ -29,10 +29,11 @@ const h = vi.hoisted(() => {
   const downloadUrl = vi.fn()
   const clipboardWrite = vi.fn()
   const previewCreate = vi.fn(() => 'blob:upload')
+  const patchData = vi.fn()
   return {
     get connected() { return connected },
     setConnected: (v) => { connected = v },
-    showToast, contentSet, downloadUrl, clipboardWrite, previewCreate,
+    showToast, contentSet, downloadUrl, clipboardWrite, previewCreate, patchData,
   }
 })
 
@@ -49,6 +50,8 @@ vi.mock('../../src/components/base/clipboard.js', () => ({ downloadUrl: (...a) =
 vi.mock('../../src/components/base/logger.js', () => ({ logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), log: vi.fn(), debug: vi.fn() } }))
 vi.mock('../../src/components/base/previewUrl.js', () => ({ default: { create: (...a) => h.previewCreate(...a), release: vi.fn() } }))
 vi.mock('../../src/components/base/filesApi.js', () => ({ toAbsoluteFileUrl: mocks.toAbsoluteFileUrl }))
+// 结果落盘唯一入口：断言节点把 extractedImages 写回 node.data（刷新不丢）
+vi.mock('../../src/components/base/useNodeData.js', () => ({ useNodeData: () => ({ patchData: (...a) => h.patchData(...a) }) }))
 
 import VideoExtractNode from '../../src/components/nodes/VideoExtractNode.jsx'
 
@@ -184,7 +187,8 @@ describe('VideoExtractNode — 抽帧完整流程', () => {
 
   it('加载失败（视频 onerror）→ 展示错误信息', async () => {
     const origCreate = document.createElement.bind(document)
-    vi.spyOn(document, 'createElement').mockImplementation((tag) => {
+    // 必须存入 createElSpy：beforeEach 统一 mockRestore，否则 spy 泄漏污染后续用例
+    createElSpy = vi.spyOn(document, 'createElement').mockImplementation((tag) => {
       if (tag === 'video') {
         const v = { src: '', duration: 0, videoWidth: 0, videoHeight: 0, currentTime: 0, muted: false, playsInline: false, crossOrigin: '', load: vi.fn(), addEventListener: () => {}, removeEventListener: () => {}, onloadedmetadata: null, onerror: null }
         setTimeout(() => { if (v.onerror) v.onerror(new Error('boom')) }, 0)
@@ -247,5 +251,57 @@ describe('VideoExtractNode — 结果操作（复制/下载）', () => {
       'mutiwindow-clipboard',
       JSON.stringify({ type: 'mutiwindow-images', images: ['data:image/jpeg;base64,a', 'data:image/jpeg;base64,b'] }),
     )
+  })
+})
+
+describe('VideoExtractNode — 结果落盘 node.data（刷新不丢）', () => {
+  it('开始处理 → 先清空 data.extractedImages，抽帧完成后一次性写回帧数组', async () => {
+    installMediaMocks()
+    setup({ data: { videoUrl: 'http://x/v.mp4', videoName: 'v.mp4', mode: 'count', frameCount: 9 } })
+    fireEvent.click(screen.getByText('开始处理'))
+    expect(await screen.findByText('已提取 9 帧')).toBeTruthy()
+    const calls = h.patchData.mock.calls.map((c) => c[0])
+    // 开始先清空旧帧
+    expect(calls).toContainEqual({ extractedImages: [] })
+    // 完成时写入 9 帧（mock canvas 每帧返回同一 base64）
+    const finalCall = calls.find((c) => c.extractedImages?.length === 9)
+    expect(finalCall).toBeTruthy()
+    expect(finalCall.extractedImages.every((f) => f === 'data:image/jpeg;base64,frame')).toBe(true)
+  })
+
+  it('上传新视频 → 清空 data.extractedImages（旧帧不残留）', () => {
+    setup({ data: { extractedImages: ['data:image/jpeg;base64,old'] } })
+    const input = document.querySelector('input[type="file"]')
+    fireEvent.change(input, { target: { files: [new File(['x'], 'new.mp4', { type: 'video/mp4' })] } })
+    expect(h.patchData).toHaveBeenCalledWith({ extractedImages: [] })
+  })
+
+  it('手动截取 → 逐帧追加到 node.data', () => {
+    installMediaMocks()
+    setup({ data: { videoUrl: 'http://x/v.mp4', videoName: 'v.mp4', mode: 'manual' } })
+    fireEvent.click(screen.getByText('截取'))
+    expect(h.patchData).toHaveBeenLastCalledWith({ extractedImages: ['data:image/jpeg;base64,frame'] })
+    fireEvent.click(screen.getByText('截取'))
+    expect(h.patchData).toHaveBeenLastCalledWith({
+      extractedImages: ['data:image/jpeg;base64,frame', 'data:image/jpeg;base64,frame'],
+    })
+  })
+
+  it('抽帧失败 → 只清空不写结果（data 无帧数组）', async () => {
+    const origCreate = document.createElement.bind(document)
+    // 存入 createElSpy，beforeEach 统一还原（防泄漏污染后续用例）
+    createElSpy = vi.spyOn(document, 'createElement').mockImplementation((tag) => {
+      if (tag === 'video') {
+        const v = { src: '', duration: 0, videoWidth: 0, videoHeight: 0, currentTime: 0, muted: false, playsInline: false, crossOrigin: '', load: vi.fn(), addEventListener: () => {}, removeEventListener: () => {}, onloadedmetadata: null, onerror: null }
+        setTimeout(() => { if (v.onerror) v.onerror(new Error('boom')) }, 0)
+        return v
+      }
+      return origCreate(tag)
+    })
+    setup({ data: { videoUrl: 'http://x/bad.mp4', videoName: 'bad.mp4' } })
+    fireEvent.click(screen.getByText('开始处理'))
+    expect(await screen.findByText('无法加载视频')).toBeTruthy()
+    const calls = h.patchData.mock.calls.map((c) => c[0])
+    expect(calls.some((c) => (c.extractedImages?.length || 0) > 0)).toBe(false)
   })
 })

@@ -6,6 +6,7 @@ import { useConnectedInputs } from '../base/useConnectedInputs.js'
 import { useMediaDegrade } from '../base/useMediaDegrade.js'
 import { showToast } from '../base/toastStore.js'
 import { contentSet } from '../base/contentStore.js'
+import { useNodeData } from '../base/useNodeData.js'
 import { toAbsoluteFileUrl } from '../base/filesApi.js'
 import { useRenderImageResolver } from '../base/imageUrl.js'
 import { downloadUrl } from '../base/clipboard.js'
@@ -62,6 +63,11 @@ function VideoExtractNode({ id, data, selected }) {
   const [progress, setProgress] = useState(0)
   const [errorMessage, setErrorMessage] = useState('')
   const [extractedImages, setExtractedImages] = useState(data.extractedImages || [])
+  // 结果落盘唯一入口（P0-2 收口）：本地处理无 server 任务，不走 useNodeGeneration，
+  // 抽帧结果写 node.data.extractedImages 随画布快照落盘恢复（对齐 CONTEXT 真相源契约 ③文本类例外）。
+  const { patchData } = useNodeData(id)
+  // 原子防重入（对齐 useNodeGeneration R4）：同步 ref 防快速双击并发抽帧
+  const extractingRef = useRef(false)
 
   // 手动模式：播放器 + 帧轨道
   const videoRef = useRef(null)
@@ -103,6 +109,7 @@ function VideoExtractNode({ id, data, selected }) {
     setVideoName(f.name)
     setErrorMessage('')
     setExtractedImages([])
+    patchData({ extractedImages: [] }) // 换素材清空落盘结果，防旧帧残留
     setProgress(0)
     e.target.value = ''
   }
@@ -207,6 +214,9 @@ function VideoExtractNode({ id, data, selected }) {
       showToast('请先上传视频或连接包含视频的节点')
       return
     }
+    // 【防重入】同步 ref 原子防重：快速双击时第二次立即被拒，避免并发抽帧（对齐 useNodeGeneration R4）
+    if (extractingRef.current) return
+    extractingRef.current = true
     // 仅当本次用上传 File 现场创建预览 URL 时才需在收尾释放；否则 src 即为状态里的 videoUrl，
     // 生命周期已由组件卸载/替换素材时的 release 管理，此处不重复 revoke。
     const ownUrl = file ? previewUrls.create(file) : null
@@ -215,6 +225,9 @@ function VideoExtractNode({ id, data, selected }) {
     setErrorMessage('')
     setProgress(0)
     setExtractedImages([])
+    // 结果落盘：先清旧帧（失败/中途刷新为空态，不残留旧结果）
+    patchData({ extractedImages: [] })
+    logger.debug('抽帧', 'start', { nodeId: id, mode, source: ownUrl ? 'file' : 'url' })
     try {
       const video = document.createElement('video')
       video.src = src
@@ -276,6 +289,9 @@ function VideoExtractNode({ id, data, selected }) {
       }
       setProgress(100)
       setLoading(false)
+      // 结果落盘：最终帧数组一次性写 node.data（逐帧仅 state 实时预览，避免高频大数组写快照）
+      patchData({ extractedImages: frames })
+      logger.debug('抽帧', 'done', { nodeId: id, frames: frames.length })
       showToast(`抽帧完成！共提取 ${frames.length} 张图片`)
       video.src = ''
       video.load()
@@ -286,6 +302,7 @@ function VideoExtractNode({ id, data, selected }) {
     } finally {
       // 收尾释放本次现场创建的预览 URL，避免重复上传/抽帧累积泄漏（P2-5）
       if (ownUrl) previewUrls.release(ownUrl)
+      extractingRef.current = false // 防重入复位
     }
   }
 
@@ -306,7 +323,10 @@ function VideoExtractNode({ id, data, selected }) {
       canvas.height = h
       ctx.drawImage(v, 0, 0, w, h)
       const img = canvas.toDataURL('image/jpeg', 0.8)
-      setExtractedImages((prev) => [...prev, img])
+      // 手动截取是低频用户操作：state 与 node.data 同步追加（结果落盘，刷新不丢）
+      const next = [...extractedImages, img]
+      setExtractedImages(next)
+      patchData({ extractedImages: next })
       showToast('已截取当前帧')
     } catch {
       showToast('截取失败，可能是跨域限制或视频未就绪')
