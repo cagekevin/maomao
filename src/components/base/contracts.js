@@ -405,8 +405,8 @@ export const NODE_TYPE_SET = new Set(Object.values(NODE_TYPES))
  */
 export const API_ENDPOINTS = {
   /** 按需出图：GET {API_BASE}/api/files/thumbnail?url=<相对/subfolder/name>&maxDim=&format=
-   *   返回 { thumbnailUrl }。render 显示链路经此取小图；format 白名单仅 png/jpg/jpeg/gif/bmp/tiff，
-   *   Jimp 0.22 无法编码 webp，禁传（前端已钳制，后端亦拒绝回退源扩展名）。 */
+   *   直接返回缩略图二进制（image/*），供 <img src> 直接使用；format 白名单仅 png/jpg/jpeg/gif/bmp/tiff/webp，
+   *   Jimp 0.22 无法编码 webp 时后端拒绝回退源扩展名（沿用源扩展名）。 */
   fileThumbnail: '/api/files/thumbnail',
 }
 

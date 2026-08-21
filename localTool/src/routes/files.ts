@@ -282,8 +282,21 @@ export async function handleThumbnail(req: IncomingMessage, res: ServerResponse,
     if (!ok) fs.copyFileSync(filePath, thumbPath);
   }
 
-  // 返回 JSON {thumbnailUrl: string}，不是直接返回 JPEG 二进制
-  return json(res, { thumbnailUrl: `${BASE_URL}${thumbUrl}` });
+  // 直接返回缩略图二进制，供 <img src> 使用（前端把该端点 URL 直接作为 img src）
+  if (!fs.existsSync(thumbPath)) {
+    return sendError(res, 'Thumbnail not found', 404);
+  }
+  const mimeMap: Record<string, string> = {
+    png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
+    gif: 'image/gif', bmp: 'image/bmp', tiff: 'image/tiff', webp: 'image/webp',
+  };
+  const stat = fs.statSync(thumbPath);
+  res.writeHead(200, {
+    'Content-Type': mimeMap[outExt] || 'application/octet-stream',
+    'Content-Length': stat.size,
+    'Cache-Control': 'public, max-age=86400',
+  });
+  fs.createReadStream(thumbPath).pipe(res);
 }
 
 // ── mkdir ──
