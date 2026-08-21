@@ -22,7 +22,7 @@ const fetchMock = globalThis.fetch
 const api = await import('../../src/components/base/filesApi.js')
 
 function uploadResp(url) {
-  return { ok: true, status: 200, json: async () => ({ url }) }
+  return { ok: true, status: 200, json: async () => ({ code: 0, data: { url } }) }
 }
 function failResp() {
   return { ok: false, status: 500, json: async () => ({}) }

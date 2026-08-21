@@ -56,9 +56,12 @@ async function handleUploadFormData(req: IncomingMessage, res: ServerResponse): 
     const thumbnailUrl = await tryGenerateThumbnail(savedPath, fileUrlPath);
     uploadLog(200, `formdata ${saveName} -> ${fileUrlPath}`);
     return json(res, {
-      url: `${BASE_URL}${fileUrlPath}`,
-      path: savedPath,
-      thumbnailUrl: thumbnailUrl ? `${BASE_URL}${thumbnailUrl}` : undefined,
+      code: 0,
+      data: {
+        url: `${BASE_URL}${fileUrlPath}`,
+        path: savedPath,
+        thumbnailUrl: thumbnailUrl ? `${BASE_URL}${thumbnailUrl}` : undefined,
+      },
     });
   }
 
@@ -67,7 +70,7 @@ async function handleUploadFormData(req: IncomingMessage, res: ServerResponse): 
     try {
       const result = await saveRemoteUrl(subfolder, fileUrl, filename);
       uploadLog(200, `fileUrl ${fileUrl}`);
-      return json(res, result);
+      return json(res, { code: 0, data: result });
     } catch (e) {
       uploadLog(400, `fileUrl ${fileUrl} | ${(e as Error).message}`);
       return sendError(res, `Failed to download fileUrl: ${(e as Error).message}`, 400);
@@ -91,7 +94,7 @@ async function handleUploadJson(req: IncomingMessage, res: ServerResponse): Prom
   try {
     const result = await saveRemoteUrl(subfolder, body.fileUrl, filename);
     uploadLog(200, `fileUrl ${body.fileUrl}`);
-    return json(res, result);
+    return json(res, { code: 0, data: result });
   } catch (e) {
     uploadLog(400, `fileUrl ${body.fileUrl} | ${(e as Error).message}`);
     return sendError(res, `Failed to download fileUrl: ${(e as Error).message}`, 400);
@@ -310,7 +313,7 @@ export async function handleMkdir(req: IncomingMessage, res: ServerResponse): Pr
   const dirPath = path.join(uploadDir, body.folder);
   ensureDir(dirPath);
 
-  return json(res, { ok: true });
+  return json(res, { code: 0, data: { ok: true } });
 }
 
 // ── move ──
@@ -328,7 +331,7 @@ export async function handleMove(req: IncomingMessage, res: ServerResponse): Pro
   ensureDir(dstDir);
 
   fs.renameSync(body.src, body.dst);
-  return json(res, { ok: true });
+  return json(res, { code: 0, data: { ok: true } });
 }
 
 // ── open ──
@@ -346,7 +349,7 @@ export async function handleOpen(req: IncomingMessage, res: ServerResponse, url:
     // 忽略打开失败
   }
 
-  return json(res, { path: dirPath });
+  return json(res, { code: 0, data: { path: dirPath } });
 }
 
 // ── open-dir ──
@@ -374,7 +377,7 @@ export async function handleOpenDir(req: IncomingMessage, res: ServerResponse, u
     // 忽略打开失败
   }
 
-  return json(res, { path: dirToOpen });
+  return json(res, { code: 0, data: { path: dirToOpen } });
 }
 
 // ── list ──
@@ -384,7 +387,7 @@ export async function handleList(req: IncomingMessage, res: ServerResponse, url:
   const targetDir = subfolder ? path.join(uploadDir, subfolder) : uploadDir;
 
   if (!fs.existsSync(targetDir)) {
-    return json(res, { files: [], folders: [] });
+    return json(res, { code: 0, data: { files: [], folders: [] } });
   }
 
   const entries = fs.readdirSync(targetDir, { withFileTypes: true });
@@ -400,5 +403,5 @@ export async function handleList(req: IncomingMessage, res: ServerResponse, url:
     }
   }
 
-  return json(res, { files, folders });
+  return json(res, { code: 0, data: { files, folders } });
 }

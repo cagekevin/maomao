@@ -104,7 +104,7 @@ describe('filesApi §saveInlineToLocal', () => {
 
   it('data: 前缀 → POST /api/files/upload，文件名=sha1 前 16 位语义（40 位十六进制）.png，成功返回 url', async () => {
     const url = 'http://127.0.0.1:18080/files/canvas/abcd1234.png'
-    fetchMock.mockResolvedValue(okJson({ url }))
+    fetchMock.mockResolvedValue(okJson({ code: 0, data: { url } }))
     const res = await saveInlineToLocal('data:image/png;base64,QUJDRA==', 'canvas')
     expect(res).toBe(url)
     const [reqUrl, opts] = fetchMock.mock.calls[0]

@@ -37,7 +37,7 @@ export async function handleKvSet(req: IncomingMessage, res: ServerResponse): Pr
   run(db, 'INSERT INTO kv (key, value, updated_at) VALUES (?, ?, unixepoch())', [body.key, finalValue]);
 
   debouncedSaveDb();
-  return json(res, { ok: true });
+  return json(res, { code: 0, data: { ok: true } });
 }
 
 export async function handleKvDelete(req: IncomingMessage, res: ServerResponse, url: URL): Promise<void> {
@@ -47,5 +47,5 @@ export async function handleKvDelete(req: IncomingMessage, res: ServerResponse, 
   const db = await getDb();
   run(db, 'DELETE FROM kv WHERE key = ?', [key]);
   debouncedSaveDb();
-  return json(res, { ok: true });
+  return json(res, { code: 0, data: { ok: true } });
 }

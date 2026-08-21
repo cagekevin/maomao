@@ -78,6 +78,12 @@ function parseResBody(res) {
   return res.body ? JSON.parse(res.body) : null;
 }
 
+// B3：成功信封收敛为 {code:0,data}。data() 解包出 data 段，供既有字段断言沿用。
+function data(res) {
+  const body = parseResBody(res);
+  return body && body.code === 0 ? body.data : body;
+}
+
 function fileUrl(url) {
   // 转成 127.0.0.1:18080 形式（内部一致）
   return url;
@@ -138,7 +144,7 @@ test('方案②·KV set 含 base64 的 JSON 画布对象 → value 变为 /files
   const state = makeCanvasState('proj-test');
   await kvMod.handleKvSet(makeJsonReq({ key: 'canvas-state-v1-proj-test', value: JSON.stringify(state) }), res);
   assert.equal(res.status, 200, 'set 应 200');
-  assert.deepEqual(parseResBody(res), { ok: true });
+  assert.deepEqual(parseResBody(res), { code: 0, data: { ok: true } });
 
   // 读回：value 里的 base64 应被替换为 /files/ URL
   const getRes = makeRes();
@@ -183,7 +189,7 @@ test('方案②·外置幂等：相同 base64 写两次 → 磁盘只一个文�
 test('方案②·裸 base64 形态（img_orig_*）：整串外置为 URL', async () => {
   const res = makeRes();
   await kvMod.handleKvSet(makeJsonReq({ key: 'img_orig_node1_1', value: RED_PNG_DATA_URI }), res);
-  assert.deepEqual(parseResBody(res), { ok: true });
+  assert.deepEqual(parseResBody(res), { code: 0, data: { ok: true } });
 
   const getRes = makeRes();
   await kvMod.handleKvGet(makeGetReq(), getRes, new URL('http://x/api/kv/get?key=img_orig_node1_1'));
@@ -199,7 +205,7 @@ test('方案②·失败回退：非法 data URI 保留原值，不破坏 {ok:tru
   const res = makeRes();
   const badObj = { nodes: [{ data: { imageUrl: 'data:image/png;base64,@@@invalid@@@' } }] };
   await kvMod.handleKvSet(makeJsonReq({ key: 'k1', value: JSON.stringify(badObj) }), res);
-  assert.deepEqual(parseResBody(res), { ok: true }, 'set 仍应 {ok:true}');
+  assert.deepEqual(parseResBody(res), { code: 0, data: { ok: true } }, 'set 仍应 {code:0,data:{ok:true}}');
 
   const getRes = makeRes();
   await kvMod.handleKvGet(makeGetReq(), getRes, new URL('http://x/api/kv/get?key=k1'));
@@ -226,7 +232,7 @@ test('方案②·孤儿 GC：cleanup 删除未被引用文件，保留被 KV 引
   // 执行 cleanup
   const cleanRes = makeRes();
   await adminMod.handleAdminCleanup(makeJsonReq(), cleanRes);
-  const result = parseResBody(cleanRes);
+  const result = data(cleanRes);
   assert.ok(result.deleted >= 1, `应删除至少 1 个孤儿文件, deleted=${result.deleted}`);
 
   // 孤儿被删
@@ -280,7 +286,7 @@ test('KV·delete 删除后 get 为 null', async () => {
   await kvMod.handleKvSet(makeJsonReq({ key: 'd1', value: 'v' }), makeRes());
   const delRes = makeRes();
   await kvMod.handleKvDelete(makeJsonReq(), delRes, new URL('http://x/api/kv/delete?key=d1'));
-  assert.deepEqual(parseResBody(delRes), { ok: true });
+  assert.deepEqual(parseResBody(delRes), { code: 0, data: { ok: true } });
   const getRes = makeRes();
   await kvMod.handleKvGet(makeGetReq(), getRes, new URL('http://x/api/kv/get?key=d1'));
   assert.equal(parseResBody(getRes), null);
@@ -300,11 +306,11 @@ test('Tasks·save + get（camel/snake 映射、id 回填、JSON 字段）', asyn
     mediaMeta: { w: 100 },
     loading: true, // UI 字段应被过滤
   }), res);
-  assert.deepEqual(parseResBody(res), { ok: true });
+  assert.deepEqual(parseResBody(res), { code: 0, data: { ok: true } });
 
   const getRes = makeRes();
   await tasksMod.handleTasksGet(makeGetReq(), getRes, new URL('http://x/api/tasks'));
-  const page = parseResBody(getRes);
+  const page = data(getRes);
   assert.equal(page.total, 1);
   const task = page.items[0];
   assert.equal(task.taskId, 't1');
@@ -324,7 +330,7 @@ test('Tasks·save 用 snake_case 的 task_id（无 taskId/id）→ 400 拒绝', 
   // 确认没写入
   const getRes = makeRes();
   await tasksMod.handleTasksGet(makeGetReq(), getRes, new URL('http://x/api/tasks'));
-  assert.equal(parseResBody(getRes).total, 0);
+  assert.equal(data(getRes).total, 0);
 });
 
 test('Tasks·save 缺少 id → 400', async () => {
@@ -339,7 +345,7 @@ test('Tasks·搜索过滤', async () => {
 
   const getRes = makeRes();
   await tasksMod.handleTasksGet(makeGetReq(), getRes, new URL('http://x/api/tasks?search=苹果'));
-  const page = parseResBody(getRes);
+  const page = data(getRes);
   assert.equal(page.total, 1);
   assert.equal(page.items[0].taskId, 'a');
 });
@@ -351,7 +357,7 @@ test('Tasks·数组过滤 (channelName IN)', async () => {
 
   const getRes = makeRes();
   await tasksMod.handleTasksGet(makeGetReq(), getRes, new URL('http://x/api/tasks?filters=' + encodeURIComponent(JSON.stringify({ channelName: ['ch1', 'ch3'] }))));
-  const page = parseResBody(getRes);
+  const page = data(getRes);
   assert.equal(page.total, 2);
 });
 
@@ -363,32 +369,32 @@ test('Tasks·batch-save 多任务 + 删除 + 批量删除 + clear', async () => 
 
   let getRes = makeRes();
   await tasksMod.handleTasksGet(makeGetReq(), getRes, new URL('http://x/api/tasks'));
-  assert.equal(parseResBody(getRes).total, 2);
+  assert.equal(data(getRes).total, 2);
 
   // 删除单条
   const delRes = makeRes();
   await tasksMod.handleTasksDelete(makeJsonReq(), delRes, new URL('http://x/api/tasks/delete?id=t1'));
-  assert.deepEqual(parseResBody(delRes), { ok: true });
+  assert.deepEqual(parseResBody(delRes), { code: 0, data: { ok: true } });
   getRes = makeRes();
   await tasksMod.handleTasksGet(makeGetReq(), getRes, new URL('http://x/api/tasks'));
-  assert.equal(parseResBody(getRes).total, 1);
+  assert.equal(data(getRes).total, 1);
 
   // 批量删除
   const del2Res = makeRes();
   await tasksMod.handleTasksBatchDelete(makeJsonReq({ ids: ['t2'] }), del2Res);
-  assert.equal(parseResBody(del2Res).deleted, 1);
+  assert.equal(data(del2Res).deleted, 1);
   getRes = makeRes();
   await tasksMod.handleTasksGet(makeGetReq(), getRes, new URL('http://x/api/tasks'));
-  assert.equal(parseResBody(getRes).total, 0);
+  assert.equal(data(getRes).total, 0);
 
   // clear
   await tasksMod.handleTasksSave(makeJsonReq({ taskId: 'x', prompt: 'x' }), makeRes());
   const clearRes = makeRes();
   await tasksMod.handleTasksClear(makeJsonReq(), clearRes);
-  assert.equal(parseResBody(clearRes).deleted, 1);
+  assert.equal(data(clearRes).deleted, 1);
   getRes = makeRes();
   await tasksMod.handleTasksGet(makeGetReq(), getRes, new URL('http://x/api/tasks'));
-  assert.equal(parseResBody(getRes).total, 0);
+  assert.equal(data(getRes).total, 0);
 });
 
 test('Tasks·batch-save 非数组 → 400', async () => {
@@ -407,7 +413,7 @@ test('Resources·save + get + 分页', async () => {
   }
   const getRes = makeRes();
   await resourcesMod.handleResourcesGet(makeGetReq(), getRes, new URL('http://x/api/resources?page=1&pageSize=20'));
-  const page = parseResBody(getRes);
+  const page = data(getRes);
   assert.equal(page.total, 25);
   assert.equal(page.items.length, 20);
   assert.equal(page.page, 1);
@@ -424,11 +430,11 @@ test('Resources·save 缺少 id → 400', async () => {
 test('Resources·save dataURL → 自动落盘为文件', async () => {
   const res = makeRes();
   await resourcesMod.handleResourcesSave(makeJsonReq({ id: 'clip-1', url: RED_PNG_DATA_URI, type: 'image' }), res);
-  assert.deepEqual(parseResBody(res), { ok: true });
+  assert.deepEqual(parseResBody(res), { code: 0, data: { ok: true } });
 
   const getRes = makeRes();
   await resourcesMod.handleResourcesGet(makeGetReq(), getRes, new URL('http://x/api/resources'));
-  const item = parseResBody(getRes).items[0];
+  const item = data(getRes).items[0];
   assert.ok(item.url.startsWith('http://127.0.0.1:18080/files/'), `dataURL 落盘后应转绝对文件 URL, got=${item.url}`);
   assert.match(item.id, /^local-/, 'id 应对齐 rescan 命名');
 });
@@ -437,10 +443,10 @@ test('Resources·delete 删除记录', async () => {
   await resourcesMod.handleResourcesSave(makeJsonReq({ id: 'r1', url: 'http://example.com/1.png', type: 'image' }), makeRes());
   const delRes = makeRes();
   await resourcesMod.handleResourcesDelete(makeJsonReq(), delRes, new URL('http://x/api/resources/delete?id=r1'));
-  assert.deepEqual(parseResBody(delRes), { ok: true });
+  assert.deepEqual(parseResBody(delRes), { code: 0, data: { ok: true } });
   const getRes = makeRes();
   await resourcesMod.handleResourcesGet(makeGetReq(), getRes, new URL('http://x/api/resources'));
-  assert.equal(parseResBody(getRes).total, 0);
+  assert.equal(data(getRes).total, 0);
 });
 
 test('Resources·clear 全部 + 按 folder 清', async () => {
@@ -450,18 +456,18 @@ test('Resources·clear 全部 + 按 folder 清', async () => {
   // 按 folder 清
   let clearRes = makeRes();
   await resourcesMod.handleResourcesClear(makeJsonReq({ folder: 'f1' }), clearRes);
-  assert.equal(parseResBody(clearRes).deleted, 1);
+  assert.equal(data(clearRes).deleted, 1);
   let getRes = makeRes();
   await resourcesMod.handleResourcesGet(makeGetReq(), getRes, new URL('http://x/api/resources'));
-  assert.equal(parseResBody(getRes).total, 1);
+  assert.equal(data(getRes).total, 1);
 
   // 清空全部
   clearRes = makeRes();
   await resourcesMod.handleResourcesClear(makeJsonReq(), clearRes);
-  assert.equal(parseResBody(clearRes).deleted, 1);
+  assert.equal(data(clearRes).deleted, 1);
   getRes = makeRes();
   await resourcesMod.handleResourcesGet(makeGetReq(), getRes, new URL('http://x/api/resources'));
-  assert.equal(parseResBody(getRes).total, 0);
+  assert.equal(data(getRes).total, 0);
 });
 
 test('Resources·rescan 扫描 upload 目录', async () => {
@@ -474,13 +480,13 @@ test('Resources·rescan 扫描 upload 目录', async () => {
 
   const res = makeRes();
   await resourcesMod.handleResourcesRescan(makeJsonReq(), res);
-  const result = parseResBody(res);
+  const result = data(res);
   assert.equal(result.added, 2, '应录入 pic.png 与 vid.mp4');
   assert.equal(result.count, 2);
 
   const getRes = makeRes();
   await resourcesMod.handleResourcesGet(makeGetReq(), getRes, new URL('http://x/api/resources?pageSize=50'));
-  const page = parseResBody(getRes);
+  const page = data(getRes);
   assert.equal(page.total, 2);
   assert.ok(page.items.some((r) => r.name === 'pic.png' && r.type === 'image'));
   assert.ok(page.items.some((r) => r.name === 'vid.mp4' && r.type === 'video'));
@@ -495,7 +501,7 @@ test('Admin·stats 返回统计', async () => {
   await tasksMod.handleTasksSave(makeJsonReq({ taskId: 't1', prompt: 'p' }), makeRes());
   const res = makeRes();
   await adminMod.handleAdminStats(makeGetReq(), res);
-  const stats = parseResBody(res);
+  const stats = data(res);
   assert.ok(stats.kv.count >= 1);
   assert.ok(stats.tasks.total >= 1);
   assert.ok('disk' in stats && 'uploadDirBytes' in stats.disk);
@@ -506,7 +512,7 @@ test('Admin·kv-list 列出所有键', async () => {
   await kvMod.handleKvSet(makeJsonReq({ key: 'b', value: '2' }), makeRes());
   const res = makeRes();
   await adminMod.handleAdminKvList(makeGetReq(), res);
-  const keys = parseResBody(res).keys;
+  const keys = data(res).keys;
   assert.ok(keys.some((k) => k.key === 'a'));
   assert.ok(keys.some((k) => k.key === 'b'));
 });
@@ -517,7 +523,7 @@ test('Admin·export/import 往返', async () => {
 
   const expRes = makeRes();
   await adminMod.handleAdminExport(makeGetReq(), expRes);
-  const exported = parseResBody(expRes);
+  const exported = data(expRes);
   assert.ok(exported.kv.some((r) => r.key === 'exp1'));
   assert.ok(exported.tasks.some((r) => r.task_id === 'exp-task'));
 
@@ -544,7 +550,7 @@ test('Files·list 列出子目录与文件', async () => {
   fs.writeFileSync(path.join(imgDir, 'pic.png'), RED_PNG_BUFFER);
   const res = makeRes();
   await filesMod.handleList(makeGetReq(), res, new URL('http://x/api/files/list?subfolder=canvas'));
-  const list = parseResBody(res);
+  const list = data(res);
   assert.ok(list.files.includes('pic.png'), `应列出 pic.png, got=${list.files.join(',')}`);
 });
 
@@ -694,7 +700,7 @@ test('工具·runOrphanGc dryRun 不删除', () => {
 test('Platform·plugin manifest 返回版本且无更新', async () => {
   const res = makeRes();
   await platformMod.handlePluginManifest(makeGetReq(), res);
-  assert.deepEqual(parseResBody(res), { version: '1.4.2', hasUpdate: false });
+  assert.deepEqual(parseResBody(res), { code: 0, data: { version: '1.4.2', hasUpdate: false } });
 });
 
 test('Platform·workflow-apps by-project 返回 stub null', async () => {
@@ -841,7 +847,7 @@ function makeMultipartReq({ filename, fileContent, contentType, fields = {} }) {
 test('Files·upload multipart 落盘并返回 URL + 缩略图', async () => {
   const res = makeRes();
   await filesMod.handleUpload(makeMultipartReq({ filename: 'up.png', fileContent: RED_PNG_BUFFER, contentType: 'image/png', fields: { subfolder: 'canvas' } }), res);
-  const body = parseResBody(res);
+  const body = data(res);
   assert.ok(body.url, '应返回 url');
   assert.match(body.url, /^http:\/\/127\.0\.0\.1:18080\/files\/canvas\//);
   assert.ok(body.thumbnailUrl, 'png 应生成缩略图');
@@ -917,7 +923,7 @@ test('Files·move 移动文件', async () => {
   fs.writeFileSync(src, RED_PNG_BUFFER);
   const res = makeRes();
   await filesMod.handleMove(makeJsonReq({ src, dst }), res);
-  assert.deepEqual(parseResBody(res), { ok: true });
+  assert.deepEqual(parseResBody(res), { code: 0, data: { ok: true } });
   assert.ok(!fs.existsSync(src));
   assert.ok(fs.existsSync(dst));
 });
@@ -926,7 +932,7 @@ test('Files·mkdir 创建目录', async () => {
   const target = path.join(TEST_DIR, 'uploads', 'newdir', 'sub');
   const res = makeRes();
   await filesMod.handleMkdir(makeJsonReq({ folder: 'newdir/sub' }), res);
-  assert.deepEqual(parseResBody(res), { ok: true });
+  assert.deepEqual(parseResBody(res), { code: 0, data: { ok: true } });
   assert.ok(fs.existsSync(target));
 });
 

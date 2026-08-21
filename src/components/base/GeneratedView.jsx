@@ -1,12 +1,10 @@
 import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react'
 import { FolderOpen, Image as ImageIcon, Play, FileText, Music, Copy, Trash2, FolderPlus, ChevronLeft, MoreVertical, Pencil } from 'lucide-react'
 import { useLocalToolStatus } from './useLocalToolStatus.js'
-import { fetchResources, rescanResources, deleteResource, renameResource, openLocalFolder, openFileDir, relativePathFromUrl } from './localToolApi.js'
+import { fetchResources, rescanResources, deleteResource, renameResource, openLocalFolder, openFileDir, relativePathFromUrl, createFolder as createFolderApi } from './localToolApi.js'
 import { showToast } from './toastStore.js'
-import { API_BASE } from './config.js'
 import { useAssetDragToCanvas, fetchText } from './useAssetDragToCanvas.js'
 import { toAbsoluteFileUrl } from './filesApi.js'
-import { httpRequest } from './httpClient.js'
 import { logger } from './logger.js'
 import { isAudio } from './mediaType.js'
 import VideoThumbnail from './VideoThumbnail.jsx'
@@ -137,9 +135,10 @@ function GeneratedView() {
       if (rescan) await rescanResources()
       const data = await fetchResources({ folder, page: 1, pageSize: PAGE_SIZE, type: typeFilter === 'all' ? undefined : typeFilter })
       if (token !== resetTokenRef.current) return // 已被更新的请求覆盖
-      setItems(data.items || [])
-      setTotal(data.total || 0)
-      setTotalPages(data.totalPages || 1)
+      const d = data?.data || {}
+      setItems(d.items || [])
+      setTotal(d.total || 0)
+      setTotalPages(d.totalPages || 1)
     } catch (e) {
       logger.warn('GeneratedView', '加载失败（localTool 未连？）', e?.message)
       if (token === resetTokenRef.current) setItems([])
@@ -157,10 +156,11 @@ function GeneratedView() {
     try {
       const data = await fetchResources({ folder, page: target, pageSize: PAGE_SIZE, type: typeFilter === 'all' ? undefined : typeFilter })
       if (token !== resetTokenRef.current) return
-      setItems(data.items || [])
-      setTotal(data.total || 0)
-      setTotalPages(data.totalPages || 1)
-      setPage(data.page || target)
+      const d = data?.data || {}
+      setItems(d.items || [])
+      setTotal(d.total || 0)
+      setTotalPages(d.totalPages || 1)
+      setPage(d.page || target)
     } catch (e) {
       logger.warn('GeneratedView', '翻页加载失败', e?.message)
     } finally {
@@ -188,7 +188,7 @@ function GeneratedView() {
   const handleOpenLocal = () => {
     if (!connected) return showToast('请先连接本地引擎', { type: 'warning' })
     openLocalFolder(folder === 'tasks' ? 'tasks' : folder)
-      .then((r) => showToast(`已在文件管理器中打开: ${r.path}`, { type: 'success' }))
+      .then((r) => showToast(`已在文件管理器中打开: ${r?.data?.path}`, { type: 'success' }))
       .catch(() => showToast('打开本地目录失败', { type: 'error' }))
   }
 
@@ -215,7 +215,8 @@ function GeneratedView() {
     try {
       const res = await renameResource(renameTarget.id, name)
       // 更新本地列表（id/url/name 已变）
-      setItems((list) => list.map((x) => (x.id === renameTarget.id ? { ...x, id: res.id, url: res.url, name: res.name } : x)))
+      const d = res?.data || {}
+      setItems((list) => list.map((x) => (x.id === renameTarget.id ? { ...x, id: d.id, url: d.url, name: d.name } : x)))
       textCache.delete(renameTarget.url)
       showToast('重命名成功', { type: 'success' })
     } catch (e) {
@@ -229,13 +230,7 @@ function GeneratedView() {
   const createFolder = async (name) => {
     if (!name || !connected) return false
     try {
-      await httpRequest(`${API_BASE}/api/files/mkdir`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ folder: folder === 'tasks' ? `tasks/${name}` : `${folder}/${name}` }),
-        retries: 0,
-        label: 'createFolder',
-      })
+      await createFolderApi(folder === 'tasks' ? `tasks/${name}` : `${folder}/${name}`)
       reset(true)
       return true
     } catch { /* ignore */ }

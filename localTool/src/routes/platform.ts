@@ -17,10 +17,7 @@ import { json, sendError } from '../utils/helpers.js';
 // ── GET /plugin/manifest.json ──
 export async function handlePluginManifest(_req: IncomingMessage, res: ServerResponse): Promise<void> {
   // 本地模式返回当前版本，不触发更新提示
-  return json(res, {
-    version: '1.4.2',
-    hasUpdate: false,
-  });
+  return json(res, { code: 0, data: { version: '1.4.2', hasUpdate: false } });
 }
 
 // ── GET /api/workflow-apps/by-project/:projectId ──

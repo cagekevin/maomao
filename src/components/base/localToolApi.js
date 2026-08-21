@@ -178,3 +178,26 @@ export async function kvSet(key, value) {
 export async function kvDelete(key) {
   return httpRequest(`${API_BASE}/api/kv/delete?key=${encodeURIComponent(key)}`, { method: 'POST', label: 'kvDelete' })
 }
+
+// ─────────────────────────── files（散落点收口）───────────────────────────
+// POST /api/files/mkdir { folder } → { code:0, data:{ ok:true } }
+// 收口 GeneratedView/AssetLibrary 此前裸拼 `/api/files/mkdir` 的 createFolder 散落点。
+export async function createFolder(folder) {
+  return httpRequest(`${API_BASE}/api/files/mkdir`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ folder }),
+    retries: 0, // mkdir 是 UI 即时操作，不重试
+    label: 'createFolder',
+  })
+}
+
+// POST /api/files/upload multipart(file+subfolder=...) → { code:0, data:{ url, path, thumbnailUrl } }
+// 收口 AssetLibrary 此前裸拼 `/api/files/upload` 的上传散落点；filesApi 深模块的
+// sha1 去重 / dataURL↔Blob / blob: 短路逻辑留在 filesApi（本模块只收口纯透传 multipart）。
+export async function uploadFile(file, subfolder, filename) {
+  const fd = new FormData()
+  fd.append('file', file, filename || file.name || 'upload')
+  fd.append('subfolder', subfolder || 'migrated')
+  return httpRequest(`${API_BASE}/api/files/upload`, { method: 'POST', body: fd, retries: 0, label: 'uploadFile' })
+}

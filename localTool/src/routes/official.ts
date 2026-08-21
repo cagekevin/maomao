@@ -310,7 +310,7 @@ export async function handleOfficialInvalidate(req: IncomingMessage, res: Server
     memCache.delete(k);
     removed++;
   }
-  return json(res, { ok: true, removed });
+  return json(res, { code: 0, data: { ok: true, removed } });
 }
 
 /* ==========================================================================

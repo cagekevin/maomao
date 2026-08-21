@@ -124,10 +124,12 @@ describe('providerStore §4 供应商数据层', () => {
   describe('网络动作', () => {
     it('load 拉取列表并选中主供应商', async () => {
       h.mockGetProviders.mockResolvedValue({
-        providers: [
-          { id: 'a', name: 'A', primary: false },
-          { id: 'b', name: 'B', primary: true },
-        ],
+        data: {
+          providers: [
+            { id: 'a', name: 'A', primary: false },
+            { id: 'b', name: 'B', primary: true },
+          ],
+        },
       })
       await mod.load()
       const s = mod.useProviders()
@@ -138,7 +140,7 @@ describe('providerStore §4 供应商数据层', () => {
     })
 
     it('load 无主供应商时选第一个', async () => {
-      h.mockGetProviders.mockResolvedValue({ providers: [{ id: 'a', name: 'A' }] })
+      h.mockGetProviders.mockResolvedValue({ data: { providers: [{ id: 'a', name: 'A' }] } })
       await mod.load()
       expect(mod.useProviders().selectedId).toBe('a')
     })
@@ -181,7 +183,9 @@ describe('providerStore §4 供应商数据层', () => {
       mod.add()
       const id = mod.useProviders().selectedId
       h.mockFetchModels.mockResolvedValue({
-        image_models: ['i1'], chat_models: ['c1', 'c2'], video_models: [], warning: null,
+        data: {
+          image_models: ['i1'], chat_models: ['c1', 'c2'], video_models: [], warning: null,
+        },
       })
       const res = await mod.fetchModels(id)
       expect(res.ok).toBe(true)
@@ -203,7 +207,7 @@ describe('providerStore §4 供应商数据层', () => {
     it('fetchModels 返回结构缺字段返回 ok=false', async () => {
       mod.add()
       const id = mod.useProviders().selectedId
-      h.mockFetchModels.mockResolvedValue({ image_models: ['i1'] }) // 缺 chat/video
+      h.mockFetchModels.mockResolvedValue({ data: { image_models: ['i1'] } }) // 缺 chat/video
       const res = await mod.fetchModels(id)
       expect(res.ok).toBe(false)
     })
@@ -213,7 +217,7 @@ describe('providerStore §4 供应商数据层', () => {
       const id = mod.useProviders().selectedId
       // 模拟编辑：设置 _apiKey 与 _clearKey
       mod.update(id, { _apiKey: 'sk-secret', _clearKey: false, name: '已改' })
-      h.mockSaveProviders.mockResolvedValue({ providers: [{ id, name: '已改', primary: true }] })
+      h.mockSaveProviders.mockResolvedValue({ data: { providers: [{ id, name: '已改', primary: true }] } })
       const res = await mod.save()
       expect(res.ok).toBe(true)
       // 校验 paylaod 构造
@@ -231,7 +235,7 @@ describe('providerStore §4 供应商数据层', () => {
       mod.add()
       const id = mod.useProviders().selectedId
       mod.update(id, { _apiKey: '••••••', _clearKey: true })
-      h.mockSaveProviders.mockResolvedValue({ providers: [{ id }] })
+      h.mockSaveProviders.mockResolvedValue({ data: { providers: [{ id }] } })
       await mod.save()
       const me = h.mockSaveProviders.mock.calls[0][0].find((p) => p.id === id)
       expect(me.clear_key).toBe(true)

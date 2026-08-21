@@ -92,7 +92,7 @@ vi.mock('../../src/components/base/nodePrefs.js', () => ({ useNodePrefs: () => (
 vi.mock('../../src/components/base/useSyncNodeData.js', () => ({ useSyncNodeData: () => {} }))
 vi.mock('../../src/components/base/filesApi.js', () => ({ toAbsoluteFileUrl: (x) => x, saveResultToTasks: vi.fn(async () => undefined) }))
 
-const mockFetchTasks = vi.fn(async () => ({ items: [] }))
+const mockFetchTasks = vi.fn(async () => ({ data: { items: [] } }))
 vi.mock('../../src/components/base/settings/providerStore.js', () => ({ useProviders: () => ({ providers: [] }), load: vi.fn(() => Promise.resolve()) }))
 vi.mock('../../src/components/base/localToolApi.js', () => ({ fetchTasks: (...a) => mockFetchTasks(...a) }))
 const mockGenerateImage = vi.fn(async () => ({ url: 'http://gen.local/img.png' }))
@@ -108,7 +108,7 @@ beforeEach(() => {
   mockGenerateImage.mockReset()
   mockGenerateImage.mockResolvedValue({ url: 'http://gen.local/img.png' })
   mockFetchTasks.mockReset()
-  mockFetchTasks.mockResolvedValue({ items: [] })
+  mockFetchTasks.mockResolvedValue({ data: { items: [] } })
   genConfig = null
   if (!global.IntersectionObserver) {
     global.IntersectionObserver = class { observe() {} unobserve() {} disconnect() {} }
@@ -232,10 +232,12 @@ describe('PromptNode 模型选择', () => {
 describe('PromptNode 刷新恢复（restoreFromServer）', () => {
   it('节点无图时，从任务中心恢复最近完成结果并写回 data.imageUrl', async () => {
     mockFetchTasks.mockResolvedValue({
-      items: [
-        { nodeId: 'n1', status: 'completed', resultUrl: 'http://recovered.local/a.png' },
-        { nodeId: 'n2', status: 'completed', resultUrl: 'http://other/b.png' },
-      ],
+      data: {
+        items: [
+          { nodeId: 'n1', status: 'completed', resultUrl: 'http://recovered.local/a.png' },
+          { nodeId: 'n2', status: 'completed', resultUrl: 'http://other/b.png' },
+        ],
+      },
     })
     setup({}) // data 无 imageUrl，走恢复分支
 

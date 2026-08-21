@@ -31,7 +31,7 @@ export async function handleProjectsGet(_req: IncomingMessage, res: ServerRespon
   }));
   const lastOpenedRow = rows.find((r: any) => r.is_last_opened === 1);
   const lastOpened = lastOpenedRow ? String(lastOpenedRow.id) : (projects[0]?.id || 'default');
-  return json(res, { projects, lastOpened });
+  return json(res, { code: 0, data: { projects, lastOpened } });
 }
 
 export async function handleProjectsSave(req: IncomingMessage, res: ServerResponse): Promise<void> {
@@ -78,5 +78,5 @@ export async function handleProjectsSave(req: IncomingMessage, res: ServerRespon
     throw e;
   }
   debouncedSaveDb();
-  return json(res, { ok: true });
+  return json(res, { code: 0, data: { ok: true } });
 }

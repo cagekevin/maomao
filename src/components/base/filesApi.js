@@ -57,7 +57,7 @@ export async function saveInlineToLocal(dataUrl, subfolder = 'canvas') {
     fd.append('file', blob, filename)
     fd.append('subfolder', subfolder)
     const data = await httpRequest(`${API_BASE}/api/files/upload`, { method: 'POST', body: fd, ...UPLOAD_OPTS })
-    return data.url || null
+    return data?.data?.url || null
   } catch (e) {
     logger.warn('filesApi', '内联资源落盘失败', e)
     return null
@@ -82,8 +82,8 @@ export async function uploadFileToLocal(file, subfolder = 'canvas/drop', filenam
     fd.append('file', file, filename || file.name || 'upload')
     fd.append('subfolder', subfolder)
     const data = await httpRequest(`${API_BASE}/api/files/upload`, { method: 'POST', body: fd, ...UPLOAD_OPTS })
-    logger.debug('filesApi', '[UPLOAD] 完成', { url: data?.url, subfolder }, { module: 'asset' })
-    return data.url || null
+    logger.debug('filesApi', '[UPLOAD] 完成', { url: data?.data?.url, subfolder }, { module: 'asset' })
+    return data?.data?.url || null
   } catch (e) {
     logger.warn('filesApi', '文件上传失败', e)
     return null
@@ -142,7 +142,7 @@ export async function saveResultToTasks(url, type) {
       fd.append('subfolder', SUBFOLDER)
       fd.append('filename', safeName('generated', ext))
       const data = await httpRequest(`${API_BASE}/api/files/upload`, { method: 'POST', body: fd, ...UPLOAD_OPTS })
-      return data.url || null
+      return data?.data?.url || null
     }
 
     // http(s) 上游 url → fileUrl 幂等下载落盘
@@ -152,7 +152,7 @@ export async function saveResultToTasks(url, type) {
       body: JSON.stringify({ fileUrl: url, subfolder: SUBFOLDER, filename: safeName('generated', ext) }),
       ...UPLOAD_OPTS,
     })
-    return data.url || null
+    return data?.data?.url || null
   } catch (e) {
     logger.warn('filesApi', '落盘 tasks 失败', e)
     return null
@@ -177,7 +177,7 @@ export async function saveTextToTasks(text, name) {
     fd.append('subfolder', SUBFOLDER)
     fd.append('filename', filename)
     const data = await httpRequest(`${API_BASE}/api/files/upload`, { method: 'POST', body: fd, ...UPLOAD_OPTS })
-    return data.url || null
+    return data?.data?.url || null
   } catch (e) {
     logger.warn('filesApi', '文本落盘 tasks 失败', e)
     return null

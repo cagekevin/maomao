@@ -66,10 +66,10 @@ export function initProjects() {
   loaded = true
   fetchProjects()
     .then((data) => {
-      const list = Array.isArray(data?.projects) ? data.projects.map((p) => ({ id: p.id, name: p.name })) : []
+      const list = Array.isArray(data?.data?.projects) ? data.data.projects.map((p) => ({ id: p.id, name: p.name })) : []
       if (list.length > 0) {
         projects = list
-        currentProjectId = data.lastOpened && list.some((p) => p.id === data.lastOpened) ? data.lastOpened : list[0].id
+        currentProjectId = data.data.lastOpened && list.some((p) => p.id === data.data.lastOpened) ? data.data.lastOpened : list[0].id
         // 对齐官方 Vr.jsx L1104-1108：当前项目变化即持久化 lastOpenedProject。
         // 让 localStorage 与后端 lastOpened 同步，避免「刷新后短暂闪 default 再跳到正确项目」。
         persist()

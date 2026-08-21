@@ -35,14 +35,14 @@ export async function handleAdminStats(_req: IncomingMessage, res: ServerRespons
   let diskBytes = 0;
   try { diskBytes = dirSize(uploadDir); } catch { /* ignore */ }
 
-  return json(res, { kv, tasks, resources, disk: { uploadDirBytes: diskBytes } });
+  return json(res, { code: 0, data: { kv, tasks, resources, disk: { uploadDirBytes: diskBytes } } });
 }
 
 // ── GET /api/admin/kv-list（列出所有 KV 键，供缓存清理脚本精准定位）──
 export async function handleAdminKvList(_req: IncomingMessage, res: ServerResponse): Promise<void> {
   const db = await getDb();
   const rows = queryAll(db, 'SELECT key, length(value) as len, updated_at FROM kv ORDER BY key');
-  return json(res, { keys: rows });
+  return json(res, { code: 0, data: { keys: rows } });
 }
 
 // ── POST /api/admin/clear-cache（按缓存前缀精准清理 KV，保留业务数据）──
@@ -80,7 +80,7 @@ export async function handleAdminClearCache(req: IncomingMessage, res: ServerRes
 
   for (const key of toDelete) run(db, 'DELETE FROM kv WHERE key = ?', [key]);
   saveDb();
-  return json(res, { ok: true, deleted: toDelete, count: toDelete.length });
+  return json(res, { code: 0, data: { ok: true, deleted: toDelete, count: toDelete.length } });
 }
 
 // ── POST /api/admin/cleanup ──
@@ -89,12 +89,12 @@ export async function handleAdminCleanup(_req: IncomingMessage, res: ServerRespo
   // 删除入口尾部也会调用同一函数，保证"全库引用"口径唯一（docs/13 §3.5.3）。
   const gc = await runReferenceGc(false);
 
-  return json(res, {
+  return json(res, { code: 0, data: {
     scanned: gc.scanned,
     deleted: gc.deleted,
     referenced: gc.referenced,
     deletedFiles: gc.deletedFiles,
-  });
+  } });
 }
 
 // ── GET /api/admin/export ──
@@ -105,13 +105,13 @@ export async function handleAdminExport(_req: IncomingMessage, res: ServerRespon
   const taskRows = queryAll(db, 'SELECT * FROM tasks');
   const resRows = queryAll(db, 'SELECT * FROM resources');
 
-  return json(res, {
+  return json(res, { code: 0, data: {
     kv: kvRows,
     tasks: taskRows,
     resources: resRows,
     exportedAt: Date.now(),
     version: '2.0.0',
-  });
+  } });
 }
 
 // ── POST /api/admin/import ──
@@ -156,10 +156,10 @@ export async function handleAdminImport(req: IncomingMessage, res: ServerRespons
   }
 
   saveDb();
-  return json(res, {
+  return json(res, { code: 0, data: {
     ok: true,
     counts: { kv: src.kv.length, tasks: src.tasks.length, resources: src.resources.length },
-  });
+  } });
 }
 
 // ── helpers ──

@@ -38,7 +38,7 @@ export function initTasks() {
   loaded = true
   fetchTasks({ pageSize: 500 })
     .then((data) => {
-      const items = Array.isArray(data?.items) ? data.items : []
+      const items = Array.isArray(data?.data?.items) ? data.data.items : []
       if (items.length > 0) {
         tasks = items
         notify()

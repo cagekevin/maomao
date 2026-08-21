@@ -92,7 +92,7 @@ export async function handleTasksGet(req: IncomingMessage, res: ServerResponse, 
   const countRow = queryOne(db, countSql, countValues);
   const total = countRow ? (countRow.total as number) : 0;
 
-  return json(res, paginatedResult(rows.map(rowToTask), total, params.page, params.pageSize));
+  return json(res, { code: 0, data: paginatedResult(rows.map(rowToTask), total, params.page, params.pageSize) });
 }
 
 export async function handleTasksSave(req: IncomingMessage, res: ServerResponse): Promise<void> {
@@ -105,7 +105,7 @@ export async function handleTasksSave(req: IncomingMessage, res: ServerResponse)
   if (droppedKeys.length) console.warn(`[taskToRow:dropped] ${droppedKeys.join(', ')}`);
   upsertTask(db, row);
   debouncedSaveDb();
-  return json(res, { ok: true });
+  return json(res, { code: 0, data: { ok: true } });
 }
 
 export async function handleTasksBatchSave(req: IncomingMessage, res: ServerResponse): Promise<void> {
@@ -127,7 +127,7 @@ export async function handleTasksBatchSave(req: IncomingMessage, res: ServerResp
     throw e;
   }
   debouncedSaveDb();
-  return json(res, { ok: true });
+  return json(res, { code: 0, data: { ok: true } });
 }
 
 export async function handleTasksDelete(req: IncomingMessage, res: ServerResponse, url: URL): Promise<void> {
@@ -140,7 +140,7 @@ export async function handleTasksDelete(req: IncomingMessage, res: ServerRespons
   // 只删记录，删盘统一交给引用感知 GC（docs/13）：此处不再 deleteLocalFile，
   // 因为 deleteLocalFile 只查 tasks/resources 表、不查画布 KV，会误删画布仍在引用的图（问题2 根因）。
   await runReferenceGc(false);
-  return json(res, { ok: true });
+  return json(res, { code: 0, data: { ok: true } });
 }
 
 export async function handleTasksBatchDelete(req: IncomingMessage, res: ServerResponse): Promise<void> {
@@ -152,7 +152,7 @@ export async function handleTasksBatchDelete(req: IncomingMessage, res: ServerRe
   debouncedSaveDb();
   // 只删记录，删盘统一交给引用感知 GC（docs/13）
   await runReferenceGc(false);
-  return json(res, { deleted: body.ids.length });
+  return json(res, { code: 0, data: { deleted: body.ids.length } });
 }
 
 export async function handleTasksClear(req: IncomingMessage, res: ServerResponse): Promise<void> {
@@ -163,7 +163,7 @@ export async function handleTasksClear(req: IncomingMessage, res: ServerResponse
   // 此前 handleTasksClear 会 deleteLocalFile 逐个删盘，而 deleteLocalFile 不查画布 KV，
   // 导致"清空任务"把画布仍在引用的图一起删掉 → 图片 404（问题2 根因）。
   await runReferenceGc(false);
-  return json(res, { deleted: result.changes });
+  return json(res, { code: 0, data: { deleted: result.changes } });
 }
 
 /**

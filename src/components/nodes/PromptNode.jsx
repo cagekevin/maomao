@@ -136,7 +136,7 @@ function PromptNode({ id, data, selected }) {
     let cancelled = false
     fetchTasks({ pageSize: 1000 }).then((d) => {
       if (cancelled) return
-      const items = (d && d.items) || []
+      const items = (d && d.data && d.data.items) || []
       const hit = items.find((t) => t.nodeId === id && t.status === 'completed' && t.resultUrl)
       if (hit && hit.resultUrl) {
         setImageUrl(hit.resultUrl)

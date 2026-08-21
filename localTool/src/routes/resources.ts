@@ -80,7 +80,7 @@ export async function handleResourcesRescan(_req: IncomingMessage, res: ServerRe
       .filter((e) => e.isDirectory() && e.name !== '.thumbnails')
       .map((e) => e.name);
   } catch {
-    return json(res, { ok: true, count: 0 });
+    return json(res, { code: 0, data: { ok: true, count: 0 } });
   }
 
   // 递归扫描 upload 下某目录，把文件与子目录元数据同步进 resources 表。
@@ -179,7 +179,7 @@ export async function handleResourcesRescan(_req: IncomingMessage, res: ServerRe
   }
 
   debouncedSaveDb();
-  return json(res, { ok: true, count: added, scanned, added, skipped, orphanDeleted });
+  return json(res, { code: 0, data: { ok: true, count: added, scanned, added, skipped, orphanDeleted } });
 }
 
 const SNAKE_TO_CAMEL: Record<string, string> = {
@@ -225,7 +225,7 @@ export async function handleResourcesGet(req: IncomingMessage, res: ServerRespon
   const countRow = queryOne(db, countSql, countValues);
   const total = countRow ? (countRow.total as number) : 0;
 
-  return json(res, paginatedResult(rows.map(rowToResource), total, params.page, params.pageSize));
+  return json(res, { code: 0, data: paginatedResult(rows.map(rowToResource), total, params.page, params.pageSize) });
 }
 
 export async function handleResourcesSave(req: IncomingMessage, res: ServerResponse): Promise<void> {
@@ -259,7 +259,7 @@ export async function handleResourcesSave(req: IncomingMessage, res: ServerRespo
   const db = await getDb();
   upsertResource(db, resourceToRow(body));
   debouncedSaveDb();
-  return json(res, { ok: true });
+  return json(res, { code: 0, data: { ok: true } });
 }
 
 export async function handleResourcesBatchSave(req: IncomingMessage, res: ServerResponse): Promise<void> {
@@ -272,7 +272,7 @@ export async function handleResourcesBatchSave(req: IncomingMessage, res: Server
     upsertResource(db, resourceToRow(resource));
   }
   debouncedSaveDb();
-  return json(res, { ok: true });
+  return json(res, { code: 0, data: { ok: true } });
 }
 
 export async function handleResourcesDelete(req: IncomingMessage, res: ServerResponse, url: URL): Promise<void> {
@@ -285,7 +285,7 @@ export async function handleResourcesDelete(req: IncomingMessage, res: ServerRes
   // 只删记录，删盘统一交给引用感知 GC（docs/13）：不再 deleteLocalFile，
   // 且该文件可能仍被画布 KV 或 tasks 引用，由 GC 全库引用裁决是否回收。
   await runReferenceGc(false);
-  return json(res, { ok: true });
+  return json(res, { code: 0, data: { ok: true } });
 }
 
 export async function handleResourcesClear(req: IncomingMessage, res: ServerResponse): Promise<void> {
@@ -301,12 +301,12 @@ export async function handleResourcesClear(req: IncomingMessage, res: ServerResp
     const result = run(db, 'DELETE FROM resources WHERE folder = ?', [body.folder]);
     debouncedSaveDb();
     await runReferenceGc(false);
-    return json(res, { deleted: result.changes });
+    return json(res, { code: 0, data: { deleted: result.changes } });
   } else {
     const result = run(db, 'DELETE FROM resources');
     debouncedSaveDb();
     await runReferenceGc(false);
-    return json(res, { deleted: result.changes });
+    return json(res, { code: 0, data: { deleted: result.changes } });
   }
 }
 
@@ -333,7 +333,7 @@ export async function handleResourcesRename(req: IncomingMessage, res: ServerRes
   // 用户可能带扩展名输入，去掉以统一保留原扩展名
   if (path.extname(base)) base = base.slice(0, base.length - path.extname(base).length);
   const newFileName = `${base}${ext}`;
-  if (!newFileName || newFileName === oldName) return json(res, { ok: true, id, url: row.url, name: oldName });
+  if (!newFileName || newFileName === oldName) return json(res, { code: 0, data: { ok: true, id, url: row.url, name: oldName } });
 
   const uploadDir = getUploadDir();
   const oldPath = path.join(uploadDir, folder, oldName);
@@ -353,5 +353,5 @@ export async function handleResourcesRename(req: IncomingMessage, res: ServerRes
   run(db, 'DELETE FROM resources WHERE id = ?', [id]);
   upsertResource(db, { ...resourceToRow(row), id: newId, url: newUrl, name: newFileName });
   debouncedSaveDb();
-  return json(res, { ok: true, id: newId, url: newUrl, name: newFileName });
+  return json(res, { code: 0, data: { ok: true, id: newId, url: newUrl, name: newFileName } });
 }

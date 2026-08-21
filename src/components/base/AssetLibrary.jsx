@@ -1,13 +1,11 @@
 import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react'
 import { Upload, FileText, Music, Trash2, Play, Image as ImageIcon, Copy, FolderOpen, FolderPlus, MoreVertical, ChevronLeft, Pencil } from 'lucide-react'
 import { useLocalToolStatus } from './useLocalToolStatus.js'
-import { fetchResources, rescanResources, deleteResource, renameResource, openLocalFolder, openFileDir, relativePathFromUrl } from './localToolApi.js'
+import { fetchResources, rescanResources, deleteResource, renameResource, openLocalFolder, openFileDir, relativePathFromUrl, uploadFile, createFolder as createFolderApi } from './localToolApi.js'
 import { showToast } from './toastStore.js'
-import { API_BASE } from './config.js'
 import { useAssetDragToCanvas, fetchText } from './useAssetDragToCanvas.js'
 import { toAbsoluteFileUrl } from './filesApi.js'
 import { onAssetSent, emitAssetSent } from './assetStore.js'
-import { httpRequest } from './httpClient.js'
 import { logger } from './logger.js'
 import { isAudio } from './mediaType.js'
 import LazyImage from './LazyImage.jsx'
@@ -139,9 +137,10 @@ function AssetLibrary() {
       if (rescan) await rescanResources()
       const data = await fetchResources({ folder: currentFolder, page: 1, pageSize: PAGE_SIZE })
       if (token !== resetTokenRef.current) return
-      setItems(data.items || [])
-      setTotal(data.total || 0)
-      setHasMore((data.items || []).length < (data.total || 0))
+      const d = data?.data || {}
+      setItems(d.items || [])
+      setTotal(d.total || 0)
+      setHasMore((d.items || []).length < (d.total || 0))
     } catch (e) {
       logger.warn('AssetLibrary', '加载失败（localTool 未连？）', e?.message)
       if (token === resetTokenRef.current) setItems([])
@@ -174,15 +173,16 @@ function AssetLibrary() {
     const next = pageRef.current + 1
     try {
       const data = await fetchResources({ folder: currentFolder, page: next, pageSize: PAGE_SIZE })
-      if (data.page > 1) {
+      const d = data?.data || {}
+      if (d.page > 1) {
         setItems((prev) => {
           const seen = new Set(prev.map((x) => x.id))
-          return [...prev, ...(data.items || []).filter((x) => !seen.has(x.id))]
+          return [...prev, ...(d.items || []).filter((x) => !seen.has(x.id))]
         })
       }
-      pageRef.current = data.page || next
-      setTotal(data.total || 0)
-      setHasMore((data.items || []).length > 0 && data.page < (data.totalPages || 1))
+      pageRef.current = d.page || next
+      setTotal(d.total || 0)
+      setHasMore((d.items || []).length > 0 && d.page < (d.totalPages || 1))
     } catch { /* 忽略下一页失败 */ } finally {
       loadingRef.current = false
       setLoading(false)
@@ -203,10 +203,7 @@ function AssetLibrary() {
     let ok = 0
     for (const f of list) {
       try {
-        const fd = new FormData()
-        fd.append('subfolder', currentFolder)
-        fd.append('file', f, f.name)
-        await httpRequest(`${API_BASE}/api/files/upload`, { method: 'POST', body: fd, retries: 0, label: 'upload' })
+        await uploadFile(f, currentFolder)
         ok++
       } catch { /* 单个失败继续 */ }
     }
@@ -240,7 +237,7 @@ function AssetLibrary() {
   const handleOpenLocal = () => {
     if (!connected) return showToast('请先连接本地引擎', { type: 'warning' })
     openLocalFolder(currentFolder)
-      .then((r) => showToast(`已在文件管理器中打开: ${r.path}`, { type: 'success' }))
+      .then((r) => showToast(`已在文件管理器中打开: ${r?.data?.path}`, { type: 'success' }))
       .catch(() => showToast('打开本地目录失败', { type: 'error' }))
   }
 
@@ -266,7 +263,8 @@ function AssetLibrary() {
     if (!name) { setRenameTarget(null); return }
     try {
       const res = await renameResource(renameTarget.id, name)
-      setItems((list) => list.map((x) => (x.id === renameTarget.id ? { ...x, id: res.id, url: res.url, name: res.name } : x)))
+      const d = res?.data || {}
+      setItems((list) => list.map((x) => (x.id === renameTarget.id ? { ...x, id: d.id, url: d.url, name: d.name } : x)))
       textCache.delete(renameTarget.url)
       showToast('重命名成功', { type: 'success' })
     } catch (e) {
@@ -280,13 +278,7 @@ function AssetLibrary() {
   const createFolder = async (name) => {
     if (!name || !connected) return false
     try {
-      await httpRequest(`${API_BASE}/api/files/mkdir`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ folder: `${currentFolder}/${name}` }),
-        retries: 0,
-        label: 'createFolder',
-      })
+      await createFolderApi(`${currentFolder}/${name}`)
       reset(true)
       return true
     } catch { /* ignore */ }

@@ -447,7 +447,7 @@ function publicProvider(p: ApiProvider): ApiProvider {
 // ── 路由处理 ──
 export async function handleProvidersGet(_req: IncomingMessage, res: ServerResponse): Promise<void> {
   const list = loadProviders().map(publicProvider);
-  return json(res, { providers: list });
+  return json(res, { code: 0, data: { providers: list } });
 }
 
 export async function handleProvidersPut(req: IncomingMessage, res: ServerResponse): Promise<void> {
@@ -508,7 +508,7 @@ export async function handleProvidersPut(req: IncomingMessage, res: ServerRespon
   saveProviders(merged);
   const payload: Record<string, unknown> = { providers: merged.map(publicProvider) };
   if (primaryWarning) payload.warning = primaryWarning;
-  return json(res, payload);
+  return json(res, { code: 0, data: payload });
 }
 
 // 【打基础】连接测试的探测路径「按协议表驱动」（可插拔，不堆 if）。
@@ -755,7 +755,7 @@ export async function handleProviderFetchModels(req: IncomingMessage, res: Serve
     const fetchRes = await fetchWithProxy(modelsUrl, { method: 'GET', headers, signal: controller.signal });
     clearTimeout(timeout);
     if (!fetchRes.ok) {
-      return json(res, { ...emptyModels(), warning: `upstream ${fetchRes.status}, fell back to stored` });
+      return json(res, { code: 0, data: { ...emptyModels(), warning: `upstream ${fetchRes.status}, fell back to stored` } });
     }
     const data = await fetchRes.json();
     const known = new Map<string, ProviderModel>();
@@ -799,14 +799,14 @@ export async function handleProviderFetchModels(req: IncomingMessage, res: Serve
       byId.set(id, { list: officialList });
     }
 
-    return json(res, {
+    return json(res, { code: 0, data: {
       image_models: classified.image,
       chat_models: classified.chat,
       video_models: classified.video,
       modelCount: rawModels.length,
-    });
+    } });
   } catch (e) {
-    return json(res, { ...emptyModels(), warning: (e as Error).message });
+    return json(res, { code: 0, data: { ...emptyModels(), warning: (e as Error).message } });
   }
 }
 
@@ -890,7 +890,7 @@ export async function handleConfigBasePut(req: IncomingMessage, res: ServerRespo
   }
   try {
     syncConfigJson(body.providers as ApiProvider[]);
-    return json(res, { ok: true });
+    return json(res, { code: 0, data: { ok: true } });
   } catch (e) {
     return sendError(res, (e as Error).message || 'Failed to sync api.config.json', 500);
   }

@@ -13,7 +13,7 @@ vi.mock('../../src/components/base/kvStore.js', () => ({
   CANVAS_STATE_PREFIX: 'canvas-state-v1-',
 }))
 vi.mock('../../src/components/base/localToolApi.js', () => ({
-  fetchProjects: vi.fn(async () => ({ ...projectsPayload })),
+  fetchProjects: vi.fn(async () => ({ data: { ...projectsPayload } })),
   saveProjects: vi.fn(async () => ({ ok: true })),
 }))
 

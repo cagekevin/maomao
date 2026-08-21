@@ -130,7 +130,8 @@ async function collectLocal() {
   }
   // 2) API 配置：从 localTool /api/providers 读（key 已脱敏，同步配置结构）
   try {
-    const { providers } = await providerApi.getProviders()
+    const { data: pd } = await providerApi.getProviders()
+    const providers = Array.isArray(pd?.providers) ? pd.providers : null
     if (Array.isArray(providers) && providers.length) ls.providers = providers
   } catch { /* localTool 未连则跳过 API 配置 */ }
 

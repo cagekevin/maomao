@@ -90,7 +90,7 @@ export async function load() {
   setState({ loading: true, testResult: null })
   try {
     const data = await providerApi.getProviders()
-    const list = data.providers || []
+    const list = data?.data?.providers || []
     const primary = list.find((p) => p.primary) || list[0]
     setState({ providers: list, selectedId: primary ? primary.id : null, dirty: false })
   } finally {
@@ -171,20 +171,21 @@ export async function fetchModels(id) {
   setState({ fetchingId: id })
   try {
     const data = await providerApi.fetchModels(id)
-    if (Array.isArray(data.image_models) && Array.isArray(data.chat_models) && Array.isArray(data.video_models)) {
+    const m = data?.data || {}
+    if (Array.isArray(m.image_models) && Array.isArray(m.chat_models) && Array.isArray(m.video_models)) {
       // 不直接全量写入：把拉取结果暂存，由 UI 弹窗让用户勾选后再 apply。
       setState({
         fetchedModels: {
           id,
-          image_models: data.image_models,
-          chat_models: data.chat_models,
-          video_models: data.video_models,
-          warning: data.warning,
+          image_models: m.image_models,
+          chat_models: m.chat_models,
+          video_models: m.video_models,
+          warning: m.warning,
         },
       })
-      return { ok: true, pending: true, total: data.image_models.length + data.chat_models.length + data.video_models.length, warning: data.warning }
+      return { ok: true, pending: true, total: m.image_models.length + m.chat_models.length + m.video_models.length, warning: m.warning }
     }
-    return { ok: false, warning: data.warning }
+    return { ok: false, warning: m.warning }
   } catch (e) {
     return { ok: false, error: e.message }
   } finally {
@@ -246,15 +247,16 @@ export async function save() {
       return cleaned
     })
     const data = await providerApi.saveProviders(payload)
-    setState({ providers: data.providers || state.providers, dirty: false })
+    const savedProviders = data?.data?.providers || state.providers
+    setState({ providers: savedProviders, dirty: false })
     // 方案A：把保存后的结果回写 api.config.json，消除双源漂移。
     // 回写是辅助动作，失败不影响主保存（避免 json 写失败导致保存报错）。
     providerApi
-      .syncConfigBase(data.providers || payload)
+      .syncConfigBase(savedProviders || payload)
       .then(() => setState({ configSynced: true }))
       .catch((e) => setState({ configSyncError: e.message }))
     // 对齐官方 active_api_endpoint（KV）：把主供应商写入 localTool KV，供跨端读取当前生效 endpoint
-    const primary = (data.providers || state.providers).find((p) => p.primary) || (data.providers || state.providers)[0]
+    const primary = savedProviders.find((p) => p.primary) || savedProviders[0]
     if (primary) {
       contentSetAsync('active_api_endpoint', {
         providerId: primary.id,
