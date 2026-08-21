@@ -5,11 +5,13 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "prebuild": "npm run check:api",
     "build": "vite build",
     "preview": "vite preview",
     "check:jsx": "node scripts/check-jsx.mjs",
     "check:keys": "node scripts/check-storage-keys.mjs",
     "check:events": "node scripts/check-events.mjs",
+    "check:api": "node scripts/check-api-contract.cjs",
     "check:node-types": "node scripts/check-node-types.mjs",
     "extract:tw": "node scripts/extract-tailwind.mjs",
     "sync:mapping": "node scripts/sync-mapping.mjs",
@@ -20,6 +22,7 @@
     "test:e2e": "playwright test",
     "test:all": "node scripts/run_all_tests.cjs",
     "test": "npm run test:all",
+    "pretest": "npm run check:api",
     "check:health": "node scripts/health-check.cjs",
     "type-check": "tsc --noEmit",
     "prepare": "husky"

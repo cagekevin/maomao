@@ -429,3 +429,98 @@ export const BACKEND_ROUTES = {
   /** 后端预留 / 上游转发端点（admin/official/platform/passthrough），前端零调用 */
   RESERVED: 'admin.ts official.ts platform.ts passthrough.ts 中 frontend 零调用集合',
 }
+
+/**
+ * 中央端点登记表（apiRegistry）—— 前端函数 ↔ 后端 route 的双向映射唯一真源（docs/26-M2-a/C1）。
+ *
+ * 【为什么建】BACKEND_ROUTES 上方仅是无 program 化结构的字符串占位。本表以结构化数据承接
+ * 「前端消费点 ↔ 后端 route pattern ↔ method ↔ 信封形状」，供 `scripts/check-api-contract.cjs`
+ * 与 `localTool/src/router.ts` 的 `routes` 表正则互检（前端有后端无→warn 白实现；
+ * 后端有前端无→info 待补；信封标注与 handler 形态不符→error）。
+ *
+ * 【形态】每条 = { fn, method, path, envelope, status }
+ *  - fn：   前端聚合函数/消费点（localToolApi 导出 / filesApi / pollTask / 组件散落点）
+ *  - method：GET/POST/PUT/DELETE（对齐 router.ts routes）
+ *  - path：  后端 route pattern（字符串精确或正则源文本，与 router.ts 一致）
+ *  - envelope：ok | code-data | items | success-data | raw | stream | sse | probe | stub。
+ *       流式/探针/裸值/桩豁免信封检查（stream/sse/raw/probe/stub，check-api-contract 跳过）。
+ *  - status：ACTIVE（前端已消费）/ RESERVED（后端有前端零消费，勿当死代码删）。
+ *
+ * 【纪律】新增端点 → 先在本表登记 + 在 localToolApi/filesApi 加函数（M2-d「加函数+登记」双动作）。
+ * 散落点（GeneratedView/AssetLibrary/pollTask）也须登记，即便它们暂走 httpRequest 直拼——
+ * 本批只登记定位，B3 再收进薄壳。
+ *
+ * ⚠️ RESERVED 组（后端已 handle、前端零消费）登记 admin/official/platform/workflow/sync/assets
+ *   /batch-save/clear/move/list/jianying，校验脚本标 info 待补，勿误判白实现或误删。
+ */
+export const apiRegistry = {
+  /** tasks 域 */
+  fetchTasks:            { fn: 'localToolApi.fetchTasks',            method: 'GET',    path: '/api/tasks',                  envelope: 'items',    status: 'ACTIVE' },
+  saveTask:              { fn: 'localToolApi.saveTask',              method: 'POST',   path: '/api/tasks/save',             envelope: 'ok',       status: 'ACTIVE' },
+  batchSaveTasks:        { fn: 'localToolApi.batchSaveTasks',        method: 'POST',   path: '/api/tasks/batch-save',       envelope: 'ok',       status: 'ACTIVE' },
+  deleteTask:            { fn: 'localToolApi.deleteTask',            method: 'POST',   path: '/api/tasks/delete',           envelope: 'ok',       status: 'ACTIVE' },
+  batchDeleteTasks:      { fn: 'localToolApi.batchDeleteTasks',      method: 'POST',   path: '/api/tasks/batch-delete',     envelope: 'ok',       status: 'ACTIVE' },
+  clearAllTasksApi:      { fn: 'localToolApi.clearAllTasksApi',      method: 'POST',   path: '/api/tasks/clear',            envelope: 'ok',       status: 'ACTIVE' },
+  /** projects 域 */
+  fetchProjects:         { fn: 'localToolApi.fetchProjects',         method: 'GET',    path: '/api/projects',               envelope: 'code-data', status: 'ACTIVE' },
+  saveProjects:          { fn: 'localToolApi.saveProjects',          method: 'POST',   path: '/api/projects/save',          envelope: 'ok',       status: 'ACTIVE' },
+  /** resources 域 */
+  fetchResources:        { fn: 'localToolApi.fetchResources',        method: 'GET',    path: '/api/resources',              envelope: 'items',    status: 'ACTIVE' },
+  rescanResources:       { fn: 'localToolApi.rescanResources',       method: 'POST',   path: '/api/resources/rescan',       envelope: 'ok',       status: 'ACTIVE' },
+  deleteResource:        { fn: 'localToolApi.deleteResource',        method: 'POST',   path: '/api/resources/delete',       envelope: 'ok',       status: 'ACTIVE' },
+  saveResource:          { fn: 'localToolApi.saveResource',          method: 'POST',   path: '/api/resources/save',         envelope: 'ok',       status: 'ACTIVE' },
+  renameResource:        { fn: 'localToolApi.renameResource',        method: 'POST',   path: '/api/resources/rename',       envelope: 'ok',       status: 'ACTIVE' },
+  /** files 域（stream 豁免 / 组件散落） */
+  openLocalFolder:       { fn: 'localToolApi.openLocalFolder',       method: 'GET',    path: '/api/files/open',             envelope: 'code-data', status: 'ACTIVE' },
+  openFileDir:           { fn: 'localToolApi.openFileDir',           method: 'GET',    path: '/api/files/open-dir',         envelope: 'code-data', status: 'ACTIVE' },
+  uploadFile:            { fn: 'AssetLibrary.upload + filesApi',     method: 'POST',   path: '/api/files/upload',           envelope: 'code-data', status: 'ACTIVE' },
+  createFolder:          { fn: 'GeneratedView/AssetLibrary.mkdir',   method: 'POST',   path: '/api/files/mkdir',            envelope: 'ok',       status: 'ACTIVE' },
+  fileRead:              { fn: 'filesApi.read (二进制流)',           method: 'GET',    path: '/api/files/read',             envelope: 'stream',   status: 'ACTIVE' },
+  fileThumbnail:         { fn: 'API_ENDPOINTS.fileThumbnail',        method: 'GET',    path: '/api/files/thumbnail',        envelope: 'stream',   status: 'ACTIVE' },
+  filesMove:             { fn: 'filesApi.move',                      method: 'POST',   path: '/api/files/move',             envelope: 'ok',       status: 'RESERVED' },
+  filesList:             { fn: 'filesApi.list',                      method: 'GET',    path: '/api/files/list',             envelope: 'code-data', status: 'RESERVED' },
+  /** kv 域（raw 豁免：裸 null/裸值） */
+  kvGet:                 { fn: 'localToolApi.kvGet',                 method: 'GET',    path: '/api/kv/get',                 envelope: 'raw',      status: 'ACTIVE' },
+  kvSet:                 { fn: 'localToolApi.kvSet',                 method: 'POST',   path: '/api/kv/set',                 envelope: 'ok',       status: 'ACTIVE' },
+  kvDelete:              { fn: 'localToolApi.kvDelete',              method: 'POST',   path: '/api/kv/delete',              envelope: 'ok',       status: 'ACTIVE' },
+  /** providers 域 */
+  getProviders:          { fn: 'localToolApi.providerApi.getProviders',      method: 'GET',  path: '/api/providers',                envelope: 'code-data', status: 'ACTIVE' },
+  saveProviders:         { fn: 'localToolApi.providerApi.saveProviders',     method: 'PUT',  path: '/api/providers',                envelope: 'code-data', status: 'ACTIVE' },
+  syncConfigBase:        { fn: 'localToolApi.providerApi.syncConfigBase',    method: 'PUT',  path: '/api/config/base',             envelope: 'ok',       status: 'ACTIVE' },
+  testConnection:        { fn: 'localToolApi.providerApi.testConnection',    method: 'POST', path: '/api/providers/test-connection', envelope: 'probe',    status: 'ACTIVE' },
+  probeAsync:            { fn: 'localToolApi.providerApi.probeAsync',        method: 'POST', path: '/api/providers/probe-async',    envelope: 'probe',    status: 'ACTIVE' },
+  fetchModels:           { fn: 'localToolApi.providerApi.fetchModels',       method: 'POST', path: '/api/providers/{id}/fetch-models', envelope: 'code-data', status: 'ACTIVE' },
+  /** 代理 / 网关 / 系统 */
+  proxy:                 { fn: 'proxyGenerate.__proxyFetch + chatProxy', method: 'POST', path: '/api/proxy',                  envelope: 'sse',      status: 'ACTIVE' },
+  gatewayTask:           { fn: 'pollTask.pollOneTask (跨进程)',       method: 'GET',    path: '/api/v1/gateway/task/{id}',   envelope: 'code-data', status: 'ACTIVE' },
+  status:                { fn: 'useLocalToolStatus',                  method: 'GET',    path: '/api/status',                 envelope: 'probe',    status: 'ACTIVE' },
+  logs:                  { fn: 'logger 上报事件',                      method: 'POST',   path: '/api/logs',                   envelope: 'ok',       status: 'ACTIVE' },
+  agentChat:             { fn: 'agentRuntime 直连 localTool A1',       method: 'POST',   path: '/api/agent/{id}/chat',        envelope: 'sse',      status: 'ACTIVE' },
+  jianying:              { fn: '(前端零消费)',                          method: 'POST',   path: '/api/jianying/send',          envelope: 'stub',     status: 'RESERVED' },
+  /** platform 域 */
+  pluginManifest:        { fn: 'fetchPluginManifest',                 method: 'GET',    path: '/plugin/manifest.json',       envelope: 'code-data', status: 'ACTIVE' },
+  builtin:               { fn: 'fetchBuiltin',                        method: 'GET',    path: '/api/public/platform/builtin', envelope: 'success-data', status: 'ACTIVE' },
+  models:                { fn: 'Xi 拉取模型系列',                      method: 'GET',    path: '/api/public/platform/models', envelope: 'success-data', status: 'ACTIVE' },
+  workflowApps:          { fn: '(前端零消费)',                          method: 'GET',    path: '/api/workflow-apps/by-project/{id}', envelope: 'stub', status: 'RESERVED' },
+  /** 官方权益转发（RESERVED：前端直连官方，本层就绪未接管） */
+  officialUser:          { fn: '(前端零消费·直连官方)',                method: 'GET',    path: '/api/user/info',               envelope: 'code-data', status: 'RESERVED' },
+  officialEntitlements:  { fn: '(前端零消费·直连官方)',                method: 'GET',    path: '/api/user/model-entitlements', envelope: 'code-data', status: 'RESERVED' },
+  officialVipCheck:      { fn: '(前端零消费·直连官方)',                method: 'GET',    path: '/api/agent/{id}/vip-check',   envelope: 'code-data', status: 'RESERVED' },
+  officialInvalidate:    { fn: '(前端零消费)',                          method: 'POST',   path: '/api/official/entitlements/invalidate', envelope: 'ok', status: 'RESERVED' },
+  /** admin 域（RESERVED） */
+  adminStats:            { fn: '(前端零消费)',                          method: 'GET',    path: '/api/admin/stats',            envelope: 'code-data', status: 'RESERVED' },
+  adminKvList:           { fn: '(前端零消费)',                          method: 'GET',    path: '/api/admin/kv-list',          envelope: 'code-data', status: 'RESERVED' },
+  adminClearCache:       { fn: '(前端零消费)',                          method: 'POST',   path: '/api/admin/clear-cache',      envelope: 'ok',       status: 'RESERVED' },
+  adminCleanup:          { fn: '(前端零消费)',                          method: 'POST',   path: '/api/admin/cleanup',          envelope: 'code-data', status: 'RESERVED' },
+  adminExport:           { fn: '(前端零消费)',                          method: 'GET',    path: '/api/admin/export',           envelope: 'code-data', status: 'RESERVED' },
+  adminImport:           { fn: '(前端零消费)',                          method: 'POST',   path: '/api/admin/import',           envelope: 'ok',       status: 'RESERVED' },
+  /** 其余 RESERVED */
+  syncDefault:           { fn: '(前端零消费)',                          method: 'GET',    path: '/api/sync/default',           envelope: 'code-data', status: 'RESERVED' },
+  assetsUpload:          { fn: '(别名 handler=handleUpload)',          method: 'POST',   path: '/api/assets/upload',          envelope: 'code-data', status: 'RESERVED' },
+  uploadAppAsset:        { fn: '(别名 handler=handleUpload)',          method: 'POST',   path: '/api/upload/app-asset',       envelope: 'code-data', status: 'RESERVED' },
+  resourcesBatchSave:    { fn: '(前端零消费)',                          method: 'POST',   path: '/api/resources/batch-save',   envelope: 'ok',       status: 'RESERVED' },
+  resourcesClear:        { fn: '(前端零消费)',                          method: 'POST',   path: '/api/resources/clear',        envelope: 'code-data', status: 'RESERVED' },
+}
+
+/** apiRegistry 的 path 集合（check-api-contract 与后端 routes 互检用） */
+export const API_REGISTRY_PATHS = Object.values(apiRegistry).map((e) => e.path)
