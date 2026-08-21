@@ -6,6 +6,7 @@ import HoverToolbar from '../base/HoverToolbar.jsx'
 import { useConnectedInputs } from '../base/useConnectedInputs.js'
 import { useMediaDegrade } from '../base/useMediaDegrade.js'
 import { uploadFileToLocal, toAbsoluteFileUrl } from '../base/filesApi.js'
+import { useRenderImageResolver } from '../base/imageUrl.js'
 import { showToast, toastError, toastWarning } from '../base/toastStore.js'
 import { applyMosaic, MOSAIC_MODES, MOSAIC_PALETTE } from '../base/faceMosaic.js'
 import FaceMosaicEditor from '../base/FaceMosaicEditor.jsx'
@@ -37,6 +38,7 @@ function FaceMosaicNode({ id, data, selected }) {
   // 图片来源：手动上传的 imageUrl + 连接上游收集的图片 URL（复刻官方 Sl）
   const connected = useConnectedInputs(id)
   const [localImages, setLocalImages] = useState(data.imageUrls || [])
+  const render = useRenderImageResolver()
 
   // 卸载时释放所有预览 Blob URL，避免内存泄漏（对齐 VideoProcessNode / AgentPanel）
   useEffect(() => () => { localImages.forEach((u) => previewUrls.release(u)) }, [localImages])
@@ -195,7 +197,7 @@ function FaceMosaicNode({ id, data, selected }) {
             <div className="grid grid-cols-4 gap-1.5">
               {imageUrls().map((u, i) => (
                 <div key={i} className="relative aspect-square bg-surface-black rounded-md overflow-hidden border border-edge group">
-                  <img src={u} alt={`input-${i}`} className="w-full h-full object-cover" loading="lazy" decoding="async" />
+                  <img src={render(u)} alt={`input-${i}`} className="w-full h-full object-cover" loading="lazy" decoding="async" />
                 </div>
               ))}
             </div>
@@ -264,7 +266,7 @@ function FaceMosaicNode({ id, data, selected }) {
           <div className="nodrag nowheel mt-1 mb-2 grid grid-cols-2 gap-1.5 max-h-[140px] overflow-y-auto pr-1 custom-scrollbar">
             {resultUrls.map((u, i) => (
               <div key={i} className="relative aspect-video bg-surface-black rounded-md overflow-hidden border border-edge group">
-                <img src={toAbsoluteFileUrl(u)} alt={`result-${i}`} className="w-full h-full object-cover" loading="lazy" decoding="async" onDoubleClick={(e) => { e.stopPropagation(); zoomRef.current?.showModal() }} />
+                <img src={render(u)} alt={`result-${i}`} className="w-full h-full object-cover" loading="lazy" decoding="async" onDoubleClick={(e) => { e.stopPropagation(); zoomRef.current?.showModal() }} />
                 <div className="absolute top-1 right-1 p-1 bg-black/60 text-gray-300 rounded opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => zoomRef.current?.showModal()}>
                   <ImageIcon size={12} />
                 </div>

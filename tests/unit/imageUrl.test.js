@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { toAbsoluteFileUrl, normalizeImageUrl, normalizeImageUrlForSend, normalizeImageUrlsForSend, toImageContentBlocks } from '../../src/components/base/imageUrl.js'
+import { toAbsoluteFileUrl, toRelativeFileUrl, buildThumbnailUrl, resolveImageUrl, normalizeImageUrl, normalizeImageUrlForSend, normalizeImageUrlsForSend, toImageContentBlocks } from '../../src/components/base/imageUrl.js'
 
 // blobToDataUrl / urlToDataUrl 依赖 httpClient 与 FileReader（node 无原生实现），在此 mock。
 vi.mock('../../src/components/base/httpClient.js', () => ({
@@ -103,6 +103,65 @@ describe('imageUrl · normalizeImageUrlForSend（发送端归一化）', () => {
     httpRequest.mockResolvedValueOnce({ blob: async () => ({ _dataUrl: 'data:image/png;base64,b1' }) })
     const out = await normalizeImageUrlsForSend(['http://x/a.png', 'blob:http://x/b', '', null, undefined])
     expect(out).toEqual(['http://x/a.png', 'data:image/png;base64,b1'])
+  })
+})
+
+// ── resolveImageUrl：前端图片唯一出口（display=render 走按需小图 / send 走原图）──
+describe('imageUrl · resolveImageUrl（统一出口，render 按需小图 / send 原图）', () => {
+  it('toRelativeFileUrl：/files/ 相对原样 / 绝对本地还原相对 / 非本地 null', () => {
+    expect(toRelativeFileUrl('/files/a.png')).toBe('/files/a.png')
+    expect(toRelativeFileUrl('http://127.0.0.1:18080/files/tasks/x.png')).toBe('/files/tasks/x.png')
+    expect(toRelativeFileUrl('http://other/files/y.png')).toBe('/files/y.png') // 任意 http 前缀 files 路径
+    expect(toRelativeFileUrl('data:image/png;base64,xxx')).toBeNull()
+    expect(toRelativeFileUrl('http://x/bare.png')).toBeNull()
+    expect(toRelativeFileUrl('')).toBeNull()
+  })
+
+  const thumb = (u) => new URL(resolveImageUrl(u, { scope: 'render' }))
+
+  it('render：本地 /files/ 相对 → 按需出图端点（url+maxDim 缺省 640）', () => {
+    const url = thumb('/files/a.png')
+    expect(url.origin + url.pathname).toBe('http://127.0.0.1:18080/api/files/thumbnail')
+    expect(url.searchParams.get('url')).toBe('/files/a.png')
+    expect(url.searchParams.get('maxDim')).toBe('640')
+    expect(url.searchParams.get('format')).toBeNull()
+  })
+
+  it('render：绝对本地 URL（DB 存储形态）→ 还原相对再走按需出图', () => {
+    const url = thumb('http://127.0.0.1:18080/files/tasks/x.png')
+    expect(url.origin + url.pathname).toBe('http://127.0.0.1:18080/api/files/thumbnail')
+    expect(url.searchParams.get('url')).toBe('/files/tasks/x.png')
+  })
+
+  it('render：maxDim / 白名单 format 透传；webp 被钳制不产出', () => {
+    const u = new URL(resolveImageUrl('/files/a.png', { scope: 'render', maxDim: 320, format: 'jpeg' }))
+    expect(u.searchParams.get('maxDim')).toBe('320')
+    expect(u.searchParams.get('format')).toBe('jpeg')
+    // webp 非白名单（后端 Jimp 0.22 无法编码）→ 不得产出 format，避免假 webp
+    const w = new URL(resolveImageUrl('/files/a.png', { scope: 'render', maxDim: 320, format: 'webp' }))
+    expect(w.searchParams.get('format')).toBeNull()
+  })
+
+  it('render：非本地（外部 http / data: / blob:）回退原图绝对地址，绝不请求出图端点', () => {
+    expect(resolveImageUrl('http://cdn/x.jpg', { scope: 'render' })).toBe('http://cdn/x.jpg')
+    expect(resolveImageUrl('data:image/png;base64,xxx', { scope: 'render' })).toBe('data:image/png;base64,xxx')
+    expect(resolveImageUrl('blob:http://x/abc', { scope: 'render' })).toBe('blob:http://x/abc')
+  })
+
+  it('send：一律原图绝对地址，不缩图（/files/ 补全绝对；绝对原样）', () => {
+    expect(resolveImageUrl('/files/a.png', { scope: 'send' })).toBe('http://127.0.0.1:18080/files/a.png')
+    expect(resolveImageUrl('http://127.0.0.1:18080/files/a.png', { scope: 'send' })).toBe('http://127.0.0.1:18080/files/a.png')
+    expect(resolveImageUrl('http://cdn/x.jpg', { scope: 'send' })).toBe('http://cdn/x.jpg')
+  })
+
+  it('空 / 非字符串 → 原样返回', () => {
+    expect(resolveImageUrl('')).toBe('')
+    expect(resolveImageUrl(null)).toBeNull()
+    expect(resolveImageUrl(undefined)).toBeUndefined()
+  })
+
+  it('buildThumbnailUrl 非本地 → 回退原图绝对地址', () => {
+    expect(buildThumbnailUrl('http://cdn/x.jpg')).toBe('http://cdn/x.jpg')
   })
 })
 

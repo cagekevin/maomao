@@ -13,16 +13,101 @@
  *
  * 收敛原则：任何新增节点/面板要显示或发送图片，一律用这里，不各写各的 URL 处理。
  */
+import { useCallback } from 'react'
 import { logger } from './logger.js'
 import { httpRequest } from './httpClient.js'
 import { API_BASE } from './config.js'
 import { IMAGE_FETCH_TIMEOUT } from './config.js'
+import { API_ENDPOINTS } from './contracts.js'
+import { useAppSettings } from './appSettings.js'
 
-/** 相对 /files/ 路径 → 完整可访问 URL（对齐后端 resources.ts / base64Externalize 惯例）。 */
+/**
+ * 相对 /files/ 路径 → 完整可访问 URL（对齐后端 resources.ts / base64Externalize 惯例）。
+ */
 export function toAbsoluteFileUrl(url) {
   if (!url || typeof url !== 'string') return url
   if (url.startsWith('/files/')) return `${API_BASE}${url}`
   return url
+}
+
+/** thumbnail format 白名单（与后端 SUPPORTED_THUMB_FORMATS 一致）：仅 Jimp 可编码格式，禁 webp。 */
+const SUPPORTED_THUMB_FORMATS = new Set(['png', 'jpg', 'jpeg', 'gif', 'bmp', 'tiff'])
+
+/**
+ * 绝对本地文件 URL（含 API_BASE 前缀）→ 相对 /files/ 路径；非本地返回 null。
+ * DB 里存的是绝对路径（http://127.0.0.1:18080/files/...），按需出图端点要的是相对 /files/ 形式，
+ * 这里收口「绝对→相对」的还原，避免各组件手写正则。
+ * @param {string} u
+ * @returns {string|null}
+ */
+export function toRelativeFileUrl(u) {
+  if (!u || typeof u !== 'string') return null
+  if (u.startsWith('/files/')) return u
+  const m = /^https?:\/\/[^/]+(\/files\/.*)$/.exec(u)
+  return m ? m[1] : null
+}
+
+/**
+ * 构造本地文件按需出图端点 URL（END P0：render 显示链路取小图）。
+ *  - url 形如 /files/subfolder/name 或对应绝对地址（内部转为相对）；
+ *  - format 缺省不传 → 后端沿用源扩展名；传 'webp' → 同尺寸 webp(quality80 默认)。
+ *  - maxDim 缺省 640：足显常见节点框且解码位图远小于原图（治拖拽卡）可另传覆盖。
+ * 幂等：同 url/maxDim/format 命中同一缩略图缓存文件，重复取图不重复渲染。
+ * @param {string} url
+ * @param {{ maxDim?: number, format?: string }} [opts]
+ * @returns {string}
+ */
+export function buildThumbnailUrl(url, opts = {}) {
+  const rel = toRelativeFileUrl(url)
+  if (!rel) return toAbsoluteFileUrl(url) // 非本地文件，出图端点无法服务，回原图绝对地址
+  const q = new URLSearchParams()
+  q.set('url', rel)
+  q.set('maxDim', String(opts.maxDim || 640))
+  // 仅白名单格式才透传，webp 等 Jimp 无法编码的格式一律不传（防后端假 webp），由后端回退源扩展名
+  if (opts.format && SUPPORTED_THUMB_FORMATS.has(opts.format.toLowerCase())) {
+    q.set('format', opts.format.toLowerCase())
+  }
+  return `${API_BASE}${API_ENDPOINTS.fileThumbnail}?${q.toString()}`
+}
+
+/**
+ * 前端图片「唯一出口」：显示与发送共用一个契约，scope 区分策略。
+ *
+ *  - scope='render'（显示）：本地文件 → 按需小图（前端只解码小位图，治全分辨率拖拽卡）；
+ *    非本地（外部 http / data: / blob: / 裸 base64）→ 原样地址（出图端点无法服务，回退原图，绝不破图）。
+ *  - scope='send'（发送/AI 生图）：一律原图绝对地址（发送需原尺寸保真，不缩图）。
+ *
+ * 格式：format 仅白名单（png/jpg/jpeg/gif/bmp/tiff）透传；webp 当前后端(Jimp 0.22)无法编码，
+ * 统一钳制不产出，避免假 webp 与 MIME 错标。发送保真不引入压缩开关（见 docs/18 P2 决策）。
+ *
+ * 统一解析收口：/files/ 补全与「绝对→相对」均复用既有 toAbsoluteFileUrl / toRelativeFileUrl，
+ * 组件不得再散写 URL 处理；新增显示/发送一律经本函数。
+ * @param {string} url
+ * @param {{ scope?: 'render'|'send', maxDim?: number, format?: string }} [opts]
+ * @returns {string}
+ */
+export function resolveImageUrl(url, opts = {}) {
+  if (!url || typeof url !== 'string') return url
+  const scope = opts.scope || 'render'
+  // thumbnail:false（设置里关掉「显示缩略图」）→ render 也回原图绝对地址，不按需出图
+  if (scope === 'render' && opts.thumbnail !== false && toRelativeFileUrl(url)) {
+    return buildThumbnailUrl(url, { maxDim: opts.maxDim, format: opts.format })
+  }
+  return toAbsoluteFileUrl(url)
+}
+
+/**
+ * React hook：返回一个「显示地址解析器」`resolve(u)`，
+ * 自动读取 app_settings.thumbnailOn（实时生效），关掉缩略图即回原图。
+ * 在渲染内/循环内（如网格格元）直接调用 resolve(u) 即可，避免 hook 进循环。
+ */
+export function useRenderImageResolver() {
+  const settings = useAppSettings()
+  const thumbnail = settings.thumbnailOn !== false
+  return useCallback(
+    (u, extra) => resolveImageUrl(u, { scope: 'render', thumbnail, ...extra }),
+    [thumbnail]
+  )
 }
 
 /**

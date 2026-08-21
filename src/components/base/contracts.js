@@ -142,7 +142,7 @@ export const STORAGE_KEYS = {
     domain: 'settings',
     store: 'appSettings.js',
     backend: 'local',
-    note: '应用设置：{ performanceMode, minimapOn, agentOpen }',
+    note: '应用设置：{ performanceMode, minimapOn, agentOpen, thumbnailOn }——整键随云端同步',
   },
 
   // ── 供应商配置（providerStore）─────────────────────────────────────
@@ -397,6 +397,18 @@ export const NODE_TYPES = {
 
 /** 节点类型值集合（check-node-types 比对用） */
 export const NODE_TYPE_SET = new Set(Object.values(NODE_TYPES))
+
+/**
+ * 前端调用的后端 API 端点（url 路径段）——图片按需出图等 URL 构造处唯一事实来源。
+ * 新增/改动端点路径 → 先在此登记，禁止组件散写裸路径字面量。
+ * 与 BACKEND_ROUTES 的 ACTIVE 清单一致：/api/files/thumbnail 为前端真实调用端点。
+ */
+export const API_ENDPOINTS = {
+  /** 按需出图：GET {API_BASE}/api/files/thumbnail?url=<相对/subfolder/name>&maxDim=&format=
+   *   返回 { thumbnailUrl }。render 显示链路经此取小图；format 白名单仅 png/jpg/jpeg/gif/bmp/tiff，
+   *   Jimp 0.22 无法编码 webp，禁传（前端已钳制，后端亦拒绝回退源扩展名）。 */
+  fileThumbnail: '/api/files/thumbnail',
+}
 
 /**
  * localTool 后端路由库存档（P0-4 死路由标注）。

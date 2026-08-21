@@ -7,6 +7,7 @@ import { useMediaDegrade } from '../base/useMediaDegrade.js'
 import { showToast } from '../base/toastStore.js'
 import { contentSet } from '../base/contentStore.js'
 import { toAbsoluteFileUrl } from '../base/filesApi.js'
+import { useRenderImageResolver } from '../base/imageUrl.js'
 import { downloadUrl } from '../base/clipboard.js'
 import { logger } from '../base/logger.js'
 import previewUrls from '../base/previewUrl.js'
@@ -40,6 +41,7 @@ function VideoExtractNode({ id, data, selected }) {
   const connected = useConnectedInputs(id)
   const { isHidden } = useMediaDegrade()
   const hideVideo = isHidden('video')
+  const render = useRenderImageResolver()
 
   // 模式与参数
   const [mode, setMode] = useState(data.mode || 'count')
@@ -438,7 +440,7 @@ function VideoExtractNode({ id, data, selected }) {
                       key={idx}
                       className="aspect-video bg-black rounded-lg border relative group/img border-edge overflow-hidden"
                     >
-                      <img src={toAbsoluteFileUrl(img)} loading="lazy" decoding="async" className="w-full h-full object-cover" />
+                      <img src={render(img)} loading="lazy" decoding="async" className="w-full h-full object-cover" />
                       <div className="absolute inset-0 bg-black/60 opacity-0 group-hover/img:opacity-100 transition-opacity flex items-center justify-center gap-3">
                         <button
                           onClick={(e) => { e.stopPropagation(); copySingle(img) }}

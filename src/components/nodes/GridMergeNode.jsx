@@ -14,6 +14,7 @@ import ImageZoomDialog from '../base/ImageZoomDialog.jsx'
 import { useContentHeightSync } from '../base/hooks.js'
 import { showToast } from '../base/toastStore.js'
 import { toAbsoluteFileUrl } from '../base/filesApi.js'
+import { useRenderImageResolver } from '../base/imageUrl.js'
 import { logger } from '../base/logger.js'
 import { generateId } from '../base/idGen.js'
 
@@ -94,6 +95,7 @@ function GridMergeNode({ id, data, selected }) {
   const { setNodes, getNodes, getNode, getEdges, setEdges } = useReactFlow()
   const history = useCanvasEdges()
   const { isHidden } = useMediaDegrade()
+  const render = useRenderImageResolver()
   const contentRef = useRef(null)
   // 双击预览图查看大图（原生 <dialog>）
   const [zoomUrl, setZoomUrl] = useState(null)
@@ -482,7 +484,7 @@ function GridMergeNode({ id, data, selected }) {
                     >
                       {n && (
                         <>
-                          <img src={toAbsoluteFileUrl(n)} alt="" className="absolute inset-0 w-full h-full object-cover pointer-events-none" />
+                          <img src={render(n)} alt="" className="absolute inset-0 w-full h-full object-cover pointer-events-none" />
                           <span className="absolute top-1 right-1 px-1 py-px rounded text-meta font-mono pointer-events-none ${isDragTo ? 'bg-blue-500 text-white' : 'bg-black/60 text-white/80'}">
                             {t + 1}
                           </span>
@@ -553,7 +555,7 @@ function GridMergeNode({ id, data, selected }) {
                       className={`relative rounded-[2px] overflow-hidden transition-all flex-1 cursor-grab active:cursor-grabbing ${isDragFrom ? 'opacity-30 ring-2 ring-blue-300' : ''} ${isDragTo ? 'ring-2 ring-blue-400 bg-blue-400/15' : ''}`}
                       style={{ minWidth: longDirection === 'horizontal' ? 40 : 0, minHeight: longDirection === 'vertical' ? 40 : 0 }}
                     >
-                      <img src={toAbsoluteFileUrl(n)} alt="" className="absolute inset-0 w-full h-full object-cover pointer-events-none" />
+                      <img src={render(n)} alt="" className="absolute inset-0 w-full h-full object-cover pointer-events-none" />
                       <span className={`absolute m-1 px-1 py-px rounded text-meta font-mono pointer-events-none ${isDragTo ? 'bg-blue-500 text-white' : 'bg-black/60 text-white/80'}`}>
                         {t + 1}
                       </span>

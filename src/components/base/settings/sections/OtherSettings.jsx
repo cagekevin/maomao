@@ -1,0 +1,93 @@
+import React from 'react'
+import { useAppSettings, setSetting } from '../../appSettings.js'
+import { UI_SETTING_ROWS } from '../settingRegistry.js'
+
+/** 小型开关组件（对齐整体 zinc 风格，开启为青蓝色；与 SkillSettings 一致） */
+function Toggle({ checked, onChange, disabled }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      disabled={disabled}
+      onClick={(e) => {
+        e.stopPropagation()
+        onChange?.(!checked)
+      }}
+      className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full transition-colors border-none
+        ${checked ? 'bg-cyan-400' : 'bg-zinc-700'}
+        ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+    >
+      <span
+        className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform shadow-sm
+          ${checked ? 'translate-x-5' : 'translate-x-1'}`}
+      />
+    </button>
+  )
+}
+
+/** 单项设置行：标题 + 说明 + 右侧开关 */
+function SettingRow({ icon: Icon, title, desc, checked, onChange }) {
+  return (
+    <div className="flex items-center justify-between gap-4 py-4">
+      <div className="flex items-center gap-3 min-w-0">
+        {Icon && <Icon size={18} className="text-gray-400 shrink-0" />}
+        <div className="min-w-0">
+          <div className="text-sm text-zinc-200 font-medium">{title}</div>
+          {desc && <div className="text-xs text-gray-500 mt-0.5">{desc}</div>}
+        </div>
+      </div>
+      <Toggle checked={checked} onChange={onChange} />
+    </div>
+  )
+}
+
+/**
+ * 其他设置（应用设置统一收口，见 docs/18）。
+ *
+ * 开关由 settings/settingRegistry.js 的 UI_SETTING_ROWS 驱动——新增开关只需在注册表加一项，
+ * 这里自动渲染。切换经 appSettings 持久化，且 app_settings 整键随云端同步（见 contracts.js）。
+ */
+export default function OtherSettings() {
+  const settings = useAppSettings()
+
+  // 按 group 分组渲染（注册表顺序即组内顺序）
+  const groups = []
+  for (const row of UI_SETTING_ROWS) {
+    let g = groups.find((x) => x.name === row.group)
+    if (!g) { g = { name: row.group, rows: [] }; groups.push(g) }
+    g.rows.push(row)
+  }
+
+  return (
+    <section>
+      <h2 className="text-base font-semibold text-zinc-100 mb-1">其他设置</h2>
+      <p className="text-xs text-gray-500 mb-4">画布显示与编辑偏好</p>
+
+      <div className="space-y-4">
+        {groups.map((g) => (
+          <div key={g.name} className="bg-surface-1 border border-edge rounded-2xl p-4">
+            <div className="text-xs font-medium text-gray-400 mb-1">{g.name}</div>
+            <div className="divide-y divide-edge-subtle/60">
+              {g.rows.map((row) => {
+                const checked = settings[row.key] !== undefined
+                  ? Boolean(settings[row.key])
+                  : Boolean(row.default)
+                return (
+                  <SettingRow
+                    key={row.key}
+                    icon={row.icon}
+                    title={row.title}
+                    desc={row.desc}
+                    checked={checked}
+                    onChange={(v) => setSetting(row.key, v)}
+                  />
+                )
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  )
+}

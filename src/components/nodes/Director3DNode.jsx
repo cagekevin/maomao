@@ -6,6 +6,7 @@ import NodeShell from '../base/NodeShell.jsx'
 import CustomHandle from '../edges/CustomHandle.jsx'
 import { useConnectedInputs } from '../base/useConnectedInputs.js'
 import { toAbsoluteFileUrl, saveInlineToLocal } from '../base/filesApi.js'
+import { useRenderImageResolver } from '../base/imageUrl.js'
 import { Director3DOverlay } from '../director3d/App.tsx'
 import { generateId } from '../base/idGen.js'
 import { buildSpawnNodes, applySpawnSnapshot } from '../base/deriveNodes.js'
@@ -24,6 +25,7 @@ function Director3DNode({ id, data, selected }) {
   const history = useCanvasEdges()
   const connected = useConnectedInputs(id)
   const [open, setOpen] = useState(false)
+  const render = useRenderImageResolver()
   // 缩略图显示：兼容相对 /files/ 路径（刷新后需补全为绝对 URL 才不破图）
   const imageUrl = toAbsoluteFileUrl(data.imageUrl || '') || null
 
@@ -143,7 +145,7 @@ function Director3DNode({ id, data, selected }) {
         onDoubleClick={(e) => { e.stopPropagation(); setOpen(true) }}
       >
         {imageUrl ? (
-          <img src={imageUrl} className="w-full h-full object-cover" alt="导演台预览" draggable={false} />
+          <img src={render(imageUrl)} className="w-full h-full object-cover" alt="导演台预览" draggable={false} />
         ) : (
           <div className="flex flex-col items-center justify-center absolute inset-0 gap-2 text-gray-600 pointer-events-none">
             <Boxes size={48} strokeWidth={1.2} />

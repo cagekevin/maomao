@@ -850,6 +850,26 @@ test('Files·thumbnail 为文件生成缩略图', async () => {
   assert.ok(body.thumbnailUrl, '应返回 thumbnailUrl');
 });
 
+test('Files·thumbnail format 校验：webp 被拒回落源扩展名，白名单 jpeg 生效', async () => {
+  const canvasDir = path.join(TEST_DIR, 'uploads', 'canvas');
+  fs.mkdirSync(canvasDir, { recursive: true });
+  fs.writeFileSync(path.join(canvasDir, 'fmt.png'), RED_PNG_BUFFER);
+  const abs = encodeURIComponent('/files/canvas/fmt.png');
+
+  // webp：Jimp 0.22 无编码器 → 必须回落源扩展名 .png，绝不产出假 .webp
+  const resW = makeRes();
+  await filesMod.handleThumbnail(makeGetReq(), resW, new URL(`http://x/api/files/thumbnail?url=${abs}&maxDim=64&format=webp`));
+  const thumbW = parseResBody(resW).thumbnailUrl;
+  assert.ok(thumbW.endsWith('.png'), `webp 应回落源扩展名 png, got=${thumbW}`);
+  assert.ok(!thumbW.endsWith('.webp'), '不得产出 .webp 假文件');
+
+  // jpeg：白名单内 → 缩略图扩展名为 .jpg/.jpeg
+  const resJ = makeRes();
+  await filesMod.handleThumbnail(makeGetReq(), resJ, new URL(`http://x/api/files/thumbnail?url=${abs}&maxDim=64&format=jpeg`));
+  const thumbJ = parseResBody(resJ).thumbnailUrl;
+  assert.match(thumbJ, /\.(jpe?g)$/, `jpeg 应产出 .jpeg 缩略图, got=${thumbJ}`);
+});
+
 test('Files·move 移动文件', async () => {
   const canvasDir = path.join(TEST_DIR, 'uploads', 'canvas');
   const destDir = path.join(TEST_DIR, 'uploads', 'migrated');

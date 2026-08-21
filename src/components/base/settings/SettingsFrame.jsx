@@ -1,7 +1,8 @@
 import React from 'react'
-import { ChevronDown, Settings as SettingsIcon, Bot } from 'lucide-react'
+import { ChevronDown, Settings as SettingsIcon, Bot, Sliders } from 'lucide-react'
 import ApiSettings from './sections/ApiSettings.jsx'
 import AgentChatSettings from './sections/AgentChatSettings.jsx'
+import OtherSettings from './sections/OtherSettings.jsx'
 
 /**
  * 设置主框架（侧栏 + 舞台）。
@@ -14,6 +15,8 @@ const SECTIONS = [
   // 2026-08-18：AI 助手改得频繁，提到第一个，默认选中它
   { key: 'agent', label: 'AI 助手', icon: Bot, comp: 'AgentChatSettings' },
   { key: 'api', label: '第三方API配置', icon: SettingsIcon, comp: 'ApiSettings' },
+  // 2026-08-21：其他设置（画布显示/图片偏好收口）
+  { key: 'other', label: '其他设置', icon: Sliders, comp: 'OtherSettings' },
 ]
 
 export default function SettingsFrame() {
@@ -74,6 +77,8 @@ function renderSection(key) {
       return <ApiSettings />
     case 'agent':
       return <AgentChatSettings />
+    case 'other':
+      return <OtherSettings />
     default:
       return <div className="text-center text-sm text-gray-500 py-16">该设置分区尚未实现</div>
   }

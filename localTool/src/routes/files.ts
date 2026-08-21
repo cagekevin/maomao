@@ -16,6 +16,13 @@ import { fetchWithProxy } from '../utils/netProxy.js';
 const PORT = Number(process.env.PORT) || 18080;
 const BASE_URL = `http://127.0.0.1:${PORT}`;
 
+/**
+ * thumbnail `format` 参数白名单：仅 Jimp 0.22 实际可编码的扩展名。
+ * 注意：@jimp/types 不含 webp 编码器，若放行 webp 会在 resizeImage 失败后回退 copyFileSync，
+ * 产出「.webp 文件名 + 原格式字节」的假 webp（不省体积 + MIME 错标）。故一律禁掉。
+ */
+const SUPPORTED_THUMB_FORMATS = new Set(['png', 'jpg', 'jpeg', 'gif', 'bmp', 'tiff']);
+
 // ── upload ──
 export async function handleUpload(req: IncomingMessage, res: ServerResponse): Promise<void> {
   const contentType = req.headers['content-type'] || '';
@@ -244,6 +251,8 @@ export async function handleThumbnail(req: IncomingMessage, res: ServerResponse,
 
   const maxDim = parseInt(url.searchParams.get('maxDim') || '200', 10);
   const quality = parseInt(url.searchParams.get('quality') || '80', 10);
+  // format：目标扩展名（如 webp）。缺省沿用源文件扩展名（保持既有行为，无回归）。
+  const formatParam = url.searchParams.get('format') || '';
 
   // url 是 /files/subfolder/filename 格式，映射到磁盘路径
   const uploadDir = getUploadDir();
@@ -254,8 +263,17 @@ export async function handleThumbnail(req: IncomingMessage, res: ServerResponse,
     return sendError(res, 'File not found', 404);
   }
 
-  // 生成缩略图（与 tryGenerateThumbnail 共用 ensureThumbnailTarget）
-  const { thumbPath, thumbUrl } = ensureThumbnailTarget(filePath, `${maxDim}x${quality}_`);
+  // 目标扩展名：仅接受白名单内 format（否则沿用源扩展名），杜绝假 webp/未知编码。
+  const srcExt = path.extname(filePath).toLowerCase().replace(/^\./, '') || 'png';
+  const outExt = SUPPORTED_THUMB_FORMATS.has(formatParam.toLowerCase()) ? formatParam.toLowerCase() : srcExt;
+
+  // 缩略图缓存路径：复用 ensureThumbnailTarget 解析的缩略图目录，文件名显式含后缀与扩展名，
+  // 使同源同 maxDim/quality/format 只渲染一次（幂等缓存，与 tryGenerateThumbnail 共用缓存目录）。
+  const { thumbDir } = ensureThumbnailTarget(filePath, `${maxDim}x${quality}_`);
+  const stemName = (path.basename(filePath).replace(/\.[a-z0-9]+$/i, '')) || `thumb_${Date.now()}`;
+  const thumbName = `thumb_${maxDim}x${quality}_${outExt}_${stemName}.${outExt}`;
+  const thumbPath = path.join(thumbDir, thumbName);
+  const thumbUrl = `/files/${path.relative(getUploadDir(), thumbDir).replace(/\\/g, '/')}/${thumbName}`;
 
   // maxDim/quality 真正参与缩放与压缩（此前仅拼进文件名后缀，见 docs/35 §2.3）；
   // jimp 不可用/异常时回退复制原图（兜底，docs/19 约束 3「兜底保留」）

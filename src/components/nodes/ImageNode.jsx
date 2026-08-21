@@ -13,6 +13,7 @@ import { useMediaDegrade } from '../base/useMediaDegrade.js'
 import { useFitNodeRatio } from '../base/useFitNodeRatio.js'
 import { useVideoPoster } from '../base/useVideoPoster.js'
 import { toAbsoluteFileUrl, saveInlineToLocal, uploadFileToLocal } from '../base/filesApi.js'
+import { useRenderImageResolver } from '../base/imageUrl.js'
 import { compressImage } from '../base/imageCompress.js'
 import { downloadUrl } from '../base/clipboard.js'
 import { showToast, toastError } from '../base/toastStore.js'
@@ -38,6 +39,8 @@ function ImageNode({ id, data, selected }) {
   // 读取端兜底：相对 /files/ 路径统一补全为绝对 URL，刷新不破图
   const url = toAbsoluteFileUrl(data.imageUrl || data.url || '') || ''
   const { setNodes } = useReactFlow()
+  // 订阅「画布显示缩略图」设置：显示地址实时随开关（见 docs/18）
+  const render = useRenderImageResolver()
 
   // 编辑器开合（复刻官方：同一编辑器，initialTool 决定入口工具）。null=关闭。
   const [editor, setEditor] = useState(null) // { tool: 'crop' | 'pencil' }
@@ -155,6 +158,9 @@ function ImageNode({ id, data, selected }) {
   const DEMO_IMAGE = data.demoImage || 'https://picsum.photos/seed/imagenode/400/260'
   const defaultTitle = type === 'video' ? '视频' : type === 'audio' ? '音频' : type === 'text' ? '文本文件' : '图片'
   const titleIcon = type === 'video' ? <Video size={11} /> : type === 'audio' ? <Music size={11} /> : type === 'text' ? <FileText size={11} /> : <ImageIcon size={11} />
+  // 画布内显示地址：图片走按需小图（END 收口治全分辨率解码卡顿），缩放弹层/发送仍用原图 url。
+  // render scope 仅对本地 /files/ 出小图；外部 http/data/blob 回退原图，绝不破图。
+  const renderUrl = type === 'image' ? render(url) : ''
   const displayUrl = type === 'image' ? url : data.poster || ''
 
   // hover 操作栏按钮
@@ -236,8 +242,8 @@ function ImageNode({ id, data, selected }) {
             </div>
           )}
           {/* 图片（onLoad 按实际比例自适应节点形状；双击查看大图，复刻官方 onDoubleClick→onZoom） */}
-          {type === 'image' && !hideMedia.includes('image') && displayUrl && (
-            <img src={displayUrl} alt="Content" loading="lazy" decoding="async"
+          {type === 'image' && !hideMedia.includes('image') && renderUrl && (
+            <img src={renderUrl} alt="Content" loading="lazy" decoding="async"
               onLoad={fitFromImage}
               onDoubleClick={(e) => { e.stopPropagation(); dialogRef.current?.showModal() }}
               className="w-full h-full object-contain cursor-pointer rounded-lg" draggable={false} />

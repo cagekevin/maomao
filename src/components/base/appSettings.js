@@ -8,15 +8,12 @@
  */
 import { useSyncExternalStore } from 'react'
 import { contentGet, contentSet } from './contentStore.js'
+import { buildDefaults } from './settings/settingRegistry.js'
 
 const KEY = 'app_settings'
 
-// 默认应用设置（对齐官方默认：性能模式默认开）
-const DEFAULTS = {
-  performanceMode: true,   // 缩放性能模式（官方 ge 默认 true）
-  minimapOn: false,        // 小地图默认关
-  agentOpen: false,        // AI 助手默认关
-}
+// 默认应用设置：单一事实来源在 settings/settingRegistry.js（新增开关只改注册表）
+const DEFAULTS = buildDefaults()
 
 let settings = load()
 

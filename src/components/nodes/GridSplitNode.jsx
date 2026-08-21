@@ -9,6 +9,7 @@ import { useMediaDegrade } from '../base/useMediaDegrade.js'
 import { useContentHeightSync } from '../base/hooks.js'
 import { showToast, toastWarning } from '../base/toastStore.js' // 保留阻断校验提示
 import { toAbsoluteFileUrl } from '../base/filesApi.js'
+import { useRenderImageResolver } from '../base/imageUrl.js'
 import { loadImageWithTimeout } from '../base/asyncGuard.js'
 import { logger } from '../base/logger.js'
 import { generateId } from '../base/idGen.js'
@@ -140,6 +141,8 @@ function GridSplitNode({ id, data, selected }) {
   const { setNodes, getNodes, getNode, setEdges, getEdges } = useReactFlow()
   const history = useCanvasEdges()
   const { isHidden } = useMediaDegrade()
+  // 订阅「画布显示缩略图」设置：显示地址实时随开关（见 docs/18）
+  const render = useRenderImageResolver()
   // 内容区引用：高度自适应（内容撑多高，节点就多高，不留空白，复刻 ScriptBoxNode 自适应方案）
   const contentRef = useRef(null)
 
@@ -754,7 +757,7 @@ function GridSplitNode({ id, data, selected }) {
           <div className="relative w-full">
             <div className="relative w-full h-[180px] rounded bg-black/50 overflow-hidden shadow-inner">
               {!isHidden('image') && (
-                <img src={imageUrl} alt="Source" loading="lazy" decoding="async" className="w-full h-full object-contain block opacity-80 select-none pointer-events-none" draggable={false} />
+                <img src={render(imageUrl)} alt="Source" loading="lazy" decoding="async" className="w-full h-full object-contain block opacity-80 select-none pointer-events-none" draggable={false} />
               )}
               <div
                 ref={mainCanvasRef}

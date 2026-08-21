@@ -21,6 +21,7 @@ import { useNodePrefs } from '../base/nodePrefs.js'
 import { showToast } from '../base/toastStore.js'
 import { generateImage } from '../base/imageApi.js'
 import { toAbsoluteFileUrl } from '../base/filesApi.js'
+import { useRenderImageResolver } from '../base/imageUrl.js'
 import { debounce } from '../base/utils.js'
 
 /**
@@ -108,6 +109,7 @@ function TemplateNode({ id, data, selected }) {
   const connected = useConnectedInputs(id)
   // useMediaDegrade：lodLevel>=2 时隐藏生成结果（大画布性能降级）
   const { isHidden } = useMediaDegrade()
+  const render = useRenderImageResolver()
   const hideResult = isHidden('image')
 
   // 上游合并：图片 + 文本（多个上游节点自动聚合；data.images/texts 额外资产也并入）
@@ -254,7 +256,7 @@ function TemplateNode({ id, data, selected }) {
           <div className="flex-1 flex items-center justify-center text-caption text-gray-500">图片已隐藏</div>
         ) : imageUrl ? (
           <div className="flex-1 relative overflow-hidden rounded-lg">
-            <img src={toAbsoluteFileUrl(imageUrl)} alt="" className="w-full h-full object-cover" loading="lazy" />
+            <img src={render(imageUrl)} alt="" className="w-full h-full object-cover" loading="lazy" />
             {gen.error && (
               <div className="absolute inset-x-0 bottom-0 p-2 bg-red-500/80 text-white text-caption"><span className="break-all">{gen.error}</span></div>
             )}
