@@ -333,3 +333,66 @@ describe('TASK-007 2.4 中文参数写法归一', () => {
     expect(n.quality).toBe('high')
   })
 })
+
+describe('Gap B 依赖批 DAG 拓扑调度（兄弟依赖步并行）', () => {
+  it('互不依赖的兄弟依赖步并行执行：最大并发 ≥ 2，各自只连独立步', async () => {
+    const ctx = makeCtx()
+    let concurrency = 0
+    let maxConcurrency = 0
+    runNodeGeneration.mockImplementation(async () => {
+      concurrency++
+      maxConcurrency = Math.max(maxConcurrency, concurrency)
+      await new Promise((r) => setTimeout(r, 5))
+      concurrency--
+      return { ok: true, resultUrl: 'http://r/ok.png' }
+    })
+    const r = await executePlan({
+      ctx,
+      generations: [
+        { id: 'base', prompt: '底图' },
+        { id: 'a', prompt: '变体A', depends_on_previous: true, depends_on_steps: ['base'] },
+        { id: 'b', prompt: '变体B', depends_on_previous: true, depends_on_steps: ['base'] },
+      ],
+    })
+    expect(r.entries.every((e) => e.status === 'completed')).toBe(true)
+    // 兄弟依赖步并行触发（替代旧的逐个串行）→ 最大并发 ≥ 2
+    expect(maxConcurrency).toBeGreaterThanOrEqual(2)
+    const baseNode = r.entries[0].nodeId
+    const edges = ctx.edges()
+    // 变体之间不互连（互不依赖）
+    const depNodes = r.entries.slice(1).map((e) => e.nodeId)
+    const depToDep = edges.filter((e) => depNodes.includes(e.source) && depNodes.includes(e.target))
+    expect(depToDep).toHaveLength(0)
+    // 每个变体只连 base，各 1 条边
+    for (const e of r.entries.slice(1)) {
+      expect(edges.filter((ed) => ed.target === e.nodeId && ed.source === baseNode)).toHaveLength(1)
+    }
+  })
+
+  it('存在真实依赖链（b 依赖 a）时仍按拓扑序等待，不提前触发，b 只连 a', async () => {
+    const ctx = makeCtx()
+    const order = []
+    runNodeGeneration.mockImplementation(async (nodeId) => {
+      order.push(nodeId)
+      return { ok: true, resultUrl: 'http://r/ok.png' }
+    })
+    const r = await executePlan({
+      ctx,
+      generations: [
+        { id: 'base', prompt: '底图' },
+        { id: 'a', prompt: '中间件', depends_on_previous: true, depends_on_steps: ['base'] },
+        { id: 'b', prompt: '终版', depends_on_previous: true, depends_on_steps: ['a'] },
+      ],
+    })
+    expect(r.entries.every((e) => e.status === 'completed')).toBe(true)
+    const aNode = r.entries[1].nodeId
+    const bNode = r.entries[2].nodeId
+    // b 严格在 a 之后触发
+    expect(order.indexOf(aNode)).toBeLessThan(order.indexOf(bNode))
+    // b 只连 a，不直接连 base
+    const baseToB = ctx.edges().filter((ed) => ed.target === bNode && ed.source === r.entries[0].nodeId)
+    const aToB = ctx.edges().filter((ed) => ed.target === bNode && ed.source === aNode)
+    expect(baseToB).toHaveLength(0)
+    expect(aToB).toHaveLength(1)
+  })
+})

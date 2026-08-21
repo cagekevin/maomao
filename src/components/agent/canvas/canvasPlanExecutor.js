@@ -381,9 +381,47 @@ export async function executePlan({ ctx, generations = [], autoRun = true, model
       log('info', '检测到融合意图但无 fusion 步，自动追加融合成品步')
     }
 
-    const prevFailed = entries.filter((e) => e.status !== 'completed').length
-    for (let i = 0; i < dependent.length; i++) {
-      let step = dependent[i]
+    // ── Wave 2：依赖批 · DAG 拓扑调度（替换旧【逐条串行】）──
+    // 【Gap B 系统一致性】依赖步不再机械地逐个等待，而是按真实依赖并行推进（对齐大雄 plan-executor）：
+    //   - 显式 depends_on_steps → 只等其声明的前序步；互不依赖的「兄弟依赖步」并行触发。
+    //   - 未显式声明（depends_on_previous/use_previous_results 链式） → 等全部独立步 + 更早的依赖步，
+    //     与旧顺序执行的 prevOkAll 完全一致，输出不回退。
+    // 门禁保持旧语义：独立批任一步失败 → 依赖批整体跳过（防把失败前序硬跑成错图）。
+    const independentFailedCount = entries.slice(0, independent.length).filter((e) => e.status !== 'completed').length
+
+    // ① 索引：真实 step.id → steps 下标（depends_on_steps 反查）；steps 下标稳定解析（补种克隆也能归位）
+    const realIdToIdx = new Map()
+    steps.forEach((s, i) => { if (s && s.id != null) realIdToIdx.set(String(s.id), i) })
+    const stepsIdxOf = (s) => {
+      const byRef = steps.indexOf(s)
+      if (byRef >= 0) return byRef
+      if (s && s.id != null) return steps.findIndex((t) => t && t.id != null && String(t.id) === String(s.id))
+      return -1
+    }
+    const indepIdxs = independent.map((s) => stepsIdxOf(s)).filter((i) => i >= 0)
+    const depIdxs = dependent.map((s) => stepsIdxOf(s)).filter((i) => i >= 0)
+
+    // 依赖步「前序集合」（steps 下标列表）
+    const predsOf = (step, k) => {
+      const declared = (Array.isArray(step.depends_on_steps) && step.depends_on_steps.length)
+        ? step.depends_on_steps.map(String).map((r) => realIdToIdx.get(r)).filter((i) => i >= 0)
+        : []
+      if (declared.length) return declared
+      return [...indepIdxs, ...depIdxs.slice(0, k)] // 链式：全部独立步 + 更早的依赖步
+    }
+
+    // resolved：step 下标 -> { status, nodeId, resultUrl }（独立批 Wave1 已全部完成，先登记）
+    const resolved = new Map()
+    independent.forEach((s, i) => resolved.set(stepsIdxOf(s), { status: entries[i].status, nodeId: entries[i].nodeId, resultUrl: entries[i].resultUrl }))
+
+    // ② setup（顺序、确定性）：改写 prompt + 资产校验 + 建节点 + 占位 entry。
+    //    连线与前序判定放 DAG 阶段（前序就绪后才能决定 prevOk）；建节点在此先完成以定锚点，防并行创建撞位。
+    let anchorCount = entries.length
+    const depJobs = [] // { di, k, step, nodeId, entry }
+    for (let k = 0; k < dependent.length; k++) {
+      const step0 = dependent[k]
+      const di = stepsIdxOf(step0)
+      let step = step0
       // 【TASK-012 缺口 2】套图自动识别（对齐大雄 L10058/L10209）：对话含"详情页套图/系列"等但 LLM 漏标
       // dependency_mode 时，把未标模式的依赖步强制为 product_reference（第1步当产品定稿，后续步保持一致）。
       const seriesHint = typeof userText === 'string' && looksLikeSeriesPrompt(userText)
@@ -417,53 +455,73 @@ export async function executePlan({ ctx, generations = [], autoRun = true, model
         if (matched.length && !stepRefImages(step).length) {
           step = { ...step, referenceImages: matched }
         } else if (matched.length === 0) {
-          // 依赖步声明了 artifact 但资产表无对应 url → 明确报错（防 prompt 口头猜依赖）
-          entry.status = 'failed'
-          entry.error = `步骤 ${step.id} 声明 input_artifact_ids=${inIds.join(',')} 但资产表无对应 url`
+          // 依赖步声明了 artifact 但资产表无对应 url → 明确报错（防 prompt 口头猜依赖），并登记为已失败供下游解析
+          const entry = { id: step.id || `dep_${k + 1}`, stepId: step.id, nodeId: '', phase: 'dependent', status: 'failed', resultUrl: '', error: `步骤 ${step.id} 声明 input_artifact_ids=${inIds.join(',')} 但资产表无对应 url` }
+          resolved.set(di, { status: 'failed', nodeId: '', resultUrl: '' })
           byId.set(entry.id, entry)
           entries.push(entry)
           continue
         }
       }
-      const anchor = nextAnchor(ctx, base, entries.length)
-      const nodeId = await createGenNode(step, step.index ?? i, anchor)
-      const entry = { id: step.id || `dep_${i + 1}`, stepId: step.id, nodeId, phase: 'dependent' }
-
-      // 前序依赖：把「已成功的独立批节点」连到本步节点（下游 useConnectedInputs 自动读其 imageUrl 当参考图）
-      const prevOkAll = entries.filter((e) => e.status === 'completed' && e.nodeId)
-      // 精确取前序：若 step 显式声明 depends_on_steps，只取这些 id 的成功结果；否则用全部成功前序
-      const depSteps = Array.isArray(step.depends_on_steps) && step.depends_on_steps.length ? step.depends_on_steps.map(String) : []
-      const prevOk = depSteps.length
-        ? prevOkAll.filter((e) => depSteps.includes(String(e.stepId)) || depSteps.includes(String(e.id)))
-        : prevOkAll
-      // 跳过文案带成功/总数（对齐大雄「前置步骤未完成，已跳过融合」+ 重试引导，我们补充成功计数）
-      const indepTotal = independent.length
-      const indepOk = entries.filter((e) => e.phase === 'independent' && e.status === 'completed').length
-      log('info', `依赖步 ${i + 1}「${entry.id}」开始，连接前序成功节点 ${prevOk.length} 个`)
-      if (prevFailed > 0 || prevOk.length === 0) {
-        entry.status = 'failed'
-        entry.error = prevFailed > 0
-          ? `前置步骤未全部成功（成功 ${indepOk} / 共 ${indepTotal}），依赖步骤已跳过，请在画布节点中重试前序`
-          : '无前序成功结果，已跳过'
-        log('warn', entry.error)
-      } else {
-        // 建连线：每个命中的前序结果节点 → 本步节点
-        const edges = prevOk.map((e) => ({ id: `e-plan-${nodeId}-${e.nodeId}`, source: e.nodeId, target: nodeId }))
-        host.appendEdges(edges)
-        if (autoRun) {
-          const r = await runNode(nodeId, step)
-          entry.status = r.status
-          entry.resultUrl = r.resultUrl || ''
-          entry.error = r.error || ''
-          log(r.status === 'completed' ? 'ok' : 'error', `依赖步 ${i + 1}「${entry.id}」${r.status === 'completed' ? '完成' : `失败：${r.error || '未知错误'}`}`)
-        } else {
-          entry.status = 'ready'
-          entry.resultUrl = ''
-          log('info', `依赖步 ${i + 1}「${entry.id}」已就绪，等待确认`)
-        }
-      }
+      const anchor = nextAnchor(ctx, base, anchorCount++)
+      const nodeId = await createGenNode(step, step.index ?? k, anchor)
+      const entry = { id: step.id || `dep_${k + 1}`, stepId: step.id, nodeId, phase: 'dependent' }
       byId.set(entry.id, entry)
       entries.push(entry)
+      depJobs.push({ di, k, step, nodeId, entry })
+    }
+
+    // ③ DAG 并行调度：就绪（前序全部已解析）的兄弟依赖步并行触发；真正有依赖的才前后等待。
+    const predIdxOfIdx = new Map(depJobs.map((j) => [j.di, predsOf(j.step, j.k)]))
+    const pending = new Set(depJobs.map((j) => j.di))
+    const runDep = async (job) => {
+      const { di, k, nodeId, step, entry } = job
+      // 前序依赖：把「已成功且有节点」的前序节点连到本步（下游 useConnectedInputs 自动读其 imageUrl 当参考图）。
+      // 只取本步的前序（显式 depends_on_steps 或链式前序），已失败的 / 无节点的排除在连线之外。
+      const prevOk = predIdxOfIdx.get(di)
+        .map((j) => resolved.get(j))
+        .filter((r) => r && r.status === 'completed' && r.nodeId)
+      const indepTotal = independent.length
+      log('info', `依赖步 ${k + 1}「${entry.id}」开始，连接前序成功节点 ${prevOk.length} 个`)
+      if (independentFailedCount > 0 || prevOk.length === 0) {
+        entry.status = 'failed'
+        entry.error = independentFailedCount > 0
+          ? `前置步骤未全部成功（失败 ${independentFailedCount} 项，成功 ${indepTotal - independentFailedCount} / 共 ${indepTotal}），依赖步骤已跳过，请在画布节点中重试前序`
+          : '无前序成功结果，已跳过'
+        resolved.set(di, { status: 'failed', nodeId, resultUrl: '' })
+        log('warn', entry.error)
+        return
+      }
+      // 建连线：每个命中的前序结果节点 → 本步节点
+      const edges = prevOk.map((e) => ({ id: `e-plan-${nodeId}-${e.nodeId}`, source: e.nodeId, target: nodeId }))
+      host.appendEdges(edges)
+      if (autoRun) {
+        const r = await runNode(nodeId, step)
+        entry.status = r.status
+        entry.resultUrl = r.resultUrl || ''
+        entry.error = r.error || ''
+        resolved.set(di, { status: r.status, nodeId, resultUrl: r.resultUrl || '' })
+        log(r.status === 'completed' ? 'ok' : 'error', `依赖步 ${k + 1}「${entry.id}」${r.status === 'completed' ? '完成' : `失败：${r.error || '未知错误'}`}`)
+      } else {
+        entry.status = 'ready'
+        entry.resultUrl = ''
+        resolved.set(di, { status: 'ready', nodeId, resultUrl: '' })
+        log('info', `依赖步 ${k + 1}「${entry.id}」已就绪，等待确认`)
+      }
+    }
+
+    while (pending.size) {
+      let ready = [...pending].filter((di) => predIdxOfIdx.get(di).every((p) => resolved.has(p)))
+      if (ready.length === 0) {
+        // 环/不可达兜底（正常计划不应出现）：剩余依赖步一把梭，防整单死等
+        ready = [...pending]
+        log('warn', '依赖批存在循环/不可达依赖，剩余依赖步退化为全部并行执行')
+      }
+      await Promise.all(ready.map(async (di) => {
+        pending.delete(di)
+        const job = depJobs.find((j) => j.di === di)
+        if (job) await runDep(job)
+      }))
     }
   }
 

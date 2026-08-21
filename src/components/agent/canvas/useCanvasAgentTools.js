@@ -782,8 +782,12 @@ const presentPlanTool = {
     const gc = args.global_contract && typeof args.global_contract === 'object' ? args.global_contract : null
     if (gc) setCurrentGlobalContract(gc)
     if (Array.isArray(args.artifacts) && args.artifacts.length) setCurrentArtifacts(args.artifacts)
-    // 暂存 generations（用户确认后 execute_plan 可用）；plan_text 由 useAgentChat 展示为用户可见策划
-    setPendingGenerations(gens)
+    // 【Gap A 修复】generations 主通道是「回复正文 JSON」（见本工具 description 与 useAgentChat 正文解析），
+    // 工具参数仅作冗余兜底。故仅当工具实参真带了非空 generations 才覆盖暂存；
+    // 否则严禁用空数组覆盖正文通道已暂存的计划——否则正文里排好的计划会被空参 execute_plan 抹掉（所有步骤无源可查）。
+    if (Array.isArray(args.generations) && args.generations.length > 0) {
+      setPendingGenerations(gens)
+    }
     // 【对齐大雄 runMode 分级】是否进入"待确认"门禁：
     //   - 有 Skill：必然三阶段，进入 awaiting（Skill 需要用户确认策划）。
     //   - 无 Skill + semi：进入 awaiting（半自动：规划后确认再执行，对齐大雄 6282/7774）。
@@ -876,16 +880,26 @@ const executePlanTool = {
       if (getAwaitingConfirm()) {
         return { ok: false, error: '策划尚未确认，请先确认后再执行。' }
       }
-      // 对齐大雄：generations 主通道是「阶段1 暂存」（回复正文解析 / show_plan_for_confirm 传入），
-      // 内存非 null 优先读取，避免阶段3 再让 LLM 扛超大 JSON；仅当内存为空才用本次参数兜底。
+      // 【D缺口·统一计划校验/兜底】generations 全源统一在此收敛判定，确保放行前「至少一个来源有货」：
+      //   主来源①「阶段1 暂存 pendingGenerations」（回复正文解析 / show_plan_for_confirm 传入，内存优先，避免阶段3
+      //   再让 LLM 扛超大 JSON）；兜底来源②execute_plan 本次参数 args.generations。
+      //   二者皆空 → 明确错误透传并给出引导（error 级日志，不静默，透传真实原因），杜绝「有意图却无计划的可执行源」被静默吞掉。
       const pending = getPendingGenerations()
+      const argsGens = Array.isArray(args.generations) ? args.generations : []
       const pendingUsed = Array.isArray(pending) && pending.length > 0
-      let gens = pendingUsed ? pending : (Array.isArray(args.generations) ? args.generations : [])
-      clearPendingGenerations()
-      if (gens.length === 0) {
-        logger.debug('AI助手', '[plan] execute_plan 拒绝：generations 为空', { pendingUsed, argsGenCount: Array.isArray(args.generations) ? args.generations.length : 0 }, { module: 'agent' })
-        return { ok: false, error: 'generations 为空：请在 execute_plan 的 generations 参数中给出本次生图计划（每步一张图），或先让 AI 在阶段1 回复正文里输出 generations JSON。' }
+      const hasPlanSource = pendingUsed || argsGens.length > 0
+      if (!hasPlanSource) {
+        logger.error('AI助手', '[plan] execute_plan 拒绝：无有效计划来源', {
+          pendingExists: Array.isArray(pending) && pending.length > 0,
+          argsGenCount: argsGens.length,
+        }, { module: 'agent' })
+        return {
+          ok: false,
+          error: '未找到生成计划。请确保本次生图已有计划来源：\n1. AI 在回复正文用 ```json 输出 generations 数组，或\n2. 调用 show_plan_for_confirm / 在 execute_plan 的 generations 参数中提供每步计划。\n（若走 Skill 流程，需先完成阶段1 策划确认。）',
+        }
       }
+      let gens = pendingUsed ? pending : argsGens
+      clearPendingGenerations()
       const autoRun = args.auto_run !== false
       // 【模型锁定】用面板生图参数区（getGenParams）作为默认；LLM 显式传 model 则优先。
       const panel = getGenParams()

@@ -595,7 +595,8 @@ describe('画布 Agent 工具层 §2.5', () => {
     const t = buildCanvasAgentTools(ctx)
     const r = await t.execute_plan({}) // 无 generations 也无暂存
     expect(r.ok).toBe(false)
-    expect(r.error).toContain('generations 为空')
+    // 【D缺口】统一兜底：错误透传并给出「未找到生成计划」来源引导，而非静默跳过
+    expect(r.error).toContain('未找到生成计划')
     expect(mockExecutePlan).not.toHaveBeenCalled()
   })
 
@@ -690,7 +691,8 @@ describe('画布 Agent 工具层 §2.5', () => {
     const t = buildCanvasAgentTools(ctx)
     const r = await t.execute_plan({}) // 无 generations 也无暂存
     expect(r.ok).toBe(false)
-    expect(r.error).toContain('generations 为空')
+    // 【D缺口】统一兜底：错误透传并给出「未找到生成计划」来源引导，而非静默跳过
+    expect(r.error).toContain('未找到生成计划')
     expect(mockExecutePlan).not.toHaveBeenCalled()
   })
 })
