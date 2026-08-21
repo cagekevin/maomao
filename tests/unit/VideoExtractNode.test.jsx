@@ -30,10 +30,11 @@ const h = vi.hoisted(() => {
   const clipboardWrite = vi.fn()
   const previewCreate = vi.fn(() => 'blob:upload')
   const patchData = vi.fn()
+  const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), log: vi.fn(), debug: vi.fn() }
   return {
     get connected() { return connected },
     setConnected: (v) => { connected = v },
-    showToast, contentSet, downloadUrl, clipboardWrite, previewCreate, patchData,
+    showToast, contentSet, downloadUrl, clipboardWrite, previewCreate, patchData, logger,
   }
 })
 
@@ -47,7 +48,7 @@ vi.mock('../../src/components/base/toastStore.js', () => ({
 }))
 vi.mock('../../src/components/base/contentStore.js', () => ({ contentSet: (...a) => h.contentSet(...a) }))
 vi.mock('../../src/components/base/clipboard.js', () => ({ downloadUrl: (...a) => h.downloadUrl(...a) }))
-vi.mock('../../src/components/base/logger.js', () => ({ logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), log: vi.fn(), debug: vi.fn() } }))
+vi.mock('../../src/components/base/logger.js', () => ({ logger: h.logger }))
 vi.mock('../../src/components/base/previewUrl.js', () => ({ default: { create: (...a) => h.previewCreate(...a), release: vi.fn() } }))
 vi.mock('../../src/components/base/filesApi.js', () => ({ toAbsoluteFileUrl: mocks.toAbsoluteFileUrl }))
 // 结果落盘唯一入口：断言节点把 extractedImages 写回 node.data（刷新不丢）
@@ -185,7 +186,7 @@ describe('VideoExtractNode — 抽帧完整流程', () => {
     expect(h.showToast).toHaveBeenCalledWith('已截取当前帧')
   })
 
-  it('加载失败（视频 onerror）→ 展示错误信息', async () => {
+  it('加载失败（视频 onerror）→ 展示错误信息 + 分类记录（business）', async () => {
     const origCreate = document.createElement.bind(document)
     // 必须存入 createElSpy：beforeEach 统一 mockRestore，否则 spy 泄漏污染后续用例
     createElSpy = vi.spyOn(document, 'createElement').mockImplementation((tag) => {
@@ -199,6 +200,11 @@ describe('VideoExtractNode — 抽帧完整流程', () => {
     setup({ data: { videoUrl: 'http://x/bad.mp4', videoName: 'bad.mp4' } })
     fireEvent.click(screen.getByText('开始处理'))
     expect(await screen.findByText('无法加载视频')).toBeTruthy()
+    // 【R7 错误分类记录】本地 video 加载失败归 business（不可自动重试），分类进日志（message 经加载逻辑透传/兜底）
+    expect(h.logger.error).toHaveBeenCalledWith(
+      'VideoExtractNode', 'Frame extraction failed',
+      expect.objectContaining({ errType: 'business', retryable: false })
+    )
   })
 })
 

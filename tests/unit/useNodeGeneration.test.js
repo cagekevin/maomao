@@ -11,7 +11,7 @@ import { renderHook, act } from '@testing-library/react'
 
 const patchDataMock = vi.hoisted(() => vi.fn())
 const taskCtlMock = vi.hoisted(() => ({ taskId: 't1', progress: vi.fn(), done: vi.fn(), fail: vi.fn() }))
-const busState = vi.hoisted(() => ({ handler: null }))
+const busState = vi.hoisted(() => ({ handler: null, logger: { info: vi.fn(), debug: vi.fn(), warn: vi.fn(), error: vi.fn() } }))
 
 vi.mock('../../src/components/base/useNodeData.js', () => ({ useNodeData: () => ({ patchData: patchDataMock }) }))
 vi.mock('../../src/components/base/taskStore.js', () => ({
@@ -24,7 +24,7 @@ vi.mock('../../src/components/base/filesApi.js', () => ({ saveResultToTasks: asy
 vi.mock('../../src/components/base/eventBus.js', () => ({
   subscribe: (evt, cb) => { busState.handler = cb; return () => {} }
 }))
-vi.mock('../../src/components/base/logger.js', () => ({ logger: { info: vi.fn(), debug: vi.fn(), warn: vi.fn(), error: vi.fn() } }))
+vi.mock('../../src/components/base/logger.js', () => ({ logger: busState.logger }))
 vi.mock('../../src/components/base/toastStore.js', () => ({ showToast: vi.fn() }))
 
 import { useNodeGeneration } from '../../src/components/base/useNodeGeneration.js'
@@ -41,6 +41,7 @@ describe('useNodeGeneration — resultKey/recoverable（P0-2-b）', () => {
     taskCtlMock.done.mockClear()
     taskCtlMock.fail.mockClear()
     busState.handler = null
+    busState.logger.error.mockClear()
   })
 
   it('非破坏：默认不传时成功路径不自动写 node.data', async () => {
@@ -74,5 +75,29 @@ describe('useNodeGeneration — resultKey/recoverable（P0-2-b）', () => {
     })
     expect(patchDataMock).toHaveBeenCalledTimes(1)
     expect(patchDataMock).toHaveBeenCalledWith({ imageUrl: 'http://x/rec.png' })
+  })
+
+  it('run 抛网络异常 → logger.error 记录 classifyError 分类（network，可重试）', async () => {
+    // 【R7 错误分类记录】异常对象必须经 classifyError 统一分类并进日志，网络错误 retryable:true
+    const { result } = renderHook(() =>
+      useNodeGeneration({ ...baseProps, run: async () => { throw new TypeError('Failed to fetch') } })
+    )
+    await act(async () => { await result.current.start() })
+    expect(busState.logger.error).toHaveBeenCalledWith(
+      '生成', 'fail',
+      expect.objectContaining({ errType: 'network', retryable: true, error: 'Failed to fetch' })
+    )
+  })
+
+  it('run 返回 { ok:false } → logger.error 记录分类 business（契约业务失败，不可重试）', async () => {
+    // 【R7 错误分类记录】契约业务失败（message 字符串）归 business，不自动重试
+    const { result } = renderHook(() =>
+      useNodeGeneration({ ...baseProps, run: async () => ({ ok: false, error: '模型限流' }) })
+    )
+    await act(async () => { await result.current.start() })
+    expect(busState.logger.error).toHaveBeenCalledWith(
+      '生成', 'fail',
+      expect.objectContaining({ errType: 'business', retryable: false, error: '模型限流' })
+    )
   })
 })

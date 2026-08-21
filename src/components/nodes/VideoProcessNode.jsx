@@ -10,6 +10,8 @@ import { useConnectedInputs } from '../base/useConnectedInputs.js'
 import { useMediaDegrade } from '../base/useMediaDegrade.js'
 import { useNodeResize, useContentHeightSync } from '../base/hooks.js'
 import { showToast } from '../base/toastStore.js'
+import { logger } from '../base/logger.js'
+import { classifyError } from '../base/genErrors.js'
 import { withTimeout, isTimeoutError } from '../base/asyncGuard.js'
 import {
   readVideoMetadata,
@@ -952,13 +954,17 @@ function VideoProcessNode({ id, data, selected }) {
         showToast(mode === 'concat' ? '视频拼接完成' : '视频处理完成')
       }
     } catch (e) {
-      // 【R2 视频治理】超时优先于取消判断：withTimeout 超时会 abort + cancel（设置 aborted/isCanceled），
-      // 若先判取消会把超时误归为取消而静默。isTimeoutError 在前，超时明确 fail 提示。
+      // 【R7 错误分类记录】异常经 classifyError 统一分类（timeout/network/business），分类结果进日志供排查；
+      // message 原样透传（错误透传铁律）。超时优先于取消判断：withTimeout 超时会 abort + cancel（设置
+      // aborted/isCanceled），若先判取消会把超时误归为取消而静默。isTimeoutError 在前，超时明确 fail 提示。
+      const cls = classifyError(e)
       if (isTimeoutError(e)) {
+        logger.error('VideoProcessNode', 'process timeout', { error: e?.message, errType: cls.type, retryable: cls.retryable })
         fail(e instanceof Error ? e.message : '视频处理超时')
       } else if (e instanceof ConversionCanceled || abort.signal.aborted || controller.isCanceled) {
         setNodes((ns) => ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, loading: false, progress: 0, errorMessage: undefined } } : n)))
       } else {
+        logger.error('VideoProcessNode', 'process failed', { error: e?.message, errType: cls.type, retryable: cls.retryable })
         fail(e instanceof Error ? e.message : '视频处理失败')
       }
     } finally {

@@ -8,6 +8,8 @@ import { useMediaDegrade } from '../base/useMediaDegrade.js'
 import { uploadFileToLocal, toAbsoluteFileUrl } from '../base/filesApi.js'
 import { useRenderImageResolver } from '../base/imageUrl.js'
 import { showToast, toastError, toastWarning } from '../base/toastStore.js'
+import { logger } from '../base/logger.js'
+import { classifyError } from '../base/genErrors.js'
 import { applyMosaic, MOSAIC_MODES, MOSAIC_PALETTE } from '../base/faceMosaic.js'
 import FaceMosaicEditor from '../base/FaceMosaicEditor.jsx'
 import ImageZoomDialog from '../base/ImageZoomDialog.jsx'
@@ -116,6 +118,9 @@ function FaceMosaicNode({ id, data, selected }) {
         results.push({ url, label: `${MODE_LABEL(mode)} ${i + 1}` })
         faceCount += r.faceCount
       } catch (e) {
+        // 【R7 错误分类记录】单张打码失败不中断（部分成功继续处理后续），分类结果进日志供排查；message 原样透传（错误透传铁律）。
+        const cls = classifyError(e)
+        logger.warn('FaceMosaicNode', 'mosaic single failed', { error: e?.message, errType: cls.type, retryable: cls.retryable })
         firstErr ||= e?.message || '打码失败'
       }
       setProgress(Math.round(((i + 1) / urls.length) * 100))

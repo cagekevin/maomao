@@ -205,7 +205,7 @@
 
 ### C. 🟡 顶层已知待办（改动前先查，看完删）
 
-* 🚧 **统一节点错误降级/重试收敛**：节点级 catch 大多只 setState 不收敛。未开工，改前先 grep 现有半成品。
+* ✅ **统一节点错误降级/重试收敛（R7，2026-08-22）**：4 处错误出口统一补 `classifyError` 分类记录（`genErrors.js`，复用统一机制勿另建）——`useNodeGeneration` 失败路径（run 抛异常 + `{ok:false}`）+ `VideoExtractNode`/`VideoProcessNode` catch + `FaceMosaicNode` 单张失败；分类结果带 `errType`/`retryable` 进日志，message 一律原样透传（错误透传铁律，不吞不伪造）。错误 UI 出口仍归各节点既有 errorMessage/useNodeGeneration.setError，不新造 hook。改前先 grep 现有半成品。
 * ✅ **预览 URL 卸载释放（P2-5）**：`VideoExtractNode` 抽帧现场创建的预览 URL 已在 `finally` 释放；项目切换/新建时 `App` 调用 `previewUrls.clear()` 统一清空。剩余卸载释放缺口待查（防改动边界）。
 * ✅ **性能优化绕道收口**：散落手写 `setTimeout` 防抖/深拷贝已收敛至 `base/utils.js`（`debounce`/`createRafBatch` 等），仅时序敏感处保留手写。
 

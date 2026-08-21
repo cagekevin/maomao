@@ -11,6 +11,7 @@ import { toAbsoluteFileUrl } from '../base/filesApi.js'
 import { useRenderImageResolver } from '../base/imageUrl.js'
 import { downloadUrl } from '../base/clipboard.js'
 import { logger } from '../base/logger.js'
+import { classifyError } from '../base/genErrors.js'
 import previewUrls from '../base/previewUrl.js'
 
 /**
@@ -296,7 +297,10 @@ function VideoExtractNode({ id, data, selected }) {
       video.src = ''
       video.load()
     } catch (err) {
-      logger.error('VideoExtractNode', 'Frame extraction failed', err)
+      // 【R7 错误分类记录】抽帧异常经 classifyError 统一分类（本地处理多为 business；加载远程视频失败为 network），
+      // 分类结果进日志供排查；message 原样透传（错误透传铁律），UI 错误态仍走 errorMessage 节点展示。
+      const cls = classifyError(err)
+      logger.error('VideoExtractNode', 'Frame extraction failed', { error: err?.message, errType: cls.type, retryable: cls.retryable })
       setLoading(false)
       setErrorMessage(err.message || '抽帧失败，可能是视频格式或跨域限制')
     } finally {

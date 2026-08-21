@@ -5,6 +5,7 @@ import { logger } from './logger.js'
 import { subscribe } from './eventBus.js'
 import { showToast } from './toastStore.js'
 import { useNodeData } from './useNodeData.js'
+import { classifyError } from './genErrors.js'
 
 /**
  * ════════════════════════════════════════════════════════════════
@@ -138,10 +139,13 @@ export function useNodeGeneration({ nodeId, type, validate, run, onSuccess, onRe
         return { ok: true, resultUrl: '' }
       } else {
         const msg = r?.error || '生成失败'
+        // 【R7 错误分类记录】run 返回 { ok:false } 是契约业务失败（message 为字符串），
+        // classifyError 归 business（非网络/超时，不自动重试）——分类结果记录进日志，供全链路排查。
+        const cls = classifyError(msg)
         setError(msg)
         taskCtl.fail(msg)
         // 生成失败：统一 logger + 全局 toast（节点内红字易忽略；logger 供全链路排查）
-        logger.error('生成', 'fail', { nodeId, type: t.type, prompt: t.prompt, error: msg })
+        logger.error('生成', 'fail', { nodeId, type: t.type, prompt: t.prompt, error: msg, errType: cls.type, retryable: cls.retryable })
         showToast(msg, { type: 'error' })
         return { ok: false, error: msg }
       }
@@ -155,10 +159,13 @@ export function useNodeGeneration({ nodeId, type, validate, run, onSuccess, onRe
       }
       logger.error('useNodeGeneration', '生成异常', e?.message)
       const msg = e?.message || '生成失败'
+      // 【R7 错误分类记录】异常对象经 classifyError 统一分类（abort/timeout/network/http/business），
+      // 分类结果记录进日志：网络/超时（retryable）供「再来一次/自动重试」决策，业务失败不自动重试（防封号）。
+      const cls = classifyError(e)
       setError(msg)
       taskCtl.fail(msg)
       // 生成异常：统一 logger + 全局 toast（用户主动停止 AbortError 除外）
-      logger.error('生成', 'fail', { nodeId, type: t.type, prompt: t.prompt, error: msg })
+      logger.error('生成', 'fail', { nodeId, type: t.type, prompt: t.prompt, error: msg, errType: cls.type, retryable: cls.retryable })
       showToast(msg, { type: 'error' })
       return { ok: false, error: msg }
     } finally {
