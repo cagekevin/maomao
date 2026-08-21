@@ -66,14 +66,17 @@ const h = vi.hoisted(() => {
   }
 })
 
-vi.mock('../../src/components/agent/runtime/useAgentChat.js', () => ({
+// AgentPanel 现从聚合入口 agent/index.js import（useAgentChat/setGenParams/getGenParams），
+// vitest 按模块路径 mock——必须 mock index.js 而非深层路径，否则 mock 失效（M0 聚合入口收口）。
+vi.mock('../../src/components/agent/index.js', () => ({
   useAgentChat: (...a) => h.useAgentChat(...a),
+  setGenParams: vi.fn(),
+  getGenParams: () => ({}),
 }))
 vi.mock('../../src/components/base/settings/providerStore.js', () => ({ useProviders: () => [], load: vi.fn(async () => {}) }))
 vi.mock('../../src/components/base/settings/agentModelStore.js', () => ({ loadAgentChatModel: () => ({}) }))
 vi.mock('../../src/components/base/providerModels.js', () => ({ buildAllModels: () => [] }))
 vi.mock('../../src/components/base/hooks.js', () => ({ useOutsideClick: () => {} }))
-vi.mock('../../src/components/agent/canvas/useCanvasAgentTools.js', () => ({ setGenParams: vi.fn(), getGenParams: () => ({}) }))
 vi.mock('../../src/components/base/skillStore.js', () => ({
   getAllSkills: () => h.skills,
   markSkillUsed: (...a) => h.markSkillUsed(...a),

@@ -4,9 +4,7 @@ import { loadAgentChatModel, loadAgentHistoryTurns } from '../../base/settings/a
 import { logger } from '../../base/logger.js'
 import { API_BASE } from '../../base/config.js'
 import { LLM_CHAT_BASE_URL, LLM_CHAT_API_KEY, LLM_CHAT_MODEL, AGENT_DEMO_MODE } from '../../base/config.js'
-import { normalizeImageUrlForSend } from '../../base/imageUrl.js'
 import { InputStateMachine } from './inputStateMachine.js'
-import { generateId } from '../../base/idGen.js'
 
 /**
  * 【过渡方案·2026-08-18 决策注释】回传给 LLM 的「历史纯文字」轮数（由 AI 助手设置控制，不硬编码）。
@@ -39,6 +37,11 @@ import {
 // 运行时逻辑（依赖注入版本）。hook 内以 const roundTrip 等同名闭包封装调用，
 // 故此处用别名避免与 hook 内的函数名冲突。
 import { roundTrip as agentRuntimeRoundTrip, runToolCalls as agentRuntimeRunToolCalls, runDemoMode as agentRuntimeRunDemoMode } from './agentRuntime.js'
+// 工作流状态迁移（M2 收口：steer/起步/awaiting_confirm/终态/队列出队的纯函数，落盘仍走 patchCurrentWorkflow）
+import { wfStart, wfSteer, wfFinish, wfAwaitConfirm, wfNextSteer } from './workflowState.js'
+// 消息构造/落盘 + 附件归一化（M3 下沉：appendMsg/setHistory/updateLastStreaming/endStreaming/stripStreaming → agentMessages；附件/参考图目录 → agentAttachments）
+import { appendMsg, setHistory, updateLastStreaming, endStreaming, stripStreaming } from './agentMessages.js'
+import { normalizeAttachmentsForSend, buildRefCatalog } from './agentAttachments.js'
 import {
   ensureActiveConversation,
   setAgentKey,
@@ -57,7 +60,6 @@ import {
   setCurrentPending,
   getCurrentMemory,
   setCurrentMemory,
-  patchCurrentMessages,
   setSending,
   setAwaitingConfirm,
   getAwaitingConfirm,
@@ -72,10 +74,7 @@ import {
 import { subscribe, getState } from '../conversation/conversationState.js'
 import { useStoreSelector, shallowEqual } from '../../base/useStoreSelector.js'
 
-// P15 列表 key 收口：给消息补稳定唯一 id（已有 id 保留）。appendMsg/setHistory 统一走它，
-// 保证 AgentPanel 的 messages.map 可用 key={m.id}（此前无 id，只能 key={i}，插入/删除会错位）。
-// 幂等：二次调用不改已补 id。
-const withMsgId = (m) => (m && typeof m === 'object' && m.id ? m : { ...m, id: generateId('msg') })
+// P15 列表 key 收口（收口在 agentMessages.js：appendMsg/setHistory 统一 withMsgId 补稳定唯一 id）
 
 /**
  * ════════════════════════════════════════════════════════════════
@@ -268,58 +267,10 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
   useEffect(() => { skillsRef.current = skills }, [skills])
 
   /**
-   * ── 消息同步辅助（唯一入口，全部落 store；无第二份可变数组）──
-   * 异步闭包内同步读 getCurrentSnapshot().messages 拿最新历史。
+   * ── 消息同步辅助（M3 下沉至 agentMessages.js：唯一入口，全部落 store；无第二份可变数组）──
    * 低频动作（appendMsg/setHistory/stripStreaming）走 setCurrentSnapshot（落盘）；
    * 高频流式（updateLastStreaming/endStreaming）走 patchCurrentMessages（仅通知不落盘）。
    */
-  // 追加一条消息（低频；落盘）。单源：读 store 当前消息 + 追加 → setCurrentSnapshot（内部 300ms 落盘节流合并）。
-  //   工具循环内多次调用安全——每次读的都是最新 store，无第二份可变数组。
-  const appendMsg = useCallback((msg) => {
-    const m = withMsgId(msg)
-    setCurrentSnapshot({ messages: [...getCurrentSnapshot().messages, m] })
-  }, [])
-
-  // 整体替换历史（低频；落盘。P15：统一补稳定消息 id，保证 AgentPanel 列表 key 稳定）
-  const setHistory = useCallback((next) => {
-    const normalized = (Array.isArray(next) ? next : []).map(withMsgId)
-    setCurrentSnapshot({ messages: normalized })
-  }, [])
-
-  // 更新最后一条 streaming assistant 的增量（高频流式热路径；仅通知不落盘，最终态由 send finally 统一落盘）
-  const updateLastStreaming = useCallback((delta) => {
-    // 同步性：patchCurrentMessages 内部 commit 同步更新 store 并 notify，
-    //   调用后立即 getCurrentSnapshot() 即是最新 —— 杜绝异步回调读到空 streaming 占位。
-    const cur = getCurrentSnapshot().messages
-    const next = cur.map((m, i) => {
-      if (i !== cur.length - 1 || m.role !== 'assistant' || !m.streaming) return m
-      // 只保留真实 tool_calls（name 非空）；为空则不设该字段，杜绝空数组进历史 → LLM 报 Empty tool_calls
-      const realCalls = delta.toolCalls.filter((t) => t.function?.name)
-      return {
-        ...m,
-        content: delta.content,
-        reasoning: delta.reasoning || undefined,
-        ...(realCalls.length > 0 ? { tool_calls: realCalls } : {})
-      }
-    })
-    patchCurrentMessages(next)
-  }, [])
-
-  // 结束流式：把最后一条 streaming 占位替换为完整 assistant（高频流式末拍；仅通知不落盘，finally 统一落盘）
-  const endStreaming = useCallback((assistant) => {
-    // 【key 稳定修复】替换时必须保留原占位消息的 id（assistant 对象可能无 id）——
-    //   否则 key={m.id} 变 undefined，AI 发消息（流式结束）时触发 React「列表缺 key」警告。
-    const cur = getCurrentSnapshot().messages
-    const next = cur.map((m, i) =>
-      i === cur.length - 1 ? { ...assistant, id: m.id, streaming: false } : m
-    )
-    patchCurrentMessages(next)
-  }, [])
-
-  // 清理所有 streaming 残留占位（循环中途出错可能残留多轮 streaming:true 占位；低频；落盘）
-  const stripStreaming = useCallback(() => {
-    setCurrentSnapshot({ messages: getCurrentSnapshot().messages.filter((m) => !m.streaming) })
-  }, [])
 
   // 初始加载会话（对齐大雄：从 conversations 恢复当前对话；旧单会话数据迁移一次）。
   useEffect(() => {
@@ -440,8 +391,7 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
       //    不打断当前任务，结束后自动执行。队列挂在 workflow 上，切换对话不串台（对齐大雄）。──
       //    忙判定用复合 isAgentBusy()（store.sending 发送锁 + 状态机 running），防发送未收尾时并发双发。
       if (isAgentBusy()) {
-        const wf = getCurrentWorkflow() || patchCurrentWorkflow({ status: 'running' })
-        patchCurrentWorkflow({ steerQueue: [...(wf.steerQueue || []), { text, attachments: attachments || [] }] })
+        patchCurrentWorkflow(wfSteer(text, attachments))
         appendMsg({ role: 'user', content: text, createdAt: Date.now(), steer: true, statusLabel: '已排队' })
         try { captureActiveConversation() } catch { /* 忽略 */ } // 落盘队列，切对话不丢
         return
@@ -452,27 +402,20 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
       setError(null)
       stateMachineRef.current.start({ status: 'planning' })
       setCurrentSnapshot({ messages: getCurrentSnapshot().messages, skills: skillsRef.current, draft: '', attachments: [] })
-      patchCurrentWorkflow({ status: 'planning', steerQueue: getCurrentWorkflow()?.steerQueue || [], startedAt: Date.now() })
+      patchCurrentWorkflow(wfStart())
       setCurrentPending({ conversationId: getActiveConversationId(), text, attachments: attachments || [] })
 
       // 构造 user 消息（附件归一化：blob→data、相对→绝对；只认 base64 的 provider 转 base64）
       const userMsg = { role: 'user', content: text, createdAt: Date.now(), skills: skillsRef.current.slice() }
       if (attachments && attachments.length > 0) {
-        // 发送统一出口守卫：附件图必经归一（含缩略图端点自动还原原图），禁止发 render 小图。见 imageUrl.js thumbnailToOriginal
-        userMsg.attachments = await Promise.all(
-          attachments.map(async (a) => ({ ...a, url: await normalizeImageUrlForSend(a?.url, { preferBase64: provider?.refFormat === 'base64' }) }))
-        )
+        // 发送统一出口守卫：附件图必经归一（含缩略图端点自动还原原图），禁止发 render 小图。见 agentAttachments.js
+        userMsg.attachments = await normalizeAttachmentsForSend(attachments, { preferBase64: provider?.refFormat === 'base64' })
         // 【参考图编号目录】对齐大雄：给 AI 参考图顺序编号（按输入框从左到右），
         // AI 才能在 generations 里用 attachment_indices 精确引用「第几张图」（0-based）。
         // 只对「图片附件」编号（含来自画布选中节点的图）；nodeId 记录来源便于执行器定位。
         const imgAtts = userMsg.attachments.filter((a) => a.type !== 'node')
         if (imgAtts.length > 0) {
-          const lines = ['【本轮参考图顺序（仅作为编号数据）】']
-          imgAtts.forEach((a, i) => {
-            lines.push(`参考图${i + 1}：${a.label || a.name || `Image${i + 1}`}` + (a.nodeId ? `（画布节点 ${a.nodeId}）` : ''))
-          })
-          lines.push('编号固定按输入框从左到右排列。引用某张图做图生图时，在 generations 里用 attachment_indices 指向其编号（0-based：参考图1→0）。')
-          userMsg.refCatalog = lines.join('\n')
+          userMsg.refCatalog = buildRefCatalog(imgAtts)
         }
         // 参考图 URL 池写入模块级：execute_plan 工具按 AI 的 attachment_indices 精确取用（对齐大雄）
         setCurrentReferenceImages(imgAtts.map((a) => a.url).filter(Boolean))
@@ -576,14 +519,14 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
         // 【三阶段门禁】展示策划后暂停：workflow 置 awaiting_confirm，状态机同步，等待用户确认按钮。
         // 不清空 pending（用户确认后 send('已确认，请按策划执行') 会重建），也不再自动执行 steer 队列。
         if (pausedForConfirm) {
-          patchCurrentWorkflow({ status: 'awaiting_confirm', updatedAt: Date.now() })
+          patchCurrentWorkflow(wfAwaitConfirm())
           try { captureActiveConversation() } catch { /* 忽略 */ }
           stateMachineRef.current.setStatus('awaiting_confirm')
           setSending(false)
           abortRef.current = null
           return
         }
-        patchCurrentWorkflow({ status: wfStatus, updatedAt: Date.now() })
+        patchCurrentWorkflow(wfFinish(ok, aborted))
         logger.debug('AI助手', '[发送] 终态', { status: wfStatus, rounds: round, pausedForConfirm, steerQueueLen: (getCurrentWorkflow()?.steerQueue || []).length }, { module: 'agent' })
         setCurrentPending(null)
         try { captureActiveConversation() } catch { /* 落盘失败忽略 */ }
@@ -591,10 +534,8 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
         setSending(false)
         abortRef.current = null
         // ── steer 队列：当前任务结束，自动执行下一条补充指令（per-conversation workflow.steerQueue）──
-        const wf = getCurrentWorkflow()
-        const steerQ = wf?.steerQueue || []
-        const next = steerQ.shift()
-        patchCurrentWorkflow({ steerQueue: steerQ, status: next ? 'planning' : wfStatus, updatedAt: Date.now() })
+        const { next, patch: wfNextCtx } = wfNextSteer(wfStatus)
+        patchCurrentWorkflow(wfNextCtx)
         try { captureActiveConversation() } catch { /* 忽略 */ }
         if (next) sendRef.current?.(next.text, next.attachments)
       }
@@ -625,10 +566,8 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
 
       const userMsg = { role: 'user', content: prompt, createdAt: Date.now(), mode: 'image', skills: [] }
       if (attachments && attachments.length > 0) {
-        // 发送统一出口守卫：附件图必经归一（含缩略图端点自动还原原图），禁止发 render 小图。见 imageUrl.js thumbnailToOriginal
-        userMsg.attachments = await Promise.all(
-          attachments.map(async (a) => ({ ...a, url: await normalizeImageUrlForSend(a?.url, { preferBase64: provider?.refFormat === 'base64' }) }))
-        )
+        // 发送统一出口守卫：附件图必经归一（含缩略图端点自动还原原图），禁止发 render 小图。见 agentAttachments.js
+        userMsg.attachments = await normalizeAttachmentsForSend(attachments, { preferBase64: provider?.refFormat === 'base64' })
       }
       setHistory([...getCurrentSnapshot().messages, userMsg])
 
@@ -679,7 +618,7 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
         appendMsg({ role: 'assistant', content: `生图异常：${e?.message || e}`, mode: 'image', createdAt: Date.now() })
       } finally {
         setCurrentSnapshot({ messages: getCurrentSnapshot().messages, skills: skillsRef.current, draft: '' })
-        patchCurrentWorkflow({ status: 'completed', updatedAt: Date.now() })
+        patchCurrentWorkflow(wfFinish(true))
         setCurrentPending(null)
         try { captureActiveConversation() } catch { /* ignore */ }
         stateMachineRef.current.setStatus('idle')
