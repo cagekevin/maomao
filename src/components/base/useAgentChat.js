@@ -247,13 +247,12 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
   const systemRef = useRef(systemPrompt)
   const skillsRef = useRef(skills)
   const abortRef = useRef(null)
-  // 同步的发送态，防「sending state 是异步更新、快速双击读到旧值」导致的并发双发
-  const sendingRef = useRef(false)
-  // 【复合忙判定】对齐大雄 agentIsTaskBusy：不只是发送锁，还复合「状态机是否运行中」。
-  // 防止 sendingRef 异常提前释放、或上轮任务尚未真正收尾时，用户又开新一轮（并发双发/插话串台）。
-  // 读 ref 不依赖渲染，可直接在 async send/sendImageMode 闭包里安全调用。
+  // 【复合忙判定】对齐大雄 agentIsTaskBusy：发送锁（store.sending）+ 状态机是否运行中。
+  // 2026-08-21 消除 sendingRef 双源：异步闭包用 getState().sending 同步读最新（setSending → commit 同步更新 store，
+  // 无需依赖渲染；与旧 sendingRef 的"同步读防并发"语义等价，单一真相收口到 store）。
+  // 注意：store.sending 是 per-agentKey（跨实例可见）——当前 AgentPanel 单实例无差，多实例时更严格防并发。
   const isAgentBusy = useCallback(() => {
-    return sendingRef.current || !!stateMachineRef.current?.isRunning?.()
+    return !!getState().sending || !!stateMachineRef.current?.isRunning?.()
   }, [])
   // 输入状态机（#7）：推导 send/stop/steer/retry/idle；每次状态变化回写 action
   const stateMachineRef = useRef(new InputStateMachine({ onChange: (snap, action) => {
@@ -439,7 +438,7 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
 
       // ── steer（补充指令，#7）：任务进行中再发送 → 排入当前对话 workflow.steerQueue（per-conversation），
       //    不打断当前任务，结束后自动执行。队列挂在 workflow 上，切换对话不串台（对齐大雄）。──
-      //    忙判定用复合 isAgentBusy()（发送锁 + 状态机 running），防 sendingRef 异常/未收尾时并发双发。
+      //    忙判定用复合 isAgentBusy()（store.sending 发送锁 + 状态机 running），防发送未收尾时并发双发。
       if (isAgentBusy()) {
         const wf = getCurrentWorkflow() || patchCurrentWorkflow({ status: 'running' })
         patchCurrentWorkflow({ steerQueue: [...(wf.steerQueue || []), { text, attachments: attachments || [] }] })
@@ -448,8 +447,8 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
         return
       }
 
-      // ── 准备：锁定发送、置 planning、写 pending（供刷新恢复）──
-      sendingRef.current = true
+      // ── 准备：锁定发送（store.sending 同步置位，防附件 await 期间并发双发）、置 planning、写 pending ──
+      setSending(true)
       setError(null)
       stateMachineRef.current.start({ status: 'planning' })
       setCurrentSnapshot({ messages: getCurrentSnapshot().messages, skills: skillsRef.current, draft: '', attachments: [] })
@@ -478,7 +477,6 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
         setCurrentReferenceImages(imgAtts.map((a) => a.url).filter(Boolean))
       }
       setHistory([...getCurrentSnapshot().messages, userMsg])
-      setSending(true)
 
       // 【链路日志】AI 助手发送：内容摘要 + 附件（图片）数，供排查发送环节
       logger.info('AI助手', '发送', { text: String(text).slice(0, 80), attachCount: (userMsg.attachments || []).length, skillCount: (userMsg.skills || []).length })
@@ -581,7 +579,6 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
           try { captureActiveConversation() } catch { /* 忽略 */ }
           stateMachineRef.current.setStatus('awaiting_confirm')
           setSending(false)
-          sendingRef.current = false
           abortRef.current = null
           return
         }
@@ -591,7 +588,6 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
         try { captureActiveConversation() } catch { /* 落盘失败忽略 */ }
         stateMachineRef.current.setStatus(ok ? 'idle' : 'failed')
         setSending(false)
-        sendingRef.current = false
         abortRef.current = null
         // ── steer 队列：当前任务结束，自动执行下一条补充指令（per-conversation workflow.steerQueue）──
         const wf = getCurrentWorkflow()
@@ -622,8 +618,7 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
       if (!prompt && (!attachments || attachments.length === 0)) return
       if (isAgentBusy()) return // 复合忙判定（发送锁 + 状态机 running），防并发双发
       if (!prompt) { setError('图像模式请输入最终生图提示词'); return }
-      sendingRef.current = true
-      setSending(true)
+      setSending(true) // 同步锁（store.sending），防附件 await 期间并发
       setError(null)
       stateMachineRef.current.start({ status: 'running' })
 
@@ -687,7 +682,6 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
         try { captureActiveConversation() } catch { /* ignore */ }
         stateMachineRef.current.setStatus('idle')
         setSending(false)
-        sendingRef.current = false
       }
     },
     [callTool, provider, appendMsg, setHistory, isAgentBusy]
@@ -727,7 +721,7 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
 
   /** 新建对话（#9）：capture 当前 → 建空对话并切换；通知 UI 层更新 skills/草稿 */
   const newChat = useCallback(() => {
-    if (sendingRef.current) return
+    if (getState().sending) return
     setCurrentSnapshot({ messages: getCurrentSnapshot().messages, skills: skillsRef.current, draft: '' })
     const { id, snapshot } = newConversation()
     applyConversationState(id, snapshot)
@@ -735,7 +729,7 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
 
   /** 切换对话（#9） */
   const switchChat = useCallback((id) => {
-    if (sendingRef.current || !id || id === getActiveConversationId()) return
+    if (getState().sending || !id || id === getActiveConversationId()) return
     setCurrentSnapshot({ messages: getCurrentSnapshot().messages, skills: skillsRef.current, draft: '' })
     const snapshot = switchConversation(id)
     applyConversationState(id, snapshot)
@@ -743,7 +737,7 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
 
   /** 删除对话（#9）：删除后自动切到下一个；若全删空则建新对话 */
   const deleteChat = useCallback((id) => {
-    if (sendingRef.current) return
+    if (getState().sending) return
     setCurrentSnapshot({ messages: getCurrentSnapshot().messages, skills: skillsRef.current, draft: '' })
     const { activeId, snapshot } = deleteConversation(id)
     applyConversationState(activeId, snapshot)

@@ -933,4 +933,14 @@ describe('useAgentChat · 阶段1D 薄壳化（sending/activeId 订阅 store）'
     expect(result.current.getCurrentRunMode).toBe(convStore.getCurrentRunMode)
     expect(result.current.setCurrentRunMode).toBe(convStore.setCurrentRunMode)
   })
+
+  it('发送锁单一真相：send 一开始即同步置位 store.sending（不再依赖独立 sendingRef）', async () => {
+    // fetch 挂起（不 resolve），保证发送中；store.sending 应是同步 true 且无需等 UI 渲染
+    fetchMock.mockImplementation(() => new Promise(() => {}))
+    const { result } = renderHook(() => useAgentChat())
+    expect(sharedConvStore.state.sending).toBe(false)
+    act(() => { result.current.send('挂起任务').catch(() => {}) })
+    // 同步锁：进入 send 骨架即置位，异步闭包 getState().sending 可读——是"发送锁"的唯一真相
+    expect(sharedConvStore.state.sending).toBe(true)
+  })
 })
