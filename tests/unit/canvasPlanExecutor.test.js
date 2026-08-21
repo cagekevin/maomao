@@ -22,6 +22,7 @@ function makeCtx(initialNodes = []) {
     addNodes: (ns) => { nodes = [...nodes, ...ns] },
     addEdges: (es) => { edges = [...edges, ...es] },
     setNodes: (fn) => { nodes = typeof fn === 'function' ? fn(nodes) : fn },
+    setEdges: (fn) => { edges = typeof fn === 'function' ? fn(edges) : fn },
   }
 }
 

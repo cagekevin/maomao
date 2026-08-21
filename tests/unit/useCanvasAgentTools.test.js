@@ -96,9 +96,13 @@ describe('buildCanvasAgentTools', () => {
     expect(res.ok).toBe(true)
     expect(res.data.id).toMatch(/^textNode_/)
     expect(ctx.setNodes).toHaveBeenCalled()
-    // 写入的节点含正确 data
-    const written = ctx.setNodes.mock.calls[0][0]
-    expect(written.some((n) => n.id === res.data.id && n.data.prompt === '你好')).toBe(true)
+    // 断言「写」的行为而非 setNodes 的实现形式（host 走函数式更新）：传入当前节点数组，
+    // 应追加正确 data 的新节点、且不影响既有节点。
+    const applyFn = ctx.setNodes.mock.calls[0][0]
+    expect(typeof applyFn).toBe('function')
+    const result = applyFn([{ id: 'existing', data: {} }])
+    expect(result.some((n) => n.id === res.data.id && n.data.prompt === '你好')).toBe(true)
+    expect(result.some((n) => n.id === 'existing')).toBe(true)
   })
 
   it('create_node 用非法 type → ok:false 且给出可选类型', () => {
