@@ -14,6 +14,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 // 隔离外部依赖（网络 / 模型 / toast），仅保留 scriptBoxPrompts（纯提示词拼接）
 vi.mock('../../src/components/base/chatApi.js', () => ({ chatCompletions: vi.fn() }))
 vi.mock('../../src/components/base/imageApi.js', () => ({ generateImage: vi.fn() }))
+// 统一出口：toAbsoluteFileUrl 把相对 /files/ 补全为绝对原图（与 imageUrl.js 真实行为一致，注入 data.images 前收口）
+vi.mock('../../src/components/base/imageUrl.js', () => ({
+  toAbsoluteFileUrl: (u) => (u && u.startsWith('/files/') ? `http://127.0.0.1:18080${u}` : u || ''),
+}))
 vi.mock('../../src/components/base/providerModels.js', () => ({
   resolveProviderModel: vi.fn(() => ({ provider: 'openai', modelId: 'gpt-4o-mini' })),
   buildAllModels: vi.fn(() => [{ id: 'gpt-4o-mini' }]),
@@ -304,14 +308,14 @@ describe('scriptBoxEngine · 引擎编排', () => {
     engine.onConnectShot('s1', 'image')
     const imgNode = addNodes.mock.calls[0][0][0]
     expect(imgNode.type).toBe('promptNode')
-    expect(imgNode.data.images).toEqual([{ id: 'script-asset-asset-城堡', url: '/files/城堡.png' }])
+    expect(imgNode.data.images).toEqual([{ id: 'script-asset-asset-城堡', url: 'http://127.0.0.1:18080/files/城堡.png' }])
     expect(imgNode.data.refImages).toBeUndefined() // 不再使用 refImages 命名
     // 生视频下游
     addNodes.mockClear()
     engine.onConnectShot('s1', 'video')
     const vidNode = addNodes.mock.calls[0][0][0]
     expect(vidNode.type).toBe('discountVideoNode')
-    expect(vidNode.data.images).toEqual([{ id: 'script-asset-asset-城堡', url: '/files/城堡.png' }])
+    expect(vidNode.data.images).toEqual([{ id: 'script-asset-asset-城堡', url: 'http://127.0.0.1:18080/files/城堡.png' }])
     expect(vidNode.data.refImages).toBeUndefined()
   })
 

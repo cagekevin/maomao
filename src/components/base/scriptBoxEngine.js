@@ -3,6 +3,7 @@ import { chatCompletions } from './chatApi.js'
 import { generateImage } from './imageApi.js'
 import { resolveProviderModel, buildAllModels } from './providerModels.js'
 import { localizeAndStoreToLibrary, assetFolderOf, makeImageThumbnail } from './assetStore.js'
+import { toAbsoluteFileUrl } from './imageUrl.js'
 import { showToast } from './toastStore.js'
 import { logger } from './logger.js'
 
@@ -636,7 +637,9 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
     const nodeId2 = `script-${isImage ? 'prompt' : 'video'}-${shotId}-${base}`
     // 资产自动匹配：按该镜头里的 @资产名 收集「有图资产」作为参考图（复刻官方 Ra）。
     // 参考图字段统一命名为 images（P0-②）：生图/生视频下游都用 images，与 useConnectedInputs 产出命名一致。
-    const refImages = collectAssets(shot, d.assets)
+    // 收口：注入 data.images 前统一补全为绝对原图地址（与派发/发送渲染口径一致，data.images 只存绝对原图）。
+    const refImages = collectAssets(shot, d.assets).map((im) =>
+      im && im.url ? { ...im, url: toAbsoluteFileUrl(im.url) } : im)
     // 下游往右排布：以剧本盒子节点位置为基准，向右偏移
     let rightBase = { x: 0, y: 0 }
     if (getNodes && nodeId) {
@@ -724,7 +727,7 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
         const r = await generateImage({
           provider,
           prompt: composePrompt,
-          images: [origUrl],
+          images: origUrl ? [toAbsoluteFileUrl(origUrl)] : [],
           model: modelId,
           size: imageSize,
           n: 1,

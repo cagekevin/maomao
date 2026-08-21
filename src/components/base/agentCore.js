@@ -27,6 +27,7 @@
  */
 import { contentGet } from './contentStore.js'
 import { logger } from './logger.js'
+import { toImageContentBlocks } from './imageUrl.js'
 
 // 复刻官方 shared.js:2536 `var ur = 8`（多轮工具循环硬上限）
 export const MAX_TOOL_ROUNDS = 8
@@ -356,7 +357,8 @@ export function buildRequestMessages(messages, systemPrompt, enhance = true, ski
     if (m.role === 'user' && m.attachments && m.attachments.length > 0) {
       if (currentHasImages && i === lastUserIdx) {
         // 本轮：内联本轮图 + refCatalog/坐标（供 attachment_indices 精确引用）
-        const content = m.attachments.map((a) => ({ type: 'image_url', image_url: { url: a.url } }))
+        // 收口：图片 content block 统一用 toImageContentBlocks（见 imageUrl.js），与 chatApi 保持一致，禁散写。
+        const content = toImageContentBlocks(m.attachments.map((a) => a.url).filter(Boolean))
         // 参考图编号目录（对齐大雄）：附加给 AI，让它能用 attachment_indices 精确引用第几张参考图。
         // 对齐参考项目（daxiong-canvas-plugins canvas-agent）：参考图附件带画布坐标 x/y，
         // 这里把坐标以文本形式附给 LLM，让它感知每张参考图来自画布哪个位置。

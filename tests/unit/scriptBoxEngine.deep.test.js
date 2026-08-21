@@ -208,8 +208,8 @@ describe('剧本盒引擎深度业务 §2.7', () => {
     expect(node.type).toBe('promptNode')
     expect(node.data.label).toBe('镜头1图')
     expect(node.data.prompt).toBe('猫的图')
-    // 参考图来自镜头里 @小红帽 匹配到的有图资产
-    expect(node.data.images).toEqual([{ id: 'script-asset-a1', url: '/files/r.png' }])
+    // 参考图来自镜头里 @小红帽 匹配到的有图资产（注入前统一补绝对原图，见 scriptBoxEngine 收口）
+    expect(node.data.images).toEqual([{ id: 'script-asset-a1', url: 'http://127.0.0.1:18080/files/r.png' }])
     // 自动连线 sb-1 → 新节点
     expect(ctx().setEdges).toBeDefined()
   })

@@ -10,6 +10,7 @@ import { loadAgentChatModel } from '../base/settings/agentModelStore.js'
 import { getAllSkills, markSkillUsed, repairMojibakeText, isSkillEnabled } from '../base/skillStore.js'
 import { contentGet, contentSet } from '../base/contentStore.js'
 import { toAbsoluteFileUrl } from '../base/filesApi.js'
+import { fileToDataUrl } from '../base/imageUrl.js'
 import { runNodeGeneration } from '../base/taskStore.js'
 import { showToast } from '../base/toastStore.js'
 import { logger } from '../base/logger.js'
@@ -366,7 +367,7 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
         if (!f.type.startsWith('image/')) continue
         const localUrl = previewUrls.create(f)
         try {
-          const dataUrl = await blobToDataURL(f)
+          const dataUrl = await fileToDataUrl(f)
           setAttachments((prev) => [...prev, { type: 'image', url: dataUrl, localUrl }])
         } catch (err) {
           previewUrls.release(localUrl)
@@ -883,16 +884,6 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
       </div>
     </div>
   )
-}
-
-/** File → dataURL */
-function blobToDataURL(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(reader.result)
-    reader.onerror = () => reject(new Error('读取失败'))
-    reader.readAsDataURL(file)
-  })
 }
 
 /** File → text（用于 .md/.markdown/.txt Skill 导入） */

@@ -16,6 +16,7 @@
 import { runNodeGeneration, isNodeRegistered } from './taskStore.js'
 import { generateId } from './idGen.js'
 import { logger } from './logger.js'
+import { toAbsoluteFileUrl } from './imageUrl.js'
 
 /* ── 全局单飞锁（对齐大雄 __canvasAgentGenRunning）──
  * 同一时刻只允许一套 executePlan 批量生成在跑。防止「用户手动点节点生成 + AI 触发」
@@ -279,8 +280,8 @@ export async function executePlan({ ctx, generations = [], autoRun = true, model
       ...(step.use_attachments === false
         ? {}
         : (stepRefImages(step).length
-          ? { images: stepRefImages(step).map((u) => (typeof u === 'string' ? { url: u, name: 'reference' } : u)) }
-          : (referenceImages && referenceImages.length ? { images: referenceImages.map((u) => (typeof u === 'string' ? { url: u, name: 'reference' } : u)) } : {}))),
+          ? { images: stepRefImages(step).map((u) => (typeof u === 'string' ? { url: toAbsoluteFileUrl(u), name: 'reference' } : u)) }
+          : (referenceImages && referenceImages.length ? { images: referenceImages.map((u) => (typeof u === 'string' ? { url: toAbsoluteFileUrl(u), name: 'reference' } : u)) } : {}))),
     }
     ctx.addNodes([{ id: nodeId, type: 'promptNode', position: anchor, data, width: 420, height: 420 }])
     // 【B层】每步建节点：参考图来源（该步自己的 / 整批共享 / 无）——定位图生图参考挂载

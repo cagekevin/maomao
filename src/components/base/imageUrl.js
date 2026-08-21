@@ -151,6 +151,22 @@ export function normalizeImageUrl(url) {
 }
 
 /**
+ * 本地 File/Blob → data: base64（发送附件用）。
+ * 收口：FileReader 的 dataURL 转换统一在此，各面板不得散写 FileReader。
+ * 与 blobToDataUrl（网络 blob→data）语义互补：一个收本地 File、一个收 URL。
+ * @param {Blob|File} file
+ * @returns {Promise<string>} data:...;base64,xxx
+ */
+export function fileToDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const fr = new FileReader()
+    fr.onload = () => resolve(String(fr.result || ''))
+    fr.onerror = () => reject(new Error('FileReader failed'))
+    fr.readAsDataURL(file)
+  })
+}
+
+/**
  * 把单个 blob: URL 转成 data: base64（发送给后端用）。
  *  http/data/裸base64 原样返回；失败返回空字符串（调用方丢弃该图）。
  * @param {string} u

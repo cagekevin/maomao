@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { toAbsoluteFileUrl, toRelativeFileUrl, buildThumbnailUrl, resolveImageUrl, normalizeImageUrl, normalizeImageUrlForSend, normalizeImageUrlsForSend, toImageContentBlocks } from '../../src/components/base/imageUrl.js'
+import { toAbsoluteFileUrl, toRelativeFileUrl, buildThumbnailUrl, resolveImageUrl, normalizeImageUrl, normalizeImageUrlForSend, normalizeImageUrlsForSend, toImageContentBlocks, fileToDataUrl } from '../../src/components/base/imageUrl.js'
 
 // blobToDataUrl / urlToDataUrl 依赖 httpClient 与 FileReader（node 无原生实现），在此 mock。
 vi.mock('../../src/components/base/httpClient.js', () => ({
@@ -209,5 +209,18 @@ describe('imageUrl · toImageContentBlocks', () => {
   it('空/undefined → 空数组', () => {
     expect(toImageContentBlocks()).toEqual([])
     expect(toImageContentBlocks(null)).toEqual([])
+  })
+})
+
+// ── fileToDataUrl：本地 File/Blob → data base64（发送附件统一收口，见 M4）──
+describe('imageUrl · fileToDataUrl（本地文件→dataURL 收口）', () => {
+  beforeEach(() => stubFileReader())
+
+  it('File → data: base64（FileReader 收口，供发送附件，result 透传）', async () => {
+    await expect(fileToDataUrl({ _dataUrl: 'data:image/png;base64,fileimg' })).resolves.toBe('data:image/png;base64,fileimg')
+  })
+
+  it('无自定义 result → 使用 FileReader 默认读取结果', async () => {
+    await expect(fileToDataUrl({})).resolves.toBe('data:image/png;base64,stubdata')
   })
 })
