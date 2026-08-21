@@ -183,7 +183,7 @@ test('official·handleOfficialInvalidate 清缓存', async () => {
 
   const inv = makeRes();
   await officialMod.handleOfficialInvalidate(makeJsonReq(), inv);
-  assert.ok(parseResBody(inv).removed >= 1);
+  assert.ok(parseResBody(inv).data.removed >= 1);
 
   const res2 = makeRes();
   await officialMod.handleOfficialUser(req, res2);
@@ -421,9 +421,9 @@ test('files·upload JSON fileUrl 下载落盘（幂等）', async () => {
   const res = makeRes();
   await filesMod.handleUpload(makeJsonReq({ fileUrl: 'https://cdn.example.com/img.png', subfolder: 'canvas' }), res);
   const body = parseResBody(res);
-  assert.ok(body.url, '应返回 url');
-  assert.match(body.url, /^http:\/\/127\.0\.0\.1:18080\/files\/canvas\//);
-  const rel = body.url.replace(/^http:\/\/127\.0\.0\.1:18080\/files\//, '');
+  assert.ok(body.data.url, '应返回 url');
+  assert.match(body.data.url, /^http:\/\/127\.0\.0\.1:18080\/files\/canvas\//);
+  const rel = body.data.url.replace(/^http:\/\/127\.0\.0\.1:18080\/files\//, '');
   const diskPath = path.join(TEST_DIR, 'uploads', rel);
   assert.ok(fs.existsSync(diskPath), '下载文件应落盘');
   assert.ok(RED_PNG_BUFFER.equals(fs.readFileSync(diskPath)));

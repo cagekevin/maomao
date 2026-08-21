@@ -129,9 +129,9 @@ test('[projects] 空库 GET 返回 {projects:[], lastOpened}', async () => {
   const res = makeRes();
   await handleProjectsGet(makeJsonReq(undefined), res);
   const body = parseResBody(res);
-  assert.ok(body && Array.isArray(body.projects), '应为 {projects:[...]}');
-  assert.equal(body.projects.length, 0);
-  assert.ok('lastOpened' in body, '应含 lastOpened 字段');
+  assert.ok(body && Array.isArray(body.data.projects), '应为 {code:0,data:{projects:[...]}}');
+  assert.equal(body.data.projects.length, 0);
+  assert.ok('lastOpened' in body.data, '应含 lastOpened 字段');
 });
 
 test('[projects] save 全量 upsert 并标记 isLastOpened / lastOpened 返回', async () => {
@@ -141,17 +141,17 @@ test('[projects] save 全量 upsert 并标记 isLastOpened / lastOpened 返回',
   ];
   const res1 = makeRes();
   await handleProjectsSave(makeJsonReq({ projects: list, lastOpened: 'p2' }), res1);
-  assert.deepEqual(parseResBody(res1), { ok: true });
+  assert.deepEqual(parseResBody(res1), { code: 0, data: { ok: true } });
 
   const res2 = makeRes();
   await handleProjectsGet(makeJsonReq(undefined), res2);
   const b2 = parseResBody(res2);
-  assert.equal(b2.projects.length, 2);
-  const p1 = b2.projects.find((p) => p.id === 'p1');
-  const p2 = b2.projects.find((p) => p.id === 'p2');
+  assert.equal(b2.data.projects.length, 2);
+  const p1 = b2.data.projects.find((p) => p.id === 'p1');
+  const p2 = b2.data.projects.find((p) => p.id === 'p2');
   assert.equal(p1.isLastOpened, false);
   assert.equal(p2.isLastOpened, true);
-  assert.equal(b2.lastOpened, 'p2');
+  assert.equal(b2.data.lastOpened, 'p2');
 });
 
 test('[projects] 再次 save 同时传 p1/p2 → 仅更新 p1 名字、p2 保留（增量 upsert）', async () => {
@@ -164,8 +164,8 @@ test('[projects] 再次 save 同时传 p1/p2 → 仅更新 p1 名字、p2 保留
   const res2 = makeRes();
   await handleProjectsGet(makeJsonReq(undefined), res2);
   const b2 = parseResBody(res2);
-  const p1 = b2.projects.find((p) => p.id === 'p1');
-  const p2 = b2.projects.find((p) => p.id === 'p2');
+  const p1 = b2.data.projects.find((p) => p.id === 'p1');
+  const p2 = b2.data.projects.find((p) => p.id === 'p2');
   assert.equal(p1.name, '项目A改');
   assert.equal(p1.isLastOpened, true);
   assert.equal(p2.name, '项目B');
@@ -178,8 +178,8 @@ test('[projects] 部分保存 → 不在列表的旧项目被删除', async () =
   const res2 = makeRes();
   await handleProjectsGet(makeJsonReq(undefined), res2);
   const b2 = parseResBody(res2);
-  assert.deepEqual(b2.projects.map((p) => p.id), ['p1']);
-  assert.equal(b2.lastOpened, 'p1');
+  assert.deepEqual(b2.data.projects.map((p) => p.id), ['p1']);
+  assert.equal(b2.data.lastOpened, 'p1');
 });
 
 test('[projects] save 缺少 projects 字段 → 400', async () => {

@@ -91,7 +91,7 @@ test('GET /api/providers 返回脱敏列表，不回明文 key', async () => {
   const getRes = makeRes();
   await providersMod.handleProvidersGet(getReq, getRes);
   const data = JSON.parse(getRes.body);
-  const p = data.providers.find((x) => x.id === 'test-site');
+  const p = data.data.providers.find((x) => x.id === 'test-site');
   assert.ok(p);
   // 不回明文
   assert.equal(p.key, undefined);
@@ -135,7 +135,7 @@ test('PUT primary 唯一化：最后标记的胜出', async () => {
   const putRes = makeRes();
   await providersMod.handleProvidersPut(putReq, putRes);
   const data = JSON.parse(putRes.body);
-  const primaries = data.providers.filter((p) => p.primary);
+  const primaries = data.data.providers.filter((p) => p.primary);
   assert.equal(primaries.length, 1);
   assert.equal(primaries[0].id, 'c');
 });
@@ -157,7 +157,7 @@ test('协议校验：8 协议保留，真正非法回退 openai；id 锁协议',
   const putRes = makeRes();
   await providersMod.handleProvidersPut(putReq, putRes);
   const data = JSON.parse(putRes.body);
-  const find = (id) => data.providers.find((p) => p.id === id).protocol;
+  const find = (id) => data.data.providers.find((p) => p.id === id).protocol;
   assert.equal(find('ap'), 'apimart');
   assert.equal(find('op'), 'openai');
   assert.equal(find('gm'), 'gemini');
@@ -269,7 +269,7 @@ test('PUT normalizeModelProtocols：只保留 openai/gemini，其余丢弃（M3-
   const getReq = makeReq();
   const getRes = makeRes();
   await providersMod.handleProvidersGet(getReq, getRes);
-  const list = JSON.parse(getRes.body).providers;
+  const list = JSON.parse(getRes.body).data.providers;
   const mp = list.find((p) => p.id === 'mp');
   assert.deepEqual(mp.model_protocols, { 'ok-gemini': 'gemini', 'ok-openai': 'openai' });
 });
@@ -335,9 +335,9 @@ test('image_mode 同步/异步持久化与回退', async () => {
   const putRes = makeRes();
   await providersMod.handleProvidersPut(putReq, putRes);
   const data = JSON.parse(putRes.body);
-  assert.equal(data.providers.find((p) => p.id === 'syn').image_mode, 'sync');
-  assert.equal(data.providers.find((p) => p.id === 'asy').image_mode, 'async');
-  assert.equal(data.providers.find((p) => p.id === 'def').image_mode, 'sync'); // 回退 sync
+  assert.equal(data.data.providers.find((p) => p.id === 'syn').image_mode, 'sync');
+  assert.equal(data.data.providers.find((p) => p.id === 'asy').image_mode, 'async');
+  assert.equal(data.data.providers.find((p) => p.id === 'def').image_mode, 'sync'); // 回退 sync
 });
 
 test('chat_request_mode 持久化与回退', async () => {
@@ -350,9 +350,9 @@ test('chat_request_mode 持久化与回退', async () => {
   const putRes = makeRes();
   await providersMod.handleProvidersPut(putReq, putRes);
   const data = JSON.parse(putRes.body);
-  assert.equal(data.providers.find((p) => p.id === 'resp').chat_request_mode, 'responses');
-  assert.equal(data.providers.find((p) => p.id === 'chat').chat_request_mode, 'chat');   // 默认 chat
-  assert.equal(data.providers.find((p) => p.id === 'bad').chat_request_mode, 'chat');    // 非法回退 chat
+  assert.equal(data.data.providers.find((p) => p.id === 'resp').chat_request_mode, 'responses');
+  assert.equal(data.data.providers.find((p) => p.id === 'chat').chat_request_mode, 'chat');   // 默认 chat
+  assert.equal(data.data.providers.find((p) => p.id === 'bad').chat_request_mode, 'chat');    // 非法回退 chat
 });
 
 test('apimart 拉取模型：/v1/models 按 category 归类', async () => {
@@ -381,11 +381,11 @@ test('apimart 拉取模型：/v1/models 按 category 归类', async () => {
     const res = makeRes();
     await providersMod.handleProviderFetchModels(req, res, 'lv');
     const data = JSON.parse(res.body);
-    assert.deepEqual(data.image_models.map((m) => m.id), ['gpt-image-2']);
+    assert.deepEqual(data.data.image_models.map((m) => m.id), ['gpt-image-2']);
     // apimart 按 category 正常收录 chat（文本节点下拉需要）
-    assert.deepEqual(data.chat_models.map((m) => m.id), ['lovart-chat']);
-    assert.deepEqual(data.video_models.map((m) => m.id), ['seedance-2']);
-    assert.equal(data.modelCount, 3);
+    assert.deepEqual(data.data.chat_models.map((m) => m.id), ['lovart-chat']);
+    assert.deepEqual(data.data.video_models.map((m) => m.id), ['seedance-2']);
+    assert.equal(data.data.modelCount, 3);
   } finally {
     globalThis.fetch = origFetch;
   }
@@ -426,7 +426,7 @@ test('PUT ms_loras 逐项归一：补默认字段 + strength 夹 [0,2]，非法�
   const getReq = makeReq();
   const getRes = makeRes();
   await providersMod.handleProvidersGet(getReq, getRes);
-  const list = JSON.parse(getRes.body).providers;
+  const list = JSON.parse(getRes.body).data.providers;
   const ms = list.find((p) => p.id === 'ms-loras');
   assert.equal(ms.ms_loras.length, 3);
   assert.equal(ms.ms_loras[0].strength, 2);
@@ -446,7 +446,7 @@ test('PUT volcengine 平台字段默认值 project_name=default / region=cn-beij
   const getReq = makeReq();
   const getRes = makeRes();
   await providersMod.handleProvidersGet(getReq, getRes);
-  const vc = JSON.parse(getRes.body).providers.find((p) => p.id === 'volcengine');
+  const vc = JSON.parse(getRes.body).data.providers.find((p) => p.id === 'volcengine');
   assert.equal(vc.volcengine_project_name, 'default');
   assert.equal(vc.volcengine_region, 'cn-beijing');
 });
