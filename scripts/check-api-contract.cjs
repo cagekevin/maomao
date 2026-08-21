@@ -11,8 +11,9 @@
  *
  * 检查档位：
  *  - error（exit 1）：ACTIVE 端点后端无路由（白实现，运行必崩）｜ 方法与后端不符 ｜ 信封标注与可静态判定形态明显不符
- *  - warn  （exit 1）：RESERVED 端点后端无路由（登记了却无对应实现）
- *  - info  （exit 0）：后端有路由但前端未登记（待补登记，含 RESERVED）；信封形态无法静态判定（交由测试兜底）
+ *  - warn  （exit 1）：RESERVED 端点后端无路由（登记了却无对应实现）｜ ACTIVE 条目 fn 指向的模块无该导出（幽灵 ACTIVE，R5）
+ *  - info  （exit 0）：后端有路由但前端未登记（待补登记，含 RESERVED）；信封形态无法静态判定（交由测试兜底）；
+ *                      RESERVED 条目 fn 指向的模块无该导出（保留待实现，R5）；fn 模块未映射/读取失败（R5，不脆断）
  *
  * 豁免：`stream`/`sse`/`raw`/`probe`/`stub` 类型端点跳过信封形态检查（其形态本非统一信封，见 T3.1 豁免清单）。
  * 信封形态的「权威校验」由 B0 冻结测试承担；本脚本的检测为登记面的一致性防线，判定不了就 info，不脆断误伤。
@@ -36,6 +37,23 @@ const add = (level, msg) => RESULT[level].push(msg);
 // 豁免：流式/裸值/探针/桩 不参与信封形态检查
 const EXEMPT = new Set(['stream', 'sse', 'raw', 'probe', 'stub']);
 const VALID_ENVELOPES = new Set([...EXEMPT, 'ok', 'code-data', 'items', 'success-data']);
+
+// ── R5：前端 fn 存在性校验（防幽灵 ACTIVE）──
+// 只校验「形如 模块.符号 或 模块.对象.方法」（无空格/括号/+）的 fn，其余占位/描述一律豁免（保守，避免误伤）。
+const MODULE_FILES = {
+  localToolApi: 'src/components/base/localToolApi.js',
+  filesApi: 'src/components/base/filesApi.js',
+  pollTask: 'src/components/base/pollTask.js',
+  proxyGenerate: 'src/components/base/proxyGenerate.js',
+  agentRuntime: 'src/components/agent/runtime/agentRuntime.js',
+};
+
+// 常量命名空间（引用的是契约常量而非前端函数，豁免，如 API_ENDPOINTS.fileThumbnail）
+const NON_FN_MODULES = new Set(['API_ENDPOINTS']);
+
+// 纯点链：模块.符号 / 模块.对象.方法（不含空格、括号、+ 等描述后缀）
+const FN_CHAIN_RE = /^[\w$]+(\.[\w$]+)+$/;
+const EXPORT_RE = /(?:export\s+(?:async\s+)?function\s+(\w+)|export\s+const\s+(\w+)\s*[=:])/g;
 
 // 登记 path 比较模板：{id} → {x}
 const patternKey = (p) => (p || '').replace(/\{[A-Za-z_][\w]*\}/g, '{x}');
@@ -174,6 +192,47 @@ function checkEnvelope(entry, found, texts) {
   }
 }
 
+// ── R5：前端 fn 存在性校验 ──
+// 静态提取模块文件的导出符号（export function / export async function / export const），
+// 只覆盖「函数引用」形态；re-export（export { x } from …）与 export default 不在登记 fn 形态内，不提取。
+function extractExports(filePath) {
+  const out = new Set();
+  const src = fs.readFileSync(filePath, 'utf8');
+  for (const m of src.matchAll(EXPORT_RE)) out.add(m[1] || m[2]);
+  return out;
+}
+
+// 校验单条登记：fn 必须是「模块.符号」链且模块真实导出该符号，否则报 warn（ACTIVE 幽灵）/ info（RESERVED 保留）。
+// 占位/描述（含空格/括号/+、单符号、常量命名空间、`(前端零消费)` 等）一律豁免，不脆断误伤。
+function checkFnExists(entry) {
+  const fn = entry.fn;
+  if (!fn || !FN_CHAIN_RE.test(fn)) return; // 空 / 占位描述 → 豁免
+  const parts = fn.split('.');
+  const moduleName = parts[0];
+  if (NON_FN_MODULES.has(moduleName)) return; // 常量命名空间 → 豁免
+  const relFile = MODULE_FILES[moduleName];
+  if (!relFile) {
+    add('info', `fn 模块未映射: ${fn}（需在 check-api-contract.cjs 的 MODULE_FILES 登记）`);
+    return;
+  }
+  let exported;
+  try {
+    exported = extractExports(path.join(ROOT, relFile));
+  } catch (e) {
+    add('info', `fn 模块读取失败: ${fn}（${relFile}）`);
+    return;
+  }
+  const symbol = parts[1];
+  if (!exported.has(symbol)) {
+    add(
+      entry.status === 'ACTIVE' ? 'warn' : 'info',
+      entry.status === 'ACTIVE'
+        ? `幽灵ACTIVE: ${fn}（模块 ${moduleName} 无导出 ${symbol}）`
+        : `fn缺失(保留待实现): ${fn}（模块 ${moduleName} 无导出 ${symbol}）`,
+    );
+  }
+}
+
 async function main() {
   let registry;
   try {
@@ -218,6 +277,7 @@ async function main() {
       add('error', `方法不一致: ${key} ${entry.path} 前端=${entry.method}，后端仅=${backendMethods}`);
     }
     checkEnvelope(entry, found, texts);
+    checkFnExists(entry);
   }
 
   // 2) 后端有、前端未登记 → info（待补登记）
