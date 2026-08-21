@@ -543,6 +543,13 @@ function Canvas() {
       const nextEdges = connection
         ? [...edgesRef.current, { id: `e-${connection.source}-${id}`, source: connection.source, sourceHandle: connection.sourceHandle || null, target: id, targetHandle: type === 'scriptBoxNode' ? 'in' : undefined, type: 'default', animated: false }]
         : edgesRef.current
+      // 【关键修复 · 批量 addNode 并发安全】不能只读 nodesRef/edgesRef 再绝对 setNodes。
+      // nodesRef/edgesRef 靠 useEffect 在「每次渲染提交后」才同步，若同一 tick 内连续批量
+      // addNode（拖入多图、粘贴多帧等），每次都读到同一个旧 ref → 各自产出「旧+自己」，
+      // setNodes 绝对赋值后一个覆盖前一个 → 只留下最后一张（toast 却全弹）。这里建完节点
+      // 就地同步 ref，让同一批次的后续 addNode 立刻看到最新列表，删除丢失更新。
+      nodesRef.current = nextNodes
+      if (connection) edgesRef.current = nextEdges
       setNodes(nextNodes)
       if (connection) setEdges(nextEdges)
       history.record({ nodes: nextNodes, edges: nextEdges })
