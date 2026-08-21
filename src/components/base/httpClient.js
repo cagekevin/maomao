@@ -62,6 +62,16 @@ export function extractErrorDetail(data) {
 }
 
 /**
+ * parseJson:false 模式兜底读取错误体（二进制/流式出口共用）。body 只能消费一次，读取后即抛错。
+ * 优先 json（OpenAI 错误信封），非法则回退 text，全失败兜底空对象 → HttpError 仅带 status。
+ */
+async function readErrorBody(res) {
+  try { return await res.json() } catch { /* 非 JSON 错误体 */ }
+  try { return { message: await res.text() } } catch { /* 无 body */ }
+  return {}
+}
+
+/**
  * 统一 HTTP 请求。
  * @param {string} url
  * @param {object} [opts]
@@ -122,7 +132,12 @@ export async function httpRequest(url, {
           }
           return data
         }
-        if (!res.ok) throw new HttpError(res.status, '')
+        if (!res.ok) {
+          // parseJson:false（二进制/流式出口）也要尽量保留上游错误体，避免非 2xx 时错误信息丢失
+          const data = await readErrorBody(res)
+          const { message } = extractErrorDetail(data)
+          throw new HttpError(res.status, message, data)
+        }
         return res
       } catch (e) {
         // 外部取消：立即抛，不重试

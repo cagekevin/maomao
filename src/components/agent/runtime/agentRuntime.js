@@ -26,6 +26,8 @@
 
 // 可插拔协议适配器：统一 URL 拼装（openai 伪协议 / apimart base_url），避免散落协议判断
 import { buildTargetUrl } from '../../base/providerProtocols.js'
+// 【出口回收】proxy 分支走 /api/proxy 经统一 httpRequest（B5），不裸写 fetch
+import { httpRequest } from '../../base/httpClient.js'
 // 请求形态层：聊天 responses 形态（gpt-5.6 用 /v1/responses 带工具不再报错，M2-2/M2-4）
 import { resolveChatMode, buildResponsesChatBody, parseResponsesChatJson, parseResponsesSSEChunk } from '../../base/requestModes.js'
 
@@ -108,11 +110,12 @@ export async function roundTrip(ctx, requestMessages, signal, onStream) {
     msgCount: requestMessages.length,
     hasImageInBody: JSON.stringify(llmBody).includes('image_url') || JSON.stringify(llmBody).includes('input_image'),
   }, { module: 'agent' })
-  // 【为何不迁到 httpClient.js】本请求是 SSE 流式读取 body 流 + 非流式普通 JSON 双模式，
-  // 且可走两条链路（provider 存在走 /api/proxy 转发、否则直连 /api/agent/...），响应需逐块
-  // 解析 event 并驱动多轮工具循环（roundTrip 由 useAgentChat 的 SSE 循环逐行消费），与
-  // httpClient 的 parseJson/扁平错误语义冲突；已内建 signal 取消（abortRef）+ 下方按 status
-  // 分类抛错 + AbortError 原样上抛三层异步治理，故保留原生 fetch。
+  // 【出口回收说明（B5）】本请求是 SSE 流式读 body 流 + 非流式普通 JSON 双模式，可走两条链路：
+  //  - proxy 分支（provider 存在走 /api/proxy 转发）经 httpRequest 出站 —— 用 SSE 模式
+  //    （timeoutMs:0 不被 15s 掐断 + retries:0 + parseJson:false 返回未消费原始 Response），
+  //    回炉的是「HTTP 语义」，SSE 行协议豁免红线（缺口⑦/M5-e）不破；
+  //  - 直连官方分支（/api/agent/...，M1-a③ 白名单）保留原生 fetch，避免改动其既有 rejection 语义。
+  // 响应仍由下方逐块解析 event 驱动多轮工具循环，与拆分前行为一致。
   // ── [debug] 非流式链路 · 跳②：fetch 发送（记录目标 URL + body 摘要） ──
   const proxyBody = useProxy
     ? {
@@ -129,25 +132,43 @@ export async function roundTrip(ctx, requestMessages, signal, onStream) {
     hasImage: JSON.stringify(llmBody).includes('image_url') || JSON.stringify(llmBody).includes('input_image'),
     accept,
   }, { module: 'agent' })
-  const res = useProxy
-    ? await fetch(`${apiBase}/api/proxy`, {
+  let res
+  if (useProxy) {
+    try {
+      res = await httpRequest(`${apiBase}/api/proxy`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Accept: accept },
         body: JSON.stringify(proxyBody),
-        signal
+        signal,
+        timeoutMs: 0,
+        retries: 0,
+        parseJson: false,
+        label: 'agentRoundTrip.proxy',
       })
-    : await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Accept: accept,
-          ...(chatApiKey ? { Authorization: `Bearer ${chatApiKey}` } : {})
-        },
-        body: JSON.stringify(llmBody),
-        signal
-      })
+    } catch (e) {
+      if (e?.name === 'HttpError') {
+        logger.error('AI助手', '请求失败', { status: e.status, via: 'proxy', model })
+        // httpRequest 已在 HttpError 携带上游错误体，重建 res 供 parseAgentError 走统一「代理转发失败」文案
+        const fake = { status: e.status, text: async () => (e.data != null ? JSON.stringify(e.data) : '') }
+        throw new Error(await parseAgentError(fake, '代理转发失败'))
+      }
+      // 网络/超时/取消：原样上抛（与直连官方 fetch 的 rejection 语义一致）
+      throw e
+    }
+  } else {
+    res = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: accept,
+        ...(chatApiKey ? { Authorization: `Bearer ${chatApiKey}` } : {})
+      },
+      body: JSON.stringify(llmBody),
+      signal
+    })
+  }
   if (!res.ok) {
-    // 【链路日志】请求失败：状态码
+    // 仅直连官方分支会走到这里（proxy 分支非 2xx 已在上方 catch 抛错）
     logger.error('AI助手', '请求失败', { status: res.status, via: useProxy ? 'proxy' : 'agent', model })
     throw new Error(await parseAgentError(res, useProxy ? '代理转发失败' : '调用失败'))
   }

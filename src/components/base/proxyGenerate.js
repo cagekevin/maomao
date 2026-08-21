@@ -21,6 +21,8 @@ import { getCurrentTaskId, setTaskPollId } from './taskStore.js'
 import { GEN_TIMEOUT, GEN_POLL_INTERVAL, VIDEO_TIMEOUT, VIDEO_POLL_INTERVAL } from './config.js'
 import { classifyError } from './genErrors.js'
 import { logger } from './logger.js'
+// 【出口回收】所有 /api/proxy 出口经统一 httpRequest（B5），不再裸写 fetch
+import { httpRequest } from './httpClient.js'
 // 可插拔协议适配器：统一 buildTargetUrl（openai 伪协议 / apimart base_url 拼装）
 import { buildTargetUrl } from './providerProtocols.js'
 // 请求形态层：image_request_mode 驱动端点/响应解析（消灭死字段，PRD 翻车点 1）
@@ -57,20 +59,31 @@ async function __proxyFetch({ provider, target, method = 'POST', body }, signal)
   // 【B层】生图/视频/聊天 → 本地代理的真实请求发出：目标 + 方法 + body 摘要（定位请求是否发出/发到哪）
   logger.debug('生图', '[请求] 发出', { target, method, bodyHead: body && typeof body === 'object' ? JSON.stringify(body).slice(0, 120) : String(body).slice(0, 120), taskId: getCurrentTaskId() }, { module: 'image' })
   const payload = __buildProxyPayload({ provider, target, method, body })
-  const res = await fetch(`${API_BASE}/api/proxy`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-    ...(signal ? { signal } : {}),
-  })
-  if (!res.ok) {
-    const j = await res.json().catch(() => ({}))
-    const msg = j?.error?.message || j?.message || j?.detail || `HTTP ${res.status}`
-    // 【B层】HTTP 非 2xx：响应码 + 后端错误信息（定位网关拒绝/超时）
-    logger.debug('生图', '[请求] HTTP失败', { target, status: res.status, msg }, { module: 'image' })
-    throw new Error(msg)
+  // 【出口回收】经 httpRequest 出站。同步生图走 SSE 流 / 异步轮询读完整 JSON，均需拿到未消费的
+  // 原始 Response → parseJson:false；timeoutMs:0 保证流式/长生成不被 15s 掐断；retries:0（代理不自动重试）。
+  // 非 2xx 由 httpRequest 抛 HttpError（已携带上游错误体），此处重建业务 Error 供 classifyError 归类 business。
+  try {
+    const res = await httpRequest(`${API_BASE}/api/proxy`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+      ...(signal ? { signal } : {}),
+      timeoutMs: 0,
+      retries: 0,
+      parseJson: false,
+      label: 'proxyFetch',
+    })
+    return res
+  } catch (e) {
+    if (e?.name === 'HttpError') {
+      const msg = e.message || `HTTP ${e.status}`
+      // 【B层】HTTP 非 2xx：响应码 + 后端错误信息（定位网关拒绝/超时）
+      logger.debug('生图', '[请求] HTTP失败', { target, status: e.status, msg }, { module: 'image' })
+      throw new Error(msg)
+    }
+    // 网络/超时/取消：原样上抛，由调用方 classifyError 归类
+    throw e
   }
-  return res
 }
 
 /**
@@ -213,18 +226,28 @@ export async function chatProxy({ provider, body, signal }) {
   const responses = resolveChatMode(provider?.chat_request_mode, body?.model) === 'responses'
   const target = buildTargetUrl(provider, responses ? 'responses' : 'chat/completions')
   const payload = __buildProxyPayload({ provider, target, method: 'POST', body })
+  // 【出口回收】走 /api/proxy 经 httpRequest 出站。LLM 生成较慢，timeoutMs:0 不被 15s 掐断；
+  // parseJson:false 拿原始 Response 读完整 JSON；retries:0（业务语义不重试），维持「信封永不抛错」契约。
   let res
   try {
-    res = await fetch(`${API_BASE}/api/proxy`, {
+    res = await httpRequest(`${API_BASE}/api/proxy`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
       ...(signal ? { signal } : {}),
+      timeoutMs: 0,
+      retries: 0,
+      parseJson: false,
+      label: 'chatProxy',
     })
   } catch (e) {
-    return e?.name === 'AbortError'
-      ? { ok: false, aborted: true, error: '已停止' }
-      : { ok: false, error: `网络错误：${e.message}` }
+    if (e?.name === 'AbortError') return { ok: false, aborted: true, error: '已停止' }
+    if (e?.name === 'HttpError') {
+      // 业务错误（HTTP 非 2xx）：取上游嵌套 message（HttpError 已带错误体），不误加「网络错误」前缀
+      const msg = parseNestedError(e?.data || {}) || `HTTP ${e.status}`
+      return { ok: false, error: msg }
+    }
+    return { ok: false, error: `网络错误：${e.message}` }
   }
   let json
   try {
