@@ -177,12 +177,13 @@
 
 * **通用工具**：`base/utils.js`（`deepClone`/`formatTime`/`debounce`/`throttle`/`useDebouncedEffect`/`createImeInput`/`createRafBatch`）。边界：`director3d` 不纳入；时序敏感处（`useCanvasHistory` 抑制窗口、`useAgentChat` 流式 flush、`ghost-edge`）保留手写。全库散落手写防抖/深拷贝已收敛至此，勿再绕道。
 * **nodeTypes 单源**：`base/NodePalette.jsx` 的 `paletteNodes`（含 `component` 字段），`buildNodeTypeComponents()` 派生 `App.jsx nodeTypes`，不再手写平行表。
-* **程序化建边**：`base/deriveNodes.js`（`buildSpawnNodes`/`makeChildId`）+ `CanvasEdgesContext.jsx`，9 处建子节点+连线统一并原子进 undo。边界：`scriptBoxEngine` 注入式引擎、`onConnect` 手连、`onConnectEnd` ghost-edge 保持原样。
+* **程序化建边**：`base/deriveNodes.js`（`buildSpawnNodes`/`makeChildId`/`spawnAndCommit`）+ `CanvasEdgesContext.jsx`，建子节点+连线统一并原子进 undo。提交三连（applySpawnSnapshot→setNodes→setEdges→history.record）已收口至 `spawnAndCommit`，调用方只传 spawned 与画布句柄，禁止再手写提交三连（顺序错了 undo 丢新增节点）。边界：`scriptBoxEngine` 注入式引擎、`onConnect` 手连、`onConnectEnd` ghost-edge 保持原样；`Director3DNode` 按 §0/§五·五 豁免不收口。
 * **本地预览**：`base/previewUrl.js`（`create/release` 引用计数）。边界：下载走 `clipboard`、持久化降级走 `videoEngine`、`director3d` 不纳入。
 * **ID 生成**：`base/idGen.js` `generateId`。边界：`accountsStore` 手写 `Date.now().toString` 已收敛回，勿再绕道。
 * **依赖同代纪律（P0-3）**：`@types/react`/`@types/react-dom` 必须与 `react`/`react-dom` 保持**同大版本**；`zustand` 单版本经 `package.json` 的 `overrides`（`^5.0.3`）锁定，防双实例。升级依赖时同步核对这三处，任一回退/错配即触发类型误报或双实例回归。`tsconfig` `skipLibCheck:true`/`strict:false` 为既有演进项，非紧急不缩紧。
 * **模型源唯一（P0-4）**：前端**唯一**模型源是 `base/providerModels.js` 的 `buildAllModels/resolveProviderModel`（本地 providers 聚合）；后端 `platform.ts` 的 `/api/public/platform/models` 前端**零调用**，归 `contracts.js` `BACKEND_ROUTES.RESERVED`（预留/上游转发）。新增模型下拉一律走 `buildAllModels`，勿再引第二套模型源。
 * **useAgentChat 三层拆分**：`agentCore.js`(纯函数)/`agentRuntime.js`(运行时)/`useAgentChat.js`(hook 编排)。契约：useAgentChat 顶部 re-export agentCore，**改纯函数去 agentCore.js**；roundTrip/runToolCalls 与状态机竞态耦合留在 hook 封装层，勿强行下钻。
+* **图片类节点共享 hover 能力**：`base/useImageHoverActions.jsx` 是 ImageNode / PromptNode 的「裁剪/标记/压缩」hover 操作唯一收口。写回经 `onImageReplaced(dataUrl)` 回调解耦（ImageNode 走 setNodes 不可变更新，PromptNode 走 setImageUrl+patchData），hook 只产出新 dataURL、不耦合节点写回方式。新增图片类 hover 操作走此 hook，勿在两节点各写一份（曾因各写一份导致生图节点 crop 漏 onClick 成死按钮）。
 
 ### C. 🟡 顶层已知待办（改动前先查，看完删）
 

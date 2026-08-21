@@ -9,11 +9,12 @@ import { generateId } from './idGen.js'
  * data 构造（每处业务不同）由调用方提供 childSpecs。
  *
  * 用法：
- *   const { childNodes, edges } = buildSpawnNodes(parentNode, childSpecs, edgeOpts)
- *   调用方随后 setNodes(concat) + setEdges(concat) + history.record({ nodes, edges }) 原子提交。
+ *   const spawned = buildSpawnNodes(parentNode, childSpecs, edgeOpts)
+ *   调用方统一走 spawnAndCommit(spawned, { getNodes, getEdges, setNodes, setEdges, history })
+ *   原子提交（提交三连已收口，禁止调用方再手写 setNodes/setEdges/history.record）。
  *
  * 注意：必须「先基于 getNodes()/getEdges() 当前值计算 next 快照，再 setState 再 record(显式快照)」，
- * 否则 undo 会丢新增节点（见 useCanvasHistory 的 record 语义）。
+ * 否则 undo 会丢新增节点（见 useCanvasHistory 的 record 语义）。该顺序已固化在 spawnAndCommit 内。
  */
 
 /**
@@ -68,4 +69,29 @@ export function applySpawnSnapshot(currentNodes, currentEdges, spawned) {
     nodes: currentNodes.concat(spawned.childNodes),
     edges: currentEdges.concat(spawned.edges),
   }
+}
+
+/**
+ * 「建子节点 + 连线」的原子提交：把调用方重复的「applySpawnSnapshot → setNodes → setEdges → history.record」
+ * 三连收口为单点（消除 9 处复制）。
+ *
+ * 为什么收口：此前每处调用方各写一遍提交三连，且必须「先基于 getNodes()/getEdges() 当前值算快照，
+ * 再 setNodes/setEdges，再 history.record(显式快照)」——顺序错了 undo 会丢新增节点（useCanvasHistory 红线）。
+ * 收口后顺序唯一正确，调用方只需传 spawned 与画布句柄，零机会写错。
+ *
+ * @param {{childNodes:Array, edges:Array}} spawned buildSpawnNodes 的产物
+ * @param {Object} handles 画布句柄（reactflow 实例方法 + 历史栈）
+ *  - getNodes  当前节点快照
+ *  - getEdges  当前边快照
+ *  - setNodes  reactflow setState
+ *  - setEdges  reactflow setState
+ *  - history   useCanvasHistory 实例（可选，缺则跳过 record）
+ * @returns {Array} spawned.childNodes（供调用方需拿新建节点 id 时用，如 GridSplit）
+ */
+export function spawnAndCommit(spawned, { getNodes, getEdges, setNodes, setEdges, history }) {
+  const snapshot = applySpawnSnapshot(getNodes(), getEdges(), spawned)
+  setNodes((ns) => ns.concat(spawned.childNodes))
+  setEdges((es) => es.concat(spawned.edges))
+  history?.record(snapshot)
+  return spawned.childNodes
 }

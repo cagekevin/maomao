@@ -22,7 +22,7 @@ import {
   ConversionCanceled
 } from '../base/videoEngine.js'
 import { generateId } from '../base/idGen.js'
-import { buildSpawnNodes, applySpawnSnapshot } from '../base/deriveNodes.js'
+import { buildSpawnNodes, spawnAndCommit } from '../base/deriveNodes.js'
 import { useCanvasEdges } from '../base/CanvasEdgesContext.jsx'
 import { httpRequest } from '../base/httpClient.js'
 import previewUrls from '../base/previewUrl.js'
@@ -731,10 +731,7 @@ function VideoProcessNode({ id, data, selected }) {
         }],
         { sourceHandle: 'main-output' }
       )
-      const snapshot = applySpawnSnapshot(getNodes(), getEdges(), spawned)
-      setNodes((ns) => ns.concat(spawned.childNodes))
-      setEdges((es) => es.concat(spawned.edges))
-      history?.record(snapshot)
+      spawnAndCommit(spawned, { getNodes, getEdges, setNodes, setEdges, history })
     },
     [id, getNode, getEdges, setNodes, setEdges, history]
   )
@@ -757,10 +754,7 @@ function VideoProcessNode({ id, data, selected }) {
         }],
         { sourceHandle: 'main-output' }
       )
-      const snapshot = applySpawnSnapshot(getNodes(), getEdges(), spawned)
-      setNodes((ns) => ns.concat(spawned.childNodes))
-      setEdges((es) => es.concat(spawned.edges))
-      history?.record(snapshot)
+      spawnAndCommit(spawned, { getNodes, getEdges, setNodes, setEdges, history })
     },
     [id, getNode, getEdges, setNodes, setEdges, history]
   )
@@ -783,10 +777,7 @@ function VideoProcessNode({ id, data, selected }) {
         }],
         { sourceHandle: 'main-output' }
       )
-      const snapshot = applySpawnSnapshot(getNodes(), getEdges(), spawned)
-      setNodes((ns) => ns.concat(spawned.childNodes))
-      setEdges((es) => es.concat(spawned.edges))
-      history?.record(snapshot)
+      spawnAndCommit(spawned, { getNodes, getEdges, setNodes, setEdges, history })
     },
     [id, getNodes, getEdges, setNodes, setEdges, history]
   )

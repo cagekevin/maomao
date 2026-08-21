@@ -19,7 +19,7 @@ import { useNodeResize } from '../base/hooks.js'
 import { useConnectedInputs } from '../base/useConnectedInputs.js'
 import { useGenerateNode } from '../base/useGenerateNode.js'
 import { debounce } from '../base/utils.js'
-import { buildSpawnNodes, applySpawnSnapshot, makeChildId } from '../base/deriveNodes.js'
+import { buildSpawnNodes, spawnAndCommit, makeChildId } from '../base/deriveNodes.js'
 import { useCanvasEdges } from '../base/CanvasEdgesContext.jsx'
 import { saveTextToTasks, toAbsoluteFileUrl } from '../base/filesApi.js'
 import { chatCompletions } from '../base/chatApi.js'
@@ -190,10 +190,7 @@ function TextNode({ id, data, selected }) {
             })),
             { sourceHandle: 'main-output' }
           )
-          const snapshot = applySpawnSnapshot(getNodes(), getEdges(), spawned)
-          setNodes((ns) => ns.concat(spawned.childNodes))
-          setEdges((es) => es.concat(spawned.edges))
-          history?.record(snapshot)
+          spawnAndCommit(spawned, { getNodes, getEdges, setNodes, setEdges, history })
           return
         }
       }

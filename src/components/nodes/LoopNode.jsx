@@ -7,7 +7,7 @@ import { showToast, toastWarning } from '../base/toastStore.js' // 保留阻断�
 import { useSyncNodeData } from '../base/useSyncNodeData.js'
 import { useOutsideClick } from '../base/hooks.js'
 import { generateId } from '../base/idGen.js'
-import { buildSpawnNodes, applySpawnSnapshot } from '../base/deriveNodes.js'
+import { buildSpawnNodes, spawnAndCommit } from '../base/deriveNodes.js'
 import { useCanvasEdges } from '../base/CanvasEdgesContext.jsx'
 
 /**
@@ -196,10 +196,7 @@ function LoopNode({ id, data, selected }) {
     })
 
     const spawned = buildSpawnNodes({ id, position: { x: baseX, y: baseY } }, specs)
-    const snapshot = applySpawnSnapshot(getNodes(), getEdges(), spawned)
-    setNodes((ns) => ns.concat(spawned.childNodes))
-    setEdges((es) => es.concat(spawned.edges))
-    history?.record(snapshot)
+    spawnAndCommit(spawned, { getNodes, getEdges, setNodes, setEdges, history })
     // 下游节点已生成在画布，结果可见，无需 toast
     setRunning(false)
   }

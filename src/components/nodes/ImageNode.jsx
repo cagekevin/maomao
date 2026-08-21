@@ -1,20 +1,18 @@
 import React, { useState, useRef, useCallback } from 'react'
 import {
-  Image as ImageIcon, Video, Music, FileText, Plus, Crop,
-  Pencil, Send, Download, Play, FileArchive
+  Image as ImageIcon, Video, Music, FileText, Plus, Send, Download, Play
 } from 'lucide-react'
 import { useReactFlow } from '@xyflow/react'
 import NodeShell from '../base/NodeShell.jsx'
 import HoverToolbar from '../base/HoverToolbar.jsx'
-import ImageEditor from '../base/ImageEditor.jsx'
 import ImageZoomDialog from '../base/ImageZoomDialog.jsx'
 import { detectMediaType } from '../base/mediaType.js'
 import { useMediaDegrade } from '../base/useMediaDegrade.js'
 import { useFitNodeRatio } from '../base/useFitNodeRatio.js'
 import { useVideoPoster } from '../base/useVideoPoster.js'
-import { toAbsoluteFileUrl, saveInlineToLocal, uploadFileToLocal } from '../base/filesApi.js'
+import { toAbsoluteFileUrl, uploadFileToLocal } from '../base/filesApi.js'
 import { useRenderImageResolver } from '../base/imageUrl.js'
-import { compressImage } from '../base/imageCompress.js'
+import { useImageHoverActions } from '../base/useImageHoverActions.jsx'
 import { downloadUrl } from '../base/clipboard.js'
 import { showToast, toastError } from '../base/toastStore.js'
 import { sendToAssetLibrary } from '../base/assetStore.js'
@@ -42,9 +40,6 @@ function ImageNode({ id, data, selected }) {
   // 订阅「画布显示缩略图」设置：显示地址实时随开关（见 docs/18）
   const render = useRenderImageResolver()
 
-  // 编辑器开合（复刻官方：同一编辑器，initialTool 决定入口工具）。null=关闭。
-  const [editor, setEditor] = useState(null) // { tool: 'crop' | 'pencil' }
-
   // 视频播放态（复刻官方 xi.jsx `s`）：false=显示海报+播放按钮，true=渲染 <video controls autoPlay>
   const [playing, setPlaying] = useState(false)
 
@@ -64,19 +59,27 @@ function ImageNode({ id, data, selected }) {
   // 视频首帧封面（未播放时显示首帧，避免视频 URL 当 img 破图）
   const posterUrl = useVideoPoster(url, type === 'video' && !playing)
 
-  // 编辑器保存 → 写回节点图片（接真系统：在此改走上传 localTool /files/ + 写回 imageUrl）
-  const handleEditorSave = useCallback(
-    ({ dataUrl }) => {
+  // 编辑器/压缩保存 → 写回节点图片（不可变更新，与 HoverToolbar 统一机制共享）。
+  const replaceImage = useCallback(
+    (dataUrl) => {
       if (!dataUrl) return
       setNodes((ns) =>
         ns.map((n) =>
           n.id === id ? { ...n, data: { ...n.data, imageUrl: dataUrl, url: dataUrl } } : n
         )
       )
-      setEditor(null)
     },
     [id, setNodes]
   )
+
+  // 共享图片 hover 能力（裁剪/标记/压缩）：写回走 replaceImage
+  const { editor, setEditor, renderEditor, imageButtons } = useImageHoverActions({
+    id,
+    url,
+    hasImage: type === 'image',
+    label: data.label,
+    onImageReplaced: replaceImage,
+  })
 
   // 下载当前内容（图片/视频/音频/文本共用）。用 <a download> 触发浏览器保存，
   // 文件名优先用节点 label，其次是 URL 里的文件名；无扩展名时按类型补扩展名。
@@ -93,37 +96,6 @@ function ImageNode({ id, data, selected }) {
     if (!filename) filename = `image-${type || 'content'}${ext || '.png'}`
     downloadUrl(url, filename)
   }, [url, data.label, type])
-
-  // 压缩中状态（按钮显示 loading，防重复点击）
-  const [compressing, setCompressing] = useState(false)
-
-  // hover「压缩」：点一下自动压缩图片，并原位覆盖（写回 data.imageUrl，节点位置不变）。
-  // 默认参数 quality 0.8（压缩 80%）走 imageCompress.js；写回后落盘 localTool，
-  // 避免 data: base64 刷新丢失（对齐 handleEditorSave 原位覆盖语义）。
-  const handleCompress = useCallback(async () => {
-    if (!url || type !== 'image' || compressing) return
-    setCompressing(true)
-    try {
-      const { dataUrl, size, originalSize } = await compressImage(url, { quality: 0.8 })
-      if (!dataUrl) throw new Error('压缩失败')
-      // 原位覆盖：先写回节点图（立即生效），再异步落盘换 URL
-      setNodes((ns) =>
-        ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, imageUrl: dataUrl, url: dataUrl } } : n))
-      )
-      const saved = await saveInlineToLocal(dataUrl, 'canvas')
-      if (saved && saved !== dataUrl) {
-        setNodes((ns) =>
-          ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, imageUrl: saved, url: saved } } : n))
-        )
-      }
-      const ratio = originalSize ? `（${(size / originalSize * 100).toFixed(1)}%）` : ''
-      // 压缩结果在节点上可见，无需 toast
-    } catch (e) {
-      toastError(e?.message || '压缩失败')
-    } finally {
-      setCompressing(false)
-    }
-  }, [url, type, compressing, id, setNodes])
 
   // 「上传/替换」真正读取所选文件（修复：此前 fileRef input 无 onChange，选完不读 → 上传按钮失效）。
   // 图片/视频/音频：优先上传 localTool 成 /files/ 持久 URL（刷新不丢），失败回退 dataURL 内联（仍可显示，靠 base64 外置兜底）。
@@ -163,7 +135,8 @@ function ImageNode({ id, data, selected }) {
   const renderUrl = type === 'image' ? render(url) : ''
   const displayUrl = type === 'image' ? url : data.poster || ''
 
-  // hover 操作栏按钮
+  // hover 操作栏按钮：图片类共享能力(crop/edit/compress)走 useImageHoverActions，
+  // upload/send/download 按本节点多类型语义各自声明。
   const toolbarButtons = [
     {
       key: 'upload',
@@ -171,20 +144,7 @@ function ImageNode({ id, data, selected }) {
       title: '上传/替换',
       onClick: () => fileRef.current?.click()
     },
-    {
-      key: 'crop',
-      icon: <Crop size={14} />,
-      title: '裁剪',
-      onClick: () => url && setEditor({ tool: 'crop' }),
-      show: type === 'image', // 裁剪只对图片（视频/音频不适用，官方同此）
-    },
-    {
-      key: 'edit',
-      icon: <Pencil size={14} />,
-      title: '标记',
-      onClick: () => url && setEditor({ tool: 'pencil' }),
-      show: type === 'image', // 标记只对图片
-    },
+    ...imageButtons,
     {
       key: 'send',
       icon: <Send size={14} />,
@@ -198,7 +158,6 @@ function ImageNode({ id, data, selected }) {
         showToast('已发送到素材库', { type: 'success' })
       }
     },
-    { key: 'compress', icon: <FileArchive size={14} />, title: '压缩图片（80%）', onClick: handleCompress, show: type === 'image' && !!url },
     { key: 'download', icon: <Download size={14} />, title: '下载', onClick: handleDownload, show: !!url }
   ]
 
@@ -328,14 +287,8 @@ function ImageNode({ id, data, selected }) {
     </NodeShell>
 
     {/* 全屏图片编辑器（裁剪/标记入口）：用当前显示图作为编辑源 */}
-    {editor && url && (
-      <ImageEditor
-        imageUrl={url}
-        initialTool={editor.tool}
-        onSave={handleEditorSave}
-        onClose={() => setEditor(null)}
-      />
-    )}
+    {/* 图片编辑器（裁剪/标记）：统一机制渲染，editor 关闭时返回 null */}
+    {renderEditor()}
 
     {/* 查看大图：共享 ImageZoomDialog（滚轮缩放/拖拽/双击关闭 + 复制图片/下载） */}
     <ImageZoomDialog ref={dialogRef} url={displayUrl} />

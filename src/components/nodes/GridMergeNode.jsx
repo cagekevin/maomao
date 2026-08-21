@@ -1,6 +1,6 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { useDebouncedEffect } from '../base/utils.js'
-import { buildSpawnNodes, applySpawnSnapshot } from '../base/deriveNodes.js'
+import { buildSpawnNodes, spawnAndCommit } from '../base/deriveNodes.js'
 import { useCanvasEdges } from '../base/CanvasEdgesContext.jsx'
 
 import { Grid3X3, PanelsTopLeft, Layers, Loader2 } from 'lucide-react'
@@ -339,10 +339,7 @@ function GridMergeNode({ id, data, selected }) {
         [{ id: nid, type: 'imageNode', position: { x: baseX, y: baseY }, data: { imageUrl: url, label: `合并结果`, expanded: false }, style: { width: 320, height: 320 } }],
         { sourceHandle: 'merged-output' }
       )
-      const snapshot = applySpawnSnapshot(getNodes(), getEdges(), spawned)
-      setNodes((ns) => ns.concat(spawned.childNodes))
-      setEdges((es) => es.concat(spawned.edges))
-      history?.record(snapshot)
+      spawnAndCommit(spawned, { getNodes, getEdges, setNodes, setEdges, history })
     },
     [id, getNode, getEdges, setNodes, setEdges, history]
   )

@@ -8,7 +8,7 @@ import HoverToolbar from '../base/HoverToolbar.jsx'
 import { useConnectedInputs } from '../base/useConnectedInputs.js'
 import PanoViewer from '../base/PanoViewer.jsx'
 import { generateId } from '../base/idGen.js'
-import { buildSpawnNodes, applySpawnSnapshot } from '../base/deriveNodes.js'
+import { buildSpawnNodes, spawnAndCommit } from '../base/deriveNodes.js'
 import { useCanvasEdges } from '../base/CanvasEdgesContext.jsx'
 import { useRenderImageResolver } from '../base/imageUrl.js'
 
@@ -122,10 +122,7 @@ function PanoramaNode({ id, data, selected }) {
               }],
               { targetHandle: null }
             )
-            const snapshot = applySpawnSnapshot(getNodes(), getEdges(), spawned)
-            setNodes((ns) => ns.concat(spawned.childNodes))
-            setEdges((es) => es.concat(spawned.edges))
-            history?.record(snapshot)
+            spawnAndCommit(spawned, { getNodes, getEdges, setNodes, setEdges, history })
           }
           setToast('截图已放入图片盒子')
         }

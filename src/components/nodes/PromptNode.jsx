@@ -1,7 +1,7 @@
 import React, { useState, useRef, useCallback } from 'react'
 import { useReactFlow } from '@xyflow/react'
 import {
-  Image as ImageIcon, Plus, ZoomIn, Crop, Pencil, Send, Download, Link as LinkIcon,
+  Image as ImageIcon, Plus, ZoomIn, Send, Download, Link as LinkIcon,
   AlertCircle, X, Coins, Zap
 } from 'lucide-react'
 import NodeShell from '../base/NodeShell.jsx'
@@ -15,6 +15,8 @@ import ResizeFullscreenHandle from '../base/ResizeFullscreenHandle.jsx'
 import FullscreenModal from '../base/FullscreenModal.jsx'
 import GeneratingOverlay from '../base/GeneratingOverlay.jsx'
 import ImageZoomDialog from '../base/ImageZoomDialog.jsx'
+import ImageEditor from '../base/ImageEditor.jsx'
+import { useImageHoverActions } from '../base/useImageHoverActions.jsx'
 import PromptLibraryButton from '../base/PromptLibraryButton.jsx'
 import { downloadUrl } from '../base/clipboard.js'
 import JianyingIcon from '../base/JianyingIcon.jsx'
@@ -257,7 +259,20 @@ function PromptNode({ id, data, selected }) {
     downloadUrl(imageUrl, filename)
   }
 
-  // hover 操作栏按钮
+  // 共享图片 hover 能力（裁剪/标记/压缩）：写回走 setImageUrl + patchData（不可变落盘）。
+  const { editor, setEditor, renderEditor, imageButtons } = useImageHoverActions({
+    id,
+    url: imageUrl,
+    hasImage,
+    label: data.label,
+    onImageReplaced: (dataUrl) => {
+      setImageUrl(dataUrl)
+      patchData({ imageUrl: dataUrl })
+    },
+  })
+
+  // hover 操作栏按钮：图片类共享能力(crop/edit/compress)走 useImageHoverActions（带 onClick，修死按钮），
+  // zoom/upload/send/jianying/download 按生图节点语义各自声明。
   const toolbarButtons = [
     ...(refImages.length === 0
       ? [{ key: 'upload', icon: <Plus size={14} />, title: '上传参考图', onClick: () => fileRef.current?.click() }]
@@ -265,8 +280,8 @@ function PromptNode({ id, data, selected }) {
     ...(hasImage
       ? [
           { key: 'zoom', icon: <ZoomIn size={14} />, title: '放大' },
-          { key: 'crop', icon: <Crop size={14} />, title: '裁剪' },
-          { key: 'edit', icon: <Pencil size={14} />, title: '编辑' },
+          // 共享图片能力：裁剪/标记（开 ImageEditor）/压缩，show 已由 hook 控制为 hasImage
+          ...imageButtons,
           {
             key: 'send',
             icon: <Send size={14} />,
@@ -455,6 +470,9 @@ function PromptNode({ id, data, selected }) {
 
       {/* 双击大图：共享 ImageZoomDialog */}
       <ImageZoomDialog ref={zoomRef} url={zoomUrl} />
+
+      {/* 图片编辑器（裁剪/标记/压缩）：统一机制渲染，editor 关闭时返回 null */}
+      {renderEditor()}
     </NodeShell>
   )
 }

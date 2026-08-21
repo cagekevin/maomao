@@ -13,7 +13,7 @@ import { useRenderImageResolver } from '../base/imageUrl.js'
 import { loadImageWithTimeout } from '../base/asyncGuard.js'
 import { logger } from '../base/logger.js'
 import { generateId } from '../base/idGen.js'
-import { buildSpawnNodes, applySpawnSnapshot } from '../base/deriveNodes.js'
+import { buildSpawnNodes, spawnAndCommit } from '../base/deriveNodes.js'
 import { useCanvasEdges } from '../base/CanvasEdgesContext.jsx'
 import { createRafBatch } from '../base/utils.js'
 
@@ -525,11 +525,7 @@ function GridSplitNode({ id, data, selected }) {
           }
         })
       )
-      const snapshot = applySpawnSnapshot(getNodes(), getEdges(), spawned)
-      setNodes((ns) => ns.concat(spawned.childNodes))
-      setEdges((es) => es.concat(spawned.edges))
-      history?.record(snapshot)
-      return spawned.childNodes
+      return spawnAndCommit(spawned, { getNodes, getEdges, setNodes, setEdges, history })
     },
     [id, getNodes, getEdges, setNodes, setEdges, history]
   )
