@@ -1,10 +1,11 @@
 import { useState, useCallback } from 'react'
-import { Crop, Pencil, FileArchive, ScanSearch } from 'lucide-react'
+import { Crop, Pencil, FileArchive, Scaling } from 'lucide-react'
 import ImageEditor from './ImageEditor.jsx'
+import InlineImageCropper from './InlineImageCropper.jsx'
 import { compressImage } from './imageCompress.js'
 import { upscaleImage } from './imageUpscale.js'
 import { saveInlineToLocal } from './filesApi.js'
-import { toastError } from './toastStore.js'
+import { showToast, toastError } from './toastStore.js'
 
 /**
  * 图片类节点 hover 操作栏「行为 + 按钮」统一机制。
@@ -40,7 +41,8 @@ import { toastError } from './toastStore.js'
  * }}
  */
 export function useImageHoverActions({ id, url, hasImage, label, onImageReplaced }) {
-  const [editor, setEditor] = useState(null)
+  const [editor, setEditor] = useState(null) // 全屏 ImageEditor（重编辑入口，保留）
+  const [cropping, setCropping] = useState(false) // 就地裁剪浮层
   const [compressing, setCompressing] = useState(false)
   const [upscaling, setUpscaling] = useState(false)
 
@@ -50,6 +52,16 @@ export function useImageHoverActions({ id, url, hasImage, label, onImageReplaced
       if (!dataUrl) return
       onImageReplaced?.(dataUrl)
       setEditor(null)
+    },
+    [onImageReplaced]
+  )
+
+  // 就地裁剪保存 → 写回节点图片，关闭裁剪浮层。
+  const handleCropSave = useCallback(
+    ({ dataUrl }) => {
+      if (!dataUrl) return
+      onImageReplaced?.(dataUrl)
+      setCropping(false)
     },
     [onImageReplaced]
   )
@@ -64,6 +76,8 @@ export function useImageHoverActions({ id, url, hasImage, label, onImageReplaced
       onImageReplaced?.(dataUrl) // 立即覆盖显示
       const saved = await saveInlineToLocal(dataUrl, 'canvas')
       if (saved && saved !== dataUrl) onImageReplaced?.(saved) // 落盘后换持久 URL
+      const kb = (n) => `${(n / 1024).toFixed(0)}KB`
+      showToast(`已压缩：${originalSize ? kb(originalSize) : '?'} → ${size ? kb(size) : '?'}`, { type: 'success' })
     } catch (e) {
       toastError(e?.message || '压缩失败')
     } finally {
@@ -81,6 +95,7 @@ export function useImageHoverActions({ id, url, hasImage, label, onImageReplaced
       onImageReplaced?.(dataUrl) // 立即覆盖显示
       const saved = await saveInlineToLocal(dataUrl, 'canvas')
       if (saved && saved !== dataUrl) onImageReplaced?.(saved) // 落盘后换持久 URL
+      showToast('已放大 2 倍', { type: 'success' })
     } catch (e) {
       toastError(e?.message || '放大失败')
     } finally {
@@ -88,14 +103,14 @@ export function useImageHoverActions({ id, url, hasImage, label, onImageReplaced
     }
   }, [url, upscaling, onImageReplaced])
 
-  // 共享图片 hover 按钮：裁剪 / 标记 / 放大 / 压缩（图片编辑核心能力）。
+  // 共享图片 hover 按钮：裁剪（就地）/ 放大 / 压缩（图片编辑核心能力）。
   // 仅 hasImage 时显示（无图不显示死按钮）。发送/下载由各节点按自身语义保留。
   const imageButtons = [
     {
       key: 'crop',
       icon: <Crop size={14} />,
       title: '裁剪',
-      onClick: () => url && setEditor({ tool: 'crop' }),
+      onClick: () => url && setCropping(true),
       show: hasImage,
     },
     {
@@ -107,8 +122,8 @@ export function useImageHoverActions({ id, url, hasImage, label, onImageReplaced
     },
     {
       key: 'upscale',
-      icon: <ScanSearch size={14} />,
-      title: '放大 2 倍（超分）',
+      icon: <Scaling size={14} />,
+      title: '超分放大（AI 2x）',
       onClick: handleUpscale,
       show: hasImage && !!url,
     },
@@ -121,7 +136,7 @@ export function useImageHoverActions({ id, url, hasImage, label, onImageReplaced
     },
   ]
 
-  // 渲染编辑器（调用方在节点末尾 render）
+  // 渲染编辑器（调用方在节点末尾 render，全屏重编辑入口，保留未删）
   const renderEditor = () =>
     editor && url ? (
       <ImageEditor
@@ -132,16 +147,30 @@ export function useImageHoverActions({ id, url, hasImage, label, onImageReplaced
       />
     ) : null
 
+  // 渲染就地裁剪浮层（调用方放在图片区 relative 容器内）
+  const renderInlineCropper = () =>
+    cropping && url ? (
+      <InlineImageCropper
+        imageUrl={url}
+        onSave={handleCropSave}
+        onClose={() => setCropping(false)}
+      />
+    ) : null
+
   return {
     editor,
     setEditor,
+    cropping,
+    setCropping,
     handleEditorSave,
+    handleCropSave,
     handleCompress,
     compressing,
     handleUpscale,
     upscaling,
     imageButtons,
     renderEditor,
+    renderInlineCropper,
   }
 }
 

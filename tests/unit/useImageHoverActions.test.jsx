@@ -45,13 +45,26 @@ describe('useImageHoverActions — 图片共享 hover 能力', () => {
     }
   })
 
-  it('点击裁剪 → 打开编辑器 tool=crop → renderEditor 渲染 ImageEditor', () => {
+  it('点击裁剪 → 打开就地裁剪浮层（cropping=true）→ renderInlineCropper 渲染', () => {
+    const { result } = renderHook(() =>
+      useImageHoverActions({ id: 'n1', url: 'http://x/a.png', hasImage: true, label: 'L', onImageReplaced: () => {} })
+    )
+    expect(result.current.cropping).toBe(false)
+    act(() => { findBtn(result.current.imageButtons, 'crop').onClick() })
+    expect(result.current.cropping).toBe(true)
+    expect(result.current.renderInlineCropper()).not.toBeNull()
+    // 关闭
+    act(() => { result.current.setCropping(false) })
+    expect(result.current.renderInlineCropper()).toBeNull()
+  })
+
+  it('点击标记(edit) → 打开全屏编辑器 → renderEditor 渲染 ImageEditor', () => {
     const { result } = renderHook(() =>
       useImageHoverActions({ id: 'n1', url: 'http://x/a.png', hasImage: true, label: 'L', onImageReplaced: () => {} })
     )
     expect(result.current.editor).toBeNull()
-    act(() => { findBtn(result.current.imageButtons, 'crop').onClick() })
-    expect(result.current.editor).toEqual({ tool: 'crop' })
+    act(() => { findBtn(result.current.imageButtons, 'edit').onClick() })
+    expect(result.current.editor).toEqual({ tool: 'pencil' })
     expect(result.current.renderEditor()).not.toBeNull()
     // 关闭
     act(() => { result.current.setEditor(null) })
@@ -87,7 +100,7 @@ describe('useImageHoverActions — 图片共享 hover 能力', () => {
     const { result } = renderHook(() =>
       useImageHoverActions({ id: 'n1', url: 'http://x/a.png', hasImage: true, label: 'L', onImageReplaced: onReplaced })
     )
-    act(() => { findBtn(result.current.imageButtons, 'crop').onClick() })
+    act(() => { findBtn(result.current.imageButtons, 'edit').onClick() })
     act(() => { result.current.handleEditorSave({ dataUrl: 'data:edited' }) })
     expect(onReplaced).toHaveBeenCalledWith('data:edited')
     expect(result.current.editor).toBeNull()

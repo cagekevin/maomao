@@ -73,7 +73,7 @@ function ImageNode({ id, data, selected }) {
   )
 
   // 共享图片 hover 能力（裁剪/标记/压缩）：写回走 replaceImage
-  const { editor, setEditor, renderEditor, imageButtons } = useImageHoverActions({
+  const { editor, setEditor, renderEditor, renderInlineCropper, imageButtons } = useImageHoverActions({
     id,
     url,
     hasImage: type === 'image',
@@ -187,6 +187,8 @@ function ImageNode({ id, data, selected }) {
       {/* 主容器：背景/边框/阴影已由 NodeShell 主容器提供，这里只保留布局。
           relative 必须保留——内部空态/播放图标是 absolute inset-0 定位，依赖本容器做定位上下文 */}
       <div className="relative w-full flex flex-col flex-1">
+        {/* 就地裁剪浮层：覆盖在节点内容区之上，不跳全屏 */}
+        {renderInlineCropper()}
         <div
           className="flex-1 p-0 bg-surface-strong flex items-center justify-center relative overflow-hidden"
           style={{ minHeight: 160 }}

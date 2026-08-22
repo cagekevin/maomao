@@ -60,6 +60,14 @@ vi.mock('../../src/components/base/ImageEditor.jsx', () => ({
     return <div data-testid="image-editor" data-url={imageUrl} />
   },
 }))
+// InlineImageCropper：记录是否打开（就地裁剪浮层）
+let inlineCropperOpen = false
+vi.mock('../../src/components/base/InlineImageCropper.jsx', () => ({
+  default: ({ imageUrl, onSave, onClose }) => {
+    inlineCropperOpen = true
+    return <div data-testid="inline-cropper" data-url={imageUrl} />
+  },
+}))
 
 import PromptNode from '../../src/components/nodes/PromptNode.jsx'
 
@@ -69,16 +77,25 @@ beforeEach(() => {
   mockAddNodes.mockClear()
   genConfig = null
   lastEditorUrl = null
+  inlineCropperOpen = false
   if (!global.IntersectionObserver) global.IntersectionObserver = class { observe() {} unobserve() {} disconnect() {} }
 })
 
 describe('PromptNode hover 工具栏 — 共享图片能力', () => {
-  it('有生图结果时，hover 栏出现「裁剪」按钮且可点击打开 ImageEditor', async () => {
+  it('有生图结果时，hover 栏出现「裁剪」按钮且可点击打开就地裁剪浮层', async () => {
     render(<PromptNode id="pn1" data={{ imageUrl: 'http://x/result.png', label: '生图' }} selected={false} />)
     const cropBtn = screen.getByTitle('裁剪')
     expect(cropBtn).toBeTruthy()
-    expect(lastEditorUrl).toBeNull() // 初始未打开
+    expect(inlineCropperOpen).toBe(false) // 初始未打开
     fireEvent.click(cropBtn)
+    await waitFor(() => expect(inlineCropperOpen).toBe(true))
+    expect(screen.getByTestId('inline-cropper')).toBeTruthy()
+  })
+
+  it('有生图结果时，「标记」按钮可点击打开全屏 ImageEditor', async () => {
+    render(<PromptNode id="pn1" data={{ imageUrl: 'http://x/result.png', label: '生图' }} selected={false} />)
+    expect(lastEditorUrl).toBeNull() // 初始未打开
+    fireEvent.click(screen.getByTitle('标记'))
     await waitFor(() => expect(lastEditorUrl).toBe('http://x/result.png'))
   })
 

@@ -75,6 +75,18 @@ export default function ImageEditor({ imageUrl, initialTool = 'pencil', onSave, 
   const [spaceDown, setSpaceDown] = useState(false)
   const [seq, setSeq] = useState(1)
   const [textInput, setTextInput] = useState(null)
+  const textInputRef = useRef(null) // 文字输入框 ref：动态出现时显式聚焦（autoFocus 不可靠）
+
+  // 文字输入框出现时显式聚焦并定位光标到末尾（autoFocus 在 mousedown 触发的动态渲染里不可靠，
+  // 导致输入框弹出却无焦点、看不到闪烁光标、打不了字）。
+  useEffect(() => {
+    if (textInput && textInputRef.current) {
+      const el = textInputRef.current
+      el.focus()
+      const len = el.value.length
+      try { el.setSelectionRange(len, len) } catch {}
+    }
+  }, [textInput])
 
   // 裁剪态（ReactCrop）
   const [crop, setCrop] = useState(undefined)
@@ -100,7 +112,9 @@ export default function ImageEditor({ imageUrl, initialTool = 'pencil', onSave, 
   // 晚到覆盖新图（imageUrl 变化时）。
   useEffect(() => {
     const canvas = canvasRef.current
-    const ctx = canvas?.getContext('2d')
+    // willReadFrequently：本编辑器每画一笔都要 getImageData 存撤销历史（频繁读回），
+    // 首次取 context 即声明该优化，消除浏览器的 "Multiple readback operations" 性能警告。
+    const ctx = canvas?.getContext('2d', { willReadFrequently: true })
     if (!canvas || !ctx || !imageUrl) return
     let cancelled = false
     // 把图片画进 canvas 的公共函数（onload 调用）
@@ -210,6 +224,30 @@ export default function ImageEditor({ imageUrl, initialTool = 'pencil', onSave, 
     if (canvas && ctx) setHistory((h) => [...h, ctx.getImageData(0, 0, canvas.width, canvas.height)])
   }, [])
 
+  // 文字确认写入：有字 → 落笔并关闭；空字（如误失焦）→ 保留输入框，避免误关。
+  // 【为何放这里】onDrawStart 里要引用 commitText（点画布空白=保存文字），而 const 有暂时性
+  // 死区，若 commitText 定义在 onDrawStart 之后会报 "Cannot access before initialization"，
+  // 故把 commitText 提前到 onDrawStart 之前。
+  const commitText = useCallback(() => {
+    if (!textInput) return
+    const text = (textInput.text || '').trim()
+    if (!text) return // 空文本不关闭，让用户继续输入
+    const canvas = canvasRef.current
+    const ctx = canvas?.getContext('2d')
+    if (canvas && ctx) {
+      // canvas 屏幕显示尺寸 = 内部像素 × zoom，故字体用内部像素时需 /zoom，
+      // 落笔后屏幕显示大小才与输入框一致（不会"保存后变小"），且随滑块(lineWidth)增减。
+      const fontSize = Math.max(20, lineWidth * 5) / (zoom > 0 ? zoom : 1)
+      pushHistory()
+      ctx.fillStyle = color
+      ctx.font = `bold ${fontSize}px sans-serif`
+      ctx.textAlign = 'left'
+      ctx.textBaseline = 'top'
+      ctx.fillText(text, textInput.x, textInput.y + fontSize * 0.1)
+    }
+    setTextInput(null)
+  }, [textInput, color, lineWidth, zoom, pushHistory])
+
   // 撤销
   const undo = useCallback(() => {
     if (history.length <= 1) return
@@ -253,14 +291,21 @@ export default function ImageEditor({ imageUrl, initialTool = 'pencil', onSave, 
       return
     }
     if (tool === 'text') {
-      const canvasRect = canvas.getBoundingClientRect()
+      e.preventDefault()
+      // 若已在输入中（textInput 存在），用户点击画布空白 = 确认当前文字并保存（点外部自动保存），不重开。
+      if (textInput) {
+        commitText()
+        return
+      }
+      // 首次点图：在该位置创建文字输入框
       const vp = viewportRef.current
+      const vpRect = vp?.getBoundingClientRect()
       const cxp = 'touches' in e ? e.touches[0].clientX : e.clientX
       const cyp = 'touches' in e ? e.touches[0].clientY : e.clientY
       setTextInput({
         x, y,
-        left: cxp - (canvasRect.left || 0) + (vp?.scrollLeft || 0),
-        top: cyp - (canvasRect.top || 0) + (vp?.scrollTop || 0),
+        left: vpRect ? cxp - vpRect.left + (vp.scrollLeft || 0) : cxp,
+        top: vpRect ? cyp - vpRect.top + (vp.scrollTop || 0) : cyp,
         text: '',
       })
       return
@@ -292,7 +337,7 @@ export default function ImageEditor({ imageUrl, initialTool = 'pencil', onSave, 
       // shape：画前存历史，便于实时预览回退
       pushHistory()
     }
-  }, [tool, color, lineWidth, seq, pushHistory, toCanvasPos])
+  }, [tool, color, lineWidth, seq, pushHistory, toCanvasPos, textInput, commitText])
 
   // 绘制进行
   const onDrawMove = useCallback((e) => {
@@ -346,21 +391,12 @@ export default function ImageEditor({ imageUrl, initialTool = 'pencil', onSave, 
     ctx.stroke()
   }, [drawing, tool, color, lineWidth, history, toCanvasPos])
 
-  // 文字确认写入
-  const commitText = useCallback(() => {
-    if (!textInput || !textInput.text.trim()) { setTextInput(null); return }
-    const canvas = canvasRef.current
-    const ctx = canvas?.getContext('2d')
-    if (canvas && ctx) {
-      pushHistory()
-      ctx.fillStyle = color
-      ctx.font = `bold ${Math.max(20, lineWidth * 5)}px sans-serif`
-      ctx.textAlign = 'left'
-      ctx.textBaseline = 'top'
-      ctx.fillText(textInput.text, textInput.x, textInput.y + 4)
-    }
-    setTextInput(null)
-  }, [textInput, color, lineWidth, pushHistory])
+  // canvas 移动统一分发：画笔/橡皮走 onDrawMove（实时连线），其它形状走 onShapePreview（快照重画）。
+  // 【修复】此前 onMouseMove 只绑了 onShapePreview，导致 pencil 的 onDrawMove 永远不被调用 → 画笔画不出线。
+  const handleCanvasMove = useCallback((e) => {
+    if (tool === 'pencil' || tool === 'eraser') onDrawMove(e)
+    else onShapePreview(e)
+  }, [tool, onDrawMove, onShapePreview])
 
   // 确认裁剪（复刻官方 537-574）：把 ReactCrop 的 crop 换算成 canvas 像素 → 裁切
   const applyCrop = useCallback(() => {
@@ -500,7 +536,7 @@ export default function ImageEditor({ imageUrl, initialTool = 'pencil', onSave, 
             <canvas
               ref={canvasRef}
               onMouseDown={tool === 'crop' ? undefined : onDrawStart}
-              onMouseMove={tool === 'crop' ? undefined : onShapePreview}
+              onMouseMove={tool === 'crop' ? undefined : handleCanvasMove}
               onMouseUp={tool === 'crop' ? undefined : onDrawEnd}
               onMouseLeave={tool === 'crop' ? undefined : onDrawEnd}
               onTouchStart={tool === 'crop' ? undefined : onDrawStart}
@@ -520,11 +556,14 @@ export default function ImageEditor({ imageUrl, initialTool = 'pencil', onSave, 
         {/* 文字输入浮层 */}
         {textInput && (
           <input
-            autoFocus
+            ref={textInputRef}
             type="text"
             value={textInput.text}
             onChange={(e) => setTextInput((t) => ({ ...t, text: e.target.value }))}
-            onKeyDown={(e) => { if (e.key === 'Enter') commitText() }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') commitText()
+              else if (e.key === 'Escape') { e.stopPropagation(); setTextInput(null) } // Esc 取消，不落字
+            }}
             onBlur={commitText}
             placeholder="输入文字..."
             style={{
@@ -534,14 +573,16 @@ export default function ImageEditor({ imageUrl, initialTool = 'pencil', onSave, 
               color,
               fontSize: `${Math.max(20, lineWidth * 5)}px`,
               fontWeight: 'bold',
-              background: 'transparent',
-              border: '1px dashed #666',
+              background: 'rgba(0,0,0,0.65)',
+              border: '1px solid #3b82f6',
+              borderRadius: 2,
               outline: 'none',
-              padding: 0,
+              padding: '1px 3px',
               margin: 0,
               zIndex: 10000,
-              minWidth: '20px',
+              minWidth: '40px',
               lineHeight: 1,
+              caretColor: color,
             }}
           />
         )}

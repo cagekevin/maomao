@@ -261,7 +261,7 @@ function PromptNode({ id, data, selected }) {
   }
 
   // 共享图片 hover 能力（裁剪/标记/压缩）：写回走 setImageUrl + patchData（不可变落盘）。
-  const { editor, setEditor, renderEditor, imageButtons } = useImageHoverActions({
+  const { editor, setEditor, renderEditor, renderInlineCropper, imageButtons } = useImageHoverActions({
     id,
     url: imageUrl,
     hasImage,
@@ -328,6 +328,8 @@ function PromptNode({ id, data, selected }) {
         onClick={toggleExpanded}
         onDoubleClick={(e) => { e.stopPropagation(); openZoom(imageUrl) }}
       >
+        {/* 就地裁剪浮层：覆盖在生图结果区，不跳全屏 */}
+        {renderInlineCropper()}
         <div className={`flex items-center justify-center absolute inset-0 rounded-xl overflow-hidden ${hasImage ? '' : 'bg-canvas'}`}>
           {/* 性能模式媒体降级：缩小时隐藏生图结果（复刻官方"图片已隐藏"） */}
           {hasImage && !loading && !error && hideResult && (
