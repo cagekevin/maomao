@@ -59,6 +59,15 @@ if (typeof globalThis.HTMLElement !== 'undefined' && !globalThis.HTMLElement.pro
   globalThis.HTMLElement.prototype.scrollIntoView = function () {}
 }
 
+// jsdom 对 <a download> 不支持导航：剪贴板下载（downloadUrl/downloadBlob）用
+// createObjectURL + a.click() 触发，jsdom 会尝试导航并刷 "Not implemented: navigation"
+// 栈噪音（clipboard.test.js）。把 a.click() 置空，保留<a>的创建/download/URL 释放断言，
+// 从源头杜绝导航尝试。fireEvent.click 走事件派发而非原型 .click()，不受影响。
+if (typeof globalThis.HTMLAnchorElement !== 'undefined' && !globalThis.HTMLAnchorElement.prototype.click.__stubbed) {
+  globalThis.HTMLAnchorElement.prototype.click = () => {}
+  globalThis.HTMLAnchorElement.prototype.click.__stubbed = true
+}
+
 // ── 测试态 logger 安静化 ──
 // 生产 logger.js 对 info/warn/error 无条件 console 输出（生成/同步/素材上传等高频埋点），
 // 全量跑会刷屏、淹没真实断言失败。这里在测试态按「logger 专属前缀」精确过滤掉这些行，
@@ -66,7 +75,24 @@ if (typeof globalThis.HTMLElement !== 'undefined' && !globalThis.HTMLElement.pro
 // logger 前缀形如 `[info] 11:24:10 | 分类 | 动作 | {...}`（格式见 src/components/base/logger.js）。
 const __isLoggerLine = (args) =>
   typeof args?.[0] === 'string' && /^\[(log|info|warn|error|debug)\]\s+\d{2}:\d{2}:\d{2}/.test(args[0])
+
+// 已知良性测试噪音（jsdom / 测试隔离产物，非真实失败；断言失败由 vitest 单独捕获，
+// 所以丢弃这些 console 行不影响失败可见性）：
+// 1) React act 警告：异步媒体事件/外部 store 驱动的重渲染落在 act 窗口之外，测试已用
+//    waitFor 或同步断言收口（VideoProcessNode 的 <video>、agentPersistRecovery 的 store 异步）。
+// 2) jsdom 不识别 SVG 命名空间标签 <g>/<path>（CustomEdge/ConnectionLine/Comet）——React 渲染正确，仅 jsdom 日志噪音。
+// 3) THREE.WARNING 多实例——vitest fork 每 worker 独立进程各载一份 three，隔离造成的假阳性。
+const __isBenignNoise = (s) =>
+  /was not wrapped in act\(/u.test(s) ||
+  /is unrecognized in this browser/u.test(s) ||
+  /THREE\.WARNING: Multiple instances of Three\.js/u.test(s)
+
 const __consoleIO = { log: console.log, warn: console.warn, error: console.error }
-console.log = (...a) => { if (!__isLoggerLine(a)) __consoleIO.log(...a) }
-console.warn = (...a) => { if (!__isLoggerLine(a)) __consoleIO.warn(...a) }
-console.error = (...a) => { if (!__isLoggerLine(a)) __consoleIO.error(...a) }
+const __pass = (level, ...a) => {
+  const msg = a.map((x) => (typeof x === 'string' ? x : x instanceof Error ? x.message : String(x))).join(' ')
+  if (__isLoggerLine(a) || __isBenignNoise(msg)) return
+  __consoleIO[level](...a)
+}
+console.log = (...a) => __pass('log', ...a)
+console.warn = (...a) => __pass('warn', ...a)
+console.error = (...a) => __pass('error', ...a)
