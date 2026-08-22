@@ -196,6 +196,48 @@ describe('accountsStore §4 多开账号管理', () => {
     })
   })
 
+  // ── doc31 §一/§二 验收锁定：数据结构对齐官方 + KV 落盘 + 空读不写空覆盖 ──
+  describe('结构对齐官方（doc31 §一）', () => {
+    it('保存环境对象含 id/name/siteName/siteUrl/avatar/cookies 六字段', async () => {
+      const env = await createEnv('即梦小号')
+      const e = mod.useAccounts().envs.find((x) => x.id === env.id)
+      for (const f of ['id', 'name', 'siteName', 'siteUrl', 'avatar', 'cookies']) {
+        expect(f in e, `环境对象应含 ${f} 字段`).toBe(true)
+      }
+      expect(e.cookies).toEqual([{ name: 'test', value: '123' }])
+    })
+
+    it('手动 JSON 带全部 cookie 字段 → 映射保留 name/value/domain/path/secure/httpOnly/expirationDate/sameSite/storeId', async () => {
+      mod.openCreateForm()
+      mod.setFormName('手动号')
+      const fullCookie = {
+        name: 'sid_tt', value: 'v1', domain: '.jimeng.jianying.com', path: '/',
+        secure: true, httpOnly: true, expirationDate: 9999999999, sameSite: 'no_restriction', storeId: '1',
+      }
+      mod.setFormCookies(JSON.stringify([fullCookie]))
+      await mod.saveEnvironment(false)
+      const added = mod.useAccounts().envs.slice(-1)[0]
+      expect(added.siteName).toBe('手动添加')
+      expect(added.cookies[0]).toEqual(fullCookie)
+    })
+  })
+
+  describe('存储走 KV + 空读不写（doc31 §二）', () => {
+    it('保存后经 /api/kv/set 落盘 yimao_accounts（KV 持久化，非浏览器内存）', async () => {
+      await createEnv('即梦小号')
+      const setCalls = globalThis.fetch.mock.calls.filter((c) => String(c[0]).includes('/api/kv/set'))
+      expect(setCalls.length).toBeGreaterThan(0)
+    })
+
+    it('load() KV 空 → envs 保持空，不写空覆盖（无 /api/kv/set、不写 localStorage）', async () => {
+      await new Promise((r) => setTimeout(r, 0)) // 等模块导入时 `void load()` 的异步 KV 读落定
+      expect(mod.useAccounts().envs).toEqual([])
+      const setCalls = globalThis.fetch.mock.calls.filter((c) => String(c[0]).includes('/api/kv/set'))
+      expect(setCalls).toHaveLength(0)
+      expect(localStorage.getItem('yimao_accounts')).toBeNull()
+    })
+  })
+
   // 清理 requestDelete 的 3s setTimeout 副作用（避免影响其它测试/进程退出）
   afterEach(() => {
     vi.clearAllTimers?.()
