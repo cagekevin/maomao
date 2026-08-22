@@ -98,13 +98,13 @@ export const LOCAL_TOOL_PING_TIMEOUT = 5000
 /** 图片 URL → blob 读取（imageUrl.js） */
 export const IMAGE_FETCH_TIMEOUT = 10000
 /** 图片压缩 / 图像加载（imageCompress.js、asyncGuard.js） */
-export const IMAGE_LOAD_TIMEOUT = 20000
+export const IMAGE_LOAD_TIMEOUT = 10000
 /** 通用下载 / 读视频元数据（clipboard.js、VideoProcessNode） */
 export const DOWNLOAD_TIMEOUT = 30000
 /** 大视频下载（VideoProcessNode） */
-export const VIDEO_DOWNLOAD_TIMEOUT = 90000
+export const VIDEO_DOWNLOAD_TIMEOUT = 60000
 /** 文件上传（filesApi.js） */
-export const UPLOAD_TIMEOUT = 60000
+export const UPLOAD_TIMEOUT = 30000
 /** 聊天/提示词生成总超时（chatProxy）：2 分钟，超时 abort 并复位 loading，避免动画无限挂起 */
 export const CHAT_TIMEOUT = 120000
 
