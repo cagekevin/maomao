@@ -2,19 +2,19 @@ import React, { useState } from 'react'
 import { Loader2, Wand2, User, Image as ImageIcon, Package, Plus, MoreVertical, Upload, RefreshCw, Trash2 } from 'lucide-react'
 import { ZgPrompt, stripAtRef } from '../base/scriptBoxPrompts.js'
 import { useOutsideClick } from '../base/hooks.js'
-import { toAbsoluteFileUrl } from '../base/filesApi.js'
+import { useRenderImageResolver } from '../base/imageUrl.js'
 import ImageZoomDialog from '../base/ImageZoomDialog.jsx'
 
 /**
- * 剧本盒子 步骤2「准备资产」：角色/场景/道具三栏 + 资产卡(选中框/视频上传状态/more菜单) +
+ * 剧本盒子 步骤2「准备资产」：角色/场景/道具三栏 + 资产卡(选中框/图片上传状态/more菜单) +
  * 工具栏(风格/生图模型/上传全部/批量生图带选中数) + 抽屉编辑 + 双击提示词面板（复刻原型 renderV2）。
  *
  * 数据只读 node.data：
  *  - assets[].picked  选中态（批量用，存 node.data）
- *  - assets[].videoStatus  uploading/uploaded/failed
+ *  - assets[].imageStatus  uploading/uploaded/failed
  *  - pickedCount 全局选中数（存 node.data）
  * 编辑经 updateData；生成/上传经 callbacks.onGenerateAssetImage / onGenerateAllAssetImages /
- * onUploadAllVideoAssets / onRetryVideoAssetUpload。
+ * onRetryAssetImageUpload / onUploadAssetImage。
  */
 export default function StepAssets({ data, updateData, callbacks }) {
   const d = data || {}
@@ -25,6 +25,8 @@ export default function StepAssets({ data, updateData, callbacks }) {
   // 双击查看大图（复用通用 ImageZoomDialog，同生图节点）：zoomUrl 记录当前要放大的图片 URL
   const zoomRef = React.useRef(null)
   const [zoomUrl, setZoomUrl] = useState('')
+  // 缩略图显示复用系统统一按需出图出口（与 ImageNode 一致），不再各自落盘独立缩略图文件
+  const render = useRenderImageResolver()
 
   const CATS = [
     { k: 'character', n: '角色', icon: <User size={12} /> },
@@ -62,17 +64,14 @@ export default function StepAssets({ data, updateData, callbacks }) {
     const target = picked.length ? picked.map((a) => a.id) : undefined
     callbacks.onGenerateAllAssetImages?.(target)
   }
-  // 上传全部素材
-  const uploadAll = () => callbacks.onUploadAllVideoAssets?.()
-  // 上传单个资产视频：走真重试上传引擎（onRetryVideoAssetUpload，内部标记 uploading→uploaded）
-  const uploadOne = (id) => callbacks.onRetryVideoAssetUpload?.(id)
-  const retryUpload = (id) => callbacks.onRetryVideoAssetUpload?.(id)
+  // 上传单个资产图片：把本地图片设为该资产参考图（onUploadAssetImage，复用右键上传同一套落盘底层）
+  const uploadOne = (id, file) => callbacks.onUploadAssetImage?.(id, file)
+  const retryUpload = (id) => callbacks.onRetryAssetImageUpload?.(id)
 
   return (
     <div className="flex flex-col gap-3">
-      {/* 工具栏（统一风格/模型已在设置里配置，这里只保留素材操作，按钮靠左顶对齐） */}
+      {/* 工具栏：批量生成（模型/风格在设置里配置） */}
       <div className="flex flex-wrap items-center gap-2 text-caption-sm text-gray-400">
-        <button className="flex items-center gap-1 px-2 py-1 text-caption text-gray-300 bg-surface-1 hover:bg-surface-hover rounded" onClick={uploadAll}><Upload size={10} /> 上传全部素材</button>
         <button className="flex items-center gap-1 px-2 py-1 text-caption text-gray-300 bg-surface-1 hover:bg-surface-hover rounded" onClick={batchGen}>
           <Wand2 size={10} /> 批量生图{pickedCount ? `(${pickedCount})` : ''}
         </button>
@@ -94,12 +93,12 @@ export default function StepAssets({ data, updateData, callbacks }) {
                     return (
                       <AssetCard
                         key={a.id} asset={a} idx={gi} data={d}
-                        updateData={updateData} callbacks={callbacks}
+                        updateData={updateData} callbacks={callbacks} render={render}
                         selected={editIdx === gi}
                         onOpen={() => setEditIdx(gi)}
                         onTogglePick={() => togglePick(a.id)}
                         onDel={() => { delAsset(a.id); if (editIdx === gi) setEditIdx(null) }}
-                        onUpload={() => uploadOne(a.id)}
+                        onUpload={uploadOne}
                         onRetry={() => retryUpload(a.id)}
                         onEditPrompt={() => setEditIdx(gi)}
                         onZoomClick={(url) => { setZoomUrl(url); zoomRef.current?.showModal() }}
@@ -141,58 +140,62 @@ function addAsset(updateData, cat, assets) {
     category: cat,
     name, description: '', prompt: '',
     imageUrl: '', thumbnailUrl: '',
-    has: false, loading: false, picked: false, videoStatus: ''
+    has: false, loading: false, picked: false, imageStatus: ''
   }
   updateData({ assets: [...assets, newAsset] })
   return assets.length // 新增后位于数组末尾，旧长度即新 index
 }
 
-/** 资产卡：缩略图 + 选中框 + 名称/描述 + 视频状态 + more 菜单 */
-function AssetCard({ asset, idx, data, updateData, callbacks, onOpen, onTogglePick, onDel, onUpload, onRetry, onEditPrompt, onZoomClick, selected }) {
+/** 资产卡：缩略图 + 选中框 + 名称/描述 + 图片上传状态 + more 菜单 */
+function AssetCard({ asset, idx, data, updateData, callbacks, render, onOpen, onTogglePick, onDel, onUpload, onRetry, onEditPrompt, onZoomClick, selected }) {
   const [more, setMore] = useState(false)
   const moreRef = React.useRef(null)
+  const fileRef = React.useRef(null)
   useOutsideClick(moreRef, more, () => setMore(false))
+  // 选图后回调（复用上传底层，把图设为该资产参考图）；失败/取消重置 input 便于再次选择
+  const handlePickFile = (e) => {
+    const file = e.target.files?.[0]
+    if (file) onUpload(asset.id, file)
+    e.target.value = ''
+  }
 
   return (
-    <div className={`w-full min-w-0 flex items-center gap-2 p-2 bg-surface-strong border rounded-lg transition-colors ${selected ? 'border-blue-500/70' : asset.picked ? 'border-emerald-500/60' : 'border-edge-faint hover:border-edge-muted'}`}>
-      {/* 选中框 */}
-      <div className="flex flex-col items-center gap-1">
-        <input type="checkbox" checked={!!asset.picked} onChange={onTogglePick} className="nodrag cursor-pointer" />
-      </div>
-      {/* 缩略图（点击打开抽屉，双击查看大图） */}
-      <div className="w-11 h-11 shrink-0 rounded-md overflow-hidden bg-surface-1 flex items-center justify-center cursor-pointer nodrag" onClick={onOpen}>
-        {asset.loading ? <Loader2 size={13} className="animate-spin text-gray-400" />
-          : asset.imageUrl ? <img src={toAbsoluteFileUrl(asset.thumbnailUrl || asset.imageUrl)} alt={asset.name} className="w-full h-full object-cover" onDoubleClick={(e) => { e.stopPropagation(); onZoomClick?.(asset.thumbnailUrl || asset.imageUrl) }} />
+    <div className={`relative w-full min-w-0 flex flex-col p-2 bg-surface-1 border rounded-lg transition-colors ${selected ? 'border-blue-500/70' : 'border-edge-faint hover:border-edge-muted'}`}>
+      {/* 大图区（在上，放大；点击打开抽屉，双击查看大图） */}
+      <div className="w-full h-20 rounded-md overflow-hidden bg-surface-1 flex items-center justify-center cursor-pointer nodrag" onClick={onOpen}>
+        {asset.loading ? <Loader2 size={16} className="animate-spin text-gray-400" />
+          : asset.imageUrl ? <img src={render(asset.imageUrl)} alt={asset.name} className="w-full h-full object-cover" onDoubleClick={(e) => { e.stopPropagation(); onZoomClick?.(asset.imageUrl) }} />
             : asset.has ? <span className="text-emerald-400 text-body-xs">✓</span>
               : <span className="text-caption text-gray-500">+ 待生成</span>}
       </div>
-      <div className="min-w-0 flex-1 cursor-pointer" onClick={onOpen}>
-        <div className="text-caption-sm text-gray-200 truncate">{asset.name}</div>
-        <div className="text-meta text-gray-500 truncate">{asset.description || '双击编辑'}</div>
-        {/* 视频上传状态 */}
-        {asset.videoStatus && (
-          <div className={`flex items-center gap-1 text-meta mt-0.5 ${asset.videoStatus === 'uploaded' ? 'text-emerald-400' : asset.videoStatus === 'failed' ? 'text-red-400' : 'text-yellow-400'}`}>
-            {asset.videoStatus === 'uploading' && <Loader2 size={8} className="animate-spin" />}
-            {asset.videoStatus === 'uploaded' ? '✓ 视频已上传' : asset.videoStatus === 'failed' ? '✗ 上传失败' : '上传中…'}
-          </div>
-        )}
-      </div>
-      {/* 生成按钮 */}
-      <button className="text-gray-600 hover:text-gray-300 p-0.5" title="生成参考图" onClick={(e) => { e.stopPropagation(); callbacks.onGenerateAssetImage?.(asset.id) }}><Wand2 size={11} /></button>
-      {/* more 菜单 */}
-      <div className="relative" ref={moreRef}>
-        <button className="text-gray-600 hover:text-gray-300 p-0.5" title="更多" onClick={(e) => { e.stopPropagation(); setMore(!more) }}><MoreVertical size={11} /></button>
+      {/* 三点菜单（挂卡片根级，覆盖图片右上角；菜单向下展开不被图片区 overflow-hidden 裁剪） */}
+      <div className="absolute top-1 right-1 z-50 shrink-0" ref={moreRef}>
+        <button className="text-white/80 hover:text-white bg-black/30 hover:bg-black/50 rounded p-0.5" title="更多" onClick={(e) => { e.stopPropagation(); setMore(!more) }}><MoreVertical size={13} /></button>
         {more && (
-          <div className="absolute right-0 top-full mt-1 z-50 bg-surface-menu border border-edge rounded-lg shadow-2xl py-1 min-w-[120px]" onClick={(e) => e.stopPropagation()}>
-            <MenuItem icon={<RefreshCw size={11} />} text="重新生成" onClick={() => { callbacks.onGenerateAssetImage?.(asset.id); setMore(false) }} />
-            <MenuItem icon={<Upload size={11} />} text="上传视频" onClick={() => { onUpload(); setMore(false) }} />
-            {asset.videoStatus === 'failed' && <MenuItem icon={<RefreshCw size={11} />} text="重试上传" onClick={() => { onRetry(); setMore(false) }} />}
+          <div className="absolute right-0 top-full mt-1 bg-surface-menu border border-edge rounded-lg shadow-2xl py-1 min-w-[120px]" onClick={(e) => e.stopPropagation()}>
+            <MenuItem icon={<Wand2 size={11} />} text="生成" onClick={() => { callbacks.onGenerateAssetImage?.(asset.id); setMore(false) }} />
+            <MenuItem icon={<Upload size={11} />} text="上传图片" onClick={() => { setMore(false); fileRef.current?.click() }} />
+            {asset.imageStatus === 'failed' && <MenuItem icon={<RefreshCw size={11} />} text="重试上传" onClick={() => { onRetry(); setMore(false) }} />}
             <MenuItem icon={<Wand2 size={11} />} text="编辑提示词" onClick={() => { onEditPrompt(); setMore(false) }} />
             <div className="h-px bg-white/[0.04] my-1" />
             <MenuItem danger icon={<Trash2 size={11} />} text="删除" onClick={() => { onDel(); setMore(false) }} />
           </div>
         )}
       </div>
+      {/* 信息区（在下）：名称 + 选中框（同一行） */}
+      <div className="flex items-center justify-between gap-1 mt-1.5">
+        <span className="text-caption-sm text-gray-200 truncate min-w-0 cursor-pointer" onClick={onOpen}>{asset.name}</span>
+        <input type="checkbox" checked={!!asset.picked} onChange={onTogglePick} className="nodrag cursor-pointer shrink-0" />
+      </div>
+      {/* 图片上传状态 */}
+      {asset.imageStatus && (
+        <div className={`flex items-center gap-1 text-meta mt-0.5 ${asset.imageStatus === 'uploaded' ? 'text-emerald-400' : asset.imageStatus === 'failed' ? 'text-red-400' : 'text-yellow-400'}`}>
+          {asset.imageStatus === 'uploading' && <Loader2 size={8} className="animate-spin" />}
+          {asset.imageStatus === 'uploaded' ? '✓ 图片已上传' : asset.imageStatus === 'failed' ? '✗ 上传失败' : '上传中…'}
+        </div>
+      )}
+      {/* 本地图片选择（「上传图片」菜单项触发，只接受图片） */}
+      <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handlePickFile} />
     </div>
   )
 }

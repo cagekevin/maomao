@@ -32,8 +32,8 @@ const h = vi.hoisted(() => {
     onGenerateShotPrompts: vi.fn(),
     onGenerateShotImage: vi.fn(),
     onStopScriptItem: vi.fn(),
-    onRetryVideoAssetUpload: vi.fn(),
-    onUploadAllVideoAssets: vi.fn(),
+    onRetryAssetImageUpload: vi.fn(),
+    onUploadAllAssetImages: vi.fn(),
     onConnectShot: vi.fn(),
     onConnectShots: vi.fn(),
   }

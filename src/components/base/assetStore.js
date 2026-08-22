@@ -238,7 +238,7 @@ async function persistUrlToBackend(url, folder) {
 /**
  * 剧本盒资产「真上传」通道（P0-2）：把任意来源素材图真正落盘并返回本地化 /files/ URL。
  * 区别 sendToAssetLibrary（异步尽力落盘，不返回 URL）：本函数同步 await 落盘成功后返回
- * `http://127.0.0.1:18080/files/<folder>/<name>`；失败 throw（调用方据此置 videoStatus='failed'）。
+ * `http://127.0.0.1:18080/files/<folder>/<name>`；失败 throw（调用方据此置 imageStatus='failed'）。
  *  - data:           → saveInlineToLocal（sha1 幂等）
  *  - blob: / http(s) → fetch 转 File 后 uploadFileToLocal
  *  - 已是 /files/     → 原样返回
@@ -268,40 +268,6 @@ export async function localizeAndStoreToLibrary(url, { name, folder = 'migrated'
   emitAssetSent(folder)
   rescanResources().catch(() => {})
   return localized
-}
-
-/**
- * 生成 480px 级缩略图（P2-2）：canvas 等比缩放原图和原缩略图到 maxDim，尽量小内存。
- * 依赖浏览器 canvas；jsdom 无 canvas 时返回 null（调用方回退 imageUrl）。纯图像工具，无 store 副作用。
- * @param {string} url 源图（可跨源图片需 CORS / 本地 /files/）
- * @param {number} [maxDim=480]
- * @returns {Promise<string|null>} dataURL 缩略图（jpeg 0.75）；失败 null
- */
-export async function makeImageThumbnail(url, maxDim = 480) {
-  try {
-    if (typeof document === 'undefined' || typeof HTMLCanvasElement === 'undefined') return null
-    const img = new Image()
-    img.decoding = 'async'
-    img.crossOrigin = 'anonymous'
-    img.src = String(url || '')
-    await img.decode().catch(() => new Promise((resolve, reject) => {
-      img.onload = resolve; img.onerror = () => reject(new Error('image load failed'))
-    }))
-    const w = img.naturalWidth, h = img.naturalHeight
-    if (!w || !h) return null
-    let tw = w, th = h
-    if (Math.max(w, h) > maxDim) {
-      if (w > h) { th = Math.round(h * maxDim / w); tw = maxDim } else { tw = Math.round(w * maxDim / h); th = maxDim }
-    }
-    const canvas = document.createElement('canvas')
-    canvas.width = tw; canvas.height = th
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return null
-    ctx.drawImage(img, 0, 0, tw, th)
-    return canvas.toDataURL('image/jpeg', 0.75)
-  } catch {
-    return null
-  }
 }
 
 export function removeAsset(id) {

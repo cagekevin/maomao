@@ -3,6 +3,7 @@ import { Loader2, Plus, Trash2, Film, Link2 } from 'lucide-react'
 import { SHOT_TYPES, LIGHTS, MOTIONS, dialogueText, hlAt, patchShots } from '../base/scriptBoxPrompts.js'
 import MaterialStrip from '../base/MaterialStrip.jsx'
 import { useOutsideClick } from '../base/hooks.js'
+import { useRenderImageResolver } from '../base/imageUrl.js'
 import ScriptBoxModal from './ScriptBoxModal.jsx'
 
 /**
@@ -19,6 +20,8 @@ export default function StepShots({ data, updateData, callbacks }) {
   const [dlgEditing, setDlgEditing] = useState(null) // 对白编辑器 idx
   const [dlgText, setDlgText] = useState('')
   const [tfShotId, setTfShotId] = useState(null) // 尾帧变体浮层：当前查看的 shot id（P1-1）
+  // 缩略图显示复用系统统一按需出图出口（与资产卡/ImageNode 一致）
+  const render = useRenderImageResolver()
 
   const setStory = (story) => updateData({ story })
   const setStyle = (globalStyle) => updateData({ globalStyle })
@@ -240,7 +243,7 @@ export default function StepShots({ data, updateData, callbacks }) {
                   className={`flex flex-col items-center gap-1 border rounded-lg p-2 ${tfShot.selectedTailFrameVariantId === v.id ? 'border-white/60 bg-surface-hover' : 'border-edge hover:border-edge-strong'}`}
                   onClick={() => selectTailFrame(tfShotId, v, true)}
                 >
-                  <img src={v.thumbnailUrl || v.imageUrl} alt="" className="w-24 h-16 object-cover rounded" />
+                  <img src={v.imageUrl ? render(v.imageUrl) : ''} alt="" className="w-24 h-16 object-cover rounded" />
                   <span className="text-caption-xs text-gray-400">{v.id === 'original' ? '原始尾帧' : '重构变体'}</span>
                 </button>
               ))}

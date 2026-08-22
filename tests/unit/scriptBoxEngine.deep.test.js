@@ -6,7 +6,6 @@ vi.mock('../../src/components/base/toastStore.js', () => ({ showToast: vi.fn() }
 vi.mock('../../src/components/base/assetStore.js', () => ({
   localizeAndStoreToLibrary: vi.fn(),
   assetFolderOf: vi.fn(() => 'migrated/人物'),
-  makeImageThumbnail: vi.fn(),
   sendToAssetLibrary: vi.fn(),
   getAssets: vi.fn(() => []),
   useAssets: vi.fn(() => []),
@@ -16,7 +15,7 @@ vi.mock('../../src/components/base/assetStore.js', () => ({
 import { chatCompletions } from '../../src/components/base/chatApi.js'
 import { generateImage } from '../../src/components/base/imageApi.js'
 import { showToast } from '../../src/components/base/toastStore.js'
-import { localizeAndStoreToLibrary, makeImageThumbnail } from '../../src/components/base/assetStore.js'
+import { localizeAndStoreToLibrary } from '../../src/components/base/assetStore.js'
 import { createScriptBoxEngine } from '../../src/components/base/scriptBoxEngine.js'
 
 const providerState = {
@@ -323,43 +322,43 @@ describe('剧本盒引擎深度业务 §2.7', () => {
     expect(cf).not.toHaveBeenCalled()
   })
 
-  // ── P0-2 真上传 + P2-1 本地化落盘：videoStatus 状态机 / imageUrl 改写 / thumbnailUrl 生成 ──
-  it('onRetryVideoAssetUpload：成功 → uploading→uploaded，imageUrl 本地化', async () => {
+  // ── P0-2 真上传 + P2-1 本地化落盘：imageStatus 状态机 / imageUrl 改写 / thumbnailUrl 生成 ──
+  it('onRetryAssetImageUpload：成功 → uploading→uploaded，imageUrl 本地化', async () => {
     localizeAndStoreToLibrary.mockResolvedValueOnce('/files/migrated/人物/主角.png')
-    data = { assets: [{ id: 'a1', category: 'character', name: '主角', imageUrl: '/files/orig.png', videoStatus: '' }], shots: [] }
+    data = { assets: [{ id: 'a1', category: 'character', name: '主角', imageUrl: '/files/orig.png', imageStatus: '' }], shots: [] }
     const eng = createScriptBoxEngine(ctx())
-    await eng.onRetryVideoAssetUpload('a1')
+    await eng.onRetryAssetImageUpload('a1')
     // 中间有一次 uploading 标记
-    expect(patches.some((p) => p.assets?.[0]?.videoStatus === 'uploading')).toBe(true)
+    expect(patches.some((p) => p.assets?.[0]?.imageStatus === 'uploading')).toBe(true)
     const final = patches[patches.length - 1].assets.find((a) => a.id === 'a1')
-    expect(final.videoStatus).toBe('uploaded')
-    expect(final.videoError).toBeUndefined()
+    expect(final.imageStatus).toBe('uploaded')
+    expect(final.imageError).toBeUndefined()
     expect(final.imageUrl).toBe('/files/migrated/人物/主角.png')
   })
 
-  it('onRetryVideoAssetUpload：失败 → failed + videoError', async () => {
+  it('onRetryAssetImageUpload：失败 → failed + imageError', async () => {
     localizeAndStoreToLibrary.mockRejectedValueOnce(new Error('落盘失败'))
     data = { assets: [{ id: 'a1', category: 'character', name: '主角', imageUrl: 'data:image/png;base64,x' }], shots: [] }
     const eng = createScriptBoxEngine(ctx())
-    await eng.onRetryVideoAssetUpload('a1')
+    await eng.onRetryAssetImageUpload('a1')
     const final = patches[patches.length - 1].assets.find((a) => a.id === 'a1')
-    expect(final.videoStatus).toBe('failed')
-    expect(final.videoError).toBe('落盘失败')
+    expect(final.imageStatus).toBe('failed')
+    expect(final.imageError).toBe('落盘失败')
   })
 
-  it('onGenerateAssetImage：生图成功后本地化落盘 + 缩略图生成，imageUrl/thumbnailUrl 均改本地 /files 路径', async () => {
+  it('onGenerateAssetImage：生图成功后仅本地化落盘主图，不再自产独立缩略图（thumbnailUrl 回退原图）', async () => {
     generateImage.mockResolvedValueOnce({ ok: true, url: 'https://upstream/x.png' })
-    makeImageThumbnail.mockResolvedValueOnce('data:image/jpeg;base64,THUMB')
-    localizeAndStoreToLibrary
-      .mockResolvedValueOnce('/files/migrated/人物/角色1.png')   // 主图本地化
-      .mockResolvedValueOnce('/files/migrated/人物/角色1_thumb.png') // 缩略图本地化
-    data = { assets: [{ id: 'a1', category: 'character', name: '角色1', imageUrl: '', thumbailUrl: '' }], shots: [] }
+    localizeAndStoreToLibrary.mockResolvedValueOnce('/files/migrated/人物/角色1.png') // 仅主图本地化，不再二次落盘缩略图
+    data = { assets: [{ id: 'a1', category: 'character', name: '角色1', imageUrl: '', thumbnailUrl: '' }], shots: [] }
     const eng = createScriptBoxEngine(ctx())
     await eng.onGenerateAssetImage('a1')
     const final = patches[patches.length - 1].assets.find((a) => a.id === 'a1')
     expect(final.has).toBe(true)
     expect(final.loading).toBe(false)
     expect(final.imageUrl).toBe('/files/migrated/人物/角色1.png')
-    expect(final.thumbnailUrl).toBe('/files/migrated/人物/角色1_thumb.png')
+    // 统一缩略图机制：thumbnailUrl 回退原图，显示由系统按需出图端点（buildThumbnailUrl）出小图
+    expect(final.thumbnailUrl).toBe('/files/migrated/人物/角色1.png')
+    // 不再二次落盘缩略图文件（缩略图统一走系统按需出图端点）
+    expect(localizeAndStoreToLibrary).toHaveBeenCalledTimes(1)
   })
 })

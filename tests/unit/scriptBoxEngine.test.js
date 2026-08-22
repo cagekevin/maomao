@@ -29,7 +29,6 @@ vi.mock('../../src/components/base/toastStore.js', () => {
 vi.mock('../../src/components/base/assetStore.js', () => ({
   localizeAndStoreToLibrary: vi.fn(),
   assetFolderOf: vi.fn(() => 'migrated/人物'),
-  makeImageThumbnail: vi.fn(),
   sendToAssetLibrary: vi.fn(),
   getAssets: vi.fn(() => []),
   useAssets: vi.fn(() => []),

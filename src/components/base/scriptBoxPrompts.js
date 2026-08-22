@@ -264,7 +264,7 @@ export function buildAssets(style, customTemplates) {
     thumbnailUrl: '',
     has: false,
     loading: false,
-    videoStatus: ''
+    imageStatus: ''
   }))
 }
 

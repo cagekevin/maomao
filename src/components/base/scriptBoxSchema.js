@@ -69,8 +69,9 @@ export function defaultAssetFields() {
     has: false,
     loading: false,
     picked: false,
-    videoStatus: '',
-    videoError: undefined,
+    // 资产参考图上传状态（上传的是图片，命名用 image；历史 videoStatus/videoError 在归一化时迁移）
+    imageStatus: '',
+    imageError: undefined,
   }
 }
 
@@ -98,6 +99,12 @@ export function normalizeScriptBoxData(raw = {}) {
     if (!a || typeof a !== 'object') return { ...defaultAssetFields() }
     const norm = { ...defaultAssetFields(), ...a }
     if (!norm.thumbnailUrl) norm.thumbnailUrl = norm.imageUrl || ''
+    // 字段改名迁移：旧画布用 videoStatus/videoError（历史命名错误，存的是图片上传状态），
+    // 迁移到 imageStatus/imageError，避免老数据丢失上传状态。
+    if (norm.imageStatus === '' && (norm.videoStatus || norm.videoStatus === '')) {
+      if (norm.videoStatus !== undefined) norm.imageStatus = norm.videoStatus
+      if (norm.videoError !== undefined) norm.imageError = norm.videoError
+    }
     return norm
   })
 

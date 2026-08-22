@@ -2,7 +2,8 @@ import { buildShotImageUser, getImageGenSys, collectAssets, matchAsset, ZgPrompt
 import { chatCompletions } from './chatApi.js'
 import { generateImage } from './imageApi.js'
 import { resolveProviderModel, buildAllModels } from './providerModels.js'
-import { localizeAndStoreToLibrary, assetFolderOf, makeImageThumbnail } from './assetStore.js'
+import { localizeAndStoreToLibrary, assetFolderOf } from './assetStore.js'
+import { uploadFileToLocal } from './filesApi.js'
 import { toAbsoluteFileUrl } from './imageUrl.js'
 import { showToast } from './toastStore.js'
 import { logger } from './logger.js'
@@ -51,8 +52,9 @@ export function useJsonObject(modelId) {
  *  - onGenerateShotPrompts(shotIds?) 生成全部/选中分镜的生图/生视频提示词
  *  - onGenerateShotImage(shotId, type) AI 生成图提示词（关键帧/宫格/俯视调度）
  *  - onStopScriptItem(kind?, id?)    中止对应生成（AbortController）
- *  - onRetryVideoAssetUpload(id)     重试资产视频上传
- *  - onUploadAllVideoAssets()        上传全部资产素材
+ *  - onRetryAssetImageUpload(id)     重试资产参考图上传
+ *  - onUploadAllAssetImages()        上传全部资产素材
+ *  - onUploadAssetImage(id, file)    上传本地图片设为资产参考图
  *  - onConnectShot(id, target)       单镜头连下游（建 promptNode/discountVideoNode）
  *  - onConnectShots(ids, target)     批量连下游
  *  - onGenerateTailFrameVariants(id) 抽上一镜尾帧→多角度生图→写回变体（P1-2）
@@ -281,7 +283,7 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
             has: false,
             loading: false,
             picked: false,
-            videoStatus: '',
+            imageStatus: '',
           }
         })
 
@@ -332,25 +334,17 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
       }, null)
       if (r.ok && r.url) {
         // P2-1/P2-2：生图成功后把结果本地化落盘到素材库目录（migrated/{人物|场景|道具}），
-        // 并生成缩略图写回 thumbnailUrl（P0-3 分离字段；缩略图失败回退 imageUrl）。
         // 彻底替换旧的「上游 https 直链」式临时/外部 URL，让下游生图/生视频引用持久 /files/ 地址。
+        // 缩略图机制统一：不再自产落盘独立 _thumb 文件，thumbnailUrl 回退原图，
+        // 显示时由系统按需出图端点（buildThumbnailUrl）出小图（与画布 ImageNode 一致）。
         let imageUrl = r.url
-        let thumbnailUrl = r.url
         try {
           const localized = await localizeAndStoreToLibrary(r.url, { name: asset.name, folder: assetFolderOf(asset.category) })
           if (localized) imageUrl = localized
         } catch (e) {
           logger.warn('scriptBox', '资产图本地化落盘失败，保留原 URL', { nodeId, assetId, error: e?.message })
         }
-        try {
-          const thumbData = await makeImageThumbnail(imageUrl, 480)
-          if (thumbData) {
-            const thumbLocal = await localizeAndStoreToLibrary(thumbData, { name: `${asset.name || 'asset'}_thumb`, folder: assetFolderOf(asset.category) })
-            if (thumbLocal) thumbnailUrl = thumbLocal
-          }
-        } catch (e) {
-          logger.debug('scriptBox', '资产图缩略图生成失败，回退 imageUrl', { nodeId, assetId, error: e?.message })
-        }
+        const thumbnailUrl = imageUrl
         commit((latest) => ({
           assets: (latest.assets || []).map((a) =>
             a.id === assetId
@@ -656,33 +650,68 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
   // ═══════════════════════════════════════════════════════════════
   // P0-2 真化：原实现是 setTimeout 600ms 假成功。现改为真实调素材库落盘通道
   // （assetStore.localizeAndStoreToLibrary → /files/migrated/{人物|场景|道具}）：
-  //   落盘成功 → videoStatus='uploaded' + imageUrl 改写为本地化 URL；
-  //   落盘失败 → videoStatus='failed' + videoError（依赖承诺，去假）。
-  const onRetryVideoAssetUpload = async (assetId) => {
+  //   落盘成功 → imageStatus='uploaded' + imageUrl 改写为本地化 URL；
+  //   落盘失败 → imageStatus='failed' + imageError（依赖承诺，去假）。
+  const onRetryAssetImageUpload = async (assetId) => {
     const d = getData()
     const asset = (d.assets || []).find((a) => a.id === assetId)
-    if (!asset || !asset.imageUrl) return
-    updateData({ assets: d.assets.map((a) => (a.id === assetId ? { ...a, videoStatus: 'uploading', videoError: undefined } : a)) })
+    // 无参考图时不能上传（上传的是 asset.imageUrl 到素材库），给出明确提示避免静默无反应
+    if (!asset) return
+    if (!asset.imageUrl) { toast(`「${asset.name || '该资产'}」还没有参考图，请先生成再上传`); return }
+    updateData({ assets: d.assets.map((a) => (a.id === assetId ? { ...a, imageStatus: 'uploading', imageError: undefined } : a)) })
     logger.info('scriptBox', '素材上传·开始', { nodeId, assetId, name: asset.name })
     try {
       const localized = await localizeAndStoreToLibrary(asset.imageUrl, { name: asset.name, folder: assetFolderOf(asset.category) })
-      updateData({ assets: getData().assets.map((a) => (a.id === assetId ? { ...a, videoStatus: 'uploaded', imageUrl: localized || a.imageUrl } : a)) })
+      updateData({ assets: getData().assets.map((a) => (a.id === assetId ? { ...a, imageStatus: 'uploaded', imageUrl: localized || a.imageUrl } : a)) })
       toast(`已上传「${asset.name || '素材'}」到素材库`)
       logger.info('scriptBox', '素材上传·成功', { nodeId, assetId, url: localized })
     } catch (e) {
       const msg = e?.message || '素材上传失败'
-      updateData({ assets: getData().assets.map((a) => (a.id === assetId ? { ...a, videoStatus: 'failed', videoError: msg } : a)) })
+      updateData({ assets: getData().assets.map((a) => (a.id === assetId ? { ...a, imageStatus: 'failed', imageError: msg } : a)) })
       toast(msg)
       logger.error('scriptBox', '素材上传·失败', { nodeId, assetId, error: msg })
     }
   }
 
-  const onUploadAllVideoAssets = () => {
+  const onUploadAllAssetImages = () => {
     const d = getData()
-    const has = (d.assets || []).filter((a) => a.imageUrl && a.videoStatus !== 'uploaded')
+    const has = (d.assets || []).filter((a) => a.imageUrl && a.imageStatus !== 'uploaded')
     if (has.length === 0) { toast('暂无已生成的图片资产'); return }
     toast(`开始上传 ${has.length} 个素材…`)
-    has.forEach((a) => onRetryVideoAssetUpload(a.id))
+    has.forEach((a) => onRetryAssetImageUpload(a.id))
+  }
+
+  // 上传本地图片作为资产参考图（用户自选图当角色/场景/道具）。
+  // 复用与画布右键上传同一套底层（filesApi.uploadFileToLocal 落盘），不重复造轮子；
+  // 仅额外补「写入剧本资产 data」这一层：设 imageUrl/thumbnailUrl + 归档素材库对应目录。
+  //  - file：<input type=file> 选中的本地图片
+  //  - 成功 → imageUrl/thumbnailUrl/has 写入，imageStatus='uploaded'（表示已归档到素材库）；
+  //  - 失败 → imageStatus='failed' + imageError。
+  const onUploadAssetImage = async (assetId, file) => {
+    const d = getData()
+    const asset = (d.assets || []).find((a) => a.id === assetId)
+    if (!asset) return
+    if (!file) { toast('未选择图片文件'); return }
+    const isImg = /^image\//i.test(file.type || '') || /\.(png|jpe?g|gif|webp|svg)$/i.test(file.name || '')
+    if (!isImg) { toast(`「${file.name || '该文件'}」不是图片，请选择图片文件`); return }
+    updateData({ assets: getData().assets.map((a) => (a.id === assetId ? { ...a, loading: true, imageStatus: 'uploading', imageError: undefined } : a)) })
+    logger.info('scriptBox', '上传本地资产图·开始', { nodeId, assetId, name: file.name })
+    try {
+      const folder = assetFolderOf(asset.category)
+      // 原始图落盘（保留可读文件名，走 multipart；与右键上传同一入口 uploadFileToLocal）
+      const ext = (file.name.split('.').pop() || 'png').replace(/[^a-zA-Z0-9]/g, '').toLowerCase()
+      const imageUrl = await uploadFileToLocal(file, folder, `${asset.name || 'asset'}.${ext || 'png'}`)
+      if (!imageUrl) throw new Error('图片落盘失败')
+      // 缩略图：不再自产落盘独立文件，thumbnailUrl 回退原图；显示时由系统按需出图端点（buildThumbnailUrl）出小图
+      updateData({ assets: getData().assets.map((a) => (a.id === assetId ? { ...a, imageUrl, thumbnailUrl: imageUrl, has: true, loading: false, imageStatus: 'uploaded' } : a)) })
+      toast(`已将「${asset.name || '资产'}」设为本地参考图`)
+      logger.info('scriptBox', '上传本地资产图·成功', { nodeId, assetId, url: imageUrl })
+    } catch (e) {
+      const msg = e?.message || '图片上传失败'
+      updateData({ assets: getData().assets.map((a) => (a.id === assetId ? { ...a, loading: false, imageStatus: 'failed', imageError: msg } : a)) })
+      toast(msg)
+      logger.error('scriptBox', '上传本地资产图·失败', { nodeId, assetId, error: msg })
+    }
   }
 
   // 连线（对齐官方 li）：按 target 建对应下游节点并自动连线，下游往右排布。
@@ -760,22 +789,17 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
     patchShot((s) => ({ ...s, tailFrameVariantsLoading: true, tailFrameVariantsError: undefined }))
     logger.info('scriptBox', '尾帧变体·开始', { nodeId, shotId, prevShotId: prevShot.id, hasVideo: !!videoUrl })
     return runAbortable(`tailframe-${shotId}`, () => patchShot((s) => ({ ...s, tailFrameVariantsLoading: false })), async (signal) => {
-      // 1) 抽上一镜尾帧 → dataURL → 本地化「原版尾帧」+ 缩略图（落 migrated/脚本/尾帧变体，对齐官方）
+      // 1) 抽上一镜尾帧 → dataURL → 本地化「原版尾帧」（落 migrated/脚本/尾帧变体，对齐官方）。
+      //    缩略图机制统一：不再自产落盘独立 _thumb，thumbnailUrl 回退原图，显示由系统按需出图。
       const frameData = await cf(videoUrl, 1)
       let origUrl = frameData
-      let origThumb = frameData
       try {
         const localized = await localizeAndStoreToLibrary(frameData, { name: `prev-${prevShot.id}-tail`, folder: 'migrated/脚本/尾帧变体' })
         if (localized) origUrl = localized
-        const thumbData = await makeImageThumbnail(origUrl, 480)
-        if (thumbData) {
-          const thumbLocal = await localizeAndStoreToLibrary(thumbData, { name: `prev-${prevShot.id}-tail_thumb`, folder: 'migrated/脚本/尾帧变体' })
-          if (thumbLocal) origThumb = thumbLocal
-        }
       } catch (e) {
         logger.warn('scriptBox', '尾帧本地化失败，保留原 dataURL', { nodeId, shotId, error: e?.message })
       }
-      const original = { id: 'original', label: '原版尾帧', imageUrl: origUrl, thumbnailUrl: origThumb, loading: false }
+      const original = { id: 'original', label: '原版尾帧', imageUrl: origUrl, thumbnailUrl: origUrl, loading: false }
 
       // 2) 取角度集（过滤为已知角度），按官方「原版 + composed」布局：composed 先占位 loading
       const angleIds = (Array.isArray(d.tailFrameAngleIds) ? d.tailFrameAngleIds : ['forward'])
@@ -808,22 +832,16 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
         }, signal)
         if (r.ok && r.url) {
           let cUrl = r.url
-          let cThumb = undefined
           try {
             const loc = await localizeAndStoreToLibrary(r.url, { name: `prev-${prevShot.id}-composed`, folder: 'migrated/脚本/尾帧变体' })
             if (loc) cUrl = loc
-            const thumbData = await makeImageThumbnail(cUrl, 480)
-            if (thumbData) {
-              const thumbLocal = await localizeAndStoreToLibrary(thumbData, { name: `prev-${prevShot.id}-composed_thumb`, folder: 'migrated/脚本/尾帧变体' })
-              if (thumbLocal) cThumb = thumbLocal
-            }
           } catch (e) {
             logger.warn('scriptBox', '尾帧综合图本地化失败，保留原 URL', { nodeId, shotId, error: e?.message })
           }
           patchShot((s) => ({
             ...s,
             prevTailFrameVariants: (s.prevTailFrameVariants || []).map((v) =>
-              v.id === 'composed' ? { ...v, imageUrl: cUrl, thumbnailUrl: cThumb, loading: false, errorMsg: undefined } : v
+              v.id === 'composed' ? { ...v, imageUrl: cUrl, thumbnailUrl: cUrl, loading: false, errorMsg: undefined } : v
             ),
             selectedTailFrameVariantId: 'composed',
             prevShotImageRefUrls: cUrl ? [cUrl] : s.prevShotImageRefUrls,
@@ -856,8 +874,9 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
     onGenerateShotImage,
     onReviewShotPrompt,
     onStopScriptItem,
-    onRetryVideoAssetUpload,
-    onUploadAllVideoAssets,
+    onRetryAssetImageUpload,
+    onUploadAllAssetImages,
+    onUploadAssetImage,
     onConnectShot,
     onConnectShots,
     onGenerateTailFrameVariants,
