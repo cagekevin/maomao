@@ -1,4 +1,3 @@
-// @vitest-environment jsdom
 /**
  * ScriptBoxNode 深度测试。
  *

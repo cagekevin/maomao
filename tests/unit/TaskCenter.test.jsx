@@ -1,4 +1,3 @@
-// @vitest-environment jsdom
 /**
  * TaskCenter 深度测试。
  *

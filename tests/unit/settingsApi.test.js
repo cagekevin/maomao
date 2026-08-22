@@ -6,14 +6,11 @@
  * 策略：node + vi.stubGlobal('fetch')。
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { jsonResp } from './_testUtils.mjs'
 
 const fetchMock = globalThis.fetch
 
 const { providerApi } = await import('../../src/components/base/localToolApi.js')
-
-function jsonResp(obj, ok = true, status = 200) {
-  return { ok, status, json: async () => obj }
-}
 
 beforeEach(() => fetchMock.mockReset())
 afterEach(() => vi.unstubAllGlobals())

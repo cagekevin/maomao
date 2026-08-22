@@ -1,4 +1,3 @@
-// @vitest-environment jsdom
 /**
  * AgentPanel 深度测试 —— 画布 AI 助手聊天面板装配层。
  *
@@ -63,12 +62,15 @@ const h = vi.hoisted(() => {
   let agentModelCfg = {}
   // useProviders 返回值（可覆盖，默认空）
   let providers = []
+  // 订阅键常量：与 mock 的 AGENT_CHAT_MODEL_KEY 同源，避免 fireAgentModelChange 硬编码漂移
+  const AGENT_CHAT_MODEL_KEY = 'agent_chat_model'
 
   return {
     useAgentChat, setModel, send, sendImageMode, stop, clear, newChat, switchChat, deleteChat,
     markSkillUsed, showToast, setCurrentSnapshot, setCurrentRunMode, setAwaitingConfirm, getCurrentRunMode,
-    contentSubscribe, subscribeCbs,
-    fireAgentModelChange: (cfg) => { subscribeCbs['agent_chat_model']?.(cfg) },
+    contentSubscribe, subscribeCbs, AGENT_CHAT_MODEL_KEY,
+    setSubscribeCbs: (c) => { subscribeCbs = c },
+    fireAgentModelChange: (cfg) => { subscribeCbs[AGENT_CHAT_MODEL_KEY]?.(cfg) },
     get agentModelCfg() { return agentModelCfg },
     setAgentModelCfg: (c) => { agentModelCfg = c },
     get providers() { return providers },
@@ -90,7 +92,7 @@ vi.mock('../../src/components/agent/index.js', () => ({
   getGenParams: () => ({}),
 }))
 vi.mock('../../src/components/base/settings/providerStore.js', () => ({ useProviders: () => ({ providers: h.providers }), load: vi.fn(async () => {}) }))
-vi.mock('../../src/components/base/settings/agentModelStore.js', () => ({ loadAgentChatModel: () => h.agentModelCfg, AGENT_CHAT_MODEL_KEY: 'agent_chat_model' }))
+vi.mock('../../src/components/base/settings/agentModelStore.js', () => ({ loadAgentChatModel: () => h.agentModelCfg, AGENT_CHAT_MODEL_KEY: h.AGENT_CHAT_MODEL_KEY }))
 vi.mock('../../src/components/base/providerModels.js', () => ({ buildAllModels: () => [] }))
 vi.mock('../../src/components/base/hooks.js', () => ({ useOutsideClick: () => {} }))
 vi.mock('../../src/components/base/skillStore.js', () => ({
@@ -157,7 +159,9 @@ beforeEach(() => {
   h.setSkills([])
   h.snapshots.length = 0
   // 重置订阅桩（清空历史注册与取消订阅记录），让每条用例从干净订阅态开始
-  h.subscribeCbs = {}
+  // 注意：必须走 setSubscribeCbs 写闭包变量——直接 h.subscribeCbs = {} 只改返回对象属性，
+  // 而 contentSubscribe mock 闭包引用的是 hoisted 内部 let，两处不同引用，会清空失效导致跨用例累积。
+  h.setSubscribeCbs({})
   h.subscribeUnsubs.length = 0
   h.setAgentModelCfg({})
   h.setProviders([])
@@ -403,7 +407,9 @@ describe('AgentPanel — 执行分级切换', () => {
 describe('AgentPanel — 设置改模型/供应商即生效（方案 B，无需刷新）', () => {
   it('挂载 → 订阅 agent_chat_model 变更（contentSubscribe 注册）', () => {
     render(<AgentPanel {...OPEN_PROPS} />)
-    expect(h.contentSubscribe).toHaveBeenCalledWith('agent_chat_model', expect.any(Function))
+    expect(h.contentSubscribe).toHaveBeenCalledWith(h.AGENT_CHAT_MODEL_KEY, expect.any(Function))
+    // 防漂移：fireAgentModelChange 触发的 key 必须与订阅注册 key 一致，否则回调静默触发不到
+    expect(h.contentSubscribe).toHaveBeenCalledWith(expect.stringMatching(/^agent_chat_model$/), expect.any(Function))
   })
 
   it('触发设置变更 → setModel 同步为新 modelId（model 进 useAgentChat）', () => {
@@ -424,9 +430,12 @@ describe('AgentPanel — 设置改模型/供应商即生效（方案 B，无需�
   })
 
   it('卸载 → 取消订阅（返回的 unsubscribe 被调用，防泄漏）', () => {
+    // 前提：AgentPanel 当前仅注册一次 contentSubscribe（对 agent_chat_model），
+    // 故最后注册的 unsubscribe 即本订阅的取消函数。若未来新增其它订阅，此断言需改为按 key 定位。
     const { unmount } = render(<AgentPanel {...OPEN_PROPS} />)
+    expect(h.subscribeUnsubs.length).toBe(1)
+    const unsub = h.subscribeUnsubs[0]
     unmount()
-    const unsub = h.subscribeUnsubs[h.subscribeUnsubs.length - 1]
     expect(unsub).toHaveBeenCalled()
   })
 })

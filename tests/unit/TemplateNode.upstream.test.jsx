@@ -1,4 +1,3 @@
-// @vitest-environment jsdom
 /**
  * TemplateNode 上游合并测试（本次修复核心逻辑）。
  * 覆盖：上游文本/图片节点连线后文字与图片合并进生图请求；

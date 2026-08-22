@@ -5,15 +5,12 @@
  * 的成功路径与 HTTP 错误抛出。策略：node + vi.stubGlobal('fetch')。
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { jsonResp } from './_testUtils.mjs'
 
 // 全局 fetch 已在 tests/setup.mjs 强制 mock 为 vi.fn()，此处取共享实例。
 const fetchMock = globalThis.fetch
 
 const api = await import('../../src/components/base/localToolApi.js')
-
-function jsonResp(obj, ok = true, status = 200) {
-  return { ok, status, json: async () => obj }
-}
 
 beforeEach(() => fetchMock.mockReset())
 afterEach(() => vi.unstubAllGlobals())

@@ -8,6 +8,7 @@
  *    （videoProxy 与 imageProxy async 同走 pollUntilDone，源码无条件调用，肉眼可证，不重复测）
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { jsonResp } from './_testUtils.mjs'
 
 const mod = await import('../../src/components/base/proxyGenerate.js')
 const { chatProxy, imageProxy } = mod
@@ -18,10 +19,6 @@ const provider = {
   id: 'openai',
   baseUrl: 'http://127.0.0.1:18080/v1',
   image_mode: 'sync',
-}
-
-function jsonResp(obj, ok = true, status = 200) {
-  return { ok, status, json: async () => obj }
 }
 
 beforeEach(() => {
@@ -84,10 +81,18 @@ describe('chatProxy 红线：信封永不抛错', () => {
 
 describe('imageProxy 路由分支红线', () => {
   it('image_mode==="async" 走 pollUntilDone（提交拿 task_id + 轮询拿结果）', async () => {
-    globalThis.fetch
-      .mockResolvedValueOnce(jsonResp({ data: [{ task_id: 't1', status: 'submitted' }] }))
-      .mockResolvedValueOnce(jsonResp({ data: { result: { images: [{ url: 'p' }] } } }))
-    const r = await imageProxy({ provider: { ...provider, image_mode: 'async' }, genBody: {} })
-    expect(r).toEqual({ ok: true, url: 'p' })
+    // pollUntilDone 内有真实 setTimeout(3s)，用 fake timers 加速，避免真等 3s
+    vi.useFakeTimers()
+    try {
+      globalThis.fetch
+        .mockResolvedValueOnce(jsonResp({ data: [{ task_id: 't1', status: 'submitted' }] }))
+        .mockResolvedValueOnce(jsonResp({ data: { result: { images: [{ url: 'p' }] } } }))
+      const p = imageProxy({ provider: { ...provider, image_mode: 'async' }, genBody: {} })
+      await vi.advanceTimersByTimeAsync(3000) // 触发首个轮询 sleep
+      const r = await p
+      expect(r).toEqual({ ok: true, url: 'p' })
+    } finally {
+      vi.useRealTimers() // 还原，避免污染后续用例（restoreAllMocks 不重置 fake timer）
+    }
   })
 })

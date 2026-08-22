@@ -5,6 +5,7 @@
  * 策略：node + mock fetch（顺序响应）+ mock imageUrl/taskStore + mock setTimeout 加速轮询。
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { jsonResp } from './_testUtils.mjs'
 
 const fetchMock = globalThis.fetch
 
@@ -23,10 +24,6 @@ vi.mock('../../src/components/base/taskStore.js', () => ({
 const { generateVideo } = await import('../../src/components/base/videoApi.js')
 const { normalizeImageUrlsForSend } = await import('../../src/components/base/imageUrl.js')
 const { getCurrentTaskId, setTaskPollId } = await import('../../src/components/base/taskStore.js')
-
-function jsonResp(obj, ok = true, status = 200) {
-  return { ok, status, json: async () => obj }
-}
 
 /** 读提交/轮询请求的 body 里的 url（即后端要转发的上游 url） */
 function submittedUrl() {

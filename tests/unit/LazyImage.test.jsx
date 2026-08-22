@@ -1,4 +1,3 @@
-// @vitest-environment jsdom
 /**
  * LazyImage 关键交互锚点（P9 懒加载复用原语）。
  *

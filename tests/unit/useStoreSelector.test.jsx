@@ -1,4 +1,3 @@
-// @vitest-environment jsdom
 /**
  * store selector 浅比较锚点（P5 原子 hook 的测试基座）。
  *

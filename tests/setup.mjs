@@ -58,3 +58,15 @@ if (typeof globalThis.Element !== 'undefined' && !globalThis.Element.prototype.s
 if (typeof globalThis.HTMLElement !== 'undefined' && !globalThis.HTMLElement.prototype.scrollIntoView) {
   globalThis.HTMLElement.prototype.scrollIntoView = function () {}
 }
+
+// ── 测试态 logger 安静化 ──
+// 生产 logger.js 对 info/warn/error 无条件 console 输出（生成/同步/素材上传等高频埋点），
+// 全量跑会刷屏、淹没真实断言失败。这里在测试态按「logger 专属前缀」精确过滤掉这些行，
+// 保留其余 console 输出与 React/Vitest 的真实 warning/error，不影响失败可见性。
+// logger 前缀形如 `[info] 11:24:10 | 分类 | 动作 | {...}`（格式见 src/components/base/logger.js）。
+const __isLoggerLine = (args) =>
+  typeof args?.[0] === 'string' && /^\[(log|info|warn|error|debug)\]\s+\d{2}:\d{2}:\d{2}/.test(args[0])
+const __consoleIO = { log: console.log, warn: console.warn, error: console.error }
+console.log = (...a) => { if (!__isLoggerLine(a)) __consoleIO.log(...a) }
+console.warn = (...a) => { if (!__isLoggerLine(a)) __consoleIO.warn(...a) }
+console.error = (...a) => { if (!__isLoggerLine(a)) __consoleIO.error(...a) }

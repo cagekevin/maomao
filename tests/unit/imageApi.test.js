@@ -5,6 +5,7 @@
  * 网络错误分支。策略：node + mock fetch(SSE reader) + mock imageUrl/taskStore。
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { jsonResp, sseResp } from './_testUtils.mjs'
 
 const fetchMock = globalThis.fetch
 
@@ -23,30 +24,6 @@ vi.mock('../../src/components/base/taskStore.js', () => ({
 const api = await import('../../src/components/base/imageApi.js')
 const { normalizeImageUrlsForSend } = await import('../../src/components/base/imageUrl.js')
 const { getCurrentTaskId, setTaskPollId } = await import('../../src/components/base/taskStore.js')
-
-// 构造 SSE 假响应：依次 push 若干 data 行，最后 done
-function sseResp(lines) {
-  let i = 0
-  const chunks = lines.map((l) => new TextEncoder().encode(l + '\n'))
-  return {
-    ok: true,
-    body: {
-      getReader() {
-        return {
-          async read() {
-            if (i < chunks.length) return { done: false, value: chunks[i++] }
-            return { done: true, value: undefined }
-          },
-          releaseLock() {},
-        }
-      },
-    },
-  }
-}
-
-function jsonResp(obj, ok = true, status = 200) {
-  return { ok, status, json: async () => obj }
-}
 
 beforeEach(() => {
   // mockReset 清掉上个用例遗留的 mockResolvedValueOnce / mockRejectedValueOnce 队列
@@ -189,13 +166,19 @@ describe('imageApi — 错误路径', () => {
 })
 
 describe('imageApi — async 模式（image_mode: async）', () => {
-  // beforeEach 已把 setTimeout 加速为立即执行，轮询循环不会真实等待 3s。
+  // 轮询循环内有真实 setTimeout(pollInterval=3s)。用 fake timers 把睡眠加速为近似瞬时：
+  // 先发起 promise，再 advanceTimersByTimeAsync(3000) 触发首个轮询 sleep，避免全量真等 3s/例。
+  // 注意：文件级 beforeEach 的 vi.restoreAllMocks() 不重置 fake timer，须显式 useRealTimers 还原。
+  beforeEach(() => { vi.useFakeTimers() })
+  afterEach(() => { vi.useRealTimers() })
 
   it('提交拿 task_id → 轮询到 images url（数组形式）', async () => {
     fetchMock
       .mockResolvedValueOnce(jsonResp({ data: [{ status: 'submitted', task_id: 'T1' }] }))
       .mockResolvedValueOnce(jsonResp({ data: { result: { images: [{ url: ['http://x/async.png'] }] } } }))
-    const res = await api.generateImage({ provider: { image_mode: 'async' }, prompt: 'x', model: 'm' })
+    const p = api.generateImage({ provider: { image_mode: 'async' }, prompt: 'x', model: 'm' })
+    await vi.advanceTimersByTimeAsync(3000) // 触发首个轮询 sleep
+    const res = await p
     expect(res.ok).toBe(true)
     expect(res.url).toBe('http://x/async.png')
     // 异步提交成功 → 回填 setTaskPollId
@@ -213,7 +196,9 @@ describe('imageApi — async 模式（image_mode: async）', () => {
     fetchMock
       .mockResolvedValueOnce(jsonResp({ data: [{ status: 'submitted', task_id: 'T1' }] }))
       .mockResolvedValueOnce(jsonResp({ data: { status: 'failed', error: 'bad prompt' } }))
-    const res = await api.generateImage({ provider: { image_mode: 'async' }, prompt: 'x', model: 'm' })
+    const p = api.generateImage({ provider: { image_mode: 'async' }, prompt: 'x', model: 'm' })
+    await vi.advanceTimersByTimeAsync(3000)
+    const res = await p
     expect(res.ok).toBe(false)
     expect(res.error).toBe('bad prompt')
   })
@@ -222,7 +207,9 @@ describe('imageApi — async 模式（image_mode: async）', () => {
     fetchMock
       .mockResolvedValueOnce(jsonResp({ data: [{ status: 'submitted', task_id: 'T1' }] }))
       .mockRejectedValueOnce(new Error('net'))
-    const res = await api.generateImage({ provider: { image_mode: 'async' }, prompt: 'x', model: 'm' })
+    const p = api.generateImage({ provider: { image_mode: 'async' }, prompt: 'x', model: 'm' })
+    await vi.advanceTimersByTimeAsync(3000)
+    const res = await p
     expect(res.ok).toBe(false)
     expect(res.error).toContain('轮询失败')
   })

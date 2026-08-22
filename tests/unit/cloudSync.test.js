@@ -6,32 +6,30 @@
  * 策略：node 环境；mock fetch 让 callGateway 走通；providerApi/projectsApi 用 stub。
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { jsonResp, createKvMem } from './_testUtils.mjs'
 import { contentClearCache } from '../../src/components/base/contentStore.js'
 
 // 复用 setup.mjs 强制 mock 的全局 fetch（Node 原生 fetch 不可配置，vi.stubGlobal 会静默失效）
 const fetchMock = globalThis.fetch
 
 // 账号 KV mock：走内存 Map，让 contentSetAsync('yimao_accounts') 先落 KV 再被 collectLocal 读回，
-// 走真实 KV 读写路径；若缺 kvGet/kvSet，将退化为「写读都降级到本地副本」的误导链
-const memKV = new Map()
+// 走真实 KV 读写路径；若缺 kvGet/kvSet，将退化为「写读都降级到本地副本」的误导链。
+// 注意：工厂提升到模块顶部，须在工厂的异步函数体内引用顶层 kv（而不能直接读取 kv.kvGet 属性，
+// 否则提升期静态改写会报 "Cannot access 'kv' before initialization"）。
+const kv = createKvMem()
 vi.mock('../../src/components/base/localToolApi.js', () => ({
   providerApi: { getProviders: vi.fn(), saveProviders: vi.fn(), syncConfigBase: vi.fn() },
   fetchProjects: vi.fn(),
   saveProjects: vi.fn(),
-  kvGet: vi.fn(async (key) => (memKV.has(key) ? memKV.get(key) : null)),
-  kvSet: vi.fn(async (key, value) => { memKV.set(key, value); return { ok: true } }),
-  kvDelete: vi.fn(async (key) => { memKV.delete(key); return { ok: true } }),
+  kvGet: vi.fn(async (key) => kv.memKV.get(key) ?? null),
+  kvSet: vi.fn(async (key, value) => { kv.memKV.set(key, value); return { ok: true } }),
+  kvDelete: vi.fn(async (key) => { kv.memKV.delete(key); return { ok: true } }),
 }))
 
 const { providerApi } = await import('../../src/components/base/localToolApi.js')
 const { CloudSyncEngine, uploadConfig, downloadConfig } = await import(
   '../../src/components/base/cloudSync.js'
 )
-
-// callGateway 用 res.text() + JSON.parse 解析，故 mock 必须提供 text()
-function jsonResp(obj) {
-  return { ok: true, text: async () => JSON.stringify(obj) }
-}
 
 /**
  * 取 uploadConfig 的 push 请求体中的 ls 清单。
@@ -47,7 +45,7 @@ function pushLs() {
 beforeEach(() => {
   globalThis.fetch = fetchMock
   fetchMock.mockClear()
-  memKV.clear()
+  kv.memKV.clear()
   providerApi.getProviders.mockReset()
   providerApi.getProviders.mockResolvedValue({ data: null }) // 默认无 providers，与既有用例行为一致
   CloudSyncEngine.isSyncing = false

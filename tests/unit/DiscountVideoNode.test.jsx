@@ -1,4 +1,3 @@
-// @vitest-environment jsdom
 /**
  * DiscountVideoNode 补充深度测试（非 upstream 部分）。
  *
