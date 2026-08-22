@@ -428,3 +428,46 @@ test('files·upload JSON fileUrl 下载落盘（幂等）', async () => {
   assert.ok(fs.existsSync(diskPath), '下载文件应落盘');
   assert.ok(RED_PNG_BUFFER.equals(fs.readFileSync(diskPath)));
 });
+
+test('files·upload JSON fileUrl（URL 无后缀）→ 按响应 Content-Type 补扩展名落盘', async () => {
+  mockFetchOnce(async (url) => {
+    assert.match(url, /\/download$/); // 无后缀的 CDN 端点
+    return new Response(new Uint8Array(RED_PNG_BUFFER), { status: 200, headers: { 'content-type': 'image/jpeg' } });
+  });
+  const res = makeRes();
+  await filesMod.handleUpload(makeJsonReq({ fileUrl: 'https://cdn.example.com/download', subfolder: 'web' }), res);
+  const body = parseResBody(res);
+  assert.ok(body.data.url, '应返回 url');
+  // 无后缀 URL + Content-Type image/jpeg → 落盘文件名应带 .jpg 后缀
+  assert.match(body.data.url, /\/files\/web\/[0-9a-f]{16}_download\.jpg$/);
+  const rel = body.data.url.replace(/^http:\/\/127\.0\.0\.1:18080\/files\//, '');
+  const diskPath = path.join(TEST_DIR, 'uploads', rel);
+  assert.ok(fs.existsSync(diskPath), '下载文件应落盘');
+  assert.ok(RED_PNG_BUFFER.equals(fs.readFileSync(diskPath)));
+});
+
+test('files·upload JSON fileUrl（无后缀 + Content-Type 不可识别）→ 保持无后缀落盘', async () => {
+  mockFetchOnce(async () => new Response(new Uint8Array(RED_PNG_BUFFER), { status: 200, headers: { 'content-type': 'application/octet-stream' } }));
+  const res = makeRes();
+  await filesMod.handleUpload(makeJsonReq({ fileUrl: 'https://cdn.example.com/download', subfolder: 'web' }), res);
+  const body = parseResBody(res);
+  // 不可识别 MIME → 不补后缀（同旧行为）
+  assert.match(body.data.url, /\/files\/web\/[0-9a-f]{16}_download$/);
+});
+
+test('files·upload JSON fileUrl（无后缀）重复下载 → 幂等，带后缀最终名只落一份', async () => {
+  let calls = 0;
+  mockFetchOnce(async () => { calls++; return new Response(new Uint8Array(RED_PNG_BUFFER), { status: 200, headers: { 'content-type': 'image/png' } }); });
+  const res1 = makeRes();
+  await filesMod.handleUpload(makeJsonReq({ fileUrl: 'https://cdn.example.com/ep5579504', subfolder: 'web' }), res1);
+  const res2 = makeRes();
+  await filesMod.handleUpload(makeJsonReq({ fileUrl: 'https://cdn.example.com/ep5579504', subfolder: 'web' }), res2);
+  const b1 = parseResBody(res1);
+  const b2 = parseResBody(res2);
+  // 已知取舍：无后缀 URL 每次都要下载拿 Content-Type 定最终名，但只落一份（幂等）
+  assert.equal(calls, 2, '无后缀 URL 需两次下载拿 Content-Type（幂等快路径不适用）');
+  assert.equal(b1.data.url, b2.data.url, '同一 URL 两次下载应返回同一最终 URL');
+  assert.match(b1.data.url, /\.png$/);
+  const rel = b1.data.url.replace(/^http:\/\/127\.0\.0\.1:18080\/files\//, '');
+  assert.ok(fs.existsSync(path.join(TEST_DIR, 'uploads', rel)), '最终文件应落盘');
+});

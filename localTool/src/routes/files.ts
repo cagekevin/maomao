@@ -23,6 +23,29 @@ const BASE_URL = `http://127.0.0.1:${PORT}`;
  */
 const SUPPORTED_THUMB_FORMATS = new Set(['png', 'jpg', 'jpeg', 'gif', 'bmp', 'tiff']);
 
+/**
+ * 下载落盘用：响应 Content-Type → 文件扩展名。
+ * 很多 CDN 图 URL 的 path 不带后缀（如 /download、/ep5579504），落盘后无扩展名会导致
+ * 服务端按扩展名给 Content-Type/生成缩略图/类型识别全部失效。下载后按真实 Content-Type 补后缀。
+ * 无法识别的 MIME 不在表内 → 保持无后缀（同旧行为）。
+ */
+const MIME_TO_EXT: Record<string, string> = {
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+  'image/gif': 'gif',
+  'image/svg+xml': 'svg',
+  'image/avif': 'avif',
+  'image/bmp': 'bmp',
+  'image/tiff': 'tiff',
+  'video/mp4': 'mp4',
+  'video/webm': 'webm',
+  'audio/mpeg': 'mp3',
+  'audio/mp4': 'm4a',
+  'audio/wav': 'wav',
+  'audio/ogg': 'ogg',
+};
+
 // ── upload ──
 export async function handleUpload(req: IncomingMessage, res: ServerResponse): Promise<void> {
   const contentType = req.headers['content-type'] || '';
@@ -109,6 +132,8 @@ async function saveFile(data: Buffer, subfolder: string, filename: string): Prom
 /**
  * 远程 URL → 本地文件（【唯一下载归属点】+ 幂等，任何调用方都走这里保证去重）。
  * - 文件名 = sha1(fileUrl) 前 16 位 + 原 basename → 同一远程地址永远映射到同一文件名;
+ * - URL basename 不带后缀时（很多 CDN 图 URL 如此），下载后按响应 Content-Type 补扩展名
+ *   （否则落盘无后缀 → 服务端按扩展名的 Content-Type/缩略图/类型识别全部失效，见 MIME_TO_EXT）;
  * - 文件已存在则跳过下载 → 重复调用不重复落盘(幂等,所以"调两次 ii"也不会下两份原图);
  * - 单次成功调用产出【1 原图 + 1 缩略图】两个文件(缩略图在 .thumbnails/ 下),这是正常设计,不是"重复下载"。
  * 调用方(polling ii→Zr / gateway / 迁移)下载失败表现为 POST /api/files/upload 返回 400,由 Zr 打 WARN 暴露。
@@ -117,30 +142,52 @@ async function saveRemoteUrl(subfolder: string, fileUrl: string, filename?: stri
   const urlHash = crypto.createHash('sha1').update(fileUrl).digest('hex').slice(0, 16);
   const base = filename || path.basename(new URL(fileUrl).pathname) || 'download';
   const stableName = sanitizeFilename(`${urlHash}_${base}`);
-
-  const { savedPath, urlPath } = resolveUploadTarget(subfolder, stableName);
-  ensureDir(path.dirname(savedPath));
-
-  // 留痕：下载成败都打 [download] 日志（含 URL/落盘路径/原因），供"图丢了"排查溯源。
-  // 此前失败仅表现为 upload 400 且日志不记响应，导致丢图无迹可循（见 daily/2026-08-14 §一）。
+  // URL basename 是否带扩展名：无后缀时需下载拿 Content-Type 才能定最终文件名
+  const needsExt = !path.extname(stableName);
   const ts = () => new Date().toISOString().replace('T', ' ').slice(0, 19);
-  if (!fs.existsSync(savedPath)) {
-    // 直连优先，失败走代理（跨平台：读环境变量或探测 127.0.0.1:7897 等常见本机代理端口）。
-    // 解决了 localTool 进程 fetch 不继承浏览器代理、导致下载 Lovart CDN 图超时 400 的问题。
-    try {
-      const response = await fetchWithProxy(fileUrl);
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
-      const data = Buffer.from(await response.arrayBuffer());
-      writeUploadBufferAt(subfolder, stableName, data);
-      console.log(`[download] ${ts()} | OK  | ${fileUrl} -> ${urlPath} | ${(data.length / 1024).toFixed(0)}KB`);
-    } catch (e) {
-      console.error(`[download] ${ts()} | FAIL | ${fileUrl} | ${(e as Error).message}`);
-      throw new Error(`Failed to download fileUrl: ${(e as Error).message}`);
+
+  // 已带扩展名：先查存在（幂等快路径，命中即免一次下载）
+  if (!needsExt) {
+    const { savedPath, urlPath } = resolveUploadTarget(subfolder, stableName);
+    ensureDir(path.dirname(savedPath));
+    if (fs.existsSync(savedPath)) {
+      console.log(`[download] ${ts()} | SKIP(已存在) | ${fileUrl} -> ${urlPath}`);
+      const thumbnailUrl = await tryGenerateThumbnail(savedPath, urlPath);
+      return { url: `${BASE_URL}${urlPath}`, path: savedPath, thumbnailUrl: thumbnailUrl ? `${BASE_URL}${thumbnailUrl}` : undefined };
     }
-  } else {
+  }
+
+  // 直连优先，失败走代理（跨平台：读环境变量或探测 127.0.0.1:7897 等常见本机代理端口）。
+  // 解决了 localTool 进程 fetch 不继承浏览器代理、导致下载 Lovart CDN 图超时 400 的问题。
+  // 留痕：下载成败都打 [download] 日志（含 URL/落盘路径/原因），供"图丢了"排查溯源。
+  let response: Response;
+  try {
+    response = await fetchWithProxy(fileUrl);
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+  } catch (e) {
+    console.error(`[download] ${ts()} | FAIL | ${fileUrl} | ${(e as Error).message}`);
+    throw new Error(`Failed to download fileUrl: ${(e as Error).message}`);
+  }
+  const data = Buffer.from(await response.arrayBuffer());
+
+  // 无扩展名 → 按响应 Content-Type 补后缀（真实类型，非猜 URL）；无法识别则保持无后缀
+  let finalName = stableName;
+  if (needsExt) {
+    const mime = (response.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
+    const ext = MIME_TO_EXT[mime];
+    if (ext) finalName = `${stableName}.${ext}`;
+  }
+
+  // 幂等：按最终文件名判存在，重复到达只落一次
+  const { savedPath, urlPath } = resolveUploadTarget(subfolder, finalName);
+  ensureDir(path.dirname(savedPath));
+  if (fs.existsSync(savedPath)) {
     console.log(`[download] ${ts()} | SKIP(已存在) | ${fileUrl} -> ${urlPath}`);
+  } else {
+    writeUploadBufferAt(subfolder, finalName, data);
+    console.log(`[download] ${ts()} | OK  | ${fileUrl} -> ${urlPath} | ${(data.length / 1024).toFixed(0)}KB`);
   }
 
   const thumbnailUrl = await tryGenerateThumbnail(savedPath, urlPath);
