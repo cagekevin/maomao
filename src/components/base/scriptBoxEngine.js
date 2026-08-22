@@ -1,4 +1,4 @@
-import { buildShotImageUser, getImageGenSys, collectAssets, matchAsset, ZgPrompt, IMAGE_GEN_TYPES, IMAGE_GEN_DEFAULT, SCRIPT_WRITER_SYSTEM, SCRIPT_WRITER_FORMAT, SHOT_DIRECTOR_SYSTEM, SHOT_AUDIT_SYSTEM, buildAuditUser } from './scriptBoxPrompts.js'
+import { buildShotImageUser, getImageGenSys, collectAssets, matchAsset, ZgPrompt, IMAGE_GEN_TYPES, IMAGE_GEN_DEFAULT, SCRIPT_WRITER_SYSTEM, SCRIPT_WRITER_FORMAT, SHOT_DIRECTOR_SYSTEM, SHOT_AUDIT_SYSTEM, buildAuditUser, getWorkflow } from './scriptBoxPrompts.js'
 import { chatCompletions } from './chatApi.js'
 import { generateImage } from './imageApi.js'
 import { resolveProviderModel, buildAllModels } from './providerModels.js'
@@ -185,9 +185,9 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
     const { provider, modelId } = resolveTextModel()
     if (!provider || !modelId) { toast('请先在「设置」中配置文本大模型'); return }
 
-    // 拼 system：创作部分（customScriptPrompt 可覆盖默认编剧模板）+ 固定输出格式（不可覆盖）+ 镜头数 + 风格。
+    // 拼 system：创作部分（customScriptPrompt 可覆盖工作流默认编剧模板）+ 固定输出格式（不可覆盖）+ 镜头数 + 风格。
     // 输出 JSON 结构（SCRIPT_WRITER_FORMAT）是引擎解析契约，必须始终固定追加，即使用户自定义了创作提示词也不丢失。
-    const scriptPrompt = (d.customScriptPrompt || '').trim() || SCRIPT_WRITER_SYSTEM
+    const scriptPrompt = (d.customScriptPrompt || '').trim() || getWorkflow(d.workflowId).script || SCRIPT_WRITER_SYSTEM
     // 镜头数量：预设(10/20/30/50) 为 number；自定义模式 shotCount==='custom' 时取 customCount
     // 数字；auto 或未提供有效数字时由模型按剧情节奏决定。
     const shotCountRaw = d.shotCount === 'custom' ? d.customCount : d.shotCount
@@ -243,6 +243,14 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
           connImg: false,
           connVid: false,
         }))
+
+      // 结构校验：JSON 合法但未解析出任何可用分镜 → 视为格式不符，明确提示而非静默变空。
+      if (shots.length === 0) {
+        updateData({ genMask: false })
+        toast('模型返回的剧本 JSON 格式不符（未解析出分镜），请重试')
+        logger.error('scriptBox', '生成剧本·格式不符（无有效分镜）', { nodeId })
+        return
+      }
 
       const globalStyle = style || (typeof m.globalStyle === 'string' ? m.globalStyle : '')
       const projectName = (typeof m.projectName === 'string' && m.projectName.trim()
@@ -389,9 +397,10 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
     const customConstraint = [...(d.globalConstraints || []).filter(Boolean), String(d.customGlobalConstraint || '').trim()].filter(Boolean).join('；')
     const imageConstraint = String(d.imageGlobalConstraint || '').trim()
     const videoConstraint = String(d.videoGlobalConstraint ?? customConstraint).trim()
-    // 生效的 system：customShotPrompt(或默认导演模板) + Qg(不可覆盖规则)
-    const shotPrompt = (d.customShotPrompt || '').trim() || SHOT_DIRECTOR_SYSTEM
-    const system = shotPrompt + QG_RULES
+    // 生效的 system：customShotPrompt(或工作流默认导演模板) + 工作流不可覆盖规则(可被 customQGPrompt 覆盖)
+    const shotPrompt = (d.customShotPrompt || '').trim() || getWorkflow(d.workflowId).shot || SHOT_DIRECTOR_SYSTEM
+    const qgRule = (d.customQGPrompt || '').trim() || getWorkflow(d.workflowId).qg
+    const system = shotPrompt + (qgRule ? `\n\n${qgRule}` : '')
 
     logger.info('scriptBox', '生成分镜提示词·开始', { nodeId, count: target.length, provider: provider?.id, model: modelId, feedback: !!feedback })
 
@@ -457,6 +466,13 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
           return
         }
         const { prompt, videoPrompt } = parsed.data || {}
+        // 结构校验：JSON 合法但缺 prompt/videoPrompt → 视为格式不符，明确提示且不写回空值。
+        if (!prompt && !videoPrompt) {
+          enqueuePatch((latest) => ({ shots: (latest.shots || []).map((s) => (s.id === shot.id ? { ...s, promptLoading: false } : s)) }))
+          toast('模型输出的提示词 JSON 格式不符（缺少 prompt/videoPrompt），请重试')
+          logger.error('scriptBox', '生成分镜提示词·格式不符', { nodeId, shotId: shot.id })
+          return
+        }
         let pText = prompt || ''
         let vText = videoPrompt || ''
         // 后处理：开启上一镜尾帧时，强制让 prompt/videoPrompt 显式含视觉起点引用标签
@@ -562,7 +578,7 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
     if (!shot || !feedback || !String(feedback).trim()) return Promise.resolve({ ok: false })
     const { provider, modelId } = resolveTextModel()
     if (!provider || !modelId) { toast('请先在「设置」中配置文本大模型'); return Promise.resolve({ ok: false }) }
-    const system = SHOT_AUDIT_SYSTEM
+    const system = (d.customAuditPrompt || '').trim() || SHOT_AUDIT_SYSTEM
     const user = buildAuditUser(shot, field, String(feedback).trim(), (d.assets || []).map((a) => a.name))
 
     // 改写结果经 Promise resolve 交给组件（组件 await 后写进预览，点「应用」才落盘到 shot）。
@@ -844,11 +860,6 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
 // ═══════════════════════════════════════════════════════════════
 // 模块级纯函数（对齐官方 shared.js 的 Nr/Qg/Fa 语义）
 // ═══════════════════════════════════════════════════════════════
-
-/** Qg 不可覆盖的最终规则（对齐官方 shared.js Qg）。 */
-const QG_RULES = `
-
-【不可覆盖的最终规则】prompt 与 videoPrompt 每个字段最低 400 个中文字符，建议 450 至 700 字。videoPrompt 必须逐字保留输入中提供的具体角色名、完整对白/旁白和具体音效，并使用“具体角色名说：‘完整台词’”“旁白：‘完整原句’”“环境音/动作音：具体音效”的明确格式。禁止输出“角色说”“人物说”“他说”“她说”等泛称。所有 @名称 必须原样保留。只返回包含 prompt、videoPrompt 的纯 JSON。`
 
 /** 对白字符串 → 每行「说话者：完整原句」格式（对齐官方 Ir 内嵌解析 + Nr）。
  *  兼容 dialogue 双态（P2-⑤）：数组形态（UI 编辑后 [{kind,role,text}]）逐行转字符串，

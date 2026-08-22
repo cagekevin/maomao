@@ -14,6 +14,7 @@ import MaterialStrip from '../base/MaterialStrip.jsx'
 import ResizeFullscreenHandle from '../base/ResizeFullscreenHandle.jsx'
 import FullscreenModal from '../base/FullscreenModal.jsx'
 import GeneratingOverlay from '../base/GeneratingOverlay.jsx'
+import { NODE_AREA_FIXED_BASE_SIZE } from '../base/config.js'
 import ImageZoomDialog from '../base/ImageZoomDialog.jsx'
 import ImageEditor from '../base/ImageEditor.jsx'
 import { useImageHoverActions } from '../base/useImageHoverActions.jsx'
@@ -312,7 +313,8 @@ function PromptNode({ id, data, selected }) {
       minHeight={160}
       handleVariant="small"
       aspectRatio={aspectRatio}
-      defaultHeight={420}
+      sizeMode="area-fixed"
+      baseSize={NODE_AREA_FIXED_BASE_SIZE}
     >
       {/* hover 操作栏（loading 时隐藏） */}
       {!loading && <HoverToolbar buttons={toolbarButtons} />}

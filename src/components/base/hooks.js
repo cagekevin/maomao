@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useReactFlow, useUpdateNodeInternals } from '@xyflow/react'
+import { NODE_AREA_FIXED_BASE_SIZE } from './config.js'
 
 /**
  * 判断事件目标是否在可编辑元素内（INPUT / TEXTAREA / contenteditable）。
@@ -77,7 +78,7 @@ export function useSizeSync(id, aspectRatio, opts = {}) {
   const mode = opts.mode || 'width-fixed'
   const defaultWidth = opts.defaultWidth ?? 420
   const defaultHeight = opts.defaultHeight ?? 420
-  const baseSize = opts.baseSize ?? 380 // area-fixed 的面积基准
+  const baseSize = opts.baseSize ?? NODE_AREA_FIXED_BASE_SIZE // area-fixed 的面积基准
   const ratio = parseAspect(aspectRatio)
 
   useEffect(() => {
@@ -127,7 +128,7 @@ export function computeSizeSync(ratio, opts = {}) {
   const mode = opts.mode || 'width-fixed'
   const defaultWidth = opts.defaultWidth ?? 420
   const defaultHeight = opts.defaultHeight ?? 420
-  const baseSize = opts.baseSize ?? 380
+  const baseSize = opts.baseSize ?? NODE_AREA_FIXED_BASE_SIZE
   const currentWidth = opts.currentWidth ?? defaultWidth
   if (ratio) {
     if (mode === 'area-fixed') {

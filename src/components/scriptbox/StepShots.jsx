@@ -101,7 +101,7 @@ export default function StepShots({ data, updateData, callbacks }) {
   const openTailFrame = (shotId) => { setTfShotId(shotId); callbacks.onGenerateTailFrameVariants?.(shotId) }
 
   return (
-    <div className="grid grid-cols-[190px_1fr] gap-4">
+    <div data-testid="step-shots" className="grid grid-cols-[190px_1fr] gap-4">
       {/* 左栏 */}
       <div className="flex flex-col gap-3">
         <div>

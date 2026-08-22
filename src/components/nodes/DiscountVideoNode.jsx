@@ -12,6 +12,7 @@ import ModelSelect from '../base/ModelSelect.jsx'
 import ResizeFullscreenHandle from '../base/ResizeFullscreenHandle.jsx'
 import FullscreenModal from '../base/FullscreenModal.jsx'
 import GeneratingOverlay from '../base/GeneratingOverlay.jsx'
+import { NODE_AREA_FIXED_BASE_SIZE } from '../base/config.js'
 import { downloadUrl } from '../base/clipboard.js'
 import PromptLibraryButton from '../base/PromptLibraryButton.jsx'
 import JianyingIcon from '../base/JianyingIcon.jsx'
@@ -208,7 +209,7 @@ function DiscountVideoNode({ id, data, selected }) {
       minHeight={200}
       aspectRatio={ratio}
       sizeMode="area-fixed"
-      baseSize={380}
+      baseSize={NODE_AREA_FIXED_BASE_SIZE}
       className="min-w-[200px] min-h-[200px]"
       handleVariant="small"
     >

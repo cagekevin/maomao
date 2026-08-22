@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react'
 import {
-  ASSET_TEMPLATES, SCRIPT_WRITER_SYSTEM, SHOT_DIRECTOR_SYSTEM,
+  ASSET_TEMPLATES, SCRIPT_WRITER_SYSTEM, SHOT_DIRECTOR_SYSTEM, SHOT_AUDIT_SYSTEM,
   IMAGE_GEN_TYPES, defaultImageGenTemplates
 } from '../base/scriptBoxPrompts.js'
+import { SCRIPT_BOX_WORKFLOWS, DEFAULT_WORKFLOW } from './scriptBoxWorkflows.js'
 import { useProviders, load as loadProviders } from '../base/settings/providerStore.js'
 import { logger } from '../base/logger.js'
 import { buildAllModels } from '../base/providerModels.js'
 import ModelSelect from '../base/ModelSelect.jsx'
+import Select from '../base/Select.jsx'
 import ScriptBoxModal from './ScriptBoxModal.jsx'
 
 /**
@@ -14,6 +16,17 @@ import ScriptBoxModal from './ScriptBoxModal.jsx'
  * 每个配置一块 Tab（含各提示词），平铺展示，不折叠、不遮挡、方便阅读：
  *  基础 / 剧本 / 分镜 / 生图类型 / 资产
  */
+// 生图类型模板可能来自工作流（嵌套 {key:{label,sys}}）或历史自定义（扁平 {key:sys字符串}），
+// 统一收口为扁平 sys 字符串映射，供生图类型 Tab 的 textarea 直接编辑/显示。
+function flattenImageGenTable(obj) {
+  return Object.fromEntries(
+    Object.entries(obj || {}).map(([k, t]) => [
+      k,
+      t && typeof t === 'object' && 'sys' in t ? String(t.sys) : typeof t === 'string' ? t : ''
+    ])
+  )
+}
+
 export default function GearSettings({ data, updateData, onClose }) {
   const d = data || {}
   const ratios = ['16:9', '9:16', '1:1', '3:4', '4:3', '21:9']
@@ -50,7 +63,30 @@ export default function GearSettings({ data, updateData, onClose }) {
   const [shotPrompt, setShotPrompt] = useState(d.customShotPrompt ?? SHOT_DIRECTOR_SYSTEM)
   const [tpl, setTpl] = useState(d.customAssetTemplates || { ...ASSET_TEMPLATES })
   // 生图类型模板（关键帧/四宫格/九宫格/俯视调度图），默认用内置，可覆盖
-  const [genTpl, setGenTpl] = useState(d.customImageGenTemplates || defaultImageGenTemplates())
+  const [genTpl, setGenTpl] = useState(() => (d.customImageGenTemplates ? flattenImageGenTable(d.customImageGenTemplates) : defaultImageGenTemplates()))
+  // 工作流：当前选用的工作流 id + 审计改写提示词（默认来自工作流，可单字段覆盖）
+  const [workflowId, setWorkflowId] = useState(d.workflowId || DEFAULT_WORKFLOW)
+  const [auditPrompt, setAuditPrompt] = useState(d.customAuditPrompt ?? SHOT_AUDIT_SYSTEM)
+  // 应用某工作流：把该套整套提示词填入本地编辑态（各工作流彼此完全独立、互不残留），保存即整套切换。
+  const applyWorkflow = (id) => {
+    const w = SCRIPT_BOX_WORKFLOWS[id] || SCRIPT_BOX_WORKFLOWS[DEFAULT_WORKFLOW]
+    setWorkflowId(id)
+    if (w.script !== undefined) setScriptPrompt(w.script)
+    if (w.shot !== undefined) setShotPrompt(w.shot)
+    if (w.audit !== undefined) setAuditPrompt(w.audit)
+    // 解耦：资产/生图模板直接用「所选工作流自身」的定义，不再 merge 默认，避免残留上一套。
+    if (w.assetTemplates) setTpl({ ...w.assetTemplates })
+    if (w.imageGenTemplates) setGenTpl(flattenImageGenTable(w.imageGenTemplates))
+    if (w.constraints) {
+      if (w.constraints.image !== undefined) setImageConstraint(w.constraints.image)
+      if (w.constraints.video !== undefined) setVideoConstraint(w.constraints.video)
+      if (w.constraints.custom !== undefined) setCustomGlobalConstraint(w.constraints.custom)
+    }
+    if (w.negative) {
+      if (w.negative.image !== undefined) setImageNegative(w.negative.image)
+      if (w.negative.video !== undefined) setVideoNegative(w.negative.video)
+    }
+  }
   // 模型（文本模型 = 生成分镜/提示词；资产生图模型 = 步骤2批量生图）
   // 默认值：节点已存（textModel/selectedModel 或 assetModelSettings.globalModel）优先；
   // 否则取第一个 chat/image 模型；若已在 store 里则取该值，无则回退节点值/空。
@@ -75,8 +111,10 @@ export default function GearSettings({ data, updateData, onClose }) {
       videoNegative,
       customScriptPrompt: scriptPrompt,
       customShotPrompt: shotPrompt,
+      customAuditPrompt: auditPrompt,
       customAssetTemplates: tpl,
       customImageGenTemplates: genTpl,
+      workflowId,
       textModel,
       selectedModel: textModel,
       assetModelSettings: { ...(d.assetModelSettings || {}), globalModel: assetModel }
@@ -101,6 +139,17 @@ export default function GearSettings({ data, updateData, onClose }) {
         </div>
       }
     >
+        {/* 工作流一键切换：整套提示词预设的顶部总入口（下拉选择即填入各 Tab，保存生效） */}
+        <div className="flex items-center gap-2 px-5 py-2.5 shrink-0 border-b border-white/[0.06]">
+          <span className="text-body-xs text-gray-400 shrink-0">工作流</span>
+          <Select
+            value={workflowId}
+            onChange={(id) => applyWorkflow(id)}
+            options={Object.values(SCRIPT_BOX_WORKFLOWS).map((w) => ({ value: w.id, label: w.label }))}
+            placeholder="选择工作流"
+          />
+          <span className="text-2xs text-gray-600 shrink-0">选择整套提示词，各 Tab 可再单条微调</span>
+        </div>
         {/* 标签页 */}
         <div className="flex gap-1 px-5 pt-3 pb-2 shrink-0 overflow-x-auto custom-scrollbar">
           {TABS.map(([k, n]) => (
@@ -161,9 +210,14 @@ export default function GearSettings({ data, updateData, onClose }) {
           )}
 
           {tab === 'shot' && (
-            <Section title="分镜生成提示词（分镜 → 生图/生视频）">
-              <textarea value={shotPrompt} onChange={(e) => setShotPrompt(e.target.value)} className="w-full bg-surface-strong border border-white/[0.06] rounded-md p-2 text-gray-200 text-caption-sm outline-none h-64 focus:border-white/20 custom-scrollbar nodrag nowheel" />
-            </Section>
+            <div className="flex flex-col gap-4">
+              <Section title="分镜生成提示词（分镜 → 生图/生视频）">
+                <textarea value={shotPrompt} onChange={(e) => setShotPrompt(e.target.value)} className="w-full bg-surface-strong border border-white/[0.06] rounded-md p-2 text-gray-200 text-caption-sm outline-none h-64 focus:border-white/20 custom-scrollbar nodrag nowheel" />
+              </Section>
+              <Section title="提示词审计改写提示词（按意见精修，随工作流切换）">
+                <textarea value={auditPrompt} onChange={(e) => setAuditPrompt(e.target.value)} className="w-full bg-surface-strong border border-white/[0.06] rounded-md p-2 text-gray-200 text-caption-sm outline-none h-40 focus:border-white/20 custom-scrollbar nodrag nowheel" />
+              </Section>
+            </div>
           )}
 
           {tab === 'image' && (

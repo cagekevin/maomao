@@ -3,6 +3,7 @@ import { NodeResizer, useStore } from '@xyflow/react'
 import NodeTitle from './NodeTitle.jsx'
 import CustomHandle from '../edges/CustomHandle.jsx'
 import { useSizeSync } from './hooks.js'
+import { NODE_AREA_FIXED_BASE_SIZE } from './config.js'
 import ErrorBoundary from './ErrorBoundary.jsx'
 import { logger } from './logger.js'
 
@@ -158,7 +159,7 @@ function NodeShell({
   aspectRatio,
   defaultHeight = 420,
   sizeMode = 'width-fixed',
-  baseSize = 380,
+  baseSize = NODE_AREA_FIXED_BASE_SIZE,
   handleVariant = 'large',
   showHandles = true,
   showTitle = true,

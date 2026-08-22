@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { Loader2, Wand2, User, Image as ImageIcon, Package, Plus, MoreVertical, Upload, RefreshCw, Trash2 } from 'lucide-react'
-import { ZgPrompt } from '../base/scriptBoxPrompts.js'
+import { ZgPrompt, stripAtRef } from '../base/scriptBoxPrompts.js'
 import { useOutsideClick } from '../base/hooks.js'
 import { toAbsoluteFileUrl } from '../base/filesApi.js'
 import ImageZoomDialog from '../base/ImageZoomDialog.jsx'
@@ -39,8 +39,22 @@ export default function StepAssets({ data, updateData, callbacks }) {
   }
   // 删除资产
   const delAsset = (id) => {
+    const target = assets.find((a) => a.id === id)
     const next = assets.filter((a) => a.id !== id)
-    updateData({ assets: next, pickedCount: next.filter((a) => a.picked).length })
+    const patch = { assets: next, pickedCount: next.filter((a) => a.picked).length }
+    // 联动清理：删除资产时，把全部镜头文本（描述/分镜提示词/视频提示词）里引用该名的 @ 标记去掉。
+    // 只去 @、保留名字文字（名字可能是描述内容本身，如「森林」），不再高亮/不再作参考图，避免第一步残留。
+    if (target?.name) {
+      const shots = d.shots || []
+      patch.shots = shots.map((s) => {
+        const nextShot = { ...s }
+        ;['description', 'prompt', 'videoPrompt'].forEach((f) => {
+          if (nextShot[f]) nextShot[f] = stripAtRef(nextShot[f], target.name)
+        })
+        return nextShot
+      })
+    }
+    updateData(patch)
   }
   // 批量生图：用选中集（未选则全部无图资产），走真批量引擎（onGenerateAllAssetImages）
   const batchGen = () => {

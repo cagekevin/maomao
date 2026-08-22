@@ -67,6 +67,10 @@ const GEN_TIPS = [
   { text: '不要每一格都画满人物：适当插入只画背景空镜头的过渡图，让节奏张弛有度', category: 'image' },
   { text: '生成速度感画面：加上"运动模糊（Motion blur）"和"速度线"视觉效果', category: 'image' },
   { text: '固定一张完美的图作为风格锚点，通过工作流将其作为所有后续生成的参考', category: 'image' },
+  { text: '画面写"定格的那一瞬"（举拳/转身/跌倒），比写"正要/开始"的过渡更稳', category: 'image' },
+  { text: '正向描述优先：写"画面清晰通透"，少写"不要模糊"这类否定词', category: 'image' },
+  { text: '写清"谁在看谁、面向哪里"，视线与身体朝向一致，画面才有方向感', category: 'image' },
+  { text: '给光一个明确方向：单一主光来源、明暗有层次，比堆"电影感"更出效果', category: 'image' },
   // video
   { text: '提示词中加入"镜头缓慢平移"、"推镜头"来精确控制运镜语言', category: 'video' },
   { text: '利用昂贵主力模型+首尾帧便宜模型，是省钱有好用的方法', category: 'video' },
@@ -100,6 +104,11 @@ const GEN_TIPS = [
   { text: '镜头光晕移动：提示词加"镜头光晕在画面中划过"，科幻与写实摄影感拉满', category: 'video' },
   { text: '遇到视频生成崩坏：不要硬死磕，回到生图节点换一张构图稍微不同的图片再试', category: 'video' },
   { text: '制造悬疑感：使用"缓慢向黑暗的走廊尽头推进（Slow dolly in toward darkness）"', category: 'video' },
+  { text: '视频首帧就要出现主角，别让主体迟迟不进画面', category: 'video' },
+  { text: '动作写"伸手挡开""一把接住"这类目标动词，比写"他很生气"更有效', category: 'video' },
+  { text: '让角色处于已发生状态（半蹲着/正要推门），别写"开始站起来"这类过渡', category: 'video' },
+  { text: '人物要有活的视线：目光会先动、再转头，避免死眼', category: 'video' },
+  { text: '动作要符合物理：走路脚着地、拿物有分量，别漂浮瞬移', category: 'video' },
   // general
   { text: '画布支持多个项目管理，不要把所有都放在一个项目里面', category: 'general' },
   { text: '生成的满意结果随时拖入素材，作为公共素材池供各节点调用', category: 'general' },
@@ -113,7 +122,9 @@ const GEN_TIPS = [
   { text: '你用过Ctrl+D这个快捷键吗，不妨对着节点尝试下，有惊喜', category: 'general' },
   { text: '云端可以备份你的api/多开/视频模型等信息，你换了设备也可以马上用，而本地资源你需要手动备份', category: 'general' },
   { text: '别被工具困住：接受适度的随机性，有时AI的"错误"会带来意想不到的绝妙转场', category: 'general' },
-  { text: '不会写提示词时，不妨查看提示词库，学习别人的经验', category: 'general' }
+  { text: '不会写提示词时，不妨查看提示词库，学习别人的经验', category: 'general' },
+  { text: 'AI 返回的格式不对时会明确提示，旧结果不会被覆盖，可直接重试', category: 'general' },
+  { text: '齿轮设置的"工作流"可一键切换整套提示词预设（漫剧/达人种草）', category: 'general' }
 ]
 
 export default function GeneratingOverlay({ label = '生成中...', backgroundUrl = '', category = 'general' }) {

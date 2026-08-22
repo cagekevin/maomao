@@ -23,6 +23,10 @@ export function defaultScriptBoxTop() {
     imageNegative: '',
     videoNegative: '',
     tailFrameAngleIds: ['forward', 'closeup', 'rotateLeft45'],
+    // 工作流收口：当前选用工作流 id（默认漫剧）；audit/qg 有齿轮单独覆盖时写 customXxx
+    workflowId: 'manga',
+    customAuditPrompt: '',
+    customQGPrompt: '',
   }
 }
 
