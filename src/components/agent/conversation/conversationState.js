@@ -28,7 +28,12 @@ import { generateId } from '../../base/idGen.js'
  */
 export const convKey = (k) => `agent_conversations_${k}`
 export const activeKey = (k) => `agent_active_conversation_id_${k}`
-/** 每对话消息上限（对齐大雄 AGENT_MSG_MAX = 60，防无限膨胀） */
+/** AI 助手 agentKey 前缀（对齐 App.jsx / backupStore.js，集中避免散落硬编码） */
+const AGENT_KEY_PREFIX = 'canvas-assistant'
+/** 旧全局会话键（迁移用）：改造前无 agentKey 后缀（contracts.js 登记为 migration 键） */
+const LEGACY_CONV_KEY = 'agent_conversations'
+const LEGACY_ACTIVE_KEY = 'agent_active_conversation_id'
+/** 每个 agentKey 的对话消息上限（对齐大雄 AGENT_MSG_MAX = 60，防无限膨胀） */
 export const AGENT_MSG_MAX = 60
 
 /** 空对话记忆（对齐大雄 agentEmptyConversationMemory） */
@@ -47,7 +52,7 @@ export function emptyMemory() {
  */
 const states = {}           // { [agentKey]: { conversations, activeId, sending } }
 const hydratedSet = {}      // { [agentKey]: boolean } 该 key 是否已恢复过当前对话
-let currentAgentKey = 'canvas-assistant'  // 当前生效的 agentKey（由 setAgentKey 设置）
+let currentAgentKey = AGENT_KEY_PREFIX  // 当前生效的 agentKey（由 setAgentKey 设置）
 
 // P4 落盘节流：commit 每次变更全量 stringify + 落盘是热路径（流式/轮询/记忆提炼高频触发），
 // 防抖合并成最终态一次落盘。通知订阅者（notify）保持即时，只有「落盘」被节流。
@@ -87,7 +92,7 @@ export function useConversationStore() {
 
 /** 设置当前 agentKey（项目切换/新建时调用）。若该 key 首次出现则从 localStorage 加载。 */
 export function setAgentKey(key) {
-  const k = key || 'canvas-assistant'
+  const k = key || AGENT_KEY_PREFIX
   if (k === currentAgentKey) return
   currentAgentKey = k
   if (!states[k]) initState(k)
@@ -112,7 +117,7 @@ function initState(k) {
   }
   // 兼容迁移：改造前会话存固定键 agent_conversations（无项目后缀）。
   // 仅当「默认项目(canvas-assistant-default)」且新键无数据时，从旧键迁一次，避免历史会话丢失。
-  if (conversations.length === 0 && k === 'canvas-assistant-default') {
+  if (conversations.length === 0 && k === `${AGENT_KEY_PREFIX}-default`) {
     const migrated = migrateLegacyGlobal()
     if (migrated) {
       conversations = migrated.conversations
@@ -131,7 +136,7 @@ function initState(k) {
 function migrateLegacyGlobal() {
   let conversations = []
   try {
-    const arr = contentGet('agent_conversations')
+    const arr = contentGet(LEGACY_CONV_KEY)
     conversations = (Array.isArray(arr) ? arr : []).map(normalizeConversation).filter(Boolean)
   } catch {
     conversations = []
@@ -139,7 +144,7 @@ function migrateLegacyGlobal() {
   if (conversations.length === 0) return null
   let activeId = ''
   try {
-    const id = contentGet('agent_active_conversation_id')
+    const id = contentGet(LEGACY_ACTIVE_KEY)
     activeId = typeof id === 'string' && id && conversations.some((c) => c.id === id) ? id : conversations[0].id
   } catch {
     activeId = conversations[0].id

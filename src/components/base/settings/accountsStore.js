@@ -10,7 +10,7 @@
  * 数据变更一律新引用，绝不原地修改（useSyncExternalStore 依赖引用变化触发渲染）。
  */
 import { useSyncExternalStore } from 'react'
-import { contentGet, contentSet } from '../contentStore.js'
+import { contentGetAsync, contentSetAsync } from '../contentStore.js'
 import { generateId } from '../idGen.js'
 
 const STORAGE_KEY = 'yimao_accounts'
@@ -30,31 +30,32 @@ export function isExtensionEnv() {
   return typeof chrome !== 'undefined' && !!chrome?.runtime?.id
 }
 
-function load() {
+// 水合防竞态：load 异步，仅当列表仍为空时应用结果，防止覆盖用户在加载期间的编辑
+/**
+ * 异步加载账号环境（走 KV 后端，读不到返回空、不写空覆盖——修 R6 关闭插件重开不丢的配套）。
+ * 惰性执行一次，仅在环境列表仍为空时应用，避免与用户编辑竞态/覆盖。
+ * @returns {Promise<Array>} 清洗后的环境数组
+ */
+async function load() {
   try {
-    const parsed = contentGet(STORAGE_KEY)
-    if (Array.isArray(parsed)) {
-      // 迁移清理：剔除早期预置的演示假数据（env_demo_* / 开发测试网 test cookie），
-      // 让多开列表不再出现预设假数据；用户真实新增的环境保留。
-      const cleaned = parsed.filter(
-        (e) => !String(e.id || '').startsWith('env_demo_') && !(e.siteName === '开发测试网' && (e.cookies || []).every((c) => c.name === 'test'))
-      )
-      if (cleaned.length !== parsed.length) {
-        try { contentSet(STORAGE_KEY, cleaned) } catch { /* ignore */ }
-      }
-      return cleaned
-    }
-    // 无历史数据时初始为空列表（不再预置演示假数据）
-    try { contentSet(STORAGE_KEY, []) } catch { /* ignore */ }
-    return []
+    const parsed = await contentGetAsync(STORAGE_KEY)
+    const cleaned = Array.isArray(parsed)
+      ? parsed.filter(
+          (e) => !String(e.id || '').startsWith('env_demo_') && !(e.siteName === '开发测试网' && (e.cookies || []).every((c) => c.name === 'test'))
+        )
+      : []
+    if (state.envs.length === 0) setState({ envs: cleaned })
+    return cleaned
   } catch {
+    if (state.envs.length === 0) setState({ envs: [] })
     return []
   }
 }
 
-// 模块级 state：环境数组 + 当前激活环境 id + 表单/菜单态（官方 rn/on/un/fn/mn/gn/ja）
+// 模块级 state：环境数组 + 当前激活环境 id + 表单/菜单态（官方 rn/on/un/fn/mn/gn/ja）。
+// 不再同步 load（KV 为异步后端），初始为空，由上水合异步填充。
 let state = {
-  envs: load(),
+  envs: [],
   activeId: null,
   confirmDeleteId: null, // 删除二次确认（官方 `ja`）
   saving: false,         // 保存中（官方 `yn`）
@@ -80,17 +81,19 @@ export function useAccounts() {
   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
 }
 
-function persist() {
-  try {
-    contentSet(STORAGE_KEY, state.envs)
-  } catch { /* ignore */ }
+// 异步落盘（对齐官方 users 走 localTool KV；等待 KV 完成，避免写空覆盖丢历史）
+async function persist() {
+  await contentSetAsync(STORAGE_KEY, state.envs)
 }
 
-// 保存环境数组（复刻官方 `fa`：内存 + 持久化）
-function saveEnvs(next) {
+// 保存环境数组（复刻官方 `fa`：内存 + 异步持久化）
+async function saveEnvs(next) {
   setState({ envs: next })
-  persist()
+  await persist()
 }
+
+// 首次模块加载时惰性水合（KV 异步，不能同步填充）
+void load()
 
 // ── 表单控制（复刻官方 dn/pn/hn/_n + 表单 ✕ 关闭）──
 export function openCreateForm() {
@@ -246,7 +249,7 @@ export async function saveEnvironment(auto = false) {
       }
       next = [...state.envs, newEnv]
     }
-    saveEnvs(next)
+    await saveEnvs(next)
     setState({ formOpen: false, formEditId: null, formName: '', formCookies: '' })
     return { ok: true }
   } catch (e) {
@@ -333,10 +336,10 @@ export async function clearCookies(envId, all = false) {
 }
 
 // ── 删除环境（复刻官方 `Na`：二次确认，3s 未确认自动重置）──
-export function requestDelete(envId) {
+export async function requestDelete(envId) {
   if (state.confirmDeleteId === envId) {
     // 二次确认：真正删除
-    saveEnvs(state.envs.filter((e) => e.id !== envId))
+    await saveEnvs(state.envs.filter((e) => e.id !== envId))
     if (state.activeId === envId) setState({ activeId: null })
     setState({ confirmDeleteId: null })
   } else {
@@ -346,18 +349,18 @@ export function requestDelete(envId) {
 }
 
 // ── 收藏（复刻官方 `Pa` toggle isFavorite）──
-export function toggleFavorite(envId) {
+export async function toggleFavorite(envId) {
   setState({
     envs: state.envs.map((e) => (e.id === envId ? { ...e, isFavorite: !e.isFavorite } : e)),
   })
-  persist()
+  await persist()
 }
 
 // ── 拖拽排序（复刻官方 `Da/Oa/ka/Aa`）──
-export function moveEnv(fromIndex, toIndex) {
+export async function moveEnv(fromIndex, toIndex) {
   if (fromIndex === null || fromIndex === toIndex) return
   const next = [...state.envs]
   const [moved] = next.splice(fromIndex, 1)
   next.splice(toIndex, 0, moved)
-  saveEnvs(next)
+  await saveEnvs(next)
 }

@@ -61,7 +61,11 @@ function notOk(status = 500) {
 describe('kvStore isKvKey', () => {
   it('canvas-state-v1- 前缀返回 true', () => {
     expect(isKvKey(CANVAS_STATE_PREFIX + 'snap1')).toBe(true)
-    expect(isKvKey('canvas-state-v1-')).toBe(true) // 正好前缀
+    // 纯前缀（后无 projectId）不匹配 {projectId} 模板（.+ 至少一位），按登记 template 判定为 false
+    expect(isKvKey('canvas-state-v1-')).toBe(false)
+  })
+  it('登记成 kv 的精确键返回 true（R1：yimao_accounts 不再被当 local 写浏览器存储）', () => {
+    expect(isKvKey('yimao_accounts')).toBe(true)
   })
   it('其他前缀/无前缀返回 false', () => {
     expect(isKvKey('projects')).toBe(false)
@@ -163,6 +167,15 @@ describe('kvStore storageGet', () => {
     expect(fetchImpl).not.toHaveBeenCalled()
     expect(r).toEqual(value)
   })
+  it('KV 键读失败 → 降级读本地 sGet 副本（对称降级，修 R2）', async () => {
+    const key = CANVAS_STATE_PREFIX + 'snap'
+    sGet.mockReturnValue(JSON.stringify({ v: 1 })) // storageSet 曾降级写的本地副本
+    fetchImpl.mockRejectedValue(new Error('kv down'))
+    const r = await storageGet(key)
+    expect(fetchImpl).toHaveBeenCalledTimes(1) // 先试 KV
+    expect(sGet).toHaveBeenCalledWith(key)     // 失败后回退本地
+    expect(r).toEqual({ v: 1 })
+  })
   it('非 KV 前缀 sGet 返回 null → storageGet 返回 null', async () => {
     sGet.mockReturnValue(null)
     const r = await storageGet('missing')
@@ -239,6 +252,14 @@ describe('kvStore storageDelete', () => {
     const r = await storageDelete(key)
     expect(sRemove).toHaveBeenCalledWith('projects')
     expect(fetchImpl).not.toHaveBeenCalled()
+    expect(r).toEqual({ ok: true })
+  })
+  it('KV 键删失败 → 仍降级删本地 sRemove 副本（对称降级，修 R3，防副本残留）', async () => {
+    const key = CANVAS_STATE_PREFIX + 'snap'
+    fetchImpl.mockRejectedValue(new Error('kv down'))
+    const r = await storageDelete(key)
+    expect(fetchImpl).toHaveBeenCalledTimes(1)
+    expect(sRemove).toHaveBeenCalledWith(key)
     expect(r).toEqual({ ok: true })
   })
 })

@@ -218,8 +218,8 @@ export const STORAGE_KEYS = {
   yimao_accounts: {
     domain: 'account',
     store: 'accountsStore.js',
-    backend: 'local',
-    note: '多开账号环境列表 [{id, name, siteName, siteUrl, avatar, cookies}]',
+    backend: 'kv',
+    note: '多开账号环境列表 [{id, name, siteName, siteUrl, avatar, cookies}]。走 localTool KV 磁盘持久化（对齐官方 users，关插件/跨设备不丢），仍进云同步',
   },
 
   // ── AI 会话（conversationStore）────────────────────────────────────
@@ -310,12 +310,8 @@ export const STORAGE_KEYS = {
     backend: 'native',
     note: '3D 场景快照数据',
   },
-  hideFromViewportCapture: {
-    domain: 'director3d',
-    store: 'SceneRoot.tsx / DirectorCanvas.tsx',
-    backend: 'native',
-    note: '视口捕获隐藏标记',
-  },
+  // 注：故 hideFromViewportCapture 曾登记为 native（2026-08-22 移除）——它实为 3D object.userData
+  // 属性（SceneRoot.tsx / DirectorCanvas.tsx），并非存储键，登记纯属误导。此键不影响存储读写。
 
   // ── 备份/云同步清单（backupStore.js / cloudSync.js）──────────────
   // 已统一从本表 getLocalKeys() 生成，禁止再手写清单（防漂移漏备份）：

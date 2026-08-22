@@ -21,9 +21,9 @@
  *
  * ⚠️ 含用户数据（账号环境/API key 等），同步到云端需注意保密。
  */
-import { getLocalKeys } from './contracts.js'
+import { getLocalKeys, STORAGE_KEYS } from './contracts.js'
 import { providerApi, fetchProjects, saveProjects } from './localToolApi.js'
-import { contentGet, contentSet } from './contentStore.js'
+import { contentGet, contentSet, contentGetAsync, contentSetAsync } from './contentStore.js'
 import { logger } from './logger.js'
 
 /* ======================================================================
@@ -119,12 +119,13 @@ function getCurrentProjectId() {
 /**
  * 收集本地全部要同步的数据 → 生成云端 JSON。
  * @returns {Promise<object|null>}
- *  { type:'cloud_config', version:4, updatedAt, data:{ [lsKey]: value, providers } }
+ *  { type:'cloud_config', version:5, updatedAt, data:{ [lsKey]: value, providers?, accounts? } }
  */
 async function collectLocal() {
   const ls = {}
-  // 1) localStorage 全量用户数据/配置：复用 backupStore 权威清单
+  // 1) localStorage 全量用户数据/配置：复用 backupStore 权威清单，按领域开关过滤
   for (const k of LS_KEYS) {
+    if (!domainSwitchEnabled(k)) continue // 领域关闭（如 projects）→ 该键不进云端
     const v = readLS(k)
     if (v !== undefined) ls[k] = v
   }
@@ -134,11 +135,20 @@ async function collectLocal() {
     const providers = Array.isArray(pd?.providers) ? pd.providers : null
     if (Array.isArray(providers) && providers.length) ls.providers = providers
   } catch { /* localTool 未连则跳过 API 配置 */ }
+  // 3) 账号环境：走 KV（backend:'kv'，不在 LS_KEYS），领域开关开则专门收集上传
+  try {
+    if (SYNC_DOMAIN_SWITCHES.account) {
+      const acc = await contentGetAsync('yimao_accounts')
+      if (Array.isArray(acc) && acc.length) ls.accounts = acc
+    }
+  } catch (e) {
+    logger.warn('同步', '[上传] 账号读取失败，跳过账号', { error: e?.message || '未知' })
+  }
 
   if (Object.keys(ls).length === 0) return null
   return {
     type: 'cloud_config',
-    version: 4,
+    version: 5,
     updatedAt: Date.now(),
     data: ls,
   }
@@ -151,9 +161,9 @@ async function restoreLocal(cloud) {
   const ls = cloud?.data
   if (!ls || typeof ls !== 'object') return 0
   let written = 0
-  // 1) localStorage 全量覆盖（只写我们备份清单里的键，避免误写未知键）
+  // 1) localStorage 全量覆盖（只写我们备份清单里、且领域开关开启的键，避免误写未知/关闭领域键）
   for (const k of LS_KEYS) {
-    if (ls[k] !== undefined) {
+    if (ls[k] !== undefined && domainSwitchEnabled(k)) {
       try { writeLS(k, ls[k]); written++ } catch { /* ignore */ }
     }
   }
@@ -165,12 +175,21 @@ async function restoreLocal(cloud) {
       written++
     } catch { /* ignore */ }
   }
-  // 3) 项目列表同步到 localTool（后端权威源，localStorage 兜底由项目 store 刷新时读）
-  if (Array.isArray(ls.projects)) {
+  // 3) 项目列表同步到 localTool（后端权威源）。限于领域开关：projects 关 → 不写，堵「云覆盖丢新项目」风险
+  if (domainSwitchEnabled('projects') && Array.isArray(ls.projects)) {
     try {
       await saveProjects(ls.projects.map((p) => ({ id: p.id, name: p.name })), getCurrentProjectId())
       written++
     } catch { /* ignore */ }
+  }
+  // 4) 账号环境：走 KV（backend:'kv'），领域开关开则恢复写回 KV
+  try {
+    if (SYNC_DOMAIN_SWITCHES.account && Array.isArray(ls.accounts)) {
+      await contentSetAsync('yimao_accounts', ls.accounts)
+      written++
+    }
+  } catch (e) {
+    logger.warn('同步', '[下载] 账号写入失败', { error: e?.message || '未知' })
   }
   return written
 }
@@ -251,6 +270,26 @@ export { CloudSyncEngine }
  *  - lastOpenedProject / agent_draft：本机/临时偏好（不同步）
  *  - yimao_asset_library：本地 URL 引用，跨设备无意义（不同步）
  *  - mutiwindow-clipboard：跨窗口临时剪贴板（不同步）
- *  AI 会话键（agent_conversations_*）含隐私，本就为 pattern 键不在 getLocalKeys() 内。 */
+ *  AI 会话键（agent_conversations_*）含隐私，本就为 pattern 键不在 getLocalKeys() 内。
+ * 账号（yimao_accounts）为 KV 后端，本就不在 getLocalKeys()，由 S4 领域开关在 collect/restore 单独处理。 */
 const SYNC_EXCLUDE = new Set(['lastOpenedProject', 'yimao_asset_library', 'agent_draft', 'mutiwindow-clipboard'])
 const LS_KEYS = getLocalKeys().filter((k) => !SYNC_EXCLUDE.has(k))
+
+/**
+ * 云同步领域开关（开发者配置常量，集中治理「哪些领域允许进云端」）。
+ * KEY 对应 contracts.js STORAGE_KEYS.entry.domain（如 project / account，而非存储键名）。
+ *  - account：true，账号环境走 KV，需专门上传/下载（见 collectLocal/restoreLocal）。
+ *  - project：false，项目若经 saveProjects 云端覆盖（未带版本号）有丢新项目风险，先关堵。
+ * 未在本表登记的领域默认放行（维持既有行为）。
+ */
+const SYNC_DOMAIN_SWITCHES = {
+  account: true,
+  project: false,
+}
+
+/** 某存储键所属领域是否开启云同步（按 STORAGE_KEYS.entry.domain 判定；未登记/未切换领域默认开启） */
+function domainSwitchEnabled(k) {
+  const domain = STORAGE_KEYS[k]?.domain
+  if (domain && domain in SYNC_DOMAIN_SWITCHES) return !!SYNC_DOMAIN_SWITCHES[domain]
+  return true
+}

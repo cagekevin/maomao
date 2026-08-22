@@ -68,12 +68,13 @@ export async function roundTrip(ctx, requestMessages, signal, onStream) {
   //  - toolSchemaCount=0            → toolSchemas 空（工具注册表问题，见 useCanvasAgentTools AGENT_TOOLS）
   //  - withTools=false              → 模型被配成非流式 且 未开 ENABLE_TOOLS_ON_NON_STREAM（工具被主动关闭）
   //  - withTools=true 且 count>0 但 AI 仍不调工具 → 属 LLM/网关侧行为（继续看下方「流式结果」的 toolCallCount）
-  logger.info('AI助手', '[工具门禁]', {
+  // 仅 debug 模式输出（logger.debug + { module:'agent' }，见 config.js DEBUG_MODULES/前端调试模式开关）
+  logger.debug('AI助手', '[工具门禁]', {
     streamMode, isNonStream, withTools,
     toolSchemaCount: Array.isArray(toolSchemas) ? toolSchemas.length : 0,
     toolNames: Array.isArray(toolSchemas) ? toolSchemas.map((t) => t?.function?.name).filter(Boolean).slice(0, 20) : [],
     model, isResponsesChat,
-  })
+  }, { module: 'agent' })
   const llmBody = isResponsesChat
     ? buildResponsesChatBody({
         model,

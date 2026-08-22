@@ -14,6 +14,9 @@ import { logger } from '../base/logger.js'
 import { classifyError } from '../base/genErrors.js'
 import previewUrls from '../base/previewUrl.js'
 
+/** 多窗口剪贴板存储键（contracts.js STORAGE_KEYS 登记，集中避免裸键） */
+const MULTIWINDOW_CLIPBOARD_KEY = 'mutiwindow-clipboard'
+
 /**
  * 视频抽帧节点（复刻官方 ec.jsx / videoExtractNode）。
  *
@@ -341,7 +344,7 @@ function VideoExtractNode({ id, data, selected }) {
     try {
       const payload = JSON.stringify({ type: 'mutiwindow-images', images: [img] })
       try { await navigator.clipboard.writeText(payload) }
-      catch { contentSet('mutiwindow-clipboard', payload) }
+      catch { contentSet(MULTIWINDOW_CLIPBOARD_KEY, payload) }
       showToast('已复制当前帧，请在空白处粘贴 (Ctrl+V)')
     } catch { showToast('复制失败') }
   }
@@ -351,7 +354,7 @@ function VideoExtractNode({ id, data, selected }) {
     try {
       const payload = JSON.stringify({ type: 'mutiwindow-images', images: extractedImages })
       try { await navigator.clipboard.writeText(payload) }
-      catch { contentSet('mutiwindow-clipboard', payload) }
+      catch { contentSet(MULTIWINDOW_CLIPBOARD_KEY, payload) }
       showToast(`已复制 ${extractedImages.length} 张图片`)
     } catch { showToast('复制失败') }
   }

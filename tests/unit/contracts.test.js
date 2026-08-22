@@ -84,7 +84,7 @@ describe('STORAGE_KEYS 语义检查', () => {
 
   it('native 后端的键不通过 storageAdapter，应手动确认无遗漏', () => {
     const nativeKeys = Object.entries(STORAGE_KEYS).filter(([, v]) => v.backend === 'native')
-    expect(nativeKeys.length).toBeGreaterThanOrEqual(3) // 当前已知 3 个
+    expect(nativeKeys.length).toBeGreaterThanOrEqual(2) // 当前已知 2 个（hideFromViewportCapture 非存储键已于 2026-08-22 移除）
     for (const [key, entry] of nativeKeys) {
       expect(entry.store, `${key} 需标注 store 来源`).toBeTruthy()
     }
@@ -92,8 +92,8 @@ describe('STORAGE_KEYS 语义检查', () => {
 })
 
 describe('STORAGE_KEYS 内容验证', () => {
-  it('当前共有 30 个登记键', () => {
-    expect(Object.keys(STORAGE_KEYS).length).toBe(30)
+  it('当前共有 29 个登记键', () => {
+    expect(Object.keys(STORAGE_KEYS).length).toBe(29)
   })
 
   it('包含所有核心业务键', () => {
@@ -120,6 +120,11 @@ describe('STORAGE_KEYS 内容验证', () => {
   it('包含 KV 画布快照键', () => {
     expect(Object.keys(STORAGE_KEYS)).toContain('canvas-state-v1-{projectId}')
     expect(Object.keys(STORAGE_KEYS)).toContain('canvas-state-v1-{projectId}_version')
+  })
+
+  it('账号 yimao_accounts 后端为 kv（R1/R6：走 KV 磁盘持久化 + 云同步）', () => {
+    expect(STORAGE_KEYS.yimao_accounts.backend).toBe('kv')
+    expect(STORAGE_KEYS.yimao_accounts.domain).toBe('account')
   })
 
   it('包含 AI 会话动态键', () => {

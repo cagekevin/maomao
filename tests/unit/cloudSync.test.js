@@ -11,10 +11,16 @@ import { contentClearCache } from '../../src/components/base/contentStore.js'
 // 复用 setup.mjs 强制 mock 的全局 fetch（Node 原生 fetch 不可配置，vi.stubGlobal 会静默失效）
 const fetchMock = globalThis.fetch
 
+// 账号 KV mock：走内存 Map，让 contentSetAsync('yimao_accounts') 先落 KV 再被 collectLocal 读回，
+// 走真实 KV 读写路径；若缺 kvGet/kvSet，将退化为「写读都降级到本地副本」的误导链
+const memKV = new Map()
 vi.mock('../../src/components/base/localToolApi.js', () => ({
   providerApi: { getProviders: vi.fn(), saveProviders: vi.fn(), syncConfigBase: vi.fn() },
   fetchProjects: vi.fn(),
   saveProjects: vi.fn(),
+  kvGet: vi.fn(async (key) => (memKV.has(key) ? memKV.get(key) : null)),
+  kvSet: vi.fn(async (key, value) => { memKV.set(key, value); return { ok: true } }),
+  kvDelete: vi.fn(async (key) => { memKV.delete(key); return { ok: true } }),
 }))
 
 const { providerApi } = await import('../../src/components/base/localToolApi.js')
@@ -27,9 +33,21 @@ function jsonResp(obj) {
   return { ok: true, text: async () => JSON.stringify(obj) }
 }
 
+/**
+ * 取 uploadConfig 的 push 请求体中的 ls 清单。
+ * 注意：collectLocal 现会先走 KV 读账号（contentGetAsync('yimao_accounts') → fetch /api/kv/get），
+ * fetch 的 call[0] 不再是 push，故按 GAS URL 定位 push 提交而非假定 calls[0]。
+ */
+function pushLs() {
+  const call = fetchMock.mock.calls.find((c) => String(c[0]).startsWith('https://script.google.com'))
+  expect(call, '应存在发往 GAS 的 push 请求').toBeTruthy()
+  return JSON.parse(call[1].body).data.data
+}
+
 beforeEach(() => {
   globalThis.fetch = fetchMock
   fetchMock.mockClear()
+  memKV.clear()
   providerApi.getProviders.mockReset()
   providerApi.getProviders.mockResolvedValue({ data: null }) // 默认无 providers，与既有用例行为一致
   CloudSyncEngine.isSyncing = false
@@ -118,9 +136,7 @@ describe('cloudSync — uploadConfig / downloadConfig 边界', () => {
     fetchMock.mockResolvedValue(jsonResp({ msg: 'ok' }))
     const res = await uploadConfig(() => {})
     expect(res.ok).toBe(true)
-    // callGateway body = { action, data: cloud }，cloud.data 才是 ls 清单
-    const body = JSON.parse(fetchMock.mock.calls[0][1].body)
-    const ls = body.data.data
+    const ls = pushLs() // push 请求体里 cloud.data 才是 ls 清单
     expect(ls.app_settings).toEqual({ theme: 'dark' }) // 本地配置仍上传
     expect(ls.providers).toBeUndefined() // API 配置跳过
   })
@@ -138,14 +154,39 @@ describe('cloudSync — uploadConfig / downloadConfig 边界', () => {
     fetchMock.mockResolvedValue(jsonResp({ msg: 'ok' }))
     const res = await uploadConfig(() => {})
     expect(res.ok).toBe(true)
-    // callGateway body = { action, data: cloud }，cloud.data 才是 ls 清单
-    const body = JSON.parse(fetchMock.mock.calls[0][1].body)
-    const ls = body.data.data
+    const ls = pushLs() // push 请求体里 cloud.data 才是 ls 清单
     expect(ls.agent_panel_width).toBe('320')
     expect(ls.agent_input_mode).toBe('agent')
     expect(ls.lastOpenedProject).toBeUndefined()
     expect(ls.yimao_asset_library).toBeUndefined()
     expect(ls.agent_draft).toBeUndefined()
     expect(ls.mutiwindow_clipboard).toBeUndefined()
+  })
+
+  it('account 领域开：账号环境（KV 后端）随上传进入云端', async () => {
+    const { contentSet, contentSetAsync } = await import('../../src/components/base/contentStore.js')
+    contentSet('app_settings', { theme: 'dark' })
+    await contentSetAsync('yimao_accounts', [{ id: 'acc1', name: '环境1' }])
+    // 按 URL 分流：KV 读账号 → 返回账号数组；其余（GAS push / kvSet 写）→ 返回成功
+    fetchMock.mockImplementation((url, opt) => {
+      if (String(url).includes('/api/kv/get')) {
+        return Promise.resolve(jsonResp([{ id: 'acc1', name: '环境1' }]))
+      }
+      return Promise.resolve(jsonResp({ msg: 'ok' }))
+    })
+    const res = await uploadConfig(() => {})
+    expect(res.ok).toBe(true)
+    const ls = pushLs()
+    expect(ls.accounts).toEqual([{ id: 'acc1', name: '环境1' }])
+  })
+
+  it('project 领域关：云端 projects 下载时不覆写本地（堵「云覆盖丢新项目」）', async () => {
+    const cloud = { type: 'cloud_config', version: 5, updatedAt: 0, data: { projects: [{ id: 'cloud-p', name: '云项目' }] } }
+    fetchMock.mockResolvedValueOnce(jsonResp(cloud)) // pull 返回
+    const { saveProjects } = await import('../../src/components/base/localToolApi.js')
+    const res = await downloadConfig(() => {})
+    expect(res.ok).toBe(false) // projects 领域关 → 无任何写回 → count 0
+    expect(res.hasCloud).toBe(true)
+    expect(saveProjects).not.toHaveBeenCalled()
   })
 })

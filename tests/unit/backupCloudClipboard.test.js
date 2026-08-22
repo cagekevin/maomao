@@ -26,7 +26,7 @@ vi.mock('../../src/components/base/projectStore.js', () => ({
   }),
 }))
 
-// ── cloudSync 依赖：providerApi / projectsApi（隔离网络）──
+// ── cloudSync / backupStore 依赖：providerApi / projectsApi / KV 读写（隔离网络）──
 vi.mock('../../src/components/base/localToolApi.js', () => ({
   providerApi: {
     getProviders: vi.fn(async () => ({ providers: [] })),
@@ -35,6 +35,10 @@ vi.mock('../../src/components/base/localToolApi.js', () => ({
   },
   fetchProjects: vi.fn(async () => ({ projects: [], lastOpened: '' })),
   saveProjects: vi.fn(async () => ({ ok: true })),
+  // kvStore 从 localToolApi 转发 kvGet/kvSet/kvDelete，须在此 mock，否则账号 KV 读会因 undefined 函数崩
+  kvGet: vi.fn(async () => null),
+  kvSet: vi.fn(async () => ({ ok: true })),
+  kvDelete: vi.fn(async () => ({ ok: true })),
 }))
 
 let clipboard, backupStore, cloudSync
@@ -113,11 +117,20 @@ describe('backupStore.js', () => {
     memLS.set('lastOpenedProject', JSON.stringify('p1'))
     memLS.set('app_settings', JSON.stringify({ theme: 'dark' }))
     memLS.set('agent_skills', JSON.stringify({}))
-    memLS.set('yimao_accounts', JSON.stringify({})) // 对齐 LS_KEYS 登记的 yimao_accounts
+    // yimao_accounts 为 KV 后端（不在 LS_KEYS），账号经 KV 单独走 out.accounts（见导出账号用例）
     const out = await backupStore.exportAll()
-    for (const k of ['projects', 'lastOpenedProject', 'app_settings', 'agent_skills', 'yimao_accounts']) {
+    for (const k of ['projects', 'lastOpenedProject', 'app_settings', 'agent_skills']) {
       expect(out.ls[k]).toBeDefined()
     }
+    expect(out.ls.yimao_accounts).toBeUndefined() // KV 后端键不进 ls
+  })
+
+  it('exportAll 包含 KV 账号环境（非空才入包，经 contentGetAsync 读）', async () => {
+    // KV 读账号经 kvStore→localToolApi.kvGet（此处 mock localToolApi），返回账号数组
+    const { kvGet } = await import('../../src/components/base/localToolApi.js')
+    kvGet.mockResolvedValue([{ id: 'acc1', name: '环境1' }])
+    const out = await backupStore.exportAll()
+    expect(out.accounts).toEqual([{ id: 'acc1', name: '环境1' }])
   })
 
   it('conversationKeys：按项目 id 生成 agent_conversations_* 键（经 exportAll 收集断言）', async () => {
@@ -218,7 +231,7 @@ describe('cloudSync.js', () => {
     expect(eng.isSyncing).toBe(false)
   })
 
-  it('uploadConfig：收集的键 = LS_KEYS 减去不同步键（不含 lastOpenedProject / asset_library / 会话键）', async () => {
+  it('uploadConfig：收集的键 = LS_KEYS 减去不同步键（不含 lastOpenedProject / asset_library / 会话键；projects 领域关不同步）', async () => {
     // 写入一组本地数据：包含同步键、不同步键、会话键
     memLS.set('projects', JSON.stringify([{ id: 'p1' }]))
     memLS.set('app_settings', JSON.stringify({ theme: 'dark' }))           // 应同步
@@ -227,7 +240,7 @@ describe('cloudSync.js', () => {
     memLS.set('agent_conversations_canvas-assistant-p1', JSON.stringify([])) // 不应同步
 
     let sent = null
-    vi.stubGlobal('fetch', vi.fn(async (_url, opts) => {
+    vi.stubGlobal('fetch', vi.fn(async (url, opts) => {
       sent = JSON.parse(opts.body)
       return { ok: true, text: async () => JSON.stringify({ ok: true, msg: 'ok' }) }
     }))
@@ -238,20 +251,20 @@ describe('cloudSync.js', () => {
     expect(sent.action).toBe('push_data')
     const data = sent.data
     expect(data.type).toBe('cloud_config')
-    expect(data.version).toBe(4)
-    // 同步键存在
-    expect(data.data.projects).toBeTypeOf('object')
+    expect(data.version).toBe(5)
+    // 领域开且未排除的同步键存在
     expect(data.data.app_settings).toBeTypeOf('object')
-    // 不同步键不应出现在同步数据中
+    // 不同步键 + 领域关闭键 均不应出现在同步数据中
+    expect(data.data.projects).toBeUndefined() // project 领域关（防云覆盖丢新项目）
     expect(data.data.lastOpenedProject).toBeUndefined()
     expect(data.data.asset_library).toBeUndefined()
     expect(data.data['agent_conversations_canvas-assistant-p1']).toBeUndefined()
   })
 
-  it('downloadConfig：云端数据写回 localStorage', async () => {
+  it('downloadConfig：云端数据写回 localStorage（projects 领域关则不覆写）', async () => {
     const cloud = {
       type: 'cloud_config',
-      version: 4,
+      version: 5,
       data: { projects: [{ id: 'p2', name: 'P2' }], app_settings: { theme: 'light' } },
     }
     // pull 走 callGateway('pull_data') → 这里让 fetch 返回 pull 结果 data
@@ -262,9 +275,10 @@ describe('cloudSync.js', () => {
     const res = await cloudSync.downloadConfig()
     expect(res.ok).toBe(true)
     expect(res.count).toBeGreaterThan(0)
-    // 写回校验
-    expect(JSON.parse(memLS.get('projects'))).toEqual([{ id: 'p2', name: 'P2' }])
+    // 设置域写回
     expect(JSON.parse(memLS.get('app_settings'))).toEqual({ theme: 'light' })
+    // project 领域关 → projects 不覆写（防云覆盖丢新项目）
+    expect(memLS.has('projects')).toBe(false)
   })
 
   it('downloadConfig：云端无数据返回 hasCloud:false', async () => {

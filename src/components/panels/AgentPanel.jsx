@@ -5,9 +5,9 @@ import AgentMessage from './AgentMessage.jsx'
 import ModelSelect from '../base/ModelSelect.jsx'
 import { buildAllModels } from '../base/providerModels.js'
 import { useOutsideClick } from '../base/hooks.js'
-import { loadAgentChatModel } from '../base/settings/agentModelStore.js'
+import { loadAgentChatModel, AGENT_CHAT_MODEL_KEY } from '../base/settings/agentModelStore.js'
 import { getAllSkills, markSkillUsed, repairMojibakeText, isSkillEnabled } from '../base/skillStore.js'
-import { contentGet, contentSet } from '../base/contentStore.js'
+import { contentGet, contentSet, contentSubscribe } from '../base/contentStore.js'
 import { toAbsoluteFileUrl } from '../base/filesApi.js'
 import { fileToDataUrl } from '../base/imageUrl.js'
 import { runNodeGeneration } from '../base/taskStore.js'
@@ -15,6 +15,9 @@ import { showToast } from '../base/toastStore.js'
 import { logger } from '../base/logger.js'
 import { AGENT_MODELS } from '../base/config.js'
 import previewUrls from '../base/previewUrl.js'
+
+/** AI 助手输入模式存储键（contracts.js STORAGE_KEYS 登记，集中避免裸键） */
+const AGENT_INPUT_MODE_KEY = 'agent_input_mode'
 
 /**
  * ════════════════════════════════════════════════════════════════
@@ -58,6 +61,10 @@ function loadWidth() {
 export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt = '', open, onClose, onWidthChange, onEnabledChange, selectedImageNodes = [] }) {
   const [width, setWidth] = useState(loadWidth)
   const [dragging, setDragging] = useState(false)
+  // 【设置即生效·方案 B】聊天模型配置（agent_chat_model）变更计数器。
+  // 每次「设置 → AI 助手」改模型/供应商写入该键，contentSubscribe 回调自增此值，
+  // 触发下方 agentProvider / agentModels / configuredModel 重算（它们原本只在挂载时算一次）。
+  const [chatModelVersion, setChatModelVersion] = useState(0)
 
   const { providers } = useProviders()
   const primary = providers?.find((p) => p.primary) || providers?.[0] || null
@@ -69,7 +76,8 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
       if (picked) return picked
     }
     return providers?.find((p) => p.id === 'modelscope') || primary || null
-  }, [providers, primary])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [providers, primary, chatModelVersion])
   // AI 助手的可选模型：该 provider 的 chat_models；无则内置列表兜底
   const agentModels = useMemo(() => {
     const fromProvider = (agentProvider?.chat_models || []).map((m) => m.id || m.label || m).filter(Boolean)
@@ -82,7 +90,8 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
     const cfg = loadAgentChatModel()
     if (cfg?.modelId) return cfg.modelId
     return ''
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chatModelVersion])
   const defaultAgentModel = configuredModel ? configuredModel : agentModels[0]
 
   // ── 生图参数 ──
@@ -174,13 +183,27 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
     onConversationChange: handleConversationChange
   })
 
+  // 【设置即生效·方案 B】订阅「设置 → AI 助手」的聊天模型键（agent_chat_model）。
+  // 该键由 AgentChatSettings.saveAgentChatModel → contentSet 写入，contentSubscribe 即时回调。
+  // 回调里：① 自增 chatModelVersion → 重算 agentProvider/agentModels/configuredModel（换供应商也同步）；
+  //         ② setModel → 同步 useAgentChat 内部的 model（useState 初值不会因参数变化自动更新，必须显式 set）。
+  // 卸载时返回的 unsubscribe 自动取消，防泄漏。
+  useEffect(() => {
+    const unsubscribe = contentSubscribe(AGENT_CHAT_MODEL_KEY, (cfg) => {
+      setChatModelVersion((v) => v + 1)
+      if (cfg && typeof cfg === 'object' && cfg.modelId) setModel(cfg.modelId)
+    })
+    return unsubscribe
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const [input, setInput] = useState(() => { try { return contentGet(AGENT_DRAFT_KEY) || '' } catch { return '' } })
   const [attachments, setAttachments] = useState([])
   const [uploading, setUploading] = useState(false)
-  const [inputMode, setInputMode] = useState(() => { try { return contentGet('agent_input_mode') || 'agent' } catch { return 'agent' } })
+  const [inputMode, setInputMode] = useState(() => { try { return contentGet(AGENT_INPUT_MODE_KEY) || 'agent' } catch { return 'agent' } })
   const setInputModeAndPersist = (mode) => {
     setInputMode(mode)
-    try { contentSet('agent_input_mode', mode) } catch { /* ignore */ }
+    try { contentSet(AGENT_INPUT_MODE_KEY, mode) } catch { /* ignore */ }
   }
   // 【对齐大雄 runMode 分级】执行分级：auto（默认，无 Skill 时 LLM 直接出 generations 执行、不展示 plan）/
   // semi（半自动，无 Skill 时也展示 plan 确认再执行）。对应大雄 agentSetRunMode/agentToggleRunMode。

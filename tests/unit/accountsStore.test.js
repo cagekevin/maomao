@@ -14,6 +14,11 @@ describe('accountsStore §4 多开账号管理', () => {
   beforeEach(async () => {
     try { localStorage.clear() } catch { /* ignore */ }
     vi.resetModules()
+    // 账号走后端 kv（contentGetAsync/contentSetAsync → /api/kv/*）。测试无 localTool，
+    // 把 fetch mock 成成功响应（读 null / 写 ok），避免真实网络挂起与时序竞态，保证状态机断言确定性。
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true, status: 200, json: async () => null, text: async () => '',
+    })
     mod = await import('../../src/components/base/settings/accountsStore.js')
   })
 
@@ -128,10 +133,10 @@ describe('accountsStore §4 多开账号管理', () => {
     it('requestDelete 二次确认才真正删除', async () => {
       const env = await createEnv('即梦小号')
       const n0 = mod.useAccounts().envs.length
-      mod.requestDelete(env.id) // 第一次：标记
+      await mod.requestDelete(env.id) // 第一次：标记
       expect(mod.useAccounts().confirmDeleteId).toBe(env.id)
       expect(mod.useAccounts().envs).toHaveLength(n0) // 还没删
-      mod.requestDelete(env.id) // 第二次：执行
+      await mod.requestDelete(env.id) // 第二次：执行（异步落盘完成后清确认态）
       const s = mod.useAccounts()
       expect(s.confirmDeleteId).toBeNull()
       expect(s.envs).toHaveLength(n0 - 1)
@@ -141,8 +146,8 @@ describe('accountsStore §4 多开账号管理', () => {
       const env = await createEnv('即梦小号')
       await mod.activateEnv(env.id) // 非扩展：syncCookies 直接 return，activeId 同步设置
       expect(mod.useAccounts().activeId).toBe(env.id)
-      mod.requestDelete(env.id)
-      mod.requestDelete(env.id)
+      await mod.requestDelete(env.id)
+      await mod.requestDelete(env.id)
       expect(mod.useAccounts().activeId).toBeNull()
     })
   })

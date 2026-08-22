@@ -18,6 +18,15 @@ vi.mock('../../src/components/base/projectStore.js', () => ({
   }),
 }))
 
+// ── 账号 KV stub：exportAll 会经 contentGetAsync('yimao_accounts') → storageGet → kvGet 读 KV。
+// 不 stub 会走真实 localToolApi 网络请求 → 失败降级 + 误导性告警 + 3s 超时，故置空（账号不打包）。其余导出保留真实实现。
+vi.mock('../../src/components/base/localToolApi.js', async (importOriginal) => ({
+  ...(await importOriginal()),
+  kvGet: vi.fn(async () => null),
+  kvSet: vi.fn(async () => ({ ok: true })),
+  kvDelete: vi.fn(async () => ({ ok: true })),
+}))
+
 const { exportAll, importAll, backupToBlob } = await import('../../src/components/base/backupStore.js')
 
 beforeEach(() => {

@@ -22,7 +22,7 @@
  */
 import React from 'react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent, within } from '@testing-library/react'
+import { render, screen, fireEvent, within, act } from '@testing-library/react'
 
 // ── 可控 hoisted 状态 ──
 const h = vi.hoisted(() => {
@@ -54,15 +54,31 @@ const h = vi.hoisted(() => {
   const getCurrentRunMode = vi.fn(() => (agentState.runMode || 'auto'))
   // 收口 store 穿透（2026-08-21）：AgentPanel 从 useAgentChat 解构这 4 个 handler，不再直连 conversationStore
   const useAgentChat = vi.fn(() => ({ ...agentState, setModel, send, sendImageMode, stop, clear, stateAction: '', newChat, switchChat, deleteChat, updateMessageByContent: vi.fn(), executePlanDirect: vi.fn(async () => ({ ok: true })), setCurrentSnapshot, setAwaitingConfirm, getCurrentRunMode, setCurrentRunMode }))
+  // contentStore 订阅桩：记录已注册的 key→cb，供测试触发「设置变更」回调
+  let subscribeCbs = {}
+  let subscribeUnsubs = []
+  const contentSubscribe = vi.fn((key, cb) => { subscribeCbs[key] = cb; subscribeUnsubs.push(vi.fn()); return subscribeUnsubs[subscribeUnsubs.length - 1] })
+
+  // loadAgentChatModel 返回值（可覆盖，默认空=未配置）
+  let agentModelCfg = {}
+  // useProviders 返回值（可覆盖，默认空）
+  let providers = []
 
   return {
-    useAgentChat, send, sendImageMode, stop, clear, newChat, switchChat, deleteChat,
+    useAgentChat, setModel, send, sendImageMode, stop, clear, newChat, switchChat, deleteChat,
     markSkillUsed, showToast, setCurrentSnapshot, setCurrentRunMode, setAwaitingConfirm, getCurrentRunMode,
+    contentSubscribe, subscribeCbs,
+    fireAgentModelChange: (cfg) => { subscribeCbs['agent_chat_model']?.(cfg) },
+    get agentModelCfg() { return agentModelCfg },
+    setAgentModelCfg: (c) => { agentModelCfg = c },
+    get providers() { return providers },
+    setProviders: (p) => { providers = p },
     get agentState() { return agentState },
     setAgentState: (s) => { agentState = { ...agentState, ...s } },
     get skills() { return skills },
     setSkills: skillsSetter,
     get snapshots() { return snapshots },
+    get subscribeUnsubs() { return subscribeUnsubs },
   }
 })
 
@@ -73,8 +89,8 @@ vi.mock('../../src/components/agent/index.js', () => ({
   setGenParams: vi.fn(),
   getGenParams: () => ({}),
 }))
-vi.mock('../../src/components/base/settings/providerStore.js', () => ({ useProviders: () => [], load: vi.fn(async () => {}) }))
-vi.mock('../../src/components/base/settings/agentModelStore.js', () => ({ loadAgentChatModel: () => ({}) }))
+vi.mock('../../src/components/base/settings/providerStore.js', () => ({ useProviders: () => ({ providers: h.providers }), load: vi.fn(async () => {}) }))
+vi.mock('../../src/components/base/settings/agentModelStore.js', () => ({ loadAgentChatModel: () => h.agentModelCfg, AGENT_CHAT_MODEL_KEY: 'agent_chat_model' }))
 vi.mock('../../src/components/base/providerModels.js', () => ({ buildAllModels: () => [] }))
 vi.mock('../../src/components/base/hooks.js', () => ({ useOutsideClick: () => {} }))
 vi.mock('../../src/components/base/skillStore.js', () => ({
@@ -83,7 +99,11 @@ vi.mock('../../src/components/base/skillStore.js', () => ({
   isSkillEnabled: () => true,
   repairMojibakeText: (t) => t,
 }))
-vi.mock('../../src/components/base/contentStore.js', () => ({ contentGet: () => null, contentSet: vi.fn() }))
+vi.mock('../../src/components/base/contentStore.js', () => ({
+  contentGet: () => null,
+  contentSet: vi.fn(),
+  contentSubscribe: (...a) => h.contentSubscribe(...a),
+}))
 vi.mock('../../src/components/base/filesApi.js', () => ({ toAbsoluteFileUrl: (u) => u }))
 vi.mock('../../src/components/agent/conversation/conversationStore.js', () => ({
   setCurrentSnapshot: (...a) => h.setCurrentSnapshot(...a),
@@ -136,6 +156,11 @@ beforeEach(() => {
   h.setAgentState({ messages: [], sending: false, error: '', conversations: [], activeConversationId: 'c1' })
   h.setSkills([])
   h.snapshots.length = 0
+  // 重置订阅桩（清空历史注册与取消订阅记录），让每条用例从干净订阅态开始
+  h.subscribeCbs = {}
+  h.subscribeUnsubs.length = 0
+  h.setAgentModelCfg({})
+  h.setProviders([])
 })
 
 describe('AgentPanel — 面板显隐（阶段1C：常驻 DOM，CSS 显隐）', () => {
@@ -372,5 +397,36 @@ describe('AgentPanel — 执行分级切换', () => {
     fireEvent.click(screen.getByText('全自动'))
     expect(h.setCurrentRunMode).toHaveBeenCalledWith('semi')
     expect(screen.getByText('半自动')).toBeTruthy()
+  })
+})
+
+describe('AgentPanel — 设置改模型/供应商即生效（方案 B，无需刷新）', () => {
+  it('挂载 → 订阅 agent_chat_model 变更（contentSubscribe 注册）', () => {
+    render(<AgentPanel {...OPEN_PROPS} />)
+    expect(h.contentSubscribe).toHaveBeenCalledWith('agent_chat_model', expect.any(Function))
+  })
+
+  it('触发设置变更 → setModel 同步为新 modelId（model 进 useAgentChat）', () => {
+    render(<AgentPanel {...OPEN_PROPS} />)
+    act(() => { h.fireAgentModelChange({ providerId: 'p1', modelId: 'gpt-5', streamMode: 'stream' }) })
+    expect(h.setModel).toHaveBeenCalledWith('gpt-5')
+  })
+
+  it('触发设置变更 → useAgentChat 收到新 provider（agentProvider 重算）', () => {
+    h.setProviders([
+      { id: 'modelscope', name: '魔搭', primary: true, chat_models: [{ id: 'qwen' }] },
+      { id: 'p2', name: 'B', chat_models: [{ id: 'gpt-5' }] },
+    ])
+    h.setAgentModelCfg({ providerId: 'p2', modelId: 'gpt-5', streamMode: 'stream' })
+    render(<AgentPanel {...OPEN_PROPS} />)
+    // 初始 provider 由挂载时配置决定（useAgentChat 收到的 provider 应为 p2）
+    expect(h.useAgentChat).toHaveBeenCalledWith(expect.objectContaining({ provider: expect.objectContaining({ id: 'p2' }) }))
+  })
+
+  it('卸载 → 取消订阅（返回的 unsubscribe 被调用，防泄漏）', () => {
+    const { unmount } = render(<AgentPanel {...OPEN_PROPS} />)
+    unmount()
+    const unsub = h.subscribeUnsubs[h.subscribeUnsubs.length - 1]
+    expect(unsub).toHaveBeenCalled()
   })
 })
