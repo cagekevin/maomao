@@ -20,6 +20,10 @@ import { API_BASE } from './config.js'
 import { IMAGE_FETCH_TIMEOUT } from './config.js'
 import { API_ENDPOINTS } from './contracts.js'
 import { useAppSettings } from './appSettings.js'
+import { compressImage } from './imageCompress.js'
+
+/** 发送给 AI 的图片最长边上限（超过则前端压缩到该尺寸内，避免接口尺寸/体积限制） */
+export const MAX_SEND_DIM = 1920
 
 /**
  * 相对 /files/ 路径 → 完整可访问 URL（对齐后端 resources.ts / base64Externalize 惯例）。
@@ -215,15 +219,14 @@ export async function urlToDataUrl(u) {
 }
 
 /**
- * 发送端归一化（单个图）：统一成「后端网关可访问」的地址。
+ * 发送端归一化（单个图）：统一成「后端网关可访问」的地址，并对本地图做「最长边 ≤1920」压缩。
  *
- * 默认（preferBase64=false，走网关场景）：
- *  - /files/ 相对 → 补全为绝对 http（否则网关访问不到）→ 最优先
- *  - blob: → 转 data: base64（浏览器临时地址，网关访问不到）
- *  - data: / http(s) / 裸 base64 → 原样（网关 resolve_attachments 可处理）
- *
- * preferBase64=true（未来「只认 base64 的后端」，provider 配置 refFormat:'base64'）：
- *  - 所有参考图（含 http(s) / /files/ / blob）统一转成 data: base64 再发。
+ * 规则（2026-08 定契约）：
+ *  - 本地图（/files/ 相对、blob:、data: base64）→ 先压缩到最长边 ≤ MAX_SEND_DIM(1920)、保持原格式，
+ *    再转 data: base64 内嵌（网关 resolve_attachments 解析 base64 → 上传 CDN，不依赖访问本地 127.0.0.1）。
+ *  - 公网图（http/https）→ 不压缩（AI 可直接访问，且受 CORS 限制压缩不可靠），原样透传。
+ *  - preferBase64=true（只认 base64 的后端）→ 本地图已压缩转 base64；公网图保持原尺寸转 base64（不压缩）。
+ *  - 压缩失败（跨域/格式异常）→ 回退原逻辑，失败可见（logger 记录）但不阻断发送，避免丢图。
  *
  * @param {string} u
  * @param {{ preferBase64?: boolean }} [opts]
@@ -234,13 +237,31 @@ export async function normalizeImageUrlForSend(u, opts = {}) {
   // 发送侧硬契约：禁止发送缩略图端点 URL。若误入 render 结果，先还原回原图再走后续归一。
   const original = thumbnailToOriginal(u)
   if (original) u = original
-  if (opts.preferBase64) {
-    // 只认 base64 的后端：任何形式都转 base64（data: 已是 base64 原样返回）
-    return urlToDataUrl(u)
+
+  // 判定「本地可压缩图」：/files/ 相对、blob:、data:、以及绝对 http 但指向本地文件（可还原为 /files/，如缩略图还原结果）。
+  // 其余绝对 http(s) = 公网图（AI 可直接访问，且受 CORS 限制压缩不可靠 → 不压缩）。
+  const isLocal = u.startsWith('/files/') || u.startsWith('blob:') || u.startsWith('data:') || !!toRelativeFileUrl(u)
+  if (!isLocal) {
+    // 公网图：不压缩。按 preferBase64 决定是否转 base64（保持原尺寸）。
+    if (opts.preferBase64) return urlToDataUrl(u)
+    return u
   }
+
+  // 本地图：压缩到 ≤1920 保持原格式 → base64（网关 resolve_attachments 解析 base64 → 上传 CDN）。
+  // 压缩结果即 dataUrl，无论 preferBase64 与否都返回 base64。
+  const compressable = u.startsWith('/files/') ? toAbsoluteFileUrl(u) : u
+  try {
+    const { dataUrl } = await compressImage(compressable, { maxSize: MAX_SEND_DIM, keepOriginalFormat: true })
+    if (dataUrl) return dataUrl
+  } catch (e) {
+    logger.warn('imageUrl', '发送前压缩失败，回退原样发送', { url: String(u).slice(0, 80), error: e?.message })
+  }
+
+  // 压缩失败 / 无结果 → 回退原逻辑（/files/ 补全绝对、blob 转 base64、data 原样）。
   if (u.startsWith('/files/')) return toAbsoluteFileUrl(u)
-  if (!u.startsWith('blob:')) return u
-  return blobToDataUrl(u)
+  if (u.startsWith('blob:')) return blobToDataUrl(u)
+  if (u.startsWith('data:') || opts.preferBase64) return urlToDataUrl(u)
+  return u
 }
 
 /**
@@ -256,12 +277,9 @@ export async function normalizeImageUrlsForSend(images, opts = {}) {
   if (urls.length > 0) {
     logger.info('imageUrl', '发送图片', { ...summarizeImages(urls), total: urls.length })
   }
-  const out = []
-  for (const u of urls) {
-    const resolved = await normalizeImageUrlForSend(u, opts)
-    if (resolved) out.push(resolved)
-  }
-  return out
+  // 多图并行压缩/归一化（Promise.all），避免多张图串行累积等待（本地图压缩耗时集中在 canvas 解码）。
+  const results = await Promise.all(urls.map((u) => normalizeImageUrlForSend(u, opts)))
+  return results.filter(Boolean)
 }
 
 /**

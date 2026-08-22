@@ -12,17 +12,59 @@
  *  - quality  质量 0~1，默认 0.8
  *  - format   输出格式，默认 image/jpeg（jpg 有损压缩才明显省体积）
  *  - maxSize  最长边像素（可选），超出则等比缩放
+ *  - keepOriginalFormat 是否保持原格式（true=沿用原图格式，仅缩尺寸不改格式，不丢透明；默认 false=转 format 指定格式）
  * @returns {Promise<{ dataUrl, blob, width, height, size, originalSize }>}
  */
-import { toAbsoluteFileUrl } from './imageUrl.js'
 import { loadImageWithTimeout } from './asyncGuard.js'
 import { httpRequest } from './httpClient.js'
-import { IMAGE_LOAD_TIMEOUT } from './config.js'
+import { IMAGE_LOAD_TIMEOUT, API_BASE } from './config.js'
+
+// 加载用地址补全：/files/ 相对 → 绝对（本地引擎端口）。与 imageUrl.js 的 toAbsoluteFileUrl 逻辑一致，
+// 但这里不 import imageUrl 以避免「imageUrl → imageCompress → imageUrl」循环依赖（imageUrl 发送出口要调本模块）。
+function toLoadableUrl(url) {
+  return typeof url === 'string' && url.startsWith('/files/') ? `${API_BASE}${url}` : url
+}
+
+// 常见图片 MIME → canvas.toDataURL 格式
+const MIME_TO_FORMAT = {
+  'image/jpeg': 'image/jpeg',
+  'image/jpg': 'image/jpeg',
+  'image/png': 'image/png',
+  'image/webp': 'image/webp',
+  'image/gif': 'image/gif',
+  'image/bmp': 'image/bmp',
+}
+// 扩展名 → MIME
+const EXT_TO_MIME = {
+  '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.jpe': 'image/jpeg',
+  '.png': 'image/png', '.webp': 'image/webp', '.gif': 'image/gif', '.bmp': 'image/bmp',
+}
+
+/** 从 URL / data: header / blob 推断原图 MIME；推断不出返回 null */
+function inferMime(src) {
+  if (!src || typeof src !== 'string') return null
+  if (src.startsWith('data:')) {
+    const m = /^data:([^;,]+)/.exec(src)
+    return m ? m[1] : null
+  }
+  if (src.startsWith('blob:')) return null // blob: 拿不到类型（需 Blob.type，此处未知）
+  const path = src.split('?')[0].toLowerCase()
+  const dot = path.lastIndexOf('.')
+  if (dot === -1) return null
+  const ext = path.slice(dot)
+  return EXT_TO_MIME[ext] || null
+}
 
 export async function compressImage(url, opts = {}) {
-  const { quality = 0.8, format = 'image/jpeg', maxSize = 0 } = opts
-  const src = toAbsoluteFileUrl(url || '')
+  const { quality = 0.8, format = 'image/jpeg', maxSize = 0, keepOriginalFormat = false } = opts
+  const src = toLoadableUrl(url || '')
   if (!src) throw new Error('无图片可压缩')
+
+  // 保持原格式：推断原图 MIME 作为输出格式（推断不出回退 png，避免 JPEG 丢透明/变黑底）
+  let outFormat = format
+  if (keepOriginalFormat) {
+    outFormat = MIME_TO_FORMAT[inferMime(src)] || 'image/png'
+  }
 
   // 加载图片（跨域允许 canvas 不污染；blob/data 本地直接可用）。用统一入口带超时，避免失效图永久挂起（R2）
   const img = await loadImageWithTimeout(src, { timeoutMs: IMAGE_LOAD_TIMEOUT })
@@ -45,7 +87,7 @@ export async function compressImage(url, opts = {}) {
   canvas.height = h
   const ctx = canvas.getContext('2d')
   if (!ctx) throw new Error('Canvas 2D 不可用')
-  if (format === 'image/jpeg') {
+  if (outFormat === 'image/jpeg') {
     // JPEG 无透明，白底填充避免黑底
     ctx.fillStyle = '#ffffff'
     ctx.fillRect(0, 0, w, h)
@@ -55,7 +97,7 @@ export async function compressImage(url, opts = {}) {
   // 【R2 治理】toDataURL 跨域污染时抛 SecurityError，必须兜底成明确错误（TASK-015#2 静默吞错）
   let dataUrl
   try {
-    dataUrl = canvas.toDataURL(format, quality)
+    dataUrl = canvas.toDataURL(outFormat, quality)
   } catch (e) {
     throw new Error(`图片压缩失败：画布被跨域污染（${e?.name || 'SecurityError'}），请改用本地文件或允许跨域`)
   }

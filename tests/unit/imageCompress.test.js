@@ -142,4 +142,60 @@ describe('imageCompress — 输出格式', () => {
     }
     await expect(compressImage('blob:x', { maxSize: 1024 })).rejects.toThrow(/跨域污染/)
   })
+
+  // ── keepOriginalFormat：保持原格式、仅缩尺寸（发送链路压缩专用，避免 JPEG 丢透明）──
+  it('keepOriginalFormat=true：/files/*.png → 输出 image/png（保持原格式，不转 JPEG）', async () => {
+    imgSize = { w: 3000, h: 1500 }
+    // 捕获 canvas.toDataURL 收到的 type，验证沿用 png
+    let usedType = ''
+    const orig = HTMLCanvasElement.prototype.toDataURL
+    HTMLCanvasElement.prototype.toDataURL = function (type) {
+      usedType = type
+      return orig.call(this, type)
+    }
+    const res = await compressImage('/files/a.png', { maxSize: 1920, keepOriginalFormat: true })
+    expect(res.width).toBe(1920)
+    expect(res.height).toBe(960)
+    expect(usedType).toBe('image/png')
+    expect(res.dataUrl.startsWith('data:image/png')).toBe(true)
+  })
+
+  it('keepOriginalFormat=true：/files/*.jpg → 输出 image/jpeg（按扩展名推断原格式）', async () => {
+    imgSize = { w: 2000, h: 1000 }
+    let usedType = ''
+    const orig = HTMLCanvasElement.prototype.toDataURL
+    HTMLCanvasElement.prototype.toDataURL = function (type) {
+      usedType = type
+      return orig.call(this, type)
+    }
+    await compressImage('/files/b.jpg', { maxSize: 1920, keepOriginalFormat: true })
+    expect(usedType).toBe('image/jpeg')
+  })
+
+  it('keepOriginalFormat=true：data:image/png → 沿用 png；推断不出（blob:）→ 回退 png', async () => {
+    imgSize = { w: 1000, h: 500 }
+    let usedType = ''
+    const orig = HTMLCanvasElement.prototype.toDataURL
+    HTMLCanvasElement.prototype.toDataURL = function (type) {
+      usedType = type
+      return orig.call(this, type)
+    }
+    await compressImage('data:image/png;base64,xxx', { maxSize: 1920, keepOriginalFormat: true })
+    expect(usedType).toBe('image/png')
+    // blob: 无法推断格式 → 回退 png（避免 JPEG 丢透明）
+    await compressImage('blob:http://x/abc', { maxSize: 1920, keepOriginalFormat: true })
+    expect(usedType).toBe('image/png')
+  })
+
+  it('keepOriginalFormat 默认 false → 保持旧行为转 image/jpeg', async () => {
+    imgSize = { w: 1000, h: 500 }
+    let usedType = ''
+    const orig = HTMLCanvasElement.prototype.toDataURL
+    HTMLCanvasElement.prototype.toDataURL = function (type) {
+      usedType = type
+      return orig.call(this, type)
+    }
+    await compressImage('/files/a.png', { maxSize: 800 })
+    expect(usedType).toBe('image/jpeg')
+  })
 })
