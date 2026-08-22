@@ -231,6 +231,85 @@ async function collectAllCookies(url) {
   return out
 }
 
+// ────────────────────────────────────────────────────────────────────────────
+// 【第二步·待实现】指纹多样性注入（UA / 语言 / 时区）。
+// 目标：切换环境时，让每个环境的浏览器指纹有差异（UA、navigator.language、时区等），
+//       降低被平台通过指纹关联的风险（参考指纹浏览器 AdsPower/比特 等原理）。
+// 技术路线（受限于 manifest 当前无 debugger 权限，采用降级方案）：
+//   - UA：`chrome.webRequest.onBeforeSendHeaders` 拦截请求改写 User-Agent 头（需在 manifest 加
+//          `webRequest` + `webRequestBlocking` 权限）；仅服务端可见，页面 JS 的 navigator.userAgent 不变。
+//   - 语言：content script 在 `world: 'MAIN'` 用 `Object.defineProperty` 覆盖 `navigator.language` /
+//          `navigator.languages`（部分可改）。
+//   - 时区：较难（Intl.DateTimeFormat 依赖系统），可用 main world 覆盖 `Intl.DateTimeFormat` 的部分行为。
+// 注：Chrome 扩展做的是「有限度指纹模拟」，做不到指纹浏览器那种深度 Canvas/WebGL 内核级伪造；
+//     若需强防关联，需引入 `debugger` 权限走 CDP（chrome.debugger.sendCommand）。
+// 数据模型：环境对象增加 `fingerprint: { ua, language, timezone, screen }` 字段，
+//           切换时按此注入（对齐上文 localStorage 的「保存快照 → 切换写回」模式）。
+// 相关文件：accountsStore.js（切换逻辑）、public/background.js（webRequest 拦截）、public/manifest.json（权限）。
+// 什么时候做：等用户说「做第二步」时，按此注释施工即可（注释即设计文档）。
+// ────────────────────────────────────────────────────────────────────────────
+
+/**
+ * 读取当前标签页页面的 localStorage 快照（main world，读到的是页面真实 localStorage）。
+ * 很多站点的登录态不只存 cookie，还存 localStorage（token/设备标识），切换环境时一并保存/恢复，
+ * 登录态更完整。仅扩展端可用；非 http(s) 页或注入失败返回 null（不阻断保存/切换）。
+ * @returns {Promise<Record<string,string>|null>} { key: value }，读取失败返回 null
+ */
+async function readTabLocalStorage() {
+  if (!isExtensionEnv()) return null
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
+  if (!tab?.id || !tab?.url || !/^https?:/i.test(tab.url)) return null
+  try {
+    // world: 'MAIN' 让注入代码跑在页面主世界，能访问页面真正的 localStorage（ISOLATED world 是扩展自己的）
+    const [res] = await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      world: 'MAIN',
+      func: () => {
+        try {
+          const out = {}
+          for (let i = 0; i < localStorage.length; i++) {
+            const k = localStorage.key(i)
+            if (k) out[k] = localStorage.getItem(k)
+          }
+          return out
+        } catch {
+          return null
+        }
+      },
+    })
+    return (res && typeof res.result === 'object' && res.result !== null) ? res.result : null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * 把环境的 localStorage 快照写回当前标签页页面（main world）。
+ * 切换环境时调用，让目标环境的登录态（含 localStorage 部分）完整落到当前站点。
+ * 仅扩展端可用；非 http(s) 页或注入失败静默跳过（不影响 cookie 切换主流程）。
+ * @param {Record<string,string>|null} data localStorage 快照
+ */
+async function writeTabLocalStorage(data) {
+  if (!isExtensionEnv() || !data) return
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
+  if (!tab?.id || !tab?.url || !/^https?:/i.test(tab.url)) return
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      world: 'MAIN',
+      func: (store) => {
+        try {
+          localStorage.clear()
+          if (store && typeof store === 'object') {
+            for (const k of Object.keys(store)) localStorage.setItem(k, store[k])
+          }
+        } catch { /* 忽略 */ }
+      },
+      args: [data],
+    })
+  } catch { /* 忽略 */ }
+}
+
 // ── 保存环境（复刻官方 `Sa(e)`，新建/修改同一入口）──
 // auto=true 对应官方 `Sa(true)`（「保存当前环境」卡片：忽略表单，自动抓取/降级 + 新建）。
 // 返回 { ok, error }；error 非空时调用方用 alert 提示（与官方一致）。
@@ -248,6 +327,7 @@ export async function saveEnvironment(auto = false) {
     name ||= '新建环境'
 
     let cookies = []
+    let localStorageData = null
     let siteName = '未知网站'
     let siteUrl = ''
     let avatar = ''
@@ -266,10 +346,12 @@ export async function saveEnvironment(auto = false) {
       }
     } else if (isExtensionEnv()) {
       // 扩展端：抓当前激活标签页 cookies（加强版：逐级上溯域名，尽量抓全登录 cookie）
+      // 并连带读取当前页面 localStorage 快照（登录态 token 常存这里，一并保存换环境免重登）
       if (tab?.url) {
         siteUrl = tab.url
         avatar = tab.favIconUrl || `https://www.google.com/s2/favicons?domain=${new URL(tab.url).hostname}&sz=64`
         cookies = await collectAllCookies(tab.url)
+        localStorageData = await readTabLocalStorage()
         if (tab.title) siteName = tab.title.substring(0, 5)
       }
     } else {
@@ -290,9 +372,9 @@ export async function saveEnvironment(auto = false) {
 
     let next
     if (editId) {
-      // 修改：保留 siteName/siteUrl/avatar，更新 name/cookies
+      // 修改：保留 siteName/siteUrl/avatar，更新 name/cookies/localStorage
       next = state.envs.map((e) =>
-        e.id === editId ? { ...e, name, cookies: mapped, avatar: avatar || e.avatar, siteName: e.siteName, siteUrl: e.siteUrl } : e
+        e.id === editId ? { ...e, name, cookies: mapped, localStorage: localStorageData ?? e.localStorage, avatar: avatar || e.avatar, siteName: e.siteName, siteUrl: e.siteUrl } : e
       )
     } else {
       const newEnv = {
@@ -302,6 +384,8 @@ export async function saveEnvironment(auto = false) {
         siteUrl,
         avatar: avatar || dicebear(name),
         cookies: mapped,
+        // localStorage 快照：扩展端保存当前页面登录态 token（换环境时一并恢复，免重登）
+        localStorage: localStorageData || undefined,
       }
       next = [...state.envs, newEnv]
     }
@@ -329,7 +413,7 @@ export async function activateEnv(envId) {
   setState({ activeId: envId })
 }
 
-// Cookie 同步注入（复刻官方 `pa`：先删多余 → 逐个 set，仅扩展端）
+// 环境同步注入（复刻官方 `pa`）：Cookie（先删多余 → 逐个 set）+ localStorage 快照，仅扩展端。
 async function syncCookies(env) {
   if (!isExtensionEnv()) return
   try {
@@ -356,6 +440,8 @@ async function syncCookies(env) {
         await chrome.cookies.set(setOpts)
       } catch { /* ignore */ }
     }
+    // 连带写回该环境的 localStorage 快照（登录态 token 常存这里，一并恢复免重登）
+    await writeTabLocalStorage(env.localStorage)
   } catch { /* ignore */ }
 }
 

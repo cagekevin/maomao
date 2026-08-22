@@ -265,3 +265,56 @@ describe('accountsStore §4 多开账号管理', () => {
     vi.clearAllTimers?.()
   })
 })
+
+// ── 扩展端场景：保存环境时连带抓取当前页面 localStorage 快照（登录态 token 一并保存）──
+describe('accountsStore §4 扩展端 · localStorage 隔离', () => {
+  let mod
+  beforeEach(async () => {
+    try { localStorage.clear() } catch { /* ignore */ }
+    vi.resetModules()
+    // mock chrome 为「扩展端」环境（chrome.runtime.id 存在 → isExtensionEnv()=true）
+    const lsStore = { sid_token: 'abc123' }
+    vi.stubGlobal('chrome', {
+      runtime: { id: 'test-ext' },
+      tabs: {
+        query: vi.fn(async () => [{ id: 1, url: 'https://www.qq.com/feed', title: '腾讯网' }]),
+      },
+      cookies: {
+        getAll: vi.fn(async () => [{ name: 'uin', value: '1', domain: '.qq.com', path: '/' }]),
+        set: vi.fn(async () => ({})),
+        remove: vi.fn(async () => ({})),
+      },
+      scripting: {
+        // chrome.scripting.executeScript 返回数组 [{ result }]（对齐真实 API）
+        executeScript: vi.fn(async () => [{ result: { ...lsStore } }]),
+      },
+    })
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true, status: 200, json: async () => null, text: async () => '',
+    })
+    vi.stubGlobal('confirm', vi.fn(() => true))
+    mod = await import('../../src/components/base/settings/accountsStore.js')
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.clearAllTimers?.()
+  })
+
+  it('扩展端保存环境：读取当前页面 localStorage 快照并写入环境', async () => {
+    const res = await mod.saveEnvironment(true) // auto 模式：忽略表单，自动抓取
+    expect(res.ok).toBe(true)
+    const added = mod.useAccounts().envs.slice(-1)[0]
+    expect(added.cookies).toEqual([{ name: 'uin', value: '1', domain: '.qq.com', path: '/' }])
+    // localStorage 快照被一并保存（含登录 token）
+    expect(added.localStorage).toEqual({ sid_token: 'abc123' })
+  })
+
+  it('切换环境：写回该环境的 localStorage 快照（经 chrome.scripting main world 注入）', async () => {
+    await mod.saveEnvironment(true)
+    const env = mod.useAccounts().envs[0]
+    await mod.activateEnv(env.id)
+    // syncCookies 内部最后调 writeTabLocalStorage → executeScript 被调用
+    expect(chrome.scripting.executeScript).toHaveBeenCalled()
+  })
+})
