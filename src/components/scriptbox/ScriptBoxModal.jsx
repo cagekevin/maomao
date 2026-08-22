@@ -26,9 +26,9 @@ import React from 'react'
  */
 export default function ScriptBoxModal({ title, onClose, width = 440, height, children, footer, onOk, okText = '确定', cancelText = '取消', bodyClass = '' }) {
   return (
-    <div className="absolute inset-0 z-modal flex items-center justify-center bg-black/50" onClick={onClose}>
+    <div className="absolute inset-0 z-modal flex items-center justify-center bg-black/50 nodrag nowheel" onClick={onClose}>
       <div
-        className="bg-surface-menu border border-edge rounded-xl shadow-2xl flex flex-col overflow-hidden"
+        className="bg-surface-menu border border-edge rounded-xl shadow-2xl flex flex-col overflow-hidden nodrag"
         style={{ width, height }}
         onClick={(e) => e.stopPropagation()}
       >

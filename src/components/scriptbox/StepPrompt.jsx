@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useRef } from 'react'
 import { Loader2, Image as ImageIcon, Video, LayoutGrid, Columns2, RefreshCw, Link2, Wand2, Copy, Check } from 'lucide-react'
 import { dialogueText, hlAt, patchShots, IMAGE_GEN_TYPES, IMAGE_GEN_DEFAULT } from '../base/scriptBoxPrompts.js'
 import { toastWarning } from '../base/toastStore.js'
@@ -22,8 +22,9 @@ export default function StepPrompt({ data, updateData, callbacks }) {
   const d = data || {}
   const shots = d.shots || []
   const [view, setView] = useState('list')
-  const [editing, setEditing] = useState(null) // { idx, field, title }
-  const [editVal, setEditVal] = useState('')
+  const [editing, setEditing] = useState(null) // { idx, field, title, base, awaiting }
+  const [draft, setDraft] = useState(null) // 预览/编辑缓冲：AI 改写结果或人手直接改的内容，点「应用」才写回 shot
+  const [chatInput, setChatInput] = useState('') // 弹窗：下方输入意见（AI 改写用）
   const [gridPick, setGridPick] = useState({}) // idx -> grid 模式
   const [selShots, setSelShots] = useState(new Set())
   const [genType, setGenType] = useState({}) // idx -> 选中的生图类型
@@ -33,6 +34,7 @@ export default function StepPrompt({ data, updateData, callbacks }) {
   const [feedback, setFeedback] = useState('') // 重新生成时的用户修改意见
 
   const patchShot = (idx, field, val) => updateData({ shots: patchShots(shots, idx, field, val) })
+
   const toggleSel = (idx) => {
     const s2 = new Set(selShots)
     if (s2.has(idx)) s2.delete(idx)
@@ -40,17 +42,35 @@ export default function StepPrompt({ data, updateData, callbacks }) {
     setSelShots(s2)
   }
 
-  const openField = (idx, field, title) => { setEditing({ idx, field, title }); setEditVal(formatLineBreaks(String(shots[idx]?.[field] ?? ''))) }
+  const openField = (idx, field, title) => { setEditing({ idx, field, title, awaiting: false }); setDraft(formatLineBreaks(String(shots[idx]?.[field] ?? ''))); setChatInput('') }
   // AI 生图内容（关键帧/四宫格/九宫格/俯视调度图 imgGen）编辑：field 用 'imgGen'，提交写回 shots[i].imgGen.prompt
-  const openImgGen = (idx, title) => { setEditing({ idx, field: 'imgGen', title }); setEditVal(formatLineBreaks(String(shots[idx]?.imgGen?.prompt ?? ''))) }
-  const commitField = () => {
-    if (!editing) return
+  const openImgGen = (idx, title) => { setEditing({ idx, field: 'imgGen', title, awaiting: false }); setDraft(formatLineBreaks(String(shots[idx]?.imgGen?.prompt ?? ''))); setChatInput('') }
+
+  /** 聊天式：把意见交给 AI 审计改写。引擎把改写结果 resolve 回来 → 写入 draft 预览；点「应用」才落盘。 */
+  const sendFeedback = async () => {
+    if (!editing || !chatInput.trim()) return
+    const id = shots[editing.idx]?.id
+    if (!id) return
+    const msg = chatInput.trim()
+    setEditing((e) => (e ? { ...e, awaiting: true } : e)) // 驱动"AI 正在编辑"动画 + 防重入
+    try {
+      const res = await callbacks.onReviewShotPrompt?.(id, editing.field, msg)
+      if (res?.ok && res.text != null) setDraft(res.text)
+    } finally {
+      setEditing((e) => (e ? { ...e, awaiting: false } : e))
+    }
+    setChatInput('')
+  }
+  /** 把 draft 正式写回 shot（「应用」；AI 改完或人手直接改，都经这里落盘） */
+  const applyDraft = () => {
+    if (!editing || draft == null) return
     if (editing.field === 'imgGen') {
       const s = shots[editing.idx]
-      patchShot(editing.idx, { imgGen: { ...(s?.imgGen || {}), prompt: editVal } })
+      patchShot(editing.idx, { imgGen: { ...(s?.imgGen || {}), prompt: draft } })
     } else {
-      patchShot(editing.idx, editing.field, editVal)
+      patchShot(editing.idx, editing.field, draft)
     }
+    setDraft(null)
     setEditing(null)
   }
 
@@ -223,10 +243,40 @@ export default function StepPrompt({ data, updateData, callbacks }) {
         </div>
       )}
 
-      {/* 双击编辑弹窗（统一节点内弹层容器） */}
+      {/* 双击编辑弹窗：聊天式改提示词（上看当前提示词，下写意见→AI 改→上方自动刷新）。
+          imgGen（关键帧提示词）无独立 AI 改写通道，仍走手写 textarea。 */}
       {editing && (
-        <ScriptBoxModal title={`编辑${editing.title}`} onClose={() => setEditing(null)} onOk={commitField} width={760}>
-          <textarea autoFocus value={editVal} onChange={(e) => setEditVal(e.target.value)} className="w-full h-72 bg-transparent outline-none custom-scrollbar resize-none nodrag nowheel rounded-lg" style={{ fontSize: '14px', lineHeight: 1.8, color: '#e5e7eb' }} />
+        <ScriptBoxModal
+          title={`${editing.title} · 聊天式修改`}
+          onClose={() => setEditing(null)}
+          width={720}
+          height={560}
+          bodyClass="flex flex-col flex-1 min-h-0 p-0"
+          footer={
+            <div className="flex justify-between items-center px-4 py-3 border-t border-edge-faint shrink-0">
+              <span className="text-caption-sm text-gray-500">预览区可直接编辑；满意后「应用」才写回</span>
+              <div className="flex items-center gap-2">
+                <button className="px-3 py-1 text-caption-sm text-gray-500 hover:text-white transition-colors" onClick={() => { setDraft(null); setEditing(null) }}>关闭</button>
+                <button
+                  className="px-3 py-1 text-caption-sm bg-surface-hover hover:bg-surface-hover-strong text-gray-200 rounded-md disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  disabled={draft == null}
+                  onClick={applyDraft}
+                >应用</button>
+              </div>
+            </div>
+          }
+        >
+          <ChatEdit
+            editing={editing}
+            shots={shots}
+            draft={draft}
+            chatInput={chatInput}
+            assetNames={(d.assets || []).map((a) => a.name)}
+            onDraft={setDraft}
+            onInput={setChatInput}
+            onSend={sendFeedback}
+            busy={!!editing.awaiting}
+          />
         </ScriptBoxModal>
       )}
 
@@ -266,4 +316,84 @@ function PromptBox({ label, text, loading, onEdit, onGen, assetNames }) {
   )
 }
 
+/**
+ * 提示词编辑弹窗主体：上方大「预览编辑区」（可编辑 textarea，draft），下方一条细「意见输入条」
+ * （让 AI 按意见改；imgGen 无 AI 通道，只有编辑区）。AI 改写时顶部显示状态行 + 按钮转圈。
+ * 预览可直接手改；满意后点「应用」才写回 shot。⌘/Ctrl+Enter 发送意见。
+ */
+function ChatEdit({ editing, shots, draft, chatInput, assetNames, onDraft, onInput, onSend, busy }) {
+  const cur = shots[editing.idx]
+  const isImgGen = editing.field === 'imgGen'
+  const fieldCurrent = isImgGen ? cur?.imgGen?.prompt : (editing.field === 'prompt' ? cur?.prompt : cur?.videoPrompt)
+  const previewText = draft != null ? draft : fieldCurrent
+  const changed = draft != null && draft !== fieldCurrent
+  // 意见输入条 auto-resize：内容超过一行自动增高（上限 96px≈4行），不再裁掉换行后的第一行
+  const inputRef = useRef(null)
+  const resizeInput = () => {
+    const el = inputRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${Math.min(el.scrollHeight, 96)}px`
+  }
+
+  return (
+    <div className="flex-1 flex flex-col min-h-0 relative">
+      {/* AI 改写中：绝对定位浮层，不占文档流、不挤布局（浮在底部输入条上方居中） */}
+      {busy && (
+        <div className="absolute left-1/2 -translate-x-1/2 bottom-3 z-10 pointer-events-none">
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-surface-menu/95 border border-edge shadow-lg">
+            <Loader2 size={13} className="animate-spin text-emerald-400" />
+            <span className="text-caption-sm text-emerald-300">AI 正在编辑…</span>
+          </div>
+        </div>
+      )}
+
+      {/* 预览 / 编辑区（占满） */}
+      <div className="flex-1 flex flex-col min-h-0 px-4 pt-3 pb-2">
+        <div className="flex items-center gap-1.5 pb-1.5 shrink-0">
+          <span className={`w-1.5 h-1.5 rounded-full ${changed ? 'bg-emerald-400' : 'bg-gray-600'}`} />
+          <span className="text-caption-sm text-gray-400">{isImgGen ? '提示词（直接编辑）' : (changed ? '预览 · 有改动待应用' : '当前提示词（可直接编辑）')}</span>
+        </div>
+        <textarea
+          autoFocus
+          value={previewText ?? ''}
+          onChange={(e) => onDraft(e.target.value)}
+          placeholder={isImgGen ? '填写关键帧提示词…' : '可手写，或写意见让 AI 改…'}
+          className="flex-1 w-full bg-[#131313] outline-none resize-none rounded-xl p-3.5 custom-scrollbar text-caption-sm leading-relaxed transition-colors"
+          style={{
+            fontSize: '13px', lineHeight: 1.75, color: '#e5e7eb',
+            border: changed ? '1px solid rgba(52,211,153,0.4)' : '1px solid transparent',
+          }}
+        />
+      </div>
+
+      {/* 底部细输入条（让 AI 按意见改；imgGen 无 AI 通道，隐藏） */}
+      {!isImgGen && (
+        <div className="shrink-0 px-4 pt-1 pb-3">
+          <div className="flex items-end gap-2 bg-input border border-edge rounded-xl px-3 py-1.5 focus-within:border-emerald-400/40 transition-colors">
+            <textarea
+              ref={inputRef}
+              value={chatInput}
+              onChange={(e) => { onInput(e.target.value); resizeInput() }}
+              onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); onSend() } }}
+              placeholder="提修改意见，让 AI 改…（⌘/Ctrl+Enter 发送）"
+              rows={1}
+              disabled={busy}
+              className="flex-1 bg-transparent outline-none resize-none custom-scrollbar text-caption-sm text-gray-200 placeholder:text-gray-600 disabled:opacity-50 transition-colors"
+              style={{ fontSize: '13px', lineHeight: 1.75 }}
+            />
+            <button
+              onClick={onSend}
+              disabled={!chatInput.trim() || busy}
+              className="shrink-0 w-8 h-8 flex items-center justify-center rounded-lg bg-emerald-500 text-white hover:bg-emerald-400 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              title="按意见改写（⌘/Ctrl+Enter）"
+            >
+              {busy ? <Loader2 size={14} className="animate-spin" /> : <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 2 11 13" /><path d="M22 2 15 22 11 13 2 9 22 2z" /></svg>}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
 

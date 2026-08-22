@@ -1,4 +1,4 @@
-import { buildShotImageUser, getImageGenSys, collectAssets, matchAsset, ZgPrompt, IMAGE_GEN_TYPES, IMAGE_GEN_DEFAULT, SCRIPT_WRITER_SYSTEM, SCRIPT_WRITER_FORMAT, SHOT_DIRECTOR_SYSTEM } from './scriptBoxPrompts.js'
+import { buildShotImageUser, getImageGenSys, collectAssets, matchAsset, ZgPrompt, IMAGE_GEN_TYPES, IMAGE_GEN_DEFAULT, SCRIPT_WRITER_SYSTEM, SCRIPT_WRITER_FORMAT, SHOT_DIRECTOR_SYSTEM, SHOT_AUDIT_SYSTEM, buildAuditUser } from './scriptBoxPrompts.js'
 import { chatCompletions } from './chatApi.js'
 import { generateImage } from './imageApi.js'
 import { resolveProviderModel, buildAllModels } from './providerModels.js'
@@ -549,6 +549,56 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
   }
 
   // ═══════════════════════════════════════════════════════════════
+  // 审计改写提示词（聊天式「按意见改」专用，对齐 onGenerateShotImage 单镜范式）
+  //  - system 用 SHOT_AUDIT_SYSTEM（CINEDANCE/ACTING/LIRA 三框架审计）
+  //  - user 用 buildAuditUser（当前提示词 + 意见 + 本镜资料）
+  //  - 输出单条文本，只写回 shots[idx][field] 一个字段（不返回 JSON）
+  //  - 复用 runAbortable + loading + logger/toast，与其它生成回调完全一致
+  // ═══════════════════════════════════════════════════════════════
+  const onReviewShotPrompt = (shotId, field, feedback) => {
+    if (field !== 'prompt' && field !== 'videoPrompt') return Promise.resolve({ ok: false })
+    const d = getData()
+    const shot = (d.shots || []).find((s) => s.id === shotId)
+    if (!shot || !feedback || !String(feedback).trim()) return Promise.resolve({ ok: false })
+    const { provider, modelId } = resolveTextModel()
+    if (!provider || !modelId) { toast('请先在「设置」中配置文本大模型'); return Promise.resolve({ ok: false }) }
+    const system = SHOT_AUDIT_SYSTEM
+    const user = buildAuditUser(shot, field, String(feedback).trim(), (d.assets || []).map((a) => a.name))
+
+    // 改写结果经 Promise resolve 交给组件（组件 await 后写进预览，点「应用」才落盘到 shot）。
+    // 引擎只置 promptLoading 驱动动画，不直接写回 shot[field]——符合「确认才生效」，且避开 effect 侦测回滚。
+    let resolveResult
+    const done = new Promise((res) => { resolveResult = res })
+
+    updateData({ shots: getData().shots.map((s) => (s.id === shotId ? { ...s, promptLoading: true } : s)) })
+    logger.info('scriptBox', '审计改写提示词·开始', { nodeId, shotId, field, feedback: String(feedback).trim() })
+    runAbortable(`shot-review-${shotId}`, () => updateData({ shots: getData().shots.map((s) => (s.id === shotId ? { ...s, promptLoading: false } : s)) }), async (signal) => {
+      const r = await chatCompletions({
+        provider,
+        model: modelId,
+        temperature: 0.7,
+        signal,
+        messages: [
+          { role: 'system', content: system },
+          { role: 'user', content: user },
+        ],
+      })
+      const text = r.ok ? String(r.content || '').trim() : ''
+      if (r.ok) {
+        updateData({ shots: getData().shots.map((s) => (s.id === shotId ? { ...s, promptLoading: false } : s)) })
+        logger.info('scriptBox', '审计改写提示词·成功', { nodeId, shotId, field, len: text.length })
+        resolveResult({ ok: true, text })
+      } else {
+        updateData({ shots: getData().shots.map((s) => (s.id === shotId ? { ...s, promptLoading: false } : s)) })
+        if (!r.aborted) { toast(r.error || '审计改写失败'); logger.error('scriptBox', '审计改写提示词·失败', { nodeId, shotId, field, error: r.error }) }
+        else logger.warn('scriptBox', '审计改写提示词·已中止', { nodeId, shotId, field })
+        resolveResult({ ok: false, error: r.error })
+      }
+    }, { logLabel: '审计改写提示词', toastFail: '审计改写失败', ctx: { nodeId, shotId, field } })
+    return done
+  }
+
+  // ═══════════════════════════════════════════════════════════════
   // 停止生成（对齐官方 Un）：中止指定 AbortController + 清对应 loading
   // ═══════════════════════════════════════════════════════════════
   const onStopScriptItem = (kind, id) => {
@@ -781,6 +831,7 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
     onGenerateAllAssetImages,
     onGenerateShotPrompts,
     onGenerateShotImage,
+    onReviewShotPrompt,
     onStopScriptItem,
     onRetryVideoAssetUpload,
     onUploadAllVideoAssets,

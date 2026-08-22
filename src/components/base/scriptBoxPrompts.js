@@ -56,6 +56,62 @@ export const SHOT_DIRECTOR_SYSTEM = `你是资深电影导演、分镜设计师�
 
 只返回可解析的纯 JSON，不要解释，不要 Markdown，不要在 JSON 前后添加任何文字。`
 
+/**
+ * 提示词审计改写系统提示词（聊天式"按意见改"专用通道）。
+ * 与 SHOT_DIRECTOR_SYSTEM（一次生成 prompt/videoPrompt）不同，本提示词用于：
+ * 用户已有一条现成提示词，提出修改意见，AI 以「导演 / 表演 / 美术」三岗位框架
+ * 做静默审计式改写——只改该改的，保持其余不变，输出**单条改写后的提示词文本**
+ * （不再返回 JSON，因为只针对一个字段）。
+ * 三框架来源：CINEDANCE(导演) / ACTING(表演) / LIRA(美术)，精神对齐 demo skills/*。
+ */
+export const SHOT_AUDIT_SYSTEM = `你是一名资深 AI 视频/图像提示词审查与改写师，同时持有三个正交岗位的专业视角，对一条「已有提示词」做审计式精修：
+
+🎬 导演视角（CINEDANCE）：机位 / 镜头 FOV / 运镜 / 光向 / 首帧 / 连续性 / 物理 / 对白节奏。
+  - 空间规则先于镜头风格；光学先于通用美学；光是最高优先级约束而非装饰。
+  - 发前静默诊断：首帧是否空、角色是否太晚出现、视线/体向是否反转、左右是否翻转、机位是否选错边、动作是否飘浮不物理、对白是否起错时间。命中风险就在成品内加一句明确局部 lock。
+
+🎭 表演视角（ACTING）：角色这一镜怎么演——目的(动词而非状态) / 障碍与代价 / 策略 / 节拍 / 潜台词 / 身体语言 / 眼活。
+  - 表演是压力下的行为，不是情绪展示；绝不直接写"他生气了"式情绪标签，写"他怎么做才能达成目标"式行为目标。
+  - 画面里没有的角色不写表演段；状态有惯性，余波带进下节拍；死眼是最大败笔，眼活永不可省。
+
+🖼 美术视角（LIRA）：画面长什么样——材质(具体名+完成面) / 技术光(非情绪光) / 色板(可量化比例) / 参考路由。
+  - 自然连贯叙述、不堆关键词；正向描述优先，绝不写"不要…"否定堆（无负面参数）。
+  - 宽高比/分辨率为平台参数不进文本；控 80-150 词，不浮肿；角色一致靠 @资产 引用而非散文堆。
+
+【审计改写纪律】
+1. 输入是一条**已有提示词** + 用户的修改意见。你只能按意见做最小必要改动，没被意见触及的部分逐字保留，不得重写、不得风格漂移、不得擅自加戏。
+2. 严格遵循用户意见；意见与三框架冲突时以用户意见为准，但可用框架知识把意见落地得更专业。
+3. 保持 @资产名 原样，不得泛化为"角色/人物/主体"。
+4. **改写后长度与节奏风格应与原提示词相当**，只删改与意见相关的内容，不要整体压缩或扩写（避免破坏后续生图/生视频的既有配置与分段）。
+5. 只输出**改写后的单条提示词全文**，不要解释、不要 Markdown 代码块、不要前后多余文字、不要输出你的审查清单或推理过程。`
+
+/**
+ * 审计改写 user content 拼装（聊天式「按意见改」专用）。
+ * 与 assembleShotUser（生成提示词用，产出 JSON）不同：本函数只针对单个已有提示词字段，
+ * 让 AI 看到「当前提示词 + 用户意见 + 本镜资料」，按 SHOT_AUDIT_SYSTEM 做最小必要改写。
+ * 输出是单条文本（不要求 JSON）。
+ *
+ * @param {object} shot 分镜对象（读 description/dialogue/duration）
+ * @param {'prompt'|'videoPrompt'} field 要改写的字段
+ * @param {string} feedback 用户修改意见（必填）
+ * @param {string[]} [assetNames] 资产名列表（仅作提示，不强约束）
+ * @returns {string} user content
+ */
+export function buildAuditUser(shot, field, feedback, assetNames = []) {
+  const current = String(shot?.[field] || '').trim()
+  const desc = String(shot?.description || '').trim()
+  const dia = dialogueText(shot?.dialogue)
+  const names = Array.isArray(assetNames) ? assetNames.filter(Boolean) : []
+  const parts = []
+  if (desc) parts.push(`【本镜画面描述】\n${desc}`)
+  if (dia) parts.push(`【对白/旁白】\n${dia}`)
+  if (names.length) parts.push(`【可用 @资产】\n${names.map((n) => `@${n}`).join('、')}`)
+  if (field === 'videoPrompt' && shot?.duration) parts.push(`【时长】\n${shot.duration}`)
+  parts.push(`【当前${field === 'prompt' ? '生图' : '生视频'}提示词（待改写）】\n${current || '（空）'}`)
+  parts.push(`【用户修改意见（必须严格遵循）】\n${String(feedback || '').trim()}`)
+  return parts.join('\n\n')
+}
+
 /** 资产生图提示词拼装（对应 shared.js Zg）：`[视觉风格：xx] + desc + 句号 + 模板` */
 export function ZgPrompt(category, desc, style, customTemplates) {
   const cat = ['character', 'scene', 'prop'].includes(category) ? category : 'character'
