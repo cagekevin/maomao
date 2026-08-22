@@ -47,6 +47,9 @@ const ImageZoomDialog = forwardRef(function ImageZoomDialog({ url }, ref) {
   }, [url])
 
   // 原生 wheel 监听（非被动），确保缩放生效；P3：增量累计 + rAF 合并到每帧一次 setScale
+  // 【画布联动修复】onWheel 必须 stopPropagation：<dialog> 位于 React Flow 画布 DOM 内，
+  // 若不阻止冒泡，滚轮事件会传到画布的 wheel 监听 → 大图缩放时画布也跟着缩放。
+  // 依赖 [ref]：node 引用稳定即只绑定一次，避免每次渲染重复 addEventListener。
   useEffect(() => {
     const node = typeof ref === 'function' ? null : ref?.current
     if (!node) return
@@ -57,6 +60,7 @@ const ImageZoomDialog = forwardRef(function ImageZoomDialog({ url }, ref) {
     })
     const onWheel = (e) => {
       e.preventDefault()
+      e.stopPropagation()
       pending += -e.deltaY * 0.0015
       batch(pending)
     }
@@ -65,7 +69,7 @@ const ImageZoomDialog = forwardRef(function ImageZoomDialog({ url }, ref) {
       node.removeEventListener('wheel', onWheel)
       batch.cancel()
     }
-  })
+  }, [ref])
 
   // window 级拖拽，避免 setPointerCapture 吞掉按钮点击；P3：平移增量 rAF 合并 + P10 will-change
   useEffect(() => {

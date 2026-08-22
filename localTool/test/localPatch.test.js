@@ -31,7 +31,7 @@ before(async () => {
 });
 
 const uploadDir = () => path.join(TEST_DIR, 'uploads');
-const outputDir = () => path.join(uploadDir(), 'output');
+const outputDir = () => path.join(uploadDir(), 'local-patch');
 
 /** 纯色图：用 hex 背景构造（new Jimp 的函数背景在 0.22 不可靠，退回 0xAARRGGBB 数值）。 */
 function solid(w, h, { r, g, b }) {
@@ -41,13 +41,13 @@ function solid(w, h, { r, g, b }) {
 function pixel(img, x, y) {
   return Jimp.intToRGBA(img.getPixelColor(x, y));
 }
-/** 写 PNG 到 output 子目录，返回 /files/output/<name> URL（jimp 0.22 无 getBufferSync，用异步）。 */
+/** 写 PNG 到 local-patch 子目录，返回 /files/local-patch/<name> URL（jimp 0.22 无 getBufferSync，用异步）。 */
 async function writeOut(img, name) {
   fs.mkdirSync(outputDir(), { recursive: true });
   const buf = await img.getBufferAsync(Jimp.MIME_PNG);
   const filePath = path.join(outputDir(), name);
   fs.writeFileSync(filePath, buf);
-  return `/files/output/${name}`;
+  return `/files/local-patch/${name}`;
 }
 function diskOf(url) {
   const clean = url.replace(/^https?:\/\/[^/]+\//, '/').replace(/^\/files\//, '');

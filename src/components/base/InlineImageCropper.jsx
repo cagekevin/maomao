@@ -11,7 +11,7 @@ import { loadImageWithTimeout } from './asyncGuard.js'
  *  1. 无菜单、无顶部按钮栏——只有图片 + 底部「取消 / 裁剪」两个按钮。
  *  2. 默认按图片原始尺寸铺满：选区初始 = 整图（100%），ReactCrop 按图片比例铺满节点图片区；
  *     保存时换算回原始像素，不缩放失真。
- *  3. 选完选区后，点「裁剪」按钮或双击图片，均自动保存写回。
+ *  3. 选完选区后，点「裁剪」按钮确认保存写回。
  *
  * 【坐标精确的关键】图片不能用 object-contain：object-contain 会让 <img> 元素盒子
  * 大于实际可见图（留白），导致 ReactCrop 测量的渲染尺寸与可见图不一致，换算坐标错位、
@@ -134,10 +134,7 @@ export default function InlineImageCropper({ imageUrl, onSave, onClose }) {
   return (
     <div className="absolute inset-0 z-30 flex flex-col bg-black/70 nodrag">
       {/* 图片区：ReactCrop 直接叠在图片上，按图片比例铺满（等比缩放，无 contain 留白） */}
-      <div
-        className="flex-1 flex items-center justify-center p-2 overflow-hidden"
-        onDoubleClick={(e) => { e.stopPropagation(); handleSave() }}
-      >
+      <div className="flex-1 flex items-center justify-center p-2 overflow-hidden">
         <ReactCrop
           crop={crop}
           onChange={(_, pc) => { setCrop(pc); setPercentCrop(pc) }}
@@ -153,7 +150,7 @@ export default function InlineImageCropper({ imageUrl, onSave, onClose }) {
         </ReactCrop>
       </div>
 
-      {/* 底部仅两个按钮：取消 / 裁剪（双击图片也等同点「裁剪」） */}
+      {/* 底部仅两个按钮：取消 / 裁剪 */}
       <div className="flex items-center justify-end gap-2 px-3 py-2 bg-surface-raised border-t border-edge">
         <button
           type="button"

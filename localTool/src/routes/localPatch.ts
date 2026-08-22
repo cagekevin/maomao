@@ -46,8 +46,8 @@ import { json, parseJsonBody, sendError } from '../utils/helpers.js';
 const PORT = Number(process.env.PORT) || 18080;
 const BASE_URL = `http://127.0.0.1:${PORT}`;
 
-/** 局部图落盘目录（output 子目录，docs/19 §2.2）。 */
-const OUTPUT_SUBFOLDER = 'output';
+/** 局部提取与图像融合产物落盘目录（local-patch 子目录，docs/19 §2.2）。 */
+const OUTPUT_SUBFOLDER = 'local-patch';
 
 /** 留痕日志（对齐 files.ts 的 [upload]/[download] 风格，供「图丢了」溯源）。 */
 const patchLog = (status: number, msg: string) =>
