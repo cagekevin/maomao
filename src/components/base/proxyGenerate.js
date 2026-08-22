@@ -18,7 +18,8 @@
 
 import { API_BASE } from './config.js'
 import { getCurrentTaskId, setTaskPollId } from './taskStore.js'
-import { GEN_TIMEOUT, GEN_POLL_INTERVAL, VIDEO_TIMEOUT, VIDEO_POLL_INTERVAL } from './config.js'
+import { GEN_TIMEOUT, GEN_POLL_INTERVAL, VIDEO_TIMEOUT, VIDEO_POLL_INTERVAL, CHAT_TIMEOUT } from './config.js'
+import { withTimeout, isTimeoutError } from './asyncGuard.js'
 import { classifyError } from './genErrors.js'
 import { logger } from './logger.js'
 // 【出口回收】所有 /api/proxy 出口经统一 httpRequest（B5），不再裸写 fetch
@@ -148,7 +149,11 @@ async function pollUntilDone({ provider, url, genBody, extractUrl, pollInterval,
     onProgress?.(20, '已提交到生成网关…')
     const json = await res.json()
     const data = json?.data ?? json
-    const tasks = Array.isArray(data) ? data : (Array.isArray(json) ? json : [])
+    // 网关提交响应有两种形态（见 localTool system.ts extractAndPersistThreadId）：
+    //  - 图片/普通：data 为数组 [{ status, task_id }]
+    //  - 视频：data 为单个对象 { id, status, task_id }
+    // 统一归一成数组再找 task_id，否则视频对象形态会被当成空数组 → 误判「上游未返回任务 id」。
+    const tasks = Array.isArray(data) ? data : Array.isArray(json) ? json : (data && typeof data === 'object' ? [data] : [])
     const submitted = tasks.find((t) => t && (t.status === 'submitted' || t.task_id))
     taskId = submitted?.task_id
     const direct = extractUrl({ data, json })
@@ -226,28 +231,48 @@ export async function chatProxy({ provider, body, signal }) {
   const responses = resolveChatMode(provider?.chat_request_mode, body?.model) === 'responses'
   const target = buildTargetUrl(provider, responses ? 'responses' : 'chat/completions')
   const payload = __buildProxyPayload({ provider, target, method: 'POST', body })
-  // 【出口回收】走 /api/proxy 经 httpRequest 出站。LLM 生成较慢，timeoutMs:0 不被 15s 掐断；
+  // 【出口回收】走 /api/proxy 经 httpRequest 出站。LLM 生成较慢，正常不走 httpClient 默认 15s 掐断；
+  // 但也不能无限挂起（否则剧本盒第三步生成动画永远停不下来），故包 withTimeout 设 2 分钟总超时：
+  // 超时后 abort 内部 controller + 返回「生成超时」，上层据此复位 loading。
   // parseJson:false 拿原始 Response 读完整 JSON；retries:0（业务语义不重试），维持「信封永不抛错」契约。
+  const internalCtrl = new AbortController()
+  const onExternalAbort = () => internalCtrl.abort()
+  if (signal?.aborted) return { ok: false, aborted: true, error: '已停止' }
+  signal?.addEventListener?.('abort', onExternalAbort)
   let res
   try {
-    res = await httpRequest(`${API_BASE}/api/proxy`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-      ...(signal ? { signal } : {}),
-      timeoutMs: 0,
-      retries: 0,
-      parseJson: false,
-      label: 'chatProxy',
-    })
+    res = await withTimeout(
+      httpRequest(`${API_BASE}/api/proxy`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        signal: internalCtrl.signal,
+        timeoutMs: 0,
+        retries: 0,
+        parseJson: false,
+        label: 'chatProxy',
+      }),
+      CHAT_TIMEOUT,
+      `生成超时（超过 ${Math.round(CHAT_TIMEOUT / 1000)} 秒未返回）`,
+      internalCtrl.signal,
+    )
   } catch (e) {
-    if (e?.name === 'AbortError') return { ok: false, aborted: true, error: '已停止' }
+    if (e?.name === 'AbortError') {
+      // 底层请求被中止（外部 signal 取消 / 内部超时 abort）：统一视为「未完成/已停止」
+      return { ok: false, aborted: true, error: '已停止' }
+    }
+    if (e?.name === 'TimeoutError' || isTimeoutError(e)) {
+      // withTimeout 达到 2 分钟总超时：返回明确错误，上层据此复位 loading、停止动画
+      return { ok: false, error: '生成超时' }
+    }
     if (e?.name === 'HttpError') {
       // 业务错误（HTTP 非 2xx）：取上游嵌套 message（HttpError 已带错误体），不误加「网络错误」前缀
       const msg = parseNestedError(e?.data || {}) || `HTTP ${e.status}`
       return { ok: false, error: msg }
     }
     return { ok: false, error: `网络错误：${e.message}` }
+  } finally {
+    signal?.removeEventListener?.('abort', onExternalAbort)
   }
   let json
   try {
@@ -316,10 +341,13 @@ export async function imageProxy({ provider, genBody, onProgress, signal }) {
     onProgress?.(10, '正在连接本地服务…')
     const res = await __proxyFetch({ provider, target: waitUrl, method: 'POST', body: genBody }, signal)
     onProgress?.(20, '已转发到生成网关…')
-    const imgUrl = await readSseUrl(res, onProgress, signal)
+    // 同步 SSE 生图也带总超时（GEN_TIMEOUT=5min）：SSE 流若不结束会永久挂起（readSseUrl 无自身超时），
+    // 超时 abort 内部 signal + 抛 TimeoutError，上层据此复位 loading、停止动画。
+    const imgUrl = await withTimeout(readSseUrl(res, onProgress, signal), GEN_TIMEOUT, `生图超时（超过 ${Math.round(GEN_TIMEOUT / 1000)} 秒未返回）`)
     return imgUrl ? ok(imgUrl) : fail('上游未返回图片')
   } catch (e) {
     if (e?.name === 'AbortError') throw e // 取消信号：原样抛出，由调用方处理
+    if (e?.name === 'TimeoutError' || isTimeoutError(e)) return fail('生图超时')
     const c = classifyError(e)
     return c.type === 'network' ? fail(c.message) : fail(`生图失败：${c.message || '同步请求异常'}`)
   }

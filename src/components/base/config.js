@@ -105,6 +105,8 @@ export const DOWNLOAD_TIMEOUT = 30000
 export const VIDEO_DOWNLOAD_TIMEOUT = 90000
 /** 文件上传（filesApi.js） */
 export const UPLOAD_TIMEOUT = 60000
+/** 聊天/提示词生成总超时（chatProxy）：2 分钟，超时 abort 并复位 loading，避免动画无限挂起 */
+export const CHAT_TIMEOUT = 120000
 
 // ── 生成轮询超时（ms）───────────────────────────────────────────
 /** 生图 async 模式轮询总超时 */
