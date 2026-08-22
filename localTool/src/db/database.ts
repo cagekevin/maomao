@@ -296,6 +296,11 @@ function initTables(db: any): void {
   db.run(`CREATE TABLE IF NOT EXISTS tasks (task_id TEXT PRIMARY KEY, node_id TEXT, prompt TEXT, result_url TEXT, thumbnail_url TEXT, error_msg TEXT, custom_output_type TEXT, channel_name TEXT, model_name TEXT, progress INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL DEFAULT 0, not_found_count INTEGER NOT NULL DEFAULT 0, custom_result_data TEXT, custom_raw_response TEXT, request_data TEXT, response_data TEXT, media_meta TEXT, extra_fields TEXT, thread_id TEXT)`);
   db.run(`CREATE TABLE IF NOT EXISTS resources (id TEXT PRIMARY KEY, url TEXT NOT NULL, type TEXT NOT NULL, source TEXT, folder TEXT, name TEXT, page_url TEXT, page_title TEXT, is_favorite INTEGER NOT NULL DEFAULT 0, timestamp INTEGER NOT NULL DEFAULT 0)`);
   db.run(`CREATE TABLE IF NOT EXISTS projects (id TEXT PRIMARY KEY, name TEXT NOT NULL, is_last_opened INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL DEFAULT 0)`);
+  // 项目列表整体版本号（并发覆盖保护，对齐画布快照 canvas-state-v1-{projectId}_version 思路）。
+  // 单行 k='version'。双页面/旧数据保存时，若 body.version < 库内 version → 拒绝覆盖，防旧数据冲掉新项目。
+  db.run(`CREATE TABLE IF NOT EXISTS project_meta (k TEXT PRIMARY KEY, v INTEGER NOT NULL DEFAULT 0)`);
+  // 初始化版本号行（0 = 从未保存，首次 save 时置 Date.now()）
+  db.run(`INSERT OR IGNORE INTO project_meta (k, v) VALUES ('version', 0)`);
   db.run(`CREATE INDEX IF NOT EXISTS idx_tasks_created_at ON tasks(created_at)`);
   db.run(`CREATE INDEX IF NOT EXISTS idx_tasks_progress ON tasks(progress)`);
   db.run(`CREATE INDEX IF NOT EXISTS idx_resources_timestamp ON resources(timestamp)`);

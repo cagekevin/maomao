@@ -82,4 +82,16 @@ describe('useCanvasSync — 多窗口画布同步检测', () => {
     unmount()
     expect(closeSpy).toHaveBeenCalledWith('yimao_canvas_sync')
   })
+
+  it('切换项目（getProjectId 返回值变化）→ 冲突标记被重置为 false', async () => {
+    let projectId = 'proj-1'
+    const { result, rerender } = renderHook(() => useCanvasSync(() => projectId))
+    // 触发冲突
+    await act(async () => { emit({ type: 'CANVAS_SAVED', projectId: 'proj-1', tabId: 'tab-other' }) })
+    expect(result.current.canvasConflict).toBe(true)
+    // 切换项目并重新渲染 → 冲突应被 hook 内部重置
+    projectId = 'proj-2'
+    await act(async () => { rerender() })
+    expect(result.current.canvasConflict).toBe(false)
+  })
 })

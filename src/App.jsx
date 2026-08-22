@@ -168,15 +168,9 @@ function Canvas() {
    *    这是「模型调度 / 内置模型详情」两个独立功能面板的窗口内事件，
    *    属功能缺失而非窗口机制，应单独评估开发，不并入本多窗口模块。
    * ==================================================================== */
+  // 多窗口同步：返回 canvasConflict（冲突警告态）+ tabIdRef（persistCanvas 广播用）。
+  // 「切换项目后重置冲突」已在 useCanvasSync 内部处理（getProjectId 变化时自动置 false）。
   const { canvasConflict, tabIdRef } = useCanvasSync(() => getCurrentProject()?.id)
-  // 切换项目后重置冲突标记（官方在 projectId 变化时不应残留旧项目冲突）
-  React.useEffect(() => {
-    setCanvasConflict(false)
-  }, [getCurrentProject()?.id])
-  // 切换项目后重置冲突标记（官方在 projectId 变化时不应残留旧项目冲突）
-  React.useEffect(() => {
-    setCanvasConflict(false)
-  }, [getCurrentProject()?.id])
 
   // 视窗中心 → flow 坐标（Q/W/E 快速添加节点用）；适配用 fitView
   // P20 视窗状态持久化：getViewport 读取当前视窗、setViewport 恢复（刷新/切项目回到上次视角）。

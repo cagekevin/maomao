@@ -22,6 +22,9 @@ let projects = loadProjects()
 let currentProjectId = loadLastOpened()
 let loaded = false // 是否已从后端加载过
 let lastSavedVersion = 0 // 画布版本号单调递增保底（同毫秒连续保存时自增）
+// 项目列表整体版本号（并发覆盖保护）：从后端 fetch 时更新，保存时带回后端，
+// 后端检测旧版本拒绝覆盖（防双页面/旧数据覆盖丢新项目）。对齐画布快照版本冲突检测思路。
+let projectVersion = 0
 const listeners = new Set()
 
 function loadProjects() {
@@ -42,13 +45,61 @@ function loadLastOpened() {
 // 消除高频切换时的重复 JSON.stringify 与 saveProjects 网络请求。通知订阅者保持即时。
 // write 是「读当前最新 projects/currentProjectId」的 thunk——flush 时才执行，合并窗口内最终态。
 // 兜底：createDebouncedPersist 自动注册 pagehide flush，极端刷新/关闭不丢最后变更。
+// 合并后端数据到本地（防覆盖）：以后端为基准，补充本地独有项目；更新版本号。
+// 供 initProjects（启动加载）与保存冲突自愈（见 persistDebounced）复用。
+function mergeFromBackend(data) {
+  const list = Array.isArray(data?.data?.projects) ? data.data.projects.map((p) => ({ id: p.id, name: p.name })) : []
+  const localList = Array.isArray(projects) ? projects : []
+  const seen = new Set()
+  const merged = []
+  for (const p of list) {
+    if (p?.id && !seen.has(p.id)) { seen.add(p.id); merged.push({ id: p.id, name: p.name }) }
+  }
+  for (const p of localList) {
+    if (p?.id && !seen.has(p.id)) { seen.add(p.id); merged.push({ id: p.id, name: p.name }) }
+  }
+  if (typeof data?.data?.version === 'number') projectVersion = data.data.version
+  if (merged.length === 0) return
+  projects = merged
+  currentProjectId = data?.data?.lastOpened && merged.some((p) => p.id === data.data.lastOpened)
+    ? data.data.lastOpened
+    : (merged[0]?.id || 'default')
+  notify()
+}
+
+// 后端保存返回冲突（旧版本被拒，说明另一窗口/更新数据先写了）→ 重新合并以获取最新项目与版本。
+// 用 fetch（非 persist）避免「冲突→persist→再冲突」递归；合并后本地即拥有最新数据。
+function handleSaveConflict() {
+  fetchProjects()
+    .then((data) => { mergeFromBackend(data); persist() })
+    .catch((e) => logger.warn('projectStore', '保存冲突后重载项目失败', e?.message))
+}
+
 const persistDebounced = createDebouncedPersist(() => {
   contentSet(PROJECTS_KEY, projects)
   contentSet(LAST_OPENED_KEY, currentProjectId)
+  // 【失败可见】后端保存失败不再空 catch 静默——否则后端缺项会在下次 initProjects 合并前
+  // 被误判为「项目不存在」，掩盖「双页面/网络导致后端与本地不同步」的真实原因。
+  // 记录 warn 让后端缺失可观测；本地 localStorage 仍已写入，后端下次 persist 会再同步。
   saveProjects(
     projects.map((p) => ({ id: p.id, name: p.name })),
-    currentProjectId
-  ).catch(() => {}) // fire-and-forget，后端保存失败下次 persist 再同步
+    currentProjectId,
+    projectVersion
+  ).then((r) => {
+    if (r?.data?.conflict) {
+      logger.warn('projectStore', '保存项目版本冲突（另一窗口已更新）→ 重新合并', {
+        localVersion: projectVersion,
+        remoteVersion: r.data.version,
+      })
+      handleSaveConflict()
+    } else if (typeof r?.data?.version === 'number') {
+      projectVersion = r.data.version
+    }
+  }).catch((e) => logger.warn('projectStore', '保存项目到后端失败（本地已保留，下次将重试）', {
+    count: projects.length,
+    currentId: currentProjectId,
+    error: e?.message,
+  }))
 }, 300)
 
 function persist() {
@@ -60,21 +111,24 @@ export function flushPersist() {
   persistDebounced.flush()
 }
 
-// 启动时从后端加载项目（以后端为准，覆盖本地兜底）
+// 启动时从后端加载项目，与本地合并去重（防「后端缺项/双页面旧数据」覆盖掉本地独有项目）。
+// 【根因修复】旧实现「以后端为准整体覆盖本地」+ saveProjects 全量覆盖语义：若后端某次缺项
+// （saveProjects 失败静默 / 双页面旧列表覆盖后端），刷新时后端缺项会把本地独有新项目冲掉，
+// 且 persist() 把缺失固化为持久态 → 项目永久消失。改为「合并去重」：
+//   1) 以后端列表为基准；
+//   2) 补充「本地有而后端缺」的项目（后端缺失不丢本地独有）；
+//   3) 合并结果写回后端（把缺失补回，防下次再丢）。
+// 反向（后端有本地没有）也保留——后端为准。合并后 lastOpened 逻辑不变。
 export function initProjects() {
   if (loaded) return
   loaded = true
   fetchProjects()
     .then((data) => {
-      const list = Array.isArray(data?.data?.projects) ? data.data.projects.map((p) => ({ id: p.id, name: p.name })) : []
-      if (list.length > 0) {
-        projects = list
-        currentProjectId = data.data.lastOpened && list.some((p) => p.id === data.data.lastOpened) ? data.data.lastOpened : list[0].id
-        // 对齐官方 Vr.jsx L1104-1108：当前项目变化即持久化 lastOpenedProject。
-        // 让 localStorage 与后端 lastOpened 同步，避免「刷新后短暂闪 default 再跳到正确项目」。
-        persist()
-        notify()
-      }
+      mergeFromBackend(data)
+      // 对齐官方 Vr.jsx L1104-1108：合并后落盘，让 localStorage 与后端 lastOpened 同步，
+      // 避免「刷新后短暂闪 default 再跳到正确项目」；同时把「本地独有而后端缺失」的项目
+      // 回写后端，从根源消除「后端缺项 → 下次刷新再次覆盖丢项目」。
+      persist()
     })
     .catch((e) => logger.warn('projectStore', '加载项目失败（localTool 未连？）', e?.message))
 }

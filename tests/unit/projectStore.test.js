@@ -53,6 +53,28 @@ describe('项目系统 §2.8', () => {
     expect(projectStore.getCurrentProject().id).toBe('default')
   })
 
+  it('initProjects 后端缺本地独有项目 → 合并保留本地（防刷新丢项目）', async () => {
+    // 模拟「上一会话新建了项目X」：先 createProject 让内存 projects 含 X（含 persist 到 localStorage 兜底）
+    const x = projectStore.createProject('新建项目X')
+    // 后端因 saveProjects 失败/双页面覆盖缺失 X（只返回 default）
+    projectsPayload.projects = [{ id: 'default', name: '默认项目' }]
+    projectStore.initProjects()
+    await new Promise((r) => setTimeout(r, 0))
+    // X 不能被后端缺项冲掉
+    expect(projectStore.switchProject(x.id).name).toBe('新建项目X')
+  })
+
+  it('initProjects 后端有新项目（本地旧列表）→ 合并保留后端独有', async () => {
+    localStorage.setItem('projects', JSON.stringify([{ id: 'default', name: '默认项目' }]))
+    projectsPayload.projects = [
+      { id: 'default', name: '默认项目' },
+      { id: 'proj-Y', name: '后端项目Y' },
+    ]
+    projectStore.initProjects()
+    await new Promise((r) => setTimeout(r, 0))
+    expect(projectStore.switchProject('proj-Y').name).toBe('后端项目Y')
+  })
+
   it('默认项目存在', () => {
     expect(projectStore.getCurrentProject().id).toBe('default')
   })

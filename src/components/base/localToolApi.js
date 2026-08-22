@@ -73,12 +73,14 @@ export async function fetchProjects() {
   return httpRequest(`${API_BASE}/api/projects`, { label: 'fetchProjects' })
 }
 
-// POST /api/projects/save { projects, lastOpened } → { ok:true }（全量覆盖）
-export async function saveProjects(projects, lastOpened) {
+// POST /api/projects/save { projects, lastOpened, version } → { ok:true, version }（全量覆盖 + 并发版本保护）
+// version：前端声明的项目列表版本号。后端检测 body.version < 库内最新 version → 拒绝（conflict:true），
+// 防双页面/旧数据覆盖丢新项目。旧前端不传 version → 后端不拦截（向后兼容）。
+export async function saveProjects(projects, lastOpened, version) {
   return httpRequest(`${API_BASE}/api/projects/save`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ projects, lastOpened }),
+    body: JSON.stringify({ projects, lastOpened, version: typeof version === 'number' ? version : undefined }),
     label: 'saveProjects',
   })
 }

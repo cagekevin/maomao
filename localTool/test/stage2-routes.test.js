@@ -134,14 +134,17 @@ test('[projects] 空库 GET 返回 {projects:[], lastOpened}', async () => {
   assert.ok('lastOpened' in body.data, '应含 lastOpened 字段');
 });
 
-test('[projects] save 全量 upsert 并标记 isLastOpened / lastOpened 返回', async () => {
+test('[projects] save 全量 upsert 并标记 isLastOpened / lastOpened 返回（含 version）', async () => {
   const list = [
     { id: 'p1', name: '项目A' },
     { id: 'p2', name: '项目B' },
   ];
   const res1 = makeRes();
   await handleProjectsSave(makeJsonReq({ projects: list, lastOpened: 'p2' }), res1);
-  assert.deepEqual(parseResBody(res1), { code: 0, data: { ok: true } });
+  const saveBody = parseResBody(res1);
+  assert.equal(saveBody.code, 0);
+  assert.equal(saveBody.data.ok, true);
+  assert.ok(typeof saveBody.data.version === 'number' && saveBody.data.version > 0, 'save 应返回递增版本号');
 
   const res2 = makeRes();
   await handleProjectsGet(makeJsonReq(undefined), res2);
@@ -152,6 +155,7 @@ test('[projects] save 全量 upsert 并标记 isLastOpened / lastOpened 返回',
   assert.equal(p1.isLastOpened, false);
   assert.equal(p2.isLastOpened, true);
   assert.equal(b2.data.lastOpened, 'p2');
+  assert.ok(typeof b2.data.version === 'number', 'GET 应返回项目列表版本号');
 });
 
 test('[projects] 再次 save 同时传 p1/p2 → 仅更新 p1 名字、p2 保留（增量 upsert）', async () => {
@@ -186,6 +190,34 @@ test('[projects] save 缺少 projects 字段 → 400', async () => {
   const res = makeRes();
   await handleProjectsSave(makeJsonReq({ foo: 'bar' }), res);
   assert.equal(res.status, 400);
+});
+
+test('[projects] 旧版本保存 → conflict 拒绝覆盖（防双页面/旧数据覆盖丢新项目）', async () => {
+  // 先保存一份，拿到当前 version
+  const res0 = makeRes();
+  await handleProjectsSave(makeJsonReq({ projects: [{ id: 'p1', name: 'P1' }], lastOpened: 'p1' }), res0);
+  const currentVersion = parseResBody(res0).data.version;
+
+  // 用「更旧版本」再保存（模拟旧页面/旧数据携带落后 version 覆盖）
+  const res1 = makeRes();
+  await handleProjectsSave(makeJsonReq({
+    projects: [{ id: 'old-only', name: '旧项目' }],
+    lastOpened: 'old-only',
+    version: currentVersion - 1, // 明确声明旧版本
+  }), res1);
+  const conflictBody = parseResBody(res1);
+  assert.equal(conflictBody.code, 0);
+  assert.equal(conflictBody.data.ok, false);
+  assert.equal(conflictBody.data.conflict, true, '旧版本应被拒绝并标记 conflict');
+  assert.equal(conflictBody.data.version, currentVersion, 'conflict 返回库内最新版本');
+
+  // 确认后端数据未被旧版本覆盖（旧项目没写入）
+  const res2 = makeRes();
+  await handleProjectsGet(makeJsonReq(undefined), res2);
+  const b2 = parseResBody(res2);
+  const hasOld = b2.data.projects.some((p) => p.id === 'old-only');
+  assert.equal(hasOld, false, '旧版本保存不得覆盖掉现有项目');
+  assert.ok(b2.data.projects.some((p) => p.id === 'p1'), '原项目 p1 应保留');
 });
 
 // ════════════════════════════════════════════════════════════════════════
