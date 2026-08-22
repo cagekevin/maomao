@@ -96,7 +96,7 @@ export default function StepPrompt({ data, updateData, callbacks }) {
       <div className="grid grid-cols-2 gap-2">
         {/* 左侧：生图提示词 + 生图按钮 + AI 生图 */}
         <div className="flex flex-col gap-1.5 min-w-0">
-          <PromptBox label="生图提示词" text={s.prompt} loading={s.promptLoading} onEdit={() => openField(i, 'prompt', '生图提示词')} onGen={() => callbacks.onConnectShot?.(s.id, 'image')} assetNames={(d.assets || []).map((a) => a.name)} />
+          <PromptBox label="生图提示词" text={s.prompt} loading={s.promptLoading} onEdit={() => openField(i, 'prompt', '生图提示词')} assetNames={(d.assets || []).map((a) => a.name)} />
           {/* AI 生成提示词（关键帧/四宫格/九宫格/俯视调度图，均属生图），样式与重新生成/连下游一致 */}
           <div className="flex flex-col gap-1.5">
             <div className="flex flex-wrap items-center gap-1">
@@ -141,7 +141,7 @@ export default function StepPrompt({ data, updateData, callbacks }) {
         </div>
         {/* 右侧：生视频提示词 + 操作 */}
         <div className="flex flex-col gap-1.5 min-w-0">
-          <PromptBox label="生视频提示词" text={s.videoPrompt} loading={s.promptLoading} onEdit={() => openField(i, 'videoPrompt', '生视频提示词')} onGen={() => callbacks.onConnectShot?.(s.id, 'video')} assetNames={(d.assets || []).map((a) => a.name)} />
+          <PromptBox label="生视频提示词" text={s.videoPrompt} loading={s.promptLoading} onEdit={() => openField(i, 'videoPrompt', '生视频提示词')} assetNames={(d.assets || []).map((a) => a.name)} />
           <div className="flex gap-1.5">
             <button
               className="flex items-center gap-1 px-2 py-1 text-caption text-gray-300 bg-surface-1 hover:bg-surface-hover rounded"
@@ -301,13 +301,15 @@ export default function StepPrompt({ data, updateData, callbacks }) {
   )
 }
 
-/** 提示词展示 + 生成按钮 */
+/** 提示词展示（标题栏右侧可选的"生成"按钮；onGen 为空则不渲染） */
 function PromptBox({ label, text, loading, onEdit, onGen, assetNames }) {
   return (
     <div className="flex flex-col gap-1 bg-[#131313] rounded p-2">
       <div className="flex items-center justify-between">
         <span className="text-caption text-gray-500">{label}</span>
-        <button className="flex items-center gap-0.5 text-caption text-gray-400 hover:text-white" onClick={onGen}>{loading ? <Loader2 size={10} className="animate-spin" /> : <ImageIcon size={10} />} 生成</button>
+        {onGen && (
+          <button className="flex items-center gap-0.5 text-caption text-gray-400 hover:text-white" onClick={onGen}>{loading ? <Loader2 size={10} className="animate-spin" /> : <ImageIcon size={10} />} 生成</button>
+        )}
       </div>
       <div className="text-caption text-gray-400 leading-relaxed line-clamp-3 break-words cursor-text hover:bg-surface rounded px-1 -mx-1" onDoubleClick={onEdit} title="双击编辑">
         {text ? <span dangerouslySetInnerHTML={{ __html: hlAt(text, assetNames) }} /> : <span className="text-gray-600">双击编辑</span>}

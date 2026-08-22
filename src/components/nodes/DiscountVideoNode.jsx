@@ -79,10 +79,12 @@ function DiscountVideoNode({ id, data, selected }) {
   if (debouncedPatch.current == null) {
     debouncedPatch.current = debounce(patchData, 200)
   }
-  const [ratio, setRatio] = useState(data.size || '16:9')
-  const [resolution, setResolution] = useState(data.resolution || '1080p')
-  const [seconds, setSeconds] = useState(data.selectedSeconds || '10')
-  const [selectedModel, setSelectedModel] = useState(data.selectedModel || 'runway-gen3')
+  // 记住上次选择的模型/比例/分辨率/时长（跨节点/跨会话，与 PromptNode 一致）
+  const { prefs: vidPrefs, set: setVidPrefs } = useNodePrefs('discountVideoNode', { model: '', size: '16:9', resolution: '1080p', seconds: '10' })
+  const [ratio, setRatio] = useState(data.size || vidPrefs.size || '16:9')
+  const [resolution, setResolution] = useState(data.resolution || vidPrefs.resolution || '1080p')
+  const [seconds, setSeconds] = useState(data.selectedSeconds || vidPrefs.seconds || '10')
+  const [selectedModel, setSelectedModel] = useState(data.selectedModel || vidPrefs.model || '')
   const [expanded, setExpanded] = useState(data.expanded === undefined ? true : data.expanded)
   // 抽屉展开/收起
   const toggleExpanded = useCallback(() => setExpanded((v) => !v), [])
@@ -116,9 +118,6 @@ function DiscountVideoNode({ id, data, selected }) {
   ]
   const resOptions = ['480p', '720p', '1080p']
   const durationOptions = ['4', '6', '8', '10', '12', '15']
-
-  // 记住上次选择的模型/比例/分辨率/时长（跨节点/跨会话）
-  const { prefs: vidPrefs, set: setVidPrefs } = useNodePrefs('discountVideoNode', { model: '', size: '16:9', resolution: '1080p', seconds: '10' })
 
   // 供应商/模型 + 默认模型回填 + useNodeGeneration(统一契约) 收进 useGenerateNode（P0-2 收口）。
   // prefs/selectedModel 由本节点持有并传入（无死锁）；外部 data.videoUrl 变更同步也收进 sync。

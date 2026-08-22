@@ -178,8 +178,8 @@ export default function StepShots({ data, updateData, callbacks }) {
                   <td className="px-1 py-1.5 whitespace-nowrap">
                     <input value={parseInt(s.duration) || 3} onChange={(e) => patchShot(i, 'duration', `${parseInt(e.target.value) || 3}s`)} className="w-8 bg-transparent text-gray-300 text-caption-sm outline-none nodrag" />
                   </td>
-                  <td className="px-2 py-1.5" title="双击编辑">
-                    <div className="text-gray-200 line-clamp-2 break-words cursor-text hover:bg-surface-1 rounded px-1 -mx-1" onDoubleClick={() => openField(i, 'description', '画面描述')} dangerouslySetInnerHTML={{ __html: hlAt(s.description, (d.assets || []).map((a) => a.name)) || '<span class="text-gray-600">双击编辑画面描述</span>' }} />
+                  <td className="px-2 py-1.5 align-top" title="双击编辑">
+                    <div className="text-gray-200 break-words cursor-text hover:bg-surface-1 rounded px-1 -mx-1 whitespace-normal" onDoubleClick={() => openField(i, 'description', '画面描述')} dangerouslySetInnerHTML={{ __html: hlAt(s.description, (d.assets || []).map((a) => a.name)) || '<span class="text-gray-600">双击编辑画面描述</span>' }} />
                   </td>
                   <td className="px-1.5 py-1.5 whitespace-nowrap"><DropTable opts={SHOT_TYPES} val={s.shotType} onPick={(v) => patchShot(i, 'shotType', v)} /></td>
                   <td className="px-1.5 py-1.5 whitespace-nowrap"><DropTable opts={LIGHTS} val={s.lighting} onPick={(v) => patchShot(i, 'lighting', v)} /></td>
