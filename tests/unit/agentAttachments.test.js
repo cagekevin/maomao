@@ -10,10 +10,20 @@ import { describe, it, expect, vi } from 'vitest'
 
 vi.mock('../../src/components/base/imageUrl.js', () => ({
   normalizeImageUrlForSend: vi.fn(async (url, opts) => `norm:${url}${opts?.preferBase64 ? ':b64' : ''}`),
+  summarizeImages: vi.fn((urls) => {
+    const list = (urls || []).filter((u) => typeof u === 'string' && u)
+    let base64s = 0
+    for (const u of list) if (u.startsWith('data:')) base64s++
+    return { count: list.length, urls: list.length - base64s, base64s }
+  }),
+}))
+vi.mock('../../src/components/base/logger.js', () => ({
+  logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }))
 
 const { normalizeAttachmentsForSend, buildRefCatalog } = await import('../../src/components/agent/runtime/agentAttachments.js')
-const { normalizeImageUrlForSend } = await import('../../src/components/base/imageUrl.js')
+const { normalizeImageUrlForSend, summarizeImages } = await import('../../src/components/base/imageUrl.js')
+const { logger } = await import('../../src/components/base/logger.js')
 
 describe('normalizeAttachmentsForSend — 附件统一归一出口', () => {
   it('每条附件经 normalizeImageUrlForSend，保留其它字段', async () => {
@@ -29,6 +39,17 @@ describe('normalizeAttachmentsForSend — 附件统一归一出口', () => {
   it('缺省 preferBase64=false', async () => {
     await normalizeAttachmentsForSend([{ url: 'http://a' }])
     expect(normalizeImageUrlForSend).toHaveBeenCalledWith('http://a', { preferBase64: false })
+  })
+
+  it('带图发送 → 记一条图片形态 info 日志（不携带图片内容）', async () => {
+    await normalizeAttachmentsForSend([{ url: 'http://a.png' }, { url: 'data:image/png;base64,xxx' }])
+    expect(logger.info).toHaveBeenCalledWith('agentAttachments', '发送图片', { count: 2, urls: 1, base64s: 1, total: 2 })
+  })
+
+  it('无图附件 → 不记发送日志', async () => {
+    logger.info.mockClear()
+    await normalizeAttachmentsForSend([{ type: 'node', id: 'n1' }])
+    expect(logger.info).not.toHaveBeenCalled()
   })
 })
 

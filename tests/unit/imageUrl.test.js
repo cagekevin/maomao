@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { toAbsoluteFileUrl, toRelativeFileUrl, buildThumbnailUrl, resolveImageUrl, normalizeImageUrl, normalizeImageUrlForSend, normalizeImageUrlsForSend, toImageContentBlocks, fileToDataUrl } from '../../src/components/base/imageUrl.js'
+import { toAbsoluteFileUrl, toRelativeFileUrl, buildThumbnailUrl, resolveImageUrl, normalizeImageUrl, normalizeImageUrlForSend, normalizeImageUrlsForSend, toImageContentBlocks, fileToDataUrl, classifyImageType, summarizeImages } from '../../src/components/base/imageUrl.js'
 
 // blobToDataUrl / urlToDataUrl 依赖 httpClient 与 FileReader（node 无原生实现），在此 mock。
 vi.mock('../../src/components/base/httpClient.js', () => ({
@@ -11,6 +11,7 @@ vi.mock('../../src/components/base/logger.js', () => ({
 }))
 
 import { httpRequest } from '../../src/components/base/httpClient.js'
+import { logger } from '../../src/components/base/logger.js'
 
 // node 环境无 FileReader：stub 一个，readAsDataURL 直接产出预设 dataURL（配合 httpRequest mock 返回 {_dataUrl}）。
 function stubFileReader() {
@@ -222,5 +223,40 @@ describe('imageUrl · fileToDataUrl（本地文件→dataURL 收口）', () => {
 
   it('无自定义 result → 使用 FileReader 默认读取结果', async () => {
     await expect(fileToDataUrl({})).resolves.toBe('data:image/png;base64,stubdata')
+  })
+})
+
+// ── classifyImageType / summarizeImages：带图可观测（发送图片形态分类）──
+describe('imageUrl · classifyImageType / summarizeImages（发送图片可观测）', () => {
+  it('classifyImageType：data: → base64，其余 → url', () => {
+    expect(classifyImageType('data:image/png;base64,xxx')).toBe('base64')
+    expect(classifyImageType('http://x/a.png')).toBe('url')
+    expect(classifyImageType('/files/a.png')).toBe('url')
+    expect(classifyImageType('blob:http://x/abc')).toBe('url')
+    expect(classifyImageType('iVBORw0KGgo=')).toBe('url') // 裸 base64 无 data: 前缀按 url 处理
+    expect(classifyImageType('')).toBe('url')
+    expect(classifyImageType(null)).toBe('url')
+  })
+
+  it('summarizeImages：混合 URL/base64 → 正确统计且不携带图片内容', () => {
+    const s = summarizeImages(['http://a.png', 'data:image/png;base64,xxx', '/files/b.png', '', null])
+    expect(s).toEqual({ count: 3, urls: 2, base64s: 1 })
+  })
+
+  it('summarizeImages：空/无 → count=0', () => {
+    expect(summarizeImages([])).toEqual({ count: 0, urls: 0, base64s: 0 })
+    expect(summarizeImages(null)).toEqual({ count: 0, urls: 0, base64s: 0 })
+  })
+
+  it('normalizeImageUrlsForSend 带图发送 → 记一条图片形态 info 日志（可观测）', async () => {
+    logger.info.mockClear()
+    await normalizeImageUrlsForSend(['http://a.png', 'data:image/png;base64,xxx'])
+    expect(logger.info).toHaveBeenCalledWith('imageUrl', '发送图片', { count: 2, urls: 1, base64s: 1, total: 2 })
+  })
+
+  it('normalizeImageUrlsForSend 无图 → 不记发送日志', async () => {
+    logger.info.mockClear()
+    await normalizeImageUrlsForSend([], { preferBase64: true })
+    expect(logger.info).not.toHaveBeenCalled()
   })
 })

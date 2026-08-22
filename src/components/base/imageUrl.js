@@ -251,6 +251,11 @@ export async function normalizeImageUrlForSend(u, opts = {}) {
  */
 export async function normalizeImageUrlsForSend(images, opts = {}) {
   const urls = (images || []).filter((u) => typeof u === 'string' && u)
+  // 【带图可观测】发送前记录本次带了几张图、每张是 URL 还是 Base64（基于原始输入，不携带图片内容）。
+  // 统一收口在发送归一化出口：覆盖生图/文本/视频/AI 聊天全部带图发送路径，一处埋点全链路可 grep。
+  if (urls.length > 0) {
+    logger.info('imageUrl', '发送图片', { ...summarizeImages(urls), total: urls.length })
+  }
   const out = []
   for (const u of urls) {
     const resolved = await normalizeImageUrlForSend(u, opts)
@@ -267,4 +272,33 @@ export async function normalizeImageUrlsForSend(images, opts = {}) {
  */
 export function toImageContentBlocks(urls) {
   return (urls || []).map((url) => ({ type: 'image_url', image_url: { url } }))
+}
+
+/**
+ * 图片形态分类（可观测用）：发送的图片是 URL 还是 Base64。
+ *  - 'data:' 前缀 → 'base64'（内联 base64）
+ *  - 其余（http/https/blob://files/ 等）→ 'url'
+ * 用于发送出口日志，让「带图不可观测」变得可观测——不记图片内容，只记形态。
+ * @param {string} url
+ * @returns {'url'|'base64'}
+ */
+export function classifyImageType(url) {
+  return typeof url === 'string' && url.startsWith('data:') ? 'base64' : 'url'
+}
+
+/**
+ * 图片形态摘要（发送出口日志用）：把一组原始图片 URL 归成「几张 URL / 几张 Base64」。
+ * 返回 { count, urls, base64s }，不携带图片内容，仅用于排障可观测。
+ * @param {Array<string>} images 原始图片 URL 数组
+ * @returns {{ count:number, urls:number, base64s:number }}
+ */
+export function summarizeImages(images) {
+  const list = (images || []).filter((u) => typeof u === 'string' && u)
+  let urls = 0
+  let base64s = 0
+  for (const u of list) {
+    if (classifyImageType(u) === 'base64') base64s++
+    else urls++
+  }
+  return { count: list.length, urls, base64s }
 }

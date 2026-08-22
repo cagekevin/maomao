@@ -13,7 +13,8 @@
  * 依赖方向（单向）：useAgentChat → agentAttachments → imageUrl。无环。
  */
 
-import { normalizeImageUrlForSend } from '../../base/imageUrl.js'
+import { normalizeImageUrlForSend, summarizeImages } from '../../base/imageUrl.js'
+import { logger } from '../../base/logger.js'
 
 /**
  * 归一化附件数组（发送统一出口）：每条 { ...a, url } 经 normalizeImageUrlForSend。
@@ -22,6 +23,13 @@ import { normalizeImageUrlForSend } from '../../base/imageUrl.js'
  * @returns {Promise<Array>} 归一后的附件数组（url 已归一化）
  */
 export async function normalizeAttachmentsForSend(attachments, { preferBase64 = false } = {}) {
+  const imgs = (attachments || []).filter((a) => typeof a?.url === 'string' && a.url)
+  // 【带图可观测】AI 工具附件走单图版归一化（不经数组版），这里单独在编排层记一条：
+  // 本次附件带了几张图、URL 还是 Base64。与 normalizeImageUrlsForSend 的日志语义一致。
+  if (imgs.length > 0) {
+    const urls = imgs.map((a) => a.url)
+    logger.info('agentAttachments', '发送图片', { ...summarizeImages(urls), total: imgs.length })
+  }
   return Promise.all(
     attachments.map(async (a) => ({ ...a, url: await normalizeImageUrlForSend(a?.url, { preferBase64 }) }))
   )
