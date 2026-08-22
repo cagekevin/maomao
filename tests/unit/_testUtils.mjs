@@ -9,6 +9,19 @@
  *   fetchMock.mockResolvedValueOnce(jsonResp({ ok: true }))            // 供 res.json()
  *   fetchMock.mockResolvedValueOnce(sseResp(['data: {...}']))          // 供 res.body.getReader() SSE 流
  *   const kv = createKvMem(); // kv.memKV 可 inspect/reset；kv.kvGet/kvSet/kvDelete 塞进 localToolApi 的 vi.mock 工厂
+ *
+ * ── 两条易踩的仓库级约定（踩坑实录，写死避免回归）──
+ *
+ * 1) fetch 不要自己 vi.stubGlobal：
+ *    tests/setup.mjs 已把 globalThis.fetch 强制 defineProperty 为一个共享 vi.fn（node 下原生 fetch
+ *    不可配置，vi.stubGlobal 会静默失败）。测试一律用 `const fetchMock = globalThis.fetch` 取共享实例，
+ *    beforeEach 里 mockClear()、用例内 mockResolvedValue/mockRejectedValue 设定行为。
+ *
+ * 2) vi.mock 工厂引用顶层变量时会提升到模块顶部：
+ *    工厂内不能直接读顶层对象属性（如 `kvGet: kv.kvGet`），提升期静态改写会报
+ *    "Cannot access 'kv' before initialization"。必须在工厂的异步函数体内引用共享桩，
+ *    例如 kvSet: vi.fn(async (k,v) => { kv.memKV.set(k,v); return { ok:true } })。
+ *    共享桩对象用顶层 const kv = createKvMem() 声明即可（工厂懒执行时已初始化）。
  */
 
 /** JSON 假响应：同时暴露 ok/status、json() 与 text()，避免意外触达真实网络路径。

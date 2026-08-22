@@ -8,8 +8,11 @@ export default defineConfig({
     // 默认关闭 watch：`npx vitest` 裸调也只会单次跑完即退（不挂住）。
     // 需要 watch 时显式 `npx vitest --watch` 或 `npx vitest --run` 覆盖。
     watch: false,
-    // 默认环境：纯逻辑单测用轻量 node（快）。组件/涉及 DOM 的测试用 jsdom，
-    // 通过 environmentMatchGlobs 集中声明（.jsx 自动 jsdom），无需在每个文件写注释。
+    // 环境路由规则（单一事实源，勿在两处互相覆盖）：
+    // - 默认 node：纯逻辑单测。
+    // - glob 匹配 '*.test.jsx' → jsdom：组件/涉及 DOM 的 .jsx 测试无需文件内注释。
+    // - 其余 .js 测试若确实需要 DOM，必须在文件首行写 `// @vitest-environment jsdom`——
+    //   glob 无法只挑「部分 .js」，故不能并入上面的 glob；此注释不可误删。
     environment: 'node',
     environmentMatchGlobs: [
       // 组件测试（.jsx 一律 jsdom）
