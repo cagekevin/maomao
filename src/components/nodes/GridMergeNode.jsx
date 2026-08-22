@@ -154,12 +154,14 @@ function GridMergeNode({ id, data, selected }) {
     return { gridCells: z, longList: n }
   }, [connected, rows, cols])
 
+  // 上游数据同步：仅在 useMemo 派生源（connected/rows/cols）变化时更新 gridCells/longList。
+  // 拖拽交换（swapCells/swapLong）在 state 内部改，不改变 zCells/bList 引用 → 不触发此同步，
+  // 因此用户拖拽后的顺序不会被覆盖；上游连线/网格参数一变才重新同步。
   useEffect(() => {
     setGridCells(zCells)
-  }, [zCells])
-  useEffect(() => {
     setLongList(bList)
-  }, [bList])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [zCells, bList])
 
   // ---- 同步 data（复刻 Yo.jsx 60-78 行）----
   useEffect(() => {

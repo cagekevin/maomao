@@ -53,6 +53,9 @@ import {
   handleProviderProbeAsync, handleConfigBasePut,
 } from './routes/providers.js';
 import { handlePassthrough } from './routes/passthrough.js';
+import {
+  handleLocalPatchCrop, handleLocalPatchMerge, handleLocalPatchFingerprint,
+} from './routes/localPatch.js';
 
 // handler 第三参统一为 url:URL。无需第三参者少参直接放；需 string id 者闭包提取。
 // 返回值允许 boolean：catch-all 的 handlePassthrough 返回 Promise<boolean>（转发判定），
@@ -200,6 +203,11 @@ export const routes: Route[] = [
   // ── assets/upload 别名（L5）：双路径单 handler，拆两表项 ──
   { method: 'POST', pattern: '/api/assets/upload',    handler: handleUpload },
   { method: 'POST', pattern: '/api/upload/app-asset', handler: handleUpload },
+
+  // ── 局部提取与图像融合（local-patch）──
+  { method: 'POST', pattern: '/api/local-patch/crop',        handler: handleLocalPatchCrop },
+  { method: 'POST', pattern: '/api/local-patch/merge',       handler: handleLocalPatchMerge },
+  { method: 'POST', pattern: '/api/local-patch/fingerprint', handler: handleLocalPatchFingerprint },
 
   // ── catch-all 透传（必须最后，标 catchAll）──
   // pattern 用永远命中的正则；是否转发由 handlePassthrough 内部判定（isLocalOnlyPath）。

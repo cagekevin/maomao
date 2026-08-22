@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react'
-import { Crop, Pencil, FileArchive, Scaling } from 'lucide-react'
+import { Crop, Pencil, Maximize2, Minimize2 } from 'lucide-react'
 import ImageEditor from './ImageEditor.jsx'
 import InlineImageCropper from './InlineImageCropper.jsx'
 import { compressImage } from './imageCompress.js'
@@ -122,14 +122,14 @@ export function useImageHoverActions({ id, url, hasImage, label, onImageReplaced
     },
     {
       key: 'upscale',
-      icon: <Scaling size={14} />,
+      icon: <Maximize2 size={14} />,
       title: '超分放大（AI 2x）',
       onClick: handleUpscale,
       show: hasImage && !!url,
     },
     {
       key: 'compress',
-      icon: <FileArchive size={14} />,
+      icon: <Minimize2 size={14} />,
       title: '压缩图片（80%）',
       onClick: handleCompress,
       show: hasImage && !!url,
