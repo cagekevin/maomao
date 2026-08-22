@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react'
+import React, { useState, useRef, useCallback, useMemo } from 'react'
 import { useReactFlow } from '@xyflow/react'
 import {
   Image as ImageIcon, Plus, ZoomIn, Send, Download, Link as LinkIcon,
@@ -59,8 +59,17 @@ function PromptNode({ id, data, selected }) {
   // data.images 是剧本盒子连下游时用 collectAssets 按 @资产名 匹配后塞给本节点的资产参考图（更精准）。
   // 上游为空 + data 无图 → 两者都空 → 素材区隐藏，绝不显示假示例。
   // 【必须放在 prompt 定义之后、useNodeGeneration 之前】否则其 config 闭包首帧访问会触发 TDZ。
-  const refImages = [...(connected.images || []), ...(data.images?.length ? data.images : [])]
-  const refTexts = [...(connected.texts || []), ...(data.texts?.length ? data.texts : [])]
+  // 【memo 优化】用 useMemo 稳定 refImages/refTexts 引用：否则每次 render 新建数组，传给 memo 子组件
+  // （MaterialStrip/PromptInput）会失效导致每次重渲染。依赖用 connected.*/data.* 引用而非整对象，
+  // 上游/自身数据未变时引用稳定。
+  const refImages = useMemo(
+    () => [...(connected.images || []), ...(data.images?.length ? data.images : [])],
+    [connected.images, connected.texts, data.images, data.texts]
+  )
+  const refTexts = useMemo(
+    () => [...(connected.texts || []), ...(data.texts?.length ? data.texts : [])],
+    [connected.texts, connected.images, data.texts, data.images]
+  )
 
   // 【修复】上游文本节点连进来时，文字只进入 refTexts（素材区），不会被自动填进 prompt。
   // 构造「有效提示词」= 本地 prompt + 上游文本 合并：两者都参与生成，

@@ -393,7 +393,7 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
           setAttachments((prev) => [...prev, { type: 'image', url: dataUrl, localUrl }])
         } catch (err) {
           previewUrls.release(localUrl)
-          alert(`图片读取失败：${err?.message || err}`)
+          showToast(`图片读取失败：${err?.message || err}`, { type: 'error' })
         }
       }
     } finally {

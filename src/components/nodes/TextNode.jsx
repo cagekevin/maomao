@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback, useEffect } from 'react'
+import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { useReactFlow } from '@xyflow/react'
 import {
   FileText, Plus, Copy, ChevronDown, ChevronUp, Loader2,
@@ -105,7 +105,12 @@ function TextNode({ id, data, selected }) {
   // 卸载时释放所有预览 Blob URL，避免内存泄漏（对齐 VideoProcessNode / AgentPanel）
   useEffect(() => () => { images.forEach((u) => previewUrls.release(u)) }, [images])
   // 自身上传图片 + 连线上游图片，多上游图片节点自动合并
-  const refImages = [...(connected.images || []), ...images.map((u, i) => ({ id: `img-${i}`, url: u, label: `图片${i + 1}` }))]
+  // 【memo 优化】用 useMemo 稳定 refImages 引用：否则每次 render 新建数组，传给 memo 子组件
+  // （MaterialStrip/PromptInput）会失效导致每次重渲染。
+  const refImages = useMemo(
+    () => [...(connected.images || []), ...images.map((u, i) => ({ id: `img-${i}`, url: u, label: `图片${i + 1}` }))],
+    [connected.images, images]
+  )
   const textAreaRef = useRef(null)
   const fileRef = useRef(null)
   const promptInputRef = useRef(null) // 提示词 textarea ref（供面板右下角手柄拖拽改尺寸）
