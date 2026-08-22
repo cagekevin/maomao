@@ -175,6 +175,62 @@ function mapCookie(e) {
   }
 }
 
+/** 从 URL 解析 hostname（去端口）；失败返回空串 */
+export function hostOf(url) {
+  try { return new URL(url).hostname } catch { return '' }
+}
+
+/**
+ * 逐级上溯域名列表（如 www.qq.com → [www.qq.com, qq.com]）。
+ * 不引入 tldts 等依赖：对公有后缀（如 .com.cn）会多上溯一层（com.cn），
+ * 但多抓的这层通常无实际 cookie，仅多几次 getAll 调用，无害。
+ */
+export function domainAscendants(host) {
+  const out = []
+  const parts = (host || '').split('.').filter(Boolean)
+  for (let i = 0; i < parts.length - 1; i++) {
+    out.push(parts.slice(i).join('.'))
+  }
+  return out // [www.qq.com, qq.com]
+}
+
+/**
+ * 抓取当前标签页相关的全部 Cookie（加强版）：
+ *  - 先 getAll({url}) 拿当前域 + 其父域能访问的 cookie（Chrome 原生语义）；
+ *  - 再按域名逐级上溯（www.qq.com → qq.com）getAll({domain})，把挂在
+ *    其它子域 / 顶级注册域的登录 cookie 也抓进来（腾讯系、字节系等站点常用）；
+ *  - 合并去重（按 name + domain + path）。
+ * 仅扩展端可用；任一级失败静默跳过（尽量多抓，抓不全不阻塞保存）。
+ */
+async function collectAllCookies(url) {
+  if (!isExtensionEnv() || !url) return []
+  const seen = new Set()
+  const out = []
+  const push = (c) => {
+    if (!c) return
+    const key = `${c.name}|${c.domain}|${c.path}`
+    if (seen.has(key)) return
+    seen.add(key)
+    out.push(c)
+  }
+
+  // 1) 当前 url 域（含父域）兜底
+  try {
+    const base = await chrome.cookies.getAll({ url })
+    base.forEach(push)
+  } catch { /* 忽略 */ }
+
+  // 2) 逐级上溯域名 getAll({domain})，覆盖其它子域/顶级域的登录 cookie
+  const host = hostOf(url)
+  for (const dom of domainAscendants(host)) {
+    try {
+      const list = await chrome.cookies.getAll({ domain: dom })
+      list.forEach(push)
+    } catch { /* 忽略 */ }
+  }
+  return out
+}
+
 // ── 保存环境（复刻官方 `Sa(e)`，新建/修改同一入口）──
 // auto=true 对应官方 `Sa(true)`（「保存当前环境」卡片：忽略表单，自动抓取/降级 + 新建）。
 // 返回 { ok, error }；error 非空时调用方用 alert 提示（与官方一致）。
@@ -209,11 +265,11 @@ export async function saveEnvironment(auto = false) {
         return { ok: false, error: 'Cookie 格式错误，请输入有效的 JSON 数组或 key=value; 格式字符串' }
       }
     } else if (isExtensionEnv()) {
-      // 扩展端：抓当前激活标签页 cookies
+      // 扩展端：抓当前激活标签页 cookies（加强版：逐级上溯域名，尽量抓全登录 cookie）
       if (tab?.url) {
         siteUrl = tab.url
         avatar = tab.favIconUrl || `https://www.google.com/s2/favicons?domain=${new URL(tab.url).hostname}&sz=64`
-        cookies = await chrome.cookies.getAll({ url: tab.url })
+        cookies = await collectAllCookies(tab.url)
         if (tab.title) siteName = tab.title.substring(0, 5)
       }
     } else {

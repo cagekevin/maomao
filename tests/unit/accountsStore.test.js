@@ -30,6 +30,27 @@ describe('accountsStore §4 多开账号管理', () => {
     return mod.useAccounts().envs.slice(-1)[0]
   }
 
+  // ── 域名上溯纯函数（加强版 cookie 抓取的域名扩展）──
+  describe('hostOf / domainAscendants', () => {
+    it('hostOf 解析主机名并去端口', () => {
+      expect(mod.hostOf('https://www.qq.com/path')).toBe('www.qq.com')
+      expect(mod.hostOf('http://im.qq.com:8080/x')).toBe('im.qq.com')
+      expect(mod.hostOf('')).toBe('')
+      expect(mod.hostOf('not-a-url')).toBe('')
+    })
+    it('domainAscendants：www.qq.com → [www.qq.com, qq.com]', () => {
+      expect(mod.domainAscendants('www.qq.com')).toEqual(['www.qq.com', 'qq.com'])
+    })
+    it('domainAscendants：多级子域逐级上溯到注册域', () => {
+      expect(mod.domainAscendants('a.b.qq.com')).toEqual(['a.b.qq.com', 'b.qq.com', 'qq.com'])
+    })
+    it('domainAscendants：单段/空 → 空数组', () => {
+      expect(mod.domainAscendants('localhost')).toEqual([])
+      expect(mod.domainAscendants('')).toEqual([])
+      expect(mod.domainAscendants(null)).toEqual([])
+    })
+  })
+
   // ── parseCookies 纯函数 ──
   describe('parseCookies', () => {
     it('空串返回 null', () => {
