@@ -216,13 +216,7 @@ function AssetCard({ asset, idx, data, updateData, callbacks, render, onOpen, on
         <span className="text-caption-sm text-gray-200 truncate min-w-0 cursor-pointer" onClick={onOpen}>{asset.name}</span>
         <input type="checkbox" checked={!!asset.picked} onChange={onTogglePick} className="nodrag cursor-pointer shrink-0" />
       </div>
-      {/* 图片上传状态 */}
-      {asset.imageStatus && (
-        <div className={`flex items-center gap-1 text-meta mt-0.5 ${asset.imageStatus === 'uploaded' ? 'text-emerald-400' : asset.imageStatus === 'failed' ? 'text-red-400' : 'text-yellow-400'}`}>
-          {asset.imageStatus === 'uploading' && <Loader2 size={8} className="animate-spin" />}
-          {asset.imageStatus === 'uploaded' ? '✓ 图片已上传' : asset.imageStatus === 'failed' ? '✗ 上传失败' : '上传中…'}
-        </div>
-      )}
+      {/* 图片上传状态：不再显示任何提示行（图显示没显示一眼可见） */}
       {/* 本地图片选择（「上传图片」菜单项触发，只接受图片） */}
       <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handlePickFile} />
     </div>
