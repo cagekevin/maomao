@@ -138,6 +138,98 @@ export function deleteNodesWithCascade(nodes, edges, ids) {
   return { nodes: nextNodes, edges: nextEdges, deleted: [...toDelete] }
 }
 
+/** 节点实际尺寸（统一读取源：measured 优先、width 次之、style 兜底，避免缩放后尺寸漂移） */
+function dragGroupSize(n) {
+  return {
+    w: Number(n.measured?.width) || Number(n.width) || Number(n.style?.width) || 0,
+    h: Number(n.measured?.height) || Number(n.height) || Number(n.style?.height) || 0,
+  }
+}
+
+/**
+ * 拖拽节点落组判定（R3 治理：拖入 group 设 parentId、拖出解除 parentId）。
+ * 从 App.jsx handleNodeDragStop 抽出的纯几何计算，写回由调用方执行。
+ *
+ * 规则：
+ *  - 拖入：节点重叠面积 ≥ 子节点面积 50% 即算落入该组（复刻原实现）。
+ *  - 候选组：非折叠、不含被拖节点自身，按面积小→大（优先最内层）。
+ *  - 拖出：原父节点存在但不再命中任何组 → 解除 parentId、转绝对坐标。
+ *  - group 自身拖动不参与判定。
+ *  - 组尺寸只由用户手动调整，不随子节点自动伸缩。
+ *
+ * @param {object} draggedNode 被拖拽的节点（含 measured 尺寸）
+ * @param {Array} nodes 当前全部节点
+ * @returns {Array|null} 有组关系变化时返回新 nodes 数组；否则返回 null（位置移动由调用方另作历史记录）
+ */
+export function resolveDragGrouping(draggedNode, nodes) {
+  if (!draggedNode || draggedNode.type === 'group') return null
+  let cur = nodes
+  let changed = false
+
+  // 绝对坐标辅助（递归求父绝对位置）
+  const absPosOf = (id) => {
+    let x = 0, y = 0, nodeId = id
+    let guard = 0
+    while (nodeId && guard++ < 20) {
+      const n = cur.find((nn) => nn.id === nodeId)
+      if (!n) break
+      x += n.position.x; y += n.position.y
+      nodeId = n.parentId
+    }
+    return { x, y }
+  }
+  // 判定节点是否「大部分在 group 内」：重叠面积 ≥ 子节点面积一半（50%）即算组内
+  const insideGroup = (nodeAbs, g) => {
+    const gAbs = absPosOf(g.id)
+    const { w: gW, h: gH } = dragGroupSize(g)
+    const nW = Number(draggedNode.measured?.width) || Number(draggedNode.width) || Number(draggedNode.style?.width) || 100
+    const nH = Number(draggedNode.measured?.height) || Number(draggedNode.height) || Number(draggedNode.style?.height) || 60
+    const overlapW = Math.max(0, Math.min(nodeAbs.x + nW, gAbs.x + gW) - Math.max(nodeAbs.x, gAbs.x))
+    const overlapH = Math.max(0, Math.min(nodeAbs.y + nH, gAbs.y + gH) - Math.max(nodeAbs.y, gAbs.y))
+    const overlap = overlapW * overlapH
+    const nodeArea = nW * nH
+    return nodeArea > 0 && overlap / nodeArea >= 0.5
+  }
+
+  const draggedAbs = {
+    x: draggedNode.position.x + (draggedNode.parentId ? absPosOf(draggedNode.parentId).x : 0),
+    y: draggedNode.position.y + (draggedNode.parentId ? absPosOf(draggedNode.parentId).y : 0),
+  }
+  // 候选 group：非折叠、不包含被拖节点自身；按面积小→大（优先最内层）
+  const groups = cur
+    .filter((n) => n.type === 'group' && !n.data?.collapsed && n.id !== draggedNode.id)
+    .sort((a, b) => {
+      const sa = dragGroupSize(a); const sb = dragGroupSize(b)
+      return sa.w * sa.h - sb.w * sb.h
+    })
+  const newParent = groups.find((g) => insideGroup(draggedAbs, g))
+
+  if (newParent && draggedNode.parentId !== newParent.id) {
+    // 拖入/更换父组：转为该 group 子节点
+    const pAbs = absPosOf(newParent.id)
+    cur = cur.map((n) =>
+      n.id === draggedNode.id
+        ? { ...n, parentId: newParent.id, position: { x: draggedAbs.x - pAbs.x, y: draggedAbs.y - pAbs.y } }
+        : n
+    )
+    changed = true
+  } else if (!newParent && draggedNode.parentId) {
+    // 拖出原组：解除 parentId，转绝对坐标（group 保留）
+    const parent = cur.find((n) => n.id === draggedNode.parentId)
+    if (parent) {
+      const pAbs = absPosOf(parent.id)
+      cur = cur.map((n) =>
+        n.id === draggedNode.id
+          ? { ...n, parentId: undefined, extent: undefined, position: { x: draggedAbs.x, y: draggedAbs.y } }
+          : n
+      )
+      changed = true
+    }
+  }
+
+  return changed ? cur : null
+}
+
 /**
  * 克隆子图（R3 治理：修「复制丢连线 + 复制 group 成空壳」）。
  * 克隆选中节点及其**所有子孙**（若选中 group 则整组克隆），重映射 id/parentId，并重映射相关边，

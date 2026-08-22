@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { adoptUserNodes, getNodeDimensions } from '@xyflow/system'
-import { createGroupFromNodes, ungroupNodes, deleteNodesWithCascade, duplicateSelectedWithEdges } from '../../src/components/base/groupNodes.js'
+import { createGroupFromNodes, ungroupNodes, deleteNodesWithCascade, duplicateSelectedWithEdges, resolveDragGrouping } from '../../src/components/base/groupNodes.js'
 
 describe('编组算法 §2.2', () => {
   const nodes = [
@@ -220,5 +220,61 @@ describe('编组尺寸刷新保真（TASK: 编组后刷新大小变了）', () =
     // 旧白名单即使有 width/height（本次修复新增），也会因丢 initialWidth 退化；
     // 该用例守住「缺 initialWidth/height 会塌」的边界，提醒后续不要删这些字段。
     expect(dims.width).toBeLessThanOrEqual(780)
+  })
+})
+
+describe('R3 resolveDragGrouping 拖入/拖出落组判定', () => {
+  // 一个 group 占 (0,0)-(500,500)，内部有子节点；一个普通节点 100×100
+  const group = { id: 'g', type: 'group', data: {}, position: { x: 0, y: 0 }, style: { width: 500, height: 500 } }
+  const child = { id: 'c', type: 'imageNode', data: {}, position: { x: 40, y: 40 }, parentId: 'g', style: { width: 100, height: 100 } }
+  const outer = { id: 'o', type: 'textNode', data: {}, position: { x: 800, y: 800 }, style: { width: 100, height: 100 } }
+
+  it('group 自身拖动 → null（不参与）', () => {
+    const r = resolveDragGrouping({ ...group }, [group, outer])
+    expect(r).toBeNull()
+  })
+
+  it('拖入组内（重叠≥50%）→ 设 parentId + 相对坐标', () => {
+    const dragged = { id: 'd', type: 'imageNode', data: {}, position: { x: 200, y: 200 }, measured: { width: 100, height: 100 } }
+    // 传入的 nodes 必须包含被拖拽节点本身（对齐原调用方 nodesRef.current）
+    const r = resolveDragGrouping(dragged, [group, outer, dragged])
+    expect(r).not.toBeNull()
+    const moved = r.find((n) => n.id === 'd')
+    expect(moved.parentId).toBe('g')
+    expect(moved.position).toEqual({ x: 200, y: 200 }) // group 在原点，相对=绝对
+  })
+
+  it('完全在组外 → null（无组归属变化）', () => {
+    const dragged = { id: 'd', type: 'imageNode', data: {}, position: { x: 800, y: 800 }, measured: { width: 100, height: 100 } }
+    const r = resolveDragGrouping(dragged, [group, outer, dragged])
+    expect(r).toBeNull()
+  })
+
+  it('拖出原组 → 解除 parentId + 转绝对坐标', () => {
+    const dragged = { id: 'd', type: 'imageNode', data: {}, position: { x: 700, y: 700 }, parentId: 'g', measured: { width: 100, height: 100 } }
+    const r = resolveDragGrouping(dragged, [group, child, outer, dragged])
+    expect(r).not.toBeNull()
+    const moved = r.find((n) => n.id === 'd')
+    expect(moved.parentId).toBeUndefined()
+    expect(moved.extent).toBeUndefined()
+    // 原组在原点，绝对=相对 700,700
+    expect(moved.position).toEqual({ x: 700, y: 700 })
+  })
+
+  it('候选组按面积小→大：拖入重叠处优先最内层 group', () => {
+    const inner = { id: 'inner', type: 'group', data: {}, position: { x: 0, y: 0 }, style: { width: 200, height: 200 } }
+    // 节点落在 inner(0-200) 内，也落在 g(0-500) 内 → 应归 inner（面积更小）
+    const dragged = { id: 'd', type: 'imageNode', data: {}, position: { x: 50, y: 50 }, measured: { width: 100, height: 100 } }
+    const r = resolveDragGrouping(dragged, [inner, group, dragged])
+    expect(r).not.toBeNull()
+    const moved = r.find((n) => n.id === 'd')
+    expect(moved.parentId).toBe('inner')
+  })
+
+  it('折叠的 group 不作为候选（collapsed）', () => {
+    const folded = { id: 'folded', type: 'group', data: { collapsed: true }, position: { x: 0, y: 0 }, style: { width: 500, height: 500 } }
+    const dragged = { id: 'd', type: 'imageNode', data: {}, position: { x: 50, y: 50 }, measured: { width: 100, height: 100 } }
+    const r = resolveDragGrouping(dragged, [folded, dragged])
+    expect(r).toBeNull() // 折叠组不接收
   })
 })

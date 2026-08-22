@@ -7,7 +7,7 @@
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 
-const { sanitizePastedText, copyText, copyImageToClipboard, downloadUrl, downloadBlob } = await import(
+const { sanitizePastedText, copyText, copyImageToClipboard, downloadUrl, downloadBlob, buildNodesFromClipboard } = await import(
   '../../src/components/base/clipboard.js'
 )
 
@@ -171,5 +171,64 @@ describe('clipboard — downloadBlob（直接下载已有 Blob）', () => {
     expect(res.ok).toBe(true)
     const anchor = createEl.mock.results[0]?.value
     expect(anchor?.download).toBe('download')
+  })
+})
+
+describe('clipboard — buildNodesFromClipboard（粘贴节点组重建）', () => {
+  const clipboardJson = JSON.stringify({
+    type: 'mutiwindow-nodes',
+    nodes: [
+      { id: 'a', type: 'imageNode', data: { label: 'x' }, position: { x: 0, y: 0 }, measured: { width: 100, height: 100 } },
+      { id: 'b', type: 'textNode', data: {}, position: { x: 200, y: 0 }, measured: { width: 100, height: 100 } },
+    ],
+    edges: [{ id: 'e1', source: 'a', target: 'b' }],
+    originalIds: ['a', 'b'],
+  })
+
+  it('非 mutiwindow-nodes 格式 → null', () => {
+    expect(buildNodesFromClipboard('{"type":"other"}', { x: 0, y: 0 })).toBeNull()
+  })
+
+  it('非法 JSON → null', () => {
+    expect(buildNodesFromClipboard('not json', { x: 0, y: 0 })).toBeNull()
+  })
+
+  it('空 nodes → null', () => {
+    expect(buildNodesFromClipboard('{"type":"mutiwindow-nodes","nodes":[]}', { x: 0, y: 0 })).toBeNull()
+  })
+
+  it('正常重建：id 重映射、新节点 selected:true、data 深拷贝', () => {
+    const r = buildNodesFromClipboard(clipboardJson, { x: 500, y: 500 })
+    expect(r).not.toBeNull()
+    expect(r.nodes).toHaveLength(2)
+    // id 已重映射（不保留原 id a/b）
+    const newIds = r.nodes.map((n) => n.id)
+    expect(newIds).not.toContain('a')
+    expect(newIds).not.toContain('b')
+    expect(newIds[0].startsWith('imageNode-')).toBe(true)
+    // 新节点 selected:true
+    expect(r.nodes.every((n) => n.selected)).toBe(true)
+    // 边 id 用新 source/target 重映射
+    expect(r.edges).toHaveLength(1)
+    expect(r.edges[0].source).toBe(r.nodes[0].id)
+    expect(r.edges[0].target).toBe(r.nodes[1].id)
+    expect(r.edges[0].type).toBe('default')
+    expect(r.edges[0].selected).toBe(true)
+  })
+
+  it('以粘贴点为中心：包围盒中心对齐 pos', () => {
+    // 原包围盒 x: 0..200(0+100?) 实际 0..100 / y:0..100 → 中心 (50,50)
+    // 节点 a 绝对 x:0..100、b x:200..300 → 整体 x 范围 0..300，中心 150
+    const r = buildNodesFromClipboard(clipboardJson, { x: 1000, y: 800 })
+    const nodeA = r.nodes.find((n) => n.type === 'imageNode')
+    // a 原始 position.x=0，平移后 = pos.x + (0 - centerX) = 1000 + (0 - 150) = 850
+    expect(nodeA.position.x).toBe(850)
+  })
+
+  it('data 字段深拷贝（修改结果不改原 JSON 对象）', () => {
+    const src = { type: 'mutiwindow-nodes', nodes: [{ id: 'a', type: 'imageNode', data: { label: 'L' }, position: { x: 0, y: 0 } }] }
+    const r = buildNodesFromClipboard(JSON.stringify(src), { x: 0, y: 0 })
+    r.nodes[0].data.label = 'MUTATED'
+    expect(src.nodes[0].data.label).toBe('L')
   })
 })

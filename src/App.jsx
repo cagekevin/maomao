@@ -50,9 +50,14 @@ import EmptyCanvasGuide from './components/base/EmptyCanvasGuide.jsx'
 import { initTasks } from './components/base/taskStore.js'
 import { initTaskRecovery } from './components/base/pollTask.js'
 import { createGroupFromNodes, ungroupNodes, deleteNodesWithCascade, duplicateSelectedWithEdges } from './components/base/groupNodes.js'
+import { externalizeInlineData } from './components/base/externalizeInline.js'
 import { saveInlineToLocal } from './components/base/filesApi.js'
 import { generateId } from './components/base/idGen.js'
-import { deepClone, createRafBatch } from './components/base/utils.js'
+import { createRafBatch } from './components/base/utils.js'
+import { resolveDragGrouping } from './components/base/groupNodes.js'
+import { buildNodesFromClipboard } from './components/base/clipboard.js'
+import { applyNodeTypeDefaults } from './components/base/nodeDefaults.js'
+import { useCanvasSync } from './components/base/useCanvasSync.js'
 
 /* ======================================================================
  * 【区 1】常量与配置区
@@ -149,10 +154,9 @@ function Canvas() {
   }, [activeProjectId])
 
   /* ====================================================================
-   * 多窗口画布同步检测（复刻官方 H_.jsx:480-492 + 870-880）
-   *  - 每窗口唯一 tabId
-   *  - BroadcastChannel('yimao_canvas_sync') 监听：收到「其他窗口」保存的
-   *    同一项目 CANVAS_SAVED → 显示红色警告条「画布在其他窗口被修改」
+   * 多窗口画布同步检测（复刻官方 H_.jsx:480-492 + 870-880）——收拢到 useCanvasSync hook。
+   *  - 每窗口唯一 tabId；BroadcastChannel('yimao_canvas_sync') 监听：收到「其他窗口」
+   *    保存的同一项目 CANVAS_SAVED → 置 canvasConflict（App 显示红色警告条）。
    *
    * ═══ 官方其他 BroadcastChannel/mutiwindow 事件，我们为什么不做 ═══
    * 1) mutiwindow-task-completed / mutiwindow-rerun-task：
@@ -164,26 +168,11 @@ function Canvas() {
    *    这是「模型调度 / 内置模型详情」两个独立功能面板的窗口内事件，
    *    属功能缺失而非窗口机制，应单独评估开发，不并入本多窗口模块。
    * ==================================================================== */
-  const tabIdRef = React.useRef(generateId('tab'))
-  const [canvasConflict, setCanvasConflict] = React.useState(false)
+  const { canvasConflict, tabIdRef } = useCanvasSync(() => getCurrentProject()?.id)
+  // 切换项目后重置冲突标记（官方在 projectId 变化时不应残留旧项目冲突）
   React.useEffect(() => {
-    let channel
-    try {
-      channel = new BroadcastChannel('yimao_canvas_sync')
-      channel.onmessage = (e) => {
-        if (
-          e?.data?.type === 'CANVAS_SAVED' &&
-          e.data.projectId === getCurrentProject().id &&
-          e.data.tabId !== tabIdRef.current
-        ) {
-          setCanvasConflict(true)
-        }
-      }
-    } catch (err) {
-      logger.warn('Canvas', 'BroadcastChannel 不可用', err?.message)
-    }
-    return () => { try { channel?.close() } catch { /* ignore */ } }
-  }, [])
+    setCanvasConflict(false)
+  }, [getCurrentProject()?.id])
   // 切换项目后重置冲突标记（官方在 projectId 变化时不应残留旧项目冲突）
   React.useEffect(() => {
     setCanvasConflict(false)
@@ -467,44 +456,9 @@ function Canvas() {
    * 画布操作：addNode / deleteNode / selectAll / duplicateSelected
    * ==================================================================== */
 
-  // 各节点类型「结构默认」单源表：addNode 新建、快照加载还原都复用，
-  // 避免「右键/菜单新建」与「历史快照还原」两套路径字段不一致（如 group 缺 style/className）。
-  // 仅放与视觉/结构相关、缺失会出问题的字段：width/height/style/initialWidth/initialHeight/className/data.name。
-  const NODE_TYPE_DEFAULTS = {
-    promptNode: { width: 420, height: 420, style: { width: 420, height: 420 } },
-    gridSplitNode: { width: 280, style: { width: 280 } },
-    videoProcessNode: { width: 520, height: 620, style: { width: 520, height: 620 } },
-    panoramaNode: { width: 640, height: 360, style: { width: 640, height: 360 } },
-    director3dNode: { width: 420, height: 300, style: { width: 420, height: 300 } },
-    group: { width: 300, height: 200, style: { width: 300, height: 200 }, initialWidth: 300, initialHeight: 200, className: 'yimao-group-node' },
-  }
-  // 对已有 node 补缺失的结构默认（不覆盖已存在的字段），返回新 node 对象。
-  const applyNodeTypeDefaults = useCallback((node) => {
-    const d = NODE_TYPE_DEFAULTS[node.type]
-    if (!d) return node
-    const next = { ...node }
-    // group 特殊：优先用折叠时记录的真实尺寸（expandedWidth/expandedHeight）兜底，
-    // 否则旧快照 group 尺寸字段全丢时，会硬编码回默认 300×200（"刷新后编组大小变了"的根因之一）。
-    // 仅当真实尺寸字段也缺失时才用类型默认值。
-    const fallbackW = node.type === 'group' && (node.data?.expandedWidth ?? node.data?.expandedHeight)
-      ? (node.data.expandedWidth || d.width)
-      : d.width
-    const fallbackH = node.type === 'group' && (node.data?.expandedWidth ?? node.data?.expandedHeight)
-      ? (node.data.expandedHeight || d.height)
-      : d.height
-    // 尺寸/style/initial 只在缺失时补（存量快照若已有正确值则不覆盖）
-    for (const k of ['width', 'height', 'initialWidth', 'initialHeight', 'className']) {
-      if (next[k] === undefined || next[k] === null) {
-        next[k] = k === 'width' ? fallbackW : k === 'height' ? fallbackH : d[k]
-      }
-    }
-    next.style = next.style ? { ...(d.style || {}), ...next.style } : (d.style || next.style)
-    // group 的 data.name 缺失兜底
-    if (node.type === 'group') {
-      next.data = { ...node.data, name: node.data?.name || '编组' }
-    }
-    return next
-  }, [])
+  // 各节点类型「结构默认」单源表 + 补齐函数已收拢到 nodeDefaults.js（见 import）。
+  // 注意：applyNodeTypeDefaults 为模块级纯函数，引用稳定，addNode/加载 effect 直接复用，
+  // 与快照加载还原路径共用同一单源，避免「新建/右键」与「历史还原」字段不一致。
 
   // 新增节点（复刻源码 di(type, position, data, connection)）
   // connection?: { source, sourceHandle, dropPosition } —— 从端口拖出到空白时，
@@ -533,7 +487,7 @@ function Canvas() {
       }
 
       const newNode = { id, type, position: { ...position }, data: nodeData }
-      // 复用 NODE_TYPE_DEFAULTS 单源表，与「快照加载还原」保持一致（见加载 effect）
+      // 复用 nodeDefaults.js 单源表，与「快照加载还原」保持一致（见加载 effect）
       const nodeWithDefaults = applyNodeTypeDefaults(newNode)
       const nextNodes = [...nodesRef.current, nodeWithDefaults]
       // 若带 connection：自动创建 source→新节点 的边。
@@ -666,39 +620,11 @@ function Canvas() {
 
   // 粘贴节点组（对齐官方 xi，H_.jsx:9635-9789）：解析 mutiwindow-nodes 重建节点+边，
   // 以粘贴点 pos 为中心整体落下。返回是否处理了 mutiwindow-nodes。
+  // 解析+重建纯逻辑已收拢到 clipboard.buildNodesFromClipboard，这里只做编排（写回/历史/toast）。
   const pasteNodeGroup = useCallback(async (jsonStr, pos) => {
-    let t
-    try {
-      t = JSON.parse(jsonStr)
-    } catch {
-      return false
-    }
-    if (!t || t.type !== 'mutiwindow-nodes') return false
-    const e = t.nodes || []
-    if (e.length === 0) return false
-    const n = t.edges || []
-    // 计算原节点组包围盒中心，使整组以粘贴点为中心落下（对齐官方 xi:9673-9686）
-    const o = Math.min(...e.map((x) => x.position?.x ?? 0))
-    const s = Math.min(...e.map((x) => x.position?.y ?? 0))
-    const c = Math.max(...e.map((x) => (x.position?.x ?? 0) + (x.measured?.width || 300)))
-    const l = Math.max(...e.map((x) => (x.position?.y ?? 0) + (x.measured?.height || 300)))
-    const u = (o + c) / 2
-    const d = (s + l) / 2
-    const f = new Map()
-    const p = e.map((x) => {
-      const id = `${x.type}-${generateId('n')}`
-      f.set(x.id, id)
-      const data = deepClone(x.data || {})
-      return { ...x, id, position: { x: pos.x + (x.position?.x ?? 0) - u, y: pos.y + (x.position?.y ?? 0) - d }, selected: true, data }
-    })
-    const m = (n || []).map((x) => ({
-      ...x,
-      id: `e-${f.get(x.source)}-${f.get(x.target)}`,
-      source: f.get(x.source),
-      target: f.get(x.target),
-      selected: true,
-      type: 'default'
-    }))
+    const rebuilt = buildNodesFromClipboard(jsonStr, pos)
+    if (!rebuilt) return false
+    const { nodes: p, edges: m, count } = rebuilt
     const beforeNodes = nodesRef.current
     const beforeEdges = edgesRef.current
     // 旧节点取消选中，新节点/边并入（对齐官方 xi:9751-9766）
@@ -707,7 +633,7 @@ function Canvas() {
     setNodes(nextNodes)
     setEdges(nextEdges)
     history.record({ nodes: nextNodes, edges: nextEdges })
-    showToast(`已粘贴 ${p.length} 个节点`)
+    showToast(`已粘贴 ${count} 个节点`)
     return true
   }, [setNodes, setEdges, history])
 
@@ -766,38 +692,8 @@ function Canvas() {
   //  2) 落盘成功的字段用 URL 替换；失败字段保留原 base64（绝不删图，图片不丢）；
   //  3) localTool 离线时无法落盘 → 保留原图并提示，不做任何删除。
   const handleClearCache = useCallback(async () => {
-    // 递归克隆 data 并把内联 dataURL 字段替换为本地 URL（不可变更新，原则 3）。
-    // 返回 { data: 新对象, converted, failed }；failed 表示该字段保留原 base64。
-    const externalizeNodeData = async (nodeData) => {
-      let converted = 0
-      let failed = 0
-      const walk = async (obj) => {
-        if (Array.isArray(obj)) {
-          return Promise.all(obj.map((it) => (it && typeof it === 'object' ? walk(it) : it)))
-        }
-        if (!obj || typeof obj !== 'object') return obj
-        const out = {}
-        for (const key of Object.keys(obj)) {
-          const val = obj[key]
-          if (typeof val === 'string' && val.startsWith('data:')) {
-            const url = await saveInlineToLocal(val)
-            if (url && url !== val) {
-              out[key] = url
-              converted++
-            } else {
-              out[key] = val // 落盘失败保留原图，不丢
-              failed++
-            }
-          } else if (val && typeof val === 'object') {
-            out[key] = await walk(val)
-          } else {
-            out[key] = val
-          }
-        }
-        return out
-      }
-      return { data: await walk(nodeData), converted, failed }
-    }
+    // 递归外置内联 dataURL 的纯逻辑已收拢到 externalizeInline.externalizeInlineData，
+    // 这里注入真实落盘依赖 saveInlineToLocal，只做编排（遍历节点 + 计数 + 写回）。
 
     // 1. localTool 离线无法落盘 → 保留原图，绝不删除
     if (!localTool.isConnected) {
@@ -810,7 +706,7 @@ function Canvas() {
     let changed = false
     const next = []
     for (const n of nodesRef.current) {
-      const { data: newData, converted, failed } = await externalizeNodeData(n.data)
+      const { data: newData, converted, failed } = await externalizeInlineData(n.data, { save: saveInlineToLocal })
       convertedTotal += converted
       failedTotal += failed
       if (converted > 0 || failed > 0) {
@@ -1300,81 +1196,12 @@ function Canvas() {
   // group 尺寸只由用户手动拖动调整，不根据子节点自动伸缩。
   const handleNodeDragStop = React.useCallback((_evt, dragged) => {
     if (!dragged || dragged.type === 'group') return
-    let cur = nodesRef.current
-    let changed = false
-
-    // ---- 1&2) 拖入/拖出判定 ----
-    // 绝对坐标辅助（递归求父绝对位置）
-    const absPosOf = (id) => {
-      let x = 0, y = 0, nodeId = id
-      let guard = 0
-      while (nodeId && guard++ < 20) {
-        const n = cur.find((nn) => nn.id === nodeId)
-        if (!n) break
-        x += n.position.x; y += n.position.y
-        nodeId = n.parentId
-      }
-      return { x, y }
-    }
-    // 判定节点是否「大部分在 group 内」：重叠面积 ≥ 子节点面积的一半（50%）即算组内。
-    // 统一的 group 尺寸读取：优先 measured（React Flow NodeResizer 拖拽 resize 后写入
-    // node.width/height，即 measured），width 次之，style 仅作兜底。
-    // createGroupFromNodes 给 group 设了 style.width/height，但手动 resize 只更新 measured，
-    // 不回写 style —— 若优先读 style 会一直用编组创建时的旧尺寸，导致「缩放编组后子节点归属
-    // 判定/排序不更新」的 bug。insideGroup 判定与候选 group 排序必须共用同一来源。
-    const groupSize = (g) => ({
-      w: Number(g.measured?.width) || Number(g.width) || Number(g.style?.width) || 0,
-      h: Number(g.measured?.height) || Number(g.height) || Number(g.style?.height) || 0,
-    })
-    // 这样比中心点判定更宽松直观：只要子节点一半以上落进 group，就算归组。
-    const insideGroup = (nodeAbs, g) => {
-      const gAbs = absPosOf(g.id)
-      const { w: gW, h: gH } = groupSize(g)
-      const nW = Number(dragged.measured?.width) || Number(dragged.width) || Number(dragged.style?.width) || 100
-      const nH = Number(dragged.measured?.height) || Number(dragged.height) || Number(dragged.style?.height) || 60
-      const overlapW = Math.max(0, Math.min(nodeAbs.x + nW, gAbs.x + gW) - Math.max(nodeAbs.x, gAbs.x))
-      const overlapH = Math.max(0, Math.min(nodeAbs.y + nH, gAbs.y + gH) - Math.max(nodeAbs.y, gAbs.y))
-      const overlap = overlapW * overlapH
-      const nodeArea = nW * nH
-      return nodeArea > 0 && overlap / nodeArea >= 0.5
-    }
-
-    const draggedAbs = { x: dragged.position.x + (dragged.parentId ? absPosOf(dragged.parentId).x : 0), y: dragged.position.y + (dragged.parentId ? absPosOf(dragged.parentId).y : 0) }
-    // 候选 group：非折叠、不包含被拖节点自身；按面积小→大（优先最内层）。排序尺寸必须与
-    // insideGroup 一致（用 groupSize），否则缩放编组后排序基于旧 style 会让「优先最内层」失效。
-    const groups = cur
-      .filter((n) => n.type === 'group' && !n.data?.collapsed && n.id !== dragged.id)
-      .sort((a, b) => {
-        const sa = groupSize(a); const sb = groupSize(b)
-        return sa.w * sa.h - sb.w * sb.h
-      })
-    const newParent = groups.find((g) => insideGroup(draggedAbs, g))
-
-    if (newParent && dragged.parentId !== newParent.id) {
-      // 拖入/更换父组：转为该 group 子节点
-      const pAbs = absPosOf(newParent.id)
-      cur = cur.map((n) =>
-        n.id === dragged.id
-          ? { ...n, parentId: newParent.id, position: { x: draggedAbs.x - pAbs.x, y: draggedAbs.y - pAbs.y } }
-          : n
-      )
-      changed = true
-    } else if (!newParent && dragged.parentId) {
-      // 拖出原组：解除 parentId，转绝对坐标（group 保留）
-      const parent = cur.find((n) => n.id === dragged.parentId)
-      if (parent) {
-        const pAbs = absPosOf(parent.id)
-        cur = cur.map((n) =>
-          n.id === dragged.id
-            ? { ...n, parentId: undefined, extent: undefined, position: { x: draggedAbs.x, y: draggedAbs.y } }
-            : n
-        )
-        changed = true
-      }
-    }
-
+    // 拖入/拖出判定的纯几何计算已收拢到 groupNodes.resolveDragGrouping：
+    // 返回新 nodes（有组归属变化）或 null（无组归属变化）。
+    // 几何细节（absPosOf/groupSize/insideGroup/候选组面积排序）见该函数。
+    const nextNodes = resolveDragGrouping(dragged, nodesRef.current)
     // group 尺寸只由用户手动拖动调整，不根据子节点自动伸缩
-    if (changed) setNodes(cur)
+    if (nextNodes) setNodes(nextNodes)
     // R3：位置拖拽进撤销栈（最高频操作）。无论是否跨组，拖拽结束后 React Flow 已把
     // 新 position 写进 nodesRef.current，这里统一 record，使「移动节点/改组归属」都可 Ctrl+Z。
     // 只 record 节点位置相关快照，避免进入 suppress 竞态（TASK-013#2 由 useCanvasHistory 处理）。

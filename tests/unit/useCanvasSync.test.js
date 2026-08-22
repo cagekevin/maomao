@@ -1,0 +1,85 @@
+// @vitest-environment jsdom
+/**
+ * useCanvasSync 单测（多窗口画布同步检测 hook）。
+ * 策略：stub 全局 BroadcastChannel 为可捕获 onmessage 的 fake，模拟收到 CANVAS_SAVED 消息，
+ * 验证「同项目 + 异 tab → 冲突」以及「同 tab / 异项目 → 不冲突」，并确认清理时 close 被调用。
+ */
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { renderHook, act } from '@testing-library/react'
+
+// fake BroadcastChannel：捕获最新实例，供测试注入消息
+let latestChannel = null
+class FakeBroadcastChannel {
+  constructor(name) { this.name = name; this.onmessage = null; this.closed = false; latestChannel = this }
+  close() { this.closed = true }
+}
+const closeSpy = vi.fn()
+FakeBroadcastChannel.prototype.close = function () { this.closed = true; closeSpy(this.name) }
+
+const { useCanvasSync } = await import('../../src/components/base/useCanvasSync.js')
+
+beforeEach(() => {
+  latestChannel = null
+  closeSpy.mockClear()
+  vi.stubGlobal('BroadcastChannel', FakeBroadcastChannel)
+})
+afterEach(() => {
+  vi.unstubAllGlobals()
+  vi.clearAllMocks()
+})
+
+/** 触发一次 onmessage（模拟跨窗口广播） */
+function emit(data) {
+  if (!latestChannel?.onmessage) throw new Error('无 onmessage 处理器')
+  latestChannel.onmessage({ data })
+}
+
+describe('useCanvasSync — 多窗口画布同步检测', () => {
+  it('收到同项目 + 异 tab 的 CANVAS_SAVED → canvasConflict=true', async () => {
+    const { result } = renderHook(() => useCanvasSync(() => 'proj-1'))
+    const myTabId = result.current.tabIdRef.current
+    await act(async () => {
+      emit({ type: 'CANVAS_SAVED', projectId: 'proj-1', tabId: 'tab-other' })
+    })
+    expect(result.current.canvasConflict).toBe(true)
+    expect(myTabId).not.toBe('tab-other')
+  })
+
+  it('收到同项目 + 同 tab（自己广播）→ 不置冲突', async () => {
+    const { result } = renderHook(() => useCanvasSync(() => 'proj-1'))
+    const myTabId = result.current.tabIdRef.current
+    await act(async () => {
+      emit({ type: 'CANVAS_SAVED', projectId: 'proj-1', tabId: myTabId })
+    })
+    expect(result.current.canvasConflict).toBe(false)
+  })
+
+  it('收到不同项目的 CANVAS_SAVED → 不置冲突', async () => {
+    const { result } = renderHook(() => useCanvasSync(() => 'proj-1'))
+    await act(async () => {
+      emit({ type: 'CANVAS_SAVED', projectId: 'proj-2', tabId: 'tab-other' })
+    })
+    expect(result.current.canvasConflict).toBe(false)
+  })
+
+  it('收到非 CANVAS_SAVED 消息 → 不置冲突', async () => {
+    const { result } = renderHook(() => useCanvasSync(() => 'proj-1'))
+    await act(async () => {
+      emit({ type: 'OTHER_EVENT', projectId: 'proj-1', tabId: 'tab-other' })
+    })
+    expect(result.current.canvasConflict).toBe(false)
+  })
+
+  it('初始 canvasConflict=false，且 tabIdRef 是唯一 id', () => {
+    const { result } = renderHook(() => useCanvasSync(() => 'proj-1'))
+    expect(result.current.canvasConflict).toBe(false)
+    expect(typeof result.current.tabIdRef.current).toBe('string')
+    expect(result.current.tabIdRef.current.length).toBeGreaterThan(0)
+  })
+
+  it('卸载时关闭 BroadcastChannel', () => {
+    const { unmount } = renderHook(() => useCanvasSync(() => 'proj-1'))
+    unmount()
+    expect(closeSpy).toHaveBeenCalledWith('yimao_canvas_sync')
+  })
+})

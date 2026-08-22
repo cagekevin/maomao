@@ -16,6 +16,8 @@
 import { logger } from './logger.js'
 import { httpRequest } from './httpClient.js'
 import { DOWNLOAD_TIMEOUT } from './config.js'
+import { generateId } from './idGen.js'
+import { deepClone } from './utils.js'
 
 /**
  * 粘贴文本清洗（纯文本化）：把从剪贴板/富文本带过来的「样式与格式残留」全部丢弃，只留干净纯文本。
@@ -78,6 +80,54 @@ export async function copyImageToClipboard(url) {
       return { ok: false, msg: '复制失败，可能因跨域或权限限制' }
     }
   }
+}
+
+/**
+ * 从剪贴板 JSON 重建节点组（对齐官方 xi，H_.jsx:9635-9789）。
+ * 从 App.jsx pasteNodeGroup 抽出的纯逻辑：解析 mutiwindow-nodes → 包围盒中心对齐 →
+ * id 重映射 + 重建节点/边。只返回计算结果，写回 setNodes/setEdges/history/showToast
+ * 由调用方编排。
+ *
+ * @param {string} jsonStr 剪贴板内容
+ * @param {{x:number,y:number}} pos 粘贴落点（视图坐标，整组以该点为中心落下）
+ * @returns {null|{nodes:Array, edges:Array, count:number}}
+ *   非 mutiwindow-nodes 格式 / 空节点 → null；否则返回重建后的 nodes（新节点 selected:true、
+ *   旧节点 selected:false）与 edges（id 已重映射）。
+ */
+export function buildNodesFromClipboard(jsonStr, pos) {
+  let t
+  try {
+    t = JSON.parse(jsonStr)
+  } catch {
+    return null
+  }
+  if (!t || t.type !== 'mutiwindow-nodes') return null
+  const e = t.nodes || []
+  if (e.length === 0) return null
+  const n = t.edges || []
+  // 计算原节点组包围盒中心，使整组以粘贴点为中心落下（对齐官方 xi:9673-9686）
+  const o = Math.min(...e.map((x) => x.position?.x ?? 0))
+  const s = Math.min(...e.map((x) => x.position?.y ?? 0))
+  const c = Math.max(...e.map((x) => (x.position?.x ?? 0) + (x.measured?.width || 300)))
+  const l = Math.max(...e.map((x) => (x.position?.y ?? 0) + (x.measured?.height || 300)))
+  const u = (o + c) / 2
+  const d = (s + l) / 2
+  const f = new Map()
+  const p = e.map((x) => {
+    const id = `${x.type}-${generateId('n')}`
+    f.set(x.id, id)
+    const data = deepClone(x.data || {})
+    return { ...x, id, position: { x: pos.x + (x.position?.x ?? 0) - u, y: pos.y + (x.position?.y ?? 0) - d }, selected: true, data }
+  })
+  const m = (n || []).map((x) => ({
+    ...x,
+    id: `e-${f.get(x.source)}-${f.get(x.target)}`,
+    source: f.get(x.source),
+    target: f.get(x.target),
+    selected: true,
+    type: 'default'
+  }))
+  return { nodes: p, edges: m, count: p.length }
 }
 
 /** 复制纯文本到剪贴板。返回 { ok, msg }。 */
