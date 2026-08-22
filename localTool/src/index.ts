@@ -12,6 +12,7 @@ import { fileURLToPath } from 'node:url';
 import { execSync } from 'node:child_process';
 import { createServer } from 'node:net';
 import { getDb, closeDb, getUploadDir, getDataDir, backupDb, startBackupSchedule } from './db/database.js';
+import { VERSION } from './version.js';
 import { sendError } from './utils/helpers.js';
 // 声明式路由表：所有具名路由集中在 router.ts，新增端点只加一行（详见 docs/11）
 import { routes, matchRoute } from './router.js';
@@ -61,7 +62,6 @@ loadDotEnv();
 initLogWriter();
 
 const PORT = Number(process.env.PORT) || 18080;
-const VERSION = '1.4.2';
 
 // 高频轮询端点（心跳/配置同步/资源缓存）不打印，避免日志刷屏
 // 这些由画布前端每秒轮询，无业务价值；代理类已在 system.ts 单独打 [proxy] 日志

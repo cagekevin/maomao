@@ -168,13 +168,16 @@ export async function loadCanvasState(projectId) {
     // 缺省字段由 App 加载侧的 applyNodeTypeDefaults 补齐，读取端不在此改结构，保持最小差异。
     // P20 viewport：旧快照可能无 viewport（未存视窗），读取端归一为 null（App 侧回退 fitView 适配全图）。
     const vp = v.viewport
-    return {
+    const result = {
       ...v,
       nodes: Array.isArray(v.nodes) ? v.nodes : null,
       edges: Array.isArray(v.edges) ? v.edges : [],
       schemaVersion: typeof v.schemaVersion === 'number' ? v.schemaVersion : 1,
       viewport: vp && typeof vp === 'object' ? { x: Number(vp.x) || 0, y: Number(vp.y) || 0, zoom: Number(vp.zoom) || 1 } : null,
     }
+    // 【P0 埋点】快照加载成功（排查「刷新后画布空/丢节点」：记录读到的节点/边数，区分「没存」vs「读了但空」）
+    logger.debug('项目', '[加载快照]', { projectId: projectId || currentProjectId, nodeCount: result.nodes?.length ?? 0, edgeCount: result.edges?.length ?? 0, schemaVersion: result.schemaVersion }, { module: 'project' })
+    return result
   } catch (e) {
     logger.warn('projectStore', '读取画布快照失败（KV 不可用？）', e?.message)
     return null
@@ -219,6 +222,8 @@ export async function saveCanvasState(projectId, nodes, edges, viewport) {
   try {
     // 对齐官方 shared.js L1405：空画布跳过保存，防止空画布覆盖已有历史（误清空保护）。
     if (!nodes || nodes.length === 0) {
+      // 【P0 埋点】空画布跳过保存（排查「画布被清空/不保存」：确认是主动跳过而非丢失）
+      logger.debug('项目', '[保存快照] 空画布跳过', { projectId: projectId || currentProjectId }, { module: 'project' })
       return { success: false, skipped: true }
     }
     // 对齐官方 shared.js L1416：版本冲突检测。每次保存用 Date.now() 作为版本号写入 <key>_version，
@@ -239,13 +244,17 @@ export async function saveCanvasState(projectId, nodes, edges, viewport) {
     if (viewport && typeof viewport === 'object' && Number.isFinite(viewport.zoom)) {
       savedViewport = { x: Number(viewport.x) || 0, y: Number(viewport.y) || 0, zoom: Number(viewport.zoom) || 1 }
     }
+    const sanitizedNodes = sanitizeNodes(nodes)
+    const sanitizedEdges = sanitizeEdges(edges)
     await contentSetAsync(key, {
       schemaVersion: CANVAS_SCHEMA_VERSION,
-      nodes: sanitizeNodes(nodes),
-      edges: sanitizeEdges(edges),
+      nodes: sanitizedNodes,
+      edges: sanitizedEdges,
       ...(savedViewport ? { viewport: savedViewport } : {}),
     })
     await contentSetAsync(`${key}_version`, version)
+    // 【P0 埋点】快照保存成功（排查「刷新丢节点/丢字段」：记录保存前后节点数，区分「没存」vs「sanitize 裁剪」）
+    logger.debug('项目', '[保存快照]', { projectId: projectId || currentProjectId, version, nodeCount: nodes.length, savedNodeCount: sanitizedNodes.length, edgeCount: edges.length, savedEdgeCount: sanitizedEdges.length }, { module: 'project' })
     return { success: true, skipped: false }
   } catch (e) {
     logger.warn('projectStore', '保存画布快照失败（KV 不可用？）', e?.message)
@@ -265,21 +274,33 @@ export function createProject(name) {
   currentProjectId = proj.id
   persist()
   notify()
+  // 【P0 埋点】新建项目（排查项目丢失/切错项目：记录新建动作与总项目数）
+  logger.debug('项目', '[新建]', { id: proj.id, name: proj.name, total: projects.length }, { module: 'project' })
   return proj
 }
 
 // 切换项目：返回目标项目
 export function switchProject(id) {
-  if (!projects.some((p) => p.id === id)) return getCurrentProject()
+  if (!projects.some((p) => p.id === id)) {
+    logger.debug('项目', '[切到] 目标不存在', { id, available: projects.map((p) => p.id) }, { module: 'project' })
+    return getCurrentProject()
+  }
+  const from = currentProjectId
   currentProjectId = id
   persist()
   notify()
+  // 【P0 埋点】切换项目（排查「刷新后项目错位/切错」：记录 from→to）
+  logger.debug('项目', '[切到]', { from, to: id }, { module: 'project' })
   return getCurrentProject()
 }
 
 // 删除项目：至少保留一个；删除时移除画布快照（KV），切到第一个
 export function deleteProject(id) {
-  if (projects.length <= 1) return false
+  if (projects.length <= 1) {
+    logger.debug('项目', '[删除] 被拒（至少保留一个）', { id, total: projects.length }, { module: 'project' })
+    return false
+  }
+  const before = projects.length
   projects = projects.filter((p) => p.id !== id)
   // 异步删除画布快照（KV）及对应 _version 版本 key
   contentDeleteAsync(CANVAS_STATE_PREFIX + id).catch(() => {}) // fire-and-forget，KV 删除失败不影响主流程
@@ -287,14 +308,19 @@ export function deleteProject(id) {
   if (currentProjectId === id) currentProjectId = projects[0].id
   persist()
   notify()
+  // 【P0 埋点】删除项目（排查「项目莫名消失」：确认删除动作发生）
+  logger.debug('项目', '[删除]', { id, before, after: projects.length }, { module: 'project' })
   return true
 }
 
 // 重命名项目
 export function renameProject(id, name) {
+  const prev = getCurrentProject().id === id ? getCurrentProject().name : undefined
   projects = projects.map((p) => (p.id === id ? { ...p, name: (name && name.trim()) || p.name } : p))
   persist()
   notify()
+  // 【P0 埋点】重命名项目
+  logger.debug('项目', '[重命名]', { id, name: (name && name.trim()) || prev }, { module: 'project' })
 }
 
 export function useProjects() {

@@ -123,6 +123,8 @@ const b64Mod = await import(toFileUrl(path.join(dist, 'utils', 'base64Externaliz
 const gcMod = await import(toFileUrl(path.join(dist, 'utils', 'orphanGc.js')));
 const platformMod = await import(toFileUrl(path.join(dist, 'routes', 'platform.js')));
 const systemMod = await import(toFileUrl(path.join(dist, 'routes', 'system.js')));
+// 版本号单源（version.ts），断言随实现走，改版本号时测试永不脱节
+const { VERSION } = await import(toFileUrl(path.join(dist, 'version.js')));
 
 // ── 每个测试独立数据目录 ──
 beforeEach(() => {
@@ -700,7 +702,7 @@ test('工具·runOrphanGc dryRun 不删除', () => {
 test('Platform·plugin manifest 返回版本且无更新', async () => {
   const res = makeRes();
   await platformMod.handlePluginManifest(makeGetReq(), res);
-  assert.deepEqual(parseResBody(res), { code: 0, data: { version: '1.4.2', hasUpdate: false } });
+  assert.deepEqual(parseResBody(res), { code: 0, data: { version: VERSION, hasUpdate: false } });
 });
 
 test('Platform·workflow-apps by-project 返回 stub null', async () => {
@@ -738,7 +740,7 @@ test('System·status 返回版本与端口', async () => {
   await systemMod.handleStatus(makeGetReq(), res);
   const body = parseResBody(res);
   assert.equal(body.status, 'ok');
-  assert.equal(body.version, '1.4.2');
+  assert.equal(body.version, VERSION);
   assert.equal(typeof body.port, 'number');
 });
 

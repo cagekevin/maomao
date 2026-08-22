@@ -9,6 +9,7 @@ import path from 'node:path';
 import { Readable, Transform } from 'node:stream';
 import { createGunzip, createInflate, createBrotliDecompress } from 'node:zlib';
 import { json, parseJsonBody, readRawBody, sendError } from '../utils/helpers.js';
+import { VERSION } from '../version.js';
 import { resolveProviderTarget, type ResolvedTarget } from './providers.js';
 import { isProxyProtocol } from './protocolAdapters.js';
 import { fetchWithProxy } from '../utils/netProxy.js';
@@ -73,7 +74,6 @@ function bufSizeText(len: number): string {
   return len > 1048576 ? `${(len / 1048576).toFixed(1)}MB` : `${Math.round(len / 1024)}KB`;
 }
 
-const VERSION = '1.4.2';
 const PORT = Number(process.env.PORT) || 18080;
 const APIMART_PORT = Number(process.env.APIMART_PORT) || 9004; // apimart-gateway 端口（见 CLAUDE.md 端口铁律）
 const PROXY_TIMEOUT_MS = Number(process.env.PROXY_TIMEOUT) || 300000; // 默认 5min，原硬编码 15s

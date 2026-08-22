@@ -52,7 +52,19 @@ export function setSetting(key, value) {
   settings = { ...settings, [key]: value }
   save()
   notify()
+  // 调试总开关桥接：同步写 window.__DEBUG_ALL，让 isDebugModuleOn（config.js）实时读到并全开 debug。
+  // 这样用户在「其他设置→调试模式」一键开/关，不依赖 AI 敲 window.__DEBUG_*。
+  if (key === 'debugOn') syncDebugAll(!!value)
 }
+
+/** 把调试总开关状态同步到 window.__DEBUG_ALL（isDebugModuleOn 的实时读取源） */
+function syncDebugAll(v) {
+  if (typeof window !== 'undefined') window.__DEBUG_ALL = !!v
+}
+
+// 应用加载初始化：若已持久化的调试总开关为开（云同步/刷新恢复），启动即同步 window.__DEBUG_ALL，
+// 否则刷新后 debug 会因 window 为新的而丢失开启状态。
+syncDebugAll(!!getSetting('debugOn'))
 
 /** React hook：订阅 app_settings */
 export function useAppSettings() {

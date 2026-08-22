@@ -25,6 +25,7 @@
 import { getLocalKeys } from './contracts.js'
 import { contentGet, contentSet } from './contentStore.js'
 import { loadCanvasState, saveCanvasState } from './projectStore.js'
+import { logger } from './logger.js'
 
 /** localStorage 备份清单 —— 由 contracts.js STORAGE_KEYS 权威登记生成（getLocalKeys()）。
  *  新增存储键先在 contracts.js 登记即自动进备份，禁止再手写清单（防漂移漏备份）。 */
@@ -101,8 +102,12 @@ export async function exportAll() {
     try {
       const state = await loadCanvasState(id)
       if (state && (state.nodes || state.edges)) canvas[id] = { nodes: state.nodes || [], edges: state.edges || [] }
-    } catch { /* 单个项目快照读失败跳过 */ }
+    } catch {
+      // 【P0 埋点】单个项目快照读失败（排查「导出缺某个项目画布」：标记具体项目）
+      logger.warn('backupStore', '导出时读取项目画布失败', { projectId: id })
+    }
   }
+  logger.debug('备份', '[导出]', { lsKeys: Object.keys(ls).length, canvasProjects: Object.keys(canvas).length, projectIds: [...ids] }, { module: 'project' })
   return {
     version: 2,
     type: 'yimao-backup',
@@ -136,9 +141,13 @@ export async function importAll(backup) {
       try {
         const res = await saveCanvasState(projectId, c?.nodes || [], c?.edges || [])
         if (!res?.skipped) canvasCount++
-      } catch { /* 单个快照写失败跳过 */ }
+      } catch {
+        // 【P0 埋点】单个快照写失败（排查「导入后画布丢」：标记具体项目）
+        logger.warn('backupStore', '导入时写回项目画布失败', { projectId })
+      }
     }
   }
+  logger.debug('备份', '[导入]', { ls: lsCount, canvas: canvasCount, error: undefined }, { module: 'project' })
   return { ok: true, ls: lsCount, canvas: canvasCount }
 }
 

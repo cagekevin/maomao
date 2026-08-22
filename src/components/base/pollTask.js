@@ -25,6 +25,7 @@ import { httpRequest } from './httpClient.js'
 import { API_BASE } from './config.js'
 import { getTasks, patchTask } from './taskStore.js'
 import { publish } from './eventBus.js'
+import { logger } from './logger.js'
 
 // 轮询节流：单进程内两次全量扫描最小间隔（ms）
 const POLL_INTERVAL = 5000
@@ -61,15 +62,21 @@ function extractResultUrl(data, type) {
 export async function pollOneTask(task) {
   const pollTaskId = task.pollTaskId
   if (!pollTaskId) return false
+  // 【P0 埋点】恢复轮询：开始查询网关（排查「刷新后任务/节点没恢复」：确认轮询是否发起）
+  logger.debug('任务', '[恢复轮询] 查询', { taskId: task.id, nodeId: task.nodeId, pollTaskId, type: task.type }, { module: 'image' })
   let res
   try {
     res = await httpRequest(`${API_BASE}/api/v1/gateway/task/${encodeURIComponent(pollTaskId)}`, { parseJson: false })
   } catch (e) {
     // 网络抖动/网关未起：不误判失败，下轮再试（保持 running，避免刷新后误报 failed）
+    logger.debug('任务', '[恢复轮询] 网络失败，下轮重试', { taskId: task.id, error: e?.message }, { module: 'image' })
     return false
   }
   let body
-  try { body = await res.json() } catch { return false }
+  try { body = await res.json() } catch {
+    logger.debug('任务', '[恢复轮询] 响应非 JSON，下轮重试', { taskId: task.id, pollTaskId }, { module: 'image' })
+    return false
+  }
   // 网关任务查询返回 {code, data:{id,status,progress,result,error,video_url}}
   const data = body?.data
   if (!data) return false
@@ -79,19 +86,23 @@ export async function pollOneTask(task) {
     patchTask(task.id, { status: 'completed', progress: 100, resultUrl })
     // 广播完成事件：节点监听 agent:task-completed 回写（经 eventBus，解耦 window）
     publish('agent:task-completed', { taskId: task.id, nodeId: task.nodeId, resultUrl, type: task.type, status: 'completed' })
+    logger.debug('任务', '[恢复轮询] 完成', { taskId: task.id, nodeId: task.nodeId, hasResult: !!resultUrl }, { module: 'image' })
     return true
   }
   if (status === 'failed' || status === 'error') {
     const msg = data.error?.message || data.error || '任务失败'
     patchTask(task.id, { status: 'failed', errorMsg: typeof msg === 'object' ? JSON.stringify(msg) : msg })
+    logger.debug('任务', '[恢复轮询] 失败', { taskId: task.id, nodeId: task.nodeId, error: typeof msg === 'object' ? JSON.stringify(msg) : msg }, { module: 'image' })
     return true
   }
   // 还在跑：更新进度（processing/pending）
-  if (typeof data.progress === 'number') {
-    patchTask(task.id, { status: 'running', progress: data.progress })
+  const progress = typeof data.progress === 'number' ? data.progress : undefined
+  if (progress !== undefined) {
+    patchTask(task.id, { status: 'running', progress })
   } else {
     patchTask(task.id, { status: 'running' })
   }
+  logger.debug('任务', '[恢复轮询] 进行中', { taskId: task.id, nodeId: task.nodeId, progress: progress ?? 'n/a' }, { module: 'image' })
   return false
 }
 
@@ -104,6 +115,8 @@ async function runRound() {
   if (candidates.length === 0) return
   // 每轮最多查 MAX_PER_ROUND 个，防止一次刷新几十个任务打爆网关；超出的下轮再查
   const slice = candidates.slice(0, MAX_PER_ROUND)
+  // 【P0 埋点】本轮待恢复任务数（排查「刷新后任务没恢复」：确认有候选且每轮扫到）
+  logger.debug('任务', '[恢复轮询] 本轮', { candidates: candidates.length, querying: slice.length }, { module: 'image' })
   await Promise.all(slice.map((t) => pollOneTask(t).catch(() => false)))
 }
 

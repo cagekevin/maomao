@@ -109,7 +109,7 @@ function TopNav({ view, onNavigate, onSwitchProject, onCreateProject, agentOpen,
               <img src={AVATAR_URL} alt="avatar" className="w-10 h-10 rounded-full object-cover border border-edge-muted" draggable={false} loading="lazy" decoding="async" onError={(t) => { if (t.target.src !== AVATAR_FALLBACK) t.target.src = AVATAR_FALLBACK }} />
               <div className="flex flex-col">
                 <div className="text-white font-bold text-sm truncate">画布用户</div>
-                <div className="text-gray-400 text-xs">未绑定手机号</div>
+                <div className="text-gray-400 text-xs">猫猫</div>
               </div>
             </div>
             {/* 同步设置区块：推送到云端 / 从云端拉取 */}

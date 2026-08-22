@@ -182,7 +182,10 @@ async function restoreLocal(cloud) {
  */
 export async function uploadConfig(onProgress) {
   const cloud = await collectLocal()
-  if (!cloud) return { ok: false, count: 0, error: '本地没有可同步的数据' }
+  if (!cloud) {
+    logger.debug('同步', '[上传] 无可同步数据', {}, { module: 'project' })
+    return { ok: false, count: 0, error: '本地没有可同步的数据' }
+  }
   try {
     const ok = await CloudSyncEngine.push(
       cloud,
@@ -190,10 +193,16 @@ export async function uploadConfig(onProgress) {
       () => {},
       (msg) => { throw new Error(msg) }
     )
-    if (!ok) return { ok: false, count: 0, error: '同步失败（引擎返回失败）' }
+    if (!ok) {
+      logger.warn('同步', '[上传] 失败（引擎返回失败）', { count: Object.keys(cloud.data || {}).length })
+      return { ok: false, count: 0, error: '同步失败（引擎返回失败）' }
+    }
     const n = Object.keys(cloud.data || {}).length
+    // 【P0 埋点】云同步上传成功（排查「同步失败无痕」：确认上传发生且带条目数）
+    logger.debug('同步', '[上传] 成功', { count: n }, { module: 'project' })
     return { ok: true, count: n }
   } catch (e) {
+    logger.warn('同步', '[上传] 异常', { error: e?.message || '同步失败' })
     return { ok: false, count: 0, error: e?.message || '同步失败' }
   }
 }
@@ -212,14 +221,24 @@ export async function downloadConfig(onProgress) {
       (msg) => { throw new Error(msg) }
     )
   } catch (e) {
+    logger.warn('同步', '[下载] 拉取异常', { error: e?.message || '拉取失败' })
     return { ok: false, count: 0, hasCloud: false, error: e?.message || '拉取失败' }
   }
-  if (cloud == null) return { ok: false, count: 0, hasCloud: false, error: '云端没有数据' }
+  if (cloud == null) {
+    logger.debug('同步', '[下载] 云端无数据', {}, { module: 'project' })
+    return { ok: false, count: 0, hasCloud: false, error: '云端没有数据' }
+  }
   try {
     const count = await restoreLocal(cloud)
-    if (count === 0) return { ok: false, count: 0, hasCloud: true, error: '云端没有新的数据' }
+    if (count === 0) {
+      logger.debug('同步', '[下载] 云端无新数据', {}, { module: 'project' })
+      return { ok: false, count: 0, hasCloud: true, error: '云端没有新的数据' }
+    }
+    // 【P0 埋点】云同步下载成功（排查「拉取后数据没恢复」：确认恢复条目数）
+    logger.debug('同步', '[下载] 成功', { count }, { module: 'project' })
     return { ok: true, count, hasCloud: true }
-  } catch {
+  } catch (e) {
+    logger.warn('同步', '[下载] 解析失败', { error: e?.message || '云端数据解析失败' })
     return { ok: false, count: 0, hasCloud: true, error: '云端数据解析失败' }
   }
 }

@@ -18,7 +18,7 @@
  *  - provider/account/agentModel（独立 store）——敏感或后端不同，不走 app_settings 布尔偏好
  *  - 本项目已裁定不引入 webp，故无 webp 相关开关（见 docs/18）
  */
-import { Zap, Map, Bot, Image } from 'lucide-react'
+import { Zap, Map, Bot, Image, Bug } from 'lucide-react'
 
 /** 全部设置定义（顺序即「其他设置」页展示顺序） */
 export const SETTING_DEFS = [
@@ -57,6 +57,15 @@ export const SETTING_DEFS = [
     icon: Zap,
     title: '性能模式',
     desc: '开＝缩放/平移时降低渲染开销（官方默认开）；关＝更细腻但更吃性能。',
+  },
+  {
+    key: 'debugOn',
+    default: false, // 默认关：debug 日志是排障噪音，日常保持安静
+    ui: true,
+    group: '调试',
+    icon: Bug,
+    title: '调试模式',
+    desc: '开＝控制台(F12→Console)输出全部调试日志，排查 bug 用；关＝安静。可自己随时开关，不依赖 AI。',
   },
 ]
 

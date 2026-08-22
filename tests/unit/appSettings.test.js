@@ -40,4 +40,23 @@ describe('appSettings §2.10/2.20 读写兜底', () => {
     // 同一模块实例内再次读取应反映已写值（验证内存 + 持久化路径不崩）
     expect(getSetting('minimapOn')).toBe(true)
   })
+
+  it('debugOn 默认关闭（debug 日志默认安静）', async () => {
+    const { getSetting } = await import('../../src/components/base/appSettings.js')
+    expect(getSetting('debugOn')).toBe(false)
+  })
+
+  it('setSetting debugOn=true → 同步 window.__DEBUG_ALL（总开关实时生效）', async () => {
+    // node 测试环境无 window，stub 一个用于断言 syncDebugAll 的副作用
+    const prevWindow = globalThis.window
+    globalThis.window = { __DEBUG_ALL: false }
+    const { setSetting } = await import('../../src/components/base/appSettings.js')
+    setSetting('debugOn', true)
+    expect(globalThis.window.__DEBUG_ALL).toBe(true)
+    // 关闭后清除
+    setSetting('debugOn', false)
+    expect(globalThis.window.__DEBUG_ALL).toBe(false)
+    if (prevWindow === undefined) delete globalThis.window
+    else globalThis.window = prevWindow
+  })
 })

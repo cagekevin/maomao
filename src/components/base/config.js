@@ -46,19 +46,24 @@ export const AGENT_DEMO_MODE = import.meta.env?.VITE_AGENT_DEMO === '1'
  *   - 这是「第 2 个模块（agent）加入」后由单模块 DEBUG_ASSET 升级而来——触发条件就是
  *     「≥2 个无关模块要排查日志」，此时不再新增 DEBUG_XXX 散开关，统一走本 DEBUG。
  *   - DEBUG_ASSET 保留为别名（向后兼容既有引用），等价于 DEBUG 的 asset 模块位。 */
-export const DEBUG_MODULES = ['asset', 'agent', 'image', 'text'] // 支持的模块位（新增模块在此登记）；'text'=文本节点复制/落盘链路
+export const DEBUG_MODULES = ['asset', 'agent', 'image', 'text', 'project'] // 支持的模块位（新增模块在此登记）；'text'=文本节点复制/落盘链路；'project'=项目切换/快照/备份/同步
 
 const _debugOn = (key, upper) => {
   if (import.meta.env?.[`VITE_DEBUG_${upper}`] === '1') return true
   if (typeof window !== 'undefined' && window[`__DEBUG_${upper}`] === true) return true
   return false
 }
-/** 总开关：VITE_DEBUG_ALL='1' / window.__DEBUG_ALL=true 时全开 */
-const DEBUG_ALL = _debugOn('all', 'ALL')
+// 总开关不在模块顶层缓存（否则运行时设 window.__DEBUG_ALL 不生效）。
+// 改由 isDebugModuleOn 每次实时读，使「前端调试总开关 / AI 设 __DEBUG_ALL」立即生效。
+// 兼容 env VITE_DEBUG_ALL='1'（_debugOn('all','ALL') 处理）。
 
-/** 判断某模块位是否开启（未传入 module 时默认 false，需显式指定） */
+/** 判断某模块位是否开启（未传入 module 时默认 false，需显式指定）。
+ *  - 总开关实时读 window.__DEBUG_ALL / env VITE_DEBUG_ALL：为 true 时全开；
+ *  - 否则按模块位实时读 window.__DEBUG_<MODULE> / env VITE_DEBUG_<MODULE>。
+ *  前端「其他设置→调试模式」总开关会同步写 window.__DEBUG_ALL，实现自己一键开/关，不依赖 AI。 */
 export function isDebugModuleOn(module) {
-  if (DEBUG_ALL) return true
+  // 实时判断总开关（每次调用都查 window，支持运行时切换）
+  if (_debugOn('all', 'ALL')) return true
   if (!module) return false
   const upper = String(module).toUpperCase()
   if (DEBUG_MODULES.includes(module)) return _debugOn(module, upper)
