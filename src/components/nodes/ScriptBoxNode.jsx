@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { Clapperboard, Settings, Maximize2, Loader2 } from 'lucide-react'
-import { Handle } from '@xyflow/react'
+import { Handle, useReactFlow } from '@xyflow/react'
 import NodeShell from '../base/NodeShell.jsx'
 import CustomHandle from '../edges/CustomHandle.jsx'
 import { useScriptBoxEngine } from '../base/useScriptBoxEngine.js'
@@ -32,21 +32,44 @@ function ScriptBoxNode({ id, data, selected }) {
 
   const d = data || {}
 
-  // —— 上游输入接入（智能接受文本节点，接入剧情） ——
-  // 用 useConnectedInputs 读取「直接连到本剧本盒子」的上游文本（如 textNode 生成的文本），
-  // 作为剧情来源之一。设计：上游文本写入独立字段 data.upstreamStory，不覆盖用户手动输入的
-  // data.story；生成剧本时引擎会把两者合并（见 scriptBoxEngine.onGenerateScript）。
+  // —— 上游输入接入（与文本节点一致：接受上游文本节点 + 图片节点） ——
+  // 用 useConnectedInputs 读取「直接连到本剧本盒子」的上游文本/图片，
+  // 作为剧情来源其中之一。上游文本写入 data.upstreamStory（合并串）+ data.upstreamTexts（条目数组）、
+  // 图片写入 data.upstreamImages，均不覆盖用户手动输入的 data.story。
+  // 展示交给第 1 步的 StepShots（剧情上方只读素材区）；生成剧本时引擎把上游内容一起交给编剧模型
+  //（见 engine.onGenerateScript），让 AI 能「知道我产品外观」从而写出准确剧本。
+  const { setEdges } = useReactFlow()
   const connected = useConnectedInputs(id)
-  const upstreamText = (connected.texts || []).map((t) => (t.text || '').trim()).filter(Boolean).join('\n\n')
+  const upstreamTexts = (connected.texts || []).map((t) => (t.text || '').trim()).filter(Boolean).join('\n\n')
   useEffect(() => {
-    // 上游文本变化时同步到 data.upstreamStory（不覆盖用户手填的 data.story）。
-    // 断线（upstreamText 为空）时清除残留的上游剧情，避免旧文本一直混入生成。
-    if (upstreamText && d.upstreamStory !== upstreamText) {
-      updateData({ upstreamStory: upstreamText })
-    } else if (!upstreamText && d.upstreamStory) {
-      updateData({ upstreamStory: '' })
-    }
-  }, [upstreamText, d.upstreamStory, updateData])
+    // 上游文本/图片变化时同步到 data（断线后按空清理，避免旧内容一直混入生成）。
+    const patch = {}
+    const curText = d.upstreamStory || ''
+    if (upstreamTexts && upstreamTexts !== curText) patch.upstreamStory = upstreamTexts
+    else if (!upstreamTexts && curText) patch.upstreamStory = ''
+    const imgList = (connected.images || [])
+      .map((im, i) => (im && im.url ? { id: im.id || `up-img-${i}`, url: im.url, label: im.label || '', sourceNodeId: im.sourceNodeId } : null))
+      .filter(Boolean)
+    const curImgs = d.upstreamImages || []
+    const sameImgs = imgList.length === curImgs.length && imgList.every((im, i) => curImgs[i] && curImgs[i].url === im.url)
+    if (!sameImgs) patch.upstreamImages = imgList
+    const txtList = (connected.texts || [])
+      .map((t, i) => (t && t.text ? { id: t.id || `up-txt-${i}`, label: t.label || '', text: t.text, sourceNodeId: t.sourceNodeId } : null))
+      .filter(Boolean)
+    const curTxts = d.upstreamTexts || []
+    const sameTxts = txtList.length === curTxts.length && txtList.every((t, i) => curTxts[i] && curTxts[i].text === t.text)
+    if (!sameTxts) patch.upstreamTexts = txtList
+    if (Object.keys(patch).length) updateData(patch)
+  }, [upstreamTexts, d.upstreamStory, d.upstreamImages, d.upstreamTexts, connected, updateData])
+
+  // 断开连线：点击只读素材区红色 × → 删除该来源节点 → 本节点的连线（对齐文本节点）。
+  const disconnectSource = useCallback(
+    (sourceNodeId) => {
+      if (!sourceNodeId) return
+      setEdges((es) => es.filter((e) => !(e.source === sourceNodeId && e.target === id)))
+    },
+    [id, setEdges]
+  )
 
   // —— UI 状态（非数据，放组件本地） ——
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -77,7 +100,8 @@ function ScriptBoxNode({ id, data, selected }) {
   const setStep = (n) => updateData({ step: n })
 
   // 三步组件只调 d.onXxx?.(...)（引擎回调，由 useScriptBoxEngine 注入 node.data.onXxx）。
-  const stepProps = { id, data: d, updateData, callbacks: d }
+  // callbacks 追加断线回调（onDisconnectUpstream），供第 1 步 StepShots 的上游只读素材区断线用。
+  const stepProps = { id, data: d, updateData, callbacks: { ...d, onDisconnectUpstream: disconnectSource } }
 
   return (
     <NodeShell
@@ -98,9 +122,9 @@ function ScriptBoxNode({ id, data, selected }) {
           relative：作为剧本盒子内部所有弹窗（资产抽屉/编辑框/设置弹窗）的绝对定位基准。
           高度用 contentRef 自适应（无限画布：内容撑开时写回 node.height，外框跟随）。 */}
       <div ref={contentRef} className="relative flex flex-col w-full min-h-0">
-        {/* 输入端口（左侧 target，handleId='in'）：接收上游文本/剧情接入。
+        {/* 输入端口（左侧 target，handleId='in'）：接收上游文本节点 + 图片节点接入。
             showHandles={false} 已关闭 NodeShell 默认端口，这里显式补一个可连的输入口，
-            让 textNode 等文本类上游能拖线连入剧本盒子作为剧情来源。 */}
+            让 textNode 等文本/图片类上游能拖线连入剧本盒子，作为编剧参考（第 1 步展示、传给 AI）。 */}
         <CustomHandle position="left" variant="small" handleId="in" top="50%" />
 
         {/* 顶部标题栏 */}

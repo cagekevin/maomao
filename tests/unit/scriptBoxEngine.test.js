@@ -260,6 +260,36 @@ describe('scriptBoxEngine · 引擎编排', () => {
     expect(store.projectName).toBe('小猫历险')
   })
 
+  it('onGenerateScript 把上游接入图片传给 chatCompletions（编剧 AI 看产品外观）', async () => {
+    const { chatCompletions } = await import('../../src/components/base/chatApi.js')
+    chatCompletions.mockResolvedValueOnce({ ok: true, content: '```json\n{"shots":[{"description":"展示产品"}]}\n```' })
+    const { engine, store } = makeEngine({
+      story: '为产品拍一支广告',
+      upstreamStory: '产品是一款无线耳机',
+      upstreamImages: [{ id: 'i1', url: 'http://127.0.0.1:18080/files/p.png' }, { id: 'i2', url: '/files/q.png' }],
+    })
+    await engine.onGenerateScript()
+    expect(chatCompletions).toHaveBeenCalled()
+    const call = chatCompletions.mock.calls[0][0]
+    // 上游图片以 images 传给模型（转 image_url 内容块）
+    expect(call.images).toEqual(['http://127.0.0.1:18080/files/p.png', '/files/q.png'])
+    // 上游文本并入剧情
+    const userMsg = call.messages.find((m) => m.role === 'user')
+    expect(userMsg.content).toContain('为产品拍一支广告')
+    expect(userMsg.content).toContain('产品是一款无线耳机')
+    // 写回 story 为「手填 + 上游」合并后内容
+    expect(store.story).toContain('产品是一款无线耳机')
+  })
+
+  it('onGenerateScript 无上游图片时 images 为空数组', async () => {
+    const { chatCompletions } = await import('../../src/components/base/chatApi.js')
+    chatCompletions.mockResolvedValueOnce({ ok: true, content: '```json\n{"shots":[{"description":"x"}]}\n```' })
+    const { engine } = makeEngine({ story: 'no imgs' })
+    await engine.onGenerateScript()
+    const call = chatCompletions.mock.calls[0][0]
+    expect(call.images).toEqual([])
+  })
+
   it('onGenerateScript 模型返回非 JSON 时回退 genMask=false 并 toast', async () => {
     const { chatCompletions } = await import('../../src/components/base/chatApi.js')
     const { toastStore } = await import('../../src/components/base/toastStore.js')

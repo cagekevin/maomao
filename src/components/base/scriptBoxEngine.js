@@ -181,6 +181,12 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
     const userStory = (d.story || '').trim()
     const upstreamStory = (d.upstreamStory || '').trim()
     const story = [userStory, upstreamStory].filter(Boolean).join('\n\n')
+    // 上游接入图片（data.upstreamImages，由 ScriptBoxNode 从 useConnectedInputs 同步）。
+    // 编剧模型需要「知道产品外观」才能写出准确剧本，故把上游图片作为视觉参考一并传入
+    //（chatCompletions 会把图片转成 image_url 内容块，让 AI 看图理解产品外观）。
+    const upstreamImageUrls = (Array.isArray(d.upstreamImages) ? d.upstreamImages : [])
+      .map((im) => (im && im.url ? im.url : ''))
+      .filter(Boolean)
     if (!story) { toast('请先输入剧情或连接上游文本节点'); return }
     const { provider, modelId } = resolveTextModel()
     if (!provider || !modelId) { toast('请先在「设置」中配置文本大模型'); return }
@@ -203,7 +209,7 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
     const system = scriptPrompt + SCRIPT_WRITER_FORMAT + countReq + styleReq
 
     updateData({ genMask: true, genChars: 0 })
-    logger.info('scriptBox', '生成剧本·开始', { nodeId, provider: provider?.id, model: modelId, storyLen: story.length, shotCount })
+    logger.info('scriptBox', '生成剧本·开始', { nodeId, provider: provider?.id, model: modelId, storyLen: story.length, imgs: upstreamImageUrls.length, shotCount })
     return runAbortable('script', () => updateData({ genMask: false }), async (signal) => {
       const r = await chatCompletions({
         provider,
@@ -211,6 +217,7 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
         temperature: 0.7,
         responseFormat: useJsonObject(modelId) ? 'json_object' : undefined,
         signal,
+        images: upstreamImageUrls,
         messages: [
           { role: 'system', content: system },
           { role: 'user', content: story },

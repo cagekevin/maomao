@@ -22,6 +22,8 @@ const h = vi.hoisted(() => {
   })
   const getNodesMock = vi.fn(() => state.nodes)
   const updateData = vi.fn()
+  // 上游输入（可控，供「上游接入」用例）：默认空
+  const upstream = { images: [], texts: [], videos: [], audios: [] }
   // 引擎实例：10 个回调（含 onStopScriptItem），与真实 createScriptBoxEngine 返回一致
   const engine = {
     onGenerateScript: vi.fn(),
@@ -35,7 +37,7 @@ const h = vi.hoisted(() => {
     onConnectShot: vi.fn(),
     onConnectShots: vi.fn(),
   }
-  return { state, setNodesMock, getNodesMock, updateData, engine }
+  return { state, setNodesMock, getNodesMock, updateData, engine, upstream }
 })
 
 vi.mock('@xyflow/react', () => ({
@@ -68,8 +70,8 @@ vi.mock('../../src/components/base/scriptBoxEngine.js', () => ({ createScriptBox
 vi.mock('../../src/components/base/settings/providerStore.js', () => ({ useProviders: () => ({ providers: [] }), useProvidersList: () => [], load: vi.fn(async () => {}) }))
 vi.mock('../../src/components/base/logger.js', () => ({ logger: { warn: vi.fn() } }))
 vi.mock('../../src/components/base/hooks.js', () => ({ useOutsideClick: () => {}, useNodeResize: () => ({ onMainBoxResize: vi.fn() }), useContentHeightSync: () => {} }))
-// 上游输入接入 hook：mock 返回空（测试默认无上游连线），避免依赖 @xyflow/react 的 useStore
-vi.mock('../../src/components/base/useConnectedInputs.js', () => ({ useConnectedInputs: () => ({ images: [], texts: [], videos: [], audios: [] }) }))
+// 上游输入接入 hook：mock 返回可控的 h.upstream（默认空），避免依赖 @xyflow/react 的 useStore
+vi.mock('../../src/components/base/useConnectedInputs.js', () => ({ useConnectedInputs: () => h.upstream }))
 
 // 三步子组件 mock：渲染内容标记 + 可点的引擎回调按钮（验证 UI 只调回调）
 vi.mock('../../src/components/scriptbox/StepShots.jsx', () => ({
@@ -103,6 +105,11 @@ vi.mock('../../src/components/scriptbox/GearSettings.jsx', () => ({
 }))
 
 import ScriptBoxNode from '../../src/components/nodes/ScriptBoxNode.jsx'
+
+// 每个用例前复位上游接入（避免上个用例残留的非空 upstream 污染后续断言）
+beforeEach(() => {
+  h.upstream = { images: [], texts: [], videos: [], audios: [] }
+})
 
 const nodeId = 'sb1'
 function setup(data = {}) {
@@ -218,6 +225,29 @@ describe('ScriptBoxNode — 设置弹窗与全屏', () => {
     const fs = screen.getByTestId('fullscreen')
     expect(fs).toBeTruthy()
     expect(fs.querySelector('[data-testid="step-shots"]')).toBeTruthy()
+  })
+})
+
+describe('ScriptBoxNode — 上游接入数据同步', () => {
+  it('上游文本/图片连入时，同步写回 node.data.upstreamStory / upstreamImages / upstreamTexts', () => {
+    h.upstream = {
+      images: [{ id: 'i1', url: 'http://u/a.png', label: '产品', sourceNodeId: 's1' }],
+      texts: [{ id: 't1', text: '产品卖点', label: '卖点', sourceNodeId: 's2' }],
+      videos: [],
+      audios: [],
+    }
+    setup()
+    expect(h.updateData).toHaveBeenCalledWith(expect.objectContaining({
+      upstreamStory: '产品卖点',
+      upstreamImages: [{ id: 'i1', url: 'http://u/a.png', label: '产品', sourceNodeId: 's1' }],
+      upstreamTexts: [{ id: 't1', label: '卖点', text: '产品卖点', sourceNodeId: 's2' }],
+    }))
+  })
+
+  it('无上游内容时不写上游字段', () => {
+    setup()
+    expect(h.updateData).not.toHaveBeenCalledWith(expect.objectContaining({ upstreamImages: expect.anything() }))
+    expect(h.updateData).not.toHaveBeenCalledWith(expect.objectContaining({ upstreamTexts: expect.anything() }))
   })
 })
 

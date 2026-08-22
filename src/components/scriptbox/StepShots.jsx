@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react'
 import { Loader2, Plus, Trash2, Film, Link2 } from 'lucide-react'
 import { SHOT_TYPES, LIGHTS, MOTIONS, dialogueText, hlAt, patchShots } from '../base/scriptBoxPrompts.js'
+import MaterialStrip from '../base/MaterialStrip.jsx'
 import { useOutsideClick } from '../base/hooks.js'
 import ScriptBoxModal from './ScriptBoxModal.jsx'
 
@@ -116,6 +117,14 @@ export default function StepShots({ data, updateData, callbacks }) {
 
         <div>
           <div className="text-caption-sm text-gray-400 mb-1.5">剧情</div>
+          {/* 上游接入只读素材区（位置在剧情框上方）：展示连入的上游文本/图片，内容只读不可改，仅可断线。
+              素材来自 node.data.upstreamTexts / upstreamImages（ScriptBoxNode 经 useConnectedInputs 同步）；
+              多个时 flex-wrap 自动换行。 */}
+          {(d.upstreamImages?.length > 0 || d.upstreamTexts?.length > 0) && (
+            <div className="mb-1.5">
+              <MaterialStrip images={d.upstreamImages || []} texts={d.upstreamTexts || []} readOnly onDisconnect={callbacks?.onDisconnectUpstream} />
+            </div>
+          )}
           <textarea value={d.story || ''} onChange={(e) => setStory(e.target.value)} placeholder="输入你的故事……" className="w-full h-32 bg-surface-strong border border-edge rounded-lg p-2.5 text-body-xs text-gray-200 outline-none resize-none custom-scrollbar nodrag nowheel" />
         </div>
 
