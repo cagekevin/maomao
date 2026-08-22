@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react'
+import React, { useState, useRef, useCallback, useMemo } from 'react'
 import { useReactFlow } from '@xyflow/react'
 import { Image as ImageIcon, Plus, ZoomIn, Download } from 'lucide-react'
 // ═══ 基座组件（统一入口，禁止手写外壳/端口/背景）═══
@@ -113,7 +113,19 @@ function TemplateNode({ id, data, selected }) {
   const hideResult = isHidden('image')
 
   // 上游合并：图片 + 文本（多个上游节点自动聚合；data.images/texts 额外资产也并入）
-  const refImages = [...(connected.images || []), ...(data.images?.length ? data.images : [])]
+  // 注意：connected.images 与 data.images 可能重复进入同一批资产图（同 id/url，如剧本盒 script-asset-xxx），
+  // 按 id/url 去重，避免渲染 key 重复 / 图显示两份。
+  const refImages = useMemo(() => {
+    const seen = new Set()
+    const merged = []
+    ;[...(connected.images || []), ...(data.images?.length ? data.images : [])].forEach((im) => {
+      const key = im && (im.id ?? im.url)
+      if (!key || seen.has(key)) return
+      seen.add(key)
+      merged.push(im)
+    })
+    return merged
+  }, [connected.images, data.images])
   const refTexts = [...(connected.texts || []), ...(data.texts?.length ? data.texts : [])]
   // 注意：effectivePrompt 依赖下方声明的 prompt state，故计算延后到 prompt 初始化之后
 

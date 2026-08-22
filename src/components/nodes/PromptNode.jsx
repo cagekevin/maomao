@@ -62,10 +62,19 @@ function PromptNode({ id, data, selected }) {
   // 【memo 优化】用 useMemo 稳定 refImages/refTexts 引用：否则每次 render 新建数组，传给 memo 子组件
   // （MaterialStrip/PromptInput）会失效导致每次重渲染。依赖用 connected.*/data.* 引用而非整对象，
   // 上游/自身数据未变时引用稳定。
-  const refImages = useMemo(
-    () => [...(connected.images || []), ...(data.images?.length ? data.images : [])],
-    [connected.images, connected.texts, data.images, data.texts]
-  )
+  const refImages = useMemo(() => {
+    // 合并「连线上游产出」+「剧本盒等塞给本节点的 data.images」时，可能同一批资产图
+    // 走了两条路重复进入（同 id，如 script-asset-xxx），按 id 去重避免渲染 key 重复 / 图显示两份。
+    const seen = new Set()
+    const merged = []
+    ;[...(connected.images || []), ...(data.images?.length ? data.images : [])].forEach((im) => {
+      const key = im && (im.id ?? im.url)
+      if (!key || seen.has(key)) return
+      seen.add(key)
+      merged.push(im)
+    })
+    return merged
+  }, [connected.images, connected.texts, data.images, data.texts])
   const refTexts = useMemo(
     () => [...(connected.texts || []), ...(data.texts?.length ? data.texts : [])],
     [connected.texts, connected.images, data.texts, data.images]
