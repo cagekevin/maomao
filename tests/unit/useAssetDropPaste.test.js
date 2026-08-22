@@ -21,7 +21,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
 
-const uploadMock = vi.fn(async (file) => 'http://local/' + file.name)
+const uploadMock = vi.fn(async (file) => 'http://local/' + (file?.name || 'drag'))
 vi.mock('../../src/components/base/filesApi.js', () => ({
   uploadFileToLocal: (...a) => uploadMock(...a),
 }))
@@ -356,5 +356,61 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
     const { result } = renderHook(() => useAssetDropPaste(opts))
     await act(async () => { await result.current.onPaste(plainEvent(json, document.createElement('textarea'))) })
     expect(opts.onPasteNodeGroup).toHaveBeenCalledWith(json, expect.any(Object))
+  })
+
+  // ── onDrop 拖拽：从网页拖图（URL 在 text/uri-list，非 File）→ 直接用原 URL 建节点 ──
+  it('拖入图片：URL 在 text/uri-list（拖网页图的 Chrome 标准 MIME）→ 用原 URL 建 imageNode', () => {
+    const opts = makeOpts()
+    const { result } = renderHook(() => useAssetDropPaste(opts))
+    const e = {
+      preventDefault: vi.fn(),
+      dataTransfer: {
+        files: [],
+        getData: (k) => (k === 'text/uri-list' ? 'https://www.qq.com/img/cat.png' : k === 'text/plain' ? '' : ''),
+      },
+    }
+    result.current.onDrop(e)
+    // 直接用原网络 URL 建节点（不做下载/本地化，保持简单）
+    expect(opts.addNode).toHaveBeenCalledWith('imageNode', { x: 0, y: 0 }, { imageUrl: 'https://www.qq.com/img/cat.png', label: '网页图片' })
+    expect(e.preventDefault).toHaveBeenCalled()
+  })
+
+  it('拖入文本：text/uri-list 是纯文本（非图片 URL）→ 建 textNode', () => {
+    const opts = makeOpts()
+    const { result } = renderHook(() => useAssetDropPaste(opts))
+    const e = {
+      preventDefault: vi.fn(),
+      dataTransfer: {
+        files: [],
+        getData: (k) => (k === 'text/uri-list' ? 'hello world' : k === 'text/plain' ? '' : ''),
+      },
+    }
+    result.current.onDrop(e)
+    expect(opts.addNode).toHaveBeenCalledWith('textNode', expect.any(Object), { text: 'hello world', expanded: false })
+  })
+
+  it('拖入链接：text/uri-list 为空、text/plain 是图片 URL → 用原 URL 建 imageNode', () => {
+    const opts = makeOpts()
+    const { result } = renderHook(() => useAssetDropPaste(opts))
+    const e = {
+      preventDefault: vi.fn(),
+      dataTransfer: {
+        files: [],
+        getData: (k) => (k === 'text/uri-list' ? '' : k === 'text/plain' ? 'https://cdn/x/1.jpg' : ''),
+      },
+    }
+    result.current.onDrop(e)
+    expect(opts.addNode).toHaveBeenCalledWith('imageNode', { x: 0, y: 0 }, { imageUrl: 'https://cdn/x/1.jpg', label: '网页图片' })
+  })
+
+  it('拖入空内容（无 files、无 uri-list、无 plain）→ 不建节点、不报错', () => {
+    const opts = makeOpts()
+    const { result } = renderHook(() => useAssetDropPaste(opts))
+    const e = {
+      preventDefault: vi.fn(),
+      dataTransfer: { files: [], getData: () => '' },
+    }
+    result.current.onDrop(e)
+    expect(opts.addNode).not.toHaveBeenCalled()
   })
 })

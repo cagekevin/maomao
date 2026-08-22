@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { Loader2, Image as ImageIcon } from 'lucide-react'
-import { fetchResources } from '../base/localToolApi.js'
+import { fetchResources, rescanResources } from '../base/localToolApi.js'
 import { toAbsoluteFileUrl } from '../base/imageUrl.js'
 import { useLocalToolStatus } from '../base/useLocalToolStatus.js'
 import ScriptBoxModal from './ScriptBoxModal.jsx'
@@ -31,7 +31,6 @@ export default function ScriptBoxAssetPicker({ folder, onClose, onPick }) {
     setErr('')
     try {
       if (rescan) {
-        const { rescanResources } = await import('../base/localToolApi.js')
         await rescanResources()
       }
       const data = await fetchResources({ folder, page: 1, pageSize: PAGE_SIZE, type: 'image' })

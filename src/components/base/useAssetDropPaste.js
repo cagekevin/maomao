@@ -113,6 +113,16 @@ export function useAssetDropPaste({ addNode, screenToFlowPosition, onPasteNodeGr
     [addNode]
   )
 
+  // 拖入网络图片 URL → 直接用原 URL 同步建 imageNode（能显示就显示，防盗链的破图也不阻塞导入）。
+  // 不做本地化下载（网页图跨域/防盗链导致前端 fetch 常失败，且会引入延迟/副作用），保持简单。
+  const addImageNodeFromUrl = useCallback(
+    (pos, url, label) => {
+      if (!url) return
+      addNode('imageNode', pos, { imageUrl: url, label })
+    },
+    [addNode]
+  )
+
   // 拖入
   const onDrop = useCallback(
     (e) => {
@@ -144,14 +154,18 @@ export function useAssetDropPaste({ addNode, screenToFlowPosition, onPasteNodeGr
 
       const files = e.dataTransfer?.files
       if (!files || files.length === 0) {
-        // 拖入 URL 文本（非文件）：图片类 URL → imageNode，其它 → textNode
-        const text = e.dataTransfer?.getData('text/plain')
-        if (text) {
-          if (isAssetUrl(text)) {
-            addNode('imageNode', pos, { imageUrl: text })
-            showToast('已导入图片链接')
+        // 拖入 URL 文本（非文件）：图片类 URL → imageNode，其它 → textNode。
+        // 从网页拖图时 URL 通常不在 text/plain，而在 text/uri-list（拖拽 URL 的标准 MIME），
+        // 故两者都读，取第一个非空 URL 候选（uri-list 可能多行，取首行 URL）。
+        const uriList = e.dataTransfer?.getData('text/uri-list') || ''
+        const text = e.dataTransfer?.getData('text/plain') || ''
+        const candidate = (uriList.trim() || text.trim()).split(/\r?\n/)[0]?.trim() || ''
+        if (candidate) {
+          if (isAssetUrl(candidate)) {
+            // 网络图片 → 优先本地化落盘成持久 URL，失败回退原 URL（防防盗链破图）
+            addImageNodeFromUrl(pos, candidate, '网页图片')
           } else {
-            addNode('textNode', pos, { text, expanded: false })
+            addNode('textNode', pos, { text: candidate, expanded: false })
             showToast('已导入文本')
           }
         }
@@ -159,7 +173,7 @@ export function useAssetDropPaste({ addNode, screenToFlowPosition, onPasteNodeGr
       }
       Array.from(files).forEach((f, i) => createNodeFromFile(f, { x: pos.x + i * 50, y: pos.y + i * 50 }))
     },
-    [screenToFlowPosition, addNode, createNodeFromFile]
+    [screenToFlowPosition, addNode, createNodeFromFile, addImageNodeFromUrl]
   )
 
   // 建 textNode（普通文本，经 sanitize 清洗；内部 mutiwindow-* JSON 用原始 text 解析，不在此清洗）
