@@ -4,6 +4,18 @@ import { debounce } from './utils.js'
 import { NODE_PATCH_DEBOUNCE_MS } from './config.js'
 
 /**
+ * 节点 data 不可变写回纯函数（节点写回唯一入口，useNodeData.patchData 与宿主通用写回共用）。
+ * 语义：把 patch 合并进 id 节点的 data（不可变更新）；节点不存在（如已删除）时原样返回，天然安全。
+ * @param {(updater: (ns) => ns) => void} setNodes React Flow setNodes
+ * @param {string} id 目标节点 id
+ * @param {object} patch 要合并进 node.data 的字段
+ */
+export function patchNodeDataById(setNodes, id, patch) {
+  if (!setNodes || !id || !patch) return
+  setNodes((ns) => ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, ...patch } } : n)))
+}
+
+/**
  * 节点 data 统一写回 hook（P0-2 收口）。
  *
  * 【为什么要有它】此前每个节点手写同一份「不可变局部更新 node.data」样板
@@ -26,10 +38,7 @@ import { NODE_PATCH_DEBOUNCE_MS } from './config.js'
  */
 export function useNodeData(id) {
   const { setNodes } = useReactFlow()
-  const patchData = useCallback(
-    (patch) => setNodes((ns) => ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, ...patch } } : n))),
-    [id, setNodes]
-  )
+  const patchData = useCallback((patch) => patchNodeDataById(setNodes, id, patch), [id, setNodes])
   const patchDebounced = useMemo(() => debounce(patchData, NODE_PATCH_DEBOUNCE_MS), [patchData])
   useEffect(() => () => patchDebounced.flush(), [patchDebounced])
   return { patchData, patchDebounced }

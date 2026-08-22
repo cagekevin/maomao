@@ -30,6 +30,7 @@ import ConnectionLine from './components/edges/ConnectionLine.jsx'
 import ContextMenu from './components/base/ContextMenu.jsx'
 import { useContextMenu } from './components/base/useContextMenu.js'
 import { useCanvasHistory } from './components/base/useCanvasHistory.js'
+import { patchNodeDataById } from './components/base/useNodeData.js'
 import { CanvasEdgesProvider } from './components/base/CanvasEdgesContext.jsx'
 import { useCanvasShortcuts } from './components/base/useCanvasShortcuts.js'
 import { paletteCategories, getNodesByCategory, defaultNodeData, getPaletteNode, buildNodeTypeComponents } from './components/base/NodePalette.jsx'
@@ -731,7 +732,9 @@ function Canvas() {
   const { onDragOver, onDrop, onPaste, createNodeFromFile } = useAssetDropPaste({
     addNode: (type, pos, data) => addNode(type, pos, data),
     screenToFlowPosition,
-    onPasteNodeGroup: pasteNodeGroup
+    onPasteNodeGroup: pasteNodeGroup,
+    // 节点 data 写回走 useNodeData 唯一入口（网页图后台本地化成功后替换 imageUrl）
+    patchNodeData: (id, patch) => patchNodeDataById(setNodes, id, patch)
   })
 
   // 右键菜单「上传」隐藏文件输入（复刻官方 Re.current）：选中文件 → 复用 createNodeFromFile 建素材节点

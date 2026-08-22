@@ -3,7 +3,8 @@ import { detectFileType, isAssetUrl } from './mediaType.js'
 import { isEditableTarget } from './hooks.js'
 import { sanitizePastedText } from './clipboard.js'
 import { showToast } from './toastStore.js'
-import { uploadFileToLocal } from './filesApi.js'
+import { uploadFileToLocal, downloadRemoteToLocal, WEB_DROP_SUBFOLDER } from './filesApi.js'
+import { logger } from './logger.js'
 
 /**
  * ════════════════════════════════════════════════════════════════════════
@@ -47,12 +48,14 @@ import { uploadFileToLocal } from './filesApi.js'
  * 原型无后端，文件用 FileReader 读 dataURL 写入节点 data（官方走 localTool hi() 上传 /files/）。
  *
  * @param {Object} opts
- * @param {Function} opts.addNode      建节点：addNode(type, pos, data)
+ * @param {Function} opts.addNode      建节点：addNode(type, pos, data) → 返回节点 id
  * @param {Function} opts.screenToFlowPosition  屏幕坐标 → 画布坐标
  * @param {Function} opts.onPasteNodeGroup  粘贴节点组（mutiwindow-nodes）回调：onPasteNodeGroup(json, pos) → boolean
+ * @param {Function} [opts.patchNodeData]  节点 data 写回：patchNodeData(id, patch)（走 useNodeData 唯一入口；
+ *                                         网页图后台本地化成功后替换 imageUrl 用；不传则跳过本地化）
  * @returns {{ onDragOver, onDrop, onPaste }} 挂到 ReactFlow 的事件 + 供 window paste 监听
  */
-export function useAssetDropPaste({ addNode, screenToFlowPosition, onPasteNodeGroup }) {
+export function useAssetDropPaste({ addNode, screenToFlowPosition, onPasteNodeGroup, patchNodeData }) {
   // 记录最近一次鼠标位置（视口坐标）：粘贴时优先落在鼠标处，无鼠标则回退到视图中心。
   // paste 事件本身不带 clientX/Y，官方也是用「当前视口位置」建节点；这里用 mousemove 追踪
   // 更贴近用户预期（在哪儿右键/停留就在哪儿粘贴），对齐 H_.jsx 用视口坐标建节点的思路。
@@ -113,14 +116,24 @@ export function useAssetDropPaste({ addNode, screenToFlowPosition, onPasteNodeGr
     [addNode]
   )
 
-  // 拖入网络图片 URL → 直接用原 URL 同步建 imageNode（能显示就显示，防盗链的破图也不阻塞导入）。
-  // 不做本地化下载（网页图跨域/防盗链导致前端 fetch 常失败，且会引入延迟/副作用），保持简单。
+  // 拖入网络图片 URL → 先用原 URL 同步建 imageNode（立即显示，能显示就显示，防盗链破图不阻塞导入）。
+  // 后台本地化（先显示后替换）：复用后端 fileUrl 下载（服务端 + 7897 代理，绕 CORS）落盘专用 web 目录，
+  // 成功把节点 imageUrl 替换为本地 /files/ URL（发送/图生图/压缩/裁剪都能用）；失败保持原 URL，不打扰、日志留痕。
+  // 不加 label：与 onPaste 的 html <img> 建图路径一致，节点 data 保持最简 { imageUrl }。
   const addImageNodeFromUrl = useCallback(
-    (pos, url, label) => {
+    (pos, url) => {
       if (!url) return
-      addNode('imageNode', pos, { imageUrl: url, label })
+      const id = addNode('imageNode', pos, { imageUrl: url })
+      // 未注入 patchNodeData 则跳过本地化（纯显示模式）；非 http(s) 由 downloadRemoteToLocal 内部拦截（返回 null 不替换）
+      if (id && typeof patchNodeData === 'function') {
+        downloadRemoteToLocal(url, { folder: WEB_DROP_SUBFOLDER })
+          .then((localUrl) => {
+            if (localUrl && localUrl !== url) patchNodeData(id, { imageUrl: localUrl })
+          })
+          .catch((e) => logger.warn('assetDrop', '网页图本地化失败，保持原 URL', e))
+      }
     },
-    [addNode]
+    [addNode, patchNodeData]
   )
 
   // 拖入
@@ -162,8 +175,8 @@ export function useAssetDropPaste({ addNode, screenToFlowPosition, onPasteNodeGr
         const candidate = (uriList.trim() || text.trim()).split(/\r?\n/)[0]?.trim() || ''
         if (candidate) {
           if (isAssetUrl(candidate)) {
-            // 网络图片 → 优先本地化落盘成持久 URL，失败回退原 URL（防防盗链破图）
-            addImageNodeFromUrl(pos, candidate, '网页图片')
+            // 网页图 URL → 直接用原 URL 建 imageNode（方案C：能显示就显示，防盗链破图不阻塞导入；不做本地化）
+            addImageNodeFromUrl(pos, candidate)
           } else {
             addNode('textNode', pos, { text: candidate, expanded: false })
             showToast('已导入文本')

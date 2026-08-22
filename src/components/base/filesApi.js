@@ -15,6 +15,8 @@ import { formatTime } from './utils.js'
 export { toAbsoluteFileUrl } from './imageUrl.js'
 export { EXT_BY_TYPE }
 const SUBFOLDER = 'tasks'
+/** 网页拖图专用落盘目录（不与素材库/生成结果混放，见 docs/34 升级） */
+export const WEB_DROP_SUBFOLDER = 'web'
 // multipart/大文件上传统一参数：较长超时 + 不自动重试（避免重复上传）
 const UPLOAD_OPTS = { timeoutMs: UPLOAD_TIMEOUT, retries: 0 }
 
@@ -90,6 +92,45 @@ export async function uploadFileToLocal(file, subfolder = 'canvas/drop', filenam
   }
 }
 
+/**
+ * 远程 http(s) URL → 本地 /files/ URL（网页拖图后台本地化专用，先显示后替换）。
+ * 复用 localTool 后端【唯一下载归属点】saveRemoteUrl：POST /api/files/upload 传 fileUrl，
+ * 服务端 fetchWithProxy 下载（直连优先、失败走 7897 代理）+ sha1 幂等去重 + [download] 留痕日志。
+ * 跨域/防盗链图在浏览器 fetch 会失败，后端代下载天然绕过 CORS。网页图统一落 web 目录，
+ * 不与素材库/生成结果混放。
+ * @param {string} url http(s) 远程图片 URL
+ * @param {object} [opts] { folder='canvas' 落盘子目录, filename 可选文件名（默认取 URL basename） }
+ * @returns {Promise<string|null>} 本地化 URL（http://127.0.0.1:18080/files/<folder>/<name>）；失败返回 null（调用方降级保持原 URL）
+ */
+export async function downloadRemoteToLocal(url, { folder = 'canvas', filename } = {}) {
+  // saveRemoteUrl 用 new URL(fileUrl) 取 basename，data:/blob: 会抛错 → 仅 http(s) 可下载（非 http 直接 null）
+  if (typeof url !== 'string' || !/^https?:/i.test(url)) return null
+  return uploadRemoteUrl(url, folder, filename)
+}
+
+/**
+ * 【内部】http(s) 远程 URL → 落盘本地 /files/ URL（fileUrl 模式，后端 saveRemoteUrl 幂等下载）。
+ * downloadRemoteToLocal 与 saveResultToTasks 的 http 分支共用的唯一下载入口，禁止调用方另写 JSON 上传。
+ * @param {string} fileUrl http(s) 远程 URL
+ * @param {string} subfolder 落盘子目录
+ * @param {string} [filename] 可选文件名
+ * @returns {Promise<string|null>} 本地 /files/ URL；失败返回 null（不抛，调用方降级）
+ */
+async function uploadRemoteUrl(fileUrl, subfolder, filename) {
+  try {
+    const data = await httpRequest(`${API_BASE}/api/files/upload`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fileUrl, subfolder, filename: filename || undefined }),
+      ...UPLOAD_OPTS,
+    })
+    return data?.data?.url || null
+  } catch (e) {
+    logger.warn('filesApi', '远程 URL 落盘失败', e)
+    return null
+  }
+}
+
 /** data: URL → 扩展名（不带点），按 mime 推导 */
 function extFromMime(dataUrl) {
   const m = /^data:([^;,]+)/.exec(dataUrl)?.[1]
@@ -145,14 +186,8 @@ export async function saveResultToTasks(url, type) {
       return data?.data?.url || null
     }
 
-    // http(s) 上游 url → fileUrl 幂等下载落盘
-    const data = await httpRequest(`${API_BASE}/api/files/upload`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ fileUrl: url, subfolder: SUBFOLDER, filename: safeName('generated', ext) }),
-      ...UPLOAD_OPTS,
-    })
-    return data?.data?.url || null
+    // http(s) 上游 url → fileUrl 幂等下载落盘（走 uploadRemoteUrl 唯一下载入口）
+    return uploadRemoteUrl(url, SUBFOLDER, safeName('generated', ext))
   } catch (e) {
     logger.warn('filesApi', '落盘 tasks 失败', e)
     return null

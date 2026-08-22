@@ -22,8 +22,11 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
 
 const uploadMock = vi.fn(async (file) => 'http://local/' + (file?.name || 'drag'))
+const downloadRemoteMock = vi.fn(async () => null)
 vi.mock('../../src/components/base/filesApi.js', () => ({
   uploadFileToLocal: (...a) => uploadMock(...a),
+  downloadRemoteToLocal: (...a) => downloadRemoteMock(...a),
+  WEB_DROP_SUBFOLDER: 'web',
 }))
 const toastMock = vi.fn()
 vi.mock('../../src/components/base/toastStore.js', () => ({ showToast: toastMock }))
@@ -370,8 +373,8 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
       },
     }
     result.current.onDrop(e)
-    // 直接用原网络 URL 建节点（不做下载/本地化，保持简单）
-    expect(opts.addNode).toHaveBeenCalledWith('imageNode', { x: 0, y: 0 }, { imageUrl: 'https://www.qq.com/img/cat.png', label: '网页图片' })
+    // 直接用原网络 URL 建节点（不做下载/本地化，保持简单；不加 label）
+    expect(opts.addNode).toHaveBeenCalledWith('imageNode', { x: 0, y: 0 }, { imageUrl: 'https://www.qq.com/img/cat.png' })
     expect(e.preventDefault).toHaveBeenCalled()
   })
 
@@ -400,7 +403,7 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
       },
     }
     result.current.onDrop(e)
-    expect(opts.addNode).toHaveBeenCalledWith('imageNode', { x: 0, y: 0 }, { imageUrl: 'https://cdn/x/1.jpg', label: '网页图片' })
+    expect(opts.addNode).toHaveBeenCalledWith('imageNode', { x: 0, y: 0 }, { imageUrl: 'https://cdn/x/1.jpg' })
   })
 
   it('拖入空内容（无 files、无 uri-list、无 plain）→ 不建节点、不报错', () => {
@@ -412,5 +415,74 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
     }
     result.current.onDrop(e)
     expect(opts.addNode).not.toHaveBeenCalled()
+  })
+})
+
+// ════════════════════════════════════════════════════════════════
+// 网页图后台本地化（先显示后替换）：复用后端 fileUrl 下载（服务端+代理，绕 CORS），
+// 成功把节点 imageUrl 替换为 /files/web/ 本地 URL（专用 web 目录）；失败保持原 URL，
+// 不打扰、不抛错。未注入 patchNodeData 时退回纯显示模式（不触发本地化）。
+// ════════════════════════════════════════════════════════════════
+describe('useAssetDropPaste — 网页图后台本地化（web 目录）', () => {
+  afterEach(() => downloadRemoteMock.mockReset())
+
+  it('拖入网页图 → 先用原 URL 建节点 + 触发后台本地化；成功后替换节点 imageUrl', async () => {
+    downloadRemoteMock.mockResolvedValue('http://127.0.0.1:18080/files/web/abc.png')
+    const patchNodeData = vi.fn()
+    const opts = makeOpts({ addNode: vi.fn(() => 'node-web-1'), patchNodeData })
+    const { result } = renderHook(() => useAssetDropPaste(opts))
+    const e = {
+      preventDefault: vi.fn(),
+      dataTransfer: { files: [], getData: (k) => (k === 'text/uri-list' ? 'https://x/cat.png' : '') },
+    }
+    result.current.onDrop(e)
+    // 立即用原 URL 建节点（无 label）
+    expect(opts.addNode).toHaveBeenCalledWith('imageNode', { x: 0, y: 0 }, { imageUrl: 'https://x/cat.png' })
+    // 后台本地化 → 专用 web 目录
+    expect(downloadRemoteMock).toHaveBeenCalledWith('https://x/cat.png', { folder: 'web' })
+    // 等异步完成 → 替换为本地 URL（id = addNode 返回值）
+    await act(async () => {})
+    expect(patchNodeData).toHaveBeenCalledWith('node-web-1', { imageUrl: 'http://127.0.0.1:18080/files/web/abc.png' })
+  })
+
+  it('后台本地化失败（返回 null）→ 保持原 URL，不替换、不抛错', async () => {
+    downloadRemoteMock.mockResolvedValue(null)
+    const patchNodeData = vi.fn()
+    const opts = makeOpts({ addNode: vi.fn(() => 'node-web-2'), patchNodeData })
+    const { result } = renderHook(() => useAssetDropPaste(opts))
+    const e = {
+      preventDefault: vi.fn(),
+      dataTransfer: { files: [], getData: (k) => (k === 'text/uri-list' ? 'https://x/cat.png' : '') },
+    }
+    result.current.onDrop(e)
+    await act(async () => {})
+    expect(patchNodeData).not.toHaveBeenCalled()
+    expect(opts.addNode).toHaveBeenCalledWith('imageNode', { x: 0, y: 0 }, { imageUrl: 'https://x/cat.png' })
+  })
+
+  it('本地化结果与原 URL 相同 → 不重复替换', async () => {
+    downloadRemoteMock.mockResolvedValue('https://x/cat.png')
+    const patchNodeData = vi.fn()
+    const opts = makeOpts({ addNode: vi.fn(() => 'node-web-3'), patchNodeData })
+    const { result } = renderHook(() => useAssetDropPaste(opts))
+    const e = {
+      preventDefault: vi.fn(),
+      dataTransfer: { files: [], getData: (k) => (k === 'text/uri-list' ? 'https://x/cat.png' : '') },
+    }
+    result.current.onDrop(e)
+    await act(async () => {})
+    expect(patchNodeData).not.toHaveBeenCalled()
+  })
+
+  it('未注入 patchNodeData（纯显示模式）→ 仍建节点但不触发本地化', () => {
+    const opts = makeOpts({ addNode: vi.fn(() => 'node-web-4') }) // 无 patchNodeData
+    const { result } = renderHook(() => useAssetDropPaste(opts))
+    const e = {
+      preventDefault: vi.fn(),
+      dataTransfer: { files: [], getData: (k) => (k === 'text/uri-list' ? 'https://x/cat.png' : '') },
+    }
+    result.current.onDrop(e)
+    expect(opts.addNode).toHaveBeenCalledWith('imageNode', { x: 0, y: 0 }, { imageUrl: 'https://x/cat.png' })
+    expect(downloadRemoteMock).not.toHaveBeenCalled()
   })
 })

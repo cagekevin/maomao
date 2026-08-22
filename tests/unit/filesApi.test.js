@@ -166,3 +166,37 @@ describe('filesApi — uploadFileToLocal', () => {
     expect(await api.uploadFileToLocal(new Blob(['x']))).toBeNull()
   })
 })
+
+describe('filesApi — downloadRemoteToLocal（网页拖图后台本地化）', () => {
+  it('http(s) URL → fileUrl 落盘到指定 subfolder 返回 url', async () => {
+    fetchMock.mockResolvedValue(uploadResp('http://127.0.0.1:18080/files/web/abc.png'))
+    const url = await api.downloadRemoteToLocal('https://x/cat.png', { folder: 'web' })
+    expect(url).toBe('http://127.0.0.1:18080/files/web/abc.png')
+    const [reqUrl, opts] = fetchMock.mock.calls[0]
+    expect(reqUrl).toContain('/api/files/upload')
+    const body = JSON.parse(opts.body)
+    expect(body.fileUrl).toBe('https://x/cat.png')
+    expect(body.subfolder).toBe('web')
+  })
+  it('默认 folder=canvas（未传 folder 时）', async () => {
+    fetchMock.mockResolvedValue(uploadResp('http://x/a.png'))
+    await api.downloadRemoteToLocal('http://x/a.png')
+    const [, opts] = fetchMock.mock.calls[0]
+    expect(JSON.parse(opts.body).subfolder).toBe('canvas')
+  })
+  it('非 http(s)（data:/blob:/空）→ null 且不发请求', async () => {
+    expect(await api.downloadRemoteToLocal('data:image/png;base64,xx')).toBeNull()
+    expect(await api.downloadRemoteToLocal('blob:http://x/y')).toBeNull()
+    expect(await api.downloadRemoteToLocal('')).toBeNull()
+    expect(await api.downloadRemoteToLocal(undefined)).toBeNull()
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+  it('上传失败（!res.ok / fetch reject）→ null 不抛', async () => {
+    fetchMock.mockResolvedValue(failResp())
+    expect(await api.downloadRemoteToLocal('http://x/a.png')).toBeNull()
+    fetchMock
+      .mockImplementationOnce(async () => { throw new Error('net') })
+      .mockResolvedValue({ ok: true, status: 200, json: async () => ({}) })
+    expect(await api.downloadRemoteToLocal('http://x/b.png')).toBeNull()
+  })
+})
