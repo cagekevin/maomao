@@ -1,9 +1,11 @@
 import React, { useState } from 'react'
 import { Loader2, Wand2, User, Image as ImageIcon, Package, Plus, MoreVertical, Upload, RefreshCw, Trash2 } from 'lucide-react'
 import { ZgPrompt, stripAtRef } from '../base/scriptBoxPrompts.js'
+import { assetFolderOf } from '../base/assetStore.js'
 import { useOutsideClick } from '../base/hooks.js'
-import { useRenderImageResolver } from '../base/imageUrl.js'
+import { useRenderImageResolver, toAbsoluteFileUrl } from '../base/imageUrl.js'
 import ImageZoomDialog from '../base/ImageZoomDialog.jsx'
+import ScriptBoxAssetPicker from './ScriptBoxAssetPicker.jsx'
 
 /**
  * 剧本盒子 步骤2「准备资产」：角色/场景/道具三栏 + 资产卡(选中框/图片上传状态/more菜单) +
@@ -25,6 +27,8 @@ export default function StepAssets({ data, updateData, callbacks }) {
   // 双击查看大图（复用通用 ImageZoomDialog，同生图节点）：zoomUrl 记录当前要放大的图片 URL
   const zoomRef = React.useRef(null)
   const [zoomUrl, setZoomUrl] = useState('')
+  // 「从素材库选择」：picking 记录正在选图的资产 id（非空时弹出素材库选择器）
+  const [picking, setPicking] = useState(null)
   // 缩略图显示复用系统统一按需出图出口（与 ImageNode 一致），不再各自落盘独立缩略图文件
   const render = useRenderImageResolver()
 
@@ -101,6 +105,7 @@ export default function StepAssets({ data, updateData, callbacks }) {
                         onUpload={uploadOne}
                         onRetry={() => retryUpload(a.id)}
                         onEditPrompt={() => setEditIdx(gi)}
+                        onPickFromLibrary={() => setPicking(gi)}
                         onZoomClick={(url) => { setZoomUrl(url); zoomRef.current?.showModal() }}
                       />
                     )
@@ -128,6 +133,29 @@ export default function StepAssets({ data, updateData, callbacks }) {
       </div>
       {/* 双击资产缩略图查看大图 */}
       <ImageZoomDialog ref={zoomRef} url={zoomUrl} />
+
+      {/* 从素材库选择：按资产类别锁文件夹（人物/场景/道具），点选一张图设为该资产参考图。
+          这里直接用 updateData 写回 assets（不依赖 node.data 上是否注入 onPickAssetImage），
+          保证选完图一定能写进该资产并显示。 */}
+      {picking !== null && assets[picking] && (
+        <ScriptBoxAssetPicker
+          folder={assetFolderOf(assets[picking].category)}
+          onClose={() => setPicking(null)}
+          onPick={(url) => {
+            if (url) {
+              const abs = toAbsoluteFileUrl(url)
+              updateData({
+                assets: assets.map((a) =>
+                  a.id === assets[picking].id
+                    ? { ...a, imageUrl: abs, thumbnailUrl: abs, has: true, imageStatus: 'uploaded', imageError: undefined }
+                    : a
+                ),
+              })
+            }
+            setPicking(null)
+          }}
+        />
+      )}
     </div>
   )
 }
@@ -147,7 +175,7 @@ function addAsset(updateData, cat, assets) {
 }
 
 /** 资产卡：缩略图 + 选中框 + 名称/描述 + 图片上传状态 + more 菜单 */
-function AssetCard({ asset, idx, data, updateData, callbacks, render, onOpen, onTogglePick, onDel, onUpload, onRetry, onEditPrompt, onZoomClick, selected }) {
+function AssetCard({ asset, idx, data, updateData, callbacks, render, onOpen, onTogglePick, onDel, onUpload, onRetry, onEditPrompt, onPickFromLibrary, onZoomClick, selected }) {
   const [more, setMore] = useState(false)
   const moreRef = React.useRef(null)
   const fileRef = React.useRef(null)
@@ -175,6 +203,7 @@ function AssetCard({ asset, idx, data, updateData, callbacks, render, onOpen, on
           <div className="absolute right-0 top-full mt-1 bg-surface-menu border border-edge rounded-lg shadow-2xl py-1 min-w-[120px]" onClick={(e) => e.stopPropagation()}>
             <MenuItem icon={<Wand2 size={11} />} text="生成" onClick={() => { callbacks.onGenerateAssetImage?.(asset.id); setMore(false) }} />
             <MenuItem icon={<Upload size={11} />} text="上传图片" onClick={() => { setMore(false); fileRef.current?.click() }} />
+            <MenuItem icon={<ImageIcon size={11} />} text="从素材库选择" onClick={() => { setMore(false); onPickFromLibrary?.() }} />
             {asset.imageStatus === 'failed' && <MenuItem icon={<RefreshCw size={11} />} text="重试上传" onClick={() => { onRetry(); setMore(false) }} />}
             <MenuItem icon={<Wand2 size={11} />} text="编辑提示词" onClick={() => { onEditPrompt(); setMore(false) }} />
             <div className="h-px bg-white/[0.04] my-1" />

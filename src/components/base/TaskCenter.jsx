@@ -216,8 +216,6 @@ const TaskCard = React.memo(function TaskCard({ task, moreOpen, onToggleMore, on
   const [showData, setShowData] = useState(false)
   const menuRef = useRef(null) // 任务卡片「⋮」更多菜单容器 ref，点击外部自动关闭
   useOutsideClick(menuRef, moreOpen, () => onCloseMore?.())
-  // 缩略图像素尺寸（缩略图 onLoad 读取 naturalWidth/Height，右下角显示，无需打开大图）
-  const [thumbDims, setThumbDims] = useState(null)
   const TypeIcon = TYPE_ICON[task.type] || ImageIcon
   const dot = statusDotClass(task.status)
   const statusText = statusLabel(task.status, task.progress)
@@ -304,7 +302,7 @@ const TaskCard = React.memo(function TaskCard({ task, moreOpen, onToggleMore, on
         </div>
       )}
 
-      {/* 已完成缩略图：点击打开大图预览；图片右下角常显像素（无需打开大图）；视频点击大图播放 */}
+      {/* 已完成缩略图：点击打开大图预览（预览弹窗右下角显示原图像素）；视频点击大图播放 */}
       {isCompleted && task.resultUrl && (
         <div
           className="relative w-full h-[72px] rounded-lg overflow-hidden bg-surface-muted group cursor-pointer"
@@ -321,18 +319,8 @@ const TaskCard = React.memo(function TaskCard({ task, moreOpen, onToggleMore, on
               src={render(task.resultUrl)}
               alt={task.modelName || '结果图'}
               {...makeAssetDragProps({ url: task.resultUrl, name: task.modelName || '结果图', type: task.type })}
-              onLoad={(e) => {
-                const el = e.currentTarget
-                if (el.naturalWidth && el.naturalHeight) setThumbDims({ w: el.naturalWidth, h: el.naturalHeight })
-              }}
               className="w-full h-full object-cover block cursor-grab active:cursor-grabbing"
             />
-          )}
-          {/* 图片右下角像素角标（常显） */}
-          {task.type === 'image' && thumbDims && (
-            <span className="absolute bottom-1 right-1 px-1.5 py-0.5 rounded bg-black/70 text-white/90 text-[10px] leading-none pointer-events-none select-none">
-              {thumbDims.w}×{thumbDims.h}
-            </span>
           )}
           <button className="absolute top-1 right-1 w-6 h-6 rounded-md bg-black/50 flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer border-none" onClick={downloadResult} title="下载结果">
             <Download size={12} />

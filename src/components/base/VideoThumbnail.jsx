@@ -3,12 +3,14 @@ import { Play } from 'lucide-react'
 import { toAbsoluteFileUrl } from './imageUrl.js'
 
 /**
- * 视频缩略图统一组件：静音封面 + 居中播放按钮。
+ * 视频缩略图统一组件：静音封面 + 居中悬浮播放按钮。
  * 用于 DiscountVideoNode（节点主体，点击真正播放）、
  * TaskCenter / GeneratedView（结果/资源的视频缩略图）。
  *
  * - 用原生 <video>，preload="metadata" 让首帧海报快速出现（比 preload="none" 快）。
- * - 播放按钮是 button，点击 stopPropagation 后触发 onActivate（由父组件决定：播放 / 打开预览）。
+ * - 播放按钮是居中悬浮的小按钮（不再铺满整个区域），点击 stopPropagation 后触发
+ *   onActivate（由父组件决定：播放 / 打开预览）；其余区域点击会冒泡给父容器（如切抽屉）。
+ * - onDoubleClick 可选：双击触发（如打开大图预览）。
  */
 function VideoThumbnail({
   src,
@@ -18,6 +20,7 @@ function VideoThumbnail({
   size = 'lg', // 'lg' | 'sm'
   className = '',
   onActivate,
+  onDoubleClick, // 双击触发（如打开大图预览）；默认无
   videoRef
 }) {
   const btn =
@@ -42,14 +45,14 @@ function VideoThumbnail({
           e.stopPropagation()
           onActivate?.()
         }}
-        className="absolute inset-0 flex items-center justify-center group"
+        onDoubleClick={(e) => {
+          e.stopPropagation()
+          onDoubleClick?.()
+        }}
+        className={`${btn.wrap} absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[1] flex items-center justify-center rounded-full bg-black/50 backdrop-blur-sm opacity-70 group-hover:opacity-100 group-hover:bg-black/70 transition-all`}
         aria-label="播放视频"
       >
-        <span
-          className={`${btn.wrap} rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center opacity-70 group-hover:opacity-100 group-hover:bg-black/70 transition-all`}
-        >
-          <Play className={`text-white ${btn.icon}`} fill="currentColor" />
-        </span>
+        <Play className={`text-white ${btn.icon}`} fill="currentColor" />
       </button>
     </div>
   )

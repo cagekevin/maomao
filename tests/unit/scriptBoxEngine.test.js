@@ -373,6 +373,47 @@ describe('scriptBoxEngine · 引擎编排', () => {
     expect(addNodes.mock.calls[0][0][0].type).toBe('promptNode')
   })
 
+  it('onConnectShots 未传/空数组 → 全部镜头（与批量生成逻辑一致）', async () => {
+    const { engine, addNodes } = makeEngine({
+      shots: [
+        { id: 's1', index: 1, description: 'x', prompt: 'p1', videoPrompt: 'v1' },
+        { id: 's2', index: 2, description: 'y', prompt: 'p2', videoPrompt: 'v2' },
+      ],
+    })
+    // 空数组 → 全部
+    engine.onConnectShots([], 'image')
+    let allNodes = addNodes.mock.calls.flatMap((c) => c[0])
+    expect(allNodes).toHaveLength(2)
+    expect(allNodes.every((n) => n.type === 'promptNode')).toBe(true)
+    // 不传 → 全部
+    addNodes.mockClear()
+    engine.onConnectShots(undefined, 'video')
+    allNodes = addNodes.mock.calls.flatMap((c) => c[0])
+    expect(allNodes).toHaveLength(2)
+    expect(allNodes.every((n) => n.type === 'discountVideoNode')).toBe(true)
+  })
+
+  // ── 从素材库选择图片设为资产参考图（onPickAssetImage）──
+  it('onPickAssetImage：把素材库图片 URL 写入资产（补全绝对地址）', async () => {
+    const { engine, store } = makeEngine({
+      assets: [{ id: 'a1', name: '主角', category: 'character', imageUrl: '', thumbnailUrl: '', has: false, imageStatus: '' }],
+    })
+    engine.onPickAssetImage('a1', '/files/migrated/人物/主角.png')
+    expect(store.assets[0].has).toBe(true)
+    expect(store.assets[0].imageStatus).toBe('uploaded')
+    expect(store.assets[0].imageUrl).toContain('/files/migrated/人物/主角.png')
+    expect(store.assets[0].thumbnailUrl).toBe(store.assets[0].imageUrl)
+  })
+
+  it('onPickAssetImage：空 URL 不写资产，资产不存在不抛错', async () => {
+    const { engine, store } = makeEngine({
+      assets: [{ id: 'a1', name: '主角', category: 'character', imageUrl: '', has: false }],
+    })
+    engine.onPickAssetImage('a1', '') // 空 url → 只 toast，不写入
+    expect(store.assets[0].has).toBe(false)
+    expect(() => engine.onPickAssetImage('nope', '/files/x.png')).not.toThrow() // 资产不存在 → 静默
+  })
+
   // ── P1-③：按钮连下游透传宽高比/时长预填（复刻 App.jsx 对 shot- 端口的预填）──
   it('onConnectShot 透传宽高比（image→aspectRatio；video→size+时长+durationFromScript）', async () => {
     const { engine, addNodes } = makeEngine({

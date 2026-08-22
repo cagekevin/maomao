@@ -87,7 +87,13 @@ export default function StepPrompt({ data, updateData, callbacks }) {
         {s.connImg && <span className="text-emerald-400">图✓</span>}
         {s.connVid && <span className="text-blue-400">视频✓</span>}
         <div className="flex-1" />
-        <button className="text-gray-500 hover:text-white" title={selShots.has(i) ? '取消选择' : '选择'} onClick={() => toggleSel(i)}>{selShots.has(i) ? '☑' : '☐'}</button>
+        <button
+          className={`flex items-center justify-center px-2 py-1.5 rounded-md transition-colors ${selShots.has(i) ? 'bg-surface-hover-strong text-white' : 'text-gray-500 hover:text-white hover:bg-surface-hover'}`}
+          title={selShots.has(i) ? '取消选择' : '选择'}
+          onClick={() => toggleSel(i)}
+        >
+          <span className="text-base leading-none">{selShots.has(i) ? '☑' : '☐'}</span>
+        </button>
       </div>
       <div className="text-caption-sm text-gray-400 leading-relaxed">{s.description}</div>
       {(s.dialogue || []).length > 0 && <div className="text-caption text-gray-500 italic">「{dialogueText(s.dialogue)}」</div>}
@@ -169,30 +175,26 @@ export default function StepPrompt({ data, updateData, callbacks }) {
     <div className="flex flex-col gap-3">
       {/* 视图切换 + 批量 */}
       <div className="flex items-center gap-2">
-        <div className="flex bg-surface-strong rounded-lg p-0.5">
-          <button className={`flex items-center gap-1.5 px-3 py-1 text-caption-sm rounded-md ${view === 'list' ? 'bg-surface-hover text-white' : 'text-gray-400'}`} onClick={() => setView('list')}><Columns2 size={11} /> 列表</button>
-          <button className={`flex items-center gap-1.5 px-3 py-1 text-caption-sm rounded-md ${view === 'grid' ? 'bg-surface-hover text-white' : 'text-gray-400'}`} onClick={() => setView('grid')}><LayoutGrid size={11} /> 单镜头</button>
+        <div className="flex items-center bg-surface-strong rounded-lg p-0.5">
+          <button className={`flex items-center gap-1.5 px-3 py-1.5 text-caption-sm rounded-md whitespace-nowrap ${view === 'list' ? 'bg-surface-hover text-white' : 'text-gray-400'}`} onClick={() => setView('list')}><Columns2 size={11} /> 列表</button>
+          <button className={`flex items-center gap-1.5 px-3 py-1.5 text-caption-sm rounded-md whitespace-nowrap ${view === 'grid' ? 'bg-surface-hover text-white' : 'text-gray-400'}`} onClick={() => setView('grid')}><LayoutGrid size={11} /> 单镜头</button>
         </div>
         <div className="flex-1" />
-        {/* 批量生成提示词：一次性生成所有镜头的生图 prompt + 生视频 videoPrompt。
-            真实现（引擎 onGenerateShotPrompts，对齐官方 Ir）：
-              传 undefined 生成全部镜头；引擎对每个镜头用 assembleShotUser 拼 user content +
-              分镜导演系统提示词（customShotPrompt 可覆盖），并发请求文本模型 chat/completions，
-              返回 { prompt, videoPrompt } 写回各 shot，期间 shot.promptLoading=true。 */}
-        <button className="flex items-center gap-1 px-2 py-1 text-caption text-gray-300 bg-surface-1 hover:bg-surface-hover rounded" onClick={() => callbacks.onGenerateShotPrompts?.()}>
-          <RefreshCw size={10} /> 批量生成提示词
+        {/* 批量操作：始终显示。未选镜头 → 作用于全部；选中镜头 → 只作用于选中的（与第2步「批量生成素材」逻辑一致） */}
+        <button
+          className="flex items-center gap-1 px-2.5 py-1.5 text-caption-sm text-gray-200 bg-surface-hover hover:bg-surface-hover-strong rounded-md whitespace-nowrap"
+          title={selShots.size ? `为选中的 ${selShots.size} 镜批量生成提示词` : '为全部镜头批量生成提示词'}
+          onClick={() => callbacks.onGenerateShotPrompts?.([...selShots].map((i) => shots[i].id))}
+        >
+          <RefreshCw size={11} /> 批量生成提示词{selShots.size ? `(${selShots.size})` : ''}
         </button>
-        {selShots.size > 0 && (
-          <span className="flex items-center gap-1">
-            <span className="text-caption text-gray-500">连选中的 {selShots.size} 镜：</span>
-            <button className="px-2 py-1 text-caption text-gray-300 bg-surface-1 hover:bg-surface-hover rounded" onClick={() => callbacks.onConnectShots?.([...selShots].map((i) => shots[i].id), 'image')}>
-              <ImageIcon size={10} className="inline mr-0.5" /> 生图
-            </button>
-            <button className="px-2 py-1 text-caption text-gray-300 bg-surface-1 hover:bg-surface-hover rounded" onClick={() => callbacks.onConnectShots?.([...selShots].map((i) => shots[i].id), 'video')}>
-              <Video size={10} className="inline mr-0.5" /> 生视频
-            </button>
-          </span>
-        )}
+        <button
+          className="flex items-center gap-1 px-2.5 py-1.5 text-caption-sm text-gray-200 bg-surface-hover hover:bg-surface-hover-strong rounded-md whitespace-nowrap"
+          title={selShots.size ? `为选中的 ${selShots.size} 镜批量生图` : '为全部镜头批量生图'}
+          onClick={() => callbacks.onConnectShots?.([...selShots].map((i) => shots[i].id), 'image')}
+        >
+          <ImageIcon size={11} /> 批量生图{selShots.size ? `(${selShots.size})` : ''}
+        </button>
         <span className="text-caption-sm text-gray-500">{shots.length} 镜</span>
       </div>
 

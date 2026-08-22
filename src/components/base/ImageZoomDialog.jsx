@@ -22,7 +22,8 @@ import { toAbsoluteFileUrl } from './imageUrl.js'
 import { copyImageToClipboard, downloadUrl } from './clipboard.js'
 import { createRafBatch } from './utils.js'
 
-const ImageZoomDialog = forwardRef(function ImageZoomDialog({ url }, ref) {
+const ImageZoomDialog = forwardRef(function ImageZoomDialog({ url, kind = 'image' }, ref) {
+  const isVideo = kind === 'video'
   const [scale, setScale] = useState(1)
   const [offset, setOffset] = useState({ x: 0, y: 0 })
   const dragging = useRef(false)
@@ -50,7 +51,9 @@ const ImageZoomDialog = forwardRef(function ImageZoomDialog({ url }, ref) {
   // 【画布联动修复】onWheel 必须 stopPropagation：<dialog> 位于 React Flow 画布 DOM 内，
   // 若不阻止冒泡，滚轮事件会传到画布的 wheel 监听 → 大图缩放时画布也跟着缩放。
   // 依赖 [ref]：node 引用稳定即只绑定一次，避免每次渲染重复 addEventListener。
+  // 视频模式不做缩放（isVideo 时跳过），避免滚轮干扰原生播放器。
   useEffect(() => {
+    if (isVideo) return
     const node = typeof ref === 'function' ? null : ref?.current
     if (!node) return
     let pending = 0
@@ -69,10 +72,12 @@ const ImageZoomDialog = forwardRef(function ImageZoomDialog({ url }, ref) {
       node.removeEventListener('wheel', onWheel)
       batch.cancel()
     }
-  }, [ref])
+  }, [ref, isVideo])
 
   // window 级拖拽，避免 setPointerCapture 吞掉按钮点击；P3：平移增量 rAF 合并 + P10 will-change
+  // 视频模式不做拖拽平移（isVideo 时跳过），避免干扰原生播放器。
   useEffect(() => {
+    if (isVideo) return
     let pending = { x: 0, y: 0 }
     const batch = createRafBatch((dx, dy) => {
       pending = { x: 0, y: 0 }
@@ -97,7 +102,7 @@ const ImageZoomDialog = forwardRef(function ImageZoomDialog({ url }, ref) {
       window.removeEventListener('pointerup', onUp)
       batch.cancel()
     }
-  }, [])
+  }, [isVideo])
 
   const onPointerDown = useCallback((e) => {
     dragging.current = true
@@ -136,23 +141,36 @@ const ImageZoomDialog = forwardRef(function ImageZoomDialog({ url }, ref) {
       {src && (
         <div
           className="fixed inset-0 flex items-center justify-center overflow-hidden select-none"
-          onPointerDown={onPointerDown}
+          onPointerDown={isVideo ? undefined : onPointerDown}
           onClick={(e) => { if (e.target === e.currentTarget) close(e) }}
-          style={{ cursor: dragging.current ? 'grabbing' : 'grab' }}
+          style={isVideo ? undefined : { cursor: dragging.current ? 'grabbing' : 'grab' }}
         >
-          <img
-            ref={imgRef}
-            src={src}
-            alt="大图"
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})`,
-              transition: dragging.current ? 'none' : 'transform 0.08s ease-out',
-              cursor: dragging.current ? 'grabbing' : 'grab',
-            }}
-            className="max-w-full max-h-full object-contain pointer-events-none"
-            draggable={false}
-          />
+          {isVideo ? (
+            /* 视频模式：系统原生播放器（kind='video'） */
+            <video
+              ref={imgRef}
+              src={src}
+              controls
+              autoPlay
+              playsInline
+              onClick={(e) => e.stopPropagation()}
+              className="max-w-full max-h-[85vh] object-contain rounded-lg"
+            />
+          ) : (
+            <img
+              ref={imgRef}
+              src={src}
+              alt="大图"
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})`,
+                transition: dragging.current ? 'none' : 'transform 0.08s ease-out',
+                cursor: dragging.current ? 'grabbing' : 'grab',
+              }}
+              className="max-w-full max-h-full object-contain pointer-events-none"
+              draggable={false}
+            />
+          )}
 
           {/* 右上角关闭 */}
           <button
@@ -166,21 +184,25 @@ const ImageZoomDialog = forwardRef(function ImageZoomDialog({ url }, ref) {
             </svg>
           </button>
 
-          {/* 底部工具栏：复制 / 下载 + 缩放提示 */}
+          {/* 底部工具栏：复制 / 下载 + 缩放提示（视频模式不显示复制图片与缩放提示） */}
           <div
             className="absolute bottom-5 left-1/2 -translate-x-1/2 z-[10000] flex items-center gap-2 bg-black/55 backdrop-blur px-3 py-2 rounded-full text-white text-sm"
             onClick={(e) => e.stopPropagation()}
             onPointerDown={(e) => e.stopPropagation()}
           >
-            {/* 复制按钮：固定 min-w 让「复制图片/已复制/复制失败」三态切换不跳宽；成功态绿、失败态红橙 */}
-            <button
-              type="button"
-              onClick={(e) => { e.stopPropagation(); handleCopy() }}
-              className={`px-3 py-1 rounded-full min-w-[88px] text-center transition-colors ${copied ? 'text-emerald-300 hover:bg-white/15' : copyErr ? 'text-red-300 hover:bg-white/15' : 'hover:bg-white/15'}`}
-            >
-              {copied ? '已复制 ✓' : copyErr ? '复制失败' : '复制图片'}
-            </button>
-            <span className="opacity-30">|</span>
+            {!isVideo && (
+              <>
+                {/* 复制按钮：固定 min-w 让「复制图片/已复制/复制失败」三态切换不跳宽；成功态绿、失败态红橙 */}
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); handleCopy() }}
+                  className={`px-3 py-1 rounded-full min-w-[88px] text-center transition-colors ${copied ? 'text-emerald-300 hover:bg-white/15' : copyErr ? 'text-red-300 hover:bg-white/15' : 'hover:bg-white/15'}`}
+                >
+                  {copied ? '已复制 ✓' : copyErr ? '复制失败' : '复制图片'}
+                </button>
+                <span className="opacity-30">|</span>
+              </>
+            )}
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); handleDownload() }}
@@ -188,7 +210,7 @@ const ImageZoomDialog = forwardRef(function ImageZoomDialog({ url }, ref) {
             >
               下载
             </button>
-            <span className="opacity-50 ml-1 hidden sm:inline">滚轮缩放 · 拖拽平移 · 点空白关闭</span>
+            {!isVideo && <span className="opacity-50 ml-1 hidden sm:inline">滚轮缩放 · 拖拽平移 · 点空白关闭</span>}
           </div>
         </div>
       )}

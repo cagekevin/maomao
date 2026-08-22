@@ -55,6 +55,7 @@ export function useJsonObject(modelId) {
  *  - onRetryAssetImageUpload(id)     重试资产参考图上传
  *  - onUploadAllAssetImages()        上传全部资产素材
  *  - onUploadAssetImage(id, file)    上传本地图片设为资产参考图
+ *  - onPickAssetImage(id, url)       从素材库选一张现成图片设为资产参考图
  *  - onConnectShot(id, target)       单镜头连下游（建 promptNode/discountVideoNode）
  *  - onConnectShots(ids, target)     批量连下游
  *  - onGenerateTailFrameVariants(id) 抽上一镜尾帧→多角度生图→写回变体（P1-2）
@@ -714,6 +715,26 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
     }
   }
 
+  // 从素材库选择图片设为资产参考图（用户在素材库挑一张已有的图）。
+  // 素材库的图已在本地磁盘（/files/... 可访问），故直接把其 URL 写入资产 imageUrl，
+  // 不再重复上传落盘（与 onUploadAssetImage 的「本地 file 落盘」互补：一个收 file，一个收现成 URL）。
+  //  - url：素材库图片的 /files/ 相对地址
+  //  - 成功 → imageUrl/thumbnailUrl/has 写入，imageStatus='uploaded'（素材库图等价于已归档）。
+  const onPickAssetImage = (assetId, url) => {
+    const d = getData()
+    const asset = (d.assets || []).find((a) => a.id === assetId)
+    if (!asset) return
+    if (!url) { toast('未选择图片'); return }
+    const abs = toAbsoluteFileUrl(url)
+    updateData({
+      assets: (d.assets || []).map((a) =>
+        a.id === assetId ? { ...a, imageUrl: abs, thumbnailUrl: abs, has: true, imageStatus: 'uploaded', imageError: undefined } : a
+      ),
+    })
+    toast(`已将「${asset.name || '资产'}」设为素材库参考图`)
+    logger.info('scriptBox', '素材库选择资产图·成功', { nodeId, assetId, url: abs })
+  }
+
   // 连线（对齐官方 li）：按 target 建对应下游节点并自动连线，下游往右排布。
   // 预填（P1-③）：复刻 App.jsx 对 shot- 端口建下游时的透传——
   //   image→aspectRatio；video→size + selectedSeconds(分镜时长) + durationFromScript。
@@ -762,7 +783,14 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
       ])
     }
   }
-  const onConnectShots = (shotIds, target = 'image') => (shotIds || []).forEach((id) => onConnectShot(id, target))
+  // 批量连下游（对齐官方 Ir 的「未选则全部」语义，与 onGenerateShotPrompts / onGenerateAllAssetImages 一致）：
+  // 未传 / 空数组 → 全部镜头；传入选中 id 数组 → 只连选中的镜头。
+  const onConnectShots = (shotIds, target = 'image') => {
+    const d = getData()
+    const shots = d.shots || []
+    const ids = Array.isArray(shotIds) && shotIds.length > 0 ? shotIds : shots.map((s) => s.id)
+    ids.forEach((id) => onConnectShot(id, target))
+  }
 
   // ═══════════════════════════════════════════════════════════════
   // P1-2 尾帧变体生成（对齐官方 Qr）：抽上一镜视频尾帧 → 本地化 → 按角度生图 → 写回变体数组。
@@ -877,6 +905,7 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
     onRetryAssetImageUpload,
     onUploadAllAssetImages,
     onUploadAssetImage,
+    onPickAssetImage,
     onConnectShot,
     onConnectShots,
     onGenerateTailFrameVariants,

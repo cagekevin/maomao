@@ -23,6 +23,7 @@ import { useMediaDegrade } from '../base/useMediaDegrade.js'
 import { useVideoPoster } from '../base/useVideoPoster.js'
 import LazyImage from '../base/LazyImage.jsx'
 import VideoThumbnail from '../base/VideoThumbnail.jsx'
+import ImageZoomDialog from '../base/ImageZoomDialog.jsx'
 import { useGenerateNode } from '../base/useGenerateNode.js'
 import { generateVideo } from '../base/videoApi.js'
 import { useNodePrefs } from '../base/nodePrefs.js'
@@ -103,6 +104,19 @@ function DiscountVideoNode({ id, data, selected }) {
   const fileRef = useRef(null)
   const videoRef = useRef(null) // 主视频元素（点击播放按钮用）
   const promptInputRef = useRef(null) // 提示词 textarea ref（供面板右下角手柄拖拽改尺寸）
+  // 双击视频查看大图（原生 <dialog> + 原生 <video> 播放器）
+  const [zoomUrl, setZoomUrl] = useState('')
+  const zoomRef = useRef(null)
+  const openVideoZoom = useCallback((url) => {
+    if (!url) return
+    setZoomUrl(url)
+    requestAnimationFrame(() => zoomRef.current?.showModal())
+  }, [])
+  // 单击/双击区分：单击立即切抽屉、双击看大图。
+  // 用两次 click 时间间隔识别双击：双击时第一次 click 已 toggle，第二次 click 拦截不 toggle，
+  // 再由 dblclick 补一次 toggle 抵消，抽屉回到原位并打开大图。单击则只 toggle 一次，无延迟。
+  const lastClickTime = useRef(0)
+  const doubleClickPending = useRef(false)
   const ratioMenuRef = useRef(null) // 比例/分辨率/时长菜单容器（点击外部关闭）
   useOutsideClick(ratioMenuRef, showRatioMenu, () => setShowRatioMenu(false))
 
@@ -222,7 +236,28 @@ function DiscountVideoNode({ id, data, selected }) {
           背景/边框/阴影已由 NodeShell 主容器提供，这里只保留布局与点击行为 */}
       <div
         className="relative cursor-pointer group/display flex flex-col w-full flex-1 min-h-0"
-        onClick={toggleExpanded}
+        onClick={() => {
+          const now = Date.now()
+          // 两次 click 间隔很短 → 是双击的第二次 click，拦截（不 toggle，交给 dblclick 补偿）
+          if (now - lastClickTime.current < 300) {
+            doubleClickPending.current = true
+            lastClickTime.current = now
+            return
+          }
+          lastClickTime.current = now
+          doubleClickPending.current = false
+          toggleExpanded()
+        }}
+        onDoubleClick={(e) => {
+          e.stopPropagation()
+          // 双击：第一次 click 已 toggle 一次，这里补一次 toggle 抵消 → 抽屉回到原位，再打开大图
+          if (doubleClickPending.current) {
+            toggleExpanded()
+            doubleClickPending.current = false
+          }
+          // 有视频才打开大图预览（系统原生 <video> 播放器）
+          if (videoUrl) openVideoZoom(videoUrl)
+        }}
       >
         <div className={`flex items-center justify-center absolute inset-0 rounded-xl overflow-hidden ${videoUrl ? '' : 'bg-surface-strong'}`}>
           {/* 性能模式媒体降级：缩小时隐藏视频（复刻官方"图片视频已隐藏"） */}
@@ -242,6 +277,7 @@ function DiscountVideoNode({ id, data, selected }) {
               size="lg"
               className={`w-full h-full rounded-lg ${loading ? 'opacity-50 blur-sm' : ''}`}
               onActivate={() => videoRef.current?.play()}
+              onDoubleClick={() => openVideoZoom(videoUrl)}
             />
           )}
           {loading && (
@@ -375,6 +411,9 @@ function DiscountVideoNode({ id, data, selected }) {
           onChange={(e) => setPromptPersist(e.target.value)}
         />
       </FullscreenModal>
+
+      {/* 双击视频查看大图：原生 <dialog> + 系统原生 <video> 播放器 */}
+      <ImageZoomDialog ref={zoomRef} url={zoomUrl} kind="video" />
     </NodeShell>
   )
 }
