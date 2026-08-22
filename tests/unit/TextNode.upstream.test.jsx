@@ -64,8 +64,6 @@ beforeEach(() => {
   mockChat.mockResolvedValue({ ok: true, content: '生成结果' })
   genConfig = null
   connectedInputs = { images: [], texts: [] }
-  global.requestAnimationFrame = (cb) => setTimeout(() => cb(Date.now()), 0)
-  global.cancelAnimationFrame = (id) => clearTimeout(id)
 })
 
 import TextNode from '../../src/components/nodes/TextNode.jsx'

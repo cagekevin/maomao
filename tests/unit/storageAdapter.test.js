@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { flushAsync } from './_testUtils.mjs'
 
 // mock eventBus.publish：捕获 persist:failed 事件
 const publishMock = vi.fn()
@@ -119,7 +120,7 @@ describe('storageAdapter 双端兼容加固', () => {
     chromeGlobal = makeExtensionChrome()
     initStorage()
     sSet('ext_k', 'ext_v')
-    await new Promise((r) => setTimeout(r, 0))
+    await flushAsync()
     expect(publishMock).not.toHaveBeenCalled()
   })
 
@@ -129,7 +130,7 @@ describe('storageAdapter 双端兼容加固', () => {
     chromeGlobal.storage.local.set = () => { throw new Error('chrome.storage unavailable') }
     initStorage()
     sSet('fallback_k', 'fallback_v')
-    await new Promise((r) => setTimeout(r, 0))
+    await flushAsync()
     // 回退成功 → 不应报 persist:failed
     expect(publishMock).not.toHaveBeenCalled()
     // 数据已落 localStorage（含 yimao: 前缀）
@@ -142,7 +143,7 @@ describe('storageAdapter 双端兼容加固', () => {
     initStorage()
     const spy = vi.spyOn(localStorage, 'setItem').mockImplementation(() => { throw new Error('QuotaExceededError') })
     sSet('dbl_fail_k', 'v')
-    await new Promise((r) => setTimeout(r, 0))
+    await flushAsync()
     expect(publishMock).toHaveBeenCalledTimes(1)
     expect(publishMock.mock.calls[0][0]).toBe('persist:failed')
     expect(publishMock.mock.calls[0][1].key).toBe('dbl_fail_k')

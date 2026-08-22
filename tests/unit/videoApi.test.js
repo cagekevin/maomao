@@ -5,7 +5,7 @@
  * 策略：node + mock fetch（顺序响应）+ mock imageUrl/taskStore + mock setTimeout 加速轮询。
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { jsonResp } from './_testUtils.mjs'
+import { jsonResp, fastPollTimers } from './_testUtils.mjs'
 
 const fetchMock = globalThis.fetch
 
@@ -39,8 +39,8 @@ beforeEach(() => {
   getCurrentTaskId.mockReturnValue(null)
   setTaskPollId.mockReset()
   vi.restoreAllMocks()
-  // 加速轮询里的 setTimeout(5000)
-  vi.spyOn(global, 'setTimeout').mockImplementation((fn) => Promise.resolve().then(fn))
+  // 加速轮询里的 setTimeout(5000)：统一走共享 helper（见 _testUtils.fastPollTimers）
+  fastPollTimers()
 })
 afterEach(() => {
   vi.restoreAllMocks()

@@ -64,8 +64,6 @@ beforeEach(() => {
   mockGenerateVideo.mockResolvedValue({ url: 'http://gen.local/v.mp4' })
   genConfig = null
   connectedInputs = { images: [], texts: [] }
-  global.requestAnimationFrame = (cb) => setTimeout(() => cb(Date.now()), 0)
-  global.cancelAnimationFrame = (id) => clearTimeout(id)
 })
 
 import DiscountVideoNode from '../../src/components/nodes/DiscountVideoNode.jsx'

@@ -112,9 +112,6 @@ beforeEach(() => {
   if (!global.IntersectionObserver) {
     global.IntersectionObserver = class { observe() {} unobserve() {} disconnect() {} }
   }
-  // 强制用 setTimeout 实现 rAF，保证 requestAnimationFrame 回调可靠触发
-  global.requestAnimationFrame = (cb) => setTimeout(() => cb(Date.now()), 0)
-  global.cancelAnimationFrame = (id) => clearTimeout(id)
 })
 
 import PromptNode from '../../src/components/nodes/PromptNode.jsx'

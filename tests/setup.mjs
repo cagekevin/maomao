@@ -64,6 +64,13 @@ if (typeof globalThis.fetch === 'function' || globalThis.fetch === undefined) {
   })
 }
 
+// requestAnimationFrame / cancelAnimationFrame 统一垫片：jsdom 默认 rAF 不保证触发时效，
+// 组件里用 rAF 做动画/自适应测量时（node 环境无 rAF，jsdom 的 rAF 又常滞后）回调可能永不执行。
+// 统一用 setTimeout(cb,0) 可靠地立即触发，并回传时间戳。此前散落在 6 个 .jsx 测试文件里
+// 重复手写同一份覆盖（TextNode/PromptNode/TemplateNode/DiscountVideoNode.upstream 等），现收口于此。
+globalThis.requestAnimationFrame = (cb) => setTimeout(() => cb(Date.now()), 0)
+globalThis.cancelAnimationFrame = (id) => clearTimeout(id)
+
 // jsdom 不实现 Element.prototype.scrollTo / scrollIntoView，
 // 聊天面板、节点面板等组件在 effect 里调用会抛 "not implemented" 导致测试崩。
 if (typeof globalThis.Element !== 'undefined' && !globalThis.Element.prototype.scrollTo) {

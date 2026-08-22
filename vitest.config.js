@@ -34,6 +34,22 @@ export default defineConfig({
         execArgv: ['--max-old-space-size=1024'],
       },
     },
+    // 覆盖率（`npm run test:coverage`）：以 src 业务逻辑为统计面，剔除 .jsx 组件与纯样式/契约常量。
+    // 门槛取保守值，先让数据沉淀、暴露低覆盖盲区，后续再逐步收紧（避免一次压实 CI）。
+    coverage: {
+      provider: 'v8',
+      enabled: false, // 默认不跑，仅 test:coverage 显式开启，避免拖慢普通 test:unit
+      reporter: ['text', 'lcov'],
+      include: ['src/**/*.js'],
+      exclude: [
+        'src/components/nodes/**', 'src/components/panels/**', 'src/components/agent/**',
+        'src/components/scriptbox/**', 'src/**/*.jsx',
+        '**/contracts.js', '**/config.js',
+      ],
+      thresholds: {
+        lines: 50, functions: 40, statements: 50, branches: 30,
+      },
+    },
   },
   resolve: {
     alias: {

@@ -49,14 +49,14 @@
 | 维度 | 关键问题 | 本仓库现状 |
 |------|---------|-----------|
 | **价值** | 测的是真实契约还是自证式断言？ | 逻辑层好；部分组件测试自证式（低价值） |
-| **速度** | 整包多久？单个测试多久？ | 整包 4.3s；单组件 388ms（并发已优化） |
-| **守门** | 提交/CI 时测试是否被强制跑？ | pre-commit 已含 `test:unit`（外加 type-check）；e2e 独立按需跑 |
-| **确定性** | 有 flaky（偶发红）吗？定时器/真实网络是否隔离？ | 12 个测试用定时器，需 fake timers 规范（见「六·铁律」） |
+| **速度** | 整包多久？单个测试多久？ | 全量含覆盖约 20s；另有 `test:unit:logic` 逻辑快速面（see §二） |
+| **守门** | 提交/CI 时测试是否被强制跑？ | pre-commit `--changed` + pre-push 全量；CI 分层（logic→coverage） |
+| **确定性** | 有 flaky（偶发红）吗？定时器/真实网络是否隔离？ | fetch 已【响铃】隔离；定时器统一 `useFakeTimers` / `fastPollTimers` 两种语义（see §六） |
 | **依赖一致** | package-lock 锁定？换机可复现？ | ✅ 已锁定 |
 | **输出卫生** | 产物进 test-results/？不污染 git？ | ✅ 已规范 |
 | **影响面** | 改 A 模块，能否快速知道哪些测试受影响？ | 无影响面映射，靠全量跑兜底 |
 
-> **本仓库最值得补的三点**：① 提交钩子已含 `vitest run --changed`（2026-08-21 起，改动相关测试守门）；② 定时器类测试强制 fake timers（防 flaky/挂起）；③ 有需要时建"模块→测试文件"影响面映射。
+> **本仓库最近基建多轮收口（2026-08-22）**：① **响铃 fetch**——全局 fetch mock 漏 stub 即抛带 URL 的明确错误，杜绝"静默返回 undefined→断言糊死"；② **console 分层降噪**——setup.mjs 滤掉高频 `logger` info/warn/debug 与 jsdom 良性噪音（act/SVG/THREE），但**放行 error**（稀缺失败信号）；③ **rAF 垫片收口** setup.mjs；④ **公共 helper** `_testUtils.mjs`（假响应/KV 桩/flushAsync/fastPollTimers）；⑤ 逻辑面快速命令 `test:unit:logic` + CI coverage 门槛。**试图统一 144 处组件 render harness 被放弃**——实证均为 `render(<Comp/>)` 直调、无可抽装配，`_nodeMocks.mjs` 已担"共享 stub"职责，造 harness 属过度设计。
 
 ### 质量门禁守门点（测试在"何时"被强制跑）
 
@@ -66,7 +66,7 @@
 | **提交钩子** `.husky/pre-commit` | ✅ 跑 `type-check` + `vitest run --changed` | 提交前快速校验：类型检查 + **只跑改动相关**的单元测试（~2-3s），e2e 仍独立 |
 | **推送钩子** `.husky/pre-push` | ✅ 跑 `test:unit`（全量） | push 前跑全量单测兜底，避免 commit 每次等全量（162 文件约 20s） |
 | **e2e 纳入门禁** | ⚠️ `test:all` **不含 e2e** | e2e 需单独 `npm run test:e2e`（慢），默认不在统一门禁 |
-| **CI**（若有） | — | 若有 CI，应跑 `test:all` |
+| **CI**`.github/workflows/ci.yml` | ✅ `type-check` → `test:unit:logic`（快速面）→ `test:coverage`（全量+覆盖率） | 分层门禁：先用逻辑快速面暴露回归，再全量以覆盖率守住，任一失败红 |
 
 > **判断**：测试要有"活门禁"才有守门价值。设计取舍（2026-08-21）：commit 阶段用 `vitest run --changed` 早抓「本次改动」回归（快），全量单测移到 `pre-push` 兜底（安全网不丢）。若想 commit 时也全量守门，把 pre-commit 的 `npx vitest run --changed` 换回 `npm run test:unit` 即可，代价是每次 commit 多等 ~20s。
 
@@ -98,6 +98,8 @@ npm run build            # 构建插件包（dist/）
 |---|---|---|
 | `npm run test:smoke` | 静态检查：JSX 语法 / ReactFlow API 误用 / 节点注册 / 依赖 | 是 |
 | `npm run test:unit` | **vitest 全量单元测试**（`tests/unit/` 下所有用例；数量见运行结果，勿写死——保鲜铁律 §九）。单次运行入口，跑完即退；勿裸调 `npx vitest`（watch 挂住） | 是 |
+| `npm run test:unit:logic` | **逻辑面快速定向**（`vitest.logic.config.js`）：只跑 `*.test.js` 纯逻辑/API/状态/hooks，把 jsdom 组件测试挡在门外，开发期最快暴露回归 | 是 |
+| `npm run test:coverage` | 全量单测 **+ 覆盖率门槛**（vitest.config.js `coverage` 段统计 `src/**/*.js` 业务逻辑，含保守 thresholds） | 是 |
 | `npm run test:regression` | SSR 渲染 4 个核心节点 + 断言关键结构 class（能渲染不崩） | 是 |
 | `npm run test:tools` | Agent 工具层验证（create/delete/update/connect/read_canvas） | 是 |
 | `npm run test:all` | **统一门禁**：smoke + vitest全量单测 + regression + tools 一次跑完，任一失败退出码 1 | 是 |
@@ -134,15 +136,21 @@ scripts/
 #   对应 vitest 测试：tests/unit/{workflowRuntime,backupStore}.test.js
 
 tests/
-├── setup.mjs               # vitest 全局 setup（内存 storage / ResizeObserver / matchMedia / scrollTo / fetch mock）
+├── setup.mjs               # vitest 全局 setup（内存 storage / ResizeObserver / matchMedia / scrollTo /
+│                           #   rAF 垫片 / fetch mock【响铃】 / console 分层降噪——error 放行、噪音过滤）
 ├── e2e/                    # Playwright 端到端（nodes.render / scriptBox / settings / canvas.interactions）
 └── unit/                   # vitest 单元测试（`npm run test:unit` 全量跑；数量勿写死）
     ├── *.test.js           # 纯逻辑 node 单测（stores / api / 工具函数）—— 轻量、快
     ├── *.test.jsx          # jsdom 组件单测（节点组件 / hooks）—— 由 vitest.config.js 的
     │                       #   environmentMatchGlobs 自动归类 jsdom，无需写 @vitest-environment 注释
+    ├── _testUtils.mjs      # 【公共 helper】`jsonResp`/`sseResp`/`createKvMem`/`flushAsync`/`fastPollTimers`，
+    │                       #   集中假响应与 KV 内存桩、等待落定、轮询加速，消灭文件内重复实现
     └── _nodeMocks.mjs      # 【共享 mock 基建】集中 stub @xyflow/react、base 基座组件、hooks、
                             #   网络/存储层，导出 `mocks` 命名空间 + resetNodeMockState()，
                             #   被 jsdom 组件测试复用，消灭文件内重复 vi.mock（数量勿写死）
+
+vitest.logic.config.js      # 【逻辑面快速定向】复用 vitest.config.js 基建，include 仅 *.test.js，
+                            #   供 `npm run test:unit:logic` 使用（纯逻辑快速回归，见 §二）
 ```
 
 ## 五、vitest 环境架构（vitest.config.js）
@@ -152,10 +160,11 @@ tests/
 | `environment` | `node` | 全局默认：纯逻辑单测走轻量 node，快 |
 | `environmentMatchGlobs` | `tests/unit/**/*.test.jsx → jsdom` | 组件测试按约定应**自动**归 jsdom，但实测对个别文件不生效（如 `ScriptBoxModal.test.jsx` 仍报 `document is not defined`），**兜底方案**：在文件第一行写 `// @vitest-environment jsdom`（已有 `AgentMessage.test.jsx` 这样写），与自动归类等效。详见 §六 决策表 |
 | `pool` | `forks` | fork 子进程池，隔离性好 |
-| `maxWorkers` / `minWorkers` | `8` / `2` | 并发优化：默认懒启动/低并发导致整包慢（11-17s），显式调高后 ~4-5s。低核 CI 机器可改 `'50%'` 自适应 |
-| `setupFiles` | `tests/setup.mjs` | 全局环境补丁 |
+| `maxWorkers` / `minWorkers` | `3` / `1` | 并发压到 3 并给每个 fork worker 显式 `--max-old-space-size=1024`，平衡速度与内存峰值（Windows 并发过高会 OOM）；内存紧张可降到 2/1 |
+| `setupFiles` | `tests/setup.mjs` | 全局环境补丁（storage / 浏览器 API 垫片 / rAF / 响铃 fetch / console 分层降噪） |
+| `coverage` | `provider: v8`（默认关闭） | `npm run test:coverage` 才开启。统计面 `src/**/*.js`、剔除 .jsx 组件 / 契约常量；thresholds 保守值（lines/functions/statements/branches），先沉淀数据再收紧 |
 
-> **jsdom 为什么慢？** 每个组件测试文件独立初始化自己的 jsdom 实例（隔离需要，不能共享）。31 个 jsdom 文件的环境初始化累计耗时是主要成本。已通过高并发并行把它压到 ~4-5s。
+> **逻辑面快速定向**：`vitest.logic.config.js` 复用上述 base 配置，`include` 仅 `*.test.js`、清空 `environmentMatchGlobs`，专供 `npm run test:unit:logic`——开发期只跑纯逻辑（node），把最耗时的 jsdom 组件测试挡在门外，最快暴露回归；全量回归仍是 `test:unit`。
 
 ## 五·补、测试输出与临时文件规范（禁止污染根目录）
 
@@ -192,6 +201,7 @@ tests/
 | React 组件（节点 / 面板 / UI） | `tests/unit/Xxx.test.jsx` | **优先自动 jsdom**（`environmentMatchGlobs` 已处理）；若仍报 `document is not defined`，在**文件第一行**写 `// @vitest-environment jsdom` 兜底（与 `AgentMessage.test.jsx` 一致） |
 | React hook（useXxx） | `tests/unit/useXxx.test.js` | 需要 DOM → 在**文件第一行**写 `// @vitest-environment jsdom` |
 | 端到端 | `tests/e2e/xxx.spec.js` | playwright |
+| 需要假响应 / KV 桩 / 等异步 / 加速轮询 | 任一层 | 从 `_testUtils.mjs` 取 `jsonResp`/`sseResp`/`createKvMem`/`flushAsync`/`fastPollTimers`（see §六） |
 
 ### 模板 A：纯逻辑单测（node，最简单）
 
@@ -232,11 +242,21 @@ describe('MyNode', () => {
 - 导出：`mocks`（命名空间）+ `resetNodeMockState()`（每例前调用重置）。
 - **复用优先**：组件依赖的 base 模块，先查 `_nodeMocks.mjs` 有没有现成 stub，有就直接 `vi.mock('...', () => mocks.xxx)`，不要自己重写。
 
+### 公共 helper（`tests/unit/_testUtils.mjs`，纯 helper 不依赖被测源码）
+- `jsonResp` / `sseResp`（JSON 与 SSE 假响应）、`createKvMem`（KV 内存桩，供 vi.mock 工厂注入 localToolApi）、`flushAsync`（等微任务/事件循环落定）、`fastPollTimers`（加速轮询）。
+- **fetch 约定**：全局 fetch 已在 `tests/setup.mjs` 用 `Object.defineProperty` mock 为一个共享「响铃 fetch」——**漏 stub 会抛带 URL 的明确错误**，绝不静默返回 undefined。测试一律 `const fetchMock = globalThis.fetch` 取共享实例，用 `mockResolvedValue(-Once)/mockRejectedValue` 设定行为，且**不要自己 `vi.stubGlobal('fetch', ...)`**（node 下原生 fetch 不可配置，会静默失败）。
+
 ### 组件测试铁律（防卡死 / 防误报）
 1. **有 `setTimeout`/`setInterval` 的组件**：测试里用 `vi.useFakeTimers()` + 交互后 flush，`afterEach` 里 `vi.useRealTimers()` + `cleanup()`，**绝不留真实 timer**（否则 vitest worker 挂起，整包卡死 —— 历史教训：AgentPanel.test.jsx）。
 2. **不触发真实网络**：依赖 fetch 的一律走 `tests/setup.mjs` 的全局 fetch mock。
 3. **每例独立**：`beforeEach` 重置 mock 状态，避免跨用例污染。
 4. **断言行为而非实现**：优先 `screen.getByText` / `fireEvent` / `waitFor`，不要断言内部 state。
+
+### 定时器 / 等待规范（防 flaky，统一两种语义）
+- **纯定时器 / 依赖时间窗口**（防抖、重试预算、去重窗口、超时上限）→ `vi.useFakeTimers()`（拦截全部计时器，接管 Date.now）。
+- **「fetch + await setTimeout 轮询」环**（提交→轮询→取结果）→ `fastPollTimers()`（把 setTimeout 变立即微任务），需要推时间配合手动控制 `Date.now`。
+- **等微任务/事件循环落定**（同步触发异步后断言）→ `flushAsync()`，**不要**散写 `await new Promise((r)=>setTimeout(r,0))`。
+- **禁止混用两种语义**；用后 `vi.restoreAllMocks()` 还原。
 
 ### 命名与位置
 - 文件名：`被测模块名.test.js|jsx`（如 `useNodeGeneration.test.js`、`PromptNode.upstream.test.jsx`）。

@@ -70,8 +70,6 @@ beforeEach(() => {
   genConfig = null
   lastEditorUrl = null
   if (!global.IntersectionObserver) global.IntersectionObserver = class { observe() {} unobserve() {} disconnect() {} }
-  global.requestAnimationFrame = (cb) => setTimeout(() => cb(Date.now()), 0)
-  global.cancelAnimationFrame = (id) => clearTimeout(id)
 })
 
 describe('PromptNode hover 工具栏 — 共享图片能力', () => {

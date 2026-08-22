@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { flushAsync } from './_testUtils.mjs'
 
 // 这些 store 的快照读取通过 useSyncExternalStore 暴露，但纯逻辑测试不需要 React 渲染。
 // mock react 的 useSyncExternalStore 直接返回 getSnapshot()，即可在 node 下读取模块级 state。
@@ -230,7 +231,7 @@ describe('accountsStore §4 多开账号管理', () => {
     })
 
     it('load() KV 空 → envs 保持空，不写空覆盖（无 /api/kv/set、不写 localStorage）', async () => {
-      await new Promise((r) => setTimeout(r, 0)) // 等模块导入时 `void load()` 的异步 KV 读落定
+      await flushAsync() // 等模块导入时 `void load()` 的异步 KV 读落定
       expect(mod.useAccounts().envs).toEqual([])
       const setCalls = globalThis.fetch.mock.calls.filter((c) => String(c[0]).includes('/api/kv/set'))
       expect(setCalls).toHaveLength(0)

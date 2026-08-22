@@ -23,6 +23,7 @@
  *    例如 kvSet: vi.fn(async (k,v) => { kv.memKV.set(k,v); return { ok:true } })。
  *    共享桩对象用顶层 const kv = createKvMem() 声明即可（工厂懒执行时已初始化）。
  */
+import { vi } from 'vitest'
 
 /** JSON 假响应：同时暴露 ok/status、json() 与 text()，避免意外触达真实网络路径。
  *  部分调用方走 res.json()（imageApi/chatApi），部分走 res.text()+JSON.parse（cloudSync callGateway），
@@ -52,6 +53,29 @@ export function sseResp(lines) {
       },
     },
   }
+}
+
+/** 等微任务/事件循环落定：同步触发异步操作（initProjects/initStorage/set → 链上 .then/fetch）
+ *  后，用一次 setTimeout(0) 让这些回调全部跑完再断言。此前多处重复 `await new Promise((r)=>setTimeout(r,0))`，
+ *  语义不显、写法散落，故抽成具名 helper。 */
+export function flushAsync() {
+  return new Promise((resolve) => setTimeout(resolve, 0))
+}
+
+/**
+ * 【加速轮询】把 setTimeout 改为立即微任务，让「fetch + await setTimeout(pollInterval)」的
+ * 异步轮询环（proxyGenerate.pollUntilDone 等）无需真实等待即可跑完。配套约定（固化避免抄错）：
+ *
+ *  - 何时用本 helper：被测逻辑是「同步多次 fetch + 定时退避」的轮询环（generateVideo/generateText 提交→轮询→取结果）。
+ *  - 何时用 vi.useFakeTimers：被测逻辑是纯定时器/依赖时间窗口（防抖、重试预算、去重窗口、超时上限）且不需反复 await fetch。
+ *  - 二者语义截然不同（一个让 setTimeout 立刻触发、一个拦截全部计时器并接管 Date.now），不要混用。
+ *
+ * 若需同时推进时间（如让轮询计数器越过超时上限），配合手动控制 Date.now：
+ *   fastPollTimers();  vi.spyOn(Date,'now').mockImplementation(() => (now += STEP)) // 每次循环+STEP
+ * 用完请在用例内 / afterEach 调用 vi.restoreAllMocks() 还原。
+ */
+export function fastPollTimers() {
+  return vi.spyOn(global, 'setTimeout').mockImplementation((fn) => Promise.resolve().then(fn))
 }
 
 /**

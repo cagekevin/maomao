@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { flushAsync } from './_testUtils.mjs'
 
 // 内存 KV / 项目后端 mock
 const mem = new Map()
@@ -34,7 +35,7 @@ describe('项目系统 §2.8', () => {
     projectsPayload.lastOpened = 'p2'
     projectStore.initProjects()
     // initProjects 是同步触发 fetch，微任务后生效
-    await new Promise((r) => setTimeout(r, 0))
+    await flushAsync()
     expect(projectStore.getCurrentProject().id).toBe('p2')
   })
 
@@ -42,14 +43,14 @@ describe('项目系统 §2.8', () => {
     projectsPayload.projects = [{ id: 'p1', name: 'P1' }, { id: 'p2', name: 'P2' }]
     projectsPayload.lastOpened = 'ghost-not-exist'
     projectStore.initProjects()
-    await new Promise((r) => setTimeout(r, 0))
+    await flushAsync()
     expect(projectStore.getCurrentProject().id).toBe('p1')
   })
 
   it('initProjects 空列表时不做替换（保持 default 兜底）（B0·缺口⑪）', async () => {
     projectsPayload.projects = []
     projectStore.initProjects()
-    await new Promise((r) => setTimeout(r, 0))
+    await flushAsync()
     expect(projectStore.getCurrentProject().id).toBe('default')
   })
 
@@ -59,7 +60,7 @@ describe('项目系统 §2.8', () => {
     // 后端因 saveProjects 失败/双页面覆盖缺失 X（只返回 default）
     projectsPayload.projects = [{ id: 'default', name: '默认项目' }]
     projectStore.initProjects()
-    await new Promise((r) => setTimeout(r, 0))
+    await flushAsync()
     // X 不能被后端缺项冲掉
     expect(projectStore.switchProject(x.id).name).toBe('新建项目X')
   })
@@ -71,7 +72,7 @@ describe('项目系统 §2.8', () => {
       { id: 'proj-Y', name: '后端项目Y' },
     ]
     projectStore.initProjects()
-    await new Promise((r) => setTimeout(r, 0))
+    await flushAsync()
     expect(projectStore.switchProject('proj-Y').name).toBe('后端项目Y')
   })
 

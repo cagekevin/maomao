@@ -68,8 +68,6 @@ beforeEach(() => {
   mockGenerateImage.mockResolvedValue({ url: 'http://gen.local/img.png' })
   genConfig = null
   connectedInputs = { images: [], texts: [] }
-  global.requestAnimationFrame = (cb) => setTimeout(() => cb(Date.now()), 0)
-  global.cancelAnimationFrame = (id) => clearTimeout(id)
 })
 
 import TemplateNode from '../../src/components/nodes/TemplateNode.jsx'
