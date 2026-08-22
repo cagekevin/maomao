@@ -2,8 +2,11 @@ import type { ReactNode } from "react";
 import { ObjectTreePanel } from "../../editor/panels/ObjectTreePanel";
 import { RightPanel } from "../../editor/panels/RightPanel";
 import { useDirectorStore } from "../../editor/store/directorStore";
+import { useDirectorViewportShortcuts } from "../useDirectorViewportShortcuts";
 
 export function DirectorDeskShell({ children }: { children: ReactNode }) {
+  // 视口快捷键仅在导演台全屏存活期间生效，关闭即移除（不污染主画布）
+  useDirectorViewportShortcuts();
   const viewportPanelsCollapsed = useDirectorStore((state) => state.viewportPanelsCollapsed);
 
   return (

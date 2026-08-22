@@ -205,7 +205,7 @@ const GenerationStepsCard = memo(function GenerationStepsCard({ generations }) {
  *  @param {Function} onRetryStep   重试失败步骤
  *  @param {Function} [onPromptAction] prompts 逐条确认通道：{ action, prompts, index?, text? } →
  *      应用后写回消息并可能触发出图（prompts 通道，对齐大雄 confirm/edit/save/reopen/regenerate/confirm-all） */
-function AgentMessage({ message, onConfirmPlan, onRetryStep, onPromptAction }) {
+function AgentMessage({ message, onConfirmPlan, onRetryStep, onPromptAction, onSendToCanvas }) {
   if (message.role === 'user') {
     const skillNames = (message.skills || []).map((s) => s?.name || s?.id || '').filter(Boolean)
     return (
@@ -260,9 +260,23 @@ function AgentMessage({ message, onConfirmPlan, onRetryStep, onPromptAction }) {
             </div>
           )}
           {message.content && (
-            <div className="bg-canvas border border-edge-faint text-gray-200 text-sm rounded-lg rounded-bl-sm px-3 py-2">
+            <div className="relative bg-canvas border border-edge-faint text-gray-200 text-sm rounded-lg rounded-bl-sm px-3 py-2">
               {renderContentWithImages(message.content)}
               {message.streaming && <span className="inline-block w-1 h-3 bg-gray-400 ml-0.5 animate-pulse align-middle" />}
+              {/* 右下角箭头：把整段回复发到画布 → 新建文本节点（内容落生成区 data.text） */}
+              {!message.streaming && onSendToCanvas && (
+                <button
+                  type="button"
+                  onClick={() => onSendToCanvas(message.content)}
+                  className="absolute bottom-1.5 right-1.5 flex items-center justify-center w-5 h-5 rounded text-gray-500 hover:text-white hover:bg-surface-hover transition-colors"
+                  title="发到画布生成文本节点"
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="19" y1="12" x2="5" y2="12" />
+                    <polyline points="12 19 5 12 12 5" />
+                  </svg>
+                </button>
+              )}
             </div>
           )}
           {/* 【对齐大雄】阶段1 generations → 渲染步骤卡片（可折叠，用户确认前检查每步） */}

@@ -313,6 +313,11 @@ function buildCreateNode(args, ctx, currentNodes) {
   const ALLOWED_TYPES = ['textNode', 'promptNode', 'imageNode', 'discountVideoNode', 'group']
   if (!type || !ALLOWED_TYPES.includes(type)) return { error: `未知节点类型：${type}。可选：${ALLOWED_TYPES.join('、')}` }
   const data = { ...defaultNodeData(type), ...(args.label ? { label: args.label } : {}), ...(args.prompt ? { prompt: args.prompt } : {}) }
+  // textNode 内容落「生成区」（data.text，TextNode 主容器/AI 生成结果显示处），而非抽屉区（data.prompt）。
+  // 显式传 text（按钮「发到画布」等）时写 data.text；AI 走 prompt（抽屉区）的历史行为保持不变。
+  if (type === 'textNode' && args.text !== undefined && args.text !== null) {
+    data.text = String(args.text)
+  }
   // 生图类节点：把 AI 传的 aspectRatio / resolution 写进 data（PromptNode 读 data.aspectRatio / data.imageSize）。
   // 之前这两个参数被忽略，导致「让 AI 建 9:16 节点」比例不生效。
   if (['promptNode', 'discountVideoNode'].includes(type)) {
@@ -350,16 +355,17 @@ function buildCreateNode(args, ctx, currentNodes) {
 const createNodeTool = {
   name: 'create_node',
   description:
-    '创建单个节点。type 指定节点类型（可选值见 type 参数说明），prompt 填该类型对应的内容，可选 label、position、connectFrom、aspectRatio、resolution。返回新节点 id。',
+    '创建单个节点。type 指定节点类型（可选值见 type 参数说明），prompt 填该类型对应的内容，可选 text（仅 textNode：内容落文本生成区）、label、position、connectFrom、aspectRatio、resolution。返回新节点 id。',
   parameters: {
     type: 'object',
     properties: {
       type: {
         type: 'string',
         enum: ['textNode', 'promptNode', 'imageNode', 'discountVideoNode', 'group'],
-        description: '节点类型：textNode=文本(prompt=内容)/promptNode=生图(prompt=画面提示词)/imageNode=图片(label=说明)/discountVideoNode=视频(prompt=视频提示词)/group=编组'
+        description: '节点类型：textNode=文本(text=内容落生成区/prompt=内容落抽屉)/promptNode=生图(prompt=画面提示词)/imageNode=图片(label=说明)/discountVideoNode=视频(prompt=视频提示词)/group=编组'
       },
-      prompt: { type: 'string', description: '提示词/内容' },
+      prompt: { type: 'string', description: '提示词/内容（textNode 时落提示词抽屉）' },
+      text: { type: 'string', description: '文本内容（仅 textNode：落文本生成区，优先于 prompt）' },
       label: { type: 'string', description: '节点标题（可选）' },
       aspectRatio: { type: 'string', description: '生图比例，如 9:16 / 16:9 / 1:1 / 3:4 / 4:3（仅 promptNode/discountVideoNode 生效，可选）' },
       resolution: { type: 'string', description: '生图画质档位：720p/1080p/1440p/2K/4K，会映射到 1K/2K/4K（仅 promptNode/discountVideoNode 生效，可选）' },

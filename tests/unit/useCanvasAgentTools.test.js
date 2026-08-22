@@ -105,6 +105,28 @@ describe('buildCanvasAgentTools', () => {
     expect(result.some((n) => n.id === 'existing')).toBe(true)
   })
 
+  it('create_node 对 textNode 传 text → 内容落生成区 data.text（而非抽屉 data.prompt）', () => {
+    const ctx = makeCtx()
+    const tools = buildCanvasAgentTools(ctx)
+    const res = tools.create_node({ type: 'textNode', text: 'AI 回复内容', position: { x: 1, y: 2 } })
+    expect(res.ok).toBe(true)
+    const applyFn = ctx.setNodes.mock.calls[0][0]
+    const result = applyFn([{ id: 'existing', data: {} }])
+    const created = result.find((n) => n.id === res.data.id)
+    expect(created.data.text).toBe('AI 回复内容')
+    expect(created.data.prompt).toBeUndefined()
+  })
+
+  it('create_node 对 textNode 仅传 prompt → 内容落抽屉区 data.prompt（AI 既有行为不变）', () => {
+    const ctx = makeCtx()
+    const tools = buildCanvasAgentTools(ctx)
+    const res = tools.create_node({ type: 'textNode', prompt: '抽屉提示词', position: { x: 1, y: 2 } })
+    const applyFn = ctx.setNodes.mock.calls[0][0]
+    const result = applyFn([{ id: 'existing', data: {} }])
+    const created = result.find((n) => n.id === res.data.id)
+    expect(created.data.prompt).toBe('抽屉提示词')
+  })
+
   it('create_node 用非法 type → ok:false 且给出可选类型', () => {
     const ctx = makeCtx()
     const tools = buildCanvasAgentTools(ctx)
