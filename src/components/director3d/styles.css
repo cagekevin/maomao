@@ -31,7 +31,6 @@
   text-rendering: optimizeLegibility;
   background: var(--bg);
   color: var(--text);
-  min-width: 980px;
 }
 .director3d-overlay :where(*), .director3d-overlay :where(*::before), .director3d-overlay :where(*::after) { box-sizing: border-box; }
 .director3d-overlay :where(button), .director3d-overlay :where(input), .director3d-overlay :where(select) { font: inherit; }
@@ -389,7 +388,7 @@
 .time-readout strong { color: var(--accent); font-family: "Cascadia Mono", monospace; font-size: 13px; }
 .time-readout span { color: var(--text-faint); font-size: 9px; }
 
-.timeline-body { grid-column: 1; display: grid; grid-template-columns: 118px minmax(0, 1fr) 118px; grid-template-rows: 28px 32px 32px; align-items: center; column-gap: 12px; row-gap: 5px; padding: 7px 14px 7px 10px; }
+.timeline-body { grid-column: 1; display: grid; grid-template-columns: 118px minmax(260px, 1fr) 118px; grid-template-rows: 28px 32px 32px; align-items: center; column-gap: 12px; row-gap: 5px; padding: 7px 14px 7px 10px; }
 .track-label { height: 32px; display: flex; align-items: center; gap: 7px; padding: 0 9px; border: 1px solid var(--line-soft); border-radius: 4px; background: #282825; color: var(--text-dim); font-size: 12px; }
 .track-label span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .timeline-ruler { grid-column: 2; grid-row: 1; }
@@ -475,10 +474,18 @@
 
 @media (max-width: 1180px) {
   .workspace { grid-template-columns: 210px minmax(0, 1fr) 244px; }
-  .timeline { grid-template-columns: 210px minmax(0,1fr); }
+  .timeline { grid-template-columns: minmax(0, 1fr); }
   .topbar { grid-template-columns: auto 1fr auto; }
   .camera-monitor { width: 300px; }
-  .timeline-body { grid-template-columns: 98px minmax(0,1fr) 98px; }
+  .timeline-body { grid-template-columns: 88px minmax(220px,1fr) 88px; }
+}
+
+/* 窄窗口（< 860px）：进一步收窄左右栏，让时间轴轨道保持可用宽度、不坍缩 */
+@media (max-width: 860px) {
+  .workspace { grid-template-columns: 180px minmax(0, 1fr) 220px; }
+  .timeline { grid-template-columns: minmax(0, 1fr); }
+  .timeline-body { grid-template-columns: 76px minmax(200px,1fr) 76px; padding: 7px 10px 7px 8px; }
+  .camera-monitor { width: 260px; min-width: 0; }
 }
 
 @media (max-height: 680px) {
