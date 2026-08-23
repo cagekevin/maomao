@@ -1,3 +1,96 @@
+/*
+ * ============================================================================
+ * Monoform 关键帧系统 · 扩展指南
+ * 如何给「新增的功能/属性」加上关键帧记录能力
+ * ============================================================================
+ *
+ * 一、两条关键帧轨道
+ * ----------------------------------------------------------------------------
+ * 1) 摄像机轨道  keyframes（全局单条轨道）
+ *    关键帧对象形状：
+ *      { frame, interpolation, position: [x,y,z], rotation: [x,y,z], focalLength }
+ *    录制：本文件 addKeyframe()
+ *    插值：project.js 的 cameraAtFrame()
+ *    应用：animatedCamera -> displayCamera -> Viewport.jsx 的 PreviewCameraController
+ *          （后者每帧把 position/rotation/fov 写到 three 相机上）
+ *
+ * 2) 物体轨道  characterKeyframes[objectId]（每个物体一条轨道）
+ *    关键帧对象形状（由 project.js 的 objectKeyframeFromObject() 生成）：
+ *      { frame, interpolation, position, rotation, scale, pose, poseTime,
+ *        continuousMotion, rigRoot, joints }
+ *    录制：本文件 addObjectKeyframe()（内部调用 objectKeyframeFromObject）
+ *    插值：project.js 的 objectAtFrame()
+ *    应用：animatedObjects -> Viewport.jsx 的 MemoSceneObject / SceneObject
+ *
+ * 二、可动画属性的五段管线
+ * ----------------------------------------------------------------------------
+ * 数据模型(project.js) -> 录制(本文件 + project.js) -> 插值(project.js)
+ * -> 求值(本文件) -> 应用(Viewport.jsx 消费组件)
+ *
+ * 三、逐步做法（以「给物体新增一个可记录关键帧的字段 X」为例）
+ * ----------------------------------------------------------------------------
+ * ① 数据模型（project.js）
+ *    - 在 initialObjects / initialCamera 里给 X 一个默认值；
+ *    - 在归一化入口补上 X（物体走 normalizePerson()，相机走 normalizeCamera()，
+ *      整个工程入口是 normalizeProjectData() -> normalizeShot()）。
+ *      这一步保证旧工程/旧镜头加载时不缺字段、不出现 undefined 泄漏到插值。
+ *
+ * ② 录制（写关键帧时把「当前值」快照进关键帧）
+ *    - 物体：在 project.js 的 objectKeyframeFromObject(object, frame) 返回对象里加 x: object.x；
+ *    - 摄像机：在本文件 addKeyframe() 的 next 对象里加 x: camera.x。
+ *    这样点「记录关键帧」时当前值就被写进关键帧，拖动播放头时会重新插值出来。
+ *
+ * ③ 插值（project.js）
+ *    - cameraAtFrame()：插值分支的 return 里加 x: lerp(left.x, right.x, t)（数字型字段）。
+ *      精确帧/越界分支因为直接 spread 关键帧对象，会自动带上 X，无需改动。
+ *    - objectAtFrame()：在 applyKey() 和插值 return 里同样补 X。
+ *      · 数字型字段：用 lerp 线性插值；
+ *      · 离散值（字符串/布尔，如 pose、continuousMotion）：参考 objectAtFrame 里
+ *        pose / sameState 的做法，取最近/左关键帧的值，不要 lerp。
+ *
+ * ④ 求值（本文件）
+ *    - 物体动画后的对象在 animatedObjects，相机动画后的对象在 animatedCamera /
+ *      displayCamera。任何消费端（面板展示、导出）从这里读 X 的当前值即可。
+ *
+ * ⑤ 应用（Viewport.jsx 消费组件）
+ *    - 相机：在 PreviewCameraController 里把 X 应用到相机；
+ *    - 物体：在 MemoSceneObject / SceneObject 里把 X 应用到 3D 对象。
+ *    注意 SceneObject 做了 memo + 自定义比较器，只比较 data 引用，新字段放进
+ *    data 里即可（静止对象不逐帧重算，播放时跟随）。
+ *
+ * ⑥ UI（Inspector / 各面板）
+ *    - 在对应面板加一个控件，通过 onUpdateObject / onUpdateCamera 写当前值。
+ *      关键帧录的就是这个「当前值」，所以面板与录制共用同一份数据。
+ *
+ * 四、摄像机轨道特别提醒（重要，容易踩坑）
+ * ----------------------------------------------------------------------------
+ * 播放 / 拖动播放头 / 暂停 / 播放到末尾 / 导出恢复时，会通过本文件的
+ * setCameraAtFrame() 把 cameraAtFrame 的插值结果写回 camera state。
+ * cameraAtFrame 只返回关键帧变换字段，所以 setCameraAtFrame 必须显式保留
+ * 「非关键帧、但属于摄像机持久化配置」的字段（目前是 targetMode / targetId，
+ * 即「始终面向对象」的配置），否则一播放就会被冲掉、朝向失效。
+ *
+ *   规则：
+ *   - 新属性「本身要随关键帧插值」（新的数值字段）-> 放进 cameraAtFrame 即可，
+ *     不要动 setCameraAtFrame；
+ *   - 新属性是「摄像机持久化配置」（类似 targetMode）-> 必须在 setCameraAtFrame
+ *     和导出恢复用的 originalCamera 两处都保留合并，否则播放后丢失。
+ *
+ * 五、纪律与坑
+ * ----------------------------------------------------------------------------
+ * - 关键帧数组必须不可变更新：filter + spread + sort((a,b)=>a.frame-b.frame)，
+ *   禁止原地 mutate（撤销/自动保存依赖引用变化）。
+ * - 录制快照的字段形状与插值输出的字段形状必须一致，否则出现「记录不上」或
+ *   「播放不跟随」。
+ * - 新增字段必须进归一化（normalizePerson / normalizeCamera），向后兼容旧工程。
+ * - 撤销 / 重做 / 自动保存是自动的：currentProject（projectData）已经包含
+ *   objects / camera / keyframes / objectKeyframes，只要新字段放进这些 state
+ *   （而不是孤立的 useState），历史与持久化就自动覆盖它，无需额外接线。
+ * - 时间轴（panels/Timeline.jsx）按轨道泛化渲染：新字段默认不需要改时间轴代码；
+ *   只有想让它在时间轴上显示为独立行时才需要扩展。
+ * ============================================================================
+ */
+
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Axis3D, BoxSelect, Camera, ChevronLeft, ChevronRight, Download, FileImage, FileVideo2,
@@ -10,7 +103,7 @@ import { AssetMenu } from './panels/AssetMenu.jsx'
 import { cloneJointPose, normalizePoseId, poseForObject, presetJoints, presetPhase, presetRoot } from './rig.js'
 import {
   CAMERA_ID, CUSTOM_POSE_STORAGE_KEY, DEFAULT_LIGHTING, DEFAULT_PROJECT_SETTINGS, DEFAULT_REFERENCE,
-  PROJECT_STORAGE_KEY, aspectLabel, aspectValue, cameraAtFrame, clamp, cloneProjectValue,
+  PROJECT_STORAGE_KEY, aspectLabel, aspectValue, cameraAtFrame, cameraRotationToward, clamp, cloneProjectValue,
   defaultShotName, exportDimensionsForAspect, initialCamera, initialCharacterKeyframes,
   initialKeyframes, initialObjects, keyframeMaxFrame, normalizeFrameNumber,
   normalizeInterpolation, normalizeLighting, normalizeProjectData, normalizeProjectSettings,
@@ -25,8 +118,6 @@ import { CameraAnglePanel } from './panels/CameraAnglePanel.jsx'
 import { Timeline } from './panels/Timeline.jsx'
 import { ReferenceOverlay } from './panels/ReferenceOverlay.jsx'
 
-// 镜头缩略图离屏截图画布宽度（保持摄像机宽高比，渲染小而快，输出前再缩到 240px 宽）
-const THUMB_CAPTURE_WIDTH = 480
 const nextPaint = () => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
 
 // P1：面板类组件的回调 props（onXxx）约定为语义稳定，比较时忽略；仅当数据 props 变化才重渲染，
@@ -92,9 +183,6 @@ export function MonoformApp({ storageKey, onExport, onExit, onThumbnail }) {
   const exportCanvasRef = useRef(null)
   const imageCaptureCanvasRef = useRef(null)
   const monitorCanvasRef = useRef(null)
-  const thumbnailCanvasRef = useRef(null)
-  const thumbnailCaptureRef = useRef(false)
-  const [thumbnailCapture, setThumbnailCapture] = useState(false)
   const editorViewRef = useRef(editorView)
   const exportLockRef = useRef(false)
   const historyRef = useRef({ past: [], future: [], last: '', timer: null, restoring: false })
@@ -148,7 +236,18 @@ export function MonoformApp({ storageKey, onExport, onExit, onThumbnail }) {
     return framedObjects.map(object => objectDrafts[object.id] || object)
   }, [hasObjectAnimation, objects, characterKeyframes, currentFrame, fps, objectDrafts])
   const inspectorSelected = useMemo(() => selectedId === CAMERA_ID ? selected : animatedObjects.find(object => object.id === selectedId), [animatedObjects, selected, selectedId])
-  const displayCamera = isAnimating ? animatedCamera : camera
+  // 始终面向对象（参考 director3d 的 C4D Target）：targetMode==='object' 时注视点锁定目标对象，
+  // 用目标对象（动画后）的视觉中心覆写摄像机旋转，使其始终朝向目标（目标移动/打关键帧也会跟随）
+  const cameraLookTarget = useMemo(() => {
+    if (camera.targetMode !== 'object' || !camera.targetId) return null
+    const target = animatedObjects.find(object => object.id === camera.targetId)
+    return target ? visualCenterForObject(target) : null
+  }, [animatedObjects, camera.targetId, camera.targetMode])
+  const displayCamera = useMemo(() => {
+    const base = isAnimating ? animatedCamera : camera
+    if (!cameraLookTarget) return base
+    return { ...base, rotation: cameraRotationToward(base.position, cameraLookTarget) }
+  }, [animatedCamera, camera, cameraLookTarget, isAnimating])
   const previewAspect = aspectValue(displayCamera.aspectRatio)
   const previewAspectClass = previewAspect >= 16 / 9 ? 'is-wide' : 'is-tall'
   const exportDimensions = useMemo(() => exportDimensionsForAspect(camera.aspectRatio), [camera.aspectRatio])
@@ -302,30 +401,40 @@ export function MonoformApp({ storageKey, onExport, onExit, onThumbnail }) {
     })
   }, [animatedObjects, displayCamera.position, selectedId])
 
+  // 把关键帧插值结果写回 camera state 时保留非关键帧属性（targetMode/targetId）：
+  // cameraAtFrame 只输出关键帧变换字段，直接 setCamera 会把「始终面向对象」的配置冲掉，
+  // 导致播放/拖动播放头/暂停后朝向失效。统一走这个入口。
+  const setCameraAtFrame = useCallback(frame => {
+    setCamera(current => {
+      const interpolated = cameraAtFrame(keyframes, frame, current.aspectRatio)
+      return { ...interpolated, targetMode: current.targetMode, targetId: current.targetId }
+    })
+  }, [keyframes])
+
   const seekToFrame = useCallback(frame => {
     const nextFrame = clamp(Math.round(frame), 0, totalFrames)
     setPlaying(false)
     setObjectDrafts({})
     setCurrentFrame(nextFrame)
     currentFrameRef.current = nextFrame
-    if (keyframes.length) setCamera(cameraAtFrame(keyframes, nextFrame, camera.aspectRatio))
-  }, [keyframes, camera.aspectRatio, totalFrames])
+    setCameraAtFrame(nextFrame)
+  }, [setCameraAtFrame, totalFrames])
 
   const togglePlayback = useCallback(() => {
     setPlaying(wasPlaying => {
       if (wasPlaying) {
         const pausedFrame = currentFrameRef.current
-        if (keyframes.length) setCamera(cameraAtFrame(keyframes, pausedFrame, camera.aspectRatio))
+        setCameraAtFrame(pausedFrame)
       }
       if (!wasPlaying && currentFrameRef.current >= totalFrames) {
         setCurrentFrame(0)
         currentFrameRef.current = 0
-        if (keyframes.length) setCamera(cameraAtFrame(keyframes, 0, camera.aspectRatio))
+        setCameraAtFrame(0)
       }
       if (!wasPlaying) setObjectDrafts({})
       return !wasPlaying
     })
-  }, [keyframes, camera.aspectRatio, totalFrames])
+  }, [setCameraAtFrame, totalFrames])
 
   useEffect(() => {
     if (!playing) { playStartRef.current = null; return }
@@ -340,7 +449,7 @@ export function MonoformApp({ storageKey, onExport, onExit, onThumbnail }) {
         } else {
           setCurrentFrame(totalFrames)
           currentFrameRef.current = totalFrames
-          if (keyframes.length) setCamera(cameraAtFrame(keyframes, totalFrames, camera.aspectRatio))
+          setCameraAtFrame(totalFrames)
           setPlaying(false)
           return
         }
@@ -351,7 +460,7 @@ export function MonoformApp({ storageKey, onExport, onExit, onThumbnail }) {
     }
     frameId = requestAnimationFrame(animate)
     return () => cancelAnimationFrame(frameId)
-  }, [playing, keyframes, camera.aspectRatio, fps, totalFrames, settings.loopPlayback])
+  }, [playing, fps, totalFrames, settings.loopPlayback, setCameraAtFrame])
 
   useEffect(() => {
     const onKeyDown = event => {
@@ -416,23 +525,9 @@ export function MonoformApp({ storageKey, onExport, onExit, onThumbnail }) {
     }
   }
 
-  // 镜头缩略图统一入口：优先取监视器画面；监视器小窗默认关闭时，临时挂一个离屏摄像机画布兜底，
-  // 保证缩略图功能不依赖监视器是否打开（thumbnailCaptureRef 防重入）。
-  const captureThumbnailDataUrl = async () => {
-    const monitor = monitorCanvasRef.current
-    if (monitor?.width && monitor?.height) return thumbnailFromCanvas(monitor)
-    if (thumbnailCaptureRef.current) return ''
-    thumbnailCaptureRef.current = true
-    setThumbnailCapture(true)
-    try {
-      await nextPaint()
-      await nextPaint()
-      return thumbnailFromCanvas(thumbnailCanvasRef.current)
-    } finally {
-      thumbnailCaptureRef.current = false
-      setThumbnailCapture(false)
-    }
-  }
+  // 镜头缩略图唯一入口：从监视器画面截取。监视器小窗默认关闭时无画面可截（缩略图保持原样），
+  // 打开监视器后即可正常更新。刻意不为此创建额外 WebGL 上下文——避免每次镜头操作挂载/销毁画布导致黑屏。
+  const thumbnailFromMonitor = () => thumbnailFromCanvas(monitorCanvasRef.current)
 
   const liveShotRecord = (shot, thumbnail = shot?.thumbnail || '') => ({
     ...shot,
@@ -468,19 +563,19 @@ export function MonoformApp({ storageKey, onExport, onExit, onThumbnail }) {
     setSelectedId(shot.objects?.[0]?.id || CAMERA_ID)
   }
 
-  const switchShot = async shotId => {
+  const switchShot = shotId => {
     if (shotId === activeShotId) return
     const target = shots.find(shot => shot.id === shotId)
     if (!target) return
-    const thumbnail = await captureThumbnailDataUrl()
+    const thumbnail = thumbnailFromMonitor()
     setShots(list => list.map(shot => shot.id === activeShotId ? liveShotRecord(shot, thumbnail || shot.thumbnail) : shot))
     applyShotState(target)
     setToast(`已切换到“${target.name}”`)
   }
 
-  const addShot = async () => {
+  const addShot = () => {
     if (shots.length >= 30) { setToast('每个工程最多 30 个镜头'); return }
-    const thumbnail = await captureThumbnailDataUrl()
+    const thumbnail = thumbnailFromMonitor()
     const id = `shot-${uid()}`
     const nextShot = {
       id,
@@ -501,9 +596,9 @@ export function MonoformApp({ storageKey, onExport, onExit, onThumbnail }) {
     setToast(`已新建“${nextShot.name}” · 场景已复制，关键帧和参考图为空`)
   }
 
-  const duplicateShot = async shotId => {
+  const duplicateShot = shotId => {
     if (shots.length >= 30) { setToast('每个工程最多 30 个镜头'); return }
-    const thumbnail = await captureThumbnailDataUrl()
+    const thumbnail = thumbnailFromMonitor()
     const storedSource = shots.find(shot => shot.id === shotId)
     if (!storedSource) return
     const source = shotId === activeShotId ? liveShotRecord(storedSource, thumbnail || storedSource.thumbnail) : storedSource
@@ -517,12 +612,12 @@ export function MonoformApp({ storageKey, onExport, onExit, onThumbnail }) {
     setToast(`已复制“${source.name}”`)
   }
 
-  const deleteShot = async shotId => {
+  const deleteShot = shotId => {
     if (shots.length <= 1) return
     const sourceIndex = shots.findIndex(shot => shot.id === shotId)
     const source = shots[sourceIndex]
     if (!source || !window.confirm(`删除镜头“${source.name}”？`)) return
-    const thumbnail = await captureThumbnailDataUrl()
+    const thumbnail = thumbnailFromMonitor()
     const persisted = shots.map(shot => shot.id === activeShotId ? liveShotRecord(shot, thumbnail || shot.thumbnail) : shot)
     const remaining = persisted.filter(shot => shot.id !== shotId)
     setShots(remaining)
@@ -538,10 +633,10 @@ export function MonoformApp({ storageKey, onExport, onExit, onThumbnail }) {
     return list.map(shot => shot.id === shotId ? { ...shot, name: nextName } : shot)
   })
 
-  const captureShotThumbnail = async shotId => {
+  const captureShotThumbnail = shotId => {
     if (shotId !== activeShotId) { setToast('请先切换到该镜头再更新缩略图'); return }
-    const thumbnail = await captureThumbnailDataUrl()
-    if (!thumbnail) { setToast('摄像机画面尚未准备好，请稍后重试'); return }
+    const thumbnail = thumbnailFromMonitor()
+    if (!thumbnail) { setToast('打开监视器窗口后可更新缩略图'); return }
     setShots(list => list.map(shot => shot.id === shotId ? { ...shot, thumbnail } : shot))
     setToast('镜头缩略图已更新')
   }
@@ -857,7 +952,9 @@ export function MonoformApp({ storageKey, onExport, onExit, onThumbnail }) {
     exportLockRef.current = true
     const nextExportFrameCount = totalFrames
     const originalFrame = currentFrameRef.current
-    const originalCamera = keyframes.length ? cameraAtFrame(keyframes, originalFrame, camera.aspectRatio) : camera
+    const originalCamera = keyframes.length
+      ? { ...cameraAtFrame(keyframes, originalFrame, camera.aspectRatio), targetMode: camera.targetMode, targetId: camera.targetId }
+      : camera
     let output
 
     setPlaying(false)
@@ -1080,7 +1177,7 @@ export function MonoformApp({ storageKey, onExport, onExit, onThumbnail }) {
             </div>}
           </div>
         </section>
-        <MemoInspector selected={inspectorSelected} camera={camera} cameraAspect={camera.aspectRatio} onAspectChange={aspectRatio => setCamera(current => ({ ...current, aspectRatio }))} projectSettings={settings} onApplySettings={applySettings} maxKeyframeFrame={maxKeyframeFrame} showGrid={showGrid} onToggleGrid={() => setShowGrid(value => !value)} performanceMode={performanceMode} onTogglePerformance={() => setPerformanceMode(value => !value)} lighting={lighting} onLightingChange={setLighting} selectedJoint={selectedJoint} customPoses={customPoses} onSelectJoint={setSelectedJoint} onUpdateObject={updateSelected} onUpdateCamera={patch => setCamera(current => ({ ...current, ...patch }))} onDelete={deleteSelected} onDuplicate={duplicateSelected} onFocus={focusSelected} onToggleLock={() => activeObject && updateSelected({ locked: !activeObject.locked })} onGround={groundSelected} onResetRotation={resetSelectedRotation} onResetScale={resetSelectedScale} onSaveCustomPose={saveCustomPose} onApplyCustomPose={applyCustomPose} onDeleteCustomPose={deleteCustomPose} />
+        <MemoInspector selected={inspectorSelected} objects={objects} camera={camera} cameraAspect={camera.aspectRatio} onAspectChange={aspectRatio => setCamera(current => ({ ...current, aspectRatio }))} projectSettings={settings} onApplySettings={applySettings} maxKeyframeFrame={maxKeyframeFrame} showGrid={showGrid} onToggleGrid={() => setShowGrid(value => !value)} performanceMode={performanceMode} onTogglePerformance={() => setPerformanceMode(value => !value)} lighting={lighting} onLightingChange={setLighting} selectedJoint={selectedJoint} customPoses={customPoses} onSelectJoint={setSelectedJoint} onUpdateObject={updateSelected} onUpdateCamera={patch => setCamera(current => ({ ...current, ...patch }))} onDelete={deleteSelected} onDuplicate={duplicateSelected} onFocus={focusSelected} onToggleLock={() => activeObject && updateSelected({ locked: !activeObject.locked })} onGround={groundSelected} onResetRotation={resetSelectedRotation} onResetScale={resetSelectedScale} onSaveCustomPose={saveCustomPose} onApplyCustomPose={applyCustomPose} onDeleteCustomPose={deleteCustomPose} />
         <Timeline
           currentFrame={currentFrame}
           fps={fps}
@@ -1123,11 +1220,6 @@ export function MonoformApp({ storageKey, onExport, onExit, onThumbnail }) {
             </div>
           </div>
         </>
-      )}
-      {thumbnailCapture && (
-        <div className="export-render-surface" style={{ width: THUMB_CAPTURE_WIDTH, height: Math.round(THUMB_CAPTURE_WIDTH / (exportDimensions.width / exportDimensions.height)) }} aria-hidden="true">
-          <CameraPreview objects={animatedObjects} animationTime={currentFrame / fps} cameraData={displayCamera} cameraAspect={exportDimensions.width / exportDimensions.height} lighting={lighting} exportMode backgroundCanvas={exportReferenceBackground} onCanvasReady={canvas => { thumbnailCanvasRef.current = canvas }} />
-        </div>
       )}
       {toast && <div className="toast"><span />{toast}</div>}
     </main>

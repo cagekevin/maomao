@@ -4,7 +4,7 @@ import { CAMERA_ID, FOCAL_LENGTH_PRESETS } from '../project.js'
 import { GlobalSettingsPanel } from './GlobalSettingsPanel.jsx'
 import { ToolButton, VectorFields } from './controls.jsx'
 
-export function Inspector({ selected, camera, cameraAspect, onAspectChange, projectSettings, onApplySettings, maxKeyframeFrame, showGrid, onToggleGrid, performanceMode, onTogglePerformance, lighting, onLightingChange, selectedJoint, customPoses, onSelectJoint, onUpdateObject, onUpdateCamera, onDelete, onDuplicate, onFocus, onToggleLock, onGround, onResetRotation, onResetScale, onSaveCustomPose, onApplyCustomPose, onDeleteCustomPose }) {
+export function Inspector({ selected, objects, camera, cameraAspect, onAspectChange, projectSettings, onApplySettings, maxKeyframeFrame, showGrid, onToggleGrid, performanceMode, onTogglePerformance, lighting, onLightingChange, selectedJoint, customPoses, onSelectJoint, onUpdateObject, onUpdateCamera, onDelete, onDuplicate, onFocus, onToggleLock, onGround, onResetRotation, onResetScale, onSaveCustomPose, onApplyCustomPose, onDeleteCustomPose }) {
   // 未选中物体：显示全局设置栏（画幅比例、时间轴、视口、光照等工程级设置）
   if (!selected) {
     return (
@@ -71,6 +71,20 @@ export function Inspector({ selected, camera, cameraAspect, onAspectChange, proj
         {isCamera ? (
           <div className="inspector-section">
             <div className="section-title"><span>镜头</span><ChevronDown size={14} /></div>
+            <label className="select-field"><span>始终面向对象</span>
+              <select
+                aria-label="始终面向对象"
+                value={camera.targetMode === 'object' && objects.some(object => object.id === camera.targetId) ? camera.targetId : 'manual'}
+                onChange={event => {
+                  const value = event.target.value
+                  if (value === 'manual') onUpdateCamera({ targetMode: 'manual' })
+                  else onUpdateCamera({ targetMode: 'object', targetId: value })
+                }}
+              >
+                <option value="manual">手动（不朝向）</option>
+                {objects.map(object => <option key={object.id} value={object.id}>{object.name}</option>)}
+              </select>
+            </label>
             <label className="range-field"><span>焦距</span><input type="range" min="18" max="120" value={camera.focalLength} onChange={e => onUpdateCamera({ focalLength: Number(e.target.value) })} /><output>{Math.round(camera.focalLength)} mm</output></label>
             <div className="focal-presets" aria-label="常用焦距">
               {FOCAL_LENGTH_PRESETS.map(value => <button type="button" key={value} className={Math.round(camera.focalLength) === value ? 'is-active' : ''} onClick={() => onUpdateCamera({ focalLength: value })}>{value}</button>)}

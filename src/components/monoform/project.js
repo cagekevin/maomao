@@ -64,6 +64,8 @@ export const initialCamera = {
   rotation: cameraRotationToward(DEFAULT_CAMERA_POSITION, LEGACY_DEFAULT_CAMERA_TARGET),
   focalLength: 42,
   aspectRatio: '16:9',
+  targetMode: 'manual',
+  targetId: '',
 }
 export const DEFAULT_REFERENCE = {
   image: '',
@@ -178,6 +180,9 @@ export function normalizeCamera(camera = {}) {
     aspectRatio: ASPECT_RATIOS.some(option => option.ratio && option.value === camera.aspectRatio) || CUSTOM_ASPECT_PATTERN.test(String(camera.aspectRatio || ''))
       ? camera.aspectRatio
       : initialCamera.aspectRatio,
+    // 始终面向对象：targetMode 'object' 时摄像机旋转自动朝向 targetId 对象（参考 director3d 的 C4D Target）
+    targetMode: camera.targetMode === 'object' ? 'object' : 'manual',
+    targetId: typeof camera.targetId === 'string' ? camera.targetId : '',
   }
 }
 
