@@ -93,8 +93,6 @@ export interface DirectorUiState {
   isPlaying: boolean;
   /** 播放到末尾是否循环回开头（默认开） */
   loopPlayback: boolean;
-  /** Auto Key 自动关键帧：开启后改参数/拖对象自动记录当前播放头关键帧（默认关，C4D 惯例用完即关） */
-  autoKeyEnabled: boolean;
   /** 视口 IK 摆姿势开关 */
   poseHandlesEnabled: boolean;
   /** 曲线编辑器弹窗当前打开的轨道 id（null=关闭；瞬态 UI，不持久化） */
@@ -188,9 +186,8 @@ export interface DirectorActions {
   setTimelineFps: (value: number) => void;
   addKeyframeForSelection: () => void;
   /**
-   * 视口拖动提交（Auto Key 感知，系统唯一入口）：
-   * - Auto Key 开 → 播放头写/覆盖关键帧（位移+旋转，相机可带 target/fov）
-   * - Auto Key 关但播放头已有关键帧 → 更新该帧位移字段（避免播放回跳）
+   * 视口拖动提交（系统唯一入口）：
+   * - 播放头已有关键帧 → 更新该帧位移字段（避免播放回跳）
    * - 否则 → 只改对象/相机 transform
    * id 为对象 id 或相机 linkedCameraId。
    */
@@ -206,7 +203,6 @@ export interface DirectorActions {
   clearTrack: (trackId: string) => void;
   applyCameraShotPreset: (cameraId: string, preset: CameraShotPresetId, options: CameraShotOptions) => void;
   setAnimationViewportMode: (mode: AnimationViewportMode) => void;
-  setAutoKeyEnabled: (enabled: boolean) => void;
   setPoseHandlesEnabled: (enabled: boolean) => void;
   /** 打开曲线编辑器弹窗（trackId 为对象 id 或相机 linkedCameraId） */
   openCurveEditor: (trackId: string) => void;
@@ -269,7 +265,6 @@ const DEFAULT_UI_STATE: DirectorUiState = {
   currentTime: 0,
   isPlaying: false,
   loopPlayback: true,
-  autoKeyEnabled: false,
   poseHandlesEnabled: false,
   curveEditorTrackId: null,
 };
@@ -462,7 +457,6 @@ function extractPersistedDirectorState(state: DirectorRuntimeState): DirectorSta
     currentTime: state.currentTime,
     isPlaying: state.isPlaying,
     loopPlayback: state.loopPlayback,
-    autoKeyEnabled: state.autoKeyEnabled,
     poseHandlesEnabled: state.poseHandlesEnabled,
     curveEditorTrackId: null,
     project: state.project,
@@ -525,7 +519,6 @@ function readPersistedDirectorState(options: DirectorStateOptions = {}): Directo
       currentTime: 0,
       isPlaying: false,
       loopPlayback: true,
-      autoKeyEnabled: false,
       poseHandlesEnabled: false,
       curveEditorTrackId: null,
       project: withPersistedLocalAssets(
@@ -556,7 +549,6 @@ function createRuntimeStateFromPersistedState(state: DirectorState): DirectorRun
     currentTime: 0,
     isPlaying: false,
     loopPlayback: true,
-    autoKeyEnabled: false,
     poseHandlesEnabled: false,
     curveEditorTrackId: null,
   };
@@ -1452,29 +1444,13 @@ export const useDirectorStore = create<DirectorStore>((set, get) => {
           : null;
         const nextObject = currentObject && nextTransform ? { ...currentObject, transform: nextTransform } : null;
 
-        // Auto Key 开 → 属性输入自动写当前播放头关键帧（位移/旋转/缩放）
+        // 属性输入只改 transform，不自动写关键帧（打帧统一走手动 K 帧）
         const project = withAnimationDefaults(state.project);
-        let timeline = project.timeline;
-        if (
-          state.autoKeyEnabled &&
-          currentObject &&
-          currentObject.kind !== "camera" &&
-          nextTransform &&
-          (patch.position != null || patch.rotation != null || patch.scale != null)
-        ) {
-          timeline = upsertTransformKeyframe(
-            timeline!,
-            id,
-            { position: nextTransform.position, rotation: nextTransform.rotation, scale: nextTransform.scale },
-            state.currentTime
-          );
-        }
 
         return {
           ...state,
           project: {
             ...project,
-            timeline,
             objects: updateObjectById(project.objects, id, (item) => ({
               ...item,
               transform: {
@@ -1610,23 +1586,13 @@ export const useDirectorStore = create<DirectorStore>((set, get) => {
             }
           : null;
 
-        // Auto Key 开 → 统一缩放也写当前播放头缩放关键帧
+        // 统一缩放只改 transform，不自动写关键帧（打帧统一走手动 K 帧）
         const project = withAnimationDefaults(state.project);
-        let timeline = project.timeline;
-        if (state.autoKeyEnabled && currentObject) {
-          timeline = upsertTransformKeyframe(
-            timeline!,
-            id,
-            { position: currentObject.transform.position, rotation: currentObject.transform.rotation, scale: [scale, scale, scale] },
-            state.currentTime
-          );
-        }
 
         return {
           ...state,
           project: {
             ...project,
-            timeline,
             objects: updateObjectById(project.objects, id, (item) => ({
               ...item,
               transform: {
@@ -2063,9 +2029,9 @@ export const useDirectorStore = create<DirectorStore>((set, get) => {
           const base = interpolatePose(item.characterRig, track, state.currentTime);
           const posePresetId = base?.posePresetId ?? item.characterRig.posePresetId;
           const controls = { ...(base?.controls ?? item.characterRig.controls), [key]: value };
-          // Auto Key 开 → 写播放头姿态帧；关但播放头已有姿态帧 → 同步该帧，避免播放回跳
+          // 播放头已有姿态帧 → 同步该帧，避免播放回跳（打帧统一走手动 K 帧）
           const hasFrameAtPlayhead = track.some((frame) => Math.abs(frame.time - state.currentTime) < TIME_EPSILON);
-          if (state.autoKeyEnabled || hasFrameAtPlayhead) {
+          if (hasFrameAtPlayhead) {
             timeline = upsertPoseKeyframe(timeline!, id, item.characterRig, state.currentTime, posePresetId, controls);
             didWrite = true;
             return { ...item, characterRig: { ...item.characterRig, posePresetId, controls } };
@@ -2159,23 +2125,8 @@ export const useDirectorStore = create<DirectorStore>((set, get) => {
       commitMutation((state) => {
         const project = withAnimationDefaults(state.project);
         const camera = project.cameras.find((item) => item.id === cameraId);
-        let timeline = project.timeline;
-
-        // Auto Key 开 → 机位参数改动自动写当前播放头相机关键帧（位置/看向/FOV）
-        if (state.autoKeyEnabled && camera) {
-          const transform = patch.transform ?? camera.transform;
-          timeline = upsertTransformKeyframe(
-            timeline!,
-            cameraId,
-            {
-              position: transform.position,
-              rotation: transform.rotation,
-              target: patch.target ?? camera.target,
-              fov: patch.fov ?? camera.fov,
-            },
-            state.currentTime
-          );
-        }
+        // 机位参数改动只改机位，不自动写关键帧（打帧统一走手动 K 帧）
+        const timeline = project.timeline;
 
         return {
           ...state,
@@ -2366,19 +2317,8 @@ export const useDirectorStore = create<DirectorStore>((set, get) => {
         const track = timeline.tracks[id] ?? [];
         const frameAtPlayhead = track.find((item) => Math.abs(item.time - state.currentTime) < TIME_EPSILON);
 
-        if (state.autoKeyEnabled) {
-          // Auto Key：写/覆盖当前播放头关键帧（其余同帧维度保留）
-          const nextTimeline = upsertTransformKeyframe(
-            timeline,
-            id,
-            { position: transform.position, rotation: transform.rotation, scale: transform.scale, target: extras?.target, fov: extras?.fov },
-            state.currentTime
-          );
-          return { ...state, project: { ...project, timeline: nextTimeline } };
-        }
-
         if (frameAtPlayhead) {
-          // Auto Key 关但播放头已有关键帧：更新该帧位移字段，避免播放回跳
+          // 播放头已有关键帧：更新该帧位移字段，避免播放回跳
           const patch: Partial<DirectorKeyframe> = {
             position: transform.position,
             rotation: transform.rotation,
@@ -2548,8 +2488,6 @@ export const useDirectorStore = create<DirectorStore>((set, get) => {
       }),
     setPoseHandlesEnabled: (enabled) =>
       set((state) => ({ ...(state as DirectorRuntimeState), poseHandlesEnabled: enabled })),
-    setAutoKeyEnabled: (enabled) =>
-      set((state) => ({ ...(state as DirectorRuntimeState), autoKeyEnabled: enabled })),
     openCurveEditor: (trackId) =>
       set((state) => ({ ...(state as DirectorRuntimeState), curveEditorTrackId: trackId })),
     closeCurveEditor: () =>

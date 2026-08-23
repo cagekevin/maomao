@@ -51,6 +51,10 @@ App.tsx (入口 / Director3DOverlay)
 | `App.tsx` 顶部 top-bar | 顶栏 | 样式、布局 |
 | `app/useDirectorViewportShortcuts.ts` | 视口快捷键 | 一般不动 |
 
+## 文档
+
+- [K 帧（关键帧）交互说明](./docs/K_FRAME.md) —— 手动打帧的完整交互与数据写入逻辑
+
 ## 目标
 
 - 界面要「像个成熟软件」（如剪映 / Blender / CAD 的专业外观）。

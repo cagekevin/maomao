@@ -28,7 +28,7 @@ export interface TransformRowDef {
   value: number;
   /** 当前播放头该属性是否已有关键帧（菱形亮/灰） */
   hasKey: boolean;
-  /** 数值输入：改值（Auto Key 感知在 store action 层） */
+  /** 数值输入：改值 */
   onValueChange: (value: number) => void;
   /** 点菱形：在当前播放头给该属性打关键帧 */
   onKeyframe: () => void;

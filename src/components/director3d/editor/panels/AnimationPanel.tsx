@@ -60,7 +60,7 @@ const TRACK_LABEL: Record<string, string> = {
  * - 属性编辑 + 打帧行（◆ 标签 数值）→ 由 CharacterPanel / PropPanel / CameraPanel / ScenePanel
  *   各自自包含渲染（共享 TransformKeyframeRows 组件与 buildVecAxisRows / replaceAxis 等公共逻辑）。
  * - 本面板只负责：按选中对象类型渲染对应面板 + 关键帧工具/列表/精修 + 运镜（仅摄像机）。
- * - 打帧触点写入统一走 setKeyframeGroupAtPlayhead；数值输入在 store action 层做 Auto Key 感知。
+ * - 打帧触点写入统一走 setKeyframeGroupAtPlayhead；数值输入只改对象 transform。
  */
 export function AnimationPanel() {
   const [selectedKeyframeId, setSelectedKeyframeId] = useState<string | null>(null);

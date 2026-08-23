@@ -512,7 +512,7 @@ function ObjectSceneNode({
       rotation: [group.rotation.x, group.rotation.y, group.rotation.z],
       scale: [group.scale.x, group.scale.y, group.scale.z],
     };
-    // Auto Key 感知统一提交：开→写播放头帧；关但有帧→同步该帧；否则只改 transform
+    // 统一提交：播放头有帧→同步该帧；否则只改 transform
     commitViewportDrag(item.id, transform);
   }
 
@@ -703,7 +703,7 @@ function ViewportCameraRig({
       scale: [group.scale.x, group.scale.y, group.scale.z],
     };
 
-    // Auto Key 感知统一提交：开→写播放头相机帧（位置+看向）；关但有帧→同步该帧；否则只改机位
+    // 统一提交：播放头有帧→同步该帧；否则只改机位
     commitViewportDrag(camera.id, transform, { target });
   }
 

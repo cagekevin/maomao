@@ -2998,27 +2998,6 @@ textarea:focus-visible {
   min-width: 32px;
 }
 
-/* Auto Key 自动关键帧（C4D 式红色 ●） */
-.timeline-transport-button.timeline-autokey {
-  gap: 6px;
-  color: rgb(var(--text-muted-rgb));
-}
-.timeline-autokey-dot {
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  background: rgb(var(--text-dim-rgb));
-  transition: background 0.15s ease;
-}
-.timeline-transport-button.timeline-autokey.is-active {
-  border-color: #e0524d;
-  background: rgba(224, 82, 77, 0.16);
-  color: #ff6b66;
-}
-.timeline-transport-button.timeline-autokey.is-active .timeline-autokey-dot {
-  background: #ff4d47;
-  box-shadow: 0 0 6px rgba(255, 77, 71, 0.6);
-}
 .timeline-readout {
   display: inline-flex;
   align-items: center;

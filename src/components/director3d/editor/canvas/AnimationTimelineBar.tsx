@@ -31,8 +31,6 @@ export function AnimationTimelineBar() {
   const play = useDirectorStore((state) => state.play);
   const pause = useDirectorStore((state) => state.pause);
   const togglePlay = useDirectorStore((state) => state.togglePlay);
-  const autoKeyEnabled = useDirectorStore((state) => state.autoKeyEnabled);
-  const setAutoKeyEnabled = useDirectorStore((state) => state.setAutoKeyEnabled);
   const setAnimationModuleCollapsed = useDirectorStore((state) => state.setAnimationModuleCollapsed);
 
   const [draggingFrame, setDraggingFrame] = useState<{ trackKey: string; id: string; offsetX: number; baseTime: number } | null>(null);
@@ -255,17 +253,6 @@ export function AnimationTimelineBar() {
               onClick={handleJumpEnd}
             >
               <SkipForward aria-hidden="true" size={15} strokeWidth={1.9} />
-            </button>
-            <button
-              aria-pressed={autoKeyEnabled}
-              aria-label={autoKeyEnabled ? "关闭自动关键帧（Auto Key）" : "开启自动关键帧（Auto Key）"}
-              className={`timeline-transport-button timeline-autokey${autoKeyEnabled ? " is-active" : ""}`}
-              type="button"
-              title="自动关键帧（Auto Key）：开启后改参数/拖对象自动记录关键帧；用完请关闭，避免产生多余关键帧（C4D 惯例）"
-              onClick={() => setAutoKeyEnabled(!autoKeyEnabled)}
-            >
-              <span className="timeline-autokey-dot" aria-hidden="true" />
-              <span>Auto Key</span>
             </button>
             <label className="timeline-readout" title="当前时间（秒）">
               <input
