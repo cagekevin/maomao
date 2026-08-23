@@ -47,9 +47,13 @@ monoform（白膜预演工具）作为画布 overlay 嵌入 maomao 后，**复�
 
 ## 相关文件
 
-- `src/components/monoform/App.jsx` — 主界面
-- `src/components/monoform/Viewport.jsx` — 3D 视口
+- `src/components/monoform/App.jsx` — 主界面（MonoformApp + 状态编排）
+- `src/components/monoform/Viewport.jsx` — 3D 视口与场景编排（场景/画布/编辑器）
+- `src/components/monoform/models.jsx` — Mixamo 骨骼人模型（StudioPerson/ImportedModel）
+- `src/components/monoform/primitives.jsx` — 场景粗模（几何体）
+- `src/components/monoform/depth.jsx` — 深度网格模型
+- `src/components/monoform/project.js` — 领域逻辑（常量/归一化/插值/序列化）
 - `src/components/monoform/MonoformOverlay.jsx` — 画布接入外壳
 - `src/components/monoform/styles.css` — 样式
 - `src/components/monoform/rig.js` — 骨骼/动作
-- `src/components/monoform/ShotsPanel.jsx` — 镜头列表
+- `src/components/monoform/panels/` — UI 面板（Sidebar/Inspector/Timeline/ShotsPanel/GlobalSettingsPanel/AssetMenu/CameraAnglePanel/ReferenceOverlay/controls）
