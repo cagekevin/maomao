@@ -7,7 +7,7 @@ import CustomHandle from '../edges/CustomHandle.jsx'
 import { useConnectedInputs } from '../base/useConnectedInputs.js'
 import { toAbsoluteFileUrl, saveInlineToLocal } from '../base/filesApi.js'
 import { useRenderImageResolver } from '../base/imageUrl.js'
-import { MonoformOverlay } from '../monoform/MonoformOverlay.jsx'
+import { Director3DOverlay } from '../director3d/Director3DOverlay.jsx'
 import { uploadFileToLocal } from '../base/filesApi.js'
 import { generateId } from '../base/idGen.js'
 import { buildSpawnNodes, applySpawnSnapshot } from '../base/deriveNodes.js'
@@ -52,7 +52,7 @@ function Director3DNode({ id, data, selected }) {
       const persisted = await Promise.all(
         images.map(async (im) => {
           if (im.blob) {
-            const fileUrl = await uploadFileToLocal(im.blob, 'tasks', im.fileName || 'monoform-shot.png')
+            const fileUrl = await uploadFileToLocal(im.blob, 'tasks', im.fileName || 'director3d-shot.png')
             return fileUrl || null
           }
           const raw = im.dataUrl || im.url
@@ -118,8 +118,8 @@ function Director3DNode({ id, data, selected }) {
       let lastFile = null
       for (const v of videos) {
         if (!v.blob) continue
-        const fileUrl = await uploadFileToLocal(v.blob, 'tasks', v.fileName || 'monoform-video.mp4')
-        if (fileUrl) { lastUrl = fileUrl; lastFile = v.fileName || 'monoform-video.mp4' }
+        const fileUrl = await uploadFileToLocal(v.blob, 'tasks', v.fileName || 'director3d-video.mp4')
+        if (fileUrl) { lastUrl = fileUrl; lastFile = v.fileName || 'director3d-video.mp4' }
       }
       if (!lastUrl) return
       const targets = getEdges()
@@ -167,7 +167,7 @@ function Director3DNode({ id, data, selected }) {
         try {
           const blobRes = await fetch(persistedThumb)
           const blob = await blobRes.blob()
-          const fileUrl = await uploadFileToLocal(blob, 'tasks', 'monoform-thumb.png')
+          const fileUrl = await uploadFileToLocal(blob, 'tasks', 'director3d-thumb.png')
           if (fileUrl) persistedThumb = fileUrl
         } catch { /* 落盘失败保留原值 */ }
       } else if (persistedThumb && persistedThumb.startsWith('data:')) {
@@ -232,7 +232,7 @@ function Director3DNode({ id, data, selected }) {
       {open &&
         createPortal(
           <div className="fixed inset-0 z-[9999]" onClick={(e) => e.stopPropagation()}>
-            <MonoformOverlay
+            <Director3DOverlay
               nodeId={id}
               onExit={handleExit}
             />

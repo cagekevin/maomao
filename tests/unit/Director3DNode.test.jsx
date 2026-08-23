@@ -8,7 +8,7 @@ vi.mock('../../src/components/base/NodeShell.jsx', () => ({ default: mocks.NodeS
 vi.mock('../../src/components/edges/CustomHandle.jsx', () => ({ default: mocks.CustomHandle }))
 vi.mock('../../src/components/base/useConnectedInputs.js', () => ({ useConnectedInputs: mocks.useConnectedInputs }))
 vi.mock('../../src/components/base/filesApi.js', () => ({ toAbsoluteFileUrl: mocks.toAbsoluteFileUrl, saveInlineToLocal: mocks.saveInlineToLocal }))
-vi.mock('../../src/components/director3d/App.tsx', () => ({ Director3DOverlay: mocks.Director3DOverlay }))
+vi.mock('../../src/components/director3d/Director3DOverlay.jsx', () => ({ Director3DOverlay: mocks.Director3DOverlay }))
 
 import Director3DNode from '../../src/components/nodes/Director3DNode.jsx'
 beforeEach(() => { mocks.resetNodeMockState() })

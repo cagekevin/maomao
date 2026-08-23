@@ -1,6 +1,6 @@
 /*
  * ============================================================================
- * Monoform 关键帧系统 · 扩展指南
+ * 3D 导演台关键帧系统 · 扩展指南
  * 如何给「新增的功能/属性」加上关键帧记录能力
  * ============================================================================
  *
@@ -132,8 +132,8 @@ const ignoreCallbackProps = (prev, next) => {
 }
 const MemoLeftSidebar = memo(LeftSidebar, ignoreCallbackProps)
 const MemoInspector = memo(Inspector, ignoreCallbackProps)
-export function MonoformApp({ storageKey, onExport, onExit, onThumbnail }) {
-  // 受控工程存储 key：每节点独立（monoform-project-<nodeId>）；默认兼容独立运行（monoform-project）
+export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
+  // 受控工程存储 key：每节点独立（director3d-project-<nodeId>）；默认兼容独立运行（director3d-project）
   const projectStorageKey = storageKey || PROJECT_STORAGE_KEY
   const startupProject = useMemo(() => readCachedProject(projectStorageKey), [projectStorageKey])
   const [settings, setSettings] = useState(() => normalizeProjectSettings(startupProject?.settings))
@@ -715,6 +715,8 @@ export function MonoformApp({ storageKey, onExport, onExit, onThumbnail }) {
     // 进入摄像机视角后，主视口即显示该机位画面，右下角 monitor 与之重复，
     // 自动最小化避免两处几乎相同的画面并列、误导用户以为是两个机位。
     setMonitorMode('minimized')
+    // 同时选中主摄像机，让右侧属性面板直接显示「镜头」属性（焦距/常用焦距等）
+    setSelectedId(CAMERA_ID)
   }
   const openEditorView = () => {
     setCameraView(false)
@@ -891,8 +893,8 @@ export function MonoformApp({ storageKey, onExport, onExit, onThumbnail }) {
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
       const link = document.createElement('a')
       link.href = URL.createObjectURL(blob)
-      const safeName = settings.name.replace(/[\\/:*?"<>|]+/g, '-').trim() || 'monoform-project'
-      link.download = `${safeName}.monoform.json`
+      const safeName = settings.name.replace(/[\\/:*?"<>|]+/g, '-').trim() || 'director3d-project'
+      link.download = `${safeName}.director3d.json`
       link.click()
       URL.revokeObjectURL(link.href)
     }
@@ -919,7 +921,7 @@ export function MonoformApp({ storageKey, onExport, onExit, onThumbnail }) {
       await nextPaint()
       const blob = await new Promise((resolve, reject) => canvas.toBlob(result => result ? resolve(result) : reject(new Error('PNG 生成失败')), 'image/png'))
       const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')
-      const fileName = `monoform-shot-${stamp}-frame-${String(currentFrameRef.current).padStart(3, '0')}.png`
+      const fileName = `director3d-shot-${stamp}-frame-${String(currentFrameRef.current).padStart(3, '0')}.png`
       // 受控导出：先把产物交给宿主（落盘/回写画布），再按需触发浏览器下载
       if (onExport) {
         onExport({ type: 'image', blob, fileName })
@@ -1008,7 +1010,7 @@ export function MonoformApp({ storageKey, onExport, onExit, onThumbnail }) {
       if (!buffer) throw new Error('MP4 文件生成失败')
       const blob = new Blob([buffer], { type: 'video/mp4' })
       const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')
-      const safeName = settings.name.replace(/[\\/:*?"<>|]+/g, '-').trim() || 'monoform-animation'
+      const safeName = settings.name.replace(/[\\/:*?"<>|]+/g, '-').trim() || 'director3d-animation'
       const fileName = `${safeName}-${stamp}.mp4`
       // 受控导出：先把产物交给宿主（落盘/回写画布），再按需触发浏览器下载
       if (onExport) {
@@ -1226,4 +1228,4 @@ export function MonoformApp({ storageKey, onExport, onExit, onThumbnail }) {
   )
 }
 
-export default MonoformApp
+export default Director3DApp

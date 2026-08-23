@@ -1,5 +1,5 @@
-/* 画布 overlay 隔离：所有样式限定在 .monoform-overlay 内，避免污染 maomao 全局 */
-.monoform-overlay {
+/* 画布 overlay 隔离：所有样式限定在 .director3d-overlay 内，避免污染 maomao 全局 */
+.director3d-overlay {
   position: fixed; inset: 0; z-index: 9999;
   color-scheme: dark;
   /* 对齐 maomao / 剧本盒子设计体系（tailwind tokens） */
@@ -33,11 +33,11 @@
   color: var(--text);
   min-width: 980px;
 }
-.monoform-overlay :where(*), .monoform-overlay :where(*::before), .monoform-overlay :where(*::after) { box-sizing: border-box; }
-.monoform-overlay :where(button), .monoform-overlay :where(input), .monoform-overlay :where(select) { font: inherit; }
-.monoform-overlay :where(button) { color: inherit; }
-.monoform-overlay :where(button):focus-visible, .monoform-overlay :where(input):focus-visible, .monoform-overlay :where(select):focus-visible { outline: 1px solid var(--accent); outline-offset: 1px; }
-.monoform-overlay :where(button):disabled { opacity: .28; cursor: not-allowed !important; }
+.director3d-overlay :where(*), .director3d-overlay :where(*::before), .director3d-overlay :where(*::after) { box-sizing: border-box; }
+.director3d-overlay :where(button), .director3d-overlay :where(input), .director3d-overlay :where(select) { font: inherit; }
+.director3d-overlay :where(button) { color: inherit; }
+.director3d-overlay :where(button):focus-visible, .director3d-overlay :where(input):focus-visible, .director3d-overlay :where(select):focus-visible { outline: 1px solid var(--accent); outline-offset: 1px; }
+.director3d-overlay :where(button):disabled { opacity: .28; cursor: not-allowed !important; }
 
 .app-shell { width: 100%; height: 100%; background: var(--bg); display: flex; flex-direction: column; }
 .topbar {
@@ -491,7 +491,7 @@
 }
 
 /* ── 画布 overlay 嵌入层 ────────────────────────────── */
-.monoform-overlay .app-shell { width: 100%; height: 100%; }
+.director3d-overlay .app-shell { width: 100%; height: 100%; }
 
 /* ── 全局设置栏（右侧属性栏，未选中物体时显示）────────── */
 .global-settings-panel { display: flex; flex-direction: column; }

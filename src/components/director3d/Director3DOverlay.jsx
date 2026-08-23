@@ -1,30 +1,30 @@
 import { useCallback, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { MonoformApp } from './App.jsx'
+import { Director3DApp } from './App.jsx'
 import './styles.css'
 
 /**
- * MonoformOverlay：把 monoform 白膜预演作为全屏 overlay 嵌入画布节点。
+ * Director3DOverlay：把 3D 导演台白膜预演作为全屏 overlay 嵌入画布节点。
  *
  * 由 Director3DNode 双击节点后 createPortal 挂载到 document.body。
- * 每个节点用独立 storageKey（monoform-project-<nodeId>），工程互不干扰。
+ * 每个节点用独立 storageKey（director3d-project-<nodeId>），工程互不干扰。
  *
  * 挂载期间在 document 捕获阶段拦截目标不在 overlay 内的 pointer/wheel 事件，
- * 确保 maomao 画布在 overlay 打开时不响应鼠标交互（monoform 内部事件不受影响）。
+ * 确保 maomao 画布在 overlay 打开时不响应鼠标交互（3D 导演台内部事件不受影响）。
  *
  * Props：
  *  - nodeId：节点 id，用于生成独立工程存储 key
  *  - onExit：退出回调，回传 { thumbnailDataUrl?, captures? }
  */
-export function MonoformOverlay({ nodeId, onExit }) {
+export function Director3DOverlay({ nodeId, onExit }) {
   const capturesRef = useRef([])
   const thumbnailRef = useRef(null)
   const hostRef = useRef(null)
-  const storageKey = nodeId ? `monoform-project-${nodeId}` : null
+  const storageKey = nodeId ? `director3d-project-${nodeId}` : null
 
   // 挂载期间：拦截画布的鼠标/滚轮/拖拽/粘贴事件，避免画布被误操作。
-  // - pointer/wheel：仅当目标在 overlay 外（画布）时拦截，不影响 monoform 内部。
-  // - drag/paste：overlay 打开时无条件拦截（画布拖拽/粘贴建节点无需保留，monoform 内部用 file input 上传、内部 state 处理关键帧）。
+  // - pointer/wheel：仅当目标在 overlay 外（画布）时拦截，不影响 3D 导演台内部。
+  // - drag/paste：overlay 打开时无条件拦截（画布拖拽/粘贴建节点无需保留，3D 导演台内部用 file input 上传、内部 state 处理关键帧）。
   useEffect(() => {
     const blockPointerOutside = (e) => {
       const target = e.target
@@ -82,10 +82,10 @@ export function MonoformOverlay({ nodeId, onExit }) {
   return createPortal(
     <div
       ref={hostRef}
-      className="monoform-overlay"
+      className="director3d-overlay"
       style={{ position: 'fixed', inset: 0, zIndex: 2147483000, background: '#181817' }}
     >
-      <MonoformApp
+      <Director3DApp
         storageKey={storageKey}
         onExport={handleExport}
         onExit={handleExit}
@@ -96,4 +96,4 @@ export function MonoformOverlay({ nodeId, onExit }) {
   )
 }
 
-export default MonoformOverlay
+export default Director3DOverlay

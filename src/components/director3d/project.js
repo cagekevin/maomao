@@ -1,4 +1,4 @@
-// monoform 领域逻辑：常量、归一化、逐帧插值、工程序列化。
+// 3D 导演台领域逻辑：常量、归一化、逐帧插值、工程序列化。
 // 纯逻辑/纯函数，不依赖 React 与组件，供 App.jsx 及各面板复用。
 import {
   RIG_PRESET_OPTIONS, cloneJointPose, interpolateJointPose, normalizePoseId, poseCanLoop,
@@ -6,9 +6,9 @@ import {
 } from './rig.js'
 
 export const CAMERA_ID = '__shot_camera__'
-export const PROJECT_STORAGE_KEY = 'monoform-project'
+export const PROJECT_STORAGE_KEY = 'director3d-project'
 export const LEGACY_PROJECT_STORAGE_KEY = 'stageframe-project'
-export const CUSTOM_POSE_STORAGE_KEY = 'monoform-custom-poses'
+export const CUSTOM_POSE_STORAGE_KEY = 'director3d-custom-poses'
 export const PROJECT_VERSION = 16
 export const DEFAULT_PROJECT_SETTINGS = {
   name: '未命名场景',
@@ -29,7 +29,7 @@ export const DEFAULT_LIGHTING = {
 }
 export const FPS_OPTIONS = [24, 25, 30]
 export const FOCAL_LENGTH_PRESETS = [18, 24, 35, 50, 85, 120]
-export const BRAND_MARK_URL = `${import.meta.env.BASE_URL}branding/monoform-mark.png`
+export const BRAND_MARK_URL = `${import.meta.env.BASE_URL}branding/director3d-mark.png`
 export const ASPECT_RATIOS = [
   { value: '16:9', label: '16 : 9 · 横屏视频', ratio: 16 / 9 },
   { value: '9:16', label: '9 : 16 · 竖屏短视频', ratio: 9 / 16 },
