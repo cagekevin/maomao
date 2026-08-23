@@ -1,13 +1,11 @@
 import "./styles/index.css";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { Camera as CameraIcon, X } from "lucide-react";
+import { useCallback, useEffect, useRef } from "react";
+import { X } from "lucide-react";
 import { DirectorDeskShell } from "./app/layout/DirectorDeskShell";
 import { DirectorCanvas } from "./editor/canvas/DirectorCanvas";
 import { useDirectorStore, createDefaultDirectorProject } from "./editor/store/directorStore";
-import { requestViewportCapture } from "./editor/io/captureBridge";
 import { toAbsoluteFileUrl } from "../base/filesApi.js";
 import type { DirectorProject } from "./editor/schema/directorProject";
-import type { ScreenshotResult } from "./editor/io/screenshotExport";
 
 /**
  * 3D 导演台全屏界面（复刻开源 storyai-3d-director-desk 的 App.tsx）。
@@ -95,56 +93,21 @@ export function Director3DOverlay({
     [onExit]
   );
 
-  function handleClose() {
-    handleExit();
-  }
-
-  // 「截图并返回画布」：先截当前视图 → 回传（作为缩略图 + 输出到图片盒子）
-  const handleCaptureAndExit = useCallback(async () => {
-    let thumbnailDataUrl: string | null = null;
-    let currentCapture: Array<{ dataUrl: string; fileName?: string }> = [];
-    try {
-      const results: ScreenshotResult[] = await requestViewportCapture({ preset: "current", source: "capture-panel" });
-      if (results && results.length > 0 && results[0]?.dataUrl) {
-        thumbnailDataUrl = results[0].dataUrl;
-        currentCapture = [{ dataUrl: results[0].dataUrl, fileName: "当前视角.png" }];
-      }
-    } catch {
-      thumbnailDataUrl = null;
-    }
-    handleExit(thumbnailDataUrl, currentCapture);
-  }, [handleExit]);
-
   return (
     <div className="app-shell director3d-node-overlay" data-theme="dark">
-      <header className="top-bar">
-        <div className="top-bar-left">
-          <h1 className="top-bar-title">3D导演台</h1>
-        </div>
-        <div className="top-bar-actions">
-          <button
-            className="top-bar-action-button"
-            type="button"
-            aria-label="截图并返回画布"
-            title="截图并返回画布"
-            onClick={handleCaptureAndExit}
-          >
-            <CameraIcon aria-hidden="true" size={16} strokeWidth={1.8} />
-          </button>
-          <button
-            className="top-bar-action-button"
-            type="button"
-            aria-label="返回画布"
-            title="返回画布"
-            onClick={handleClose}
-          >
-            <X aria-hidden="true" size={16} strokeWidth={1.8} />
-          </button>
-        </div>
-      </header>
-      <DirectorDeskShell>
+      <DirectorDeskShell onExit={handleExit}>
         <DirectorCanvas />
       </DirectorDeskShell>
+      {/* 悬浮退出按钮：右上角常驻，点击直接返回画布（无 top-bar） */}
+      <button
+        type="button"
+        className="director-float-exit"
+        aria-label="返回画布"
+        title="返回画布"
+        onClick={() => handleExit()}
+      >
+        <X aria-hidden="true" size={18} strokeWidth={1.9} />
+      </button>
     </div>
   );
 }

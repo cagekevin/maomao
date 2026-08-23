@@ -20,7 +20,6 @@ const VIEWER_ZOOM_MAX = 5;
 const VIEWER_ZOOM_STEP = 0.25;
 
 export function CameraPanel() {
-  const [activeTab, setActiveTab] = useState<"properties" | "captures">("properties");
   const [captureError, setCaptureError] = useState<string | null>(null);
   const [hoveredCaptureId, setHoveredCaptureId] = useState<string | null>(null);
   const [viewerCapture, setViewerCapture] = useState<DirectorCameraCapture | null>(null);
@@ -47,7 +46,6 @@ export function CameraPanel() {
 
   if (!camera) return null;
   const currentCamera = camera;
-  const captures = useMemo(() => currentCamera.captures ?? [], [currentCamera.captures]);
   const cameraTransformRows = useMemo(() => {
     const track = timeline?.tracks?.[currentCamera.id] ?? [];
     const targetDisabled = currentCamera.targetMode === "object";
@@ -357,14 +355,6 @@ export function CameraPanel() {
     );
   }
 
-  function renderCurrentCameraCaptureGrid() {
-    if (captures.length === 0) {
-      return <div className="capture-list-placeholder">当前还没有机位截图，可先从当前机位生成一张预览。</div>;
-    }
-
-    return renderCaptureCards(captures);
-  }
-
   function renderCaptureEmptyState() {
     return (
       <div className="camera-capture-empty object-search-empty-state" role="status" aria-label="暂无摄像机截图">
@@ -402,10 +392,6 @@ export function CameraPanel() {
   }
 
   function renderCaptureOverviewFooter() {
-    if (activeTab !== "captures") {
-      return null;
-    }
-
     return (
       <div className="camera-capture-overview-footer">
         <button className="camera-capture-clear-all" type="button" onClick={handleClearAllCaptures}>
@@ -503,66 +489,52 @@ export function CameraPanel() {
     <InspectorPanel
       title="摄像机"
       ariaLabel="摄像机右侧属性面板"
-      className={activeTab === "captures" ? "camera-inspector-captures" : undefined}
       footer={renderCaptureOverviewFooter()}
-      tabs={[
-        { label: "属性", active: activeTab === "properties", onClick: () => setActiveTab("properties") },
-        { label: "摄像机截图", active: activeTab === "captures", onClick: () => setActiveTab("captures") },
-      ]}
     >
-      {activeTab === "properties" ? (
-        <>
-          <InspectorTextField
-            label="名称"
-            ariaLabel="机位名称"
-            value={currentCamera.name}
-            onChange={(value) => updateCamera(currentCamera.id, { name: value })}
-          />
-          <InspectorSelectField
-            label="切换机位"
-            ariaLabel="切换机位"
-            value={currentCamera.id}
-            onChange={(value) => setActiveCamera(value)}
-          >
-            {cameras.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.name}
-              </option>
-            ))}
-          </InspectorSelectField>
-          <InspectorSelectField
-            label="注视目标"
-            ariaLabel="注视目标模式"
-            value={targetSelectValue}
-            onChange={handleTargetSelection}
-          >
-            <option value="manual">手动坐标</option>
-            {focusableObjects.map((item) => (
-              <option key={item.id} value={`object:${item.id}`}>
-                {item.name}
-              </option>
-            ))}
-          </InspectorSelectField>
-          <TransformKeyframeRows rows={cameraTransformRows} />
-          <InspectorSection title="相机截图" className="camera-capture-section">
-            <button
-              className="camera-capture-current-button"
-              type="button"
-              onClick={() => void handleCameraCapture()}
-            >
-              <Camera aria-hidden="true" data-testid="camera-current-capture-icon" size={14} strokeWidth={1.9} />
-              <span>当前机位截图</span>
-            </button>
-            {captureError ? <p>{captureError}</p> : null}
-            {renderCurrentCameraCaptureGrid()}
-          </InspectorSection>
-        </>
-      ) : (
-        <div className="camera-capture-tab">
-          {captureError ? <p>{captureError}</p> : null}
-          {renderAllCameraCaptures()}
-        </div>
-      )}
+      <InspectorTextField
+        label="名称"
+        ariaLabel="机位名称"
+        value={currentCamera.name}
+        onChange={(value) => updateCamera(currentCamera.id, { name: value })}
+      />
+      <InspectorSelectField
+        label="切换机位"
+        ariaLabel="切换机位"
+        value={currentCamera.id}
+        onChange={(value) => setActiveCamera(value)}
+      >
+        {cameras.map((item) => (
+          <option key={item.id} value={item.id}>
+            {item.name}
+          </option>
+        ))}
+      </InspectorSelectField>
+      <InspectorSelectField
+        label="注视目标"
+        ariaLabel="注视目标模式"
+        value={targetSelectValue}
+        onChange={handleTargetSelection}
+      >
+        <option value="manual">手动坐标</option>
+        {focusableObjects.map((item) => (
+          <option key={item.id} value={`object:${item.id}`}>
+            {item.name}
+          </option>
+        ))}
+      </InspectorSelectField>
+      <TransformKeyframeRows rows={cameraTransformRows} />
+      <InspectorSection title="相机截图" className="camera-capture-section">
+        <button
+          className="camera-capture-current-button"
+          type="button"
+          onClick={() => void handleCameraCapture()}
+        >
+          <Camera aria-hidden="true" data-testid="camera-current-capture-icon" size={14} strokeWidth={1.9} />
+          <span>当前机位截图</span>
+        </button>
+        {captureError ? <p>{captureError}</p> : null}
+        {renderAllCameraCaptures()}
+      </InspectorSection>
       {renderViewer()}
     </InspectorPanel>
   );

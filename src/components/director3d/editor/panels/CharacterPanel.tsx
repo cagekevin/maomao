@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import {
   InspectorColorField,
   InspectorPanel,
@@ -18,7 +18,6 @@ import { buildAxisKeyframeFields } from "../runtime/timelineInterpolation";
  */
 
 export function CharacterPanel() {
-  const [activeTab, setActiveTab] = useState<"properties" | "pose">("properties");
   const selectedCrowdId = useDirectorStore((state) => state.selectedCrowdId);
   const selectedObjectId = useDirectorStore((state) => state.selectedObjectId);
   const objects = useDirectorStore((state) => state.project.objects);
@@ -152,78 +151,79 @@ export function CharacterPanel() {
   const role = selection.role;
   const roleColor = selection.color;
   const isCrowd = selection.mode === "crowd";
+  // 各关节合理的调节范围（°）。躯干/肩/髋 ±60，头 ±45，肘/膝单向 0~120。
   const poseGroups = [
     {
       title: "身体",
       controls: [
-        { key: "body.pitch", label: "前倾" },
-        { key: "body.yaw", label: "转身" },
-        { key: "body.roll", label: "侧倾" },
+        { key: "body.pitch", label: "前倾", min: -45, max: 45 },
+        { key: "body.yaw", label: "转身", min: -180, max: 180 },
+        { key: "body.roll", label: "侧倾", min: -45, max: 45 },
       ],
     },
     {
       title: "躯干",
       controls: [
-        { key: "torso.pitch", label: "前倾" },
-        { key: "torso.yaw", label: "扭转" },
-        { key: "torso.roll", label: "侧倾" },
+        { key: "torso.pitch", label: "前倾", min: -60, max: 60 },
+        { key: "torso.yaw", label: "扭转", min: -60, max: 60 },
+        { key: "torso.roll", label: "侧倾", min: -45, max: 45 },
       ],
     },
     {
       title: "头部",
       controls: [
-        { key: "head.pitch", label: "点头" },
-        { key: "head.yaw", label: "转头" },
-        { key: "head.roll", label: "歪头" },
+        { key: "head.pitch", label: "点头", min: -45, max: 45 },
+        { key: "head.yaw", label: "转头", min: -60, max: 60 },
+        { key: "head.roll", label: "歪头", min: -45, max: 45 },
       ],
     },
     {
       title: "左肩",
       controls: [
-        { key: "leftShoulder.pitch", label: "前举" },
-        { key: "leftShoulder.spread", label: "外展" },
-        { key: "leftShoulder.twist", label: "扭转" },
+        { key: "leftShoulder.pitch", label: "前举", min: -60, max: 120 },
+        { key: "leftShoulder.spread", label: "外展", min: -60, max: 120 },
+        { key: "leftShoulder.twist", label: "扭转", min: -60, max: 60 },
       ],
     },
     {
       title: "右肩",
       controls: [
-        { key: "rightShoulder.pitch", label: "前举" },
-        { key: "rightShoulder.spread", label: "外展" },
-        { key: "rightShoulder.twist", label: "扭转" },
+        { key: "rightShoulder.pitch", label: "前举", min: -60, max: 120 },
+        { key: "rightShoulder.spread", label: "外展", min: -60, max: 120 },
+        { key: "rightShoulder.twist", label: "扭转", min: -60, max: 60 },
       ],
     },
     {
       title: "左肘",
-      controls: [{ key: "leftElbow.bend", label: "弯曲" }],
+      controls: [{ key: "leftElbow.bend", label: "弯曲", min: 0, max: 150 }],
     },
     {
       title: "右肘",
-      controls: [{ key: "rightElbow.bend", label: "弯曲" }],
+      controls: [{ key: "rightElbow.bend", label: "弯曲", min: 0, max: 150 }],
     },
     {
       title: "左髋",
       controls: [
-        { key: "leftHip.pitch", label: "前抬" },
-        { key: "leftHip.spread", label: "外展" },
-        { key: "leftHip.twist", label: "扭转" },
+        { key: "leftHip.pitch", label: "前抬", min: -45, max: 120 },
+        { key: "leftHip.spread", label: "外展", min: -60, max: 60 },
+        { key: "leftHip.twist", label: "扭转", min: -45, max: 45 },
       ],
     },
     {
       title: "右髋",
       controls: [
-        { key: "rightHip.pitch", label: "前抬" },
-        { key: "rightHip.spread", label: "外展" },
-        { key: "rightHip.twist", label: "扭转" },
+        { key: "rightHip.pitch", label: "前抬", min: -45, max: 120 },
+        { key: "rightHip.spread", label: "外展", min: -60, max: 60 },
+        { key: "rightHip.twist", label: "扭转", min: -45, max: 45 },
       ],
     },
     {
       title: "左膝",
-      controls: [{ key: "leftKnee.bend", label: "弯曲" }],
+      controls: [{ key: "leftKnee.bend", label: "弯曲", min: 0, max: 150 }],
     },
     {
       title: "右膝",
-      controls: [{ key: "rightKnee.bend", label: "弯曲" }],
+      controls: [{ key: "rightKnee.bend", label: "弯曲", min: 0, max: 150 }],
     },
   ] as const;
 
@@ -232,112 +232,103 @@ export function CharacterPanel() {
       title="角色"
       ariaLabel="角色右侧属性面板"
       className="character-inspector"
-      tabs={[
-        { label: "属性", active: activeTab === "properties", onClick: () => setActiveTab("properties") },
-        { label: "姿势", active: activeTab === "pose", onClick: () => setActiveTab("pose") },
-      ]}
     >
-      {activeTab === "properties" ? (
-        <>
-          <InspectorTextField
-            label="名称"
-            ariaLabel="角色名称"
-            value={selection.name}
-            onChange={(value) => {
-              if (isCrowd && selection.crowdId) {
-                updateCrowdLabel(selection.crowdId, value);
-                return;
-              }
+      <InspectorTextField
+        label="名称"
+        ariaLabel="角色名称"
+        value={selection.name}
+        onChange={(value) => {
+          if (isCrowd && selection.crowdId) {
+            updateCrowdLabel(selection.crowdId, value);
+            return;
+          }
 
-              updateObjectName(role.id, value);
-            }}
-          />
-          <InspectorColorField
-            label="颜色"
-            colorAriaLabel="角色颜色"
-            hexAriaLabel="角色颜色 HEX"
-            value={roleColor}
-            onColorChange={(value) =>
-              isCrowd && selection.crowdId ? updateCrowdColor(selection.crowdId, value) : updateObjectColor(role.id, value)
-            }
-            onHexChange={(value) =>
-              isCrowd && selection.crowdId ? updateCrowdColor(selection.crowdId, value) : updateObjectColor(role.id, value)
-            }
-          />
-          <TransformKeyframeRows rows={transformRows} />
-          <InspectorSection title="动画" className="character-anim-section">
-            <div className="anim-ed-toggle-row">
-              <button
-                type="button"
-                className={`anim-ed-toggle${role.faceMovement !== false ? " is-active" : ""}`}
-                aria-pressed={role.faceMovement !== false}
-                onClick={() => setObjectFaceMovement(role.id, role.faceMovement === false)}
-              >
-                自动朝向
-              </button>
-              <button
-                type="button"
-                className={`anim-ed-toggle${role.walkAnimation === true ? " is-active" : ""}`}
-                aria-pressed={role.walkAnimation === true}
-                onClick={() => setObjectWalkAnimation(role.id, role.walkAnimation !== true)}
-              >
-                走路
-              </button>
+          updateObjectName(role.id, value);
+        }}
+      />
+      <InspectorColorField
+        label="颜色"
+        colorAriaLabel="角色颜色"
+        hexAriaLabel="角色颜色 HEX"
+        value={roleColor}
+        onColorChange={(value) =>
+          isCrowd && selection.crowdId ? updateCrowdColor(selection.crowdId, value) : updateObjectColor(role.id, value)
+        }
+        onHexChange={(value) =>
+          isCrowd && selection.crowdId ? updateCrowdColor(selection.crowdId, value) : updateObjectColor(role.id, value)
+        }
+      />
+      <TransformKeyframeRows rows={transformRows} />
+      <InspectorSection title="动画" className="character-anim-section">
+        <div className="anim-ed-toggle-row">
+          <button
+            type="button"
+            className={`anim-ed-toggle${role.faceMovement !== false ? " is-active" : ""}`}
+            aria-pressed={role.faceMovement !== false}
+            onClick={() => setObjectFaceMovement(role.id, role.faceMovement === false)}
+          >
+            自动朝向
+          </button>
+          <button
+            type="button"
+            className={`anim-ed-toggle${role.walkAnimation === true ? " is-active" : ""}`}
+            aria-pressed={role.walkAnimation === true}
+            onClick={() => setObjectWalkAnimation(role.id, role.walkAnimation !== true)}
+          >
+            走路
+          </button>
+        </div>
+      </InspectorSection>
+      <InspectorSection title="姿势预设" className="pose-preset-section">
+        {role.characterRig ? (
+          <>
+            <div className="preset-grid">
+              {MANNEQUIN_POSE_PRESETS.map((preset) => (
+                <button
+                  key={preset.id}
+                  className={role.characterRig?.posePresetId === preset.id ? "is-active" : undefined}
+                  type="button"
+                  onClick={() =>
+                    isCrowd && selection.crowdId
+                      ? applyCrowdPosePreset(selection.crowdId, preset.id)
+                      : applyPosePreset(role.id, preset.id)
+                  }
+                >
+                  {preset.label}
+                </button>
+              ))}
             </div>
-          </InspectorSection>
-        </>
-      ) : (
-        <InspectorSection title="姿势预设" className="pose-preset-section">
-          {role.characterRig ? (
-            <>
-              <div className="preset-grid">
-                {MANNEQUIN_POSE_PRESETS.map((preset) => (
-                  <button
-                    key={preset.id}
-                    className={role.characterRig?.posePresetId === preset.id ? "is-active" : undefined}
-                    type="button"
-                    onClick={() =>
-                      isCrowd && selection.crowdId
-                        ? applyCrowdPosePreset(selection.crowdId, preset.id)
-                        : applyPosePreset(role.id, preset.id)
-                    }
-                  >
-                    {preset.label}
-                  </button>
+            <InspectorSection title="姿势调节" className="pose-adjust-section">
+              <div className="pose-groups">
+                {poseGroups.map((group) => (
+                  <section key={group.title} className="pose-group">
+                    <h4>{group.title}</h4>
+                    {group.controls.map((control) => (
+                      <InspectorRangeNumberField
+                        key={control.key}
+                        label={control.label}
+                        rangeAriaLabel={`${group.title} · ${control.label} 滑杆`}
+                        numberAriaLabel={`${group.title} · ${control.label}`}
+                        max={String(control.max)}
+                        min={String(control.min)}
+                        step="1"
+                        value={role.characterRig?.controls[control.key] ?? 0}
+                        onValueChange={(value) =>
+                          isCrowd && selection.crowdId
+                            ? updateCrowdPoseControl(selection.crowdId, control.key, Number(value))
+                            : updatePoseControl(role.id, control.key, Number(value))
+                        }
+                      />
+                    ))}
+                  </section>
                 ))}
               </div>
-              <InspectorSection title="姿势调节" className="pose-adjust-section">
-                <div className="pose-groups">
-                  {poseGroups.map((group) => (
-                    <section key={group.title} className="pose-group">
-                      <h4>{group.title}</h4>
-                      {group.controls.map((control) => (
-                        <InspectorRangeNumberField
-                          key={control.key}
-                          label={control.label}
-                          rangeAriaLabel={`${group.title} · ${control.label} 滑杆`}
-                          numberAriaLabel={`${group.title} · ${control.label}`}
-                          max="90"
-                          min="-90"
-                          step="1"
-                          value={role.characterRig?.controls[control.key] ?? 0}
-                          onValueChange={(value) =>
-                            isCrowd && selection.crowdId
-                              ? updateCrowdPoseControl(selection.crowdId, control.key, Number(value))
-                              : updatePoseControl(role.id, control.key, Number(value))
-                          }
-                        />
-                      ))}
-                    </section>
-                  ))}
-                </div>
-              </InspectorSection>
-            </>
-          ) : (
-            <p>该模型未识别到标准 humanoid 骨骼，暂不支持姿势编辑。</p>
-          )}
-        </InspectorSection>
-      )}
+            </InspectorSection>
+          </>
+        ) : (
+          <p>该模型未识别到标准 humanoid 骨骼，暂不支持姿势编辑。</p>
+        )}
+      </InspectorSection>
     </InspectorPanel>
   );
 }

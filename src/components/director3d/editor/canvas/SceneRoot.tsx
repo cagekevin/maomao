@@ -685,16 +685,23 @@ function ViewportCameraRig({
     if (!group) return;
 
     const position: [number, number, number] = [group.position.x, group.position.y, group.position.z];
-    const forward = VIEWPORT_CAMERA_FORWARD.clone().applyQuaternion(group.quaternion).normalize();
-    const currentDistance = new Vector3(...camera.target).distanceTo(group.position);
-    const nextTarget = group.position.clone().add(forward.multiplyScalar(Math.max(currentDistance, 0.1)));
+    // 已绑定注视目标(object)：拖动只改相机位置，目标点始终锁定在人物上（不随相机重算）
+    const isFollowingObject = camera.targetMode === "object" && Boolean(camera.targetObjectId);
+    let target: [number, number, number] | undefined;
+    if (isFollowingObject) {
+      target = camera.target;
+    } else {
+      const forward = VIEWPORT_CAMERA_FORWARD.clone().applyQuaternion(group.quaternion).normalize();
+      const currentDistance = new Vector3(...camera.target).distanceTo(group.position);
+      const nextTarget = group.position.clone().add(forward.multiplyScalar(Math.max(currentDistance, 0.1)));
+      target = [nextTarget.x, nextTarget.y, nextTarget.z];
+    }
 
     const transform: DirectorTransform = {
       position,
       rotation: [group.rotation.x, group.rotation.y, group.rotation.z],
       scale: [group.scale.x, group.scale.y, group.scale.z],
     };
-    const target: [number, number, number] = [nextTarget.x, nextTarget.y, nextTarget.z];
 
     // Auto Key 感知统一提交：开→写播放头相机帧（位置+看向）；关但有帧→同步该帧；否则只改机位
     commitViewportDrag(camera.id, transform, { target });

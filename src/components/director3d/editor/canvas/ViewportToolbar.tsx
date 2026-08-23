@@ -32,6 +32,7 @@ import {
 import { requestViewportCapture } from "../io/captureBridge";
 import { readLocalModelFile } from "../loaders/localModelImport";
 import { readPanoramaFile } from "../loaders/panoramaImport";
+import type { ScreenshotResult } from "../io/screenshotExport";
 import {
   getModelLibraryItems,
   MODEL_LIBRARY_CATEGORIES,
@@ -87,9 +88,11 @@ function waitForNextAnimationFrame() {
 
 export function ViewportToolbar({
   getViewportCameraSnapshot,
+  onExit,
   toolbarContainerRef,
 }: {
   getViewportCameraSnapshot?: () => CameraShotSnapshot;
+  onExit?: (thumbnailDataUrl?: string | null) => void;
   toolbarContainerRef?: MutableRefObject<HTMLDivElement | null>;
 }) {
   const toolbarRef = useRef<HTMLDivElement | null>(null);
@@ -432,14 +435,19 @@ export function ViewportToolbar({
     addCameraShot(snapshot);
   }
 
-  /** 「视口存为关键帧」：动画-相机视角下把当前视口捕获为激活机位的关键帧（C7 常驻工具栏） */
-  const canCaptureToKeyframe = animationModuleOpen && animationViewportMode === "camera" && Boolean(activeCameraId);
-
-  function captureViewportAsKeyframe() {
-    const snapshot = getViewportCameraSnapshot?.();
-    if (!snapshot || !activeCameraId) return;
-    captureViewportToCameraKeyframe(snapshot);
-  }
+  /** 「截图并返回画布」：截当前视图 → 回传缩略图并退出导演台（原顶栏截图按钮逻辑迁移至此） */
+  const handleCaptureAndExit = async () => {
+    let thumbnailDataUrl: string | null = null;
+    try {
+      const results: ScreenshotResult[] = await requestViewportCapture({ preset: "current", source: "capture-panel" });
+      if (results && results.length > 0 && results[0]?.dataUrl) {
+        thumbnailDataUrl = results[0].dataUrl;
+      }
+    } catch {
+      thumbnailDataUrl = null;
+    }
+    onExit?.(thumbnailDataUrl);
+  };
 
   function toggleAspectRatioPanel() {
     setAspectRatioPanelOpen((isOpen) => !isOpen);
@@ -473,10 +481,9 @@ export function ViewportToolbar({
     { label: "四方位截图", icon: Grid2X2, onClick: () => void handleCapture("four") },
     { label: "十二方位截图", icon: Grid3X3, onClick: () => void handleCapture("twelve") },
     {
-      label: "视口存为关键帧",
+      label: "截图并返回画布",
       icon: Key,
-      disabled: !canCaptureToKeyframe,
-      onClick: captureViewportAsKeyframe,
+      onClick: () => void handleCaptureAndExit(),
     },
     { label: "全屏", icon: Expand, onClick: toggleViewportPanelsCollapsed },
   ];

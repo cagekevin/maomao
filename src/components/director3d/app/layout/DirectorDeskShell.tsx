@@ -1,10 +1,12 @@
-import { useEffect, type ReactNode } from "react";
+import { cloneElement, isValidElement, useEffect, type ReactNode } from "react";
 import { ObjectTreePanel } from "../../editor/panels/ObjectTreePanel";
 import { RightPanel } from "../../editor/panels/RightPanel";
-import { CurveEditorDialog } from "../../editor/panels/CurveEditorDialog";
 import { AnimationTimelineBar } from "../../editor/canvas/AnimationTimelineBar";
 import { useDirectorStore } from "../../editor/store/directorStore";
 import { useDirectorViewportShortcuts } from "../useDirectorViewportShortcuts";
+
+/** 退出回调：接收可选缩略图 dataUrl（截图并退出）后退出导演台 */
+export type DirectorExitHandler = (thumbnailDataUrl?: string | null) => void;
 
 /** 播放推进：在 shell 层用 rAF 推进 currentTime（脱离 r3f 调和层，避免每次 store 变化牵动 Canvas 子树导致无限重渲染） */
 function PlaybackTicker() {
@@ -40,19 +42,25 @@ function PlaybackTicker() {
   return null;
 }
 
-export function DirectorDeskShell({ children }: { children: ReactNode }) {
+export function DirectorDeskShell({ children, onExit }: { children: ReactNode; onExit?: DirectorExitHandler }) {
   // 视口快捷键仅在导演台全屏存活期间生效，关闭即移除（不污染主画布）
   useDirectorViewportShortcuts();
   const viewportPanelsCollapsed = useDirectorStore((state) => state.viewportPanelsCollapsed);
   const animationModuleCollapsed = useDirectorStore((state) => state.animationModuleCollapsed);
   const setAnimationModuleCollapsed = useDirectorStore((state) => state.setAnimationModuleCollapsed);
 
+  // 把退出回调注入唯一的子元素（DirectorCanvas），供工具栏按钮「截图并退出」使用
+  const childWithExit =
+    isValidElement(children) && onExit
+      ? cloneElement(children, { onExit } as Record<string, unknown>)
+      : children;
+
   return (
     <div
       className={`director-shell director-shell-fullbleed${viewportPanelsCollapsed ? " is-sidebars-collapsed" : ""} is-animation-open`}
     >
       <section className="viewport-column" aria-label="3D视口">
-        {children}
+        {childWithExit}
       </section>
       <aside
         className="left-sidebar director-sidebar"
@@ -88,7 +96,6 @@ export function DirectorDeskShell({ children }: { children: ReactNode }) {
           <AnimationTimelineBar />
         )}
       </div>
-      <CurveEditorDialog />
     </div>
   );
 }

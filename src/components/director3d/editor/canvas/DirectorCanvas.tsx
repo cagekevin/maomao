@@ -672,7 +672,7 @@ function AnimationRecorder() {
   return null;
 }
 
-export function DirectorCanvas() {
+export function DirectorCanvas({ onExit }: { onExit?: (thumbnailDataUrl?: string | null) => void }) {
   const viewMode = useDirectorStore((state) => state.viewMode);
   const animationViewportMode = useDirectorStore((state) => state.animationViewportMode);
   const isPlaying = useDirectorStore((state) => state.isPlaying);
@@ -725,7 +725,18 @@ export function DirectorCanvas() {
       target: cameraFollowTarget ?? interpolateTarget(activeCamera.target, cameraTrack!, currentTime),
     };
   }, [activeCamera, activeViewMode, cameraFollowTarget, cameraTrack, currentTime, hasCameraTrack]);
-  const displayCameraView = animatedCameraView ?? activeCameraView;
+
+  // 相机视角显示视图：优先用带关键帧插值的视图；否则用相机静态快照。
+  // 无论是否有关键帧轨道，「注视目标」绑定（targetMode==="object"）都必须锁定人物，
+  // 相机移动时始终 lookAt 人物 → 用 cameraFollowTarget 覆盖静态 target。
+  const staticCameraView = useMemo(() => {
+    if (!activeCamera || !activeCameraView) return undefined;
+    return {
+      ...activeCameraView,
+      target: cameraFollowTarget ?? activeCameraView.target,
+    };
+  }, [activeCamera, activeCameraView, cameraFollowTarget]);
+  const displayCameraView = animatedCameraView ?? staticCameraView;
   const visibleViewportSnapshot =
     activeViewMode === "camera" && displayCameraView ? displayCameraView : directorViewSnapshot;
   const orbitDisabled = isPlaying && activeViewMode === "camera";
@@ -909,7 +920,7 @@ export function DirectorCanvas() {
         rightOffset={gizmoRightOffset}
         snapshot={visibleViewportSnapshot}
       />
-      <ViewportToolbar getViewportCameraSnapshot={getViewportCameraSnapshot} toolbarContainerRef={toolbarRef} />
+      <ViewportToolbar getViewportCameraSnapshot={getViewportCameraSnapshot} onExit={onExit} toolbarContainerRef={toolbarRef} />
     </div>
   );
 }

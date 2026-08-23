@@ -8,16 +8,14 @@ import {
   AnimSection,
   AnimSelectField,
   AnimSliderField,
-  AnimTabBar,
-  type AnimTabItem,
 } from "./AnimationEditorControls";
 import { MANNEQUIN_POSE_PRESETS } from "../presets/mannequinPosePresets";
 import { useDirectorStore } from "../store/directorStore";
 import { selectRightPanelKind } from "../store/directorSelectors";
-import { ScenePanel } from "./ScenePanel";
 import { CharacterPanel } from "./CharacterPanel";
 import { PropPanel } from "./PropPanel";
 import { CameraPanel } from "./CameraPanel";
+import { ScenePanel } from "./ScenePanel";
 import type { CameraShotPresetId } from "../runtime/timelineInterpolation";
 import type { DirectorKeyframe, KeyframeEasing } from "../schema/directorProject";
 
@@ -37,8 +35,6 @@ const EASING_OPTIONS: Array<{ id: KeyframeEasing; label: string }> = [
   { id: "hold", label: "保持" },
   { id: "ease", label: "缓动" },
 ];
-
-type AnimationTab = "props" | "shots";
 
 function formatTime(value: number) {
   return Number(value).toFixed(2);
@@ -67,7 +63,6 @@ const TRACK_LABEL: Record<string, string> = {
  * - 打帧触点写入统一走 setKeyframeGroupAtPlayhead；数值输入在 store action 层做 Auto Key 感知。
  */
 export function AnimationPanel() {
-  const [activeTab, setActiveTab] = useState<AnimationTab>("props");
   const [selectedKeyframeId, setSelectedKeyframeId] = useState<string | null>(null);
   const [shotDraft, setShotDraft] = useState({
     preset: "dollyIn" as CameraShotPresetId,
@@ -84,12 +79,10 @@ export function AnimationPanel() {
   const timeline = useDirectorStore((state) => state.project.timeline);
   const currentTime = useDirectorStore((state) => state.currentTime);
   const setCurrentTime = useDirectorStore((state) => state.setCurrentTime);
-  const addKeyframeForSelection = useDirectorStore((state) => state.addKeyframeForSelection);
   const updateKeyframe = useDirectorStore((state) => state.updateKeyframe);
   const removeKeyframe = useDirectorStore((state) => state.removeKeyframe);
   const removeKeyframes = useDirectorStore((state) => state.removeKeyframes);
   const applyCameraShotPreset = useDirectorStore((state) => state.applyCameraShotPreset);
-  const openCurveEditor = useDirectorStore((state) => state.openCurveEditor);
 
   const selectedObject = objects.find((item) => item.id === selectedObjectId);
 
@@ -126,10 +119,6 @@ export function AnimationPanel() {
   // 运镜面板仅对摄像机有意义（选中人物/道具时隐藏该 tab）
   const isCamera = kfTarget?.kind === "camera";
 
-  function handleAddKeyframe() {
-    addKeyframeForSelection();
-  }
-
   function handleGenerateShot() {
     if (!kfTarget || kfTarget.kind !== "camera") return;
     const cameraId = kfTarget.linkedCameraId;
@@ -148,34 +137,12 @@ export function AnimationPanel() {
     updateKeyframe(activeTrackId, activeFrame.id, patch);
   }
 
-  const tabs: AnimTabItem[] = [
-    {
-      id: "props",
-      label: "属性",
-      active: activeTab === "props",
-      onClick: () => setActiveTab("props"),
-    },
-    // 运镜面板仅针对摄像机（选中人物/道具时隐藏）
-    ...(isCamera
-      ? [
-          {
-            id: "shots" as const,
-            label: "运镜",
-            active: activeTab === "shots",
-            onClick: () => setActiveTab("shots"),
-          },
-        ]
-      : []),
-  ];
-
   return (
     <section className="anim-ed-panel" aria-label="动画面板">
-      <AnimTabBar tabs={tabs} />
       <div className="anim-ed-body">
-        {activeTab === "props" ? (
-          <>
-            {/* 属性编辑：按选中对象类型渲染对应自包含面板（含打帧行） */}
-            <div className="anim-ed-props-host" key={panelKind}>
+        <>
+          {/* 属性编辑：按选中对象类型渲染对应自包含面板（含打帧行） */}
+          <div className="anim-ed-props-host" key={panelKind}>
               {panelKind === "character" ? <CharacterPanel /> : null}
               {panelKind === "prop" ? <PropPanel /> : null}
               {panelKind === "camera" ? <CameraPanel /> : null}
@@ -186,12 +153,6 @@ export function AnimationPanel() {
               <>
                 <AnimSection title="关键帧工具">
                   <div className="anim-ed-actions">
-                    <AnimButton variant="primary" disabled={!kfTarget} onClick={handleAddKeyframe}>
-                      打一帧
-                    </AnimButton>
-                    <AnimButton disabled={!activeTrackId} onClick={() => activeTrackId && openCurveEditor(activeTrackId)}>
-                      曲线编辑器
-                    </AnimButton>
                     <AnimButton
                       disabled={!activeTrackId || activeTrackFrames.length <= 2}
                       onClick={() => {
@@ -324,10 +285,9 @@ export function AnimationPanel() {
                 ) : null}
               </>
             ) : null}
-          </>
-        ) : null}
+        </>
 
-        {activeTab === "shots" ? (
+        {isCamera ? (
           <AnimSection title="运镜生成" hint="选中相机对象（机位）后，选择预设并生成一段运镜动画。">
             {!kfTarget || kfTarget.kind !== "camera" ? (
               <AnimEmpty>请先在场景树选中一个相机对象（机位）再生成运镜。</AnimEmpty>

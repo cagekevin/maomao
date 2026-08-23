@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type MouseEvent } from "react";
-import { Box, Camera, ChevronDown, ChevronRight, Eye, EyeOff, Lock, Search, Trash2, Unlock, User, Users, Video } from "lucide-react";
+import { Box, Camera, ChevronDown, ChevronRight, Eye, EyeOff, Lock, Trash2, Unlock, User, Users, Video } from "lucide-react";
 import type { DirectorObject, DirectorObjectKind } from "../schema/directorProject";
 import { useDirectorStore } from "../store/directorStore";
 
@@ -50,7 +50,6 @@ function isEditableKeyboardTarget(target: EventTarget | null) {
 }
 
 export function ObjectTreePanel() {
-  const [query, setQuery] = useState("");
   const [expandedCrowdIds, setExpandedCrowdIds] = useState<string[]>([]);
   const assets = useDirectorStore((state) => state.project.assets);
   const objects = useDirectorStore((state) => state.project.objects);
@@ -64,7 +63,6 @@ export function ObjectTreePanel() {
   const animationViewportMode = useDirectorStore((state) => state.animationViewportMode);
   const activeCameraId = useDirectorStore((state) => state.project.activeCameraId);
   const setAnimationViewportMode = useDirectorStore((state) => state.setAnimationViewportMode);
-  const openCurveEditor = useDirectorStore((state) => state.openCurveEditor);
   const toggleObjectVisible = useDirectorStore((state) => state.toggleObjectVisible);
   const toggleObjectLocked = useDirectorStore((state) => state.toggleObjectLocked);
   const deleteSelectedObject = useDirectorStore((state) => state.deleteSelectedObject);
@@ -171,28 +169,11 @@ export function ObjectTreePanel() {
           ? groupedItems.props
           : groupedItems.cameras;
 
-    const filteredItems = itemsByGroup
-      .map((item) => {
-        if (!query.trim()) return item;
-
-        const matchedPreviewChildren = item.previewChildren?.filter((child) => child.name.includes(query)) ?? [];
-        if (!item.name.includes(query) && matchedPreviewChildren.length === 0) return null;
-
-        return matchedPreviewChildren.length
-          ? {
-              ...item,
-              previewChildren: matchedPreviewChildren,
-            }
-          : item;
-      })
-      .filter((item): item is SceneTreeItem => Boolean(item));
-
     return {
       ...group,
-      items: filteredItems,
+      items: itemsByGroup,
     };
   }).filter((group) => group.items.length > 0);
-  const hasEmptySearchResult = query.trim().length > 0 && filteredGroups.length === 0;
 
   function selectTreeItem(item: SceneTreeItem, event: MouseEvent<HTMLElement>) {
     if (item.crowdId) {
@@ -277,15 +258,6 @@ export function ObjectTreePanel() {
     }
   }
 
-  /** 右键对象 → 打开曲线编辑器（选对象 → 编辑曲线；相机轨道用 linkedCameraId） */
-  function handleRowContextMenu(event: MouseEvent, item: SceneTreeItem) {
-    event.preventDefault();
-    if (item.crowdId || !item.object) return;
-    const trackId =
-      item.object.kind === "camera" && item.object.linkedCameraId ? item.object.linkedCameraId : item.object.id;
-    openCurveEditor(trackId);
-  }
-
   /** 删除对象/群众整组：复用 deleteSelectedObject 唯一入口（先选中再删；群众整组全选成员） */
   function handleDeleteItem(event: MouseEvent, item: SceneTreeItem) {
     event.stopPropagation();
@@ -316,25 +288,7 @@ export function ObjectTreePanel() {
   return (
     <section className="panel-card object-tree-panel">
       <h2 className="visually-hidden">场景对象</h2>
-      <label className="object-search-field">
-        <Search aria-hidden="true" size={16} strokeWidth={1.8} />
-        <input
-          className="ui-field"
-          aria-label="搜索场景内容"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder="请输入搜索内容"
-        />
-      </label>
-      {hasEmptySearchResult ? (
-        <div className="object-search-empty-state" role="status" aria-label="未搜索到内容">
-          <span className="object-search-empty-icon" data-testid="object-search-empty-icon">
-            <Search aria-hidden="true" size={16} strokeWidth={1.8} />
-          </span>
-          <span>未搜索到内容</span>
-        </div>
-      ) : (
-        <div className="object-tree-groups" role="tree" aria-label="场景对象列表">
+      <div className="object-tree-groups" role="tree" aria-label="场景对象列表">
           {filteredGroups.map((group) => (
             <section key={group.key} className="object-tree-group" role="group" aria-label={`${group.title}分组`}>
               <h3>{group.title}</h3>
@@ -357,7 +311,6 @@ export function ObjectTreePanel() {
                         aria-label={item.name}
                         aria-selected={selected}
                         onClick={(event) => selectTreeItem(item, event)}
-                        onContextMenu={(event) => handleRowContextMenu(event, item)}
                       >
                         <div className="object-row-main">
                           {item.crowdId ? (
@@ -471,7 +424,6 @@ export function ObjectTreePanel() {
             </section>
           ))}
         </div>
-      )}
     </section>
   );
 }
