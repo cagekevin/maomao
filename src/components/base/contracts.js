@@ -297,18 +297,18 @@ export const STORAGE_KEYS = {
     note: '多窗口剪贴板数据（跨窗口同步用）',
   },
 
-  // ── 3D 导演台（director3d）【原生 localStorage 直写】───────────────
-  'storyai-3d-director-local-model-library': {
-    domain: 'director3d',
-    store: 'directorStore.ts',
+  // ── 3D 白模预演（monoform overlay）【原生 localStorage 直写】────────
+  'monoform-project': {
+    domain: 'monoform',
+    store: 'monoform/App.jsx',
     backend: 'native',
-    note: '3D 本地模型库数据',
+    note: 'monoform 工程（独立运行时默认 key）',
   },
-  'storyai-3d-director-desk-demo': {
-    domain: 'director3d',
-    store: 'directorStore.ts',
+  'monoform-custom-poses': {
+    domain: 'monoform',
+    store: 'monoform/App.jsx',
     backend: 'native',
-    note: '3D 场景快照数据',
+    note: 'monoform 自定义姿势库',
   },
   // 注：故 hideFromViewportCapture 曾登记为 native（2026-08-22 移除）——它实为 3D object.userData
   // 属性（SceneRoot.tsx / DirectorCanvas.tsx），并非存储键，登记纯属误导。此键不影响存储读写。

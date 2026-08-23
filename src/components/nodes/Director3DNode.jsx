@@ -7,7 +7,8 @@ import CustomHandle from '../edges/CustomHandle.jsx'
 import { useConnectedInputs } from '../base/useConnectedInputs.js'
 import { toAbsoluteFileUrl, saveInlineToLocal } from '../base/filesApi.js'
 import { useRenderImageResolver } from '../base/imageUrl.js'
-import { Director3DOverlay } from '../director3d/App.tsx'
+import { MonoformOverlay } from '../monoform/MonoformOverlay.jsx'
+import { uploadFileToLocal } from '../base/filesApi.js'
 import { generateId } from '../base/idGen.js'
 import { buildSpawnNodes, applySpawnSnapshot } from '../base/deriveNodes.js'
 import { useCanvasEdges } from '../base/CanvasEdgesContext.jsx'
@@ -47,9 +48,13 @@ function Director3DNode({ id, data, selected }) {
         .filter((e) => e.source === id)
         .map((e) => e.target)
         .filter((tid) => getNode(tid)?.type === 'imageBoxNode')
-      // 并发落盘：data: base64 → /files/ 绝对 URL；已是 http/绝对路径原样保留
+      // 并发落盘：Blob 直传 / data: base64 → /files/ 绝对 URL；已是 http/绝对路径原样保留
       const persisted = await Promise.all(
         images.map(async (im) => {
+          if (im.blob) {
+            const fileUrl = await uploadFileToLocal(im.blob, 'tasks', im.fileName || 'monoform-shot.png')
+            return fileUrl || null
+          }
           const raw = im.dataUrl || im.url
           let url = raw
           if (raw && raw.startsWith('data:')) {
@@ -61,13 +66,15 @@ function Director3DNode({ id, data, selected }) {
           return url
         })
       )
-      const newImages = persisted.map((url, i) => ({
-        id: `img-${generateId('img')}-${i}`,
-        url,
-        label: images[i]?.fileName || `导演台截图 ${i + 1}`,
-        source: 'gen',
-        createdAt: Date.now(),
-      }))
+      const newImages = persisted
+        .filter((url) => Boolean(url))
+        .map((url, i) => ({
+          id: `img-${generateId('img')}-${i}`,
+          url,
+          label: images[i]?.fileName || `导演台截图 ${i + 1}`,
+          source: 'gen',
+          createdAt: Date.now(),
+        }))
       if (boxes.length > 0) {
         const boxId = boxes[0]
         setNodes((ns) => ns.map((n) => {
@@ -102,30 +109,88 @@ function Director3DNode({ id, data, selected }) {
     [id, getNodes, getEdges, setNodes, setEdges, history]
   )
 
-  // 退出导演台：回写工程 + 截图（缩略图落盘成 /files/ URL，刷新不破图）
-  const handleExit = useCallback(
-    async ({ project, thumbnailDataUrl, captures }) => {
-      setOpen(false)
-      // 缩略图 URL 化：data: base64 落盘成 /files/ URL（对齐官方 hi(thumbnailDataUrl)），
-      // 避免长 base64 塞进节点 data 导致刷新破图；落盘失败保留原值（data: 至少能本次显示）。
-      let persistedThumb = thumbnailDataUrl || null
-      if (persistedThumb && persistedThumb.startsWith('data:')) {
-        const fileUrl = await saveInlineToLocal(persistedThumb, 'tasks')
-        if (fileUrl) persistedThumb = fileUrl
+  // 视频回写到 ImageNode（图片视频素材节点）：落盘 /files/*.mp4 → 写 imageUrl + mediaType:'video'
+  const onVideoToImageNode = useCallback(
+    async (videos) => {
+      if (!videos || videos.length === 0) return
+      // 落盘全部视频，取最后一个作为 ImageNode 展示（ImageNode 单媒体）
+      let lastUrl = null
+      let lastFile = null
+      for (const v of videos) {
+        if (!v.blob) continue
+        const fileUrl = await uploadFileToLocal(v.blob, 'tasks', v.fileName || 'monoform-video.mp4')
+        if (fileUrl) { lastUrl = fileUrl; lastFile = v.fileName || 'monoform-video.mp4' }
       }
-      // 保存工程数据回节点（directorProject 里的全景 URL 也可能相对，读取时统一补全）
-      setNodes((ns) => ns.map((n) =>
-        n.id === id
-          ? { ...n, data: { ...n.data, directorProject: project, imageUrl: persistedThumb } }
-          : n
-      ))
-      // 截图送图片盒子（异步落盘为 /files/ 绝对 URL）
-      if (captures && captures.length > 0) {
-        await onCaptureToBox(captures)
+      if (!lastUrl) return
+      const targets = getEdges()
+        .filter((e) => e.source === id)
+        .map((e) => e.target)
+        .filter((tid) => getNode(tid)?.type === 'imageNode')
+      if (targets.length > 0) {
+        // 已有下游 ImageNode：写最近导出视频
+        const targetId = targets[0]
+        setNodes((ns) => ns.map((n) =>
+          n.id === targetId ? { ...n, data: { ...n.data, imageUrl: lastUrl, url: lastUrl, mediaType: 'video' } } : n
+        ))
+      } else {
+        // 无下游 ImageNode：新建并连线
+        const me = getNode(id)
+        const imageId = generateId('imageNode')
+        const spawned = buildSpawnNodes(
+          { id, position: { x: (me?.position.x ?? 100) + (me?.measured?.width ?? 640) + 60, y: (me?.position.y ?? 100) + 320 } },
+          [{
+            id: imageId,
+            type: 'imageNode',
+            position: { x: (me?.position.x ?? 100) + (me?.measured?.width ?? 640) + 60, y: (me?.position.y ?? 100) + 320 },
+            data: { imageUrl: lastUrl, url: lastUrl, mediaType: 'video', label: lastFile, images: [] },
+          }],
+          { targetHandle: null }
+        )
+        const snapshot = applySpawnSnapshot(getNodes(), getEdges(), spawned)
+        setNodes((ns) => ns.concat(spawned.childNodes))
+        setEdges((es) => es.concat(spawned.edges))
+        history?.record(snapshot)
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [id, setNodes, onCaptureToBox]
+    [id, getNodes, getEdges, setNodes, setEdges, history]
+  )
+
+  // 退出导演台：缩略图落盘 /files/ 写节点 imageUrl，彻底删除旧 directorProject；
+  // 图片截图 → 图片盒子，视频 → ImageNode（有则写，无则新建并连线）
+  const handleExit = useCallback(
+    async ({ thumbnailDataUrl, captures }) => {
+      setOpen(false)
+      // 缩略图 URL 化：blob:/data: 落盘成 /files/ 绝对 URL（刷新不破图）
+      let persistedThumb = thumbnailDataUrl || null
+      if (persistedThumb && persistedThumb.startsWith('blob:')) {
+        try {
+          const blobRes = await fetch(persistedThumb)
+          const blob = await blobRes.blob()
+          const fileUrl = await uploadFileToLocal(blob, 'tasks', 'monoform-thumb.png')
+          if (fileUrl) persistedThumb = fileUrl
+        } catch { /* 落盘失败保留原值 */ }
+      } else if (persistedThumb && persistedThumb.startsWith('data:')) {
+        const fileUrl = await saveInlineToLocal(persistedThumb, 'tasks')
+        if (fileUrl) persistedThumb = fileUrl
+      }
+      // 写回节点：imageUrl 存缩略图，彻底移除旧 directorProject 字段
+      setNodes((ns) => ns.map((n) => {
+        if (n.id !== id) return n
+        const next = { ...n.data, imageUrl: persistedThumb || n.data.imageUrl || null }
+        delete next.directorProject
+        return { ...n, data: next }
+      }))
+      // 分类回写：图片 → 图片盒子；视频 → ImageNode
+      if (captures && captures.length > 0) {
+        const imageCaptures = captures.filter((c) => c.type === 'image')
+        const videoCaptures = captures.filter((c) => c.type === 'video')
+        if (imageCaptures.length > 0) await onCaptureToBox(imageCaptures)
+        if (videoCaptures.length > 0) await onVideoToImageNode(videoCaptures)
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [id, setNodes, onCaptureToBox, onVideoToImageNode]
   )
 
   return (
@@ -167,9 +232,8 @@ function Director3DNode({ id, data, selected }) {
       {open &&
         createPortal(
           <div className="fixed inset-0 z-[9999]" onClick={(e) => e.stopPropagation()}>
-            <Director3DOverlay
-              initialProject={data.directorProject}
-              initialPanoramaUrl={inputImage}
+            <MonoformOverlay
+              nodeId={id}
               onExit={handleExit}
             />
           </div>,
