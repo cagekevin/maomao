@@ -10,7 +10,7 @@ const BUILT_IN_MODEL_URL = `${import.meta.env.BASE_URL}models/xbot-animated.glb`
 const whiteMaterial = { roughness: 0.78, metalness: 0.02 }
 
 function JointSegment({ rotation = [0, 0, 0], length, startRadius, endRadius, jointRadius, color, selected, jointId, onSelectJoint, children }) {
-  const markerColor = selected ? '#d6a84f' : color
+  const markerColor = selected ? '#3b82f6' : color
   const limbProfile = useMemo(() => {
     const widest = Math.max(startRadius, endRadius)
     return [
@@ -91,7 +91,7 @@ function RiggedArm({ side, shoulder, elbow, wrist, lengths, radii, color, select
     <group position={[direction * lengths.shoulderX, lengths.shoulderY, 0]}>
       <mesh castShadow scale={[radii.upper * 1.32, radii.upper * 1.12, radii.upper * 1.18]} onPointerDown={event => { event.stopPropagation(); onSelectJoint?.(shoulderId) }}>
         <sphereGeometry args={[1, 18, 12]} />
-        <meshStandardMaterial color={selectedJoint === shoulderId ? '#d6a84f' : color} {...whiteMaterial} />
+        <meshStandardMaterial color={selectedJoint === shoulderId ? '#3b82f6' : color} {...whiteMaterial} />
       </mesh>
       <JointSegment rotation={shoulder} length={lengths.upperArm} startRadius={radii.upper} endRadius={radii.elbow} jointRadius={radii.upper * 0.72} color={color} selected={selectedJoint === shoulderId} jointId={shoulderId} onSelectJoint={onSelectJoint}>
         <JointSegment rotation={elbow} length={lengths.lowerArm} startRadius={radii.forearm} endRadius={radii.wrist} jointRadius={radii.elbow * 0.9} color={color} selected={selectedJoint === elbowId} jointId={elbowId} onSelectJoint={onSelectJoint}>
@@ -108,7 +108,7 @@ function RiggedArm({ side, shoulder, elbow, wrist, lengths, radii, color, select
               <sphereGeometry args={[1, 18, 12]} />
               <meshStandardMaterial color={color} {...whiteMaterial} />
             </mesh>
-            <mesh castShadow scale={selectedJoint === wristId ? 1.08 : 1} onPointerDown={event => { event.stopPropagation(); onSelectJoint?.(wristId) }}><sphereGeometry args={[radii.wrist * 0.9, 14, 10]} /><meshStandardMaterial color={selectedJoint === wristId ? '#d6a84f' : color} {...whiteMaterial} /></mesh>
+            <mesh castShadow scale={selectedJoint === wristId ? 1.08 : 1} onPointerDown={event => { event.stopPropagation(); onSelectJoint?.(wristId) }}><sphereGeometry args={[radii.wrist * 0.9, 14, 10]} /><meshStandardMaterial color={selectedJoint === wristId ? '#3b82f6' : color} {...whiteMaterial} /></mesh>
             <mesh castShadow position={[direction * radii.handWidth * 0.78, -lengths.hand * 0.27, radii.handDepth * 0.55]} rotation={[0.15, 0, direction * -0.42]} scale={[radii.handWidth * 0.28, lengths.hand * 0.26, radii.handDepth * 0.38]}>
               <sphereGeometry args={[1, 12, 8]} />
               <meshStandardMaterial color={color} {...whiteMaterial} />
@@ -134,7 +134,7 @@ function RiggedLeg({ side, hip, knee, ankle, lengths, radii, color, selectedJoin
               <capsuleGeometry args={[radii.footWidth, Math.max(0.04, lengths.foot - radii.footWidth * 2), 6, 16]} />
               <meshStandardMaterial color={color} {...whiteMaterial} />
             </mesh>
-            <mesh castShadow scale={selectedJoint === ankleId ? 1.08 : 1} onPointerDown={event => { event.stopPropagation(); onSelectJoint?.(ankleId) }}><sphereGeometry args={[radii.ankle * 0.94, 14, 10]} /><meshStandardMaterial color={selectedJoint === ankleId ? '#d6a84f' : color} {...whiteMaterial} /></mesh>
+            <mesh castShadow scale={selectedJoint === ankleId ? 1.08 : 1} onPointerDown={event => { event.stopPropagation(); onSelectJoint?.(ankleId) }}><sphereGeometry args={[radii.ankle * 0.94, 14, 10]} /><meshStandardMaterial color={selectedJoint === ankleId ? '#3b82f6' : color} {...whiteMaterial} /></mesh>
           </group>
         </JointSegment>
       </JointSegment>
@@ -189,16 +189,16 @@ function PersonModel({ bodyType = 'standard', pose = 'idle', rigRoot, joints, co
         <sphereGeometry args={[1, 20, 14]} />
         <meshStandardMaterial color={bodyColor} {...whiteMaterial} />
       </mesh>
-      <mesh castShadow scale={selected && selectedJoint === 'pelvis' ? 1.12 : 1} onPointerDown={event => { event.stopPropagation(); onSelectJoint?.('pelvis') }}><sphereGeometry args={[0.07, 14, 10]} /><meshStandardMaterial color={selected && selectedJoint === 'pelvis' ? '#d6a84f' : bodyColor} {...whiteMaterial} /></mesh>
+      <mesh castShadow scale={selected && selectedJoint === 'pelvis' ? 1.12 : 1} onPointerDown={event => { event.stopPropagation(); onSelectJoint?.('pelvis') }}><sphereGeometry args={[0.07, 14, 10]} /><meshStandardMaterial color={selected && selectedJoint === 'pelvis' ? '#3b82f6' : bodyColor} {...whiteMaterial} /></mesh>
       <group rotation={joint('spine')}>
         <AnatomicalTorso proportions={proportions} color={bodyColor} selected={selected && selectedJoint === 'spine'} onSelectJoint={onSelectJoint} />
         <mesh castShadow position={[0, lengths.shoulderY - 0.015, 0]} scale={[lengths.shoulderX + 0.105, 0.115 * proportions.height, 0.22]} onPointerDown={event => { event.stopPropagation(); onSelectJoint?.('spine') }}>
           <sphereGeometry args={[1, 24, 14]} />
           <meshStandardMaterial color={bodyColor} {...whiteMaterial} />
         </mesh>
-        {selected && selectedJoint === 'spine' && <mesh position={[0, 0.3 * proportions.height, -0.215]}><sphereGeometry args={[0.065, 14, 10]} /><meshStandardMaterial color="#d6a84f" {...whiteMaterial} /></mesh>}
+        {selected && selectedJoint === 'spine' && <mesh position={[0, 0.3 * proportions.height, -0.215]}><sphereGeometry args={[0.065, 14, 10]} /><meshStandardMaterial color="#3b82f6" {...whiteMaterial} /></mesh>}
         <group position={[0, 0.79 * proportions.height, 0]} rotation={joint('neck')}>
-          <mesh castShadow position={[0, 0.055, 0]} scale={[0.09, 0.14, 0.085]} onPointerDown={event => { event.stopPropagation(); onSelectJoint?.('neck') }}><cylinderGeometry args={[1, 0.88, 1, 18]} /><meshStandardMaterial color={selected && selectedJoint === 'neck' ? '#d6a84f' : bodyColor} {...whiteMaterial} /></mesh>
+          <mesh castShadow position={[0, 0.055, 0]} scale={[0.09, 0.14, 0.085]} onPointerDown={event => { event.stopPropagation(); onSelectJoint?.('neck') }}><cylinderGeometry args={[1, 0.88, 1, 18]} /><meshStandardMaterial color={selected && selectedJoint === 'neck' ? '#3b82f6' : bodyColor} {...whiteMaterial} /></mesh>
           <group position={[0, 0.275 * proportions.head, 0]} onPointerDown={event => { event.stopPropagation(); onSelectJoint?.('neck') }}>
             <mesh castShadow position={[0, 0.045, 0]} scale={[0.18 * proportions.head, 0.235 * proportions.head, 0.175 * proportions.head]}>
               <sphereGeometry args={[1, 28, 20]} />
@@ -1204,7 +1204,7 @@ function Ground({ showGrid = true, showSurface = true, plain = false }) {
           <meshStandardMaterial color={plain ? '#5a5a57' : '#4b4b48'} roughness={0.96} />
         </mesh>
       )}
-      {!plain && showGrid && <Grid position={[0, 0.002, 0]} args={[30, 30]} cellSize={0.5} cellThickness={0.5} cellColor="#777771" sectionSize={5} sectionThickness={0.8} sectionColor="#9b8c68" fadeDistance={24} fadeStrength={1} infiniteGrid />}
+      {showGrid && <Grid position={[0, 0.002, 0]} args={[30, 30]} cellSize={0.5} cellThickness={0.5} cellColor="#777771" sectionSize={5} sectionThickness={0.8} sectionColor="#555555" fadeDistance={24} fadeStrength={1} infiniteGrid />}
     </>
   )
 }
@@ -1258,7 +1258,7 @@ function EditorScene({ objects, selectedId, activeJoint, onSelect, onJointSelect
       ) : (
         <StudioLights lighting={lighting} />
       )}
-      <Ground showGrid={!performanceMode && showGrid} showSurface={!referenceVisible} plain={performanceMode} />
+      <Ground showGrid={showGrid} showSurface={!referenceVisible} plain={performanceMode} />
       {objects.map(object => <SceneObject key={object.id} data={object} selected={selectedId === object.id} selectedId={selectedId} activeJoint={activeJoint} transformMode={transformMode} transformSpace={transformSpace} snapEnabled={snapEnabled} groundRequest={groundRequest} onSelect={onSelect} onJointSelect={onJointSelect} onUpdate={onUpdateObject} animationTime={animationTime} />)}
       {!cameraView && <CameraModel data={cameraData} selected={selectedId === CAMERA_ID} selectedId={selectedId} transformMode={transformMode} transformSpace={transformSpace} snapEnabled={snapEnabled} onSelect={onSelect} onUpdate={onUpdateCamera} />}
       {!performanceMode && <ContactShadows position={[0, 0.01, 0]} opacity={0.42} scale={18} blur={2.4} far={9} />}

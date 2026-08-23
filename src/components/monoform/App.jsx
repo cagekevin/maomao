@@ -2,12 +2,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ArrowDownToLine, Axis3D, Box, BoxSelect, Camera, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, CircleDot, Copy, Download,
   FileImage, FileVideo2, Focus, FolderOpen, Grid3X3, Import, Link2, Lock, MousePointer2, Move3D, Pause, Play, Plus,
-  Magnet, Maximize2, Minimize2, Minus, Redo2, RotateCcw, RotateCw, Save, Settings2, SkipBack, SkipForward, SlidersHorizontal, Sparkles, Sun,
-  ScanLine, Trash2, Undo2, Unlink2, UserRound, Video, ZoomIn, Zap,
+  Magnet, Maximize2, Minimize2, Minus, Redo2, RotateCcw, RotateCw, Save, SkipBack, SkipForward, SlidersHorizontal, Sparkles,
+  ScanLine, Trash2, Undo2, Unlink2, UserRound, Video, ZoomIn,
   Unlock,
 } from 'lucide-react'
 import { MainViewport, CameraPreview } from './Viewport.jsx'
+import { GlobalSettingsPanel } from './GlobalSettingsPanel.jsx'
 import { ShotsPanel } from './ShotsPanel.jsx'
+import { AssetMenu } from './AssetMenu.jsx'
 import { JOINT_DEFINITIONS, JOINT_GROUPS, RIG_PRESET_GROUPS, RIG_PRESET_OPTIONS, cloneJointPose, interpolateJointPose, normalizePoseId, poseCanLoop, poseForObject, presetJoints, presetPhase, presetRoot } from './rig.js'
 
 const CAMERA_ID = '__shot_camera__'
@@ -635,81 +637,51 @@ function VectorFields({ title, value, onChange, degrees = false, kind = 'positio
   )
 }
 
-function AssetCard({ icon: Icon, title, subtitle, onClick, previewClass = '' }) {
-  return (
-    <button className="asset-card" onClick={onClick}>
-      <span className={`asset-preview ${previewClass}`}><Icon size={28} strokeWidth={1.2} /></span>
-      <span className="asset-copy"><strong>{title}</strong><small>{subtitle}</small></span>
-      <Plus className="asset-add" size={14} />
-    </button>
-  )
-}
-
 function SceneList({ objects, selectedId, onSelect, onToggleVisible, onToggleLock }) {
   return (
     <div className="scene-list">
       <div className={`scene-row ${selectedId === CAMERA_ID ? 'is-selected' : ''}`} onClick={() => onSelect(CAMERA_ID)}>
-        <Camera size={14} /><span>主摄像机</span><i className="status-dot live" />
+        <Camera size={14} className="scene-row-icon" />
+        <span className="scene-row-name">主摄像机</span>
+        <i className="status-dot live scene-row-trailing" />
       </div>
       {objects.map(object => (
         <div key={object.id} className={`scene-row ${selectedId === object.id ? 'is-selected' : ''}`} onClick={() => onSelect(object.id)}>
-          {object.type === 'person' ? <UserRound size={14} /> : object.type === 'model' ? <Sparkles size={14} /> : object.type === 'depthMesh' ? <ScanLine size={14} /> : <Box size={14} />}
-          <span>{object.name}</span>
-          <button className="scene-row-action" title={object.locked ? '解除锁定' : '锁定物体'} onClick={event => { event.stopPropagation(); onToggleLock(object.id) }}>{object.locked ? <Lock size={11} /> : <Unlock size={11} />}</button>
-          <button className="scene-row-action visibility-action" title={object.visible === false ? '显示物体' : '隐藏物体'} onClick={event => { event.stopPropagation(); onToggleVisible(object.id) }}><i className={`status-dot ${object.visible === false ? '' : 'on'}`} /></button>
+          {object.type === 'person' ? <UserRound size={14} className="scene-row-icon" /> : object.type === 'model' ? <Sparkles size={14} className="scene-row-icon" /> : object.type === 'depthMesh' ? <ScanLine size={14} className="scene-row-icon" /> : <Box size={14} className="scene-row-icon" />}
+          <span className="scene-row-name">{object.name}</span>
+          <span className="scene-row-actions">
+            <button className="scene-row-action" title={object.locked ? '解除锁定' : '锁定物体'} onClick={event => { event.stopPropagation(); onToggleLock(object.id) }}>{object.locked ? <Lock size={11} /> : <Unlock size={11} />}</button>
+            <button className="scene-row-action visibility-action" title={object.visible === false ? '显示物体' : '隐藏物体'} onClick={event => { event.stopPropagation(); onToggleVisible(object.id) }}><i className={`status-dot ${object.visible === false ? '' : 'on'}`} /></button>
+          </span>
         </div>
       ))}
     </div>
   )
 }
 
-function LeftSidebar({ objects, selectedId, onSelect, onAddPerson, onAddPrimitive, onImport, onToggleVisible, onToggleLock, shots, activeShotId, onSelectShot, onAddShot, onDuplicateShot, onDeleteShot, onRenameShot, onCaptureShot }) {
-  const [tab, setTab] = useState('assets')
-  const inputRef = useRef(null)
+function LeftSidebar({ objects, selectedId, onSelect, onToggleVisible, onToggleLock, shots, activeShotId, onSelectShot, onAddShot, onDuplicateShot, onDeleteShot, onRenameShot, onCaptureShot }) {
+  const [tab, setTab] = useState('scene')
   return (
     <aside className="left-sidebar panel">
       <div className="panel-tabs">
-        <button className={tab === 'assets' ? 'is-active' : ''} onClick={() => setTab('assets')}>资源库</button>
         <button className={tab === 'scene' ? 'is-active' : ''} onClick={() => setTab('scene')}>场景层级</button>
         <button className={tab === 'shots' ? 'is-active' : ''} onClick={() => setTab('shots')}>镜头</button>
       </div>
-      {tab === 'assets' ? (
-        <div className="assets-scroll">
-          <div className="section-kicker">人物体型</div>
-          <AssetCard icon={UserRound} title="标准人物" subtitle="中性比例 · 可换动作" onClick={() => onAddPerson('standard')} previewClass="person-preview" />
-          <AssetCard icon={UserRound} title="女性人体" subtitle="窄肩宽髋 · 真人比例" onClick={() => onAddPerson('female')} previewClass="person-preview female" />
-          <AssetCard icon={UserRound} title="男性人体" subtitle="宽肩躯干 · 真人比例" onClick={() => onAddPerson('male')} previewClass="person-preview male" />
-          <AssetCard icon={UserRound} title="修长人物" subtitle="高挑比例 · 适合走位" onClick={() => onAddPerson('tall')} previewClass="person-preview tall" />
-          <AssetCard icon={UserRound} title="宽体人物" subtitle="厚重比例 · 强轮廓" onClick={() => onAddPerson('broad')} previewClass="person-preview broad" />
-          <div className="section-kicker section-gap">基础物体</div>
-          <div className="primitive-grid">
-            <button onClick={() => onAddPrimitive('box')}><Box size={24} /><span>方块</span></button>
-            <button onClick={() => onAddPrimitive('sphere')}><CircleDot size={24} /><span>球体</span></button>
-            <button onClick={() => onAddPrimitive('cylinder')}><CircleDot size={24} /><span>圆柱</span></button>
-            <button onClick={() => onAddPrimitive('plane')}><Grid3X3 size={24} /><span>平面</span></button>
-          </div>
-          <div className="section-kicker section-gap">场景粗模</div>
-          <div className="primitive-grid blockout-grid">
-            {[['arch', '拱门'], ['stairs', '楼梯'], ['door', '门'], ['window', '窗'], ['table', '桌子'], ['chair', '椅子'], ['sofa', '沙发'], ['roof', '屋顶'], ['tree', '树木'], ['vehicle', '车辆']].map(([type, label]) => (
-              <button key={type} onClick={() => onAddPrimitive(type)}><Box size={20} /><span>{label}</span></button>
-            ))}
-          </div>
-          <div className="section-kicker section-gap">外部模型</div>
-          <button className="import-drop" onClick={() => inputRef.current?.click()}>
-            <Import size={18} /><strong>导入 GLB / GLTF</strong><span>导入本地三维模型</span>
-          </button>
-          <input ref={inputRef} className="visually-hidden" type="file" accept=".glb,.gltf" onChange={onImport} />
-        </div>
-      ) : tab === 'scene' ? (
+      {tab === 'scene' ? (
         <SceneList objects={objects} selectedId={selectedId} onSelect={onSelect} onToggleVisible={onToggleVisible} onToggleLock={onToggleLock} />
       ) : <ShotsPanel shots={shots} activeShotId={activeShotId} onSelect={onSelectShot} onAdd={onAddShot} onDuplicate={onDuplicateShot} onDelete={onDeleteShot} onRename={onRenameShot} onCapture={onCaptureShot} />}
     </aside>
   )
 }
 
-function Inspector({ selected, camera, selectedJoint, customPoses, onSelectJoint, onUpdateObject, onUpdateCamera, onDelete, onDuplicate, onFocus, onToggleLock, onGround, onResetRotation, onResetScale, onSaveCustomPose, onApplyCustomPose, onDeleteCustomPose }) {
+function Inspector({ selected, camera, cameraAspect, onAspectChange, projectSettings, onApplySettings, maxKeyframeFrame, showGrid, onToggleGrid, performanceMode, onTogglePerformance, lighting, onLightingChange, selectedJoint, customPoses, onSelectJoint, onUpdateObject, onUpdateCamera, onDelete, onDuplicate, onFocus, onToggleLock, onGround, onResetRotation, onResetScale, onSaveCustomPose, onApplyCustomPose, onDeleteCustomPose }) {
+  // 未选中物体：显示全局设置栏（画幅比例、时间轴、视口、光照等工程级设置）
   if (!selected) {
-    return <aside className="right-sidebar panel empty-inspector"><MousePointer2 size={24} /><span>选择场景中的物体</span></aside>
+    return (
+      <aside className="right-sidebar panel">
+        <GlobalSettingsPanel cameraAspect={cameraAspect} onAspectChange={onAspectChange} projectSettings={projectSettings} onApplySettings={onApplySettings} maxKeyframeFrame={maxKeyframeFrame} showGrid={showGrid} onToggleGrid={onToggleGrid} performanceMode={performanceMode} onTogglePerformance={onTogglePerformance} lighting={lighting} onLightingChange={onLightingChange} />
+      </aside>
+    )
   }
   const isCamera = selected.id === CAMERA_ID
   const position = isCamera ? camera.position : selected.position
@@ -775,11 +747,6 @@ function Inspector({ selected, camera, selectedJoint, customPoses, onSelectJoint
               {FOCAL_LENGTH_PRESETS.map(value => <button type="button" key={value} className={Math.round(camera.focalLength) === value ? 'is-active' : ''} onClick={() => onUpdateCamera({ focalLength: value })}>{value}</button>)}
             </div>
             <div className="camera-info"><span>传感器</span><strong>全画幅 36 mm</strong></div>
-            <label className="select-field aspect-field"><span>画面比例</span><select value={aspectSelectValue(camera.aspectRatio || '16:9')} onChange={event => onUpdateCamera({ aspectRatio: event.target.value === 'custom' ? customAspectFrom(camera.aspectRatio) : event.target.value })}>{ASPECT_RATIOS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
-            {aspectSelectValue(camera.aspectRatio) === 'custom' && (() => {
-              const [customWidth, customHeight] = customAspectParts(camera.aspectRatio)
-              return <div className="custom-aspect-inputs"><span>自定义</span><input aria-label="自定义画幅宽" type="number" min="0.1" max="100" step="0.1" value={customWidth} onChange={event => onUpdateCamera({ aspectRatio: customAspectValue(event.target.value, customHeight) })} /><i>:</i><input aria-label="自定义画幅高" type="number" min="0.1" max="100" step="0.1" value={customHeight} onChange={event => onUpdateCamera({ aspectRatio: customAspectValue(customWidth, event.target.value) })} /></div>
-            })()}
           </div>
         ) : selected.type === 'person' ? (
           <div className="inspector-section">
@@ -847,113 +814,6 @@ function Inspector({ selected, camera, selectedJoint, customPoses, onSelectJoint
   )
 }
 
-function ProjectSettingsDialog({ settings, maxKeyframeFrame = 0, onApply, onClose }) {
-  const [draft, setDraft] = useState(settings)
-  const totalFrames = Number(draft.fps) * Number(draft.durationSeconds)
-  const safeMaxKeyframeFrame = normalizeFrameNumber(maxKeyframeFrame)
-  const requiredSeconds = Math.max(1, Math.ceil(safeMaxKeyframeFrame / (Number(draft.fps) || DEFAULT_PROJECT_SETTINGS.fps)))
-  const hasDurationConflict = Number.isFinite(totalFrames) && totalFrames < safeMaxKeyframeFrame
-  const submit = event => {
-    event.preventDefault()
-    onApply(normalizeProjectSettings(draft))
-  }
-  return (
-    <div className="settings-overlay" role="presentation" onPointerDown={event => { if (event.target === event.currentTarget) onClose() }}>
-      <form className="settings-dialog" role="dialog" aria-modal="true" aria-labelledby="project-settings-title" onSubmit={submit}>
-        <div className="settings-dialog-head">
-          <div><Settings2 size={17} /><span><strong id="project-settings-title">时间轴设置</strong><small>先确定时长，再制作关键帧</small></span></div>
-          <button type="button" onClick={onClose} aria-label="关闭时间轴设置">关闭</button>
-        </div>
-        <div className="settings-fields">
-          <label><span>工程名称</span><input autoFocus value={draft.name} maxLength="40" onChange={event => setDraft(current => ({ ...current, name: event.target.value }))} /></label>
-          <div className="settings-field-row">
-            <label><span>帧率</span><select value={draft.fps} onChange={event => setDraft(current => ({ ...current, fps: Number(event.target.value) }))}>{FPS_OPTIONS.map(value => <option value={value} key={value}>{value} FPS</option>)}</select></label>
-            <label><span>时间轴总时长</span><div className="duration-input"><input type="number" min="1" max="60" step="1" value={draft.durationSeconds} onChange={event => setDraft(current => ({ ...current, durationSeconds: event.target.value }))} /><i>秒</i></div></label>
-          </div>
-          <div className={`settings-summary ${hasDurationConflict ? 'is-warning' : ''}`}>
-            <span>关键帧条范围</span>
-            <strong>0–{Number.isFinite(totalFrames) ? totalFrames : 0} 帧</strong>
-            <small>{safeMaxKeyframeFrame ? `最后关键帧：第 ${safeMaxKeyframeFrame} 帧 · 当前帧率最短 ${requiredSeconds} 秒` : `${draft.fps || 0} FPS · 导出 MP4 将严格使用此时长`}</small>
-          </div>
-          {hasDurationConflict && <p className="settings-warning">当前时长放不下已有关键帧，请至少设置为 {requiredSeconds} 秒，或先删除/移动末尾关键帧。</p>}
-          <label className="settings-toggle"><input type="checkbox" checked={Boolean(draft.loopPlayback)} onChange={event => setDraft(current => ({ ...current, loopPlayback: event.target.checked }))} /><span><strong>循环播放</strong><small>到达镜头结尾后自动从第 0 帧继续</small></span></label>
-        </div>
-        <div className="settings-dialog-actions"><button type="button" onClick={onClose}>取消</button><button type="submit">应用设置</button></div>
-      </form>
-    </div>
-  )
-}
-
-function ViewportAspectPicker({ value, onChange }) {
-  const selected = aspectSelectValue(value)
-  const [customWidth, customHeight] = customAspectParts(value)
-  const choose = next => onChange(next === 'custom' ? customAspectFrom(value) : next)
-  return (
-    <div className="viewport-aspect-picker floating-panel" aria-label="主视图画面比例">
-      <span className="viewport-aspect-label">画幅</span>
-      {COMMON_ASPECT_RATIOS.map(ratio => (
-        <button type="button" key={ratio} className={selected === ratio ? 'is-active' : ''} onClick={() => choose(ratio)}>{ratio}</button>
-      ))}
-      <button type="button" className={selected === 'custom' ? 'is-active' : ''} onClick={() => choose('custom')}>自定义</button>
-      {selected === 'custom' && (
-        <span className="viewport-custom-aspect">
-          <input aria-label="自定义画幅宽" type="number" min="0.1" max="100" step="0.1" value={customWidth} onChange={event => onChange(customAspectValue(event.target.value, customHeight))} />
-          <i>:</i>
-          <input aria-label="自定义画幅高" type="number" min="0.1" max="100" step="0.1" value={customHeight} onChange={event => onChange(customAspectValue(customWidth, event.target.value))} />
-        </span>
-      )}
-    </div>
-  )
-}
-
-function LightingPanel({ lighting, onChange, onClose }) {
-  const update = patch => onChange(current => normalizeLighting({ ...current, ...patch }))
-  const range = (label, key, minimum, maximum, step, suffix = '') => (
-    <label className="lighting-range" key={key}>
-      <span>{label}</span>
-      <input
-        type="range"
-        aria-label={label}
-        min={minimum}
-        max={maximum}
-        step={step}
-        value={lighting[key]}
-        onChange={event => update({ [key]: Number(event.target.value) })}
-      />
-      <output>{Number(lighting[key]).toFixed(step < 1 ? 2 : 0)}{suffix}</output>
-    </label>
-  )
-  const color = (label, key) => (
-    <label className="lighting-color" key={key}>
-      <span>{label}</span>
-      <input type="color" aria-label={label} value={lighting[key]} onChange={event => update({ [key]: event.target.value })} />
-      <output>{lighting[key]}</output>
-    </label>
-  )
-  return (
-    <div className="lighting-panel floating-panel" role="dialog" aria-label="场景光照调整">
-      <div className="lighting-panel-head">
-        <div><Sun size={14} /><span><strong>场景光照</strong><small>当前镜头 · 导出同步</small></span></div>
-        <button type="button" onClick={onClose} aria-label="收起光照面板"><ChevronUp size={13} /></button>
-      </div>
-      <div className="lighting-panel-body">
-        {range('环境亮度', 'ambientIntensity', 0, 3, 0.05)}
-        {range('主光亮度', 'keyIntensity', 0, 6, 0.05)}
-        {range('补光亮度', 'fillIntensity', 0, 4, 0.05)}
-        {range('水平方向', 'keyAzimuth', -180, 180, 1, '°')}
-        {range('主光高度', 'keyElevation', 5, 85, 1, '°')}
-        {range('画面曝光', 'exposure', 0.25, 1.75, 0.01)}
-        <div className="lighting-colors">
-          {color('环境色', 'ambientColor')}
-          {color('主光色', 'keyColor')}
-          {color('补光色', 'fillColor')}
-        </div>
-      </div>
-      <div className="lighting-panel-foot"><button type="button" onClick={() => onChange(cloneProjectValue(DEFAULT_LIGHTING))}>恢复默认光照</button></div>
-    </div>
-  )
-}
-
 function CameraAnglePanel({ camera, onChange, onClose, onLevel }) {
   const rotation = Array.isArray(camera.rotation) ? camera.rotation : [0, 0, 0]
   const updateAxis = (axis, degrees) => {
@@ -990,7 +850,7 @@ function CameraAnglePanel({ camera, onChange, onClose, onLevel }) {
   )
 }
 
-function Timeline({ currentFrame, fps, totalFrames, onOpenSettings, onSeek, playing, onTogglePlay, keyframes, onAddKeyframe, onDeleteKeyframe, objectTrack, onAddObjectKeyframe, onDeleteObjectKeyframe, selectedKeyframe, onSelectKeyframe, onMoveKeyframe, onCopyKeyframe, onPasteKeyframe, onDeleteSelectedKeyframe, onChangeInterpolation, hasClipboard }) {
+function Timeline({ currentFrame, fps, totalFrames, onSeek, playing, onTogglePlay, keyframes, onAddKeyframe, onDeleteKeyframe, objectTrack, onAddObjectKeyframe, onDeleteObjectKeyframe, selectedKeyframe, onSelectKeyframe, onMoveKeyframe, onCopyKeyframe, onPasteKeyframe, onDeleteSelectedKeyframe, onChangeInterpolation, hasClipboard }) {
   const [dragging, setDragging] = useState(null)
   const rulerFrames = useMemo(() => [...new Set(Array.from({ length: 6 }, (_, index) => Math.round(totalFrames * index / 5)))], [totalFrames])
   const scrub = useCallback((event, rect) => {
@@ -1043,28 +903,33 @@ function Timeline({ currentFrame, fps, totalFrames, onOpenSettings, onSeek, play
   )
   return (
     <section className="timeline panel">
-      <div className="timeline-controls">
-        <ToolButton icon={SkipBack} label="回到开头" onClick={() => onSeek(0)} />
-        <button className={`play-button ${playing ? 'is-playing' : ''}`} onClick={onTogglePlay}>{playing ? <Pause size={16} fill="currentColor" /> : <Play size={16} fill="currentColor" />}</button>
-        <ToolButton icon={SkipForward} label="跳到结尾" onClick={() => onSeek(totalFrames)} />
-        <div className="time-readout"><strong>{String(currentFrame).padStart(3, '0')}</strong><span>/ {totalFrames} 帧 · {fps} FPS</span></div>
-        <div className="timeline-key-editor">
-          {selectedKeyframe ? (
-            <>
-              <span>{selectedKeyframe.kind === 'camera' ? '镜头' : objectTrack?.type === 'person' ? '角色状态' : '物体'} · {selectedKeyframe.frame} 帧</span>
-              <select value={selectedKeyframe.interpolation} onChange={event => onChangeInterpolation(event.target.value)} title="插值方式">
-                <option value="smooth">平滑</option>
-                <option value="linear">线性</option>
-                <option value="hold">保持</option>
-              </select>
-              <div><button onClick={onCopyKeyframe} title="复制关键帧"><Copy size={12} /></button><button onClick={onPasteKeyframe} disabled={!hasClipboard} title="粘贴到当前帧"><Plus size={12} /></button><button onClick={onDeleteSelectedKeyframe} title="删除关键帧"><Trash2 size={12} /></button></div>
-            </>
-          ) : <span className="timeline-key-empty" />}
-        </div>
+      <div className="timeline-key-toolbar">
+        {selectedKeyframe && (
+          <>
+            <span className="timeline-key-toolbar-label">{selectedKeyframe.kind === 'camera' ? '镜头' : objectTrack?.type === 'person' ? '角色状态' : '物体'} · {selectedKeyframe.frame} 帧</span>
+            <select value={selectedKeyframe.interpolation} onChange={event => onChangeInterpolation(event.target.value)} title="插值方式">
+              <option value="smooth">平滑</option>
+              <option value="linear">线性</option>
+              <option value="hold">保持</option>
+            </select>
+            <span className="timeline-key-toolbar-divider" />
+          </>
+        )}
+        <button className="timeline-toolbar-skip" onClick={() => onSeek(0)} title="回到开头"><SkipBack size={13} /></button>
+        <button className={`play-button timeline-toolbar-play ${playing ? 'is-playing' : ''}`} onClick={onTogglePlay}>{playing ? <Pause size={14} fill="currentColor" /> : <Play size={14} fill="currentColor" />}</button>
+        <button className="timeline-toolbar-skip" onClick={() => onSeek(totalFrames)} title="跳到结尾"><SkipForward size={13} /></button>
+        {selectedKeyframe && (
+          <>
+            <span className="timeline-key-toolbar-divider" />
+            <button onClick={onCopyKeyframe} title="复制关键帧"><Copy size={12} /></button>
+            <button onClick={onPasteKeyframe} disabled={!hasClipboard} title="粘贴到当前帧"><Plus size={12} /></button>
+            <button onClick={onDeleteSelectedKeyframe} title="删除关键帧"><Trash2 size={12} /></button>
+          </>
+        )}
       </div>
       <div className="timeline-body">
         <div className="ruler timeline-ruler">{rulerFrames.map(frame => <span key={frame} style={{ left: `${frame / totalFrames * 100}%` }}>{frame}</span>)}</div>
-        <button type="button" className="timeline-settings-button" onClick={onOpenSettings} title="设置时间轴时长和帧率"><Settings2 size={12} /> 时间轴设置</button>
+        <div className="timeline-readout"><span>{String(currentFrame).padStart(3, '0')} / {totalFrames} 帧 · {fps} FPS</span></div>
         <div className="track-label camera-track-label"><Camera size={13} /><span>主摄像机</span></div>
         <div className="camera-track-slot">{renderTrack(keyframes, 'camera', onDeleteKeyframe)}</div>
         <button className="keyframe-button camera-keyframe-button" onClick={onAddKeyframe}><Plus size={13} /> 镜头关键帧</button>
@@ -1263,12 +1128,10 @@ export function MonoformApp({ storageKey, onExport, onExit, onThumbnail }) {
   const [showGrid, setShowGrid] = useState(true)
   const [performanceMode, setPerformanceMode] = useState(false)
   const [cameraView, setCameraView] = useState(false)
-  const [lightingPanelOpen, setLightingPanelOpen] = useState(false)
   const [cameraAnglePanelOpen, setCameraAnglePanelOpen] = useState(false)
   const [viewOptionsCollapsed, setViewOptionsCollapsed] = useState(false)
   const [monitorMode, setMonitorMode] = useState('normal')
   const [editorView, setEditorView] = useState({ position: [8.5, 6.4, 9.5], target: [0, 1, 0] })
-  const [settingsOpen, setSettingsOpen] = useState(false)
   const [viewFocusRequest, setViewFocusRequest] = useState(null)
   const [toast, setToast] = useState('')
   const [saveStatus, setSaveStatus] = useState(startupProject ? '已恢复自动保存' : '自动保存已开启')
@@ -1563,7 +1426,6 @@ export function MonoformApp({ storageKey, onExport, onExit, onThumbnail }) {
       currentFrameRef.current = nextFrame
       return nextFrame
     })
-    setSettingsOpen(false)
     setToast(`时间轴已更新 · ${next.fps} FPS · ${next.durationSeconds} 秒`)
   }
 
@@ -1761,10 +1623,14 @@ export function MonoformApp({ storageKey, onExport, onExit, onThumbnail }) {
   const openCameraView = () => {
     setEditorView(cloneProjectValue(editorViewRef.current))
     setCameraView(true)
+    // 进入摄像机视角后，主视口即显示该机位画面，右下角 monitor 与之重复，
+    // 自动最小化避免两处几乎相同的画面并列、误导用户以为是两个机位。
+    setMonitorMode('minimized')
   }
   const openEditorView = () => {
     setCameraView(false)
     setCameraAnglePanelOpen(false)
+    setMonitorMode('normal')
   }
   const levelCameraHorizon = () => {
     setCamera(current => {
@@ -1776,7 +1642,6 @@ export function MonoformApp({ storageKey, onExport, onExit, onThumbnail }) {
   }
   const collapseViewOptions = () => {
     setViewOptionsCollapsed(true)
-    setLightingPanelOpen(false)
     setCameraAnglePanelOpen(false)
   }
   const saveCustomPose = person => {
@@ -2104,7 +1969,6 @@ export function MonoformApp({ storageKey, onExport, onExit, onThumbnail }) {
         setCurrentFrame(0)
         currentFrameRef.current = 0
         setPlaying(false)
-        setSettingsOpen(false)
         setSelectedId(CAMERA_ID)
         setToast(`工程已打开 · ${loaded.shots.length} 个镜头`)
       } catch { setToast('工程文件无法读取') }
@@ -2129,7 +1993,6 @@ export function MonoformApp({ storageKey, onExport, onExit, onThumbnail }) {
     setCurrentFrame(0)
     currentFrameRef.current = 0
     setPlaying(false)
-    setSettingsOpen(false)
     setSelectedId('actor-lead')
     setToast('已新建空关键帧工程 · 可在时间轴右侧设置时长')
   }
@@ -2148,10 +2011,16 @@ export function MonoformApp({ storageKey, onExport, onExit, onThumbnail }) {
           <button onClick={() => saveProject()}><Save size={14} /> 保存</button>
           <input ref={loadRef} className="visually-hidden" type="file" accept=".json" onChange={loadProject} />
           <span className="top-divider" />
+          <AssetMenu onAddPerson={addPerson} onAddPrimitive={addPrimitive} onImport={importModel} />
+          <span className="top-divider" />
           <ToolButton icon={Undo2} label="撤销" shortcut="Ctrl+Z" onClick={undo} disabled={!historyRef.current.past.length} />
           <ToolButton icon={Redo2} label="重做" shortcut="Ctrl+Y" onClick={redo} disabled={!historyRef.current.future.length} />
         </nav>
-        <div className="project-title"><i className={`status-dot ${saveStatus === '保存中…' ? '' : 'live'}`} /><button type="button" onClick={() => setSettingsOpen(true)} title="打开时间轴设置"><span>{settings.name}</span><Settings2 size={12} /></button><small>{activeShot?.name} · {saveStatus}</small></div>
+        {/* NOTE: 保存状态灯是有意这样写的，不是 bug。
+           saveStatus 为 '保存中…' 时类名留空（点灭），保存完成/已自动保存时显示 .live（绿灯）。
+           设计取舍：进行中是"安静"态，完成才点亮确认，避免每次自动保存闪烁。
+           不要改成"保存中才亮"，除非产品明确要呼吸/加载指示。 */}
+        <div className="project-title"><i className={`status-dot ${saveStatus === '保存中…' ? '' : 'live'}`} /><span className="project-title-name">{settings.name}</span><small>{activeShot?.name} · {saveStatus}</small></div>
         <div className="export-actions">
           <button className="project-export-button" onClick={() => saveProject({ download: true })} disabled={exporting || capturingImage}><Download size={14} /> 导出工程</button>
           <button className="project-export-button capture-image-button" onClick={handleCaptureImage} disabled={exporting || capturingImage}><FileImage size={14} /> {capturingImage ? '截图中…' : '截图 PNG'}</button>
@@ -2160,7 +2029,11 @@ export function MonoformApp({ storageKey, onExport, onExit, onThumbnail }) {
       </header>
 
       <div className="workspace">
-        <LeftSidebar objects={objects} selectedId={selectedId} onSelect={setSelectedId} onAddPerson={addPerson} onAddPrimitive={addPrimitive} onImport={importModel} onToggleVisible={id => updateObjectById(id, { visible: objects.find(item => item.id === id)?.visible === false })} onToggleLock={id => updateObjectById(id, { locked: !objects.find(item => item.id === id)?.locked })} shots={displayedShots} activeShotId={activeShotId} onSelectShot={switchShot} onAddShot={addShot} onDuplicateShot={duplicateShot} onDeleteShot={deleteShot} onRenameShot={renameShot} onCaptureShot={captureShotThumbnail} />
+        {/* NOTE: onToggleVisible 的 `?.visible === false` 写法等价于 `!visible`，逻辑正确，不是 bug。
+           可见(visible 为 undefined/true) → `undefined === false` 为 false → 设为 false(隐藏)；
+           隐藏(visible === false)        → `false === false` 为 true  → 设为 true(显示)。
+           之前审查曾误判为"写反"，实为正确。如需更直观可改写为 `!objects.find(...).visible`。 */}
+        <LeftSidebar objects={objects} selectedId={selectedId} onSelect={setSelectedId} onToggleVisible={id => updateObjectById(id, { visible: objects.find(item => item.id === id)?.visible === false })} onToggleLock={id => updateObjectById(id, { locked: !objects.find(item => item.id === id)?.locked })} shots={displayedShots} activeShotId={activeShotId} onSelectShot={switchShot} onAddShot={addShot} onDuplicateShot={duplicateShot} onDeleteShot={deleteShot} onRenameShot={renameShot} onCaptureShot={captureShotThumbnail} />
         <section className="viewport-shell">
           <div className="viewport-toolbar floating-panel">
             <ToolButton icon={MousePointer2} label="选择" active={!['translate', 'rotate', 'scale'].includes(transformMode)} onClick={() => setTransformMode('select')} shortcut="Q" />
@@ -2172,31 +2045,19 @@ export function MonoformApp({ storageKey, onExport, onExit, onThumbnail }) {
             <ToolButton icon={Axis3D} label={transformSpace === 'world' ? '世界坐标' : '局部坐标'} active={transformSpace === 'local'} disabled={transformMode === 'select'} onClick={() => setTransformSpace(space => space === 'world' ? 'local' : 'world')} />
             <ToolButton icon={Magnet} label={snapEnabled ? '关闭吸附' : '开启吸附'} active={snapEnabled} disabled={transformMode === 'select'} onClick={() => setSnapEnabled(value => !value)} />
           </div>
-          <div className="viewport-mode-help">
-            {transformMode === 'select' && 'Q 选择 / 人物摆姿 · 重叠处优先当前对象 · Alt 选择前层'}
-            {transformMode === 'translate' && `W 整体移动 · ${transformSpace === 'world' ? '世界坐标' : '局部坐标'} · ${snapEnabled ? '0.1 格吸附' : '自由移动'}`}
-            {transformMode === 'rotate' && `${selectedId === CAMERA_ID ? 'E 摄像机旋转' : 'E 整体旋转'} · ${transformSpace === 'world' ? '世界坐标' : '局部坐标'} · ${snapEnabled ? '5° 吸附' : '自由旋转'}`}
-            {transformMode === 'scale' && `R 整体缩放 · ${transformSpace === 'world' ? '世界坐标' : '局部坐标'} · ${snapEnabled ? '0.1 吸附' : '自由缩放'}`}
-          </div>
           <div className={`viewport-view-options floating-panel ${viewOptionsCollapsed ? 'is-collapsed' : ''}`}>
             {viewOptionsCollapsed ? (
               <button className="view-options-expand" onClick={() => setViewOptionsCollapsed(false)} title="展开视角工具" aria-label="展开视角工具"><ChevronLeft size={14} /></button>
             ) : (
               <>
-                <button className={showGrid ? 'is-active' : ''} onClick={() => setShowGrid(value => !value)}><Grid3X3 size={14} /> 网格</button>
-                <button className={performanceMode ? 'is-active' : ''} onClick={() => setPerformanceMode(value => !value)} title="性能模式：关闭阴影、雾和复杂光照以提升流畅度"><Zap size={14} /> 性能模式</button>
-                <button className={lightingPanelOpen ? 'is-active' : ''} onClick={() => { setLightingPanelOpen(value => !value); setCameraAnglePanelOpen(false) }} title="调整当前镜头的环境光和主光"><Sun size={14} /> 光照</button>
                 <button className={!cameraView ? 'is-active' : ''} onClick={openEditorView} title="使用固定的编辑观察相机自由布置场景"><RotateCw size={14} /> 编辑视角</button>
                 <button className={cameraView ? 'is-active' : ''} onClick={openCameraView} title="切换到场景中主摄像机的实际画面"><Camera size={14} /> 摄像机视角</button>
-                {cameraView && <button className={cameraAnglePanelOpen ? 'is-active' : ''} onClick={() => { setCameraAnglePanelOpen(value => !value); setLightingPanelOpen(false) }} title="调整参考图视角中的地面和水平线"><SlidersHorizontal size={14} /> 镜头角度</button>}
+                {cameraView && <button className={cameraAnglePanelOpen ? 'is-active' : ''} onClick={() => setCameraAnglePanelOpen(value => !value)} title="调整参考图视角中的地面和水平线"><SlidersHorizontal size={14} /> 镜头角度</button>}
                 <button className="view-options-collapse" onClick={collapseViewOptions} title="收起视角工具" aria-label="收起视角工具"><ChevronRight size={14} /></button>
               </>
             )}
           </div>
-          {lightingPanelOpen && <LightingPanel lighting={lighting} onChange={setLighting} onClose={() => setLightingPanelOpen(false)} />}
           {cameraView && cameraAnglePanelOpen && <CameraAnglePanel camera={camera} onChange={patch => setCamera(current => ({ ...current, ...patch }))} onClose={() => setCameraAnglePanelOpen(false)} onLevel={levelCameraHorizon} />}
-          <div className="viewport-label"><strong>{cameraView ? '摄像机视角' : '编辑视角'}</strong><span>{cameraView ? `${aspectLabel(displayCamera.aspectRatio)} · 正在查看场景中的主摄像机` : '固定观察相机 · 可查看并调整场景中的主摄像机'}</span></div>
-          <ViewportAspectPicker value={camera.aspectRatio} onChange={aspectRatio => setCamera(current => ({ ...current, aspectRatio }))} />
           <ReferenceOverlay reference={reference} onChange={setReference} onToast={setToast} cameraMode={cameraView} cameraAspect={previewAspect}>
             <div className="viewport-canvas-layer">
               <MainViewport key={cameraView ? 'shot-view' : 'scene-view'} cameraView={cameraView} cameraAspect={previewAspect} editorCameraData={editorView} onEditorCameraChange={captureEditorView} objects={animatedObjects} animationTime={currentFrame / fps} selectedId={selectedId} activeJoint={selectedJoint} onSelect={setSelectedId} onJointSelect={(objectId, jointId) => { setSelectedId(objectId); setSelectedJoint(jointId) }} transformMode={transformMode} transformSpace={transformSpace} snapEnabled={snapEnabled} groundRequest={groundRequest} onUpdateObject={updateObjectById} cameraData={displayCamera} onUpdateCamera={patch => setCamera(current => ({ ...current, ...patch }))} lighting={lighting} showGrid={showGrid} performanceMode={performanceMode} focusRequest={viewFocusRequest} referenceVisible={Boolean(reference.image && reference.visible)} />
@@ -2223,12 +2084,11 @@ export function MonoformApp({ storageKey, onExport, onExit, onThumbnail }) {
             </div>}
           </div>
         </section>
-        <Inspector selected={inspectorSelected} camera={camera} selectedJoint={selectedJoint} customPoses={customPoses} onSelectJoint={setSelectedJoint} onUpdateObject={updateSelected} onUpdateCamera={patch => setCamera(current => ({ ...current, ...patch }))} onDelete={deleteSelected} onDuplicate={duplicateSelected} onFocus={focusSelected} onToggleLock={() => activeObject && updateSelected({ locked: !activeObject.locked })} onGround={groundSelected} onResetRotation={resetSelectedRotation} onResetScale={resetSelectedScale} onSaveCustomPose={saveCustomPose} onApplyCustomPose={applyCustomPose} onDeleteCustomPose={deleteCustomPose} />
+        <Inspector selected={inspectorSelected} camera={camera} cameraAspect={camera.aspectRatio} onAspectChange={aspectRatio => setCamera(current => ({ ...current, aspectRatio }))} projectSettings={settings} onApplySettings={applySettings} maxKeyframeFrame={maxKeyframeFrame} showGrid={showGrid} onToggleGrid={() => setShowGrid(value => !value)} performanceMode={performanceMode} onTogglePerformance={() => setPerformanceMode(value => !value)} lighting={lighting} onLightingChange={setLighting} selectedJoint={selectedJoint} customPoses={customPoses} onSelectJoint={setSelectedJoint} onUpdateObject={updateSelected} onUpdateCamera={patch => setCamera(current => ({ ...current, ...patch }))} onDelete={deleteSelected} onDuplicate={duplicateSelected} onFocus={focusSelected} onToggleLock={() => activeObject && updateSelected({ locked: !activeObject.locked })} onGround={groundSelected} onResetRotation={resetSelectedRotation} onResetScale={resetSelectedScale} onSaveCustomPose={saveCustomPose} onApplyCustomPose={applyCustomPose} onDeleteCustomPose={deleteCustomPose} />
         <Timeline
           currentFrame={currentFrame}
           fps={fps}
           totalFrames={totalFrames}
-          onOpenSettings={() => setSettingsOpen(true)}
           onSeek={seekToFrame}
           playing={playing}
           onTogglePlay={togglePlayback}
@@ -2268,7 +2128,6 @@ export function MonoformApp({ storageKey, onExport, onExit, onThumbnail }) {
           </div>
         </>
       )}
-      {settingsOpen && <ProjectSettingsDialog settings={settings} maxKeyframeFrame={maxKeyframeFrame} onApply={applySettings} onClose={() => setSettingsOpen(false)} />}
       {toast && <div className="toast"><span />{toast}</div>}
     </main>
   )
