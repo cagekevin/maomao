@@ -2,7 +2,7 @@ import { useEffect, type ReactNode } from "react";
 import { ObjectTreePanel } from "../../editor/panels/ObjectTreePanel";
 import { RightPanel } from "../../editor/panels/RightPanel";
 import { CurveEditorDialog } from "../../editor/panels/CurveEditorDialog";
-import { NomiTimelinePreview } from "../../scene3d-ui/NomiTimelinePreview";
+import { AnimationTimelineBar } from "../../editor/canvas/AnimationTimelineBar";
 import { useDirectorStore } from "../../editor/store/directorStore";
 import { useDirectorViewportShortcuts } from "../useDirectorViewportShortcuts";
 
@@ -85,7 +85,7 @@ export function DirectorDeskShell({ children }: { children: ReactNode }) {
             </button>
           </div>
         ) : (
-          <NomiTimelinePreview />
+          <AnimationTimelineBar />
         )}
       </div>
       <CurveEditorDialog />
