@@ -37,8 +37,6 @@ export function Director3DOverlay({
   initialPanoramaUrl?: string | null;
   onExit?: (payload: Director3DExitPayload) => void;
 }) {
-  const viewMode = useDirectorStore((state) => state.viewMode);
-  const setViewMode = useDirectorStore((state) => state.setViewMode);
   const replaceProject = useDirectorStore((state) => state.replaceProject);
   const addImportedAsset = useDirectorStore((state) => state.addImportedAsset);
   const projectLoadedRef = useRef(false);
@@ -122,26 +120,6 @@ export function Director3DOverlay({
       <header className="top-bar">
         <div className="top-bar-left">
           <h1 className="top-bar-title">3D导演台</h1>
-        </div>
-        <div className="top-bar-center">
-          <div className="mode-toggle ui-segmented" role="group" aria-label="视角切换">
-            <button
-              className={`mode-toggle-button ui-segmented-item ${viewMode === "director" ? "ui-segmented-item-active" : ""}`}
-              aria-pressed={viewMode === "director"}
-              type="button"
-              onClick={() => setViewMode("director")}
-            >
-              导演视角
-            </button>
-            <button
-              className={`mode-toggle-button ui-segmented-item ${viewMode === "camera" ? "ui-segmented-item-active" : ""}`}
-              aria-pressed={viewMode === "camera"}
-              type="button"
-              onClick={() => setViewMode("camera")}
-            >
-              机位视角
-            </button>
-          </div>
         </div>
         <div className="top-bar-actions">
           <button

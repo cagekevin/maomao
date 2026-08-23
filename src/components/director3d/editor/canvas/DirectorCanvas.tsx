@@ -5,6 +5,7 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   type CSSProperties,
@@ -14,12 +15,14 @@ import { Euler, Matrix4, PerspectiveCamera as ThreePerspectiveCamera, Quaternion
 import type { Object3D } from "three";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import { clearViewportCaptureHandler, setViewportCaptureHandler } from "../io/captureBridge";
+import { setAnimationExportHandler } from "../io/animationExport";
 import { buildScreenshotMeta, type ScreenshotResult } from "../io/screenshotExport";
 import { useDirectorStore, type CameraShotSnapshot } from "../store/directorStore";
 import { DEFAULT_DIRECTOR_CAMERA_VIEW_SNAPSHOT, getCameraViewSnapshotFromShot } from "../schema/cameraGeometry";
 import type { DirectorObject, DirectorTransform, SceneSettings } from "../schema/directorProject";
 import { getGroundedLabelY } from "../runtime/mannequin/bodyTypes";
 import { getUE4GroundedLabelY } from "../runtime/ue4Mannequin/ue4MannequinRig";
+import { applyTransformAt, interpolateScalar, interpolateTarget, resolveCameraFollowTarget } from "../runtime/timelineInterpolation";
 import { SceneRoot } from "./SceneRoot";
 import { ViewportAspectOverlay } from "./ViewportAspectOverlay";
 import { ViewportBackground } from "./ViewportBackground";
@@ -28,8 +31,9 @@ import { getViewportAspectFrameRect, type ViewportSafeAreaInsets } from "./viewp
 
 export const DEFAULT_DIRECTOR_VIEW_SNAPSHOT: CameraShotSnapshot = DEFAULT_DIRECTOR_CAMERA_VIEW_SNAPSHOT;
 const VIEWPORT_FRAME_PADDING = 40;
-const VIEWPORT_TOOLBAR_BOTTOM_OFFSET = 40;
 const DEFAULT_VIEWPORT_TOOLBAR_HEIGHT = 44;
+/** 视口工具栏与底部动画栏的间隙（与 .viewport-toolbar 的 bottom 公式保持一致） */
+const ANIM_MODULE_TOOLBAR_GAP = 16;
 const GIZMO_AXIS_COLORS: [string, string, string] = ["#E56C5B", "#6CDB7A", "#7AA7FF"];
 const GIZMO_VIEWPORT_SCALE = 25;
 const GIZMO_HIT_LAYER_SIZE = 80;
@@ -595,11 +599,89 @@ function ViewportGizmoOverlay({
   );
 }
 
+/** 动画录制驱动：注册 captureStream+MediaRecorder 录制源（接管播放逐帧推进，结束后恢复） */
+function AnimationRecorder() {
+  const { camera, gl } = useThree();
+  const cleanupRef = useRef<(() => void) | null>(null);
+
+  useEffect(() => {
+    const handler: Parameters<typeof setAnimationExportHandler>[0] = async ({ fps, format, onProgress }) => {
+      const state = useDirectorStore.getState();
+      const duration = state.project.timeline?.duration ?? 5;
+      const startedAt = performance.now();
+      const wasPlaying = state.isPlaying;
+      const startTime = state.currentTime;
+
+      state.pause();
+      state.setCurrentTime(0);
+
+      // 选编码：MP4 优先，WebM 回退
+      const mimeCandidates =
+        format === "mp4"
+          ? ["video/mp4;codecs=avc1.42E01E,mp4a.40.2", "video/mp4;codecs=avc1", "video/mp4"]
+          : ["video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm"];
+      const mime = mimeCandidates.find((candidate) => typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported(candidate)) ?? "video/webm";
+      const resolvedFormat = mime.startsWith("video/mp4") ? ("mp4" as const) : ("webm" as const);
+
+      const stream = gl.domElement.captureStream(fps);
+      const recorder = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+      const chunks: Blob[] = [];
+      recorder.ondataavailable = (event) => {
+        if (event.data && event.data.size > 0) chunks.push(event.data);
+      };
+      const done = new Promise<Blob>((resolve) => {
+        recorder.onstop = () => resolve(new Blob(chunks, { type: mime }));
+      });
+
+      recorder.start(100);
+      useDirectorStore.getState().play();
+
+      const totalDuration = duration;
+      const maxElapsed = totalDuration + 3;
+      const rAF = () => {
+        const elapsed = (performance.now() - startedAt) / 1000;
+        const latest = useDirectorStore.getState();
+        if (elapsed >= maxElapsed || latest.currentTime >= totalDuration) {
+          if (recorder.state !== "inactive") recorder.stop();
+          return;
+        }
+        onProgress?.(Math.min(1, latest.currentTime / Math.max(totalDuration, 0.001)));
+        requestAnimationFrame(rAF);
+      };
+      requestAnimationFrame(rAF);
+
+      const blob = await done;
+      stream.getTracks().forEach((track) => track.stop());
+
+      // 恢复用户状态
+      const latest = useDirectorStore.getState();
+      latest.pause();
+      latest.setCurrentTime(startTime);
+      if (wasPlaying) useDirectorStore.getState().play();
+
+      return { blob, format: resolvedFormat, fileBase: `storyai-animation-${duration.toFixed(1)}s` };
+    };
+
+    setAnimationExportHandler(handler);
+    return () => {
+      cleanupRef.current?.();
+      setAnimationExportHandler(null);
+    };
+  }, [camera, gl]);
+
+  return null;
+}
+
 export function DirectorCanvas() {
   const viewMode = useDirectorStore((state) => state.viewMode);
+  const animationViewportMode = useDirectorStore((state) => state.animationViewportMode);
+  const isPlaying = useDirectorStore((state) => state.isPlaying);
+  const currentTime = useDirectorStore((state) => state.currentTime);
+  const timeline = useDirectorStore((state) => state.project.timeline);
   const openSceneInspector = useDirectorStore((state) => state.openSceneInspector);
   const sceneSettings = useDirectorStore((state) => state.project.scene);
   const assets = useDirectorStore((state) => state.project.assets);
+  const objects = useDirectorStore((state) => state.project.objects);
   const panoramaAssetId = useDirectorStore((state) => state.project.panoramaAssetId);
   const activeCamera = useDirectorStore((state) =>
     state.project.cameras.find((item) => item.id === state.project.activeCameraId)
@@ -610,17 +692,43 @@ export function DirectorCanvas() {
   const viewportCameraSnapshotRef = useRef<CameraShotSnapshot>(DEFAULT_DIRECTOR_VIEW_SNAPSHOT);
   const [directorViewSnapshot, setDirectorViewSnapshot] = useState(DEFAULT_DIRECTOR_VIEW_SNAPSHOT);
   const [toolbarHeight, setToolbarHeight] = useState(DEFAULT_VIEWPORT_TOOLBAR_HEIGHT);
+  const [animModuleHeight, setAnimModuleHeight] = useState(0);
   const hasPanorama = Boolean(panoramaAssetId);
   const panoramaAsset = assets.find((item) => item.id === panoramaAssetId);
   const showViewportGrid = shouldRenderViewportGrid(hasPanorama, sceneSettings.snapToGrid);
-  const activeCameraView = activeCamera ? getCameraViewSnapshotFromShot(activeCamera) : undefined;
+  const activeCameraView = useMemo(
+    () => (activeCamera ? getCameraViewSnapshotFromShot(activeCamera) : undefined),
+    [activeCamera]
+  );
   const viewportAspectRatio = useDirectorStore((state) => state.viewportAspectRatio);
   const viewportRuleOfThirdsEnabled = useDirectorStore((state) => state.viewportRuleOfThirdsEnabled);
   const viewportPanelsCollapsed = useDirectorStore((state) => state.viewportPanelsCollapsed);
-  const setViewMode = useDirectorStore((state) => state.setViewMode);
+  const setAnimationViewportMode = useDirectorStore((state) => state.setAnimationViewportMode);
+  const animationModuleOpen = useDirectorStore((state) => state.animationModuleOpen);
   const setViewportRuleOfThirdsEnabled = useDirectorStore((state) => state.setViewportRuleOfThirdsEnabled);
+  // 动画模块常驻后，视口视角由 animationViewportMode 决定（导演漫游 / 相机视角）
+  const activeViewMode: "director" | "camera" = animationModuleOpen
+    ? animationViewportMode
+    : viewMode === "camera"
+      ? "camera"
+      : "director";
+  const cameraTrack = activeCamera ? timeline?.tracks?.[activeCamera.id] : undefined;
+  const hasCameraTrack = Boolean(cameraTrack && cameraTrack.length);
+  // 目标约束实时跟随：targetMode==="object" 时相机视角注视点绑定目标对象，优先于手动 target 插值
+  const cameraFollowTarget = activeCamera ? resolveCameraFollowTarget(activeCamera, objects, timeline, currentTime) : null;
+  // 相机视角播放：按 currentTime 插值驱动 position/target/fov（useMemo 保持引用稳定，避免 r3f 无限 re-apply）
+  const animatedCameraView = useMemo(() => {
+    if (!activeCamera || !hasCameraTrack || activeViewMode !== "camera") return undefined;
+    return {
+      fov: interpolateScalar(activeCamera.fov, cameraTrack!, currentTime, "fov"),
+      position: applyTransformAt(activeCamera.transform, cameraTrack!, currentTime).position,
+      target: cameraFollowTarget ?? interpolateTarget(activeCamera.target, cameraTrack!, currentTime),
+    };
+  }, [activeCamera, activeViewMode, cameraFollowTarget, cameraTrack, currentTime, hasCameraTrack]);
+  const displayCameraView = animatedCameraView ?? activeCameraView;
   const visibleViewportSnapshot =
-    viewMode === "camera" && activeCameraView ? activeCameraView : directorViewSnapshot;
+    activeViewMode === "camera" && displayCameraView ? displayCameraView : directorViewSnapshot;
+  const orbitDisabled = isPlaying && activeViewMode === "camera";
   const viewportSafeAreaInsets: ViewportSafeAreaInsets = viewportPanelsCollapsed
     ? { left: 0, right: 0, top: 0, bottom: 0 }
     : { left: LEFT_PANEL_WIDTH, right: RIGHT_PANEL_WIDTH, top: 0, bottom: 0 };
@@ -654,6 +762,35 @@ export function DirectorCanvas() {
     };
   }, []);
 
+  // 测量底部动画栏高度 → 驱动工具栏上浮 + 画面安全区（工具栏恒在动画栏上方）
+  useLayoutEffect(() => {
+    const element = document.querySelector(".animation-module-area") as HTMLElement | null;
+    if (!element) return;
+
+    const updateHeight = () => {
+      const nextHeight = element.offsetHeight;
+      setAnimModuleHeight((current) => (current === nextHeight ? current : nextHeight));
+      document.documentElement.style.setProperty("--anim-module-height", `${nextHeight}px`);
+    };
+
+    updateHeight();
+
+    if (typeof ResizeObserver === "undefined") {
+      window.addEventListener("resize", updateHeight);
+      return () => {
+        window.removeEventListener("resize", updateHeight);
+      };
+    }
+
+    const resizeObserver = new ResizeObserver(updateHeight);
+    resizeObserver.observe(element);
+
+    return () => {
+      resizeObserver.disconnect();
+      window.removeEventListener("resize", updateHeight);
+    };
+  }, []);
+
   function getViewportCameraSnapshot(): CameraShotSnapshot {
     return viewportCameraSnapshotRef.current;
   }
@@ -666,8 +803,8 @@ export function DirectorCanvas() {
   }
 
   function updateViewportGizmoSnapshot(snapshot: CameraShotSnapshot) {
-    if (viewMode !== "director") {
-      setViewMode("director");
+    if (activeViewMode !== "director") {
+      setAnimationViewportMode("director");
     }
     // 坐标轴按钮属于「外部快照更新」，需要同步回相机
     isExternalUpdateRef.current = true;
@@ -675,7 +812,7 @@ export function DirectorCanvas() {
   }
 
   const aspectOverlayBottomPadding =
-    VIEWPORT_FRAME_PADDING + VIEWPORT_TOOLBAR_BOTTOM_OFFSET + toolbarHeight;
+    VIEWPORT_FRAME_PADDING + animModuleHeight + ANIM_MODULE_TOOLBAR_GAP + toolbarHeight;
 
   return (
     <div className="canvas-frame">
@@ -713,11 +850,11 @@ export function DirectorCanvas() {
               userData={{ [HIDE_FROM_VIEWPORT_CAPTURE_KEY]: true }}
             />
           ) : null}
-          {viewMode === "director" ? (
+          {activeViewMode === "director" ? (
             <OrbitControls
               ref={controlsRef}
               enableDamping
-              enabled
+              enabled={!orbitDisabled}
               makeDefault
               target={DEFAULT_DIRECTOR_VIEW_SNAPSHOT.target}
               onChange={(event) => {
@@ -732,18 +869,19 @@ export function DirectorCanvas() {
               }}
             />
           ) : null}
+          <AnimationRecorder />
           <DirectorViewCameraSync
             controlsRef={controlsRef}
             isExternalUpdateRef={isExternalUpdateRef}
             snapshot={directorViewSnapshot}
-            viewMode={viewMode}
+            viewMode={activeViewMode}
           />
-          {viewMode === "camera" && activeCameraView ? (
+          {activeViewMode === "camera" && displayCameraView ? (
             <PerspectiveCamera
-              fov={activeCameraView.fov}
+              fov={displayCameraView.fov}
               makeDefault
-              position={activeCameraView.position}
-              onUpdate={(camera) => camera.lookAt(...activeCameraView.target)}
+              position={displayCameraView.position}
+              onUpdate={(camera) => camera.lookAt(...displayCameraView.target)}
             />
           ) : null}
           <CanvasCaptureBridge
@@ -752,7 +890,7 @@ export function DirectorCanvas() {
             controlsRef={controlsRef}
             safeAreaInsets={viewportSafeAreaInsets}
             viewportAspectRatio={viewportAspectRatio}
-            viewMode={viewMode}
+            viewMode={activeViewMode}
           />
           <Suspense fallback={null}>
             <SceneRoot />

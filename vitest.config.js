@@ -18,7 +18,7 @@ export default defineConfig({
       // 组件测试（.jsx 一律 jsdom）
       ['tests/unit/**/*.test.jsx', 'jsdom'],
     ],
-    include: ['tests/unit/**/*.test.{js,jsx}'],
+    include: ['tests/unit/**/*.test.{js,jsx,ts}'],
     globals: true,
     setupFiles: ['tests/setup.mjs'],
     // 并发优化：forks 池默认懒启动、minForks 偏低导致整包跑得慢。

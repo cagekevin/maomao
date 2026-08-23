@@ -8,6 +8,7 @@ import { useDirectorStore, type TransformMode } from "../editor/store/directorSt
  * 监听挂载在 window 上，cleanup 时移除 → 导演台关闭即完全失效，不污染主画布/其他页面。
  *
  * 当前键位：
+ *  - F9  一键记录选中对象/相机 PSR 到当前播放头（addKeyframeForSelection）
  *  - E  切换为「移动」工具
  *  - R  切换为「旋转」工具
  *  - T  切换为「缩放」工具
@@ -15,7 +16,7 @@ import { useDirectorStore, type TransformMode } from "../editor/store/directorSt
  * 守卫：
  *  - 目标为 input/textarea/select/contentEditable 时忽略（避免属性面板输入误触发）
  *  - 按住 ctrl/meta/alt 时忽略（避免与浏览器/系统快捷键冲突）
- *  - 仅响应无修饰键的字母键（key.length === 1）
+ *  - 仅响应无修饰键的字母键（key.length === 1）与 F9
  */
 export function useDirectorViewportShortcuts() {
   useEffect(() => {
@@ -37,6 +38,13 @@ export function useDirectorViewportShortcuts() {
       if (event.ctrlKey || event.metaKey || event.altKey) return;
       // 表单控件输入中忽略
       if (isEditableTarget(event.target)) return;
+
+      // F9 一键记录选中对象 PSR（C4D 快捷键）
+      if (event.key === "F9") {
+        event.preventDefault();
+        useDirectorStore.getState().addKeyframeForSelection();
+        return;
+      }
 
       const key = event.key.toLowerCase();
       const mode = MODE_BY_KEY[key];

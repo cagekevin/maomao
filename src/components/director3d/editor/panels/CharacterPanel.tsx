@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react";
 import {
-  InspectorAxisGroup,
   InspectorColorField,
   InspectorPanel,
   InspectorRangeNumberField,
@@ -9,24 +8,33 @@ import {
 } from "./InspectorControls";
 import { MANNEQUIN_POSE_PRESETS } from "../presets/mannequinPosePresets";
 import { getCrowdAnchorTransform, useDirectorStore } from "../store/directorStore";
+import { TransformKeyframeRows, buildVecAxisRows, hasFieldAtPlayhead, replaceAxis, type TransformRowDef } from "./TransformKeyframeRows";
+import { buildAxisKeyframeFields } from "../runtime/timelineInterpolation";
 
-function replaceAxis(tuple: [number, number, number], axis: 0 | 1 | 2, value: number): [number, number, number] {
-  return tuple.map((item, index) => (index === axis ? value : item)) as [number, number, number];
-}
+/**
+ * 角色面板（自包含）：
+ * 名称/颜色 + 统一打帧行（位置/旋转/缩放 XYZ + 统一缩放）+ 动画开关 + 姿势。
+ * 变换输入与打帧合一行（单一真相）。
+ */
 
 export function CharacterPanel() {
   const [activeTab, setActiveTab] = useState<"properties" | "pose">("properties");
   const selectedCrowdId = useDirectorStore((state) => state.selectedCrowdId);
   const selectedObjectId = useDirectorStore((state) => state.selectedObjectId);
   const objects = useDirectorStore((state) => state.project.objects);
+  const timeline = useDirectorStore((state) => state.project.timeline);
+  const currentTime = useDirectorStore((state) => state.currentTime);
   const updateObjectName = useDirectorStore((state) => state.updateObjectName);
   const updateCrowdLabel = useDirectorStore((state) => state.updateCrowdLabel);
+  const updateObjectColor = useDirectorStore((state) => state.updateObjectColor);
+  const updateCrowdColor = useDirectorStore((state) => state.updateCrowdColor);
   const updateObjectTransform = useDirectorStore((state) => state.updateObjectTransform);
   const updateCrowdTransform = useDirectorStore((state) => state.updateCrowdTransform);
   const updateUniformScale = useDirectorStore((state) => state.updateUniformScale);
   const updateCrowdUniformScale = useDirectorStore((state) => state.updateCrowdUniformScale);
-  const updateObjectColor = useDirectorStore((state) => state.updateObjectColor);
-  const updateCrowdColor = useDirectorStore((state) => state.updateCrowdColor);
+  const setKeyframeGroupAtPlayhead = useDirectorStore((state) => state.setKeyframeGroupAtPlayhead);
+  const setObjectFaceMovement = useDirectorStore((state) => state.setObjectFaceMovement);
+  const setObjectWalkAnimation = useDirectorStore((state) => state.setObjectWalkAnimation);
   const applyPosePreset = useDirectorStore((state) => state.applyPosePreset);
   const applyCrowdPosePreset = useDirectorStore((state) => state.applyCrowdPosePreset);
   const updatePoseControl = useDirectorStore((state) => state.updatePoseControl);
@@ -65,11 +73,84 @@ export function CharacterPanel() {
     };
   }, [objects, selectedCrowdId, selectedObjectId]);
 
+  const transformRows = useMemo(() => {
+    if (!selection) return [];
+    const isCrowd = selection.mode === "crowd";
+    const id = isCrowd ? (selection.crowdId as string) : selection.role.id;
+    const transform = selection.crowdAnchor;
+    const track = isCrowd ? [] : (timeline?.tracks?.[id] ?? []);
+    const keyframable = !isCrowd;
+
+    const updateVec = (field: "position" | "rotation" | "scale", axis: 0 | 1 | 2, value: number) => {
+      if (isCrowd) {
+        updateCrowdTransform(id, { [field]: replaceAxis(transform[field], axis, value) });
+        return;
+      }
+      updateObjectTransform(id, { [field]: replaceAxis(transform[field], axis, value) });
+    };
+    const keyframeVec = (field: "position" | "rotation" | "scale", axis: 0 | 1 | 2, vec: [number, number, number]) => {
+      if (isCrowd) return;
+      setKeyframeGroupAtPlayhead(id, buildAxisKeyframeFields(track, currentTime, field, axis, vec));
+    };
+
+    const rows: TransformRowDef[] = [
+      ...buildVecAxisRows({
+        field: "position",
+        vec: transform.position,
+        track,
+        currentTime,
+        update: (axis, value) => updateVec("position", axis, value),
+        keyframe: (axis, vec) => keyframeVec("position", axis, vec),
+        keyframable,
+      }),
+      ...buildVecAxisRows({
+        field: "rotation",
+        vec: transform.rotation,
+        track,
+        currentTime,
+        update: (axis, value) => updateVec("rotation", axis, value),
+        keyframe: (axis, vec) => keyframeVec("rotation", axis, vec),
+        keyframable,
+      }),
+      ...buildVecAxisRows({
+        field: "scale",
+        vec: transform.scale,
+        track,
+        currentTime,
+        update: (axis, value) => updateVec("scale", axis, value),
+        keyframe: (axis, vec) => keyframeVec("scale", axis, vec),
+        keyframable,
+      }),
+      {
+        key: "uniform-scale",
+        label: "统一缩放",
+        value: transform.scale[0],
+        hasKey: hasFieldAtPlayhead(track, currentTime, "scale"),
+        onValueChange: (value) => (isCrowd ? updateCrowdUniformScale(id, value) : updateUniformScale(id, value)),
+        onKeyframe: () => {
+          if (isCrowd) return;
+          const s = transform.scale[0];
+          setKeyframeGroupAtPlayhead(id, { scale: [s, s, s] });
+        },
+        keyframable,
+      },
+    ];
+    return rows;
+  }, [
+    currentTime,
+    selection,
+    setKeyframeGroupAtPlayhead,
+    timeline,
+    updateCrowdTransform,
+    updateCrowdUniformScale,
+    updateObjectTransform,
+    updateUniformScale,
+  ]);
+
   if (!selection) return null;
 
   const role = selection.role;
   const roleColor = selection.color;
-  const transform = selection.crowdAnchor;
   const isCrowd = selection.mode === "crowd";
   const poseGroups = [
     {
@@ -171,155 +252,6 @@ export function CharacterPanel() {
               updateObjectName(role.id, value);
             }}
           />
-          <InspectorAxisGroup
-            label="位置"
-            axes={[
-              {
-                axis: "X",
-                ariaLabel: "角色位置 X",
-                value: transform.position[0],
-                onChange: (value) =>
-                  isCrowd && selection.crowdId
-                    ? updateCrowdTransform(selection.crowdId, {
-                        position: replaceAxis(transform.position, 0, Number(value)),
-                      })
-                    : updateObjectTransform(role.id, {
-                        position: replaceAxis(transform.position, 0, Number(value)),
-                      }),
-              },
-              {
-                axis: "Y",
-                ariaLabel: "角色位置 Y",
-                value: transform.position[1],
-                onChange: (value) =>
-                  isCrowd && selection.crowdId
-                    ? updateCrowdTransform(selection.crowdId, {
-                        position: replaceAxis(transform.position, 1, Number(value)),
-                      })
-                    : updateObjectTransform(role.id, {
-                        position: replaceAxis(transform.position, 1, Number(value)),
-                      }),
-              },
-              {
-                axis: "Z",
-                ariaLabel: "角色位置 Z",
-                value: transform.position[2],
-                onChange: (value) =>
-                  isCrowd && selection.crowdId
-                    ? updateCrowdTransform(selection.crowdId, {
-                        position: replaceAxis(transform.position, 2, Number(value)),
-                      })
-                    : updateObjectTransform(role.id, {
-                        position: replaceAxis(transform.position, 2, Number(value)),
-                      }),
-              },
-            ]}
-          />
-          <InspectorAxisGroup
-            label="旋转"
-            axes={[
-              {
-                axis: "X",
-                ariaLabel: "角色旋转 X",
-                value: transform.rotation[0],
-                onChange: (value) =>
-                  isCrowd && selection.crowdId
-                    ? updateCrowdTransform(selection.crowdId, {
-                        rotation: replaceAxis(transform.rotation, 0, Number(value)),
-                      })
-                    : updateObjectTransform(role.id, {
-                        rotation: replaceAxis(transform.rotation, 0, Number(value)),
-                      }),
-              },
-              {
-                axis: "Y",
-                ariaLabel: "角色旋转 Y",
-                value: transform.rotation[1],
-                onChange: (value) =>
-                  isCrowd && selection.crowdId
-                    ? updateCrowdTransform(selection.crowdId, {
-                        rotation: replaceAxis(transform.rotation, 1, Number(value)),
-                      })
-                    : updateObjectTransform(role.id, {
-                        rotation: replaceAxis(transform.rotation, 1, Number(value)),
-                      }),
-              },
-              {
-                axis: "Z",
-                ariaLabel: "角色旋转 Z",
-                value: transform.rotation[2],
-                onChange: (value) =>
-                  isCrowd && selection.crowdId
-                    ? updateCrowdTransform(selection.crowdId, {
-                        rotation: replaceAxis(transform.rotation, 2, Number(value)),
-                      })
-                    : updateObjectTransform(role.id, {
-                        rotation: replaceAxis(transform.rotation, 2, Number(value)),
-                      }),
-              },
-            ]}
-          />
-          <InspectorAxisGroup
-            label="缩放"
-            axes={[
-              {
-                axis: "X",
-                ariaLabel: "角色缩放 X",
-                step: "0.01",
-                value: transform.scale[0],
-                onChange: (value) =>
-                  isCrowd && selection.crowdId
-                    ? updateCrowdTransform(selection.crowdId, {
-                        scale: replaceAxis(transform.scale, 0, Number(value)),
-                      })
-                    : updateObjectTransform(role.id, {
-                        scale: replaceAxis(transform.scale, 0, Number(value)),
-                      }),
-              },
-              {
-                axis: "Y",
-                ariaLabel: "角色缩放 Y",
-                step: "0.01",
-                value: transform.scale[1],
-                onChange: (value) =>
-                  isCrowd && selection.crowdId
-                    ? updateCrowdTransform(selection.crowdId, {
-                        scale: replaceAxis(transform.scale, 1, Number(value)),
-                      })
-                    : updateObjectTransform(role.id, {
-                        scale: replaceAxis(transform.scale, 1, Number(value)),
-                      }),
-              },
-              {
-                axis: "Z",
-                ariaLabel: "角色缩放 Z",
-                step: "0.01",
-                value: transform.scale[2],
-                onChange: (value) =>
-                  isCrowd && selection.crowdId
-                    ? updateCrowdTransform(selection.crowdId, {
-                        scale: replaceAxis(transform.scale, 2, Number(value)),
-                      })
-                    : updateObjectTransform(role.id, {
-                        scale: replaceAxis(transform.scale, 2, Number(value)),
-                      }),
-              },
-            ]}
-          />
-          <InspectorRangeNumberField
-            label="统一缩放"
-            rangeAriaLabel="角色统一缩放滑杆"
-            numberAriaLabel="角色统一缩放"
-            max="3"
-            min="0.2"
-            step="0.01"
-            value={transform.scale[0]}
-            onValueChange={(value) =>
-              isCrowd && selection.crowdId
-                ? updateCrowdUniformScale(selection.crowdId, Number(value))
-                : updateUniformScale(role.id, Number(value))
-            }
-          />
           <InspectorColorField
             label="颜色"
             colorAriaLabel="角色颜色"
@@ -332,6 +264,27 @@ export function CharacterPanel() {
               isCrowd && selection.crowdId ? updateCrowdColor(selection.crowdId, value) : updateObjectColor(role.id, value)
             }
           />
+          <TransformKeyframeRows rows={transformRows} />
+          <InspectorSection title="动画" className="character-anim-section">
+            <div className="anim-ed-toggle-row">
+              <button
+                type="button"
+                className={`anim-ed-toggle${role.faceMovement !== false ? " is-active" : ""}`}
+                aria-pressed={role.faceMovement !== false}
+                onClick={() => setObjectFaceMovement(role.id, role.faceMovement === false)}
+              >
+                自动朝向
+              </button>
+              <button
+                type="button"
+                className={`anim-ed-toggle${role.walkAnimation === true ? " is-active" : ""}`}
+                aria-pressed={role.walkAnimation === true}
+                onClick={() => setObjectWalkAnimation(role.id, role.walkAnimation !== true)}
+              >
+                走路
+              </button>
+            </div>
+          </InspectorSection>
         </>
       ) : (
         <InspectorSection title="姿势预设" className="pose-preset-section">

@@ -40,6 +40,7 @@
     "@react-three/fiber": "^9.7.0",
     "@xyflow/react": "^12.3.5",
     "dagre": "^0.8.5",
+    "framer-motion": "^13.1.1",
     "gifenc": "^1.0.3",
     "lucide-react": "^0.451.0",
     "mediabunny": "^1.54.0",

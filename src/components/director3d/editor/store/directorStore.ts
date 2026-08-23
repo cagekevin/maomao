@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { MANNEQUIN_POSE_PRESETS } from "../presets/mannequinPosePresets";
 import { GEOMETRY_PRIMITIVE_OPTIONS } from "../schema/directorProject";
+import { generateId } from "../../../base/idGen.js";
 import type {
   DirectorAssetRef,
   DirectorAssetSource,
@@ -8,15 +9,30 @@ import type {
   DirectorAssetKind,
   DirectorCameraCapture,
   DirectorCameraShot,
+  DirectorKeyframe,
   DirectorObject,
   DirectorProject,
+  DirectorTimeline,
   DirectorTransform,
   GeometryPrimitiveType,
   PanoramaProjectionMode,
   SceneSettings,
   ViewMode,
+  AnimationViewportMode,
 } from "../schema/directorProject";
 import type { PosePresetId } from "../schema/poseSchema";
+import {
+  appendKeyframes,
+  buildCameraShotKeyframes,
+  createDefaultTimeline,
+  interpolatePose,
+  upsertPoseKeyframe,
+  upsertTransformKeyframe,
+  upsertKeyframeFields,
+  TIME_EPSILON,
+  type CameraShotPresetId,
+  type CameraShotOptions,
+} from "../runtime/timelineInterpolation";
 import { getDirectorObjectFocusTarget } from "../schema/cameraTarget";
 import { DEFAULT_CHARACTER_BODY_TYPE, normalizeBodyType } from "../runtime/mannequin/bodyTypes";
 import {
@@ -66,6 +82,23 @@ export interface DirectorUiState {
   viewportAspectRatio: ViewportAspectRatio;
   viewportRuleOfThirdsEnabled: boolean;
   viewportPanelsCollapsed: boolean;
+  /** 动画模块：右栏切动画面板 + 底部时间轴条（随 viewMode="animation" 联动） */
+  animationModuleOpen: boolean;
+  /** 底部时间轴条是否折叠（折叠后视口工具栏露出；工具栏恒在动画栏上方） */
+  animationModuleCollapsed: boolean;
+  /** 动画模式下视口视角：导演（自由漫游）/ 相机（按时间轴渲染） */
+  animationViewportMode: AnimationViewportMode;
+  /** 播放头（秒） */
+  currentTime: number;
+  isPlaying: boolean;
+  /** 播放到末尾是否循环回开头（默认开） */
+  loopPlayback: boolean;
+  /** Auto Key 自动关键帧：开启后改参数/拖对象自动记录当前播放头关键帧（默认关，C4D 惯例用完即关） */
+  autoKeyEnabled: boolean;
+  /** 视口 IK 摆姿势开关 */
+  poseHandlesEnabled: boolean;
+  /** 曲线编辑器弹窗当前打开的轨道 id（null=关闭；瞬态 UI，不持久化） */
+  curveEditorTrackId: string | null;
 }
 
 export interface DirectorState extends DirectorUiState {
@@ -140,6 +173,48 @@ export interface DirectorActions {
   replaceProject: (project: DirectorProject) => void;
   saveLatestSnapshot: () => void;
   restoreLatestSnapshot: () => void;
+  // —— 动画（手K）模块 ——
+  setCurrentTime: (time: number) => void;
+  play: () => void;
+  pause: () => void;
+  togglePlay: () => void;
+  toggleLoopPlayback: () => void;
+  /** 按属性组打帧：在当前播放头给目标对象/相机写入/合并指定维度，保留其他维度 */
+  setKeyframeGroupAtPlayhead: (
+    trackId: string,
+    fields: Partial<Omit<DirectorKeyframe, "id" | "time">>
+  ) => void;
+  setTimelineDuration: (value: number) => void;
+  setTimelineFps: (value: number) => void;
+  addKeyframeForSelection: () => void;
+  /**
+   * 视口拖动提交（Auto Key 感知，系统唯一入口）：
+   * - Auto Key 开 → 播放头写/覆盖关键帧（位移+旋转，相机可带 target/fov）
+   * - Auto Key 关但播放头已有关键帧 → 更新该帧位移字段（避免播放回跳）
+   * - 否则 → 只改对象/相机 transform
+   * id 为对象 id 或相机 linkedCameraId。
+   */
+  commitViewportDrag: (
+    id: string,
+    transform: DirectorTransform,
+    extras?: { target?: [number, number, number]; fov?: number }
+  ) => void;
+  captureViewportToCameraKeyframe: (snapshot: CameraShotSnapshot) => void;
+  updateKeyframe: (trackId: string, keyframeId: string, patch: Partial<DirectorKeyframe>) => void;
+  removeKeyframe: (trackId: string, keyframeId: string) => void;
+  removeKeyframes: (trackId: string, filter?: (frame: DirectorKeyframe) => boolean) => void;
+  clearTrack: (trackId: string) => void;
+  applyCameraShotPreset: (cameraId: string, preset: CameraShotPresetId, options: CameraShotOptions) => void;
+  setAnimationViewportMode: (mode: AnimationViewportMode) => void;
+  setAutoKeyEnabled: (enabled: boolean) => void;
+  setPoseHandlesEnabled: (enabled: boolean) => void;
+  /** 打开曲线编辑器弹窗（trackId 为对象 id 或相机 linkedCameraId） */
+  openCurveEditor: (trackId: string) => void;
+  closeCurveEditor: () => void;
+  /** 折叠/展开底部时间轴条（折叠后视口工具栏露出，工具栏恒在动画栏上方） */
+  setAnimationModuleCollapsed: (collapsed: boolean) => void;
+  setObjectFaceMovement: (objectId: string, enabled: boolean) => void;
+  setObjectWalkAnimation: (objectId: string, enabled: boolean) => void;
 }
 
 type DirectorRuntimeState = DirectorState & DirectorInternalState;
@@ -187,6 +262,16 @@ const DEFAULT_UI_STATE: DirectorUiState = {
   viewportAspectRatio: "auto",
   viewportRuleOfThirdsEnabled: false,
   viewportPanelsCollapsed: false,
+  /** 动画模块：默认常驻（右栏唯一动画面板 + 底部时间轴条） */
+  animationModuleOpen: true,
+  animationModuleCollapsed: false,
+  animationViewportMode: "director",
+  currentTime: 0,
+  isPlaying: false,
+  loopPlayback: true,
+  autoKeyEnabled: false,
+  poseHandlesEnabled: false,
+  curveEditorTrackId: null,
 };
 
 function normalizeDirectorScenePersistenceScopeId(scopeId: string | null | undefined) {
@@ -371,6 +456,15 @@ function extractPersistedDirectorState(state: DirectorRuntimeState): DirectorSta
     viewportAspectRatio: state.viewportAspectRatio,
     viewportRuleOfThirdsEnabled: state.viewportRuleOfThirdsEnabled,
     viewportPanelsCollapsed: state.viewportPanelsCollapsed,
+    animationModuleOpen: state.animationModuleOpen,
+    animationModuleCollapsed: state.animationModuleCollapsed,
+    animationViewportMode: state.animationViewportMode,
+    currentTime: state.currentTime,
+    isPlaying: state.isPlaying,
+    loopPlayback: state.loopPlayback,
+    autoKeyEnabled: state.autoKeyEnabled,
+    poseHandlesEnabled: state.poseHandlesEnabled,
+    curveEditorTrackId: null,
     project: state.project,
   });
 }
@@ -425,6 +519,15 @@ function readPersistedDirectorState(options: DirectorStateOptions = {}): Directo
       viewportAspectRatio: state.viewportAspectRatio ?? "auto",
       viewportRuleOfThirdsEnabled: Boolean(state.viewportRuleOfThirdsEnabled),
       viewportPanelsCollapsed: Boolean(state.viewportPanelsCollapsed),
+      animationModuleOpen: true,
+      animationModuleCollapsed: Boolean(state.animationModuleCollapsed),
+      animationViewportMode: state.animationViewportMode === "camera" ? "camera" : "director",
+      currentTime: 0,
+      isPlaying: false,
+      loopPlayback: true,
+      autoKeyEnabled: false,
+      poseHandlesEnabled: false,
+      curveEditorTrackId: null,
       project: withPersistedLocalAssets(
         migrateDirectorProject(cloneJsonValue(state.project)),
         options.includePersistedLocalAssets
@@ -446,11 +549,29 @@ function createRuntimeStateFromPersistedState(state: DirectorState): DirectorRun
     undoBatchDepth: 0,
     undoBatchSnapshot: null,
     undoBatchHasTrackedChanges: false,
+    // 动画瞬态字段：不持久化，反序列化时统一回默认（避免 undefined 崩）；动画模块常驻
+    animationModuleOpen: true,
+    animationModuleCollapsed: snapshot.animationModuleCollapsed ?? false,
+    animationViewportMode: snapshot.animationViewportMode ?? "director",
+    currentTime: 0,
+    isPlaying: false,
+    loopPlayback: true,
+    autoKeyEnabled: false,
+    poseHandlesEnabled: false,
+    curveEditorTrackId: null,
   };
 }
 
 function createUndoStackEntry(state: DirectorRuntimeState) {
   return extractPersistedDirectorState(state);
+}
+
+/** 兼容老工程：读写 timeline 前的缺省兜底 */
+function withAnimationDefaults(project: DirectorProject): DirectorProject {
+  return {
+    ...project,
+    timeline: project.timeline ?? createDefaultTimeline(),
+  };
 }
 
 export function createDefaultDirectorProject({
@@ -477,6 +598,7 @@ export function createDefaultDirectorProject({
     locked: false,
     bodyType: DEFAULT_CHARACTER_BODY_TYPE,
     color: "#4F8EF7",
+    faceMovement: true,
     transform: createTransform([0, 0, 0]),
     characterRig: {
       rigType: "ue4-mannequin",
@@ -503,6 +625,7 @@ export function createDefaultDirectorProject({
     cameras: [camera],
     activeCameraId: camera.id,
     panoramaAssetId: null,
+    timeline: createDefaultTimeline(),
   };
 }
 
@@ -609,6 +732,7 @@ function buildPresetCharacterObject(
     locked: false,
     bodyType: normalizedBodyType,
     color: getNextCharacterColor(state.project.objects),
+    faceMovement: true,
     crowdId: crowdMetadata?.crowdId,
     crowdLabel: crowdMetadata?.crowdLabel,
     transform: createTransform(position),
@@ -1155,25 +1279,36 @@ export const useDirectorStore = create<DirectorStore>((set, get) => {
         viewportPanelsCollapsed: collapsed,
       })),
     setViewMode: (mode) =>
-      commitUiMutation((state) => ({
-        ...state,
-        viewMode: mode,
-        project: {
-          ...state.project,
-          activeCameraId:
-            mode === "camera"
-              ? state.project.activeCameraId ?? state.project.cameras[0]?.id ?? null
-              : state.project.activeCameraId,
-        },
-      })),
+      commitUiMutation((state) => {
+        const project = withAnimationDefaults(state.project);
+        return {
+          ...state,
+          viewMode: mode,
+          project: {
+            ...project,
+            activeCameraId:
+              mode === "camera"
+                ? state.project.activeCameraId ?? state.project.cameras[0]?.id ?? null
+                : state.project.activeCameraId,
+          },
+        };
+      }),
     selectObject: (id) =>
       commitUiMutation((state) => {
-        const selectedObject = state.project.objects.find((item) => item.id === id);
+        const direct = state.project.objects.find((item) => item.id === id);
+        // 时间轴点击相机轨道行时传入的是 linkedCameraId（机位 id），反向映射回相机对象，
+        // 避免 selectedObjectId 变成无效 id 导致动画面板 kfTarget 失联（统一映射，勿在各处手写）
+        const selectedObject =
+          direct ??
+          (id != null
+            ? state.project.objects.find((item) => item.kind === "camera" && item.linkedCameraId === id)
+            : undefined);
+        const resolvedId = selectedObject?.id ?? id;
 
         return {
           ...state,
-          selectedObjectId: id,
-          selectedObjectIds: id ? [id] : [],
+          selectedObjectId: resolvedId,
+          selectedObjectIds: resolvedId ? [resolvedId] : [],
           selectedCrowdId: null,
           directorInspectorMode: "auto",
           project: {
@@ -1317,11 +1452,30 @@ export const useDirectorStore = create<DirectorStore>((set, get) => {
           : null;
         const nextObject = currentObject && nextTransform ? { ...currentObject, transform: nextTransform } : null;
 
+        // Auto Key 开 → 属性输入自动写当前播放头关键帧（位移/旋转/缩放）
+        const project = withAnimationDefaults(state.project);
+        let timeline = project.timeline;
+        if (
+          state.autoKeyEnabled &&
+          currentObject &&
+          currentObject.kind !== "camera" &&
+          nextTransform &&
+          (patch.position != null || patch.rotation != null || patch.scale != null)
+        ) {
+          timeline = upsertTransformKeyframe(
+            timeline!,
+            id,
+            { position: nextTransform.position, rotation: nextTransform.rotation, scale: nextTransform.scale },
+            state.currentTime
+          );
+        }
+
         return {
           ...state,
           project: {
-            ...state.project,
-            objects: updateObjectById(state.project.objects, id, (item) => ({
+            ...project,
+            timeline,
+            objects: updateObjectById(project.objects, id, (item) => ({
               ...item,
               transform: {
                 position: patch.position ?? item.transform.position,
@@ -1456,18 +1610,31 @@ export const useDirectorStore = create<DirectorStore>((set, get) => {
             }
           : null;
 
+        // Auto Key 开 → 统一缩放也写当前播放头缩放关键帧
+        const project = withAnimationDefaults(state.project);
+        let timeline = project.timeline;
+        if (state.autoKeyEnabled && currentObject) {
+          timeline = upsertTransformKeyframe(
+            timeline!,
+            id,
+            { position: currentObject.transform.position, rotation: currentObject.transform.rotation, scale: [scale, scale, scale] },
+            state.currentTime
+          );
+        }
+
         return {
           ...state,
           project: {
-            ...state.project,
-            objects: updateObjectById(state.project.objects, id, (item) => ({
+            ...project,
+            timeline,
+            objects: updateObjectById(project.objects, id, (item) => ({
               ...item,
               transform: {
                 ...item.transform,
                 scale: [scale, scale, scale],
               },
             })),
-            cameras: nextObject ? refreshCamerasFocusedOnObject(state.project.cameras, nextObject) : state.project.cameras,
+            cameras: nextObject ? refreshCamerasFocusedOnObject(project.cameras, nextObject) : project.cameras,
           },
         };
       }),
@@ -1832,23 +1999,30 @@ export const useDirectorStore = create<DirectorStore>((set, get) => {
     applyPosePreset: (id, presetId) =>
       commitMutation((state) => {
         const preset = MANNEQUIN_POSE_PRESETS.find((item) => item.id === presetId);
+        const project = withAnimationDefaults(state.project);
+        const time = state.currentTime;
+        let timeline = project.timeline;
+        let didWrite = false;
 
-        return {
-          ...state,
-          project: {
-            ...state.project,
-            objects: updateObjectById(state.project.objects, id, (item) => ({
-              ...item,
-              characterRig: item.characterRig
-                ? {
-                    ...item.characterRig,
-                    posePresetId: presetId,
-                    controls: preset ? { ...preset.controls } : item.characterRig.controls,
-                  }
-                : item.characterRig,
-            })),
-          },
-        };
+        const objects = updateObjectById(project.objects, id, (item) => {
+          if (!item.characterRig) return item;
+          const controls = preset ? { ...preset.controls } : item.characterRig.controls;
+          // 关键帧感知（外部契约）：有轨道且轨道含姿态帧才写播放头帧，不要求动画模式
+          const track = timeline?.tracks?.[id];
+          const hasPoseFrames = track != null && track.some((frame) => frame.posePresetId != null);
+          if (track && hasPoseFrames) {
+            timeline = upsertPoseKeyframe(timeline!, id, item.characterRig, time, presetId, controls);
+            didWrite = true;
+          }
+          return {
+            ...item,
+            characterRig: { ...item.characterRig, posePresetId: presetId, controls },
+          };
+        });
+
+        return didWrite
+          ? { ...state, project: { ...project, objects, timeline } }
+          : { ...state, project: { ...project, objects } };
       }),
     applyCrowdPosePreset: (crowdId, presetId) =>
       commitMutation((state) => {
@@ -1876,24 +2050,40 @@ export const useDirectorStore = create<DirectorStore>((set, get) => {
         };
       }),
     updatePoseControl: (id, key, value) =>
-      commitMutation((state) => ({
-        ...state,
-        project: {
-          ...state.project,
-          objects: updateObjectById(state.project.objects, id, (item) => ({
+      commitMutation((state) => {
+        const project = withAnimationDefaults(state.project);
+        let timeline = project.timeline;
+        let didWrite = false;
+
+        const objects = updateObjectById(project.objects, id, (item) => {
+          if (!item.characterRig || item.kind !== "character") return item;
+
+          // 用插值姿势作基础（滚动播放时跟随当前帧）再覆写该骨骼值
+          const track = timeline?.tracks?.[id] ?? [];
+          const base = interpolatePose(item.characterRig, track, state.currentTime);
+          const posePresetId = base?.posePresetId ?? item.characterRig.posePresetId;
+          const controls = { ...(base?.controls ?? item.characterRig.controls), [key]: value };
+          // Auto Key 开 → 写播放头姿态帧；关但播放头已有姿态帧 → 同步该帧，避免播放回跳
+          const hasFrameAtPlayhead = track.some((frame) => Math.abs(frame.time - state.currentTime) < TIME_EPSILON);
+          if (state.autoKeyEnabled || hasFrameAtPlayhead) {
+            timeline = upsertPoseKeyframe(timeline!, id, item.characterRig, state.currentTime, posePresetId, controls);
+            didWrite = true;
+            return { ...item, characterRig: { ...item.characterRig, posePresetId, controls } };
+          }
+
+          return {
             ...item,
-            characterRig: item.characterRig
-              ? {
-                  ...item.characterRig,
-                  controls: {
-                    ...item.characterRig.controls,
-                    [key]: value,
-                  },
-                }
-              : item.characterRig,
-            })),
-        },
-      })),
+            characterRig: {
+              ...item.characterRig,
+              controls: { ...item.characterRig.controls, [key]: value },
+            },
+          };
+        });
+
+        return didWrite
+          ? { ...state, project: { ...project, objects, timeline } }
+          : { ...state, project: { ...project, objects } };
+      }),
     updateCrowdPoseControl: (crowdId, key, value) =>
       commitMutation((state) => ({
         ...state,
@@ -1966,27 +2156,50 @@ export const useDirectorStore = create<DirectorStore>((set, get) => {
         };
       }),
     updateCamera: (cameraId, patch) =>
-      commitMutation((state) => ({
-        ...state,
-        project: {
-          ...state.project,
-          cameras: state.project.cameras.map((item) =>
-            item.id === cameraId
-              ? {
-                  ...item,
-                  ...patch,
-                  transform: patch.transform ?? item.transform,
-                  target: patch.target ?? item.target,
-                }
-              : item
-          ),
-          objects: state.project.objects.map((item) =>
-            item.kind === "camera" && item.linkedCameraId === cameraId && patch.transform
-              ? { ...item, transform: patch.transform }
-              : item
-          ),
-        },
-      })),
+      commitMutation((state) => {
+        const project = withAnimationDefaults(state.project);
+        const camera = project.cameras.find((item) => item.id === cameraId);
+        let timeline = project.timeline;
+
+        // Auto Key 开 → 机位参数改动自动写当前播放头相机关键帧（位置/看向/FOV）
+        if (state.autoKeyEnabled && camera) {
+          const transform = patch.transform ?? camera.transform;
+          timeline = upsertTransformKeyframe(
+            timeline!,
+            cameraId,
+            {
+              position: transform.position,
+              rotation: transform.rotation,
+              target: patch.target ?? camera.target,
+              fov: patch.fov ?? camera.fov,
+            },
+            state.currentTime
+          );
+        }
+
+        return {
+          ...state,
+          project: {
+            ...project,
+            timeline,
+            cameras: project.cameras.map((item) =>
+              item.id === cameraId
+                ? {
+                    ...item,
+                    ...patch,
+                    transform: patch.transform ?? item.transform,
+                    target: patch.target ?? item.target,
+                  }
+                : item
+            ),
+            objects: project.objects.map((item) =>
+              item.kind === "camera" && item.linkedCameraId === cameraId && patch.transform
+                ? { ...item, transform: patch.transform }
+                : item
+            ),
+          },
+        };
+      }),
     copySelectedObjects: () => {
       const currentState = get() as DirectorRuntimeState;
       const clipboard = buildClipboardEntries(currentState);
@@ -2053,5 +2266,317 @@ export const useDirectorStore = create<DirectorStore>((set, get) => {
       });
       writePersistedDirectorState(snapshot);
     },
+    // —— 动画（手K）模块 actions ——
+    setCurrentTime: (time) =>
+      set((state) => {
+        const current = state as DirectorRuntimeState;
+        const timeline = withAnimationDefaults(current.project).timeline!;
+        const clamped = Number.isFinite(time) ? Math.min(Math.max(time, 0), timeline.duration) : 0;
+        return { ...current, currentTime: clamped };
+      }),
+    play: () =>
+      set((state) => ({ ...(state as DirectorRuntimeState), isPlaying: true })),
+    pause: () =>
+      set((state) => ({ ...(state as DirectorRuntimeState), isPlaying: false })),
+    togglePlay: () =>
+      set((state) => {
+        const current = state as DirectorRuntimeState;
+        return { ...current, isPlaying: !current.isPlaying };
+      }),
+    toggleLoopPlayback: () =>
+      set((state) => {
+        const current = state as DirectorRuntimeState;
+        return { ...current, loopPlayback: !current.loopPlayback };
+      }),
+    setKeyframeGroupAtPlayhead: (trackId, fields) =>
+      commitMutation((state) => {
+        const project = withAnimationDefaults(state.project);
+        const timeline = upsertKeyframeFields(project.timeline!, trackId, fields, state.currentTime);
+        return { ...state, project: { ...project, timeline } };
+      }),
+    setTimelineDuration: (value) =>
+      commitMutation((state) => {
+        const project = withAnimationDefaults(state.project);
+        const duration = Number.isFinite(value) ? Math.min(Math.max(value, 0.1), 600) : project.timeline!.duration;
+        return { ...state, project: { ...project, timeline: { ...project.timeline!, duration } } };
+      }),
+    setTimelineFps: (value) =>
+      commitMutation((state) => {
+        const project = withAnimationDefaults(state.project);
+        const fps = Number.isFinite(value) ? Math.min(Math.max(Math.round(value), 1), 120) : project.timeline!.fps;
+        return { ...state, project: { ...project, timeline: { ...project.timeline!, fps } } };
+      }),
+    addKeyframeForSelection: () =>
+      commitMutation((state) => {
+        const project = withAnimationDefaults(state.project);
+        const selectedIds = getOrderedSelectedObjectIds(state);
+        const time = state.currentTime;
+        let timeline = project.timeline!;
+        let didWrite = false;
+
+        selectedIds.forEach((objectId) => {
+          const object = project.objects.find((item) => item.id === objectId);
+          if (!object) return;
+
+          if (object.kind === "camera") {
+            const cameraId = object.linkedCameraId;
+            if (!cameraId) return;
+            const camera = project.cameras.find((item) => item.id === cameraId);
+            timeline = appendKeyframes(
+              timeline,
+              cameraId,
+              [
+                {
+                  id: generateId("kf"),
+                  time,
+                  position: object.transform.position,
+                  target: camera ? camera.target : object.transform.position,
+                  easing: "linear",
+                },
+              ],
+              "append"
+            );
+            didWrite = true;
+            return;
+          }
+
+          const keyframe: DirectorKeyframe = {
+            id: generateId("kf"),
+            time,
+            position: object.transform.position,
+            rotation: object.transform.rotation,
+            scale: object.transform.scale,
+            easing: "linear",
+          };
+          if (object.kind === "character" && object.characterRig) {
+            keyframe.posePresetId = object.characterRig.posePresetId;
+            keyframe.controls = object.characterRig.controls;
+            keyframe.easing = "ease";
+          }
+          timeline = appendKeyframes(timeline, object.id, [keyframe], "append");
+          didWrite = true;
+        });
+
+        return didWrite ? { ...state, project: { ...project, timeline } } : { ...state, project };
+      }),
+    commitViewportDrag: (id, transform, extras) =>
+      commitMutation((state) => {
+        const project = withAnimationDefaults(state.project);
+        const timeline = project.timeline!;
+        const track = timeline.tracks[id] ?? [];
+        const frameAtPlayhead = track.find((item) => Math.abs(item.time - state.currentTime) < TIME_EPSILON);
+
+        if (state.autoKeyEnabled) {
+          // Auto Key：写/覆盖当前播放头关键帧（其余同帧维度保留）
+          const nextTimeline = upsertTransformKeyframe(
+            timeline,
+            id,
+            { position: transform.position, rotation: transform.rotation, scale: transform.scale, target: extras?.target, fov: extras?.fov },
+            state.currentTime
+          );
+          return { ...state, project: { ...project, timeline: nextTimeline } };
+        }
+
+        if (frameAtPlayhead) {
+          // Auto Key 关但播放头已有关键帧：更新该帧位移字段，避免播放回跳
+          const patch: Partial<DirectorKeyframe> = {
+            position: transform.position,
+            rotation: transform.rotation,
+            scale: transform.scale,
+          };
+          if (extras?.target != null) patch.target = extras.target;
+          if (extras?.fov != null) patch.fov = extras.fov;
+          const nextTrack = (timeline.tracks[id] ?? []).map((item) =>
+            item.id === frameAtPlayhead.id ? { ...item, ...patch } : item
+          );
+          const nextTimeline = { ...timeline, tracks: { ...timeline.tracks, [id]: nextTrack } };
+          return { ...state, project: { ...project, timeline: nextTimeline } };
+        }
+
+        // 普通态：只改对象/相机 transform
+        const camera = project.cameras.find((item) => item.id === id);
+        if (camera) {
+          return {
+            ...state,
+            project: {
+              ...project,
+              cameras: project.cameras.map((item) =>
+                item.id === id
+                  ? {
+                      ...item,
+                      transform,
+                      target: extras?.target ?? item.target,
+                      ...(extras?.fov != null ? { fov: extras.fov } : {}),
+                    }
+                  : item
+              ),
+              objects: project.objects.map((item) =>
+                item.kind === "camera" && item.linkedCameraId === id ? { ...item, transform } : item
+              ),
+            },
+          };
+        }
+        return {
+          ...state,
+          project: {
+            ...project,
+            objects: updateObjectById(project.objects, id, (item) => ({ ...item, transform })),
+          },
+        };
+      }),
+    captureViewportToCameraKeyframe: (snapshot) =>
+      commitMutation((state) => {
+        const project = withAnimationDefaults(state.project);
+        const cameraId = state.project.activeCameraId;
+        const camera = cameraId ? project.cameras.find((item) => item.id === cameraId) : undefined;
+        if (!cameraId || !camera) return { ...state, project };
+        const timeline = appendKeyframes(
+          project.timeline!,
+          cameraId,
+          [
+            {
+              id: generateId("kf"),
+              time: state.currentTime,
+              position: snapshot.position,
+              target: snapshot.target,
+              fov: snapshot.fov,
+              easing: "linear",
+            },
+          ],
+          "append"
+        );
+        return { ...state, project: { ...project, timeline } };
+      }),
+    updateKeyframe: (trackId, keyframeId, patch) =>
+      commitMutation((state) => {
+        const project = withAnimationDefaults(state.project);
+        const timeline = project.timeline!;
+        const track = timeline.tracks[trackId] ?? [];
+        const nextTrack = track
+          .map((frame) => (frame.id === keyframeId ? { ...frame, ...patch } : frame))
+          .sort((a, b) => a.time - b.time);
+        const maxTime = nextTrack.reduce((max, frame) => Math.max(max, frame.time), 0);
+        return {
+          ...state,
+          project: {
+            ...project,
+            timeline: {
+              ...timeline,
+              duration: Math.max(timeline.duration ?? 0, maxTime + 0.001),
+              tracks: { ...timeline.tracks, [trackId]: nextTrack },
+            },
+          },
+        };
+      }),
+    removeKeyframe: (trackId, keyframeId) =>
+      commitMutation((state) => {
+        const project = withAnimationDefaults(state.project);
+        const timeline = project.timeline!;
+        const track = timeline.tracks[trackId] ?? [];
+        return {
+          ...state,
+          project: {
+            ...project,
+            timeline: { ...timeline, tracks: { ...timeline.tracks, [trackId]: track.filter((frame) => frame.id !== keyframeId) } },
+          },
+        };
+      }),
+    removeKeyframes: (trackId, filter) =>
+      commitMutation((state) => {
+        const project = withAnimationDefaults(state.project);
+        const timeline = project.timeline!;
+        const track = timeline.tracks[trackId] ?? [];
+        const nextTrack = filter ? track.filter((frame) => !filter(frame)) : [];
+        const nextTracks = { ...timeline.tracks, [trackId]: nextTrack };
+        if (!filter) delete nextTracks[trackId];
+        return { ...state, project: { ...project, timeline: { ...timeline, tracks: nextTracks } } };
+      }),
+    clearTrack: (trackId) =>
+      commitMutation((state) => {
+        const project = withAnimationDefaults(state.project);
+        const timeline = project.timeline!;
+        const tracks = { ...timeline.tracks };
+        delete tracks[trackId];
+        return { ...state, project: { ...project, timeline: { ...timeline, tracks } } };
+      }),
+    applyCameraShotPreset: (cameraId, preset, options) =>
+      commitMutation((state) => {
+        const project = withAnimationDefaults(state.project);
+        const camera = project.cameras.find((item) => item.id === cameraId);
+        if (!camera) return { ...state, project };
+        // startTime 缺省取播放头（外部契约：applyCameraShotPreset 内部用 currentTime 兜底）
+        const resolvedOptions = {
+          ...options,
+          startTime: options.startTime ?? state.currentTime,
+        };
+        const keyframes = buildCameraShotKeyframes(
+          { position: camera.transform.position, target: camera.target, fov: camera.fov },
+          preset,
+          resolvedOptions
+        );
+        const timeline = appendKeyframes(project.timeline!, cameraId, keyframes);
+        const first = keyframes[0];
+
+        return {
+          ...state,
+          project: {
+            ...project,
+            timeline,
+            cameras: project.cameras.map((item) =>
+              item.id === cameraId ? { ...item, transform: { ...item.transform, position: first.position }, target: first.target, fov: first.fov } : item
+            ),
+            objects: project.objects.map((item) =>
+              item.kind === "camera" && item.linkedCameraId === cameraId ? { ...item, transform: { ...item.transform, position: first.position } } : item
+            ),
+          },
+        };
+      }),
+    setAnimationViewportMode: (mode) =>
+      set((state) => {
+        const current = state as DirectorRuntimeState;
+        return {
+          ...current,
+          animationViewportMode: mode,
+          project: {
+            ...current.project,
+            activeCameraId:
+              mode === "camera"
+                ? current.project.activeCameraId ?? current.project.cameras[0]?.id ?? null
+                : current.project.activeCameraId,
+          },
+        };
+      }),
+    setPoseHandlesEnabled: (enabled) =>
+      set((state) => ({ ...(state as DirectorRuntimeState), poseHandlesEnabled: enabled })),
+    setAutoKeyEnabled: (enabled) =>
+      set((state) => ({ ...(state as DirectorRuntimeState), autoKeyEnabled: enabled })),
+    openCurveEditor: (trackId) =>
+      set((state) => ({ ...(state as DirectorRuntimeState), curveEditorTrackId: trackId })),
+    closeCurveEditor: () =>
+      set((state) => ({ ...(state as DirectorRuntimeState), curveEditorTrackId: null })),
+    setAnimationModuleCollapsed: (collapsed) =>
+      set((state) => ({ ...(state as DirectorRuntimeState), animationModuleCollapsed: collapsed })),
+    setObjectFaceMovement: (objectId, enabled) =>
+      commitMutation((state) => ({
+        ...state,
+        project: {
+          ...state.project,
+          objects: updateObjectById(state.project.objects, objectId, (item) => ({
+            ...item,
+            faceMovement: enabled,
+          })),
+        },
+      })),
+    setObjectWalkAnimation: (objectId, enabled) =>
+      commitMutation((state) => ({
+        ...state,
+        project: {
+          ...state.project,
+          objects: updateObjectById(state.project.objects, objectId, (item) => ({
+            ...item,
+            walkAnimation: enabled,
+          })),
+        },
+      })),
   };
 });

@@ -8,7 +8,9 @@ import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js";
 import type {
   DirectorAssetRef,
   DirectorCameraShot,
+  CharacterRigState,
   DirectorObject,
+  DirectorTransform,
   GeometryPrimitiveType,
 } from "../schema/directorProject";
 import {
@@ -25,6 +27,7 @@ import { getGroundedLabelY } from "../runtime/mannequin/bodyTypes";
 import { getUE4GroundedLabelY } from "../runtime/ue4Mannequin/ue4MannequinRig";
 import { getEffectiveGroundOpacity } from "./panoramaMath";
 import { getCrowdAnchorTransform } from "../store/directorStore";
+import { applyTransformAt, applyWalkCycle, interpolatePose, interpolateTarget, resolveCameraFollowTarget } from "../runtime/timelineInterpolation";
 
 export { getEffectiveGroundOpacity, getPanoramaRotationRadians } from "./panoramaMath";
 
@@ -452,6 +455,8 @@ function ObjectSceneNode({
   transformable,
   translationSnap,
   onSelect,
+  animatedTransform,
+  animatedRig,
 }: {
   asset?: DirectorAssetRef;
   item: DirectorObject;
@@ -461,13 +466,15 @@ function ObjectSceneNode({
   transformable: boolean;
   translationSnap: number | null;
   onSelect?: (item: DirectorObject) => void;
+  animatedTransform?: DirectorTransform | null;
+  animatedRig?: CharacterRigState | null;
 }) {
   const groupRef = useRef<Group>(null!);
   const [measuredCharacterLabel, setMeasuredCharacterLabel] = useState<{
     key: string;
     y: number;
   } | null>(null);
-  const updateObjectTransform = useDirectorStore((state) => state.updateObjectTransform);
+  const commitViewportDrag = useDirectorStore((state) => state.commitViewportDrag);
   const isImportedModel = asset?.sourceType === "model";
   const characterLabelKey = `${item.id}:${item.bodyType ?? ""}:${item.characterRig?.rigType ?? ""}`;
   const fallbackCharacterLabelY =
@@ -500,19 +507,25 @@ function ObjectSceneNode({
     const group = groupRef.current;
     if (!group) return;
 
-    updateObjectTransform(item.id, {
+    const transform: DirectorTransform = {
       position: [group.position.x, group.position.y, group.position.z],
       rotation: [group.rotation.x, group.rotation.y, group.rotation.z],
       scale: [group.scale.x, group.scale.y, group.scale.z],
-    });
+    };
+    // Auto Key 感知统一提交：开→写播放头帧；关但有帧→同步该帧；否则只改 transform
+    commitViewportDrag(item.id, transform);
   }
+
+  const renderedPosition = animatedTransform ? animatedTransform.position : item.transform.position;
+  const renderedRotation = animatedTransform ? animatedTransform.rotation : item.transform.rotation;
+  const renderedScale = animatedTransform ? animatedTransform.scale : item.transform.scale;
 
   const node = (
     <group
       ref={groupRef}
-      position={item.transform.position}
-      rotation={item.transform.rotation}
-      scale={item.transform.scale}
+      position={renderedPosition}
+      rotation={renderedRotation}
+      scale={renderedScale}
       onClick={(event) => {
         event.stopPropagation();
         onSelect?.(item);
@@ -529,7 +542,7 @@ function ObjectSceneNode({
               bodyType={item.bodyType}
               color={item.color}
               onLabelAnchorYChange={handleCharacterLabelAnchorYChange}
-              rigState={item.characterRig}
+              rigState={animatedRig ?? item.characterRig}
             />
           </Suspense>
           {showLabels ? (
@@ -638,6 +651,8 @@ function ViewportCameraRig({
   transformMode,
   transformable,
   translationSnap,
+  animatedTransform,
+  animatedTarget,
 }: {
   camera: DirectorCameraShot;
   object?: DirectorObject;
@@ -646,17 +661,19 @@ function ViewportCameraRig({
   transformMode: TransformMode;
   transformable: boolean;
   translationSnap: number | null;
+  animatedTransform?: DirectorTransform | null;
+  animatedTarget?: [number, number, number] | null;
 }) {
   const groupRef = useRef<Group>(null!);
   const selectObject = useDirectorStore((state) => state.selectObject);
-  const updateCamera = useDirectorStore((state) => state.updateCamera);
+  const commitViewportDrag = useDirectorStore((state) => state.commitViewportDrag);
   const bodyWireframeLines = useMemo(() => getViewportCameraBodyWireframeLines(), []);
   const cameraHitArea = useMemo(() => getViewportCameraHitArea(), []);
   const cameraLabelY = useMemo(() => getViewportCameraLabelY(), []);
   const frustumLines = useMemo(() => getViewportCameraFrustumLines(camera), [camera]);
   const cameraQuaternion = useMemo(
-    () => getViewportCameraQuaternion(camera.transform.position, camera.target),
-    [camera.target, camera.transform.position]
+    () => getViewportCameraQuaternion(camera.transform.position, animatedTarget ?? camera.target),
+    [animatedTarget, camera.target, camera.transform.position]
   );
 
   useLayoutEffect(() => {
@@ -672,14 +689,15 @@ function ViewportCameraRig({
     const currentDistance = new Vector3(...camera.target).distanceTo(group.position);
     const nextTarget = group.position.clone().add(forward.multiplyScalar(Math.max(currentDistance, 0.1)));
 
-    updateCamera(camera.id, {
-      transform: {
-        position,
-        rotation: [group.rotation.x, group.rotation.y, group.rotation.z],
-        scale: [group.scale.x, group.scale.y, group.scale.z],
-      },
-      target: [nextTarget.x, nextTarget.y, nextTarget.z],
-    });
+    const transform: DirectorTransform = {
+      position,
+      rotation: [group.rotation.x, group.rotation.y, group.rotation.z],
+      scale: [group.scale.x, group.scale.y, group.scale.z],
+    };
+    const target: [number, number, number] = [nextTarget.x, nextTarget.y, nextTarget.z];
+
+    // Auto Key 感知统一提交：开→写播放头相机帧（位置+看向）；关但有帧→同步该帧；否则只改机位
+    commitViewportDrag(camera.id, transform, { target });
   }
 
   function selectCameraFromViewport(event: ThreeEvent<MouseEvent>) {
@@ -690,7 +708,7 @@ function ViewportCameraRig({
   const node = (
     <group
       ref={groupRef}
-      position={camera.transform.position}
+      position={animatedTransform ? animatedTransform.position : camera.transform.position}
       quaternion={cameraQuaternion}
       scale={object?.transform.scale ?? [1, 1, 1]}
       userData={{ [HIDE_FROM_VIEWPORT_CAPTURE_KEY]: true }}
@@ -755,6 +773,11 @@ export function SceneRoot() {
   const cameras = useDirectorStore((state) => state.project.cameras);
   const panoramaAssetId = useDirectorStore((state) => state.project.panoramaAssetId);
   const viewMode = useDirectorStore((state) => state.viewMode);
+  const animationViewportMode = useDirectorStore((state) => state.animationViewportMode);
+  const animationModuleOpen = useDirectorStore((state) => state.animationModuleOpen);
+  const isPlaying = useDirectorStore((state) => state.isPlaying);
+  const currentTime = useDirectorStore((state) => state.currentTime);
+  const timeline = useDirectorStore((state) => state.project.timeline);
   const selectedObjectId = useDirectorStore((state) => state.selectedObjectId);
   const selectedCrowdId = useDirectorStore((state) => state.selectedCrowdId);
   const transformMode = useDirectorStore((state) => state.transformMode);
@@ -762,6 +785,7 @@ export function SceneRoot() {
   const selectCrowd = useDirectorStore((state) => state.selectCrowd);
   const panoramaAsset = assets.find((item) => item.id === panoramaAssetId);
   const translationSnap = scene.snapToGrid ? 1 : null;
+  const showCameraRigs = animationModuleOpen ? animationViewportMode === "director" : viewMode === "director";
   const assetsById = useMemo(() => new Map(assets.map((item) => [item.id, item])), [assets]);
   const cameraObjectsByCameraId = useMemo(() => {
     return new Map(
@@ -781,6 +805,55 @@ export function SceneRoot() {
 
     return result;
   }, [objects]);
+
+  // 逐帧动画插值：整体用 useMemo 按 currentTime/轨道缓存，保证同一时间点下引用稳定，
+  // 避免每次渲染新建 position/rotation 数组导致 r3f 无限 re-apply（Maximum update depth）。
+  const objectAnims = useMemo(() => {
+    const map = new Map<string, { animatedTransform: DirectorTransform | null; animatedRig: CharacterRigState | null }>();
+    if (!animationModuleOpen) return map;
+    for (const item of objects) {
+      if (item.kind === "camera") continue;
+      const track = timeline?.tracks?.[item.id];
+      if (!track || track.length === 0) continue;
+      const isFace = item.kind === "character" && item.faceMovement === true;
+      const animatedTransform = applyTransformAt(item.transform, track, currentTime, isFace);
+      let animatedRig: CharacterRigState | null = null;
+      if (item.kind === "character" && item.characterRig) {
+        const pose = interpolatePose(item.characterRig, track, currentTime);
+        const basePoseId = pose?.posePresetId ?? item.characterRig.posePresetId;
+        // 走路开关开启 → 播放时叠加走路循环动画（腿部/手臂周期性摆动）
+        const isWalking = isPlaying && item.walkAnimation === true;
+        const controls = isWalking ? applyWalkCycle(currentTime) : (pose?.controls ?? item.characterRig.controls);
+        animatedRig = {
+          ...item.characterRig,
+          posePresetId: isWalking ? "walk" : basePoseId,
+          controls,
+        };
+      }
+      map.set(item.id, { animatedTransform, animatedRig });
+    }
+    return map;
+  }, [animationModuleOpen, currentTime, isPlaying, objects, timeline]);
+
+  // 相机轨道插值同理，缓存避免每次渲染新建数组
+  const cameraAnims = useMemo(() => {
+    const map = new Map<string, { animatedTransform: DirectorTransform | null; animatedTarget: [number, number, number] | null }>();
+    if (!animationModuleOpen) return map;
+    for (const camera of cameras) {
+      // 目标约束实时跟随：targetMode==="object" 时注视点绑定目标对象（C4D Target），优先于手动 target 插值
+      const followTarget = resolveCameraFollowTarget(camera, objects, timeline, currentTime);
+      const track = timeline?.tracks?.[camera.id];
+      if (!track || track.length === 0) {
+        if (followTarget) map.set(camera.id, { animatedTransform: null, animatedTarget: followTarget });
+        continue;
+      }
+      map.set(camera.id, {
+        animatedTransform: applyTransformAt(camera.transform, track, currentTime),
+        animatedTarget: followTarget ?? interpolateTarget(camera.target, track, currentTime),
+      });
+    }
+    return map;
+  }, [animationModuleOpen, cameras, currentTime, objects, timeline]);
 
   function handleObjectSelect(item: DirectorObject) {
     if (item.kind === "character" && item.crowdId) {
@@ -814,6 +887,7 @@ export function SceneRoot() {
         .filter((item) => item.visible && item.kind !== "camera")
         .map((item) => {
           const asset = item.assetRefId ? assetsById.get(item.assetRefId) : undefined;
+          const anim = objectAnims.get(item.id);
 
           return (
             <ObjectSceneNode
@@ -823,9 +897,11 @@ export function SceneRoot() {
               selected={item.crowdId ? false : item.id === selectedObjectId}
               showLabels={scene.showLabels}
               transformMode={transformMode}
-              transformable={!item.locked}
+              transformable={!item.locked && !isPlaying}
               translationSnap={translationSnap}
               onSelect={handleObjectSelect}
+              animatedTransform={anim?.animatedTransform ?? null}
+              animatedRig={anim?.animatedRig ?? null}
             />
           );
         })}
@@ -842,22 +918,27 @@ export function SceneRoot() {
           />
         )
       )}
-      {viewMode === "director"
+      {showCameraRigs
         ? cameras
-            .map((camera) => ({ camera, object: cameraObjectsByCameraId.get(camera.id) }))
-            .filter(({ object }) => object?.visible ?? true)
-            .map(({ camera, object }) => (
-              <ViewportCameraRig
-                key={camera.id}
-                camera={camera}
-                object={object}
-                selected={object?.id === selectedObjectId}
-                showLabel={scene.showLabels}
-                transformMode={transformMode}
-                transformable={Boolean(object && !object.locked)}
-                translationSnap={translationSnap}
-              />
-            ))
+            .map((camera) => {
+              const anim = cameraAnims.get(camera.id);
+              const object = cameraObjectsByCameraId.get(camera.id);
+
+              return (
+                <ViewportCameraRig
+                  key={camera.id}
+                  camera={camera}
+                  object={object}
+                  selected={object?.id === selectedObjectId}
+                  showLabel={scene.showLabels}
+                  transformMode={transformMode}
+                  transformable={Boolean(object && !object.locked && !isPlaying)}
+                  translationSnap={translationSnap}
+                  animatedTransform={anim?.animatedTransform ?? null}
+                  animatedTarget={anim?.animatedTarget ?? null}
+                />
+              );
+            })
         : null}
     </group>
   );

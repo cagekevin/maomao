@@ -17,6 +17,7 @@ import {
   Grid3X3,
   Image,
   ImagePlus,
+  Key,
   Move3D,
   Plus,
   Ratio,
@@ -54,6 +55,7 @@ type ToolbarAction = {
   label: string;
   icon: LucideIcon;
   mode?: TransformMode;
+  disabled?: boolean;
   onClick: () => void;
 };
 
@@ -128,11 +130,14 @@ export function ViewportToolbar({
   const addGeometryPrimitive = useDirectorStore((state) => state.addGeometryPrimitive);
   const addCameraShot = useDirectorStore((state) => state.addCameraShot);
   const addCameraCaptures = useDirectorStore((state) => state.addCameraCaptures);
+  const animationViewportMode = useDirectorStore((state) => state.animationViewportMode);
+  const animationModuleOpen = useDirectorStore((state) => state.animationModuleOpen);
   const activeCameraId = useDirectorStore((state) => state.project.activeCameraId);
-  const viewMode = useDirectorStore((state) => state.viewMode);
+  const captureViewportToCameraKeyframe = useDirectorStore((state) => state.captureViewportToCameraKeyframe);
   const transformMode = useDirectorStore((state) => state.transformMode);
   const viewportAspectRatio = useDirectorStore((state) => state.viewportAspectRatio);
-  const setViewMode = useDirectorStore((state) => state.setViewMode);
+  const setAnimationViewportMode = useDirectorStore((state) => state.setAnimationViewportMode);
+  const setActiveCamera = useDirectorStore((state) => state.setActiveCamera);
   const setTransformMode = useDirectorStore((state) => state.setTransformMode);
   const setViewportAspectRatio = useDirectorStore((state) => state.setViewportAspectRatio);
   const toggleViewportPanelsCollapsed = useDirectorStore((state) => state.toggleViewportPanelsCollapsed);
@@ -309,9 +314,10 @@ export function ViewportToolbar({
   async function handleCapture(preset: "current" | "four" | "twelve") {
     try {
       const targetCameraId =
-        viewMode === "director" ? addCameraShot(getViewportCameraSnapshot?.()) : activeCameraId;
+        animationViewportMode === "director" ? addCameraShot(getViewportCameraSnapshot?.()) : activeCameraId;
 
-      setViewMode("camera");
+      if (targetCameraId) setActiveCamera(targetCameraId);
+      setAnimationViewportMode("camera");
       await waitForNextAnimationFrame();
 
       const results = await requestViewportCapture({
@@ -426,6 +432,15 @@ export function ViewportToolbar({
     addCameraShot(snapshot);
   }
 
+  /** 「视口存为关键帧」：动画-相机视角下把当前视口捕获为激活机位的关键帧（C7 常驻工具栏） */
+  const canCaptureToKeyframe = animationModuleOpen && animationViewportMode === "camera" && Boolean(activeCameraId);
+
+  function captureViewportAsKeyframe() {
+    const snapshot = getViewportCameraSnapshot?.();
+    if (!snapshot || !activeCameraId) return;
+    captureViewportToCameraKeyframe(snapshot);
+  }
+
   function toggleAspectRatioPanel() {
     setAspectRatioPanelOpen((isOpen) => !isOpen);
     setCharacterMenuOpen(false);
@@ -457,6 +472,12 @@ export function ViewportToolbar({
     { label: "当前视角截图", icon: Camera, onClick: () => void handleCapture("current") },
     { label: "四方位截图", icon: Grid2X2, onClick: () => void handleCapture("four") },
     { label: "十二方位截图", icon: Grid3X3, onClick: () => void handleCapture("twelve") },
+    {
+      label: "视口存为关键帧",
+      icon: Key,
+      disabled: !canCaptureToKeyframe,
+      onClick: captureViewportAsKeyframe,
+    },
     { label: "全屏", icon: Expand, onClick: toggleViewportPanelsCollapsed },
   ];
 
@@ -469,7 +490,9 @@ export function ViewportToolbar({
         key={action.label}
         aria-label={action.label}
         aria-pressed={action.mode ? active : undefined}
-        className={`ui-icon-button viewport-toolbar-button${active ? " is-active" : ""}`}
+        aria-disabled={action.disabled || undefined}
+        className={`ui-icon-button viewport-toolbar-button${active ? " is-active" : ""}${action.disabled ? " is-disabled" : ""}`}
+        disabled={action.disabled || undefined}
         type="button"
         onClick={action.onClick}
       >

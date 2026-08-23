@@ -1,9 +1,7 @@
 import { Camera, Download, Eye, Images, Send, Trash2, X, ZoomIn, ZoomOut } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  InspectorAxisGroup,
   InspectorPanel,
-  InspectorRangeNumberField,
   InspectorSection,
   InspectorSelectField,
   InspectorTextField,
@@ -14,14 +12,12 @@ import { postDirectorDeskCapturesToHost } from "../io/hostBridge";
 import { getDirectorObjectFocusTarget, isCameraFocusableObject } from "../schema/cameraTarget";
 import type { DirectorCameraCapture } from "../schema/directorProject";
 import { useDirectorStore } from "../store/directorStore";
+import { TransformKeyframeRows, buildVecAxisRows, hasFieldAtPlayhead, replaceAxis, type TransformRowDef } from "./TransformKeyframeRows";
+import { buildAxisKeyframeFields } from "../runtime/timelineInterpolation";
 
 const VIEWER_ZOOM_MIN = 0.25;
 const VIEWER_ZOOM_MAX = 5;
 const VIEWER_ZOOM_STEP = 0.25;
-
-function replaceAxis(tuple: [number, number, number], axis: 0 | 1 | 2, value: number): [number, number, number] {
-  return tuple.map((item, index) => (index === axis ? value : item)) as [number, number, number];
-}
 
 export function CameraPanel() {
   const [activeTab, setActiveTab] = useState<"properties" | "captures">("properties");
@@ -42,13 +38,60 @@ export function CameraPanel() {
   );
   const cameras = useDirectorStore((state) => state.project.cameras);
   const objects = useDirectorStore((state) => state.project.objects);
+  const timeline = useDirectorStore((state) => state.project.timeline);
+  const currentTime = useDirectorStore((state) => state.currentTime);
   const setActiveCamera = useDirectorStore((state) => state.setActiveCamera);
   const addCameraCaptures = useDirectorStore((state) => state.addCameraCaptures);
   const updateCamera = useDirectorStore((state) => state.updateCamera);
+  const setKeyframeGroupAtPlayhead = useDirectorStore((state) => state.setKeyframeGroupAtPlayhead);
 
   if (!camera) return null;
   const currentCamera = camera;
   const captures = useMemo(() => currentCamera.captures ?? [], [currentCamera.captures]);
+  const cameraTransformRows = useMemo(() => {
+    const track = timeline?.tracks?.[currentCamera.id] ?? [];
+    const targetDisabled = currentCamera.targetMode === "object";
+    const rows: TransformRowDef[] = [
+      ...buildVecAxisRows({
+        field: "position",
+        vec: currentCamera.transform.position,
+        track,
+        currentTime,
+        update: (axis, value) =>
+          updateCamera(currentCamera.id, {
+            transform: {
+              ...currentCamera.transform,
+              position: replaceAxis(currentCamera.transform.position, axis, value),
+            },
+          }),
+        keyframe: (axis, vec) =>
+          setKeyframeGroupAtPlayhead(currentCamera.id, buildAxisKeyframeFields(track, currentTime, "position", axis, vec)),
+      }),
+      ...buildVecAxisRows({
+        field: "target",
+        vec: currentCamera.target,
+        track,
+        currentTime,
+        update: (axis, value) =>
+          updateCamera(currentCamera.id, {
+            target: replaceAxis(currentCamera.target, axis, value),
+          }),
+        keyframe: (axis, vec) =>
+          setKeyframeGroupAtPlayhead(currentCamera.id, buildAxisKeyframeFields(track, currentTime, "target", axis, vec)),
+        disabled: targetDisabled,
+        disabledReason: "已绑定注视目标，注视点自动跟随对象，无需手动打帧",
+      }),
+      {
+        key: "fov",
+        label: "视野 FOV",
+        value: currentCamera.fov,
+        hasKey: hasFieldAtPlayhead(track, currentTime, "fov"),
+        onValueChange: (value) => updateCamera(currentCamera.id, { fov: value }),
+        onKeyframe: () => setKeyframeGroupAtPlayhead(currentCamera.id, { fov: currentCamera.fov }),
+      },
+    ];
+    return rows;
+  }, [currentCamera, currentTime, setKeyframeGroupAtPlayhead, timeline, updateCamera]);
   const cameraCaptureGroups = useMemo(
     () =>
       cameras.map((item) => ({
@@ -248,14 +291,6 @@ export function CameraPanel() {
       targetMode: "object",
       targetObjectId: targetObject.id,
       target: getDirectorObjectFocusTarget(targetObject),
-    });
-  }
-
-  function updateManualTarget(axis: 0 | 1 | 2, value: string) {
-    updateCamera(currentCamera.id, {
-      targetMode: "manual",
-      targetObjectId: null,
-      target: replaceAxis(currentCamera.target, axis, Number(value)),
     });
   }
 
@@ -495,47 +530,6 @@ export function CameraPanel() {
               </option>
             ))}
           </InspectorSelectField>
-          <InspectorAxisGroup
-            label="位置"
-            axes={[
-              {
-                axis: "X",
-                ariaLabel: "机位位置 X",
-                value: currentCamera.transform.position[0],
-                onChange: (value) =>
-                  updateCamera(currentCamera.id, {
-                    transform: {
-                      ...currentCamera.transform,
-                      position: replaceAxis(currentCamera.transform.position, 0, Number(value)),
-                    },
-                  }),
-              },
-              {
-                axis: "Y",
-                ariaLabel: "机位位置 Y",
-                value: currentCamera.transform.position[1],
-                onChange: (value) =>
-                  updateCamera(currentCamera.id, {
-                    transform: {
-                      ...currentCamera.transform,
-                      position: replaceAxis(currentCamera.transform.position, 1, Number(value)),
-                    },
-                  }),
-              },
-              {
-                axis: "Z",
-                ariaLabel: "机位位置 Z",
-                value: currentCamera.transform.position[2],
-                onChange: (value) =>
-                  updateCamera(currentCamera.id, {
-                    transform: {
-                      ...currentCamera.transform,
-                      position: replaceAxis(currentCamera.transform.position, 2, Number(value)),
-                    },
-                  }),
-              },
-            ]}
-          />
           <InspectorSelectField
             label="注视目标"
             ariaLabel="注视目标模式"
@@ -549,39 +543,7 @@ export function CameraPanel() {
               </option>
             ))}
           </InspectorSelectField>
-          <InspectorAxisGroup
-            label="注视坐标"
-            axes={[
-              {
-                axis: "X",
-                ariaLabel: "注视坐标 X",
-                value: currentCamera.target[0],
-                onChange: (value) => updateManualTarget(0, value),
-              },
-              {
-                axis: "Y",
-                ariaLabel: "注视坐标 Y",
-                value: currentCamera.target[1],
-                onChange: (value) => updateManualTarget(1, value),
-              },
-              {
-                axis: "Z",
-                ariaLabel: "注视坐标 Z",
-                value: currentCamera.target[2],
-                onChange: (value) => updateManualTarget(2, value),
-              },
-            ]}
-          />
-          <InspectorRangeNumberField
-            label="视野角度 (FOV)"
-            rangeAriaLabel="机位 FOV 滑杆"
-            numberAriaLabel="机位 FOV"
-            max="120"
-            min="10"
-            step="0.1"
-            value={currentCamera.fov}
-            onValueChange={(value) => updateCamera(currentCamera.id, { fov: Number(value) })}
-          />
+          <TransformKeyframeRows rows={cameraTransformRows} />
           <InspectorSection title="相机截图" className="camera-capture-section">
             <button
               className="camera-capture-current-button"

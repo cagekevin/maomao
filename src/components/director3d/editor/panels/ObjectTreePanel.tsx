@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type MouseEvent } from "react";
-import { Box, Camera, ChevronDown, ChevronRight, Eye, EyeOff, Lock, Search, Unlock, User, Users } from "lucide-react";
+import { Box, Camera, ChevronDown, ChevronRight, Eye, EyeOff, Lock, Search, Trash2, Unlock, User, Users, Video } from "lucide-react";
 import type { DirectorObject, DirectorObjectKind } from "../schema/directorProject";
 import { useDirectorStore } from "../store/directorStore";
 
@@ -25,10 +25,8 @@ const GROUP_LABELS: Array<{
   key: string;
   title: string;
 }> = [
-  { key: "characters", title: "角色" },
-  { key: "crowd", title: "群众" },
-  { key: "geometry", title: "几何体" },
-  { key: "my-models", title: "我的模型" },
+  { key: "characters", title: "人物" },
+  { key: "props", title: "道具" },
   { key: "cameras", title: "摄像机" },
 ];
 
@@ -63,6 +61,10 @@ export function ObjectTreePanel() {
   const selectCrowd = useDirectorStore((state) => state.selectCrowd);
   const toggleObjectSelection = useDirectorStore((state) => state.toggleObjectSelection);
   const setActiveCamera = useDirectorStore((state) => state.setActiveCamera);
+  const animationViewportMode = useDirectorStore((state) => state.animationViewportMode);
+  const activeCameraId = useDirectorStore((state) => state.project.activeCameraId);
+  const setAnimationViewportMode = useDirectorStore((state) => state.setAnimationViewportMode);
+  const openCurveEditor = useDirectorStore((state) => state.openCurveEditor);
   const toggleObjectVisible = useDirectorStore((state) => state.toggleObjectVisible);
   const toggleObjectLocked = useDirectorStore((state) => state.toggleObjectLocked);
   const deleteSelectedObject = useDirectorStore((state) => state.deleteSelectedObject);
@@ -148,34 +150,26 @@ export function ObjectTreePanel() {
     });
 
     return {
-      characters: regularItems.filter((item) => item.object?.kind === "character"),
-      crowd: Array.from(crowdItems.values()),
-      geometry: regularItems.filter(
-        (item) =>
-          (item.object?.kind === "scene" && !isModelBackedObject(item.object)) ||
-          (item.object?.kind === "prop" && !item.object?.assetRefId)
-      ),
-      myModels: regularItems.filter((item) => isModelBackedObject(item.object)),
+      // 人物组：单个角色 + 群众（统一一个人物大组）
+      characters: [...regularItems.filter((item) => item.object?.kind === "character"), ...Array.from(crowdItems.values())],
+      // 道具组：几何体/道具/模型统一一组（不分子组）
+      props: regularItems.filter((item) => item.object?.kind === "prop" || item.object?.kind === "scene"),
       cameras: regularItems.filter((item) => item.object?.kind === "camera"),
     };
   }, [objects, assetsById]);
 
   useEffect(() => {
-    const crowdIds = new Set(groupedItems.crowd.map((item) => item.id));
+    const crowdIds = new Set(groupedItems.characters.filter((item) => item.crowdId).map((item) => item.crowdId as string));
     setExpandedCrowdIds((current) => current.filter((crowdId) => crowdIds.has(crowdId)));
-  }, [groupedItems.crowd]);
+  }, [groupedItems.characters]);
 
   const filteredGroups = GROUP_LABELS.map((group) => {
     const itemsByGroup =
       group.key === "characters"
         ? groupedItems.characters
-        : group.key === "crowd"
-          ? groupedItems.crowd
-          : group.key === "geometry"
-            ? groupedItems.geometry
-            : group.key === "my-models"
-              ? groupedItems.myModels
-              : groupedItems.cameras;
+        : group.key === "props"
+          ? groupedItems.props
+          : groupedItems.cameras;
 
     const filteredItems = itemsByGroup
       .map((item) => {
@@ -269,12 +263,50 @@ export function ObjectTreePanel() {
     selectObject(item.id);
   }
 
+  /** 摄像机「进入视口」：点一次进入该机位视角，再点退出回导演漫游（C4D 式） */
+  function handleEnterCameraView(event: MouseEvent, item: SceneTreeItem) {
+    event.stopPropagation();
+    const camera = item.object;
+    if (!camera || camera.kind !== "camera" || !camera.linkedCameraId) return;
+    const state = useDirectorStore.getState();
+    if (state.animationViewportMode === "camera" && state.project.activeCameraId === camera.linkedCameraId) {
+      setAnimationViewportMode("director");
+    } else {
+      setActiveCamera(camera.linkedCameraId);
+      setAnimationViewportMode("camera");
+    }
+  }
+
+  /** 右键对象 → 打开曲线编辑器（选对象 → 编辑曲线；相机轨道用 linkedCameraId） */
+  function handleRowContextMenu(event: MouseEvent, item: SceneTreeItem) {
+    event.preventDefault();
+    if (item.crowdId || !item.object) return;
+    const trackId =
+      item.object.kind === "camera" && item.object.linkedCameraId ? item.object.linkedCameraId : item.object.id;
+    openCurveEditor(trackId);
+  }
+
+  /** 删除对象/群众整组：复用 deleteSelectedObject 唯一入口（先选中再删；群众整组全选成员） */
+  function handleDeleteItem(event: MouseEvent, item: SceneTreeItem) {
+    event.stopPropagation();
+    if (!window.confirm(`确定删除「${item.name}」？`)) return;
+    const store = useDirectorStore.getState();
+    if (item.crowdId && item.objectIds.length) {
+      store.selectObject(item.objectIds[0] ?? null);
+      item.objectIds.slice(1).forEach((id) => store.toggleObjectSelection(id));
+    } else if (item.object) {
+      store.selectObject(item.object.id);
+    } else {
+      return;
+    }
+    store.deleteSelectedObject();
+  }
+
   function toggleCrowdExpanded(crowdId: string) {
     setExpandedCrowdIds((current) =>
       current.includes(crowdId) ? current.filter((item) => item !== crowdId) : [...current, crowdId]
     );
   }
-
   function getSelectedIds() {
     const state = useDirectorStore.getState();
     if (state.selectedObjectIds.length) return state.selectedObjectIds;
@@ -325,6 +357,7 @@ export function ObjectTreePanel() {
                         aria-label={item.name}
                         aria-selected={selected}
                         onClick={(event) => selectTreeItem(item, event)}
+                        onContextMenu={(event) => handleRowContextMenu(event, item)}
                       >
                         <div className="object-row-main">
                           {item.crowdId ? (
@@ -351,21 +384,38 @@ export function ObjectTreePanel() {
                         </div>
                         {item.object ? (
                           <>
-                            <button
-                              className="object-flag-button object-icon-flag-button"
-                              type="button"
-                              aria-label={`${item.name} 可见性`}
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                toggleObjectVisible(item.id);
-                              }}
-                            >
-                              {item.object.visible ? (
-                                <Eye aria-hidden="true" size={15} strokeWidth={1.8} />
-                              ) : (
-                                <EyeOff aria-hidden="true" size={15} strokeWidth={1.8} />
-                              )}
-                            </button>
+                            {item.object.kind === "camera" && item.object.linkedCameraId ? (
+                              <button
+                                className={`object-flag-button object-icon-flag-button${animationViewportMode === "camera" && activeCameraId === item.object.linkedCameraId ? " is-active" : ""}`}
+                                type="button"
+                                aria-label={`${item.name} 进入/退出机位视角`}
+                                title={
+                                  animationViewportMode === "camera" && activeCameraId === item.object.linkedCameraId
+                                    ? "退出该机位视角"
+                                    : "进入该机位视角"
+                                }
+                                onClick={(event) => handleEnterCameraView(event, item)}
+                              >
+                                <Video aria-hidden="true" size={15} strokeWidth={1.8} />
+                              </button>
+                            ) : null}
+                            {item.object.kind !== "camera" ? (
+                              <button
+                                className="object-flag-button object-icon-flag-button"
+                                type="button"
+                                aria-label={`${item.name} 可见性`}
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  toggleObjectVisible(item.id);
+                                }}
+                              >
+                                {item.object.visible ? (
+                                  <Eye aria-hidden="true" size={15} strokeWidth={1.8} />
+                                ) : (
+                                  <EyeOff aria-hidden="true" size={15} strokeWidth={1.8} />
+                                )}
+                              </button>
+                            ) : null}
                             <button
                               className="object-flag-button object-icon-flag-button"
                               type="button"
@@ -383,6 +433,15 @@ export function ObjectTreePanel() {
                             </button>
                           </>
                         ) : null}
+                        <button
+                          className="object-flag-button object-icon-flag-button object-delete-button"
+                          type="button"
+                          aria-label={`删除 ${item.name}`}
+                          title={`删除 ${item.name}`}
+                          onClick={(event) => handleDeleteItem(event, item)}
+                        >
+                          <Trash2 aria-hidden="true" size={15} strokeWidth={1.8} />
+                        </button>
                       </div>
                       {item.crowdId && expanded && item.previewChildren?.length ? (
                         <ul className="object-crowd-preview-list" aria-label={`${item.name} 成员预览`}>
