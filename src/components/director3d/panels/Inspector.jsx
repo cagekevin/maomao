@@ -1,8 +1,22 @@
+import { useState } from 'react'
 import { ArrowDownToLine, BoxSelect, ChevronDown, Copy, Focus, Lock, RotateCcw, Save, Trash2, Unlock } from 'lucide-react'
 import { JOINT_DEFINITIONS, JOINT_GROUPS, RIG_PRESET_GROUPS, RIG_PRESET_OPTIONS, normalizePoseId, poseCanLoop, poseForObject, presetJoints, presetPhase, presetRoot } from '../rig.js'
 import { CAMERA_ID, FOCAL_LENGTH_PRESETS } from '../project.js'
 import { GlobalSettingsPanel } from './GlobalSettingsPanel.jsx'
 import { ToolButton, VectorFields } from './controls.jsx'
+
+function Collapsible({ title, meta, collapsed, onToggle, wrapperClass = 'inspector-subgroup', headClass = 'subgroup-head', children }) {
+  return (
+    <div className={wrapperClass}>
+      <button type="button" className={`${headClass} collapse-toggle ${collapsed ? 'is-collapsed' : ''}`} aria-expanded={!collapsed} onClick={onToggle}>
+        <span>{title}</span>
+        {meta != null && <small>{meta}</small>}
+        <ChevronDown size={13} className="collapse-icon" />
+      </button>
+      {!collapsed && children}
+    </div>
+  )
+}
 
 export function Inspector({ selected, objects, camera, cameraAspect, onAspectChange, projectSettings, onApplySettings, maxKeyframeFrame, showGrid, onToggleGrid, performanceMode, onTogglePerformance, lighting, onLightingChange, selectedJoint, customPoses, onSelectJoint, onUpdateObject, onUpdateCamera, onDelete, onDuplicate, onFocus, onToggleLock, onGround, onResetRotation, onResetScale, onSaveCustomPose, onApplyCustomPose, onDeleteCustomPose }) {
   // 未选中物体：显示全局设置栏（画幅比例、时间轴、视口、光照等工程级设置）
@@ -28,6 +42,9 @@ export function Inspector({ selected, objects, camera, cameraAspect, onAspectCha
     rigRoot: presetRoot(pose),
     joints: presetJoints(pose),
   })
+  // 人物面板折叠状态：动作库、完整骨骼默认收起（面板最高频访问的是基础设置），人物整段与我的姿势默认展开
+  const [collapsed, setCollapsed] = useState({ person: false, poseLibrary: true, skeleton: true, customPose: false })
+  const toggle = key => setCollapsed(prev => ({ ...prev, [key]: !prev[key] }))
   return (
     <aside className="right-sidebar panel">
       <div className="inspector-head">
@@ -42,7 +59,7 @@ export function Inspector({ selected, objects, camera, cameraAspect, onAspectCha
       <div className="inspector-scroll">
         {!isCamera && selected.locked && <div className="locked-banner"><Lock size={12} /> 已锁定空间变换</div>}
         <div className="inspector-section">
-          <div className="section-title"><span>变换</span><ChevronDown size={14} /></div>
+          <div className="section-title"><span>变换</span>{/* <ChevronDown size={14} /> 折叠功能未启用，暂时注释 */}</div>
           <VectorFields title="位置" value={position} onChange={value => isCamera ? onUpdateCamera({ position: value }) : onUpdateObject({ position: value })} disabled={!isCamera && selected.locked} />
           {isCamera
             ? <VectorFields title="摄像机旋转 · X 俯仰 / Y 水平 / Z 翻滚" value={camera.rotation} degrees onChange={rotation => onUpdateCamera({ rotation })} />
@@ -70,7 +87,7 @@ export function Inspector({ selected, objects, camera, cameraAspect, onAspectCha
         </div>
         {isCamera ? (
           <div className="inspector-section">
-            <div className="section-title"><span>镜头</span><ChevronDown size={14} /></div>
+            <div className="section-title"><span>镜头</span>{/* <ChevronDown size={14} /> 折叠功能未启用，暂时注释 */}</div>
             <label className="select-field"><span>始终面向对象</span>
               <select
                 aria-label="始终面向对象"
@@ -92,9 +109,7 @@ export function Inspector({ selected, objects, camera, cameraAspect, onAspectCha
           </div>
         ) : selected.type === 'person' ? (
           <div className="inspector-section">
-            <div className="section-title"><span>人物</span><ChevronDown size={14} /></div>
-
-            <div className="inspector-subgroup">
+            <Collapsible title="人物" collapsed={collapsed.person} onToggle={() => toggle('person')}>
               <label className="color-field"><span>人物颜色</span><input type="color" value={selected.color || '#e8e3d8'} onChange={e => onUpdateObject({ color: e.target.value })} /><output>{selected.color || '#e8e3d8'}</output></label>
               <label className="select-field"><span>体型</span><select value={selected.bodyType} onChange={e => onUpdateObject({ bodyType: e.target.value })}><option value="standard">中性人体</option><option value="female">女性人体</option><option value="male">男性人体</option><option value="tall">修长人体</option><option value="broad">宽体人体</option></select></label>
               <label className="select-field"><span>动作预设</span><select value={normalizePoseId(selected.pose)} onChange={e => applyPreset(e.target.value)}>{RIG_PRESET_OPTIONS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
@@ -103,12 +118,10 @@ export function Inspector({ selected, objects, camera, cameraAspect, onAspectCha
                 <input type="checkbox" checked={canLoopPose && Boolean(selected.continuousMotion)} disabled={!canLoopPose} onChange={event => onUpdateObject({ continuousMotion: event.target.checked })} />
                 <span><strong>随时间轴循环动作</strong><small>{canLoopPose ? '播放、拖帧和导出时持续循环' : '当前预设是固定姿势，不支持循环'}</small></span>
               </label>
-              <p className="pose-source-note">角色状态关键帧会记录动作、相位、循环开关和完整骨骼，并在对应帧切换。动作来源：Three.js X-Bot 与 CC0 日常动作；当前模型没有面部表情。</p>
-            </div>
+            </Collapsible>
 
-            <div className="inspector-subgroup">
+            <Collapsible title="动作库" meta={`${RIG_PRESET_OPTIONS.length} 个`} collapsed={collapsed.poseLibrary} onToggle={() => toggle('poseLibrary')}>
               <div className="pose-library">
-                <div className="pose-library-head"><span>动作库</span><small>{RIG_PRESET_OPTIONS.length} 个</small></div>
                 {RIG_PRESET_GROUPS.map(group => (
                   <div className="pose-group" key={group.label}>
                     <div className="pose-group-label">{group.label}</div>
@@ -123,26 +136,23 @@ export function Inspector({ selected, objects, camera, cameraAspect, onAspectCha
                   </div>
                 ))}
               </div>
-            </div>
+            </Collapsible>
 
-            <div className="inspector-subgroup">
+            <Collapsible title="完整骨骼" collapsed={collapsed.skeleton} onToggle={() => toggle('skeleton')}>
               <div className="joint-editor">
-                <div className="joint-editor-head"><span>完整骨骼</span><small>{JOINT_DEFINITIONS.length} 根均可旋转</small></div>
                 <label className="select-field"><span>当前骨骼</span><select value={selectedJoint} onChange={event => onSelectJoint(event.target.value)}>{JOINT_GROUPS.map(group => <optgroup key={group.label} label={group.label}>{group.joints.map(joint => <option key={joint.id} value={joint.id}>{joint.label}</option>)}</optgroup>)}</select></label>
                 <VectorFields title="关节旋转" value={jointRotation} degrees onChange={updateJoint} />
                 <button type="button" className="joint-reset-button" onClick={() => updateJoint([0, 0, 0])}>重置当前关节</button>
                 <button type="button" className="joint-reset-button" onClick={() => onUpdateObject({ joints: presetJoints(selected.pose) })}>重置全部骨骼</button>
-                <p className="joint-editor-hint">按 Q 后拖动青绿色的手脚控制点可摆放四肢末端；拖动人物其他部位或金色骨骼点可旋转单根骨骼。按住 Shift 左右拖可调整单骨骼扭转，也可使用 X/Y/Z 滑块微调。</p>
                 <label className="foot-lock-control">
                   <input type="checkbox" checked={Boolean(selected.footLock)} onChange={event => onUpdateObject({ footLock: event.target.checked })} />
                   <span><strong>脚底锁定</strong><small>脚部 IK 保持当前脚底高度，只沿地面拖动</small></span>
                 </label>
               </div>
-            </div>
+            </Collapsible>
 
-            <div className="inspector-subgroup">
+            <Collapsible title="我的姿势" meta={`${customPoses.length} 个`} collapsed={collapsed.customPose} onToggle={() => toggle('customPose')}>
               <div className="custom-pose-library">
-                <div className="joint-editor-head"><span>我的姿势</span><small>{customPoses.length} 个</small></div>
                 <button type="button" className="save-custom-pose" onClick={() => onSaveCustomPose(selected)}><Save size={12} /> 保存当前姿势</button>
                 {customPoses.length ? (
                   <div className="custom-pose-list">
@@ -155,11 +165,11 @@ export function Inspector({ selected, objects, camera, cameraAspect, onAspectCha
                   </div>
                 ) : <p className="custom-pose-empty">还没有保存的姿势。调整骨骼后可存入本机姿势库。</p>}
               </div>
-            </div>
+            </Collapsible>
           </div>
         ) : (
           <div className="inspector-section">
-            <div className="section-title"><span>外观</span><ChevronDown size={14} /></div>
+            <div className="section-title"><span>外观</span>{/* <ChevronDown size={14} /> 折叠功能未启用，暂时注释 */}</div>
             <label className="color-field"><span>白模材质</span><input type="color" value={selected.color || '#d8d3c8'} onChange={e => onUpdateObject({ color: e.target.value })} /><output>{selected.color || '#d8d3c8'}</output></label>
           </div>
         )}

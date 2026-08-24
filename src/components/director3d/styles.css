@@ -251,8 +251,15 @@
 .color-field input { width: 28px; height: 24px; border: 1px solid var(--line-muted); padding: 2px; background:var(--surface-input); border-radius: 4px; }
 .color-field output { font-family: "Cascadia Mono", monospace; color: var(--text-faint); }
 .pose-library { margin-top: 0; padding-top: 0; border-top: 0; }
-.pose-library-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 9px; color: var(--text-faint); font-size: 12px; font-weight: 600; }
-.pose-library-head small { color: var(--text-faint); font-family: "Cascadia Mono", monospace; font-size: 12px; }
+/* 可折叠标题（人物整段 + 动作库/完整骨骼/我的姿势子块共用）：整行可点击收放，箭头随状态旋转 */
+.collapse-toggle { cursor: pointer; user-select: none; -webkit-user-select: none; }
+.collapse-toggle:hover { color: var(--text); }
+.collapse-toggle .collapse-icon { flex: 0 0 auto; margin-left: auto; color: var(--text-faint); transition: transform 140ms ease; }
+.collapse-toggle.is-collapsed .collapse-icon { transform: rotate(-90deg); }
+.collapse-toggle:focus-visible { outline: 1px solid var(--accent); outline-offset: 1px; border-radius: 4px; }
+.subgroup-head { width: 100%; margin: 0 0 9px; padding: 0; border: 0; background: transparent; text-align: left; display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--text-faint); font-size: 12px; font-weight: 600; }
+.subgroup-head span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.subgroup-head small { color: var(--text-faint); font-family: "Cascadia Mono", monospace; font-size: 12px; }
 .pose-group + .pose-group { margin-top: 9px; }
 /* inspector 同类项分组：与全局设置同一套节奏（间距+轻分隔线），不加卡片背景 */
 .inspector-subgroup { margin-top: 16px; padding-top: 16px; }
@@ -277,11 +284,7 @@
 .pose-grid button[data-pose="handstand"] .pose-figure { transform: rotate(180deg); }
 .pose-grid button[data-pose="onehand"] .pose-figure, .pose-grid button[data-pose="roll"] .pose-figure { transform: rotate(58deg) scale(.9); }
 .pose-grid button[data-pose="fight"] .pose-figure i:nth-child(3), .pose-grid button[data-pose="pull"] .pose-figure i:nth-child(3) { transform: rotate(-22deg); }
-.joint-editor { margin-top: 11px; padding-top: 11px; }
-.joint-editor-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 9px; color: var(--text-faint); font-size: 12px; font-weight: 600; }
-.joint-editor-head small { color: var(--text-faint); font-size: 12px; }
-.pose-source-note, .joint-editor-hint { margin: 8px 0 0; color: var(--text-faint); font-size: 11px; line-height: 1.55; }
-.pose-source-note { padding: 7px 8px; border: 1px solid var(--line-soft); border-radius: 4px; background: rgba(255,255,255,.018); }
+.joint-editor { margin-top: 0; padding-top: 0; }
 .motion-loop-control { min-height: 38px; display: grid; grid-template-columns: 16px 1fr; align-items: center; gap: 7px; margin: 7px 0 0; padding: 6px 8px; border: 1px solid var(--line); border-radius: 4px; background:var(--surface-input); cursor: pointer; }
 .motion-loop-control input { width: 13px; height: 13px; margin: 0; accent-color: var(--accent); }
 .motion-loop-control span { display: flex; flex-direction: column; gap: 2px; }
@@ -295,7 +298,7 @@
 .foot-lock-control span { display: flex; flex-direction: column; gap: 2px; }
 .foot-lock-control strong { color: var(--text-dim); font-size: 11px; font-weight: 600; }
 .foot-lock-control small { color: var(--text-faint); font-size: 12px; line-height: 1.35; }
-.custom-pose-library { margin-top: 11px; padding-top: 11px; }
+.custom-pose-library { margin-top: 0; padding-top: 0; }
 .save-custom-pose { width: 100%; height: 27px; display: flex; align-items: center; justify-content: center; gap: 5px; border: 1px solid var(--line); border-radius: 4px; background:var(--surface-input); color: var(--text-dim); font-size: 11px; cursor: pointer; transition: border-color 120ms ease, background 120ms ease, color 120ms ease; }
 .save-custom-pose:hover { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
 .custom-pose-list { display: grid; gap: 4px; margin-top: 6px; }
