@@ -768,7 +768,7 @@ function Canvas() {
         trailing: () => (
           <button
             type="button"
-            className={`p-1 mr-1 rounded transition-colors ${pinned ? 'text-white hover:text-gray-200' : 'text-gray-500 hover:text-gray-300'}`}
+            className={`p-1 mr-1 rounded transition-colors ${pinned ? 'text-white hover:text-primary' : 'text-muted hover:text-body'}`}
             title={pinned ? '已固定到右键菜单，点击取消' : '固定到右键菜单'}
             onClick={(e) => { e.stopPropagation(); togglePinTool(n.type) }}
           >
@@ -825,14 +825,14 @@ function Canvas() {
       // 小工具子菜单（未固定项 + 图钉）
       ...(toolsSubmenu.length
         ? [
-            { key: 'tools', icon: <Zap size={13} className="text-gray-400" />, label: '小工具', items: toolsSubmenu },
+            { key: 'tools', icon: <Zap size={13} className="text-secondary" />, label: '小工具', items: toolsSubmenu },
             { type: 'divider' }
           ]
         : []),
       // 已固定节点直接渲染在第一层（复刻官方 pt）
       ...pinnedItems,
       { type: 'divider' },
-      { key: 'upload', icon: <Upload size={16} className="text-gray-400" />, label: '上传', onClick: () => uploadRef.current?.click() }
+      { key: 'upload', icon: <Upload size={16} className="text-secondary" />, label: '上传', onClick: () => uploadRef.current?.click() }
     ]
   }
 
@@ -845,12 +845,12 @@ function Canvas() {
     const isImageLike = node.type === 'imageNode' || node.type === 'promptNode'
     const isGroup = node.type === 'group'
     const items = [
-      { key: 'duplicate', icon: <Copy size={16} className="text-gray-300" />, label: '复制', onClick: () => copySelectedNodes(node.id) }
+      { key: 'duplicate', icon: <Copy size={16} className="text-body" />, label: '复制', onClick: () => copySelectedNodes(node.id) }
     ]
     if (isImageLike) {
       items.push({
         key: 'copyImage',
-        icon: <ImageIcon size={16} className="text-gray-300" />,
+        icon: <ImageIcon size={16} className="text-body" />,
         label: '复制图片',
         onClick: () => copyNodeImage(node.id)
       })
@@ -859,7 +859,7 @@ function Canvas() {
     if (isGroup) {
       items.push({
         key: 'ungroup',
-        icon: <FolderOpen size={16} className="text-gray-300" />,
+        icon: <FolderOpen size={16} className="text-body" />,
         label: '取消编组',
         onClick: () => {
           const res = ungroupNodes(nodesRef.current, node.id)
@@ -921,7 +921,7 @@ function Canvas() {
     if (selectedIds.length >= 2) {
       items.push({
         key: 'group',
-        icon: <Folder size={16} className="text-gray-300" />,
+        icon: <Folder size={16} className="text-body" />,
         label: '编组',
         onClick: () => {
           const res = createGroupFromNodes(nodesRef.current, selectedIds)
@@ -936,7 +936,7 @@ function Canvas() {
     items.push(
       {
         key: 'duplicate',
-        icon: <Copy size={16} className="text-gray-300" />,
+        icon: <Copy size={16} className="text-body" />,
         label: '复制',
         onClick: () => copySelectedNodes()
       },
@@ -1224,7 +1224,7 @@ function Canvas() {
   return (
     <LodProvider enablePerformanceMode={performanceMode} nodeCount={nodes.length}>
       {/* 顶层：flex 纵向布局（复刻官方 Vr.jsx L3274 flex h-screen flex-col） */}
-      <div className="flex flex-col h-screen bg-canvas font-sans text-gray-200">
+      <div className="flex flex-col h-screen bg-canvas font-sans text-primary">
         {/* 本地引擎未连接全屏提醒（完整复刻官方 Vr.jsx L3274-3280 挂载 _cmp_Tr） */}
         <LocalToolConnectModal
           isVisible={connectWarn}

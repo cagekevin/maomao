@@ -383,7 +383,7 @@ function ImageBoxNode({ id, data, selected }) {
   }, [])
 
   // 标题图标（对齐官方 _Component30）
-  const titleIcon = <Box size={11} className="text-gray-500" />
+  const titleIcon = <Box size={11} className="text-muted" />
   // 端口：target「in」/ source「active」（对齐官方 _Component12 id）
   const smallHandle = 'small'
 
@@ -407,7 +407,7 @@ function ImageBoxNode({ id, data, selected }) {
               </button>
               {selectedIds.length > 0 && (
                 <>
-                  <span className="text-gray-300 text-caption">已选 {selectedIds.length}</span>
+                  <span className="text-body text-caption">已选 {selectedIds.length}</span>
                   <button className="node-btn-settings hover:text-red-400" title="删除已选" onClick={(e) => { e.stopPropagation(); removeSelected() }}>
                     <Trash2 size={10} />
                   </button>
@@ -433,22 +433,22 @@ function ImageBoxNode({ id, data, selected }) {
       {/* 顶部悬浮操作栏（hover 显示，对齐官方 Component2292） */}
       <div className="absolute -top-12 left-1/2 -translate-x-1/2 z-20 opacity-0 group-hover/node:opacity-100 transition-opacity pointer-events-none group-hover/node:pointer-events-auto nodrag pb-4">
         <div className="flex items-center gap-1 px-3 py-2 bg-surface-raised/90 backdrop-blur-md border border-edge rounded-full shadow-lg">
-          <button className="p-1.5 text-gray-400 hover:text-white hover:bg-surface-hover-strong rounded-md cursor-pointer border-none" title="从连线图一键导入" onClick={(e) => { e.stopPropagation(); importFromConnection() }}>
+          <button className="p-1.5 text-secondary hover:text-white hover:bg-surface-hover-strong rounded-md cursor-pointer border-none" title="从连线图一键导入" onClick={(e) => { e.stopPropagation(); importFromConnection() }}>
             <LinkIcon size={14} />
           </button>
-          <button className="p-1.5 text-gray-400 hover:text-white hover:bg-surface-hover-strong rounded-md cursor-pointer border-none" title="添加本地图片" onClick={(e) => { e.stopPropagation(); fileRef.current?.click() }}>
+          <button className="p-1.5 text-secondary hover:text-white hover:bg-surface-hover-strong rounded-md cursor-pointer border-none" title="添加本地图片" onClick={(e) => { e.stopPropagation(); fileRef.current?.click() }}>
             <Plus size={14} />
           </button>
           {!expanded && current && (
             <>
               <div className="w-px h-4 bg-surface-hover-strong mx-1" />
-              <button className="p-1.5 text-gray-400 hover:text-white hover:bg-surface-hover-strong rounded-md cursor-pointer border-none" title="放大" onClick={(e) => { e.stopPropagation(); openZoom(current.url) }}>
+              <button className="p-1.5 text-secondary hover:text-white hover:bg-surface-hover-strong rounded-md cursor-pointer border-none" title="放大" onClick={(e) => { e.stopPropagation(); openZoom(current.url) }}>
                 <ZoomIn size={14} />
               </button>
-              <button className="p-1.5 text-gray-400 hover:text-white hover:bg-surface-hover-strong rounded-md cursor-pointer border-none" title="复制当前图片到剪贴板" onClick={(e) => { e.stopPropagation(); if (current) copyImage(current.url) }}>
+              <button className="p-1.5 text-secondary hover:text-white hover:bg-surface-hover-strong rounded-md cursor-pointer border-none" title="复制当前图片到剪贴板" onClick={(e) => { e.stopPropagation(); if (current) copyImage(current.url) }}>
                 <Copy size={14} />
               </button>
-              <button className="p-1.5 text-gray-400 hover:text-white hover:bg-surface-hover-strong rounded-md cursor-pointer border-none" title="下载当前图片" onClick={(e) => { e.stopPropagation(); downloadUrl(current.url, current.label) }}>
+              <button className="p-1.5 text-secondary hover:text-white hover:bg-surface-hover-strong rounded-md cursor-pointer border-none" title="下载当前图片" onClick={(e) => { e.stopPropagation(); downloadUrl(current.url, current.label) }}>
                 <Download size={14} />
               </button>
             </>
@@ -471,9 +471,9 @@ function ImageBoxNode({ id, data, selected }) {
           {images.length === 0 && (
             <div className="flex flex-col items-center justify-center absolute inset-0 bg-surface-muted hover:bg-surface transition-colors cursor-pointer group" onClick={(e) => { e.stopPropagation(); fileRef.current?.click() }}>
               <div className="w-12 h-12 rounded-xl bg-surface-1 border border-dashed border-edge-muted group-hover:border-blue-500/50 flex flex-col items-center justify-center transition-all">
-                <Plus size={20} className="text-gray-600 group-hover:text-blue-500/80 transition-colors" />
+                <Plus size={20} className="text-muted-2 group-hover:text-blue-500/80 transition-colors" />
               </div>
-              <span className="text-caption text-gray-500 mt-2">拖拽 / 粘贴 / 点击添加图片</span>
+              <span className="text-caption text-muted mt-2">拖拽 / 粘贴 / 点击添加图片</span>
             </div>
           )}
 
@@ -559,9 +559,9 @@ function ImageBoxNode({ id, data, selected }) {
                       }}
                       title={img.label || (isSel ? '点击取消选择' : '点击选择 (按住 Ctrl 设为默认图)')}
                     >
-                      <LazyImage src={img.thumb || img.url} alt={img.label || ''} className="w-full h-full" imgClassName="w-full h-full object-cover bg-[#0e0e0e]" />
+                      <LazyImage src={img.thumb || img.url} alt={img.label || ''} className="w-full h-full" imgClassName="w-full h-full object-cover bg-surface-black" />
                       <button
-                        className={`absolute top-1 left-1 w-4 h-4 rounded flex items-center justify-center transition-colors cursor-pointer border-none ${isSel ? 'bg-emerald-500 text-white' : 'bg-black/50 text-gray-300 group-hover/thumb:bg-black/70'}`}
+                        className={`absolute top-1 left-1 w-4 h-4 rounded flex items-center justify-center transition-colors cursor-pointer border-none ${isSel ? 'bg-emerald-500 text-white' : 'bg-black/50 text-body group-hover/thumb:bg-black/70'}`}
                         onClick={(e) => { e.stopPropagation(); toggleSelect(img.id) }}
                         title={isSel ? '取消选择' : '选择'}
                       >
@@ -570,7 +570,7 @@ function ImageBoxNode({ id, data, selected }) {
                       {isActive && <span className="absolute bottom-1 left-1 px-1 py-px rounded bg-blue-500 text-white text-2xs font-medium">默认</span>}
                       <div className="absolute top-1 right-1" data-thumb-menu>
                         <button
-                          className={`w-4 h-4 rounded bg-black/60 text-gray-200 hover:bg-blue-500 hover:text-white flex items-center justify-center transition-opacity cursor-pointer border-none ${menuIndex === index ? 'opacity-100' : 'opacity-0 group-hover/thumb:opacity-100'}`}
+                          className={`w-4 h-4 rounded bg-black/60 text-primary hover:bg-blue-500 hover:text-white flex items-center justify-center transition-opacity cursor-pointer border-none ${menuIndex === index ? 'opacity-100' : 'opacity-0 group-hover/thumb:opacity-100'}`}
                           title="更多操作"
                           onMouseDown={(e) => e.stopPropagation()}
                           onDoubleClick={(e) => e.stopPropagation()}
@@ -597,7 +597,7 @@ function ImageBoxNode({ id, data, selected }) {
                 })}
                 {/* 添加图片方块 */}
                 <button
-                  className="aspect-square rounded-md border border-dashed border-edge-muted hover:border-blue-500/50 hover:bg-surface text-gray-500 hover:text-blue-400 flex items-center justify-center transition-colors nodrag cursor-pointer"
+                  className="aspect-square rounded-md border border-dashed border-edge-muted hover:border-blue-500/50 hover:bg-surface text-muted hover:text-blue-400 flex items-center justify-center transition-colors nodrag cursor-pointer"
                   title="添加图片"
                   onClick={(e) => { e.stopPropagation(); fileRef.current?.click() }}
                 >
@@ -635,21 +635,21 @@ function ImageBoxNode({ id, data, selected }) {
             const close = () => { setMenuIndex(null); setMenuPos(null) }
             return (
               <>
-                <button className="w-full text-left px-2 py-1.5 text-caption-sm text-gray-300 hover:bg-surface-hover-strong hover:text-white rounded flex items-center gap-2 cursor-pointer" onClick={() => { copyImage(img.url); close() }}>
-                  <Copy size={11} className="text-gray-400" />
+                <button className="w-full text-left px-2 py-1.5 text-caption-sm text-body hover:bg-surface-hover-strong hover:text-white rounded flex items-center gap-2 cursor-pointer" onClick={() => { copyImage(img.url); close() }}>
+                  <Copy size={11} className="text-secondary" />
                   <span>复制图片</span>
                 </button>
-                <button className="w-full text-left px-2 py-1.5 text-caption-sm text-gray-300 hover:bg-surface-hover-strong hover:text-white rounded flex items-center gap-2 cursor-pointer" onClick={() => { downloadUrl(img.url, img.label); close() }}>
-                  <Download size={11} className="text-gray-400" />
+                <button className="w-full text-left px-2 py-1.5 text-caption-sm text-body hover:bg-surface-hover-strong hover:text-white rounded flex items-center gap-2 cursor-pointer" onClick={() => { downloadUrl(img.url, img.label); close() }}>
+                  <Download size={11} className="text-secondary" />
                   <span>下载</span>
                 </button>
-                <button className="w-full text-left px-2 py-1.5 text-caption-sm text-gray-300 hover:bg-surface-hover-strong hover:text-white rounded flex items-center gap-2 cursor-pointer" onClick={() => { openZoom(img.url); close() }}>
-                  <ZoomIn size={11} className="text-gray-400" />
+                <button className="w-full text-left px-2 py-1.5 text-caption-sm text-body hover:bg-surface-hover-strong hover:text-white rounded flex items-center gap-2 cursor-pointer" onClick={() => { openZoom(img.url); close() }}>
+                  <ZoomIn size={11} className="text-secondary" />
                   <span>放大查看</span>
                 </button>
                 {idx !== activeIndex && (
-                  <button className="w-full text-left px-2 py-1.5 text-caption-sm text-gray-300 hover:bg-surface-hover-strong hover:text-white rounded flex items-center gap-2 cursor-pointer" onClick={() => { setActive(idx); close() }}>
-                    <Grid2X2 size={11} className="text-gray-400" />
+                  <button className="w-full text-left px-2 py-1.5 text-caption-sm text-body hover:bg-surface-hover-strong hover:text-white rounded flex items-center gap-2 cursor-pointer" onClick={() => { setActive(idx); close() }}>
+                    <Grid2X2 size={11} className="text-secondary" />
                     <span>设为默认</span>
                   </button>
                 )}

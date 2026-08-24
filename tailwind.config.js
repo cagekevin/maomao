@@ -94,6 +94,13 @@ export default {
         'surface-sunken': 'rgb(var(--mao-surface-sunken) / <alpha-value>)',
         'surface-sunken-2': 'rgb(var(--mao-surface-sunken-2) / <alpha-value>)',
         'code-bg': 'rgb(var(--mao-code-bg) / <alpha-value>)',
+        // 阶段3 精确收编缺口（中间灰阶）
+        'surface-panel': 'rgb(var(--mao-surface-panel) / <alpha-value>)',
+        'surface-panel-2': 'rgb(var(--mao-surface-panel-2) / <alpha-value>)',
+        'surface-well': 'rgb(var(--mao-surface-well) / <alpha-value>)',
+        'surface-raised-2': 'rgb(var(--mao-surface-raised-2) / <alpha-value>)',
+        'surface-active-2': 'rgb(var(--mao-surface-active-2) / <alpha-value>)',
+        'surface-hover-2b': 'rgb(var(--mao-surface-hover-2b) / <alpha-value>)',
       },
       fontSize: {
         '2xs': ['8px', { lineHeight: '1.2' }],

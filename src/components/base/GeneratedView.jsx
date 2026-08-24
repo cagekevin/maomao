@@ -385,7 +385,7 @@ function GeneratedView() {
                   <div
                     key={a.id}
                     {...assetDragProps(a, { disable: isFolder })}
-                    className={`group relative aspect-square bg-surface-deep rounded-xl overflow-hidden transition-colors ${isFolder ? 'border border-edge cursor-pointer hover:border-[#4a4a4a]' : 'border border-[#242424] hover:border-edge-raised cursor-grab active:cursor-grabbing'}`}
+                    className={`group relative aspect-square bg-surface-deep rounded-xl overflow-hidden transition-colors ${isFolder ? 'border border-edge cursor-pointer hover:border-edge-raised' : 'border border-edge hover:border-edge-raised cursor-grab active:cursor-grabbing'}`}
                     style={{ contentVisibility: 'auto', containIntrinsicSize: '200px 200px' }}
                     onClick={() => {
                       if (isFolder) setFolder(folder === 'tasks' ? `tasks/${a.name}` : `${folder}/${a.name}`)

@@ -27,11 +27,11 @@ export default function Select({ value, onChange, options = [], placeholder = '�
       <button
         type="button"
         disabled={disabled}
-        className="flex items-center gap-1 h-6 px-2 min-w-0 bg-transparent hover:bg-surface-hover border border-transparent hover:border-edge rounded text-caption-sm text-gray-300 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+        className="flex items-center gap-1 h-6 px-2 min-w-0 bg-transparent hover:bg-surface-hover border border-transparent hover:border-edge rounded text-caption-sm text-body transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
         onClick={(e) => { e.stopPropagation(); setOpen((v) => !v) }}
       >
         <span className="whitespace-nowrap overflow-hidden text-ellipsis">{selected?.label ?? placeholder}</span>
-        <ChevronDown size={12} className="shrink-0 text-gray-500" />
+        <ChevronDown size={12} className="shrink-0 text-muted" />
       </button>
 
       {open && (
@@ -40,14 +40,14 @@ export default function Select({ value, onChange, options = [], placeholder = '�
           onClick={(e) => e.stopPropagation()}
         >
           {options.length === 0 ? (
-            <div className="px-2 py-1.5 text-caption-sm text-gray-500">无可用选项</div>
+            <div className="px-2 py-1.5 text-caption-sm text-muted">无可用选项</div>
           ) : options.map((o) => {
             const sel = value === o.value
             return (
               <div
                 key={o.value}
                 role="button"
-                className={`flex items-center gap-1.5 mb-1 last:mb-0 text-left px-2 py-1.5 text-caption-sm rounded-md transition-colors cursor-pointer ${sel ? 'bg-surface-hover-strong text-white' : 'text-gray-400 hover:bg-surface-hover hover:text-gray-200'}`}
+                className={`flex items-center gap-1.5 mb-1 last:mb-0 text-left px-2 py-1.5 text-caption-sm rounded-md transition-colors cursor-pointer ${sel ? 'bg-surface-hover-strong text-white' : 'text-secondary hover:bg-surface-hover hover:text-primary'}`}
                 onMouseDown={(e) => { e.preventDefault(); onChange(o.value); setOpen(false) }}
               >
                 <span className="flex-1 whitespace-nowrap">{o.label}</span>

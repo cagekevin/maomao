@@ -57,7 +57,7 @@ export default function LeftPanel() {
     <>
       {/* 收起态：左侧竖条工具栏 */}
       {!expanded && (
-        <div className="fixed left-3 top-1/2 -translate-y-1/2 z-sidebar flex flex-col items-center gap-1.5 bg-[#191919]/90 backdrop-blur border border-edge-faint rounded-xl px-1.5 py-2 shadow-lg">
+        <div className="fixed left-3 top-1/2 -translate-y-1/2 z-sidebar flex flex-col items-center gap-1.5 bg-surface-panel/90 backdrop-blur border border-edge-faint rounded-xl px-1.5 py-2 shadow-lg">
           {TABS.map((tab) => {
             const Icon = tab.icon
             const isActive = activeTab === tab.key

@@ -75,8 +75,8 @@ export default function StepAssets({ data, updateData, callbacks }) {
   return (
     <div className="flex flex-col gap-3">
       {/* 工具栏：批量生成（模型/风格在设置里配置） */}
-      <div className="flex flex-wrap items-center gap-2 text-caption-sm text-gray-400">
-        <button className="flex items-center gap-1 px-2 py-1 text-caption text-gray-300 bg-surface-1 hover:bg-surface-hover rounded" onClick={batchGen}>
+      <div className="flex flex-wrap items-center gap-2 text-caption-sm text-secondary">
+        <button className="flex items-center gap-1 px-2 py-1 text-caption text-body bg-surface-1 hover:bg-surface-hover rounded" onClick={batchGen}>
           <Wand2 size={10} /> 批量生图{pickedCount ? `(${pickedCount})` : ''}
         </button>
       </div>
@@ -90,7 +90,7 @@ export default function StepAssets({ data, updateData, callbacks }) {
             const list = assets.filter((a) => a.category === c.k)
             return (
               <div key={c.k} className="flex flex-col gap-1.5 min-w-0">
-                <div className="flex items-center gap-1.5 text-caption-sm text-gray-300">{c.icon}<span>{c.n}</span><span className="text-gray-500">{list.length}</span></div>
+                <div className="flex items-center gap-1.5 text-caption-sm text-body">{c.icon}<span>{c.n}</span><span className="text-muted">{list.length}</span></div>
                 <div className="grid grid-cols-3 gap-1.5">
                   {list.map((a) => {
                     const gi = assets.indexOf(a)
@@ -110,7 +110,7 @@ export default function StepAssets({ data, updateData, callbacks }) {
                       />
                     )
                   })}
-                  <button className="flex items-center justify-center gap-1 h-9 w-full border border-dashed border-edge hover:border-edge-strong rounded-lg text-caption text-gray-500 hover:text-gray-300" onClick={() => { const id = addAsset(updateData, c.k, assets); setEditIdx(id) }}>
+                  <button className="flex items-center justify-center gap-1 h-9 w-full border border-dashed border-edge hover:border-edge-strong rounded-lg text-caption text-muted hover:text-body" onClick={() => { const id = addAsset(updateData, c.k, assets); setEditIdx(id) }}>
                     <Plus size={10} /> 新增{c.n}
                   </button>
                 </div>
@@ -124,7 +124,7 @@ export default function StepAssets({ data, updateData, callbacks }) {
           {editIdx !== null && assets[editIdx] ? (
             <AssetPanel key={assets[editIdx].id} asset={assets[editIdx]} idx={editIdx} data={d} updateData={updateData} onGen={() => callbacks.onGenerateAssetImage?.(assets[editIdx].id)} onClose={() => setEditIdx(null)} />
           ) : (
-            <div className="flex flex-col items-center justify-center h-full text-gray-600 text-caption-sm gap-2">
+            <div className="flex flex-col items-center justify-center h-full text-muted-2 text-caption-sm gap-2">
               <Package size={20} className="text-gray-700" />
               点击左侧资产卡片，在此编辑
             </div>
@@ -191,10 +191,10 @@ function AssetCard({ asset, idx, data, updateData, callbacks, render, onOpen, on
     <div className={`relative w-full min-w-0 flex flex-col p-2 bg-surface-1 border rounded-lg transition-colors ${selected ? 'border-blue-500/70' : 'border-edge-faint hover:border-edge-muted'}`}>
       {/* 大图区（在上，放大；点击打开抽屉，双击查看大图） */}
       <div className="w-full h-20 rounded-md overflow-hidden bg-surface-1 flex items-center justify-center cursor-pointer nodrag" onClick={onOpen}>
-        {asset.loading ? <Loader2 size={16} className="animate-spin text-gray-400" />
+        {asset.loading ? <Loader2 size={16} className="animate-spin text-secondary" />
           : asset.imageUrl ? <img src={render(asset.imageUrl)} alt={asset.name} className="w-full h-full object-cover" onDoubleClick={(e) => { e.stopPropagation(); onZoomClick?.(asset.imageUrl) }} />
             : asset.has ? <span className="text-emerald-400 text-body-xs">✓</span>
-              : <span className="text-caption text-gray-500">+ 待生成</span>}
+              : <span className="text-caption text-muted">+ 待生成</span>}
       </div>
       {/* 三点菜单（挂卡片根级，覆盖图片右上角；菜单向下展开不被图片区 overflow-hidden 裁剪） */}
       <div className="absolute top-1 right-1 z-50 shrink-0" ref={moreRef}>
@@ -213,7 +213,7 @@ function AssetCard({ asset, idx, data, updateData, callbacks, render, onOpen, on
       </div>
       {/* 信息区（在下）：名称 + 选中框（同一行） */}
       <div className="flex items-center justify-between gap-1 mt-1.5">
-        <span className="text-caption-sm text-gray-200 truncate min-w-0 cursor-pointer" onClick={onOpen}>{asset.name}</span>
+        <span className="text-caption-sm text-primary truncate min-w-0 cursor-pointer" onClick={onOpen}>{asset.name}</span>
         <input type="checkbox" checked={!!asset.picked} onChange={onTogglePick} className="nodrag cursor-pointer shrink-0" />
       </div>
       {/* 图片上传状态：不再显示任何提示行（图显示没显示一眼可见） */}
@@ -225,7 +225,7 @@ function AssetCard({ asset, idx, data, updateData, callbacks, render, onOpen, on
 
 function MenuItem({ icon, text, onClick, danger }) {
   return (
-    <button className={`flex items-center gap-2 w-full px-2.5 py-1.5 text-caption-sm text-left ${danger ? 'text-red-400 hover:bg-red-500/10' : 'text-gray-300 hover:bg-surface-hover'}`} onClick={onClick}>{icon}{text}</button>
+    <button className={`flex items-center gap-2 w-full px-2.5 py-1.5 text-caption-sm text-left ${danger ? 'text-red-400 hover:bg-red-500/10' : 'text-body hover:bg-surface-hover'}`} onClick={onClick}>{icon}{text}</button>
   )
 }
 
@@ -249,23 +249,23 @@ function AssetPanel({ asset, idx, data, updateData, onGen, onClose }) {
   return (
     <div className="flex flex-col gap-3 text-caption-sm">
       <div className="flex items-center justify-between">
-        <div className="text-body-xs text-gray-200 font-medium">编辑资产</div>
-        <button className="text-gray-500 hover:text-white text-sm" title="收起" onClick={onClose}>×</button>
+        <div className="text-body-xs text-primary font-medium">编辑资产</div>
+        <button className="text-muted hover:text-white text-sm" title="收起" onClick={onClose}>×</button>
       </div>
       <div className="flex flex-col gap-3">
-        <label className="text-gray-400">名称
-          <input value={name} onChange={(e) => setName(e.target.value)} className="w-full mt-1 bg-surface-strong border border-edge rounded-md px-2 py-1.5 text-gray-200 outline-none nodrag" />
+        <label className="text-secondary">名称
+          <input value={name} onChange={(e) => setName(e.target.value)} className="w-full mt-1 bg-surface-strong border border-edge rounded-md px-2 py-1.5 text-primary outline-none nodrag" />
         </label>
-        <label className="text-gray-400">描述
-          <textarea value={desc} onChange={(e) => setDesc(e.target.value)} className="w-full mt-1 h-20 bg-surface-strong border border-edge rounded-md p-2 text-gray-200 outline-none custom-scrollbar nodrag nowheel" />
+        <label className="text-secondary">描述
+          <textarea value={desc} onChange={(e) => setDesc(e.target.value)} className="w-full mt-1 h-20 bg-surface-strong border border-edge rounded-md p-2 text-primary outline-none custom-scrollbar nodrag nowheel" />
         </label>
-        <label className="text-gray-400">生图提示词
-          <textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} className="w-full mt-1 h-40 bg-surface-strong border border-edge rounded-md p-2 text-gray-200 outline-none custom-scrollbar nodrag nowheel" />
+        <label className="text-secondary">生图提示词
+          <textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} className="w-full mt-1 h-40 bg-surface-strong border border-edge rounded-md p-2 text-primary outline-none custom-scrollbar nodrag nowheel" />
         </label>
       </div>
       <div className="flex gap-2">
-        <button className="flex-1 py-2 bg-[#27272a] hover:bg-[#313135] text-gray-200 text-body-xs rounded-lg" onClick={() => save(false)}>保存</button>
-        <button className="flex-1 py-2 bg-[#3a3a3a] hover:bg-[#454545] text-gray-200 text-body-xs rounded-lg" onClick={() => save(true)}>保存并生图</button>
+        <button className="flex-1 py-2 bg-surface-hover hover:bg-surface-hover-2b text-primary text-body-xs rounded-lg" onClick={() => save(false)}>保存</button>
+        <button className="flex-1 py-2 bg-surface-active-2 hover:bg-surface-raised-2 text-primary text-body-xs rounded-lg" onClick={() => save(true)}>保存并生图</button>
       </div>
     </div>
   )

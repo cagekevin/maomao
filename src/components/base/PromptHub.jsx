@@ -248,7 +248,7 @@ function PromptHub() {
   const handleOpen = useCallback((it) => setOpenId(it.id), [])
 
   return (
-    <div className="relative flex flex-col h-full w-full bg-input text-gray-200">
+    <div className="relative flex flex-col h-full w-full bg-input text-primary">
       {/* 来源筛选（横向，适配窄面板，可折叠） */}
       <div className="px-3 pt-2 pb-1 shrink-0">
         <div className="flex flex-wrap gap-1 items-center">

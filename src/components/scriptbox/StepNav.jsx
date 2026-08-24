@@ -34,8 +34,8 @@ export default function StepNav({ step, setStep, shots, assets }) {
                 <text x="14" y="18" textAnchor="middle" fontSize="11" fontWeight="600" fill={active ? '#fff' : '#9ca3af'}>{s.n}</text>
               </svg>
               <span className="text-left">
-                <span className={`block text-body-xs font-medium ${active ? 'text-white' : 'text-gray-500'}`}>{s.title}</span>
-                <span className="block text-caption text-gray-500">{s.desc}</span>
+                <span className={`block text-body-xs font-medium ${active ? 'text-white' : 'text-muted'}`}>{s.title}</span>
+                <span className="block text-caption text-muted">{s.desc}</span>
               </span>
             </button>
             {k < steps.length - 1 && <div className="w-10 h-px bg-surface-hover-strong" />}

@@ -46,7 +46,7 @@ export default function PromptLibraryButton({ category = 'text' }) {
     <>
       <div className="w-[1px] h-3 bg-surface-3 flex-shrink-0 mr-1.5" />
       <button
-        className="flex items-center gap-1 h-6 px-2 bg-transparent hover:bg-surface-hover border border-transparent hover:border-edge rounded text-caption-sm text-gray-300 transition-colors cursor-pointer"
+        className="flex items-center gap-1 h-6 px-2 bg-transparent hover:bg-surface-hover border border-transparent hover:border-edge rounded text-caption-sm text-body transition-colors cursor-pointer"
         title="预设提示词"
         onClick={(e) => { e.stopPropagation(); setOpen(true) }}
       >

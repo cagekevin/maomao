@@ -109,17 +109,17 @@ export default function StepShots({ data, updateData, callbacks }) {
       {/* 左栏 */}
       <div className="flex flex-col gap-3">
         <div>
-          <div className="text-caption-sm text-gray-400 mb-1.5">统一风格</div>
-          <input value={d.globalStyle || ''} onChange={(e) => setStyle(e.target.value)} className="w-full bg-surface-strong border border-edge rounded-md px-2 py-1 text-caption-sm text-gray-200 outline-none nodrag" placeholder="如：中世纪童话 皮克斯3D" />
+          <div className="text-caption-sm text-secondary mb-1.5">统一风格</div>
+          <input value={d.globalStyle || ''} onChange={(e) => setStyle(e.target.value)} className="w-full bg-surface-strong border border-edge rounded-md px-2 py-1 text-caption-sm text-primary outline-none nodrag" placeholder="如：中世纪童话 皮克斯3D" />
           <div className="flex flex-wrap gap-1.5 mt-2">
             {(d.styleChips || []).map((c) => (
-              <button key={c} onClick={() => setStyle(c)} className={`px-2 py-0.5 text-caption rounded-md border ${d.globalStyle === c ? 'border-white/40 text-white bg-surface-hover' : 'border-edge text-gray-400 hover:border-edge-strong'}`}>{c}</button>
+              <button key={c} onClick={() => setStyle(c)} className={`px-2 py-0.5 text-caption rounded-md border ${d.globalStyle === c ? 'border-white/40 text-white bg-surface-hover' : 'border-edge text-secondary hover:border-edge-strong'}`}>{c}</button>
             ))}
           </div>
         </div>
 
         <div>
-          <div className="text-caption-sm text-gray-400 mb-1.5">剧情</div>
+          <div className="text-caption-sm text-secondary mb-1.5">剧情</div>
           {/* 上游接入只读素材区（位置在剧情框上方）：展示连入的上游文本/图片，内容只读不可改，仅可断线。
               素材来自 node.data.upstreamTexts / upstreamImages（ScriptBoxNode 经 useConnectedInputs 同步）；
               多个时 flex-wrap 自动换行。 */}
@@ -128,25 +128,25 @@ export default function StepShots({ data, updateData, callbacks }) {
               <MaterialStrip images={d.upstreamImages || []} texts={d.upstreamTexts || []} readOnly onDisconnect={callbacks?.onDisconnectUpstream} />
             </div>
           )}
-          <textarea value={d.story || ''} onChange={(e) => setStory(e.target.value)} placeholder="输入你的故事……" className="w-full h-32 bg-surface-strong border border-edge rounded-lg p-2.5 text-body-xs text-gray-200 outline-none resize-none custom-scrollbar nodrag nowheel" />
+          <textarea value={d.story || ''} onChange={(e) => setStory(e.target.value)} placeholder="输入你的故事……" className="w-full h-32 bg-surface-strong border border-edge rounded-lg p-2.5 text-body-xs text-primary outline-none resize-none custom-scrollbar nodrag nowheel" />
         </div>
 
         <div>
-          <div className="text-caption-sm text-gray-400 mb-1.5">镜头数量</div>
+          <div className="text-caption-sm text-secondary mb-1.5">镜头数量</div>
           <div className="flex gap-1">
             {[['auto', '自动'], [10, '10'], [20, '20'], [30, '30'], [50, '50']].map(([v, l]) => (
-              <button key={String(v)} onClick={() => setShotCount(v)} className={`px-2 py-0.5 text-caption rounded-md border ${String(d.shotCount) === String(v) ? 'border-white/40 text-white bg-surface-hover' : 'border-edge text-gray-400'}`}>{l}</button>
+              <button key={String(v)} onClick={() => setShotCount(v)} className={`px-2 py-0.5 text-caption rounded-md border ${String(d.shotCount) === String(v) ? 'border-white/40 text-white bg-surface-hover' : 'border-edge text-secondary'}`}>{l}</button>
             ))}
           </div>
           <div className="flex items-center gap-1.5 mt-1.5">
-            <span className="text-caption text-gray-500">自定义</span>
-            <input type="number" min="1" max="300" placeholder="1~300" value={d.customCount || ''} onChange={(e) => { const v = e.target.value; setCustomCount(v); setShotCount(v === '' ? 'auto' : Number(v)) }} className="w-20 bg-surface-strong border border-edge rounded-md px-2 py-0.5 text-caption-sm text-gray-200 outline-none nodrag" />
+            <span className="text-caption text-muted">自定义</span>
+            <input type="number" min="1" max="300" placeholder="1~300" value={d.customCount || ''} onChange={(e) => { const v = e.target.value; setCustomCount(v); setShotCount(v === '' ? 'auto' : Number(v)) }} className="w-20 bg-surface-strong border border-edge rounded-md px-2 py-0.5 text-caption-sm text-primary outline-none nodrag" />
           </div>
         </div>
 
         <button
           onClick={() => callbacks.onGenerateScript?.()}
-          className="flex items-center justify-center gap-2 w-full py-2.5 bg-[#27272a] hover:bg-[#313135] text-gray-200 text-body-xs font-medium rounded-lg transition-colors"
+          className="flex items-center justify-center gap-2 w-full py-2.5 bg-surface-hover hover:bg-surface-hover-2b text-primary text-body-xs font-medium rounded-lg transition-colors"
         >
           <span>⚡</span> 生成分镜脚本
         </button>
@@ -154,7 +154,7 @@ export default function StepShots({ data, updateData, callbacks }) {
 
       {/* 右栏表格 */}
       <div className="flex flex-col min-h-0 min-w-0">
-        <div className="flex items-center justify-between mb-1.5 text-caption-sm text-gray-400">
+        <div className="flex items-center justify-between mb-1.5 text-caption-sm text-secondary">
           <span>分镜脚本 · 风格：{d.globalStyle || '未设置'}</span>
           <span>{shots.length} 镜</span>
         </div>
@@ -162,35 +162,35 @@ export default function StepShots({ data, updateData, callbacks }) {
         <div className="border border-edge-faint rounded-lg">
           <table className="w-full table-fixed text-caption-sm border-collapse">
             <thead>
-              <tr className="bg-[#171717]">
+              <tr className="bg-surface-deep">
                 {[['镜号', '4%'], ['时长', '5%'], ['画面描述', '29%'], ['景别', '7%'], ['光影', '14%'], ['对白/旁白', '16%'], ['音效', '12%'], ['运镜', '8%'], ['', '5%']].map(([h, w], k) => (
-                  <th key={k} style={{ width: w }} className="text-left px-2 py-1.5 text-gray-500 font-normal whitespace-nowrap">{h}</th>
+                  <th key={k} style={{ width: w }} className="text-left px-2 py-1.5 text-muted font-normal whitespace-nowrap">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {shots.length === 0 && (
-                <tr><td colSpan={9} className="text-center py-10 text-gray-600 text-body-xs">输入剧情后点「生成分镜脚本」，自动生成分镜表格</td></tr>
+                <tr><td colSpan={9} className="text-center py-10 text-muted-2 text-body-xs">输入剧情后点「生成分镜脚本」，自动生成分镜表格</td></tr>
               )}
               {shots.map((s, i) => (
                 <tr key={s.id} className="hover:bg-surface-raised">
-                  <td className="px-1 py-1.5 text-gray-300 whitespace-nowrap">{s.index}</td>
+                  <td className="px-1 py-1.5 text-body whitespace-nowrap">{s.index}</td>
                   <td className="px-1 py-1.5 whitespace-nowrap">
-                    <input value={parseInt(s.duration) || 3} onChange={(e) => patchShot(i, 'duration', `${parseInt(e.target.value) || 3}s`)} className="w-8 bg-transparent text-gray-300 text-caption-sm outline-none nodrag" />
+                    <input value={parseInt(s.duration) || 3} onChange={(e) => patchShot(i, 'duration', `${parseInt(e.target.value) || 3}s`)} className="w-8 bg-transparent text-body text-caption-sm outline-none nodrag" />
                   </td>
                   <td className="px-2 py-1.5 align-top" title="双击编辑">
-                    <div className="text-gray-200 break-words cursor-text hover:bg-surface-1 rounded px-1 -mx-1 whitespace-normal" onDoubleClick={() => openField(i, 'description', '画面描述')} dangerouslySetInnerHTML={{ __html: hlAt(s.description, (d.assets || []).map((a) => a.name)) || '<span class="text-gray-600">双击编辑画面描述</span>' }} />
+                    <div className="text-primary break-words cursor-text hover:bg-surface-1 rounded px-1 -mx-1 whitespace-normal" onDoubleClick={() => openField(i, 'description', '画面描述')} dangerouslySetInnerHTML={{ __html: hlAt(s.description, (d.assets || []).map((a) => a.name)) || '<span class="text-muted-2">双击编辑画面描述</span>' }} />
                   </td>
                   <td className="px-1.5 py-1.5 whitespace-nowrap"><DropTable opts={SHOT_TYPES} val={s.shotType} onPick={(v) => patchShot(i, 'shotType', v)} /></td>
                   <td className="px-1.5 py-1.5 whitespace-nowrap"><DropTable opts={LIGHTS} val={s.lighting} onPick={(v) => patchShot(i, 'lighting', v)} /></td>
-                  <td className="px-2 py-1.5"><div className="text-gray-300 line-clamp-2 break-words cursor-text hover:bg-surface-1 rounded px-1 -mx-1" title="双击编辑" onDoubleClick={() => openDlg(i)}>{dialogueText(s.dialogue) || <span className="text-gray-600">双击编辑</span>}</div></td>
-                  <td className="px-2 py-1.5"><div className="text-gray-300 line-clamp-2 break-words cursor-text hover:bg-surface-1 rounded px-1 -mx-1" title="双击编辑" onDoubleClick={() => openField(i, 'sound', '音效')}>{s.sound || <span className="text-gray-600">双击编辑</span>}</div></td>
+                  <td className="px-2 py-1.5"><div className="text-body line-clamp-2 break-words cursor-text hover:bg-surface-1 rounded px-1 -mx-1" title="双击编辑" onDoubleClick={() => openDlg(i)}>{dialogueText(s.dialogue) || <span className="text-muted-2">双击编辑</span>}</div></td>
+                  <td className="px-2 py-1.5"><div className="text-body line-clamp-2 break-words cursor-text hover:bg-surface-1 rounded px-1 -mx-1" title="双击编辑" onDoubleClick={() => openField(i, 'sound', '音效')}>{s.sound || <span className="text-muted-2">双击编辑</span>}</div></td>
                   <td className="px-1.5 py-1.5 whitespace-nowrap"><DropTable opts={MOTIONS} val={s.motion} onPick={(v) => patchShot(i, 'motion', v)} /></td>
                   <td className="px-2 py-1.5">
                     <div className="flex items-center justify-end gap-1">
                       {i > 0 && (
                         <button
-                          className={`${s.tailFrameVariantsLoading ? 'text-gray-500' : s.usePrevShotVideoTail ? 'text-emerald-400' : 'text-gray-500 hover:text-white'}`}
+                          className={`${s.tailFrameVariantsLoading ? 'text-muted' : s.usePrevShotVideoTail ? 'text-emerald-400' : 'text-muted hover:text-white'}`}
                           title={s.usePrevShotVideoTail ? '视觉起点已锁定于上一镜尾帧' : '生成/查看尾帧变体'}
                           onClick={() => openTailFrame(s.id)}
                         >
@@ -205,21 +205,21 @@ export default function StepShots({ data, updateData, callbacks }) {
             </tbody>
           </table>
         </div>
-        <button className="self-start flex items-center gap-1 px-2 py-1 mt-2 text-caption-sm text-gray-400 hover:text-white hover:bg-surface-1 rounded" onClick={addShot}><Plus size={11} /> 添加镜头</button>
+        <button className="self-start flex items-center gap-1 px-2 py-1 mt-2 text-caption-sm text-secondary hover:text-white hover:bg-surface-1 rounded" onClick={addShot}><Plus size={11} /> 添加镜头</button>
       </div>
 
       {/* 双击字段编辑弹窗（统一节点内弹层容器） */}
       {editing && (
         <ScriptBoxModal title={`编辑${editing.title}`} onClose={() => setEditing(null)} onOk={commitField}>
-          <textarea autoFocus value={editVal} onChange={(e) => setEditVal(e.target.value)} className="w-full h-32 bg-surface-strong border border-edge rounded-lg p-2 text-body-xs text-gray-200 outline-none custom-scrollbar nodrag nowheel" />
-          <div className="text-caption text-gray-500 mt-1">提示：用 @资产名 引用，如 @小马</div>
+          <textarea autoFocus value={editVal} onChange={(e) => setEditVal(e.target.value)} className="w-full h-32 bg-surface-strong border border-edge rounded-lg p-2 text-body-xs text-primary outline-none custom-scrollbar nodrag nowheel" />
+          <div className="text-caption text-muted mt-1">提示：用 @资产名 引用，如 @小马</div>
         </ScriptBoxModal>
       )}
 
       {/* 对白编辑器（统一节点内弹层容器） */}
       {dlgEditing !== null && (
         <ScriptBoxModal title="编辑对白/旁白" onClose={() => setDlgEditing(null)} onOk={commitDlg}>
-          <textarea autoFocus value={dlgText} onChange={(e) => setDlgText(e.target.value)} placeholder="每行一条：角色名：台词（旁白写：旁白：内容）" className="w-full h-32 bg-surface-strong border border-edge rounded-lg p-2 text-body-xs text-gray-200 outline-none custom-scrollbar nodrag nowheel" />
+          <textarea autoFocus value={dlgText} onChange={(e) => setDlgText(e.target.value)} placeholder="每行一条：角色名：台词（旁白写：旁白：内容）" className="w-full h-32 bg-surface-strong border border-edge rounded-lg p-2 text-body-xs text-primary outline-none custom-scrollbar nodrag nowheel" />
         </ScriptBoxModal>
       )}
 
@@ -231,7 +231,7 @@ export default function StepShots({ data, updateData, callbacks }) {
         return (
           <ScriptBoxModal title={`镜头${tfShot.index} · 尾帧变体（视觉起点）`} onClose={() => setTfShotId(null)}>
             {tfShot.tailFrameVariantsLoading && (
-              <div className="flex items-center gap-2 py-3 text-gray-400"><Loader2 size={14} className="animate-spin" /> 正在抽帧并生成变体…</div>
+              <div className="flex items-center gap-2 py-3 text-secondary"><Loader2 size={14} className="animate-spin" /> 正在抽帧并生成变体…</div>
             )}
             {!tfShot.tailFrameVariantsLoading && tfShot.tailFrameVariantsError && (
               <div className="text-red-400 text-caption-sm mb-2">{tfShot.tailFrameVariantsError}</div>
@@ -244,22 +244,22 @@ export default function StepShots({ data, updateData, callbacks }) {
                   onClick={() => selectTailFrame(tfShotId, v, true)}
                 >
                   <img src={v.imageUrl ? render(v.imageUrl) : ''} alt="" className="w-24 h-16 object-cover rounded" />
-                  <span className="text-caption-xs text-gray-400">{v.id === 'original' ? '原始尾帧' : '重构变体'}</span>
+                  <span className="text-caption-xs text-secondary">{v.id === 'original' ? '原始尾帧' : '重构变体'}</span>
                 </button>
               ))}
               {!tfShot.tailFrameVariantsLoading && variants.length === 0 && (
-                <div className="text-caption text-gray-500 w-full">
+                <div className="text-caption text-muted w-full">
                   {tfShot.tailFrameVariantsError ? '变体生成失败，可重试。' : '尚未生成变体，请点击「生成变体」。'}
                 </div>
               )}
             </div>
             <div className="flex items-center justify-between mt-3">
               <button
-                className={`text-caption-sm px-2 py-1 rounded border ${tfShot.usePrevShotVideoTail ? 'border-white/40 text-white' : 'border-edge text-gray-400 hover:border-edge-strong'}`}
+                className={`text-caption-sm px-2 py-1 rounded border ${tfShot.usePrevShotVideoTail ? 'border-white/40 text-white' : 'border-edge text-secondary hover:border-edge-strong'}`}
                 onClick={() => selectTailFrame(tfShotId, null, false)}
               >不使用尾帧</button>
               {!tfShot.tailFrameVariantsLoading && (
-                <button className="text-caption-sm px-2 py-1 rounded border border-edge text-gray-300 hover:border-edge-strong" onClick={() => callbacks.onGenerateTailFrameVariants?.(tfShotId)}>重新生成变体</button>
+                <button className="text-caption-sm px-2 py-1 rounded border border-edge text-body hover:border-edge-strong" onClick={() => callbacks.onGenerateTailFrameVariants?.(tfShotId)}>重新生成变体</button>
               )}
             </div>
           </ScriptBoxModal>
@@ -276,11 +276,11 @@ function DropTable({ opts, val, onPick }) {
   useOutsideClick(ref, open, () => setOpen(false))
   return (
     <div ref={ref} className="relative" onClick={(e) => e.stopPropagation()}>
-      <button className="w-full text-left text-gray-300 text-caption-sm px-1.5 py-0.5 rounded hover:bg-surface-hover line-clamp-2 break-words block" title={val || '选择'} onClick={() => setOpen(!open)}>{val || '选择'}</button>
+      <button className="w-full text-left text-body text-caption-sm px-1.5 py-0.5 rounded hover:bg-surface-hover line-clamp-2 break-words block" title={val || '选择'} onClick={() => setOpen(!open)}>{val || '选择'}</button>
       {open && (
         <div className="absolute z-modal mt-1 bg-surface-menu border border-edge rounded-lg shadow-2xl py-1 min-w-[90px]">
           {opts.map((o) => (
-            <button key={o} className="block w-full text-left px-2.5 py-1 text-caption-sm text-gray-300 hover:bg-surface-hover" onClick={() => { onPick(o); setOpen(false) }}>{o}</button>
+            <button key={o} className="block w-full text-left px-2.5 py-1 text-caption-sm text-body hover:bg-surface-hover" onClick={() => { onPick(o); setOpen(false) }}>{o}</button>
           ))}
         </div>
       )}

@@ -564,7 +564,7 @@ export default function OverlayEditor({ state, onChange, upstreamUrls }) {
           setMenu(null)
         }
       }}
-      className={`w-full flex items-center gap-2 px-2 py-1 text-caption-sm text-left rounded transition-colors ${disabled ? 'opacity-40 cursor-not-allowed' : danger ? 'text-red-300 hover:bg-red-500/15' : 'text-gray-200 hover:bg-blue-500/15'} cursor-pointer`}
+      className={`w-full flex items-center gap-2 px-2 py-1 text-caption-sm text-left rounded transition-colors ${disabled ? 'opacity-40 cursor-not-allowed' : danger ? 'text-red-300 hover:bg-red-500/15' : 'text-primary hover:bg-blue-500/15'} cursor-pointer`}
     >
       {icon}
       <span>{label}</span>
@@ -574,32 +574,32 @@ export default function OverlayEditor({ state, onChange, upstreamUrls }) {
   return (
     <div className="space-y-2">
       {/* 画布尺寸 */}
-      <div className="flex items-center gap-1.5 text-caption text-gray-400 nodrag flex-wrap">
+      <div className="flex items-center gap-1.5 text-caption text-secondary nodrag flex-wrap">
         <span>画布</span>
         <input
           type="number" min={64} max={4096}
           value={canvasWidth}
           onChange={(e) => onChange({ ...state, canvasWidth: Math.max(64, Math.min(4096, parseInt(e.target.value || '0', 10) || canvasWidth)) })}
-          className="w-16 bg-surface-hover text-gray-200 rounded px-1.5 py-0.5 border border-edge outline-none"
+          className="w-16 bg-surface-hover text-primary rounded px-1.5 py-0.5 border border-edge outline-none"
         />
         <span>×</span>
         <input
           type="number" min={64} max={4096}
           value={canvasHeight}
           onChange={(e) => onChange({ ...state, canvasHeight: Math.max(64, Math.min(4096, parseInt(e.target.value || '0', 10) || canvasHeight)) })}
-          className="w-16 bg-surface-hover text-gray-200 rounded px-1.5 py-0.5 border border-edge outline-none"
+          className="w-16 bg-surface-hover text-primary rounded px-1.5 py-0.5 border border-edge outline-none"
         />
       </div>
 
       {/* 画布（只显示合成预览图 + 透明图层选择框，对齐官方 Component568） */}
       <div
-        className={fullscreen ? 'fixed inset-0 z-modal bg-black/95 backdrop-blur-md flex flex-col items-center justify-center p-6 nodrag nowheel' : 'flex justify-center bg-[#0d0d0d] rounded border border-edge p-2 nodrag'}
+        className={fullscreen ? 'fixed inset-0 z-modal bg-black/95 backdrop-blur-md flex flex-col items-center justify-center p-6 nodrag nowheel' : 'flex justify-center bg-surface-sunken-2 rounded border border-edge p-2 nodrag'}
         onClick={fullscreen ? (e) => e.stopPropagation() : undefined}
         onWheel={fullscreen ? (e) => e.stopPropagation() : undefined}
       >
         {fullscreen && (
           <button
-            className="absolute top-3 right-3 flex items-center gap-1 px-2 py-1 rounded border bg-surface-hover border-edge-muted text-gray-200 hover:text-white hover:border-[#666] text-xs cursor-pointer"
+            className="absolute top-3 right-3 flex items-center gap-1 px-2 py-1 rounded border bg-surface-hover border-edge-muted text-primary hover:text-white hover:border-edge-strong text-xs cursor-pointer"
             onClick={() => setFullscreen(false)}
             title="退出全屏 (Esc)"
           >
@@ -614,7 +614,7 @@ export default function OverlayEditor({ state, onChange, upstreamUrls }) {
             height: display.displayH,
             cursor: paintLayerId ? 'crosshair' : 'default',
             touchAction: paintLayerId ? 'none' : 'auto',
-            backgroundColor: '#1a1a1a',
+            backgroundColor: 'rgb(var(--mao-surface))',
             backgroundImage: 'linear-gradient(45deg, #2a2a2a 25%, transparent 25%), linear-gradient(-45deg, #2a2a2a 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #2a2a2a 75%), linear-gradient(-45deg, transparent 75%, #2a2a2a 75%)',
             backgroundSize: '12px 12px',
             backgroundPosition: '0 0, 0 6px, 6px -6px, -6px 0'
@@ -699,27 +699,27 @@ export default function OverlayEditor({ state, onChange, upstreamUrls }) {
 
       {/* 涂抹工具栏 */}
       {paintLayerId && (
-        <div className="flex flex-wrap items-center gap-1.5 text-caption text-gray-300 bg-surface-raised border border-orange-500/40 rounded p-1.5 nodrag">
-          <button className={`px-1.5 py-0.5 rounded border cursor-pointer ${brushMode === 'erase' ? 'bg-orange-500/15 border-orange-500/60 text-orange-300' : 'bg-surface-hover border-edge text-gray-300'}`} onClick={() => setBrushMode('erase')}>擦除</button>
-          <button className={`px-1.5 py-0.5 rounded border cursor-pointer ${brushMode === 'restore' ? 'bg-orange-500/15 border-orange-500/60 text-orange-300' : 'bg-surface-hover border-edge text-gray-300'}`} onClick={() => setBrushMode('restore')}>恢复</button>
+        <div className="flex flex-wrap items-center gap-1.5 text-caption text-body bg-surface-raised border border-orange-500/40 rounded p-1.5 nodrag">
+          <button className={`px-1.5 py-0.5 rounded border cursor-pointer ${brushMode === 'erase' ? 'bg-orange-500/15 border-orange-500/60 text-orange-300' : 'bg-surface-hover border-edge text-body'}`} onClick={() => setBrushMode('erase')}>擦除</button>
+          <button className={`px-1.5 py-0.5 rounded border cursor-pointer ${brushMode === 'restore' ? 'bg-orange-500/15 border-orange-500/60 text-orange-300' : 'bg-surface-hover border-edge text-body'}`} onClick={() => setBrushMode('restore')}>恢复</button>
           <span className="ml-1">笔刷</span>
           <input type="range" min={4} max={200} value={brushSize} onChange={(e) => setBrushSize(parseInt(e.target.value, 10))} className="w-20 accent-orange-400" />
-          <span className="text-gray-400">{brushSize}px</span>
-          <button className="ml-auto px-1.5 py-0.5 rounded border bg-surface-hover border-edge text-gray-300 hover:text-white cursor-pointer" onClick={() => setFullscreen(true)} title="全屏涂抹"><Maximize size={11} /></button>
-          <button className="px-1.5 py-0.5 rounded border bg-surface-hover border-edge text-gray-300 hover:text-white cursor-pointer" onClick={undoPaint}>撤销</button>
-          <button className="px-1.5 py-0.5 rounded border bg-surface-hover border-edge text-gray-300 hover:text-white cursor-pointer" onClick={() => setPaintLayerId(null)}>取消</button>
+          <span className="text-secondary">{brushSize}px</span>
+          <button className="ml-auto px-1.5 py-0.5 rounded border bg-surface-hover border-edge text-body hover:text-white cursor-pointer" onClick={() => setFullscreen(true)} title="全屏涂抹"><Maximize size={11} /></button>
+          <button className="px-1.5 py-0.5 rounded border bg-surface-hover border-edge text-body hover:text-white cursor-pointer" onClick={undoPaint}>撤销</button>
+          <button className="px-1.5 py-0.5 rounded border bg-surface-hover border-edge text-body hover:text-white cursor-pointer" onClick={() => setPaintLayerId(null)}>取消</button>
           <button className="px-1.5 py-0.5 rounded border bg-orange-500/15 border-orange-500/60 text-orange-200 cursor-pointer" onClick={finishPaint}>完成</button>
         </div>
       )}
 
       {/* 图层列表 */}
       <div className="bg-surface-raised border border-edge rounded p-1.5 max-h-[180px] overflow-y-auto nodrag">
-        <div className="flex items-center gap-1 text-caption text-gray-400 mb-1">
+        <div className="flex items-center gap-1 text-caption text-secondary mb-1">
           <Box size={11} />
           <span>图层（{layers.length}）</span>
         </div>
         {sortedLayers.length === 0 ? (
-          <div className="text-caption text-gray-500 py-2 text-center">连线一张图即作为新图层导入</div>
+          <div className="text-caption text-muted py-2 text-center">连线一张图即作为新图层导入</div>
         ) : (
           sortedLayers.map((layer) => {
             const isDragging = dragLayerId === layer.id
@@ -789,16 +789,16 @@ export default function OverlayEditor({ state, onChange, upstreamUrls }) {
                   setTimeout(() => setMenu({ id: layer.id, x, y }), 0)
                 }}
               >
-                <button className="text-gray-400 hover:text-white cursor-pointer" onClick={(e) => { e.stopPropagation(); updateLayer(layer.id, { visible: layer.visible === false }) }} title="显隐">
+                <button className="text-secondary hover:text-white cursor-pointer" onClick={(e) => { e.stopPropagation(); updateLayer(layer.id, { visible: layer.visible === false }) }} title="显隐">
                   {layer.visible === false ? <EyeOff size={11} /> : <Eye size={11} />}
                 </button>
-                <button className="text-gray-400 hover:text-white cursor-pointer" onClick={(e) => { e.stopPropagation(); updateLayer(layer.id, { locked: !layer.locked }) }} title="锁定">
+                <button className="text-secondary hover:text-white cursor-pointer" onClick={(e) => { e.stopPropagation(); updateLayer(layer.id, { locked: !layer.locked }) }} title="锁定">
                   {layer.locked ? <Lock size={11} /> : <Unlock size={11} />}
                 </button>
                 <img src={toAbsoluteFileUrl(layer.imageUrl)} alt="" className="w-6 h-6 object-cover rounded pointer-events-none" />
-                <span className="flex-1 truncate text-gray-300">图层 {layer.zIndex}</span>
-                <button className="text-gray-400 hover:text-orange-300 cursor-pointer" onClick={(e) => { e.stopPropagation(); setPaintLayerId(layer.id); setSelectedId(layer.id) }} title="涂抹擦除"><Brush size={11} /></button>
-                <button className="text-gray-400 hover:text-red-300 cursor-pointer" onClick={(e) => { e.stopPropagation(); removeLayer(layer.id) }} title="删除"><Trash2 size={11} /></button>
+                <span className="flex-1 truncate text-body">图层 {layer.zIndex}</span>
+                <button className="text-secondary hover:text-orange-300 cursor-pointer" onClick={(e) => { e.stopPropagation(); setPaintLayerId(layer.id); setSelectedId(layer.id) }} title="涂抹擦除"><Brush size={11} /></button>
+                <button className="text-secondary hover:text-red-300 cursor-pointer" onClick={(e) => { e.stopPropagation(); removeLayer(layer.id) }} title="删除"><Trash2 size={11} /></button>
               </div>
             )
           })
@@ -807,14 +807,14 @@ export default function OverlayEditor({ state, onChange, upstreamUrls }) {
 
       {/* 属性面板 */}
       {selectedLayer && !paintLayerId && (
-        <div className="flex items-center gap-1.5 text-caption text-gray-400 nodrag">
+        <div className="flex items-center gap-1.5 text-caption text-secondary nodrag">
           <span>不透明</span>
           <input type="range" min={0} max={100} value={Math.round(selectedLayer.opacity * 100)} onChange={(e) => updateLayer(selectedLayer.id, { opacity: parseInt(e.target.value, 10) / 100 })} className="w-20 accent-blue-400" />
           <span>{Math.round(selectedLayer.opacity * 100)}%</span>
           <span className="ml-2">缩放</span>
-          <input type="number" min={0.05} max={10} step={0.05} value={Number(selectedLayer.scale.toFixed(2))} onChange={(e) => updateLayer(selectedLayer.id, { scale: Math.max(0.05, parseFloat(e.target.value) || selectedLayer.scale) })} className="w-14 bg-surface-hover text-gray-200 rounded px-1 py-0.5 border border-edge outline-none" />
+          <input type="number" min={0.05} max={10} step={0.05} value={Number(selectedLayer.scale.toFixed(2))} onChange={(e) => updateLayer(selectedLayer.id, { scale: Math.max(0.05, parseFloat(e.target.value) || selectedLayer.scale) })} className="w-14 bg-surface-hover text-primary rounded px-1 py-0.5 border border-edge outline-none" />
           <span className="ml-2">旋转</span>
-          <input type="number" min={-360} max={360} step={1} value={Math.round(selectedLayer.rotation)} onChange={(e) => updateLayer(selectedLayer.id, { rotation: parseFloat(e.target.value) || 0 })} className="w-14 bg-surface-hover text-gray-200 rounded px-1 py-0.5 border border-edge outline-none" />
+          <input type="number" min={-360} max={360} step={1} value={Math.round(selectedLayer.rotation)} onChange={(e) => updateLayer(selectedLayer.id, { rotation: parseFloat(e.target.value) || 0 })} className="w-14 bg-surface-hover text-primary rounded px-1 py-0.5 border border-edge outline-none" />
         </div>
       )}
 

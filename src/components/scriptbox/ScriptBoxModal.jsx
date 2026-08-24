@@ -34,8 +34,8 @@ export default function ScriptBoxModal({ title, onClose, width = 440, height, ch
       >
         {title && (
           <div className="flex items-center justify-between px-4 py-2.5 border-b border-edge-faint shrink-0">
-            <span className="text-body-xs text-gray-200 font-medium">{title}</span>
-            <button className="text-gray-500 hover:text-white text-sm leading-none" title="关闭" onClick={onClose}>×</button>
+            <span className="text-body-xs text-primary font-medium">{title}</span>
+            <button className="text-muted hover:text-white text-sm leading-none" title="关闭" onClick={onClose}>×</button>
           </div>
         )}
         <div className={`p-4 min-h-0 overflow-visible custom-scrollbar ${bodyClass}`}>{children}</div>
@@ -43,8 +43,8 @@ export default function ScriptBoxModal({ title, onClose, width = 440, height, ch
           footer
         ) : (
           <div className="flex justify-end gap-2 px-4 pb-4 shrink-0">
-            <button className="px-3 py-1 text-caption-sm text-gray-400 hover:text-white" onClick={onClose}>{cancelText}</button>
-            <button className="px-3 py-1 text-caption-sm bg-surface-hover hover:bg-surface-hover-strong text-gray-200 rounded-md" onClick={onOk}>{okText}</button>
+            <button className="px-3 py-1 text-caption-sm text-secondary hover:text-white" onClick={onClose}>{cancelText}</button>
+            <button className="px-3 py-1 text-caption-sm bg-surface-hover hover:bg-surface-hover-strong text-primary rounded-md" onClick={onOk}>{okText}</button>
           </div>
         )}
       </div>

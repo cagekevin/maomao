@@ -155,7 +155,7 @@ export default function InlineImageCropper({ imageUrl, onSave, onClose }) {
         <button
           type="button"
           onClick={onClose}
-          className="px-3 py-1.5 rounded-lg text-gray-300 hover:bg-surface-hover-strong text-sm transition-colors"
+          className="px-3 py-1.5 rounded-lg text-body hover:bg-surface-hover-strong text-sm transition-colors"
         >
           取消
         </button>

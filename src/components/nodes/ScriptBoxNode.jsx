@@ -108,7 +108,7 @@ function ScriptBoxNode({ id, data, selected }) {
       id={id}
       label={d.label}
       defaultTitle="剧本盒子"
-      icon={<Clapperboard size={11} className="text-gray-500" />}
+      icon={<Clapperboard size={11} className="text-muted" />}
       selected={selected}
       handleVariant="small"
       showHandles={false}
@@ -129,19 +129,19 @@ function ScriptBoxNode({ id, data, selected }) {
 
         {/* 顶部标题栏 */}
         <div className="flex items-center gap-2 px-4 py-2.5 border-b border-white/[0.08] w-full drag-handle cursor-move shrink-0">
-          <Clapperboard size={14} className="text-gray-500" />
-          <span className="text-body-sm text-gray-300 font-medium">{d.projectName || '剧本盒子'}</span>
+          <Clapperboard size={14} className="text-muted" />
+          <span className="text-body-sm text-body font-medium">{d.projectName || '剧本盒子'}</span>
           {genMask && (
-            <span className="flex items-center gap-1.5 text-caption-sm text-gray-400 bg-surface-subtle px-2.5 py-1 rounded-full">
+            <span className="flex items-center gap-1.5 text-caption-sm text-secondary bg-surface-subtle px-2.5 py-1 rounded-full">
               <Loader2 size={11} className="animate-spin text-emerald-400" />
               生成中 {d.genChars || 0} 字 · {genSecs}s
             </span>
           )}
           <div className="flex-1" />
-          <button className="p-1 text-gray-400 hover:text-white hover:bg-surface-hover rounded-md" title="总体提示词设置" onClick={(e) => { e.stopPropagation(); setSettingsOpen(true) }}>
+          <button className="p-1 text-secondary hover:text-white hover:bg-surface-hover rounded-md" title="总体提示词设置" onClick={(e) => { e.stopPropagation(); setSettingsOpen(true) }}>
             <Settings size={13} />
           </button>
-          <button className="p-1 text-gray-400 hover:text-white hover:bg-surface-hover rounded-md" title="全屏显示" onClick={(e) => { e.stopPropagation(); setFullscreen(true) }}>
+          <button className="p-1 text-secondary hover:text-white hover:bg-surface-hover rounded-md" title="全屏显示" onClick={(e) => { e.stopPropagation(); setFullscreen(true) }}>
             <Maximize2 size={13} />
           </button>
         </div>

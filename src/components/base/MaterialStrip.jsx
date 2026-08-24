@@ -45,7 +45,7 @@ function MaterialStrip({ images = [], texts = [], onInsert, onDisconnect, readOn
         const name = t.label || `文本${i + 1}`
         const canDisconnect = !!t.sourceNodeId
         return (
-          <div key={t.id || i} className={`h-8 px-2 bg-surface-hover border border-edge-muted rounded flex items-center gap-1 text-caption text-gray-300 relative ${readOnly ? '' : 'hover:bg-surface-hover-strong hover:border-blue-500 hover:text-blue-400 transition-colors group/text cursor-pointer'}`} title={t.text || name} onClick={readOnly ? undefined : (e) => { e.stopPropagation(); onInsert?.(name) }}>
+          <div key={t.id || i} className={`h-8 px-2 bg-surface-hover border border-edge-muted rounded flex items-center gap-1 text-caption text-body relative ${readOnly ? '' : 'hover:bg-surface-hover-strong hover:border-blue-500 hover:text-blue-400 transition-colors group/text cursor-pointer'}`} title={t.text || name} onClick={readOnly ? undefined : (e) => { e.stopPropagation(); onInsert?.(name) }}>
             <LinkIcon size={10} />
             <span className="max-w-[80px] truncate">{name}{t.text ? ` (${t.label || ''})` : ''}</span>
             {canDisconnect && (

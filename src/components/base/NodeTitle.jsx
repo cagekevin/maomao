@@ -20,7 +20,7 @@ function NodeTitle({ label, defaultTitle, icon, className = '', floating = false
 
   return (
     <div
-      className={`${floating ? 'absolute -top-6 left-0 z-30' : 'mb-1 self-start'} flex items-center gap-1.5 text-caption-sm text-gray-400 drag-handle cursor-move ${className || ''}`}
+      className={`${floating ? 'absolute -top-6 left-0 z-30' : 'mb-1 self-start'} flex items-center gap-1.5 text-caption-sm text-secondary drag-handle cursor-move ${className || ''}`}
     >
       {icon}
       {editing ? (
@@ -43,7 +43,7 @@ function NodeTitle({ label, defaultTitle, icon, className = '', floating = false
           }}
           onClick={(e) => e.stopPropagation()}
           onMouseDown={(e) => e.stopPropagation()}
-          className="nodrag nowheel nopan w-32 rounded border border-edge-muted bg-surface-black px-1.5 py-0.5 text-caption-sm text-gray-200 outline-none focus:border-blue-500"
+          className="nodrag nowheel nopan w-32 rounded border border-edge-muted bg-surface-black px-1.5 py-0.5 text-caption-sm text-primary outline-none focus:border-blue-500"
           autoFocus
         />
       ) : (
@@ -53,7 +53,7 @@ function NodeTitle({ label, defaultTitle, icon, className = '', floating = false
             e.stopPropagation()
             setEditing(true)
           }}
-          className="max-w-[180px] truncate rounded px-0.5 text-left hover:text-gray-200 hover:bg-white/5"
+          className="max-w-[180px] truncate rounded px-0.5 text-left hover:text-primary hover:bg-white/5"
           title="双击修改名称"
         >
           {val || defaultTitle}

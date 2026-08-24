@@ -84,7 +84,7 @@ export function Director3DOverlay({ nodeId, onExit }) {
     <div
       ref={hostRef}
       className="director3d-overlay"
-      style={{ position: 'fixed', inset: 0, zIndex: 2147483000, background: '#181817' }}
+      style={{ position: 'fixed', inset: 0, zIndex: 2147483000 }}
     >
       <ErrorBoundary label="Director3D">
         <Director3DApp

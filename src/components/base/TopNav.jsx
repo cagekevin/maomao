@@ -71,7 +71,7 @@ function TopNav({ view, onNavigate, onSwitchProject, onCreateProject, agentOpen,
                 key={t.key}
                 type="button"
                 onClick={() => onNavigate(t.key)}
-                className={`px-5 py-1.5 text-sm font-medium rounded-full transition-colors cursor-pointer border-none ${isActive ? 'bg-white text-black' : 'text-gray-400 hover:text-gray-200'}`}
+                className={`px-5 py-1.5 text-sm font-medium rounded-full transition-colors cursor-pointer border-none ${isActive ? 'bg-white text-black' : 'text-secondary hover:text-primary'}`}
               >
                 {t.label}
               </button>
@@ -89,7 +89,7 @@ function TopNav({ view, onNavigate, onSwitchProject, onCreateProject, agentOpen,
         <div className="relative group/avatar">
           <button
             type="button"
-            className="relative flex items-center justify-center w-8 h-8 rounded-full text-sm bg-surface-hover-strong transition-all border-2 border-transparent hover:border-gray-500 cursor-pointer border-none overflow-hidden"
+            className="relative flex items-center justify-center w-8 h-8 rounded-full text-sm bg-surface-hover-strong transition-all border-2 border-transparent hover:border-edge-strong cursor-pointer border-none overflow-hidden"
             title="用户信息"
           >
             <img
@@ -109,17 +109,17 @@ function TopNav({ view, onNavigate, onSwitchProject, onCreateProject, agentOpen,
               <img src={AVATAR_URL} alt="avatar" className="w-10 h-10 rounded-full object-cover border border-edge-muted" draggable={false} loading="lazy" decoding="async" onError={(t) => { if (t.target.src !== AVATAR_FALLBACK) t.target.src = AVATAR_FALLBACK }} />
               <div className="flex flex-col">
                 <div className="text-white font-bold text-sm truncate">画布用户</div>
-                <div className="text-gray-400 text-xs">猫猫</div>
+                <div className="text-secondary text-xs">猫猫</div>
               </div>
             </div>
             {/* 同步设置区块：推送到云端 / 从云端拉取 */}
             <div className="p-2 border-b border-edge">
-              <div className="px-2 py-1 text-xs text-gray-500 font-bold">同步设置</div>
+              <div className="px-2 py-1 text-xs text-muted font-bold">同步设置</div>
               {/* 【推送到云端】核心业务数据（画布）推送到云端 */}
               <button
                 type="button"
                 onClick={handlePushToCloud}
-                className="w-full text-left px-2 py-2 text-sm text-gray-300 hover:bg-surface-hover-strong hover:text-white rounded-md flex items-center gap-2 transition-colors cursor-pointer border-none bg-transparent"
+                className="w-full text-left px-2 py-2 text-sm text-body hover:bg-surface-hover-strong hover:text-white rounded-md flex items-center gap-2 transition-colors cursor-pointer border-none bg-transparent"
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
                 推送到云端
@@ -128,7 +128,7 @@ function TopNav({ view, onNavigate, onSwitchProject, onCreateProject, agentOpen,
               <button
                 type="button"
                 onClick={handlePullFromCloud}
-                className="w-full text-left px-2 py-2 text-sm text-gray-300 hover:bg-surface-hover-strong hover:text-white rounded-md flex items-center gap-2 transition-colors cursor-pointer border-none bg-transparent"
+                className="w-full text-left px-2 py-2 text-sm text-body hover:bg-surface-hover-strong hover:text-white rounded-md flex items-center gap-2 transition-colors cursor-pointer border-none bg-transparent"
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></svg>
                 从云端拉取
@@ -141,7 +141,7 @@ function TopNav({ view, onNavigate, onSwitchProject, onCreateProject, agentOpen,
         <button
           type="button"
           onClick={() => onNavigate(view === 'settings' ? 'canvas' : 'settings')}
-          className={`relative text-gray-400 hover:text-white transition-colors p-2 rounded-full hover:bg-surface-active cursor-pointer border-none bg-transparent ${view === 'settings' ? 'bg-surface-active text-white' : ''}`}
+          className={`relative text-secondary hover:text-white transition-colors p-2 rounded-full hover:bg-surface-active cursor-pointer border-none bg-transparent ${view === 'settings' ? 'bg-surface-active text-white' : ''}`}
           title="设置"
         >
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -154,7 +154,7 @@ function TopNav({ view, onNavigate, onSwitchProject, onCreateProject, agentOpen,
         <button
           type="button"
           onClick={onToggleAgent}
-          className={`relative text-gray-400 hover:text-white transition-colors p-2 rounded-full hover:bg-surface-active cursor-pointer border-none bg-transparent ${agentOpen ? 'bg-surface-active text-white' : ''}`}
+          className={`relative text-secondary hover:text-white transition-colors p-2 rounded-full hover:bg-surface-active cursor-pointer border-none bg-transparent ${agentOpen ? 'bg-surface-active text-white' : ''}`}
           title={agentOpen ? '关闭 AI 助手' : '打开 AI 助手'}
         >
           {/* 机器人图标 */}

@@ -64,11 +64,11 @@ function ToastContainer() {
       {items.map((t) => (
         <div
           key={t.id}
-          className={`pointer-events-auto flex items-center gap-1.5 px-3 py-1.5 rounded-lg border bg-gradient-to-b ${COLORS[t.type] || COLORS.info} text-gray-200 text-xs shadow-lg backdrop-blur-sm animate-slide-up`}
+          className={`pointer-events-auto flex items-center gap-1.5 px-3 py-1.5 rounded-lg border bg-gradient-to-b ${COLORS[t.type] || COLORS.info} text-primary text-xs shadow-lg backdrop-blur-sm animate-slide-up`}
         >
           {ICONS[t.type] || ICONS.info}
           <span className="whitespace-nowrap">{t.message}</span>
-          <button type="button" className="ml-0.5 text-gray-400 hover:text-white transition-colors" onClick={() => close(t.id)} title="关闭">
+          <button type="button" className="ml-0.5 text-secondary hover:text-white transition-colors" onClick={() => close(t.id)} title="关闭">
             <X size={11} />
           </button>
         </div>

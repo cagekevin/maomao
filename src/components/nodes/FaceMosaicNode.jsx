@@ -176,7 +176,7 @@ function FaceMosaicNode({ id, data, selected }) {
       id={id}
       label={data.label}
       defaultTitle="人脸打码"
-      icon={<Shuffle size={11} className="text-gray-500" />}
+      icon={<Shuffle size={11} className="text-muted" />}
       selected={selected}
       handleVariant="small"
       aspectRatio={null}
@@ -190,14 +190,14 @@ function FaceMosaicNode({ id, data, selected }) {
         {count === 0 ? (
           <button
             onClick={() => fileRef.current?.click()}
-            className="nodrag flex flex-col items-center justify-center gap-1.5 py-3 rounded-lg border border-dashed border-edge-raised text-gray-500 hover:text-blue-400 hover:border-blue-500/50 transition-colors cursor-pointer"
+            className="nodrag flex flex-col items-center justify-center gap-1.5 py-3 rounded-lg border border-dashed border-edge-raised text-muted hover:text-blue-400 hover:border-blue-500/50 transition-colors cursor-pointer"
           >
             <Upload size={20} />
             <span className="text-[11px]">上传图片 或 左侧连接图片节点</span>
           </button>
         ) : (
           <div className="flex flex-col gap-1.5">
-            <div className="text-[11px] text-gray-400">已连接 <span className="text-blue-400">{count}</span> 张图片</div>
+            <div className="text-[11px] text-secondary">已连接 <span className="text-blue-400">{count}</span> 张图片</div>
             {/* 输入图缩略图：上传的图片立即在此显示 */}
             <div className="grid grid-cols-4 gap-1.5">
               {imageUrls().map((u, i) => (
@@ -222,7 +222,7 @@ function FaceMosaicNode({ id, data, selected }) {
             <button
               key={m.mode}
               onClick={() => setMode(m.mode)}
-              className={`nodrag flex flex-col items-center justify-center gap-1 py-1.5 rounded-md text-caption-sm border transition-colors cursor-pointer ${mode === m.mode ? 'bg-blue-600 text-white border-blue-500' : 'text-gray-300 bg-surface-1 hover:bg-surface-hover border-edge'}`}
+              className={`nodrag flex flex-col items-center justify-center gap-1 py-1.5 rounded-md text-caption-sm border transition-colors cursor-pointer ${mode === m.mode ? 'bg-blue-600 text-white border-blue-500' : 'text-body bg-surface-1 hover:bg-surface-hover border-edge'}`}
             >
               {m.label}
             </button>
@@ -230,15 +230,15 @@ function FaceMosaicNode({ id, data, selected }) {
         </div>
 
         {/* 强度滑块 */}
-        <label className="nodrag flex items-center gap-2 text-[10px] text-gray-400">
+        <label className="nodrag flex items-center gap-2 text-[10px] text-secondary">
           <span className="w-8">{mode === 'grid' ? '密度' : mode === 'bar' ? '透明度' : '程度'}</span>
           <input type="range" min={0} max={1} step={0.05} value={strength} onChange={(e) => setStrength(Number(e.target.value))} className="nodrag accent-blue-500 flex-1" />
-          <span className="w-8 text-right text-gray-500">{Math.round(strength * 100)}%</span>
+          <span className="w-8 text-right text-muted">{Math.round(strength * 100)}%</span>
         </label>
 
         {/* 颜色（bar/grid） */}
         {(mode === 'bar' || mode === 'grid') && (
-          <div className="nodrag flex items-center gap-2 text-[10px] text-gray-400">
+          <div className="nodrag flex items-center gap-2 text-[10px] text-secondary">
             <span className="w-8">颜色</span>
             <div className="flex items-center gap-1.5 flex-1">
               {MOSAIC_PALETTE.map((c) => (
@@ -255,7 +255,7 @@ function FaceMosaicNode({ id, data, selected }) {
 
         {/* 结果信息 */}
         {resultInfo && (
-          <div className="text-[10px] text-gray-400 flex items-center gap-2 flex-wrap">
+          <div className="text-[10px] text-secondary flex items-center gap-2 flex-wrap">
             <span>{resultInfo.count} 张</span>
             {resultInfo.faceTotal > 0 && (
               <>
@@ -272,7 +272,7 @@ function FaceMosaicNode({ id, data, selected }) {
             {resultUrls.map((u, i) => (
               <div key={i} className="relative aspect-video bg-surface-black rounded-md overflow-hidden border border-edge group">
                 <img src={render(u)} alt={`result-${i}`} className="w-full h-full object-cover" loading="lazy" decoding="async" onDoubleClick={(e) => { e.stopPropagation(); zoomRef.current?.showModal() }} />
-                <div className="absolute top-1 right-1 p-1 bg-black/60 text-gray-300 rounded opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => zoomRef.current?.showModal()}>
+                <div className="absolute top-1 right-1 p-1 bg-black/60 text-body rounded opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => zoomRef.current?.showModal()}>
                   <ImageIcon size={12} />
                 </div>
               </div>
@@ -284,7 +284,7 @@ function FaceMosaicNode({ id, data, selected }) {
         <div className="mt-auto flex items-center gap-2">
           <button
             onClick={() => fileRef.current?.click()}
-            className="nodrag flex items-center justify-center h-8 w-8 rounded-md text-gray-300 bg-surface-hover hover:bg-surface-hover-strong border border-edge transition-colors cursor-pointer"
+            className="nodrag flex items-center justify-center h-8 w-8 rounded-md text-body bg-surface-hover hover:bg-surface-hover-strong border border-edge transition-colors cursor-pointer"
             title="上传图片"
           >
             <Upload size={14} />
@@ -292,7 +292,7 @@ function FaceMosaicNode({ id, data, selected }) {
           <button
             onClick={() => { if (count === 0) { toastWarning('请先上传或连接图片'); return } setManualOpen(true) }}
             disabled={count === 0}
-            className="nodrag flex items-center justify-center gap-1 h-8 px-2.5 rounded-md text-[12px] text-gray-300 bg-surface-hover hover:bg-surface-hover-strong border border-edge disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+            className="nodrag flex items-center justify-center gap-1 h-8 px-2.5 rounded-md text-[12px] text-body bg-surface-hover hover:bg-surface-hover-strong border border-edge disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
             title="手动打码"
           >
             <Wand2 size={13} /> 手动

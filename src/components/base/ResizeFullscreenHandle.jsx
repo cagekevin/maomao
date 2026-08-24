@@ -98,7 +98,7 @@ export default function ResizeFullscreenHandle({
         onRequestFullscreen?.()
       }}
     >
-      <svg viewBox="0 0 16 16" width="16" height="16" className="block text-gray-400 hover:text-blue-400 transition-colors pointer-events-none" aria-hidden="true">
+      <svg viewBox="0 0 16 16" width="16" height="16" className="block text-secondary hover:text-blue-400 transition-colors pointer-events-none" aria-hidden="true">
         <line x1="14" y1="6" x2="6" y2="14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
         <line x1="14" y1="9.5" x2="9.5" y2="14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
         <line x1="14" y1="13" x2="13" y2="14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />

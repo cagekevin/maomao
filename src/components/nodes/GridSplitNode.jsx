@@ -570,7 +570,7 @@ function GridSplitNode({ id, data, selected }) {
   )
 
   // 标题图标
-  const titleIcon = <Grid3X3 size={11} className="text-gray-500" />
+  const titleIcon = <Grid3X3 size={11} className="text-muted" />
 
   // 模式切换按钮
   const modeBtn = (mode, label, icon, title) => (
@@ -768,11 +768,11 @@ function GridSplitNode({ id, data, selected }) {
                 {renderLasso()}
               </div>
             </div>
-            {splitMode === 'manual' && <div className="mt-1 text-caption text-gray-500 leading-tight">双击空白加水平线，Shift+双击加垂直线；拖动线移动；Shift+点击线删除。</div>}
-            {splitMode === 'lasso' && <div className="mt-1 text-caption text-gray-500 leading-tight">按住鼠标在图上画一圈即可生成一个透明形状，可以画多个；点击编号切出当前块，Shift+点击删除。</div>}
+            {splitMode === 'manual' && <div className="mt-1 text-caption text-muted leading-tight">双击空白加水平线，Shift+双击加垂直线；拖动线移动；Shift+点击线删除。</div>}
+            {splitMode === 'lasso' && <div className="mt-1 text-caption text-muted leading-tight">按住鼠标在图上画一圈即可生成一个透明形状，可以画多个；点击编号切出当前块，Shift+点击删除。</div>}
           </div>
         ) : (
-          <div className="h-16 flex flex-col items-center justify-center text-gray-600 bg-surface-muted rounded border border-dashed border-edge">
+          <div className="h-16 flex flex-col items-center justify-center text-muted-2 bg-surface-muted rounded border border-dashed border-edge">
             <span className="text-xs">请连接图片</span>
           </div>
         )}
@@ -788,7 +788,7 @@ function GridSplitNode({ id, data, selected }) {
                     className={`text-caption px-2 py-0.5 rounded border transition-colors cursor-pointer ${
                       rows === p.rows && cols === p.cols
                         ? 'bg-blue-500/15 border-blue-500/60 text-blue-300'
-                        : 'bg-surface-hover border-edge text-gray-400 hover:text-white hover:border-edge-strong'
+                        : 'bg-surface-hover border-edge text-secondary hover:text-white hover:border-edge-strong'
                     }`}
                     onClick={() => { setRows(p.rows); setCols(p.cols) }}
                     title={`${p.rows} 行 × ${p.cols} 列`}
@@ -798,7 +798,7 @@ function GridSplitNode({ id, data, selected }) {
                 ))}
                 <button
                   className={`text-caption px-2 py-0.5 rounded border transition-colors cursor-pointer ${
-                    showCustom ? 'bg-blue-500/15 border-blue-500/60 text-blue-300' : 'bg-surface-hover border-edge text-gray-400 hover:text-white hover:border-edge-strong'
+                    showCustom ? 'bg-blue-500/15 border-blue-500/60 text-blue-300' : 'bg-surface-hover border-edge text-secondary hover:text-white hover:border-edge-strong'
                   }`}
                   onClick={() => setShowCustom((v) => !v)}
                 >
@@ -806,19 +806,19 @@ function GridSplitNode({ id, data, selected }) {
                 </button>
               </div>
               {showCustom && (
-                <div className="flex items-center gap-1.5 text-caption text-gray-400">
+                <div className="flex items-center gap-1.5 text-caption text-secondary">
                   <span>行</span>
                   <input
                     type="number" min={1} max={20} value={rows}
                     onChange={(e) => setRows(clamp(parseInt(e.target.value || '1', 10) || 1, 1, 20))}
-                    className="w-14 bg-surface-hover text-gray-200 rounded px-1.5 py-0.5 border border-edge outline-none"
+                    className="w-14 bg-surface-hover text-primary rounded px-1.5 py-0.5 border border-edge outline-none"
                   />
                   <span>×</span>
                   <span>列</span>
                   <input
                     type="number" min={1} max={20} value={cols}
                     onChange={(e) => setCols(clamp(parseInt(e.target.value || '1', 10) || 1, 1, 20))}
-                    className="w-14 bg-surface-hover text-gray-200 rounded px-1.5 py-0.5 border border-edge outline-none"
+                    className="w-14 bg-surface-hover text-primary rounded px-1.5 py-0.5 border border-edge outline-none"
                   />
                 </div>
               )}
@@ -826,10 +826,10 @@ function GridSplitNode({ id, data, selected }) {
           )}
 
           {splitMode === 'manual' && (
-            <div className="flex items-center justify-between text-caption text-gray-400">
+            <div className="flex items-center justify-between text-caption text-secondary">
               <span>{rowCount} 行 × {colCount} 列 = {closedCount} 块</span>
               <button
-                className="flex items-center gap-1 px-1.5 py-0.5 rounded border bg-surface-hover border-edge text-gray-400 hover:text-white hover:border-edge-strong cursor-pointer"
+                className="flex items-center gap-1 px-1.5 py-0.5 rounded border bg-surface-hover border-edge text-secondary hover:text-white hover:border-edge-strong cursor-pointer"
                 onClick={resetLines}
                 title="重置切割线"
               >
@@ -840,11 +840,11 @@ function GridSplitNode({ id, data, selected }) {
           )}
 
           {splitMode === 'lasso' && (
-            <div className="flex items-center justify-between text-caption text-gray-400">
+            <div className="flex items-center justify-between text-caption text-secondary">
               <span>已绘制 {closedCount} 块</span>
               <div className="flex items-center gap-1">
                 <button
-                  className="flex items-center gap-1 px-1.5 py-0.5 rounded border bg-surface-hover border-edge text-gray-400 hover:text-white hover:border-edge-strong cursor-pointer"
+                  className="flex items-center gap-1 px-1.5 py-0.5 rounded border bg-surface-hover border-edge text-secondary hover:text-white hover:border-edge-strong cursor-pointer"
                   onClick={() => setFullscreen(true)}
                   title="全屏聚焦切刀"
                 >
@@ -852,7 +852,7 @@ function GridSplitNode({ id, data, selected }) {
                   <span>全屏</span>
                 </button>
                 <button
-                  className="flex items-center gap-1 px-1.5 py-0.5 rounded border bg-surface-hover border-edge text-gray-400 hover:text-red-300 hover:border-red-400/60 disabled:opacity-50 cursor-pointer"
+                  className="flex items-center gap-1 px-1.5 py-0.5 rounded border bg-surface-hover border-edge text-secondary hover:text-red-300 hover:border-red-400/60 disabled:opacity-50 cursor-pointer"
                   onClick={clearLasso}
                   disabled={lassoShapes.length === 0}
                   title="清空所有切刀"
@@ -867,7 +867,7 @@ function GridSplitNode({ id, data, selected }) {
           {/* 角标模板 */}
           <div className="flex items-center gap-2">
             <input
-              className="flex-1 bg-surface-hover text-gray-300 text-xs rounded px-2 py-1 border border-edge outline-none"
+              className="flex-1 bg-surface-hover text-body text-xs rounded px-2 py-1 border border-edge outline-none"
               placeholder="分图角标，{num} 引入数字编号，可留空"
               value={titlePattern}
               onChange={(e) => setTitlePattern(e.target.value)}
@@ -878,7 +878,7 @@ function GridSplitNode({ id, data, selected }) {
           <div className="flex items-center gap-2">
             <label
               className={`flex items-center gap-1 px-2 py-1 rounded text-caption border cursor-pointer transition-colors ${
-                sendToImageBox ? 'bg-blue-500/15 border-blue-500/60 text-blue-300' : 'bg-surface-hover border-edge text-gray-400 hover:text-white hover:border-edge-strong'
+                sendToImageBox ? 'bg-blue-500/15 border-blue-500/60 text-blue-300' : 'bg-surface-hover border-edge text-secondary hover:text-white hover:border-edge-strong'
               }`}
               title="勾选后未连接图片盒子也会自动新建一个并送入；下游已连图片盒子时会直接送入"
               onClick={(e) => e.stopPropagation()}
@@ -914,14 +914,14 @@ function GridSplitNode({ id, data, selected }) {
         onWheel={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-4 py-2 bg-black/60 border-b border-white/10">
-          <div className="flex items-center gap-2 text-gray-200 text-sm">
+          <div className="flex items-center gap-2 text-primary text-sm">
             <Scissors size={16} className="text-blue-400" />
             <span>切刀（全屏聚焦）</span>
-            <span className="text-xs text-gray-400 ml-2">已绘制 {closedCount} 块 · 起/终点贴近边时会自动吸附</span>
+            <span className="text-xs text-secondary ml-2">已绘制 {closedCount} 块 · 起/终点贴近边时会自动吸附</span>
           </div>
           <div className="flex items-center gap-2">
             <button
-              className="flex items-center gap-1 px-2 py-1 rounded border bg-surface-hover border-edge-muted text-gray-200 hover:text-white hover:border-[#666] text-xs disabled:opacity-50 cursor-pointer"
+              className="flex items-center gap-1 px-2 py-1 rounded border bg-surface-hover border-edge-muted text-primary hover:text-white hover:border-edge-strong text-xs disabled:opacity-50 cursor-pointer"
               onClick={clearLasso}
               disabled={lassoShapes.length === 0}
             >
@@ -929,7 +929,7 @@ function GridSplitNode({ id, data, selected }) {
               <span>清空</span>
             </button>
             <button
-              className="flex items-center gap-1 px-2 py-1 rounded border bg-surface-hover border-edge-muted text-gray-200 hover:text-white hover:border-[#666] text-xs cursor-pointer"
+              className="flex items-center gap-1 px-2 py-1 rounded border bg-surface-hover border-edge-muted text-primary hover:text-white hover:border-edge-strong text-xs cursor-pointer"
               onClick={() => setFullscreen(false)}
               title="退出全屏 (Esc)"
             >
@@ -984,7 +984,7 @@ function GridSplitNode({ id, data, selected }) {
             </div>
           </div>
         </div>
-        <div className="px-4 py-2 bg-black/60 border-t border-white/10 text-caption-sm text-gray-300 leading-snug">
+        <div className="px-4 py-2 bg-black/60 border-t border-white/10 text-caption-sm text-body leading-snug">
           按住鼠标在图上画一圈生成一个透明形状；起点或终点贴近图片边缘时会自动吸附到该边，并沿边自动闭合多边形（适合切人物 / 主体）。Shift + 点击编号可删除形状。
         </div>
       </div>,

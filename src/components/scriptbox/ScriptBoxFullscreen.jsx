@@ -51,14 +51,14 @@ export default function ScriptBoxFullscreen({ open, title = '剧本盒子', data
     <div data-testid="fullscreen" className="fixed inset-0 z-ceiling-2 bg-surface-raised flex flex-col nodrag" onWheel={(e) => e.stopPropagation()}>
       {/* 顶部标题栏（与节点内标题栏一致，无自定义底色） */}
       <div className="flex items-center gap-2 px-4 py-2.5 border-b border-white/[0.08] shrink-0">
-        <Clapperboard size={14} className="text-gray-500" />
-        <span className="text-body-sm text-gray-300 font-medium">{title}</span>
+        <Clapperboard size={14} className="text-muted" />
+        <span className="text-body-sm text-body font-medium">{title}</span>
         <div className="flex-1" />
-        <span className="text-caption-sm text-gray-500">Esc 关闭</span>
-        <button className="p-1.5 text-gray-400 hover:text-white hover:bg-white/10 rounded transition-colors" title="总体提示词设置" onClick={() => setSettingsOpen(true)}>
+        <span className="text-caption-sm text-muted">Esc 关闭</span>
+        <button className="p-1.5 text-secondary hover:text-white hover:bg-white/10 rounded transition-colors" title="总体提示词设置" onClick={() => setSettingsOpen(true)}>
           <Settings size={16} />
         </button>
-        <button className="p-1.5 text-gray-400 hover:text-white hover:bg-white/10 rounded transition-colors" title="关闭全屏" onClick={onClose}>
+        <button className="p-1.5 text-secondary hover:text-white hover:bg-white/10 rounded transition-colors" title="关闭全屏" onClick={onClose}>
           <X size={16} />
         </button>
       </div>

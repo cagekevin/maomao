@@ -12,7 +12,7 @@ function ToolbarButton({ icon, title, hoverClass = 'hover:text-white', onClick }
   return (
     <button
       type="button"
-      className={`p-1.5 text-gray-400 hover:bg-surface-hover-strong rounded-md transition-colors ${hoverClass}`}
+      className={`p-1.5 text-secondary hover:bg-surface-hover-strong rounded-md transition-colors ${hoverClass}`}
       title={title}
       onClick={(e) => {
         e.stopPropagation()

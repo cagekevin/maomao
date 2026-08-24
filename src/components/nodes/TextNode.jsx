@@ -237,7 +237,7 @@ function TextNode({ id, data, selected }) {
       id={id}
       label={data.label}
       defaultTitle="文本生成"
-      icon={<FileText size={11} className="text-gray-500" />}
+      icon={<FileText size={11} className="text-muted" />}
       selected={selected}
       handleVariant="small"
       aspectRatio={null}
@@ -293,13 +293,13 @@ function TextNode({ id, data, selected }) {
               {!text && !loading && !editingText && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 pointer-events-none">
                   <FileText size={72} className="text-gray-700" strokeWidth={1.2} />
-                  <span className="text-xs text-gray-600">双击编辑内容或AI生成</span>
+                  <span className="text-xs text-muted-2">双击编辑内容或AI生成</span>
                 </div>
               )}
               <textarea
                 ref={textAreaRef}
                 className={`w-full flex-1 min-h-0 bg-transparent outline-none font-sans leading-relaxed custom-scrollbar nowheel resize-none nodrag ${editingText ? 'nopan' : ''}`}
-                style={{ fontSize: '14px', color: '#a1a1aa' }}
+                style={{ fontSize: '14px', color: 'rgb(var(--mao-text-secondary))' }}
                 placeholder=""
                 value={text}
                 readOnly={!editingText}
@@ -359,7 +359,7 @@ function TextNode({ id, data, selected }) {
           {/* 底部：自动拆分 + 模型 + 预设 + 生成 */}
           <div className="flex items-center justify-between pt-2 border-t border-edge-faint">
             <div className="flex items-center gap-1.5">
-              <label className="flex items-center gap-1.5 cursor-pointer h-6 px-2 text-caption-sm text-gray-400 hover:text-gray-200 select-none bg-transparent hover:bg-surface-hover border border-transparent hover:border-edge rounded transition-colors">
+              <label className="flex items-center gap-1.5 cursor-pointer h-6 px-2 text-caption-sm text-secondary hover:text-primary select-none bg-transparent hover:bg-surface-hover border border-transparent hover:border-edge rounded transition-colors">
                 <input type="checkbox" checked={autoSplit} onChange={(e) => setAutoSplitPersist(e.target.checked)} className="accent-blue-500 rounded sm:w-3 sm:h-3" />
                 自动拆分
               </label>
@@ -401,8 +401,8 @@ function TextNode({ id, data, selected }) {
       <FullscreenModal open={fullscreenText} title="编辑文本内容" onClose={() => setFullscreenText(false)}>
         <textarea
           autoFocus
-          className="flex-1 w-full min-h-0 bg-canvas text-gray-100 outline-none custom-scrollbar resize-none p-4 rounded"
-          style={{ fontSize: '14px', lineHeight: 1.8, color: '#e5e7eb' }}
+          className="flex-1 w-full min-h-0 bg-canvas text-primary outline-none custom-scrollbar resize-none p-4 rounded"
+          style={{ fontSize: '14px', lineHeight: 1.8, color: 'rgb(var(--mao-text-primary))' }}
           placeholder="输入文本内容..."
           value={text}
           onChange={(e) => setTextPersist(e.target.value)}
@@ -413,8 +413,8 @@ function TextNode({ id, data, selected }) {
       <FullscreenModal open={fullscreenPrompt} title="编辑提示词 - 文本" onClose={() => setFullscreenPrompt(false)}>
         <textarea
           autoFocus
-          className="flex-1 w-full min-h-0 bg-canvas text-gray-100 outline-none custom-scrollbar resize-none p-4 rounded"
-          style={{ fontSize: '14px', lineHeight: 1.8, color: '#e5e7eb' }}
+          className="flex-1 w-full min-h-0 bg-canvas text-primary outline-none custom-scrollbar resize-none p-4 rounded"
+          style={{ fontSize: '14px', lineHeight: 1.8, color: 'rgb(var(--mao-text-primary))' }}
           placeholder="输入提示词..."
           value={prompt}
           onChange={(e) => setPromptPersist(e.target.value)}

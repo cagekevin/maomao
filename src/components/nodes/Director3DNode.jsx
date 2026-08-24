@@ -198,7 +198,7 @@ function Director3DNode({ id, data, selected }) {
       id={id}
       label={data.label}
       defaultTitle="3D 导演台"
-      icon={<Box size={11} className="text-gray-500" />}
+      icon={<Box size={11} className="text-muted" />}
       selected={selected}
       defaultHeight={260}
       className="min-w-[260px] min-h-[220px]"
@@ -212,9 +212,9 @@ function Director3DNode({ id, data, selected }) {
         {imageUrl ? (
           <img src={render(imageUrl)} className="w-full h-full object-cover" alt="导演台预览" draggable={false} />
         ) : (
-          <div className="flex flex-col items-center justify-center absolute inset-0 gap-2 text-gray-600 pointer-events-none">
+          <div className="flex flex-col items-center justify-center absolute inset-0 gap-2 text-muted-2 pointer-events-none">
             <Boxes size={48} strokeWidth={1.2} />
-            <span className="text-xs text-gray-500">双击打开 3D 导演台</span>
+            <span className="text-xs text-muted">双击打开 3D 导演台</span>
           </div>
         )}
         {/* 悬浮打开按钮 */}

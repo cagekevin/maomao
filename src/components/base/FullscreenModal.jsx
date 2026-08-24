@@ -84,13 +84,13 @@ export default function FullscreenModal({ open, title = '编辑输入', onClose,
       >
         {/* 标题栏 */}
         <div className="flex items-center justify-between px-4 py-2.5 border-b border-edge-faint bg-surface-1 flex-shrink-0">
-          <div className="flex items-center gap-2 text-sm text-gray-200">
+          <div className="flex items-center gap-2 text-sm text-primary">
             <Pencil size={14} className="text-blue-400" />
             <span>{title}</span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-caption-sm text-gray-500">Esc 关闭 · 点击空白处关闭</span>
-            <button className="p-1.5 text-gray-400 hover:text-white hover:bg-white/10 rounded transition-colors" onClick={onClose} title="关闭全屏">
+            <span className="text-caption-sm text-muted">Esc 关闭 · 点击空白处关闭</span>
+            <button className="p-1.5 text-secondary hover:text-white hover:bg-white/10 rounded transition-colors" onClick={onClose} title="关闭全屏">
               <X size={16} />
             </button>
           </div>
@@ -107,7 +107,7 @@ export default function FullscreenModal({ open, title = '编辑输入', onClose,
           title="拖动调整窗口大小"
           onMouseDown={onPanelResize}
         >
-          <svg viewBox="0 0 16 16" width="16" height="16" className="block text-gray-500 hover:text-blue-400 transition-colors pointer-events-none" aria-hidden="true">
+          <svg viewBox="0 0 16 16" width="16" height="16" className="block text-muted hover:text-blue-400 transition-colors pointer-events-none" aria-hidden="true">
             <line x1="14" y1="6" x2="6" y2="14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
             <line x1="14" y1="9.5" x2="9.5" y2="14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
             <line x1="14" y1="13" x2="13" y2="14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />

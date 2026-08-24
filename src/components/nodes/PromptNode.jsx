@@ -325,7 +325,7 @@ function PromptNode({ id, data, selected }) {
       id={id}
       label={data.label}
       defaultTitle="生图节点"
-      icon={<ImageIcon size={11} className="text-gray-500" />}
+      icon={<ImageIcon size={11} className="text-muted" />}
       selected={selected}
       minWidth={160}
       minHeight={160}
@@ -353,7 +353,7 @@ function PromptNode({ id, data, selected }) {
           {hasImage && !loading && !error && hideResult && (
             <div className="flex flex-col items-center justify-center gap-1 absolute inset-0 bg-surface-muted">
               <ImageIcon size={24} className="text-gray-700" />
-              <span className="text-caption text-gray-500">性能模式已隐藏</span>
+              <span className="text-caption text-muted">性能模式已隐藏</span>
             </div>
           )}
           {hasImage && !hideResult && (
@@ -373,7 +373,7 @@ function PromptNode({ id, data, selected }) {
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-red-500 z-10 bg-surface p-4 text-center">
               <AlertCircle size={32} />
               <span className="text-xs font-medium max-w-full break-words">{error}</span>
-              <span className="text-caption bg-surface-hover-strong hover:bg-surface-3 text-gray-300 px-3 py-1 rounded-full border border-gray-600 transition-colors">请检查设置或重试</span>
+              <span className="text-caption bg-surface-hover-strong hover:bg-surface-3 text-body px-3 py-1 rounded-full border border-edge-raised transition-colors">请检查设置或重试</span>
             </div>
           )}
           {!hasImage && !loading && !error && (
@@ -409,23 +409,23 @@ function PromptNode({ id, data, selected }) {
             <div className="flex items-center gap-1.5 overflow-visible">
               {/* 画质 / 比例 / 渲染质量 */}
               <div ref={imgMenuRef} className="relative nodrag">
-                <button type="button" className="flex items-center gap-1.5 h-6 px-2 bg-transparent hover:bg-surface-hover border border-transparent hover:border-edge rounded text-caption-sm text-gray-300 transition-colors cursor-pointer" onClick={(e) => { e.stopPropagation(); setShowImgMenu((v) => !v) }}>
+                <button type="button" className="flex items-center gap-1.5 h-6 px-2 bg-transparent hover:bg-surface-hover border border-transparent hover:border-edge rounded text-caption-sm text-body transition-colors cursor-pointer" onClick={(e) => { e.stopPropagation(); setShowImgMenu((v) => !v) }}>
                   <span className="w-2.5 h-3 border border-current rounded-[2px]" />
                   <span>{aspectRatio} · {imageSize} · {qualityOptions.find((q) => q.value === quality)?.label}</span>
                 </button>
                 {showImgMenu && (
                   <div className="absolute bottom-full left-0 mb-1 w-56 bg-surface-1 border border-edge rounded-lg shadow-xl p-3 z-50 flex flex-col gap-3" onClick={(e) => e.stopPropagation()}>
                     <div>
-                      <div className="text-caption text-gray-500 mb-2">画质</div>
-                      <div className="flex gap-1.5">{sizeOptions.map((s) => <button key={s} type="button" className={`flex-1 py-1.5 text-caption-sm rounded-md border transition-colors ${imageSize === s ? 'bg-surface-hover-strong border-edge-strong text-white' : 'bg-surface border-transparent text-gray-400 hover:bg-surface-hover'}`} onClick={() => { setShowImgMenu(false); setImageSize(s); setImgPrefs({ imageSize: s }); requestAnimationFrame(() => patchData({ imageSize: s })) }}>{s}</button>)}</div>
+                      <div className="text-caption text-muted mb-2">画质</div>
+                      <div className="flex gap-1.5">{sizeOptions.map((s) => <button key={s} type="button" className={`flex-1 py-1.5 text-caption-sm rounded-md border transition-colors ${imageSize === s ? 'bg-surface-hover-strong border-edge-strong text-white' : 'bg-surface border-transparent text-secondary hover:bg-surface-hover'}`} onClick={() => { setShowImgMenu(false); setImageSize(s); setImgPrefs({ imageSize: s }); requestAnimationFrame(() => patchData({ imageSize: s })) }}>{s}</button>)}</div>
                     </div>
                     <div>
-                      <div className="text-caption text-gray-500 mb-2">比例</div>
-                      <div className="flex flex-wrap gap-1.5">{ratioOptions.map((r) => <button key={r} type="button" className={`px-3 py-1.5 text-caption-sm rounded-md border transition-colors ${aspectRatio === r ? 'bg-surface-hover-strong border-edge-strong text-white' : 'bg-surface border-transparent text-gray-400 hover:bg-surface-hover'}`} onClick={() => { setShowImgMenu(false); setAspectRatio(r); setImgPrefs({ aspectRatio: r }); requestAnimationFrame(() => patchData({ aspectRatio: r })) }}>{r}</button>)}</div>
+                      <div className="text-caption text-muted mb-2">比例</div>
+                      <div className="flex flex-wrap gap-1.5">{ratioOptions.map((r) => <button key={r} type="button" className={`px-3 py-1.5 text-caption-sm rounded-md border transition-colors ${aspectRatio === r ? 'bg-surface-hover-strong border-edge-strong text-white' : 'bg-surface border-transparent text-secondary hover:bg-surface-hover'}`} onClick={() => { setShowImgMenu(false); setAspectRatio(r); setImgPrefs({ aspectRatio: r }); requestAnimationFrame(() => patchData({ aspectRatio: r })) }}>{r}</button>)}</div>
                     </div>
                     <div>
-                      <div className="text-caption text-gray-500 mb-2">渲染质量</div>
-                      <div className="flex gap-1.5">{qualityOptions.map((q) => <button key={q.value} type="button" className={`flex-1 py-1.5 text-caption-sm rounded-md border transition-colors ${quality === q.value ? 'bg-surface-hover-strong border-edge-strong text-white' : 'bg-surface border-transparent text-gray-400 hover:bg-surface-hover'}`} onClick={() => { setShowImgMenu(false); setQuality(q.value); setImgPrefs({ quality: q.value }); requestAnimationFrame(() => patchData({ quality: q.value })) }}>{q.label}</button>)}</div>
+                      <div className="text-caption text-muted mb-2">渲染质量</div>
+                      <div className="flex gap-1.5">{qualityOptions.map((q) => <button key={q.value} type="button" className={`flex-1 py-1.5 text-caption-sm rounded-md border transition-colors ${quality === q.value ? 'bg-surface-hover-strong border-edge-strong text-white' : 'bg-surface border-transparent text-secondary hover:bg-surface-hover'}`} onClick={() => { setShowImgMenu(false); setQuality(q.value); setImgPrefs({ quality: q.value }); requestAnimationFrame(() => patchData({ quality: q.value })) }}>{q.label}</button>)}</div>
                     </div>
                   </div>
                 )}
@@ -448,12 +448,12 @@ function PromptNode({ id, data, selected }) {
             <div className="flex items-center gap-2 flex-shrink-0 ml-2">
               {!loading && (
                 <div ref={countMenuRef} className="relative nodrag flex items-center">
-                  <button className="flex items-center gap-1 h-6 px-2 bg-transparent hover:bg-surface-hover border border-edge hover:border-edge-strong rounded text-caption-sm text-gray-300 transition-colors cursor-pointer" onClick={(e) => { e.stopPropagation(); setShowCountMenu((v) => !v) }} title="批量生成数量">
+                  <button className="flex items-center gap-1 h-6 px-2 bg-transparent hover:bg-surface-hover border border-edge hover:border-edge-strong rounded text-caption-sm text-body transition-colors cursor-pointer" onClick={(e) => { e.stopPropagation(); setShowCountMenu((v) => !v) }} title="批量生成数量">
                     <span>x{count}</span>
                   </button>
                   {showCountMenu && (
                     <div className="absolute bottom-full right-0 mb-1 w-16 bg-surface-1 border border-edge rounded-lg shadow-xl p-1 z-50 flex flex-col gap-0.5" onClick={(e) => e.stopPropagation()}>
-                      {[1, 2, 3, 4, 5].map((n) => <button key={n} className={`w-full text-center py-1.5 text-caption-sm rounded-md transition-colors ${count === n ? 'bg-surface-hover-strong text-white' : 'text-gray-400 hover:bg-surface-hover hover:text-gray-200'}`} onClick={(e) => { e.stopPropagation(); setCount(n); setShowCountMenu(false) }}>x{n}</button>)}
+                      {[1, 2, 3, 4, 5].map((n) => <button key={n} className={`w-full text-center py-1.5 text-caption-sm rounded-md transition-colors ${count === n ? 'bg-surface-hover-strong text-white' : 'text-secondary hover:bg-surface-hover hover:text-primary'}`} onClick={(e) => { e.stopPropagation(); setCount(n); setShowCountMenu(false) }}>x{n}</button>)}
                     </div>
                   )}
                 </div>
@@ -482,8 +482,8 @@ function PromptNode({ id, data, selected }) {
       <FullscreenModal open={fullscreenPrompt} title="编辑提示词 - 生图" onClose={() => setFullscreenPrompt(false)}>
         <textarea
           autoFocus
-          className="flex-1 w-full min-h-0 bg-canvas text-gray-100 outline-none custom-scrollbar resize-none p-4 rounded"
-          style={{ fontSize: '14px', lineHeight: 1.8, color: '#e5e7eb' }}
+          className="flex-1 w-full min-h-0 bg-canvas text-primary outline-none custom-scrollbar resize-none p-4 rounded"
+          style={{ fontSize: '14px', lineHeight: 1.8, color: 'rgb(var(--mao-text-primary))' }}
           placeholder="描述你想要的画面 (输入 @ 调出素材)..."
           value={prompt}
           onChange={(e) => setPromptPersist(e.target.value)}

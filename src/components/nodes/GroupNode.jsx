@@ -70,7 +70,7 @@ function GroupNode({ id, data, selected }) {
         <Handle type="target" position={Position.Left} className="!w-2 !h-2 !bg-gray-500 !border-gray-600 !opacity-0" />
         <FoldVertical className="w-4 h-4 text-subtle mr-1" />
         <Folder className="w-4 h-4 text-subtle mr-2" />
-        <span className="text-gray-300 text-sm select-none">{name}</span>
+        <span className="text-body text-sm select-none">{name}</span>
         <Handle type="source" position={Position.Right} className="!w-2 !h-2 !bg-gray-500 !border-gray-600 !opacity-0" />
       </div>
     )
@@ -82,7 +82,7 @@ function GroupNode({ id, data, selected }) {
       id={id}
       label={name}
       defaultTitle="编组"
-      icon={<Folder size={11} className="text-gray-500" />}
+      icon={<Folder size={11} className="text-muted" />}
       selected={selected}
       resizable
       minWidth={120}

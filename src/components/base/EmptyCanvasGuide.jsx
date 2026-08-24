@@ -25,11 +25,11 @@ export default function EmptyCanvasGuide({ onAdd }) {
       <div className="flex flex-col items-center pointer-events-auto transform -translate-y-10">
         {/* 标题胶囊：图表图标 + 文案 */}
         <div className="bg-surface-raised rounded-full px-5 py-2.5 flex items-center gap-3 mb-10 border border-edge shadow-lg">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-300">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-body">
             <path d="M3 3v18h18" />
             <path d="m19 9-5 5-4-4-3 3" />
           </svg>
-          <span className="text-base font-medium text-gray-200 tracking-wide">右键自由生成你的想象</span>
+          <span className="text-base font-medium text-primary tracking-wide">右键自由生成你的想象</span>
         </div>
 
         {/* 三个生成入口 */}
@@ -37,25 +37,25 @@ export default function EmptyCanvasGuide({ onAdd }) {
           <button
             type="button"
             onClick={() => onAdd('textNode')}
-            className="flex items-center gap-2 px-6 py-3.5 bg-transparent hover:bg-surface-1 border border-edge hover:border-gray-500 rounded-2xl transition-all text-gray-400 hover:text-gray-200"
+            className="flex items-center gap-2 px-6 py-3.5 bg-transparent hover:bg-surface-1 border border-edge hover:border-edge-strong rounded-2xl transition-all text-secondary hover:text-primary"
           >
-            <FileText size={18} className="text-gray-500" />
+            <FileText size={18} className="text-muted" />
             <span className="text-sm font-medium">文字生成</span>
           </button>
           <button
             type="button"
             onClick={() => onAdd('promptNode')}
-            className="flex items-center gap-2 px-6 py-3.5 bg-transparent hover:bg-surface-1 border border-edge hover:border-gray-500 rounded-2xl transition-all text-gray-400 hover:text-gray-200"
+            className="flex items-center gap-2 px-6 py-3.5 bg-transparent hover:bg-surface-1 border border-edge hover:border-edge-strong rounded-2xl transition-all text-secondary hover:text-primary"
           >
-            <ImageIcon size={18} className="text-gray-500" />
+            <ImageIcon size={18} className="text-muted" />
             <span className="text-sm font-medium">图片生成</span>
           </button>
           <button
             type="button"
             onClick={() => onAdd('discountVideoNode')}
-            className="flex items-center gap-2 px-6 py-3.5 bg-transparent hover:bg-surface-1 border border-edge hover:border-gray-500 rounded-2xl transition-all text-gray-400 hover:text-gray-200"
+            className="flex items-center gap-2 px-6 py-3.5 bg-transparent hover:bg-surface-1 border border-edge hover:border-edge-strong rounded-2xl transition-all text-secondary hover:text-primary"
           >
-            <Clapperboard size={18} className="text-gray-500" />
+            <Clapperboard size={18} className="text-muted" />
             <span className="text-sm font-medium">特惠视频</span>
           </button>
         </div>

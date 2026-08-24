@@ -172,11 +172,11 @@ export default function FaceMosaicEditor({ imageUrl, onSave, onClose }) {
       {/* 顶栏 */}
       <div className="flex items-center justify-between px-4 py-2.5 bg-surface-raised border-b border-edge" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center gap-2">
-          <span className="text-[13px] text-gray-200 font-medium">人脸打码 · 手动编辑</span>
-          <span className="text-[11px] text-gray-500">在图上拖拽框选要打码的区域</span>
+          <span className="text-[13px] text-primary font-medium">人脸打码 · 手动编辑</span>
+          <span className="text-[11px] text-muted">在图上拖拽框选要打码的区域</span>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={onClose} className="flex items-center gap-1 px-2.5 h-7 rounded-md text-[12px] text-gray-300 bg-surface-hover hover:bg-surface-hover-strong border border-edge cursor-pointer border-none">
+          <button onClick={onClose} className="flex items-center gap-1 px-2.5 h-7 rounded-md text-[12px] text-body bg-surface-hover hover:bg-surface-hover-strong border border-edge cursor-pointer border-none">
             <X size={13} /> 取消
           </button>
           <button
@@ -194,13 +194,13 @@ export default function FaceMosaicEditor({ imageUrl, onSave, onClose }) {
           <button
             key={m.mode}
             onClick={() => setMode(m.mode)}
-            className={`flex items-center gap-1 px-2.5 h-7 rounded-md text-body-xs border transition-colors cursor-pointer ${mode === m.mode ? 'bg-blue-600 text-white border-blue-500' : 'text-gray-300 bg-surface-hover hover:bg-surface-hover-strong border-edge'}`}
+            className={`flex items-center gap-1 px-2.5 h-7 rounded-md text-body-xs border transition-colors cursor-pointer ${mode === m.mode ? 'bg-blue-600 text-white border-blue-500' : 'text-body bg-surface-hover hover:bg-surface-hover-strong border-edge'}`}
           >
             <ModeIcon mode={m.mode} size={13} /> {m.label}
           </button>
         ))}
         {mode !== 'bar' && (
-          <label className="flex items-center gap-1.5 text-[11px] text-gray-400 ml-1">
+          <label className="flex items-center gap-1.5 text-[11px] text-secondary ml-1">
             {mode === 'grid' ? '密度' : '程度'}
             <input type="range" min={0} max={1} step={0.05} value={strength} onChange={(e) => setStrength(Number(e.target.value))} className="accent-blue-500 w-28" />
           </label>
@@ -222,16 +222,16 @@ export default function FaceMosaicEditor({ imageUrl, onSave, onClose }) {
           </>
         )}
         <div className="w-px h-5 bg-surface-hover-strong mx-1" />
-        <button onClick={autoDetect} disabled={recognizing} className="flex items-center gap-1 px-2.5 h-7 rounded-md text-[12px] text-gray-300 bg-surface-hover hover:bg-surface-hover-strong border border-edge disabled:opacity-40 cursor-pointer">
+        <button onClick={autoDetect} disabled={recognizing} className="flex items-center gap-1 px-2.5 h-7 rounded-md text-[12px] text-body bg-surface-hover hover:bg-surface-hover-strong border border-edge disabled:opacity-40 cursor-pointer">
           <ScanFace size={13} /> {recognizing ? '识别中…' : '自动识别人脸'}
         </button>
-        <button onClick={() => canUndo && restoreSnapshot(histIdx - 1)} disabled={!canUndo} className="flex items-center gap-1 px-2 h-7 rounded-md text-[12px] text-gray-300 bg-surface-hover hover:bg-surface-hover-strong border border-edge disabled:opacity-40 cursor-pointer" title="撤销 (Ctrl+Z)">
+        <button onClick={() => canUndo && restoreSnapshot(histIdx - 1)} disabled={!canUndo} className="flex items-center gap-1 px-2 h-7 rounded-md text-[12px] text-body bg-surface-hover hover:bg-surface-hover-strong border border-edge disabled:opacity-40 cursor-pointer" title="撤销 (Ctrl+Z)">
           <Undo2 size={14} />
         </button>
-        <button onClick={() => canRedo && restoreSnapshot(histIdx + 1)} disabled={!canRedo} className="flex items-center gap-1 px-2 h-7 rounded-md text-[12px] text-gray-300 bg-surface-hover hover:bg-surface-hover-strong border border-edge disabled:opacity-40 cursor-pointer" title="前进 (Ctrl+Shift+Z)">
+        <button onClick={() => canRedo && restoreSnapshot(histIdx + 1)} disabled={!canRedo} className="flex items-center gap-1 px-2 h-7 rounded-md text-[12px] text-body bg-surface-hover hover:bg-surface-hover-strong border border-edge disabled:opacity-40 cursor-pointer" title="前进 (Ctrl+Shift+Z)">
           <Redo2 size={14} />
         </button>
-        <button onClick={() => canUndo && restoreSnapshot(0)} disabled={!canUndo} className="flex items-center gap-1 px-2 h-7 rounded-md text-[12px] text-gray-300 bg-surface-hover hover:bg-surface-hover-strong border border-edge disabled:opacity-40 cursor-pointer" title="重置">
+        <button onClick={() => canUndo && restoreSnapshot(0)} disabled={!canUndo} className="flex items-center gap-1 px-2 h-7 rounded-md text-[12px] text-body bg-surface-hover hover:bg-surface-hover-strong border border-edge disabled:opacity-40 cursor-pointer" title="重置">
           <RotateCcw size={14} />
         </button>
       </div>

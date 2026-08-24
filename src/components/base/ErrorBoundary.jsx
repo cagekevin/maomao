@@ -45,10 +45,10 @@ export default class ErrorBoundary extends React.Component {
       return (
         <div className="flex flex-col items-center justify-center gap-2 w-full h-full min-h-[120px] p-3 text-center">
           <AlertTriangle size={20} className="text-amber-400" />
-          <div className="text-caption-sm text-gray-300">该节点渲染出错</div>
+          <div className="text-caption-sm text-body">该节点渲染出错</div>
           <button
             type="button"
-            className="px-3 py-1 text-caption-sm bg-surface-hover hover:bg-surface-hover-strong text-gray-200 rounded-md cursor-pointer border-none"
+            className="px-3 py-1 text-caption-sm bg-surface-hover hover:bg-surface-hover-strong text-primary rounded-md cursor-pointer border-none"
             onClick={this.handleReload}
           >
             重新载入
@@ -76,7 +76,7 @@ export default class ErrorBoundary extends React.Component {
             {/* 错误详情（可展开） */}
             {err && (
               <details className="w-full text-left bg-surface-raised border border-edge-faint rounded-lg overflow-hidden">
-                <summary className="px-3 py-2 text-caption-sm text-muted cursor-pointer select-none hover:text-[#bbb]">
+                <summary className="px-3 py-2 text-caption-sm text-muted cursor-pointer select-none hover:text-secondary">
                   错误详情
                 </summary>
                 <pre className="m-0 px-3 pb-3 text-caption text-red-400/90 overflow-auto max-h-[120px] whitespace-pre-wrap break-all">

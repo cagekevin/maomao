@@ -50,7 +50,7 @@ function CanvasToolbar({
 
   // 框整体紧凑化（用户要求不占大面积）：容器 padding 收窄、按钮 p 减小、分隔线间距减小，图标尺寸不变。
   const baseBtn =
-    'p-1.5 rounded-full transition-colors flex items-center justify-center text-gray-400 hover:text-white hover:bg-surface-hover-strong'
+    'p-1.5 rounded-full transition-colors flex items-center justify-center text-secondary hover:text-white hover:bg-surface-hover-strong'
   const divider = <span className="w-[1px] h-3.5 bg-surface-3 mx-1" />
 
   return (
@@ -108,7 +108,7 @@ function CanvasToolbar({
         <button
           type="button"
           onClick={onFitView}
-          className="text-xs text-gray-400 font-medium min-w-[36px] text-center cursor-default select-none"
+          className="text-xs text-secondary font-medium min-w-[36px] text-center cursor-default select-none"
           title="点击适配视图"
         >
           {zoomPercentText}

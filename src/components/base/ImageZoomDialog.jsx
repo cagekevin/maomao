@@ -176,7 +176,7 @@ const ImageZoomDialog = forwardRef(function ImageZoomDialog({ url, kind = 'image
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); close(e) }}
-            className="absolute top-4 right-4 z-[10000] text-white hover:text-gray-300 bg-black/50 p-2 rounded-full transition-colors"
+            className="absolute top-4 right-4 z-[10000] text-white hover:text-body bg-black/50 p-2 rounded-full transition-colors"
             aria-label="关闭"
           >
             <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

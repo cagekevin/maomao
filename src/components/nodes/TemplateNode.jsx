@@ -240,7 +240,7 @@ function TemplateNode({ id, data, selected }) {
       id={id}
       label={data.label}
       defaultTitle="模板节点"               // 【模板】改成你的节点名
-      icon={<ImageIcon size={11} className="text-gray-500" />}  // 【模板】换成你的图标
+      icon={<ImageIcon size={11} className="text-muted" />}  // 【模板】换成你的图标
       selected={selected}
       handleVariant="small"                 // 'large'(48) / 'small'(32)
       aspectRatio={aspectRatio}
@@ -249,7 +249,7 @@ function TemplateNode({ id, data, selected }) {
       // 【模板】需要 titleRight（右上角操作）就传。按钮统一用 §〇.3 分段按钮基底（照 GridSplit）：
       // titleRight={
       //   <div className="flex items-center gap-1 nodrag">
-      //     <button className={`px-2 py-0.5 rounded text-caption flex items-center gap-1 border transition-colors cursor-pointer ${active ? 'bg-blue-500/15 border-blue-500/60 text-blue-300' : 'bg-surface-hover border-edge text-gray-400 hover:text-white'}`}>...</button>
+      //     <button className={`px-2 py-0.5 rounded text-caption flex items-center gap-1 border transition-colors cursor-pointer ${active ? 'bg-blue-500/15 border-blue-500/60 text-blue-300' : 'bg-surface-hover border-edge text-secondary hover:text-white'}`}>...</button>
       //   </div>
       // }
       // 【模板】不需要默认左右端口 / 自定义多端口时设 showHandles={false}：
@@ -265,7 +265,7 @@ function TemplateNode({ id, data, selected }) {
       <div className="relative flex flex-col w-full flex-1 min-h-0" onClick={toggleExpanded}>
         {hideResult ? (
           // 性能降级：大画布隐藏结果（通用）
-          <div className="flex-1 flex items-center justify-center text-caption text-gray-500">图片已隐藏</div>
+          <div className="flex-1 flex items-center justify-center text-caption text-muted">图片已隐藏</div>
         ) : imageUrl ? (
           <div className="flex-1 relative overflow-hidden rounded-lg">
             <img src={render(imageUrl)} alt="" className="w-full h-full object-cover" loading="lazy" />
@@ -277,7 +277,7 @@ function TemplateNode({ id, data, selected }) {
           // 空态占位（用 token，别写死示例图）
           <div className="flex-1 flex flex-col items-center justify-center gap-3 bg-surface-muted rounded-lg">
             <ImageIcon size={48} className="text-gray-700" strokeWidth={1.2} />
-            <span className="text-caption text-gray-500">双击展开参数，点生成</span>
+            <span className="text-caption text-muted">双击展开参数，点生成</span>
           </div>
         )}
 
@@ -349,8 +349,8 @@ function TemplateNode({ id, data, selected }) {
       <FullscreenModal open={fullscreenPrompt} title="编辑提示词 - 模板" onClose={() => setFullscreenPrompt(false)}>
         <textarea
           autoFocus
-          className="flex-1 w-full min-h-0 bg-canvas text-gray-100 outline-none custom-scrollbar resize-none p-4 rounded"
-          style={{ fontSize: '14px', lineHeight: 1.8, color: '#e5e7eb' }}
+          className="flex-1 w-full min-h-0 bg-canvas text-primary outline-none custom-scrollbar resize-none p-4 rounded"
+          style={{ fontSize: '14px', lineHeight: 1.8, color: 'rgb(var(--mao-text-primary))' }}
           placeholder="描述内容，输入 @ 引用素材..."
           value={prompt}
           onChange={(e) => setPromptPersist(e.target.value)}
@@ -370,7 +370,7 @@ function TemplateNode({ id, data, selected }) {
             className="max-w-full max-h-full object-contain rounded"
           />
         ) : (
-          <div className="flex-1 flex items-center justify-center text-gray-500 text-sm">
+          <div className="flex-1 flex items-center justify-center text-muted text-sm">
             暂无生成结果
           </div>
         )}

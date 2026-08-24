@@ -419,7 +419,7 @@ function AssetLibrary() {
                   <div
                     key={a.id}
                     {...assetDragProps(a, { disable: isFolder })}
-                    className={`group relative aspect-square bg-surface rounded-xl overflow-hidden transition-colors ${isFolder ? 'border border-edge cursor-pointer hover:border-[#4a4a4a]' : 'border border-[#242424] cursor-grab active:cursor-grabbing hover:border-edge-raised'}`}
+                    className={`group relative aspect-square bg-surface rounded-xl overflow-hidden transition-colors ${isFolder ? 'border border-edge cursor-pointer hover:border-edge-raised' : 'border border-edge cursor-grab active:cursor-grabbing hover:border-edge-raised'}`}
                     style={{ contentVisibility: 'auto', containIntrinsicSize: '200px 200px' }}
                     onClick={() => {
                       if (isFolder) setFolder(currentFolder === 'migrated' ? `migrated/${a.name}` : `${currentFolder}/${a.name}`)

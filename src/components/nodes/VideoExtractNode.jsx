@@ -365,7 +365,7 @@ function VideoExtractNode({ id, data, selected }) {
       data-node-id={id}
     >
       {/* 标题（漂浮在节点顶部，不占主容器空间 —— 对齐官方 _Component8） */}
-      <NodeTitle defaultTitle="视频抽帧" icon={<Clapperboard size={11} className="text-gray-500" />} floating />
+      <NodeTitle defaultTitle="视频抽帧" icon={<Clapperboard size={11} className="text-muted" />} floating />
 
       {/* 缩放手柄（对齐官方 _Component9） */}
       <NodeResizer
@@ -425,7 +425,7 @@ function VideoExtractNode({ id, data, selected }) {
                 <div className="flex items-center gap-2 text-xs">
                   <button
                     onClick={() => { if (videoRef.current) videoRef.current.currentTime = Math.max(0, videoRef.current.currentTime - 0.033) }}
-                    className="px-2 py-1.5 bg-surface-hover rounded-md hover:bg-surface-hover-strong text-gray-300 transition-colors cursor-pointer border-none"
+                    className="px-2 py-1.5 bg-surface-hover rounded-md hover:bg-surface-hover-strong text-body transition-colors cursor-pointer border-none"
                     title="后退1帧"
                   >
                     -1帧
@@ -441,7 +441,7 @@ function VideoExtractNode({ id, data, selected }) {
                   />
                   <button
                     onClick={() => { if (videoRef.current) videoRef.current.currentTime = Math.min(duration, videoRef.current.currentTime + 0.033) }}
-                    className="px-2 py-1.5 bg-surface-hover rounded-md hover:bg-surface-hover-strong text-gray-300 transition-colors cursor-pointer border-none"
+                    className="px-2 py-1.5 bg-surface-hover rounded-md hover:bg-surface-hover-strong text-body transition-colors cursor-pointer border-none"
                     title="前进1帧"
                   >
                     +1帧
@@ -459,7 +459,7 @@ function VideoExtractNode({ id, data, selected }) {
             {!errorMessage && extractedImages.length > 0 ? (
               <div className="flex flex-col h-full gap-3">
                 <div className="flex justify-between items-center px-1">
-                  <span className="text-xs text-gray-400 font-medium">已提取 {extractedImages.length} 帧</span>
+                  <span className="text-xs text-secondary font-medium">已提取 {extractedImages.length} 帧</span>
                 </div>
                 <div className="grid grid-cols-[repeat(auto-fill,minmax(110px,1fr))] gap-3 auto-rows-max">
                   {extractedImages.map((img, idx) => (
@@ -471,7 +471,7 @@ function VideoExtractNode({ id, data, selected }) {
                       <div className="absolute inset-0 bg-black/60 opacity-0 group-hover/img:opacity-100 transition-opacity flex items-center justify-center gap-3">
                         <button
                           onClick={(e) => { e.stopPropagation(); copySingle(img) }}
-                          className="p-2 bg-surface-1 hover:bg-white rounded-full text-gray-300 hover:text-black transition-all shadow-lg cursor-pointer border-none"
+                          className="p-2 bg-surface-1 hover:bg-white rounded-full text-body hover:text-black transition-all shadow-lg cursor-pointer border-none"
                           title="复制为新节点 (Ctrl+V粘贴)"
                         >
                           <Copy size={16} />
@@ -483,7 +483,7 @@ function VideoExtractNode({ id, data, selected }) {
                               downloadUrl(img, `frame-${idx + 1}.jpg`)
                             } catch {}
                           }}
-                          className="p-2 bg-surface-1 hover:bg-white rounded-full text-gray-300 hover:text-black transition-all shadow-lg cursor-pointer border-none"
+                          className="p-2 bg-surface-1 hover:bg-white rounded-full text-body hover:text-black transition-all shadow-lg cursor-pointer border-none"
                           title="下载"
                         >
                           <Download size={16} />
@@ -497,14 +497,14 @@ function VideoExtractNode({ id, data, selected }) {
               <div className="flex items-center justify-center h-full min-h-[120px]">
                 {loading ? (
                   <div className="flex flex-col items-center gap-3">
-                    <Loader2 size={24} className="animate-spin text-gray-400" />
-                    <span className="text-xs text-gray-400">正在处理... {progress}%</span>
+                    <Loader2 size={24} className="animate-spin text-secondary" />
+                    <span className="text-xs text-secondary">正在处理... {progress}%</span>
                     <div className="w-32 h-1 bg-surface-hover-strong rounded-full overflow-hidden">
                       <div className="h-full bg-white transition-all duration-300" style={{ width: `${progress}%` }} />
                     </div>
                   </div>
                 ) : (
-                  <span className="text-xs text-gray-500">等待提取</span>
+                  <span className="text-xs text-muted">等待提取</span>
                 )}
               </div>
             ) : null}
@@ -515,12 +515,12 @@ function VideoExtractNode({ id, data, selected }) {
             {videoUrl ? (
               <div className="w-full flex items-center justify-between bg-surface-black rounded-lg px-3 py-2.5 border border-edge">
                 <div className="flex items-center gap-2 overflow-hidden">
-                  <Clapperboard size={16} className="text-gray-400 flex-shrink-0" />
-                  <span className="text-xs text-gray-300 truncate" title={videoName}>{videoName || '已连接视频'}</span>
+                  <Clapperboard size={16} className="text-secondary flex-shrink-0" />
+                  <span className="text-xs text-body truncate" title={videoName}>{videoName || '已连接视频'}</span>
                 </div>
                 <button
                   onClick={() => fileInputRef.current?.click()}
-                  className="text-xs text-gray-400 hover:text-white flex-shrink-0 ml-2 px-3 py-1.5 bg-surface-1 rounded-md hover:bg-surface-hover-strong transition-colors cursor-pointer border-none"
+                  className="text-xs text-secondary hover:text-white flex-shrink-0 ml-2 px-3 py-1.5 bg-surface-1 rounded-md hover:bg-surface-hover-strong transition-colors cursor-pointer border-none"
                 >
                   替换视频
                 </button>
@@ -531,20 +531,20 @@ function VideoExtractNode({ id, data, selected }) {
                 className="w-full py-6 rounded-xl border-2 border-dashed border-edge bg-surface-black hover:bg-surface hover:border-edge-strong flex flex-col items-center justify-center gap-3 cursor-pointer transition-colors"
               >
                 <div className="p-3 bg-surface-1 rounded-full">
-                  <Upload size={18} className="text-gray-400" />
+                  <Upload size={18} className="text-secondary" />
                 </div>
-                <span className="text-xs text-gray-400 font-medium">点击上传视频或连接节点</span>
+                <span className="text-xs text-secondary font-medium">点击上传视频或连接节点</span>
               </div>
             )}
 
             {showConfig && (
               <div className="flex flex-col gap-4 bg-surface-black border border-edge rounded-lg p-4 mt-1">
                 <div className="flex flex-col gap-2">
-                  <span className="text-caption-sm text-gray-400 font-medium">抽帧模式</span>
+                  <span className="text-caption-sm text-secondary font-medium">抽帧模式</span>
                   <select
                     value={mode}
                     onChange={(e) => setMode(e.target.value)}
-                    className="w-full bg-surface-1 border border-edge rounded-md px-3 py-2 text-xs text-gray-200 outline-none focus:border-white transition-colors"
+                    className="w-full bg-surface-1 border border-edge rounded-md px-3 py-2 text-xs text-primary outline-none focus:border-white transition-colors"
                   >
                     <option value="count">固定数量 (均匀分布)</option>
                     <option value="interval">等距抽帧 (间隔秒数)</option>
@@ -555,20 +555,20 @@ function VideoExtractNode({ id, data, selected }) {
                 </div>
                 {mode === 'count' && (
                   <div className="flex flex-col gap-2">
-                    <span className="text-caption-sm text-gray-400 font-medium">提取总张数</span>
+                    <span className="text-caption-sm text-secondary font-medium">提取总张数</span>
                     <input
                       type="number"
                       min="1"
                       max="100"
                       value={frameCount}
                       onChange={(e) => setFrameCount(Number(e.target.value))}
-                      className="w-full bg-surface-1 border border-edge rounded-md px-3 py-2 text-xs text-gray-200 outline-none focus:border-white transition-colors"
+                      className="w-full bg-surface-1 border border-edge rounded-md px-3 py-2 text-xs text-primary outline-none focus:border-white transition-colors"
                     />
                   </div>
                 )}
                 {mode === 'interval' && (
                   <div className="flex flex-col gap-2">
-                    <span className="text-caption-sm text-gray-400 font-medium">间隔秒数 (秒)</span>
+                    <span className="text-caption-sm text-secondary font-medium">间隔秒数 (秒)</span>
                     <input
                       type="number"
                       min="0.5"
@@ -576,15 +576,15 @@ function VideoExtractNode({ id, data, selected }) {
                       step="0.5"
                       value={intervalSec}
                       onChange={(e) => setIntervalSec(Number(e.target.value))}
-                      className="w-full bg-surface-1 border border-edge rounded-md px-3 py-2 text-xs text-gray-200 outline-none focus:border-white transition-colors"
+                      className="w-full bg-surface-1 border border-edge rounded-md px-3 py-2 text-xs text-primary outline-none focus:border-white transition-colors"
                     />
                   </div>
                 )}
                 {mode === 'smart' && (
                   <div className="flex flex-col gap-2">
                     <div className="flex justify-between">
-                      <span className="text-caption-sm text-gray-400 font-medium">检测敏感度</span>
-                      <span className="text-caption-sm text-gray-500">{sensitivity}</span>
+                      <span className="text-caption-sm text-secondary font-medium">检测敏感度</span>
+                      <span className="text-caption-sm text-muted">{sensitivity}</span>
                     </div>
                     <input
                       type="range"
@@ -594,7 +594,7 @@ function VideoExtractNode({ id, data, selected }) {
                       onChange={(e) => setSensitivity(Number(e.target.value))}
                       className="w-full accent-white"
                     />
-                    <span className="text-caption text-gray-500">数值越高越容易触发截图</span>
+                    <span className="text-caption text-muted">数值越高越容易触发截图</span>
                   </div>
                 )}
               </div>
@@ -602,7 +602,7 @@ function VideoExtractNode({ id, data, selected }) {
 
             <div className="flex justify-between items-center mt-1">
               <button
-                className={`px-2.5 py-1.5 rounded-md flex items-center gap-1.5 transition-colors cursor-pointer border-none ${showConfig ? 'text-white bg-surface-hover-strong' : 'text-gray-400 hover:bg-surface-hover-strong hover:text-white'}`}
+                className={`px-2.5 py-1.5 rounded-md flex items-center gap-1.5 transition-colors cursor-pointer border-none ${showConfig ? 'text-white bg-surface-hover-strong' : 'text-secondary hover:bg-surface-hover-strong hover:text-white'}`}
                 onClick={() => setShowConfig(!showConfig)}
                 title="参数配置"
               >

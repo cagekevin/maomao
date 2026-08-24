@@ -60,8 +60,8 @@ function PromptConfirmCard({ prompts = [], onUpdatePrompts, onGenerate, requeste
   }
 
   return (
-    <div className="mt-2 border border-edge-faint rounded-md bg-[#0a0a0a]">
-      <div className="px-2.5 py-1.5 text-caption-sm text-gray-400 border-b border-edge-subtle">
+    <div className="mt-2 border border-edge-faint rounded-md bg-surface-sunken">
+      <div className="px-2.5 py-1.5 text-caption-sm text-secondary border-b border-edge-subtle">
         📝 提示词确认{countHint}{progress}
       </div>
       <div className="divide-y divide-edge-subtle">
@@ -78,12 +78,12 @@ function PromptConfirmCard({ prompts = [], onUpdatePrompts, onGenerate, requeste
             >
               <div className="flex items-center gap-1.5 text-caption-sm">
                 <StatusIcon status={p.status} />
-                <span className="text-gray-500">#{i + 1}</span>
-                <span className="text-gray-300 truncate flex-1">{shortText}</span>
+                <span className="text-muted">#{i + 1}</span>
+                <span className="text-body truncate flex-1">{shortText}</span>
               </div>
               {p.status === P.EDITING && (
                 <textarea
-                  className="mt-1 w-full text-caption-sm text-gray-200 bg-surface border border-edge rounded-md px-2 py-1.5 focus:outline-none focus:border-sky-500"
+                  className="mt-1 w-full text-caption-sm text-primary bg-surface border border-edge rounded-md px-2 py-1.5 focus:outline-none focus:border-sky-500"
                   rows={3}
                   defaultValue={p.prompt || ''}
                   onChange={(e) => setDraft(e.target.value)}
@@ -94,10 +94,10 @@ function PromptConfirmCard({ prompts = [], onUpdatePrompts, onGenerate, requeste
                   <button type="button" className="inline-flex items-center gap-1 px-2 py-1 text-caption-sm bg-emerald-600 hover:bg-emerald-500 text-white rounded-md cursor-pointer" onClick={() => apply(confirmPrompt(prompts))}>
                     ✓ 确认
                   </button>
-                  <button type="button" className="inline-flex items-center gap-1 px-2 py-1 text-caption-sm bg-surface hover:bg-surface-hover text-gray-300 border border-edge rounded-md cursor-pointer" onClick={() => { setDraft(p.prompt || ''); onUpdatePrompts?.(editPrompt(prompts, i)) }}>
+                  <button type="button" className="inline-flex items-center gap-1 px-2 py-1 text-caption-sm bg-surface hover:bg-surface-hover text-body border border-edge rounded-md cursor-pointer" onClick={() => { setDraft(p.prompt || ''); onUpdatePrompts?.(editPrompt(prompts, i)) }}>
                     ✎ 修改
                   </button>
-                  <button type="button" className="inline-flex items-center gap-1 px-2 py-1 text-caption-sm bg-surface hover:bg-surface-hover text-gray-300 border border-edge rounded-md cursor-pointer" title="重新生成此条提示词">
+                  <button type="button" className="inline-flex items-center gap-1 px-2 py-1 text-caption-sm bg-surface hover:bg-surface-hover text-body border border-edge rounded-md cursor-pointer" title="重新生成此条提示词">
                     ⟳ 重新生成
                   </button>
                 </div>
@@ -107,7 +107,7 @@ function PromptConfirmCard({ prompts = [], onUpdatePrompts, onGenerate, requeste
                   <button type="button" className="inline-flex items-center gap-1 px-2 py-1 text-caption-sm bg-emerald-600 hover:bg-emerald-500 text-white rounded-md cursor-pointer" onClick={() => apply(savePromptEdit(prompts, i, draft))}>
                     ✓ 保存并确认
                   </button>
-                  <button type="button" className="inline-flex items-center gap-1 px-2 py-1 text-caption-sm bg-surface hover:bg-surface-hover text-gray-300 border border-edge rounded-md cursor-pointer" onClick={() => onUpdatePrompts?.(cancelPromptEdit(prompts, i))}>
+                  <button type="button" className="inline-flex items-center gap-1 px-2 py-1 text-caption-sm bg-surface hover:bg-surface-hover text-body border border-edge rounded-md cursor-pointer" onClick={() => onUpdatePrompts?.(cancelPromptEdit(prompts, i))}>
                     取消
                   </button>
                 </div>

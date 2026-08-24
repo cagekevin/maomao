@@ -82,21 +82,21 @@ export default function StepPrompt({ data, updateData, callbacks }) {
     return (
     <div key={s.id ?? i} className="relative flex flex-col gap-2 p-3 bg-surface-strong border border-edge-faint rounded-lg">
       <div className="flex items-center gap-2 text-caption-sm">
-        <span className="px-1.5 py-0.5 bg-surface-hover rounded text-gray-300">镜头 {s.index}</span>
-        <span className="text-gray-500">{s.duration}</span>
+        <span className="px-1.5 py-0.5 bg-surface-hover rounded text-body">镜头 {s.index}</span>
+        <span className="text-muted">{s.duration}</span>
         {s.connImg && <span className="text-emerald-400">图✓</span>}
         {s.connVid && <span className="text-blue-400">视频✓</span>}
         <div className="flex-1" />
         <button
-          className={`flex items-center justify-center px-2 py-1.5 rounded-md transition-colors ${selShots.has(i) ? 'bg-surface-hover-strong text-white' : 'text-gray-500 hover:text-white hover:bg-surface-hover'}`}
+          className={`flex items-center justify-center px-2 py-1.5 rounded-md transition-colors ${selShots.has(i) ? 'bg-surface-hover-strong text-white' : 'text-muted hover:text-white hover:bg-surface-hover'}`}
           title={selShots.has(i) ? '取消选择' : '选择'}
           onClick={() => toggleSel(i)}
         >
           <span className="text-base leading-none">{selShots.has(i) ? '☑' : '☐'}</span>
         </button>
       </div>
-      <div className="text-caption-sm text-gray-400 leading-relaxed">{s.description}</div>
-      {(s.dialogue || []).length > 0 && <div className="text-caption text-gray-500 italic">「{dialogueText(s.dialogue)}」</div>}
+      <div className="text-caption-sm text-secondary leading-relaxed">{s.description}</div>
+      {(s.dialogue || []).length > 0 && <div className="text-caption text-muted italic">「{dialogueText(s.dialogue)}」</div>}
 
       {/* prompt 区：左侧生图提示词（AI 生图在下方），右侧生视频提示词（操作按钮在下方），左右均衡 */}
       <div className="grid grid-cols-2 gap-2">
@@ -110,37 +110,37 @@ export default function StepPrompt({ data, updateData, callbacks }) {
               <select
                 value={genType[i] || IMAGE_GEN_DEFAULT}
                 onChange={(e) => setGenType((g) => ({ ...g, [i]: e.target.value }))}
-                className="px-2 py-1 text-caption text-gray-300 bg-surface-1 hover:bg-surface-hover rounded outline-none nodrag cursor-pointer"
+                className="px-2 py-1 text-caption text-body bg-surface-1 hover:bg-surface-hover rounded outline-none nodrag cursor-pointer"
               >
                 {Object.entries(IMAGE_GEN_TYPES).map(([key, t]) => (
-                  <option key={key} value={key} className="bg-surface-menu text-gray-300">{t.label}</option>
+                  <option key={key} value={key} className="bg-surface-menu text-body">{t.label}</option>
                 ))}
               </select>
               {s.imgGenLoading ? (
-                <Loader2 size={12} className="animate-spin text-gray-400" />
+                <Loader2 size={12} className="animate-spin text-secondary" />
               ) : (
                 <button
-                  className="flex items-center gap-1 px-2 py-1 text-caption text-gray-300 bg-surface-1 hover:bg-surface-hover rounded"
+                  className="flex items-center gap-1 px-2 py-1 text-caption text-body bg-surface-1 hover:bg-surface-hover rounded"
                   onClick={() => callbacks.onGenerateShotImage?.(s.id, genType[i] || IMAGE_GEN_DEFAULT)}
                 >
                   <Wand2 size={10} /> 生成提示词
                 </button>
               )}
               {/* 生成完提示词 → 生图（连生图下游） */}
-              <button className="flex items-center gap-1 px-2 py-1 text-caption text-gray-300 bg-surface-1 hover:bg-surface-hover rounded" onClick={() => callbacks.onConnectShot?.(s.id, 'image')}><ImageIcon size={10} /> 生图</button>
+              <button className="flex items-center gap-1 px-2 py-1 text-caption text-body bg-surface-1 hover:bg-surface-hover rounded" onClick={() => callbacks.onConnectShot?.(s.id, 'image')}><ImageIcon size={10} /> 生图</button>
             </div>
             {s.imgGen && !s.imgGenLoading && (
-              <div className="flex flex-col gap-1 bg-[#131313] rounded p-2 border border-edge-faint">
+              <div className="flex flex-col gap-1 bg-code-bg rounded p-2 border border-edge-faint">
                 <div className="flex items-center gap-1.5">
-                  <span className="text-meta text-gray-400 px-1 py-px rounded bg-surface-1">{s.imgGen.label}</span>
-                  <span className="text-meta text-gray-600">{new Date(s.imgGen.ts).toLocaleTimeString()}</span>
+                  <span className="text-meta text-secondary px-1 py-px rounded bg-surface-1">{s.imgGen.label}</span>
+                  <span className="text-meta text-muted-2">{new Date(s.imgGen.ts).toLocaleTimeString()}</span>
                   <div className="flex-1" />
-                  <button className="flex items-center gap-0.5 text-meta text-gray-400 hover:text-white" onClick={() => { navigator.clipboard?.writeText(s.imgGen.prompt).catch(() => toastWarning('复制提示词失败')); setCopied((c) => ({ ...c, [i]: true })); setTimeout(() => setCopied((c) => ({ ...c, [i]: false })), 1200) }}>
+                  <button className="flex items-center gap-0.5 text-meta text-secondary hover:text-white" onClick={() => { navigator.clipboard?.writeText(s.imgGen.prompt).catch(() => toastWarning('复制提示词失败')); setCopied((c) => ({ ...c, [i]: true })); setTimeout(() => setCopied((c) => ({ ...c, [i]: false })), 1200) }}>
                     {copied[i] ? <Check size={9} className="text-emerald-400" /> : <Copy size={9} />} {copied[i] ? '已复制' : '复制'}
                   </button>
-                  <button className="px-1.5 py-0.5 text-meta rounded bg-surface-hover hover:bg-surface-hover-strong text-gray-300" onClick={() => patchShot(i, 'prompt', s.imgGen.prompt)}>应用到生图</button>
+                  <button className="px-1.5 py-0.5 text-meta rounded bg-surface-hover hover:bg-surface-hover-strong text-body" onClick={() => patchShot(i, 'prompt', s.imgGen.prompt)}>应用到生图</button>
                 </div>
-                <div className="text-caption text-gray-300 leading-relaxed line-clamp-4 break-words cursor-text hover:bg-surface-1 rounded px-1 -mx-1" title="双击编辑" onDoubleClick={() => openImgGen(i, s.imgGen.label)}><span dangerouslySetInnerHTML={{ __html: hlAt(s.imgGen.prompt, (d.assets || []).map((a) => a.name)) }} /></div>
+                <div className="text-caption text-body leading-relaxed line-clamp-4 break-words cursor-text hover:bg-surface-1 rounded px-1 -mx-1" title="双击编辑" onDoubleClick={() => openImgGen(i, s.imgGen.label)}><span dangerouslySetInnerHTML={{ __html: hlAt(s.imgGen.prompt, (d.assets || []).map((a) => a.name)) }} /></div>
               </div>
             )}
           </div>
@@ -150,12 +150,12 @@ export default function StepPrompt({ data, updateData, callbacks }) {
           <PromptBox label="生视频提示词" text={s.videoPrompt} loading={s.promptLoading} onEdit={() => openField(i, 'videoPrompt', '生视频提示词')} assetNames={(d.assets || []).map((a) => a.name)} />
           <div className="flex gap-1.5">
             <button
-              className="flex items-center gap-1 px-2 py-1 text-caption text-gray-300 bg-surface-1 hover:bg-surface-hover rounded"
+              className="flex items-center gap-1 px-2 py-1 text-caption text-body bg-surface-1 hover:bg-surface-hover rounded"
               title="左键：直接随机重生成；右键：带修改意见重生成"
               onClick={() => callbacks.onGenerateShotPrompts?.([s.id])}
               onContextMenu={(e) => { e.preventDefault(); setFeedback(''); setRegenerating(s.id) }}
             ><RefreshCw size={10} /> 重新生成</button>
-            <button className="flex items-center gap-1 px-2 py-1 text-caption text-gray-300 bg-surface-1 hover:bg-surface-hover rounded" onClick={() => callbacks.onConnectShot?.(s.id, 'video')}><Video size={10} /> 生视频</button>
+            <button className="flex items-center gap-1 px-2 py-1 text-caption text-body bg-surface-1 hover:bg-surface-hover rounded" onClick={() => callbacks.onConnectShot?.(s.id, 'video')}><Video size={10} /> 生视频</button>
           </div>
         </div>
       </div>
@@ -164,7 +164,7 @@ export default function StepPrompt({ data, updateData, callbacks }) {
       {cardBusy && (
         <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 bg-surface-strong/85 rounded-lg">
           <Loader2 size={18} className="animate-spin text-emerald-400" />
-          <span className="text-caption-sm text-gray-300">{s.imgGenLoading ? '正在生成关键帧…' : '正在生成提示词…'}</span>
+          <span className="text-caption-sm text-body">{s.imgGenLoading ? '正在生成关键帧…' : '正在生成提示词…'}</span>
         </div>
       )}
     </div>
@@ -176,31 +176,31 @@ export default function StepPrompt({ data, updateData, callbacks }) {
       {/* 视图切换 + 批量 */}
       <div className="flex items-center gap-2">
         <div className="flex items-center bg-surface-strong rounded-lg p-0.5">
-          <button className={`flex items-center gap-1.5 px-3 py-1.5 text-caption-sm rounded-md whitespace-nowrap ${view === 'list' ? 'bg-surface-hover text-white' : 'text-gray-400'}`} onClick={() => setView('list')}><Columns2 size={11} /> 列表</button>
-          <button className={`flex items-center gap-1.5 px-3 py-1.5 text-caption-sm rounded-md whitespace-nowrap ${view === 'grid' ? 'bg-surface-hover text-white' : 'text-gray-400'}`} onClick={() => setView('grid')}><LayoutGrid size={11} /> 单镜头</button>
+          <button className={`flex items-center gap-1.5 px-3 py-1.5 text-caption-sm rounded-md whitespace-nowrap ${view === 'list' ? 'bg-surface-hover text-white' : 'text-secondary'}`} onClick={() => setView('list')}><Columns2 size={11} /> 列表</button>
+          <button className={`flex items-center gap-1.5 px-3 py-1.5 text-caption-sm rounded-md whitespace-nowrap ${view === 'grid' ? 'bg-surface-hover text-white' : 'text-secondary'}`} onClick={() => setView('grid')}><LayoutGrid size={11} /> 单镜头</button>
         </div>
         <div className="flex-1" />
         {/* 批量操作：始终显示。未选镜头 → 作用于全部；选中镜头 → 只作用于选中的（与第2步「批量生成素材」逻辑一致） */}
         <button
-          className="flex items-center gap-1 px-2.5 py-1.5 text-caption-sm text-gray-200 bg-surface-hover hover:bg-surface-hover-strong rounded-md whitespace-nowrap"
+          className="flex items-center gap-1 px-2.5 py-1.5 text-caption-sm text-primary bg-surface-hover hover:bg-surface-hover-strong rounded-md whitespace-nowrap"
           title={selShots.size ? `为选中的 ${selShots.size} 镜批量生成提示词` : '为全部镜头批量生成提示词'}
           onClick={() => callbacks.onGenerateShotPrompts?.([...selShots].map((i) => shots[i].id))}
         >
           <RefreshCw size={11} /> 批量生成提示词{selShots.size ? `(${selShots.size})` : ''}
         </button>
         <button
-          className="flex items-center gap-1 px-2.5 py-1.5 text-caption-sm text-gray-200 bg-surface-hover hover:bg-surface-hover-strong rounded-md whitespace-nowrap"
+          className="flex items-center gap-1 px-2.5 py-1.5 text-caption-sm text-primary bg-surface-hover hover:bg-surface-hover-strong rounded-md whitespace-nowrap"
           title={selShots.size ? `为选中的 ${selShots.size} 镜批量生图` : '为全部镜头批量生图'}
           onClick={() => callbacks.onConnectShots?.([...selShots].map((i) => shots[i].id), 'image')}
         >
           <ImageIcon size={11} /> 批量生图{selShots.size ? `(${selShots.size})` : ''}
         </button>
-        <span className="text-caption-sm text-gray-500">{shots.length} 镜</span>
+        <span className="text-caption-sm text-muted">{shots.length} 镜</span>
       </div>
 
       {/* 内容 */}
       {shots.length === 0 ? (
-        <div className="text-center py-12 text-gray-600 text-body-xs">暂无分镜，请先在「确认镜头」步骤生成</div>
+        <div className="text-center py-12 text-muted-2 text-body-xs">暂无分镜，请先在「确认镜头」步骤生成</div>
       ) : view === 'list' ? (
         /* 列表视图：所有镜头小卡片纵向排列 */
         <div className="flex flex-col gap-2 min-h-0">{shots.map((s, i) => cardFor(s, i))}</div>
@@ -215,7 +215,7 @@ export default function StepPrompt({ data, updateData, callbacks }) {
               onClick={() => setSingleIdx((v) => Math.max(0, v - 1))}
             >‹</button>
             <span className="text-base-sm text-white font-medium">镜{shots[singleIdx]?.index}</span>
-            <span className="text-body-xs text-gray-500">/ {shots.length}</span>
+            <span className="text-body-xs text-muted">/ {shots.length}</span>
             <button
               className="px-2.5 py-1 text-base leading-none text-gray-500 hover:text-white disabled:opacity-30 disabled:hover:text-gray-500"
               disabled={singleIdx >= shots.length - 1}
@@ -223,13 +223,13 @@ export default function StepPrompt({ data, updateData, callbacks }) {
             >›</button>
             <div className="flex-1" />
             {/* 当前镜头操作：生成提示词 / 生图 / 生视频（统一深色按钮，与整体设计语言一致） */}
-            <button className="flex items-center gap-1 px-2.5 py-1.5 text-caption-sm text-gray-200 bg-surface-hover hover:bg-surface-hover-strong rounded" onClick={() => callbacks.onGenerateShotPrompts?.([shots[singleIdx].id])}>
+            <button className="flex items-center gap-1 px-2.5 py-1.5 text-caption-sm text-primary bg-surface-hover hover:bg-surface-hover-strong rounded" onClick={() => callbacks.onGenerateShotPrompts?.([shots[singleIdx].id])}>
               <RefreshCw size={11} /> {shots[singleIdx]?.prompt || shots[singleIdx]?.videoPrompt ? '重生成提示词' : '生成提示词'}
             </button>
-            <button className="flex items-center gap-1 px-2.5 py-1.5 text-caption-sm text-gray-200 bg-surface-hover hover:bg-surface-hover-strong border border-edge rounded" onClick={() => callbacks.onConnectShot?.(shots[singleIdx].id, 'image')}>
+            <button className="flex items-center gap-1 px-2.5 py-1.5 text-caption-sm text-primary bg-surface-hover hover:bg-surface-hover-strong border border-edge rounded" onClick={() => callbacks.onConnectShot?.(shots[singleIdx].id, 'image')}>
               <ImageIcon size={11} /> 生图
             </button>
-            <button className="flex items-center gap-1 px-2.5 py-1.5 text-caption-sm text-gray-200 bg-surface-hover hover:bg-surface-hover-strong border border-edge rounded" onClick={() => callbacks.onConnectShot?.(shots[singleIdx].id, 'video')}>
+            <button className="flex items-center gap-1 px-2.5 py-1.5 text-caption-sm text-primary bg-surface-hover hover:bg-surface-hover-strong border border-edge rounded" onClick={() => callbacks.onConnectShot?.(shots[singleIdx].id, 'video')}>
               <Video size={11} /> 生视频
             </button>
           </div>
@@ -239,9 +239,9 @@ export default function StepPrompt({ data, updateData, callbacks }) {
 
       {/* 已连线面板 */}
       {(d.connected || []).length > 0 && (
-        <div className="text-caption-sm text-gray-500 border-t border-edge-faint pt-2">
-          <div className="mb-1 text-gray-400">已连线</div>
-          {d.connected.map((c, i) => <div key={i} className="text-gray-500">镜头{c.shotId} · {c.type} · {c.nodeId}</div>)}
+        <div className="text-caption-sm text-muted border-t border-edge-faint pt-2">
+          <div className="mb-1 text-secondary">已连线</div>
+          {d.connected.map((c, i) => <div key={i} className="text-muted">镜头{c.shotId} · {c.type} · {c.nodeId}</div>)}
         </div>
       )}
 
@@ -256,11 +256,11 @@ export default function StepPrompt({ data, updateData, callbacks }) {
           bodyClass="flex flex-col flex-1 min-h-0 p-0"
           footer={
             <div className="flex justify-between items-center px-4 py-3 border-t border-edge-faint shrink-0">
-              <span className="text-caption-sm text-gray-500">预览区可直接编辑；满意后「应用」才写回</span>
+              <span className="text-caption-sm text-muted">预览区可直接编辑；满意后「应用」才写回</span>
               <div className="flex items-center gap-2">
-                <button className="px-3 py-1 text-caption-sm text-gray-500 hover:text-white transition-colors" onClick={() => { setDraft(null); setEditing(null) }}>关闭</button>
+                <button className="px-3 py-1 text-caption-sm text-muted hover:text-white transition-colors" onClick={() => { setDraft(null); setEditing(null) }}>关闭</button>
                 <button
-                  className="px-3 py-1 text-caption-sm bg-surface-hover hover:bg-surface-hover-strong text-gray-200 rounded-md disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  className="px-3 py-1 text-caption-sm bg-surface-hover hover:bg-surface-hover-strong text-primary rounded-md disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                   disabled={draft == null}
                   onClick={applyDraft}
                 >应用</button>
@@ -296,7 +296,7 @@ export default function StepPrompt({ data, updateData, callbacks }) {
           okText="重新生成"
         >
           <textarea autoFocus value={feedback} onChange={(e) => setFeedback(e.target.value)} placeholder="（可选）填写你的修改意见，会一起发给 AI。例如：更简洁、突出小狗站起来的动作、换成侧方环绕运镜…不填则按原镜头随机重生成。"
-            className="w-full h-28 bg-transparent outline-none custom-scrollbar resize-none nodrag nowheel rounded-lg" style={{ fontSize: '13px', lineHeight: 1.7, color: '#d4d4d8' }} />
+            className="w-full h-28 bg-transparent outline-none custom-scrollbar resize-none nodrag nowheel rounded-lg" style={{ fontSize: '13px', lineHeight: 1.7, color: 'rgb(var(--mao-text-secondary))' }} />
         </ScriptBoxModal>
       )}
     </div>
@@ -306,15 +306,15 @@ export default function StepPrompt({ data, updateData, callbacks }) {
 /** 提示词展示（标题栏右侧可选的"生成"按钮；onGen 为空则不渲染） */
 function PromptBox({ label, text, loading, onEdit, onGen, assetNames }) {
   return (
-    <div className="flex flex-col gap-1 bg-[#131313] rounded p-2">
+    <div className="flex flex-col gap-1 bg-code-bg rounded p-2">
       <div className="flex items-center justify-between">
-        <span className="text-caption text-gray-500">{label}</span>
+        <span className="text-caption text-muted">{label}</span>
         {onGen && (
-          <button className="flex items-center gap-0.5 text-caption text-gray-400 hover:text-white" onClick={onGen}>{loading ? <Loader2 size={10} className="animate-spin" /> : <ImageIcon size={10} />} 生成</button>
+          <button className="flex items-center gap-0.5 text-caption text-secondary hover:text-white" onClick={onGen}>{loading ? <Loader2 size={10} className="animate-spin" /> : <ImageIcon size={10} />} 生成</button>
         )}
       </div>
-      <div className="text-caption text-gray-400 leading-relaxed line-clamp-3 break-words cursor-text hover:bg-surface rounded px-1 -mx-1" onDoubleClick={onEdit} title="双击编辑">
-        {text ? <span dangerouslySetInnerHTML={{ __html: hlAt(text, assetNames) }} /> : <span className="text-gray-600">双击编辑</span>}
+      <div className="text-caption text-secondary leading-relaxed line-clamp-3 break-words cursor-text hover:bg-surface rounded px-1 -mx-1" onDoubleClick={onEdit} title="双击编辑">
+        {text ? <span dangerouslySetInnerHTML={{ __html: hlAt(text, assetNames) }} /> : <span className="text-muted-2">双击编辑</span>}
       </div>
     </div>
   )
@@ -356,16 +356,16 @@ function ChatEdit({ editing, shots, draft, chatInput, assetNames, onDraft, onInp
       <div className="flex-1 flex flex-col min-h-0 px-4 pt-3 pb-2">
         <div className="flex items-center gap-1.5 pb-1.5 shrink-0">
           <span className={`w-1.5 h-1.5 rounded-full ${changed ? 'bg-emerald-400' : 'bg-gray-600'}`} />
-          <span className="text-caption-sm text-gray-400">{isImgGen ? '提示词（直接编辑）' : (changed ? '预览 · 有改动待应用' : '当前提示词（可直接编辑）')}</span>
+          <span className="text-caption-sm text-secondary">{isImgGen ? '提示词（直接编辑）' : (changed ? '预览 · 有改动待应用' : '当前提示词（可直接编辑）')}</span>
         </div>
         <textarea
           autoFocus
           value={previewText ?? ''}
           onChange={(e) => onDraft(e.target.value)}
           placeholder={isImgGen ? '填写关键帧提示词…' : '可手写，或写意见让 AI 改…'}
-          className="flex-1 w-full bg-[#131313] outline-none resize-none rounded-xl p-3.5 custom-scrollbar text-caption-sm leading-relaxed transition-colors"
+          className="flex-1 w-full bg-code-bg outline-none resize-none rounded-xl p-3.5 custom-scrollbar text-caption-sm leading-relaxed transition-colors"
           style={{
-            fontSize: '13px', lineHeight: 1.75, color: '#e5e7eb',
+            fontSize: '13px', lineHeight: 1.75, color: 'rgb(var(--mao-text-primary))',
             border: changed ? '1px solid rgba(52,211,153,0.4)' : '1px solid transparent',
           }}
         />
@@ -383,7 +383,7 @@ function ChatEdit({ editing, shots, draft, chatInput, assetNames, onDraft, onInp
               placeholder="提修改意见，让 AI 改…（⌘/Ctrl+Enter 发送）"
               rows={1}
               disabled={busy}
-              className="flex-1 bg-transparent outline-none resize-none custom-scrollbar text-caption-sm text-gray-200 placeholder:text-gray-600 disabled:opacity-50 transition-colors"
+              className="flex-1 bg-transparent outline-none resize-none custom-scrollbar text-caption-sm text-primary placeholder:text-muted-2 disabled:opacity-50 transition-colors"
               style={{ fontSize: '13px', lineHeight: 1.75 }}
             />
             <button

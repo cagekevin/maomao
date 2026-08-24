@@ -31,10 +31,10 @@ function SettingRow({ icon: Icon, title, desc, checked, onChange }) {
   return (
     <div className="flex items-center justify-between gap-4 py-4">
       <div className="flex items-center gap-3 min-w-0">
-        {Icon && <Icon size={18} className="text-gray-400 shrink-0" />}
+        {Icon && <Icon size={18} className="text-secondary shrink-0" />}
         <div className="min-w-0">
           <div className="text-sm text-zinc-200 font-medium">{title}</div>
-          {desc && <div className="text-xs text-gray-500 mt-0.5">{desc}</div>}
+          {desc && <div className="text-xs text-muted mt-0.5">{desc}</div>}
         </div>
       </div>
       <Toggle checked={checked} onChange={onChange} />
@@ -62,12 +62,12 @@ export default function OtherSettings() {
   return (
     <section>
       <h2 className="text-base font-semibold text-zinc-100 mb-1">其他设置</h2>
-      <p className="text-xs text-gray-500 mb-4">画布显示与编辑偏好</p>
+      <p className="text-xs text-muted mb-4">画布显示与编辑偏好</p>
 
       <div className="space-y-4">
         {groups.map((g) => (
           <div key={g.name} className="bg-surface-1 border border-edge rounded-2xl p-4">
-            <div className="text-xs font-medium text-gray-400 mb-1">{g.name}</div>
+            <div className="text-xs font-medium text-secondary mb-1">{g.name}</div>
             <div className="divide-y divide-edge-subtle/60">
               {g.rows.map((row) => {
                 const checked = settings[row.key] !== undefined

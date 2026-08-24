@@ -68,7 +68,7 @@ const PromptInput = forwardRef(function PromptInput(
       <div ref={mentionRef} className="flex-1 relative shrink-0">
         <textarea
           ref={setTextareaRef}
-          className="w-full bg-transparent text-base-sm text-gray-200 outline-none leading-relaxed placeholder-gray-600 font-sans custom-scrollbar nodrag nowheel nopan resize-none"
+          className="w-full bg-transparent text-base-sm text-primary outline-none leading-relaxed placeholder-muted-2 font-sans custom-scrollbar nodrag nowheel nopan resize-none"
           style={{
             width: inputWidth ? `${inputWidth}px` : undefined,
             height: inputHeight ? `${inputHeight}px` : '80px',
@@ -88,14 +88,14 @@ const PromptInput = forwardRef(function PromptInput(
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between p-2 border-b border-edge bg-surface">
-              <span className="text-xs text-gray-300 font-bold flex items-center gap-2">选择素材引用</span>
-              <button className="text-gray-500 hover:text-white p-1" onClick={() => setShowMention(false)}>
+              <span className="text-xs text-body font-bold flex items-center gap-2">选择素材引用</span>
+              <button className="text-muted hover:text-white p-1" onClick={() => setShowMention(false)}>
                 <X size={12} />
               </button>
             </div>
             <div className="p-2 flex-1 overflow-y-auto custom-scrollbar nowheel nopan nodrag">
               {all.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-full text-gray-600 gap-2">
+                <div className="flex flex-col items-center justify-center h-full text-muted-2 gap-2">
                   <span className="text-caption-sm">暂无素材</span>
                   <span className="text-caption">上传图片或连接其他节点后可用 @ 引用</span>
                 </div>
@@ -112,7 +112,7 @@ const PromptInput = forwardRef(function PromptInput(
                       ) : (
                         <div className="w-full h-full bg-surface-1 flex flex-col items-center justify-center p-1 text-center">
                           <LinkIcon size={16} className="text-blue-400 opacity-80 mb-1" />
-                          <span className="text-2xs text-gray-400 truncate w-full">{item.label}</span>
+                          <span className="text-2xs text-secondary truncate w-full">{item.label}</span>
                         </div>
                       )}
                       <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">

@@ -211,7 +211,7 @@ function LoopNode({ id, data, selected }) {
       id={id}
       label={data.label}
       defaultTitle="循环"
-      icon={<Repeat size={11} className="text-gray-500" />}
+      icon={<Repeat size={11} className="text-muted" />}
       selected={selected}
       handleVariant="small"
       minWidth={240}
@@ -235,7 +235,7 @@ function LoopNode({ id, data, selected }) {
                 <button
                   key={m.key}
                   type="button"
-                  className={`flex items-center gap-1.5 mb-1 last:mb-0 text-left px-2 py-1.5 text-caption-sm rounded-md transition-colors cursor-pointer ${splitMethod === m.key ? 'bg-surface-hover-strong text-white' : 'text-gray-400 hover:bg-surface-hover hover:text-gray-200'}`}
+                  className={`flex items-center gap-1.5 mb-1 last:mb-0 text-left px-2 py-1.5 text-caption-sm rounded-md transition-colors cursor-pointer ${splitMethod === m.key ? 'bg-surface-hover-strong text-white' : 'text-secondary hover:bg-surface-hover hover:text-primary'}`}
                   onMouseDown={(e) => { e.preventDefault(); changeSplitMethod(m.key); setShowSplitMenu(false) }}
                 >
                   {m.label}
@@ -253,10 +253,10 @@ function LoopNode({ id, data, selected }) {
           <div className="flex flex-col gap-1">
             {displaySegs.map((seg, i) => (
               <div key={i} className="flex items-start gap-1">
-                <span className="w-4 h-4 mt-1 shrink-0 flex items-center justify-center rounded-full bg-surface-hover-strong border border-edge-muted text-caption text-gray-400">{i + 1}</span>
+                <span className="w-4 h-4 mt-1 shrink-0 flex items-center justify-center rounded-full bg-surface-hover-strong border border-edge-muted text-caption text-secondary">{i + 1}</span>
                   <textarea
                     id={`loop-prompt-${id}-${i}`}
-                    className="flex-1 min-h-[36px] max-h-[72px] resize-none bg-input border border-edge rounded-md p-1.5 text-caption-sm text-gray-200 outline-none focus:border-blue-500 nodrag nowheel custom-scrollbar"
+                    className="flex-1 min-h-[36px] max-h-[72px] resize-none bg-input border border-edge rounded-md p-1.5 text-caption-sm text-primary outline-none focus:border-blue-500 nodrag nowheel custom-scrollbar"
                     value={seg ?? ''}
                     placeholder="输入该段生图提示词"
                     onChange={(e) => updateSegment(i, e.target.value)}
@@ -269,7 +269,7 @@ function LoopNode({ id, data, selected }) {
 
         {/* 底部：段数 + 运行（紧凑） */}
         <div className="flex items-center justify-between gap-1 pt-1 border-t border-edge-faint nodrag">
-          {displaySegs.length > 0 && <span className="text-caption text-gray-500 shrink-0">{displaySegs.length} 段</span>}
+          {displaySegs.length > 0 && <span className="text-caption text-muted shrink-0">{displaySegs.length} 段</span>}
           <div className="flex items-center gap-1.5 shrink-0 ml-auto">
             <button className="node-btn-primary" type="button" onClick={(e) => { e.stopPropagation(); handleGenerate() }}>
               <Play size={12} fill="currentColor" /><span>运行</span>

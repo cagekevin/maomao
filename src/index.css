@@ -13,6 +13,7 @@
   --mao-canvas: 13 12 12;          /* #0d0c0c */
   --mao-surface: 26 26 26;         /* #1a1a1a */
   --mao-surface-1: 34 34 34;       /* #222222 */
+  --mao-surface-shell: 26 26 26;   /* #1a1a1a 顶栏/外壳底（介于 black 与 deep 之间） */
   --mao-surface-2: 31 31 31;       /* #1f1f1f */
   --mao-surface-3: 68 68 68;       /* #444444 */
   --mao-surface-raised: 28 28 28;  /* #1c1c1c */
@@ -27,6 +28,13 @@
   --mao-surface-strong: 22 22 22;  /* #161616 */
   --mao-surface-muted: 21 21 21;   /* #151515 */
   --mao-surface-black: 17 17 17;   /* #111111 */
+  /* 阶段3 精确收编缺口（中间灰阶，对齐散落裸 hex，保证零视觉变化） */
+  --mao-surface-panel: 25 25 25;   /* #191919 侧栏/任务中心底 */
+  --mao-surface-panel-2: 27 27 27; /* #1b1b1b 节点容器底 */
+  --mao-surface-well: 32 32 32;    /* #202020 内嵌槽底 */
+  --mao-surface-raised-2: 41 41 41; /* #292929 控件/按钮底 */
+  --mao-surface-active-2: 48 48 48; /* #303030 hover/进度底 */
+  --mao-surface-hover-2b: 49 49 53; /* #313135 按钮 hover 底 */
   --mao-input: 20 20 20;           /* #141414 */
   --mao-inverse: 237 237 237;      /* #ededed */
   --mao-inverse-strong: 22 22 22;  /* #161616 */

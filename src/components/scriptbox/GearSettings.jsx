@@ -134,21 +134,21 @@ export default function GearSettings({ data, updateData, onClose }) {
       bodyClass="p-0 flex flex-col min-h-0 flex-1"
       footer={
         <div className="flex justify-end gap-2 px-5 py-3 border-t border-white/[0.06] shrink-0">
-          <button className="px-4 py-1.5 text-body-xs text-gray-400 hover:text-white" onClick={onClose}>取消</button>
-          <button className="px-4 py-1.5 text-body-xs bg-white/10 hover:bg-white/15 text-gray-100 rounded-lg transition-colors" onClick={save}>保存</button>
+          <button className="px-4 py-1.5 text-body-xs text-secondary hover:text-white" onClick={onClose}>取消</button>
+          <button className="px-4 py-1.5 text-body-xs bg-white/10 hover:bg-white/15 text-primary rounded-lg transition-colors" onClick={save}>保存</button>
         </div>
       }
     >
         {/* 工作流一键切换：整套提示词预设的顶部总入口（下拉选择即填入各 Tab，保存生效） */}
         <div className="flex items-center gap-2 px-5 py-2.5 shrink-0 border-b border-white/[0.06]">
-          <span className="text-body-xs text-gray-400 shrink-0">工作流</span>
+          <span className="text-body-xs text-secondary shrink-0">工作流</span>
           <Select
             value={workflowId}
             onChange={(id) => applyWorkflow(id)}
             options={Object.values(SCRIPT_BOX_WORKFLOWS).map((w) => ({ value: w.id, label: w.label }))}
             placeholder="选择工作流"
           />
-          <span className="text-2xs text-gray-600 shrink-0">选择整套提示词，各 Tab 可再单条微调</span>
+          <span className="text-2xs text-muted-2 shrink-0">选择整套提示词，各 Tab 可再单条微调</span>
         </div>
         {/* 标签页 */}
         <div className="flex gap-1 px-5 pt-3 pb-2 shrink-0 overflow-x-auto custom-scrollbar">
@@ -156,7 +156,7 @@ export default function GearSettings({ data, updateData, onClose }) {
             <button
               key={k}
               onClick={() => setTab(k)}
-              className={`shrink-0 px-3.5 py-1.5 text-body-xs rounded-lg transition-colors ${tab === k ? 'bg-white/10 text-white' : 'text-gray-400 hover:text-gray-200 hover:bg-white/5'}`}
+              className={`shrink-0 px-3.5 py-1.5 text-body-xs rounded-lg transition-colors ${tab === k ? 'bg-white/10 text-white' : 'text-secondary hover:text-primary hover:bg-white/5'}`}
             >{n}</button>
           ))}
         </div>
@@ -167,11 +167,11 @@ export default function GearSettings({ data, updateData, onClose }) {
               <Section title="画面比例">
                 <div className="flex gap-1.5 flex-wrap">
                   {ratios.map((r) => (
-                    <button key={r} onClick={() => setAspectRatio(r)} className={`px-2.5 py-1 text-caption-sm rounded-lg border transition-colors ${aspectRatio === r ? 'border-white/50 text-white bg-white/10' : 'border-white/[0.06] text-gray-400 hover:border-white/20 hover:text-gray-200'}`}>{r}</button>
+                    <button key={r} onClick={() => setAspectRatio(r)} className={`px-2.5 py-1 text-caption-sm rounded-lg border transition-colors ${aspectRatio === r ? 'border-white/50 text-white bg-white/10' : 'border-white/[0.06] text-secondary hover:border-white/20 hover:text-primary'}`}>{r}</button>
                   ))}
-                  <button onClick={() => setAspectRatio('custom')} className={`px-2.5 py-1 text-caption-sm rounded-lg border transition-colors ${aspectRatio === 'custom' ? 'border-white/50 text-white bg-white/10' : 'border-white/[0.06] text-gray-400 hover:border-white/20'}`}>自定义</button>
+                  <button onClick={() => setAspectRatio('custom')} className={`px-2.5 py-1 text-caption-sm rounded-lg border transition-colors ${aspectRatio === 'custom' ? 'border-white/50 text-white bg-white/10' : 'border-white/[0.06] text-secondary hover:border-white/20'}`}>自定义</button>
                 </div>
-                {aspectRatio === 'custom' && <input value={customAspectRatio} onChange={(e) => setCustomAspectRatio(e.target.value)} placeholder="如 2:1" className="mt-2 w-28 bg-surface-strong border border-white/[0.06] rounded-md px-2 py-1 text-caption-sm text-gray-200 outline-none focus:border-white/20 nodrag" />}
+                {aspectRatio === 'custom' && <input value={customAspectRatio} onChange={(e) => setCustomAspectRatio(e.target.value)} placeholder="如 2:1" className="mt-2 w-28 bg-surface-strong border border-white/[0.06] rounded-md px-2 py-1 text-caption-sm text-primary outline-none focus:border-white/20 nodrag" />}
               </Section>
 
               <Section title="模型">
@@ -191,13 +191,13 @@ export default function GearSettings({ data, updateData, onClose }) {
 
               <Section title="全局约束">
                 <div className="grid grid-cols-3 gap-3">
-                  <Field label="图片"><textarea value={imageConstraint} onChange={(e) => setImageConstraint(e.target.value)} className="w-full bg-surface-strong border border-white/[0.06] rounded-md p-2 text-gray-200 text-caption-sm outline-none h-16 focus:border-white/20 custom-scrollbar nodrag nowheel" /></Field>
-                  <Field label="视频"><textarea value={videoConstraint} onChange={(e) => setVideoConstraint(e.target.value)} className="w-full bg-surface-strong border border-white/[0.06] rounded-md p-2 text-gray-200 text-caption-sm outline-none h-16 focus:border-white/20 custom-scrollbar nodrag nowheel" /></Field>
-                  <Field label="自定义"><textarea value={customGlobalConstraint} onChange={(e) => setCustomGlobalConstraint(e.target.value)} className="w-full bg-surface-strong border border-white/[0.06] rounded-md p-2 text-gray-200 text-caption-sm outline-none h-16 focus:border-white/20 custom-scrollbar nodrag nowheel" /></Field>
+                  <Field label="图片"><textarea value={imageConstraint} onChange={(e) => setImageConstraint(e.target.value)} className="w-full bg-surface-strong border border-white/[0.06] rounded-md p-2 text-primary text-caption-sm outline-none h-16 focus:border-white/20 custom-scrollbar nodrag nowheel" /></Field>
+                  <Field label="视频"><textarea value={videoConstraint} onChange={(e) => setVideoConstraint(e.target.value)} className="w-full bg-surface-strong border border-white/[0.06] rounded-md p-2 text-primary text-caption-sm outline-none h-16 focus:border-white/20 custom-scrollbar nodrag nowheel" /></Field>
+                  <Field label="自定义"><textarea value={customGlobalConstraint} onChange={(e) => setCustomGlobalConstraint(e.target.value)} className="w-full bg-surface-strong border border-white/[0.06] rounded-md p-2 text-primary text-caption-sm outline-none h-16 focus:border-white/20 custom-scrollbar nodrag nowheel" /></Field>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
-                  <Field label="图片负面词（仅生图 prompt）"><textarea value={imageNegative} onChange={(e) => setImageNegative(e.target.value)} className="w-full bg-surface-strong border border-white/[0.06] rounded-md p-2 text-gray-200 text-caption-sm outline-none h-16 focus:border-white/20 custom-scrollbar nodrag nowheel" /></Field>
-                  <Field label="视频负面词（仅生视频 videoPrompt）"><textarea value={videoNegative} onChange={(e) => setVideoNegative(e.target.value)} className="w-full bg-surface-strong border border-white/[0.06] rounded-md p-2 text-gray-200 text-caption-sm outline-none h-16 focus:border-white/20 custom-scrollbar nodrag nowheel" /></Field>
+                  <Field label="图片负面词（仅生图 prompt）"><textarea value={imageNegative} onChange={(e) => setImageNegative(e.target.value)} className="w-full bg-surface-strong border border-white/[0.06] rounded-md p-2 text-primary text-caption-sm outline-none h-16 focus:border-white/20 custom-scrollbar nodrag nowheel" /></Field>
+                  <Field label="视频负面词（仅生视频 videoPrompt）"><textarea value={videoNegative} onChange={(e) => setVideoNegative(e.target.value)} className="w-full bg-surface-strong border border-white/[0.06] rounded-md p-2 text-primary text-caption-sm outline-none h-16 focus:border-white/20 custom-scrollbar nodrag nowheel" /></Field>
                 </div>
               </Section>
             </div>
@@ -205,27 +205,27 @@ export default function GearSettings({ data, updateData, onClose }) {
 
           {tab === 'script' && (
             <Section title="剧本生成提示词（剧情 → 分镜）">
-              <textarea value={scriptPrompt} onChange={(e) => setScriptPrompt(e.target.value)} className="w-full bg-surface-strong border border-white/[0.06] rounded-md p-2 text-gray-200 text-caption-sm outline-none h-64 focus:border-white/20 custom-scrollbar nodrag nowheel" />
+              <textarea value={scriptPrompt} onChange={(e) => setScriptPrompt(e.target.value)} className="w-full bg-surface-strong border border-white/[0.06] rounded-md p-2 text-primary text-caption-sm outline-none h-64 focus:border-white/20 custom-scrollbar nodrag nowheel" />
             </Section>
           )}
 
           {tab === 'shot' && (
             <div className="flex flex-col gap-4">
               <Section title="分镜生成提示词（分镜 → 生图/生视频）">
-                <textarea value={shotPrompt} onChange={(e) => setShotPrompt(e.target.value)} className="w-full bg-surface-strong border border-white/[0.06] rounded-md p-2 text-gray-200 text-caption-sm outline-none h-64 focus:border-white/20 custom-scrollbar nodrag nowheel" />
+                <textarea value={shotPrompt} onChange={(e) => setShotPrompt(e.target.value)} className="w-full bg-surface-strong border border-white/[0.06] rounded-md p-2 text-primary text-caption-sm outline-none h-64 focus:border-white/20 custom-scrollbar nodrag nowheel" />
               </Section>
               <Section title="提示词审计改写提示词（按意见精修，随工作流切换）">
-                <textarea value={auditPrompt} onChange={(e) => setAuditPrompt(e.target.value)} className="w-full bg-surface-strong border border-white/[0.06] rounded-md p-2 text-gray-200 text-caption-sm outline-none h-40 focus:border-white/20 custom-scrollbar nodrag nowheel" />
+                <textarea value={auditPrompt} onChange={(e) => setAuditPrompt(e.target.value)} className="w-full bg-surface-strong border border-white/[0.06] rounded-md p-2 text-primary text-caption-sm outline-none h-40 focus:border-white/20 custom-scrollbar nodrag nowheel" />
               </Section>
             </div>
           )}
 
           {tab === 'image' && (
             <div className="flex flex-col gap-4">
-              <div className="text-caption-sm text-gray-500">生图类型模板（AI 生图：关键帧 / 四宫格 / 九宫格 / 俯视调度图）</div>
+              <div className="text-caption-sm text-muted">生图类型模板（AI 生图：关键帧 / 四宫格 / 九宫格 / 俯视调度图）</div>
               {Object.entries(IMAGE_GEN_TYPES).map(([k, t]) => (
                 <Field key={k} label={t.label}>
-                  <textarea value={genTpl[k] || ''} onChange={(e) => setGenTpl({ ...genTpl, [k]: e.target.value })} className="w-full bg-surface-strong border border-white/[0.06] rounded-md p-2 text-gray-200 text-caption-sm outline-none h-36 focus:border-white/20 custom-scrollbar nodrag nowheel" />
+                  <textarea value={genTpl[k] || ''} onChange={(e) => setGenTpl({ ...genTpl, [k]: e.target.value })} className="w-full bg-surface-strong border border-white/[0.06] rounded-md p-2 text-primary text-caption-sm outline-none h-36 focus:border-white/20 custom-scrollbar nodrag nowheel" />
                 </Field>
               ))}
             </div>
@@ -233,10 +233,10 @@ export default function GearSettings({ data, updateData, onClose }) {
 
           {tab === 'asset' && (
             <div className="flex flex-col gap-4">
-              <div className="text-caption-sm text-gray-500">资产参考图模板（角色 / 场景 / 道具）</div>
+              <div className="text-caption-sm text-muted">资产参考图模板（角色 / 场景 / 道具）</div>
               {[['character', '角色'], ['scene', '场景'], ['prop', '道具']].map(([k, n]) => (
                 <Field key={k} label={n}>
-                  <textarea value={tpl[k] || ''} onChange={(e) => setTpl({ ...tpl, [k]: e.target.value })} className="w-full bg-surface-strong border border-white/[0.06] rounded-md p-2 text-gray-200 text-caption-sm outline-none h-28 focus:border-white/20 custom-scrollbar nodrag nowheel" />
+                  <textarea value={tpl[k] || ''} onChange={(e) => setTpl({ ...tpl, [k]: e.target.value })} className="w-full bg-surface-strong border border-white/[0.06] rounded-md p-2 text-primary text-caption-sm outline-none h-28 focus:border-white/20 custom-scrollbar nodrag nowheel" />
                 </Field>
               ))}
             </div>
@@ -247,13 +247,13 @@ export default function GearSettings({ data, updateData, onClose }) {
 }
 
 function Field({ label, children }) {
-  return <label className="block text-caption-sm text-gray-500">{label}<div className="mt-1.5">{children}</div></label>
+  return <label className="block text-caption-sm text-muted">{label}<div className="mt-1.5">{children}</div></label>
 }
 
 function Section({ title, children }) {
   return (
     <div>
-      <div className="text-caption-sm text-gray-500 mb-2">{title}</div>
+      <div className="text-caption-sm text-muted mb-2">{title}</div>
       {children}
     </div>
   )

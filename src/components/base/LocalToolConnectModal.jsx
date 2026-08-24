@@ -30,14 +30,14 @@ export default function LocalToolConnectModal({ isVisible, onClose, onRetry }) {
           </div>
           <div>
             <h2 className="text-lg font-bold text-white">本地引擎未连接</h2>
-            <p className="text-sm text-gray-400">系统功能需要 localTool 工具支持</p>
+            <p className="text-sm text-secondary">系统功能需要 localTool 工具支持</p>
           </div>
         </div>
 
         {/* 步骤说明 */}
         <div className="bg-canvas rounded-lg p-4 mb-4">
-          <p className="text-sm text-gray-300 mb-3">为了保证系统的完整功能和数据安全，请按照以下步骤操作：</p>
-          <ol className="text-sm text-gray-400 space-y-2 list-decimal list-inside">
+          <p className="text-sm text-body mb-3">为了保证系统的完整功能和数据安全，请按照以下步骤操作：</p>
+          <ol className="text-sm text-secondary space-y-2 list-decimal list-inside">
             <li>
               确保已安装 <span className="text-white font-medium">local-companion</span> 本地伴侣工具
             </li>
@@ -52,7 +52,7 @@ export default function LocalToolConnectModal({ isVisible, onClose, onRetry }) {
         <div className="flex gap-3">
           <button
             onClick={onClose}
-            className="flex-1 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors text-sm font-medium"
+            className="flex-1 px-4 py-2 bg-surface-hover hover:bg-surface-active-2 text-white rounded-lg transition-colors text-sm font-medium"
           >
             稍后再说
           </button>
@@ -79,7 +79,7 @@ export default function LocalToolConnectModal({ isVisible, onClose, onRetry }) {
           </button>
         </div>
 
-        <p className="text-xs text-gray-500 mt-4 text-center">当前状态：未检测到 localTool 连接</p>
+        <p className="text-xs text-muted mt-4 text-center">当前状态：未检测到 localTool 连接</p>
       </div>
     </div>
   )

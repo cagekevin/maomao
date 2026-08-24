@@ -974,9 +974,9 @@ function VideoProcessNode({ id, data, selected }) {
   }, [mode, exportClips, currentClip, currentUrl, resizeWidth, resizeHeight, targetFps, audioFormat, gifFps, gifMaxSize, gifColors, gifSpeed, gifCrop, gifStart, gifEnd, localFile, localUrl, currentName, id, setNodes, fail, spawnVideoNode, spawnAudioNode, spawnGifNode])
 
   const loading = data.loading
-  const inputCls = 'nodrag nowheel w-full h-8 bg-surface-1 border border-edge-raised rounded-md px-2 text-caption-sm text-gray-200 outline-none focus:border-[#777]'
-  const presetCls = 'nodrag h-8 px-2 rounded-md border border-edge-raised bg-surface-active text-caption text-gray-300 hover:bg-[#303030] transition-colors disabled:opacity-35 disabled:cursor-not-allowed'
-  const smallBtnCls = 'nodrag h-7 min-w-7 px-1.5 rounded border border-[#3b3b3b] bg-[#272727] text-gray-400 flex items-center justify-center hover:text-white disabled:opacity-30'
+  const inputCls = 'nodrag nowheel w-full h-8 bg-surface-1 border border-edge-raised rounded-md px-2 text-caption-sm text-primary outline-none focus:border-edge-strong'
+  const presetCls = 'nodrag h-8 px-2 rounded-md border border-edge-raised bg-surface-active text-caption text-body hover:bg-surface-active-2 transition-colors disabled:opacity-35 disabled:cursor-not-allowed'
+  const smallBtnCls = 'nodrag h-7 min-w-7 px-1.5 rounded border border-edge-raised bg-surface-hover text-secondary flex items-center justify-center hover:text-white disabled:opacity-30'
 
   const playheadPct = totalDuration ? (playheadTime / totalDuration) * 100 : 0
   const inPct = totalDuration && currentClip ? (currentClip.sourceStart / totalDuration) * 100 : 0
@@ -1059,14 +1059,14 @@ function VideoProcessNode({ id, data, selected }) {
             setEditingClipId(clip.id)
             setSelectedClipId(clip.id)
           }}
-          className={`nodrag relative w-full h-full overflow-hidden border cursor-grab active:cursor-grabbing ${selectedClipId === clip.id ? 'border-white z-10' : 'border-[#505050]'}`}
+          className={`nodrag relative w-full h-full overflow-hidden border cursor-grab active:cursor-grabbing ${selectedClipId === clip.id ? 'border-white z-10' : 'border-edge-raised'}`}
         >
           <div className="absolute inset-0 flex">
             {(imgs.length ? imgs : [undefined, undefined, undefined]).map((u, i) =>
               u ? (
                 <img key={u} src={u} draggable={false} onDragStart={(e) => e.preventDefault()} className="h-full min-w-0 flex-1 object-cover pointer-events-none select-none" />
               ) : (
-                <div key={i} className="flex-1 bg-[#383838]" />
+                <div key={i} className="flex-1 bg-surface-raised-2" />
               )
             )}
           </div>
@@ -1087,7 +1087,7 @@ function VideoProcessNode({ id, data, selected }) {
     <div className="p-2">
       <div
         ref={scrubRef}
-        className="relative h-16 overflow-hidden bg-[#303030] cursor-crosshair touch-none select-none"
+        className="relative h-16 overflow-hidden bg-surface-active-2 cursor-crosshair touch-none select-none"
         onPointerDown={onScrubPointer}
         onPointerMove={(e) => {
           if (e.buttons === 1) onScrubPointer(e)
@@ -1126,7 +1126,7 @@ function VideoProcessNode({ id, data, selected }) {
           <span className="absolute -top-0.5 left-1/2 h-2 w-2 -translate-x-1/2 rotate-45 bg-red-400" />
         </div>
       </div>
-      <div className="mt-1 flex justify-between text-meta text-gray-500 tabular-nums">
+      <div className="mt-1 flex justify-between text-meta text-muted tabular-nums">
         <span>入点 {currentClip.sourceStart.toFixed(2)}s</span>
         <span>片段 {currentClip.duration.toFixed(2)}s</span>
         <span>出点 {currentClip.sourceEnd.toFixed(2)}s</span>
@@ -1146,11 +1146,11 @@ function VideoProcessNode({ id, data, selected }) {
       />
       <CustomHandle position="left" handleId="default" variant="small" />
       <div
-        className={`w-full h-full bg-[#1b1b1b] rounded-lg overflow-hidden border shadow-xl flex flex-col drag-handle cursor-move ${selected ? 'border-[#666]' : 'border-[#343434] hover:border-[#484848]'}`}
+        className={`w-full h-full bg-surface-panel-2 rounded-lg overflow-hidden border shadow-xl flex flex-col drag-handle cursor-move ${selected ? 'border-edge-strong' : 'border-edge hover:border-edge-raised'}`}
       >
         <input ref={fileRef} type="file" accept="video/*" className="hidden" onChange={onUpload} />
         {/* 标题（框内 mb-1，与 NodeShell 节点一致） */}
-        <NodeTitle defaultTitle="视频处理" icon={<Clapperboard size={11} className="text-gray-500" />} />
+        <NodeTitle defaultTitle="视频处理" icon={<Clapperboard size={11} className="text-muted" />} />
         <div ref={contentRef} className="flex-1 min-h-0 p-3 flex flex-col gap-3 overflow-y-auto custom-scrollbar nowheel">
           {/* 模式切换 */}
           <div className="grid grid-cols-5 gap-1.5">
@@ -1159,7 +1159,7 @@ function VideoProcessNode({ id, data, selected }) {
                 key={m.value}
                 onClick={() => setMode(m.value)}
                 disabled={loading}
-                className={`nodrag h-8 rounded-md border text-caption leading-tight px-0.5 ${mode === m.value ? 'bg-inverse text-inverse-strong border-[#ededed]' : 'bg-surface-subtle text-gray-400 border-edge-raised hover:text-white'}`}
+                className={`nodrag h-8 rounded-md border text-caption leading-tight px-0.5 ${mode === m.value ? 'bg-inverse text-inverse-strong border-inverse' : 'bg-surface-subtle text-secondary border-edge-raised hover:text-white'}`}
               >
                 {m.label}
               </button>
@@ -1168,7 +1168,7 @@ function VideoProcessNode({ id, data, selected }) {
 
           {/* 视频预览 */}
           {currentUrl ? (
-            <div className="relative bg-black rounded-md overflow-hidden border border-[#303030]">
+            <div className="relative bg-black rounded-md overflow-hidden border border-edge">
               {!isHidden('video') && (
                 <video
                   ref={videoRef}
@@ -1194,7 +1194,7 @@ function VideoProcessNode({ id, data, selected }) {
                 <button
                   onClick={() => fileRef.current?.click()}
                   title="替换视频"
-                  className="nodrag absolute top-2 right-2 h-7 w-7 flex items-center justify-center rounded bg-black/75 text-gray-200"
+                  className="nodrag absolute top-2 right-2 h-7 w-7 flex items-center justify-center rounded bg-black/75 text-primary"
                 >
                   <Upload size={13} />
                 </button>
@@ -1203,7 +1203,7 @@ function VideoProcessNode({ id, data, selected }) {
           ) : (
             <button
               onClick={() => fileRef.current?.click()}
-              className="nodrag aspect-video rounded-md border border-dashed border-edge-raised flex items-center justify-center gap-2 text-gray-500 hover:text-gray-200"
+              className="nodrag aspect-video rounded-md border border-dashed border-edge-raised flex items-center justify-center gap-2 text-muted hover:text-primary"
             >
               <Upload size={18} />
               <span className="text-caption-sm">上传视频或连接视频节点</span>
@@ -1212,7 +1212,7 @@ function VideoProcessNode({ id, data, selected }) {
 
           {/* 视频信息 */}
           {currentUrl && (
-            <div className="flex justify-between gap-2 text-caption text-gray-500">
+            <div className="flex justify-between gap-2 text-caption text-muted">
               <span className="truncate">{currentName}</span>
               <span className="shrink-0 tabular-nums">
                 {currentMeta ? `${formatDuration(currentMeta.duration)} · ${currentMeta.width}×${currentMeta.height} · ${currentMeta.fps.toFixed(2)} fps` : '读取信息中...'}
@@ -1222,7 +1222,7 @@ function VideoProcessNode({ id, data, selected }) {
 
           {/* 时间线面板（trim/concat） */}
           {(mode === 'trim' || mode === 'concat') && (
-            <div className="nodrag nowheel rounded-md border border-edge bg-[#202020] overflow-hidden flex flex-col min-h-0 shrink-0">
+            <div className="nodrag nowheel rounded-md border border-edge bg-surface-well overflow-hidden flex flex-col min-h-0 shrink-0">
               {/* 控制栏 */}
               <div className="h-9 px-2 flex shrink-0 items-center gap-1 border-b border-edge">
                 <button className={smallBtnCls} title={isPlaying ? '暂停' : '播放'} onClick={togglePlay} disabled={!currentUrl}>
@@ -1236,7 +1236,7 @@ function VideoProcessNode({ id, data, selected }) {
                 <button className={smallBtnCls} title="删除选中片段 (Delete)" onClick={removeClip} disabled={!selectedClipInfo}>
                   <Trash2 size={13} />
                 </button>
-                <span className="ml-auto text-caption text-gray-400 tabular-nums">{playheadTime.toFixed(2)}s</span>
+                <span className="ml-auto text-caption text-secondary tabular-nums">{playheadTime.toFixed(2)}s</span>
               </div>
 
               {/* trim：入出点 scrubber */}
@@ -1253,8 +1253,8 @@ function VideoProcessNode({ id, data, selected }) {
                     <span className="absolute -top-0.5 left-1/2 h-2 w-2 -translate-x-1/2 rotate-45 bg-red-400" />
                   </div>
                   {tracks.map((tr) => (
-                    <div key={tr.id} data-track-id={tr.id} className="flex min-h-16 border border-[#303030] bg-surface-subtle relative">
-                      <div className="w-24 shrink-0 p-1.5 border-r border-edge flex flex-col gap-1 text-meta text-gray-400 z-30 bg-surface-subtle">
+                    <div key={tr.id} data-track-id={tr.id} className="flex min-h-16 border border-edge bg-surface-subtle relative">
+                      <div className="w-24 shrink-0 p-1.5 border-r border-edge flex flex-col gap-1 text-meta text-secondary z-30 bg-surface-subtle">
                         <div className="flex items-center gap-1">
                           <span className="truncate" title={tr.name}>{tr.name}</span>
                           <button
@@ -1297,9 +1297,9 @@ function VideoProcessNode({ id, data, selected }) {
                     </div>
                   ))}
                   <div className="flex items-center justify-between px-1 mt-2">
-                    <span className="text-meta text-gray-500">导出顺序：视频轨从上到下，片段从左到右</span>
+                    <span className="text-meta text-muted">导出顺序：视频轨从上到下，片段从左到右</span>
                     <button
-                      className="flex items-center gap-1 text-caption text-gray-400 hover:text-white px-2 py-1 rounded bg-surface-hover border border-edge-raised hover:bg-[#3a3a3a] transition-colors"
+                      className="flex items-center gap-1 text-caption text-secondary hover:text-white px-2 py-1 rounded bg-surface-hover border border-edge-raised hover:bg-surface-active-2 transition-colors"
                       onClick={addTrack}
                     >
                       <Plus size={11} />
@@ -1311,7 +1311,7 @@ function VideoProcessNode({ id, data, selected }) {
 
               {/* 选中片段信息 */}
               {selectedClipInfo && (
-                <div className="h-9 px-2 border-t border-edge flex items-center gap-2 text-meta text-gray-400">
+                <div className="h-9 px-2 border-t border-edge flex items-center gap-2 text-meta text-secondary">
                   <span className="truncate max-w-32">{selectedClipInfo.clip.name}</span>
                   <span className="tabular-nums">
                     {selectedClipInfo.clip.sourceStart.toFixed(2)} - {selectedClipInfo.clip.sourceEnd.toFixed(2)}s
@@ -1335,7 +1335,7 @@ function VideoProcessNode({ id, data, selected }) {
                 <button
                   key={f.value}
                   onClick={() => setAudioFormat(f.value)}
-                  className={`nodrag h-11 rounded-md border flex flex-col items-center justify-center ${audioFormat === f.value ? 'border-[#ededed] bg-inverse text-inverse-strong' : 'border-edge-raised bg-surface-active text-gray-300'}`}
+                  className={`nodrag h-11 rounded-md border flex flex-col items-center justify-center ${audioFormat === f.value ? 'border-inverse bg-inverse text-inverse-strong' : 'border-edge-raised bg-surface-active text-body'}`}
                 >
                   <span className="text-caption-sm">{f.label}</span>
                   <span className="text-meta opacity-60">{f.hint}</span>
@@ -1362,18 +1362,18 @@ function VideoProcessNode({ id, data, selected }) {
                 ))}
               </div>
               <div className="grid grid-cols-2 gap-2">
-                <label className="text-caption text-gray-500">
+                <label className="text-caption text-muted">
                   宽度
                   <input type="number" min={2} step={2} value={resizeWidth} onChange={(e) => setResizeWidth(Number(e.target.value))} className={`${inputCls} mt-1`} />
                 </label>
-                <label className="text-caption text-gray-500">
+                <label className="text-caption text-muted">
                   高度
                   <input type="number" min={2} step={2} value={resizeHeight} onChange={(e) => setResizeHeight(Number(e.target.value))} className={`${inputCls} mt-1`} />
                 </label>
               </div>
               <div className="grid grid-cols-4 gap-2">
                 {FPS_OPTIONS.map((f) => (
-                  <button key={f} onClick={() => setTargetFps(f)} className={`${presetCls} ${targetFps === f ? 'border-[#ddd] text-white' : ''}`}>
+                  <button key={f} onClick={() => setTargetFps(f)} className={`${presetCls} ${targetFps === f ? 'border-edge-strong text-white' : ''}`}>
                     {f} fps
                   </button>
                 ))}
@@ -1386,33 +1386,33 @@ function VideoProcessNode({ id, data, selected }) {
             <div className="flex flex-col gap-3">
               {/* 清晰度 / 帧率 / 速度 / 色彩 四列下拉 */}
               <div className="grid grid-cols-4 gap-2">
-                <label className="nodrag flex flex-col gap-1 text-caption text-gray-500">
+                <label className="nodrag flex flex-col gap-1 text-caption text-muted">
                   清晰度
-                  <select value={gifMaxSize} onChange={(e) => setGifMaxSize(Number(e.target.value))} className="nodrag bg-surface-1 border border-edge rounded px-1.5 py-1 text-caption-sm text-gray-200 outline-none focus:border-edge-strong">
+                  <select value={gifMaxSize} onChange={(e) => setGifMaxSize(Number(e.target.value))} className="nodrag bg-surface-1 border border-edge rounded px-1.5 py-1 text-caption-sm text-primary outline-none focus:border-edge-strong">
                     {GIF_SIZES.map((v) => (
                       <option key={v} value={v}>{v}p</option>
                     ))}
                   </select>
                 </label>
-                <label className="nodrag flex flex-col gap-1 text-caption text-gray-500">
+                <label className="nodrag flex flex-col gap-1 text-caption text-muted">
                   帧率
-                  <select value={gifFps} onChange={(e) => setGifFps(Number(e.target.value))} className="nodrag bg-surface-1 border border-edge rounded px-1.5 py-1 text-caption-sm text-gray-200 outline-none focus:border-edge-strong">
+                  <select value={gifFps} onChange={(e) => setGifFps(Number(e.target.value))} className="nodrag bg-surface-1 border border-edge rounded px-1.5 py-1 text-caption-sm text-primary outline-none focus:border-edge-strong">
                     {GIF_FPS.map((v) => (
                       <option key={v} value={v}>{v} fps</option>
                     ))}
                   </select>
                 </label>
-                <label className="nodrag flex flex-col gap-1 text-caption text-gray-500">
+                <label className="nodrag flex flex-col gap-1 text-caption text-muted">
                   速度
-                  <select value={gifSpeed} onChange={(e) => setGifSpeed(Number(e.target.value))} className="nodrag bg-surface-1 border border-edge rounded px-1.5 py-1 text-caption-sm text-gray-200 outline-none focus:border-edge-strong">
+                  <select value={gifSpeed} onChange={(e) => setGifSpeed(Number(e.target.value))} className="nodrag bg-surface-1 border border-edge rounded px-1.5 py-1 text-caption-sm text-primary outline-none focus:border-edge-strong">
                     {GIF_SPEEDS.map((v) => (
                       <option key={v.value} value={v.value}>{v.label}</option>
                     ))}
                   </select>
                 </label>
-                <label className="nodrag flex flex-col gap-1 text-caption text-gray-500">
+                <label className="nodrag flex flex-col gap-1 text-caption text-muted">
                   色彩
-                  <select value={gifColors} onChange={(e) => setGifColors(Number(e.target.value))} className="nodrag bg-surface-1 border border-edge rounded px-1.5 py-1 text-caption-sm text-gray-200 outline-none focus:border-edge-strong">
+                  <select value={gifColors} onChange={(e) => setGifColors(Number(e.target.value))} className="nodrag bg-surface-1 border border-edge rounded px-1.5 py-1 text-caption-sm text-primary outline-none focus:border-edge-strong">
                     {GIF_COLORS.map((v) => (
                       <option key={v.value} value={v.value}>{v.label}</option>
                     ))}
@@ -1425,12 +1425,12 @@ function VideoProcessNode({ id, data, selected }) {
                 <div className="flex items-center gap-2 flex-wrap">
                   <button
                     onClick={() => setGifCrop((c) => (c ? 0 : 1))}
-                    className={`nodrag h-6 px-2 rounded text-caption border ${gifCrop ? 'bg-inverse text-inverse-strong border-[#ededed]' : 'bg-surface-active text-gray-400 border-edge-raised'}`}
+                    className={`nodrag h-6 px-2 rounded text-caption border ${gifCrop ? 'bg-inverse text-inverse-strong border-inverse' : 'bg-surface-active text-secondary border-edge-raised'}`}
                   >
                     {gifCrop ? '裁剪已开' : '裁剪'}
                   </button>
                   {gifCrop === 1 ? (
-                    <div className="nodrag flex flex-1 items-center gap-2 text-caption text-gray-400 min-w-0">
+                    <div className="nodrag flex flex-1 items-center gap-2 text-caption text-secondary min-w-0">
                       <input type="range" min={0} max={gifDuration} step={0.1} value={gifStart} onChange={(e) => setGifStart(Math.min(parseFloat(e.target.value), gifEnd - 0.1))} className="nodrag flex-1 accent-blue-500 min-w-0" />
                       <input type="range" min={0} max={gifDuration} step={0.1} value={gifEnd} onChange={(e) => setGifEnd(Math.max(parseFloat(e.target.value), gifStart + 0.1))} className="nodrag flex-1 accent-blue-500 min-w-0" />
                       <span className="shrink-0 tabular-nums w-24 text-right">
@@ -1438,14 +1438,14 @@ function VideoProcessNode({ id, data, selected }) {
                       </span>
                     </div>
                   ) : (
-                    <span className="text-meta text-gray-600">默认整段视频</span>
+                    <span className="text-meta text-muted-2">默认整段视频</span>
                   )}
                 </div>
               )}
 
               {/* 结果信息（复刻官方 fc.jsx resultInfo） */}
               {gifResult && (
-                <div className="text-caption text-gray-400 flex items-center gap-2 flex-wrap">
+                <div className="text-caption text-secondary flex items-center gap-2 flex-wrap">
                   <span>{gifResult.width}×{gifResult.height}</span>
                   <span>·</span>
                   <span>{gifResult.frameCount} 帧</span>
@@ -1465,7 +1465,7 @@ function VideoProcessNode({ id, data, selected }) {
           )}
 
           {/* 底部操作 */}
-          <div className="mt-auto pt-2 flex gap-2 sticky bottom-0 bg-[#1b1b1b]">
+          <div className="mt-auto pt-2 flex gap-2 sticky bottom-0 bg-surface-panel-2">
             <button
               onClick={handleProcess}
               disabled={!canRun || loading}
@@ -1490,7 +1490,7 @@ function VideoProcessNode({ id, data, selected }) {
                   controllerRef.current?.cancel()
                 }}
                 title="取消处理"
-                className="nodrag h-9 w-9 rounded-md border border-edge-muted bg-[#292929] text-gray-300 flex items-center justify-center"
+                className="nodrag h-9 w-9 rounded-md border border-edge-muted bg-surface-raised-2 text-body flex items-center justify-center"
               >
                 <X size={12} />
               </button>
@@ -1501,15 +1501,15 @@ function VideoProcessNode({ id, data, selected }) {
 
         {/* 编辑片段截取弹层 */}
         {editingClipId && currentClip && (
-          <div className="absolute inset-0 z-50 bg-[#1b1b1b]/95 backdrop-blur-sm flex flex-col p-3 nodrag nowheel rounded-lg">
+          <div className="absolute inset-0 z-50 bg-surface-panel-2/95 backdrop-blur-sm flex flex-col p-3 nodrag nowheel rounded-lg">
             <div className="flex items-center justify-between mb-3 text-white">
               <span className="text-sm font-medium">编辑片段截取</span>
-              <button onClick={() => setEditingClipId(null)} className="text-gray-400 hover:text-white">
+              <button onClick={() => setEditingClipId(null)} className="text-secondary hover:text-white">
                 <XIcon size={16} />
               </button>
             </div>
             <div className="flex-1 min-h-0 flex flex-col gap-3 overflow-y-auto custom-scrollbar">
-              <div className="relative bg-black rounded-md overflow-hidden border border-[#303030]">
+              <div className="relative bg-black rounded-md overflow-hidden border border-edge">
                 {!isHidden('video') && (
                   <video
                     ref={videoRef}
@@ -1523,7 +1523,7 @@ function VideoProcessNode({ id, data, selected }) {
                   />
                 )}
               </div>
-              <div className="nodrag nowheel rounded-md border border-edge bg-[#202020] overflow-hidden flex flex-col shrink-0">
+              <div className="nodrag nowheel rounded-md border border-edge bg-surface-well overflow-hidden flex flex-col shrink-0">
                 <div className="h-9 px-2 flex shrink-0 items-center gap-1 border-b border-edge">
                   <button className={smallBtnCls} title={isPlaying ? '暂停' : '播放'} onClick={togglePlay}>
                     {isPlaying ? <Pause size={13} /> : <Play size={13} />}
@@ -1533,7 +1533,7 @@ function VideoProcessNode({ id, data, selected }) {
                   <button className={smallBtnCls} title="在播放头分割 (S)" onClick={splitAtPlayhead}>
                     <Scissors size={13} />
                   </button>
-                  <span className="ml-auto text-caption text-gray-400 tabular-nums">{playheadTime.toFixed(2)}s</span>
+                  <span className="ml-auto text-caption text-secondary tabular-nums">{playheadTime.toFixed(2)}s</span>
                 </div>
                 {trimScrubber}
               </div>

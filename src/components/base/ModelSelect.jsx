@@ -9,7 +9,7 @@ import { useOutsideClick } from './hooks.js'
  */
 function badgeMeta(badge) {
   if (badge === 'scheduled') return { label: '调度', className: 'border-blue-400 text-blue-300' }
-  if (badge === 'third') return { label: '三方', className: 'border-gray-500 text-gray-300' }
+  if (badge === 'third') return { label: '三方', className: 'border-edge-raised text-body' }
   if (badge && badge !== 'builtin') return { label: badge, className: 'border-white/30 text-white/90' }
   return { label: '内置', className: 'border-white/30 text-white/90' }
 }
@@ -54,7 +54,7 @@ function ModelSelect({
       {showDivider && <div className="w-[1px] h-3 bg-surface-3 flex-shrink-0 mr-1.5" />}
       <button
         type="button"
-        className="flex items-center gap-1 h-6 px-2 min-w-0 bg-transparent hover:bg-surface-hover border border-transparent hover:border-edge rounded text-caption-sm text-gray-300 transition-colors cursor-pointer"
+        className="flex items-center gap-1 h-6 px-2 min-w-0 bg-transparent hover:bg-surface-hover border border-transparent hover:border-edge rounded text-caption-sm text-body transition-colors cursor-pointer"
         onClick={(e) => { e.stopPropagation(); setOpen((v) => !v) }}
         title={value ? `${value}（${selectedBadge.label}）` : '选择模型'}
       >
@@ -77,7 +77,7 @@ function ModelSelect({
               <div
                 key={m.id}
                 role="button"
-                className={`flex items-center gap-1.5 mb-1 last:mb-0 text-left px-2 py-1.5 text-caption-sm rounded-md transition-colors cursor-pointer ${selected ? 'bg-surface-hover-strong text-white' : 'text-gray-400 hover:bg-surface-hover hover:text-gray-200'}`}
+                className={`flex items-center gap-1.5 mb-1 last:mb-0 text-left px-2 py-1.5 text-caption-sm rounded-md transition-colors cursor-pointer ${selected ? 'bg-surface-hover-strong text-white' : 'text-secondary hover:bg-surface-hover hover:text-primary'}`}
                 onMouseDown={(e) => { e.preventDefault(); onChange(m.id); setOpen(false) }}
               >
                 <span className={`shrink-0 px-1 rounded text-meta leading-[14px] border bg-white/10 ${itemBadge.className}`}>

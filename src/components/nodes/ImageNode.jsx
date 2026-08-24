@@ -197,8 +197,8 @@ function ImageNode({ id, data, selected }) {
           {hideMedia && (
             <div className="absolute inset-0 flex items-center justify-center bg-surface-strong">
               <div className="flex flex-col items-center gap-1 opacity-60">
-                <ImageIcon size={18} className="text-gray-600" />
-                <span className="text-meta text-gray-500">性能模式已隐藏</span>
+                <ImageIcon size={18} className="text-muted-2" />
+                <span className="text-meta text-muted">性能模式已隐藏</span>
               </div>
             </div>
           )}
@@ -269,8 +269,8 @@ function ImageNode({ id, data, selected }) {
           {/* 文本文件 */}
           {type === 'text' && (
             <div className="w-full h-full flex flex-col items-center justify-center bg-surface p-2">
-              <FileText size={24} className="text-gray-400 mb-2" />
-              <span className="text-caption text-gray-500">文本/数据文件</span>
+              <FileText size={24} className="text-secondary mb-2" />
+              <span className="text-caption text-muted">文本/数据文件</span>
             </div>
           )}
           {/* 空态 */}
@@ -280,7 +280,7 @@ function ImageNode({ id, data, selected }) {
               onClick={(e) => { e.stopPropagation(); fileRef.current?.click() }}
             >
               <div className="w-12 h-12 rounded-xl bg-surface-1 border border-dashed border-edge-muted group-hover:border-blue-500/50 flex flex-col items-center justify-center transition-all">
-                <ImageIcon size={20} className="text-gray-600 group-hover:text-blue-500/80 transition-colors" />
+                <ImageIcon size={20} className="text-muted-2 group-hover:text-blue-500/80 transition-colors" />
               </div>
             </div>
           )}

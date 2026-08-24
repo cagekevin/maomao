@@ -30,7 +30,7 @@ function EnvMenu({ env, isConfirming, onEdit, onCopy, onClearAll, onDelete }) {
     <div className="relative group/menu" onClick={(e) => e.stopPropagation()}>
       <button
         type="button"
-        className="text-gray-400 hover:text-white p-1 rounded hover:bg-surface-hover-strong cursor-pointer border-none bg-transparent"
+        className="text-secondary hover:text-white p-1 rounded hover:bg-surface-hover-strong cursor-pointer border-none bg-transparent"
         aria-label="环境菜单"
       >
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -41,10 +41,10 @@ function EnvMenu({ env, isConfirming, onEdit, onCopy, onClearAll, onDelete }) {
       </button>
       <div className="absolute right-0 top-full pt-1 hidden group-hover/menu:block z-50">
         <div className="bg-surface-active border border-edge rounded-md shadow-xl py-1 w-24">
-          <button type="button" onClick={onEdit} className="w-full text-left px-4 py-2 text-xs text-gray-300 hover:bg-surface-hover-strong hover:text-white cursor-pointer border-none bg-transparent">
+          <button type="button" onClick={onEdit} className="w-full text-left px-4 py-2 text-xs text-body hover:bg-surface-hover-strong hover:text-white cursor-pointer border-none bg-transparent">
             修改
           </button>
-          <button type="button" onClick={onCopy} className="w-full text-left px-4 py-2 text-xs text-gray-300 hover:bg-surface-hover-strong hover:text-white cursor-pointer border-none bg-transparent">
+          <button type="button" onClick={onCopy} className="w-full text-left px-4 py-2 text-xs text-body hover:bg-surface-hover-strong hover:text-white cursor-pointer border-none bg-transparent">
             复制 Cookie
           </button>
           <button type="button" onClick={onClearAll} className="w-full text-left px-4 py-2 text-xs text-red-400 hover:bg-surface-hover-strong hover:text-red-300 cursor-pointer border-none bg-transparent">
@@ -138,8 +138,8 @@ export default function AccountsSettings() {
         <div className="p-3 bg-surface-deep border-b border-edge shadow-sm">
           <div className="bg-surface-active p-3 rounded-lg border border-edge animate-fade-in">
             <div className="flex justify-between items-center mb-2">
-              <div className="text-sm font-bold text-gray-200">{formEditId ? '修改环境' : '手动添加环境'}</div>
-              <button type="button" onClick={closeForm} className="text-gray-500 hover:text-gray-300 cursor-pointer border-none bg-transparent">
+              <div className="text-sm font-bold text-primary">{formEditId ? '修改环境' : '手动添加环境'}</div>
+              <button type="button" onClick={closeForm} className="text-muted hover:text-body cursor-pointer border-none bg-transparent">
                 ✕
               </button>
             </div>
@@ -150,7 +150,7 @@ export default function AccountsSettings() {
                 onChange={(e) => setFormName(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSave()}
                 placeholder="输入环境名称 (如:即梦小号)"
-                className="flex-1 bg-surface border border-edge rounded px-3 py-1.5 text-sm text-gray-200 focus:outline-none focus:border-blue-500"
+                className="flex-1 bg-surface border border-edge rounded px-3 py-1.5 text-sm text-primary focus:outline-none focus:border-blue-500"
               />
               <button
                 type="button"
@@ -166,10 +166,10 @@ export default function AccountsSettings() {
                 value={formCookies}
                 onChange={(e) => setFormCookies(e.target.value)}
                 placeholder="[可选] 手动粘贴 Cookie (JSON 或 key=value; 格式)"
-                className="w-full bg-surface border border-edge rounded px-3 py-1.5 text-caption text-gray-300 focus:outline-none focus:border-blue-500 h-16 resize-none font-mono nowheel nopan"
+                className="w-full bg-surface border border-edge rounded px-3 py-1.5 text-caption text-body focus:outline-none focus:border-blue-500 h-16 resize-none font-mono nowheel nopan"
               />
             </div>
-            <div className="text-caption text-gray-500 mt-2">* 默认自动抓取当前标签页 Cookie。若填写上方 Cookie 则优先使用。</div>
+            <div className="text-caption text-muted mt-2">* 默认自动抓取当前标签页 Cookie。若填写上方 Cookie 则优先使用。</div>
           </div>
         </div>
       )}
@@ -208,7 +208,7 @@ export default function AccountsSettings() {
                 onClick={() => activateEnv(e.id)}
                 title={e.siteName}
                 className={`relative bg-surface-deep rounded-xl border transition-all cursor-grab active:cursor-grabbing group hover:bg-surface-active flex flex-col items-center justify-center p-3 h-32
-                  ${isActive ? 'border-blue-500 shadow-blue-500/10 shadow-md ring-1 ring-blue-500/50 bg-blue-900/10' : 'border-edge hover:border-gray-500'}
+                  ${isActive ? 'border-blue-500 shadow-blue-500/10 shadow-md ring-1 ring-blue-500/50 bg-blue-900/10' : 'border-edge hover:border-edge-strong'}
                   ${isDragOver ? 'border-dashed border-[3px] border-blue-400 opacity-80 scale-105 z-10' : ''}
                 `}
               >
@@ -219,7 +219,7 @@ export default function AccountsSettings() {
                   alt={e.name}
                   onError={(t) => { t.target.src = `https://api.dicebear.com/7.x/avataaars/svg?seed=${e.name}` }}
                 />
-                <div className="font-bold text-gray-200 truncate text-sm w-full text-center px-2">{e.name}</div>
+                <div className="font-bold text-primary truncate text-sm w-full text-center px-2">{e.name}</div>
                 {isActive && (
                   <div className="absolute top-0 left-0 w-0 h-0 border-t-[32px] border-r-[32px] border-t-blue-500 border-r-transparent rounded-tl-xl z-10">
                     <div className="absolute -top-[28px] left-[6px] text-body-xs text-white font-bold">√</div>
@@ -242,7 +242,7 @@ export default function AccountsSettings() {
 
         {/* 底部：运行端说明（信息） */}
         <div className="mt-6 flex justify-center">
-          <span className="text-xs text-gray-600">
+          <span className="text-xs text-muted-2">
             运行端：{isExt ? 'Chrome 扩展（Cookie 读写生效）' : '浏览器（Cookie 读写需扩展端，当前仅列表管理）'}
           </span>
         </div>

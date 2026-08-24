@@ -65,9 +65,9 @@ export default function ProjectSelector({ onSwitch, onCreate }) {
     <div ref={wrapRef} className="flex items-center gap-1 group/project-selector relative">
       {/* 下拉触发器（复刻 Component731） */}
       <div className="relative group/project-dropdown cursor-pointer">
-        <div className="flex items-center gap-1 bg-transparent text-gray-300 text-sm hover:text-white pl-2 pr-2 py-1 outline-none min-w-[100px] pb-1.5 z-10 relative">
+        <div className="flex items-center gap-1 bg-transparent text-body text-sm hover:text-white pl-2 pr-2 py-1 outline-none min-w-[100px] pb-1.5 z-10 relative">
           <span className="truncate max-w-[120px]">{currentName}</span>
-          <ChevronDown size={14} className="text-gray-500 group-hover/project-dropdown:text-white transition-colors" />
+          <ChevronDown size={14} className="text-muted group-hover/project-dropdown:text-white transition-colors" />
         </div>
         <div className="absolute bottom-0 left-2 right-2 h-[2px] bg-white/10 group-hover/project-dropdown:bg-white transition-colors pointer-events-none rounded-full" />
         <div className="absolute left-0 top-full w-48 bg-surface border border-edge rounded-xl shadow-2xl opacity-0 invisible group-hover/project-dropdown:opacity-100 group-hover/project-dropdown:visible transition-all duration-200 z-float overflow-hidden py-1">
@@ -77,7 +77,7 @@ export default function ProjectSelector({ onSwitch, onCreate }) {
               <div
                 key={e.id}
                 onClick={() => handleSwitch(e.id)}
-                className={`px-3 py-2.5 text-sm cursor-pointer flex items-center gap-2 hover:bg-surface-hover-strong transition-colors ${isActive ? 'text-white bg-surface-1' : 'text-gray-400'}`}
+                className={`px-3 py-2.5 text-sm cursor-pointer flex items-center gap-2 hover:bg-surface-hover-strong transition-colors ${isActive ? 'text-white bg-surface-1' : 'text-secondary'}`}
               >
                 <span className={`w-1.5 h-1.5 rounded-full ${isActive ? 'bg-green-500' : 'bg-transparent'}`} />
                 <span className="truncate">{e.name}</span>
@@ -89,22 +89,22 @@ export default function ProjectSelector({ onSwitch, onCreate }) {
 
       {/* 项目菜单 ⋮（复刻 Component749） */}
       <div className="relative group/project-menu -ml-1 z-10">
-        <button type="button" className="text-gray-500 hover:text-white transition-colors p-1 flex items-center justify-center cursor-pointer border-none bg-transparent" aria-label="项目菜单">
+        <button type="button" className="text-muted hover:text-white transition-colors p-1 flex items-center justify-center cursor-pointer border-none bg-transparent" aria-label="项目菜单">
           <MoreVertical size={16} />
         </button>
         <div className="absolute left-0 top-full w-40 bg-surface border border-edge rounded-xl shadow-2xl opacity-0 invisible group-hover/project-menu:opacity-100 group-hover/project-menu:visible transition-all duration-200 z-float overflow-hidden py-1">
-          <button type="button" onClick={openRename} className="w-full text-left px-3 py-2.5 text-sm text-gray-300 hover:bg-surface-hover-strong hover:text-white flex items-center gap-2 cursor-pointer border-none bg-transparent">
+          <button type="button" onClick={openRename} className="w-full text-left px-3 py-2.5 text-sm text-body hover:bg-surface-hover-strong hover:text-white flex items-center gap-2 cursor-pointer border-none bg-transparent">
             <Pencil size={14} /> 重命名项目
           </button>
           {/* 导入/导出走 eventBus（职责分离）：ProjectSelector 是纯 UI 菜单，只发"用户点了导入/导出"的信号，
               不 import 任何导入导出逻辑。真正的业务实现（导出=exportAll 打包下载 JSON；导入=读 .json→importAll→reload）
               由 App.jsx subscribe('project:import'/'project:export') 承接落地。这样改导出格式只动 App，本组件无需改动；
               将来有其它入口要触发导入导出，也只需 publish 同名事件复用同一套逻辑。 */}
-          <button type="button" onClick={() => publish('project:import')} className="w-full text-left px-3 py-2.5 text-sm text-gray-300 hover:bg-surface-hover-strong hover:text-white flex items-center gap-2 cursor-pointer border-none bg-transparent">
+          <button type="button" onClick={() => publish('project:import')} className="w-full text-left px-3 py-2.5 text-sm text-body hover:bg-surface-hover-strong hover:text-white flex items-center gap-2 cursor-pointer border-none bg-transparent">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
             导入项目
           </button>
-          <button type="button" onClick={() => publish('project:export')} className="w-full text-left px-3 py-2.5 text-sm text-gray-300 hover:bg-surface-hover-strong hover:text-white flex items-center gap-2 cursor-pointer border-none bg-transparent">
+          <button type="button" onClick={() => publish('project:export')} className="w-full text-left px-3 py-2.5 text-sm text-body hover:bg-surface-hover-strong hover:text-white flex items-center gap-2 cursor-pointer border-none bg-transparent">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></svg>
             导出项目
           </button>
@@ -123,7 +123,7 @@ export default function ProjectSelector({ onSwitch, onCreate }) {
       <button
         type="button"
         onClick={openCreateModal}
-        className="text-gray-400 hover:text-white transition-colors p-1 ml-1 cursor-pointer border-none bg-transparent"
+        className="text-secondary hover:text-white transition-colors p-1 ml-1 cursor-pointer border-none bg-transparent"
         title="新建项目"
       >
         <Plus size={18} />
@@ -133,7 +133,7 @@ export default function ProjectSelector({ onSwitch, onCreate }) {
       {modal && createPortal(
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-modal" onClick={() => setModal(null)}>
           <div className="bg-surface-hover p-4 rounded-lg border border-edge w-64" onClick={(e) => e.stopPropagation()}>
-            <div className="text-gray-200 text-sm font-bold mb-3">{modal.mode === 'create' ? '新建项目' : '重命名项目'}</div>
+            <div className="text-primary text-sm font-bold mb-3">{modal.mode === 'create' ? '新建项目' : '重命名项目'}</div>
             <input
               autoFocus
               value={name}
@@ -143,10 +143,10 @@ export default function ProjectSelector({ onSwitch, onCreate }) {
                 if (e.key === 'Escape') setModal(null)
               }}
               placeholder={modal.mode === 'create' ? '项目名称' : '项目名称'}
-              className="w-full bg-surface-deep border border-edge rounded p-2 text-gray-200 text-xs mb-3 focus:outline-none focus:border-blue-500"
+              className="w-full bg-surface-deep border border-edge rounded p-2 text-primary text-xs mb-3 focus:outline-none focus:border-blue-500"
             />
             <div className="flex justify-end gap-2">
-              <button type="button" onClick={() => setModal(null)} className="text-gray-400 hover:text-white text-xs px-2 py-1 cursor-pointer border-none bg-transparent">取消</button>
+              <button type="button" onClick={() => setModal(null)} className="text-secondary hover:text-white text-xs px-2 py-1 cursor-pointer border-none bg-transparent">取消</button>
               <button type="button" onClick={modal.mode === 'create' ? handleCreate : handleRename} className="bg-blue-600 text-white text-xs px-3 py-1 rounded hover:bg-blue-500 cursor-pointer border-none">{modal.mode === 'create' ? '创建' : '保存'}</button>
             </div>
           </div>

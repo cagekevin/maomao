@@ -28,7 +28,7 @@ export default function SettingsFrame() {
       {/* 左侧栏 */}
       <aside className="w-48 bg-canvas border-r-0 flex flex-col p-3 z-10 flex-shrink-0">
         <div className="px-3 py-2 mb-1">
-          <span className="text-caption text-gray-500 uppercase tracking-wider">设置</span>
+          <span className="text-caption text-muted uppercase tracking-wider">设置</span>
         </div>
 
         {SECTIONS.map((s) => {
@@ -37,7 +37,7 @@ export default function SettingsFrame() {
             <button
               key={s.key}
               onClick={() => setActive(s.key)}
-              className={`text-left px-3 py-2.5 rounded-lg text-sm transition-colors mb-1.5 flex items-center gap-2 ${active === s.key ? 'bg-surface-active text-blue-500 border border-edge shadow-sm' : 'text-gray-300 hover:bg-surface-1 hover:text-gray-100 border border-transparent'}`}
+              className={`text-left px-3 py-2.5 rounded-lg text-sm transition-colors mb-1.5 flex items-center gap-2 ${active === s.key ? 'bg-surface-active text-blue-500 border border-edge shadow-sm' : 'text-body hover:bg-surface-1 hover:text-primary border border-transparent'}`}
             >
               <Icon size={16} />
               <span className="flex-1 truncate">{s.label}</span>
@@ -49,14 +49,14 @@ export default function SettingsFrame() {
         <div className="mt-auto">
           <button
             onClick={() => setMoreOpen((v) => !v)}
-            className={`w-full text-left px-3 py-2.5 rounded-lg text-sm transition-colors mb-1.5 flex items-center gap-2 ${moreOpen ? 'bg-surface-active text-blue-500 border border-edge shadow-sm' : 'text-gray-300 hover:bg-surface-1 hover:text-gray-100 border border-transparent'}`}
+            className={`w-full text-left px-3 py-2.5 rounded-lg text-sm transition-colors mb-1.5 flex items-center gap-2 ${moreOpen ? 'bg-surface-active text-blue-500 border border-edge shadow-sm' : 'text-body hover:bg-surface-1 hover:text-primary border border-transparent'}`}
           >
             <SettingsIcon size={16} />
             <span className="flex-1">更多设置</span>
             <ChevronDown size={13} className={`transition-transform ${moreOpen ? 'rotate-180' : ''}`} />
           </button>
           {moreOpen && (
-            <div className="px-3 py-2 text-xs text-gray-500">（预留扩展分区）</div>
+            <div className="px-3 py-2 text-xs text-muted">（预留扩展分区）</div>
           )}
         </div>
       </aside>
@@ -80,6 +80,6 @@ function renderSection(key) {
     case 'other':
       return <OtherSettings />
     default:
-      return <div className="text-center text-sm text-gray-500 py-16">该设置分区尚未实现</div>
+      return <div className="text-center text-sm text-muted py-16">该设置分区尚未实现</div>
   }
 }

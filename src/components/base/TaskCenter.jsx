@@ -115,7 +115,7 @@ function TaskCenter() {
 
       {/* 过滤区 */}
       {showFilter && (
-        <div className="px-4 py-3 border-b border-edge-subtle flex flex-col gap-2.5 flex-shrink-0 bg-[#191919]">
+        <div className="px-4 py-3 border-b border-edge-subtle flex flex-col gap-2.5 flex-shrink-0 bg-surface-panel">
           <div className="relative">
             <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-faint" />
             <input
@@ -333,7 +333,7 @@ const TaskCard = React.memo(function TaskCard({ task, moreOpen, onToggleMore, on
         <ChevronDown size={11} className={`transition-transform ${showData ? 'rotate-180' : ''}`} /> 请求/响应数据
       </button>
       {showData && (
-        <pre className="text-caption text-faint bg-surface-muted border border-[#242424] rounded-lg p-2 overflow-auto max-h-[140px] whitespace-pre-wrap">
+        <pre className="text-caption text-faint bg-surface-muted border border-edge rounded-lg p-2 overflow-auto max-h-[140px] whitespace-pre-wrap">
 {JSON.stringify({ id: task.id, nodeId: task.nodeId, status: task.status, type: task.type, modelName: task.modelName, channelName: task.channelName, prompt: task.prompt, createdAt: task.createdAt }, null, 2)}
         </pre>
       )}

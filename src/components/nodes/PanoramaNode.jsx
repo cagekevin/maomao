@@ -141,15 +141,15 @@ function PanoramaNode({ id, data, selected }) {
   // 截图比例选择器（复刻官方 Component1784 / Component1845）
   const renderRatioSelect = () => (
     <>
-      <span className="text-[10px] text-gray-400 px-2 whitespace-nowrap shrink-0">截图比例</span>
-      <select value={aspectRatio} onChange={(e) => setAspectRatio(e.target.value)} className="bg-transparent text-gray-200 text-[10px] pl-1 pr-4 py-0.5 outline-none cursor-pointer text-center font-bold">
+      <span className="text-[10px] text-secondary px-2 whitespace-nowrap shrink-0">截图比例</span>
+      <select value={aspectRatio} onChange={(e) => setAspectRatio(e.target.value)} className="bg-transparent text-primary text-[10px] pl-1 pr-4 py-0.5 outline-none cursor-pointer text-center font-bold">
         {RATIO_OPTIONS.map((r) => <option key={r} value={r} className="bg-surface-1">{r === 'custom' ? '自定义' : r}</option>)}
       </select>
       {aspectRatio === 'custom' && (
         <div className="flex items-center gap-1 ml-2 mr-2 border-l border-white/20 pl-2 shrink-0">
-          <input type="number" value={customDim.w} onChange={(e) => setCustomDim((d) => ({ ...d, w: Number(e.target.value) }))} className="w-8 bg-transparent text-gray-200 text-[10px] outline-none text-center border-b border-transparent focus:border-white/50" />
-          <span className="text-gray-500">:</span>
-          <input type="number" value={customDim.h} onChange={(e) => setCustomDim((d) => ({ ...d, h: Number(e.target.value) }))} className="w-8 bg-transparent text-gray-200 text-[10px] outline-none text-center border-b border-transparent focus:border-white/50" />
+          <input type="number" value={customDim.w} onChange={(e) => setCustomDim((d) => ({ ...d, w: Number(e.target.value) }))} className="w-8 bg-transparent text-primary text-[10px] outline-none text-center border-b border-transparent focus:border-white/50" />
+          <span className="text-muted">:</span>
+          <input type="number" value={customDim.h} onChange={(e) => setCustomDim((d) => ({ ...d, h: Number(e.target.value) }))} className="w-8 bg-transparent text-primary text-[10px] outline-none text-center border-b border-transparent focus:border-white/50" />
         </div>
       )}
     </>
@@ -158,13 +158,13 @@ function PanoramaNode({ id, data, selected }) {
   // 截图按钮组（全屏球体里，始终显示）
   const renderShotButtons = ({ size = 20 }) => (
     <div className="absolute top-1/2 left-2 -translate-y-1/2 flex flex-col items-center gap-1 z-30 bg-black/60 p-1.5 rounded-xl backdrop-blur-md border border-white/10 shadow-lg nodrag" onClick={(e) => e.stopPropagation()}>
-      <button onClick={() => doCapture([0])} title="当前视角截图" className={`p-2.5 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-all active:scale-95 cursor-pointer ${shotKind === 'current' ? 'text-white bg-white/10' : ''}`}>
+      <button onClick={() => doCapture([0])} title="当前视角截图" className={`p-2.5 text-secondary hover:text-white hover:bg-white/10 rounded-lg transition-all active:scale-95 cursor-pointer ${shotKind === 'current' ? 'text-white bg-white/10' : ''}`}>
         <CircleDot size={size} className={shotKind === 'current' ? 'animate-spin' : ''} />
       </button>
-      <button onClick={() => doCapture([90, 180, 270, 0])} title="四大视角截图 (90,180,270,0度)" className={`p-2.5 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-all active:scale-95 cursor-pointer ${shotKind === 'four' ? 'text-white bg-white/10' : ''}`}>
+      <button onClick={() => doCapture([90, 180, 270, 0])} title="四大视角截图 (90,180,270,0度)" className={`p-2.5 text-secondary hover:text-white hover:bg-white/10 rounded-lg transition-all active:scale-95 cursor-pointer ${shotKind === 'four' ? 'text-white bg-white/10' : ''}`}>
         <Grid3X3 size={size} className={shotKind === 'four' ? 'animate-spin' : ''} />
       </button>
-      <button onClick={() => doCapture([0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330])} title="12大视角截图 (每30度)" className={`p-2.5 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-all active:scale-95 cursor-pointer ${shotKind === 'twelve' ? 'text-white bg-white/10' : ''}`}>
+      <button onClick={() => doCapture([0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330])} title="12大视角截图 (每30度)" className={`p-2.5 text-secondary hover:text-white hover:bg-white/10 rounded-lg transition-all active:scale-95 cursor-pointer ${shotKind === 'twelve' ? 'text-white bg-white/10' : ''}`}>
         <Scan size={size} className={shotKind === 'twelve' ? 'animate-spin' : ''} />
       </button>
     </div>
@@ -194,7 +194,7 @@ function PanoramaNode({ id, data, selected }) {
   // 全屏球体漫游（复刻官方 Component1861）
   const renderFullscreen = () => (
     fullscreen && panoUrl && createPortal(
-      <div className="fixed inset-0 z-[9999] bg-[#0a0a0a] flex flex-col" onClick={(e) => e.stopPropagation()}>
+      <div className="fixed inset-0 z-[9999] bg-surface-sunken flex flex-col" onClick={(e) => e.stopPropagation()}>
         <div className="absolute top-4 right-4 z-10 flex gap-2">
           <button onClick={() => doCapture([0])} className="bg-white hover:bg-gray-200 text-black px-5 py-2.5 rounded-lg flex items-center gap-2 shadow cursor-pointer border-none">
             <Camera size={18} /> 截图
@@ -237,7 +237,7 @@ function PanoramaNode({ id, data, selected }) {
       id={id}
       label={data.label}
       defaultTitle="720全景图"
-      icon={<Globe size={11} className="text-gray-500" />}
+      icon={<Globe size={11} className="text-muted" />}
       selected={selected}
       keepAspect
       aspectRatio="16:9"
@@ -255,7 +255,7 @@ function PanoramaNode({ id, data, selected }) {
               <select
                 value={panoType}
                 onChange={(e) => { setPanoType(e.target.value); setNodes((ns) => ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, panoType: e.target.value } } : n))) }}
-                className="bg-surface-black text-gray-300 text-caption px-1 py-0.5 rounded border border-edge-muted outline-none cursor-pointer"
+                className="bg-surface-black text-body text-caption px-1 py-0.5 rounded border border-edge-muted outline-none cursor-pointer"
               >
                 <option value="sphere">球状全景</option>
                 <option value="cylinder">柱状全景</option>
@@ -296,7 +296,7 @@ function PanoramaNode({ id, data, selected }) {
             {/* toast */}
             {toast && (
               <div className="absolute top-0 left-1/2 z-50 pointer-events-none nodrag flex items-center justify-center">
-                <div className="animate-[dropIn_2.5s_cubic-bezier(0.175,0.885,0.32,1.275)_forwards] bg-[#0a0a0a]/90 backdrop-blur-xl border border-white/30 px-6 py-3 rounded-2xl shadow-[0_10px_30px_rgba(0,0,0,0.5)] flex items-center gap-2 mt-12">
+                <div className="animate-[dropIn_2.5s_cubic-bezier(0.175,0.885,0.32,1.275)_forwards] bg-surface-sunken/90 backdrop-blur-xl border border-white/30 px-6 py-3 rounded-2xl shadow-[0_10px_30px_rgba(0,0,0,0.5)] flex items-center gap-2 mt-12">
                   <span className="text-white font-bold tracking-wider text-sm">{toast}</span>
                 </div>
               </div>
@@ -313,10 +313,10 @@ function PanoramaNode({ id, data, selected }) {
             </button>
           </div>
         ) : (
-          <div className="w-full h-full flex flex-col items-center justify-center text-gray-600 bg-surface-muted">
+          <div className="w-full h-full flex flex-col items-center justify-center text-muted-2 bg-surface-muted">
             <Upload size={24} className="mb-2" />
             <div className="text-sm">等待输入全景图</div>
-            <div className="text-xs mt-1 text-gray-500">请将图片节点连接到此节点</div>
+            <div className="text-xs mt-1 text-muted">请将图片节点连接到此节点</div>
           </div>
         )}
       </div>

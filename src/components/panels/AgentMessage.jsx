@@ -116,20 +116,20 @@ const Reasoning = memo(function Reasoning({ text, streaming }) {
   }, [streaming])
 
   return (
-    <div className="mb-1 border border-edge-faint rounded-md bg-[#0a0a0a]">
+    <div className="mb-1 border border-edge-faint rounded-md bg-surface-sunken">
       <button
         type="button"
         onClick={() => { setOpen(!open); setDone(false) }}
-        className="w-full flex items-center gap-1.5 px-2.5 py-1.5 text-caption-sm text-gray-400 hover:text-gray-300 transition-colors"
+        className="w-full flex items-center gap-1.5 px-2.5 py-1.5 text-caption-sm text-secondary hover:text-body transition-colors"
       >
         <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={`transition-transform ${open ? 'rotate-90' : ''}`}>
           <polyline points="9 18 15 12 9 6" />
         </svg>
         <span className="font-medium">{streaming ? '思考中...' : done ? '已思考' : '思考过程'}</span>
-        {!streaming && <span className="ml-auto text-caption text-gray-600">{open ? '点击折叠' : '点击展开'}</span>}
+        {!streaming && <span className="ml-auto text-caption text-muted-2">{open ? '点击折叠' : '点击展开'}</span>}
       </button>
       {open && (
-        <div className="px-3 pb-2 pt-0.5 text-body-xs text-gray-500 whitespace-pre-wrap break-words border-t border-edge-subtle leading-relaxed">
+        <div className="px-3 pb-2 pt-0.5 text-body-xs text-muted whitespace-pre-wrap break-words border-t border-edge-subtle leading-relaxed">
           {text}
           {streaming && <span className="inline-block w-1 h-3 bg-gray-600 ml-0.5 animate-pulse align-middle" />}
         </div>
@@ -162,17 +162,17 @@ const GenerationStepsCard = memo(function GenerationStepsCard({ generations }) {
   const list = (generations || []).filter((g) => g && typeof g === 'object')
   if (!list.length) return null
   return (
-    <div className="mt-2 border border-edge-faint rounded-md bg-[#0a0a0a]">
+    <div className="mt-2 border border-edge-faint rounded-md bg-surface-sunken">
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        className="w-full flex items-center gap-1.5 px-2.5 py-1.5 text-caption-sm text-gray-400 hover:text-gray-300 transition-colors"
+        className="w-full flex items-center gap-1.5 px-2.5 py-1.5 text-caption-sm text-secondary hover:text-body transition-colors"
       >
         <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={`transition-transform ${open ? 'rotate-90' : ''}`}>
           <polyline points="9 18 15 12 9 6" />
         </svg>
         <span className="font-medium">生成步骤方案</span>
-        <span className="ml-auto text-caption text-gray-600">{list.length} 条</span>
+        <span className="ml-auto text-caption text-muted-2">{list.length} 条</span>
       </button>
       {open && (
         <div className="px-3 pb-2 space-y-2 border-t border-edge-subtle">
@@ -184,12 +184,12 @@ const GenerationStepsCard = memo(function GenerationStepsCard({ generations }) {
             const meta = [ratio && `比例 ${ratio}`, res && `${res}`].filter(Boolean).join(' · ')
             return (
               <div key={g?.id || i} className="text-body-xs leading-relaxed">
-                <div className="flex items-center gap-1.5 text-gray-300">
-                  <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-surface border border-edge-subtle text-caption-sm text-gray-400 flex-shrink-0">{i + 1}</span>
+                <div className="flex items-center gap-1.5 text-body">
+                  <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-surface border border-edge-subtle text-caption-sm text-secondary flex-shrink-0">{i + 1}</span>
                   <span className="font-medium truncate">{title}</span>
-                  {meta && <span className="ml-auto text-caption text-gray-600 flex-shrink-0">{meta}</span>}
+                  {meta && <span className="ml-auto text-caption text-muted-2 flex-shrink-0">{meta}</span>}
                 </div>
-                {prompt && <div className="mt-0.5 pl-[22px] text-gray-500 whitespace-pre-wrap break-words">{prompt}</div>}
+                {prompt && <div className="mt-0.5 pl-[22px] text-muted whitespace-pre-wrap break-words">{prompt}</div>}
               </div>
             )
           })}
@@ -214,9 +214,9 @@ function AgentMessage({ message, onConfirmPlan, onRetryStep, onPromptAction, onS
           {/* 已使用 Skill 标签（对齐大雄：user 消息显示本轮用到的 Skill） */}
           {skillNames.length > 0 && (
             <div className="flex flex-wrap gap-1 justify-end">
-              <span className="text-caption text-gray-600">已使用 Skill</span>
+              <span className="text-caption text-muted-2">已使用 Skill</span>
               {skillNames.map((n, i) => (
-                <span key={i} className="inline-flex items-center gap-1 text-caption-sm text-gray-300 bg-surface border border-edge-faint rounded-md px-1.5 py-0.5">
+                <span key={i} className="inline-flex items-center gap-1 text-caption-sm text-body bg-surface border border-edge-faint rounded-md px-1.5 py-0.5">
                   <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
                     <polyline points="14 2 14 8 20 8" />
@@ -260,7 +260,7 @@ function AgentMessage({ message, onConfirmPlan, onRetryStep, onPromptAction, onS
             </div>
           )}
           {message.content && (
-            <div className="relative bg-canvas border border-edge-faint text-gray-200 text-sm rounded-lg rounded-bl-sm px-3 py-2">
+            <div className="relative bg-canvas border border-edge-faint text-primary text-sm rounded-lg rounded-bl-sm px-3 py-2">
               {renderContentWithImages(message.content)}
               {message.streaming && <span className="inline-block w-1 h-3 bg-gray-400 ml-0.5 animate-pulse align-middle" />}
               {/* 右下角箭头：把整段回复发到画布 → 新建文本节点（内容落生成区 data.text） */}
@@ -268,7 +268,7 @@ function AgentMessage({ message, onConfirmPlan, onRetryStep, onPromptAction, onS
                 <button
                   type="button"
                   onClick={() => onSendToCanvas(message.content)}
-                  className="absolute bottom-1.5 right-1.5 flex items-center justify-center w-5 h-5 rounded text-gray-500 hover:text-white hover:bg-surface-hover transition-colors"
+                  className="absolute bottom-1.5 right-1.5 flex items-center justify-center w-5 h-5 rounded text-muted hover:text-white hover:bg-surface-hover transition-colors"
                   title="发到画布生成文本节点"
                 >
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
@@ -334,7 +334,7 @@ function AgentMessage({ message, onConfirmPlan, onRetryStep, onPromptAction, onS
     const hasFailedSteps = failedEntries.length > 0 && typeof onRetryStep === 'function'
     return (
       <div className="flex justify-start">
-        <div className="max-w-[85%] inline-flex flex-col items-start gap-1.5 text-caption-sm text-gray-500 bg-canvas border border-edge-subtle rounded-md px-2 py-1">
+        <div className="max-w-[85%] inline-flex flex-col items-start gap-1.5 text-caption-sm text-muted bg-canvas border border-edge-subtle rounded-md px-2 py-1">
           <div className="inline-flex items-center gap-1.5">
             {ok && !hasFailedSteps ? (
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-green-500">
@@ -351,7 +351,7 @@ function AgentMessage({ message, onConfirmPlan, onRetryStep, onPromptAction, onS
               <button
                 type="button"
                 onClick={() => onRetryStep(nodeId)}
-                className="ml-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded border border-edge hover:border-blue-400 text-gray-400 hover:text-blue-300 transition-colors"
+                className="ml-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded border border-edge hover:border-blue-400 text-secondary hover:text-blue-300 transition-colors"
                 title="重新生成此步骤（只重试失败项，不影响其他已完成卡片）"
               >
                 <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -370,7 +370,7 @@ function AgentMessage({ message, onConfirmPlan, onRetryStep, onPromptAction, onS
                   <button
                     type="button"
                     onClick={() => onRetryStep(e.nodeId)}
-                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded border border-edge hover:border-blue-400 text-gray-400 hover:text-blue-300 transition-colors"
+                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded border border-edge hover:border-blue-400 text-secondary hover:text-blue-300 transition-colors"
                     title={`重试此步（${e.id || ''}）`}
                   >
                     <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
