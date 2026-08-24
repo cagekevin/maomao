@@ -11,8 +11,22 @@ export function Timeline({ currentFrame, fps, totalFrames, onSeek, playing, onTo
   const onPointerDown = event => {
     const rect = event.currentTarget.getBoundingClientRect()
     scrub(event, rect)
-    const move = moveEvent => scrub(moveEvent, rect)
-    const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up) }
+    // 拖动画轨道时 pointermove 每事件都会触发 onSeek（进而重算/重渲染 3D 场景）。
+    // 用 rAF 把「拖动期间多次 move」合并到「每动画帧最多一次」，避免高刷屏/快速移动时
+    // 一帧内连续多次 setState 造成的时间轴卡顿，拖起来更跟手。
+    let raf = null
+    const move = moveEvent => {
+      if (raf) return
+      raf = requestAnimationFrame(() => {
+        raf = null
+        scrub(moveEvent, rect)
+      })
+    }
+    const up = () => {
+      if (raf) { cancelAnimationFrame(raf); raf = null }
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', up)
+    }
     window.addEventListener('pointermove', move)
     window.addEventListener('pointerup', up)
   }

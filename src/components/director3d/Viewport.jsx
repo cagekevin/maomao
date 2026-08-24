@@ -5,7 +5,7 @@ import * as THREE from 'three'
 import { StudioPerson, ImportedModel } from './models.jsx'
 import { PrimitiveModel } from './primitives.jsx'
 import { DepthMeshModel } from './depth.jsx'
-import { CAMERA_ID } from './project.js'
+import { CAMERA_ID, aspectValue } from './project.js'
 
 function sceneObjectIdFromIntersection(intersection) {
   let object = intersection?.object
@@ -207,6 +207,47 @@ function sceneObjectPropsEqual(prev, next) {
 }
 const MemoSceneObject = memo(SceneObject, sceneObjectPropsEqual)
 
+// 摄像机取景框：一个以镜头为顶点、沿 -Z（相机朝向）张开的线框锥台。
+// 锥台张开角度由真实焦距（垂直 FOV = 2·atan(12/focalLength)，24mm 传感器半高）与画幅比例共同决定，
+// 因此无论「始终面对对象」把相机转到什么角度，这个黄色线框都忠实反映相机实际看向的方向与取景范围，
+// 与 3D 相机机身朝向保持一致。
+function CameraFrustum({ focalLength = 42, aspectRatio = '16:9', selected = false, length = 2.2, apexZ = -0.42 }) {
+  const geometry = useMemo(() => {
+    const focal = Math.max(8, Number(focalLength) || 42)
+    const aspect = aspectValue(aspectRatio)
+    // 相机传感器 36×24mm：垂直半视场角 = atan(12/focal)，水平半视场角 = atan(12/focal·aspect)
+    const halfH = 12 / focal * length
+    const halfW = halfH * aspect
+    const zFar = apexZ - length
+    const corners = [
+      [-halfW, -halfH, zFar],
+      [halfW, -halfH, zFar],
+      [halfW, halfH, zFar],
+      [-halfW, halfH, zFar],
+    ]
+    const positions = []
+    // 顶点 → 四个角（4 条棱线）
+    for (let i = 0; i < 4; i += 1) {
+      positions.push(0, 0, apexZ, corners[i][0], corners[i][1], corners[i][2])
+    }
+    // 远端四条边（取景框）
+    for (let i = 0; i < 4; i += 1) {
+      const a = corners[i]
+      const b = corners[(i + 1) % 4]
+      positions.push(a[0], a[1], a[2], b[0], b[1], b[2])
+    }
+    const next = new THREE.BufferGeometry()
+    next.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
+    return next
+  }, [apexZ, aspectRatio, focalLength, length])
+  useEffect(() => () => geometry.dispose(), [geometry])
+  return (
+    <lineSegments geometry={geometry} raycast={() => null}>
+      <lineBasicMaterial color={selected ? '#eabf62' : '#8e8a80'} transparent opacity={selected ? 0.8 : 0.35} depthWrite={false} />
+    </lineSegments>
+  )
+}
+
 function CameraModel({ data, selected, selectedId, transformMode, transformSpace = 'world', snapEnabled = true, onSelect, onUpdate }) {
   const groupRef = useRef(null)
   const syncTransform = useCallback(() => {
@@ -228,30 +269,24 @@ function CameraModel({ data, selected, selectedId, transformMode, transformSpace
   }
   const rig = (
     <group ref={groupRef} position={data.position} rotation={data.rotation} userData={{ sceneObjectId: CAMERA_ID }} onPointerDown={selectCamera}>
-      <mesh castShadow>
-        <boxGeometry args={[0.52, 0.34, 0.42]} />
-        <meshStandardMaterial color={selected ? '#eabf62' : '#3d3c38'} roughness={0.48} metalness={0.35} />
+      {/* 机身：简洁线框盒，与取景框同一套线框语言，选中时统一高亮为黄色。
+          NOTE: 相机是辅助/工具对象，不参与阴影投射——线框 + castShadow 会在地面投出
+          一个与透明线框不一致的「实心盒子阴影」，导致相机部件有的有影子有的没有。 */}
+      <mesh>
+        <boxGeometry args={[0.5, 0.32, 0.42]} />
+        <meshBasicMaterial color={selected ? '#eabf62' : '#8e8a80'} wireframe transparent opacity={selected ? 0.85 : 0.42} depthWrite={false} />
       </mesh>
+      {/* 镜头：实体圆筒，明确指示朝向（与取景框顶点衔接） */}
       <mesh position={[0, 0, -0.34]} rotation={[Math.PI / 2, 0, 0]}>
-        <cylinderGeometry args={[0.18, 0.23, 0.32, 20]} />
+        <cylinderGeometry args={[0.2, 0.26, 0.26, 20]} />
         <meshStandardMaterial color="#232322" roughness={0.4} metalness={0.5} />
       </mesh>
-      <mesh position={[0, 0, -0.82]} rotation={[Math.PI / 2, 0, Math.PI / 4]} raycast={() => null}>
-        <coneGeometry args={[0.36, 0.9, 4, 1, true]} />
-        <meshBasicMaterial color={selected ? '#eabf62' : '#8e8a80'} wireframe transparent opacity={selected ? 0.72 : 0.28} depthWrite={false} />
+      {/* 传感器/中心标记：一个小实体点，标出相机锚点，便于对齐与移动 */}
+      <mesh>
+        <sphereGeometry args={[0.06, 12, 12]} />
+        <meshBasicMaterial color={selected ? '#eabf62' : '#6b6a66'} />
       </mesh>
-      <mesh position={[-0.18, 0.28, 0]}>
-        <cylinderGeometry args={[0.13, 0.13, 0.12, 20]} />
-        <meshStandardMaterial color="#33322f" />
-      </mesh>
-      <mesh position={[0.18, 0.28, 0]}>
-        <cylinderGeometry args={[0.13, 0.13, 0.12, 20]} />
-        <meshStandardMaterial color="#33322f" />
-      </mesh>
-      <mesh position={[0, -0.42, 0.15]}>
-        <boxGeometry args={[0.07, 0.58, 0.07]} />
-        <meshStandardMaterial color="#4b4944" />
-      </mesh>
+      <CameraFrustum focalLength={data.focalLength} aspectRatio={data.aspectRatio} selected={selected} />
     </group>
   )
   return (

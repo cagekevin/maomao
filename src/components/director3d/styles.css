@@ -38,6 +38,11 @@
 .director3d-overlay :where(button):focus-visible, .director3d-overlay :where(input):focus-visible, .director3d-overlay :where(select):focus-visible { outline: 1px solid var(--accent); outline-offset: 1px; }
 .director3d-overlay :where(button):disabled { opacity: .28; cursor: not-allowed !important; }
 
+/* 导演台是「可操作型 Web 应用」而非文档：默认禁止选中文本（避免拖动/点选时误选中界面文字），
+   仅在需要输入文字的地方（输入框/文本域/下拉框）恢复选中能力。 */
+.director3d-overlay, .director3d-overlay :where(*), .director3d-overlay :where(*::before), .director3d-overlay :where(*::after) { user-select: none; -webkit-user-select: none; }
+.director3d-overlay :where(input), .director3d-overlay :where(textarea), .director3d-overlay :where(select) { user-select: text; -webkit-user-select: text; }
+
 .app-shell { width: 100%; height: 100%; background: var(--bg); display: flex; flex-direction: column; }
 .topbar {
   height: 49px; flex: 0 0 49px; display: grid; grid-template-columns: auto 1fr auto; align-items: center;

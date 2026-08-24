@@ -414,7 +414,8 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
   const seekToFrame = useCallback(frame => {
     const nextFrame = clamp(Math.round(frame), 0, totalFrames)
     setPlaying(false)
-    setObjectDrafts({})
+    // 仅当存在未提交的拖拽草稿时才重置，避免拖动播放头时每次 seek 都新建空对象触发无谓重渲染
+    setObjectDrafts(drafts => Object.keys(drafts).length ? {} : drafts)
     setCurrentFrame(nextFrame)
     currentFrameRef.current = nextFrame
     setCameraAtFrame(nextFrame)
@@ -466,8 +467,8 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
     const onKeyDown = event => {
       if (['INPUT', 'SELECT', 'TEXTAREA'].includes(document.activeElement?.tagName)) return
       if (event.key.toLowerCase() === 'w') { setTransformMode('translate'); event.stopImmediatePropagation() }
-      if (event.key.toLowerCase() === 'e') { setTransformMode('rotate'); event.stopImmediatePropagation() }
-      if (event.key.toLowerCase() === 'r') { setTransformMode('scale'); event.stopImmediatePropagation() }
+      if (event.key.toLowerCase() === 'r') { setTransformMode('rotate'); event.stopImmediatePropagation() }
+      if (event.key.toLowerCase() === 'e') { setTransformMode('scale'); event.stopImmediatePropagation() }
       if (event.key.toLowerCase() === 'f') { focusSelected(); event.stopImmediatePropagation() }
       if (event.code === 'Space') { event.preventDefault(); event.stopImmediatePropagation(); togglePlayback() }
       if ((event.key === 'Delete' || event.key === 'Backspace') && selectedId !== CAMERA_ID) { event.preventDefault(); event.stopImmediatePropagation(); deleteSelected() }
@@ -1132,8 +1133,8 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
             <ToolButton icon={MousePointer2} label="选择" active={!['translate', 'rotate', 'scale'].includes(transformMode)} onClick={() => setTransformMode('select')} shortcut="Q" />
             <span />
             <ToolButton icon={Move3D} label="移动" active={transformMode === 'translate'} onClick={() => setTransformMode('translate')} shortcut="W" />
-            <ToolButton icon={RotateCw} label="旋转" active={transformMode === 'rotate'} onClick={() => setTransformMode('rotate')} shortcut="E" />
-            <ToolButton icon={BoxSelect} label="缩放" active={transformMode === 'scale'} onClick={() => setTransformMode('scale')} shortcut="R" />
+            <ToolButton icon={RotateCw} label="旋转" active={transformMode === 'rotate'} onClick={() => setTransformMode('rotate')} shortcut="R" />
+            <ToolButton icon={BoxSelect} label="缩放" active={transformMode === 'scale'} onClick={() => setTransformMode('scale')} shortcut="E" />
             <span />
             <ToolButton icon={Axis3D} label={transformSpace === 'world' ? '世界坐标' : '局部坐标'} active={transformSpace === 'local'} disabled={transformMode === 'select'} onClick={() => setTransformSpace(space => space === 'world' ? 'local' : 'world')} />
             <ToolButton icon={Magnet} label={snapEnabled ? '关闭吸附' : '开启吸附'} active={snapEnabled} disabled={transformMode === 'select'} onClick={() => setSnapEnabled(value => !value)} />
