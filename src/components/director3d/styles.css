@@ -108,7 +108,7 @@
 .panel-tabs { display: grid; grid-template-columns: repeat(2, 1fr); height: 42px; padding: 5px; gap: 3px; border-bottom: 1px solid var(--line-soft); }
 .panel-tabs button { border: 0; border-radius: var(--radius-control); background: transparent; color: var(--text-faint); font-size: 12px; font-weight: 560; letter-spacing: .02em; cursor: pointer; transition: color 140ms ease, background 140ms ease; }
 .panel-tabs button:hover { color: var(--text-dim); background: #2b2b28; }
-.panel-tabs button.is-active { background: var(--accent-soft); color: var(--accent); font-weight: 620; }
+.panel-tabs button.is-active { background: #353430; color: var(--text); font-weight: 620; }
 .assets-scroll, .inspector-scroll, .scene-list { overflow: auto; min-height: 0; padding: 13px 10px 20px; scrollbar-width: thin; scrollbar-color: #4e4d47 transparent; }
 .section-kicker { font-size: 12px; letter-spacing: .14em; color: var(--text-faint); text-transform: uppercase; margin: 0 2px 8px; }
 .section-gap { margin-top: 20px; }
@@ -398,10 +398,9 @@
 .camera-track-label { grid-column: 1; grid-row: 2; }
 .camera-track-slot { grid-column: 2; grid-row: 2; min-width: 0; }
 .camera-keyframe-button { grid-column: 3; grid-row: 2; }
-.object-track-label { grid-column: 1; grid-row: 3; border-color: var(--accent-soft); color: var(--accent); }
+.object-track-label { grid-column: 1; grid-row: 3; }
 .object-track-slot { grid-column: 2; grid-row: 3; min-width: 0; }
-.object-keyframe-button { grid-column: 3; grid-row: 3; border-color: var(--accent) !important; background: var(--panel-raised) !important; color: var(--accent) !important; }
-.object-keyframe-button:hover { border-color: var(--live) !important; }
+.object-keyframe-button { grid-column: 3; grid-row: 3; }
 .track-wrap { min-width: 0; }
 .ruler { position: relative; height: 28px; color: var(--text-faint); font-family: "Cascadia Mono", monospace; font-size: 9px; }
 .ruler::after { content: ''; position: absolute; inset: auto 0 0; height: 8px; background: repeating-linear-gradient(90deg, #55554f 0 1px, transparent 1px 2.5%); opacity: .55; }
