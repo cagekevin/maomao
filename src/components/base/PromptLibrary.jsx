@@ -262,7 +262,7 @@ function PromptLibrary({ open, onClose, onUse, defaultCategory = '', presetPromp
                   placeholder="标题"
                   value={formData.title}
                   onChange={(e) => setFormData((d) => ({ ...d, title: e.target.value }))}
-                  className="bg-input border border-edge rounded-[10px] px-3 py-2.5 text-body text-body-sm outline-none focus:border-edge-strong box-border"
+                  className="bg-surface-strong border border-edge rounded-[10px] px-3 py-2.5 text-body text-body-sm outline-none focus:border-edge-strong box-border"
                 />
               </div>
               <div className="flex flex-col gap-1.5 flex-1">
@@ -270,7 +270,7 @@ function PromptLibrary({ open, onClose, onUse, defaultCategory = '', presetPromp
                 <select
                   value={formData.type}
                   onChange={(e) => setFormData((d) => ({ ...d, type: e.target.value }))}
-                  className="bg-input border border-edge rounded-[10px] px-3 py-2.5 text-body text-body-sm outline-none focus:border-edge-strong box-border"
+                  className="bg-surface-strong border border-edge rounded-[10px] px-3 py-2.5 text-body text-body-sm outline-none focus:border-edge-strong box-border"
                 >
                   {CATEGORY_OPTIONS.map((o) => <option key={o.value || 'all'} value={o.value}>{o.value ? o.label : '通用'}</option>)}
                 </select>

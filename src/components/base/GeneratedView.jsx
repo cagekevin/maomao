@@ -334,7 +334,7 @@ function GeneratedView() {
                 }
                 setCreating(false)
               }}
-              className="flex-1 h-7 bg-surface-faint border border-orange-500/40 rounded-md px-2 text-caption-sm text-white outline-none focus:border-orange-500 box-border"
+              className="flex-1 h-7 bg-surface-strong border border-orange-500/40 rounded-md px-2 text-caption-sm text-white outline-none focus:border-orange-500 box-border"
             />
             <span className="text-caption text-faint whitespace-nowrap">回车确认</span>
           </div>
@@ -353,7 +353,7 @@ function GeneratedView() {
                 else if (e.key === 'Escape') { setRenameTarget(null); setRenameName('') }
               }}
               onBlur={handleRename}
-              className="flex-1 h-7 bg-surface-faint border border-blue-500/40 rounded-md px-2 text-caption-sm text-white outline-none focus:border-blue-500 box-border"
+              className="flex-1 h-7 bg-surface-strong border border-blue-500/40 rounded-md px-2 text-caption-sm text-white outline-none focus:border-blue-500 box-border"
               placeholder="输入新文件名"
             />
             <span className="text-caption text-faint whitespace-nowrap">回车确认</span>

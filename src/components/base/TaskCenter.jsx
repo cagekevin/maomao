@@ -127,14 +127,14 @@ function TaskCenter() {
               onCompositionEnd={(e) => searchIme.current?.onCompositionEnd(e.target.value)}
               onBlur={() => searchIme.current?.cancel()}
               placeholder="搜索提示词或渠道..."
-              className="w-full h-[32px] bg-input border border-edge rounded-lg pl-8 pr-3 text-primary text-body-xs outline-none focus:border-edge-strong box-border"
+              className="w-full h-[32px] bg-surface-strong border border-edge rounded-lg pl-8 pr-3 text-primary text-body-xs outline-none focus:border-edge-strong box-border"
             />
           </div>
           <div className="flex items-center gap-2">
-            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="flex-1 h-[32px] bg-input border border-edge rounded-lg px-2 text-body-xs text-primary outline-none focus:border-edge-strong box-border">
+            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="flex-1 h-[32px] bg-surface-strong border border-edge rounded-lg px-2 text-body-xs text-primary outline-none focus:border-edge-strong box-border">
               {STATUS_FILTERS.map((f) => <option key={f.key || 's_all'} value={f.key}>{f.label}</option>)}
             </select>
-            <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="flex-1 h-[32px] bg-input border border-edge rounded-lg px-2 text-body-xs text-primary outline-none focus:border-edge-strong box-border">
+            <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="flex-1 h-[32px] bg-surface-strong border border-edge rounded-lg px-2 text-body-xs text-primary outline-none focus:border-edge-strong box-border">
               {TYPE_FILTERS.map((f) => <option key={f.key || 't_all'} value={f.key}>{f.label}</option>)}
             </select>
           </div>

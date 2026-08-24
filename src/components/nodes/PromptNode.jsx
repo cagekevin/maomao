@@ -448,7 +448,7 @@ function PromptNode({ id, data, selected }) {
             <div className="flex items-center gap-2 flex-shrink-0 ml-2">
               {!loading && (
                 <div ref={countMenuRef} className="relative nodrag flex items-center">
-                  <button className="flex items-center gap-1 h-6 px-2 bg-transparent hover:bg-surface-hover border border-edge hover:border-edge-strong rounded text-caption-sm text-body transition-colors cursor-pointer" onClick={(e) => { e.stopPropagation(); setShowCountMenu((v) => !v) }} title="批量生成数量">
+                  <button className="flex items-center gap-1 h-6 px-2 bg-transparent hover:bg-surface-hover border border-transparent hover:border-edge rounded text-caption-sm text-body transition-colors cursor-pointer" onClick={(e) => { e.stopPropagation(); setShowCountMenu((v) => !v) }} title="批量生成数量">
                     <span>x{count}</span>
                   </button>
                   {showCountMenu && (

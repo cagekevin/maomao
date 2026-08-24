@@ -253,10 +253,10 @@ function LoopNode({ id, data, selected }) {
           <div className="flex flex-col gap-1">
             {displaySegs.map((seg, i) => (
               <div key={i} className="flex items-start gap-1">
-                <span className="w-4 h-4 mt-1 shrink-0 flex items-center justify-center rounded-full bg-surface-hover-strong border border-edge-muted text-caption text-secondary">{i + 1}</span>
+                <span className="w-4 h-4 mt-1 shrink-0 flex items-center justify-center rounded-full bg-surface-hover text-caption text-body">{i + 1}</span>
                   <textarea
                     id={`loop-prompt-${id}-${i}`}
-                    className="flex-1 min-h-[36px] max-h-[72px] resize-none bg-input border border-edge rounded-md p-1.5 text-caption-sm text-primary outline-none focus:border-blue-500 nodrag nowheel custom-scrollbar"
+                    className="flex-1 min-h-[36px] max-h-[72px] resize-none bg-surface-strong border border-edge rounded-md p-1.5 text-caption-sm text-primary outline-none focus:border-blue-500 nodrag nowheel custom-scrollbar"
                     value={seg ?? ''}
                     placeholder="输入该段生图提示词"
                     onChange={(e) => updateSegment(i, e.target.value)}

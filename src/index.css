@@ -9,58 +9,82 @@
  *  - 与 tailwind.config.js colors 一一对应；--mao-app-* 为 html/body 专属底色/文字。
  * ============================================================ */
 :root {
-  /* 背景层级 */
-  --mao-canvas: 13 12 12;          /* #0d0c0c */
-  --mao-surface: 26 26 26;         /* #1a1a1a */
-  --mao-surface-1: 34 34 34;       /* #222222 */
-  --mao-surface-shell: 26 26 26;   /* #1a1a1a 顶栏/外壳底（介于 black 与 deep 之间） */
-  --mao-surface-2: 31 31 31;       /* #1f1f1f */
-  --mao-surface-3: 68 68 68;       /* #444444 */
-  --mao-surface-raised: 28 28 28;  /* #1c1c1c */
-  --mao-surface-menu: 28 28 30;    /* #1c1c1e */
-  --mao-surface-deep: 21 20 20;    /* #151414 */
-  --mao-surface-hover: 42 42 42;   /* #2a2a2a */
-  --mao-surface-hover-strong: 51 51 51; /* #333333 */
-  --mao-surface-hover-2: 44 44 44; /* #2c2c2c */
-  --mao-surface-active: 37 37 37;  /* #252525 */
-  --mao-surface-subtle: 36 36 36;  /* #242424 */
-  --mao-surface-faint: 30 30 30;   /* #1e1e1e */
-  --mao-surface-strong: 22 22 22;  /* #161616 */
-  --mao-surface-muted: 21 21 21;   /* #151515 */
-  --mao-surface-black: 17 17 17;   /* #111111 */
-  /* 阶段3 精确收编缺口（中间灰阶，对齐散落裸 hex，保证零视觉变化） */
-  --mao-surface-panel: 25 25 25;   /* #191919 侧栏/任务中心底 */
-  --mao-surface-panel-2: 27 27 27; /* #1b1b1b 节点容器底 */
-  --mao-surface-well: 32 32 32;    /* #202020 内嵌槽底 */
-  --mao-surface-raised-2: 41 41 41; /* #292929 控件/按钮底 */
-  --mao-surface-active-2: 48 48 48; /* #303030 hover/进度底 */
-  --mao-surface-hover-2b: 49 49 53; /* #313135 按钮 hover 底 */
-  --mao-input: 20 20 20;           /* #141414 */
-  --mao-inverse: 237 237 237;      /* #ededed */
-  --mao-inverse-strong: 22 22 22;  /* #161616 */
-  /* 文字层级（对齐 director3d / 剧本盒子 清冷冷灰蓝） */
+  /* ════════════════════════════════════════════════════════════════
+   * 配色规范（改色前必读）
+   *
+   * 【冷暖策略 · 2026-08-24 定稿】
+   *   - 文字层 = 纯中性灰（R=G=B）：文字量大，一丁点偏暖/偏冷都会被放大，
+   *     大段文本（脚本箱/提示词/AI消息/输入框）一旦偏色就显脏。故文字必须中性。
+   *   - 背景层/边框层 = 极淡暖（R 比 B 仅多 1）：面积小不易察觉，保留一丝暖
+   *     让界面柔和不发灰死板。注意：暖度只到 R-B=1，超过会明显泛黄。
+   *   - 教训：不要给文字层加明显暖/冷偏色；弱文字用「明度」区分，不要用「色温」区分。
+   *
+   * 【同类控件统一 · 2026-08-24 定稿】
+   *   同一类控件必须用同一套 token，否则同类异色（用户反馈过）：
+   *   - 编辑型大输入框/textarea：bg-surface-strong + border border-edge + text-primary
+   *   - 紧凑数字框（w-8~w-20 小输入）：bg-surface-hover + border border-edge
+   *   - 文字小按钮（h-6 图标+文字/下拉）：bg-transparent hover:bg-surface-hover
+   *     + border border-transparent hover:border-edge（初始无底无框，hover 才出现）
+   *   - 只读徽标/序号：bg-surface-hover + text-body
+   *   - 行内小图标按钮（p-1/p-1.5）：text-secondary + hover:bg-surface-hover
+   *   - 面板/弹窗/全屏容器底：bg-input（这不是输入框，勿当输入框改）
+   *   - 输入框占位符：统一中性灰 rgb(var(--mao-text-muted-2))，勿用浏览器默认（偏蓝）
+   *
+   * 【输入框文字】用 text-primary（中性灰），禁止 text-blue/accent（会与全局文字不和谐）。
+   * ════════════════════════════════════════════════════════════════ */
+
+  /* 背景层级（极淡暖：R 比 B 仅多 1，接近中性，仅保留一丝暖意） */
+  --mao-canvas: 13 13 12;          /* #0d0d0c */
+  --mao-surface: 27 27 26;         /* #1b1b1a */
+  --mao-surface-1: 35 35 34;       /* #232322 */
+  --mao-surface-shell: 27 27 26;   /* #1b1b1a 顶栏/外壳底（介于 black 与 deep 之间） */
+  --mao-surface-2: 32 32 31;       /* #20201f */
+  --mao-surface-3: 69 69 67;       /* #454543 */
+  --mao-surface-raised: 29 29 28;  /* #1d1d1c */
+  --mao-surface-menu: 29 29 28;    /* #1d1d1c */
+  --mao-surface-deep: 22 22 21;    /* #161615 */
+  --mao-surface-hover: 43 43 41;   /* #2b2b29 */
+  --mao-surface-hover-strong: 52 52 50; /* #343432 */
+  --mao-surface-hover-2: 45 45 43; /* #2d2d2b */
+  --mao-surface-active: 38 38 37;  /* #262625 */
+  --mao-surface-subtle: 37 37 36;  /* #252524 */
+  --mao-surface-faint: 31 31 30;   /* #1f1f1e */
+  --mao-surface-strong: 23 23 22;  /* #171716 */
+  --mao-surface-muted: 22 22 21;   /* #161615 */
+  --mao-surface-black: 18 18 17;   /* #121211 */
+  /* 阶段3 精确收编缺口（中间灰阶，暖灰·克制） */
+  --mao-surface-panel: 26 26 25;   /* #1a1a19 侧栏/任务中心底 */
+  --mao-surface-panel-2: 28 28 27; /* #1c1c1b 节点容器底 */
+  --mao-surface-well: 33 33 32;    /* #212120 内嵌槽底 */
+  --mao-surface-raised-2: 42 42 40; /* #2a2a28 控件/按钮底 */
+  --mao-surface-active-2: 49 49 47; /* #31312f hover/进度底 */
+  --mao-surface-hover-2b: 51 51 49; /* #333331 按钮 hover 底 */
+  --mao-input: 21 21 20;           /* #151514 */
+  --mao-inverse: 238 238 236;      /* #eeeec */
+  --mao-inverse-strong: 23 23 22;  /* #171716 */
+  /* 文字层级（中性灰：文字量大，偏暖会被放大，故文字层完全去暖，纯中性灰） */
   --mao-text-strong: 255 255 255;  /* #ffffff */
-  --mao-text-primary: 229 229 229; /* #e5e5e5 */
-  --mao-text-body: 204 204 204;    /* #cccccc */
-  --mao-text-secondary: 156 163 175; /* #9ca3af */
-  --mao-text-muted: 107 114 128;   /* #6b7280 */
-  --mao-text-faint: 102 102 102;   /* #666666 */
-  --mao-text-subtle: 85 85 85;     /* #555555 */
-  --mao-text-muted-2: 115 115 115; /* #737373 灰阶更弱的说明/空态文字（对齐 gray-600） */
-  /* 边框层级 */
-  --mao-edge: 51 51 51;            /* #333333 */
-  --mao-edge-strong: 85 85 85;     /* #555555 */
-  --mao-edge-faint: 42 42 42;      /* #2a2a2a */
-  --mao-edge-muted: 68 68 68;      /* #444444 */
-  --mao-edge-subtle: 34 34 34;     /* #222222 */
-  --mao-edge-raised: 58 58 58;     /* #3a3a3a */
-  /* 缺口补充（阶段3 收编散落裸色用） */
-  --mao-surface-sunken: 10 10 10;  /* #0a0a0a 代码块/深嵌入底 */
-  --mao-surface-sunken-2: 13 13 13; /* #0d0d0d 编辑器深底 */
-  --mao-code-bg: 19 19 19;         /* #131313 提示词/代码块底 */
+  --mao-text-primary: 230 230 230; /* #e6e6e6 */
+  --mao-text-body: 206 206 206;    /* #cecece */
+  --mao-text-secondary: 170 170 170; /* #aaaaaa */
+  --mao-text-muted: 118 118 118;   /* #767676 */
+  --mao-text-faint: 103 103 103;   /* #676767 */
+  --mao-text-subtle: 86 86 86;     /* #565656 */
+  --mao-text-muted-2: 116 116 116; /* #747474 灰阶更弱的说明/空态文字 */
+  /* 边框层级（暖灰·克制） */
+  --mao-edge: 52 52 51;            /* #343433 */
+  --mao-edge-strong: 86 85 83;     /* #565553 */
+  --mao-edge-faint: 43 43 41;      /* #2b2b29 */
+  --mao-edge-muted: 69 69 67;      /* #454543 */
+  --mao-edge-subtle: 35 35 34;     /* #232322 */
+  --mao-edge-raised: 59 59 57;     /* #3b3b39 */
+  /* 缺口补充（阶段3 收编散落裸色用，暖灰·克制） */
+  --mao-surface-sunken: 11 11 10;  /* #0b0b0a 代码块/深嵌入底 */
+  --mao-surface-sunken-2: 14 14 13; /* #0e0e0d 编辑器深底 */
+  --mao-code-bg: 20 20 19;         /* #141413 提示词/代码块底 */
   /* html/body 专属（值不在上方 token，专属保留以保证零视觉变化） */
-  --mao-app-bg: 15 15 15;          /* #0f0f0f */
-  --mao-app-text: 229 229 229;     /* #e5e5e5 */
+  --mao-app-bg: 15 15 14;          /* #0f0f0e */
+  --mao-app-text: 230 230 230;     /* #e6e6e6 */
   /* 语义强调色（状态/交互，驱动 director3d 等浮层） */
   --mao-accent: 59 130 246;        /* #3b82f6 蓝 */
   --mao-accent-strong: 96 165 250; /* #60a5fa */
@@ -588,6 +612,21 @@ body,
 }
 
 /* ===== 剧本盒 @资产 引用高亮（hlAt 输出的 span.at，青色以便快速定位） ===== */
+/* ===== 输入框占位符统一中性灰 =====
+ * 原因：不设则用浏览器默认 placeholder（偏蓝调），会让输入框"文字像蓝色"，
+ * 与全站中性灰文字不和谐。统一到 --mao-text-muted-2（中性灰）。
+ * 注意：只影响 placeholder，不影响输入框实际文字（实际文字走 text-primary）。 */
+input::placeholder,
+textarea::placeholder,
+select::placeholder {
+  color: rgb(var(--mao-text-muted-2) / 1);
+  opacity: 1;
+}
+:-webkit-input-placeholder {
+  color: rgb(var(--mao-text-muted-2) / 1);
+  opacity: 1;
+}
+
 .at {
   color: #67e8f9; /* cyan-300 */
   font-weight: 600;
