@@ -565,5 +565,8 @@
 .global-settings-panel .lighting-range, .global-settings-panel .lighting-color { margin-bottom: 7px; }
 
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+  .director3d-overlay, .director3d-overlay *::before, .director3d-overlay *::after {
+    animation: none !important;
+    transition-duration: .01ms !important;
+  }
 }
