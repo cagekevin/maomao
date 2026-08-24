@@ -6,6 +6,7 @@ import { StudioPerson, ImportedModel } from './models.jsx'
 import { PrimitiveModel } from './primitives.jsx'
 import { DepthMeshModel } from './depth.jsx'
 import { CAMERA_ID, aspectValue } from './project.js'
+import SceneGizmo from './SceneGizmo.jsx'
 
 function sceneObjectIdFromIntersection(intersection) {
   let object = intersection?.object
@@ -396,7 +397,7 @@ function EditorCameraReporter({ enabled, onChange }) {
   return null
 }
 
-function EditorScene({ objects, selectedId, activeJoint, onSelect, onJointSelect, transformMode, transformSpace, snapEnabled, groundRequest, onUpdateObject, cameraData, cameraAspect, onUpdateCamera, editorCameraData, onEditorCameraChange, lighting, showGrid, performanceMode = false, focusRequest, referenceVisible = false, cameraView = false, animationTime = 0 }) {
+function EditorScene({ objects, selectedId, activeJoint, onSelect, onJointSelect, transformMode, transformSpace, snapEnabled, groundRequest, onUpdateObject, cameraData, cameraAspect, onUpdateCamera, editorCameraData, onEditorCameraChange, lighting, showGrid, performanceMode = false, focusRequest, referenceVisible = false, cameraView = false, animationTime = 0, onGizmoReady }) {
   return (
     <>
       {!referenceVisible && <color attach="background" args={['#555653']} />}
@@ -411,9 +412,10 @@ function EditorScene({ objects, selectedId, activeJoint, onSelect, onJointSelect
       {objects.map(object => <MemoSceneObject key={object.id} data={object} selected={selectedId === object.id} selectedId={selectedId} activeJoint={activeJoint} transformMode={transformMode} transformSpace={transformSpace} snapEnabled={snapEnabled} groundRequest={groundRequest} onSelect={onSelect} onJointSelect={onJointSelect} onUpdate={onUpdateObject} animationTime={animationTime} />)}
       {!cameraView && <CameraModel data={cameraData} selected={selectedId === CAMERA_ID} selectedId={selectedId} transformMode={transformMode} transformSpace={transformSpace} snapEnabled={snapEnabled} onSelect={onSelect} onUpdate={onUpdateCamera} />}
       {!performanceMode && <ContactShadows position={[0, 0.01, 0]} opacity={0.42} scale={18} blur={2.4} far={9} />}
-      {cameraView ? <PreviewCameraController cameraData={cameraData} cameraAspect={cameraAspect} /> : <OrbitControls makeDefault target={editorCameraData?.target || [0, 1, 0]} minDistance={2} maxDistance={35} maxPolarAngle={Math.PI * 0.49} />}
+      {cameraView ? <PreviewCameraController cameraData={cameraData} cameraAspect={cameraAspect} /> : <OrbitControls makeDefault target={editorCameraData?.target || [0, 1, 0]} minDistance={2} maxDistance={35} maxPolarAngle={Math.PI} />}
       <EditorCameraReporter enabled={!cameraView} onChange={onEditorCameraChange} />
       {!cameraView && <ViewFocusController request={focusRequest} />}
+      {!cameraView && <SceneGizmo onReady={onGizmoReady} />}
     </>
   )
 }

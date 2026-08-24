@@ -197,6 +197,7 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
   const imageCaptureCanvasRef = useRef(null)
   const monitorCanvasRef = useRef(null)
   const editorViewRef = useRef(editorView)
+  const gizmoApiRef = useRef(null)
   const exportLockRef = useRef(false)
   const historyRef = useRef(createHistoryState())
   const latestProjectRef = useRef(null)
@@ -485,6 +486,11 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'd') { event.preventDefault(); event.stopImmediatePropagation(); duplicateSelected() }
       if ((event.ctrlKey || event.metaKey) && !event.shiftKey && event.key.toLowerCase() === 'z') { event.preventDefault(); event.stopImmediatePropagation(); undo() }
       if ((event.ctrlKey || event.metaKey) && (event.key.toLowerCase() === 'y' || (event.shiftKey && event.key.toLowerCase() === 'z'))) { event.preventDefault(); event.stopImmediatePropagation(); redo() }
+      // 标准视角快捷键：与右下角 3D 轴立方体共用同一 jumpTo，F1 回到默认自由视角
+      if (event.key === 'F1') { event.preventDefault(); event.stopImmediatePropagation(); gizmoApiRef.current?.('perspective') }
+      if (event.key === 'F2') { event.preventDefault(); event.stopImmediatePropagation(); gizmoApiRef.current?.('top') }
+      if (event.key === 'F3') { event.preventDefault(); event.stopImmediatePropagation(); gizmoApiRef.current?.('left') }
+      if (event.key === 'F4') { event.preventDefault(); event.stopImmediatePropagation(); gizmoApiRef.current?.('back') }
     }
     // 捕获阶段注册：在 maomao 画布（React Flow）之前处理，避免 Delete 触发画布删除导致 overlay 退出
     window.addEventListener('keydown', onKeyDown, true)
@@ -1162,7 +1168,7 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
           {cameraView && cameraAnglePanelOpen && <CameraAnglePanel camera={camera} onChange={patch => setCamera(current => ({ ...current, ...patch }))} onClose={() => setCameraAnglePanelOpen(false)} onLevel={levelCameraHorizon} />}
           <ReferenceOverlay reference={reference} onChange={setReference} cameraMode={cameraView} cameraAspect={previewAspect}>
             <div className="viewport-canvas-layer">
-              <MainViewport key={cameraView ? 'shot-view' : 'scene-view'} cameraView={cameraView} cameraAspect={previewAspect} editorCameraData={editorView} onEditorCameraChange={captureEditorView} objects={animatedObjects} animationTime={currentFrame / fps} selectedId={selectedId} activeJoint={selectedJoint} onSelect={setSelectedId} onJointSelect={(objectId, jointId) => { setSelectedId(objectId); setSelectedJoint(jointId) }} transformMode={transformMode} transformSpace={transformSpace} snapEnabled={snapEnabled} groundRequest={groundRequest} onUpdateObject={updateObjectById} cameraData={displayCamera} onUpdateCamera={patch => setCamera(current => ({ ...current, ...patch }))} lighting={lighting} showGrid={showGrid} performanceMode={performanceMode} focusRequest={viewFocusRequest} referenceVisible={Boolean(reference.image && reference.visible)} />
+              <MainViewport key={cameraView ? 'shot-view' : 'scene-view'} cameraView={cameraView} cameraAspect={previewAspect} editorCameraData={editorView} onEditorCameraChange={captureEditorView} onGizmoReady={api => { gizmoApiRef.current = api }} objects={animatedObjects} animationTime={currentFrame / fps} selectedId={selectedId} activeJoint={selectedJoint} onSelect={setSelectedId} onJointSelect={(objectId, jointId) => { setSelectedId(objectId); setSelectedJoint(jointId) }} transformMode={transformMode} transformSpace={transformSpace} snapEnabled={snapEnabled} groundRequest={groundRequest} onUpdateObject={updateObjectById} cameraData={displayCamera} onUpdateCamera={patch => setCamera(current => ({ ...current, ...patch }))} lighting={lighting} showGrid={showGrid} performanceMode={performanceMode} focusRequest={viewFocusRequest} referenceVisible={Boolean(reference.image && reference.visible)} />
             </div>
           </ReferenceOverlay>
 
