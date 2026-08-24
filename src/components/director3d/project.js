@@ -24,9 +24,9 @@ export const DEFAULT_LIGHTING = {
   keyAzimuth: 39,
   keyElevation: 51,
   exposure: 0.9,
-  ambientColor: '#f7f1e6',
-  keyColor: '#fff6e8',
-  fillColor: '#a9c2c6',
+  ambientColor: '#fcfbfe',
+  keyColor: '#fcfdfd',
+  fillColor: '#f3eee7',
 }
 export const FPS_OPTIONS = [24, 25, 30]
 export const FOCAL_LENGTH_PRESETS = [18, 24, 35, 50, 85, 120]

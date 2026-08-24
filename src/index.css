@@ -3,6 +3,67 @@
 @tailwind utilities;
 
 /* ============================================================
+ * 全局配色变量层（一键改色入口）
+ *  - 真值唯一来源：改这里即可全站调色（含 director3d 浮层）。
+ *  - 用 RGB 三段式 + <alpha-value>，保证 Tailwind 透明度修饰符（如 /15）仍生效。
+ *  - 与 tailwind.config.js colors 一一对应；--mao-app-* 为 html/body 专属底色/文字。
+ * ============================================================ */
+:root {
+  /* 背景层级 */
+  --mao-canvas: 13 12 12;          /* #0d0c0c */
+  --mao-surface: 26 26 26;         /* #1a1a1a */
+  --mao-surface-1: 34 34 34;       /* #222222 */
+  --mao-surface-2: 31 31 31;       /* #1f1f1f */
+  --mao-surface-3: 68 68 68;       /* #444444 */
+  --mao-surface-raised: 28 28 28;  /* #1c1c1c */
+  --mao-surface-menu: 28 28 30;    /* #1c1c1e */
+  --mao-surface-deep: 21 20 20;    /* #151414 */
+  --mao-surface-hover: 42 42 42;   /* #2a2a2a */
+  --mao-surface-hover-strong: 51 51 51; /* #333333 */
+  --mao-surface-hover-2: 44 44 44; /* #2c2c2c */
+  --mao-surface-active: 37 37 37;  /* #252525 */
+  --mao-surface-subtle: 36 36 36;  /* #242424 */
+  --mao-surface-faint: 30 30 30;   /* #1e1e1e */
+  --mao-surface-strong: 22 22 22;  /* #161616 */
+  --mao-surface-muted: 21 21 21;   /* #151515 */
+  --mao-surface-black: 17 17 17;   /* #111111 */
+  --mao-input: 20 20 20;           /* #141414 */
+  --mao-inverse: 237 237 237;      /* #ededed */
+  --mao-inverse-strong: 22 22 22;  /* #161616 */
+  /* 文字层级（对齐 director3d / 剧本盒子 清冷冷灰蓝） */
+  --mao-text-strong: 255 255 255;  /* #ffffff */
+  --mao-text-primary: 229 229 229; /* #e5e5e5 */
+  --mao-text-body: 204 204 204;    /* #cccccc */
+  --mao-text-secondary: 156 163 175; /* #9ca3af */
+  --mao-text-muted: 107 114 128;   /* #6b7280 */
+  --mao-text-faint: 102 102 102;   /* #666666 */
+  --mao-text-subtle: 85 85 85;     /* #555555 */
+  --mao-text-muted-2: 115 115 115; /* #737373 灰阶更弱的说明/空态文字（对齐 gray-600） */
+  /* 边框层级 */
+  --mao-edge: 51 51 51;            /* #333333 */
+  --mao-edge-strong: 85 85 85;     /* #555555 */
+  --mao-edge-faint: 42 42 42;      /* #2a2a2a */
+  --mao-edge-muted: 68 68 68;      /* #444444 */
+  --mao-edge-subtle: 34 34 34;     /* #222222 */
+  --mao-edge-raised: 58 58 58;     /* #3a3a3a */
+  /* 缺口补充（阶段3 收编散落裸色用） */
+  --mao-surface-sunken: 10 10 10;  /* #0a0a0a 代码块/深嵌入底 */
+  --mao-surface-sunken-2: 13 13 13; /* #0d0d0d 编辑器深底 */
+  --mao-code-bg: 19 19 19;         /* #131313 提示词/代码块底 */
+  /* html/body 专属（值不在上方 token，专属保留以保证零视觉变化） */
+  --mao-app-bg: 15 15 15;          /* #0f0f0f */
+  --mao-app-text: 229 229 229;     /* #e5e5e5 */
+  /* 语义强调色（状态/交互，驱动 director3d 等浮层） */
+  --mao-accent: 59 130 246;        /* #3b82f6 蓝 */
+  --mao-accent-strong: 96 165 250; /* #60a5fa */
+  --mao-accent-ink: 255 255 255;   /* #ffffff */
+  --mao-accent-soft: 59 130 246;   /* 配合下方 alpha 使用 */
+  --mao-accent-soft-alpha: 0.15;   /* rgba(59,130,246,.15) */
+  --mao-live: 52 211 153;          /* #34d399 绿 */
+  --mao-danger: 239 68 68;         /* #ef4444 红 */
+}
+
+/* ============================================================
  * 全局统一按钮样式（节点复用，改一处全生效）
  *  - node-btn-primary  生成/主操作按钮，参考图像生成节点 GenerateButton
  *  - node-btn-settings 右上角设置/模式按钮，参考图像切分 GridSplit
@@ -43,8 +104,8 @@ body,
 #root {
   height: 100%;
   margin: 0;
-  background: #0f0f0f;
-  color: #e5e5e5;
+  background: rgb(var(--mao-app-bg));
+  color: rgb(var(--mao-app-text));
   font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto,
     sans-serif;
 }
