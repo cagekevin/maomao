@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { Director3DApp } from './App.jsx'
+import { ErrorBoundary } from './ErrorBoundary.jsx'
 import './styles.css'
 
 /**
@@ -85,12 +86,14 @@ export function Director3DOverlay({ nodeId, onExit }) {
       className="director3d-overlay"
       style={{ position: 'fixed', inset: 0, zIndex: 2147483000, background: '#181817' }}
     >
-      <Director3DApp
-        storageKey={storageKey}
-        onExport={handleExport}
-        onExit={handleExit}
-        onThumbnail={handleThumbnail}
-      />
+      <ErrorBoundary label="Director3D">
+        <Director3DApp
+          storageKey={storageKey}
+          onExport={handleExport}
+          onExit={handleExit}
+          onThumbnail={handleThumbnail}
+        />
+      </ErrorBoundary>
     </div>,
     document.body
   )

@@ -4,6 +4,7 @@ import {
   RIG_PRESET_OPTIONS, cloneJointPose, interpolateJointPose, normalizePoseId, poseCanLoop,
   poseForObject, presetJoints, presetPhase, presetRoot,
 } from './rig.js'
+import { readJson, removeKey, writeJson } from './storage.js'
 
 export const CAMERA_ID = '__shot_camera__'
 export const PROJECT_STORAGE_KEY = 'director3d-project'
@@ -273,19 +274,15 @@ export function normalizePerson(object) {
 }
 
 export function readCustomPoses() {
-  try {
-    const poses = JSON.parse(localStorage.getItem(CUSTOM_POSE_STORAGE_KEY) || '[]')
-    if (!Array.isArray(poses)) return []
-    return poses.filter(pose => pose?.id && pose?.name).map(pose => ({
-      ...pose,
-      pose: normalizePoseId(pose.pose),
-      poseTime: Number.isFinite(pose.poseTime) ? pose.poseTime : presetPhase(pose.pose),
-      rigRoot: Array.isArray(pose.rigRoot) ? pose.rigRoot.slice(0, 3) : presetRoot(pose.pose),
-      joints: cloneJointPose(pose.joints),
-    }))
-  } catch {
-    return []
-  }
+  const poses = readJson(CUSTOM_POSE_STORAGE_KEY, [])
+  if (!Array.isArray(poses)) return []
+  return poses.filter(pose => pose?.id && pose?.name).map(pose => ({
+    ...pose,
+    pose: normalizePoseId(pose.pose),
+    poseTime: Number.isFinite(pose.poseTime) ? pose.poseTime : presetPhase(pose.pose),
+    rigRoot: Array.isArray(pose.rigRoot) ? pose.rigRoot.slice(0, 3) : presetRoot(pose.pose),
+    joints: cloneJointPose(pose.joints),
+  }))
 }
 
 export function normalizeObjectTracks(tracks = {}) {
@@ -410,19 +407,18 @@ export function normalizeProjectData(data) {
 }
 
 export function readCachedProject(storageKey) {
-  try {
-    const key = storageKey || PROJECT_STORAGE_KEY
-    const current = localStorage.getItem(key)
-    const legacy = current ? null : localStorage.getItem(LEGACY_PROJECT_STORAGE_KEY)
-    const serialized = current || legacy
-    const data = JSON.parse(serialized || 'null')
-    const normalized = normalizeProjectData(data)
-    if (!normalized) return null
-    if (!current && legacy) localStorage.setItem(key, JSON.stringify(normalized))
-    return normalized
-  } catch {
-    return null
+  const key = storageKey || PROJECT_STORAGE_KEY
+  // 优先读当前 key；无有效缓存时才回退旧版 key 做一次性迁移
+  const current = readJson(key, null)
+  const legacy = current ? null : readJson(LEGACY_PROJECT_STORAGE_KEY, null)
+  const normalized = normalizeProjectData(current || legacy)
+  if (!normalized) return null
+  if (legacy) {
+    // legacy 迁移：回写新 key，并清理旧 key 释放存储空间（原实现遗留，长期占用）
+    writeJson(key, normalized)
+    removeKey(LEGACY_PROJECT_STORAGE_KEY)
   }
+  return normalized
 }
 
 export function projectData({ settings, objects, camera, lighting, reference, keyframes, objectKeyframes, shots, activeShotId }) {

@@ -5,6 +5,7 @@ import * as THREE from 'three'
 import { clone as skeletonClone } from 'three/examples/jsm/utils/SkeletonUtils.js'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { poseForObject, presetDefinition } from './rig.js'
+import { log } from './log.js'
 
 // 内置人物模型：使用减面版（49k→15k 三角），蒙皮/骨骼/动画全保留，降低每帧渲染成本
 // 原件 xbot-animated.glb 保留在 public/models/ 作回退
@@ -472,6 +473,11 @@ class ModelErrorBoundary extends Component {
 
   static getDerivedStateFromError() {
     return { failed: true }
+  }
+
+  // 记录渲染异常（走统一日志层，便于排查，不阻塞回退 UI）
+  componentDidCatch(error, info) {
+    log.error('模型加载/渲染异常', error, info?.componentStack)
   }
 
   render() {

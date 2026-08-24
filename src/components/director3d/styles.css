@@ -426,9 +426,26 @@
 .keyframe-button { height: 29px; border: 1px solid #3b3b37; background: #1d1d1c; color: var(--text-dim); border-radius: 4px; font-size: 12px; display: flex; align-items: center; justify-content: center; gap: 4px; cursor: pointer; transition: background .15s, border-color .15s, color .15s; }
 .keyframe-button:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
 
-.toast { position: fixed; z-index: 100; left: 50%; bottom: 165px; transform: translateX(-50%); height: 34px; padding: 0 13px; border: 1px solid #4f4c43; border-radius: 6px; background: rgba(31,31,29,.94); box-shadow: 0 12px 28px rgba(0,0,0,.3); color: var(--text-dim); display: flex; align-items: center; gap: 8px; font-size: 12px; animation: toast-in 180ms ease-out; }
-.toast span { width: 6px; height: 6px; border-radius: 50%; background: var(--live); }
-@keyframes toast-in { from { opacity: 0; transform: translate(-50%, 5px); } }
+/* Toast：对齐 maomao 统一通知 —— 顶部居中 + 四档状态色（/10 渐变填充 + /30 描边 + 柔光）+ 滑入动画 */
+.toast-stack { position: fixed; top: 16px; left: 50%; transform: translateX(-50%); z-index: 140; display: flex; flex-direction: column; align-items: center; gap: 6px; pointer-events: none; }
+.toast {
+  pointer-events: auto; display: flex; align-items: center; gap: 8px;
+  padding: 6px 12px; border: 1px solid; border-radius: 8px;
+  background: linear-gradient(to bottom, color-mix(in srgb, var(--tz) 11%, transparent), color-mix(in srgb, var(--tz) 5%, transparent));
+  border-color: color-mix(in srgb, var(--tz) 30%, transparent);
+  box-shadow: 0 8px 26px color-mix(in srgb, var(--tz) 24%, transparent), 0 2px 8px rgba(0,0,0,.35);
+  color: var(--text); backdrop-filter: blur(4px); animation: toast-in 200ms ease-out;
+  --tz: #3b82f6;
+}
+.toast .toast-icon { color: var(--tz); flex: 0 0 auto; }
+.toast .toast-text { white-space: nowrap; font-size: 13px; }
+.toast .toast-close { display: grid; place-items: center; margin-left: 2px; padding: 2px; border: 0; border-radius: 4px; background: transparent; color: var(--text-faint); cursor: pointer; }
+.toast .toast-close:hover { color: var(--text); background: rgba(255,255,255,.08); }
+.toast-info { --tz: #3b82f6; }
+.toast-success { --tz: #22c55e; }
+.toast-warning { --tz: #eab308; }
+.toast-error { --tz: #ef4444; }
+@keyframes toast-in { from { opacity: 0; transform: translateY(8px); } }
 
 .export-render-surface { position: fixed; left: -10000px; top: 0; pointer-events: none; overflow: hidden; }
 .export-progress-overlay { position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; background: rgba(14,14,13,.64); cursor: progress; }
@@ -475,6 +492,19 @@
 .settings-dialog-actions button:hover { color: var(--text); border-color: #625e53; }
 .settings-dialog-actions button[type="submit"] { border-color: var(--accent); background: var(--accent); color: var(--accent-ink); font-weight: 650; }
 .settings-dialog-actions button[type="submit"]:hover { background: var(--accent-strong); }
+
+/* 自定义确认层（替代原生 window.confirm）：遮罩置于设置层之上 */
+.confirm-overlay { position: fixed; inset: 0; z-index: 130; display: grid; place-items: center; background: rgba(12,12,11,.66); backdrop-filter: blur(2px); animation: confirm-in 140ms ease-out; }
+.confirm-dialog { width: min(360px, calc(100vw - 32px)); overflow: hidden; border: 1px solid #575349; border-radius: 9px; background: #242421; box-shadow: 0 26px 80px rgba(0,0,0,.54); }
+.confirm-message { padding: 18px 16px 6px; color: var(--text); font-size: 13px; line-height: 1.6; }
+.confirm-actions { height: 58px; padding: 0 16px; display: flex; align-items: center; justify-content: flex-end; gap: 7px; }
+.confirm-btn { height: 30px; padding: 0 14px; border: 1px solid #484741; border-radius: 5px; background: #2b2b28; color: var(--text-dim); font-size: 12px; cursor: pointer; }
+.confirm-btn:hover { color: var(--text); border-color: #625e53; }
+.confirm-btn.is-primary { border-color: var(--accent); background: var(--accent); color: var(--accent-ink); font-weight: 650; }
+.confirm-btn.is-primary:hover { background: var(--accent-strong); }
+.confirm-btn.is-danger { border-color: var(--danger); background: var(--danger); color: #fff; font-weight: 650; }
+.confirm-btn.is-danger:hover { filter: brightness(1.08); }
+@keyframes confirm-in { from { opacity: 0; } }
 
 @media (max-width: 1180px) {
   .workspace { grid-template-columns: 210px minmax(0, 1fr) 244px; }

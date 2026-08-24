@@ -93,9 +93,9 @@
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
-  Axis3D, BoxSelect, Camera, ChevronLeft, ChevronRight, Download, FileImage, FileVideo2,
-  FolderOpen, ImagePlus, Magnet, Maximize2, Minimize2, Minus, MousePointer2, Move3D, Redo2,
-  RotateCw, Save, SlidersHorizontal, Undo2, Video, ZoomIn,
+  AlertTriangle, Axis3D, BoxSelect, Camera, CheckCircle2, ChevronLeft, ChevronRight, Download, FileImage, FileVideo2,
+  FolderOpen, ImagePlus, Info, Magnet, Maximize2, Minimize2, Minus, MousePointer2, Move3D, Redo2,
+  RotateCw, Save, SlidersHorizontal, Undo2, Video, X, XCircle, ZoomIn,
 } from 'lucide-react'
 import { MainViewport, CameraPreview } from './Viewport.jsx'
 import { measureModelScale } from './models.jsx'
@@ -117,8 +117,22 @@ import { Inspector } from './panels/Inspector.jsx'
 import { CameraAnglePanel } from './panels/CameraAnglePanel.jsx'
 import { Timeline } from './panels/Timeline.jsx'
 import { ReferenceOverlay } from './panels/ReferenceOverlay.jsx'
+import { consumeDefer, createHistoryState, flushChange, HISTORY_DEBOUNCE_MS, recordChange, redoPeek, resetHistory, undoPeek } from './history.js'
+import { log } from './log.js'
+import { writeJson } from './storage.js'
+import { useToast } from './useToast.js'
+import { thumbnailFromCanvas } from './thumbnails.js'
+import { useConfirm } from './ConfirmDialog.jsx'
 
 const nextPaint = () => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+
+// Toast 四档状态图标（对齐 maomao 统一通知：success 绿 / error 红 / warning 黄 / info 蓝）
+const TOAST_ICONS = {
+  info: Info,
+  success: CheckCircle2,
+  warning: AlertTriangle,
+  error: XCircle,
+}
 
 // P1：面板类组件的回调 props（onXxx）约定为语义稳定，比较时忽略；仅当数据 props 变化才重渲染，
 // 避免播放时 currentFrame 逐帧更新连带重算这些不依赖时间轴的面板（时间轴本身依赖 currentFrame，不在此列）。
@@ -173,7 +187,6 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
   const [monitorMode, setMonitorMode] = useState('minimized')
   const [editorView, setEditorView] = useState({ position: [8.5, 6.4, 9.5], target: [0, 1, 0] })
   const [viewFocusRequest, setViewFocusRequest] = useState(null)
-  const [toast, setToast] = useState('')
   const [saveStatus, setSaveStatus] = useState(startupProject ? '已恢复自动保存' : '自动保存已开启')
   const [, setHistoryVersion] = useState(0)
   const loadRef = useRef(null)
@@ -185,8 +198,13 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
   const monitorCanvasRef = useRef(null)
   const editorViewRef = useRef(editorView)
   const exportLockRef = useRef(false)
-  const historyRef = useRef({ past: [], future: [], last: '', timer: null, restoring: false })
+  const historyRef = useRef(createHistoryState())
   const latestProjectRef = useRef(null)
+
+  // 队列化 toast（剥离到 useToast.js）：每条独立 1800ms 自动消失，视觉对齐 maomao 统一通知（顶部居中、四档状态色）。
+  const { toasts, setToast, dismiss } = useToast()
+  // 自定义确认层（替代原生 window.confirm，D8）
+  const { ask, renderConfirm } = useConfirm()
 
   const handleReferenceUpload = async event => {
     const input = event.currentTarget
@@ -197,7 +215,8 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
       setReference(normalizeReference({ ...DEFAULT_REFERENCE, image, name: file.name }))
       setToast(`参考图“${file.name}”已加入 · 可切换到“摄像机视角”核对导出构图`)
     } catch (error) {
-      setToast(error.message || '参考图上传失败')
+      log.error('参考图上传失败', error)
+      setToast(error.message || '参考图上传失败', 'error')
     } finally {
       input.value = ''
     }
@@ -280,7 +299,8 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
   }, [exportDimensions.height, exportDimensions.width, reference])
 
   useEffect(() => {
-    try { localStorage.setItem(CUSTOM_POSE_STORAGE_KEY, JSON.stringify(customPoses)) } catch { /* 姿势库写入失败时不影响工程编辑 */ }
+    // 姿势库持久化（写入失败不影响工程编辑，writeJson 内部已记录日志）
+    writeJson(CUSTOM_POSE_STORAGE_KEY, customPoses)
   }, [customPoses])
 
   useEffect(() => {
@@ -290,6 +310,8 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
   useEffect(() => {
     latestProjectRef.current = currentProject
     const history = historyRef.current
+    // 非用户编辑（播放/拖帧镜头预览、切镜头）的抑制写入：只推进基线，不入栈
+    if (consumeDefer(history, currentProject)) return
     if (!history.last) {
       history.last = currentProject
       return
@@ -303,27 +325,22 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
     const previous = history.last
     history.timer = setTimeout(() => {
       if (latestProjectRef.current === previous) return
-      history.past.push(previous)
-      if (history.past.length > 50) history.past.shift()
-      history.last = latestProjectRef.current
-      history.future = []
+      recordChange(history, previous, latestProjectRef.current)
       setHistoryVersion(version => version + 1)
-    }, 280)
+    }, HISTORY_DEBOUNCE_MS)
     return () => clearTimeout(history.timer)
   }, [currentProject])
 
   useEffect(() => {
     setSaveStatus('保存中…')
     const timer = setTimeout(() => {
-      try {
-        localStorage.setItem(projectStorageKey, JSON.stringify(currentProject))
-        setSaveStatus('已自动保存')
-      } catch {
-        setSaveStatus('自动保存空间不足')
-      }
+      // 自动保存失败升级为可见状态灯 + toast 告警（writeJson 内部已记录日志，报错不吞）
+      const ok = writeJson(projectStorageKey, currentProject)
+      setSaveStatus(ok ? '已自动保存' : '自动保存空间不足')
+      if (!ok) setToast('自动保存空间不足，请使用「导出工程」备份', 'error')
     }, 900)
     return () => clearTimeout(timer)
-  }, [currentProject])
+  }, [currentProject, setToast])
 
   const applyProjectSnapshot = useCallback(snapshot => {
     const normalized = normalizeProjectData(snapshot)
@@ -351,35 +368,25 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
   const flushHistory = useCallback(() => {
     const history = historyRef.current
     clearTimeout(history.timer)
-    const latest = latestProjectRef.current
-    if (history.last && latest && latest !== history.last) {
-      history.past.push(history.last)
-      if (history.past.length > 50) history.past.shift()
-      history.last = latest
-      history.future = []
-    }
+    history.timer = null
+    flushChange(history, latestProjectRef.current)
   }, [])
 
   const undo = useCallback(() => {
     flushHistory()
-    const history = historyRef.current
-    const previous = history.past.pop()
-    if (!previous) return
-    history.future.push(history.last)
-    history.last = previous
-    history.restoring = true
+    const previous = undoPeek(historyRef.current)
+    if (!previous) {
+      setToast('没有任何可撤销的操作')
+      return
+    }
     applyProjectSnapshot(previous)
     setHistoryVersion(version => version + 1)
     setToast('已撤销')
   }, [applyProjectSnapshot, flushHistory])
 
   const redo = useCallback(() => {
-    const history = historyRef.current
-    const next = history.future.pop()
+    const next = redoPeek(historyRef.current)
     if (!next) return
-    history.past.push(history.last)
-    history.last = next
-    history.restoring = true
     applyProjectSnapshot(next)
     setHistoryVersion(version => version + 1)
     setToast('已重做')
@@ -404,7 +411,10 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
   // 把关键帧插值结果写回 camera state 时保留非关键帧属性（targetMode/targetId）：
   // cameraAtFrame 只输出关键帧变换字段，直接 setCamera 会把「始终面向对象」的配置冲掉，
   // 导致播放/拖动播放头/暂停后朝向失效。统一走这个入口。
+  // P0-C：此入口仅在播放/暂停/拖帧等「非用户编辑」场景被调用，故统一挂抑制计数，
+  //   让历史副作用对该写入「只推进基线、不入栈」，避免撤销栈被逐帧预览写污染。
   const setCameraAtFrame = useCallback(frame => {
+    historyRef.current.deferCount += 1
     setCamera(current => {
       const interpolated = cameraAtFrame(keyframes, frame, current.aspectRatio)
       return { ...interpolated, targetMode: current.targetMode, targetId: current.targetId }
@@ -481,12 +491,6 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
     return () => window.removeEventListener('keydown', onKeyDown, true)
   }, [selectedId, objects, togglePlayback, undo, redo, focusSelected])
 
-  useEffect(() => {
-    if (!toast) return
-    const timer = setTimeout(() => setToast(''), 1800)
-    return () => clearTimeout(timer)
-  }, [toast])
-
   const applySettings = nextSettings => {
     const next = normalizeProjectSettings(nextSettings)
     const nextTotalFrames = next.fps * next.durationSeconds
@@ -507,27 +511,9 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
     setToast(`时间轴已更新 · ${next.fps} FPS · ${next.durationSeconds} 秒`)
   }
 
-  const thumbnailFromCanvas = source => {
-    if (!source?.width || !source?.height) return ''
-    try {
-      const canvas = document.createElement('canvas')
-      canvas.width = 240
-      canvas.height = 135
-      const context = canvas.getContext('2d')
-      context.fillStyle = '#11110f'
-      context.fillRect(0, 0, canvas.width, canvas.height)
-      const scale = Math.min(canvas.width / source.width, canvas.height / source.height)
-      const width = source.width * scale
-      const height = source.height * scale
-      context.drawImage(source, (canvas.width - width) / 2, (canvas.height - height) / 2, width, height)
-      return canvas.toDataURL('image/jpeg', 0.74)
-    } catch {
-      return ''
-    }
-  }
-
   // 镜头缩略图唯一入口：从监视器画面截取。监视器小窗默认关闭时无画面可截（缩略图保持原样），
-  // 打开监视器后即可正常更新。刻意不为此创建额外 WebGL 上下文——避免每次镜头操作挂载/销毁画布导致黑屏。
+  // 打开监视器后即可正常更新。绘制逻辑收敛到 thumbnails.js（纯函数），此处仅以 ref 注入命令式取数，
+  // 解耦跨组件取画布边界。刻意不为此创建额外 WebGL 上下文——避免每次镜头操作挂载/销毁画布导致黑屏。
   const thumbnailFromMonitor = () => thumbnailFromCanvas(monitorCanvasRef.current)
 
   const liveShotRecord = (shot, thumbnail = shot?.thumbnail || '') => ({
@@ -568,6 +554,8 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
     if (shotId === activeShotId) return
     const target = shots.find(shot => shot.id === shotId)
     if (!target) return
+    // P2-B：纯切换镜头属浏览行为，非用户编辑——抑制本次入栈，避免频繁切镜头挤占 50 条撤销上限
+    historyRef.current.deferCount += 1
     const thumbnail = thumbnailFromMonitor()
     setShots(list => list.map(shot => shot.id === activeShotId ? liveShotRecord(shot, thumbnail || shot.thumbnail) : shot))
     applyShotState(target)
@@ -613,11 +601,13 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
     setToast(`已复制“${source.name}”`)
   }
 
-  const deleteShot = shotId => {
+  const deleteShot = async shotId => {
     if (shots.length <= 1) return
     const sourceIndex = shots.findIndex(shot => shot.id === shotId)
     const source = shots[sourceIndex]
-    if (!source || !window.confirm(`删除镜头“${source.name}”？`)) return
+    if (!source) return
+    const ok = await ask(`删除镜头“${source.name}”？`, { confirmText: '删除', danger: true })
+    if (!ok) return
     const thumbnail = thumbnailFromMonitor()
     const persisted = shots.map(shot => shot.id === activeShotId ? liveShotRecord(shot, thumbnail || shot.thumbnail) : shot)
     const remaining = persisted.filter(shot => shot.id !== shotId)
@@ -674,7 +664,8 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
       setSelectedId(id)
       setToast(scale === 1 ? '模型已加入场景' : '模型已加入场景 · 已自动适配尺寸')
     } catch (error) {
-      setToast(error?.message || '模型导入失败')
+      log.error('模型导入失败', error)
+      setToast(error?.message || '模型导入失败', 'error')
     }
     event.target.value = ''
   }
@@ -736,6 +727,10 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
     setViewOptionsCollapsed(true)
     setCameraAnglePanelOpen(false)
   }
+  // 【产品确认项】姿势库 customPoses 的增删「不可撤销」：它是独立的用户资产集合（非工程内容），
+  // 每次变更仅写 customPoses + 持久化到 localStorage（CUSTOM_POSE_STORAGE_KEY），不进撤销栈。
+  // 误删无法 Ctrl+Z 恢复（弹 confirm 确认）。「应用姿势」applyCustomPose 则走 updateSelected
+  // 修改 objects，是可撤销的。若后续需要姿势库可撤销，需单独设计（纳入工程快照或独立历史）。
   const saveCustomPose = person => {
     if (!person || person.type !== 'person') return
     const suggestedName = `自定义姿势 ${customPoses.length + 1}`
@@ -762,9 +757,11 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
     })
     setToast(`已应用姿势“${customPose.name}”`)
   }
-  const deleteCustomPose = poseId => {
+  const deleteCustomPose = async poseId => {
     const pose = customPoses.find(item => item.id === poseId)
-    if (!pose || !window.confirm(`删除姿势“${pose.name}”？`)) return
+    if (!pose) return
+    const ok = await ask(`删除姿势“${pose.name}”？`, { confirmText: '删除', danger: true })
+    if (!ok) return
     setCustomPoses(list => list.filter(item => item.id !== poseId))
     setToast(`已删除姿势“${pose.name}”`)
   }
@@ -887,9 +884,7 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
   }
   const saveProject = ({ download = false } = {}) => {
     const data = projectData({ settings, objects, camera, lighting, reference, keyframes, objectKeyframes: characterKeyframes, shots, activeShotId })
-    const serialized = JSON.stringify(data)
-    let cached = true
-    try { localStorage.setItem(projectStorageKey, serialized) } catch { cached = false }
+    const cached = writeJson(projectStorageKey, data)
     if (download) {
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
       const link = document.createElement('a')
@@ -942,7 +937,8 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
         setToast(`摄像机截图已导出 · ${width} × ${height}`)
       }
     } catch (error) {
-      setToast(error?.message || '摄像机截图失败')
+      log.error('摄像机截图失败', error)
+      setToast(error?.message || '摄像机截图失败', 'error')
     } finally {
       setCapturingImage(false)
       setExportReferenceBackground(null)
@@ -1028,8 +1024,9 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
         setToast(`MP4 已导出 · ${width} × ${height} · ${fps} FPS · ${settings.durationSeconds} 秒`)
       }
     } catch (error) {
+      log.error('MP4 导出失败', error)
       if (output && output.state !== 'finalized') await output.cancel().catch(() => {})
-      setToast(error?.message || 'MP4 导出失败')
+      setToast(error?.message || 'MP4 导出失败', 'error')
     } finally {
       setCurrentFrame(originalFrame)
       currentFrameRef.current = originalFrame
@@ -1065,7 +1062,13 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
         setPlaying(false)
         setSelectedId(CAMERA_ID)
         setToast(`工程已打开 · ${loaded.shots.length} 个镜头`)
-      } catch { setToast('工程文件无法读取') }
+        // P1-A：加载新工程后重置历史栈（清空 past/future、last 置空），下次副作用以新工程重建基线，
+        //   避免 Ctrl+Z 退回已废弃的旧工程
+        resetHistory(historyRef.current, clearTimeout)
+      } catch (error) {
+        log.error('打开工程失败', error)
+        setToast('工程文件无法读取', 'error')
+      }
     }
     reader.readAsText(file)
     event.target.value = ''
@@ -1089,6 +1092,8 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
     setPlaying(false)
     setSelectedId('actor-lead')
     setToast('已新建空关键帧工程 · 可在时间轴右侧设置时长')
+    // P1-A：重置工程后同样重置历史栈，避免撤销退回旧工程
+    resetHistory(historyRef.current, clearTimeout)
   }
 
   return (
@@ -1224,7 +1229,20 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
           </div>
         </>
       )}
-      {toast && <div className="toast"><span />{toast}</div>}
+      <div className="toast-stack">
+        {toasts.map(item => {
+          const tier = item.level || 'info'
+          const Icon = TOAST_ICONS[tier] || Info
+          return (
+            <div key={item.id} className={`toast toast-${tier}`}>
+              <Icon size={12} className="toast-icon" />
+              <span className="toast-text">{item.text}</span>
+              <button type="button" className="toast-close" onClick={() => dismiss(item.id)} title="关闭"><X size={11} /></button>
+            </div>
+          )
+        })}
+      </div>
+      {renderConfirm}
     </main>
   )
 }
