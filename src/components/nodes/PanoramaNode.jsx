@@ -141,15 +141,15 @@ function PanoramaNode({ id, data, selected }) {
   // 截图比例选择器（复刻官方 Component1784 / Component1845）
   const renderRatioSelect = () => (
     <>
-      <span className="text-[10px] text-secondary px-2 whitespace-nowrap shrink-0">截图比例</span>
-      <select value={aspectRatio} onChange={(e) => setAspectRatio(e.target.value)} className="bg-transparent text-primary text-[10px] pl-1 pr-4 py-0.5 outline-none cursor-pointer text-center font-bold">
+      <span className="text-caption-sm text-secondary px-2 whitespace-nowrap shrink-0">截图比例</span>
+      <select value={aspectRatio} onChange={(e) => setAspectRatio(e.target.value)} className="bg-transparent text-primary text-caption-sm pl-1 pr-4 py-0.5 outline-none cursor-pointer text-center font-bold">
         {RATIO_OPTIONS.map((r) => <option key={r} value={r} className="bg-surface-1">{r === 'custom' ? '自定义' : r}</option>)}
       </select>
       {aspectRatio === 'custom' && (
         <div className="flex items-center gap-1 ml-2 mr-2 border-l border-white/20 pl-2 shrink-0">
-          <input type="number" value={customDim.w} onChange={(e) => setCustomDim((d) => ({ ...d, w: Number(e.target.value) }))} className="w-8 bg-transparent text-primary text-[10px] outline-none text-center border-b border-transparent focus:border-white/50" />
+          <input type="number" value={customDim.w} onChange={(e) => setCustomDim((d) => ({ ...d, w: Number(e.target.value) }))} className="w-8 bg-transparent text-primary text-caption-sm outline-none text-center border-b border-transparent focus:border-white/50" />
           <span className="text-muted">:</span>
-          <input type="number" value={customDim.h} onChange={(e) => setCustomDim((d) => ({ ...d, h: Number(e.target.value) }))} className="w-8 bg-transparent text-primary text-[10px] outline-none text-center border-b border-transparent focus:border-white/50" />
+          <input type="number" value={customDim.h} onChange={(e) => setCustomDim((d) => ({ ...d, h: Number(e.target.value) }))} className="w-8 bg-transparent text-primary text-caption-sm outline-none text-center border-b border-transparent focus:border-white/50" />
         </div>
       )}
     </>
@@ -157,7 +157,7 @@ function PanoramaNode({ id, data, selected }) {
 
   // 截图按钮组（全屏球体里，始终显示）
   const renderShotButtons = ({ size = 20 }) => (
-    <div className="absolute top-1/2 left-2 -translate-y-1/2 flex flex-col items-center gap-1 z-30 bg-black/60 p-1.5 rounded-xl backdrop-blur-md border border-white/10 shadow-lg nodrag" onClick={(e) => e.stopPropagation()}>
+    <div className="absolute top-1/2 left-2 -translate-y-1/2 flex flex-col items-center gap-1 z-30 bg-black/60 p-1.5 rounded-xl backdrop-blur-md border border-white/10 shadow-popover nodrag" onClick={(e) => e.stopPropagation()}>
       <button onClick={() => doCapture([0])} title="当前视角截图" className={`p-2.5 text-secondary hover:text-white hover:bg-white/10 rounded-lg transition-all active:scale-95 cursor-pointer ${shotKind === 'current' ? 'text-white bg-white/10' : ''}`}>
         <CircleDot size={size} className={shotKind === 'current' ? 'animate-spin' : ''} />
       </button>
@@ -174,7 +174,7 @@ function PanoramaNode({ id, data, selected }) {
   const renderCapturingOverlay = () => (
     capturing && (
       <div className="absolute inset-0 z-40 pointer-events-none nodrag flex items-center justify-center bg-black/20 backdrop-blur-[1px]">
-        <div className="bg-black/80 border border-white/20 rounded-2xl px-5 py-3 shadow-2xl flex items-center gap-3">
+        <div className="bg-black/80 border border-white/20 rounded-2xl px-5 py-3 shadow-popover flex items-center gap-3">
           <div className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
           <span className="text-white text-sm font-semibold">截图处理中…</span>
         </div>
@@ -185,7 +185,7 @@ function PanoramaNode({ id, data, selected }) {
   // 截图比例虚线遮罩
   const renderRatioOverlay = () => (
     !capturing && (
-      <div className="absolute inset-0 pointer-events-none z-[5]" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+      <div className="absolute inset-0 pointer-events-none z-dropdown" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
         <div className="border-[2px] border-dashed border-white/30 shadow-[0_0_0_9999px_rgba(0,0,0,0.4)]" style={{ aspectRatio: ratioStr, height: '100%', maxHeight: '100%', maxWidth: '100%' }} />
       </div>
     )
@@ -194,7 +194,7 @@ function PanoramaNode({ id, data, selected }) {
   // 全屏球体漫游（复刻官方 Component1861）
   const renderFullscreen = () => (
     fullscreen && panoUrl && createPortal(
-      <div className="fixed inset-0 z-[9999] bg-surface-sunken flex flex-col" onClick={(e) => e.stopPropagation()}>
+      <div className="fixed inset-0 z-modal bg-surface-sunken flex flex-col" onClick={(e) => e.stopPropagation()}>
         <div className="absolute top-4 right-4 z-10 flex gap-2">
           <button onClick={() => doCapture([0])} className="bg-white hover:bg-gray-200 text-black px-5 py-2.5 rounded-lg flex items-center gap-2 shadow cursor-pointer border-none">
             <Camera size={18} /> 截图
@@ -205,7 +205,7 @@ function PanoramaNode({ id, data, selected }) {
         </div>
 
         {/* 截图比例选择器（全屏） */}
-        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 flex items-center bg-black/60 backdrop-blur-md border border-white/10 rounded-lg p-1 shadow-lg nodrag" onClick={(e) => e.stopPropagation()}>
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 flex items-center bg-black/60 backdrop-blur-md border border-white/10 rounded-lg p-1 shadow-popover nodrag" onClick={(e) => e.stopPropagation()}>
           {renderRatioSelect()}
         </div>
 
@@ -275,7 +275,7 @@ function PanoramaNode({ id, data, selected }) {
             {imgError ? (
               <div className="w-full h-full flex flex-col items-center justify-center text-red-400/80 bg-surface-muted">
                 <span className="text-sm font-medium">全景图加载失败</span>
-                <span className="text-xs mt-1 text-red-400/60">图片可能已失效或跨域不可访问</span>
+                <span className="text-caption-sm mt-1 text-red-400/60">图片可能已失效或跨域不可访问</span>
               </div>
             ) : (
               <img
@@ -307,7 +307,7 @@ function PanoramaNode({ id, data, selected }) {
               onPointerDown={(e) => e.stopPropagation()}
               onClick={(e) => { e.preventDefault(); e.stopPropagation(); setFullscreen(true) }}
               title="全景漫游（旋转查看 360° 并裁切）"
-              className="absolute bottom-4 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 px-4 py-2 bg-black/70 text-white hover:bg-white/20 rounded-full backdrop-blur-md border border-white/20 nodrag cursor-pointer shadow-lg opacity-0 group-hover/image:opacity-100 transition-opacity duration-300"
+              className="absolute bottom-4 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 px-4 py-2 bg-black/70 text-white hover:bg-white/20 rounded-full backdrop-blur-md border border-white/20 nodrag cursor-pointer shadow-popover opacity-0 group-hover/image:opacity-100 transition-opacity duration-300"
             >
               <Globe size={16} /> 全景漫游
             </button>
@@ -316,7 +316,7 @@ function PanoramaNode({ id, data, selected }) {
           <div className="w-full h-full flex flex-col items-center justify-center text-muted-2 bg-surface-muted">
             <Upload size={24} className="mb-2" />
             <div className="text-sm">等待输入全景图</div>
-            <div className="text-xs mt-1 text-muted">请将图片节点连接到此节点</div>
+            <div className="text-caption-sm mt-1 text-muted">请将图片节点连接到此节点</div>
           </div>
         )}
       </div>

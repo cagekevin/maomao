@@ -284,7 +284,7 @@ function TextNode({ id, data, selected }) {
             <GeneratingOverlay label="生成中..." category="text" />
           )}
           {error ? (
-            <div className="text-red-400 text-xs p-2 border border-red-500/30 rounded bg-red-500/10 flex items-start gap-2">
+            <div className="text-red-400 text-caption p-2 border border-red-500/30 rounded bg-red-500/10 flex items-start gap-2">
               <AlertCircle size={14} className="mt-0.5 flex-shrink-0" />
               <span className="break-all">{error}</span>
             </div>
@@ -292,8 +292,8 @@ function TextNode({ id, data, selected }) {
             <>
               {!text && !loading && !editingText && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 pointer-events-none">
-                  <FileText size={72} className="text-gray-700" strokeWidth={1.2} />
-                  <span className="text-xs text-muted-2">双击编辑内容或AI生成</span>
+                  <FileText size={72} className="text-muted" strokeWidth={1.2} />
+                  <span className="text-caption text-muted-2">双击编辑内容或AI生成</span>
                 </div>
               )}
               <textarea

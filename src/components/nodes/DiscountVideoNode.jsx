@@ -259,11 +259,11 @@ function DiscountVideoNode({ id, data, selected }) {
           if (videoUrl) openVideoZoom(videoUrl)
         }}
       >
-        <div className={`flex items-center justify-center absolute inset-0 rounded-xl overflow-hidden ${videoUrl ? '' : 'bg-surface-strong'}`}>
+        <div className={`flex items-center justify-center absolute inset-0 rounded-xl overflow-hidden ${videoUrl ? '' : 'bg-surface-muted'}`}>
           {/* 性能模式媒体降级：缩小时隐藏视频（复刻官方"图片视频已隐藏"） */}
           {videoUrl && !loading && !error && hideVideo && (
             <div className="flex flex-col items-center justify-center gap-1 absolute inset-0 bg-surface-muted">
-              <Clapperboard size={24} className="text-gray-700" />
+              <Clapperboard size={24} className="text-muted" />
               <span className="text-caption text-muted">性能模式已隐藏</span>
             </div>
           )}
@@ -285,13 +285,13 @@ function DiscountVideoNode({ id, data, selected }) {
           )}
           {!videoUrl && !loading && !error && (
             <div className="flex flex-col items-center justify-center absolute inset-0 bg-surface-muted pointer-events-none">
-              <Clapperboard size={80} className="text-gray-700" strokeWidth={1.2} />
+              <Clapperboard size={80} className="text-muted" strokeWidth={1.2} />
             </div>
           )}
           {error && !loading && !videoUrl && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-red-500 z-10 bg-surface p-4 text-center">
               <AlertCircle size={32} />
-              <span className="text-xs font-medium max-w-full break-words">{error}</span>
+              <span className="text-caption font-medium max-w-full break-words">{error}</span>
             </div>
           )}
         </div>
@@ -326,7 +326,7 @@ function DiscountVideoNode({ id, data, selected }) {
 
           {/* 底部控制 */}
           <div className="flex items-center justify-between pt-2 border-t border-edge-faint nodrag">
-            <div className="flex items-center gap-1.5 overflow-visible z-50">
+            <div className="flex items-center gap-1.5 overflow-visible z-dropdown">
               {/* 比例/分辨率/时长（ref 绑外层 relative，点外部才关） */}
               <div ref={ratioMenuRef} className="relative nodrag flex items-center">
                 <button
@@ -338,7 +338,7 @@ function DiscountVideoNode({ id, data, selected }) {
                   <span className="whitespace-nowrap">{ratio} · {resolution} · {seconds}s</span>
                 </button>
                 {showRatioMenu && (
-                  <div className="absolute bottom-full left-0 mb-1 w-72 bg-surface-1 border border-edge rounded-lg shadow-xl p-3 z-50 flex flex-col gap-3 max-h-none overflow-visible nopan nodrag" onClick={(e) => e.stopPropagation()}>
+                  <div className="absolute bottom-full left-0 mb-1 w-72 bg-surface-1 border border-edge rounded-lg shadow-popover p-3 z-dropdown flex flex-col gap-3 max-h-none overflow-visible nopan nodrag" onClick={(e) => e.stopPropagation()}>
                     <div>
                       <div className="text-caption text-muted mb-2 px-1">比例</div>
                       <div className="flex flex-wrap gap-1.5 mb-2">

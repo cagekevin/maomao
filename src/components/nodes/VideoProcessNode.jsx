@@ -3,12 +3,12 @@ import {
   Clapperboard, Play, Pause, Scissors, Trash2, Upload,
   Loader2, Music, X, Volume2, VolumeX, Plus, Film, AlertCircle, X as XIcon
 } from 'lucide-react'
-import { useReactFlow, NodeResizer } from '@xyflow/react'
-import NodeTitle from '../base/NodeTitle.jsx'
+import { useReactFlow } from '@xyflow/react'
+import NodeShell from '../base/NodeShell.jsx'
 import CustomHandle from '../edges/CustomHandle.jsx'
 import { useConnectedInputs } from '../base/useConnectedInputs.js'
 import { useMediaDegrade } from '../base/useMediaDegrade.js'
-import { useNodeResize, useContentHeightSync } from '../base/hooks.js'
+import { useNodeResize } from '../base/hooks.js'
 import { showToast } from '../base/toastStore.js'
 import { logger } from '../base/logger.js'
 import { classifyError } from '../base/genErrors.js'
@@ -1079,9 +1079,8 @@ function VideoProcessNode({ id, data, selected }) {
     )
   }
 
-  /* 高度自适应（收口到 useContentHeightSync：ref 防抖 + rAF 打破 ResizeObserver 同帧循环告警） */
-  useContentHeightSync(contentRef, id, { minHeight: 620, fallbackWidth: 540 })
-
+  /* 高度：本节点内容区为 overflow-y-auto 内部滚动，内容不撑高节点，
+     节点尺寸由 NodeShell 的 NodeResizer + nodeDefaults 控制，无需内容高度自适应。 */
   /* ---------- trim 模式的入出点 scrubber（复刻官方 ze） ---------- */
   const trimScrubber = currentClip && (
     <div className="p-2">
@@ -1135,23 +1134,23 @@ function VideoProcessNode({ id, data, selected }) {
   )
 
   return (
-    <div className={`relative group/node w-full h-full min-w-[520px] min-h-[620px]`} data-node-id={id}>
-      <NodeResizer
-        minWidth={520}
-        minHeight={620}
-        isVisible={!!selected}
-        color="#ffffff80"
-        lineClassName="opacity-0"
-        handleClassName="!text-white/60 hover:!text-blue-400"
-      />
+    <NodeShell
+      id={id}
+      label={data.label}
+      defaultTitle="视频处理"
+      icon={<Clapperboard size={11} className="text-muted" />}
+      selected={selected}
+      handleVariant="small"
+      defaultHeight={620}
+      minWidth={520}
+      minHeight={620}
+      showHandles={false}
+      syncSize={false}
+    >
+      <input ref={fileRef} type="file" accept="video/*" className="hidden" onChange={onUpload} />
+      {/* 左端口 default（NodeShell showHandles=false，手写保留原 handleId） */}
       <CustomHandle position="left" handleId="default" variant="small" />
-      <div
-        className={`w-full h-full bg-surface-panel-2 rounded-lg overflow-hidden border shadow-xl flex flex-col drag-handle cursor-move ${selected ? 'border-edge-strong' : 'border-edge hover:border-edge-raised'}`}
-      >
-        <input ref={fileRef} type="file" accept="video/*" className="hidden" onChange={onUpload} />
-        {/* 标题（框内 mb-1，与 NodeShell 节点一致） */}
-        <NodeTitle defaultTitle="视频处理" icon={<Clapperboard size={11} className="text-muted" />} />
-        <div ref={contentRef} className="flex-1 min-h-0 p-3 flex flex-col gap-3 overflow-y-auto custom-scrollbar nowheel">
+      <div ref={contentRef} className="flex-1 min-h-0 p-3 flex flex-col gap-3 overflow-y-auto custom-scrollbar nowheel">
           {/* 模式切换 */}
           <div className="grid grid-cols-5 gap-1.5">
             {MODES.map((m) => (
@@ -1543,8 +1542,7 @@ function VideoProcessNode({ id, data, selected }) {
             </div>
           </div>
         )}
-      </div>
-    </div>
+    </NodeShell>
   )
 }
 export default React.memo(VideoProcessNode)

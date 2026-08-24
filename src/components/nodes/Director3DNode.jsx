@@ -1,9 +1,8 @@
 import React, { useState, useMemo, useCallback } from 'react'
 import { useReactFlow } from '@xyflow/react'
 import { createPortal } from 'react-dom'
-import { Box, Boxes, Camera, Maximize2, X } from 'lucide-react'
+import { Orbit, Maximize2 } from 'lucide-react'
 import NodeShell from '../base/NodeShell.jsx'
-import CustomHandle from '../edges/CustomHandle.jsx'
 import { useConnectedInputs } from '../base/useConnectedInputs.js'
 import { toAbsoluteFileUrl, saveInlineToLocal } from '../base/filesApi.js'
 import { useRenderImageResolver } from '../base/imageUrl.js'
@@ -198,27 +197,27 @@ function Director3DNode({ id, data, selected }) {
       id={id}
       label={data.label}
       defaultTitle="3D 导演台"
-      icon={<Box size={11} className="text-muted" />}
+      icon={<Orbit size={11} className="text-muted" />}
       selected={selected}
+      handleVariant="small"
       defaultHeight={260}
-      className="min-w-[260px] min-h-[220px]"
     >
-      {/* 主体：静态缩略图 / 占位；双击进入全屏 */}
+      {/* 主显示框（模板写法：背景/圆角/边框/阴影由 NodeShell 提供，children 只写业务内容）
+          主体：静态缩略图 / 占位；双击进入全屏 */}
       <div
-        className="relative flex-1 bg-surface-muted rounded-xl overflow-hidden border border-edge shadow-xl cursor-pointer"
-        style={{ minHeight: 200 }}
+        className="relative flex flex-col w-full flex-1 min-h-0 cursor-pointer"
         onDoubleClick={(e) => { e.stopPropagation(); setOpen(true) }}
       >
         {imageUrl ? (
           <img src={render(imageUrl)} className="w-full h-full object-cover" alt="导演台预览" draggable={false} />
         ) : (
-          <div className="flex flex-col items-center justify-center absolute inset-0 gap-2 text-muted-2 pointer-events-none">
-            <Boxes size={48} strokeWidth={1.2} />
-            <span className="text-xs text-muted">双击打开 3D 导演台</span>
+          <div className="flex flex-col items-center justify-center absolute inset-0 gap-2 text-muted-2 pointer-events-none bg-surface-muted">
+            <Orbit size={64} strokeWidth={1.2} />
+            <span className="text-caption text-muted">双击打开 3D 导演台</span>
           </div>
         )}
-        {/* 悬浮打开按钮 */}
-        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5 px-3 py-1.5 bg-black/70 text-white text-xs rounded-full border border-white/15 shadow-lg opacity-0 hover:opacity-100 transition-opacity cursor-pointer nodrag"
+        {/* 悬浮打开按钮（token 化，去裸色） */}
+        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5 px-3 py-1.5 bg-overlay text-primary text-caption rounded-full border border-edge-strong shadow-popover opacity-0 hover:opacity-100 transition-opacity cursor-pointer nodrag"
           onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => { e.stopPropagation(); setOpen(true) }}
         >
@@ -226,12 +225,9 @@ function Director3DNode({ id, data, selected }) {
         </div>
       </div>
 
-      <CustomHandle type="target" position="left" variant="small" />
-      <CustomHandle type="source" position="right" variant="small" />
-
       {open &&
         createPortal(
-          <div className="fixed inset-0 z-[9999]" onClick={(e) => e.stopPropagation()}>
+          <div className="fixed inset-0 z-modal" onClick={(e) => e.stopPropagation()}>
             <Director3DOverlay
               nodeId={id}
               onExit={handleExit}

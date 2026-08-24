@@ -352,7 +352,7 @@ function PromptNode({ id, data, selected }) {
           {/* 性能模式媒体降级：缩小时隐藏生图结果（复刻官方"图片已隐藏"） */}
           {hasImage && !loading && !error && hideResult && (
             <div className="flex flex-col items-center justify-center gap-1 absolute inset-0 bg-surface-muted">
-              <ImageIcon size={24} className="text-gray-700" />
+              <ImageIcon size={24} className="text-muted" />
               <span className="text-caption text-muted">性能模式已隐藏</span>
             </div>
           )}
@@ -372,13 +372,13 @@ function PromptNode({ id, data, selected }) {
           {error && !loading && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-red-500 z-10 bg-surface p-4 text-center">
               <AlertCircle size={32} />
-              <span className="text-xs font-medium max-w-full break-words">{error}</span>
+              <span className="text-caption font-medium max-w-full break-words">{error}</span>
               <span className="text-caption bg-surface-hover-strong hover:bg-surface-3 text-body px-3 py-1 rounded-full border border-edge-raised transition-colors">请检查设置或重试</span>
             </div>
           )}
           {!hasImage && !loading && !error && (
             <div className="flex flex-col items-center justify-center absolute inset-0 bg-surface-muted pointer-events-none">
-              <ImageIcon size={80} className="text-gray-700" strokeWidth={1.2} />
+              <ImageIcon size={80} className="text-muted" strokeWidth={1.2} />
             </div>
           )}
           <div className="absolute inset-0 bg-black/0 hover:bg-black/10 transition-colors flex items-center justify-center opacity-0 hover:opacity-100 pointer-events-none" />
@@ -414,7 +414,7 @@ function PromptNode({ id, data, selected }) {
                   <span>{aspectRatio} · {imageSize} · {qualityOptions.find((q) => q.value === quality)?.label}</span>
                 </button>
                 {showImgMenu && (
-                  <div className="absolute bottom-full left-0 mb-1 w-56 bg-surface-1 border border-edge rounded-lg shadow-xl p-3 z-50 flex flex-col gap-3" onClick={(e) => e.stopPropagation()}>
+                  <div className="absolute bottom-full left-0 mb-1 w-56 bg-surface-1 border border-edge rounded-lg shadow-popover p-3 z-dropdown flex flex-col gap-3" onClick={(e) => e.stopPropagation()}>
                     <div>
                       <div className="text-caption text-muted mb-2">画质</div>
                       <div className="flex gap-1.5">{sizeOptions.map((s) => <button key={s} type="button" className={`flex-1 py-1.5 text-caption-sm rounded-md border transition-colors ${imageSize === s ? 'bg-surface-hover-strong border-edge-strong text-white' : 'bg-surface border-transparent text-secondary hover:bg-surface-hover'}`} onClick={() => { setShowImgMenu(false); setImageSize(s); setImgPrefs({ imageSize: s }); requestAnimationFrame(() => patchData({ imageSize: s })) }}>{s}</button>)}</div>
@@ -452,7 +452,7 @@ function PromptNode({ id, data, selected }) {
                     <span>x{count}</span>
                   </button>
                   {showCountMenu && (
-                    <div className="absolute bottom-full right-0 mb-1 w-16 bg-surface-1 border border-edge rounded-lg shadow-xl p-1 z-50 flex flex-col gap-0.5" onClick={(e) => e.stopPropagation()}>
+                    <div className="absolute bottom-full right-0 mb-1 w-16 bg-surface-1 border border-edge rounded-lg shadow-popover p-1 z-dropdown flex flex-col gap-0.5" onClick={(e) => e.stopPropagation()}>
                       {[1, 2, 3, 4, 5].map((n) => <button key={n} className={`w-full text-center py-1.5 text-caption-sm rounded-md transition-colors ${count === n ? 'bg-surface-hover-strong text-white' : 'text-secondary hover:bg-surface-hover hover:text-primary'}`} onClick={(e) => { e.stopPropagation(); setCount(n); setShowCountMenu(false) }}>x{n}</button>)}
                     </div>
                   )}
