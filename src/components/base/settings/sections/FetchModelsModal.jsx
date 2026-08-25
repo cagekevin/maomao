@@ -101,11 +101,11 @@ export default function FetchModelsModal({ open, fetched, existing, fetching, on
               <Check size={18} className="text-blue-400" />
             </div>
             <div>
-              <h3 className="text-sm text-white font-medium">选择要保存的模型</h3>
-              <p className="text-xs text-zinc-500 mt-0.5">默认不勾选，勾选需要保留的模型，点「确定」才写入</p>
+              <h3 className="text-sm text-strong font-medium">选择要保存的模型</h3>
+              <p className="text-xs text-muted mt-0.5">默认不勾选，勾选需要保留的模型，点「确定」才写入</p>
             </div>
           </div>
-          <button type="button" onClick={onClose} className="text-zinc-500 hover:text-white transition-colors border-none bg-transparent cursor-pointer p-1" title="关闭">
+          <button type="button" onClick={onClose} className="text-muted hover:text-strong transition-colors border-none bg-transparent cursor-pointer p-1" title="关闭">
             <X size={18} />
           </button>
         </div>
@@ -113,15 +113,15 @@ export default function FetchModelsModal({ open, fetched, existing, fetching, on
         {/* 搜索 + 已选统计 */}
         <div className="px-6 py-3 border-b border-edge-subtle flex items-center gap-3 shrink-0">
           <div className="relative flex-1">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-600" />
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
             <input
               value={keyword}
               onChange={(e) => setKeyword(e.target.value)}
               placeholder="过滤模型名…"
-              className="w-full bg-canvas border border-edge rounded-xl pl-9 pr-3 py-2 text-sm text-zinc-200 outline-none focus:border-blue-500 transition-colors placeholder:text-zinc-600"
+              className="w-full bg-canvas border border-edge rounded-xl pl-9 pr-3 py-2 text-sm text-body outline-none focus:border-blue-500 transition-colors placeholder:text-muted"
             />
           </div>
-          <span className="text-xs text-zinc-400 whitespace-nowrap">已选 <span className="text-blue-400 font-medium">{totalSelected}</span> / 共 {totalAll}</span>
+          <span className="text-xs text-secondary whitespace-nowrap">已选 <span className="text-blue-400 font-medium">{totalSelected}</span> / 共 {totalAll}</span>
         </div>
 
         {/* tab 栏 */}
@@ -135,11 +135,11 @@ export default function FetchModelsModal({ open, fetched, existing, fetching, on
                 key={cat.key}
                 type="button"
                 onClick={() => setTabKey(cat.key)}
-                className={`inline-flex items-center gap-1.5 px-3.5 h-9 text-xs rounded-t-lg border-b-2 transition-colors cursor-pointer border-none ${active ? 'text-white border-blue-500 bg-canvas/60' : 'text-zinc-500 border-transparent hover:text-zinc-300'}`}
+                className={`inline-flex items-center gap-1.5 px-3.5 h-9 text-xs rounded-t-lg border-b-2 transition-colors cursor-pointer border-none ${active ? 'text-strong border-blue-500 bg-canvas/60' : 'text-muted border-transparent hover:text-body'}`}
               >
-                <Icon size={14} className={active ? 'text-blue-400' : 'text-zinc-600'} />
+                <Icon size={14} className={active ? 'text-blue-400' : 'text-muted'} />
                 {cat.label}
-                <span className={`ml-0.5 px-1.5 rounded-full text-[10px] ${active ? 'bg-blue-500/20 text-blue-300' : 'bg-surface-1 text-zinc-500'}`}>{cnt}</span>
+                <span className={`ml-0.5 px-1.5 rounded-full text-[10px] ${active ? 'bg-blue-500/20 text-blue-300' : 'bg-surface-1 text-muted'}`}>{cnt}</span>
               </button>
             )
           })}
@@ -155,7 +155,7 @@ export default function FetchModelsModal({ open, fetched, existing, fetching, on
             return (
               <div key={cat.key}>
                 <div className="flex items-center justify-between mb-2">
-                  <label className="text-xs text-zinc-400 inline-flex items-center gap-1.5 cursor-pointer select-none hover:text-zinc-200">
+                  <label className="text-xs text-secondary inline-flex items-center gap-1.5 cursor-pointer select-none hover:text-body">
                     <input
                       type="checkbox"
                       checked={allChecked}
@@ -165,14 +165,14 @@ export default function FetchModelsModal({ open, fetched, existing, fetching, on
                     />
                     全选本类
                   </label>
-                  <span className="text-xs text-zinc-600">已选 {selCount} / {all.length}</span>
+                  <span className="text-xs text-muted">已选 {selCount} / {all.length}</span>
                 </div>
                 {all.length === 0 ? (
-                  <div className="text-xs text-zinc-600 py-6 text-center bg-canvas/40 border border-dashed border-edge rounded-xl">无此类模型</div>
+                  <div className="text-xs text-muted py-6 text-center bg-canvas/40 border border-dashed border-edge rounded-xl">无此类模型</div>
                 ) : (
                   <table className="w-full border-collapse text-sm">
                     <thead>
-                      <tr className="text-left text-[11px] text-zinc-500 border-b border-edge-subtle">
+                      <tr className="text-left text-[11px] text-muted border-b border-edge-subtle">
                         <th className="w-10 py-2 pl-2 font-normal">选</th>
                         <th className="py-2 font-normal">模型名</th>
                         <th className="py-2 pr-2 font-normal">ID</th>
@@ -189,18 +189,18 @@ export default function FetchModelsModal({ open, fetched, existing, fetching, on
                             className={`border-b border-edge-subtle/60 cursor-pointer transition-colors ${checked ? 'bg-blue-500/5' : 'hover:bg-surface-1'}`}
                           >
                             <td className="py-2 pl-2">
-                              <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors ${checked ? 'bg-blue-500 border-blue-500' : 'border-zinc-600'}`}>
-                                {checked && <Check size={12} className="text-white" />}
+                              <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-colors ${checked ? 'bg-blue-500 border-blue-500' : 'border-muted'}`}>
+                                {checked && <Check size={12} className="text-strong" />}
                               </span>
                             </td>
-                            <td className="py-2 text-zinc-200 truncate">{modelLabel(m)}</td>
-                            <td className="py-2 pr-2 text-[11px] text-zinc-600 truncate max-w-[220px]">{id}</td>
+                            <td className="py-2 text-body truncate">{modelLabel(m)}</td>
+                            <td className="py-2 pr-2 text-[11px] text-muted truncate max-w-[220px]">{id}</td>
                           </tr>
                         )
                       })}
                       {filtered.length === 0 && (
                         <tr>
-                          <td colSpan={3} className="text-xs text-zinc-600 py-3 text-center">无匹配「{keyword}」的模型</td>
+                          <td colSpan={3} className="text-xs text-muted py-3 text-center">无匹配「{keyword}」的模型</td>
                         </tr>
                       )}
                     </tbody>
@@ -216,7 +216,7 @@ export default function FetchModelsModal({ open, fetched, existing, fetching, on
           <button
             type="button"
             onClick={onClose}
-            className="px-4 h-9 text-xs rounded-xl bg-surface-1 text-zinc-300 hover:bg-surface-hover transition-colors cursor-pointer border-none"
+            className="px-4 h-9 text-xs rounded-xl bg-surface-1 text-body hover:bg-surface-hover transition-colors cursor-pointer border-none"
           >
             取消
           </button>

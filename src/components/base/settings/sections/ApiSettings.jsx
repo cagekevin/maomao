@@ -64,18 +64,18 @@ export default function ApiSettings() {
       {/* 顶部操作栏 */}
       <div className="bg-surface border border-edge-subtle rounded-xl px-6 py-5 flex items-center justify-between">
         <div>
-          <h2 className="text-sm text-white font-medium flex items-center gap-2">
-            <Server size={17} className="text-zinc-400" /> 第三方 API 配置
+          <h2 className="settings-page-title flex items-center gap-2">
+            <Server size={17} className="text-secondary" /> 第三方 API 配置
           </h2>
-          <p className="text-xs text-zinc-500 mt-1">管理各供应商的连接、密钥与模型清单，统一分派画布请求</p>
+          <p className="text-xs text-muted mt-1">管理各供应商的连接、密钥与模型清单，统一分派画布请求</p>
         </div>
         <div className="flex items-center gap-3">
-          {dirty && <span className="text-xs text-yellow-400">有未保存的修改</span>}
+          {dirty && <span className="text-xs text-red-400">有未保存的修改</span>}
           <button
             type="button"
             onClick={handleSave}
             disabled={saving || !dirty}
-            className="inline-flex items-center gap-2 px-4 h-9 text-xs font-medium bg-white text-black rounded-xl hover:bg-zinc-200 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer border-none"
+            className="inline-flex items-center gap-2 px-4 h-9 text-xs font-medium bg-white text-black rounded-xl hover:bg-gray-200 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer border-none"
           >
             <Check size={14} /> {saving ? '保存中…' : '保存更改'}
           </button>
@@ -91,28 +91,28 @@ export default function ApiSettings() {
             <button
               type="button"
               onClick={() => handleTabChange('general')}
-              className={`flex-1 flex items-center justify-center gap-1.5 h-8 rounded-md transition-colors cursor-pointer border-none ${tab === 'general' ? 'bg-surface-hover text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
+              className={`flex-1 flex items-center justify-center gap-1.5 h-8 rounded-md transition-colors cursor-pointer border-none ${tab === 'general' ? 'bg-surface-hover text-strong' : 'text-muted hover:text-body'}`}
             >
               <Layers size={13} /> 通用平台
             </button>
             <button
               type="button"
               onClick={() => handleTabChange('special')}
-              className={`flex-1 flex items-center justify-center gap-1.5 h-8 rounded-md transition-colors cursor-pointer border-none ${tab === 'special' ? 'bg-surface-hover text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
+              className={`flex-1 flex items-center justify-center gap-1.5 h-8 rounded-md transition-colors cursor-pointer border-none ${tab === 'special' ? 'bg-surface-hover text-strong' : 'text-muted hover:text-body'}`}
             >
               <Boxes size={13} /> 平台专属
             </button>
           </div>
           <div className="bg-surface border border-edge-subtle rounded-xl overflow-hidden">
             <div className="px-4 py-3.5 border-b border-edge-subtle flex items-center justify-between">
-              <span className="text-sm text-zinc-200">{tab === 'general' ? '通用平台' : '平台专属'}</span>
-              <span className="text-xs text-zinc-500 bg-surface-1 px-2 py-0.5 rounded-full">{tabProviders.length}</span>
+              <span className="text-sm text-body">{tab === 'general' ? '通用平台' : '平台专属'}</span>
+              <span className="text-xs text-muted bg-surface-1 px-2 py-0.5 rounded-full">{tabProviders.length}</span>
             </div>
             <div className="p-2 space-y-1">
               {loading ? (
-                <div className="text-center text-xs text-zinc-500 py-6">加载中…</div>
+                <div className="text-center text-xs text-muted py-6">加载中…</div>
               ) : tabProviders.length === 0 ? (
-                <div className="text-center text-xs text-zinc-500 py-6 border border-dashed border-edge rounded-lg">暂无供应商</div>
+                <div className="text-center text-xs text-muted py-6 border border-dashed border-edge rounded-lg">暂无供应商</div>
               ) : (
                 tabProviders.map((p) => (
                   <ProviderListItem
@@ -129,7 +129,7 @@ export default function ApiSettings() {
           <button
             type="button"
             onClick={handleAdd}
-            className="w-full h-9 bg-surface-1 text-zinc-400 rounded-xl hover:bg-surface-hover hover:text-zinc-200 transition-colors text-xs inline-flex items-center justify-center gap-1.5 cursor-pointer border-none"
+            className="w-full h-9 bg-surface-1 text-secondary rounded-xl hover:bg-surface-hover hover:text-body transition-colors text-xs inline-flex items-center justify-center gap-1.5 cursor-pointer border-none"
           >
             <Plus size={14} /> 添加{tab === 'general' ? '通用' : '专属'}平台
           </button>
@@ -138,20 +138,20 @@ export default function ApiSettings() {
         {/* 右侧：编辑面板 */}
         <main className="flex-1 min-w-0">
           {!selected ? (
-            <div className="bg-surface border border-dashed border-edge rounded-xl py-16 text-center text-sm text-zinc-500">请选择或添加一个供应商进行配置</div>
+            <div className="bg-surface border border-dashed border-edge rounded-xl py-16 text-center text-sm text-muted">请选择或添加一个供应商进行配置</div>
           ) : (
             <div className="flex flex-col gap-4">
               {/* 当前供应商 header */}
               <div className="bg-surface border border-edge-subtle rounded-xl px-6 py-5 flex items-center gap-3">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <h3 className="text-base text-white font-medium truncate">{selected.name || '未命名供应商'}</h3>
-                    {selected.primary && <Star size={14} className="text-zinc-400 fill-zinc-400" />}
-                    {selected.readonly && <span className="text-[10px] text-zinc-500 bg-surface-1 px-1.5 py-0.5 rounded-md">内置</span>}
+                    <h3 className="text-base text-strong font-medium truncate">{selected.name || '未命名供应商'}</h3>
+                    {selected.primary && <Star size={14} className="text-secondary fill-secondary" />}
+                    {selected.readonly && <span className="text-[10px] text-muted bg-surface-1 px-1.5 py-0.5 rounded-md">内置</span>}
                   </div>
-                  <p className="text-xs text-zinc-500 mt-1 truncate">{selected.base_url || '未设置请求地址'}</p>
+                  <p className="text-xs text-muted mt-1 truncate">{selected.base_url || '未设置请求地址'}</p>
                 </div>
-                <span className={`text-xs px-2.5 py-1 rounded-full ${selected.protocol === 'openai' ? 'text-emerald-400 bg-emerald-500/10' : selected.protocol === 'apimart' ? 'text-sky-400 bg-sky-500/10' : 'text-zinc-400 bg-surface-1'}`}>
+                <span className={`text-xs px-2.5 py-1 rounded-full ${selected.protocol === 'openai' ? 'text-emerald-400 bg-emerald-500/10' : selected.protocol === 'apimart' ? 'text-sky-400 bg-sky-500/10' : 'text-secondary bg-surface-1'}`}>
                   {PROVIDER_PROTOCOL_LABELS[selected.protocol] || selected.protocol}
                 </span>
               </div>
@@ -203,16 +203,16 @@ function ProviderListItem({ p, active, onSelect, onRemove }) {
       className={`group flex items-center gap-2 px-3 py-2.5 rounded-xl cursor-pointer transition-colors border ${active ? 'bg-surface-active border-edge' : 'border-transparent hover:bg-surface-hover'}`}
       onClick={onSelect}
     >
-      <span className={`flex-1 truncate text-sm ${active ? 'text-white' : 'text-zinc-300'}`}>{p.name || p.id}</span>
-      <span className={`text-[10px] px-1.5 py-0.5 rounded font-normal ${p.protocol === 'openai' ? 'text-emerald-400 bg-emerald-500/10' : p.protocol === 'apimart' ? 'text-sky-400 bg-sky-500/10' : 'text-zinc-500 bg-surface-1'}`}>
+      <span className={`flex-1 truncate text-sm ${active ? 'text-strong' : 'text-body'}`}>{p.name || p.id}</span>
+      <span className={`text-[10px] px-1.5 py-0.5 rounded font-normal ${p.protocol === 'openai' ? 'text-emerald-400 bg-emerald-500/10' : p.protocol === 'apimart' ? 'text-sky-400 bg-sky-500/10' : 'text-muted bg-surface-1'}`}>
         {p.protocol === 'openai' ? 'OpenAI' : p.protocol === 'apimart' ? 'apimart' : p.protocol}
       </span>
-      {p.primary && <Star size={12} className="text-zinc-400 fill-zinc-400" />}
+      {p.primary && <Star size={12} className="text-secondary fill-secondary" />}
       {!p.readonly && (
         <button
           type="button"
           onClick={(e) => { e.stopPropagation(); onRemove() }}
-          className="text-zinc-600 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity border-none bg-transparent cursor-pointer p-0.5"
+          className="text-muted hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity border-none bg-transparent cursor-pointer p-0.5"
           title="删除供应商"
         >
           <Trash2 size={13} />

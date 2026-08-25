@@ -21,15 +21,15 @@ import { PROVIDER_PROTOCOL_LABELS, CLI_PROTOCOLS, GENERAL_PROTOCOLS, SPECIAL_PRO
 const isHttpProtocol = (protocol) => !CLI_PROTOCOLS.includes(protocol)
 // 图片请求形态白名单：对应后端 SUPPORTED_IMAGE_REQUEST_MODES（4 选 1），禁止删
 const REQUEST_MODES = ['openai', 'openai-json', 'openai-video-proxy', 'openai-responses']
-const inputCls = 'w-full bg-canvas border border-edge rounded-xl px-3 py-2 text-sm text-zinc-200 focus:border-blue-500 focus:outline-none transition-colors placeholder:text-zinc-600 disabled:opacity-50'
-const selectCls = 'bg-canvas border border-edge text-zinc-300 text-sm px-3 py-2 rounded-xl outline-none focus:border-blue-500 transition-colors disabled:opacity-50'
+const inputCls = 'w-full bg-canvas border border-edge rounded-xl px-3 py-2 text-sm text-body focus:border-blue-500 focus:outline-none transition-colors placeholder:text-muted disabled:opacity-50'
+const selectCls = 'bg-canvas border border-edge text-body text-sm px-3 py-2 rounded-xl outline-none focus:border-blue-500 transition-colors disabled:opacity-50'
 
 function Section({ title, desc, children }) {
   return (
     <section className="bg-surface border border-edge-subtle rounded-xl overflow-hidden">
       <div className="px-6 py-3.5 border-b border-edge-subtle flex items-baseline justify-between">
-        <h3 className="text-sm text-zinc-200">{title}</h3>
-        {desc && <p className="text-xs text-zinc-500">{desc}</p>}
+        <h3 className="text-sm text-body">{title}</h3>
+        {desc && <p className="text-xs text-muted">{desc}</p>}
       </div>
       <div className="px-6 py-4">{children}</div>
     </section>
@@ -39,9 +39,9 @@ function Section({ title, desc, children }) {
 function Field({ label, hint, children }) {
   return (
     <label className="block">
-      <span className="block text-xs text-zinc-400 mb-1.5">{label}</span>
+      <span className="block text-xs text-secondary mb-1.5">{label}</span>
       {children}
-      {hint && <span className="block text-xs text-zinc-600 mt-1">{hint}</span>}
+      {hint && <span className="block text-xs text-muted mt-1">{hint}</span>}
     </label>
   )
 }
@@ -64,24 +64,24 @@ function ModelscopeLoraSection({ p, onUpdate }) {
     <Section title="Lora 编辑" desc="魔搭模型微调 LoRA 参数（strength 0~2）">
       <div className="flex flex-col gap-2">
         {list.length === 0 && (
-          <div className="text-xs text-zinc-600 px-3 py-2 bg-canvas border border-dashed border-edge rounded-xl">暂无 LoRA，点击「添加 LoRA」</div>
+          <div className="text-xs text-muted px-3 py-2 bg-canvas border border-dashed border-edge rounded-xl">暂无 LoRA，点击「添加 LoRA」</div>
         )}
         {list.map((l, i) => (
           <div key={i} className="grid grid-cols-[1fr_1fr_1fr_64px_56px_auto] gap-2 items-center bg-canvas border border-edge rounded-xl px-3 py-2 text-xs">
-            <input value={l.target_model || ''} onChange={(e) => patchLora(i, { target_model: e.target.value })} className="bg-transparent outline-none placeholder:text-zinc-600 text-zinc-200" placeholder="目标模型" />
-            <input value={l.name || ''} onChange={(e) => patchLora(i, { name: e.target.value })} className="bg-transparent outline-none placeholder:text-zinc-600 text-zinc-200" placeholder="名称" />
-            <input value={l.id || ''} onChange={(e) => patchLora(i, { id: e.target.value })} className="bg-transparent outline-none placeholder:text-zinc-600 text-zinc-200" placeholder="LoRA id" />
-            <input type="number" min="0" max="2" step="0.1" value={l.strength} onChange={(e) => setStrength(i, e.target.value)} className="bg-transparent outline-none text-right text-zinc-200 w-full" />
-            <label className="flex items-center justify-center gap-1 text-zinc-500 cursor-pointer">
+            <input value={l.target_model || ''} onChange={(e) => patchLora(i, { target_model: e.target.value })} className="bg-transparent outline-none placeholder:text-muted text-body" placeholder="目标模型" />
+            <input value={l.name || ''} onChange={(e) => patchLora(i, { name: e.target.value })} className="bg-transparent outline-none placeholder:text-muted text-body" placeholder="名称" />
+            <input value={l.id || ''} onChange={(e) => patchLora(i, { id: e.target.value })} className="bg-transparent outline-none placeholder:text-muted text-body" placeholder="LoRA id" />
+            <input type="number" min="0" max="2" step="0.1" value={l.strength} onChange={(e) => setStrength(i, e.target.value)} className="bg-transparent outline-none text-right text-body w-full" />
+            <label className="flex items-center justify-center gap-1 text-muted cursor-pointer">
               <input type="checkbox" checked={l.enabled !== false} onChange={(e) => patchLora(i, { enabled: e.target.checked })} className="accent-blue-500" />
               <span className="text-[10px]">启用</span>
             </label>
-            <button type="button" onClick={() => onUpdate({ ms_loras: list.filter((_, j) => j !== i) })} className="text-zinc-600 hover:text-red-500 border-none bg-transparent cursor-pointer p-1" title="删除 LoRA">
+            <button type="button" onClick={() => onUpdate({ ms_loras: list.filter((_, j) => j !== i) })} className="text-muted hover:text-red-500 border-none bg-transparent cursor-pointer p-1" title="删除 LoRA">
               <Trash2 size={13} />
             </button>
           </div>
         ))}
-        <button type="button" onClick={() => onUpdate({ ms_loras: [...list, { id: '', name: '', target_model: '', strength: 1, enabled: true, note: '' }] })} className="self-start inline-flex items-center gap-1 text-xs text-zinc-400 hover:text-white hover:bg-surface-hover px-2 py-1 rounded-md transition-colors cursor-pointer border-none bg-transparent">
+        <button type="button" onClick={() => onUpdate({ ms_loras: [...list, { id: '', name: '', target_model: '', strength: 1, enabled: true, note: '' }] })} className="self-start inline-flex items-center gap-1 text-xs text-secondary hover:text-strong hover:bg-surface-hover px-2 py-1 rounded-md transition-colors cursor-pointer border-none bg-transparent">
           添加 LoRA
         </button>
       </div>
@@ -147,10 +147,10 @@ export default function ProviderForm({ p, testing, fetching, testResult, onUpdat
         <Section title="密钥与认证" desc="Key 仅存 localTool .env，不回显明文">
           <div className="flex items-center gap-2 max-w-xl">
             <div className="relative flex-1">
-              <KeyRound size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-600" />
+              <KeyRound size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
               <input type={showKey ? 'text' : 'password'} value={keyValue} onChange={handleKeyChange} disabled={false} placeholder={hasSavedKey ? '已保存（输入新值覆盖）' : 'sk-...'} className={`${inputCls} pl-9`} />
             </div>
-            <button type="button" onClick={() => setShowKey((v) => !v)} className="p-2.5 text-zinc-400 hover:text-white hover:bg-surface-hover rounded-xl transition-colors cursor-pointer border-none bg-transparent" title={showKey ? '隐藏' : '显示'}>
+            <button type="button" onClick={() => setShowKey((v) => !v)} className="p-2.5 text-secondary hover:text-strong hover:bg-surface-hover rounded-xl transition-colors cursor-pointer border-none bg-transparent" title={showKey ? '隐藏' : '显示'}>
               {showKey ? <EyeOff size={16} /> : <Eye size={16} />}
             </button>
             {hasSavedKey && (
@@ -181,10 +181,10 @@ export default function ProviderForm({ p, testing, fetching, testResult, onUpdat
 
       <Section title="连接测试" desc="验证连通性 / 拉取远端模型">
         <div className="flex items-center gap-3 flex-wrap">
-          <button type="button" onClick={onTest} disabled={testing} className="inline-flex items-center gap-2 px-4 h-9 text-xs rounded-xl bg-surface-1 text-zinc-300 hover:bg-surface-hover hover:text-blue-400 transition-colors cursor-pointer border-none disabled:opacity-50">
+          <button type="button" onClick={onTest} disabled={testing} className="inline-flex items-center gap-2 px-4 h-9 text-xs rounded-xl bg-surface-1 text-body hover:bg-surface-hover hover:text-blue-400 transition-colors cursor-pointer border-none disabled:opacity-50">
             <RefreshCw size={14} className={testing ? 'animate-spin' : ''} /> {testing ? '测试中…' : '测试连接'}
           </button>
-          <button type="button" onClick={onFetchModels} disabled={fetching} className="inline-flex items-center gap-2 px-4 h-9 text-xs rounded-xl bg-surface-1 text-zinc-300 hover:bg-surface-hover hover:text-blue-400 transition-colors cursor-pointer border-none disabled:opacity-50">
+          <button type="button" onClick={onFetchModels} disabled={fetching} className="inline-flex items-center gap-2 px-4 h-9 text-xs rounded-xl bg-surface-1 text-body hover:bg-surface-hover hover:text-blue-400 transition-colors cursor-pointer border-none disabled:opacity-50">
             <CircleDot size={14} className={fetching ? 'animate-spin' : ''} /> {fetching ? '拉取中…' : '拉取模型'}
           </button>
           {testResult && (
@@ -210,10 +210,10 @@ export default function ProviderForm({ p, testing, fetching, testResult, onUpdat
           </button>
         )}
         {p.primary && (
-          <span className="inline-flex items-center gap-1.5 text-xs text-zinc-400"><Star size={14} className="fill-zinc-400" /> 当前主供应商</span>
+          <span className="inline-flex items-center gap-1.5 text-xs text-secondary"><Star size={14} className="fill-secondary" /> 当前主供应商</span>
         )}
         {readonly ? (
-          <span className="inline-flex items-center gap-1.5 text-xs text-zinc-500 ml-auto bg-surface-1 px-2 py-1 rounded-xl">内置平台，仅可改配置不可删除</span>
+          <span className="inline-flex items-center gap-1.5 text-xs text-muted ml-auto bg-surface-1 px-2 py-1 rounded-xl">内置平台，仅可改配置不可删除</span>
         ) : (
           <button type="button" onClick={onRemove} className="inline-flex items-center gap-2 px-4 h-9 text-xs rounded-xl ml-auto text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer border-none bg-transparent">
             <Trash2 size={14} /> 删除此配置

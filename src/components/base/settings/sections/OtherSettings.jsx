@@ -15,7 +15,7 @@ function Toggle({ checked, onChange, disabled }) {
         onChange?.(!checked)
       }}
       className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full transition-colors border-none
-        ${checked ? 'bg-cyan-400' : 'bg-zinc-700'}
+        ${checked ? 'bg-cyan-400' : 'bg-surface-2'}
         ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
     >
       <span
@@ -33,7 +33,7 @@ function SettingRow({ icon: Icon, title, desc, checked, onChange }) {
       <div className="flex items-center gap-3 min-w-0">
         {Icon && <Icon size={18} className="text-secondary shrink-0" />}
         <div className="min-w-0">
-          <div className="text-sm text-zinc-200 font-medium">{title}</div>
+          <div className="settings-page-title">{title}</div>
           {desc && <div className="text-xs text-muted mt-0.5">{desc}</div>}
         </div>
       </div>
@@ -61,12 +61,9 @@ export default function OtherSettings() {
 
   return (
     <section>
-      <h2 className="text-base font-semibold text-zinc-100 mb-1">其他设置</h2>
-      <p className="text-xs text-muted mb-4">画布显示与编辑偏好</p>
-
       <div className="space-y-4">
         {groups.map((g) => (
-          <div key={g.name} className="bg-surface-1 border border-edge rounded-2xl p-4">
+          <div key={g.name} className="bg-surface border border-edge-subtle rounded-xl p-4">
             <div className="text-xs font-medium text-secondary mb-1">{g.name}</div>
             <div className="divide-y divide-edge-subtle/60">
               {g.rows.map((row) => {

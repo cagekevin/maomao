@@ -21,7 +21,7 @@ const MODEL_CATS = [
 // 单模型协议可选值（与后端 providers.ts PER_MODEL_PROTOCOL_OPTIONS 一致）：空串=默认即删键
 const PROTOCOL_OPTIONS = ['', 'openai', 'gemini']
 
-const inputCls = 'bg-transparent text-zinc-200 text-sm outline-none nodrag placeholder:text-zinc-600 disabled:opacity-60 w-full'
+const inputCls = 'bg-transparent text-body text-sm outline-none nodrag placeholder:text-muted disabled:opacity-60 w-full'
 const ID_PLACEHOLDER = '模型名（必填，如 gpt-image-2）'
 
 /** 该 model id 是否仍被某模型列表引用（排除 (excludeCat, excludeIdx) 那一个）。 */
@@ -103,8 +103,8 @@ export default function ModelSection({ p, onUpdate }) {
   return (
     <section className="bg-surface border border-edge-subtle rounded-xl overflow-hidden">
       <div className="px-6 py-3.5 border-b border-edge-subtle flex items-baseline justify-between">
-        <h3 className="text-sm text-zinc-200">模型清单</h3>
-        <p className="text-xs text-zinc-500">按能力分类管理可用模型</p>
+        <h3 className="text-sm text-body">模型清单</h3>
+        <p className="text-xs text-muted">按能力分类管理可用模型</p>
       </div>
       <div className="px-6 py-4">
         <div className="space-y-4">
@@ -117,13 +117,13 @@ export default function ModelSection({ p, onUpdate }) {
             return (
               <div key={cat.key}>
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs text-zinc-400 inline-flex items-center gap-1.5"><Icon size={14} className="text-zinc-500" /> {cat.label}（{models.length}）</span>
-                  <button type="button" onClick={() => onUpdate({ [cat.key]: [...models, { id: '' }] })} className="inline-flex items-center gap-1 text-xs text-zinc-400 hover:text-white hover:bg-surface-hover px-2 py-1 rounded-md transition-colors cursor-pointer border-none bg-transparent">
+                  <span className="text-xs text-secondary inline-flex items-center gap-1.5"><Icon size={14} className="text-muted" /> {cat.label}（{models.length}）</span>
+                  <button type="button" onClick={() => onUpdate({ [cat.key]: [...models, { id: '' }] })} className="inline-flex items-center gap-1 text-xs text-secondary hover:text-strong hover:bg-surface-hover px-2 py-1 rounded-md transition-colors cursor-pointer border-none bg-transparent">
                     <Plus size={12} /> 添加
                   </button>
                 </div>
                 {models.length === 0 ? (
-                  <div className="text-xs text-zinc-600 py-2 px-3 bg-canvas border border-dashed border-edge rounded-xl">暂无模型，可点击「拉取模型」自动获取，或点「添加」手动填写</div>
+                  <div className="text-xs text-muted py-2 px-3 bg-canvas border border-dashed border-edge rounded-xl">暂无模型，可点击「拉取模型」自动获取，或点「添加」手动填写</div>
                 ) : (
                   <div className="flex flex-col gap-1.5">
                     {models.map((m, i) => (
@@ -143,16 +143,16 @@ export default function ModelSection({ p, onUpdate }) {
                             value={m.label || ''}
                             onChange={(e) => patchItem(i, { label: e.target.value })}
                             placeholder="显示名（可选）"
-                            className={`${inputCls} text-zinc-400`}
+                            className={`${inputCls} text-secondary`}
                           />
                         </div>
                         {showProtocol && (
                           <div className="w-24 shrink-0 border-l border-edge pl-2 flex items-center gap-1">
-                            <span className="text-[10px] text-zinc-600 shrink-0">协议</span>
+                            <span className="text-[10px] text-muted shrink-0">协议</span>
                             <select
                               value={(p.model_protocols && p.model_protocols[m.id]) || ''}
                               onChange={(e) => setModelProtocol(cat.key, m.id, e.target.value)}
-                              className="bg-transparent text-zinc-400 text-xs outline-none border-none cursor-pointer"
+                              className="bg-transparent text-secondary text-xs outline-none border-none cursor-pointer"
                             >
                               <option value="">默认</option>
                               <option value="openai">OpenAI</option>
@@ -160,7 +160,7 @@ export default function ModelSection({ p, onUpdate }) {
                             </select>
                           </div>
                         )}
-                        <button type="button" onClick={() => removeItem(cat.key, i)} className="text-zinc-600 hover:text-red-500 opacity-0 group-hover/model:opacity-100 transition-opacity border-none bg-transparent cursor-pointer shrink-0" title="删除模型">
+                        <button type="button" onClick={() => removeItem(cat.key, i)} className="text-muted hover:text-red-500 opacity-0 group-hover/model:opacity-100 transition-opacity border-none bg-transparent cursor-pointer shrink-0" title="删除模型">
                           <Trash2 size={14} />
                         </button>
                       </div>

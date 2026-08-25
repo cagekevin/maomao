@@ -6,7 +6,7 @@ import { downloadBlob } from '../../clipboard.js'
 import { createImeInput } from '../../utils.js'
 
 const inputCls =
-  'w-full bg-canvas border border-edge text-zinc-200 text-sm px-3 py-2.5 rounded-xl outline-none placeholder:text-zinc-600 focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/10 transition disabled:opacity-50'
+  'w-full bg-canvas border border-edge text-body text-sm px-3 py-2.5 rounded-xl outline-none placeholder:text-muted focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/10 transition disabled:opacity-50'
 
 function emptyForm() {
   return { id: '', name: '', description: '', content: '' }
@@ -25,7 +25,7 @@ function Toggle({ checked, onChange, disabled }) {
         onChange?.(!checked)
       }}
       className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full transition-colors border-none
-        ${checked ? 'bg-cyan-400' : 'bg-zinc-700'}
+        ${checked ? 'bg-cyan-400' : 'bg-surface-2'}
         ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
     >
       <span
@@ -227,13 +227,13 @@ export default function SkillSettings() {
       {/* Header */}
       <div className="px-6 py-5 border-b border-edge-subtle flex items-center justify-between">
         <div>
-          <h3 className="text-sm text-white font-medium flex items-center gap-2">
-            <Bot size={17} className="text-zinc-400" />
+          <h3 className="settings-page-title flex items-center gap-2">
+            <Bot size={17} className="text-secondary" />
             Skill Library
           </h3>
-          <p className="text-xs text-zinc-500 mt-1">管理 AI 助手能力模块</p>
+          <p className="text-xs text-muted mt-1">管理 AI 助手能力模块</p>
         </div>
-        <div className="px-3 py-1.5 rounded-full bg-surface-1 text-xs text-zinc-400">
+        <div className="px-3 py-1.5 rounded-full bg-surface-1 text-xs text-secondary">
           {allSkills.length} Skills
         </div>
       </div>
@@ -244,7 +244,7 @@ export default function SkillSettings() {
           {/* 搜索 */}
           <div className="p-4">
             <div className="relative">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
               <input
                 value={keyword}
                 onChange={(e) => {
@@ -254,7 +254,7 @@ export default function SkillSettings() {
                 onCompositionEnd={(e) => searchIme.current?.onCompositionEnd(e.target.value)}
                 onBlur={() => searchIme.current?.cancel()}
                 placeholder="搜索技能"
-                className="w-full h-9 bg-canvas border border-edge rounded-xl pl-9 pr-3 text-xs text-zinc-300 outline-none focus:border-blue-500/50"
+                className="w-full h-9 bg-canvas border border-edge rounded-xl pl-9 pr-3 text-xs text-body outline-none focus:border-blue-500/50"
               />
             </div>
           </div>
@@ -263,7 +263,7 @@ export default function SkillSettings() {
           <div className="px-4 pb-3">
             <button
               onClick={handleNew}
-              className="w-full h-9 rounded-xl bg-surface-1 text-xs text-zinc-200 flex items-center justify-center gap-1.5 hover:bg-surface-hover transition cursor-pointer border-none"
+              className="w-full h-9 rounded-xl bg-surface-1 text-xs text-body flex items-center justify-center gap-1.5 hover:bg-surface-hover transition cursor-pointer border-none"
             >
               <Plus size={14} /> 新建技能
             </button>
@@ -273,10 +273,10 @@ export default function SkillSettings() {
           <div className="flex-1 overflow-y-auto px-3 pb-4 space-y-4">
             {/* 个人（自定义） */}
             <div>
-              <div className="px-2 pb-1.5 text-[11px] text-zinc-500 uppercase tracking-wider">个人</div>
+              <div className="px-2 pb-1.5 text-[11px] text-muted uppercase tracking-wider">个人</div>
               <div className="space-y-0.5">
                 {personalSkills.length === 0 ? (
-                  <div className="px-3 py-2 text-xs text-zinc-600">暂无自定义技能</div>
+                  <div className="px-3 py-2 text-xs text-muted">暂无自定义技能</div>
                 ) : (
                   personalSkills.map((skill) => {
                     const active = skill.id === selectedId && !isNew
@@ -288,8 +288,8 @@ export default function SkillSettings() {
                           ${active ? 'bg-surface-active border border-edge' : 'border border-transparent hover:bg-surface-hover'}`}
                         onClick={() => handleSelect(skill)}
                       >
-                        <Bot size={14} className="shrink-0 text-zinc-400" />
-                        <span className="flex-1 text-sm text-zinc-200 truncate">{skill.name}</span>
+                        <Bot size={14} className="shrink-0 text-secondary" />
+                        <span className="flex-1 text-sm text-body truncate">{skill.name}</span>
                         <Toggle
                           checked={enabled}
                           onChange={(v) => handleToggle(skill.id, v)}
@@ -303,10 +303,10 @@ export default function SkillSettings() {
 
             {/* 官方（内置） */}
             <div>
-              <div className="px-2 pb-1.5 text-[11px] text-zinc-500 uppercase tracking-wider">官方</div>
+              <div className="px-2 pb-1.5 text-[11px] text-muted uppercase tracking-wider">官方</div>
               <div className="space-y-0.5">
                 {officialSkills.length === 0 ? (
-                  <div className="px-3 py-2 text-xs text-zinc-600">暂无内置技能</div>
+                  <div className="px-3 py-2 text-xs text-muted">暂无内置技能</div>
                 ) : (
                   officialSkills.map((skill) => {
                     const active = skill.id === selectedId && !isNew
@@ -318,8 +318,8 @@ export default function SkillSettings() {
                           ${active ? 'bg-surface-active border border-edge' : 'border border-transparent hover:bg-surface-hover'}`}
                         onClick={() => handleSelect(skill)}
                       >
-                        <Bot size={14} className="shrink-0 text-zinc-400" />
-                        <span className="flex-1 text-sm text-zinc-200 truncate">{skill.name}</span>
+                        <Bot size={14} className="shrink-0 text-secondary" />
+                        <span className="flex-1 text-sm text-body truncate">{skill.name}</span>
                         <Toggle
                           checked={enabled}
                           onChange={(v) => handleToggle(skill.id, v)}
@@ -337,7 +337,7 @@ export default function SkillSettings() {
             <input ref={mdFileRef} type="file" accept=".md,.markdown,.txt" multiple onChange={handleMdImport} className="hidden" />
             <button
               onClick={() => mdFileRef.current?.click()}
-              className="flex-1 h-8 rounded-lg bg-surface-1 text-xs text-zinc-300 flex items-center justify-center gap-1.5 hover:bg-surface-hover transition cursor-pointer border-none"
+              className="flex-1 h-8 rounded-lg bg-surface-1 text-xs text-body flex items-center justify-center gap-1.5 hover:bg-surface-hover transition cursor-pointer border-none"
               title="导入 .md 为自定义 Skill"
             >
               <Upload size={13} /> 导入
@@ -345,7 +345,7 @@ export default function SkillSettings() {
             <button
               onClick={handleMdExport}
               disabled={!selected && !(isNew && form.name)}
-              className="flex-1 h-8 rounded-lg bg-surface-1 text-xs text-zinc-300 flex items-center justify-center gap-1.5 hover:bg-surface-hover transition cursor-pointer border-none disabled:opacity-40 disabled:cursor-not-allowed"
+              className="flex-1 h-8 rounded-lg bg-surface-1 text-xs text-body flex items-center justify-center gap-1.5 hover:bg-surface-hover transition cursor-pointer border-none disabled:opacity-40 disabled:cursor-not-allowed"
               title="导出当前 Skill 为 .md"
             >
               <Download size={13} /> 导出
@@ -359,26 +359,26 @@ export default function SkillSettings() {
             {!showDetail ? (
               <div className="h-full flex flex-col items-center justify-center text-center px-8">
                 <div className="w-14 h-14 rounded-2xl bg-surface-1 flex items-center justify-center mb-4">
-                  <Sparkles size={25} className="text-zinc-500" />
+                  <Sparkles size={25} className="text-muted" />
                 </div>
-                <p className="text-sm text-zinc-400">选择一个技能</p>
-                <p className="text-xs text-zinc-600 mt-1">查看或编辑 AI 能力配置</p>
+                <p className="text-sm text-secondary">选择一个技能</p>
+                <p className="text-xs text-muted mt-1">查看或编辑 AI 能力配置</p>
               </div>
             ) : editing || isNew ? (
               /* 编辑态 */
               <div className="p-6 max-w-3xl mx-auto">
                 <div className="flex items-center justify-between mb-6">
                   <div>
-                    <h2 className="text-base text-white font-medium">
+                    <h2 className="text-base text-strong font-medium">
                       {isNew ? '新建技能' : '编辑技能'}
                     </h2>
-                    <p className="text-xs text-zinc-500 mt-1">
+                    <p className="text-xs text-muted mt-1">
                       {isNew ? '创建一个新的自定义 Skill' : '修改 Skill 配置'}
                     </p>
                   </div>
                   <button
                     onClick={handleClose}
-                    className="w-9 h-9 rounded-xl bg-surface-1 flex items-center justify-center text-zinc-400 hover:text-white hover:bg-surface-hover transition cursor-pointer border-none"
+                    className="w-9 h-9 rounded-xl bg-surface-1 flex items-center justify-center text-secondary hover:text-strong hover:bg-surface-hover transition cursor-pointer border-none"
                     title="关闭"
                   >
                     <X size={16} />
@@ -387,7 +387,7 @@ export default function SkillSettings() {
 
                 <div className="bg-surface-1 border border-edge rounded-2xl p-5 space-y-4">
                   <label>
-                    <span className="block text-xs text-zinc-400 mb-2">名称</span>
+                    <span className="block text-xs text-secondary mb-2">名称</span>
                     <input
                       value={form.name}
                       onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
@@ -397,7 +397,7 @@ export default function SkillSettings() {
                   </label>
 
                   <label>
-                    <span className="block text-xs text-zinc-400 mb-2">描述</span>
+                    <span className="block text-xs text-secondary mb-2">描述</span>
                     <input
                       value={form.description}
                       onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
@@ -407,15 +407,15 @@ export default function SkillSettings() {
                   </label>
 
                   <label>
-                    <span className="block text-xs text-zinc-400 mb-2">AI Instructions</span>
+                    <span className="block text-xs text-secondary mb-2">AI Instructions</span>
                     <div className="relative">
                       <textarea
                         value={form.content}
                         onChange={(e) => setForm((f) => ({ ...f, content: e.target.value }))}
                         placeholder="输入 AI 助手需要长期遵循的行为规则..."
-                        className="w-full min-h-[340px] bg-canvas border border-edge rounded-xl p-3 text-sm text-zinc-200 placeholder:text-zinc-600 outline-none resize-none focus:border-blue-500/50 transition"
+                        className="w-full min-h-[340px] bg-canvas border border-edge rounded-xl p-3 text-sm text-body placeholder:text-muted outline-none resize-none focus:border-blue-500/50 transition"
                       />
-                      <span className="absolute right-3 bottom-3 text-[10px] text-zinc-600">Skill Prompt</span>
+                      <span className="absolute right-3 bottom-3 text-[10px] text-muted">Skill Prompt</span>
                     </div>
                   </label>
                 </div>
@@ -426,7 +426,7 @@ export default function SkillSettings() {
                 {/* 顶部标题 + 操作 */}
                 <div className="flex items-start justify-between gap-4 mb-6">
                   <div className="min-w-0">
-                    <h2 className="text-lg text-white font-medium truncate">{selected?.name}</h2>
+                    <h2 className="text-lg text-strong font-medium truncate">{selected?.name}</h2>
                     <div className="mt-1.5 flex items-center gap-2">
                       <span className={`text-[10px] px-2 py-0.5 rounded-full ${
                         selected?.builtin
@@ -435,7 +435,7 @@ export default function SkillSettings() {
                       }`}>
                         {selected?.builtin ? '官方内置' : '自定义'}
                       </span>
-                      <span className="text-[11px] text-zinc-500">
+                      <span className="text-[11px] text-muted">
                         {getEnabled(selected?.id) ? '已启用' : '已关闭'}
                       </span>
                     </div>
@@ -450,7 +450,7 @@ export default function SkillSettings() {
                     {!selected?.builtin && (
                       <button
                         onClick={handleStartEdit}
-                        className="px-4 h-9 rounded-xl bg-surface-1 text-xs text-zinc-200 font-medium flex items-center justify-center gap-1.5 hover:bg-surface-hover transition cursor-pointer border-none"
+                        className="px-4 h-9 rounded-xl bg-surface-1 text-xs text-body font-medium flex items-center justify-center gap-1.5 hover:bg-surface-hover transition cursor-pointer border-none"
                       >
                         <Pencil size={13} /> 编辑
                       </button>
@@ -458,7 +458,7 @@ export default function SkillSettings() {
                     <span ref={moreRef} className="relative">
                       <button
                         onClick={() => setMoreOpen((v) => !v)}
-                        className="w-9 h-9 rounded-xl bg-surface-1 flex items-center justify-center text-zinc-400 hover:text-white hover:bg-surface-hover transition cursor-pointer border-none"
+                        className="w-9 h-9 rounded-xl bg-surface-1 flex items-center justify-center text-secondary hover:text-strong hover:bg-surface-hover transition cursor-pointer border-none"
                         title="更多"
                       >
                         <MoreHorizontal size={16} />
@@ -470,7 +470,7 @@ export default function SkillSettings() {
                               handleMdExport()
                               setMoreOpen(false)
                             }}
-                            className="w-full flex items-center gap-2 px-3 py-2 text-xs text-zinc-300 hover:bg-surface-hover hover:text-white transition cursor-pointer border-none text-left"
+                            className="w-full flex items-center gap-2 px-3 py-2 text-xs text-body hover:bg-surface-hover hover:text-strong transition cursor-pointer border-none text-left"
                           >
                             <Download size={14} /> 下载
                           </button>
@@ -490,7 +490,7 @@ export default function SkillSettings() {
                     </span>
                     <button
                       onClick={handleClose}
-                      className="w-9 h-9 rounded-xl bg-surface-1 flex items-center justify-center text-zinc-400 hover:text-white hover:bg-surface-hover transition cursor-pointer border-none"
+                      className="w-9 h-9 rounded-xl bg-surface-1 flex items-center justify-center text-secondary hover:text-strong hover:bg-surface-hover transition cursor-pointer border-none"
                       title="关闭"
                     >
                       <X size={16} />
@@ -500,16 +500,16 @@ export default function SkillSettings() {
 
                 {/* 技能描述 */}
                 <div className="mb-6">
-                  <h3 className="text-sm text-zinc-500 mb-2">技能描述</h3>
-                  <p className="text-sm text-zinc-200 leading-relaxed whitespace-pre-wrap">
+                  <h3 className="text-sm text-muted mb-2">技能描述</h3>
+                  <p className="text-sm text-body leading-relaxed whitespace-pre-wrap">
                     {selected?.description || '暂无描述'}
                   </p>
                 </div>
 
                 {/* 技能内容 */}
                 <div className="pt-4 border-t border-edge-subtle">
-                  <h3 className="text-sm text-zinc-500 mb-3">技能内容</h3>
-                  <div className="bg-surface-1 border border-edge rounded-xl p-4 text-sm text-zinc-200 leading-relaxed whitespace-pre-wrap max-h-[400px] overflow-y-auto">
+                  <h3 className="text-sm text-muted mb-3">技能内容</h3>
+                  <div className="bg-surface-1 border border-edge rounded-xl p-4 text-sm text-body leading-relaxed whitespace-pre-wrap max-h-[400px] overflow-y-auto">
                     {selected?.content || '暂无内容'}
                   </div>
                 </div>
@@ -533,7 +533,7 @@ export default function SkillSettings() {
               <div className="flex gap-2">
                 <button
                   onClick={cancel}
-                  className="px-4 h-9 rounded-xl text-xs text-zinc-300 bg-surface-1 hover:bg-surface-hover transition cursor-pointer border-none"
+                  className="px-4 h-9 rounded-xl text-xs text-body bg-surface-1 hover:bg-surface-hover transition cursor-pointer border-none"
                 >
                   取消
                 </button>

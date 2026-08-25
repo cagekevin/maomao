@@ -117,6 +117,11 @@
   .node-btn-settings.is-active {
     @apply bg-blue-500/15 border-blue-500/60 text-blue-300;
   }
+
+  /* 设置页：各分区/页面级标题统一类（Skill Library / AI 助手聊天模型 / 第三方 API 配置 / 其他设置 / 画布显示缩略图 / 调试模式 等共用） */
+  .settings-page-title {
+    @apply text-sm font-normal text-strong;
+  }
 }
 
 /* ===== 全局：输入控件聚焦去蓝框（统一覆盖浏览器默认 focus outline） =====

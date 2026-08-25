@@ -15,7 +15,7 @@ import SkillSettings from './SkillSettings.jsx'
  *  - Skill 管理：合并在此分区（左列表 + 右编辑）
  * 逻辑不变，仅样式统一到 Skill 面板风格。
  */
-const selectCls = 'w-full bg-canvas border border-edge text-zinc-300 text-sm px-3 py-2 rounded-xl outline-none focus:border-blue-500 transition-colors disabled:opacity-50'
+const selectCls = 'w-full bg-canvas border border-edge text-body text-sm px-3 py-2 rounded-xl outline-none focus:border-blue-500 transition-colors disabled:opacity-50'
 
 export default function AgentChatSettings() {
   const { providers } = useProviders()
@@ -83,18 +83,18 @@ export default function AgentChatSettings() {
     <>
       <section className="bg-surface border border-edge-subtle rounded-xl overflow-hidden">
         <div className="px-6 py-3.5 border-b border-edge-subtle flex items-baseline justify-between">
-          <h3 className="text-sm text-zinc-200 flex items-center gap-2"><Bot size={15} className="text-zinc-400" /> AI 助手聊天模型</h3>
-          <p className="text-xs text-zinc-500">选择画布 AI 助手的对话模型</p>
+          <h3 className="settings-page-title flex items-center gap-2"><Bot size={15} className="text-secondary" /> AI 助手聊天模型</h3>
+          <p className="text-xs text-muted">选择画布 AI 助手的对话模型</p>
         </div>
         <div className="px-6 py-4">
-          <p className="text-xs text-zinc-500 mb-4">AI 助手在画布右侧面板的对话会用这里指定的模型。默认取聊天供应商的第一个模型；可在此手动指定。</p>
+          <p className="text-xs text-muted mb-4">AI 助手在画布右侧面板的对话会用这里指定的模型。默认取聊天供应商的第一个模型；可在此手动指定。</p>
 
           {chatProviders.length === 0 ? (
-            <div className="text-xs text-zinc-500 py-6 text-center border border-dashed border-edge rounded-xl">暂无可用的聊天供应商，请先在「第三方 API 配置」添加并拉取聊天模型</div>
+            <div className="text-xs text-muted py-6 text-center border border-dashed border-edge rounded-xl">暂无可用的聊天供应商，请先在「第三方 API 配置」添加并拉取聊天模型</div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-3xl">
               <label className="block">
-                <span className="block text-xs text-zinc-400 mb-1.5">聊天供应商</span>
+                <span className="block text-xs text-secondary mb-1.5">聊天供应商</span>
                 <select value={selectedProvider?.id || ''} onChange={(e) => handleProviderChange(e.target.value)} className={selectCls}>
                   {chatProviders.map((p) => (
                     <option key={p.id} value={p.id}>
@@ -108,7 +108,7 @@ export default function AgentChatSettings() {
               </label>
 
               <label className="block">
-                <span className="block text-xs text-zinc-400 mb-1.5">聊天模型</span>
+                <span className="block text-xs text-secondary mb-1.5">聊天模型</span>
                 <select
                   value={effectiveModelId}
                   onChange={(e) => handleModelChange(e.target.value)}
@@ -124,7 +124,7 @@ export default function AgentChatSettings() {
               </label>
 
               <label className="block">
-                <span className="block text-xs text-zinc-400 mb-1.5">响应方式</span>
+                <span className="block text-xs text-secondary mb-1.5">响应方式</span>
                 <select value={streamMode} onChange={(e) => handleStreamModeChange(e.target.value)} className={selectCls}>
                   <option value="stream">流式（推荐，支持工具调用）</option>
                   <option value="non-stream">非流式（仅对话，不支持工具）</option>
@@ -144,11 +144,11 @@ export default function AgentChatSettings() {
       {/* 历史回传轮数（过渡方案·2026-08-18）：解决纯文字对话失忆 */}
       <section className="bg-surface border border-edge-subtle rounded-xl overflow-hidden">
         <div className="px-6 py-3.5 border-b border-edge-subtle flex items-baseline justify-between">
-          <h3 className="text-sm text-zinc-200 flex items-center gap-2"><Bot size={15} className="text-zinc-400" /> 历史回传轮数</h3>
-          <p className="text-xs text-zinc-500">让 AI 记得上一轮说过什么（仅文字）</p>
+          <h3 className="settings-page-title flex items-center gap-2"><Bot size={15} className="text-secondary" /> 历史回传轮数</h3>
+          <p className="text-xs text-muted">让 AI 记得上一轮说过什么（仅文字）</p>
         </div>
         <div className="px-6 py-4 max-w-3xl">
-          <p className="text-xs text-zinc-500 mb-4">AI 助手默认只处理你最新的一句话（fresh-task 机制），可能导致「先反推提示词、再让它优化」时它忘了上文。这里可让它回传最近 N 轮对话的<b className="text-zinc-300">文字</b>。图片始终以编号引用、不会真图进上下文，不影响出图安全。</p>
+          <p className="text-xs text-muted mb-4">AI 助手默认只处理你最新的一句话（fresh-task 机制），可能导致「先反推提示词、再让它优化」时它忘了上文。这里可让它回传最近 N 轮对话的<b className="text-body">文字</b>。图片始终以编号引用、不会真图进上下文，不影响出图安全。</p>
           <div className="flex items-center gap-3">
             <input
               type="number"
@@ -156,9 +156,9 @@ export default function AgentChatSettings() {
               step="1"
               value={historyTurns}
               onChange={handleHistoryTurnsChange}
-              className="w-32 bg-canvas border border-edge text-zinc-300 text-sm px-3 py-2 rounded-xl outline-none focus:border-blue-500 transition-colors"
+              className="w-32 bg-canvas border border-edge text-body text-sm px-3 py-2 rounded-xl outline-none focus:border-blue-500 transition-colors"
             />
-            <span className="text-xs text-zinc-500">
+            <span className="text-xs text-muted">
               0 = 不回传（默认行为）· 1 = 只上一轮 · 任意大 = 尽量多（约等于不限）
             </span>
           </div>
