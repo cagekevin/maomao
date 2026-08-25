@@ -144,6 +144,8 @@ function Canvas() {
         // P20 视窗状态恢复：快照里存了视窗（缩放/平移）则恢复，回到上次视角；
         // 无视窗（旧快照/首次）不干预，保留 ReactFlow 默认 fitView 适配全图。
         if (saved.viewport && Number.isFinite(saved.viewport.zoom)) {
+          // 快照带视窗 → 关掉初始 fitView，避免覆盖下面恢复的精准位置（P20 竞态修复）
+          setInitialFitView(false)
           setViewport({ x: saved.viewport.x, y: saved.viewport.y, zoom: saved.viewport.zoom }, { duration: 0 })
         }
       }
@@ -192,6 +194,11 @@ function Canvas() {
   // 仅当开启且节点数 <100 时显示 MiniMap（官方 De.length<100）。持久化到 app_settings。
   const [minimapOn, setMinimapOn] = React.useState(() => getSetting('minimapOn'))
   React.useEffect(() => { setSetting('minimapOn', minimapOn) }, [minimapOn])
+
+  // P20 视窗恢复竞态修复：加载时若快照带视窗，则初始不 fitView（否则 <ReactFlow fitView>
+  // 会在 setNodes 后下一帧自动 fitView，把你恢复的 setViewport 位置覆盖成全图适配的固定位置）。
+  // 默认 true（首次/旧快照无 viewport 时走 fitView 全图）；有视窗快照时置 false，精确恢复上次视角。
+  const [initialFitView, setInitialFitView] = React.useState(true)
 
   // 缩放性能模式开关（复刻 H_.jsx:79 ge，官方默认 true：性能模式默认开启）。
   // 从 app_settings 读入（对齐官方 Vr.jsx ei 从 app_settings 读），持久化刷新不丢。
@@ -1286,7 +1293,7 @@ function Canvas() {
           proOptions={proOptions}
           minZoom={0.05}
           maxZoom={4}
-          fitView
+          fitView={initialFitView}
           fitViewOptions={{ padding: 0.2, maxZoom: 1, minZoom: 0.05 }}
           onViewportChange={onViewportChange}
           onMoveEnd={handleViewportMoveEnd}
