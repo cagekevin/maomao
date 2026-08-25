@@ -10,7 +10,7 @@ import {
  * 独立成模块避免 App.jsx 膨胀；常量/解析工具统一复用 project.js，不在此重复定义。
  */
 
-export function GlobalSettingsPanel({ cameraAspect, onAspectChange, projectSettings, onApplySettings, maxKeyframeFrame = 0, showGrid, onToggleGrid, performanceMode, onTogglePerformance, lighting, onLightingChange }) {
+export function GlobalSettingsPanel({ cameraAspect, onAspectChange, projectSettings, onApplySettings, maxKeyframeFrame = 0, showGrid, onToggleGrid, performanceMode, onTogglePerformance, seamlessBackground, onToggleSeamless, lighting, onLightingChange }) {
   const selected = aspectSelectValue(cameraAspect)
   const [customWidth, customHeight] = customAspectParts(cameraAspect)
   const settings = projectSettings || {}
@@ -60,6 +60,7 @@ export function GlobalSettingsPanel({ cameraAspect, onAspectChange, projectSetti
           <div className="global-check-row">
             <label className={`global-check ${Boolean(showGrid) ? 'is-checked' : ''}`}><input type="checkbox" checked={Boolean(showGrid)} onChange={onToggleGrid} /><span>显示网格</span></label>
             <label className={`global-check ${Boolean(performanceMode) ? 'is-checked' : ''}`}><input type="checkbox" checked={Boolean(performanceMode)} onChange={onTogglePerformance} /><span>性能模式</span></label>
+            <label className={`global-check ${Boolean(seamlessBackground) ? 'is-checked' : ''}`}><input type="checkbox" checked={Boolean(seamlessBackground)} onChange={onToggleSeamless} /><span>无缝背景</span></label>
           </div>
         </div>
 

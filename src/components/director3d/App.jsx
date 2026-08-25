@@ -94,23 +94,29 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   AlertTriangle, Axis3D, BoxSelect, Camera, CheckCircle2, ChevronLeft, ChevronRight, Download, FileImage, FileVideo2,
-  FolderOpen, ImagePlus, Info, Magnet, Maximize2, Minimize2, Minus, MousePointer2, Move3D, Redo2,
-  RotateCw, Save, SlidersHorizontal, Undo2, Video, X, XCircle, ZoomIn,
+  FolderOpen, ImagePlus, Info, Magnet, Maximize2, Minimize2, Minus, MousePointer2, Move3D, PenLine, Redo2,
+  RotateCw, Save, SlidersHorizontal, Trash2, Undo2, Video, X, XCircle, ZoomIn,
 } from 'lucide-react'
 import { MainViewport, CameraPreview } from './Viewport.jsx'
 import { measureModelScale } from './models.jsx'
 import { AssetMenu } from './panels/AssetMenu.jsx'
 import { cloneJointPose, normalizePoseId, poseForObject, presetJoints, presetPhase, presetRoot } from './rig.js'
 import {
-  CAMERA_ID, CUSTOM_POSE_STORAGE_KEY, DEFAULT_LIGHTING, DEFAULT_PROJECT_SETTINGS, DEFAULT_REFERENCE,
-  PROJECT_STORAGE_KEY, aspectLabel, aspectValue, cameraAtFrame, cameraRotationToward, clamp, cloneProjectValue,
-  defaultShotName, exportDimensionsForAspect, initialCamera, initialCharacterKeyframes,
-  initialKeyframes, initialObjects, keyframeMaxFrame, normalizeFrameNumber,
+  CAMERA_ID, CUSTOM_POSE_STORAGE_KEY, DEFAULT_LIGHTING, DEFAULT_PATH_SETTINGS, DEFAULT_PROJECT_SETTINGS, DEFAULT_REFERENCE,
+  PROJECT_STORAGE_KEY, aspectLabel, aspectValue, bakePathKeyframes, cameraAtFrame, cameraRotationToward, clamp, cloneProjectValue,
+  createEmptyPath, countChannelKeyframes, defaultShotName, exportDimensionsForAspect, initialCamera, initialCharacterKeyframes,
+  initialKeyframes, initialObjects, keyframeMaxFrame, normalizeCameraPath, normalizeFrameNumber,
   normalizeInterpolation, normalizeLighting, normalizeProjectData, normalizeProjectSettings,
-  normalizeReference, objectAtFrame, objectKeyframeFromObject, objectsAtFrame, projectData,
+  normalizeReference, objectAtFrame, objectKeyframeFromObject, objectsAtFrame, pathActive, pathPositionAtFraction, pathTangentAtFraction, projectData,
   readCachedProject, readCustomPoses, referenceCanvasForExport, referenceImageFromFile,
+  snapshotKeysForTrack,
   timecodeAtFrame, uid, uniqueShotName, visualCenterForObject,
 } from './project.js'
+import {
+  bakeCameraPath, bakeObjectPath, clearObjectTrack, duplicateObjectTrack,
+  moveCameraFrame, moveCameraFrames, moveObjectFrame, moveObjectFrames, removeCameraFrames, removeObjectFrames,
+  setCameraInterpolation, setObjectInterpolation, upsertCameraSnapshot, upsertObjectSnapshot,
+} from './tracks.js'
 import { ToolButton } from './panels/controls.jsx'
 import { LeftSidebar } from './panels/Sidebar.jsx'
 import { Inspector } from './panels/Inspector.jsx'
@@ -153,7 +159,7 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
   const [settings, setSettings] = useState(() => normalizeProjectSettings(startupProject?.settings))
   const [shots, setShots] = useState(() => startupProject?.shots || [{
     id: 'shot-01', name: '镜头 01', thumbnail: '', fps: DEFAULT_PROJECT_SETTINGS.fps, durationSeconds: DEFAULT_PROJECT_SETTINGS.durationSeconds, loopPlayback: false,
-    objects: cloneProjectValue(initialObjects), camera: cloneProjectValue(initialCamera), lighting: cloneProjectValue(DEFAULT_LIGHTING), reference: cloneProjectValue(DEFAULT_REFERENCE), keyframes: [], objectKeyframes: {},
+    objects: cloneProjectValue(initialObjects), camera: cloneProjectValue(initialCamera), lighting: cloneProjectValue(DEFAULT_LIGHTING), reference: cloneProjectValue(DEFAULT_REFERENCE), keyframes: [], objectKeyframes: {}, paths: {},
   }])
   const [activeShotId, setActiveShotId] = useState(() => startupProject?.activeShotId || 'shot-01')
   const [objects, setObjects] = useState(() => startupProject?.objects || initialObjects)
@@ -168,6 +174,22 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
   const [reference, setReference] = useState(() => normalizeReference(startupProject?.reference))
   const [keyframes, setKeyframes] = useState(() => startupProject?.keyframes || initialKeyframes)
   const [characterKeyframes, setCharacterKeyframes] = useState(() => startupProject?.objectKeyframes || startupProject?.characterKeyframes || initialCharacterKeyframes)
+  // 当前镜头下 targetId → 运动路径表（targetId 即对象 id，摄像机用 CAMERA_ID），随镜头切换一起走
+  const [paths, setPaths] = useState(() => startupProject?.paths || {})
+  // 画线编辑：editMode='path' 表示正在为选中对象（含摄像机）画运动路径；pathDraft 为当时正在编辑的路径
+  const [editMode, setEditMode] = useState('')
+  const [pathMenuOpen, setPathMenuOpen] = useState(false)
+  // 是否处于「绘制态」：true 时左键拖动在场景里画曲线；false 为查看/调整态（可拖控制点、不画线）
+  const [pathDrawing, setPathDrawing] = useState(false)
+  const [pathDraft, setPathDraft] = useState(null)
+  // 右键菜单：{ x, y, index } index 为最近控制点下标（-1 = 空白处），用于「删除此点 / 删除整条曲线」
+  const [pathContextMenu, setPathContextMenu] = useState(null)
+  const [pathTiming, setPathTiming] = useState(() => ({
+    startSec: 0,
+    endSec: DEFAULT_PROJECT_SETTINGS.durationSeconds,
+    density: 'sparse',
+    keyframeCount: DEFAULT_PATH_SETTINGS.keyframeCount,
+  }))
   const [objectDrafts, setObjectDrafts] = useState({})
   const [currentFrame, setCurrentFrame] = useState(0)
   const [selectedKeyframe, setSelectedKeyframe] = useState(null)
@@ -181,6 +203,7 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
   const [exportProgress, setExportProgress] = useState(0)
   const [showGrid, setShowGrid] = useState(true)
   const [performanceMode, setPerformanceMode] = useState(false)
+  const [seamlessBackground, setSeamlessBackground] = useState(false)
   const [cameraView, setCameraView] = useState(false)
   const [cameraAnglePanelOpen, setCameraAnglePanelOpen] = useState(false)
   const [viewOptionsCollapsed, setViewOptionsCollapsed] = useState(false)
@@ -201,6 +224,8 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
   const exportLockRef = useRef(false)
   const historyRef = useRef(createHistoryState())
   const latestProjectRef = useRef(null)
+  // 路径烘焙去重唯一依据：target → 上一批由路径生成的帧号（同步更新，避免高频 onPathChange + React 批处理读过期闭包导致旧帧清不掉而叠加）
+  const pathFramesRef = useRef({})
 
   // 队列化 toast（剥离到 useToast.js）：每条独立 1800ms 自动消失，视觉对齐 maomao 统一通知（顶部居中、四档状态色）。
   const { toasts, setToast, dismiss } = useToast()
@@ -242,19 +267,52 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
     objectKeyframes: characterKeyframes,
   } : shot), [activeShotId, camera, characterKeyframes, keyframes, lighting, objects, reference, settings.durationSeconds, settings.fps, settings.loopPlayback, shots])
   const maxKeyframeFrame = useMemo(() => keyframeMaxFrame(keyframes, characterKeyframes), [characterKeyframes, keyframes])
+  // 对象实体类型解析：通道结构需按实体类型 flatten 成整快照数组供查找/复制（M1-C1 实体通道划分）
+  const entityTypeFor = useCallback(id => objects.find(object => object.id === id)?.type || 'object', [objects])
   const selectedKeyframeInfo = useMemo(() => {
     if (!selectedKeyframe) return null
-    const track = selectedKeyframe.kind === 'camera' ? keyframes : characterKeyframes[selectedKeyframe.trackId]
+    // M1：轨道已是通道结构（camera → {transform,lens}，object → {transform,action,skeleton}），
+    // 经读侧桥 flatten 成整快照数组后按帧查找；插值取自该帧（各通道同帧插值一致）。
+    const track = selectedKeyframe.kind === 'camera'
+      ? snapshotKeysForTrack(keyframes, 'camera')
+      : snapshotKeysForTrack(characterKeyframes[selectedKeyframe.trackId], entityTypeFor(selectedKeyframe.trackId))
     const key = track?.find(item => item.frame === selectedKeyframe.frame)
     return key ? { ...selectedKeyframe, interpolation: normalizeInterpolation(key.interpolation) } : null
-  }, [characterKeyframes, keyframes, selectedKeyframe])
-  const animatedCamera = useMemo(() => keyframes.length ? cameraAtFrame(keyframes, currentFrame, camera.aspectRatio) : camera, [keyframes, currentFrame, camera])
+  }, [characterKeyframes, entityTypeFor, keyframes, selectedKeyframe])
+  // 当前镜头相机若有运动路径，则直接沿路径「弧长匀速」取位置与朝向（贝塞尔思路：
+  // 关键帧只作时间起止，位置不在离散关键帧上分段插值，从而消除转角顿挫与走走停停）。
+  const cameraPathSnapshot = useCallback(frame => {
+    const path = paths[CAMERA_ID]
+    if (!path || !Array.isArray(path.points) || path.points.length < 2) return null
+    const start = Math.max(0, Math.round(Number(path.startFrame) || 0))
+    const end = Math.max(start + 1, Math.round(Number(path.endFrame) || totalFrames))
+    const u = clamp((frame - start) / Math.max(1, end - start), 0, 1)
+    const pos = pathPositionAtFraction(path, u)
+    if (!pos) return null
+    const tangent = pathTangentAtFraction(path, u) || [0, 0, -1]
+    const position = [pos.x, pos.y, pos.z]
+    const snapshot = { position }
+    if (camera.targetMode !== 'object') {
+      snapshot.rotation = cameraRotationToward(position, [pos.x + tangent[0], pos.y + tangent[1], pos.z + tangent[2]])
+    }
+    return snapshot
+  }, [camera.targetMode, paths, totalFrames])
+  const animatedCamera = useMemo(() => {
+    const snap = cameraPathSnapshot(currentFrame)
+    if (snap) return { ...camera, ...snap }
+    // M1：keyframes 为通道结构，用「已打点帧数」判断是否有相机动画（代替旧数组 .length）
+    return countChannelKeyframes(keyframes) ? cameraAtFrame(keyframes, currentFrame, camera.aspectRatio) : camera
+  }, [camera, cameraPathSnapshot, currentFrame, keyframes])
   const isAnimating = playing || exporting
-  const hasObjectAnimation = useMemo(() => Object.values(characterKeyframes).some(track => track?.length), [characterKeyframes])
+  const hasObjectAnimation = useMemo(() => Object.values(characterKeyframes).some(track => countChannelKeyframes(track) > 0), [characterKeyframes])
   const animatedObjects = useMemo(() => {
-    const framedObjects = hasObjectAnimation ? objectsAtFrame(objects, characterKeyframes, currentFrame, fps) : objects
-    return framedObjects.map(object => objectDrafts[object.id] || object)
-  }, [hasObjectAnimation, objects, characterKeyframes, currentFrame, fps, objectDrafts])
+    // M3：路径作为独立位置来源（pathActive）随 paths 一并交给求值引擎；
+    // 「有路径」即视为位置来源存在，仅路径无关键帧时也走路径（M3-C3）。
+    const hasAnyPath = Object.values(paths).some(pathActive)
+    if (!hasObjectAnimation && !hasAnyPath) return objects
+    return objectsAtFrame(objects, characterKeyframes, currentFrame, fps, paths)
+      .map(object => objectDrafts[object.id] || object)
+  }, [hasObjectAnimation, objects, characterKeyframes, currentFrame, fps, paths, objectDrafts])
   const inspectorSelected = useMemo(() => selectedId === CAMERA_ID ? selected : animatedObjects.find(object => object.id === selectedId), [animatedObjects, selected, selectedId])
   // 始终面向对象（参考 director3d 的 C4D Target）：targetMode==='object' 时注视点锁定目标对象，
   // 用目标对象（动画后）的视觉中心覆写摄像机旋转，使其始终朝向目标（目标移动/打关键帧也会跟随）
@@ -279,9 +337,10 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
     reference,
     keyframes,
     objectKeyframes: characterKeyframes,
+    paths,
     shots,
     activeShotId,
-  }), [settings, objects, camera, lighting, reference, keyframes, characterKeyframes, shots, activeShotId])
+  }), [settings, objects, camera, lighting, reference, keyframes, characterKeyframes, paths, shots, activeShotId])
 
   useEffect(() => {
     currentFrameRef.current = currentFrame
@@ -355,6 +414,7 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
     setReference(normalized.reference)
     setKeyframes(normalized.keyframes)
     setCharacterKeyframes(normalized.objectKeyframes)
+    setPaths(normalized.paths || {})
     setObjectDrafts({})
     setSelectedKeyframe(null)
     setPlaying(false)
@@ -393,6 +453,187 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
     setToast('已重做')
   }, [applyProjectSnapshot])
 
+  // ---- 画线运动路径（编辑曲线工具） ----
+  // 选中任意对象（含摄像机）→ 进入 path 模式 → 在地面拖出曲线 → 自动把曲线烘焙成该对象的 position 关键帧。
+  // 一条曲线 = 一个对象的运动轨道；摄像机额外烘焙朝向（沿路径切线），对象只写 position、保留姿态。
+  const pathEditing = editMode === 'path'
+  // 画线交互落点所在的水平高度：物件用其脚底高（object.position.y），摄像机用相机高度，避免贴地穿模
+  const pathAnchorY = useMemo(() => {
+    if (selectedId === CAMERA_ID) return camera.position[1]
+    const object = animatedObjects.find(item => item.id === selectedId)
+    return object ? (object.position?.[1] || 0) : 0
+  }, [animatedObjects, camera.position, selectedId])
+
+  const applyTimingToPath = useCallback(path => {
+    if (!path) return path
+    return {
+      ...path,
+      startFrame: Math.round(pathTiming.startSec * fps),
+      endFrame: Math.round(pathTiming.endSec * fps),
+      keyframeCount: pathTiming.keyframeCount,
+    }
+  }, [fps, pathTiming])
+
+  const togglePathEditor = useCallback(() => {
+    if (pathEditing) {
+      setEditMode('')
+      setPathDraft(null)
+      setPathDrawing(false)
+      setPathMenuOpen(false)
+      setPathContextMenu(null)
+      setTransformMode('select')
+      return
+    }
+    const existing = paths[selectedId]
+    pathFramesRef.current[selectedId] = existing?.sourceKeyframeFrames || []
+    const base = existing ? normalizeCameraPath(existing) : createEmptyPath(settings)
+    setPathDraft(applyTimingToPath(base))
+    setEditMode('path')
+    setPathDrawing(false) // 进入编辑态是查看/调整态，不自动开始画线
+    setPathMenuOpen(true)
+    setTransformMode('select')
+  }, [applyTimingToPath, pathEditing, paths, selectedId, settings])
+
+  // 切换选中对象时，路径编辑目标跟随选中项（各对象/摄像机各自一张路径表）
+  useEffect(() => {
+    if (editMode !== 'path') return
+    const existing = paths[selectedId]
+    pathFramesRef.current[selectedId] = existing?.sourceKeyframeFrames || []
+    const base = existing ? normalizeCameraPath(existing) : createEmptyPath(settings)
+    setPathDraft(applyTimingToPath(base))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedId, editMode])
+
+  const applyPathBake = useCallback(path => {
+    if (!path || !Array.isArray(path.points) || path.points.length < 2) return
+    const baked = bakePathKeyframes(path, fps)
+    if (!baked.frames.length) return
+    const target = selectedId
+    if (pathFramesRef.current[target] === undefined) {
+      pathFramesRef.current[target] = paths[target]?.sourceKeyframeFrames || []
+    }
+    const removeFrames = new Set(pathFramesRef.current[target])
+
+    if (target === CAMERA_ID) {
+      // 相机路径烘焙（先删旧路径帧、再按曲线逐帧写 transform/lens，逻辑在 tracks.js）
+      setKeyframes(channels => bakeCameraPath(channels, path, camera, baked.frames, [...removeFrames]))
+    } else {
+      const source = objects.find(object => object.id === target)
+      if (source) {
+        // 对象路径烘焙：路径帧只产 position 来源标识、先删后加原子 batch（M3-C2/C5 + M4-C5）
+        setCharacterKeyframes(tracks => bakeObjectPath(tracks, target, source.type, baked.frames, [...removeFrames]))
+      }
+    }
+    // 同步记录本批生成帧号，下次烘焙用它们先删后加
+    pathFramesRef.current[target] = baked.sourceKeyframeFrames
+    setPaths(all => ({ ...all, [target]: { ...path, sourceKeyframeFrames: baked.sourceKeyframeFrames } }))
+    // 数据写回 activeShot 走 currentProject → 防抖自动入栈，无需手动 recordChange
+  }, [camera.focalLength, fps, objects, paths, selectedId])
+
+  const commitPathPoints = useCallback(nextPoints => {
+    setPathDraft(draft => {
+      if (!draft) return draft
+      const next = { ...draft, points: nextPoints }
+      applyPathBake(next)
+      return next
+    })
+  }, [applyPathBake])
+
+  // 时间范围 / 画点密度 / 关键帧数量：先自动生成，再随时调整即时重烘焙
+  const updatePathTiming = useCallback(patch => {
+    setPathTiming(timing => ({ ...timing, ...patch }))
+  }, [])
+
+  // 「开始绘制/完成」：进入绘制态先清空旧曲线（一个对象只有一条路径，重画必须先删旧的），
+  // 左键拖动在场景里画出新线；点「完成」退出绘制态，回到查看/调整态（可拖控制点）。
+  const togglePathDrawing = useCallback(() => {
+    if (pathDrawing) {
+      setPathDrawing(false)
+      return
+    }
+    // 重画 = 先从当前选中对象清掉旧路径与旧关键帧，避免两条线冲突
+    const target = selectedId
+    pathFramesRef.current[target] = []
+    const removeFrames = new Set((paths[target]?.sourceKeyframeFrames) || [])
+    if (target === CAMERA_ID) {
+      // 清相机路径帧：transform/lens 同时删（tracks.js）
+      setKeyframes(channels => removeCameraFrames(channels, [...removeFrames]))
+    } else {
+      // 清对象路径帧：统一写入口 remove（轨道写空后自动移除该对象条目，tracks.js）
+      setCharacterKeyframes(tracks => removeObjectFrames(tracks, target, [...removeFrames]))
+    }
+    setPaths(all => {
+      const next = { ...all }
+      delete next[target]
+      return next
+    })
+    setPathDraft(draft => draft ? { ...draft, points: [], sourceKeyframeFrames: [] } : draft)
+    setPathDrawing(true)
+  }, [pathDrawing, paths, selectedId])
+
+  // 三个时间参数变化 → 用当前曲线的控制点（形状不变）按新参数重新烘焙位置关键帧
+  useEffect(() => {
+    if (editMode !== 'path' || !pathDraft || pathDraft.points.length < 2) return
+    const next = applyTimingToPath(pathDraft)
+    applyPathBake(next)
+    setPathDraft(next)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathTiming])
+
+  const clearPath = useCallback(() => {
+    const target = selectedId
+    pathFramesRef.current[target] = []
+    const removeFrames = new Set((paths[target]?.sourceKeyframeFrames) || [])
+    if (target === CAMERA_ID) {
+      // 清相机路径帧：transform/lens 同时删（tracks.js）
+      setKeyframes(channels => removeCameraFrames(channels, [...removeFrames]))
+    } else {
+      // 清对象路径帧：统一写入口 remove（轨道写空后自动移除该对象条目，tracks.js）
+      setCharacterKeyframes(tracks => removeObjectFrames(tracks, target, [...removeFrames]))
+    }
+    setPaths(all => {
+      const next = { ...all }
+      delete next[target]
+      return next
+    })
+    setPathDraft(draft => draft ? { ...draft, points: [], sourceKeyframeFrames: [] } : draft)
+  }, [paths, selectedId])
+
+  const openPathContextMenu = useCallback((index, clientX, clientY) => {
+    setPathContextMenu({ x: clientX, y: clientY, index })
+  }, [])
+
+  const closePathContextMenu = useCallback(() => setPathContextMenu(null), [])
+
+  // 删除单个控制点：从曲线上挖掉该点，重新烘焙关键帧；若剩点不足 2 个则视为删整条曲线
+  const deletePathPoint = useCallback(index => {
+    closePathContextMenu()
+    setPathDraft(draft => {
+      if (!draft || !Array.isArray(draft.points) || index < 0 || index >= draft.points.length) return draft
+      const nextPoints = draft.points.filter((_, i) => i !== index)
+      if (nextPoints.length < 2) {
+        clearPath()
+        return { ...draft, points: [], sourceKeyframeFrames: [] }
+      }
+      const next = { ...draft, points: nextPoints }
+      applyPathBake(next)
+      return next
+    })
+  }, [applyPathBake, clearPath, closePathContextMenu])
+
+  const deleteWholePath = useCallback(() => {
+    closePathContextMenu()
+    clearPath()
+  }, [clearPath, closePathContextMenu])
+
+  // 右键菜单打开时：Escape 关闭
+  useEffect(() => {
+    if (!pathContextMenu) return undefined
+    const onKey = event => { if (event.key === 'Escape') closePathContextMenu() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [pathContextMenu, closePathContextMenu])
+
   const focusSelected = useCallback(() => {
     if (selectedId === CAMERA_ID) {
       setViewFocusRequest({ position: [...displayCamera.position], height: 0, distance: 4, nonce: Date.now() })
@@ -417,10 +658,12 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
   const setCameraAtFrame = useCallback(frame => {
     historyRef.current.deferCount += 1
     setCamera(current => {
+      const snap = cameraPathSnapshot(frame)
+      if (snap) return { ...current, ...snap, targetMode: current.targetMode, targetId: current.targetId }
       const interpolated = cameraAtFrame(keyframes, frame, current.aspectRatio)
       return { ...interpolated, targetMode: current.targetMode, targetId: current.targetId }
     })
-  }, [keyframes])
+  }, [cameraPathSnapshot, keyframes])
 
   const seekToFrame = useCallback(frame => {
     const nextFrame = clamp(Math.round(frame), 0, totalFrames)
@@ -536,6 +779,7 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
     reference,
     keyframes,
     objectKeyframes: characterKeyframes,
+    paths,
   })
 
   const applyShotState = shot => {
@@ -550,6 +794,10 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
     setReference(normalizeReference(shot.reference))
     setKeyframes(cloneProjectValue(shot.keyframes || []))
     setCharacterKeyframes(cloneProjectValue(shot.objectKeyframes || {}))
+    setPaths(cloneProjectValue(shot.paths || {}))
+    setEditMode('')
+    setPathDraft(null)
+    setPathMenuOpen(false)
     setCurrentFrame(0)
     currentFrameRef.current = 0
     setActiveShotId(shot.id)
@@ -677,7 +925,7 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
   }
   const updateObjectById = (id, patch) => {
     setObjectDrafts(drafts => {
-      if (!characterKeyframes[id]?.length) {
+      if (!countChannelKeyframes(characterKeyframes[id])) {
         if (!(id in drafts)) return drafts
         const next = { ...drafts }
         delete next[id]
@@ -776,11 +1024,8 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
     const source = objects.find(object => object.id === selectedId)
     if (source?.locked) { setToast('物体已锁定，请先解除锁定'); return }
     setObjects(list => list.filter(object => object.id !== selectedId))
-    setCharacterKeyframes(tracks => {
-      const next = { ...tracks }
-      delete next[selectedId]
-      return next
-    })
+    // 删除对象时随对象清空其整条通道轨（tracks.js）
+    setCharacterKeyframes(tracks => clearObjectTrack(tracks, selectedId))
     setObjectDrafts(drafts => {
       const next = { ...drafts }
       delete next[selectedId]
@@ -794,36 +1039,34 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
     const id = uid()
     const duplicate = { ...source, id, name: `${source.name} 副本`, position: [source.position[0] + 0.6, source.position[1], source.position[2] + 0.6] }
     setObjects(list => [...list, duplicate])
-    setCharacterKeyframes(tracks => {
-      const sourceTrack = tracks[source.id]
-      if (!sourceTrack?.length) return tracks
-      return {
-        ...tracks,
-        [id]: sourceTrack.map(key => ({ ...key, position: [key.position[0] + 0.6, key.position[1], key.position[2] + 0.6] })),
-      }
-    })
+    // 复制轨道到副本：仅 transform.position 偏移 0.6 错开站位，动作/骨骼原样（tracks.js）
+    setCharacterKeyframes(tracks => duplicateObjectTrack(tracks, source.id, id, 0.6))
     setSelectedId(id)
   }
   const addKeyframe = () => {
-    const existing = keyframes.find(key => key.frame === currentFrame)
-    const next = { frame: currentFrame, interpolation: normalizeInterpolation(existing?.interpolation), position: [...camera.position], rotation: [...camera.rotation], focalLength: camera.focalLength }
-    setKeyframes(list => [...list.filter(key => key.frame !== currentFrame), next].sort((a, b) => a.frame - b.frame))
+    const existing = snapshotKeysForTrack(keyframes, 'camera').find(key => key.frame === currentFrame)
+    // 取当前帧实际渲染的相机位姿：路径动画存在时用路径上的位置，否则用相机当前值（所见即所得）
+    const pose = paths[CAMERA_ID] ? animatedCamera : camera
+    const next = { frame: currentFrame, interpolation: normalizeInterpolation(existing?.interpolation), position: [...pose.position], rotation: [...pose.rotation], focalLength: pose.focalLength }
+    // 相机轨为通道结构，整快照拆进 transform/lens（tracks.js）
+    setKeyframes(channels => upsertCameraSnapshot(channels, next))
     setSelectedKeyframe({ kind: 'camera', frame: currentFrame, trackId: null })
     setToast(`已记录第 ${currentFrame} 帧`)
   }
   const deleteKeyframe = frame => {
-    setKeyframes(list => list.filter(key => key.frame !== frame))
+    // 相机轨为通道结构，transform/lens 同时删该帧，避免漏删幽灵 key（tracks.js）
+    setKeyframes(channels => removeCameraFrames(channels, [frame]))
     if (selectedKeyframe?.kind === 'camera' && selectedKeyframe.frame === frame) setSelectedKeyframe(null)
   }
   const addObjectKeyframe = () => {
     if (!activeObject) return
-    const source = objectDrafts[activeObject.id] || activeObject
-    const existing = characterKeyframes[activeObject.id]?.find(key => key.frame === currentFrame)
+    // 优先用当前帧动画后的对象（路径动画存在时取其路径上的位置），否则回落到当前实例（所见即所得）
+    const animatedSource = animatedObjects.find(item => item.id === activeObject.id) || activeObject
+    const source = objectDrafts[activeObject.id] || animatedSource
+    const existing = snapshotKeysForTrack(characterKeyframes[activeObject.id], activeObject.type).find(key => key.frame === currentFrame)
     const next = { ...objectKeyframeFromObject(source, currentFrame), interpolation: normalizeInterpolation(existing?.interpolation) }
-    setCharacterKeyframes(tracks => ({
-      ...tracks,
-      [activeObject.id]: [...(tracks[activeObject.id] || []).filter(key => key.frame !== currentFrame), next].sort((a, b) => a.frame - b.frame),
-    }))
+    // 对象轨为通道结构，整快照按实体类型拆通道写入（person→transform/action/skeleton，object→transform，tracks.js）
+    setCharacterKeyframes(tracks => upsertObjectSnapshot(tracks, activeObject.id, activeObject.type, next))
     setSelectedKeyframe({ kind: 'object', frame: currentFrame, trackId: activeObject.id })
     setObjectDrafts(drafts => {
       const nextDrafts = { ...drafts }
@@ -834,37 +1077,61 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
   }
   const deleteObjectKeyframe = frame => {
     if (!activeObject) return
-    setCharacterKeyframes(tracks => {
-      const current = tracks[activeObject.id] || []
-      const remaining = current.filter(key => key.frame !== frame)
-      if (remaining.length) return { ...tracks, [activeObject.id]: remaining }
-      const next = { ...tracks }
-      delete next[activeObject.id]
-      return next
-    })
+    // 对象轨统一写入口 remove（轨道写空后自动移除该对象条目，tracks.js）
+    setCharacterKeyframes(tracks => removeObjectFrames(tracks, activeObject.id, frame))
     if (selectedKeyframe?.kind === 'object' && selectedKeyframe.trackId === activeObject.id && selectedKeyframe.frame === frame) setSelectedKeyframe(null)
   }
   const moveKeyframe = ({ kind, trackId, fromFrame, toFrame }) => {
-    const move = list => {
-      const source = list.find(key => key.frame === fromFrame)
-      if (!source) return list
-      return [...list.filter(key => key.frame !== fromFrame && key.frame !== toFrame), { ...source, frame: toFrame }].sort((a, b) => a.frame - b.frame)
-    }
-    if (kind === 'camera') setKeyframes(move)
-    else setCharacterKeyframes(tracks => ({ ...tracks, [trackId]: move(tracks[trackId] || []) }))
+    // 通道结构下逐通道整体平移该帧，保证各通道同帧一致（tracks.js）
+    if (kind === 'camera') setKeyframes(channels => moveCameraFrame(channels, fromFrame, toFrame))
+    else setCharacterKeyframes(tracks => moveObjectFrame(tracks, trackId, fromFrame, toFrame))
     setSelectedKeyframe({ kind, trackId, frame: toFrame })
     seekToFrame(toFrame)
     setToast(`关键帧已移动到第 ${toFrame} 帧`)
   }
-  const changeSelectedInterpolation = interpolation => {
-    if (!selectedKeyframeInfo) return
-    const update = list => list.map(key => key.frame === selectedKeyframeInfo.frame ? { ...key, interpolation: normalizeInterpolation(interpolation) } : key)
-    if (selectedKeyframeInfo.kind === 'camera') setKeyframes(update)
-    else setCharacterKeyframes(tracks => ({ ...tracks, [selectedKeyframeInfo.trackId]: update(tracks[selectedKeyframeInfo.trackId] || []) }))
+
+  // 批量删除关键帧（时间轴框选/多选删除）：相机/对象按轨道分组一次删整批（tracks.js）
+  const deleteKeyframes = useCallback(keys => {
+    if (!Array.isArray(keys) || !keys.length) return
+    const cameraFrames = keys.filter(key => key.kind === 'camera').map(key => key.frame)
+    if (cameraFrames.length) setKeyframes(channels => removeCameraFrames(channels, cameraFrames))
+    const objectGroups = {}
+    for (const key of keys) {
+      if (key.kind !== 'object' || !key.trackId) continue
+      objectGroups[key.trackId] = [...(objectGroups[key.trackId] || []), key.frame]
+    }
+    for (const [id, frames] of Object.entries(objectGroups)) {
+      setCharacterKeyframes(tracks => removeObjectFrames(tracks, id, frames))
+    }
+    setSelectedKeyframe(null)
+  }, [])
+
+  // 批量平移关键帧（时间轴框选拖动）：同一轨道内整组平移，先删旧帧再整批插新（tracks.js 原子 batch）
+  const moveKeyframes = useCallback(moves => {
+    if (!Array.isArray(moves) || !moves.length) return
+    const cameraMap = {}
+    const objectMaps = {}
+    for (const move of moves) {
+      if (move.kind === 'camera') cameraMap[move.fromFrame] = move.toFrame
+      else if (move.trackId) objectMaps[move.trackId] = { ...(objectMaps[move.trackId] || {}), [move.fromFrame]: move.toFrame }
+    }
+    if (Object.keys(cameraMap).length) setKeyframes(channels => moveCameraFrames(channels, cameraMap))
+    for (const [id, map] of Object.entries(objectMaps)) {
+      setCharacterKeyframes(tracks => moveObjectFrames(tracks, id, map))
+    }
+  }, [])
+  // 改指定帧插值（时间轴右键菜单用）：按参数操作，不依赖 selectedKeyframe 状态
+  const changeKeyframeInterpolation = (kind, trackId, frame, value) => {
+    const normalized = normalizeInterpolation(value)
+    if (kind === 'camera') setKeyframes(channels => setCameraInterpolation(channels, frame, normalized))
+    else setCharacterKeyframes(tracks => setObjectInterpolation(tracks, trackId, frame, normalized))
   }
   const copySelectedKeyframe = () => {
     if (!selectedKeyframeInfo) return
-    const track = selectedKeyframeInfo.kind === 'camera' ? keyframes : characterKeyframes[selectedKeyframeInfo.trackId]
+    // M1：轨道为通道结构，flatten 成整快照数组后取该帧 key（含该实体全部通道字段，粘贴时再拆回通道）
+    const track = selectedKeyframeInfo.kind === 'camera'
+      ? snapshotKeysForTrack(keyframes, 'camera')
+      : snapshotKeysForTrack(characterKeyframes[selectedKeyframeInfo.trackId], entityTypeFor(selectedKeyframeInfo.trackId))
     const key = track?.find(item => item.frame === selectedKeyframeInfo.frame)
     if (!key) return
     setKeyframeClipboard({ kind: selectedKeyframeInfo.kind, key: JSON.parse(JSON.stringify(key)) })
@@ -874,11 +1141,13 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
     if (!keyframeClipboard) return
     const next = { ...JSON.parse(JSON.stringify(keyframeClipboard.key)), frame: currentFrame }
     if (keyframeClipboard.kind === 'camera') {
-      setKeyframes(list => [...list.filter(key => key.frame !== currentFrame), next].sort((a, b) => a.frame - b.frame))
+      // 粘贴整快照 key → 拆进相机 transform/lens 通道（tracks.js）
+      setKeyframes(channels => upsertCameraSnapshot(channels, next))
       setSelectedKeyframe({ kind: 'camera', frame: currentFrame, trackId: null })
     } else {
       if (!activeObject) { setToast('请先选择要粘贴关键帧的物体'); return }
-      setCharacterKeyframes(tracks => ({ ...tracks, [activeObject.id]: [...(tracks[activeObject.id] || []).filter(key => key.frame !== currentFrame), next].sort((a, b) => a.frame - b.frame) }))
+      // 粘贴整快照 key → 按目标物体实体类型拆进对应通道（粘贴允许跨实体，以目标类型为准，tracks.js）
+      setCharacterKeyframes(tracks => upsertObjectSnapshot(tracks, activeObject.id, activeObject.type, next))
       setSelectedKeyframe({ kind: 'object', frame: currentFrame, trackId: activeObject.id })
     }
     setToast(`关键帧已粘贴到第 ${currentFrame} 帧`)
@@ -889,7 +1158,7 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
     else if (activeObject?.id === selectedKeyframeInfo.trackId) deleteObjectKeyframe(selectedKeyframeInfo.frame)
   }
   const saveProject = ({ download = false } = {}) => {
-    const data = projectData({ settings, objects, camera, lighting, reference, keyframes, objectKeyframes: characterKeyframes, shots, activeShotId })
+    const data = projectData({ settings, objects, camera, lighting, reference, keyframes, objectKeyframes: characterKeyframes, paths, shots, activeShotId })
     const cached = writeJson(projectStorageKey, data)
     if (download) {
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
@@ -957,7 +1226,7 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
     exportLockRef.current = true
     const nextExportFrameCount = totalFrames
     const originalFrame = currentFrameRef.current
-    const originalCamera = keyframes.length
+    const originalCamera = countChannelKeyframes(keyframes)
       ? { ...cameraAtFrame(keyframes, originalFrame, camera.aspectRatio), targetMode: camera.targetMode, targetId: camera.targetId }
       : camera
     let output
@@ -1151,7 +1420,28 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
             <ToolButton icon={Magnet} label={snapEnabled ? '关闭吸附' : '开启吸附'} active={snapEnabled} disabled={transformMode === 'select'} onClick={() => setSnapEnabled(value => !value)} />
             <span />
             <ToolButton icon={ImagePlus} label={reference.image ? '更换背景图' : '上传背景图'} active={Boolean(reference.image)} onClick={() => referenceFileRef.current?.click()} />
+            <span />
+            <ToolButton icon={PenLine} label="编辑曲线" active={pathEditing} onClick={togglePathEditor} />
           </div>
+          {pathMenuOpen && (
+            <div className="floating-panel reference-panel path-panel">
+              <label><span>起点</span><input type="range" min="0" max={settings.durationSeconds} step="0.5" value={pathTiming.startSec} onChange={e => updatePathTiming({ startSec: clamp(Number(e.target.value), 0, settings.durationSeconds) })} /><em>{pathTiming.startSec}s</em></label>
+              <label><span>终点</span><input type="range" min="0" max={settings.durationSeconds} step="0.5" value={pathTiming.endSec} onChange={e => updatePathTiming({ endSec: clamp(Number(e.target.value), 0, settings.durationSeconds) })} /><em>{pathTiming.endSec}s</em></label>
+              <label><span>帧数</span><input type="range" min="2" max="5" value={pathTiming.keyframeCount} onChange={e => updatePathTiming({ keyframeCount: clamp(Number(e.target.value), 2, 5) })} /><em>{pathTiming.keyframeCount}</em></label>
+              <button type="button" className={pathDrawing ? 'is-active' : ''} onClick={togglePathDrawing}>{pathDrawing ? '完成绘制' : '开始绘制'}</button>
+              {paths[selectedId] && <button type="button" title="删除整条路径" aria-label="删除整条路径" onClick={clearPath}><Trash2 size={12} /></button>}
+            </div>
+          )}
+          {/* 路径右键菜单：删除此点 / 删除整条曲线（仅编辑态） */}
+          {pathContextMenu && (
+            <>
+              <div className="path-context-backdrop" onMouseDown={closePathContextMenu} onContextMenu={event => { event.preventDefault(); closePathContextMenu() }} />
+              <div className="floating-panel path-context-menu" style={{ left: pathContextMenu.x, top: pathContextMenu.y }}>
+                <button type="button" disabled={pathContextMenu.index < 0} onClick={() => deletePathPoint(pathContextMenu.index)}>删除此点</button>
+                <button type="button" onClick={deleteWholePath} disabled={!paths[selectedId]}>删除整条曲线</button>
+              </div>
+            </>
+          )}
           <input ref={referenceFileRef} className="visually-hidden" type="file" accept="image/*,.png,.jpg,.jpeg,.webp,.bmp,.gif" onChange={handleReferenceUpload} />
           <div className={`viewport-view-options floating-panel ${viewOptionsCollapsed ? 'is-collapsed' : ''}`}>
             {viewOptionsCollapsed ? (
@@ -1168,7 +1458,7 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
           {cameraView && cameraAnglePanelOpen && <CameraAnglePanel camera={camera} onChange={patch => setCamera(current => ({ ...current, ...patch }))} onClose={() => setCameraAnglePanelOpen(false)} onLevel={levelCameraHorizon} />}
           <ReferenceOverlay reference={reference} onChange={setReference} cameraMode={cameraView} cameraAspect={previewAspect}>
             <div className="viewport-canvas-layer">
-              <MainViewport key={cameraView ? 'shot-view' : 'scene-view'} cameraView={cameraView} cameraAspect={previewAspect} editorCameraData={editorView} onEditorCameraChange={captureEditorView} onGizmoReady={api => { gizmoApiRef.current = api }} objects={animatedObjects} animationTime={currentFrame / fps} selectedId={selectedId} activeJoint={selectedJoint} onSelect={setSelectedId} onJointSelect={(objectId, jointId) => { setSelectedId(objectId); setSelectedJoint(jointId) }} transformMode={transformMode} transformSpace={transformSpace} snapEnabled={snapEnabled} groundRequest={groundRequest} onUpdateObject={updateObjectById} cameraData={displayCamera} onUpdateCamera={patch => setCamera(current => ({ ...current, ...patch }))} lighting={lighting} showGrid={showGrid} performanceMode={performanceMode} focusRequest={viewFocusRequest} referenceVisible={Boolean(reference.image && reference.visible)} />
+              <MainViewport key={cameraView ? 'shot-view' : 'scene-view'} cameraView={cameraView} cameraAspect={previewAspect} editorCameraData={editorView} onEditorCameraChange={captureEditorView} onGizmoReady={api => { gizmoApiRef.current = api }} objects={animatedObjects} animationTime={currentFrame / fps} selectedId={selectedId} activeJoint={selectedJoint} onSelect={setSelectedId} onJointSelect={(objectId, jointId) => { setSelectedId(objectId); setSelectedJoint(jointId) }} transformMode={transformMode} transformSpace={transformSpace} snapEnabled={snapEnabled} groundRequest={groundRequest} onUpdateObject={updateObjectById} cameraData={displayCamera} onUpdateCamera={patch => setCamera(current => ({ ...current, ...patch }))} lighting={lighting} showGrid={showGrid} performanceMode={performanceMode} seamlessBackground={seamlessBackground} focusRequest={viewFocusRequest} referenceVisible={Boolean(reference.image && reference.visible)} pathEditing={pathEditing} pathDrawing={pathDrawing} pathDraft={pathDraft} pathAnchorY={pathAnchorY} pathDensity={pathTiming.density} onPathChange={commitPathPoints} onClearPath={clearPath} onContextMenuAt={openPathContextMenu} />
             </div>
           </ReferenceOverlay>
 
@@ -1183,7 +1473,7 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
             </div></div>
             {monitorMode !== 'minimized' && <div className="monitor-frame">
               <div className={`monitor-canvas ${previewAspectClass}`} style={{ '--preview-aspect': previewAspect }}>
-                <CameraPreview objects={animatedObjects} animationTime={currentFrame / fps} cameraData={displayCamera} cameraAspect={previewAspect} lighting={lighting} performanceMode={performanceMode} backgroundCanvas={monitorReferenceBackground} onCanvasReady={canvas => { monitorCanvasRef.current = canvas }} />
+                <CameraPreview objects={animatedObjects} animationTime={currentFrame / fps} cameraData={displayCamera} cameraAspect={previewAspect} lighting={lighting} performanceMode={performanceMode} seamlessBackground={seamlessBackground} backgroundCanvas={monitorReferenceBackground} onCanvasReady={canvas => { monitorCanvasRef.current = canvas }} />
                 <span className="safe-frame" />
                 <span className="monitor-timecode">{timecodeAtFrame(currentFrame, fps)}</span>
                 <span className="monitor-focal">{Math.round(displayCamera.focalLength)} mm · {aspectLabel(displayCamera.aspectRatio)}</span>
@@ -1191,7 +1481,7 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
             </div>}
           </div>
         </section>
-        <MemoInspector selected={inspectorSelected} objects={objects} camera={camera} cameraAspect={camera.aspectRatio} onAspectChange={aspectRatio => setCamera(current => ({ ...current, aspectRatio }))} projectSettings={settings} onApplySettings={applySettings} maxKeyframeFrame={maxKeyframeFrame} showGrid={showGrid} onToggleGrid={() => setShowGrid(value => !value)} performanceMode={performanceMode} onTogglePerformance={() => setPerformanceMode(value => !value)} lighting={lighting} onLightingChange={setLighting} selectedJoint={selectedJoint} customPoses={customPoses} onSelectJoint={setSelectedJoint} onUpdateObject={updateSelected} onUpdateCamera={patch => setCamera(current => ({ ...current, ...patch }))} onDelete={deleteSelected} onDuplicate={duplicateSelected} onFocus={focusSelected} onToggleLock={() => activeObject && updateSelected({ locked: !activeObject.locked })} onGround={groundSelected} onResetRotation={resetSelectedRotation} onResetScale={resetSelectedScale} onSaveCustomPose={saveCustomPose} onApplyCustomPose={applyCustomPose} onDeleteCustomPose={deleteCustomPose} />
+        <MemoInspector selected={inspectorSelected} objects={objects} camera={camera} cameraAspect={camera.aspectRatio} onAspectChange={aspectRatio => setCamera(current => ({ ...current, aspectRatio }))} projectSettings={settings} onApplySettings={applySettings} maxKeyframeFrame={maxKeyframeFrame} showGrid={showGrid} onToggleGrid={() => setShowGrid(value => !value)} performanceMode={performanceMode} onTogglePerformance={() => setPerformanceMode(value => !value)} seamlessBackground={seamlessBackground} onToggleSeamless={() => setSeamlessBackground(value => !value)} lighting={lighting} onLightingChange={setLighting} selectedJoint={selectedJoint} customPoses={customPoses} onSelectJoint={setSelectedJoint} onUpdateObject={updateSelected} onUpdateCamera={patch => setCamera(current => ({ ...current, ...patch }))} onDelete={deleteSelected} onDuplicate={duplicateSelected} onFocus={focusSelected} onToggleLock={() => activeObject && updateSelected({ locked: !activeObject.locked })} onGround={groundSelected} onResetRotation={resetSelectedRotation} onResetScale={resetSelectedScale} onSaveCustomPose={saveCustomPose} onApplyCustomPose={applyCustomPose} onDeleteCustomPose={deleteCustomPose} />
         <Timeline
           currentFrame={currentFrame}
           fps={fps}
@@ -1199,20 +1489,20 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
           onSeek={seekToFrame}
           playing={playing}
           onTogglePlay={togglePlayback}
-          keyframes={keyframes}
+          keyframes={snapshotKeysForTrack(keyframes, 'camera')}
           onAddKeyframe={addKeyframe}
           onDeleteKeyframe={deleteKeyframe}
-          objectTrack={activeObject ? { id: activeObject.id, name: activeObject.name, type: activeObject.type, keyframes: characterKeyframes[activeObject.id] || [] } : null}
+          objectTrack={activeObject ? { id: activeObject.id, name: activeObject.name, type: activeObject.type, keyframes: snapshotKeysForTrack(characterKeyframes[activeObject.id], activeObject.type) } : null}
           onAddObjectKeyframe={addObjectKeyframe}
           onDeleteObjectKeyframe={deleteObjectKeyframe}
           selectedKeyframe={selectedKeyframeInfo}
           onSelectKeyframe={setSelectedKeyframe}
           onMoveKeyframe={moveKeyframe}
-          onCopyKeyframe={copySelectedKeyframe}
-          onPasteKeyframe={pasteKeyframe}
+          onMoveKeyframes={moveKeyframes}
+          onDeleteKeyframes={deleteKeyframes}
           onDeleteSelectedKeyframe={deleteSelectedKeyframe}
-          onChangeInterpolation={changeSelectedInterpolation}
-          hasClipboard={Boolean(keyframeClipboard)}
+          onCopyKeyframe={copySelectedKeyframe}
+          onChangeInterpolationAt={changeKeyframeInterpolation}
         />
       </div>
       {capturingImage && (

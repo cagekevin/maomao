@@ -18,12 +18,12 @@ function Collapsible({ title, meta, collapsed, onToggle, wrapperClass = 'inspect
   )
 }
 
-export function Inspector({ selected, objects, camera, cameraAspect, onAspectChange, projectSettings, onApplySettings, maxKeyframeFrame, showGrid, onToggleGrid, performanceMode, onTogglePerformance, lighting, onLightingChange, selectedJoint, customPoses, onSelectJoint, onUpdateObject, onUpdateCamera, onDelete, onDuplicate, onFocus, onToggleLock, onGround, onResetRotation, onResetScale, onSaveCustomPose, onApplyCustomPose, onDeleteCustomPose }) {
+export function Inspector({ selected, objects, camera, cameraAspect, onAspectChange, projectSettings, onApplySettings, maxKeyframeFrame, showGrid, onToggleGrid, performanceMode, onTogglePerformance, seamlessBackground, onToggleSeamless, lighting, onLightingChange, selectedJoint, customPoses, onSelectJoint, onUpdateObject, onUpdateCamera, onDelete, onDuplicate, onFocus, onToggleLock, onGround, onResetRotation, onResetScale, onSaveCustomPose, onApplyCustomPose, onDeleteCustomPose }) {
   // 未选中物体：显示全局设置栏（画幅比例、时间轴、视口、光照等工程级设置）
   if (!selected) {
     return (
       <aside className="right-sidebar panel">
-        <GlobalSettingsPanel cameraAspect={cameraAspect} onAspectChange={onAspectChange} projectSettings={projectSettings} onApplySettings={onApplySettings} maxKeyframeFrame={maxKeyframeFrame} showGrid={showGrid} onToggleGrid={onToggleGrid} performanceMode={performanceMode} onTogglePerformance={onTogglePerformance} lighting={lighting} onLightingChange={onLightingChange} />
+        <GlobalSettingsPanel cameraAspect={cameraAspect} onAspectChange={onAspectChange} projectSettings={projectSettings} onApplySettings={onApplySettings} maxKeyframeFrame={maxKeyframeFrame} showGrid={showGrid} onToggleGrid={onToggleGrid} performanceMode={performanceMode} onTogglePerformance={onTogglePerformance} seamlessBackground={seamlessBackground} onToggleSeamless={onToggleSeamless} lighting={lighting} onLightingChange={onLightingChange} />
       </aside>
     )
   }
