@@ -424,9 +424,9 @@
 .timeline-body { grid-column: 1; display: grid; grid-template-columns: 118px minmax(0, 1fr) 118px; align-items: start; column-gap: 10px; row-gap: 4px; padding: 6px 14px 6px 10px; }
 /* 左=轨道标签，中=标尺+轨道共用滚动容器（刻度线与关键帧/播放头天然对齐），右=keyframe 按钮 */
 .timeline-labels { grid-column: 1; grid-row: 1; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
-.timeline-scroll { grid-column: 2; grid-row: 1; min-width: 0; overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; scrollbar-color: var(--line-muted) transparent; display: flex; flex-direction: column; gap: 4px; }
-.timeline-scroll::-webkit-scrollbar { height: 6px; }
-.timeline-scroll::-webkit-scrollbar-thumb { background: var(--line-muted); border-radius: 3px; }
+.timeline-scroll { grid-column: 2; grid-row: 1; min-width: 0; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; scrollbar-color: transparent transparent; display: flex; flex-direction: column; gap: 4px; }
+.timeline-scroll::-webkit-scrollbar { height: 0; display: none; }
+.timeline-scroll::-webkit-scrollbar-thumb { background: transparent; border-radius: 0; }
 .timeline-actions { grid-column: 3; grid-row: 1; display: flex; flex-direction: column; gap: 4px; }
 .timeline-align-spacer { height: 24px; } /* 左列/右列顶部占位，与标尺行（含播放键的悬浮工具栏上方）对齐 */
 .timeline-ruler-row { display: flex; align-items: center; gap: 8px; min-width: 0; }

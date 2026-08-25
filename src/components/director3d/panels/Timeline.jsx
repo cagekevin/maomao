@@ -7,7 +7,6 @@ const PX_PER_FRAME_DEFAULT = 6
 const PX_PER_FRAME_MAX = 40
 const PX_PER_FRAME_HARD_MIN = 0.2 // 下限兜底；实际滑块最小值 = 可视宽度/总帧数（拖到最左即全片可见）
 const MARQUEE_THRESHOLD = 4 // 空白按下后拖动超过该像素才视为框选（否则视为 seek 移动播放头）
-const SNAP_PLAYHEAD_RADIUS = 3 // 吸附开启时，关键帧拖动到播放头 ±3 帧内吸附到播放头
 
 // 关键帧右键菜单：插值（不常用操作下沉到右键）+ 删除（也可用 Delete 键）。
 export function Timeline({ currentFrame, fps, totalFrames, onSeek, playing, onTogglePlay, keyframes, onAddKeyframe, onDeleteKeyframe, objectTrack, onAddObjectKeyframe, onDeleteObjectKeyframe, selectedKeyframe, onSelectKeyframe, onMoveKeyframe, onMoveKeyframes, onDeleteSelectedKeyframe, onDeleteKeyframes, onCopyKeyframe, onChangeInterpolationAt }) {
@@ -50,14 +49,6 @@ export function Timeline({ currentFrame, fps, totalFrames, onSeek, playing, onTo
     if (list.at(-1) !== totalFrames) list.push(totalFrames)
     return list
   }, [rulerStep, totalFrames])
-
-  // 吸附：开启时吸附到整数帧，且靠近播放头（±3 帧）时吸附到播放头
-  const snapFrame = useCallback(frame => {
-    const rounded = Math.round(frame)
-    if (!snapEnabled) return clamp(rounded, 0, totalFrames)
-    const towardPlayhead = Math.abs(rounded - currentFrame) <= SNAP_PLAYHEAD_RADIUS ? currentFrame : rounded
-    return clamp(towardPlayhead, 0, totalFrames)
-  }, [currentFrame, snapEnabled, totalFrames])
 
   // Ctrl+滚轮缩放：React onWheel 是 passive（preventDefault 无效），需原生 non-passive 监听阻止页面缩放
   const bodyRef = useRef(null)
@@ -145,7 +136,7 @@ export function Timeline({ currentFrame, fps, totalFrames, onSeek, playing, onTo
     window.addEventListener('pointerup', up)
   }
 
-  const beginKeyDrag = (event, key, kind, trackId) => {
+  const beginKeyDrag = (event, key, kind, trackId, trackFrames = []) => {
     if (event.button !== 0) return
     event.preventDefault()
     event.stopPropagation()
@@ -167,7 +158,22 @@ export function Timeline({ currentFrame, fps, totalFrames, onSeek, playing, onTo
     onSelectKeyframe({ kind, frame: key.frame, trackId })
     setDragging({ kind, trackId, fromFrame: key.frame, toFrame })
     const move = moveEvent => {
-      toFrame = snapFrame((moveEvent.clientX - rect.left) / pxPerFrame)
+      const raw = (moveEvent.clientX - rect.left) / pxPerFrame
+      const rounded = Math.round(raw)
+      let next = clamp(rounded, 0, totalFrames)
+      if (snapEnabled) {
+        // 吸附半径：屏幕 6px 换算成帧（缩放下保持一致的「磁吸」手感）
+        const radius = Math.max(1, Math.round(6 / Math.max(1, pxPerFrame)))
+        // 吸附播放头
+        if (Math.abs(rounded - currentFrame) <= radius) next = currentFrame
+        // 吸附同轨道其它关键帧（排除当前拖动帧）
+        for (const other of trackFrames) {
+          if (other.frame === key.frame) continue
+          if (Math.abs(rounded - other.frame) <= radius) next = other.frame
+        }
+        next = clamp(next, 0, totalFrames)
+      }
+      toFrame = next
       setDragging({ kind, trackId, fromFrame: key.frame, toFrame })
     }
     const up = upEvent => {
@@ -247,7 +253,7 @@ export function Timeline({ currentFrame, fps, totalFrames, onSeek, playing, onTo
         const isSelected = selection.some(item => item.kind === kind && item.trackId === trackId && item.frame === key.frame)
         const stateCopy = kind === 'object' && objectTrack?.type === 'person' ? ` · ${poseLabel(key.pose)}${key.continuousMotion ? '（持续）' : ''}` : ''
         const title = `第 ${key.frame} 帧${stateCopy} · ${normalizeInterpolation(key.interpolation) === 'smooth' ? '平滑' : normalizeInterpolation(key.interpolation) === 'linear' ? '线性' : '保持'} · 拖动可移动，单击改插值/删除`
-        return <button key={key.frame} className={`keyframe ${kind} ${key.frame === currentFrame ? 'is-current' : ''} ${isSelected ? 'is-selected' : ''}`} data-interpolation={normalizeInterpolation(key.interpolation)} style={{ left: `${displayFrame * pxPerFrame}px` }} title={title} aria-label={title} onPointerDown={event => beginKeyDrag(event, key, kind, trackId)} onDoubleClick={event => { event.stopPropagation(); onDelete(key.frame); onSelectKeyframe(null) }} />
+        return <button key={key.frame} className={`keyframe ${kind} ${key.frame === currentFrame ? 'is-current' : ''} ${isSelected ? 'is-selected' : ''}`} data-interpolation={normalizeInterpolation(key.interpolation)} style={{ left: `${displayFrame * pxPerFrame}px` }} title={title} aria-label={title} onPointerDown={event => beginKeyDrag(event, key, kind, trackId, frames)} onDoubleClick={event => { event.stopPropagation(); onDelete(key.frame); onSelectKeyframe(null) }} />
       })}
       {marquee && (
         <div className="timeline-marquee" style={{

@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { RotateCcw } from 'lucide-react'
 import {
   ASPECT_RATIOS, DEFAULT_LIGHTING, FPS_OPTIONS, aspectSelectValue, customAspectFrom,
@@ -14,6 +15,15 @@ export function GlobalSettingsPanel({ cameraAspect, onAspectChange, projectSetti
   const selected = aspectSelectValue(cameraAspect)
   const [customWidth, customHeight] = customAspectParts(cameraAspect)
   const settings = projectSettings || {}
+  // 总时长输入本地暂存：输入过程不生效，失焦/回车才提交，避免"想填 15 时敲到 1 就已生效"
+  const [durationDraft, setDurationDraft] = useState(null)
+  const durationValue = durationDraft ?? settings.durationSeconds ?? 15
+  const commitDuration = value => {
+    setDurationDraft(null)
+    const seconds = Math.min(60, Math.max(1, Number(value)))
+    if (!Number.isFinite(seconds)) return
+    onApplySettings({ ...settings, durationSeconds: seconds })
+  }
   const totalFrames = Number(settings.fps) * Number(settings.durationSeconds)
   const safeMaxKeyframeFrame = Number.isFinite(maxKeyframeFrame) ? maxKeyframeFrame : 0
   const requiredSeconds = Math.max(1, Math.ceil(safeMaxKeyframeFrame / (Number(settings.fps) || 24)))
@@ -44,7 +54,7 @@ export function GlobalSettingsPanel({ cameraAspect, onAspectChange, projectSetti
           <label className="select-field"><span>工程名称</span><input className="settings-name-input" value={settings.name || ''} maxLength="40" onChange={event => onApplySettings({ ...settings, name: event.target.value })} /></label>
           <div className="global-settings-row">
             <label className="select-field"><span>帧率</span><select value={settings.fps || 24} onChange={event => onApplySettings({ ...settings, fps: Number(event.target.value) })}>{FPS_OPTIONS.map(value => <option value={value} key={value}>{value} FPS</option>)}</select></label>
-            <label className="select-field"><span>总时长</span><input className="settings-duration-input" type="number" min="1" max="60" step="1" value={settings.durationSeconds || 15} onChange={event => onApplySettings({ ...settings, durationSeconds: Number(event.target.value) })} /></label>
+            <label className="select-field"><span>总时长</span><input className="settings-duration-input" type="number" min="1" max="60" step="1" value={durationValue} onChange={event => setDurationDraft(event.target.value)} onBlur={event => commitDuration(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') commitDuration(event.target.value) }} /></label>
           </div>
           <label className="select-field"><span>画幅比例</span><select value={aspectSelectValue(cameraAspect)} onChange={event => onAspectChange(event.target.value === 'custom' ? customAspectFrom(cameraAspect) : event.target.value)}>{ASPECT_RATIOS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
           {selected === 'custom' && (
