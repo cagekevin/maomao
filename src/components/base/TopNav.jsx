@@ -59,7 +59,7 @@ function TopNav({ view, onNavigate, onSwitchProject, onCreateProject, agentOpen,
       <div className="flex items-center gap-6">
         <div className="flex items-center gap-2 cursor-pointer" onClick={() => onNavigate('canvas')} title="返回画布">
           <img src="/webicon.png" alt="猫猫画布" className="w-[30px] h-[30px] object-contain" draggable={false} loading="lazy" decoding="async" />
-          <div className="text-white font-bold text-lg italic tracking-wider">猫猫画布</div>
+          <div className="text-white text-lg tracking-wider">猫猫画布</div>
         </div>
 
         {/* 中央 pill tab 组 */}
@@ -154,6 +154,7 @@ function TopNav({ view, onNavigate, onSwitchProject, onCreateProject, agentOpen,
         <button
           type="button"
           onClick={onToggleAgent}
+          style={{ marginLeft: '-7px' }}
           className={`relative text-secondary hover:text-white transition-colors p-2 rounded-full hover:bg-surface-active cursor-pointer border-none bg-transparent ${agentOpen ? 'bg-surface-active text-white' : ''}`}
           title={agentOpen ? '关闭 AI 助手' : '打开 AI 助手'}
         >
