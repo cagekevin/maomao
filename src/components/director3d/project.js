@@ -147,24 +147,96 @@ export function uniqueSortedKeyframes(keys) {
 // 本模块仅定义契约 + 无损迁移（M1-C6）+ 读侧桥（flatten），M2 再落地按通道求值。
 // ================================================================
 
-// 实体→通道→字段 注册表（M1.1，M1-C4：通道名/字段名统一登记，禁散写字面量）。
-// 每类实体允许哪些通道、每通道接管哪些字段，都只在这里定义。
-// 扩展方式（X2）：新增单一属性通道（或往现通道加字段）只需在此登记一条，
-//   不改求值器、不改其它通道——这是「登记即生效」的单一入口。
-export const ENTITY_CHANNELS = {
-  camera: {
-    transform: ['position', 'rotation'],
-    lens: ['focalLength'],
+// ================================================================
+// 属性归属注册表（PROPERTY_REGISTRY）：3D 导演台「属性归谁管、怎么生效」的唯一登记入口。
+// 一个属性只能在注册表登记一次，录制 / 求值 / 归一化自动按层生效，无需在各通道、求值器、Inspector 单独判断。
+// ------------------------------------------------------------------
+// 【一、怎么新增 / 修改属性】
+//   · 新属性：在下方对应实体对象的字面量里加一行 `字段名: { layer, channel? }` 即可。
+//     - 可动画的「量」（position/rotation/pose/...）：layer:'animatable'，并必须给 channel（transform/action/skeleton/lens）。
+//     - 对象级「开关」（continuousMotion/footLock/targetMode/...）：layer:'objectState'，不要给 channel。
+//     - 纯配置/显示（color/name/bodyType/...）：layer:'config'，不要给 channel。
+//   · 修改归属：改这一行的 layer / channel 即可，全局自动对齐（`ENTITY_CHANNELS` 与 `OBJECT_STATE_FIELDS` 由此派生）。
+//   · 删除属性：从注册表移除该行，并在 normalization（下方 normalize*Field）里同步去掉对应分支。
+//   · 注意：不可随手在求值器 / Inspector / 录制函数里硬编码判断某个属性，必须先在注册表登记。
+// ------------------------------------------------------------------
+// 【二、为什么这样改】
+//   43 已把通道级收口（每字段归一门、单一数据源）。但存在一类「对象级开关」语义缺陷：
+//   continuousMotion 是"勾选即生效"，却被注册进 action 通道、被关键帧录制覆盖，导致
+//   「先打帧、后勾选」播放时不循环（46 病灶）。根因是缺「属性在哪一层」这一维：
+//     量(animatable) 要靠关键帧驱动 → 进通道、被关键帧值覆盖基线；
+//     开关(objectState) 勾选即整段生效 → 不该被某一帧冻结，必须永远沿对象基线；
+//     配置(config)   与动画无关 → 不进求值器。
+//   用三层注册表统一声明 = 从根上消灭「开关被关键帧覆盖」这一类坑，且之后加开关零特判。
+// ------------------------------------------------------------------
+// 【三、数据流（一帧播放/拖帧/导出时）】
+//   1. 录制：录制入口（objectKeyframeFromObject → snapshotToChannelKeys）只捡 animatable 字段进通道，
+//      objectState/config 永不落关键帧。
+//   2. 求值：evaluateXxxChannel 按通道插值出量；synthesizeObjectState 合成末端统一做 L2 覆盖——
+//      对每个 objectState 字段用「对象基线值」强制覆盖求值结果（对齐 camera 的 targetMode 保留范式）。
+//   3. 消费：渲染端（Viewport → models）读合成结果，开关最终决定行为（如 continuousMotion && loopable）。
+//   链路即：注册表 `登记` → `录制只捡量` → `求值 L2 沿基线` → `渲染消费`，全程不逐列特判。
+// ================================================================
+export const PROPERTY_REGISTRY = {
+  person: {
+    position:         { layer: 'animatable', channel: 'transform' },
+    rotation:         { layer: 'animatable', channel: 'transform' },
+    scale:            { layer: 'animatable', channel: 'transform' },
+    pose:             { layer: 'animatable', channel: 'action' },
+    poseTime:         { layer: 'animatable', channel: 'action' },
+    rigRoot:          { layer: 'animatable', channel: 'skeleton' },
+    joints:           { layer: 'animatable', channel: 'skeleton' },
+    continuousMotion: { layer: 'objectState' },   // 开关：勾选即生效，撤出 action 通道（46）
+    footLock:         { layer: 'objectState' },   // 开关：脚底锁定
+    bodyType:         { layer: 'config' },
+    color:            { layer: 'config' },
+    name:             { layer: 'config' },
+    locked:           { layer: 'config' },        // 编辑约束，仍在动画系统之外
   },
   object: {
-    transform: ['position', 'rotation', 'scale'],
+    position: { layer: 'animatable', channel: 'transform' },
+    rotation: { layer: 'animatable', channel: 'transform' },
+    scale:    { layer: 'animatable', channel: 'transform' },
+    color:    { layer: 'config' },
+    name:     { layer: 'config' },
+    locked:   { layer: 'config' },
   },
-  person: {
-    transform: ['position', 'rotation', 'scale'],
-    action: ['pose', 'poseTime', 'continuousMotion'],
-    skeleton: ['rigRoot', 'joints'],
+  camera: {
+    position:    { layer: 'animatable', channel: 'transform' },
+    rotation:    { layer: 'animatable', channel: 'transform' },
+    focalLength: { layer: 'animatable', channel: 'lens' },
+    targetMode:  { layer: 'objectState' },   // 开关：始终面向对象（setCameraAtFrame 保留，见下）
+    targetId:    { layer: 'objectState' },
+    name:        { layer: 'config' },
+    aspectRatio: { layer: 'config' },
   },
 }
+
+// 派生通道表（保留旧名 ENTITY_CHANNELS 以兼容 43 已交付消费方）。
+// 每个 entityType 产生 { channel: [field...] }，channel 顺序 = 注册表内首次出现顺序（合成按此覆盖，锁死）。
+// animatable 字段必须声明 channel（否则抛错），杜绝「漏标 channel 静默攒 undefined」。
+const deriveChannels = registry => {
+  const out = {}
+  for (const [type, fields] of Object.entries(registry)) {
+    const channels = {}
+    for (const [field, meta] of Object.entries(fields)) {
+      if (meta.layer !== 'animatable') continue
+      if (!meta.channel) throw new Error(`[PROPERTY_REGISTRY] ${type}.${field}: animatable 字段必须声明 channel`)
+      ;(channels[meta.channel] ||= []).push(field)
+    }
+    out[type] = channels
+  }
+  return out
+}
+export const ENTITY_CHANNELS = deriveChannels(PROPERTY_REGISTRY)
+
+// 预编译每实体 objectState 字段表：热路径只遍历字段名数组，不在循环里逐字段判 layer（47 热路径要求）。
+export const OBJECT_STATE_FIELDS = Object.fromEntries(
+  Object.entries(PROPERTY_REGISTRY).map(([type, fields]) => [
+    type,
+    Object.keys(fields).filter(field => fields[field].layer === 'objectState'),
+  ]),
+)
 
 // 整快照 key → 各通道 key（M1.2 轨数据结构：`{frame, interpolation, fields:{…}}`）。
 // 只有 snapshot 里「存在」的字段才进对应通道的 fields；不存在的字段不补默认
@@ -486,12 +558,11 @@ export function readCustomPoses() {
 
 // 对象/人物通道字段归一化（M1）：与旧整快照归一化规则一一对应，保证迁移后播放逐帧一致。
 // 字段清单见 ENTITY_CHANNELS；新增通道字段时在此补一条归一化规则。
-const normalizeObjectField = (entityType, field, value) => {
+function normalizeObjectField(entityType, field, value) {
   if (field === 'position' || field === 'rotation') return finiteVector3(value, [0, 0, 0])
   if (field === 'scale') return finiteVector3(value, [1, 1, 1])
   if (field === 'pose') return normalizePoseId(value)
   if (field === 'poseTime') return Number.isFinite(Number(value)) ? Number(value) : presetPhase(normalizePoseId(value))
-  if (field === 'continuousMotion') return Boolean(value)
   if (field === 'rigRoot') return Array.isArray(value) ? value.slice(0, 3).map(item => Number(item) || 0) : [0, 0, 0]
   if (field === 'joints') return cloneJointPose(value)
   return value
@@ -866,7 +937,7 @@ function synthesizeObjectState(object, channels, frame, fps, path = null) {
   if (action) {
     result.pose = action.pose
     result.poseTime = action.poseTime
-    result.continuousMotion = action.continuousMotion
+    // note: continuousMotion 不再由 action 通道决定，见下方 L2 沿基线覆盖（46）。
     result.motionStartTime = action.motionStartTime
   }
   // skeleton 通道（仅 person 注册）：骨骼插值/硬切由动作上下文决定
@@ -875,6 +946,9 @@ function synthesizeObjectState(object, channels, frame, fps, path = null) {
     result.rigRoot = skeleton.rigRoot
     result.joints = skeleton.joints
   }
+  // L2：对象级开关（objectState）勾选即生效，永远从基线取，覆盖任何求值结果。
+  // continuousMotion/footLock 由此统一沿基线；targetMode/targetId 走 cameraAtFrame + setCameraAtFrame 特判（47 §4.5）。
+  for (const field of OBJECT_STATE_FIELDS[object.type] || []) result[field] = object[field]
   return result
 }
 
@@ -900,7 +974,6 @@ export function objectKeyframeFromObject(object, frame) {
     scale: [...object.scale],
     pose: normalizePoseId(object.pose),
     poseTime: Number.isFinite(object.poseTime) ? object.poseTime : presetPhase(object.pose),
-    continuousMotion: poseCanLoop(object.pose) && Boolean(object.continuousMotion),
     rigRoot: [...rig.root],
     joints: cloneJointPose(rig.joints),
   }

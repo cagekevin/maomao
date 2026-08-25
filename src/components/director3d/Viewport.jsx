@@ -433,9 +433,11 @@ const CURVE_ADD_CURSOR = `url("data:image/svg+xml,${encodeURIComponent(
   '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5" fill="rgba(28,27,24,0.88)" stroke="rgba(255,212,105,0.9)" stroke-width="1.4"/><path d="M12 7.8v8.4M7.8 12h8.4" stroke="#ffd469" stroke-width="1.9" stroke-linecap="round"/></svg>',
 )}") 12 12, crosshair`
 
-// 屏幕恒定尺寸控制点：相机拉远/拉近（OrbitControls dolly）时保持屏幕像素大小不变，便于选中。
+// 屏幕恒定尺寸控制点：相机拉远/拉近（OrbitControls dolly）时保持屏幕像素大小基本不变，便于选中。
 // 原理：世界半径 ∝ 相机到点的距离（distance=10 基准 → 屏幕直径 ≈22px@600px 高画布），
-// 每帧按距离补偿 scale；悬停/拖动中再 ×1.4 高亮放大。颜色 hover 时变亮金色。
+// 每帧按距离补偿 scale；但远距离做封顶，避免相机拉太远时点被放得过大。悬停/拖动中再 ×1.4 高亮放大。
+// 颜色 hover 时变亮金色。
+const DOT_DIST_RATIO_CAP = 2 // 距离补偿封顶：distance>20(=10*2) 后点不再变大，避免拉远时点过大
 function ScreenConstantDot({ point, radius = 0.07, hot = false, onPointerDown, onPointerOver, onPointerOut, onContextMenu }) {
   const ref = useRef()
   const { camera } = useThree()
@@ -446,8 +448,9 @@ function ScreenConstantDot({ point, radius = 0.07, hot = false, onPointerDown, o
     const mesh = ref.current
     if (!mesh) return
     const distance = camera.position.distanceTo(mesh.getWorldPosition(worldPos))
-    // 基准 distance=10 时 scale=2.2（球半径 0.07 → 屏幕直径约 22px），dolly 不影响屏幕大小
-    mesh.scale.setScalar((distance / 10) * 2.2 * (hotRef.current ? 1.4 : 1))
+    // 基准 distance=10 时 scale=2.2（球半径 0.07 → 屏幕直径约 22px）；距离补偿封顶，拉远不会无限放大
+    const ratio = Math.min(distance / 10, DOT_DIST_RATIO_CAP)
+    mesh.scale.setScalar(ratio * 2.2 * (hotRef.current ? 1.4 : 1))
   })
   return (
     <mesh ref={ref} position={[point.x, point.y, point.z]}

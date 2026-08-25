@@ -163,8 +163,8 @@ describe('M4-C2/C6 混合 legacy 轨迁移', () => {
     expect(Object.keys(manualTransform.fields).sort()).toEqual(['position', 'rotation', 'scale'])
     expect(manualTransform.fields.position).toEqual([100, 0, 100])
     expect(manualTransform.fields.scale).toEqual([1.2, 1, 1])
-    // ②手动帧完整迁入 action/skeleton 通道
-    expect(migrated.action[0]).toEqual({ frame: 24, interpolation: 'smooth', fields: { pose: 'run', poseTime: 0.6, continuousMotion: true } })
+    // ②手动帧完整迁入 action/skeleton 通道（continuousMotion 是 objectState，不落通道，见 47）
+    expect(migrated.action[0]).toEqual({ frame: 24, interpolation: 'smooth', fields: { pose: 'run', poseTime: 0.6 } })
     // cloneJointPose 恒返回全部登记关节（缺失补零），runJoints 注入值应在其中
     expect(migrated.skeleton[0].fields.joints).toEqual(cloneJointPose(runJoints))
   })

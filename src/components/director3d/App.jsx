@@ -1512,7 +1512,7 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
           keyframes={snapshotKeysForTrack(keyframes, 'camera')}
           onAddKeyframe={addKeyframe}
           onDeleteKeyframe={deleteKeyframe}
-          objectTrack={activeObject ? { id: activeObject.id, name: activeObject.name, type: activeObject.type, keyframes: snapshotKeysForTrack(characterKeyframes[activeObject.id], activeObject.type) } : null}
+          objectTrack={activeObject ? { id: activeObject.id, name: activeObject.name, type: activeObject.type, continuousMotion: activeObject.continuousMotion, keyframes: snapshotKeysForTrack(characterKeyframes[activeObject.id], activeObject.type) } : null}
           onAddObjectKeyframe={addObjectKeyframe}
           onDeleteObjectKeyframe={deleteObjectKeyframe}
           selectedKeyframe={selectedKeyframeInfo}

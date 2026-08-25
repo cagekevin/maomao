@@ -16,6 +16,7 @@ import {
   objectAtFrame, objectsAtFrame, cameraAtFrame,
   normalizeObjectTracks, normalizeCameraKeyframes,
   snapshotToChannelKeys, upsertChannelKeys,
+  ENTITY_CHANNELS, OBJECT_STATE_FIELDS,
 } from '../../src/components/director3d/project.js'
 
 const FPS = 24
@@ -316,7 +317,8 @@ describe('M2-C7 骨骼决策消费动作通道派生上下文', () => {
     const atFrame = objectAtFrame(personIdle, actionOnly, 12, FPS)
     // 动作字段被接管
     expect(atFrame.pose).toBe('walk')
-    expect(atFrame.continuousMotion).toBe(true)
+    // continuousMotion 是 objectState：沿基线（false），不被 action 通道关键帧值覆盖（47）
+    expect(atFrame.continuousMotion).toBe(false)
     // 骨骼无关键帧 → 保持基线 idle 骨骼，而非被「猜状态」改成 walk 骨骼
     expect(atFrame.rigRoot).toEqual(personIdle.rigRoot)
     expect(atFrame.joints).toEqual(presetJoints('idle'))
@@ -332,5 +334,46 @@ describe('M2-C7 骨骼决策消费动作通道派生上下文', () => {
     expect(afterSwitch.joints).toEqual(cloneJointPose(runJoints))
     // 骨骼在切段帧发生 hard 切（run 的 joints 不等于 walk 的 joints）
     expect(afterSwitch.joints).not.toEqual(beforeSwitch.joints)
+  })
+})
+
+// ---- 47 三层注册表契约：objectState 沿基线 / 派生通道 / 不落通道 ----
+
+describe('47 三层注册表：objectState 沿基线不被关键帧覆盖', () => {
+  it('先勾后打帧再播放：continuousMotion 恒沿基线 true，不被旧 action 关键帧 false 覆盖（46 病灶）', () => {
+    // 基线勾选 true；但 action 通道已录一帧 continuousMotion=false（模拟旧数据或打帧当下为 false）
+    const base = { ...person, continuousMotion: true }
+    let channels = {}
+    // 用不含 continuousMotion 的 action key（真值已撤出通道），叠加一个含 false 的旧结构 key，验证求值仍取基线
+    channels = upsertChannelKeys(channels, snapshotToChannelKeys('person', { pose: 'walk', poseTime: 0.4 }, 0, 'smooth'))
+    channels.action = [{ frame: 0, interpolation: 'smooth', fields: { pose: 'walk', poseTime: 0.4, continuousMotion: false } }]
+    const atFrame = objectAtFrame(base, channels, 5, FPS)
+    expect(atFrame.continuousMotion).toBe(true) // 即便关键帧里残留 false，仍沿基线 true
+    // 反证：基线 false 时，即使通道残留 true 也不覆盖
+    const off = objectAtFrame({ ...person, continuousMotion: false }, channels, 5, FPS)
+    expect(off.continuousMotion).toBe(false)
+  })
+
+  it('footLock（objectState）同沿基线，不参与任何通道求值', () => {
+    const base = { ...person, footLock: true }
+    let channels = {}
+    channels = upsertChannelKeys(channels, snapshotToChannelKeys('person', { pose: 'walk', poseTime: 0.4 }, 0, 'smooth'))
+    expect(objectAtFrame(base, channels, 5, FPS).footLock).toBe(true)
+  })
+})
+
+describe('47 三层注册表：派生的 ENTITY_CHANNELS 与 OBJECT_STATE_FIELDS', () => {
+  it('continuousMotion/footLock 被收进 OBJECT_STATE_FIELDS.person，且不在任何 ENTITY_CHANNELS 通道', () => {
+    expect(OBJECT_STATE_FIELDS.person).toEqual(expect.arrayContaining(['continuousMotion', 'footLock']))
+    const channelFields = Object.values(ENTITY_CHANNELS.person).flat()
+    expect(channelFields).not.toContain('continuousMotion')
+    expect(channelFields).not.toContain('footLock')
+  })
+
+  it('camera 的 targetMode/targetId 归 objectState；派生命中化通道仅 animatable（47 §3）', () => {
+    expect(OBJECT_STATE_FIELDS.camera).toEqual(expect.arrayContaining(['targetMode', 'targetId']))
+    expect(ENTITY_CHANNELS.camera.transform).toEqual(['position', 'rotation'])
+    expect(ENTITY_CHANNELS.camera.lens).toEqual(['focalLength'])
+    expect(ENTITY_CHANNELS.camera.lens).not.toContain('targetMode')
   })
 })

@@ -19,9 +19,7 @@ export function Timeline({ currentFrame, fps, totalFrames, onSeek, playing, onTo
   const scrollRef = useRef(null)
 
   const contentWidth = Math.max(1, totalFrames * pxPerFrame)
-
-  // 缩放滑块最小值 = 可视宽度 / 总帧数：拖到最左即「适应窗口」——整段内容（如 15 秒全部）无需滚动即可见。
-  // 可视宽度随容器 resize 更新；minPxPerFrame 变化时把当前缩放夹到有效区间。
+  // 可视宽度随容器 resize 更新（scrollRef 挂载后 measure 一次），用于计算滑块最小值与背景轴铺满宽度
   const [viewportWidth, setViewportWidth] = useState(0)
   useEffect(() => {
     const measure = () => { if (scrollRef.current) setViewportWidth(scrollRef.current.clientWidth) }
@@ -29,7 +27,14 @@ export function Timeline({ currentFrame, fps, totalFrames, onSeek, playing, onTo
     window.addEventListener('resize', measure)
     return () => window.removeEventListener('resize', measure)
   }, [])
-  const minPxPerFrame = Math.max(PX_PER_FRAME_HARD_MIN, viewportWidth / Math.max(1, totalFrames))
+
+  // 标尺/轨道背景轴始终铺满可视宽度（至少 viewportWidth），避免缩到最小时右侧一片空白。
+  // 刻度/关键帧/播放头仍按 pxPerFrame 绝对定位，超出 contentWidth 的部分落在背景轴上，视觉正确。
+  const timelineWidth = Math.max(contentWidth, viewportWidth)
+
+  // 缩放滑块最小值 = 可视宽度 / (总帧数 * 2)：拖到最左时整段内容仅占约半窗宽（两侧留白），
+  // 作为「能看清全片」的最松缩放；比原「适应窗口」留更多余量，避免贴边过紧。
+  const minPxPerFrame = Math.max(PX_PER_FRAME_HARD_MIN, viewportWidth / Math.max(1, totalFrames * 2))
   useEffect(() => {
     setPxPerFrame(value => clamp(value, minPxPerFrame, PX_PER_FRAME_MAX))
   }, [minPxPerFrame])
@@ -83,7 +88,8 @@ export function Timeline({ currentFrame, fps, totalFrames, onSeek, playing, onTo
       const x = moveEvent.clientX - rect.left
       const y = moveEvent.clientY - rect.top
       if (!dragged && Math.hypot(x - x0, y - y0) > MARQUEE_THRESHOLD) dragged = true
-      if (dragged) setMarquee({ x0, y0, x1: x, y1: y })
+      // 记录所属轨道，确保只有被框选的那条轨渲染选框（避免多轨各画一个出现「两个框」）
+      if (dragged) setMarquee({ kind, trackId, x0, y0, x1: x, y1: y })
     }
     const up = upEvent => {
       window.removeEventListener('pointermove', move)
@@ -244,18 +250,19 @@ export function Timeline({ currentFrame, fps, totalFrames, onSeek, playing, onTo
   })
 
   const renderTrack = (frames, kind, onDelete, trackId = null) => (
-    <div className={`track ${kind}-track`} style={{ width: contentWidth }} onPointerDown={beginTrackScrub(kind, trackId)}>
+    <div className={`track ${kind}-track`} style={{ width: timelineWidth }} onPointerDown={beginTrackScrub(kind, trackId)}>
       <div className="track-fill" style={{ width: `${currentFrame * pxPerFrame}px` }} />
       {!frames.length && <span className="empty-track-note">暂无关键帧</span>}
       {frames.map(key => {
         const isDragged = dragging?.kind === kind && dragging?.trackId === trackId && dragging?.fromFrame === key.frame
         const displayFrame = isDragged ? dragging.toFrame : key.frame
         const isSelected = selection.some(item => item.kind === kind && item.trackId === trackId && item.frame === key.frame)
-        const stateCopy = kind === 'object' && objectTrack?.type === 'person' ? ` · ${poseLabel(key.pose)}${key.continuousMotion ? '（持续）' : ''}` : ''
+        const stateCopy = kind === 'object' && objectTrack?.type === 'person' ? ` · ${poseLabel(key.pose)}${objectTrack.continuousMotion ? '（持续）' : ''}` : ''
         const title = `第 ${key.frame} 帧${stateCopy} · ${normalizeInterpolation(key.interpolation) === 'smooth' ? '平滑' : normalizeInterpolation(key.interpolation) === 'linear' ? '线性' : '保持'} · 拖动可移动，单击改插值/删除`
         return <button key={key.frame} className={`keyframe ${kind} ${key.frame === currentFrame ? 'is-current' : ''} ${isSelected ? 'is-selected' : ''}`} data-interpolation={normalizeInterpolation(key.interpolation)} style={{ left: `${displayFrame * pxPerFrame}px` }} title={title} aria-label={title} onPointerDown={event => beginKeyDrag(event, key, kind, trackId, frames)} onDoubleClick={event => { event.stopPropagation(); onDelete(key.frame); onSelectKeyframe(null) }} />
       })}
-      {marquee && (
+      {/* 仅在该轨被框选时渲染选框，避免多条轨各自绘制导致出现「两个框」 */}
+      {marquee && marquee.kind === kind && marquee.trackId === trackId && (
         <div className="timeline-marquee" style={{
           left: Math.min(marquee.x0, marquee.x1),
           top: Math.min(marquee.y0, marquee.y1),
@@ -305,7 +312,7 @@ export function Timeline({ currentFrame, fps, totalFrames, onSeek, playing, onTo
         {/* 中列：标尺与轨道共用同一滚动容器（刻度线与轨道关键帧/播放头天然对齐） */}
         <div className="timeline-scroll" ref={scrollRef}>
           <div className="timeline-ruler-row">
-            <div className="ruler timeline-ruler" style={{ width: contentWidth }}>{rulerFrames.map(frame => <span key={frame} style={{ left: `${frame * pxPerFrame}px` }}>{frame}</span>)}</div>
+            <div className="ruler timeline-ruler" style={{ width: timelineWidth }}>{rulerFrames.map(frame => <span key={frame} style={{ left: `${frame * pxPerFrame}px` }}>{frame}</span>)}</div>
           </div>
           {renderTrack(keyframes, 'camera', onDeleteKeyframe)}
           {objectTrack && renderTrack(objectTrack.keyframes, 'object', onDeleteObjectKeyframe, objectTrack.id)}

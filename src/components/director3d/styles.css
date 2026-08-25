@@ -457,8 +457,8 @@
 /* 时间轴增强（缩放/吸附/框选） */
 .timeline-marquee { position: absolute; z-index: 4; background: rgba(59,130,246,.14); border: 1px solid rgba(59,130,246,.5); pointer-events: none; border-radius: 2px; }
 .timeline-toolbar-toggle { width: 24px; height: var(--btn-h-sm); padding: 0; display: grid; place-items: center; border: 0; border-radius: 4px; background: transparent; color: var(--text-dim); cursor: pointer; }
-.timeline-toolbar-toggle:hover { background:var(--surface-hover-4); color: var(--accent); }
-.timeline-toolbar-toggle.is-on { color: var(--accent); background: var(--accent-soft); }
+.timeline-toolbar-toggle:hover { background: transparent; color: var(--accent); }
+.timeline-toolbar-toggle.is-on { color: var(--accent); background: transparent; }
 
 /* Toast：对齐 maomao 统一通知 —— 顶部居中 + 四档状态色（/10 渐变填充 + /30 描边 + 柔光）+ 滑入动画 */
 .toast-stack { position: fixed; top: 16px; left: 50%; transform: translateX(-50%); z-index: 140; display: flex; flex-direction: column; align-items: center; gap: 6px; pointer-events: none; }

@@ -66,10 +66,10 @@ const sampleFrames = [0, 5, 10, 24, 36, 48]
 // ---- M1.1 实体·通道注册表（M1-C1 / C2 / C5） ----
 
 describe('M1.1 实体·通道注册表 ENTITY_CHANNELS', () => {
-  it('三实体通道划分符合 PRD 草案（M1-C1）', () => {
+  it('三实体通道划分符合 PRD 草案（M1-C1）；continuousMotion 撤出 action 归 objectState（47）', () => {
     expect(ENTITY_CHANNELS.camera).toEqual({ transform: ['position', 'rotation'], lens: ['focalLength'] })
     expect(ENTITY_CHANNELS.object).toEqual({ transform: ['position', 'rotation', 'scale'] })
-    expect(ENTITY_CHANNELS.person).toEqual({ transform: ['position', 'rotation', 'scale'], action: ['pose', 'poseTime', 'continuousMotion'], skeleton: ['rigRoot', 'joints'] })
+    expect(ENTITY_CHANNELS.person).toEqual({ transform: ['position', 'rotation', 'scale'], action: ['pose', 'poseTime'], skeleton: ['rigRoot', 'joints'] })
   })
 
   it('同实体下每个字段属且只属一个通道（M1-C2 无重复登记）', () => {
@@ -92,9 +92,11 @@ describe('M1.2 整快照 → 通道 key（snapshotToChannelKeys）', () => {
     const keys = snapshotToChannelKeys('person', legacyPersonKeys[0], 0, 'smooth')
     expect(Object.keys(keys).sort()).toEqual(['action', 'skeleton', 'transform'])
     expect(keys.transform[0].fields).toEqual({ position: [-1.25, 0, 0.3], rotation: [0, 0.25, 0], scale: [1, 1, 1] })
-    expect(Object.keys(keys.action[0].fields).sort()).toEqual(['continuousMotion', 'pose', 'poseTime'])
+    expect(Object.keys(keys.action[0].fields).sort()).toEqual(['pose', 'poseTime'])
     expect(Object.keys(keys.skeleton[0].fields).sort()).toEqual(['joints', 'rigRoot'])
     // 反例：transform.fields 里不得出现动作/骨骼字段
+    // objectState（continuousMotion）不进任何通道（47）
+    expect(keys.action[0].fields.continuousMotion).toBeUndefined()
     expect(keys.transform[0].fields.pose).toBeUndefined()
     expect(keys.transform[0].fields.joints).toBeUndefined()
   })
