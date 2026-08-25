@@ -23,6 +23,7 @@ import { httpRequest } from './httpClient.js'
 import { API_BASE } from './config.js'
 import { rescanResources } from './localToolApi.js'
 import { saveInlineToLocal, uploadFileToLocal, EXT_BY_TYPE } from './filesApi.js'
+import { UPLOAD_DIRS } from './uploadDirs.js'
 import { logger } from './logger.js'
 
 const STORAGE_KEY = 'yimao_asset_library'
@@ -131,7 +132,7 @@ export function filterByFolder(list, folder) {
 }
 
 // 新增素材（folder 指定落目录，缺省 migrated）
-export function addAssets(items, folder = 'migrated') {
+export function addAssets(items, folder = UPLOAD_DIRS.migrated) {
   const now = Date.now()
   const added = items.map((it) => ({
     id: it.id || genId(),
@@ -159,7 +160,7 @@ export function addAssets(items, folder = 'migrated') {
  * 落盘成功后 rescan，素材库面板即可读到。data: → multipart；http(s) → 下载成 Blob 后 multipart。
  * blob: 是本地临时地址，不落盘（调用方应传 data:/http）。
  */
-export function sendToAssetLibrary(url, { name, folder = 'migrated', type } = {}) {
+export function sendToAssetLibrary(url, { name, folder = UPLOAD_DIRS.migrated, type } = {}) {
   logger.debug('assetStore', '[SEND] sendToAssetLibrary 进入', { urlPrefix: String(url).slice(0, 60), folder, name }, { module: 'asset' })
   if (!url) return []
   let fname = '未命名'
@@ -245,7 +246,7 @@ async function persistUrlToBackend(url, folder) {
  * 落盘成功后登记进素材库 store + 广播（AssetLibrary 面板自动刷新），与 sendToAssetLibrary 一致。
  * @returns {Promise<string>} 本地化后的持久 URL
  */
-export async function localizeAndStoreToLibrary(url, { name, folder = 'migrated' } = {}) {
+export async function localizeAndStoreToLibrary(url, { name, folder = UPLOAD_DIRS.migrated } = {}) {
   const src = String(url || '')
   if (!src) throw new Error('无素材可上传')
   let localized = null

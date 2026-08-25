@@ -12,11 +12,12 @@ import { httpRequest } from './httpClient.js'
 import { logger } from './logger.js'
 import { UPLOAD_TIMEOUT } from './config.js'
 import { formatTime } from './utils.js'
+import { UPLOAD_DIRS } from './uploadDirs.js'
 export { toAbsoluteFileUrl } from './imageUrl.js'
 export { EXT_BY_TYPE }
-const SUBFOLDER = 'tasks'
+const SUBFOLDER = UPLOAD_DIRS.tasks
 /** 网页拖图专用落盘目录（不与素材库/生成结果混放，见 docs/34 升级） */
-export const WEB_DROP_SUBFOLDER = 'web'
+export const WEB_DROP_SUBFOLDER = UPLOAD_DIRS.web
 // multipart/大文件上传统一参数：较长超时 + 不自动重试（避免重复上传）
 const UPLOAD_OPTS = { timeoutMs: UPLOAD_TIMEOUT, retries: 0 }
 
@@ -47,7 +48,7 @@ function safeName(base, ext) {
  * @param {string} [subfolder] 落盘子目录，默认 canvas（与官方 base64Externalize 一致）
  * @returns {Promise<string|null>} 落盘 URL；失败返回 null
  */
-export async function saveInlineToLocal(dataUrl, subfolder = 'canvas') {
+export async function saveInlineToLocal(dataUrl, subfolder = UPLOAD_DIRS.canvas) {
   if (!dataUrl || !dataUrl.startsWith('data:')) return null
   try {
     const blob = dataUrlToBlob(dataUrl)
@@ -76,7 +77,7 @@ export async function saveInlineToLocal(dataUrl, subfolder = 'canvas') {
  * @param {string} [filename] 可选自定义文件名（默认用 file.name）
  * @returns {Promise<string|null>}
  */
-export async function uploadFileToLocal(file, subfolder = 'canvas/drop', filename) {
+export async function uploadFileToLocal(file, subfolder = UPLOAD_DIRS.canvasDrop, filename) {
   if (!file) return null
   logger.debug('filesApi', '[UPLOAD] 准备 multipart 上传', { subfolder, name: filename || file.name, size: file.size, type: file.type }, { module: 'asset' })
   try {
@@ -102,7 +103,7 @@ export async function uploadFileToLocal(file, subfolder = 'canvas/drop', filenam
  * @param {object} [opts] { folder='canvas' 落盘子目录, filename 可选文件名（默认取 URL basename） }
  * @returns {Promise<string|null>} 本地化 URL（http://127.0.0.1:18080/files/<folder>/<name>）；失败返回 null（调用方降级保持原 URL）
  */
-export async function downloadRemoteToLocal(url, { folder = 'canvas', filename } = {}) {
+export async function downloadRemoteToLocal(url, { folder = UPLOAD_DIRS.canvas, filename } = {}) {
   // saveRemoteUrl 用 new URL(fileUrl) 取 basename，data:/blob: 会抛错 → 仅 http(s) 可下载（非 http 直接 null）
   if (typeof url !== 'string' || !/^https?:/i.test(url)) return null
   return uploadRemoteUrl(url, folder, filename)

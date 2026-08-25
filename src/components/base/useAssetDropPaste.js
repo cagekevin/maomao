@@ -4,6 +4,7 @@ import { isEditableTarget } from './hooks.js'
 import { sanitizePastedText } from './clipboard.js'
 import { showToast } from './toastStore.js'
 import { uploadFileToLocal, downloadRemoteToLocal, WEB_DROP_SUBFOLDER } from './filesApi.js'
+import { UPLOAD_DIRS } from './uploadDirs.js'
 import { logger } from './logger.js'
 
 /**
@@ -31,6 +32,9 @@ import { logger } from './logger.js'
  *
  * 注意：sanitizePastedText 是用户明确要的方向，见 ./clipboard.js。若再被改成 normalize/
  * 保留格式，是背离需求的错误改动。
+ * 官方参考：reference-1mao/httpClient-BEVPUWLI_components/_Component95.jsx:12124-12173
+ *（handlePaste）与 :10228-10543（Ri 粘贴重建）。官方文字只 trim()（text: e.trim()），
+ * 用户要求比官方更强清洗，以「用户诉求」为准。
  * ════════════════════════════════════════════════════════════════════════
  *
  * 画布素材「拖入 + 粘贴」hook（复刻官方 H_.jsx:10201-10350 onDragOver ki / onDrop Ai + handlePaste）。
@@ -98,7 +102,7 @@ export function useAssetDropPaste({ addNode, screenToFlowPosition, onPasteNodeGr
       // 图片/视频/音频：优先直接上传 localTool 成 /files/ URL（对齐官方 H_.jsx onDrop hi(file)），
       // 避免把大视频 dataURL 塞进画布快照导致刷新丢失；上传失败（localTool 离线等）才 fallback 到 dataURL。
       ;(async () => {
-        const url = await uploadFileToLocal(file, 'canvas/drop')
+        const url = await uploadFileToLocal(file, UPLOAD_DIRS.canvasDrop)
         if (url) {
           addNode('imageNode', pos, { imageUrl: url, label: file.name })
           showToast(`已导入${type === 'image' ? '图片' : type === 'video' ? '视频' : '音频'}「${file.name}」`)

@@ -236,29 +236,47 @@ test('[fileStore] sanitizeFilename 全非法回退为原样（至少非空）', 
   assert.ok(out.length > 0);
 });
 
-test('[fileStore] resolveUploadTarget 计算绝对路径与 /files 前缀 URL', () => {
-  const { dir, savedPath, urlPath } = fileStore.resolveUploadTarget('img', 'cat.png');
+test('[fileStore] normalizeSubfolder 放行登记根 + 合法嵌套（canvas/drop、migrated/人物、director3d）', () => {
+  for (const ok of ['tasks', 'web', 'canvas', 'canvas/drop', 'canvas/video-process', 'migrated', 'migrated/人物', 'migrated/脚本/尾帧变体', 'director3d']) {
+    assert.equal(fileStore.normalizeSubfolder(ok), ok, `应放行: ${ok}`);
+  }
+});
+
+test('[fileStore] normalizeSubfolder 拒绝目录逃逸 / 未知根 / 绝对路径 / 盘符', () => {
+  for (const bad of ['../etc', 'a/../../b', '..', '', '.', 'img', 'txt', '/etc/passwd', 'C:\\windows', 'uploads', 'assets']) {
+    assert.equal(fileStore.normalizeSubfolder(bad), null, `应拒绝: ${JSON.stringify(bad)}`);
+  }
+});
+
+test('[fileStore] resolveUploadTarget 用登记根计算绝对路径与 /files 前缀 URL', () => {
+  const { dir, savedPath, urlPath } = fileStore.resolveUploadTarget('canvas', 'cat.png');
   assert.equal(path.basename(savedPath), 'cat.png');
-  assert.ok(dir.endsWith(path.join('uploads', 'img')));
-  assert.ok(urlPath.startsWith('/files/img/'));
+  assert.ok(dir.endsWith(path.join('uploads', 'canvas')));
+  assert.ok(urlPath.startsWith('/files/canvas/'));
   assert.ok(urlPath.endsWith('cat.png'));
+});
+
+test('[fileStore] resolveUploadTarget 未知根回退默认 canvas（防目录污染）', () => {
+  const { dir, urlPath } = fileStore.resolveUploadTarget('img', 'cat.png');
+  assert.ok(dir.endsWith(path.join('uploads', 'canvas')));
+  assert.ok(urlPath.startsWith('/files/canvas/'));
 });
 
 test('[fileStore] writeUploadBuffer 自动加时间戳前缀去重并返回 urlPath', () => {
   const buf = Buffer.from('hello-maomao');
-  const { savedPath, urlPath } = fileStore.writeUploadBuffer('txt', 'note.txt', buf);
+  const { savedPath, urlPath } = fileStore.writeUploadBuffer('tasks', 'note.txt', buf);
   assert.ok(fs.existsSync(savedPath), '文件应已落盘');
   assert.ok(/\d+-note\.txt$/.test(path.basename(savedPath)), '应含时间戳前缀，实际: ' + path.basename(savedPath));
-  assert.ok(urlPath.startsWith('/files/txt/'));
+  assert.ok(urlPath.startsWith('/files/tasks/'));
   assert.equal(fs.readFileSync(savedPath, 'utf-8'), 'hello-maomao');
 });
 
-test('[fileStore] writeUploadBufferAt 稳定文件名落盘', () => {
+test('[fileStore] writeUploadBufferAt 稳定文件名落盘（嵌套合法目录 migrated/a/b）', () => {
   const buf = Buffer.from('at-path');
   const rel = 'sub/at-stable.bin';
-  const { savedPath, urlPath } = fileStore.writeUploadBufferAt('', rel, buf);
+  const { savedPath, urlPath } = fileStore.writeUploadBufferAt('migrated/脚本', rel, buf);
   assert.ok(fs.existsSync(savedPath));
-  assert.ok(urlPath.startsWith('/files/'));
+  assert.ok(urlPath.startsWith('/files/migrated/脚本/'));
   assert.equal(fs.readFileSync(savedPath, 'utf-8'), 'at-path');
 });
 

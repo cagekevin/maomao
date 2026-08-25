@@ -28,6 +28,7 @@ import { buildSpawnNodes, spawnAndCommit } from '../base/deriveNodes.js'
 import { useCanvasEdges } from '../base/CanvasEdgesContext.jsx'
 import { httpRequest } from '../base/httpClient.js'
 import previewUrls from '../base/previewUrl.js'
+import { UPLOAD_DIRS } from '../base/uploadDirs.js'
 import { DOWNLOAD_TIMEOUT, VIDEO_DOWNLOAD_TIMEOUT } from '../base/config.js'
 import { createRafBatch } from '../base/utils.js'
 
@@ -917,7 +918,7 @@ function VideoProcessNode({ id, data, selected }) {
         )
       }
 
-      const uploaded = await uploadResult(result.blob, { subfolder: 'canvas/video-process' })
+      const uploaded = await uploadResult(result.blob, { subfolder: UPLOAD_DIRS.videoProcess })
       const count = clips.length
       const suffix = mode === 'trim' ? (count > 1 ? `trimmed_${count}_clips` : 'trimmed') : mode === 'extractAudio' ? 'audio' : mode === 'sizeFrameRate' ? `${outW}x${outH}_${targetFps}fps` : `merged_${count}_clips`
       const outputName = `${stripExt(currentName || 'video')}_${suffix}.${result.extension}`

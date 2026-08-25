@@ -16,6 +16,7 @@
  */
 import { httpRequest, httpPost } from './httpClient.js'
 import { API_BASE } from './config.js'
+import { UPLOAD_DIRS } from './uploadDirs.js'
 
 // ─────────────────────────── tasks ───────────────────────────
 // GET /api/tasks?page&pageSize&keyword → { items, total }
@@ -200,6 +201,6 @@ export async function createFolder(folder) {
 export async function uploadFile(file, subfolder, filename) {
   const fd = new FormData()
   fd.append('file', file, filename || file.name || 'upload')
-  fd.append('subfolder', subfolder || 'migrated')
+  fd.append('subfolder', subfolder || UPLOAD_DIRS.migrated)
   return httpRequest(`${API_BASE}/api/files/upload`, { method: 'POST', body: fd, retries: 0, label: 'uploadFile' })
 }

@@ -5,6 +5,7 @@ import {
   poseForObject, presetJoints, presetPhase, presetRoot,
 } from './rig.js'
 import { readJson, removeKey, writeJson } from './storage.js'
+import { isProjectImageUrl } from '../base/d3dPersistence.js'
 
 export const CAMERA_ID = '__shot_camera__'
 export const PROJECT_STORAGE_KEY = 'director3d-project'
@@ -402,7 +403,7 @@ export function normalizeCameraKeyframes(keys = [], fallbackCamera = initialCame
 }
 
 export function normalizeReference(reference = {}) {
-  const image = typeof reference.image === 'string' && /^data:image\/(?:png|jpe?g|webp);base64,/i.test(reference.image)
+  const image = typeof reference.image === 'string' && isProjectImageUrl(reference.image)
     ? reference.image
     : ''
   return {
@@ -589,7 +590,7 @@ export function normalizeShot(shot, index, fallback) {
   return {
     id: String(shot?.id || `shot-${uid()}`),
     name: String(shot?.name || defaultShotName(index)).trim().slice(0, 30) || defaultShotName(index),
-    thumbnail: typeof shot?.thumbnail === 'string' && shot.thumbnail.startsWith('data:image/') ? shot.thumbnail : '',
+    thumbnail: typeof shot?.thumbnail === 'string' && isProjectImageUrl(shot.thumbnail) ? shot.thumbnail : '',
     fps: timing.fps,
     durationSeconds: timing.durationSeconds,
     loopPlayback: timing.loopPlayback,

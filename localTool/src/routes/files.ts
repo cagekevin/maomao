@@ -9,7 +9,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { getUploadDir } from '../db/database.js';
-import { ensureDir, sanitizeFilename, resolveUploadTarget, writeUploadBuffer, writeUploadBufferAt, ensureThumbnailTarget, resizeImage } from '../utils/fileStore.js';
+import { ensureDir, sanitizeFilename, resolveUploadTarget, writeUploadBuffer, writeUploadBufferAt, ensureThumbnailTarget, resizeImage, normalizeSubfolder } from '../utils/fileStore.js';
 import { json, parseMultipart, parseJsonBody, readRawBody, sendError } from '../utils/helpers.js';
 import { fetchWithProxy } from '../utils/netProxy.js';
 
@@ -383,7 +383,7 @@ export async function handleMove(req: IncomingMessage, res: ServerResponse): Pro
 
 // ── open ──
 export async function handleOpen(req: IncomingMessage, res: ServerResponse, url: URL): Promise<void> {
-  const subfolder = url.searchParams.get('subfolder') || 'canvas';
+  const subfolder = normalizeSubfolder(url.searchParams.get('subfolder')) ?? 'canvas';
   const uploadDir = getUploadDir();
   const dirPath = path.join(uploadDir, subfolder);
 
@@ -431,7 +431,7 @@ export async function handleOpenDir(req: IncomingMessage, res: ServerResponse, u
 export async function handleList(req: IncomingMessage, res: ServerResponse, url: URL): Promise<void> {
   const subfolder = url.searchParams.get('subfolder') || '';
   const uploadDir = getUploadDir();
-  const targetDir = subfolder ? path.join(uploadDir, subfolder) : uploadDir;
+  const targetDir = subfolder ? path.join(uploadDir, normalizeSubfolder(subfolder) ?? '') : uploadDir;
 
   if (!fs.existsSync(targetDir)) {
     return json(res, { code: 0, data: { files: [], folders: [] } });

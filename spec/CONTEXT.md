@@ -4,26 +4,6 @@
 
 > **🔝 第一原则：能用原生，绝不外求。** 能用 React 内置和浏览器原生解决的，绝不引第三方库；能用已收口的 `base/utils.js` 解决的，绝不手写。第三方库仅在原生代价过高时引入并在此登记。
 
-### 📌 用户需求铁律 · 复制 / 粘贴（最高优先，改粘贴前必读，勿删勿改方向）
-
-**这段是用户亲口明确的真实需求，是硬约束。任何 AI 改 `src/components/base/useAssetDropPaste.js` / `clipboard.js` 前必须逐条对照，不得反向理解、不得删除。**
-
-1. **复制图片、复制文字、复制节点，三件事都要可靠、清晰。**
-2. **粘贴文字就是要清洗（用户原话）。** 文字粘贴到画布建 textNode 时必须经 `sanitizePastedText` 彻底清洗（压缩连续空格/空行、去行首行尾空格、统一换行、去不可见脏字符）。**核心目的**：粘贴表格/富文本时，绝不能把表格当图片或带样式贴进来，必须压成干净纯文本。→ **不要改成"保留格式/normalize"（那是错误方向，曾因此被用户纠正）。**
-3. **复制文本节点有两种语义，都要可靠：**
-   - A. 工具栏「复制文本」→ 复制节点**里的文字**（纯文本）→ 粘贴到画布建 textNode（经清洗）。
-   - B. 右键「复制」→ 复制**整个节点**（`mutiwindow-nodes` JSON）→ 粘贴到画布重建节点组。
-4. **焦点在可编辑元素**（contenteditable / input / textarea）内：
-   - 纯文本 → 走浏览器原生插入（不建节点、不拦截）；
-   - 节点组/图片组 JSON（`mutiwindow-nodes` / `mutiwindow-images`）→ **必须放行到画布建节点**，不能退化成把 JSON 文本塞进编辑框，否则"复制节点粘贴不上"且焦点卡住后**后续所有节点粘贴全失败**。
-5. **粘贴要稳定可靠，三层防线：**
-   - 主路径 `text/plain` 用**同步 `getData('text/plain')` 优先**（paste 事件不回收），`getAsString` 仅补充；
-   - 同步 getData 二次补充；
-   - `navigator.clipboard.read()` 极端兜底；全部失败必须 `showToast` 提示，**不静默**。
-6. **图片**：file / `text/html` 里的 `<img>` / read() 的 image blob，都要能建 imageNode。
-
-**官方参考**：`reference-1mao/httpClient-BEVPUWLI_components/_Component95.jsx:12124-12173`（handlePaste）与 `:10228-10543`（Ri 粘贴重建）。官方文字只 `trim()`（`text: e.trim()`），用户要求比官方更强清洗，以**用户诉求为准**。
-
 ### 🎯 产品定位铁律（单人自用，最高优先）
 
 本项目 99% 只有开发者个人使用。一切设计只服务**一个正常用户的真实用法**，**操作流畅是第一要求**。
@@ -171,6 +151,8 @@
 
 * **`src/components/director3d/` 是从外部下载的开源仓库**（storyai-3d-director-desk），非本仓库自有代码，**基本独立于主画布**（自有 store/schema/编辑器，TS 实现），耦合不深。由 `Director3DNode` 双击进入。
 * **边界红线**：**不为它写测试、不纳入测试维护、不主动重构**；改动只做"必要的最小集成"，改前先读文件头注释。它是独立设计，别当主项目机制深改。
+* **工程持久化收口（docs/45，2026-08-25）**：director3d 工程已从「纯 localStorage」收口到「localTool KV + uploads/director3d 落盘 + localStorage 降级」双通道。核心可测协议收在 **`src/components/base/d3dPersistence.js`**（我方代码，唯一入口：`writeProject`/`hydrateProject`，纯函数 `projectKvKey`/`isProjectImageUrl`/`isProjectPersistenceKey`/`externalizeProjectImages`/`pickProjectSource`，走 `contracts.js apiRegistry` 已登记的 `/api/kv/get|set` 与 18080 绝对地址）。director3d 内只做最小适应（`storage.writeJson` 工程键委托异步 fire-and-forget、`project.js` normalize 复用 `isProjectImageUrl` 放行 `/files/` 地址、`App.jsx` 挂载 hydrate 覆盖）。**姿势库键 `director3d-custom-poses` 不进 KV（仍只写 localStorage）**。多开同 key 并发：非全锁，通过 `BroadcastChannel('yimao_director3d_kv')` 广播 D3D_SAVED + 落前冲突提示，把"静默覆盖"变可见（不阻塞编辑）。改持久化契约先改 `d3dPersistence.js`，勿在 director3d 内部散写第二套。
+* **uploads 子目录后端白名单（docs/45 §2.3，2026-08-25）**：后端 `localTool/src/utils/fileStore.ts` 的 `normalizeSubfolder` 是唯一校验入口——**顶层根白名单**（`tasks`/`web`/`canvas`/`migrated`/`director3d`）+ 目录逃逸拦截（拒绝 `..`/绝对路径/盘符/未知根，非法回退 `canvas`）。⚠️ 刻意**不做"精确值全禁止"**：素材库有动态分类目录（`migrated/人物`、`migrated/脚本/尾帧变体` 等）与嵌套（`canvas/drop`、`canvas/video-process`），故白名单只卡顶层根、放行合法嵌套，防拼错/越根而非拦分类。
 
 ---
 

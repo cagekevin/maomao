@@ -30,6 +30,7 @@ import {
 import { GIFEncoder, quantize, applyPalette } from 'gifenc'
 import { logger } from './logger.js'
 import { uploadFileToLocal } from './filesApi.js'
+import { UPLOAD_DIRS } from './uploadDirs.js'
 
 /** clamp：保证是偶数且 ≥2 */
 function Sc(v) {
@@ -455,7 +456,7 @@ export async function videoToGif(url, t = {}) {
  */
 export async function uploadResult(blob, _opts = {}) {
   if (typeof blob === 'string') return { url: blob }
-  const subfolder = _opts?.subfolder || 'canvas/video-process'
+  const subfolder = _opts?.subfolder || UPLOAD_DIRS.videoProcess
   try {
     const name = (blob.name || `video_${Date.now()}.${blob.type?.split('/')[1] || 'mp4'}`).replace(/[\\/:*?"<>|]/g, '_')
     const url = await uploadFileToLocal(blob, subfolder, name)

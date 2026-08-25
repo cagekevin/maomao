@@ -25,6 +25,35 @@ export function sanitizeFilename(name: string): string {
 }
 
 /**
+ * 目录根白名单（docs/45 收口）。subfolder 只允许以这些根开头，防止拼错目录污染 uploads 根。
+ * ⚠️ 不能做成「精确值全量禁止」：素材库有动态分类目录（migrated/人物、migrated/脚本/尾帧变体 等），
+ * 且 canvas、migrated 下可嵌套（canvas/drop、canvas/video-process）——故白名单针对【顶层根】，
+ * 只拒绝未知顶层根与目录逃逸，放行既有所有合法用法（这与前端 uploadDirs.js 的常量根一致）。
+ */
+const UPLOAD_ROOT_ALLOW = new Set(['tasks', 'web', 'canvas', 'migrated', 'director3d']);
+
+/**
+ * 规范化并校验 subfolder（目录根白名单 + 防目录逃逸）。
+ * - 统一 `/` 分隔、去首尾斜杠、折叠连续斜杠；
+ * - 拒绝空段 / `.` / `..` / 含盘符或 `:` 的绝对形式 / 未登记顶层根；
+ *   （路径经 path.join 拼接后必然落在 uploads 根内，杜绝 ../ 越根写文件）
+ * - 合法 → 返回规范化后的相对子路径；非法 → 返回 null（调用方回退默认根 canvas）。
+ */
+export function normalizeSubfolder(subfolder: unknown): string | null {
+  if (typeof subfolder !== 'string') return null;
+  const s = subfolder
+    .replace(/\\/g, '/')
+    .replace(/^\/+|\/+$/g, '')
+    .replace(/\/{2,}/g, '/');
+  if (!s) return null;
+  const parts = s.split('/');
+  if (parts.some((p) => !p || p === '.' || p === '..')) return null;
+  const root = parts[0];
+  if (root.includes(':') || !UPLOAD_ROOT_ALLOW.has(root)) return null;
+  return parts.join('/');
+}
+
+/**
  * 拼出上传目录下的绝对路径与可访问 URL（只计算，不写盘）。
  * urlPath 形如 /files/{subfolder}/{filename}，供前端直接引用。
  */
@@ -32,9 +61,10 @@ export function resolveUploadTarget(
   subfolder: string,
   filename: string
 ): { dir: string; savedPath: string; urlPath: string } {
-  const dir = path.join(getUploadDir(), subfolder);
+  const safeSub = normalizeSubfolder(subfolder) ?? 'canvas'; // 非法子目录回退默认根，杜绝越根写
+  const dir = path.join(getUploadDir(), safeSub);
   const savedPath = path.join(dir, sanitizeFilename(filename));
-  const urlPath = `/files/${subfolder}/${path.basename(savedPath)}`;
+  const urlPath = `/files/${safeSub}/${path.basename(savedPath)}`;
   return { dir, savedPath, urlPath };
 }
 

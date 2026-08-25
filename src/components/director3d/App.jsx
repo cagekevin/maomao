@@ -126,6 +126,7 @@ import { ReferenceOverlay } from './panels/ReferenceOverlay.jsx'
 import { consumeDefer, createHistoryState, flushChange, HISTORY_DEBOUNCE_MS, recordChange, redoPeek, resetHistory, undoPeek } from './history.js'
 import { log } from './log.js'
 import { writeJson } from './storage.js'
+import { hydrateProject } from '../base/d3dPersistence.js'
 import { useToast } from './useToast.js'
 import { thumbnailFromCanvas } from './thumbnails.js'
 import { useConfirm } from './ConfirmDialog.jsx'
@@ -425,6 +426,25 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
     })
     setSelectedId(current => current === CAMERA_ID || normalized.objects.some(object => object.id === current) ? current : normalized.objects[0]?.id || CAMERA_ID)
   }, [])
+
+  // docs/45 批次B：启动异步 hydrate（KV 权威覆盖）。
+  // 时序安全：写入是 fire-and-forget、读取异步化——此处挂载后一次性拉 KV。
+  //   - 同步种子（startupProject / useMemo readCachedProject）仍走 localStorage，保证降级不丢图；
+  //   - hydrate 拉取的是 KV 权威版本（可能比本地种子新），完成后 applyProjectSnapshot 覆盖；
+  //   - KV 为空且本地有 → hydrate 内部已写回 KV（一次性迁移），本地照常复用；
+  //   - 用 alive 标志，组件卸载 / key 变化时取消过期覆盖，防竞态覆盖用户新编辑。
+  useEffect(() => {
+    let alive = true
+    hydrateProject(projectStorageKey)
+      .then(project => {
+        if (!alive || !project) return
+        applyProjectSnapshot(project)
+      })
+      .catch(error => {
+        log.error('director3d 工程 hydrate 失败（已用本地种子，不阻塞）', { key: projectStorageKey }, error)
+      })
+    return () => { alive = false }
+  }, [projectStorageKey])
 
   const flushHistory = useCallback(() => {
     const history = historyRef.current
