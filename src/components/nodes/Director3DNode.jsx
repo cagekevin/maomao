@@ -205,11 +205,11 @@ function Director3DNode({ id, data, selected }) {
       {/* 主显示框（模板写法：背景/圆角/边框/阴影由 NodeShell 提供，children 只写业务内容）
           主体：静态缩略图 / 占位；双击进入全屏 */}
       <div
-        className="relative flex flex-col w-full flex-1 min-h-0 cursor-pointer"
+        className="relative flex flex-col w-full flex-1 min-h-0 cursor-pointer overflow-hidden rounded-xl"
         onDoubleClick={(e) => { e.stopPropagation(); setOpen(true) }}
       >
         {imageUrl ? (
-          <img src={render(imageUrl)} className="w-full h-full object-cover" alt="导演台预览" draggable={false} />
+          <img src={render(imageUrl)} className="w-full h-full object-cover rounded-xl" alt="导演台预览" draggable={false} />
         ) : (
           <div className="flex flex-col items-center justify-center absolute inset-0 gap-2 text-muted-2 pointer-events-none bg-surface-muted">
             <Orbit size={64} strokeWidth={1.2} />

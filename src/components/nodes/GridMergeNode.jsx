@@ -411,11 +411,11 @@ function GridMergeNode({ id, data, selected }) {
         {/* 预览区（含可拖拽 cell/项，复刻官方 Yo.jsx Component614/616 自由组合拼图） */}
         {mergeMode !== 'overlay' && (
           <div
-            className="bg-canvas rounded border border-edge flex items-center justify-center relative overflow-hidden nodrag"
+            className="bg-canvas rounded-xl flex items-center justify-center relative overflow-hidden nodrag"
             style={{ minHeight: 160, maxHeight: 360 }}
             onDoubleClick={(e) => { e.stopPropagation(); openZoom(preview) }}
           >
-            {preview && <img src={toAbsoluteFileUrl(preview)} alt="Preview" className="max-w-full max-h-[360px] object-contain block pointer-events-none" />}
+            {preview && <img src={toAbsoluteFileUrl(preview)} alt="Preview" className="w-full h-full max-h-[360px] object-cover block pointer-events-none" />}
 
             {/* grid 模式：可拖拽 cell 网格层（复刻官方自由组合拼图） */}
             {mergeMode === 'grid' && (

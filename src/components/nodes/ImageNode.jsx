@@ -191,7 +191,7 @@ function ImageNode({ id, data, selected }) {
         {/* 就地裁剪浮层：覆盖在节点内容区之上，不跳全屏 */}
         {renderInlineCropper()}
         <div
-          className="flex-1 p-0 bg-surface-strong flex items-center justify-center relative overflow-hidden"
+          className="flex-1 p-0 bg-surface-strong flex items-center justify-center relative overflow-hidden rounded-xl"
           style={{ minHeight: 160 }}
         >
           {/* 性能模式媒体降级：缩小时隐藏图片/视频/音频（复刻官方"图片视频已隐藏"） */}
@@ -208,7 +208,7 @@ function ImageNode({ id, data, selected }) {
             <img src={renderUrl} alt="Content" loading="lazy" decoding="async"
               onLoad={fitFromImage}
               onDoubleClick={(e) => { e.stopPropagation(); dialogRef.current?.showModal() }}
-              className="w-full h-full object-contain cursor-pointer rounded-lg" draggable={false} />
+              className="w-full h-full object-cover cursor-pointer" draggable={false} />
           )}
           {/* 视频（复刻官方 xi.jsx：未播放显示海报+播放按钮，点击播放 → <video controls autoPlay>）
               无论是否播放都渲染一个 <video preload="metadata"> 读真实宽高 → onLoadedMetadata 调
@@ -222,7 +222,7 @@ function ImageNode({ id, data, selected }) {
                 ref={videoRef}
                 src={url}
                 preload="metadata"
-                className={playing ? 'max-w-full w-full h-full object-contain block rounded-lg' : 'hidden'}
+                className={playing ? 'max-w-full w-full h-full object-cover block' : 'hidden'}
                 controls={playing}
                 onLoadedMetadata={fitFromVideo}
                 onClick={(e) => e.stopPropagation()}
@@ -236,7 +236,7 @@ function ImageNode({ id, data, selected }) {
                 <>
                   {posterUrl ? (
                     <img src={posterUrl} alt="video poster" loading="lazy" decoding="async"
-                      draggable={false} className="w-full h-full object-contain cursor-pointer rounded-lg" />
+                      draggable={false} className="w-full h-full object-cover cursor-pointer" />
                   ) : (
                     <div className="absolute inset-0 flex items-center justify-center bg-surface-muted">
                       <Video size={32} className="text-gray-700" />

@@ -249,7 +249,13 @@ function LoopNode({ id, data, selected }) {
       {/* 主面板（紧凑布局；bg-surface 作为内层内容底，让外边框有对比；不加 rounded-xl 避免嵌套圆角） */}
       <div className="relative w-full flex-1 min-h-0 flex flex-col gap-1.5 p-2 bg-surface drag-handle cursor-move">
         {/* 分段提示词列表 */}
-        <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar pr-0.5 nodrag nowheel">
+        <div className="flex-1 min-h-0 flex flex-col overflow-y-auto custom-scrollbar pr-0.5 nodrag nowheel">
+          {displaySegs.length === 0 && (
+            <div className="flex-1 flex flex-col items-center justify-center gap-2 text-muted-2 pointer-events-none">
+              <Repeat size={40} strokeWidth={1.2} />
+              <span className="text-caption text-muted">请连接上游文本</span>
+            </div>
+          )}
           <div className="flex flex-col gap-1">
             {displaySegs.map((seg, i) => (
               <div key={i} className="flex items-start gap-1">

@@ -466,7 +466,7 @@ function ImageBoxNode({ id, data, selected }) {
         onDragLeave={onDragLeave}
       >
         {/* 内容容器 */}
-        <div className="flex-1 flex items-center justify-center relative overflow-hidden">
+        <div className="flex-1 flex items-center justify-center relative overflow-hidden rounded-xl">
           {/* 空态 */}
           {images.length === 0 && (
             <div className="flex flex-col items-center justify-center absolute inset-0 bg-surface-muted hover:bg-surface transition-colors cursor-pointer group" onClick={(e) => { e.stopPropagation(); fileRef.current?.click() }}>
@@ -484,7 +484,7 @@ function ImageBoxNode({ id, data, selected }) {
                 <img
                   src={render(current.url)}
                   alt={current.label || `图片 ${activeIndex + 1}`}
-                  className="w-full h-full object-contain cursor-pointer"
+                  className="w-full h-full object-cover cursor-pointer"
                   draggable={false}
                   loading="lazy"
                   decoding="async"

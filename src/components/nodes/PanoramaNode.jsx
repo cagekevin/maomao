@@ -2,7 +2,7 @@ import React, { useState, useRef, useCallback, useEffect } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { useReactFlow, useStore } from '@xyflow/react'
 import { createPortal } from 'react-dom'
-import { Globe, Maximize2, X, Camera, Scan, Grid3X3, CircleDot, Upload, Settings } from 'lucide-react'
+import { Globe, Maximize2, X, Camera, Scan, Grid3X3, CircleDot, Settings } from 'lucide-react'
 import NodeShell from '../base/NodeShell.jsx'
 import HoverToolbar from '../base/HoverToolbar.jsx'
 import { useConnectedInputs } from '../base/useConnectedInputs.js'
@@ -51,14 +51,6 @@ function PanoramaNode({ id, data, selected }) {
     if (src) return src
     return data.imageUrl || null
   })()
-
-  // 订阅节点实际尺寸（Canvas/图片容器用明确宽高，避免 flex 链测量为 0）
-  const nodeSize = useStore((s) => {
-    const n = s.nodeLookup?.get(id)
-    const w = n?.width ?? n?.style?.width ?? 640
-    const h = n?.height ?? n?.style?.height ?? 360
-    return { w, h }
-  })
 
   // 【R2 治理】panoUrl 变化时重置图片错误态（换图后可重试加载）
   const prevPanoRef = useRef(panoUrl)
@@ -267,15 +259,15 @@ function PanoramaNode({ id, data, selected }) {
     >
       <HoverToolbar buttons={[]} />
 
-      {/* 主显示区：显示【完整的等距全景图】（2:1 完整图），不是球心局部视野 */}
-      <div className="relative bg-black group/image" style={{ width: nodeSize.w, height: nodeSize.h }}>
+      {/* 主显示区（照模板：只布局，圆角/裁剪在内部显示框） */}
+      <div className="relative flex flex-col w-full flex-1 min-h-0 group/image">
         {panoUrl ? (
-          <div className="absolute inset-0 cursor-move overflow-hidden">
+          <div className="flex-1 relative overflow-hidden rounded-xl bg-surface-black">
             {/* 完整全景图（等距展开）；加载失败显示占位（R2：不再静默空白） */}
             {imgError ? (
               <div className="w-full h-full flex flex-col items-center justify-center text-red-400/80 bg-surface-muted">
-                <span className="text-sm font-medium">全景图加载失败</span>
-                <span className="text-caption-sm mt-1 text-red-400/60">图片可能已失效或跨域不可访问</span>
+                <span className="text-body font-medium">全景图加载失败</span>
+                <span className="text-caption mt-1 text-red-400/60">图片可能已失效或跨域不可访问</span>
               </div>
             ) : (
               <img
@@ -284,7 +276,7 @@ function PanoramaNode({ id, data, selected }) {
                 draggable={false}
                 onError={() => setImgError(true)}
                 onLoad={() => setImgError(false)}
-                className="w-full h-full object-contain"
+                className="w-full h-full object-cover"
               />
             )}
 
@@ -313,10 +305,9 @@ function PanoramaNode({ id, data, selected }) {
             </button>
           </div>
         ) : (
-          <div className="w-full h-full flex flex-col items-center justify-center text-muted-2 bg-surface-muted">
-            <Upload size={24} className="mb-2" />
-            <div className="text-sm">等待输入全景图</div>
-            <div className="text-caption-sm mt-1 text-muted">请将图片节点连接到此节点</div>
+          <div className="flex-1 flex flex-col items-center justify-center text-muted-2 bg-surface-muted rounded-xl">
+            <Globe size={64} strokeWidth={1.2} className="mb-2" />
+            <div className="text-caption text-muted">连接图片节点以显示全景</div>
           </div>
         )}
       </div>
