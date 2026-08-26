@@ -2,7 +2,7 @@
 
 > **本文件定位：项目认知入口。每个 AI 进来第一步读它**，了解"这是什么项目、技术栈、架构、目录、红线、怎么启动"。
 > 读完按任务再读对应入口：**写代码 → `spec/CONTEXT.md`（决策地图）**；**写/改测试 → `spec/TESTING.md`（测试权威）**。三文件互补不重叠（见 §七.0）。
-> **最后更新**：2026-08-22（API 中转层收口：`{code:0,data}` 信封统一 + `contracts.js apiRegistry` 契约真源 + `npm run check:api` 双向校验，见 §五.7/§七.2；此前为 2026-08-19 主力开发 `src/` 可维护原型、逆向脚本归档、vitest watch:false）
+> **最后更新**：2026-08-26（事件契约红线收口：`EVENTS` 登记表 `to/from` 须与代码实测自洽 + `npm run check:events` 双向校验接入 `prebuild`+`pretest`，见 §五.4.6/§五.4.1；此前为 2026-08-22 API 中转层收口）
 
 ## ⚠️ 最新情况（改动前必读）
 
@@ -31,7 +31,7 @@ npm test              # 统一测试门禁（= test:all：smoke + vitest全量�
 npm run test:unit     # vitest 全量单元测试（tests/unit/ 下数十个文件，纯逻辑/引擎/store 为主）
 npm run test:smoke    # AI 默认自检：冒烟质量门（极快）
 npm run check:health  # 工程健康全量检查（内含 check:keys + check:events + check:node-types + build + test:all + TDZ + dist 基线）
-npm run check:events  # 事件契约静态校验：EVENTS 裸事件名编译期拦截（publish/subscribe 必须用 contracts.js 登记名）
+npm run check:events  # 事件契约双向校验：① 裸事件名必须登记 EVENTS；② EVENTS 的 to/from 须与代码实测 subscribe/publish 自洽（防 to:[] 误判死事件）。挂 prebuild+pretest
 npm run check:node-types  # 节点类型静态校验：NODE_TYPES 裸 nodePrefs 命名空间拦截（useNodePrefs 首参必须登记）
 npm run check:api     # API 契约双向校验：contracts.js apiRegistry ↔ localTool router.ts 互检（防白实现/镜像漂移/信封不符），挂 prebuild+pretest
 npm run type-check    # tsc --noEmit 类型检查（仅校验 .ts/.tsx，strict 暂未开启）
@@ -262,6 +262,7 @@ node scripts/task-inspect.mjs --canvas-health   # 画布结构体检
 3. **React 单实例不可破**：整工程唯一 React 实例，✗ 不可新增独立 react/react-dom 实例。
 4. **字符串契约零损伤**（见 §五.5）：`proxyMode=local-tool`、`127.0.0.1:18080`、`127.0.0.1:9004`、`/api/proxy`、`x-proxy-url`、画布硬编码字段 `t.data[0].url`、`{code,data}` 信封——改任何引用必须全量 grep 同步。
 5. **存储键禁止裸字符串（P0 红线）**：所有存储读写（`content*/s*/storage*/kv*`）的 key 必须引用 `contracts.js` 的 `STORAGE_KEYS` 登记项，**禁止裸字符串字面量 key**。新增键先登记、改键名全量 grep、删键先确认无引用。编译期拦截：`npm run check:keys`（静态）；运行时拦截：`contentStore.checkRegistered` 在 dev 环境对未登记字面量 key 直接 throw（`scripts/check-storage-keys.mjs` + `src/components/base/contentStore.js` 为权威实现，改此机制须同步本红线）。
+6. **事件名禁止裸字符串 + 登记表零滞后（P0 红线，与存储键对称）**：所有事件总线调用（`publish`/`subscribe`/`subscribeOnce`）的事件名必须是 `contracts.js` 的 `EVENTS` 登记项，**禁止裸字符串字面量事件名**（编译期 `npm run check:events` 拦截）。`EVENTS` 的 `from`/`to` 是发布/订阅事实源，**必须与代码实测的 `publish`/`subscribe` 位置自洽**：① 表 `to: []` 但代码实测有 `subscribe` → 视为"登记表滞后"（实际已被订阅），**禁止据此判定死事件/可删发布逻辑**；② 行号漂移须同步对齐。双向校验 `npm run check:events` 已挂 `prebuild`+`pretest`（`scripts/check-events.mjs` 为权威实现）。
 5. **降复杂度优先**：能减少复杂度又不引入 bug 的改动都做（混淆短名改语义长名、抽公共、删冗余），被运行时契约钉死的除外。改完必须 `npm run build` 验证。
 
 ### 5.5 卡帕西编码准则 (Karpathy Rules)

@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "prebuild": "npm run check:api",
+    "prebuild": "npm run check:api && npm run check:events",
     "build": "vite build",
     "preview": "vite preview",
     "check:jsx": "node scripts/check-jsx.mjs",
@@ -25,7 +25,7 @@
     "test:e2e": "playwright test",
     "test:all": "node scripts/run_all_tests.cjs",
     "test": "npm run test:all",
-    "pretest": "npm run check:api",
+    "pretest": "npm run check:api && npm run check:events",
     "check:health": "node scripts/health-check.cjs",
     "type-check": "tsc --noEmit",
     "prepare": "husky"
@@ -39,9 +39,7 @@
     "@react-three/drei": "^10.7.8",
     "@react-three/fiber": "^9.7.0",
     "@xyflow/react": "^12.3.5",
-    "@xzdarcy/react-timeline-editor": "^1.0.0",
     "dagre": "^0.8.5",
-    "framer-motion": "^13.1.1",
     "gifenc": "^1.0.3",
     "lucide-react": "^0.451.0",
     "mediabunny": "^1.54.0",

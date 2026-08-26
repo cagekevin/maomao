@@ -21,22 +21,28 @@
  * 每项：
  *   key  = 事件名（统一「领域:动作」）
  *   from = 发布方（文件:行）
- *   to   = 订阅方（文件:行，null/[] 表示当前无订阅方）
+ *   to   = 订阅方（文件:行）
  *   payload = 载荷结构（约定）
  *   note = 用途/状态
  *
- * 来源：`grep -rn "publish('" src/components` 提取，2026-08-17 核对。
+ * ⚠️ 铁律（给维护者 / AI 读此文件时）：
+ *   本表的 from / to 行号靠人工维护，会随代码插入而【漂移】，
+ *   也可能出现【表登记滞后于代码】的情况（如 to:[] 实际已被订阅）。
+ *   因此：凡判定「某事件无订阅方 / 是死事件 / 可删发布逻辑」，
+ *   必须以代码实测为准——grep `subscribe('事件名'` 确认，
+ *   禁止仅凭本表 to:[] / 注释「待核对」下结论。
+ *   来源：`grep -rn "publish('" src/components` 提取，2026-08-17 核对。
  */
 export const EVENTS = {
   'agent:task-completed': {
-    from: ['taskStore.js:191', 'pollTask.js:80'],
-    to: ['useNodeGeneration.js:163'],
+    from: ['taskStore.js:209', 'pollTask.js:88'],
+    to: ['useNodeGeneration.js:211'],
     payload: '{ taskId, nodeId, resultUrl, type, status: "completed" }',
     note: '任务完成 → 精准回填节点（刷新不丢图）。生产使用',
   },
   'presets-changed': {
-    from: ['promptManager.js:88'],
-    to: ['PromptLibrary.jsx:40'],
+    from: ['promptManager.js:83'],
+    to: ['PromptLibrary.jsx:48'],
     payload: '{ presets }',
     note: '提示词库跨节点同步。生产使用',
   },
@@ -54,9 +60,9 @@ export const EVENTS = {
   },
   'persist:failed': {
     from: ['storageAdapter.js:28'],
-    to: [], // 订阅方待核对
+    to: ['App.jsx:446'], // 全局监听器，节流 toast（见 App.jsx:442）
     payload: '{ key, error }',
-    note: '持久化失败广播（sSet/sRemove 失败）。订阅方需核对是否存在',
+    note: '持久化失败广播（sSet/sRemove 失败）。已由 App.jsx 全局订阅',
   },
 }
 
