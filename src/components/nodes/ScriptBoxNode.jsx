@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { Clapperboard, Settings, Maximize2, Loader2 } from 'lucide-react'
 import { Handle, useReactFlow } from '@xyflow/react'
 import NodeShell from '../base/NodeShell.jsx'
@@ -83,8 +84,18 @@ function ScriptBoxNode({ id, data, selected }) {
   // 写回 node.height + updateNodeInternals，让 ReactFlow 节点 wrapper（含端口定位）也跟随。
   // 注意：必须去掉固定 height（只留 minHeight），否则根 div 高度被锁死、内容溢出到框外。
   const contentRef = useRef(null)
+  // NodeShell 根 div ref：useContentHeightSync 需测「含标题栏的完整节点」而非仅内容区，
+  // 否则写回的 node.height 偏矮（漏标题栏），节点框高度与端口定位基准不一致。
+  const wrapperRef = useRef(null)
+  // 输入端口挂在 NodeShell 根 div（wrapperRef）上，使其相对「整个节点」定位在 50% 中点，
+  // 而不是相对内容区（contentRef）。内容区高度随三步（StepShots/StepAssets/StepPrompt）变化，
+  // 若相对内容区 top:50% 会导致端口在不同步骤跑到不同高度，无法固定在节点框正中。
+  const [portReady, setPortReady] = useState(false)
+  useEffect(() => {
+    if (wrapperRef.current && !portReady) setPortReady(true)
+  }, [portReady])
   // 外框自适应收口到 useContentHeightSync（ref 防抖 + rAF 打破 ResizeObserver 同帧循环告警）
-  useContentHeightSync(contentRef, id, { minHeight: 600, fallbackWidth: 900, syncWidth: true })
+  useContentHeightSync(contentRef, id, { minHeight: 600, fallbackWidth: 900, syncWidth: true, wrapperRef })
 
   // 生成遮罩计时
   const genMask = !!d.genMask
@@ -117,16 +128,22 @@ function ScriptBoxNode({ id, data, selected }) {
       minHeight={600}
       className="min-w-[900px]"
       style={{ minHeight: 600, width: 900, minWidth: 900 }}
+      wrapperRef={wrapperRef}
     >
+      {/* 输入端口（左侧 target，handleId='in'）：接收上游文本节点 + 图片节点接入。
+          showHandles={false} 已关闭 NodeShell 默认端口，这里显式补一个可连的输入口，
+          让 textNode 等文本/图片类上游能拖线连入剧本盒子，作为编剧参考（第 1 步展示、传给 AI）。
+          用 createPortal 挂到 NodeShell 根 div（wrapperRef，relative）上，top:'50%' 即相对
+          「整个节点」居中 —— 否则渲染在内容区（contentRef）内会随三步内容高度变化而上下跑。 */}
+      {portReady && wrapperRef.current && createPortal(
+        <CustomHandle position="left" variant="small" handleId="in" top="50%" />,
+        wrapperRef.current
+      )}
+
       {/* 主容器：背景/边框/阴影已由 NodeShell 主容器提供，这里只保留布局（标题栏+导航+内容）。
           relative：作为剧本盒子内部所有弹窗（资产抽屉/编辑框/设置弹窗）的绝对定位基准。
           高度用 contentRef 自适应（无限画布：内容撑开时写回 node.height，外框跟随）。 */}
       <div ref={contentRef} className="relative flex flex-col w-full min-h-0">
-        {/* 输入端口（左侧 target，handleId='in'）：接收上游文本节点 + 图片节点接入。
-            showHandles={false} 已关闭 NodeShell 默认端口，这里显式补一个可连的输入口，
-            让 textNode 等文本/图片类上游能拖线连入剧本盒子，作为编剧参考（第 1 步展示、传给 AI）。 */}
-        <CustomHandle position="left" variant="small" handleId="in" top="50%" />
-
         {/* 顶部标题栏 */}
         <div className="flex items-center gap-2 px-4 py-2.5 border-b border-white/[0.08] w-full drag-handle cursor-move shrink-0">
           <Clapperboard size={14} className="text-muted" />
