@@ -128,7 +128,7 @@ export default function StepShots({ data, updateData, callbacks }) {
           <div className="text-caption-sm text-secondary mb-1.5">镜头数量</div>
           <div className="flex gap-1">
             {[['auto', '自动'], [10, '10'], [20, '20'], [30, '30'], [50, '50']].map(([v, l]) => (
-              <button key={String(v)} onClick={() => setShotCount(v)} className={`px-2 py-0.5 text-caption rounded-md border ${String(d.shotCount) === String(v) ? 'border-white/40 text-white bg-surface-hover' : 'border-edge text-secondary'}`}>{l}</button>
+              <button key={String(v)} onClick={() => setShotCount(v)} className={`px-2 py-0.5 text-caption rounded-md border ${String(d.shotCount ?? 'auto') === String(v) ? 'border-white/40 text-white bg-surface-hover' : 'border-edge text-secondary'}`}>{l}</button>
             ))}
           </div>
           <div className="flex items-center gap-1.5 mt-1.5">
@@ -204,7 +204,7 @@ export default function StepShots({ data, updateData, callbacks }) {
       {/* 双击字段编辑弹窗：与提示词弹窗同一套素雅暗色语言（无边框大留白编辑区，参考 FullscreenEditor 风格） */}
       {editing && (
         <ScriptBoxModal title="" onClose={() => setEditing(null)} onOk={commitField} width={520} bodyClass="flex flex-col flex-1 min-h-0 p-0">
-          <div className="flex-1 flex flex-col min-h-0 px-3.5 pt-4 pb-3">
+          <div className="flex-1 flex flex-col min-h-0 px-5 pt-4 pb-3">
             <textarea autoFocus value={editVal} onChange={(e) => setEditVal(e.target.value)} className="flex-1 w-full bg-transparent outline-none resize-none rounded-lg px-0 py-3.5 text-primary custom-scrollbar nodrag nowheel transition-colors" style={{ fontSize: '14px', lineHeight: 1.8 }} />
             <div className="text-caption-sm text-muted-2 shrink-0 pt-2">提示：用 @资产名 引用，如 @小马</div>
           </div>
@@ -214,7 +214,7 @@ export default function StepShots({ data, updateData, callbacks }) {
       {/* 对白编辑器：同素雅暗色语言（无边框大留白编辑区） */}
       {dlgEditing !== null && (
         <ScriptBoxModal title="" onClose={() => setDlgEditing(null)} onOk={commitDlg} width={520} bodyClass="flex flex-col flex-1 min-h-0 p-0">
-          <div className="flex-1 flex flex-col min-h-0 px-3.5 pt-4 pb-3">
+          <div className="flex-1 flex flex-col min-h-0 px-5 pt-4 pb-3">
             <textarea autoFocus value={dlgText} onChange={(e) => setDlgText(e.target.value)} placeholder="每行一条：角色名：台词（旁白写：旁白：内容）" className="flex-1 w-full bg-transparent outline-none resize-none rounded-lg px-0 py-3.5 text-primary placeholder:text-muted-2 custom-scrollbar nodrag nowheel transition-colors" style={{ fontSize: '14px', lineHeight: 1.8 }} />
           </div>
         </ScriptBoxModal>

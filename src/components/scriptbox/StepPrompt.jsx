@@ -354,7 +354,7 @@ function ChatEdit({ editing, shots, draft, chatInput, assetNames, onDraft, onInp
       )}
 
       {/* 预览 / 编辑区（占满） */}
-      <div className="flex-1 flex flex-col min-h-0 px-3.5 pt-4 pb-3">
+      <div className="flex-1 flex flex-col min-h-0 px-5 pt-4 pb-3">
         <div className="flex items-center gap-1.5 pb-2 shrink-0">
           <span className={`w-1.5 h-1.5 rounded-full ${changed ? 'bg-emerald-400' : 'bg-gray-600'}`} />
           <span className="text-caption-sm text-secondary">{isImgGen ? '提示词（直接编辑）' : (changed ? '预览 · 有改动待应用' : '当前提示词（可直接编辑）')}</span>
@@ -374,7 +374,7 @@ function ChatEdit({ editing, shots, draft, chatInput, assetNames, onDraft, onInp
 
       {/* 底部细输入条（让 AI 按意见改；imgGen 无 AI 通道，隐藏） */}
       {!isImgGen && (
-        <div className="shrink-0 px-4 pt-1 pb-3">
+        <div className="shrink-0 px-5 pt-1 pb-3">
           <div className="flex items-end gap-2 bg-input border border-edge rounded-xl px-3 py-1.5 focus-within:border-emerald-400/40 transition-colors">
             <textarea
               ref={inputRef}

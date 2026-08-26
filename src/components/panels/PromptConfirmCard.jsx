@@ -83,7 +83,7 @@ function PromptConfirmCard({ prompts = [], onUpdatePrompts, onGenerate, requeste
               </div>
               {p.status === P.EDITING && (
                 <textarea
-                  className="mt-1 w-full text-caption-sm text-primary bg-surface border border-edge rounded-md px-2 py-1.5 focus:outline-none focus:border-sky-500"
+                  className="mt-1 w-full text-caption-sm text-primary bg-surface border border-edge rounded-md px-2.5 py-1.5 focus:outline-none focus:border-sky-500"
                   rows={3}
                   defaultValue={p.prompt || ''}
                   onChange={(e) => setDraft(e.target.value)}

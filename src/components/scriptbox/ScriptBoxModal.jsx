@@ -44,7 +44,7 @@ export default function ScriptBoxModal({ title, onClose, width = 440, height, ch
         </button>
 
         {title && (
-          <div className="flex items-center px-5 py-3 border-b border-edge-faint shrink-0 pr-14">
+          <div className="flex items-center justify-between px-5 py-3 border-b border-edge-faint shrink-0">
             <span className="text-body-xs text-primary font-medium">{title}</span>
           </div>
         )}
@@ -52,7 +52,7 @@ export default function ScriptBoxModal({ title, onClose, width = 440, height, ch
         {footer !== undefined ? (
           footer
         ) : (
-          <div className="flex justify-end gap-2 px-4 pb-4 shrink-0">
+          <div className="flex justify-end gap-2 px-5 pb-4 shrink-0">
             <button className="px-3 py-1 text-caption-sm text-secondary hover:text-white transition-colors" onClick={onClose}>{cancelText}</button>
             <button className="px-3 py-1 text-caption-sm bg-surface-hover hover:bg-surface-hover-strong text-primary rounded-md transition-colors" onClick={onOk}>{okText}</button>
           </div>
