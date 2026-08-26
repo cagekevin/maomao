@@ -250,7 +250,7 @@ export default function StepPrompt({ data, updateData, callbacks }) {
           imgGen（关键帧提示词）无独立 AI 改写通道，仍走手写 textarea。 */}
       {editing && (
         <ScriptBoxModal
-          title={`${editing.title} · 聊天式修改`}
+          title=""
           onClose={() => setEditing(null)}
           width={720}
           height={560}
@@ -354,8 +354,8 @@ function ChatEdit({ editing, shots, draft, chatInput, assetNames, onDraft, onInp
       )}
 
       {/* 预览 / 编辑区（占满） */}
-      <div className="flex-1 flex flex-col min-h-0 px-4 pt-3 pb-2">
-        <div className="flex items-center gap-1.5 pb-1.5 shrink-0">
+      <div className="flex-1 flex flex-col min-h-0 px-3.5 pt-4 pb-3">
+        <div className="flex items-center gap-1.5 pb-2 shrink-0">
           <span className={`w-1.5 h-1.5 rounded-full ${changed ? 'bg-emerald-400' : 'bg-gray-600'}`} />
           <span className="text-caption-sm text-secondary">{isImgGen ? '提示词（直接编辑）' : (changed ? '预览 · 有改动待应用' : '当前提示词（可直接编辑）')}</span>
         </div>
@@ -364,9 +364,9 @@ function ChatEdit({ editing, shots, draft, chatInput, assetNames, onDraft, onInp
           value={previewText ?? ''}
           onChange={(e) => onDraft(e.target.value)}
           placeholder={isImgGen ? '填写关键帧提示词…' : '可手写，或写意见让 AI 改…'}
-          className="flex-1 w-full bg-code-bg outline-none resize-none rounded-xl p-3.5 custom-scrollbar text-caption-sm leading-relaxed transition-colors"
+          className="flex-1 w-full bg-transparent outline-none resize-none rounded-lg px-0 py-3.5 custom-scrollbar text-caption-sm leading-relaxed transition-colors"
           style={{
-            fontSize: '13px', lineHeight: 1.75, color: 'rgb(var(--mao-text-primary))',
+            fontSize: '14px', lineHeight: 1.8, color: 'rgb(var(--mao-text-primary))',
             border: changed ? '1px solid rgba(52,211,153,0.4)' : '1px solid transparent',
           }}
         />
