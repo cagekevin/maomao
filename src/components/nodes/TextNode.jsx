@@ -100,7 +100,8 @@ function TextNode({ id, data, selected }) {
   const [editingText, setEditingText] = useState(false)
   // 记住上次选择的模型（跨节点/跨会话）；初始用记忆值，无记忆回退 gpt-4o-mini
   const { prefs: textPrefs, set: setTextPrefs } = useNodePrefs('textNode', { model: '' })
-  const [selectedModel, setSelectedModel] = useState(data.selectedModel || textPrefs.model || 'gpt-4o-mini')
+  // 记忆只影响新建（见 App.addNode 注入）；存量初始化只读 data，缺字段用纯常量。
+  const [selectedModel, setSelectedModel] = useState(data.selectedModel ?? 'gpt-4o-mini')
   const [images, setImages] = useState(data.images || [])
   // 卸载时释放所有预览 Blob URL，避免内存泄漏（对齐 VideoProcessNode / AgentPanel）
   useEffect(() => () => { images.forEach((u) => previewUrls.release(u)) }, [images])

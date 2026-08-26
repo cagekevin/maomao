@@ -90,10 +90,13 @@ function PromptNode({ id, data, selected }) {
   const [fullscreenPrompt, setFullscreenPrompt] = useState(false)
   // 记住上次选择的比例/尺寸/模型（跨节点/跨会话）；初始用记忆值，无记忆回退默认
   const { prefs: imgPrefs, set: setImgPrefs } = useNodePrefs('promptNode', { model: '', aspectRatio: 'Auto', imageSize: '1K' })
-  const [aspectRatio, setAspectRatio] = useState(data.aspectRatio || imgPrefs.aspectRatio || 'Auto')
-  const [imageSize, setImageSize] = useState(data.imageSize || imgPrefs.imageSize || '1K')
-  const [quality, setQuality] = useState(data.quality || 'auto')
-  const [selectedModel, setSelectedModel] = useState(data.selectedModel || imgPrefs.model || '')
+  // ⚠️【记忆只影响新建，不污染存量】组件初始化只读 data，缺字段用纯常量默认，
+  // 绝不读记忆(imgPrefs)做回退——记忆已在新建入口 App.addNode 注入新节点 data。
+  // 这样已挂载/快照还原的存量节点不会被记忆反向改写（见 nodePrefs.js 注释）。
+  const [aspectRatio, setAspectRatio] = useState(data.aspectRatio ?? 'Auto')
+  const [imageSize, setImageSize] = useState(data.imageSize ?? '1K')
+  const [quality, setQuality] = useState(data.quality ?? 'auto')
+  const [selectedModel, setSelectedModel] = useState(data.selectedModel ?? '')
   const [count, setCount] = useState(data.count || 1)
   const [imageUrl, setImageUrl] = useState(data.imageUrl || '')
   const [showImgMenu, setShowImgMenu] = useState(false)

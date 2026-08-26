@@ -46,6 +46,53 @@ function loadAll() {
 }
 
 /**
+ * 【纯读取，无 React】读取某节点类型的上次参数（合并默认值）。
+ * 用途：新建节点唯一入口 App.addNode 在「创建那一刻」把记忆值注入新节点的 data，
+ * 使得记忆只影响「新建」节点、绝不反向污染已挂载/快照还原的存量节点。
+ * 组件初始化不再读记忆做回退（见各节点 useState 的 ?? 常量），从根上消除污染。
+ * @param {string} type 节点类型
+ * @param {object} defaults 默认参数
+ * @returns {object} 合并后的参数
+ */
+export function getNodePrefs(type, defaults = {}) {
+  return { ...defaults, ...(loadAll()[type] || {}) }
+}
+
+// data 键名 → 记忆键名 的映射（记忆里存的是官方口径，data 里是节点口径，如 selectedModel←model）
+const PREFS_FIELDS = {
+  promptNode: { selectedModel: 'model', aspectRatio: 'aspectRatio', imageSize: 'imageSize' },
+  textNode: { selectedModel: 'model' },
+  templateNode: { selectedModel: 'model', aspectRatio: 'aspectRatio' },
+  discountVideoNode: { selectedModel: 'model', size: 'size', resolution: 'resolution', selectedSeconds: 'seconds' },
+}
+const PREFS_DEFAULTS = {
+  promptNode: { model: '', aspectRatio: 'Auto', imageSize: '1K' },
+  textNode: { model: '' },
+  templateNode: { model: '', aspectRatio: '1:1' },
+  discountVideoNode: { model: '', size: '16:9', resolution: '1080p', seconds: '10' },
+}
+
+/**
+ * 【新建注入 · 纯函数】把「上次参数」记忆填进新节点的 data。
+ * 仅在 data 未显式传该字段时注入（传入优先于记忆，如剧本盒子端口预填）；
+ * 记忆只在「新建那一刻」影响节点，绝不碰已挂载/快照还原的存量节点。
+ * 配合各节点 useState(data.x ?? 纯常量)（不再读记忆回退），从根上消除
+ * 「记忆反向改写存量节点」的 bug。
+ * @param {string} type 节点类型
+ * @param {object} data 新建节点的 data（会被就地补默认，返回同一引用）
+ * @returns {object} 注入后的 data
+ */
+export function injectNodePrefs(type, data) {
+  const fieldMap = PREFS_FIELDS[type]
+  if (!fieldMap) return data
+  const prefs = getNodePrefs(type, PREFS_DEFAULTS[type])
+  for (const dataKey of Object.keys(fieldMap)) {
+    if (data[dataKey] === undefined) data[dataKey] = prefs[fieldMap[dataKey]]
+  }
+  return data
+}
+
+/**
  * 读取某节点类型的上次参数（合并默认值）。
  * @param {string} type 节点类型，如 'textNode' / 'promptNode' / 'discountVideoNode'
  * @param {object} defaults 默认参数

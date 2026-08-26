@@ -82,10 +82,11 @@ function DiscountVideoNode({ id, data, selected }) {
   }
   // 记住上次选择的模型/比例/分辨率/时长（跨节点/跨会话，与 PromptNode 一致）
   const { prefs: vidPrefs, set: setVidPrefs } = useNodePrefs('discountVideoNode', { model: '', size: '16:9', resolution: '1080p', seconds: '10' })
-  const [ratio, setRatio] = useState(data.size || vidPrefs.size || '16:9')
-  const [resolution, setResolution] = useState(data.resolution || vidPrefs.resolution || '1080p')
-  const [seconds, setSeconds] = useState(data.selectedSeconds || vidPrefs.seconds || '10')
-  const [selectedModel, setSelectedModel] = useState(data.selectedModel || vidPrefs.model || '')
+  // 记忆只影响新建（见 App.addNode 注入）；存量初始化只读 data，缺字段用纯常量。
+  const [ratio, setRatio] = useState(data.size ?? '16:9')
+  const [resolution, setResolution] = useState(data.resolution ?? '1080p')
+  const [seconds, setSeconds] = useState(data.selectedSeconds ?? '10')
+  const [selectedModel, setSelectedModel] = useState(data.selectedModel ?? '')
   const [expanded, setExpanded] = useState(data.expanded === undefined ? true : data.expanded)
   // 抽屉展开/收起
   const toggleExpanded = useCallback(() => setExpanded((v) => !v), [])

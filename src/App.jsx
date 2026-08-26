@@ -58,6 +58,7 @@ import { createRafBatch } from './components/base/utils.js'
 import { resolveDragGrouping } from './components/base/groupNodes.js'
 import { buildNodesFromClipboard } from './components/base/clipboard.js'
 import { applyNodeTypeDefaults } from './components/base/nodeDefaults.js'
+import { injectNodePrefs } from './components/base/nodePrefs.js'
 import { useCanvasSync } from './components/base/useCanvasSync.js'
 
 /* ======================================================================
@@ -492,6 +493,16 @@ function Canvas() {
           }
         }
       }
+
+      // 【记忆只在新建注入，绝不污染存量】
+      // 把节点「上次参数」记忆（localStorage）在新建那一刻填进新节点的 data，
+      // 使得新建节点默认沿用上次选择（复刻官方「记住上次」体验）。
+      // 关键：仅在 data 未显式传该字段时注入（传入优先于记忆，如剧本盒子端口预填），
+      // 且记忆注入发生在本入口——快照还原走 applyNodeTypeDefaults（纯函数、不碰记忆），
+      // 已挂载的存量节点组件初始化也不再读记忆回退（见各节点 useState 的 ?? 常量），
+      // 三处配合从根上消除「记忆反向改写存量节点」的 bug。
+      // 注入逻辑抽到 nodePrefs.injectNodePrefs（纯函数，映射表集中、可测）。
+      injectNodePrefs(type, nodeData)
 
       const newNode = { id, type, position: { ...position }, data: nodeData }
       // 复用 nodeDefaults.js 单源表，与「快照加载还原」保持一致（见加载 effect）

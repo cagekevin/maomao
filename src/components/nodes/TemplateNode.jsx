@@ -149,8 +149,9 @@ function TemplateNode({ id, data, selected }) {
   // 参数记忆：记住上次选的模型/比例，新建节点默认沿用（跨节点/跨会话）
   // 【模板】type 换成你的节点 type（如 'textNode'），默认值按需改
   const { prefs: myPrefs, set: setMyPrefs } = useNodePrefs('templateNode', { model: '', aspectRatio: '1:1' })
-  const [aspectRatio, setAspectRatio] = useState(data.aspectRatio || myPrefs.aspectRatio || '1:1')
-  const [selectedModel, setSelectedModel] = useState(data.selectedModel || myPrefs.model || '')
+  // 记忆只影响新建（见 App.addNode 注入）；存量初始化只读 data，缺字段用纯常量。
+  const [aspectRatio, setAspectRatio] = useState(data.aspectRatio ?? '1:1')
+  const [selectedModel, setSelectedModel] = useState(data.selectedModel ?? '')
   // 有效提示词 = 本地 prompt + 上游文本（多文本节点合并），两者都参与生成；延后到 prompt 初始化后避免 TDZ
   const upstreamText = refTexts.map((t) => (t.text || '').trim()).filter(Boolean).join('\n')
   const effectivePrompt = [prompt?.trim(), upstreamText].filter(Boolean).join('\n') || ''
