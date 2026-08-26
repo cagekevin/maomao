@@ -18,7 +18,7 @@ import PromptLibraryButton from '../base/PromptLibraryButton.jsx'
 import { useNodeResize } from '../base/hooks.js'
 import { useConnectedInputs } from '../base/useConnectedInputs.js'
 import { useGenerateNode } from '../base/useGenerateNode.js'
-import { debounce } from '../base/utils.js'
+import { debounce, buildEffectivePrompt } from '../base/utils.js'
 import { buildSpawnNodes, spawnAndCommit, makeChildId } from '../base/deriveNodes.js'
 import { useCanvasEdges } from '../base/CanvasEdgesContext.jsx'
 import { saveTextToTasks, toAbsoluteFileUrl } from '../base/filesApi.js'
@@ -54,8 +54,7 @@ function TextNode({ id, data, selected }) {
   // refTexts / effectivePrompt 不依赖 images，先定义在 useNodeGeneration 之前，避免 TDZ。
   const refTexts = connected.texts || []
   // 有效提示词 = 本地 prompt/文本 + 上游文本（多文本节点合并），两者都参与生成
-  const upstreamText = refTexts.map((t) => (t.text || '').trim()).filter(Boolean).join('\n')
-  const effectivePrompt = [prompt?.trim() || text?.trim(), upstreamText].filter(Boolean).join('\n') || ''
+  const effectivePrompt = buildEffectivePrompt(prompt?.trim() || text?.trim(), refTexts)
   const [autoSplit, setAutoSplit] = useState(data.autoSplit || false)
 
   // ── 输入落盘：本地 state + 防抖写回 node.data（不可变更新）──

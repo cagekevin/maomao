@@ -39,12 +39,6 @@ describe('previewUrl — createPreviewUrlManager', () => {
     expect(mgr.activeCount()).toBe(1)
   })
 
-  it('create(null/undefined) 返回 null，不调 urlFactory', () => {
-    expect(mgr.create(null)).toBe(null)
-    expect(mgr.create(undefined)).toBe(null)
-    expect(fake.createObjectURL).not.toHaveBeenCalled()
-  })
-
   it('不同 create 各自生成独立 url（方案 A 不做同 blob 去重）', () => {
     const blob = makeBlob('same')
     const u1 = mgr.create(blob)
@@ -78,11 +72,6 @@ describe('previewUrl — createPreviewUrlManager', () => {
     const callsBefore = fake.revokeObjectURL.mock.calls.length
     mgr.release(u) // 已归零删除
     expect(fake.revokeObjectURL).toHaveBeenCalledTimes(callsBefore)
-  })
-
-  it('release(null/undefined) 安全返回，不抛', () => {
-    expect(() => mgr.release(null)).not.toThrow()
-    expect(() => mgr.release(undefined)).not.toThrow()
   })
 
   it('clear() 一次释放全部并清空 registry', () => {

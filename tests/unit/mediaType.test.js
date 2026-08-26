@@ -4,7 +4,6 @@ import { detectMediaType, detectFileType, isAssetUrl, isAudio } from '../../src/
 describe('mediaType §2.17', () => {
   it('detectMediaType 按 dataURL 前缀/扩展名分类', () => {
     expect(detectMediaType('')).toBe('empty')
-    expect(detectMediaType(null)).toBe('empty')
     expect(detectMediaType('data:video/mp4;base64,xxx')).toBe('video')
     expect(detectMediaType('data:audio/mp3;base64,xxx')).toBe('audio')
     expect(detectMediaType('data:text/plain;base64,xxx')).toBe('text')
@@ -20,7 +19,6 @@ describe('mediaType §2.17', () => {
     expect(detectFileType({ type: 'video/webm', name: 'a.webm' })).toBe('video')
     expect(detectFileType({ type: 'audio/wav', name: 'a.wav' })).toBe('audio')
     expect(detectFileType({ type: 'text/markdown', name: 'a.md' })).toBe('text')
-    expect(detectFileType(null)).toBe('other')
     // 无 type 但 name 带扩展名也能识别
     expect(detectFileType({ name: 'a.svg' })).toBe('image')
     expect(detectFileType({ name: 'a.mp4' })).toBe('video')

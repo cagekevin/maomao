@@ -81,7 +81,10 @@ vi.mock('../../src/components/base/nodePrefs.js', () => ({
 vi.mock('../../src/components/base/settings/providerStore.js', () => ({ useProviders: () => ({ providers: [] }), load: vi.fn(async () => {}) }))
 vi.mock('../../src/components/base/providerModels.js', () => ({ buildAllModels: () => [], resolveProviderModel: () => ({ provider: {}, modelId: 'm' }) }))
 vi.mock('../../src/components/base/logger.js', () => ({ logger: { info: (...a) => h.loggerInfo(...a), warn: () => {} } }))
-vi.mock('../../src/components/base/clipboard.js', () => ({ downloadUrl: (...a) => h.downloadUrl(...a) }))
+vi.mock('../../src/components/base/clipboard.js', async (importOriginal) => {
+  const actual = await importOriginal()
+  return { ...actual, downloadUrl: (...a) => h.downloadUrl(...a) }
+})
 vi.mock('../../src/components/base/videoApi.js', () => ({ generateVideo: vi.fn(async () => ({ url: 'http://gen.local/v.mp4' })) }))
 
 // useNodeGeneration：记录 config，返回可控 loading/error。

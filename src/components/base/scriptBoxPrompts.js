@@ -117,6 +117,30 @@ export function normalizeDialogue(d) {
   return []
 }
 
+/** 对白数组 → 可编辑文本（每行 `角色：文本`，与 textToDlg 互为逆；StepShots 对白编辑弹窗用）。
+ *  roundtrip：textToDlg(dlgToText(arr)) 保持数据不丢（旁白/台词均可还原）。 */
+export function dlgToText(arr) {
+  const list = Array.isArray(arr) ? arr : []
+  return list.map((x) => `${x.role || '台词'}：${x.text}`).join('\n')
+}
+
+/** 长段提示词一键排版：每个句号类标点（。！？；）后补换行，标点留在行尾，合并多余空行。
+ *  纯字符串处理，不破坏 @资产名 引用。供 StepPrompt 编辑弹窗打开时预格式化。 */
+export function formatLineBreaks(text) {
+  if (!text) return text
+  return String(text)
+    .replace(/([。！？；])(?!\s*\n)/g, '$1\n') // 句号后补换行（若后面不是已有换行）
+    .replace(/\n{3,}/g, '\n\n') // 合并多余空行
+    .trim()
+}
+
+/** 分镜时长数值解析（表格输入）：parseInt 兜底，非法/0/空 → fallback（默认 3）。
+ *  对齐 StepShots 时长输入 `parseInt(x) || 3` 的既有语义。 */
+export function parseShotSeconds(value, fallback = 3) {
+  const n = Number.parseInt(String(value ?? ''), 10)
+  return n || fallback
+}
+
 /** P6：@资产名高亮正则缓存——按「排序后名字列表」缓存编译结果，避免 hlAt 每次渲染重排 new RegExp。
  *  资产名集合有限（每个剧本盒子的资产数几十量级），带 size 上限防无限膨胀。 */
 const HIGHLIGHT_RE_CACHE = new Map()
@@ -172,6 +196,59 @@ export function patchShots(shots, idx, field, val) {
   })
 }
 
+/** 新增分镜（StepShots addShot 纯函数化）：id/index 按当前数组末尾自增，缺省字段用默认值。 */
+export function createNewShot(shots) {
+  const list = Array.isArray(shots) ? shots : []
+  const last = list[list.length - 1]
+  return {
+    id: (last?.id || 0) + 1,
+    index: list.length + 1,
+    duration: '3s',
+    description: '双击编辑画面描述（@引用资产）',
+    shotType: '中景',
+    lighting: '自然光',
+    dialogue: [],
+    sound: '环境音',
+    motion: '固定',
+    grid: 0,
+    prompt: '',
+    videoPrompt: '',
+    promptLoading: false,
+    connImg: false,
+    connVid: false,
+    usePrevShotVideoTail: false,
+    prevShotImageRefUrls: [],
+    prevTailFrameVariants: [],
+    selectedTailFrameVariantId: 'original',
+    tailFrameVariantsLoading: false,
+    tailFrameVariantsError: undefined,
+  }
+}
+
+/** 删除分镜（StepShots delShot 纯函数化）：移除第 idx 个并重排 index 连续。 */
+export function removeShot(shots, idx) {
+  return (shots || []).filter((_, i) => i !== idx).map((s, i) => ({ ...s, index: i + 1 }))
+}
+
+/** 尾帧选帧写回（StepShots selectTailFrame 纯函数化）：
+ *  选帧 → usePrevShotVideoTail=true + 参考 URL 数组；不使用 → 清空开关与参考 URL。
+ *  @param shots   分镜数组
+ *  @param shotId  目标分镜 id
+ *  @param variant 尾帧变体 { id, imageUrl }（useTail=false 时可空）
+ *  @param useTail 是否使用尾帧
+ *  @returns 新 shots 数组；找不到 shotId 返回 null（调用方据此直接 return，不写回） */
+export function applyTailFrameSelection(shots, shotId, variant, useTail) {
+  const list = Array.isArray(shots) ? shots : []
+  const idx = list.findIndex((x) => x.id === shotId)
+  if (idx < 0) return null
+  const url = useTail && variant?.imageUrl ? [variant.imageUrl] : []
+  return list.map((x, i) =>
+    i === idx
+      ? { ...x, usePrevShotVideoTail: useTail, selectedTailFrameVariantId: useTail ? (variant?.id || 'original') : 'original', prevShotImageRefUrls: url }
+      : x
+  )
+}
+
 /** 判断文本 e 中是否存在合法的 `@资产名` 引用（复刻官方 shared.js Fa）。
  *  规则：`@名` 后一位必须是结尾或非中英数，防止 `@小马` 误匹配 `@小马妈妈`。 */
 export function matchAsset(text, name) {
@@ -195,6 +272,41 @@ export function stripAtRef(text, name) {
   if (!text || !name) return text
   const re = new RegExp(`@${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![\\u4e00-\\u9fa5A-Za-z0-9])`, 'g')
   return text.replace(re, () => name)
+}
+
+/** 删除资产联动清理（StepAssets delAsset 纯函数化）：移除资产后，把各镜头文本里的 `@名`
+ *  标记去掉（复用 stripAtRef，只去 @ 保留名字文字）。返回 updateData 的 patch 对象。
+ *  @returns {{ assets:Array, pickedCount:number, shots?:Array }} */
+export function removeAsset(assets, id, shots) {
+  const list = Array.isArray(assets) ? assets : []
+  const target = list.find((a) => a.id === id)
+  const next = list.filter((a) => a.id !== id)
+  const patch = { assets: next, pickedCount: next.filter((a) => a.picked).length }
+  if (target?.name) {
+    const shotList = Array.isArray(shots) ? shots : []
+    patch.shots = shotList.map((s) => {
+      const nextShot = { ...s }
+      ;['description', 'prompt', 'videoPrompt'].forEach((f) => {
+        if (nextShot[f]) nextShot[f] = stripAtRef(nextShot[f], target.name)
+      })
+      return nextShot
+    })
+  }
+  return patch
+}
+
+/** 资产改名联动（StepAssets AssetPanel.save 纯函数化）：把全部镜头 description 里 `@旧名` 引用
+ *  改写成 `@新名`。与既有实现一致：split('@') 后按「片段以旧名开头」判断（会同时命中 `@旧名xx` 等
+ *  以旧名开头的更长词），抽取时不改变原有行为。 */
+export function renameAssetRefs(shots, oldName, newName) {
+  return (shots || []).map((s) => {
+    const desc = s.description || ''
+    const next = desc
+      .split('@')
+      .map((seg, k) => (k ? (seg.startsWith(oldName) ? '@' + newName + seg.slice(oldName.length) : '@' + seg) : seg))
+      .join('')
+    return { ...s, description: next }
+  })
 }
 
 /** 收集某个分镜引用的「有图资产」作为参考图（复刻官方 shared.js Ra 的 scriptBoxNode 分支）。

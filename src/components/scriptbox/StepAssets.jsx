@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { Loader2, Wand2, User, Image as ImageIcon, Package, Plus, MoreVertical, Upload, RefreshCw, Trash2 } from 'lucide-react'
-import { ZgPrompt, stripAtRef } from '../base/scriptBoxPrompts.js'
+import { ZgPrompt, removeAsset, renameAssetRefs } from '../base/scriptBoxPrompts.js'
 import { assetFolderOf } from '../base/assetStore.js'
 import { useOutsideClick } from '../base/hooks.js'
 import { useRenderImageResolver, toAbsoluteFileUrl } from '../base/imageUrl.js'
@@ -45,22 +45,8 @@ export default function StepAssets({ data, updateData, callbacks }) {
   }
   // 删除资产
   const delAsset = (id) => {
-    const target = assets.find((a) => a.id === id)
-    const next = assets.filter((a) => a.id !== id)
-    const patch = { assets: next, pickedCount: next.filter((a) => a.picked).length }
-    // 联动清理：删除资产时，把全部镜头文本（描述/分镜提示词/视频提示词）里引用该名的 @ 标记去掉。
-    // 只去 @、保留名字文字（名字可能是描述内容本身，如「森林」），不再高亮/不再作参考图，避免第一步残留。
-    if (target?.name) {
-      const shots = d.shots || []
-      patch.shots = shots.map((s) => {
-        const nextShot = { ...s }
-        ;['description', 'prompt', 'videoPrompt'].forEach((f) => {
-          if (nextShot[f]) nextShot[f] = stripAtRef(nextShot[f], target.name)
-        })
-        return nextShot
-      })
-    }
-    updateData(patch)
+    // 联动清理逻辑收口到纯函数 removeAsset：删资产 → 各镜头文本里 @名 标记去掉（只去 @、保留名字）
+    updateData(removeAsset(assets, id, d.shots))
   }
   // 批量生图：用选中集（未选则全部无图资产），走真批量引擎（onGenerateAllAssetImages）
   const batchGen = () => {
@@ -237,10 +223,8 @@ function AssetPanel({ asset, idx, data, updateData, onGen, onClose }) {
   const [prompt, setPrompt] = useState(asset.prompt)
 
   const save = (alsoGen) => {
-    let shots = data.shots || []
-    if (name !== asset.name) {
-      shots = shots.map((s) => ({ ...s, description: (s.description || '').split('@').map((seg, k) => k ? (seg.startsWith(asset.name) ? '@' + name + seg.slice(asset.name.length) : '@' + seg) : seg).join('') }))
-    }
+    // 改名联动：@旧名 → @新名（纯函数收口，避免内联 split('@') 重复实现）
+    let shots = name !== asset.name ? renameAssetRefs(data.shots || [], asset.name, name) : data.shots || []
     const assets = (data.assets || []).map((a, i) => (i === idx ? { ...a, name, description: desc, prompt: prompt || ZgPrompt(a.category, desc, data.globalStyle, data.customAssetTemplates) } : a))
     updateData({ assets, shots })
     if (alsoGen) onGen()

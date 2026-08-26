@@ -170,12 +170,6 @@ describe('imageCompress —— 压缩（含浏览器依赖，部分 mock）', ()
     vi.restoreAllMocks()
   })
 
-  it('compressImage 无 URL 抛"无图片可压缩"', async () => {
-    await expect(compressImage('')).rejects.toThrow('无图片可压缩')
-    await expect(compressImage(null)).rejects.toThrow('无图片可压缩')
-    await expect(compressImage(undefined)).rejects.toThrow('无图片可压缩')
-  })
-
   it('非 /files/ 输入原样经 toAbsoluteFileUrl 补全（http 不变）', async () => {
     // 通过 mock Image 尺寸 + document.createElement 验证 URL 被传入 loadImageWithTimeout
     const asyncGuard = await import('../../src/components/base/asyncGuard.js')

@@ -7,7 +7,7 @@
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 
-const { sanitizePastedText, copyText, copyImageToClipboard, downloadUrl, downloadBlob, buildNodesFromClipboard } = await import(
+const { sanitizePastedText, copyText, copyImageToClipboard, downloadUrl, downloadBlob, buildNodesFromClipboard, resolveDownloadFilename } = await import(
   '../../src/components/base/clipboard.js'
 )
 
@@ -230,5 +230,37 @@ describe('clipboard — buildNodesFromClipboard（粘贴节点组重建）', () 
     const r = buildNodesFromClipboard(JSON.stringify(src), { x: 0, y: 0 })
     r.nodes[0].data.label = 'MUTATED'
     expect(src.nodes[0].data.label).toBe('L')
+  })
+})
+
+describe('clipboard — resolveDownloadFilename（下载文件名推导）', () => {
+  it('有 label（带扩展名）→ 原样使用', () => {
+    expect(resolveDownloadFilename('成品.png', 'http://x/a.png')).toBe('成品.png')
+  })
+
+  it('有 label 但无扩展名 → 补默认 .png', () => {
+    expect(resolveDownloadFilename('成品', 'http://x/a.png')).toBe('成品.png')
+  })
+
+  it('无 label → 用 URL 末尾文件名', () => {
+    expect(resolveDownloadFilename('', 'http://127.0.0.1:18080/files/tasks/abc.png')).toBe('abc.png')
+  })
+
+  it('URL 文件名无扩展名 → 补默认扩展名', () => {
+    expect(resolveDownloadFilename('', 'http://x/final')).toBe('final.png')
+  })
+
+  it('blob/data 不算来源 → label 空时兜底 fallback', () => {
+    expect(resolveDownloadFilename('', 'blob:http://x/abc')).toBe('generated.png')
+    expect(resolveDownloadFilename('', 'data:image/png;base64,xxx')).toBe('generated.png')
+  })
+
+  it('label 与 URL 名都空 → 兜底 fallback（不可为 fallback 传空）', () => {
+    expect(resolveDownloadFilename('', 'http://x/')).toBe('generated.png')
+  })
+
+  it('视频语义：ext=mp4 / fallback=video.mp4', () => {
+    expect(resolveDownloadFilename('片段', 'http://x/a.mp4', { ext: 'mp4', fallback: 'video.mp4' })).toBe('片段.mp4')
+    expect(resolveDownloadFilename('', 'blob:http://x/abc', { ext: 'mp4', fallback: 'video.mp4' })).toBe('video.mp4')
   })
 })

@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react'
 import { Loader2, Plus, Trash2, Film, Link2 } from 'lucide-react'
-import { SHOT_TYPES, LIGHTS, MOTIONS, dialogueText, textToDlg, hlAt, patchShots } from '../base/scriptBoxPrompts.js'
+import { SHOT_TYPES, LIGHTS, MOTIONS, dialogueText, textToDlg, dlgToText, hlAt, patchShots, createNewShot, removeShot, applyTailFrameSelection, parseShotSeconds } from '../base/scriptBoxPrompts.js'
 import MaterialStrip from '../base/MaterialStrip.jsx'
 import { useOutsideClick } from '../base/hooks.js'
 import { useRenderImageResolver } from '../base/imageUrl.js'
@@ -32,13 +32,8 @@ export default function StepShots({ data, updateData, callbacks }) {
   // 更新单个分镜字段（复用纯函数 patchShots，收口 StepShots/StepPrompt 重复）
   const patchShot = (idx, field, val) => updateData({ shots: patchShots(shots, idx, field, val) })
 
-  // 对白数组 → 文本（可编辑）
-  const dlgToText = (arr) => {
-    const list = Array.isArray(arr) ? arr : []
-    return list.map((x) => `${x.role || '台词'}：${x.text}`).join('\n')
-  }
-  // 文本 → 对白数组：统一复用 scriptBoxPrompts.textToDlg（与引擎生成解析一致，含旁白识别）
-
+  // 对白数组 → 文本（可编辑）与 文本 → 对白数组：统一复用 scriptBoxPrompts 纯函数
+  //（dlgToText / textToDlg，与引擎生成解析一致，含旁白识别）
   const openField = (idx, field, title) => { setEditing({ idx, field, title }); setEditVal(String(shots[idx]?.[field] ?? '')) }
   const commitField = () => {
     if (editing) patchShot(editing.idx, editing.field, editVal)
@@ -48,51 +43,18 @@ export default function StepShots({ data, updateData, callbacks }) {
   const commitDlg = () => { if (dlgEditing !== null) patchShot(dlgEditing, 'dialogue', textToDlg(dlgText)); setDlgEditing(null) }
 
   const addShot = () => {
-    const last = shots[shots.length - 1]
-    const newShot = {
-      id: (last?.id || 0) + 1,
-      index: shots.length + 1,
-      duration: '3s',
-      description: '双击编辑画面描述（@引用资产）',
-      shotType: '中景',
-      lighting: '自然光',
-      dialogue: [],
-      sound: '环境音',
-      motion: '固定',
-      grid: 0,
-      prompt: '',
-      videoPrompt: '',
-      promptLoading: false,
-      connImg: false,
-      connVid: false,
-      // P1-1 连续性 + 尾帧变体默认（与 scriptBoxSchema defaultShotFields 一致）
-      usePrevShotVideoTail: false,
-      prevShotImageRefUrls: [],
-      prevTailFrameVariants: [],
-      selectedTailFrameVariantId: 'original',
-      tailFrameVariantsLoading: false,
-      tailFrameVariantsError: undefined
-    }
-    updateData({ shots: [...shots, newShot] })
+    updateData({ shots: [...shots, createNewShot(shots)] })
   }
   const delShot = (idx) => {
-    const shots2 = shots.filter((_, i) => i !== idx).map((s, i) => ({ ...s, index: i + 1 }))
-    updateData({ shots: shots2 })
+    updateData({ shots: removeShot(shots, idx) })
   }
 
   // P1-1 尾帧变体选帧（浮层内）：写回 selectedTailFrameVariantId + usePrevShotVideoTail 开关 + prevShotImageRefUrls。
   // 单次 updateData 一次性写回（避免多次 patch 读旧引用互相覆盖）。选「不使用尾帧」时 useTail=false、清参考 URL。
   const selectTailFrame = (shotId, variant, useTail) => {
-    const idx = shots.findIndex((x) => x.id === shotId)
-    if (idx < 0) return
-    const url = useTail && variant?.imageUrl ? [variant.imageUrl] : []
-    updateData({
-      shots: shots.map((x, i) =>
-        i === idx
-          ? { ...x, usePrevShotVideoTail: useTail, selectedTailFrameVariantId: useTail ? (variant?.id || 'original') : 'original', prevShotImageRefUrls: url }
-          : x
-      ),
-    })
+    const next = applyTailFrameSelection(shots, shotId, variant, useTail)
+    if (!next) return // 找不到 shotId：不写回、不关浮层（与原实现一致）
+    updateData({ shots: next })
     setTfShotId(null)
   }
   // 浮层内重试生成尾帧变体
@@ -179,7 +141,7 @@ export default function StepShots({ data, updateData, callbacks }) {
                 <tr key={s.id} className="hover:bg-surface-raised">
                   <td className="px-1 py-1.5 text-body whitespace-nowrap">{s.index}</td>
                   <td className="px-1 py-1.5 whitespace-nowrap">
-                    <input value={parseInt(s.duration) || 3} onChange={(e) => patchShot(i, 'duration', `${parseInt(e.target.value) || 3}s`)} className="w-8 bg-transparent text-body text-caption-sm outline-none nodrag" />
+                    <input value={parseShotSeconds(s.duration)} onChange={(e) => patchShot(i, 'duration', `${parseShotSeconds(e.target.value)}s`)} className="w-8 bg-transparent text-body text-caption-sm outline-none nodrag" />
                   </td>
                   <td className="px-2 py-1.5 align-top" title="双击编辑">
                     <div className="text-primary break-words cursor-text hover:bg-surface-1 rounded px-1 -mx-1 whitespace-normal" onDoubleClick={() => openField(i, 'description', '画面描述')} dangerouslySetInnerHTML={{ __html: hlAt(s.description, (d.assets || []).map((a) => a.name)) || '<span class="text-muted-2">双击编辑画面描述</span>' }} />

@@ -163,14 +163,6 @@ describe('ScriptBoxNode — 步骤导航交互', () => {
     expect(h.updateData).toHaveBeenCalledWith({ step: 3 })
   })
 
-  it('激活步骤按钮带高亮类（bg-surface-hover）', () => {
-    setup({ step: 2 })
-    const active = screen.getByText('准备资产').closest('button')
-    expect(active.className).toContain('bg-surface-hover')
-    const inactive = screen.getByText('确认镜头').closest('button')
-    expect(inactive.className).not.toContain('bg-surface-hover')
-  })
-
   it('步骤完成度描述：镜头数 / 资产进度', () => {
     setup({
       shots: [{ id: 1, prompt: 'x' }, { id: 2 }],

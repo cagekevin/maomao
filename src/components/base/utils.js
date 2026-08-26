@@ -14,6 +14,38 @@ export function deepClone(value) {
   return value === undefined ? undefined : JSON.parse(JSON.stringify(value))
 }
 
+/** 多路图片源合并去重（PromptNode/TemplateNode refImages 公共实现）：
+ *  按 id（缺省回退 url）去重，保留首次出现；无 key（id/url 皆空）的项丢弃。
+ *  解决同一批资产图经「连线上游 + data.images」双路进入导致渲染 key 重复 / 图显示两份。 */
+export function mergeRefImages(...groups) {
+  const seen = new Set()
+  const merged = []
+  groups.forEach((g) => {
+    ;(Array.isArray(g) ? g : []).forEach((im) => {
+      const key = im && (im.id ?? im.url)
+      if (!key || seen.has(key)) return
+      seen.add(key)
+      merged.push(im)
+    })
+  })
+  return merged
+}
+
+/** 有效提示词 = 本地 prompt + 上游文本合并（PromptNode/TextNode/TemplateNode/DiscountVideoNode 公共实现）：
+ *  本地主提示词在前，上游文本（refTexts）去空后追加在后，一起参与生成。返回 '' 表示空。 */
+export function buildEffectivePrompt(localPrompt, refTexts) {
+  const upstream = (refTexts || [])
+    .map((t) => (t.text || '').trim())
+    .filter(Boolean)
+    .join('\n')
+  return [String(localPrompt ?? '').trim(), upstream].filter(Boolean).join('\n') || ''
+}
+
+/** 视频时长钳制（DiscountVideoNode 滑块公共实现）：非法/0 → 下界兜底；越界钳到 [min,max]。 */
+export function clampSeconds(value, min = 4, max = 15) {
+  return Math.max(min, Math.min(max, Number(value) || min))
+}
+
 /**
  * 时间格式化。opts：
  *  - 默认 `{ locale: 'zh-CN' }` → `new Date(ts).toLocaleString('zh-CN', { hour12: false })`（TaskCenter）

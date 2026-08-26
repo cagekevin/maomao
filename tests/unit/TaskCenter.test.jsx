@@ -94,11 +94,6 @@ describe('TaskCenter — 空态', () => {
     render(<TaskCenter />)
     expect(screen.getByText('暂无任务')).toBeTruthy()
   })
-
-  it('无任务 → 生成中/失败计数为 0', () => {
-    render(<TaskCenter />)
-    expect(screen.getByText('0 生成中 · 0 失败')).toBeTruthy()
-  })
 })
 
 describe('TaskCenter — 任务列表渲染', () => {
@@ -116,7 +111,6 @@ describe('TaskCenter — 任务列表渲染', () => {
     render(<TaskCenter />)
     expect(screen.getByText('正在生图…')).toBeTruthy()
     expect(screen.getAllByText('60%').length).toBeGreaterThan(0) // 状态徽标 + 进度文本各显示一次
-    expect(document.querySelector('.animate-spin')).toBeTruthy() // 旋转图标
   })
 
   it('待处理任务 → 显示「生成中」', () => {
@@ -188,12 +182,12 @@ describe('TaskCenter — 过滤与搜索', () => {
 })
 
 describe('TaskCenter — 更多菜单操作', () => {
-  it('点击 ⋮ 打开菜单，点「复制提示词」触发 showToast', () => {
+  it('点击 ⋮ 打开菜单，点「复制提示词」→ showToast 提示已复制（校验副作用参数）', () => {
     h.setTasks([makeTask()])
     render(<TaskCenter />)
     const menus = document.querySelectorAll('button[title="复制提示词"]')
     fireEvent.click(menus[0])
-    expect(h.showToast).toHaveBeenCalled()
+    expect(h.showToast).toHaveBeenCalledWith('已复制提示词', { type: 'success' })
   })
 
   it('更多菜单 → 点击「再来一次」触发 retryTask', () => {

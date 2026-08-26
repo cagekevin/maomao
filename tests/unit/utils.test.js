@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { deepClone, formatTime, debounce, throttle, useDebouncedEffect, createImeInput, createRafBatch } from '../../src/components/base/utils.js'
+import { deepClone, formatTime, debounce, throttle, useDebouncedEffect, createImeInput, createRafBatch, mergeRefImages, buildEffectivePrompt, clampSeconds } from '../../src/components/base/utils.js'
 import { renderHook } from '@testing-library/react'
 
 describe('deepClone', () => {
@@ -15,6 +15,53 @@ describe('deepClone', () => {
 
   it('返回 undefined 时保持 undefined', () => {
     expect(deepClone(undefined)).toBe(undefined)
+  })
+})
+
+describe('mergeRefImages（多路图片源去重）', () => {
+  it('同 id 图片两路进入 → 去重后仅 1 张（保留首次出现）', () => {
+    const a = [{ id: 'script-asset-1', url: '/files/a.png' }]
+    const b = [{ id: 'script-asset-1', url: '/files/a.png' }, { id: 'script-asset-2', url: '/files/b.png' }]
+    expect(mergeRefImages(a, b)).toEqual([
+      { id: 'script-asset-1', url: '/files/a.png' },
+      { id: 'script-asset-2', url: '/files/b.png' },
+    ])
+  })
+
+  it('无 id 时按 url 去重；id/url 皆空的项丢弃', () => {
+    const g = [{ url: '/x.png' }, { url: '/x.png' }, {}, { url: '/y.png' }]
+    expect(mergeRefImages(g)).toEqual([{ url: '/x.png' }, { url: '/y.png' }])
+  })
+
+  it('空/非数组入参安全（不抛）', () => {
+    expect(mergeRefImages(null, undefined, [])).toEqual([])
+    expect(mergeRefImages([], [])).toEqual([])
+  })
+})
+
+describe('buildEffectivePrompt（本地 prompt + 上游文本合并）', () => {
+  it('本地 prompt 在前 + 上游文本去空追加在后，用换行连接', () => {
+    expect(buildEffectivePrompt('小猫', [{ text: '白天' }, { text: '  ' }, { text: '草地' }])).toBe('小猫\n白天\n草地')
+  })
+
+  it('空文本被 filter；全部为空 → 返回空串', () => {
+    expect(buildEffectivePrompt('小猫', [{ text: '  ' }, { text: '' }])).toBe('小猫')
+    expect(buildEffectivePrompt('', [{ text: '' }])).toBe('')
+    expect(buildEffectivePrompt(undefined, [])).toBe('')
+  })
+
+  it('上游文本自身 trim（首尾空格去除）', () => {
+    expect(buildEffectivePrompt('', [{ text: '  白天  ' }])).toBe('白天')
+  })
+})
+
+describe('clampSeconds（视频时长钳制）', () => {
+  it('范围内原样；越界钳到 [4,15]；非法/0 → 下界 4 兜底', () => {
+    expect(clampSeconds(10)).toBe(10)
+    expect(clampSeconds(3)).toBe(4)
+    expect(clampSeconds(99)).toBe(15)
+    expect(clampSeconds('abc')).toBe(4)
+    expect(clampSeconds('0')).toBe(4)
   })
 })
 

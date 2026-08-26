@@ -171,3 +171,24 @@ export async function downloadUrl(url, filename) {
     return { ok: false, msg: '下载失败' }
   }
 }
+
+/**
+ * 下载文件名推导（PromptNode / DiscountVideoNode handleDownload 公共实现）：
+ *  - 优先用 label（已带扩展名则原样）；
+ *  - 无 label → 用 URL 末尾文件名（仅 http/blob 以外/公网 URL，blob/data 不算）；
+ *  - 仍无扩展名 → 补默认扩展名 ext；全空 → fallback。
+ * @param {string} label 节点 label（可空）
+ * @param {string} url 下载源 URL（必须非空）
+ * @param {{ext?:string, fallback?:string}} [opts] 默认扩展名与兜底文件名
+ */
+export function resolveDownloadFilename(label, url, { ext = 'png', fallback = 'generated.png' } = {}) {
+  let filename = label || ''
+  try {
+    const fromUrl = decodeURIComponent(new URL(url).pathname.split('/').pop() || '')
+    if (fromUrl && !/^blob:|^data:/.test(url)) filename = filename || fromUrl
+  } catch {}
+  // 先兜底再补扩展名：空 label + blob/data 等无来源名时用 fallback（原实现「先补扩展名后判空」使该兜底成为死代码，产生残缺文件名 'png'）
+  if (!filename) filename = fallback
+  if (!/\.[a-z0-9]{2,5}$/i.test(filename)) filename += (filename ? '.' : '') + ext
+  return filename
+}

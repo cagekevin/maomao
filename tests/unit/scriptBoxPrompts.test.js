@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import {
-  ZgPrompt, dialogueText, hlAt, matchAsset, collectAssets, buildShotPrompts,
+  ZgPrompt, dialogueText, textToDlg, dlgToText, stripAtRef, hlAt, matchAsset, collectAssets, buildShotPrompts,
   buildShots, buildAssets, IMAGE_GEN_TYPES, getImageGenSys, ASSET_TEMPLATES, patchShots,
+  createNewShot, removeShot, applyTailFrameSelection, removeAsset, renameAssetRefs,
+  formatLineBreaks, parseShotSeconds,
   mergeShotsForVideo, buildMergedVideoUser,
 } from '../../src/components/base/scriptBoxPrompts.js'
 
@@ -55,6 +57,128 @@ describe('剧本盒纯函数 §2.7/2.17', () => {
     expect(matchAsset('@小马妈妈 来了', '小马')).toBe(false) // @小马妈妈 不应匹配 @小马
     expect(matchAsset('@小马', '小马')).toBe(true)
     expect(matchAsset('没有引用', '小马')).toBe(false)
+  })
+
+  it('stripAtRef：只去 @ 前缀、保留名字文字，边界与 matchAsset 一致', () => {
+    expect(stripAtRef('@森林 深处', '森林')).toBe('森林 深处')
+    expect(stripAtRef('@小马 和 @小马妈妈', '小马')).toBe('小马 和 @小马妈妈') // 不误伤更长词
+    expect(stripAtRef('@森林', '森林')).toBe('森林') // 行尾去 @
+    expect(stripAtRef('无引用', '森林')).toBe('无引用')
+  })
+
+  it('stripAtRef：空 text/name → 原样返回（不抛）', () => {
+    expect(stripAtRef('', '森林')).toBe('')
+    expect(stripAtRef('@森林', '')).toBe('@森林')
+    expect(stripAtRef(null, '森林')).toBe(null)
+  })
+
+  it('textToDlg：每行 `角色：台词` 解析为数组，旁白识别', () => {
+    expect(textToDlg('小马：你好\n旁白：天黑了\n无冒号行')).toEqual([
+      { kind: '台词', role: '小马', text: '你好' },
+      { kind: '旁白', role: '旁白', text: '天黑了' },
+      { kind: '台词', role: '', text: '无冒号行' },
+    ])
+  })
+
+  it('textToDlg：空/空白文本 → 空数组；过滤空行', () => {
+    expect(textToDlg('')).toEqual([])
+    expect(textToDlg('   ')).toEqual([])
+    expect(textToDlg('a\n\nb')).toEqual([
+      { kind: '台词', role: '', text: 'a' },
+      { kind: '台词', role: '', text: 'b' },
+    ])
+  })
+
+  it('dlgToText ↔ textToDlg roundtrip：数据不丢（旁白/台词均可还原）', () => {
+    const arr = [
+      { kind: '台词', role: '小马', text: '你好' },
+      { kind: '旁白', role: '旁白', text: '天黑了' },
+    ]
+    const text = dlgToText(arr)
+    expect(text).toBe('小马：你好\n旁白：天黑了')
+    expect(textToDlg(text)).toEqual(arr)
+  })
+
+  it('dlgToText：非数组 → 空串', () => {
+    expect(dlgToText(null)).toBe('')
+    expect(dlgToText('字符串')).toBe('')
+  })
+
+  it('formatLineBreaks：句号类标点（。！？；）后补换行，标点留在行尾', () => {
+    expect(formatLineBreaks('第一句。第二句？第三句！')).toBe('第一句。\n第二句？\n第三句！')
+  })
+
+  it('formatLineBreaks：已换行处不重复补；合并 3+ 空行为 2；整体 trim', () => {
+    expect(formatLineBreaks('第一句。\n第二句。')).toBe('第一句。\n第二句。')
+    expect(formatLineBreaks('a。\n\n\n\nb。')).toBe('a。\n\nb。')
+    expect(formatLineBreaks('  第一句。  ')).toBe('第一句。')
+  })
+
+  it('formatLineBreaks：空值原样返回（不抛）', () => {
+    expect(formatLineBreaks('')).toBe('')
+    expect(formatLineBreaks(null)).toBe(null)
+  })
+
+  it('createNewShot：id/index 按末尾自增，缺省字段用默认值', () => {
+    const s1 = createNewShot([])
+    expect(s1).toMatchObject({ id: 1, index: 1, duration: '3s', shotType: '中景', lighting: '自然光', dialogue: [] })
+    const s2 = createNewShot([{ id: 5 }, { id: 7 }])
+    expect(s2).toMatchObject({ id: 8, index: 3 })
+  })
+
+  it('removeShot：删除中间镜 → index 连续重排', () => {
+    const shots = [{ id: 'a', index: 1 }, { id: 'b', index: 2 }, { id: 'c', index: 3 }]
+    const next = removeShot(shots, 1)
+    expect(next.map((s) => s.index)).toEqual([1, 2])
+    expect(next.map((s) => s.id)).toEqual(['a', 'c'])
+  })
+
+  it('applyTailFrameSelection：选帧 → usePrevShotVideoTail=true + 参考 URL 数组', () => {
+    const shots = [{ id: 1, usePrevShotVideoTail: false, prevShotImageRefUrls: [] }]
+    const next = applyTailFrameSelection(shots, 1, { id: 'v2', imageUrl: '/files/tail.png' }, true)
+    expect(next[0]).toMatchObject({ usePrevShotVideoTail: true, selectedTailFrameVariantId: 'v2', prevShotImageRefUrls: ['/files/tail.png'] })
+  })
+
+  it('applyTailFrameSelection：不使用尾帧 → 清空开关与参考 URL', () => {
+    const shots = [{ id: 1, usePrevShotVideoTail: true, prevShotImageRefUrls: ['/x.png'], selectedTailFrameVariantId: 'v2' }]
+    const next = applyTailFrameSelection(shots, 1, null, false)
+    expect(next[0]).toMatchObject({ usePrevShotVideoTail: false, selectedTailFrameVariantId: 'original', prevShotImageRefUrls: [] })
+  })
+
+  it('applyTailFrameSelection：找不到 shotId → 返回 null 不写回', () => {
+    expect(applyTailFrameSelection([{ id: 1 }], 999, {}, true)).toBe(null)
+  })
+
+  it('removeAsset：删资产 → 各镜头文本 @名 去标记（保留名字文字），pickedCount 重算', () => {
+    const assets = [{ id: 'a1', name: '森林', picked: true }, { id: 'a2', name: '小红帽', picked: false }]
+    const shots = [{ description: '@森林 深处 @小红帽 走进' }, { description: '无引用' }]
+    const patch = removeAsset(assets, 'a1', shots)
+    expect(patch.assets.map((a) => a.id)).toEqual(['a2'])
+    expect(patch.pickedCount).toBe(0)
+    expect(patch.shots[0].description).toBe('森林 深处 @小红帽 走进') // @森林 去 @，@小红帽 保留
+    expect(patch.shots[1].description).toBe('无引用')
+  })
+
+  it('removeAsset：无 name 资产（空壳）删除时不改镜头', () => {
+    const assets = [{ id: 'a1' }]
+    const patch = removeAsset(assets, 'a1', [{ description: '@x' }])
+    expect(patch.shots).toBeUndefined()
+  })
+
+  it('renameAssetRefs：@旧名 → @新名（与既有实现一致：@后以旧名开头的片段都替换）', () => {
+    const shots = [{ description: '@小红帽 走进 @小红帽屋' }]
+    const next = renameAssetRefs(shots, '小红帽', '小红帽(新)')
+    // 原实现用 seg.startsWith(oldName) 判断，@小红帽屋 也被改写（抽取不改变行为）
+    expect(next[0].description).toBe('@小红帽(新) 走进 @小红帽(新)屋')
+  })
+
+  it('parseShotSeconds："3s"→3；非法/0/空 → 兜底 3', () => {
+    expect(parseShotSeconds('3s')).toBe(3)
+    expect(parseShotSeconds('7')).toBe(7)
+    expect(parseShotSeconds('abc')).toBe(3)
+    expect(parseShotSeconds('0')).toBe(3)
+    expect(parseShotSeconds('')).toBe(3)
+    expect(parseShotSeconds(null)).toBe(3)
   })
 
   it('collectAssets：镜头 @名 匹配到有图资产', () => {

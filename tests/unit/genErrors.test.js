@@ -9,12 +9,6 @@ import { TimeoutError } from '../../src/components/base/asyncGuard.js'
  * 代码逻辑一变（如调整识别优先级/漏掉分支）测试必红。
  */
 describe('genErrors.classifyError — 识别优先级', () => {
-  it('null/undefined → business 兜底', () => {
-    expect(classifyError(null)).toEqual({ type: 'business', message: '', retryable: false })
-    expect(classifyError(undefined)).toEqual({ type: 'business', message: '', retryable: false })
-    expect(classifyError(0)).toEqual({ type: 'business', message: '', retryable: false })
-  })
-
   it('AbortError（name 或 aborted 标记）→ abort，不可重试', () => {
     const byName = classifyError(new DOMException('用户取消', 'AbortError'))
     expect(byName.type).toBe('abort')

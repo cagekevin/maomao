@@ -39,6 +39,15 @@ describe('filesApi — saveInlineToLocal', () => {
     const url = await api.saveInlineToLocal(DATA_PNG)
     expect(url).toBe('http://127.0.0.1:18080/files/canvas/abc.png')
   })
+  it('data: URL → 幂等去重文件名（sha1 40 位十六进制）+ subfolder 透传', async () => {
+    fetchMock.mockResolvedValue(uploadResp('http://127.0.0.1:18080/files/canvas/abc.png'))
+    await api.saveInlineToLocal(DATA_PNG, 'canvas')
+    const [, opts] = fetchMock.mock.calls[0]
+    for (const [k, v] of opts.body.entries()) {
+      if (k === 'file') expect(v.name).toMatch(/^[a-f0-9]{40}\.png$/)
+      if (k === 'subfolder') expect(v).toBe('canvas')
+    }
+  })
   it('非 data: URL → 返回 null（不抛）', async () => {
     expect(await api.saveInlineToLocal('http://x/y.png')).toBeNull()
     expect(fetchMock).not.toHaveBeenCalled()

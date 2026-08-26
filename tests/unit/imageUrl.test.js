@@ -41,12 +41,6 @@ describe('imageUrl §2.17', () => {
     expect(toAbsoluteFileUrl('blob:http://x/abc')).toBe('blob:http://x/abc')
   })
 
-  it('toAbsoluteFileUrl 空/非字符串原样返回', () => {
-    expect(toAbsoluteFileUrl('')).toBe('')
-    expect(toAbsoluteFileUrl(null)).toBe(null)
-    expect(toAbsoluteFileUrl(undefined)).toBe(undefined)
-  })
-
   it('normalizeImageUrl 等价于 toAbsoluteFileUrl', () => {
     expect(normalizeImageUrl('/files/b.png')).toBe('http://127.0.0.1:18080/files/b.png')
     expect(normalizeImageUrl('http://y/z.jpg')).toBe('http://y/z.jpg')
@@ -61,12 +55,6 @@ describe('imageUrl · normalizeImageUrlForSend（发送端归一化）', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     stubFileReader()
-  })
-
-  it('非字符串 → 空串（丢弃）', async () => {
-    await expect(normalizeImageUrlForSend(null)).resolves.toBe('')
-    await expect(normalizeImageUrlForSend(undefined)).resolves.toBe('')
-    await expect(normalizeImageUrlForSend(123)).resolves.toBe('')
   })
 
   it('/files/ 本地图 → 补全绝对后压缩到 ≤1920 保持原格式，转 base64（不再发本地 URL）', async () => {

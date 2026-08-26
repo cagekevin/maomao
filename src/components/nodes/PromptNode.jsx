@@ -19,7 +19,7 @@ import ImageZoomDialog from '../base/ImageZoomDialog.jsx'
 import ImageEditor from '../base/ImageEditor.jsx'
 import { useImageHoverActions } from '../base/useImageHoverActions.jsx'
 import PromptLibraryButton from '../base/PromptLibraryButton.jsx'
-import { downloadUrl } from '../base/clipboard.js'
+import { downloadUrl, resolveDownloadFilename } from '../base/clipboard.js'
 import JianyingIcon from '../base/JianyingIcon.jsx'
 import { showToast } from '../base/toastStore.js'
 import { sendToAssetLibrary } from '../base/assetStore.js'
@@ -35,7 +35,7 @@ import { generateImage } from '../base/imageApi.js'
 import { useNodePrefs } from '../base/nodePrefs.js'
 import { useRenderImageResolver } from '../base/imageUrl.js'
 import { resolveProviderModel } from '../base/providerModels.js'
-import { debounce } from '../base/utils.js'
+import { debounce, mergeRefImages, buildEffectivePrompt } from '../base/utils.js'
 
 /**
  * 生图节点（复刻原 bo.jsx / promptNode）
@@ -62,19 +62,12 @@ function PromptNode({ id, data, selected }) {
   // 【memo 优化】用 useMemo 稳定 refImages/refTexts 引用：否则每次 render 新建数组，传给 memo 子组件
   // （MaterialStrip/PromptInput）会失效导致每次重渲染。依赖用 connected.*/data.* 引用而非整对象，
   // 上游/自身数据未变时引用稳定。
-  const refImages = useMemo(() => {
+  const refImages = useMemo(
     // 合并「连线上游产出」+「剧本盒等塞给本节点的 data.images」时，可能同一批资产图
-    // 走了两条路重复进入（同 id，如 script-asset-xxx），按 id 去重避免渲染 key 重复 / 图显示两份。
-    const seen = new Set()
-    const merged = []
-    ;[...(connected.images || []), ...(data.images?.length ? data.images : [])].forEach((im) => {
-      const key = im && (im.id ?? im.url)
-      if (!key || seen.has(key)) return
-      seen.add(key)
-      merged.push(im)
-    })
-    return merged
-  }, [connected.images, connected.texts, data.images, data.texts])
+    // 走了两条路重复进入（同 id，如 script-asset-xxx），mergeRefImages 按 id 去重避免渲染 key 重复。
+    () => mergeRefImages(connected.images, data.images),
+    [connected.images, connected.texts, data.images, data.texts]
+  )
   const refTexts = useMemo(
     () => [...(connected.texts || []), ...(data.texts?.length ? data.texts : [])],
     [connected.texts, connected.images, data.texts, data.images]
@@ -84,8 +77,7 @@ function PromptNode({ id, data, selected }) {
   // 构造「有效提示词」= 本地 prompt + 上游文本 合并：两者都参与生成，
   // 本地写的主提示词在前，上游文本节点/资产文字追加在后，一起送进生图请求。
   // 多个上游文本节点自动合并；多个上游图片节点也已在 refImages 中合并。
-  const upstreamText = refTexts.map((t) => (t.text || '').trim()).filter(Boolean).join('\n')
-  const effectivePrompt = [prompt?.trim(), upstreamText].filter(Boolean).join('\n') || ''
+  const effectivePrompt = buildEffectivePrompt(prompt, refTexts)
   // 提示词输入框双击全屏编辑（复刻 TextNode 的交互：ResizeFullscreenHandle 双击 → 弹层）
   const [fullscreenPrompt, setFullscreenPrompt] = useState(false)
   // 记住上次选择的比例/尺寸/模型（跨节点/跨会话）；初始用记忆值，无记忆回退默认
@@ -268,17 +260,10 @@ function PromptNode({ id, data, selected }) {
   const insertMention = (name) => setPromptPersist((p) => (p ? `${p} @${name} ` : `@${name} `))
   const hasImage = !!imageUrl
 
-  // 下载生成的图片（<a download> 触发浏览器保存）
+  // 下载生成的图片（<a download> 触发浏览器保存；文件名推导走统一 resolveDownloadFilename）
   const handleDownload = () => {
     if (!imageUrl) return
-    let filename = data.label || data.name || ''
-    try {
-      const fromUrl = decodeURIComponent(new URL(imageUrl).pathname.split('/').pop() || '')
-      if (fromUrl && !/^blob:|^data:/.test(imageUrl)) filename = filename || fromUrl
-    } catch {}
-    if (!/\.[a-z0-9]{2,5}$/i.test(filename)) filename += (filename ? '.' : '') + 'png'
-    if (!filename) filename = 'generated.png'
-    downloadUrl(imageUrl, filename)
+    downloadUrl(imageUrl, resolveDownloadFilename(data.label || data.name, imageUrl, { ext: 'png', fallback: 'generated.png' }))
   }
 
   // 共享图片 hover 能力（裁剪/标记/压缩）：写回走 setImageUrl + patchData（不可变落盘）。

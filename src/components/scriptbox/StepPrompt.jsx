@@ -1,18 +1,8 @@
 import React, { useState, useRef } from 'react'
 import { Loader2, Image as ImageIcon, Video, LayoutGrid, Columns2, RefreshCw, Link2, Wand2, Copy, Check } from 'lucide-react'
-import { dialogueText, hlAt, patchShots, IMAGE_GEN_TYPES, IMAGE_GEN_DEFAULT } from '../base/scriptBoxPrompts.js'
+import { dialogueText, hlAt, patchShots, formatLineBreaks, IMAGE_GEN_TYPES, IMAGE_GEN_DEFAULT } from '../base/scriptBoxPrompts.js'
 import { toastWarning } from '../base/toastStore.js'
 import ScriptBoxModal from './ScriptBoxModal.jsx'
-
-/** 长段提示词一键排版：每个句号类标点（。！？；）后回车换行，标点留在行尾。
- *  纯字符串处理，不破坏 @资产名 引用。供编辑弹窗打开时预格式化。 */
-function formatLineBreaks(text) {
-  if (!text) return text
-  return String(text)
-    .replace(/([。！？；])(?!\s*\n)/g, '$1\n') // 句号后补换行（若后面不是已有换行）
-    .replace(/\n{3,}/g, '\n\n') // 合并多余空行
-    .trim()
-}
 
 /**
  * 剧本盒子 步骤3「合成提示词」：列表/单镜头双视图 + 每镜卡片（生图 prompt/生视频 prompt 双击编辑 + 宫格选择 + 生成）+

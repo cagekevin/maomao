@@ -50,7 +50,10 @@ vi.mock('../../src/components/base/settings/providerStore.js', () => ({ useProvi
 vi.mock('../../src/components/base/localToolApi.js', () => ({ fetchTasks: vi.fn(async () => ({ items: [] })) }))
 vi.mock('../../src/components/base/imageApi.js', () => ({ generateImage: vi.fn(async () => ({ url: 'http://gen.local/img.png' })) }))
 vi.mock('../../src/components/base/providerModels.js', () => ({ buildAllModels: vi.fn(() => []), resolveProviderModel: vi.fn(() => ({ provider: {}, modelId: 'm' })) }))
-vi.mock('../../src/components/base/clipboard.js', () => ({ downloadUrl: vi.fn() }))
+vi.mock('../../src/components/base/clipboard.js', async (importOriginal) => {
+  const actual = await importOriginal()
+  return { ...actual, downloadUrl: vi.fn() }
+})
 
 // ImageEditor：记录最近渲染的 imageUrl，便于断言「打开编辑器」
 let lastEditorUrl = null

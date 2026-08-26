@@ -23,7 +23,7 @@ import { showToast } from '../base/toastStore.js'
 import { generateImage } from '../base/imageApi.js'
 import { toAbsoluteFileUrl } from '../base/filesApi.js'
 import { useRenderImageResolver } from '../base/imageUrl.js'
-import { debounce } from '../base/utils.js'
+import { debounce, mergeRefImages, buildEffectivePrompt } from '../base/utils.js'
 
 /**
  * ════════════════════════════════════════════════════════════════
@@ -115,18 +115,8 @@ function TemplateNode({ id, data, selected }) {
 
   // 上游合并：图片 + 文本（多个上游节点自动聚合；data.images/texts 额外资产也并入）
   // 注意：connected.images 与 data.images 可能重复进入同一批资产图（同 id/url，如剧本盒 script-asset-xxx），
-  // 按 id/url 去重，避免渲染 key 重复 / 图显示两份。
-  const refImages = useMemo(() => {
-    const seen = new Set()
-    const merged = []
-    ;[...(connected.images || []), ...(data.images?.length ? data.images : [])].forEach((im) => {
-      const key = im && (im.id ?? im.url)
-      if (!key || seen.has(key)) return
-      seen.add(key)
-      merged.push(im)
-    })
-    return merged
-  }, [connected.images, data.images])
+  // mergeRefImages 按 id 去重，避免渲染 key 重复 / 图显示两份。
+  const refImages = useMemo(() => mergeRefImages(connected.images, data.images), [connected.images, data.images])
   const refTexts = [...(connected.texts || []), ...(data.texts?.length ? data.texts : [])]
   // 注意：effectivePrompt 依赖下方声明的 prompt state，故计算延后到 prompt 初始化之后
 
@@ -154,8 +144,7 @@ function TemplateNode({ id, data, selected }) {
   const [aspectRatio, setAspectRatio] = useState(data.aspectRatio ?? '1:1')
   const [selectedModel, setSelectedModel] = useState(data.selectedModel ?? '')
   // 有效提示词 = 本地 prompt + 上游文本（多文本节点合并），两者都参与生成；延后到 prompt 初始化后避免 TDZ
-  const upstreamText = refTexts.map((t) => (t.text || '').trim()).filter(Boolean).join('\n')
-  const effectivePrompt = [prompt?.trim(), upstreamText].filter(Boolean).join('\n') || ''
+  const effectivePrompt = buildEffectivePrompt(prompt, refTexts)
 
   // 外部同步：Agent update_node 改 data 时，把变更同步回本地 state ——已收进 useGenerateNode 的 sync 参数。
 

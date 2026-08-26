@@ -13,7 +13,7 @@ import ResizeFullscreenHandle from '../base/ResizeFullscreenHandle.jsx'
 import FullscreenEditor from '../base/FullscreenEditor.jsx'
 import GeneratingOverlay from '../base/GeneratingOverlay.jsx'
 import { NODE_AREA_FIXED_BASE_SIZE } from '../base/config.js'
-import { downloadUrl } from '../base/clipboard.js'
+import { downloadUrl, resolveDownloadFilename } from '../base/clipboard.js'
 import PromptLibraryButton from '../base/PromptLibraryButton.jsx'
 import JianyingIcon from '../base/JianyingIcon.jsx'
 import MaterialStrip from '../base/MaterialStrip.jsx'
@@ -29,7 +29,7 @@ import { generateVideo } from '../base/videoApi.js'
 import { useNodePrefs } from '../base/nodePrefs.js'
 import { logger } from '../base/logger.js'
 import { resolveProviderModel } from '../base/providerModels.js'
-import { debounce } from '../base/utils.js'
+import { debounce, buildEffectivePrompt, clampSeconds } from '../base/utils.js'
 
 /**
  * 特惠视频节点（复刻原 As.jsx / discountVideoNode）
@@ -46,7 +46,6 @@ function DiscountVideoNode({ id, data, selected }) {
   const connected = useConnectedInputs(id)
   // 上游文本合并（多个文本节点自动聚合；data.texts 额外资产也并入），作为提示词的一部分
   const refTexts = [...(connected.texts || []), ...(data.texts?.length ? data.texts : [])]
-  const upstreamText = refTexts.map((t) => (t.text || '').trim()).filter(Boolean).join('\n')
   const { setEdges, setNodes } = useReactFlow()
   // 断开连线：素材缩略图红色 × → 删除该来源节点 → 本节点的连线（仅对有 sourceNodeId 的素材）
   const disconnectSource = useCallback(
@@ -58,7 +57,7 @@ function DiscountVideoNode({ id, data, selected }) {
   )
   const [prompt, setPrompt] = useState(data.prompt || '')
   // 有效提示词 = 本地 prompt + 上游文本，两者都参与生成
-  const effectivePrompt = [prompt?.trim(), upstreamText].filter(Boolean).join('\n') || ''
+  const effectivePrompt = buildEffectivePrompt(prompt, refTexts)
   // 提示词输入框双击全屏编辑（复刻 TextNode 的交互：ResizeFullscreenHandle 双击 → 弹层）
   const [fullscreenPrompt, setFullscreenPrompt] = useState(false)
   // 提示词落盘：本地 state + 写回 node.data（支持函数式更新）。
@@ -184,17 +183,10 @@ function DiscountVideoNode({ id, data, selected }) {
 
   const onUpload = () => fileRef.current?.click()
 
-  // 下载当前视频（<a download> 触发浏览器保存；文件名取 label，缺扩展名补 .mp4）
+  // 下载当前视频（<a download> 触发浏览器保存；文件名推导走统一 resolveDownloadFilename，label 缺扩展名补 .mp4）
   const handleDownload = () => {
     if (!videoUrl) return
-    let filename = data.label || ''
-    try {
-      const fromUrl = decodeURIComponent(new URL(videoUrl).pathname.split('/').pop() || '')
-      if (fromUrl && !/^blob:|^data:/.test(videoUrl)) filename = filename || fromUrl
-    } catch {}
-    if (!/\.[a-z0-9]{2,5}$/i.test(filename)) filename += (filename ? '.' : '') + 'mp4'
-    if (!filename) filename = 'video.mp4'
-    downloadUrl(videoUrl, filename)
+    downloadUrl(videoUrl, resolveDownloadFilename(data.label, videoUrl, { ext: 'mp4', fallback: 'video.mp4' }))
   }
 
   // hover 操作栏按钮
@@ -370,7 +362,7 @@ function DiscountVideoNode({ id, data, selected }) {
                           min={MIN_SECONDS}
                           max={MAX_SECONDS}
                           step={1}
-                          value={Math.max(MIN_SECONDS, Math.min(MAX_SECONDS, Number(seconds) || MIN_SECONDS))}
+                          value={clampSeconds(seconds, MIN_SECONDS, MAX_SECONDS)}
                           onChange={(e) => { const v = String(e.target.value); setSeconds(v); setVidPrefs({ seconds: v }) }}
                           className="nodrag accent-blue-500 w-32 shrink-0"
                         />

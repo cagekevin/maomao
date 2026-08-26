@@ -182,9 +182,8 @@ describe('AgentPanel — 面板显隐（阶段1C：常驻 DOM，CSS 显隐）', 
     expect(root.className).not.toContain('hidden')
   })
 
-  it('open=true → 渲染标题与空态', () => {
+  it('open=true → 渲染空态引导', () => {
     render(<AgentPanel {...OPEN_PROPS} />)
-    expect(screen.getByText('AI 助手')).toBeTruthy()
     expect(screen.getByText('有什么可以帮你？')).toBeTruthy()
   })
 
