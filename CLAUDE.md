@@ -1,7 +1,7 @@
 # CLAUDE.md · 猫猫画布（React 原型 + 自研后端）
 
 > **本文件定位：项目认知入口。每个 AI 进来第一步读它**，了解"这是什么项目、技术栈、架构、目录、红线、怎么启动"。
-> 读完按任务再读对应入口：**写代码 → `spec/CONTEXT.md`（决策地图）**；**写/改测试 → `spec/TESTING.md`（测试权威）**。三文件互补不重叠（见 §七.0）。
+> 读完按任务再读对应入口：**写代码 → `spec/CONTEXT.md`（决策地图）**；**写/改测试 → `spec/TEST-GUIDE.md`（测试权威）**。三文件互补不重叠（见 §七.0）。
 > **最后更新**：2026-08-26（事件契约红线收口：`EVENTS` 登记表 `to/from` 须与代码实测自洽 + `npm run check:events` 双向校验接入 `prebuild`+`pretest`，见 §五.4.6/§五.4.1；此前为 2026-08-22 API 中转层收口）
 
 ## ⚠️ 最新情况（改动前必读）
@@ -14,7 +14,7 @@
 ├── public/                     ← 静态资源
 ├── index.html + vite.config.js + tailwind.config.js + package.json
 ├── scripts/                    ← 测试地基（smoke/regression/tools/health-check），见 scripts/README.md
-├── spec/                       ← 🏛️ 权威规范（永不误删）：CONTEXT.md（写码决策）/ TESTING.md（测试）/ NEW-NODE-GUIDE.md / 横切分层 / 代码组织
+├── spec/                       ← 🏛️ 权威规范（永不误删）：CONTEXT.md（写码决策）/ TEST-GUIDE.md（测试）/ NEW-NODE-GUIDE.md / 横切分层 / 代码组织
 ├── docs/                       ← 临时/历史文档（调查产物，可过时可清理，不维护）
 └── reference-1mao/             ← 【只读参考】原产品混淆还原代码（查实现用，不直接改）
 ```
@@ -141,7 +141,7 @@ node scripts/task-inspect.mjs --canvas-health   # 画布结构体检
 * **设计语言**：参照 `docs/BASE-CAPABILITIES.md`；节点视觉/交互规范见 `docs/README.md`「节点设计规范」。
 * **运行形态**：Chrome 扩展（MV3）。`public/manifest.json` + `background.js` + `icon*.png` 为插件壳；`src/` 编译后由 `vite.config.js`（`base:'./'`，兼容 `chrome-extension://`）打包进 `dist/`。存储经 `src/components/base/contentStore.js`（横切存储权威入口，按 `STORAGE_KEYS.backend` 自动路由 local/KV/native：local 走 `storageAdapter.js`（chrome.storage 扩展环境）/原生 `localStorage`；kv 走 localTool KV；native 后端如 director3d 直写原生 `localStorage`）。`npm run dev` 预览画布，`npm run build` 出 `dist/`。
 
-* **3D 导演台（director3d）**：`src/components/director3d/` 是**从外部下载的开源仓库**（storyai-3d-director-desk）集成进来的，**非本仓库自有代码**。由 `Director3DNode` 双击进入。⚠️ **边界**：它基本独立于主画布（有自己的 store/schema/编辑器，TS 实现）。**不为它写测试、不纳入测试维护、不主动重构**；改动只做"必要的最小集成"，改前先读文件头注释。要查它怎么用，看 `spec/TESTING.md` §八 批6 已标注"不开测"。
+* **3D 导演台（director3d）**：`src/components/director3d/` 是**从外部下载的开源仓库**（storyai-3d-director-desk）集成进来的，**非本仓库自有代码**。由 `Director3DNode` 双击进入。⚠️ **边界**：它基本独立于主画布（有自己的 store/schema/编辑器，TS 实现）。**不为它写测试、不纳入测试维护、不主动重构**；改动只做"必要的最小集成"，改前先读文件头注释。要查它怎么用，看 `spec/TEST-GUIDE.md` §八 批6 已标注"不开测"。
 
 > 与 history 区别：旧版 `src/bundle/` 是混淆还原源码；当前 `src/` 是直接可读可维护的工程，构建产物仍是 Chrome 扩展 `dist/`。
 
@@ -155,7 +155,7 @@ node scripts/task-inspect.mjs --canvas-health   # 画布结构体检
 2. **构思测试 = 细化契约**：能写出「输入→输出」具体断言，契约才算定清。逻辑能抽纯函数则放 `base/*.js`，边写边锁单测；组件只补关键交互+防崩。断言须"源码一变必红"，自证式断言无效。
 3. **定数据流**：数据从哪来、经哪些模块、落哪（状态/落盘/KV），对齐唯一入口与字符串契约（§五.5）。画通才动手。
 
-> 分层：纯逻辑 `base/*.js` → 补单测；hook → mock 锁返回值；组件 → 只补关键交互。SOP 见 `spec/TESTING.md` §〇+§六。director3d 除外（见 §二）。
+> 分层：纯逻辑 `base/*.js` → 补单测；hook → mock 锁返回值；组件 → 只补关键交互。SOP 见 `spec/TEST-GUIDE.md` §〇+§六。director3d 除外（见 §二）。
 
 ### 3.1 改动流程（通用，所有 `src/` 改动都走）
 
@@ -174,7 +174,7 @@ node scripts/task-inspect.mjs --canvas-health   # 画布结构体检
 6. npm run check:health  ← 全量健康度（较大改动或提交前，0 错 0 警为佳）
 ```
 
-> 命令速查（详见 `spec/TESTING.md`，权威）：**`npm test`（= `npm run test:all`）= 冒烟 + vitest 全量单测 + 回归 + Agent 工具** 四件套一次跑完，提交前首选；单项：`npm run test:smoke`（冒烟）/`test:unit`（vitest 单测）/`test:regression`（SSR 回归）/`test:tools`（Agent 工具）；`npm run check:health` 全量编排（含构建 + 测试 + TDZ + dist 基线）。
+> 命令速查（详见 `spec/TEST-GUIDE.md`，权威）：**`npm test`（= `npm run test:all`）= 冒烟 + vitest 全量单测 + 回归 + Agent 工具** 四件套一次跑完，提交前首选；单项：`npm run test:smoke`（冒烟）/`test:unit`（vitest 单测）/`test:regression`（SSR 回归）/`test:tools`（Agent 工具）；`npm run check:health` 全量编排（含构建 + 测试 + TDZ + dist 基线）。
 
 > ⚠️ **跑 vitest 单次**：`vitest.config.js` 已默认 `watch:false`，裸调 `npx vitest xxx` 也会单次跑完即退（不会挂住）。但**优先用脚本**（内部已配好）：`npm test` / `npm run test:unit`（全量）或 `npx vitest run tests/unit/xxx.test.js`（单文件）。需 watch 时显式 `npx vitest --watch`。若已误入 watch，`Ctrl+C` 或 `pkill -f vitest` 退出。
 > 提交前 `pre-commit` 钩子自动跑 `type-check` + `vitest run --changed`（只测改动相关，~2-3s）；**全量单测移到 `pre-push`**（push 前跑 `npm run test:unit` 兜底，避免每次 commit 等全量 ~20s，2026-08-21 起）。`main` 分支的 push/PR 由 `.github/workflows/ci.yml` 云端跑 type-check + 单测。**全量 lint 门禁已移除（弊大于利，门禁靠类型检查 + 测试）**；但保留**单条存储键契约编译期拦截**（不恢复全量 eslint）：`npm run check:keys` 静态校验裸 `STORAGE_KEYS` key（挂 `npm run check:health`）+ `contentStore.checkRegistered` 在 dev 环境对未登记字面量 key 直接 throw。两者零新依赖、不碰 §3.1 的 lint 决策。
@@ -339,7 +339,7 @@ node scripts/task-inspect.mjs --canvas-health   # 画布结构体检
 |---------|------|------|
 | 任何任务第一步 | **CLAUDE.md（本文件）** | 项目认知：技术栈/架构/目录/红线/启动 |
 | 写代码 | **`spec/CONTEXT.md`** | 决策地图：功能放哪 / 调哪个唯一入口 / 机制红线 |
-| 写/改测试 | **`spec/TESTING.md`** | 测试权威：命令/分层/SOP/输出规范 |
+| 写/改测试 | **`spec/TEST-GUIDE.md`** | 测试权威：命令/分层/SOP/输出规范 |
 
 > 三个文件**互补不重叠**：CLAUDE 管"项目是什么"，CONTEXT 管"写码怎么决策"，TESTING 管"测试怎么做"。机制细节看对应代码注释（代码即知识）。
 
@@ -351,7 +351,7 @@ node scripts/task-inspect.mjs --canvas-health   # 画布结构体检
 | 文档 | 用途 |
 | --- | --- |
 | `spec/CONTEXT.md` | **写码决策地图（唯一中心）**：顶层架构（画布编排×节点体系×地基收口×收口准则）/ 代码组织（含**重型重构 SOP** §一·C）/ 横切 7 块入口 / 并发治理 / 安全密钥 / 数据一致性 |
-| `spec/TESTING.md` | **测试体系权威**：命令/分层/SOP/输出规范 |
+| `spec/TEST-GUIDE.md` | **测试体系权威**：命令/分层/SOP/输出规范 |
 | `spec/NEW-NODE-GUIDE.md` | **新建节点权威流程**（高频：骨架/注册/契约/常见坑） |
 | `tailwind.config.js` | **样式令牌唯一真相**（禁裸色值，勿再引用已删的 tailwind-tokens.md） |
 

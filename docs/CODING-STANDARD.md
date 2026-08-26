@@ -17,7 +17,7 @@
 | 复用通用能力（别造轮子） | `BASE-CAPABILITIES.md` | 已建好的 base/ 能力清单，直接照用 |
 | 写样式（用 token 不用裸色值） | `tailwind.config.js`（token 定义）+ 本页 §二 | 背景/文字/边框/字号/z-index 全走 token |
 | 弹提示 / 判断媒体 / URL 归一 | 本页 §一（单一入口清单）+ `07-Toast分级设计`（分级契约） | 遇到 X 就用 Y，禁止各写各的 |
-| 测试 / 验证门禁 | `spec/TESTING.md` | smoke/regression/tools/health 四层 |
+| 测试 / 验证门禁 | `spec/TEST-GUIDE.md` | smoke/regression/tools/health 四层 |
 | 存储键 / 数据收口 | `docs/08-存储键集中登记与收口规范` | 新增存储键先 `StorageKeys` 登记，禁止散落字面量 |
 | 错误降级 / 重试 | `docs/09-节点错误降级与重试收敛策略` | API 失败带 `type`，节点按 `type` 决策，禁 if(/网络错误/) |
 
@@ -34,7 +34,7 @@
 | `CLAUDE.md`（根目录） | ✅ 有效 | 工程现状总纲 |
 | `ARCHITECTURE.md` | ✅ 有效 | 设计原则 + 新增节点流程 |
 | `BASE-CAPABILITIES.md` | ✅ 有效 | base/ 能力清单 |
-| `spec/TESTING.md` | ✅ 有效 | 测试体系权威 |
+| `spec/TEST-GUIDE.md` | ✅ 有效 | 测试体系权威 |
 | `CANVAS_PERFORMANCE.md` | ✅ 有效 | 性能机制对照（含状态标注） |
 | `node-types-map.md` | ✅ 有效 | 官方节点↔混淆映射（指向已移除 src/bundle，仅供对照） |
 | `README.md` | ✅ 有效 | 结构/启动/复刻范围 |

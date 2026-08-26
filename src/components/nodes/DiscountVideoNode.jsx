@@ -132,7 +132,11 @@ function DiscountVideoNode({ id, data, selected }) {
     { value: '3:4', label: '3:4' }
   ]
   const resOptions = ['480p', '720p', '1080p']
-  const durationOptions = ['4', '6', '8', '10', '12', '15']
+  // 时长改为滑块（4~15s 自由选择，替代原来写死的 6 个预设按钮）。
+  // 说明：视频 API 的 duration 原样透传不设上限，模型超过 4s 即可生成；合并生成视频时
+  // 滑块初始值 = 选中镜头时长累加（selectedSeconds）。滑块值取整秒，超出预设直接可滑。
+  const MIN_SECONDS = 4
+  const MAX_SECONDS = 15
 
   // 供应商/模型 + 默认模型回填 + useNodeGeneration(统一契约) 收进 useGenerateNode（P0-2 收口）。
   // prefs/selectedModel 由本节点持有并传入（无死锁）；外部 data.videoUrl 变更同步也收进 sync。
@@ -358,10 +362,19 @@ function DiscountVideoNode({ id, data, selected }) {
                     </div>
                     <div>
                       <div className="text-caption text-muted mb-2 px-1">时长 (秒)</div>
-                      <div className="flex flex-wrap gap-1.5 px-1">
-                        {durationOptions.map((d) => (
-                          <button key={d} type="button" className={`px-3 py-1.5 text-caption-sm rounded-md transition-colors ${String(d) === seconds ? 'bg-surface-3 text-white' : 'bg-surface-raised text-secondary hover:bg-surface-hover hover:text-primary'}`} onClick={() => { setSeconds(d); setVidPrefs({ seconds: String(d) }) }}>{d}s</button>
-                        ))}
+                      <div className="flex items-center gap-2 px-1">
+                        <span className="text-caption-sm text-white font-medium tabular-nums shrink-0 text-center bg-surface-3 rounded px-2 py-0.5">{seconds}s</span>
+                        <span className="text-caption-sm text-muted tabular-nums shrink-0">{MIN_SECONDS}s</span>
+                        <input
+                          type="range"
+                          min={MIN_SECONDS}
+                          max={MAX_SECONDS}
+                          step={1}
+                          value={Math.max(MIN_SECONDS, Math.min(MAX_SECONDS, Number(seconds) || MIN_SECONDS))}
+                          onChange={(e) => { const v = String(e.target.value); setSeconds(v); setVidPrefs({ seconds: v }) }}
+                          className="nodrag accent-blue-500 w-32 shrink-0"
+                        />
+                        <span className="text-caption-sm text-muted tabular-nums shrink-0">{MAX_SECONDS}s</span>
                       </div>
                     </div>
                   </div>

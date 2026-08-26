@@ -32,6 +32,7 @@ export default function StepPrompt({ data, updateData, callbacks }) {
   const [singleIdx, setSingleIdx] = useState(0) // 单镜头视图：当前查看的镜头 idx
   const [regenerating, setRegenerating] = useState(null) // 待重新生成的镜头 id（弹意见输入框）
   const [feedback, setFeedback] = useState('') // 重新生成时的用户修改意见
+  const [mergeLoading, setMergeLoading] = useState(false) // 合并生成视频：按钮转圈+「生成中」
 
   const patchShot = (idx, field, val) => updateData({ shots: patchShots(shots, idx, field, val) })
 
@@ -195,6 +196,24 @@ export default function StepPrompt({ data, updateData, callbacks }) {
           onClick={() => callbacks.onConnectShots?.([...selShots].map((i) => shots[i].id), 'image')}
         >
           <ImageIcon size={11} /> 批量生图{selShots.size ? `(${selShots.size})` : ''}
+        </button>
+        {/* 合并生成视频：勾选 ≥2 镜 → AI 合并生成一条序号连贯的提示词 → 新建特惠视频节点（剧本数据不变）。
+            生成中按钮转圈 + 文字「生成中」，结束（成功/失败）复位。 */}
+        <button
+          className="flex items-center gap-1 px-2.5 py-1.5 text-caption-sm text-primary bg-surface-hover hover:bg-surface-hover-strong rounded-md whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed"
+          title={mergeLoading ? '正在生成合并视频提示词…' : (selShots.size >= 2 ? `将选中的 ${selShots.size} 镜合并生成一个视频` : '勾选 2 个以上镜头后合并生成视频')}
+          disabled={selShots.size < 2 || mergeLoading}
+          onClick={async () => {
+            setMergeLoading(true)
+            try {
+              await callbacks.onGenerateMergedVideo?.([...selShots].map((i) => shots[i].id))
+            } finally {
+              setMergeLoading(false)
+            }
+          }}
+        >
+          {mergeLoading ? <Loader2 size={11} className="animate-spin" /> : <Video size={11} />}
+          {mergeLoading ? '生成中…' : `合并生成视频${selShots.size >= 2 ? `(${selShots.size})` : ''}`}
         </button>
         <span className="text-caption-sm text-muted">{shots.length} 镜</span>
       </div>

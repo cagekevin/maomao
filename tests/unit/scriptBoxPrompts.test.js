@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   ZgPrompt, dialogueText, hlAt, matchAsset, collectAssets, buildShotPrompts,
   buildShots, buildAssets, IMAGE_GEN_TYPES, getImageGenSys, ASSET_TEMPLATES, patchShots,
+  mergeShotsForVideo, buildMergedVideoUser,
 } from '../../src/components/base/scriptBoxPrompts.js'
 
 describe('剧本盒纯函数 §2.7/2.17', () => {
@@ -124,5 +125,192 @@ describe('剧本盒纯函数 §2.7/2.17', () => {
     const shots = [{ id: 's1', prompt: '', videoPrompt: '' }]
     const next = patchShots(shots, 0, { prompt: 'p', videoPrompt: 'v' })
     expect(next[0]).toMatchObject({ id: 's1', prompt: 'p', videoPrompt: 'v' })
+  })
+})
+
+/* ═══════════════════════════════════════════════════════════════
+ * 合并生成视频（mergeShotsForVideo / buildMergedVideoUser / MERGE_VIDEO_SYSTEM）
+ * ═══════════════════════════════════════════════════════════════ */
+describe('剧本盒纯函数 · 合并生成视频', () => {
+  const shots = [
+    { id: 's1', index: 1, duration: '3s', description: '@小狗 蹲坐', videoPrompt: '镜头时长 3s，小狗蹲坐' },
+    { id: 's2', index: 2, duration: '4s', description: '@小狗 叼鱼', videoPrompt: '镜头时长 4s，小狗叼鱼' },
+  ]
+  const assets = [
+    { id: 'a1', name: '小狗', imageUrl: '/files/dog.png' },
+    { id: 'a2', name: '餐桌', imageUrl: '/files/table.png' },
+  ]
+
+  it('mergeShotsForVideo：时长累加（单一数据来源：第一步各镜 duration）', () => {
+    const r = mergeShotsForVideo(shots, assets)
+    expect(r.seconds).toBe(7) // 3s + 4s = 7s
+  })
+
+  it('mergeShotsForVideo：参考图合并去重（按 url），只留 @匹配且有图的资产', () => {
+    // 两镜都引用 @小狗（同一资产），应去重为 1 张；餐桌未在镜头文本出现则不入图
+    const r = mergeShotsForVideo(shots, assets)
+    expect(r.images).toHaveLength(1)
+    expect(r.images[0].url).toBe('/files/dog.png')
+  })
+
+  it('mergeShotsForVideo：多镜引用不同资产 → 全部并入且去重', () => {
+    const shots2 = [
+      { id: 's1', index: 1, duration: '3s', description: '@小狗 蹲坐', videoPrompt: 'a' },
+      { id: 's2', index: 2, duration: '4s', description: '@餐桌 摆着鱼', videoPrompt: 'b' },
+    ]
+    const r = mergeShotsForVideo(shots2, assets)
+    expect(r.seconds).toBe(7)
+    expect(r.images.map((i) => i.url).sort()).toEqual(['/files/dog.png', '/files/table.png'])
+  })
+
+  it('mergeShotsForVideo：无 videoPrompt 段过滤为空 prompt；duration 缺省兜底 5', () => {
+    // seconds 对每个元素累加：空 duration → 兜底 5；null → 兜底 5。共 5+5=10
+    const r = mergeShotsForVideo([{ id: 'x', duration: '' }, null], assets)
+    expect(r.seconds).toBe(10)
+    expect(r.prompt).toBe('') // 无有效 videoPrompt
+  })
+
+  it('buildMergedVideoUser：每个镜头标注【镜头N】标题（对应镜号），含对白/音效/可用资产', () => {
+    const shotWithDlg = {
+      id: 's1', index: 1, duration: '3s', description: '@小狗 蹲坐',
+      shotType: '近景', lighting: '暖光', motion: '缓慢推进',
+      dialogue: [{ kind: '台词', role: '小狗', text: '好吃吗' }],
+      sound: '呜咽声',
+    }
+    const user = buildMergedVideoUser([shotWithDlg, shots[1]], assets)
+    expect(user).toContain('下面共 2 个连续镜头')
+    // 标题【镜头N】对应剧本镜号
+    expect(user).toContain('【镜头1】')
+    expect(user).toContain('【镜头2】')
+    expect(user).toContain('画面描述：@小狗 蹲坐')
+    expect(user).toContain('景别：近景')
+    expect(user).toContain('光影：暖光')
+    expect(user).toContain('运镜：缓慢推进')
+    expect(user).toContain('对白/旁白：小狗: 好吃吗')
+    expect(user).toContain('音效：呜咽声')
+    expect(user).toContain('可用 @资产')
+  })
+
+  it('buildMergedVideoUser：缺省字段明确标"（未指定）/（无）"，不留空让 AI 脑补', () => {
+    // 该镜头没有景别/光影/运镜/对白/音效 → 应明确标出，而非省略那一行
+    const bare = { id: 's9', index: 9, duration: '3s', description: '小狗跑向门外' }
+    const user = buildMergedVideoUser([bare], assets)
+    expect(user).toContain('景别：（未指定）')
+    expect(user).toContain('光影：（未指定）')
+    expect(user).toContain('运镜：（未指定）')
+    expect(user).toContain('对白/旁白：（无）')
+    expect(user).toContain('音效：（无）')
+    expect(user).toContain('画面描述：小狗跑向门外')
+  })
+
+  it('buildMergedVideoUser：已有字段原样保留，不误标为未指定', () => {
+    const full = {
+      id: 's1', index: 1, duration: '3s', description: '@小狗 蹲坐',
+      shotType: '近景', lighting: '暖光', motion: '缓慢推进',
+      dialogue: [{ kind: '台词', role: '小狗', text: '好吃吗' }], sound: '呜咽声',
+    }
+    const user = buildMergedVideoUser([full], assets)
+    expect(user).toContain('景别：近景')
+    expect(user).toContain('光影：暖光')
+    expect(user).toContain('运镜：缓慢推进')
+    expect(user).toContain('对白/旁白：小狗: 好吃吗')
+    expect(user).toContain('音效：呜咽声')
+    expect(user).not.toContain('（未指定）')
+    expect(user).not.toContain('（无）')
+  })
+
+  /* ═══ 边界用例：暴露隐藏 bug（先测当前行为，再决定是否修） ═══ */
+  describe('mergeShotsForVideo · 时长脏数据边界', () => {
+    const s = (duration) => ({ id: 'x', index: 1, duration, description: 'a', videoPrompt: 'v' })
+
+    it('正常字符串时长累加', () => {
+      expect(mergeShotsForVideo([s('3s'), s('4s')], []).seconds).toBe(7)
+    })
+
+    it('duration 缺失/空/null → 兜底 5（不产生 NaN）', () => {
+      expect(mergeShotsForVideo([s(undefined)], []).seconds).toBe(5)
+      expect(mergeShotsForVideo([s('')], []).seconds).toBe(5)
+      expect(mergeShotsForVideo([s(null)], []).seconds).toBe(5)
+    })
+
+    it('duration 是脏字符串（非数字）→ 兜底 5（不产生 NaN）', () => {
+      expect(mergeShotsForVideo([s('abc')], []).seconds).toBe(5)
+    })
+
+    it('duration=0s 当前被兜底为 5（潜在 bug：0 秒应算 0 还是 5？）', () => {
+      // 当前实现 `parseInt('0s') || 5` → 0||5 → 5。这里先固化当前行为，标注这是待确认的坑。
+      expect(mergeShotsForVideo([s('0s')], []).seconds).toBe(5)
+    })
+
+    it('duration 负数当前被钳制为 1（潜在 bug：-3s 应算 1 还是报错？）', () => {
+      expect(mergeShotsForVideo([s('-3s')], []).seconds).toBe(1)
+    })
+
+    it('duration 大数不崩', () => {
+      expect(mergeShotsForVideo([s('100s')], []).seconds).toBe(100)
+    })
+
+    it('空数组 → 0', () => {
+      expect(mergeShotsForVideo([], []).seconds).toBe(0)
+    })
+
+    it('shots 传 null/undefined → 不崩，seconds 0', () => {
+      expect(mergeShotsForVideo(null, []).seconds).toBe(0)
+      expect(mergeShotsForVideo(undefined, []).seconds).toBe(0)
+    })
+  })
+
+  describe('mergeShotsForVideo · 参考图去重边界', () => {
+    it('两镜引用同一资产（同 url）→ 去重为 1', () => {
+      const shots = [
+        { id: 's1', index: 1, duration: '3s', description: '@小狗 蹲坐', videoPrompt: 'a' },
+        { id: 's2', index: 2, duration: '4s', description: '@小狗 叼鱼', videoPrompt: 'b' },
+      ]
+      const assets = [{ id: 'a1', name: '小狗', imageUrl: '/files/dog.png' }]
+      expect(mergeShotsForVideo(shots, assets).images).toHaveLength(1)
+      expect(mergeShotsForVideo(shots, assets).images[0].url).toBe('/files/dog.png')
+    })
+
+    it('资产 imageUrl 为空串 → 不入图', () => {
+      const shots = [{ id: 's1', index: 1, duration: '3s', description: '@小狗', videoPrompt: 'a' }]
+      const assets = [{ id: 'a1', name: '小狗', imageUrl: '' }]
+      expect(mergeShotsForVideo(shots, assets).images).toHaveLength(0)
+    })
+
+    it('assets 传 null → 不崩，无图', () => {
+      const shots = [{ id: 's1', index: 1, duration: '3s', description: '@小狗', videoPrompt: 'a' }]
+      expect(mergeShotsForVideo(shots, null).images).toHaveLength(0)
+    })
+
+    it('镜头 description 为 undefined → collectAssets 不崩、不入图', () => {
+      const shots = [{ id: 's1', index: 1, duration: '3s', videoPrompt: 'a' }]
+      const assets = [{ id: 'a1', name: '小狗', imageUrl: '/files/dog.png' }]
+      expect(mergeShotsForVideo(shots, assets).images).toHaveLength(0)
+    })
+  })
+
+  describe('buildMergedVideoUser · null/缺省安全', () => {
+    it('shots 含 null 项 → 不崩', () => {
+      const user = buildMergedVideoUser([null, { id: 's2', index: 2, description: 'ok' }], [])
+      expect(user).toContain('【镜头2】')
+    })
+
+    it('index 缺失 → 标题回退 i+1（不出现 undefined）', () => {
+      const user = buildMergedVideoUser([{ id: 's1', description: 'a' }, { id: 's2', description: 'b' }], [])
+      expect(user).toContain('【镜头1】')
+      expect(user).toContain('【镜头2】')
+      expect(user).not.toContain('undefined')
+    })
+
+    it('dialogue 是字符串（非数组）→ 当前 dialogueText 返回空，标"（无）"（潜在 bug：有对白却标无）', () => {
+      const shot = { id: 's1', index: 1, duration: '3s', description: 'a', dialogue: '小狗：好吃吗' }
+      const user = buildMergedVideoUser([shot], [])
+      // 当前行为：dialogueText('小狗：好吃吗') 非数组 → '' → 标（无）。先固化，标注潜在坑。
+      expect(user).toContain('对白/旁白：（无）')
+    })
+
+    it('空数组 → 不崩', () => {
+      expect(buildMergedVideoUser([], [])).toContain('共 0 个连续镜头')
+    })
   })
 })

@@ -28,6 +28,9 @@ export default function FaceMosaicEditor({ imageUrl, onSave, onClose }) {
   // P3：框选手势期缓存 { rect, batch }；dragBoxRef 供 onPointerUp 读最新框（state 异步，避免差一帧）
   const dragGesture = useRef(null)
   const dragBoxRef = useRef(null)
+  // 拖拽起点缓存（ref 而非 state）：rAF 回调若读 state 的 dragStart 会因异步更新拿到
+  // 上一次/空起点，导致「第一次拖不动」（stale closure）。起点必须与当次手势绑定。
+  const dragStartRef = useRef(null)
 
   // 快照当前 canvas 入历史栈（复刻官方 D，用于撤销/重做）
   const pushSnapshot = useCallback(() => {
@@ -86,13 +89,15 @@ export default function FaceMosaicEditor({ imageUrl, onSave, onClose }) {
   const onPointerDown = (e) => {
     const rect = canvasRef.current.getBoundingClientRect()
     const p = toCanvasPos(e.clientX, e.clientY)
+    // 起点写入 ref：rAF 回调直接读本次起点，避免 state 异步更新导致的 stale closure
+    dragStartRef.current = p
     setDragStart(p)
     const box = { x: p.x, y: p.y, w: 0, h: 0 }
     dragBoxRef.current = box
     setDragBox(box)
     // P3：move 高频 → rAF 合并 setDragBox；rect 在 pointerdown 缓存一次，move 内不再读
     const batch = createRafBatch((clientX, clientY) => {
-      const start = dragStart
+      const start = dragStartRef.current
       if (!start) return
       const x = (clientX - rect.left) / scale
       const y = (clientY - rect.top) / scale
@@ -105,7 +110,7 @@ export default function FaceMosaicEditor({ imageUrl, onSave, onClose }) {
     dragGesture.current = { batch }
   }
   const onPointerMove = (e) => {
-    if (!dragStart) return
+    if (!dragStartRef.current) return
     dragGesture.current?.batch(e.clientX, e.clientY)
   }
   const onPointerUp = () => {
@@ -125,6 +130,7 @@ export default function FaceMosaicEditor({ imageUrl, onSave, onClose }) {
     setDragStart(null)
     setDragBox(null)
     dragBoxRef.current = null
+    dragStartRef.current = null
   }
 
   const canUndo = histIdx > 0

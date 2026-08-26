@@ -60,7 +60,7 @@ export const EVENTS = {
   },
   'persist:failed': {
     from: ['storageAdapter.js:28'],
-    to: ['App.jsx:451'], // 全局监听器，节流 toast（见 App.jsx:447）
+    to: ['App.jsx:452'], // 全局监听器，节流 toast（见 App.jsx:447）
     payload: '{ key, error }',
     note: '持久化失败广播（sSet/sRemove 失败）。已由 App.jsx 全局订阅',
   },

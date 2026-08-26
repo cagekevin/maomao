@@ -214,6 +214,42 @@ export function collectAssets(shot, assets) {
   return out
 }
 
+/**
+ * 多个分镜合并 → 一次视频生成的入参（P0：合并生成视频）。
+ *
+ * 【单一数据来源铁律】剧本的镜号/时长等已在第一步（StepShots 表格）定好，本函数只做「累加/拼装」，
+ * 不新增任何字段、不修改剧本数据、不在 prompt 里写"请生成约N秒"之类的时长提示（时长由视频节点选项决定）。
+ *
+ * @param {object[]} shots  选中的多个分镜（按剧本顺序，读 duration/videoPrompt）
+ * @param {object[]} assets 剧本资产列表（供 collectAssets 逐镜收集 @资产图）
+ * @returns {{ prompt:string, images:Array<{id,url}>, seconds:number }}
+ *   - prompt  = 各镜 videoPrompt 拼接（空段跳过，用换行分隔）
+ *   - images  = 各镜引用的有图资产合并去重（复用 collectAssets 口径）
+ *   - seconds = 各镜 duration 秒数累加（parseInt，缺省 5）
+ */
+export function mergeShotsForVideo(shots, assets) {
+  const list = Array.isArray(shots) ? shots : []
+  const prompt = list
+    .map((s) => String(s?.videoPrompt || '').trim())
+    .filter(Boolean)
+    .join('\n\n')
+  // 各镜 @资产图合并去重（url 为键，保留首个）
+  const seen = new Set()
+  const images = []
+  for (const s of list) {
+    for (const im of collectAssets(s, assets)) {
+      if (!im?.url || seen.has(im.url)) continue
+      seen.add(im.url)
+      images.push({ id: im.id || `script-asset-${images.length}`, url: im.url })
+    }
+  }
+  const seconds = list.reduce(
+    (sum, s) => sum + Math.max(1, Number.parseInt(String(s?.duration || '5'), 10) || 5),
+    0
+  )
+  return { prompt, images, seconds }
+}
+
 /** 单个分镜的生图/生视频提示词（对应 buildShotPrompts，详实模板） */
 export function buildShotPrompts(shot, { imageConstraint, videoConstraint } = {}) {
   const dlg = dialogueText(shot.dialogue)
@@ -346,4 +382,49 @@ export function buildShotImageUser(shot, type, { globalStyle = '', assets = [] }
     assetNames ? `【可用 @资产】${assetNames}` : '',
   ].filter(Boolean)
   return parts.join('\n')
+}
+
+/**
+ * 合并生成视频 · system 提示词（思路A：合并时让 AI 重新生成一条序号连贯的合并提示词）。
+ *
+ * 【为什么需要】若直接拼装各镜 videoPrompt，每个镜头的"第一个画面/第二个画面"会重复出现
+ * （第一个画面…，第一个画面…），模型分不清顺序。故合并时改为把各镜资料喂给 AI，
+ * 让它按镜头顺序用"第一个画面…第N个画面"一路编号到底，生成一条连续、连贯的视频提示词。
+ *
+ * 【规则】输出单条中文视频提示词文本（供特惠视频节点生成视频），不返回 JSON。
+ */
+export const MERGE_VIDEO_SYSTEM = `你是资深 AI 视频提示词工程师。下面会给出多个连续镜头，每个镜头单独成一块，标题形如"【第N个镜头】"，块内依次是画面描述、景别、光影、运镜、对白、音效。请把这些镜头按顺序合并成一条连贯的中文视频提示词。
+
+要求：
+1. 把镜头按照时间逻辑顺序连起来。
+2. 不要用"0~3秒/第X秒"这类时间区间描述镜头。
+3. 资料里标"（未指定）/（无）"的字段，照实保留，不要自行编造。
+4. 只输出中文提示词，不要解释、不要 Markdown、不要 JSON。`
+
+/**
+ * 合并生成视频 · user content 拼装（思路A）：把选中镜头资料按顺序列出，喂给 AI 生成合并提示词。
+ * @param {object[]} shots 选中的多个镜头（按剧本顺序）
+ * @param {object[]} [assets] 剧本资产（可选，仅用于列出可用 @资产，不强约束）
+ * @returns {string}
+ */
+export function buildMergedVideoUser(shots, assets = []) {
+  const list = Array.isArray(shots) ? shots : []
+  const assetNames = (assets || []).map((a) => a.name).filter(Boolean).join('、')
+  const parts = [
+    `下面共 ${list.length} 个连续镜头，它们按顺序构成一段连续视频。每个镜头单独成一块，标题"【镜头N】"对应剧本里的镜号，请你把这些镜头按顺序连成一个长视频：`,
+  ]
+  list.forEach((s, i) => {
+    const rows = [`【镜头${s?.index ?? i + 1}】`]
+    // 每个字段始终输出；缺省明确写「（未指定）」，禁止留空让 AI 自行脑补（防瞎编）。
+    rows.push(`画面描述：${String(s?.description || '').trim() || '（未指定）'}`)
+    rows.push(`景别：${String(s?.shotType || '').trim() || '（未指定）'}`)
+    rows.push(`光影：${String(s?.lighting || '').trim() || '（未指定）'}`)
+    rows.push(`运镜：${String(s?.motion || '').trim() || '（未指定）'}`)
+    const dlg = dialogueText(s?.dialogue)
+    rows.push(`对白/旁白：${dlg || '（无）'}`)
+    rows.push(`音效：${String(s?.sound || '').trim() || '（无）'}`)
+    parts.push(rows.join('\n'))
+  })
+  if (assetNames) parts.push(`可用 @资产：${assetNames}（在对应画面里按需出现，保留 @名称）`)
+  return parts.join('\n\n')
 }

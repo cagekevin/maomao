@@ -1,4 +1,4 @@
-import { buildShotImageUser, getImageGenSys, collectAssets, matchAsset, ZgPrompt, IMAGE_GEN_TYPES, IMAGE_GEN_DEFAULT, SCRIPT_WRITER_SYSTEM, SCRIPT_WRITER_FORMAT, SHOT_DIRECTOR_SYSTEM, SHOT_AUDIT_SYSTEM, buildAuditUser, getWorkflow, normalizeDialogue } from './scriptBoxPrompts.js'
+import { buildShotImageUser, getImageGenSys, collectAssets, matchAsset, ZgPrompt, IMAGE_GEN_TYPES, IMAGE_GEN_DEFAULT, SCRIPT_WRITER_SYSTEM, SCRIPT_WRITER_FORMAT, SHOT_DIRECTOR_SYSTEM, SHOT_AUDIT_SYSTEM, buildAuditUser, getWorkflow, normalizeDialogue, mergeShotsForVideo, MERGE_VIDEO_SYSTEM, buildMergedVideoUser } from './scriptBoxPrompts.js'
 import { chatCompletions } from './chatApi.js'
 import { generateImage } from './imageApi.js'
 import { resolveProviderModel, buildAllModels } from './providerModels.js'
@@ -7,6 +7,7 @@ import { uploadFileToLocal } from './filesApi.js'
 import { toAbsoluteFileUrl } from './imageUrl.js'
 import { showToast } from './toastStore.js'
 import { logger } from './logger.js'
+import { reportGenerate, setCurrentTaskId } from './taskStore.js'
 
 /** 去掉 ```json 围栏、只保留首个 {...} 块（对齐官方 Ar/Ir 的解析）。
  *  顶层纯函数，导出供单测（剧本盒纯逻辑）。 */
@@ -311,7 +312,7 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
   // ═══════════════════════════════════════════════════════════════
   // 步骤2 资产参考图（对齐官方 Pr / Fr）
   // ═══════════════════════════════════════════════════════════════
-  const onGenerateAssetImage = async (assetId, enqueuePatch) => {
+  const onGenerateAssetImage = async (assetId) => {
     const assets = getData().assets || []
     const asset = assets.find((a) => a.id === assetId)
     if (!asset) return
@@ -326,50 +327,74 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
       ? asset.prompt
       : ZgPrompt(asset.category, [asset.name, asset.description].filter(Boolean).join('，'), globalStyle, getData().customAssetTemplates)
 
-    // 单张：直接 updateData；批量：走 enqueuePatch 合并（P11 收口）
-    const commit = enqueuePatch || updateData
+    // ── 任务中心上报（对齐 Prompt 节点 useNodeGeneration 契约）──
+    // 每张资产用独立伪 nodeId（nodeId-asset-资产id）：保证批量时任务中心每张一张卡片、互不顶掉
+    //（reportGenerate 会结束同 nodeId 的旧 running 任务，故不能用剧本盒节点自身 nodeId）。
+    const taskNodeId = `${nodeId}-asset-${assetId}`
+    const taskCtl = reportGenerate(taskNodeId, 'image', prompt, { modelName: modelId })
+    // 贯穿 X-Task-Id：把前端 task_id 带给 localTool/网关，关联 Lovart thread_id（同 Prompt 节点）
+    setCurrentTaskId(taskCtl.taskId || '')
+    taskCtl.progress(5, '准备中…')
+
+    // 单张/批量均为独立写回（批量已改为逐张独立任务，不再走 enqueuePatch 合并器）
+    const commit = updateData
     commit((latest) => ({ assets: (latest.assets || []).map((a) => (a.id === assetId ? { ...a, loading: true } : a)) }))
-    logger.info('scriptBox', '生成资产图·开始', { nodeId, assetId, name: asset.name, provider: provider?.id, model: modelId, aspectRatio, imageSize })
-    return runAbortable(`asset-${assetId}`, () => commit((latest) => ({ assets: (latest.assets || []).map((a) => (a.id === assetId ? { ...a, loading: false } : a)) })), async () => {
-      const r = await generateImage({
-        provider,
-        prompt,
-        model: modelId,
-        size: imageSize,
-        n: 1,
-        aspectRatio,
-      }, null)
-      if (r.ok && r.url) {
-        // P2-1/P2-2：生图成功后把结果本地化落盘到素材库目录（migrated/{人物|场景|道具}），
-        // 彻底替换旧的「上游 https 直链」式临时/外部 URL，让下游生图/生视频引用持久 /files/ 地址。
-        // 缩略图机制统一：不再自产落盘独立 _thumb 文件，thumbnailUrl 回退原图，
-        // 显示时由系统按需出图端点（buildThumbnailUrl）出小图（与画布 ImageNode 一致）。
-        let imageUrl = r.url
-        try {
-          const localized = await localizeAndStoreToLibrary(r.url, { name: asset.name, folder: assetFolderOf(asset.category) })
-          if (localized) imageUrl = localized
-        } catch (e) {
-          logger.warn('scriptBox', '资产图本地化落盘失败，保留原 URL', { nodeId, assetId, error: e?.message })
+    logger.info('scriptBox', '生成资产图·开始', { nodeId, taskNodeId, assetId, name: asset.name, provider: provider?.id, model: modelId, aspectRatio, imageSize })
+    // 注：用户要求「停止」不做——不传 AbortSignal、无中止分支；generateImage 内部自带 GEN_TIMEOUT 总超时兜底。
+    let taskSettled = false // 防御：异常兜底标记，防止任务卡在 running（失败可见禁令）
+    try {
+      return await runAbortable(`asset-${assetId}`, () => commit((latest) => ({ assets: (latest.assets || []).map((a) => (a.id === assetId ? { ...a, loading: false } : a)) })), async () => {
+        const r = await generateImage({
+          provider,
+          prompt,
+          model: modelId,
+          size: imageSize,
+          n: 1,
+          aspectRatio,
+        }, (p, stage) => taskCtl.progress(p, stage))
+        if (r.ok && r.url) {
+          // P2-1/P2-2：生图成功后把结果本地化落盘到素材库目录（migrated/{人物|场景|道具}），
+          // 彻底替换旧的「上游 https 直链」式临时/外部 URL，让下游生图/生视频引用持久 /files/ 地址。
+          // 缩略图机制统一：不再自产落盘独立 _thumb 文件，thumbnailUrl 回退原图，
+          // 显示时由系统按需出图端点（buildThumbnailUrl）出小图（与画布 ImageNode 一致）。
+          let imageUrl = r.url
+          try {
+            const localized = await localizeAndStoreToLibrary(r.url, { name: asset.name, folder: assetFolderOf(asset.category) })
+            if (localized) imageUrl = localized
+          } catch (e) {
+            logger.warn('scriptBox', '资产图本地化落盘失败，保留原 URL', { nodeId, assetId, error: e?.message })
+          }
+          const thumbnailUrl = imageUrl
+          commit((latest) => ({
+            assets: (latest.assets || []).map((a) =>
+              a.id === assetId
+                ? { ...a, loading: false, has: true, imageUrl, thumbnailUrl }
+                : a
+            ),
+          }))
+          // 用本地化落盘后的持久 URL 作任务中心结果（done 内部再落盘 tasks 目录，与素材库目录不同、不冲突）
+          taskCtl.done(imageUrl)
+          taskSettled = true
+          logger.info('scriptBox', '生成资产图·成功', { nodeId, assetId, url: imageUrl, thumbnailUrl })
+        } else {
+          commit((latest) => ({ assets: (latest.assets || []).map((a) => (a.id === assetId ? { ...a, loading: false } : a)) }))
+          const errMsg = r?.error || '资产参考图生成失败'
+          taskCtl.fail(errMsg)
+          taskSettled = true
+          if (r && !r.aborted) toast(errMsg)
+          if (r && !r.aborted) logger.error('scriptBox', '生成资产图·上游失败', { nodeId, assetId, error: errMsg })
+          else logger.warn('scriptBox', '生成资产图·已中止', { nodeId, assetId })
         }
-        const thumbnailUrl = imageUrl
-        commit((latest) => ({
-          assets: (latest.assets || []).map((a) =>
-            a.id === assetId
-              ? { ...a, loading: false, has: true, imageUrl, thumbnailUrl }
-              : a
-          ),
-        }))
-        logger.info('scriptBox', '生成资产图·成功', { nodeId, assetId, url: imageUrl, thumbnailUrl })
-      } else {
-        commit((latest) => ({ assets: (latest.assets || []).map((a) => (a.id === assetId ? { ...a, loading: false } : a)) }))
-        if (r && !r.aborted) toast(r.error || '资产参考图生成失败')
-        if (r && !r.aborted) logger.error('scriptBox', '生成资产图·上游失败', { nodeId, assetId, error: r.error })
-        else logger.warn('scriptBox', '生成资产图·已中止', { nodeId, assetId })
-      }
-    }, { logLabel: '生成资产图', toastFail: '资产参考图生成失败', ctx: { nodeId, assetId } })
+      }, { logLabel: '生成资产图', toastFail: '资产参考图生成失败', ctx: { nodeId, assetId } })
+    } finally {
+      // 异常兜底：若 task 因未捕获异常未走到 done/fail，标记失败，防任务卡 running
+      if (!taskSettled) taskCtl.fail('资产参考图生成失败')
+    }
   }
 
-  // 批量生成资产参考图（对齐官方 Fr）：传数组=选中集；undefined=全部无图资产
+  // 批量生成资产参考图（对齐官方 Fr）：传数组=选中集；undefined=全部无图资产。
+  // 与 onGenerateShotPrompts 同款的「滑动窗口并发」：每张资产独立上报任务中心（onGenerateAssetImage 内已
+  // 用独立伪 nodeId 上报），每张启动之间隔 START_GAP_MS 错开发，避免瞬时打满连接池；独立写回、互不顶掉。
   const onGenerateAllAssetImages = async (assetIds) => {
     const assets = getData().assets || []
     const target = assetIds && assetIds.length > 0
@@ -378,10 +403,24 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
     if (target.length === 0) { toast(assets.length === 0 ? '暂无资产可生成，请先在第1步生成脚本' : '没有需要生成的项（可勾选指定资产）'); return }
     toast(`开始批量生成 ${target.length} 张参考图…`)
     logger.info('scriptBox', '批量生成资产图·开始', { nodeId, count: target.length, ids: target.map((a) => a.id) })
-    // P11 收口：批量生成期间多次资产写回合并为低频一次 setNodes（同 onGenerateShotPrompts 范式）
-    const { enqueuePatch, flushPatches } = createPatchBatcher(updateData)
-    await Promise.all(target.map((a) => onGenerateAssetImage(a.id, enqueuePatch)))
-    flushPatches()
+    // 【滑动窗口并发】同 onGenerateShotPrompts：同时最多 4 张在途，每张启动之间隔 500ms。
+    const MAX_CONCURRENT = 4
+    const START_GAP_MS = 500
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+    const pool = new Set()
+    let next = 0
+    while (next < target.length) {
+      const asset = target[next]
+      next += 1
+      const p = onGenerateAssetImage(asset.id).finally(() => pool.delete(p))
+      pool.add(p)
+      if (pool.size >= MAX_CONCURRENT) {
+        await Promise.race([...pool]) // 在途已达 4：等其中一个完成再启动下一张
+      } else if (next < target.length) {
+        await sleep(START_GAP_MS) // 启动下一张之前先隔 START_GAP_MS
+      }
+    }
+    await Promise.all([...pool])
     logger.info('scriptBox', '批量生成资产图·完成', { nodeId, count: target.length })
   }
 
@@ -816,6 +855,81 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
   }
 
   // ═══════════════════════════════════════════════════════════════
+  // 合并生成视频（多个分镜 → 一个特惠视频节点）
+  // ═══════════════════════════════════════════════════════════════
+  // 思路A：勾选多个镜头 → 调 AI 把各镜资料合并生成「一条序号连贯的合并视频提示词」
+  // （"第一个画面…第N个画面"一路排到底，避免直接拼装导致序号重复），再新建 discountVideoNode。
+  // 参考图合并、时长累加（各镜 duration 之和，预选视频节点时长选项）；剧本数据完全不变。
+  const onGenerateMergedVideo = (shotIds, target = 'video') => {
+    if (!addNodes) return
+    const d = getData()
+    const shots = d.shots || []
+    const ids = Array.isArray(shotIds) && shotIds.length > 0 ? shotIds : shots.map((s) => s.id)
+    // 按剧本顺序取选中镜头
+    const picked = shots.filter((s) => ids.includes(s.id))
+    if (picked.length < 2) { toast('请至少选择 2 个镜头再合并生成视频'); return }
+    const { provider, modelId } = resolveTextModel()
+    if (!provider || !modelId) { toast('请先在「设置」中配置文本大模型'); return }
+    // 合并参考图（各镜 @资产图合并去重，补全绝对原图地址）+ 总时长（单一数据来源：第一步各镜 duration 累加）
+    const { images, seconds } = mergeShotsForVideo(picked, d.assets)
+    const refImages = images.map((im) => (im && im.url ? { ...im, url: toAbsoluteFileUrl(im.url) } : im))
+    const { size } = shotPrefill(picked[0], 'video')
+    const firstIdx = picked[0]?.index, lastIdx = picked[picked.length - 1]?.index
+    const label = firstIdx != null && lastIdx != null
+      ? (firstIdx === lastIdx ? `镜头${firstIdx}视频` : `镜头${firstIdx}~${lastIdx}视频`)
+      : '合并视频'
+    // 下游往右排布：以剧本盒子节点位置为基准，向右偏移
+    let rightBase = { x: 0, y: 0 }
+    if (getNodes && nodeId) {
+      const self = getNodes().find((n) => n.id === nodeId)
+      if (self?.position) rightBase = { x: self.position.x + (self.width ?? 900) + 120, y: self.position.y }
+    }
+    toast(`正在生成合并视频提示词（${picked.length} 镜）…`)
+    logger.info('scriptBox', '合并生成视频·开始', { nodeId, shotIds: ids, count: picked.length, seconds })
+    return runAbortable(`merge-video-${Date.now()}`, () => {}, async (signal) => {
+      const r = await chatCompletions({
+        provider,
+        model: modelId,
+        temperature: 0.7,
+        signal,
+        messages: [
+          { role: 'system', content: MERGE_VIDEO_SYSTEM },
+          { role: 'user', content: buildMergedVideoUser(picked, d.assets) },
+        ],
+      })
+      if (!r.ok) { if (!r.aborted) toast(r.error || '合并视频提示词生成失败'); return }
+      const mergedPrompt = String(r.content || '').trim()
+      if (!mergedPrompt) { toast('合并视频提示词为空，请重试'); return }
+      const nodeId2 = `script-video-merge-${Date.now()}`
+      addNodes([
+        {
+          id: nodeId2,
+          type: 'discountVideoNode',
+          position: { x: rightBase.x, y: rightBase.y },
+          data: {
+            label,
+            prompt: mergedPrompt,
+            images: refImages,
+            size,
+            // 合并时长 → 预选特惠视频节点时长选项（单一数据来源：第一步各镜 duration 累加）
+            selectedSeconds: String(seconds),
+            durationFromScript: true,
+          },
+        },
+      ])
+      if (setEdges && nodeId) {
+        // 合并节点是「多镜合成」，不建立单一 shot- 端口边，仅从剧本盒 source 连一条到新节点
+        setEdges((es) => [
+          ...es,
+          { id: `e-${nodeId}-${nodeId2}`, source: nodeId, sourceHandle: `shot-${picked[0].id}`, target: nodeId2, type: 'default', animated: false },
+        ])
+      }
+      toast(`已生成合并视频节点（${picked.length} 镜 · 共 ${seconds}s）`, 'success')
+      logger.info('scriptBox', '合并生成视频·成功', { nodeId, shotIds: ids, count: picked.length, seconds, promptLen: mergedPrompt.length, refImages: refImages.length })
+    }, { logLabel: '合并生成视频', toastFail: '合并视频提示词生成失败', ctx: { nodeId } })
+  }
+
+  // ═══════════════════════════════════════════════════════════════
   // P1-2 尾帧变体生成（对齐官方 Qr）：抽上一镜视频尾帧 → 本地化 → 按角度生图 → 写回变体数组。
   // 输入：当前 shotId（仅第 2 镜及以后可用）。输出走 shots[] 子字段（P1-1）。
   // 依赖：上一镜连出的 discountVideoNode（data.upstreamShotId === 上一镜 id）的 videoUrl（已持久化）。
@@ -931,6 +1045,7 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
     onPickAssetImage,
     onConnectShot,
     onConnectShots,
+    onGenerateMergedVideo,
     onGenerateTailFrameVariants,
   }
 }

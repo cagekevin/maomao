@@ -196,7 +196,8 @@ describe('DiscountVideoNode — 比例/分辨率/时长菜单', () => {
   it('选择时长 6s → 摘要更新并记忆', () => {
     setup()
     fireEvent.click(screen.getByTitle('选择比例和时长'))
-    fireEvent.click(screen.getByText('6s'))
+    // 时长已改为滑块（4~15s 自由选择），用 range 输入选择 6s
+    fireEvent.change(screen.getByRole('slider'), { target: { value: '6' } })
     expect(screen.getByText('16:9 · 1080p · 6s')).toBeTruthy()
     expect(h.vidPrefsSet).toHaveBeenCalledWith({ seconds: '6' })
   })

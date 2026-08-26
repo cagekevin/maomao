@@ -1,7 +1,7 @@
 # scripts/ —— 原型测试与构建辅助脚本
 
 本目录只放**当前原型在用的核心流水线脚本**：持续复用、被 `package.json` 的 npm scripts 引用。
-完整测试体系见 [`spec/TESTING.md`](../spec/TESTING.md)（权威文档，所有命令以它为准）。
+完整测试体系见 [`spec/TEST-GUIDE.md`](../spec/TEST-GUIDE.md)（权威文档，所有命令以它为准）。
 
 > 1mao 逆向 / MV3 扩展 / 契约扫描等已不适用原型的旧脚本，整体归档在 `1mao-scripts/`，不在此列、不在 npm scripts 中。
 

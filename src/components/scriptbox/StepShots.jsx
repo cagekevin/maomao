@@ -20,6 +20,7 @@ export default function StepShots({ data, updateData, callbacks }) {
   const [dlgEditing, setDlgEditing] = useState(null) // 对白编辑器 idx
   const [dlgText, setDlgText] = useState('')
   const [tfShotId, setTfShotId] = useState(null) // 尾帧变体浮层：当前查看的 shot id（P1-1）
+  const [scriptLoading, setScriptLoading] = useState(false) // 生成分镜脚本：按钮转圈+「生成中」
   // 缩略图显示复用系统统一按需出图出口（与资产卡/ImageNode 一致）
   const render = useRenderImageResolver()
 
@@ -138,10 +139,19 @@ export default function StepShots({ data, updateData, callbacks }) {
         </div>
 
         <button
-          onClick={() => callbacks.onGenerateScript?.()}
-          className="flex items-center justify-center gap-2 w-full py-2.5 bg-surface-hover hover:bg-surface-hover-2b text-primary text-body-xs font-medium rounded-lg transition-colors"
+          onClick={async () => {
+            setScriptLoading(true)
+            try {
+              await callbacks.onGenerateScript?.()
+            } finally {
+              setScriptLoading(false)
+            }
+          }}
+          disabled={scriptLoading}
+          className="flex items-center justify-center gap-2 w-full py-2.5 bg-surface-hover hover:bg-surface-hover-2b text-primary text-body-xs font-medium rounded-lg transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
         >
-          <span>⚡</span> 生成分镜脚本
+          {scriptLoading ? <Loader2 size={13} className="animate-spin" /> : <span>⚡</span>}
+          {scriptLoading ? '生成中…' : '生成分镜脚本'}
         </button>
       </div>
 

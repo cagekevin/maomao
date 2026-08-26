@@ -77,7 +77,7 @@ src/
 
 ## 复刻地基脚本
 
-`scripts/` 下辅助脚本（详见 `scripts/README.md`，以 `spec/TESTING.md` 为测试权威）：
+`scripts/` 下辅助脚本（详见 `scripts/README.md`，以 `spec/TEST-GUIDE.md` 为测试权威）：
 
 | 脚本 | npm 命令 | 作用 |
 | --- | --- | --- |

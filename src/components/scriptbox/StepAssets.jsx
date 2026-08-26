@@ -265,7 +265,14 @@ function AssetPanel({ asset, idx, data, updateData, onGen, onClose }) {
       </div>
       <div className="flex gap-2">
         <button className="flex-1 py-2 bg-surface-hover hover:bg-surface-hover-2b text-primary text-body-xs rounded-lg" onClick={() => save(false)}>保存</button>
-        <button className="flex-1 py-2 bg-surface-active-2 hover:bg-surface-raised-2 text-primary text-body-xs rounded-lg" onClick={() => save(true)}>保存并生图</button>
+        <button
+          className="flex-1 py-2 bg-surface-active-2 hover:bg-surface-raised-2 text-primary text-body-xs rounded-lg flex items-center justify-center gap-1 disabled:opacity-60 disabled:cursor-not-allowed"
+          disabled={asset.loading}
+          onClick={() => save(true)}
+        >
+          {asset.loading ? <Loader2 size={13} className="animate-spin" /> : null}
+          {asset.loading ? '生成中…' : '保存并生图'}
+        </button>
       </div>
     </div>
   )
