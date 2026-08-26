@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { Clapperboard, Copy, Download, Settings, Camera, AlertCircle, Upload, Loader2, ArrowUp } from 'lucide-react'
-import { Handle, Position, NodeResizer } from '@xyflow/react'
-import NodeTitle from '../base/NodeTitle.jsx'
+import NodeShell from '../base/NodeShell.jsx'
+import GenerateButton from '../base/GenerateButton.jsx'
 import { useConnectedInputs } from '../base/useConnectedInputs.js'
 import { useMediaDegrade } from '../base/useMediaDegrade.js'
 import { showToast } from '../base/toastStore.js'
@@ -20,20 +20,14 @@ const MULTIWINDOW_CLIPBOARD_KEY = 'mutiwindow-clipboard'
 /**
  * 视频抽帧节点（复刻官方 ec.jsx / videoExtractNode）。
  *
- * 结构（与官方 ec.jsx 一致 —— 单容器，无 NodeShell 双层）：
- *   <div relative group/node w-full h-full min-w-[280px]>          ← 根（最外层）
- *     <NodeTitle floating />                                       ← 标题，漂浮在节点顶部（_Component8）
- *     <NodeResizer />                                              ← 缩放手柄（_Component9）
- *     <div bg-surface-raised rounded-xl overflow-hidden border ... flex flex-col>  ← 主容器（Component1463）
- *       <Handle target />                                          ← 端口在主容器内、Component1462 之前
- *       <input type=file hidden />
- *       <div flex-1 flex flex-col overflow-hidden relative>         ← 内容+底部 一体（Component1462）
- *         <div flex-1 bg-surface-black p-4 ...>                           ← 内容区（Component1428）
- *         <div p-4 bg-surface ...>                               ← 底部（Component1461）
- *       </div>
- *       <Handle source />
+ * 结构（外壳统一到 NodeShell，业务内容放在 children）：
+ *   <NodeShell minWidth=280 minHeight=mode-dependent handleVariant=small>  ← 标题/端口/背景/缩放/尺寸订阅全内置
+ *     <input type=file hidden />
+ *     <div flex-1 flex flex-col overflow-hidden relative>         ← 内容+底部 一体（Component1462）
+ *       <div flex-1 bg-surface-black p-4 ...>                     ← 内容区（Component1428）
+ *       <div p-4 bg-surface ...>                                  ← 底部（Component1461）
  *     </div>
- *   </div>
+ *   </NodeShell>
  *
  * 功能：
  *  - 视频来源：上传视频文件 或 从直接上游节点自动获取（videoUrl / imageUrl / text 里的视频链接）
@@ -360,41 +354,37 @@ function VideoExtractNode({ id, data, selected }) {
   }
 
   return (
-    <div
-      className={`relative group/node w-full h-full min-w-[280px] ${mode === 'manual' ? 'min-h-[380px]' : 'min-h-[220px]'}`}
-      data-node-id={id}
+    /* 外壳统一到 NodeShell：标题/端口/背景/圆角/边框/阴影/缩放手柄/尺寸订阅全部内置。
+       抽帧节点是内容自适应（高度随 mode 取 minHeight，宽度默认 420 可拖拽调整），
+       所以 minHeight/defaultHeight 按 mode 切换；端口用 NodeShell 默认 small 左右口。 */
+    <NodeShell
+      id={id}
+      label={data.label}
+      defaultTitle="视频抽帧"
+      icon={<Clapperboard size={11} className="text-muted" />}
+      selected={selected}
+      minWidth={280}
+      minHeight={mode === 'manual' ? 380 : 220}
+      defaultHeight={mode === 'manual' ? 380 : 220}
+      handleVariant="small"
+      className="min-w-[280px]"
+      style={{ minHeight: mode === 'manual' ? 380 : 220 }}
     >
-      {/* 标题（漂浮在节点顶部，不占主容器空间 —— 对齐官方 _Component8） */}
-      <NodeTitle defaultTitle="视频抽帧" icon={<Clapperboard size={11} className="text-muted" />} floating />
+      {/* 隐藏文件输入 */}
+      <input type="file" ref={fileInputRef} accept="video/*" style={{ display: 'none' }} onChange={onUpload} />
 
-      {/* 缩放手柄（对齐官方 _Component9） */}
-      <NodeResizer
-        minWidth={280}
-        minHeight={mode === 'manual' ? 380 : 220}
-        isVisible={!!selected}
-        color="#ffffff80"
-        lineClassName="opacity-0"
-        handleClassName="!text-white/60 hover:!text-blue-400"
-      />
-
-      {/* 主容器（单层，对齐官方 Component1463）—— 包住内容+底部+端口 */}
-      <div
-        className={`w-full h-full bg-surface-raised rounded-xl overflow-hidden border shadow-xl transition-all duration-300 flex flex-col ${selected ? 'border-edge-strong' : 'border-edge hover:border-edge-muted'}`}
-      >
-        {/* 左侧输入端口（端口在主容器内、Component1462 之前） */}
-        <Handle type="target" position={Position.Left} />
-
-        {/* 隐藏文件输入 */}
-        <input type="file" ref={fileInputRef} accept="video/*" style={{ display: 'none' }} onChange={onUpload} />
-
-        {/* 内容+底部 一体容器（对齐官方 Component1462） */}
-        <div className="flex-1 flex flex-col overflow-hidden relative">
+      {/* 内容+底部 一体容器（对齐官方 Component1462）。
+          参照 ImageBoxNode 成熟范式：NodeShell 主容器不加 overflow-hidden，
+          children 主容器负责 overflow 裁剪，圆角由内部内容区/底部块各自提供：
+          顶部 → 内容区 rounded-t-xl + overflow-x-hidden 裁出上圆角（y 轴保留滚动）；
+          底部 → 底部块 rounded-b-xl + overflow-hidden 裁出下圆角。 */}
+      <div className="relative w-full flex-1 min-h-0 overflow-hidden flex flex-col">
           {/* 内容区（对齐官方 Component1428） */}
-          <div className="flex-1 bg-surface-black p-4 overflow-y-auto relative border-b border-edge-faint custom-scrollbar nowheel nopan flex flex-col gap-4">
+          <div className="flex-1 bg-surface-black p-4 overflow-x-hidden overflow-y-auto relative border-b border-edge-faint custom-scrollbar nowheel nopan flex flex-col gap-4 rounded-t-xl">
             {extractedImages.length > 0 && (
               <button
                 onClick={copyAll}
-                className="absolute top-2 right-2 z-10 text-caption text-blue-400 hover:text-blue-300 flex items-center gap-1 px-2 py-1 rounded bg-surface-1/90 hover:bg-surface-hover-strong transition-colors cursor-pointer border-none"
+                className="absolute top-2 right-2 z-10 text-caption-sm text-blue-400 hover:text-blue-300 flex items-center gap-1 h-6 px-2 rounded bg-surface-1/90 hover:bg-surface-hover-strong transition-colors cursor-pointer border-none"
               >
                 <Copy size={12} /> 复制全部
               </button>
@@ -425,7 +415,7 @@ function VideoExtractNode({ id, data, selected }) {
                 <div className="flex items-center gap-2 text-xs">
                   <button
                     onClick={() => { if (videoRef.current) videoRef.current.currentTime = Math.max(0, videoRef.current.currentTime - 0.033) }}
-                    className="px-2 py-1.5 bg-surface-hover rounded-md hover:bg-surface-hover-strong text-body transition-colors cursor-pointer border-none"
+                    className="h-6 px-2 bg-transparent hover:bg-surface-hover border border-transparent hover:border-edge rounded text-caption-sm text-body transition-colors cursor-pointer"
                     title="后退1帧"
                   >
                     -1帧
@@ -441,7 +431,7 @@ function VideoExtractNode({ id, data, selected }) {
                   />
                   <button
                     onClick={() => { if (videoRef.current) videoRef.current.currentTime = Math.min(duration, videoRef.current.currentTime + 0.033) }}
-                    className="px-2 py-1.5 bg-surface-hover rounded-md hover:bg-surface-hover-strong text-body transition-colors cursor-pointer border-none"
+                    className="h-6 px-2 bg-transparent hover:bg-surface-hover border border-transparent hover:border-edge rounded text-caption-sm text-body transition-colors cursor-pointer"
                     title="前进1帧"
                   >
                     +1帧
@@ -511,7 +501,8 @@ function VideoExtractNode({ id, data, selected }) {
           </div>
 
           {/* 底部（对齐官方 Component1461） */}
-          <div className="p-4 bg-surface flex flex-col gap-4 nodrag border-t border-edge-faint">
+          {/* 底部（对齐官方 Component1461）：白色配置区，rounded-b-xl + overflow-hidden 裁出下圆角 */}
+          <div className="p-4 bg-surface flex flex-col gap-4 nodrag border-t border-edge-faint rounded-b-xl overflow-hidden">
             {videoUrl ? (
               <div className="w-full flex items-center justify-between bg-surface-black rounded-lg px-3 py-2.5 border border-edge">
                 <div className="flex items-center gap-2 overflow-hidden">
@@ -520,7 +511,7 @@ function VideoExtractNode({ id, data, selected }) {
                 </div>
                 <button
                   onClick={() => fileInputRef.current?.click()}
-                  className="text-xs text-secondary hover:text-white flex-shrink-0 ml-2 px-3 py-1.5 bg-surface-1 rounded-md hover:bg-surface-hover-strong transition-colors cursor-pointer border-none"
+                  className="text-caption-sm text-body hover:text-white flex-shrink-0 ml-2 h-6 px-2 bg-transparent hover:bg-surface-hover border border-transparent hover:border-edge rounded transition-colors cursor-pointer"
                 >
                   替换视频
                 </button>
@@ -602,32 +593,29 @@ function VideoExtractNode({ id, data, selected }) {
 
             <div className="flex justify-between items-center mt-1">
               <button
-                className={`px-2.5 py-1.5 rounded-md flex items-center gap-1.5 transition-colors cursor-pointer border-none ${showConfig ? 'text-white bg-surface-hover-strong' : 'text-secondary hover:bg-surface-hover-strong hover:text-white'}`}
+                className={`flex items-center gap-1.5 h-6 px-2 rounded text-caption-sm transition-colors cursor-pointer border ${showConfig ? 'bg-surface-hover-strong border-edge-strong text-white' : 'bg-transparent hover:bg-surface-hover border-transparent hover:border-edge text-body'}`}
                 onClick={() => setShowConfig(!showConfig)}
                 title="参数配置"
               >
-                <Settings size={14} />
-                <span className="text-xs font-medium">{showConfig ? '收起配置' : '配置'}</span>
+                <Settings size={12} />
+                <span className="font-medium">{showConfig ? '收起配置' : '配置'}</span>
               </button>
               {mode !== 'manual' && (
-                <button
-                  className={`node-btn-primary px-4 py-1.5 ${!videoUrl || loading ? 'opacity-50 cursor-not-allowed' : ''}`}
-                  onClick={(e) => { e.stopPropagation(); if (videoUrl && !loading) startExtract(); else if (!videoUrl) showToast('请先上传或连接视频') }}
-                >
-                  <span>{loading ? '正在处理...' : '开始处理'}</span>
-                  <span className="node-btn-primary-icon">
-                    <ArrowUp size={14} strokeWidth={3} />
-                  </span>
-                </button>
+                /* 主操作按钮统一到生图节点的 GenerateButton（胶囊 + 白圆箭头，颜色/尺寸/loading 态与生图完全一致）。
+                   不做置灰/半透明：GenerateButton 始终显示正常色（与生图一致），
+                   无视频时仅 onGenerate 拦截并 toast，避免出现生图没有的置灰态导致颜色观感不同。 */
+                <GenerateButton
+                  label="开始处理"
+                  showCost={false}
+                  loading={loading}
+                  onGenerate={() => { if (videoUrl && !loading) startExtract(); else if (!videoUrl) showToast('请先上传或连接视频') }}
+                  onStop={() => setLoading(false)}
+                />
               )}
             </div>
           </div>
         </div>
-
-        {/* 右侧输出端口 */}
-        <Handle type="source" position={Position.Right} id="main-output" />
-      </div>
-    </div>
+    </NodeShell>
   )
 }
 export default React.memo(VideoExtractNode)

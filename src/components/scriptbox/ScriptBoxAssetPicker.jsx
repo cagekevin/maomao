@@ -3,6 +3,7 @@ import { Loader2, Image as ImageIcon } from 'lucide-react'
 import { fetchResources, rescanResources } from '../base/localToolApi.js'
 import { toAbsoluteFileUrl } from '../base/imageUrl.js'
 import { useLocalToolStatus } from '../base/useLocalToolStatus.js'
+import { logger } from '../base/logger.js'
 import ScriptBoxModal from './ScriptBoxModal.jsx'
 
 const PAGE_SIZE = 60
@@ -36,6 +37,8 @@ export default function ScriptBoxAssetPicker({ folder, onClose, onPick }) {
       const data = await fetchResources({ folder, page: 1, pageSize: PAGE_SIZE, type: 'image' })
       setItems((data?.data?.items) || [])
     } catch (e) {
+      // UI 红字已提示；再补 logger 便于排查本地引擎/后端问题
+      logger.warn('scriptBox', '素材库加载失败', { folder, error: e?.message || String(e) })
       setErr(e?.message || '素材库加载失败')
     } finally {
       setLoading(false)

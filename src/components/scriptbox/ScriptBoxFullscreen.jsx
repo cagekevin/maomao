@@ -6,6 +6,7 @@ import StepShots from './StepShots.jsx'
 import StepAssets from './StepAssets.jsx'
 import StepPrompt from './StepPrompt.jsx'
 import GearSettings from './GearSettings.jsx'
+import { toastInfo } from '../base/toastStore.js'
 
 /**
  * 剧本盒子 —— 全屏工作台视图（自包含，替代通用 base/FullscreenModal 的浮窗卡片）。
@@ -38,6 +39,13 @@ export default function ScriptBoxFullscreen({ open, title = '剧本盒子', data
   // 生成遮罩计时（与 ScriptBoxNode 标题栏一致：全屏后仍能看见「生成中」动画）
   const genMask = !!d.genMask
   const [genSecs, setGenSecs] = useState(0)
+
+  // 关闭包装：生成中关闭全屏时告知生成仍在后台进行（引擎异步、不随全屏关闭中断），
+  // 避免用户误以为生成已取消/数据丢失
+  const handleClose = () => {
+    if (genMask) toastInfo('生成仍在后台进行，关闭后可在节点内查看进度')
+    onClose()
+  }
   useEffect(() => {
     if (!genMask) return
     setGenSecs(0)
@@ -49,11 +57,11 @@ export default function ScriptBoxFullscreen({ open, title = '剧本盒子', data
   useEffect(() => {
     if (!open) return
     const onKeyDown = (e) => {
-      if (e.key === 'Escape') onClose()
+      if (e.key === 'Escape') handleClose()
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [open, onClose])
+  }, [open, onClose, genMask])
 
   if (!open) return null
 
@@ -74,7 +82,7 @@ export default function ScriptBoxFullscreen({ open, title = '剧本盒子', data
         <button className="p-1.5 text-secondary hover:text-white hover:bg-white/10 rounded transition-colors" title="总体提示词设置" onClick={() => setSettingsOpen(true)}>
           <Settings size={16} />
         </button>
-        <button className="p-1.5 text-secondary hover:text-white hover:bg-white/10 rounded transition-colors" title="关闭全屏" onClick={onClose}>
+        <button className="p-1.5 text-secondary hover:text-white hover:bg-white/10 rounded transition-colors" title="关闭全屏" onClick={handleClose}>
           <X size={16} />
         </button>
       </div>

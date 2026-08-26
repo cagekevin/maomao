@@ -56,6 +56,7 @@ export default function StepPrompt({ data, updateData, callbacks }) {
     try {
       const res = await callbacks.onReviewShotPrompt?.(id, editing.field, msg)
       if (res?.ok && res.text != null) setDraft(res.text)
+      else if (res?.ok === false) toastWarning('改写失败，请重试') // 引擎 resolveResult({ok:false}) 兜底，防组件静默
     } finally {
       setEditing((e) => (e ? { ...e, awaiting: false } : e))
     }

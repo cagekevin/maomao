@@ -16,11 +16,13 @@ const xyflow = {
     getEdges: () => [],
     addNodes: (...a) => { xyflowCalls.addNodes++; return a[0] },
     addEdges: (...a) => { xyflowCalls.addEdges++; return a[0] },
+    getNode: () => null, // NodeShell/useSizeSync 依赖；jsdom 下无实际节点，返回 null 安全跳过
   }),
   Handle: () => null,
   Position: { Left: 'left', Right: 'right', Top: 'top', Bottom: 'bottom' },
   NodeResizer: () => null,
   useStore: () => () => {},
+  useUpdateNodeInternals: () => () => {}, // NodeShell/useSizeSync 依赖；jsdom 下 no-op
   ReactFlowProvider: ({ children }) => children,
 }
 

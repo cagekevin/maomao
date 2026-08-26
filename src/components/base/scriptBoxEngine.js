@@ -417,6 +417,10 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
     // 用带队列的 200ms 窗口合并（必须累积所有 patch，不能用普通 debounce 否则丢中间分镜）。
     const { enqueuePatch, flushPatches } = createPatchBatcher(updateData)
 
+    // 批量失败计数：单镜失败（网络/JSON解析/格式不符）各 failedCount++，
+    // 结束后据此区分「全成功」vs「部分失败」，避免"已生成 N 个"误导用户以为全成功。
+    let failedCount = 0
+
     const genShot = async (shot) => {
       // 每个分镜发起时打一条日志（逐镜跟踪批量进度）
       logger.info('scriptBox', '生成分镜提示词·单镜开始', { nodeId, shotId: shot.id, index: shot.index })
@@ -461,6 +465,7 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
           ],
         })
         if (!r.ok) {
+          failedCount++
           enqueuePatch((latest) => ({ shots: (latest.shots || []).map((s) => (s.id === shot.id ? { ...s, promptLoading: false } : s)) }))
           if (!r.aborted) toast(r.error || '分镜提示词生成失败')
           logger.error('scriptBox', '生成分镜提示词·单镜失败', { nodeId, shotId: shot.id, error: r.error })
@@ -468,6 +473,7 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
         }
         const parsed = parseJsonText(r.content)
         if (!parsed.ok) {
+          failedCount++
           enqueuePatch((latest) => ({ shots: (latest.shots || []).map((s) => (s.id === shot.id ? { ...s, promptLoading: false } : s)) }))
           toast('模型输出的提示词 JSON 不完整，请重试')
           logger.error('scriptBox', '生成分镜提示词·JSON解析失败', { nodeId, shotId: shot.id })
@@ -476,6 +482,7 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
         const { prompt, videoPrompt } = parsed.data || {}
         // 结构校验：JSON 合法但缺 prompt/videoPrompt → 视为格式不符，明确提示且不写回空值。
         if (!prompt && !videoPrompt) {
+          failedCount++
           enqueuePatch((latest) => ({ shots: (latest.shots || []).map((s) => (s.id === shot.id ? { ...s, promptLoading: false } : s)) }))
           toast('模型输出的提示词 JSON 格式不符（缺少 prompt/videoPrompt），请重试')
           logger.error('scriptBox', '生成分镜提示词·格式不符', { nodeId, shotId: shot.id })
@@ -524,8 +531,16 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
     await Promise.all([...pool])
     // 批量结束：立即把缓冲中最后一批分镜写回（避免等 200ms 窗口），并清掉待发定时器
     flushPatches()
-    toast(Array.isArray(shotIds) && shotIds.length ? '已生成该分镜提示词' : `已生成 ${target.length} 个分镜提示词`)
-    logger.info('scriptBox', '生成分镜提示词·完成', { nodeId, count: target.length })
+    if (Array.isArray(shotIds) && shotIds.length) {
+      toast('已生成该分镜提示词')
+    } else if (failedCount > 0) {
+      // 部分分镜失败：用 warning 汇总，避免"已生成 N 个"误导用户以为全成功
+      toast(`已生成 ${target.length - failedCount} 个分镜提示词，${failedCount} 个失败，请重试`, 'warning')
+      logger.error('scriptBox', '生成分镜提示词·部分失败', { nodeId, total: target.length, failed: failedCount })
+    } else {
+      toast(`已生成 ${target.length} 个分镜提示词`)
+    }
+    logger.info('scriptBox', '生成分镜提示词·完成', { nodeId, count: target.length, failed: failedCount })
   }
 
   // ═══════════════════════════════════════════════════════════════
@@ -558,6 +573,8 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
       const prompt = parsed.ok && typeof parsed.data === 'string' ? parsed.data
         : parsed.ok && parsed.data?.prompt ? parsed.data.prompt
           : (r.ok ? r.content : '')
+      // r.ok 但返回非 JSON：降级写回原文（不丢结果、不吓用户），但必须留痕，便于发现模型格式漂移
+      if (r.ok && !parsed.ok) logger.warn('scriptBox', 'AI生图提示词·非JSON降级写回原文', { nodeId, shotId, type, len: (r.content || '').length })
       updateData({
         shots: getData().shots.map((s) =>
           s.id === shotId
