@@ -28,7 +28,7 @@ export const SCRIPT_WRITER_SYSTEM = SCRIPT_BOX_WORKFLOWS.manga.script
 export const SCRIPT_WRITER_FORMAT = `
 
 【输出格式】严格输出一个 JSON 对象（只返回纯 JSON，不要解释、不要 Markdown 代码块）：
-{"projectName":"根据故事生成的简洁项目名称，2至8个中文字符，例如：小红帽","globalStyle":"整部片子的统一视觉风格，例如：中世纪童话·皮克斯3D","logline":"一句话故事核心（用于自检，可选）","shots":[{"index":1,"duration":"5s","description":"画面描述：聚焦这一镜要呈现的画面与动作，凡出现 assets 中的角色/场景/道具，必须写成 @名称 形式，例如 @小红帽 走进 @幽暗森林","shotType":"景别","lighting":"光影氛围","dialogue":"该镜对白或旁白（如有）","sound":"音效（如有）","motion":"运镜"}],"assets":[{"category":"character|scene|prop","name":"名称","description":"主体外观描述，详细具体（角色：体型/发型/五官/瞳色/肤色/服装/配饰/神态；场景：环境/前景背景/氛围/光线；道具：形状/材质/颜色/细节），只描述主体本身，不要写构图/视角/布光/负面词，这些由系统自动补全"}]}
+{"projectName":"根据故事生成的简洁项目名称，2至8个中文字符，例如：小红帽","globalStyle":"整部片子的统一视觉风格，例如：中世纪童话·皮克斯3D","logline":"一句话故事核心（用于自检，可选）","shots":[{"index":1,"duration":"5s","description":"画面描述：聚焦这一镜要呈现的画面与动作，只对已注册资产用 @名称 引用，例如 @小红帽 走进 @幽暗森林；场景内的普通陈设（家具/门窗/阳台等）与光线/天气/氛围用普通文字描述，不 @","shotType":"景别","lighting":"光影氛围","dialogue":"该镜对白或旁白（如有）","sound":"音效（如有）","motion":"运镜"}],"assets":[{"category":"character|scene|prop","name":"名称","description":"主体外观描述，详细具体。注册 scene/prop 的唯一标准：能单独生成一张有效参考图。角色身上穿戴的饰品（项圈/铃铛/项链）属角色属性，不单独注册；场景内部家具/门窗/阳台等陈设与光线/天气/氛围不能单独成图，不注册、不 @，归入所属场景的 description；scene=角色站进去的完整空间（如 @客厅、@森林），描述空间结构/主要陈设/氛围光线；prop=全片反复出镜、场景图里看不清、需单独成图强调的关键道具（如 @烤鱼）；只描述主体本身，不写构图/视角/布光/负面词，这些由系统自动补全"}]}
 【硬性要求】assets 的 name 必须与 shots 的 description 中 @ 引用的名称完全一致；分镜数量与时长要与剧情体量匹配，叙事连贯、有头有尾。`
 
 /** 分镜导演系统提示词（默认来自工作流「漫剧」，只返回 JSON prompt/videoPrompt） */
