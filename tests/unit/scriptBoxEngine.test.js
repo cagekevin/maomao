@@ -276,8 +276,9 @@ describe('scriptBoxEngine · 引擎编排', () => {
     const userMsg = call.messages.find((m) => m.role === 'user')
     expect(userMsg.content).toContain('为产品拍一支广告')
     expect(userMsg.content).toContain('产品是一款无线耳机')
-    // 写回 story 为「手填 + 上游」合并后内容
-    expect(store.story).toContain('产品是一款无线耳机')
+    // story 只写回用户手填部分，上游文本留在 upstreamStory（只读素材区展示，避免重复）
+    expect(store.story).toBe('为产品拍一支广告')
+    expect(store.upstreamStory).toBe('产品是一款无线耳机')
   })
 
   it('onGenerateScript 无上游图片时 images 为空数组', async () => {

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Clapperboard, Settings, X } from 'lucide-react'
+import { Clapperboard, Settings, X, Loader2 } from 'lucide-react'
 import StepNav from './StepNav.jsx'
 import StepShots from './StepShots.jsx'
 import StepAssets from './StepAssets.jsx'
@@ -35,6 +35,16 @@ export default function ScriptBoxFullscreen({ open, title = '剧本盒子', data
   // 全屏内的总体设置弹窗（与窗口模式共用 GearSettings）
   const [settingsOpen, setSettingsOpen] = useState(false)
 
+  // 生成遮罩计时（与 ScriptBoxNode 标题栏一致：全屏后仍能看见「生成中」动画）
+  const genMask = !!d.genMask
+  const [genSecs, setGenSecs] = useState(0)
+  useEffect(() => {
+    if (!genMask) return
+    setGenSecs(0)
+    const t = setInterval(() => setGenSecs((s) => s + 1), 1000)
+    return () => clearInterval(t)
+  }, [genMask])
+
   // Esc 关闭
   useEffect(() => {
     if (!open) return
@@ -53,6 +63,12 @@ export default function ScriptBoxFullscreen({ open, title = '剧本盒子', data
       <div className="flex items-center gap-2 px-4 py-2.5 border-b border-white/[0.08] shrink-0">
         <Clapperboard size={14} className="text-muted" />
         <span className="text-body-sm text-body font-medium">{title}</span>
+        {genMask && (
+          <span className="flex items-center gap-1.5 text-caption-sm text-secondary bg-surface-subtle px-2.5 py-1 rounded-full">
+            <Loader2 size={11} className="animate-spin text-emerald-400" />
+            生成中 {d.genChars || 0} 字 · {genSecs}s
+          </span>
+        )}
         <div className="flex-1" />
         <span className="text-caption-sm text-muted">Esc 关闭</span>
         <button className="p-1.5 text-secondary hover:text-white hover:bg-white/10 rounded transition-colors" title="总体提示词设置" onClick={() => setSettingsOpen(true)}>

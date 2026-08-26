@@ -60,13 +60,14 @@ export function buildAuditUser(shot, field, feedback, assetNames = []) {
   const desc = String(shot?.description || '').trim()
   const dia = dialogueText(shot?.dialogue)
   const names = Array.isArray(assetNames) ? assetNames.filter(Boolean) : []
-  const parts = []
+  // 用户修改意见放最前：它是本次审计改写的最高指令，优先强调要改什么，再给镜头资料供改写参考，
+  // 避免在长上下文中被稀释（对应 MANGA_AUDIT「意见与三框架冲突时以用户意见为准」）。
+  const parts = [`【用户修改意见（必须严格遵循）】\n${String(feedback || '').trim()}`]
   if (desc) parts.push(`【本镜画面描述】\n${desc}`)
   if (dia) parts.push(`【对白/旁白】\n${dia}`)
   if (names.length) parts.push(`【可用 @资产】\n${names.map((n) => `@${n}`).join('、')}`)
   if (field === 'videoPrompt' && shot?.duration) parts.push(`【时长】\n${shot.duration}`)
   parts.push(`【当前${field === 'prompt' ? '生图' : '生视频'}提示词（待改写）】\n${current || '（空）'}`)
-  parts.push(`【用户修改意见（必须严格遵循）】\n${String(feedback || '').trim()}`)
   return parts.join('\n\n')
 }
 
@@ -86,6 +87,34 @@ export function dialogueText(arr) {
   return list
     .map((d) => (d.kind === '旁白' ? `[旁白] ${d.text}` : `${d.role || '台词'}: ${d.text}`))
     .join(' / ')
+}
+
+/**
+ * 文本（逐行）→ 对白数组 [{kind, role, text}]。
+ * 系统内 dialogue 的标准结构是数组（dialogueText 只认数组、StepShots 对白编辑弹窗用数组），
+ * 而编剧模型按 SCRIPT_WRITER_FORMAT 返回的是字符串。此函数统一把字符串转成标准数组。
+ *  - 每行 `角色：台词` → { kind:'台词'|'旁白', role, text }
+ *  - 无冒号的行 → { kind:'台词', role:'', text }
+ */
+export function textToDlg(text) {
+  return String(text || '')
+    .split('\n')
+    .filter((l) => l.trim())
+    .map((l) => {
+      const m = l.match(/^([^：:]+)[：:](.+)$/)
+      if (m) {
+        const role = m[1].trim()
+        return { kind: role === '旁白' ? '旁白' : '台词', role, text: m[2].trim() }
+      }
+      return { kind: '台词', role: '', text: l.trim() }
+    })
+}
+
+/** 归一化 dialogue 字段：已是数组直接用；字符串（编剧模型返回）转成标准数组；否则空数组。 */
+export function normalizeDialogue(d) {
+  if (Array.isArray(d)) return d
+  if (d && typeof d === 'string' && d.trim()) return textToDlg(d)
+  return []
 }
 
 /** P6：@资产名高亮正则缓存——按「排序后名字列表」缓存编译结果，避免 hlAt 每次渲染重排 new RegExp。

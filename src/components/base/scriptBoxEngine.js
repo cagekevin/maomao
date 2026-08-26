@@ -1,4 +1,4 @@
-import { buildShotImageUser, getImageGenSys, collectAssets, matchAsset, ZgPrompt, IMAGE_GEN_TYPES, IMAGE_GEN_DEFAULT, SCRIPT_WRITER_SYSTEM, SCRIPT_WRITER_FORMAT, SHOT_DIRECTOR_SYSTEM, SHOT_AUDIT_SYSTEM, buildAuditUser, getWorkflow } from './scriptBoxPrompts.js'
+import { buildShotImageUser, getImageGenSys, collectAssets, matchAsset, ZgPrompt, IMAGE_GEN_TYPES, IMAGE_GEN_DEFAULT, SCRIPT_WRITER_SYSTEM, SCRIPT_WRITER_FORMAT, SHOT_DIRECTOR_SYSTEM, SHOT_AUDIT_SYSTEM, buildAuditUser, getWorkflow, normalizeDialogue } from './scriptBoxPrompts.js'
 import { chatCompletions } from './chatApi.js'
 import { generateImage } from './imageApi.js'
 import { resolveProviderModel, buildAllModels } from './providerModels.js'
@@ -243,7 +243,10 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
           description: t.description || '',
           shotType: t.shotType || '',
           lighting: t.lighting || '',
-          dialogue: t.dialogue || '',
+          // dialogue 归一化为标准数组 [{kind,role,text}]：编剧模型按 SCRIPT_WRITER_FORMAT
+          // 返回的是字符串，而 dialogueText / StepShots 对白编辑弹窗期望数组；
+          // 若直接存字符串，表格对白/旁白列会因 dialogueText 只认数组而显示为空。
+          dialogue: normalizeDialogue(t.dialogue),
           sound: t.sound || '',
           motion: t.motion || '',
           prompt: t.prompt || '',
@@ -288,9 +291,12 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
           }
         })
 
+      // story 只写回用户手动输入的部分（data.story 驱动「输入剧本」textarea）：
+      // 上游文本已由 useConnectedInputs 同步到 data.upstreamStory，并经第 1 步只读素材区
+      //（MaterialStrip 缩略框）展示，不应再复制进 story 造成重复。
       updateData({
         genMask: false,
-        story,
+        story: userStory,
         projectName,
         globalStyle,
         shots,

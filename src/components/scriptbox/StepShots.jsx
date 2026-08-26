@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react'
 import { Loader2, Plus, Trash2, Film, Link2 } from 'lucide-react'
-import { SHOT_TYPES, LIGHTS, MOTIONS, dialogueText, hlAt, patchShots } from '../base/scriptBoxPrompts.js'
+import { SHOT_TYPES, LIGHTS, MOTIONS, dialogueText, textToDlg, hlAt, patchShots } from '../base/scriptBoxPrompts.js'
 import MaterialStrip from '../base/MaterialStrip.jsx'
 import { useOutsideClick } from '../base/hooks.js'
 import { useRenderImageResolver } from '../base/imageUrl.js'
@@ -36,14 +36,7 @@ export default function StepShots({ data, updateData, callbacks }) {
     const list = Array.isArray(arr) ? arr : []
     return list.map((x) => `${x.role || '台词'}：${x.text}`).join('\n')
   }
-  const textToDlg = (text) =>
-    text
-      .split('\n')
-      .filter((l) => l.trim())
-      .map((l) => {
-        const m = l.match(/^([^：:]+)[：:](.+)$/)
-        return m ? { kind: '台词', role: m[1].trim(), text: m[2].trim() } : { kind: '台词', role: '', text: l.trim() }
-      })
+  // 文本 → 对白数组：统一复用 scriptBoxPrompts.textToDlg（与引擎生成解析一致，含旁白识别）
 
   const openField = (idx, field, title) => { setEditing({ idx, field, title }); setEditVal(String(shots[idx]?.[field] ?? '')) }
   const commitField = () => {

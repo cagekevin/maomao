@@ -49,7 +49,7 @@ node scripts/task-inspect.mjs --lost-check      # 全库丢图体检
 node scripts/task-inspect.mjs --canvas-health   # 画布结构体检
 ```
 
-**脚本 `task-inspect.mjs` 名字就是「查任务」**，AI 听到"查任务"就对得上。它会自动判定 id 类型并拉出数据库+后端日志+前端日志全链路。**禁止**在查任务时去翻 `taskStore.js`/`tasks.ts` 硬猜断点——先跑它拿真实数据再定位。
+**脚本 `task-inspect.mjs` 「查任务」**。它会自动判定 id 类型并拉出数据库+后端日志+前端日志全链路。**禁止**在查任务时去翻 `taskStore.js`/`tasks.ts` 硬猜断点——先跑它拿真实数据再定位。
 
 ### 注意
 - 下方 §〇~§七 是**通用工程规范 + 原型架构**，与 `src/` 直接相关。
@@ -377,15 +377,12 @@ node scripts/task-inspect.mjs --canvas-health   # 画布结构体检
 
 | 场景 | 做法 |
 | --- | --- |
-| 要加平台接口（替代官方） | 改 `localTool/src/routes/platform.ts`（builtin/models/manifest）+ `projects.ts`（sync/default），返回本地静态兜底 |
 | 要改/查 API 端点 | **先看 `contracts.js apiRegistry`（前端↔后端唯一契约真源，55 条）+ 跑 `npm run check:api` 双向校验**；改端点须「加函数+登记」双动作，信封形态标 `ok/code-data/success-data/items` 或豁免 `stream/sse/raw/probe/stub` |
 | 要改代理/转发逻辑 | `localTool/src/routes/system.ts`（`/api/proxy` 剥信封/SSE/异步转同步） |
-| 要接新模型/视频能力 | 改 `apimart-gateway/lovart_client.py` 别名映射与规范化 |
 | 要查官方权益转发 | `localTool/src/routes/official.ts`（中转+短缓存，不伪造权限） |
 | 要改画布前端 | 改 `src/` → `npm run test:smoke` → `npm run build`；严禁直接手改 dist |
 | 要新增画布节点 | 按 `docs/README.md` 节点规范 + `docs/node-types-map.md`，放 `src/components/` |
 | 画布问题排查（节点/边/布局/保存） | **第一步必跑** `cd localTool && node scripts/task-inspect.mjs --canvas-health`（见 §六.0 铁律）|
 | **查图/视频/任务/日志/全链路**（task_id / thread_id 室外ID / node_id） | **主入口** `cd localTool && node scripts/task-inspect.mjs --lifecycle <id>`（见 §四.2「查任务主入口」）。其余：`--logs` 日志、`--task` 节点比对、`--lost-check` 丢图、`--consistency` 三层一致性断言 |
 | 改 localTool 后端 | `cd localTool && npm test`（全量，三个测试文件）|
-| 丢图排查 | `cd localTool && npm run inspect -- --lost-check`（或 `npm run db -- --lost-check`）|
 | 提交前验证 | 前端 `npm test`（= smoke+vitest全量单测+regression+tools）+`npm run build`；较大改动加 `npm run check:health`；**localTool 改动另跑 `cd localTool && npm test`** |
