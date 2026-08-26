@@ -1324,11 +1324,11 @@ function Canvas() {
           panOnDrag
           className={nodes.length > 100 ? 'performance-large-canvas' : undefined}
         >
-          {/* 点阵网格：gap=20 / size=1 / color=#333（复刻 H_.jsx:12100） */}
+          {/* 点阵网格：gap=20 / size=1.6 / color=#333（复刻 H_.jsx:12100，点略放大更易辨识） */}
           <Background
             variant={BackgroundVariant.Dots}
             gap={20}
-            size={1}
+            size={1.3}
             color="#333"
             bgColor="#0d0c0c"
           />

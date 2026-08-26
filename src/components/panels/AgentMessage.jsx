@@ -1,7 +1,8 @@
-import { memo, useEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { toAbsoluteFileUrl } from '../base/filesApi.js'
 import LazyImage from '../base/LazyImage.jsx'
 import PromptConfirmCard from './PromptConfirmCard.jsx'
+import ImageZoomDialog from '../base/ImageZoomDialog.jsx'
 
 /** 直观判断：一个 URL 是否该渲染成图片。
  *  - 跳过临时协议：blob:/ipfs:/ipns:（持久化后必破图）
@@ -43,8 +44,9 @@ function extractImageSpans(text) {
     .sort((a, b) => a.start - b.start)
 }
 
-/** 把 assistant 的纯文本 content 按图片 URL 切分：文本段原样（保留换行），图片段渲染成图。 */
-function renderContentWithImages(text) {
+/** 把 assistant 的纯文本 content 按图片 URL 切分：文本段原样（保留换行），图片段渲染成图。
+ *  onOpenImage(url)：点击图片时打开原生 dialog 查看大图（替代原 target=_blank 新窗口）。 */
+function renderContentWithImages(text, onOpenImage) {
   const str = String(text || '')
   if (!str) return null
   const spans = extractImageSpans(str)
@@ -67,16 +69,15 @@ function renderContentWithImages(text) {
             {n.value}
           </span>
         ) : (
-          <a
+          <button
             key={n.key}
-            href={toAbsoluteFileUrl(n.value)}
-            target="_blank"
-            rel="noreferrer"
-            className="block w-full max-w-[280px] rounded-md overflow-hidden border border-white/15 hover:border-white/40 transition-colors"
-            title="点击新窗口打开"
+            type="button"
+            onClick={() => onOpenImage?.(n.value)}
+            className="block w-full max-w-[280px] rounded-md overflow-hidden border border-white/15 hover:border-white/40 transition-colors cursor-zoom-in p-0 text-left"
+            title="点击查看大图"
           >
             <LazyImage src={n.value} alt="" className="w-full max-h-[240px] bg-black/30" imgClassName="w-full h-auto max-h-[240px] object-contain" />
-          </a>
+          </button>
         )
       )}
     </div>
@@ -206,6 +207,16 @@ const GenerationStepsCard = memo(function GenerationStepsCard({ generations }) {
  *  @param {Function} [onPromptAction] prompts 逐条确认通道：{ action, prompts, index?, text? } →
  *      应用后写回消息并可能触发出图（prompts 通道，对齐大雄 confirm/edit/save/reopen/regenerate/confirm-all） */
 function AgentMessage({ message, onConfirmPlan, onRetryStep, onPromptAction, onSendToCanvas }) {
+  // 图片查看大图（原生 dialog）：点击消息里的图片 → 打开查看，替代 target=_blank 新窗口
+  const zoomRef = useRef(null)
+  const [zoomUrl, setZoomUrl] = useState(null)
+  const openZoom = useCallback((url) => {
+    if (!url) return
+    setZoomUrl(url)
+    requestAnimationFrame(() => zoomRef.current?.showModal())
+  }, [])
+  const zoomDialog = <ImageZoomDialog ref={zoomRef} url={zoomUrl} />
+
   if (message.role === 'user') {
     const skillNames = (message.skills || []).map((s) => s?.name || s?.id || '').filter(Boolean)
     return (
@@ -231,9 +242,9 @@ function AgentMessage({ message, onConfirmPlan, onRetryStep, onPromptAction, onS
           {message.attachments && message.attachments.length > 0 && (
             <div className="flex flex-wrap gap-1 justify-end">
               {message.attachments.map((a, i) => (
-                <a key={i} href={a.url} target="_blank" rel="noreferrer" className="block w-20 h-20 rounded-md overflow-hidden border border-white/20 hover:border-white/50 transition-colors" title="点击新窗口打开">
+                <button key={i} type="button" onClick={() => openZoom(a.url)} className="block w-20 h-20 rounded-md overflow-hidden border border-white/20 hover:border-white/50 transition-colors cursor-zoom-in p-0" title="点击查看大图">
                   <LazyImage src={a.url} alt="" className="w-full h-full" />
-                </a>
+                </button>
               ))}
             </div>
           )}
@@ -243,6 +254,7 @@ function AgentMessage({ message, onConfirmPlan, onRetryStep, onPromptAction, onS
             </div>
           )}
         </div>
+        {zoomDialog}
       </div>
     )
   }
@@ -261,7 +273,7 @@ function AgentMessage({ message, onConfirmPlan, onRetryStep, onPromptAction, onS
           )}
           {message.content && (
             <div className="relative bg-canvas border border-edge-faint text-primary text-sm rounded-lg rounded-bl-sm px-3 py-2">
-              {renderContentWithImages(message.content)}
+              {renderContentWithImages(message.content, openZoom)}
               {message.streaming && <span className="inline-block w-1 h-3 bg-gray-400 ml-0.5 animate-pulse align-middle" />}
               {/* 右下角箭头：把整段回复发到画布 → 新建文本节点（内容落生成区 data.text） */}
               {!message.streaming && onSendToCanvas && (
@@ -310,6 +322,7 @@ function AgentMessage({ message, onConfirmPlan, onRetryStep, onPromptAction, onS
             </button>
           )}
         </div>
+        {zoomDialog}
       </div>
     )
   }

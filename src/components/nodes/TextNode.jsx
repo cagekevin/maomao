@@ -12,7 +12,7 @@ import ModelSelect from '../base/ModelSelect.jsx'
 import PromptInput from '../base/PromptInput.jsx'
 import MaterialStrip from '../base/MaterialStrip.jsx'
 import ResizeFullscreenHandle from '../base/ResizeFullscreenHandle.jsx'
-import FullscreenModal from '../base/FullscreenModal.jsx'
+import FullscreenEditor from '../base/FullscreenEditor.jsx'
 import GeneratingOverlay from '../base/GeneratingOverlay.jsx'
 import PromptLibraryButton from '../base/PromptLibraryButton.jsx'
 import { useNodeResize } from '../base/hooks.js'
@@ -398,29 +398,29 @@ function TextNode({ id, data, selected }) {
         />
       </ExpandablePanel>
 
-      {/* 全屏弹层（复刻 Ai.jsx）：主框全屏编辑文本内容 */}
-      <FullscreenModal open={fullscreenText} title="编辑文本内容" onClose={() => setFullscreenText(false)}>
-        <textarea
-          autoFocus
-          className="flex-1 w-full min-h-0 bg-canvas text-primary outline-none custom-scrollbar resize-none p-4 rounded"
-          style={{ fontSize: '14px', lineHeight: 1.8, color: 'rgb(var(--mao-text-primary))' }}
-          placeholder="输入文本内容..."
-          value={text}
-          onChange={(e) => setTextPersist(e.target.value)}
-        />
-      </FullscreenModal>
+      {/* 全屏弹层：主框全屏编辑文本内容 */}
+      <FullscreenEditor
+        open={fullscreenText}
+        onClose={() => setFullscreenText(false)}
+        variant="text"
+        value={text}
+        onChange={setTextPersist}
+        placeholder="输入文本内容..."
+      />
 
-      {/* 全屏弹层（复刻 Ai.jsx）：输入框全屏编辑提示词 */}
-      <FullscreenModal open={fullscreenPrompt} title="编辑提示词 - 文本" onClose={() => setFullscreenPrompt(false)}>
-        <textarea
-          autoFocus
-          className="flex-1 w-full min-h-0 bg-canvas text-primary outline-none custom-scrollbar resize-none p-4 rounded"
-          style={{ fontSize: '14px', lineHeight: 1.8, color: 'rgb(var(--mao-text-primary))' }}
-          placeholder="输入提示词..."
-          value={prompt}
-          onChange={(e) => setPromptPersist(e.target.value)}
-        />
-      </FullscreenModal>
+      {/* 全屏弹层：输入框全屏编辑提示词（显示上游图片/文本） */}
+      <FullscreenEditor
+        open={fullscreenPrompt}
+        onClose={() => setFullscreenPrompt(false)}
+        variant="prompt"
+        value={prompt}
+        onChange={setPromptPersist}
+        placeholder="输入提示词..."
+        refImages={refImages}
+        refTexts={refTexts}
+        onInsert={(name) => setPromptPersist((p) => (p ? `${p} @${name} ` : `@${name} `))}
+        onDisconnect={disconnectSource}
+      />
     </NodeShell>
   )
 }

@@ -9,24 +9,28 @@ import { Pencil, X } from 'lucide-react'
  * 以 `fixed inset-0` 全屏遮罩展示 children 内容，供大空间编辑。
  *
  * - Esc 或点击空白处关闭
- * - 初始尺寸 = min(1152, innerWidth*0.8) × innerHeight*0.8
+ * - 初始尺寸 = min(maxWidth, innerWidth*widthRatio) × innerHeight*0.8
  * - 右下角可拖拽改尺寸（最小 480×320，最大窗口-40）
  *
  * @param props
- *  - open        是否打开
- *  - title       标题
- *  - onClose     关闭回调
- *  - children    全屏编辑内容
+ *  - open          是否打开
+ *  - title         标题
+ *  - onClose       关闭回调
+ *  - children      全屏编辑内容
+ *  - widthRatio    初始宽度占屏比（默认 0.8）
+ *  - maxWidth      弹层最大宽度（px，默认 1152；传小值可避免窗口过宽）
+ *  - showHeader    是否显示顶部标题栏（默认 true；false 时隐藏标题与关闭提示）
+ *  - autoHeight    是否高度随内容自适应（默认 false；true 时高度由 children 决定，最大 95vh）
  */
-export default function FullscreenModal({ open, title = '编辑输入', onClose, children }) {
-  // 初始尺寸：占屏幕约 80%（各边留约 10% 边距），随屏幕自适应。
+export default function FullscreenModal({ open, title = '编辑输入', onClose, children, widthRatio = 0.8, maxWidth = 1152, showHeader = true, autoHeight = false }) {
+  // 初始尺寸：宽度占屏约 widthRatio，受 maxWidth 约束。autoHeight 时高度由内容决定。
   // SSR 环境下 window 不存在，需守卫。
   const [size, setSize] = useState(() => {
-    if (typeof window === 'undefined') return { w: 1000, h: 700 }
+    if (typeof window === 'undefined') return { w: 1000, h: autoHeight ? null : 700 }
     const vw = window.innerWidth
     const vh = window.innerHeight
-    const w = Math.max(480, Math.round(vw * 0.8))
-    const h = Math.max(320, Math.round(vh * 0.8))
+    const w = Math.max(480, Math.min(maxWidth, Math.round(vw * widthRatio)))
+    const h = autoHeight ? null : Math.max(320, Math.round(vh * 0.8))
     return { w, h }
   })
   const panelRef = useRef(null)
@@ -80,24 +84,26 @@ export default function FullscreenModal({ open, title = '编辑输入', onClose,
       <div
         ref={panelRef}
         className="relative bg-surface-raised border border-edge rounded-xl shadow-2xl flex flex-col overflow-visible"
-        style={{ width: size.w, height: size.h, maxWidth: '95vw', maxHeight: '95vh' }}
+        style={{ width: size.w, height: size.h ?? undefined, maxWidth: '95vw', maxHeight: '95vh' }}
       >
         {/* 标题栏 */}
-        <div className="flex items-center justify-between px-4 py-2.5 border-b border-edge-faint bg-surface-1 flex-shrink-0">
-          <div className="flex items-center gap-2 text-sm text-primary">
-            <Pencil size={14} className="text-blue-400" />
-            <span>{title}</span>
+        {showHeader && (
+          <div className="flex items-center justify-between px-4 py-2.5 border-b border-edge-faint bg-surface-1 flex-shrink-0">
+            <div className="flex items-center gap-2 text-sm text-primary">
+              <Pencil size={14} className="text-blue-400" />
+              <span>{title}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-caption-sm text-muted">Esc 关闭 · 点击空白处关闭</span>
+              <button className="p-1.5 text-secondary hover:text-white hover:bg-white/10 rounded transition-colors" onClick={onClose} title="关闭全屏">
+                <X size={16} />
+              </button>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="text-caption-sm text-muted">Esc 关闭 · 点击空白处关闭</span>
-            <button className="p-1.5 text-secondary hover:text-white hover:bg-white/10 rounded transition-colors" onClick={onClose} title="关闭全屏">
-              <X size={16} />
-            </button>
-          </div>
-        </div>
+        )}
 
-        {/* 内容区：flex-1 填满弹层剩余高度，内容可纵向填充 */}
-        <div className="flex-1 min-h-0 p-5 overflow-hidden custom-scrollbar flex flex-col">
+        {/* 内容区：autoHeight 时高度由内容决定，否则填满弹层剩余高度 */}
+        <div className={`min-h-0 p-5 overflow-hidden custom-scrollbar flex flex-col ${autoHeight ? '' : 'flex-1'}`}>
           {children}
         </div>
 

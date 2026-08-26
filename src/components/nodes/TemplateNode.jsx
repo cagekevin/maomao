@@ -11,6 +11,7 @@ import PromptInput from '../base/PromptInput.jsx'
 import MaterialStrip from '../base/MaterialStrip.jsx'
 import ResizeFullscreenHandle from '../base/ResizeFullscreenHandle.jsx'
 import FullscreenModal from '../base/FullscreenModal.jsx'
+import FullscreenEditor from '../base/FullscreenEditor.jsx'
 import GeneratingOverlay from '../base/GeneratingOverlay.jsx'
 // ═══ 基座 hook（统一范式）═══
 import { useNodeResize, useOutsideClick } from '../base/hooks.js'
@@ -346,17 +347,19 @@ function TemplateNode({ id, data, selected }) {
         />
       </ExpandablePanel>
 
-      {/* 全屏弹层：提示词输入框双击 → 全屏编辑提示词（复刻 TextNode） */}
-      <FullscreenModal open={fullscreenPrompt} title="编辑提示词 - 模板" onClose={() => setFullscreenPrompt(false)}>
-        <textarea
-          autoFocus
-          className="flex-1 w-full min-h-0 bg-canvas text-primary outline-none custom-scrollbar resize-none p-4 rounded"
-          style={{ fontSize: '14px', lineHeight: 1.8, color: 'rgb(var(--mao-text-primary))' }}
-          placeholder="描述内容，输入 @ 引用素材..."
-          value={prompt}
-          onChange={(e) => setPromptPersist(e.target.value)}
-        />
-      </FullscreenModal>
+      {/* 全屏弹层：提示词输入框双击 → 全屏编辑提示词（统一组件） */}
+      <FullscreenEditor
+        open={fullscreenPrompt}
+        onClose={() => setFullscreenPrompt(false)}
+        variant="prompt"
+        value={prompt}
+        onChange={setPromptPersist}
+        placeholder="描述内容，输入 @ 引用素材..."
+        refImages={refImages}
+        refTexts={refTexts}
+        onInsert={(name) => setPromptPersist((p) => (p ? `${p} @${name} ` : `@${name} `))}
+        onDisconnect={disconnectSource}
+      />
 
       {/* 全屏弹层：主框双击 → 查看生成结果（替代原 showToast 占位） */}
       <FullscreenModal

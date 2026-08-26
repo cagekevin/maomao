@@ -10,7 +10,7 @@ import ExpandablePanel from '../base/ExpandablePanel.jsx'
 import GenerateButton from '../base/GenerateButton.jsx'
 import ModelSelect from '../base/ModelSelect.jsx'
 import ResizeFullscreenHandle from '../base/ResizeFullscreenHandle.jsx'
-import FullscreenModal from '../base/FullscreenModal.jsx'
+import FullscreenEditor from '../base/FullscreenEditor.jsx'
 import GeneratingOverlay from '../base/GeneratingOverlay.jsx'
 import { NODE_AREA_FIXED_BASE_SIZE } from '../base/config.js'
 import { downloadUrl } from '../base/clipboard.js'
@@ -401,17 +401,19 @@ function DiscountVideoNode({ id, data, selected }) {
         />
       </ExpandablePanel>
 
-      {/* 全屏弹层（复刻 TextNode）：提示词输入框双击 → 全屏编辑提示词 */}
-      <FullscreenModal open={fullscreenPrompt} title="编辑提示词 - 特惠视频" onClose={() => setFullscreenPrompt(false)}>
-        <textarea
-          autoFocus
-          className="flex-1 w-full min-h-0 bg-canvas text-primary outline-none custom-scrollbar resize-none p-4 rounded"
-          style={{ fontSize: '14px', lineHeight: 1.8, color: 'rgb(var(--mao-text-primary))' }}
-          placeholder="描述你想要的视频内容 (输入 @ 调出素材)..."
-          value={prompt}
-          onChange={(e) => setPromptPersist(e.target.value)}
-        />
-      </FullscreenModal>
+      {/* 全屏弹层：提示词输入框双击 → 全屏编辑提示词（统一组件） */}
+      <FullscreenEditor
+        open={fullscreenPrompt}
+        onClose={() => setFullscreenPrompt(false)}
+        variant="prompt"
+        value={prompt}
+        onChange={setPromptPersist}
+        placeholder="描述你想要的视频内容 (输入 @ 调出素材)..."
+        refImages={connected.images}
+        refTexts={connected.texts}
+        onInsert={(name) => setPromptPersist((p) => (p ? `${p} @${name} ` : `@${name} `))}
+        onDisconnect={disconnectSource}
+      />
 
       {/* 双击视频查看大图：原生 <dialog> + 系统原生 <video> 播放器 */}
       <ImageZoomDialog ref={zoomRef} url={zoomUrl} kind="video" />

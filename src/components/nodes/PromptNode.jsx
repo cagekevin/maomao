@@ -12,7 +12,7 @@ import ModelSelect from '../base/ModelSelect.jsx'
 import PromptInput from '../base/PromptInput.jsx'
 import MaterialStrip from '../base/MaterialStrip.jsx'
 import ResizeFullscreenHandle from '../base/ResizeFullscreenHandle.jsx'
-import FullscreenModal from '../base/FullscreenModal.jsx'
+import FullscreenEditor from '../base/FullscreenEditor.jsx'
 import GeneratingOverlay from '../base/GeneratingOverlay.jsx'
 import { NODE_AREA_FIXED_BASE_SIZE } from '../base/config.js'
 import ImageZoomDialog from '../base/ImageZoomDialog.jsx'
@@ -481,17 +481,19 @@ function PromptNode({ id, data, selected }) {
         />
       </ExpandablePanel>
 
-      {/* 全屏弹层（复刻 TextNode）：提示词输入框双击 → 全屏编辑提示词 */}
-      <FullscreenModal open={fullscreenPrompt} title="编辑提示词 - 生图" onClose={() => setFullscreenPrompt(false)}>
-        <textarea
-          autoFocus
-          className="flex-1 w-full min-h-0 bg-canvas text-primary outline-none custom-scrollbar resize-none p-4 rounded"
-          style={{ fontSize: '14px', lineHeight: 1.8, color: 'rgb(var(--mao-text-primary))' }}
-          placeholder="描述你想要的画面 (输入 @ 调出素材)..."
-          value={prompt}
-          onChange={(e) => setPromptPersist(e.target.value)}
-        />
-      </FullscreenModal>
+      {/* 全屏弹层：提示词输入框双击 → 全屏编辑提示词（统一组件） */}
+      <FullscreenEditor
+        open={fullscreenPrompt}
+        onClose={() => setFullscreenPrompt(false)}
+        variant="prompt"
+        value={prompt}
+        onChange={setPromptPersist}
+        placeholder="描述你想要的画面 (输入 @ 调出素材)..."
+        refImages={refImages}
+        refTexts={refTexts}
+        onInsert={insertMention}
+        onDisconnect={disconnectSource}
+      />
 
       {/* 双击大图：共享 ImageZoomDialog */}
       <ImageZoomDialog ref={zoomRef} url={zoomUrl} />
