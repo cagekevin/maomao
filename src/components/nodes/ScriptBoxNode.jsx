@@ -84,7 +84,7 @@ function ScriptBoxNode({ id, data, selected }) {
   // 注意：必须去掉固定 height（只留 minHeight），否则根 div 高度被锁死、内容溢出到框外。
   const contentRef = useRef(null)
   // 外框自适应收口到 useContentHeightSync（ref 防抖 + rAF 打破 ResizeObserver 同帧循环告警）
-  useContentHeightSync(contentRef, id, { minHeight: 600, fallbackWidth: 900 })
+  useContentHeightSync(contentRef, id, { minHeight: 600, fallbackWidth: 900, syncWidth: true })
 
   // 生成遮罩计时
   const genMask = !!d.genMask

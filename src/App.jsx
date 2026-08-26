@@ -150,7 +150,12 @@ function Canvas() {
         }
       }
       // 无 saved（首次）：保留演示画布
-    }).catch(() => { setCanvasLoaded(true) })
+    }).catch((e) => {
+      // 项目画布加载失败：兜底仍标记 loaded（避免白屏卡死），但必须可查+可见
+      logger.warn('App', '项目画布加载失败，回退演示画布', { projectId: activeProjectId, error: e?.message || String(e) })
+      showToast('画布加载失败，已回退到默认画布', { type: 'warning' })
+      setCanvasLoaded(true)
+    })
     return () => { cancelled = true }
     // 依赖 activeProjectId：项目切换/initProjects 覆盖时重新加载对应项目画布
     // eslint-disable-next-line react-hooks/exhaustive-deps

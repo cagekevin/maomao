@@ -16,7 +16,7 @@
 | 建新节点 / 改节点 | `ARCHITECTURE.md §7`（流程）+ `README.md`（节点规范）+ `node-types-map.md`（type↔组件映射） | 三步注册 + 3 处同步 |
 | 复用通用能力（别造轮子） | `BASE-CAPABILITIES.md` | 已建好的 base/ 能力清单，直接照用 |
 | 写样式（用 token 不用裸色值） | `tailwind.config.js`（token 定义）+ 本页 §二 | 背景/文字/边框/字号/z-index 全走 token |
-| 弹提示 / 判断媒体 / URL 归一 | 本页 §一（单一入口清单） | 遇到 X 就用 Y，禁止各写各的 |
+| 弹提示 / 判断媒体 / URL 归一 | 本页 §一（单一入口清单）+ `07-Toast分级设计`（分级契约） | 遇到 X 就用 Y，禁止各写各的 |
 | 测试 / 验证门禁 | `spec/TESTING.md` | smoke/regression/tools/health 四层 |
 | 存储键 / 数据收口 | `docs/08-存储键集中登记与收口规范` | 新增存储键先 `StorageKeys` 登记，禁止散落字面量 |
 | 错误降级 / 重试 | `docs/09-节点错误降级与重试收敛策略` | API 失败带 `type`，节点按 `type` 决策，禁 if(/网络错误/) |
@@ -41,6 +41,8 @@
 | `tailwind-tokens.md` | ❌ **已删** | 从旧 `src/bundle`（已删）dump 的 class 频次表，非 token 规范；token 唯一真相 = `tailwind.config.js` |
 | `08-存储键集中登记与收口规范` | ✅ 有效 | 存储键 `StorageKeys` 中央登记 + 脏键迁移 + 动态键工厂 |
 | `09-节点错误降级与重试收敛策略` | ✅ 有效 | 错误分类 `GenErrorType` + `withRetry` 自动重试 + 文案映射 |
+| `07-Toast分级设计-2026-08-17.md` | ✅ 有效 | 通知分级契约（error/warning/success/info 语义 + 默认时长 + 语义函数） |
+| `53-错误处理静默与虚假审计-2026-08-26.md` | ✅ 有效 | 静默吞错/虚假报错审计结论与修复（本次 catch 铁律来源） |
 | `CODING-STANDARD.md` | ✅ 本页 | 本总纲 |
 
 ---
@@ -70,6 +72,36 @@
 | 生成失败/重试决策 | `base/genErrors.js`（分类）+ `base/apiBase.js` `withRetry` | 失败看 `type` 决策，`errorMessageByType` 文案 | ❌ 自写 `if(/网络错误/)` / 自写重试循环 |
 
 **接真系统提示**：上面的 base 能力大多已接 localTool / 网关。新增功能时优先复用，别在节点里硬编码后端地址。**存储键规范详见 `docs/08`，错误重试规范详见 `docs/09`。**
+
+---
+
+## 一.5、错误处理铁律（禁止静默、禁止虚假）
+
+> 决策依据：CLAUDE.md「决策铁律」+ `docs/07-Toast分级设计-2026-08-17.md` + `docs/09-节点错误降级与重试收敛策略`。
+> 核心：**任何会失败的关键链路（网络请求 / 文件读写 / 生成 / 同步 / 存储 / 解析 / 资源加载）出错时，必须让用户或开发者至少感知到一次，且不能骗人。**
+
+### 硬规则（写代码前先记牢）
+
+1. **catch 三选一，禁止静默**：关键链路 `try/catch` 或 `.catch` 必须至少做以下之一，否则视为 bug：
+   - (a) `logger.warn/error` 记可追溯日志（含 `error?.message` 与上下文）；
+   - (b) 弹 toast 提示用户（按 `docs/07` 分级，见下）；
+   - (c) 向上 `throw`，由明确的上层统一处理（上层须带 a 或 b）。
+   - ❌ 禁止：空的 `catch {}`、`.catch(() => {})`、`.catch(() => null)`（切图/画布加载等已出过静默 bug，见 `docs/53`）。
+2. **日志统一收口 `logger`**：业务代码禁止裸 `console.log/warn/error`（见 §四 #5，业务代码已清零；`logger.js` 底层出口与 `director3d/` 子系统除外）。调试期临时 console 提交前必须删或转 `logger.debug`。
+3. **toast 分级，禁止错级/假级**：语义分级严格按 `docs/07-Toast分级设计-2026-08-17.md §2.1`：
+   - `error`（红）：操作失败、用户需处理（如切图失败、复制失败、画布保存失败）。
+   - `warning`（黄）：执行了但有损/降级/前置不满足（如画布加载失败回退默认、未检测到人脸）。
+   - `success`（绿）/ `info`（蓝）：按文档消歧规则，**用户一眼可见的结果不弹**（见 docs/07 §2.2 首要原则）。
+   - 强制走语义函数：`toastError / toastWarning / toastSuccess / toastInfo`（`base/toastStore.js`），禁止 `showToast(x,'error')` 位置字符串写法（颜色 bug）、禁止失败语义裸调成 info 蓝。
+4. **禁止虚假报错**：报错文案必须与实际错误一致；禁止占位文案（如假装成功、用无关文案掩盖失败）、禁止静默 swallow 后返回假成功。
+5. **错误分类走 `genErrors.js` + `withRetry`**：生成类失败按 `type` 决策与重试（见 `docs/09`），禁止 `if(/网络错误/)` 手写判断。
+
+### 自检清单（新增/改 catch 时勾选）
+
+- [ ] catch 内有 `logger.warn/error` 或 `toastXxx` 或 `throw`？不是只 `return null`？
+- [ ] 失败语义 toast 用了 `toastError`/`toastWarning`（按 docs/07 分级），不是 info 蓝？
+- [ ] 文案真实反映了错误原因，没有占位/虚假？
+- [ ] 没有裸 `console.*`（调试残留已清理或转 `logger.debug`）？
 
 ---
 
@@ -121,6 +153,7 @@
 | 2 | 裸色值集中在新增节点（`PanoramaNode`/`FaceMosaicNode`/`Director3DNode`/`FaceMosaicEditor`）+ 部分 base 面板 + `scriptbox/` | `bg-[#…]`/`text-gray-…`/`text-[Npx]`/`z-[N]` 绕过 `tailwind.config.js` token | 迁移到 token（`bg-surface-*`/`text-*`/`text-caption`/`z-*`）；**存量核心节点已基本用 token，收敛只针对上述几处** |
 | 3 | `filesApi.js` / `imageUrl.js` | `toAbsoluteFileUrl` 有 re-export 与独立 `imageUrl.js` 两处，引用分散 | 明确 `imageUrl.js` 为唯一来源，`filesApi.js` 只 re-export |
 | 4 | 各节点 hover 栏 / 底部按钮 | 部分直接 `lucide` 图标 + 裸 class，部分用 `HoverToolbar`/`ToolbarButton` | 统一走 `HoverToolbar` + `ToolbarButton` |
+| 5 | 裸 `console.*` 残留 | 2026-08-26 全量扫描：`src/` 业务代码**已无**裸 console.*（仅 `director3d/log.js` 子系统内部 + `logger.js` 底层出口 + `ErrorBoundary.jsx` 注释）。**业务代码已清零**，不强制动 director3d（外部集成，约定不维护）；后续 R-round 仅盯新增代码是否回潮 | 调试临时 console 提交前删或转 `logger.debug`；详见本页 §一.5 错误处理铁律 |
 
 > 收敛原则：**先规范、后重构；渐进收敛、别强行批量**。
 > - 新增代码一律按本页规范写（用 token / 走单一入口）。

@@ -38,7 +38,15 @@ function useNodeSize(id) {
  *  - NodeResizer（ReactFlow 内置）：拖拽节点边缘改尺寸，ReactFlow 自动同步 wrapper。
  *  - ResizeFullscreenHandle（自定义手柄）：onResizeEnd → useNodeResize.onMainBoxResize
  *    → 写回 node.width/height + updateNodeInternals。
- *  - useSizeSync：改比例时按比例重算 node 尺寸。
+ *  - useSizeSync：改比例时按比例重算 node 尺寸（宽高同时写回）。
+ *  - useContentHeightSync：内容区 ResizeObserver 监听高度自适应，写回 node.height。
+ *    ⚠️ 默认只同步「高度」，不同步「宽度」——这是有意的（宽度通常由 useSizeSync/NodeResizer
+ *    管理或固定）。但对「宽度固定、不随内容/拖拽变化」的复合节点（ScriptBox 固定 900、
+ *    GridMerge/GridSplit 等），若不把 node.width 也写回，ReactFlow wrapper(.react-flow__node)
+ *    的宽度会滞后于视觉框 → 连接节点的「conic 跑马灯环绕」（index.css 的 connectingto::before，
+ *    用 inset 锚定 .react-flow__node）会出现「高度贴合、宽度不贴合」。
+ *    解法：给 useContentHeightSync 传 { syncWidth: true }，写回宽度时用内容元素实际宽度
+ *    el.offsetWidth，让 wrapper 贴合视觉框。见 hooks.js 的 syncWidth 参数说明。
  *
  * @param props
  *  - id, label, defaultTitle, icon   标题栏

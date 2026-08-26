@@ -465,8 +465,14 @@ function TemplateNode({ id, data, selected }) {
  * （src/components/base/hooks.js，VideoProcess/GridSplit/ScriptBox/GridMerge 统一收口）：
  *
  *   const contentRef = useRef(null)
- *   useContentHeightSync(contentRef, id, { minHeight: 600, fallbackWidth: 900 })
+ *   useContentHeightSync(contentRef, id, { minHeight: 600, fallbackWidth: 900, syncWidth: true })
  *   // 主容器加 ref={contentRef}；去掉固定 height（只留 minHeight），否则内容溢出到框外。
+ *
+ * ⚠️ 固定宽度/内容不随宽度变化的节点，务必传 syncWidth: true：useContentHeightSync
+ *    默认只同步「高度」，不同步宽度；若 node.width 不被同步，ReactFlow wrapper
+ *    (.react-flow__node) 的宽度会滞后于视觉框，导致连接节点的「conic 跑马灯环绕」
+ *    （index.css 的 connectingto::before）高度贴合、宽度不贴合。
+ *    syncWidth: true 会用内容元素实际宽度写回，让 wrapper 贴合视觉框。
  *
  * ⚠️ 勿再手写 new ResizeObserver → onMainBoxResize 的旧模式：那会与 useContentHeightSync
  *    重复，且旧写法「读滞后的 node.height 做 4px 阈值」会触发 ResizeObserver loop 告警

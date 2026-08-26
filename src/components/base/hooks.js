@@ -214,12 +214,18 @@ export function useNodeResize(id) {
  *
  * @param ref          contentRef：监听内容区高度的元素 ref（调用方 useRef + 绑定到内容区根 div）
  * @param id           节点 id
- * @param opts { minHeight?, fallbackWidth? }
+ * @param opts { minHeight?, fallbackWidth?, syncWidth? }
  *   - minHeight        写回时的最小高度（原各节点 Math.max(N, h) 的 N）
  *   - fallbackWidth    拿不到 node.width 时的兜底宽度（原各节点 `n?.width ?? fallback`）
+ *   - syncWidth        是否同时同步宽度为「内容元素实际宽度」（el.offsetWidth）。
+ *                      默认 false（只同步高度，宽度沿用 node.width —— 旧行为）。
+ *                      设 true：写回时用内容实际宽度，让 ReactFlow 盒子(.react-flow__node)
+ *                      与视觉框贴合。修复「conic 连接跑马灯不贴合宽扁节点」的根因：
+ *                      （剧本盒等宽度固定、但 useContentHeightSync 从不写回 node.width，
+ *                      导致 conic inset 锚定的 ReactFlow 盒子宽度 ≠ 视觉宽度）。
  * @returns ref        调用方需把返回的 ref 绑到内容区根 div（用法见调用方）
  */
-export function useContentHeightSync(ref, id, { minHeight = 0, fallbackWidth = 420 } = {}) {
+export function useContentHeightSync(ref, id, { minHeight = 0, fallbackWidth = 420, syncWidth = false } = {}) {
   const { getNode } = useReactFlow()
   const { onMainBoxResize } = useNodeResize(id)
 
@@ -249,7 +255,12 @@ export function useContentHeightSync(ref, id, { minHeight = 0, fallbackWidth = 4
         pendingRaf = requestAnimationFrame(() => {
           pendingRaf = 0
           const n = getNode(id)
-          const curW = n?.width ?? n?.style?.width ?? fallbackWidth
+          // syncWidth=true：宽度同步为「内容元素实际宽度」，让 ReactFlow 盒子(.react-flow__node)
+          // 贴合视觉框（否则剧本盒等固定宽节点宽度从不同步，conic 连接跑马灯锚定的盒子宽度 ≠ 视觉宽）。
+          // 内容元素在节点内通常 w-full，其 offsetWidth 即视觉宽度。
+          const curW = syncWidth
+            ? Math.round(el.offsetWidth || n?.width || fallbackWidth)
+            : (n?.width ?? n?.style?.width ?? fallbackWidth)
           onMainBoxResize(Math.round(curW), Math.max(minHeight, Math.round(h)))
           // 下一帧（写回已生效、尺寸稳定）重新开始观察
           reobserveRaf = requestAnimationFrame(() => {
@@ -267,7 +278,7 @@ export function useContentHeightSync(ref, id, { minHeight = 0, fallbackWidth = 4
       if (reobserveRaf) cancelAnimationFrame(reobserveRaf)
       ro?.disconnect()
     }
-  }, [ref, id, getNode, onMainBoxResize, minHeight, fallbackWidth])
+  }, [ref, id, getNode, onMainBoxResize, minHeight, fallbackWidth, syncWidth])
 }
 
 /**

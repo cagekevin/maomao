@@ -176,7 +176,7 @@ function GridMergeNode({ id, data, selected }) {
   }, [mergeMode, rows, cols, cellSize, aspectRatio, autoSize, titlePattern, longDirection, longGap, longTargetSize, longAutoSize, bgColor, overlayState])
 
   // ---- 高度自适应（内容撑多高，节点就多高；收口到 useContentHeightSync）----
-  useContentHeightSync(contentRef, id, { minHeight: 160, fallbackWidth: 320 })
+  useContentHeightSync(contentRef, id, { minHeight: 160, fallbackWidth: 320, syncWidth: true })
 
   // ---- 渲染到 canvas（复刻 Yo.jsx pe）----
   const renderToCanvas = useCallback(

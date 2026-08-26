@@ -125,7 +125,12 @@ function clipShape(src, points) {
     .then(() => loadImageWithTimeout(src))
     .catch(() => loadImageWithTimeout(src))
     .then((img) => doClip(img))
-    .catch(() => null)
+    .catch((e) => {
+      // 切图失败（跨域/格式不支持/超时）必须可见+可查，禁止静默返回 null
+      logger.warn('GridSplit', '切图失败', { src, error: e?.message || String(e) })
+      showToast('切图失败：图片加载或裁剪出错（可能跨域或格式不支持）', { type: 'error' })
+      return null
+    })
 }
 
 const GRID_PRESETS = [
@@ -172,7 +177,7 @@ function GridSplitNode({ id, data, selected }) {
   const activeCellIdRef = useRef(null) // 当前绘制的 lasso 记录（mousemove 用）
 
   // ---- 高度自适应（内容撑多高，节点就多高，不留空白；收口到 useContentHeightSync）----
-  useContentHeightSync(contentRef, id, { minHeight: 120, fallbackWidth: 280 })
+  useContentHeightSync(contentRef, id, { minHeight: 120, fallbackWidth: 280, syncWidth: true })
 
   // ---- 切分计算 cells（复刻 Lo.jsx I）----
   const cells = useMemo(() => {
