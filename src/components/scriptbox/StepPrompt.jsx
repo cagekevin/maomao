@@ -365,7 +365,7 @@ function ChatEdit({ editing, shots, draft, chatInput, assetNames, onDraft, onInp
       {/* 预览 / 编辑区（占满） */}
       <div className="flex-1 flex flex-col min-h-0 px-5 pt-4 pb-3">
         <div className="flex items-center gap-1.5 pb-2 shrink-0">
-          <span className={`w-1.5 h-1.5 rounded-full ${changed ? 'bg-emerald-400' : 'bg-gray-600'}`} />
+          <span className={`w-2 h-2 rounded-full ${changed ? 'bg-emerald-400' : 'bg-gray-600'}`} />
           <span className="text-caption-sm text-secondary">{isImgGen ? '提示词（直接编辑）' : (changed ? '预览 · 有改动待应用' : '当前提示词（可直接编辑）')}</span>
         </div>
         <textarea
@@ -376,7 +376,7 @@ function ChatEdit({ editing, shots, draft, chatInput, assetNames, onDraft, onInp
           className="flex-1 w-full bg-transparent outline-none resize-none rounded-lg px-0 py-3.5 custom-scrollbar text-caption-sm leading-relaxed transition-colors"
           style={{
             fontSize: '14px', lineHeight: 1.8, color: 'rgb(var(--mao-text-primary))',
-            border: changed ? '1px solid rgba(52,211,153,0.4)' : '1px solid transparent',
+            border: '1px solid transparent',
           }}
         />
       </div>
@@ -384,7 +384,7 @@ function ChatEdit({ editing, shots, draft, chatInput, assetNames, onDraft, onInp
       {/* 底部细输入条（让 AI 按意见改；imgGen 无 AI 通道，隐藏） */}
       {!isImgGen && (
         <div className="shrink-0 px-5 pt-1 pb-3">
-          <div className="flex items-end gap-2 bg-input border border-edge rounded-xl px-3 py-1.5 focus-within:border-emerald-400/40 transition-colors">
+          <div className="flex items-center gap-2 bg-input border border-edge rounded-xl px-3 py-1.5 focus-within:border-emerald-400/40 transition-colors">
             <textarea
               ref={inputRef}
               value={chatInput}
