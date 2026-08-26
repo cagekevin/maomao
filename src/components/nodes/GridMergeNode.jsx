@@ -97,6 +97,9 @@ function GridMergeNode({ id, data, selected }) {
   const { isHidden } = useMediaDegrade()
   const render = useRenderImageResolver()
   const contentRef = useRef(null)
+  // NodeShell 根 div ref：useContentHeightSync 需测「含标题栏的完整节点」而非仅内容区，
+  // 否则写回的 node.height 偏矮（漏标题栏），conic 连接跑马灯高度不贴合。
+  const wrapperRef = useRef(null)
   // 双击预览图查看大图（原生 <dialog>）
   const [zoomUrl, setZoomUrl] = useState(null)
   const zoomRef = useRef(null)
@@ -176,7 +179,7 @@ function GridMergeNode({ id, data, selected }) {
   }, [mergeMode, rows, cols, cellSize, aspectRatio, autoSize, titlePattern, longDirection, longGap, longTargetSize, longAutoSize, bgColor, overlayState])
 
   // ---- 高度自适应（内容撑多高，节点就多高；收口到 useContentHeightSync）----
-  useContentHeightSync(contentRef, id, { minHeight: 160, fallbackWidth: 320, syncWidth: true })
+  useContentHeightSync(contentRef, id, { minHeight: 160, fallbackWidth: 320, syncWidth: true, wrapperRef })
 
   // ---- 渲染到 canvas（复刻 Yo.jsx pe）----
   const renderToCanvas = useCallback(
@@ -402,6 +405,7 @@ function GridMergeNode({ id, data, selected }) {
           {modeBtn('overlay', '叠加', <Layers size={11} />, '叠加图层')}
         </div>
       }
+      wrapperRef={wrapperRef}
       className="min-w-[320px]"
     >
       <CustomHandle position="left" handleId="default" variant="small" />

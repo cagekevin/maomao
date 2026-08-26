@@ -214,7 +214,7 @@ export function useNodeResize(id) {
  *
  * @param ref          contentRef：监听内容区高度的元素 ref（调用方 useRef + 绑定到内容区根 div）
  * @param id           节点 id
- * @param opts { minHeight?, fallbackWidth?, syncWidth? }
+ * @param opts { minHeight?, fallbackWidth?, syncWidth?, wrapperRef? }
  *   - minHeight        写回时的最小高度（原各节点 Math.max(N, h) 的 N）
  *   - fallbackWidth    拿不到 node.width 时的兜底宽度（原各节点 `n?.width ?? fallback`）
  *   - syncWidth        是否同时同步宽度为「内容元素实际宽度」（el.offsetWidth）。
@@ -223,9 +223,15 @@ export function useNodeResize(id) {
  *                      与视觉框贴合。修复「conic 连接跑马灯不贴合宽扁节点」的根因：
  *                      （剧本盒等宽度固定、但 useContentHeightSync 从不写回 node.width，
  *                      导致 conic inset 锚定的 ReactFlow 盒子宽度 ≠ 视觉宽度）。
+ *   - wrapperRef       可选：NodeShell 根 div ref（传 NodeShell 的 wrapperRef）。
+ *                      ⚠️ 关键修复：不传时测 contentRef（内容区），会漏掉 NodeShell 标题栏高度，
+ *                      导致写回的 node.height 比视觉框矮 → conic 连接跑马灯（inset 锚定
+ *                      .react-flow__node）「停在最后内容底部」不贴合。
+ *                      传 wrapperRef（= 含标题栏的完整节点）时，改测 wrapper 完整高度，
+ *                      让 node.height 贴合完整视觉框。内容自适应节点都应传此参数。
  * @returns ref        调用方需把返回的 ref 绑到内容区根 div（用法见调用方）
  */
-export function useContentHeightSync(ref, id, { minHeight = 0, fallbackWidth = 420, syncWidth = false } = {}) {
+export function useContentHeightSync(ref, id, { minHeight = 0, fallbackWidth = 420, syncWidth = false, wrapperRef } = {}) {
   const { getNode } = useReactFlow()
   const { onMainBoxResize } = useNodeResize(id)
 
@@ -233,8 +239,12 @@ export function useContentHeightSync(ref, id, { minHeight = 0, fallbackWidth = 4
   // 避免「读旧值→误判需更新→再写回→再触发」的同帧循环（ResizeObserver loop 告警根因）。
   const lastWrittenH = useRef(0)
 
+  // 统一测量基准：有 wrapperRef 就测完整节点（含 NodeShell 标题栏），否则退回内容区。
+  // 观察对象与写回高度都基于它，避免「contentRef 漏标题 → node.height 偏矮 → 跑马灯不贴」。
+  const measureRef = wrapperRef || ref
+
   useEffect(() => {
-    const el = ref.current
+    const el = measureRef.current
     if (!el) return
     let pendingRaf = 0
     let reobserveRaf = 0
@@ -278,7 +288,7 @@ export function useContentHeightSync(ref, id, { minHeight = 0, fallbackWidth = 4
       if (reobserveRaf) cancelAnimationFrame(reobserveRaf)
       ro?.disconnect()
     }
-  }, [ref, id, getNode, onMainBoxResize, minHeight, fallbackWidth, syncWidth])
+  }, [measureRef, id, getNode, onMainBoxResize, minHeight, fallbackWidth, syncWidth])
 }
 
 /**

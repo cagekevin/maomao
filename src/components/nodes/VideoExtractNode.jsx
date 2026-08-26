@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { Clapperboard, Copy, Download, Settings, Camera, AlertCircle, Upload, Loader2, ArrowUp } from 'lucide-react'
 import NodeShell from '../base/NodeShell.jsx'
+import { useContentHeightSync } from '../base/hooks.js'
 import GenerateButton from '../base/GenerateButton.jsx'
 import { useConnectedInputs } from '../base/useConnectedInputs.js'
 import { useMediaDegrade } from '../base/useMediaDegrade.js'
@@ -66,6 +67,15 @@ function VideoExtractNode({ id, data, selected }) {
   const { patchData } = useNodeData(id)
   // 原子防重入（对齐 useNodeGeneration R4）：同步 ref 防快速双击并发抽帧
   const extractingRef = useRef(false)
+
+  // 高度自适应（对齐剧本盒子 ScriptBoxNode 范式 + useContentHeightSync 的 wrapperRef 统一修复）：
+  // NodeShell 只订阅渲染 node.width/height，不负责写回；若 node.height 不跟随内容高度写回，
+  // ReactFlow wrapper(.react-flow__node) 高度会滞后于视觉框，连接节点的 conic 跑马灯
+  // （index.css .react-flow__node::before 用 inset 锚定 wrapper）就会高度不贴合。
+  // 必须传 wrapperRef（NodeShell 根 div，含标题栏）作测量基准——若只绑内容区会漏标题栏，
+  // 写回的 node.height 比视觉框矮（停在最后内容底部）。syncWidth 保持宽度贴合。
+  const wrapperRef = useRef(null)
+  useContentHeightSync(null, id, { minHeight: mode === 'manual' ? 380 : 220, fallbackWidth: 420, syncWidth: true, wrapperRef })
 
   // 手动模式：播放器 + 帧轨道
   const videoRef = useRef(null)
@@ -365,8 +375,8 @@ function VideoExtractNode({ id, data, selected }) {
       selected={selected}
       minWidth={280}
       minHeight={mode === 'manual' ? 380 : 220}
-      defaultHeight={mode === 'manual' ? 380 : 220}
       handleVariant="small"
+      wrapperRef={wrapperRef}
       className="min-w-[280px]"
       style={{ minHeight: mode === 'manual' ? 380 : 220 }}
     >
@@ -378,9 +388,10 @@ function VideoExtractNode({ id, data, selected }) {
           children 主容器负责 overflow 裁剪，圆角由内部内容区/底部块各自提供：
           顶部 → 内容区 rounded-t-xl + overflow-x-hidden 裁出上圆角（y 轴保留滚动）；
           底部 → 底部块 rounded-b-xl + overflow-hidden 裁出下圆角。 */}
-      <div className="relative w-full flex-1 min-h-0 overflow-hidden flex flex-col">
-          {/* 内容区（对齐官方 Component1428） */}
-          <div className="flex-1 bg-surface-black p-4 overflow-x-hidden overflow-y-auto relative border-b border-edge-faint custom-scrollbar nowheel nopan flex flex-col gap-4 rounded-t-xl">
+      <div className="relative w-full flex flex-col">
+          {/* 内容区（对齐官方 Component1428）：内容自然撑高，节点整体高度由 useContentHeightSync 测
+              NodeShell 根 div（wrapperRef，含标题栏）写回 node.height，保证跑马灯贴合。 */}
+          <div className="bg-surface-black p-4 relative border-b border-edge-faint flex flex-col gap-4 rounded-t-xl">
             {extractedImages.length > 0 && (
               <button
                 onClick={copyAll}
@@ -391,7 +402,7 @@ function VideoExtractNode({ id, data, selected }) {
             )}
 
             {errorMessage && (
-              <div className="flex flex-col items-center justify-center h-full gap-2 text-red-400 p-4 text-center">
+              <div className="flex flex-col items-center justify-center min-h-[120px] gap-2 text-red-400 p-4 text-center">
                 <AlertCircle size={24} />
                 <span className="text-xs break-words">{errorMessage}</span>
               </div>
@@ -447,7 +458,7 @@ function VideoExtractNode({ id, data, selected }) {
             )}
 
             {!errorMessage && extractedImages.length > 0 ? (
-              <div className="flex flex-col h-full gap-3">
+              <div className="flex flex-col gap-3">
                 <div className="flex justify-between items-center px-1">
                   <span className="text-xs text-secondary font-medium">已提取 {extractedImages.length} 帧</span>
                 </div>
@@ -484,7 +495,7 @@ function VideoExtractNode({ id, data, selected }) {
                 </div>
               </div>
             ) : !errorMessage && (mode !== 'manual' || !videoUrl) ? (
-              <div className="flex items-center justify-center h-full min-h-[120px]">
+              <div className="flex items-center justify-center min-h-[120px]">
                 {loading ? (
                   <div className="flex flex-col items-center gap-3">
                     <Loader2 size={24} className="animate-spin text-secondary" />

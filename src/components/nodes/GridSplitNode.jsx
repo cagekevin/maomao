@@ -150,6 +150,9 @@ function GridSplitNode({ id, data, selected }) {
   const render = useRenderImageResolver()
   // 内容区引用：高度自适应（内容撑多高，节点就多高，不留空白，复刻 ScriptBoxNode 自适应方案）
   const contentRef = useRef(null)
+  // NodeShell 根 div ref：useContentHeightSync 需测「含标题栏的完整节点」而非仅内容区，
+  // 否则写回的 node.height 偏矮（漏标题栏），conic 连接跑马灯高度不贴合。
+  const wrapperRef = useRef(null)
 
   // ---- 状态（复刻 Lo.jsx：state 名与官方逻辑一一对应）----
   const gridSize = typeof data.gridSize === 'number' ? data.gridSize : undefined
@@ -177,7 +180,7 @@ function GridSplitNode({ id, data, selected }) {
   const activeCellIdRef = useRef(null) // 当前绘制的 lasso 记录（mousemove 用）
 
   // ---- 高度自适应（内容撑多高，节点就多高，不留空白；收口到 useContentHeightSync）----
-  useContentHeightSync(contentRef, id, { minHeight: 120, fallbackWidth: 280, syncWidth: true })
+  useContentHeightSync(contentRef, id, { minHeight: 120, fallbackWidth: 280, syncWidth: true, wrapperRef })
 
   // ---- 切分计算 cells（复刻 Lo.jsx I）----
   const cells = useMemo(() => {
@@ -747,6 +750,7 @@ function GridSplitNode({ id, data, selected }) {
           {modeBtn('lasso', '切刀', <Scissors size={11} />, '手动切刀 (任意形状 + 透明通道)')}
         </div>
       }
+      wrapperRef={wrapperRef}
       className="min-w-[280px]"
     >
       <CustomHandle position="left" handleId="in" variant="small" />
