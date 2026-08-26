@@ -246,8 +246,8 @@ function LoopNode({ id, data, selected }) {
         </div>
       )}
     >
-      {/* 主面板（紧凑布局；bg-surface 作为内层内容底，让外边框有对比；不加 rounded-xl 避免嵌套圆角） */}
-      <div className="relative w-full flex-1 min-h-0 flex flex-col gap-1.5 p-2 bg-surface drag-handle cursor-move">
+      {/* 主面板（紧凑布局；bg-surface 作为内层内容底，让外边框有对比；加 rounded-xl 让内层背景与外壳圆角贴合，避免圆角处露直角） */}
+      <div className="relative w-full flex-1 min-h-0 flex flex-col gap-1.5 p-2 bg-surface rounded-xl drag-handle cursor-move">
         {/* 分段提示词列表 */}
         <div className="flex-1 min-h-0 flex flex-col overflow-y-auto custom-scrollbar pr-0.5 nodrag nowheel">
           {displaySegs.length === 0 && (

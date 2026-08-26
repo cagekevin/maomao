@@ -267,7 +267,7 @@ function TemplateNode({ id, data, selected }) {
           // 性能降级：大画布隐藏结果（通用）
           <div className="flex-1 flex items-center justify-center text-caption text-muted">图片已隐藏</div>
         ) : imageUrl ? (
-          <div className="flex-1 relative overflow-hidden rounded-lg">
+          <div className="flex-1 relative overflow-hidden rounded-xl">
             <img src={render(imageUrl)} alt="" className="w-full h-full object-cover" loading="lazy" />
             {gen.error && (
               <div className="absolute inset-x-0 bottom-0 p-2 bg-red-500/80 text-white text-caption"><span className="break-all">{gen.error}</span></div>
@@ -275,7 +275,7 @@ function TemplateNode({ id, data, selected }) {
           </div>
         ) : (
           // 空态占位（用 token，别写死示例图）
-          <div className="flex-1 flex flex-col items-center justify-center gap-3 bg-surface-muted rounded-lg">
+          <div className="flex-1 flex flex-col items-center justify-center gap-3 bg-surface-muted rounded-xl">
             <ImageIcon size={48} className="text-gray-700" strokeWidth={1.2} />
             <span className="text-caption text-muted">双击展开参数，点生成</span>
           </div>

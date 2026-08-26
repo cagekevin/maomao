@@ -362,7 +362,7 @@ function PromptNode({ id, data, selected }) {
               alt="Generated Content"
               loading="lazy"
               decoding="async"
-              className={`max-w-full w-full h-full object-contain block rounded-lg ${loading ? 'opacity-50 blur-sm' : ''}`}
+              className={`max-w-full w-full h-full object-cover block ${loading ? 'opacity-50 blur-sm' : ''}`}
               draggable={false}
             />
           )}

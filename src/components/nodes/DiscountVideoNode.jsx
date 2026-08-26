@@ -275,7 +275,7 @@ function DiscountVideoNode({ id, data, selected }) {
               muted={false}
               fit="contain"
               size="lg"
-              className={`w-full h-full rounded-lg ${loading ? 'opacity-50 blur-sm' : ''}`}
+              className={`w-full h-full ${loading ? 'opacity-50 blur-sm' : ''}`}
               onActivate={() => videoRef.current?.play()}
               onDoubleClick={() => openVideoZoom(videoUrl)}
             />
