@@ -649,10 +649,10 @@ select::placeholder {
 .prompt-chip {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
+  gap: 4px;
   max-width: 180px;
   margin: 0 2px;
-  padding: 1px 6px 1px 3px;
+  padding: 2px 6px 2px 6px;
   border-radius: 6px;
   background: rgba(59, 130, 246, 0.16);
   border: 1px solid rgba(59, 130, 246, 0.4);
@@ -663,31 +663,40 @@ select::placeholder {
   user-select: none;
   -webkit-user-select: none;
   cursor: default;
+  box-sizing: border-box;
 }
 .prompt-chip-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
   border-radius: 4px;
   background: rgba(59, 130, 246, 0.22);
-  font-size: 10px;
+  font-size: 11px;
   line-height: 1;
   color: rgb(var(--mao-accent-strong) / 1);
   overflow: hidden;
+  box-sizing: border-box;
+  margin-left: -3px;
 }
 .prompt-chip-icon.has-thumbnail {
   background: transparent;
-  width: 20px;
-  height: 20px;
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  padding: 0;
+  margin-left: -3px;
 }
 .prompt-chip-thumb {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  object-position: center;
   display: block;
+  border-radius: 4px;
+  box-sizing: border-box;
 }
 .prompt-chip-label {
   overflow: hidden;
