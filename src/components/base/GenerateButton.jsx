@@ -8,7 +8,7 @@ import { ArrowUp, Square, RefreshCw } from 'lucide-react'
  *  - loading      是否生成中
  *  - onGenerate   生成点击
  *  - onStop       停止点击
- *  - onRefresh    生成中时的「刷新」按钮（可选，特惠视频有）
+ *  - onRefresh    生成中时的「刷新」按钮（可选，视频生成有）
  *  - cost         币消耗（可选，显示在生成按钮内）
  *  - costColor    币颜色（默认橙 yellow）
  *  - label        按钮文字（默认「生成」）

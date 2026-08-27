@@ -855,7 +855,7 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
   }
 
   // ═══════════════════════════════════════════════════════════════
-  // 合并生成视频（多个分镜 → 一个特惠视频节点）
+  // 合并生成视频（多个分镜 → 一个视频生成节点）
   // ═══════════════════════════════════════════════════════════════
   // 思路A：勾选多个镜头 → 调 AI 把各镜资料合并生成「一条序号连贯的合并视频提示词」
   // （"第一个画面…第N个画面"一路排到底，避免直接拼装导致序号重复），再新建 discountVideoNode。
@@ -911,7 +911,7 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
             prompt: mergedPrompt,
             images: refImages,
             size,
-            // 合并时长 → 预选特惠视频节点时长选项（单一数据来源：第一步各镜 duration 累加）
+            // 合并时长 → 预选视频生成节点时长选项（单一数据来源：第一步各镜 duration 累加）
             selectedSeconds: String(seconds),
             durationFromScript: true,
           },

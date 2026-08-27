@@ -66,7 +66,7 @@ export function useNodeExpanded(initial = true) {
  *
  * 两种尺寸模式：
  *  - mode='width-fixed'（生图节点）：宽度固定，height = 当前宽度 ÷ 比例
- *  - mode='area-fixed'（特惠视频）：面积固定，width = sqrt(ratio)*base，height = base/sqrt(ratio)
+ *  - mode='area-fixed'（视频生成）：面积固定，width = sqrt(ratio)*base，height = base/sqrt(ratio)
  *
  * @param id 节点 id
  * @param aspectRatio 当前比例字符串（'Auto' 或 '16:9'）
@@ -119,7 +119,7 @@ export function parseAspect(aspectRatio) {
  * 纯函数：按比例计算节点目标尺寸（useSizeSync 的算法核心，抽出供单测）。
  *  - ratio=null（Auto/无比例）→ 返回默认尺寸
  *  - mode='width-fixed'（生图节点）：宽固定 currentWidth，高 = 宽 ÷ 比例
- *  - mode='area-fixed'（特惠视频）：宽 = sqrt(比例)*base，高 = base/sqrt(比例)
+ *  - mode='area-fixed'（视频生成）：宽 = sqrt(比例)*base，高 = base/sqrt(比例)
  * @param {number|null} ratio  宽高比值（parseAspect 的产物）
  * @param {object} opts { mode, currentWidth, defaultWidth, defaultHeight, baseSize }
  * @returns {{width, height}}

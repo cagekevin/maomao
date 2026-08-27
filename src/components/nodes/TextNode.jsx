@@ -255,7 +255,7 @@ function TextNode({ id, data, selected }) {
       <input type="file" ref={fileRef} style={{ display: 'none' }} accept="image/*" onChange={uploadImage} />
 
       {/* 主容器：flex-1 填满 wrapper（wrapper 高度由 useSizeSync defaultHeight=420 同步），
-          与生图/特惠视频节点一致，避免 wrapper≠主框导致端口/面板位置错位。
+          与生图/视频生成节点一致，避免 wrapper≠主框导致端口/面板位置错位。
           背景/边框/阴影已由 NodeShell 主容器提供，这里只保留布局与点击行为 */}
       <div
         className="relative flex flex-col w-full flex-1 min-h-0"

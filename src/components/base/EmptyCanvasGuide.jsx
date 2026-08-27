@@ -13,7 +13,7 @@ import { FileText, Image as ImageIcon, Clapperboard } from 'lucide-react'
  *
  * 结构（对齐官方）：
  *  - 标题胶囊（bg-surface-raised rounded-full ... border-edge shadow-lg）：图表图标 + 「右键自由生成你的想象」
- *  - 三个按钮：文字生成(textNode) / 图片生成(promptNode) / 特惠视频(discountVideoNode)，
+ *  - 三个按钮：文字生成(textNode) / 图片生成(promptNode) / 视频生成(discountVideoNode)，
  *    点击在画布中央新建对应节点。
  *
  * @param {object} props
@@ -56,7 +56,7 @@ export default function EmptyCanvasGuide({ onAdd }) {
             className="flex items-center gap-2 px-6 py-3.5 bg-transparent hover:bg-surface-1 border border-edge hover:border-edge-strong rounded-2xl transition-all text-secondary hover:text-primary"
           >
             <Clapperboard size={18} className="text-muted" />
-            <span className="text-sm font-medium">特惠视频</span>
+            <span className="text-sm font-medium">视频生成</span>
           </button>
         </div>
       </div>

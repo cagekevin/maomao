@@ -34,7 +34,7 @@ import { resolveProviderModel } from '../base/providerModels.js'
 import { debounce, buildEffectivePrompt, clampSeconds } from '../base/utils.js'
 
 /**
- * 特惠视频节点（复刻原 As.jsx / discountVideoNode）
+ * 视频生成节点（复刻原 As.jsx / discountVideoNode）
  * 已迁移到基座：NodeShell + HoverToolbar + ExpandablePanel + GenerateButton + ModelSelect。
  * 保留差异化：主显示区、比例/分辨率/时长菜单、素材区、提示词输入。
  * 性能降级用通用 useMediaDegrade：lodLevel>=3 藏视频（与官方横幅 yt===3 一致）。
@@ -229,7 +229,7 @@ function DiscountVideoNode({ id, data, selected }) {
     <NodeShell
       id={id}
       label={data.label}
-      defaultTitle="特惠视频"
+      defaultTitle="视频生成"
       icon={<Clapperboard size={11} className="text-muted" />}
       selected={selected}
       minWidth={200}

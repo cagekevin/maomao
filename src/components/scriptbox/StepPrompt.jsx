@@ -187,7 +187,7 @@ export default function StepPrompt({ data, updateData, callbacks }) {
         >
           <ImageIcon size={11} /> 批量生图{selShots.size ? `(${selShots.size})` : ''}
         </button>
-        {/* 合并生成视频：勾选 ≥2 镜 → AI 合并生成一条序号连贯的提示词 → 新建特惠视频节点（剧本数据不变）。
+        {/* 合并生成视频：勾选 ≥2 镜 → AI 合并生成一条序号连贯的提示词 → 新建视频生成节点（剧本数据不变）。
             生成中按钮转圈 + 文字「生成中」，结束（成功/失败）复位。 */}
         <button
           className="flex items-center gap-1 px-2.5 py-1.5 text-caption-sm text-primary bg-surface-hover hover:bg-surface-hover-strong rounded-md whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed"

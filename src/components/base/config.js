@@ -123,7 +123,7 @@ export const VIDEO_POLL_INTERVAL = 5000
 export const GEN_MAX_CONCURRENT = 6
 
 // ── 节点布局（useSizeSync 收口）─────────────────────────────────
-/** area-fixed 节点的面积基准：特惠视频与图片生图统一尺寸的唯一来源（往这里改，两边都变） */
+/** area-fixed 节点的面积基准：视频生成与图片生图统一尺寸的唯一来源（往这里改，两边都变） */
 export const NODE_AREA_FIXED_BASE_SIZE = 380
 
 // ── 节点写回（useNodeData，P0-2 收口）────────────────────────────

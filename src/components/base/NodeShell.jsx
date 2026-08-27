@@ -56,7 +56,7 @@ function useNodeSize(id) {
  *  - keepAspect                       拖拽时是否保持比例
  *  - aspectRatio                      'Auto'|'16:9'|...（启用比例同步）
  *  - defaultHeight                    aspectRatio=Auto 时的默认高度
- *  - sizeMode                         'width-fixed'（默认，生图）| 'area-fixed'（特惠视频）
+ *  - sizeMode                         'width-fixed'（默认，生图）| 'area-fixed'（视频生成）
  *  - baseSize                         area-fixed 的面积基准（默认 380）
  *  - handleVariant                    'large'|'small'
  *  - showHandles                      是否渲染默认左右端口（默认 true；自定义端口节点设 false）

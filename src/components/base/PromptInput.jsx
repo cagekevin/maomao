@@ -129,7 +129,7 @@ const PromptInput = forwardRef(function PromptInput(
               {all.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full text-muted-2 gap-2">
                   <span className="text-caption-sm">暂无素材</span>
-                  <span className="text-caption">上传图片或连接其他节点后可用 @ 引用</span>
+                  <span className="text-caption">上传素材后可用 @ 引用</span>
                 </div>
               ) : (
                 <div className="grid grid-cols-4 gap-1.5">
@@ -500,14 +500,14 @@ const PromptInput = forwardRef(function PromptInput(
             whiteSpace: 'pre-wrap',
             wordBreak: 'break-word',
           }}
-          onInput={detectMention}
+          onInput={(e) => { detectMention(e); emitDOM() }}
           onKeyDown={handleKeyDown}
           onPaste={handlePaste}
           onBlur={emitDOM}
         />
         {!value && (
           <span
-            className="pointer-events-none absolute top-0 left-0 text-base-sm placeholder-muted-2"
+            className="pointer-events-none absolute top-0 left-0 text-base-sm text-muted-2"
             style={{ lineHeight: 1.625, paddingTop: '1px' }}
             aria-hidden="true"
           >
@@ -530,7 +530,7 @@ const PromptInput = forwardRef(function PromptInput(
               {filtered.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full text-muted-2 gap-2 py-4">
                   <span className="text-caption-sm">暂无素材</span>
-                  <span className="text-caption">上传图片或连接其他节点后可用 @ 引用</span>
+                  <span className="text-caption">上传素材后可用 @ 引用</span>
                 </div>
               ) : (
                 <div className="flex flex-col gap-0.5">

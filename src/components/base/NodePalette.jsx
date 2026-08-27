@@ -64,7 +64,7 @@ export const paletteNodes = [
   { type: 'loopNode', label: '循环生成', icon: Repeat, cat: 'image', component: LoopNode, builtin: true, data: { splitMethod: 'newline' } },
 
   // --- 视频工具 ---
-  // discountVideoNode（特惠视频）与顶部 E 快捷重复，子分类不再列出
+  // discountVideoNode（视频生成）与顶部 E 快捷重复，子分类不再列出
   { type: 'videoExtractNode', label: '视频抽帧', icon: ImageDown, cat: 'video', component: VideoExtractNode, builtin: true, data: { videoUrl: '', videoName: '' } },
   { type: 'videoProcessNode', label: '视频处理', icon: Wand2, cat: 'video', component: VideoProcessNode, badge: { text: 'NEW', tone: 'new' }, builtin: true, data: { mode: 'trim', sourceOrder: [], timelineTracks: [], audioFormat: 'm4a', trimStart: 0, trimEnd: 4, resizeWidth: 1280, resizeHeight: 720, targetFps: 30 } },
 
@@ -77,7 +77,7 @@ export const paletteNodes = [
 const HIDDEN_TOP_LEVEL_NODES = [
   { type: 'textNode', label: '文本', cat: 'text', component: TextNode, data: { text: '' } },
   { type: 'promptNode', label: '图片', cat: 'image', component: PromptNode, data: { prompt: '' } },
-  { type: 'discountVideoNode', label: '特惠视频', cat: 'video', component: DiscountVideoNode, data: { prompt: '' } }
+  { type: 'discountVideoNode', label: '视频生成', cat: 'video', component: DiscountVideoNode, data: { prompt: '' } }
 ]
 
 // 便捷：按 type 查目录项

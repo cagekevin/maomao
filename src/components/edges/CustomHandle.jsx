@@ -4,7 +4,7 @@ import { createRafBatch } from '../base/utils.js'
 
 /**
  * 自定义连接端口（复刻原 _Component12.jsx）
- * 大号（48px）用于特惠视频节点，小号（32px）用于文本/图片节点。
+ * 大号（48px）用于视频生成节点，小号（32px）用于文本/图片节点。
  * position: 'left' | 'right'
  */
 function CustomHandle({ className = '', variant = 'large', position, handleId, top }) {

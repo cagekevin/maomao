@@ -75,7 +75,7 @@ export function typeLabel(type) {
     image: '生图',
     video: '视频',
     sd2Video: 'SD2视频',
-    discountVideo: '特惠视频',
+    discountVideo: '视频生成',
     custom: '万能',
     rhWebapp: 'AI应用'
   }[type] || type || '任务'
