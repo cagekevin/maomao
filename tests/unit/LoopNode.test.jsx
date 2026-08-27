@@ -1,4 +1,3 @@
-// @vitest-environment jsdom
 /**
  * LoopNode 深度测试。
  * 审计建议 P1：循环次数、上游连接、拆分逻辑。

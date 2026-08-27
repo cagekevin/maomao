@@ -59,7 +59,7 @@ describe('taskStore §2.6 状态映射', () => {
     expect(typeLabel('text')).toBe('文本')
     expect(typeLabel('image')).toBe('生图')
     expect(typeLabel('video')).toBe('视频')
-    expect(typeLabel('discountVideo')).toBe('视频生成')
+    expect(typeLabel('discountVideo')).toBe('特惠视频')
     expect(typeLabel('custom')).toBe('万能')
     expect(typeLabel(null)).toBe('任务')
     expect(typeLabel('weird')).toBe('weird')

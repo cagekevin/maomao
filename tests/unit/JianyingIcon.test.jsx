@@ -1,4 +1,3 @@
-// @vitest-environment jsdom
 /**
  * JianyingIcon 深度测试。
  *

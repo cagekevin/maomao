@@ -1,4 +1,3 @@
-// @vitest-environment jsdom
 /**
  * AgentPanel 深度测试 —— 画布 AI 助手聊天面板装配层。
  *

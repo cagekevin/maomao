@@ -1,4 +1,3 @@
-// @vitest-environment jsdom
 /**
  * TemplateNode 单测（阶段五）。
  * 复用共享 mock kit（tests/unit/_nodeMocks.mjs）。

@@ -1,4 +1,3 @@
-// @vitest-environment jsdom
 /**
  * AgentMessage 深度测试。
  *

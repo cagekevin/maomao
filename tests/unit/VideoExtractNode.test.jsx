@@ -1,4 +1,3 @@
-// @vitest-environment jsdom
 /**
  * VideoExtractNode 深度测试。
  *
