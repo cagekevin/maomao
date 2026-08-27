@@ -36,6 +36,7 @@ import { useNodePrefs } from '../base/nodePrefs.js'
 import { useRenderImageResolver } from '../base/imageUrl.js'
 import { resolveProviderModel } from '../base/providerModels.js'
 import { debounce, mergeRefImages, buildEffectivePrompt } from '../base/utils.js'
+import { resolvePromptChips } from '../base/promptChips.js'
 
 /**
  * 生图节点（复刻原 bo.jsx / promptNode）
@@ -78,6 +79,13 @@ function PromptNode({ id, data, selected }) {
   // 本地写的主提示词在前，上游文本节点/资产文字追加在后，一起送进生图请求。
   // 多个上游文本节点自动合并；多个上游图片节点也已在 refImages 中合并。
   const effectivePrompt = buildEffectivePrompt(prompt, refTexts)
+  // 【富文本芯片解析】prompt 里可能含 `@{id:label}` 素材芯片（图片 → 参考图，文本 → 纯文本）。
+  // 生成前统一解析：chipResolved.text 是发给 AI 的纯文本；chipResolved.refImages 是用户显式 @ 的参考图
+  // （其顺序对应 text 里的「图片N」序号）。memo 稳定引用，避免每次 render 重算。
+  const chipResolved = useMemo(
+    () => resolvePromptChips(effectivePrompt, refImages, refTexts),
+    [effectivePrompt, refImages, refTexts]
+  )
   // 提示词输入框双击全屏编辑（复刻 TextNode 的交互：ResizeFullscreenHandle 双击 → 弹层）
   const [fullscreenPrompt, setFullscreenPrompt] = useState(false)
   // 记住上次选择的比例/尺寸/模型（跨节点/跨会话）；初始用记忆值，无记忆回退默认
@@ -185,16 +193,20 @@ function PromptNode({ id, data, selected }) {
     sync: { aspectRatio: setAspectRatio, selectedModel: setSelectedModel, quality: setQuality, imageSize: setImageSize },
     resultField: 'imageUrl',
     recoverable: true,
-    // 前置校验：本地 prompt 或上游文本任一非空即可生图
-    validate: () => (effectivePrompt?.trim() ? '' : '请输入提示词'),
+    // 前置校验：本地 prompt（含芯片解析后的文本或参考图）或上游文本任一非空即可生图
+    validate: () => ((effectivePrompt?.trim() || chipResolved.refImages.length > 0) ? '' : '请输入提示词'),
     run: async ({ progress, signal }) => {
       // 从「providerId::modelId」解析出实际 provider 和 modelId（跨 provider 选模型）
       const { provider: useProvider, modelId } = resolveProviderModel(providers, selectedModel, primary)
-      const refUrls = refImages.map((img) => img.url)
-      // 图生图：把连线上游产出的参考图传下去（网关 image_urls 字段）；signal 支持真取消（Step C）
+      // 参考图 = 用户显式 @ 的芯片图（顺序对应 prompt 里的「图片N」）+ 其余连线上游图（去重）。
+      // 图生图：把参考图传下去（网关 image_urls 字段）；signal 支持真取消（Step C）
+      const chipUrls = chipResolved.refImages.map((im) => im.url)
+      const upstreamUrls = refImages.map((img) => img.url)
+      const refUrls = [...new Set([...chipUrls, ...upstreamUrls])]
       return generateImage({
         provider: useProvider,
-        prompt: effectivePrompt || '',
+        // 芯片解析后的纯文本（图片芯片已替换为「图片N」，文本芯片已替换为纯文本）
+        prompt: chipResolved.text || effectivePrompt || '',
         model: modelId,
         size: imageSize,
         n: count,
@@ -257,7 +269,14 @@ function PromptNode({ id, data, selected }) {
   ]
   const costMap = { 'dall-e-3': 4 }
 
-  const insertMention = (name) => setPromptPersist((p) => (p ? `${p} @${name} ` : `@${name} `))
+  // 富文本素材插入：由 PromptInput 挂载后通过 onReady 上抛（在光标处插芯片）。
+  // MaterialStrip 的蓝色 @按钮点击也走这里，复用同一插入能力（保持组件职责内聚）。
+  const insertAssetRef = useRef(null)
+  const insertMention = (asset) => {
+    if (typeof insertAssetRef.current === 'function') {
+      insertAssetRef.current(asset)
+    }
+  }
   const hasImage = !!imageUrl
 
   // 下载生成的图片（<a download> 触发浏览器保存；文件名推导走统一 resolveDownloadFilename）
@@ -379,7 +398,7 @@ function PromptNode({ id, data, selected }) {
           {/* 素材缩略图区（通用组件 MaterialStrip，以生图节点为标准：缩略图 + 底部@插入 + 右上×断线） */}
           <MaterialStrip images={refImages} texts={refTexts} onInsert={insertMention} onDisconnect={disconnectSource} />
 
-          {/* 提示词输入（基座 PromptInput，含 @素材弹层） */}
+          {/* 提示词输入（基座 PromptInput，contentEditable 富文本，含 @素材弹层与芯片插入） */}
           <PromptInput
             ref={promptInputRef}
             value={prompt}
@@ -388,6 +407,8 @@ function PromptNode({ id, data, selected }) {
             refImages={refImages}
             refTexts={refTexts}
             onInsert={insertMention}
+            onReady={(fn) => { insertAssetRef.current = fn }}
+            richText
             inputWidth={data.inputWidth}
             inputHeight={data.inputHeight}
           />
@@ -481,6 +502,7 @@ function PromptNode({ id, data, selected }) {
         refTexts={refTexts}
         onInsert={insertMention}
         onDisconnect={disconnectSource}
+        richText
       />
 
       {/* 双击大图：共享 ImageZoomDialog */}

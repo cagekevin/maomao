@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { deepClone, formatTime, debounce, throttle, useDebouncedEffect, createImeInput, createRafBatch, mergeRefImages, buildEffectivePrompt, clampSeconds } from '../../src/components/base/utils.js'
+import { deepClone, formatTime, debounce, throttle, useDebouncedEffect, createImeInput, createRafBatch, mergeRefImages, buildEffectivePrompt, clampSeconds, assetLabel } from '../../src/components/base/utils.js'
 import { renderHook } from '@testing-library/react'
 
 describe('deepClone', () => {
@@ -52,6 +52,22 @@ describe('buildEffectivePrompt（本地 prompt + 上游文本合并）', () => {
 
   it('上游文本自身 trim（首尾空格去除）', () => {
     expect(buildEffectivePrompt('', [{ text: '  白天  ' }])).toBe('白天')
+  })
+})
+
+describe('assetLabel（MaterialStrip onInsert 对象/字符串兼容）', () => {
+  it('对象 → 取 label', () => {
+    expect(assetLabel({ id: 'img-1', label: '人物', kind: 'image' })).toBe('人物')
+  })
+
+  it('字符串 → 原样返回', () => {
+    expect(assetLabel('人物')).toBe('人物')
+  })
+
+  it('对象缺 label / 空值 → 空串', () => {
+    expect(assetLabel({ id: 'img-1' })).toBe('')
+    expect(assetLabel(null)).toBe('')
+    expect(assetLabel(undefined)).toBe('')
   })
 })
 

@@ -31,6 +31,15 @@ export function mergeRefImages(...groups) {
   return merged
 }
 
+/** 从素材取显示名（统一兼容 MaterialStrip 的 onInsert 两种形态）：
+ *  - 对象 { label, ... }（富文本芯片插入，MaterialStrip 现传完整对象）→ 返回 label
+ *  - 字符串 name（旧式纯文本插入回调）→ 原样返回
+ * 供未升级节点的 onInsert 字符串拼接回调复用，避免把对象拼成 [object Object]。 */
+export function assetLabel(asset) {
+  if (typeof asset === 'string') return asset
+  return (asset && asset.label) || ''
+}
+
 /** 有效提示词 = 本地 prompt + 上游文本合并（PromptNode/TextNode/TemplateNode/DiscountVideoNode 公共实现）：
  *  本地主提示词在前，上游文本（refTexts）去空后追加在后，一起参与生成。返回 '' 表示空。 */
 export function buildEffectivePrompt(localPrompt, refTexts) {

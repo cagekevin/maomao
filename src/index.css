@@ -639,3 +639,64 @@ select::placeholder {
   border-radius: 3px;
   padding: 0 2px;
 }
+
+/* ===== prompt 富文本芯片（文字 + 素材小图，见 promptChips.js） =====
+ * contentEditable 里 @素材 引用渲染成的「芯片」样式：
+ *  - 图片素材 → 缩略小图 + 标签（.has-thumbnail .prompt-chip-thumb）
+ *  - 文本素材 → @ 图标 + 标签
+ * 用 --mao-* 全局变量，与全站深色主题一致；芯片整体 contentEditable=false，
+ * 删除/选中按整体对待（由 PromptEditor 处理，本文件只管视觉）。 */
+.prompt-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  max-width: 180px;
+  margin: 0 2px;
+  padding: 1px 6px 1px 3px;
+  border-radius: 6px;
+  background: rgba(59, 130, 246, 0.16);
+  border: 1px solid rgba(59, 130, 246, 0.4);
+  color: rgb(var(--mao-accent-strong) / 1);
+  font-size: 12px;
+  line-height: 1.4;
+  vertical-align: middle;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: default;
+}
+.prompt-chip-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  background: rgba(59, 130, 246, 0.22);
+  font-size: 10px;
+  line-height: 1;
+  color: rgb(var(--mao-accent-strong) / 1);
+  overflow: hidden;
+}
+.prompt-chip-icon.has-thumbnail {
+  background: transparent;
+  width: 20px;
+  height: 20px;
+}
+.prompt-chip-thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.prompt-chip-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: rgb(var(--mao-text-primary) / 1);
+}
+/* 芯片整体不可编辑，但内层元素保证不捕获画布拖拽 */
+.prompt-chip,
+.prompt-chip * {
+  pointer-events: none;
+}

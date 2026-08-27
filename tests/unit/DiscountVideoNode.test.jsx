@@ -65,6 +65,32 @@ vi.mock('../../src/components/base/MaterialStrip.jsx', () => ({
 }))
 vi.mock('../../src/components/base/GenerateButton.jsx', () => ({ default: ({ onGenerate }) => <button type="button" onClick={onGenerate}>生成</button> }))
 vi.mock('../../src/components/base/ModelSelect.jsx', () => ({ default: () => null }))
+// PromptInput：桩为 textarea，透传 value/onChange/placeholder；onReady 上抛一个
+// 「追加 @label 文本」的插入函数（复刻旧 textarea 行为），避免测试耦合富文本内部实现。
+// 富文本芯片本身的序列化/交互由 promptChips.test.js 与 PromptInput 自己的测试覆盖。
+vi.mock('../../src/components/base/PromptInput.jsx', async (importOriginal) => {
+  const ReactMock = (await import('react')).default
+  return {
+    ...(await importOriginal()),
+    default: ReactMock.forwardRef(function MockPromptInput({ value, onChange, onInsert, onReady, placeholder }, ref) {
+      ReactMock.useEffect(() => {
+        onReady?.((asset) => {
+          const label = typeof asset === 'string' ? asset : (asset && asset.label) || ''
+          onChange(value ? `${value} @${label} ` : `@${label} `)
+        })
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+      }, [])
+      return (
+        <textarea
+          ref={ref}
+          placeholder={placeholder}
+          value={value}
+          onChange={(e) => onChange?.(e.target.value)}
+        />
+      )
+    }),
+  }
+})
 vi.mock('../../src/components/base/PromptLibraryButton.jsx', () => ({ default: () => null }))
 vi.mock('../../src/components/base/GeneratingOverlay.jsx', () => ({ default: () => null }))
 vi.mock('../../src/components/base/ResizeFullscreenHandle.jsx', () => ({ default: () => null }))

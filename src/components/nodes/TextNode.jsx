@@ -115,6 +115,10 @@ function TextNode({ id, data, selected }) {
   const fileRef = useRef(null)
   const promptInputRef = useRef(null) // 提示词 textarea ref（供面板右下角手柄拖拽改尺寸）
   const wrapperRef = useRef(null) // NodeShell 根 div ref（主框手柄拖拽改整体尺寸）
+  const insertAssetRef = useRef(null) // 富文本素材插入：由 PromptInput onReady 上抛（主框 MaterialStrip 共用）
+  const insertMention = (asset) => {
+    if (typeof insertAssetRef.current === 'function') insertAssetRef.current(asset)
+  }
   // 全屏编辑状态（复刻 Co.jsx:33,35 的 m/y → 主框/输入框全屏）
   const [fullscreenText, setFullscreenText] = useState(false)
   const [fullscreenPrompt, setFullscreenPrompt] = useState(false)
@@ -341,9 +345,9 @@ function TextNode({ id, data, selected }) {
       <ExpandablePanel expanded={expanded} minWidth={420}>
         <div className="space-y-3">
           {/* 素材缩略图区（通用组件 MaterialStrip，以生图节点为标准） */}
-          <MaterialStrip images={refImages} texts={refTexts} onInsert={(name) => setPromptPersist((p) => (p ? `${p} @${name} ` : `@${name} `))} onDisconnect={disconnectSource} />
+          <MaterialStrip images={refImages} texts={refTexts} onInsert={insertMention} onDisconnect={disconnectSource} />
 
-          {/* 提示词输入（基座 PromptInput） */}
+          {/* 提示词输入（基座 PromptInput，富文本芯片） */}
           <PromptInput
             ref={promptInputRef}
             value={prompt}
@@ -351,7 +355,9 @@ function TextNode({ id, data, selected }) {
             placeholder="输入提示词 (输入 @ 调出素材)..."
             refImages={refImages}
             refTexts={refTexts}
-            onInsert={(name) => setPromptPersist((p) => (p ? `${p} @${name} ` : `@${name} `))}
+            onInsert={insertMention}
+            onReady={(fn) => { insertAssetRef.current = fn }}
+            richText
             inputWidth={data.inputWidth}
             inputHeight={data.inputHeight}
           />
@@ -410,7 +416,7 @@ function TextNode({ id, data, selected }) {
         placeholder="输入文本内容..."
       />
 
-      {/* 全屏弹层：输入框全屏编辑提示词（显示上游图片/文本） */}
+      {/* 全屏弹层：输入框全屏编辑提示词（显示上游图片/文本，富文本芯片） */}
       <FullscreenEditor
         open={fullscreenPrompt}
         onClose={() => setFullscreenPrompt(false)}
@@ -420,8 +426,9 @@ function TextNode({ id, data, selected }) {
         placeholder="输入提示词..."
         refImages={refImages}
         refTexts={refTexts}
-        onInsert={(name) => setPromptPersist((p) => (p ? `${p} @${name} ` : `@${name} `))}
+        onInsert={insertMention}
         onDisconnect={disconnectSource}
+        richText
       />
     </NodeShell>
   )

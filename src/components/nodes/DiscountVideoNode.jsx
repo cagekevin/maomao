@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react'
+import React, { useState, useRef, useCallback, useMemo } from 'react'
 import { useReactFlow } from '@xyflow/react'
 import {
   Clapperboard, Plus, Expand, Download, Trash2, Play,
@@ -17,6 +17,8 @@ import { downloadUrl, resolveDownloadFilename } from '../base/clipboard.js'
 import PromptLibraryButton from '../base/PromptLibraryButton.jsx'
 import JianyingIcon from '../base/JianyingIcon.jsx'
 import MaterialStrip from '../base/MaterialStrip.jsx'
+import PromptInput from '../base/PromptInput.jsx'
+import { resolvePromptChips } from '../base/promptChips.js'
 import { useNodeResize, useOutsideClick } from '../base/hooks.js'
 import { useConnectedInputs } from '../base/useConnectedInputs.js'
 import { useMediaDegrade } from '../base/useMediaDegrade.js'
@@ -58,6 +60,13 @@ function DiscountVideoNode({ id, data, selected }) {
   const [prompt, setPrompt] = useState(data.prompt || '')
   // 有效提示词 = 本地 prompt + 上游文本，两者都参与生成
   const effectivePrompt = buildEffectivePrompt(prompt, refTexts)
+  // 【富文本芯片解析】prompt 里可能含 `@{id:label}` 素材芯片（图片 → 参考图，文本 → 纯文本）。
+  // 生成前统一解析：chipResolved.text 是发给 AI 的纯文本；chipResolved.refImages 是用户显式 @ 的参考图。
+  const connectedImages = connected.images || []
+  const chipResolved = useMemo(
+    () => resolvePromptChips(effectivePrompt, connectedImages, refTexts),
+    [effectivePrompt, connectedImages, refTexts]
+  )
   // 提示词输入框双击全屏编辑（复刻 TextNode 的交互：ResizeFullscreenHandle 双击 → 弹层）
   const [fullscreenPrompt, setFullscreenPrompt] = useState(false)
   // 提示词落盘：本地 state + 写回 node.data（支持函数式更新）。
@@ -104,6 +113,10 @@ function DiscountVideoNode({ id, data, selected }) {
   const fileRef = useRef(null)
   const videoRef = useRef(null) // 主视频元素（点击播放按钮用）
   const promptInputRef = useRef(null) // 提示词 textarea ref（供面板右下角手柄拖拽改尺寸）
+  const insertAssetRef = useRef(null) // 富文本素材插入：由 PromptInput onReady 上抛（主框 MaterialStrip 共用）
+  const insertMention = (asset) => {
+    if (typeof insertAssetRef.current === 'function') insertAssetRef.current(asset)
+  }
   // 双击视频查看大图（原生 <dialog> + 原生 <video> 播放器）
   const [zoomUrl, setZoomUrl] = useState('')
   const zoomRef = useRef(null)
@@ -152,16 +165,20 @@ function DiscountVideoNode({ id, data, selected }) {
     sync: { videoUrl: setVideoUrl },
     resultField: 'videoUrl',
     recoverable: true,
-    // 前置校验：本地 prompt 或上游文本任一非空即可生成
-    validate: () => (effectivePrompt?.trim() ? '' : '请输入提示词'),
+    // 前置校验：本地 prompt（含芯片解析后的文本或参考图）或上游文本任一非空即可生成
+    validate: () => ((effectivePrompt?.trim() || chipResolved.refImages.length > 0) ? '' : '请输入提示词'),
     run: async ({ progress, signal }) => {
       // 从「providerId::modelId」解析出实际 provider 和 modelId（跨 provider 选模型）
       const { provider: useProvider, modelId } = resolveProviderModel(providers, selectedModel, primary)
-      const refUrls = connected.images.map((img) => img.url)
+      // 参考图 = 用户显式 @ 的芯片图（顺序对应 prompt 里的「图片N」）+ 其余连线上游图（去重）
+      const chipUrls = chipResolved.refImages.map((im) => im.url)
+      const upstreamUrls = connectedImages.map((img) => img.url)
+      const refUrls = [...new Set([...chipUrls, ...upstreamUrls])]
       // signal 支持真取消（Step C）
       return generateVideo({
         provider: useProvider,
-        prompt: effectivePrompt || '',
+        // 芯片解析后的纯文本（图片芯片已替换为「图片N」，文本芯片已替换为纯文本）
+        prompt: chipResolved.text || effectivePrompt || '',
         model: modelId,
         size: ratio,
         resolution,
@@ -298,28 +315,22 @@ function DiscountVideoNode({ id, data, selected }) {
       <ExpandablePanel expanded={expanded} minWidth={500}>
         <div className="space-y-3">
           {/* 素材缩略图区（通用组件 MaterialStrip，以生图节点为标准） */}
-          <MaterialStrip images={connected.images} texts={connected.texts} onInsert={(name) => setPromptPersist((p) => (p ? `${p} @${name} ` : `@${name} `))} onDisconnect={disconnectSource} />
+          <MaterialStrip images={connected.images} texts={connected.texts} onInsert={insertMention} onDisconnect={disconnectSource} />
 
-          {/* 提示词输入 */}
-          <div className="flex items-start gap-2">
-            {/* 外层不设固定 height，让 textarea 撑开 → 手柄拖拽纵向能正确拉高（生图 PromptInput 同款） */}
-            <div className="flex-1 nodrag relative shrink-0">
-              <textarea
-                ref={promptInputRef}
-                className="w-full bg-transparent text-base-sm text-primary outline-none leading-relaxed placeholder-muted-2 font-sans custom-scrollbar nowheel nopan nodrag resize-none"
-                style={{
-                  width: data.inputWidth ? `${data.inputWidth}px` : undefined,
-                  height: data.inputHeight ? `${data.inputHeight}px` : '80px',
-                  minHeight: '80px',
-                  overflow: 'auto'
-                }}
-                placeholder="描述你想要的视频内容 (输入 @ 调出素材)..."
-                value={prompt}
-                onChange={(e) => setPromptPersist(e.target.value)}
-                onWheel={(e) => e.stopPropagation()}
-              />
-            </div>
-          </div>
+          {/* 提示词输入（基座 PromptInput，富文本芯片） */}
+          <PromptInput
+            ref={promptInputRef}
+            value={prompt}
+            onChange={setPromptPersist}
+            placeholder="描述你想要的视频内容 (输入 @ 调出素材)..."
+            refImages={connected.images}
+            refTexts={connected.texts}
+            onInsert={insertMention}
+            onReady={(fn) => { insertAssetRef.current = fn }}
+            richText
+            inputWidth={data.inputWidth}
+            inputHeight={data.inputHeight}
+          />
 
           {/* 底部控制 */}
           <div className="flex items-center justify-between pt-2 border-t border-edge-faint nodrag">
@@ -409,7 +420,7 @@ function DiscountVideoNode({ id, data, selected }) {
         />
       </ExpandablePanel>
 
-      {/* 全屏弹层：提示词输入框双击 → 全屏编辑提示词（统一组件） */}
+      {/* 全屏弹层：提示词输入框双击 → 全屏编辑提示词（统一组件，富文本芯片） */}
       <FullscreenEditor
         open={fullscreenPrompt}
         onClose={() => setFullscreenPrompt(false)}
@@ -419,8 +430,9 @@ function DiscountVideoNode({ id, data, selected }) {
         placeholder="描述你想要的视频内容 (输入 @ 调出素材)..."
         refImages={connected.images}
         refTexts={connected.texts}
-        onInsert={(name) => setPromptPersist((p) => (p ? `${p} @${name} ` : `@${name} `))}
+        onInsert={insertMention}
         onDisconnect={disconnectSource}
+        richText
       />
 
       {/* 双击视频查看大图：原生 <dialog> + 系统原生 <video> 播放器 */}
