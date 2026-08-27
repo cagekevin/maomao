@@ -17,8 +17,10 @@ import { generateId } from './idGen.js'
  *
  * @param {object} props
  *  - category  当前节点类型对应的提示词分类（'image' | 'video' | 'text'，用于弹窗默认筛选）
+ *  - onAppend  可选：追加回调（prompt）→ 把所选预设提示词追加到当前节点提示词。
+ *              传入后弹窗右上角会显示「追加到提示词 / 新增文本节点」两种使用方式。
  */
-export default function PromptLibraryButton({ category = 'text' }) {
+export default function PromptLibraryButton({ category = 'text', onAppend }) {
   const [open, setOpen] = useState(false)
   const { addNodes } = useReactFlow()
   const { posAtCenter } = useNodePosition()
@@ -53,7 +55,7 @@ export default function PromptLibraryButton({ category = 'text' }) {
         <Sparkles size={10} className="text-blue-400" />
         <span>预设</span>
       </button>
-      <PromptLibrary open={open} onClose={() => setOpen(false)} onUse={handleUse} defaultCategory={category} />
+      <PromptLibrary open={open} onClose={() => setOpen(false)} onUse={handleUse} onAppend={onAppend} defaultCategory={category} />
     </>
   )
 }

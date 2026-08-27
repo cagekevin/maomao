@@ -19,12 +19,14 @@ import { createImeInput } from './utils.js'
  * @param {object} props
  *  - open         是否打开
  *  - onClose      关闭回调
- *  - onUse        使用回调（content 为预设 prompt）
+ *  - onUse        使用回调（content 为预设 prompt）→ 新增文本节点
+ *  - onAppend     追加回调（content 为预设 prompt）→ 追加到当前节点提示词（可选）
  *  - defaultCategory 默认分类（image/video/text/''）
  *  - presetPrompts 可选的预设数组覆盖（不传则从本地读）
  */
-function PromptLibrary({ open, onClose, onUse, defaultCategory = '', presetPrompts }) {
+function PromptLibrary({ open, onClose, onUse, onAppend, defaultCategory = '', presetPrompts }) {
   const [activeTab, setActiveTab] = useState('mine') // mine | recent
+  const [useMode, setUseMode] = useState('newNode') // newNode（新增文本节点）| append（追加到提示词）
   const [searchKeyword, setSearchKeyword] = useState('')
   const [debouncedKeyword, setDebouncedKeyword] = useState('') // P2：过滤用防抖值（输入即时、过滤停顿后触发）
   const [selectedCategory, setSelectedCategory] = useState(defaultCategory)
@@ -73,7 +75,11 @@ function PromptLibrary({ open, onClose, onUse, defaultCategory = '', presetPromp
 
   const handleUse = (card) => {
     recordRecent(card.id)
-    if (onUse) {
+    // 有追加能力 + 当前选中「追加到提示词」→ 走追加；否则走默认（新增节点）
+    if (onAppend && useMode === 'append') {
+      onAppend(card.content)
+      onClose()
+    } else if (onUse) {
       onUse(card.content)
       onClose()
     } else {
@@ -148,7 +154,26 @@ function PromptLibrary({ open, onClose, onUse, defaultCategory = '', presetPromp
               className="w-full h-[34px] bg-surface border border-edge rounded-[10px] pl-9 pr-3 text-body text-body-sm outline-none focus:border-edge-strong box-border"
             />
           </div>
-          <button className="ml-auto w-8 h-8 flex items-center justify-center bg-transparent hover:bg-surface-hover rounded-lg text-muted hover:text-white cursor-pointer" onClick={onClose} title="关闭">
+          {/* 使用方式切换（右上角）：追加到提示词 / 新增文本节点 */}
+          {onAppend && (
+            <div className="ml-auto flex items-center gap-1 flex-shrink-0">
+              <button
+                className={`px-3 h-7 rounded-lg text-xs border transition-colors cursor-pointer ${useMode === 'append' ? 'bg-surface-hover-strong border-edge-strong text-white' : 'bg-transparent border-edge text-muted hover:text-primary hover:border-edge-strong'}`}
+                onClick={() => setUseMode('append')}
+                title="将所选提示词追加到当前节点提示词"
+              >
+                追加到提示词
+              </button>
+              <button
+                className={`px-3 h-7 rounded-lg text-xs border transition-colors cursor-pointer ${useMode === 'newNode' ? 'bg-surface-hover-strong border-edge-strong text-white' : 'bg-transparent border-edge text-muted hover:text-primary hover:border-edge-strong'}`}
+                onClick={() => setUseMode('newNode')}
+                title="将所选提示词新建为文本节点"
+              >
+                新增文本节点
+              </button>
+            </div>
+          )}
+          <button className="w-8 h-8 flex items-center justify-center bg-transparent hover:bg-surface-hover rounded-lg text-muted hover:text-white cursor-pointer" onClick={onClose} title="关闭">
             <X size={18} />
           </button>
         </div>
@@ -204,13 +229,13 @@ function PromptLibrary({ open, onClose, onUse, defaultCategory = '', presetPromp
                   {displayCards.map((card) => (
                     <div
                       key={card.id}
-                      className="bg-surface border border-edge-faint rounded-[14px] p-4 flex flex-col gap-2.5 cursor-pointer transition-all hover:border-edge-muted hover:bg-surface-2"
+                      className="group bg-surface border border-edge-faint rounded-[14px] p-4 flex flex-col gap-2.5 cursor-pointer transition-all hover:border-edge-muted hover:bg-surface-2"
                       style={{ contentVisibility: 'auto', containIntrinsicSize: 'auto 180px' }}
                       onClick={() => handleUse(card)}
                     >
                       <div className="flex items-start justify-between gap-2.5">
                         <div className="text-sm font-semibold text-white leading-[1.4] truncate flex-1" title={card.title}>{card.title || '(未命名)'}</div>
-                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity" style={{ display: 'flex', opacity: 0 }}>
+                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity" style={{ display: 'flex' }}>
                           <button
                             className="w-[26px] h-[26px] flex items-center justify-center rounded-md bg-transparent hover:bg-surface-hover text-muted hover:text-white cursor-pointer border-none"
                             title="编辑"

@@ -428,8 +428,11 @@ function PromptNode({ id, data, selected }) {
                 placeholder="选择模型"
               />
 
-              {/* 预设：打开提示词库弹窗 → 使用后新建文本节点 */}
-              <PromptLibraryButton category="image" />
+              {/* 预设：打开提示词库弹窗 → 可追加到当前提示词或新建文本节点 */}
+              <PromptLibraryButton
+                category="image"
+                onAppend={(p) => setPromptPersist((prev) => (prev ? `${prev}\n${p}` : p))}
+              />
             </div>
 
             {/* 批量 xN + 生成/停止 */}

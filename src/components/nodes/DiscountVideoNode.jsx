@@ -376,8 +376,11 @@ function DiscountVideoNode({ id, data, selected }) {
               {/* 模型选择（基座 ModelSelect） */}
               <ModelSelect value={selectedModel} onChange={setSelectedModel} models={models} />
 
-              {/* 预设提示词：打开提示词库弹窗 → 使用后新建文本节点 */}
-              <PromptLibraryButton category="video" />
+              {/* 预设提示词：打开提示词库弹窗 → 可追加到当前提示词或新建文本节点 */}
+              <PromptLibraryButton
+                category="video"
+                onAppend={(p) => setPromptPersist((prev) => (prev ? `${prev}\n${p}` : p))}
+              />
             </div>
 
             {/* 生成 / 停止（基座 GenerateButton） */}

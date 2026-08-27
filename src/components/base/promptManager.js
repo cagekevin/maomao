@@ -19,11 +19,13 @@ const RECENT_KEY = 'yimao_preset_recent'
 
 // 内置示例预设（首次使用、或本地清空时兜底展示，方便直观看到效果）
 export const DEFAULT_PRESETS = [
-  { id: 'pp_demo_title', title: '爆款标题', type: 'text', prompt: '请生成 10 个吸睛的爆款标题，要求短促有力、带情绪钩子', enabled: true },
-  { id: 'pp_demo_xhs', title: '小红书文案', type: 'text', prompt: '以小红书种草风格写一段文案，语气亲切，多用 emoji 和换行', enabled: true },
-  { id: 'pp_demo_cyber', title: '赛博朋克城市', type: 'image', prompt: '赛博朋克风格城市夜景，霓虹灯，雨夜，反乌托邦，电影感光影', enabled: true },
-  { id: 'pp_demo_cat', title: '小猫花园', type: 'video', prompt: '一只小猫在花园里追逐蝴蝶，阳光，微风吹动花朵', enabled: true },
-  { id: 'pp_demo_spring', title: '春天散文', type: 'text', prompt: '写一段关于春天的散文，清新自然，多用比喻', enabled: true }
+  {
+    id: 'pp_face_real',
+    title: '面部变真实',
+    type: 'image',
+    prompt: '超写实人像；自然不均匀的皮肤纹理，可见毛孔，细微的汗毛，鼻翼周围淡淡的泛红，轻微的眼下阴影，真实的皮肤通透感；无磨皮，无美颜效果，纪实写实风格；中性深色背景，柔和虚化；侧方柔和定向光，凸显皮肤纹理与面部轮廓；真实自然的色调，电影感但自然的对比度；使用高端85mm人像镜头拍摄，浅景深，眼睛部分极致清晰；照片级真实感，无CGI渲染',
+    enabled: true
+  }
 ]
 
 // 读取本地（容错）
