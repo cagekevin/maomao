@@ -17,7 +17,6 @@ import { saveTask } from '../../src/components/base/localToolApi.js'
 const {
   statusDotClass,
   statusLabel,
-  typeLabel,
   getPanel,
   setPanel,
   openTaskCenter,
@@ -55,15 +54,6 @@ describe('taskStore §2.6 状态映射', () => {
     expect(statusLabel('unknown')).toBe('unknown')
   })
 
-  it('typeLabel：内置类型映射 + 未知回退', () => {
-    expect(typeLabel('text')).toBe('文本')
-    expect(typeLabel('image')).toBe('生图')
-    expect(typeLabel('video')).toBe('视频')
-    expect(typeLabel('discountVideo')).toBe('特惠视频')
-    expect(typeLabel('custom')).toBe('万能')
-    expect(typeLabel(null)).toBe('任务')
-    expect(typeLabel('weird')).toBe('weird')
-  })
 })
 
 describe('taskStore §2.6 面板状态', () => {

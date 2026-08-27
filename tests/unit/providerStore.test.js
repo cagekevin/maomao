@@ -145,7 +145,7 @@ describe('providerStore §4 供应商数据层', () => {
       expect(mod.useProviders().selectedId).toBe('a')
     })
 
-    it('test 成功写入 testResult', async () => {
+    it('成功写入 testResult', async () => {
       mod.add()
       const id = mod.useProviders().selectedId
       h.mockTestConnection.mockResolvedValue({ ok: true, latency: 12 })
@@ -155,7 +155,7 @@ describe('providerStore §4 供应商数据层', () => {
       expect(s.testingId).toBeNull()
     })
 
-    it('test 失败写入 error', async () => {
+    it('失败写入 error', async () => {
       mod.add()
       const id = mod.useProviders().selectedId
       h.mockTestConnection.mockRejectedValue(new Error('conn refused'))
@@ -164,7 +164,7 @@ describe('providerStore §4 供应商数据层', () => {
       expect(s.testResult).toEqual({ ok: false, error: 'conn refused' })
     })
 
-    it('test apimart 通用探测失败时用 probe-async 补全诊断（透传原始错误）', async () => {
+    it('apimart 通用探测失败时用 probe-async 补全诊断（透传原始错误）', async () => {
       mod.add()
       const id = mod.useProviders().selectedId
       // 设为 apimart 协议，且 test-connection 返回失败
@@ -179,7 +179,7 @@ describe('providerStore §4 供应商数据层', () => {
       expect(s.testResult.stage).toBe('async_endpoint_ok')
     })
 
-    it('test apimart probe-async 本身抛错时保留 test-connection 原始信息（不覆盖）', async () => {
+    it('apimart probe-async 本身抛错时保留 test-connection 原始信息（不覆盖）', async () => {
       // 【R6 边角1】probe-async 失败（catch 空体）→ 保留 test-connection 的原始诊断，不被抹掉
       mod.add()
       const id = mod.useProviders().selectedId
