@@ -66,6 +66,20 @@ export function formatTime(ts = Date.now(), opts = {}) {
   try { return d.toLocaleString('zh-CN', { hour12: false }) } catch { return '' }
 }
 
+/**
+ * 格式化字节大小（存储监控专用，B/KB/MB/GB）。
+ * 与 videoEngine.formatBytes（仅 B/KB/MB，视频文件用）语义不同：本版覆盖到 GB 级存储占用，
+ * 并做非法值兜底（负数/NaN → '0 B'）。存储占用口径统一走本函数，禁止散落手写。
+ */
+export function formatBytes(bytes) {
+  const n = Number(bytes)
+  if (!Number.isFinite(n) || n <= 0) return '0 B'
+  if (n < 1024) return `${n} B`
+  if (n < 1048576) return `${(n / 1024).toFixed(1)} KB`
+  if (n < 1073741824) return `${(n / 1048576).toFixed(2)} MB`
+  return `${(n / 1073741824).toFixed(2)} GB`
+}
+
 /** 防抖（返回包装函数 + cancel + flush） */
 export function debounce(fn, ms) {
   let timer = null

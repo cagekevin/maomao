@@ -41,8 +41,8 @@ export const EVENTS = {
     note: '任务完成 → 精准回填节点（刷新不丢图）。生产使用',
   },
   'presets-changed': {
-    from: ['promptManager.js:83'],
-    to: ['PromptLibrary.jsx:48'],
+    from: ['promptManager.js:85'],
+    to: ['PromptLibrary.jsx:50'],
     payload: '{ presets }',
     note: '提示词库跨节点同步。生产使用',
   },

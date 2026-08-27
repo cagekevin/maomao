@@ -1,8 +1,9 @@
 import React from 'react'
-import { ChevronDown, Settings as SettingsIcon, Bot, Sliders } from 'lucide-react'
+import { Settings as SettingsIcon, Bot, Sliders, HardDrive } from 'lucide-react'
 import ApiSettings from './sections/ApiSettings.jsx'
 import AgentChatSettings from './sections/AgentChatSettings.jsx'
 import OtherSettings from './sections/OtherSettings.jsx'
+import StorageMonitor from './sections/StorageMonitor.jsx'
 
 /**
  * 设置主框架（侧栏 + 舞台）。
@@ -17,11 +18,12 @@ const SECTIONS = [
   { key: 'api', label: '第三方API配置', icon: SettingsIcon, comp: 'ApiSettings' },
   // 2026-08-21：其他设置（画布显示/图片偏好收口）
   { key: 'other', label: '其他设置', icon: Sliders, comp: 'OtherSettings' },
+  // 2026-08-27：存储监控从"更多设置"折叠组移出，独立成项
+  { key: 'storage', label: '存储监控', icon: HardDrive, comp: 'StorageMonitor' },
 ]
 
 export default function SettingsFrame() {
   const [active, setActive] = React.useState('agent')
-  const [moreOpen, setMoreOpen] = React.useState(false)
 
   return (
     <div className="absolute inset-0 flex bg-canvas overflow-hidden z-float">
@@ -44,21 +46,6 @@ export default function SettingsFrame() {
             </button>
           )
         })}
-
-        {/* 更多设置折叠组 */}
-        <div className="mt-auto">
-          <button
-            onClick={() => setMoreOpen((v) => !v)}
-            className={`w-full text-left px-3 py-2.5 rounded-lg text-sm transition-colors mb-1.5 flex items-center gap-2 ${moreOpen ? 'bg-surface-active text-blue-500 border border-edge shadow-sm' : 'text-body hover:bg-surface-1 hover:text-primary border border-transparent'}`}
-          >
-            <SettingsIcon size={16} />
-            <span className="flex-1">更多设置</span>
-            <ChevronDown size={13} className={`transition-transform ${moreOpen ? 'rotate-180' : ''}`} />
-          </button>
-          {moreOpen && (
-            <div className="px-3 py-2 text-xs text-muted">（预留扩展分区）</div>
-          )}
-        </div>
       </aside>
 
       {/* 内容区 */}
@@ -79,6 +66,8 @@ function renderSection(key) {
       return <AgentChatSettings />
     case 'other':
       return <OtherSettings />
+    case 'storage':
+      return <StorageMonitor />
     default:
       return <div className="text-center text-sm text-muted py-16">该设置分区尚未实现</div>
   }
