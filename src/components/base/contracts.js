@@ -16,6 +16,19 @@
  */
 
 /**
+ * 高消耗积分确认（通用积分闸 creditSwitch）相关契约字符串 —— 单一事实来源。
+ * 【三按钮收敛 · 2026-08-27】直接生图/分步确认/完全自主下，真生成图/视频前是否先确认，
+ * 由全局开关 creditSwitch（默认开）+ per-conversation creditGate 决定（见 docs/59、60）。
+ * 所有消费方一律 import 本常量引用，禁止散写裸字面量。
+ */
+/** creditSwitch 全局存储键（localStorage，默认 true = 任何模式真烧积分前先确认） */
+export const CREDIT_SWITCH_KEY = 'agent_credit_switch'
+/** conversation 会话字段名：creditGate（单一对象 { pending, gens, map }，per-conversation 唯一读写清） */
+export const CREDIT_GATE_FIELD = 'creditGate'
+/** credit 确认门禁广播事件名（useCanvasAgentTools 置位/清除 → AgentPanel 刷新确认卡片） */
+export const CREDIT_GATE_EVENT = 'agent:credit-gate'
+
+/**
  * 事件注册表（通信层 eventBus 的单一事实来源）。
  *
  * 每项：
@@ -45,6 +58,12 @@ export const EVENTS = {
     to: ['PromptLibrary.jsx:50'],
     payload: '{ presets }',
     note: '提示词库跨节点同步。生产使用',
+  },
+  'agent:credit-gate': {
+    from: ['useCanvasAgentTools.js'],
+    to: ['AgentPanel.jsx'],
+    payload: '{ pending }',
+    note: '高消耗积分确认门禁置位/清除广播（AgentPanel 刷新 credit 确认卡片）。生产使用',
   },
   'project:import': {
     from: ['ProjectSelector.jsx:103'],
@@ -276,6 +295,12 @@ export const STORAGE_KEYS = {
     store: 'AgentPanel.jsx',
     backend: 'local',
     note: 'AI 助手输入模式（agent | chat 等）',
+  },
+  [CREDIT_SWITCH_KEY]: {
+    domain: 'agent',
+    store: 'AgentPanel.jsx',
+    backend: 'local',
+    note: '高消耗积分确认开关：任何模式真生成图/视频前是否先确认（默认 true = 开/安全）',
   },
 
   // ── AI 历史迁移（useAgentChat.js）──────────────────────────────────

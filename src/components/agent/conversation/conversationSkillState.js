@@ -12,6 +12,7 @@
  * ════════════════════════════════════════════════════════════════
  */
 import { getActiveConv, commit, getState } from './conversationState.js'
+import { CREDIT_GATE_FIELD } from '../../base/contracts.js'
 
 /** 读当前对话的 Skill 阶段1 策划暂存（副本） */
 export function getActivePendingGenerations() {
@@ -40,5 +41,59 @@ export function setAwaitingConfirm(v) {
   commit({
     ...getState(),
     conversations: getState().conversations.map((c) => (c.id === conv.id ? { ...c, awaitingConfirm: !!v, updatedAt: Date.now() } : c)),
+  })
+}
+
+/** 读当前对话的「记」项目记忆建议暂存（memory_suggest 待用户确认的候选内容） */
+export function getActivePendingMemorySuggest() {
+  return getActiveConv()?.pendingMemorySuggest || null
+}
+
+/** 设置/清除当前对话的「记」项目记忆建议暂存 */
+export function setActivePendingMemorySuggest(suggest) {
+  const conv = getActiveConv()
+  if (!conv) return
+  commit({
+    ...getState(),
+    conversations: getState().conversations.map((c) => (c.id === conv.id
+      ? { ...c, pendingMemorySuggest: suggest && typeof suggest === 'object' ? suggest : null, updatedAt: Date.now() }
+      : c)),
+  })
+}
+
+/** 读当前对话的积分确认门禁（creditGate：null 或 { pending, gens, map(stepId→nodeId) }） */
+export function getCreditGate() {
+  return getActiveConv()?.[CREDIT_GATE_FIELD] || null
+}
+
+/**
+ * 设置/清除当前对话的积分确认门禁（高消耗积分确认）。
+ * gate 合法形状：{ pending:boolean, gens:array, map:object(stepId→nodeId) }。
+ * 置位（pending=true）+ 清除（null）配对使用：补跑成功清、失败保留待重试。
+ */
+export function setCreditGate(gate) {
+  const conv = getActiveConv()
+  if (!conv) return
+  const valid = gate && typeof gate === 'object'
+    && gate.pending === true
+    && Array.isArray(gate.gens)
+    && gate.map && typeof gate.map === 'object'
+  commit({
+    ...getState(),
+    conversations: getState().conversations.map((c) => (c.id === conv.id
+      ? { ...c, [CREDIT_GATE_FIELD]: valid ? gate : null, updatedAt: Date.now() }
+      : c)),
+  })
+}
+
+/** 清除当前对话的积分确认门禁（补跑成功/取消后调用；不保留待确认态） */
+export function clearCreditGate() {
+  const conv = getActiveConv()
+  if (!conv) return
+  commit({
+    ...getState(),
+    conversations: getState().conversations.map((c) => (c.id === conv.id
+      ? { ...c, [CREDIT_GATE_FIELD]: null, updatedAt: Date.now() }
+      : c)),
   })
 }

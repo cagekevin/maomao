@@ -169,6 +169,8 @@ export {
 // conversationSkillState：Skill 三阶段门禁状态（阶段3 编排轴子域化）
 export {
   getActivePendingGenerations, setActivePendingGenerations, getAwaitingConfirm, setAwaitingConfirm,
+  getActivePendingMemorySuggest, setActivePendingMemorySuggest,
+  getCreditGate, setCreditGate, clearCreditGate,
 } from './conversationSkillState.js'
 // conversationImageMap：跨轮图数据源（E 类）
 export {

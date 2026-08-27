@@ -109,11 +109,16 @@ vi.mock('../../src/components/agent/conversation/conversationStore.js', () => {
     getAwaitingConfirm: vi.fn(() => false),
     getActivePendingGenerations: vi.fn(() => null),
     setActivePendingGenerations: vi.fn(),
+    getCreditGate: vi.fn(() => null),
+    setCreditGate: vi.fn(),
+    clearCreditGate: vi.fn(),
     getCurrentMemory: vi.fn(() => ({ summary: '', facts: [], lastPlan: null, lastSharedStyle: '', notes: [] })),
     setCurrentMemory: vi.fn(),
     getCurrentImageMap: vi.fn(() => []),
     getCurrentRunMode: vi.fn(() => 'auto'),
     setCurrentRunMode: vi.fn(),
+    getActivePendingMemorySuggest: vi.fn(() => null),
+    setActivePendingMemorySuggest: vi.fn(),
     newConversation: vi.fn(() => {
       const id = `c_new_${Date.now()}`
       activeId = id
@@ -305,9 +310,12 @@ describe('useAgentChat · 真实模式 SSE 编排', () => {
     await act(async () => {
       await result.current.send('一直创建')
     })
-    expect(fetchMock).toHaveBeenCalledTimes(8)
+    // 防死循环核心断言：工具循环严格停在 MAX_TOOL_ROUNDS(8) 轮（callTool 恰 8 次 = LLM 恰 8 轮）。
+    // fetch 次数不做硬钉：send 收尾会触发既有「摘要压缩」→ compressToSummary → chatProxy 额外 1 次
+    // 请求（走 httpRequest 带 proxy payload，与 roundTrip 的 SSE 请求结构不同），不计入工具循环轮数。
     expect(callTool).toHaveBeenCalledTimes(8)
-    // 防死循环生效：fetch 严格停在 MAX_TOOL_ROUNDS(8) 次。
+    expect(fetchMock.mock.calls.length).toBeGreaterThanOrEqual(8)
+    expect(callTool.mock.results.filter((r) => r.type === 'throw')).toHaveLength(0)
     // 越限后追加「自动停止」提示，且不应因越限保护自身报错（bug 修复：assistant 提升到循环外）。
     const stopMsg = result.current.messages.at(-1)
     expect(stopMsg.role).toBe('assistant')
@@ -398,6 +406,47 @@ describe('useAgentChat · sendImageMode（图像模式直连生图）', () => {
     expect(imgMsg.content).toContain('已在画布生图')
     expect(imgMsg.content).toContain('2 张')
     expect(result.current.error).toBeNull()
+  })
+
+  it('【积分闸·直接生图】callTool 返回 awaited:credit → 追加「节点已建好、待积分确认」，不声称「已在画布生图」', async () => {
+    // 2026-08-27 简化：直接生图在积分开关开时也被拦截，execute_plan 返回 awaited:'credit'（节点建好未真生成）。
+    // sendImageMode（直连点）必须兼容该语义：不写「已在画布生图」、不二次 execute_plan（红线 §6.4）。
+    callTool.mockReturnValue({ ok: true, data: { awaited: 'credit', steps: [{ id: 'g1', status: 'ready', nodeId: 'n1' }], note: '节点已建好，生成待积分确认' } })
+    const { result } = renderHook(() => useAgentChat())
+    await act(async () => {
+      await result.current.sendImageMode('一只猫', [])
+    })
+    const imgMsg = result.current.messages.find((m) => m.role === 'assistant' && m.mode === 'image')
+    expect(imgMsg).toBeTruthy()
+    expect(imgMsg.content).toContain('待积分确认')
+    expect(imgMsg.content).not.toContain('已在画布生图') // 不声称已生成
+    expect(callTool).toHaveBeenCalledTimes(1) // 绝不再触发生成
+    expect(result.current.error).toBeNull()
+  })
+
+  it('【图生图·单图修复】直连模式带一张参考图 → 生成的 generation 声明 use_attachments:true（否则 execute_plan 作废参考图，图生图失效）', async () => {
+    // 单参考图 → perRef 拆分不触发（referenceImages.length>=2 才拆），走单 generation。
+    // 该 generation 必须带 use_attachments:true，让 execute_plan 把它整批共享挂到节点 data.images（对齐多图 buildPerReferenceGenerations）。
+    callTool.mockReturnValue({ ok: true, data: { entries: [{ status: 'completed', nodeId: 'n1' }] } })
+    const { result } = renderHook(() => useAgentChat())
+    await act(async () => {
+      await result.current.sendImageMode('把它改成红色的猫', [{ type: 'image', url: 'http://x/ref.png' }])
+    })
+    expect(callTool).toHaveBeenCalledTimes(1)
+    const arg = callTool.mock.calls[0][1]
+    expect(arg.generations).toHaveLength(1) // 单图不拆分
+    expect(arg.generations[0].use_attachments).toBe(true) // 关键：声明挂参考图
+    expect(arg.referenceImages).toEqual(['http://x/ref.png'])
+  })
+
+  it('【图生图】直连模式无参考图 → generation 不带 use_attachments（纯文生图，不误挂）', async () => {
+    callTool.mockReturnValue({ ok: true, data: { entries: [{ status: 'completed', nodeId: 'n1' }] } })
+    const { result } = renderHook(() => useAgentChat())
+    await act(async () => {
+      await result.current.sendImageMode('一只纯文字生成的猫', [])
+    })
+    const arg = callTool.mock.calls[0][1]
+    expect(arg.generations[0].use_attachments).toBeUndefined()
   })
 
   it('失败：callTool(execute_plan) 返回 error → 设置 error', async () => {

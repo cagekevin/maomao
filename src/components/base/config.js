@@ -90,6 +90,12 @@ export const AGENT_MODELS = (() => {
   return env ? env.split(',').map((s) => s.trim()).filter(Boolean) : DEFAULT_AGENT_MODELS
 })()
 
+// ── AI 助手上下文预算默认值（无模型 contextWindow 声明时的保守兜底）────────────
+/** 默认上下文窗口（token）。项目模型未声明 contextWindow 时用此值，env VITE_AGENT_CONTEXT_WINDOW 可覆盖。 */
+export const AGENT_CONTEXT_WINDOW_DEFAULT = Number(import.meta.env?.VITE_AGENT_CONTEXT_WINDOW) || 128_000
+/** 输出预算留白比例：输入预算 = contextWindow × (1 − 该比例)，留出生成空间。 */
+export const AGENT_CONTEXT_OUTPUT_BUDGET_RATIO = 0.2
+
 // ── 异步超时（ms）───────────────────────────────────────────────
 /** httpClient 默认超时 */
 export const HTTP_DEFAULT_TIMEOUT = 15000

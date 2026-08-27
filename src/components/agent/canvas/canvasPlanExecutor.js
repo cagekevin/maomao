@@ -211,7 +211,7 @@ function nextAnchor(ctx, base, index, perRow = 3) {
  *                     （对齐大雄 executor onLog → workflowLogs → 折叠执行摘要）
  * @returns {Promise<{workflow, entries}>} entries: [{id,status,resultUrl,nodeId,error}]
  */
-export async function executePlan({ ctx, generations = [], autoRun = true, model = '', defaults = {}, referenceImages = [], globalContract = null, artifacts = null, onLog = null, userText = '' }) {
+export async function executePlan({ ctx, generations = [], autoRun = true, model = '', defaults = {}, referenceImages = [], globalContract = null, artifacts = null, onLog = null, userText = '', mode = 'normal', nodeMappings = null }) {
   const log = (level, message) => { try { onLog?.({ level, message }) } catch { /* 日志失败不阻断执行 */ } }
   const steps = (generations || []).filter((s) => s && (s.prompt || s.title))
   // 全局单飞锁：同一时刻只允许一套批量生成在跑，防重复计费/重复建节点
@@ -334,6 +334,71 @@ export async function executePlan({ ctx, generations = [], autoRun = true, model
       lockNodeSettings(nodeId, { m: model || defaults.model, ratio: normalizeRatio(step.ratio || defaults.ratio), resolution: normalizeResolution(step.resolution || defaults.resolution), quality: normalizeQuality(step.quality || defaults.quality || 'auto') })
     }
     return { status: resultUrl ? 'completed' : 'failed', resultUrl }
+  }
+
+  // ── runExisting 模式（D5/D5b）：补跑「节点已建好、待点生成」的计划。
+  // 不追加/重建任何节点（节点已在画布上为 ready），只按入参 nodeMappings(stepId→nodeId) 定位已建节点，
+  // 只分 Wave 批触发：等 Wave1（独立批）全部完成后触发 Wave2（依赖批）。依赖参考图由「画布既有连线 +
+  // useConnectedInputs 读上游」自动给下游，不重抄 prevOk/resolved/realIdToIdx 前序分析（红线 §6.1/6.9 补跑=点生成）。
+  if (mode === 'runExisting') {
+    if (!nodeMappings || typeof nodeMappings !== 'object') {
+      return { workflow: { status: 'failed', error: '补跑缺少 nodeMappings 映射（幂等防线，拒绝）' }, entries: [] }
+    }
+    // 幂等防线：每个步骤必须能由映射对号，对不上 → 明确报错拒绝（红线 §6.1 不重定位节点）
+    const missing = steps.filter((s) => !nodeMappings[String(s.id)]).map((s) => s.id || s.title)
+    if (missing.length) {
+      return { workflow: { status: 'failed', error: `补跑找不到以下步骤的节点映射：${missing.join('、')}（拒绝重建/重定位）` }, entries: [] }
+    }
+    const wave1 = []
+    const wave2 = []
+    independent.forEach((s, i) => {
+      const nodeId = nodeMappings[String(s.id)]
+      const entry = { id: s.id || `step_${i + 1}`, stepId: s.id, nodeId, phase: 'independent', status: 'ready', resultUrl: '', error: '' }
+      byId.set(entry.id, entry)
+      entries.push(entry)
+      wave1.push({ nodeId, step: s, entry })
+    })
+    dependent.forEach((s, i) => {
+      const nodeId = nodeMappings[String(s.id)]
+      const entry = { id: s.id || `dep_${i + 1}`, stepId: s.id, nodeId, phase: 'dependent', status: 'ready', resultUrl: '', error: '' }
+      byId.set(entry.id, entry)
+      entries.push(entry)
+      wave2.push({ nodeId, step: s, entry })
+    })
+    log('info', `补跑：触发已建节点 ${entries.length} 个（独立批 ${wave1.length} + 依赖批 ${wave2.length}）`)
+    // Wave 1：独立批并行触发
+    if (autoRun && wave1.length) {
+      const results = await Promise.all(wave1.map(({ nodeId, step }) => runNode(nodeId, step)))
+      wave1.forEach(({ entry }, i) => {
+        const r = results[i]
+        entry.status = r.status
+        entry.resultUrl = r.resultUrl || ''
+        entry.error = r.error || ''
+        log(r.status === 'completed' ? 'ok' : 'error', `补跑独立步「${entry.id}」${r.status === 'completed' ? '完成' : (r.error ? `失败：${r.error}` : '未触发')}`)
+      })
+    }
+    // Wave 2：等 Wave1 全部完成后再触发依赖批（依赖失败则整批跳过，对齐 normal 门禁语义）
+    if (autoRun && wave2.length) {
+      const wave1Failed = wave1.filter(({ entry }) => entry.status !== 'completed').length
+      if (wave1Failed > 0) {
+        wave2.forEach(({ entry }) => { entry.status = 'failed'; entry.error = `前置独立批失败 ${wave1Failed} 项，依赖批已跳过` })
+        log('warn', `补跑：独立批失败 ${wave1Failed} 项，依赖批已跳过`)
+      } else {
+        const results = await Promise.all(wave2.map(({ nodeId, step }) => runNode(nodeId, step)))
+        wave2.forEach(({ entry }, i) => {
+          const r = results[i]
+          entry.status = r.status
+          entry.resultUrl = r.resultUrl || ''
+          entry.error = r.error || ''
+          log(r.status === 'completed' ? 'ok' : 'error', `补跑依赖步「${entry.id}」${r.status === 'completed' ? '完成' : (r.error ? `失败：${r.error}` : '未触发')}`)
+        })
+      }
+    }
+    const anyFailed = entries.some((e) => e.status === 'failed')
+    const anyDone = entries.some((e) => e.status === 'completed')
+    const status = autoRun ? (anyFailed && anyDone ? 'completed_with_errors' : anyFailed ? 'failed' : 'completed') : 'ready'
+    logger.info('AI助手', '补跑完成', { status, done: entries.filter((e) => e.status === 'completed').length, failed: entries.filter((e) => e.status === 'failed').length, total: entries.length })
+    return { workflow: { status, steps: steps.length }, entries }
   }
 
   // ── Wave 1：独立批（Step E 并行化：先串行建节点避免 addNodes 竞态，再并行跑图提升效率）──

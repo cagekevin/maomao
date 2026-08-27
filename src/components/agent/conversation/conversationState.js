@@ -21,6 +21,7 @@
 import { useSyncExternalStore } from 'react'
 import { contentGet, contentSet, createDebouncedPersist } from '../../base/contentStore.js'
 import { generateId } from '../../base/idGen.js'
+import { CREDIT_GATE_FIELD } from '../../base/contracts.js'
 
 /**
  * 存储键按 agentKey 隔离（每项目一个 agentKey → 每项目一套会话）。
@@ -223,6 +224,9 @@ export function normalizeConversation(c) {
   if (!Array.isArray(c.aiUndoStack)) c.aiUndoStack = [] // AI 撤销栈快照 [{nodes,edges,action}]
   if (c.pendingGenerations === undefined) c.pendingGenerations = null // Skill 阶段1 策划暂存
   if (typeof c.awaitingConfirm !== 'boolean') c.awaitingConfirm = false // Skill 阶段2 确认态
+  if (c.pendingMemorySuggest === undefined) c.pendingMemorySuggest = null // 「记」项目记忆建议暂存（memory_suggest 待用户确认后写入）
+  // 【积分闸】creditGate：单一对象 { pending, gens, map(stepId→nodeId) }，含媒体生成待确认态 + 步骤映射
+  if (c[CREDIT_GATE_FIELD] === undefined) c[CREDIT_GATE_FIELD] = null
   if (!Array.isArray(c.referenceImages)) c.referenceImages = [] // 本轮用户引用的参考图 URL（per-conversation，防跨对话泄漏）
   // 【对齐大雄 runMode】执行分级：'auto'（默认，直接出 generations 执行，不展示 plan 门禁）/
   // 'semi'（半自动，出 generations 后展示 plan 确认再执行）。大雄 agentNormalizeRunModeState(1468)。

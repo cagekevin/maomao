@@ -15,11 +15,25 @@
  * 注意：本文件只做纯转换，不做文件系统/网络访问；缩略图 URL 一律由调用方经 token.url 提供。
  */
 
-/** 芯片序列化正则（唯一入口，禁止散落复制） */
-export const PROMPT_CHIP_RE = /@\{([^:]+):([^}]+)\}/g
+/**
+ * 芯片序列化正则（唯一入口，禁止散落复制）。
+ * 格式：`@{id:label}` 或 `@{id:label|thumbUrl}`（thumbUrl 可选）。
+ *   - group1 = id（不含冒号）
+ *   - group2 = label（不含 `|` 与 `}`，旧数据无 url 段时完全兼容）
+ *   - group3 = 可选缩略图 URL（已 encodeURIComponent，防止 `}` 等字符破坏解析）
+ * 旧数据 `@{id:label}`（无 `|`）也能正确匹配，向后兼容不崩。
+ */
+export const PROMPT_CHIP_RE = /@\{([^:]+):([^|}]*)(?:\|([^}]+))?\}/g
 
 /** 零宽空格：芯片前后光标落点占位 */
 export const ZWSP = '\u200B'
+
+/** 缩略图 URL ↔ 字符串片段的编解码（集中处理，避免散落 try/catch） */
+const encodeThumb = (url) => (url ? encodeURIComponent(url) : '')
+const decodeThumb = (s) => {
+  if (!s) return ''
+  try { return decodeURIComponent(s) } catch { return s }
+}
 
 /**
  * 判断节点是否为「芯片元素」（携带 data-ref-id 的 span）。
@@ -86,7 +100,13 @@ export function serializeDOM(root) {
     if (node.nodeType !== Node.ELEMENT_NODE) return
     const el = node
     if (el.hasAttribute('data-ref-id')) {
-      result += `@{${el.getAttribute('data-ref-id')}:${el.getAttribute('data-ref-label') || ''}}`
+      const id = el.getAttribute('data-ref-id')
+      const label = el.getAttribute('data-ref-label') || ''
+      const thumb = el.getAttribute('data-ref-thumb')
+      // 缩略图 URL 编码进字符串，刷新/重建后可自恢复；无 thumb 时回落旧格式（向后兼容）
+      result += thumb
+        ? `@{${id}:${label}|${encodeThumb(thumb)}}`
+        : `@{${id}:${label}}`
       return
     }
     if (el.tagName === 'BR') {
@@ -102,7 +122,8 @@ export function serializeDOM(root) {
 /**
  * 建芯片元素（contentEditable=false 的 span）。
  *   - kind='image' 且有缩略图 → 显示缩略图；否则显示 `@` 图标 + 标签。
- *   - 存 data-ref-id / data-ref-label，供 serializeDOM / 删除 / 光标处理识别。
+ *   - 存 data-ref-id / data-ref-label / data-ref-thumb，供 serializeDOM / 删除 / 光标处理识别。
+ *     data-ref-thumb 携带缩略图 URL，根治「刷新/重建后缩略图变兜底」（字符串自带，不依赖外部素材列表）。
  * @param {string} id    素材唯一 id
  * @param {string} label 芯片显示名
  * @param {string} kind  'image' | 'text'
@@ -115,6 +136,7 @@ export function buildChipEl(id, label, kind = 'text', thumbnailUrl) {
   span.contentEditable = 'false'
   span.setAttribute('data-ref-id', id)
   span.setAttribute('data-ref-label', label)
+  if (thumbnailUrl) span.setAttribute('data-ref-thumb', thumbnailUrl)
   span.title = label
 
   const icon = document.createElement('span')
@@ -169,8 +191,9 @@ export function renderPromptToNodes(text, metaMap) {
     const id = match[1]
     const label = match[2]
     const meta = metaMap ? metaMap.get(id) : undefined
-    const kind = meta?.kind || 'text'
-    const url = meta?.url
+    // kind：字符串自带缩略图 → 必为图片；否则以 metaMap 为准，再回落文本
+    const url = match[3] ? decodeThumb(match[3]) : (meta?.url || '')
+    const kind = url ? 'image' : (meta?.kind || 'text')
     pushChip(buildChipEl(id, label, kind, url))
     lastIndex = PROMPT_CHIP_RE.lastIndex
   }

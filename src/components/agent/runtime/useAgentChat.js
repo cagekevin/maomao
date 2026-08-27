@@ -37,6 +37,18 @@ import {
 // 运行时逻辑（依赖注入版本）。hook 内以 const roundTrip 等同名闭包封装调用，
 // 故此处用别名避免与 hook 内的函数名冲突。
 import { roundTrip as agentRuntimeRoundTrip, runToolCalls as agentRuntimeRunToolCalls, runDemoMode as agentRuntimeRunDemoMode } from './agentRuntime.js'
+// 「学」：从本对话历史成功生图样本提学习块（照搬参考项目 promptLearningService），注入 buildRequestMessages
+import { buildLearnedContext } from './promptLearning.js'
+// 「记·长期」：按 agentKey 全局长期记忆注入块（照搬参考项目 memoryRetrieval + contextManager），注入 buildRequestMessages
+import { buildProjectMemoryContextFromStore } from './memoryRetrieval.js'
+// 「记·长期」持久化：memory_suggest 确认后落库（agentKey 全局）
+import { saveProjectMemory, PROJECT_MEMORY_KIND_LABELS } from './projectMemoryStore.js'
+// 「记」：分层压缩历史→memory.summary（照搬参考项目 contextCompressionService），挂 send 收尾触发
+import { compressToSummary, RECENT_KEEP_COUNT } from './contextCompression.js'
+// 上下文预算触发压缩（照搬参考项目 contextManager）：决策吃 messages，内部估算 token，75% 预压缩 / 90% 强制压缩
+import { decideContextCompression, resolveInputBudget } from './tokenBudget.js'
+// 集中配置：AI 助手上下文窗口默认值与输出预算留白比例（无模型 contextWindow 声明时的保守兜底）
+import { AGENT_CONTEXT_WINDOW_DEFAULT, AGENT_CONTEXT_OUTPUT_BUDGET_RATIO } from '../../base/config.js'
 // 工作流状态迁移（M2 收口：steer/起步/awaiting_confirm/终态/队列出队的纯函数，落盘仍走 patchCurrentWorkflow）
 import { wfStart, wfSteer, wfFinish, wfAwaitConfirm, wfNextSteer } from './workflowState.js'
 // 消息构造/落盘 + 附件归一化（M3 下沉：appendMsg/setHistory/updateLastStreaming/endStreaming/stripStreaming → agentMessages；附件/参考图目录 → agentAttachments）
@@ -65,6 +77,9 @@ import {
   getAwaitingConfirm,
   setActivePendingGenerations,
   getActivePendingGenerations,
+  getActivePendingMemorySuggest,
+  setActivePendingMemorySuggest,
+  getCreditGate, clearCreditGate,
   getCurrentImageMap,
   getCurrentRunMode,
   setCurrentRunMode,
@@ -378,6 +393,29 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
     return done
   }, [appendMsg, callTool, model])
 
+  // ── 「记」：分层压缩历史→memory.summary（照搬参考项目，fire-and-forget，不阻塞主流程）──
+  // 节流：同一次会话中短间隔不重复压缩；门槛：历史消息足够多才有压缩价值。
+  // 失败/超时只记日志（保留旧摘要），绝不静默吞错也绝不打断发送链路。
+  const lastSummaryCompressTsRef = useRef(0)
+  const COMPRESS_THROTTLE_MS = 60_000
+  const maybeCompressSummary = useCallback(() => {
+    const messages = getCurrentSnapshot().messages || []
+    const now = Date.now()
+    if (messages.length <= RECENT_KEEP_COUNT) return
+    if (now - lastSummaryCompressTsRef.current < COMPRESS_THROTTLE_MS) return
+    lastSummaryCompressTsRef.current = now
+    const prevSummary = getCurrentMemory()?.summary || ''
+    const conversationId = getActiveConversationId()
+    compressToSummary({ provider, model, messages, previousSummary: prevSummary })
+      .then((summary) => {
+        if (!summary) return
+        // 只写回本对话（防竞态：若用户已切走对话则不覆盖别人的 summary）
+        if (getActiveConversationId() !== conversationId) return
+        setCurrentMemory({ ...getCurrentMemory(), summary })
+      })
+      .catch((e) => logger.error('AI助手', '[记] 摘要写回失败', { err: e?.message }))
+  }, [provider, model])
+
   /** 发送（复刻官方 dr:2786-2895 的 send：SSE + 多轮工具循环） */
   const send = useCallback(
     async (text, attachments) => {
@@ -439,6 +477,9 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
 
         // ── 真实模式：多轮工具循环（≤ MAX_TOOL_ROUNDS）──
         let assistant // 提升到循环外：供循环结束后判断是否「走满上限仍不收敛」（否则访问 for 块级变量会 ReferenceError）
+        let forcedCompressed = false // 本轮 send 是否已做「请求前强制压缩」（只允许一次，避免工具循环里反复压缩）
+        // 上下文预算：输入预算 = 窗口 × (1 − 输出留白比例)。用于估算当前请求是否接近模型上限。
+        const budgetInput = resolveInputBudget({ contextWindow: AGENT_CONTEXT_WINDOW_DEFAULT, outputBudgetRatio: AGENT_CONTEXT_OUTPUT_BUDGET_RATIO })
         // 【对齐大雄 runMode 分级】执行分级决定「是否弹执行确认门禁」：
         //   - 全自动 auto（默认，对齐大雄 agentSetRunMode 6283）：完整规划后直接执行——show_plan_for_confirm
         //     仍会输出规划/generations 供展示，但**不进入 awaiting 确认态**，LLM 继续 execute_plan 直接执行（不弹确认按钮）。
@@ -451,11 +492,33 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
           // 追加流式 assistant 占位（复刻官方）
           appendMsg({ role: 'assistant', content: '', model, streaming: true, createdAt: Date.now() })
 
+          // 【过渡方案·2026-08-18】historyTurns 实时读取（AI 助手设置可配）：
+          // 0=不回传、1=只上一轮、N=最近 N 轮纯文字历史（图片仍编号化 imageCatalog 图N，不内联，不破坏
+          // 「反推图一却全反推」安全底线）。见文件顶部注释 + agentCore.js buildRequestMessages 头注释。
+          const makeContextMessages = () => buildRequestMessages(getCurrentSnapshot().messages, systemRef.current, true, skillsRef.current, getCurrentMemory(), getCurrentImageMap(), loadAgentHistoryTurns(), buildLearnedContext(getCurrentMemory(), text), buildProjectMemoryContextFromStore(agentKey, '', text))
+          // ── 上下文预算触发压缩（照搬 contextManager）：估算当前请求，按 inputBudget 决定预/强制压缩 ──
+          //  force  → 请求前强制压缩：await 压缩写回 summary 后用新摘要重新组装（压缩失败只记日志，不发超限请求前先尝试）；
+          //  precompress → 后台预压缩（复用 maybeCompressSummary 节流），不阻塞本次请求；
+          //  none  → 直接发送。goal：长对话避免请求逼近/超过模型输入预算导致失败。
+          let contextMessages = makeContextMessages()
+          // 估算 + 决策一步到位；force→请求前强制压缩（await 压缩写回后用新摘要重装一次，防反复压缩），
+          //         precompress→后台预压缩（复用 maybeCompressSummary 节流，不阻塞），none→直发。
+          const action = decideContextCompression({ messages: contextMessages, inputBudget: budgetInput })
+          if (action === 'force' && !forcedCompressed) {
+            forcedCompressed = true
+            logger.info('AI助手', '[预算] 触发强制压缩', { round }, { module: 'agent' })
+            const summary = await compressToSummary({ provider, model, messages: getCurrentSnapshot().messages, previousSummary: getCurrentMemory()?.summary || '' })
+            if (summary) {
+              setCurrentMemory({ ...getCurrentMemory(), summary })
+              lastSummaryCompressTsRef.current = Date.now() // 刚压缩过，压制收尾节流的重复压缩
+              contextMessages = makeContextMessages() // 用新摘要重新组装（更小）
+            }
+          } else if (action === 'precompress' && !forcedCompressed) {
+            logger.debug('AI助手', '[预算] 触发后台预压缩', { round }, { module: 'agent' })
+            maybeCompressSummary()
+          }
           assistant = await roundTrip(
-            // 【过渡方案·2026-08-18】historyTurns 实时读取（AI 助手设置可配）：
-            // 0=不回传、1=只上一轮、N=最近 N 轮纯文字历史（图片仍编号化 imageCatalog 图N，不内联，不破坏
-            // 「反推图一却全反推」安全底线）。见文件顶部注释 + agentCore.js buildRequestMessages 头注释。
-            buildRequestMessages(getCurrentSnapshot().messages, systemRef.current, true, skillsRef.current, getCurrentMemory(), getCurrentImageMap(), loadAgentHistoryTurns()),
+            contextMessages,
             controller.signal,
             (delta) => updateLastStreaming(delta)
           )
@@ -488,9 +551,11 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
           // 执行工具并回填结果（TASK-006 #1：await 异步工具，确保回填真实结果而非 Promise）
           await runToolCalls(assistant.tool_calls, (tc) => tc.id)
 
-          // 三阶段门禁：本轮执行了 show_plan_for_confirm → 进入"待确认"，立即停循环等用户确认。
-          // 否则 AI 会在下一轮继续调 execute_plan（被拒）或继续输出 → 自言自语。
-          if (getAwaitingConfirm()) {
+          // 门禁停循环：两类待确认态都停——
+          //   ① 分步确认（show_plan_for_confirm）→ awaitingConfirm=true。
+          //   ② 积分闸（完全自主/直接生图命中 credit）→ creditGate.pending=true（节点已建好待点生成）。
+          // 停在此，防止 AI 下一轮继续调 execute_plan（重复建节点）或继续输出（自言自语）（T9/红线 §6.5）。
+          if (getAwaitingConfirm() || getCreditGate()?.pending === true) {
             pausedForConfirm = true
             break
           }
@@ -533,6 +598,8 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
         stateMachineRef.current.setStatus(ok ? 'idle' : 'failed')
         setSending(false)
         abortRef.current = null
+        // ── 「记」：本轮对话收尾后异步压缩历史→memory.summary（失败/超时只记日志，不影响主流程）──
+        maybeCompressSummary()
         // ── steer 队列：当前任务结束，自动执行下一条补充指令（per-conversation workflow.steerQueue）──
         const { next, patch: wfNextCtx } = wfNextSteer(wfStatus)
         patchCurrentWorkflow(wfNextCtx)
@@ -541,7 +608,7 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
       }
     },
     // 依赖：roundTrip 闭包了 model/provider/toolSchemas；sendRef 用于 steer 续跑（下方 useRef 保持最新）
-    [sending, model, roundTrip, callTool, runToolCalls, runDemoMode, appendMsg, setHistory, updateLastStreaming, endStreaming, stripStreaming, agentKey, provider, isAgentBusy]
+    [sending, model, roundTrip, callTool, runToolCalls, runDemoMode, appendMsg, setHistory, updateLastStreaming, endStreaming, stripStreaming, agentKey, provider, isAgentBusy, maybeCompressSummary]
   )
 
   /** 保存 send 引用，供 finally 里自动处理 steer 队列（useCallback 无法自调用） */
@@ -593,20 +660,32 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
             resolution: panel.resolution || '1K',
             depends_on_previous: false,
             dependency_mode: 'none',
+            // 【图生图·单图修复 2026-08-27】直连模式带参考图时必须声明 use_attachments（对齐多图路径
+            // buildPerReferenceGenerations），否则 execute_plan 的参考图解析分支③（useCanvasAgentTools.js）
+            // 会把本步作废为 use_attachments:false → 参考图不会写入节点 data.images，图生图失效。
+            // 有参考图 → 整批共享（无 attachment_indices，execute_plan 按 use_attachments=true 全量挂 refPool）。
+            ...(referenceImages.length ? { use_attachments: true } : {}),
           }]
 
+      // 【积分闸】try 内未赋值时 finally 仍需安全引用（防抛错后 ReferenceError）
+      let creditAwaited = false
       try {
         // 复用 execute_plan 工具（canvasPlanExecutor）在画布建节点 + 带参考图直连生图
         const res = await callTool('execute_plan', { generations: gens, auto_run: true, model: panel.model, referenceImages })
         const ok = res && (res.ok === true || (res.ok === undefined && !res.error))
+        // 【积分闸兼容】credit 命中 → data.awaited==='credit'：节点建好、未真生成、待点生成。
+        // 不复用"已生成"语义（不写「已在画布生图」）、不再次 execute_plan；creditGate 已由 execute_plan 置位并广播，AgentPanel 接 runExistingPlanTool（T10/红线 §6.4）。
+        creditAwaited = ok && res?.data?.awaited === 'credit'
         // 【A层】图像模式结果：成功/失败 + 出图数——高价值，供排查图生图链路
-        logger.info('AI助手', '图像模式结果', { ok, entries: (res?.data?.entries || []).length, error: res?.error || '' })
+        logger.info('AI助手', '图像模式结果', { ok, awaited: res?.data?.awaited || '', entries: (res?.data?.entries || []).length, error: res?.error || '' })
         const entries = res?.data?.entries || []
         const doneCount = entries.filter((e) => e.status === 'completed').length
         const logs = Array.isArray(res?.data?.logs) ? res.data.logs : []
-        const summary = ok
-          ? `已在画布生图：${entries.length} 张${doneCount ? `，完成 ${doneCount} 张` : ''}`
-          : `生图失败：${res?.error || ''}`
+        const summary = creditAwaited
+          ? `节点已建好，生成待积分确认，确认后自动生成`
+          : ok
+            ? `已在画布生图：${entries.length} 张${doneCount ? `，完成 ${doneCount} 张` : ''}`
+            : `生图失败：${res?.error || ''}`
         // 【TASK-009】图像模式也展示执行摘要（对齐大雄 workflowLogs）：多参考图拆分/依赖批时有逐步进度可见
         const withLogs = logs.length
           ? `${summary}\n\n执行摘要：\n${logs.map((l) => `${l.level === 'error' ? '❌' : l.level === 'warn' ? '⚠️' : l.level === 'ok' ? '✅' : '·'} ${l.message}`).join('\n')}`
@@ -618,7 +697,8 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
         appendMsg({ role: 'assistant', content: `生图异常：${e?.message || e}`, mode: 'image', createdAt: Date.now() })
       } finally {
         setCurrentSnapshot({ messages: getCurrentSnapshot().messages, skills: skillsRef.current, draft: '' })
-        patchCurrentWorkflow(wfFinish(true))
+        // 积分闸待确认时不要标记为"完成"（execute_plan 已置 workflow='ready'）；其余路径正常收尾
+        if (!creditAwaited) patchCurrentWorkflow(wfFinish(true))
         setCurrentPending(null)
         try { captureActiveConversation() } catch { /* ignore */ }
         stateMachineRef.current.setStatus('idle')
@@ -642,11 +722,34 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
     setError(null)
     // 【TASK-006 #6】清空时一并重置 awaitingConfirm + pendingGenerations，否则 clear 后 execute_plan 永久被拒（策划未确认残留）
     setAwaitingConfirm(false)
+    // 【积分闸】清空对话时一并清除 creditGate（含映射），防残留"待点生成"永久拒（对齐 awaitingConfirm 同清理）
+    clearCreditGate()
     // 落盘当前对话为空（messages/attachments/workflow/pending/memory 一并清空）
     setCurrentSnapshot({ messages: [], skills: skillsRef.current, draft: '', attachments: [], workflow: null, pending: null, memory: { summary: '', facts: [], lastPlan: null, lastSharedStyle: '', notes: [] }, pendingGenerations: null, awaitingConfirm: false })
     try { captureActiveConversation() } catch { /* ignore */ }
     stateMachineRef.current.setStatus('idle')
-  }, [agentKey, setHistory, setAwaitingConfirm])
+  }, [agentKey, setHistory, setAwaitingConfirm, clearCreditGate])
+
+  /** 确认「记」长期记忆：memory_suggest 门禁卡片点确认后落库（agentKey 全局，不分项目）。
+   *  从会话暂存读建议 → saveProjectMemory 落库 → 清暂存 + 关确认门禁。
+   *  @returns {Promise<{ok:boolean, error?:string}>} ok=true 表示已确认并落库（UI 应停止原策划确认动作）
+   */
+  const confirmPendingMemorySuggest = useCallback(async () => {
+    const suggest = getActivePendingMemorySuggest()
+    if (!suggest || typeof suggest !== 'object') return { ok: false, error: '没有待确认的项目记忆建议' }
+    const saved = await saveProjectMemory(agentKey, {
+      kind: suggest.kind,
+      content: suggest.content,
+      source: { conversationId: getActiveConversationId() },
+    })
+    setActivePendingMemorySuggest(null)
+    setAwaitingConfirm(false)
+    const label = (PROJECT_MEMORY_KIND_LABELS[saved.kind] || saved.kind) || ''
+    appendMsg({ role: 'assistant', content: `已保存长期记忆：[${label}] ${saved.content}`, model, createdAt: Date.now() })
+    try { captureActiveConversation() } catch { /* ignore */ }
+    logger.info('AI助手', '[记] 确认落库', { kind: saved.kind, contentLen: (saved.content || '').length }, { module: 'agent' })
+    return { ok: true }
+  }, [agentKey, model, appendMsg])
 
   // 对话切换公共流程（#9）：capture 当前 → 经 store 得到新对话 → 重置 error，重载状态机
   //（load 隔离各对话状态），通知 UI 层恢复 skills/草稿。
@@ -706,7 +809,20 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
     if (!Array.isArray(generations) || generations.length === 0) return { ok: false, error: 'generations 为空' }
     const res = await callTool('execute_plan', { generations, auto_run: true })
     const ok = res && (res.ok === true || (res.ok === undefined && !res.error))
-    return { ok, error: res?.error || '' }
+    // 【积分闸兼容 · 2026-08-27 简化】credit=creditSwitch 是全局总闸，与 runMode 正交。
+    // 这一直连点（prompts 确认通道）不自动声称「已生成」：若 execute_plan 返回 awaited:'credit'
+    // （积分总闸拦截，节点已建好待点生成），如实透出，调用方(AgentPanel)据此展示「待确认」，绝不二次 execute_plan。
+    return { ok, error: res?.error || '', awaited: res?.data?.awaited || null, entries: res?.data?.entries || [] }
+  }, [callTool])
+
+  // 【补跑唯一入口（D8）】对「节点已建好、待点生成」的积分确认态真正触发生成。
+  // 只走 runExistingPlanTool（由 run_existing_plan 工具分发，ctx 由 useCanvasAgentTools 持有）。
+  // 供 AgentPanel「确认生成」按钮 / sendImageMode/executePlanDirect 确认回调共用，禁止手写 setNodes/逐节点触发。
+  // @returns {Promise<{ok, error?, data?}>}
+  const runExistingConfirm = useCallback(async () => {
+    const res = await callTool('run_existing_plan', {})
+    const ok = res && (res.ok === true || (res.ok === undefined && !res.error))
+    return { ok, error: res?.error || '', data: res?.data || null }
   }, [callTool])
 
   // 【发到画布】把一段文本内容建成 textNode（内容落生成区 data.text，抽屉收起）。
@@ -718,7 +834,7 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
     return callTool('create_node', { type: 'textNode', text })
   }, [callTool])
 
-  return { messages, sending, error, model, setModel, send, sendImageMode, stop, clear, stateAction, conversations, activeConversationId, newChat, switchChat, deleteChat, updateMessageByContent, executePlanDirect, sendContentToCanvas,
+  return { messages, sending, error, model, setModel, send, sendImageMode, stop, clear, stateAction, conversations, activeConversationId, newChat, switchChat, deleteChat, updateMessageByContent, executePlanDirect, sendContentToCanvas, confirmPendingMemorySuggest, getActivePendingMemorySuggest, runExistingConfirm, getCreditGate,
     // 【展示→编排轴薄适配（收口 AgentPanel 的 store 穿透）】回传 UI 会用到的 store 原子能力，
     // 使 AgentPanel 不再直接 import conversationStore（唯一入口收敛到本 hook）。这些是 store 的稳定
     // 模块级函数（透传引用，非拷贝），消息单源下已满足"UI 不直连持久层"的一步；未来如需可再 action 化。

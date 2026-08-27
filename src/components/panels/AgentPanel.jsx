@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useAgentChat, setGenParams, getGenParams } from '../agent/index.js'
+import { useAgentChat, setGenParams, getGenParams, getCreditSwitch, setCreditSwitch } from '../agent/index.js'
 import { useProviders, load as loadProviders } from '../base/settings/providerStore.js'
 import AgentMessage from './AgentMessage.jsx'
 import ModelSelect from '../base/ModelSelect.jsx'
@@ -15,6 +15,7 @@ import { showToast } from '../base/toastStore.js'
 import { logger } from '../base/logger.js'
 import { AGENT_MODELS } from '../base/config.js'
 import previewUrls from '../base/previewUrl.js'
+import { subscribe } from '../base/eventBus.js'
 
 /** AI 助手输入模式存储键（contracts.js STORAGE_KEYS 登记，集中避免裸键） */
 const AGENT_INPUT_MODE_KEY = 'agent_input_mode'
@@ -172,7 +173,7 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
   // 新建对话短锁：新建后 1s 内禁用按钮，避免用户狂点出十几个空对话
   const newChatLock = useRef(false)
 
-  const { messages, sending, error, model, setModel, send, sendImageMode, stop, clear, stateAction, conversations, activeConversationId, newChat, switchChat, deleteChat, updateMessageByContent, executePlanDirect, sendContentToCanvas,
+  const { messages, sending, error, model, setModel, send, sendImageMode, stop, clear, stateAction, conversations, activeConversationId, newChat, switchChat, deleteChat, updateMessageByContent, executePlanDirect, sendContentToCanvas, confirmPendingMemorySuggest, getActivePendingMemorySuggest, runExistingConfirm, getCreditGate,
     // 展示→编排轴薄适配（收口 store 穿透）：这 4 个由 useAgentChat 回传，UI 不再直接 import conversationStore
     setCurrentSnapshot, setAwaitingConfirm, getCurrentRunMode, setCurrentRunMode } = useAgentChat({
     agentKey,
@@ -213,10 +214,73 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
     setRunModeState(next)
     setCurrentRunMode(next)
   }
+  // 【三态收敛 · 2026-08-27 简化定稿】把原本正交的「智能/图像(inputMode)× 全自动/半自动(runMode)
+  //  + 隐藏『有Skill强制半自动』」收敛为一个三态选择器，从【用户投入的精力】切分，语义一眼可懂：
+  //    直接生图(workMode='image') → inputMode='image'，sendImageMode 直连，不经 LLM 编排
+  //    分步确认(workMode='semi')  → inputMode='agent' + runMode='semi'，调工具改画布前先确认策划
+  //    完全自主(workMode='auto')  → inputMode='agent' + runMode='auto'，AI 自主改画布，无策划确认
+  //  workMode 仅做展示与驱动推导；底层仍分别写 inputMode 与 runMode。
+  //  ⚠️ 注意：积分闸判定（credit=creditSwitch）与 runMode 完全无关（见 execute_plan / creditSwitch 注释），
+  //  所以三态切换里 runMode 残留 semi/auto 不会影响「是否弹积分确认」——那是独立的全局总闸。
+  const workMode = inputMode === 'image' ? 'image' : (runMode === 'semi' ? 'semi' : 'auto')
+  const setWorkMode = (mode) => {
+    if (mode === 'image') {
+      setInputModeAndPersist('image')
+    } else {
+      setInputModeAndPersist('agent')
+      setRunModeAndPersist(mode === 'semi' ? 'semi' : 'auto')
+    }
+  }
   // attachments 变化 → 同步到 conversationStore（自动落盘，带 hydrated 时序守卫）
   useEffect(() => {
     setCurrentSnapshot({ attachments })
   }, [attachments])
+
+  // ── 高消耗积分确认闸（creditSwitch）── 2026-08-27 简化定稿
+  // 全局开关（默认开）：任何模式下，真正烧积分那下（image/video 生成）都先经用户确认。
+  // 心智模型【一句话】：建节点不花积分，随便 AI 建；只有「真生成图/视频那一下」烧积分，
+  //   由这个全局总闸把关——开了就等确认、关了直接跑。
+  // 它：①与三态选择器完全正交（在直接生图/分步确认/完全自主下一视同仁）；②只控媒体生成，
+  //   不管「改画布/改布局」这类零成本操作（那由三态决定）。
+  // 判定收敛在 useCanvasAgentTools.executePlanTool 一处：creditHit = getCreditSwitch()。
+  // 读写走 contracts.js 登记的 CREDIT_SWITCH_KEY（index.js 透传 getCreditSwitch/setCreditSwitch）。
+  const [creditSwitch, setCreditSwitchState] = useState(() => { try { return getCreditSwitch() } catch { return true } })
+  const toggleCreditSwitch = () => {
+    const next = !creditSwitch
+    setCreditSwitchState(next)
+    setCreditSwitch(next)
+  }
+  // credit 确认卡预览：跟随 per-conv creditGate 的 pending 态刷新（execute_plan 置位/补跑清除时由事件驱动）。
+  const [creditGatePreview, setCreditGatePreview] = useState(() => {
+    try { const g = getCreditGate(); return g?.pending === true ? g : null } catch { return null }
+  })
+  const [creditGateDismissed, setCreditGateDismissed] = useState(false)
+  useEffect(() => {
+    const unsub = subscribe('agent:credit-gate', (payload) => {
+      if (payload && payload.pending === true) {
+        try { setCreditGatePreview(getCreditGate()) } catch { /* ignore */ }
+        setCreditGateDismissed(false)
+      } else {
+        setCreditGatePreview(null)
+      }
+    })
+    return unsub
+  }, [])
+  // 确认生成：走 runExistingPlanTool（D8 补跑唯一入口）。成功后 creditGate 被清除并广播 → 卡片自动收起。
+  const handleConfirmCredit = useCallback(async () => {
+    const res = await runExistingConfirm()
+    if (!res?.ok) {
+      if (typeof showToast === 'function') showToast(res?.error || '补跑生成失败，已保留待确认态可重试', { type: 'error' })
+      return
+    }
+    // 成功：节点已触发真生成；creditGate 已清、事件已广播，卡片由订阅收起。
+    setCreditGatePreview(null)
+    if (typeof showToast === 'function') showToast('已确认，开始生成', { type: 'success' })
+  }, [runExistingConfirm])
+  // 取消：保留待确认态（不删节点，节点已在画布上，用户可随时手动点节点触发/再次确认）。
+  const dismissCreditCard = () => setCreditGateDismissed(true)
+  const showCreditCard = creditGatePreview?.pending === true && !creditGateDismissed
+  const creditGenCount = Array.isArray(creditGatePreview?.gens) ? creditGatePreview.gens.length : 0
 
   // 【选中图→待确认引用】（对齐大雄 ghost 语义，防误触）：用户选中画布带图节点时，
   // 图先进「待确认」列表（pendingImageNodes），不直接进正式附件。用户点输入框/发送时才
@@ -330,12 +394,21 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
     Promise.resolve(send(text, attach)).catch((e) => logger.error('Agent', 'send 失败', e))
   }
 
-  // Skill 阶段2 确认：翻转 awaitingConfirm 并通知 LLM 按策划执行（Step F）
+  // Skill 阶段2 确认：翻转 awaitingConfirm 并通知 LLM 按策划执行（Step F）。
+  // 复用现有确认门禁接管两类确认：【记忆确认】存在待确认的项目长期记忆建议时写记忆；
+  // 否则【策划确认】通知 LLM 按策划执行。
   const handleConfirmPlan = useCallback(() => {
+    const pendingMemory = getActivePendingMemorySuggest()
+    if (pendingMemory && typeof pendingMemory === 'object') {
+      Promise.resolve(confirmPendingMemorySuggest())
+        .then((r) => { if (!r?.ok && typeof showToast === 'function') showToast(r?.error || '保存长期记忆失败', { type: 'error' }) })
+        .catch((e) => logger.error('Agent', '保存长期记忆失败', e))
+      return
+    }
     setAwaitingConfirm(false)
     try { contentSet(AGENT_DRAFT_KEY, '') } catch { /* ignore */ }
     Promise.resolve(send('已确认，请按刚才展示的策划执行。')).catch((e) => logger.error('Agent', '确认后 send 失败', e))
-  }, [send])
+  }, [send, confirmPendingMemorySuggest, getActivePendingMemorySuggest])
 
   // 【对齐大雄 prompts 逐条确认通道 · 保留为可选能力，当前不激活】
   //  大雄 prompts 逐条确认是其「思维模式」遗留（thinkingModeOn=false 已废弃，见 promptFlow.js 头「★ 重要」），
@@ -453,6 +526,24 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
         <div className="flex items-center gap-2">
           {AI_ICON}
           <span className="text-white text-sm font-medium">AI 助手</span>
+          {/* 高消耗积分确认开关（creditSwitch）：全局、默认开。任何模式下，真烧积分那下（image/video 生成）
+              都先经用户确认，确认前不烧积分。独立于三态选择器；分步确认（semi）不叠此闸（D2）。 */}
+          <button
+            type="button"
+            onClick={toggleCreditSwitch}
+            disabled={sending}
+            className={`flex items-center gap-1 pl-1.5 pr-1 py-0.5 rounded-full border text-caption-sm transition-colors disabled:opacity-50 ${
+              creditSwitch ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300' : 'bg-surface/60 border-edge-faint text-muted'
+            }`}
+            title={creditSwitch ? '积分确认已开启：生成前先确认，避免意外消耗积分。点击关闭' : '积分确认已关闭：生成直接放行。点击开启'}
+          >
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="2" y="6" width="20" height="12" rx="2" />
+              <line x1="6" y1="10" x2="6" y2="14" />
+              <line x1="10" y1="10" x2="10" y2="14" />
+            </svg>
+            <span>{creditSwitch ? '积分确认' : '已关闭'}</span>
+          </button>
         </div>
         <div className="flex items-center gap-0.5">
           <button
@@ -587,6 +678,54 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
         </div>
       </div>
 
+      {/* 高消耗积分确认卡（独立于 plan 确认）：credit 命中（完全自主/直接生图 + 开关开）时，
+          execute_plan 已建好节点（status='ready'）、真生成未触发；此处让用户确认「点生成烧积分那下」。
+          确认 → runExistingPlanTool 补跑；取消 → 仅收起卡片、保留待确认态（不删节点，节点已在画布上）。 */}
+      {showCreditCard && (
+        <div className="shrink-0 px-3 py-2 border-t border-edge-faint bg-surface-deep">
+          <div className="bg-amber-500/5 border border-amber-500/30 rounded-lg px-3 py-2.5">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <div className="text-caption-sm text-amber-200 font-medium mb-0.5">
+                  {creditGenCount > 0 ? `将生成 ${creditGenCount} 张图/视频` : '将生成图/视频'}
+                </div>
+                <div className="text-caption text-muted text-xs leading-snug">
+                  节点已建好，确认后开始生成（预计消耗积分）。取消可稍后手动点节点触发。
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={dismissCreditCard}
+                className="shrink-0 p-1 text-muted-2 hover:text-white hover:bg-surface rounded-md transition-colors"
+                title="取消（保留待确认态）"
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+            </div>
+            <div className="flex items-center gap-2 mt-2">
+              <button
+                type="button"
+                onClick={handleConfirmCredit}
+                disabled={sending}
+                className="shrink-0 px-3 py-1 text-caption-sm text-black bg-amber-300 hover:bg-amber-200 rounded-md transition-colors disabled:opacity-60"
+              >
+                确认生成
+              </button>
+              <button
+                type="button"
+                onClick={dismissCreditCard}
+                className="shrink-0 px-3 py-1 text-caption-sm text-muted-2 hover:text-white hover:bg-surface rounded-md transition-colors"
+              >
+                取消
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 底部 OneBox 输入区 */}
       <div className="shrink-0 px-3 py-3 border-t border-edge-faint bg-surface-deep">
         <div className="bg-canvas border border-edge rounded-xl focus-within:border-blue-500 transition-colors">
@@ -628,24 +767,33 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
             </div>
           )}
 
-          {/* 输入方式切换（智能对话 / 图像直连生图）—— 作为输入框的"输入方式"标识，紧贴输入框 */}
+          {/* 三态选择器（直接生图 / 分步确认 / 完全自主）：合并「智能/图像 × 全自动/半自动」两个正交维度，
+              从用户精力出发切分——直接生图=一输就出图（直连生图，不经 LLM 编排工具，自动执行）；
+              分步确认=AI 调工具前先展示策划，逐步确认再执行；完全自主=AI 自主操作、无需逐步确认。
+              底层仍分别写 inputMode 与 runMode：直接生图→image；分步确认→agent+semi；完全自主→agent+auto。 */}
           <div className="flex items-center gap-1 px-2.5 pt-2">
             <div className="flex items-center gap-0.5 p-0.5 rounded-lg bg-surface/50 border border-edge-faint shrink-0">
               <button
                 type="button"
-                onClick={() => setInputModeAndPersist('agent')}
-                className={`shrink-0 whitespace-nowrap px-2 py-0.5 text-caption-sm rounded-md transition-colors ${inputMode === 'agent' ? 'bg-surface-hover-strong text-white' : 'text-muted hover:text-body'}`}
-                title="智能对话：LLM 理解需求后操作画布"
-              >智能</button>
+                onClick={() => setWorkMode('image')}
+                className={`shrink-0 whitespace-nowrap px-2 py-0.5 text-caption-sm rounded-md transition-colors ${workMode === 'image' ? 'bg-surface-hover-strong text-white' : 'text-muted hover:text-body'}`}
+                title="直接生图：提示词 + 参考图直接出图，不经 AI 编排；烧积分那下受全局积分确认总闸约束（开则先确认）"
+              >直接生图</button>
               <button
                 type="button"
-                onClick={() => setInputModeAndPersist('image')}
-                className={`shrink-0 whitespace-nowrap px-2 py-0.5 text-caption-sm rounded-md transition-colors ${inputMode === 'image' ? 'bg-surface-hover-strong text-white' : 'text-muted hover:text-body'}`}
-                title="图像模式：参考图 + 提示词直连生图，不经过 LLM"
-              >图像</button>
+                onClick={() => setWorkMode('semi')}
+                className={`shrink-0 whitespace-nowrap px-2 py-0.5 text-caption-sm rounded-md transition-colors ${workMode === 'semi' ? 'bg-surface-hover-strong text-white' : 'text-muted hover:text-body'}`}
+                title="分步确认：AI 调用工具修改画布前先展示策划，等你确认再执行"
+              >分步确认</button>
+              <button
+                type="button"
+                onClick={() => setWorkMode('auto')}
+                className={`shrink-0 whitespace-nowrap px-2 py-0.5 text-caption-sm rounded-md transition-colors ${workMode === 'auto' ? 'bg-surface-hover-strong text-white' : 'text-muted hover:text-body'}`}
+                title="完全自主：AI 自主操作画布，无需逐步确认（含 Skill 场景）"
+              >完全自主</button>
             </div>
             <span className="text-caption text-muted-2 truncate">
-              {inputMode === 'image' ? '直连生图' : '智能对话'}
+              {workMode === 'image' ? '直连出图' : workMode === 'semi' ? '分步确认' : 'AI 自主'}
             </span>
           </div>
 
@@ -664,7 +812,7 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
               if (e.key === 'Escape' && skillSlashOpen) { e.preventDefault(); setSkillSlashOpen(false); return }
               if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); handleSend() }
             }}
-            placeholder={inputMode === 'image' ? '输入最终生图提示词，回车直接生图…' : '输入消息，回车发送，Shift+Enter 换行…'}
+            placeholder={workMode === 'image' ? '输入最终生图提示词，回车直接生图…' : '输入消息，回车发送，Shift+Enter 换行…'}
             rows={1}
             disabled={sending}
             className="w-full bg-transparent text-primary text-sm px-3 py-2.5 resize-none focus:outline-none disabled:opacity-60"
@@ -784,31 +932,6 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
                   </div>
                 )}
               </span>
-
-              {/* 【对齐大雄 agentRunModeBtn】执行分级按钮（自动/半自动），固定显示在工具栏（一直可见）。
-                  放在 Skill 按钮之后、发送按钮之前（对齐大雄 agent-panel.html 89-92：Skills → runMode → 发送）。
-                  全自动（默认，对齐大雄 6283「一次规划后直接执行」）：无 Skill 时规划照常展示但不弹确认、直接执行；
-                  半自动（对齐大雄 6282「规划后确认再执行」）：无 Skill 时规划后需确认再执行。
-                  仅智能（agent）模式生效；图像模式不走分级（直连生图）。
-                  ⚠️ 大雄选 Skill 不会自动切 runMode（Skill 与 runMode 独立，Skill 三阶段始终需确认策划）。 */}
-              <button
-                type="button"
-                onClick={() => setRunModeAndPersist(runMode === 'auto' ? 'semi' : 'auto')}
-                disabled={inputMode === 'image' || sending}
-                className={`shrink-0 flex items-center gap-1 px-1.5 py-1 text-xs rounded-md transition-colors whitespace-nowrap disabled:opacity-50 ${inputMode !== 'agent'
-                  ? 'text-muted-2 cursor-default'
-                  : runMode === 'semi'
-                    ? 'bg-surface-hover-strong text-white border border-edge'
-                    : 'text-secondary hover:text-primary hover:bg-surface border border-transparent'}`}
-                title={inputMode === 'image' ? '图像模式不走分级' : (runMode === 'semi' ? '半自动：规划后需确认再执行' : '全自动：规划后直接执行，不用确认')}
-              >
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M12 8V4H8" />
-                  <rect x="4" y="4" width="16" height="16" rx="2" />
-                  <path d="M4 10h16" />
-                </svg>
-                <span>{runMode === 'semi' ? '半自动' : '全自动'}</span>
-              </button>
 
               {/* 生图参数按钮：第2位——选择画质/比例/渲染质量 */}
               <span ref={genImgMenuRef} className="relative">

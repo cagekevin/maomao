@@ -92,8 +92,8 @@ describe('STORAGE_KEYS 语义检查', () => {
 })
 
 describe('STORAGE_KEYS 内容验证', () => {
-  it('当前共有 29 个登记键', () => {
-    expect(Object.keys(STORAGE_KEYS).length).toBe(29)
+  it('当前共有 30 个登记键', () => {
+    expect(Object.keys(STORAGE_KEYS).length).toBe(30)
   })
 
   it('包含所有核心业务键', () => {
@@ -226,8 +226,8 @@ describe('EVENTS 结构完整性', () => {
 })
 
 describe('EVENTS 内容验证', () => {
-  it('当前共有 5 个登记事件', () => {
-    expect(Object.keys(EVENTS).length).toBe(5)
+  it('当前共有 6 个登记事件', () => {
+    expect(Object.keys(EVENTS).length).toBe(6)
   })
 
   it('包含所有核心事件', () => {
@@ -237,6 +237,7 @@ describe('EVENTS 内容验证', () => {
     expect(keys).toContain('project:import')
     expect(keys).toContain('project:export')
     expect(keys).toContain('persist:failed')
+    expect(keys).toContain('agent:credit-gate')
   })
 })
 

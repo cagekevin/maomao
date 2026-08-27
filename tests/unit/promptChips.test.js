@@ -27,14 +27,37 @@ describe('promptChips 序列化往返', () => {
     expect(serializeDOM(renderToDom(input, null))).toBe(input)
   })
 
-  it('@{id:label} 芯片往返不变（含缩略图 metaMap）', () => {
+  it('@{id:label} 芯片序列化会带上缩略图 URL 段（根治刷新丢图）', () => {
     const input = '参考 @{img-1:人物} 生成'
     const metaMap = new Map([['img-1', { kind: 'image', url: 'http://x/a.png' }]])
     const root = renderToDom(input, metaMap)
     // 反序列化应生成芯片元素
     const chip = root.querySelector('[data-ref-id="img-1"]')
     expect(chip).not.toBeNull()
-    // 序列化回原字符串
+    // 序列化把缩略图 URL 编码进字符串（|url 段，经 encodeURIComponent）
+    const out = serializeDOM(root)
+    expect(out).toBe('参考 @{img-1:人物|http%3A%2F%2Fx%2Fa.png} 生成')
+    expect(chip.getAttribute('data-ref-thumb')).toBe('http://x/a.png')
+  })
+
+  it('序列化后再次反序列化，缩略图从字符串本身恢复（不依赖 metaMap）', () => {
+    const serialized = '参考 @{img-1:人物|http%3A%2F%2Fx%2Fa.png} 生成'
+    // 关键：传入 null metaMap，验证缩略图靠字符串自带恢复（刷新/重建场景）
+    const root = renderToDom(serialized, null)
+    const chip = root.querySelector('[data-ref-id="img-1"]')
+    expect(chip).not.toBeNull()
+    const img = chip.querySelector('.prompt-chip-thumb')
+    expect(img).not.toBeNull()
+    expect(img.src).toBe('http://x/a.png')
+    expect(serializeDOM(root)).toBe(serialized) // 二次序列化稳定
+  })
+
+  it('旧格式（无 url 段）仍正确解析，向后兼容', () => {
+    const input = '参考 @{img-1:人物} 生成'
+    const root = renderToDom(input, null)
+    const chip = root.querySelector('[data-ref-id="img-1"]')
+    expect(chip).not.toBeNull()
+    expect(chip.getAttribute('data-ref-thumb')).toBeNull()
     expect(serializeDOM(root)).toBe(input)
   })
 

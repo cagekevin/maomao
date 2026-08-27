@@ -16,10 +16,17 @@ import {
   getCurrentRefImages, setCurrentRefImages,
   getLastUserReferenceImages, getCurrentImageMap,
   getCurrentRunMode, getCurrentSnapshot,
+  getCreditGate, setCreditGate, clearCreditGate,
 } from '../conversation/conversationStore.js'
+// ═══ 补充 import（拆行放置，避免挤爆单行）═══
+import { getActivePendingMemorySuggest, setActivePendingMemorySuggest } from '../conversation/conversationStore.js'
+// 「记」项目记忆：记忆类别枚举 + 脱敏函数（memory_suggest 工具校验/脱敏用）
+import { PROJECT_MEMORY_KINDS, sanitizeMemoryContent } from '../runtime/projectMemoryStore.js'
 import { contentGet, contentSet } from '../../base/contentStore.js'
 import { generateId } from '../../base/idGen.js'
 import { logger } from '../../base/logger.js'
+import { publish } from '../../base/eventBus.js'
+import { CREDIT_SWITCH_KEY } from '../../base/contracts.js'
 
 /* ════════════════════════════════════════════════════════════════
  * AI 生图默认参数（genParams）—— 由 AgentPanel 生图参数区设置，execute_plan 读取。
@@ -50,6 +57,23 @@ export function setGenParams(patch = {}) {
 }
 export function getGenParams() {
   return genParams
+}
+
+/* ════════════════════════════════════════════════════════════════
+ * 高消耗积分确认开关（creditSwitch）—— 全局、默认开（contracts.STORAGE_KEYS 登记）。
+ * ────────────────────────────────────────────────────────────────
+ * 三按钮收敛（docs/59、60）：任何模式下「真正烧图/视频积分那下」是否先确认，
+ * 由该开关 + per-conv creditGate 决定。execute_plan 判定 credit 时读它；
+ * AgentPanel 顶部开关读写它（setCreditSwitch）。默认开（undefined → true）。
+ */
+export function getCreditSwitch() {
+  try {
+    const v = contentGet(CREDIT_SWITCH_KEY)
+    return v === undefined || v === null ? true : !!v
+  } catch { return true }
+}
+export function setCreditSwitch(v) {
+  try { contentSet(CREDIT_SWITCH_KEY, !!v) } catch { /* 持久化失败仅降级为内存 */ }
 }
 
 /* ════════════════════════════════════════════════════════════════
@@ -795,11 +819,12 @@ const presentPlanTool = {
       setPendingGenerations(gens)
     }
     // 【对齐大雄 runMode 分级】是否进入"待确认"门禁：
-    //   - 有 Skill：必然三阶段，进入 awaiting（Skill 需要用户确认策划）。
-    //   - 无 Skill + semi：进入 awaiting（半自动：规划后确认再执行，对齐大雄 6282/7774）。
-    //   - 无 Skill + auto（默认）：不进入 awaiting（全自动：规划后直接执行，不弹确认按钮，对齐大雄 6283）。
+    //   - runMode==='semi'：进入 awaiting（半自动：规划后确认再执行，对齐大雄 6282/7774）。
+    //   - runMode==='auto'：不进入 awaiting（全自动：规划后直接执行）。
+    //   【D7 收敛】删除 hasSkillNow 强制项：Skill 不再强制半自动；「完全自主 + 有媒体 + 开关开」
+    //   改由 execute_plan 的通用积分闸（credit）拦截，不再在此设 awaitingConfirm（D1 两条门禁独立）。
     const hasSkillNow = Array.isArray(getCurrentSnapshot()?.skills) && getCurrentSnapshot().skills.length > 0
-    const needConfirm = hasSkillNow || getCurrentRunMode() === 'semi'
+    const needConfirm = getCurrentRunMode() === 'semi'
     setAwaitingConfirm(needConfirm)
     // memory 提炼（对齐大雄 conv.memory.lastPlan）：把阶段1策划记入当前对话，供多轮上下文
     const mem = getCurrentMemory()
@@ -906,7 +931,15 @@ const executePlanTool = {
       }
       let gens = pendingUsed ? pending : argsGens
       clearPendingGenerations()
-      const autoRun = args.auto_run !== false
+      // 【D3/D4 积分闸判定 · 2026-08-27 简化（架构决策）】credit = creditSwitch（全局总闸，与模式正交）。
+      // 删掉旧版 runMode!=='semi' 特殊分支：它把「分步确认残留的 semi」与「直接生图」混为一谈，
+      // 导致切过「分步确认」后回「直接生图」时积分闸被永久短路（bug，见 tests/unit/creditGateModes.test.js）。
+      // 心智模型：积分开关就是通用总闸，开了就拦、关了就放，对「直接生图/分步确认/完全自主」一视同仁（PRD §3.2）。
+      // 命中 → 强制 autoRun=false：只建节点（免费，status='ready'），真正的「点生成烧积分那下」留待
+      // 用户点确认 → runExistingPlanTool 补跑。绝不放行 LLM 的 auto_run:true 直接真生成（红线 §6.4）。
+      // 注：分步确认（semi）在开关开时也会再经一次积分确认（不算 D2 的「不叠」）——这是「通用闸一视同仁」的直接结果。
+      const creditHit = getCreditSwitch()
+      const autoRun = creditHit ? false : (args.auto_run !== false)
       // 【模型锁定】用面板生图参数区（getGenParams）作为默认；LLM 显式传 model 则优先。
       const panel = getGenParams()
       const model = str(args.model) || panel.model
@@ -996,6 +1029,22 @@ const executePlanTool = {
         patchCurrentWorkflow({ status: 'failed', updatedAt: Date.now() })
         return { ok: false, error: '计划执行失败' }
       }
+      // 【D4/D1b 积分闸命中后处理】creditHit → 节点已建好（ready）、真生成未触发。
+      // 提取 steps↔nodeId 映射 → 置 per-conv creditGate（pending:true + gens + map，随 conv 持久化可恢复），
+      // 广播 credit-gate 事件（AgentPanel 刷新「确认生成」卡片）。返回 awaited:'credit'，不声称「已生成」（红线 §6.4）。
+      if (creditHit) {
+        patchCurrentWorkflow({ status: 'ready', updatedAt: Date.now() })
+        if (result.entries.length === 0) {
+          logger.error('AI助手', '[plan] execute_plan 命中积分闸但未建出节点', {}, { module: 'agent' })
+          return { ok: false, error: '计划未能建出节点，未进入积分确认' }
+        }
+        const map = {}
+        result.entries.forEach((e) => { if (e.nodeId) map[String(e.stepId ?? e.id)] = e.nodeId })
+        setCreditGate({ pending: true, gens: lockedGens, map })
+        publish('agent:credit-gate', { pending: true })
+        logger.info('AI助手', '[plan] execute_plan 命中积分闸（节点已建好待确认）', { entriesCount: result.entries.length, awaited: 'credit' })
+        return { ok: true, data: { awaited: 'credit', steps: result.entries, note: '节点已建好，生成待积分确认，确认后自动生成' } }
+      }
       const anyFailed = result.entries.some((e) => e.status === 'failed')
       // 【plan debug】执行结果摘要：每步状态 + 失败详情 + 产出日志数。
       logger.debug('AI助手', '[plan] execute_plan 完成', {
@@ -1016,6 +1065,54 @@ const executePlanTool = {
       return { ok: false, error: `计划执行异常：${e?.message || e}` }
     }
   }
+}
+
+/**
+ * runExistingPlanTool —— 补跑唯一入口（D8）。
+ * 用户点「确认生成」后，对 execute_plan 已建好、处于 ready 的节点真正触发生成（真正烧积分）。
+ * 前提：per-conv creditGate?.pending===true 且 map 存在（幂等防线：缺失拒绝、连点只生效一次）。
+ * 允许复跑，但补跑失败保留待确认态可重试；成功才清 creditGate（红线 §6.7 置位/清除成对）。
+ * 禁止任何路径手写 setNodes/逐节点触发——一律汇入这里（红线 §6.8/6.9 补跑=点生成）。
+ * @param {object} ctx  useReactFlow() 能力（与首次 execute_plan 同源）
+ */
+export async function runExistingPlanTool(ctx) {
+  const gate = getCreditGate()
+  if (!gate || gate.pending !== true || !gate.map || typeof gate.map !== 'object') {
+    return { ok: false, error: '无待点生成的计划（积分确认未置位或已清空），已拒绝补跑' }
+  }
+  const result = await executePlan({
+    ctx,
+    generations: Array.isArray(gate.gens) ? gate.gens : [],
+    autoRun: true,
+    mode: 'runExisting',
+    nodeMappings: gate.map,
+    defaults: getGenParams(),
+  })
+  // executePlan 内部走全局单飞锁 + 超时兜底；失败保留待重试、原样透传（不吞、不静默清态）
+  if (!result || !result.entries) {
+    return { ok: false, error: result?.workflow?.error || '补跑失败', workflow: result?.workflow }
+  }
+  const anyFailed = result.entries.some((e) => e.status === 'failed')
+  const anyDone = result.entries.some((e) => e.status === 'completed')
+  if (!anyFailed) {
+    clearCreditGate()
+    publish('agent:credit-gate', { pending: false })
+  }
+  const status = anyFailed && anyDone ? 'completed_with_errors' : anyFailed ? 'failed' : 'completed'
+  return { ok: true, data: { workflow: { ...(result.workflow || {}), status }, entries: result.entries } }
+}
+
+/**
+ * run_existing_plan 工具（D8 补跑唯一入口的 callTool 封装）。
+ * 供 AgentPanel「确认生成」按钮与 sendImageMode/executePlanDirect 确认回调共用；
+ * 触发逻辑全部走 runExistingPlanTool(ctx)，禁止任何路径手写 setNodes/逐节点触发。
+ * 非 LLM 常规编排工具（creditGate.pending 才放行），注册进 callTool 分发即可。
+ */
+const runExistingPlanToolDef = {
+  name: 'run_existing_plan',
+  description: '对已建好、待点生成的节点补跑触发生成（需先有积分确认待确认态）。仅供确认「确认生成」时调用。',
+  parameters: { type: 'object', properties: {}, required: [] },
+  execute: (args, ctx) => runExistingPlanTool(ctx),
 }
 
 /** 视图适配（fit_view）—— zoom 到能看到所有节点 */
@@ -1180,6 +1277,42 @@ const groupNodesTool = {
 }
 
 /**
+ * 提议保存项目记忆（memory_suggest）—— 照搬参考项目 memoryTools.ts 的 memory_suggest。
+ *
+ * 只在用户表达稳定偏好/确定事实/明确约束/做出决定时调用；内容必须精简成一句话。
+ * 执行动作：【暂存建议 + 进入 awaiting 门禁】，不直接落库——真正写入在看板确认链（AgentMessage 确认按钮）。
+ * execute 仅做校验/脱敏/暂存，返回 awaiting_confirm 供 runToolCalls 渲染确认卡片；
+ * 用户确认后由 UI 侧调用 saveProjectMemory 落库（见 useAgentChat / AgentPanel 确认流）。
+ *
+ * 与 show_plan_for_confirm 的关系：两者都复用"确认门禁"（awaitingConfirm），
+ * 但 memory_suggest 确认动作是"写长期记忆"，而非"执行策划"。
+ */
+const memorySuggestTool = {
+  name: 'memory_suggest',
+  description: '提议保存一条项目长期记忆（仅在用户表达稳定偏好、确定事实、明确约束或做出决定时调用；内容精简成一句话）。禁止把文件全文/网页正文/密钥/绝对路径或临时结果作为记忆内容。调用后本工具进入"待确认"门禁，用户确认后才真正保存。',
+  parameters: {
+    type: 'object',
+    properties: {
+      kind: { type: 'string', enum: ['preference', 'fact', 'constraint', 'decision'], description: '记忆类别：preference偏好/fact事实/constraint约束/decision决定' },
+      content: { type: 'string', minLength: 1, maxLength: 500, description: '一句话长期记忆内容（写前会脱敏密钥/凭据/本地路径并截断）' },
+    },
+    required: ['kind', 'content']
+  },
+  execute(args) {
+    const kind = String(args.kind || '')
+    const rawContent = String(args.content || '').trim()
+    // 【脱敏】写入前统一脱敏（复用 projectMemoryStore.sanitizeMemoryContent，纯函数）
+    const content = sanitizeMemoryContent(rawContent)
+    if (!PROJECT_MEMORY_KINDS.includes(kind)) return { ok: false, error: `kind 非法：${kind}。应为 ${PROJECT_MEMORY_KINDS.join('/')}` }
+    if (!content) return { ok: false, error: 'content 为空' }
+    // 暂存建议（待确认），并进入 awaiting 门禁（复用 show_plan_for_confirm 的确认交互）
+    setActivePendingMemorySuggest({ kind, content })
+    setAwaitingConfirm(true)
+    return { ok: true, data: { awaiting_confirm: true, kind, content, suggested: true } }
+  }
+}
+
+/**
  * 工具清单（统一注册表）。新增画布工具在此加一行：
  *  - 定义工具对象（name/description/parameters/execute）放在上面；
  *  - 在此数组登记。
@@ -1220,6 +1353,7 @@ const AGENT_TOOLS = (() => {
     triggerGenerationTool,
     executePlanTool,
     presentPlanTool,
+    runExistingPlanToolDef,
     // ⑥ 视图/聚焦
     focusNodeTool,
     fitViewTool,
@@ -1229,7 +1363,9 @@ const AGENT_TOOLS = (() => {
     lockNodeTool,
     undoAiTool,
     moveNodeTool,
-    groupNodesTool
+    groupNodesTool,
+    // ⑧ 「记」长期记忆（memory_suggest：待确认门禁，低频）
+    memorySuggestTool
   ]
   for (const def of defs) {
     // mutating 从 MUTATING_TOOLS 派生入注册条目（唯一真源）；write 工具统一压 AI 撤销栈

@@ -231,6 +231,19 @@ const PromptInput = forwardRef(function PromptInput(
     onChange?.(serializeDOM(el))
   }, [onChange])
 
+  // refImages/refTexts → metaMap（id → {kind,url}），作为缩略图恢复的兜底来源。
+  // 序列化的字符串已自带缩略图 URL，此处仅在字符串无 URL（旧数据/刚插入）时补查。
+  const chipMetaMap = React.useMemo(() => {
+    const m = new Map()
+    for (const im of refImages || []) {
+      if (im && im.id) m.set(im.id, { kind: 'image', url: im.url })
+    }
+    for (const t of refTexts || []) {
+      if (t && t.id && !m.has(t.id)) m.set(t.id, { kind: 'text' })
+    }
+    return m
+  }, [refImages, refTexts])
+
   // 外部 value 变化 → 重建 DOM（仅不一致时）
   React.useEffect(() => {
     const el = editorRef.current
@@ -241,12 +254,12 @@ const PromptInput = forwardRef(function PromptInput(
     const cursor = sel && sel.rangeCount ? saveCursor(el) : null
     syncingRef.current = true
     el.innerHTML = ''
-    for (const node of renderPromptToNodes(value || '', null)) el.appendChild(node)
+    for (const node of renderPromptToNodes(value || '', chipMetaMap)) el.appendChild(node)
     normalizeChipSlots(el)
     syncingRef.current = false
     if (cursor !== null) restoreCursor(el, cursor)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [value])
+  }, [value, chipMetaMap])
 
   const deleteChipNearCursor = useCallback(() => {
     const sel = window.getSelection()

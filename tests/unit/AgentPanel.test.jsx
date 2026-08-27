@@ -223,28 +223,22 @@ describe('AgentPanel — 消息发送', () => {
   })
 })
 
-describe('AgentPanel — 图像模式（直连生图）', () => {
-  it('切换到图像模式 → 提示文案与占位符变化', () => {
+describe('AgentPanel — 直接生图模式', () => {
+  it('切换到直接生图 → 提示文案与占位符变化', () => {
     render(<AgentPanel {...OPEN_PROPS} />)
-    fireEvent.click(screen.getByTitle('图像模式：参考图 + 提示词直连生图，不经过 LLM'))
-    expect(screen.getByText('直连生图')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: '直接生图' }))
+    expect(screen.getByText('直连出图')).toBeTruthy()
     expect(screen.getByPlaceholderText(/输入最终生图提示词/)).toBeTruthy()
   })
 
-  it('图像模式 → 发送走 sendImageMode（不经过 LLM）', () => {
+  it('直接生图 → 发送走 sendImageMode（不经过 LLM）', () => {
     render(<AgentPanel {...OPEN_PROPS} />)
-    fireEvent.click(screen.getByTitle('图像模式：参考图 + 提示词直连生图，不经过 LLM'))
+    fireEvent.click(screen.getByRole('button', { name: '直接生图' }))
     const ta = screen.getByPlaceholderText(/输入最终生图提示词/)
     fireEvent.change(ta, { target: { value: '一只机械猫' } })
     fireEvent.keyDown(ta, { key: 'Enter', shiftKey: false })
     expect(h.sendImageMode).toHaveBeenCalledWith('一只机械猫', [])
     expect(h.send).not.toHaveBeenCalled()
-  })
-
-  it('图像模式 → 执行分级按钮禁用（title 提示不走分级）', () => {
-    render(<AgentPanel {...OPEN_PROPS} />)
-    fireEvent.click(screen.getByTitle('图像模式：参考图 + 提示词直连生图，不经过 LLM'))
-    expect(screen.getByTitle('图像模式不走分级').disabled).toBe(true)
   })
 })
 
@@ -393,13 +387,13 @@ describe('AgentPanel — 待引用图确认', () => {
   })
 })
 
-describe('AgentPanel — 执行分级切换', () => {
-  it('默认全自动 → 点击切换半自动 → setCurrentRunMode("semi") + 文案变化', () => {
+describe('AgentPanel — 三态切换', () => {
+  it('默认完全自主 → 点击分步确认 → setCurrentRunMode("semi") + 文案变化', () => {
     render(<AgentPanel {...OPEN_PROPS} />)
-    expect(screen.getByText('全自动')).toBeTruthy()
-    fireEvent.click(screen.getByText('全自动'))
+    expect(screen.getByText('AI 自主')).toBeTruthy()
+    fireEvent.click(screen.getByText('分步确认'))
     expect(h.setCurrentRunMode).toHaveBeenCalledWith('semi')
-    expect(screen.getByText('半自动')).toBeTruthy()
+    expect(screen.queryByText('AI 自主')).toBeNull()
   })
 })
 

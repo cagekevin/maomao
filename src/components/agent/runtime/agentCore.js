@@ -100,7 +100,11 @@ export const CANVAS_AGENT_RULES = `你是猫猫画布助手，正在帮助用户
 
 【撤回 AI 自己的操作】
 - 用户说「撤回/回退 AI 刚才那步」时，用 undo_ai 撤回 AI 最近一次改画布的操作（只影响 AI 自己，与用户手动 Ctrl+Z 完全隔离）。
-- 注意：undo_ai 只撤回 AI 的操作，不是用户的；不要混淆。`
+- 注意：undo_ai 只撤回 AI 的操作，不是用户的；不要混淆。
+
+【高消耗积分确认·生成暂挂】
+- 当本任务包含图像/视频生成，且系统要求先确认（高消耗积分确认开启）导致生成暂挂起时：你把节点/工作表建好、生成已提交并等待确认，本轮任务即视为完成。
+- 不要再等待、不要反复调用 execute_plan / generate_node、不要在没有结果时声称「已生成」；如实说明「节点已建好，生成待确认，确认后自动生成」。`
 
 // ── Skill 执行指令（对齐大雄：Skill 驱动多步编排）──
 // 当对话启用了 Skill 时，把它追加到 system，让 LLM 按 Skill 规划 generations 并交给 execute_plan 执行。
@@ -261,8 +265,12 @@ export function parseGenerationsFromReply(content = '') {
  *                                    补齐 memory 自动摘要（summary/facts 自动沉淀）+ 结构性历史，届时可移除本参数
  *                                    回到纯 fresh-task + 更强 memory。当前在 memory 摘要未落地前，它是性价比最高的解。
  *                                  - 调用方传 0（默认）→ 行为与旧版完全一致，不破坏既有单测与链路的反推安全。
+ *  @param {string} [learnedContext] 可选「学」注入块：调用方用 buildLearnedContext 预提取的本对话历史
+ *                                   成功生图样本（脱敏/限 token/按意图相似度排序）。空串=不注入。
+ *  @param {string} [projectMemoryContext] 可选「记」注入块：调用方用 buildProjectMemoryContextFromStore
+ *                                   提取的按 agentKey 全局长期记忆（MMR 排序/限 token）。空串=不注入。
  *  导出供单测（AI 助手前端逻辑核心：确认发给 LLM 的 messages 组装正确）。 */
-export function buildRequestMessages(messages, systemPrompt, enhance = true, skills = [], memory = null, imageCatalog = [], historyTurns = 0) {
+export function buildRequestMessages(messages, systemPrompt, enhance = true, skills = [], memory = null, imageCatalog = [], historyTurns = 0, learnedContext = '', projectMemoryContext = '') {
   const out = []
   // 工具消息配对：assistant 声明 tool_calls 时登记其 id，后续 tool 消息需命中才保留（防孤儿 tool 消息）
   const pendingToolIds = new Set()
@@ -325,6 +333,18 @@ export function buildRequestMessages(messages, systemPrompt, enhance = true, ski
     })
     lines.push('在 generations 某步里，若需引用这些图，把其 url 填进该步的 direct_refs 数组，并在 prompt 里写「图N」；执行层会自动把它当作该步参考图。')
     out.push({ role: 'system', content: lines.join('\n') })
+  }
+  // 【对齐参考项目 promptLearningService】「学」：注入「本对话历史成功生图样本」为不可信上下文。
+  // 样本由调用方用 buildLearnedContext 预提取（含脱敏/限 token/相似度排序），本函数仅透传装配。
+  // 空串=无需注入，不污染上下文；即便有样本也只作只读学习，不改变任何规则或权限（见样本自带约束说明）。
+  if (learnedContext && typeof learnedContext === 'string' && learnedContext.trim()) {
+    out.push({ role: 'system', content: learnedContext })
+  }
+  // 【对齐参考项目 contextManager 的记忆注入】「记」长期记忆：写入用户已确认的按 agentKey 全局记忆。
+  // 块由调用方用 buildProjectMemoryContextFromStore 预提取（MMR 排序/脱敏/限 token），本函数仅透传装配。
+  // 空串=无需注入，不污染上下文。置于「学」之后，作为补充事实而非新指令（见块自带约束说明）。
+  if (projectMemoryContext && typeof projectMemoryContext === 'string' && projectMemoryContext.trim()) {
+    out.push({ role: 'system', content: projectMemoryContext })
   }
   // ── 上下文范围：fresh-task（historyTurns=0） 或 回传最近 N 轮纯文字（historyTurns>0）──
   // 【过渡方案·2026-08-18 决策注释】默认 historyTurns=0 严格维持 fresh-task（对齐大雄

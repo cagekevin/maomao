@@ -402,6 +402,19 @@ export async function runToolCalls(ctx, tools, callIdFor = () => '') {
         : (getActivePendingGenerations() || [])
       appendMsg({ role: 'assistant', content: `生成策划：\n${planText}`, generations: confirmGens, model, createdAt: Date.now(), awaiting_confirm: true })
     }
+    // 【记】memory_suggest：把"待确认记忆"展示给用户（作为一条 assistant 消息，含确认按钮）。
+    // 复用 awaiting_confirm 门禁卡片；确认按钮文案由 AgentMessage 按 memory_suggest 语义渲染。
+    // 用户确认动作由 UI 侧（AgentPanel.handleConfirmPlan → 确认记忆逻辑）落库。
+    if (tc.function?.name === 'memory_suggest' && result?.ok) {
+      const kind = result.data?.kind || ''
+      const content = result.data?.content || ''
+      const kindLabel = ({ preference: '偏好', fact: '事实', constraint: '约束', decision: '决定' })[kind] || kind
+      appendMsg({
+        role: 'assistant',
+        content: `建议保存一条长期记忆：\n[${kindLabel}] ${content}\n\n确认后该记忆将写入项目（之后每轮对话都会延续这一偏好/事实/约束/决定）。`,
+        model, createdAt: Date.now(), awaiting_confirm: true, memory_suggest: { kind, content }
+      })
+    }
     // 【TASK-009 执行摘要】execute_plan 返回 logs → 渲染一条带逐步进度的「执行摘要」消息（对齐大雄折叠面板）
     // 修复 #1 后 result 是真对象，此判断才真正生效
     if (tc.function?.name === 'execute_plan' && result?.ok) {

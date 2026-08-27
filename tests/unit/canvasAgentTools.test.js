@@ -13,6 +13,9 @@ vi.mock('../../src/components/agent/conversation/conversationStore.js', () => ({
   clearPendingGenerations: vi.fn(),
   setAwaitingConfirm: vi.fn(),
   getAwaitingConfirm: vi.fn(),
+  setCreditGate: vi.fn(),
+  getCreditGate: vi.fn(),
+  clearCreditGate: vi.fn(),
   getCurrentMemory: vi.fn(() => ({ summary: '', facts: [], lastPlan: null, lastSharedStyle: '', notes: [] })),
   setCurrentMemory: vi.fn(),
   patchCurrentWorkflow: vi.fn(() => ({})),
@@ -39,7 +42,7 @@ vi.mock('../../src/components/agent/canvas/canvasPlanExecutor.js', async (import
   }
 })
 
-import { buildCanvasAgentTools, CANVAS_AGENT_TOOL_NAMES, getNodeImageUrl, setCurrentReferenceImages } from '../../src/components/agent/canvas/useCanvasAgentTools.js'
+import { buildCanvasAgentTools, CANVAS_AGENT_TOOL_NAMES, getNodeImageUrl, setCurrentReferenceImages, runExistingPlanTool, setCreditSwitch, getCreditSwitch } from '../../src/components/agent/canvas/useCanvasAgentTools.js'
 import * as convStore from '../../src/components/agent/conversation/conversationStore.js'
 import * as taskStore from '../../src/components/base/taskStore.js'
 import { executePlan as mockExecutePlan, buildFusionPrompt, buildProductReferencePrompt } from '../../src/components/agent/canvas/canvasPlanExecutor.js'
@@ -63,9 +66,12 @@ function makeCtx(initialNodes = [], initialEdges = []) {
 beforeEach(() => {
   vi.clearAllMocks()
   // 配对状态：getX 始终读 __state，setX 写 __state（用例可直接翻转 __state 模拟前端确认）
-  convStore.__state = { awaiting: false, pending: null, refImages: [] }
+  convStore.__state = { awaiting: false, pending: null, refImages: [], creditGate: null }
   vi.mocked(convStore.getAwaitingConfirm).mockImplementation(() => convStore.__state.awaiting)
   vi.mocked(convStore.setAwaitingConfirm).mockImplementation((v) => { convStore.__state.awaiting = !!v })
+  vi.mocked(convStore.getCreditGate).mockImplementation(() => convStore.__state.creditGate)
+  vi.mocked(convStore.setCreditGate).mockImplementation((g) => { convStore.__state.creditGate = g || null })
+  vi.mocked(convStore.clearCreditGate).mockImplementation(() => { convStore.__state.creditGate = null })
   vi.mocked(convStore.getPendingGenerations).mockImplementation(() => convStore.__state.pending)
   vi.mocked(convStore.setPendingGenerations).mockImplementation((g) => { convStore.__state.pending = g })
   vi.mocked(convStore.getCurrentRefImages).mockImplementation(() => convStore.__state.refImages)
@@ -73,8 +79,8 @@ beforeEach(() => {
 })
 
 describe('画布 Agent 工具层 §2.5', () => {
-  it('共 24 个工具注册', () => {
-    expect(CANVAS_AGENT_TOOL_NAMES).toHaveLength(24)
+  it('共 26 个工具注册', () => {
+    expect(CANVAS_AGENT_TOOL_NAMES).toHaveLength(26)
   })
 
   it('create_node 建文本节点成功 + 返回 id', () => {
@@ -423,8 +429,9 @@ describe('画布 Agent 工具层 §2.5', () => {
   })
 
   it('show_plan_for_confirm 暂存策划并进入待确认', async () => {
-    // Skill 场景：有 Skill → 必进入 awaiting 确认（对齐大雄：Skill 三阶段需确认策划）
-    vi.mocked(convStore.getCurrentSnapshot).mockReturnValue({ skills: [{ name: 'x' }] })
+    // D7：show_plan 判定已收敛为 needConfirm = runMode==='semi'（删 hasSkillNow 强制项）。
+    // 半自动模式 → 必进入 awaiting 确认（策划暂存 + 待确认）。
+    vi.mocked(convStore.getCurrentRunMode).mockReturnValue('semi')
     const ctx = makeCtx()
     const t = buildCanvasAgentTools(ctx)
     const r = await t.show_plan_for_confirm({ plan_text: '做5张主图', generations: [{ id: 'g1', prompt: '猫' }] })
@@ -459,9 +466,9 @@ describe('画布 Agent 工具层 §2.5', () => {
     vi.mocked(convStore.getCurrentRunMode).mockReturnValue('auto')
   })
 
-  it('【对齐大雄 §12.1 真值表】hasSkillNow=true + auto：仍必进入 awaiting（Skill 三阶段优先级高于全自动）', async () => {
-    // 关键对照：即便 runMode='auto'（默认不确认），只要本轮有 Skill，needConfirm 仍为真。
-    // needConfirm = hasSkillNow || runMode==='semi'  → 此用例覆盖 hasSkillNow=true 分支。
+  it('【D7 真值表】hasSkillNow=true + auto：不再进入 awaiting（删 hasSkillNow 强制项，needConfirm 只由 runMode===\'semi\' 决定）', async () => {
+    // D7：show_plan 判定收敛为 needConfirm = runMode==='semi'，hasSkillNow 已删除。
+    // 此用例覆盖「有 Skill 但 runMode=auto」→ 不再强制进入 awaiting（awaitingConfirm=false）。
     convStore.__state.awaiting = false
     vi.mocked(convStore.getCurrentRunMode).mockReturnValue('auto')
     vi.mocked(convStore.getCurrentSnapshot).mockReturnValue({ skills: [{ name: 'poster', params: {} }] })
@@ -469,9 +476,9 @@ describe('画布 Agent 工具层 §2.5', () => {
     const t = buildCanvasAgentTools(ctx)
     const r = await t.show_plan_for_confirm({ plan_text: '做5张主图+8详情', generations: [{ id: 'g1', prompt: '主图1' }] })
     expect(r.ok).toBe(true)
-    expect(r.data.awaiting_confirm).toBe(true)
-    expect(convStore.__state.awaiting).toBe(true)
-    expect(convStore.setAwaitingConfirm).toHaveBeenCalledWith(true)
+    expect(r.data.awaiting_confirm).toBe(false)
+    expect(convStore.__state.awaiting).toBe(false)
+    expect(convStore.setAwaitingConfirm).not.toHaveBeenCalledWith(true)
   })
 
   it('【对齐大雄 §12.1 真值表】hasSkillNow=false + auto：不进入 awaiting（全自动直接执行）', async () => {
@@ -563,8 +570,8 @@ describe('画布 Agent 工具层 §2.5', () => {
   // ── Skill 三阶段确认门禁闭环（AI 编排关键防护）──
   it('show_plan_for_confirm → 返回 awaiting_confirm:true（进入待确认态）', async () => {
     convStore.__state.awaiting = false
-    // Skill 场景：有 Skill → 必进入 awaiting 确认
-    vi.mocked(convStore.getCurrentSnapshot).mockReturnValue({ skills: [{ name: 'x' }] })
+    // D7：semi 半自动 → 必进入 awaiting 确认（策划暂存 + 待确认）
+    vi.mocked(convStore.getCurrentRunMode).mockReturnValue('semi')
     const ctx = makeCtx()
     const t = buildCanvasAgentTools(ctx)
     const r = await t.show_plan_for_confirm({ plan_text: '生成5张主图', generations: [{ id: 'g1', prompt: '猫' }] })
@@ -577,15 +584,63 @@ describe('画布 Agent 工具层 §2.5', () => {
     expect(mockExecutePlan).not.toHaveBeenCalled()
   })
 
-  it('用户确认（awaiting=false）后 execute_plan 放行执行', async () => {
-    convStore.__state.awaiting = false // 模拟用户已确认（前端翻转 awaiting）
+  it('【T4】execute_plan credit 命中（creditSwitch 默认开）→ 只建节点待确认，不真生成', async () => {
+    convStore.__state.awaiting = false
+    // 2026-08-27 简化：credit = creditSwitch（全局总闸，与 runMode 正交）。开关默认开即命中。
+    vi.mocked(convStore.getCurrentRunMode).mockReturnValue('auto') // 保持上下文，表明与 runMode 无关
     const ctx = makeCtx()
     const t = buildCanvasAgentTools(ctx)
     const r = await t.execute_plan({ generations: [{ id: 'g1', prompt: '猫' }] })
     expect(r.ok).toBe(true)
+    // D4：credit 命中 → 返回 awaited:'credit'，不声称「已生成」
+    expect(r.data.awaited).toBe('credit')
+    expect(r.data.note).toContain('待积分确认')
+    // 强制 autoRun=false（红线 §6.4：绝不放行 LLM 的 auto_run:true 直接真生成）
+    expect(mockExecutePlan).toHaveBeenCalledTimes(1)
+    expect(mockExecutePlan.mock.calls[0][0].autoRun).toBe(false)
+    // 节点已建好（ready）、置 per-conv creditGate 持久化
+    expect(convStore.__state.creditGate?.pending).toBe(true)
+    expect(convStore.__state.creditGate?.map).toBeTruthy()
+    expect(convStore.__state.creditGate?.gens[0].prompt).toBe('猫')
+    // 未置分步确认态（D1：两条门禁独立）
+    expect(convStore.__state.awaiting).toBe(false)
+  })
+
+  it('【T5】execute_plan credit 未命中（creditSwitch=关）→ 行为与改动前一致（autoRun 按入参放行）', async () => {
+    convStore.__state.awaiting = false
+    // 2026-08-27 简化：credit = creditSwitch（全局总闸，与 runMode 正交）。
+    // 未命中只由「开关关」决定，runMode 已不再是判定输入。
+    setCreditSwitch(false)
+    const ctx = makeCtx()
+    const t = buildCanvasAgentTools(ctx)
+    const r = await t.execute_plan({ generations: [{ id: 'g1', prompt: '猫' }], auto_run: true })
+    expect(r.ok).toBe(true)
+    expect(r.data.awaited).toBeUndefined() // 未命中积分闸
+    expect(mockExecutePlan).toHaveBeenCalledTimes(1)
+    expect(mockExecutePlan.mock.calls[0][0].autoRun).toBe(true) // 原 autoRun 语义保留
+    expect(convStore.__state.creditGate).toBeNull() // 不置积分待确认态
+    setCreditSwitch(true) // 还原默认开，避免污染后续
+  })
+
+  it('【T6】runExistingPlanTool 前置：creditGate 未置位 → 拒绝且不触发任何生成', async () => {
+    convStore.__state.creditGate = null // 无待点生成的计划
+    const ctx = makeCtx()
+    const r = await runExistingPlanTool(ctx)
+    expect(r.ok).toBe(false)
+    expect(r.error).toContain('无待点生成的计划')
+    expect(mockExecutePlan).not.toHaveBeenCalled()
+  })
+
+  it('用户在积分确认卡片点确认（creditGate pending）→ runExistingPlanTool 补跑并清 gate', async () => {
+    convStore.__state.creditGate = { pending: true, gens: [{ id: 'g1', prompt: '猫' }], map: { g1: 'n1' } }
+    const ctx = makeCtx()
+    const r = await runExistingPlanTool(ctx)
+    expect(r.ok).toBe(true)
     expect(mockExecutePlan).toHaveBeenCalledTimes(1)
     const arg = mockExecutePlan.mock.calls[0][0]
-    expect(arg.generations[0].prompt).toBe('猫')
+    expect(arg.mode).toBe('runExisting') // D5：复用执行器，不重建节点
+    expect(arg.nodeMappings).toEqual({ g1: 'n1' }) // D6：映射来自同一次 execute_plan
+    expect(convStore.__state.creditGate).toBeNull() // 成功清 gate（失败保留待重试）
   })
 
   it('execute_plan 未传 generations 且无暂存 → 报错（不死循环/不崩溃）', async () => {

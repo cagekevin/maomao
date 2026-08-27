@@ -51,5 +51,5 @@
  *   新增对外符号 → 在此追加 re-export，勿在外部直接 import 子目录深层路径。
  */
 export { useAgentChat } from './runtime/useAgentChat.js'
-export { setGenParams, getGenParams, getNodeImageUrl } from './canvas/useCanvasAgentTools.js'
+export { setGenParams, getGenParams, getNodeImageUrl, getCreditSwitch, setCreditSwitch } from './canvas/useCanvasAgentTools.js'
 export { setAgentKey } from './conversation/conversationStore.js'
