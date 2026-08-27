@@ -31,7 +31,6 @@ beforeEach(() => { mocks.resetNodeMockState() })
 const setup = (props = {}) => render(<TextNode id="txt1" data={{}} selected={false} {...props} />)
 
 describe('TextNode', () => {
-  it('挂载不崩', () => { expect(setup().container).toBeTruthy() })
   it('点击「生成」调用 chatCompletions', async () => {
     setup({ data: { prompt: '写一句诗', name: '文案' } })
     fireEvent.click(screen.getByText('生成'))

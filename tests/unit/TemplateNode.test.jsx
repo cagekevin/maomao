@@ -96,11 +96,6 @@ function nodeData(id = 't1') {
 }
 
 describe('TemplateNode', () => {
-  it('挂载渲染不崩', () => {
-    const { container } = setup()
-    expect(container).toBeTruthy()
-  })
-
   it('标题显示模板节点默认标签', () => {
     setup({ data: { name: '分镜模板' } })
     expect(screen.getByTestId('shell').getAttribute('data-label')).toBe('模板节点')

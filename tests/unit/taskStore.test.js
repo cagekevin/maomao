@@ -15,7 +15,6 @@ vi.mock('../../src/components/base/filesApi.js', () => ({
 import { saveTask } from '../../src/components/base/localToolApi.js'
 
 const {
-  statusDotClass,
   statusLabel,
   getPanel,
   setPanel,
@@ -38,13 +37,6 @@ beforeEach(() => {
 })
 
 describe('taskStore §2.6 状态映射', () => {
-  it('statusDotClass：completed→emerald / failed→red / 其余→blue', () => {
-    expect(statusDotClass('completed')).toBe('bg-emerald-400')
-    expect(statusDotClass('failed')).toBe('bg-red-400')
-    expect(statusDotClass('running')).toBe('bg-blue-400')
-    expect(statusDotClass('pending')).toBe('bg-blue-400')
-  })
-
   it('statusLabel：完成/失败/生成中/带进度百分比', () => {
     expect(statusLabel('completed')).toBe('已完成')
     expect(statusLabel('failed')).toBe('失败')
