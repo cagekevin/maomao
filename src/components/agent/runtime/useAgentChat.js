@@ -161,11 +161,11 @@ import { useStoreSelector, shallowEqual } from '../../base/useStoreSelector.js'
  *   进入 awaiting 确认态（plan），而大雄是有分级的，不是每个任务都要确认。对齐后（实现见
  *   useCanvasAgentTools.js presentPlanTool）：show_plan_for_confirm 仍保留（规划文字/步骤卡片照常展示），
  *   但「是否进入 awaiting 确认门禁」按 runMode + Skill 决定：
- *   - runMode 存 conversationStore（per-conversation，默认 'confirm'），AgentPanel 有切换（分步确认/完全自主）。
- *   - 分步确认 confirm（默认，对齐大雄 6282「完整规划和提示词生成后，确认再执行」）：无 Skill 时进入 awaiting →
- *     展示确认门禁，用户确认后才 execute_plan（对齐大雄 7774 分步确认门禁）。
- *   - 完全自主 auto（对齐大雄 6283「一次规划后直接执行」）：无 Skill 时 show_plan_for_confirm
+ *   - runMode 存 conversationStore（per-conversation，默认 'auto'），AgentPanel 有切换（分步确认/完全自主）。
+ *   - 完全自主 auto（默认，对齐大雄 6283「一次规划后直接执行」）：无 Skill 时 show_plan_for_confirm
  *     **不进入 awaiting** → 规划照常展示，但不弹确认按钮，LLM 继续 execute_plan 直接执行。
+ *   - 分步确认 step-confirm（对齐大雄 6282「完整规划和提示词生成后，确认再执行」）：无 Skill 时进入 awaiting →
+ *     展示确认门禁，用户确认后才 execute_plan（对齐大雄 7774 分步确认门禁）。
  *   - Skill：无论 runMode 都走三阶段（理解→规划→执行），进入 awaiting（Skill 需要策划确认）。
  *   对应大雄：auto 模式规划后直接执行（7774 只在分步确认才展示门禁）；Skill 三阶段独立确认。
  *
@@ -481,9 +481,9 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
         // 上下文预算：输入预算 = 窗口 × (1 − 输出留白比例)。用于估算当前请求是否接近模型上限。
         const budgetInput = resolveInputBudget({ contextWindow: AGENT_CONTEXT_WINDOW_DEFAULT, outputBudgetRatio: AGENT_CONTEXT_OUTPUT_BUDGET_RATIO })
         // 【对齐大雄 runMode 分级】执行分级决定「是否弹执行确认门禁」：
-        //   - 完全自主 auto（对齐大雄 agentSetRunMode 6283）：完整规划后直接执行——show_plan_for_confirm
+        //   - 完全自主 auto（默认，对齐大雄 agentSetRunMode 6283）：完整规划后直接执行——show_plan_for_confirm
         //     仍会输出规划/generations 供展示，但**不进入 awaiting 确认态**，LLM 继续 execute_plan 直接执行（不弹确认按钮）。
-        //   - 分步确认 step-confirm（默认，对齐大雄 6282）：show_plan_for_confirm 进入 awaiting 确认态，展示确认门禁，用户确认后才 execute_plan。
+        //   - 分步确认 step-confirm（对齐大雄 6282）：show_plan_for_confirm 进入 awaiting 确认态，展示确认门禁，用户确认后才 execute_plan。
         //   - Skill：无论 runMode 都走三阶段确认（Skill 需要用户确认策划）。
         // 具体「是否进入 awaiting」由 useCanvasAgentTools 的 show_plan_for_confirm 按 runMode 决定（见 presentPlanTool）。
         // 【三阶段门禁】是否因 show_plan_for_confirm（待用户确认策划）而提前暂停循环。

@@ -13,19 +13,19 @@
  */
 import { getActiveConv, commit, getState, normalizeMemory } from './conversationState.js'
 
-/** 【对齐大雄 agentGetRunMode】读当前对话执行分级（'step-confirm' | 'auto'），缺省 'step-confirm'（默认分步确认）。 */
+/** 【对齐大雄 agentGetRunMode】读当前对话执行分级（'auto' | 'step-confirm'），缺省 'auto'（默认完全自主）。 */
 export function getCurrentRunMode() {
   const conv = getActiveConv()
-  const mode = String(conv?.runMode || 'step-confirm').toLowerCase()
+  const mode = String(conv?.runMode || 'auto').toLowerCase()
   return mode === 'auto' ? 'auto' : 'step-confirm'
 }
 
-/** 【对齐大雄 agentSetRunMode】写当前对话执行分级（step-confirm 分步确认默认 / auto 完全自主）。 */
+/** 【对齐大雄 agentSetRunMode】写当前对话执行分级（auto 完全自主默认 / step-confirm 分步确认）。 */
 export function setCurrentRunMode(mode) {
   const conv = getActiveConv()
   if (!conv) return
   // 非 auto（含旧值 'semi'）一律归 'step-confirm'，兼容历史持久化数据
-  const next = String(mode || 'step-confirm').toLowerCase() === 'auto' ? 'auto' : 'step-confirm'
+  const next = String(mode || 'auto').toLowerCase() === 'auto' ? 'auto' : 'step-confirm'
   commit({
     ...getState(),
     conversations: getState().conversations.map((c) => (c.id === conv.id ? { ...c, runMode: next, updatedAt: Date.now() } : c)),

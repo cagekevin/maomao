@@ -207,9 +207,9 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
     setInputMode(mode)
     try { contentSet(AGENT_INPUT_MODE_KEY, mode) } catch { /* ignore */ }
   }
-  // 【对齐大雄 runMode 分级】执行分级：step-confirm（默认，分步确认，无 Skill 时也展示 plan 确认再执行）/
-  // auto（完全自主，无 Skill 时 LLM 直接出 generations 执行、不展示 plan）。对应大雄 agentSetRunMode/agentToggleRunMode。
-  const [runMode, setRunModeState] = useState(() => { try { return getCurrentRunMode() || 'step-confirm' } catch { return 'step-confirm' } })
+  // 【对齐大雄 runMode 分级】执行分级：auto（默认，完全自主，无 Skill 时 LLM 直接出 generations 执行、不展示 plan）/
+  // step-confirm（分步确认，无 Skill 时也展示 plan 确认再执行）。对应大雄 agentSetRunMode/agentToggleRunMode。
+  const [runMode, setRunModeState] = useState(() => { try { return getCurrentRunMode() || 'auto' } catch { return 'auto' } })
   const setRunModeAndPersist = (mode) => {
     const next = mode === 'step-confirm' ? 'step-confirm' : 'auto'
     setRunModeState(next)

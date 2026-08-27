@@ -50,7 +50,7 @@ const h = vi.hoisted(() => {
   const setCurrentSnapshot = vi.fn((s) => snapshotSetter(s))
   const setCurrentRunMode = vi.fn()
   const setAwaitingConfirm = vi.fn()
-  const getCurrentRunMode = vi.fn(() => (agentState.runMode || 'step-confirm'))
+  const getCurrentRunMode = vi.fn(() => (agentState.runMode || 'auto'))
   // 收口 store 穿透（2026-08-21）：AgentPanel 从 useAgentChat 解构这 4 个 handler，不再直连 conversationStore
   const useAgentChat = vi.fn(() => ({ ...agentState, setModel, send, sendImageMode, stop, clear, stateAction: '', newChat, switchChat, deleteChat, updateMessageByContent: vi.fn(), executePlanDirect: vi.fn(async () => ({ ok: true })), setCurrentSnapshot, setAwaitingConfirm, getCurrentRunMode, setCurrentRunMode }))
   // contentStore 订阅桩：记录已注册的 key→cb，供测试触发「设置变更」回调
@@ -110,7 +110,7 @@ vi.mock('../../src/components/base/filesApi.js', () => ({ toAbsoluteFileUrl: (u)
 vi.mock('../../src/components/agent/conversation/conversationStore.js', () => ({
   setCurrentSnapshot: (...a) => h.setCurrentSnapshot(...a),
   setAwaitingConfirm: vi.fn(),
-  getCurrentRunMode: () => 'step-confirm',
+  getCurrentRunMode: () => 'auto',
   setCurrentRunMode: (...a) => h.setCurrentRunMode(...a),
 }))
 vi.mock('../../src/components/base/taskStore.js', () => ({ runNodeGeneration: vi.fn() }))
