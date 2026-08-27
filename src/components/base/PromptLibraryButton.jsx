@@ -9,7 +9,7 @@ import { generateId } from './idGen.js'
  * 预设提示词按钮（复刻各节点底部「预设」入口 → 打开提示词库弹窗）。
  *
  * 点「预设」→ 弹出 PromptLibrary 提示词库弹窗；
- * 点某条「使用」→ 在视口中央新建一个文本节点（内容 = 该预设的 prompt）。
+ * 卡片上点「新建节点」→ 在视口中央新建一个文本节点（内容 = 该预设的 prompt）。
  *
  * 落点规则统一为「视口中央」（与 App Q/W/E 快捷键、右键菜单一致）；
  * 输入面板默认收起（expanded:false，与 defaultNodeData 统一兜底一致）。
@@ -18,7 +18,7 @@ import { generateId } from './idGen.js'
  * @param {object} props
  *  - category  当前节点类型对应的提示词分类（'image' | 'video' | 'text'，用于弹窗默认筛选）
  *  - onAppend  可选：追加回调（prompt）→ 把所选预设提示词追加到当前节点提示词。
- *              传入后弹窗右上角会显示「追加到提示词 / 新增文本节点」两种使用方式。
+ *              传入后卡片上会显示「添加到提示词」按钮。
  */
 export default function PromptLibraryButton({ category = 'text', onAppend }) {
   const [open, setOpen] = useState(false)

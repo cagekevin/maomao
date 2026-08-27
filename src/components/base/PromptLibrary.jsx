@@ -14,7 +14,8 @@ import { createImeInput } from './utils.js'
  * 提示词库大弹窗（复刻 maomao/src/components/prompts/PromptLibrary.jsx）。
  *
  * 入口：生图/文本/视频节点的「预设」按钮 → 打开本弹窗。
- * 点某条「使用」→ onUse(prompt) 回调（宿主新建文本节点）；也可新建/编辑/删除预设。
+ * 卡片上提供两个动作：点「新建节点」→ onUse(prompt) 回调（宿主新建文本节点）；
+ * 点「添加到提示词」→ onAppend(prompt) 回调（追加到当前节点提示词）。
  *
  * @param {object} props
  *  - open         是否打开
@@ -26,7 +27,6 @@ import { createImeInput } from './utils.js'
  */
 function PromptLibrary({ open, onClose, onUse, onAppend, defaultCategory = '', presetPrompts }) {
   const [activeTab, setActiveTab] = useState('mine') // mine | recent
-  const [useMode, setUseMode] = useState('newNode') // newNode（新增文本节点）| append（追加到提示词）
   const [searchKeyword, setSearchKeyword] = useState('')
   const [debouncedKeyword, setDebouncedKeyword] = useState('') // P2：过滤用防抖值（输入即时、过滤停顿后触发）
   const [selectedCategory, setSelectedCategory] = useState(defaultCategory)
@@ -73,18 +73,24 @@ function PromptLibrary({ open, onClose, onUse, onAppend, defaultCategory = '', p
     return searchCards(list, debouncedKeyword)
   }, [activeTab, recentCards, cards, selectedCategory, debouncedKeyword])
 
-  const handleUse = (card) => {
+  // 点「新建节点」→ 把预设提示词新建为文本节点
+  const handleNewNode = (card) => {
     recordRecent(card.id)
-    // 有追加能力 + 当前选中「追加到提示词」→ 走追加；否则走默认（新增节点）
-    if (onAppend && useMode === 'append') {
-      onAppend(card.content)
-      onClose()
-    } else if (onUse) {
+    if (onUse) {
       onUse(card.content)
       onClose()
     } else {
       showToast('已复制到剪贴板')
       try { navigator.clipboard.writeText(card.content) } catch { /* ignore */ }
+    }
+  }
+
+  // 点「添加到提示词」→ 把预设提示词追加到当前节点提示词
+  const handleAppend = (card) => {
+    recordRecent(card.id)
+    if (onAppend) {
+      onAppend(card.content)
+      onClose()
     }
   }
 
@@ -154,25 +160,6 @@ function PromptLibrary({ open, onClose, onUse, onAppend, defaultCategory = '', p
               className="w-full h-[34px] bg-surface border border-edge rounded-[10px] pl-9 pr-3 text-body text-body-sm outline-none focus:border-edge-strong box-border"
             />
           </div>
-          {/* 使用方式切换（右上角）：追加到提示词 / 新增文本节点 */}
-          {onAppend && (
-            <div className="ml-auto flex items-center gap-1 flex-shrink-0">
-              <button
-                className={`px-3 h-7 rounded-lg text-xs border transition-colors cursor-pointer ${useMode === 'append' ? 'bg-surface-hover-strong border-edge-strong text-white' : 'bg-transparent border-edge text-muted hover:text-primary hover:border-edge-strong'}`}
-                onClick={() => setUseMode('append')}
-                title="将所选提示词追加到当前节点提示词"
-              >
-                追加到提示词
-              </button>
-              <button
-                className={`px-3 h-7 rounded-lg text-xs border transition-colors cursor-pointer ${useMode === 'newNode' ? 'bg-surface-hover-strong border-edge-strong text-white' : 'bg-transparent border-edge text-muted hover:text-primary hover:border-edge-strong'}`}
-                onClick={() => setUseMode('newNode')}
-                title="将所选提示词新建为文本节点"
-              >
-                新增文本节点
-              </button>
-            </div>
-          )}
           <button className="w-8 h-8 flex items-center justify-center bg-transparent hover:bg-surface-hover rounded-lg text-muted hover:text-white cursor-pointer" onClick={onClose} title="关闭">
             <X size={18} />
           </button>
@@ -231,7 +218,7 @@ function PromptLibrary({ open, onClose, onUse, onAppend, defaultCategory = '', p
                       key={card.id}
                       className="group bg-surface border border-edge-faint rounded-[14px] p-4 flex flex-col gap-2.5 cursor-pointer transition-all hover:border-edge-muted hover:bg-surface-2"
                       style={{ contentVisibility: 'auto', containIntrinsicSize: 'auto 180px' }}
-                      onClick={() => handleUse(card)}
+                      onClick={() => handleNewNode(card)}
                     >
                       <div className="flex items-start justify-between gap-2.5">
                         <div className="text-sm font-semibold text-white leading-[1.4] truncate flex-1" title={card.title}>{card.title || '(未命名)'}</div>
@@ -259,12 +246,24 @@ function PromptLibrary({ open, onClose, onUse, onAppend, defaultCategory = '', p
                         <span className={`px-2 py-0.5 rounded-md text-caption-sm font-medium ${TYPE_TAG_CLASS[card.category] || 'bg-white/10 text-secondary'}`}>
                           {card.category ? TYPE_LABEL[card.category] : '通用'}
                         </span>
-                        <button
-                          className="px-3 py-1 rounded-lg text-xs text-blue-400 border border-edge bg-transparent hover:bg-blue-500/10 hover:border-blue-500/30 cursor-pointer transition-all"
-                          onClick={(evt) => { evt.stopPropagation(); handleUse(card) }}
-                        >
-                          使用
-                        </button>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            className="px-3 py-1 rounded-lg text-xs text-blue-400 border border-edge bg-transparent hover:bg-blue-500/10 hover:border-blue-500/30 cursor-pointer transition-all"
+                            title="将所选提示词新建为文本节点"
+                            onClick={(evt) => { evt.stopPropagation(); handleNewNode(card) }}
+                          >
+                            新建节点
+                          </button>
+                          {onAppend && (
+                            <button
+                              className="px-3 py-1 rounded-lg text-xs text-blue-400 border border-edge bg-transparent hover:bg-blue-500/10 hover:border-blue-500/30 cursor-pointer transition-all"
+                              title="将所选提示词追加到当前节点提示词"
+                              onClick={(evt) => { evt.stopPropagation(); handleAppend(card) }}
+                            >
+                              添加到提示词
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </div>
                   ))}
