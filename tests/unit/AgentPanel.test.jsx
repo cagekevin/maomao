@@ -50,7 +50,7 @@ const h = vi.hoisted(() => {
   const setCurrentSnapshot = vi.fn((s) => snapshotSetter(s))
   const setCurrentRunMode = vi.fn()
   const setAwaitingConfirm = vi.fn()
-  const getCurrentRunMode = vi.fn(() => (agentState.runMode || 'auto'))
+  const getCurrentRunMode = vi.fn(() => (agentState.runMode || 'step-confirm'))
   // 收口 store 穿透（2026-08-21）：AgentPanel 从 useAgentChat 解构这 4 个 handler，不再直连 conversationStore
   const useAgentChat = vi.fn(() => ({ ...agentState, setModel, send, sendImageMode, stop, clear, stateAction: '', newChat, switchChat, deleteChat, updateMessageByContent: vi.fn(), executePlanDirect: vi.fn(async () => ({ ok: true })), setCurrentSnapshot, setAwaitingConfirm, getCurrentRunMode, setCurrentRunMode }))
   // contentStore 订阅桩：记录已注册的 key→cb，供测试触发「设置变更」回调
@@ -110,7 +110,7 @@ vi.mock('../../src/components/base/filesApi.js', () => ({ toAbsoluteFileUrl: (u)
 vi.mock('../../src/components/agent/conversation/conversationStore.js', () => ({
   setCurrentSnapshot: (...a) => h.setCurrentSnapshot(...a),
   setAwaitingConfirm: vi.fn(),
-  getCurrentRunMode: () => 'auto',
+  getCurrentRunMode: () => 'step-confirm',
   setCurrentRunMode: (...a) => h.setCurrentRunMode(...a),
 }))
 vi.mock('../../src/components/base/taskStore.js', () => ({ runNodeGeneration: vi.fn() }))
@@ -384,16 +384,6 @@ describe('AgentPanel — 待引用图确认', () => {
     fireEvent.keyDown(ta, { key: 'Enter', shiftKey: false })
     // agent 模式发送：attachments 映射为 {type,url,nodeId,label,x,y}（不带 localUrl/nodeType）
     expect(h.send).toHaveBeenCalledWith('参考这张图', [{ type: 'image', url: 'http://x/img.png', nodeId: 'n1', label: 'L', x: 0, y: 0 }])
-  })
-})
-
-describe('AgentPanel — 三态切换', () => {
-  it('默认完全自主 → 点击分步确认 → setCurrentRunMode("semi") + 文案变化', () => {
-    render(<AgentPanel {...OPEN_PROPS} />)
-    expect(screen.getByText('AI 自主')).toBeTruthy()
-    fireEvent.click(screen.getByText('分步确认'))
-    expect(h.setCurrentRunMode).toHaveBeenCalledWith('semi')
-    expect(screen.queryByText('AI 自主')).toBeNull()
   })
 })
 

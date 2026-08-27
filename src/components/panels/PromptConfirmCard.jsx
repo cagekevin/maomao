@@ -6,12 +6,19 @@ import {
 
 const P = PROMPT_STATUS
 
-/** 状态图标（对齐大雄 3848：✓/×/▶/○） */
+/** 状态图标（SVG，不用 emoji/字符）：✓ 已确认 / × 已跳过 / ▶ 进行中 / ○ 待处理 */
 const StatusIcon = memo(function StatusIcon({ status }) {
-  if (status === P.CONFIRMED) return <span className="text-emerald-400">✓</span>
-  if (status === P.SKIPPED) return <span className="text-gray-500">×</span>
-  if (status === P.CURRENT || status === P.EDITING) return <span className="text-sky-400">▶</span>
-  return <span className="text-gray-600">○</span>
+  const s = 'shrink-0'
+  if (status === P.CONFIRMED) {
+    return <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={`text-emerald-400 ${s}`}><polyline points="20 6 9 17 4 12" /></svg>
+  }
+  if (status === P.SKIPPED) {
+    return <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={`text-gray-500 ${s}`}><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+  }
+  if (status === P.CURRENT || status === P.EDITING) {
+    return <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" className={`text-sky-400 ${s}`}><polygon points="5 3 19 12 5 21 5 3" /></svg>
+  }
+  return <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className={`text-gray-600 ${s}`}><circle cx="12" cy="12" r="9" /></svg>
 })
 
 /**
@@ -61,8 +68,15 @@ function PromptConfirmCard({ prompts = [], onUpdatePrompts, onGenerate, requeste
 
   return (
     <div className="mt-2 border border-edge-faint rounded-md bg-surface-sunken">
-      <div className="px-2.5 py-1.5 text-caption-sm text-secondary border-b border-edge-subtle">
-        📝 提示词确认{countHint}{progress}
+      <div className="flex items-center gap-1.5 px-2.5 py-1.5 text-caption-sm text-body border-b border-edge-subtle">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-emerald-400 shrink-0">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+          <polyline points="14 2 14 8 20 8" />
+          <line x1="16" y1="13" x2="8" y2="13" />
+          <line x1="16" y1="17" x2="8" y2="17" />
+        </svg>
+        <span className="font-medium">提示词确认</span>
+        {(countHint || progress) && <span className="ml-auto text-caption text-muted-2">{countHint}{progress}</span>}
       </div>
       <div className="divide-y divide-edge-subtle">
         {prompts.map((p, i) => {
@@ -92,20 +106,24 @@ function PromptConfirmCard({ prompts = [], onUpdatePrompts, onGenerate, requeste
               {p.status === P.CURRENT && (
                 <div className="mt-1 flex items-center gap-1.5">
                   <button type="button" className="inline-flex items-center gap-1 px-2 py-1 text-caption-sm bg-emerald-600 hover:bg-emerald-500 text-white rounded-md cursor-pointer" onClick={() => apply(confirmPrompt(prompts))}>
-                    ✓ 确认
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                    确认
                   </button>
                   <button type="button" className="inline-flex items-center gap-1 px-2 py-1 text-caption-sm bg-surface hover:bg-surface-hover text-body border border-edge rounded-md cursor-pointer" onClick={() => { setDraft(p.prompt || ''); onUpdatePrompts?.(editPrompt(prompts, i)) }}>
-                    ✎ 修改
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
+                    修改
                   </button>
                   <button type="button" className="inline-flex items-center gap-1 px-2 py-1 text-caption-sm bg-surface hover:bg-surface-hover text-body border border-edge rounded-md cursor-pointer" title="重新生成此条提示词">
-                    ⟳ 重新生成
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10" /><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" /></svg>
+                    重新生成
                   </button>
                 </div>
               )}
               {p.status === P.EDITING && (
                 <div className="mt-1 flex items-center gap-1.5">
                   <button type="button" className="inline-flex items-center gap-1 px-2 py-1 text-caption-sm bg-emerald-600 hover:bg-emerald-500 text-white rounded-md cursor-pointer" onClick={() => apply(savePromptEdit(prompts, i, draft))}>
-                    ✓ 保存并确认
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                    保存并确认
                   </button>
                   <button type="button" className="inline-flex items-center gap-1 px-2 py-1 text-caption-sm bg-surface hover:bg-surface-hover text-body border border-edge rounded-md cursor-pointer" onClick={() => onUpdatePrompts?.(cancelPromptEdit(prompts, i))}>
                     取消
@@ -120,6 +138,7 @@ function PromptConfirmCard({ prompts = [], onUpdatePrompts, onGenerate, requeste
         <div className="px-2.5 py-1.5 border-t border-edge-subtle flex items-center gap-1.5">
           {prompts.length >= 2 && (
             <button type="button" className="inline-flex items-center gap-1 px-2 py-1 text-caption-sm bg-emerald-600 hover:bg-emerald-500 text-white rounded-md cursor-pointer" onClick={() => apply(confirmAllPrompts(prompts))}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
               全部确认并生成
             </button>
           )}

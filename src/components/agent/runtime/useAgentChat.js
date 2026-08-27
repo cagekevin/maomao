@@ -161,13 +161,13 @@ import { useStoreSelector, shallowEqual } from '../../base/useStoreSelector.js'
  *   进入 awaiting 确认态（plan），而大雄是有分级的，不是每个任务都要确认。对齐后（实现见
  *   useCanvasAgentTools.js presentPlanTool）：show_plan_for_confirm 仍保留（规划文字/步骤卡片照常展示），
  *   但「是否进入 awaiting 确认门禁」按 runMode + Skill 决定：
- *   - runMode 存 conversationStore（per-conversation，默认 'auto'），AgentPanel 有切换（全自动/半自动）。
- *   - 全自动 auto（默认，对齐大雄 6283「一次规划后直接执行」）：无 Skill 时 show_plan_for_confirm
+ *   - runMode 存 conversationStore（per-conversation，默认 'confirm'），AgentPanel 有切换（分步确认/完全自主）。
+ *   - 分步确认 confirm（默认，对齐大雄 6282「完整规划和提示词生成后，确认再执行」）：无 Skill 时进入 awaiting →
+ *     展示确认门禁，用户确认后才 execute_plan（对齐大雄 7774 分步确认门禁）。
+ *   - 完全自主 auto（对齐大雄 6283「一次规划后直接执行」）：无 Skill 时 show_plan_for_confirm
  *     **不进入 awaiting** → 规划照常展示，但不弹确认按钮，LLM 继续 execute_plan 直接执行。
- *   - 半自动 semi（对齐大雄 6282「完整规划和提示词生成后，确认再执行」）：无 Skill 时进入 awaiting →
- *     展示确认门禁，用户确认后才 execute_plan（对齐大雄 7774 semi 门禁）。
  *   - Skill：无论 runMode 都走三阶段（理解→规划→执行），进入 awaiting（Skill 需要策划确认）。
- *   对应大雄：auto 模式规划后直接执行（7774 只在 semi 才展示门禁）；Skill 三阶段独立确认。
+ *   对应大雄：auto 模式规划后直接执行（7774 只在分步确认才展示门禁）；Skill 三阶段独立确认。
  *
  * ── 三、三阶段流（大雄：理解→规划→执行；我们：工具循环内）──
  *   阶段1 理解：LLM 输出自然语言直出 + generations JSON（回复正文解析暂存，对齐大雄 6828/995）。
@@ -481,9 +481,9 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
         // 上下文预算：输入预算 = 窗口 × (1 − 输出留白比例)。用于估算当前请求是否接近模型上限。
         const budgetInput = resolveInputBudget({ contextWindow: AGENT_CONTEXT_WINDOW_DEFAULT, outputBudgetRatio: AGENT_CONTEXT_OUTPUT_BUDGET_RATIO })
         // 【对齐大雄 runMode 分级】执行分级决定「是否弹执行确认门禁」：
-        //   - 全自动 auto（默认，对齐大雄 agentSetRunMode 6283）：完整规划后直接执行——show_plan_for_confirm
+        //   - 完全自主 auto（对齐大雄 agentSetRunMode 6283）：完整规划后直接执行——show_plan_for_confirm
         //     仍会输出规划/generations 供展示，但**不进入 awaiting 确认态**，LLM 继续 execute_plan 直接执行（不弹确认按钮）。
-        //   - 半自动 semi（对齐大雄 6282）：show_plan_for_confirm 进入 awaiting 确认态，展示确认门禁，用户确认后才 execute_plan。
+        //   - 分步确认 step-confirm（默认，对齐大雄 6282）：show_plan_for_confirm 进入 awaiting 确认态，展示确认门禁，用户确认后才 execute_plan。
         //   - Skill：无论 runMode 都走三阶段确认（Skill 需要用户确认策划）。
         // 具体「是否进入 awaiting」由 useCanvasAgentTools 的 show_plan_for_confirm 按 runMode 决定（见 presentPlanTool）。
         // 【三阶段门禁】是否因 show_plan_for_confirm（待用户确认策划）而提前暂停循环。
@@ -825,6 +825,16 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
     return { ok, error: res?.error || '', data: res?.data || null }
   }, [callTool])
 
+  // 【统一确认卡 · 取消】放弃当前待确认（策划/记忆共用）：清记忆暂存 + 翻转 awaitingConfirm 门禁，
+  // 并把对应 assistant 消息的 awaiting_confirm 清掉（收起确认卡 + 落盘持久），
+  // 避免取消后 execute_plan 被永久拒、也避免残留 pendingMemorySuggest 导致下次确认误判成「记忆确认」。
+  // 不通知 LLM（用户放弃本次策划/记忆，可重新输入指令）。
+  const cancelPendingConfirm = useCallback((assistantContent) => {
+    setActivePendingMemorySuggest(null)
+    setAwaitingConfirm(false)
+    if (assistantContent) updateMessageByContent(assistantContent, { awaiting_confirm: false })
+  }, [setActivePendingMemorySuggest, setAwaitingConfirm, updateMessageByContent])
+
   // 【发到画布】把一段文本内容建成 textNode（内容落生成区 data.text，抽屉收起）。
   // 复用 AI 操作画布的现成工具链路（create_node → canvasHost），而非裸写 setNodes。
   // 供 AgentPanel「回复右下角箭头」按钮调用；空文本直接忽略。
@@ -834,7 +844,7 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
     return callTool('create_node', { type: 'textNode', text })
   }, [callTool])
 
-  return { messages, sending, error, model, setModel, send, sendImageMode, stop, clear, stateAction, conversations, activeConversationId, newChat, switchChat, deleteChat, updateMessageByContent, executePlanDirect, sendContentToCanvas, confirmPendingMemorySuggest, getActivePendingMemorySuggest, runExistingConfirm, getCreditGate,
+  return { messages, sending, error, model, setModel, send, sendImageMode, stop, clear, stateAction, conversations, activeConversationId, newChat, switchChat, deleteChat, updateMessageByContent, executePlanDirect, sendContentToCanvas, confirmPendingMemorySuggest, getActivePendingMemorySuggest, cancelPendingConfirm, runExistingConfirm, getCreditGate,
     // 【展示→编排轴薄适配（收口 AgentPanel 的 store 穿透）】回传 UI 会用到的 store 原子能力，
     // 使 AgentPanel 不再直接 import conversationStore（唯一入口收敛到本 hook）。这些是 store 的稳定
     // 模块级函数（透传引用，非拷贝），消息单源下已满足"UI 不直连持久层"的一步；未来如需可再 action 化。

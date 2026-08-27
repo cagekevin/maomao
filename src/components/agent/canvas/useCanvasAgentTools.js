@@ -819,12 +819,12 @@ const presentPlanTool = {
       setPendingGenerations(gens)
     }
     // 【对齐大雄 runMode 分级】是否进入"待确认"门禁：
-    //   - runMode==='semi'：进入 awaiting（半自动：规划后确认再执行，对齐大雄 6282/7774）。
-    //   - runMode==='auto'：不进入 awaiting（全自动：规划后直接执行）。
-    //   【D7 收敛】删除 hasSkillNow 强制项：Skill 不再强制半自动；「完全自主 + 有媒体 + 开关开」
+    //   - runMode==='step-confirm'：进入 awaiting（分步确认：规划后确认再执行，对齐大雄 6282/7774）。
+    //   - runMode==='auto'：不进入 awaiting（完全自主：规划后直接执行）。
+    //   【D7 收敛】删除 hasSkillNow 强制项：Skill 不再强制分步确认；「完全自主 + 有媒体 + 开关开」
     //   改由 execute_plan 的通用积分闸（credit）拦截，不再在此设 awaitingConfirm（D1 两条门禁独立）。
     const hasSkillNow = Array.isArray(getCurrentSnapshot()?.skills) && getCurrentSnapshot().skills.length > 0
-    const needConfirm = getCurrentRunMode() === 'semi'
+    const needConfirm = getCurrentRunMode() === 'step-confirm'
     setAwaitingConfirm(needConfirm)
     // memory 提炼（对齐大雄 conv.memory.lastPlan）：把阶段1策划记入当前对话，供多轮上下文
     const mem = getCurrentMemory()
@@ -937,7 +937,7 @@ const executePlanTool = {
       // 心智模型：积分开关就是通用总闸，开了就拦、关了就放，对「直接生图/分步确认/完全自主」一视同仁（PRD §3.2）。
       // 命中 → 强制 autoRun=false：只建节点（免费，status='ready'），真正的「点生成烧积分那下」留待
       // 用户点确认 → runExistingPlanTool 补跑。绝不放行 LLM 的 auto_run:true 直接真生成（红线 §6.4）。
-      // 注：分步确认（semi）在开关开时也会再经一次积分确认（不算 D2 的「不叠」）——这是「通用闸一视同仁」的直接结果。
+      // 注：分步确认（step-confirm）在开关开时也会再经一次积分确认（不算 D2 的「不叠」）——这是「通用闸一视同仁」的直接结果。
       const creditHit = getCreditSwitch()
       const autoRun = creditHit ? false : (args.auto_run !== false)
       // 【模型锁定】用面板生图参数区（getGenParams）作为默认；LLM 显式传 model 则优先。

@@ -12,11 +12,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
  *
  * 三种模式 = inputMode/runMode 维度，但对积分闸判定无区别（credit=creditSwitch，与模式正交）：
  *   直接生图  → inputMode='image'（sendImageMode 直连）→ 开关开即拦
- *   分步确认  → inputMode='agent' + runMode='semi'   → 开关开即拦（一视同仁，2026-08-27 删 D2 不叠分支）
+ *   分步确认  → inputMode='agent' + runMode='step-confirm'   → 开关开即拦（一视同仁，2026-08-27 删 D2 不叠分支）
  *   完全自主  → inputMode='agent' + runMode='auto'   → 开关开即拦
  *
  * 本文件只测 execute_plan 这一收敛入口对三种模式 × 开关两态的放行/拦截行为，
- * 通过控制 creditSwitch 与 runMode 断言 autoRun 传参、creditGate 置位、返回语义，并固化「残留 semi 短路」回归防线。
+ * 通过控制 creditSwitch 与 runMode 断言 autoRun 传参、creditGate 置位、返回语义，并固化「残留 step-confirm 短路」回归防线。
  */
 // 可控 creditSwitch：getX 读 __credit，setX 写 __credit（contentStore 的 contentGet/contentSet 也被 mock 到同一状态）
 let __creditState
@@ -169,10 +169,10 @@ describe('三种模式 × 积分开关 × execute_plan 唯一入口', () => {
       expect(convStore.__state.creditGate).toBeNull()
     })
 
-    it('【回归·BUG】直接生图若残留 runMode=semi（先前切过分步确认），开关开必须仍拦截（PRD：直接生图受通用积分闸，与残留 runMode 无关）', async () => {
-      // 用户先切「分步确认」(runMode='semi')，再切「直接生图」——runMode 残留 semi。
-      // 直接生图语义下积分闸应只看 creditSwitch，绝不能因残留 semi 被跳过。
-      convStore.__state.runMode = 'semi'
+    it('【回归·BUG】直接生图若残留 runMode=step-confirm（先前切过分步确认），开关开必须仍拦截（PRD：直接生图受通用积分闸，与残留 runMode 无关）', async () => {
+      // 用户先切「分步确认」(runMode='step-confirm')，再切「直接生图」——runMode 残留 step-confirm。
+      // 直接生图语义下积分闸应只看 creditSwitch，绝不能因残留 step-confirm 被跳过。
+      convStore.__state.runMode = 'step-confirm'
       __creditState = true
       const t = buildTool()
       const r = await t.execute_plan({ generations: GENS, auto_run: true })
@@ -183,9 +183,9 @@ describe('三种模式 × 积分开关 × execute_plan 唯一入口', () => {
     })
   })
 
-  describe('分步确认（runMode=semi）', () => {
+  describe('分步确认（runMode=step-confirm）', () => {
     it('开关开【通用闸一视同仁】→ 分步确认同样拦截，建节点置 creditGate、返回 awaited:credit（2026-08-27 简化：删 D2 不叠分支）', async () => {
-      convStore.__state.runMode = 'semi'
+      convStore.__state.runMode = 'step-confirm'
       __creditState = true
       const t = buildTool()
       const r = await t.execute_plan({ generations: GENS, auto_run: true })
@@ -197,7 +197,7 @@ describe('三种模式 × 积分开关 × execute_plan 唯一入口', () => {
     })
 
     it('开关关【放行】→ 不置 creditGate，按 auto_run 执行', async () => {
-      convStore.__state.runMode = 'semi'
+      convStore.__state.runMode = 'step-confirm'
       __creditState = false
       const t = buildTool()
       const r = await t.execute_plan({ generations: GENS, auto_run: true })

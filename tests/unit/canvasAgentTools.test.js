@@ -429,9 +429,9 @@ describe('画布 Agent 工具层 §2.5', () => {
   })
 
   it('show_plan_for_confirm 暂存策划并进入待确认', async () => {
-    // D7：show_plan 判定已收敛为 needConfirm = runMode==='semi'（删 hasSkillNow 强制项）。
+    // D7：show_plan 判定已收敛为 needConfirm = runMode==='step-confirm'（删 hasSkillNow 强制项）。
     // 半自动模式 → 必进入 awaiting 确认（策划暂存 + 待确认）。
-    vi.mocked(convStore.getCurrentRunMode).mockReturnValue('semi')
+    vi.mocked(convStore.getCurrentRunMode).mockReturnValue('step-confirm')
     const ctx = makeCtx()
     const t = buildCanvasAgentTools(ctx)
     const r = await t.show_plan_for_confirm({ plan_text: '做5张主图', generations: [{ id: 'g1', prompt: '猫' }] })
@@ -453,9 +453,9 @@ describe('画布 Agent 工具层 §2.5', () => {
     expect(convStore.__state.awaiting).toBe(false)
   })
 
-  it('【对齐大雄 半自动 semi】无 Skill + semi：show_plan_for_confirm 进入 awaiting（规划后确认再执行）', async () => {
+  it('【对齐大雄 半自动 step-confirm】无 Skill + step-confirm：show_plan_for_confirm 进入 awaiting（规划后确认再执行）', async () => {
     convStore.__state.awaiting = false
-    vi.mocked(convStore.getCurrentRunMode).mockReturnValue('semi')
+    vi.mocked(convStore.getCurrentRunMode).mockReturnValue('step-confirm')
     const ctx = makeCtx()
     const t = buildCanvasAgentTools(ctx)
     const r = await t.show_plan_for_confirm({ plan_text: '做1张猫图', generations: [{ id: 'g1', prompt: '一只猫' }] })
@@ -466,8 +466,8 @@ describe('画布 Agent 工具层 §2.5', () => {
     vi.mocked(convStore.getCurrentRunMode).mockReturnValue('auto')
   })
 
-  it('【D7 真值表】hasSkillNow=true + auto：不再进入 awaiting（删 hasSkillNow 强制项，needConfirm 只由 runMode===\'semi\' 决定）', async () => {
-    // D7：show_plan 判定收敛为 needConfirm = runMode==='semi'，hasSkillNow 已删除。
+  it('【D7 真值表】hasSkillNow=true + auto：不再进入 awaiting（删 hasSkillNow 强制项，needConfirm 只由 runMode===\'step-confirm\' 决定）', async () => {
+    // D7：show_plan 判定收敛为 needConfirm = runMode==='step-confirm'，hasSkillNow 已删除。
     // 此用例覆盖「有 Skill 但 runMode=auto」→ 不再强制进入 awaiting（awaitingConfirm=false）。
     convStore.__state.awaiting = false
     vi.mocked(convStore.getCurrentRunMode).mockReturnValue('auto')
@@ -570,8 +570,8 @@ describe('画布 Agent 工具层 §2.5', () => {
   // ── Skill 三阶段确认门禁闭环（AI 编排关键防护）──
   it('show_plan_for_confirm → 返回 awaiting_confirm:true（进入待确认态）', async () => {
     convStore.__state.awaiting = false
-    // D7：semi 半自动 → 必进入 awaiting 确认（策划暂存 + 待确认）
-    vi.mocked(convStore.getCurrentRunMode).mockReturnValue('semi')
+    // D7：step-confirm 半自动 → 必进入 awaiting 确认（策划暂存 + 待确认）
+    vi.mocked(convStore.getCurrentRunMode).mockReturnValue('step-confirm')
     const ctx = makeCtx()
     const t = buildCanvasAgentTools(ctx)
     const r = await t.show_plan_for_confirm({ plan_text: '生成5张主图', generations: [{ id: 'g1', prompt: '猫' }] })

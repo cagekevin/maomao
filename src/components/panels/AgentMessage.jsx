@@ -2,6 +2,7 @@ import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { toAbsoluteFileUrl } from '../base/filesApi.js'
 import LazyImage from '../base/LazyImage.jsx'
 import PromptConfirmCard from './PromptConfirmCard.jsx'
+import AgentConfirmCard from './AgentConfirmCard.jsx'
 import ImageZoomDialog from '../base/ImageZoomDialog.jsx'
 
 /** 直观判断：一个 URL 是否该渲染成图片。
@@ -203,10 +204,11 @@ const GenerationStepsCard = memo(function GenerationStepsCard({ generations }) {
 /** 消息气泡主组件（复刻 Cr.jsx）
  *  @param {object} message
  *  @param {Function} onConfirmPlan 阶段2 一次性确认整个策划（generations 通道）
+ *  @param {Function} onCancelPlan  取消待确认（策划/记忆）：放弃本次确认，清门禁并收起确认卡
  *  @param {Function} onRetryStep   重试失败步骤
  *  @param {Function} [onPromptAction] prompts 逐条确认通道：{ action, prompts, index?, text? } →
  *      应用后写回消息并可能触发出图（prompts 通道，对齐大雄 confirm/edit/save/reopen/regenerate/confirm-all） */
-function AgentMessage({ message, onConfirmPlan, onRetryStep, onPromptAction, onSendToCanvas }) {
+function AgentMessage({ message, onConfirmPlan, onCancelPlan, onRetryStep, onPromptAction, onSendToCanvas }) {
   // 图片查看大图（原生 dialog）：点击消息里的图片 → 打开查看，替代 target=_blank 新窗口
   const zoomRef = useRef(null)
   const [zoomUrl, setZoomUrl] = useState(null)
@@ -307,19 +309,39 @@ function AgentMessage({ message, onConfirmPlan, onRetryStep, onPromptAction, onS
               onGenerate={(generations) => onPromptAction?.({ action: 'generate', assistantContent: message.content, generations })}
             />
           )}
-          {/* Skill 阶段2：待确认策划 → 渲染确认按钮（Step F；仅前端按钮翻转 awaitingConfirm） */}
+          {/* 待确认（策划/记忆/积分）→ 统一确认卡（AgentConfirmCard）：仅前端按钮翻转 awaitingConfirm。
+              记忆确认（memory_suggest）与策划确认共用同一种卡，靠标题/图标/文案区分语义。 */}
           {message.awaiting_confirm && !message.streaming && (
-            <button
-              type="button"
-              onClick={onConfirmPlan}
-              disabled={!onConfirmPlan}
-              className="mt-2 inline-flex items-center gap-1 px-3 py-1.5 text-xs bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg transition-colors cursor-pointer disabled:opacity-50"
-            >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="20 6 9 17 4 12" />
-              </svg>
-              确认，按此执行
-            </button>
+            message.memory_suggest ? (
+              <AgentConfirmCard
+                icon={
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+                  </svg>
+                }
+                title="保存长期记忆"
+                desc="AI 建议记录一条长期记忆，确认后将延续到后续每轮对话。"
+                confirmText="保存"
+                cancelText="暂不保存"
+                onConfirm={onConfirmPlan}
+                onCancel={onCancelPlan ? () => onCancelPlan(message.content) : undefined}
+              />
+            ) : (
+              <AgentConfirmCard
+                icon={
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M9 11l3 3L22 4" />
+                    <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+                  </svg>
+                }
+                title="确认执行策划"
+                desc="AI 已给出策划，确认后按此执行；取消可重新输入指令。"
+                confirmText="确认，按此执行"
+                cancelText="取消"
+                onConfirm={onConfirmPlan}
+                onCancel={onCancelPlan ? () => onCancelPlan(message.content) : undefined}
+              />
+            )
           )}
         </div>
         {zoomDialog}

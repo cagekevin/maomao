@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useAgentChat, setGenParams, getGenParams, getCreditSwitch, setCreditSwitch } from '../agent/index.js'
 import { useProviders, load as loadProviders } from '../base/settings/providerStore.js'
 import AgentMessage from './AgentMessage.jsx'
+import AgentConfirmCard from './AgentConfirmCard.jsx'
 import ModelSelect from '../base/ModelSelect.jsx'
 import { buildAllModels } from '../base/providerModels.js'
 import { useOutsideClick } from '../base/hooks.js'
@@ -173,7 +174,7 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
   // 新建对话短锁：新建后 1s 内禁用按钮，避免用户狂点出十几个空对话
   const newChatLock = useRef(false)
 
-  const { messages, sending, error, model, setModel, send, sendImageMode, stop, clear, stateAction, conversations, activeConversationId, newChat, switchChat, deleteChat, updateMessageByContent, executePlanDirect, sendContentToCanvas, confirmPendingMemorySuggest, getActivePendingMemorySuggest, runExistingConfirm, getCreditGate,
+  const { messages, sending, error, model, setModel, send, sendImageMode, stop, clear, stateAction, conversations, activeConversationId, newChat, switchChat, deleteChat, updateMessageByContent, executePlanDirect, sendContentToCanvas, confirmPendingMemorySuggest, getActivePendingMemorySuggest, cancelPendingConfirm, runExistingConfirm, getCreditGate,
     // 展示→编排轴薄适配（收口 store 穿透）：这 4 个由 useAgentChat 回传，UI 不再直接 import conversationStore
     setCurrentSnapshot, setAwaitingConfirm, getCurrentRunMode, setCurrentRunMode } = useAgentChat({
     agentKey,
@@ -206,29 +207,29 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
     setInputMode(mode)
     try { contentSet(AGENT_INPUT_MODE_KEY, mode) } catch { /* ignore */ }
   }
-  // 【对齐大雄 runMode 分级】执行分级：auto（默认，无 Skill 时 LLM 直接出 generations 执行、不展示 plan）/
-  // semi（半自动，无 Skill 时也展示 plan 确认再执行）。对应大雄 agentSetRunMode/agentToggleRunMode。
-  const [runMode, setRunModeState] = useState(() => { try { return getCurrentRunMode() || 'auto' } catch { return 'auto' } })
+  // 【对齐大雄 runMode 分级】执行分级：step-confirm（默认，分步确认，无 Skill 时也展示 plan 确认再执行）/
+  // auto（完全自主，无 Skill 时 LLM 直接出 generations 执行、不展示 plan）。对应大雄 agentSetRunMode/agentToggleRunMode。
+  const [runMode, setRunModeState] = useState(() => { try { return getCurrentRunMode() || 'step-confirm' } catch { return 'step-confirm' } })
   const setRunModeAndPersist = (mode) => {
-    const next = mode === 'semi' ? 'semi' : 'auto'
+    const next = mode === 'step-confirm' ? 'step-confirm' : 'auto'
     setRunModeState(next)
     setCurrentRunMode(next)
   }
-  // 【三态收敛 · 2026-08-27 简化定稿】把原本正交的「智能/图像(inputMode)× 全自动/半自动(runMode)
-  //  + 隐藏『有Skill强制半自动』」收敛为一个三态选择器，从【用户投入的精力】切分，语义一眼可懂：
+  // 【三态收敛 · 2026-08-27 简化定稿】把原本正交的「智能/图像(inputMode)× 分步确认/完全自主(runMode)
+  //  + 隐藏『有Skill强制分步确认』」收敛为一个三态选择器，从【用户投入的精力】切分，语义一眼可懂：
   //    直接生图(workMode='image') → inputMode='image'，sendImageMode 直连，不经 LLM 编排
-  //    分步确认(workMode='semi')  → inputMode='agent' + runMode='semi'，调工具改画布前先确认策划
+  //    分步确认(workMode='step-confirm') → inputMode='agent' + runMode='step-confirm'，调工具改画布前先确认策划
   //    完全自主(workMode='auto')  → inputMode='agent' + runMode='auto'，AI 自主改画布，无策划确认
   //  workMode 仅做展示与驱动推导；底层仍分别写 inputMode 与 runMode。
   //  ⚠️ 注意：积分闸判定（credit=creditSwitch）与 runMode 完全无关（见 execute_plan / creditSwitch 注释），
-  //  所以三态切换里 runMode 残留 semi/auto 不会影响「是否弹积分确认」——那是独立的全局总闸。
-  const workMode = inputMode === 'image' ? 'image' : (runMode === 'semi' ? 'semi' : 'auto')
+  //  所以三态切换里 runMode 残留 step-confirm/auto 不会影响「是否弹积分确认」——那是独立的全局总闸。
+  const workMode = inputMode === 'image' ? 'image' : (runMode === 'step-confirm' ? 'step-confirm' : 'auto')
   const setWorkMode = (mode) => {
     if (mode === 'image') {
       setInputModeAndPersist('image')
     } else {
       setInputModeAndPersist('agent')
-      setRunModeAndPersist(mode === 'semi' ? 'semi' : 'auto')
+      setRunModeAndPersist(mode === 'step-confirm' ? 'step-confirm' : 'auto')
     }
   }
   // attachments 变化 → 同步到 conversationStore（自动落盘，带 hydrated 时序守卫）
@@ -527,7 +528,7 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
           {AI_ICON}
           <span className="text-white text-sm font-medium">AI 助手</span>
           {/* 高消耗积分确认开关（creditSwitch）：全局、默认开。任何模式下，真烧积分那下（image/video 生成）
-              都先经用户确认，确认前不烧积分。独立于三态选择器；分步确认（semi）不叠此闸（D2）。 */}
+              都先经用户确认，确认前不烧积分。独立于三态选择器；分步确认（step-confirm）不叠此闸（D2）。 */}
           <button
             type="button"
             onClick={toggleCreditSwitch}
@@ -663,7 +664,26 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
               )}
             </div>
           )}
-          {messages.map((m) => <AgentMessage key={m.id} message={m} onConfirmPlan={handleConfirmPlan} onRetryStep={handleRetryStep} onPromptAction={handlePromptAction} onSendToCanvas={sendContentToCanvas} />)}
+          {messages.map((m) => <AgentMessage key={m.id} message={m} onConfirmPlan={handleConfirmPlan} onCancelPlan={cancelPendingConfirm} onRetryStep={handleRetryStep} onPromptAction={handlePromptAction} onSendToCanvas={sendContentToCanvas} />)}
+          {/* 高消耗积分确认卡（跟随消息流末尾，与策划/记忆确认共用 AgentConfirmCard 统一样式）：
+              credit 命中（任一模式 + 开关开）时，execute_plan 已建好节点（status='ready'）、真生成未触发；
+              确认 → runExistingPlanTool 补跑；取消 → 仅收起卡片、保留待确认态（不删节点，节点已在画布上）。 */}
+          {showCreditCard && (
+            <AgentConfirmCard
+              icon={
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+                </svg>
+              }
+              title={creditGenCount > 0 ? `确认生成 ${creditGenCount} 张图/视频` : '确认生成'}
+              desc="节点已建好，确认后开始生成（预计消耗积分）。取消可稍后手动点节点触发。"
+              confirmText="确认生成"
+              cancelText="取消"
+              onConfirm={handleConfirmCredit}
+              onCancel={dismissCreditCard}
+              disabled={sending}
+            />
+          )}
           {sending && (
             <div className="flex items-center gap-2 text-muted text-xs">
               <span className="flex gap-1">
@@ -678,57 +698,9 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
         </div>
       </div>
 
-      {/* 高消耗积分确认卡（独立于 plan 确认）：credit 命中（完全自主/直接生图 + 开关开）时，
-          execute_plan 已建好节点（status='ready'）、真生成未触发；此处让用户确认「点生成烧积分那下」。
-          确认 → runExistingPlanTool 补跑；取消 → 仅收起卡片、保留待确认态（不删节点，节点已在画布上）。 */}
-      {showCreditCard && (
-        <div className="shrink-0 px-3 py-2 border-t border-edge-faint bg-surface-deep">
-          <div className="bg-amber-500/5 border border-amber-500/30 rounded-lg px-3 py-2.5">
-            <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0">
-                <div className="text-caption-sm text-amber-200 font-medium mb-0.5">
-                  {creditGenCount > 0 ? `将生成 ${creditGenCount} 张图/视频` : '将生成图/视频'}
-                </div>
-                <div className="text-caption text-muted text-xs leading-snug">
-                  节点已建好，确认后开始生成（预计消耗积分）。取消可稍后手动点节点触发。
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={dismissCreditCard}
-                className="shrink-0 p-1 text-muted-2 hover:text-white hover:bg-surface rounded-md transition-colors"
-                title="取消（保留待确认态）"
-              >
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="18" y1="6" x2="6" y2="18" />
-                  <line x1="6" y1="6" x2="18" y2="18" />
-                </svg>
-              </button>
-            </div>
-            <div className="flex items-center gap-2 mt-2">
-              <button
-                type="button"
-                onClick={handleConfirmCredit}
-                disabled={sending}
-                className="shrink-0 px-3 py-1 text-caption-sm text-black bg-amber-300 hover:bg-amber-200 rounded-md transition-colors disabled:opacity-60"
-              >
-                确认生成
-              </button>
-              <button
-                type="button"
-                onClick={dismissCreditCard}
-                className="shrink-0 px-3 py-1 text-caption-sm text-muted-2 hover:text-white hover:bg-surface rounded-md transition-colors"
-              >
-                取消
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* 底部 OneBox 输入区 */}
       <div className="shrink-0 px-3 py-3 border-t border-edge-faint bg-surface-deep">
-        <div className="bg-canvas border border-edge rounded-xl focus-within:border-blue-500 transition-colors">
+        <div className="bg-canvas border border-edge rounded-xl focus-within:border-edge-strong transition-colors">
           {/* 参考图 chips（内联在输入框上方） */}
           {(attachments.length > 0 || uploading) && (
             <div className="flex flex-wrap gap-2 px-3 pt-2.5">
@@ -767,10 +739,10 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
             </div>
           )}
 
-          {/* 三态选择器（直接生图 / 分步确认 / 完全自主）：合并「智能/图像 × 全自动/半自动」两个正交维度，
+          {/* 三态选择器（直接生图 / 分步确认 / 完全自主）：合并「智能/图像 × 分步确认/完全自主」两个正交维度，
               从用户精力出发切分——直接生图=一输就出图（直连生图，不经 LLM 编排工具，自动执行）；
               分步确认=AI 调工具前先展示策划，逐步确认再执行；完全自主=AI 自主操作、无需逐步确认。
-              底层仍分别写 inputMode 与 runMode：直接生图→image；分步确认→agent+semi；完全自主→agent+auto。 */}
+              底层仍分别写 inputMode 与 runMode：直接生图→image；分步确认→agent+step-confirm；完全自主→agent+auto。 */}
           <div className="flex items-center gap-1 px-2.5 pt-2">
             <div className="flex items-center gap-0.5 p-0.5 rounded-lg bg-surface/50 border border-edge-faint shrink-0">
               <button
@@ -781,8 +753,8 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
               >直接生图</button>
               <button
                 type="button"
-                onClick={() => setWorkMode('semi')}
-                className={`shrink-0 whitespace-nowrap px-2 py-0.5 text-caption-sm rounded-md transition-colors ${workMode === 'semi' ? 'bg-surface-hover-strong text-white' : 'text-muted hover:text-body'}`}
+                onClick={() => setWorkMode('step-confirm')}
+                className={`shrink-0 whitespace-nowrap px-2 py-0.5 text-caption-sm rounded-md transition-colors ${workMode === 'step-confirm' ? 'bg-surface-hover-strong text-white' : 'text-muted hover:text-body'}`}
                 title="分步确认：AI 调用工具修改画布前先展示策划，等你确认再执行"
               >分步确认</button>
               <button
@@ -793,7 +765,7 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
               >完全自主</button>
             </div>
             <span className="text-caption text-muted-2 truncate">
-              {workMode === 'image' ? '直连出图' : workMode === 'semi' ? '分步确认' : 'AI 自主'}
+              {workMode === 'image' ? '直连出图' : workMode === 'step-confirm' ? '分步确认' : 'AI 自主'}
             </span>
           </div>
 
@@ -923,7 +895,9 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
                           }}
                           className={`w-full flex items-center gap-2 text-left px-2 py-1.5 text-caption-sm rounded-md transition-colors ${on ? 'text-emerald-300' : 'text-body hover:bg-surface-hover hover:text-white'}`}
                           >
-                          <span className="shrink-0 w-4 text-muted-2">{on ? '✓' : ''}</span>
+                          <span className="shrink-0 w-4 flex items-center text-emerald-400">{on ? (
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                          ) : ''}</span>
                           <span className="flex-1 truncate">{s.name}</span>
                           <span className="text-caption text-muted-2 shrink-0">{s.builtin ? '内置' : ''}</span>
                         </button>
