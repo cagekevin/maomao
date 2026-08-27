@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 /**
  * Comet 深度测试。
  *

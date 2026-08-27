@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 /**
  * GroupNode 单测（阶段五试点）。
  * 覆盖：展开态/折叠态渲染、双击/按钮切换折叠（调用 useReactFlow().setNodes 更新 data.collapsed 与子节点 hidden）。

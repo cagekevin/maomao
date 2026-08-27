@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 /**
  * ConnectionLine 深度测试。
  *

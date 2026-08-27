@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 /**
  * GhostTargetNode 深度测试。
  *

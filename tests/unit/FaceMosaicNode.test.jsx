@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 /**
  * FaceMosaicNode 深度测试。
  *

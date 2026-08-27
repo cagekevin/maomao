@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 /**
  * VideoProcessNode 深度测试（修复"大而复杂测最浅"）。
  *

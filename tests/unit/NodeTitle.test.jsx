@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 /**
  * NodeTitle 深度测试。
  *

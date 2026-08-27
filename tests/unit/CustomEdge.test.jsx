@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 /**
  * CustomEdge 深度测试。
  *

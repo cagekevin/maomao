@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 /**
  * addNode 并发安全回归单测。
  *

@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 /**
  * ImageBoxNode 深度测试。
  *

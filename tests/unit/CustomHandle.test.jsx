@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 /**
  * CustomHandle 深度测试。
  *

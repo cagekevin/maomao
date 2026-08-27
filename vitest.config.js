@@ -15,7 +15,8 @@ export default defineConfig({
     //   glob 无法只挑「部分 .js」，故不能并入上面的 glob；此注释不可误删。
     environment: 'node',
     environmentMatchGlobs: [
-      // 组件测试（.jsx 一律 jsdom）
+      // 组件测试（.jsx 一律 jsdom）——兜底：每个 .jsx 已用文件级 @vitest-environment jsdom 注解，
+      // glob 仅在漏注解时兜底，避免全量并发下 glob 路由抖动导致 document is not defined。
       ['tests/unit/**/*.test.jsx', 'jsdom'],
     ],
     include: ['tests/unit/**/*.test.{js,jsx,ts}'],

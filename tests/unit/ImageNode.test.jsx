@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 /**
  * ImageNode 深度测试（修复审计 P1"偏薄"）。
  * 覆盖 content type 判定的多种内容态：empty / image / audio / text / video。
