@@ -41,6 +41,11 @@ const MIN_WIDTH = 320
 const MAX_WIDTH = 720
 const DEFAULT_WIDTH = 400
 
+/** 距底部 <= 该 px 即视为「已到底」：留余量规避小数像素/缩放导致的按钮闪烁 */
+const BOTTOM_EPS = 60
+/** scroll 事件静默该 ms 即认定平滑滚动动画结束（不依赖固定时长，长距离滚动同样准确） */
+const SCROLL_IDLE_MS = 120
+
 const SHORTCUTS = [
   '生成赛博朋克猫咪图',
   '把选中节点改成 9:16',
@@ -305,6 +310,16 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
   const fileRef = useRef(null)
   const scrollRef = useRef(null)
   const textareaRef = useRef(null)
+  // 「回到底部」按钮：atBottom 驱动显隐；atBottomRef 供滚动副作用同步读取最新值（避免闭包读到过期 state）
+  const [atBottom, setAtBottom] = useState(true)
+  const atBottomRef = useRef(true)
+  // 程序化滚动（自动跟随/点按钮）进行中：期间忽略位置判定。
+  //   原因：smooth 滚动动画本身持续触发 scroll 事件，中间帧「距底部」很大，
+  //   若不屏蔽会把 atBottomRef 误翻成 false → 流式跟随中断、按钮误弹出。
+  const programmaticRef = useRef(false)
+  const idleTimerRef = useRef(null)
+  // 用户接管后下一帧校正位置的 rAF 句柄（抵消 wheel→scroll 之间的一帧空档，见 takeOver）
+  const rafRef = useRef(null)
 
   useEffect(() => {
     try { contentSet(PANEL_WIDTH_KEY, String(width)) } catch { /* ignore */ }
@@ -346,12 +361,113 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
     return () => document.removeEventListener('mousedown', handler)
   }, [modelOpen])
 
-  // 消息滚动到底部
+  /** 标记程序化滚动开始，并在静默 SCROLL_IDLE_MS 后自动解除（动画结束探测） */
+  const markProgrammatic = useCallback(() => {
+    programmaticRef.current = true
+    if (idleTimerRef.current) clearTimeout(idleTimerRef.current)
+    // 兜底：若本次无需滚动（已在底部 → 不产生 scroll 事件），也能靠这个定时器解除标记
+    idleTimerRef.current = setTimeout(() => { programmaticRef.current = false }, SCROLL_IDLE_MS)
+  }, [])
+
+  /** 强制贴底（流式跟随/发送/切对话/点按钮）：同步置位 atBottom → 按钮立即隐藏 */
+  const scrollToBottom = useCallback((behavior = 'smooth') => {
+    const el = scrollRef.current
+    if (!el) return
+    atBottomRef.current = true
+    setAtBottom(true)
+    markProgrammatic()
+    el.scrollTo({ top: el.scrollHeight, behavior })
+  }, [markProgrammatic])
+
+  // 消息滚动到底部（sticky bottom：在底部时跟随流式输出自然下滚；用户上翻后交还控制权，由「回到底部」按钮接管）
   const lastMsg = messages[messages.length - 1]
   const scrollKey = (lastMsg ? (lastMsg.content?.length || 0) + (lastMsg.reasoning?.length || 0) : 0) + (messages.length) + (sending ? 1 : 0)
   useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
-  }, [scrollKey])
+    if (!atBottomRef.current) return
+    scrollToBottom('smooth')
+  }, [scrollKey, scrollToBottom])
+
+  /** 重算「是否已到底」→ 驱动快速回底按钮显隐 + 决定是否继续自动跟随 */
+  const syncAtBottom = useCallback(() => {
+    const el = scrollRef.current
+    if (!el) return
+    if (programmaticRef.current) {
+      // 程序化动画产生的 scroll 事件：只用来探测动画结束，不做「离开底部」判定
+      if (idleTimerRef.current) clearTimeout(idleTimerRef.current)
+      idleTimerRef.current = setTimeout(() => { programmaticRef.current = false }, SCROLL_IDLE_MS)
+      return
+    }
+    const next = el.scrollHeight - el.scrollTop - el.clientHeight <= BOTTOM_EPS
+    atBottomRef.current = next
+    setAtBottom(next)
+  }, [])
+
+  // 滚动 / 容器尺寸变化 → 重算是否到底
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+    // 面板收起(`hidden` → display:none)会让浏览器重置 scrollTop 为 0，重新展开时若此前停在底部则恢复贴底
+    if (open && atBottomRef.current) scrollToBottom('auto')
+    syncAtBottom()
+    el.addEventListener('scroll', syncAtBottom, { passive: true })
+    const ro = new ResizeObserver(syncAtBottom)
+    ro.observe(el)
+    return () => {
+      el.removeEventListener('scroll', syncAtBottom)
+      ro.disconnect()
+    }
+  }, [syncAtBottom, scrollToBottom, open])
+
+  // 用户主动滚动 → 立即取消程序化标记，按真实位置重算，保证平滑动画途中用户一上手就能接管。
+  //   仅以下四类视为「用户主动」：滚轮 / 触摸拖动 / 拖滚动条 / 滚动键。
+  //   注意：不能笼统监听 pointerdown/keydown —— 点击消息内按钮、选中文本、按 Enter 激活按钮
+  //   都会冒泡到本容器，若一并取消程序化标记，会在流式动画中途误判成「用户上翻」而打断自动跟随。
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+    const takeOver = () => {
+      if (programmaticRef.current) {
+        programmaticRef.current = false
+        // 掐断浏览器正在进行的平滑滚动动画（滚到当前位置=零位移，显式 instant 避免受 CSS scroll-behavior 影响）
+        el.scrollTo({ top: el.scrollTop, behavior: 'instant' })
+      }
+      if (idleTimerRef.current) { clearTimeout(idleTimerRef.current); idleTimerRef.current = null }
+      // 【堵一帧空档】wheel/touchmove 事件先于滚动生效、scroll 事件后到，中间隔约一帧。
+      //   期间若恰好有流式 chunk 触发跟随，会读到尚未更新的位置（仍在底部）而把用户顶回底部，
+      //   且其随后置起的 programmatic 会让用户的 scroll 事件被忽略 → 彻底抢不回来。
+      //   故先按「已离开」处理挡住跟随；只改 ref 不改 state，避免按钮闪现；
+      //   下一帧滚动已生效，再由 syncAtBottom 按真实位置校正（未产生位移时也会校正回原值）。
+      atBottomRef.current = false
+      if (rafRef.current) cancelAnimationFrame(rafRef.current)
+      rafRef.current = requestAnimationFrame(() => {
+        rafRef.current = null
+        syncAtBottom()
+      })
+    }
+    // 拖滚动条：命中容器自身 + 指针落在 clientWidth 之外（滚动条轨道区，custom-scrollbar 宽 6px 且占布局）
+    const onPointerDown = (e) => {
+      if (e.target !== el || e.offsetX <= el.clientWidth) return
+      takeOver()
+    }
+    const SCROLL_KEYS = new Set(['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' ', 'Spacebar'])
+    const onKeyDown = (e) => { if (SCROLL_KEYS.has(e.key)) takeOver() }
+    const opts = { passive: true }
+    el.addEventListener('wheel', takeOver, opts)
+    el.addEventListener('touchmove', takeOver, opts)
+    el.addEventListener('pointerdown', onPointerDown, opts)
+    el.addEventListener('keydown', onKeyDown, opts)
+    return () => {
+      el.removeEventListener('wheel', takeOver, opts)
+      el.removeEventListener('touchmove', takeOver, opts)
+      el.removeEventListener('pointerdown', onPointerDown, opts)
+      el.removeEventListener('keydown', onKeyDown, opts)
+      if (idleTimerRef.current) { clearTimeout(idleTimerRef.current); idleTimerRef.current = null }
+      if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null }
+    }
+  }, [syncAtBottom, open])
+
+  // 切换对话 → 强制贴底（新会话历史应停在最底部，而非沿用上个会话的滚动位置）
+  useEffect(() => { scrollToBottom('auto') }, [activeConversationId, scrollToBottom])
 
   // 发送
   const handleSend = (overrideText) => {
@@ -369,6 +485,7 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
     setPendingImageNodes([])
     setInput('')
     try { contentSet(AGENT_DRAFT_KEY, '') } catch { /* ignore */ }
+    scrollToBottom('smooth') // 自己发消息 → 无论当前是否已上翻，都强制贴底
     Promise.resolve(send(text, attach)).catch((e) => logger.error('Agent', 'send 失败', e))
   }
 
@@ -673,6 +790,25 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
           )}
           {error && <div className="text-red-400 text-xs bg-red-950/30 border border-red-800/30 rounded-md px-3 py-2">{error}</div>}
         </div>
+
+        {/* 快速回到底部：离开底部时淡入，点击平滑贴底后自动淡出。
+            置于外层 relative 容器（非滚动容器内），避免随消息一起被滚走/裁剪。 */}
+        <button
+          type="button"
+          onClick={() => scrollToBottom('smooth')}
+          aria-label="回到底部"
+          aria-hidden={atBottom}
+          title="回到底部"
+          tabIndex={atBottom ? -1 : 0}
+          className={`absolute bottom-3 left-1/2 z-float w-9 h-9 flex items-center justify-center rounded-full border border-edge-strong/70 bg-surface-1/90 text-secondary shadow-popover backdrop-blur-sm cursor-pointer transition-all duration-200 hover:bg-surface-hover hover:text-primary hover:border-edge-strong ${
+            atBottom ? '-translate-x-1/2 translate-y-1 opacity-0 pointer-events-none' : '-translate-x-1/2 translate-y-0 opacity-100 pointer-events-auto'
+          }`}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="12" y1="5" x2="12" y2="19" />
+            <polyline points="19 12 12 19 5 12" />
+          </svg>
+        </button>
       </div>
 
       {/* 底部 OneBox 输入区 */}
