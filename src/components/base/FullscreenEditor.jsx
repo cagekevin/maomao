@@ -77,6 +77,7 @@ export default function FullscreenEditor({
             onReady={(fn) => { insertAssetRef.current = fn }}
             inputHeight={538}
             richText
+            portalTarget={null} // 全屏弹窗已是最高层级，@候选层保持内联，避免被自己的弹窗盖住
           />
         ) : (
           <textarea

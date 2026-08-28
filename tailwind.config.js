@@ -10,7 +10,7 @@ export default {
        *   base 0 < node-inner 10/20 < dropdown 50 < float 100 < topnav 200
        *   < canvas-tools 700 < sidebar 800 < popover 1000 < modal 9999
        *   < modal-raise 10000 < modal-action 10001 < overlay-error 99999
-       *   < suggest 999999 < ceiling 2147483647（全屏编辑器 / Toast / 错误全屏）
+       *   < ceiling 2147483647（全屏编辑器 / Toast / 错误全屏）
        *
        * 关键约定：
        *   - 侧边栏(sidebar 800) 必须盖过左下角小地图与工具栏(canvas-tools 700)，
@@ -32,7 +32,6 @@ export default {
         'modal-raise': '10000',
         'modal-action': '10001',
         'overlay-error': '99999',
-        suggest: '999999',
         'ceiling-1': '2147483645',
         'ceiling-2': '2147483646',
         ceiling: '2147483647',

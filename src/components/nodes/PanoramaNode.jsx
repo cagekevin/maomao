@@ -28,6 +28,10 @@ const RATIO_OPTIONS = ['16:9', '9:16', '1:1', 'custom']
 
 function PanoramaNode({ id, data, selected }) {
   const { setNodes, getNodes, getNode, getEdges, setEdges } = useReactFlow()
+  // 标题改名 → 写回 data.label，让下游 @名 匹配 / 素材条显示跟随
+  const rename = useCallback((name) => {
+    setNodes((ns) => ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, label: name } } : n)))
+  }, [id, setNodes])
   const history = useCanvasEdges()
   const connected = useConnectedInputs(id)
   const thumbResolve = useRenderImageResolver()
@@ -236,6 +240,7 @@ function PanoramaNode({ id, data, selected }) {
       defaultHeight={360}
       handleVariant="small"
       className="min-w-[320px] min-h-[240px]"
+      onRename={rename}
       titleRight={(
         panoUrl ? (
           <div className="flex items-center gap-2 nodrag">

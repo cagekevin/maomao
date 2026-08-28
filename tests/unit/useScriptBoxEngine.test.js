@@ -31,6 +31,14 @@ const engineCallbacks = {
 const createScriptBoxEngine = vi.fn((cfg) => ({ ...engineCallbacks, __cfg: cfg }))
 vi.mock('../../src/components/base/scriptBoxEngine.js', () => ({ createScriptBoxEngine: (...a) => createScriptBoxEngine(...a) }))
 
+// 节点参数记忆（yimao_node_prefs）落点：nodePrefs 经 contentStore 读写，这里用内存态替代，
+// 只让 key 命中 'yimao_node_prefs' 时返回，避免牵动 contentStore 的真实注册/后端逻辑。
+let prefsStore = {}
+vi.mock('../../src/components/base/contentStore.js', () => ({
+  contentGet: (k) => (k === 'yimao_node_prefs' ? prefsStore : null),
+  contentSet: (k, v) => { if (k === 'yimao_node_prefs') prefsStore = v },
+}))
+
 const loadProviders = vi.fn(() => Promise.resolve())
 const useProvidersList = vi.fn(() => [{ id: 'p1', isPrimary: true }])
 vi.mock('../../src/components/base/settings/providerStore.js', () => ({ useProvidersList: (...a) => useProvidersList(...a), load: (...a) => loadProviders(...a) }))
@@ -45,6 +53,7 @@ beforeEach(() => {
   createScriptBoxEngine.mockClear()
   loadProviders.mockClear()
   useProvidersList.mockReturnValue([{ id: 'p1', isPrimary: true }])
+  prefsStore = {}
 })
 
 function injectCall() {
@@ -106,6 +115,28 @@ describe('useScriptBoxEngine', () => {
     const cfg = createScriptBoxEngine.mock.calls[0][0]
     // base = screenToFlowPosition({x:0,y:0}) = {x:5,y:7}；偏移 x + base.x + 100, y + base.y
     cfg.addNodes([{ id: 'x', position: { x: 10, y: 20 } }])
-    expect(addNodes).toHaveBeenCalledWith([{ id: 'x', position: { x: 115, y: 27 } }])
+    expect(addNodes).toHaveBeenCalledWith([{ id: 'x', data: {}, position: { x: 115, y: 27 } }])
+  })
+
+  it('addNodes 注入节点模型记忆（复用 App.addNode 的新建口径）', () => {
+    prefsStore = { promptNode: { model: 'p1::gpt-image-1' } }
+    renderHook(() => useScriptBoxEngine('sb1', { shots: [] }))
+    const cfg = createScriptBoxEngine.mock.calls[0][0]
+    // 剧本盒已预填 aspectRatio → 不被记忆覆盖；selectedModel 缺失 → 由记忆补上
+    cfg.addNodes([{ id: 'x', type: 'promptNode', position: { x: 10, y: 20 }, data: { prompt: 'p', aspectRatio: '16:9' } }])
+    const out = addNodes.mock.calls[0][0][0]
+    expect(out.data.selectedModel).toBe('p1::gpt-image-1')
+    expect(out.data.aspectRatio).toBe('16:9')
+    expect(out.data.prompt).toBe('p')
+  })
+
+  it('addNodes 无记忆时不写空模型（留给节点兜底自动选第一个）', () => {
+    renderHook(() => useScriptBoxEngine('sb1', { shots: [] }))
+    const cfg = createScriptBoxEngine.mock.calls[0][0]
+    cfg.addNodes([{ id: 'x', type: 'discountVideoNode', position: { x: 0, y: 0 }, data: { prompt: 'v' } }])
+    const out = addNodes.mock.calls[0][0][0]
+    // 记忆为空 → 注入默认 ''，与系统新建一致；节点侧 useGenerateNode 的兜底仍会生效
+    expect(out.data.selectedModel).toBe('')
+    expect(out.data.prompt).toBe('v')
   })
 })

@@ -22,6 +22,10 @@ import { useCanvasEdges } from '../base/CanvasEdgesContext.jsx'
  */
 function Director3DNode({ id, data, selected }) {
   const { setNodes, getNodes, getNode, getEdges, setEdges } = useReactFlow()
+  // 标题改名 → 写回 data.label，让下游 @名 匹配 / 素材条显示跟随
+  const rename = useCallback((name) => {
+    setNodes((ns) => ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, label: name } } : n)))
+  }, [id, setNodes])
   const history = useCanvasEdges()
   const connected = useConnectedInputs(id)
   const [open, setOpen] = useState(false)
@@ -201,6 +205,7 @@ function Director3DNode({ id, data, selected }) {
       selected={selected}
       handleVariant="small"
       defaultHeight={260}
+      onRename={rename}
     >
       {/* 主显示框（模板写法：背景/圆角/边框/阴影由 NodeShell 提供，children 只写业务内容）
           主体：静态缩略图 / 占位；双击进入全屏 */}

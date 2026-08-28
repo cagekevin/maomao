@@ -1,14 +1,19 @@
-import React, { useState, useRef, useCallback } from 'react'
+import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { useReactFlow } from '@xyflow/react'
 import { Repeat, Play, ChevronDown } from 'lucide-react'
 import NodeShell from '../base/NodeShell.jsx'
 import { useConnectedInputs } from '../base/useConnectedInputs.js'
-import { showToast, toastWarning } from '../base/toastStore.js' // 保留阻断校验提示
+import { toastWarning } from '../base/toastStore.js'
 import { useSyncNodeData } from '../base/useSyncNodeData.js'
 import { useOutsideClick } from '../base/hooks.js'
 import { generateId } from '../base/idGen.js'
 import { buildSpawnNodes, spawnAndCommit } from '../base/deriveNodes.js'
 import { useCanvasEdges } from '../base/CanvasEdgesContext.jsx'
+
+/** 生成节点布局常量（避免 magic number） */
+const SPAWN_OFFSET_X = 80 // 生成节点相对循环节点右侧的横向偏移
+const SPAWN_ROW_GAP = 750 // 每段生成节点的纵向间距（节点高度 420 + 留白）
+const SPAWN_DEFAULTS = { aspectRatio: '1:1', imageSize: '1K' } // 生成节点默认参数
 
 /**
  * 循环节点（逐像素对齐大雄 Infinite-Canvas 的 smart-loop）。
@@ -26,11 +31,16 @@ import { useCanvasEdges } from '../base/CanvasEdgesContext.jsx'
  *  - 统一参考图（循环节点自己的上游图）塞进每个生图节点 data.images；
  *  - 自动连线：循环节点 → 生图节点（下游 useConnectedInputs 能读到上游依赖）。
  *  图由用户在那些生图节点里自己点「生成」。
+ *
+ * 【实现要点】
+ *  - 同步生成：防重入用 ref 锁（running state 在 React 批处理下无法作为同步锁）。
+ *  - 分段手动编辑 overrides 以「段 index」为 key：切换拆分方式 / 上游文案内容变化时清空，
+ *    避免旧编辑错位到新段（上游内容签名是字符串值比较，运行建节点不会误清）。
  */
 
 /**
  * 锚点分割：把上游文案切成多段。
- * 1. 优先按「数字序号」（1. 1、 1) 1）1．），序号后可有可无空格/换行）切；
+ * 1. 优先按「数字序号」（1. 1、 1) 1） 1．），序号后可有可无空格/换行）切；
  * 2. 再按「换行」切；
  * 3. 再按「分号/句号」等常见分隔切；
  * 4. 都不行则整段。
@@ -108,31 +118,47 @@ function LoopNode({ id, data, selected }) {
   const [splitMethod, setSplitMethod] = useState(data.splitMethod || 'newline')
   // overrides：用户对某段提示词的手动编辑（key=段 index），切换拆分方式/上游变化时清空
   const [overrides, setOverrides] = useState({})
-
-  // 运行态
-  const [running, setRunning] = useState(false)
-  const [error, setError] = useState('')
   // 拆分方式下拉浮层开关
   const [showSplitMenu, setShowSplitMenu] = useState(false)
   const splitMenuRef = useRef(null)
+  // 防重入锁：运行是同步完成的，running state 在 React 批处理下无法阻止连点，必须用 ref
+  const busyRef = useRef(false)
   useOutsideClick(splitMenuRef, showSplitMenu, () => setShowSplitMenu(false))
 
   // 同步 Agent(update_node) 外部写入
   useSyncNodeData(data, { splitMethod: setSplitMethod })
+
+  // 标题改名 → 写回 data.label，让下游 @名 匹配 / 素材条显示跟随
+  const rename = useCallback((name) => {
+    setNodes((ns) => ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, label: name } } : n)))
+  }, [id, setNodes])
 
   const patchData = useCallback((patch) => {
     setNodes((ns) => ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, ...patch } } : n)))
   }, [id, setNodes])
 
   // 上游文案：聚合所有直接上游文本节点（对齐大雄 smartLoopInputPromptItems）
-  const upstreamItems = (connected.texts || []).map((t) => String(t.text || '').trim()).filter(Boolean)
-  const upstreamText = upstreamItems.join('\n')
+  const upstreamItems = useMemo(
+    () => (connected.texts || []).map((t) => String(t.text || '').trim()).filter(Boolean),
+    [connected.texts],
+  )
+  const upstreamText = useMemo(() => upstreamItems.join('\n'), [upstreamItems])
 
   // 每段提示词：按用户选定的拆分方式实时切上游文案（每次切换 splitMethod 都会重新切段）
-  const segments = upstreamText ? splitByMethod(upstreamText, splitMethod) : []
+  const segments = useMemo(
+    () => (upstreamText ? splitByMethod(upstreamText, splitMethod) : []),
+    [upstreamText, splitMethod],
+  )
+
+  // 上游文案内容变化 → 旧 overrides 按 index 对齐会错位，清空手动编辑。
+  // 依赖是字符串值（join 结果），内容不变即不触发 —— 运行建节点不会误清。
+  useEffect(() => { setOverrides({}) }, [upstreamText])
 
   // 最终显示/运行段：segments 基础上叠加用户手动编辑的 overrides（key=index）
-  const displaySegs = segments.map((seg, i) => (overrides[i] != null ? overrides[i] : seg))
+  const displaySegs = useMemo(
+    () => segments.map((seg, i) => (overrides[i] != null ? overrides[i] : seg)),
+    [segments, overrides],
+  )
 
   // 切换拆分方式：清空手动编辑覆盖，让界面按新方式重新切段
   const changeSplitMethod = (m) => {
@@ -159,46 +185,46 @@ function LoopNode({ id, data, selected }) {
   // 连好统一参考图（可选）、并自动连到循环节点。一个提示词对应一个生图节点。
   // 图由用户在那些下游生图节点里自己点「生成」（对齐 maomao 生图节点接上游文本/图片的机制）。
   const handleGenerate = () => {
-    if (running) return
-    // 逐段遍历全部显示段（N 段文案就建 N 个节点，count 只控制 UI 显示，不限制建节点数）
+    if (busyRef.current) return
     const segs = displaySegs
     if (segs.length === 0) { toastWarning('没有可生成的提示词（请连接上游文本节点或手动填写每段提示词）'); return }
 
-    // 统一参考图：循环节点从自己上游接到的图片（连线），塞给每个生图节点当参考图
-    const refImages = (connected.images || []).map((img) => ({ url: img.url, name: img.label || `参考图 ${img.id || ''}` })).filter((x) => x.url)
+    // 统一参考图：循环节点从自己上游接到的图片（连线），塞给每个生图节点当参考图。
+    // 结构对齐管线契约 { id, url, label }（MaterialStrip 显示名 / mergeRefImages 去重），
+    // 不带 sourceNodeId —— 与剧本盒资产参考图同义，在生图节点中不可断开。
+    const refImages = (connected.images || [])
+      .map((img, i) => ({ id: img.id || img.url, url: img.url, label: img.label || `参考图 ${i + 1}` }))
+      .filter((x) => x.url)
     // 循环节点自身连线传到下游生图节点（让下游 useConnectedInputs 能读到上游文本/图片依赖）
     const me = (getNodes() || []).find((n) => n.id === id)
-    const baseX = (me?.position?.x ?? 300) + (me?.measured?.width ?? 300) + 80
+    const baseX = (me?.position?.x ?? 300) + (me?.measured?.width ?? 300) + SPAWN_OFFSET_X
     const baseY = me?.position?.y ?? 200
 
-    setRunning(true)
-    setError('')
-
-    const ts = Date.now()
-    const specs = []
-    segs.forEach((seg, i) => {
-      const prompt = promptForSegment(seg, i)
-      if (!prompt) return
-      const nodeId = `loop-out-${id}-${i}-${ts}-${generateId('o')}`
-      specs.push({
-        id: nodeId,
-        type: 'promptNode',
-        position: { x: baseX, y: baseY + i * 750 },
-        data: {
-          prompt,                          // 该段文案填进生图节点提示词
-          aspectRatio: '1:1',
-          imageSize: '1K',
-          ...(refImages.length ? { images: refImages } : {}),  // 统一参考图塞给每个生图节点
-        },
-        width: 420,
-        height: 420,
+    busyRef.current = true
+    try {
+      const specs = []
+      segs.forEach((seg, i) => {
+        const prompt = promptForSegment(seg, i)
+        if (!prompt) return
+        specs.push({
+          id: `loop-out-${id}-${i}-${generateId('o')}`,
+          type: 'promptNode',
+          position: { x: baseX, y: baseY + i * SPAWN_ROW_GAP },
+          data: {
+            prompt, // 该段文案填进生图节点提示词
+            ...SPAWN_DEFAULTS,
+            ...(refImages.length ? { images: refImages } : {}), // 统一参考图塞给每个生图节点
+          },
+          width: 420,
+          height: 420,
+        })
       })
-    })
-
-    const spawned = buildSpawnNodes({ id, position: { x: baseX, y: baseY } }, specs)
-    spawnAndCommit(spawned, { getNodes, getEdges, setNodes, setEdges, history })
-    // 下游节点已生成在画布，结果可见，无需 toast
-    setRunning(false)
+      const spawned = buildSpawnNodes({ id, position: { x: baseX, y: baseY } }, specs)
+      spawnAndCommit(spawned, { getNodes, getEdges, setNodes, setEdges, history })
+      // 下游节点已生成在画布，结果可见，无需 toast
+    } finally {
+      busyRef.current = false
+    }
   }
 
   // 分段编辑：写入手动覆盖 overrides（key=段 index）
@@ -218,6 +244,7 @@ function LoopNode({ id, data, selected }) {
       minHeight={180}
       aspectRatio={null}
       defaultHeight={280}
+      onRename={rename}
       titleRight={(
         <div className="relative flex items-center gap-1 nodrag" ref={splitMenuRef}>
           <button
@@ -226,7 +253,7 @@ function LoopNode({ id, data, selected }) {
             title="选择按什么形式拆分上游文案"
             onClick={(e) => { e.stopPropagation(); setShowSplitMenu((v) => !v) }}
           >
-            <span>{SPLIT_METHODS.find((m) => m.key === splitMethod)?.label}</span>
+            <span>{SPLIT_METHODS.find((m) => m.key === splitMethod)?.label ?? SPLIT_METHODS[0].label}</span>
             <ChevronDown size={11} />
           </button>
           {showSplitMenu && (
@@ -282,9 +309,6 @@ function LoopNode({ id, data, selected }) {
             </button>
           </div>
         </div>
-
-        {/* 错误提示 */}
-        {error && <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-red-500 z-node-inner bg-canvas p-4 text-center pointer-events-none nodrag"><span className="text-caption-sm break-all">{error}</span></div>}
       </div>
     </NodeShell>
   )

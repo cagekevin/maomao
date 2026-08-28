@@ -165,8 +165,9 @@ export function buildChipEl(id, label, kind = 'text', thumbnailUrl) {
  * 反序列化：把 `@{id:label}` 文本渲染成 Node[]（文本 + 芯片 + <br>）。
  *   - `\n` 拆成 <br>；`@{...}` 解析为芯片（有 metaMap 缩略图则显示缩略图，kind='image'）；
  *   - 芯片之间用 ZWSP 分隔保证光标可聚焦。
+ *   - label 以 metaMap 为准（改名后字符串里是旧名，metaMap 是当前最新名）。
  * @param {string} text
- * @param {Map<string,{kind:string,url?:string}>} metaMap id → {kind,url}（用于查缩略图/类型）
+ * @param {Map<string,{kind:string,url?:string,label?:string}>} metaMap id → {kind,url,label}（查缩略图/类型/最新名）
  * @returns {Node[]}
  */
 export function renderPromptToNodes(text, metaMap) {
@@ -189,8 +190,9 @@ export function renderPromptToNodes(text, metaMap) {
   while ((match = PROMPT_CHIP_RE.exec(text)) !== null) {
     pushTextWithBreaks(text.slice(lastIndex, match.index))
     const id = match[1]
-    const label = match[2]
     const meta = metaMap ? metaMap.get(id) : undefined
+    // label：优先 metaMap 的当前名（上游改名后字符串里是旧名，metaMap 是新的）
+    const label = (meta && meta.label && String(meta.label).trim()) || match[2]
     // kind：字符串自带缩略图 → 必为图片；否则以 metaMap 为准，再回落文本
     const url = match[3] ? decodeThumb(match[3]) : (meta?.url || '')
     const kind = url ? 'image' : (meta?.kind || 'text')

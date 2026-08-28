@@ -75,6 +75,27 @@ describe('promptChips 序列化往返', () => {
     expect(root.querySelector('[data-ref-id]')).toBeNull()
     expect(root.textContent).toContain('@人物')
   })
+
+  it('上游改名：metaMap 里最新名覆盖字符串里的旧名（下游缩略图名字跟随上游）', () => {
+    // 字符串仍是旧名「人物」，但上游已改名为「主角」，metaMap 带最新名 → 芯片显示新名
+    const input = '参考 @{img-1:人物|http%3A%2F%2Fx%2Fa.png} 生成'
+    const metaMap = new Map([['img-1', { kind: 'image', url: 'http://x/a.png', label: '主角' }]])
+    const root = renderToDom(input, metaMap)
+    const chip = root.querySelector('[data-ref-id="img-1"]')
+    expect(chip).not.toBeNull()
+    expect(chip.getAttribute('data-ref-label')).toBe('主角')
+    // 序列化时以 chip 上最新 label 为准 → 字符串名也更新为「主角」
+    expect(serializeDOM(root)).toBe('参考 @{img-1:主角|http%3A%2F%2Fx%2Fa.png} 生成')
+  })
+
+  it('metaMap 无 label 时回退字符串里的旧名（不破坏既有序列化）', () => {
+    const input = '参考 @{img-1:人物|http%3A%2F%2Fx%2Fa.png} 生成'
+    const metaMap = new Map([['img-1', { kind: 'image', url: 'http://x/a.png' }]])
+    const root = renderToDom(input, metaMap)
+    const chip = root.querySelector('[data-ref-id="img-1"]')
+    expect(chip.getAttribute('data-ref-label')).toBe('人物')
+    expect(serializeDOM(root)).toBe(input)
+  })
 })
 
 describe('buildChipEl', () => {

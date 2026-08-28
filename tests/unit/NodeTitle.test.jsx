@@ -23,6 +23,7 @@ function setup(props = {}) {
       icon={props.icon}
       className={props.className}
       floating={props.floating}
+      onRename={props.onRename}
     />
   )
   return view
@@ -132,5 +133,45 @@ describe('NodeTitle — 双击改名交互', () => {
     const input = screen.getByRole('textbox')
     expect(input.className).toContain('nodrag')
     expect(input.className).toContain('nowheel')
+  })
+
+  it('传入 onRename 时，Enter 提交会回调新名（写回节点数据）', () => {
+    const onRename = vi.fn()
+    setup({ label: '旧名', onRename })
+    fireEvent.doubleClick(screen.getByRole('button', { name: '旧名' }))
+    const input = screen.getByRole('textbox')
+    fireEvent.change(input, { target: { value: '猫' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(onRename).toHaveBeenCalledWith('猫')
+  })
+
+  it('传入 onRename 时，blur 提交会回调新名', () => {
+    const onRename = vi.fn()
+    setup({ label: '旧名', onRename })
+    fireEvent.doubleClick(screen.getByRole('button', { name: '旧名' }))
+    const input = screen.getByRole('textbox')
+    fireEvent.change(input, { target: { value: '狗' } })
+    fireEvent.blur(input)
+    expect(onRename).toHaveBeenCalledWith('狗')
+  })
+
+  it('传入 onRename 时，空/纯空格输入回退 defaultTitle 后仍回调默认名', () => {
+    const onRename = vi.fn()
+    setup({ label: '旧名', defaultTitle: '图片', onRename })
+    fireEvent.doubleClick(screen.getByRole('button', { name: '旧名' }))
+    const input = screen.getByRole('textbox')
+    fireEvent.change(input, { target: { value: '   ' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(onRename).toHaveBeenCalledWith('图片')
+  })
+
+  it('不传 onRename 时不回调（向后兼容，零影响其他节点）', () => {
+    const onRename = vi.fn()
+    setup({ label: '旧名' }) // 不传 onRename
+    fireEvent.doubleClick(screen.getByRole('button', { name: '旧名' }))
+    const input = screen.getByRole('textbox')
+    fireEvent.change(input, { target: { value: '新名' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(onRename).not.toHaveBeenCalled()
   })
 })

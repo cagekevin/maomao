@@ -164,6 +164,10 @@ function captureFrame(url, atTime, quality = 0.55) {
 
 function VideoProcessNode({ id, data, selected }) {
   const { setNodes, getNodes, getNode, getEdges, setEdges } = useReactFlow()
+  // 标题改名 → 写回 data.label，让下游 @名 匹配 / 素材条显示跟随
+  const rename = useCallback((name) => {
+    setNodes((ns) => ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, label: name } } : n)))
+  }, [id, setNodes])
   const history = useCanvasEdges()
   const { isHidden } = useMediaDegrade()
   const { onMainBoxResize } = useNodeResize(id)
@@ -1147,6 +1151,7 @@ function VideoProcessNode({ id, data, selected }) {
       minHeight={620}
       showHandles={false}
       syncSize={false}
+      onRename={rename}
     >
       <input ref={fileRef} type="file" accept="video/*" className="hidden" onChange={onUpload} />
       {/* 左端口 default（NodeShell showHandles=false，手写保留原 handleId） */}

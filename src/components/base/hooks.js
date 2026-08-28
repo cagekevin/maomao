@@ -29,18 +29,21 @@ export function isEditableTarget(e) {
  *  - visible 为 true 时才挂 document mousedown 监听（capture 阶段，用 true）。
  *  - 用 capture=true 是因为 mousedown 冒泡前就能拦截，且弹层内部 onClick 常做
  *    stopPropagation；capture 监听发生在冒泡之前，配合 contains 判断不会误关。
- *  - contains 判断：点击落在 ref.current（弹层本身）内部 → 不关；否则 → onClose()。
+ *  - contains 判断：点击落在任一 ref.current（弹层本身）内部 → 不关；否则 → onClose()。
+ *    支持传单个 ref 或 ref 数组（portal 到 body 的弹层需把 popupRef 一并纳入，否则会被误判为外部）。
  *  - 卸载时自动移除监听，避免内存泄漏。
  *
- * @param ref     弹层/菜单容器的 ref
+ * @param ref     弹层/菜单容器的 ref（或 ref 数组）
  * @param visible 弹层是否打开（仅打开时挂监听）
  * @param onClose 点击外部时的关闭回调
  */
 export function useOutsideClick(ref, visible, onClose) {
   useEffect(() => {
     if (!visible) return
+    const refs = Array.isArray(ref) ? ref : [ref]
     const close = (e) => {
-      if (ref.current && !ref.current.contains(e.target)) onClose?.()
+      const inside = refs.some((r) => r.current && r.current.contains(e.target))
+      if (!inside) onClose?.()
     }
     document.addEventListener('mousedown', close, true)
     return () => document.removeEventListener('mousedown', close, true)

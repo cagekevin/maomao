@@ -117,6 +117,13 @@ function PromptNode({ id, data, selected }) {
   const patchData = useCallback((patch) => {
     setNodes((ns) => ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, ...patch } } : n)))
   }, [id, setNodes])
+
+  // 标题改名 → 写回 data.label，让下游 @名 匹配 / 素材条显示跟随（与 ImageNode 一致）
+  const rename = useCallback((name) => {
+    setNodes((ns) =>
+      ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, label: name } } : n))
+    )
+  }, [id, setNodes])
   // 提示词落盘：本地 state + 防抖写回 node.data（支持函数式更新）。
   // 复用画布快照 KV（App.jsx 600ms 防抖 autoSave）→ 手动输入的提示词刷新不丢。
   // P2：prompt 持续输入走 debouncedPatch（200ms 防抖合并），避免每键 setNodes 全图 node 数组重建；
@@ -341,6 +348,7 @@ function PromptNode({ id, data, selected }) {
       aspectRatio={aspectRatio}
       sizeMode="area-fixed"
       baseSize={NODE_AREA_FIXED_BASE_SIZE}
+      onRename={rename}
     >
       {/* hover 操作栏（loading 时隐藏） */}
       {!loading && <HoverToolbar buttons={toolbarButtons} />}

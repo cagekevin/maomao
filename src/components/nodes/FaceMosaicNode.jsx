@@ -28,6 +28,10 @@ import previewUrls from '../base/previewUrl.js'
  */
 function FaceMosaicNode({ id, data, selected }) {
   const { setNodes, getNodes, getNode } = useReactFlow()
+  // 标题改名 → 写回 data.label，让下游 @名 匹配 / 素材条显示跟随
+  const rename = useCallback((name) => {
+    setNodes((ns) => ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, label: name } } : n)))
+  }, [id, setNodes])
   const { hideMedia } = useMediaDegrade()
   const fileRef = useRef(null)
 
@@ -181,6 +185,7 @@ function FaceMosaicNode({ id, data, selected }) {
       handleVariant="small"
       aspectRatio={null}
       className="min-w-[320px] min-h-[250px]"
+      onRename={rename}
     >
       <HoverToolbar buttons={toolbarButtons} />
       <input type="file" ref={fileRef} multiple accept="image/*" style={{ display: 'none' }} onChange={onUpload} />

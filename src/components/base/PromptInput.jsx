@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback, forwardRef } from 'react'
-import { X } from 'lucide-react'
+import { createPortal } from 'react-dom'
 import { useOutsideClick } from './hooks.js'
 import LazyImage from './LazyImage.jsx'
 import {
@@ -11,28 +11,26 @@ import {
   renderPromptToNodes,
   autoLinkAssetsByName,
 } from './promptChips.js'
+import {
+  detectMentionQuery,
+  computeMentionPlacement,
+  MENTION_PANEL_W,
+} from './promptMention.js'
 
 /**
- * 提示词输入区（富文本 contentEditable + @素材芯片，或旧版 textarea）。
+ * 提示词输入区（富文本 contentEditable + @素材芯片）。
  *
- * - `richText`（默认 false）：false → 旧版 textarea 行为（纯文本，@ 弹层追加 @名）；
- *   true → 富文本 contentEditable，@素材 渲染成「文字 + 小图」芯片，
- *   序列化为 `@{id:label}` 字符串。
+ * - 所有调用方均传 richText（4 个节点 + 全屏编辑器），旧 textarea 分支为死代码，已删除。
+ * - 对外接口（value/onChange/placeholder/refImages/refTexts/onInsert/onReady/
+ *   inputWidth/inputHeight）保持不变；新增可选 portalTarget。
  *
- * 按「先只升生图节点试水」：仅 PromptNode 传 richText，其余节点（TextNode 等）保持 textarea，
- * 零影响。对外接口（value/onChange/placeholder/refImages/refTexts/onInsert/
- * inputWidth/inputHeight/onReady）两种模式一致。
- *
- * onInsert 收到素材对象形如 { id, label, url?, kind }；旧式字符串 name 兼容为
- * { id:name, label:name, kind:'text' }。
- *
- * 尺寸管理：width/height 由 props inputWidth/inputHeight 驱动；ref 透传父级供手柄拖拽。
- *
- * 富文本关键交互（复刻参考仓库 MentionEditor）：
- *  - @ 触发候选弹层；选中插入芯片；
- *  - Backspace/Delete 整颗删除芯片；
- *  - Shift+Enter 手动插 <br> 换行；中文输入法组合中不误触；
- *  - 粘贴只取纯文本；外部 value 变化重建 DOM 并保存/恢复光标。
+ * @候选弹层（核心交互）：
+ *  - 触发判定走 promptMention.detectMentionQuery（邮箱 abc@、超长、带标点不弹）；
+ *  - 定位走 promptMention.computeMentionPlacement：默认「向上弹、底边贴 @ 行上方 4px」，
+ *    空间不足自动翻转到下方；坐标始终取「@」字符矩形而非光标矩形（含芯片行不再偏 3~4px）；
+ *  - portal 到 body + fixed + z-popover（默认），跳出节点层叠上下文 → 不被相邻节点盖住、
+ *    不随画布缩放；全屏编辑器内传 portalTarget={null} 走内联 absolute（弹窗本身已是最顶层）。
+ *  - 方向键上下切换高亮、Enter 选中、Esc 关闭（同一 @ 不再重弹）、失焦/点外部关闭、IME 组字中不判定。
  */
 const PromptInput = forwardRef(function PromptInput(
   {
@@ -45,11 +43,11 @@ const PromptInput = forwardRef(function PromptInput(
     onReady,          // 可选（富文本模式）：挂载后把「光标处插入素材」的函数上抛给父级
     inputWidth,
     inputHeight,
-    richText = false  // true → 富文本芯片；false → 旧版 textarea
+    portalTarget = document.body // null → 全屏弹窗内保持内联；默认 portal 到 body
   },
   ref
 ) {
-  // 素材候选统一形态（两种模式共用弹层）
+  // 素材候选统一形态
   const all = [
     ...refImages.map((i, idx) => ({
       id: i.id ?? `img-${idx}`,
@@ -67,7 +65,7 @@ const PromptInput = forwardRef(function PromptInput(
   const [showMention, setShowMention] = useState(false)
   const [mentionQuery, setMentionQuery] = useState('')
   const [activeIndex, setActiveIndex] = useState(0) // 候选列表当前高亮项（键盘上下键导航）
-  const [mentionPos, setMentionPos] = useState({ top: 0, left: 0 }) // 弹层跟随光标位置
+  const [mentionPos, setMentionPos] = useState(null) // { placement, left, top?, bottom?, height }
 
   // 过滤后的候选列表（mentionQuery 为空则全部）。声明在 handleKeyDown 之前，避免 TDZ。
   const filtered = mentionQuery
@@ -82,93 +80,19 @@ const PromptInput = forwardRef(function PromptInput(
     }
   }, [showMention])
 
-  // ────────────────────────────────────────────────────────────────
-  // 旧版 textarea 模式（richText=false）
-  // ────────────────────────────────────────────────────────────────
-  const inputRef = useRef(null)
-  const textareaWrapRef = useRef(null)
-  const setTextareaRef = (el) => {
-    inputRef.current = el
-    if (typeof ref === 'function') ref(el)
-    else if (ref) ref.current = el
-  }
-  useOutsideClick(textareaWrapRef, showMention, () => setShowMention(false))
-  const insertText = (name) => {
-    onInsert?.(name)
-    setShowMention(false)
-  }
-  const renderTextareaMode = () => (
-    <div className="flex items-start gap-2">
-      <div ref={textareaWrapRef} className="flex-1 relative shrink-0">
-        <textarea
-          ref={setTextareaRef}
-          className="w-full bg-transparent text-base-sm text-primary outline-none leading-relaxed placeholder-muted-2 font-sans custom-scrollbar nodrag nowheel nopan resize-none"
-          style={{
-            width: inputWidth ? `${inputWidth}px` : undefined,
-            height: inputHeight ? `${inputHeight}px` : '80px',
-            minHeight: '80px',
-            overflow: 'auto',
-            lineHeight: 1.625
-          }}
-          placeholder={placeholder}
-          value={value}
-          onChange={(e) => onChange?.(e.target.value)}
-          onWheel={(e) => e.stopPropagation()}
-        />
-        {showMention && (
-          <div
-            className="absolute bottom-[calc(100%+4px)] left-0 w-56 bg-surface-1 border border-edge-muted rounded-lg shadow-2xl z-suggest flex flex-col overflow-hidden h-[300px] nopan"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between p-2">
-              <span className="text-caption-sm text-secondary flex items-center gap-2">可能@的内容</span>
-              <button className="text-muted hover:text-white p-1" onClick={() => setShowMention(false)}>
-                <X size={12} />
-              </button>
-            </div>
-            <div className="p-2 flex-1 overflow-y-auto custom-scrollbar nowheel nopan nodrag">
-              {all.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-full text-muted-2 gap-2">
-                  <span className="text-caption-sm">暂无素材</span>
-                  <span className="text-caption">上传素材后可用 @ 引用</span>
-                </div>
-              ) : (
-                <div className="grid grid-cols-4 gap-1.5">
-                  {all.map((item) => (
-                    <div
-                      key={item.id}
-                      className="aspect-square bg-surface-black rounded border border-edge hover:border-blue-500 cursor-pointer overflow-hidden relative group flex flex-col"
-                      onClick={() => insertText(item.label)}
-                    >
-                      {item.url ? (
-                        <LazyImage src={item.url} alt="" className="w-full h-full" />
-                      ) : (
-                        <div className="w-full h-full bg-surface-1 flex flex-col items-center justify-center p-1 text-center">
-                          <span className="text-2xs text-secondary truncate w-full">{item.label}</span>
-                        </div>
-                      )}
-                      <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                        <span className="text-caption text-white">选择</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  )
-
-  // ────────────────────────────────────────────────────────────────
-  // 富文本 contentEditable 模式（richText=true）
-  // ────────────────────────────────────────────────────────────────
   const editorRef = useRef(null)
   const wrapRef = useRef(null)
+  const popRef = useRef(null)
   const savedRangeRef = useRef(null)
   const syncingRef = useRef(false)
-  useOutsideClick(wrapRef, showMention, () => setShowMention(false))
+  const composingRef = useRef(false)      // 中文输入法组字中
+  const mentionAtRef = useRef(-1)         // 本次弹层对应的 @ 下标（Esc 后据此不再重弹）
+  const dismissedAtRef = useRef(-1)       // 被 Esc 关闭的 @ 下标
+
+  // portal 出去后弹层不在 wrap 内，须把 popRef 一并纳入「内部」判定。
+  // useMemo 固定数组引用，避免每次渲染让 useOutsideClick 重复挂/卸监听。
+  const outsideRefs = React.useMemo(() => [wrapRef, popRef], [])
+  useOutsideClick(outsideRefs, showMention, () => setShowMention(false))
 
   const setEditorRef = (el) => {
     editorRef.current = el
@@ -232,15 +156,16 @@ const PromptInput = forwardRef(function PromptInput(
     onChange?.(serializeDOM(el))
   }, [onChange])
 
-  // refImages/refTexts → metaMap（id → {kind,url}），作为缩略图恢复的兜底来源。
-  // 序列化的字符串已自带缩略图 URL，此处仅在字符串无 URL（旧数据/刚插入）时补查。
+  // refImages/refTexts → metaMap（id → {kind,url,label}），作为缩略图恢复 + 最新名的兜底来源。
+  // 序列化的字符串已自带缩略图 URL 与 label，此处仅在字符串缺缩略图（旧数据/刚插入）或
+  // 「上游改名」时补最新信息——改名后字符串里仍是旧 label，metaMap 里是当前最新名。
   const chipMetaMap = React.useMemo(() => {
     const m = new Map()
     for (const im of refImages || []) {
-      if (im && im.id) m.set(im.id, { kind: 'image', url: im.url })
+      if (im && im.id) m.set(im.id, { kind: 'image', url: im.url, label: im.label })
     }
     for (const t of refTexts || []) {
-      if (t && t.id && !m.has(t.id)) m.set(t.id, { kind: 'text' })
+      if (t && t.id && !m.has(t.id)) m.set(t.id, { kind: 'text', label: t.label })
     }
     return m
   }, [refImages, refTexts])
@@ -253,14 +178,19 @@ const PromptInput = forwardRef(function PromptInput(
     [refImages, refTexts]
   )
 
-  // 外部 value 变化 / 素材名字变化 → 重建 DOM（仅不一致时）。
+  // 外部 value 变化 / 素材名字变化 → 重建 DOM。
   // 重建前先 autoLinkAssetsByName 把「@素材名」转成 @{id:label|thumb} 芯片字符串，
   // 使「已输入的 @名」在改名后自动变成缩略图芯片。
+  // 短路条件：value 与 DOM 一致 且 素材名字未变 才跳过——名字变了时 DOM 里的芯片
+  // 仍显示旧名，必须强制重建（用 metaMap 里的最新名覆盖，见 renderPromptToNodes）。
+  const prevNameSigRef = useRef(nameSignature)
   React.useEffect(() => {
     const el = editorRef.current
     if (!el) return
     normalizeChipSlots(el)
-    if (serializeDOM(el) === value) return
+    const nameChanged = prevNameSigRef.current !== nameSignature
+    prevNameSigRef.current = nameSignature
+    if (!nameChanged && serializeDOM(el) === value) return
     const sel = window.getSelection()
     const cursor = sel && sel.rangeCount ? saveCursor(el) : null
     syncingRef.current = true
@@ -294,20 +224,15 @@ const PromptInput = forwardRef(function PromptInput(
     return false
   }, [])
 
-  // 计算「@」相对输入框容器的像素位置（用于弹层跟随光标）
-  const getCaretPos = useCallback(() => {
-    const el = editorRef.current
-    const wrap = wrapRef.current
-    if (!el || !wrap) return { top: 0, left: 0 }
+  // 取「@」字符的视口矩形（fixed 弹层的锚点）；找不到时退回光标矩形。
+  const getAtRect = useCallback(() => {
     const sel = window.getSelection()
-    if (!sel || !sel.rangeCount) return { top: 0, left: 0 }
+    if (!sel || !sel.rangeCount) return null
     const range = sel.getRangeAt(0)
-    // 通过临时 range 定位到「@」字符处，让弹层贴近触发点而非光标末尾
     let rect = null
     if (range.collapsed && range.startContainer.nodeType === Node.TEXT_NODE) {
       const text = range.startContainer.textContent || ''
-      const cursorPos = range.startOffset
-      const atIdx = text.slice(0, cursorPos).lastIndexOf('@')
+      const atIdx = text.slice(0, range.startOffset).lastIndexOf('@')
       if (atIdx >= 0) {
         const r = document.createRange()
         r.setStart(range.startContainer, atIdx)
@@ -316,47 +241,57 @@ const PromptInput = forwardRef(function PromptInput(
       }
     }
     if (!rect) rect = range.getBoundingClientRect()
-    // 取编辑区当前行高，弹层顶边对齐「@」所在行的下一行，精确贴合光标
-    const cs = window.getComputedStyle(el)
-    const lh = parseFloat(cs.lineHeight) || 24
-    const wrapRect = wrap.getBoundingClientRect()
-    return {
-      top: rect.top - wrapRect.top + lh,
-      left: rect.left - wrapRect.left,
-    }
+    return rect ? { top: rect.top, bottom: rect.bottom, left: rect.left } : null
   }, [])
+
+  // 计算弹层位置：portal 模式用视口坐标（fixed）；内联模式换算成相对 wrap（absolute）。
+  const computeMentionPos = useCallback(() => {
+    const anchor = getAtRect()
+    if (!anchor) return null
+    if (portalTarget) {
+      return computeMentionPlacement(anchor)
+    }
+    const wrap = wrapRef.current
+    if (!wrap) return null
+    const wrapRect = wrap.getBoundingClientRect()
+    return computeMentionPlacement(
+      {
+        top: anchor.top - wrapRect.top,
+        bottom: anchor.bottom - wrapRect.top,
+        left: anchor.left - wrapRect.left,
+      },
+      { viewportW: wrapRect.width, viewportH: wrapRect.height }
+    )
+  }, [getAtRect, portalTarget])
 
   const detectMention = useCallback(() => {
     const el = editorRef.current
-    if (!el) return
+    if (!el || composingRef.current) return
     normalizeChipSlots(el)
     const sel = window.getSelection()
     if (!sel || !sel.rangeCount) return
     const range = sel.getRangeAt(0)
     const node = range.startContainer
-    if (node && node.nodeType === Node.TEXT_NODE) {
-      const text = node.textContent || ''
-      const cursorPos = range.startOffset
-      const before = text.slice(0, cursorPos)
-      const atIdx = before.lastIndexOf('@')
-      const afterAt = atIdx >= 0 ? before.slice(atIdx + 1) : ''
-      const inMention = atIdx >= 0
-        && !afterAt.includes(' ')
-        && !afterAt.includes('\n')
-        && !afterAt.includes('{')
-      if (inMention) {
-        setMentionQuery(afterAt)
-        setShowMention(true)
-        setActiveIndex(0)
-        setMentionPos(getCaretPos())
-        savedRangeRef.current = range.cloneRange()
-      } else if (showMention) {
-        setShowMention(false)
-      }
+    if (!node || node.nodeType !== Node.TEXT_NODE) {
+      if (showMention) setShowMention(false)
+      return
+    }
+    const before = (node.textContent || '').slice(0, range.startOffset)
+    const res = detectMentionQuery(before)
+    if (res.active && all.length > 0) {
+      if (res.atIndex === dismissedAtRef.current) return // Esc 后同一 @ 不再重弹
+      dismissedAtRef.current = -1
+      const pos = computeMentionPos()
+      mentionAtRef.current = res.atIndex
+      setMentionQuery(res.query)
+      setActiveIndex(0)
+      if (pos) setMentionPos(pos)
+      savedRangeRef.current = range.cloneRange()
+      setShowMention(true)
     } else if (showMention) {
       setShowMention(false)
     }
-  }, [showMention, getCaretPos])
+  }, [showMention, all.length, computeMentionPos])
 
   const insertChipAtCursor = useCallback(
     (item) => {
@@ -454,6 +389,8 @@ const PromptInput = forwardRef(function PromptInput(
       }
       if (showMention && e.key === 'Escape') {
         e.preventDefault()
+        e.stopPropagation() // 不冒泡给全屏弹窗，避免 Esc 同时关掉全屏
+        dismissedAtRef.current = mentionAtRef.current
         setShowMention(false)
         return
       }
@@ -507,7 +444,61 @@ const PromptInput = forwardRef(function PromptInput(
     [emitDOM]
   )
 
-  const renderRichMode = () => (
+  const renderMentionPopup = () => {
+    const popup = (
+      <div
+        ref={popRef}
+        data-mention-portal
+        data-mention-placement={mentionPos.placement}
+        data-mention-count={filtered.length}
+        className={`${portalTarget ? 'fixed z-popover' : 'absolute z-popover'} flex flex-col overflow-hidden rounded-lg border border-edge bg-surface-1 shadow-2xl nodrag nowheel nopan`}
+        style={{
+          width: MENTION_PANEL_W,
+          left: mentionPos.left,
+          top: mentionPos.top,
+          bottom: mentionPos.bottom,
+          maxHeight: mentionPos.height,
+        }}
+        onMouseDown={(e) => e.preventDefault()} // 保住编辑器焦点，避免 blur → 自杀式关闭
+      >
+        <div className="flex-1 overflow-y-auto custom-scrollbar nowheel nopan nodrag">
+          {filtered.length === 0 ? (
+            <div className="px-3 py-2 text-caption text-muted">无匹配素材</div>
+          ) : (
+            <div className="flex flex-col gap-0.5 p-1">
+              {filtered.map((item, i) => {
+                const active = i === activeIndex
+                return (
+                  <div
+                    key={item.id}
+                    data-mention-active={active || undefined}
+                    className={`flex items-center gap-2.5 px-2 py-1.5 rounded-md cursor-pointer transition-colors ${active ? 'bg-blue-500/25 text-white' : 'hover:bg-edge text-body'}`}
+                    onMouseEnter={() => setActiveIndex(i)}
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => handleSelectMention(item)}
+                  >
+                    {/* 缩略图：36px 方形圆角，图片素材显示缩略，文本素材显示 @ 图标 */}
+                    <div className="w-9 h-9 rounded-md overflow-hidden bg-surface-black shrink-0 flex items-center justify-center">
+                      {item.kind === 'image' && item.url ? (
+                        <LazyImage src={item.url} alt="" className="w-full h-full" />
+                      ) : (
+                        <span className="text-secondary text-base">@</span>
+                      )}
+                    </div>
+                    {/* 标签 */}
+                    <span className="text-base-sm truncate flex-1">{item.label}</span>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    )
+    return portalTarget ? createPortal(popup, portalTarget) : popup
+  }
+
+  return (
     <div className="flex items-start gap-2">
       <div ref={wrapRef} className="flex-1 relative shrink-0">
         <div
@@ -524,10 +515,16 @@ const PromptInput = forwardRef(function PromptInput(
             whiteSpace: 'pre-wrap',
             wordBreak: 'break-word',
           }}
-          onInput={(e) => { detectMention(e); emitDOM() }}
+          onInput={(e) => {
+            emitDOM()
+            if (composingRef.current || e.nativeEvent.isComposing) return // 组字中不判定
+            detectMention()
+          }}
           onKeyDown={handleKeyDown}
           onPaste={handlePaste}
-          onBlur={emitDOM}
+          onBlur={() => { emitDOM(); setShowMention(false) }}
+          onCompositionStart={() => { composingRef.current = true; setShowMention(false) }}
+          onCompositionEnd={() => { composingRef.current = false }}
         />
         {!value && (
           <span
@@ -538,60 +535,10 @@ const PromptInput = forwardRef(function PromptInput(
             {placeholder}
           </span>
         )}
-        {showMention && (
-          <div
-            className="absolute w-48 bg-surface-1 border border-edge-muted rounded-lg shadow-2xl z-suggest flex flex-col overflow-hidden max-h-[300px] nopan"
-            style={{ top: mentionPos.top, left: mentionPos.left }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between p-2">
-              <span className="text-caption-sm text-secondary flex items-center gap-2">可能@的内容</span>
-              <button className="text-muted hover:text-white p-1" onClick={() => setShowMention(false)}>
-                <X size={12} />
-              </button>
-            </div>
-            <div className="p-2 flex-1 overflow-y-auto custom-scrollbar nowheel nopan nodrag">
-              {filtered.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-full text-muted-2 gap-2 py-4">
-                  <span className="text-caption-sm">暂无素材</span>
-                  <span className="text-caption">上传素材后可用 @ 引用</span>
-                </div>
-              ) : (
-                <div className="flex flex-col gap-0.5">
-                  {filtered.map((item, i) => {
-                    const active = i === activeIndex
-                    return (
-                      <div
-                        key={item.id}
-                        data-mention-active={active || undefined}
-                        className={`flex items-center gap-2.5 px-2 py-1.5 rounded-md cursor-pointer transition-colors ${active ? 'bg-blue-500/25 text-white' : 'hover:bg-edge text-body'}`}
-                        onMouseEnter={() => setActiveIndex(i)}
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => handleSelectMention(item)}
-                      >
-                        {/* 缩略图：40px 方形圆角，图片素材显示缩略，文本素材显示 @ 图标 */}
-                        <div className="w-9 h-9 rounded-md overflow-hidden bg-surface-black shrink-0 flex items-center justify-center">
-                          {item.kind === 'image' && item.url ? (
-                            <LazyImage src={item.url} alt="" className="w-full h-full" />
-                          ) : (
-                            <span className="text-secondary text-base">@</span>
-                          )}
-                        </div>
-                        {/* 标签 */}
-                        <span className="text-base-sm truncate flex-1">{item.label}</span>
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
+        {showMention && mentionPos && renderMentionPopup()}
       </div>
     </div>
   )
-
-  return richText ? renderRichMode() : renderTextareaMode()
 })
 
 export default PromptInput

@@ -1,10 +1,20 @@
 # 69 · PromptInput `@` 提及交互 —— 定稿方案
 
-> **状态**：方案已定稿，**未实施**（本轮只出方案，未改任何源码）
 > **日期**：2026-08-28
+> **状态**：方案已定稿，**未实施**（本轮只出方案，未改任何源码）；
+> 2026-08-28 已完成**全量代码引用复核**——结论与架构成立，7 处缺口已补齐为 §十二，
+> 其中 P2（`before` 取法）**待拍板后即可开工 M1/M2**。
 > **前置底稿**：`docs/audit/PromptInput-@提及交互审计-2026-08-28.md`（问题证据链，本方案的问题编号沿用其 §三~§六）
 > **决策归属**：按 `CLAUDE.md §决策记录铁律`，本方案横跨 ≥2 处（PromptInput / 新文件 / tailwind 令牌 / hooks / 4 个节点），
 > **实施时必须把「层级令牌」与「提及判定单一入口」两条全库级结论同步进 `spec/CONTEXT.md` + `contracts.js`**，单文件局部机制同步进各文件头 JSDoc。
+>
+> **⚠️ 引用基准（2026-08-28 复核 · 实施前必读）**
+> 本文引用的 `PromptInput.jsx` 行号基于 **70 号方案实施前**的版本，与当前工作区**系统性偏移 +10~+12 行**
+> （例：本文写"弹层 `:532`"→ 实际 `:541`；"判定 `:333-335`"→ 实际 `:341-347`；`getCaretPos :296-307`→ 实际 `:298-327`）。
+> **结论与符号全部有效，行号已失效**——实施时按 `getCaretPos` / `detectMention` / `renderRichMode` 等**符号名**定位，禁止按行号找。
+> 已实测核对准确、可直接按行号引用的文件：`tailwind.config.js:21-39`、`hooks.js:39-48`、`App.jsx:1324`、
+> `NodeShell.jsx:217-218`、`ExpandablePanel.jsx:30`、`FullscreenModal.jsx:75-78`、`ImageBoxNode.jsx:622-629`。
+> 复核发现的 6 处缺口已补齐为 **§十二 开工前补丁**，**实施前必须先读**。
 
 ---
 
@@ -22,6 +32,7 @@
 9. [可观测性与验收清单](#九可观测性与验收清单)
 10. [风险与回滚](#十风险与回滚)
 11. [决策记录 ADR](#十一决策记录-adr)
+12. [开工前补丁（2026-08-28 复核）](#十二开工前补丁2026-08-28-复核) ← **实施前必读**
 
 ---
 
@@ -40,9 +51,14 @@
 | `src/index.css` | **改** | 芯片行高对齐文本行高（可选，见 §5.6） |
 | `tests/unit/promptMention.test.js` | **新增** | 判定与定位的表驱动单测 |
 | `tests/unit/PromptInput.test.jsx` | **新增** | 组件级：弹出/IME/抑制/关闭 |
-| `spec/CONTEXT.md` + `contracts.js` | **改** | 登记层级令牌与提及判定单一入口（按决策铁律） |
+| `src/components/base/promptChips.js` | **改（P1 新增）** | `autoLinkAssetsByName` 改为复用 `isMentionBoundary`，消除与 70 的边界规则分叉（见 §十二-P1） |
+| `src/components/nodes/ImageBoxNode.jsx` | **改（P5 提前）** | `:627` `z-overlay-error` → `z-popover`，原 M3-4 提前到 M1-7 |
+| `spec/CONTEXT.md` + `contracts.js` | **改** | 登记层级令牌 + **两条** @ 提及入口（边界判定 / 批量转换 / 触发判定分工，见 §十二-P1） |
+| `docs/agent 批量任务/TASK-034`、`TASK-035` | **改（P6 新增）** | 删 `suggest` 令牌后同步修订其「`z-suggest` 合规非偏离」结论 |
 
-**不改动**：`promptChips.js` 的序列化协议（`@{id:label|thumb}` 保持不变，存量数据零迁移）、`MaterialStrip`、节点的 `PromptInput` 调用签名（全部向后兼容，新增参数均可选）。
+**不改动**：`promptChips.js` 的序列化协议（`@{id:label|thumb}` 保持不变，存量数据零迁移）、
+`autoLinkAssetsByName` 的**全等匹配语义**（P1 只统一边界判定，不改匹配规则）、
+`MaterialStrip`、节点的 `PromptInput` 调用签名（全部向后兼容，新增参数均可选）。
 
 ---
 
@@ -155,17 +171,28 @@ export const MENTION_FLIP_MIN_H = 160     // 上方空间不足此值 → 翻转
 const BREAK = new Set([' ', '\n', '\t', '\u3000', ',', '.', ';', '!', '?',
   '，', '。', '；', '、', '！', '？', '：', '{', '}', '(', ')', '（', '）'])
 
-/** @ 前一个字符必须是这些（行首 / 空白 / 开括号 / 冒号 / ZWSP 芯片占位） */
-const ALLOW_PREV = new Set(['', ' ', '\n', '\t', '\u3000', '\u200B', '(', '（', '[', '：', ':'])
+/**
+ * `@` 边界判定（唯一入口）：@ 前一个字符必须落在允许集内才认为是「真的要 @ 」。
+ * 允许集 = 行首 / 空白 / 开括号 / 冒号 / ZWSP / 芯片尾 `}`。
+ *
+ * ⚠️ 必须与 docs/70 的 `autoLinkAssetsByName` **共用同一套边界规则**（见 §十二-P1）：
+ *   该函数的上下文是序列化字符串，芯片形如 `@{id:label}`，紧贴其后输入 `@名字` 时 `@` 前是 `}`，
+ *   故 `}` 必须在允许集内——否则「芯片后打 @」这条路径在两侧会得出相反结论。
+ * @param {string} prev @ 的前一个字符；@ 位于串首时传 ''
+ */
+const ALLOW_PREV = new Set(['', ' ', '\n', '\t', '\u3000', '\u200B', '(', '（', '[', '：', ':', '}'])
+export function isMentionBoundary(prev) {
+  return ALLOW_PREV.has(prev ?? '')
+}
 
 /**
- * @param {string} before 光标之前的纯文本（芯片已归一为占位，不含 DOM）
+ * @param {string} before 光标之前的**纯文本片段**（真实语义见下方 ⚠️，不是「整行文本」）
  * @returns {{active:boolean, query:string, atIndex:number}}
  */
 export function detectMentionQuery(before) {
   const at = String(before || '').lastIndexOf('@')
   if (at < 0) return { active: false, query: '', atIndex: -1 }
-  if (!ALLOW_PREV.has(at === 0 ? '' : before[at - 1])) return { active: false, query: '', atIndex: -1 }
+  if (!isMentionBoundary(at === 0 ? '' : before[at - 1])) return { active: false, query: '', atIndex: -1 }
   const query = before.slice(at + 1)
   if (query.length > MENTION_MAX_QUERY) return { active: false, query: '', atIndex: -1 }
   for (const ch of query) if (BREAK.has(ch)) return { active: false, query: '', atIndex: -1 }
@@ -173,8 +200,20 @@ export function detectMentionQuery(before) {
 }
 ```
 
-> **为什么 `@` 前后都要判**：现状只判"后面没有空格"（`PromptInput.jsx:333-335`），
+> **为什么 `@` 前后都要判**：现状只判"后面没有空格"（`PromptInput.jsx` 的 `detectMention` 内 `inMention` 三条件），
 > 所以 `邮箱@xx`、`abc@`、URL 里的 `@` 全都会弹——这是"误显示"的最大来源。
+
+> **⚠️ `before` 的真实语义（2026-08-28 复核修正 · 见 §十二-P2）**
+> 初稿写「芯片已归一为占位」**不成立**：芯片在 DOM 里是 `[data-ref-id]` 元素，`ensureCaretSlotBeforeChip`
+> 只在芯片**前**插 ZWSP 文本节点，芯片**后**没有占位。因此 `before` 只能取到
+> **「当前 textNode 内、光标之前」** 的内容（现状 `detectMention` 即 `node.textContent.slice(0, cursorPos)`）。
+> 这带来两个必须处理的后果：
+> 1. §9.2 用例「芯片占位 `\u200B@` → 弹」在真实 DOM 下**几乎不会出现**，若照抄会写成测不到的假覆盖；
+> 2. `@` 与光标分属不同 textNode 时会漏判。
+> **定稿取法（二选一，实施时择一并在文件头 JSDoc 写明）**：
+> - **A（推荐）**：从 editor 根做一次轻量文本化，芯片 → 单字符占位（复用 `ZWSP`），得到「整段纯文本 + 光标偏移」，
+>   再把 `before` 传进来。跨 textNode 也正确，且让 `\u200B@` 用例真正生效。
+> - **B（最小改动）**：维持现状只取当前 textNode，接受「跨节点漏判」，并从 §9.2 删掉 `\u200B@` 这条用例。
 
 ### 5.2 定位：`computeMentionPlacement`（纯函数）
 
@@ -251,7 +290,40 @@ export function computeMentionPlacement(anchor, opts = {}) {
 | **无匹配** | ❌（停在"暂无素材"） | ✅ 收成 1 行提示（高 ~40px），`filtered.length===0 && all.length>0` 保留；`all.length===0` **根本不弹** |
 | **画布平移/缩放/节点拖动** | ❌ | ✅ **新增**：直接关闭（移动即关，符合 G4"很快消失"） |
 | **画布 resize / 编辑器内滚动** | ❌ | ✅ **新增**：rAF 重算位置（不关闭） |
-| **关闭按钮 X** | 有但无 mousedown 防护（`:538`） | **移除头部 X**（见 §7），Esc/点外部足够 |
+| **关闭按钮 X** | 有但无 mousedown 防护（`renderRichMode` 弹层头部） | **移除头部 X**（见 §7），Esc/点外部足够 |
+
+> **⚠️ 两条关闭路径的实现方式（初稿只写了"✅ 新增"，2026-08-28 补齐 · 见 §十二-P4）**
+>
+> **① 画布平移 / 缩放 / 节点拖动 → 关闭（`viewport`）**
+> `PromptInput` 在节点内部，自身无法感知 ReactFlow transform。定稿用 **`useStore` 订阅**，不新发明机制：
+> ```js
+> import { useStore } from '@xyflow/react'
+> const transform = useStore((s) => s.transform)          // [x, y, zoom]
+> React.useEffect(() => { closeMention('viewport') }, [transform?.[0], transform?.[1], transform?.[2]])
+> ```
+> 只依赖三个标量、不依赖数组引用，避免每次渲染误关。**节点拖动**不改变 transform（改 node.position），
+> 但它必然先触发 `blur` 或 `selectionchange`，由 `blur` 路径兜底即可，**不额外监听**。
+>
+> **② 编辑器内滚动 / 窗口 resize → 不关闭，rAF 重算（`—`）**
+> ```js
+> const rafRef = useRef(0)
+> const scheduleRecalc = useCallback(() => {
+>   cancelAnimationFrame(rafRef.current)
+>   rafRef.current = requestAnimationFrame(() => setMentionPos(getCaretPos()))
+> }, [getCaretPos])
+> useEffect(() => {
+>   if (!showMention) return
+>   const ed = editorRef.current
+>   ed?.addEventListener('scroll', scheduleRecalc, { passive: true })
+>   window.addEventListener('resize', scheduleRecalc)
+>   return () => {
+>     cancelAnimationFrame(rafRef.current)
+>     ed?.removeEventListener('scroll', scheduleRecalc)
+>     window.removeEventListener('resize', scheduleRecalc)
+>   }
+> }, [showMention, scheduleRecalc])
+> ```
+> 监听**只在 `showMention` 为真时挂载**，关闭即卸载，杜绝常驻监听。
 
 **"本轮抑制"（Esc 语义）实现**：`dismissedRef.current = 触发这次弹层的 @ 字符在文本中的绝对下标`；`detectMention` 每次先比对该下标，相同则不再弹；当该位置的 `@` 被删除、或出现新的 `@` 时清除。→ Esc 不再是"白按"。
 
@@ -293,8 +365,17 @@ onInput={(e) => {
 
 ### 5.7 清理：删除 textarea 死分支
 
-- `renderTextareaMode`（`:99-161`）及其弹层（`:117-158`）、`useOutsideClick(textareaWrapRef…)`（`:94`）**全部删除**——`setShowMention(true)` 全项目只在富文本路径被调用（`:338`），该分支**永远不可达**。
-- 同步修正**已过期的文件头注释**（`:17-23` 仍写"仅 PromptNode 传 richText，其余保持 textarea"）：实际 4 个节点 + 全屏编辑器全是 `richText`（`PromptNode.jsx:403-415`、`TextNode.jsx:351-363`、`TemplateNode.jsx:311-323`、`DiscountVideoNode.jsx:322-334`、`FullscreenEditor.jsx:69-80`）。
+- `renderTextareaMode` 及其弹层、`useOutsideClick(textareaWrapRef…)` **全部删除**——
+  已实测：全项目 5 个 `<PromptInput>` 调用点**全部传 `richText`**
+  （`PromptNode.jsx:403`、`TextNode.jsx:351`、`TemplateNode.jsx:311`、`DiscountVideoNode.jsx:322`、`FullscreenEditor.jsx:70`），
+  该分支**永远不可达**。
+- 同步修正**已过期的文件头注释**（仍写"仅 PromptNode 传 richText，其余保持 textarea"）与 `richText = false` 默认值。
+
+> **⚠️ 别误删 `FullscreenEditor` 自己的 textarea（2026-08-28 复核）**
+> `FullscreenEditor.jsx` 存在一个**同名但不同物**的 `richText` prop（默认 `false`）：
+> 为 `false` 时它渲染**自己的 `<textarea>`**（`FullscreenEditor.jsx:81-90`），根本不经过 `PromptInput`。
+> 该分支**不是死代码**（`variant='text'` 及未升级的节点仍走它），**禁止顺手删**。
+> 因此 §5.3 的 `portalTarget={null}` 只对「4 个节点 → FullscreenEditor(richText) → PromptInput」这条链路生效。
 
 ---
 
@@ -359,8 +440,16 @@ zIndex: {
 | 全屏弹窗 `modal` / `modal-raise` / `ceiling-2` | 9999+ | > 1000 | ✅ 被弹窗盖住（正确；弹窗内走内联分支，见 §6.3） |
 | 错误全屏 `overlay-error` | 99999 | > 1000 | ✅ 崩溃时必须盖住一切 |
 | Toast `ceiling-1` | 2147483645 | > 1000 | ✅ 提示永在最上 |
+| **ImageBoxNode 缩略图菜单** | **99999**（`z-overlay-error`） | **> 1000** | ⚠️ **初稿漏列**——它也是 portal 到 body 的浮层（`ImageBoxNode.jsx:622-629`），会盖住 `@` 弹层 |
 
-**结论：1000 严格高于「所有非弹窗元素」、严格低于「所有弹窗/错误/Toast」，语义与数值双向自洽，无需新增任何令牌。**
+> **⚠️ 初稿论证缺口（2026-08-28 复核 · 见 §十二-P5）**
+> 「1000 严格高于所有非弹窗元素」这句**不成立**：`ImageBoxNode` 的缩略图菜单是 portal 到 body 的
+> **浮层**而非弹窗，却用了 `overlay-error(99999)`。它与 `@` 弹层同为 body 层元素时，`@` 弹层(1000) **会被盖住**。
+> 二者同时打开的概率低（点别处会先关），但既然 M3-4 本就要收敛它，**定稿把 M3-4 提前到 M1 一并做**：
+> 两者同用 `z-popover(1000)`，同值则靠 DOM 顺序——都是 portal 到 body，**后挂载者在后、后开的盖先开的**，语义反倒自洽。
+
+**结论（修订后）：1000 严格高于「所有非弹窗元素」、严格低于「所有弹窗/错误/Toast」；
+唯一例外是误用 `overlay-error` 的 `ImageBoxNode` 菜单，由 M1 步骤 7 收敛后消除。**
 这也正好落在规范要求的「复用现有令牌」上，`z-popover` 语义（浮层）与 `@` 候选层完全匹配，且已有 `ArrangeConfirm.jsx:30` 在用。
 
 ### 6.3 双模式挂载（关键）
@@ -419,6 +508,7 @@ export function isMentionCovered(popEl) {
 | 4 | `tailwind.config.js`：仅删 `suggest`；`PromptInput` 改用 `z-popover`（零新增令牌） |
 | 5 | `FullscreenEditor.jsx` 传 `portalTarget={null}` |
 | 6 | 加 `data-mention-*` 契约属性 |
+| 7 | **`ImageBoxNode.jsx:627` `z-overlay-error` → `z-popover`**（原 M3-4，提前，理由见 §6.2 ⚠️） |
 
 **验收**：§9.1 全部 + §9.3 命中测试。
 
@@ -443,7 +533,8 @@ export function isMentionCovered(popEl) {
 | 1 | 删 textarea 死分支 + 修正过期头注释 | 否，直接做 |
 | 2 | 视觉规范落地（移除头部、280px、150ms 动效） | 否，直接做 |
 | 3 | `ModelSelect` 裸 `z-50` → `z-dropdown` | 否，顺手收敛 |
-| 4 | `ImageBoxNode` `z-overlay-error` → `z-popover`（同为 portal 浮层菜单，语义归位） | 否，顺手收敛 |
+| 4 | `ImageBoxNode` `z-overlay-error` → `z-popover` | **已提前至 M1-7**（§6.2），此处仅留档 |
+| 7 | 同步修订 `docs/agent 批量任务/TASK-034`、`TASK-035` 中「`z-suggest` 合规非偏离」的结论 | 否，删令牌后必做 |
 | 5 | **形态 V2**：分组（Reference / This project）+ 底部"输入关键词匹配参考资源"搜索条 | **需你确认** |
 | 6 | 芯片行高对齐（§5.6） | 否，可选 |
 
@@ -460,13 +551,22 @@ export function isMentionCovered(popEl) {
 | 上方充足 → 向上 | `anchor.top=400, vh=800`（上 392 / 下 ~372） | `placement='up'`，`bottom = 800-400+4 = 404` |
 | 上方不足 → 向下翻转 | `anchor.top=60, vh=800`（上 52 / 下 ~724） | `placement='down'`，`top = anchor.bottom+4`，`height=300` |
 | 两侧都不足但上方更多 | `anchor.top=280, vh=400`（上 272 / 下 ~104） | `placement='up'`，`height = min(300, 272) = 272` |
-| 高度收缩（上方仅 100） | `anchor.top=108, vh=800`（上 100 / 下 ~676，走 up 因 `spaceAbove>=flipMinH` 不成立但 `100>=676` 也不成立 → 实为 down） | `placement='down'`，`height=300` |
+| 上方不足 → 翻到下方 | `anchor.top=108, vh=800`（上 100 < 160；100 ≥ 676 也不成立 → `down`） | `placement='down'`，`top = anchor.bottom+4`，`height=300` |
+| 高度收缩（向上但空间 < 300） | `anchor.top=180, vh=400, anchor.bottom=202`（上 172 ≥ 160 → `up`） | `placement='up'`，`height = min(300, 172) = 172` |
 | 左溢出 | `anchor.left=5` | `left = 8`（margin） |
 | 右溢出 | `anchor.left=vw-10` | `left = vw-280-8` |
 | 最小高度兜底 | 可用空间 40px | `height = 96`（`max(96, …)`），宁可溢出也不塌成一条 |
 
 > 翻转判据（`computeMentionPlacement`）：`spaceAbove >= flipMinH(160) || spaceAbove >= spaceBelow` → `'up'`，否则 `'down'`。
 > 单测须同时锁定「160 阈值」与「两侧都不够时取空间大的一侧」两条边界。
+>
+> **⚠️ 用例修订说明（2026-08-28）**：初稿第 4 条名为「高度收缩」却给了一组**收缩不到**的参数
+> （下方 676 → `height = min(300, 676) = 300`），标题与断言自相矛盾，照抄会写出错误断言。
+> 已拆分上表两条：一条测「翻转到下方」，一条用 `vh=400 / 上方 172` **真正测到收缩**。
+>
+> **已知取舍（非 bug，写入测试注释免得后人当 bug 修）**：只要上方 ≥ 160 就**优先向上**，
+> 哪怕下方空间远大于上方（例：上 170 / 下 1000 → `up`，`height=170` 而非 `down` 的 300）。
+> 这是「底对齐不遮挡已输入文本」优先于「弹层尽量大」的刻意取舍（G1 优先）。
 
 ### 9.2 误触发（自动化：单测 + 组件测）
 
@@ -480,7 +580,7 @@ export function isMentionCovered(popEl) {
 | `@人物参考，然后` | **不弹** | 3.2 全角标点 |
 | `@` + 30 个连续汉字 | **不弹** | 3.3 超长 |
 | `参考@` （`@` 前是中文） | **不弹** | 3.1（中文名后紧接 `@` 视为普通文本） |
-| 芯片占位 `\u200B@` | 弹 | ZWSP 允许 |
+| 芯片占位 `\u200B@` | 弹 | ZWSP 允许。**⚠️ 仅 §十二-P2 选 A 时才测得**；选 B 须删除本条，否则是假覆盖 |
 
 ### 9.3 遮挡（E2E / 手动）
 
@@ -555,13 +655,131 @@ expect(covered).toBe(false)         // ← 未被任何元素遮挡
 | A7 | **M1/M2 不改面板形态** | 一步到位做成截图形态 | 位置/稳定性/层级是"对错问题"，形态是"好坏问题"。先做对、再做好，每步独立可验收可回滚 |
 | A8 | **移除头部（标题 + X）** | 保留 | 截图无头部；X 按钮会诱使多余点击；关闭路径已足够（§5.4） |
 | A9 | **`overlay-error(99999)` 不动** | 一并下调它 | 它服务于根级崩溃全屏（`ErrorBoundary.jsx:62`），与本方案无交集；动它属于无关变更，会牵连 `ImageBoxNode` 等既有引用，风险 > 收益 |
+| A10 | **边界判定抽成 `isMentionBoundary` 并与 docs/70 共用** | 69 与 70 各留一套 `@` 边界规则 | 两个入口都宣称自己是「唯一入口」，规则不一致就会产生第三处散落的 `@` 判定，直接违背 67/68 号文档的数据流收敛方向（§十二-P1） |
+| A11 | **`before` 取法二选一并写进文件头 JSDoc** | 维持"整行纯文本"的错误假设 | 芯片在 DOM 里是元素、不出现在 textNode 中，若不显式定取法，M2 会按错误假设实现并返工（§十二-P2） |
+| A12 | **`ImageBoxNode` 的 z 收敛提前到 M1** | 留在 M3-4 可选 | 初稿「1000 高于所有非弹窗元素」的论证漏了它；同值化后靠 DOM 顺序反而自洽（§十二-P5） |
+
+---
+
+## 十二、开工前补丁（2026-08-28 复核）
+
+> **本章来源**：方案定稿后对全部代码引用做的一次实测核对。
+> **结论：正文的结论与架构全部成立，可以实施**；但有下列 7 处缺口，
+> **P1 / P2 / P4 会导致 M2 返工，必须在开工前定死**；P3 / P5 / P6 / P7 已直接并入正文相应章节或接受现状。
+
+| # | 缺口 | 严重度 | 状态 |
+|---|---|---|---|
+| P1 | 与已实施的 docs/70 边界规则冲突 | **阻塞 M2** | 方案已给，待并入 70 |
+| P2 | `before` 的真实语义与初稿描述不符 | **阻塞 M2** | 二选一，待你拍板 |
+| P3 | `PromptInput.jsx` 行号系统性偏移 +10~+12 | 中 | 已在文首「引用基准」标注 |
+| P4 | 两条关闭路径（画布移动 / 滚动跟随）没给实现 | **阻塞 M2** | 已在 §5.4 补齐代码 |
+| P5 | `z-popover` 论证漏了 `ImageBoxNode` 菜单 | 中 | 已并入 §6.2 + 提前到 M1-7 |
+| P6 | 删 `suggest` 令牌与两份审计文档冲突 | 低 | 已并入 §8 M3-7 |
+| P7 | `nodrag/nowheel/nopan` 在 portal 后语义变化 | 低 | 见下，接受现状 |
+
+---
+
+### P1 · 与 docs/70 的边界规则冲突（阻塞 M2）
+
+**现状**：70 号方案（画布图片命名与 @名匹配）**已实施**，其 `autoLinkAssetsByName` 已登记为唯一入口
+（`contracts.js:17-22`「禁止在 PromptInput/任何组件里手写 lastIndexOf('@')/匹配正则」）。但它的正则是：
+
+```js
+// promptChips.js:267 —— 全局替换，不检查 @ 前面是什么字符
+const re = new RegExp(`@(${names.map(...).join('|')})`, 'g')
+```
+
+而本方案的 `detectMentionQuery` 要求 `@` 前必须落在 `ALLOW_PREV` 内。**两套规则并存**：
+
+| 输入 | 69 的 `detectMentionQuery`（输入时） | 70 的 `autoLinkAssetsByName`（已输入文本） | 一致？ |
+|---|---|---|---|
+| `abc@` | 不弹 ✅ | 命中则替换 ✅ | 一致 |
+| `我的邮箱abc@人物参考` | **不弹** ✅ | **仍会替换** ❌ | **不一致** |
+| `芯片后紧接着打 @人物参考` | 弹（DOM 侧 `@` 在 textNode 首） ✅ | 命中 ✅ | 一致，但**要求 `}` 在允许集** |
+
+**定稿处置**：
+
+1. `promptMention.js` 导出 `isMentionBoundary(prev)`（已并入 §5.1），**`}` 必须留在允许集内**
+   —— 因为 70 的字符串上下文里芯片是 `@{id:label}`，紧贴其后输入 `@名字` 时 `@` 前就是 `}`。
+2. `autoLinkAssetsByName` 改为**同一函数判定边界**。最小改法：把正则整体替换为
+   「先按 `@` 切分 → 逐处校验 `isMentionBoundary(前字符)` 且名字全等 → 命中才替换」，
+   并**复用 `promptMention.js` 的 `isMentionBoundary`**（`promptChips.js` 从 `promptMention.js` import，单向依赖，不成环）。
+3. `contracts.js` 的能力层登记区**扩写为两条**，明确分工，避免后人误以为二选一：
+   - `promptChips.autoLinkAssetsByName`：**已输入文本的批量转换**（value 变化时，把 `@素材名` → `@{id:label|thumb}`）
+   - `promptMention.detectMentionQuery`：**输入时的触发判定**（光标前是否构成 @ 提及）
+   - 两者**共用 `promptMention.isMentionBoundary` 作为边界单一真源**
+
+> **不做的理由（避免范围膨胀）**：不改动 `@{id:label}` 序列化协议，也不做存量数据迁移。
+> 本项只统一「边界判定」这一点，不动 70 的全等匹配语义。
+
+---
+
+### P2 · `before` 的真实语义（阻塞 M2，需你拍板）
+
+已在 §5.1 的 ⚠️ 中写清。**二选一**：
+
+| 方案 | 做法 | 代价 | 收益 |
+|---|---|---|---|
+| **A（推荐）** | 从 editor 根做一次轻量文本化：芯片 → 单字符占位（`ZWSP`），得到「整段纯文本 + 光标偏移」，再切片传 `before` | 多一次遍历（prompt 一般 < 2KB，可忽略） | 跨 textNode 也正确；§9.2 的 `\u200B@` 用例**真正生效**；为后续形态 V2（分组/搜索）打好地基 |
+| **B（最小改动）** | 维持现状只取当前 textNode | 零改动 | 跨 textNode 漏判；需从 §9.2 删掉 `\u200B@` 用例（否则是假覆盖） |
+
+> **建议 A**。理由：`detectMentionQuery` 一旦是纯函数，文本化也应是纯函数（可单测），
+> 且「整段纯文本 + 偏移」这个中间产物未来能被形态 V2 的搜索条直接复用。
+
+---
+
+### P3 · 行号偏移（已处理）
+
+见文首「引用基准」。`tailwind.config.js` / `hooks.js` / `App.jsx` / `NodeShell.jsx` /
+`ExpandablePanel.jsx` / `FullscreenModal.jsx` / `ImageBoxNode.jsx` 的引用已实测核对，准确。
+
+---
+
+### P4 · 两条关闭路径的实现（已处理）
+
+已在 §5.4 补齐可直接落地的代码：画布平移/缩放走 `useStore((s) => s.transform)`，
+滚动/resize 走「仅 `showMention` 为真时挂载 + rAF 合并」。
+
+---
+
+### P5 / P6 · 层级与文档冲突（已处理）
+
+- P5：`ImageBoxNode` 菜单已并入 §6.2 表格，收敛动作提前到 **M1 步骤 7**。
+- P6：删 `suggest` 令牌后需同步修订 `TASK-034` / `TASK-035` 中「`z-suggest` 合规非偏离」的结论，已列入 **M3 步骤 7**。
+
+---
+
+### P7 · `nodrag / nowheel / nopan` 在 portal 后的语义变化（接受现状）
+
+实测 `index.css:320-322`，本项目的 `.nodrag` **只定义为 `cursor: default`**，
+真正的拖拽阻断来自 ReactFlow 内部的 `target.closest('.nodrag')`。
+
+portal 到 body 后弹层已不在 `.react-flow` 内，**拖拽/滚轮本来就不会触发** → 这三个 class 退化为无害冗余。
+**定稿：保留**（作为语义标注，成本为零，且内联分支（全屏编辑器）下仍然需要）。
+
+**已知副作用（低概率，不阻塞）**：`index.css:600-603` 的
+`.react-flow.lod-3 .react-flow__node .nodrag { opacity: 0; pointer-events: none }` 对 portal 弹层失效
+→ 缩放进入 LOD-3 时，输入框已被禁用但 `@` 弹层仍悬浮可见。
+**触发条件苛刻（要先打开弹层再缩到极小）**，本期不做；若后续反馈可加一行
+`const zoom = useStore((s) => s.transform[2]); if (zoom < LOD3) closeMention('lod')`。
 
 ---
 
 ## 附：待用户确认项
 
-1. **形态 V2（M3-5）** 是否要做成截图那样：顶部按来源分组（Reference / This project）+ 底部常驻"输入关键词匹配参考资源"搜索条？
-2. **芯片行高（§5.6）** 是否一并对齐文本行高（会让含芯片的行更紧凑）？
-3. 宽度 **280px** 是否合适（现状 192px，截图观感约 280~320px）？
+### A. 阻塞项（不确认不能开工 M2）
 
-> 以上三项不影响 M1/M2 开工；确认后并入 M3 即可。
+0. **`before` 取法（§十二-P2）**：A（editor 根文本化，跨 textNode 正确，为形态 V2 铺路）还是
+   B（只取当前 textNode，零改动但跨节点漏判、需删掉 `\u200B@` 用例）？**建议 A**。
+1. **是否同步收敛 docs/70（§十二-P1）**：把 `autoLinkAssetsByName` 改为复用 `isMentionBoundary`？
+   不做的话，`我的邮箱abc@人物参考` 这类文本仍会被 70 误转成芯片（69 侧已正确不弹）。
+   **建议做**——否则两套 @ 判定并存，正好违背 67/68 的数据流收敛方向。
+
+### B. 非阻塞项（确认后并入 M3）
+
+2. **形态 V2（M3-5）** 是否要做成截图那样：顶部按来源分组（Reference / This project）+ 底部常驻"输入关键词匹配参考资源"搜索条？
+3. **芯片行高（§5.6）** 是否一并对齐文本行高（会让含芯片的行更紧凑）？
+4. 宽度 **280px** 是否合适（现状 192px，截图观感约 280~320px）？
+
+> **M1 不受 A 组阻塞**（M1 只做定位与层级，不碰判定逻辑）；A 组只阻塞 M2。
+> B 组不影响 M1/M2 开工，确认后并入 M3 即可。

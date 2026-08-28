@@ -49,6 +49,10 @@ function DiscountVideoNode({ id, data, selected }) {
   // 上游文本合并（多个文本节点自动聚合；data.texts 额外资产也并入），作为提示词的一部分
   const refTexts = [...(connected.texts || []), ...(data.texts?.length ? data.texts : [])]
   const { setEdges, setNodes } = useReactFlow()
+  // 标题改名 → 写回 data.label，让下游 @名 匹配 / 素材条显示跟随
+  const rename = useCallback((name) => {
+    setNodes((ns) => ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, label: name } } : n)))
+  }, [id, setNodes])
   // 断开连线：素材缩略图红色 × → 删除该来源节点 → 本节点的连线（仅对有 sourceNodeId 的素材）
   const disconnectSource = useCallback(
     (sourceNodeId) => {
@@ -239,6 +243,7 @@ function DiscountVideoNode({ id, data, selected }) {
       sizeMode="area-fixed"
       baseSize={NODE_AREA_FIXED_BASE_SIZE}
       className="min-w-[200px] min-h-[200px]"
+      onRename={rename}
       handleVariant="small"
     >
       {/* hover 操作栏（loading 时隐藏） */}

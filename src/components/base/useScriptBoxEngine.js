@@ -2,6 +2,7 @@ import { useEffect, useRef, useCallback } from 'react'
 import { useReactFlow } from '@xyflow/react'
 import { createScriptBoxEngine } from './scriptBoxEngine.js'
 import { normalizeScriptBoxData } from './scriptBoxSchema.js'
+import { injectNodePrefs } from './nodePrefs.js'
 import { useProvidersList, load as loadProviders } from './settings/providerStore.js'
 import { logger } from './logger.js'
 
@@ -79,19 +80,26 @@ export function useScriptBoxEngine(nodeId, data) {
         const list = providersRef.current || []
         return { providers: list, primary: list.find((p) => p.primary) || list[0] || null }
       },
-      // 连线：经 addNodes 建下游节点，位置用 screenToFlowPosition 算落点基准
+      // 连线：经 addNodes 建下游节点，位置用 screenToFlowPosition 算落点基准。
+      // 【复用系统新建入口的模型记忆】剧本盒子建节点不走 App.addNode，故在此补 injectNodePrefs，
+      // 把 localStorage「上次选择的模型」填进 data.selectedModel —— 否则新节点 selectedModel 恒为 ''，
+      // 且 useGenerateNode 的「自动选第一个模型」兜底被 prefs.model 守卫挡掉，永远补不回来。
+      // injectNodePrefs 仅补 data 里未显式传的字段，剧本盒已预填的 aspectRatio/size/selectedSeconds/label 不受影响。
       addNodes: (nodes) => {
         if (!addNodes) return
         const base = screenToFlowPosition?.({ x: 0, y: 0 }) ?? { x: 0, y: 0 }
-        addNodes(
-          nodes.map((nd) => ({
+        addNodes(nodes.map((nd) => {
+          const data = { ...(nd.data || {}) }
+          injectNodePrefs(nd.type, data)
+          return {
             ...nd,
+            data,
             position: {
               x: (nd.position?.x ?? 0) + base.x + 100,
               y: (nd.position?.y ?? 0) + base.y
             }
-          }))
-        )
+          }
+        }))
       }
     })
   }
