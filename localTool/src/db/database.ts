@@ -279,10 +279,71 @@ export function deleteLocalFile(db: any, dbUrl: string): boolean {
 }
 
 /**
- * 防抖落盘：500ms 内多次调用只落一次。
- * 所有写路由（KV/tasks/resources）写完后调用此函数，
- * 确保非优雅退出时最多丢 500ms 数据。
+ * 统一改写库内旧本地 url 引用 → 新 url（改名 / 移动后调用，防止旧引用 404）。
+ *
+ * 【为什么存在】rename/move 会改物理文件名 → resources id/url 变化。但画布 KV 快照
+ * （canvas-state-v1-{projectId}，含各节点 data.url/imageUrl 与脚本箱参考图 imageUrl）、
+ * tasks 的 url 相关列里可能仍存着旧 url；旧路径文件已 rename 走 → 下游一读就 404
+ * （如脚本箱图生图「参考素材上传失败」）。故在此一次性把旧 url 的所有引用改写为新 url。
+ *
+ * 【覆盖范围】kv.value（JSON 文本，含绝对/相对两种形式）+ tasks 各 url 承载列。
+ * 资源表由各自 rename/move 逻辑重建行，不在此处理。
+ *
+ * @param fromRel 旧相对路径（相对 uploadDir，如 'web/a.png'）
+ * @param toRel   新相对路径（相对 uploadDir）
  */
+export function rewriteUrlReferences(db: any, fromRel: string, toRel: string): number {
+  const fromAbs = `${LOCAL_FILE_BASE}${fromRel}`;
+  const toAbs = `${LOCAL_FILE_BASE}${toRel}`;
+  const fromRelUrl = `/files/${fromRel}`;
+  const toRelUrl = `/files/${toRel}`;
+  // 同一相对路径可能以「原样」或「URL 编码」两种形式存进引用（中文文件名尤其如此），都要改写。
+  // encodeURI 保留 '/'，恰好对应 /files/… 形式；编码形态即报错里那种 %E5%A6… 的写法。
+  const enc = (s: string) => encodeURI(s);
+  const pairs: Array<[string, string]> = [
+    [fromAbs, toAbs],
+    [fromRelUrl, toRelUrl],
+    [`${LOCAL_FILE_BASE}${enc(fromRel)}`, `${LOCAL_FILE_BASE}${enc(toRel)}`],
+    [`/files/${enc(fromRel)}`, `/files/${enc(toRel)}`],
+  ];
+  let changed = 0;
+
+  // ── kv（画布快照 / 脚本箱 / d3d 等 JSON blob）──
+  const kvs = queryAll(db, 'SELECT key, value FROM kv');
+  for (const k of kvs) {
+    let v: string | null = k.value;
+    let dirty = false;
+    for (const [from, to] of pairs) {
+      if (v && v.includes(from)) { v = v.split(from).join(to); dirty = true; }
+    }
+    if (dirty && v != null) {
+      run(db, 'UPDATE kv SET value = ? WHERE key = ?', [v, k.key]);
+      changed++;
+    }
+  }
+
+  // ── tasks 的 url 承载列（结果/缩略图/请求响应等可能嵌入引用了素材的 url）──
+  const taskCols = ['result_url', 'thumbnail_url', 'request_data', 'response_data',
+    'custom_result_data', 'custom_raw_response', 'error_msg', 'extra_fields', 'media_meta', 'prompt'];
+  for (const col of taskCols) {
+    const rows = queryAll(db, `SELECT task_id, ${col} AS v FROM tasks`);
+    for (const r of rows) {
+      if (r.v == null) continue;
+      let v: string = r.v;
+      let dirty = false;
+      for (const [from, to] of pairs) {
+        if (v.includes(from)) { v = v.split(from).join(to); dirty = true; }
+      }
+      if (dirty) {
+        run(db, `UPDATE tasks SET ${col} = ? WHERE task_id = ?`, [v, r.task_id]);
+        changed++;
+      }
+    }
+  }
+
+  return changed;
+}
+
 export function debouncedSaveDb(): void {
   if (_saveTimer) clearTimeout(_saveTimer);
   _saveTimer = setTimeout(() => {

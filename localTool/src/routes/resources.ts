@@ -5,7 +5,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
-import { getDb, getUploadDir, queryAll, queryOne, run, debouncedSaveDb } from '../db/database.js';
+import { getDb, getUploadDir, queryAll, queryOne, run, debouncedSaveDb, rewriteUrlReferences } from '../db/database.js';
 import { json, parseJsonBody, sendError, parsePagination, buildPaginatedQuery, paginatedResult } from '../utils/helpers.js';
 import { writeUploadBuffer } from '../utils/fileStore.js';
 import { runReferenceGc } from '../utils/orphanGc.js';
@@ -352,6 +352,17 @@ export async function handleResourcesRename(req: IncomingMessage, res: ServerRes
   const newUrl = toAbsoluteFileUrl(`/files/${folder}/${newFileName}`);
   run(db, 'DELETE FROM resources WHERE id = ?', [id]);
   upsertResource(db, { ...resourceToRow(row), id: newId, url: newUrl, name: newFileName });
+
+  // 改名改资源 url/id：把画布快照/脚本箱参考图/任务里存着的旧 url 引用改写为新 url，防下游 404。
+  const oldRel = folder ? `${folder}/${oldName}` : oldName;
+  const newRel = folder ? `${folder}/${newFileName}` : newFileName;
+  try {
+    rewriteUrlReferences(db, oldRel, newRel);
+  } catch (e) {
+    // 改写失败不阻断改名（改名已成功），但要留日志供排查。
+    console.error(`[resources] rename url 引用改写失败（不影响改名）：${(e as Error).message}`);
+  }
+
   debouncedSaveDb();
   return json(res, { code: 0, data: { ok: true, id: newId, url: newUrl, name: newFileName } });
 }

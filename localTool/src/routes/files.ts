@@ -8,7 +8,7 @@ import { execSync } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { getUploadDir } from '../db/database.js';
+import { getUploadDir, getDb, rewriteUrlReferences } from '../db/database.js';
 import { ensureDir, sanitizeFilename, resolveUploadTarget, writeUploadBuffer, writeUploadBufferAt, ensureThumbnailTarget, resizeImage, normalizeSubfolder } from '../utils/fileStore.js';
 import { json, parseMultipart, parseJsonBody, readRawBody, sendError } from '../utils/helpers.js';
 import { fetchWithProxy } from '../utils/netProxy.js';
@@ -306,7 +306,14 @@ export async function handleThumbnail(req: IncomingMessage, res: ServerResponse,
 
   // url 是 /files/subfolder/filename 格式，映射到磁盘路径
   const uploadDir = getUploadDir();
-  const relativePath = sourceUrl.replace(/^\/files\//, '');
+  // 对齐静态 /files/ 服务：query 参数经 searchParams.get 只解一层，中文/空格会被前端再编码成
+  // %E4%BA…（最终 url=%25E4%25BA… 双态），此处必须再 decodeURIComponent 才能真正命中磁盘中文/空格目录。
+  let relativePath = sourceUrl.replace(/^\/files\//, '');
+  try {
+    relativePath = decodeURIComponent(relativePath);
+  } catch {
+    // 非法编码保留原样，交给下方 existsSync 判 404（与 handleStaticFile 一致）
+  }
   const filePath = path.join(uploadDir, relativePath);
 
   if (!fs.existsSync(filePath)) {
@@ -390,6 +397,15 @@ export async function handleMove(req: IncomingMessage, res: ServerResponse): Pro
   ensureDir(dstDir);
 
   fs.renameSync(srcAbs, dstAbs);
+
+  // 移动同样会改资源 url/id：把画布快照/任务里存着的旧 url 引用改写为新 url，防下游 404。
+  // 改写失败不阻断移动本身（移动已成功），但要留日志供排查。
+  try {
+    rewriteUrlReferences(await getDb(), body.src, body.dst);
+  } catch (e) {
+    console.error(`[move] url 引用改写失败（不影响移动）：${(e as Error).message}`);
+  }
+
   return json(res, { code: 0, data: { ok: true } });
 }
 

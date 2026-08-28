@@ -69,6 +69,45 @@ import { parseShotHandle } from './components/base/contracts.js'
  * nodeTypes / edgeTypes / 初始画布内容 / 画布参数
  * ====================================================================== */
 
+// 素材改名后：深拷贝替换数据结构里所有等于旧 url 的字符串字段（覆盖画布节点 data.url/imageUrl、
+// 图片数组 images[].url、脚本箱参考图 asset.imageUrl 等嵌套位置）。返回新对象；无变化返回原引用。
+function replaceUrlDeep(value, from, to) {
+  if (typeof value === 'string') return value.includes(from) ? value.split(from).join(to) : value
+  if (Array.isArray(value)) {
+    const next = value.map((v) => replaceUrlDeep(v, from, to))
+    return next.every((n, i) => n === value[i]) ? value : next
+  }
+  if (value && typeof value === 'object') {
+    let changed = false
+    const out = {}
+    for (const k of Object.keys(value)) {
+      const nv = replaceUrlDeep(value[k], from, to)
+      if (nv !== value[k]) changed = true
+      out[k] = nv
+    }
+    return changed ? out : value
+  }
+  return value
+}
+
+// 素材 url 变更（改名/移动）前后 → 需改写的 (from,to) 对集合。
+// 引用可能以「原样 / URL 编码」×「绝对 http…/files/… / 相对 /files/…」四种形态存进节点（脚本箱参考图尤甚），
+// 这里生成镜像后端 rewriteUrlReferences 的全部形态，避免只改一种、漏掉编码态导致 404。
+function buildUrlRewritePairs(oldAbs, newAbs) {
+  const toRel = (abs = '') => (/^https?:\/\/[^/]+(\/files\/.*)$/.exec(abs) || [])[1]
+  const oldRel = toRel(oldAbs)
+  const newRel = toRel(newAbs)
+  const pairs = [[oldAbs, newAbs]] // 原样绝对
+  if (oldRel && newRel) {
+    const hostOld = oldAbs.slice(0, oldAbs.indexOf('/files/'))
+    const hostNew = newAbs.slice(0, newAbs.indexOf('/files/'))
+    pairs.push([oldRel, newRel]) // 原样相对
+    pairs.push([`${hostOld}${encodeURI(oldRel)}`, `${hostNew}${encodeURI(newRel)}`]) // 编码绝对
+    pairs.push([encodeURI(oldRel), encodeURI(newRel)]) // 编码相对
+  }
+  return pairs
+}
+
 // 节点类型注册表：由 NodePalette 单源派生（type→组件），不再手写平行表。
 // director3dNode（WebGL 重依赖，palette 不持 component）与 ghostTarget（连线占位）单独补充。
 // 新增常规节点只需改 palette 一处；仅新增「不可 SSR / 占位」节点才在此补例外。
@@ -189,7 +228,7 @@ function Canvas() {
 
   // 视窗中心 → flow 坐标（Q/W/E 快速添加节点用）；适配用 fitView
   // P20 视窗状态持久化：getViewport 读取当前视窗、setViewport 恢复（刷新/切项目回到上次视角）。
-  const { screenToFlowPosition, fitView, getViewport, setViewport } = useReactFlow()
+  const { screenToFlowPosition, fitView, getViewport, setViewport, getNodes, getEdges } = useReactFlow()
   // 始终指向最新 viewport（onViewportChange 更新），persistCanvas 保存时无需实时 useReactFlow 查询
   const viewportRef = React.useRef(null)
   // 视窗拖拽/缩放结束后 600ms 防抖保存（P20），与 autoSave 节奏一致，避免高频移动反复写 KV
@@ -420,6 +459,28 @@ function Canvas() {
     const offExport = subscribe('project:export', handleExport)
     return () => { offImport(); offExport() }
   }, [])
+
+  // 素材 url 变更（改名/移动）后同步画布/脚本箱节点引用（resource:renamed 由素材面板/移动 hook 广播）：
+  // 把当前节点 data 里引用旧 url 的字段改写为新 url，setNodes 触发自动持久化（防下游图生图 404）。
+  // 与后端 rewriteUrlReferences 配套：后端改库，这里改「当前打开页面内存里的节点」。
+  React.useEffect(() => {
+    const off = subscribe('resource:renamed', ({ oldUrl, newUrl }) => {
+      if (!oldUrl || !newUrl || oldUrl === newUrl) return
+      const pairs = buildUrlRewritePairs(oldUrl, newUrl) // 原样/编码 × 绝对/相对，与后端一致
+      const nodes = getNodes()
+      let changed = false
+      const next = nodes.map((n) => {
+        let data = n.data
+        for (const [from, to] of pairs) {
+          const d = replaceUrlDeep(data, from, to)
+          if (d !== data) { data = d; changed = true }
+        }
+        return data === n.data ? n : { ...n, data }
+      })
+      if (changed) setNodes(next) // setNodes → [nodes] 自动保存 effect 落盘
+    })
+    return off
+  }, [getNodes, setNodes])
 
   // 右键菜单状态（基座 useContextMenu）
   const menu = useContextMenu()

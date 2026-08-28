@@ -916,6 +916,19 @@ test('Files·thumbnail format 校验：webp 被拒回落源扩展名，白名单
   assert.match(j.headers['Content-Type'] || '', /image\/jpeg/, 'jpeg 白名单应产出 image/jpeg');
 });
 
+test('Files·thumbnail 中文/空格文件名（含双重编码）能命中磁盘（对齐静态服务 decode）', async () => {
+  const dir = path.join(TEST_DIR, 'uploads', 'migrated', '人物');
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, '妹妹骷髅 .png'), RED_PNG_BUFFER);
+  // 前端对「已编码相对路径」再交给 query → url=%2F…%25E4…（双态）；searchParams.get 解一层后仍是编码态，
+  // handleThumbnail 需再 decodeURIComponent 才能真正命中中文目录 + 空格文件名。
+  const rel = encodeURI('/files/migrated/人物/妹妹骷髅 .png');   // 一层编码：%E4%BA…%20
+  const queryUrl = encodeURIComponent(rel);                      // 再编码：%25E4%BA…
+  const r = await streamThumb(`http://x/api/files/thumbnail?maxDim=64&url=${queryUrl}`);
+  assert.equal(r.status, 200, '双重编码路径应命中并出图');
+  assert.match(r.headers['Content-Type'] || '', /image\/png/, '应返回 PNG');
+});
+
 test('Files·move 移动文件（相对路径，后端拼 uploadDir）', async () => {
   const canvasDir = path.join(TEST_DIR, 'uploads', 'canvas');
   const destDir = path.join(TEST_DIR, 'uploads', 'migrated');
@@ -929,6 +942,35 @@ test('Files·move 移动文件（相对路径，后端拼 uploadDir）', async (
   assert.deepEqual(parseResBody(res), { code: 0, data: { ok: true } });
   assert.ok(!fs.existsSync(srcFile));
   assert.ok(fs.existsSync(path.join(destDir, 'mv.png')));
+});
+
+test('docs62·rename 会改写画布 KV / 任务里对旧 url 的引用（原样 + URL 编码两态）', async () => {
+  fs.mkdirSync(path.join(TEST_DIR, 'uploads', 'web'), { recursive: true });
+  fs.writeFileSync(path.join(TEST_DIR, 'uploads', 'web', '角色.png'), RED_PNG_BUFFER);
+  const db = await dbMod.getDb();
+  const oldRelRaw = 'web/角色.png';
+  const oldAbsRaw = `http://127.0.0.1:18080/files/${oldRelRaw}`;                 // 原样绝对
+  const oldAbsEnc = `http://127.0.0.1:18080/files/${encodeURI(oldRelRaw)}`;     // 编码绝对（中文必变 %E8…）
+  const newAbsRaw = `http://127.0.0.1:18080/files/web/新名.png`;                // 新：原样
+  const newAbsEnc = `http://127.0.0.1:18080/files/${encodeURI('web/新名.png')}`; // 新：编码
+  // 建一个本地文件资源
+  await resourcesMod.handleResourcesSave(makeJsonReq({ id: 'local-web-角色.png', url: oldAbsRaw, type: 'image', source: 'local-tool', folder: 'web', name: '角色.png' }), makeRes());
+  // 画布 KV：节点A 存原样绝对、节点B 存编码绝对（模拟脚本箱参考图存编码形态）
+  dbMod.run(db, `INSERT INTO kv (key, value) VALUES (?, ?)`, ['canvas-state-v1-p1', JSON.stringify({ nodes: [{ data: { url: oldAbsRaw } }, { data: { imageUrl: oldAbsEnc } }] })]);
+  // 任务：存编码相对
+  dbMod.run(db, `INSERT INTO tasks (task_id, prompt) VALUES (?, ?)`, ['t1', `ref /files/${encodeURI(oldRelRaw)}`]);
+  // 改名 角色.png → 新名.png
+  const res = makeRes();
+  await resourcesMod.handleResourcesRename(makeJsonReq(), res, new URL(`http://x/api/resources/rename?id=local-web-角色.png&name=${encodeURIComponent('新名')}`));
+  assert.ok(parseResBody(res).data?.ok, 'rename 成功');
+  const kvt = dbMod.queryOne(db, `SELECT value FROM kv WHERE key='canvas-state-v1-p1'`).value;
+  assert.ok(!kvt.includes(oldAbsRaw) && !kvt.includes(oldAbsEnc), 'KV 旧引用（原样+编码）均已改写');
+  assert.ok(kvt.includes(newAbsRaw), '原样存储的引用改写为原样新 url');
+  assert.ok(kvt.includes(newAbsEnc), '编码存储的引用改写为编码新 url');
+  assert.ok(!kvt.includes('角色.png'), 'KV 中不再残留旧文件名');
+  const t = dbMod.queryOne(db, `SELECT prompt FROM tasks WHERE task_id='t1'`);
+  assert.ok(!t.prompt.includes(encodeURI('角色.png')), '任务旧引用已改写');
+  assert.ok(t.prompt.includes(encodeURI('web/新名.png')), '任务已写入编码新相对 url');
 });
 
 test('Files·mkdir 创建目录', async () => {

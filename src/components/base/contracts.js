@@ -86,6 +86,12 @@ export const EVENTS = {
     payload: '{ folder }',
     note: '素材落盘成功 → 素材库面板刷新（AssetLibrary 经 onAssetSent 订阅）。生产使用',
   },
+  'resource:renamed': {
+    from: ['AssetLibrary.jsx:263', 'GeneratedView.jsx:215', 'useAssetMoveToFolder.js:60'],
+    to: ['App.jsx:467'],
+    payload: '{ oldUrl, newUrl }',
+    note: '素材 url 变更（改名/移动归类，前端入口）广播旧→新 url；App 订阅后把画布/脚本箱节点里引用旧 url 的字段改写为新 url 并持久化，防下游图生图 404（与后端 rewriteUrlReferences 配套）',
+  },
   'yimao:remove-edge': {
     from: [],
     to: [],
@@ -106,7 +112,7 @@ export const EVENTS = {
   },
   'persist:failed': {
     from: ['storageAdapter.js:31'],
-    to: ['App.jsx:460'], // 全局监听器，节流 toast；分发逻辑收敛到 persistFailureBus（见 App.jsx:457-465）
+    to: ['App.jsx:521'], // 全局监听器，节流 toast；分发逻辑收敛到 persistFailureBus（见 App.jsx:518-526）
     payload: '{ key, error }',
     note: '持久化失败广播（sSet/sRemove 失败）。已由 App.jsx 全局订阅',
   },

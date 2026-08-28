@@ -1,15 +1,16 @@
 import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react'
-import { FolderOpen, Image as ImageIcon, Play, FileText, Music, FolderPlus, ChevronLeft, MoreVertical } from 'lucide-react'
+import { FolderOpen, Image as ImageIcon, Play, FileText, Music, FolderPlus, ChevronLeft, MoreVertical, Pencil, Trash2 } from 'lucide-react'
 import { useLocalToolStatus } from './useLocalToolStatus.js'
 import { fetchResources, rescanResources, deleteResource, renameResource, openLocalFolder, openFileDir, relativePathFromUrl, createFolder as createFolderApi } from './localToolApi.js'
 import { showToast } from './toastStore.js'
-import { useAssetDragToCanvas, fetchText } from './useAssetDragToCanvas.js'
+import { publish } from './eventBus.js'
+import { useAssetDragToCanvas, fetchText, textCache } from './useAssetDragToCanvas.js'
+import { useAssetMoveToFolder } from './useAssetMoveToFolder.js'
 import { toAbsoluteFileUrl } from './filesApi.js'
 import { logger } from './logger.js'
 import { isAudio } from './mediaType.js'
 import VideoThumbnail from './VideoThumbnail.jsx'
 import LazyImage from './LazyImage.jsx'
-import AssetCardMenu from './AssetCardMenu.jsx'
 
 // 类型过滤 pill（沿用素材库 AssetLibrary 的小圆按钮形式）
 const TYPE_FILTERS = [
@@ -199,15 +200,6 @@ function GeneratedView() {
     openFileDir(rel).catch(() => showToast('打开所在目录失败', { type: 'error' }))
   }
 
-  const handleCopy = async (item) => {
-    try {
-      await navigator.clipboard.writeText(item.url || '')
-      showToast('已复制链接', { type: 'success' })
-    } catch {
-      showToast('复制失败', { type: 'error' })
-    }
-  }
-
   // 重命名资源
   const handleRename = async () => {
     if (!renameTarget) return
@@ -219,6 +211,8 @@ function GeneratedView() {
       const d = res?.data || {}
       setItems((list) => list.map((x) => (x.id === renameTarget.id ? { ...x, id: d.id, url: d.url, name: d.name } : x)))
       textCache.delete(renameTarget.url)
+      // 广播改名：画布/脚本箱节点里引用旧 url 的字段改写为新 url（App 订阅），防下游图生图 404
+      if (d.url && d.url !== renameTarget.url) publish('resource:renamed', { oldUrl: renameTarget.url, newUrl: d.url })
       showToast('重命名成功', { type: 'success' })
     } catch (e) {
       showToast(e?.message || '重命名失败', { type: 'error' })
@@ -245,8 +239,10 @@ function GeneratedView() {
     setFolder(parent)
   }, [folder])
 
-  // 拖到画布建节点：统一走 useAssetDragToCanvas（图片/视频/音频 → imageNode，文字 → textNode）
+  // 拖到画布建节点：统一走 useAssetDragToCanvas（图片/视频/音频 → imageNode，文字 → textNode），经「点开大图预览」拖
   const { assetDragProps } = useAssetDragToCanvas()
+  // 拖到文件夹归类：源（文件卡片）可拖，目标（文件夹卡片）承接 drop；卡片拖拽只做移动归类
+  const { sourceDragProps, folderDropProps } = useAssetMoveToFolder({ connected, onRefreshed: () => reset(true) })
 
   return (
     <div className="h-full flex flex-col overflow-hidden relative">
@@ -392,8 +388,8 @@ function GeneratedView() {
                 return (
                   <div
                     key={a.id}
-                    {...assetDragProps(a, { disable: isFolder })}
-                    className={`group relative aspect-square bg-surface-deep rounded-xl overflow-hidden transition-colors ${isFolder ? 'border border-edge cursor-pointer hover:border-edge-raised' : 'border border-edge hover:border-edge-raised cursor-grab active:cursor-grabbing'}`}
+                    {...(isFolder ? folderDropProps(a) : sourceDragProps(a))}
+                    className={`group relative aspect-square bg-surface-deep rounded-xl overflow-hidden transition-colors ${isFolder ? 'border border-edge cursor-pointer hover:border-edge-raised' : 'border border-edge cursor-grab active:cursor-grabbing hover:border-edge-raised'}`}
                     style={{ contentVisibility: 'auto', containIntrinsicSize: '200px 200px' }}
                     onClick={() => {
                       if (isFolder) setFolder(folder === 'tasks' ? `tasks/${a.name}` : `${folder}/${a.name}`)
@@ -431,18 +427,18 @@ function GeneratedView() {
                       </span>
                     )}
 
-                    {/* 卡片操作：⋯ 下拉（打开目录 / 复制 / 重命名 / 移动到文件夹 / 删除），共用 AssetCardMenu */}
+                    {/* 卡片操作：打开目录 / 重命名 / 删除；移动到文件夹改为「拖文件到文件夹卡片」 */}
                     {!isFolder && (
-                      <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <AssetCardMenu
-                          item={a}
-                          connected={connected}
-                          onOpenDir={handleOpenFileDir}
-                          onCopy={handleCopy}
-                          onRename={(it) => { setRenameTarget(it); setRenameName(it.name) }}
-                          onDelete={handleDelete}
-                          onRefreshed={() => reset(true)}
-                        />
+                      <div className="absolute top-1 right-1 flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button className="w-5 h-5 rounded bg-black/60 flex items-center justify-center text-white hover:bg-black/80 cursor-pointer border-none" title="打开所在目录" onClick={(e) => { e.stopPropagation(); handleOpenFileDir(a) }}>
+                          <FolderOpen size={10} />
+                        </button>
+                        <button className="w-5 h-5 rounded bg-black/60 flex items-center justify-center text-white hover:bg-black/80 cursor-pointer border-none" title="重命名" onClick={(e) => { e.stopPropagation(); setRenameTarget(a); setRenameName(a.name) }}>
+                          <Pencil size={10} />
+                        </button>
+                        <button className="w-5 h-5 rounded bg-black/60 flex items-center justify-center text-red-300 hover:bg-black/80 cursor-pointer border-none" title="删除" onClick={(e) => { e.stopPropagation(); handleDelete(a) }}>
+                          <Trash2 size={10} />
+                        </button>
                       </div>
                     )}
 
