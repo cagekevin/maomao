@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react'
-import { FolderOpen, Image as ImageIcon, Play, FileText, Music, Copy, Trash2, FolderPlus, ChevronLeft, MoreVertical, Pencil } from 'lucide-react'
+import { FolderOpen, Image as ImageIcon, Play, FileText, Music, FolderPlus, ChevronLeft, MoreVertical } from 'lucide-react'
 import { useLocalToolStatus } from './useLocalToolStatus.js'
 import { fetchResources, rescanResources, deleteResource, renameResource, openLocalFolder, openFileDir, relativePathFromUrl, createFolder as createFolderApi } from './localToolApi.js'
 import { showToast } from './toastStore.js'
@@ -9,6 +9,7 @@ import { logger } from './logger.js'
 import { isAudio } from './mediaType.js'
 import VideoThumbnail from './VideoThumbnail.jsx'
 import LazyImage from './LazyImage.jsx'
+import AssetCardMenu from './AssetCardMenu.jsx'
 
 // 类型过滤 pill（沿用素材库 AssetLibrary 的小圆按钮形式）
 const TYPE_FILTERS = [
@@ -423,21 +424,18 @@ function GeneratedView() {
                       </span>
                     )}
 
-                    {/* 卡片操作：打开目录 / 复制 / 重命名 / 删除 */}
+                    {/* 卡片操作：⋯ 下拉（打开目录 / 复制 / 重命名 / 移动到文件夹 / 删除），共用 AssetCardMenu */}
                     {!isFolder && (
-                      <div className="absolute top-1 right-1 flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button className="w-5 h-5 rounded bg-black/60 flex items-center justify-center text-white hover:bg-black/80 cursor-pointer border-none" title="打开所在目录" onClick={(e) => { e.stopPropagation(); handleOpenFileDir(a) }}>
-                          <FolderOpen size={10} />
-                        </button>
-                        <button className="w-5 h-5 rounded bg-black/60 flex items-center justify-center text-white hover:bg-black/80 cursor-pointer border-none" title="复制链接" onClick={(e) => { e.stopPropagation(); handleCopy(a) }}>
-                          <Copy size={10} />
-                        </button>
-                        <button className="w-5 h-5 rounded bg-black/60 flex items-center justify-center text-white hover:bg-black/80 cursor-pointer border-none" title="重命名" onClick={(e) => { e.stopPropagation(); setRenameTarget(a); setRenameName(a.name) }}>
-                          <Pencil size={10} />
-                        </button>
-                        <button className="w-5 h-5 rounded bg-black/60 flex items-center justify-center text-red-300 hover:bg-black/80 cursor-pointer border-none" title="删除" onClick={(e) => { e.stopPropagation(); handleDelete(a) }}>
-                          <Trash2 size={10} />
-                        </button>
+                      <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <AssetCardMenu
+                          item={a}
+                          connected={connected}
+                          onOpenDir={handleOpenFileDir}
+                          onCopy={handleCopy}
+                          onRename={(it) => { setRenameTarget(it); setRenameName(it.name) }}
+                          onDelete={handleDelete}
+                          onRefreshed={() => reset(true)}
+                        />
                       </div>
                     )}
 

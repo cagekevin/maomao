@@ -916,18 +916,19 @@ test('Files·thumbnail format 校验：webp 被拒回落源扩展名，白名单
   assert.match(j.headers['Content-Type'] || '', /image\/jpeg/, 'jpeg 白名单应产出 image/jpeg');
 });
 
-test('Files·move 移动文件', async () => {
+test('Files·move 移动文件（相对路径，后端拼 uploadDir）', async () => {
   const canvasDir = path.join(TEST_DIR, 'uploads', 'canvas');
   const destDir = path.join(TEST_DIR, 'uploads', 'migrated');
   fs.mkdirSync(canvasDir, { recursive: true });
-  const src = path.join(canvasDir, 'mv.png');
-  const dst = path.join(destDir, 'mv.png');
-  fs.writeFileSync(src, RED_PNG_BUFFER);
+  fs.mkdirSync(destDir, { recursive: true });
+  const srcFile = path.join(canvasDir, 'mv.png');
+  fs.writeFileSync(srcFile, RED_PNG_BUFFER);
+  // handleMove 现按 `path.join(uploadDir, 相对路径)` 解析，与 mkdir/open-dir 口径一致
   const res = makeRes();
-  await filesMod.handleMove(makeJsonReq({ src, dst }), res);
+  await filesMod.handleMove(makeJsonReq({ src: 'canvas/mv.png', dst: 'migrated/mv.png' }), res);
   assert.deepEqual(parseResBody(res), { code: 0, data: { ok: true } });
-  assert.ok(!fs.existsSync(src));
-  assert.ok(fs.existsSync(dst));
+  assert.ok(!fs.existsSync(srcFile));
+  assert.ok(fs.existsSync(path.join(destDir, 'mv.png')));
 });
 
 test('Files·mkdir 创建目录', async () => {

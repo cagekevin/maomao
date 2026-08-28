@@ -364,20 +364,32 @@ export async function handleMkdir(req: IncomingMessage, res: ServerResponse): Pr
 }
 
 // ── move ──
+// 收相对 uploadDir 的 src/dst 路径（与 mkdir 收相对 folder、open-dir 收相对 filepath 口径一致）。
+// 前端从资源 url 拿不到磁盘绝对路径，统一由后端拼 getUploadDir()，避免把绝对路径透传到前端。
+// 参考官方 shared.js moveFile（传 tasks/、migrated/ 相对前缀）。
 export async function handleMove(req: IncomingMessage, res: ServerResponse): Promise<void> {
   const body = (await parseJsonBody(req)) as { src?: string; dst?: string } | null;
   if (!body || !body.src || !body.dst) {
     return sendError(res, 'Missing src or dst field', 400);
   }
 
-  if (!fs.existsSync(body.src)) {
+  const uploadDir = getUploadDir();
+  const srcAbs = path.join(uploadDir, body.src);
+  const dstAbs = path.join(uploadDir, body.dst);
+
+  // 同目录/同路径 → 无操作，幂等返回（前端已拦截，双保险）
+  if (srcAbs === dstAbs) {
+    return json(res, { code: 0, data: { ok: true } });
+  }
+
+  if (!fs.existsSync(srcAbs)) {
     return sendError(res, 'Source file not found', 404);
   }
 
-  const dstDir = path.dirname(body.dst);
+  const dstDir = path.dirname(dstAbs);
   ensureDir(dstDir);
 
-  fs.renameSync(body.src, body.dst);
+  fs.renameSync(srcAbs, dstAbs);
   return json(res, { code: 0, data: { ok: true } });
 }
 

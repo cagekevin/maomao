@@ -594,7 +594,7 @@ export const apiRegistry = {
   createFolder:          { fn: 'localToolApi.createFolder',          method: 'POST',   path: '/api/files/mkdir',            envelope: 'code-data', status: 'ACTIVE' },
   fileRead:              { fn: 'filesApi.read (二进制流)',           method: 'GET',    path: '/api/files/read',             envelope: 'stream',   status: 'ACTIVE' },
   fileThumbnail:         { fn: 'API_ENDPOINTS.fileThumbnail',        method: 'GET',    path: '/api/files/thumbnail',        envelope: 'stream',   status: 'ACTIVE' },
-  filesMove:             { fn: 'filesApi.move',                      method: 'POST',   path: '/api/files/move',             envelope: 'code-data', status: 'RESERVED' },
+  filesMove:             { fn: 'localToolApi.moveFile',              method: 'POST',   path: '/api/files/move',             envelope: 'code-data', status: 'ACTIVE' },
   filesList:             { fn: 'filesApi.list',                      method: 'GET',    path: '/api/files/list',             envelope: 'code-data', status: 'RESERVED' },
   /** kv 域（raw 豁免：裸 null/裸值） */
   kvGet:                 { fn: 'localToolApi.kvGet',                 method: 'GET',    path: '/api/kv/get',                 envelope: 'raw',      status: 'ACTIVE' },

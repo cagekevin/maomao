@@ -183,6 +183,38 @@ export async function kvDelete(key) {
 }
 
 // ─────────────────────────── files（散落点收口）───────────────────────────
+// ── 资源移动（移动到文件夹归类）───────────────────────────
+// POST /api/files/move { src, dst } → { code:0, data:{ ok:true } }
+// src/dst 均为「相对 uploadDir」路径（后端拼 getUploadDir，口径同 createFolder/mkdir）。
+// 移动是即时操作，不重试（成功但响应超时的重试会撞「src 已不存在」404）。
+export async function moveFile(src, dst) {
+  return httpRequest(`${API_BASE}/api/files/move`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ src, dst }),
+    retries: 0,
+    label: 'moveFile',
+  })
+}
+
+// 是否可移动到文件夹：仅本地文件型资源（local-tool）可移动；文件夹 / 远程 / 收藏类不提供移动入口。
+// 纯函数，供 AssetCardMenu + 单测。禁止在组件里手写 source/type 判断。
+export function canMoveAsset(item = {}) {
+  return item.source === 'local-tool' && item.type !== 'folder'
+}
+
+// 由资源项 + 目标目录（相对 uploadDir）推导移动的 src/dst，并判断是否同目录。
+// - src  = folder ? folder/name : name（folder 为 rescan 记录的相对路径，可为空/undefined 顶层）
+// - dst  = targetFolderRel/name
+// - sameDir = (folder||'') === targetFolderRel（落点与源同目录 → 调用方忽略/提示）
+// 纯函数，供 AssetCardMenu + 单测；禁止各 tab 各自拼路径。
+export function resolveMovePaths(item = {}, targetFolderRel = '') {
+  const srcFolder = item.folder ? String(item.folder) : ''
+  const src = srcFolder ? `${srcFolder}/${item.name}` : String(item.name || '')
+  const dst = targetFolderRel ? `${targetFolderRel}/${item.name}` : String(item.name || '')
+  return { src, dst, sameDir: srcFolder === (targetFolderRel || '') }
+}
+
 // POST /api/files/mkdir { folder } → { code:0, data:{ ok:true } }
 // 收口 GeneratedView/AssetLibrary 此前裸拼 `/api/files/mkdir` 的 createFolder 散落点。
 export async function createFolder(folder) {
