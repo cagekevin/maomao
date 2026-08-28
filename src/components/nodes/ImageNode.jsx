@@ -101,6 +101,14 @@ function ImageNode({ id, data, selected }) {
   // 「上传/替换」真正读取所选文件（修复：此前 fileRef input 无 onChange，选完不读 → 上传按钮失效）。
   // 图片/视频/音频：优先上传 localTool 成 /files/ 持久 URL（刷新不丢），失败回退 dataURL 内联（仍可显示，靠 base64 外置兜底）。
   // 文本文件：读文本写回 data.text，节点切到文本态。
+  const rename = useCallback(
+    (name) => {
+      setNodes((ns) =>
+        ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, label: name } } : n))
+      )
+    },
+    [id, setNodes]
+  )
   const handleFileSelect = useCallback(async (e) => {
     const f = e.target.files?.[0]
     e.target.value = ''
@@ -172,6 +180,7 @@ function ImageNode({ id, data, selected }) {
       selected={selected}
       handleVariant="small"
       aspectRatio={null}
+      onRename={rename}
       className="min-w-[120px] min-h-[80px]"
     >
       <HoverToolbar buttons={toolbarButtons} />

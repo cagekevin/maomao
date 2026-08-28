@@ -344,7 +344,7 @@ export function renameAssetRefs(shots, oldName, newName) {
 /** 收集某个分镜引用的「有图资产」作为参考图（复刻官方 shared.js Ra 的 scriptBoxNode 分支）。
  *  @param shot   分镜对象（读 description/prompt/videoPrompt/dialogue）
  *  @param assets 资产数组（读 name/imageUrl）
- *  @returns { id, url }[]  该镜头 @名 匹配到且有图（imageUrl）的资产，供下游生图/生视频作参考图
+ *  @returns { id, url, label }[]  该镜头 @名 匹配到且有图（imageUrl）的资产，供下游生图/生视频作参考图；label=资产名
  *
  * 匹配口径（2026-08-28 修复缺陷②）：用「注册资产名词典 + 最长匹配」`matchAssetNames` 替代原
  * `matchAsset` 的「单名 + 后一位非中英数」边界。原因见 matchAssetNames 注释——场景 `@卧室内`
@@ -357,7 +357,8 @@ export function collectAssets(shot, assets) {
   const out = []
   list.forEach((a) => {
     if (a?.name && a.imageUrl && refNames.has(a.name)) {
-      out.push({ id: `script-asset-${a.id}`, url: a.imageUrl })
+      // label = 资产名，让下游候选列表显示真实名（配合 PromptInput @名 自动匹配）
+      out.push({ id: `script-asset-${a.id}`, url: a.imageUrl, label: a.name })
     }
   })
   return out

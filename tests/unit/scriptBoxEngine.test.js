@@ -338,14 +338,15 @@ describe('scriptBoxEngine · 引擎编排', () => {
     engine.onConnectShot('s1', 'image')
     const imgNode = addNodes.mock.calls[0][0][0]
     expect(imgNode.type).toBe('promptNode')
-    expect(imgNode.data.images).toEqual([{ id: 'script-asset-asset-城堡', url: 'http://127.0.0.1:18080/files/城堡.png' }])
+    // 资产名带出为 label，供下游 PromptInput @名 匹配（docs/70）
+    expect(imgNode.data.images).toMatchObject([{ id: 'script-asset-asset-城堡', url: 'http://127.0.0.1:18080/files/城堡.png', label: '城堡' }])
     expect(imgNode.data.refImages).toBeUndefined() // 不再使用 refImages 命名
     // 生视频下游
     addNodes.mockClear()
     engine.onConnectShot('s1', 'video')
     const vidNode = addNodes.mock.calls[0][0][0]
     expect(vidNode.type).toBe('discountVideoNode')
-    expect(vidNode.data.images).toEqual([{ id: 'script-asset-asset-城堡', url: 'http://127.0.0.1:18080/files/城堡.png' }])
+    expect(vidNode.data.images).toMatchObject([{ id: 'script-asset-asset-城堡', url: 'http://127.0.0.1:18080/files/城堡.png', label: '城堡' }])
     expect(vidNode.data.refImages).toBeUndefined()
   })
 

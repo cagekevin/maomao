@@ -62,6 +62,7 @@ function useNodeSize(id) {
  *  - showHandles                      是否渲染默认左右端口（默认 true；自定义端口节点设 false）
  *  - showTitle                        是否渲染标题栏（默认 true）
  *  - titleRight                       标题右侧操作组（absolute 浮在标题右，不占布局）
+ *  - onRename                         (可选) 标题改名 commit 回调，写回节点数据（如 data.label）
  *  - className                        追加到根 div 的 class
  *  - style                            追加到根 div 的 inline style（如 { minHeight: 640 }
  *                                      可让宽节点即使 store n.height 没生效也撑出最小高度）
@@ -172,6 +173,7 @@ function NodeShell({
   showHandles = true,
   showTitle = true,
   titleRight,
+  onRename,
   className = '',
   style: extraStyle = {},
   wrapperRef,
@@ -217,7 +219,7 @@ function NodeShell({
     >
       {/* 标题：与所有节点完全一致（NodeTitle mb-1 self-start，宽度只包内容）。
           titleRight 操作组用绝对定位浮在标题右侧，不改变 NodeTitle 的位置/间距 */}
-      {showTitle && <NodeTitle label={label} defaultTitle={defaultTitle} icon={icon} />}
+      {showTitle && <NodeTitle label={label} defaultTitle={defaultTitle} icon={icon} onRename={onRename} />}
       {titleRight && (
         <div className="absolute right-0 -top-0.5 flex items-center gap-1 nodrag">{titleRight}</div>
       )}

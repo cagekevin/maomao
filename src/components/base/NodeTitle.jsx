@@ -2,9 +2,14 @@ import React, { useState, useEffect } from 'react'
 
 /**
  * 节点标题栏（复刻原 _Component8.jsx）
- * 显示小图标 + 名称，双击可改名，支持拖拽（drag-handle）
+ * 显示小图标 + 名称，双击可改名，支持拖拽（drag-handle）。
+ *
+ * onRename 回调（可选）：
+ *  - 传入时，改名 commit 会写回节点数据（如 data.label），让名字流向下游素材匹配；
+ *  - 不传则保持「仅本地显示」的原行为，对其他节点零影响。
+ * @param {function(string):void} [onRename]
  */
-function NodeTitle({ label, defaultTitle, icon, className = '', floating = false }) {
+function NodeTitle({ label, defaultTitle, icon, className = '', floating = false, onRename }) {
   const [val, setVal] = useState(label || defaultTitle)
   const [editing, setEditing] = useState(false)
 
@@ -15,7 +20,7 @@ function NodeTitle({ label, defaultTitle, icon, className = '', floating = false
   const commit = (text) => {
     const next = text.trim() || defaultTitle
     setVal(next)
-    // 原型里不做 store 写入，如需可透传 onRename
+    if (typeof onRename === 'function') onRename(next)
   }
 
   return (

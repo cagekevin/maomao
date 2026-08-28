@@ -101,7 +101,9 @@ function genericOutput(d, id) {
   ].filter((c) => c.url && typeof c.url === 'string')
   for (const { url, mediaType } of candidates) {
     const kind = resolveMediaType(url, mediaType)
-    const item = { id, url }
+    // label 统一带上 d.label（图片/视频/音频都带，供下游候选列表显示 / 未来 @名 匹配视频）。
+    // 单图/单视频节点（imageNode/promptNode/panorama/discountVideo/...）双击标题改的名即 d.label。
+    const item = { id, url, label: d.label }
     if (kind === 'video') return { ...empty, videos: [item] }
     if (kind === 'audio') return { ...empty, audios: [item] }
     return { ...empty, images: [item] }

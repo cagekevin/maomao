@@ -176,9 +176,11 @@ export function sendToAssetLibrary(url, { name, folder = UPLOAD_DIRS.migrated, t
   // 异步后端落盘（不阻塞、失败不抛——前端 store 仍保留，只是面板稍后 rescan 可见）。
   // 修复：blob: 是本地临时对象 URL，此前被直接短路丢弃（「发送到素材库」静默不落盘）。
   // 现改为用 filesApi.uploadFileToLocal 直接把 blob 作为文件上传落盘，与 data:/http 分支一致。
+  // 【名字保留】落盘文件名用用户起的 assetName（安全化），使素材库面板读到的资源名 = 用户起的名，
+  // 从素材库拖回画布时 label 即该名，@名 匹配不再丢名字（见 docs/70 问题2）。
   if (url) {
-    logger.debug('assetStore', '[SEND] 准备落盘', { urlPrefix: String(url).slice(0, 60), folder }, { module: 'asset' })
-    persistUrlToBackend(url, folder)
+    logger.debug('assetStore', '[SEND] 准备落盘', { urlPrefix: String(url).slice(0, 60), folder, name: assetName }, { module: 'asset' })
+    persistUrlToBackend(url, folder, assetName, detectedType)
   }
   // 广播「已发送」事件：素材库面板（assetStore 与 AssetLibrary 互不相通）订阅后
   // 自动切到落盘目录并重新 rescan 拉取，避免「点别处才刷新」的假象。
@@ -186,12 +188,31 @@ export function sendToAssetLibrary(url, { name, folder = UPLOAD_DIRS.migrated, t
   return added
 }
 
-/** 把单个 URL 素材落盘到后端指定 folder 目录，成功后 rescan。 */
-async function persistUrlToBackend(url, folder) {
-  logger.debug('assetStore', '[PERSIST] 开始', { kind: url.startsWith('data:') ? 'data' : url.startsWith('blob:') ? 'blob' : 'http', folder }, { module: 'asset' })
+/** 文件名安全化：去掉非法字符/空白，返回「可作磁盘文件名的 base」，空则回退 'asset'。
+ *  后缀由调用方按类型拼接，避免名字带已有扩展名造成歧义（如「猫.png」存成「猫.png.png」）。
+ *  @param {string} [name] 用户起的名字
+ *  @returns {string} 安全文件名 base */
+export function safeAssetBase(name) {
+  const base = String(name || '')
+    .trim()
+    .replace(/[\\/:*?"<>|]/g, '_')   // 去非法字符
+    .replace(/\.[a-z0-9]{2,5}$/i, '') // 去尾部扩展名（不保留）
+    .replace(/\s+/g, '_')             // 空白 → 下划线
+  return base || 'asset'
+}
+
+/** 把单个 URL 素材落盘到后端指定 folder 目录，成功后 rescan。
+ *  @param {string} url
+ *  @param {string} folder
+ *  @param {string} [name] 用户起的名字（用于落盘文件名，保留给素材库面板/拖回画布）
+ *  @param {string} [type] 素材类型（image/video/audio/text，推扩展名） */
+async function persistUrlToBackend(url, folder, name, type) {
+  logger.debug('assetStore', '[PERSIST] 开始', { kind: url.startsWith('data:') ? 'data' : url.startsWith('blob:') ? 'blob' : 'http', folder, name }, { module: 'asset' })
   try {
     if (url.startsWith('data:')) {
-      // 本地 base64 → multipart 上传（复用 filesApi 的 dataURL 落盘，subfolder 传 folder）
+      // 本地 base64 → multipart 上传（复用 filesApi 的 dataURL 落盘，subfolder 传 folder）。
+      // data 分支用 sha1 hash 作文件名（幂等去重，filesApi 内部行为），不传自定义名；
+      // 素材库面板的名字仍以 store 的 name 为准（前端已有），不依赖此文件名。
       logger.debug('assetStore', '[PERSIST] 走 data 分支 saveInlineToLocal', null, { module: 'asset' })
       await saveInlineToLocal(url, folder)
       logger.debug('assetStore', '[PERSIST] data 分支完成', null, { module: 'asset' })
@@ -205,8 +226,8 @@ async function persistUrlToBackend(url, folder) {
         const blob = await resp.blob()
         const mime = blob.type || 'image/png'
         const ext = EXT_BY_TYPE[detectAssetType({ name: '', type: mime })] || (mime.split('/')[1] || 'png')
-        const file = new File([blob], `asset.${ext}`, { type: mime })
-        await uploadFileToLocal(file, folder)
+        const file = new File([blob], `${safeAssetBase(name)}.${ext}`, { type: mime })
+        await uploadFileToLocal(file, folder, file.name)
         logger.debug('assetStore', '[PERSIST] blob 分支 uploadFileToLocal 完成', null, { module: 'asset' })
       } catch (blobErr) {
         logger.warn('assetStore', 'blob 转文件失败，跳过落盘', blobErr?.message)
@@ -221,8 +242,8 @@ async function persistUrlToBackend(url, folder) {
       const blob = await resp.blob()
       const mime = blob.type || 'image/png'
       const ext = EXT_BY_TYPE[detectAssetType({ name: '', type: mime })] || (mime.split('/')[1] || 'png')
-      const file = new File([blob], `asset.${ext}`, { type: mime })
-      await uploadFileToLocal(file, folder)
+      const file = new File([blob], `${safeAssetBase(name)}.${ext}`, { type: mime })
+      await uploadFileToLocal(file, folder, file.name)
       logger.debug('assetStore', '[PERSIST] http 分支 uploadFileToLocal 完成', null, { module: 'asset' })
     }
     // 落盘后 rescan，让素材库面板（读 /api/resources）能收到新素材

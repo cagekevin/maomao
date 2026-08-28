@@ -7,6 +7,7 @@ import {
   buildChipEl,
   resolvePromptChips,
   isChipEl,
+  autoLinkAssetsByName,
 } from '../../src/components/base/promptChips.js'
 
 /** 把 renderPromptToNodes 的 Node[] append 到一个根 div */
@@ -139,5 +140,58 @@ describe('resolvePromptChips（生成端解析）', () => {
     const { text, refImages: out } = resolvePromptChips('普通提示词', refImages, refTexts)
     expect(text).toBe('普通提示词')
     expect(out).toHaveLength(0)
+  })
+})
+
+describe('autoLinkAssetsByName（@名 自动转芯片，唯一入口）', () => {
+  const assets = [
+    { id: 'img-1', label: '猫', url: 'http://x/cat.png', kind: 'image' },
+    { id: 'img-2', label: '狗', url: 'http://x/dog.png', kind: 'image' },
+  ]
+
+  it('@名 精确命中 → 转成 @{id:label|thumb} 芯片字符串', () => {
+    expect(autoLinkAssetsByName('一只@猫在跑', assets))
+      .toBe('一只@{img-1:猫|http%3A%2F%2Fx%2Fcat.png}在跑')
+  })
+
+  it('多个 @名 同时命中', () => {
+    expect(autoLinkAssetsByName('@猫和@狗打架', assets))
+      .toBe('@{img-1:猫|http%3A%2F%2Fx%2Fcat.png}和@{img-2:狗|http%3A%2F%2Fx%2Fdog.png}打架')
+  })
+
+  it('无 @ 前缀的裸词 → 不转，原样', () => {
+    expect(autoLinkAssetsByName('一只猫在跑', assets)).toBe('一只猫在跑')
+  })
+
+  it('@ 后非素材名 → 不转，原样', () => {
+    expect(autoLinkAssetsByName('@鸟在飞', assets)).toBe('@鸟在飞')
+  })
+
+  it('素材无 url（文本素材）→ 只转 @{id:label}，不注入 thumb 段', () => {
+    const textAssets = [{ id: 't-1', label: '参考文本', kind: 'text' }]
+    expect(autoLinkAssetsByName('按@参考文本写', textAssets)).toBe('按@{t-1:参考文本}写')
+  })
+
+  it('多素材同名 → 取第一个命中项', () => {
+    const dup = [
+      { id: 'a', label: '猫', url: 'u1' },
+      { id: 'b', label: '猫', url: 'u2' },
+    ]
+    expect(autoLinkAssetsByName('@猫', dup)).toBe('@{a:猫|u1}')
+  })
+
+  it('空 value / 空素材 → 原样', () => {
+    expect(autoLinkAssetsByName('', assets)).toBe('')
+    expect(autoLinkAssetsByName('@猫', [])).toBe('@猫')
+  })
+
+  it('无 label 的素材被跳过，不参与匹配', () => {
+    const noLabel = [{ id: 'x', label: '', url: 'u' }]
+    expect(autoLinkAssetsByName('@  ', noLabel)).toBe('@  ')
+  })
+
+  it('名字含正则特殊字符不误伤（转义）', () => {
+    const special = [{ id: 's', label: '猫.狗', url: 'u' }]
+    expect(autoLinkAssetsByName('@猫.狗', special)).toBe('@{s:猫.狗|u}')
   })
 })

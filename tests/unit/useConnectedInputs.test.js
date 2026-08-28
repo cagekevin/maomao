@@ -74,14 +74,26 @@ describe('管线契约 getNodeOutput', () => {
     expect(r.images[0].url).toBe('http://x/y.png')
   })
 
-  it('通用兜底 videoUrl（data:video）→ videos，尊重 mediaType', () => {
-    const r = getNodeOutput({ id: 'p1', type: 'discountVideoNode', data: { videoUrl: 'data:video/mp4;base64,xxx' } })
-    expect(r.videos).toHaveLength(1)
+  it('通用兜底图片产出带 label（改名流向下游候选）', () => {
+    const r = getNodeOutput({ id: 'p1', type: 'promptNode', data: { imageUrl: 'http://x/y.png', label: '猫' } })
+    expect(r.images[0].label).toBe('猫')
   })
 
-  it('通用兜底：resultUrl 兜底、mediaType=audio 优先', () => {
-    const r = getNodeOutput({ id: 'a1', type: 'imageNode', data: { resultUrl: 'blob:x', mediaType: 'audio' } })
+  it('通用兜底图片无 label → 不注入（下游兜底 图片N）', () => {
+    const r = getNodeOutput({ id: 'p1', type: 'promptNode', data: { imageUrl: 'http://x/y.png' } })
+    expect(r.images[0].label).toBeUndefined()
+  })
+
+  it('通用兜底 videoUrl（data:video）→ videos，尊重 mediaType，且带 label（预留）', () => {
+    const r = getNodeOutput({ id: 'p1', type: 'discountVideoNode', data: { videoUrl: 'data:video/mp4;base64,xxx', label: '参考' } })
+    expect(r.videos).toHaveLength(1)
+    expect(r.videos[0].label).toBe('参考')
+  })
+
+  it('通用兜底：resultUrl 兜底、mediaType=audio 优先，且带 label（预留）', () => {
+    const r = getNodeOutput({ id: 'a1', type: 'imageNode', data: { resultUrl: 'blob:x', mediaType: 'audio', label: 'BGM' } })
     expect(r.audios).toHaveLength(1)
+    expect(r.audios[0].label).toBe('BGM')
   })
 
   it('imageUrl > videoUrl > resultUrl 优先级', () => {
@@ -104,8 +116,10 @@ describe('管线契约 getNodeOutput', () => {
     const r1 = getNodeOutput(node, 'shot-s1')
     expect(r1.images).toHaveLength(1)
     expect(r1.images[0].url).toBe('/files/r.png')
+    expect(r1.images[0].label).toBe('小红帽') // 资产名带出，供下游 @名 匹配
     const r2 = getNodeOutput(node, 'shot-s2')
     expect(r2.images[0].url).toBe('/files/w.png')
+    expect(r2.images[0].label).toBe('大灰狼')
   })
 
   it('剧本盒子非 shot- 端口走通用兜底', () => {

@@ -191,6 +191,7 @@ describe('剧本盒纯函数 §2.7/2.17', () => {
     const out = collectAssets(shot, assets)
     expect(out).toHaveLength(1)
     expect(out[0].url).toBe('/files/r.png')
+    expect(out[0].label).toBe('小红帽') // 资产名带出，供下游 @名 匹配
   })
 
   it('collectAssets：无资产或无图返回空', () => {

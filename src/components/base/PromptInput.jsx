@@ -9,6 +9,7 @@ import {
   serializeDOM,
   buildChipEl,
   renderPromptToNodes,
+  autoLinkAssetsByName,
 } from './promptChips.js'
 
 /**
@@ -244,7 +245,17 @@ const PromptInput = forwardRef(function PromptInput(
     return m
   }, [refImages, refTexts])
 
-  // 外部 value 变化 → 重建 DOM（仅不一致时）
+  // 名字签名：把素材的 label 拼成签名，改名 → label 变 → 签名变 → 才触发 @名 自动转芯片重转换。
+  // 用「名字签名」而非直接依赖 all 数组：all 每次 render 新建，裸依赖会每次渲染重跑（浪费）。
+  // nameSignature 用 \u0001（控制字符）连接，杜绝 label 内容冲突。
+  const nameSignature = React.useMemo(
+    () => [...(refImages || []).map((i) => i.label || ''), ...(refTexts || []).map((t) => t.label || '')].join('\u0001'),
+    [refImages, refTexts]
+  )
+
+  // 外部 value 变化 / 素材名字变化 → 重建 DOM（仅不一致时）。
+  // 重建前先 autoLinkAssetsByName 把「@素材名」转成 @{id:label|thumb} 芯片字符串，
+  // 使「已输入的 @名」在改名后自动变成缩略图芯片。
   React.useEffect(() => {
     const el = editorRef.current
     if (!el) return
@@ -254,12 +265,12 @@ const PromptInput = forwardRef(function PromptInput(
     const cursor = sel && sel.rangeCount ? saveCursor(el) : null
     syncingRef.current = true
     el.innerHTML = ''
-    for (const node of renderPromptToNodes(value || '', chipMetaMap)) el.appendChild(node)
+    for (const node of renderPromptToNodes(autoLinkAssetsByName(value || '', all), chipMetaMap)) el.appendChild(node)
     normalizeChipSlots(el)
     syncingRef.current = false
     if (cursor !== null) restoreCursor(el, cursor)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [value, chipMetaMap])
+  }, [value, chipMetaMap, nameSignature])
 
   const deleteChipNearCursor = useCallback(() => {
     const sel = window.getSelection()

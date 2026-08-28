@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import {
-  FOLDERS, detectAssetType, filterByFolder, addAssets, removeAsset, clearAssets, loadAssets, getAssets, flushPersist,
+  FOLDERS, detectAssetType, filterByFolder, addAssets, removeAsset, clearAssets, loadAssets, getAssets, flushPersist, safeAssetBase,
 } from '../../src/components/base/assetStore.js'
 
 const STORAGE_KEY = 'yimao:yimao_asset_library' // storageAdapter 对键加 yimao: 前缀
@@ -103,5 +103,26 @@ describe('assetStore P4 落盘节流', () => {
     vi.advanceTimersByTime(300) // 原定时器已清，不应再写
     const writesAfter = setSpy.mock.calls.filter(([k]) => k === STORAGE_KEY).length
     expect(writesAfter).toBe(writesBefore)
+  })
+})
+
+describe('safeAssetBase（发送到素材库落盘文件名安全化）', () => {
+  it('中文名保留（无非法字符）', () => {
+    expect(safeAssetBase('猫')).toBe('猫')
+  })
+  it('去非法字符 /\\:*?"<>| → 下划线', () => {
+    expect(safeAssetBase('a/b\\c')).toBe('a_b_c')
+  })
+  it('空白 → 下划线', () => {
+    expect(safeAssetBase('猫 狗')).toBe('猫_狗')
+  })
+  it('去掉尾部扩展名，避免「猫.png.png」', () => {
+    expect(safeAssetBase('猫.png')).toBe('猫')
+    expect(safeAssetBase('photo.123')).toBe('photo')
+  })
+  it('空/纯空白 → 回退 asset', () => {
+    expect(safeAssetBase('')).toBe('asset')
+    expect(safeAssetBase('   ')).toBe('asset')
+    expect(safeAssetBase()).toBe('asset')
   })
 })

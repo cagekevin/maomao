@@ -238,3 +238,38 @@ export function resolvePromptChips(rawPrompt, refImages = [], refTexts = []) {
 
   return { text: text.trim(), refImages: resolvedRefImages }
 }
+
+/**
+ * 名字匹配唯一入口：把 prompt 里 `@素材名`（全等命中候选素材）替换成 `@{id:label|thumb}` 芯片字符串。
+ *
+ * 规则（避免误伤普通描述文本）：
+ *  - 只做**全等匹配**：候选素材 `label` 完全相等才替换，不部分/模糊匹配；
+ *  - **必须带 `@` 前缀**才触发：`@猫` 命中「猫」，裸词「猫」不触发；
+ *  - 只命中传入的 `assets`（候选素材列表，即 PromptInput 的 `all`），不引入更大范围；
+ *  - 多素材同名：取第一个命中项（与候选列表 `filtered` 语义一致）；
+ *  - 素材无 url（文本素材/无图）时不注入 thumb 段，只转 `@{id:label}`（文本语义）。
+ *
+ * 唯一入口：禁止在组件里手写 `lastIndexOf('@')` / 匹配正则散落各处。
+ * @param {string} text 待转换的 prompt 字符串（序列化前）
+ * @param {Array<{id:string,label:string,url?:string,kind?:string}>} assets 候选素材
+ * @returns {string} 转换后的字符串（含 `@{id:label|thumb}`）
+ */
+export function autoLinkAssetsByName(text, assets = []) {
+  if (!text || assets.length === 0) return text
+  // 建 label→asset 全等映射（多同名取首个：先出现者优先，同 Map.set 语义）
+  const byName = new Map()
+  for (const a of assets) {
+    if (a && a.id && a.label && !byName.has(a.label)) byName.set(a.label, a)
+  }
+  if (byName.size === 0) return text
+  // 长名优先排序，避免「@猫A」被「猫」前缀抢先命中（全等匹配下仍需保证最长命中先替换）
+  const names = [...byName.keys()].sort((a, b) => b.length - a.length)
+  const re = new RegExp(`@(${names.map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`, 'g')
+  return text.replace(re, (_m, name) => {
+    const a = byName.get(name)
+    // 全等命中后才替换；未命中（理论上不会，因正则按名字构造）保留原样
+    if (!a) return _m
+    const thumb = a.url ? `|${encodeThumb(a.url)}` : ''
+    return `@{${a.id}:${a.label}${thumb}}`
+  })
+}

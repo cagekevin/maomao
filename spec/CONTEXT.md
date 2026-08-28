@@ -97,6 +97,7 @@
 | **③ 观测** | `logger.js` | 记录+上报，供排查使用。 | 裸写 `console.log/warn/error` |
 | **④ 持久化** | `contentStore` | 横切存储权威入口；按 KEYS 自动路由底层存储。 | 业务直调 storageAdapter / 散落字符串 |
 | **⑤ 能力** | `mediaType`等 | URL转换/剪贴板等单一入口。`previewUrl` 管本地预览。 | 节点手写 `URL.createObjectURL` |
+| **⑤b 能力** | `promptChips.autoLinkAssetsByName` | 「@素材名 → 素材芯片」唯一入口：把 `@名`（全等命中候选）替换成 `@{id:label\|thumb}`。图片命名写回走 `NodeTitle.onRename`→节点 `data.label`，产出带 label 走 `useConnectedInputs.getNodeOutput`（见 docs/70）。 | 在 PromptInput/任何组件里手写 `lastIndexOf('@')`/匹配正则 |
 | **⑥ 工具** | `idGen.js` / `utils.js` | 通用纯工具集合。 | 手写 `Date.now().toString(36)` 造 ID |
 | **⑦ 下载** | `clipboard.downloadUrl` | 统一文件下载与导出。 | 自写 `createObjectURL + a.download` |
 

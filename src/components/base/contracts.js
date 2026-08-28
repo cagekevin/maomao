@@ -13,6 +13,13 @@
  *
  * 【约定】新增事件：先在本表 EVENTS 登记（发布方/订阅方须成对，避免「只监听未发布」），
  * 命名统一「领域:动作」，再用 eventBus.publish/subscribe。
+ *
+ * 【能力层单一入口登记 · 2026-08-28】
+ *   ⑤ 能力层「@名 → 素材芯片」匹配：`promptChips.js` 的 `autoLinkAssetsByName`（唯一入口）。
+ *   · 输入 prompt 字符串 + 候选素材数组；把 `@素材名`（全等命中）替换成 `@{id:label|thumb}`。
+ *   · 禁止在 PromptInput/任何组件里手写 lastIndexOf('@')/匹配正则（见 docs/70）。
+ *   · 图片命名写回（NodeTitle.onRename → 节点 data.label）+ 产出带 label（getNodeOutput）
+ *     是本能力的前置链路，统一走 NodeShell/useConnectedInputs 唯一入口，禁止各节点旁路。
  */
 
 /**
