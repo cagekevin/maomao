@@ -52,7 +52,7 @@ const h = vi.hoisted(() => {
   const setAwaitingConfirm = vi.fn()
   const getCurrentRunMode = vi.fn(() => (agentState.runMode || 'auto'))
   // 收口 store 穿透（2026-08-21）：AgentPanel 从 useAgentChat 解构这 4 个 handler，不再直连 conversationStore
-  const useAgentChat = vi.fn(() => ({ ...agentState, setModel, send, sendImageMode, stop, clear, stateAction: '', newChat, switchChat, deleteChat, updateMessageByContent: vi.fn(), executePlanDirect: vi.fn(async () => ({ ok: true })), setCurrentSnapshot, setAwaitingConfirm, getCurrentRunMode, setCurrentRunMode }))
+  const useAgentChat = vi.fn(() => ({ ...agentState, setModel, send, sendImageMode, stop, clear, stateAction: '', newChat, switchChat, deleteChat, updateMessageByContent: vi.fn(), executePlanDirect: vi.fn(async () => ({ ok: true })), setCurrentSnapshot, setAwaitingConfirm, getCurrentRunMode, setCurrentRunMode, getCreditGate: vi.fn(() => null), clearCreditGate: vi.fn() }))
   // contentStore 订阅桩：记录已注册的 key→cb，供测试触发「设置变更」回调
   let subscribeCbs = {}
   let subscribeUnsubs = []

@@ -286,6 +286,36 @@ describe('useAgentChat · 真实模式 SSE 编排', () => {
     expect(result.current.sending).toBe(false)
   })
 
+  it('【积分闸语义】残留 creditGate.pending 不打断非 execute_plan 工具循环（积分闸只拦"点生成那下"）', async () => {
+    // 历史 bug 场景：之前生图挂起（creditGate.pending）未确认也未取消 → 残留在会话态。
+    // 新指令（建节点）的工具循环绝不能被它打断（积分闸不影响建节点/读节点/用工具）。
+    vi.mocked(convStore.getCreditGate).mockReturnValue({ pending: true, gens: [{}], map: { g1: 'n1' } })
+    fetchMock
+      .mockResolvedValueOnce(toolStream('call_1', 'create_node', '{"type":"promptNode","label":"生图节点"}'))
+      .mockResolvedValueOnce(textStream('已创建。'))
+    const { result } = renderHook(() => useAgentChat())
+    await act(async () => { await result.current.send('创建一个生图节点') })
+    // 关键：残留 creditGate.pending 不打断 → create_node 执行 + 第二轮 LLM 收敛
+    expect(callTool).toHaveBeenCalledWith('create_node', { type: 'promptNode', label: '生图节点' })
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(result.current.messages.at(-1).content).toBe('已创建。')
+    expect(vi.mocked(convStore.patchCurrentWorkflow)).not.toHaveBeenCalledWith(expect.objectContaining({ status: 'awaiting_confirm' }))
+    vi.mocked(convStore.getCreditGate).mockReturnValue(null)
+  })
+
+  it('【积分闸语义】本轮 execute_plan 返回 awaited:credit → 工具循环暂停等点生成（唯一停点）', async () => {
+    callTool.mockReturnValue({ ok: true, data: { awaited: 'credit', steps: [{ id: 'g1', status: 'ready', nodeId: 'n1' }], note: '节点已建好，生成待积分确认' } })
+    fetchMock
+      .mockResolvedValueOnce(toolStream('call_1', 'execute_plan', '{}'))
+      .mockResolvedValueOnce(textStream('不该出现的第二轮'))
+    const { result } = renderHook(() => useAgentChat())
+    await act(async () => { await result.current.send('生成一张图') })
+    // 关键：execute_plan 命中 credit → 只有 1 次 LLM 请求（暂停等点生成）
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(convStore.patchCurrentWorkflow)).toHaveBeenCalledWith(expect.objectContaining({ status: 'awaiting_confirm' }))
+    expect(result.current.sending).toBe(false)
+  })
+
   it('stop 中止：进行中调 stop → error=已停止，sending 回 false', async () => {
     fetchMock.mockImplementation((url, opts) =>
       new Promise((_resolve, reject) => {

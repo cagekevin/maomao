@@ -374,6 +374,9 @@ function safeSummarizeArgs(args) {
 
 export async function runToolCalls(ctx, tools, callIdFor = () => '') {
   const { callTool, appendMsg, model, logger, getActivePendingGenerations } = ctx
+  // 【积分闸停点语义修正】creditHeld：本轮是否「execute_plan 命中积分闸（返回 awaited:'credit'）」。
+  // 只有它才触发工具循环暂停等用户点生成；积分闸不影响任何其它工具/建节点/读节点（用户裁定）。
+  let creditHeld = false
   for (const tc of tools) {
     let args = {}
     if (tc.function?.arguments) {
@@ -418,6 +421,9 @@ export async function runToolCalls(ctx, tools, callIdFor = () => '') {
     // 【TASK-009 执行摘要】execute_plan 返回 logs → 渲染一条带逐步进度的「执行摘要」消息（对齐大雄折叠面板）
     // 修复 #1 后 result 是真对象，此判断才真正生效
     if (tc.function?.name === 'execute_plan' && result?.ok) {
+      // 【积分闸停点】execute_plan 命中积分闸（awaited:'credit'）→ 本轮已走到「点生成烧积分」临界点，
+      // 置 creditHeld，send 循环据此暂停等用户确认；与全局残留 creditGate.pending 无关（见 send 停点注释）。
+      if (result.data?.awaited === 'credit') creditHeld = true
       const logsArr = Array.isArray(result.data?.logs) ? result.data.logs : []
       // 【对齐大雄 agentLastResults】把本轮生成结果图 url 存到 assistant 消息的 lastResults，
       //   供后续轮「改上一张生成图」时执行层跨轮取最近生成图（图不进 LLM 上下文，执行层反查原图）。
@@ -437,6 +443,8 @@ export async function runToolCalls(ctx, tools, callIdFor = () => '') {
       }
     }
   }
+  // 返回本轮是否「execute_plan 命中积分闸」→ send 工具循环据此决定是否暂停等用户点生成
+  return { creditHeld }
 }
 
 /** ══════════════════════════════════════════════════════════════════════════════

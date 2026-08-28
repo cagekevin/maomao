@@ -548,14 +548,17 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
           }, { module: 'agent' })
           if (!assistant.tool_calls || assistant.tool_calls.length === 0) break
 
-          // 执行工具并回填结果（TASK-006 #1：await 异步工具，确保回填真实结果而非 Promise）
-          await runToolCalls(assistant.tool_calls, (tc) => tc.id)
+          // 执行工具并回填结果（TASK-006 #1：await 异步工具，确保回填真实结果而非 Promise）。
+          // 返回 creditHeld：本轮是否「execute_plan 命中积分闸」（awaited:'credit'）。
+          const { creditHeld } = await runToolCalls(assistant.tool_calls, (tc) => tc.id)
 
-          // 门禁停循环：两类待确认态都停——
+          // 门禁停循环（仅两类「本轮真走到待确认临界点」才停）——
           //   ① 分步确认（show_plan_for_confirm）→ awaitingConfirm=true。
-          //   ② 积分闸（完全自主/直接生图命中 credit）→ creditGate.pending=true（节点已建好待点生成）。
-          // 停在此，防止 AI 下一轮继续调 execute_plan（重复建节点）或继续输出（自言自语）（T9/红线 §6.5）。
-          if (getAwaitingConfirm() || getCreditGate()?.pending === true) {
+          //   ② 积分闸（execute_plan 命中 credit 返回 awaited:'credit'）→ 本轮已建好节点、真生成被拦，等用户点生成。
+          // 注意：**不用全局 getCreditGate()?.pending** —— 它是可能残留的会话状态（取消/挂起不清），
+          // 会让后续「与本轮无关」的工具循环（list_nodes/get_node_details/create_node 等）在第一个工具后就误停。
+          // 积分闸只拦「点生成那一下」，绝不打断其它任何工具（用户裁定）。见 agentRuntime.runToolCalls creditHeld。
+          if (getAwaitingConfirm() || creditHeld) {
             pausedForConfirm = true
             break
           }
@@ -844,7 +847,7 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
     return callTool('create_node', { type: 'textNode', text })
   }, [callTool])
 
-  return { messages, sending, error, model, setModel, send, sendImageMode, stop, clear, stateAction, conversations, activeConversationId, newChat, switchChat, deleteChat, updateMessageByContent, executePlanDirect, sendContentToCanvas, confirmPendingMemorySuggest, getActivePendingMemorySuggest, cancelPendingConfirm, runExistingConfirm, getCreditGate,
+  return { messages, sending, error, model, setModel, send, sendImageMode, stop, clear, stateAction, conversations, activeConversationId, newChat, switchChat, deleteChat, updateMessageByContent, executePlanDirect, sendContentToCanvas, confirmPendingMemorySuggest, getActivePendingMemorySuggest, cancelPendingConfirm, runExistingConfirm, getCreditGate, clearCreditGate,
     // 【展示→编排轴薄适配（收口 AgentPanel 的 store 穿透）】回传 UI 会用到的 store 原子能力，
     // 使 AgentPanel 不再直接 import conversationStore（唯一入口收敛到本 hook）。这些是 store 的稳定
     // 模块级函数（透传引用，非拷贝），消息单源下已满足"UI 不直连持久层"的一步；未来如需可再 action 化。

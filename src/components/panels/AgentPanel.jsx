@@ -174,7 +174,7 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
   // 新建对话短锁：新建后 1s 内禁用按钮，避免用户狂点出十几个空对话
   const newChatLock = useRef(false)
 
-  const { messages, sending, error, model, setModel, send, sendImageMode, stop, clear, stateAction, conversations, activeConversationId, newChat, switchChat, deleteChat, updateMessageByContent, executePlanDirect, sendContentToCanvas, confirmPendingMemorySuggest, getActivePendingMemorySuggest, cancelPendingConfirm, runExistingConfirm, getCreditGate,
+  const { messages, sending, error, model, setModel, send, sendImageMode, stop, clear, stateAction, conversations, activeConversationId, newChat, switchChat, deleteChat, updateMessageByContent, executePlanDirect, sendContentToCanvas, confirmPendingMemorySuggest, getActivePendingMemorySuggest, cancelPendingConfirm, runExistingConfirm, getCreditGate, clearCreditGate,
     // 展示→编排轴薄适配（收口 store 穿透）：这 4 个由 useAgentChat 回传，UI 不再直接 import conversationStore
     setCurrentSnapshot, setAwaitingConfirm, getCurrentRunMode, setCurrentRunMode } = useAgentChat({
     agentKey,
@@ -278,8 +278,13 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
     setCreditGatePreview(null)
     if (typeof showToast === 'function') showToast('已确认，开始生成', { type: 'success' })
   }, [runExistingConfirm])
-  // 取消：保留待确认态（不删节点，节点已在画布上，用户可随时手动点节点触发/再次确认）。
-  const dismissCreditCard = () => setCreditGateDismissed(true)
+  // 取消：放弃本次待确认生成 → 清除 creditGate（根治残留：积分确认只拦「点生成那一下」，取消即结束，不遗留状态）。
+  // 节点保留在画布上（免费建的 ready 节点不删），用户仍可随时手动点节点触发生成。
+  const dismissCreditCard = () => {
+    setCreditGateDismissed(true)
+    setCreditGatePreview(null)
+    clearCreditGate()
+  }
   const showCreditCard = creditGatePreview?.pending === true && !creditGateDismissed
   const creditGenCount = Array.isArray(creditGatePreview?.gens) ? creditGatePreview.gens.length : 0
 
