@@ -24,6 +24,25 @@ export function sendError(res: ServerResponse, message: string, status = 500, co
   else json(res, { error: message }, status);
 }
 
+/**
+ * 带 HTTP 状态的业务错误：供「不接触 res 的共享逻辑」抛出，由路由层捕获后转 sendError。
+ *
+ * 【为什么存在】共享逻辑（如资源身份变更 applyResourceIdentityChange）被多个路由复用，
+ * 它拿不到 ServerResponse、不能 sendError，但又必须区分 400/404/409/500——否则路由层
+ * 只能一律按 500 返回，前端拿不到可决策的状态码与原因。
+ *
+ * 【透传铁律】message 原样上抛，路由层原样透出；禁止 catch 后改写成泛化消息
+ * （参见 CONTEXT：谎报/掩盖错误比报错更危险）。
+ */
+export class HttpStatusError extends Error {
+  status: number;
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = 'HttpStatusError';
+    this.status = status;
+  }
+}
+
 export function parseJsonBody(req: IncomingMessage): Promise<unknown> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];

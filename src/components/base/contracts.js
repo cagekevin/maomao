@@ -56,7 +56,7 @@ export const CREDIT_GATE_EVENT = 'agent:credit-gate'
 export const EVENTS = {
   'agent:task-completed': {
     from: ['taskCompletionBus.js:21'],
-    to: ['useNodeGeneration.js:218'],
+    to: ['useNodeGeneration.js:227'],
     payload: '{ taskId, nodeId, resultUrl, type, status: "completed" }',
     note: '任务完成 → 精准回填节点（刷新不丢图）。现统一经 taskCompletionBus.publishTaskCompleted 唯一发布（P1-D）；done 已去落盘（P0-C），广播直接用持久 resultUrl',
   },
@@ -87,10 +87,10 @@ export const EVENTS = {
     note: '素材落盘成功 → 素材库面板刷新（AssetLibrary 经 onAssetSent 订阅）。生产使用',
   },
   'resource:renamed': {
-    from: ['AssetLibrary.jsx:263', 'GeneratedView.jsx:215', 'useAssetMoveToFolder.js:60'],
-    to: ['App.jsx:467'],
+    from: ['AssetLibrary.jsx:262', 'GeneratedView.jsx:214', 'useAssetMoveToFolder.js:64'],
+    to: ['App.jsx:442', 'taskStore.js:114'],
     payload: '{ oldUrl, newUrl }',
-    note: '素材 url 变更（改名/移动归类，前端入口）广播旧→新 url；App 订阅后把画布/脚本箱节点里引用旧 url 的字段改写为新 url 并持久化，防下游图生图 404（与后端 rewriteUrlReferences 配套）',
+    note: '素材 url 变更（改名/移动归类，前端入口）广播旧→新 url。两个订阅方各管一段内存态：App 改写画布/脚本箱节点并持久化（防下游图生图 404）；taskStore 改写内存任务的 resultUrl（防任务中心破图）。两侧共用 imageUrl.js 的 buildUrlRewritePairs/replaceUrlDeep，禁止各写一份。与后端 rewriteUrlReferences（localTool database.ts）配套，形态严格四态对账',
   },
   'yimao:remove-edge': {
     from: [],
@@ -112,7 +112,7 @@ export const EVENTS = {
   },
   'persist:failed': {
     from: ['storageAdapter.js:31'],
-    to: ['App.jsx:521'], // 全局监听器，节流 toast；分发逻辑收敛到 persistFailureBus（见 App.jsx:518-526）
+    to: ['App.jsx:496'], // 全局监听器，节流 toast；分发逻辑收敛到 persistFailureBus
     payload: '{ key, error }',
     note: '持久化失败广播（sSet/sRemove 失败）。已由 App.jsx 全局订阅',
   },

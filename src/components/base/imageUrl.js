@@ -334,3 +334,56 @@ export function summarizeImages(images) {
   }
   return { count: list.length, urls, base64s }
 }
+
+/* ════════════════════════════════════════════════════════════════
+ * 素材 url 变更（改名 / 移动）后的【引用改写工具对】
+ * ════════════════════════════════════════════════════════════════ */
+
+/**
+ * 递归替换结构里所有等于 `from` 的字符串（覆盖嵌套对象 / 数组）。
+ * 无变化返回**原引用**，便于调用方用 `!==` 判脏、避免无谓重渲染与落盘。
+ */
+export function replaceUrlDeep(value, from, to) {
+  if (typeof value === 'string') return value.includes(from) ? value.split(from).join(to) : value
+  if (Array.isArray(value)) {
+    const next = value.map((v) => replaceUrlDeep(v, from, to))
+    return next.every((n, i) => n === value[i]) ? value : next
+  }
+  if (value && typeof value === 'object') {
+    let changed = false
+    const out = {}
+    for (const k of Object.keys(value)) {
+      const nv = replaceUrlDeep(value[k], from, to)
+      if (nv !== value[k]) changed = true
+      out[k] = nv
+    }
+    return changed ? out : value
+  }
+  return value
+}
+
+/**
+ * 由旧 / 新绝对 url 生成需要改写的 (from, to) 对，覆盖四态：
+ * 原样绝对 / 原样相对 / 编码绝对 / 编码相对。
+ *
+ * 【为什么必须四态】引用可能以「原样 / URL 编码」两种形态存进各内存态——
+ * 脚本箱参考图存的就是编码态（`%E5%A6%B9…`）。只替换 raw 会漏，中文/空格文件名必现 404。
+ * 形态与后端 `rewriteUrlReferences`（localTool database.ts）严格一致，两侧对账。
+ *
+ * 【单一来源】App.jsx（画布 / 脚本箱节点）与 taskStore（任务中心 resultUrl）共用本函数，
+ * 禁止任一处另写一份——各写一份正是"改名只改一半"的根源（清单 #8）。
+ */
+export function buildUrlRewritePairs(oldAbs, newAbs) {
+  const toRel = (abs = '') => (/^https?:\/\/[^/]+(\/files\/.*)$/.exec(abs) || [])[1]
+  const oldRel = toRel(oldAbs)
+  const newRel = toRel(newAbs)
+  const pairs = [[oldAbs, newAbs]] // 原样绝对
+  if (oldRel && newRel) {
+    const hostOld = oldAbs.slice(0, oldAbs.indexOf('/files/'))
+    const hostNew = newAbs.slice(0, newAbs.indexOf('/files/'))
+    pairs.push([oldRel, newRel]) // 原样相对
+    pairs.push([`${hostOld}${encodeURI(oldRel)}`, `${hostNew}${encodeURI(newRel)}`]) // 编码绝对
+    pairs.push([encodeURI(oldRel), encodeURI(newRel)]) // 编码相对
+  }
+  return pairs
+}

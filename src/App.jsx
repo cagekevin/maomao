@@ -63,50 +63,13 @@ import { applyNodeTypeDefaults } from './components/base/nodeDefaults.js'
 import { injectNodePrefs } from './components/base/nodePrefs.js'
 import { useCanvasSync } from './components/base/useCanvasSync.js'
 import { parseShotHandle } from './components/base/contracts.js'
+// url 引用改写工具（与 taskStore 共用同一份，禁止各写一份 → 改名只改一半）
+import { buildUrlRewritePairs, replaceUrlDeep } from './components/base/imageUrl.js'
 
 /* ======================================================================
  * 【区 1】常量与配置区
  * nodeTypes / edgeTypes / 初始画布内容 / 画布参数
  * ====================================================================== */
-
-// 素材改名后：深拷贝替换数据结构里所有等于旧 url 的字符串字段（覆盖画布节点 data.url/imageUrl、
-// 图片数组 images[].url、脚本箱参考图 asset.imageUrl 等嵌套位置）。返回新对象；无变化返回原引用。
-function replaceUrlDeep(value, from, to) {
-  if (typeof value === 'string') return value.includes(from) ? value.split(from).join(to) : value
-  if (Array.isArray(value)) {
-    const next = value.map((v) => replaceUrlDeep(v, from, to))
-    return next.every((n, i) => n === value[i]) ? value : next
-  }
-  if (value && typeof value === 'object') {
-    let changed = false
-    const out = {}
-    for (const k of Object.keys(value)) {
-      const nv = replaceUrlDeep(value[k], from, to)
-      if (nv !== value[k]) changed = true
-      out[k] = nv
-    }
-    return changed ? out : value
-  }
-  return value
-}
-
-// 素材 url 变更（改名/移动）前后 → 需改写的 (from,to) 对集合。
-// 引用可能以「原样 / URL 编码」×「绝对 http…/files/… / 相对 /files/…」四种形态存进节点（脚本箱参考图尤甚），
-// 这里生成镜像后端 rewriteUrlReferences 的全部形态，避免只改一种、漏掉编码态导致 404。
-function buildUrlRewritePairs(oldAbs, newAbs) {
-  const toRel = (abs = '') => (/^https?:\/\/[^/]+(\/files\/.*)$/.exec(abs) || [])[1]
-  const oldRel = toRel(oldAbs)
-  const newRel = toRel(newAbs)
-  const pairs = [[oldAbs, newAbs]] // 原样绝对
-  if (oldRel && newRel) {
-    const hostOld = oldAbs.slice(0, oldAbs.indexOf('/files/'))
-    const hostNew = newAbs.slice(0, newAbs.indexOf('/files/'))
-    pairs.push([oldRel, newRel]) // 原样相对
-    pairs.push([`${hostOld}${encodeURI(oldRel)}`, `${hostNew}${encodeURI(newRel)}`]) // 编码绝对
-    pairs.push([encodeURI(oldRel), encodeURI(newRel)]) // 编码相对
-  }
-  return pairs
-}
 
 // 节点类型注册表：由 NodePalette 单源派生（type→组件），不再手写平行表。
 // director3dNode（WebGL 重依赖，palette 不持 component）与 ghostTarget（连线占位）单独补充。

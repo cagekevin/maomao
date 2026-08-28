@@ -10,6 +10,7 @@ vi.mock('../../src/components/base/localToolApi.js', () => ({
   clearAllTasksApi: vi.fn(async () => {}),
 }))
 import { saveTask } from '../../src/components/base/localToolApi.js'
+import { publish } from '../../src/components/base/eventBus.js'
 
 const {
   statusLabel,
@@ -168,5 +169,47 @@ describe('taskStore §P4 进度落库节流', () => {
     expect(last.errorMsg).toBe('网络错误')
     vi.advanceTimersByTime(400)
     expect(saveTask).toHaveBeenCalledTimes(1)
+  })
+})
+
+// ════════════════════════════════════════════════════════════════
+// 素材 url 变更（改名 / 移动）→ 同步内存任务的 resultUrl（清单 #8）
+//
+// 后端已改写 tasks 表（rewriteUrlReferences），这里同步「当前页面内存」：
+// 否则任务中心卡片（缩略图 / 下载 / 拖拽建节点）仍指旧路径 → 破图，刷新页面才恢复。
+// 改写工具与 App.jsx 共用 imageUrl.js 的同一份，禁止各写一套。
+// ════════════════════════════════════════════════════════════════
+describe('taskStore · resource:renamed 同步 resultUrl', () => {
+  it('改名后内存任务的 resultUrl 改写为新 url（原样态）', () => {
+    const oldUrl = 'http://127.0.0.1:18080/files/migrated/a.png'
+    const newUrl = 'http://127.0.0.1:18080/files/migrated/b.png'
+    reportGenerate('n-rename-1', 'image', 'p').done(oldUrl)
+    expect(getTasks()[0].resultUrl).toBe(oldUrl)
+
+    publish('resource:renamed', { oldUrl, newUrl })
+    expect(getTasks()[0].resultUrl).toBe(newUrl)
+  })
+
+  it('编码态引用同样改写（中文文件名场景，只替 raw 会漏）', () => {
+    const oldRel = 'migrated/角色.png'
+    const newRel = 'migrated/人物/角色.png'
+    const stored = `http://127.0.0.1:18080/files/${encodeURI(oldRel)}`
+    reportGenerate('n-rename-2', 'image', 'p').done(stored)
+
+    publish('resource:renamed', {
+      oldUrl: `http://127.0.0.1:18080/files/${oldRel}`,
+      newUrl: `http://127.0.0.1:18080/files/${newRel}`,
+    })
+    expect(getTasks()[0].resultUrl).toBe(`http://127.0.0.1:18080/files/${encodeURI(newRel)}`)
+  })
+
+  it('无关事件不动内存（引用不变 → 不触发无谓重渲染）', () => {
+    reportGenerate('n-rename-3', 'image', 'p').done('http://127.0.0.1:18080/files/other/x.png')
+    const before = getTasks()
+    publish('resource:renamed', {
+      oldUrl: 'http://127.0.0.1:18080/files/migrated/a.png',
+      newUrl: 'http://127.0.0.1:18080/files/migrated/b.png',
+    })
+    expect(getTasks()).toBe(before)
   })
 })

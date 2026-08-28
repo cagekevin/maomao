@@ -68,6 +68,41 @@ export function resolveUploadTarget(
   return { dir, savedPath, urlPath };
 }
 
+/**
+ * 把「相对 uploadDir 的路径」解析为安全的绝对路径（只校验，不改写、不写盘）。
+ *
+ * 【与 resolveUploadTarget 的分工】
+ *  - resolveUploadTarget：新文件落盘用 —— 会 sanitize 文件名、非法目录回退默认根；
+ *  - resolveUploadFile  ：既有文件定位 / 改名移动目标用 —— **绝不改写调用方给的路径**。
+ *    因为 sanitizeFilename 会把空格变 `_`，含空格的既有文件会被判"不存在"（T10 护栏）。
+ *
+ * 【为什么只防逃逸、不做顶层根白名单】
+ * UPLOAD_ROOT_ALLOW 是「新建目录防污染 uploads 根」的落盘侧策略；而改名/移动的对象是
+ * **已存在的**目录，不存在污染问题。且 rescan 收录 uploadDir 下任意顶层子目录——若在此
+ * 加白名单，存量里未登记根目录下的文件将无法移动（功能倒退）。故只做防逃逸，
+ * 这正是路径穿越风险（清单 #11）的全部要害。
+ *
+ * @param rel 相对 uploadDir 的路径（如 'migrated/人物/a.png'）
+ * @returns 安全的绝对路径；非法（空 / 含 `.` `..` / 越出 uploadDir）→ null，由调用方决定拒绝还是回退
+ */
+export function resolveUploadFile(rel: unknown): string | null {
+  if (typeof rel !== 'string') return null;
+  const s = rel
+    .replace(/\\/g, '/')
+    .replace(/^\/+|\/+$/g, '')
+    .replace(/\/{2,}/g, '/');
+  if (!s) return null;
+  const parts = s.split('/');
+  if (parts.some((p) => !p || p === '.' || p === '..')) return null;
+
+  const uploadDir = getUploadDir();
+  const abs = path.resolve(uploadDir, ...parts);
+  // 硬兜底：resolve 后必须仍在 uploadDir 内（上层规范化若被绕过，这里是最后一道闸）
+  const back = path.relative(uploadDir, abs);
+  if (!back || back.startsWith('..') || path.isAbsolute(back)) return null;
+  return abs;
+}
+
 /** 本地上传落盘：自动加时间戳前缀去重，返回绝对路径与 URL */
 export function writeUploadBuffer(
   subfolder: string,

@@ -18,6 +18,11 @@ import { fetchTasks, saveTask, deleteTask, batchDeleteTasks, clearAllTasksApi } 
 import { publishTaskCompleted } from './taskCompletionBus.js'
 import { generateId } from './idGen.js'
 import { GEN_MAX_CONCURRENT } from './config.js'
+// 用命名空间调用而非 `subscribe` 具名导入：本模块内部已有同名 `subscribe`（任务监听器），
+// 具名导入会遮蔽。且 check-events.mjs 只识别 `publish/subscribe/subscribeOnce` 三个函数名，
+// 用别名（onEvent）会让这条订阅逃出事件契约登记的反向校验 —— 必须用能被门禁扫描到的写法。
+import * as eventBus from './eventBus.js'
+import { buildUrlRewritePairs } from './imageUrl.js'
 
 let tasks = []
 const listeners = new Set()
@@ -101,6 +106,32 @@ function getSnapshot() {
 export function getTasks() {
   return tasks
 }
+
+// ── 素材 url 变更（改名 / 移动）→ 同步内存任务的 resultUrl ──
+// 后端已改写 tasks 表（rewriteUrlReferences），这里同步「当前页面内存」：
+// 否则任务中心卡片（缩略图渲染 / 下载 / 拖拽建节点）仍指旧路径 → 破图，刷新页面才恢复（清单 #8）。
+// 改写工具与 App.jsx（画布 / 脚本箱节点）共用 imageUrl.js 的同一份实现，不另写一套。
+eventBus.subscribe('resource:renamed', ({ oldUrl, newUrl }) => {
+  if (!oldUrl || !newUrl || oldUrl === newUrl) return
+  const pairs = buildUrlRewritePairs(oldUrl, newUrl)
+  let changed = false
+  const next = tasks.map((t) => {
+    let resultUrl = t.resultUrl
+    if (typeof resultUrl === 'string') {
+      for (const [from, to] of pairs) {
+        if (resultUrl.includes(from)) resultUrl = resultUrl.split(from).join(to)
+      }
+    }
+    if (resultUrl === t.resultUrl) return t
+    changed = true
+    return { ...t, resultUrl }
+  })
+  // 只有真变了才换引用 + 通知，避免无谓重渲染
+  if (changed) {
+    tasks = next
+    notify()
+  }
+})
 
 // ── 左侧面板全局状态（对齐官方 setShowTaskList：生成任务时自动弹出任务中心）──
 // 官方 H_.jsx 在每次提交生成任务时调用 H?.(true)（即 setShowTaskList(true)）弹出任务中心。

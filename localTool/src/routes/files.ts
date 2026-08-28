@@ -8,10 +8,11 @@ import { execSync } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { getUploadDir, getDb, rewriteUrlReferences } from '../db/database.js';
+import { getUploadDir } from '../db/database.js';
 import { ensureDir, sanitizeFilename, resolveUploadTarget, writeUploadBuffer, writeUploadBufferAt, ensureThumbnailTarget, resizeImage, normalizeSubfolder } from '../utils/fileStore.js';
-import { json, parseMultipart, parseJsonBody, readRawBody, sendError } from '../utils/helpers.js';
+import { json, parseMultipart, parseJsonBody, readRawBody, sendError, HttpStatusError } from '../utils/helpers.js';
 import { fetchWithProxy } from '../utils/netProxy.js';
+import { applyResourceIdentityChange } from './resources.js';
 
 const PORT = Number(process.env.PORT) || 18080;
 const BASE_URL = `http://127.0.0.1:${PORT}`;
@@ -374,39 +375,27 @@ export async function handleMkdir(req: IncomingMessage, res: ServerResponse): Pr
 // 收相对 uploadDir 的 src/dst 路径（与 mkdir 收相对 folder、open-dir 收相对 filepath 口径一致）。
 // 前端从资源 url 拿不到磁盘绝对路径，统一由后端拼 getUploadDir()，避免把绝对路径透传到前端。
 // 参考官方 shared.js moveFile（传 tasks/、migrated/ 相对前缀）。
+//
+// 【实现收口】移动与改名是同一件事（资源 url 身份变化），统一走 resources.ts 的
+// applyResourceIdentityChange。此前本处只做一次裸 renameSync，漏了三件事：
+//   ① 目标同名文件不判重 → POSIX rename 静默覆盖（清单 §8 P0-1，真丢数据）；
+//   ② 不同步 resources 表 → 收藏丢失，且窗口期内可能被引用感知 GC 判为孤儿真删（P0-2）；
+//   ③ 改完不落盘 → 改写停在内存，进程非优雅退出即丢失（P1-3）。
+// 收口后这三项由唯一入口统一保证，两侧不可能再不对称。
 export async function handleMove(req: IncomingMessage, res: ServerResponse): Promise<void> {
   const body = (await parseJsonBody(req)) as { src?: string; dst?: string } | null;
   if (!body || !body.src || !body.dst) {
     return sendError(res, 'Missing src or dst field', 400);
   }
 
-  const uploadDir = getUploadDir();
-  const srcAbs = path.join(uploadDir, body.src);
-  const dstAbs = path.join(uploadDir, body.dst);
-
-  // 同目录/同路径 → 无操作，幂等返回（前端已拦截，双保险）
-  if (srcAbs === dstAbs) {
-    return json(res, { code: 0, data: { ok: true } });
-  }
-
-  if (!fs.existsSync(srcAbs)) {
-    return sendError(res, 'Source file not found', 404);
-  }
-
-  const dstDir = path.dirname(dstAbs);
-  ensureDir(dstDir);
-
-  fs.renameSync(srcAbs, dstAbs);
-
-  // 移动同样会改资源 url/id：把画布快照/任务里存着的旧 url 引用改写为新 url，防下游 404。
-  // 改写失败不阻断移动本身（移动已成功），但要留日志供排查。
   try {
-    rewriteUrlReferences(await getDb(), body.src, body.dst);
+    const r = await applyResourceIdentityChange({ oldRel: body.src, newRel: body.dst });
+    return json(res, { code: 0, data: { ok: true, id: r.id, url: r.url, name: r.name } });
   } catch (e) {
-    console.error(`[move] url 引用改写失败（不影响移动）：${(e as Error).message}`);
+    // 错误原样透传（含 400 非法路径 / 404 源不存在 / 409 目标已存在），不做泛化改写
+    const status = e instanceof HttpStatusError ? e.status : 500;
+    return sendError(res, (e as Error).message, status);
   }
-
-  return json(res, { code: 0, data: { ok: true } });
 }
 
 // ── open ──

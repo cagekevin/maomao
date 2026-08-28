@@ -936,10 +936,13 @@ test('Files·move 移动文件（相对路径，后端拼 uploadDir）', async (
   fs.mkdirSync(destDir, { recursive: true });
   const srcFile = path.join(canvasDir, 'mv.png');
   fs.writeFileSync(srcFile, RED_PNG_BUFFER);
-  // handleMove 现按 `path.join(uploadDir, 相对路径)` 解析，与 mkdir/open-dir 口径一致
+  // handleMove 统一走 resources.ts 的身份变更入口，返回新身份（对齐 rescan id 规则）
   const res = makeRes();
   await filesMod.handleMove(makeJsonReq({ src: 'canvas/mv.png', dst: 'migrated/mv.png' }), res);
-  assert.deepEqual(parseResBody(res), { code: 0, data: { ok: true } });
+  const d = parseResBody(res).data;
+  assert.equal(d.ok, true, '移动成功');
+  assert.equal(d.id, 'local-migrated-mv.png', '返回新资源 id（必须与 rescan 规则对齐）');
+  assert.equal(d.url, 'http://127.0.0.1:18080/files/migrated/mv.png', '返回新 url');
   assert.ok(!fs.existsSync(srcFile));
   assert.ok(fs.existsSync(path.join(destDir, 'mv.png')));
 });
@@ -1053,4 +1056,261 @@ test('docs13·resources clear 只删记录不 rmSync 整目录', async () => {
   await resourcesMod.handleResourcesClear(makeJsonReq({ deleteFiles: true }), makeRes());
   // 画布 KV 仍引用 → GC 保留
   assert.ok(fs.existsSync(absPath), 'clear 后画布引用的文件应保留（不再 rmSync 一刀切）');
+});
+
+// ══════════════════════════════════════════════════════════════
+// 资源身份变更统一入口（改名 / 移动）—— 回归护栏
+// 对应 spec/文件改名与移动-全量变更面-权威清单.md §8：#2 表同步 / #9 写入安全 /
+// #10 落盘 / #11 输入校验。判定标准：删掉实现里对应的一步，下列断言必须变红。
+// ══════════════════════════════════════════════════════════════
+
+async function moveReq(src, dst) {
+  const res = makeRes();
+  await filesMod.handleMove(makeJsonReq({ src, dst }), res);
+  return { status: res.status, body: parseResBody(res) };
+}
+
+async function renameReq(id, name) {
+  const res = makeRes();
+  await resourcesMod.handleResourcesRename(
+    makeJsonReq(), res,
+    new URL(`http://x/api/resources/rename?id=${encodeURIComponent(id)}&name=${encodeURIComponent(name)}`)
+  );
+  return { status: res.status, body: parseResBody(res) };
+}
+
+/**
+ * 等 debouncedSaveDb（500ms）真正落盘：轮询 db 文件，命中 text 返回原文，超时返回 null。
+ * 【为什么不用 closeDb 再重开验证】closeDb 内部会 saveDb()，会把内存态一并落盘，
+ * 从而掩盖「handler 忘了调 debouncedSaveDb」的缺陷（断言假绿）。故此处绕开内存实例，
+ * 直接读磁盘文件。
+ */
+async function waitDbFile(text, timeoutMs = 4000) {
+  const dbPath = path.join(TEST_DIR, 'localtool.db');
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (fs.existsSync(dbPath)) {
+      const raw = fs.readFileSync(dbPath).toString('utf8');
+      if (!text || raw.includes(text)) return raw;
+    }
+    await new Promise((r) => setTimeout(r, 50));
+  }
+  return null;
+}
+
+/**
+ * 让落盘状态归零：等遗留的 debouncedSaveDb 计时器（500ms）触发后删除 db 文件，
+ * 使后续断言只反映「本次操作是否落盘」。**落盘类断言前必须先调它。**
+ *
+ * 【为什么必须】debouncedSaveDb 用的是 database.js 的模块级单例计时器，会跨测试泄漏：
+ * 上一个测试留下的 pending 计时器，会在**下一个测试的 TEST_DIR** 里触发 saveDb
+ * （getDataDir() 运行时读 env，而 env 已被 beforeEach 切到新目录）。于是即使被测
+ * handler 完全没调落盘，db 文件也会凭空出现且内容正确 → 断言假绿。
+ * 这是变异测试实测踩到的（去掉 debouncedSaveDb 后 T4/T8 仍全绿），勿删本函数。
+ */
+async function settleDb() {
+  await new Promise((r) => setTimeout(r, 700)); // > debouncedSaveDb 的 500ms
+  const dbPath = path.join(TEST_DIR, 'localtool.db');
+  if (fs.existsSync(dbPath)) fs.unlinkSync(dbPath);
+}
+
+/** 造一条本地文件型资源行（id 用 rescan 规则） */
+async function seedResource(rel, { isFavorite = 0 } = {}) {
+  const name = path.basename(rel);
+  const dir = path.dirname(rel);
+  const folder = dir === '.' ? '' : dir;
+  const url = `http://127.0.0.1:18080/files/${rel}`;
+  await resourcesMod.handleResourcesSave(makeJsonReq({
+    id: `local-${folder ? folder + '-' : ''}${name}`,
+    url, type: 'image', source: 'local-tool', folder, name, is_favorite: isFavorite,
+  }), makeRes());
+  return url;
+}
+
+/**
+ * 直接 SQL 插入资源行（**不经任何 handler**）。
+ *
+ * 【落盘类断言（T4/T8）必须用它，不能用 seedResource】seedResource 走 handleResourcesSave，
+ * 其内部 debouncedSaveDb 会留下一个 500ms 计时器；该计时器在 move/rename **之后**才触发
+ * saveDb，把「已含改写的内存态」落盘 —— 于是即使 handler 忘了调 debouncedSaveDb，
+ * 断言依然通过（假绿）。这是变异测试实测出来的坑：去掉落盘调用后 T4/T8 竟然仍是绿的。
+ */
+async function insertResourceRow(rel, { isFavorite = 0 } = {}) {
+  const db = await dbMod.getDb();
+  const name = path.basename(rel);
+  const dir = path.dirname(rel);
+  const folder = dir === '.' ? '' : dir;
+  const id = `local-${folder ? folder + '-' : ''}${name}`;
+  dbMod.run(db,
+    'INSERT INTO resources (id, url, type, source, folder, name, is_favorite, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+    [id, `http://127.0.0.1:18080/files/${rel}`, 'image', 'local-tool', folder, name, isFavorite, Date.now()]
+  );
+  return id;
+}
+
+test('身份变更·move 目标已存在 → 409，源与目标都完好（禁止静默覆盖）', async () => {
+  const root = path.join(TEST_DIR, 'uploads', 'migrated');
+  fs.mkdirSync(path.join(root, '人物'), { recursive: true });
+  const srcFile = path.join(root, 'a.png');
+  const dstFile = path.join(root, '人物', 'a.png');
+  fs.writeFileSync(srcFile, RED_PNG_BUFFER);
+  fs.writeFileSync(dstFile, Buffer.from('TARGET-ORIGINAL')); // 内容不同，可字节级区分
+
+  const r = await moveReq('migrated/a.png', 'migrated/人物/a.png');
+  assert.equal(r.status, 409, '目标已存在必须 409，禁止 renameSync 静默覆盖');
+  assert.ok(fs.existsSync(srcFile), '源文件不得被删');
+  assert.equal(fs.readFileSync(dstFile).toString(), 'TARGET-ORIGINAL', '目标文件字节不得被改写');
+});
+
+test('身份变更·move 同步 resources 表：新行 id/folder/url 正确且保留收藏', async () => {
+  fs.mkdirSync(path.join(TEST_DIR, 'uploads', 'migrated', '人物'), { recursive: true });
+  fs.writeFileSync(path.join(TEST_DIR, 'uploads', 'migrated', 'a.png'), RED_PNG_BUFFER);
+  await seedResource('migrated/a.png', { isFavorite: 1 });
+
+  const r = await moveReq('migrated/a.png', 'migrated/人物/a.png');
+  assert.equal(r.status, 200, '移动应成功');
+
+  const db = await dbMod.getDb();
+  assert.equal(
+    dbMod.queryOne(db, 'SELECT id FROM resources WHERE id = ?', ['local-migrated-a.png']),
+    undefined,
+    '旧行必须删除'
+  );
+  const row = dbMod.queryOne(db, 'SELECT * FROM resources WHERE id = ?', ['local-migrated/人物-a.png']);
+  assert.ok(row, '新行必须存在（此前移动完全不同步表 → 收藏丢失 + GC 误删窗口）');
+  assert.equal(row.folder, 'migrated/人物');
+  assert.equal(row.url, 'http://127.0.0.1:18080/files/migrated/人物/a.png');
+  assert.equal(Number(row.is_favorite), 1, '收藏不得因移动丢失');
+});
+
+test('身份变更·move 改写画布 KV / 任务里对旧 url 的引用（原样 + URL 编码两态）', async () => {
+  fs.mkdirSync(path.join(TEST_DIR, 'uploads', 'migrated', '人物'), { recursive: true });
+  fs.writeFileSync(path.join(TEST_DIR, 'uploads', 'migrated', '角色.png'), RED_PNG_BUFFER);
+  await seedResource('migrated/角色.png');
+
+  const db = await dbMod.getDb();
+  const oldRel = 'migrated/角色.png';
+  const newRel = 'migrated/人物/角色.png';
+  const oldAbsRaw = `http://127.0.0.1:18080/files/${oldRel}`;
+  const oldAbsEnc = `http://127.0.0.1:18080/files/${encodeURI(oldRel)}`;
+  const newAbsRaw = `http://127.0.0.1:18080/files/${newRel}`;
+  const newAbsEnc = `http://127.0.0.1:18080/files/${encodeURI(newRel)}`;
+  dbMod.run(db, `INSERT INTO kv (key, value) VALUES (?, ?)`,
+    ['canvas-state-v1-p1', JSON.stringify({ nodes: [{ data: { url: oldAbsRaw } }, { data: { imageUrl: oldAbsEnc } }] })]);
+  dbMod.run(db, `INSERT INTO tasks (task_id, prompt) VALUES (?, ?)`, ['t1', `ref /files/${encodeURI(oldRel)}`]);
+
+  const r = await moveReq(oldRel, newRel);
+  assert.equal(r.status, 200);
+
+  const kvt = dbMod.queryOne(db, `SELECT value FROM kv WHERE key='canvas-state-v1-p1'`).value;
+  assert.ok(!kvt.includes(oldAbsRaw) && !kvt.includes(oldAbsEnc), 'KV 旧引用（原样+编码）均已改写');
+  assert.ok(kvt.includes(newAbsRaw), '原样存储的引用改写为原样新 url');
+  assert.ok(kvt.includes(newAbsEnc), '编码存储的引用改写为编码新 url');
+  const t = dbMod.queryOne(db, `SELECT prompt FROM tasks WHERE task_id='t1'`);
+  assert.ok(t.prompt.includes(encodeURI(newRel)), '任务里的编码相对引用已改写');
+});
+
+test('身份变更·move 后不经 closeDb，db 文件已含新 url（验证 debouncedSaveDb）', async () => {
+  fs.mkdirSync(path.join(TEST_DIR, 'uploads', 'migrated', '人物'), { recursive: true });
+  fs.writeFileSync(path.join(TEST_DIR, 'uploads', 'migrated', 'a.png'), RED_PNG_BUFFER);
+  await settleDb(); // 清掉跨测试泄漏的 pending 计时器与旧 db 文件
+  // 用 kv 引用承载「新 url」字符串：使本断言只反映落盘，不依赖 resources 表同步
+  // （否则表同步一坏落盘断言也跟着红，两条断言耦合就分不清是谁坏了）
+  const db = await dbMod.getDb();
+  dbMod.run(db, 'INSERT INTO kv (key, value) VALUES (?, ?)',
+    ['canvas-state-v1-p1', JSON.stringify({ nodes: [{ data: { url: 'http://127.0.0.1:18080/files/migrated/a.png' } }] })]);
+  await insertResourceRow('migrated/a.png'); // 不经 handler，避免自身再引入 debounce
+  await moveReq('migrated/a.png', 'migrated/人物/a.png');
+  const raw = await waitDbFile('http://127.0.0.1:18080/files/migrated/人物/a.png');
+  assert.ok(raw, 'db 文件内必须已含新 url（未落盘则等待超时返回 null）');
+});
+
+test('身份变更·move 拒绝越出 uploads 的路径（../ 逃逸）', async () => {
+  fs.mkdirSync(path.join(TEST_DIR, 'uploads', 'migrated'), { recursive: true });
+  const srcFile = path.join(TEST_DIR, 'uploads', 'migrated', 'a.png');
+  fs.writeFileSync(srcFile, RED_PNG_BUFFER);
+
+  const r = await moveReq('migrated/a.png', '../escaped.png');
+  assert.equal(r.status, 400, '越出 uploads 的目标必须被拒');
+  assert.ok(!fs.existsSync(path.join(TEST_DIR, 'escaped.png')), 'uploads 外不得被写入');
+  assert.ok(fs.existsSync(srcFile), '源文件保持原样');
+});
+
+test('身份变更·move 支持文件名含空格（不得对既有 basename 做 sanitize）', async () => {
+  fs.mkdirSync(path.join(TEST_DIR, 'uploads', 'migrated', '人物'), { recursive: true });
+  fs.writeFileSync(path.join(TEST_DIR, 'uploads', 'migrated', 'my pic.png'), RED_PNG_BUFFER);
+
+  const r = await moveReq('migrated/my pic.png', 'migrated/人物/my pic.png');
+  assert.equal(r.status, 200, '含空格的既有文件必须能正常移动');
+  assert.ok(fs.existsSync(path.join(TEST_DIR, 'uploads', 'migrated', '人物', 'my pic.png')));
+});
+
+test('身份变更·move 表内无行时按 rescan 规则补建，且 rescan 不重复录入', async () => {
+  fs.mkdirSync(path.join(TEST_DIR, 'uploads', 'migrated', '人物'), { recursive: true });
+  fs.writeFileSync(path.join(TEST_DIR, 'uploads', 'migrated', 'a.png'), RED_PNG_BUFFER);
+  // 刻意不 seedResource：模拟「磁盘有文件、表内无行」（手动拷入 / 未 rescan）
+
+  const r = await moveReq('migrated/a.png', 'migrated/人物/a.png');
+  assert.equal(r.status, 200);
+
+  const db = await dbMod.getDb();
+  const row = dbMod.queryOne(db, 'SELECT * FROM resources WHERE id = ?', ['local-migrated/人物-a.png']);
+  assert.ok(row, '无旧行时必须补建，不留「有文件无行」的不一致窗口');
+  assert.equal(row.source, 'local-tool');
+
+  // 只统计文件型：rescan 会为目标目录「人物」补一条 type=folder 记录（预期行为，非重复），
+  // 本断言要守的是「同一个文件不被重复录入」
+  const countFiles = () => dbMod.queryOne(db, `SELECT COUNT(*) AS c FROM resources WHERE type != 'folder'`).c;
+  const before = countFiles();
+  await resourcesMod.handleResourcesRescan(makeJsonReq(), makeRes());
+  const after = countFiles();
+  assert.equal(after, before, 'rescan 不得重复录入同一文件（新行 id 必须与 rescan 规则严格对齐）');
+});
+
+test('身份变更·rename 目标已存在 → 409（既有判重不退化）', async () => {
+  const dir = path.join(TEST_DIR, 'uploads', 'migrated');
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, 'a.png'), RED_PNG_BUFFER);
+  fs.writeFileSync(path.join(dir, 'b.png'), Buffer.from('B-ORIGINAL'));
+  await seedResource('migrated/a.png');
+
+  const r = await renameReq('local-migrated-a.png', 'b');
+  assert.equal(r.status, 409, '改名目标已存在必须 409');
+  assert.equal(fs.readFileSync(path.join(dir, 'b.png')).toString(), 'B-ORIGINAL', '目标文件内容不得被改写');
+  assert.ok(fs.existsSync(path.join(dir, 'a.png')), '源文件保持原样');
+});
+
+test('身份变更·rename 后不经 closeDb，db 文件已含新 url', async () => {
+  fs.mkdirSync(path.join(TEST_DIR, 'uploads', 'web'), { recursive: true });
+  fs.writeFileSync(path.join(TEST_DIR, 'uploads', 'web', 'a.png'), RED_PNG_BUFFER);
+  await settleDb(); // 同上：先归零落盘状态，并用 kv 承载验证字符串（与表同步解耦）
+  const db = await dbMod.getDb();
+  dbMod.run(db, 'INSERT INTO kv (key, value) VALUES (?, ?)',
+    ['canvas-state-v1-p1', JSON.stringify({ nodes: [{ data: { url: 'http://127.0.0.1:18080/files/web/a.png' } }] })]);
+  await insertResourceRow('web/a.png');
+
+  await renameReq('local-web-a.png', '新名');
+  const raw = await waitDbFile('http://127.0.0.1:18080/files/web/新名.png');
+  assert.ok(raw, 'rename 后 db 文件必须已含新 url');
+});
+
+test('身份变更·rename 不误吃文件名里的点（「图1.2」不被切成「图1」）', async () => {
+  fs.mkdirSync(path.join(TEST_DIR, 'uploads', 'migrated'), { recursive: true });
+  fs.writeFileSync(path.join(TEST_DIR, 'uploads', 'migrated', 'a.png'), RED_PNG_BUFFER);
+  await seedResource('migrated/a.png');
+
+  const r = await renameReq('local-migrated-a.png', '图1.2');
+  assert.equal(r.status, 200);
+  assert.equal(r.body.data.name, '图1.2.png', '含点的名字应完整保留，只补原扩展名');
+  assert.ok(fs.existsSync(path.join(TEST_DIR, 'uploads', 'migrated', '图1.2.png')));
+});
+
+test('身份变更·rename 用户带后缀输入时仍剥离（统一保留原扩展名）', async () => {
+  fs.mkdirSync(path.join(TEST_DIR, 'uploads', 'migrated'), { recursive: true });
+  fs.writeFileSync(path.join(TEST_DIR, 'uploads', 'migrated', 'a.png'), RED_PNG_BUFFER);
+  await seedResource('migrated/a.png');
+
+  const r = await renameReq('local-migrated-a.png', 'b.jpg');
+  assert.equal(r.status, 200);
+  assert.equal(r.body.data.name, 'b.png', '用户输入 .jpg 也应剥离，统一用原扩展名 .png');
 });
