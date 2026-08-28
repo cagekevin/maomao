@@ -18,6 +18,10 @@
  */
 
 import { FilesetResolver, FaceDetector } from '@mediapipe/tasks-vision'
+// 图片加载走系统统一入口（asyncGuard 已声明替代本文件的私有实现）：带超时 + crossOrigin + 可取消，
+// 超时值统一取 config 的 IMAGE_LOAD_TIMEOUT，不再自带第二套 20s。
+import { loadImageWithTimeout } from './asyncGuard.js'
+import { IMAGE_LOAD_TIMEOUT } from './config.js'
 
 /** 解析静态资源路径：Chrome 扩展走 runtime.getURL，否则用相对路径（复刻官方 rl） */
 function resolveAsset(p) {
@@ -45,18 +49,6 @@ export async function loadFaceDetector() {
     throw e
   })
   return detectorSingleton
-}
-
-/** 加载图片（带超时 + crossOrigin，复刻官方 ol） */
-function loadImage(url, timeoutMs = 20000) {
-  return new Promise((resolve, reject) => {
-    const img = new Image()
-    img.crossOrigin = 'anonymous'
-    const timer = window.setTimeout(() => reject(new Error('图片加载超时')), timeoutMs)
-    img.onload = () => { window.clearTimeout(timer); resolve(img) }
-    img.onerror = () => { window.clearTimeout(timer); reject(new Error('图片加载失败（可能是跨域或格式不支持）')) }
-    img.src = url
-  })
 }
 
 /** 眼睛关键点坐标（复刻官方 sl）→ {lx,ly,rx,ry,dist} 或 null */
@@ -203,9 +195,9 @@ function applyMode(ctx, srcImg, box, mode, strength = 0.5, shape = 'rect', color
  * 识别人脸区域框列表（复刻官方 vl）→ [{x,y,w,h}, ...]
  * 供手动打码编辑器「自动识别人脸」用。
  */
-export async function detectFaces(imgUrl, timeoutMs = 20000) {
+export async function detectFaces(imgUrl, timeoutMs = IMAGE_LOAD_TIMEOUT) {
   const detector = await loadFaceDetector()
-  const img = await loadImage(imgUrl, timeoutMs)
+  const img = await loadImageWithTimeout(imgUrl, { timeoutMs })
   const w = img.naturalWidth || img.width
   const h = img.naturalHeight || img.height
   const res = detector.detect(img)
@@ -223,9 +215,9 @@ export async function detectFaces(imgUrl, timeoutMs = 20000) {
  * @param {{mode?:'mosaic'|'bar'|'grid'|'blur', strength?:number, color?:string, format?:string, timeoutMs?:number}} opts
  */
 export async function applyMosaic(dataUrl, opts = {}) {
-  const { mode = 'mosaic', strength = 0.5, color = '#000000', format = 'image/png', timeoutMs = 20000 } = opts
+  const { mode = 'mosaic', strength = 0.5, color = '#000000', format = 'image/png', timeoutMs = IMAGE_LOAD_TIMEOUT } = opts
   const detector = await loadFaceDetector()
-  const img = await loadImage(dataUrl, timeoutMs)
+  const img = await loadImageWithTimeout(dataUrl, { timeoutMs })
   const w = img.naturalWidth || img.width
   const h = img.naturalHeight || img.height
   if (!w || !h) throw new Error('无法获取图片尺寸')

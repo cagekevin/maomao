@@ -3,7 +3,7 @@ import { useCanvasAgentTools, getGenParams, setCurrentReferenceImages } from '..
 import { loadAgentChatModel, loadAgentHistoryTurns } from '../../base/settings/agentModelStore.js'
 import { logger } from '../../base/logger.js'
 import { withTimeout } from '../../base/asyncGuard.js'
-import { API_BASE } from '../../base/config.js'
+import { API_BASE, KV_TIMEOUT } from '../../base/config.js'
 import { LLM_CHAT_BASE_URL, LLM_CHAT_API_KEY, LLM_CHAT_MODEL, AGENT_DEMO_MODE } from '../../base/config.js'
 import { InputStateMachine } from './inputStateMachine.js'
 import { generateId } from '../../base/idGen.js'
@@ -304,7 +304,7 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
     setAgentKey(agentKey)
 
     // 1) 等异步水化完成（带兜底超时，避免首屏因 KV 未就绪而卡死）：完成后才能读到真实会话数据
-    withTimeout(waitHydrated(agentKey), 5000, '会话水化等待超时')
+    withTimeout(waitHydrated(agentKey), KV_TIMEOUT, '会话水化等待超时')
       .catch((e) => {
         // 超时/失败：按「无存量」继续（数据会由后续触发补迁），失败可见不静默
         logger.warn('AI助手', '等待会话水化超时/失败，按当前状态恢复', { agentKey, error: e?.message || String(e) })

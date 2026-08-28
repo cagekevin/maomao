@@ -22,9 +22,8 @@ import { saveInlineToLocal } from './filesApi.js'
 import { UPLOAD_DIRS } from './uploadDirs.js'
 import { logger } from './logger.js'
 import { showToast } from './toastStore.js'
+import { KV_TIMEOUT } from './config.js'
 
-/** KV 读写统一总超时（防网络挂起，超时抛由调用方降级处理） */
-const KV_TIMEOUT = 8000
 /** 工程存储默认键（无 nodeId 独立运行场景，与 director3d/project.js 一致） */
 export const PROJECT_KEY_DEFAULT = 'director3d-project'
 

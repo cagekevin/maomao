@@ -59,7 +59,7 @@ export function withTimeout(promise, ms, message = '操作超时', signal, onTim
  * 统一图片加载入口：HTMLImageElement + 超时 + crossOrigin + 可取消。
  * 替代 imageCompress.loadImage（无超时）与 faceMosaic.loadImage（各自实现）。
  * @param {string} url
- * @param {object} [opts] { timeoutMs=20000, crossOrigin='anonymous' }
+ * @param {object} [opts] { timeoutMs=IMAGE_LOAD_TIMEOUT, crossOrigin='anonymous' }
  * @returns {Promise<HTMLImageElement>}
  */
 export function loadImageWithTimeout(url, opts = {}) {

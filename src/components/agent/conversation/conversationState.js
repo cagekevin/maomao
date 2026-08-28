@@ -26,6 +26,7 @@ import { generateId } from '../../base/idGen.js'
 import { CREDIT_GATE_FIELD } from '../../base/contracts.js'
 import { logger } from '../../base/logger.js'
 import { reportDegrade } from '../../base/degrade.js'
+import { KV_TIMEOUT } from '../../base/config.js'
 // 【P1c L3 整包预算安全网】落盘前对归一化副本做投影降级，保证整包序列化体积有界（见 volumePolicy.js）
 import { applyConversationBudget, estimateConversationsBytes, SAFE_BUDGET_BYTES } from '../../base/volumePolicy.js'
 
@@ -127,9 +128,6 @@ export function useConversationStore() {
  *  - C3 不做「迁完删 local」：KV 失败降级仍写 local 副本（storageGet 兜底可回读），local 键保留语义不破坏。
  */
 
-/** 异步水化/迁移的统一总超时（ms，对齐项目记忆 store 的读写超时语义；网络走 httpClient 已继承超时，此为二次兜底） */
-const HYDRATE_TIMEOUT_MS = 8000
-
 /** 正在异步水化的 agentKey 集合（防重复触发一次以上水化） */
 const hydrationInFlight = new Set()
 
@@ -216,12 +214,12 @@ async function hydrateAsync(k) {
   let kvConversations = null
   let kvActiveId = ''
   try {
-    kvConversations = await withTimeout(contentGetAsync(convKey(k)), HYDRATE_TIMEOUT_MS, `读取会话水化超时(${k})`)
+    kvConversations = await withTimeout(contentGetAsync(convKey(k)), KV_TIMEOUT, `读取会话水化超时(${k})`)
   } catch (e) {
     logger.warn('AI助手', '水化读会话 KV 失败，回退本地存量', { key: convKey(k), error: e?.message || String(e) })
   }
   try {
-    const id = await withTimeout(contentGetAsync(activeKey(k)), HYDRATE_TIMEOUT_MS, `读取活跃会话 id 超时(${k})`)
+    const id = await withTimeout(contentGetAsync(activeKey(k)), KV_TIMEOUT, `读取活跃会话 id 超时(${k})`)
     if (typeof id === 'string' && id) kvActiveId = id
   } catch (e) {
     logger.warn('AI助手', '水化读活跃会话 id 失败', { key: activeKey(k), error: e?.message || String(e) })
@@ -244,8 +242,8 @@ async function hydrateAsync(k) {
     activeId = localActiveId
     try {
       // 幂等迁入 KV：contentSetAsync 路由到 KV；失败保留内存态由后续正常链路兜底，失败可见
-      await withTimeout(contentSetAsync(convKey(k), conversations), HYDRATE_TIMEOUT_MS, `存量会话迁 KV 超时(${k})`)
-      await withTimeout(contentSetAsync(activeKey(k), activeId), HYDRATE_TIMEOUT_MS, `存量活跃 id 迁 KV 超时(${k})`)
+      await withTimeout(contentSetAsync(convKey(k), conversations), KV_TIMEOUT, `存量会话迁 KV 超时(${k})`)
+      await withTimeout(contentSetAsync(activeKey(k), activeId), KV_TIMEOUT, `存量活跃 id 迁 KV 超时(${k})`)
       logger.warn('AI助手', '存量会话已从 localStorage 一次性迁入 KV', { key: convKey(k), count: conversations.length })
     } catch (e) {
       logger.warn('AI助手', '存量会话迁 KV 失败，沿用内存态', { key: convKey(k), error: e?.message || String(e) })
@@ -258,8 +256,8 @@ async function hydrateAsync(k) {
         conversations = legacyConv
         activeId = legacyActive
         try {
-          await withTimeout(contentSetAsync(convKey(k), conversations), HYDRATE_TIMEOUT_MS, `旧键会话迁 KV 超时(${k})`)
-          await withTimeout(contentSetAsync(activeKey(k), activeId), HYDRATE_TIMEOUT_MS, `旧键活跃 id 迁 KV 超时(${k})`)
+          await withTimeout(contentSetAsync(convKey(k), conversations), KV_TIMEOUT, `旧键会话迁 KV 超时(${k})`)
+          await withTimeout(contentSetAsync(activeKey(k), activeId), KV_TIMEOUT, `旧键活跃 id 迁 KV 超时(${k})`)
         } catch { /* 与上述存量迁移同款兜底语义 */ }
       } else {
         conversations = []

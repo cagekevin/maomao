@@ -16,9 +16,9 @@
  */
 import { logger } from './logger.js'
 import { showToast } from './toastStore.js'
+import { THROTTLE_MS } from './config.js'
 
 const throttle = { key: '', ts: 0 }
-const DEFAULT_THROTTLE_MS = 5000
 
 export function reportDegrade(args) {
   const {
@@ -26,7 +26,7 @@ export function reportDegrade(args) {
     key,     // 降级对象标识（如存储键 / 资源 url）
     e,       // 底层异常（可选，仅用于日志）
     toast,   // 可选：需要弹 toast 时的文案；不传则只记录日志不明示用户
-    throttleMs = DEFAULT_THROTTLE_MS,
+    throttleMs = THROTTLE_MS,
   } = typeof args === 'string'
     ? { layer: args, key: '', e: arguments[1] } // 兼容：reportDegrade('layer', err)
     : args

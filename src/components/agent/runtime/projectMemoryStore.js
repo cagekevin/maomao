@@ -20,6 +20,7 @@ import { contentGetAsync, contentSetAsync, contentDeleteAsync } from '../../base
 import { withTimeout } from '../../base/asyncGuard.js'
 import { generateId } from '../../base/idGen.js'
 import { logger } from '../../base/logger.js'
+import { KV_TIMEOUT } from '../../base/config.js'
 
 /** 单条记忆正文长度上限 */
 export const PROJECT_MEMORY_CONTENT_LIMIT = 500
@@ -35,7 +36,6 @@ export const PROJECT_MEMORY_KIND_LABELS = {
   decision: '决定',
 }
 
-const READ_WRITE_TIMEOUT_MS = 8_000
 /** 记忆归属全局（不分项目），key 仅按 agentKey 区分 */
 const memoryKey = (agentKey) => `agent_project_memory_v1_${agentKey}`
 
@@ -79,7 +79,7 @@ export async function loadProjectMemories(agentKey, _projectId) {
   const key = memoryKey(agentKey)
   if (!cache.has(cacheKey(agentKey))) {
     try {
-      const raw = await withTimeout(contentGetAsync(key), READ_WRITE_TIMEOUT_MS, '读取项目记忆超时')
+      const raw = await withTimeout(contentGetAsync(key), KV_TIMEOUT, '读取项目记忆超时')
       const list = Array.isArray(raw)
         ? raw.filter((m) => m && typeof m === 'object' && typeof m.id === 'string')
         : []
@@ -130,7 +130,7 @@ export async function saveProjectMemory(agentKey, memory) {
     else next = [record, ...list]
     // 超出上限 → 淘汰最旧（updatedAt 最早，已在数组末尾）
     if (next.length > PROJECT_MEMORY_LIMIT) next = next.slice(0, PROJECT_MEMORY_LIMIT)
-    await withTimeout(contentSetAsync(key, next), READ_WRITE_TIMEOUT_MS, '保存项目记忆超时')
+    await withTimeout(contentSetAsync(key, next), KV_TIMEOUT, '保存项目记忆超时')
     writeCache(agentKey, next)
   })
   return record
@@ -142,7 +142,7 @@ export async function removeProjectMemory(agentKey, _projectId, id) {
     const list = await loadProjectMemories(agentKey)
     const remain = list.filter((m) => m.id !== id)
     if (remain.length === list.length) return
-    await withTimeout(contentSetAsync(memoryKey(agentKey), remain), READ_WRITE_TIMEOUT_MS, '删除项目记忆超时')
+    await withTimeout(contentSetAsync(memoryKey(agentKey), remain), KV_TIMEOUT, '删除项目记忆超时')
     writeCache(agentKey, remain)
   })
 }

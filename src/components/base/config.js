@@ -113,6 +113,12 @@ export const VIDEO_DOWNLOAD_TIMEOUT = 60000
 export const UPLOAD_TIMEOUT = 30000
 /** 聊天/提示词生成总超时（chatProxy）：2 分钟，超时 abort 并复位 loading，避免动画无限挂起 */
 export const CHAT_TIMEOUT = 120000
+/** KV / 本地存储读写总超时（contentStore / conversationState / d3dPersistence / projectMemoryStore 共用） */
+export const KV_TIMEOUT = 8000
+
+// ── 节流窗口（ms）──────────────────────────────────────────────
+/** 失败提示节流窗口：同一 key 在该窗口内重复只报一次（degrade / persistFailureBus 共用） */
+export const THROTTLE_MS = 5000
 
 // ── 生成轮询超时（ms）───────────────────────────────────────────
 /** 生图 async 模式轮询总超时 */

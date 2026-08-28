@@ -12,12 +12,14 @@
  *
  * @param {object} [opts]
  *   now: () => number  时间源（测试注入）
- *   throttleMs: number 同一 key 节流窗口（默认 5000）
+ *   throttleMs: number 同一 key 节流窗口（默认 config.THROTTLE_MS）
  *   onToast: (key,error) => void  需要弹 Toast 时的回调
  *   onLog:  (key,error,suppressed) => void  每次事件的日志回调
  * @returns {(payload: {key?:string, error?:string}) => void}
  */
-export function createThrottledPersistHandler({ now = Date.now, throttleMs = 5000, onToast, onLog } = {}) {
+import { THROTTLE_MS } from './config.js'
+
+export function createThrottledPersistHandler({ now = Date.now, throttleMs = THROTTLE_MS, onToast, onLog } = {}) {
   const lastByKey = new Map()
   return (payload) => {
     const key = payload?.key ?? '(未知键)'
