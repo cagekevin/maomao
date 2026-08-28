@@ -2,7 +2,8 @@
  * 统一异步边界守卫（R2 系统性根因治理）。
  *
  * 【为什么存在】项目大量异步操作（图片加载 / 视频生成 / 全景解码 / 网关请求）没有统一
- * 超时兜底：有的有（faceMosaic.loadImage 20s）、有的没有（imageCompress.loadImage 永久挂起），
+ * 超时兜底：有的有（faceMosaic 私有 loadImage 20s）、有的没有（imageCompress / OverlayEditor /
+ * GridMergeNode 的 loadImage 永久挂起），
  * 导致「loading 永不结束 / 用户无感卡死」。本模块提供统一的超时 + 失败语义，消灭这类 bug。
  *
  * 【用法】
@@ -57,7 +58,8 @@ export function withTimeout(promise, ms, message = '操作超时', signal, onTim
 
 /**
  * 统一图片加载入口：HTMLImageElement + 超时 + crossOrigin + 可取消。
- * 替代 imageCompress.loadImage（无超时）与 faceMosaic.loadImage（各自实现）。
+ * 已替代各模块私有实现：imageCompress / faceMosaic / OverlayEditor / GridMergeNode（原先均无统一超时）。
+ * 批量加载请改用下方 loadImageOrNull（坏图降级 null，不抛错）。
  * @param {string} url
  * @param {object} [opts] { timeoutMs=IMAGE_LOAD_TIMEOUT, crossOrigin='anonymous' }
  * @returns {Promise<HTMLImageElement>}
@@ -75,4 +77,30 @@ export function loadImageWithTimeout(url, opts = {}) {
     img.onerror = () => { clearTimeout(timer); reject(new Error('图片加载失败（可能跨域或格式不支持）')) }
     img.src = String(url || '')
   })
+}
+
+/**
+ * 宽容版图片加载：失败（超时 / 跨域 / 格式错误 / 空 url）一律返回 null，绝不抛错。
+ * 供「批量加载、跳过坏图」场景（宫格合成 / 图层叠加）使用——这类场景用 Promise.all，
+ * 若沿用 loadImageWithTimeout 的 reject 语义，单张坏图会让整批失败。
+ *
+ * 两级尝试（收口自原先散落各模块的私有实现，保留其兼容语义）：
+ *   1) 带 crossOrigin（canvas 不被污染，可导出）；
+ *   2) 失败则去掉 crossOrigin 再试一次（跨域图无 CORS 头时的兜底，代价是 canvas 被污染）。
+ * 两级都受 IMAGE_LOAD_TIMEOUT 保护——原先的私有实现**没有超时**，图片挂起会让导出/合成永久卡死。
+ *
+ * @param {string} url
+ * @param {object} [opts] { timeoutMs=IMAGE_LOAD_TIMEOUT, crossOrigin='anonymous' }
+ * @returns {Promise<HTMLImageElement|null>}
+ */
+export async function loadImageOrNull(url, opts = {}) {
+  if (!url) return null
+  try {
+    return await loadImageWithTimeout(url, opts)
+  } catch { /* 落到无 crossOrigin 重试：跨域图无 CORS 头的兜底 */ }
+  try {
+    return await loadImageWithTimeout(url, { ...opts, crossOrigin: null })
+  } catch {
+    return null
+  }
 }

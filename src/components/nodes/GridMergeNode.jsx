@@ -17,6 +17,9 @@ import { toAbsoluteFileUrl } from '../base/filesApi.js'
 import { useRenderImageResolver } from '../base/imageUrl.js'
 import { logger } from '../base/logger.js'
 import { generateId } from '../base/idGen.js'
+// 图片加载统一走 asyncGuard：带超时 + crossOrigin（失败去 crossOrigin 重试一级）+ 坏图降级 null。
+// 替代本文件原有的无超时私有实现（图片挂起会让宫格合成永久卡住）。
+import { loadImageOrNull } from '../base/asyncGuard.js'
 
 /* ════════════════════════════════════════════════════════════════
  * 图片拼图节点（复刻官方 Yo.jsx / gridMergeNode）
@@ -42,20 +45,6 @@ const parseGrid = (str) => {
   const cols = clamp(parseInt(m[2], 10), 1, 20)
   return rows && cols ? { rows, cols } : null
 }
-const loadImage = (src) =>
-  new Promise((resolve) => {
-    if (!src) return resolve(null)
-    const img = new Image()
-    img.crossOrigin = 'anonymous'
-    img.onload = () => resolve(img)
-    img.onerror = () => {
-      const r = new Image()
-      r.src = src
-      r.onload = () => resolve(r)
-      r.onerror = () => resolve(null)
-    }
-    img.src = src
-  })
 // 背景填充（复刻 shared.js Jo）：非透明→实色；透明预览→棋盘格；grid 预览→网格线
 const fillBg = (ctx, w, h, isExport, color, grid = null) => {
   if (color !== 'transparent') {
@@ -188,7 +177,7 @@ function GridMergeNode({ id, data, selected }) {
         if (mergeMode === 'longImage') {
           const list = longList
           if (list.length === 0) return null
-          const imgs = (await Promise.all(list.map(loadImage))).filter(Boolean)
+          const imgs = (await Promise.all(list.map(loadImageOrNull))).filter(Boolean)
           if (imgs.length === 0) return null
           const vertical = longDirection === 'vertical'
           const base = longAutoSize ? (vertical ? imgs[0].width : imgs[0].height) : longTargetSize
@@ -239,7 +228,7 @@ function GridMergeNode({ id, data, selected }) {
         if (mergeMode === 'grid') {
           const total = rows * cols
           const cells = gridCells.slice(0, total)
-          const imgs = await Promise.all(cells.map((c) => (c ? loadImage(c) : Promise.resolve(null))))
+          const imgs = await Promise.all(cells.map((c) => (c ? loadImageOrNull(c) : Promise.resolve(null))))
           let cellW = cellSize
           let cellH = cellSize
           const first = imgs.find(Boolean)

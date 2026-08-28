@@ -24,25 +24,14 @@ import { toAbsoluteFileUrl } from './filesApi.js'
  * ════════════════════════════════════════════════════════════════ */
 
 import { generateId } from './idGen.js'
+// 图片加载统一走 asyncGuard：带超时 + crossOrigin（失败去 crossOrigin 重试一级）+ 坏图降级 null。
+// 替代本文件原有的无超时私有实现（图片挂起会让整层渲染/导出永久卡住）。
+import { loadImageOrNull } from './asyncGuard.js'
 const genId = () => generateId('ov')
-const loadImage = (src) =>
-  new Promise((resolve) => {
-    if (!src) return resolve(null)
-    const img = new Image()
-    img.crossOrigin = 'anonymous'
-    img.onload = () => resolve(img)
-    img.onerror = () => {
-      const r = new Image()
-      r.src = src
-      r.onload = () => resolve(r)
-      r.onerror = () => resolve(null)
-    }
-    img.src = src
-  })
 
 // 单层渲染 canvas（复刻 Bo_1.jsx：drawImage + mask destination-in）
 const renderLayerCanvas = async (layer) => {
-  const img = await loadImage(layer.imageUrl)
+  const img = await loadImageOrNull(layer.imageUrl)
   if (!img) return null
   const w = img.naturalWidth || img.width
   const h = img.naturalHeight || img.height
@@ -53,7 +42,7 @@ const renderLayerCanvas = async (layer) => {
   if (!ctx) return null
   ctx.drawImage(img, 0, 0, w, h)
   if (layer.maskUrl) {
-    const mask = await loadImage(layer.maskUrl)
+    const mask = await loadImageOrNull(layer.maskUrl)
     if (mask) {
       ctx.globalCompositeOperation = 'destination-in'
       ctx.drawImage(mask, 0, 0, w, h)
@@ -139,7 +128,7 @@ export default function OverlayEditor({ state, onChange, upstreamUrls }) {
       const added = []
       let maxZ = layers.reduce((m, l) => Math.max(m, l.zIndex), 0)
       for (const url of toAdd) {
-        const img = await loadImage(url)
+        const img = await loadImageOrNull(url)
         if (cancelled) return
         if (!img) continue
         const w = img.naturalWidth || img.width
@@ -346,7 +335,7 @@ export default function OverlayEditor({ state, onChange, upstreamUrls }) {
       if (!ctx) return
       ctx.clearRect(0, 0, w, h)
       if (layer.maskUrl) {
-        const mask = await loadImage(layer.maskUrl)
+        const mask = await loadImageOrNull(layer.maskUrl)
         if (!cancelled && mask) ctx.drawImage(mask, 0, 0, w, h)
       } else {
         ctx.fillStyle = '#fff'
