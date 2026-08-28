@@ -50,14 +50,14 @@ async function attachImages(messages, images, provider) {
  *   - signal?: AbortSignal
  * @returns {{ ok:boolean, content?:string, error?:string, aborted?:boolean }}
  */
-export async function chatCompletions({ provider, messages, model, images, temperature = 0.1, responseFormat, signal }) {
+export async function chatCompletions({ provider, messages, model, images, temperature = 0.1, responseFormat, signal, stream = false }) {
   const finalMessages = await attachImages(messages, images, provider)
   // responses 形态：input[] + tools 顶层 name 构造请求体；默认 chat/completions（M2-2）
   if (resolveChatMode(provider?.chat_request_mode, model) === 'responses') {
-    const body = buildResponsesChatBody({ model, messages: finalMessages, temperature, responseFormat: responseFormat === 'json' ? 'json_schema' : responseFormat === 'json_object' ? 'json_schema' : responseFormat })
-    return chatProxy({ provider, body, signal })
+    const body = buildResponsesChatBody({ model, messages: finalMessages, temperature, responseFormat: responseFormat === 'json' ? 'json_schema' : responseFormat === 'json_object' ? 'json_schema' : responseFormat, stream })
+    return chatProxy({ provider, body, signal, stream })
   }
-  const body = { model, messages: finalMessages, temperature, stream: false }
+  const body = { model, messages: finalMessages, temperature, stream }
   if (responseFormat === 'json_object' || responseFormat === 'json') body.response_format = { type: responseFormat }
-  return chatProxy({ provider, body, signal })
+  return chatProxy({ provider, body, signal, stream })
 }

@@ -23,8 +23,10 @@ const PER_MESSAGE_INPUT_CHAR_LIMIT = 4_000
 const TOTAL_INPUT_CHAR_LIMIT = 100_000
 /** 摘要正文长度上限（字符） */
 export const SUMMARY_CHAR_LIMIT = 6_000
-/** 单次压缩请求总超时（ms）；超时不写回，仅记日志，绝不阻塞主流程 */
-const SUMMARY_TIMEOUT_MS = 30_000
+/** 单次压缩请求总超时（ms）；超时不写回，仅记日志，绝不阻塞主流程。
+ *  压缩走流式（stream:true，同主请求通道）：边生成边累积，慢模型（思考型）也能及时返回，
+ *  根治「非流式等完整生成导致 30s 必超时」；流式下 60s 足够完成一次摘要。 */
+const SUMMARY_TIMEOUT_MS = 60_000
 
 export const SUMMARY_REQUIRED_SECTIONS = [
   '目标与背景',
@@ -113,8 +115,10 @@ export async function compressToSummary({ provider, model, messages, previousSum
   const signal = new AbortController()
   let res
   try {
+    // 压缩走流式（stream:true）：边生成边累积 content，避免非流式慢模型（思考型）30s 挂起超时。
+    // 流式下响应头一到就持续有数据，超时窗口内能及时拿回摘要（即便未完整也会累积到大部分）。
     res = await withTimeout(
-      chatCompletions({ provider, messages: body, model, temperature: 0.1, signal: signal.signal }),
+      chatCompletions({ provider, messages: body, model, temperature: 0.1, signal: signal.signal, stream: true }),
       SUMMARY_TIMEOUT_MS,
       '对话摘要压缩超时',
       signal.signal

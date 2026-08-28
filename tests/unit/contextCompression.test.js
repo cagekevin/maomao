@@ -60,6 +60,14 @@ describe('compressToSummary —— 压缩入库（记 T2~T4）', () => {
     expect(opts.messages[0].content).toContain('【目标与背景】')
   })
 
+  it('【回归】压缩走流式 stream:true（根治非流式慢模型 30s 超时）', async () => {
+    chatApi.chatCompletions.mockResolvedValue({ content: fullSummary })
+    await compressToSummary({ provider: {}, model: 'm', messages: [] })
+    const [opts] = chatApi.chatCompletions.mock.calls[0]
+    // 关键：压缩请求必须流式（同主请求通道，边生成边累积），不能走非流式等完整生成
+    expect(opts.stream).toBe(true)
+  })
+
   it('LLM 失败 → 返回 null（不抛错、不动旧摘要）', async () => {
     chatApi.chatCompletions.mockRejectedValue(new Error('network down'))
     const msg = await compressToSummary({ provider: {}, model: 'm', messages: [] })

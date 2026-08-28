@@ -224,9 +224,12 @@ function extractVideoUrl({ data, json }) {
  * 聊天代理 —— 契约是「信封，永不抛错」。
  * HTTP 非 2xx 属业务错误（取上游嵌套 message），网络/AbortError 才是异常分支；
  * 故不走 __proxyFetch（它对 HTTP 抛错，会给业务错误误加「网络错误」前缀）。
+ * @param {object} opts
+ *   - provider, body, signal
+ *   - stream?: boolean  默认 false（非流式 JSON 直返）；true 时走 SSE 流式累积 content
  * @returns {{ ok:boolean, content?:string, error?:string, aborted?:boolean }}
  */
-export async function chatProxy({ provider, body, signal }) {
+export async function chatProxy({ provider, body, signal, stream = false }) {
   // 请求形态：responses 走 /v1/responses 端点 + output[] 解析；默认 chat/completions（M2-2）
   const responses = resolveChatMode(provider?.chat_request_mode, body?.model) === 'responses'
   const target = buildTargetUrl(provider, responses ? 'responses' : 'chat/completions')
@@ -274,15 +277,25 @@ export async function chatProxy({ provider, body, signal }) {
   } finally {
     signal?.removeEventListener?.('abort', onExternalAbort)
   }
+  // 非 2xx：读错误体（一次性）后返回；不预读 json 以免消耗流式 body
+  if (!res.ok) {
+    let errJson = null
+    try { errJson = await res.json() } catch { /* 忽略：错误体非 JSON */ }
+    const msg = parseNestedError(errJson) || `HTTP ${res.status}`
+    return { ok: false, error: msg }
+  }
+  // 【流式】读 SSE 累积 content：边生成边返回，避免「非流式等完整生成」导致慢模型
+  // （如 Qwen3-VL-Thinking / deepseek 思考型）30s 无响应挂起超时（压缩/摘要场景核心修复）。
+  if (stream) {
+    const content = await readSseChatContent(res)
+    if (typeof content === 'string' && content.trim()) return { ok: true, content }
+    return { ok: false, error: '上游未返回文本内容' }
+  }
   let json
   try {
     json = await res.json()
   } catch {
     return { ok: false, error: `响应解析失败 (HTTP ${res.status})` }
-  }
-  if (!res.ok) {
-    const msg = parseNestedError(json) || `HTTP ${res.status}`
-    return { ok: false, error: msg }
   }
   if (responses) {
     const content = parseResponsesChatJson(json || {}).content
@@ -292,6 +305,38 @@ export async function chatProxy({ provider, body, signal }) {
   const content = (json?.data ?? json)?.choices?.[0]?.message?.content
   if (typeof content === 'string' && content.trim()) return { ok: true, content }
   return { ok: false, error: '上游未返回文本内容' }
+}
+
+/** 流式读 chat/responses SSE 并累积 content（兼容 choices[].delta.content 与 output[].content[].text）。 */
+async function readSseChatContent(res) {
+  const reader = res.body?.getReader?.()
+  if (!reader) return ''
+  const decoder = new TextDecoder()
+  let buffer = ''
+  let content = ''
+  try {
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split('\n')
+      buffer = lines.pop() || ''
+      for (const line of lines) {
+        const raw = line.trim().startsWith('data:') ? line.trim().slice(5).trim() : ''
+        if (!raw || raw === '[DONE]') continue
+        try {
+          const evt = JSON.parse(raw)
+          const delta = evt?.choices?.[0]?.delta
+          if (delta && typeof delta.content === 'string') { content += delta.content; continue }
+          const text = evt?.output?.[0]?.content?.[0]?.text
+          if (typeof text === 'string') content += text
+        } catch { /* 忽略非 JSON 行 */ }
+      }
+    }
+  } finally {
+    reader.releaseLock?.()
+  }
+  return content
 }
 
 function parseNestedError(j) {
