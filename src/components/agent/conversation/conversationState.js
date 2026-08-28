@@ -25,6 +25,7 @@ import { withTimeout } from '../../base/asyncGuard.js'
 import { generateId } from '../../base/idGen.js'
 import { CREDIT_GATE_FIELD } from '../../base/contracts.js'
 import { logger } from '../../base/logger.js'
+import { reportDegrade } from '../../base/degrade.js'
 // 【P1c L3 整包预算安全网】落盘前对归一化副本做投影降级，保证整包序列化体积有界（见 volumePolicy.js）
 import { applyConversationBudget, estimateConversationsBytes, SAFE_BUDGET_BYTES } from '../../base/volumePolicy.js'
 
@@ -79,9 +80,15 @@ const persistDebounced = createDebouncedPersist(() => {
   try {
     contentSet(convKey(currentAgentKey), toStore)
     contentSet(activeKey(currentAgentKey), next.activeId || '')
-  } catch (e) { /* 忽略写失败（事件已由 contentSet→sSet 内部 publish，见 storageAdapter） */
-    // 【P0·M3 观测】会话键落盘失败的底层 catch：事件链路不阻断，但加 logger 便于离线 grep 根因（key+error）。
-    logger.warn('AI助手', '会话落盘失败', { key: convKey(currentAgentKey), error: e?.message || String(e) })
+  } catch (e) {
+    // 【修正旧注释】原注释称「事件已由 contentSet→sSet 内部 publish」——该假设仅在 local
+    // 后端成立。会话键已登记 backend:'kv'，走 storageSet→kvSet(网络)，不经过 sSet，
+    // 故 KV 路径的同步抛错不会触发 persist:failed 事件，必须在此显式透传。
+    const key = convKey(currentAgentKey)
+    const msg = e?.message || String(e)
+    logger.warn('AI助手', '会话落盘失败', { key, error: msg })
+    // 透传给降级上报（其 toast 为可选表现层，非判定依据；真实判定看返回值与 logger）
+    reportDegrade({ layer: 'conversationState', key, e, toast: '会话保存失败，本次对话内容可能未存上' })
   }
 }, 300)
 

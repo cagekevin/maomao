@@ -9,6 +9,8 @@
  *  - 内置 skill 始终存在；用户自定义可增删。
  */
 import { contentGet, contentSet } from './contentStore.js'
+import { sGet } from './storageAdapter.js'
+import { logger } from './logger.js'
 
 const SKILLS_KEY = 'agent_skills'
 
@@ -38,9 +40,20 @@ export function repairMojibakeText(text) {
   try {
     const bytes = new Uint8Array([...s].map((ch) => ch.charCodeAt(0) & 0xff))
     const decoded = new TextDecoder('utf-8').decode(bytes)
-    if (/[\u4e00-\u9fff]/.test(decoded)) return decoded
-  } catch { /* 反解失败保留原文 */ }
-  return s
+    // 【误改防护·唯一闸门】反解后必须含 CJK，否则视为误判并保留原文。
+    // 纯英文内容（含 ™ € é 等字符、cjk=0）会被上方 looksLike 判定为乱码，
+    // 但其反解结果是「无中文的乱码串」——本闸门据此拦住，避免内容被静默改写后
+    // 写回存储、原内容不可恢复。宁可不修，不可错改。
+    //
+    // ⚠️ 勿再加「长度塌陷」类阈值：UTF-8 中文是 3 字节→1 字符，真实乱码修复后
+    //    长度比恒为 ≈0.33（如「çµå」→「电商」6→2）。任何 <0.5 的阈值都会把
+    //    真实修复全部误杀，令本功能彻底失效（实测已验证）。
+    if (!/[\u4e00-\u9fff]/.test(decoded)) return s
+    return decoded
+  } catch (e) {
+    logger.warn('skillStore', '乱码反解失败，保留原文', e?.message || e)
+    return s
+  }
 }
 
 /* ── 内置 Skill（改写自大雄 universal-detail-pages.json，适配我们的 generations 执行契约）── */
@@ -108,21 +121,85 @@ export function getBuiltinSkills() {
   return BUILTIN_SKILLS.map((s) => ({ ...s }))
 }
 
-/** 读用户自定义 skill（localStorage） */
-export function getCustomSkills() {
+/**
+ * 读用户自定义 skill 的「结果封装」——供 UI 层判断成败，错误原样透传。
+ *
+ * 【为什么需要它】getCustomSkills 把「确无数据」与「读取失败/数据损坏」都收敛成 []，
+ * 调用方无法区分：损坏时 UI 显示空列表，用户一保存就把残缺列表覆盖写回 → 真删数据。
+ * 本函数把二者拆开，list 恒为 array（永不 null，避免消费方 .filter 崩溃）。
+ *
+ * 【透传原则】error 原样携带底层原因（含实际类型），禁止泛化成「读取失败」抹掉真相。
+ * @returns {{ ok: boolean, list: Array, error: string }}
+ */
+export function readCustomSkills() {
+  let raw
   try {
-    const arr = contentGet(SKILLS_KEY)
-    return Array.isArray(arr) ? arr : []
-  } catch {
-    return []
+    raw = contentGet(SKILLS_KEY)
+  } catch (e) {
+    return { ok: false, list: [], error: e?.message || String(e) }
   }
+  if (Array.isArray(raw)) return { ok: true, list: raw, error: '' }
+  // 未存过（undefined/null）属于「确无数据」，不是错误
+  if (raw === undefined || raw === null) return { ok: true, list: [], error: '' }
+  // 非数组：多为 JSON.parse 失败回退的坏字符串（写一半被打断 / 跨版本结构变更 / 人工改过存储）。
+  // 这是真实会发生的路径，必须可见——否则伪装成空列表，一保存即真删。
+  const actual = Array.isArray(raw) ? 'array' : (raw === null ? 'null' : typeof raw)
+  return { ok: false, list: [], error: `自定义 Skill 数据损坏（期望 array，实际 ${actual}），未加载以免覆盖写入` }
 }
 
-/** 保存用户自定义 skill 列表 */
+/** 读用户自定义 skill（内部消费方用；语义：无数据或损坏均返回 []，不抛错） */
+export function getCustomSkills() {
+  return readCustomSkills().list
+}
+
+/**
+ * 保存用户自定义 skill 列表。
+ *
+ * 【为什么 try/catch 抓不到失败】sSet 内部把 localStorage 异常吞掉并转 publish
+ * 'persist:failed'（storageAdapter.js:76），本身不抛出 —— 故 contentSet 对 local
+ * 后端几乎永不 reject，光靠 try/catch 会永远返回 ok:true 而静默丢数据。
+ *
+ * 【落盘确认】写完用 sGet 直读底层（绕过 contentStore 的 cache）比对：
+ * contentSet 会先写 cache，若用 contentGet 回读将恒等于新值（实测：写失败时
+ * 回读仍返回新值，清缓存后才读到旧值）——缓存会掩盖失败，必须用 sGet。
+ *
+ * 【错误透传】失败时返回 { ok:false, error }，由调用方决定呈现方式；
+ * 禁止在无失败信号时向上谎报成功（原 SkillSettings 无条件弹「已保存」即此坑）。
+ * @returns {{ ok: boolean, error?: string }}
+ */
 export function saveCustomSkills(list) {
+  const payload = Array.isArray(list) ? list : []
   try {
-    contentSet(SKILLS_KEY, Array.isArray(list) ? list : [])
-  } catch { /* 忽略写失败 */ }
+    contentSet(SKILLS_KEY, payload)
+  } catch (e) {
+    return { ok: false, error: e?.message || String(e) }
+  }
+  // 落盘确认：比对持久化后的真值，防止「以为存上了其实没存上」
+  const raw = sGet(SKILLS_KEY)
+  if (raw === null) {
+    // 空列表且未存过时属于正常（无数据可存）
+    if (payload.length === 0) return { ok: true }
+    return { ok: false, error: '写入后未能读回数据，可能未真正保存（检查存储空间/权限）' }
+  }
+  // 比对【内容】而非仅长度：删除/新增都可能产生长度相同的不同列表，
+  // 只比长度会把「写入未生效」误判为成功（已实测踩到）。
+  const expected = JSON.stringify(payload)
+  if (raw === expected) return { ok: true }
+  let persisted
+  try {
+    persisted = JSON.parse(raw)
+  } catch (e) {
+    return { ok: false, error: `写入后回读数据损坏：${e?.message || String(e)}` }
+  }
+  if (!Array.isArray(persisted)) {
+    return { ok: false, error: `写入未生效（回读非数组，实际 ${typeof persisted}）` }
+  }
+  // 内容归一化后再比（键顺序可能不同）
+  if (JSON.stringify(persisted) === expected) return { ok: true }
+  return {
+    ok: false,
+    error: `写入未生效：期望 ${payload.length} 项，落盘回读为 ${persisted.length} 项（数据可能未保存，请检查存储空间/权限）`,
+  }
 }
 
 /** 全部 skill（内置 + 自定义） */
@@ -151,13 +228,22 @@ export function upsertCustomSkill(skill) {
   }
   if (idx >= 0) list[idx] = clean
   else list.push(clean)
-  saveCustomSkills(list)
+  const res = saveCustomSkills(list)
+  // 写失败 → 返回 null（既有契约：缺 name/content 也返回 null），
+  // 调用方据此不得谎报「已保存」。错误已由 saveCustomSkills 透传，此处只做信号转发。
+  if (!res.ok) {
+    logger.warn('skillStore', '保存自定义 Skill 失败', res.error)
+    return null
+  }
   return clean
 }
 
-/** 删除用户自定义 skill */
+/**
+ * 删除用户自定义 skill。
+ * @returns {{ ok: boolean, error?: string }} 转发 saveCustomSkills 的写结果
+ */
 export function deleteCustomSkill(id) {
-  saveCustomSkills(getCustomSkills().filter((s) => s.id !== id))
+  return saveCustomSkills(getCustomSkills().filter((s) => s.id !== id))
 }
 
 /* ── Skill 使用次数（对齐大雄 usage_count，localStorage 记录）── */
@@ -166,7 +252,8 @@ function getUsageMap() {
   try {
     const m = contentGet(USAGE_KEY)
     return m && typeof m === 'object' ? m : {}
-  } catch {
+  } catch (e) {
+    logger.warn('skillStore', '读取 Skill 使用次数失败', e?.message || String(e))
     return {}
   }
 }
@@ -175,7 +262,12 @@ export function markSkillUsed(id) {
   const m = getUsageMap()
   const next = (Number(m[id]) || 0) + 1
   m[id] = next
-  try { contentSet(USAGE_KEY, m) } catch { /* 忽略 */ }
+  try {
+    contentSet(USAGE_KEY, m)
+  } catch (e) {
+    // 统计类数据可降级，但禁止静默——透传原始原因便于排查 Key/配额问题
+    logger.warn('skillStore', '写入 Skill 使用次数失败', e?.message || String(e))
+  }
   return next
 }
 /** 读某 Skill 使用次数 */
@@ -189,12 +281,17 @@ function getEnabledMap() {
   try {
     const m = contentGet(ENABLED_KEY)
     return m && typeof m === 'object' ? m : {}
-  } catch {
+  } catch (e) {
+    logger.warn('skillStore', '读取 Skill 启用状态失败', e?.message || String(e))
     return {}
   }
 }
 function saveEnabledMap(map) {
-  try { contentSet(ENABLED_KEY, map) } catch { /* 忽略 */ }
+  try {
+    contentSet(ENABLED_KEY, map)
+  } catch (e) {
+    logger.warn('skillStore', '写入 Skill 启用状态失败', e?.message || String(e))
+  }
 }
 
 /** 判断某 skill 是否启用（默认启用） */

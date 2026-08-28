@@ -1,6 +1,6 @@
 import React, { useMemo, useRef, useState, useEffect } from 'react'
 import { Search, Plus, Bot, Sparkles, Upload, Download, Pencil, MoreHorizontal, X, Trash2 } from 'lucide-react'
-import { getAllSkills, upsertCustomSkill, deleteCustomSkill, isSkillEnabled, setSkillEnabled, getAllEnabledMap } from '../../skillStore.js'
+import { getAllSkills, readCustomSkills, upsertCustomSkill, deleteCustomSkill, isSkillEnabled, setSkillEnabled, getAllEnabledMap } from '../../skillStore.js'
 import { showToast } from '../../toastStore.js'
 import { downloadBlob } from '../../clipboard.js'
 import { createImeInput } from '../../utils.js'
@@ -38,6 +38,9 @@ function Toggle({ checked, onChange, disabled }) {
 
 export default function SkillSettings() {
   const [allSkills, setAllSkills] = useState(() => getAllSkills())
+  // 【数据损坏可见】读取失败/损坏时透传原因并展示错误态。
+  // 注意：不禁用保存——否则用户既不能修也不能导，会被困死；改为提供逃生舱（见下方错误条）。
+  const [loadError, setLoadError] = useState(() => readCustomSkills().error || '')
   const [selectedId, setSelectedId] = useState('')
   const [keyword, setKeyword] = useState('')
   const [debouncedKeyword, setDebouncedKeyword] = useState('')
@@ -48,6 +51,14 @@ export default function SkillSettings() {
   const [moreOpen, setMoreOpen] = useState(false)
   const moreRef = useRef(null)
   const mdFileRef = useRef(null)
+
+  /** 刷新列表并同步「损坏/失败」状态（每次写后都调，保证错误态不残留、不谎报） */
+  const refreshAll = () => {
+    const res = readCustomSkills()
+    setLoadError(res.error || '')
+    setAllSkills(getAllSkills())
+    return res
+  }
 
   // 搜索 IME 感知防抖
   const searchIme = useRef(null)
@@ -136,7 +147,14 @@ export default function SkillSettings() {
       description: form.description.trim(),
       content,
     })
-    setAllSkills(getAllSkills())
+    // 【禁止谎报成功】upsertCustomSkill 在「缺 name/content」与「写失败」两种情况下都返回 null。
+    // 此处必须区分：写失败要透传错误，不可弹「已保存」误导用户（否则用户以为存上了，实际丢了）。
+    if (!saved) {
+      const res = readCustomSkills()
+      showToast(res.ok ? 'Skill 保存失败：请检查名称与内容是否填写完整' : `Skill 保存失败：${res.error}`, { type: 'error' })
+      return
+    }
+    refreshAll()
     setSelectedId(saved.id)
     setIsNew(false)
     setEditing(false)
@@ -147,8 +165,12 @@ export default function SkillSettings() {
   const handleDelete = () => {
     if (!selected || selected.builtin) return
     if (!window.confirm(`删除 Skill「${selected.name}」？`)) return
-    deleteCustomSkill(selected.id)
-    setAllSkills(getAllSkills())
+    const res = deleteCustomSkill(selected.id)
+    if (!res.ok) {
+      showToast(`Skill 删除失败：${res.error}`, { type: 'error' })
+      return
+    }
+    refreshAll()
     setSelectedId('')
     setIsNew(false)
     setEditing(false)
@@ -192,14 +214,16 @@ export default function SkillSettings() {
           const name = f.name.replace(/\.(md|markdown|txt)$/i, '')
           const saved = upsertCustomSkill({ name, description: '', content: text })
           if (saved) {
-            setAllSkills(getAllSkills())
+            refreshAll()
             setSelectedId(saved.id)
             setIsNew(false)
             setEditing(false)
             setForm({ id: saved.id, name: saved.name, description: saved.description, content: saved.content })
             showToast(`已导入 Skill「${saved.name}」`, { type: 'success' })
           } else {
-            showToast(`导入失败：${name} 缺少名称或内容`, { type: 'error' })
+            // 区分「内容不完整」与「写入失败」：后者须透传底层原因，不可笼统归咎用户
+            const res = readCustomSkills()
+            showToast(res.ok ? `导入失败：${name} 缺少名称或内容` : `导入失败：${res.error}`, { type: 'error' })
           }
         }
         reader.onerror = () => showToast(`读取失败：${f.name}`, { type: 'error' })
@@ -271,6 +295,17 @@ export default function SkillSettings() {
 
           {/* 列表（分组） */}
           <div className="flex-1 overflow-y-auto px-3 pb-4 space-y-4">
+            {/* 【数据损坏/读取失败】透传原因 + 逃生舱。
+                 不禁用保存：禁用会让用户既不能修也不能导，被困死。 */}
+            {loadError ? (
+              <div className="mx-1 mb-1 px-3 py-2.5 rounded-lg border border-amber-500/40 bg-amber-500/10 text-xs">
+                <div className="text-amber-300 font-medium">自定义 Skill 未能加载</div>
+                <div className="mt-1 text-secondary break-words">{loadError}</div>
+                <div className="mt-1.5 text-muted">
+                  为避免覆盖原始数据，此处不显示、也不自动写入。保存操作仍可进行（会生成新列表）。
+                </div>
+              </div>
+            ) : null}
             {/* 个人（自定义） */}
             <div>
               <div className="px-2 pb-1.5 text-[11px] text-muted uppercase tracking-wider">个人</div>
