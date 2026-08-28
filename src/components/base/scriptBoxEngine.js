@@ -8,6 +8,7 @@ import { toAbsoluteFileUrl } from './imageUrl.js'
 import { showToast } from './toastStore.js'
 import { logger } from './logger.js'
 import { reportGenerate } from './taskStore.js'
+import { shotHandleId } from './contracts.js'
 
 /** 去掉 ```json 围栏、只保留首个 {...} 块（对齐官方 Ar/Ir 的解析）。
  *  顶层纯函数，导出供单测（剧本盒纯逻辑）。 */
@@ -845,7 +846,7 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
     if (setEdges && nodeId) {
       setEdges((es) => [
         ...es,
-        { id: `e-${nodeId}-${nodeId2}`, source: nodeId, sourceHandle: `shot-${shotId}`, target: nodeId2, type: 'default', animated: false }
+        { id: `e-${nodeId}-${nodeId2}`, source: nodeId, sourceHandle: shotHandleId(shotId), target: nodeId2, type: 'default', animated: false }
       ])
     }
   }
@@ -925,7 +926,7 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
         // 合并节点是「多镜合成」，不建立单一 shot- 端口边，仅从剧本盒 source 连一条到新节点
         setEdges((es) => [
           ...es,
-          { id: `e-${nodeId}-${nodeId2}`, source: nodeId, sourceHandle: `shot-${picked[0].id}`, target: nodeId2, type: 'default', animated: false },
+          { id: `e-${nodeId}-${nodeId2}`, source: nodeId, sourceHandle: shotHandleId(picked[0].id), target: nodeId2, type: 'default', animated: false },
         ])
       }
       toast(`已生成合并视频节点（${picked.length} 镜 · 共 ${seconds}s）`, 'success')

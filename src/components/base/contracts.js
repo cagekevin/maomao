@@ -457,6 +457,52 @@ export const NODE_TYPES = {
 export const NODE_TYPE_SET = new Set(Object.values(NODE_TYPES))
 
 /**
+ * ════════════════════════════════════════════════════════════════
+ * 剧本盒子「分镜端口」契约 —— 跨模块 handle id 的唯一事实来源
+ * ════════════════════════════════════════════════════════════════
+ *
+ * 剧本盒子为每个分镜恒定注册一个 source handle，id 形如 `shot-${shotId}`。
+ * 这个字符串是**跨模块契约**，四处独立消费，此前各写各的裸字面量（极易漂移）：
+ *
+ *   写侧（生成 handle id / 建边）：
+ *     ScriptBoxNode.jsx:189   Handle id（渲染注册锚点）
+ *     scriptBoxEngine.js:848  setEdges 建「合并视频」下游边
+ *     scriptBoxEngine.js:928  setEdges 建「尾帧变体」下游边
+ *   读侧（解析 handle id → shotId）：
+ *     App.jsx:487             从端口拖出新节点时反查分镜预填参数
+ *     useConnectedInputs.js   下游读取时按分镜取 @资产参考图
+ *
+ * 为什么必须收口：写侧改前缀而读侧没改 → 连线建得上但下游取不到图，
+ * 且失败是静默的（find 落空返回空数组，无报错）。故前缀 + 编解码一并登记在此，
+ * 消费方只能走 shotHandleId / parseShotHandle，禁止 slice/replace 手写。
+ */
+
+/** 分镜端口 handle id 前缀（拼接式：`${SHOT_HANDLE_PREFIX}${shotId}`） */
+export const SHOT_HANDLE_PREFIX = 'shot-'
+
+/**
+ * 写侧：分镜 id → handle id。
+ * @param {string|number} shotId
+ * @returns {string} `shot-${shotId}`
+ */
+export function shotHandleId(shotId) {
+  return `${SHOT_HANDLE_PREFIX}${shotId}`
+}
+
+/**
+ * 读侧：handle id → 分镜 id；非分镜端口返回 null。
+ * 按前缀长度截取而非 replace：分镜 id 自身可含 `shot-`（如 `shot-9`），
+ * replace 只替换首个匹配会截错（旧实现 App.jsx:487 的 slice 口径是对的，统一按此）。
+ * @param {string} [handle]
+ * @returns {string|null}
+ */
+export function parseShotHandle(handle) {
+  if (typeof handle !== 'string' || !handle.startsWith(SHOT_HANDLE_PREFIX)) return null
+  const id = handle.slice(SHOT_HANDLE_PREFIX.length)
+  return id || null
+}
+
+/**
  * 前端调用的后端 API 端点（url 路径段）——图片按需出图等 URL 构造处唯一事实来源。
  * 新增/改动端点路径 → 先在此登记，禁止组件散写裸路径字面量。
  * 与下方 apiRegistry 的 ACTIVE 清单一致：/api/files/thumbnail 为前端真实调用端点（envelope: stream）。

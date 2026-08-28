@@ -1,5 +1,31 @@
 import { describe, it, expect } from 'vitest'
-import { getNodeOutput } from '../../src/components/base/useConnectedInputs.js'
+import { getNodeOutput, NODE_OUTPUTS } from '../../src/components/base/useConnectedInputs.js'
+import { SHOT_HANDLE_PREFIX, shotHandleId, parseShotHandle } from '../../src/components/base/contracts.js'
+
+// 分镜端口契约（contracts.SHOT_HANDLE_PREFIX）：写侧 shotHandleId / 读侧 parseShotHandle 必须成对往返
+describe('分镜端口 handle 契约', () => {
+  it('前缀值与 handle 形态', () => {
+    expect(SHOT_HANDLE_PREFIX).toBe('shot-')
+    expect(shotHandleId('s1')).toBe('shot-s1')
+  })
+
+  it('编解码往返（写侧→读侧）', () => {
+    expect(parseShotHandle(shotHandleId('abc-123'))).toBe('abc-123')
+  })
+
+  it('分镜 id 自身含前缀不误伤（旧 replace 实现在此会红）', () => {
+    expect(shotHandleId('shot-9')).toBe('shot-shot-9')
+    expect(parseShotHandle(shotHandleId('shot-9'))).toBe('shot-9')
+  })
+
+  it('非分镜端口 / 空值一律 null', () => {
+    expect(parseShotHandle('output')).toBeNull()
+    expect(parseShotHandle('shot-')).toBeNull()
+    expect(parseShotHandle('')).toBeNull()
+    expect(parseShotHandle(undefined)).toBeNull()
+    expect(parseShotHandle(null)).toBeNull()
+  })
+})
 
 // §2.4 管线契约：getNodeOutput 是「连线上游→下游参考」的核心纯函数
 describe('管线契约 getNodeOutput', () => {
@@ -89,8 +115,26 @@ describe('管线契约 getNodeOutput', () => {
     expect(r.images[0].url).toBe('/files/out.png')
   })
 
+  it('剧本盒声明在非分镜端口时「弃权」（返回 undefined），不屏蔽通用兜底', () => {
+    // 断言实现一变必红：若有人把 getNodeOutput 里的 `if (out)` 改回 `|| {}`，
+    // 声明返回 undefined 会被当空产出 → 通用兜底被屏蔽 → 上一条断言立刻变红。
+    const d = { imageUrl: '/files/out.png' }
+    expect(NODE_OUTPUTS.scriptBoxNode(d, 'output')).toBeUndefined()
+    expect(NODE_OUTPUTS.scriptBoxNode(d, undefined)).toBeUndefined()
+    // 分镜端口命中时正常返回产出对象
+    expect(NODE_OUTPUTS.scriptBoxNode({ shots: [{ id: 's1' }] }, shotHandleId('s1'))).toBeDefined()
+  })
+
   it('无节点/无 data 返回空', () => {
     expect(getNodeOutput(null)).toEqual({ images: [], texts: [], videos: [], audios: [] })
     expect(getNodeOutput({ id: 'x' })).toEqual({ images: [], texts: [], videos: [], audios: [] })
+  })
+
+  it('剧本盒产出已登记进 NODE_OUTPUTS 声明表（防回退成 getNodeOutput 内特判）', () => {
+    // 断言实现一变必红：若有人把 scriptBoxNode 挪回 getNodeOutput 的 if 特判，
+    // 本表查不到该键 → 走 genericOutput 兜底 → 分镜资产静默丢失且 dev 校验器失声。
+    expect(Object.keys(NODE_OUTPUTS)).toContain('scriptBoxNode')
+    // textNode 刻意保留特判（读 node.id 非 data 派生），不应出现在声明表里
+    expect(Object.keys(NODE_OUTPUTS)).not.toContain('textNode')
   })
 })

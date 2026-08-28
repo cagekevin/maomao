@@ -3,7 +3,7 @@ import { useStore } from '@xyflow/react'
 import { collectAssets } from './scriptBoxPrompts.js'
 import { toAbsoluteFileUrl } from './filesApi.js'
 import { resolveMediaType } from './resultUrlExtractor.js'
-import { NODE_TYPES } from './contracts.js'
+import { NODE_TYPES, parseShotHandle } from './contracts.js'
 
 /**
  * ════════════════════════════════════════════════════════════════
@@ -24,7 +24,8 @@ import { NODE_TYPES } from './contracts.js'
  *       imageNode       → 图片/视频/音频（data.imageUrl，按 mime/扩展名分类）
  *       promptNode      → 图片（data.imageUrl）
  *       discountVideoNode → 视频（data.videoUrl）
- *       scriptBoxNode   → 按 sourceHandle=shot-${id} 的镜头，用 @资产名 匹配有图资产（images）
+ *       scriptBoxNode   → 按 sourceHandle=`shot-${id}` 的镜头，用 @资产名 匹配有图资产（images）
+ *                          （端口前缀走 contracts.SHOT_HANDLE_PREFIX，禁止裸拼字符串）
  *  3. 下游在「生成时」读取本 hook 结果，作为参考图/参考文本。
  *
  * 【为什么这样实现】
@@ -52,6 +53,9 @@ import { NODE_TYPES } from './contracts.js'
  *  · 新增节点只需在此加一行声明，产出即对下游开放，天然接入管线。
  *  · 各声明返回 { images:[{id,url,label}], texts:[{id,label,text}], videos:[{id,url}], audios:[{id,url}] }。
  *  · 数组型产出（images[]/extractedImages[]）在此集中归一，避免各节点手写上游解析导致不一致。
+ *  · 声明返回 undefined = 「不适用，弃权」，getNodeOutput 继续走后续兜底。
+ *    多端口节点（剧本盒按 shot- 端口区分）靠此机制表达「类型命中但端口不匹配」，
+ *    切勿改成返回空对象 —— 那会屏蔽通用兜底。
  */
 function arrayImages(list, prefix = 'img', labelFn) {
   return (list || [])
@@ -59,7 +63,22 @@ function arrayImages(list, prefix = 'img', labelFn) {
     .filter((x) => x.url)
 }
 
-const NODE_OUTPUTS = {
+export const NODE_OUTPUTS = {
+  // 剧本盒子：多端口产出（每个分镜一个 `shot-${id}` 端口，见 contracts.SHOT_HANDLE_PREFIX）。
+  // 按 sourceHandle 反查对应分镜，再用 @资产名 匹配收集「该镜头引用且有图」的资产为参考图。
+  // 为什么只给连的那个镜头：下游连哪个镜头就该只拿那个镜头的资产，不能把所有镜头的图都塞下去。
+  // 这是全表唯一需要 import 业务纯函数（collectAssets）的声明 —— 反向依赖收敛在此一处，
+  // 调度函数 getNodeOutput 内不再出现任何业务模块符号。
+  // 返回 undefined = 「本声明不适用」，交回 getNodeOutput 继续走后续兜底（见下方调用处注释）。
+  // 为什么必须如此：剧本盒是「类型 + 端口」双条件产出，而查表只按类型命中。
+  // 若非分镜端口也返回 { images: [] }，会屏蔽掉通用兜底（genericOutput 读 data.imageUrl），
+  // 改变既有行为（回归点，见 tests/unit/useConnectedInputs.test.js「非 shot- 端口走通用兜底」）。
+  scriptBoxNode: (d, sourceHandle) => {
+    const shotId = parseShotHandle(sourceHandle)
+    if (!shotId) return undefined
+    const shot = (d.shots || []).find((s) => String(s.id) === String(shotId))
+    return { images: shot ? collectAssets(shot, d.assets) : [] }
+  },
   // 图片盒子：多图（对象数组 {id,url,label}），产出全部图；mediaType 由 URL 判定
   imageBoxNode: (d) => ({
     images: (d.images || [])
@@ -99,25 +118,20 @@ export function getNodeOutput(node, sourceHandle) {
   if (!node || !node.data) return empty
   const d = node.data
 
-  // 剧本盒子：按 shot-${id} 镜头的 @资产名 匹配收集有图资产为 images（复刻官方 Ra 的 scriptBoxNode 分支）。
-  // 为什么：剧本盒子每个镜头一个端口（sourceHandle=shot-${id}），下游连哪个镜头，就该只拿到那个镜头的资产参考图，
-  // 不能把所有镜头的资产图都塞给下游。
-  if (node.type === 'scriptBoxNode' && sourceHandle && sourceHandle.startsWith('shot-')) {
-    const shotId = sourceHandle.replace('shot-', '')
-    const shot = (d.shots || []).find((s) => String(s.id) === String(shotId))
-    return { ...empty, images: shot ? collectAssets(shot, d.assets) : [] }
-  }
-
-  // 文本节点：输出 data.text（统一为 {id,label,text} 对象，供 PromptInput/@弹层显示）。
-  if (node.type === 'textNode' && d.text && typeof d.text === 'string') {
-    return { ...empty, texts: [{ id: node.id, label: d.label || '参考文本', text: d.text }] }
-  }
-
-  // 1. 节点产出声明表（管线契约）：声明过的节点类型走这里（含数组型产出 + 自带 mediaType）。
+  // 1. 节点产出声明表（管线契约）：声明过的节点类型走这里（含剧本盒多端口 / 数组型产出 / 自带 mediaType）。
+  // 声明可返回 undefined 表示「本声明不适用」（如剧本盒接到非分镜端口），此时继续往下走兜底，
+  // 而非当成空产出直接返回 —— 否则会屏蔽通用兜底、改变既有行为。
   const declared = NODE_OUTPUTS[node.type]
   if (declared) {
-    const out = declared(d, sourceHandle) || {}
-    return { ...empty, ...out }
+    const out = declared(d, sourceHandle)
+    if (out) return { ...empty, ...out }
+  }
+
+  // 2. 文本节点：输出 data.text（统一为 {id,label,text} 对象，供 PromptInput/@弹层显示）。
+  // 保留特判而非入表：它读的是 node.id（节点身份）而非纯 data 派生，与 NODE_OUTPUTS
+  // 「data → 产出」的声明语义不符；且它不引入任何业务模块依赖，无架构债。
+  if (node.type === 'textNode' && d.text && typeof d.text === 'string') {
+    return { ...empty, texts: [{ id: node.id, label: d.label || '参考文本', text: d.text }] }
   }
 
   // 2. 通用单产出兜底（imageUrl/videoUrl/resultUrl + 尊重 mediaType）。
@@ -176,8 +190,8 @@ export function useConnectedInputs(nodeId) {
 // 通用单输出兜底或无产出集合 → dev 加载期给可读 warning，避免新增产出节点漏声明被静默 genericOutput
 // 吞掉（进而被下游当错类型/漏传给上游，甚至外部硬编码 t.data[0].url）。仅 DEV 触发，生产零开销。
 if (import.meta.env.DEV) {
-  const specialHandled = new Set(['textNode', 'scriptBoxNode'])          // getNodeOutput 特判分支（文本 / 镜头资产）
-  const declaredOutputs = new Set(Object.keys(NODE_OUTPUTS))             // 显式产出声明（多图/数组/自带 mediaType）
+  const specialHandled = new Set(['textNode'])                           // getNodeOutput 保留特判（读 node.id，非 data 派生）
+  const declaredOutputs = new Set(Object.keys(NODE_OUTPUTS))             // 显式产出声明（剧本盒多端口 / 多图 / 数组 / 自带 mediaType）
   const genericOutputOk = new Set([                                      // 单输出由 genericOutput 兜底（imageUrl/videoUrl/resultUrl）
     'imageNode', 'promptNode', 'discountVideoNode', 'panoramaNode',
     'templateNode', 'faceMosaicNode', 'loopNode', 'videoProcessNode', 'director3dNode',

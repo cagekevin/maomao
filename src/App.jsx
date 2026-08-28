@@ -62,6 +62,7 @@ import { buildNodesFromClipboard } from './components/base/clipboard.js'
 import { applyNodeTypeDefaults } from './components/base/nodeDefaults.js'
 import { injectNodePrefs } from './components/base/nodePrefs.js'
 import { useCanvasSync } from './components/base/useCanvasSync.js'
+import { parseShotHandle } from './components/base/contracts.js'
 
 /* ======================================================================
  * 【区 1】常量与配置区
@@ -481,10 +482,11 @@ function Canvas() {
       const id = generateId(type)
       const nodeData = { label: '', ...data }
 
-      // scriptBoxNode 的 shot- 端口 → promptNode/discountVideoNode 时预填（复刻 di:8667-8687）
+      // scriptBoxNode 的 `shot-${id}` 端口 → promptNode/discountVideoNode 时预填（复刻 di:8667-8687）
+      // handle 名解析走 contracts.parseShotHandle，与写侧 shotHandleId 成对（前缀唯一事实来源）。
       if (connection) {
         const src = nodesRef.current.find((n) => n.id === connection.source)
-        const shotId = connection.sourceHandle?.startsWith('shot-') ? connection.sourceHandle.slice(5) : null
+        const shotId = parseShotHandle(connection.sourceHandle)
         const shot = shotId && src?.type === 'scriptBoxNode' ? (src.data?.shots || []).find((s) => s.id === shotId) : null
         if (shot) {
           const ar = String(src.data?.aspectRatio || '16:9')

@@ -7,6 +7,7 @@ import CustomHandle from '../edges/CustomHandle.jsx'
 import { useScriptBoxEngine } from '../base/useScriptBoxEngine.js'
 import { useConnectedInputs } from '../base/useConnectedInputs.js'
 import { useOutsideClick, useContentHeightSync } from '../base/hooks.js'
+import { shotHandleId } from '../base/contracts.js'
 import StepShots from '../scriptbox/StepShots.jsx'
 import StepAssets from '../scriptbox/StepAssets.jsx'
 import StepPrompt from '../scriptbox/StepPrompt.jsx'
@@ -180,13 +181,14 @@ function ScriptBoxNode({ id, data, selected }) {
           为什么恒定：这些端口不随「步骤」切换而卸载，从剧本盒子 source 出发的边永远能锚到
           `shot-${id}` handle，杜绝「切到第1/2步时分镜卡片卸载 → handle 消失 → React Flow
           setEdges 报 008 Couldn't create edge for source handle」。样式隐藏（对齐官方迷你视图
-          `!h-0 !w-0 !bg-transparent`），仅作 React Flow 注册锚点，连线视觉上从节点右侧出发。 */}
+          `!h-0 !w-0 !bg-transparent`），仅作 React Flow 注册锚点，连线视觉上从节点右侧出发。
+          id 走 contracts.shotHandleId（与读侧 parseShotHandle 成对，前缀唯一事实来源）。 */}
       {(d.shots || []).map((s) => (
         <Handle
           key={s.id}
           type="source"
           position="right"
-          id={`shot-${s.id}`}
+          id={shotHandleId(s.id)}
           className="!absolute !h-0 !w-0 !min-w-0 !min-h-0 !border-0 !bg-transparent !opacity-0"
           style={{ right: 0, top: '50%' }}
         />
