@@ -349,6 +349,13 @@ function GeneratedView() {
             <input
               autoFocus value={renameName}
               onChange={(e) => setRenameName(e.target.value)}
+              // 聚焦即自动选中「文件名主体（不含后缀）」，便于直接改；后缀保留以免改错扩展名
+              onFocus={(e) => {
+                const v = e.target.value || ''
+                const dot = v.lastIndexOf('.')
+                const end = dot > 0 ? dot : v.length
+                e.target.setSelectionRange(0, end)
+              }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') { handleRename() }
                 else if (e.key === 'Escape') { setRenameTarget(null); setRenameName('') }

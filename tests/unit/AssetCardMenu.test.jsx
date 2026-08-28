@@ -104,16 +104,23 @@ describe('AssetCardMenu · 移动流程', () => {
 })
 
 describe('AssetCardMenu · 基础操作回调', () => {
-  it('复制/打开目录/删除/重命名回调透传 item', async () => {
+  it('复制/打开目录/删除回调透传 item', async () => {
     const onCopy = vi.fn(); const onOpenDir = vi.fn(); const onDelete = vi.fn(); const onRename = vi.fn()
     render(<AssetCardMenu item={localFile} connected onCopy={onCopy} onOpenDir={onOpenDir} onDelete={onDelete} onRename={onRename} />)
     fireEvent.click(screen.getByTitle('更多操作'))
-    fireEvent.click(await screen.findByText('复制链接'))
+    await screen.findByText('复制链接')
+    // 模拟真实事件时序：pointerdown(先触发外部关闭) → click。曾因外部关闭未排除菜单本体，
+    // 菜单项 pointerdown 即被卸载、click 不执行 → 回归点。
+    const copyItem = screen.getByText('复制链接')
+    fireEvent.pointerDown(copyItem)
+    fireEvent.click(copyItem)
     expect(onCopy).toHaveBeenCalledWith(localFile)
     fireEvent.click(screen.getByTitle('更多操作'))
+    fireEvent.pointerDown(screen.getByText('打开所在目录'))
     fireEvent.click(screen.getByText('打开所在目录'))
     expect(onOpenDir).toHaveBeenCalledWith(localFile)
     fireEvent.click(screen.getByTitle('更多操作'))
+    fireEvent.pointerDown(screen.getByText('删除'))
     fireEvent.click(screen.getByText('删除'))
     expect(onDelete).toHaveBeenCalledWith(localFile)
   })

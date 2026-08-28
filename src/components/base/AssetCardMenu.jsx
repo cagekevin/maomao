@@ -26,6 +26,7 @@ function AssetCardMenu({ item = {}, connected, onOpenDir, onCopy, onRename, onDe
   const [menuOpen, setMenuOpen] = useState(false)
   const [menuPos, setMenuPos] = useState({ left: 0, top: 0 })
   const triggerRef = useRef(null)
+  const menuRef = useRef(null) // 菜单本体（portal 到 body）
 
   // ── 移动选择器 ──
   const [moveOpen, setMoveOpen] = useState(false)
@@ -53,7 +54,9 @@ function AssetCardMenu({ item = {}, connected, onOpenDir, onCopy, onRename, onDe
   useEffect(() => {
     if (!menuOpen) return
     const onDown = (e) => {
+      // 点击 ⋯ 按钮或菜单本体内部 → 不关闭（menuRef 排除「点击菜单项却先命中外部关闭」导致元素被卸载）
       if (triggerRef.current && triggerRef.current.contains(e.target)) return
+      if (menuRef.current && menuRef.current.contains(e.target)) return
       setMenuOpen(false)
     }
     const onKey = (e) => { if (e.key === 'Escape') setMenuOpen(false) }
@@ -147,7 +150,7 @@ function AssetCardMenu({ item = {}, connected, onOpenDir, onCopy, onRename, onDe
 
       {/* 卡片 ⋯ 下拉（portal 到 body，规避滚动容器裁剪） */}
       {menuOpen && createPortal(
-        <div style={{ position: 'fixed', left: menuPos.left, top: menuPos.top, zIndex: 100 }} className="bg-surface-raised border border-edge rounded-lg shadow-xl p-1 w-[168px] nowheel nopan nodrag">
+        <div ref={menuRef} style={{ position: 'fixed', left: menuPos.left, top: menuPos.top, zIndex: 100 }} className="bg-surface-raised border border-edge rounded-lg shadow-xl p-1 w-[168px] nowheel nopan nodrag">
           <button className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-caption-sm text-body hover:bg-surface-hover-2 hover:text-white transition-colors cursor-pointer border-none text-left" onClick={run(() => onOpenDir?.(item))} title="打开所在目录">
             <FolderOpen size={13} /> 打开所在目录
           </button>
