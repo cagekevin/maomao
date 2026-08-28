@@ -20,8 +20,6 @@ export default function StepPrompt({ data, updateData, callbacks }) {
   const [genType, setGenType] = useState({}) // idx -> 选中的生图类型
   const [copied, setCopied] = useState({}) // idx -> 是否已复制
   const [singleIdx, setSingleIdx] = useState(0) // 单镜头视图：当前查看的镜头 idx
-  const [regenerating, setRegenerating] = useState(null) // 待重新生成的镜头 id（弹意见输入框）
-  const [feedback, setFeedback] = useState('') // 重新生成时的用户修改意见
   const [mergeLoading, setMergeLoading] = useState(false) // 合并生成视频：按钮转圈+「生成中」
 
   const patchShot = (idx, field, val) => updateData({ shots: patchShots(shots, idx, field, val) })
@@ -143,9 +141,8 @@ export default function StepPrompt({ data, updateData, callbacks }) {
           <div className="flex gap-1.5">
             <button
               className="flex items-center gap-1 px-2 py-1 text-caption text-body bg-surface-1 hover:bg-surface-hover rounded"
-              title="左键：直接随机重生成；右键：带修改意见重生成"
+              title="重新生成此镜头提示词（双击提示词文本可打开「AI 按意见优化审计」）"
               onClick={() => callbacks.onGenerateShotPrompts?.([s.id])}
-              onContextMenu={(e) => { e.preventDefault(); setFeedback(''); setRegenerating(s.id) }}
             ><RefreshCw size={10} /> 重新生成</button>
             <button className="flex items-center gap-1 px-2 py-1 text-caption text-body bg-surface-1 hover:bg-surface-hover rounded" onClick={() => callbacks.onConnectShot?.(s.id, 'video')}><Video size={10} /> 生视频</button>
           </div>
@@ -289,24 +286,6 @@ export default function StepPrompt({ data, updateData, callbacks }) {
             onSend={sendFeedback}
             busy={!!editing.awaiting}
           />
-        </ScriptBoxModal>
-      )}
-
-      {/* 重新生成意见弹窗：带上用户本次修改意见一起发，避免随机重生成 */}
-      {regenerating && (
-        <ScriptBoxModal
-          title="重新生成此镜头提示词"
-          onClose={() => setRegenerating(null)}
-          width={520}
-          onOk={() => {
-            const id = regenerating
-            setRegenerating(null)
-            callbacks.onGenerateShotPrompts?.([id], feedback)
-          }}
-          okText="重新生成"
-        >
-          <textarea autoFocus value={feedback} onChange={(e) => setFeedback(e.target.value)} placeholder="（可选）填写你的修改意见，会一起发给 AI。例如：更简洁、突出小狗站起来的动作、换成侧方环绕运镜…不填则按原镜头随机重生成。"
-            className="w-full h-28 bg-transparent outline-none custom-scrollbar resize-none nodrag nowheel rounded-lg" style={{ fontSize: '13px', lineHeight: 1.7, color: 'rgb(var(--mao-text-secondary))' }} />
         </ScriptBoxModal>
       )}
     </div>

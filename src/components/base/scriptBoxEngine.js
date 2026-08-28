@@ -829,11 +829,11 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
     // 收口：注入 data.images 前统一补全为绝对原图地址（与派发/发送渲染口径一致，data.images 只存绝对原图）。
     const refImages = collectAssets(shot, d.assets).map((im) =>
       im && im.url ? { ...im, url: toAbsoluteFileUrl(im.url) } : im)
-    // 下游往右排布：以剧本盒子节点位置为基准，向右偏移
+    // 下游往右排布：以剧本盒子节点位置为基准，向右偏移 —— 距离调近（120 → 96），下游更贴近剧本盒子
     let rightBase = { x: 0, y: 0 }
     if (getNodes && nodeId) {
       const self = getNodes().find((n) => n.id === nodeId)
-      if (self?.position) rightBase = { x: self.position.x + (self.width ?? 900) + 120, y: self.position.y }
+      if (self?.position) rightBase = { x: self.position.x + (self.width ?? 900) + 96, y: self.position.y }
     }
     const prefill = shotPrefill(shot, isImage ? 'image' : 'video')
     const baseData = { ...prefill, images: refImages }
@@ -882,11 +882,11 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
     const label = firstIdx != null && lastIdx != null
       ? (firstIdx === lastIdx ? `镜头${firstIdx}视频` : `镜头${firstIdx}~${lastIdx}视频`)
       : '合并视频'
-    // 下游往右排布：以剧本盒子节点位置为基准，向右偏移
+    // 下游往右排布：以剧本盒子节点位置为基准，向右偏移 —— 距离调近（120 → 96），下游更贴近剧本盒子
     let rightBase = { x: 0, y: 0 }
     if (getNodes && nodeId) {
       const self = getNodes().find((n) => n.id === nodeId)
-      if (self?.position) rightBase = { x: self.position.x + (self.width ?? 900) + 120, y: self.position.y }
+      if (self?.position) rightBase = { x: self.position.x + (self.width ?? 900) + 96, y: self.position.y }
     }
     toast(`正在生成合并视频提示词（${picked.length} 镜）…`)
     logger.info('scriptBox', '合并生成视频·开始', { nodeId, shotIds: ids, count: picked.length, seconds })
