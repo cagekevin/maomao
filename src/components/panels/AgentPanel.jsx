@@ -769,9 +769,6 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
                 title="完全自主：AI 自主操作画布，无需逐步确认（含 Skill 场景）"
               >完全自主</button>
             </div>
-            <span className="text-caption text-muted-2 truncate">
-              {workMode === 'image' ? '直连出图' : workMode === 'step-confirm' ? '分步确认' : 'AI 自主'}
-            </span>
           </div>
 
           {/* 输入框 */}

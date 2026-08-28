@@ -697,7 +697,7 @@ const getNodeDetailsTool = {
 /** 读整个画布结构（read_canvas）—— list_nodes + list_edges 合并，供 Agent 一次看清 */
 const readCanvasTool = {
   name: 'read_canvas',
-  description: '一次读取画布全貌（所有节点+连线，含各节点提示词与生成结果）。要了解全局时优先用它。',
+  description: '一次读取画布全貌（所有节点+连线，含各节点提示词、文本内容与生成结果）。要了解全局时优先用它。',
   parameters: { type: 'object', properties: {}, required: [] },
   execute(args, ctx) {
     const nodes = ctx.getNodes().map((n) => ({
@@ -705,6 +705,7 @@ const readCanvasTool = {
       type: n.type,
       label: n.data?.label || '',
       prompt: n.data?.prompt || '',
+      text: n.data?.text || '',
       position: n.position || { x: 0, y: 0 },
       // 生成结果（打通 Agent 感知：读完画布即可看到哪个节点已出图/出视频/出音频，供多步编排）
       imageUrl: n.data?.imageUrl || undefined,

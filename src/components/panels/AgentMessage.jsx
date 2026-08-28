@@ -23,7 +23,8 @@ function isImageUrl(u) {
 function extractImageSpans(text) {
   const spans = []
   // 1) markdown 图片 ![](url) / ![alt](url)
-  for (const m of text.matchAll(/!\[[^\]]*\]\(([^)\s]+)\)/g)) {
+  //    允许 url 内部包含一对括号 (…)，只在结尾的 ) 处闭合，避免含 ) 的签名链接被截断
+  for (const m of text.matchAll(/!\[[^\]]*\]\(([^()\s]*(?:\([^()\s]*\)[^()\s]*)*)\)/g)) {
     spans.push({ url: m[1], start: m.index, end: m.index + m[0].length })
   }
   // 2) HTML <img src="url">
@@ -31,17 +32,19 @@ function extractImageSpans(text) {
     spans.push({ url: m[1], start: m.index, end: m.index + m[0].length })
   }
   // 3) 裸链接：http(s)://… 或 data:image/…
-  //    排除被 blob:/ipfs:/ipns: 协议前缀包裹的 URL（如 blob:http://… 会被正则剥离前缀误抓成 http://…，
-  //    与 isImageUrl 的「临时协议不渲染」契约冲突）
-  for (const m of text.matchAll(/(https?:\/\/[^\s)]+|data:image\/[^\s"]+)/gi)) {
+  //    读到空白才停（不再遇 ) 即截断，保留 url 内部的 ) 与 ?query 参数）；
+  //    尾随的中英文标点/括号/引号不属于 url，用非捕获组剥离；
+  //    排除被 blob:/ipfs:/ipns: 协议前缀包裹的 URL（与 isImageUrl「临时协议不渲染」契约冲突）
+  for (const m of text.matchAll(/(https?:\/\/[^\s]+?|data:image\/[^\s"]+?)(?:[)\]}'"，。、,!?；;]+)?(?=\s|$)/gi)) {
     const before = text.slice(Math.max(0, m.index - 5), m.index)
     if (/^(?:blob:|ipfs:|ipns:)$/.test(before)) continue
-    spans.push({ url: m[0], start: m.index, end: m.index + m[0].length })
+    spans.push({ url: m[1] ?? m[0], start: m.index, end: m.index + m[0].length })
   }
   // 去重 + 只保留真正是图片的 + 按出现顺序
+  // 去重 key 用「纯 url」：markdown 与裸链接多处出现同一 url 只渲染一次（根治重复显示）
   const seen = new Set()
   return spans
-    .filter((s) => isImageUrl(s.url) && !seen.has(s.start + s.url) && seen.add(s.start + s.url))
+    .filter((s) => isImageUrl(s.url) && !seen.has(s.url) && seen.add(s.url))
     .sort((a, b) => a.start - b.start)
 }
 

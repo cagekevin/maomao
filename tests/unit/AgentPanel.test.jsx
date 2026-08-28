@@ -227,7 +227,6 @@ describe('AgentPanel — 直接生图模式', () => {
   it('切换到直接生图 → 提示文案与占位符变化', () => {
     render(<AgentPanel {...OPEN_PROPS} />)
     fireEvent.click(screen.getByRole('button', { name: '直接生图' }))
-    expect(screen.getByText('直连出图')).toBeTruthy()
     expect(screen.getByPlaceholderText(/输入最终生图提示词/)).toBeTruthy()
   })
 
