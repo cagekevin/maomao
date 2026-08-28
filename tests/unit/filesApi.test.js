@@ -208,4 +208,20 @@ describe('filesApi — downloadRemoteToLocal（网页拖图后台本地化）', 
       .mockResolvedValue({ ok: true, status: 200, json: async () => ({}) })
     expect(await api.downloadRemoteToLocal('http://x/b.png')).toBeNull()
   })
+
+  // ── 回归护栏（2026-08-28「素材拖到画布 → uploads/web 出现重复文件」）──
+  // 素材从素材库拖到画布时，若画布没认出它是素材（缺 application/x-yimao-asset），
+  // 会退化成「网页拖图本地化」，把本机的 /files/migrated/... 再下载一份落进 uploads/web。
+  // 这里从落盘入口兜底：URL 已指向本机 uploads 时一律不再下载，调用方保持原 URL。
+  it('本机 /files/ URL（绝对 + 相对）→ 直接 null 且不发请求（防重复落 web）', async () => {
+    expect(await api.downloadRemoteToLocal('http://127.0.0.1:18080/files/migrated/道具/a.png', { folder: 'web' })).toBeNull()
+    expect(await api.downloadRemoteToLocal('/files/migrated/a.png', { folder: 'web' })).toBeNull()
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+  it('外网主机上的 /files/ 路径不算本地 → 照常下载（不误伤真实网页图）', async () => {
+    fetchMock.mockResolvedValue(uploadResp('http://127.0.0.1:18080/files/web/x.png'))
+    expect(await api.downloadRemoteToLocal('https://cdn.example.com/files/a.png', { folder: 'web' }))
+      .toBe('http://127.0.0.1:18080/files/web/x.png')
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
 })

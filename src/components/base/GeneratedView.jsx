@@ -4,8 +4,7 @@ import { useLocalToolStatus } from './useLocalToolStatus.js'
 import { fetchResources, rescanResources, deleteResource, renameResource, openLocalFolder, openFileDir, relativePathFromUrl, createFolder as createFolderApi } from './localToolApi.js'
 import { showToast } from './toastStore.js'
 import { publish } from './eventBus.js'
-import { useAssetDragToCanvas, fetchText, textCache } from './useAssetDragToCanvas.js'
-import { useAssetMoveToFolder } from './useAssetMoveToFolder.js'
+import { useAssetCardDragProps, fetchText, textCache } from './useAssetDragToCanvas.js'
 import { toAbsoluteFileUrl } from './filesApi.js'
 import { logger } from './logger.js'
 import { isAudio } from './mediaType.js'
@@ -239,10 +238,9 @@ function GeneratedView() {
     setFolder(parent)
   }, [folder])
 
-  // 拖到画布建节点：统一走 useAssetDragToCanvas（图片/视频/音频 → imageNode，文字 → textNode），经「点开大图预览」拖
-  const { assetDragProps } = useAssetDragToCanvas()
-  // 拖到文件夹归类：源（文件卡片）可拖，目标（文件夹卡片）承接 drop；卡片拖拽只做移动归类
-  const { sourceDragProps, folderDropProps } = useAssetMoveToFolder({ connected, onRefreshed: () => reset(true) })
+  // 卡片拖拽：一套 dragstart 同时写「移动归类」+「拖到画布建节点」两套 MIME（见 useAssetCardDragProps 注释）。
+  // assetDragProps 另用于「点开大图预览」里拖图到画布。
+  const { cardDragProps, assetDragProps } = useAssetCardDragProps({ connected, onRefreshed: () => reset(true) })
 
   return (
     <div className="h-full flex flex-col overflow-hidden relative">
@@ -388,7 +386,7 @@ function GeneratedView() {
                 return (
                   <div
                     key={a.id}
-                    {...(isFolder ? folderDropProps(a) : sourceDragProps(a))}
+                    {...cardDragProps(a)}
                     className={`group relative aspect-square bg-surface-deep rounded-xl overflow-hidden transition-colors ${isFolder ? 'border border-edge cursor-pointer hover:border-edge-raised' : 'border border-edge cursor-grab active:cursor-grabbing hover:border-edge-raised'}`}
                     style={{ contentVisibility: 'auto', containIntrinsicSize: '200px 200px' }}
                     onClick={() => {

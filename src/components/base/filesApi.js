@@ -15,6 +15,7 @@ import { formatTime } from './utils.js'
 import { UPLOAD_DIRS } from './uploadDirs.js'
 export { toAbsoluteFileUrl } from './imageUrl.js'
 export { EXT_BY_TYPE }
+import { isLocalFileUrl } from './imageUrl.js'
 const SUBFOLDER = UPLOAD_DIRS.tasks
 /** 网页拖图专用落盘目录（不与素材库/生成结果混放，见 docs/34 升级） */
 export const WEB_DROP_SUBFOLDER = UPLOAD_DIRS.web
@@ -104,6 +105,14 @@ export async function uploadFileToLocal(file, subfolder = UPLOAD_DIRS.canvasDrop
  * @returns {Promise<string|null>} 本地化 URL（http://127.0.0.1:18080/files/<folder>/<name>）；失败返回 null（调用方降级保持原 URL）
  */
 export async function downloadRemoteToLocal(url, { folder = UPLOAD_DIRS.canvas, filename } = {}) {
+  // 【本地图拦截】URL 已指向本机 uploads（/files/... 或 API_BASE/files/...）→ 本就落盘，无需再下载。
+  // 背景：素材拖到画布时若没带 application/x-yimao-asset，画布会把它当「网页图」走本地化，
+  // 后端便把 127.0.0.1 的文件重新下载一份存进 web 目录 → uploads/web 出现重复文件。
+  // 这里作为最后一道防线：任何入口想「本地化」本机文件，一律直接返回 null（调用方保持原 URL）。
+  if (isLocalFileUrl(url)) {
+    logger.debug('filesApi', '[DOWNLOAD] 已是本地文件，跳过重复下载', { url: String(url).slice(0, 100) }, { module: 'asset' })
+    return null
+  }
   // saveRemoteUrl 用 new URL(fileUrl) 取 basename，data:/blob: 会抛错 → 仅 http(s) 可下载（非 http 直接 null）
   if (typeof url !== 'string' || !/^https?:/i.test(url)) return null
   return uploadRemoteUrl(url, folder, filename)

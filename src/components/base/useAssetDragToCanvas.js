@@ -1,5 +1,7 @@
+import { useCallback } from 'react'
 import { httpRequest } from './httpClient.js'
 import { LOCAL_TOOL_PING_TIMEOUT } from './config.js'
+import { useAssetMoveToFolder } from './useAssetMoveToFolder.js'
 
 /**
  * 素材拖拽到画布的【唯一发起端】公共 hook（对齐官方 H_.jsx onDrop 的素材通道）。
@@ -68,6 +70,45 @@ export function makeAssetDragProps(asset, opts = {}) {
 /** hook 版：与 makeAssetDragProps 等价，供 React 组件内取引用一致的版本 */
 export function useAssetDragToCanvas() {
   return { assetDragProps: makeAssetDragProps }
+}
+
+/**
+ * 素材卡片拖拽属性的【唯一组合点】：一次 dragstart 同时写两套 MIME。
+ *  - application/x-yimao-move  → 拖到文件夹卡片上做移动归类（useAssetMoveToFolder）
+ *  - application/x-yimao-asset → 拖到画布上建节点（useAssetDropPaste 接收）
+ *
+ * 【为什么必须合并、不能二选一】
+ * d7ac136 把卡片的 assetDragProps 换成只写 move MIME 的 sourceDragProps 后，拖到画布时
+ * useAssetDropPaste 读不到 x-yimao-asset、也没有 files，就退回「拖入 URL」分支：
+ * 素材的本地 URL（http://127.0.0.1:18080/files/migrated/...）被 isAssetUrl 判为图片 URL，
+ * 走 addImageNodeFromUrl → downloadRemoteToLocal(folder:'web')，后端把本机文件再下载一份
+ * 落进 uploads/web —— 于是「拖进素材库的图莫名跑到 web 目录」。
+ * 画布侧已加本地 URL 兜底拦截（filesApi.downloadRemoteToLocal），这里补回来源才是根治。
+ *
+ * @param {{ connected: boolean, onRefreshed?: Function }} opts 透传给 useAssetMoveToFolder
+ * @returns {{ cardDragProps: (item) => object }}
+ */
+export function useAssetCardDragProps(opts) {
+  const { assetDragProps } = useAssetDragToCanvas()
+  const { sourceDragProps, folderDropProps } = useAssetMoveToFolder(opts)
+  const cardDragProps = useCallback(
+    (item) => {
+      // 文件夹卡片是「移动落点」，不是拖拽源
+      if (item.type === 'folder') return folderDropProps(item)
+      if (!item.url) return {}
+      const move = sourceDragProps(item)
+      const toCanvas = assetDragProps(item)
+      return {
+        draggable: true,
+        onDragStart: (e) => {
+          move.onDragStart?.(e)
+          toCanvas.onDragStart?.(e)
+        },
+      }
+    },
+    [sourceDragProps, folderDropProps, assetDragProps]
+  )
+  return { cardDragProps, sourceDragProps, folderDropProps, assetDragProps }
 }
 
 // 供非 hook 场景（如纯函数封装）复用；面板一律走 useAssetDragToCanvas()/makeAssetDragProps()

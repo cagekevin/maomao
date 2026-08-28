@@ -21,10 +21,14 @@ function moveTargetDirOf(folderCard) {
 /**
  * 「把文件拖到文件夹卡片上即归类」的共享实现（素材/生成两 tab 唯一收敛点）。
  *
- * - sourceDragProps(item)：放在「文件卡片」上，使其可拖拽，只写移动归类 payload
- *   （application/x-yimao-move）。卡片拖拽【仅】用于「拖到文件夹归类」；
- *   拖到画布建节点是「点开大图后在预览里拖」的另一条链路（预览 img 上的 assetDragProps），两者互不混淆。
+ * - sourceDragProps(item)：放在「文件卡片」上，使其可拖拽，写移动归类 payload
+ *   （application/x-yimao-move）。
  * - folderDropProps(folderCard)：放在「文件夹卡片」上，作为落点；drop 时执行移动 + toast + 回调刷新。
+ *
+ * 【面板用法】面板一律用 useAssetCardDragProps()（useAssetDragToCanvas.js），它把本 hook 的
+ * sourceDragProps 与「拖到画布建节点」的 assetDragProps 合并进同一次 dragstart —— 两者 MIME
+ * 不同（x-yimao-move / x-yimao-asset），互不冲突。切勿只挂 sourceDragProps：那样拖到画布时
+ * 画布认不出素材，会把素材的本地 URL 当成网页图再下载一份落进 uploads/web（d7ac136 回归）。
  *
  * 直接复用 localToolApi 的 canMoveAsset / resolveMovePaths / moveFile，遵守同一套相对路径与边界契约。
  */

@@ -34,6 +34,20 @@ export function toAbsoluteFileUrl(url) {
   return url
 }
 
+/**
+ * 是否是 localTool 本地文件 URL（相对 /files/ 或 API_BASE 绝对地址）。
+ *
+ * 用于「网页图本地化」的前置拦截：这类 URL 背后本就是 uploads/ 里的磁盘文件，
+ * 再走一次「远程下载落盘」只会产出重复文件（历史上曾把素材库素材重复下载进 uploads/web）。
+ * 注意与 toRelativeFileUrl 区分：后者对任意主机的 /files/ 路径都成立，这里只认本机的。
+ * @param {string} u
+ * @returns {boolean}
+ */
+export function isLocalFileUrl(u) {
+  if (!u || typeof u !== 'string') return false
+  return u.startsWith('/files/') || u.startsWith(`${API_BASE}/files/`)
+}
+
 /** thumbnail format 白名单（与后端 SUPPORTED_THUMB_FORMATS 一致）：仅 Jimp 可编码格式，禁 webp。 */
 const SUPPORTED_THUMB_FORMATS = new Set(['png', 'jpg', 'jpeg', 'gif', 'bmp', 'tiff'])
 
