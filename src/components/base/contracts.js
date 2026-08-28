@@ -81,8 +81,8 @@ export const EVENTS = {
   },
   // 素材发送成功事件（P1-D 收口：原 assetStore 裸回调桥 → eventBus；assetStore 保留薄封装 onAssetSent/emitAssetSent）
   'asset:sent': {
-    from: ['assetStore.js:306'],
-    to: ['assetStore.js:303'],
+    from: ['assetStore.js:327'],
+    to: ['assetStore.js:324'],
     payload: '{ folder }',
     note: '素材落盘成功 → 素材库面板刷新（AssetLibrary 经 onAssetSent 订阅）。生产使用',
   },
