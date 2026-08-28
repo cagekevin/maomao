@@ -46,9 +46,40 @@
  */
 import { isChromeExtension, KEY_PREFIX } from './storageAdapter.js'
 import { STORAGE_KEYS } from './contracts.js'
+// 【P3 配额预警】AI 会话键体积预算（volumePolicy 单一事实源），按该键自身占用判压力，不误用浏览器全局配额
+import { SAFE_BUDGET_BYTES } from './volumePolicy.js'
 
 /** 配额受压预警阈值：用量比例 ≥ 此值时视为「即将用尽」（对齐文档 STORAGE_PRESSURE_RATIO） */
 export const STORAGE_PRESSURE_RATIO = 0.85
+/** AI 会话键压力阈值：agent_conversations_* 占用 ≥ SAFE_BUDGET_BYTES × 此比例 → 预警 */
+export const AGENT_CONV_CONVERSATION_PRESSURE_RATIO = 0.85
+
+/**
+ * AI 会话键（agent_conversations_*）键级占用与预算压力判断（只读）。
+ * 【为何按键级而非全局】maomao 数据存 chrome.storage.local / localStorage，navigator.storage.estimate()
+ *   反映的是 IndexedDB/Cache，与业务无关（usage 常为 0）。AI「数据保存失败」的唯一同源键就是
+ *   agent_conversations_*，故直接看该键集合自身字节距 SAFE_BUDGET_BYTES 的水位。
+ * @returns {Promise<{bytes:number, keys:number, budget:number, ratio:number, underPressure:boolean} | null>}
+ */
+export async function analyzeAgentConversationPressure() {
+  const entries = await enumerateLocalEntries()
+  if (!entries) return null
+  let bytes = 0
+  let keys = 0
+  for (const e of entries) {
+    const logical = e.rawKey.startsWith(KEY_PREFIX) ? e.rawKey.slice(KEY_PREFIX.length) : e.rawKey
+    if (logical.startsWith('agent_conversations_')) {
+      bytes += byteLength(e.rawKey) + byteLength(e.value)
+      keys += 1
+    }
+  }
+  const budget = SAFE_BUDGET_BYTES
+  const ratio = budget > 0 ? bytes / budget : 0
+  return {
+    bytes, keys, budget, ratio,
+    underPressure: bytes > 0 && keys > 0 && ratio >= AGENT_CONV_CONVERSATION_PRESSURE_RATIO,
+  }
+}
 
 /** domain → 中文标签（仅供 UI 展示，domain 值以 STORAGE_KEYS 登记为准） */
 export const DOMAIN_LABELS = {

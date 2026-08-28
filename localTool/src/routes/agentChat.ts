@@ -18,7 +18,7 @@
  * - LLM_CHAT_MODEL                模型 ID（必配；覆盖前端传来的 defaultModel）
  * - LLM_CHAT_TIMEOUT_MS           上游总超时毫秒（含流透传，默认 120000）
  * - AI_CANVAS_ENHANCE             '0' 关闭「画布操作准则」system 注入，默认开
- * - AI_CANVAS_SYSTEM_PROMPT_FILE  外部准则提示词文件绝对路径；缺省用内置常量
+ * - AI_CANVAS_SYSTEM_PROMPT_FILE  外部准则提示词文件绝对路径；不配则后端不注入（默认依赖前端 useAgentChat 单一注入源）
  *
  * 实现要点（对齐 docs/27 §3.2 / §6 / §10.6）：
  * - 前端已把入参 messages 里的 role:'system' 过滤掉（shared.js:2586-2591），
@@ -49,16 +49,19 @@ interface AgentChatConfig {
   timeoutMs: number;
   enhance: boolean;
   rules: string;
+  temperature: number;
 }
 function getConfig(): AgentChatConfig {
-  // 准则提示词：可用外部文件覆盖（LLM_CHAT_SYSTEM_PROMPT_FILE），否则用内置常量。
-  let rules = CANVAS_AGENT_RULES;
+  // 准则提示词：不再内置重复常量（已收口到前端 agentConfig.AGENT_PROMPTS）。
+  // 仅在配置了外部文件（AI_CANVAS_SYSTEM_PROMPT_FILE）时读取覆盖；否则 rules=''，
+  // 后端不注入、默认信任前端 useAgentChat 的单一注入（见 handleAgentChat 兜底判断）。
+  let rules = '';
   const rulesFile = process.env.AI_CANVAS_SYSTEM_PROMPT_FILE;
   if (rulesFile) {
     try {
       rules = fs.readFileSync(path.resolve(rulesFile), 'utf-8');
     } catch {
-      console.error(`[agent-chat] 读不到准则文件 "${rulesFile}"，回退内置常量`);
+      console.error(`[agent-chat] 读不到准则文件 "${rulesFile}"，跳过外部准则注入`);
     }
   }
   return {
@@ -68,38 +71,13 @@ function getConfig(): AgentChatConfig {
     timeoutMs: Number(process.env.LLM_CHAT_TIMEOUT_MS) || 120_000,
     enhance: process.env.AI_CANVAS_ENHANCE !== '0', // 默认开启准则注入
     rules,
+    // 聊天温度：LLM_CHAT_TEMPERATURE（默认 0.6）；前端带 temperature 时优先用前端值（见 handleAgentChat）
+    temperature: (() => {
+      const t = Number(process.env.LLM_CHAT_TEMPERATURE);
+      return Number.isFinite(t) && t >= 0 ? t : 0.6;
+    })(),
   };
 }
-
-/** 前端系统 prompt 中已含 A1 自身约束；本地准则仅做「画布操作范式」增强。 */
-const CANVAS_AGENT_RULES = `你是猫猫画布助手，正在帮助用户操作当前打开的画布。
-
-【基本原则】
-- 用户要求操作画布时，默认目标就是当前已打开的画布。先调用 list_nodes 了解现有节点，
-  再执行任务；不要臆造节点 id，不要假设画布为空。
-- 不要模拟鼠标点击，不要要求用户手动复制 JSON。直接用工具完成画布操作。
-
-【读取】
-- 操作前先 list_nodes（获取全部节点 id/type/标题/坐标）。
-- 需要看节点内容时用 get_node_details；需要连线结构用 list_edges。
-
-【创建】
-- 新建节点用 create_node，type 枚举：textNode（文本）、promptNode（提示词/生成配置）、
-  discountVideoNode（视频）、imageNode（图片）。
-- 提示词/生成配置节点务必填 prompt；图片节点填 label 作说明。
-- 批量创建多个同类节点用 batch_create_nodes；多个并行连线用 batch_connect_nodes。
-
-【修改与生成】
-- 改节点用 update_node（白名单字段 prompt/label/selectedModel/aspectRatio/resolution/seconds/text）。
-- 改任意原始字段才用 update_node_raw，且只改必要字段，不要抹掉其他 data。
-- 用户要求生成内容时，用 trigger_generation 触发已有节点（先确保该节点有提示词），
-  或 create_node(promptNode, prompt=...) 后 trigger_generation。
-- 生成任务提交后应说明「已在画布开始生成」，不要在没有结果时声称「已生成」。
-
-【组织】
-- 相关节点用 connect_nodes 连线表达数据流（source→target）。
-- 调整布局用 move_node；删除用 delete_node（会连带删线）。
-- 放大/缩小视口用 zoom_in/zoom_out；定位节点用 focus_node。`;
 
 /**
  * 把上游 response body 解码成 Node Readable 流（按 content-encoding 解压）。
@@ -169,9 +147,9 @@ export async function handleAgentChat(
   const msgs = [...(messages as Record<string, unknown>[])];
 
   // 2. 画布操作准则默认由前端 useAgentChat 注入（覆盖 proxy/agent 两条路径，单一来源）。
-  //    后端仅在显式开启 AI_CANVAS_ENHANCE='1' 且消息里没有 system 时兜底注入，
-  //    避免默认双份重复（旧实现默认 unshift 导致与前端注入重复）。
-  if (cfg.enhance) {
+  //    后端仅在显式开启 AI_CANVAS_ENHANCE、且配置了外部准则文件（cfg.rules 非空）、
+  //    且消息里没有 system 时，才用外部文件兜底注入；否则不注入（避免空 system / 与前端重复）。
+  if (cfg.enhance && cfg.rules) {
     const hasSystem = msgs.some((m: any) => m && m.role === 'system');
     if (!hasSystem) {
       msgs.unshift({ role: 'system', content: cfg.rules });
@@ -204,7 +182,7 @@ export async function handleAgentChat(
           ? { tools, tool_choice: (tool_choice as string) || 'auto' }
           : {}),
         stream: true,
-        temperature: typeof temperature === 'number' ? temperature : 0.6,
+        temperature: typeof temperature === 'number' ? temperature : cfg.temperature,
       }),
     });
   } catch (e) {

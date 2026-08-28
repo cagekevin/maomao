@@ -22,6 +22,9 @@ import { useSyncExternalStore } from 'react'
 import { contentGet, contentSet, createDebouncedPersist } from '../../base/contentStore.js'
 import { generateId } from '../../base/idGen.js'
 import { CREDIT_GATE_FIELD } from '../../base/contracts.js'
+import { logger } from '../../base/logger.js'
+// 【P1c L3 整包预算安全网】落盘前对归一化副本做投影降级，保证整包序列化体积有界（见 volumePolicy.js）
+import { applyConversationBudget, estimateConversationsBytes, SAFE_BUDGET_BYTES } from '../../base/volumePolicy.js'
 
 /**
  * 存储键按 agentKey 隔离（每项目一个 agentKey → 每项目一套会话）。
@@ -63,10 +66,21 @@ const persistDebounced = createDebouncedPersist(() => {
   if (!hydratedSet[currentAgentKey]) return // 未恢复不落盘（防挂载覆盖）
   const next = states[currentAgentKey]
   if (!next) return
+  // 【P1c L3 整包预算安全网】序列化前对归一化副本做投影降级：整包超预算时先剥离瞬时字段、
+  // 再截断最大字符串，保证落盘字符串恒 < SAFE_BUDGET_BYTES（规避 QuotaExceededError）。
+  // 只作用于落盘投影副本，绝不动 states 本体（内存态完整，撤销/上下文/恢复读取不受影响）。
+  const normalized = next.conversations.map(normalizeConversation)
+  const { conversations: toStore, downgraded } = applyConversationBudget(normalized, SAFE_BUDGET_BYTES)
+  if (downgraded) {
+    logger.warn('AI助手', '会话落盘触发体积降级', { key: convKey(currentAgentKey), rawBytes: estimateConversationsBytes(normalized), budget: SAFE_BUDGET_BYTES })
+  }
   try {
-    contentSet(convKey(currentAgentKey), next.conversations.map(normalizeConversation))
+    contentSet(convKey(currentAgentKey), toStore)
     contentSet(activeKey(currentAgentKey), next.activeId || '')
-  } catch { /* 忽略写失败 */ }
+  } catch (e) { /* 忽略写失败（事件已由 contentSet→sSet 内部 publish，见 storageAdapter） */
+    // 【P0·M3 观测】会话键落盘失败的底层 catch：事件链路不阻断，但加 logger 便于离线 grep 根因（key+error）。
+    logger.warn('AI助手', '会话落盘失败', { key: convKey(currentAgentKey), error: e?.message || String(e) })
+  }
 }, 300)
 
 /** 强制立即落盘当前 agentKey 会话（页面卸载兜底 / 测试用） */
@@ -247,14 +261,31 @@ export function normalizeWorkflow(w) {
   return w
 }
 
-/** 归一 pending：{ conversationId, text, attachments } */
+/** 归一 pending（{ conversationId, messageId, [text] [attachments] }）。
+ * 【P1a 去重】新形态：text 不存副本，改引用 messageId（恢复按 id 从 messages 找回，消除用户消息双副本体积增）。
+ *   attachments 保留「原始输入」引用：恢复重发时走 send 归一化一次，避免对已归一 base64/绝对 URL 二次压缩（见 ②）。
+ * 兼容旧数据：旧 pending（messageId 存在前）保留 text，迁移期仍可恢复。
+ * 契约单一来源：构造用 makePendingRef、归一用本函数、消费见 useAgentChat 恢复（resolvePendingRecovery）。 */
 export function normalizePending(p) {
   if (!p || typeof p !== 'object') return null
-  return {
+  const next = {
     conversationId: p.conversationId || '',
-    text: String(p.text || ''),
-    attachments: Array.isArray(p.attachments) ? p.attachments.slice() : [],
+    messageId: p.messageId || '',
   }
+  if (typeof p.text === 'string' && p.text) next.text = p.text
+  if (Array.isArray(p.attachments) && p.attachments.length) next.attachments = p.attachments.slice()
+  return next
+}
+
+/**
+ * pending 引用契约的构造器（与 normalizePending / useAgentChat 恢复共用，单一书写源）。
+ * @param {{conversationId?:string, messageId?:string, attachments?:Array}} [obj]
+ * @returns {{conversationId:string, messageId:string, attachments?:Array}}
+ */
+export function makePendingRef({ conversationId, messageId, attachments } = {}) {
+  const p = { conversationId: conversationId || '', messageId: messageId || '' }
+  if (Array.isArray(attachments) && attachments.length) p.attachments = attachments.slice()
+  return p
 }
 
 /** 归一 memory（对齐大雄 agentEmptyConversationMemory） */

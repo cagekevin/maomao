@@ -78,8 +78,8 @@ export const EVENTS = {
     note: '导出按钮 → App 下载。生产使用',
   },
   'persist:failed': {
-    from: ['storageAdapter.js:28'],
-    to: ['App.jsx:452'], // 全局监听器，节流 toast（见 App.jsx:447）
+    from: ['storageAdapter.js:31'],
+    to: ['App.jsx:455'], // 全局监听器，节流 toast；分发逻辑收敛到 persistFailureBus（见 App.jsx:451-459）
     payload: '{ key, error }',
     note: '持久化失败广播（sSet/sRemove 失败）。已由 App.jsx 全局订阅',
   },
@@ -262,6 +262,13 @@ export const STORAGE_KEYS = {
     pattern: true,
     note: '当前活跃会话 id（按 agentKey 隔离）',
   },
+  'agent_project_memory_v1_{agentKey}': {
+    domain: 'agent',
+    store: 'agent/runtime/projectMemoryStore.js',
+    backend: 'local',
+    pattern: true,
+    note: '项目长期记忆（用户确认后写入，agentKey 全局共用，单 agentKey 上限 60 条）',
+  },
   agent_conversations: {
     domain: 'agent',
     store: 'conversationStore.js',
@@ -295,6 +302,12 @@ export const STORAGE_KEYS = {
     store: 'AgentPanel.jsx',
     backend: 'local',
     note: 'AI 助手输入模式（agent | chat 等）',
+  },
+  agent_work_mode: {
+    domain: 'agent',
+    store: 'runModeRegistry.js',
+    backend: 'local',
+    note: 'AI 助手三态 workMode（direct/step-confirm/auto）单一真源；inputMode/runMode 为其兼容派生态（setWorkMode 原子同步）',
   },
   [CREDIT_SWITCH_KEY]: {
     domain: 'agent',

@@ -28,6 +28,7 @@ vi.mock('../../src/components/agent/conversation/conversationStore.js', () => ({
   getLastUserReferenceImages: vi.fn(() => []),
   getCurrentImageMap: vi.fn(() => []),
   getCurrentRunMode: vi.fn(() => 'auto'),
+  getWorkMode: vi.fn(() => 'auto'),
   getCurrentSnapshot: vi.fn(() => ({ skills: [] })),
 }))
 vi.mock('../../src/components/base/taskStore.js', () => ({
@@ -431,7 +432,7 @@ describe('画布 Agent 工具层 §2.5', () => {
   it('show_plan_for_confirm 暂存策划并进入待确认', async () => {
     // D7：show_plan 判定已收敛为 needConfirm = runMode==='step-confirm'（删 hasSkillNow 强制项）。
     // 半自动模式 → 必进入 awaiting 确认（策划暂存 + 待确认）。
-    vi.mocked(convStore.getCurrentRunMode).mockReturnValue('step-confirm')
+    vi.mocked(convStore.getWorkMode).mockReturnValue('step-confirm')
     const ctx = makeCtx()
     const t = buildCanvasAgentTools(ctx)
     const r = await t.show_plan_for_confirm({ plan_text: '做5张主图', generations: [{ id: 'g1', prompt: '猫' }] })
@@ -442,7 +443,7 @@ describe('画布 Agent 工具层 §2.5', () => {
 
   it('【对齐大雄 全自动 auto】无 Skill + auto：show_plan_for_confirm 不进入 awaiting（规划后直接执行，不弹确认）', async () => {
     convStore.__state.awaiting = false
-    vi.mocked(convStore.getCurrentRunMode).mockReturnValue('auto')
+    vi.mocked(convStore.getWorkMode).mockReturnValue('auto')
     vi.mocked(convStore.getCurrentSnapshot).mockReturnValue({ skills: [] }) // 无 Skill
     const ctx = makeCtx()
     const t = buildCanvasAgentTools(ctx)
@@ -455,7 +456,7 @@ describe('画布 Agent 工具层 §2.5', () => {
 
   it('【对齐大雄 半自动 step-confirm】无 Skill + step-confirm：show_plan_for_confirm 进入 awaiting（规划后确认再执行）', async () => {
     convStore.__state.awaiting = false
-    vi.mocked(convStore.getCurrentRunMode).mockReturnValue('step-confirm')
+    vi.mocked(convStore.getWorkMode).mockReturnValue('step-confirm')
     const ctx = makeCtx()
     const t = buildCanvasAgentTools(ctx)
     const r = await t.show_plan_for_confirm({ plan_text: '做1张猫图', generations: [{ id: 'g1', prompt: '一只猫' }] })
@@ -463,14 +464,14 @@ describe('画布 Agent 工具层 §2.5', () => {
     expect(r.data.awaiting_confirm).toBe(true)
     expect(convStore.__state.awaiting).toBe(true)
     // 恢复默认 runMode，避免污染后续用例
-    vi.mocked(convStore.getCurrentRunMode).mockReturnValue('auto')
+    vi.mocked(convStore.getWorkMode).mockReturnValue('auto')
   })
 
   it('【D7 真值表】hasSkillNow=true + auto：不再进入 awaiting（删 hasSkillNow 强制项，needConfirm 只由 runMode===\'step-confirm\' 决定）', async () => {
     // D7：show_plan 判定收敛为 needConfirm = runMode==='step-confirm'，hasSkillNow 已删除。
     // 此用例覆盖「有 Skill 但 runMode=auto」→ 不再强制进入 awaiting（awaitingConfirm=false）。
     convStore.__state.awaiting = false
-    vi.mocked(convStore.getCurrentRunMode).mockReturnValue('auto')
+    vi.mocked(convStore.getWorkMode).mockReturnValue('auto')
     vi.mocked(convStore.getCurrentSnapshot).mockReturnValue({ skills: [{ name: 'poster', params: {} }] })
     const ctx = makeCtx()
     const t = buildCanvasAgentTools(ctx)
@@ -484,7 +485,7 @@ describe('画布 Agent 工具层 §2.5', () => {
   it('【对齐大雄 §12.1 真值表】hasSkillNow=false + auto：不进入 awaiting（全自动直接执行）', async () => {
     // 真值表另一角：无 Skill 且 auto → needConfirm 为假。
     convStore.__state.awaiting = false
-    vi.mocked(convStore.getCurrentRunMode).mockReturnValue('auto')
+    vi.mocked(convStore.getWorkMode).mockReturnValue('auto')
     vi.mocked(convStore.getCurrentSnapshot).mockReturnValue({ skills: [] })
     const ctx = makeCtx()
     const t = buildCanvasAgentTools(ctx)
@@ -571,7 +572,7 @@ describe('画布 Agent 工具层 §2.5', () => {
   it('show_plan_for_confirm → 返回 awaiting_confirm:true（进入待确认态）', async () => {
     convStore.__state.awaiting = false
     // D7：step-confirm 半自动 → 必进入 awaiting 确认（策划暂存 + 待确认）
-    vi.mocked(convStore.getCurrentRunMode).mockReturnValue('step-confirm')
+    vi.mocked(convStore.getWorkMode).mockReturnValue('step-confirm')
     const ctx = makeCtx()
     const t = buildCanvasAgentTools(ctx)
     const r = await t.show_plan_for_confirm({ plan_text: '生成5张主图', generations: [{ id: 'g1', prompt: '猫' }] })
@@ -587,7 +588,7 @@ describe('画布 Agent 工具层 §2.5', () => {
   it('【T4】execute_plan credit 命中（creditSwitch 默认开）→ 只建节点待确认，不真生成', async () => {
     convStore.__state.awaiting = false
     // 2026-08-27 简化：credit = creditSwitch（全局总闸，与 runMode 正交）。开关默认开即命中。
-    vi.mocked(convStore.getCurrentRunMode).mockReturnValue('auto') // 保持上下文，表明与 runMode 无关
+    vi.mocked(convStore.getWorkMode).mockReturnValue('auto') // 保持上下文，表明与 runMode 无关
     const ctx = makeCtx()
     const t = buildCanvasAgentTools(ctx)
     const r = await t.execute_plan({ generations: [{ id: 'g1', prompt: '猫' }] })

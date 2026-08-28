@@ -56,6 +56,7 @@ vi.mock('../../src/components/agent/conversation/conversationStore.js', () => ({
   getCurrentImageMap: vi.fn(() => []),
   getCurrentRunMode: vi.fn(() => 'auto'),
   setCurrentRunMode: vi.fn(),
+  getWorkMode: vi.fn(() => 'auto'),
   getCurrentSnapshot: vi.fn(() => ({ skills: [] })),
 }))
 vi.mock('../../src/components/base/taskStore.js', () => ({

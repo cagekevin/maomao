@@ -12,6 +12,7 @@
  * `persist:failed` 事件（含 key），由全局监听器节流上报 toast。调用方无需逐个改。
  */
 import { publish } from './eventBus.js'
+import { logger } from './logger.js'
 
 /** 是否运行在 Chrome 扩展环境 */
 export function isChromeExtension() {
@@ -22,10 +23,13 @@ export function isChromeExtension() {
   }
 }
 
-/** 写入失败上报（统一事件，全局监听器节流 toast；测试可替换全局 publish） */
+/** 写入失败上报（统一事件，全局监听器节流 toast；测试可替换全局 publish）。
+ * 【P0·M3 观测】失败落日志（warn），供离线 grep 探明根因（key + error.message），
+ * 不改变事件链路——事件照常 publish，logger 仅旁路记录。 */
 function reportPersistFailure(key, error) {
   try {
     publish('persist:failed', { key, error: error?.message || String(error || '') })
+    logger.warn('存储', '持久化失败', { key, error: error?.message || String(error || '') })
   } catch { /* 事件上报本身失败不阻断写入流程 */ }
 }
 

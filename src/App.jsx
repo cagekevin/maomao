@@ -24,6 +24,7 @@ import LeftPanel from './components/base/LeftPanel.jsx'
 import { switchProject, loadCanvasState, saveCanvasState, getCurrentProject, initProjects, useCurrentProjectId } from './components/base/projectStore.js'
 import previewUrls from './components/base/previewUrl.js'
 import { logger } from './components/base/logger.js'
+import { createThrottledPersistHandler } from './components/base/persistFailureBus.js'
 import { useNodePosition } from './components/base/hooks.js'
 import CustomEdge from './components/edges/CustomEdge.jsx'
 import ConnectionLine from './components/edges/ConnectionLine.jsx'
@@ -445,16 +446,16 @@ function Canvas() {
   }, [])
 
   // 【R1 系统性根因治理】持久化失败统一上报：storageAdapter 的 sSet/sRemove 失败会
-  // publish('persist:failed')。这里挂全局监听器，节流 toast（5s 窗口最多一次），避免
-  // 高频写入失败刷屏，又让「数据保存失败」对用户有感知（不再静默丢失）。
+  // publish('persist:failed')，payload 含 { key, error }。这里挂全局监听器，对每个失败
+  // 的 key 原样透传提示（不做笼统兜底文案，便于定位到底是哪类数据没存上）。
+  // 节流策略：仅「同一 key」5s 内重复才合并，避免同一 key 高频刷屏；不同 key 各自弹出，不漏报。
   React.useEffect(() => {
-    let lastToast = 0
-    const off = subscribe('persist:failed', () => {
-      const now = Date.now()
-      if (now - lastToast < 5000) return
-      lastToast = now
-      showToast('部分数据保存失败，请检查浏览器存储空间/权限', { type: 'error' })
-    })
+    // 【P0·M3 观测 + Gap 测试】节流/透传逻辑收敛到 persistFailureBus 工厂（可单测）；
+    // App 只注入 showToast 与 logger。行为与改造前一致：同 key 5s 节流、逐 key 透传、被节流也 log。
+    const off = subscribe('persist:failed', createThrottledPersistHandler({
+      onLog: (key, error, suppressed) => logger.warn('存储', 'persist:failed', { key, error: error || '', toastSuppressed: suppressed }),
+      onToast: (key, error) => showToast(`数据保存失败 [${key}]${error ? `：${error}` : ''}，请检查浏览器存储空间/权限`, { type: 'error' }),
+    }))
     return off
   }, [])
 

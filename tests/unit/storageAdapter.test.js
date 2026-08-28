@@ -149,4 +149,25 @@ describe('storageAdapter 双端兼容加固', () => {
     expect(publishMock.mock.calls[0][1].key).toBe('dbl_fail_k')
     spy.mockRestore()
   })
+
+  it('扩展异步回调 chrome.runtime.lastError 非空：发布 persist:failed 且带 key/error（异步失败可感知）', async () => {
+    let lastError = null
+    chromeGlobal = {
+      runtime: { id: 'test-ext-id', get lastError() { return lastError } },
+      storage: {
+        local: {
+          get: (keys, cb) => cb?.({}),
+          set: (items, cb) => { lastError = { message: 'chrome.storage quota exceeded' }; cb?.() },
+          remove: (keys, cb) => cb?.(),
+        },
+      },
+    }
+    initStorage()
+    sSet('ext_lerr_k', 'v')
+    await flushAsync()
+    expect(publishMock).toHaveBeenCalledTimes(1)
+    expect(publishMock.mock.calls[0][0]).toBe('persist:failed')
+    expect(publishMock.mock.calls[0][1].key).toBe('ext_lerr_k')
+    expect(publishMock.mock.calls[0][1].error).toContain('quota exceeded')
+  })
 })

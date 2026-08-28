@@ -47,7 +47,10 @@ describe('AI 助手 buildRequestMessages（发 LLM 消息组装）§2.15', () =>
     const out = buildRequestMessages([{ role: 'user', content: 'hi' }], '', true, [], null)
     expect(out[0].role).toBe('system')
     expect(out[0].content).toContain('你是猫猫画布助手')
-    expect(out[1]).toMatchObject({ role: 'user', content: 'hi' })
+    // 三态分流段（默认 auto）紧随准则作为独立 system（docs/65 M5）
+    expect(out[1].role).toBe('system')
+    expect(out[1].content).toContain('show_plan_for_confirm')
+    expect(out[2]).toMatchObject({ role: 'user', content: 'hi' })
   })
 
   it('系统提示含节点 id 强约束（禁止自猜 id，防 generate_node 节点不存在）', () => {
@@ -66,7 +69,7 @@ describe('AI 助手 buildRequestMessages（发 LLM 消息组装）§2.15', () =>
 
   it('systemPrompt 拼接在规则之后', () => {
     const out = buildRequestMessages([{ role: 'user', content: 'hi' }], '自定义准则', true, [], null)
-    expect(out.filter((m) => m.role === 'system')).toHaveLength(2)
+    expect(out.filter((m) => m.role === 'system')).toHaveLength(3) // 画布准则 + 外部准则 + 三态分流段(auto)
     expect(out[1].content).toBe('自定义准则')
   })
 
@@ -96,7 +99,7 @@ describe('AI 助手 buildRequestMessages（发 LLM 消息组装）§2.15', () =>
     // fresh-task 对齐大雄：历史消息整体丢弃（连历史 system 也不回传），只发本轮 user + 注入的准则/systemPrompt。
     const out = buildRequestMessages([{ role: 'system', content: '已有' }, { role: 'user', content: 'hi' }], '外部准则', true, [], null)
     const sys = out.filter((m) => m.role === 'system')
-    expect(sys).toHaveLength(2) // 画布准则 + 外部准则（历史 system「已有」被丢弃）
+    expect(sys).toHaveLength(3) // 画布准则 + 外部准则 + 三态分流段(auto)（历史 system「已有」被丢弃）
     expect(sys[0].content).toContain('猫猫画布助手') // 画布准则
     expect(sys[1].content).toBe('外部准则') // 传入的 systemPrompt
     expect(sys.some((m) => m.content === '已有')).toBe(false) // 历史 system 不回传

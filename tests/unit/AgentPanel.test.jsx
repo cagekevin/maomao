@@ -51,8 +51,13 @@ const h = vi.hoisted(() => {
   const setCurrentRunMode = vi.fn()
   const setAwaitingConfirm = vi.fn()
   const getCurrentRunMode = vi.fn(() => (agentState.runMode || 'auto'))
+  // workMode 三态（docs/65 M8）：注册表单例，供 selector 切换与占位符驱动
+  let workMode = 'auto'
+  const getWorkMode = vi.fn(() => workMode)
+  const setWorkMode = vi.fn((m) => { workMode = m; return m })
+  const RUN_MODE_IDS = { DIRECT: 'direct', STEP_CONFIRM: 'step-confirm', AUTO: 'auto' }
   // 收口 store 穿透（2026-08-21）：AgentPanel 从 useAgentChat 解构这 4 个 handler，不再直连 conversationStore
-  const useAgentChat = vi.fn(() => ({ ...agentState, setModel, send, sendImageMode, stop, clear, stateAction: '', newChat, switchChat, deleteChat, updateMessageByContent: vi.fn(), executePlanDirect: vi.fn(async () => ({ ok: true })), setCurrentSnapshot, setAwaitingConfirm, getCurrentRunMode, setCurrentRunMode, getCreditGate: vi.fn(() => null), clearCreditGate: vi.fn() }))
+  const useAgentChat = vi.fn(() => ({ ...agentState, setModel, send, stop, clear, stateAction: '', newChat, switchChat, deleteChat, updateMessageByContent: vi.fn(), executePlanDirect: vi.fn(async () => ({ ok: true })), setCurrentSnapshot, setAwaitingConfirm, getCreditGate: vi.fn(() => null), clearCreditGate: vi.fn() }))
   // contentStore 订阅桩：记录已注册的 key→cb，供测试触发「设置变更」回调
   let subscribeCbs = {}
   let subscribeUnsubs = []
@@ -66,10 +71,12 @@ const h = vi.hoisted(() => {
   const AGENT_CHAT_MODEL_KEY = 'agent_chat_model'
 
   return {
-    useAgentChat, setModel, send, sendImageMode, stop, clear, newChat, switchChat, deleteChat,
+    useAgentChat, setModel, send, stop, clear, newChat, switchChat, deleteChat,
     markSkillUsed, showToast, setCurrentSnapshot, setCurrentRunMode, setAwaitingConfirm, getCurrentRunMode,
+    getWorkMode, setWorkMode, RUN_MODE_IDS,
     contentSubscribe, subscribeCbs, AGENT_CHAT_MODEL_KEY,
     setSubscribeCbs: (c) => { subscribeCbs = c },
+    resetWorkMode: () => { workMode = 'auto' },
     fireAgentModelChange: (cfg) => { subscribeCbs[AGENT_CHAT_MODEL_KEY]?.(cfg) },
     get agentModelCfg() { return agentModelCfg },
     setAgentModelCfg: (c) => { agentModelCfg = c },
@@ -90,6 +97,10 @@ vi.mock('../../src/components/agent/index.js', () => ({
   useAgentChat: (...a) => h.useAgentChat(...a),
   setGenParams: vi.fn(),
   getGenParams: () => ({}),
+  getWorkMode: (...a) => h.getWorkMode(...a),
+  setWorkMode: (...a) => h.setWorkMode(...a),
+  RUN_MODE_IDS: h.RUN_MODE_IDS,
+  WORK_MODE_STORAGE_KEY: 'agent_work_mode',
 }))
 vi.mock('../../src/components/base/settings/providerStore.js', () => ({ useProviders: () => ({ providers: h.providers }), load: vi.fn(async () => {}) }))
 vi.mock('../../src/components/base/settings/agentModelStore.js', () => ({ loadAgentChatModel: () => h.agentModelCfg, AGENT_CHAT_MODEL_KEY: h.AGENT_CHAT_MODEL_KEY }))
@@ -155,6 +166,7 @@ const SKILLS = [
 
 beforeEach(() => {
   vi.clearAllMocks()
+  h.resetWorkMode() // 复位 workMode，防「直接生图」用例的 direct 状态跨用例泄漏
   h.setAgentState({ messages: [], sending: false, error: '', conversations: [], activeConversationId: 'c1' })
   h.setSkills([])
   h.snapshots.length = 0
@@ -230,14 +242,21 @@ describe('AgentPanel — 直接生图模式', () => {
     expect(screen.getByPlaceholderText(/输入最终生图提示词/)).toBeTruthy()
   })
 
-  it('直接生图 → 发送走 sendImageMode（不经过 LLM）', () => {
+  it('直接生图 → 仍走统一 send 入口（send 内部按 workMode 分流到直连，docs/65 M7）', () => {
     render(<AgentPanel {...OPEN_PROPS} />)
     fireEvent.click(screen.getByRole('button', { name: '直接生图' }))
     const ta = screen.getByPlaceholderText(/输入最终生图提示词/)
     fireEvent.change(ta, { target: { value: '一只机械猫' } })
     fireEvent.keyDown(ta, { key: 'Enter', shiftKey: false })
-    expect(h.sendImageMode).toHaveBeenCalledWith('一只机械猫', [])
-    expect(h.send).not.toHaveBeenCalled()
+    expect(h.send).toHaveBeenCalledWith('一只机械猫', undefined)
+  })
+
+  it('挂载 → 订阅 agent_work_mode（docs/65 M8 交叉消除）：外部入口改模式时面板随注册表真源跟随', () => {
+    render(<AgentPanel {...OPEN_PROPS} />)
+    // 订阅已注册：回调读注册表真源 getWorkMode()（真源切换 → 面板本地 state 跟随）。
+    // 注册行为用 call 历史断言（可靠），真源读写已在 runModeRegistry.test 覆盖。
+    expect(h.contentSubscribe).toHaveBeenCalledWith('agent_work_mode', expect.any(Function))
+    expect(h.contentSubscribe).toHaveBeenCalledWith('agent_chat_model', expect.any(Function))
   })
 })
 
@@ -412,11 +431,11 @@ describe('AgentPanel — 设置改模型/供应商即生效（方案 B，无需�
   })
 
   it('卸载 → 取消订阅（返回的 unsubscribe 被调用，防泄漏）', () => {
-    // 前提：AgentPanel 当前仅注册一次 contentSubscribe（对 agent_chat_model），
-    // 故最后注册的 unsubscribe 即本订阅的取消函数。若未来新增其它订阅，此断言需改为按 key 定位。
+    // 假设：AgentPanel 注册两次 contentSubscribe（agent_chat_model + agent_work_mode），
+    // 取最后一次订阅（work_mode）的取消函数验证卸载即退订。若再新增订阅需按 key 定位。
     const { unmount } = render(<AgentPanel {...OPEN_PROPS} />)
-    expect(h.subscribeUnsubs.length).toBe(1)
-    const unsub = h.subscribeUnsubs[0]
+    expect(h.subscribeUnsubs.length).toBe(2)
+    const unsub = h.subscribeUnsubs[h.subscribeUnsubs.length - 1]
     unmount()
     expect(unsub).toHaveBeenCalled()
   })

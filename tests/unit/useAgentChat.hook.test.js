@@ -92,6 +92,8 @@ vi.mock('../../src/components/agent/conversation/conversationStore.js', () => {
     getConversations: vi.fn(() => conversations),
     getCurrentPending: vi.fn(() => pending),
     setCurrentPending: vi.fn((p) => { pending = p }),
+    // P1a 引用契约：构造器透传（send 用它生成 pending 引用；恢复交给真实 resolvePendingRecovery，其默认被 getCurrentPending=null 短路）
+    makePendingRef: vi.fn((arg) => arg),
     getCurrentWorkflow: vi.fn(() => null),
     patchCurrentWorkflow: vi.fn((p) => ({ steerQueue: [], ...p })),
     captureActiveConversation: vi.fn(),
@@ -117,6 +119,7 @@ vi.mock('../../src/components/agent/conversation/conversationStore.js', () => {
     getCurrentImageMap: vi.fn(() => []),
     getCurrentRunMode: vi.fn(() => 'auto'),
     setCurrentRunMode: vi.fn(),
+    getWorkMode: vi.fn(() => 'auto'),
     getActivePendingMemorySuggest: vi.fn(() => null),
     setActivePendingMemorySuggest: vi.fn(),
     newConversation: vi.fn(() => {
@@ -139,6 +142,7 @@ vi.mock('../../src/components/agent/conversation/conversationStore.js', () => {
 })
 
 import { useAgentChat, buildRequestMessages, parseSSEChunk, parseGenerationsFromReply } from '../../src/components/agent/runtime/useAgentChat.js'
+import { resolveSkillExecutionRules } from '../../src/components/agent/runtime/agentCore.js'
 import * as convStore from '../../src/components/agent/conversation/conversationStore.js'
 
 // ── SSE 流构造助手 ──
@@ -176,6 +180,8 @@ beforeEach(() => {
     vi.mocked(convStore.getAwaitingConfirm).mockReturnValue(v === true)
   })
   vi.mocked(convStore.getAwaitingConfirm).mockReturnValue(false)
+  // 默认 auto（LLM 编排），直接生图用例临时切 direct（docs/65 M7/M9）
+  vi.mocked(convStore.getWorkMode).mockReturnValue('auto')
   fetchMock = vi.fn()
   vi.stubGlobal('fetch', fetchMock)
 })
@@ -413,19 +419,22 @@ describe('useAgentChat · clear / stateAction', () => {
   })
 })
 
-describe('useAgentChat · sendImageMode（图像模式直连生图）', () => {
+describe('useAgentChat · 直接生图（三态=direct，send 内部第一行分流到直连，docs/65 M7）', () => {
+  // direct 分支 = 原 sendImageMode 正文，经 send 单入口在 workMode=direct 时 bypass LLM 触发
   it('空提示词不发送（no-op）', async () => {
+    vi.mocked(convStore.getWorkMode).mockReturnValue('direct')
     const { result } = renderHook(() => useAgentChat())
-    await act(async () => { await result.current.sendImageMode('', []) })
+    await act(async () => { await result.current.send('', []) })
     expect(callTool).not.toHaveBeenCalled()
     expect(result.current.messages).toHaveLength(0)
   })
 
   it('成功：callTool(execute_plan) 返回 ok → 追加 image 模式 assistant 消息', async () => {
+    vi.mocked(convStore.getWorkMode).mockReturnValue('direct')
     callTool.mockReturnValue({ ok: true, data: { entries: [{ status: 'completed' }, { status: 'completed' }] } })
     const { result } = renderHook(() => useAgentChat())
     await act(async () => {
-      await result.current.sendImageMode('一只赛博猫', [{ type: 'image', url: 'http://x/r.png' }])
+      await result.current.send('一只赛博猫', [{ type: 'image', url: 'http://x/r.png' }])
     })
     expect(callTool).toHaveBeenCalledWith('execute_plan', expect.objectContaining({
       auto_run: true,
@@ -439,12 +448,13 @@ describe('useAgentChat · sendImageMode（图像模式直连生图）', () => {
   })
 
   it('【积分闸·直接生图】callTool 返回 awaited:credit → 追加「节点已建好、待积分确认」，不声称「已在画布生图」', async () => {
+    vi.mocked(convStore.getWorkMode).mockReturnValue('direct')
     // 2026-08-27 简化：直接生图在积分开关开时也被拦截，execute_plan 返回 awaited:'credit'（节点建好未真生成）。
-    // sendImageMode（直连点）必须兼容该语义：不写「已在画布生图」、不二次 execute_plan（红线 §6.4）。
+    // direct 分支（直连点）必须兼容该语义：不写「已在画布生图」、不二次 execute_plan（红线 §6.4）。
     callTool.mockReturnValue({ ok: true, data: { awaited: 'credit', steps: [{ id: 'g1', status: 'ready', nodeId: 'n1' }], note: '节点已建好，生成待积分确认' } })
     const { result } = renderHook(() => useAgentChat())
     await act(async () => {
-      await result.current.sendImageMode('一只猫', [])
+      await result.current.send('一只猫', [])
     })
     const imgMsg = result.current.messages.find((m) => m.role === 'assistant' && m.mode === 'image')
     expect(imgMsg).toBeTruthy()
@@ -455,12 +465,13 @@ describe('useAgentChat · sendImageMode（图像模式直连生图）', () => {
   })
 
   it('【图生图·单图修复】直连模式带一张参考图 → 生成的 generation 声明 use_attachments:true（否则 execute_plan 作废参考图，图生图失效）', async () => {
+    vi.mocked(convStore.getWorkMode).mockReturnValue('direct')
     // 单参考图 → perRef 拆分不触发（referenceImages.length>=2 才拆），走单 generation。
     // 该 generation 必须带 use_attachments:true，让 execute_plan 把它整批共享挂到节点 data.images（对齐多图 buildPerReferenceGenerations）。
     callTool.mockReturnValue({ ok: true, data: { entries: [{ status: 'completed', nodeId: 'n1' }] } })
     const { result } = renderHook(() => useAgentChat())
     await act(async () => {
-      await result.current.sendImageMode('把它改成红色的猫', [{ type: 'image', url: 'http://x/ref.png' }])
+      await result.current.send('把它改成红色的猫', [{ type: 'image', url: 'http://x/ref.png' }])
     })
     expect(callTool).toHaveBeenCalledTimes(1)
     const arg = callTool.mock.calls[0][1]
@@ -470,20 +481,22 @@ describe('useAgentChat · sendImageMode（图像模式直连生图）', () => {
   })
 
   it('【图生图】直连模式无参考图 → generation 不带 use_attachments（纯文生图，不误挂）', async () => {
+    vi.mocked(convStore.getWorkMode).mockReturnValue('direct')
     callTool.mockReturnValue({ ok: true, data: { entries: [{ status: 'completed', nodeId: 'n1' }] } })
     const { result } = renderHook(() => useAgentChat())
     await act(async () => {
-      await result.current.sendImageMode('一只纯文字生成的猫', [])
+      await result.current.send('一只纯文字生成的猫', [])
     })
     const arg = callTool.mock.calls[0][1]
     expect(arg.generations[0].use_attachments).toBeUndefined()
   })
 
   it('失败：callTool(execute_plan) 返回 error → 设置 error', async () => {
+    vi.mocked(convStore.getWorkMode).mockReturnValue('direct')
     callTool.mockReturnValueOnce({ ok: false, error: '生图服务异常' })
     const { result } = renderHook(() => useAgentChat())
     await act(async () => {
-      await result.current.sendImageMode('一只猫', [])
+      await result.current.send('一只猫', [])
     })
     expect(result.current.error).toBe('生图服务异常')
     const imgMsg = result.current.messages.find((m) => m.role === 'assistant' && m.mode === 'image')
@@ -643,14 +656,18 @@ describe('useAgentChat · buildRequestMessages 深度（请求体组装）', () 
     { role: 'tool', content: '{"ok":true}', tool_call_id: 'c1' },
   ]
 
-  it('enhance=true 且无 system：前置注入画布准则（CANVAS_AGENT_RULES），历史消息按顺序接在后面', () => {
+  it('enhance=true 且无 system：前置注入画布准则 + 三态分流段（默认 auto），历史消息按顺序接在后面', () => {
     const out = buildRequestMessages(base, '', true)
     // 首条是系统准则
     expect(out[0].role).toBe('system')
     expect(out[0].content).toContain('你是猫猫画布助手')
+    // 三态分流段（默认 auto）紧随准则作为独立 system（docs/65 M5：引导 show_plan_for_confirm 可调性）
+    expect(out[1]).toMatchObject({ role: 'system' })
+    expect(out[1].content).toContain('show_plan_for_confirm')
+    expect(out[1].content).toContain('完全自主')
     // 原始 3 条消息全部保留，顺序不变
-    expect(out).toHaveLength(4)
-    expect(out[1].content).toBe('帮我建个节点')
+    expect(out).toHaveLength(5)
+    expect(out[2].content).toBe('帮我建个节点')
     expect(out.at(-1).content).toBe('{"ok":true}')
   })
 
@@ -753,10 +770,69 @@ describe('useAgentChat · buildRequestMessages 深度（请求体组装）', () 
     expect(t.tool_call_id).toBe('c9')
   })
 
-  it('空 messages：enhance=true 仍至少注入一条 system 准则（LLM 永远有画布规则）', () => {
+  it('空 messages：enhance=true 仍至少注入 system（画布准则 + 三态分流段，LLM 永远有规则）', () => {
     const out = buildRequestMessages([], '', true)
-    expect(out).toHaveLength(1)
-    expect(out[0].role).toBe('system')
+    expect(out).toHaveLength(2)
+    expect(out.every((m) => m.role === 'system')).toBe(true)
+    expect(out[0].content).toContain('猫猫画布助手')
+    expect(out[1].content).toContain('show_plan_for_confirm')
+  })
+})
+
+// ════════════════════════════════════════════════════════════════════
+// 四象限 prompt 断言（docs/65 M5/M9）：三态 × Skill 组合的确认粒度注入
+// 规则：Skill 只编排思维路径、不改确认粒度；确认粒度始终由三态决定（R1/R6）。
+//   noSkill×auto / noSkill×step-confirm / skill×auto / skill×step-confirm
+// ════════════════════════════════════════════════════════════════════
+describe('useAgentChat · 三态 × Skill 四象限提示词注入（docs/65 M5）', () => {
+  const base = [
+    { role: 'user', content: '生成一张猫图' },
+    { role: 'assistant', content: 'ok', tool_calls: [{ id: 'c1', type: 'function', function: { name: 'execute_plan', arguments: '{}' } }] },
+    { role: 'tool', content: '{"ok":true}', tool_call_id: 'c1' },
+  ]
+  const skill = (name = '电商主图') => [{ name, content: 'Skill 原文内容' }]
+
+  const systemTexts = (out) => out.filter((m) => m.role === 'system').map((m) => m.content)
+
+  it('resolveSkillExecutionRules：auto → 追加「阶段2 作废·不等待」；step-confirm → 用原始（阶段2 等确认）', () => {
+    expect(resolveSkillExecutionRules('auto')).toContain('【确认粒度自适应 · 完全自主】')
+    expect(resolveSkillExecutionRules('auto')).toContain('阶段2 · 等待确认】作废')
+    expect(resolveSkillExecutionRules('step-confirm')).not.toContain('作废')
+    expect(resolveSkillExecutionRules('step-confirm')).toContain('【阶段2 · 等待确认】')
+  })
+
+  it('noSkill × auto：注入「完全自主」分流段，引导 plan 可调且不卡确认（R2）', () => {
+    const out = buildRequestMessages(base, '', true, [], null, 0, '', '', '', 'auto')
+    const joined = systemTexts(out).join('\n')
+    expect(joined).toContain('show_plan_for_confirm')
+    expect(joined).toContain('完全自主')
+    expect(joined).toContain('不阻塞') // 不卡确认
+    expect(joined).not.toContain('等待用户确认')
+  })
+
+  it('noSkill × step-confirm：注入「分步确认」分流段，引导 plan 等待确认', () => {
+    const out = buildRequestMessages(base, '', true, [], null, 0, '', '', '', 'step-confirm')
+    const joined = systemTexts(out).join('\n')
+    expect(joined).toContain('show_plan_for_confirm')
+    expect(joined).toContain('分步确认')
+    expect(joined).toContain('等待用户确认')
+  })
+
+  it('skill × auto：Skill 阶段2 不等待（追加自适应），确认粒度仍由 auto 决定（R1）', () => {
+    const out = buildRequestMessages(base, '', true, skill(), null, 0, '', '', '', 'auto')
+    const texts = systemTexts(out)
+    const skillSys = texts.find((t) => t.includes('Skill 文档'))
+    expect(skillSys).toContain('【确认粒度自适应 · 完全自主】') // 阶段2 作废
+    expect(texts.join('\n')).toContain('不阻塞') // 全局 auto 分流段
+  })
+
+  it('skill × step-confirm：Skill 阶段2 保持等待确认，确认粒度由 step-confirm 决定', () => {
+    const out = buildRequestMessages(base, '', true, skill(), null, 0, '', '', '', 'step-confirm')
+    const texts = systemTexts(out)
+    const skillSys = texts.find((t) => t.includes('Skill 文档'))
+    expect(skillSys).not.toContain('作废')
+    expect(skillSys).toContain('【阶段2 · 等待确认】')
+    expect(texts.join('\n')).toContain('等待用户确认')
   })
 })
 

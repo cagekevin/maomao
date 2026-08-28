@@ -30,6 +30,8 @@ import { buildTargetUrl } from '../../base/providerProtocols.js'
 import { httpRequest } from '../../base/httpClient.js'
 // 请求形态层：聊天 responses 形态（gpt-5.6 用 /v1/responses 带工具不再报错，M2-2/M2-4）
 import { resolveChatMode, buildResponsesChatBody, parseResponsesChatJson, parseResponsesSSEChunk } from '../../base/requestModes.js'
+// AI 助手配置真源（docs/66 §4/A 层）：聊天温度从 agentConfig 读取，不再硬编码
+import { AGENT_TEMPERATURE } from '../agentConfig.js'
 
 /** ══════════════════════════════════════════════════════════════════════════════
  *  roundTrip —— 单次 LLM 请求（复刻官方 dr:2579-2778 的 v）。
@@ -88,7 +90,7 @@ export async function roundTrip(ctx, requestMessages, signal, onStream) {
         model,
         messages: requestMessages,
         stream: !isNonStream,
-        temperature: 0.6,
+        temperature: AGENT_TEMPERATURE,
         ...(withTools ? { tools: toolSchemas, tool_choice: 'auto' } : {})
       }
   // 是否走「多 provider /api/proxy 转发」：provider 存在时（如魔搭，支持 function calling）

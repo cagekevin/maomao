@@ -12,7 +12,9 @@ import {
   estimateChromeStorage,
   mapKeyToDomain,
   analyzeStorageByKeys,
+  analyzeAgentConversationPressure,
 } from '../../src/components/base/storageQuota.js'
+import { SAFE_BUDGET_BYTES } from '../../src/components/base/volumePolicy.js'
 
 /** 可控的 chrome 全局（模拟 普通网页 / 真实扩展 两种环境） */
 let chromeGlobal = null
@@ -153,6 +155,35 @@ describe('storageQuota.analyzeStorageByKeys（按键画像）', () => {
   it('chrome.storage.get 抛错：返回 null（降级不崩）', async () => {
     chromeGlobal = { runtime: { id: 'x' }, storage: { local: { get: () => { throw new Error('denied') } } } }
     expect(await analyzeStorageByKeys()).toBeNull()
+  })
+})
+
+describe('storageQuota.analyzeAgentConversationPressure（AI 会话键键级预算预警）', () => {
+  it('空存储：bytes=0、keys=0、不预警', async () => {
+    localStorage.clear()
+    const r = await analyzeAgentConversationPressure()
+    expect(r?.bytes).toBe(0)
+    expect(r?.keys).toBe(0)
+    expect(r?.underPressure).toBe(false)
+  })
+
+  it('agent 会话键接近预算上限 → 预警；只用 agent 键体积判，与浏览器全局配额无关', async () => {
+    localStorage.clear()
+    localStorage.setItem('yimao:agent_conversations_canvas-assistant-1', 'x'.repeat(SAFE_BUDGET_BYTES))
+    // 非 agent 键不参与该键级判定
+    localStorage.setItem('yimao:projects', '[{"id":"p1"}]')
+    const r = await analyzeAgentConversationPressure()
+    expect(r).not.toBeNull()
+    expect(r.keys).toBe(1)
+    expect(r.bytes).toBeGreaterThanOrEqual(SAFE_BUDGET_BYTES)
+    expect(r.underPressure).toBe(true)
+  })
+
+  it('agent 会话键体积远低于预算 → 不预警', async () => {
+    localStorage.clear()
+    localStorage.setItem('yimao:agent_conversations_canvas-assistant-1', '{"m":[1]}')
+    const r = await analyzeAgentConversationPressure()
+    expect(r?.underPressure).toBe(false)
   })
 })
 

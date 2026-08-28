@@ -12,24 +12,45 @@
  * ════════════════════════════════════════════════════════════════
  */
 import { getActiveConv, commit, getState, normalizeMemory } from './conversationState.js'
+import {
+  getWorkMode, setWorkMode, resolveConvRunMode,
+  registerLegacyRunModeReader, registerRunModeSync,
+} from '../runtime/runModeRegistry.js'
 
-/** 【对齐大雄 agentGetRunMode】读当前对话执行分级（'auto' | 'step-confirm'），缺省 'auto'（默认完全自主）。 */
-export function getCurrentRunMode() {
+/**
+ * runMode（执行分级）现为 workMode 的兼容派生态（docs/64 §5.3 / docs/65 M4）：
+ *  - 读：getCurrentRunMode 由 workMode 派生（resolveConvRunMode(getWorkMode())）
+ *  - 写：setCurrentRunMode 收敛为 setWorkMode，触发注册表原子写三处（workMode+inputMode+当前会话 runMode）
+ * 首占钩子：legacyRunModeReader 供首次迁移由遗留会话 runMode 推导初始 workMode；
+ *           runModeSync 使 setWorkMode 同步写当前会话 conv.runMode（兼容历史持久化）。
+ */
+registerLegacyRunModeReader(() => String(getActiveConv()?.runMode || 'auto').toLowerCase())
+registerRunModeSync((runMode) => {
   const conv = getActiveConv()
-  const mode = String(conv?.runMode || 'auto').toLowerCase()
-  return mode === 'auto' ? 'auto' : 'step-confirm'
-}
-
-/** 【对齐大雄 agentSetRunMode】写当前对话执行分级（auto 完全自主默认 / step-confirm 分步确认）。 */
-export function setCurrentRunMode(mode) {
-  const conv = getActiveConv()
-  if (!conv) return
-  // 非 auto（含旧值 'semi'）一律归 'step-confirm'，兼容历史持久化数据
-  const next = String(mode || 'auto').toLowerCase() === 'auto' ? 'auto' : 'step-confirm'
+  if (!conv) return // 会话未就绪不写（读取侧以 workMode 为真源，不受影响）
+  const next = runMode === 'step-confirm' ? 'step-confirm' : 'auto'
   commit({
     ...getState(),
     conversations: getState().conversations.map((c) => (c.id === conv.id ? { ...c, runMode: next, updatedAt: Date.now() } : c)),
   })
+})
+
+/** 【对齐大雄 agentGetRunMode】读当前执行分级：由 workMode 派生（step-confirm/auto；direct→auto）。 */
+export function getCurrentRunMode() {
+  return resolveConvRunMode(getWorkMode())
+}
+
+/** 【对齐大雄 agentSetRunMode】写执行分级：收敛为 setWorkMode（原子写 workMode+inputMode+当前会话 runMode）。 */
+export function setCurrentRunMode(mode) {
+  const normalized = String(mode || 'auto').toLowerCase()
+  if (normalized !== 'auto') {
+    // 非 auto（含旧值 'semi' / 任意非法值）一律归 'step-confirm'（对齐历史契约：只有 auto 全自动）
+    setWorkMode('step-confirm')
+    return
+  }
+  // auto：若当前是 direct（直接生图）则保留 direct，不做无关切换
+  const wm = getWorkMode()
+  setWorkMode(wm === 'direct' ? 'direct' : 'auto')
 }
 
 /* ── 统一风格契约 global_contract + 跨步成果 artifact（对齐大雄，per-conversation）── */

@@ -1,10 +1,12 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import * as contentStore from '../../src/components/base/contentStore.js'
+import { SAFE_BUDGET_BYTES } from '../../src/components/base/volumePolicy.js'
 const { contentClearCache } = contentStore
 import { subscribe, getState } from '../../src/components/agent/conversation/conversationState.js'
 import {
   resetConversationCache, ensureActiveConversation, applyConversation, setAgentKey,
   flushPersist, getCurrentSnapshot, setCurrentSnapshot, patchCurrentMessages,
+  setCurrentPending, getCurrentPending, makePendingRef,
 } from '../../src/components/agent/conversation/conversationStore.js'
 
 beforeEach(() => {
@@ -71,6 +73,35 @@ describe('conversationState 订阅与提交（消息单源底座）', () => {
     expect(getCurrentSnapshot().messages[0].content).toBe('PERSISTED')
   })
 
+  it('会话落盘失败：persistDebounced 内 contentSet 抛错被 catch-ignore，不阻断调用栈（事件已由 sSet 内部 publish）', () => {
+    const id = ensureActiveConversation()
+    applyConversation(id)
+    setCurrentSnapshot({ messages: [{ role: 'user', content: 'P' }] })
+    const spy = vi.spyOn(contentStore, 'contentSet').mockImplementationOnce(() => { throw new Error('QuotaExceededError') })
+    // 落盘失败不抛给调用方（匹配 persistDebounced 的 catch 忽略语义；persist:failed 事件在 sSet 层已发）
+    expect(() => flushPersist()).not.toThrow()
+    spy.mockRestore()
+  })
+
+  it('整包超预算：persistDebounced 用 applyConversationBudget 降级后的投影落盘（内存态不受影响）', () => {
+    const id = ensureActiveConversation()
+    applyConversation(id)
+    // 构造一个远超 SAFE_BUDGET_BYTES 的整包（仅驻内存，落盘前被降级）
+    const hugeContent = 'x'.repeat(SAFE_BUDGET_BYTES + 1024 * 1024)
+    setCurrentSnapshot({ messages: [{ role: 'user', content: hugeContent }] })
+    const spy = vi.spyOn(contentStore, 'contentSet')
+    flushPersist()
+    // contentSet 拿到的是【降级后】的投影：正文被截断，序列化字节回到预算内
+    const persisted = spy.mock.calls[0][1] // contentSet(key, value) → value 即 toStore 数组
+    expect(JSON.stringify(persisted).length).toBeLessThan(SAFE_BUDGET_BYTES)
+    const downgradedContent = persisted[0].messages[0].content
+    expect(downgradedContent.length).toBeLessThan(hugeContent.length)
+    expect(downgradedContent.includes('…[已截断]')).toBe(true)
+    // 内存态保持完整（投影降级不改 states 本体）
+    expect(getCurrentSnapshot().messages[0].content).toBe(hugeContent)
+    spy.mockRestore()
+  })
+
   it('patchCurrentMessages 同样受 AGENT_MSG_MAX=60 上限截断（保留最近 60 条）', () => {
     const id = ensureActiveConversation()
     applyConversation(id)
@@ -78,5 +109,21 @@ describe('conversationState 订阅与提交（消息单源底座）', () => {
     patchCurrentMessages(many)
     expect(getCurrentSnapshot().messages).toHaveLength(60)
     expect(getCurrentSnapshot().messages.at(-1).content).toBe('m99')
+  })
+
+  it('pending 引用契约（P1a）：makePendingRef 不存 text 副本、保留原始 attachments；set/get 往返一致', () => {
+    const id = ensureActiveConversation()
+    applyConversation(id)
+    const rawAtt = [{ type: 'image', url: '/files/raw.png' }]
+    setCurrentPending(makePendingRef({ conversationId: id, messageId: 'm-42', attachments: rawAtt }))
+    const p = getCurrentPending()
+    expect(p.messageId).toBe('m-42')
+    // text 不入 pending（由 messageId 引用找回），避免用户消息双副本
+    expect(p.text).toBeUndefined()
+    // attachments 保留原始输入（恢复时经 send 归一化一次，避免二次压缩）
+    expect(p.attachments).toEqual(rawAtt)
+    // 兼容旧形态：遗留 text 仍保留（迁移期可恢复）
+    setCurrentPending({ conversationId: id, text: 'legacy' })
+    expect(getCurrentPending().text).toBe('legacy')
   })
 })

@@ -13,6 +13,8 @@ import {
   getActiveConv, commit, getState, normalizeWorkflow, normalizePending, normalizeMemory,
   emptyMemory, AGENT_MSG_MAX,
 } from './conversationState.js'
+// 【P1b L1 静态上限】写入口统一限容：lastResults 去重限条 + memory 限条，防止整包体积无界增长（见 volumePolicy.js）
+import { sanitizeMessages, capConversationMemory } from '../../base/volumePolicy.js'
 
 /** 读当前对话的快照副本（对外） */
 export function getCurrentSnapshot() {
@@ -35,15 +37,18 @@ export function getCurrentSnapshot() {
 export function setCurrentSnapshot(snap) {
   const conv = getActiveConv()
   if (!conv) return
+  const rawMessages = Array.isArray(snap?.messages) ? snap.messages.slice(-AGENT_MSG_MAX) : conv.messages
+  const rawMemory = snap?.memory ? normalizeMemory(snap.memory) : conv.memory
   const next = {
     ...conv,
-    messages: Array.isArray(snap?.messages) ? snap.messages.slice(-AGENT_MSG_MAX) : conv.messages,
+    // 【P1b L1】写入口统一限容：lastResults 去重限条 + memory 限条
+    messages: sanitizeMessages(rawMessages),
     skills: Array.isArray(snap?.skills) ? snap.skills.map((s) => ({ ...s })) : conv.skills,
     attachments: Array.isArray(snap?.attachments) ? snap.attachments.map((a) => ({ ...a })) : conv.attachments,
     draft: typeof snap?.draft === 'string' ? snap.draft : conv.draft,
     workflow: snap?.workflow ? normalizeWorkflow(snap.workflow) : conv.workflow,
     pending: snap?.pending !== undefined ? normalizePending(snap.pending) : conv.pending,
-    memory: snap?.memory ? normalizeMemory(snap.memory) : conv.memory,
+    memory: capConversationMemory(rawMemory),
     updatedAt: Date.now(),
   }
   commit({
@@ -110,12 +115,12 @@ export function getCurrentMemory() {
   return getActiveConv()?.memory ? normalizeMemory(getActiveConv().memory) : emptyMemory()
 }
 
-/** 更新当前对话的 memory（提炼 lastPlan 等） */
+/** 更新当前对话的 memory（提炼 lastPlan 等；【P1b】facts/artifacts 限容） */
 export function setCurrentMemory(m) {
   const conv = getActiveConv()
   if (!conv) return
   commit({
     ...getState(),
-    conversations: getState().conversations.map((c) => (c.id === conv.id ? { ...c, memory: normalizeMemory(m), updatedAt: Date.now() } : c)),
+    conversations: getState().conversations.map((c) => (c.id === conv.id ? { ...c, memory: capConversationMemory(normalizeMemory(m)), updatedAt: Date.now() } : c)),
   })
 }

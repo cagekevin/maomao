@@ -153,7 +153,7 @@ export function importLegacy({ messages, skills }) {
 // resetConversationCache + 归一化 normalizeConversation / normalizeWorkflow / normalizePending / normalizeMemory）
 export {
   useConversationStore, setAgentKey, setSending, flushPersist, resetConversationCache,
-  normalizeConversation, normalizeWorkflow, normalizePending, normalizeMemory,
+  normalizeConversation, normalizeWorkflow, normalizePending, normalizeMemory, makePendingRef,
 } from './conversationState.js'
 // conversationSnapshot：当前对话快照（D 类）
 export {
@@ -166,6 +166,8 @@ export {
   getCurrentArtifacts, setCurrentArtifacts, getActiveAiUndoStack, pushActiveAiUndo, popActiveAiUndo,
   getCurrentRefImages, setCurrentRefImages,
 } from './conversationAiState.js'
+// runModeRegistry：workMode 读写（三态单一真源，docs/65 M4 透出）
+export { getWorkMode, setWorkMode } from '../runtime/runModeRegistry.js'
 // conversationSkillState：Skill 三阶段门禁状态（阶段3 编排轴子域化）
 export {
   getActivePendingGenerations, setActivePendingGenerations, getAwaitingConfirm, setAwaitingConfirm,

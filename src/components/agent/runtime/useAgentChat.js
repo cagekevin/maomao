@@ -5,6 +5,7 @@ import { logger } from '../../base/logger.js'
 import { API_BASE } from '../../base/config.js'
 import { LLM_CHAT_BASE_URL, LLM_CHAT_API_KEY, LLM_CHAT_MODEL, AGENT_DEMO_MODE } from '../../base/config.js'
 import { InputStateMachine } from './inputStateMachine.js'
+import { generateId } from '../../base/idGen.js'
 
 /**
  * 【过渡方案·2026-08-18 决策注释】回传给 LLM 的「历史纯文字」轮数（由 AI 助手设置控制，不硬编码）。
@@ -43,6 +44,8 @@ import { buildLearnedContext } from './promptLearning.js'
 import { buildProjectMemoryContextFromStore } from './memoryRetrieval.js'
 // 「记·长期」持久化：memory_suggest 确认后落库（agentKey 全局）
 import { saveProjectMemory, PROJECT_MEMORY_KIND_LABELS } from './projectMemoryStore.js'
+// 【刷新恢复去重解析器】pending(messageId 引用) → action/text/attachments（纯函数，见 pendingRecovery.js）
+import { resolvePendingRecovery } from './pendingRecovery.js'
 // 「记」：分层压缩历史→memory.summary（照搬参考项目 contextCompressionService），挂 send 收尾触发
 import { compressToSummary, RECENT_KEEP_COUNT } from './contextCompression.js'
 // 上下文预算触发压缩（照搬参考项目 contextManager）：决策吃 messages，内部估算 token，75% 预压缩 / 90% 强制压缩
@@ -51,6 +54,7 @@ import { decideContextCompression, resolveInputBudget } from './tokenBudget.js'
 import { AGENT_CONTEXT_WINDOW_DEFAULT, AGENT_CONTEXT_OUTPUT_BUDGET_RATIO } from '../../base/config.js'
 // 工作流状态迁移（M2 收口：steer/起步/awaiting_confirm/终态/队列出队的纯函数，落盘仍走 patchCurrentWorkflow）
 import { wfStart, wfSteer, wfFinish, wfAwaitConfirm, wfNextSteer } from './workflowState.js'
+import { isAgentWorkMode } from './runModeRegistry.js'
 // 消息构造/落盘 + 附件归一化（M3 下沉：appendMsg/setHistory/updateLastStreaming/endStreaming/stripStreaming → agentMessages；附件/参考图目录 → agentAttachments）
 import { appendMsg, setHistory, updateLastStreaming, endStreaming, stripStreaming } from './agentMessages.js'
 import { normalizeAttachmentsForSend, buildRefCatalog } from './agentAttachments.js'
@@ -70,6 +74,7 @@ import {
   patchCurrentWorkflow,
   getCurrentPending,
   setCurrentPending,
+  makePendingRef,
   getCurrentMemory,
   setCurrentMemory,
   setSending,
@@ -83,6 +88,7 @@ import {
   getCurrentImageMap,
   getCurrentRunMode,
   setCurrentRunMode,
+  getWorkMode,
 } from '../conversation/conversationStore.js'
 // 【消息单源 P5 基座】按字段订阅 store 的 messages（含 activeId 从 store 同步读），
 // 避免整包 useConversationStore() 订阅 → 流式高频更新连坐重渲染整个面板。
@@ -140,10 +146,10 @@ import { useStoreSelector, shallowEqual } from '../../base/useStoreSelector.js'
  * 做了架构级简化统一。下表是权威地图：每条路径大雄怎么走、我们怎么走、对齐状态。改动前先看表，
  * 不要凭记忆改——过去反复推翻就是因为缺这张地图。
  *
- * ── 一、发送路径（大雄 sendAgentMessage 8170 入口；我们统一在 send/sendImageMode）──
+ * ── 一、发送路径（大雄 sendAgentMessage 8170 入口；我们统一在 send 单入口）──
  * | 大雄路径 | 大雄入口 | 我们实现 | 对齐状态 |
  * |---|---|---|---|
- * | 图像模式直连生图 | agentSendDirectImageMessage(8132) | sendImageMode(本文件) 直连 execute_plan | ✅ 已对齐 |
+ * | 图像模式直连生图 | agentSendDirectImageMessage(8132) | send 内 runDirectBranch 直连 execute_plan（docs/65 M7：workMode=direct 时第一行分流） | ✅ 已对齐 |
  * | 常规：理解→规划→执行 | agentRunUnderstandingStage(6806)→plan→execute | send + 工具循环(≤8轮) + 三阶段门禁 | ✅ 已对齐 |
  * | 常规：无 Skill 单阶段直出 | agentRunPlanningFromUnderstanding(6996) | 同上（工具循环内 execute_plan） | ✅ 已对齐 |
  * | 修改意见（不重跑理解） | agentApplyRevisePlanning(6595, messages:[]) | steer 队列(823) + 新 send | ⚠️ 简化对齐 |
@@ -156,18 +162,16 @@ import { useStoreSelector, shallowEqual } from '../../base/useStoreSelector.js'
  * > 不走该通道。详见 promptFlow.js 文件头「★ 重要」。
  * > 【追加：保留决策已确认，2026-08-18】人类明确决策**不删、也不接入/补全**，维持保留。后续 AI 直接跳过此通道，勿当待办。
  *
- * ── 二、执行分级 runMode（对齐大雄 agentGetRunMode/agentSetRunMode）★ 为什么简单任务不 plan ★ ──
- *   用户反馈「发个信息它就执行 plan」的根因：我们此前所有任务都让 LLM 调 show_plan_for_confirm 并强制
- *   进入 awaiting 确认态（plan），而大雄是有分级的，不是每个任务都要确认。对齐后（实现见
- *   useCanvasAgentTools.js presentPlanTool）：show_plan_for_confirm 仍保留（规划文字/步骤卡片照常展示），
- *   但「是否进入 awaiting 确认门禁」按 runMode + Skill 决定：
- *   - runMode 存 conversationStore（per-conversation，默认 'auto'），AgentPanel 有切换（分步确认/完全自主）。
- *   - 完全自主 auto（默认，对齐大雄 6283「一次规划后直接执行」）：无 Skill 时 show_plan_for_confirm
- *     **不进入 awaiting** → 规划照常展示，但不弹确认按钮，LLM 继续 execute_plan 直接执行。
- *   - 分步确认 step-confirm（对齐大雄 6282「完整规划和提示词生成后，确认再执行」）：无 Skill 时进入 awaiting →
- *     展示确认门禁，用户确认后才 execute_plan（对齐大雄 7774 分步确认门禁）。
- *   - Skill：无论 runMode 都走三阶段（理解→规划→执行），进入 awaiting（Skill 需要策划确认）。
- *   对应大雄：auto 模式规划后直接执行（7774 只在分步确认才展示门禁）；Skill 三阶段独立确认。
+ * ── 二、执行分级 workMode（三态单一真源，runModeRegistry，docs/64 §3/§5 + docs/65 M1-M8）★ 为什么简单任务不 plan ★ ──
+ *   用户反馈「发个信息它就执行 plan / 完全自主下 plan 调不了」的根因：此前确认粒度散落推导、且无 Skill 任务
+ *   的 system 没引导 show_plan_for_confirm。文档/64 收口为三正交轴：三态轴 / Skill 编排轴 / 积分轴互不进分支。
+ *   workMode 是单一真源（runModeRegistry），inputMode / per-conversation runMode 都是 setWorkMode 原子同步的兼容派生物；
+ *   确认粒度**永远由 workMode 决定**，Skill 只编排思维路径、不改变确认粒度。
+ *   - auto 完全自主（默认）：可用 show_plan_for_confirm 展示规划但**不卡确认**，直接 execute_plan（prompt 已引导，见 agentCore buildRequestMessages）。
+ *   - step-confirm 分步确认：调 show_plan_for_confirm 进入 awaiting 门禁，用户确认后才 execute_plan。
+ *   - direct 直接生图：send 内部第一行 bypass LLM，直连 execute_plan（runDirectBranch），不经 LLM 编排。
+ *   - Skill：独立轴。阶段2 是否等确认按三态自适应（docs/65 M5 resolveSkillExecutionRules）；auto+Skill 不等待，确认粒度仍由三态决定。
+ *   积分闸 creditSwitch 与三态正交，只拦真生成那下（docs/64 §2/R6）。
  *
  * ── 三、三阶段流（大雄：理解→规划→执行；我们：工具循环内）──
  *   阶段1 理解：LLM 输出自然语言直出 + generations JSON（回复正文解析暂存，对齐大雄 6828/995）。
@@ -310,13 +314,19 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
     // 5) 状态机按当前对话加载
     stateMachineRef.current.load(getActiveConversationId())
     // 6) pending 恢复（对齐大雄"刷新恢复上次操作"）：刷新前有未完成任务 → 自动重发
-    const pending = getCurrentPending()
-    if (pending && pending.text && pending.conversationId === getActiveConversationId()) {
+    //   【P1a 去重】解析逻辑收敛到 resolvePendingRecovery（纯函数可单测）：按 messageId 找回正文、
+    //   优先原始 attachments、dangling-safe（消息被裁剪/未建成）则不空转。
+    const rec = resolvePendingRecovery({ pending: getCurrentPending(), messages: getCurrentSnapshot().messages, activeConversationId: getActiveConversationId() })
+    if (rec.action === 'send') {
       queueMicrotask(() => {
         // 在对话里插入一条"恢复中"占位提示（对齐大雄占位）
         appendMsg({ role: 'assistant', content: '正在恢复上次未完成的操作…', createdAt: Date.now() })
-        sendRef.current?.(pending.text, pending.attachments || [])
+        sendRef.current?.(rec.text, rec.attachments || [])
       })
+    } else if (rec.action === 'drop') {
+      // dangling-safe：被引用用户消息已被 AGENT_MSG_MAX 裁剪或尚未建成（崩溃窗口）→ 清 pending 提示重发
+      setCurrentPending(null)
+      appendMsg({ role: 'assistant', content: '上一段长任务已中断，该段内容因过长被收口清理或尚未保存，请重新输入后发送。', createdAt: Date.now() })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [agentKey])
@@ -422,6 +432,11 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
       // ── 保护：空内容直接返回 ──
       if (!text.trim() && (!attachments || attachments.length === 0)) return
 
+      // 【三态分流 · docs/65 M7】direct（直接生图）在 send 内部第一行 bypass LLM：
+      // 不走 steer 队列、不经 LLM 工具循环，直连 execute_plan（复用内部 runDirectBranch 分支）。
+      // runDirectBranch 前向引用：仅在本次调用时求值，此时已初始化（行为与原同：忙碌静默返回）。
+      if (!isAgentWorkMode(getWorkMode())) return runDirectBranch(text, attachments)
+
       // 【B层】发送入口：原文摘要 + 附件数 + 模型/供应商——定位一次 send 的完整入参
       logger.debug('AI助手', '[发送] 入口', { text: String(text).slice(0, 100), attachCount: (attachments || []).length, model, provider: provider?.id || '', busy: isAgentBusy() }, { module: 'agent' })
 
@@ -431,7 +446,7 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
       if (isAgentBusy()) {
         patchCurrentWorkflow(wfSteer(text, attachments))
         appendMsg({ role: 'user', content: text, createdAt: Date.now(), steer: true, statusLabel: '已排队' })
-        try { captureActiveConversation() } catch { /* 忽略 */ } // 落盘队列，切对话不丢
+        try { captureActiveConversation() } catch (e) { logger.warn('AI助手', '会话落盘失败', { error: e?.message || String(e) }) } // 落盘队列，切对话不丢
         return
       }
 
@@ -441,10 +456,10 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
       stateMachineRef.current.start({ status: 'planning' })
       setCurrentSnapshot({ messages: getCurrentSnapshot().messages, skills: skillsRef.current, draft: '', attachments: [] })
       patchCurrentWorkflow(wfStart())
-      setCurrentPending({ conversationId: getActiveConversationId(), text, attachments: attachments || [] })
 
       // 构造 user 消息（附件归一化：blob→data、相对→绝对；只认 base64 的 provider 转 base64）
-      const userMsg = { role: 'user', content: text, createdAt: Date.now(), skills: skillsRef.current.slice() }
+      // 显式补稳定 id：供 setCurrentPending 以 messageId 引用；恢复时按 id 从 messages 找回正文（去重，不再在 pending 存 text 副本）
+      const userMsg = { id: generateId('msg'), role: 'user', content: text, createdAt: Date.now(), skills: skillsRef.current.slice() }
       if (attachments && attachments.length > 0) {
         // 发送统一出口守卫：附件图必经归一（含缩略图端点自动还原原图），禁止发 render 小图。见 agentAttachments.js
         userMsg.attachments = await normalizeAttachmentsForSend(attachments, { preferBase64: provider?.refFormat === 'base64' })
@@ -459,6 +474,9 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
         setCurrentReferenceImages(imgAtts.map((a) => a.url).filter(Boolean))
       }
       setHistory([...getCurrentSnapshot().messages, userMsg])
+      // 【P1a 去重】pending 不再存 text 副本，改引用 userMsg.id；保留【原始】attachments（恢复重发经 send 归一化一次，
+      //   避免对已归一 base64/绝对 URL 二次压缩）。正文/路径契约见 makePendingRef/normalizePending/pendingRecovery。
+      setCurrentPending(makePendingRef({ conversationId: getActiveConversationId(), messageId: userMsg.id, attachments }))
 
       // 【链路日志】AI 助手发送：内容摘要 + 附件（图片）数，供排查发送环节
       logger.info('AI助手', '发送', { text: String(text).slice(0, 80), attachCount: (userMsg.attachments || []).length, skillCount: (userMsg.skills || []).length })
@@ -495,7 +513,7 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
           // 【过渡方案·2026-08-18】historyTurns 实时读取（AI 助手设置可配）：
           // 0=不回传、1=只上一轮、N=最近 N 轮纯文字历史（图片仍编号化 imageCatalog 图N，不内联，不破坏
           // 「反推图一却全反推」安全底线）。见文件顶部注释 + agentCore.js buildRequestMessages 头注释。
-          const makeContextMessages = () => buildRequestMessages(getCurrentSnapshot().messages, systemRef.current, true, skillsRef.current, getCurrentMemory(), getCurrentImageMap(), loadAgentHistoryTurns(), buildLearnedContext(getCurrentMemory(), text), buildProjectMemoryContextFromStore(agentKey, '', text))
+          const makeContextMessages = () => buildRequestMessages(getCurrentSnapshot().messages, systemRef.current, true, skillsRef.current, getCurrentMemory(), getCurrentImageMap(), loadAgentHistoryTurns(), buildLearnedContext(getCurrentMemory(), text), buildProjectMemoryContextFromStore(agentKey, '', text), getWorkMode())
           // ── 上下文预算触发压缩（照搬 contextManager）：估算当前请求，按 inputBudget 决定预/强制压缩 ──
           //  force  → 请求前强制压缩：await 压缩写回 summary 后用新摘要重新组装（压缩失败只记日志，不发超限请求前先尝试）；
           //  precompress → 后台预压缩（复用 maybeCompressSummary 节流），不阻塞本次请求；
@@ -588,7 +606,7 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
         // 不清空 pending（用户确认后 send('已确认，请按策划执行') 会重建），也不再自动执行 steer 队列。
         if (pausedForConfirm) {
           patchCurrentWorkflow(wfAwaitConfirm())
-          try { captureActiveConversation() } catch { /* 忽略 */ }
+          try { captureActiveConversation() } catch (e) { logger.warn('AI助手', '会话落盘失败', { error: e?.message || String(e) }) }
           stateMachineRef.current.setStatus('awaiting_confirm')
           setSending(false)
           abortRef.current = null
@@ -597,7 +615,7 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
         patchCurrentWorkflow(wfFinish(ok, aborted))
         logger.debug('AI助手', '[发送] 终态', { status: wfStatus, rounds: round, pausedForConfirm, steerQueueLen: (getCurrentWorkflow()?.steerQueue || []).length }, { module: 'agent' })
         setCurrentPending(null)
-        try { captureActiveConversation() } catch { /* 落盘失败忽略 */ }
+        try { captureActiveConversation() } catch (e) { logger.warn('AI助手', '会话落盘失败', { error: e?.message || String(e) }) }
         stateMachineRef.current.setStatus(ok ? 'idle' : 'failed')
         setSending(false)
         abortRef.current = null
@@ -606,11 +624,13 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
         // ── steer 队列：当前任务结束，自动执行下一条补充指令（per-conversation workflow.steerQueue）──
         const { next, patch: wfNextCtx } = wfNextSteer(wfStatus)
         patchCurrentWorkflow(wfNextCtx)
-        try { captureActiveConversation() } catch { /* 忽略 */ }
+        try { captureActiveConversation() } catch (e) { logger.warn('AI助手', '会话落盘失败', { error: e?.message || String(e) }) }
         if (next) sendRef.current?.(next.text, next.attachments)
       }
     },
     // 依赖：roundTrip 闭包了 model/provider/toolSchemas；sendRef 用于 steer 续跑（下方 useRef 保持最新）
+    // runDirectBranch 不在 deps：它在 send 之后声明（前向引用），且仅靠稳定 deps（callTool/store），
+    // 放在 deps 数组会在声明时求值触发 TDZ；body 为懒求值，运行时已初始化，安全。
     [sending, model, roundTrip, callTool, runToolCalls, runDemoMode, appendMsg, setHistory, updateLastStreaming, endStreaming, stripStreaming, agentKey, provider, isAgentBusy, maybeCompressSummary]
   )
 
@@ -619,12 +639,13 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
   sendRef.current = send
 
   /**
-   * 图像模式（对齐大雄 agentSendDirectImageMessage）：参考图 + 最终提示词直连生图，不经过 LLM。
+   * 直接生图分支（内部私有，docs/65 M7 并入 send；对齐大雄 agentSendDirectImageMessage）：
+   * 参考图 + 最终提示词直连生图，不经过 LLM。由 send 在三态=direct 时第一行分流调用。
    * 把用户提示词 + 参考图构造为一个 generation 步骤，复用 execute_plan（canvasPlanExecutor）在画布直接生图。
    * @param {string} text 最终生图提示词
    * @param {Array}  attachments 参考图 [{ type:'image', url }]
    */
-  const sendImageMode = useCallback(
+  const runDirectBranch = useCallback(
     async (text, attachments = []) => {
       const prompt = String(text || '').trim()
       if (!prompt && (!attachments || attachments.length === 0)) return
@@ -820,7 +841,7 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
 
   // 【补跑唯一入口（D8）】对「节点已建好、待点生成」的积分确认态真正触发生成。
   // 只走 runExistingPlanTool（由 run_existing_plan 工具分发，ctx 由 useCanvasAgentTools 持有）。
-  // 供 AgentPanel「确认生成」按钮 / sendImageMode/executePlanDirect 确认回调共用，禁止手写 setNodes/逐节点触发。
+  // 供 AgentPanel「确认生成」按钮 / runDirectBranch(直连) / executePlanDirect 确认回调共用，禁止手写 setNodes/逐节点触发。
   // @returns {Promise<{ok, error?, data?}>}
   const runExistingConfirm = useCallback(async () => {
     const res = await callTool('run_existing_plan', {})
@@ -847,7 +868,7 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
     return callTool('create_node', { type: 'textNode', text })
   }, [callTool])
 
-  return { messages, sending, error, model, setModel, send, sendImageMode, stop, clear, stateAction, conversations, activeConversationId, newChat, switchChat, deleteChat, updateMessageByContent, executePlanDirect, sendContentToCanvas, confirmPendingMemorySuggest, getActivePendingMemorySuggest, cancelPendingConfirm, runExistingConfirm, getCreditGate, clearCreditGate,
+  return { messages, sending, error, model, setModel, send, stop, clear, stateAction, conversations, activeConversationId, newChat, switchChat, deleteChat, updateMessageByContent, executePlanDirect, sendContentToCanvas, confirmPendingMemorySuggest, getActivePendingMemorySuggest, cancelPendingConfirm, runExistingConfirm, getCreditGate, clearCreditGate,
     // 【展示→编排轴薄适配（收口 AgentPanel 的 store 穿透）】回传 UI 会用到的 store 原子能力，
     // 使 AgentPanel 不再直接 import conversationStore（唯一入口收敛到本 hook）。这些是 store 的稳定
     // 模块级函数（透传引用，非拷贝），消息单源下已满足"UI 不直连持久层"的一步；未来如需可再 action 化。

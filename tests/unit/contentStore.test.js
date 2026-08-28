@@ -100,6 +100,11 @@ describe('contentGet / contentSet / contentDelete / contentHas', () => {
     expect(mockStorageAdapter.sSet).toHaveBeenCalledWith('agent_draft', 'hello')
   })
 
+  it('sSet 抛错时 contentSet 向上传播（不吞错；真实 sSet 抛错前已 publish persist:failed，事件不被阻断）', () => {
+    mockStorageAdapter.sSet.mockImplementationOnce(() => { throw new Error('QuotaExceededError') })
+    expect(() => contentSet(KEY, VALUE)).toThrow('QuotaExceededError')
+  })
+
   it('contentDelete 删除缓存并持久化', () => {
     contentSet(KEY, VALUE)
     contentDelete(KEY)

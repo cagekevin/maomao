@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useAgentChat, setGenParams, getGenParams, getCreditSwitch, setCreditSwitch } from '../agent/index.js'
+import { useAgentChat, setGenParams, getGenParams, getCreditSwitch, setCreditSwitch, getWorkMode, setWorkMode as setWorkModeGlobal, RUN_MODE_IDS, WORK_MODE_STORAGE_KEY } from '../agent/index.js'
 import { useProviders, load as loadProviders } from '../base/settings/providerStore.js'
 import AgentMessage from './AgentMessage.jsx'
 import AgentConfirmCard from './AgentConfirmCard.jsx'
@@ -17,9 +17,6 @@ import { logger } from '../base/logger.js'
 import { AGENT_MODELS } from '../base/config.js'
 import previewUrls from '../base/previewUrl.js'
 import { subscribe } from '../base/eventBus.js'
-
-/** AI 助手输入模式存储键（contracts.js STORAGE_KEYS 登记，集中避免裸键） */
-const AGENT_INPUT_MODE_KEY = 'agent_input_mode'
 
 /**
  * ════════════════════════════════════════════════════════════════
@@ -174,9 +171,9 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
   // 新建对话短锁：新建后 1s 内禁用按钮，避免用户狂点出十几个空对话
   const newChatLock = useRef(false)
 
-  const { messages, sending, error, model, setModel, send, sendImageMode, stop, clear, stateAction, conversations, activeConversationId, newChat, switchChat, deleteChat, updateMessageByContent, executePlanDirect, sendContentToCanvas, confirmPendingMemorySuggest, getActivePendingMemorySuggest, cancelPendingConfirm, runExistingConfirm, getCreditGate, clearCreditGate,
-    // 展示→编排轴薄适配（收口 store 穿透）：这 4 个由 useAgentChat 回传，UI 不再直接 import conversationStore
-    setCurrentSnapshot, setAwaitingConfirm, getCurrentRunMode, setCurrentRunMode } = useAgentChat({
+  const { messages, sending, error, model, setModel, send, stop, clear, stateAction, conversations, activeConversationId, newChat, switchChat, deleteChat, updateMessageByContent, executePlanDirect, sendContentToCanvas, confirmPendingMemorySuggest, getActivePendingMemorySuggest, cancelPendingConfirm, runExistingConfirm, getCreditGate, clearCreditGate,
+    // 展示→编排轴薄适配（收口 store 穿透）：这 3 个由 useAgentChat 回传，UI 不再直接 import conversationStore
+    setCurrentSnapshot, setAwaitingConfirm } = useAgentChat({
     agentKey,
     systemPrompt,
     defaultModel: defaultAgentModel,
@@ -202,36 +199,20 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
   const [input, setInput] = useState(() => { try { return contentGet(AGENT_DRAFT_KEY) || '' } catch { return '' } })
   const [attachments, setAttachments] = useState([])
   const [uploading, setUploading] = useState(false)
-  const [inputMode, setInputMode] = useState(() => { try { return contentGet(AGENT_INPUT_MODE_KEY) || 'agent' } catch { return 'agent' } })
-  const setInputModeAndPersist = (mode) => {
-    setInputMode(mode)
-    try { contentSet(AGENT_INPUT_MODE_KEY, mode) } catch { /* ignore */ }
-  }
-  // 【对齐大雄 runMode 分级】执行分级：auto（默认，完全自主，无 Skill 时 LLM 直接出 generations 执行、不展示 plan）/
-  // step-confirm（分步确认，无 Skill 时也展示 plan 确认再执行）。对应大雄 agentSetRunMode/agentToggleRunMode。
-  const [runMode, setRunModeState] = useState(() => { try { return getCurrentRunMode() || 'auto' } catch { return 'auto' } })
-  const setRunModeAndPersist = (mode) => {
-    const next = mode === 'step-confirm' ? 'step-confirm' : 'auto'
-    setRunModeState(next)
-    setCurrentRunMode(next)
-  }
-  // 【三态收敛 · 2026-08-27 简化定稿】把原本正交的「智能/图像(inputMode)× 分步确认/完全自主(runMode)
-  //  + 隐藏『有Skill强制分步确认』」收敛为一个三态选择器，从【用户投入的精力】切分，语义一眼可懂：
-  //    直接生图(workMode='image') → inputMode='image'，sendImageMode 直连，不经 LLM 编排
-  //    分步确认(workMode='step-confirm') → inputMode='agent' + runMode='step-confirm'，调工具改画布前先确认策划
-  //    完全自主(workMode='auto')  → inputMode='agent' + runMode='auto'，AI 自主改画布，无策划确认
-  //  workMode 仅做展示与驱动推导；底层仍分别写 inputMode 与 runMode。
-  //  ⚠️ 注意：积分闸判定（credit=creditSwitch）与 runMode 完全无关（见 execute_plan / creditSwitch 注释），
-  //  所以三态切换里 runMode 残留 step-confirm/auto 不会影响「是否弹积分确认」——那是独立的全局总闸。
-  const workMode = inputMode === 'image' ? 'image' : (runMode === 'step-confirm' ? 'step-confirm' : 'auto')
-  const setWorkMode = (mode) => {
-    if (mode === 'image') {
-      setInputModeAndPersist('image')
-    } else {
-      setInputModeAndPersist('agent')
-      setRunModeAndPersist(mode === 'step-confirm' ? 'step-confirm' : 'auto')
-    }
-  }
+  // 【三态收敛 · docs/65 M8】workMode 由注册表单一真源驱动（getWorkMode 读 / setWorkModeGlobal 原子写三处）。
+  // 组件用本地 state 保持响应式渲染；写走注册表（同时同步 inputMode 与当前会话 runMode 兼容字段）。
+  //   direct        直接生图：send 内部第一行 bypass LLM，直连 execute_plan
+  //   step-confirm  分步确认：LLM 编排，调 show_plan_for_confirm 卡 awaiting 确认
+  //   auto          完全自主：LLM 编排，可调 plan 展示但不卡确认，直 execute_plan
+  //  ⚠️ 积分闸判定（credit=creditSwitch）与三态正交（见 execute_plan / creditSwitch 注释），这里不掺和。
+  const [workMode, setWorkModeState] = useState(() => { try { return getWorkMode() } catch { return RUN_MODE_IDS.AUTO } })
+  const applyWorkMode = (mode) => { setWorkModeState(setWorkModeGlobal(mode)) }
+  // 【docs/65 M8】订阅 agent_work_mode 外部变更：其它入口（如未来设置页）改动时，本面板本地 state 同步跟随，
+  // 避免「两个入口各改各的、UI 不跟随」的交叉。回调读注册表真源；本处只写本地 state，不回写 store，无循环。
+  useEffect(() => {
+    return contentSubscribe(WORK_MODE_STORAGE_KEY, () => { try { setWorkModeState(getWorkMode()) } catch { /* ignore */ } })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   // attachments 变化 → 同步到 conversationStore（自动落盘，带 hydrated 时序守卫）
   useEffect(() => {
     setCurrentSnapshot({ attachments })
@@ -379,18 +360,8 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
       .filter((a, i, arr) => arr.findIndex((x) => x.url === a.url) === i)
     const text = (typeof overrideText === 'string' ? overrideText : input).trim()
     if ((!text && allImages.length === 0) || (sending && stateAction !== 'steer')) return
-    if (inputMode === 'image') {
-      const attach = allImages.map(({ url, nodeId, label, x, y }) => ({ type: 'image', url, nodeId, label, x: x || 0, y: y || 0 }))
-      releaseAttachmentUrls(attachments)
-      setAttachments([])
-      setPendingImageNodes([])
-      setInput('')
-      try { contentSet(AGENT_DRAFT_KEY, '') } catch { /* ignore */ }
-      Promise.resolve(sendImageMode(text, attach)).catch((e) => logger.error('Agent', '图像模式 send 失败', e))
-      return
-    }
-    // 【移除视觉模型硬编码拦截】「模型是否支持视觉」无法靠名单判断（机器/AI 都不确定，
-    // 只有实际测试才知道），且拦截会阻止带图发送。这里直接放行，有图就带上一起发。
+    // 【单入口 · docs/65 M7/M8】一律调 send；direct 由 send 内部第一行分流到直连生图
+    //（不再由 UI 分 inputMode 调 send/sendImageMode，发送分支只存在于 send）。
     const attach = allImages.length > 0 ? allImages.map(({ url, nodeId, label, x, y }) => ({ type: 'image', url, nodeId, label, x: x || 0, y: y || 0 })) : undefined
     releaseAttachmentUrls(attachments)
     setAttachments([])
@@ -747,25 +718,25 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
           {/* 三态选择器（直接生图 / 分步确认 / 完全自主）：合并「智能/图像 × 分步确认/完全自主」两个正交维度，
               从用户精力出发切分——直接生图=一输就出图（直连生图，不经 LLM 编排工具，自动执行）；
               分步确认=AI 调工具前先展示策划，逐步确认再执行；完全自主=AI 自主操作、无需逐步确认。
-              底层仍分别写 inputMode 与 runMode：直接生图→image；分步确认→agent+step-confirm；完全自主→agent+auto。 */}
+              workMode 由注册表单一真源驱动（docs/65 M8），inputMode/runMode 为 setWorkMode 原子同步的兼容派生态。 */}
           <div className="flex items-center gap-1 px-2.5 pt-2">
             <div className="flex items-center gap-0.5 p-0.5 rounded-lg bg-surface/50 border border-edge-faint shrink-0">
               <button
                 type="button"
-                onClick={() => setWorkMode('image')}
-                className={`shrink-0 whitespace-nowrap px-2 py-0.5 text-caption-sm rounded-md transition-colors ${workMode === 'image' ? 'bg-surface-hover-strong text-white' : 'text-muted hover:text-body'}`}
+                onClick={() => applyWorkMode(RUN_MODE_IDS.DIRECT)}
+                className={`shrink-0 whitespace-nowrap px-2 py-0.5 text-caption-sm rounded-md transition-colors ${workMode === RUN_MODE_IDS.DIRECT ? 'bg-surface-hover-strong text-white' : 'text-muted hover:text-body'}`}
                 title="直接生图：提示词 + 参考图直接出图，不经 AI 编排；烧积分那下受全局积分确认总闸约束（开则先确认）"
               >直接生图</button>
               <button
                 type="button"
-                onClick={() => setWorkMode('step-confirm')}
-                className={`shrink-0 whitespace-nowrap px-2 py-0.5 text-caption-sm rounded-md transition-colors ${workMode === 'step-confirm' ? 'bg-surface-hover-strong text-white' : 'text-muted hover:text-body'}`}
+                onClick={() => applyWorkMode(RUN_MODE_IDS.STEP_CONFIRM)}
+                className={`shrink-0 whitespace-nowrap px-2 py-0.5 text-caption-sm rounded-md transition-colors ${workMode === RUN_MODE_IDS.STEP_CONFIRM ? 'bg-surface-hover-strong text-white' : 'text-muted hover:text-body'}`}
                 title="分步确认：AI 调用工具修改画布前先展示策划，等你确认再执行"
               >分步确认</button>
               <button
                 type="button"
-                onClick={() => setWorkMode('auto')}
-                className={`shrink-0 whitespace-nowrap px-2 py-0.5 text-caption-sm rounded-md transition-colors ${workMode === 'auto' ? 'bg-surface-hover-strong text-white' : 'text-muted hover:text-body'}`}
+                onClick={() => applyWorkMode(RUN_MODE_IDS.AUTO)}
+                className={`shrink-0 whitespace-nowrap px-2 py-0.5 text-caption-sm rounded-md transition-colors ${workMode === RUN_MODE_IDS.AUTO ? 'bg-surface-hover-strong text-white' : 'text-muted hover:text-body'}`}
                 title="完全自主：AI 自主操作画布，无需逐步确认（含 Skill 场景）"
               >完全自主</button>
             </div>
@@ -786,7 +757,7 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
               if (e.key === 'Escape' && skillSlashOpen) { e.preventDefault(); setSkillSlashOpen(false); return }
               if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); handleSend() }
             }}
-            placeholder={workMode === 'image' ? '输入最终生图提示词，回车直接生图…' : '输入消息，回车发送，Shift+Enter 换行…'}
+            placeholder={workMode === RUN_MODE_IDS.DIRECT ? '输入最终生图提示词，回车直接生图…' : '输入消息，回车发送，Shift+Enter 换行…'}
             rows={1}
             disabled={sending}
             className="w-full bg-transparent text-primary text-sm px-3 py-2.5 resize-none focus:outline-none disabled:opacity-60"

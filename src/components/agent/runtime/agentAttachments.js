@@ -2,7 +2,7 @@
  * AI 助手附件归一化 / 参考图目录层（M3 下沉 1）。
  *
  * 定位：把 useAgentChat 里「构造 userMsg.attachments + refCatalog 参考图编号目录」的重复实现
- * 抽成独立纯函数，hook 只 import 调用。两处（send / sendImageMode）共用统一附件归一出口。
+ * 抽成独立纯函数，hook 只 import 调用。两处（send LLM 分支 / send 内 runDirectBranch 直连分支）共用统一附件归一出口。
  *
  * 约束：
  * - 【发送统一出口守卫】附件图必经 normalizeImageUrlForSend（含缩略图端点自动还原原图），禁止发 render 小图。
