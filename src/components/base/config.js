@@ -120,6 +120,15 @@ export const GEN_TIMEOUT = 300000
 /** 视频 async 模式轮询总超时 */
 export const VIDEO_TIMEOUT = 600000
 
+// ── 剧本盒引擎任务总耗时兜底 ────────────────────────────────────
+// 内层超时（CHAT_TIMEOUT / GEN_TIMEOUT）只覆盖「等上游响应」阶段；卡在响应体读取、发图前
+// 图片归一、结果落盘等阶段时无人管 → loading 永不结束。故在 runAbortable 任务边界再加一道总闸。
+// 宽限 60s 供内层超时之外的环节（图片归一/解析/落盘）使用，不会误杀正常生成。
+/** 文本类任务（生成剧本 / 分镜提示词 / 审查 / 合并）总耗时上限 */
+export const SCRIPT_TEXT_TIMEOUT = CHAT_TIMEOUT + 60000
+/** 生图类任务（资产参考图 / 尾帧变体）总耗时上限 */
+export const SCRIPT_IMAGE_TIMEOUT = GEN_TIMEOUT + 60000
+
 // ── 轮询间隔（ms）───────────────────────────────────────────────
 export const GEN_POLL_INTERVAL = 3000
 export const VIDEO_POLL_INTERVAL = 5000

@@ -9,7 +9,9 @@ import { showToast } from './toastStore.js'
 import { logger } from './logger.js'
 import { reportGenerate } from './taskStore.js'
 import { shotHandleId } from './contracts.js'
-import { SCRIPTBOX_DOWNSTREAM_GRID_COLS, SCRIPTBOX_DOWNSTREAM_CELL_W, SCRIPTBOX_DOWNSTREAM_CELL_H, SCRIPTBOX_DOWNSTREAM_GAP_X } from './config.js'
+import { SCRIPTBOX_DOWNSTREAM_GRID_COLS, SCRIPTBOX_DOWNSTREAM_CELL_W, SCRIPTBOX_DOWNSTREAM_CELL_H, SCRIPTBOX_DOWNSTREAM_GAP_X, SCRIPT_TEXT_TIMEOUT, SCRIPT_IMAGE_TIMEOUT } from './config.js'
+// 任务级总耗时兜底（R2 边界守卫）：给整段生成任务加超时，杜绝「转圈永不结束」
+import { withTimeout } from './asyncGuard.js'
 
 /** 去掉 ```json 围栏、只保留首个 {...} 块（对齐官方 Ar/Ir 的解析）。
  *  顶层纯函数，导出供单测（剧本盒纯逻辑）。 */
@@ -146,9 +148,10 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
   }
 
   /**
-   * 统一「可中止生成」骨架（收口 AbortController 注册/注销 + catch 分级样板，4 处复用）。
+   * 统一「可中止生成」骨架（收口 AbortController 注册/注销 + catch 分级样板，7 处复用）。
    * 职责（只收敛脚手架，不改任何业务写回语义）：
    *  - 建 AbortController 注册到 abortMap（供 onStopScriptItem 真中止），finally 统一注销；
+   *  - 总耗时兜底：整段 task 受 withTimeout 保护（见下方实现注释），超时即 abort 并复位；
    *  - 成功/业务失败分支由调用方 task 内部自行 return（各写回逻辑差异大，留在调用点）；
    *  - 仅当 task 抛出未捕获异常时按 /abort/ 分级：中止→logger.warn（不扰用户）；
    *    真错误→toast + logger.error（真实透传，见 CONTEXT §0 轻量兜底）；
@@ -156,13 +159,23 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
    * @param {string} key   abortMap 注册键（onStopScriptItem 真中止用，如 `shot-${id}`）
    * @param {()=>void} onReset  异常/中止时复位 loading
    * @param {(signal)=>Promise} task  业务异步任务（拿 signal 传给 API）
-   * @param {{logLabel:string,toastFail:string,ctx:object}} info 分级日志/提示文案
+   * @param {{logLabel:string,toastFail:string,ctx:object,timeoutMs?:number}} info 分级日志/提示文案；
+   *   timeoutMs=整段任务耗时上限，默认 SCRIPT_TEXT_TIMEOUT，走生图的任务显式传 SCRIPT_IMAGE_TIMEOUT。
    */
   const runAbortable = async (key, onReset, task, info) => {
     const ac = new AbortController()
     abortMap.set(key, ac)
     try {
-      await task(ac.signal)
+      // 【总耗时兜底】内层超时（chatProxy CHAT_TIMEOUT / 生图 GEN_TIMEOUT）只覆盖「等上游响应」阶段，
+      // 卡在响应体读取（res.json / SSE 累积）、发图前图片归一、结果落盘等阶段时无人管 → 动画永不结束。
+      // 故在任务边界加一道总闸：到点 abort 同一个 signal（真正掐断底层请求，不留悬挂请求）并复位 loading。
+      // withTimeout 内部会 catch task 的后续 rejection，超时后不会冒泡成 unhandled rejection。
+      await withTimeout(
+        task(ac.signal),
+        info.timeoutMs || SCRIPT_TEXT_TIMEOUT,
+        `${info.toastFail}（超时）`,
+        ac.signal,
+      )
     } catch (e) {
       onReset?.()
       if (/abort/i.test(e?.message || '')) {
@@ -390,7 +403,7 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
           if (r && !r.aborted) logger.error('scriptBox', '生成资产图·上游失败', { nodeId, assetId, error: errMsg })
           else logger.warn('scriptBox', '生成资产图·已中止', { nodeId, assetId })
         }
-      }, { logLabel: '生成资产图', toastFail: '资产参考图生成失败', ctx: { nodeId, assetId } })
+      }, { logLabel: '生成资产图', toastFail: '资产参考图生成失败', ctx: { nodeId, assetId }, timeoutMs: SCRIPT_IMAGE_TIMEOUT })
     } finally {
       // 异常兜底：若 task 因未捕获异常未走到 done/fail，标记失败，防任务卡 running
       if (!taskSettled) taskCtl.fail('资产参考图生成失败')
@@ -1105,7 +1118,7 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
       patchShot((s) => ({ ...s, tailFrameVariantsLoading: false }))
       toast(`尾帧综合图生成完毕（原版 + 1 张综合图），已自动选中`, 'success')
       logger.info('scriptBox', '尾帧变体·完成', { nodeId, shotId, angleIds, composedOk: !!origUrl })
-    }, { logLabel: '尾帧变体', toastFail: '尾帧变体生成失败', ctx: { nodeId, shotId } })
+    }, { logLabel: '尾帧变体', toastFail: '尾帧变体生成失败', ctx: { nodeId, shotId }, timeoutMs: SCRIPT_IMAGE_TIMEOUT })
   }
 
   return {
