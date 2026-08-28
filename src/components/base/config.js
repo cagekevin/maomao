@@ -128,6 +128,19 @@ export const VIDEO_POLL_INTERVAL = 5000
 /** 生图同时真正触发上限（超出跳过，见 taskStore） */
 export const GEN_MAX_CONCURRENT = 6
 
+// ── 拓扑自动触发（P2-G 安全网，默认关）─────────────────────────
+// 上游节点（经 taskCompletionBus）完成时，是否自动触发「直接下游」重新生成（只接一层，见 useUpstreamAutoTrigger）。
+// 默认 false：仅提供能力，不改变现有"下游自己生成时才拉上游"的行为；如需开启改为 true
+//（或后续接入 appSettings / settingRegistry 做运行时开关）。
+export const AUTO_TRIGGER_DOWNSTREAM = false
+
+// ── 云同步终点（P2-H 透明化）──────────────────────────────────
+// cloudSync 的全量同步终点（Google Apps Script 部署 URL）。账号/API Key 等用户数据随 POST body
+// 明文同步到该第三方 GAS，**无鉴权/加密**——仅把 URL 从 cloudSync.js 字面量移入此处便于替换/审计，
+// 不改变其安全暴露（如需安全需改走带鉴权 SDK + 加密，另见 docs/68 C-H）。
+export const CLOUD_SYNC_GAS_URL =
+  'https://script.google.com/macros/s/AKfycbwI6PvC1v8Bv1E-0aKGx1PQ3AIH5SIUUKjTeDHtq5UxxF3qFFHj8DCr1QvflPDqFdI5/exec'
+
 // ── 节点布局（useSizeSync 收口）─────────────────────────────────
 /** area-fixed 节点的面积基准：视频生成与图片生图统一尺寸的唯一来源（往这里改，两边都变） */
 export const NODE_AREA_FIXED_BASE_SIZE = 380

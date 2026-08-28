@@ -212,13 +212,14 @@ function TemplateNode({ id, data, selected }) {
     recoverable: true,
     // 前置校验：本地 prompt（含芯片解析后的文本或参考图）或上游文本任一非空即可生图
     validate: () => ((effectivePrompt?.trim() || chipResolved.refImages.length > 0) ? '' : '请输入提示词'),
-    run: async ({ progress }) => generateImage({              // 真执行器（换成你的 API）
+    run: async ({ progress, taskId }) => generateImage({              // 真执行器（换成你的 API）
       model: selectedModel,
       // 芯片解析后的纯文本（图片芯片已替换为「图片N」，文本芯片已替换为纯文本）
       prompt: chipResolved.text || effectivePrompt,
       // 参考图 = 用户显式 @ 的芯片图（顺序对应 prompt 里的「图片N」）+ 其余上游图（按 id 去重）
       refImages: mergeRefImages(chipResolved.refImages, refImages),
       aspectRatio,
+      taskId, // P0-A 请求级贯穿
     }, progress),
     onSuccess: (r) => {                                      // 成功：本地 state + 业务记忆；写 node.data 交由 resultField
       setImageUrl(r.url)

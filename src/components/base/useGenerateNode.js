@@ -24,7 +24,7 @@ import { useNodeGeneration } from './useNodeGeneration.js'
  *
  * 【契约（与 useNodeGeneration 完全一致，仅回调多收一个 ctx）】
  *   validate(ctx) → 错误文案或空串
- *   run({progress,signal}, ctx) → { ok:true,url?,content?,doneUrl? } | { ok:false,error }
+ *   run({progress,signal}, ctx) → { ok:true,url?,content? } | { ok:false,error }   // doneUrl 已删（B2），统一 url
  *   onSuccess(r, ctx)   → UI state + 业务记忆（data[resultField] 已由声明式写回）
  *   onRecover(d, ctx)   → UI state + 重建等（data[resultField] 已由 recoverable 回填）
  *

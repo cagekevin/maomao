@@ -24,7 +24,8 @@
 import { httpRequest } from './httpClient.js'
 import { API_BASE } from './config.js'
 import { getTasks, patchTask } from './taskStore.js'
-import { publish } from './eventBus.js'
+import { publishTaskCompleted } from './taskCompletionBus.js'
+import { extractResultUrl as extractResult } from './resultUrlExtractor.js'
 import { logger } from './logger.js'
 
 // 轮询节流：单进程内两次全量扫描最小间隔（ms）
@@ -35,27 +36,9 @@ const MAX_PER_ROUND = 5
 let lastRun = 0
 let timer = null
 
-/** 从网关 task_view 响应里按任务类型提取结果 URL。返回 '' 表示还没有结果。 */
+/** 从网关 task_view 响应里按任务类型提取结果 URL（委托统一解析器）。返回 '' 表示还没有结果。 */
 function extractResultUrl(data, type) {
-  if (!data || typeof data !== 'object') return ''
-  const result = data.result
-  if (!result || typeof result !== 'object') {
-    // 视频专用：task_view 把 video_url 显式映射到顶层（main.py task_view）
-    return data.video_url || ''
-  }
-  if (type === 'video') {
-    const vids = result.videos || []
-    const first = vids[0]
-    if (first && first.url) return Array.isArray(first.url) ? first.url[0] : first.url
-    return data.video_url || ''
-  }
-  // 图片：result.images[0].url（网关可能包成 [url]）或 result.url
-  const imgs = result.images || []
-  if (imgs[0]) {
-    const u = imgs[0].url
-    if (u) return Array.isArray(u) ? u[0] : u
-  }
-  return result.url || ''
+  return extractResult({ data, type }) || ''
 }
 
 /** 查询单个异步任务最新状态并回写任务记录。返回是否达到终态（completed/failed）。 */
@@ -84,8 +67,8 @@ export async function pollOneTask(task) {
   if (status === 'completed') {
     const resultUrl = extractResultUrl(data, task.type)
     patchTask(task.id, { status: 'completed', progress: 100, resultUrl })
-    // 广播完成事件：节点监听 agent:task-completed 回写（经 eventBus，解耦 window）
-    publish('agent:task-completed', { taskId: task.id, nodeId: task.nodeId, resultUrl, type: task.type, status: 'completed' })
+    // 广播完成事件（统一入口 publishTaskCompleted）：节点监听 agent:task-completed 回写（经 eventBus，解耦 window）
+    publishTaskCompleted({ taskId: task.id, nodeId: task.nodeId, resultUrl, type: task.type, status: 'completed' })
     logger.debug('任务', '[恢复轮询] 完成', { taskId: task.id, nodeId: task.nodeId, hasResult: !!resultUrl }, { module: 'image' })
     return true
   }

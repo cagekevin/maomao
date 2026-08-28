@@ -9,9 +9,6 @@ vi.mock('../../src/components/base/localToolApi.js', () => ({
   batchDeleteTasks: vi.fn(async () => {}),
   clearAllTasksApi: vi.fn(async () => {}),
 }))
-vi.mock('../../src/components/base/filesApi.js', () => ({
-  saveResultToTasks: vi.fn(async () => null),
-}))
 import { saveTask } from '../../src/components/base/localToolApi.js'
 
 const {

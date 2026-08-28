@@ -48,10 +48,17 @@ export const CREDIT_GATE_EVENT = 'agent:credit-gate'
  */
 export const EVENTS = {
   'agent:task-completed': {
-    from: ['taskStore.js:209', 'pollTask.js:88'],
-    to: ['useNodeGeneration.js:211'],
+    from: ['taskCompletionBus.js:21'],
+    to: ['useNodeGeneration.js:218'],
     payload: '{ taskId, nodeId, resultUrl, type, status: "completed" }',
-    note: '任务完成 → 精准回填节点（刷新不丢图）。生产使用',
+    note: '任务完成 → 精准回填节点（刷新不丢图）。现统一经 taskCompletionBus.publishTaskCompleted 唯一发布（P1-D）；done 已去落盘（P0-C），广播直接用持久 resultUrl',
+  },
+  // 上游节点完成 → 直接下游可视需要自动触发（P2-G 安全网，AUTO_TRIGGER_DOWNSTREAM 默认关）
+  'upstream:updated': {
+    from: ['taskCompletionBus.js:24'],
+    to: ['upstreamLink.js:31'],
+    payload: '{ sourceNodeId }',
+    note: '上游生成完成 → 直接下游（只接一层）自动触发（经 useUpstreamAutoTrigger；开关默认关，零行为改变）',
   },
   'presets-changed': {
     from: ['promptManager.js:85'],
@@ -60,16 +67,29 @@ export const EVENTS = {
     note: '提示词库跨节点同步。生产使用',
   },
   'agent:credit-gate': {
-    from: ['useCanvasAgentTools.js'],
-    to: ['AgentPanel.jsx'],
+    from: [],
+    to: [],
     payload: '{ pending }',
-    note: '高消耗积分确认门禁置位/清除广播（AgentPanel 刷新 credit 确认卡片）。生产使用',
+    note: '高消耗积分确认门禁置位/清除广播（AgentPanel 刷新 credit 确认卡片）。经常量 CREDIT_GATE_EVENT 引用（P1-D），非字面量故反向校验跳过；发布 useCanvasAgentTools / 订阅 AgentPanel',
+  },
+  // 素材发送成功事件（P1-D 收口：原 assetStore 裸回调桥 → eventBus；assetStore 保留薄封装 onAssetSent/emitAssetSent）
+  'asset:sent': {
+    from: ['assetStore.js:306'],
+    to: ['assetStore.js:303'],
+    payload: '{ folder }',
+    note: '素材落盘成功 → 素材库面板刷新（AssetLibrary 经 onAssetSent 订阅）。生产使用',
+  },
+  'yimao:remove-edge': {
+    from: [],
+    to: [],
+    payload: '{ sourceNodeId, targetNodeId }',
+    note: '跨 sub-window 画布移除边通知：App.jsx:1105 用 window.addEventListener 监听（window.dispatchEvent 通道，与 eventBus 并存），非 eventBus publish/subscribe 字面量，故反向校验跳过；当前无在源码内的发布方（孤儿监听，由子窗口/插件侧派发）',
   },
   'project:import': {
     from: ['ProjectSelector.jsx:103'],
     to: ['App.jsx'],
     payload: '{}',
-    note: '导入按钮 → App 处理文件。生产使用（订阅方写法非 subscribe 字面量，待核对）',
+    note: '导入按钮 → App 处理文件（App.jsx:414 标准 subscribe 承接，已核对，D5）。生产使用',
   },
   'project:export': {
     from: ['ProjectSelector.jsx:107'],
@@ -79,7 +99,7 @@ export const EVENTS = {
   },
   'persist:failed': {
     from: ['storageAdapter.js:31'],
-    to: ['App.jsx:455'], // 全局监听器，节流 toast；分发逻辑收敛到 persistFailureBus（见 App.jsx:451-459）
+    to: ['App.jsx:459'], // 全局监听器，节流 toast；分发逻辑收敛到 persistFailureBus（见 App.jsx:455-463）
     payload: '{ key, error }',
     note: '持久化失败广播（sSet/sRemove 失败）。已由 App.jsx 全局订阅',
   },
@@ -341,18 +361,28 @@ export const STORAGE_KEYS = {
     note: '多窗口剪贴板数据（跨窗口同步用）',
   },
 
-  // ── 3D 导演台白模预演（director3d overlay）【原生 localStorage 直写】────────
+  // ── 3D 导演台工程（director3d）【P2-F2 登记修正】───────────
+  // 注：director3d 工程经 base/d3dPersistence 收口——主通道写 localTool KV（/api/kv/set），
+  // 18080 不可达才降级直写 localStorage。故 backend 标 kv（配下方动态 pattern），与实测一致；
+  // 别再标 native（旧"native 空洞语义"，见 contentStore.getBackend 启发式兜底问题）。
   'director3d-project': {
     domain: 'director3d',
-    store: 'director3d/App.jsx',
-    backend: 'native',
-    note: '3D 导演台工程（独立运行时默认 key）',
+    store: 'd3dPersistence.js',
+    backend: 'kv',
+    note: '3D 导演台工程默认 key（独立运行时）→ KV 主通道，降级写 localStorage',
+  },
+  'director3d-project-{nodeId}': {
+    domain: 'director3d',
+    store: 'd3dPersistence.js',
+    backend: 'kv',
+    pattern: true,
+    note: '3D 导演台工程（画布节点实例）动态键 → KV 主通道，降级写 localStorage',
   },
   'director3d-custom-poses': {
     domain: 'director3d',
     store: 'director3d/App.jsx',
     backend: 'native',
-    note: '3D 导演台自定义姿势库',
+    note: '3D 导演台自定义姿势库（仅 localStorage 直写，不进 KV，见 isProjectPersistenceKey）',
   },
   // 注：故 hideFromViewportCapture 曾登记为 native（2026-08-22 移除）——它实为 3D object.userData
   // 属性（SceneRoot.tsx / DirectorCanvas.tsx），并非存储键，登记纯属误导。此键不影响存储读写。

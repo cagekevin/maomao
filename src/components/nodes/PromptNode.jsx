@@ -195,7 +195,7 @@ function PromptNode({ id, data, selected }) {
     recoverable: true,
     // 前置校验：本地 prompt（含芯片解析后的文本或参考图）或上游文本任一非空即可生图
     validate: () => ((effectivePrompt?.trim() || chipResolved.refImages.length > 0) ? '' : '请输入提示词'),
-    run: async ({ progress, signal }) => {
+    run: async ({ progress, signal, taskId }) => {
       // 从「providerId::modelId」解析出实际 provider 和 modelId（跨 provider 选模型）
       const { provider: useProvider, modelId } = resolveProviderModel(providers, selectedModel, primary)
       // 参考图 = 用户显式 @ 的芯片图（顺序对应 prompt 里的「图片N」）+ 其余连线上游图（去重）。
@@ -213,6 +213,7 @@ function PromptNode({ id, data, selected }) {
         aspectRatio,
         quality,
         images: refUrls,
+        taskId, // P0-A 请求级贯穿
       }, (pct) => progress(Math.max(15, Math.min(98, Math.round(pct)))), signal)
     },
     onSuccess: (r) => {

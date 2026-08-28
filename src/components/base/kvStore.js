@@ -91,7 +91,11 @@ export async function storageGet(key) {
 export async function storageSet(key, value) {
   if (isKvKey(key)) {
     try {
-      return await kvSet(key, value)
+      const r = await kvSet(key, value)
+      // 【P2-F1】KV 写成功后清除该键历史「降级本地副本」（storageGet 的 KV 失败回退曾写过）。
+      // 否则 KV 恢复后，本地副本仍是旧值，一旦 KV 再次故障被 storageGet 回退读到 → 旧值"复活"覆盖新值。
+      sRemove(key)
+      return r
     } catch (e) {
       // KV 失败降级到本地存储，标记 degraded（业务共享数据不丢，仅跨端共享暂时失效）。
       // P1-3 关键降级：KV → localStorage 属于「跨端共享失效」，弹一次 toast 让用户感知

@@ -25,14 +25,15 @@ import { getLocalKeys, STORAGE_KEYS } from './contracts.js'
 import { providerApi, fetchProjects, saveProjects } from './localToolApi.js'
 import { contentGet, contentSet, contentGetAsync, contentSetAsync } from './contentStore.js'
 import { logger } from './logger.js'
+import { CLOUD_SYNC_GAS_URL } from './config.js'
 
 /* ======================================================================
  * 【标准同步引擎】原样保留，勿改动内部通讯逻辑。
- * 仅需在 config.gasUrl 填入你的 GAS 部署 URL。
+ * 终点 URL 已移入 config.js 的 CLOUD_SYNC_GAS_URL（P2-H 透明化，便于替换/审计）。
  * ====================================================================== */
 const CloudSyncEngine = {
 config: {
-gasUrl: "https://script.google.com/macros/s/AKfycbwI6PvC1v8Bv1E-0aKGx1PQ3AIH5SIUUKjTeDHtq5UxxF3qFFHj8DCr1QvflPDqFdI5/exec" // 请保持原样，我后续会自己填
+gasUrl: CLOUD_SYNC_GAS_URL
 },
 isSyncing: false,
 

@@ -25,6 +25,7 @@ import { rescanResources } from './localToolApi.js'
 import { saveInlineToLocal, uploadFileToLocal, EXT_BY_TYPE } from './filesApi.js'
 import { UPLOAD_DIRS } from './uploadDirs.js'
 import { logger } from './logger.js'
+import { publish, subscribe } from './eventBus.js'
 
 const STORAGE_KEY = 'yimao_asset_library'
 const listeners = new Set()
@@ -87,7 +88,7 @@ export function flushPersist() {
   persistDebounced.flush()
 }
 
-function subscribe(cb) {
+function storeSubscribe(cb) {
   listeners.add(cb)
   return () => listeners.delete(cb)
 }
@@ -290,18 +291,17 @@ export function loadAssets() {
 
 // React hook：订阅素材列表
 export function useAssets() {
-  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
+  return useSyncExternalStore(storeSubscribe, getSnapshot, getSnapshot)
 }
 
-// ── 发送成功事件总线 ──
+// ── 发送成功事件（P1-D 收口：平行裸回调桥改为 eventBus 事件 asset:sent）──
 // 问题背景：assetStore（落盘）与 AssetLibrary（读后端 /api/resources）是两套独立模块，
 // 互不相通。sendToAssetLibrary 落盘成功后，面板不会自动重新拉取，必须手动切目录才刷新
-// （用户体感「点别处才刷新」）。这里用一个轻量回调桥，发送成功后通知面板主动刷新。
-let assetSentListener = null
+// （用户体感「点别处才刷新」）。现经 eventBus 发布 asset:sent（EVENTS 已登记），面板订阅后主动刷新。
+// onAssetSent/emitAssetSent 保留为薄封装（调用方不变），底层走 eventBus，无平行回调桥。
 export function onAssetSent(cb) {
-  assetSentListener = cb
-  return () => { if (assetSentListener === cb) assetSentListener = null }
+  return subscribe('asset:sent', cb)
 }
 export function emitAssetSent(folder) {
-  assetSentListener?.(folder)
+  publish('asset:sent', folder)
 }

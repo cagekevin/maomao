@@ -17,6 +17,7 @@ import { logger } from '../base/logger.js'
 import { AGENT_MODELS } from '../base/config.js'
 import previewUrls from '../base/previewUrl.js'
 import { subscribe } from '../base/eventBus.js'
+import { CREDIT_GATE_EVENT } from '../base/contracts.js'
 
 /**
  * ════════════════════════════════════════════════════════════════
@@ -238,7 +239,7 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
   })
   const [creditGateDismissed, setCreditGateDismissed] = useState(false)
   useEffect(() => {
-    const unsub = subscribe('agent:credit-gate', (payload) => {
+    const unsub = subscribe(CREDIT_GATE_EVENT, (payload) => {
       if (payload && payload.pending === true) {
         try { setCreditGatePreview(getCreditGate()) } catch { /* ignore */ }
         setCreditGateDismissed(false)

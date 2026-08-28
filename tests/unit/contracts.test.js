@@ -84,7 +84,8 @@ describe('STORAGE_KEYS 语义检查', () => {
 
   it('native 后端的键不通过 storageAdapter，应手动确认无遗漏', () => {
     const nativeKeys = Object.entries(STORAGE_KEYS).filter(([, v]) => v.backend === 'native')
-    expect(nativeKeys.length).toBeGreaterThanOrEqual(2) // 当前已知 2 个（hideFromViewportCapture 非存储键已于 2026-08-22 移除）
+    // P2-F2：director3d-project 已迁移为 kv（走 KV 主通道），native 仅剩 director3d-custom-poses
+    expect(nativeKeys.length).toBeGreaterThanOrEqual(1)
     for (const [key, entry] of nativeKeys) {
       expect(entry.store, `${key} 需标注 store 来源`).toBeTruthy()
     }
@@ -92,8 +93,8 @@ describe('STORAGE_KEYS 语义检查', () => {
 })
 
 describe('STORAGE_KEYS 内容验证', () => {
-  it('当前共有 32 个登记键', () => {
-    expect(Object.keys(STORAGE_KEYS).length).toBe(32)
+  it('当前共有 33 个登记键', () => {
+    expect(Object.keys(STORAGE_KEYS).length).toBe(33)
   })
 
   it('包含所有核心业务键', () => {
@@ -226,8 +227,8 @@ describe('EVENTS 结构完整性', () => {
 })
 
 describe('EVENTS 内容验证', () => {
-  it('当前共有 6 个登记事件', () => {
-    expect(Object.keys(EVENTS).length).toBe(6)
+  it('当前共有 9 个登记事件', () => {
+    expect(Object.keys(EVENTS).length).toBe(9)
   })
 
   it('包含所有核心事件', () => {
@@ -238,6 +239,11 @@ describe('EVENTS 内容验证', () => {
     expect(keys).toContain('project:export')
     expect(keys).toContain('persist:failed')
     expect(keys).toContain('agent:credit-gate')
+    // P1-D 新增：素材发送事件收口（取代 assetStore 裸回调桥）+ 跨窗口画布移除边登记
+    expect(keys).toContain('asset:sent')
+    expect(keys).toContain('yimao:remove-edge')
+    // P2-G 新增：上游完成 → 直接下游可自动触发（安全网）
+    expect(keys).toContain('upstream:updated')
   })
 })
 

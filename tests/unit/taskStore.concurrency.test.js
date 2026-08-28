@@ -10,6 +10,8 @@ import {
   registerTaskRetry,
   unregisterTaskRetry,
   runNodeGeneration,
+  claimNodeRun,
+  releaseNodeRun,
 } from '../../src/components/base/taskStore.js'
 
 function makePending() {
@@ -77,5 +79,27 @@ describe('taskStore 生图并发上限（最多 6 个同时跑，超出跳过）
 
     unregisterTaskRetry('conc-a')
     unregisterTaskRetry('conc-b')
+  })
+})
+
+describe('taskStore P1-E 单节点互斥锁（claimNodeRun/releaseNodeRun）', () => {
+  it('同一节点二次 claim 返回 inFlight，不重复占位；释放后可再占', () => {
+    releaseNodeRun('lock-1') // 清残留
+    expect(claimNodeRun('lock-1')).toEqual({ ok: true })
+    // 同节点仍持有 → 明确「进行中」
+    expect(claimNodeRun('lock-1')).toEqual({ ok: false, inFlight: true })
+    // 不同节点互不影响
+    expect(claimNodeRun('lock-2')).toEqual({ ok: true })
+    // 释放后同节点可再占
+    releaseNodeRun('lock-1')
+    expect(claimNodeRun('lock-1')).toEqual({ ok: true })
+    // 清理
+    releaseNodeRun('lock-1')
+    releaseNodeRun('lock-2')
+  })
+
+  it('无 nodeId 不锁（视为可占）', () => {
+    expect(claimNodeRun()).toEqual({ ok: true })
+    expect(claimNodeRun('')).toEqual({ ok: true })
   })
 })

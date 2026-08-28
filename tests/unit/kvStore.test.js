@@ -229,6 +229,14 @@ describe('kvStore storageSet', () => {
     expect(fetchImpl).not.toHaveBeenCalled()
     expect(r).toEqual({ ok: true })
   })
+  it('KV 写成功后清除该键历史降级本地副本（P2-F1，防旧值复活）', async () => {
+    const key = CANVAS_STATE_PREFIX + 'snap'
+    sGet.mockReturnValue(JSON.stringify({ stale: true })) // 曾降级写的本地副本在场
+    fetchImpl.mockResolvedValue(okJson({ ok: true }))
+    await storageSet(key, { nodes: [] })
+    expect(sSet).not.toHaveBeenCalled() // 走 KV，不降级写本地
+    expect(sRemove).toHaveBeenCalledWith(key) // KV 成功 → 清掉历史降级副本
+  })
   it('非 KV 前缀传入字符串值走 sSet（原样写入，不二次 stringify）', async () => {
     const key = 'plain'
     const r = await storageSet(key, 'raw-string')

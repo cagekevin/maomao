@@ -18,7 +18,8 @@ vi.mock('../../src/components/base/taskStore.js', () => ({
   reportGenerate: () => taskCtlMock,
   registerTaskRetry: vi.fn(),
   unregisterTaskRetry: vi.fn(),
-  setCurrentTaskId: vi.fn()
+  claimNodeRun: () => ({ ok: true }),
+  releaseNodeRun: vi.fn()
 }))
 vi.mock('../../src/components/base/filesApi.js', () => ({ saveResultToTasks: async (url) => url }))
 vi.mock('../../src/components/base/eventBus.js', () => ({

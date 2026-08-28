@@ -17,21 +17,18 @@ vi.mock('../../src/components/base/imageUrl.js', () => ({
   toImageContentBlocks: vi.fn((u) => []),
 }))
 vi.mock('../../src/components/base/taskStore.js', () => ({
-  getCurrentTaskId: vi.fn(() => null),
   setTaskPollId: vi.fn(),
 }))
 
 const api = await import('../../src/components/base/imageApi.js')
 const { normalizeImageUrlsForSend } = await import('../../src/components/base/imageUrl.js')
-const { getCurrentTaskId, setTaskPollId } = await import('../../src/components/base/taskStore.js')
+const { setTaskPollId } = await import('../../src/components/base/taskStore.js')
 
 beforeEach(() => {
   // mockReset 清掉上个用例遗留的 mockResolvedValueOnce / mockRejectedValueOnce 队列
   fetchMock.mockReset()
   normalizeImageUrlsForSend.mockReset()
   normalizeImageUrlsForSend.mockResolvedValue([])
-  getCurrentTaskId.mockReset()
-  getCurrentTaskId.mockReturnValue(null)
   setTaskPollId.mockReset()
   vi.restoreAllMocks() // 清掉上个用例 spy 的 setTimeout
 })
@@ -176,13 +173,13 @@ describe('imageApi — async 模式（image_mode: async）', () => {
     fetchMock
       .mockResolvedValueOnce(jsonResp({ data: [{ status: 'submitted', task_id: 'T1' }] }))
       .mockResolvedValueOnce(jsonResp({ data: { result: { images: [{ url: ['http://x/async.png'] }] } } }))
-    const p = api.generateImage({ provider: { image_mode: 'async' }, prompt: 'x', model: 'm' })
+    const p = api.generateImage({ provider: { image_mode: 'async' }, prompt: 'x', model: 'm', taskId: 'front-task-1' })
     await vi.advanceTimersByTimeAsync(3000) // 触发首个轮询 sleep
     const res = await p
     expect(res.ok).toBe(true)
     expect(res.url).toBe('http://x/async.png')
-    // 异步提交成功 → 回填 setTaskPollId
-    expect(setTaskPollId).toHaveBeenCalled()
+    // 异步提交成功 → 回填 setTaskPollId（请求级 frontTaskId）
+    expect(setTaskPollId).toHaveBeenCalledWith('front-task-1', 'T1')
   })
 
   it('提交返回直接结果（非任务形态）→ 直接成功', async () => {

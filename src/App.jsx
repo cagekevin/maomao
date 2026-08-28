@@ -47,6 +47,7 @@ import { setAgentKey } from './components/agent/index.js'
 import { exportAll, importAll, backupToBlob } from './components/base/backupStore.js'
 import { uploadConfig, downloadConfig } from './components/base/cloudSync.js'
 import { useLocalToolStatus } from './components/base/useLocalToolStatus.js'
+import { useUpstreamAutoTrigger } from './components/base/upstreamLink.js'
 import LocalToolConnectModal from './components/base/LocalToolConnectModal.jsx'
 import EmptyCanvasGuide from './components/base/EmptyCanvasGuide.jsx'
 import { initTasks } from './components/base/taskStore.js'
@@ -92,6 +93,9 @@ function Canvas() {
   // 无快照（首次）保持空画布 → 触发 EmptyCanvasGuide 空状态引导（完整复刻官方）。
   const [nodes, setNodes, onNodesChange] = useNodesState([])
   const [edges, setEdges, onEdgesChange] = useEdgesState([])
+
+  // P2-G 拓扑触发安全网：上游完成可选自动触发直接下游（AUTO_TRIGGER_DOWNSTREAM 默认关）
+  useUpstreamAutoTrigger()
 
   // 响应式订阅当前项目 id（projectStore，useSyncExternalStore）。
   // 修复画布「加载/保存 key 错位」：initProjects() 异步从后端覆盖 currentProjectId

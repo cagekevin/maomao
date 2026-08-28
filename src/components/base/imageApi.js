@@ -61,11 +61,12 @@ export function resolveImagePixel(ratio, size) {
  * 参考图（图生图）：网关 /v1/images/generations 认 image_urls 字段，blob: 由 imageUrl.js 先转 data base64。
  * @param {object} opts
  *   - provider, prompt, model, size(档位 1K/2K), n, aspectRatio(比例), quality, images?
+ *   - taskId?: 请求级前端 task_id（P0-A，从 useNodeGeneration/scriptBox 的 run ctx 透传；缺省=日志可见，不回退全局单例）
  * @param {function} [onProgress] (percent)
  * @param {AbortSignal} [signal] 可选取消信号（Step A；不传向后兼容）
  * @returns {{ ok:boolean, url?:string, error?:string }}
  */
-export async function generateImage({ provider, prompt, model, size, n, aspectRatio, quality, images }, onProgress, signal) {
+export async function generateImage({ provider, prompt, model, size, n, aspectRatio, quality, images, taskId }, onProgress, signal) {
   const hasRatio = aspectRatio && aspectRatio !== 'Auto' && aspectRatio !== 'auto'
   // 发送统一出口守卫：参考图必经此归一（含缩略图端点自动还原原图），禁止绕过。见 imageUrl.js thumbnailToOriginal
   const refImages = await normalizeImageUrlsForSend(images, { preferBase64: provider?.refFormat === 'base64' })
@@ -75,7 +76,7 @@ export async function generateImage({ provider, prompt, model, size, n, aspectRa
     const pixel = hasRatio ? resolveImagePixel(aspectRatio, size || '1K') : (size || '')
     const genBody = buildResponsesImageBody({ model, prompt, images: refImages, size: pixel || undefined })
     logger.debug('生图', '[参数] responses genBody', { model, prompt: String(prompt).slice(0, 100), refCount: refImages.length }, { module: 'image' })
-    return imageProxy({ provider, genBody, onProgress, signal })
+    return imageProxy({ provider, genBody, onProgress, signal, taskId })
   }
 
   const genBody = { prompt, model, n: n || 1 }
@@ -94,5 +95,5 @@ export async function generateImage({ provider, prompt, model, size, n, aspectRa
     image_size: genBody.image_size, quality: genBody.quality, refCount: refImages.length,
     refFormat: provider?.refFormat || 'url',
   }, { module: 'image' })
-  return imageProxy({ provider, genBody, onProgress, signal })
+  return imageProxy({ provider, genBody, onProgress, signal, taskId })
 }

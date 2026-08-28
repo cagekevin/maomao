@@ -27,7 +27,7 @@ import { contentGet, contentSet } from '../../base/contentStore.js'
 import { generateId } from '../../base/idGen.js'
 import { logger } from '../../base/logger.js'
 import { publish } from '../../base/eventBus.js'
-import { CREDIT_SWITCH_KEY } from '../../base/contracts.js'
+import { CREDIT_SWITCH_KEY, CREDIT_GATE_EVENT } from '../../base/contracts.js'
 
 /* ════════════════════════════════════════════════════════════════
  * AI 生图默认参数（genParams）—— 由 AgentPanel 生图参数区设置，execute_plan 读取。
@@ -1043,7 +1043,7 @@ const executePlanTool = {
         const map = {}
         result.entries.forEach((e) => { if (e.nodeId) map[String(e.stepId ?? e.id)] = e.nodeId })
         setCreditGate({ pending: true, gens: lockedGens, map })
-        publish('agent:credit-gate', { pending: true })
+        publish(CREDIT_GATE_EVENT, { pending: true })
         logger.info('AI助手', '[plan] execute_plan 命中积分闸（节点已建好待确认）', { entriesCount: result.entries.length, awaited: 'credit' })
         return { ok: true, data: { awaited: 'credit', steps: result.entries, note: '节点已建好，生成待积分确认，确认后自动生成' } }
       }
@@ -1098,7 +1098,7 @@ export async function runExistingPlanTool(ctx) {
   const anyDone = result.entries.some((e) => e.status === 'completed')
   if (!anyFailed) {
     clearCreditGate()
-    publish('agent:credit-gate', { pending: false })
+    publish(CREDIT_GATE_EVENT, { pending: false })
   }
   const status = anyFailed && anyDone ? 'completed_with_errors' : anyFailed ? 'failed' : 'completed'
   return { ok: true, data: { workflow: { ...(result.workflow || {}), status }, entries: result.entries } }

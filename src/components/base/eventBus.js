@@ -10,7 +10,8 @@
  * 两者互补，不重复。
  *
  * 【当前事件注册表】改代码前先查这份全量清单（发布/订阅均须存在，避免"只监听未发布"）：
- *  - agent:task-completed   taskStore:190 / pollTask:80 发布 → useNodeGeneration:147 订阅（任务完成→精准回填节点）
+ *  - agent:task-completed   taskCompletionBus.publishTaskCompleted 发布 → useNodeGeneration:210 订阅（任务完成→精准回填节点）
+ *  - asset:sent             assetStore.onAssetSent/emitAssetSent（薄封装）→ AssetLibrary 刷新（P1-D 收口裸回调桥）
  *  - presets-changed        promptManager:88 发布 → PromptLibrary:40 订阅（预设库跨节点同步）
  *  - project:import         ProjectSelector:99 发布 → App:343 订阅（导入按钮→App 处理文件）
  *  - project:export         ProjectSelector:103 发布 → App:344 订阅（导出按钮→App 下载）

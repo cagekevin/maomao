@@ -3,11 +3,11 @@ import { chatCompletions } from './chatApi.js'
 import { generateImage } from './imageApi.js'
 import { resolveProviderModel, buildAllModels } from './providerModels.js'
 import { localizeAndStoreToLibrary, assetFolderOf } from './assetStore.js'
-import { uploadFileToLocal } from './filesApi.js'
+import { uploadFileToLocal, saveResultToTasks } from './filesApi.js'
 import { toAbsoluteFileUrl } from './imageUrl.js'
 import { showToast } from './toastStore.js'
 import { logger } from './logger.js'
-import { reportGenerate, setCurrentTaskId } from './taskStore.js'
+import { reportGenerate } from './taskStore.js'
 
 /** 去掉 ```json 围栏、只保留首个 {...} 块（对齐官方 Ar/Ir 的解析）。
  *  顶层纯函数，导出供单测（剧本盒纯逻辑）。 */
@@ -332,8 +332,6 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
     //（reportGenerate 会结束同 nodeId 的旧 running 任务，故不能用剧本盒节点自身 nodeId）。
     const taskNodeId = `${nodeId}-asset-${assetId}`
     const taskCtl = reportGenerate(taskNodeId, 'image', prompt, { modelName: modelId })
-    // 贯穿 X-Task-Id：把前端 task_id 带给 localTool/网关，关联 Lovart thread_id（同 Prompt 节点）
-    setCurrentTaskId(taskCtl.taskId || '')
     taskCtl.progress(5, '准备中…')
 
     // 单张/批量均为独立写回（批量已改为逐张独立任务，不再走 enqueuePatch 合并器）
@@ -351,6 +349,7 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
           size: imageSize,
           n: 1,
           aspectRatio,
+          taskId: taskCtl.taskId || '', // P0-A 请求级贯穿
         }, (p, stage) => taskCtl.progress(p, stage))
         if (r.ok && r.url) {
           // P2-1/P2-2：生图成功后把结果本地化落盘到素材库目录（migrated/{人物|场景|道具}），
@@ -372,7 +371,11 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
                 : a
             ),
           }))
-          // 用本地化落盘后的持久 URL 作任务中心结果（done 内部再落盘 tasks 目录，与素材库目录不同、不冲突）
+          // 用本地化落盘后的持久 URL 作任务中心结果。done 不再落盘（P0-C），故此处显式补一个
+          // tasks 目录副本（与素材库目录 migrated/... 不同、不冲突），保持任务中心「生成」面板可收录。
+          if (typeof imageUrl === 'string' && imageUrl && !imageUrl.startsWith('blob:')) {
+            await saveResultToTasks(imageUrl, 'image').catch(() => null)
+          }
           taskCtl.done(imageUrl)
           taskSettled = true
           logger.info('scriptBox', '生成资产图·成功', { nodeId, assetId, url: imageUrl, thumbnailUrl })

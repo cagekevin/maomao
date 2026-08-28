@@ -2,6 +2,8 @@ import { useMemo } from 'react'
 import { useStore } from '@xyflow/react'
 import { collectAssets } from './scriptBoxPrompts.js'
 import { toAbsoluteFileUrl } from './filesApi.js'
+import { resolveMediaType } from './resultUrlExtractor.js'
+import { NODE_TYPES } from './contracts.js'
 
 /**
  * ════════════════════════════════════════════════════════════════
@@ -36,23 +38,11 @@ import { toAbsoluteFileUrl } from './filesApi.js'
  * @returns { images, texts, videos, audios } 聚合的所有「直接上游」产出
  */
 
-/** 按 mime / 扩展名把 url 分成 图片/视频/音频。
- *  · 判断依据：data:video/ 前缀或常见视频扩展名 → video；audio → audio；否则当图片。
- *  · 为什么这样分：下游可能需要分别处理图片参考、视频、音频，不能全当图片。 */
-function classifyUrl(url) {
-  if (url.startsWith('data:video/') || /\.(mp4|webm|mov|mkv|avi|m4v|ogg)($|\?)/i.test(url)) return 'video'
-  if (url.startsWith('data:audio/') || /\.(mp3|wav|ogg|m4a|flac|aac)($|\?)/i.test(url)) return 'audio'
-  return 'image'
-}
-
-/** 产出类型判定：data.mediaType 优先（产出方自带），否则按 URL 分类。
+/** 产出类型判定（P1-B φ2 收口）委托 resultUrlExtractor.resolveMediaType：
+ *  mediaType 优先（产出方自带），否则按 URL 分类。唯一实现，勿在此另起一套（见下方 import）。
  *  · 为什么 mediaType 优先：如 VideoProcessNode extractAudio spawn 的 imageNode 带
- *    data.mediaType:'audio'（blob: URL 无扩展名），classifyUrl 会误判为 image。
- *    产出方自带类型是「协议判断」与「节点渲染判断」一致的唯一来源。 */
-function resolveKind(url, mediaType) {
-  if (mediaType === 'image' || mediaType === 'video' || mediaType === 'audio') return mediaType
-  return classifyUrl(url || '')
-}
+ *    data.mediaType:'audio'（blob: URL 无扩展名），按扩展名判会误判为 image。
+ *  · 产出方自带类型是「协议判断」与「节点渲染判断」一致的唯一来源。 */
 
 /**
  * ════════════════════════════════════════════════════════════════
@@ -91,7 +81,7 @@ function genericOutput(d, id) {
     { url: d.resultUrl, mediaType: d.mediaType },
   ].filter((c) => c.url && typeof c.url === 'string')
   for (const { url, mediaType } of candidates) {
-    const kind = resolveKind(url, mediaType)
+    const kind = resolveMediaType(url, mediaType)
     const item = { id, url }
     if (kind === 'video') return { ...empty, videos: [item] }
     if (kind === 'audio') return { ...empty, audios: [item] }
@@ -177,4 +167,30 @@ export function useConnectedInputs(nodeId) {
     out.images = out.images.map((im) => (im && im.url ? { ...im, url: toAbsoluteFileUrl(im.url) } : im))
     return out
   }, [nodeId, nodes, edges])
+}
+
+// ════════════════════════════════════════════════════════════════
+// G2（P2-G）dev 期产出 schema 校验 —— 治「NODE_OUTPUTS 无校验 + schema 静默缺失」
+// ════════════════════════════════════════════════════════════════
+// 对比节点类型清单（contracts.NODE_TYPES），凡「产出节点」既未在 NODE_OUTPUTS 声明、也未列入
+// 通用单输出兜底或无产出集合 → dev 加载期给可读 warning，避免新增产出节点漏声明被静默 genericOutput
+// 吞掉（进而被下游当错类型/漏传给上游，甚至外部硬编码 t.data[0].url）。仅 DEV 触发，生产零开销。
+if (import.meta.env.DEV) {
+  const specialHandled = new Set(['textNode', 'scriptBoxNode'])          // getNodeOutput 特判分支（文本 / 镜头资产）
+  const declaredOutputs = new Set(Object.keys(NODE_OUTPUTS))             // 显式产出声明（多图/数组/自带 mediaType）
+  const genericOutputOk = new Set([                                      // 单输出由 genericOutput 兜底（imageUrl/videoUrl/resultUrl）
+    'imageNode', 'promptNode', 'discountVideoNode', 'panoramaNode',
+    'templateNode', 'faceMosaicNode', 'loopNode', 'videoProcessNode', 'director3dNode',
+  ])
+  const noOutput = new Set(['group', 'ghostTarget'])                     // 无管线产出（容器 / 连线占位）
+  const covered = new Set([...specialHandled, ...declaredOutputs, ...genericOutputOk, ...noOutput])
+  for (const t of Object.keys(NODE_TYPES)) {
+    if (!covered.has(t)) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[P2-G] 节点类型 "${t}" 未在 NODE_OUTPUTS 声明产出，且未列入 genericOutputOk / noOutput：` +
+        `管线对它的上游产出可能静默缺失（schema 缺口）。请在 NODE_OUTPUTS 声明或补入对应集合。`
+      )
+    }
+  }
 }

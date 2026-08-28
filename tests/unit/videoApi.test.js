@@ -17,13 +17,12 @@ vi.mock('../../src/components/base/imageUrl.js', () => ({
   toImageContentBlocks: vi.fn((u) => []),
 }))
 vi.mock('../../src/components/base/taskStore.js', () => ({
-  getCurrentTaskId: vi.fn(() => null),
   setTaskPollId: vi.fn(),
 }))
 
 const { generateVideo } = await import('../../src/components/base/videoApi.js')
 const { normalizeImageUrlsForSend } = await import('../../src/components/base/imageUrl.js')
-const { getCurrentTaskId, setTaskPollId } = await import('../../src/components/base/taskStore.js')
+const { setTaskPollId } = await import('../../src/components/base/taskStore.js')
 
 /** 读提交/轮询请求的 body 里的 url（即后端要转发的上游 url） */
 function submittedUrl() {
@@ -35,8 +34,6 @@ beforeEach(() => {
   fetchMock.mockReset()
   normalizeImageUrlsForSend.mockReset()
   normalizeImageUrlsForSend.mockResolvedValue([])
-  getCurrentTaskId.mockReset()
-  getCurrentTaskId.mockReturnValue(null)
   setTaskPollId.mockReset()
   vi.restoreAllMocks()
   // 加速轮询里的 setTimeout(5000)：统一走共享 helper（见 _testUtils.fastPollTimers）
@@ -117,13 +114,12 @@ describe('videoApi — generateVideo async 成功', () => {
   })
 
   it('异步提交成功后回填 setTaskPollId(taskId, pollTaskId)', async () => {
-    getCurrentTaskId.mockReturnValue('front-task-1')
     fetchMock
       .mockResolvedValueOnce(jsonResp({ data: [{ status: 'submitted', task_id: 'T9' }] }))
       .mockResolvedValueOnce(jsonResp({ data: { result: { videos: [{ url: 'http://x/v.mp4' }] } } }))
-    await generateVideo({ provider: {}, prompt: 'x', model: 'm' })
+    await generateVideo({ provider: {}, prompt: 'x', model: 'm', taskId: 'front-task-1' })
     expect(setTaskPollId).toHaveBeenCalledWith('front-task-1', 'T9')
-    // 提交请求也带 taskId 贯穿
+    // 提交请求也带 taskId 贯穿（请求级入参，非全局单例）
     const body = JSON.parse(fetchMock.mock.calls[0][1].body)
     expect(body.taskId).toBe('front-task-1')
   })

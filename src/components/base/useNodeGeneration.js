@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState, useEffect } from 'react'
-import { reportGenerate, registerTaskRetry, unregisterTaskRetry, setCurrentTaskId } from './taskStore.js'
+import { reportGenerate, registerTaskRetry, unregisterTaskRetry, claimNodeRun, releaseNodeRun } from './taskStore.js'
 import { saveResultToTasks } from './filesApi.js'
 import { logger } from './logger.js'
 import { subscribe } from './eventBus.js'
@@ -56,8 +56,8 @@ import { classifyError } from './genErrors.js'
  *   // gen = { loading, error, start, stop }
  *
  * 【run 返回契约】
- *   { ok: true, url?, content?, doneUrl? }  → 成功（url/content 给 onSuccess 回写；
- *                                               doneUrl 优先作为任务中心 resultUrl）
+ *   { ok: true, url?, content? }            → 成功（url/content 给 onSuccess 回写与 node.data
+ *                                              任务中心 resultUrl；doneUrl 悬空契约已删，统一用 r.url（B2））
  *   { ok: false, error: '原因' }            → 失败（自动 setError + taskCtl.fail）
  *
  * 【中止说明】
@@ -92,11 +92,18 @@ export function useNodeGeneration({ nodeId, type, validate, run, onSuccess, onRe
   typeRef.current = type
 
   const start = useCallback(async () => {
+    // 【P1-E 跨发起方并发锁】先占单节点互斥锁（taskStore 层，任何发起方都经本 start 汇聚）。
+    // 同节点已有进行中（Agent runNodeGeneration / 用户手动 / 再来一次）→ 明确返回「进行中」，不并发生成。
+    const claim = claimNodeRun(nodeId)
+    if (!claim.ok) {
+      logger.debug('生成', '[节点] 已在生成，跳过并发', { nodeId }, { module: 'image' })
+      return { ok: false, inFlight: true }
+    }
     // 【R4 防重入】同步 runningRef 原子防重（比闭包 loading 可靠，第二次立即被拒）
-    if (loading || runningRef.current) return false
+    if (loading || runningRef.current) { releaseNodeRun(nodeId); return false }
     runningRef.current = true
     const v = validateRef.current?.()
-    if (v) { setError(v); runningRef.current = false; return false }
+    if (v) { setError(v); runningRef.current = false; releaseNodeRun(nodeId); return false }
 
     setLoading(true)
     setError('')
@@ -106,37 +113,36 @@ export function useNodeGeneration({ nodeId, type, validate, run, onSuccess, onRe
     abortRef.current = ctl
     const t = typeRef.current || {}
     const taskCtl = reportGenerate(nodeId, t.type, t.prompt, { modelName: t.modelName })
-    // 把前端 task_id 设为「当前任务」，供 proxyRequest 加 X-Task-Id header 贯穿链路（关联 Lovart thread_id）
-    setCurrentTaskId(taskCtl.taskId || '')
     taskCtl.progress(5, '准备中…')
     logger.info('生成', 'start', { nodeId, type: t.type, prompt: t.prompt })
     // 【B层】节点生成入口：prompt 摘要 + 节点类型（定位是哪个节点、发的什么提示词触发生图）
     logger.debug('生成', '[节点] start', { nodeId, type: t.type, prompt: String(t.prompt || '').slice(0, 120), modelName: t.modelName }, { module: 'image' })
     try {
-      // signal 传给 run 执行器（各节点可透传给 generateImage/generateVideo 实现真取消）
-      const r = await runRef.current({ progress: (p, stage) => taskCtl.progress(p, stage), signal: ctl.signal })
+      // signal/taskId 传给 run 执行器（P0-A：taskId 请求级贯穿，节点透传给 generateImage/generateVideo opts）
+      const r = await runRef.current({
+        progress: (p, stage) => taskCtl.progress(p, stage),
+        signal: ctl.signal,
+        taskId: taskCtl.taskId || '',
+      })
       // 【B层】run 执行器返回：ok + url（定位生成契约是否拿到结果）
       logger.debug('生成', '[节点] run返回', { nodeId, ok: r?.ok, urlHead: r?.url ? String(r.url).slice(0, 80) : '', error: r?.error || '' }, { module: 'image' })
       if (r?.ok) {
         // P0-2-b：声明 resultKey 后自动写回 node.data，省去各节点在 onSuccess 里手写 patchData({[xxx]: url})
         const resultKey = resultKeyRef.current
-        const autoUrl = resultKey && (r.url || r.doneUrl)
+        const autoUrl = resultKey && r.url
         if (autoUrl) patchData({ [resultKey]: autoUrl })
         onSuccessRef.current?.(r, taskCtl)
-        // 防御：done 只接收字符串结果 URL（上游偶发返回对象会触发 taskStore.done 的 .startsWith 崩）
-        const rawUrl = r.doneUrl || r.url
-        taskCtl.done(typeof rawUrl === 'string' ? rawUrl : '')
-        logger.info('生成', 'success', { nodeId, type: t.type })
-        // 【异步执行器地基】start 返回已落盘的持久 URL，供 AI 助手的 generate_node /
-        // 前序依赖 / 多图编排拿到结果（图生成完成即落盘到 uploads/tasks/，url 稳定可复用）。
+        // 防御：done 只接收字符串结果 URL（B2：doneUrl 悬空契约已删，统一用 r.url；上游偶发返回对象会触发 .startsWith 崩）
+        const rawUrl = r.url
+        const strUrl = typeof rawUrl === 'string' ? rawUrl : ''
+        // 【P0-C 单向落盘】落盘唯一出口在此：先落盘得持久 URL，再 done(persistedUrl) 回填最终 url（done 不再落盘）。
         // 落盘失败（saveResultToTasks 返回 null）回退上游原始 url。
-        if (typeof rawUrl === 'string' && rawUrl) {
-          const persistedUrl = await saveResultToTasks(rawUrl, t.type).catch(() => null)
-          // 【B层】结果落盘：持久 URL 是否成功（定位刷新后图片是否可恢复）
-          logger.debug('生成', '[节点] 落盘', { nodeId, persisted: !!persistedUrl, urlHead: (persistedUrl || rawUrl).slice(0, 80) }, { module: 'image' })
-          return { ok: true, resultUrl: persistedUrl || rawUrl }
-        }
-        return { ok: true, resultUrl: '' }
+        const persistedUrl = strUrl ? await saveResultToTasks(strUrl, t.type).catch(() => null) : null
+        const finalUrl = persistedUrl || strUrl
+        taskCtl.done(finalUrl)
+        logger.debug('生成', '[节点] 落盘', { nodeId, persisted: !!persistedUrl, urlHead: finalUrl.slice(0, 80) }, { module: 'image' })
+        logger.info('生成', 'success', { nodeId, type: t.type })
+        return { ok: true, resultUrl: finalUrl }
       } else {
         const msg = r?.error || '生成失败'
         // 【R7 错误分类记录】run 返回 { ok:false } 是契约业务失败（message 为字符串），
@@ -171,6 +177,7 @@ export function useNodeGeneration({ nodeId, type, validate, run, onSuccess, onRe
     } finally {
       setLoading(false)
       runningRef.current = false // 【R4】原子防重复位
+      releaseNodeRun(nodeId) // 【P1-E】释放单节点互斥锁
     }
   }, [loading, nodeId])
 

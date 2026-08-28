@@ -30,11 +30,12 @@ import { logger } from './logger.js'
  *   - resolution: 清晰度（如 '1080p'）
  *   - seconds: 时长（秒）
  *   - images?: string[] 参考图（图生视频，可选）。网关认 body.image_urls。
+ *   - taskId?: 请求级前端 task_id（P0-A；缺省=日志可见，不回退全局单例）
  * @param {function} [onProgress] (percent)
  * @param {AbortSignal} [signal] 可选取消信号（Step A；不传向后兼容）
  * @returns {{ ok:boolean, url?:string, error?:string }}
  */
-export async function generateVideo({ provider, prompt, model, size, resolution, seconds, images }, onProgress, signal) {
+export async function generateVideo({ provider, prompt, model, size, resolution, seconds, images, taskId }, onProgress, signal) {
   const genBody = { prompt, model }
   if (size && size !== 'Auto') genBody.size = size
   if (resolution) genBody.resolution = resolution
@@ -49,5 +50,5 @@ export async function generateVideo({ provider, prompt, model, size, resolution,
     model, prompt: String(prompt).slice(0, 100), size: genBody.size, resolution: genBody.resolution,
     duration: genBody.duration, refCount: refImages.length, refFormat: provider?.refFormat || 'url',
   }, { module: 'image' })
-  return videoProxy({ provider, genBody, onProgress, signal })
+  return videoProxy({ provider, genBody, onProgress, signal, taskId })
 }

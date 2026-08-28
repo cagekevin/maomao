@@ -15,21 +15,12 @@ import { useSyncExternalStore } from 'react'
 import { logger } from './logger.js'
 import { createDebouncedPersist } from './contentStore.js'
 import { fetchTasks, saveTask, deleteTask, batchDeleteTasks, clearAllTasksApi } from './localToolApi.js'
-import { saveResultToTasks } from './filesApi.js'
-import { publish } from './eventBus.js'
+import { publishTaskCompleted } from './taskCompletionBus.js'
 import { generateId } from './idGen.js'
 import { GEN_MAX_CONCURRENT } from './config.js'
 
 let tasks = []
 const listeners = new Set()
-
-// ── 当前任务贯穿 ID（打通前端 task_id → 网关 thread_id 的关联查询）──
-// 前端自造 task_id 是任务主键，但它从不传给 localTool/网关，导致和 Lovart thread_id 断链。
-// 这里用模块级变量暂存「当前正在生成的前端 task_id」，imageApi/videoApi 的 proxyRequest
-// 读取它并加 X-Task-Id header 贯穿到链路，localTool/网关据此把前端 task_id ↔ thread_id 关联落库。
-let currentTaskId = ''
-export function setCurrentTaskId(id) { currentTaskId = typeof id === 'string' ? id : '' }
-export function getCurrentTaskId() { return currentTaskId }
 
 // ── 启动时从后端加载历史任务 ──
 let loaded = false
@@ -177,7 +168,8 @@ export function reportGenerate(nodeId, type, prompt, meta = {}) {
     if (cur) persist(cur)
   }, 200)
   return {
-    // 前端自造任务 id（贯穿链路主键），供 useNodeGeneration 传给 proxyRequest 加 X-Task-Id header
+    // 前端自造任务 id（贯穿链路主键，P0-A 请求级上下文）：useNodeGeneration/scriptBox 由 run ctx 透传给 generateImage opts，
+    // 经 payload.taskId 带给 localTool/网关（不再经全局 currentTaskId）。
     taskId: task.id,
     // 更新进度（可带阶段文案，如「已转发到生成网关…」，供任务中心展示当前进行到哪一步）
     progress: (p, stage) => {
@@ -186,7 +178,7 @@ export function reportGenerate(nodeId, type, prompt, meta = {}) {
       notify()
       progressPersist.schedule() // 合并高频进度落库（窗口内只写最终态）
     },
-    // 标记完成（可带结果缩略图）
+    // 标记完成（resultUrl 应为已持久 /files/ URL；调用方先落盘再 done，见 P0-C 单向落盘契约）
     done: (resultUrl) => {
       // 防御：resultUrl 必须是字符串（历史 bug：上游偶发返回对象/undefined，导致 .startsWith 崩）
       const safeUrl = typeof resultUrl === 'string' ? resultUrl : ''
@@ -194,22 +186,10 @@ export function reportGenerate(nodeId, type, prompt, meta = {}) {
       notify()
       progressPersist.cancel() // 取消未落的进度写，避免晚于 completed 覆盖终态
       persist({ ...task, status: 'completed', progress: 100, resultUrl: safeUrl })
-      // 生成结果落盘 tasks 目录（对齐官方 Ce.uploadFile），使「生成」面板能收录。
-      // 异步执行，失败不影响主流程（节点显示/任务中心仍用原始 url）。
-      if (safeUrl && !safeUrl.startsWith('blob:')) {
-        saveResultToTasks(resultUrl, task.type).then((persistedUrl) => {
-          if (persistedUrl) {
-            tasks = tasks.map((t) => (t.id === task.id ? { ...t, resultUrl: persistedUrl } : t))
-            notify()
-            persist({ ...task, status: 'completed', progress: 100, resultUrl: persistedUrl })
-            // 【画布同步】落盘成功 → 把持久化 URL 广播给对应节点（PromptNode 等监听后写回 data.imageUrl）。
-            // 否则节点 data.imageUrl 只存「上游原始 URL」，刷新后若该 URL 失效/是临时地址 → 画布丢图，
-            // 而任务中心读的是已落盘的 /files/tasks/ URL → 任务中心有图、画布没图的错位。
-            // 任务完成广播（经 eventBus，解耦 window）：节点监听 agent:task-completed 回写结果
-            publish('agent:task-completed', { taskId: task.id, nodeId: task.nodeId, resultUrl: persistedUrl, type: task.type, status: 'completed' })
-          }
-        })
-      }
+      // 【画布同步】任务完成广播（统一入口 publishTaskCompleted，经 eventBus，解耦 window）：
+      // 节点监听 agent:task-completed 回写结果，刷新场景靠任务中心的持久 resultUrl 恢复节点显示
+      //（落盘由调用方完成，done 不再负责；空 resultUrl 的文本类任务不广播）。
+      publishTaskCompleted({ taskId: task.id, nodeId: task.nodeId, resultUrl: safeUrl, type: task.type, status: 'completed' })
     },
     // 标记失败
     fail: (errorMsg) => {
@@ -302,6 +282,24 @@ export function isNodeRegistered(nodeId) {
  */
 const MAX_CONCURRENT_GEN = GEN_MAX_CONCURRENT
 let genActive = 0
+
+// 【P1-E · 跨发起方并发锁】单节点互斥。
+// 任何发起方（Agent runNodeGeneration / 用户手动 start / 「再来一次」retryTask）最终都汇聚到
+// useNodeGeneration.start()。start 进入时经本 Map 占位、finally 释放；同节点已有进行中 →
+// claim 返回 { ok:false, inFlight:true }（明确"进行中"，不静默、不并发生成）。
+// 与 genActive（全局并发数）分层：genActive 先占全局任务槽，本 Map 管单节点互斥，两层不冲突。
+const nodeRunning = new Map() // nodeId -> true（仅作互斥位，不存 promise）
+/** 占单节点互斥锁。返回 { ok:true } 取得；或 { ok:false, inFlight:true } 同节点生成中。 */
+export function claimNodeRun(nodeId) {
+  if (!nodeId) return { ok: true }
+  if (nodeRunning.has(nodeId)) return { ok: false, inFlight: true }
+  nodeRunning.set(nodeId, true)
+  return { ok: true }
+}
+/** 释放单节点互斥锁（start 的 finally 调用，务必保证每个 claim 后都 release）。 */
+export function releaseNodeRun(nodeId) {
+  if (nodeId) nodeRunning.delete(nodeId)
+}
 
 /**
  * 按 nodeId 直接触发节点生成（供 Agent generate_node / 测试 / 脚本调用）。

@@ -17,7 +17,7 @@
  */
 
 import { API_BASE } from './config.js'
-import { getCurrentTaskId, setTaskPollId } from './taskStore.js'
+import { setTaskPollId } from './taskStore.js'
 import { GEN_TIMEOUT, GEN_POLL_INTERVAL, VIDEO_TIMEOUT, VIDEO_POLL_INTERVAL, CHAT_TIMEOUT } from './config.js'
 import { withTimeout, isTimeoutError } from './asyncGuard.js'
 import { classifyError } from './genErrors.js'
@@ -26,7 +26,8 @@ import { logger } from './logger.js'
 import { httpRequest } from './httpClient.js'
 // 可插拔协议适配器：统一 buildTargetUrl（openai 伪协议 / apimart base_url 拼装）
 import { buildTargetUrl } from './providerProtocols.js'
-// 请求形态层：image_request_mode 驱动端点/响应解析（消灭死字段，PRD 翻车点 1）
+// 统一 envelope/URL 解析器（P1-B φ2）：readSseUrl / extractImageUrl / extractVideoUrl 委托之
+import { extractResultUrl } from './resultUrlExtractor.js'
 import { imageModePath, isResponsesMode, parseResponsesJson, resolveChatMode, parseResponsesChatJson } from './requestModes.js'
 
 // ── 内部共享原语（调用方不可见）──────────────────────────────────────
@@ -38,14 +39,14 @@ function fail(error) { return { ok: false, error } }
 /**
  * 组装发往 /api/proxy 的负载（url/method/body + providerId + 贯穿 task_id）。
  * 供 __proxyFetch 与 chatProxy 共享（chat 需要原始 Response 决定信封，故拆出）。
+ * 【P0-A request-context】taskId 以请求级入参贯穿，禁止回退全局单例（原 currentTaskId 已删）。
  */
-function __buildProxyPayload({ provider, target, method = 'POST', body }) {
+function __buildProxyPayload({ provider, target, method = 'POST', body, taskId }) {
   const payload = { url: target, method }
   if (body !== undefined) payload.body = JSON.stringify(body)
   if (provider?.id) payload.providerId = provider.id
-  // 贯穿链路：把前端 task_id 带给 localTool/网关，关联 Lovart thread_id（见 taskStore.currentTaskId）
-  const frontTaskId = getCurrentTaskId()
-  if (frontTaskId) payload.taskId = frontTaskId
+  // 贯穿链路：把前端 task_id 带给 localTool/网关，关联 Lovart thread_id（见 taskStore 注释）
+  if (taskId) payload.taskId = taskId
   return payload
 }
 
@@ -56,10 +57,10 @@ function __buildProxyPayload({ provider, target, method = 'POST', body }) {
  * @param {object} provider
  * @param {AbortSignal} [signal]
  */
-async function __proxyFetch({ provider, target, method = 'POST', body }, signal) {
+async function __proxyFetch({ provider, target, method = 'POST', body, taskId }, signal) {
   // 【B层】生图/视频/聊天 → 本地代理的真实请求发出：目标 + 方法 + body 摘要（定位请求是否发出/发到哪）
-  logger.debug('生图', '[请求] 发出', { target, method, bodyHead: body && typeof body === 'object' ? JSON.stringify(body).slice(0, 120) : String(body).slice(0, 120), taskId: getCurrentTaskId() }, { module: 'image' })
-  const payload = __buildProxyPayload({ provider, target, method, body })
+  logger.debug('生图', '[请求] 发出', { target, method, bodyHead: body && typeof body === 'object' ? JSON.stringify(body).slice(0, 120) : String(body).slice(0, 120), taskId }, { module: 'image' })
+  const payload = __buildProxyPayload({ provider, target, method, body, taskId })
   // 【出口回收】经 httpRequest 出站。同步生图走 SSE 流 / 异步轮询读完整 JSON，均需拿到未消费的
   // 原始 Response → parseJson:false；timeoutMs:0 保证流式/长生成不被 15s 掐断；retries:0（代理不自动重试）。
   // 非 2xx 由 httpRequest 抛 HttpError（已携带上游错误体），此处重建业务 Error 供 classifyError 归类 business。
@@ -122,8 +123,7 @@ async function readSseUrl(res, onProgress, signal) {
         try {
           const evt = JSON.parse(raw)
           if (typeof evt.progress === 'number') stageProgress(evt.progress)
-          const rawUrl = evt?.results?.[0]?.url ?? evt?.result?.images?.[0]?.url
-          const imgUrl = Array.isArray(rawUrl) ? rawUrl[0] : rawUrl
+          const imgUrl = extractResultUrl({ data: evt, type: 'image' })
           if (evt.status === 'succeeded' && imgUrl) urlFound = imgUrl
           if (evt.status === 'failed' || evt.error) throw new Error(evt.error || evt.failure_reason || '生成失败')
         } catch (e) { /* 忽略单条 JSON 解析失败 */ }
@@ -141,11 +141,11 @@ async function readSseUrl(res, onProgress, signal) {
  * 异步模式通用轮询：提交拿 task_id → 轮询 /v1/tasks/{id} 到 completed。
  * image 与 video 共享本引擎，仅 extractUrl 参数化差。
  */
-async function pollUntilDone({ provider, url, genBody, extractUrl, pollInterval, timeoutMs }, onProgress, signal) {
+async function pollUntilDone({ provider, url, genBody, extractUrl, pollInterval, timeoutMs, frontTaskId }, onProgress, signal) {
   let taskId
   try {
     onProgress?.(10, '正在连接本地服务…')
-    const res = await __proxyFetch({ provider, target: url, method: 'POST', body: genBody }, signal)
+    const res = await __proxyFetch({ provider, target: url, method: 'POST', body: genBody, taskId: frontTaskId }, signal)
     onProgress?.(20, '已提交到生成网关…')
     const json = await res.json()
     const data = json?.data ?? json
@@ -169,7 +169,8 @@ async function pollUntilDone({ provider, url, genBody, extractUrl, pollInterval,
 
   // 【取舍】把网关返回的可查询 task_id 回填到当前任务记录（前端 task_id 主键）。
   // 刷新网页后恢复轮询（pollTask.js）能靠它查 /api/v1/gateway/task/{id} 继续拿结果。
-  setTaskPollId(getCurrentTaskId(), taskId)
+  // 用请求级 frontTaskId（P0-A），不再读全局单例。
+  if (frontTaskId) setTaskPollId(frontTaskId, taskId)
 
   const pollUrl = buildTargetUrl(provider, `tasks/${taskId}`)
   const start = Date.now()
@@ -209,15 +210,14 @@ async function pollUntilDone({ provider, url, genBody, extractUrl, pollInterval,
 
 // ── 语义化 facade（对外契约，调用方零改动）────────────────────────────
 
-/** 提取图片 url（兼容 image 提交直返 / 轮询结果：result.images[].url 可能是数组）。 */
+/** 提取图片 url（委托统一解析器；兼容 image 提交直返 / 轮询结果：result.images[].url 可能是数组）。 */
 function extractImageUrl({ data, json }) {
-  const raw = data?.result?.images?.[0]?.url ?? data?.results?.[0]?.url ?? json?.result?.images?.[0]?.url ?? json?.results?.[0]?.url
-  return raw ? (Array.isArray(raw) ? raw[0] : raw) : undefined
+  return extractResultUrl({ data, json, type: 'image' })
 }
 
-/** 提取视频 url（兼容视频提交直返 / 轮询结果：result.videos[].url）。 */
+/** 提取视频 url（委托统一解析器；兼容视频提交直返 / 轮询结果：result.videos[].url）。 */
 function extractVideoUrl({ data, json }) {
-  return data?.result?.videos?.[0]?.url || data?.results?.[0]?.url || json?.result?.videos?.[0]?.url || json?.results?.[0]?.url
+  return extractResultUrl({ data, json, type: 'video' })
 }
 
 /**
@@ -347,15 +347,16 @@ function parseNestedError(j) {
  * 生图代理 —— SSE 同步（默认）或 async 轮询（provider.image_mode==='async'）。失败抛错由调用方兜底。
  * @returns {{ ok:boolean, url?:string, error?:string }}
  */
-export async function imageProxy({ provider, genBody, onProgress, signal }) {
+export async function imageProxy({ provider, genBody, onProgress, signal, taskId }) {
   const mode = provider?.image_request_mode
+  if (!taskId) logger.debug('生图', '[taskId] 未传（内部调用或非节点生成）', { module: 'image' })
 
   // responses 形态：POST /v1/responses，非流式 JSON 直返 → 从 output[] / markdown 兜底提取图片 URL。
   if (isResponsesMode(mode)) {
     const url = buildTargetUrl(provider, imageModePath(mode))
     try {
       onProgress?.(10, '正在连接本地服务…')
-      const res = await __proxyFetch({ provider, target: url, method: 'POST', body: genBody }, signal)
+      const res = await __proxyFetch({ provider, target: url, method: 'POST', body: genBody, taskId }, signal)
       onProgress?.(20, '已转发到生成网关…')
       const imgUrl = parseResponsesJson(await res.json())
       return imgUrl ? ok(imgUrl) : fail('上游未返回图片')
@@ -370,7 +371,7 @@ export async function imageProxy({ provider, genBody, onProgress, signal }) {
   const url = buildTargetUrl(provider, imageModePath(mode))
   if (provider?.image_mode === 'async') {
     return pollUntilDone(
-      { provider, url, genBody, extractUrl: extractImageUrl, pollInterval: GEN_POLL_INTERVAL, timeoutMs: GEN_TIMEOUT },
+      { provider, url, genBody, extractUrl: extractImageUrl, pollInterval: GEN_POLL_INTERVAL, timeoutMs: GEN_TIMEOUT, frontTaskId: taskId },
       onProgress,
       signal,
     )
@@ -384,7 +385,7 @@ export async function imageProxy({ provider, genBody, onProgress, signal }) {
   } catch { /* 解析失败则原样 */ }
   try {
     onProgress?.(10, '正在连接本地服务…')
-    const res = await __proxyFetch({ provider, target: waitUrl, method: 'POST', body: genBody }, signal)
+    const res = await __proxyFetch({ provider, target: waitUrl, method: 'POST', body: genBody, taskId }, signal)
     onProgress?.(20, '已转发到生成网关…')
     // 同步 SSE 生图也带总超时（GEN_TIMEOUT=5min）：SSE 流若不结束会永久挂起（readSseUrl 无自身超时），
     // 超时 abort 内部 signal + 抛 TimeoutError，上层据此复位 loading、停止动画。
@@ -402,12 +403,12 @@ export async function imageProxy({ provider, genBody, onProgress, signal }) {
  * 视频代理 —— 强制 async 轮询（视频比生图慢很多，不适合 SSE 同步等待）。失败抛错由调用方兜底。
  * @returns {{ ok:boolean, url?:string, error?:string }}
  */
-export async function videoProxy({ provider, genBody, onProgress, signal }) {
+export async function videoProxy({ provider, genBody, onProgress, signal, taskId }) {
   const url = buildTargetUrl(provider, 'videos/generations')
   // 【B层】视频代理开始：prompt 摘要 + 目标（定位视频提交是否进入轮询）
-  logger.debug('视频', '[视频] 开始', { prompt: String(genBody?.prompt || '').slice(0, 100), model: genBody?.model, size: genBody?.size, refCount: (genBody?.image_urls || []).length, taskId: getCurrentTaskId() }, { module: 'image' })
+  logger.debug('视频', '[视频] 开始', { prompt: String(genBody?.prompt || '').slice(0, 100), model: genBody?.model, size: genBody?.size, refCount: (genBody?.image_urls || []).length, taskId }, { module: 'image' })
   return pollUntilDone(
-    { provider, url, genBody, extractUrl: extractVideoUrl, pollInterval: VIDEO_POLL_INTERVAL, timeoutMs: VIDEO_TIMEOUT },
+    { provider, url, genBody, extractUrl: extractVideoUrl, pollInterval: VIDEO_POLL_INTERVAL, timeoutMs: VIDEO_TIMEOUT, frontTaskId: taskId },
     onProgress,
     signal,
   )
