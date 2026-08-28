@@ -69,6 +69,16 @@ function writeLS(k, v) {
   } catch { /* ignore */ }
 }
 
+/**
+ * 异步读 contentStore 某键（容错）——会话键已迁 KV，同步 contentGet 对 KV 键缓存未命中返回 undefined
+ * （会漏备份非活动项目的会话），故读会话键必须走异步 contentGetAsync（见 AI助手会话存储迁移-KV收口事实记录.md）。
+ */
+async function readLSAsync(k) {
+  try {
+    return await contentGetAsync(k)
+  } catch { return undefined }
+}
+
 /** 当前项目 id（从项目列表取当前，优先 lastOpenedProject） */
 function getCurrentProjectId() {
   try {
@@ -92,11 +102,11 @@ export async function exportAll() {
     const v = readLS(k)
     if (v !== undefined) ls[k] = v
   }
-  // AI 会话（按项目隔离）：动态收集所有项目的会话键
+  // AI 会话（按项目隔离）：动态收集所有项目的会话键（键为 KV 后端 → 异步读，见 readLSAsync）
   const projectsForConv = Array.isArray(ls.projects) ? ls.projects : []
   for (const k of conversationKeys(projectsForConv)) {
-    const v = readLS(k)
-    if (v !== undefined) ls[k] = v
+    const v = await readLSAsync(k)
+    if (v !== undefined && v !== null) ls[k] = v
   }
   // 画布快照：遍历所有项目逐个读 KV
   const canvas = {}

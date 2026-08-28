@@ -271,16 +271,16 @@ export const STORAGE_KEYS = {
   'agent_conversations_{agentKey}': {
     domain: 'agent',
     store: 'conversationStore.js',
-    backend: 'local',
+    backend: 'kv',
     pattern: true,
-    note: 'AI 会话列表（按 agentKey 隔离，如 canvas-assistant-{projectId}）',
+    note: 'AI 会话列表（按 agentKey 隔离，如 canvas-assistant-{projectId}），存 localTool KV',
   },
   'agent_active_conversation_id_{agentKey}': {
     domain: 'agent',
     store: 'conversationStore.js',
-    backend: 'local',
+    backend: 'kv',
     pattern: true,
-    note: '当前活跃会话 id（按 agentKey 隔离）',
+    note: '当前活跃会话 id（按 agentKey 隔离），存 localTool KV',
   },
   'agent_project_memory_v1_{agentKey}': {
     domain: 'agent',

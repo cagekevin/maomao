@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { contentClearCache } from '../../src/components/base/contentStore.js'
 import {
   resetConversationCache, ensureActiveConversation, newConversation, switchConversation,
@@ -7,20 +7,33 @@ import {
   setCurrentPending, getCurrentPending, getActiveAiUndoStack, pushActiveAiUndo, popActiveAiUndo,
   normalizeConversation, setAgentKey, getActiveConversationId, getConversations,
   getLastUserReferenceImages, getLastGeneratedImages, getCurrentImageMap,
-  getCurrentRunMode, setCurrentRunMode, flushPersist,
+  getCurrentRunMode, setCurrentRunMode, flushPersist, waitHydrated,
 } from '../../src/components/agent/conversation/conversationStore.js'
+
+// 会话键已迁 KV（backend:'kv'）：写走 kvSet、读走 kvGet。用 Map 兜底让 KV 确定性往返，
+// 避免走真实 localToolApi 网络（响铃 fetch 抛错 + 误导性降级告警 + 异步时序不稳定）。
+const kvStore = new Map()
+vi.mock('../../src/components/base/localToolApi.js', async (importOriginal) => ({
+  ...(await importOriginal()),
+  kvGet: vi.fn(async (key) => (kvStore.has(key) ? kvStore.get(key) : null)),
+  kvSet: vi.fn(async (key, value) => { kvStore.set(key, value); return { ok: true } }),
+  kvDelete: vi.fn(async (key) => { kvStore.delete(key); return { ok: true } }),
+}))
 
 beforeEach(() => {
   localStorage.clear()
+  kvStore.clear()
   contentClearCache()
   resetConversationCache()
 })
 
-/** 在每个项目（agentKey）之间切换前，重置内存缓存，模拟「从未初始化该项目」的干净状态 */
-function switchToProject(projectId) {
+/** 在每个项目（agentKey）之间切换前，重置内存缓存，模拟「从未初始化该项目」的干净状态。
+ * 会话键已迁 KV，水化为异步：切后等水化完成再返回，确保读到的是一次性重新水化的真实数据。 */
+async function switchToProject(projectId) {
   flushPersist() // P4 落盘节流：切项目前先把上一个项目的待落盘变更刷下去
   resetConversationCache()
   setAgentKey(`canvas-assistant-${projectId}`)
+  await waitHydrated(`canvas-assistant-${projectId}`)
 }
 
 describe('会话隔离数据层 §2.15', () => {
@@ -147,32 +160,30 @@ describe('会话隔离数据层 §2.15', () => {
     expect(again.messages[1].id).toBe('keep-me')
   })
 
-  it('hydrated 守卫：未 apply 前 setCurrentSnapshot 不落盘（内存可改，但不写 localStorage）', () => {
+  it('hydrated 守卫：未 apply 前 setCurrentSnapshot 不落盘（内存可改，但不写 KV）', () => {
     const id = ensureActiveConversation()
-    // 未 apply（hydrated=false）：内存可写入，但不落盘
+    // 未 apply（hydrated=false）：内存可写入，但不落盘（不写 KV）
     setCurrentSnapshot({ messages: [{ role: 'user', content: '临时' }] })
     expect(getCurrentSnapshot().messages).toHaveLength(1) // 内存已更新
-    const persisted = localStorage.getItem('yimao:agent_conversations_canvas-assistant')
-    expect(persisted).toBeNull() // 关键：未 hydrated 前不落盘，防挂载覆盖
+    expect(kvStore.has('agent_conversations_canvas-assistant')).toBe(false) // 关键：未 hydrated 前不落盘，防挂载覆盖
     applyConversation(id)
     setCurrentSnapshot({ messages: [{ role: 'user', content: '正式' }] })
     flushPersist() // P4 落盘节流：主动刷盘，立即读到最终落盘态
-    const persisted2 = localStorage.getItem('yimao:agent_conversations_canvas-assistant')
-    expect(persisted2).toBeTruthy() // 已 hydrated，落盘
+    expect(kvStore.has('agent_conversations_canvas-assistant')).toBe(true) // 已 hydrated，落 KV
     expect(getCurrentSnapshot().messages).toHaveLength(1)
   })
 })
 
 describe('按项目隔离会话（project 作为最顶层）', () => {
-  it('不同项目（agentKey）的会话互相独立，不串话', () => {
+  it('不同项目（agentKey）的会话互相独立，不串话', async () => {
     // 项目 A：建对话 + 存一条消息
-    switchToProject('projA')
+    await switchToProject('projA')
     const aId = ensureActiveConversation()
     applyConversation(aId)
     setCurrentSnapshot({ messages: [{ role: 'user', content: '项目A的绘画' }] })
 
     // 切到项目 B：会话全新（新项目 = 空会话），不继承 A 的消息
-    switchToProject('projB')
+    await switchToProject('projB')
     expect(getActiveConversationId()).toBe('') // 未建对话，无 active
     expect(getConversations()).toHaveLength(0) // 项目 B 无任何对话
     const bId = ensureActiveConversation()
@@ -181,29 +192,29 @@ describe('按项目隔离会话（project 作为最顶层）', () => {
     setCurrentSnapshot({ messages: [{ role: 'user', content: '项目B的绘画' }] })
 
     // 切回项目 A：会话恢复为 A 自己的内容
-    switchToProject('projA')
+    await switchToProject('projA')
     expect(getCurrentSnapshot().messages[0].content).toBe('项目A的绘画')
     // B 的内容不影响 A
     expect(getCurrentSnapshot().messages).toHaveLength(1)
   })
 
-  it('新建项目 = 新 agentKey → 该项目绘画全新（无历史）', () => {
+  it('新建项目 = 新 agentKey → 该项目绘画全新（无历史）', async () => {
     // 项目 A 有会话
-    switchToProject('projA')
+    await switchToProject('projA')
     const aId = ensureActiveConversation()
     applyConversation(aId)
     setCurrentSnapshot({ messages: [{ role: 'user', content: '旧项目内容' }] })
 
     // 模拟「新建项目 C」：全新 agentKey，无任何历史会话
-    switchToProject('projC')
+    await switchToProject('projC')
     expect(getConversations()).toHaveLength(0)
     const cId = ensureActiveConversation()
     applyConversation(cId)
     expect(getCurrentSnapshot().messages).toEqual([]) // 全新，不含旧项目内容
   })
 
-  it('setAgentKey 相同 key 时幂等（不重置已有会话）', () => {
-    switchToProject('projD')
+  it('setAgentKey 相同 key 时幂等（不重置已有会话）', async () => {
+    await switchToProject('projD')
     const dId = ensureActiveConversation()
     applyConversation(dId)
     setCurrentSnapshot({ messages: [{ role: 'user', content: 'D 内容' }] })
@@ -212,22 +223,23 @@ describe('按项目隔离会话（project 作为最顶层）', () => {
     flushPersist() // P4 落盘节流：重置缓存前先刷盘，确保重读时能取到已落盘数据
     resetConversationCache()
     setAgentKey('canvas-assistant-projD')
+    await waitHydrated('canvas-assistant-projD') // 会话键迁 KV，水化为异步：等重水化完成
     expect(getCurrentSnapshot().messages[0].content).toBe('D 内容')
   })
 
-  it('不同项目的对话列表互不影响', () => {
-    switchToProject('projE')
+  it('不同项目的对话列表互不影响', async () => {
+    await switchToProject('projE')
     const e1 = ensureActiveConversation()
     applyConversation(e1)
     newConversation() // E 有 2 个对话
     expect(getConversations().length).toBe(2)
 
-    switchToProject('projF')
+    await switchToProject('projF')
     const f1 = ensureActiveConversation()
     applyConversation(f1)
     expect(getConversations().length).toBe(1) // F 只有 1 个
 
-    switchToProject('projE')
+    await switchToProject('projE')
     expect(getConversations().length).toBe(2) // E 仍是 2 个
   })
 })

@@ -153,6 +153,7 @@ export function importLegacy({ messages, skills }) {
 // resetConversationCache + 归一化 normalizeConversation / normalizeWorkflow / normalizePending / normalizeMemory）
 export {
   useConversationStore, setAgentKey, setSending, flushPersist, resetConversationCache,
+  waitHydrated,
   normalizeConversation, normalizeWorkflow, normalizePending, normalizeMemory, makePendingRef,
 } from './conversationState.js'
 // conversationSnapshot：当前对话快照（D 类）

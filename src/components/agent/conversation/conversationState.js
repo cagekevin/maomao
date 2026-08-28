@@ -19,7 +19,9 @@
  * ════════════════════════════════════════════════════════════════
  */
 import { useSyncExternalStore } from 'react'
-import { contentGet, contentSet, createDebouncedPersist } from '../../base/contentStore.js'
+import { contentGet, contentSet, contentGetAsync, contentSetAsync, createDebouncedPersist } from '../../base/contentStore.js'
+import { sGet } from '../../base/storageAdapter.js'
+import { withTimeout } from '../../base/asyncGuard.js'
 import { generateId } from '../../base/idGen.js'
 import { CREDIT_GATE_FIELD } from '../../base/contracts.js'
 import { logger } from '../../base/logger.js'
@@ -105,49 +107,170 @@ export function useConversationStore() {
   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
 }
 
-/** 设置当前 agentKey（项目切换/新建时调用）。若该 key 首次出现则从 localStorage 加载。 */
+/**
+ * 【会话存储迁移至 KV】（AI助手会话存储迁移-KV收口事实记录.md）
+ * 会话键 `agent_conversations_{agentKey}` / `agent_active_conversation_id_{agentKey}` 已由
+ * contracts.js 登记为 `backend:'kv'`。因此读取不能再走同步 `contentGet`（KV 键缓存未命中返回 undefined），
+ * 水化改为异步 `contentGetAsync`，并把 localStorage 里的存量会话【幂等】一次性迁入 KV。
+ *
+ * 交叉/黑盒处理（2026-08-28，防竞态与静默失败）：
+ *  - C1/C2 竞态：hydratedSet[k] 在水化完成前恒 false → persistDebounced 落盘是 no-op；
+ *    先放空壳保 UI 可读，异步水化把 states[k] 写全后才 markHydrated，从时序上排除「未水化空写／迁移与正常写并发」。
+ *  - B1 失败可见：迁移写 KV 用 contentSetAsync（await）+ logger 记录成败；读/写都走 withTimeout 兜超时。
+ *  - C3 不做「迁完删 local」：KV 失败降级仍写 local 副本（storageGet 兜底可回读），local 键保留语义不破坏。
+ */
+
+/** 异步水化/迁移的统一总超时（ms，对齐项目记忆 store 的读写超时语义；网络走 httpClient 已继承超时，此为二次兜底） */
+const HYDRATE_TIMEOUT_MS = 8000
+
+/** 正在异步水化的 agentKey 集合（防重复触发一次以上水化） */
+const hydrationInFlight = new Set()
+
+/** 等待某 agentKey 水化完成的 resolve 集合：agentKey → Set<resolve>（支持多调用方同时等待） */
+const hydrationWaiters = new Map()
+
+/**
+ * 返回「某 agentKey 已水化完成」的 Promise（已水化则立即 resolve）。
+ * 会话键迁 KV 后水化为异步，调用方（如 useAgentChat 恢复 effect）须先 await 本 Promise，
+ * 才能读到真实数据而非空壳（见 AI助手会话存储迁移-KV收口事实记录.md §2.5）。
+ * @param {string} k agentKey
+ * @returns {Promise<void>}
+ */
+export function waitHydrated(k) {
+  const key = k || AGENT_KEY_PREFIX
+  if (hydratedSet[key]) return Promise.resolve()
+  if (!hydrationWaiters.has(key)) hydrationWaiters.set(key, new Set())
+  return new Promise((resolve) => { hydrationWaiters.get(key).add(resolve) })
+}
+
+/** 标记某 agentKey 水化完成并放行所有等待者 */
+function resolveHydration(k) {
+  hydratedSet[k] = true
+  const resolvers = hydrationWaiters.get(k)
+  if (resolvers) {
+    for (const r of resolvers) r()
+    hydrationWaiters.delete(k)
+  }
+}
+
+/** 解析「可能已是 JSON 字符串」的原始值；失败原样返回（对齐 contentStore.tryParse 语义） */
+function hydrateParse(raw) {
+  if (typeof raw !== 'string') return raw
+  try { return JSON.parse(raw) } catch { return raw }
+}
+
+/**
+ * 纯函数 · 幂等判定：是否需把 localStorage 存量迁入 KV。
+ * 仅当「KV 无会话数据 && local 存量有会话」返回 true；KV 已有数据绝不动（防覆盖，幂等闸）。
+ * @param {Array|null} kvConversations KV 读到的会话
+ * @param {Array|null} localConversations localStorage 存量会话
+ */
+export function shouldMigrateLocalToKV(kvConversations, localConversations) {
+  const kvEmpty = !Array.isArray(kvConversations) || kvConversations.length === 0
+  return kvEmpty && Array.isArray(localConversations) && localConversations.length > 0
+}
+
+/**
+ * 设置当前 agentKey（项目切换/新建时调用）。首次出现的 key 立即放空壳（保 UI 同步可读），
+ * 并异步水化真实数据（读 KV → 必要时迁存量 → 写全 states[k] → markHydrated）。
+ */
 export function setAgentKey(key) {
   const k = key || AGENT_KEY_PREFIX
-  if (k === currentAgentKey) return
+  const same = k === currentAgentKey
   currentAgentKey = k
-  if (!states[k]) initState(k)
+  // 幂等触发：确保该 key 的 state 存在并（未水化时）发起异步水化——即使 k===currentAgentKey 也执行，
+  // 避免「命中同键提前 return」导致水化从未被触发。同键不再重复通知监听器。
+  ensureState(k)
+  if (!same) listeners.forEach((l) => l())
+}
+
+/** 确保某 agentKey 有 state：无则放空壳并触发异步水化（幂等：每个 key 最多一次水化） */
+function ensureState(k) {
+  if (!states[k]) {
+    // 空壳：让同步 getState/订阅立即有对象可读，不阻塞 UI
+    states[k] = { conversations: [], activeId: '', sending: false }
+  }
+  if (hydrationInFlight.has(k)) return
+  // 已水化则无需重来；未水化（含此前水化失败）则（重）触发
+  if (hydratedSet[k]) return
+  hydrationInFlight.add(k)
+  hydrateAsync(k)
+    .catch((e) => logger.warn('AI助手', '会话水化失败（数据保留内存或由下次触发补迁）', { key: k, error: e?.message || String(e) }))
+    .finally(() => hydrationInFlight.delete(k))
+}
+
+/**
+ * 异步水化一个 agentKey：读 KV（新后端）→ 必要时把 localStorage 存量一次性迁入 KV（幂等）→ 写 states[k] → 标记 hydrated。
+ * 时序：本函数把 states[k] 写全、hydratedSet[k] 置 true 之前，persistDebounced 对落盘是 no-op（见 commit 守卫）。
+ */
+async function hydrateAsync(k) {
+  if (hydratedSet[k]) return
+  // ① 读 KV（会话 + 活跃 id）；读失败视为无 KV 数据并走存量兜底，失败经 logger 可见（不静默）
+  let kvConversations = null
+  let kvActiveId = ''
+  try {
+    kvConversations = await withTimeout(contentGetAsync(convKey(k)), HYDRATE_TIMEOUT_MS, `读取会话水化超时(${k})`)
+  } catch (e) {
+    logger.warn('AI助手', '水化读会话 KV 失败，回退本地存量', { key: convKey(k), error: e?.message || String(e) })
+  }
+  try {
+    const id = await withTimeout(contentGetAsync(activeKey(k)), HYDRATE_TIMEOUT_MS, `读取活跃会话 id 超时(${k})`)
+    if (typeof id === 'string' && id) kvActiveId = id
+  } catch (e) {
+    logger.warn('AI助手', '水化读活跃会话 id 失败', { key: activeKey(k), error: e?.message || String(e) })
+  }
+
+  // ② 读取 localStorage 存量（键已翻成 kv 后端，contentGetAsync 会路由到 KV，故直读本地存量源）
+  const localConvRaw = hydrateParse(sGet(convKey(k)))
+  const localConversations = Array.isArray(localConvRaw) ? localConvRaw.map(normalizeConversation).filter(Boolean) : []
+  const localActiveRaw = hydrateParse(sGet(activeKey(k)))
+  const localActiveId = typeof localActiveRaw === 'string' ? localActiveRaw : ''
+
+  // ③ 决定水化目标 + 是否需要存量迁移（KV 有数据绝不覆盖）
+  let conversations
+  let activeId = ''
+  if (Array.isArray(kvConversations) && kvConversations.length > 0) {
+    conversations = kvConversations.map(normalizeConversation).filter(Boolean)
+    activeId = kvActiveId
+  } else if (shouldMigrateLocalToKV(kvConversations, localConversations)) {
+    conversations = localConversations
+    activeId = localActiveId
+    try {
+      // 幂等迁入 KV：contentSetAsync 路由到 KV；失败保留内存态由后续正常链路兜底，失败可见
+      await withTimeout(contentSetAsync(convKey(k), conversations), HYDRATE_TIMEOUT_MS, `存量会话迁 KV 超时(${k})`)
+      await withTimeout(contentSetAsync(activeKey(k), activeId), HYDRATE_TIMEOUT_MS, `存量活跃 id 迁 KV 超时(${k})`)
+      logger.warn('AI助手', '存量会话已从 localStorage 一次性迁入 KV', { key: convKey(k), count: conversations.length })
+    } catch (e) {
+      logger.warn('AI助手', '存量会话迁 KV 失败，沿用内存态', { key: convKey(k), error: e?.message || String(e) })
+    }
+  } else {
+    // 兼容迁移：改造前会话存固定键 agent_conversations（无项目后缀）。仅默认项目、且都无数据时迁一次。
+    if (k === `${AGENT_KEY_PREFIX}-default`) {
+      const { conversations: legacyConv, activeId: legacyActive } = migrateLegacyGlobal()
+      if (legacyConv.length) {
+        conversations = legacyConv
+        activeId = legacyActive
+        try {
+          await withTimeout(contentSetAsync(convKey(k), conversations), HYDRATE_TIMEOUT_MS, `旧键会话迁 KV 超时(${k})`)
+          await withTimeout(contentSetAsync(activeKey(k), activeId), HYDRATE_TIMEOUT_MS, `旧键活跃 id 迁 KV 超时(${k})`)
+        } catch { /* 与上述存量迁移同款兜底语义 */ }
+      } else {
+        conversations = []
+        activeId = ''
+      }
+    } else {
+      conversations = []
+      activeId = ''
+    }
+  }
+
+  // ④ 写全内存态 + 标记 hydrated（此后允许落盘）+ 放行等待者 + 通知订阅者
+  states[k] = { conversations, activeId, sending: false }
+  resolveHydration(k)
   listeners.forEach((l) => l())
 }
 
-/** 从 localStorage 加载某个 agentKey 的初始 state */
-function initState(k) {
-  let conversations = []
-  try {
-    const arr = contentGet(convKey(k))
-    conversations = (Array.isArray(arr) ? arr : []).map(normalizeConversation).filter(Boolean)
-  } catch {
-    conversations = []
-  }
-  let activeId = ''
-  try {
-    const id = contentGet(activeKey(k))
-    activeId = typeof id === 'string' && id ? id : ''
-  } catch {
-    activeId = ''
-  }
-  // 兼容迁移：改造前会话存固定键 agent_conversations（无项目后缀）。
-  // 仅当「默认项目(canvas-assistant-default)」且新键无数据时，从旧键迁一次，避免历史会话丢失。
-  if (conversations.length === 0 && k === `${AGENT_KEY_PREFIX}-default`) {
-    const migrated = migrateLegacyGlobal()
-    if (migrated) {
-      conversations = migrated.conversations
-      activeId = migrated.activeId
-      // 迁移后立即落盘到新键
-      try {
-        contentSet(convKey(k), conversations.map(normalizeConversation))
-        contentSet(activeKey(k), activeId || '')
-      } catch { /* 忽略写失败 */ }
-    }
-  }
-  states[k] = { conversations, activeId, sending: false }
-}
-
-/** 从旧固定键 agent_conversations 迁移一次（改造前会话归属默认项目） */
+/** 从旧固定键 agent_conversations 迁移一次（改造前会话归属默认项目）。旧键仍为 local 后端，contentGet 可读。 */
 function migrateLegacyGlobal() {
   let conversations = []
   try {
@@ -156,7 +279,7 @@ function migrateLegacyGlobal() {
   } catch {
     conversations = []
   }
-  if (conversations.length === 0) return null
+  if (conversations.length === 0) return { conversations: [], activeId: '' }
   let activeId = ''
   try {
     const id = contentGet(LEGACY_ACTIVE_KEY)
@@ -169,7 +292,7 @@ function migrateLegacyGlobal() {
 
 /** 读取当前 agentKey 的 state（确保已初始化）——供各分文件读写共享状态 */
 export function getState() {
-  if (!states[currentAgentKey]) initState(currentAgentKey)
+  ensureState(currentAgentKey)
   return states[currentAgentKey]
 }
 
@@ -205,7 +328,7 @@ export function getActiveConv() {
 /** 标记当前 agentKey 已从存储恢复（hydrated=true，此后 commit 允许落盘）。
  *  由 applyConversation / importLegacy（conversationStore 聚合层）在恢复/切换成功后调用。 */
 export function markHydrated() {
-  hydratedSet[currentAgentKey] = true
+  resolveHydration(currentAgentKey)
 }
 
 /** 保证一个对话的结构完整（数组字段缺省补齐、workflow/pending/memory 归一） */
@@ -309,9 +432,14 @@ export function normalizeMemory(m) {
   }
 }
 
-/** 重置 store 内存缓存（测试/硬重置用）：清空所有 agentKey 的缓存 */
+/** 重置 store 内存缓存（测试/硬重置用）：清空所有 agentKey 的缓存、等待者与在途水化 */
 export function resetConversationCache() {
   for (const k of Object.keys(states)) delete states[k]
   for (const k of Object.keys(hydratedSet)) delete hydratedSet[k]
+  // 放行悬挂的 waitHydrated（防止测试隔离/硬重置后等待者永久悬挂）
+  for (const resolvers of hydrationWaiters.values()) for (const r of resolvers) r(undefined)
+  hydrationWaiters.clear()
+  // 清空在途水化：硬重置后应允许对最新 KV 重新水化（否则旧在途水化读到旧值会压制新水化）
+  hydrationInFlight.clear()
   listeners.forEach((l) => l())
 }

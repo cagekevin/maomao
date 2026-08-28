@@ -2,7 +2,7 @@ import React from 'react'
 import { RefreshCw, HardDrive, Database, CircleAlert, Boxes } from 'lucide-react'
 import { formatBytes } from '../../utils.js'
 import { isChromeExtension } from '../../storageAdapter.js'
-import { estimateBrowserStorage, estimateChromeStorage, estimateStoragePressure, analyzeStorageByKeys, analyzeAgentConversationPressure } from '../../storageQuota.js'
+import { estimateBrowserStorage, estimateChromeStorage, estimateStoragePressure, analyzeStorageByKeys } from '../../storageQuota.js'
 
 /**
  * 设置分区 · 存储监控（「更多设置」折叠组内）。
@@ -39,19 +39,18 @@ export default function StorageMonitor() {
   const [browser, setBrowser] = React.useState(null)   // { usage, quota, ratio } | null
   const [chrome, setChrome] = React.useState(null)     // { bytes, keys } | null
   const [domains, setDomains] = React.useState(null)   // analyzeStorageByKeys 结果 | null
-  const [agentConv, setAgentConv] = React.useState(null) // 【P3 预警】AI 会话键键级压力 | null
   const [scanning, setScanning] = React.useState(true) // 首次自动扫描中
   // 环境感知：扩展环境读 chrome.storage.local；Web（npm run dev）读 localStorage
   const isExt = isChromeExtension()
 
   const runScan = React.useCallback(async () => {
     setScanning(true)
-    // 四路独立并行；任一路失败/不可用都各自降级为 null，不互相阻断（失败可见：UI 展示降级文案而非静默）
-    const [b, c, d, a] = await Promise.all([estimateBrowserStorage(), estimateChromeStorage(), analyzeStorageByKeys(), analyzeAgentConversationPressure()])
+    // 三路独立并行；任一路失败/不可用都各自降级为 null，不互相阻断（失败可见：UI 展示降级文案而非静默）
+    // 注：AI 会话键已迁 KV（见 docs/AI助手会话存储迁移-KV收口事实记录.md），不再占本地存储，故移除其键级预警。
+    const [b, c, d] = await Promise.all([estimateBrowserStorage(), estimateChromeStorage(), analyzeStorageByKeys()])
     setBrowser(b)
     setChrome(c)
     setDomains(d)
-    setAgentConv(a)
     setScanning(false)
   }, [])
 
@@ -105,16 +104,8 @@ export default function StorageMonitor() {
             <span className="text-sm text-muted">存储读取不可用（隐私模式/权限受限）</span>
           )}
         </div>
-        {/* 【P3 配额预警】AI 会话键接近体积预算：提前提示，避免已被 L3 降级才事后发现 */}
-        {agentConv && agentConv.underPressure && (
-          <div className="mt-3 flex items-start gap-2 rounded-lg bg-amber-500/10 border border-amber-500/40 px-3 py-2.5">
-            <CircleAlert size={14} className="text-amber-400 shrink-0 mt-0.5" />
-            <div className="text-xs text-muted">
-              <span className="text-amber-400 font-medium">AI 会话记录接近体积预算</span>
-              （{formatBytes(agentConv.bytes)} 共 {agentConv.keys} 键，已达上限 {formatBytes(agentConv.budget)} 的 {(agentConv.ratio * 100).toFixed(1)}%）。为避免自动保存失败，系统会优先收口最旧内容，建议清理不再需要的旧对话。
-            </div>
-          </div>
-        )}
+        {/* 注：AI 会话键已迁 KV，不再是本地存储配额压力源；原「AI 会话接近体积预算」预警随迁 KV 一并移除
+             （见 docs/AI助手会话存储迁移-KV收口事实记录.md）。会话体积仍有 L3 预算降级兜底，与本地配额无关。 */}
       </div>
 
       {/* 按功能分类的存储画像 */}

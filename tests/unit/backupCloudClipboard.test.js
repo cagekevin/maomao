@@ -35,8 +35,13 @@ vi.mock('../../src/components/base/localToolApi.js', () => ({
   },
   fetchProjects: vi.fn(async () => ({ projects: [], lastOpened: '' })),
   saveProjects: vi.fn(async () => ({ ok: true })),
-  // kvStore 从 localToolApi 转发 kvGet/kvSet/kvDelete，须在此 mock，否则账号 KV 读会因 undefined 函数崩
-  kvGet: vi.fn(async () => null),
+  // kvStore 从 localToolApi 转发 kvGet/kvSet/kvDelete，须在此 mock，否则账号/会话 KV 读会因 undefined 函数崩。
+  // 会话键已迁 KV：exportAll 经 contentGetAsync 走 kvGet。返回「memLS 里解析后的值」（对齐真实 /api/kv/get 返回解析后值），
+  // 使「conversationKeys 收集会话键」等用例能确定性读回预置数据；不在 memLS 的键返回 null。
+  kvGet: vi.fn(async (key) => {
+    if (memLS.has(key)) { try { return JSON.parse(memLS.get(key)) } catch { return memLS.get(key) } }
+    return null
+  }),
   kvSet: vi.fn(async () => ({ ok: true })),
   kvDelete: vi.fn(async () => ({ ok: true })),
 }))
@@ -126,9 +131,8 @@ describe('backupStore.js', () => {
   })
 
   it('exportAll 包含 KV 账号环境（非空才入包，经 contentGetAsync 读）', async () => {
-    // KV 读账号经 kvStore→localToolApi.kvGet（此处 mock localToolApi），返回账号数组
-    const { kvGet } = await import('../../src/components/base/localToolApi.js')
-    kvGet.mockResolvedValue([{ id: 'acc1', name: '环境1' }])
+    // 账号为 KV 后端：预置到 memLS，由 kvGet mock 读取返回（对齐真实 /api/kv/get 返回解析后值）
+    memLS.set('yimao_accounts', JSON.stringify([{ id: 'acc1', name: '环境1' }]))
     const out = await backupStore.exportAll()
     expect(out.accounts).toEqual([{ id: 'acc1', name: '环境1' }])
   })

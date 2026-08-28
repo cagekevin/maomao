@@ -9,8 +9,19 @@ import {
   setCurrentPending, getCurrentPending, makePendingRef,
 } from '../../src/components/agent/conversation/conversationStore.js'
 
+// 会话键已迁 KV（backend:'kv'）：写走 kvSet、读走 kvGet。用 Map 兜底让 KV 确定性往返，
+// 避免走真实 localToolApi 网络（响铃 fetch 抛错 + 误导性降级告警 + 慢）。
+const kvStore = new Map()
+vi.mock('../../src/components/base/localToolApi.js', async (importOriginal) => ({
+  ...(await importOriginal()),
+  kvGet: vi.fn(async (key) => (kvStore.has(key) ? kvStore.get(key) : null)),
+  kvSet: vi.fn(async (key, value) => { kvStore.set(key, value); return { ok: true } }),
+  kvDelete: vi.fn(async (key) => { kvStore.delete(key); return { ok: true } }),
+}))
+
 beforeEach(() => {
   localStorage.clear()
+  kvStore.clear()
   contentClearCache()
   resetConversationCache()
 })
@@ -61,15 +72,18 @@ describe('conversationState 订阅与提交（消息单源底座）', () => {
     spy.mockRestore()
   })
 
-  it('setCurrentSnapshot 落盘（对比基准：仅最终写入会持久化）', () => {
+    it('setCurrentSnapshot 落盘（对比基准：仅最终写入会持久化）', async () => {
     const id = ensureActiveConversation()
     applyConversation(id)
     setCurrentSnapshot({ messages: [{ role: 'user', content: 'PERSISTED' }] })
     flushPersist()
+    // contentSet 对 KV 是 fire-and-forget 异步写：先等 KV stub 落位，再重置缓存并异步水化重读
+    await vi.waitFor(() => expect(kvStore.has('agent_conversations_canvas-assistant')).toBe(true))
     contentClearCache()
     resetConversationCache()
     setAgentKey('canvas-assistant')
-    expect(getCurrentSnapshot().messages).toHaveLength(1)
+    // 会话键已迁 KV，水化为异步：轮询等待水化完成读到 KV 里持久化数据（而非空壳）
+    await vi.waitFor(() => expect(getCurrentSnapshot().messages).toHaveLength(1))
     expect(getCurrentSnapshot().messages[0].content).toBe('PERSISTED')
   })
 

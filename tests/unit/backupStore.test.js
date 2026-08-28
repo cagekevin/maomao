@@ -18,13 +18,15 @@ vi.mock('../../src/components/base/projectStore.js', () => ({
   }),
 }))
 
-// ── 账号 KV stub：exportAll 会经 contentGetAsync('yimao_accounts') → storageGet → kvGet 读 KV。
-// 不 stub 会走真实 localToolApi 网络请求 → 失败降级 + 误导性告警 + 3s 超时，故置空（账号不打包）。其余导出保留真实实现。
+// ── 账号/会话 KV stub：exportAll 经 contentGetAsync('yimao_accounts')/会话键走 KV。
+// 会话键已迁 KV（backend:'kv'），为让「动态收集 AI 会话键」用例确定性往返，用 Map 兜底 kvGet/kvSet；
+// 不 stub 网络会走真实 localToolApi → 失败降级 + 误导性告警，故统一置 Map 存储（账号初始为空不打包）。
+const kvStore = new Map()
 vi.mock('../../src/components/base/localToolApi.js', async (importOriginal) => ({
   ...(await importOriginal()),
-  kvGet: vi.fn(async () => null),
-  kvSet: vi.fn(async () => ({ ok: true })),
-  kvDelete: vi.fn(async () => ({ ok: true })),
+  kvGet: vi.fn(async (key) => (kvStore.has(key) ? kvStore.get(key) : null)),
+  kvSet: vi.fn(async (key, value) => { kvStore.set(key, value); return { ok: true } }),
+  kvDelete: vi.fn(async (key) => { kvStore.delete(key); return { ok: true } }),
 }))
 
 const { exportAll, importAll, backupToBlob } = await import('../../src/components/base/backupStore.js')
@@ -32,6 +34,7 @@ const { exportAll, importAll, backupToBlob } = await import('../../src/component
 beforeEach(() => {
   localStorage.clear()
   canvasStore.clear()
+  kvStore.clear()
   contentClearCache()
 })
 

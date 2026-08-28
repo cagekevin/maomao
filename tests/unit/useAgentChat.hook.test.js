@@ -87,6 +87,7 @@ vi.mock('../../src/components/agent/conversation/conversationStore.js', () => {
   return {
     ensureActiveConversation: vi.fn(() => activeId),
     setAgentKey: vi.fn(),
+    waitHydrated: vi.fn(async () => {}),
     applyConversation: vi.fn((id) => ({ id, messages: [], skills: [], draft: '', attachments: [] })),
     getActiveConversationId: vi.fn(() => activeId),
     getConversations: vi.fn(() => conversations),
@@ -213,6 +214,7 @@ describe('useAgentChat · 真实模式 SSE 编排', () => {
   it('单轮纯文本：SSE 无 tool_calls → 收敛，追加 user+assistant', async () => {
     fetchMock.mockResolvedValue(textStream('你好，我帮你操作画布。'))
     const { result } = renderHook(() => useAgentChat())
+    await act(async () => {}) // 会话水化/初始恢复为异步：flush 微任务等 restore 完成，避免其复位消息
     await act(async () => {
       await result.current.send('帮我看看画布')
     })
@@ -230,6 +232,7 @@ describe('useAgentChat · 真实模式 SSE 编排', () => {
       .mockResolvedValueOnce(textStream('已创建生图节点。'))
 
     const { result } = renderHook(() => useAgentChat())
+    await act(async () => {}) // 会话水化/初始恢复为异步：flush 微任务等 restore 完成，避免其复位消息
     await act(async () => {
       await result.current.send('创建一个生图节点')
     })
@@ -388,6 +391,7 @@ describe('useAgentChat · steer 排队（任务进行中补充指令）', () => 
       return Promise.resolve(n % 2 === 1 ? toolStream(`call_${n}`, 'create_node', '{"type":"promptNode"}') : textStream(`完成${n}`))
     })
     const { result } = renderHook(() => useAgentChat())
+    await act(async () => {}) // 会话水化/初始恢复为异步：flush 微任务等 restore 完成，避免其复位消息
     await act(async () => { await result.current.send('创建节点A') })
     await act(async () => { await result.current.send('创建节点B') })
     expect(callTool).toHaveBeenCalledTimes(2)
@@ -453,6 +457,7 @@ describe('useAgentChat · 直接生图（三态=direct，send 内部第一行分
     // direct 分支（直连点）必须兼容该语义：不写「已在画布生图」、不二次 execute_plan（红线 §6.4）。
     callTool.mockReturnValue({ ok: true, data: { awaited: 'credit', steps: [{ id: 'g1', status: 'ready', nodeId: 'n1' }], note: '节点已建好，生成待积分确认' } })
     const { result } = renderHook(() => useAgentChat())
+    await act(async () => {}) // 会话水化/初始恢复为异步：flush 微任务等 restore 完成，避免其复位消息
     await act(async () => {
       await result.current.send('一只猫', [])
     })
@@ -495,6 +500,7 @@ describe('useAgentChat · 直接生图（三态=direct，send 内部第一行分
     vi.mocked(convStore.getWorkMode).mockReturnValue('direct')
     callTool.mockReturnValueOnce({ ok: false, error: '生图服务异常' })
     const { result } = renderHook(() => useAgentChat())
+    await act(async () => {}) // 会话水化/初始恢复为异步：flush 微任务等 restore 完成，避免其复位消息
     await act(async () => {
       await result.current.send('一只猫', [])
     })

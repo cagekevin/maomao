@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useCanvasAgentTools, getGenParams, setCurrentReferenceImages } from '../canvas/useCanvasAgentTools.js'
 import { loadAgentChatModel, loadAgentHistoryTurns } from '../../base/settings/agentModelStore.js'
 import { logger } from '../../base/logger.js'
+import { withTimeout } from '../../base/asyncGuard.js'
 import { API_BASE } from '../../base/config.js'
 import { LLM_CHAT_BASE_URL, LLM_CHAT_API_KEY, LLM_CHAT_MODEL, AGENT_DEMO_MODE } from '../../base/config.js'
 import { InputStateMachine } from './inputStateMachine.js'
@@ -89,6 +90,7 @@ import {
   getCurrentRunMode,
   setCurrentRunMode,
   getWorkMode,
+  waitHydrated,
 } from '../conversation/conversationStore.js'
 // 【消息单源 P5 基座】按字段订阅 store 的 messages（含 activeId 从 store 同步读），
 // 避免整包 useConversationStore() 订阅 → 流式高频更新连坐重渲染整个面板。
@@ -292,42 +294,52 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
    */
 
   // 初始加载会话（对齐大雄：从 conversations 恢复当前对话；旧单会话数据迁移一次）。
+  // 注：会话键已迁 KV（见 AI助手会话存储迁移-KV收口事实记录.md §2.5），水化为异步——
+  //    恢复前必须先等水化完成，否则会在空壳上读取/建空对话，导致刷新后聊天记录丢失。
   useEffect(() => {
-    // 0) 【修复刷新丢记录】先把 conversationStore 的 currentAgentKey 同步到本 hook 的 agentKey。
-    //    根因：store 的 currentAgentKey 由 App 的 syncAgentKey effect 异步设置，而本 effect 同步执行；
-    //    若 agentKey 在挂载期变化（如 activeProjectId 首帧 undefined → 真实 id），二者可能错位，
-    //    导致 ensureActiveConversation/applyConversation 在错误的 key 上读/建空对话，真实数据
-    //    （存在正确 key 的 localStorage）未被加载 → 表现为「刷新后聊天记录丢失」。
-    //    这里在恢复前强制对齐 key，彻底消除该竞态（setAgentKey 内部已做 key 相同则跳过）。
+    let cancelled = false
+    // 0) 先把 conversationStore 的 currentAgentKey 同步到本 hook 的 agentKey 并触发异步水化。
+    //    根因（保留原注释）：store 的 currentAgentKey 由 App 的 syncAgentKey effect 异步设置，而本 effect 同步执行；
+    //    若 agentKey 在挂载期变化（如 activeProjectId 首帧 undefined → 真实 id），二者可能错位。
     setAgentKey(agentKey)
-    // 1) 确保至少一个对话
-    const activeId = ensureActiveConversation()
-    // 2) 旧单会话数据迁移：conversations 为空且存在旧历史时，迁成一个对话
-    const hist = loadHistory(agentKey)
-    const migrated = hist.length > 0 ? importLegacy({ messages: hist, skills: skillsRef.current }) : null
-    const snap = migrated || applyConversation(activeId)
-    // 3) 同步内存态：activeId / conversations 由 store 字段订阅（阶段1D 薄壳化，无需本地 state）——
-    //    ensureActiveConversation 已 commit 更新 store.activeId；conversations 直接订阅 store。
-    setHistory(snap.messages)
-    // 4) 把当前对话的 skills/draft/attachments 交给 UI 层（AgentPanel 据此恢复 activeSkills、输入框草稿与参考图）
-    if (snap.skills?.length || snap.draft || snap.attachments?.length) onConversationChangeRef.current?.(snap)
-    // 5) 状态机按当前对话加载
-    stateMachineRef.current.load(getActiveConversationId())
-    // 6) pending 恢复（对齐大雄"刷新恢复上次操作"）：刷新前有未完成任务 → 自动重发
-    //   【P1a 去重】解析逻辑收敛到 resolvePendingRecovery（纯函数可单测）：按 messageId 找回正文、
-    //   优先原始 attachments、dangling-safe（消息被裁剪/未建成）则不空转。
-    const rec = resolvePendingRecovery({ pending: getCurrentPending(), messages: getCurrentSnapshot().messages, activeConversationId: getActiveConversationId() })
-    if (rec.action === 'send') {
-      queueMicrotask(() => {
-        // 在对话里插入一条"恢复中"占位提示（对齐大雄占位）
-        appendMsg({ role: 'assistant', content: '正在恢复上次未完成的操作…', createdAt: Date.now() })
-        sendRef.current?.(rec.text, rec.attachments || [])
+
+    // 1) 等异步水化完成（带兜底超时，避免首屏因 KV 未就绪而卡死）：完成后才能读到真实会话数据
+    withTimeout(waitHydrated(agentKey), 5000, '会话水化等待超时')
+      .catch((e) => {
+        // 超时/失败：按「无存量」继续（数据会由后续触发补迁），失败可见不静默
+        logger.warn('AI助手', '等待会话水化超时/失败，按当前状态恢复', { agentKey, error: e?.message || String(e) })
       })
-    } else if (rec.action === 'drop') {
-      // dangling-safe：被引用用户消息已被 AGENT_MSG_MAX 裁剪或尚未建成（崩溃窗口）→ 清 pending 提示重发
-      setCurrentPending(null)
-      appendMsg({ role: 'assistant', content: '上一段长任务已中断，该段内容因过长被收口清理或尚未保存，请重新输入后发送。', createdAt: Date.now() })
-    }
+      .then(() => {
+        if (cancelled) return
+        // 2) 确保至少一个对话
+        const activeId = ensureActiveConversation()
+        // 3) 旧单会话数据迁移：conversations 为空且存在旧历史时，迁成一个对话
+        const hist = loadHistory(agentKey)
+        const migrated = hist.length > 0 ? importLegacy({ messages: hist, skills: skillsRef.current }) : null
+        const snap = migrated || applyConversation(activeId)
+        // 4) 同步内存态：activeId / conversations 由 store 字段订阅（阶段1D 薄壳化，无需本地 state）
+        setHistory(snap.messages)
+        // 5) 把当前对话的 skills/draft/attachments 交给 UI 层（AgentPanel 据此恢复 activeSkills、输入框草稿与参考图）
+        if (snap.skills?.length || snap.draft || snap.attachments?.length) onConversationChangeRef.current?.(snap)
+        // 6) 状态机按当前对话加载
+        stateMachineRef.current.load(getActiveConversationId())
+        // 7) pending 恢复（对齐大雄"刷新恢复上次操作"）：刷新前有未完成任务 → 自动重发
+        //   【P1a 去重】解析逻辑收敛到 resolvePendingRecovery（纯函数可单测）：按 messageId 找回正文、
+        //   优先原始 attachments、dangling-safe（消息被裁剪/未建成）则不空转。
+        const rec = resolvePendingRecovery({ pending: getCurrentPending(), messages: getCurrentSnapshot().messages, activeConversationId: getActiveConversationId() })
+        if (rec.action === 'send') {
+          queueMicrotask(() => {
+            // 在对话里插入一条"恢复中"占位提示（对齐大雄占位）
+            appendMsg({ role: 'assistant', content: '正在恢复上次未完成的操作…', createdAt: Date.now() })
+            sendRef.current?.(rec.text, rec.attachments || [])
+          })
+        } else if (rec.action === 'drop') {
+          // dangling-safe：被引用用户消息已被 AGENT_MSG_MAX 裁剪或尚未建成（崩溃窗口）→ 清 pending 提示重发
+          setCurrentPending(null)
+          appendMsg({ role: 'assistant', content: '上一段长任务已中断，该段内容因过长被收口清理或尚未保存，请重新输入后发送。', createdAt: Date.now() })
+        }
+      })
+    return () => { cancelled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [agentKey])
 

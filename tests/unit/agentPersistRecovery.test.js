@@ -30,11 +30,22 @@ vi.mock('../../src/components/base/logger.js', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), log: vi.fn(), debug: vi.fn() },
 }))
 
+// 会话键已迁 KV（backend:'kv'）：落盘写 kvSet、读取走 kvGet。用 Map 兜底让 KV 确定性往返
+// （send 的 LLM 聊天走上面 stub 的全局 fetch；KV 走本 mock，互不干扰）。断言以 kvStore 为准。
+const kvStore = new Map()
+vi.mock('../../src/components/base/localToolApi.js', async (importOriginal) => ({
+  ...(await importOriginal()),
+  kvGet: vi.fn(async (key) => (kvStore.has(key) ? kvStore.get(key) : null)),
+  kvSet: vi.fn(async (key, value) => { kvStore.set(key, value); return { ok: true } }),
+  kvDelete: vi.fn(async (key) => { kvStore.delete(key); return { ok: true } }),
+}))
+
 import { useAgentChat } from '../../src/components/agent/runtime/useAgentChat.js'
 
 describe('AI 助手会话刷新恢复（真实 store）', () => {
   beforeEach(() => {
     localStorage.clear()
+    kvStore.clear()
     convStore.resetConversationCache()
   })
 
@@ -49,12 +60,13 @@ describe('AI 助手会话刷新恢复（真实 store）', () => {
 
     convStore.setAgentKey('canvas-assistant-projZ')
     const r1 = renderHook(() => useAgentChat({ agentKey: 'canvas-assistant-projZ', provider: null }))
+    await act(async () => {}) // 会话水化/初始恢复为异步：flush 微任务等 restore 完成，避免其复位消息
     await act(async () => { await r1.result.current.send('你好') })
-    convStore.flushPersist() // P4 落盘节流：send 走防抖落盘，主动刷盘后断言最终态
-    const persisted = localStorage.getItem('yimao:agent_conversations_canvas-assistant-projZ')
+    convStore.flushPersist() // P4 落盘节流：send 走防抖落盘，主动刷盘后断言最终态（会话键已迁 KV，断言走 kvStore）
+    const persisted = kvStore.get('agent_conversations_canvas-assistant-projZ')
     expect(persisted).toBeTruthy()
     // 关键：assistant 消息（AI 回复）也应完整落盘，而非只保留 user
-    const parsed = JSON.parse(persisted)
+    const parsed = persisted
     const roles = parsed[0].messages.map((m) => m.role)
     expect(roles).toContain('assistant')
 
@@ -69,9 +81,10 @@ describe('AI 助手会话刷新恢复（真实 store）', () => {
     // 第一次会话：在 projX 正常保存消息
     convStore.setAgentKey('canvas-assistant-projX')
     const r1 = renderHook(() => useAgentChat({ agentKey: 'canvas-assistant-projX', provider: null }))
+    await act(async () => {}) // 会话水化/初始恢复为异步：flush 微任务等 restore 完成，避免其复位消息
     await act(async () => { await r1.result.current.send('项目X的消息') })
-    convStore.flushPersist() // P4 落盘节流：send 走防抖落盘，主动刷盘后断言最终态
-    expect(localStorage.getItem('yimao:agent_conversations_canvas-assistant-projX')).toBeTruthy()
+    convStore.flushPersist() // P4 落盘节流：send 走防抖落盘，主动刷盘后断言最终态（会话键已迁 KV，断言走 kvStore）
+    expect(kvStore.get('agent_conversations_canvas-assistant-projX')).toBeTruthy()
 
     // 模拟刷新且时序错位：store 的 currentAgentKey 仍在 default，而 hook 已用 projX 挂载。
     // 修复前：数据落在/停留在 projX 但没被加载，挂载后 messages 为空（丢记录的复现）；

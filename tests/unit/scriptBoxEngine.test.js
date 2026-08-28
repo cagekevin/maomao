@@ -349,6 +349,25 @@ describe('scriptBoxEngine · 引擎编排', () => {
     expect(vidNode.data.refImages).toBeUndefined()
   })
 
+  // ── 缺陷②「偶发」来源B：连线早于资产生图 → data.images 快照冻结为空，且永不更新 ──
+  it('onConnectShot 连线时资产还没出图(imageUrl为空) → 下游 node.data.images 为空且不随后来出图自动补', async () => {
+    // 资产已注册但 imageUrl 为空（用户先连线、后生成资产图）
+    const assets = [{ id: 'asset-城堡', name: '城堡', imageUrl: '' }]
+    const { engine, addNodes, store } = makeEngine({
+      shots: [{ id: 's1', index: 1, description: '走进 @城堡', prompt: 'p', videoPrompt: 'v' }],
+      assets,
+    })
+    engine.onConnectShot('s1', 'image')
+    const node = addNodes.mock.calls[0][0][0]
+    expect(node.data.images).toEqual([]) // 快照冻结：连线那一刻图片还没生成
+
+    // 之后用户生成城堡图（imageUrl 补上）→ 已创建的下游节点 images 不会自动补
+    store.assets = [{ id: 'asset-城堡', name: '城堡', imageUrl: '/files/x.png' }]
+    // 断言：node.data 是连线时快照，字面引用未被外部 store 改变（collected 结果已固化在数组里）
+    // 且引擎没有任何后续触发来刷新该节点 —— 表现为「这一镜垫不上图」的另一种偶发（与边界 bug 无关）
+    expect(node.data.images).toEqual([])
+  })
+
   // ── P0-①：onConnectShots 支持 target，批量建对应下游类型 ──
   it('onConnectShots(ids, "video") 批量建 discountVideoNode', async () => {
     const { engine, addNodes } = makeEngine({
