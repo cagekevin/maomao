@@ -349,8 +349,8 @@ describe('scriptBoxEngine · 引擎编排', () => {
     expect(vidNode.data.refImages).toBeUndefined()
   })
 
-  // ── 缺陷②「偶发」来源B：连线早于资产生图 → data.images 快照冻结为空，且永不更新 ──
-  it('onConnectShot 连线时资产还没出图(imageUrl为空) → 下游 node.data.images 为空且不随后来出图自动补', async () => {
+  // ── 连线早于资产生图：data.images 是连线时快照，但实时连线链路会自愈补上 ──
+  it('onConnectShot 连线时资产还没出图 → data.images 快照为空；但该字段不随 store 变化（实时垫图靠 connected.images 活性链）', async () => {
     // 资产已注册但 imageUrl 为空（用户先连线、后生成资产图）
     const assets = [{ id: 'asset-城堡', name: '城堡', imageUrl: '' }]
     const { engine, addNodes, store } = makeEngine({
@@ -359,12 +359,14 @@ describe('scriptBoxEngine · 引擎编排', () => {
     })
     engine.onConnectShot('s1', 'image')
     const node = addNodes.mock.calls[0][0][0]
-    expect(node.data.images).toEqual([]) // 快照冻结：连线那一刻图片还没生成
+    expect(node.data.images).toEqual([]) // 快照：连线那一刻图片还没生成
 
-    // 之后用户生成城堡图（imageUrl 补上）→ 已创建的下游节点 images 不会自动补
+    // 之后用户生成城堡图（imageUrl 补上）→ node.data.images 这份快照字段仍是空（不可变快照）。
+    // ⚠️ 但这不是"永不补"：onConnectShot 同时建了 scriptBoxNode 的 shot- 边，
+    //    下游 PromptNode 的 refImages = mergeRefImages(connected.images(实时), data.images(快照))，
+    //    connected.images 走 useConnectedInputs 实时从 scriptBoxNode.data.assets 重新 collectAssets ——
+    //    资产生成后被实时链路自动补上，无需重连。（engine 单测无法触达 hook，故仅断言快照字段不变）
     store.assets = [{ id: 'asset-城堡', name: '城堡', imageUrl: '/files/x.png' }]
-    // 断言：node.data 是连线时快照，字面引用未被外部 store 改变（collected 结果已固化在数组里）
-    // 且引擎没有任何后续触发来刷新该节点 —— 表现为「这一镜垫不上图」的另一种偶发（与边界 bug 无关）
     expect(node.data.images).toEqual([])
   })
 

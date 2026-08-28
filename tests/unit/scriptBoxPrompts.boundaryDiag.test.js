@@ -13,7 +13,7 @@
  * 若某断言与期望（正确行为）不符，说明确有缺陷——由调用方决定是否修复。
  */
 import { describe, it, expect } from 'vitest'
-import { matchAsset, collectAssets, mergeShotsForVideo } from '../../src/components/base/scriptBoxPrompts.js'
+import { matchAsset, matchAssetNames, collectAssets, mergeShotsForVideo } from '../../src/components/base/scriptBoxPrompts.js'
 
 // ═══════════════════════════════════════════════════════════════════
 // §0 用户真实镜头数据（2026-08-28 实测：镜头1 的 description + prompt）——钉死断点
@@ -25,30 +25,27 @@ const S1_DESC = `深夜,@卧室内。@骷髅B突然从床上坐起,转头看向�
 const S1_PROMPT = `皮克斯3D风格,深夜卧室内,月光透过窗帘洒入柔和蓝紫色调。中景构图,70mm焦段,平视角度。@骷髅B坐在床左侧,上半身直立,头部转向右侧,眼窝直视@骷髅A,眼眶内微弱蓝光,颅骨表面有细微反光,双手自然放在膝盖上,表情困惑认真。@骷髅A躺在床右侧,头部侧向左方,眼窝半睁看向@骷髅B,颅骨放松状态,一只手臂搭在枕头边缘。两具骷髅相距约50厘米,床单褶皱自然,床头柜在右侧边缘,木质纹理清晰。主光源从左侧窗户射入,在@骷髅B颅骨左侧形成窄高光,右侧面部处于柔和阴影中保留暗部细节,@骷髅A面部受到微弱反射光。背景墙面蓝紫色渐变,窗帘半透明材质可见月光轮廓,空气中有细微尘埃颗粒漂浮,整体色调温馨柔和,卡通骷髅造型圆润可爱,骨骼关节结构清晰,材质呈现哑光象牙白`
 
 describe('§0 真实镜头1数据：到底谁被垫、谁没被垫（实测钉死断点）', () => {
+  // 注：matchAsset 记录"旧边界"行为（场景被误杀）；修复后 collectAssets 改用 matchAssetNames（词典最长匹配），
+  // 下列 collectAssets 断言全部断言【修复后的正确行为】——高亮的即垫图的。
   const descHas = (name) => matchAsset(S1_DESC, name)
   const promptHas = (name) => matchAsset(S1_PROMPT, name)
 
-  it('场景「卧室」：description 与 prompt 里 @名 后紧跟中文(内) → 全字段都 false（这就是一直垫不上的原因）', () => {
-    // description 里唯一出现是 `深夜,@卧室内` → @卧室 后是「内」
+  it('场景「卧室」：旧 matchAsset 里 @卧室 后接中文(内) → false（这是缺陷②的历史根因，已修复）', () => {
     expect(S1_DESC.includes('@卧室')).toBe(true) // 确认用户确实写了 @卧室
     expect(descHas('卧室')).toBe(false)
-    // prompt 里出现 `深夜卧室内` —— 连 @ 都没有，更不命中
     expect(promptHas('卧室')).toBe(false)
   })
 
-  it('角色「骷髅A」：description 里出现 `@骷髅A,`(后是逗号) → true（这就是"别的正常"的真相）', () => {
-    // 虽然多处 @骷髅A 后是中文(睡/一/愣/反/停)，但至少一处 `@骷髅A,` 后是逗号 → 命中
+  it('角色「骷髅A」：旧 matchAsset 里某处 `@骷髅A,`(逗号) → true（"别的正常"的真相）', () => {
     expect(descHas('骷髅A')).toBe(true)
   })
 
-  it('角色「骷髅B」：description 每处后是中文，但 prompt 里有 `@骷髅B,`(逗号) → 命中了 → 也能垫上', () => {
-    // description：@骷髅B突/开/更/解/一 后全是中文 → false
+  it('角色「骷髅B」：旧 matchAsset 靠 prompt 的 `@骷髅B,`(逗号) → true（并非免疫，只是有逗号兜着）', () => {
     expect(descHas('骷髅B')).toBe(false)
-    // prompt：`眼窝半睁看向@骷髅B,颅骨放松` 里 @骷髅B 后是逗号 → true（角色并非免疫，只是有逗号兜着）
     expect(promptHas('骷髅B')).toBe(true)
   })
 
-  it('【决定性】collectAssets 合并 description+prompt 三字段：只有场景「卧室」被漏，骷髅A/骷髅B 都被收', () => {
+  it('【修复后·决定性】collectAssets 合并 description+prompt：场景/骷髅A/骷髅B 都被收（词典最长匹配，@卧室内 命中 卧室）', () => {
     const shot = { description: S1_DESC, prompt: S1_PROMPT }
     const assets = [
       { id: 'a1', name: '卧室', category: 'scene', imageUrl: '/files/room.png' },
@@ -56,7 +53,7 @@ describe('§0 真实镜头1数据：到底谁被垫、谁没被垫（实测钉�
       { id: 'a3', name: '骷髅B', category: 'character', imageUrl: '/files/kb.png' },
     ]
     const urls = collectAssets(shot, assets).map((i) => i.url)
-    expect(urls.includes('/files/room.png')).toBe(false) // 场景漏（唯一的 @卧室 是 @卧室内）
+    expect(urls.includes('/files/room.png')).toBe(true) // 场景现在被收（修复核心）
     expect(urls.includes('/files/ka.png')).toBe(true)
     expect(urls.includes('/files/kb.png')).toBe(true)
   })
@@ -119,15 +116,15 @@ describe('缺陷②：matchAsset @名后一位边界（核心）', () => {
     // 结论：不是随机偶发，而是「数据依赖」——AI 何时写 @卧室, vs @卧室内 决定这一镜垫不垫图。
   })
 
-  it('【洞见】@引用后恰有空白/标点时能命中；也就意味着同一剧本里"部分镜头能垫图"（表现为偶发）', () => {
+  it('【修复后】@引用后恰有空白/标点 与 @名后紧贴中文：现在都能垫（词典匹配不再看后一位）', () => {
     const assets = [
       { id: '卧室', name: '卧室', category: 'scene', imageUrl: '/files/room.png' },
     ]
-    // 镜A 写 `@卧室,` → 能垫；镜B 写 `@卧室内` → 不垫。同一资产，结果不同。
+    // 修复前：镜B `@卧室内` 是不垫的；修复后：两者都垫（高亮即垫图）。
     const shotA = { description: '深夜@卧室,柔和灯光' }
     const shotB = { description: '深夜@卧室内,柔和灯光' }
     expect(collectAssets(shotA, assets)).toHaveLength(1)
-    expect(collectAssets(shotB, assets)).toHaveLength(0)
+    expect(collectAssets(shotB, assets)).toHaveLength(1)
   })
 })
 
@@ -142,36 +139,33 @@ describe('缺陷②：collectAssets 用用户真实文本', () => {
     '@骷髅B坐在床上...视线锁定@HKH精华瓶...',
   ].join('\n')
 
-  it('场景「卧室」有图 → 仍被漏收（collectAssets 不含场景图）', () => {
+  it('【修复后】场景「卧室」：@卧室内 也被词典匹配到 → 场景图被收（缺陷②已修）', () => {
     const shot = { description: TEXT }
     const assets = [{ id: 'a1', name: '卧室', category: 'scene', imageUrl: '/files/room.png' }]
     const out = collectAssets(shot, assets)
-    expect(out.some((i) => i.url === '/files/room.png')).toBe(false)
+    expect(out.some((i) => i.url === '/files/room.png')).toBe(true)
   })
 
-  // ⚠️ 以下角色/道具用例基于「文档 §2.2 重建示例」（@骷髅A站 / @HKH精华瓶至），
-  //    它证明的是「若 @名 后紧跟中文，角色/道具同样会被边界咬」这一机制（潜在风险），
-  //    并非断言真实数据里它们当前已坏。用户实测：角色/道具在运行时文本里 @名 后都有安全边界，当前正常。
-  it('【机制证明/潜在风险】角色「骷髅A」「骷髅B」若在文本里 @名后紧跟中文 → 同样被漏收（非结构性免疫）', () => {
+  // ⚠️ 修复后：角色/道具只要「@名」出现即被收（不再卡在 @名 后一位），下面是修复后的行为。
+  it('【修复后】角色「骷髅A」「骷髅B」@名后紧贴中文(站/坐…) → 也能被收（词典匹配不再误杀）', () => {
     const shot = { description: TEXT }
     const assets = [
       { id: 'a1', name: '骷髅A', category: 'character', imageUrl: '/files/ka.png' },
       { id: 'a2', name: '骷髅B', category: 'character', imageUrl: '/files/kb.png' },
     ]
     const out = collectAssets(shot, assets)
-    expect(out.some((i) => i.url === '/files/ka.png')).toBe(false)
-    expect(out.some((i) => i.url === '/files/kb.png')).toBe(false)
+    expect(out.some((i) => i.url === '/files/ka.png')).toBe(true)
+    expect(out.some((i) => i.url === '/files/kb.png')).toBe(true)
   })
 
-  it('【偶发真面目】道具「HKH精华瓶」出现在两处，第二处 @HKH精华瓶... 以标点结尾 → 被收集（当前实为 true）', () => {
+  it('【修复后】道具「HKH精华瓶」出现即被收（两处 @HKH精华瓶 任一命中即可）', () => {
     const shot = { description: TEXT }
     const assets = [{ id: 'a1', name: 'HKH精华瓶', category: 'prop', imageUrl: '/files/bottle.png' }]
     const out = collectAssets(shot, assets)
-    // 第一处 `@HKH精华瓶至` (至→误杀)，但 matchAsset 继续找到第二处 `@HKH精华瓶...` (.→命中) → true
     expect(out.some((i) => i.url === '/files/bottle.png')).toBe(true)
   })
 
-  it('【决定性结论】真实整段文本中「场景+2角色」漏收、仅「多出现一次的并列道具HKH精华瓶」偶然命中——同镜内即不一致 = 偶发根因', () => {
+  it('【修复后·决定性】真实整段文本：场景/骷髅A/骷髅B/HKH精华瓶 全部被收（不再有偶发漏收）', () => {
     const shot = { description: TEXT }
     const assets = [
       { id: 'a1', name: '卧室', category: 'scene', imageUrl: '/files/room.png' },
@@ -181,13 +175,8 @@ describe('缺陷②：collectAssets 用用户真实文本', () => {
     ]
     const out = collectAssets(shot, assets)
     const urls = out.map((i) => i.url)
-    // 卧室/骷髅A/骷髅B 仅出现一次且后接中文 → 漏收
-    expect(urls.includes('/files/room.png')).toBe(false)
-    expect(urls.includes('/files/ka.png')).toBe(false)
-    expect(urls.includes('/files/kb.png')).toBe(false)
-    // HKH精华瓶 第二处后是省略号(非词char) → 偶然命中
-    expect(urls.includes('/files/bottle.png')).toBe(true)
-    // 结论：同一镜、同一批资产，匹配结果取决于「@名后一位字符」，即数据依赖 → 表现为"有时垫有时不垫"
+    // 修复后：四类资产都注册过且都在文本中被 @ 引用 → 全部收齐
+    expect(new Set(urls)).toEqual(new Set(['/files/room.png', '/files/ka.png', '/files/kb.png', '/files/bottle.png']))
   })
 
   it('【对照】同一批资产，若 @名 后加空格/标点 → 全部能收集（证明断点在边界而非资产/图）', () => {
@@ -249,10 +238,38 @@ describe('隐藏 bug 探索：collectAssets / module', () => {
     expect(out.every((i) => 'category' in i)).toBe(false) // 当前行为：不含 category
   })
 
-  it('隐藏 bug⑤：mergeShotsForVideo 复用同一 collectAssets → 真实文本下合并视频也缺垫图（同病延伸）', () => {
+  it('【修复后】mergeShotsForVideo 复用同一 collectAssets → 合并视频也能收到场景图（同口修复）', () => {
     const shot = { id: 's1', description: '深夜@卧室内', videoPrompt: 'v' }
     const assets = [{ id: 'a1', name: '卧室', imageUrl: '/files/room.png' }]
     const r = mergeShotsForVideo([shot], assets)
-    expect(r.images).toHaveLength(0) // 合并视频同样收集不到
+    expect(r.images.map((i) => i.url)).toEqual(['/files/room.png'])
+  })
+})
+
+// ═══════════════════════════════════════════════════════════════════
+// 新函数 matchAssetNames：词典最长匹配（修复核心）
+// ═══════════════════════════════════════════════════════════════════
+describe('matchAssetNames：以注册资产名词典收集 @引用（修复核心）', () => {
+  it('@名后紧贴中文（@卧室内）→ 命中注册资产「卧室」（缺陷②修复点）', () => {
+    expect([...matchAssetNames('深夜@卧室内,柔和光', ['卧室'])]).toEqual(['卧室'])
+  })
+  it('普通 @名 命中：@骷髅A 站在床边 → 骷髅A', () => {
+    expect([...matchAssetNames('@骷髅A站在床边', ['骷髅A', '骷髅B'])]).toEqual(['骷髅A'])
+  })
+  it('最长优先防子串：@小马妈妈 只命中「小马妈妈」，不误配「小马」', () => {
+    expect([...matchAssetNames('@小马妈妈 来了', ['小马', '小马妈妈'])].sort()).toEqual(['小马妈妈'])
+    expect([...matchAssetNames('@小马 吃草', ['小马', '小马妈妈'])]).toEqual(['小马'])
+  })
+  it('仅命中注册名：@路人（未注册）不返回任何资产', () => {
+    expect(matchAssetNames('@路人 擦肩', ['小马', '卧室']).size).toBe(0)
+  })
+  it('空文本 / 空资产列表 → 空集合（不抛）', () => {
+    expect(matchAssetNames('', ['卧室']).size).toBe(0)
+    expect(matchAssetNames('@卧室', []).size).toBe(0)
+    expect(matchAssetNames(null, ['卧室']).size).toBe(0)
+  })
+  it('文本里多 @ 名都命中', () => {
+    const s = [...matchAssetNames('深夜@卧室, @骷髅A 举着 @HKH精华瓶', ['卧室', '骷髅A', 'HKH精华瓶'])]
+    expect(s).toHaveLength(3)
   })
 })

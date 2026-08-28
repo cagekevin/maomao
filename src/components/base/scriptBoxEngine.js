@@ -1,4 +1,4 @@
-import { buildShotImageUser, getImageGenSys, collectAssets, matchAsset, ZgPrompt, IMAGE_GEN_TYPES, IMAGE_GEN_DEFAULT, SCRIPT_WRITER_SYSTEM, SCRIPT_WRITER_FORMAT, SHOT_DIRECTOR_SYSTEM, SHOT_AUDIT_SYSTEM, buildAuditUser, getWorkflow, normalizeDialogue, mergeShotsForVideo, MERGE_VIDEO_SYSTEM, buildMergedVideoUser } from './scriptBoxPrompts.js'
+import { buildShotImageUser, getImageGenSys, collectAssets, matchAssetNames, ZgPrompt, IMAGE_GEN_TYPES, IMAGE_GEN_DEFAULT, SCRIPT_WRITER_SYSTEM, SCRIPT_WRITER_FORMAT, SHOT_DIRECTOR_SYSTEM, SHOT_AUDIT_SYSTEM, buildAuditUser, getWorkflow, normalizeDialogue, mergeShotsForVideo, MERGE_VIDEO_SYSTEM, buildMergedVideoUser } from './scriptBoxPrompts.js'
 import { chatCompletions } from './chatApi.js'
 import { generateImage } from './imageApi.js'
 import { resolveProviderModel, buildAllModels } from './providerModels.js'
@@ -471,9 +471,10 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
       // 导致多个分镜的 loading 互相覆盖、动画闪现/产生不了。
       enqueuePatch((latest) => ({ shots: (latest.shots || []).map((s) => (s.id === shot.id ? { ...s, promptLoading: true } : s)) }))
       return runAbortable(`shot-${shot.id}`, () => enqueuePatch((latest) => ({ shots: (latest.shots || []).map((s) => (s.id === shot.id ? { ...s, promptLoading: false } : s)) })), async (signal) => {
-        // 收集该镜 @引用的有图资产（对齐官方 Ir 的 Fa 匹配）
+        // 收集该镜 @引用的有图资产（对齐官方 Ir 的 Fa 匹配；以注册资产名+最长匹配，场景 @卧室内 也能命中）
         const shotText = `${shot.description || ''} ${shot.dialogue || ''} ${shot.prompt || ''} ${shot.videoPrompt || ''}`
-        const refAssets = assets.filter((a) => a?.name && matchAsset(shotText, a.name))
+        const refNames = matchAssetNames(shotText, assets.map((a) => a.name))
+        const refAssets = assets.filter((a) => a?.name && refNames.has(a.name))
         const seconds = Math.max(1, Number.parseInt(String(shot.duration || '5'), 10) || 5)
         // 全片镜头序（整部 story 位置）：idx 为该镜在 d.shots 中的下标，0-based 作 shotIndexInStory
         const allShots = d.shots || target

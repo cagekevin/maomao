@@ -158,6 +158,38 @@ function getHighlightPattern(sorted) {
 }
 
 /**
+ * 以「注册资产名词典」从文本中取被 `@` 引用的资产名集合（垫图/参考图收集核心）。
+ *
+ * 【为什么不用 matchAsset 的「单名 + 后一位非中英数」边界】
+ * 场景名词在中文剧本书写常紧贴方位词/名词（如 `@卧室内`），matchAsset 会把后一位中文
+ * 当"更长词"误杀 → 场景永远收不进参考图（缺陷②根因）。而角色/道具之所以"碰巧正常"，
+ * 只是它们恰好有一处 `@名` 后是逗号/引号。
+ *
+ * 【本方案：以注册名为词典，最长匹配】对齐 hlAt（高亮）的同一套匹配，使「高亮的 = 垫图的」。
+ *  - `@卧室内` → 命中注册资产 `卧室`（不再看后一位）→ 场景可垫图；
+ *  - `@小马妈妈` → 最长优先命中 `小马妈妈`，绝不误配 `小马`（保留防子串）。
+ * 复用 getHighlightPattern 的排序/转义/缓存，保证与高亮口径完全一致。
+ *
+ * @param {string} text 待扫描文本
+ * @param {string[]} [assetNames] 已注册资产名列表
+ * @returns {Set<string>} 被 `@` 引用且确为注册名的资产名集合（可判空 / forEach）
+ */
+export function matchAssetNames(text, assetNames) {
+  const names = Array.isArray(assetNames) ? assetNames.map((n) => String(n ?? '')).filter(Boolean) : []
+  const hit = new Set()
+  if (!text || names.length === 0) return hit
+  const sorted = [...names].sort((a, b) => b.length - a.length)
+  const pattern = getHighlightPattern(sorted)
+  pattern.lastIndex = 0 // 复用缓存正则前重置游标（hlAt 走 split，不走 exec，互不影响）
+  let m
+  while ((m = pattern.exec(text)) !== null) {
+    const nm = m[1] && m[1].startsWith('@') ? m[1].slice(1) : ''
+    if (nm && names.includes(nm)) hit.add(nm)
+  }
+  return hit
+}
+
+/**
  * @资产名 → 青色高亮 HTML（用于画面描述/提示词展示）。
  *
  * 对齐官方 a_.jsx `a_`：**只高亮「真实资产名」**（assetNames 里的名字），
@@ -312,14 +344,19 @@ export function renameAssetRefs(shots, oldName, newName) {
 /** 收集某个分镜引用的「有图资产」作为参考图（复刻官方 shared.js Ra 的 scriptBoxNode 分支）。
  *  @param shot   分镜对象（读 description/prompt/videoPrompt/dialogue）
  *  @param assets 资产数组（读 name/imageUrl）
- *  @returns { id, url }[]  该镜头 @名 匹配到且有图（imageUrl）的资产，供下游生图/生视频作参考图 */
+ *  @returns { id, url }[]  该镜头 @名 匹配到且有图（imageUrl）的资产，供下游生图/生视频作参考图
+ *
+ * 匹配口径（2026-08-28 修复缺陷②）：用「注册资产名词典 + 最长匹配」`matchAssetNames` 替代原
+ * `matchAsset` 的「单名 + 后一位非中英数」边界。原因见 matchAssetNames 注释——场景 `@卧室内`
+ * 原被边界误杀导致永远垫不上；现与 hlAt 高亮口径一致，高亮的即垫图的。 */
 export function collectAssets(shot, assets) {
   const list = Array.isArray(assets) ? assets : []
   if (!shot || list.length === 0) return []
   const text = `${shot.description || ''} ${shot.prompt || ''} ${shot.videoPrompt || ''} ${shot.dialogue || ''}`
+  const refNames = matchAssetNames(text, list.map((a) => a.name))
   const out = []
   list.forEach((a) => {
-    if (a?.name && a.imageUrl && matchAsset(text, a.name)) {
+    if (a?.name && a.imageUrl && refNames.has(a.name)) {
       out.push({ id: `script-asset-${a.id}`, url: a.imageUrl })
     }
   })
