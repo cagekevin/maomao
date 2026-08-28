@@ -200,7 +200,7 @@ function TemplateNode({ id, data, selected }) {
   const gen = useGenerateNode({
     nodeId: id,
     type: 'image',
-    prompt: effectivePrompt,                                  // 任务上报提示词
+    prompt: chipResolved.text || effectivePrompt,             // 任务上报提示词（解析后，与实发一致）
     data,
     prefs: myPrefs,
     setPrefs: setMyPrefs,

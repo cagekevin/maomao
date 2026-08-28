@@ -131,4 +131,22 @@ describe('TextNode 上游文本/图片合并（修复点）', () => {
     setup({ prompt: '', text: '' })
     expect(genConfig.validate()).toBe('请输入提示词或文本')
   })
+
+  it('prompt 中的 @图片芯片 → 解析为可读文本 + 提取为参考图（不泄漏 @{...|url} 噪音）', async () => {
+    connectedInputs = {
+      images: [{ id: 'i1', url: 'http://up/ref.png', sourceNodeId: 's1' }],
+      texts: [],
+    }
+    setup({ prompt: '请描述 @{i1:参考图|http%3A%2F%2Fup%2Fref.png} 的画面', text: '' })
+    fireEvent.click(screen.getByText('生成'))
+    await waitFor(() => expect(mockChat).toHaveBeenCalled())
+    const call = mockChat.mock.calls[0][0]
+    // 芯片被解析为可读文本（图片 → 图片N），绝不把 @{id:label|url} 噪音原样发给 LLM
+    const userMsg = call.messages.find((m) => m.role === 'user')
+    expect(userMsg.content).not.toContain('@{i1')
+    expect(userMsg.content).not.toContain('http%3A')
+    expect(userMsg.content).toContain('图片1')
+    // 芯片图被提取进参考图，供 LLM 看图理解
+    expect(call.images).toContain('http://up/ref.png')
+  })
 })

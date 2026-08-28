@@ -122,6 +122,18 @@ const edgeTypes = {
   default: CustomEdge
 }
 
+// React Flow 错误回调（覆盖库内置的 devWarn，仅 dev 生效）。
+// 只静音 002：本文件已把 nodeTypes/edgeTypes 提到模块级常量，正常渲染下引用永不变化，
+// 唯一触发源是 Vite HMR 重新执行本模块（改节点文件 → 冒泡到 App.jsx）时重建了注册表对象，
+// 属 dev-only 误报，生产构建走不到该分支（库内 `process.env.NODE_ENV === 'development'` 分支）。
+// 其余错误码是真问题（003 节点类型未注册 / 004 连线端点不存在 / 010 011 012 013 …），必须原样输出。
+const RF_SILENCED_ERROR_CODES = new Set(['002'])
+
+function handleReactFlowError(code, message) {
+  if (RF_SILENCED_ERROR_CODES.has(String(code))) return
+  logger.warn('react-flow', `code-${code}`, message)
+}
+
 function Canvas() {
   /* ====================================================================
    * 【区 2】状态区
@@ -1259,9 +1271,9 @@ function Canvas() {
 
   const proOptions = useMemo(() => ({ hideAttribution: true }), [])
 
-  // React Flow 002 警告防护：nodeTypes/edgeTypes 已是模块级常量（引用稳定），
-  // 这里再用 useMemo 包裹传入，确保任何重渲染/重挂载下引用绝对一致，
-  // 从根源消除「created a new nodeTypes or edgeTypes object」提示（React Flow 官方推荐做法）。
+  // nodeTypes/edgeTypes 已是模块级常量（引用稳定），这里再包一层 useMemo 是官方推荐写法：
+  // 保证任何重渲染/重挂载下引用绝对一致，不触发 002。
+  // 注：稳定引用挡不住 HMR 重建模块（见 handleReactFlowError），那种情况由 onError 静音。
   const stableNodeTypes = useMemo(() => nodeTypes, [])
   const stableEdgeTypes = useMemo(() => edgeTypes, [])
 
@@ -1364,6 +1376,7 @@ function Canvas() {
           onDelete={onDelete}
           nodeTypes={stableNodeTypes}
           edgeTypes={stableEdgeTypes}
+          onError={handleReactFlowError}
           connectionLineComponent={ConnectionLine}
           connectionRadius={60}
           deleteKeyCode={['Backspace', 'Delete']}

@@ -43,6 +43,7 @@ const PromptInput = forwardRef(function PromptInput(
     onReady,          // 可选（富文本模式）：挂载后把「光标处插入素材」的函数上抛给父级
     inputWidth,
     inputHeight,
+    autoFocus = false, // 挂载后自动聚焦并把光标放到末尾（仅全屏弹窗等主动打开的场景传 true）
     portalTarget = document.body // null → 全屏弹窗内保持内联；默认 portal 到 body
   },
   ref
@@ -100,11 +101,16 @@ const PromptInput = forwardRef(function PromptInput(
     else if (ref) ref.current = el
   }
 
+  // ⚠️ 返回 null 表示「本编辑器不持有光标，重建后不要动 selection」。
+  // 全屏弹窗打开时，节点面板里那个 PromptInput 仍在挂载且与弹窗共用同一个 value：
+  // 在弹窗里每敲一个字 → value 变 → 面板那个实例也走「外部 value 变化 → 重建 DOM」分支。
+  // 它若照旧返回 0 并 restoreCursor(el, 0)，就会把全局 selection 抢到自己内部，
+  // 光标瞬间跳出全屏编辑器 → 后面的字全打进面板那个隐藏输入框（表现为「一写字光标就错乱」）。
   const saveCursor = useCallback((root) => {
     const sel = window.getSelection()
-    if (!sel || !sel.rangeCount) return 0
+    if (!sel || !sel.rangeCount) return null
     const range = sel.getRangeAt(0)
-    if (!root.contains(range.startContainer)) return 0
+    if (!root.contains(range.startContainer)) return null
     const walker = document.createTreeWalker(root, NodeFilter.SHOW_ALL)
     let offset = 0
     let node
@@ -191,8 +197,8 @@ const PromptInput = forwardRef(function PromptInput(
     const nameChanged = prevNameSigRef.current !== nameSignature
     prevNameSigRef.current = nameSignature
     if (!nameChanged && serializeDOM(el) === value) return
-    const sel = window.getSelection()
-    const cursor = sel && sel.rangeCount ? saveCursor(el) : null
+    // 光标不在本编辑器内（如焦点正在全屏弹窗里）→ 只重建 DOM，绝不碰 selection
+    const cursor = saveCursor(el)
     syncingRef.current = true
     el.innerHTML = ''
     for (const node of renderPromptToNodes(autoLinkAssetsByName(value || '', all), chipMetaMap)) el.appendChild(node)
@@ -360,6 +366,21 @@ const PromptInput = forwardRef(function PromptInput(
 
   React.useEffect(() => {
     onReady?.(handleExternalInsert)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // 自动聚焦（对齐全屏弹窗里 textarea 分支的 autoFocus）：
+  // 光标放末尾，避免落在开头导致「新输入插在最前面」。
+  React.useEffect(() => {
+    if (!autoFocus) return
+    const el = editorRef.current
+    if (!el) return
+    el.focus()
+    const range = document.createRange()
+    range.selectNodeContents(el)
+    range.collapse(false)
+    const sel = window.getSelection()
+    if (sel) { sel.removeAllRanges(); sel.addRange(range) }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 

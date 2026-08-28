@@ -190,7 +190,8 @@ function PromptNode({ id, data, selected }) {
   const { providers, primary, models, loading, error, stop: onStop, start: handleGenerate } = useGenerateNode({
     nodeId: id,
     type: 'image',
-    prompt: effectivePrompt || '',
+    // 上报用解析后的纯文本（芯片已替换为可读内容），与实发 chipResolved.text 一致
+    prompt: chipResolved.text || effectivePrompt || '',
     data,
     prefs: imgPrefs,
     setPrefs: setImgPrefs,

@@ -25,6 +25,7 @@ import { saveTextToTasks, toAbsoluteFileUrl } from '../base/filesApi.js'
 import { chatCompletions } from '../base/chatApi.js'
 import { useNodePrefs } from '../base/nodePrefs.js'
 import { resolveProviderModel } from '../base/providerModels.js'
+import { resolvePromptChips } from '../base/promptChips.js'
 import { logger } from '../base/logger.js'
 import { reportDegrade } from '../base/degrade.js'
 import previewUrls from '../base/previewUrl.js'
@@ -111,6 +112,13 @@ function TextNode({ id, data, selected }) {
     () => [...(connected.images || []), ...images.map((u, i) => ({ id: `img-${i}`, url: u, label: `图片${i + 1}` }))],
     [connected.images, images]
   )
+  // 【富文本芯片解析】prompt/text 里可能含 `@{id:label}` 素材芯片（图片 → 参考图 + 文本占位，文本 → 纯文本）。
+  // 与生图/视频节点一致：chipResolved.text 是发给 AI 的纯文本；chipResolved.refImages 是用户显式 @ 的参考图。
+  // 必须在 refImages 定义之后、useGenerateNode 之前（其 run 闭包引用本值，防 TDZ）。
+  const chipResolved = useMemo(
+    () => resolvePromptChips(effectivePrompt, refImages, refTexts),
+    [effectivePrompt, refImages, refTexts]
+  )
   const textAreaRef = useRef(null)
   const fileRef = useRef(null)
   const promptInputRef = useRef(null) // 提示词 textarea ref（供面板右下角手柄拖拽改尺寸）
@@ -135,20 +143,23 @@ function TextNode({ id, data, selected }) {
     nodeId: id,
     type: 'chat',
     reportType: 'text',
-    prompt: effectivePrompt || '',
+    // 上报用解析后的纯文本（芯片已替换为可读内容），与实发一致，避免任务中心/日志看到 @{id:label|url} 噪音
+    prompt: chipResolved.text || effectivePrompt || '',
     data,
     prefs: textPrefs,
     setPrefs: setTextPrefs,
     selectedModel,
     setSelectedModel,
     // 前置校验：本地 prompt/文本 或上游文本任一非空即可生成
-    validate: () => (effectivePrompt?.trim() ? '' : '请输入提示词或文本'),
+    validate: () => (effectivePrompt?.trim() || chipResolved.refImages.length > 0 ? '' : '请输入提示词或文本'),
     run: async ({ progress, signal }) => {
       // 从「providerId::modelId」解析出实际 provider 和 modelId（跨 provider 选模型）
       const { provider: useProvider, modelId } = resolveProviderModel(providers, selectedModel, primary)
-      // 参考图：把连线上游/上传的图传给 AI（让 AI 看图反推提示词/理解图片）。
-      // chatApi 会转成 image_url 内容块（blob 自动转 data base64）。
-      const refUrls = refImages.map((img) => img.url)
+      // 参考图 = 用户显式 @ 的芯片图（顺序对应文本里的「图片N」）+ 其余连线上游/上传图（去重）。
+      // 之前漏了解析：@ 插入的图芯片既不入参考图、又以 @{...|url} 噪音原样发给 LLM。
+      const chipUrls = chipResolved.refImages.map((im) => im.url)
+      const upstreamUrls = refImages.map((img) => img.url)
+      const refUrls = [...new Set([...chipUrls, ...upstreamUrls])]
       // 文本为非流式请求：上报「连接本地服务」→「上游生成中」两个阶段
       progress?.(10, '正在连接本地服务…')
       // 对齐官方 H_.jsx Lr（6141-6152）：只有勾选「自动拆分」才把 system 换成
@@ -161,7 +172,7 @@ function TextNode({ id, data, selected }) {
         provider: useProvider,
         messages: [
           { role: 'system', content: sysContent },
-          { role: 'user', content: effectivePrompt || '' }
+          { role: 'user', content: chipResolved.text || effectivePrompt || '' }
         ],
         model: modelId,
         images: refUrls,

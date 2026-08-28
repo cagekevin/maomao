@@ -7,6 +7,15 @@ import { showToast } from './toastStore.js'
 import { useNodeData } from './useNodeData.js'
 import { classifyError } from './genErrors.js'
 
+// 日志里的提示词只保留前 80 字：剧本盒子等场景的镜头提示词动辄上千字，
+// 全量打进 localTool 终端会淹没其它全链路日志。完整原文仍可在节点 data /
+// 任务中心（reportGenerate 上报）查到，日志侧只留可定位的摘要。
+const LOG_PROMPT_MAX = 80
+function promptPreview(p) {
+  const s = typeof p === 'string' ? p : String(p || '')
+  return s.length > LOG_PROMPT_MAX ? `${s.slice(0, LOG_PROMPT_MAX)}…` : s
+}
+
 /**
  * ════════════════════════════════════════════════════════════════
  * 统一「节点生成」契约（useNodeGeneration）—— P0 架构级
@@ -114,7 +123,7 @@ export function useNodeGeneration({ nodeId, type, validate, run, onSuccess, onRe
     const t = typeRef.current || {}
     const taskCtl = reportGenerate(nodeId, t.type, t.prompt, { modelName: t.modelName })
     taskCtl.progress(5, '准备中…')
-    logger.info('生成', 'start', { nodeId, type: t.type, prompt: t.prompt })
+    logger.info('生成', 'start', { nodeId, type: t.type, prompt: promptPreview(t.prompt) })
     // 【B层】节点生成入口：prompt 摘要 + 节点类型（定位是哪个节点、发的什么提示词触发生图）
     logger.debug('生成', '[节点] start', { nodeId, type: t.type, prompt: String(t.prompt || '').slice(0, 120), modelName: t.modelName }, { module: 'image' })
     try {
@@ -151,7 +160,7 @@ export function useNodeGeneration({ nodeId, type, validate, run, onSuccess, onRe
         setError(msg)
         taskCtl.fail(msg)
         // 生成失败：统一 logger + 全局 toast（节点内红字易忽略；logger 供全链路排查）
-        logger.error('生成', 'fail', { nodeId, type: t.type, prompt: t.prompt, error: msg, errType: cls.type, retryable: cls.retryable })
+        logger.error('生成', 'fail', { nodeId, type: t.type, prompt: promptPreview(t.prompt), error: msg, errType: cls.type, retryable: cls.retryable })
         showToast(msg, { type: 'error' })
         return { ok: false, error: msg }
       }
@@ -171,7 +180,7 @@ export function useNodeGeneration({ nodeId, type, validate, run, onSuccess, onRe
       setError(msg)
       taskCtl.fail(msg)
       // 生成异常：统一 logger + 全局 toast（用户主动停止 AbortError 除外）
-      logger.error('生成', 'fail', { nodeId, type: t.type, prompt: t.prompt, error: msg, errType: cls.type, retryable: cls.retryable })
+      logger.error('生成', 'fail', { nodeId, type: t.type, prompt: promptPreview(t.prompt), error: msg, errType: cls.type, retryable: cls.retryable })
       showToast(msg, { type: 'error' })
       return { ok: false, error: msg }
     } finally {
