@@ -17,7 +17,6 @@ import { useArrangeCanvas } from './components/base/useArrangeCanvas.js'
 import { useAssetDropPaste, useGlobalPaste } from './components/base/useAssetDropPaste.js'
 import { copyImageToClipboard, downloadBlob } from './components/base/clipboard.js'
 import GhostTargetNode from './components/nodes/GhostTargetNode.jsx'
-import Director3DNode from './components/nodes/Director3DNode.jsx'
 import AgentPanel from './components/panels/AgentPanel.jsx'
 import { getNodeImageUrl } from './components/agent/index.js'
 import LeftPanel from './components/base/LeftPanel.jsx'
@@ -65,6 +64,7 @@ import { useCanvasSync } from './components/base/useCanvasSync.js'
 import { parseShotHandle } from './components/base/contracts.js'
 // url 引用改写工具（与 taskStore 共用同一份，禁止各写一份 → 改名只改一半）
 import { buildUrlRewritePairs, replaceUrlDeep } from './components/base/imageUrl.js'
+import { prefetchHeavyNode } from './components/base/lazyNode.jsx'
 
 /* ======================================================================
  * 【区 1】常量与配置区
@@ -72,11 +72,11 @@ import { buildUrlRewritePairs, replaceUrlDeep } from './components/base/imageUrl
  * ====================================================================== */
 
 // 节点类型注册表：由 NodePalette 单源派生（type→组件），不再手写平行表。
-// director3dNode（WebGL 重依赖，palette 不持 component）与 ghostTarget（连线占位）单独补充。
-// 新增常规节点只需改 palette 一处；仅新增「不可 SSR / 占位」节点才在此补例外。
+// 重依赖节点（3D 引擎 / 视频处理）已由 palette 以 lazyNode 登记（动态 import，按需下载 chunk），
+// 故此处**不得**再静态 import Director3DNode —— 静态 import 会让 vendor-3d(1.06MB) 进首屏。
+// 新增常规节点只需改 palette 一处；仅新增「连线占位」类节点才在此补例外。
 const nodeTypes = {
   ...buildNodeTypeComponents(),
-  director3dNode: Director3DNode,
   ghostTarget: GhostTargetNode
 }
 
@@ -147,6 +147,9 @@ function Canvas() {
             : n
         )
         setNodes(loadedNodes)
+        // 预取重依赖节点 chunk：画布里若含 3D/视频处理节点，立即预热（不阻塞渲染），
+        // 让节点真正渲染时 chunk 已在模块缓存里，骨架屏一闪而过甚至不出现。
+        for (const n of loadedNodes) prefetchHeavyNode(n.type)
         // 兜底：历史快照里可能有旧 onConnect 建的「无 id」边 → 补唯一 id，
         // 否则 EdgeRenderer 用 undefined 作 key 触发重复 key 警告。
         // 同时修正「连到剧本盒子却缺 targetHandle」的历史坏边：scriptBoxNode 的输入口
@@ -830,6 +833,9 @@ function Canvas() {
         label: n.label,
         badge: n.badge,
         onClick: () => addNodeFromMenu(n.type),
+        // 悬停即预热重依赖节点 chunk（3D/视频处理），点击时通常已就绪、看不到骨架屏。
+        // 轻量节点 prefetchHeavyNode 内部直接返回，无副作用。
+        onMouseEnter: () => prefetchHeavyNode(n.type),
         // trailing 为函数形式 → ContextMenu 渲染时实例化（不随 pinnedTools 变化重建 item 数组）
         trailing: () => (
           <button

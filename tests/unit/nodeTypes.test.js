@@ -26,16 +26,13 @@ describe('NodePalette.buildNodeTypeComponents（nodeTypes 单源化）', () => {
     }
   })
 
-  it('覆盖 paletteNodes 全部「持 component」类型（director3dNode 例外由 App 补）', () => {
+  it('覆盖 paletteNodes 全部类型（重依赖节点亦持 component，为 lazyNode 包装）', () => {
     const map = buildNodeTypeComponents()
     const types = new Set(Object.keys(map))
     for (const n of paletteNodes) {
-      if (n.component) {
-        expect(types.has(n.type), `palette 缺 ${n.type}`).toBe(true)
-      } else {
-        // director3dNode 依赖 WebGL 无法 SSR，palette 不持 component，由 App.jsx 派生后补充
-        expect(n.type).toBe('director3dNode')
-      }
+      // 3D/视频处理等重依赖节点的 component 是 lazyNode 包装（动态 import），仍属「持 component」
+      expect(isReactComponent(n.component), `paletteNodes[${n.type}] 缺 component`).toBe(true)
+      expect(types.has(n.type), `palette 缺 ${n.type}`).toBe(true)
     }
   })
 
@@ -46,9 +43,8 @@ describe('NodePalette.buildNodeTypeComponents（nodeTypes 单源化）', () => {
     expect(isReactComponent(map.discountVideoNode), 'discountVideoNode 非合法组件类型').toBe(true)
   })
 
-  it('除 director3dNode 外每个 palette 目录项都有 component 字段（单源前提）', () => {
+  it('每个 palette 目录项都有 component 字段（单源前提，重依赖为 lazy 包装）', () => {
     for (const n of paletteNodes) {
-      if (n.type === 'director3dNode') continue // WebGL 重依赖例外，由 App 补
       expect(isReactComponent(n.component), `paletteNodes[${n.type}] 缺 component`).toBe(true)
     }
   })
@@ -65,10 +61,9 @@ describe('NodePalette.buildNodeTypeComponents（nodeTypes 单源化）', () => {
       'videoProcessNode', 'faceMosaicNode', 'panoramaNode', 'director3dNode',
       'group', 'scriptBoxNode', 'ghostTarget',
     ]
-    // 模拟 App.jsx：派生 + director3dNode/ghostTarget 例外
+    // 模拟 App.jsx：palette 派生（含 lazyNode 包装的重依赖）+ ghostTarget 占位例外
     const derived = {
       ...buildNodeTypeComponents(),
-      director3dNode: () => {},
       ghostTarget: () => {},
     }
     const types = Object.keys(derived).sort()

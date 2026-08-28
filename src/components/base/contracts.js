@@ -88,7 +88,7 @@ export const EVENTS = {
   },
   'resource:renamed': {
     from: ['AssetLibrary.jsx:262', 'GeneratedView.jsx:214', 'useAssetMoveToFolder.js:64'],
-    to: ['App.jsx:442', 'taskStore.js:114'],
+    to: ['App.jsx:445', 'taskStore.js:114'],
     payload: '{ oldUrl, newUrl }',
     note: '素材 url 变更（改名/移动归类，前端入口）广播旧→新 url。两个订阅方各管一段内存态：App 改写画布/脚本箱节点并持久化（防下游图生图 404）；taskStore 改写内存任务的 resultUrl（防任务中心破图）。两侧共用 imageUrl.js 的 buildUrlRewritePairs/replaceUrlDeep，禁止各写一份。与后端 rewriteUrlReferences（localTool database.ts）配套，形态严格四态对账',
   },
@@ -112,7 +112,7 @@ export const EVENTS = {
   },
   'persist:failed': {
     from: ['storageAdapter.js:31'],
-    to: ['App.jsx:496'], // 全局监听器，节流 toast；分发逻辑收敛到 persistFailureBus
+    to: ['App.jsx:499'], // 全局监听器，节流 toast；分发逻辑收敛到 persistFailureBus
     payload: '{ key, error }',
     note: '持久化失败广播（sSet/sRemove 失败）。已由 App.jsx 全局订阅',
   },

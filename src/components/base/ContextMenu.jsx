@@ -203,6 +203,9 @@ function renderItems(items, onClose) {
       <button
         key={item.key}
         disabled={item.disabled}
+        // onMouseEnter 可选：供调用方做「悬停预热」（如重依赖节点预取 chunk）。
+        // 不传则为 undefined，对既有菜单项零行为变化。
+        onMouseEnter={item.onMouseEnter}
         onClick={(e) => {
           e.stopPropagation()
           item.onClick?.(e)

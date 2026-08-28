@@ -15,13 +15,14 @@ import VideoExtractNode from '../nodes/VideoExtractNode.jsx'
 import ImageBoxNode from '../nodes/ImageBoxNode.jsx'
 import GridSplitNode from '../nodes/GridSplitNode.jsx'
 import GridMergeNode from '../nodes/GridMergeNode.jsx'
-import VideoProcessNode from '../nodes/VideoProcessNode.jsx'
 import FaceMosaicNode from '../nodes/FaceMosaicNode.jsx'
-import PanoramaNode from '../nodes/PanoramaNode.jsx'
 import GroupNode from '../nodes/GroupNode.jsx'
 import ScriptBoxNode from '../nodes/ScriptBoxNode.jsx'
-// 注：director3dNode 依赖 WebGL + import.meta.glob，无法 SSR，故不在此持有 component，
-// 由 App.jsx 派生后单独补充（见 buildNodeTypeComponents 注释）。
+// 重依赖节点（3D / 视频处理）**不在此静态 import**：静态 import 会让 vendor-3d(1.06MB) 与
+// vendor-media(705KB) 在首屏被强制下载（manualChunks 只拆文件、不改变加载时机）。
+// 统一走 lazyNode 动态 import，仅在对应节点首次渲染时才拉 chunk。见 ./lazyNode.jsx。
+// 【勿加回静态 import】加回即首屏 +1.7MB，且 tests/unit/lazyNode.test.jsx 会红。
+import { lazyNode, HEAVY_NODE_LOADERS } from './lazyNode.jsx'
 
 /**
  * 节点目录（复刻 H_.jsx:9423-9554 的 _i / vi）。
@@ -35,8 +36,9 @@ import ScriptBoxNode from '../nodes/ScriptBoxNode.jsx'
  *    （buildNodeTypeComponents() 单源，新增常规节点只需在此登记 component，勿再在 App.jsx 手写平行表）；
  *  - builtin：标记 = 已在 components/ 下复刻出对应 .jsx 的节点。
  *
- * 例外：director3dNode（依赖 WebGL + import.meta.glob，无法 SSR）与 ghostTarget（连线占位）不在此登记
- * component，由 App.jsx 派生后显式补充（新增此类「不可 SSR / 占位」节点才改 App.jsx）。
+ * 重依赖节点（3D 引擎 / 视频处理）在此登记的 component 由 lazyNode() 包装：仍是单源派生，
+ * 但组件本体走动态 import，仅在该类型节点首次渲染时才下载对应 chunk（见 ./lazyNode.jsx）。
+ * 仅 ghostTarget（连线占位，非真实节点）不在此登记，由 App.jsx 派生后显式补充。
  */
 
 // 四个工具分类 tab（复刻 H_.jsx vi）
@@ -58,15 +60,17 @@ export const paletteNodes = [
   { type: 'imageBoxNode', label: '图片盒子', icon: Box, cat: 'image', component: ImageBoxNode, data: { images: [], activeIndex: 0, expanded: false }, builtin: true },
   { type: 'gridSplitNode', label: '图片切分', icon: Grid3X3, cat: 'image', component: GridSplitNode, data: { imageUrl: '', extractedImages: [], rows: 3, cols: 3, splitMode: 'grid', hLines: [0.5], vLines: [0.5], lassoShapes: [], titlePattern: '#{num}', sendToImageBox: false }, builtin: true },
   { type: 'gridMergeNode', label: '图片拼图', icon: Grid2X2, cat: 'image', component: GridMergeNode, data: { mergeMode: 'grid', rows: 3, cols: 3, cellSize: 512, aspectRatio: '1:1', autoSize: true, titlePattern: '', longDirection: 'vertical', longGap: 0, longTargetSize: 1024, longAutoSize: true, bgColor: 'transparent', overlayState: { layers: [], canvasWidth: 1024, canvasHeight: 1024, bgColor: 'transparent' } }, builtin: true },
-  { type: 'panoramaNode', label: '全景图', icon: Globe, cat: 'image', component: PanoramaNode, builtin: true, data: { panoType: 'sphere', highQuality: false, aspectRatio: '16:9', imageUrl: '' } },
-  { type: 'director3dNode', label: '3D导演台', icon: Film, cat: 'image' },
+  // 以下三项为重依赖（three / mediabunny），component 用 lazyNode 包动态 import：
+  // palette 仍持 component（保持「单源派生」），但组件本体按需加载，不进首屏。
+  { type: 'panoramaNode', label: '全景图', icon: Globe, cat: 'image', component: lazyNode(HEAVY_NODE_LOADERS.panoramaNode, { label: '全景图' }), builtin: true, data: { panoType: 'sphere', highQuality: false, aspectRatio: '16:9', imageUrl: '' } },
+  { type: 'director3dNode', label: '3D导演台', icon: Film, cat: 'image', component: lazyNode(HEAVY_NODE_LOADERS.director3dNode, { label: '3D导演台' }) },
   { type: 'faceMosaicNode', label: '人脸打码', icon: Shuffle, cat: 'image', component: FaceMosaicNode, builtin: true, data: { mode: 'mosaic', strength: 0.5, color: '#000000', imageUrls: [] } },
   { type: 'loopNode', label: '循环生成', icon: Repeat, cat: 'image', component: LoopNode, builtin: true, data: { splitMethod: 'newline' } },
 
   // --- 视频工具 ---
   // discountVideoNode（视频生成）与顶部 E 快捷重复，子分类不再列出
   { type: 'videoExtractNode', label: '视频抽帧', icon: ImageDown, cat: 'video', component: VideoExtractNode, builtin: true, data: { videoUrl: '', videoName: '' } },
-  { type: 'videoProcessNode', label: '视频处理', icon: Wand2, cat: 'video', component: VideoProcessNode, badge: { text: 'NEW', tone: 'new' }, builtin: true, data: { mode: 'trim', sourceOrder: [], timelineTracks: [], audioFormat: 'm4a', trimStart: 0, trimEnd: 4, resizeWidth: 1280, resizeHeight: 720, targetFps: 30 } },
+  { type: 'videoProcessNode', label: '视频处理', icon: Wand2, cat: 'video', component: lazyNode(HEAVY_NODE_LOADERS.videoProcessNode, { label: '视频处理' }), badge: { text: 'NEW', tone: 'new' }, builtin: true, data: { mode: 'trim', sourceOrder: [], timelineTracks: [], audioFormat: 'm4a', trimStart: 0, trimEnd: 4, resizeWidth: 1280, resizeHeight: 720, targetFps: 30 } },
 
   // --- 其他工具 ---
   { type: 'group', label: '编组', icon: FolderTree, cat: 'other', component: GroupNode, builtin: true },
@@ -107,8 +111,9 @@ export const builtinNodeTypes = paletteNodes.filter((n) => n.builtin).map((n) =>
  * 注意：
  *  - 遍历「全部」palette 项（含无 builtin 标记的项），不能只取 builtin；
  *  - 顶部快捷 HIDDEN（textNode/promptNode/discountVideoNode）必须并入，否则画布渲染崩；
- *  - 无 component 字段的项会被跳过（目前仅 director3dNode：依赖 WebGL 无法 SSR，重依赖不进 palette）；
- *  - ghostTarget 是连线占位节点、director3dNode 是 WebGL 重节点，均由 App.jsx 在派生结果后补充。
+ *  - 无 component 字段的项会被跳过（目前仅 ghostTarget：连线占位，非真实节点）；
+ *  - 重依赖节点的 component 是 lazyNode 包装的懒加载组件，派生进 nodeTypes 后自动按需加载；
+ *  - ghostTarget 由 App.jsx 在派生结果后补充。
  */
 export function buildNodeTypeComponents() {
   const map = {}
