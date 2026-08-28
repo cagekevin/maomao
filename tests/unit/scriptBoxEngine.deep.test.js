@@ -35,7 +35,9 @@ describe('剧本盒引擎深度业务 §2.7', () => {
     getProviderState: () => providerState,
     nodeId: 'sb-1',
     setEdges: vi.fn(),
-    getNodes: () => [{ id: 'sb-1', position: { x: 0, y: 0 }, width: 900, data }],
+    // 模拟 ReactFlow：getNodes 除剧本盒自身外，还返回「已 addNodes 提交的下游节点」，
+    // 使得下游网格的实时占用扫描（scriptboxParent/Slot 打标）与真实画布行为一致。
+    getNodes: () => [{ id: 'sb-1', position: { x: 0, y: 0 }, width: 900, data }].concat(addNodes.flat()),
     addNodes: (ns) => { (addNodes.push?.(ns) ?? addNodes.push(ns)); data = { ...data } },
   })
 
@@ -228,6 +230,52 @@ describe('剧本盒引擎深度业务 §2.7', () => {
     const eng = createScriptBoxEngine(ctx())
     eng.onConnectShot('nope', 'image')
     expect(addNodes).toHaveLength(0)
+  })
+
+  // ── onConnectShot 网格排布：批量连下游时各自占一格，位置不重叠（修正重叠 bug 的回归门禁）──
+  it('onConnectShot 连续批量连下游 → 网格排布，各占一格不重叠（首行同 y、x 递增）', () => {
+    data = {
+      shots: [
+        { id: 's1', index: 1, prompt: 'p1', videoPrompt: '', description: '' },
+        { id: 's2', index: 2, prompt: 'p2', videoPrompt: '', description: '' },
+        { id: 's3', index: 3, prompt: 'p3', videoPrompt: '', description: '' },
+      ],
+    }
+    const eng = createScriptBoxEngine(ctx())
+    eng.onConnectShot('s1', 'image')
+    eng.onConnectShot('s2', 'image')
+    eng.onConnectShot('s3', 'image')
+    expect(addNodes).toHaveLength(3)
+    const [a, b, c] = [addNodes[0][0], addNodes[1][0], addNodes[2][0]]
+    // 前 3 个落在第一行（col0/1/2，row0）：y 相等、x 依次向右，绝不重叠
+    expect(a.position.y).toBe(b.position.y)
+    expect(b.position.y).toBe(c.position.y)
+    expect(a.position.x).toBeLessThan(b.position.x)
+    expect(b.position.x).toBeLessThan(c.position.x)
+  })
+
+  // ── 确定性映射：单个生成不会跑回同一个地方；生图/生视频分属不同网格区 ──
+  // 用户担心的「批量不重叠、单个又叠回去」：单点也走镜头序确定性映射，镜头 N 的产出永远固定格。
+  it('onConnectShot 单个生成 → 生图占 images 区、生视频占 videos 区，槽位互异不重叠', () => {
+    data = {
+      shots: [
+        { id: 's1', index: 1, prompt: 'p1', videoPrompt: 'v1', description: '' },
+        { id: 's2', index: 2, prompt: 'p2', videoPrompt: 'v2', description: '' },
+      ],
+    }
+    const eng = createScriptBoxEngine(ctx())
+    eng.onConnectShot('s1', 'image') // 生图：镜头1 → slot 0（images 区）
+    eng.onConnectShot('s2', 'video') // 生视频：镜头2 → slot 2+1=3（videos 区）
+    const [img, vid] = [addNodes[0][0], addNodes[1][0]]
+    expect(img.data.scriptboxSlot).toBe(0)
+    expect(vid.data.scriptboxSlot).toBe(3)
+    expect(img.position.row ?? undefined).toBeUndefined() // 位置按 col/row 折进网格
+    // 槽号互异 → 网格位置必然不同，绝不重叠
+    expect(JSON.stringify(img.position)).not.toBe(JSON.stringify(vid.position))
+    // 同镜头重复生图：期望格已被占 → 顺延到空闲格，仍不与镜头2的图/视频冲突
+    eng.onConnectShot('s1', 'image')
+    const imgAgain = addNodes[2][0]
+    expect(imgAgain.data.scriptboxSlot).toBe(1)
   })
 
   // ── onGenerateShotImage：成功写回 imgGen ──

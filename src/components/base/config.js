@@ -145,6 +145,16 @@ export const CLOUD_SYNC_GAS_URL =
 /** area-fixed 节点的面积基准：视频生成与图片生图统一尺寸的唯一来源（往这里改，两边都变） */
 export const NODE_AREA_FIXED_BASE_SIZE = 380
 
+// ── 剧本盒子下游节点网格排布 ─────────────────────────────────────
+// 剧本盒子「生图/生视频」连下游（单个或批量）时，用网格把每个下游节点各占一格、向右下折行排布，
+// 保证互不重叠。格宽略大于生图节点基准宽（NODE_AREA_FIXED_BASE_SIZE≈380，再留间距）；
+// 行高留足给「默认展开的提示词面板」，保证上下两行不压叠。见 scriptBoxEngine 下游网格排布说明。
+export const SCRIPTBOX_DOWNSTREAM_GRID_COLS = 4
+export const SCRIPTBOX_DOWNSTREAM_CELL_W = 440
+export const SCRIPTBOX_DOWNSTREAM_CELL_H = 640
+/** 下游首列相对剧本盒子右侧的横向间距 */
+export const SCRIPTBOX_DOWNSTREAM_GAP_X = 96
+
 // ── 节点写回（useNodeData，P0-2 收口）────────────────────────────
 /** 节点 data 写回防抖窗口（useNodeData.patchDebounced 用） */
 export const NODE_PATCH_DEBOUNCE_MS = 200

@@ -9,6 +9,7 @@ import { showToast } from './toastStore.js'
 import { logger } from './logger.js'
 import { reportGenerate } from './taskStore.js'
 import { shotHandleId } from './contracts.js'
+import { SCRIPTBOX_DOWNSTREAM_GRID_COLS, SCRIPTBOX_DOWNSTREAM_CELL_W, SCRIPTBOX_DOWNSTREAM_CELL_H, SCRIPTBOX_DOWNSTREAM_GAP_X } from './config.js'
 
 /** 去掉 ```json 围栏、只保留首个 {...} 块（对齐官方 Ar/Ir 的解析）。
  *  顶层纯函数，导出供单测（剧本盒纯逻辑）。 */
@@ -69,7 +70,7 @@ export function useJsonObject(modelId) {
  *  - addNodes(nodes)                   建下游节点（onConnect* 用，可选）
  *  - nodeId                            剧本盒子节点 id（连线 source 用）
  *  - setEdges(updater)                 建边（onConnect* 自动连线用，可选）
- *  - getNodes()                        读节点位置（下游往右偏移用，可选）
+ *  - getNodes()                        读节点位置（下游网格锚点/占用扫描用，可选）
  */
 export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, setEdges, getNodes, getProviderState, captureVideoFrame: cf = captureVideoFrame }) {
   // ── AbortController 注册表（onStopScriptItem 真中止用，对齐官方 zt.current）──
@@ -817,31 +818,77 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
       : { aspectRatio: o }
   }
 
+  // ── 下游节点确定性网格排布 ────────────────────────────────────
+  // 目标：生图/生视频（单个或批量）产生的下游节点落在「固定、互不重叠」的格子，且「镜头 N 的产出」无论
+  // 何时生成都在同一位置（确定性映射），刷新后也在原位。方案：
+  //   · 确定性映射：slot 由镜头在剧本里的顺序算死——生图 slot = 镜头序；生视频 slot = 镜头总数 + 镜头序。
+  //     再折进「列×行」网格（col=slot%COLS、row=slot/COLS）向右下排布。图片占 [0,镜头数)、
+  //     视频占 [镜头数, 2*镜头数)，两类各成一片，不会互相顶掉。
+  //   · 绝不冲突：分配前先看「本剧本盒子已连的下游节点」占据的格子（scriptboxParent==nodeId 打标，
+  //     已随画布快照持久化，刷新后仍有效）；期望格被占（如同一镜头重复生成）则顺延到下一空闲格。
+  //   · 分配器按「一次批量/一次单个」作用域持有本批未提交的预留槽（pending），既保证同 tick 内连续分配
+  //     也不撞、又不会长期占用（用完即弃）；单点之间靠 live 扫描天然看到上一次已提交的节点。
+  // 以剧本盒子为原点，把 slot 折进「列×行」网格，向右下排布。
+  const positionOf = (slot) => {
+    const col = slot % SCRIPTBOX_DOWNSTREAM_GRID_COLS
+    const row = Math.floor(slot / SCRIPTBOX_DOWNSTREAM_GRID_COLS)
+    let base = { x: 0, y: 0 }, width = 900
+    if (getNodes && nodeId) {
+      const self = getNodes().find((n) => n.id === nodeId)
+      if (self?.position) { base = self.position; width = self.width ?? 900 }
+    }
+    return {
+      x: base.x + width + SCRIPTBOX_DOWNSTREAM_GAP_X + col * SCRIPTBOX_DOWNSTREAM_CELL_W,
+      y: base.y + row * SCRIPTBOX_DOWNSTREAM_CELL_H,
+    }
+  }
+  // 本剧本盒子已连下游占据的格子（据节点 scriptboxParent/scriptboxSlot 打标）。
+  const occupiedLiveSlots = () => {
+    const set = new Set()
+    if (!getNodes) return set
+    for (const n of getNodes()) {
+      if (n?.data?.scriptboxParent === nodeId && Number.isInteger(n.data.scriptboxSlot)) set.add(n.data.scriptboxSlot)
+    }
+    return set
+  }
+  // 生成一个「一批」的槽分配器：期望格允许基于 live+本批 pending 向前顺延到空闲格。
+  const createSlotAllocator = (shotsCount) => {
+    const pending = new Set()
+    return ({ shotOrder, isVideo }) => {
+      // 确定性期望格：生图占 images 区、生视频占 videos 区，镜头序映射成格号
+      const preferred = isVideo ? shotsCount + shotOrder : shotOrder
+      const taken = new Set(occupiedLiveSlots())
+      for (const s of pending) taken.add(s)
+      let slot = preferred
+      while (taken.has(slot)) slot += 1
+      pending.add(slot)
+      return slot
+    }
+  }
+
   const onConnectShot = (shotId, target = 'image') => {
     if (!addNodes) return
     const d = getData()
     const shot = d.shots.find((s) => s.id === shotId)
     if (!shot) return
-    const base = Date.now()
     const isImage = target !== 'video'
-    const nodeId2 = `script-${isImage ? 'prompt' : 'video'}-${shotId}-${base}`
+    const nodeId2 = `script-${isImage ? 'prompt' : 'video'}-${shotId}-${Date.now()}`
     // 资产自动匹配：按该镜头里的 @资产名 收集「有图资产」作为参考图（复刻官方 Ra）。
     // 参考图字段统一命名为 images（P0-②）：生图/生视频下游都用 images，与 useConnectedInputs 产出命名一致。
     // 收口：注入 data.images 前统一补全为绝对原图地址（与派发/发送渲染口径一致，data.images 只存绝对原图）。
     const refImages = collectAssets(shot, d.assets).map((im) =>
       im && im.url ? { ...im, url: toAbsoluteFileUrl(im.url) } : im)
-    // 下游往右排布：以剧本盒子节点位置为基准，向右偏移 —— 距离调近（120 → 96），下游更贴近剧本盒子
-    let rightBase = { x: 0, y: 0 }
-    if (getNodes && nodeId) {
-      const self = getNodes().find((n) => n.id === nodeId)
-      if (self?.position) rightBase = { x: self.position.x + (self.width ?? 900) + 96, y: self.position.y }
-    }
+    // 确定性落点：单个/批量统一「镜头 N 固定格子」，互不重叠（见下游网格排布说明）
+    const shotsCount = (d.shots || []).length
+    const shotOrder = Math.max(0, (d.shots || []).findIndex((s) => s.id === shotId))
+    const slot = createSlotAllocator(shotsCount)({ shotOrder, isVideo: !isImage })
+    const pos = positionOf(slot)
     const prefill = shotPrefill(shot, isImage ? 'image' : 'video')
-    const baseData = { ...prefill, images: refImages }
+    const baseData = { ...prefill, images: refImages, scriptboxParent: nodeId, scriptboxSlot: slot }
     addNodes([
       isImage
-        ? { id: nodeId2, type: 'promptNode', position: { x: rightBase.x, y: rightBase.y }, data: { ...baseData, label: `镜头${shot.index}图`, prompt: shot.prompt } }
-        : { id: nodeId2, type: 'discountVideoNode', position: { x: rightBase.x, y: rightBase.y }, data: { ...baseData, label: `镜头${shot.index}视频`, prompt: shot.videoPrompt, upstreamShotId: shot.id } }
+        ? { id: nodeId2, type: 'promptNode', position: pos, data: { ...baseData, label: `镜头${shot.index}图`, prompt: shot.prompt } }
+        : { id: nodeId2, type: 'discountVideoNode', position: pos, data: { ...baseData, label: `镜头${shot.index}视频`, prompt: shot.videoPrompt, upstreamShotId: shot.id } }
     ])
     if (setEdges && nodeId) {
       setEdges((es) => [
@@ -851,12 +898,37 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
     }
   }
   // 批量连下游（对齐官方 Ir 的「未选则全部」语义，与 onGenerateShotPrompts / onGenerateAllAssetImages 一致）：
-  // 未传 / 空数组 → 全部镜头；传入选中 id 数组 → 只连选中的镜头。
+  // 未传 / 空数组 → 全部镜头；传入选中 id 数组 → 只连选中的镜头。整批共享一个分配器，
+  // 确保批内每镜各占一格（镜头序互异 → 期望格互异），单个点也同一定位逻辑。
   const onConnectShots = (shotIds, target = 'image') => {
     const d = getData()
     const shots = d.shots || []
     const ids = Array.isArray(shotIds) && shotIds.length > 0 ? shotIds : shots.map((s) => s.id)
-    ids.forEach((id) => onConnectShot(id, target))
+    const alloc = createSlotAllocator(shots.length)
+    ids.forEach((id) => {
+      const shot = shots.find((s) => s.id === id)
+      if (!shot) return
+      const isImage = target !== 'video'
+      const nodeId2 = `script-${isImage ? 'prompt' : 'video'}-${id}-${Date.now()}`
+      const refImages = collectAssets(shot, d.assets).map((im) =>
+        im && im.url ? { ...im, url: toAbsoluteFileUrl(im.url) } : im)
+      const shotOrder = shots.findIndex((s) => s.id === id)
+      const slot = alloc({ shotOrder, isVideo: !isImage })
+      const pos = positionOf(slot)
+      const prefill = shotPrefill(shot, isImage ? 'image' : 'video')
+      const baseData = { ...prefill, images: refImages, scriptboxParent: nodeId, scriptboxSlot: slot }
+      addNodes([
+        isImage
+          ? { id: nodeId2, type: 'promptNode', position: pos, data: { ...baseData, label: `镜头${shot.index}图`, prompt: shot.prompt } }
+          : { id: nodeId2, type: 'discountVideoNode', position: pos, data: { ...baseData, label: `镜头${shot.index}视频`, prompt: shot.videoPrompt, upstreamShotId: shot.id } }
+      ])
+      if (setEdges && nodeId) {
+        setEdges((es) => [
+          ...es,
+          { id: `e-${nodeId}-${nodeId2}`, source: nodeId, sourceHandle: shotHandleId(id), target: nodeId2, type: 'default', animated: false }
+        ])
+      }
+    })
   }
 
   // ═══════════════════════════════════════════════════════════════
@@ -883,12 +955,9 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
     const label = firstIdx != null && lastIdx != null
       ? (firstIdx === lastIdx ? `镜头${firstIdx}视频` : `镜头${firstIdx}~${lastIdx}视频`)
       : '合并视频'
-    // 下游往右排布：以剧本盒子节点位置为基准，向右偏移 —— 距离调近（120 → 96），下游更贴近剧本盒子
-    let rightBase = { x: 0, y: 0 }
-    if (getNodes && nodeId) {
-      const self = getNodes().find((n) => n.id === nodeId)
-      if (self?.position) rightBase = { x: self.position.x + (self.width ?? 900) + 96, y: self.position.y }
-    }
+    // 合并视频是多镜合成，落在「图片区+视频区」之后（期望 slot=2*镜头数），与单镜产出互不重叠
+    const mergeSlot = createSlotAllocator(shots.length)({ shotOrder: shots.length, isVideo: true })
+    const pos = positionOf(mergeSlot)
     toast(`正在生成合并视频提示词（${picked.length} 镜）…`)
     logger.info('scriptBox', '合并生成视频·开始', { nodeId, shotIds: ids, count: picked.length, seconds })
     return runAbortable(`merge-video-${Date.now()}`, () => {}, async (signal) => {
@@ -910,10 +979,13 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
         {
           id: nodeId2,
           type: 'discountVideoNode',
-          position: { x: rightBase.x, y: rightBase.y },
+          position: pos,
           data: {
             label,
             prompt: mergedPrompt,
+            // 合并节点也打标 scriptboxParent/Slot：不占单镜产出区，且作为「已占格」参与后续分配
+            scriptboxParent: nodeId,
+            scriptboxSlot: mergeSlot,
             images: refImages,
             size,
             // 合并时长 → 预选视频生成节点时长选项（单一数据来源：第一步各镜 duration 累加）
