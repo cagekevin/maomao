@@ -15,6 +15,7 @@ import FaceMosaicEditor from '../base/FaceMosaicEditor.jsx'
 import ImageZoomDialog from '../base/ImageZoomDialog.jsx'
 import { generateId } from '../base/idGen.js'
 import previewUrls from '../base/previewUrl.js'
+import { dataUrlToBlob } from '../base/utils.js'
 
 /**
  * 人脸打码节点（完整复刻官方 Cl.jsx / faceMosaicNode）。
@@ -334,16 +335,6 @@ function FaceMosaicNode({ id, data, selected }) {
       <ImageZoomDialog ref={zoomRef} url={resultUrls[0]} />
     </NodeShell>
   )
-}
-
-/** data: URL → Blob（供上传 localTool） */
-function dataUrlToBlob(dataUrl, mime) {
-  const idx = dataUrl.indexOf(',')
-  const raw = dataUrl.slice(idx + 1)
-  const bin = atob(raw)
-  const bytes = new Uint8Array(bin.length)
-  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
-  return new Blob([bytes], { type: mime })
 }
 
 function MODE_LABEL(mode) {

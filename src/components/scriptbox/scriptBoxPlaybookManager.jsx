@@ -1,0 +1,144 @@
+import React, { useState } from 'react'
+import { Pencil, Trash2, Plus, Check, X, ChevronDown, ChevronRight } from 'lucide-react'
+import ScriptBoxModal from './ScriptBoxModal.jsx'
+import { getAllPlaybooks, saveCustomPlaybook, deleteCustomPlaybook, createCustomFrom } from './scriptBoxPlaybookStore.js'
+import { DEFAULT_WORKFLOW } from './scriptBoxWorkflows.js'
+
+/**
+ * 剧本盒子 Playbook 管理面板（设计 B：官方折叠 + 我的主区，直白 CRUD，无「另存为」）。
+ *
+ * 官网/个人分开：官方只读、折叠展示可选用；我的可 read/新建/编辑/删除，为主操作区。
+ * - 选用：点任一行设为该节点工作流并关闭面板；当前项行内标「使用中」。
+ * - 新建（＋ 新建）：给默认值（基于官方「漫剧」模板成品）、命名即建、进入编辑接管，不依赖当前选中。
+ * - 编辑（✎）：选中该 playbook 并关面板 → 回设置弹窗 Tabs 编辑（官方只读不可✎）。
+ * - 删除（▸）：行内二次确认（无全屏遮罩）；删除「使用中」项提示会回退漫剧。
+ */
+export default function ScriptBoxPlaybookManager({ currentId, onSelect, onClose }) {
+  const [officialOpen, setOfficialOpen] = useState(false)
+  const [showNew, setShowNew] = useState(false)
+  const [newName, setNewName] = useState('')
+  const [renameId, setRenameId] = useState(null)
+  const [renameVal, setRenameVal] = useState('')
+  const [confirmDel, setConfirmDel] = useState(null) // {id,label}
+
+  const playbooks = getAllPlaybooks()
+  const official = playbooks.filter((p) => p.builtin)
+  const mine = playbooks.filter((p) => !p.builtin)
+
+  const nameTaken = (t, excludeId) => playbooks.some((p) => p.label === t && p.id !== excludeId)
+
+  const pick = (id) => { onSelect(id); onClose() }
+
+  const commitNew = () => {
+    const t = String(newName || '').trim()
+    if (!t || nameTaken(t)) return
+    // 新建起点 = 官方漫剧默认模板（开箱可用，稳定可预期；不复制「当前选中」）
+    const id = createCustomFrom(DEFAULT_WORKFLOW, {}, t)
+    if (id) pick(id)
+  }
+
+  const commitRename = (pb) => {
+    const t = String(renameVal || '').trim()
+    if (!t || nameTaken(t, pb.id)) return
+    saveCustomPlaybook({ ...pb, label: t })
+    setRenameId(null)
+  }
+
+  const doDelete = () => {
+    if (!confirmDel) return
+    const deletingCurrent = confirmDel.id === currentId
+    deleteCustomPlaybook(confirmDel.id)
+    setConfirmDel(null)
+    if (deletingCurrent) { onSelect(DEFAULT_WORKFLOW); onClose() } // 回退漫剧
+  }
+
+  const stop = (e) => { e.stopPropagation() }
+
+  const row = (pb) => {
+    const using = pb.id === currentId
+    const isMine = !pb.builtin
+    return (
+      <div key={pb.id} onClick={() => pick(pb.id)} className={`flex items-center gap-2 rounded-md px-2.5 py-1.5 cursor-pointer transition-colors group ${using ? 'bg-surface-hover-strong text-white' : 'text-secondary hover:bg-surface-hover hover:text-primary'}`}>
+        <span className="flex-1 whitespace-nowrap overflow-hidden text-ellipsis text-caption-sm">{pb.label}</span>
+        {using && <span className="shrink-0 text-2xs text-muted">使用中</span>}
+
+        {renameId === pb.id ? (
+          <span className="flex items-center gap-1" onClick={stop}>
+            <input
+              value={renameVal}
+              onChange={(e) => setRenameVal(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') commitRename(pb); if (e.key === 'Escape') setRenameId(null) }}
+              autoFocus
+              className="w-32 bg-surface-strong border border-white/[0.06] rounded px-1.5 py-0.5 text-caption-sm text-primary outline-none focus:border-white/20 nodrag"
+            />
+            <button className="text-emerald-400 hover:text-emerald-300" onClick={() => commitRename(pb)}><Check size={13} /></button>
+            <button className="text-muted hover:text-white" onClick={() => setRenameId(null)}><X size={13} /></button>
+          </span>
+        ) : confirmDel && confirmDel.id === pb.id ? (
+          <span className="flex items-center gap-1 shrink-0 text-2xs text-red-300" onClick={stop}>
+            <span>删除「{pb.label}」？</span>
+            <button className="hover:text-white" onClick={doDelete}>删除</button>
+            <button className="hover:text-white" onClick={() => setConfirmDel(null)}>取消</button>
+          </span>
+        ) : isMine ? (
+          <span className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100" onClick={stop}>
+            <button className="text-muted hover:text-white" onClick={() => { setRenameId(pb.id); setRenameVal(pb.label) }} title="编辑"><Pencil size={13} /></button>
+            <button className="text-muted hover:text-red-400" onClick={() => setConfirmDel({ id: pb.id, label: pb.label })} title="删除"><Trash2 size={13} /></button>
+          </span>
+        ) : null}
+      </div>
+    )
+  }
+
+  return (
+    <ScriptBoxModal
+      title="剧本盒子工作流"
+      onClose={onClose}
+      width={360}
+      bodyClass="p-0 flex flex-col min-h-0 flex-1"
+      footer={
+        <div className="flex justify-end px-5 py-3 shrink-0 border-t border-edge-faint">
+          <button className="px-3 py-1.5 text-body-xs text-secondary hover:text-white rounded-lg" onClick={onClose}>完成</button>
+        </div>
+      }
+    >
+      <div className="flex-1 overflow-auto custom-scrollbar px-3 py-3 flex flex-col gap-4">
+        {/* 官方（只读折叠） */}
+        <div>
+          <button onClick={() => setOfficialOpen((v) => !v)} className="flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-caption-sm text-muted hover:text-primary transition-colors">
+            {officialOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+            <span>官方工作流（{official.length}）</span>
+          </button>
+          {officialOpen && <div className="mt-1">{official.map(row)}</div>}
+        </div>
+
+        {/* 我的（主区） */}
+        <div>
+          <div className="flex items-center justify-between px-2 py-1.5">
+            <span className="text-caption-sm text-muted">我的工作流（{mine.length}）</span>
+            {showNew ? (
+              <span className="flex items-center gap-1" onClick={stop}>
+                <input
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') commitNew(); if (e.key === 'Escape') { setShowNew(false); setNewName('') } }}
+                  placeholder="新工作流名称"
+                  autoFocus
+                  className="w-36 bg-surface-strong border border-white/[0.06] rounded px-1.5 py-0.5 text-caption-sm text-primary outline-none focus:border-white/20 nodrag"
+                />
+                <button className="text-emerald-400 hover:text-emerald-300" onClick={commitNew}><Check size={13} /></button>
+                <button className="text-muted hover:text-white" onClick={() => { setShowNew(false); setNewName('') }}><X size={13} /></button>
+              </span>
+            ) : (
+              <button className="flex items-center gap-1 text-2xs text-secondary hover:text-primary" onClick={() => setShowNew(true)}><Plus size={12} /> 新建</button>
+            )}
+          </div>
+          <div className="mt-1">
+            {mine.length === 0 && <div className="px-2 py-2 text-2xs text-muted-2">还没有自己的工作流，点右上「新建」创建</div>}
+            {mine.map(row)}
+          </div>
+        </div>
+      </div>
+    </ScriptBoxModal>
+  )
+}

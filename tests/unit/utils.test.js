@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { deepClone, formatTime, debounce, throttle, useDebouncedEffect, createImeInput, createRafBatch, mergeRefImages, buildEffectivePrompt, clampSeconds, assetLabel } from '../../src/components/base/utils.js'
+import { deepClone, formatTime, debounce, throttle, useDebouncedEffect, createImeInput, createRafBatch, mergeRefImages, buildEffectivePrompt, clampSeconds, assetLabel, dataUrlToBlob } from '../../src/components/base/utils.js'
 import { renderHook } from '@testing-library/react'
 
 describe('deepClone', () => {
@@ -15,6 +15,35 @@ describe('deepClone', () => {
 
   it('返回 undefined 时保持 undefined', () => {
     expect(deepClone(undefined)).toBe(undefined)
+  })
+})
+
+describe('dataUrlToBlob（dataURL → Blob 统一出口）', () => {
+  // jsdom 的 Blob 无 arrayBuffer()，用 FileReader.readAsText 精确读回字节核对
+  const blobToText = (bl) =>
+    new Promise((resolve, reject) => {
+      const r = new FileReader()
+      r.onload = () => resolve(String(r.result))
+      r.onerror = reject
+      r.readAsText(bl)
+    })
+
+  it('base64 dataURL → Blob，type 从 meta 解析、字节精确还原', async () => {
+    // 'TQ==' base64 = 单个字节 0x4D('M')
+    const bl = dataUrlToBlob('data:image/png;base64,TQ==')
+    expect(bl).toBeInstanceOf(Blob)
+    expect(bl.type).toBe('image/png')
+    expect(bl.size).toBe(1)
+    expect(await blobToText(bl)).toBe('M')
+  })
+
+  it('显式 mime 覆盖 meta 解析', () => {
+    const bl = dataUrlToBlob('data:image/png;base64,TQ==', 'image/jpeg')
+    expect(bl.type).toBe('image/jpeg')
+  })
+
+  it('meta 无 mime 时回退 octet-stream', () => {
+    expect(dataUrlToBlob('data:;base64,TQ==').type).toBe('application/octet-stream')
   })
 })
 

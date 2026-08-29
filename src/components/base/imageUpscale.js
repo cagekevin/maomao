@@ -27,6 +27,7 @@
 import { toAbsoluteFileUrl } from './imageUrl.js'
 import { loadImageWithTimeout } from './asyncGuard.js'
 import { IMAGE_LOAD_TIMEOUT } from './config.js'
+import { dataUrlToBlob } from './utils.js'
 
 export async function upscaleImage(url, opts = {}) {
   const {
@@ -144,17 +145,4 @@ function applyUnsharpMask(canvas, amount) {
     }
   }
   ctx.putImageData(imgData, 0, 0)
-}
-
-/** data: URL → Blob */
-function dataUrlToBlob(dataUrl) {
-  const idx = dataUrl.indexOf(',')
-  const meta = dataUrl.slice(0, idx)
-  const raw = dataUrl.slice(idx + 1)
-  const mime = meta.match(/^data:([^;]+)/)?.[1] || 'application/octet-stream'
-  const bin = atob(raw)
-  const len = bin.length
-  const bytes = new Uint8Array(len)
-  for (let i = 0; i < len; i++) bytes[i] = bin.charCodeAt(i)
-  return new Blob([bytes], { type: mime })
 }

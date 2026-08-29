@@ -186,8 +186,8 @@ describe('scriptBoxSchema · normalizeScriptBoxData（P0-0）', () => {
     const raw = { story: '旧故事', shots: [{ id: 's1', description: '旧' }], assets: [{ id: 'a1', imageUrl: '/files/a.png' }] }
     const d = normalizeScriptBoxData(raw)
     expect(d.story).toBe('旧故事') // 存量保留
-    expect(d.imageNegative).toBe('') // 新字段补默认
-    expect(d.videoNegative).toBe('')
+    expect(d.playbookId).toBe('manga') // playbook 选择默认漫剧
+    expect(d.playbookLabel).toBe('')
     expect(Array.isArray(d.tailFrameAngleIds)).toBe(true)
     // shot 子字段补齐 P1-1 连续性默认
     const s = d.shots[0]

@@ -11,7 +11,7 @@ import { API_BASE } from './config.js'
 import { httpRequest } from './httpClient.js'
 import { logger } from './logger.js'
 import { UPLOAD_TIMEOUT } from './config.js'
-import { formatTime } from './utils.js'
+import { formatTime, dataUrlToBlob } from './utils.js'
 import { UPLOAD_DIRS } from './uploadDirs.js'
 export { toAbsoluteFileUrl } from './imageUrl.js'
 export { EXT_BY_TYPE }
@@ -159,19 +159,6 @@ async function sha1Hex(blob) {
   } catch {
     return `${Date.now()}`
   }
-}
-
-/** data: URL → Blob（base64 或 urlencoded） */
-function dataUrlToBlob(dataUrl) {
-  const idx = dataUrl.indexOf(',')
-  const meta = dataUrl.slice(0, idx)
-  const raw = dataUrl.slice(idx + 1)
-  const mime = meta.match(/^data:([^;]+)/)?.[1] || 'application/octet-stream'
-  const bin = atob(raw)
-  const len = bin.length
-  const bytes = new Uint8Array(len)
-  for (let i = 0; i < len; i++) bytes[i] = bin.charCodeAt(i)
-  return new Blob([bytes], { type: mime })
 }
 
 /**

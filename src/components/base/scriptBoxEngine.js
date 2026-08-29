@@ -1,4 +1,5 @@
-import { buildShotImageUser, getImageGenSys, collectAssets, matchAssetNames, ZgPrompt, IMAGE_GEN_TYPES, IMAGE_GEN_DEFAULT, SCRIPT_WRITER_SYSTEM, SCRIPT_WRITER_FORMAT, SHOT_DIRECTOR_SYSTEM, SHOT_AUDIT_SYSTEM, buildAuditUser, getWorkflow, normalizeDialogue, mergeShotsForVideo, MERGE_VIDEO_SYSTEM, buildMergedVideoUser } from './scriptBoxPrompts.js'
+import { buildShotImageUser, collectAssets, matchAssetNames, ZgPrompt, IMAGE_GEN_TYPES, IMAGE_GEN_DEFAULT, SCRIPT_WRITER_FORMAT, buildAuditUser, normalizeDialogue, mergeShotsForVideo, MERGE_VIDEO_SYSTEM, buildMergedVideoUser, SHOT_DIRECTOR_SYSTEM, SHOT_AUDIT_SYSTEM, SCRIPT_WRITER_SYSTEM } from './scriptBoxPrompts.js'
+import { resolveSystem, resolveImageGenSys, resolveConstraints, resolveNegatives, resolveAssetTemplates } from './scriptBoxPromptResolver.js'
 import { chatCompletions } from './chatApi.js'
 import { generateImage } from './imageApi.js'
 import { resolveProviderModel, buildAllModels } from './providerModels.js'
@@ -210,9 +211,9 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
     const { provider, modelId } = resolveTextModel()
     if (!provider || !modelId) { toast('请先在「设置」中配置文本大模型'); return }
 
-    // 拼 system：创作部分（customScriptPrompt 可覆盖工作流默认编剧模板）+ 固定输出格式（不可覆盖）+ 镜头数 + 风格。
+    // 拼 system：创作部分（playbook 剧本模板，经 resolver 读）+ 固定输出格式（不可覆盖）+ 镜头数 + 风格。
     // 输出 JSON 结构（SCRIPT_WRITER_FORMAT）是引擎解析契约，必须始终固定追加，即使用户自定义了创作提示词也不丢失。
-    const scriptPrompt = (d.customScriptPrompt || '').trim() || getWorkflow(d.workflowId).script || SCRIPT_WRITER_SYSTEM
+    const scriptPrompt = resolveSystem(d.playbookId, 'script') || SCRIPT_WRITER_SYSTEM
     // 镜头数量：预设(10/20/30/50) 为 number；自定义模式 shotCount==='custom' 时取 customCount
     // 数字；auto 或未提供有效数字时由模型按剧情节奏决定。
     const shotCountRaw = d.shotCount === 'custom' ? d.customCount : d.shotCount
@@ -285,7 +286,7 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
       const projectName = (typeof m.projectName === 'string' && m.projectName.trim()
         ? m.projectName.trim().slice(0, 20)
         : story.replace(/[，。！？,.!?\s].*$/, '').slice(0, 8)) || '剧本项目'
-      const customTemplates = d.customAssetTemplates || undefined
+      const customTemplates = resolveAssetTemplates(d.playbookId)
       // 资产归一化（对齐官方 Ar）：补默认字段 + 用 ZgPrompt 拼生图提示词
       const assets = (m.assets || [])
         .filter((e) => e && e.name)
@@ -340,7 +341,7 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
     const globalStyle = getData().globalStyle || ''
     const prompt = asset.prompt && asset.prompt.trim()
       ? asset.prompt
-      : ZgPrompt(asset.category, [asset.name, asset.description].filter(Boolean).join('，'), globalStyle, getData().customAssetTemplates)
+      : ZgPrompt(asset.category, [asset.name, asset.description].filter(Boolean).join('，'), globalStyle, resolveAssetTemplates(getData().playbookId))
 
     // ── 任务中心上报（对齐 Prompt 节点 useNodeGeneration 契约）──
     // 每张资产用独立伪 nodeId（nodeId-asset-资产id）：保证批量时任务中心每张一张卡片、互不顶掉
@@ -458,13 +459,12 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
 
     const globalStyle = d.globalStyle || ''
     const assets = d.assets || []
-    // 约束（对齐官方 Ir）：imageGlobalConstraint / videoGlobalConstraint(默认取 globalConstraints+customGlobalConstraint)
-    const customConstraint = [...(d.globalConstraints || []).filter(Boolean), String(d.customGlobalConstraint || '').trim()].filter(Boolean).join('；')
-    const imageConstraint = String(d.imageGlobalConstraint || '').trim()
-    const videoConstraint = String(d.videoGlobalConstraint ?? customConstraint).trim()
-    // 生效的 system：customShotPrompt(或工作流默认导演模板) + 工作流不可覆盖规则(可被 customQGPrompt 覆盖)
-    const shotPrompt = (d.customShotPrompt || '').trim() || getWorkflow(d.workflowId).shot || SHOT_DIRECTOR_SYSTEM
-    const qgRule = (d.customQGPrompt || '').trim() || getWorkflow(d.workflowId).qg
+    // 约束/负面（经解析层取当前 playbook；单一数据源，不读 data 上的 customXxx 覆盖）
+    const { image: imageConstraint, video: videoConstraint } = resolveConstraints(d.playbookId)
+    const neg = resolveNegatives(d.playbookId)
+    // 生效的 system：playbook 分镜导演模板(或内置默认) + 不可覆盖规则
+    const shotPrompt = resolveSystem(d.playbookId, 'shot') || SHOT_DIRECTOR_SYSTEM
+    const qgRule = resolveSystem(d.playbookId, 'qg')
     const system = shotPrompt + (qgRule ? `\n\n${qgRule}` : '')
 
     logger.info('scriptBox', '生成分镜提示词·开始', { nodeId, count: target.length, provider: provider?.id, model: modelId, feedback: !!feedback })
@@ -499,8 +499,9 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
         // P2-3 叙事密度（位置/承接/钩子）+ P2-4 分通道 negative 走 assembleShotUser opts
         // （对齐官方 Ir：上下文 v + 出场分工 y + 负面黑名单 C，含通用负面。）
         const user = assembleShotUser(shot, refAssets, globalStyle, {
-          imageNegative: d.imageNegative,
-          videoNegative: d.videoNegative,
+          imageNegative: neg.image,
+          videoNegative: neg.video,
+          commonNegative: neg.common,
           totalShots: allShots.length || target.length,
           shotIndexInStory: idx >= 0 ? idx : Math.max(0, (Number(shot.index) || 1) - 1),
           prevShot,
@@ -611,7 +612,7 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
     if (!shot) return
     const { provider, modelId } = resolveTextModel()
     if (!provider || !modelId) { toast('请先在「设置」中配置文本大模型'); return }
-    const system = getImageGenSys(type, d.customImageGenTemplates)
+    const system = resolveImageGenSys(d.playbookId, type).sys
     const user = buildShotImageUser(shot, type, { globalStyle: d.globalStyle, assets: d.assets })
 
     updateData({ shots: d.shots.map((s) => (s.id === shotId ? { ...s, imgGenLoading: true } : s)) })
@@ -636,7 +637,7 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
       updateData({
         shots: getData().shots.map((s) =>
           s.id === shotId
-            ? { ...s, imgGenLoading: false, imgGen: { type, label: IMAGE_GEN_TYPES[type].label, prompt: prompt || '', ts: Date.now() } }
+            ? { ...s, imgGenLoading: false, imgGen: { type, label: resolveImageGenSys(d.playbookId, type).label, prompt: prompt || '', ts: Date.now() } }
             : s
         ),
       })
@@ -661,7 +662,7 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
     if (!shot || !feedback || !String(feedback).trim()) return Promise.resolve({ ok: false })
     const { provider, modelId } = resolveTextModel()
     if (!provider || !modelId) { toast('请先在「设置」中配置文本大模型'); return Promise.resolve({ ok: false }) }
-    const system = (d.customAuditPrompt || '').trim() || SHOT_AUDIT_SYSTEM
+    const system = resolveSystem(d.playbookId, 'audit') || SHOT_AUDIT_SYSTEM
     const user = buildAuditUser(shot, field, String(feedback).trim(), (d.assets || []).map((a) => a.name))
 
     // 改写结果经 Promise resolve 交给组件（组件 await 后写进预览，点「应用」才落盘到 shot）。
@@ -1319,9 +1320,12 @@ export function assembleShotUser(shot, refAssets, globalStyle, opts = {}) {
     rows.push(`【环境音三层（必须原样带入 videoPrompt，并以此调度视频的音频节奏，不要只写成一句话"有xx声"）】：\n- 环境层（垫底氛围音，音量-18dB 以下）：根据场景空间属性自行合理补齐，如：空调低鸣/室外风噪/远处车流/室内混响/梦境空间耳压。\n- 音效/拟音层（动作触发，与画面帧精确同步）：环境音/动作音：${shot.sound}。每一个动作在对应秒级时间点有独立音效，不与环境层混淆。\n- 人声层（仅保留"对白/旁白"块中列出的台词与说话者，禁止新增旁白/独白/OS）：严格保留说话者姓名与完整原句，不得缩写/改写/漏句。`)
   }
 
-  // ── 负面黑名单（对齐官方 C：通用负面 + 用户分通道）──
+  // ── 负面黑名单（对齐官方 C：通用负面 + 用户/playbook 分通道）──
+  // 通用负面可由 playbook.negative.common 覆盖（§4.4 下沉）；缺省保留原漫剧特化硬编码作为默认。
+  const DEFAULT_COMMON_NEGATIVE = '新增无关对白/新增旁白/互相对骂争吵、画面上乱飞出无关道具或文字/字幕/水印/外框黑边、NPC/路人/管理员/同学/无关围观群众入画（除非明确在资产清单中）、人物突然瞬移/换衣服/换发型/换瞳色/换体型、恋爱糖感特效（爱心/花瓣/柔光过度）、空洞大笑/空洞机械脸（无肌肉微动）、肢体结构错误/手指数量异常/五官错位。'
+  const commonNegative = String(opts.commonNegative || '').trim() || DEFAULT_COMMON_NEGATIVE
   const negRows = ['【负面黑名单·绝对禁止出现】：']
-  negRows.push('- 通用负面（prompt + videoPrompt 同时遵守）：新增无关对白/新增旁白/互相对骂争吵、画面上乱飞出无关道具或文字/字幕/水印/外框黑边、NPC/路人/管理员/同学/无关围观群众入画（除非明确在资产清单中）、人物突然瞬移/换衣服/换发型/换瞳色/换体型、恋爱糖感特效（爱心/花瓣/柔光过度）、空洞大笑/空洞机械脸（无肌肉微动）、肢体结构错误/手指数量异常/五官错位。')
+  negRows.push(`- 通用负面（prompt + videoPrompt 同时遵守）：${commonNegative}`)
   const imgNegRaw = opts.imageNegative && String(opts.imageNegative).trim()
   const vidNegRaw = opts.videoNegative && String(opts.videoNegative).trim()
   if (imgNegRaw) negRows.push(`【生图负面词·仅作用于 prompt】${imgNegRaw}`)

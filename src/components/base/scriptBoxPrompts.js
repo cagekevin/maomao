@@ -400,12 +400,12 @@ export function mergeShotsForVideo(shots, assets) {
   return { prompt, images, seconds }
 }
 
-/** 单个分镜的生图/生视频提示词（对应 buildShotPrompts，详实模板） */
-export function buildShotPrompts(shot, { imageConstraint, videoConstraint } = {}) {
+/** 单个分镜的生图/生视频提示词（buildShots 模板生成用；约束已收敛到 playbook 经引擎注入，故无入参）。 */
+export function buildShotPrompts(shot) {
   const dlg = dialogueText(shot.dialogue)
   const base = `电影感画面，${shot.description}${shot.shotType ? `，景别：${shot.shotType}` : ''}${shot.lighting ? `，光影：${shot.lighting}` : ''}，运镜：${shot.motion || '固定'}`
-  shot.prompt = `${base}${imageConstraint ? `，全局约束：${imageConstraint}` : ''}`
-  shot.videoPrompt = `镜头时长 ${shot.duration || '5s'}，${base}${dlg ? `，对白/旁白：${dlg}` : ''}，音效：${shot.sound || ''}${videoConstraint ? `，全局约束：${videoConstraint}` : ''}`.trim()
+  shot.prompt = base
+  shot.videoPrompt = `镜头时长 ${shot.duration || '5s'}，${base}${dlg ? `，对白/旁白：${dlg}` : ''}，音效：${shot.sound || ''}`.trim()
   return shot
 }
 
@@ -498,8 +498,10 @@ export const IMAGE_GEN_TYPES = SCRIPT_BOX_WORKFLOWS.manga.imageGenTemplates
 /** 默认选中类型 */
 export const IMAGE_GEN_DEFAULT = 'keyframe'
 
-/** 取某生图类型生效的系统提示词：优先用用户自定义模板（customImageGenTemplates[type]），否则用内置默认。
- *  用户可在齿轮设置里覆盖；返回空串时引擎可回退内置默认。纯函数，无副作用。 */
+/**
+ * @deprecated 已由 base/scriptBoxPromptResolver.js 的 resolveImageGenSys(playbookId, type) 取代
+ *  （取当前选中的 playbook，而非恒为漫剧）。本函数保留仅为内置默认 IMAGE_GEN_TYPES 的纯函数兜底与旧测试。
+ */
 export function getImageGenSys(type, customTemplates) {
   const custom = customTemplates && customTemplates[type]
   if (typeof custom === 'string' && custom.trim()) return custom.trim()

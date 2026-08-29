@@ -18,6 +18,7 @@
 import { loadImageWithTimeout } from './asyncGuard.js'
 import { httpRequest } from './httpClient.js'
 import { IMAGE_LOAD_TIMEOUT, API_BASE } from './config.js'
+import { dataUrlToBlob } from './utils.js'
 
 // 加载用地址补全：/files/ 相对 → 绝对（本地引擎端口）。与 imageUrl.js 的 toAbsoluteFileUrl 逻辑一致，
 // 但这里不 import imageUrl 以避免「imageUrl → imageCompress → imageUrl」循环依赖（imageUrl 发送出口要调本模块）。
@@ -116,17 +117,4 @@ export async function compressImage(url, opts = {}) {
   }
 
   return { dataUrl, blob, width: w, height: h, size: blob.size, originalSize }
-}
-
-/** data: URL → Blob */
-function dataUrlToBlob(dataUrl) {
-  const idx = dataUrl.indexOf(',')
-  const meta = dataUrl.slice(0, idx)
-  const raw = dataUrl.slice(idx + 1)
-  const mime = meta.match(/^data:([^;]+)/)?.[1] || 'application/octet-stream'
-  const bin = atob(raw)
-  const len = bin.length
-  const bytes = new Uint8Array(len)
-  for (let i = 0; i < len; i++) bytes[i] = bin.charCodeAt(i)
-  return new Blob([bytes], { type: mime })
 }

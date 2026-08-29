@@ -14,6 +14,24 @@ export function deepClone(value) {
   return value === undefined ? undefined : JSON.parse(JSON.stringify(value))
 }
 
+/** data: URL → Blob（base64 编码）。缺省 MIME 从 data: meta 段解析（失败回退 octet-stream）。
+ * 收口：dataURL 转 Blob 统一在此（曾散落 filesApi / imageCompress / imageUpscale / FaceMosaicNode 四份，
+ * 其中 imageCompress 因法定「imageUrl↔imageCompress 禁反向 import」不能依赖 imageUrl，故放本通用的叶模块）。
+ * @param {string} dataUrl data:...;base64,xxx
+ * @param {string} [mime] 可选 MIME 覆盖（调用方已知目标类型时传，如 'image/png'）
+ */
+export function dataUrlToBlob(dataUrl, mime) {
+  const idx = dataUrl.indexOf(',')
+  const meta = dataUrl.slice(0, idx)
+  const raw = dataUrl.slice(idx + 1)
+  const type = mime || meta.match(/^data:([^;]+)/)?.[1] || 'application/octet-stream'
+  const bin = atob(raw)
+  const len = bin.length
+  const bytes = new Uint8Array(len)
+  for (let i = 0; i < len; i++) bytes[i] = bin.charCodeAt(i)
+  return new Blob([bytes], { type })
+}
+
 /** 多路图片源合并去重（PromptNode/TemplateNode refImages 公共实现）：
  *  按 id（缺省回退 url）去重，保留首次出现；无 key（id/url 皆空）的项丢弃。
  *  解决同一批资产图经「连线上游 + data.images」双路进入导致渲染 key 重复 / 图显示两份。 */

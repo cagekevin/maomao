@@ -10,9 +10,10 @@
  *     `subscribe('key'` / `publish('key'` 调用自洽。
  *     - 表 `to: []` 但代码里实际有 `subscribe('key'` → 报「登记表 to 滞后于代码」
  *       （即历史误判根因：表标无订阅方、实际已被订阅，导致误判为死事件）
- *     - 表 `to` 列了 `file:NN` 但代码该行无对应 `subscribe('key'` → 报「登记表 to 指向 stale」
- *     - 表 `to` 列了 `file:NN` 但行号对不上（漂移）→ 报「登记表 to 行号漂移」
+ *     - 表 `to` 列了 `file:NN` 但代码对应文件里完全没有 `subscribe('key'` → 报「登记表 to 指向 stale」
  *     （from 同理）
+ *     - 匹配按**文件级**判断，`to` 的 `:NN` 行号仅作审计参考、不做逐行硬匹配：
+ *       目标文件内任意行有该事件即视为命中，避免文件增删行使行号漂移却误报红（系统性根因，见 matchesRef）。
  *
  * 背景：与 check-storage-keys.mjs 对称。EVENTS 表是唯一事实来源，但靠人工维护会
  * 行号漂移、登记滞后于代码。本脚本把「表与代码一致性」变为 CI 可拦截的事实，
@@ -178,14 +179,16 @@ function basename(p) {
   return norm.slice(norm.lastIndexOf('/') + 1)
 }
 
-// 判断一个实测位置 'rel:line' 是否匹配某个 ref（文件名一致 + 行号可选一致）
+// 判断一个实测位置 'rel:line' 是否落在 ref 指向的文件内（事件名已由外层按 name 过滤）。
+// 【行号漂移容错 · 系统根因】表 ref 的 'file:NN' 行号仅作审计参考（供报错定位），**不做逐行硬匹配**：
+//   代码任意增删行（加注释/抽函数/改 import）都会让行号下移/上移，若按行号硬拦，会把「行号漂移」
+//   误报为「登记失效」，让 prebuild/prettest 在改动无关时反复红建（本脚本 :13 注释已承认该痛点）。
+//   改为只要求「该事件在 ref 指向的文件内存在（任意行）」即视为登记命中；只有当目标文件内
+//   完全找不到该事件的 publish/subscribe 时才判 stale —— 那才是真正的登记失效（订阅被删/文件改名）。
 function matchesRef(loc, ref) {
   const idx = loc.lastIndexOf(':')
   const file = loc.slice(0, idx)
-  const line = Number(loc.slice(idx + 1))
-  if (basename(file) !== ref.file) return false
-  if (ref.line != null && ref.line !== line) return false
-  return true
+  return basename(file) === ref.file
 }
 
 for (const [name, entry] of Object.entries(EVENTS)) {

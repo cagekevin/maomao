@@ -12,7 +12,7 @@ import { useFitNodeRatio } from '../base/useFitNodeRatio.js'
 import { useVideoPoster } from '../base/useVideoPoster.js'
 import { toAbsoluteFileUrl, uploadFileToLocal } from '../base/filesApi.js'
 import { UPLOAD_DIRS } from '../base/uploadDirs.js'
-import { useRenderImageResolver } from '../base/imageUrl.js'
+import { useRenderImageResolver, fileToDataUrl } from '../base/imageUrl.js'
 import { useImageHoverActions } from '../base/useImageHoverActions.jsx'
 import { downloadUrl } from '../base/clipboard.js'
 import { showToast, toastError } from '../base/toastStore.js'
@@ -127,7 +127,7 @@ function ImageNode({ id, data, selected }) {
     // 图片/视频/音频：上传落盘（mediaType 交由 detectMediaType 由 URL 判断）
     let url = await uploadFileToLocal(f, UPLOAD_DIRS.canvasDrop, f.name)
     if (!url) {
-      url = await new Promise((res) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => res(null); r.readAsDataURL(f) })
+      url = await fileToDataUrl(f).catch(() => null)
     }
     if (!url) { toastError('上传失败'); return }
     setNodes((ns) =>

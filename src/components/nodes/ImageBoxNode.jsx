@@ -16,7 +16,7 @@ import { loadImageWithTimeout } from '../base/asyncGuard.js'
 import { generateId } from '../base/idGen.js'
 import { downloadUrl as clipboardDownload } from '../base/clipboard.js'
 
-import { useRenderImageResolver } from '../base/imageUrl.js'
+import { useRenderImageResolver, fileToDataUrl } from '../base/imageUrl.js'
 
 /**
  * 图片盒子节点（复刻官方 Rg.jsx / imageBoxNode）。
@@ -240,16 +240,9 @@ function ImageBoxNode({ id, data, selected }) {
   // ---- 文件读取（对齐官方 te/ne：只收 image/，读成 dataURL）----
   const readFiles = useCallback((files) => {
     const list = Array.from(files).filter((f) => f.type.startsWith('image/'))
+    // 统一走 fileToDataUrl（官方出口，禁止散写 FileReader）；读取失败返回 null 由外层过滤丢弃
     return Promise.all(
-      list.map(
-        (f) =>
-          new Promise((resolve) => {
-            const fr = new FileReader()
-            fr.onload = () => resolve({ url: fr.result, label: f.name })
-            fr.onerror = () => resolve(null)
-            fr.readAsDataURL(f)
-          })
-      )
+      list.map((f) => fileToDataUrl(f).then((url) => ({ url, label: f.name })).catch(() => null))
     ).then((r) => r.filter(Boolean))
   }, [])
 

@@ -20,13 +20,11 @@ export function defaultScriptBoxTop() {
     customAspectRatio: '16:9',
     shotCount: 'auto',
     customCount: '',
-    imageNegative: '',
-    videoNegative: '',
     tailFrameAngleIds: ['forward', 'closeup', 'rotateLeft45'],
-    // 工作流收口：当前选用工作流 id（默认漫剧）；audit/qg 有齿轮单独覆盖时写 customXxx
-    workflowId: 'manga',
-    customAuditPrompt: '',
-    customQGPrompt: '',
+    // playbook 收口：当前选用 playbook id（默认漫剧）；label 为选中时名称快照（悬挂检测提示用）。
+    // 提示词配置唯一真相源 = playbook（scriptBoxPlaybookStore），node.data 不存任何 customXxx 副本。
+    playbookId: 'manga',
+    playbookLabel: '',
   }
 }
 

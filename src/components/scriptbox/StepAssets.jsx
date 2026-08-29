@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { Loader2, Wand2, User, Image as ImageIcon, Package, Plus, MoreVertical, Upload, RefreshCw, Trash2 } from 'lucide-react'
 import { ZgPrompt, removeAsset, renameAssetRefs } from '../base/scriptBoxPrompts.js'
+import { resolveAssetTemplates } from '../base/scriptBoxPromptResolver.js'
 import { assetFolderOf } from '../base/assetStore.js'
 import { useOutsideClick } from '../base/hooks.js'
 import { useRenderImageResolver, toAbsoluteFileUrl } from '../base/imageUrl.js'
@@ -225,7 +226,7 @@ function AssetPanel({ asset, idx, data, updateData, onGen, onClose }) {
   const save = (alsoGen) => {
     // 改名联动：@旧名 → @新名（纯函数收口，避免内联 split('@') 重复实现）
     let shots = name !== asset.name ? renameAssetRefs(data.shots || [], asset.name, name) : data.shots || []
-    const assets = (data.assets || []).map((a, i) => (i === idx ? { ...a, name, description: desc, prompt: prompt || ZgPrompt(a.category, desc, data.globalStyle, data.customAssetTemplates) } : a))
+    const assets = (data.assets || []).map((a, i) => (i === idx ? { ...a, name, description: desc, prompt: prompt || ZgPrompt(a.category, desc, data.globalStyle, resolveAssetTemplates(data.playbookId)) } : a))
     updateData({ assets, shots })
     if (alsoGen) onGen()
   }

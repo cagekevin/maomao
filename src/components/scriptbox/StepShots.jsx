@@ -69,11 +69,6 @@ export default function StepShots({ data, updateData, callbacks }) {
         <div>
           <div className="text-caption-sm text-secondary mb-1.5">统一风格</div>
           <input value={d.globalStyle || ''} onChange={(e) => setStyle(e.target.value)} className="w-full bg-surface-strong border border-edge rounded-md px-2 py-1 text-caption-sm text-primary outline-none nodrag" placeholder="如：中世纪童话 皮克斯3D" />
-          <div className="flex flex-wrap gap-1.5 mt-2">
-            {(d.styleChips || []).map((c) => (
-              <button key={c} onClick={() => setStyle(c)} className={`px-2 py-0.5 text-caption rounded-md border ${d.globalStyle === c ? 'border-white/40 text-white bg-surface-hover' : 'border-edge text-secondary hover:border-edge-strong'}`}>{c}</button>
-            ))}
-          </div>
         </div>
 
         <div>

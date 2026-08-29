@@ -56,7 +56,7 @@ export const CREDIT_GATE_EVENT = 'agent:credit-gate'
 export const EVENTS = {
   'agent:task-completed': {
     from: ['taskCompletionBus.js:21'],
-    to: ['useNodeGeneration.js:227'],
+    to: ['useNodeGeneration.js:235'],
     payload: '{ taskId, nodeId, resultUrl, type, status: "completed" }',
     note: '任务完成 → 精准回填节点（刷新不丢图）。现统一经 taskCompletionBus.publishTaskCompleted 唯一发布（P1-D）；done 已去落盘（P0-C），广播直接用持久 resultUrl',
   },
@@ -189,6 +189,12 @@ export const STORAGE_KEYS = {
     store: 'appSettings.js',
     backend: 'local',
     note: '应用设置：{ performanceMode, minimapOn, agentOpen, thumbnailOn }——整键随云端同步',
+  },
+  scriptbox_playbooks: {
+    domain: 'settings',
+    store: 'scriptBoxPlaybookStore.js',
+    backend: 'local',
+    note: '剧本盒子自定义 Playbook 列表 { id: playbook }。整键随云同步+备份（内置走代码常量，不在此）',
   },
 
   // ── 供应商配置（providerStore）─────────────────────────────────────

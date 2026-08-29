@@ -4,6 +4,7 @@ import { isEditableTarget } from './hooks.js'
 import { sanitizePastedText } from './clipboard.js'
 import { showToast } from './toastStore.js'
 import { uploadFileToLocal, downloadRemoteToLocal, WEB_DROP_SUBFOLDER } from './filesApi.js'
+import { fileToDataUrl } from './imageUrl.js'
 import { UPLOAD_DIRS } from './uploadDirs.js'
 import { logger } from './logger.js'
 
@@ -108,13 +109,12 @@ export function useAssetDropPaste({ addNode, screenToFlowPosition, onPasteNodeGr
           showToast(`已导入${type === 'image' ? '图片' : type === 'video' ? '视频' : '音频'}「${file.name}」`)
           return
         }
-        // 上传失败 → fallback 读 dataURL 建节点（刷新可依赖 KV 自动外置兜底）
-        const fr = new FileReader()
-        fr.onload = () => {
-          addNode('imageNode', pos, { imageUrl: fr.result, label: file.name })
-          showToast(`已导入${type === 'image' ? '图片' : type === 'video' ? '视频' : '音频'}「${file.name}」`)
-        }
-        fr.readAsDataURL(file)
+        // 上传失败 → fallback 读 dataURL 建节点（刷新可依赖 KV 自动外置兜底）；读 URL 统一走 fileToDataUrl，不散写 FileReader。
+        // 读取失败（非正常文件）→ 返回 null，保持原"静默不建节点"语义（上传已失败，读又失败则放弃）。
+        const dataUrl = await fileToDataUrl(file).catch(() => null)
+        if (!dataUrl) return
+        addNode('imageNode', pos, { imageUrl: dataUrl, label: file.name })
+        showToast(`已导入${type === 'image' ? '图片' : type === 'video' ? '视频' : '音频'}「${file.name}」`)
       })()
     },
     [addNode]

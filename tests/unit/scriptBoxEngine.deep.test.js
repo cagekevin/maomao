@@ -77,8 +77,10 @@ describe('剧本盒引擎深度业务 §2.7', () => {
     const firstCall = chatCompletions.mock.calls[0][0]
     expect(firstCall.messages[1].content).toContain('@小红帽')
     expect(firstCall.messages[1].content).toContain('@森林')
-    expect(firstCall.messages[1].content).toContain('不要文字') // imageConstraint 注入
-    expect(firstCall.messages[1].content).toContain('慢镜头') // videoConstraint 注入
+    // 约束已收敛到 playbook（§4.2 单一数据源），不再读 node.data 的 image/videoGlobalConstraint。
+    // manga 内置默认无约束 → 此处断言「不注入」，证明引擎不再走旧的覆盖层。
+    expect(firstCall.messages[1].content).not.toContain('不要文字')
+    expect(firstCall.messages[1].content).not.toContain('慢镜头')
     // 写回：两个分镜都拿到 prompt/videoPrompt
     const last = patches[patches.length - 1]
     expect(last.shots.find((s) => s.id === 's1').prompt).toBe('分镜画面提示词')
