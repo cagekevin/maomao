@@ -67,6 +67,11 @@ function useNodeSize(id) {
  *  - style                            追加到根 div 的 inline style（如 { minHeight: 640 }
  *                                      可让宽节点即使 store n.height 没生效也撑出最小高度）
  *  - wrapperRef                       暴露根 div ref（供右下角手柄拖拽改整体尺寸）
+ *  - overlayHandles                   端口/覆盖层，直接挂在「根 div」（含标题栏的整个节点）上，
+ *                                      定位基准是整体节点（children 的定位基准只是主框，不含标题栏）。
+ *                                      ⚠️ 需要「相对整个节点居中」的端口必须走这个插槽，
+ *                                      不要用 createPortal 延迟挂载（见 ScriptBoxNode 注释：
+ *                                      延迟挂载的端口进不了 React Flow 的 handleBounds → code-008）
  *  - syncSize                         是否强制同步尺寸（默认 true；编组等特殊节点设 false）
  *  - children                         节点内容（hover栏 + 主显示框 + 展开面板）
  *
@@ -177,6 +182,7 @@ function NodeShell({
   className = '',
   style: extraStyle = {},
   wrapperRef,
+  overlayHandles,
   syncSize = true,
   children
 }) {
@@ -258,6 +264,13 @@ function NodeShell({
           </>
         )}
       </div>
+
+      {/* 覆盖层端口：直接挂在「根 div」（含标题栏的整个节点）上，绝对定位基准 = 整个节点。
+          ⚠️ 为什么要有这个插槽：需要「相对整个节点居中」的端口（如剧本盒子左侧 in 口）若放在
+          children 里，定位基准是主框（不含标题栏），会偏低半个标题高度；而用 createPortal
+          + 状态延迟挂载（首帧后才能拿到 ref）会导致端口不在首次测量中 → 进不了 React Flow
+          的 handleBounds → 指向它的边报 code-008 且不渲染。这里渲染即挂载，无时序问题。 */}
+      {overlayHandles}
     </div>
   )
 }

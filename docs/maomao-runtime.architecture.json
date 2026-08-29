@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "猫猫画布 · 运行时链路",
+    "locale": "zh-CN",
+    "quality_profile": "standard"
+  },
+  "layout": {
+    "mode": "grid",
+    "origin": [45, 55],
+    "cols": 5,
+    "gapX": 150,
+    "gapY": 41,
+    "cellW": 140,
+    "cellH": 62
+  },
+  "components": [
+    { "id": "nodes", "type": "frontend", "label": "节点体系", "sublabel": "17 类 + 剧本盒子", "row": 0, "col": 0, "size": [140, 62] },
+    { "id": "taskcenter", "type": "frontend", "label": "任务中心", "sublabel": "taskStore 权威源", "row": 2, "col": 0, "size": [140, 62] },
+    { "id": "extractor", "type": "frontend", "label": "结果解析", "sublabel": "resultUrlExtractor", "row": 3, "col": 0, "size": [140, 62] },
+
+    { "id": "agenttools", "type": "frontend", "label": "画布 Agent 工具", "sublabel": "toolRegistry", "row": 0, "col": 1, "size": [140, 62] },
+    { "id": "gen", "type": "frontend", "label": "useNodeGeneration", "sublabel": "唯一写入口", "row": 1, "col": 1, "size": [140, 62] },
+    { "id": "apis", "type": "frontend", "label": "API 薄壳", "sublabel": "image/video/chat", "row": 2, "col": 1, "size": [140, 62] },
+    { "id": "proxygen", "type": "frontend", "label": "proxyGenerate", "sublabel": "3 个 facade", "row": 3, "col": 1, "size": [140, 62] },
+    { "id": "http", "type": "frontend", "label": "httpClient", "sublabel": "统一出站", "row": 4, "col": 1, "size": [140, 62] },
+
+    { "id": "agent", "type": "frontend", "label": "AI 助手", "sublabel": "useAgentChat", "tag": "SSE 流式", "row": 0, "col": 3, "size": [140, 62] },
+    { "id": "localtool", "type": "backend", "label": "localTool", "sublabel": "node:http :18080", "tag": "剥信封 / SSE", "row": 4, "col": 2, "size": [140, 62] },
+    { "id": "gateway", "type": "backend", "label": "apimart-gateway", "sublabel": "FastAPI :9004", "tag": "别名映射 + 签名", "row": 4, "col": 3, "size": [140, 62] },
+    { "id": "lovart", "type": "external", "label": "Lovart", "sublabel": "lgw.lovart.ai", "tag": "需 VPN", "row": 4, "col": 4, "size": [140, 62] },
+
+    { "id": "db", "type": "database", "label": "SQLite", "sublabel": "sql.js (WASM)", "row": 5, "col": 2, "size": [140, 62] },
+    { "id": "files", "type": "database", "label": "/files/ 磁盘", "sublabel": "uploads/", "row": 5, "col": 3, "size": [140, 62] }
+  ],
+  "boundaries": [
+    { "kind": "region", "label": "Chrome 扩展前端 · :5180", "wraps": ["nodes", "taskcenter", "extractor", "agenttools", "gen", "apis", "proxygen", "http", "agent"] },
+    { "kind": "region", "label": "localTool 进程 · :18080", "wraps": ["localtool", "db", "files"] }
+  ],
+  "connections": [
+    { "id": "agent-to-tools", "from": "agent", "to": "agenttools", "label": "工具调用" },
+    { "id": "tools-to-nodes", "from": "agenttools", "to": "nodes", "label": "写画布" },
+    { "id": "agent-to-localtool", "from": "agent", "to": "localtool", "label": "chat", "variant": "dashed" },
+    { "id": "nodes-to-gen", "from": "nodes", "to": "gen", "label": "提交生成", "variant": "emphasis" },
+    { "id": "gen-to-apis", "from": "gen", "to": "apis", "label": "组 body", "variant": "emphasis", "labelDy": 24 },
+    { "id": "apis-to-proxygen", "from": "apis", "to": "proxygen", "label": "代理", "variant": "emphasis", "labelDy": 24 },
+    { "id": "proxygen-to-http", "from": "proxygen", "to": "http", "label": "出站", "variant": "emphasis", "labelDy": 24 },
+    { "id": "http-to-localtool", "from": "http", "to": "localtool", "label": "proxy", "variant": "emphasis" },
+    { "id": "localtool-to-gateway", "from": "localtool", "to": "gateway", "label": "/v1", "variant": "emphasis" },
+    { "id": "gateway-to-lovart", "from": "gateway", "to": "lovart", "label": "HTTPS", "variant": "emphasis" },
+    { "id": "proxygen-to-extractor", "from": "proxygen", "to": "extractor", "label": "解析" },
+    { "id": "extractor-to-taskcenter", "from": "extractor", "to": "taskcenter", "label": "落库" },
+    { "id": "taskcenter-to-nodes", "from": "taskcenter", "to": "nodes", "label": "刷新回填" },
+    { "id": "localtool-to-db", "from": "localtool", "to": "db", "label": "sql.js", "labelDy": 24 },
+    { "id": "localtool-to-files", "from": "localtool", "to": "files", "label": "落盘" }
+  ],
+  "cards": [
+    { "dot": "emerald", "title": "正向链路", "items": ["节点 → useNodeGeneration → *Api → proxyGenerate → httpClient → /api/proxy", "localTool 剥信封 / SSE / 异步转同步，自指 /api/v1/gateway/* 重写到 :9004"] },
+    { "dot": "amber", "title": "回程与持久化", "items": ["同步 SSE 回传；异步 pollTask 轮询 /api/v1/gateway/task/{id}", "resultUrlExtractor 抽 URL → filesApi / assetStore 落盘，taskStore 登记回填"] }
+  ]
+}

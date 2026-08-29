@@ -1,0 +1,390 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>剧本盒子 · 提示词链路图</title>
+<style>
+  :root{
+    --bg:#0b0d10; --panel:#14171c; --panel2:#1a1e25; --line:#262c36;
+    --text:#e6e9ef; --dim:#8b93a3; --dim2:#616b7d;
+    --textflow:#5aa9ff; --promptflow:#f0b23c; --imgflow:#4ade80; --bypass:#a78bfa;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);
+       font:14px/1.6 -apple-system,"PingFang SC","Microsoft YaHei",sans-serif}
+  header{padding:18px 24px;border-bottom:1px solid var(--line);display:flex;
+         align-items:center;gap:16px;flex-wrap:wrap}
+  h1{margin:0;font-size:17px;font-weight:600}
+  .sub{color:var(--dim2);font-size:12px}
+  .spacer{flex:1}
+  .toggle{background:var(--panel2);border:1px solid var(--line);color:var(--dim);
+          padding:6px 14px;border-radius:999px;cursor:pointer;font-size:12px}
+  .toggle.on{background:#1f3a2a;border-color:#2d5c41;color:#7ee2a8}
+
+  main{display:grid;grid-template-columns:420px 1fr;gap:0;height:calc(100vh - 61px)}
+  .flow{padding:20px 16px 60px;overflow-y:auto;border-right:1px solid var(--line)}
+  .detail{padding:22px 28px 60px;overflow-y:auto}
+
+  /* ── 步骤卡 ── */
+  .step{background:var(--panel);border:1px solid var(--line);border-radius:10px;
+        padding:12px 14px;cursor:pointer;transition:.15s;position:relative}
+  .step:hover{border-color:#3a4250}
+  .step.active{border-color:#4ade80;background:#16211b;box-shadow:0 0 0 1px #4ade8033}
+  .step .top{display:flex;align-items:center;gap:8px}
+  .num{width:20px;height:20px;border-radius:5px;background:var(--panel2);
+       color:var(--dim);font-size:11px;display:grid;place-items:center;flex:none}
+  .step.active .num{background:#1f3a2a;color:#7ee2a8}
+  .name{font-weight:600;font-size:13px}
+  .badge{margin-left:auto;font-size:10px;padding:2px 7px;border-radius:4px;
+         background:var(--panel2);color:var(--dim2)}
+  .io{margin-top:8px;font-size:11.5px;color:var(--dim);line-height:1.7}
+  .io b{color:var(--text);font-weight:500}
+  .k{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px}
+  .k.in{color:var(--textflow)} .k.out{color:var(--imgflow)}
+
+  /* ── 连线 ── */
+  .arrow{display:flex;align-items:center;gap:8px;padding:7px 0 7px 30px;
+         font-size:11px;font-family:ui-monospace,Menlo,monospace}
+  .arrow .bar{width:2px;height:14px;background:var(--line);margin-left:-16px;flex:none}
+  .arrow .lbl{padding:2px 8px;border-radius:4px;background:var(--panel2);
+              border:1px solid var(--line)}
+  .arrow.t .lbl{color:var(--textflow);border-color:#1e3550;background:#101c28}
+  .arrow.p .lbl{color:var(--promptflow);border-color:#3d2f14;background:#1e180e}
+  .arrow.i .lbl{color:var(--imgflow);border-color:#1c3a29;background:#0f1c15}
+  .arrow.b .lbl{color:var(--bypass);border-color:#2e2547;background:#171426}
+  .arrow.dash .bar{background:repeating-linear-gradient(var(--line) 0 3px,transparent 3px 6px)}
+
+  .legend{margin-top:18px;padding:10px 12px;background:var(--panel);border:1px solid var(--line);
+          border-radius:8px;font-size:11px;color:var(--dim2);line-height:1.9}
+  .legend i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:6px}
+
+  /* ── 详情 ── */
+  .dtitle{font-size:18px;font-weight:600;margin:0 0 4px}
+  .dcode{font-size:12px;color:var(--dim2);font-family:ui-monospace,Menlo,monospace}
+  .block{margin-top:18px;background:var(--panel);border:1px solid var(--line);border-radius:10px;
+         padding:14px 16px}
+  .bt{font-size:12px;font-weight:600;color:var(--dim);letter-spacing:.5px;margin-bottom:10px;
+      display:flex;align-items:center;gap:8px}
+  .bt span.tag{font-size:10px;padding:1px 6px;border-radius:4px;background:var(--panel2);
+               color:var(--dim2);font-weight:400}
+  .row{display:flex;gap:10px;padding:5px 0;border-top:1px dashed var(--line);font-size:12.5px}
+  .row:first-of-type{border-top:0}
+  .row .rk{color:var(--dim2);width:76px;flex:none}
+  .row .rv{color:var(--text)}
+  pre{margin:8px 0 0;background:#0d1014;border:1px solid var(--line);border-radius:8px;
+      padding:11px 13px;font:11.5px/1.75 ui-monospace,Menlo,monospace;color:#c8d0dd;
+      white-space:pre-wrap;word-break:break-word;max-height:280px;overflow:auto}
+  .note{margin-top:10px;font-size:11.5px;color:var(--dim2);border-left:2px solid var(--bypass);
+        padding-left:10px}
+  .tb{width:100%;border-collapse:collapse;font-size:12px;margin-top:4px}
+  .tb th{text-align:left;color:var(--dim2);font-weight:500;padding:6px 8px;
+         border-bottom:1px solid var(--line);white-space:nowrap}
+  .tb td{padding:7px 8px;border-bottom:1px dashed var(--line);vertical-align:top;color:var(--dim)}
+  .tb td:first-child{color:var(--text)}
+  .tb tr:last-child td{border-bottom:0}
+  .ex{display:none}
+  body.showex .ex{display:block}
+  .hint{color:var(--dim2);font-size:12px;margin-top:6px}
+  @media (max-width:900px){main{grid-template-columns:1fr;height:auto}.flow{border-right:0}}
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>剧本盒子 · 提示词链路图</h1>
+    <div class="sub">点左边任意一步 → 看它吃进去什么、发给模型什么、吐出来落到哪个字段</div>
+  </div>
+  <div class="spacer"></div>
+  <button class="toggle" id="exBtn">显示「小红帽」实例</button>
+</header>
+
+<main>
+  <div class="flow" id="flow"></div>
+  <div class="detail" id="detail"></div>
+</main>
+
+<script>
+const C = {t:'var(--textflow)',p:'var(--promptflow)',i:'var(--imgflow)',b:'var(--bypass)'}
+
+const STEPS = [
+{
+  n:'①', name:'生成剧本', tag:'文本模型', fn:'onGenerateScript · scriptBoxEngine.js:196',
+  io:'<b>吃</b> <span class="k in">story</span> + 上游文本/图片<br><b>吐</b> <span class="k out">shots[]</span> <span class="k out">assets[]</span>',
+  sys:[
+    ['playbook.script','剧本模板（齿轮可编辑，默认 workflows.manga.script）'],
+    ['SCRIPT_WRITER_FORMAT','固定 JSON 输出契约，永远追加，不可改（prompts.js:26）'],
+    ['镜头数量要求','约 N 镜 / 自动（:222-224）'],
+    ['统一视觉风格','填了 globalStyle 才追加，并要求模型原样回吐（:226-228）']],
+  fmt:'<b>① system 里的输出格式约束 = SCRIPT_WRITER_FORMAT（prompts.js:26-30，写死，不可改）</b>\n要求模型严格输出一个 JSON 对象（只返回纯 JSON，不要解释、不要 Markdown 代码块）：\n{\n  "projectName":"2至8个中文字符",\n  "globalStyle":"整部片子的统一视觉风格",\n  "logline":"一句话故事核心（可选）",\n  "shots":[{"index":1,"duration":"5s","description":"…只对已注册资产用 @名称 引用…",\n           "shotType":"景别","lighting":"光影氛围","dialogue":"对白或旁白","sound":"音效","motion":"运镜"}],\n  "assets":[{"category":"character|scene|prop","name":"名称","description":"主体外观描述"}]\n}\n【硬性要求】故事中出现的所有场景必须全部注册为 scene；每个分镜 description 必须 @ 引用其发生的场景；\nassets 的 name 必须与 shots 的 description 里 @ 引用的名称完全一致。\n\n<b>引擎侧还有两道保险</b>：\n· 模型支持时强制 response_format = json_object（useJsonObject，:238）\n· parseJsonText 解析失败 → 提示「JSON 不完整或格式有误」；解析出 0 个可用分镜 → 提示「格式不符」，都不写回',
+  user:'story 原文（data.story + "\\n\\n" + data.upstreamStory）\n（上游图片走 images 参数，随消息一起发给模型看图）',
+  out:[
+    ['shots[]','description / duration / shotType / lighting / motion / dialogue / sound'],
+    ['assets[]','name / description / prompt'],
+    ['assets[i].prompt','= "[视觉风格：X]" + description + "。" + 资产模板（ZgPrompt，prompts.js:73）'],
+    ['globalStyle','用户填的优先，否则用模型返回的']],
+  note:'<b>再点一次「生成剧本」会怎样？</b>整表覆盖：shots[] 和 assets[] 全量替换（:314-322），已生成的资产图（imageUrl）会丢，第 ③ 步产出的 prompt/videoPrompt 也会丢，pickedCount 归零。只有 data.story 写回你手填的那部分（上游文本不并进去，:316）。\n其它细节：模型返回的 dialogue 是字符串，这里会转成数组（normalizeDialogue）；duration 缺省补 "5s"；projectName 取模型返回值截 20 字，没有就从剧情前 8 字截；分镜 id 重新生成 `${nodeId}-shot-${n}`。上游图片只走 images 参数发出去，提示词里没有任何关于图的文字说明。',
+  ex_sys:'【漫剧·剧本模板全文】\n+【输出格式】{"projectName":…,"globalStyle":…,"shots":[…],"assets":[…]}\n+【镜头数量要求】请严格生成约 2 个分镜\n+【统一视觉风格】中世纪童话·皮克斯3D',
+  ex_user:'小红帽提着竹篮走进森林',
+  ex_out:'{\n "projectName":"小红帽",\n "globalStyle":"中世纪童话·皮克斯3D",\n "shots":[{ "index":1,"duration":"5s",\n   "description":"@小红帽 提着 @竹篮 站在 @幽暗森林 的入口，回头张望",\n   "shotType":"全景","lighting":"逆光","sound":"鸟鸣" }, …],\n "assets":[\n   {"category":"character","name":"小红帽","description":"约十岁女孩，红色连帽斗篷，金色麻花辫"},\n   {"category":"scene","name":"幽暗森林","description":"高大针叶林，地面厚苔藓，斜射光束"},\n   {"category":"prop","name":"竹篮","description":"藤编圆篮，盖着红格布"}]\n}\n\n→ assets[0].prompt =\n[视觉风格：中世纪童话·皮克斯3D]约十岁女孩，红色连帽斗篷，金色麻花辫。专业角色设定图，横向三格并列：① 脸部正面特写…② 正面半身像…③ 全身正面站立像…'
+},
+{
+  n:'②', name:'资产生图', tag:'图像模型', fn:'onGenerateAssetImage · scriptBoxEngine.js:331',
+  io:'<b>吃</b> <span class="k in">assets[i].prompt</span><br><b>吐</b> <span class="k out">assets[i].imageUrl</span>',
+  sys:[['（无 system）','生图只发一条 prompt，不加系统提示词']],
+  fmt:'<b>无输出格式约束</b>：生图模型只回图片 URL，不存在「返回什么格式」的问题。\n引擎侧判定：r.ok 且有 r.url 才算成功（:370），否则按失败处理并记 imageStatus。',
+  user:'assets[i].prompt 原文\n（若为空，才用 name + description 现拼一次 ZgPrompt）',
+  out:[['assets[i].imageUrl','落盘到素材库 /files/migrated/{人物|场景|道具}/'],
+       ['assets[i].thumbnailUrl','同图，显示时按需出小图']],
+  note:'这张图后面不进任何提示词文本，只在最后一步作为「参考图」垫给生图/生视频模型。',
+  ex_user:'[视觉风格：中世纪童话·皮克斯3D]约十岁女孩，红色连帽斗篷，金色麻花辫。专业角色设定图，横向三格并列：① 脸部正面特写（肩部以上，五官清晰、不裁切）② 正面半身像（腰部以上）③ 全身正面站立像（头至脚完整入画）。纯白背景，中性影棚平光…',
+  ex_out:'assets[0].imageUrl = /files/migrated/人物/小红帽.png'
+},
+{
+  n:'③', name:'分镜提示词（一次出两条）', tag:'文本模型', fn:'onGenerateShotPrompts · scriptBoxEngine.js:449',
+  io:'<b>吃</b> <span class="k in">shots[i] 全部资料</span> + @资产名<br><b>吐</b> <span class="k out">图片提示词 prompt</span> ＋ <span class="k out">视频提示词 videoPrompt</span>',
+  sys:[
+    ['playbook.shot','分镜导演模板（齿轮可编辑，默认 workflows.manga.shot）'],
+    ['playbook.qg','不可覆盖规则，追加在 shot 之后，最高优先（:466-468）']],
+  fmt:'<b>③ 的输出格式约束分散在三处，都对模型强制</b>\n\n<span style="color:#f0b23c">A. system 末尾（两个模板各自带）</span>\n· 分镜导演模板末尾：「只返回可解析的纯 JSON，不要解释，不要 Markdown，不要在 JSON 前后添加任何文字」（workflows.js:74）\n· 不可覆盖规则 QG 末尾：「只返回包含 prompt、videoPrompt 的纯 JSON」（workflows.js:98）\n\n<span style="color:#f0b23c">B. user 尾部（assembleShotUser 最后一段，prompts.js:1336）</span>\nprompt 只描述可见画面（主体/动作/场景/景别/光影/色彩/视角/材质/焦段），\n不要包含对白、旁白、音效、字幕等文字信息；\nvideoPrompt 在 prompt 画面基础上补充镜头连续运动与动态，并把对白/旁白/环境三层音效按\n「具体角色名说：……」「环境层/拟音层/人声层：……」的结构自然融入；\n只返回包含 prompt、videoPrompt 两个字段的纯 JSON。\n\n<span style="color:#f0b23c">C. 引擎追加的硬格式（:512）</span>\nvideoPrompt 必须以「【时长 N秒】」单独一行开头，随后换行书写视频内容。\n\n<b>引擎侧校验</b>：JSON 合法但 prompt 和 videoPrompt 都缺 → 判为「格式不符」，<b>不写回空值</b>（:543-549）；\n只有一个字段时另一个存空串（:550-551）；开了尾帧连续时，输出里没带 @图片1 会被强制补一行（:555-562）。',
+  user:'assembleShotUser(shot, refAssets, globalStyle)（:501）\n  镜头编号 / 时长 / 景别 / 光影 / 运镜 / 统一风格\n  位置：第 N 镜 / 共 M 镜（开场镜·中段镜·结尾镜）\n  画面描述 = shots[i].description\n  【剧情上下文】上一镜承接 · 本镜职责 · 下一镜钩子\n  【出场分工】@角色（核心/压迫位/背景位）· @场景 · @道具\n  【风格锚定】【眼线锁定】【对白+环境音三层】\n  【负面黑名单】通用 + playbook.negative.image / video   ← 负面词在这里，user 中段\n+ 【生图强制约束，仅作用于 prompt】constraints.image    ← 正向约束在这里，user 尾部（:510）\n+ 【生视频强制约束，仅作用于 videoPrompt】constraints.video（:511）\n+ videoPrompt 必须以「【时长 N秒】」开头（:512）\n+ 你的修改意见 feedback（有则加，当前 UI 没传）',
+  out:[
+    ['shots[i].prompt','<b>图片</b>提示词 → 第 ⑦ 步「生图」原样发出'],
+    ['shots[i].videoPrompt','<b>视频</b>提示词 → 第 ⑦ 步「生视频」原样发出'],
+    ['一次调用，两条一起','同一个 JSON 的两个字段。界面上「生成提示词 / 重新生成 / 批量生成提示词」三个按钮走的是同一个函数，都会同时刷新这两条；<b>没有「只生成图片」或「只生成视频」的入口</b>'],
+    ['覆盖方式','整条覆盖。旧值不会发给模型（:501-513 的 user 里不含 prompt/videoPrompt 旧值），模型是凭本镜资料重新写一遍']],
+  note:'这一步模型只看到 @名字 和分工，看不到图（refAssets 只取 name/category，:491-492）。另：代码里 feedback（修改意见）参数存在，但当前三个调用点都没传，所以「生成提示词」不带意见；带意见的改写走第 ⑤ 步审计。',
+  ex_sys:'【漫剧·分镜导演模板全文】\n\n【不可覆盖的最终规则】prompt 与 videoPrompt 遵循克制原则…所有 @名称 必须原样保留。只返回包含 prompt、videoPrompt 的纯 JSON。',
+  ex_user:'镜头编号：1\n时长：5s\n景别：全景\n光影：逆光\n统一风格：中世纪童话·皮克斯3D\n本分镜在整部短片中的位置：第 1 镜 / 共 2 镜（开场镜）。\n画面描述：@小红帽 提着 @竹篮 站在 @幽暗森林 的入口，回头张望\n【本镜剧情上下文】\n  【本镜剧情职责】…交代信息/建立悬念/锚定冲突…\n  【剧情钩子：下一镜预告】@小红帽 拨开枝叶走进 @幽暗森林 深处…\n【本分镜出场人物与叙事分工】\n  - @小红帽｜核心人物（本镜焦点/情绪承担者…）\n【本分镜场景环境角色】@幽暗森林：本镜全部动作必须发生在该场景内…\n【本分镜关键道具】@竹篮：…\n【对白/旁白】小红帽: 外婆家就快到了\n【环境音三层】…音效/拟音层：环境音/动作音：鸟鸣\n【负面黑名单】通用负面：新增无关对白/…\n【videoPrompt 格式硬性要求】videoPrompt 必须以“【时长 5秒】”单独一行开头…',
+  ex_out:'{\n "prompt":"皮克斯3D中世纪童话风格，全景，24mm广角，@小红帽 身穿红色连帽斗篷、金色麻花辫，站在 @幽暗森林 入口，右手提着 @竹篮，身体微侧回头张望，逆光从林间斜射，薄雾…",\n "videoPrompt":"【时长 5秒】\\n第一个画面：@小红帽 站在 @幽暗森林 入口，右手提着 @竹篮…\\n第二个画面：她缓缓回头，视线扫过身后小路…\\n第三个画面：镜头缓慢推进，她转身面向森林深处…\\n小红帽说：‘外婆家就快到了’\\n环境音/动作音：鸟鸣、脚步踩在苔藓上的沙沙声"\n}'
+},
+{
+  n:'④', name:'关键帧 / 四宫格 / 九宫格 / 俯视调度图', tag:'文本模型 · 旁路 · 只出图片', fn:'onGenerateShotImage · scriptBoxEngine.js:608',
+  io:'<b>吃</b> <span class="k in">shots[i].description</span> 等结构字段（<b>不发任何已有提示词</b>）<br><b>吐</b> <span class="k out">shots[i].imgGen.prompt</span>（一条<b>图片</b>提示词）',
+  sys:[['playbook.imageGenTemplates[type].sys','按 type 取：keyframe（关键帧）/ grid4（四宫格）/ grid9（九宫格）/ topdown（俯视调度图）\n四种模板都要求「只返回纯文本中文 prompt，不要 JSON」，即产出都是一条生图提示词']],
+  fmt:'<b>④ 的输出格式约束：要求「不要 JSON」</b>\n四种模板末尾都写着同一句（如 workflows.js:111）：\n「只返回纯文本中文 prompt，不要解释、不要 Markdown、不要 JSON。」\n\n<b>引擎侧很宽松（:631-636）</b>，按顺序尝试：\n1. 解析出 JSON 且是字符串 → 用它\n2. 解析出 JSON 且是对象 → 取 .prompt\n3. 都不是 → <b>直接用模型返回的原文</b>，只打一条 warn（不报错、不丢结果）\n所以模型即使违规返回了 Markdown 或解释文字，也会被整段当成提示词存进 imgGen.prompt。',
+  user:'buildShotImageUser(shot, type, {globalStyle, assets})（prompts.js:500-517）完整内容：\n  【你要生成的图类型】关键帧\n  【全局视觉风格】= data.globalStyle\n  【镜头画面描述】= shots[i].description\n  【景别】【光影】【运镜】【时长】= shots[i] 的对应字段\n  【对白/旁白】【音效】\n  【可用 @资产】= 全部资产名（不做匹配，全列）\n\n⚠ 这里<b>没有</b> shots[i].prompt，也<b>没有</b> shots[i].videoPrompt，\n  更没有旧的 imgGen.prompt —— 它每次都从「画面描述」从零重写，\n  不是拿现有提示词去改写。所以重复点「生成关键帧」= 重新写一条，不会在上一条基础上改。',
+  out:[['shots[i].imgGen.prompt','{ type, label, prompt, ts }，存在 imgGen 里，与 shots[i].prompt 并存、互不影响'],
+       ['（不产视频提示词）','这一步只管图。视频提示词只有两个来源：第 ③ 步的 videoPrompt、第 ⑥ 步的合并提示词'],
+       ['怎么进下游','不自动进。两条路：①「复制」拿走；②点「应用到生图」→ 覆盖 shots[i].prompt（StepPrompt.jsx:135），之后点「生图」才用得上'],
+       ['能不能用 AI 改','<b>不能</b>。关键帧的编辑弹窗直接隐藏了意见输入条（StepPrompt.jsx:368），引擎层也兜底：field 不是 prompt / videoPrompt 的一律返回失败（:659）。要改只能手写，或去审计第 ③ 步那两条']],
+  note:'问答：「只产出关键帧吗？」— 是。只写回 shots[i].imgGen 一个对象，不产视频提示词，也不碰 shots[i].prompt / videoPrompt。\n和第 ③ 步的关系：两条独立通道。第 ③ 步出的是「这镜怎么拍」的 prompt；第 ④ 步出的是「把这一镜画成一张什么图」的 prompt，起点是画面描述，不是第 ③ 步的产出。',
+  ex_out:'shots[0].imgGen = { type:"keyframe", label:"关键帧",\n  prompt:"决定性瞬间：@小红帽 提着 @竹篮 回头张望的那一瞬，逆光穿透薄雾…" }'
+},
+{
+  n:'⑤', name:'审计改写（按意见改）', tag:'文本模型 · 回环', fn:'onReviewShotPrompt · scriptBoxEngine.js:658',
+  io:'<b>吃</b> <span class="k in">shots[i].prompt</span> 或 <span class="k in">videoPrompt</span> 的当前值<br><b>吐</b> 改写后的同一条',
+  sys:[['playbook.audit','审计模板：导演 CINEDANCE / 表演 ACTING / 美术 LIRA 三框架\n纪律：最小必要改动，意见与框架冲突时以意见为准，@资产名原样保留']],
+  fmt:'<b>⑤ 的输出格式约束：单条纯文本，不是 JSON</b>\n审计模板第 5 条（workflows.js:95）：\n「只输出<b>改写后的单条中文提示词全文</b>，不要解释、不要 Markdown 代码块、不要前后多余文字、\n不要输出你的审查清单或推理过程。」\n\n<b>引擎侧不解析</b>（:686）：直接 String(r.content).trim() 当作改写结果。\n所以模型如果违规加了解释文字，会整段进预览区——但预览区可手改，点「应用」前都能救回来。',
+  user:'buildAuditUser(shot, field, feedback)（prompts.js:56-70），顺序固定：\n  【用户修改意见（必须严格遵循）】\n  【本镜画面描述】      = shots[i].description\n  【对白/旁白】\n  【可用 @资产】\n  【时长】（仅改 videoPrompt 时）\n  【当前生图/生视频提示词（待改写）】 = shots[i][field] 当前值',
+  out:[['shots[i].prompt 或 videoPrompt','只写回你双击的<b>那一格</b>。输出单条文本 → 弹窗里预览（可直接手改）→ 点「应用」才落库（StepPrompt.jsx:59-66）'],
+       ['另一条','完全不动。改生图提示词不动生视频提示词，反之亦然'],
+       ['imgGen（关键帧）','审不了。引擎 :659 只认 prompt / videoPrompt，其它 field 直接返回失败'],
+       ['资产、剧本、分镜表','都不动。审计只改一条提示词文本，不回写剧本数据']],
+  note:'<b>问题一：发给 AI 的是什么？</b><br>system = playbook.audit（审计模板）<br>user = 六段，最后一段即「当前这条待改写的原文」，也就是你双击那一格此刻显示的文本（shots[i][field]）。<br>所以它不是拿剧本模板重写，而是「当前这条 + 你的意见 + 本镜资料」交给审计模板做最小必要改写。<br><br><b>问题二：改完只动哪里？</b><br>只动 shots[i][field] 这一个字段：双击「生图提示词」格 → 只改 shots[i].prompt；双击「生视频提示词」格 → 只改 shots[i].videoPrompt。<br>field 由双击哪一格决定（StepPrompt.jsx:99 / :144）。',
+  ex_user:'【用户修改意见（必须严格遵循）】让镜头再慢一点，加一句旁白\n【本镜画面描述】@小红帽 提着 @竹篮 站在 @幽暗森林 的入口，回头张望\n【对白/旁白】小红帽: 外婆家就快到了\n【可用 @资产】@小红帽、@幽暗森林、@竹篮\n【时长】5s\n【当前生视频提示词（待改写）】\n【时长 5秒】第一个画面：@小红帽 站在 @幽暗森林 入口…（shots[0].videoPrompt 当前值全文）',
+  ex_out:'（单条文本，不是 JSON）\n【时长 5秒】\n第一个画面：@小红帽 站在 @幽暗森林 入口，右手提着 @竹篮，逆光薄雾…\n第二个画面：她缓缓回头，视线扫过身后小路…\n第三个画面：镜头以更慢的速度推进…\n旁白：‘她还不知道，林子深处有什么在等她’\n小红帽说：‘外婆家就快到了’'
+},
+{
+  n:'⑥', name:'合并视频提示词', tag:'文本模型 · 分支', fn:'onGenerateMergedVideo · scriptBoxEngine.js:954',
+  io:'<b>吃</b> 多镜 <span class="k in">description</span> 等结构字段<br><b>吐</b> 新视频节点 <span class="k out">data.prompt</span>',
+  sys:[['MERGE_VIDEO_SYSTEM','内置常量（prompts.js:528），不随 playbook 变']],
+  fmt:'<b>⑥ 的输出格式约束：单条纯文本 + 编号规则</b>\nMERGE_VIDEO_SYSTEM（prompts.js:528-534）要求：\n1. 把镜头按时间逻辑顺序连起来\n2. <b>不要用「0~3秒 / 第X秒」这类时间区间描述</b>镜头\n3. 资料里标「（未指定）/（无）」的字段照实保留，不要自行编造\n4. 只输出中文提示词，不要解释、不要 Markdown、不要 JSON\n\nuser 侧（buildMergedVideoUser，:546）追加：「请你把这些镜头按顺序连成一个长视频」；\n每个字段缺省一律写「（未指定）」，禁止留空让 AI 脑补（:550-557）。\n\n<b>引擎侧</b>：直接 trim，为空则提示「合并视频提示词为空，请重试」（:990）。',
+  user:'buildMergedVideoUser(picked, assets)（prompts.js:542-562）\n逐镜列出：画面描述 / 景别 / 光影 / 运镜 / 对白 / 音效\n← 吃的是结构字段，不是各镜的 videoPrompt\n参考图与总时长另由 mergeShotsForVideo() 提供（:965）',
+  out:[['新 discountVideoNode.data.prompt','一条序号连贯的合并视频提示词'],
+       ['selectedSeconds','各镜 duration 累加']],
+  note:'各镜的 videoPrompt 在 mergeShotsForVideo 里会被拼装，但合并流程只取它的 images 和 seconds，不取拼出来的 prompt。',
+  ex_out:'新节点 data.prompt =\n第一个画面：@小红帽 站在 @幽暗森林 入口，提着 @竹篮 回头张望…\n第二个画面：她拨开枝叶，走进林间小径…\n第三个画面：镜头跟在她身后缓慢推进，光斑在斗篷上移动…'
+},
+{
+  n:'⑦', name:'出图 / 出片（画布节点）', tag:'图像·视频模型', fn:'PromptNode.jsx:214 / DiscountVideoNode.jsx:183',
+  io:'<b>吃</b> <span class="k in">prompt</span> 原文 + <span class="k in">imageUrl</span> 参考图<br><b>吐</b> 图 / 视频',
+  sys:[['（无 system，无二次改写）','节点 data.prompt 一个字不加，原样发出']],
+  fmt:'<b>⑦ 没有任何输出格式约束，也没有二次加工</b>\n提示词出剧本盒之后就是终态：不再有 system、不再有格式要求、不再有改写。\nprompt 里的 @小红帽 是<b>纯文本</b>（不是芯片语法 @{id:label}），所以 resolvePromptChips 解析不到，原文保留；\n资产图走 images 参数单独提交，不进提示词文本。',
+  user:'prompt = shots[i].prompt（生图）或 shots[i].videoPrompt（生视频）\nimages = 按 @名字 匹配到的、已生图的资产（collectAssets）\n→ generateImage({ prompt, images }) / generateVideo({ prompt, images })',
+  out:[['imageUrl / videoUrl','节点结果']],
+  note:'@小红帽 在提示词里是纯文本（不是芯片语法 @{id:label}），原样保留；图走 images 参数垫进去，不进文本。\n\n<b>新建节点落在画布哪里（确定性排布，:846-881）</b>：\n· slot 由镜头序算死：生图区 [0, 镜头数)，生视频区 [镜头数, 2×镜头数)，合并视频落在 2×镜头数\n· slot 折成「列×行」网格向右下排；期望格被占（同一镜重复生成）就顺延到下一空格\n· 节点打标 scriptboxParent / scriptboxSlot 并持久化，所以刷新后仍在原位\n\n<b>预填了什么</b>（shotPrefill，:824-833）：生图节点 → aspectRatio（custom 取 customAspectRatio，4:4 归一为 1:1）；\n生视频节点 → size + selectedSeconds（= 本镜 duration 秒数）+ durationFromScript=true。',
+  ex_user:'generateImage({\n  prompt:"皮克斯3D中世纪童话风格，全景，24mm广角，@小红帽 身穿红色连帽斗篷…",\n  images:[\n    /files/migrated/人物/小红帽.png,\n    /files/migrated/场景/幽暗森林.png,\n    /files/migrated/道具/竹篮.png ]\n})',
+  ex_out:'节点 imageUrl = 一张「小红帽提篮站在森林入口回头」的成图'
+},
+{
+  n:'⑧', name:'尾帧变体（上一镜尾帧作视觉起点）', tag:'图像模型 · 独立生图', fn:'onGenerateTailFrameVariants · scriptBoxEngine.js:1035',
+  io:'<b>吃</b> 上一镜的<span class="k in">视频尾帧</span>（抽帧）<br><b>吐</b> <span class="k out">prevTailFrameVariants</span> + <span class="k out">prevShotImageRefUrls</span>',
+  sys:[['（无 system）','生图，只有一条 prompt']],
+  fmt:'<b>无输出格式约束</b>（生图，回图片 URL）。\n但它的 prompt 本身就自带强约束（prompts.js:1210-1217）：先描述输入图像关键特征 → 再解释镜头指令如何改变画面\n→ 生成视觉风格 100% 一致的新图 → 除要求的镜头变化外不增删任何物体/角色、不改画幅、不换风格、不加文字水印边框。',
+  user:'prompt = buildTailComposePrompt(angleIds)（prompts.js:1207-1219）：\n  「先描述输入图像的关键特征…然后解释镜头指令应如何改变画面…生成一张与参考图视觉风格 100% 一致的新图…」\n  + 用户选的角度指令（如 推进 / 环绕 / 换角度…），一次合成一张综合图\n参考图 = 上一镜视频抽出的尾帧（images 参数，不进文本）',
+  out:[['shots[i].prevTailFrameVariants','[原版尾帧, 综合图] 两张，自动选中综合图'],
+       ['shots[i].prevShotImageRefUrls','综合图 URL，作为本镜的视觉起点参考图'],
+       ['shots[i].usePrevShotVideoTail','为 true 时，③ 生成的 prompt/videoPrompt 会被强制补一行「@图片1 复用上一镜视频尾帧…」（:555-562）']],
+  note:'这是<b>另一条独立的生图调用</b>（唯一一处不经过提示词文本、直接拿图改图的生成），只在第 2 镜及以后可用，且要求上一镜已经连出视频节点并有结果（:1039-1042）。\n它产出的参考图会反过来影响第 ③ 步：开了尾帧连续后，③ 的 user 里会多一段「视觉起点·必带约束」，并要求输出里显式带 @图片1。',
+  ex_out:'shots[1].prevTailFrameVariants = [\n  { id:"original", label:"原版尾帧", imageUrl:"/files/migrated/脚本/尾帧变体/prev-s0-tail.png" },\n  { id:"composed", label:"推进+环绕", imageUrl:"/files/migrated/脚本/尾帧变体/prev-s0-composed.png" }\n]\nshots[1].prevShotImageRefUrls = ["/files/migrated/脚本/尾帧变体/prev-s0-composed.png"]'
+}]
+
+const LINKS = [
+  {c:'p', t:'assets[].prompt'},
+  {c:'t', t:'并行分支：② 与 ③ 都直接吃 ① 的产出，互不依赖', dash:true},
+  {c:'b', t:'并行分支：④ 吃的是 ① 的 description，不是 ③ 的产出', dash:true},
+  {c:'p', t:'回环：⑤ 改写 ③ 产出的那一条', dash:true},
+  {c:'t', t:'独立分支：⑥ 吃 ① 的 description 等结构字段', dash:true},
+  {c:'p', t:'⑦ 吃 ③ 的 prompt / videoPrompt + ② 的图作参考图', dash:true},
+  {c:'i', t:'⑧ 吃 ⑦ 产出的上一镜视频尾帧', dash:true},
+]
+
+const IDS = `
+<div class="block"><div class="bt">系统里一共有几条提示词<span class="tag">谁造的 / 存在哪 / 谁把它发出去</span></div>
+<table class="tb">
+<tr><th>提示词</th><th>谁造的</th><th>存在哪</th><th>被谁发出去</th><th>发出时改不改</th></tr>
+<tr><td>资产生图提示词</td><td>① 剧本生成时顺手现拼（ZgPrompt）</td><td>assets[i].prompt</td><td>② 生图</td><td>原样</td></tr>
+<tr><td>图片提示词</td><td>③ 分镜提示词（一次调用里的 prompt 字段）</td><td>shots[i].prompt</td><td>⑦ 生图节点</td><td>原样</td></tr>
+<tr><td>视频提示词</td><td>③ 同一次调用里的 videoPrompt 字段</td><td>shots[i].videoPrompt</td><td>⑦ 生视频节点</td><td>原样</td></tr>
+<tr><td>关键帧 / 四宫格…</td><td>④ 从画面描述<b>从零重写</b>，不读任何已有提示词</td><td>shots[i].imgGen.prompt</td><td>不自动发；点「应用到生图」覆盖图片提示词后才发</td><td>覆盖需手动</td></tr>
+<tr><td>合并视频提示词</td><td>⑥ 合并多镜资料重写</td><td>新视频节点 data.prompt</td><td>该视频节点</td><td>原样</td></tr>
+<tr><td colspan="5" style="padding-top:12px;color:var(--dim2)">
+另有 5 类<b>不是被生成的提示词</b>，是「指挥材料」，存在 playbook 里由齿轮编辑：<br>
+剧本模板（指挥①）· 分镜导演模板 + 不可覆盖规则（指挥③）· 审计模板（指挥⑤）· 关键帧类模板（指挥④）· 资产模板 / 约束 / 负面词（拼进上面各条）
+</td></tr>
+</table></div>`
+
+const MODELS = `
+<div class="block"><div class="bt">每一步用的哪个模型 · 哪些参数<span class="tag">剧本盒有两套模型，别混</span></div>
+<table class="tb">
+<tr><th>步骤</th><th>用的模型</th><th>关键参数</th></tr>
+<tr><td>① 剧本</td><td>文本模型（data.textModel || selectedModel，:91）</td>
+    <td>temperature 0.7；模型支持时才强制 json_object（useJsonObject）</td></tr>
+<tr><td>② 资产生图</td><td><b>资产生图模型</b>（assetModelSettings.globalModel，:100）</td>
+    <td>size = globalSize || '2K'；aspectRatio = globalAspectRatio || '16:9'；n=1；<b>不传参考图</b></td></tr>
+<tr><td>③ 分镜提示词</td><td>文本模型</td>
+    <td>temperature 0.7；并发上限 4、启动间隔 500ms（:572-589）；写回 200ms 合并窗口</td></tr>
+<tr><td>④ 关键帧</td><td>文本模型</td>
+    <td>temperature 0.7；返回非 JSON 时<b>降级写回原文</b>并打 warn（:636）</td></tr>
+<tr><td>⑤ 审计</td><td>文本模型</td><td>temperature 0.7</td></tr>
+<tr><td>⑥ 合并视频</td><td>文本模型</td><td>temperature 0.7；至少选 2 镜才可用（:961）</td></tr>
+<tr><td>⑦ 出图/出片</td><td><b>节点自己选的模型</b>（不是剧本盒设置的）</td>
+    <td>生图节点：aspectRatio 由剧本盒预填；生视频节点：size + selectedSeconds + durationFromScript 预填</td></tr>
+<tr><td>⑧ 尾帧变体</td><td>资产生图模型</td><td>size/aspectRatio 同 ②；参考图 = 上一镜抽出的尾帧</td></tr>
+</table></div>`
+
+const SOURCES = `
+<div class="block"><div class="bt">每个数据从哪来 · 谁能改 · 改完要不要重跑<span class="tag">改了不生效多半是漏了重跑</span></div>
+<table class="tb">
+<tr><th>数据</th><th>谁造的</th><th>能不能手改</th><th>改完要不要重跑</th></tr>
+<tr><td>story（剧情）</td><td>手填 + 上游文本节点接入</td><td>能（第①步输入框）</td><td><b>要重跑 ①</b>（会整表覆盖）</td></tr>
+<tr><td>description / 景别 / 光影 / 运镜 / 音效 / 对白 / 时长</td><td>① 模型生成</td>
+    <td>能，第①步表格里直接改：时长输入、画面描述双击、景别/光影/运镜下拉、音效双击、对白弹窗（StepShots.jsx:136-147）</td>
+    <td><b>要重跑 ③</b>——它们是 ③ 的输入，不重跑提示词不会变</td></tr>
+<tr><td>prompt / videoPrompt</td><td>③ 模型生成</td><td>能：双击弹窗手改，或走 ⑤ 审计</td><td>不用，改完就是终态，⑦ 直接发</td></tr>
+<tr><td>imgGen.prompt（关键帧）</td><td>④ 生成</td><td>能：双击手改（无 AI 通道）</td><td>不用；要用它出图得点「应用到生图」</td></tr>
+<tr><td>assets[].name / description / prompt</td><td>① 生成</td><td>能：资产面板（改名会自动同步 shots 里的 @引用）</td><td>改 prompt 后 <b>要重跑 ②</b> 才会按新提示词出图</td></tr>
+<tr><td>assets[].imageUrl（参考图）</td><td><b>三条路</b>：② AI 生图 / 从素材库选（onPickAssetImage:805）/ 本地上传（onUploadAssetImage:773）</td>
+    <td>能：随时换</td><td>不用重跑任何生成——图只在 ⑦ 作参考图，不影响已生成的提示词。<br>但已连出的下游节点不会回填新图，要重新连线</td></tr>
+<tr><td>globalStyle（统一风格）</td><td>手填，或 ① 模型返回</td><td>能</td><td>要重跑 ③（风格是 ③ 的输入）；已拼好的资产 prompt 要重跑 ② 才带新风格</td></tr>
+</table></div>`
+
+const GOTCHA = `
+<div class="block"><div class="bt">连带影响 &amp; 已知的坑</div>
+<table class="tb">
+<tr><th>操作</th><th>会连带发生什么</th></tr>
+<tr><td>改资产名</td><td>renameAssetRefs 同步把 shots 里所有 @旧名 改成 @新名（StepAssets.jsx:228）。所以改名不会让参考图失效</td></tr>
+<tr><td>删资产</td><td>removeAsset 把 shots 里该 @名字 的引用一并去掉（prompts.js:310）</td></tr>
+<tr><td>资产没生图</td><td>⑦ 垫不上参考图——collectAssets 只收 imageUrl 非空的（:357）。③ 照常能出提示词，只是成图少了参考</td></tr>
+<tr><td>剧本文案里没写 @名字</td><td>③ 的「出场分工」块和 ⑦ 的参考图匹配都靠 @名字（matchAssetNames 最长匹配），没写就都落空</td></tr>
+<tr><td>点「停止」</td><td>①③④⑤⑥⑦ 能中止；<b>② 资产生图中止不了</b>——它的 task 回调没接收 signal，代码里明确注释「停止不做」（:357-360）</td></tr>
+<tr><td>切换 playbook</td><td>所有模板/约束/负面词整套换；已生成的提示词不会自动重算，要重新点生成</td></tr>
+<tr><td>内置 playbook</td><td>齿轮里只读（disabled），要改得先另存为自定义（GearSettings.jsx:16-17）</td></tr>
+<tr><td>「图✓ / 视频✓」标记</td><td><b>永远不显示</b>：connImg / connVid 只在 4 处初始化为 false（schema:46-47 等），全项目没有任何地方写 true（StepPrompt.jsx:81-82 只读它显示）</td></tr>
+<tr><td>shot.grid</td><td>默认 0，全项目无消费点（StepPrompt 里的 gridPick 是组件内部 state，不是这个字段）</td></tr>
+<tr><td>assets[].picked / pickedCount</td><td>只是第②步「批量生图」的勾选集（StepAssets.jsx:43-56），与提示词链路无关——没勾选时批量生图会对<b>所有无图资产</b>生效</td></tr>
+<tr><td>已连出的下游节点</td><td>是<b>快照拷贝</b>：之后改提示词、换资产图，都不会同步到已建的节点，要重新点「生图/生视频」连一次</td></tr>
+</table></div>`
+
+const CONST = `
+<div class="block"><div class="bt">正向约束 & 负面词：填在哪、出现在哪<span class="tag">以「达人种草」为例</span></div>
+<table class="tb">
+<tr><th>齿轮里的名字</th><th>字段</th><th>达人种草的值</th><th>出现在哪</th></tr>
+<tr><td>图片·要求</td><td>constraints.image</td><td>竖屏、真实自然光、清晰通透、电商实拍质感</td>
+    <td>③ user 尾部 →「【生图强制约束，仅作用于 prompt】」</td></tr>
+<tr><td>视频·要求</td><td>constraints.video</td><td>竖屏、真实、自然光、口播+场景实拍</td>
+    <td>③ user 尾部 →「【生视频强制约束，仅作用于 videoPrompt】」</td></tr>
+<tr><td>通用·禁止</td><td>negative.common</td><td>达人种草<b>没填</b> → 落到内置默认（漫剧那条硬编码通用负面，prompts.js:1325）</td>
+    <td>③ user 中段 →「负面黑名单·通用（prompt + videoPrompt 同时遵守）」</td></tr>
+<tr><td>图片·禁止</td><td>negative.image</td><td>无字幕、无水印、无logo、无卡通、无3D渲染、无夸张特效</td>
+    <td>③ user 中段 →「【生图负面词·仅作用于 prompt】」</td></tr>
+<tr><td>视频·禁止</td><td>negative.video</td><td>无字幕、无水印、无卡通、无3D渲染</td>
+    <td>③ user 中段 →「【生视频负面词·仅作用于 videoPrompt】」</td></tr>
+<tr><td>（已被砍掉）</td><td>constraints.custom</td><td>达人种草里写着 custom:''，但解析层只读 image/video（resolver.js:33），<b>填了也不生效</b></td><td>—</td></tr>
+<tr><td colspan="4" style="padding-top:12px;color:var(--dim2)">
+<b>只作用在第 ③ 步。</b>全代码里 resolveConstraints / resolveNegatives 只在 scriptBoxEngine.js:463-464 被调用一次，
+其余各步（① 剧本、② 资产生图、④ 关键帧、⑤ 审计、⑥ 合并视频、⑦ 节点生成）<b>都不带约束与负面词</b>。
+所以达人种草填的「竖屏」不会约束资产参考图，也不会约束关键帧图。
+</td></tr>
+</table></div>`
+
+const flow = document.getElementById('flow')
+const detail = document.getElementById('detail')
+
+let html = ''
+STEPS.forEach((s,i)=>{
+  if (i>0){
+    const L = LINKS[i-1]
+    html += `<div class="arrow ${L.c} ${L.dash?'dash':''}"><div class="bar"></div><div class="lbl">${L.t}</div></div>`
+  }
+  html += `<div class="step" data-i="${i}">
+    <div class="top"><div class="num">${s.n}</div><div class="name">${s.name}</div>
+    <div class="badge">${s.tag}</div></div>
+    <div class="io">${s.io}</div></div>`
+})
+html += `<div class="legend">
+  <div><i style="background:${C.t}"></i>文本流：名字与描述，写进提示词让模型看</div>
+  <div><i style="background:${C.p}"></i>提示词流：直接当请求发出去</div>
+  <div><i style="background:${C.i}"></i>图像流：作参考图垫给模型，不进文本</div>
+  <div><i style="background:${C.b}"></i>旁路 / 回环：需手动应用，不自动走</div>
+</div>`
+flow.innerHTML = html
+
+function render(i){
+  const s = STEPS[i]
+  const kv = (arr)=>arr.map(([k,v])=>`<div class="row"><div class="rk">${k}</div><div class="rv">${v.replace(/\n/g,'<br>')}</div></div>`).join('')
+  detail.innerHTML = `
+    <div class="dtitle">${s.n} ${s.name}</div>
+    <div class="dcode">${s.fn}</div>
+
+    <div class="block"><div class="bt">发给模型的 system<span class="tag">谁在指挥这次生成</span></div>
+      ${kv(s.sys)}</div>
+
+    ${s.fmt?`<div class="block" style="border-color:#3d2f14"><div class="bt" style="color:var(--promptflow)">输出格式约束（系统约束）<span class="tag">模型必须返回成什么样</span></div><pre style="border-color:#3d2f14">${s.fmt}</pre></div>`:''}
+
+    <div class="block"><div class="bt">发给模型的 user<span class="tag">这次喂进去的资料</span></div>
+      <pre>${s.user}</pre></div>
+
+    <div class="block"><div class="bt">输出落到哪<span class="tag">下一步谁来取</span></div>
+      ${kv(s.out)}<div class="note">${s.note.replace(/\n/g,'<br>')}</div></div>
+
+    <div class="ex">
+      <div class="block"><div class="bt">实例 · 小红帽</div>
+        ${s.ex_sys?`<div class="hint">system 实际内容</div><pre>${s.ex_sys}</pre>`:''}
+        ${s.ex_user?`<div class="hint" style="margin-top:12px">user 实际内容</div><pre>${s.ex_user}</pre>`:''}
+        ${s.ex_out?`<div class="hint" style="margin-top:12px">模型返回 / 最终结果</div><pre>${s.ex_out}</pre>`:''}
+      </div>
+    </div>
+
+    ${IDS}
+    ${SOURCES}
+    ${MODELS}
+    ${GOTCHA}
+    ${CONST}`
+  document.querySelectorAll('.step').forEach((el,n)=>el.classList.toggle('active',n===i))
+}
+
+flow.addEventListener('click',(e)=>{
+  const el = e.target.closest('.step')
+  if (el) render(+el.dataset.i)
+})
+document.getElementById('exBtn').addEventListener('click',function(){
+  document.body.classList.toggle('showex')
+  this.classList.toggle('on')
+  this.textContent = document.body.classList.contains('showex') ? '隐藏实例' : '显示「小红帽」实例'
+})
+render(0)
+</script>
+</body>
+</html>

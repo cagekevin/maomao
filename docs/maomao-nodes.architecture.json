@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "猫猫画布 · 节点体系总览",
+    "locale": "zh-CN",
+    "quality_profile": "standard"
+  },
+  "layout": {
+    "mode": "grid",
+    "origin": [50, 70],
+    "cols": 6,
+    "gapX": 70,
+    "gapY": 45,
+    "cellW": 150,
+    "cellH": 64
+  },
+  "components": [
+    { "id": "canvas", "type": "frontend", "label": "猫猫画布", "sublabel": "React Flow 容器", "row": 3, "col": 5, "size": [150, 64] },
+    { "id": "agenttools", "type": "frontend", "label": "画布 Agent 工具", "sublabel": "toolRegistry", "tag": "function calling", "row": 2, "col": 5, "size": [150, 64] },
+    { "id": "scriptboxEngine", "type": "frontend", "label": "剧本盒引擎", "sublabel": "13 个回调", "tag": "chatApi / imageApi", "row": 0, "col": 5, "size": [150, 64] },
+
+    { "id": "textNode", "type": "frontend", "label": "文本", "sublabel": "textNode", "row": 1, "col": 0, "size": [150, 64] },
+
+    { "id": "imageBoxNode", "type": "frontend", "label": "图片盒子", "sublabel": "imageBoxNode", "row": 0, "col": 1, "size": [150, 64] },
+    { "id": "gridSplitNode", "type": "frontend", "label": "图片切分", "sublabel": "gridSplitNode", "tag": "可发入盒", "row": 1, "col": 1, "size": [150, 64] },
+    { "id": "gridMergeNode", "type": "frontend", "label": "图片拼图", "sublabel": "gridMergeNode", "row": 2, "col": 1, "size": [150, 64] },
+    { "id": "panoramaNode", "type": "frontend", "label": "全景图", "sublabel": "panoramaNode", "tag": "lazy", "row": 3, "col": 1, "size": [150, 64] },
+    { "id": "faceMosaicNode", "type": "frontend", "label": "人脸打码", "sublabel": "faceMosaicNode", "row": 4, "col": 1, "size": [150, 64] },
+
+    { "id": "promptNode", "type": "frontend", "label": "图片 / 生图", "sublabel": "promptNode", "row": 0, "col": 2, "size": [150, 64] },
+    { "id": "imageNode", "type": "frontend", "label": "素材节点", "sublabel": "imageNode", "row": 1, "col": 2, "size": [150, 64] },
+    { "id": "loopNode", "type": "frontend", "label": "循环生成", "sublabel": "loopNode", "tag": "按换行拆分", "row": 2, "col": 2, "size": [150, 64] },
+    { "id": "director3dNode", "type": "external", "label": "3D 导演台", "sublabel": "director3dNode", "tag": "外部集成 · lazy", "row": 3, "col": 2, "size": [150, 64] },
+
+    { "id": "scriptBoxNode", "type": "frontend", "label": "剧本盒子", "sublabel": "scriptBoxNode", "row": 0, "col": 3, "size": [150, 64] },
+    { "id": "groupNode", "type": "frontend", "label": "编组", "sublabel": "groupNode", "row": 2, "col": 3, "size": [150, 64] },
+    { "id": "ghostTargetNode", "type": "frontend", "label": "连线占位", "sublabel": "ghostTarget", "tag": "非真实节点", "row": 3, "col": 3, "size": [150, 64] },
+    { "id": "templateNode", "type": "frontend", "label": "模板", "sublabel": "templateNode", "row": 4, "col": 3, "size": [150, 64] },
+
+    { "id": "discountVideoNode", "type": "frontend", "label": "视频生成", "sublabel": "discountVideoNode", "row": 1, "col": 4, "size": [150, 64] },
+    { "id": "videoExtractNode", "type": "frontend", "label": "视频抽帧", "sublabel": "videoExtractNode", "row": 2, "col": 4, "size": [150, 64] },
+    { "id": "videoProcessNode", "type": "frontend", "label": "视频处理", "sublabel": "videoProcessNode", "tag": "lazy", "row": 3, "col": 4, "size": [150, 64] }
+  ],
+  "boundaries": [
+    { "kind": "region", "label": "文本工具", "wraps": ["textNode"] },
+    { "kind": "region", "label": "图片工具", "wraps": ["imageBoxNode", "gridSplitNode", "gridMergeNode", "panoramaNode", "faceMosaicNode", "director3dNode", "promptNode", "imageNode", "loopNode"] },
+    { "kind": "region", "label": "视频工具", "wraps": ["discountVideoNode", "videoExtractNode", "videoProcessNode"] },
+    { "kind": "region", "label": "其他工具", "wraps": ["scriptBoxNode", "groupNode", "ghostTargetNode", "templateNode"] }
+  ],
+  "connections": [
+    { "id": "engine-to-box", "from": "scriptboxEngine", "to": "scriptBoxNode", "label": "注入回调", "variant": "emphasis" },
+    { "id": "box-to-image", "from": "scriptBoxNode", "to": "promptNode", "label": "建生图下游", "variant": "emphasis" },
+    { "id": "box-to-video", "from": "scriptBoxNode", "to": "discountVideoNode", "label": "建生视频下游", "variant": "emphasis", "fromSide": "right", "toSide": "top", "via": [[1005, 102]] },
+    { "id": "split-to-box", "from": "gridSplitNode", "to": "imageBoxNode", "label": "切分后入盒" },
+    { "id": "tools-to-canvas", "from": "agenttools", "to": "canvas", "label": "工具写画布", "variant": "emphasis", "labelAt": [1225, 366] }
+  ]
+}

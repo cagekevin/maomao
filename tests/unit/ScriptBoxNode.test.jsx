@@ -22,6 +22,7 @@ const h = vi.hoisted(() => {
   })
   const getNodesMock = vi.fn(() => state.nodes)
   const updateData = vi.fn()
+  const updateNodeInternals = vi.fn()
   // 上游输入（可控，供「上游接入」用例）：默认空
   const upstream = { images: [], texts: [], videos: [], audios: [] }
   // 引擎实例：10 个回调（含 onStopScriptItem），与真实 createScriptBoxEngine 返回一致
@@ -37,7 +38,7 @@ const h = vi.hoisted(() => {
     onConnectShot: vi.fn(),
     onConnectShots: vi.fn(),
   }
-  return { state, setNodesMock, getNodesMock, updateData, engine, upstream }
+  return { state, setNodesMock, getNodesMock, updateData, updateNodeInternals, engine, upstream }
 })
 
 vi.mock('@xyflow/react', () => ({
@@ -50,9 +51,24 @@ vi.mock('@xyflow/react', () => ({
   }),
   // CustomHandle（节点内部端口）会渲染 Handle，mock 成 null 即可（测试不关心端口 DOM）
   Handle: () => null,
+  // 分镜端口（shot-${id}）增删时节点会显式重测端口，这里记录调用便于断言
+  useUpdateNodeInternals: () => h.updateNodeInternals,
 }))
 
-vi.mock('../../src/components/base/NodeShell.jsx', () => ({ default: ({ children }) => children }))
+// NodeShell mock：区分两个插槽 —— children（定位基准=主框，不含标题栏）与
+// overlayHandles（定位基准=整个节点）。剧本盒子的 in 端口必须走 overlayHandles。
+vi.mock('../../src/components/base/NodeShell.jsx', () => ({
+  default: ({ children, overlayHandles }) => (
+    <div>
+      <div data-testid="node-children">{children}</div>
+      <div data-testid="node-overlay">{overlayHandles}</div>
+    </div>
+  ),
+}))
+// 端口 mock：按 handleId 打标记，便于断言「in 端口挂在哪个插槽 / 是否存在」
+vi.mock('../../src/components/edges/CustomHandle.jsx', () => ({
+  default: ({ handleId }) => <div data-testid={`handle-${handleId || 'default'}`} />,
+}))
 vi.mock('../../src/components/base/FullscreenModal.jsx', () => ({ default: ({ open, children }) => (open ? <div data-testid="fullscreen">{children}</div> : null) }))
 // 数据读写通道：真实 useScriptBoxEngine 负责注入回调副作用，仅把返回的 updateData 指向 h.updateData 以记录调用（StepNav 切步用）
 vi.mock('../../src/components/base/useScriptBoxEngine.js', async (importOriginal) => {
@@ -240,6 +256,30 @@ describe('ScriptBoxNode — 上游接入数据同步', () => {
     setup()
     expect(h.updateData).not.toHaveBeenCalledWith(expect.objectContaining({ upstreamImages: expect.anything() }))
     expect(h.updateData).not.toHaveBeenCalledWith(expect.objectContaining({ upstreamTexts: expect.anything() }))
+  })
+})
+
+describe('ScriptBoxNode — 端口注册（code-008 回归）', () => {
+  it('in 端口走 NodeShell 的 overlayHandles（首帧即挂载，非 createPortal 延迟挂载）', () => {
+    setup()
+    // 回归：端口曾用 createPortal + portReady 延迟挂载 → 首帧 DOM 里没有 in 端口，
+    // ReactFlow 首次测量的 handleBounds 就不含 'in'（它只在节点尺寸/type/位置变化时重测）
+    // → 任何 targetHandle='in' 的边都报 code-008 且边不渲染。
+    expect(screen.getByTestId('node-overlay').querySelector('[data-testid="handle-in"]')).toBeTruthy()
+    // 必须挂在整个节点层（overlay），不能落进 children（定位基准不含标题栏 → 端口偏高）
+    expect(screen.getByTestId('node-children').querySelector('[data-testid="handle-in"]')).toBeNull()
+  })
+
+  it('镜头 id 列表变化时重测端口，仅改镜头字段不重测', () => {
+    h.updateNodeInternals.mockClear()
+    const { rerender } = setup({ shots: [{ id: 1 }] })
+    expect(h.updateNodeInternals).toHaveBeenCalledTimes(1)
+    // 新增镜头 → 端口集合变了，必须重测，否则新 shot 端口进不了 handleBounds（边报 code-008）
+    rerender(<ScriptBoxNode id={nodeId} data={{ shots: [{ id: 1 }, { id: 2 }] }} selected={false} />)
+    expect(h.updateNodeInternals).toHaveBeenCalledTimes(2)
+    // 只改镜头字段（id 列表不变）→ 不重测，避免高频抖动
+    rerender(<ScriptBoxNode id={nodeId} data={{ shots: [{ id: 1, prompt: 'x' }, { id: 2 }] }} selected={false} />)
+    expect(h.updateNodeInternals).toHaveBeenCalledTimes(2)
   })
 })
 
