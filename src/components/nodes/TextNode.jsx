@@ -391,7 +391,7 @@ function TextNode({ id, data, selected }) {
               {/* 预设提示词：打开提示词库弹窗 → 可追加到当前提示词或新建文本节点 */}
               <PromptLibraryButton
                 category="text"
-                onAppend={(p) => setTextPersist((prev) => (prev ? `${prev}\n${p}` : p))}
+                onAppend={(p) => setPromptPersist((prev) => (prev ? `${prev}\n${p}` : p))}
               />
             </div>
 

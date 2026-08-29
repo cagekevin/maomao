@@ -248,7 +248,7 @@ function PromptLibrary({ open, onClose, onUse, onAppend, defaultCategory = '', p
                         </span>
                         <div className="flex items-center gap-1.5">
                           <button
-                            className="px-3 py-1 rounded-lg text-xs text-blue-400 border border-edge bg-transparent hover:bg-blue-500/10 hover:border-blue-500/30 cursor-pointer transition-all"
+                            className="node-btn-primary"
                             title="将所选提示词新建为文本节点"
                             onClick={(evt) => { evt.stopPropagation(); handleNewNode(card) }}
                           >
@@ -256,7 +256,7 @@ function PromptLibrary({ open, onClose, onUse, onAppend, defaultCategory = '', p
                           </button>
                           {onAppend && (
                             <button
-                              className="px-3 py-1 rounded-lg text-xs text-blue-400 border border-edge bg-transparent hover:bg-blue-500/10 hover:border-blue-500/30 cursor-pointer transition-all"
+                              className="node-btn-primary"
                               title="将所选提示词追加到当前节点提示词"
                               onClick={(evt) => { evt.stopPropagation(); handleAppend(card) }}
                             >
