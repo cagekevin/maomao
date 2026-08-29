@@ -38,6 +38,7 @@ import { fileURLToPath } from 'node:url';
 import { createGunzip, createInflate, createBrotliDecompress } from 'node:zlib';
 import { parseJsonBody, sendError } from '../utils/helpers.js';
 import { fetchWithProxy } from '../utils/netProxy.js';
+import { resolveLocalImages } from '../utils/resolveLocalImages.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -144,7 +145,12 @@ export async function handleAgentChat(
     return sendError(res, 'messages required', 400);
   }
 
-  const msgs = [...(messages as Record<string, unknown>[])];
+  let msgs = [...(messages as Record<string, unknown>[])] as Record<string, unknown>[];
+
+  // 【E 方案 · docs/72】出站回读：把 messages 里的本机 /files/ 图片 URL 内联成 base64。
+  // 前端会话/内存态只存 /files/（KB 级，不触发体积降级）；LLM 网关读不到用户本机 127.0.0.1:18080，
+  // 必须由 localTool（唯一出站口）统一读 uploads/ → 压缩≤1920 → base64 再转发。失败保留原 URL（可见）。
+  msgs = (await resolveLocalImages(msgs)) as Record<string, unknown>[];
 
   // 2. 画布操作准则默认由前端 useAgentChat 注入（覆盖 proxy/agent 两条路径，单一来源）。
   //    后端仅在显式开启 AI_CANVAS_ENHANCE、且配置了外部准则文件（cfg.rules 非空）、

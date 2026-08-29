@@ -48,21 +48,20 @@ describe('imageUrl §2.17', () => {
 })
 
 // ── normalizeImageUrlForSend：发送端 URL 归一化（发图给 AI / 网关的关键转换）──
-// 契约（2026-08）：本地图（/files/、blob、data）→ 压缩到 ≤1920 保持原格式 → base64；
-//                公网图（http/https）→ 原样透传（不压缩）。
-// 覆盖分支：非字符串 / 本地图压缩转base64 / 公网图原样 / 压缩失败回退 / preferBase64 / 数组过滤空值。
+// 契约（2026-08-29 · E 方案 docs/72）：/files/ 本地图 → URL 模式保持相对路径（交 localTool 出站回读）；
+//                blob/data → 压缩 ≤1920 保持原格式 → base64；公网图（http/https）→ 原样透传（不压缩）。
+// 覆盖分支：非字符串 / /files/ 保持相对 / blob/data 压缩转base64 / 公网图原样 / 压缩失败回退 / preferBase64 / 数组过滤空值。
 describe('imageUrl · normalizeImageUrlForSend（发送端归一化）', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     stubFileReader()
   })
 
-  it('/files/ 本地图 → 补全绝对后压缩到 ≤1920 保持原格式，转 base64（不再发本地 URL）', async () => {
+  it('/files/ 本地图 → 保持相对路径（E 方案：不压缩不转码，交 localTool 出站回读）', async () => {
     const out = await normalizeImageUrlForSend('/files/a.png')
-    expect(out).toBe('data:image/png;base64,compressed:http://127.0.0.1:18080/files/a.png')
-    // 压缩走 compressImage（mock），入参带 maxSize=1920 + 保持原格式 + 补全后的绝对地址
-    expect(compressImage).toHaveBeenCalledWith('http://127.0.0.1:18080/files/a.png', { maxSize: 1920, keepOriginalFormat: true })
-    // 不应触发网络（压缩后直接 base64，不 fetch 本地 URL）
+    expect(out).toBe('/files/a.png')
+    // 不再触发前端压缩（压缩下移到 localTool 出站 resolveLocalImages）
+    expect(compressImage).not.toHaveBeenCalled()
     expect(httpRequest).not.toHaveBeenCalled()
   })
 
@@ -89,10 +88,11 @@ describe('imageUrl · normalizeImageUrlForSend（发送端归一化）', () => {
     await expect(normalizeImageUrlForSend('iVBORw0KGgo=')).resolves.toBe('iVBORw0KGgo=')
   })
 
-  it('本地图压缩失败 → 回退原逻辑（/files/ 补全绝对，不阻断发送）', async () => {
+  it('blob: 本地图压缩失败 → 回退 blob 转 data base64（失败可见，不阻断发送）', async () => {
     compressImage.mockRejectedValueOnce(new Error('canvas tainted'))
-    const out = await normalizeImageUrlForSend('/files/a.png')
-    expect(out).toBe('http://127.0.0.1:18080/files/a.png')
+    httpRequest.mockResolvedValueOnce({ blob: async () => ({ _dataUrl: 'data:image/png;base64,stubdata' }) })
+    const out = await normalizeImageUrlForSend('blob:http://x/abc')
+    expect(out).toBe('data:image/png;base64,stubdata')
   })
 
   it('preferBase64=true：本地图同样压缩转 base64（压缩结果即 base64）', async () => {
@@ -116,20 +116,20 @@ describe('imageUrl · normalizeImageUrlForSend（发送端归一化）', () => {
   })
 
   // ── 发送侧防线：缩略图端点 URL 绝不允许发出去（系统性根因治理，见 imageUrl.js thumbnailToOriginal）──
-  it('发送缩略图端点 URL → 自动还原为原图后再压缩转 base64（不把 render 小图发给网关）', async () => {
+  it('发送缩略图端点 URL → 自动还原为原图相对 /files/（E 方案：不把 render 小图发给网关，也不压缩）', async () => {
     const thumb = buildThumbnailUrl('/files/tasks/x.png', { maxDim: 320 })
     // 断言输入确实是缩略图端点（构造正确）
     expect(thumb).toMatch(/\/api\/files\/thumbnail\?/)
     const out = await normalizeImageUrlForSend(thumb)
-    // 缩略图端点 → thumbnailToOriginal 还原为绝对本地原图 → 判定本地 → 压缩转 base64
-    expect(out).toBe('data:image/png;base64,compressed:http://127.0.0.1:18080/files/tasks/x.png')
-    expect(compressImage).toHaveBeenCalledWith('http://127.0.0.1:18080/files/tasks/x.png', { maxSize: 1920, keepOriginalFormat: true })
+    // 缩略图端点 → thumbnailToOriginal 还原为本地原图 → 保持相对 /files/（交 localTool 出站回读）
+    expect(out).toBe('/files/tasks/x.png')
+    expect(compressImage).not.toHaveBeenCalled()
   })
 
-  it('发送缩略图端点（绝对本地形态）→ 还原为原图后压缩转 base64', async () => {
+  it('发送缩略图端点（绝对本地形态）→ 还原为原图相对 /files/', async () => {
     const thumb = buildThumbnailUrl('http://127.0.0.1:18080/files/tasks/x.png', { maxDim: 320 })
     const out = await normalizeImageUrlForSend(thumb)
-    expect(out).toBe('data:image/png;base64,compressed:http://127.0.0.1:18080/files/tasks/x.png')
+    expect(out).toBe('/files/tasks/x.png')
   })
 
   it('preferBase64=true 的缩略图端点 → 还原原图后压缩转 base64（同样不发缩略图）', async () => {
@@ -138,10 +138,11 @@ describe('imageUrl · normalizeImageUrlForSend（发送端归一化）', () => {
     expect(out).toBe('data:image/png;base64,compressed:http://127.0.0.1:18080/files/tasks/x.png')
   })
 
-  it('普通原图 URL（绝对本地 http 但非缩略图）→ 判定本地 → 压缩转 base64（不是公网原样）', async () => {
-    // 绝对 http 指向 127.0.0.1/files/ = 本地文件，会走压缩转 base64（不再原样透传）
+  it('普通原图 URL（绝对本地 http 但非缩略图）→ 判定本地 → 保持相对 /files/（不是公网原样，也不压缩）', async () => {
+    // 绝对 http 指向 127.0.0.1/files/ = 本地文件，归一为相对 /files/（E 方案：交 localTool 出站回读）
     const out = await normalizeImageUrlForSend('http://127.0.0.1:18080/files/tasks/x.png')
-    expect(out).toBe('data:image/png;base64,compressed:http://127.0.0.1:18080/files/tasks/x.png')
+    expect(out).toBe('/files/tasks/x.png')
+    expect(compressImage).not.toHaveBeenCalled()
   })
 })
 

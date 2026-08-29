@@ -172,16 +172,24 @@ function resolveCompFile(ROOT, comp) {
 }
 function checkNodeTypes(ROOT) {
   const palette = read(path.join(ROOT, 'src/components/base/NodePalette.jsx'));
-  const comps = [...palette.matchAll(/component:\s*(\w+Node)/g)].map((x) => x[1]);
+  // 常规 component 字段：裸组件标识符（`component: ImageNode`）。排除 lazyNode(...) 函数调用包装：
+  // `component: lazyNode(HEAVY_NODE_LOADERS.panoramaNode, ...)` 会被 \w+Node 误抓成 lazyNode
+  // （存量 bug：lazyNode.jsx 无 default 导出导致冒烟误红），用 (?!\s*\() 负向前瞻跳过调用形态。
+  const comps = [...palette.matchAll(/component:\s*(\w+Node)(?!\s*\()/g)].map((x) => x[1]);
+  // 重依赖懒加载节点：lazyNode 只是动态 import 包装，底层仍是必存在的节点组件（防漏校验）。
+  // 从 lazyNode.jsx 的 HEAVY_NODE_LOADERS 动态 import 路径抽取真实文件名，随常规组件一并校验。
+  const lazySrc = read(path.join(ROOT, 'src/components/base/lazyNode.jsx'));
+  const lazyComps = [...lazySrc.matchAll(/import\(['"]\.\.\/nodes\/(\w+Node)\.jsx['"]\)/g)].map((x) => x[1]);
+  const compsAll = [...new Set([...comps, ...lazyComps])];
   let pass = true;
   const details = [];
 
-  if (comps.length === 0) {
+  if (compsAll.length === 0) {
     return { name: 'nodeTypes 注册', pass: false, details: ['  NodePalette 未找到 component 字段'] };
   }
 
   // 1) 派生源：NodePalette component 字段 → 组件文件校验
-  for (const comp of comps) {
+  for (const comp of compsAll) {
     const compFile = resolveCompFile(ROOT, comp);
     if (!fs.existsSync(compFile)) {
       pass = false;

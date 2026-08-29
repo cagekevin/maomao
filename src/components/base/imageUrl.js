@@ -9,7 +9,16 @@
  *
  * 因此所有「图片 URL 出口」（渲染、发送、存储）应统一经过本模块，保证：
  *  - 渲染用 normalizeImageUrl → 相对补全成绝对，前端不破图；
- *  - 发送用 normalizeImageUrlForSend → blob 转 data、相对补全成绝对，后端不丢图。
+ *  - 发送用 normalizeImageUrlForSend → /files/ 保持相对（出站由 localTool resolveLocalImages 回读转 base64）、blob 转 data、公网补全绝对，后端不丢图；
+ *
+ * 【E 方案 · docs/72 · 会话落盘体积治理的抉择（2026-08-29）】
+ * 契约：/files/ 是 AI 会话内唯一真值（可落盘、可累积、KB 级）；base64 只是「出站编码」，
+ *       只在出站由 localTool（唯一出站口）现场生成，永不落盘、永不进 conversation。
+ * 压缩边界（刻意如此，勿改）：前端只压【blob:/data:】（它们必须以内联 base64 形态落盘/出站）与
+ *       【preferBase64 的 base64-only provider】；/files/ 的压缩统一在 localTool（resolveLocalImages）。
+ * 否决的备选「全量压缩下移 localTool（连 data: 也压）」——data: 可能是 video 型（视频生成参考图，
+ *       Jimp 解不了需按图像/视频分流，复杂度上升）、会打破「data: 幂等透传」（存量会话 base64 被
+ *       意外重编码）、横跨前后端改动大且回归风险高 → 否决。现状已足够干净，勿再为此重构。
  *
  * 收敛原则：任何新增节点/面板要显示或发送图片，一律用这里，不各写各的 URL 处理。
  */
@@ -22,7 +31,11 @@ import { API_ENDPOINTS } from './contracts.js'
 import { useAppSettings } from './appSettings.js'
 import { compressImage } from './imageCompress.js'
 
-/** 发送给 AI 的图片最长边上限（超过则前端压缩到该尺寸内，避免接口尺寸/体积限制） */
+/**
+ * 发送给 AI 的图片最长边上限（超过则前端压缩到该尺寸内，避免接口尺寸/体积限制）。
+ * 契约双写：localTool 出站回读 resolveLocalImages 也用 1920（localTool/src/utils/resolveLocalImages.ts），
+ * 改此处必须同步改 localTool，否则两端压缩口径漂移（前端压 blob/data + preferBase64，localTool 压 /files/）。
+ */
 export const MAX_SEND_DIM = 1920
 
 /**
@@ -190,7 +203,7 @@ export function fileToDataUrl(file) {
  * @param {string} u
  * @returns {Promise<string>}
  */
-export async function blobToDataUrl(u) {
+async function blobToDataUrl(u) {
   try {
     const res = await httpRequest(u, { timeoutMs: IMAGE_FETCH_TIMEOUT, retries: 0, parseJson: false })
     const blob = await res.blob()
@@ -213,7 +226,7 @@ export async function blobToDataUrl(u) {
  * @param {string} u 需要转 base64 的图片地址
  * @returns {Promise<string>} data:image/...;base64,xxx 或空字符串
  */
-export async function urlToDataUrl(u) {
+async function urlToDataUrl(u) {
   if (typeof u !== 'string' || !u) return ''
   if (u.startsWith('data:')) return u // 已是 base64，直接返回
   const absolute = toAbsoluteFileUrl(u) // 相对 /files/ 先补全
@@ -233,14 +246,21 @@ export async function urlToDataUrl(u) {
 }
 
 /**
- * 发送端归一化（单个图）：统一成「后端网关可访问」的地址，并对本地图做「最长边 ≤1920」压缩。
+ * 发送端归一化（单个图）：统一成「后端网关可访问」的地址。
  *
- * 规则（2026-08 定契约）：
- *  - 本地图（/files/ 相对、blob:、data: base64）→ 先压缩到最长边 ≤ MAX_SEND_DIM(1920)、保持原格式，
- *    再转 data: base64 内嵌（网关 resolve_attachments 解析 base64 → 上传 CDN，不依赖访问本地 127.0.0.1）。
+ * 规则（2026-08-29 定契约 · E 方案 docs/72 会话落盘体积治理）：
+ *  - /files/ 本地图（相对或绝对本地）→ URL 模式（preferBase64=false，默认）下【保持相对 /files/】，
+ *    不压缩不转码——会话内存/落盘只存 KB 级路径，避免 base64 撑爆会话快照误触发 volumePolicy 降级；
+ *    出站时由 localTool resolveLocalImages 读 uploads/ → 压缩≤1920 → base64（localTool 是唯一出站口）。
+ *  - blob: / data: → 压缩到最长边 ≤ MAX_SEND_DIM(1920)、保持原格式，转 data: base64 内嵌。
  *  - 公网图（http/https）→ 不压缩（AI 可直接访问，且受 CORS 限制压缩不可靠），原样透传。
- *  - preferBase64=true（只认 base64 的后端）→ 本地图已压缩转 base64；公网图保持原尺寸转 base64（不压缩）。
+ *  - preferBase64=true（只认 base64 的后端）→ 本地图压缩转 base64；公网图保持原尺寸转 base64（不压缩）。
  *  - 压缩失败（跨域/格式异常）→ 回退原逻辑，失败可见（logger 记录）但不阻断发送，避免丢图。
+ *
+ * 边界说明（为何前端仍压 blob:/data:，不随 /files/ 一起下移 localTool）：
+ *  blob:/data: 最终必须以内联 base64 形态落盘/出站（blob 不可持久、服务端不可读；data 本身即 base64），
+ *  前端 ≤1920 压缩是它们出站前唯一的体积护栏（localTool 对 data: 幂等透传、不压缩）；/files/ 才是主导
+ *  路径，已完全下移 localTool。两端各司其职，勿把 blob/data 的压缩再挪到 localTool（见文件头「否决的备选」）。
  *
  * @param {string} u
  * @param {{ preferBase64?: boolean }} [opts]
@@ -261,7 +281,14 @@ export async function normalizeImageUrlForSend(u, opts = {}) {
     return u
   }
 
-  // 本地图：压缩到 ≤1920 保持原格式 → base64（网关 resolve_attachments 解析 base64 → 上传 CDN）。
+  // 【E 方案 · docs/72】URL 模式（preferBase64=false）下 /files/ 保持相对路径（绝对本地归一为相对）。
+  // 由 localTool 出站统一读 uploads/ → 压缩≤1920 → base64；前端不再压缩/转码 → 会话只存 KB 级 /files/。
+  if (!opts.preferBase64) {
+    const rel = toRelativeFileUrl(u)
+    if (rel) return rel
+  }
+
+  // 本地图：压缩到 ≤1920 保持原格式 → base64（仅 preferBase64 的 provider / blob: / data: 走到这）。
   // 压缩结果即 dataUrl，无论 preferBase64 与否都返回 base64。
   const compressable = u.startsWith('/files/') ? toAbsoluteFileUrl(u) : u
   try {
