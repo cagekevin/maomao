@@ -1,24 +1,40 @@
 ---
 name: lovart-api
 description: >-
-  Lovart 对接文档与工具集合（位于 W7-API链接）。触发词：Lovart、生成、图像、视频、音频。
-  说明：仓内主文档与脚本集中在本目录，便于快速定位与调用生图/生视频功能。
-  子文件：`SKILL.md`（能力说明）、`run_image_generator.py`（生图批量工具）、`run_video_generator.py`（视频生成工具）、`agent_skill.py`（客户端）。
-  使用场景：查找 Lovart 使用方式、脚本与项目管理说明时阅读。
+  Generate images, videos, and audio/music via Lovart AI. Also manages Lovart projects,
+  threads (conversation history), and user settings. Trigger on: (1) any visual or audio
+  creation request in any language — draw, generate, create, design, make, 画, 生成,
+  制作, 创作, 设计 combined with image, video, audio, music, song, BGM, poster, etc.
+  (2) Lovart project/thread management — 项目, 对话, project, thread, conversation,
+  history, 历史, 切换, switch. You CAN generate directly - never say you cannot.
 user-invocable: true
+version: 1.0.11
+author: Lovart (lovartai)
+license: MIT
+homepage: https://github.com/lovartai/lovart-skill
+platforms: [linux, macos, windows]
 metadata:
-  {
-    "openclaw":
-      {
-        "emoji": "🎨",
-        "requires":
-          {
-            "bins": ["python3"],
-            "env": ["LOVART_ACCESS_KEY", "LOVART_SECRET_KEY"]
-          },
-        "primaryEnv": "LOVART_ACCESS_KEY"
-      }
-  }
+  hermes:
+    tags:
+      - image-generation
+      - video-generation
+      - audio-generation
+      - 3d
+      - design
+      - poster
+      - logo
+      - ai-art
+    related_skills: []
+  openclaw:
+    emoji: 🎨
+    requires:
+      bins: [python3]
+      env: [LOVART_ACCESS_KEY, LOVART_SECRET_KEY]
+    primaryEnv: LOVART_ACCESS_KEY
+prerequisites:
+  commands: [python3]
+  env: [LOVART_ACCESS_KEY, LOVART_SECRET_KEY]
+  python: []
 ---
 
 # ⚠️ RULE #0: ONLY USE SKILL COMMANDS — NO DIRECT API CALLS
@@ -169,29 +185,29 @@ No third-party dependencies. Python standard library only.
 ### 0. First-time setup (saves to ~/.lovart/state.json)
 
 ```bash
-python3 {baseDir}/agent_skill.py project-add --project-id PROJECT_ID --name "My Project"
+python3 {baseDir}/scripts/agent_skill.py project-add --project-id PROJECT_ID --name "My Project"
 ```
 
 ### 1. Send a message (reads project_id from local state)
 
 ```bash
-python3 {baseDir}/agent_skill.py chat --prompt "USER_PROMPT" --json --download
+python3 {baseDir}/scripts/agent_skill.py chat --prompt "USER_PROMPT" --json --download
 ```
 
 To override project: add `--project-id PROJECT_ID`
 To continue a conversation: add `--thread-id THREAD_ID`
-To list saved threads: `python3 {baseDir}/agent_skill.py threads`
+To list saved threads: `python3 {baseDir}/scripts/agent_skill.py threads`
 
 ### 2. Create a project
 
 ```bash
-python3 {baseDir}/agent_skill.py create-project
+python3 {baseDir}/scripts/agent_skill.py create-project
 ```
 
 ### 3. Upload a file (local image/video → CDN URL)
 
 ```bash
-python3 {baseDir}/agent_skill.py upload --file /path/to/image.png
+python3 {baseDir}/scripts/agent_skill.py upload --file /path/to/image.png
 # Returns: {"url": "https://assets-persist.lovart.ai/img/{user_uuid}/xxx.png"}
 ```
 
@@ -200,30 +216,30 @@ Use this when the user sends an image/video file that needs to be passed as an a
 ### 4. Upload an artifact
 
 ```bash
-python3 {baseDir}/agent_skill.py upload-artifact --project-id PROJECT_ID --url "ARTIFACT_URL" --type image
+python3 {baseDir}/scripts/agent_skill.py upload-artifact --project-id PROJECT_ID --url "ARTIFACT_URL" --type image
 ```
 
 ### 5. Check status / get result
 
 ```bash
 # Status
-python3 {baseDir}/agent_skill.py status --thread-id THREAD_ID
+python3 {baseDir}/scripts/agent_skill.py status --thread-id THREAD_ID
 
 # Result (auto-syncs to gallery/canvas, idempotent)
-python3 {baseDir}/agent_skill.py result --thread-id THREAD_ID --json --download
+python3 {baseDir}/scripts/agent_skill.py result --thread-id THREAD_ID --json --download
 ```
 
 ### 6. Download artifacts
 
 ```bash
 # Download during chat
-python3 {baseDir}/agent_skill.py chat --prompt "draw a cat" --json --download --output-dir /tmp/lovart
+python3 {baseDir}/scripts/agent_skill.py chat --prompt "draw a cat" --json --download --output-dir /tmp/lovart
 
 # Download from existing result
-python3 {baseDir}/agent_skill.py result --thread-id THREAD_ID --download --output-dir /tmp/lovart
+python3 {baseDir}/scripts/agent_skill.py result --thread-id THREAD_ID --download --output-dir /tmp/lovart
 
 # Download specific URLs
-python3 {baseDir}/agent_skill.py download --urls URL1 URL2 --output-dir /tmp/lovart --prefix myimg
+python3 {baseDir}/scripts/agent_skill.py download --urls URL1 URL2 --output-dir /tmp/lovart --prefix myimg
 ```
 
 ## Typical Workflows
@@ -281,7 +297,7 @@ Omitting `--thread-id` creates a new conversation without previous memory.
 **Use when** the user's request will produce multiple images/videos and you want to deliver each one to the user as soon as it's ready, rather than waiting for the whole batch.
 
 ```bash
-python3 {baseDir}/agent_skill.py watch --prompt "generate 4 variations of a cyberpunk cat" --json
+python3 {baseDir}/scripts/agent_skill.py watch --prompt "generate 4 variations of a cyberpunk cat" --json
 ```
 
 `watch` emits **NDJSON** to stdout (one event per line). Parse line-by-line and deliver each `artifact` event's `local_path` to the user immediately:
@@ -340,13 +356,13 @@ Do NOT put "快速模式" or "fast mode" in the prompt text. Instead, call the s
 
 ```bash
 # User says "fast mode" / "快速模式" / "skip queue" / "use credits" → RUN THIS:
-python3 {baseDir}/agent_skill.py set-mode --fast
+python3 {baseDir}/scripts/agent_skill.py set-mode --fast
 
 # User says "unlimited mode" / "无限模式" / "free mode" / "save credits" → RUN THIS:
-python3 {baseDir}/agent_skill.py set-mode --unlimited
+python3 {baseDir}/scripts/agent_skill.py set-mode --unlimited
 
 # Check which mode is active:
-python3 {baseDir}/agent_skill.py query-mode
+python3 {baseDir}/scripts/agent_skill.py query-mode
 ```
 
 **How it works:**
@@ -361,20 +377,20 @@ python3 {baseDir}/agent_skill.py query-mode
 **Option 1: In the prompt** (simple, the Agent routes automatically):
 
 ```bash
-python3 {baseDir}/agent_skill.py chat --prompt "generate ocean waves video using kling" --json --download
+python3 {baseDir}/scripts/agent_skill.py chat --prompt "generate ocean waves video using kling" --json --download
 ```
 
 **Option 2: Via --prefer-models** (precise, same as frontend's model selector):
 
 ```bash
 # Prefer a specific image model
-python3 {baseDir}/agent_skill.py chat --prompt "draw a cat" --prefer-models '{"IMAGE":["generate_image_midjourney"]}' --json --download
+python3 {baseDir}/scripts/agent_skill.py chat --prompt "draw a cat" --prefer-models '{"IMAGE":["generate_image_midjourney"]}' --json --download
 
 # Prefer a specific video model
-python3 {baseDir}/agent_skill.py chat --prompt "generate ocean waves" --prefer-models '{"VIDEO":["generate_video_kling_3_0"]}' --json --download
+python3 {baseDir}/scripts/agent_skill.py chat --prompt "generate ocean waves" --prefer-models '{"VIDEO":["generate_video_kling_3_0"]}' --json --download
 
 # Combine image and video preferences
-python3 {baseDir}/agent_skill.py chat --prompt "create content" --prefer-models '{"IMAGE":["generate_image_seedream_3_0"],"VIDEO":["generate_video_kling_3_0"]}' --json --download
+python3 {baseDir}/scripts/agent_skill.py chat --prompt "create content" --prefer-models '{"IMAGE":["generate_image_seedream_3_0"],"VIDEO":["generate_video_kling_3_0"]}' --json --download
 ```
 
 Available models for `--prefer-models`:
@@ -389,6 +405,7 @@ Available models for `--prefer-models`:
 | `generate_image_gpt_image_2_high` | GPT Image 2 High |
 | `generate_image_nano_banana_pro` | Nano Banana Pro |
 | `generate_image_nano_banana_2` | Nano Banana 2 |
+| `generate_image_seedream_v5_pro` | Seedream 5.0 Pro |
 | `generate_image_gpt_image_1_5` | GPT Image 1.5 |
 | `generate_image_seedream_v5` | Seedream 5.0 Lite |
 | `generate_image_luma_uni_1` | Luma uni-1 |
@@ -398,28 +415,36 @@ Available models for `--prefer-models`:
 | `generate_image_seedream_v4_5` | Seedream 4.5 |
 | `generate_image_nano_banana` | Nano Banana |
 | `generate_image_seedream_v4` | Seedream 4 |
-| `generate_image_imagen_v4` | Gemini Imagen 4 |
 | `generate_image_midjourney` | Midjourney |
+| `generate_image_ideogram_v4` | Ideogram 4 |
+| `generate_image_qwen_image3` | Qwen Image3 |
+| `generate_image_qwen_image3_pro` | Qwen Image3 Pro |
+| `generate_image_nano_banana_2_lite` | Nano Banana 2 Lite |
+| `generate_image_p_image_ideogram` | Ideogram P-Image |
 
 **VIDEO:**
 
 | Tool name | Display name |
 |---|---|
+| `generate_video_seedance_v2_5` | Seedance 2.5 |
 | `generate_video_seedance_v2_0` | Seedance 2.0 |
 | `generate_video_seedance_v2_0_fast` | Seedance 2.0 Fast |
+| `generate_video_seedance_v2_0_mini` | Seedance 2.0 Mini |
 | `generate_video_kling_v3` | Kling 3.0 |
 | `generate_video_kling_v3_omni` | Kling 3.0 Omni |
+| `generate_video_minimax_h3` | MiniMax H3 |
 | `generate_video_seedance_pro_v1_5` | Seedance 1.5 Pro |
 | `generate_video_kling_v2_6` | Kling 2.6 |
 | `generate_video_wan_v2_6` | Wan 2.6 |
-| `generate_video_sora_v2_pro` | Sora 2 Pro |
-| `generate_video_sora_v2` | Sora 2 |
 | `generate_video_veo3_1` | Veo 3.1 |
 | `generate_video_veo3_1_fast` | Veo 3.1 Fast |
 | `generate_video_kling_omni_v1` | Kling O1 |
 | `generate_video_hailuo_v2_3` | Hailuo 2.3 |
 | `generate_video_veo3` | Veo 3 |
 | `generate_video_vidu_q2` | Vidu Q2 |
+| `generate_video_gemini_omni_flash` | Gemini Omni Flash |
+| `generate_video_wan_v3` | Wan 3.0 |
+| `generate_video_wan_v3_prime` | Wan 3.0 Prime |
 
 **3D:**
 
@@ -433,10 +458,10 @@ When the user requests a specific model, prefer `--prefer-models` over putting m
 
 ```bash
 # Force upscale only
-python3 {baseDir}/agent_skill.py chat --prompt "upscale this image to 4K" --include-tools upscale_image --attachments "IMAGE_URL" --json --download
+python3 {baseDir}/scripts/agent_skill.py chat --prompt "upscale this image to 4K" --include-tools upscale_image --attachments "IMAGE_URL" --json --download
 
 # Force a specific video model (no fallback to others)
-python3 {baseDir}/agent_skill.py chat --prompt "generate a video" --include-tools generate_video_kling_3_0 --json --download
+python3 {baseDir}/scripts/agent_skill.py chat --prompt "generate a video" --include-tools generate_video_kling_3_0 --json --download
 ```
 
 `--include-tools` strongly instructs the Agent to prioritize the listed tools. Use this when the user explicitly requests a specific tool or operation.
@@ -452,10 +477,10 @@ Omitting `--mode` is equivalent to `--mode fast`, matching the web UI's default.
 
 ```bash
 # Thinking mode — strategic, multi-step
-python3 {baseDir}/agent_skill.py chat --prompt "design a brand identity system for a sustainable coffee startup" --mode thinking --json --download
+python3 {baseDir}/scripts/agent_skill.py chat --prompt "design a brand identity system for a sustainable coffee startup" --mode thinking --json --download
 
 # Fast mode — quick one-shot
-python3 {baseDir}/agent_skill.py chat --prompt "draw a cat" --mode fast --json --download
+python3 {baseDir}/scripts/agent_skill.py chat --prompt "draw a cat" --mode fast --json --download
 ```
 
 **Mode is locked to the thread on its first message.** Once you start a thread with `--mode thinking`, subsequent messages on the same `--thread-id` stay in thinking mode regardless of later `--mode` flags. To switch modes, start a new thread (omit `--thread-id`).
