@@ -1,8 +1,11 @@
-import React, { useState } from 'react'
-import { Pencil, Trash2, Plus, Check, X, ChevronDown, ChevronRight } from 'lucide-react'
+import React, { useState, useRef } from 'react'
+import { Pencil, Trash2, Plus, Check, X, Download, Upload, ChevronDown, ChevronRight } from 'lucide-react'
 import ScriptBoxModal from './ScriptBoxModal.jsx'
 import { getAllPlaybooks, saveCustomPlaybook, deleteCustomPlaybook, createCustomFrom } from './scriptBoxPlaybookStore.js'
 import { DEFAULT_WORKFLOW } from './scriptBoxWorkflows.js'
+import { exportText, parseImport } from './scriptBoxPlaybookIO.js'
+import { downloadBlob } from '../base/clipboard.js'
+import { toastSuccess, toastError } from '../base/toastStore.js'
 
 /**
  * 剧本盒子 Playbook 管理面板（设计 B：官方折叠 + 我的主区，直白 CRUD，无「另存为」）。
@@ -12,6 +15,8 @@ import { DEFAULT_WORKFLOW } from './scriptBoxWorkflows.js'
  * - 新建（＋ 新建）：给默认值（基于官方「漫剧」模板成品）、命名即建、进入编辑接管，不依赖当前选中。
  * - 编辑（✎）：选中该 playbook 并关面板 → 回设置弹窗 Tabs 编辑（官方只读不可✎）。
  * - 删除（▸）：行内二次确认（无全屏遮罩）；删除「使用中」项提示会回退漫剧。
+ * - 导出（⭳）：每行（官方+我的）下载该 playbook 单个 JSON，给外部/AI 改。
+ * - 导入（⤒）：读一个 playbook JSON，解析/归一化/去重后落为「我的」自定义。
  */
 export default function ScriptBoxPlaybookManager({ currentId, onSelect, onClose }) {
   const [officialOpen, setOfficialOpen] = useState(false)
@@ -20,6 +25,7 @@ export default function ScriptBoxPlaybookManager({ currentId, onSelect, onClose 
   const [renameId, setRenameId] = useState(null)
   const [renameVal, setRenameVal] = useState('')
   const [confirmDel, setConfirmDel] = useState(null) // {id,label}
+  const fileRef = useRef(null)
 
   const playbooks = getAllPlaybooks()
   const official = playbooks.filter((p) => p.builtin)
@@ -54,6 +60,34 @@ export default function ScriptBoxPlaybookManager({ currentId, onSelect, onClose 
 
   const stop = (e) => { e.stopPropagation() }
 
+  // 导出：单个 playbook → 下载 JSON（官方+我的都可导，给外部/AI 改）
+  const onExport = (pb) => {
+    const { text, filename } = exportText(pb)
+    downloadBlob(new Blob([text], { type: 'application/json' }), filename)
+  }
+
+  // 导入：读单个 playbook JSON → 解析/归一化 → 去重 → 落为「我的」自定义
+  const onImportFile = async (e) => {
+    const f = e.target.files?.[0]
+    e.target.value = '' // 允许重复选择同一文件
+    if (!f) return
+    try {
+      const text = await f.text()
+      const r = parseImport(text)
+      if (!r.ok) { toastError(r.error); return }
+      const { playbook } = r
+      const labels = new Set(playbooks.map((p) => p.label))
+      let label = playbook.label
+      let n = 2
+      while (labels.has(label)) label = `${playbook.label} (${n++})`
+      const id = `pb-import-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`
+      saveCustomPlaybook({ ...playbook, id, label, builtin: false })
+      toastSuccess(`已导入工作流「${label}」`)
+    } catch (err) {
+      toastError(err?.message || '导入失败')
+    }
+  }
+
   const row = (pb) => {
     const using = pb.id === currentId
     const isMine = !pb.builtin
@@ -80,12 +114,17 @@ export default function ScriptBoxPlaybookManager({ currentId, onSelect, onClose 
             <button className="hover:text-white" onClick={doDelete}>删除</button>
             <button className="hover:text-white" onClick={() => setConfirmDel(null)}>取消</button>
           </span>
-        ) : isMine ? (
+        ) : (
           <span className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100" onClick={stop}>
-            <button className="text-muted hover:text-white" onClick={() => { setRenameId(pb.id); setRenameVal(pb.label) }} title="编辑"><Pencil size={13} /></button>
-            <button className="text-muted hover:text-red-400" onClick={() => setConfirmDel({ id: pb.id, label: pb.label })} title="删除"><Trash2 size={13} /></button>
+            <button className="text-muted hover:text-white" onClick={() => onExport(pb)} title="导出 JSON"><Download size={13} /></button>
+            {isMine && (
+              <>
+                <button className="text-muted hover:text-white" onClick={() => { setRenameId(pb.id); setRenameVal(pb.label) }} title="编辑"><Pencil size={13} /></button>
+                <button className="text-muted hover:text-red-400" onClick={() => setConfirmDel({ id: pb.id, label: pb.label })} title="删除"><Trash2 size={13} /></button>
+              </>
+            )}
           </span>
-        ) : null}
+        )}
       </div>
     )
   }
@@ -130,7 +169,10 @@ export default function ScriptBoxPlaybookManager({ currentId, onSelect, onClose 
                 <button className="text-muted hover:text-white" onClick={() => { setShowNew(false); setNewName('') }}><X size={13} /></button>
               </span>
             ) : (
-              <button className="flex items-center gap-1 text-2xs text-secondary hover:text-primary" onClick={() => setShowNew(true)}><Plus size={12} /> 新建</button>
+              <span className="flex items-center gap-3">
+                <button className="flex items-center gap-1 text-2xs text-secondary hover:text-primary" onClick={() => fileRef.current?.click()} title="导入单个 playbook JSON"><Upload size={12} /> 导入</button>
+                <button className="flex items-center gap-1 text-2xs text-secondary hover:text-primary" onClick={() => setShowNew(true)}><Plus size={12} /> 新建</button>
+              </span>
             )}
           </div>
           <div className="mt-1">
@@ -139,6 +181,7 @@ export default function ScriptBoxPlaybookManager({ currentId, onSelect, onClose 
           </div>
         </div>
       </div>
+      <input ref={fileRef} type="file" accept=".json,application/json" className="hidden" onChange={onImportFile} />
     </ScriptBoxModal>
   )
 }

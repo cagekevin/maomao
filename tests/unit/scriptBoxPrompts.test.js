@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   ZgPrompt, dialogueText, textToDlg, dlgToText, stripAtRef, hlAt, matchAsset, collectAssets, buildShotPrompts,
-  buildShots, buildAssets, IMAGE_GEN_TYPES, getImageGenSys, ASSET_TEMPLATES, patchShots,
+  buildShots, buildAssets, IMAGE_GEN_TYPES, ASSET_TEMPLATES, patchShots,
   createNewShot, removeShot, applyTailFrameSelection, removeAsset, renameAssetRefs,
   formatLineBreaks, parseShotSeconds,
   mergeShotsForVideo, buildMergedVideoUser,
@@ -229,12 +229,6 @@ describe('剧本盒纯函数 §2.7/2.17', () => {
 
   it('IMAGE_GEN_TYPES 含 4 种（keyframe/grid4/grid9/topdown）', () => {
     expect(Object.keys(IMAGE_GEN_TYPES).sort()).toEqual(['grid4', 'grid9', 'keyframe', 'topdown'])
-  })
-
-  it('getImageGenSys：自定义优先，否则内置', () => {
-    expect(getImageGenSys('keyframe')).toBe(IMAGE_GEN_TYPES.keyframe.sys)
-    expect(getImageGenSys('keyframe', { keyframe: '自定义系统提示词' })).toBe('自定义系统提示词')
-    expect(getImageGenSys('unknown')).toBe(IMAGE_GEN_TYPES.keyframe.sys) // 回退默认
   })
 
   it('patchShots：字符串字段更新第 idx 个分镜（不可变）', () => {

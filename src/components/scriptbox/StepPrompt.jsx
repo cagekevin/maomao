@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react'
 import { Loader2, Image as ImageIcon, Video, LayoutGrid, Columns2, RefreshCw, Link2, Wand2, Copy, Check } from 'lucide-react'
-import { dialogueText, hlAt, patchShots, formatLineBreaks, IMAGE_GEN_TYPES, IMAGE_GEN_DEFAULT } from '../base/scriptBoxPrompts.js'
+import { dialogueText, hlAt, patchShots, formatLineBreaks } from '../base/scriptBoxPrompts.js'
+import { getPlaybook } from './scriptBoxPlaybookStore.js'
 import { toastWarning } from '../base/toastStore.js'
 import ScriptBoxModal from './ScriptBoxModal.jsx'
 
@@ -11,6 +12,9 @@ import ScriptBoxModal from './ScriptBoxModal.jsx'
 export default function StepPrompt({ data, updateData, callbacks }) {
   const d = data || {}
   const shots = d.shots || []
+  // 生图类型全集从当前 playbook 取（单一数据源；内置四类与自定义 key 一致，label/sys 随 playbook 变）
+  const genTypes = getPlaybook(d.playbookId).imageGenTemplates || {}
+  const genDefaultType = genTypes.keyframe ? 'keyframe' : (Object.keys(genTypes)[0] || 'keyframe')
   const [view, setView] = useState('list')
   const [editing, setEditing] = useState(null) // { idx, field, title, base, awaiting }
   const [draft, setDraft] = useState(null) // 预览/编辑缓冲：AI 改写结果或人手直接改的内容，点「应用」才写回 shot
@@ -98,11 +102,11 @@ export default function StepPrompt({ data, updateData, callbacks }) {
             <div className="flex flex-wrap items-center gap-1">
               {/* 生图类型下拉（关键帧/四宫格/九宫格/俯视调度图） */}
               <select
-                value={genType[i] || IMAGE_GEN_DEFAULT}
+                value={genType[i] || genDefaultType}
                 onChange={(e) => setGenType((g) => ({ ...g, [i]: e.target.value }))}
                 className="px-2 py-1 text-caption text-body bg-surface-1 hover:bg-surface-hover rounded outline-none nodrag cursor-pointer"
               >
-                {Object.entries(IMAGE_GEN_TYPES).map(([key, t]) => (
+                {Object.entries(genTypes).map(([key, t]) => (
                   <option key={key} value={key} className="bg-surface-menu text-body">{t.label}</option>
                 ))}
               </select>
@@ -111,7 +115,7 @@ export default function StepPrompt({ data, updateData, callbacks }) {
               ) : (
                 <button
                   className="flex items-center gap-1 px-2 py-1 text-caption text-body bg-surface-1 hover:bg-surface-hover rounded"
-                  onClick={() => callbacks.onGenerateShotImage?.(s.id, genType[i] || IMAGE_GEN_DEFAULT)}
+                  onClick={() => callbacks.onGenerateShotImage?.(s.id, genType[i] || genDefaultType)}
                 >
                   <Wand2 size={10} /> 生成提示词
                 </button>

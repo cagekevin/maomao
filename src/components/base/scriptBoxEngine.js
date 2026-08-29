@@ -1,4 +1,4 @@
-import { buildShotImageUser, collectAssets, matchAssetNames, ZgPrompt, IMAGE_GEN_TYPES, IMAGE_GEN_DEFAULT, SCRIPT_WRITER_FORMAT, buildAuditUser, normalizeDialogue, mergeShotsForVideo, MERGE_VIDEO_SYSTEM, buildMergedVideoUser, SHOT_DIRECTOR_SYSTEM, SHOT_AUDIT_SYSTEM, SCRIPT_WRITER_SYSTEM } from './scriptBoxPrompts.js'
+import { buildShotImageUser, collectAssets, matchAssetNames, ZgPrompt, IMAGE_GEN_DEFAULT, SCRIPT_WRITER_FORMAT, buildAuditUser, normalizeDialogue, mergeShotsForVideo, MERGE_VIDEO_SYSTEM, buildMergedVideoUser, SHOT_DIRECTOR_SYSTEM, SHOT_AUDIT_SYSTEM, SCRIPT_WRITER_SYSTEM } from './scriptBoxPrompts.js'
 import { resolveSystem, resolveImageGenSys, resolveConstraints, resolveNegatives, resolveAssetTemplates } from './scriptBoxPromptResolver.js'
 import { chatCompletions } from './chatApi.js'
 import { generateImage } from './imageApi.js'
@@ -606,7 +606,7 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
   // AI 生成图提示词（关键帧/四宫格/九宫格/俯视调度图）—— 接真 chat
   // ═══════════════════════════════════════════════════════════════
   const onGenerateShotImage = async (shotId, type = IMAGE_GEN_DEFAULT) => {
-    if (!IMAGE_GEN_TYPES[type]) type = IMAGE_GEN_DEFAULT
+    // type 有效性统一由 resolveImageGenSys 对当前 playbook 兜底（未知 type → 默认 keyframe），此处不再持漫剧白名单
     const d = getData()
     const shot = (d.shots || []).find((s) => s.id === shotId)
     if (!shot) return

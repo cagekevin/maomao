@@ -295,8 +295,3 @@ export const SCRIPT_BOX_WORKFLOWS = {
     negative: SEED_NEGATIVE
   }
 }
-
-/** 按 id 取工作流；未知/空回退默认（manga）。 */
-export function getWorkflow(id) {
-  return SCRIPT_BOX_WORKFLOWS[id] || SCRIPT_BOX_WORKFLOWS[DEFAULT_WORKFLOW]
-}

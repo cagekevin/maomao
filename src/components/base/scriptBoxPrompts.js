@@ -12,8 +12,6 @@
  */
 
 import { SCRIPT_BOX_WORKFLOWS } from '../scriptbox/scriptBoxWorkflows.js'
-// 转发工作流工具，供 base/ 侧（engine）统一入口，避免 base→scriptbox 直接依赖。
-export { SCRIPT_BOX_WORKFLOWS, getWorkflow, DEFAULT_WORKFLOW } from '../scriptbox/scriptBoxWorkflows.js'
 
 /** 角色 / 场景 / 道具 参考图模板（默认来自工作流「漫剧」，逐字对应 c_.jsx 设置弹窗默认值）。 */
 export const ASSET_TEMPLATES = SCRIPT_BOX_WORKFLOWS.manga.assetTemplates
@@ -497,24 +495,6 @@ export const IMAGE_GEN_TYPES = SCRIPT_BOX_WORKFLOWS.manga.imageGenTemplates
 
 /** 默认选中类型 */
 export const IMAGE_GEN_DEFAULT = 'keyframe'
-
-/**
- * @deprecated 已由 base/scriptBoxPromptResolver.js 的 resolveImageGenSys(playbookId, type) 取代
- *  （取当前选中的 playbook，而非恒为漫剧）。本函数保留仅为内置默认 IMAGE_GEN_TYPES 的纯函数兜底与旧测试。
- */
-export function getImageGenSys(type, customTemplates) {
-  const custom = customTemplates && customTemplates[type]
-  if (typeof custom === 'string' && custom.trim()) return custom.trim()
-  const t = IMAGE_GEN_TYPES[type] || IMAGE_GEN_TYPES[IMAGE_GEN_DEFAULT]
-  return t.sys
-}
-
-/** 把 4 类内置默认提示词导出为可编辑初始值（设置弹窗用） */
-export function defaultImageGenTemplates() {
-  return Object.fromEntries(
-    Object.entries(IMAGE_GEN_TYPES).map(([k, t]) => [k, t.sys])
-  )
-}
 
 /** 把单个分镜某类型的「用户内容」拼成一次 LLM 调用的 user message（纯函数，无副作用） */
 export function buildShotImageUser(shot, type, { globalStyle = '', assets = [] } = {}) {

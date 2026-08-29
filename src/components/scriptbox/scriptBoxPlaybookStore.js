@@ -150,10 +150,3 @@ export function createCustomFrom(sourceId, override = {}, label) {
   saveCustomPlaybook(merged)
   return id
 }
-
-// 兼容旧 import 契约：scriptBoxPrompts.js:16 与 GearSettings 原样依赖这些符号，保持导出不破坏。
-export { SCRIPT_BOX_WORKFLOWS, DEFAULT_WORKFLOW }
-/** @deprecated 旧 getWorkflow 语义的兼容别名（引擎已改走 resolver；此出口为保证过外部 import 不崩，勿新增调用）。 */
-export function getWorkflow(id) {
-  return getPlaybook(id)
-}
