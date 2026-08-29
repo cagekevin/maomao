@@ -13,6 +13,7 @@ import { jsonResp } from './_testUtils.mjs'
 const mod = await import('../../src/components/base/proxyGenerate.js')
 const { chatProxy, imageProxy } = mod
 const { GEN_TIMEOUT } = await import('../../src/components/base/config.js')
+const { timeoutMessage } = await import('../../src/components/base/genErrors.js')
 
 vi.stubGlobal('fetch', vi.fn())
 
@@ -64,11 +65,21 @@ describe('chatProxy 红线：信封永不抛错', () => {
     expect(r.error).toBe('上游未返回文本内容')
   })
 
-  it('网络错误：返回 {ok:false,error:"网络错误:..."}（非抛错）', async () => {
-    globalThis.fetch.mockRejectedValueOnce(new Error('ECONNREFUSED'))
+  it('网络错误：返回 {ok:false,error:"网络错误:..."}（真网络错用 TypeError，保留可重试标记）', async () => {
+    // fetch 断网以 TypeError 拒绝（生产真实网络错误形态）；仅真网络错才加「网络错误」前缀
+    globalThis.fetch.mockRejectedValueOnce(new TypeError('Failed to fetch'))
     const r = await chatProxy({ provider, body: {} })
     expect(r.ok).toBe(false)
     expect(r.error.startsWith('网络错误')).toBe(true)
+  })
+
+  it('非网络异常（普通 Error）不再被自加「网络错误」前缀 → 下游归 business、不可自动重试', async () => {
+    // 修复红线：旧实现无条件加「网络错误：」前缀，会把真正的业务/意外错误误判为网络、可自动重试
+    globalThis.fetch.mockRejectedValueOnce(new Error('JSON 解析失败'))
+    const r = await chatProxy({ provider, body: {} })
+    expect(r.ok).toBe(false)
+    expect(r.error.startsWith('网络错误')).toBe(false)
+    expect(r.error).toBe('JSON 解析失败')
   })
 
   it('AbortError：返回 {ok:false,aborted:true,error:"已停止"}', async () => {
@@ -106,7 +117,7 @@ describe('imageProxy 路由分支红线', () => {
       const p = imageProxy({ provider: { ...provider, image_request_mode: 'openai-responses' }, genBody: {} })
       await vi.advanceTimersByTimeAsync(GEN_TIMEOUT)
       const r = await p
-      expect(r).toEqual({ ok: false, error: '生图超时' })
+      expect(r).toEqual({ ok: false, error: timeoutMessage(GEN_TIMEOUT) })
     } finally {
       vi.useRealTimers()
     }

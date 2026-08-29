@@ -32,3 +32,11 @@ export function classifyError(e) {
   if (name === 'HttpError' || typeof e?.status === 'number') return { type: 'http', message, retryable: false }
   return { type: 'business', message, retryable: false }
 }
+
+/** 生成类超时文案：以 GEN_ERRORS.timeout.label 为基底，并保留真实秒数（用户要求不丢弃「超过 X 秒」细节）。
+ * 收口：各代理的超时文案统一走这里，禁止写「生成超时/生图超时/轮询超时」等多种变体。
+ * @param {number} ms 总超时毫秒
+ * @returns {string} 如「请求超时（超过 300 秒未返回）」 */
+export function timeoutMessage(ms) {
+  return `${GEN_ERRORS.timeout.label}（超过 ${Math.round(ms / 1000)} 秒未返回）`
+}

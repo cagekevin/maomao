@@ -6,6 +6,8 @@
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { jsonResp, fastPollTimers } from './_testUtils.mjs'
+import { timeoutMessage } from '../../src/components/base/genErrors.js'
+import { VIDEO_TIMEOUT } from '../../src/components/base/config.js'
 
 const fetchMock = globalThis.fetch
 
@@ -177,7 +179,7 @@ describe('videoApi — 错误路径', () => {
     vi.spyOn(Date, 'now').mockImplementation(() => (t += 600001))
     const res = await generateVideo({ provider: {}, prompt: 'x', model: 'm' })
     expect(res.ok).toBe(false)
-    expect(res.error).toBe('轮询超时')
+    expect(res.error).toBe(timeoutMessage(VIDEO_TIMEOUT))
     vi.spyOn(Date, 'now').mockRestore()
   })
 })

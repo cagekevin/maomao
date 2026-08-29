@@ -130,7 +130,8 @@ describe('chatApi — chatCompletions 成功', () => {
 
 describe('chatApi — 错误路径', () => {
   it('fetch reject → 网络错误信封', async () => {
-    fetchMock.mockRejectedValue(new Error('net down'))
+    // 生产网络失败是 TypeError（fetch 断网）；真实网络错误才被加「网络错误」标记（可自动重试）
+    fetchMock.mockRejectedValue(new TypeError('net down'))
     const res = await chatCompletions({ provider: {}, model: 'm', messages: [] })
     expect(res.ok).toBe(false)
     expect(res.error).toContain('网络错误')

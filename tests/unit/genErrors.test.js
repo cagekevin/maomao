@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { classifyError } from '../../src/components/base/genErrors.js'
+import { classifyError, timeoutMessage } from '../../src/components/base/genErrors.js'
 import { TimeoutError } from '../../src/components/base/asyncGuard.js'
 
 /**
@@ -57,5 +57,15 @@ describe('genErrors.classifyError — 识别优先级', () => {
   it('识别优先级：aborted 且带 status → 仍判 abort（取消优先于 http）', () => {
     const res = classifyError({ name: 'AbortError', message: 'x', status: 500 })
     expect(res.type).toBe('abort')
+  })
+})
+
+describe('genErrors.timeoutMessage — 统一超时文案（保留真实秒数）', () => {
+  it('以 GEN_ERRORS.timeout.label 为基底并保留秒数', () => {
+    expect(timeoutMessage(300000)).toBe('请求超时（超过 300 秒未返回）')
+  })
+  it('秒数为 0 或非整到毫秒也正确取整', () => {
+    expect(timeoutMessage(8000)).toBe('请求超时（超过 8 秒未返回）')
+    expect(timeoutMessage(1)).toBe('请求超时（超过 0 秒未返回）')
   })
 })
