@@ -17,6 +17,17 @@
  * 数组可包时统一取 [0]。
  *
  * 注：纯函数单测见 tests/unit/resultUrlExtractor.test.js。
+ *
+ * ════════════════════════════════════════════════════════════════
+ * 【唯一准出口】本模块是全库「结果 URL 提取 / 类型判定」的唯一实现（唯一真值源）。
+ *  · 今后任何节点 / API / 脚本需要从响应里提取结果 URL 或判定产出类型，
+ *    一律走本模块（extractResultUrl / resolveMediaType / classifyUrl）。
+ *  · 禁止在别处另起实现 / 就地手写字段映射 / 复制本模块逻辑（会导致"同一样例各
+ *    处解析不一致 / video 被当 image"，正是当初收口的根因）。
+ *  · 唯一例外：responses 协议生图（requestModes.parseResponsesJson 走
+ *    output_text markdown 兜底）是不同响应形态，不适用本信封字段表，属合理例外；
+ *    其余标准信封（result.images[].url 等）一律强制经本模块。
+ * ════════════════════════════════════════════════════════════════
  */
 
 /** 按 mime / 扩展名把 url 分类（唯一实现，useConnectedInputs 同源，勿另起一套）。 */

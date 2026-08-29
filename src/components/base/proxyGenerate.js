@@ -14,6 +14,17 @@
  *  - buildTargetUrl 的 provider.protocol 分支（openai 伪协议 vs apimart base_url）。
  *  - extractUrl 参数化（image 取 result.images[].url，video 取 result.videos[].url）。
  *  - __proxyFetch 的 transport —— 生产=真实 fetch，测试=in-memory，换传输层只动 adapter。
+ *
+ * ════════════════════════════════════════════════════════════════
+ * 【唯一准出口】本模块是全库「生成/聊天请求经 localTool /api/proxy 出站」的唯一实现。
+ *  · chatApi / imageApi / videoApi 仅作组 body 薄壳，真正的请求拼装 / SSE / 轮询 /
+ *    错误分类 / 信封判断全部收敛在此。
+ *  · 今后新增任何「调用上游生成/聊天」的请求，一律经本模块三个语义化函数
+ *    （chatProxy / imageProxy / videoProxy），禁止在别处另写 fetch / 轮询 / SSE 解析。
+ *  · 结果 URL 提取统一委托 resultUrlExtractor（唯一实现，勿在本模块手写字段映射）。
+ *  · 超时 / 错误分类 / 网络前缀一律走 withTimeout + classifyError + GEN_ERRORS，
+ *    禁止自拼文案 / 裸数字。
+ * ════════════════════════════════════════════════════════════════
  */
 
 import { API_BASE } from './config.js'
