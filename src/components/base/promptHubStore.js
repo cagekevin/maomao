@@ -12,6 +12,8 @@
  */
 
 import { contentGet, contentSet } from './contentStore.js'
+// 【出口回收】所有网络请求统一走 httpRequest（自带超时/取消/错误分类），禁止裸写 fetch
+import { httpRequest } from './httpClient.js'
 
 // ── 提示词社区库 — 数据源配置（原 promptSources.js，已合并至此） ──
 const PROMPT_HUB_REGISTRY_BASE =
@@ -109,10 +111,14 @@ function normalizeItems(values, source) {
   return items
 }
 
+// 拉取远程提示词源（统一走 httpRequest：自带超时 + 取消 + 错误分类，禁止裸 fetch 永久挂起）。
+// 原手写 `fetch(url)` 无超时，源 URL 挂起会让提示词中心永久卡 loading —— 正是 asyncGuard 要消灭的 bug。
+// httpRequest 默认 retries:3（网络/超时自动重试）+ parseJson:true（自动 res.json()）；非 2xx 抛 HttpError，
+// 由上层 runPromptSource → getSourcePrompts 的 try/catch 兜成 lastError 缓存，失败可见可查。
 async function fetchSource(source) {
-  const res = await fetch(source.url, { cache: 'no-store' })
-  if (!res.ok) throw new Error(`请求失败（${res.status}）`)
-  return res.json()
+  // httpRequest 默认 GET + parseJson + retries:3（网络/超时重试）。注：不传 cache:'no-store'
+  // （httpRequest 不透传该选项），刷新频率由 getSourcePrompts 的应用层 CACHE_TTL_MS + signature 判断控制。
+  return httpRequest(source.url, { label: 'promptHub:fetchSource' })
 }
 
 /** 拉取并归一化单个源 */

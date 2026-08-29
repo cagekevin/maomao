@@ -200,7 +200,8 @@ export async function saveResultToTasks(url, type) {
  */
 export async function saveTextToTasks(text, name) {
   if (typeof text !== 'string' || !text.trim()) return null
-  const safeBase = (name || 'generated').replace(/[\\/:*?"<>|]/g, '_').replace(/\s+/g, '_') || 'generated'
+  // 文件名清洗统一走 safeFileName（收口，勿再手写 replace 样板）：与旧手写逻辑逐字节等价（sep='_' + fallback）
+  const safeBase = safeFileName(name, { fallback: 'generated' })
   const filename = `${safeBase}_${formatTime(undefined, { mode: 'file' })}.txt`
   try {
     const blob = new Blob([text], { type: 'text/plain' })
