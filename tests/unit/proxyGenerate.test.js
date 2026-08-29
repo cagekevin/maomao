@@ -12,6 +12,7 @@ import { jsonResp } from './_testUtils.mjs'
 
 const mod = await import('../../src/components/base/proxyGenerate.js')
 const { chatProxy, imageProxy } = mod
+const { GEN_TIMEOUT } = await import('../../src/components/base/config.js')
 
 vi.stubGlobal('fetch', vi.fn())
 
@@ -93,6 +94,21 @@ describe('imageProxy 路由分支红线', () => {
       expect(r).toEqual({ ok: true, url: 'p' })
     } finally {
       vi.useRealTimers() // 还原，避免污染后续用例（restoreAllMocks 不重置 fake timer）
+    }
+  })
+
+  it('responses 模式：响应体永久悬挂 → GEN_TIMEOUT 后返回「生图超时」，不无限挂起', async () => {
+    // 回归防线：__proxyFetch 为长生成设了 timeoutMs:0，若响应体读取不加总超时，
+    // 上游只回响应头、body 悬挂时会永久挂起（生图节点 loading 永不复位）。
+    vi.useFakeTimers()
+    try {
+      globalThis.fetch.mockResolvedValueOnce({ ok: true, status: 200, json: () => new Promise(() => {}) })
+      const p = imageProxy({ provider: { ...provider, image_request_mode: 'openai-responses' }, genBody: {} })
+      await vi.advanceTimersByTimeAsync(GEN_TIMEOUT)
+      const r = await p
+      expect(r).toEqual({ ok: false, error: '生图超时' })
+    } finally {
+      vi.useRealTimers()
     }
   })
 })

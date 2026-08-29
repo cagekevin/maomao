@@ -358,10 +358,15 @@ export async function imageProxy({ provider, genBody, onProgress, signal, taskId
       onProgress?.(10, '正在连接本地服务…')
       const res = await __proxyFetch({ provider, target: url, method: 'POST', body: genBody, taskId }, signal)
       onProgress?.(20, '已转发到生成网关…')
-      const imgUrl = parseResponsesJson(await res.json())
+      // 响应体读取也要有总超时（对齐下方 SSE 分支）：__proxyFetch 为长生成设了 timeoutMs:0，
+      // 若上游只回了响应头、body 悬挂，这里会永久挂起 → 生图节点 loading 永不复位。
+      // 超时时 abort 同一 signal（已透传到底层 fetch），真正掐断请求、不留悬挂资源。
+      const json = await withTimeout(res.json(), GEN_TIMEOUT, `生图超时（超过 ${Math.round(GEN_TIMEOUT / 1000)} 秒未返回）`, signal)
+      const imgUrl = parseResponsesJson(json)
       return imgUrl ? ok(imgUrl) : fail('上游未返回图片')
     } catch (e) {
       if (e?.name === 'AbortError') throw e // 取消信号：原样抛出
+      if (isTimeoutError(e)) return fail('生图超时')
       const c = classifyError(e)
       return c.type === 'network' ? fail(c.message) : fail(`生图失败：${c.message || 'responses 请求异常'}`)
     }

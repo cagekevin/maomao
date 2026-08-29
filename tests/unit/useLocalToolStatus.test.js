@@ -72,3 +72,75 @@ describe('useLocalToolStatus', () => {
     expect(result.current.status.isConnected).toBe(true)
   })
 })
+
+describe('useLocalToolStatus 轮询（ensurePoll 幂等回归防线）', () => {
+  // 轮询状态（pollTimer / pollIntervalMs / sharedStatus）是模块级单例，
+  // 每个用例 resetModules 后重新 import 拿干净实例，避免跨用例污染。
+  const freshHook = async () => {
+    vi.resetModules()
+    return (await import('../../src/components/base/useLocalToolStatus.js')).useLocalToolStatus
+  }
+
+  it('连接状态变化后轮询仍存活', async () => {
+    // 回归防线：原实现 restartPoll() 清 timer 后没复位 pollRunning → schedulePoll() 被挡回
+    // → interval 被杀后永不重建，连接一变化断线检测就永久失效。此处推进 15s 若不再 ping 即红。
+    vi.useFakeTimers()
+    try {
+      globalThis.fetch.mockResolvedValue(okBody)
+      const useIt = await freshHook()
+      const { result } = renderHook(() => useIt())
+      await act(async () => { await Promise.resolve() })
+      await act(async () => { await Promise.resolve() })
+      expect(result.current.status.isConnected).toBe(true) // 触发 useEffect → 重建为 15s 间隔
+
+      const before = globalThis.fetch.mock.calls.length
+      await act(async () => { await vi.advanceTimersByTimeAsync(15000) })
+      expect(globalThis.fetch.mock.calls.length).toBeGreaterThan(before)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('首次挂载不重复起轮询（幂等：useEffect 那一次被挡掉）', async () => {
+    // 回归防线：原实现 subscribe 起一轮（runCheck + schedulePoll 各 ping 一次）、
+    // useEffect 首次再起一轮，共 4 次 /api/status，且最后一轮 restartPoll 杀掉 interval 后不重建。
+    // 现为 2 次：React 挂载期 subscribe → cleanup → resubscribe 各 ping 一次（真实重订阅，属预期）；
+    // useEffect 那次被 ensurePoll 幂等挡掉。**幂等一旦失效就会变成 3 次 → 必红**。
+    vi.useFakeTimers()
+    try {
+      globalThis.fetch.mockResolvedValue(notOk) // 保持未连接，避免状态变化触发重建
+      const useIt = await freshHook()
+      renderHook(() => useIt())
+      await act(async () => { await Promise.resolve() })
+      await act(async () => { await Promise.resolve() })
+      expect(globalThis.fetch.mock.calls.length).toBeLessThanOrEqual(2)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('已连接走 15s 间隔、未连接走 5s 间隔', async () => {
+    vi.useFakeTimers()
+    try {
+      // 未连接：推进 5s 应触发一次轮询
+      globalThis.fetch.mockResolvedValue(notOk)
+      const useIt = await freshHook()
+      const { result } = renderHook(() => useIt())
+      await act(async () => { await Promise.resolve() })
+      await act(async () => { await Promise.resolve() })
+      const base = globalThis.fetch.mock.calls.length
+      await act(async () => { await vi.advanceTimersByTimeAsync(5000) })
+      expect(globalThis.fetch.mock.calls.length).toBeGreaterThan(base)
+
+      // 切到已连接：间隔变 15s，推进 5s 不应触发（证明间隔确实变了，而非仍是 5s）
+      globalThis.fetch.mockResolvedValue(okBody)
+      await act(async () => { await result.current.checkConnection() })
+      await act(async () => { await Promise.resolve() })
+      const afterConnect = globalThis.fetch.mock.calls.length
+      await act(async () => { await vi.advanceTimersByTimeAsync(5000) })
+      expect(globalThis.fetch.mock.calls.length).toBe(afterConnect)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})
