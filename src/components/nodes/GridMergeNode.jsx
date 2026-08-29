@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react'
-import { useDebouncedEffect } from '../base/utils.js'
+import { useDebouncedEffect, clamp } from '../base/utils.js'
 import { buildSpawnNodes, spawnAndCommit } from '../base/deriveNodes.js'
 import { useCanvasEdges } from '../base/CanvasEdgesContext.jsx'
 
@@ -37,7 +37,6 @@ import { loadImageOrNull } from '../base/asyncGuard.js'
  * 端口：target default（按序填充）+ target cell-N（指定格子）；source merged-output / batch-output
  * ════════════════════════════════════════════════════════════════ */
 
-const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v))
 const parseGrid = (str) => {
   const m = (str || '').trim().match(/^(\d+)\s*[x×*]\s*(\d+)$/i)
   if (!m) return null

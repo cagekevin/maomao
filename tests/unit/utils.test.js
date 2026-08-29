@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { deepClone, formatTime, debounce, throttle, useDebouncedEffect, createImeInput, createRafBatch, mergeRefImages, buildEffectivePrompt, clampSeconds, assetLabel, dataUrlToBlob } from '../../src/components/base/utils.js'
+import { deepClone, formatTime, debounce, throttle, useDebouncedEffect, createImeInput, createRafBatch, mergeRefImages, buildEffectivePrompt, clampSeconds, clamp, assetLabel, dataUrlToBlob, safeFileName } from '../../src/components/base/utils.js'
 import { renderHook } from '@testing-library/react'
 
 describe('deepClone', () => {
@@ -15,6 +15,33 @@ describe('deepClone', () => {
 
   it('返回 undefined 时保持 undefined', () => {
     expect(deepClone(undefined)).toBe(undefined)
+  })
+})
+
+describe('clamp（通用数值钳制）', () => {
+  it('区间内原样、越界钳到边界', () => {
+    expect(clamp(5, 0, 10)).toBe(5)
+    expect(clamp(-1, 0, 10)).toBe(0)
+    expect(clamp(11, 0, 10)).toBe(10)
+  })
+  it('lo/hi 可缺省（半开钳制）', () => {
+    expect(clamp(5, 4)).toBe(5) // 缺 hi = +∞
+    expect(clamp(3, 4)).toBe(4) // 低于 lo
+    expect(clamp(5, undefined, 4)).toBe(4) // 缺 lo = -∞
+    expect(clamp(99, undefined, 4)).toBe(4)
+  })
+})
+
+describe('safeFileName（文件名安全化统一出口）', () => {
+  // 行为与 assetStore.safeAssetBase 同源（stripExt + 空白归一 + 非法字符 + 回退）
+  it('后续非法字符替换、空白归一', () => {
+    expect(safeFileName('a/b\\c')).toBe('a_b_c')
+    expect(safeFileName('猫 狗')).toBe('猫_狗')
+  })
+  it('stripExt 去尾部扩展名；fallback 空回退', () => {
+    expect(safeFileName('猫.png', { stripExt: true })).toBe('猫')
+    expect(safeFileName('', { fallback: 'asset' })).toBe('asset')
+    expect(safeFileName('   ')).toBe('')
   })
 })
 

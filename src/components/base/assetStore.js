@@ -24,6 +24,7 @@ import { API_BASE } from './config.js'
 import { rescanResources } from './localToolApi.js'
 import { saveInlineToLocal, uploadFileToLocal, EXT_BY_TYPE } from './filesApi.js'
 import { UPLOAD_DIRS } from './uploadDirs.js'
+import { safeFileName } from './utils.js'
 import { logger } from './logger.js'
 import { publish, subscribe } from './eventBus.js'
 
@@ -190,15 +191,11 @@ export function sendToAssetLibrary(url, { name, folder = UPLOAD_DIRS.migrated, t
 
 /** 文件名安全化：去掉非法字符/空白，返回「可作磁盘文件名的 base」，空则回退 'asset'。
  *  后缀由调用方按类型拼接，避免名字带已有扩展名造成歧义（如「猫.png」存成「猫.png.png」）。
+ *  行为与 utils.safeFileName(stripExt, fallback:'asset') 逐字节一致（有单测钉住）。
  *  @param {string} [name] 用户起的名字
  *  @returns {string} 安全文件名 base */
 export function safeAssetBase(name) {
-  const base = String(name || '')
-    .trim()
-    .replace(/[\\/:*?"<>|]/g, '_')   // 去非法字符
-    .replace(/\.[a-z0-9]{2,5}$/i, '') // 去尾部扩展名（不保留）
-    .replace(/\s+/g, '_')             // 空白 → 下划线
-  return base || 'asset'
+  return safeFileName(name, { stripExt: true, fallback: 'asset' })
 }
 
 /** 把单个 URL 素材落盘到后端指定 folder 目录，成功后 rescan。

@@ -11,7 +11,7 @@ import { API_BASE } from './config.js'
 import { httpRequest } from './httpClient.js'
 import { logger } from './logger.js'
 import { UPLOAD_TIMEOUT } from './config.js'
-import { formatTime, dataUrlToBlob } from './utils.js'
+import { formatTime, dataUrlToBlob, safeFileName } from './utils.js'
 import { UPLOAD_DIRS } from './uploadDirs.js'
 export { toAbsoluteFileUrl } from './imageUrl.js'
 export { EXT_BY_TYPE }
@@ -35,7 +35,7 @@ const EXT_BY_TYPE = {
 
 /** 文件名去非法字符 + 可读时间戳唯一化（到秒，如 20250815_142305） */
 function safeName(base, ext) {
-  const clean = (base || '').replace(/[\\/:*?"<>|]/g, '_').replace(/\s+/g, '_') || 'result'
+  const clean = safeFileName(base, { fallback: 'result' })
   return `${clean}_${formatTime(undefined, { mode: 'file' })}.${ext}`
 }
 

@@ -31,6 +31,7 @@ import { GIFEncoder, quantize, applyPalette } from 'gifenc'
 import { logger } from './logger.js'
 import { uploadFileToLocal } from './filesApi.js'
 import { UPLOAD_DIRS } from './uploadDirs.js'
+import { safeFileName } from './utils.js'
 
 /** clamp：保证是偶数且 ≥2 */
 function Sc(v) {
@@ -458,7 +459,7 @@ export async function uploadResult(blob, _opts = {}) {
   if (typeof blob === 'string') return { url: blob }
   const subfolder = _opts?.subfolder || UPLOAD_DIRS.videoProcess
   try {
-    const name = (blob.name || `video_${Date.now()}.${blob.type?.split('/')[1] || 'mp4'}`).replace(/[\\/:*?"<>|]/g, '_')
+    const name = safeFileName(blob.name || `video_${Date.now()}.${blob.type?.split('/')[1] || 'mp4'}`)
     const url = await uploadFileToLocal(blob, subfolder, name)
     if (url) return { url }
     logger.warn('videoEngine', '视频产物落盘失败，降级为临时 URL（刷新后不可用）')

@@ -68,9 +68,32 @@ export function buildEffectivePrompt(localPrompt, refTexts) {
   return [String(localPrompt ?? '').trim(), upstream].filter(Boolean).join('\n') || ''
 }
 
+/** 通用数值钳制：把 v 钳到 [lo, hi]（lo/hi 可缺省）。收口：各节点不得各写 Math.max/min 样板。 */
+export function clamp(v, lo, hi) {
+  const lower = lo == null ? -Infinity : lo
+  const upper = hi == null ? Infinity : hi
+  return Math.max(lower, Math.min(upper, v))
+}
+
 /** 视频时长钳制（DiscountVideoNode 滑块公共实现）：非法/0 → 下界兜底；越界钳到 [min,max]。 */
 export function clampSeconds(value, min = 4, max = 15) {
-  return Math.max(min, Math.min(max, Number(value) || min))
+  return clamp(Number(value) || min, min, max)
+}
+
+/** 文件名安全化（磁盘文件名 base）：trim → 非法字符替换为 sep → 可选去尾部扩展名 → 空白替换为 sep。
+ * 收口：各处文件名清洗统一走这里（assetStore.safeAssetBase / filesApi.safeName / videoEngine 等），
+ * 不再各写 replace 样板。处理顺序与 assetStore.safeAssetBase 逐字节一致（其行为有单测钉住）。
+ * @param {string} [name] 名字
+ * @param {{sep?:string, stripExt?:boolean, fallback?:string}} [o]
+ *  - sep 非法字符/空白替换成的字符，默认 '_'；stripExt 是否去掉尾部 `.ext`，默认 false；fallback 为空时回退名，默认 ''
+ * @returns {string} */
+export function safeFileName(name, o = {}) {
+  const { sep = '_', stripExt = false, fallback = '' } = o
+  let b = String(name ?? '').trim()
+  b = b.replace(/[\\/:*?"<>|]/g, sep)
+  if (stripExt) b = b.replace(/\.[a-z0-9]{2,5}$/i, '')
+  b = b.replace(/\s+/g, sep)
+  return b || fallback
 }
 
 /**

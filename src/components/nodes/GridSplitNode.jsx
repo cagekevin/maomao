@@ -15,7 +15,7 @@ import { logger } from '../base/logger.js'
 import { generateId } from '../base/idGen.js'
 import { buildSpawnNodes, spawnAndCommit } from '../base/deriveNodes.js'
 import { useCanvasEdges } from '../base/CanvasEdgesContext.jsx'
-import { createRafBatch } from '../base/utils.js'
+import { createRafBatch, clamp } from '../base/utils.js'
 
 /* ════════════════════════════════════════════════════════════════
  * 图片切分节点（复刻官方 Lo.jsx / gridSplitNode）
@@ -35,7 +35,6 @@ import { createRafBatch } from '../base/utils.js'
  * ════════════════════════════════════════════════════════════════ */
 
 // ---- 工具（复刻 shared.js：Do/Oo/ko/No/Po/Ao/Fo）----
-const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v))
 const norm = (arr) =>
   Array.from(new Set(arr.map((v) => clamp(v, 0.01, 0.99)).map((v) => Math.round(v * 10000) / 10000))).sort((a, b) => a - b)
 const pairs = (arr) => {
