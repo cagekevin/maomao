@@ -93,6 +93,11 @@
   --mao-accent-soft-alpha: 0.15;   /* rgba(59,130,246,.15) */
   --mao-live: 52 211 153;          /* #34d399 绿 */
   --mao-danger: 239 68 68;         /* #ef4444 红 */
+  /* 滚动条（全局覆盖系统默认条，黑色背景下细灰条 + hover 提亮） */
+  --mao-scrollbar-size: 8px;
+  --mao-scrollbar-track: transparent;
+  --mao-scrollbar-thumb: 58 58 57;        /* #3a3a3a 默认细灰条 */
+  --mao-scrollbar-thumb-hover: 74 74 73;  /* #4a4a4a hover 提亮 */
 }
 
 /* ============================================================
@@ -345,6 +350,46 @@ body,
 }
 .no-scrollbar {
   scrollbar-width: none;
+}
+
+/* ===== 全局滚动条覆盖（直接覆盖系统默认条，黑底细灰样式） =====
+ * 用 * 通配全站生效（不限 .custom-scrollbar 类）；React Flow 画布单独还原，避免破坏缩放/平移。
+ */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(var(--mao-scrollbar-thumb)) var(--mao-scrollbar-track);
+}
+*::-webkit-scrollbar {
+  width: var(--mao-scrollbar-size);
+  height: var(--mao-scrollbar-size);
+}
+*::-webkit-scrollbar-track {
+  background: var(--mao-scrollbar-track);
+}
+*::-webkit-scrollbar-thumb {
+  background: rgb(var(--mao-scrollbar-thumb));
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: rgb(var(--mao-scrollbar-thumb-hover));
+  background-clip: padding-box;
+}
+/* React Flow 画布用库自身滚动条，避免破坏交互 */
+.react-flow,
+.react-flow * {
+  scrollbar-width: auto;
+  scrollbar-color: auto;
+}
+.react-flow ::-webkit-scrollbar {
+  width: auto;
+  height: auto;
+  display: revert;
+}
+.react-flow * {
+  scrollbar-width: auto;
+  scrollbar-color: auto;
 }
 
 /* ===== 自定义连接端口（cust-handle 系列，复刻 shared.js CSS） ===== */
