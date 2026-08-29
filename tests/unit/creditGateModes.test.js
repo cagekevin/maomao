@@ -35,9 +35,9 @@ vi.mock('../../src/components/agent/conversation/conversationStore.js', () => ({
   getActiveAiUndoStack: vi.fn(() => []),
   setActivePendingGenerations: vi.fn(),
   getActivePendingGenerations: vi.fn(() => null),
-  setPendingGenerations: vi.fn(),
-  getPendingGenerations: vi.fn(),
-  clearPendingGenerations: vi.fn(),
+  // 勿加 setPendingGenerations/getPendingGenerations/clearPendingGenerations：
+  // 它们是 useCanvasAgentTools.js:106-113 的本地兼容壳，非本模块导出。
+  // 加进来会变成"多余 key 不报错"的死通道诱饵（本文件此前 3 个 key 从未被注入过实现）。
   setAwaitingConfirm: vi.fn(),
   getAwaitingConfirm: vi.fn(),
   setCreditGate: vi.fn(),

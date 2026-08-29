@@ -8,9 +8,9 @@ vi.mock('../../src/components/agent/conversation/conversationStore.js', () => ({
   getActiveAiUndoStack: vi.fn(() => []),
   setActivePendingGenerations: vi.fn(),
   getActivePendingGenerations: vi.fn(() => null),
-  setPendingGenerations: vi.fn(),
-  getPendingGenerations: vi.fn(),
-  clearPendingGenerations: vi.fn(),
+  // 勿加 setPendingGenerations/getPendingGenerations/clearPendingGenerations：
+  // 它们是 useCanvasAgentTools.js:106-113 的本地兼容壳，非本模块导出。
+  // 加进来会变成"多余 key 不报错"的死通道诱饵（详见 beforeEach 内注入注释）。
   setAwaitingConfirm: vi.fn(),
   getAwaitingConfirm: vi.fn(),
   setCreditGate: vi.fn(),
@@ -73,8 +73,11 @@ beforeEach(() => {
   vi.mocked(convStore.getCreditGate).mockImplementation(() => convStore.__state.creditGate)
   vi.mocked(convStore.setCreditGate).mockImplementation((g) => { convStore.__state.creditGate = g || null })
   vi.mocked(convStore.clearCreditGate).mockImplementation(() => { convStore.__state.creditGate = null })
-  vi.mocked(convStore.getPendingGenerations).mockImplementation(() => convStore.__state.pending)
-  vi.mocked(convStore.setPendingGenerations).mockImplementation((g) => { convStore.__state.pending = g })
+  // 注意：注入必须打在 barrel 真符号上。getPendingGenerations/setPendingGenerations 是
+  // useCanvasAgentTools.js:106-113 的本地兼容壳，不是 conversationStore 的导出——
+  // 打在壳名上会形成死通道：写入无人读，真身读到的 getActivePendingGenerations 恒返回 mock 默认 null。
+  vi.mocked(convStore.getActivePendingGenerations).mockImplementation(() => convStore.__state.pending)
+  vi.mocked(convStore.setActivePendingGenerations).mockImplementation((g) => { convStore.__state.pending = g })
   vi.mocked(convStore.getCurrentRefImages).mockImplementation(() => convStore.__state.refImages)
   vi.mocked(convStore.setCurrentRefImages).mockImplementation((u) => { convStore.__state.refImages = Array.isArray(u) ? u : [] })
 })
@@ -654,6 +657,22 @@ describe('画布 Agent 工具层 §2.5', () => {
     // 【D缺口】统一兜底：错误透传并给出「未找到生成计划」来源引导，而非静默跳过
     expect(r.error).toContain('未找到生成计划')
     expect(mockExecutePlan).not.toHaveBeenCalled()
+  })
+
+  it('execute_plan 有阶段1暂存 → 主通道取暂存（pendingUsed 分支）', async () => {
+    convStore.__state.awaiting = false
+    // 主来源①「阶段1 暂存 pendingGenerations」内存优先（见 useCanvasAgentTools.js:918-919）
+    convStore.__state.pending = [{ id: 'g1', prompt: '一只猫' }]
+    const ctx = makeCtx()
+    const t = buildCanvasAgentTools(ctx)
+    const r = await t.execute_plan({}) // 不传 generations，只靠暂存
+    expect(r.ok).toBe(true)
+    expect(mockExecutePlan).toHaveBeenCalledTimes(1)
+    const arg = mockExecutePlan.mock.calls[0][0]
+    expect(arg.generations).toHaveLength(1)
+    expect(arg.generations[0].id).toBe('g1') // 主通道：gens 取自暂存，非 args
+    expect(arg.generations[0].prompt).toBe('一只猫') // 无 global_contract → 不加风格前缀
+    expect(convStore.setActivePendingGenerations).toHaveBeenCalledWith(null) // 执行后清暂存
   })
 
   it('execute_plan：按 attachment_indices 精确取用户参考图（对齐大雄，每步独立）', async () => {

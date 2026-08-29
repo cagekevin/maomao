@@ -262,6 +262,20 @@ describe('MyNode', () => {
 3. **每例独立**：`beforeEach` 重置 mock 状态，避免跨用例污染。
 4. **断言行为而非实现**：优先 `screen.getByText` / `fireEvent` / `waitFor`，不要断言内部 state。
 
+### vi.mock 铁律（防死通道 / 防假绿）
+
+> 已踩坑（2026-08-29 修复）：`canvasAgentTools.test.js` / `creditGateModes.test.js` 的 mock 里声明了
+> `setPendingGenerations` / `getPendingGenerations` / `clearPendingGenerations`——它们根本不是
+> `conversationStore` 的导出，而是 `useCanvasAgentTools.js:106-113` 的**本地兼容壳**。
+> 后果：状态注入打在死通道上，真身读的 `getActivePendingGenerations` 恒返回 mock 默认 `null`，
+> 导致 `execute_plan` 的「阶段1 暂存」主通道（源码注释明写"内存优先"）**长期零覆盖而测试全绿**。
+
+1. **只声明被测模块真实导出的符号**。`vi.mock` 工厂返回的对象**允许多余 key 且不报错**——写错名字不会失败，只会静默形成"写了没人读"的死通道。**禁止凭调用方的函数名推想 store 的导出名**，先 `grep` 确认。
+2. **注入必须打在 barrel / 真模块符号上**，不能打在调用方的本地兼容壳上（壳内部转发真符号，打在壳名上等于没打）。
+3. **清理多余 key**：确认无引用的 mock key 一律删掉，并留注释说明"为什么不能加回"。删掉后写错符号名会立即抛 `undefined`，把"潜伏故障"变成"启动即失败"。
+4. **自检方法**：新增 mock 注入后，补一条「注入非空值 → 断言该值被源码读到」的用例。**只看到测试通过不能证明注入生效**——注入失效时，mock 默认值常常恰好让断言仍能通过（本次即 `pending: null` 与默认 `null` 撞值）。
+5. **变异自检（关键链路必做）**：临时改掉源码取值分支，确认目标用例**变红**，再还原。这是区分"断言实现一变必红"与"自证式断言"的唯一可靠手段。
+
 ### 定时器 / 等待规范（防 flaky，统一两种语义）
 - **纯定时器 / 依赖时间窗口**（防抖、重试预算、去重窗口、超时上限）→ `vi.useFakeTimers()`（拦截全部计时器，接管 Date.now）。
 - **「fetch + await setTimeout 轮询」环**（提交→轮询→取结果）→ `fastPollTimers()`（把 setTimeout 变立即微任务），需要推时间配合手动控制 `Date.now`。
