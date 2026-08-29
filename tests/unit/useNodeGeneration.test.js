@@ -12,6 +12,8 @@ import { renderHook, act } from '@testing-library/react'
 const patchDataMock = vi.hoisted(() => vi.fn())
 const taskCtlMock = vi.hoisted(() => ({ taskId: 't1', progress: vi.fn(), done: vi.fn(), fail: vi.fn() }))
 const busState = vi.hoisted(() => ({ handler: null, logger: { info: vi.fn(), debug: vi.fn(), warn: vi.fn(), error: vi.fn() } }))
+const saveResultToTasksMock = vi.hoisted(() => vi.fn(async (url) => url))
+const reportDegradeMock = vi.hoisted(() => vi.fn())
 
 vi.mock('../../src/components/base/useNodeData.js', () => ({ useNodeData: () => ({ patchData: patchDataMock }) }))
 vi.mock('../../src/components/base/taskStore.js', () => ({
@@ -21,7 +23,8 @@ vi.mock('../../src/components/base/taskStore.js', () => ({
   claimNodeRun: () => ({ ok: true }),
   releaseNodeRun: vi.fn()
 }))
-vi.mock('../../src/components/base/filesApi.js', () => ({ saveResultToTasks: async (url) => url }))
+vi.mock('../../src/components/base/filesApi.js', () => ({ saveResultToTasks: saveResultToTasksMock }))
+vi.mock('../../src/components/base/degrade.js', () => ({ reportDegrade: reportDegradeMock }))
 vi.mock('../../src/components/base/eventBus.js', () => ({
   subscribe: (evt, cb) => { busState.handler = cb; return () => {} }
 }))
@@ -43,6 +46,8 @@ describe('useNodeGeneration — resultKey/recoverable（P0-2-b）', () => {
     taskCtlMock.fail.mockClear()
     busState.handler = null
     busState.logger.error.mockClear()
+    saveResultToTasksMock.mockClear()
+    reportDegradeMock.mockClear()
   })
 
   it('非破坏：默认不传时成功路径不自动写 node.data', async () => {
@@ -100,5 +105,21 @@ describe('useNodeGeneration — resultKey/recoverable（P0-2-b）', () => {
       '生成', 'fail',
       expect.objectContaining({ errType: 'business', retryable: false, error: '模型限流' })
     )
+  })
+
+  it('落盘失败 → reportDegrade 留痕，结果仍回退原始 URL（P0-C 语义不破坏）', async () => {
+    // 【失败可见 + 回退】saveResultToTasks reject 时：必须经 reportDegrade 可见（不得静默吞），
+    //   且保留回退语义 finalUrl = persistedUrl || strUrl → 返回 ok:true + 原始 url。
+    saveResultToTasksMock.mockRejectedValueOnce(new Error('磁盘写入失败'))
+    const { result } = renderHook(() => useNodeGeneration(baseProps))
+    let r
+    await act(async () => { r = await result.current.start() })
+    expect(reportDegradeMock).toHaveBeenCalledWith({
+      layer: 'useNodeGeneration',
+      key: 'saveResultToTasks',
+      e: expect.any(Error),
+    })
+    // P0-C 回退：落盘失败不得把整体生成判为失败
+    expect(r).toEqual({ ok: true, resultUrl: 'http://x/y.png' })
   })
 })

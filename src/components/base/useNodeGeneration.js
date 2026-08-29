@@ -6,6 +6,7 @@ import { subscribe } from './eventBus.js'
 import { showToast } from './toastStore.js'
 import { useNodeData } from './useNodeData.js'
 import { classifyError } from './genErrors.js'
+import { reportDegrade } from './degrade.js'
 
 // 日志里的提示词只保留前 80 字：剧本盒子等场景的镜头提示词动辄上千字，
 // 全量打进 localTool 终端会淹没其它全链路日志。完整原文仍可在节点 data /
@@ -146,7 +147,14 @@ export function useNodeGeneration({ nodeId, type, validate, run, onSuccess, onRe
         const strUrl = typeof rawUrl === 'string' ? rawUrl : ''
         // 【P0-C 单向落盘】落盘唯一出口在此：先落盘得持久 URL，再 done(persistedUrl) 回填最终 url（done 不再落盘）。
         // 落盘失败（saveResultToTasks 返回 null）回退上游原始 url。
-        const persistedUrl = strUrl ? await saveResultToTasks(strUrl, t.type).catch(() => null) : null
+        // 【失败可见】落盘失败不得静默吞掉：统一经 reportDegrade 留痕（logger.warn，全链路可查），
+        //   但保留 P0-C 回退语义（persistedUrl || strUrl），不因落盘失败把整体生成判为失败。
+        const persistedUrl = strUrl
+          ? await saveResultToTasks(strUrl, t.type).catch((e) => {
+              reportDegrade({ layer: 'useNodeGeneration', key: 'saveResultToTasks', e })
+              return null
+            })
+          : null
         const finalUrl = persistedUrl || strUrl
         taskCtl.done(finalUrl)
         logger.debug('生成', '[节点] 落盘', { nodeId, persisted: !!persistedUrl, urlHead: finalUrl.slice(0, 80) }, { module: 'image' })

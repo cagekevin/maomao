@@ -36,7 +36,12 @@ export function useUpstreamAutoTrigger() {
           .map((e) => e.target)
         for (const target of [...new Set(targets)]) {
           logger.info('拓扑', '[G1] 上游完成 → 触发直接下游', { sourceNodeId, target })
-          runNodeGeneration(target).catch(() => {})
+          // 【失败可见】下游自动触发失败不得静默吞掉（原 .catch(() => {}) 全吞）：统一 logger 留痕，
+          //   供全链路排查（如本地处理类节点无 start 注册被跳过、或生成节点网络失败时可见原因）。
+          //   捕获后不上抛、不弹 toast —— 自动触发是后台安全网，失败不该打断主链路。
+          runNodeGeneration(target).catch((e) =>
+            logger.warn('拓扑', '[G1] 下游触发失败', { target, error: e?.message })
+          )
         }
       } catch (e) {
         logger.warn('拓扑', '[G1] 触发直接下游失败', { sourceNodeId, error: e?.message })
