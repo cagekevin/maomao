@@ -2,14 +2,8 @@
 # 推送门禁：全量单元测试（push 前才跑，避免每次 commit 都等全量测试）。
 # commit 阶段已做快速类型检查；全量测试放 push 前兜底。
 #
-# 【Windows/部分环境兼容】同 pre-commit：git 触发 hook 时 fd 可能不可写导致 echo EBADF、
-# 叠加 husky 的 `sh -e` 误判门禁失败。故输出重定向到日志文件，门禁结论纯由命令退出码推导。
+# 同 pre-commit：`set +e` 防坏 fd 环境下 echo 被 husky 的 `sh -e` 误判；门禁结论来自命令退出码。
 set +e
-OUT="${TMPDIR:-/tmp}/maomao-prepush.log"
-
-npm run test:unit >"$OUT" 2>&1
+npm run test:unit
 tc=$?
-
-{ cat "$OUT"; echo "--pre-push => unit:$tc"; } >&2 || true
-
 [ "$tc" -eq 0 ]

@@ -1,22 +1,13 @@
 #!/bin/sh
-# 提交门禁：type-check（快）+ 只跑「改动相关」的单元测试（vitest --changed，~2-3s）。
-# 全量单元测试放 pre-push（push 前才跑，兜底）。
-# 设计取舍：commit 时用 --changed 早抓「本次改动」的回归，又不必每次等全量(20s)；push 前全量保安全。
-# lint 已移除（门禁靠类型检查 + 测试）。
+# 提交门禁：type-check（快）+ 只跑「改动相关」的单元测试（vitest --changed）。
+# 全量单元测试放 pre-push（push 前才跑，兜底）。lint 已移除（门禁靠类型检查 + 测试）。
 #
-# 【Windows/部分环境兼容】git 触发 hook 时 stdout/stderr 可能是坏 fd（sh 会报 "echo: write error:
-# Bad file descriptor"），而 husky 用 `sh -e` 运行本脚本，首个 echo 失败即被 set -e 误判门禁失败。
-# 因此：把门禁命令输出重定向到真实日志文件（文件 fd 恒可写 → npm/vitest/tsc 拿到合法 stdout，退出码真实），
-# 门禁结论纯由命令退出码推导；末尾 best-effort 回显日志，回显失败不影响结论。故开头 `set +e`。
+# `set +e`：个别环境（特定 shell / 部分 CI）触发 git hook 时其 stdout 可能是坏 fd（sh 报
+# "echo: write error: Bad file descriptor"），而 husky 用 `sh -e` 运行本脚本，首个 echo 失败
+# 即被 set -e 中止、误判为门禁失败。故关闭 errexit；门禁结论纯由下方命令退出码推导（末行 `[ ]`）。
 set +e
-OUT="${TMPDIR:-/tmp}/maomao-precommit.log"
-
-npm run type-check >"$OUT" 2>&1
+npm run type-check
 tc=$?
-npx vitest run --changed >>"$OUT" 2>&1
+npx vitest run --changed
 vt=$?
-
-# 回显日志与结论（fd 可用则可见；不可用则静默，不 abort 门禁）
-{ cat "$OUT"; echo "--pre-commit => type-check:$tc, vitest-changed:$vt"; } >&2 || true
-
 [ "$tc" -eq 0 ] && [ "$vt" -eq 0 ]
