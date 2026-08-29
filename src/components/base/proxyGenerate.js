@@ -27,7 +27,7 @@ import { logger } from './logger.js'
 import { httpRequest } from './httpClient.js'
 // 可插拔协议适配器：统一 buildTargetUrl（openai 伪协议 / apimart base_url 拼装）
 import { buildTargetUrl } from './providerProtocols.js'
-// 统一 envelope/URL 解析器（P1-B φ2）：readSseUrl / extractImageUrl / extractVideoUrl 委托之
+// 统一 envelope/URL 解析器（P1-B φ2）：readSseUrl / 轮询提取全部委托之（唯一实现）
 import { extractResultUrl } from './resultUrlExtractor.js'
 import { imageModePath, isResponsesMode, parseResponsesJson, resolveChatMode, parseResponsesChatJson } from './requestModes.js'
 
@@ -209,18 +209,6 @@ async function pollUntilDone({ provider, url, genBody, extractUrl, pollInterval,
   return fail(timeoutMessage(timeoutMs))
 }
 
-// ── 语义化 facade（对外契约，调用方零改动）────────────────────────────
-
-/** 提取图片 url（委托统一解析器；兼容 image 提交直返 / 轮询结果：result.images[].url 可能是数组）。 */
-function extractImageUrl({ data, json }) {
-  return extractResultUrl({ data, json, type: 'image' })
-}
-
-/** 提取视频 url（委托统一解析器；兼容视频提交直返 / 轮询结果：result.videos[].url）。 */
-function extractVideoUrl({ data, json }) {
-  return extractResultUrl({ data, json, type: 'video' })
-}
-
 /**
  * 聊天代理 —— 契约是「信封，永不抛错」。
  * HTTP 非 2xx 属业务错误（取上游嵌套 message），网络/AbortError 才是异常分支；
@@ -380,7 +368,7 @@ export async function imageProxy({ provider, genBody, onProgress, signal, taskId
   const url = buildTargetUrl(provider, imageModePath(mode))
   if (provider?.image_mode === 'async') {
     return pollUntilDone(
-      { provider, url, genBody, extractUrl: extractImageUrl, pollInterval: GEN_POLL_INTERVAL, timeoutMs: GEN_TIMEOUT, frontTaskId: taskId },
+      { provider, url, genBody, extractUrl: ({ data, json }) => extractResultUrl({ data, json, type: 'image' }), pollInterval: GEN_POLL_INTERVAL, timeoutMs: GEN_TIMEOUT, frontTaskId: taskId },
       onProgress,
       signal,
     )
@@ -417,7 +405,7 @@ export async function videoProxy({ provider, genBody, onProgress, signal, taskId
   // 【B层】视频代理开始：prompt 摘要 + 目标（定位视频提交是否进入轮询）
   logger.debug('视频', '[视频] 开始', { prompt: String(genBody?.prompt || '').slice(0, 100), model: genBody?.model, size: genBody?.size, refCount: (genBody?.image_urls || []).length, taskId }, { module: 'image' })
   return pollUntilDone(
-    { provider, url, genBody, extractUrl: extractVideoUrl, pollInterval: VIDEO_POLL_INTERVAL, timeoutMs: VIDEO_TIMEOUT, frontTaskId: taskId },
+    { provider, url, genBody, extractUrl: ({ data, json }) => extractResultUrl({ data, json, type: 'video' }), pollInterval: VIDEO_POLL_INTERVAL, timeoutMs: VIDEO_TIMEOUT, frontTaskId: taskId },
     onProgress,
     signal,
   )

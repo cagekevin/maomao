@@ -36,11 +36,6 @@ const MAX_PER_ROUND = 5
 let lastRun = 0
 let timer = null
 
-/** 从网关 task_view 响应里按任务类型提取结果 URL（委托统一解析器）。返回 '' 表示还没有结果。 */
-function extractResultUrl(data, type) {
-  return extractResult({ data, type }) || ''
-}
-
 /** 查询单个异步任务最新状态并回写任务记录。返回是否达到终态（completed/failed）。 */
 export async function pollOneTask(task) {
   const pollTaskId = task.pollTaskId
@@ -65,7 +60,8 @@ export async function pollOneTask(task) {
   if (!data) return false
   const status = data.status
   if (status === 'completed') {
-    const resultUrl = extractResultUrl(data, task.type)
+    // 提取结果 URL（直达统一解析器 resultUrlExtractor；|| '' 兜底空值，避免 undefined 落进任务记录）
+    const resultUrl = extractResult({ data, type: task.type }) || ''
     patchTask(task.id, { status: 'completed', progress: 100, resultUrl })
     // 广播完成事件（统一入口 publishTaskCompleted）：节点监听 agent:task-completed 回写（经 eventBus，解耦 window）
     publishTaskCompleted({ taskId: task.id, nodeId: task.nodeId, resultUrl, type: task.type, status: 'completed' })

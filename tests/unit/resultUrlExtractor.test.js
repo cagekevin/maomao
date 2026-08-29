@@ -5,7 +5,7 @@
  *  SSE、图片直返、图片轮询、视频轮询、网关 task_view；及其 type/数组包/顶层 video_url 边界。
  */
 import { describe, it, expect } from 'vitest'
-import { extractResultUrl, resolveMediaType } from '../../src/components/base/resultUrlExtractor.js'
+import { extractResultUrl, resolveMediaType, classifyUrl } from '../../src/components/base/resultUrlExtractor.js'
 
 describe('extractResultUrl — 图片', () => {
   it('SSE 事件形态：results[0].url 或 result.images[0].url', () => {
@@ -40,6 +40,28 @@ describe('extractResultUrl — 视频 / 音频 / 兜底', () => {
   })
   it('跨 type 不串：图片样例按 video 查不到', () => {
     expect(extractResultUrl({ data: { result: { images: [{ url: 'http://x/img.png' }] } }, type: 'video' })).toBeUndefined()
+  })
+})
+
+describe('classifyUrl — 扩展名 / data URI 判型（resolveMediaType 的底层，防 video 当 image）', () => {
+  it('data:video 前缀 → video', () => {
+    expect(classifyUrl('data:video/mp4;base64,xxx')).toBe('video')
+  })
+  it('data:audio 前缀 → audio', () => {
+    expect(classifyUrl('data:audio/mp3;base64,xxx')).toBe('audio')
+  })
+  it('视频扩展名 → video（webm/mov/mkv/avi 等不在 mp4 白名单里也要认）', () => {
+    expect(classifyUrl('http://x/a.webm')).toBe('video')
+    expect(classifyUrl('http://x/a.mov?token=1')).toBe('video')
+  })
+  it('音频扩展名 → audio', () => {
+    expect(classifyUrl('http://x/a.mp3')).toBe('audio')
+    expect(classifyUrl('http://x/a.flac')).toBe('audio')
+  })
+  it('无扩展名 / blob / 未知 → 默认 image（兜底）', () => {
+    expect(classifyUrl('blob:http://x/0')).toBe('image')
+    expect(classifyUrl('http://x/noext')).toBe('image')
+    expect(classifyUrl('')).toBe('image')
   })
 })
 

@@ -16,7 +16,7 @@
  *   audio → result.audios[0].url  / results[0].url / result.url
  * 数组可包时统一取 [0]。
  *
- * 注：纯函数单测见 tests/unit/resultUrlExtractor.test.js（若当前缺，补）。
+ * 注：纯函数单测见 tests/unit/resultUrlExtractor.test.js。
  */
 
 /** 按 mime / 扩展名把 url 分类（唯一实现，useConnectedInputs 同源，勿另起一套）。 */
