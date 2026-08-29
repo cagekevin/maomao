@@ -23,6 +23,9 @@ import { UPLOAD_DIRS } from './uploadDirs.js'
 import { logger } from './logger.js'
 import { showToast } from './toastStore.js'
 import { KV_TIMEOUT } from './config.js'
+// 【降级落点统一】本地降级副本走 storageAdapter（sGet/sSet，自动 yimao: 前缀），
+// 与 kvStore.storageGet 的降级回读一致，避免「裸 key vs 带前缀」两套副本互不可见（收口缺口）。
+import { sGet, sSet } from './storageAdapter.js'
 
 /** 工程存储默认键（无 nodeId 独立运行场景，与 director3d/project.js 一致） */
 export const PROJECT_KEY_DEFAULT = 'director3d-project'
@@ -103,20 +106,20 @@ export function isProjectPersistenceKey(key) {
   return typeof key === 'string' && key.startsWith('director3d-project')
 }
 
-/** 本地 localStorage 同步读取 + JSON 解析（读失败/脏数据返回 null，不抛） */
+/** 本地降级副本同步读取 + JSON 解析（走 sGet 统一 yimao: 前缀；读失败/脏数据返回 null，不抛） */
 function readLocalJson(key) {
   try {
-    const raw = localStorage.getItem(key)
+    const raw = sGet(key)
     return raw == null ? null : JSON.parse(raw)
   } catch {
     return null
   }
 }
 
-/** 本地 localStorage 同步写入 JSON（成功 true；失败 false 不抛） */
+/** 本地降级副本同步写入 JSON（走 sSet 统一 yimao: 前缀；成功 true；失败 false 不抛） */
 function writeLocalJson(key, value) {
   try {
-    localStorage.setItem(key, JSON.stringify(value))
+    sSet(key, JSON.stringify(value))
     return true
   } catch {
     return false

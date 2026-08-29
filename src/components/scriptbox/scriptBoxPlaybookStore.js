@@ -4,25 +4,33 @@
  * 【职责】
  *  内置 playbook（`scriptBoxWorkflows.js` 里的 SCRIPT_BOX_WORKFLOWS）为只读常量；
  *  自定义 playbook（用户另存为/编辑/删除）持久化在 localStorage 键 `scriptbox_playbooks`
- *  （经 storageAdapter sGet/sSet，禁裸 localStorage；键已在 contracts.js STORAGE_KEYS 登记）。
+ *  （经 contentStore 统一存储层，键已在 contracts.js STORAGE_KEYS 登记，backend:'local'；
+ *  禁止直调 storageAdapter / 裸 localStorage）。
  *
  * 【单一数据源铁律】
  *  任何提示词配置只有一处可写：内置=代码常量（只读）、自定义=localStorage。节点 data 不存任何
  *  提示词配置副本，只存 `playbookId` 引用。引擎/UI 一律经 getPlaybook() 现读，无优先级回退链。
  *  生成结果（shots[].prompt / videoPrompt）是快照，改 playbook 不影响任何历史产出。
  *
- * 【依赖方向】store(scriptbox) → scriptBoxWorkflows(scriptbox) 内置 + storageAdapter(base)。
+ * 【依赖方向】store(scriptbox) → scriptBoxWorkflows(scriptbox) 内置 + contentStore(base)。
  *  下游 resolver(base) → 本 store。依赖单向，无回环。
  */
 import { SCRIPT_BOX_WORKFLOWS, DEFAULT_WORKFLOW } from './scriptBoxWorkflows.js'
-import { sGet, sSet, sRemove } from '../base/storageAdapter.js'
+import { contentGet, contentSet, contentClearCache } from '../base/contentStore.js'
 import { logger } from '../base/logger.js'
 
-/** 自定义 playbook 的 localStorage 键（已在 contracts.js STORAGE_KEYS 登记，domain:'settings'）。 */
+/** 自定义 playbook 的 localStorage 键（已在 contracts.js STORAGE_KEYS 登记，domain:'settings'，backend:'local'）。 */
 export const PLAYBOOKS_KEY = 'scriptbox_playbooks'
 
-// ── localStorage 自定义列表缓存（sGet 同步读，避免每次 JSON.parse）。懒加载。─
-let customCache = null // null=未加载；undefined 保留给「尚未定义」语义时用，校验见 loadCustom
+/**
+ * 清缓存（仅测试用：重置 contentStore 缓存，配合测试的 localStorage.clear() 达到隔离）。
+ * 走 contentStore 后读缓存由 contentStore 接管，脚本盒自身不再维护 customCache；
+ * 测试须清 contentStore 缓存，否则 contentGet 命中旧缓存读不到测试 seed 的新值。
+ * 生产代码不调用（脚本盒读写都即时经 contentGet/contentSet 保持缓存一致）。
+ */
+export function __resetCustomCache() {
+  contentClearCache()
+}
 
 /** 读取内置 playbook 并归一为统一结构（补 builtin / constraints 去 custom / negative 补 common）。 */
 function normalizeBuiltin(id, wf) {
@@ -42,32 +50,27 @@ function normalizeBuiltin(id, wf) {
   }
 }
 
-/** 解析本地自定义 playbook 列表（sGet 返回字符串 → JSON.parse；坏数据降级为空对象）。 */
+/** 解析本地自定义 playbook 列表（contentGet 返回解析后对象；坏数据降级为空对象）。
+ * contentStore 对 local 键读 sGet（同 yimao: 前缀）+ 自身缓存，语义与旧 sGet 等价。 */
 function loadCustom() {
-  if (customCache !== null) return customCache
   try {
-    const raw = sGet(PLAYBOOKS_KEY)
-    const obj = raw ? JSON.parse(raw) : {}
-    customCache = obj && typeof obj === 'object' && !Array.isArray(obj) ? obj : {}
+    const obj = contentGet(PLAYBOOKS_KEY)
+    return obj && typeof obj === 'object' && !Array.isArray(obj) ? obj : {}
   } catch (e) {
     logger.warn('scriptbox', '自定义 playbook 解析失败，降级为空', { error: e?.message })
-    customCache = {}
+    return {}
   }
-  return customCache
 }
 
-/** 持久化自定义列表（深拷贝后写 localStorage）。 */
+/** 持久化自定义列表（contentStore 对 local 键自动 JSON.stringify 写 localStorage + 更新缓存）。 */
 function persist(obj) {
   try {
-    sSet(PLAYBOOKS_KEY, JSON.stringify(obj))
+    contentSet(PLAYBOOKS_KEY, obj)
   } catch (e) {
-    // sSet 已内置 persist:failed 事件上报；此处仅留日志兜底
+    // contentStore/sSet 失败会经 persist:failed 事件上报；此处仅留日志兜底
     logger.warn('scriptbox', '自定义 playbook 保存失败', { error: e?.message })
   }
 }
-
-/** 清缓存（供外部在写操作后不需要手动调，内部已同步更新；保留便于单测注入重置）。 */
-export function __resetCustomCache() { customCache = null }
 
 /**
  * 取所有 playbook（内置在前 + 自定义在后），供 GearSettings 下拉 / 管理面板。

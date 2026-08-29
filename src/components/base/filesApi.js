@@ -1,11 +1,30 @@
 /**
- * localTool 文件落盘（生成结果 → uploads/tasks 目录）。
+ * ════════════════════════════════════════════════════════════════
+ * 【前端 ↔ 后端的定位】本模块是「前端 → localTool 后端」的文件落盘唯一桥。
+ * ════════════════════════════════════════════════════════════════
+ * · 职责：把生成结果 / 素材 / 网页图从浏览器侧落盘到 localTool 后端的 uploads/ 目录，
+ *   使「生成面板 / 素材库」能读到（后端 rescan 按目录收录）。
+ * · 后端：localTool 服务，默认 http://127.0.0.1:18080（API_BASE）。
+ * · 唯一端点：只打 `POST ${API_BASE}/api/files/upload` 一个接口，两种请求模式——
+ *     multipart FormData（file + subfolder [+filename]）→ 直接存本地文件；
+ *     JSON（{ fileUrl, subfolder, filename }）→ 后端 saveRemoteUrl 代下载（fetchWithProxy）
+ *     并 sha1 幂等去重（downloadRemoteToLocal / saveResultToTasks 的 http 分支共用 uploadRemoteUrl）。
+ * · 落盘目录：subfolder 一律取自 UPLOAD_DIRS 中央表（tasks/web/canvas/canvas/drop/
+ *   canvas/video-process/migrated/director3d），禁止散写字面量；目录名一律不改（防存量 URL 破链）。
+ * · 返回契约：后端返回 { code, data: { url } } 信封，本模块取 data.data.url
+ *   （http://127.0.0.1:18080/files/<subfolder>/<name>）；失败一律返回 null 不抛
+ *   （调用方降级保持原 URL），并 logger.warn 留痕 —— 失败可见但不打断主流程。
+ * · 出口纪律：所有落盘经 httpRequest（统一超时/重试/错误分类），UPLOAD_OPTS 用较长超时 +
+ *   retries:0（大文件不自动重试，避免重复上传）；禁止绕过本模块另写 fetch/上传。
+ * · 本模块不碰后端 SQLite/DB，只做文件落盘 + 供 rescan 收录。
+ * ════════════════════════════════════════════════════════════════
  *
- * 复刻官方 H_.jsx 的 Ce.uploadFile：生成完成后把结果保存到 localTool 的 tasks 目录，
- * 使「生成」面板（读 uploads/tasks）能看到生成结果。
- *
- * 断档背景：节点生成成功只把 resultUrl 存进任务中心(SQLite)，未落盘 tasks 目录，
- * 导致生成面板空。这里补上落盘：data:/blob → multipart file；http → fileUrl(幂等下载)。
+ * 落盘函数一览（全部返回 url 或 null）：
+ *  - saveInlineToLocal(dataUrl, subfolder?)   dataURL → multipart，sha1 内容哈希幂等去重
+ *  - uploadFileToLocal(file, subfolder?, name)  原始 File/Blob → multipart（避免大文件两段内存拷贝）
+ *  - downloadRemoteToLocal(url, {folder,name})  网页远程图 → JSON fileUrl 后台代下载（先拦本地 URL）
+ *  - saveResultToTasks(url, type)  生成结果 → tasks（data:→multipart；http→fileUrl 代下载）
+ *  - saveTextToTasks(text, name)  纯文本结果 → tasks/*.txt（后端 rescan 识别 type='text'）
  */
 import { API_BASE } from './config.js'
 import { httpRequest } from './httpClient.js'
