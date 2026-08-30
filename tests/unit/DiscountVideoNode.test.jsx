@@ -101,7 +101,7 @@ vi.mock('../../src/components/base/useConnectedInputs.js', () => ({ useConnected
 vi.mock('../../src/components/base/useMediaDegrade.js', () => ({ useMediaDegrade: () => ({ isHidden: () => false }) }))
 vi.mock('../../src/components/base/hooks.js', () => ({ useNodeResize: () => ({ onInputResize: vi.fn() }), useOutsideClick: () => {} }))
 vi.mock('../../src/components/base/useVideoPoster.js', () => ({ useVideoPoster: () => null }))
-vi.mock('../../src/components/base/nodePrefs.js', () => ({
+vi.mock('../../src/components/base/nodePrefs.ts', () => ({
   useNodePrefs: () => ({ prefs: { model: '', size: '', resolution: '', seconds: '' }, set: (...a) => h.vidPrefsSet(...a) }),
 }))
 vi.mock('../../src/components/base/settings/providerStore.js', () => ({ useProviders: () => ({ providers: [] }), load: vi.fn(async () => {}) }))

@@ -65,7 +65,7 @@ let connectedInputs = {}
 vi.mock('../../src/components/base/useConnectedInputs.js', () => ({ useConnectedInputs: () => connectedInputs }))
 
 vi.mock('../../src/components/base/useMediaDegrade.js', () => ({ useMediaDegrade: () => ({ isHidden: () => false }) }))
-vi.mock('../../src/components/base/nodePrefs.js', () => ({ useNodePrefs: () => ({ prefs: {}, set: vi.fn() }) }))
+vi.mock('../../src/components/base/nodePrefs.ts', () => ({ useNodePrefs: () => ({ prefs: {}, set: vi.fn() }) }))
 vi.mock('../../src/components/base/useSyncNodeData.js', () => ({ useSyncNodeData: () => {} }))
 vi.mock('../../src/components/base/filesApi.js', () => ({ toAbsoluteFileUrl: (x) => x, saveResultToTasks: vi.fn(async () => undefined) }))
 vi.mock('../../src/components/base/settings/providerStore.js', () => ({ useProviders: () => ({ providers: [] }), load: vi.fn(() => Promise.resolve()) }))

@@ -8,8 +8,18 @@
  * 内容对齐原 App.jsx 的 NODE_TYPE_DEFAULTS。
  */
 
+/** 节点类型「结构默认」形状（缺字段缺失时才补，见 applyNodeTypeDefaults） */
+interface NodeTypeDefault {
+  width?: number
+  height?: number
+  style?: Record<string, unknown>
+  initialWidth?: number
+  initialHeight?: number
+  className?: string
+}
+
 /** 各节点类型结构默认值（对齐官方 + 历史修复） */
-export const NODE_TYPE_DEFAULTS = {
+export const NODE_TYPE_DEFAULTS: Record<string, NodeTypeDefault> = {
   promptNode: { width: 420, height: 420, style: { width: 420, height: 420 } },
   gridSplitNode: { width: 280, style: { width: 280 } },
   videoProcessNode: { width: 520, height: 620, style: { width: 520, height: 620 } },
@@ -24,7 +34,7 @@ export const NODE_TYPE_DEFAULTS = {
  * @param {object} node
  * @returns {object} 补齐默认后的新 node（未补任何字段时也返回浅拷贝新对象）
  */
-export function applyNodeTypeDefaults(node) {
+export function applyNodeTypeDefaults(node: Record<string, any>): Record<string, any> {
   const d = NODE_TYPE_DEFAULTS[node.type]
   if (!d) return node
   const next = { ...node }

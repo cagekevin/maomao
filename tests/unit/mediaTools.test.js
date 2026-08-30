@@ -77,7 +77,7 @@ vi.mock('../../src/components/base/storageAdapter.js', () => ({
   sSet: vi.fn((k, v) => { prefsMem.set(k, v) }),
   sRemove: vi.fn((k) => { prefsMem.delete(k) }),
 }))
-import { useNodePrefs } from '../../src/components/base/nodePrefs.js'
+import { useNodePrefs } from '../../src/components/base/nodePrefs.ts'
 
 describe('nodePrefs —— 节点上次参数记忆', () => {
   beforeEach(() => {

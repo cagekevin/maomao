@@ -23,7 +23,7 @@ import { buildSpawnNodes, spawnAndCommit, makeChildId } from '../base/deriveNode
 import { useCanvasEdges } from '../base/CanvasEdgesContext.jsx'
 import { saveTextToTasks, toAbsoluteFileUrl } from '../base/filesApi.js'
 import { chatCompletions } from '../base/chatApi.js'
-import { useNodePrefs } from '../base/nodePrefs.js'
+import { useNodePrefs } from '../base/nodePrefs.ts'
 import { resolveProviderModel } from '../base/providerModels.js'
 import { resolvePromptChips } from '../base/promptChips.ts'
 import { logger } from '../base/logger.ts'

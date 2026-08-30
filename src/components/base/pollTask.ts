@@ -25,7 +25,7 @@ import { httpRequest } from './httpClient.js'
 import { API_BASE } from './config.js'
 import { getTasks, patchTask } from './taskStore.js'
 import { publishTaskCompleted } from './taskCompletionBus.js'
-import { extractResultUrl as extractResult } from './resultUrlExtractor.js'
+import { extractResultUrl as extractResult } from './resultUrlExtractor.ts'
 import { logger } from './logger.ts'
 
 // 轮询节流：单进程内两次全量扫描最小间隔（ms）

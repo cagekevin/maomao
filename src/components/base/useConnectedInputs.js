@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import { useStore } from '@xyflow/react'
 import { collectAssets } from './scriptBoxPrompts.js'
 import { toAbsoluteFileUrl } from './filesApi.js'
-import { resolveMediaType } from './resultUrlExtractor.js'
+import { resolveMediaType } from './resultUrlExtractor.ts'
 import { NODE_TYPES, parseShotHandle } from './contracts.js'
 
 /**

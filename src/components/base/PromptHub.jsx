@@ -4,7 +4,7 @@ import {
 } from 'lucide-react'
 import {
   getCachedPromptHub, loadPromptHub, getPromptHubErrors, getPromptHubSources,
-} from './promptHubStore.js'
+} from './promptHubStore.ts'
 import { toastWarning } from './toastStore.js'
 import LazyImage from './LazyImage.jsx'
 import { createImeInput } from './utils.ts'

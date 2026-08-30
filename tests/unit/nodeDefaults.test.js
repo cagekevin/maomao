@@ -3,7 +3,7 @@
  * 对齐原 App.jsx 行为：缺字段补默认、已有字段不覆盖、group 用真实尺寸兜底。
  */
 import { describe, it, expect } from 'vitest'
-import { applyNodeTypeDefaults, NODE_TYPE_DEFAULTS } from '../../src/components/base/nodeDefaults.js'
+import { applyNodeTypeDefaults, NODE_TYPE_DEFAULTS } from '../../src/components/base/nodeDefaults.ts'
 
 describe('applyNodeTypeDefaults — 节点结构默认补齐', () => {
   it('promptNode 缺宽高/style → 补 420×420', () => {

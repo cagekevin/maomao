@@ -36,7 +36,12 @@ import { contentGet, contentSet } from './contentStore.js'
 
 const STORAGE_KEY = 'yimao_node_prefs'
 
-function loadAll() {
+/** 节点上次参数存储形状：{ [key]: any }（值类型因节点而异，宽松以兼容存量） */
+type NodePrefsMap = Record<string, any>
+/** 节点类型 → data 键名 → 记忆键名 映射 */
+type PrefsFieldMap = Record<string, Record<string, string>>
+
+function loadAll(): NodePrefsMap {
   try {
     const parsed = contentGet(STORAGE_KEY)
     return parsed && typeof parsed === 'object' ? parsed : {}
@@ -54,18 +59,18 @@ function loadAll() {
  * @param {object} defaults 默认参数
  * @returns {object} 合并后的参数
  */
-export function getNodePrefs(type, defaults = {}) {
+export function getNodePrefs(type: string, defaults: NodePrefsMap = {}): NodePrefsMap {
   return { ...defaults, ...(loadAll()[type] || {}) }
 }
 
 // data 键名 → 记忆键名 的映射（记忆里存的是官方口径，data 里是节点口径，如 selectedModel←model）
-const PREFS_FIELDS = {
+const PREFS_FIELDS: PrefsFieldMap = {
   promptNode: { selectedModel: 'model', aspectRatio: 'aspectRatio', imageSize: 'imageSize' },
   textNode: { selectedModel: 'model' },
   templateNode: { selectedModel: 'model', aspectRatio: 'aspectRatio' },
   discountVideoNode: { selectedModel: 'model', size: 'size', resolution: 'resolution', selectedSeconds: 'seconds' },
 }
-const PREFS_DEFAULTS = {
+const PREFS_DEFAULTS: PrefsFieldMap = {
   promptNode: { model: '', aspectRatio: 'Auto', imageSize: '1K' },
   textNode: { model: '' },
   templateNode: { model: '', aspectRatio: '1:1' },
@@ -82,7 +87,7 @@ const PREFS_DEFAULTS = {
  * @param {object} data 新建节点的 data（会被就地补默认，返回同一引用）
  * @returns {object} 注入后的 data
  */
-export function injectNodePrefs(type, data) {
+export function injectNodePrefs(type: string, data: NodePrefsMap): NodePrefsMap {
   const fieldMap = PREFS_FIELDS[type]
   if (!fieldMap) return data
   const prefs = getNodePrefs(type, PREFS_DEFAULTS[type])
@@ -98,14 +103,14 @@ export function injectNodePrefs(type, data) {
  * @param {object} defaults 默认参数
  * @returns {{ prefs: object, set: (patch: object) => void }}
  */
-export function useNodePrefs(type, defaults = {}) {
-  const [prefs, setPrefs] = useState(() => {
+export function useNodePrefs(type: string, defaults: NodePrefsMap = {}): { prefs: NodePrefsMap; set: (patch: NodePrefsMap) => void } {
+  const [prefs, setPrefs] = useState<NodePrefsMap>(() => {
     const all = loadAll()
     return { ...defaults, ...(all[type] || {}) }
   })
 
   const set = useCallback(
-    (patch) => {
+    (patch: NodePrefsMap) => {
       setPrefs((prev) => {
         const next = { ...prev, ...patch }
         // 持久化

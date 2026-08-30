@@ -5,7 +5,7 @@
  *  SSE、图片直返、图片轮询、视频轮询、网关 task_view；及其 type/数组包/顶层 video_url 边界。
  */
 import { describe, it, expect } from 'vitest'
-import { extractResultUrl, resolveMediaType, classifyUrl } from '../../src/components/base/resultUrlExtractor.js'
+import { extractResultUrl, resolveMediaType, classifyUrl } from '../../src/components/base/resultUrlExtractor.ts'
 
 describe('extractResultUrl — 图片', () => {
   it('SSE 事件形态：results[0].url 或 result.images[0].url', () => {

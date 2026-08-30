@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { getNodePrefs, injectNodePrefs } from '../../src/components/base/nodePrefs.js'
+import { getNodePrefs, injectNodePrefs } from '../../src/components/base/nodePrefs.ts'
 import { contentSet, contentClearCache } from '../../src/components/base/contentStore.js'
 
 // 记忆写入必须走业务唯一入口 contentSet（带 yimao: 前缀 + STORAGE_KEYS 登记），
