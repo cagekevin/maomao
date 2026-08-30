@@ -19,8 +19,27 @@
  */
 import { THROTTLE_MS } from './config.js'
 
-export function createThrottledPersistHandler({ now = Date.now, throttleMs = THROTTLE_MS, onToast, onLog } = {}) {
-  const lastByKey = new Map()
+/** 工厂入参（可注入时间源与回调） */
+interface ThrottledPersistOptions {
+  now?: () => number
+  throttleMs?: number
+  onToast?: (key: string, error: string) => void
+  onLog?: (key: string, error: string, suppressed: boolean) => void
+}
+
+/** persist:failed 事件载荷（键可缺省 → 兜底 '(未知键)'） */
+interface PersistFailPayload {
+  key?: string
+  error?: string
+}
+
+export function createThrottledPersistHandler({
+  now = Date.now,
+  throttleMs = THROTTLE_MS,
+  onToast,
+  onLog,
+}: ThrottledPersistOptions = {}): (payload: PersistFailPayload | null | undefined) => void {
+  const lastByKey = new Map<string, number>()
   return (payload) => {
     const key = payload?.key ?? '(未知键)'
     const error = payload?.error ?? ''

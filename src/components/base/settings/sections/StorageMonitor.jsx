@@ -2,7 +2,7 @@ import React from 'react'
 import { RefreshCw, HardDrive, Database, CircleAlert, Boxes } from 'lucide-react'
 import { formatBytes } from '../../utils.ts'
 import { isChromeExtension } from '../../storageAdapter.ts'
-import { estimateBrowserStorage, estimateChromeStorage, estimateStoragePressure, analyzeStorageByKeys } from '../../storageQuota.js'
+import { estimateBrowserStorage, estimateChromeStorage, estimateStoragePressure, analyzeStorageByKeys } from '../../storageQuota.ts'
 
 /**
  * 设置分区 · 存储监控（「更多设置」折叠组内）。
@@ -13,7 +13,7 @@ import { estimateBrowserStorage, estimateChromeStorage, estimateStoragePressure,
  *   ├─ estimateChromeStorage()  → enumerateLocalEntries() 估算  → chrome state（已存内容总字节/键数）
  *   └─ analyzeStorageByKeys()   → 按键画像                    → domains state（各功能域占用条）
  *  三个 state 任一为 null 都各自降级展示降级文案，不互相阻断。
- *  数据源实现在 src/components/base/storageQuota.js，本文件只做渲染与交互。
+ *  数据源实现在 src/components/base/storageQuota.ts，本文件只做渲染与交互。
  *
  * 【一期】两个独立维度展示（maomao 为 Chrome 扩展，无 Tauri 磁盘扫描，只做这两类浏览器存储）：
  *   1. 浏览器存储配额（navigator.storage）—— IndexedDB + Cache Storage 用量。
@@ -33,7 +33,7 @@ import { estimateBrowserStorage, estimateChromeStorage, estimateStoragePressure,
  *   纯只读展示各功能域占用条 + 键数；不含清理（清理留后续）。
  *
  * 【红线】本面板只读存储；若后续做清理，必须走 contentStore 唯一入口 + 二次确认，
- *   只删缓存/可重建类键（详见 storageQuota.js 文件头的「清理建议」）。
+ *   只删缓存/可重建类键（详见 storageQuota.ts 文件头的「清理建议」）。
  */
 export default function StorageMonitor() {
   const [browser, setBrowser] = React.useState(null)   // { usage, quota, ratio } | null

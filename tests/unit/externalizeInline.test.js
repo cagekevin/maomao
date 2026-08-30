@@ -3,7 +3,7 @@
  * 策略：注入 mock save，验证遍历/替换/计数/失败保留，不依赖真实落盘。
  */
 import { describe, it, expect, vi } from 'vitest'
-import { externalizeInlineData } from '../../src/components/base/externalizeInline.js'
+import { externalizeInlineData } from '../../src/components/base/externalizeInline.ts'
 
 describe('externalizeInlineData — 内联资源外置', () => {
   it('缺少 save 依赖抛错', async () => {

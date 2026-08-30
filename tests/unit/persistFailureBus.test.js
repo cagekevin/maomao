@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { createThrottledPersistHandler } from '../../src/components/base/persistFailureBus.js'
+import { createThrottledPersistHandler } from '../../src/components/base/persistFailureBus.ts'
 
 describe('createThrottledPersistHandler（App 持清单点分发，原零覆盖，现抽纯函数可测）', () => {
   it('首次事件弹 Toast 且上报日志（suppressed=false）', () => {

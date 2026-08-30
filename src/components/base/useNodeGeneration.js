@@ -6,7 +6,7 @@ import { subscribe } from './eventBus.ts'
 import { showToast } from './toastStore.ts'
 import { useNodeData } from './useNodeData.js'
 import { classifyError } from './genErrors.ts'
-import { reportDegrade } from './degrade.js'
+import { reportDegrade } from './degrade.ts'
 
 // 日志里的提示词只保留前 80 字：剧本盒子等场景的镜头提示词动辄上千字，
 // 全量打进 localTool 终端会淹没其它全链路日志。完整原文仍可在节点 data /

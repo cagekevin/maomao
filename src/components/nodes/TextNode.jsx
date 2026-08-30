@@ -27,7 +27,7 @@ import { useNodePrefs } from '../base/nodePrefs.ts'
 import { resolveProviderModel } from '../base/providerModels.js'
 import { resolvePromptChips } from '../base/promptChips.ts'
 import { logger } from '../base/logger.ts'
-import { reportDegrade } from '../base/degrade.js'
+import { reportDegrade } from '../base/degrade.ts'
 import previewUrls from '../base/previewUrl.ts'
 
 /**

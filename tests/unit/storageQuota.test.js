@@ -13,7 +13,7 @@ import {
   mapKeyToDomain,
   analyzeStorageByKeys,
   analyzeAgentConversationPressure,
-} from '../../src/components/base/storageQuota.js'
+} from '../../src/components/base/storageQuota.ts'
 
 /** 可控的 chrome 全局（模拟 普通网页 / 真实扩展 两种环境） */
 let chromeGlobal = null
