@@ -7,7 +7,7 @@ import { toastWarning } from '../base/toastStore.js'
 import { useSyncNodeData } from '../base/useSyncNodeData.js'
 import { useOutsideClick } from '../base/hooks.js'
 import { generateId } from '../base/idGen.ts'
-import { buildSpawnNodes, spawnAndCommit } from '../base/deriveNodes.js'
+import { buildSpawnNodes, spawnAndCommit } from '../base/deriveNodes.ts'
 import { useCanvasEdges } from '../base/CanvasEdgesContext.jsx'
 
 /** 生成节点布局常量（避免 magic number） */

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { adoptUserNodes, getNodeDimensions } from '@xyflow/system'
-import { createGroupFromNodes, ungroupNodes, deleteNodesWithCascade, duplicateSelectedWithEdges, resolveDragGrouping } from '../../src/components/base/groupNodes.js'
+import { createGroupFromNodes, ungroupNodes, deleteNodesWithCascade, duplicateSelectedWithEdges, resolveDragGrouping } from '../../src/components/base/groupNodes.ts'
 
 describe('编组算法 §2.2', () => {
   const nodes = [

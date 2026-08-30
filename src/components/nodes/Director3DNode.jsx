@@ -9,7 +9,7 @@ import { useRenderImageResolver } from '../base/imageUrl.js'
 import { Director3DOverlay } from '../director3d/Director3DOverlay.jsx'
 import { uploadFileToLocal } from '../base/filesApi.js'
 import { generateId } from '../base/idGen.ts'
-import { buildSpawnNodes, applySpawnSnapshot } from '../base/deriveNodes.js'
+import { buildSpawnNodes, applySpawnSnapshot } from '../base/deriveNodes.ts'
 import { useCanvasEdges } from '../base/CanvasEdgesContext.jsx'
 
 /**

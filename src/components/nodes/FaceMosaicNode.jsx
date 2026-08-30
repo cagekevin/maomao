@@ -14,7 +14,7 @@ import { applyMosaic, MOSAIC_MODES, MOSAIC_PALETTE } from '../base/faceMosaic.js
 import FaceMosaicEditor from '../base/FaceMosaicEditor.jsx'
 import ImageZoomDialog from '../base/ImageZoomDialog.jsx'
 import { generateId } from '../base/idGen.ts'
-import previewUrls from '../base/previewUrl.js'
+import previewUrls from '../base/previewUrl.ts'
 import { dataUrlToBlob } from '../base/utils.ts'
 
 /**

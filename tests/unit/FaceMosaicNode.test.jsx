@@ -70,7 +70,7 @@ vi.mock('../../src/components/base/FaceMosaicEditor.jsx', () => ({
       React.createElement('button', { onClick: onClose }, '关闭编辑器')),
 }))
 vi.mock('../../src/components/base/ImageZoomDialog.jsx', () => ({ default: () => null }))
-vi.mock('../../src/components/base/previewUrl.js', () => ({ default: { create: () => 'http://preview.x' } }))
+vi.mock('../../src/components/base/previewUrl.ts', () => ({ default: { create: () => 'http://preview.x' } }))
 
 import FaceMosaicNode from '../../src/components/nodes/FaceMosaicNode.jsx'
 

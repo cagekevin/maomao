@@ -1,3 +1,6 @@
+import { generateId } from './idGen.ts'
+import type { Node, Edge } from '@xyflow/react'
+
 /**
  * 通用编组能力（治根：Agent group_nodes 与右键「编组」共用同一套逻辑）。
  * 依据 React Flow 官方 Sub Flows 推荐实现：
@@ -9,10 +12,9 @@
 
 // Ctrl+D 复制偏移：与原节点左对齐，向下偏移 750（实测最合理，约等于图片节点高 + 抽屉高）
 const DUPLICATE_OFFSET_Y = 750
-import { generateId } from './idGen.ts'
 
 /** 节点的实际尺寸（style 优先，其次 measured，兜底默认 420/420，对齐官方） */
-function nodeSize(n) {
+function nodeSize(n: Node): { w: number; h: number } {
   return {
     w: Number(n.style?.width) || n.measured?.width || 420,
     h: Number(n.style?.height) || n.measured?.height || 420,
@@ -21,11 +23,11 @@ function nodeSize(n) {
 
 /**
  * 编组：建一个 group 节点包住目标节点，并把目标节点设为子节点（parentId + 相对坐标）。
- * @param {Array} nodes 当前全部节点
- * @param {Array<string>} selectedIds 要编组的节点 id
- * @returns {{ok:boolean, nodes?:Array, groupId?:string, error?:string}}
  */
-export function createGroupFromNodes(nodes, selectedIds) {
+export function createGroupFromNodes(
+  nodes: Node[],
+  selectedIds: string[]
+): { ok: boolean; nodes?: Node[]; groupId?: string; error?: string } {
   const ids = Array.isArray(selectedIds) ? selectedIds : []
   // 只编组「普通节点」：排除 group 自身、以及已在其他组内的节点
   const targets = nodes.filter(
@@ -53,7 +55,7 @@ export function createGroupFromNodes(nodes, selectedIds) {
     ? `group-${crypto.randomUUID()}`
     : generateId('group')
 
-  const groupNode = {
+  const groupNode: Node = {
     id: groupId,
     type: 'group',
     position: { x: gx, y: gy },
@@ -71,7 +73,7 @@ export function createGroupFromNodes(nodes, selectedIds) {
     data: { name: '编组' },
   }
 
-  const next = nodes.map((n) =>
+  const next: Node[] = nodes.map((n) =>
     targets.some((t) => t.id === n.id)
       ? {
           ...n,
@@ -91,16 +93,13 @@ export function createGroupFromNodes(nodes, selectedIds) {
 
 /**
  * 取消编组：移除 group 节点，并把其子节点移出组（parentId 置空 + position 转回绝对坐标）。
- * @param {Array} nodes 当前全部节点
- * @param {string} groupId 要取消的组节点 id
- * @returns {{ok:boolean, nodes?:Array, error?:string}}
  */
-export function ungroupNodes(nodes, groupId) {
+export function ungroupNodes(nodes: Node[], groupId: string): { ok: boolean; nodes?: Node[]; error?: string } {
   const group = nodes.find((n) => n.id === groupId)
   if (!group) return { ok: false, error: '组不存在' }
   const gx = group.position.x
   const gy = group.position.y
-  const next = nodes
+  const next: Node[] = nodes
     .filter((n) => n.id !== groupId)
     .map((n) =>
       n.parentId === groupId
@@ -113,13 +112,12 @@ export function ungroupNodes(nodes, groupId) {
 /**
  * 级联删除节点（R3 系统性根因治理）：删除目标节点及其**所有子孙**（`parentId` 属于待删集合的
  * 递归收集），并删除相关边。根治「删 group 父节点留孤儿子节点」（用户侧 + AI 侧同源缺陷）。
- *
- * @param {Array} nodes 当前全部节点
- * @param {Array} edges 当前全部边
- * @param {Array<string>|string} ids 要删除的节点 id（单个或多个）
- * @returns {{ nodes: Array, edges: Array, deleted: string[] }} 删除后的 nodes/edges + 实际删除的 id 集合
  */
-export function deleteNodesWithCascade(nodes, edges, ids) {
+export function deleteNodesWithCascade(
+  nodes: Node[],
+  edges: Edge[],
+  ids: string[] | string
+): { nodes: Node[]; edges: Edge[]; deleted: string[] } {
   const seed = new Set(Array.isArray(ids) ? ids.map(String) : [String(ids)])
   // 递归收集：任何 parentId 属于待删集合的节点也要删（含多层嵌套）
   const toDelete = new Set(seed)
@@ -139,7 +137,7 @@ export function deleteNodesWithCascade(nodes, edges, ids) {
 }
 
 /** 节点实际尺寸（统一读取源：measured 优先、width 次之、style 兜底，避免缩放后尺寸漂移） */
-function dragGroupSize(n) {
+function dragGroupSize(n: Node): { w: number; h: number } {
   return {
     w: Number(n.measured?.width) || Number(n.width) || Number(n.style?.width) || 0,
     h: Number(n.measured?.height) || Number(n.height) || Number(n.style?.height) || 0,
@@ -157,18 +155,16 @@ function dragGroupSize(n) {
  *  - group 自身拖动不参与判定。
  *  - 组尺寸只由用户手动调整，不随子节点自动伸缩。
  *
- * @param {object} draggedNode 被拖拽的节点（含 measured 尺寸）
- * @param {Array} nodes 当前全部节点
- * @returns {Array|null} 有组关系变化时返回新 nodes 数组；否则返回 null（位置移动由调用方另作历史记录）
+ * @returns 有组关系变化时返回新 nodes 数组；否则返回 null（位置移动由调用方另作历史记录）
  */
-export function resolveDragGrouping(draggedNode, nodes) {
+export function resolveDragGrouping(draggedNode: Node, nodes: Node[]): Node[] | null {
   if (!draggedNode || draggedNode.type === 'group') return null
-  let cur = nodes
+  let cur: Node[] = nodes
   let changed = false
 
   // 绝对坐标辅助（递归求父绝对位置）
-  const absPosOf = (id) => {
-    let x = 0, y = 0, nodeId = id
+  const absPosOf = (id?: string): { x: number; y: number } => {
+    let x = 0, y = 0, nodeId: string | undefined = id
     let guard = 0
     while (nodeId && guard++ < 20) {
       const n = cur.find((nn) => nn.id === nodeId)
@@ -179,7 +175,7 @@ export function resolveDragGrouping(draggedNode, nodes) {
     return { x, y }
   }
   // 判定节点是否「大部分在 group 内」：重叠面积 ≥ 子节点面积一半（50%）即算组内
-  const insideGroup = (nodeAbs, g) => {
+  const insideGroup = (nodeAbs: { x: number; y: number }, g: Node): boolean => {
     const gAbs = absPosOf(g.id)
     const { w: gW, h: gH } = dragGroupSize(g)
     const nW = Number(draggedNode.measured?.width) || Number(draggedNode.width) || Number(draggedNode.style?.width) || 100
@@ -234,14 +230,13 @@ export function resolveDragGrouping(draggedNode, nodes) {
  * 克隆子图（R3 治理：修「复制丢连线 + 复制 group 成空壳」）。
  * 克隆选中节点及其**所有子孙**（若选中 group 则整组克隆），重映射 id/parentId，并重映射相关边，
  * 使克隆体保持原组关系与连线。原节点/边保留，克隆是"新增"。
- *
- * @param {Array} nodes 当前全部节点
- * @param {Array} edges 当前全部边
- * @param {Array<string>} selectedIds 选中的节点 id
- * @param {Function} [makeId] 生成新 id 的函数（默认 type-clone-随机）
- * @returns {{ nodes: Array, edges: Array, clones: Array }} 克隆后的完整 nodes/edges + 新增的克隆节点
  */
-export function duplicateSelectedWithEdges(nodes, edges, selectedIds, makeId) {
+export function duplicateSelectedWithEdges(
+  nodes: Node[],
+  edges: Edge[],
+  selectedIds: string[],
+  makeId?: (n: Node) => string
+): { nodes: Node[]; edges: Edge[]; clones: Node[] } {
   const seed = new Set(Array.isArray(selectedIds) ? selectedIds.map(String) : [])
   if (seed.size === 0) return { nodes, edges, clones: [] }
   // 递归收集：选中 group 时连带其子孙（保持整组）
@@ -256,14 +251,14 @@ export function duplicateSelectedWithEdges(nodes, edges, selectedIds, makeId) {
       }
     }
   }
-  const idMap = new Map() // 原 id → 新 id
-  const mk = makeId || ((n) => `${n.type || 'node'}-clone-${generateId('c')}`)
+  const idMap = new Map<string, string>() // 原 id → 新 id
+  const mk = makeId || ((n: Node) => `${n.type || 'node'}-clone-${generateId('c')}`)
   // 先建立 id 映射（所有被克隆节点）
   for (const n of nodes) if (toClone.has(String(n.id))) idMap.set(String(n.id), mk(n))
   // 生成克隆节点：重映射 id + parentId（指向新 group id）。
   // Ctrl+D 复制：与原节点左对齐（x 不变），向下偏移「图片节点宽 + 抽屉宽」(920)。
   // 组内子节点随父节点移动（相对坐标不加偏移），顶层节点才施加偏移。
-  const clones = nodes
+  const clones: Node[] = nodes
     .filter((n) => toClone.has(String(n.id)))
     .map((n) => {
       const newId = idMap.get(String(n.id))
@@ -281,7 +276,7 @@ export function duplicateSelectedWithEdges(nodes, edges, selectedIds, makeId) {
   // 原边全部保留；对「至少一端被克隆」的边，额外生成一条克隆边（映射到克隆体）。
   // 组内边（两端都被克隆）→ 克隆边两端都映射到新 id；边界（一端克隆一端外部）→ 只映射克隆端。
   const sourceIds = new Set(toClone)
-  const remappedEdges = [...edges]
+  const remappedEdges: Edge[] = [...edges]
   for (const e of edges) {
     const sIn = sourceIds.has(String(e.source))
     const tIn = sourceIds.has(String(e.target))

@@ -24,7 +24,7 @@
  * 避免「先读后写」读到过期 nodes。replaceNodes/restoreNodesAndEdges 用于「整体替换」场景
  * （undo_ai 恢复快照、group_nodes 整体替换），非局部操作。host 内部保持一致，调用方无需关心。
  */
-import { deleteNodesWithCascade } from '../../base/groupNodes.js'
+import { deleteNodesWithCascade } from '../../base/groupNodes.ts'
 
 /**
  * 创建画布操作句柄。

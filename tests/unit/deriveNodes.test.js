@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildSpawnNodes, applySpawnSnapshot, makeChildId } from '../../src/components/base/deriveNodes.js'
+import { buildSpawnNodes, applySpawnSnapshot, makeChildId } from '../../src/components/base/deriveNodes.ts'
 
 describe('buildSpawnNodes', () => {
   const parent = { id: 'p1', position: { x: 100, y: 200 } }

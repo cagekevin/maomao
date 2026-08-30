@@ -3,7 +3,7 @@ import { useReactFlow } from '@xyflow/react'
 import { registerTool, getTools } from '../../base/toolRegistry.js'
 import { defaultNodeData } from '../../base/NodePalette.jsx'
 import { runNodeGeneration } from '../../base/taskStore.js'
-import { createGroupFromNodes, deleteNodesWithCascade } from '../../base/groupNodes.js'
+import { createGroupFromNodes, deleteNodesWithCascade } from '../../base/groupNodes.ts'
 import { createCanvasHost } from './canvasHost.js'
 import { executePlan } from './canvasPlanExecutor.js'
 import {

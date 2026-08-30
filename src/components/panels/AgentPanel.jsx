@@ -15,7 +15,7 @@ import { runNodeGeneration } from '../base/taskStore.js'
 import { showToast } from '../base/toastStore.js'
 import { logger } from '../base/logger.ts'
 import { AGENT_MODELS } from '../base/config.js'
-import previewUrls from '../base/previewUrl.js'
+import previewUrls from '../base/previewUrl.ts'
 import { subscribe } from '../base/eventBus.js'
 import { CREDIT_GATE_EVENT } from '../base/contracts.js'
 

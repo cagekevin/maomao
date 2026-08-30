@@ -8,7 +8,7 @@ import HoverToolbar from '../base/HoverToolbar.jsx'
 import { useConnectedInputs } from '../base/useConnectedInputs.js'
 import PanoViewer from '../base/PanoViewer.jsx'
 import { generateId } from '../base/idGen.ts'
-import { buildSpawnNodes, spawnAndCommit } from '../base/deriveNodes.js'
+import { buildSpawnNodes, spawnAndCommit } from '../base/deriveNodes.ts'
 import { useCanvasEdges } from '../base/CanvasEdgesContext.jsx'
 import { useRenderImageResolver } from '../base/imageUrl.js'
 

@@ -23,20 +23,35 @@
  *   卸载/替换素材时 previewUrls.release(url)
  *   （单例模块级导出，见文件底部 export；如需独立实例可调 createPreviewUrlManager）
  */
-export function createPreviewUrlManager(urlFactory = globalThis.URL) {
+
+/** 依赖注入的 URL 工厂（默认 globalThis.URL；测试可传 fake 记录 create/revoke） */
+export interface PreviewUrlFactory {
+  createObjectURL(blob: Blob): string
+  revokeObjectURL(url: string): void
+}
+
+/** 预览 URL 生命周期管理器契约 */
+export interface PreviewUrlManager {
+  create(blob?: Blob | null): string | null
+  release(url?: string | null): void
+  clear(): void
+  activeCount(): number
+}
+
+export function createPreviewUrlManager(urlFactory: PreviewUrlFactory = globalThis.URL): PreviewUrlManager {
   // key: url 字符串, value: { refCount }
   // 每次 create 都生成独立 url（真实 URL.createObjectURL 每次返回新地址），按 url 记账引用。
   // 方案 A 不做同 blob 去重（那是方案 C 的 WeakMap 语义），语义更简单直接。
-  const registry = new Map()
+  const registry = new Map<string, { refCount: number; blob: Blob }>()
 
-  function create(blob) {
+  function create(blob?: Blob | null): string | null {
     if (!blob) return null
     const url = urlFactory.createObjectURL(blob)
     registry.set(url, { refCount: 1, blob })
     return url
   }
 
-  function release(url) {
+  function release(url?: string | null): void {
     if (!url) return
     const entry = registry.get(url)
     if (!entry) return // 已 revoke / 未登记 → 幂等，不抛
@@ -47,7 +62,7 @@ export function createPreviewUrlManager(urlFactory = globalThis.URL) {
     }
   }
 
-  function clear() {
+  function clear(): void {
     for (const url of registry.keys()) {
       urlFactory.revokeObjectURL(url)
     }
@@ -55,7 +70,7 @@ export function createPreviewUrlManager(urlFactory = globalThis.URL) {
   }
 
   /** 已登记（未释放到 0）的预览 URL 数量，供测试/调试。 */
-  function activeCount() {
+  function activeCount(): number {
     return registry.size
   }
 

@@ -19,7 +19,7 @@ import { useNodeResize } from '../base/hooks.js'
 import { useConnectedInputs } from '../base/useConnectedInputs.js'
 import { useGenerateNode } from '../base/useGenerateNode.js'
 import { debounce, buildEffectivePrompt } from '../base/utils.ts'
-import { buildSpawnNodes, spawnAndCommit, makeChildId } from '../base/deriveNodes.js'
+import { buildSpawnNodes, spawnAndCommit, makeChildId } from '../base/deriveNodes.ts'
 import { useCanvasEdges } from '../base/CanvasEdgesContext.jsx'
 import { saveTextToTasks, toAbsoluteFileUrl } from '../base/filesApi.js'
 import { chatCompletions } from '../base/chatApi.js'
@@ -28,7 +28,7 @@ import { resolveProviderModel } from '../base/providerModels.js'
 import { resolvePromptChips } from '../base/promptChips.js'
 import { logger } from '../base/logger.ts'
 import { reportDegrade } from '../base/degrade.js'
-import previewUrls from '../base/previewUrl.js'
+import previewUrls from '../base/previewUrl.ts'
 
 /**
  * 文本节点（复刻原 Co.jsx / textNode）
