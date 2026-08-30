@@ -27,7 +27,7 @@
  *   wf.rollback(ctx)  // 清理本次建的节点
  * ════════════════════════════════════════════════════════════════
  */
-import { generateId } from './idGen.js'
+import { generateId } from './idGen.ts'
 
 /** 运行中状态集合（对齐 InputStateMachine RUNNING） */
 const RUNNING = new Set(['planning', 'creating_nodes', 'ready', 'running'])

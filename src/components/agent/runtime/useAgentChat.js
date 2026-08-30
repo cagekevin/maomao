@@ -6,7 +6,7 @@ import { withTimeout } from '../../base/asyncGuard.js'
 import { API_BASE, KV_TIMEOUT } from '../../base/config.js'
 import { LLM_CHAT_BASE_URL, LLM_CHAT_API_KEY, LLM_CHAT_MODEL, AGENT_DEMO_MODE } from '../../base/config.js'
 import { InputStateMachine } from './inputStateMachine.js'
-import { generateId } from '../../base/idGen.js'
+import { generateId } from '../../base/idGen.ts'
 
 /**
  * 【过渡方案·2026-08-18 决策注释】回传给 LLM 的「历史纯文字」轮数（由 AI 助手设置控制，不硬编码）。

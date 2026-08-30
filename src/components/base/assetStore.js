@@ -18,7 +18,7 @@
  */
 import { useSyncExternalStore } from 'react'
 import { contentGet, contentSet, createDebouncedPersist } from './contentStore.js'
-import { generateId } from './idGen.js'
+import { generateId } from './idGen.ts'
 import { httpRequest } from './httpClient.js'
 import { API_BASE } from './config.js'
 import { rescanResources } from './localToolApi.js'

@@ -22,7 +22,7 @@ import { logger } from './logger.js'
 import { createDebouncedPersist } from './contentStore.js'
 import { fetchTasks, saveTask, deleteTask, batchDeleteTasks, clearAllTasksApi } from './localToolApi.js'
 import { publishTaskCompleted } from './taskCompletionBus.js'
-import { generateId } from './idGen.js'
+import { generateId } from './idGen.ts'
 import { GEN_MAX_CONCURRENT } from './config.js'
 // 用命名空间调用而非 `subscribe` 具名导入：本模块内部已有同名 `subscribe`（任务监听器），
 // 具名导入会遮蔽。且 check-events.mjs 只识别 `publish/subscribe/subscribeOnce` 三个函数名，

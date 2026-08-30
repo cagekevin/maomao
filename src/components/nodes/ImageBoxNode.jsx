@@ -13,7 +13,7 @@ import LazyImage from '../base/LazyImage.jsx'
 import ImageZoomDialog from '../base/ImageZoomDialog.jsx'
 import { showToast, toastError, toastWarning } from '../base/toastStore.js'
 import { loadImageWithTimeout } from '../base/asyncGuard.js'
-import { generateId } from '../base/idGen.js'
+import { generateId } from '../base/idGen.ts'
 import { downloadUrl as clipboardDownload } from '../base/clipboard.js'
 
 import { useRenderImageResolver, fileToDataUrl } from '../base/imageUrl.js'

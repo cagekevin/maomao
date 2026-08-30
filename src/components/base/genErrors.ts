@@ -12,31 +12,33 @@
  */
 import { isTimeoutError } from './asyncGuard.js'
 import { GEN_ERRORS } from './contracts.js'
+import type { ErrorKind } from '@/types'
+
+/** 错误分类结果 */
+export type ClassifiedError = { type: ErrorKind; message: string; retryable: boolean }
 
 /**
  * 把任意错误归入可决策类型。
  * 识别优先级：取消 > 超时 > 网络 > HTTP > 业务兜底。
- * @param {unknown} e
- * @returns {{ type: keyof typeof GEN_ERRORS, message: string, retryable: boolean }}
  */
-export function classifyError(e) {
+export function classifyError(e: unknown): ClassifiedError {
   if (!e) return { type: 'business', message: '', retryable: false }
-  const name = e?.name
-  const message = e?.message || String(e || '')
-  if (name === 'AbortError' || e?.aborted) return { type: 'abort', message, retryable: false }
+  const err = e as { name?: string; message?: string; aborted?: boolean; isNetwork?: boolean; status?: number }
+  const name = err?.name
+  const message = err?.message || String(e || '')
+  if (name === 'AbortError' || err?.aborted) return { type: 'abort', message, retryable: false }
   if (isTimeoutError(e) || name === 'TimeoutError') return { type: 'timeout', message, retryable: true }
   // fetch 断网以 TypeError 拒绝；历史代码曾用「网络错误」前缀文案，向后兼容一并识别
-  if (name === 'NetworkError' || e?.isNetwork === true || e instanceof TypeError || /^网络错误/.test(message)) {
+  if (name === 'NetworkError' || err?.isNetwork === true || e instanceof TypeError || /^网络错误/.test(message)) {
     return { type: 'network', message, retryable: true }
   }
-  if (name === 'HttpError' || typeof e?.status === 'number') return { type: 'http', message, retryable: false }
+  if (name === 'HttpError' || typeof err?.status === 'number') return { type: 'http', message, retryable: false }
   return { type: 'business', message, retryable: false }
 }
 
 /** 生成类超时文案：以 GEN_ERRORS.timeout.label 为基底，并保留真实秒数（用户要求不丢弃「超过 X 秒」细节）。
  * 收口：各代理的超时文案统一走这里，禁止写「生成超时/生图超时/轮询超时」等多种变体。
- * @param {number} ms 总超时毫秒
- * @returns {string} 如「请求超时（超过 300 秒未返回）」 */
-export function timeoutMessage(ms) {
+ * @param ms 总超时毫秒，如「请求超时（超过 300 秒未返回）」 */
+export function timeoutMessage(ms: number): string {
   return `${GEN_ERRORS.timeout.label}（超过 ${Math.round(ms / 1000)} 秒未返回）`
 }

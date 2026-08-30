@@ -12,7 +12,7 @@
  */
 import { contentGet, contentSet } from './contentStore.js'
 import { publish } from './eventBus.js'
-import { generateId } from './idGen.js'
+import { generateId } from './idGen.ts'
 
 const STORAGE_KEY = 'yimao_preset_prompts'
 const RECENT_KEY = 'yimao_preset_recent'

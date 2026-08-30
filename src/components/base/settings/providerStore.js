@@ -11,7 +11,7 @@ import { useSyncExternalStore } from 'react'
 import { useStoreSelector } from '../useStoreSelector.js'
 import { providerApi } from '../localToolApi.js'
 import { contentSetAsync } from '../contentStore.js'
-import { generateId } from '../idGen.js'
+import { generateId } from '../idGen.ts'
 import { logger } from '../logger.js'
 
 // useSyncExternalStore 要求：数据变化时 getSnapshot 必须返回「新引用」，

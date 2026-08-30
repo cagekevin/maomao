@@ -1,4 +1,4 @@
-import { generateId } from './idGen.js'
+import { generateId } from './idGen.ts'
 
 /**
  * 节点派生统一契约 —— 「建子节点 + 自动连线」的原子快照构造器。

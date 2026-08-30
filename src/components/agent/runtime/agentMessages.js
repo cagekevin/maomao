@@ -17,7 +17,7 @@
  */
 
 import { patchCurrentMessages, setCurrentSnapshot, getCurrentSnapshot } from '../conversation/conversationStore.js'
-import { generateId } from '../../base/idGen.js'
+import { generateId } from '../../base/idGen.ts'
 
 /** 给无 id 的消息补稳定 id（P15：列表 key 稳定） */
 const withMsgId = (m) => (m && typeof m === 'object' && m.id ? m : { ...m, id: generateId('msg') })

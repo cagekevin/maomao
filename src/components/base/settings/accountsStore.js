@@ -11,7 +11,7 @@
  */
 import { useSyncExternalStore } from 'react'
 import { contentGetAsync, contentSetAsync } from '../contentStore.js'
-import { generateId } from '../idGen.js'
+import { generateId } from '../idGen.ts'
 
 const STORAGE_KEY = 'yimao_accounts'
 

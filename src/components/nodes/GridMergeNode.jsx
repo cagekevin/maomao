@@ -16,7 +16,7 @@ import { showToast } from '../base/toastStore.js'
 import { toAbsoluteFileUrl } from '../base/filesApi.js'
 import { useRenderImageResolver } from '../base/imageUrl.js'
 import { logger } from '../base/logger.js'
-import { generateId } from '../base/idGen.js'
+import { generateId } from '../base/idGen.ts'
 // 图片加载统一走 asyncGuard：带超时 + crossOrigin（失败去 crossOrigin 重试一级）+ 坏图降级 null。
 // 替代本文件原有的无超时私有实现（图片挂起会让宫格合成永久卡住）。
 import { loadImageOrNull } from '../base/asyncGuard.js'

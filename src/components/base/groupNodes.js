@@ -9,7 +9,7 @@
 
 // Ctrl+D 复制偏移：与原节点左对齐，向下偏移 750（实测最合理，约等于图片节点高 + 抽屉高）
 const DUPLICATE_OFFSET_Y = 750
-import { generateId } from './idGen.js'
+import { generateId } from './idGen.ts'
 
 /** 节点的实际尺寸（style 优先，其次 measured，兜底默认 420/420，对齐官方） */
 function nodeSize(n) {

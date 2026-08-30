@@ -18,7 +18,7 @@
  */
 import { contentGetAsync, contentSetAsync, contentDeleteAsync } from '../../base/contentStore.js'
 import { withTimeout } from '../../base/asyncGuard.js'
-import { generateId } from '../../base/idGen.js'
+import { generateId } from '../../base/idGen.ts'
 import { logger } from '../../base/logger.js'
 import { KV_TIMEOUT } from '../../base/config.js'
 

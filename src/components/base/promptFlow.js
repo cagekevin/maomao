@@ -45,7 +45,7 @@
  *   - confirmAllPrompts：全部 pending/current/editing 置 confirmed（保留 skipped），触发转 generations。
  */
 
-import { generateId } from './idGen.js'
+import { generateId } from './idGen.ts'
 
 /** prompts 状态常量（对齐大雄 normalizePrompts 的 status 语义） */
 export const PROMPT_STATUS = {

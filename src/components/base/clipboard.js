@@ -16,7 +16,7 @@
 import { logger } from './logger.js'
 import { httpRequest } from './httpClient.js'
 import { DOWNLOAD_TIMEOUT } from './config.js'
-import { generateId } from './idGen.js'
+import { generateId } from './idGen.ts'
 import { deepClone } from './utils.js'
 
 /**

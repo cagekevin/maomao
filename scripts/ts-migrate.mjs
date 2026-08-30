@@ -89,11 +89,13 @@ function allSources() {
 function rewriteImports(oldAbs, newExt, dry = false) {
   const B = basename(oldAbs, extname(oldAbs)) // 模块名（含路径无关）
   const oldExt = extname(oldAbs)
+  const newAbs = oldAbs.slice(0, oldAbs.length - oldExt.length) + newExt
   // 在引号内出现「路径…/B.oldExt」的说明符：捕获前引号、说明符前缀、后引号
   const RE = new RegExp(`(["'\x60])([^'"\x60]*?)${escapeRe(B)}\\.${escapeRe(oldExt.slice(1))}(["'\x60])`, 'g')
   const changed = []
   for (const file of allSources()) {
-    if (file === oldAbs) continue // 跳过目标文件自身（已改名，不再指向旧路径）
+    // 跳过目标文件自身（改名前后两种路径都不碰：避免把其头注释里的示例 import 一并改写）
+    if (file === oldAbs || file === newAbs) continue
     let src
     try { src = readFileSync(file, 'utf8') } catch { continue }
     let hit = false

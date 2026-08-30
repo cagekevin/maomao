@@ -15,7 +15,7 @@
  * @returns {{ canvasConflict: boolean, tabIdRef: React.RefObject<string> }}
  */
 import { useEffect, useRef, useState } from 'react'
-import { generateId } from './idGen.js'
+import { generateId } from './idGen.ts'
 import { logger } from './logger.js'
 
 export function useCanvasSync(getProjectId) {

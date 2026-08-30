@@ -6,7 +6,7 @@ import { useConnectedInputs } from '../base/useConnectedInputs.js'
 import { toastWarning } from '../base/toastStore.js'
 import { useSyncNodeData } from '../base/useSyncNodeData.js'
 import { useOutsideClick } from '../base/hooks.js'
-import { generateId } from '../base/idGen.js'
+import { generateId } from '../base/idGen.ts'
 import { buildSpawnNodes, spawnAndCommit } from '../base/deriveNodes.js'
 import { useCanvasEdges } from '../base/CanvasEdgesContext.jsx'
 

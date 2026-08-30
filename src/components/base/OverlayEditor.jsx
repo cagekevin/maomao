@@ -23,7 +23,7 @@ import { toAbsoluteFileUrl } from './filesApi.js'
  * 能力：图层导入/排序/显隐/锁定/删除/涂抹擦除恢复、画布尺寸、全屏聚焦、属性面板
  * ════════════════════════════════════════════════════════════════ */
 
-import { generateId } from './idGen.js'
+import { generateId } from './idGen.ts'
 // 图片加载统一走 asyncGuard：带超时 + crossOrigin（失败去 crossOrigin 重试一级）+ 坏图降级 null。
 // 替代本文件原有的无超时私有实现（图片挂起会让整层渲染/导出永久卡住）。
 import { loadImageOrNull } from './asyncGuard.js'

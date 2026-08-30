@@ -12,7 +12,7 @@ import { toAbsoluteFileUrl } from '../base/filesApi.js'
 import { useRenderImageResolver } from '../base/imageUrl.js'
 import { downloadUrl } from '../base/clipboard.js'
 import { logger } from '../base/logger.js'
-import { classifyError } from '../base/genErrors.js'
+import { classifyError } from '../base/genErrors.ts'
 import previewUrls from '../base/previewUrl.js'
 
 /** 多窗口剪贴板存储键（contracts.js STORAGE_KEYS 登记，集中避免裸键） */

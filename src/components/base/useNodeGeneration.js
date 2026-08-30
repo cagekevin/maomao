@@ -5,7 +5,7 @@ import { logger } from './logger.js'
 import { subscribe } from './eventBus.js'
 import { showToast } from './toastStore.js'
 import { useNodeData } from './useNodeData.js'
-import { classifyError } from './genErrors.js'
+import { classifyError } from './genErrors.ts'
 import { reportDegrade } from './degrade.js'
 
 // 日志里的提示词只保留前 80 字：剧本盒子等场景的镜头提示词动辄上千字，

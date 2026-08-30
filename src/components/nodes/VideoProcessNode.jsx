@@ -11,7 +11,7 @@ import { useMediaDegrade } from '../base/useMediaDegrade.js'
 import { useNodeResize } from '../base/hooks.js'
 import { showToast } from '../base/toastStore.js'
 import { logger } from '../base/logger.js'
-import { classifyError } from '../base/genErrors.js'
+import { classifyError } from '../base/genErrors.ts'
 import { withTimeout, isTimeoutError } from '../base/asyncGuard.js'
 import {
   readVideoMetadata,
@@ -23,7 +23,7 @@ import {
   ProgressController,
   ConversionCanceled
 } from '../base/videoEngine.js'
-import { generateId } from '../base/idGen.js'
+import { generateId } from '../base/idGen.ts'
 import { buildSpawnNodes, spawnAndCommit } from '../base/deriveNodes.js'
 import { useCanvasEdges } from '../base/CanvasEdgesContext.jsx'
 import { httpRequest } from '../base/httpClient.js'
