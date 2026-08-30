@@ -21,22 +21,33 @@
 import { normalizeImageUrlsForSend } from './imageUrl.ts'
 import { videoProxy } from './proxyGenerate.js'
 import { logger } from './logger.ts'
+import type { GenerationProvider, GenerationResult } from '@/types'
+
+/** generateVideo 入参 */
+export interface GenerateVideoOptions {
+  provider: GenerationProvider
+  prompt: string
+  model: string
+  /** 比例（如 '16:9'） */
+  size?: string
+  /** 清晰度（如 '1080p'） */
+  resolution?: string
+  /** 时长（秒） */
+  seconds?: number
+  /** 参考图（图生视频，可选） */
+  images?: string[]
+  /** 请求级前端 task_id（P0-A） */
+  taskId?: string
+}
 
 /**
  * 文生视频 / 图生视频。
- * @param {object} opts
- *   - provider, prompt, model
- *   - size: 比例（如 '16:9'）
- *   - resolution: 清晰度（如 '1080p'）
- *   - seconds: 时长（秒）
- *   - images?: string[] 参考图（图生视频，可选）。网关认 body.image_urls。
- *   - taskId?: 请求级前端 task_id（P0-A；缺省=日志可见，不回退全局单例）
- * @param {function} [onProgress] (percent)
- * @param {AbortSignal} [signal] 可选取消信号（Step A；不传向后兼容）
+ * @param onProgress 进度回调 (percent)
+ * @param signal 可选取消信号（Step A；不传向后兼容）
  * @returns {{ ok:boolean, url?:string, error?:string }}
  */
-export async function generateVideo({ provider, prompt, model, size, resolution, seconds, images, taskId }, onProgress, signal) {
-  const genBody = { prompt, model }
+export async function generateVideo({ provider, prompt, model, size, resolution, seconds, images, taskId }: GenerateVideoOptions, onProgress?: (percent: number, message?: string) => void, signal?: AbortSignal): Promise<GenerationResult> {
+  const genBody: Record<string, unknown> = { prompt, model }
   if (size && size !== 'Auto') genBody.size = size
   if (resolution) genBody.resolution = resolution
   if (seconds) genBody.duration = String(seconds)

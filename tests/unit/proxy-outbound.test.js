@@ -14,7 +14,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 // 记录每一次 httpRequest 出站参数，且仍走真实 httpRequest（保留真实行为）
 const { outbound } = vi.hoisted(() => ({ outbound: { calls: [] } }))
-vi.mock('../../src/components/base/httpClient.js', async (importOriginal) => {
+vi.mock('../../src/components/base/httpClient.ts', async (importOriginal) => {
   const actual = await importOriginal()
   return {
     ...actual,

@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { toAbsoluteFileUrl, toRelativeFileUrl, buildThumbnailUrl, resolveImageUrl, normalizeImageUrl, normalizeImageUrlForSend, normalizeImageUrlsForSend, toImageContentBlocks, fileToDataUrl, classifyImageType, summarizeImages } from '../../src/components/base/imageUrl.ts'
 
 // blobToDataUrl / urlToDataUrl 依赖 httpClient 与 FileReader（node 无原生实现），在此 mock。
-vi.mock('../../src/components/base/httpClient.js', () => ({
+vi.mock('../../src/components/base/httpClient.ts', () => ({
   httpRequest: vi.fn(),
 }))
 // mock logger，避免转换失败时告警刷屏污染测试输出
@@ -15,7 +15,7 @@ vi.mock('../../src/components/base/imageCompress.ts', () => ({
   compressImage: vi.fn(async (url, opts) => ({ dataUrl: `data:image/png;base64,compressed:${url}` })),
 }))
 
-import { httpRequest } from '../../src/components/base/httpClient.js'
+import { httpRequest } from '../../src/components/base/httpClient.ts'
 import { logger } from '../../src/components/base/logger.ts'
 import { compressImage } from '../../src/components/base/imageCompress.ts'
 

@@ -14,7 +14,7 @@
  * 【传输】一律经 httpClient.httpRequest，继承超时 / 取消 / 错误分类 / 受限重试。
  *  非 2xx 抛 HttpError，本模块不吞错误、不改写 message（CONTEXT 错误透传铁律）。
  */
-import { httpRequest, httpPost } from './httpClient.js'
+import { httpRequest, httpPost } from './httpClient.ts'
 import { API_BASE } from './config.js'
 import { UPLOAD_DIRS } from './uploadDirs.ts'
 

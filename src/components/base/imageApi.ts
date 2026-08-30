@@ -21,9 +21,10 @@ import { imageProxy } from './proxyGenerate.js'
 import { logger } from './logger.ts'
 // 请求形态层：responses 形态按 input[] + tools 构造请求体（PRD 翻车点 1，消灭死字段）
 import { buildResponsesImageBody, isResponsesMode } from './requestModes.ts'
+import type { GenerationProvider, GenerationResult } from '@/types'
 
 /** 比例 × 清晰度档位 → 精确像素 查表（复刻官方 H_.jsx oe 表）。 */
-const RATIO_PIXEL_TABLE = {
+const RATIO_PIXEL_TABLE: Record<string, Record<string, string>> = {
   '1:1': { '1K': '1024x1024', '2K': '2048x2048', '4K': '2880x2880' },
   '16:9': { '1K': '1776x880', '2K': '2048x1152', '4K': '3840x2160' },
   '9:16': { '1K': '880x1776', '2K': '1152x2048', '4K': '2160x3840' },
@@ -48,10 +49,27 @@ const DEFAULT_PIXEL = '1024x1024'
  * @param {string} size   档位，如 '1K' / '2K' / '4K'
  * @returns {string} 像素字符串（'880x1776'）或 ''（Auto 不指定）
  */
-export function resolveImagePixel(ratio, size) {
+export function resolveImagePixel(ratio: string, size: string): string {
   if (!ratio || ratio === 'Auto' || ratio === 'auto') return ''
   const byRatio = RATIO_PIXEL_TABLE[ratio] || {}
   return byRatio[size] || byRatio['1K'] || DEFAULT_PIXEL
+}
+
+/** generateImage 入参 */
+export interface GenerateImageOptions {
+  provider: GenerationProvider
+  prompt: string
+  model: string
+  /** 清晰度档位（1K/2K），查表转像素用 */
+  size?: string
+  n?: number
+  /** 比例（如 '9:16'），Auto 不指定 size */
+  aspectRatio?: string
+  quality?: string
+  /** 参考图（图生图，可选） */
+  images?: string[]
+  /** 请求级前端 task_id（P0-A） */
+  taskId?: string
 }
 
 /**
@@ -59,14 +77,11 @@ export function resolveImagePixel(ratio, size) {
  * 尺寸处理对齐官方：把「比例 + 档位」查表转成精确像素 size（避免不同 AI 理解错位），
  * 同时保留 image_size（档位）与 resolution 供网关/apimart 使用。
  * 参考图（图生图）：网关 /v1/images/generations 认 image_urls 字段，blob: 由 imageUrl.js 先转 data base64。
- * @param {object} opts
- *   - provider, prompt, model, size(档位 1K/2K), n, aspectRatio(比例), quality, images?
- *   - taskId?: 请求级前端 task_id（P0-A，从 useNodeGeneration/scriptBox 的 run ctx 透传；缺省=日志可见，不回退全局单例）
- * @param {function} [onProgress] (percent)
- * @param {AbortSignal} [signal] 可选取消信号（Step A；不传向后兼容）
+ * @param onProgress 进度回调 (percent)
+ * @param signal 可选取消信号（Step A；不传向后兼容）
  * @returns {{ ok:boolean, url?:string, error?:string }}
  */
-export async function generateImage({ provider, prompt, model, size, n, aspectRatio, quality, images, taskId }, onProgress, signal) {
+export async function generateImage({ provider, prompt, model, size, n, aspectRatio, quality, images, taskId }: GenerateImageOptions, onProgress?: (percent: number, message?: string) => void, signal?: AbortSignal): Promise<GenerationResult> {
   const hasRatio = aspectRatio && aspectRatio !== 'Auto' && aspectRatio !== 'auto'
   // 发送统一出口守卫：参考图必经此归一（含缩略图端点自动还原原图），禁止绕过。见 imageUrl.js thumbnailToOriginal
   const refImages = await normalizeImageUrlsForSend(images, { preferBase64: provider?.refFormat === 'base64' })
@@ -79,7 +94,7 @@ export async function generateImage({ provider, prompt, model, size, n, aspectRa
     return imageProxy({ provider, genBody, onProgress, signal, taskId })
   }
 
-  const genBody = { prompt, model, n: n || 1 }
+  const genBody: Record<string, unknown> = { prompt, model, n: n || 1 }
   // 比例非 Auto → 查表转精确像素作 size；否则用传入的档位/默认
   genBody.size = hasRatio ? resolveImagePixel(aspectRatio, size || '1K') : (size || '')
   if (size && hasRatio) genBody.resolution = size

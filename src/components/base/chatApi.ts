@@ -21,9 +21,39 @@ import { logger } from './logger.ts'
 import { chatProxy } from './proxyGenerate.js'
 // 请求形态层：聊天 responses 形态构造请求体（chat_completions 默认，M2-2）
 import { resolveChatMode, buildResponsesChatBody } from './requestModes.ts'
+import type { GenerationProvider, GenerationResult } from '@/types'
+
+/** 聊天气息内容块（text / image_url），供 content 数组形式的消息使用 */
+export interface ChatContentBlock {
+  type: 'text' | 'image_url' | string
+  text?: string
+  image_url?: { url: string; detail?: string } | string
+}
+
+/** 聊天消息（对齐 /v1/chat/completions messages 形态；extra 字段透传 tools 等） */
+export interface ChatMessage {
+  role: 'user' | 'system' | 'assistant' | 'tool' | string
+  content?: string | ChatContentBlock[]
+  tool_call_id?: string
+  tool_calls?: Array<Record<string, unknown>>
+  [key: string]: unknown
+}
+
+/** chatCompletions 入参 */
+export interface ChatCompletionsOptions {
+  provider: GenerationProvider
+  messages: ChatMessage[]
+  model: string
+  /** 参考图 URL（可选） */
+  images?: string[]
+  temperature?: number
+  responseFormat?: 'json_object' | 'json' | string
+  signal?: AbortSignal
+  stream?: boolean
+}
 
 /** 把参考图附加到最后一条 user 消息（content 转数组 + image_url 块）。 */
-async function attachImages(messages, images, provider) {
+async function attachImages(messages: ChatMessage[], images: string[] | null | undefined, provider: GenerationProvider | undefined): Promise<ChatMessage[]> {
   if (!images?.length) return messages
   // 发送统一出口守卫：参考图必经此归一（含缩略图端点自动还原原图），禁止绕过。见 imageUrl.js thumbnailToOriginal
   // refFormat:'base64' 的 provider（只认 base64 的后端）→ 参考图统一转 base64 再发
@@ -31,8 +61,9 @@ async function attachImages(messages, images, provider) {
   if (!refUrls.length) return messages
   const blocks = toImageContentBlocks(refUrls)
   const userIdx = messages.length - 1
-  const last = messages[userIdx] || {}
-  const contentArr = Array.isArray(last.content)
+  // messages 可能为空（messages[userIdx] 为 undefined），运行时兜底空对象；此处仅窄化类型不改变运行时语义
+  const last: ChatMessage = (messages[userIdx] || {}) as ChatMessage
+  const contentArr: ChatContentBlock[] = Array.isArray(last.content)
     ? [...last.content]
     : [{ type: 'text', text: typeof last.content === 'string' ? last.content : String(last.content || '') }]
   contentArr.push(...blocks)
@@ -42,22 +73,16 @@ async function attachImages(messages, images, provider) {
 
 /**
  * 文本补全。
- * @param {object} opts
- *   - provider, messages, model
- *   - images?: string[]         参考图 URL（可选）
- *   - temperature?: number      默认 0.1
- *   - responseFormat?: 'json_object'|'json'
- *   - signal?: AbortSignal
  * @returns {{ ok:boolean, content?:string, error?:string, aborted?:boolean }}
  */
-export async function chatCompletions({ provider, messages, model, images, temperature = 0.1, responseFormat, signal, stream = false }) {
+export async function chatCompletions({ provider, messages, model, images, temperature = 0.1, responseFormat, signal, stream = false }: ChatCompletionsOptions): Promise<GenerationResult> {
   const finalMessages = await attachImages(messages, images, provider)
   // responses 形态：input[] + tools 顶层 name 构造请求体；默认 chat/completions（M2-2）
   if (resolveChatMode(provider?.chat_request_mode, model) === 'responses') {
     const body = buildResponsesChatBody({ model, messages: finalMessages, temperature, responseFormat: responseFormat === 'json' ? 'json_schema' : responseFormat === 'json_object' ? 'json_schema' : responseFormat, stream })
     return chatProxy({ provider, body, signal, stream })
   }
-  const body = { model, messages: finalMessages, temperature, stream }
+  const body: Record<string, unknown> = { model, messages: finalMessages, temperature, stream }
   if (responseFormat === 'json_object' || responseFormat === 'json') body.response_format = { type: responseFormat }
   return chatProxy({ provider, body, signal, stream })
 }

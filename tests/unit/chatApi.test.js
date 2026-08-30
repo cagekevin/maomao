@@ -18,7 +18,7 @@ vi.mock('../../src/components/base/imageUrl.ts', () => ({
   normalizeImageUrlForSend: vi.fn(async (u) => u),
 }))
 
-const { chatCompletions } = await import('../../src/components/base/chatApi.js')
+const { chatCompletions } = await import('../../src/components/base/chatApi.ts')
 const { normalizeImageUrlsForSend } = await import('../../src/components/base/imageUrl.ts')
 
 function proxyResp(obj, ok = true, status = 200) {

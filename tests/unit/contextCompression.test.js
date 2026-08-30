@@ -7,11 +7,11 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 
 // 隔离 chatCompletions，便于断言压缩请求与注入
-vi.mock('../../src/components/base/chatApi.js', () => ({
+vi.mock('../../src/components/base/chatApi.ts', () => ({
   chatCompletions: vi.fn(),
 }))
 
-const chatApi = await import('../../src/components/base/chatApi.js')
+const chatApi = await import('../../src/components/base/chatApi.ts')
 const { serializeMessagesForSummary, compressToSummary, SUMMARY_REQUIRED_SECTIONS } =
   await import('../../src/components/agent/runtime/contextCompression.js')
 

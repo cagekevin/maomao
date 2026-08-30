@@ -1,5 +1,5 @@
 import { useCallback } from 'react'
-import { httpRequest } from './httpClient.js'
+import { httpRequest } from './httpClient.ts'
 import { LOCAL_TOOL_PING_TIMEOUT } from './config.js'
 import { useAssetMoveToFolder } from './useAssetMoveToFolder.js'
 

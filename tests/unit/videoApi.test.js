@@ -22,7 +22,7 @@ vi.mock('../../src/components/base/taskStore.js', () => ({
   setTaskPollId: vi.fn(),
 }))
 
-const { generateVideo } = await import('../../src/components/base/videoApi.js')
+const { generateVideo } = await import('../../src/components/base/videoApi.ts')
 const { normalizeImageUrlsForSend } = await import('../../src/components/base/imageUrl.ts')
 const { setTaskPollId } = await import('../../src/components/base/taskStore.js')
 

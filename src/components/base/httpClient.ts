@@ -17,19 +17,49 @@ import { withTimeout, TimeoutError, isTimeoutError } from './asyncGuard.ts'
 import { logger } from './logger.ts'
 import { HTTP_DEFAULT_TIMEOUT } from './config.js'
 
+/** httpRequest 选项（fetch 统一入口的参数契约） */
+export interface HttpRequestOptions {
+  method?: string
+  headers?: Record<string, string>
+  body?: string
+  /** 外部取消信号（组件生命周期） */
+  signal?: AbortSignal
+  /** 超时毫秒，默认 15000；<=0 禁用超时 */
+  timeoutMs?: number
+  /** 网络/超时自动重试次数，默认 3；业务错误不重试 */
+  retries?: number
+  /** 首轮重试等待 ms，默认 500（递增） */
+  retryDelay?: number
+  /** 是否解析 JSON，默认 true */
+  parseJson?: boolean
+  /** 每次重试前回调（打日志/更新 UI） */
+  onRetry?: (attempt: number, err: unknown) => void
+  /** 错误消息上下文 */
+  label?: string
+}
+
+/** 错误信封解析结果 { code, message } */
+export interface ErrorDetail {
+  code: string
+  message: string
+}
+
 /** 网络错误（fetch 本身失败：断网/连接被拒/跨域），区别于 HTTP 状态错误 */
 export class NetworkError extends Error {
-  constructor(message, cause) {
+  isNetwork = true
+  cause?: unknown
+  constructor(message: string, cause?: unknown) {
     super(message)
     this.name = 'NetworkError'
-    this.isNetwork = true
     this.cause = cause
   }
 }
 
 /** HTTP 非 2xx 错误（携带 status 与响应体 data） */
 export class HttpError extends Error {
-  constructor(status, message, data) {
+  status: number
+  data?: unknown
+  constructor(status: number, message: string, data?: unknown) {
     super(message)
     this.name = 'HttpError'
     this.status = status
@@ -48,16 +78,18 @@ export class HttpError extends Error {
  * @param {*} data 后端错误响应体（可能为 null/undefined）
  * @returns {{ code: string, message: string }}
  */
-export function extractErrorDetail(data) {
-  const src = data && typeof data === 'object' ? data : {}
+export function extractErrorDetail(data: unknown): ErrorDetail {
+  const src = data && typeof data === 'object' ? (data as Record<string, unknown>) : {}
   if (typeof src.error === 'string') {
     // 字符串错误信封兜底：{error:'msg'} → UNKNOWN（后端当前必返字符串，兜底不可删）
     return { code: 'UNKNOWN', message: src.error }
   }
-  const e = src.error && typeof src.error === 'object' ? src.error : {}
+  const e = src.error && typeof src.error === 'object' ? (src.error as Record<string, unknown>) : {}
+  const str = (v: unknown): string => (typeof v === 'string' ? v : '')
   return {
-    code: e.code || 'UNKNOWN',
-    message: e.message || e.detail || src.detail || src.message || '',
+    // 优先级：error.code > error.message > error.detail > data.detail > data.message
+    code: str(e.code) || 'UNKNOWN',
+    message: str(e.message) || str(e.detail) || str(src.detail) || str(src.message),
   }
 }
 
@@ -65,7 +97,7 @@ export function extractErrorDetail(data) {
  * parseJson:false 模式兜底读取错误体（二进制/流式出口共用）。body 只能消费一次，读取后即抛错。
  * 优先 json（OpenAI 错误信封），非法则回退 text，全失败兜底空对象 → HttpError 仅带 status。
  */
-async function readErrorBody(res) {
+async function readErrorBody(res: Response): Promise<unknown> {
   try { return await res.json() } catch { /* 非 JSON 错误体 */ }
   try { return { message: await res.text() } } catch { /* 无 body */ }
   return {}
@@ -88,7 +120,7 @@ async function readErrorBody(res) {
  * @returns {Promise<any>}        解析后的响应体（parseJson=true）或 Response
  * @throws {TimeoutError|NetworkError|HttpError|AbortError}
  */
-export async function httpRequest(url, {
+export async function httpRequest<T = any>(url: string, {
   method = 'GET',
   headers,
   body,
@@ -99,7 +131,7 @@ export async function httpRequest(url, {
   parseJson = true,
   onRetry,
   label,
-} = {}) {
+}: HttpRequestOptions = {}) {
   // 内部 controller：外部 signal 与内部超时都中止它，互不污染（超时不误伤组件其他请求）
   const internalCtrl = new AbortController()
   const onExternalAbort = () => internalCtrl.abort()
@@ -139,18 +171,19 @@ export async function httpRequest(url, {
           throw new HttpError(res.status, message, data)
         }
         return res
-      } catch (e) {
+      } catch (e: unknown) {
+        const err = e as { name?: string; message?: string } | undefined
         // 外部取消：立即抛，不重试
-        if (signal?.aborted || e?.name === 'AbortError') throw e
+        if (signal?.aborted || err?.name === 'AbortError') throw e
         // 仅网络/超时错误可重试；业务错误（HttpError）不重试
-        const retryable = e instanceof NetworkError || isTimeoutError(e) || e?.name === 'TypeError'
+        const retryable = e instanceof NetworkError || isTimeoutError(e) || err?.name === 'TypeError'
         if (retryable && attempt < retries) {
           onRetry?.(attempt + 1, e)
           await new Promise((r) => setTimeout(r, retryDelay * (attempt + 1)))
           continue
         }
         // 归类：TypeError 通常是 fetch 网络失败（断网/拒绝连接）
-        if (e instanceof TypeError) throw new NetworkError(e?.message || '网络错误', e)
+        if (e instanceof TypeError) throw new NetworkError(err?.message || '网络错误', e)
         throw e
       }
     }
@@ -163,7 +196,7 @@ export async function httpRequest(url, {
  * 快速 JSON 请求助手：POST 且自动序列化 body、带 Content-Type。
  * 用法：httpPost('/api/x', { foo: 1 }, { signal })
  */
-export function httpPost(url, data, opts = {}) {
+export function httpPost(url: string, data?: unknown, opts: HttpRequestOptions = {}): Promise<any> {
   return httpRequest(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -175,11 +208,12 @@ export function httpPost(url, data, opts = {}) {
 /**
  * 带日志的请求（API 层默认用这个）：失败统一记录到 logger，符合「错误走 logger」约定。
  */
-export async function httpRequestLogged(url, opts = {}, label = 'http') {
+export async function httpRequestLogged(url: string, opts: HttpRequestOptions = {}, label = 'http'): Promise<any> {
   try {
     return await httpRequest(url, opts)
-  } catch (e) {
-    logger.warn(label, '请求失败', `${url}`, e?.message)
+  } catch (e: unknown) {
+    // logger.warn 只支持 3 参（category/action/detail）；err.message 原实现即被忽略，故不带入
+    logger.warn(label, '请求失败', `${url}`)
     throw e
   }
 }

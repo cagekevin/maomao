@@ -111,7 +111,7 @@ vi.mock('../../src/components/base/clipboard.js', async (importOriginal) => {
   const actual = await importOriginal()
   return { ...actual, downloadUrl: (...a) => h.downloadUrl(...a) }
 })
-vi.mock('../../src/components/base/videoApi.js', () => ({ generateVideo: vi.fn(async () => ({ url: 'http://gen.local/v.mp4' })) }))
+vi.mock('../../src/components/base/videoApi.ts', () => ({ generateVideo: vi.fn(async () => ({ url: 'http://gen.local/v.mp4' })) }))
 
 // useNodeGeneration：记录 config，返回可控 loading/error。
 // 桩复刻真实 hook 的声明式写回（resultKey + recoverable）以对齐 P0-2-c：

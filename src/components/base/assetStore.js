@@ -19,7 +19,7 @@
 import { useSyncExternalStore } from 'react'
 import { contentGet, contentSet, createDebouncedPersist } from './contentStore.js'
 import { generateId } from './idGen.ts'
-import { httpRequest } from './httpClient.js'
+import { httpRequest } from './httpClient.ts'
 import { API_BASE } from './config.js'
 import { rescanResources } from './localToolApi.js'
 import { saveInlineToLocal, uploadFileToLocal, EXT_BY_TYPE } from './filesApi.js'

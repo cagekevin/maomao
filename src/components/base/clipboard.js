@@ -14,7 +14,7 @@
  */
 
 import { logger } from './logger.ts'
-import { httpRequest } from './httpClient.js'
+import { httpRequest } from './httpClient.ts'
 import { DOWNLOAD_TIMEOUT } from './config.js'
 import { generateId } from './idGen.ts'
 import { deepClone } from './utils.ts'

@@ -4,7 +4,7 @@
  * 覆盖：成功/HTTP 错误/网络错误/超时/取消/重试/跨标签。
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { httpRequest, httpPost, httpRequestLogged, HttpError, NetworkError } from '../../src/components/base/httpClient.js'
+import { httpRequest, httpPost, httpRequestLogged, HttpError, NetworkError } from '../../src/components/base/httpClient.ts'
 import { TimeoutError } from '../../src/components/base/asyncGuard.ts'
 
 let mockFetch

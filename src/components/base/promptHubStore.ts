@@ -18,7 +18,7 @@
 
 import { contentGet, contentSet } from './contentStore.js'
 // 【出口回收】所有网络请求统一走 httpRequest（自带超时/取消/错误分类），禁止裸写 fetch
-import { httpRequest } from './httpClient.js'
+import { httpRequest } from './httpClient.ts'
 
 /** 提示词源配置（内置源/注册表项） */
 interface PromptSource {

@@ -21,7 +21,7 @@
  * 工作量大且要动网关，本期不做。若后续需要，在网关 chat_completions 加异步
  * 分支 + 本模块放开 type 限制即可。
  */
-import { httpRequest } from './httpClient.js'
+import { httpRequest } from './httpClient.ts'
 import { API_BASE } from './config.js'
 import { getTasks, patchTask } from './taskStore.js'
 import { publishTaskCompleted } from './taskCompletionBus.js'
