@@ -29,9 +29,9 @@ import ImageZoomDialog from '../base/ImageZoomDialog.jsx'
 import { useGenerateNode } from '../base/useGenerateNode.js'
 import { generateVideo } from '../base/videoApi.js'
 import { useNodePrefs } from '../base/nodePrefs.js'
-import { logger } from '../base/logger.js'
+import { logger } from '../base/logger.ts'
 import { resolveProviderModel } from '../base/providerModels.js'
-import { debounce, buildEffectivePrompt, clampSeconds } from '../base/utils.js'
+import { debounce, buildEffectivePrompt, clampSeconds } from '../base/utils.ts'
 
 /**
  * 视频生成节点（复刻原 As.jsx / discountVideoNode）

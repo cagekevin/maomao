@@ -10,12 +10,12 @@ import { useContentHeightSync } from '../base/hooks.js'
 import { showToast, toastWarning } from '../base/toastStore.js' // 保留阻断校验提示
 import { toAbsoluteFileUrl } from '../base/filesApi.js'
 import { useRenderImageResolver } from '../base/imageUrl.js'
-import { loadImageWithTimeout } from '../base/asyncGuard.js'
-import { logger } from '../base/logger.js'
+import { loadImageWithTimeout } from '../base/asyncGuard.ts'
+import { logger } from '../base/logger.ts'
 import { generateId } from '../base/idGen.ts'
 import { buildSpawnNodes, spawnAndCommit } from '../base/deriveNodes.js'
 import { useCanvasEdges } from '../base/CanvasEdgesContext.jsx'
-import { createRafBatch, clamp } from '../base/utils.js'
+import { createRafBatch, clamp } from '../base/utils.ts'
 
 /* ════════════════════════════════════════════════════════════════
  * 图片切分节点（复刻官方 Lo.jsx / gridSplitNode）

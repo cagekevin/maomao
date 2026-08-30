@@ -12,7 +12,7 @@ import { useMediaDegrade } from '../base/useMediaDegrade.js'
 import LazyImage from '../base/LazyImage.jsx'
 import ImageZoomDialog from '../base/ImageZoomDialog.jsx'
 import { showToast, toastError, toastWarning } from '../base/toastStore.js'
-import { loadImageWithTimeout } from '../base/asyncGuard.js'
+import { loadImageWithTimeout } from '../base/asyncGuard.ts'
 import { generateId } from '../base/idGen.ts'
 import { downloadUrl as clipboardDownload } from '../base/clipboard.js'
 

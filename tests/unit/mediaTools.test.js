@@ -149,7 +149,7 @@ describe('nodePrefs —— 节点上次参数记忆', () => {
 // TODO: 浏览器依赖未测 —— 真实 canvas drawImage/toDataURL 的像素输出未在 node 环境断言
 // ───────────────────────────────────────────────────────────
 const mockImage = { naturalWidth: 0, naturalHeight: 0 }
-vi.mock('../../src/components/base/asyncGuard.js', () => ({
+vi.mock('../../src/components/base/asyncGuard.ts', () => ({
   loadImageWithTimeout: vi.fn(async () => {
     // 返回带尺寸的对象，缩放逻辑可在此验证
     return { naturalWidth: mockImage.naturalWidth, naturalHeight: mockImage.naturalHeight }
@@ -172,7 +172,7 @@ describe('imageCompress —— 压缩（含浏览器依赖，部分 mock）', ()
 
   it('非 /files/ 输入原样经 toAbsoluteFileUrl 补全（http 不变）', async () => {
     // 通过 mock Image 尺寸 + document.createElement 验证 URL 被传入 loadImageWithTimeout
-    const asyncGuard = await import('../../src/components/base/asyncGuard.js')
+    const asyncGuard = await import('../../src/components/base/asyncGuard.ts')
     mockImage.naturalWidth = 100
     mockImage.naturalHeight = 100
     // 验证：相对 /files/ 路径会被补全成 API_BASE 绝对地址

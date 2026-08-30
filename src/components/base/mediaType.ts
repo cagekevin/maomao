@@ -9,6 +9,7 @@
  *  - image / video / audio / text / other / empty
  *  - other：非以上类型的文件（如压缩包）；empty：无 URL/文件
  */
+import type { MediaType } from '@/types'
 
 // 媒体扩展名正则（不含点）
 const RE_VIDEO = /\.(mp4|webm|mov|mkv|avi|m4v)$/i
@@ -19,10 +20,8 @@ const RE_TEXT = /\.(txt|md|json|csv)$/i
 /**
  * 判断一个 URL（dataURL / http / 文件名）的媒体类型。
  * 优先看 dataURL 前缀（如 data:video/），其次看扩展名。
- * @param {string} url
- * @returns {'image'|'video'|'audio'|'text'|'other'}
  */
-export function detectMediaType(url) {
+export function detectMediaType(url: string | null | undefined): MediaType {
   if (!url) return 'empty'
   const lower = String(url).toLowerCase()
   if (lower.startsWith('data:video/') || RE_VIDEO.test(lower)) return 'video'
@@ -33,10 +32,8 @@ export function detectMediaType(url) {
 
 /**
  * 判断一个 File 的媒体类型（拖入/上传用）。
- * @param {File} file
- * @returns {'image'|'video'|'audio'|'text'|'other'}
  */
-export function detectFileType(file) {
+export function detectFileType(file: File | null | undefined): MediaType {
   if (!file) return 'other'
   const type = file.type || ''
   const name = (file.name || '').toLowerCase()
@@ -50,18 +47,17 @@ export function detectFileType(file) {
 /**
  * 判断一个 URL 是否「可作图片源显示」：dataURL / http(s) / blob。
  * 用于拖入 URL 文本时决定建 imageNode 还是 textNode。
- * @param {string} url
  */
-export function isAssetUrl(url) {
+export function isAssetUrl(url: unknown): url is string {
   return typeof url === 'string' && (url.startsWith('http') || url.startsWith('data:') || url.startsWith('blob:'))
 }
 
 /**
  * 判断是否为音频素材（type 字段或 URL 扩展名）。
  * 收敛 AssetLibrary / GeneratedView 各自重复的实现，统一放这里。
- * @param {string} [type] 素材 type（如 'audio'）
- * @param {string} [url] 素材 URL（按扩展名兜底）
+ * @param type 素材 type（如 'audio'）
+ * @param url 素材 URL（按扩展名兜底）
  */
-export function isAudio(type, url) {
-  return type === 'audio' || (type && type.startsWith('audio')) || /\.(flac|mp3|wav|ogg|m4a|aac|opus|wma|aiff)(\?|$)/i.test(url || '')
+export function isAudio(type: string | null | undefined, url: string | null | undefined): boolean {
+  return type === 'audio' || (!!type && type.startsWith('audio')) || /\.(flac|mp3|wav|ogg|m4a|aac|opus|wma|aiff)(\?|$)/i.test(url || '')
 }

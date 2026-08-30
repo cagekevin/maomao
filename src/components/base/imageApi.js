@@ -18,7 +18,7 @@
  */
 import { normalizeImageUrlsForSend } from './imageUrl.js'
 import { imageProxy } from './proxyGenerate.js'
-import { logger } from './logger.js'
+import { logger } from './logger.ts'
 // 请求形态层：responses 形态按 input[] + tools 构造请求体（PRD 翻车点 1，消灭死字段）
 import { buildResponsesImageBody, isResponsesMode } from './requestModes.js'
 

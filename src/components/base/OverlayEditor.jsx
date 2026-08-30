@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react'
-import { useDebouncedEffect, createRafBatch } from './utils.js'
+import { useDebouncedEffect, createRafBatch } from './utils.ts'
 import { createPortal } from 'react-dom'
 import {
   Box, Eye, EyeOff, Lock, Unlock, Brush, Trash2,
@@ -26,7 +26,7 @@ import { toAbsoluteFileUrl } from './filesApi.js'
 import { generateId } from './idGen.ts'
 // 图片加载统一走 asyncGuard：带超时 + crossOrigin（失败去 crossOrigin 重试一级）+ 坏图降级 null。
 // 替代本文件原有的无超时私有实现（图片挂起会让整层渲染/导出永久卡住）。
-import { loadImageOrNull } from './asyncGuard.js'
+import { loadImageOrNull } from './asyncGuard.ts'
 const genId = () => generateId('ov')
 
 // 单层渲染 canvas（复刻 Bo_1.jsx：drawImage + mask destination-in）

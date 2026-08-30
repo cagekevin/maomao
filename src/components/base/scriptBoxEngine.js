@@ -7,12 +7,12 @@ import { localizeAndStoreToLibrary, assetFolderOf } from './assetStore.js'
 import { uploadFileToLocal, saveResultToTasks } from './filesApi.js'
 import { toAbsoluteFileUrl } from './imageUrl.js'
 import { showToast } from './toastStore.js'
-import { logger } from './logger.js'
+import { logger } from './logger.ts'
 import { reportGenerate } from './taskStore.js'
 import { shotHandleId } from './contracts.js'
 import { SCRIPTBOX_DOWNSTREAM_GRID_COLS, SCRIPTBOX_DOWNSTREAM_CELL_W, SCRIPTBOX_DOWNSTREAM_CELL_H, SCRIPTBOX_DOWNSTREAM_GAP_X, SCRIPT_TEXT_TIMEOUT, SCRIPT_IMAGE_TIMEOUT } from './config.js'
 // 任务级总耗时兜底（R2 边界守卫）：给整段生成任务加超时，杜绝「转圈永不结束」
-import { withTimeout } from './asyncGuard.js'
+import { withTimeout } from './asyncGuard.ts'
 
 /** 去掉 ```json 围栏、只保留首个 {...} 块（对齐官方 Ar/Ir 的解析）。
  *  顶层纯函数，导出供单测（剧本盒纯逻辑）。 */

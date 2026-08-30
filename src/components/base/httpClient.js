@@ -13,8 +13,8 @@
  *
  * 【返回】parseJson=true（默认）时返回解析后的 JSON；HTTP 非 2xx 抛 HttpError。
  */
-import { withTimeout, TimeoutError, isTimeoutError } from './asyncGuard.js'
-import { logger } from './logger.js'
+import { withTimeout, TimeoutError, isTimeoutError } from './asyncGuard.ts'
+import { logger } from './logger.ts'
 import { HTTP_DEFAULT_TIMEOUT } from './config.js'
 
 /** 网络错误（fetch 本身失败：断网/连接被拒/跨域），区别于 HTTP 状态错误 */

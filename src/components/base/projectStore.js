@@ -13,7 +13,7 @@ import { CANVAS_STATE_PREFIX } from './kvStore.js'
 import { CANVAS_SCHEMA_VERSION } from './contracts.js'
 import { fetchProjects, saveProjects } from './localToolApi.js'
 import { contentGet, contentSet, contentGetAsync, contentSetAsync, contentDeleteAsync, createDebouncedPersist } from './contentStore.js'
-import { logger } from './logger.js'
+import { logger } from './logger.ts'
 
 const PROJECTS_KEY = 'projects'
 const LAST_OPENED_KEY = 'lastOpenedProject'

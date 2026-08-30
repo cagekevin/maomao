@@ -8,14 +8,14 @@ import { useMediaDegrade } from '../base/useMediaDegrade.js'
 import { uploadFileToLocal, toAbsoluteFileUrl } from '../base/filesApi.js'
 import { useRenderImageResolver } from '../base/imageUrl.js'
 import { showToast, toastError, toastWarning } from '../base/toastStore.js'
-import { logger } from '../base/logger.js'
+import { logger } from '../base/logger.ts'
 import { classifyError } from '../base/genErrors.ts'
 import { applyMosaic, MOSAIC_MODES, MOSAIC_PALETTE } from '../base/faceMosaic.js'
 import FaceMosaicEditor from '../base/FaceMosaicEditor.jsx'
 import ImageZoomDialog from '../base/ImageZoomDialog.jsx'
 import { generateId } from '../base/idGen.ts'
 import previewUrls from '../base/previewUrl.js'
-import { dataUrlToBlob } from '../base/utils.js'
+import { dataUrlToBlob } from '../base/utils.ts'
 
 /**
  * 人脸打码节点（完整复刻官方 Cl.jsx / faceMosaicNode）。

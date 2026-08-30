@@ -28,7 +28,7 @@ vi.mock('../../src/components/base/degrade.js', () => ({ reportDegrade: reportDe
 vi.mock('../../src/components/base/eventBus.js', () => ({
   subscribe: (evt, cb) => { busState.handler = cb; return () => {} }
 }))
-vi.mock('../../src/components/base/logger.js', () => ({ logger: busState.logger }))
+vi.mock('../../src/components/base/logger.ts', () => ({ logger: busState.logger }))
 vi.mock('../../src/components/base/toastStore.js', () => ({ showToast: vi.fn() }))
 
 import { useNodeGeneration } from '../../src/components/base/useNodeGeneration.js'

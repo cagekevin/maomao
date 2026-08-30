@@ -5,7 +5,7 @@ import CustomHandle from '../edges/CustomHandle.jsx'
 import { useSizeSync } from './hooks.js'
 import { NODE_AREA_FIXED_BASE_SIZE } from './config.js'
 import ErrorBoundary from './ErrorBoundary.jsx'
-import { logger } from './logger.js'
+import { logger } from './logger.ts'
 
 // ReactFlow store 选择器：订阅单个节点的当前 width/height。
 // 目的：让根 div 的 inline width/height 永远等于 ReactFlow 的 node.width/height。

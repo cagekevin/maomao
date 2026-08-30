@@ -14,7 +14,7 @@
  * 【依赖分类】In-process。唯一外部依赖为 logger / toastStore（模块级引用），无 React。
  * 非 UI、可单测。
  */
-import { logger } from './logger.js'
+import { logger } from './logger.ts'
 import { showToast } from './toastStore.js'
 import { THROTTLE_MS } from './config.js'
 

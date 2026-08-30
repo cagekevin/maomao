@@ -20,7 +20,7 @@
 import { forwardRef, useState, useRef, useCallback, useEffect } from 'react'
 import { toAbsoluteFileUrl } from './imageUrl.js'
 import { copyImageToClipboard, downloadUrl } from './clipboard.js'
-import { createRafBatch } from './utils.js'
+import { createRafBatch } from './utils.ts'
 
 const ImageZoomDialog = forwardRef(function ImageZoomDialog({ url, kind = 'image' }, ref) {
   const isVideo = kind === 'video'

@@ -7,7 +7,7 @@ import {
 } from './promptHubStore.js'
 import { toastWarning } from './toastStore.js'
 import LazyImage from './LazyImage.jsx'
-import { createImeInput } from './utils.js'
+import { createImeInput } from './utils.ts'
 
 const fmtDate = (s) => {
   if (!s) return '—'

@@ -26,7 +26,7 @@
  * ════════════════════════════════════════════════════════════════
  */
 import { contentGet } from '../../base/contentStore.js'
-import { logger } from '../../base/logger.js'
+import { logger } from '../../base/logger.ts'
 import { toImageContentBlocks } from '../../base/imageUrl.js'
 import { getSystemPromptForWorkMode, RUN_MODE_IDS } from './runModeRegistry.js'
 import { AGENT_PROMPTS } from '../agentConfig.js'

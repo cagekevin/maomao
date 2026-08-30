@@ -18,7 +18,7 @@
  *    status:'pending'|'running'|'completed'|'failed', progress, errorMsg, resultUrl, createdAt }
  */
 import { useSyncExternalStore } from 'react'
-import { logger } from './logger.js'
+import { logger } from './logger.ts'
 import { createDebouncedPersist } from './contentStore.js'
 import { fetchTasks, saveTask, deleteTask, batchDeleteTasks, clearAllTasksApi } from './localToolApi.js'
 import { publishTaskCompleted } from './taskCompletionBus.js'

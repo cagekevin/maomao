@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react'
-import { createRafBatch } from './utils.js'
+import { createRafBatch } from './utils.ts'
 
 /**
  * 右下角「拖拽改尺寸 + 双击全屏」手柄（复刻 _Component23.jsx）。

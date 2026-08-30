@@ -23,7 +23,7 @@
  * 收敛原则：任何新增节点/面板要显示或发送图片，一律用这里，不各写各的 URL 处理。
  */
 import { useCallback } from 'react'
-import { logger } from './logger.js'
+import { logger } from './logger.ts'
 import { httpRequest } from './httpClient.js'
 import { API_BASE } from './config.js'
 import { IMAGE_FETCH_TIMEOUT } from './config.js'

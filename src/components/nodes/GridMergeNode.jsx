@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react'
-import { useDebouncedEffect, clamp } from '../base/utils.js'
+import { useDebouncedEffect, clamp } from '../base/utils.ts'
 import { buildSpawnNodes, spawnAndCommit } from '../base/deriveNodes.js'
 import { useCanvasEdges } from '../base/CanvasEdgesContext.jsx'
 
@@ -15,11 +15,11 @@ import { useContentHeightSync } from '../base/hooks.js'
 import { showToast } from '../base/toastStore.js'
 import { toAbsoluteFileUrl } from '../base/filesApi.js'
 import { useRenderImageResolver } from '../base/imageUrl.js'
-import { logger } from '../base/logger.js'
+import { logger } from '../base/logger.ts'
 import { generateId } from '../base/idGen.ts'
 // 图片加载统一走 asyncGuard：带超时 + crossOrigin（失败去 crossOrigin 重试一级）+ 坏图降级 null。
 // 替代本文件原有的无超时私有实现（图片挂起会让宫格合成永久卡住）。
-import { loadImageOrNull } from '../base/asyncGuard.js'
+import { loadImageOrNull } from '../base/asyncGuard.ts'
 
 /* ════════════════════════════════════════════════════════════════
  * 图片拼图节点（复刻官方 Yo.jsx / gridMergeNode）

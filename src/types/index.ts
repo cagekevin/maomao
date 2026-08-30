@@ -8,4 +8,5 @@
  *        仅「跨模块复用的通用形状」才下沉到本目录。
  */
 export * from './errors'
+export * from './media'
 export * from './refToken'

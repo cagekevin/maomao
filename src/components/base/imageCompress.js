@@ -15,10 +15,10 @@
  *  - keepOriginalFormat 是否保持原格式（true=沿用原图格式，仅缩尺寸不改格式，不丢透明；默认 false=转 format 指定格式）
  * @returns {Promise<{ dataUrl, blob, width, height, size, originalSize }>}
  */
-import { loadImageWithTimeout } from './asyncGuard.js'
+import { loadImageWithTimeout } from './asyncGuard.ts'
 import { httpRequest } from './httpClient.js'
 import { IMAGE_LOAD_TIMEOUT, API_BASE } from './config.js'
-import { dataUrlToBlob } from './utils.js'
+import { dataUrlToBlob } from './utils.ts'
 
 // 加载用地址补全：/files/ 相对 → 绝对（本地引擎端口）。与 imageUrl.js 的 toAbsoluteFileUrl 逻辑一致，
 // 但这里不 import imageUrl 以避免「imageUrl → imageCompress → imageUrl」循环依赖（imageUrl 发送出口要调本模块）。

@@ -33,7 +33,7 @@
  */
 const listeners = new Map() // event -> Set<fn>
 
-import { logger } from './logger.js'
+import { logger } from './logger.ts'
 
 /** 订阅事件，返回取消函数 */
 export function subscribe(event, fn) {

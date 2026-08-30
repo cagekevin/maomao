@@ -28,10 +28,10 @@ import {
   VideoSampleSource
 } from 'mediabunny'
 import { GIFEncoder, quantize, applyPalette } from 'gifenc'
-import { logger } from './logger.js'
+import { logger } from './logger.ts'
 import { uploadFileToLocal } from './filesApi.js'
 import { UPLOAD_DIRS } from './uploadDirs.js'
-import { safeFileName } from './utils.js'
+import { safeFileName } from './utils.ts'
 
 /** clamp：保证是偶数且 ≥2 */
 function Sc(v) {

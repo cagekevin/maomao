@@ -21,10 +21,10 @@
 import { useSyncExternalStore } from 'react'
 import { contentGet, contentSet, contentGetAsync, contentSetAsync, createDebouncedPersist } from '../../base/contentStore.js'
 import { sGet } from '../../base/storageAdapter.js'
-import { withTimeout } from '../../base/asyncGuard.js'
+import { withTimeout } from '../../base/asyncGuard.ts'
 import { generateId } from '../../base/idGen.ts'
 import { CREDIT_GATE_FIELD } from '../../base/contracts.js'
-import { logger } from '../../base/logger.js'
+import { logger } from '../../base/logger.ts'
 import { reportDegrade } from '../../base/degrade.js'
 import { KV_TIMEOUT } from '../../base/config.js'
 // 【P1c L3 整包预算安全网】落盘前对归一化副本做投影降级，保证整包序列化体积有界（见 volumePolicy.js）

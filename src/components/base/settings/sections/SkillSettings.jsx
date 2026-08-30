@@ -3,7 +3,7 @@ import { Search, Plus, Bot, Sparkles, Upload, Download, Pencil, MoreHorizontal, 
 import { getAllSkills, readCustomSkills, upsertCustomSkill, deleteCustomSkill, isSkillEnabled, setSkillEnabled, getAllEnabledMap } from '../../skillStore.js'
 import { showToast } from '../../toastStore.js'
 import { downloadBlob } from '../../clipboard.js'
-import { createImeInput } from '../../utils.js'
+import { createImeInput } from '../../utils.ts'
 
 const inputCls =
   'w-full bg-canvas border border-edge text-body text-sm px-3 py-2.5 rounded-xl outline-none placeholder:text-muted focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/10 transition disabled:opacity-50'

@@ -17,10 +17,10 @@
  */
 
 import { kvGet, kvSet } from './localToolApi.js'
-import { withTimeout } from './asyncGuard.js'
+import { withTimeout } from './asyncGuard.ts'
 import { saveInlineToLocal } from './filesApi.js'
 import { UPLOAD_DIRS } from './uploadDirs.js'
-import { logger } from './logger.js'
+import { logger } from './logger.ts'
 import { showToast } from './toastStore.js'
 import { KV_TIMEOUT } from './config.js'
 // 【降级落点统一】本地降级副本走 storageAdapter（sGet/sSet，自动 yimao: 前缀），

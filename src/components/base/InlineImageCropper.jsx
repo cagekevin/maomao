@@ -2,7 +2,7 @@ import React, { useState, useRef, useCallback, useEffect } from 'react'
 import ReactCrop from 'react-image-crop'
 import 'react-image-crop/dist/ReactCrop.css'
 import { toastError } from './toastStore.js'
-import { loadImageWithTimeout } from './asyncGuard.js'
+import { loadImageWithTimeout } from './asyncGuard.ts'
 
 /**
  * 就地裁剪浮层（极简，只做裁剪）。

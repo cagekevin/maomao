@@ -25,9 +25,9 @@
  * @returns {Promise<{ dataUrl, blob, width, height }>}
  */
 import { toAbsoluteFileUrl } from './imageUrl.js'
-import { loadImageWithTimeout } from './asyncGuard.js'
+import { loadImageWithTimeout } from './asyncGuard.ts'
 import { IMAGE_LOAD_TIMEOUT } from './config.js'
-import { dataUrlToBlob } from './utils.js'
+import { dataUrlToBlob } from './utils.ts'
 
 export async function upscaleImage(url, opts = {}) {
   const {

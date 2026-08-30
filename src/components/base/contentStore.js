@@ -34,8 +34,8 @@
 import { sGet, sSet, sRemove } from './storageAdapter.js'
 import { storageGet, storageSet, storageDelete, isKvKey } from './kvStore.js'
 import { STORAGE_KEYS } from './contracts.js'
-import { logger } from './logger.js'
-import { compilePatternRegex } from './utils.js'
+import { logger } from './logger.ts'
+import { compilePatternRegex } from './utils.ts'
 
 // ─────────────────────────────────────────────────────────────────
 // 内部状态

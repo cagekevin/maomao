@@ -13,39 +13,48 @@
  */
 
 import { IMAGE_LOAD_TIMEOUT } from './config.js'
+import type { ImageLoadOptions } from '@/types'
 
 /** 超时错误（统一类型，便于调用方用 isTimeoutError 区分"超时"与"真实失败"） */
 export class TimeoutError extends Error {
+  isTimeout = true
+  override name = 'TimeoutError'
   constructor(message = '操作超时') {
     super(message)
-    this.name = 'TimeoutError'
-    this.isTimeout = true
   }
 }
 
 /** 判断是否为超时错误 */
-export function isTimeoutError(e) {
-  return !!(e && (e instanceof TimeoutError || e?.isTimeout === true || e?.name === 'TimeoutError'))
+export function isTimeoutError(e: unknown): boolean {
+  const err = e as { isTimeout?: boolean; name?: string } | null
+  return !!(err && (err instanceof TimeoutError || err?.isTimeout === true || err?.name === 'TimeoutError'))
 }
 
 /**
  * 给 Promise 加超时。超时后 reject TimeoutError。
- * @param {Promise} promise
- * @param {number} ms 超时毫秒
- * @param {string} [message] 超时文案
- * @param {AbortSignal} [signal] 可选，超时时 abort 它（供底层真正取消，避免资源泄漏）
- * @param {Function} [onTimeout] 可选，超时时回调（在 reject 前调用，供调用方主动 cancel 底层任务）
- * @returns {Promise}
+ * @param promise 要加超时的 Promise
+ * @param ms 超时毫秒
+ * @param message 超时文案
+ * @param signal 可选，超时时 abort 它（供底层真正取消，避免资源泄漏）
+ * @param onTimeout 可选，超时时回调（在 reject 前调用，供调用方主动 cancel 底层任务）
  */
-export function withTimeout(promise, ms, message = '操作超时', signal, onTimeout) {
-  return new Promise((resolve, reject) => {
+export function withTimeout<T>(
+  promise: Promise<T>,
+  ms: number,
+  message = '操作超时',
+  signal?: AbortSignal,
+  onTimeout?: () => void
+): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
     if (!(ms > 0)) return resolve(promise)
     const timer = setTimeout(() => {
       try { onTimeout?.() } catch { /* 取消回调失败不阻断 */ }
       // 中止底层信号：优先标准 abort()，跨环境（jsdom/老浏览器）用 dispatchEvent fallback
+      // 注：AbortSignal 原生无 abort()（AbortController 才有），此分支本为兜底旧实现，故窄化类型后保持运行时语义
+      const sig = signal as (AbortSignal & { abort?: () => void }) | undefined
       try {
-        if (signal?.abort) signal.abort()
-        else signal?.dispatchEvent?.(new Event('abort'))
+        if (sig?.abort) sig.abort()
+        else sig?.dispatchEvent?.(new Event('abort'))
       } catch { /* 忽略 */ }
       reject(new TimeoutError(message))
     }, ms)
@@ -59,12 +68,9 @@ export function withTimeout(promise, ms, message = '操作超时', signal, onTim
 /**
  * 统一图片加载入口：HTMLImageElement + 超时 + crossOrigin + 可取消。
  * 已替代各模块私有实现：imageCompress / faceMosaic / OverlayEditor / GridMergeNode（原先均无统一超时）。
- * 批量加载请改用下方 loadImageOrNull（坏图降级 null，不抛错）。
- * @param {string} url
- * @param {object} [opts] { timeoutMs=IMAGE_LOAD_TIMEOUT, crossOrigin='anonymous' }
- * @returns {Promise<HTMLImageElement>}
+ * 批量加载请改用 loadImageOrNull（坏图降级 null，不抛错）。
  */
-export function loadImageWithTimeout(url, opts = {}) {
+export function loadImageWithTimeout(url: string, opts: ImageLoadOptions = {}): Promise<HTMLImageElement> {
   const { timeoutMs = IMAGE_LOAD_TIMEOUT, crossOrigin = 'anonymous' } = opts
   return new Promise((resolve, reject) => {
     const img = new Image()
@@ -88,12 +94,8 @@ export function loadImageWithTimeout(url, opts = {}) {
  *   1) 带 crossOrigin（canvas 不被污染，可导出）；
  *   2) 失败则去掉 crossOrigin 再试一次（跨域图无 CORS 头时的兜底，代价是 canvas 被污染）。
  * 两级都受 IMAGE_LOAD_TIMEOUT 保护——原先的私有实现**没有超时**，图片挂起会让导出/合成永久卡死。
- *
- * @param {string} url
- * @param {object} [opts] { timeoutMs=IMAGE_LOAD_TIMEOUT, crossOrigin='anonymous' }
- * @returns {Promise<HTMLImageElement|null>}
  */
-export async function loadImageOrNull(url, opts = {}) {
+export async function loadImageOrNull(url: string, opts: ImageLoadOptions = {}): Promise<HTMLImageElement | null> {
   if (!url) return null
   try {
     return await loadImageWithTimeout(url, opts)

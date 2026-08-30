@@ -12,7 +12,7 @@
  * `persist:failed` 事件（含 key），由全局监听器节流上报 toast。调用方无需逐个改。
  */
 import { publish } from './eventBus.js'
-import { logger } from './logger.js'
+import { logger } from './logger.ts'
 
 /** 是否运行在 Chrome 扩展环境 */
 export function isChromeExtension() {

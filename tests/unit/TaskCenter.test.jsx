@@ -61,7 +61,7 @@ vi.mock('../../src/components/base/taskStore.js', () => ({
   clearTasksBy: (...a) => h.clearTasksBy(...a),
   clearAllTasks: (...a) => h.clearAllTasks(...a),
 }))
-vi.mock('../../src/components/base/logger.js', () => ({ logger: { warn: (...a) => h.loggerWarn(...a) } }))
+vi.mock('../../src/components/base/logger.ts', () => ({ logger: { warn: (...a) => h.loggerWarn(...a) } }))
 vi.mock('../../src/components/base/clipboard.js', () => ({ downloadUrl: (...a) => h.downloadUrl(...a) }))
 vi.mock('../../src/components/base/pollTask.js', () => ({ pollOneTask: (...a) => h.pollOneTask(...a) }))
 vi.mock('../../src/components/base/toastStore.js', () => ({ showToast: (...a) => h.showToast(...a) }))

@@ -1,6 +1,6 @@
 import React, { Suspense } from 'react'
 import ErrorBoundary from './ErrorBoundary.jsx'
-import { logger } from './logger.js'
+import { logger } from './logger.ts'
 
 /**
  * 重依赖节点的「按需加载」包装（3D 引擎 / 视频处理等）。

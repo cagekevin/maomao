@@ -10,9 +10,9 @@ import { useConnectedInputs } from '../base/useConnectedInputs.js'
 import { useMediaDegrade } from '../base/useMediaDegrade.js'
 import { useNodeResize } from '../base/hooks.js'
 import { showToast } from '../base/toastStore.js'
-import { logger } from '../base/logger.js'
+import { logger } from '../base/logger.ts'
 import { classifyError } from '../base/genErrors.ts'
-import { withTimeout, isTimeoutError } from '../base/asyncGuard.js'
+import { withTimeout, isTimeoutError } from '../base/asyncGuard.ts'
 import {
   readVideoMetadata,
   processVideo,
@@ -30,7 +30,7 @@ import { httpRequest } from '../base/httpClient.js'
 import previewUrls from '../base/previewUrl.js'
 import { UPLOAD_DIRS } from '../base/uploadDirs.js'
 import { DOWNLOAD_TIMEOUT, VIDEO_DOWNLOAD_TIMEOUT } from '../base/config.js'
-import { createRafBatch } from '../base/utils.js'
+import { createRafBatch } from '../base/utils.ts'
 
 /* ════════════════════════════════════════════════════════════════
  * 视频处理节点（复刻官方 Gc.jsx + fc.jsx 合并的 videoProcessNode）

@@ -6,7 +6,7 @@ vi.mock('../../src/components/base/httpClient.js', () => ({
   httpRequest: vi.fn(),
 }))
 // mock logger，避免转换失败时告警刷屏污染测试输出
-vi.mock('../../src/components/base/logger.js', () => ({
+vi.mock('../../src/components/base/logger.ts', () => ({
   logger: { warn: vi.fn(), info: vi.fn(), error: vi.fn() },
 }))
 // 发送出口会调 compressImage（本地图压缩→base64）。本测试关注「发送归一」的 URL/分支处理，
@@ -16,7 +16,7 @@ vi.mock('../../src/components/base/imageCompress.js', () => ({
 }))
 
 import { httpRequest } from '../../src/components/base/httpClient.js'
-import { logger } from '../../src/components/base/logger.js'
+import { logger } from '../../src/components/base/logger.ts'
 import { compressImage } from '../../src/components/base/imageCompress.js'
 
 // node 环境无 FileReader：stub 一个，readAsDataURL 直接产出预设 dataURL（配合 httpRequest mock 返回 {_dataUrl}）。

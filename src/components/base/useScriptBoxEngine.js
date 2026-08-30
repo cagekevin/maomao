@@ -4,7 +4,7 @@ import { createScriptBoxEngine } from './scriptBoxEngine.js'
 import { normalizeScriptBoxData } from './scriptBoxSchema.js'
 import { injectNodePrefs } from './nodePrefs.js'
 import { useProvidersList, load as loadProviders } from './settings/providerStore.js'
-import { logger } from './logger.js'
+import { logger } from './logger.ts'
 
 /**
  * 剧本盒子 —— 引擎回调注入 hook（对应官方 H_.jsx 的注入机制 A/B）。

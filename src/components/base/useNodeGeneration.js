@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState, useEffect } from 'react'
 import { reportGenerate, registerTaskRetry, unregisterTaskRetry, claimNodeRun, releaseNodeRun } from './taskStore.js'
 import { saveResultToTasks } from './filesApi.js'
-import { logger } from './logger.js'
+import { logger } from './logger.ts'
 import { subscribe } from './eventBus.js'
 import { showToast } from './toastStore.js'
 import { useNodeData } from './useNodeData.js'

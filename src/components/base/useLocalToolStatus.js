@@ -17,7 +17,7 @@
  * 原型无此开关，默认 false（即始终启用连接检测）。
  */
 import { useCallback, useEffect, useSyncExternalStore } from 'react'
-import { logger } from './logger.js'
+import { logger } from './logger.ts'
 import { httpRequest } from './httpClient.js'
 import { API_BASE, LOCAL_TOOL_PORT, LOCAL_TOOL_PING_TIMEOUT } from './config.js'
 

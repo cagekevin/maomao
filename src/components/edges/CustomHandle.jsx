@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react'
 import { Handle } from '@xyflow/react'
-import { createRafBatch } from '../base/utils.js'
+import { createRafBatch } from '../base/utils.ts'
 
 /**
  * 自定义连接端口（复刻原 _Component12.jsx）

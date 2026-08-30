@@ -15,7 +15,7 @@
  */
 import { runNodeGeneration, isNodeRegistered } from '../../base/taskStore.js'
 import { generateId } from '../../base/idGen.ts'
-import { logger } from '../../base/logger.js'
+import { logger } from '../../base/logger.ts'
 import { toAbsoluteFileUrl } from '../../base/imageUrl.js'
 import { createCanvasHost } from './canvasHost.js'
 

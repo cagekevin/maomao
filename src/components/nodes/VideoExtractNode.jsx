@@ -11,7 +11,7 @@ import { useNodeData } from '../base/useNodeData.js'
 import { toAbsoluteFileUrl } from '../base/filesApi.js'
 import { useRenderImageResolver } from '../base/imageUrl.js'
 import { downloadUrl } from '../base/clipboard.js'
-import { logger } from '../base/logger.js'
+import { logger } from '../base/logger.ts'
 import { classifyError } from '../base/genErrors.ts'
 import previewUrls from '../base/previewUrl.js'
 

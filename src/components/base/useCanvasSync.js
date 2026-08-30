@@ -16,7 +16,7 @@
  */
 import { useEffect, useRef, useState } from 'react'
 import { generateId } from './idGen.ts'
-import { logger } from './logger.js'
+import { logger } from './logger.ts'
 
 export function useCanvasSync(getProjectId) {
   const tabIdRef = useRef(generateId('tab'))

@@ -17,7 +17,7 @@
  * 并在模块内部自行处理 AbortSignal。禁止把它迁移到 httpClient.js。
  */
 import { normalizeImageUrlsForSend, toImageContentBlocks } from './imageUrl.js'
-import { logger } from './logger.js'
+import { logger } from './logger.ts'
 import { chatProxy } from './proxyGenerate.js'
 // 请求形态层：聊天 responses 形态构造请求体（chat_completions 默认，M2-2）
 import { resolveChatMode, buildResponsesChatBody } from './requestModes.js'

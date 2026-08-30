@@ -10,7 +10,7 @@
  */
 import { contentGet, contentSet } from './contentStore.js'
 import { sGet } from './storageAdapter.js'
-import { logger } from './logger.js'
+import { logger } from './logger.ts'
 
 const SKILLS_KEY = 'agent_skills'
 

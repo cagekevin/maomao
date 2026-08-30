@@ -49,9 +49,20 @@ function collectFiles(dir, acc = []) {
   return acc
 }
 
-/** 简单 JSX 探测：文本里出现 HTML/组件式标签即视为 UI 文件 */
+/**
+ * JSX 探测：先剥离注释与字符串/模板串，再找 HTML/组件式标签。
+ * 避免把纯逻辑文件里字符串/正则中的 `<div>`、`<br>` 等 HTML 形文本误判成 JSX
+ * （曾误伤 asyncGuard/utils 等纯逻辑文件）。
+ */
 function hasJsx(code) {
-  return /<\/?[A-Za-z][\w-]*(\s[^<>]*)?\/?>/.test(code)
+  const stripped = code
+    .replace(/(^|[^\w$])\/\*[\s\S]*?\*\//g, '$1') // 块注释
+    .replace(/(^|[^\w$])\/\/[^\n]*/g, '$1') // 行注释
+    .replace(/(^|[^\w$])'([^'\\]|\\.)*'/g, '$1') // 单引号串
+    .replace(/(^|[^\w$])"([^"\\]|\\.)*"/g, '$1') // 双引号串
+    .replace(/(^|[^\w$])`([^`\\]|\\.)*`/g, '$1') // 模板串
+  // JSX：开标签 <Tag、闭标签 </Tag、自闭合 <Tag ... />
+  return /<\/?[A-Za-z][\w-]*(\s[^<>]*)?\/?>/.test(stripped)
 }
 
 /** 判定目标扩展名：--to 优先，否则按内容（引用 JSX → tsx，纯逻辑 → ts） */

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo } from 'react'
 import { useReactFlow } from '@xyflow/react'
-import { debounce } from './utils.js'
+import { debounce } from './utils.ts'
 import { NODE_PATCH_DEBOUNCE_MS } from './config.js'
 
 /**

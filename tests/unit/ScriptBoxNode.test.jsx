@@ -84,7 +84,7 @@ vi.mock('../../src/components/base/useScriptBoxEngine.js', async (importOriginal
 // 引擎 hook：mock createScriptBoxEngine → 返回稳定引擎实例，验证真实注入链路
 vi.mock('../../src/components/base/scriptBoxEngine.js', () => ({ createScriptBoxEngine: () => h.engine }))
 vi.mock('../../src/components/base/settings/providerStore.js', () => ({ useProviders: () => ({ providers: [] }), useProvidersList: () => [], load: vi.fn(async () => {}) }))
-vi.mock('../../src/components/base/logger.js', () => ({ logger: { warn: vi.fn() } }))
+vi.mock('../../src/components/base/logger.ts', () => ({ logger: { warn: vi.fn() } }))
 vi.mock('../../src/components/base/hooks.js', () => ({ useOutsideClick: () => {}, useNodeResize: () => ({ onMainBoxResize: vi.fn() }), useContentHeightSync: () => {} }))
 // 上游输入接入 hook：mock 返回可控的 h.upstream（默认空），避免依赖 @xyflow/react 的 useStore
 vi.mock('../../src/components/base/useConnectedInputs.js', () => ({ useConnectedInputs: () => h.upstream }))

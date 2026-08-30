@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useRef } from 'react'
 import { Search, Filter, MoreVertical, Copy, Play, RotateCw, Trash2, X, RefreshCw, ChevronDown, Download, Image as ImageIcon } from 'lucide-react'
 import { useTasks, statusDotClass, statusLabel, typeLabel, removeTask, retryTask, clearTasksBy, clearAllTasks } from './taskStore.js'
-import { logger } from './logger.js'
+import { logger } from './logger.ts'
 import { downloadUrl } from './clipboard.js'
 import { pollOneTask } from './pollTask.js'
 import { showToast } from './toastStore.js'
@@ -9,7 +9,7 @@ import { makeAssetDragProps } from './useAssetDragToCanvas.js'
 import VideoThumbnail from './VideoThumbnail.jsx'
 import { useRenderImageResolver } from './imageUrl.js'
 import { useOutsideClick } from './hooks.js'
-import { formatTime, createImeInput } from './utils.js'
+import { formatTime, createImeInput } from './utils.ts'
 
 const TYPE_ICON = {
   image: ImageIcon,

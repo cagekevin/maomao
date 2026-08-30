@@ -17,7 +17,7 @@
  */
 
 import { normalizeImageUrlForSend, summarizeImages } from '../../base/imageUrl.js'
-import { logger } from '../../base/logger.js'
+import { logger } from '../../base/logger.ts'
 
 /**
  * 归一化附件数组（发送统一出口）：每条 { ...a, url } 经 normalizeImageUrlForSend。

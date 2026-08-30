@@ -26,7 +26,7 @@ import { API_BASE } from './config.js'
 import { getTasks, patchTask } from './taskStore.js'
 import { publishTaskCompleted } from './taskCompletionBus.js'
 import { extractResultUrl as extractResult } from './resultUrlExtractor.js'
-import { logger } from './logger.js'
+import { logger } from './logger.ts'
 
 // 轮询节流：单进程内两次全量扫描最小间隔（ms）
 const POLL_INTERVAL = 5000

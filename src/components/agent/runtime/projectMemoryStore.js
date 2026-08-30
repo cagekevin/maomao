@@ -17,9 +17,9 @@
  * 【脱敏】写入前统一脱敏密钥/凭据/绝对路径并截断，禁止文件全文/网页全文/临时结果进入长期记忆。
  */
 import { contentGetAsync, contentSetAsync, contentDeleteAsync } from '../../base/contentStore.js'
-import { withTimeout } from '../../base/asyncGuard.js'
+import { withTimeout } from '../../base/asyncGuard.ts'
 import { generateId } from '../../base/idGen.ts'
-import { logger } from '../../base/logger.js'
+import { logger } from '../../base/logger.ts'
 import { KV_TIMEOUT } from '../../base/config.js'
 
 /** 单条记忆正文长度上限 */

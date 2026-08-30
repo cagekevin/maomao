@@ -30,10 +30,10 @@
 import { API_BASE } from './config.js'
 import { setTaskPollId } from './taskStore.js'
 import { GEN_TIMEOUT, GEN_POLL_INTERVAL, VIDEO_TIMEOUT, VIDEO_POLL_INTERVAL, CHAT_TIMEOUT } from './config.js'
-import { withTimeout, isTimeoutError } from './asyncGuard.js'
+import { withTimeout, isTimeoutError } from './asyncGuard.ts'
 import { classifyError, timeoutMessage } from './genErrors.ts'
 import { GEN_ERRORS } from './contracts.js'
-import { logger } from './logger.js'
+import { logger } from './logger.ts'
 // 【出口回收】所有 /api/proxy 出口经统一 httpRequest（B5），不再裸写 fetch
 import { httpRequest } from './httpClient.js'
 // 可插拔协议适配器：统一 buildTargetUrl（openai 伪协议 / apimart base_url 拼装）

@@ -20,7 +20,7 @@
 import { FilesetResolver, FaceDetector } from '@mediapipe/tasks-vision'
 // 图片加载走系统统一入口（asyncGuard 已声明替代本文件的私有实现）：带超时 + crossOrigin + 可取消，
 // 超时值统一取 config 的 IMAGE_LOAD_TIMEOUT，不再自带第二套 20s。
-import { loadImageWithTimeout } from './asyncGuard.js'
+import { loadImageWithTimeout } from './asyncGuard.ts'
 import { IMAGE_LOAD_TIMEOUT } from './config.js'
 
 /** 解析静态资源路径：Chrome 扩展走 runtime.getURL，否则用相对路径（复刻官方 rl） */

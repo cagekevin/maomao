@@ -20,7 +20,7 @@
  */
 import { normalizeImageUrlsForSend } from './imageUrl.js'
 import { videoProxy } from './proxyGenerate.js'
-import { logger } from './logger.js'
+import { logger } from './logger.ts'
 
 /**
  * 文生视频 / 图生视频。

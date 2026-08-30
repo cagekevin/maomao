@@ -7,8 +7,8 @@ import {
 } from 'lucide-react'
 import ReactCrop, { centerCrop, makeAspectCrop } from 'react-image-crop'
 import 'react-image-crop/dist/ReactCrop.css'
-import { logger } from './logger.js'
-import { createRafBatch } from './utils.js'
+import { logger } from './logger.ts'
+import { createRafBatch } from './utils.ts'
 
 /**
  * 全屏图片编辑器（复刻官方 _Component129.jsx 图片编辑 / ImageNode 的「裁剪」「标记」入口）。

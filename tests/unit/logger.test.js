@@ -8,7 +8,7 @@ import { API_BASE } from '../../src/components/base/config.js'
 let log, logger
 beforeEach(async () => {
   vi.resetModules()
-  const mod = await import('../../src/components/base/logger.js')
+  const mod = await import('../../src/components/base/logger.ts')
   log = mod.log
   logger = mod.logger
 })
@@ -31,7 +31,7 @@ describe('config.js §API_BASE 日志与配置', () => {
       'proxyGenerate.js',
       'localToolApi.js',
       'filesApi.js',
-      'logger.js',
+      'logger.ts', // logger 已 TS 化（本清单读源码断言引用 config.js，路径后缀随改名同步）
     ]
     for (const f of apiFiles) {
       const src = readFileSync(`src/components/base/${f}`, 'utf8')

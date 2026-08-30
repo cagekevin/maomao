@@ -27,7 +27,7 @@
 import { getLocalKeys } from './contracts.js'
 import { contentGet, contentSet, contentGetAsync, contentSetAsync } from './contentStore.js'
 import { loadCanvasState, saveCanvasState } from './projectStore.js'
-import { logger } from './logger.js'
+import { logger } from './logger.ts'
 
 /** localStorage 备份清单 —— 由 contracts.js STORAGE_KEYS 权威登记生成（getLocalKeys()）。
  *  新增存储键先在 contracts.js 登记即自动进备份，禁止再手写清单（防漂移漏备份）。 */

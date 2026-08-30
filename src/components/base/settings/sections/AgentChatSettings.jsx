@@ -1,7 +1,7 @@
 import React from 'react'
 import { Bot, Check } from 'lucide-react'
 import { useProviders, load } from '../providerStore.js'
-import { logger } from '../../logger.js'
+import { logger } from '../../logger.ts'
 import { showToast } from '../../toastStore.js'
 import {
   loadAgentChatModel, saveAgentChatModel,

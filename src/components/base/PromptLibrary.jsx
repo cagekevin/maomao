@@ -8,7 +8,7 @@ import {
 } from './promptManager.js'
 import { showToast } from './toastStore.js'
 import { subscribe } from './eventBus.js'
-import { createImeInput } from './utils.js'
+import { createImeInput } from './utils.ts'
 
 /**
  * 提示词库大弹窗（复刻 maomao/src/components/prompts/PromptLibrary.jsx）。

@@ -1,6 +1,6 @@
 import React from 'react'
 import { AlertTriangle, RotateCcw } from 'lucide-react'
-import { logger } from './logger.js'
+import { logger } from './logger.ts'
 
 /**
  * 崩溃边界（Error Boundary）。

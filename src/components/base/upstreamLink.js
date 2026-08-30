@@ -18,7 +18,7 @@ import { useReactFlow } from '@xyflow/react'
 import { subscribe } from './eventBus.js'
 import { runNodeGeneration } from './taskStore.js'
 import { AUTO_TRIGGER_DOWNSTREAM } from './config.js'
-import { logger } from './logger.js'
+import { logger } from './logger.ts'
 
 /**
  * 订阅 `upstream:updated`，打开开关时自动触发直接下游。返回取消函数。

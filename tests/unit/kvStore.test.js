@@ -10,7 +10,7 @@ vi.mock('../../src/components/base/storageAdapter.js', () => ({
 
 // kvStore 内部 logger.warn 会 fire-and-forget 调 fetch(/api/logs)，
 // 为避免污染 fetch 断言，mock 掉 logger（属可 mock 的外部依赖/浏览器 API 封装）。
-vi.mock('../../src/components/base/logger.js', () => ({
+vi.mock('../../src/components/base/logger.ts', () => ({
   logger: {
     warn: vi.fn(),
     info: vi.fn(),
@@ -30,7 +30,7 @@ import {
   CANVAS_STATE_PREFIX,
 } from '../../src/components/base/kvStore.js'
 import { sGet, sSet, sRemove } from '../../src/components/base/storageAdapter.js'
-import { logger } from '../../src/components/base/logger.js'
+import { logger } from '../../src/components/base/logger.ts'
 
 const API_BASE = 'http://127.0.0.1:18080'
 

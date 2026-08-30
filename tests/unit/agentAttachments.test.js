@@ -17,13 +17,13 @@ vi.mock('../../src/components/base/imageUrl.js', () => ({
     return { count: list.length, urls: list.length - base64s, base64s }
   }),
 }))
-vi.mock('../../src/components/base/logger.js', () => ({
+vi.mock('../../src/components/base/logger.ts', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }))
 
 const { normalizeAttachmentsForSend, buildRefCatalog } = await import('../../src/components/agent/runtime/agentAttachments.js')
 const { normalizeImageUrlForSend, summarizeImages } = await import('../../src/components/base/imageUrl.js')
-const { logger } = await import('../../src/components/base/logger.js')
+const { logger } = await import('../../src/components/base/logger.ts')
 
 describe('normalizeAttachmentsForSend — 附件统一归一出口', () => {
   it('每条附件经 normalizeImageUrlForSend，保留其它字段', async () => {

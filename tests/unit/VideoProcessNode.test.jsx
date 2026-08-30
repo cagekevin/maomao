@@ -20,7 +20,7 @@ vi.mock('../../src/components/base/useMediaDegrade.js', () => ({ useMediaDegrade
 vi.mock('../../src/components/base/hooks.js', () => ({ useNodeResize: mocks.useNodeResize, useContentHeightSync: mocks.useContentHeightSync, useOutsideClick: mocks.useOutsideClick }))
 vi.mock('../../src/components/base/toastStore.js', () => ({ showToast: mocks.showToast, toastError: mocks.toastError, toastWarning: mocks.toastWarning }))
 vi.mock('../../src/components/base/eventBus.js', () => ({ publish: mocks.publish }))
-vi.mock('../../src/components/base/asyncGuard.js', () => ({ withTimeout: mocks.withTimeout, isTimeoutError: mocks.isTimeoutError }))
+vi.mock('../../src/components/base/asyncGuard.ts', () => ({ withTimeout: mocks.withTimeout, isTimeoutError: mocks.isTimeoutError }))
 vi.mock('../../src/components/base/videoEngine.js', () => ({ readVideoMetadata: mocks.readVideoMetadata, processVideo: mocks.processVideo, concatVideos: mocks.concatVideos, videoToGif: mocks.videoToGif, formatBytes: mocks.formatBytes, uploadResult: mocks.uploadResult, ProgressController: mocks.ProgressController, ConversionCanceled: mocks.ConversionCanceled }))
 // preserve 其余 httpClient 导出（deriveNodes 等依赖），仅把 network 请求 stub 成拒绝
 vi.mock('../../src/components/base/httpClient.js', async (importOriginal) => {

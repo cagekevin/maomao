@@ -46,7 +46,7 @@
  */
 import { isChromeExtension, KEY_PREFIX } from './storageAdapter.js'
 import { STORAGE_KEYS } from './contracts.js'
-import { compilePatternRegex } from './utils.js'
+import { compilePatternRegex } from './utils.ts'
 
 /** 配额受压预警阈值：用量比例 ≥ 此值时视为「即将用尽」（对齐文档 STORAGE_PRESSURE_RATIO） */
 export const STORAGE_PRESSURE_RATIO = 0.85

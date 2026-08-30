@@ -13,11 +13,11 @@
  * 复制「链接」用 copyText 即可。
  */
 
-import { logger } from './logger.js'
+import { logger } from './logger.ts'
 import { httpRequest } from './httpClient.js'
 import { DOWNLOAD_TIMEOUT } from './config.js'
 import { generateId } from './idGen.ts'
-import { deepClone } from './utils.js'
+import { deepClone } from './utils.ts'
 
 /**
  * 粘贴文本清洗（纯文本化）：把从剪贴板/富文本带过来的「样式与格式残留」全部丢弃，只留干净纯文本。

@@ -25,7 +25,7 @@ import { getActivePendingMemorySuggest, setActivePendingMemorySuggest } from '..
 import { PROJECT_MEMORY_KINDS, sanitizeMemoryContent } from '../runtime/projectMemoryStore.js'
 import { contentGet, contentSet } from '../../base/contentStore.js'
 import { generateId } from '../../base/idGen.ts'
-import { logger } from '../../base/logger.js'
+import { logger } from '../../base/logger.ts'
 import { publish } from '../../base/eventBus.js'
 import { CREDIT_SWITCH_KEY, CREDIT_GATE_EVENT } from '../../base/contracts.js'
 

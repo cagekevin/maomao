@@ -14,7 +14,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 // 用真实 kvStore 与真实 storageAdapter；只替换最小外部依赖（fetch 可控、logger 静默）
-vi.mock('../../src/components/base/logger.js', () => ({
+vi.mock('../../src/components/base/logger.ts', () => ({
   logger: { warn: vi.fn(), info: vi.fn(), error: vi.fn(), log: vi.fn(), debug: vi.fn() },
 }))
 
@@ -24,7 +24,7 @@ vi.mock('../../src/components/base/logger.js', () => ({
 import { storageSet } from '../../src/components/base/kvStore.js'
 import { publish, subscribe, clearEvent } from '../../src/components/base/eventBus.js'
 import { CANVAS_STATE_PREFIX } from '../../src/components/base/kvStore.js'
-import { logger } from '../../src/components/base/logger.js'
+import { logger } from '../../src/components/base/logger.ts'
 
 // 真实 storageAdapter：让 localStorage.setItem 可注入异常/可恢复
 // 方法：beforeEach 里 stub localStorage.setItem，验证失败时 reportPersistFailure 发事件
