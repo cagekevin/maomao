@@ -9,7 +9,7 @@
  */
 import { useSyncExternalStore } from 'react'
 import { useStoreSelector } from '../useStoreSelector.js'
-import { providerApi } from '../localToolApi.js'
+import { providerApi } from '../localToolApi.ts'
 import { contentSetAsync } from '../contentStore.js'
 import { generateId } from '../idGen.ts'
 import { logger } from '../logger.ts'

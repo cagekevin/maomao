@@ -19,7 +19,7 @@ if (!globalThis.crypto?.subtle) {
 
 const fetchMock = globalThis.fetch
 
-const api = await import('../../src/components/base/filesApi.js')
+const api = await import('../../src/components/base/filesApi.ts')
 
 function uploadResp(url) {
   return { ok: true, status: 200, json: async () => ({ code: 0, data: { url } }) }

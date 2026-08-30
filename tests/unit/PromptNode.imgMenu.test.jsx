@@ -89,11 +89,11 @@ vi.mock('../../src/components/base/useConnectedInputs.js', () => ({ useConnected
 vi.mock('../../src/components/base/useMediaDegrade.js', () => ({ useMediaDegrade: () => ({ isHidden: () => false }) }))
 vi.mock('../../src/components/base/nodePrefs.ts', () => ({ useNodePrefs: () => ({ prefs: {}, set: vi.fn() }) }))
 vi.mock('../../src/components/base/useSyncNodeData.js', () => ({ useSyncNodeData: () => {} }))
-vi.mock('../../src/components/base/filesApi.js', () => ({ toAbsoluteFileUrl: (x) => x, saveResultToTasks: vi.fn(async () => undefined) }))
+vi.mock('../../src/components/base/filesApi.ts', () => ({ toAbsoluteFileUrl: (x) => x, saveResultToTasks: vi.fn(async () => undefined) }))
 
 const mockFetchTasks = vi.fn(async () => ({ data: { items: [] } }))
 vi.mock('../../src/components/base/settings/providerStore.js', () => ({ useProviders: () => ({ providers: [] }), load: vi.fn(() => Promise.resolve()) }))
-vi.mock('../../src/components/base/localToolApi.js', () => ({ fetchTasks: (...a) => mockFetchTasks(...a) }))
+vi.mock('../../src/components/base/localToolApi.ts', () => ({ fetchTasks: (...a) => mockFetchTasks(...a) }))
 const mockGenerateImage = vi.fn(async () => ({ url: 'http://gen.local/img.png' }))
 vi.mock('../../src/components/base/imageApi.ts', () => ({ generateImage: (...a) => mockGenerateImage(...a) }))
 vi.mock('../../src/components/base/providerModels.js', () => ({ buildAllModels: vi.fn(() => []), resolveProviderModel: vi.fn(() => ({ provider: {}, modelId: 'm' })) }))

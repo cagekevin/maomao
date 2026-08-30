@@ -14,7 +14,7 @@ import ImageZoomDialog from '../base/ImageZoomDialog.jsx'
 import { showToast, toastError, toastWarning } from '../base/toastStore.ts'
 import { loadImageWithTimeout } from '../base/asyncGuard.ts'
 import { generateId } from '../base/idGen.ts'
-import { downloadUrl as clipboardDownload } from '../base/clipboard.js'
+import { downloadUrl as clipboardDownload } from '../base/clipboard.ts'
 
 import { useRenderImageResolver, fileToDataUrl } from '../base/imageUrl.ts'
 

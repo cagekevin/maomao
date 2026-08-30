@@ -5,7 +5,7 @@ import {
   Box, Eye, EyeOff, Lock, Unlock, Brush, Trash2,
   ChevronsUp, ChevronUp, ChevronDown, ChevronsDown, Maximize, X
 } from 'lucide-react'
-import { toAbsoluteFileUrl } from './filesApi.js'
+import { toAbsoluteFileUrl } from './filesApi.ts'
 
 /* ════════════════════════════════════════════════════════════════
  * 叠加图层编辑器（复刻官方 Uo.jsx，图片拼图 overlay 模式）

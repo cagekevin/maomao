@@ -23,7 +23,7 @@ vi.mock('../../src/components/base/taskStore.js', () => ({
   claimNodeRun: () => ({ ok: true }),
   releaseNodeRun: vi.fn()
 }))
-vi.mock('../../src/components/base/filesApi.js', () => ({ saveResultToTasks: saveResultToTasksMock }))
+vi.mock('../../src/components/base/filesApi.ts', () => ({ saveResultToTasks: saveResultToTasksMock }))
 vi.mock('../../src/components/base/degrade.js', () => ({ reportDegrade: reportDegradeMock }))
 vi.mock('../../src/components/base/eventBus.ts', () => ({
   subscribe: (evt, cb) => { busState.handler = cb; return () => {} }

@@ -20,7 +20,7 @@ const h = vi.hoisted(() => ({
   mockKvSet: vi.fn(),
 }))
 
-vi.mock('../../src/components/base/localToolApi.js', () => ({
+vi.mock('../../src/components/base/localToolApi.ts', () => ({
   providerApi: {
     getProviders: (...a) => h.mockGetProviders(...a),
     testConnection: (...a) => h.mockTestConnection(...a),

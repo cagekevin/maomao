@@ -21,7 +21,7 @@ import { HTTP_DEFAULT_TIMEOUT } from './config.js'
 export interface HttpRequestOptions {
   method?: string
   headers?: Record<string, string>
-  body?: string
+  body?: string | FormData | undefined
   /** 外部取消信号（组件生命周期） */
   signal?: AbortSignal
   /** 超时毫秒，默认 15000；<=0 禁用超时 */

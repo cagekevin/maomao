@@ -13,7 +13,7 @@ vi.mock('../../src/components/base/kvStore.ts', () => ({
   kvSet: vi.fn(async (k, v) => { mem.set(k, v) }),
   CANVAS_STATE_PREFIX: 'canvas-state-v1-',
 }))
-vi.mock('../../src/components/base/localToolApi.js', () => ({
+vi.mock('../../src/components/base/localToolApi.ts', () => ({
   fetchProjects: vi.fn(async () => ({ data: { ...projectsPayload } })),
   saveProjects: vi.fn(async () => ({ ok: true })),
 }))

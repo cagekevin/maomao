@@ -107,7 +107,7 @@ vi.mock('../../src/components/base/nodePrefs.ts', () => ({
 vi.mock('../../src/components/base/settings/providerStore.js', () => ({ useProviders: () => ({ providers: [] }), load: vi.fn(async () => {}) }))
 vi.mock('../../src/components/base/providerModels.js', () => ({ buildAllModels: () => [], resolveProviderModel: () => ({ provider: {}, modelId: 'm' }) }))
 vi.mock('../../src/components/base/logger.ts', () => ({ logger: { info: (...a) => h.loggerInfo(...a), warn: () => {} } }))
-vi.mock('../../src/components/base/clipboard.js', async (importOriginal) => {
+vi.mock('../../src/components/base/clipboard.ts', async (importOriginal) => {
   const actual = await importOriginal()
   return { ...actual, downloadUrl: (...a) => h.downloadUrl(...a) }
 })

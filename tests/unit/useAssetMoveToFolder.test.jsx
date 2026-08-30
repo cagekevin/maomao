@@ -13,7 +13,7 @@ const mocks = vi.hoisted(() => ({
   publish: vi.fn(),
 }))
 
-vi.mock('../../src/components/base/localToolApi.js', async (importOriginal) => {
+vi.mock('../../src/components/base/localToolApi.ts', async (importOriginal) => {
   const actual = await importOriginal()
   return { ...actual, moveFile: mocks.moveFile }
 })

@@ -47,7 +47,7 @@ vi.mock('../../src/components/base/NodeShell.jsx', () => ({ default: mocks.NodeS
 vi.mock('../../src/components/base/HoverToolbar.jsx', () => ({ default: mocks.HoverToolbar }))
 vi.mock('../../src/components/base/useConnectedInputs.js', () => ({ useConnectedInputs: mocks.useConnectedInputs }))
 vi.mock('../../src/components/base/useMediaDegrade.js', () => ({ useMediaDegrade: mocks.useMediaDegrade }))
-vi.mock('../../src/components/base/filesApi.js', () => ({
+vi.mock('../../src/components/base/filesApi.ts', () => ({
   uploadFileToLocal: (...a) => h.uploadMock(...a),
   toAbsoluteFileUrl: (u) => `ABS:${u}`,
 }))

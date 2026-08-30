@@ -45,7 +45,7 @@ const UPLOAD_OPTS = { timeoutMs: UPLOAD_TIMEOUT, retries: 0 }
 // 此处 re-export 兼容既有引用，逻辑单一来源在 imageUrl.js。
 
 // 类型 → 扩展名（生成面板按扩展名分类展示）
-const EXT_BY_TYPE = {
+const EXT_BY_TYPE: Record<string, string> = {
   image: 'png',
   text: 'txt',
   video: 'mp4',
@@ -53,7 +53,7 @@ const EXT_BY_TYPE = {
 }
 
 /** 文件名去非法字符 + 可读时间戳唯一化（到秒，如 20250815_142305） */
-function safeName(base, ext) {
+function safeName(base: string, ext: string): string {
   const clean = safeFileName(base, { fallback: 'result' })
   return `${clean}_${formatTime(undefined, { mode: 'file' })}.${ext}`
 }
@@ -68,7 +68,7 @@ function safeName(base, ext) {
  * @param {string} [subfolder] 落盘子目录，默认 canvas（与官方 base64Externalize 一致）
  * @returns {Promise<string|null>} 落盘 URL；失败返回 null
  */
-export async function saveInlineToLocal(dataUrl, subfolder = UPLOAD_DIRS.canvas) {
+export async function saveInlineToLocal(dataUrl: string, subfolder: string = UPLOAD_DIRS.canvas): Promise<string | null> {
   if (!dataUrl || !dataUrl.startsWith('data:')) return null
   try {
     const blob = dataUrlToBlob(dataUrl)
@@ -97,12 +97,12 @@ export async function saveInlineToLocal(dataUrl, subfolder = UPLOAD_DIRS.canvas)
  * @param {string} [filename] 可选自定义文件名（默认用 file.name）
  * @returns {Promise<string|null>}
  */
-export async function uploadFileToLocal(file, subfolder = UPLOAD_DIRS.canvasDrop, filename) {
+export async function uploadFileToLocal(file: File | Blob | null, subfolder: string = UPLOAD_DIRS.canvasDrop, filename?: string): Promise<string | null> {
   if (!file) return null
-  logger.debug('filesApi', '[UPLOAD] 准备 multipart 上传', { subfolder, name: filename || file.name, size: file.size, type: file.type }, { module: 'asset' })
+  logger.debug('filesApi', '[UPLOAD] 准备 multipart 上传', { subfolder, name: filename || (file as File).name, size: file.size, type: file.type }, { module: 'asset' })
   try {
     const fd = new FormData()
-    fd.append('file', file, filename || file.name || 'upload')
+    fd.append('file', file, filename || (file as File).name || 'upload')
     fd.append('subfolder', subfolder)
     const data = await httpRequest(`${API_BASE}/api/files/upload`, { method: 'POST', body: fd, ...UPLOAD_OPTS })
     logger.debug('filesApi', '[UPLOAD] 完成', { url: data?.data?.url, subfolder }, { module: 'asset' })
@@ -123,7 +123,7 @@ export async function uploadFileToLocal(file, subfolder = UPLOAD_DIRS.canvasDrop
  * @param {object} [opts] { folder='canvas' 落盘子目录, filename 可选文件名（默认取 URL basename） }
  * @returns {Promise<string|null>} 本地化 URL（http://127.0.0.1:18080/files/<folder>/<name>）；失败返回 null（调用方降级保持原 URL）
  */
-export async function downloadRemoteToLocal(url, { folder = UPLOAD_DIRS.canvas, filename } = {}) {
+export async function downloadRemoteToLocal(url: string, { folder = UPLOAD_DIRS.canvas, filename }: { folder?: string; filename?: string } = {}): Promise<string | null> {
   // 【本地图拦截】URL 已指向本机 uploads（/files/... 或 API_BASE/files/...）→ 本就落盘，无需再下载。
   // 背景：素材拖到画布时若没带 application/x-yimao-asset，画布会把它当「网页图」走本地化，
   // 后端便把 127.0.0.1 的文件重新下载一份存进 web 目录 → uploads/web 出现重复文件。
@@ -145,7 +145,7 @@ export async function downloadRemoteToLocal(url, { folder = UPLOAD_DIRS.canvas, 
  * @param {string} [filename] 可选文件名
  * @returns {Promise<string|null>} 本地 /files/ URL；失败返回 null（不抛，调用方降级）
  */
-async function uploadRemoteUrl(fileUrl, subfolder, filename) {
+async function uploadRemoteUrl(fileUrl: string, subfolder: string, filename?: string): Promise<string | null> {
   try {
     const data = await httpRequest(`${API_BASE}/api/files/upload`, {
       method: 'POST',
@@ -161,16 +161,16 @@ async function uploadRemoteUrl(fileUrl, subfolder, filename) {
 }
 
 /** data: URL → 扩展名（不带点），按 mime 推导 */
-function extFromMime(dataUrl) {
+function extFromMime(dataUrl: string): string | null {
   const m = /^data:([^;,]+)/.exec(dataUrl)?.[1]
   if (!m) return null
   const subtype = m.split('/')[1]?.toLowerCase()
-  const map = { jpeg: 'jpg', 'svg+xml': 'svg', 'quicktime': 'mov' }
+  const map: Record<string, string> = { jpeg: 'jpg', 'svg+xml': 'svg', 'quicktime': 'mov' }
   return map[subtype] || subtype || null
 }
 
 /** blob → sha1 十六进制（Web Crypto），供幂等去重；失败返回空串 */
-async function sha1Hex(blob) {
+async function sha1Hex(blob: Blob): Promise<string> {
   try {
     const buf = await blob.arrayBuffer()
     const digest = await crypto.subtle.digest('SHA-1', buf)
@@ -186,7 +186,7 @@ async function sha1Hex(blob) {
  * @param {'image'|'text'|'video'|'audio'|string} type 结果类型，决定扩展名
  * @returns {Promise<string|null>} 落盘后的 url（http://127.0.0.1:18080/files/tasks/xxx.png）；失败返回 null（不抛，不影响主流程）
  */
-export async function saveResultToTasks(url, type) {
+export async function saveResultToTasks(url: string, type: string): Promise<string | null> {
   if (!url || url.startsWith('blob:')) return null // blob: 是本地临时地址，上传无意义（调用方应传 data:/http）
   const ext = EXT_BY_TYPE[type] || 'bin'
 
@@ -217,7 +217,7 @@ export async function saveResultToTasks(url, type) {
  * @param {string} [name] 文件名前缀（默认 generated）
  * @returns {Promise<string|null>} 落盘后的 18080 url；失败返回 null（不抛，不影响主流程）
  */
-export async function saveTextToTasks(text, name) {
+export async function saveTextToTasks(text: string, name?: string): Promise<string | null> {
   if (typeof text !== 'string' || !text.trim()) return null
   // 文件名清洗统一走 safeFileName（收口，勿再手写 replace 样板）：与旧手写逻辑逐字节等价（sep='_' + fallback）
   const safeBase = safeFileName(name, { fallback: 'generated' })

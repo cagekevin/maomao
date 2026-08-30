@@ -16,7 +16,7 @@ vi.mock('../../src/components/base/useConnectedInputs.js', () => ({ useConnected
 vi.mock('../../src/components/base/useMediaDegrade.js', () => ({ useMediaDegrade: mocks.useMediaDegrade }))
 vi.mock('../../src/components/base/hooks.js', () => ({ useNodeResize: mocks.useNodeResize, useContentHeightSync: mocks.useContentHeightSync }))
 vi.mock('../../src/components/base/toastStore.ts', () => ({ showToast: mocks.showToast }))
-vi.mock('../../src/components/base/filesApi.js', () => ({ toAbsoluteFileUrl: mocks.toAbsoluteFileUrl }))
+vi.mock('../../src/components/base/filesApi.ts', () => ({ toAbsoluteFileUrl: mocks.toAbsoluteFileUrl }))
 
 import GridMergeNode from '../../src/components/nodes/GridMergeNode.jsx'
 beforeEach(() => { mocks.resetNodeMockState() })

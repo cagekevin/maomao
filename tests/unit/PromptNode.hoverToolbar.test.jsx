@@ -45,12 +45,12 @@ vi.mock('../../src/components/base/hooks.js', () => ({ useNodeResize: () => ({ o
 vi.mock('../../src/components/base/useConnectedInputs.js', () => ({ useConnectedInputs: () => ({}) }))
 vi.mock('../../src/components/base/useMediaDegrade.js', () => ({ useMediaDegrade: () => ({ isHidden: () => false }) }))
 vi.mock('../../src/components/base/nodePrefs.ts', () => ({ useNodePrefs: () => ({ prefs: {}, set: vi.fn() }) }))
-vi.mock('../../src/components/base/filesApi.js', () => ({ toAbsoluteFileUrl: (x) => x, saveResultToTasks: vi.fn(async () => undefined) }))
+vi.mock('../../src/components/base/filesApi.ts', () => ({ toAbsoluteFileUrl: (x) => x, saveResultToTasks: vi.fn(async () => undefined) }))
 vi.mock('../../src/components/base/settings/providerStore.js', () => ({ useProviders: () => ({ providers: [] }), load: vi.fn(() => Promise.resolve()) }))
-vi.mock('../../src/components/base/localToolApi.js', () => ({ fetchTasks: vi.fn(async () => ({ items: [] })) }))
+vi.mock('../../src/components/base/localToolApi.ts', () => ({ fetchTasks: vi.fn(async () => ({ items: [] })) }))
 vi.mock('../../src/components/base/imageApi.ts', () => ({ generateImage: vi.fn(async () => ({ url: 'http://gen.local/img.png' })) }))
 vi.mock('../../src/components/base/providerModels.js', () => ({ buildAllModels: vi.fn(() => []), resolveProviderModel: vi.fn(() => ({ provider: {}, modelId: 'm' })) }))
-vi.mock('../../src/components/base/clipboard.js', async (importOriginal) => {
+vi.mock('../../src/components/base/clipboard.ts', async (importOriginal) => {
   const actual = await importOriginal()
   return { ...actual, downloadUrl: vi.fn() }
 })

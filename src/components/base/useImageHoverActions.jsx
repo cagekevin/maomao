@@ -4,7 +4,7 @@ import ImageEditor from './ImageEditor.jsx'
 import InlineImageCropper from './InlineImageCropper.jsx'
 import { compressImage } from './imageCompress.ts'
 import { upscaleImage } from './imageUpscale.ts'
-import { saveInlineToLocal } from './filesApi.js'
+import { saveInlineToLocal } from './filesApi.ts'
 import { showToast, toastError } from './toastStore.ts'
 
 /**

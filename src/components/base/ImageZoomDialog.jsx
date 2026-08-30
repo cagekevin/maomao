@@ -19,7 +19,7 @@
  */
 import { forwardRef, useState, useRef, useCallback, useEffect } from 'react'
 import { toAbsoluteFileUrl } from './imageUrl.ts'
-import { copyImageToClipboard, downloadUrl } from './clipboard.js'
+import { copyImageToClipboard, downloadUrl } from './clipboard.ts'
 import { createRafBatch } from './utils.ts'
 
 const ImageZoomDialog = forwardRef(function ImageZoomDialog({ url, kind = 'image' }, ref) {

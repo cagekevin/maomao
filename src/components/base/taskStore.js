@@ -20,7 +20,7 @@
 import { useSyncExternalStore } from 'react'
 import { logger } from './logger.ts'
 import { createDebouncedPersist } from './contentStore.js'
-import { fetchTasks, saveTask, deleteTask, batchDeleteTasks, clearAllTasksApi } from './localToolApi.js'
+import { fetchTasks, saveTask, deleteTask, batchDeleteTasks, clearAllTasksApi } from './localToolApi.ts'
 import { publishTaskCompleted } from './taskCompletionBus.js'
 import { generateId } from './idGen.ts'
 import { GEN_MAX_CONCURRENT } from './config.js'

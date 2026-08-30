@@ -9,7 +9,7 @@ import { jsonResp } from './_testUtils.mjs'
 
 const fetchMock = globalThis.fetch
 
-const api = await import('../../src/components/base/localToolApi.js')
+const api = await import('../../src/components/base/localToolApi.ts')
 
 beforeEach(() => fetchMock.mockReset())
 afterEach(() => vi.unstubAllGlobals())

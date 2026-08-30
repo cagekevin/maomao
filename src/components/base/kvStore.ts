@@ -18,7 +18,7 @@
  *  - 错误体 { error: "<英文message>" }
  */
 import { sGet, sSet, sRemove } from './storageAdapter.ts'
-import { kvGet, kvSet, kvDelete } from './localToolApi.js'
+import { kvGet, kvSet, kvDelete } from './localToolApi.ts'
 import { reportDegrade } from './degrade.js'
 import { CANVAS_STATE_PREFIX, STORAGE_KEYS } from './contracts.js' // 单一来源：画布 KV 前缀与后端判定统一在契约层
 import { compilePatternRegex } from './utils.ts'

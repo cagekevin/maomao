@@ -19,6 +19,9 @@ import { DOWNLOAD_TIMEOUT } from './config.js'
 import { generateId } from './idGen.ts'
 import { deepClone } from './utils.ts'
 
+/** 剪贴板操作统一返回信封：{ ok, msg }，调用方负责 toast。 */
+type ClipResult = { ok: boolean; msg: string }
+
 /**
  * 粘贴文本清洗（纯文本化）：把从剪贴板/富文本带过来的「样式与格式残留」全部丢弃，只留干净纯文本。
  * 覆盖场景：粘贴网页/表格/Word 内容时常见的一类脏字符与格式。
@@ -30,7 +33,7 @@ import { deepClone } from './utils.ts'
  * @param {string} raw 原始文本
  * @returns {string} 清洗后的纯文本
  */
-export function sanitizePastedText(raw) {
+export function sanitizePastedText(raw: string): string {
   if (!raw) return ''
   return String(raw)
     // 去零宽 / 软连字符 / BOM / LRM / RLM 等不可见字符
@@ -52,7 +55,7 @@ export function sanitizePastedText(raw) {
 }
 
 /** 把图片 URL 复制成 image/png 到剪贴板。返回 { ok, msg }，调用方负责 toast。 */
-export async function copyImageToClipboard(url) {
+export async function copyImageToClipboard(url: string): Promise<ClipResult> {
   if (!url) return { ok: false, msg: '没有图片可复制' }
   try {
     // 画布绘制 → toBlob PNG → 写剪贴板（对齐官方 Ei:10049-10079）
@@ -66,7 +69,7 @@ export async function copyImageToClipboard(url) {
     const ctx = canvas.getContext('2d')
     if (!ctx) throw new Error('Could not get canvas context')
     ctx.drawImage(img, 0, 0)
-    const blob = await new Promise((r) => canvas.toBlob(r, 'image/png'))
+    const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, 'image/png'))
     if (!blob) throw new Error('Could not get blob')
     await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
     return { ok: true, msg: '图片已复制，可在画布或其它软件中粘贴' }
@@ -94,7 +97,10 @@ export async function copyImageToClipboard(url) {
  *   非 mutiwindow-nodes 格式 / 空节点 → null；否则返回重建后的 nodes（新节点 selected:true、
  *   旧节点 selected:false）与 edges（id 已重映射）。
  */
-export function buildNodesFromClipboard(jsonStr, pos) {
+export function buildNodesFromClipboard(
+  jsonStr: string,
+  pos: { x: number; y: number },
+): { nodes: any[]; edges: any[]; count: number } | null {
   let t
   try {
     t = JSON.parse(jsonStr)
@@ -131,7 +137,7 @@ export function buildNodesFromClipboard(jsonStr, pos) {
 }
 
 /** 复制纯文本到剪贴板。返回 { ok, msg }。 */
-export async function copyText(text) {
+export async function copyText(text: string): Promise<ClipResult> {
   try {
     await navigator.clipboard.writeText(text || '')
     return { ok: true, msg: '已复制' }
@@ -141,7 +147,7 @@ export async function copyText(text) {
 }
 
 /** 下载已有 Blob（a.download）。返回 { ok, msg }。所有 a.download 下载统一走这里。 */
-export async function downloadBlob(blob, filename) {
+export async function downloadBlob(blob: Blob | null, filename?: string): Promise<ClipResult> {
   if (!blob) return { ok: false, msg: '没有可下载的内容' }
   try {
     const objUrl = URL.createObjectURL(blob)
@@ -160,7 +166,7 @@ export async function downloadBlob(blob, filename) {
 }
 
 /** 下载文件（fetch blob → a.download）。返回 { ok, msg }。 */
-export async function downloadUrl(url, filename) {
+export async function downloadUrl(url: string, filename?: string): Promise<ClipResult> {
   if (!url) return { ok: false, msg: '没有可下载的内容' }
   try {
     const res = await httpRequest(url, { timeoutMs: DOWNLOAD_TIMEOUT, retries: 0, parseJson: false })
@@ -181,7 +187,7 @@ export async function downloadUrl(url, filename) {
  * @param {string} url 下载源 URL（必须非空）
  * @param {{ext?:string, fallback?:string}} [opts] 默认扩展名与兜底文件名
  */
-export function resolveDownloadFilename(label, url, { ext = 'png', fallback = 'generated.png' } = {}) {
+export function resolveDownloadFilename(label: string, url: string, { ext = 'png', fallback = 'generated.png' }: { ext?: string; fallback?: string } = {}): string {
   let filename = label || ''
   try {
     const fromUrl = decodeURIComponent(new URL(url).pathname.split('/').pop() || '')

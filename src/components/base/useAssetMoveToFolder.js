@@ -1,5 +1,5 @@
 import { useCallback } from 'react'
-import { moveFile, canMoveAsset, resolveMovePaths } from './localToolApi.js'
+import { moveFile, canMoveAsset, resolveMovePaths } from './localToolApi.ts'
 import { toAbsoluteFileUrl } from './imageUrl.ts'
 import { publish } from './eventBus.ts'
 import { showToast } from './toastStore.ts'

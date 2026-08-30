@@ -23,7 +23,7 @@ import { renderHook, act } from '@testing-library/react'
 
 const uploadMock = vi.fn(async (file) => 'http://local/' + (file?.name || 'drag'))
 const downloadRemoteMock = vi.fn(async () => null)
-vi.mock('../../src/components/base/filesApi.js', () => ({
+vi.mock('../../src/components/base/filesApi.ts', () => ({
   uploadFileToLocal: (...a) => uploadMock(...a),
   downloadRemoteToLocal: (...a) => downloadRemoteMock(...a),
   WEB_DROP_SUBFOLDER: 'web',

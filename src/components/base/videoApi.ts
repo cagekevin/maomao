@@ -19,7 +19,7 @@
  * 链路，并在模块内部自行处理 AbortSignal。禁止把它迁移到 httpClient.js。
  */
 import { normalizeImageUrlsForSend } from './imageUrl.ts'
-import { videoProxy } from './proxyGenerate.js'
+import { videoProxy } from './proxyGenerate.ts'
 import { logger } from './logger.ts'
 import type { GenerationProvider, GenerationResult } from '@/types'
 

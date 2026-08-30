@@ -25,7 +25,7 @@ vi.mock('../../src/components/base/httpClient.ts', async (importOriginal) => {
   }
 })
 
-const { chatProxy, imageProxy } = await import('../../src/components/base/proxyGenerate.js')
+const { chatProxy, imageProxy } = await import('../../src/components/base/proxyGenerate.ts')
 const { roundTrip } = await import('../../src/components/agent/runtime/agentRuntime.js')
 
 const provider = {

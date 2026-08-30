@@ -41,20 +41,33 @@ import { buildTargetUrl } from './providerProtocols.ts'
 // 统一 envelope/URL 解析器（P1-B φ2）：readSseUrl / 轮询提取全部委托之（唯一实现）
 import { extractResultUrl } from './resultUrlExtractor.ts'
 import { imageModePath, isResponsesMode, parseResponsesJson, resolveChatMode, parseResponsesChatJson } from './requestModes.ts'
+import type { GenerationProvider, GenerationResult } from '@/types'
 
 // ── 内部共享原语（调用方不可见）──────────────────────────────────────
 
+/** 进度回调（percent 0-100 + 阶段文案） */
+type ProgressFn = (percent: number, message?: string) => void
+
+/** 发往 /api/proxy 的负载输入（provider/target/body/taskId 共用形状） */
+interface ProxyPayloadInput {
+  provider?: GenerationProvider
+  target: string
+  method?: string
+  body?: unknown
+  taskId?: string
+}
+
 /** 统一响应信封（生成类）：成功 {ok:true, url}，失败 {ok:false, error}。 */
-function ok(url) { return { ok: true, url } }
-function fail(error) { return { ok: false, error } }
+function ok(url: string): GenerationResult { return { ok: true, url } }
+function fail(error: string): GenerationResult { return { ok: false, error } }
 
 /**
  * 组装发往 /api/proxy 的负载（url/method/body + providerId + 贯穿 task_id）。
  * 供 __proxyFetch 与 chatProxy 共享（chat 需要原始 Response 决定信封，故拆出）。
  * 【P0-A request-context】taskId 以请求级入参贯穿，禁止回退全局单例（原 currentTaskId 已删）。
  */
-function __buildProxyPayload({ provider, target, method = 'POST', body, taskId }) {
-  const payload = { url: target, method }
+function __buildProxyPayload({ provider, target, method = 'POST', body, taskId }: ProxyPayloadInput): Record<string, unknown> {
+  const payload: Record<string, unknown> = { url: target, method }
   if (body !== undefined) payload.body = JSON.stringify(body)
   if (provider?.id) payload.providerId = provider.id
   // 贯穿链路：把前端 task_id 带给 localTool/网关，关联 Lovart thread_id（见 taskStore 注释）
@@ -69,7 +82,7 @@ function __buildProxyPayload({ provider, target, method = 'POST', body, taskId }
  * @param {object} provider
  * @param {AbortSignal} [signal]
  */
-async function __proxyFetch({ provider, target, method = 'POST', body, taskId }, signal) {
+async function __proxyFetch({ provider, target, method = 'POST', body, taskId }: ProxyPayloadInput, signal?: AbortSignal): Promise<Response> {
   // 【B层】生图/视频/聊天 → 本地代理的真实请求发出：目标 + 方法 + body 摘要（定位请求是否发出/发到哪）
   logger.debug('生图', '[请求] 发出', { target, method, bodyHead: body && typeof body === 'object' ? JSON.stringify(body).slice(0, 120) : String(body).slice(0, 120), taskId }, { module: 'image' })
   const payload = __buildProxyPayload({ provider, target, method, body, taskId })
@@ -104,14 +117,14 @@ async function __proxyFetch({ provider, target, method = 'POST', body, taskId },
  * 从 SSE 响应流中提取第一个成功 url（兼容 {results[].url} 与 {result.images[].url}）。
  * 上游 progress(0-100) 归一化映射到 [30,90]（避免覆盖阶段基准），单调递增兜底保证进度只进不退。
  */
-async function readSseUrl(res, onProgress, signal) {
+async function readSseUrl(res: Response, onProgress: ProgressFn | undefined, signal?: AbortSignal): Promise<string> {
   const reader = res.body.getReader()
   const decoder = new TextDecoder('utf-8')
   let buffer = ''
   let urlFound = ''
   let reached = 0
   let _sseBytes = 0 // 【B层】累计收到的 SSE 字节数（定位流式是否缓冲/断流）
-  const stageProgress = (p) => {
+  const stageProgress = (p: number) => {
     const mapped = 30 + Math.round(Math.min(100, Math.max(0, p || 0)) * 0.6)
     if (mapped > reached) reached = mapped
     onProgress?.(reached, '上游生成中…')
@@ -149,11 +162,22 @@ async function readSseUrl(res, onProgress, signal) {
   return urlFound
 }
 
+/** 异步轮询引擎入参（image/video 共用，仅 extractUrl 参数化差） */
+interface PollOpts {
+  provider?: GenerationProvider
+  url: string
+  genBody: unknown
+  extractUrl: (arg: { data: unknown; json: unknown }) => string | undefined
+  pollInterval: number
+  timeoutMs: number
+  frontTaskId?: string
+}
+
 /**
  * 异步模式通用轮询：提交拿 task_id → 轮询 /v1/tasks/{id} 到 completed。
  * image 与 video 共享本引擎，仅 extractUrl 参数化差。
  */
-async function pollUntilDone({ provider, url, genBody, extractUrl, pollInterval, timeoutMs, frontTaskId }, onProgress, signal) {
+async function pollUntilDone({ provider, url, genBody, extractUrl, pollInterval, timeoutMs, frontTaskId }: PollOpts, onProgress: ProgressFn | undefined, signal?: AbortSignal): Promise<GenerationResult> {
   let taskId
   try {
     onProgress?.(10, '正在连接本地服务…')
@@ -220,6 +244,14 @@ async function pollUntilDone({ provider, url, genBody, extractUrl, pollInterval,
   return fail(timeoutMessage(timeoutMs))
 }
 
+/** chatProxy 入参 */
+interface ChatProxyOpts {
+  provider?: GenerationProvider
+  body?: any
+  signal?: AbortSignal
+  stream?: boolean
+}
+
 /**
  * 聊天代理 —— 契约是「信封，永不抛错」。
  * HTTP 非 2xx 属业务错误（取上游嵌套 message），网络/AbortError 才是异常分支；
@@ -229,7 +261,7 @@ async function pollUntilDone({ provider, url, genBody, extractUrl, pollInterval,
  *   - stream?: boolean  默认 false（非流式 JSON 直返）；true 时走 SSE 流式累积 content
  * @returns {{ ok:boolean, content?:string, error?:string, aborted?:boolean }}
  */
-export async function chatProxy({ provider, body, signal, stream = false }) {
+export async function chatProxy({ provider, body, signal, stream = false }: ChatProxyOpts): Promise<GenerationResult> {
   // 请求形态：responses 走 /v1/responses 端点 + output[] 解析；默认 chat/completions（M2-2）
   const responses = resolveChatMode(provider?.chat_request_mode, body?.model) === 'responses'
   const target = buildTargetUrl(provider, responses ? 'responses' : 'chat/completions')
@@ -242,7 +274,7 @@ export async function chatProxy({ provider, body, signal, stream = false }) {
   const onExternalAbort = () => internalCtrl.abort()
   if (signal?.aborted) return { ok: false, aborted: true, error: '已停止' }
   signal?.addEventListener?.('abort', onExternalAbort)
-  let res
+  let res: Response | undefined
   try {
     res = await withTimeout(
       httpRequest(`${API_BASE}/api/proxy`, {
@@ -311,7 +343,7 @@ export async function chatProxy({ provider, body, signal, stream = false }) {
 }
 
 /** 流式读 chat/responses SSE 并累积 content（兼容 choices[].delta.content 与 output[].content[].text）。 */
-async function readSseChatContent(res) {
+async function readSseChatContent(res: Response): Promise<string> {
   const reader = res.body?.getReader?.()
   if (!reader) return ''
   const decoder = new TextDecoder()
@@ -342,15 +374,24 @@ async function readSseChatContent(res) {
   return content
 }
 
-function parseNestedError(j) {
-  return j?.error?.message || j?.message || j?.detail || ''
+function parseNestedError(j: unknown): string {
+  return (j as { error?: { message?: string }; message?: string; detail?: string })?.error?.message || (j as { message?: string })?.message || (j as { detail?: string })?.detail || ''
+}
+
+/** 生图/视频代理入参 */
+interface GenProxyOpts {
+  provider?: GenerationProvider
+  genBody?: any
+  onProgress?: ProgressFn
+  signal?: AbortSignal
+  taskId?: string
 }
 
 /**
  * 生图代理 —— SSE 同步（默认）或 async 轮询（provider.image_mode==='async'）。失败抛错由调用方兜底。
  * @returns {{ ok:boolean, url?:string, error?:string }}
  */
-export async function imageProxy({ provider, genBody, onProgress, signal, taskId }) {
+export async function imageProxy({ provider, genBody, onProgress, signal, taskId }: GenProxyOpts): Promise<GenerationResult> {
   const mode = provider?.image_request_mode
   if (!taskId) logger.debug('生图', '[taskId] 未传（内部调用或非节点生成）', { module: 'image' })
 
@@ -411,7 +452,7 @@ export async function imageProxy({ provider, genBody, onProgress, signal, taskId
  * 视频代理 —— 强制 async 轮询（视频比生图慢很多，不适合 SSE 同步等待）。失败抛错由调用方兜底。
  * @returns {{ ok:boolean, url?:string, error?:string }}
  */
-export async function videoProxy({ provider, genBody, onProgress, signal, taskId }) {
+export async function videoProxy({ provider, genBody, onProgress, signal, taskId }: GenProxyOpts): Promise<GenerationResult> {
   const url = buildTargetUrl(provider, 'videos/generations')
   // 【B层】视频代理开始：prompt 摘要 + 目标（定位视频提交是否进入轮询）
   logger.debug('视频', '[视频] 开始', { prompt: String(genBody?.prompt || '').slice(0, 100), model: genBody?.model, size: genBody?.size, refCount: (genBody?.image_urls || []).length, taskId }, { module: 'image' })

@@ -43,8 +43,8 @@ vi.mock('../../src/components/base/useConnectedInputs.js', () => ({ useConnected
 vi.mock('../../src/components/base/useMediaDegrade.js', () => ({ useMediaDegrade: mocks.useMediaDegrade }))
 vi.mock('../../src/components/base/LazyImage.jsx', () => ({ default: mocks.LazyImage }))
 vi.mock('../../src/components/base/toastStore.ts', () => ({ showToast: mocks.showToast, toastError: mocks.toastError, toastWarning: mocks.toastWarning }))
-vi.mock('../../src/components/base/filesApi.js', () => ({ toAbsoluteFileUrl: mocks.toAbsoluteFileUrl }))
-vi.mock('../../src/components/base/clipboard.js', () => h.clipboardMock)
+vi.mock('../../src/components/base/filesApi.ts', () => ({ toAbsoluteFileUrl: mocks.toAbsoluteFileUrl }))
+vi.mock('../../src/components/base/clipboard.ts', () => h.clipboardMock)
 vi.mock('../../src/components/base/ImageZoomDialog.jsx', () => ({ default: () => null }))
 
 import ImageBoxNode from '../../src/components/nodes/ImageBoxNode.jsx'

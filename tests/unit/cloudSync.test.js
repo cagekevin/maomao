@@ -17,7 +17,7 @@ const fetchMock = globalThis.fetch
 // 注意：工厂提升到模块顶部，须在工厂的异步函数体内引用顶层 kv（而不能直接读取 kv.kvGet 属性，
 // 否则提升期静态改写会报 "Cannot access 'kv' before initialization"）。
 const kv = createKvMem()
-vi.mock('../../src/components/base/localToolApi.js', () => ({
+vi.mock('../../src/components/base/localToolApi.ts', () => ({
   providerApi: { getProviders: vi.fn(), saveProviders: vi.fn(), syncConfigBase: vi.fn() },
   fetchProjects: vi.fn(),
   saveProjects: vi.fn(),
@@ -26,7 +26,7 @@ vi.mock('../../src/components/base/localToolApi.js', () => ({
   kvDelete: vi.fn(async (key) => { kv.memKV.delete(key); return { ok: true } }),
 }))
 
-const { providerApi } = await import('../../src/components/base/localToolApi.js')
+const { providerApi } = await import('../../src/components/base/localToolApi.ts')
 const { CloudSyncEngine, uploadConfig, downloadConfig } = await import(
   '../../src/components/base/cloudSync.js'
 )
@@ -181,7 +181,7 @@ describe('cloudSync — uploadConfig / downloadConfig 边界', () => {
   it('project 领域关：云端 projects 下载时不覆写本地（堵「云覆盖丢新项目」）', async () => {
     const cloud = { type: 'cloud_config', version: 5, updatedAt: 0, data: { projects: [{ id: 'cloud-p', name: '云项目' }] } }
     fetchMock.mockResolvedValueOnce(jsonResp(cloud)) // pull 返回
-    const { saveProjects } = await import('../../src/components/base/localToolApi.js')
+    const { saveProjects } = await import('../../src/components/base/localToolApi.ts')
     const res = await downloadConfig(() => {})
     expect(res.ok).toBe(false) // projects 领域关 → 无任何写回 → count 0
     expect(res.hasCloud).toBe(true)

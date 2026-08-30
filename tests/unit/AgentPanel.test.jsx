@@ -117,7 +117,7 @@ vi.mock('../../src/components/base/contentStore.js', () => ({
   contentSet: vi.fn(),
   contentSubscribe: (...a) => h.contentSubscribe(...a),
 }))
-vi.mock('../../src/components/base/filesApi.js', () => ({ toAbsoluteFileUrl: (u) => u }))
+vi.mock('../../src/components/base/filesApi.ts', () => ({ toAbsoluteFileUrl: (u) => u }))
 vi.mock('../../src/components/agent/conversation/conversationStore.js', () => ({
   setCurrentSnapshot: (...a) => h.setCurrentSnapshot(...a),
   setAwaitingConfirm: vi.fn(),

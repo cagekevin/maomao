@@ -8,7 +8,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 
 const { sanitizePastedText, copyText, copyImageToClipboard, downloadUrl, downloadBlob, buildNodesFromClipboard, resolveDownloadFilename } = await import(
-  '../../src/components/base/clipboard.js'
+  '../../src/components/base/clipboard.ts'
 )
 
 beforeEach(() => { vi.restoreAllMocks() })

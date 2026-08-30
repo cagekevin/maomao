@@ -27,7 +27,7 @@ vi.mock('../../src/components/base/projectStore.js', () => ({
 }))
 
 // ── cloudSync / backupStore 依赖：providerApi / projectsApi / KV 读写（隔离网络）──
-vi.mock('../../src/components/base/localToolApi.js', () => ({
+vi.mock('../../src/components/base/localToolApi.ts', () => ({
   providerApi: {
     getProviders: vi.fn(async () => ({ providers: [] })),
     saveProviders: vi.fn(async () => ({ ok: true })),
@@ -58,7 +58,7 @@ beforeEach(async () => {
     ok: true,
     text: async () => JSON.stringify({ ok: true, msg: 'sync ok' }),
   })))
-  clipboard = await import('../../src/components/base/clipboard.js')
+  clipboard = await import('../../src/components/base/clipboard.ts')
   backupStore = await import('../../src/components/base/backupStore.js')
   cloudSync = await import('../../src/components/base/cloudSync.js')
 })
