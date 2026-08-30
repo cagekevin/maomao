@@ -17,8 +17,8 @@ vi.mock('../../src/components/base/localToolApi.js', async (importOriginal) => {
   const actual = await importOriginal()
   return { ...actual, moveFile: mocks.moveFile }
 })
-vi.mock('../../src/components/base/toastStore.js', () => ({ showToast: mocks.showToast }))
-vi.mock('../../src/components/base/eventBus.js', () => ({ publish: mocks.publish }))
+vi.mock('../../src/components/base/toastStore.ts', () => ({ showToast: mocks.showToast }))
+vi.mock('../../src/components/base/eventBus.ts', () => ({ publish: mocks.publish }))
 
 function payload(item) {
   return JSON.stringify({ folder: item.folder || '', name: item.name, source: item.source, type: item.type })

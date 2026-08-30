@@ -81,7 +81,7 @@ describe('createPreset', () => {
 describe('saveAndNotify', () => {
   it('保存后通过 eventBus 广播 presets-changed', async () => {
     const handler = vi.fn()
-    const { subscribe } = await import('../../src/components/base/eventBus.js')
+    const { subscribe } = await import('../../src/components/base/eventBus.ts')
     const unsub = subscribe('presets-changed', handler)
     const list = [{ id: 'n1', title: 't', type: 'text', prompt: 'p', enabled: true }]
     pm.saveAndNotify(list)

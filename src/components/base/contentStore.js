@@ -31,8 +31,8 @@
  *   3. 把 store 中 storageGet/storageSet → content.getAsync/setAsync
  *   4. 批量迁移结束后，删除旧直调代码
  */
-import { sGet, sSet, sRemove } from './storageAdapter.js'
-import { storageGet, storageSet, storageDelete, isKvKey } from './kvStore.js'
+import { sGet, sSet, sRemove } from './storageAdapter.ts'
+import { storageGet, storageSet, storageDelete, isKvKey } from './kvStore.ts'
 import { STORAGE_KEYS } from './contracts.js'
 import { logger } from './logger.ts'
 import { compilePatternRegex } from './utils.ts'

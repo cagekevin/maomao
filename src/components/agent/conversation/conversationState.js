@@ -20,7 +20,7 @@
  */
 import { useSyncExternalStore } from 'react'
 import { contentGet, contentSet, contentGetAsync, contentSetAsync, createDebouncedPersist } from '../../base/contentStore.js'
-import { sGet } from '../../base/storageAdapter.js'
+import { sGet } from '../../base/storageAdapter.ts'
 import { withTimeout } from '../../base/asyncGuard.ts'
 import { generateId } from '../../base/idGen.ts'
 import { CREDIT_GATE_FIELD } from '../../base/contracts.js'

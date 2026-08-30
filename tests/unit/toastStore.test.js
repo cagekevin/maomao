@@ -6,7 +6,7 @@ const {
   clearToasts,
   subscribe,
   getToasts,
-} = await import('../../src/components/base/toastStore.js')
+} = await import('../../src/components/base/toastStore.ts')
 
 beforeEach(() => {
   clearToasts()

@@ -6,8 +6,8 @@ import {
   getRecent, recordRecent, getRecentCards, searchCards, mapToLibraryCards,
   TYPE_LABEL, TYPE_TAG_CLASS, CATEGORY_OPTIONS
 } from './promptManager.ts'
-import { showToast } from './toastStore.js'
-import { subscribe } from './eventBus.js'
+import { showToast } from './toastStore.ts'
+import { subscribe } from './eventBus.ts'
 import { createImeInput } from './utils.ts'
 
 /**

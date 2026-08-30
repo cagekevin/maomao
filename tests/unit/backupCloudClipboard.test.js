@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 // ── 内存版 storageAdapter（参考 projectStore.test.js 的 mock 写法）──
 const memLS = new Map()
-vi.mock('../../src/components/base/storageAdapter.js', () => ({
+vi.mock('../../src/components/base/storageAdapter.ts', () => ({
   sGet: vi.fn((k) => (memLS.has(k) ? memLS.get(k) : null)),
   sSet: vi.fn((k, v) => { memLS.set(k, String(v)) }),
   sRemove: vi.fn((k) => { memLS.delete(k) }),

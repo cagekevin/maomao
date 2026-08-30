@@ -26,7 +26,7 @@ import { saveInlineToLocal, uploadFileToLocal, EXT_BY_TYPE } from './filesApi.js
 import { UPLOAD_DIRS } from './uploadDirs.ts'
 import { safeFileName } from './utils.ts'
 import { logger } from './logger.ts'
-import { publish, subscribe } from './eventBus.js'
+import { publish, subscribe } from './eventBus.ts'
 
 const STORAGE_KEY = 'yimao_asset_library'
 const listeners = new Set()

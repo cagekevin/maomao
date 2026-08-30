@@ -4,7 +4,7 @@ import { useTasks, statusDotClass, statusLabel, typeLabel, removeTask, retryTask
 import { logger } from './logger.ts'
 import { downloadUrl } from './clipboard.js'
 import { pollOneTask } from './pollTask.ts'
-import { showToast } from './toastStore.js'
+import { showToast } from './toastStore.ts'
 import { makeAssetDragProps } from './useAssetDragToCanvas.js'
 import VideoThumbnail from './VideoThumbnail.jsx'
 import { useRenderImageResolver } from './imageUrl.ts'

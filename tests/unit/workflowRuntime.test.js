@@ -8,7 +8,7 @@
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 
-vi.mock('../../src/components/base/eventBus.js', () => ({
+vi.mock('../../src/components/base/eventBus.ts', () => ({
   eventBus: { emit: vi.fn(), on: vi.fn(), off: vi.fn() },
   publish: vi.fn(),
 }))

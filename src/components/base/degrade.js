@@ -15,7 +15,7 @@
  * 非 UI、可单测。
  */
 import { logger } from './logger.ts'
-import { showToast } from './toastStore.js'
+import { showToast } from './toastStore.ts'
 import { THROTTLE_MS } from './config.js'
 
 const throttle = { key: '', ts: 0 }

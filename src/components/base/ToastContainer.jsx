@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { CheckCircle2, XCircle, AlertTriangle, Info, X } from 'lucide-react'
-import { subscribe, getToasts, dismissToast } from './toastStore.js'
+import { subscribe, getToasts, dismissToast } from './toastStore.ts'
 
 /**
  * 统一通知渲染容器（配合 toastStore 使用）。

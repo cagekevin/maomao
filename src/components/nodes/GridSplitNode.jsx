@@ -7,7 +7,7 @@ import CustomHandle from '../edges/CustomHandle.jsx'
 import { useConnectedInputs } from '../base/useConnectedInputs.js'
 import { useMediaDegrade } from '../base/useMediaDegrade.js'
 import { useContentHeightSync } from '../base/hooks.js'
-import { showToast, toastWarning } from '../base/toastStore.js' // 保留阻断校验提示
+import { showToast, toastWarning } from '../base/toastStore.ts' // 保留阻断校验提示
 import { toAbsoluteFileUrl } from '../base/filesApi.js'
 import { useRenderImageResolver } from '../base/imageUrl.ts'
 import { loadImageWithTimeout } from '../base/asyncGuard.ts'

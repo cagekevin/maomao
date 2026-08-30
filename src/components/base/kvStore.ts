@@ -17,7 +17,7 @@
  *  - POST /api/kv/delete?key=<key> → { ok: true }（删不存在也 ok）
  *  - 错误体 { error: "<英文message>" }
  */
-import { sGet, sSet, sRemove } from './storageAdapter.js'
+import { sGet, sSet, sRemove } from './storageAdapter.ts'
 import { kvGet, kvSet, kvDelete } from './localToolApi.js'
 import { reportDegrade } from './degrade.js'
 import { CANVAS_STATE_PREFIX, STORAGE_KEYS } from './contracts.js' // 单一来源：画布 KV 前缀与后端判定统一在契约层
@@ -41,7 +41,7 @@ export { kvGet, kvSet, kvDelete }
  */
 // pattern 模板 → 正则统一走 utils.compilePatternRegex（2026-08-30 收口，原本地副本已删）
 
-export function isKvKey(key) {
+export function isKvKey(key: string): boolean {
   if (typeof key !== 'string' || !key) return false
   const entry = STORAGE_KEYS[key]
   if (entry) return entry.backend === 'kv'
@@ -55,12 +55,12 @@ export function isKvKey(key) {
 }
 
 /** 尝试解析 JSON 字符串，失败返回原值 */
-function tryParse(s) {
+function tryParse(s: string): unknown {
   try { return JSON.parse(s) } catch { return s }
 }
 
 /** 统一读取：KV 键 → localTool KV（失败降级读本地副本，与 storageSet 降级写对称，修 R2）；否则 chrome.storage(插件)/localStorage。返回解析后的值或 null。 */
-export async function storageGet(key) {
+export async function storageGet(key: string): Promise<unknown> {
   if (isKvKey(key)) {
     try {
       return await kvGet(key)
@@ -78,7 +78,7 @@ export async function storageGet(key) {
 }
 
 /** 统一写入：KV 前缀 → localTool KV；否则 chrome.storage(插件)/localStorage。 */
-export async function storageSet(key, value) {
+export async function storageSet(key: string, value: unknown): Promise<{ ok: boolean; degraded?: boolean }> {
   if (isKvKey(key)) {
     try {
       const r = await kvSet(key, value)
@@ -100,7 +100,7 @@ export async function storageSet(key, value) {
 }
 
 /** 统一删除：KV 键 → localTool KV（失败降级删本地副本，防本地副本残留，修 R3）；否则 chrome.storage(插件)/localStorage。 */
-export async function storageDelete(key) {
+export async function storageDelete(key: string): Promise<{ ok: boolean }> {
   if (isKvKey(key)) {
     try {
       return await kvDelete(key)

@@ -42,7 +42,7 @@ vi.mock('../../src/components/edges/CustomHandle.jsx', () => ({ default: mocks.C
 vi.mock('../../src/components/base/useConnectedInputs.js', () => ({ useConnectedInputs: mocks.useConnectedInputs }))
 vi.mock('../../src/components/base/useMediaDegrade.js', () => ({ useMediaDegrade: mocks.useMediaDegrade }))
 vi.mock('../../src/components/base/LazyImage.jsx', () => ({ default: mocks.LazyImage }))
-vi.mock('../../src/components/base/toastStore.js', () => ({ showToast: mocks.showToast, toastError: mocks.toastError, toastWarning: mocks.toastWarning }))
+vi.mock('../../src/components/base/toastStore.ts', () => ({ showToast: mocks.showToast, toastError: mocks.toastError, toastWarning: mocks.toastWarning }))
 vi.mock('../../src/components/base/filesApi.js', () => ({ toAbsoluteFileUrl: mocks.toAbsoluteFileUrl }))
 vi.mock('../../src/components/base/clipboard.js', () => h.clipboardMock)
 vi.mock('../../src/components/base/ImageZoomDialog.jsx', () => ({ default: () => null }))

@@ -116,7 +116,7 @@ export const EVENTS = {
     note: '导出按钮 → App 下载。生产使用',
   },
   'persist:failed': {
-    from: ['storageAdapter.js:31'],
+    from: ['storageAdapter.ts:31'],
     to: ['App.jsx:499'], // 全局监听器，节流 toast；分发逻辑收敛到 persistFailureBus
     payload: '{ key, error }',
     note: '持久化失败广播（sSet/sRemove 失败）。已由 App.jsx 全局订阅',

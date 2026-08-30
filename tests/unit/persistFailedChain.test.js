@@ -21,9 +21,9 @@ vi.mock('../../src/components/base/logger.ts', () => ({
 // 遮断本地引擎 API_BASE 的 httpClient —— 这里我们不真正发请求，直接 stub fetch
 // kvSet 走 fetch(/api/kv/set)，我们控制其成功/失败。
 
-import { storageSet } from '../../src/components/base/kvStore.js'
-import { publish, subscribe, clearEvent } from '../../src/components/base/eventBus.js'
-import { CANVAS_STATE_PREFIX } from '../../src/components/base/kvStore.js'
+import { storageSet } from '../../src/components/base/kvStore.ts'
+import { publish, subscribe, clearEvent } from '../../src/components/base/eventBus.ts'
+import { CANVAS_STATE_PREFIX } from '../../src/components/base/kvStore.ts'
 import { logger } from '../../src/components/base/logger.ts'
 
 // 真实 storageAdapter：让 localStorage.setItem 可注入异常/可恢复

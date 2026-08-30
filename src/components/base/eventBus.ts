@@ -27,19 +27,26 @@
  * 详细说明见 docs/实时总线-Event-Bus-全解-2026-08-16.md。新增事件统一用「领域:动作」命名。
  *
  * 【用法】
- *   import { publish, subscribe } from './eventBus.js'
+ *   import { publish, subscribe } from './eventBus.ts'
  *   const off = subscribe('agent:task-completed', (payload) => {...})
  *   publish('agent:task-completed', { taskId, nodeId, resultUrl })
  */
-const listeners = new Map() // event -> Set<fn>
-
 import { logger } from './logger.ts'
 
+/** 订阅者载荷类型（事件载荷无固定结构，各事件按 EVENTS 登记表约定；此处宽松为 unknown 以兼容所有事件） */
+type EventPayload = unknown
+/** 事件订阅回调类型 */
+type EventHandler = (payload: EventPayload) => void
+/** 取消订阅函数类型 */
+type Unsubscribe = () => void
+
+const listeners = new Map<string, Set<EventHandler>>() // event -> Set<fn>
+
 /** 订阅事件，返回取消函数 */
-export function subscribe(event, fn) {
+export function subscribe(event: string, fn: EventHandler): Unsubscribe {
   if (!event || typeof fn !== 'function') return () => {}
-  if (!listeners.has(event)) listeners.set(event, new Set())
-  listeners.get(event).add(fn)
+  if (!listeners.has(event)) listeners.set(event, new Set<EventHandler>())
+  listeners.get(event)!.add(fn)
   return () => {
     const set = listeners.get(event)
     if (set) { set.delete(fn); if (set.size === 0) listeners.delete(event) }
@@ -47,16 +54,16 @@ export function subscribe(event, fn) {
 }
 
 /** 发布事件（同步调用所有订阅者） */
-export function publish(event, payload) {
+export function publish(event: string, payload?: EventPayload): void {
   const set = listeners.get(event)
   if (!set) return
   set.forEach((fn) => {
-    try { fn(payload) } catch (e) { logger.warn('eventBus', `${event} 订阅者异常`, e?.message || String(e)) }
+    try { fn(payload) } catch (e) { logger.warn('eventBus', `${event} 订阅者异常`, (e as { message?: unknown } | null)?.message || String(e)) }
   })
 }
 
 /** 订阅事件一次后自动取消 */
-export function subscribeOnce(event, fn) {
+export function subscribeOnce(event: string, fn: EventHandler): Unsubscribe {
   const off = subscribe(event, (payload) => {
     off()
     fn(payload)
@@ -65,6 +72,6 @@ export function subscribeOnce(event, fn) {
 }
 
 /** 清空某事件的所有订阅（测试/重置用） */
-export function clearEvent(event) {
+export function clearEvent(event: string): void {
   listeners.delete(event)
 }

@@ -13,7 +13,7 @@ const loggerState = vi.hoisted(() => ({ info: vi.fn(), warn: vi.fn() }))
 const runNodeGenerationMock = vi.hoisted(() => vi.fn())
 
 vi.mock('@xyflow/react', () => ({ useReactFlow: () => ({ getEdges: () => rfState.edges }) }))
-vi.mock('../../src/components/base/eventBus.js', () => ({
+vi.mock('../../src/components/base/eventBus.ts', () => ({
   subscribe: (evt, cb) => { busState.handler = cb; return () => {} }
 }))
 vi.mock('../../src/components/base/config.js', () => ({ AUTO_TRIGGER_DOWNSTREAM: true }))

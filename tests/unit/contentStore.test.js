@@ -27,8 +27,8 @@ const { mockStorageAdapter, mockKvStore, mockLogger } = vi.hoisted(() => {
   }
 })
 
-vi.mock('../../src/components/base/storageAdapter.js', () => mockStorageAdapter)
-vi.mock('../../src/components/base/kvStore.js', () => mockKvStore)
+vi.mock('../../src/components/base/storageAdapter.ts', () => mockStorageAdapter)
+vi.mock('../../src/components/base/kvStore.ts', () => mockKvStore)
 vi.mock('../../src/components/base/logger.ts', () => mockLogger)
 
 // 防 logger 被 NODE_ENV 条件影响

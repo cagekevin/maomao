@@ -1,6 +1,6 @@
 import React from 'react'
 import ProjectSelector from './ProjectSelector.jsx'
-import { showToast } from './toastStore.js'
+import { showToast } from './toastStore.ts'
 
 /**
  * 顶部导航栏（复刻官方 Vr.jsx L3281 `Component806`，h-16）。

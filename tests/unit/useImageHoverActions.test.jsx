@@ -16,7 +16,7 @@ vi.mock('../../src/components/base/ImageEditor.jsx', () => ({ default: () => nul
 vi.mock('../../src/components/base/imageCompress.ts', () => ({ compressImage: async (url) => ({ dataUrl: 'data:compressed', size: 1, originalSize: 2 }) }))
 vi.mock('../../src/components/base/imageUpscale.ts', () => ({ upscaleImage: async (url) => ({ dataUrl: 'data:upscaled' }) }))
 vi.mock('../../src/components/base/filesApi.js', () => ({ saveInlineToLocal: async () => 'local://saved' }))
-vi.mock('../../src/components/base/toastStore.js', () => ({ showToast: () => {}, toastError: () => {} }))
+vi.mock('../../src/components/base/toastStore.ts', () => ({ showToast: () => {}, toastError: () => {} }))
 
 const findBtn = (btns, key) => btns.find((b) => b.key === key)
 

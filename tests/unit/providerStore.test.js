@@ -30,7 +30,7 @@ vi.mock('../../src/components/base/localToolApi.js', () => ({
     syncConfigBase: (...a) => h.mockSyncConfigBase(...a),
   },
 }))
-vi.mock('../../src/components/base/kvStore.js', () => ({
+vi.mock('../../src/components/base/kvStore.ts', () => ({
   storageGet: vi.fn(),
   storageSet: (...a) => h.mockKvSet(...a),
   storageDelete: vi.fn(),

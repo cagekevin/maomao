@@ -12,11 +12,11 @@ import { contentGet, contentSet, contentSubscribe } from '../base/contentStore.j
 import { toAbsoluteFileUrl } from '../base/filesApi.js'
 import { fileToDataUrl } from '../base/imageUrl.ts'
 import { runNodeGeneration } from '../base/taskStore.js'
-import { showToast } from '../base/toastStore.js'
+import { showToast } from '../base/toastStore.ts'
 import { logger } from '../base/logger.ts'
 import { AGENT_MODELS } from '../base/config.js'
 import previewUrls from '../base/previewUrl.ts'
-import { subscribe } from '../base/eventBus.js'
+import { subscribe } from '../base/eventBus.ts'
 import { CREDIT_GATE_EVENT } from '../base/contracts.js'
 
 /**

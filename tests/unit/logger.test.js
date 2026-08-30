@@ -41,7 +41,7 @@ describe('config.js §API_BASE 日志与配置', () => {
     const videoApi = await import('../../src/components/base/videoApi.js')
     const localToolApi = await import('../../src/components/base/localToolApi.js')
     const filesApi = await import('../../src/components/base/filesApi.js')
-    const kvStore = await import('../../src/components/base/kvStore.js')
+    const kvStore = await import('../../src/components/base/kvStore.ts')
     expect(videoApi).toBeTruthy()
     expect(localToolApi).toBeTruthy()
     expect(filesApi).toBeTruthy()

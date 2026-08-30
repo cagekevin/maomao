@@ -11,7 +11,7 @@
  *   recordRecent(id) / getRecent()
  */
 import { contentGet, contentSet } from './contentStore.js'
-import { publish } from './eventBus.js'
+import { publish } from './eventBus.ts'
 import { generateId } from './idGen.ts'
 
 /** 预设分类（对齐下方 TYPE_LABEL 键与前端 PromptLibrary 分组） */

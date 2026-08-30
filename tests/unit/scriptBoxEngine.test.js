@@ -22,7 +22,7 @@ vi.mock('../../src/components/base/providerModels.js', () => ({
   resolveProviderModel: vi.fn(() => ({ provider: 'openai', modelId: 'gpt-4o-mini' })),
   buildAllModels: vi.fn(() => [{ id: 'gpt-4o-mini' }]),
 }))
-vi.mock('../../src/components/base/toastStore.js', () => {
+vi.mock('../../src/components/base/toastStore.ts', () => {
   const showToast = vi.fn()
   return { showToast, toastStore: { showToast } }
 })
@@ -234,7 +234,7 @@ describe('scriptBoxEngine · 引擎编排', () => {
 
   it('onGenerateScript 校验：无剧情时仅 toast 不调用 chat', async () => {
     const { chatCompletions } = await import('../../src/components/base/chatApi.js')
-    const { toastStore } = await import('../../src/components/base/toastStore.js')
+    const { toastStore } = await import('../../src/components/base/toastStore.ts')
     const { engine, store } = makeEngine({})
     await engine.onGenerateScript()
     expect(chatCompletions).not.toHaveBeenCalled()
@@ -292,7 +292,7 @@ describe('scriptBoxEngine · 引擎编排', () => {
 
   it('onGenerateScript 模型返回非 JSON 时回退 genMask=false 并 toast', async () => {
     const { chatCompletions } = await import('../../src/components/base/chatApi.js')
-    const { toastStore } = await import('../../src/components/base/toastStore.js')
+    const { toastStore } = await import('../../src/components/base/toastStore.ts')
     chatCompletions.mockResolvedValueOnce({ ok: true, content: '不是json' })
     const { engine, store } = makeEngine({ story: 'x' })
     await engine.onGenerateScript()

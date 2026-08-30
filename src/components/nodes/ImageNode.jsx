@@ -15,7 +15,7 @@ import { UPLOAD_DIRS } from '../base/uploadDirs.ts'
 import { useRenderImageResolver, fileToDataUrl } from '../base/imageUrl.ts'
 import { useImageHoverActions } from '../base/useImageHoverActions.jsx'
 import { downloadUrl } from '../base/clipboard.js'
-import { showToast, toastError } from '../base/toastStore.js'
+import { showToast, toastError } from '../base/toastStore.ts'
 import { sendToAssetLibrary } from '../base/assetStore.js'
 import { openAssetLibrary } from '../base/taskStore.js'
 

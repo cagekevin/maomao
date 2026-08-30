@@ -1,7 +1,7 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react'
 import ReactCrop from 'react-image-crop'
 import 'react-image-crop/dist/ReactCrop.css'
-import { toastError } from './toastStore.js'
+import { toastError } from './toastStore.ts'
 import { loadImageWithTimeout } from './asyncGuard.ts'
 
 /**

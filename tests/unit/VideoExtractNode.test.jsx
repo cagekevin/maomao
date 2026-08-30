@@ -41,7 +41,7 @@ vi.mock('@xyflow/react', () => mocks.xyflow)
 vi.mock('../../src/components/base/NodeTitle.jsx', () => ({ default: mocks.NodeTitle }))
 vi.mock('../../src/components/base/useConnectedInputs.js', () => ({ useConnectedInputs: () => h.connected }))
 vi.mock('../../src/components/base/useMediaDegrade.js', () => ({ useMediaDegrade: mocks.useMediaDegrade }))
-vi.mock('../../src/components/base/toastStore.js', () => ({
+vi.mock('../../src/components/base/toastStore.ts', () => ({
   showToast: (...a) => h.showToast(...a),
   toastError: vi.fn(), toastWarning: vi.fn(), toastInfo: vi.fn(),
 }))

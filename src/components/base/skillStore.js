@@ -9,7 +9,7 @@
  *  - 内置 skill 始终存在；用户自定义可增删。
  */
 import { contentGet, contentSet } from './contentStore.js'
-import { sGet } from './storageAdapter.js'
+import { sGet } from './storageAdapter.ts'
 import { logger } from './logger.ts'
 
 const SKILLS_KEY = 'agent_skills'

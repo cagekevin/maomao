@@ -51,7 +51,7 @@ vi.mock('../../src/components/base/filesApi.js', () => ({
   uploadFileToLocal: (...a) => h.uploadMock(...a),
   toAbsoluteFileUrl: (u) => `ABS:${u}`,
 }))
-vi.mock('../../src/components/base/toastStore.js', () => ({ showToast: mocks.showToast, toastError: mocks.toastError, toastWarning: mocks.toastWarning }))
+vi.mock('../../src/components/base/toastStore.ts', () => ({ showToast: mocks.showToast, toastError: mocks.toastError, toastWarning: mocks.toastWarning }))
 vi.mock('../../src/components/base/faceMosaic.ts', () => ({
   applyMosaic: (...a) => h.applyMosaicMock(...a),
   MOSAIC_MODES: [

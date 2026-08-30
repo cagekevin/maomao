@@ -44,7 +44,7 @@
  *   4. 「无用大对象」判定需谨慎：本模块 byteLength 只估内容字节，无法区分「在用的关键数据」和
  *      「可删的无用数据」。真正确认可删，要靠业务语义（如过期缓存、已导出的历史快照），别凭大小猜。
  */
-import { isChromeExtension, KEY_PREFIX } from './storageAdapter.js'
+import { isChromeExtension, KEY_PREFIX } from './storageAdapter.ts'
 import { STORAGE_KEYS } from './contracts.js'
 import { compilePatternRegex } from './utils.ts'
 

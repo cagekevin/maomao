@@ -21,11 +21,11 @@ import { withTimeout } from './asyncGuard.ts'
 import { saveInlineToLocal } from './filesApi.js'
 import { UPLOAD_DIRS } from './uploadDirs.ts'
 import { logger } from './logger.ts'
-import { showToast } from './toastStore.js'
+import { showToast } from './toastStore.ts'
 import { KV_TIMEOUT } from './config.js'
 // 【降级落点统一】本地降级副本走 storageAdapter（sGet/sSet，自动 yimao: 前缀），
 // 与 kvStore.storageGet 的降级回读一致，避免「裸 key vs 带前缀」两套副本互不可见（收口缺口）。
-import { sGet, sSet } from './storageAdapter.js'
+import { sGet, sSet } from './storageAdapter.ts'
 
 /** 工程存储默认键（无 nodeId 独立运行场景，与 director3d/project.js 一致） */
 export const PROJECT_KEY_DEFAULT = 'director3d-project'

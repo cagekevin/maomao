@@ -27,7 +27,7 @@ import { GEN_MAX_CONCURRENT } from './config.js'
 // 用命名空间调用而非 `subscribe` 具名导入：本模块内部已有同名 `subscribe`（任务监听器），
 // 具名导入会遮蔽。且 check-events.mjs 只识别 `publish/subscribe/subscribeOnce` 三个函数名，
 // 用别名（onEvent）会让这条订阅逃出事件契约登记的反向校验 —— 必须用能被门禁扫描到的写法。
-import * as eventBus from './eventBus.js'
+import * as eventBus from './eventBus.ts'
 import { buildUrlRewritePairs } from './imageUrl.ts'
 
 let tasks = []

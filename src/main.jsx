@@ -4,7 +4,7 @@ import App from './App.jsx'
 import ErrorBoundary from './components/base/ErrorBoundary.jsx'
 import '@xyflow/react/dist/style.css'
 import './index.css'
-import { initStorage } from './components/base/storageAdapter.js'
+import { initStorage } from './components/base/storageAdapter.ts'
 import { logger } from './components/base/logger.ts'
 
 // Chrome 插件环境：启动时从 chrome.storage.local 加载配置缓存；普通环境无副作用

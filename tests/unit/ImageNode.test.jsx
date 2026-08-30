@@ -16,7 +16,7 @@ vi.mock('../../src/components/base/useMediaDegrade.js', () => ({ useMediaDegrade
 vi.mock('../../src/components/base/useFitNodeRatio.js', () => ({ useFitNodeRatio: mocks.useFitNodeRatio }))
 vi.mock('../../src/components/base/useVideoPoster.js', () => ({ useVideoPoster: mocks.useVideoPoster }))
 vi.mock('../../src/components/base/filesApi.js', () => ({ toAbsoluteFileUrl: mocks.toAbsoluteFileUrl, saveInlineToLocal: mocks.saveInlineToLocal, uploadFileToLocal: mocks.uploadFileToLocal }))
-vi.mock('../../src/components/base/toastStore.js', () => ({ showToast: mocks.showToast, toastError: mocks.toastError }))
+vi.mock('../../src/components/base/toastStore.ts', () => ({ showToast: mocks.showToast, toastError: mocks.toastError }))
 vi.mock('../../src/components/base/imageCompress.ts', () => ({ compressImage: mocks.compressImage }))
 
 import ImageNode from '../../src/components/nodes/ImageNode.jsx'

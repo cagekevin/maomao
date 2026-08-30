@@ -5,7 +5,7 @@ import {
 import {
   getCachedPromptHub, loadPromptHub, getPromptHubErrors, getPromptHubSources,
 } from './promptHubStore.ts'
-import { toastWarning } from './toastStore.js'
+import { toastWarning } from './toastStore.ts'
 import LazyImage from './LazyImage.jsx'
 import { createImeInput } from './utils.ts'
 

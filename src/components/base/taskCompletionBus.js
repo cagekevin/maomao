@@ -8,7 +8,7 @@
  * 消费方不变（useNodeGeneration 精准回填过滤 nodeId===本节点）。
  */
 
-import { publish } from './eventBus.js'
+import { publish } from './eventBus.ts'
 
 /**
  * 校验并发布任务完成事件。

@@ -6,7 +6,7 @@ import StepShots from './StepShots.jsx'
 import StepAssets from './StepAssets.jsx'
 import StepPrompt from './StepPrompt.jsx'
 import GearSettings from './GearSettings.jsx'
-import { toastInfo } from '../base/toastStore.js'
+import { toastInfo } from '../base/toastStore.ts'
 
 /**
  * 剧本盒子 —— 全屏工作台视图（自包含，替代通用 base/FullscreenModal 的浮窗卡片）。

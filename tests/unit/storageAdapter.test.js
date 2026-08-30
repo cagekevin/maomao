@@ -3,12 +3,12 @@ import { flushAsync } from './_testUtils.mjs'
 
 // mock eventBus.publish：捕获 persist:failed 事件
 const publishMock = vi.fn()
-vi.mock('../../src/components/base/eventBus.js', () => ({
+vi.mock('../../src/components/base/eventBus.ts', () => ({
   publish: (...args) => publishMock(...args),
   subscribe: () => () => {},
 }))
 
-import { sSet, sRemove, isChromeExtension, initStorage } from '../../src/components/base/storageAdapter.js'
+import { sSet, sRemove, isChromeExtension, initStorage } from '../../src/components/base/storageAdapter.ts'
 
 /** 可控的 chrome 全局（模拟 普通网页 / 真实扩展 两种环境） */
 let chromeGlobal = null

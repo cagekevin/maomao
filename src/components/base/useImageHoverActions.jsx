@@ -5,7 +5,7 @@ import InlineImageCropper from './InlineImageCropper.jsx'
 import { compressImage } from './imageCompress.ts'
 import { upscaleImage } from './imageUpscale.ts'
 import { saveInlineToLocal } from './filesApi.js'
-import { showToast, toastError } from './toastStore.js'
+import { showToast, toastError } from './toastStore.ts'
 
 /**
  * 图片类节点 hover 操作栏「行为 + 按钮」统一机制。

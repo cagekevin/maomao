@@ -2,8 +2,8 @@ import React, { useState, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { ChevronDown, Plus, MoreVertical, Pencil, Trash2 } from 'lucide-react'
 import { useProjects, createProject, switchProject, deleteProject, renameProject, getCurrentProject } from './projectStore.js'
-import { showToast } from './toastStore.js'
-import { publish } from './eventBus.js'
+import { showToast } from './toastStore.ts'
+import { publish } from './eventBus.ts'
 
 /**
  * 项目选择器（复刻官方 Vr.jsx L3308-3370 项目下拉 + L3713-3749 新建/重命名弹窗）。

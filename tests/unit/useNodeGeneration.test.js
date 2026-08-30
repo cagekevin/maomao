@@ -25,11 +25,11 @@ vi.mock('../../src/components/base/taskStore.js', () => ({
 }))
 vi.mock('../../src/components/base/filesApi.js', () => ({ saveResultToTasks: saveResultToTasksMock }))
 vi.mock('../../src/components/base/degrade.js', () => ({ reportDegrade: reportDegradeMock }))
-vi.mock('../../src/components/base/eventBus.js', () => ({
+vi.mock('../../src/components/base/eventBus.ts', () => ({
   subscribe: (evt, cb) => { busState.handler = cb; return () => {} }
 }))
 vi.mock('../../src/components/base/logger.ts', () => ({ logger: busState.logger }))
-vi.mock('../../src/components/base/toastStore.js', () => ({ showToast: vi.fn() }))
+vi.mock('../../src/components/base/toastStore.ts', () => ({ showToast: vi.fn() }))
 
 import { useNodeGeneration } from '../../src/components/base/useNodeGeneration.js'
 

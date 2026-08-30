@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 // 内存实现 storageAdapter（仅模拟外部依赖，不掩盖 kvStore 真实逻辑）
-vi.mock('../../src/components/base/storageAdapter.js', () => ({
+vi.mock('../../src/components/base/storageAdapter.ts', () => ({
   sGet: vi.fn(),
   sSet: vi.fn(),
   sRemove: vi.fn(),
@@ -28,8 +28,8 @@ import {
   storageDelete,
   isKvKey,
   CANVAS_STATE_PREFIX,
-} from '../../src/components/base/kvStore.js'
-import { sGet, sSet, sRemove } from '../../src/components/base/storageAdapter.js'
+} from '../../src/components/base/kvStore.ts'
+import { sGet, sSet, sRemove } from '../../src/components/base/storageAdapter.ts'
 import { logger } from '../../src/components/base/logger.ts'
 
 const API_BASE = 'http://127.0.0.1:18080'

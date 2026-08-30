@@ -10,7 +10,7 @@ vi.mock('../../src/components/base/localToolApi.js', () => ({
   clearAllTasksApi: vi.fn(async () => {}),
 }))
 import { saveTask } from '../../src/components/base/localToolApi.js'
-import { publish } from '../../src/components/base/eventBus.js'
+import { publish } from '../../src/components/base/eventBus.ts'
 
 const {
   statusLabel,

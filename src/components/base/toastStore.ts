@@ -5,7 +5,7 @@
  * 官方把所有节点的提醒都收敛到一个 `showToast`（H_.jsx k / onShowToast 回调）。原型若用
  * React Context + Provider，会要求「每个想弹提示的组件都包在 Provider 里」，深层节点很麻烦。
  * 模块级 store + 订阅：
- *  - 任何组件 `import { showToast } from './toastStore.js'` 即可弹提示，无需包 Provider；
+ *  - 任何组件 `import { showToast } from './toastStore.ts'` 即可弹提示，无需包 Provider；
  *  - 渲染端（ToastContainer）只 subscribe 一次，把 store 里的 toast 列表画出来；
  *  - 之后接入官方 onShowToast 回调时，直接把它指向本 store 的 showToast 即可，全项目统一。
  *
@@ -16,14 +16,28 @@
  */
 
 // 单条 toast 结构：{ id, message, type, duration }
-let toasts = []
-let listeners = new Set()
+/** toast 状态档（对应状态色模板 doc39 §3.2：success绿 / error红 / warning黄 / info蓝） */
+type ToastType = 'success' | 'error' | 'warning' | 'info'
+/** 单条 toast 结构 */
+interface Toast {
+  id: number
+  message: string
+  type: ToastType
+  duration: number
+}
+/** showToast 选项 */
+interface ToastOptions {
+  type?: ToastType
+  duration?: number
+}
+let toasts: Toast[] = []
+let listeners = new Set<() => void>()
 let seq = 0
 
 const DURATION = 3000 // 默认 3s 自动消失
 
 // 分级默认时长：失败停留更久，让用户看清；中性 info 最短。
-const DEFAULT_DURATION = {
+const DEFAULT_DURATION: Record<ToastType, number> = {
   success: 2500,
   info: 2500,
   warning: 3500,
@@ -38,7 +52,7 @@ const DEFAULT_DURATION = {
  * @param {number} [opts.duration] 显示时长(ms)；0 = 不自动消失；缺省按分级取 DEFAULT_DURATION
  * @returns {number} toast id（可用于手动关闭）
  */
-export function showToast(message, { type = 'info', duration } = {}) {
+export function showToast(message: string, { type = 'info' as ToastType, duration }: ToastOptions = {}): number {
   const id = ++seq
   const finalDuration = duration ?? DEFAULT_DURATION[type] ?? DURATION
   toasts = [...toasts, { id, message: String(message ?? ''), type, duration: finalDuration }]
@@ -47,30 +61,30 @@ export function showToast(message, { type = 'info', duration } = {}) {
 }
 
 /** 手动关闭某条 toast */
-export function dismissToast(id) {
+export function dismissToast(id: number): void {
   toasts = toasts.filter((t) => t.id !== id)
   emit()
 }
 
 /** 关闭所有 toast */
-export function clearToasts() {
+export function clearToasts(): void {
   if (toasts.length === 0) return
   toasts = []
   emit()
 }
 
 /** 订阅（返回取消函数）。ToastContainer 用它渲染。 */
-export function subscribe(listener) {
+export function subscribe(listener: () => void): () => boolean {
   listeners.add(listener)
   return () => listeners.delete(listener)
 }
 
 /** 读当前快照 */
-export function getToasts() {
+export function getToasts(): Toast[] {
   return toasts
 }
 
-function emit() {
+function emit(): void {
   listeners.forEach((l) => l())
 }
 
@@ -79,7 +93,7 @@ function emit() {
  * 约定：仅当用户「无法直接从界面感知结果」时才弹——后台保存、跨域复制失败、云端推送、
  * 降级有损等；用户一眼能看出的结果（粘贴图片到画布、复制节点）不要弹，属于噪音。
  */
-export const toastSuccess = (message, opts) => showToast(message, { ...opts, type: 'success' })
-export const toastError = (message, opts) => showToast(message, { ...opts, type: 'error' })
-export const toastWarning = (message, opts) => showToast(message, { ...opts, type: 'warning' })
-export const toastInfo = (message, opts) => showToast(message, { ...opts, type: 'info' })
+export const toastSuccess = (message: string, opts?: ToastOptions): number => showToast(message, { ...opts, type: 'success' })
+export const toastError = (message: string, opts?: ToastOptions): number => showToast(message, { ...opts, type: 'error' })
+export const toastWarning = (message: string, opts?: ToastOptions): number => showToast(message, { ...opts, type: 'warning' })
+export const toastInfo = (message: string, opts?: ToastOptions): number => showToast(message, { ...opts, type: 'info' })

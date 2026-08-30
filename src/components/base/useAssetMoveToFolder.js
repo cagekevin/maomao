@@ -1,8 +1,8 @@
 import { useCallback } from 'react'
 import { moveFile, canMoveAsset, resolveMovePaths } from './localToolApi.js'
 import { toAbsoluteFileUrl } from './imageUrl.ts'
-import { publish } from './eventBus.js'
-import { showToast } from './toastStore.js'
+import { publish } from './eventBus.ts'
+import { showToast } from './toastStore.ts'
 
 /** 移动拖拽专用 MIME（与素材「拖到画布」的 application/x-yimao-asset 区分，互不干扰） */
 export const ASSET_MOVE_MIME = 'application/x-yimao-move'
