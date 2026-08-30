@@ -26,7 +26,7 @@ beforeEach(async () => {
   projectsPayload.projects = []
   projectsPayload.lastOpened = ''
   vi.resetModules()
-  projectStore = await import('../../src/components/base/projectStore.js')
+  projectStore = await import('../../src/components/base/projectStore.ts')
 })
 
 describe('项目系统 §2.8', () => {

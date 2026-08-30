@@ -15,28 +15,60 @@ import { fetchProjects, saveProjects } from './localToolApi.ts'
 import { contentGet, contentSet, contentGetAsync, contentSetAsync, contentDeleteAsync, createDebouncedPersist } from './contentStore.js'
 import { logger } from './logger.ts'
 
-const PROJECTS_KEY = 'projects'
-const LAST_OPENED_KEY = 'lastOpenedProject'
+/** 项目结构（对齐官方，仅 id + name） */
+export interface Project {
+  id: string
+  name: string
+}
 
-let projects = loadProjects()
-let currentProjectId = loadLastOpened()
+/** 后端 /api/projects 返回信封（含项目列表、整表版本号、上次打开与冲突标记） */
+interface ProjectBackendData {
+  data?: {
+    projects?: { id: string; name: string }[]
+    version?: number
+    lastOpened?: string | null
+    conflict?: boolean
+  }
+}
+
+/** 画布快照（规范化读取结构；nodes 可能为 null=空/未存） */
+interface CanvasSnapshot {
+  nodes: Record<string, unknown>[] | null
+  edges: Record<string, unknown>[]
+  schemaVersion: number
+  viewport: { x: number; y: number; zoom: number } | null
+  [k: string]: unknown
+}
+
+/** 画布保存返回结果 */
+interface SaveCanvasResult {
+  success: boolean
+  skipped?: boolean
+  conflictVersion?: number
+}
+
+const PROJECTS_KEY: string = 'projects'
+const LAST_OPENED_KEY: string = 'lastOpenedProject'
+
+let projects: Project[] = loadProjects()
+let currentProjectId: string = loadLastOpened()
 let loaded = false // 是否已从后端加载过
 let lastSavedVersion = 0 // 画布版本号单调递增保底（同毫秒连续保存时自增）
 // 项目列表整体版本号（并发覆盖保护）：从后端 fetch 时更新，保存时带回后端，
 // 后端检测旧版本拒绝覆盖（防双页面/旧数据覆盖丢新项目）。对齐画布快照版本冲突检测思路。
 let projectVersion = 0
-const listeners = new Set()
+const listeners: Set<() => void> = new Set()
 
-function loadProjects() {
+function loadProjects(): Project[] {
   const list = contentGet(PROJECTS_KEY)
-  if (Array.isArray(list) && list.length > 0) return list
-  const seeded = [{ id: 'default', name: '默认项目' }]
+  if (Array.isArray(list) && list.length > 0) return list as Project[]
+  const seeded: Project[] = [{ id: 'default', name: '默认项目' }]
   contentSet(PROJECTS_KEY, seeded)
   return seeded
 }
 
-function loadLastOpened() {
-  const v = contentGet(LAST_OPENED_KEY)
+function loadLastOpened(): string {
+  const v: unknown = contentGet(LAST_OPENED_KEY)
   const id = typeof v === 'string' && v ? v : 'default'
   return id
 }
@@ -47,11 +79,11 @@ function loadLastOpened() {
 // 兜底：createDebouncedPersist 自动注册 pagehide flush，极端刷新/关闭不丢最后变更。
 // 合并后端数据到本地（防覆盖）：以后端为基准，补充本地独有项目；更新版本号。
 // 供 initProjects（启动加载）与保存冲突自愈（见 persistDebounced）复用。
-function mergeFromBackend(data) {
-  const list = Array.isArray(data?.data?.projects) ? data.data.projects.map((p) => ({ id: p.id, name: p.name })) : []
-  const localList = Array.isArray(projects) ? projects : []
-  const seen = new Set()
-  const merged = []
+function mergeFromBackend(data: ProjectBackendData): void {
+  const list: Project[] = Array.isArray(data?.data?.projects) ? data.data.projects.map((p) => ({ id: p.id, name: p.name })) : []
+  const localList: Project[] = Array.isArray(projects) ? projects : []
+  const seen = new Set<string>()
+  const merged: Project[] = []
   for (const p of list) {
     if (p?.id && !seen.has(p.id)) { seen.add(p.id); merged.push({ id: p.id, name: p.name }) }
   }
@@ -69,13 +101,20 @@ function mergeFromBackend(data) {
 
 // 后端保存返回冲突（旧版本被拒，说明另一窗口/更新数据先写了）→ 重新合并以获取最新项目与版本。
 // 用 fetch（非 persist）避免「冲突→persist→再冲突」递归；合并后本地即拥有最新数据。
-function handleSaveConflict() {
+function handleSaveConflict(): void {
   fetchProjects()
     .then((data) => { mergeFromBackend(data); persist() })
     .catch((e) => logger.warn('projectStore', '保存冲突后重载项目失败', e?.message))
 }
 
-const persistDebounced = createDebouncedPersist(() => {
+/** createDebouncedPersist（contentStore.js）返回的防抖持久化对象形状 */
+interface DebouncedPersist {
+  schedule(): void
+  flush(): void
+  cancel(): void
+}
+
+const persistDebounced: DebouncedPersist = createDebouncedPersist(() => {
   contentSet(PROJECTS_KEY, projects)
   contentSet(LAST_OPENED_KEY, currentProjectId)
   // 【失败可见】后端保存失败不再空 catch 静默——否则后端缺项会在下次 initProjects 合并前
@@ -102,12 +141,12 @@ const persistDebounced = createDebouncedPersist(() => {
   }))
 }, 300)
 
-function persist() {
+function persist(): void {
   persistDebounced.schedule()
 }
 
 /** 强制立即落盘（页面卸载兜底 / 测试用） */
-export function flushPersist() {
+export function flushPersist(): void {
   persistDebounced.flush()
 }
 
@@ -119,7 +158,7 @@ export function flushPersist() {
 //   2) 补充「本地有而后端缺」的项目（后端缺失不丢本地独有）；
 //   3) 合并结果写回后端（把缺失补回，防下次再丢）。
 // 反向（后端有本地没有）也保留——后端为准。合并后 lastOpened 逻辑不变。
-export function initProjects() {
+export function initProjects(): void {
   if (loaded) return
   loaded = true
   fetchProjects()
@@ -134,45 +173,51 @@ export function initProjects() {
 }
 
 // 缓存快照对象，保证 useSyncExternalStore 的 getSnapshot 返回稳定引用（避免无限重渲染）
-let lastSnapshot = { projects, currentProjectId }
+let lastSnapshot: ProjectSnapshot = { projects, currentProjectId }
 
-function updateSnapshot() {
+/** 项目 store 对外快照（useProjects/useCurrentProjectId 的读取面） */
+export interface ProjectSnapshot {
+  projects: Project[]
+  currentProjectId: string
+}
+
+function updateSnapshot(): void {
   lastSnapshot = { projects, currentProjectId }
 }
 
-function notify() {
+function notify(): void {
   updateSnapshot()
   listeners.forEach((l) => l())
 }
 
-function subscribe(cb) {
+function subscribe(cb: () => void): () => void {
   listeners.add(cb)
   return () => listeners.delete(cb)
 }
 
-function getSnapshot() {
+function getSnapshot(): ProjectSnapshot {
   return lastSnapshot
 }
 
 // 项目 id 复刻官方 Vr.jsx L2303 `proj-${Date.now()}`
-function genId() {
+function genId(): string {
   return `proj-${Date.now()}`
 }
 
 // 读写当前项目画布快照（走 KV，异步）。key 为 canvas-state-v1- 前缀 → 自动分流到 localTool KV。
-export async function loadCanvasState(projectId) {
+export async function loadCanvasState(projectId: string): Promise<CanvasSnapshot | null> {
   try {
     const v = await contentGetAsync(CANVAS_STATE_PREFIX + (projectId || currentProjectId))
     if (!v || typeof v !== 'object') return null
     // P0-4 兼容读取：旧快照无 schemaVersion（视为版本 1 + 缺字段），统一返回 { nodes, edges, schemaVersion }。
     // 缺省字段由 App 加载侧的 applyNodeTypeDefaults 补齐，读取端不在此改结构，保持最小差异。
     // P20 viewport：旧快照可能无 viewport（未存视窗），读取端归一为 null（App 侧回退 fitView 适配全图）。
-    const vp = v.viewport
-    const result = {
-      ...v,
-      nodes: Array.isArray(v.nodes) ? v.nodes : null,
-      edges: Array.isArray(v.edges) ? v.edges : [],
-      schemaVersion: typeof v.schemaVersion === 'number' ? v.schemaVersion : 1,
+    const vp = (v as CanvasSnapshot).viewport
+    const result: CanvasSnapshot = {
+      ...(v as CanvasSnapshot),
+      nodes: Array.isArray((v as CanvasSnapshot).nodes) ? (v as CanvasSnapshot).nodes : null,
+      edges: Array.isArray((v as CanvasSnapshot).edges) ? (v as CanvasSnapshot).edges : [],
+      schemaVersion: typeof (v as CanvasSnapshot).schemaVersion === 'number' ? (v as CanvasSnapshot).schemaVersion : 1,
       viewport: vp && typeof vp === 'object' ? { x: Number(vp.x) || 0, y: Number(vp.y) || 0, zoom: Number(vp.zoom) || 1 } : null,
     }
     // 【P0 埋点】快照加载成功（排查「刷新后画布空/丢节点」：记录读到的节点/边数，区分「没存」vs「读了但空」）
@@ -195,29 +240,34 @@ export async function loadCanvasState(projectId) {
 // 与 initialWidth/Height（React Flow getNodeDimensions fallback 用）。旧白名单漏掉它们，
 // 刷新后 group 矩形面积塌成 0×0（视觉缩成点），且框选命中判定因尺寸缺失而错乱。
 // edges 同理只保留 source/target/type/data 等必要字段。
-const NODE_KEEP = ['id', 'type', 'position', 'data', 'width', 'height', 'parentId', 'extent', 'style', 'initialWidth', 'initialHeight']
-const EDGE_KEEP = ['id', 'source', 'target', 'sourceHandle', 'targetHandle', 'type', 'data', 'label']
-function sanitizeNodes(nodes) {
+const NODE_KEEP: string[] = ['id', 'type', 'position', 'data', 'width', 'height', 'parentId', 'extent', 'style', 'initialWidth', 'initialHeight']
+const EDGE_KEEP: string[] = ['id', 'source', 'target', 'sourceHandle', 'targetHandle', 'type', 'data', 'label']
+function sanitizeNodes(nodes: Record<string, any>[] | null): Record<string, any>[] | null {
   if (!Array.isArray(nodes)) return nodes
   return nodes.map((n) => {
-    const out = {}
+    const out: Record<string, any> = {}
     for (const k of NODE_KEEP) {
       if (n[k] !== undefined && n[k] !== null) out[k] = n[k]
     }
     return out
   })
 }
-function sanitizeEdges(edges) {
+function sanitizeEdges(edges: Record<string, any>[] | null): Record<string, any>[] | null {
   if (!Array.isArray(edges)) return edges
   return edges.map((e) => {
-    const out = {}
+    const out: Record<string, any> = {}
     for (const k of EDGE_KEEP) {
       if (e[k] !== undefined && e[k] !== null) out[k] = e[k]
     }
     return out
   })
 }
-export async function saveCanvasState(projectId, nodes, edges, viewport) {
+export async function saveCanvasState(
+  projectId: string,
+  nodes: Record<string, any>[] | null,
+  edges: Record<string, any>[] | null,
+  viewport?: { x?: number; y?: number; zoom?: number } | null
+): Promise<SaveCanvasResult> {
   const key = CANVAS_STATE_PREFIX + (projectId || currentProjectId)
   try {
     // 对齐官方 shared.js L1405：空画布跳过保存，防止空画布覆盖已有历史（误清空保护）。
@@ -240,7 +290,7 @@ export async function saveCanvasState(projectId, nodes, edges, viewport) {
     }
     // 【④】落盘前清理 ReactFlow 运行时 UI 态（selected/dragging/measured 等），只存必要字段
     // P20 viewport：视窗状态 { x, y, zoom }，仅当传入合法数值才存（否则留 undefined 不进 KV）。
-    let savedViewport
+    let savedViewport: { x: number; y: number; zoom: number } | undefined
     if (viewport && typeof viewport === 'object' && Number.isFinite(viewport.zoom)) {
       savedViewport = { x: Number(viewport.x) || 0, y: Number(viewport.y) || 0, zoom: Number(viewport.zoom) || 1 }
     }
@@ -263,13 +313,13 @@ export async function saveCanvasState(projectId, nodes, edges, viewport) {
 }
 
 // 当前项目信息
-export function getCurrentProject() {
+export function getCurrentProject(): Project {
   return projects.find((p) => p.id === currentProjectId) || projects[0] || { id: 'default', name: '默认项目' }
 }
 
 // 新建项目：返回新项目；创建后切到该项目（不自动清空画布，由调用方决定）
-export function createProject(name) {
-  const proj = { id: genId(), name: (name && name.trim()) || '未命名项目' }
+export function createProject(name?: string): Project {
+  const proj: Project = { id: genId(), name: (name && name.trim()) || '未命名项目' }
   projects = [...projects, proj]
   currentProjectId = proj.id
   persist()
@@ -280,7 +330,7 @@ export function createProject(name) {
 }
 
 // 切换项目：返回目标项目
-export function switchProject(id) {
+export function switchProject(id: string): Project {
   if (!projects.some((p) => p.id === id)) {
     logger.debug('项目', '[切到] 目标不存在', { id, available: projects.map((p) => p.id) }, { module: 'project' })
     return getCurrentProject()
@@ -295,7 +345,7 @@ export function switchProject(id) {
 }
 
 // 删除项目：至少保留一个；删除时移除画布快照（KV），切到第一个
-export function deleteProject(id) {
+export function deleteProject(id: string): boolean {
   if (projects.length <= 1) {
     logger.debug('项目', '[删除] 被拒（至少保留一个）', { id, total: projects.length }, { module: 'project' })
     return false
@@ -314,7 +364,7 @@ export function deleteProject(id) {
 }
 
 // 重命名项目
-export function renameProject(id, name) {
+export function renameProject(id: string, name?: string): void {
   const prev = getCurrentProject().id === id ? getCurrentProject().name : undefined
   projects = projects.map((p) => (p.id === id ? { ...p, name: (name && name.trim()) || p.name } : p))
   persist()
@@ -323,12 +373,12 @@ export function renameProject(id, name) {
   logger.debug('项目', '[重命名]', { id, name: (name && name.trim()) || prev }, { module: 'project' })
 }
 
-export function useProjects() {
+export function useProjects(): ProjectSnapshot {
   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
 }
 
 /** 原子订阅：只订阅当前项目 id（P5）。App 等大组件只用 currentProjectId 时，
  *  避免 projects 列表变更（新建/重命名）连坐整组件重渲染。 */
-export function useCurrentProjectId() {
+export function useCurrentProjectId(): string {
   return useStoreSelector(subscribe, getSnapshot, (s) => s.currentProjectId)
 }

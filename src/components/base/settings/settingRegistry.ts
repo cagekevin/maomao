@@ -23,10 +23,21 @@
  *  - provider/account/agentModel（独立 store）——敏感或后端不同，不走 app_settings 布尔偏好
  *  - 本项目已裁定不引入 webp，故无 webp 相关开关（见 docs/18）
  */
-import { Zap, Map, Bot, Image, Bug } from 'lucide-react'
+import { Zap, Map, Bot, Image, Bug, type LucideIcon } from 'lucide-react'
+
+/** 设置开关定义（声明式表的一行；icon 为 lucide-react 图标组件） */
+export interface SettingDef {
+  key: string
+  default: boolean
+  ui: boolean
+  group: string
+  icon: LucideIcon
+  title: string
+  desc: string
+}
 
 /** 全部设置定义（顺序即「其他设置」页展示顺序） */
-export const SETTING_DEFS = [
+export const SETTING_DEFS: SettingDef[] = [
   {
     key: 'thumbnailOn',
     default: true,
@@ -75,12 +86,12 @@ export const SETTING_DEFS = [
 ]
 
 /** 供设置页渲染的行（仅 ui:true） */
-export const UI_SETTING_ROWS = SETTING_DEFS.filter((s) => s.ui)
+export const UI_SETTING_ROWS: SettingDef[] = SETTING_DEFS.filter((s) => s.ui)
 
 /** 由注册表派生 DEFAULTS（appSettings.js 用它做默认值）
  *  @returns {Record<string, unknown>} */
-export function buildDefaults() {
-  const d = {}
+export function buildDefaults(): Record<string, unknown> {
+  const d: Record<string, unknown> = {}
   for (const s of SETTING_DEFS) d[s.key] = s.default
   return d
 }

@@ -1,6 +1,6 @@
 import React, { useMemo, useRef, useState, useEffect } from 'react'
 import { Search, Plus, Bot, Sparkles, Upload, Download, Pencil, MoreHorizontal, X, Trash2 } from 'lucide-react'
-import { getAllSkills, readCustomSkills, upsertCustomSkill, deleteCustomSkill, isSkillEnabled, setSkillEnabled, getAllEnabledMap } from '../../skillStore.js'
+import { getAllSkills, readCustomSkills, upsertCustomSkill, deleteCustomSkill, isSkillEnabled, setSkillEnabled, getAllEnabledMap } from '../../skillStore.ts'
 import { showToast } from '../../toastStore.ts'
 import { downloadBlob } from '../../clipboard.ts'
 import { createImeInput } from '../../utils.ts'

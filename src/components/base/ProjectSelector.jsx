@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { ChevronDown, Plus, MoreVertical, Pencil, Trash2 } from 'lucide-react'
-import { useProjects, createProject, switchProject, deleteProject, renameProject, getCurrentProject } from './projectStore.js'
+import { useProjects, createProject, switchProject, deleteProject, renameProject, getCurrentProject } from './projectStore.ts'
 import { showToast } from './toastStore.ts'
 import { publish } from './eventBus.ts'
 

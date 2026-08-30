@@ -12,7 +12,25 @@ import { contentGet, contentSet } from './contentStore.js'
 import { sGet } from './storageAdapter.ts'
 import { logger } from './logger.ts'
 
-const SKILLS_KEY = 'agent_skills'
+/** Skill 结构（对齐大雄 builtin_skills：name/description 供 UI，content 无损注入 LLM） */
+export interface Skill {
+  id: string
+  name: string
+  description: string
+  content: string
+  createdAt?: number
+  updatedAt?: number
+  builtin?: boolean
+}
+
+/** 自定义 Skill 读取的结果封装（list 恒为 array，error 携带底层真实原因） */
+export interface SkillResult {
+  ok: boolean
+  list: Skill[]
+  error: string
+}
+
+const SKILLS_KEY: string = 'agent_skills'
 
 /* ════════════════════════════════════════════════════════════════
  * mojibake 乱码修复（对齐大雄 backend.py `_repair_mojibake_text`）
@@ -20,7 +38,7 @@ const SKILLS_KEY = 'agent_skills'
  * 检测「UTF-8 被误当 Latin-1/CP1252 解码」的中文乱码（外部 .md 导入时高发），
  * 把误解码字符按字节反解回 UTF-8。只在像乱码且反解后含 CJK 时才替换，否则保留原文。
  */
-export function repairMojibakeText(text) {
+export function repairMojibakeText(text: string): string {
   if (!text) return text
   const s = String(text)
   const CP1252 = [0x20ac, 0x201a, 0x0192, 0x201e, 0x2026, 0x2020, 0x2021, 0x02c6, 0x2030, 0x0160, 0x2039, 0x0152, 0x017d, 0x2018, 0x2019, 0x201c, 0x201d, 0x2022, 0x2013, 0x2014, 0x02dc, 0x2122, 0x0161, 0x203a, 0x0153, 0x017e, 0x0178]
@@ -57,7 +75,7 @@ export function repairMojibakeText(text) {
 }
 
 /* ── 内置 Skill（改写自大雄 universal-detail-pages.json，适配我们的 generations 执行契约）── */
-const BUILTIN_SKILLS = [
+const BUILTIN_SKILLS: Skill[] = [
   {
     id: 'skill_ecommerce_detail',
     name: '电商详情页套图',
@@ -117,7 +135,7 @@ const BUILTIN_SKILLS = [
 ]
 
 /** 内置 skill */
-export function getBuiltinSkills() {
+export function getBuiltinSkills(): Skill[] {
   return BUILTIN_SKILLS.map((s) => ({ ...s }))
 }
 
@@ -131,8 +149,8 @@ export function getBuiltinSkills() {
  * 【透传原则】error 原样携带底层原因（含实际类型），禁止泛化成「读取失败」抹掉真相。
  * @returns {{ ok: boolean, list: Array, error: string }}
  */
-export function readCustomSkills() {
-  let raw
+export function readCustomSkills(): SkillResult {
+  let raw: unknown
   try {
     raw = contentGet(SKILLS_KEY)
   } catch (e) {
@@ -148,7 +166,7 @@ export function readCustomSkills() {
 }
 
 /** 读用户自定义 skill（内部消费方用；语义：无数据或损坏均返回 []，不抛错） */
-export function getCustomSkills() {
+export function getCustomSkills(): Skill[] {
   return readCustomSkills().list
 }
 
@@ -167,8 +185,8 @@ export function getCustomSkills() {
  * 禁止在无失败信号时向上谎报成功（原 SkillSettings 无条件弹「已保存」即此坑）。
  * @returns {{ ok: boolean, error?: string }}
  */
-export function saveCustomSkills(list) {
-  const payload = Array.isArray(list) ? list : []
+export function saveCustomSkills(list: Skill[]): { ok: boolean; error?: string } {
+  const payload: Skill[] = Array.isArray(list) ? list : []
   try {
     contentSet(SKILLS_KEY, payload)
   } catch (e) {
@@ -203,22 +221,22 @@ export function saveCustomSkills(list) {
 }
 
 /** 全部 skill（内置 + 自定义） */
-export function getAllSkills() {
+export function getAllSkills(): Skill[] {
   return [...getBuiltinSkills(), ...getCustomSkills()]
 }
 
 /** 按 id 找 skill */
-export function findSkill(id) {
+export function findSkill(id: string): Skill | null {
   return getAllSkills().find((s) => s.id === id) || null
 }
 
 /** 新增/更新用户自定义 skill */
-export function upsertCustomSkill(skill) {
+export function upsertCustomSkill(skill: Partial<Skill>): Skill | null {
   if (!skill || !skill.name || !skill.content) return null
   const list = getCustomSkills()
   const idx = list.findIndex((s) => s.id === skill.id)
   const now = Date.now()
-  const clean = {
+  const clean: Skill = {
     id: skill.id || `skill_${now}`,
     name: repairMojibakeText(skill.name),
     description: repairMojibakeText(skill.description || ''),
@@ -242,23 +260,23 @@ export function upsertCustomSkill(skill) {
  * 删除用户自定义 skill。
  * @returns {{ ok: boolean, error?: string }} 转发 saveCustomSkills 的写结果
  */
-export function deleteCustomSkill(id) {
+export function deleteCustomSkill(id: string): { ok: boolean; error?: string } {
   return saveCustomSkills(getCustomSkills().filter((s) => s.id !== id))
 }
 
 /* ── Skill 使用次数（对齐大雄 usage_count，localStorage 记录）── */
-const USAGE_KEY = 'agent_skill_usage' // { [skillId]: count }
-function getUsageMap() {
+const USAGE_KEY: string = 'agent_skill_usage' // { [skillId]: count }
+function getUsageMap(): Record<string, number> {
   try {
     const m = contentGet(USAGE_KEY)
-    return m && typeof m === 'object' ? m : {}
+    return m && typeof m === 'object' ? (m as Record<string, number>) : {}
   } catch (e) {
     logger.warn('skillStore', '读取 Skill 使用次数失败', e?.message || String(e))
     return {}
   }
 }
 /** 记录一次 Skill 使用（+1），返回最新次数 */
-export function markSkillUsed(id) {
+export function markSkillUsed(id: string): number {
   const m = getUsageMap()
   const next = (Number(m[id]) || 0) + 1
   m[id] = next
@@ -271,22 +289,22 @@ export function markSkillUsed(id) {
   return next
 }
 /** 读某 Skill 使用次数 */
-export function getSkillUsage(id) {
+export function getSkillUsage(id: string): number {
   return Number(getUsageMap()[id]) || 0
 }
 
 /* ── Skill 启用状态（localStorage 记录，内置 skill 默认启用，自定义默认启用）── */
-const ENABLED_KEY = 'agent_skill_enabled' // { [skillId]: boolean }
-function getEnabledMap() {
+const ENABLED_KEY: string = 'agent_skill_enabled' // { [skillId]: boolean }
+function getEnabledMap(): Record<string, boolean> {
   try {
     const m = contentGet(ENABLED_KEY)
-    return m && typeof m === 'object' ? m : {}
+    return m && typeof m === 'object' ? (m as Record<string, boolean>) : {}
   } catch (e) {
     logger.warn('skillStore', '读取 Skill 启用状态失败', e?.message || String(e))
     return {}
   }
 }
-function saveEnabledMap(map) {
+function saveEnabledMap(map: Record<string, boolean>): void {
   try {
     contentSet(ENABLED_KEY, map)
   } catch (e) {
@@ -295,7 +313,7 @@ function saveEnabledMap(map) {
 }
 
 /** 判断某 skill 是否启用（默认启用） */
-export function isSkillEnabled(id) {
+export function isSkillEnabled(id: string): boolean {
   const m = getEnabledMap()
   if (id in m) return !!m[id]
   return true // 默认启用
@@ -304,7 +322,7 @@ export function isSkillEnabled(id) {
 /** 设置某 skill 启用/关闭
  * 注意：写入新对象，避免与缓存/其他调用方共享同一引用（引用共享会导致 React 不重渲染）。
  */
-export function setSkillEnabled(id, enabled) {
+export function setSkillEnabled(id: string, enabled: boolean): void {
   const m = { ...getEnabledMap() }
   m[id] = !!enabled
   saveEnabledMap(m)
@@ -314,6 +332,6 @@ export function setSkillEnabled(id, enabled) {
  * 注意：返回新对象（断开引用共享），否则组件用 setEnabledMap 设置后
  * 因引用未变被 React 判为「无变化」而不重渲染（表现为点了开关 UI 不立即刷新）。
  */
-export function getAllEnabledMap() {
+export function getAllEnabledMap(): Record<string, boolean> {
   return { ...getEnabledMap() }
 }

@@ -28,7 +28,7 @@ import { httpRequest } from './httpClient.ts'
 import { API_BASE } from './config.js'
 import { IMAGE_FETCH_TIMEOUT } from './config.js'
 import { API_ENDPOINTS } from './contracts.js'
-import { useAppSettings } from './appSettings.js'
+import { useAppSettings } from './appSettings.ts'
 import { compressImage } from './imageCompress.ts'
 
 /**

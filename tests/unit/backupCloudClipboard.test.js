@@ -11,7 +11,7 @@ vi.mock('../../src/components/base/storageAdapter.ts', () => ({
 
 // ── projectStore mock：提供 loadCanvasState / saveCanvasState ──
 const memKV = new Map()
-vi.mock('../../src/components/base/projectStore.js', () => ({
+vi.mock('../../src/components/base/projectStore.ts', () => ({
   loadCanvasState: vi.fn(async (id) => {
     const k = `canvas-state-v1-${id}`
     return memKV.has(k) ? memKV.get(k) : null

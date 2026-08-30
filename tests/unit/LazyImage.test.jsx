@@ -30,7 +30,7 @@ vi.mock('../../src/components/base/imageUrl.ts', () => ({
 }))
 
 // appSettings（thumbnailOn）：useRenderImageResolver 读取 —— mock 提供默认 true
-vi.mock('../../src/components/base/appSettings.js', () => ({
+vi.mock('../../src/components/base/appSettings.ts', () => ({
   useAppSettings: () => ({ thumbnailOn: true }),
 }))
 

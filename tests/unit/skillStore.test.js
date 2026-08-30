@@ -3,7 +3,7 @@ import {
   getBuiltinSkills, getCustomSkills, readCustomSkills, getAllSkills, findSkill,
   upsertCustomSkill, deleteCustomSkill, markSkillUsed, getSkillUsage,
   repairMojibakeText,
-} from '../../src/components/base/skillStore.js'
+} from '../../src/components/base/skillStore.ts'
 import { contentClearCache } from '../../src/components/base/contentStore.js'
 import { sGet } from '../../src/components/base/storageAdapter.ts'
 

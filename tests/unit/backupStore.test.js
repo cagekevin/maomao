@@ -10,7 +10,7 @@ import { contentGet, contentSet, contentClearCache } from '../../src/components/
 
 // ── stub projectStore：内存画布快照 ──
 const canvasStore = new Map()
-vi.mock('../../src/components/base/projectStore.js', () => ({
+vi.mock('../../src/components/base/projectStore.ts', () => ({
   loadCanvasState: vi.fn(async (id) => canvasStore.get(id) || null),
   saveCanvasState: vi.fn(async (id, nodes, edges) => {
     canvasStore.set(id, { nodes, edges })
@@ -116,7 +116,7 @@ describe('backupStore — 导入 importAll', () => {
   })
 
   it('canvas 快照 saveCanvasState 返回 skipped 时不计入 canvas 计数', async () => {
-    const { saveCanvasState } = await import('../../src/components/base/projectStore.js')
+    const { saveCanvasState } = await import('../../src/components/base/projectStore.ts')
     saveCanvasState.mockImplementationOnce(async () => ({ skipped: true }))
     const res = await importAll({ ls: {}, canvas: { skip1: { nodes: [], edges: [] } } })
     expect(res.canvas).toBe(0)

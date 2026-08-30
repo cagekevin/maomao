@@ -191,7 +191,7 @@ export const STORAGE_KEYS = {
   // ── 应用设置（appSettings）─────────────────────────────────────────
   app_settings: {
     domain: 'settings',
-    store: 'appSettings.js',
+    store: 'appSettings.ts',
     backend: 'local',
     note: '应用设置：{ performanceMode, minimapOn, agentOpen, thumbnailOn }——整键随云端同步',
   },
@@ -227,19 +227,19 @@ export const STORAGE_KEYS = {
   // ── Skill（skillStore）─────────────────────────────────────────────
   agent_skills: {
     domain: 'agent',
-    store: 'skillStore.js',
+    store: 'skillStore.ts',
     backend: 'local',
     note: '用户自定义 Skill 列表 [{id, name, description, content}]',
   },
   agent_skill_usage: {
     domain: 'agent',
-    store: 'skillStore.js',
+    store: 'skillStore.ts',
     backend: 'local',
     note: 'Skill 使用次数统计：{ [skillId]: count }',
   },
   agent_skill_enabled: {
     domain: 'agent',
-    store: 'skillStore.js',
+    store: 'skillStore.ts',
     backend: 'local',
     note: 'Skill 启用状态：{ [skillId]: boolean }。默认启用',
   },
