@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   normalizePrompts, ensureCurrentPrompt, confirmPrompt, editPrompt, savePromptEdit,
   cancelPromptEdit, reopenPrompt, confirmAllPrompts, advanceToNextOrGenerate, PROMPT_STATUS,
-} from '../../src/components/base/promptFlow.js'
+} from '../../src/components/base/promptFlow.ts'
 
 const P = PROMPT_STATUS
 

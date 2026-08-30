@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback } from 'react'
-import { HistoryStack } from './historyStack.js'
+import { HistoryStack } from './historyStack.ts'
 
 /**
  * 画布撤销/重做历史栈 hook（复刻 H_.jsx:475-478,881-925 的 fn/hn/_n/vn 机制）。

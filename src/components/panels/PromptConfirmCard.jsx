@@ -2,7 +2,7 @@ import { memo, useState } from 'react'
 import {
   ensureCurrentPrompt, confirmPrompt, editPrompt, savePromptEdit,
   cancelPromptEdit, reopenPrompt, confirmAllPrompts, PROMPT_STATUS,
-} from '../base/promptFlow.js'
+} from '../base/promptFlow.ts'
 
 const P = PROMPT_STATUS
 

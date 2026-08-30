@@ -13,7 +13,13 @@
  *  - undo/redo 移动 index，并进入 suppress（600ms 窗口防重复记录）
  */
 export class HistoryStack {
-  constructor({ max = 15 } = {}) {
+  max: number
+  history: unknown[]
+  index: number
+  suppress: boolean
+  branchRef: number
+
+  constructor({ max = 15 }: { max?: number } = {}) {
     this.max = max
     this.history = []
     this.index = -1
@@ -21,16 +27,16 @@ export class HistoryStack {
     this.branchRef = -1
   }
 
-  get canUndo() {
+  get canUndo(): boolean {
     return this.index > 0
   }
 
-  get canRedo() {
+  get canRedo(): boolean {
     return this.index < this.history.length - 1
   }
 
   /** 记录一次画布变化；suppress 期忽略；截断被 redo 覆盖的分支 */
-  push(snapshot) {
+  push(snapshot: unknown): void {
     if (this.suppress) return
     // 截断 branchRef 之后的分支（redo 覆盖后再改 → 新分支）
     const next = this.history.slice(0, this.branchRef + 1)
@@ -42,7 +48,7 @@ export class HistoryStack {
   }
 
   /** 撤销：返回应应用的快照（index 前移）并进入 suppress；无则返回 null */
-  undo() {
+  undo(): unknown | null {
     if (this.index <= 0) return null
     this.suppress = true
     const snap = this.history[this.index - 1]
@@ -52,7 +58,7 @@ export class HistoryStack {
   }
 
   /** 重做：返回应应用的快照（index 后移）并进入 suppress；无则返回 null */
-  redo() {
+  redo(): unknown | null {
     if (this.index >= this.history.length - 1) return null
     this.suppress = true
     const snap = this.history[this.index + 1]
@@ -62,12 +68,12 @@ export class HistoryStack {
   }
 
   /** 退出 suppress（undo/redo 的 600ms 延迟窗口结束后调用） */
-  releaseSuppress() {
+  releaseSuppress(): void {
     this.suppress = false
   }
 
   /** 清空（切换/新建项目时调用，避免跨项目残留撤销栈） */
-  clear() {
+  clear(): void {
     this.history = []
     this.index = -1
     this.branchRef = -1

@@ -5,7 +5,7 @@ import {
   loadPresets, saveAndNotify, createPreset,
   getRecent, recordRecent, getRecentCards, searchCards, mapToLibraryCards,
   TYPE_LABEL, TYPE_TAG_CLASS, CATEGORY_OPTIONS
-} from './promptManager.js'
+} from './promptManager.ts'
 import { showToast } from './toastStore.js'
 import { subscribe } from './eventBus.js'
 import { createImeInput } from './utils.ts'

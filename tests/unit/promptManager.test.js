@@ -5,7 +5,7 @@
  */
 import { beforeEach, afterEach, describe, it, expect, vi } from 'vitest'
 import { contentClearCache, contentGet, contentSet } from '../../src/components/base/contentStore.js'
-import * as pm from '../../src/components/base/promptManager.js'
+import * as pm from '../../src/components/base/promptManager.ts'
 
 const STORAGE_KEY = 'yimao_preset_prompts' // 对齐 promptManager.js 内部 STORAGE_KEY
 const RECENT_KEY = 'yimao_preset_recent' // 对齐 promptManager.js 内部 RECENT_KEY

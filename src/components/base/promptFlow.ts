@@ -47,8 +47,62 @@
 
 import { generateId } from './idGen.ts'
 
+/** prompts 逐条确认的 status 取值（对齐 PROMPT_STATUS 各键） */
+export type PromptStatus = 'pending' | 'current' | 'confirmed' | 'editing' | 'skipped'
+
+/** 规范化后的单条 prompt */
+export interface PromptItem {
+  prompt: string
+  count: number
+  use_attachments: boolean
+  use_last_outputs?: boolean
+  attachment_indices?: number[]
+  status: string
+  title?: string
+  ratio?: string
+  resolution?: string
+}
+
+/** 全确认后转生图用的 generation（对齐 execute_plan 输入形状） */
+interface Generation {
+  id: string
+  title: string
+  prompt: string
+  count: number
+  ratio: string
+  resolution: string
+  use_attachments: boolean
+  attachment_indices: number[]
+  depends_on_previous: boolean
+  dependency_mode: string
+}
+
+/** 各推进函数返回结构：done=false 未全确认；done=true 带 generations 可触发生图 */
+interface PromptFlowResult {
+  prompts: PromptItem[]
+  done: boolean
+  generations?: Generation[]
+  error?: string
+}
+
+/** normalizePrompts 的输入项：string 或对象（兼容大雄 normalizePrompts 语义） */
+type RawPrompt =
+  | string
+  | null
+  | {
+      prompt?: string
+      count?: number | string
+      use_attachments?: unknown
+      use_last_outputs?: unknown
+      status?: string
+      attachment_indices?: unknown
+      title?: string
+      ratio?: string
+      resolution?: string
+    }
+
 /** prompts 状态常量（对齐大雄 normalizePrompts 的 status 语义） */
-export const PROMPT_STATUS = {
+export const PROMPT_STATUS: Record<'PENDING' | 'CURRENT' | 'CONFIRMED' | 'EDITING' | 'SKIPPED', PromptStatus> = {
   PENDING: 'pending',
   CURRENT: 'current',
   CONFIRMED: 'confirmed',
@@ -57,7 +111,7 @@ export const PROMPT_STATUS = {
 }
 
 /** 规范化 prompts 数组（兼容 string[] 与对象数组；对齐大雄 normalizePrompts 954）。 */
-export function normalizePrompts(prompts) {
+export function normalizePrompts(prompts: RawPrompt[] | undefined | null): PromptItem[] {
   if (!Array.isArray(prompts)) return []
   return prompts
     .map((p) => {
@@ -66,7 +120,14 @@ export function normalizePrompts(prompts) {
         return t ? { prompt: t, count: 1, use_attachments: false, attachment_indices: [], status: PROMPT_STATUS.PENDING } : null
       }
       if (p && typeof p === 'object' && typeof p.prompt === 'string' && p.prompt.trim()) {
-        const normalized = {
+        const normalized: {
+          prompt: string
+          count: number
+          use_attachments: boolean
+          use_last_outputs: boolean
+          status: string
+          attachment_indices?: number[]
+        } = {
           prompt: p.prompt.trim(),
           count: Math.max(1, Math.min(8, Number(p.count) || 1)),
           use_attachments: !!p.use_attachments,
@@ -75,7 +136,7 @@ export function normalizePrompts(prompts) {
         }
         if (Array.isArray(p.attachment_indices)) {
           normalized.attachment_indices = p.attachment_indices
-            .filter((i) => Number.isFinite(Number(i)) && Number(i) >= 0)
+            .filter((i: number) => Number.isFinite(Number(i)) && Number(i) >= 0)
             .map((i) => Math.floor(Number(i)))
         }
         return normalized
@@ -88,7 +149,7 @@ export function normalizePrompts(prompts) {
 /** 确保有一项为 current/editing；否则把第一个 pending 置为 current（对齐大雄 ensureCurrentPrompt 982）。
  *  @param {Array} prompts 规范化后的 prompts
  *  @returns {Array} 新数组（不可变，返回副本） */
-export function ensureCurrentPrompt(prompts) {
+export function ensureCurrentPrompt(prompts: PromptItem[]): PromptItem[] {
   const next = prompts.map((p) => ({ ...p }))
   if (!next.some((p) => p.status === PROMPT_STATUS.CURRENT || p.status === PROMPT_STATUS.EDITING)) {
     const firstPending = next.findIndex((p) => !p.status || p.status === PROMPT_STATUS.PENDING)
@@ -101,7 +162,7 @@ export function ensureCurrentPrompt(prompts) {
  *  对齐大雄 confirmAgentPrompt 8500 + _advanceToNextOrGenerate 8483 + _triggerGenerationsIfAllDone 8447。
  *  @param {Array} prompts
  *  @returns {{prompts:Array, done:boolean, generations?:Array}} */
-export function confirmPrompt(prompts) {
+export function confirmPrompt(prompts: PromptItem[]): PromptFlowResult {
   let next = prompts.map((p) => ({ ...p }))
   const idx = next.findIndex((p) => p.status === PROMPT_STATUS.CURRENT || p.status === PROMPT_STATUS.EDITING)
   if (idx < 0) return { prompts: next, done: false }
@@ -110,7 +171,7 @@ export function confirmPrompt(prompts) {
 }
 
 /** 把当前项置为 editing（进入内联编辑，不推进；对齐大雄 editAgentPrompt 8508）。 */
-export function editPrompt(prompts, idx) {
+export function editPrompt(prompts: PromptItem[], idx?: number): PromptItem[] {
   const next = prompts.map((p) => ({ ...p }))
   const target = idx >= 0 ? idx : next.findIndex((p) => p.status === PROMPT_STATUS.CURRENT)
   if (target < 0 || target >= next.length) return next
@@ -119,7 +180,7 @@ export function editPrompt(prompts, idx) {
 }
 
 /** 保存内联编辑：更新文本 + 置 confirmed + 推进（对齐大雄 saveAgentPromptEdit 8525）。 */
-export function savePromptEdit(prompts, idx, newText) {
+export function savePromptEdit(prompts: PromptItem[], idx: number | undefined, newText?: string): PromptFlowResult {
   const text = String(newText || '').trim()
   if (!text) return { prompts, done: false, error: '提示词不能为空' }
   let next = prompts.map((p) => ({ ...p }))
@@ -131,7 +192,7 @@ export function savePromptEdit(prompts, idx, newText) {
 }
 
 /** 取消内联编辑：editing 回 current（对齐大雄 cancelAgentPromptEdit 8540）。 */
-export function cancelPromptEdit(prompts, idx) {
+export function cancelPromptEdit(prompts: PromptItem[], idx?: number): PromptItem[] {
   const next = prompts.map((p) => ({ ...p }))
   const target = idx >= 0 ? idx : next.findIndex((p) => p.status === PROMPT_STATUS.EDITING)
   if (target >= 0 && target < next.length) next[target].status = PROMPT_STATUS.CURRENT
@@ -141,7 +202,7 @@ export function cancelPromptEdit(prompts, idx) {
 /** 已确认/已跳过项反悔：直接置为 current（对齐大雄 reopenAgentPrompt 8573）。
  *  前置条件：无 editing/current 时才允许反悔（大雄 toast「请先完成当前提示词的确认或修改」）；
  *  否则返回原数组不反悔。 */
-export function reopenPrompt(prompts, idx) {
+export function reopenPrompt(prompts: PromptItem[], idx: number): PromptItem[] {
   const next = prompts.map((p) => ({ ...p }))
   if (idx < 0 || idx >= next.length) return next
   // 有 editing/current 时禁止反悔（避免状态混乱，对齐大雄 8577-8580）
@@ -151,7 +212,7 @@ export function reopenPrompt(prompts, idx) {
 }
 
 /** 全部确认并生成：把 pending/current/editing 置 confirmed（保留 skipped），触发转 generations（对齐大雄 confirmAllAgentPrompts 8549）。 */
-export function confirmAllPrompts(prompts) {
+export function confirmAllPrompts(prompts: PromptItem[]): PromptFlowResult {
   let next = prompts.map((p) => ({ ...p }))
   next = next.map((p) => (p.status === PROMPT_STATUS.PENDING || p.status === PROMPT_STATUS.CURRENT || p.status === PROMPT_STATUS.EDITING
     ? { ...p, status: PROMPT_STATUS.CONFIRMED }
@@ -162,7 +223,7 @@ export function confirmAllPrompts(prompts) {
 /** 推进到下一个 pending；全 confirmed 则构建 generations（对齐大雄 _advanceToNextOrGenerate 8483 + _triggerGenerationsIfAllDone 8447）。
  *  @param {Array} prompts
  *  @returns {{prompts:Array, done:boolean, generations?:Array}} done=true 表示已全部确认、返回 generations 可触发生图 */
-export function advanceToNextOrGenerate(prompts) {
+export function advanceToNextOrGenerate(prompts: PromptItem[]): PromptFlowResult {
   const next = prompts.map((p) => ({ ...p }))
   const nextPending = next.findIndex((p) => p.status === PROMPT_STATUS.PENDING)
   if (nextPending >= 0) {
@@ -172,7 +233,7 @@ export function advanceToNextOrGenerate(prompts) {
   // 全部处理完（无 pending/current/editing）：收集 confirmed 转 generations
   if (!next.some((p) => p.status === PROMPT_STATUS.PENDING || p.status === PROMPT_STATUS.CURRENT || p.status === PROMPT_STATUS.EDITING)) {
     const confirmed = next.filter((p) => p.status === PROMPT_STATUS.CONFIRMED)
-    const generations = confirmed.map((p) => ({
+    const generations: Generation[] = confirmed.map((p) => ({
       id: generateId('prompt'),
       title: p.title || p.prompt?.slice(0, 30) || '生成',
       prompt: p.prompt,

@@ -73,7 +73,7 @@ export const EVENTS = {
     note: '上游生成完成 → 直接下游（只接一层）自动触发（经 useUpstreamAutoTrigger；开关默认关，零行为改变）',
   },
   'presets-changed': {
-    from: ['promptManager.js:85'],
+    from: ['promptManager.ts:107'],
     to: ['PromptLibrary.jsx:50'],
     payload: '{ presets }',
     note: '提示词库跨节点同步。生产使用',
