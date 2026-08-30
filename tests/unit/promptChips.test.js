@@ -8,7 +8,7 @@ import {
   resolvePromptChips,
   isChipEl,
   autoLinkAssetsByName,
-} from '../../src/components/base/promptChips.js'
+} from '../../src/components/base/promptChips.ts'
 
 /** 把 renderPromptToNodes 的 Node[] append 到一个根 div */
 function renderToDom(text, metaMap) {

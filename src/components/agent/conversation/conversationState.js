@@ -28,7 +28,7 @@ import { logger } from '../../base/logger.ts'
 import { reportDegrade } from '../../base/degrade.js'
 import { KV_TIMEOUT } from '../../base/config.js'
 // 【P1c L3 整包预算安全网】落盘前对归一化副本做投影降级，保证整包序列化体积有界（见 volumePolicy.js）
-import { applyConversationBudget, estimateConversationsBytes, SAFE_BUDGET_BYTES } from '../../base/volumePolicy.js'
+import { applyConversationBudget, estimateConversationsBytes, SAFE_BUDGET_BYTES } from '../../base/volumePolicy.ts'
 
 /**
  * 存储键按 agentKey 隔离（每项目一个 agentKey → 每项目一套会话）。

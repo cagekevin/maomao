@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { detectMentionQuery, computeMentionPlacement, MENTION_FLIP_MIN_H } from '../../src/components/base/promptMention.js'
+import { detectMentionQuery, computeMentionPlacement, MENTION_FLIP_MIN_H } from '../../src/components/base/promptMention.ts'
 
 describe('detectMentionQuery', () => {
   it('正常触发：@ 后跟中文/英文 query，中文后直接打 @ 也弹', () => {

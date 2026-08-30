@@ -3,7 +3,7 @@ import { Search, Filter, MoreVertical, Copy, Play, RotateCw, Trash2, X, RefreshC
 import { useTasks, statusDotClass, statusLabel, typeLabel, removeTask, retryTask, clearTasksBy, clearAllTasks } from './taskStore.js'
 import { logger } from './logger.ts'
 import { downloadUrl } from './clipboard.js'
-import { pollOneTask } from './pollTask.js'
+import { pollOneTask } from './pollTask.ts'
 import { showToast } from './toastStore.js'
 import { makeAssetDragProps } from './useAssetDragToCanvas.js'
 import VideoThumbnail from './VideoThumbnail.jsx'

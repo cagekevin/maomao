@@ -10,12 +10,12 @@ import {
   buildChipEl,
   renderPromptToNodes,
   autoLinkAssetsByName,
-} from './promptChips.js'
+} from './promptChips.ts'
 import {
   detectMentionQuery,
   computeMentionPlacement,
   MENTION_PANEL_W,
-} from './promptMention.js'
+} from './promptMention.ts'
 
 /**
  * 提示词输入区（富文本 contentEditable + @素材芯片）。

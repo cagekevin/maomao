@@ -29,15 +29,25 @@ import { extractResultUrl as extractResult } from './resultUrlExtractor.js'
 import { logger } from './logger.ts'
 
 // 轮询节流：单进程内两次全量扫描最小间隔（ms）
-const POLL_INTERVAL = 5000
+const POLL_INTERVAL: number = 5000
 // 每轮最多并发查询的任务数（避免一次刷新几十个任务打爆网关）
-const MAX_PER_ROUND = 5
+const MAX_PER_ROUND: number = 5
 
-let lastRun = 0
-let timer = null
+/** 可轮询的异步任务形状（taskStore 持久任务字段子集；type/status 为 string） */
+interface PollableTask {
+  id: string
+  nodeId: string
+  type: string
+  status: string
+  pollTaskId?: string
+  progress?: number
+}
+
+let lastRun: number = 0
+let timer: ReturnType<typeof setInterval> | null = null
 
 /** 查询单个异步任务最新状态并回写任务记录。返回是否达到终态（completed/failed）。 */
-export async function pollOneTask(task) {
+export async function pollOneTask(task: PollableTask): Promise<boolean> {
   const pollTaskId = task.pollTaskId
   if (!pollTaskId) return false
   // 【P0 埋点】恢复轮询：开始查询网关（排查「刷新后任务/节点没恢复」：确认轮询是否发起）
@@ -61,7 +71,7 @@ export async function pollOneTask(task) {
   const status = data.status
   if (status === 'completed') {
     // 提取结果 URL（直达统一解析器 resultUrlExtractor；|| '' 兜底空值，避免 undefined 落进任务记录）
-    const resultUrl = extractResult({ data, type: task.type }) || ''
+    const resultUrl = extractResult({ data, type: task.type as 'image' | 'video' | 'audio' }) || ''
     patchTask(task.id, { status: 'completed', progress: 100, resultUrl })
     // 广播完成事件（统一入口 publishTaskCompleted）：节点监听 agent:task-completed 回写（经 eventBus，解耦 window）
     publishTaskCompleted({ taskId: task.id, nodeId: task.nodeId, resultUrl, type: task.type, status: 'completed' })
@@ -86,8 +96,8 @@ export async function pollOneTask(task) {
 }
 
 /** 一轮扫描：找 running/pending 且有 pollTaskId 的任务，逐个查询。 */
-async function runRound() {
-  const tasks = getTasks()
+async function runRound(): Promise<void> {
+  const tasks = getTasks() as PollableTask[]
   const candidates = tasks.filter(
     (t) => (t.status === 'running' || t.status === 'pending') && t.pollTaskId
   )
@@ -103,7 +113,7 @@ async function runRound() {
  * 启动全局任务恢复轮询（App 挂载后调用一次）。
  * 只对有 pollTaskId 的异步任务生效；文本/生图 sync 无 pollTaskId，天然跳过。
  */
-export function initTaskRecovery() {
+export function initTaskRecovery(): void {
   if (timer) return // 防重复启动
   timer = setInterval(() => {
     const now = Date.now()

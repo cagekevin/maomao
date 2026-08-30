@@ -36,7 +36,7 @@ import { useNodePrefs } from '../base/nodePrefs.js'
 import { useRenderImageResolver } from '../base/imageUrl.js'
 import { resolveProviderModel } from '../base/providerModels.js'
 import { debounce, mergeRefImages, buildEffectivePrompt } from '../base/utils.ts'
-import { resolvePromptChips } from '../base/promptChips.js'
+import { resolvePromptChips } from '../base/promptChips.ts'
 
 /**
  * 生图节点（复刻原 bo.jsx / promptNode）
