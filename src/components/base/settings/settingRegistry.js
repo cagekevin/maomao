@@ -1,4 +1,9 @@
 /**
+ * ── 唯一性/兄弟声明（2026-08-30）──
+ * 设置声明表（静态数组 SETTING_DEFS + buildDefaults 派生），与 runModeRegistry.js（WORK_MODE_DEFS）、
+ * contracts.js 各登记表（EVENTS/STORAGE_KEYS/NODE_TYPES/apiRegistry）同属「静态声明表」家族——兄弟。
+ * 三者均为「声明式表 + 派生」，非运行时注册。新增此类先并入既有表，禁止另起新表。
+ *
  * 统一设置注册表（应用设置的"单一事实来源"）。
  *
  * 【为什么收口】此前应用设置默认值散在 appSettings.js，设置页开关散在 OtherSettings.jsx，

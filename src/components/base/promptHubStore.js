@@ -1,4 +1,9 @@
 /**
+ * ── 唯一性/兄弟声明（2026-08-30）──
+ * 本文件 listeners（subscribePromptHub / notifyAll）是「按 sourceId 的模块内订阅」，
+ * 与 eventBus.js 同构（Map<key,Set<fn>> 订阅-通知）但非广播通道、不走 EVENTS 登记——合法内部订阅。
+ * 兄弟：eventBus.js（全局广播）/ taskStore.js listeners（任务中心 store 订阅）。禁止再复制第四处。
+ *
  * 提示词社区库 — 数据层（promptHubStore）。
  *
  * 搬运自 infinite-canvas 的 prompt-source-runtime.ts（normalizeItems / absoluteUrl /

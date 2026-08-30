@@ -35,6 +35,7 @@ import { sGet, sSet, sRemove } from './storageAdapter.js'
 import { storageGet, storageSet, storageDelete, isKvKey } from './kvStore.js'
 import { STORAGE_KEYS } from './contracts.js'
 import { logger } from './logger.js'
+import { compilePatternRegex } from './utils.js'
 
 // ─────────────────────────────────────────────────────────────────
 // 内部状态
@@ -52,20 +53,7 @@ const globalListeners = new Set()
 /** 已 warning 的未登记键集合（防重复 warning） */
 const warnedKeys = new Set()
 
-/** P6：动态键模板 → 编译后正则的模块级缓存（findPatternEntry 循环内不再每次 new RegExp）。
- *  模板键有限（contracts.js 登记的量级），按模板 lazy 编译一次，天然防无限膨胀。 */
-const patternRegexCache = new Map()
-function getPatternRegex(k) {
-  let re = patternRegexCache.get(k)
-  if (!re) {
-    // 按 {xxx} 拆分 → 转义各段 → 用 .+ 拼接（避免先替换 .+ 再被转义）
-    const parts = k.split(/\{[^}]+\}/)
-    const escaped = parts.map((p) => p.replace(/[.+^$()|[\]\\]/g, '\\$&')).join('.+')
-    re = new RegExp('^' + escaped + '$')
-    patternRegexCache.set(k, re)
-  }
-  return re
-}
+// P6：动态键模板 → 编译后正则，统一走 utils.compilePatternRegex（2026-08-30 收口，原本地副本已删）
 
 // ─────────────────────────────────────────────────────────────────
 // 内部工具
@@ -85,7 +73,7 @@ function findPatternEntry(key) {
   for (const [k, v] of Object.entries(STORAGE_KEYS)) {
     if (!v.pattern) continue
     try {
-      if (getPatternRegex(k).test(key)) return v
+      if (compilePatternRegex(k).test(key)) return v
     } catch { /* 忽略无效正则 */ }
   }
   return null

@@ -1,4 +1,10 @@
 /**
+ * ── 唯一性/兄弟声明（2026-08-30）──
+ * 本文件含两张自建监听/注册：① listeners（任务中心 store 订阅，initTasks/notify 用）；
+ * ② retryRegistry（registerTaskRetry，按 nodeId 的键控回调注册表）。
+ * ②与 toolRegistry.js 同为「运行时注册 + 查询」形态——兄弟，禁止再开第三种注册形态；
+ * ①为 store 自带订阅（非广播通道），与 eventBus.js / promptHubStore.js 的同构订阅并列为兄弟。
+ *
  * 任务中心 store —— 后端化（对齐官方，数据落 localTool /api/tasks → SQLite）。
  *
  * 职责：
@@ -268,6 +274,12 @@ export function removeTask(id) {
   deleteTask(id).catch(() => {}) // 后端删除
 }
 
+/**
+ * 【兄弟声明 · 2026-08-30】retryRegistry 是「按 nodeId 的键控回调注册表」（registerTaskRetry /
+ * unregisterTaskRetry / isNodeRegistered），与 toolRegistry.js 的数组 push 注册表同为「运行时注册 + 查询」
+ * 形态——兄弟。语义是「注册 + 按 key 查询」（canvasPlanExecutor 靠 isNodeRegistered 同步轮询等注册完成），
+ * 与 eventBus 广播不同（非事件通道、不走 EVENTS 登记）。禁止再开第三种注册形态。
+ */
 // ── 「再来一次/刷新」真正触发节点重新生成 ──
 const retryRegistry = new Map()
 

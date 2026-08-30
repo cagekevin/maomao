@@ -97,6 +97,26 @@ export function safeFileName(name, o = {}) {
 }
 
 /**
+ * 存储键模板 → 编译后正则（模块级缓存）。收口（2026-08-30）：contentStore / kvStore / storageQuota
+ * 原各有逐字相同的 getPatternRegex，统一收敛到本函数，新增使用方一律 import 本函数、禁止再复制。
+ * 语义：把 STORAGE_KEYS 的 `{xxx}` 动态键模板（如 canvas-state-v1-{projectId}）编译成
+ * `^canvas-state-v1-.+$`；模板数量有限（契约层登记量级），按模板 lazy 编译一次缓存，天然防无限膨胀。
+ * @param {string} template 含 {占位} 的模板
+ * @returns {RegExp}
+ */
+const patternRegexCache = new Map()
+export function compilePatternRegex(template) {
+  let re = patternRegexCache.get(template)
+  if (!re) {
+    const parts = template.split(/\{[^}]+\}/)
+    const escaped = parts.map((p) => p.replace(/[.+^$()|[\]\\]/g, '\\$&')).join('.+')
+    re = new RegExp('^' + escaped + '$')
+    patternRegexCache.set(template, re)
+  }
+  return re
+}
+
+/**
  * 时间格式化。opts：
  *  - 默认 `{ locale: 'zh-CN' }` → `new Date(ts).toLocaleString('zh-CN', { hour12: false })`（TaskCenter）
  *  - `{ mode: 'time' }` → HH:mm:ss（logger）

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { deepClone, formatTime, debounce, throttle, useDebouncedEffect, createImeInput, createRafBatch, mergeRefImages, buildEffectivePrompt, clampSeconds, clamp, assetLabel, dataUrlToBlob, safeFileName } from '../../src/components/base/utils.js'
+import { deepClone, formatTime, debounce, throttle, useDebouncedEffect, createImeInput, createRafBatch, mergeRefImages, buildEffectivePrompt, clampSeconds, clamp, assetLabel, dataUrlToBlob, safeFileName, compilePatternRegex } from '../../src/components/base/utils.js'
 import { renderHook } from '@testing-library/react'
 
 describe('deepClone', () => {
@@ -314,6 +314,27 @@ describe('useDebouncedEffect', () => {
     renderHook(() => useDebouncedEffect(fn, [1], 100, false))
     await vi.advanceTimersByTimeAsync(200)
     expect(fn).not.toHaveBeenCalled()
+  })
+})
+
+describe('compilePatternRegex（存储键模板 → 正则，2026-08-30 收口统一入口）', () => {
+  it('{xxx} 模板 → ^前缀.+$：匹配真实键、缺占位段不匹配、前缀不符不匹配', () => {
+    const re = compilePatternRegex('canvas-state-v1-{projectId}')
+    expect(re.test('canvas-state-v1-proj-123')).toBe(true)
+    expect(re.test('canvas-state-v1-')).toBe(false) // 占位段为空（.+ 至少 1 字符）
+    expect(re.test('canvas-state-v2-proj-123')).toBe(false) // 前缀不符
+  })
+
+  it('多占位模板：各段用 .+ 拼接', () => {
+    const re = compilePatternRegex('agent_conversations_{agentKey}_{convId}')
+    expect(re.test('agent_conversations_abc_1')).toBe(true)
+    expect(re.test('agent_conversations_abc')).toBe(false) // 缺第二段
+  })
+
+  it('模板内正则特殊字符被转义（字面匹配，不误命中）', () => {
+    const re = compilePatternRegex('a.b-{x}')
+    expect(re.test('a.b-1')).toBe(true)
+    expect(re.test('aXb-1')).toBe(false) // '.' 是字面点，非通配
   })
 })
 

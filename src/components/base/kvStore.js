@@ -21,6 +21,7 @@ import { sGet, sSet, sRemove } from './storageAdapter.js'
 import { kvGet, kvSet, kvDelete } from './localToolApi.js'
 import { reportDegrade } from './degrade.js'
 import { CANVAS_STATE_PREFIX, STORAGE_KEYS } from './contracts.js' // 单一来源：画布 KV 前缀与后端判定统一在契约层
+import { compilePatternRegex } from './utils.js'
 
 // 画布类 key 前缀（对齐官方 Ar.CANVAS_STATE_PREFIX，localTool KV 侧会带此前缀）
 // re-export 兼容既有 `import { CANVAS_STATE_PREFIX } from './kvStore.js'`（如 projectStore）
@@ -38,18 +39,7 @@ export { kvGet, kvSet, kvDelete }
  *  2. pattern 动态键：key 匹配某个 backend==='kv' 的模板（如 canvas-state-v1-{projectId}）→ true。
  *  3. 其余（含未登记裸键）→ false（走 local）。
  */
-const patternRegexCache = new Map()
-function getPatternRegex(k) {
-  let re = patternRegexCache.get(k)
-  if (!re) {
-    // 按 {xxx} 拆分 → 转义各段 → 用 .+ 拼接（天然防无限膨胀，模板数量有限，lazy 编译一次）
-    const parts = k.split(/\{[^}]+\}/)
-    const escaped = parts.map((p) => p.replace(/[.+^$()|[\]\\]/g, '\\$&')).join('.+')
-    re = new RegExp('^' + escaped + '$')
-    patternRegexCache.set(k, re)
-  }
-  return re
-}
+// pattern 模板 → 正则统一走 utils.compilePatternRegex（2026-08-30 收口，原本地副本已删）
 
 export function isKvKey(key) {
   if (typeof key !== 'string' || !key) return false
@@ -58,7 +48,7 @@ export function isKvKey(key) {
   for (const [k, v] of Object.entries(STORAGE_KEYS)) {
     if (!v.pattern || v.backend !== 'kv') continue
     try {
-      if (getPatternRegex(k).test(key)) return true
+      if (compilePatternRegex(k).test(key)) return true
     } catch { /* 忽略无效正则模板 */ }
   }
   return false

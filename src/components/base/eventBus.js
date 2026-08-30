@@ -1,4 +1,12 @@
 /**
+ * ── 唯一性声明（2026-08-30）──
+ * 全项目唯一的事件广播通道（subscribe/publish/subscribeOnce）。
+ * 对外「一对多、瞬时广播」一律走本模块 + contracts.js EVENTS 登记（check:events 门禁）。
+ * 禁止自建第二套广播（window.dispatchEvent / 手写 Map 监听）。
+ * taskCompletionBus / persistFailureBus / assetStore.onAssetSent 均为本总线之上的薄封装，非第二套；
+ * promptHubStore.js subscribePromptHub / taskStore.js listeners 是「模块内订阅」非广播通道（见各自文件头）。
+ * 明确不做：不加优先级/超时/统一 context 调度器（当前订阅者全为 UI 刷新，规模不需要）。
+ *
  * 轻量事件总线（对齐大雄 subscribe/publish）。
  *
  * 【解决什么】模块间非状态类事件通信解耦，避免各处硬编码 `window.dispatchEvent('xxx')`

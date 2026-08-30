@@ -46,6 +46,7 @@
  */
 import { isChromeExtension, KEY_PREFIX } from './storageAdapter.js'
 import { STORAGE_KEYS } from './contracts.js'
+import { compilePatternRegex } from './utils.js'
 
 /** 配额受压预警阈值：用量比例 ≥ 此值时视为「即将用尽」（对齐文档 STORAGE_PRESSURE_RATIO） */
 export const STORAGE_PRESSURE_RATIO = 0.85
@@ -150,24 +151,13 @@ export function mapKeyToDomain(key) {
   for (const [k, v] of Object.entries(STORAGE_KEYS)) {
     if (!v.pattern) continue
     try {
-      if (getPatternRegex(k).test(key)) return v.domain
+      if (compilePatternRegex(k).test(key)) return v.domain
     } catch { /* 忽略无效正则模板 */ }
   }
   return 'unknown'
 }
 
-/** pattern 模板 → 编译后正则（模块级缓存，避免循环内重复编译） */
-const patternRegexCache = new Map()
-function getPatternRegex(k) {
-  let re = patternRegexCache.get(k)
-  if (!re) {
-    const parts = k.split(/\{[^}]+\}/)
-    const escaped = parts.map((p) => p.replace(/[.+^$()|[\]\\]/g, '\\$&')).join('.+')
-    re = new RegExp('^' + escaped + '$')
-    patternRegexCache.set(k, re)
-  }
-  return re
-}
+// pattern 模板 → 正则统一走 utils.compilePatternRegex（2026-08-30 收口，原本地副本已删）
 
 /**
  * 存储画像：按 domain 统计实际存储键占用（只读）。
