@@ -1,11 +1,12 @@
 /**
  * check-jsx.mjs
- * 用 esbuild 批量校验 src/components/**\/ *.jsx 的 JSX 语法。
+ * 用 esbuild 批量校验 src 下含 JSX 的组件（.jsx / .tsx）的 JSX 语法。
  * 防止手工复制/拼接大段 JSX 时出现括号/闭合错误。
+ * 注：TS 化后组件为 .tsx，.jsx 仍剩 director3d（第三方集成库，见 CLAUDE.md 边界）。
  *
  * 用法：
- *   node scripts/check-jsx.mjs                 # 校验全部 components
- *   node scripts/check-jsx.mjs src/App.jsx      # 校验指定文件
+ *   node scripts/check-jsx.mjs                 # 校验全部
+ *   node scripts/check-jsx.mjs src/App.tsx      # 校验指定文件
  */
 import { build } from 'esbuild'
 import { readdirSync, statSync } from 'node:fs'
@@ -21,7 +22,7 @@ function collectJsx(dir, acc = []) {
     const st = statSync(full)
     if (st.isDirectory()) {
       collectJsx(full, acc)
-    } else if (extname(name) === '.jsx') {
+    } else if (extname(name) === '.jsx' || extname(name) === '.tsx') {
       acc.push(full)
     }
   }

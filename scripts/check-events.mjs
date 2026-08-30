@@ -53,7 +53,7 @@ function collectSources(dir, acc = []) {
     const st = statSync(full)
     if (st.isDirectory()) {
       collectSources(full, acc)
-    } else if (['.js', '.jsx'].includes(extname(name))) {
+    } else if (['.js', '.jsx', '.ts', '.tsx'].includes(extname(name))) {
       acc.push(full)
     }
   }
@@ -85,7 +85,7 @@ const targets =
         const rootSrc = join(root, 'src')
         for (const name of readdirSync(rootSrc)) {
           const full = join(rootSrc, name)
-          if (statSync(full).isFile() && ['.js', '.jsx'].includes(extname(name))) {
+          if (statSync(full).isFile() && ['.js', '.jsx', '.ts', '.tsx'].includes(extname(name))) {
             base.push(full)
           }
         }
@@ -111,7 +111,9 @@ for (const file of targets) {
     continue
   }
   // 跳过登记表自身与 eventBus 定义（其含文档示例，且自身是校验目标）
-  if (rel.endsWith('contracts.js') || rel.endsWith('eventBus.js')) continue
+  // 扩展名无关：contracts.js 保留 .js、eventBus 可能转 .ts，故按不含扩展名的 basename 判断
+  const relNoExt = rel.slice(0, rel.length - extname(rel).length)
+  if (relNoExt.endsWith('contracts') || relNoExt.endsWith('eventBus')) continue
 
   // 语法校验（esbuild，确保 JSX .jsx 也能读；失败仅警告不阻断扫描）
   try {

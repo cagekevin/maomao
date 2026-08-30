@@ -51,7 +51,7 @@ function collectSources(dir, acc = []) {
     const st = statSync(full)
     if (st.isDirectory()) {
       collectSources(full, acc)
-    } else if (['.js', '.jsx'].includes(extname(name))) {
+    } else if (['.js', '.jsx', '.ts', '.tsx'].includes(extname(name))) {
       acc.push(full)
     }
   }
@@ -98,7 +98,8 @@ for (const file of targets) {
     continue
   }
   // 跳过合约登记表自身与 contentStore（其定义含 pattern 键，且自身是校验目标）
-  if (rel.endsWith('contracts.js') || rel.endsWith('contentStore.js')) continue
+  const relNoExt = rel.slice(0, rel.length - extname(rel).length)
+  if (relNoExt.endsWith('contracts') || relNoExt.endsWith('contentStore')) continue
 
   // 语法校验（esbuild，确保 JSX 也能读；失败仅警告不阻断扫描）
   try {
