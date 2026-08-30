@@ -5,7 +5,7 @@
  *  - ConversionCanceled：错误类型
  */
 import { describe, it, expect, vi } from 'vitest'
-import { ProgressController, ConversionCanceled } from '../../src/components/base/videoEngine.js'
+import { ProgressController, ConversionCanceled } from '../../src/components/base/videoEngine.ts'
 
 describe('ConversionCanceled', () => {
   it('是 Error 子类且可携带信息', () => {

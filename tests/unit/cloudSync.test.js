@@ -28,7 +28,7 @@ vi.mock('../../src/components/base/localToolApi.ts', () => ({
 
 const { providerApi } = await import('../../src/components/base/localToolApi.ts')
 const { CloudSyncEngine, uploadConfig, downloadConfig } = await import(
-  '../../src/components/base/cloudSync.js'
+  '../../src/components/base/cloudSync.ts'
 )
 
 /**

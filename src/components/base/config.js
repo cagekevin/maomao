@@ -151,7 +151,7 @@ export const AUTO_TRIGGER_DOWNSTREAM = false
 
 // ── 云同步终点（P2-H 透明化）──────────────────────────────────
 // cloudSync 的全量同步终点（Google Apps Script 部署 URL）。账号/API Key 等用户数据随 POST body
-// 明文同步到该第三方 GAS，**无鉴权/加密**——仅把 URL 从 cloudSync.js 字面量移入此处便于替换/审计，
+// 明文同步到该第三方 GAS，**无鉴权/加密**——仅把 URL 从 cloudSync.ts 字面量移入此处便于替换/审计，
 // 不改变其安全暴露（如需安全需改走带鉴权 SDK + 加密，另见 docs/68 C-H）。
 export const CLOUD_SYNC_GAS_URL =
   'https://script.google.com/macros/s/AKfycbwI6PvC1v8Bv1E-0aKGx1PQ3AIH5SIUUKjTeDHtq5UxxF3qFFHj8DCr1QvflPDqFdI5/exec'

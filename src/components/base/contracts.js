@@ -411,7 +411,7 @@ export const STORAGE_KEYS = {
   // 注：故 hideFromViewportCapture 曾登记为 native（2026-08-22 移除）——它实为 3D object.userData
   // 属性（SceneRoot.tsx / DirectorCanvas.tsx），并非存储键，登记纯属误导。此键不影响存储读写。
 
-  // ── 备份/云同步清单（backupStore.js / cloudSync.js）──────────────
+  // ── 备份/云同步清单（backupStore.ts / cloudSync.ts）──────────────
   // 已统一从本表 getLocalKeys() 生成，禁止再手写清单（防漂移漏备份）：
   //   backupStore 全量导出；cloudSync 用 SYNC_EXCLUDE 显式排除
   //   （lastOpenedProject / yimao_asset_library / agent_draft / mutiwindow-clipboard）。

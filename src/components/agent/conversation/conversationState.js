@@ -36,7 +36,7 @@ import { applyConversationBudget, estimateConversationsBytes, SAFE_BUDGET_BYTES 
  */
 export const convKey = (k) => `agent_conversations_${k}`
 export const activeKey = (k) => `agent_active_conversation_id_${k}`
-/** AI 助手 agentKey 前缀（对齐 App.jsx / backupStore.js，集中避免散落硬编码） */
+/** AI 助手 agentKey 前缀（对齐 App.jsx / backupStore.ts，集中避免散落硬编码） */
 const AGENT_KEY_PREFIX = 'canvas-assistant'
 /** 旧全局会话键（迁移用）：改造前无 agentKey 后缀（contracts.js 登记为 migration 键） */
 const LEGACY_CONV_KEY = 'agent_conversations'

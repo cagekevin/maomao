@@ -13,7 +13,7 @@ vi.mock('../../src/components/base/eventBus.ts', () => ({
   publish: vi.fn(),
 }))
 
-const { createWorkflow } = await import('../../src/components/base/workflowRuntime.js')
+const { createWorkflow } = await import('../../src/components/base/workflowRuntime.ts')
 
 beforeEach(() => { vi.clearAllMocks() })
 

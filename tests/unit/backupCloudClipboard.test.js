@@ -1,4 +1,4 @@
-// 回归测试：clipboard.js、backupStore.js、cloudSync.js
+// 回归测试：clipboard.js、backupStore.ts、cloudSync.ts
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 // ── 内存版 storageAdapter（参考 projectStore.test.js 的 mock 写法）──
@@ -59,8 +59,8 @@ beforeEach(async () => {
     text: async () => JSON.stringify({ ok: true, msg: 'sync ok' }),
   })))
   clipboard = await import('../../src/components/base/clipboard.ts')
-  backupStore = await import('../../src/components/base/backupStore.js')
-  cloudSync = await import('../../src/components/base/cloudSync.js')
+  backupStore = await import('../../src/components/base/backupStore.ts')
+  cloudSync = await import('../../src/components/base/cloudSync.ts')
 })
 
 // ════════════════════════════════════════════════════════════════
@@ -113,9 +113,9 @@ describe('clipboard.js · sanitizePastedText', () => {
 })
 
 // ════════════════════════════════════════════════════════════════
-// 2. backupStore.js —— LS_KEYS / conversationKeys / exportAll / importAll
+// 2. backupStore.ts —— LS_KEYS / conversationKeys / exportAll / importAll
 // ════════════════════════════════════════════════════════════════
-describe('backupStore.js', () => {
+describe('backupStore.ts', () => {
   // 注：LS_KEYS / conversationKeys 为模块内部（未 export），通过 exportAll 的导出结构间接断言
   it('LS_KEYS 含 projects / lastOpenedProject / app_settings 等权威键（经 exportAll 导出 ls 断言）', async () => {
     memLS.set('projects', JSON.stringify([{ id: 'p1', name: 'P1' }]))
@@ -210,9 +210,9 @@ describe('backupStore.js', () => {
 })
 
 // ════════════════════════════════════════════════════════════════
-// 3. cloudSync.js —— callGateway 锁 / upload 不同步过滤 / download 写回
+// 3. cloudSync.ts —— callGateway 锁 / upload 不同步过滤 / download 写回
 // ════════════════════════════════════════════════════════════════
-describe('cloudSync.js', () => {
+describe('cloudSync.ts', () => {
   it('callGateway：未配置有效 GAS URL 抛错', async () => {
     const eng = cloudSync.CloudSyncEngine
     const saved = eng.config.gasUrl

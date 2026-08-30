@@ -97,7 +97,7 @@ function getCurrentProjectId() {
  * @returns {Promise<object>} 备份对象（含 ls + canvas）
  */
 export async function exportAll() {
-  const ls = {}
+  const ls: Record<string, unknown> = {}
   for (const k of LS_KEYS) {
     const v = readLS(k)
     if (v !== undefined) ls[k] = v
@@ -109,7 +109,7 @@ export async function exportAll() {
     if (v !== undefined && v !== null) ls[k] = v
   }
   // 画布快照：遍历所有项目逐个读 KV
-  const canvas = {}
+  const canvas: Record<string, unknown> = {}
   const projects = Array.isArray(ls.projects) ? ls.projects : []
   const ids = new Set(projects.map((p) => p.id))
   ids.add(getCurrentProjectId())

@@ -123,7 +123,7 @@ function getCurrentProjectId() {
  *  { type:'cloud_config', version:5, updatedAt, data:{ [lsKey]: value, providers?, accounts? } }
  */
 async function collectLocal() {
-  const ls = {}
+  const ls: Record<string, unknown> = {}
   // 1) localStorage 全量用户数据/配置：复用 backupStore 权威清单，按领域开关过滤
   for (const k of LS_KEYS) {
     if (!domainSwitchEnabled(k)) continue // 领域关闭（如 projects）→ 该键不进云端

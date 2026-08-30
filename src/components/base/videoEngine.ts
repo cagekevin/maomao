@@ -33,17 +33,65 @@ import { uploadFileToLocal } from './filesApi.ts'
 import { UPLOAD_DIRS } from './uploadDirs.ts'
 import { safeFileName } from './utils.ts'
 
+/** 进度/结果公共形状 */
+interface ProgressOptions {
+  controller?: ProgressController
+  onProgress?: (p: number) => void
+}
+/** processVideo 选项（对齐官方 Dc 的 t） */
+interface ProcessVideoOptions extends ProgressOptions {
+  mode: 'trim' | 'extractAudio' | 'sizeFrameRate'
+  start?: number
+  end?: number
+  format?: 'm4a' | 'wav' | 'mp3'
+  width?: number
+  height?: number
+  fps?: number
+}
+/** concatVideos 选项（对齐官方 Oc 的 t） */
+interface ConcatOptions extends ProgressOptions {
+  segments?: { start?: number; end?: number; muted?: boolean }[]
+  width?: number
+  height?: number
+  fps?: number
+}
+/** videoToGif 选项（对齐官方 ic） */
+interface GifOptions {
+  fps?: number
+  maxSize?: number
+  colors?: number
+  startTime?: number
+  endTime?: number
+  speed?: number
+  timeoutMs?: number
+  onProgress?: (p: number) => void
+}
+/** 视频元数据形状 */
+interface VideoMetadata {
+  duration: number
+  width: number
+  height: number
+  fps: number
+}
+/** 视频处理统一返回形状 */
+interface VideoProcessResult {
+  blob: Blob
+  metadata: VideoMetadata
+  mimeType: string
+  extension: string
+}
+
 /** clamp：保证是偶数且 ≥2 */
-function Sc(v) {
+function Sc(v: number): number {
   return Math.max(2, Math.round(v / 2) * 2)
 }
 /** clamp：合法 fps（1~120）否则 30 */
-function Cc(v) {
+function Cc(v: number): number {
   if (Number.isFinite(v) && v >= 1 && v <= 120) return v
   return 30
 }
 /** 构建 48000Hz 双声道空音频缓冲（用于拼接时补齐静音轨） */
-function wc(duration, sampleRate = 48000, channels = 2) {
+function wc(duration: number, sampleRate = 48000, channels = 2): AudioBuffer {
   return new AudioBuffer({
     length: Math.max(1, Math.round(duration * sampleRate)),
     numberOfChannels: channels,
@@ -51,7 +99,7 @@ function wc(duration, sampleRate = 48000, channels = 2) {
   })
 }
 /** 重采样到目标采样率/声道（官方 Tc） */
-async function Tc(audioBuffer, sampleRate = 48000, channels = 2) {
+async function Tc(audioBuffer: AudioBuffer, sampleRate = 48000, channels = 2): Promise<AudioBuffer> {
   if (audioBuffer.sampleRate === sampleRate && audioBuffer.numberOfChannels === channels) return audioBuffer
   const ctx = new OfflineAudioContext(channels, Math.max(1, Math.round(audioBuffer.duration * sampleRate)), sampleRate)
   const source = ctx.createBufferSource()
@@ -62,7 +110,7 @@ async function Tc(audioBuffer, sampleRate = 48000, channels = 2) {
 }
 
 /** 用 Blob 构建 mediabunny Input（官方 xc） */
-async function xc(blob) {
+async function xc(blob: Blob): Promise<Input> {
   return new Input({ formats: ALL_FORMATS, source: new BlobSource(blob) })
 }
 
@@ -76,17 +124,18 @@ export class ConversionCanceled extends Error {
 
 /** 进度控制器（官方 bc）：attach conversion / output，支持 cancel */
 export class ProgressController {
-  conversion = null
-  output = null
+  conversion: any = null
+  output: any = null
   canceled = false
   get isCanceled() {
     return this.canceled
   }
-  attach(conversion) {
+  // conversion/output 的 cancel() 来自手动装配的 mediabunny 组件，签名随版本不稳，用 any 兜底（官方 bc）
+  attach(conversion: any) {
     this.conversion = conversion
     if (this.canceled) conversion.cancel()
   }
-  attachOutput(output) {
+  attachOutput(output: any) {
     this.output = output
     if (this.canceled) output.cancel()
   }
@@ -97,7 +146,7 @@ export class ProgressController {
 }
 
 /** 读视频元数据（官方 Ec）→ { duration, width, height, fps } */
-export async function readVideoMetadata(blob) {
+export async function readVideoMetadata(blob: Blob): Promise<VideoMetadata> {
   const input = await xc(blob)
   try {
     if (!(await input.canRead())) throw new Error('无法识别视频格式')
@@ -127,7 +176,7 @@ export async function readVideoMetadata(blob) {
  * @param {object} t { mode, start, end, format, width, height, fps, controller, onProgress }
  * @returns {{ blob, metadata, mimeType, extension }}
  */
-export async function processVideo(blob, t) {
+export async function processVideo(blob: Blob, t: ProcessVideoOptions): Promise<VideoProcessResult> {
   const input = await xc(blob)
   const target = new BufferTarget()
   try {
@@ -138,7 +187,8 @@ export async function processVideo(blob, t) {
     if (t.mode === 'extractAudio' && !audioTrack) throw new Error('该视频不包含可提取的音频轨道')
     if (t.controller?.isCanceled) throw new ConversionCanceled()
 
-    const init = {
+    // init 在下方多分支动态补 trim/video/audio 字段，用 Record 兜底并整体断言给 Conversion.init
+    const init: Record<string, unknown> = {
       input,
       output: new Output({
         format:
@@ -171,7 +221,7 @@ export async function processVideo(blob, t) {
       init.audio = { codec: 'aac' }
     }
 
-    const conversion = await Conversion.init(init)
+    const conversion = await Conversion.init(init as unknown as Parameters<typeof Conversion.init>[0])
     t.controller?.attach(conversion)
     if (!conversion.isValid) {
       const reasons = conversion.discardedTracks.map((e) => e.reason).join('、')
@@ -208,13 +258,13 @@ export async function processVideo(blob, t) {
  * @param {object} t { segments:[{start,end,muted}], controller, onProgress, width, height, fps }
  * @returns {{ blob, metadata, mimeType, extension }}
  */
-export async function concatVideos(blobs, t = {}) {
+export async function concatVideos(blobs: Blob[], t: ConcatOptions = {}): Promise<VideoProcessResult> {
   if (blobs.length < 2) throw new Error('视频拼接至少需要 2 个输入视频')
-  const inputs = []
-  let outputTarget = null
+  const inputs: Input[] = []
+  let outputTarget: any = null
   try {
     for (const b of blobs) inputs.push(await xc(b))
-    const items = []
+    const items: any[] = []
     for (let i = 0; i < inputs.length; i++) {
       const input = inputs[i]
       if (!(await input.canRead())) throw new Error(`第 ${i + 1} 个视频格式无法识别`)
@@ -252,13 +302,14 @@ export async function concatVideos(blobs, t = {}) {
     })
     t.controller?.attachOutput(outputTarget)
 
-    const videoSink = new VideoSampleSink({
+    // mediabunny 1.54 的组件 API（samples/add/close）与本拼装逻辑错配，用 any 保留运行时行为（官方 Oc）
+    const videoSink: any = new VideoSampleSink({
       codec: 'avc',
       bitrate: 5000000,
       sizeChangeBehavior: 'contain',
       transform: { width: outW, height: outH, fit: 'contain', frameRate: outFps }
-    })
-    const audioSink = new AudioBufferSource({
+    } as never)
+    const audioSink: any = new AudioBufferSource({
       codec: 'aac',
       bitrate: 192000,
       transform: { sampleRate: 48000, numberOfChannels: 2 }
@@ -277,7 +328,7 @@ export async function concatVideos(blobs, t = {}) {
     for (let i = 0; i < items.length; i++) {
       if (t.controller?.isCanceled) throw new ConversionCanceled()
       const it = items[i]
-      const source = new VideoSampleSource(it.video)
+      const source: any = new VideoSampleSource(it.video)
       for await (const sample of source.samples(it.start, it.end)) {
         try {
           if (t.controller?.isCanceled) throw new ConversionCanceled()
@@ -293,7 +344,7 @@ export async function concatVideos(blobs, t = {}) {
         }
       }
       if (it.audio && !it.muted) {
-        const audioSource = new AudioSampleSink(it.audio)
+        const audioSource: any = new AudioSampleSink(it.audio)
         const firstTs = (await it.audio.getFirstTimestamp()) + it.start
         const rate = await it.audio.getSampleRate()
         const ch = await it.audio.getNumberOfChannels()
@@ -344,8 +395,8 @@ export async function concatVideos(blobs, t = {}) {
 }
 
 /** 加载 video 元素（复刻官方 nc.jsx）：onloadedmetadata 后 resolve，带超时 */
-function loadVideoElement(url, timeoutMs = 15000) {
-  return new Promise((resolve, reject) => {
+function loadVideoElement(url: string, timeoutMs = 15000): Promise<HTMLVideoElement> {
+  return new Promise<HTMLVideoElement>((resolve, reject) => {
     const video = document.createElement('video')
     video.crossOrigin = 'anonymous'
     video.preload = 'auto'
@@ -367,8 +418,8 @@ function loadVideoElement(url, timeoutMs = 15000) {
 }
 
 /** seek 视频并等待 seeked（复刻官方 rc） */
-function seekVideo(video, t) {
-  return new Promise((resolve) => {
+function seekVideo(video: HTMLVideoElement, t: number): Promise<void> {
+  return new Promise<void>((resolve) => {
     const onSeeked = () => {
       video.removeEventListener('seeked', onSeeked)
       resolve()
@@ -379,7 +430,7 @@ function seekVideo(video, t) {
 }
 
 /** 格式化文件大小（复刻官方 uc）：B / KB / MB */
-export function formatBytes(e) {
+export function formatBytes(e: number): string {
   if (e < 1024) return `${e} B`
   if (e < 1048576) return `${(e / 1024).toFixed(1)} KB`
   return `${(e / 1048576).toFixed(2)} MB`
@@ -391,7 +442,10 @@ export function formatBytes(e) {
  * @param {object} t { fps=10, maxSize=480, colors=256, startTime=0, endTime, speed=1, timeoutMs=30000, onProgress }
  * @returns {Promise<{blob, width, height, frameCount, size}>}
  */
-export async function videoToGif(url, t = {}) {
+export async function videoToGif(
+  url: string,
+  t: GifOptions = {}
+): Promise<{ blob: Blob; width: number; height: number; frameCount: number; size: number }> {
   const { fps = 10, maxSize = 480, colors = 256, startTime = 0, endTime, speed = 1, timeoutMs = 30000, onProgress } = t
   const video = await loadVideoElement(url, timeoutMs)
   const duration = video.duration
@@ -455,11 +509,15 @@ export async function videoToGif(url, t = {}) {
  * @param {{ subfolder?: string }} [opts] 落盘子目录（默认 canvas/video-process）
  * @returns {{ url: string, thumbnailUrl?: string }}
  */
-export async function uploadResult(blob, _opts = {}) {
+export async function uploadResult(
+  blob: Blob | string,
+  _opts: { subfolder?: string } = {}
+): Promise<{ url: string }> {
   if (typeof blob === 'string') return { url: blob }
   const subfolder = _opts?.subfolder || UPLOAD_DIRS.videoProcess
   try {
-    const name = safeFileName(blob.name || `video_${Date.now()}.${blob.type?.split('/')[1] || 'mp4'}`)
+    // blob 运行时实为 File，读 .name（Blob 类型无该字段，这里缩小为 File 取原始文件名）
+    const name = safeFileName((blob as File).name || `video_${Date.now()}.${blob.type?.split('/')[1] || 'mp4'}`)
     const url = await uploadFileToLocal(blob, subfolder, name)
     if (url) return { url }
     logger.warn('videoEngine', '视频产物落盘失败，降级为临时 URL（刷新后不可用）')

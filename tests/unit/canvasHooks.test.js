@@ -1,4 +1,4 @@
-// 回归测试：useCanvasHistory.js、useSyncNodeData.js、workflowRuntime.js
+// 回归测试：useCanvasHistory.js、useSyncNodeData.js、workflowRuntime.ts
 // @vitest-environment jsdom
 /**
  * 画布与同步 hooks 回归测试（TASK-066）。
@@ -181,7 +181,7 @@ describe('useSyncNodeData 节点 data 同步 hook', () => {
 // ───────────────────────────────────────────────────────────
 // 3. workflowRuntime
 // ───────────────────────────────────────────────────────────
-import { createWorkflow } from '../../src/components/base/workflowRuntime.js'
+import { createWorkflow } from '../../src/components/base/workflowRuntime.ts'
 
 describe('workflowRuntime createWorkflow 生命周期', () => {
   it('createWorkflow 初始 status=idle', () => {

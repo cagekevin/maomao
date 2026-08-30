@@ -22,7 +22,7 @@ import {
   uploadResult,
   ProgressController,
   ConversionCanceled
-} from '../base/videoEngine.js'
+} from '../base/videoEngine.ts'
 import { generateId } from '../base/idGen.ts'
 import { buildSpawnNodes, spawnAndCommit } from '../base/deriveNodes.ts'
 import { useCanvasEdges } from '../base/CanvasEdgesContext.jsx'

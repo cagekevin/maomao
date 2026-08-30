@@ -45,14 +45,20 @@ function abortError() {
  *  - conversationId: 归属的对话 id（绑定 per-conversation 状态）
  *  - onStatusChange?: (status) => void  状态变化回调（UI 订阅）
  */
-export function createWorkflow({ conversationId = '', onStatusChange = null } = {}) {
-  let status = 'idle'
+export function createWorkflow({
+  conversationId = '',
+  onStatusChange = null,
+}: {
+  conversationId?: string
+  onStatusChange?: (status: string) => void
+} = {}) {
+  let status: string = 'idle'
   let awaitingConfirm = false
-  const nodeIds = []
-  const steerQueue = []
-  const aiUndoStack = []
-  const cancelTokens = new Set()
-  const listeners = new Set()
+  const nodeIds: string[] = []
+  const steerQueue: { text: string; attachments: unknown[]; ts: number }[] = []
+  const aiUndoStack: unknown[] = []
+  const cancelTokens = new Set<AbortController>()
+  const listeners = new Set<(s: string) => void>()
 
   function setStatus(next) {
     if (status === next) return
@@ -62,6 +68,7 @@ export function createWorkflow({ conversationId = '', onStatusChange = null } = 
   }
 
   const wf = {
+    id: '', // 占位，随后 generateId('wf') 赋值（保持对象字面量含 id 字段以匹配 TS 类型）
     conversationId,
     get status() { return status },
     get isRunning() { return RUNNING.has(status) },
