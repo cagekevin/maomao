@@ -1,5 +1,5 @@
 import React, { memo, useRef, useState, useEffect } from 'react'
-import { useRenderImageResolver } from './imageUrl.js'
+import { useRenderImageResolver } from './imageUrl.ts'
 import { ImageOff } from 'lucide-react'
 
 /**

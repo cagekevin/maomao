@@ -4,7 +4,7 @@ import { ZgPrompt, removeAsset, renameAssetRefs } from '../base/scriptBoxPrompts
 import { resolveAssetTemplates } from '../base/scriptBoxPromptResolver.js'
 import { assetFolderOf } from '../base/assetStore.js'
 import { useOutsideClick } from '../base/hooks.js'
-import { useRenderImageResolver, toAbsoluteFileUrl } from '../base/imageUrl.js'
+import { useRenderImageResolver, toAbsoluteFileUrl } from '../base/imageUrl.ts'
 import ImageZoomDialog from '../base/ImageZoomDialog.jsx'
 import ScriptBoxAssetPicker from './ScriptBoxAssetPicker.jsx'
 

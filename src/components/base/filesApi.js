@@ -32,9 +32,9 @@ import { logger } from './logger.ts'
 import { UPLOAD_TIMEOUT } from './config.js'
 import { formatTime, dataUrlToBlob, safeFileName } from './utils.ts'
 import { UPLOAD_DIRS } from './uploadDirs.ts'
-export { toAbsoluteFileUrl } from './imageUrl.js'
+export { toAbsoluteFileUrl } from './imageUrl.ts'
 export { EXT_BY_TYPE }
-import { isLocalFileUrl } from './imageUrl.js'
+import { isLocalFileUrl } from './imageUrl.ts'
 const SUBFOLDER = UPLOAD_DIRS.tasks
 /** 网页拖图专用落盘目录（不与素材库/生成结果混放，见 docs/34 升级） */
 export const WEB_DROP_SUBFOLDER = UPLOAD_DIRS.web

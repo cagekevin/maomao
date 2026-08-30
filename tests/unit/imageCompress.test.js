@@ -12,7 +12,7 @@
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 
-const { compressImage } = await import('../../src/components/base/imageCompress.js')
+const { compressImage } = await import('../../src/components/base/imageCompress.ts')
 
 const fetchMock = globalThis.fetch
 

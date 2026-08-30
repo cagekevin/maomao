@@ -16,7 +16,7 @@
 import { runNodeGeneration, isNodeRegistered } from '../../base/taskStore.js'
 import { generateId } from '../../base/idGen.ts'
 import { logger } from '../../base/logger.ts'
-import { toAbsoluteFileUrl } from '../../base/imageUrl.js'
+import { toAbsoluteFileUrl } from '../../base/imageUrl.ts'
 import { createCanvasHost } from './canvasHost.js'
 
 /* ── 全局单飞锁（对齐大雄 __canvasAgentGenRunning）──

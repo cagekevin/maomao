@@ -1,6 +1,6 @@
 import React from 'react'
 import { Play } from 'lucide-react'
-import { toAbsoluteFileUrl } from './imageUrl.js'
+import { toAbsoluteFileUrl } from './imageUrl.ts'
 
 /**
  * 视频缩略图统一组件：静音封面 + 居中悬浮播放按钮。

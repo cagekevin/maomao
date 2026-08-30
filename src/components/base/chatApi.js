@@ -16,7 +16,7 @@
  * 冲突；httpClient 的自动重试会破坏流式增量与多轮工具循环。故保持独立 proxyGenerate 链路，
  * 并在模块内部自行处理 AbortSignal。禁止把它迁移到 httpClient.js。
  */
-import { normalizeImageUrlsForSend, toImageContentBlocks } from './imageUrl.js'
+import { normalizeImageUrlsForSend, toImageContentBlocks } from './imageUrl.ts'
 import { logger } from './logger.ts'
 import { chatProxy } from './proxyGenerate.js'
 // 请求形态层：聊天 responses 形态构造请求体（chat_completions 默认，M2-2）

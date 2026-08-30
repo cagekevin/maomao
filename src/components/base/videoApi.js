@@ -18,7 +18,7 @@
  * httpClient 的「网络/超时自动重试」冲突，自动重试会打乱轮询时序或误判。故保持独立 proxyGenerate
  * 链路，并在模块内部自行处理 AbortSignal。禁止把它迁移到 httpClient.js。
  */
-import { normalizeImageUrlsForSend } from './imageUrl.js'
+import { normalizeImageUrlsForSend } from './imageUrl.ts'
 import { videoProxy } from './proxyGenerate.js'
 import { logger } from './logger.ts'
 

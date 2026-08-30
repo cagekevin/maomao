@@ -63,7 +63,7 @@ import { injectNodePrefs } from './components/base/nodePrefs.ts'
 import { useCanvasSync } from './components/base/useCanvasSync.js'
 import { parseShotHandle } from './components/base/contracts.js'
 // url 引用改写工具（与 taskStore 共用同一份，禁止各写一份 → 改名只改一半）
-import { buildUrlRewritePairs, replaceUrlDeep } from './components/base/imageUrl.js'
+import { buildUrlRewritePairs, replaceUrlDeep } from './components/base/imageUrl.ts'
 import { prefetchHeavyNode } from './components/base/lazyNode.jsx'
 
 /* ======================================================================

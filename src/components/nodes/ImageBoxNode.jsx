@@ -16,7 +16,7 @@ import { loadImageWithTimeout } from '../base/asyncGuard.ts'
 import { generateId } from '../base/idGen.ts'
 import { downloadUrl as clipboardDownload } from '../base/clipboard.js'
 
-import { useRenderImageResolver, fileToDataUrl } from '../base/imageUrl.js'
+import { useRenderImageResolver, fileToDataUrl } from '../base/imageUrl.ts'
 
 /**
  * 图片盒子节点（复刻官方 Rg.jsx / imageBoxNode）。

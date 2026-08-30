@@ -9,7 +9,7 @@ import { jsonResp, sseResp } from './_testUtils.mjs'
 
 const fetchMock = globalThis.fetch
 
-vi.mock('../../src/components/base/imageUrl.js', () => ({
+vi.mock('../../src/components/base/imageUrl.ts', () => ({
   normalizeImageUrlsForSend: vi.fn(async () => []),
   toAbsoluteFileUrl: vi.fn((u) => u),
   normalizeImageUrl: vi.fn((u) => u),
@@ -21,7 +21,7 @@ vi.mock('../../src/components/base/taskStore.js', () => ({
 }))
 
 const api = await import('../../src/components/base/imageApi.js')
-const { normalizeImageUrlsForSend } = await import('../../src/components/base/imageUrl.js')
+const { normalizeImageUrlsForSend } = await import('../../src/components/base/imageUrl.ts')
 const { setTaskPollId } = await import('../../src/components/base/taskStore.js')
 
 beforeEach(() => {

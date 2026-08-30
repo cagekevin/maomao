@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { toAbsoluteFileUrl, toRelativeFileUrl, buildThumbnailUrl, resolveImageUrl, normalizeImageUrl, normalizeImageUrlForSend, normalizeImageUrlsForSend, toImageContentBlocks, fileToDataUrl, classifyImageType, summarizeImages } from '../../src/components/base/imageUrl.js'
+import { toAbsoluteFileUrl, toRelativeFileUrl, buildThumbnailUrl, resolveImageUrl, normalizeImageUrl, normalizeImageUrlForSend, normalizeImageUrlsForSend, toImageContentBlocks, fileToDataUrl, classifyImageType, summarizeImages } from '../../src/components/base/imageUrl.ts'
 
 // blobToDataUrl / urlToDataUrl 依赖 httpClient 与 FileReader（node 无原生实现），在此 mock。
 vi.mock('../../src/components/base/httpClient.js', () => ({
@@ -11,13 +11,13 @@ vi.mock('../../src/components/base/logger.ts', () => ({
 }))
 // 发送出口会调 compressImage（本地图压缩→base64）。本测试关注「发送归一」的 URL/分支处理，
 // 压缩本身由 imageCompress.test.js 覆盖，这里 mock 掉避免依赖 canvas 浏览器 API。
-vi.mock('../../src/components/base/imageCompress.js', () => ({
+vi.mock('../../src/components/base/imageCompress.ts', () => ({
   compressImage: vi.fn(async (url, opts) => ({ dataUrl: `data:image/png;base64,compressed:${url}` })),
 }))
 
 import { httpRequest } from '../../src/components/base/httpClient.js'
 import { logger } from '../../src/components/base/logger.ts'
-import { compressImage } from '../../src/components/base/imageCompress.js'
+import { compressImage } from '../../src/components/base/imageCompress.ts'
 
 // node 环境无 FileReader：stub 一个，readAsDataURL 直接产出预设 dataURL（配合 httpRequest mock 返回 {_dataUrl}）。
 function stubFileReader() {

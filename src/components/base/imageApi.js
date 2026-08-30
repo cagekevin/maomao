@@ -16,7 +16,7 @@
  * 的语义与 httpClient 的「非 2xx 抛 HttpError + 自动重试」冲突；httpClient 自动重试会破坏流式/轮询节奏。
  * 故保持独立 proxyGenerate 链路，并在模块内部自行处理 AbortSignal。禁止把它迁移到 httpClient.js。
  */
-import { normalizeImageUrlsForSend } from './imageUrl.js'
+import { normalizeImageUrlsForSend } from './imageUrl.ts'
 import { imageProxy } from './proxyGenerate.js'
 import { logger } from './logger.ts'
 // 请求形态层：responses 形态按 input[] + tools 构造请求体（PRD 翻车点 1，消灭死字段）

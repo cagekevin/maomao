@@ -11,7 +11,7 @@
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 
-const { upscaleImage } = await import('../../src/components/base/imageUpscale.js')
+const { upscaleImage } = await import('../../src/components/base/imageUpscale.ts')
 
 const fetchMock = globalThis.fetch
 

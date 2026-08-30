@@ -9,7 +9,7 @@ import { useMediaDegrade } from '../base/useMediaDegrade.js'
 import { useContentHeightSync } from '../base/hooks.js'
 import { showToast, toastWarning } from '../base/toastStore.js' // 保留阻断校验提示
 import { toAbsoluteFileUrl } from '../base/filesApi.js'
-import { useRenderImageResolver } from '../base/imageUrl.js'
+import { useRenderImageResolver } from '../base/imageUrl.ts'
 import { loadImageWithTimeout } from '../base/asyncGuard.ts'
 import { logger } from '../base/logger.ts'
 import { generateId } from '../base/idGen.ts'

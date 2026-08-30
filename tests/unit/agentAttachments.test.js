@@ -8,7 +8,7 @@
  */
 import { describe, it, expect, vi } from 'vitest'
 
-vi.mock('../../src/components/base/imageUrl.js', () => ({
+vi.mock('../../src/components/base/imageUrl.ts', () => ({
   normalizeImageUrlForSend: vi.fn(async (url, opts) => `norm:${url}${opts?.preferBase64 ? ':b64' : ''}`),
   summarizeImages: vi.fn((urls) => {
     const list = (urls || []).filter((u) => typeof u === 'string' && u)
@@ -22,7 +22,7 @@ vi.mock('../../src/components/base/logger.ts', () => ({
 }))
 
 const { normalizeAttachmentsForSend, buildRefCatalog } = await import('../../src/components/agent/runtime/agentAttachments.js')
-const { normalizeImageUrlForSend, summarizeImages } = await import('../../src/components/base/imageUrl.js')
+const { normalizeImageUrlForSend, summarizeImages } = await import('../../src/components/base/imageUrl.ts')
 const { logger } = await import('../../src/components/base/logger.ts')
 
 describe('normalizeAttachmentsForSend — 附件统一归一出口', () => {

@@ -4,7 +4,7 @@ import { isEditableTarget } from './hooks.js'
 import { sanitizePastedText } from './clipboard.js'
 import { showToast } from './toastStore.js'
 import { uploadFileToLocal, downloadRemoteToLocal, WEB_DROP_SUBFOLDER } from './filesApi.js'
-import { fileToDataUrl } from './imageUrl.js'
+import { fileToDataUrl } from './imageUrl.ts'
 import { UPLOAD_DIRS } from './uploadDirs.ts'
 import { logger } from './logger.ts'
 

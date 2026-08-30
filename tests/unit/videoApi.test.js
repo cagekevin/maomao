@@ -11,7 +11,7 @@ import { VIDEO_TIMEOUT } from '../../src/components/base/config.js'
 
 const fetchMock = globalThis.fetch
 
-vi.mock('../../src/components/base/imageUrl.js', () => ({
+vi.mock('../../src/components/base/imageUrl.ts', () => ({
   normalizeImageUrlsForSend: vi.fn(async () => []),
   toAbsoluteFileUrl: vi.fn((u) => u),
   normalizeImageUrl: vi.fn((u) => u),
@@ -23,7 +23,7 @@ vi.mock('../../src/components/base/taskStore.js', () => ({
 }))
 
 const { generateVideo } = await import('../../src/components/base/videoApi.js')
-const { normalizeImageUrlsForSend } = await import('../../src/components/base/imageUrl.js')
+const { normalizeImageUrlsForSend } = await import('../../src/components/base/imageUrl.ts')
 const { setTaskPollId } = await import('../../src/components/base/taskStore.js')
 
 /** 读提交/轮询请求的 body 里的 url（即后端要转发的上游 url） */

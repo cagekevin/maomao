@@ -8,7 +8,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 
 const fetchMock = globalThis.fetch
 
-vi.mock('../../src/components/base/imageUrl.js', () => ({
+vi.mock('../../src/components/base/imageUrl.ts', () => ({
   normalizeImageUrlsForSend: vi.fn(async () => []),
   // 纯函数：mock 成与源码一致的实现，便于断言聊天消息里图片块的形态
   toImageContentBlocks: vi.fn((urls) => (urls || []).map((url) => ({ type: 'image_url', image_url: { url } }))),
@@ -19,7 +19,7 @@ vi.mock('../../src/components/base/imageUrl.js', () => ({
 }))
 
 const { chatCompletions } = await import('../../src/components/base/chatApi.js')
-const { normalizeImageUrlsForSend } = await import('../../src/components/base/imageUrl.js')
+const { normalizeImageUrlsForSend } = await import('../../src/components/base/imageUrl.ts')
 
 function proxyResp(obj, ok = true, status = 200) {
   return { ok, status, json: async () => obj }

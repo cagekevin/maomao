@@ -24,12 +24,34 @@
  *  - maxOutputSize 输出最长边像素上限（可选），超出则等比 clamp（防超大图内存爆炸）
  * @returns {Promise<{ dataUrl, blob, width, height }>}
  */
-import { toAbsoluteFileUrl } from './imageUrl.js'
+import { toAbsoluteFileUrl } from './imageUrl.ts'
 import { loadImageWithTimeout } from './asyncGuard.ts'
 import { IMAGE_LOAD_TIMEOUT } from './config.js'
 import { dataUrlToBlob } from './utils.ts'
 
-export async function upscaleImage(url, opts = {}) {
+/** 图片放大入参（upscaleImage.opts；均可选，见函数头 JSDoc） */
+export interface UpscaleImageOptions {
+  /** 放大倍数，默认 2（等比，宽高各乘 scale；必须 >=1） */
+  scale?: number
+  /** 是否轻度锐化，默认 true */
+  sharpen?: boolean
+  /** 锐化强度 0~2，默认 0.6 */
+  sharpenAmount?: number
+  /** 输出格式，默认 image/png（保持无损，适合放大） */
+  format?: string
+  /** 输出最长边像素上限（可选），超出则等比 clamp（防超大图内存爆炸） */
+  maxOutputSize?: number
+}
+
+/** 图片放大结果（与 imageCompress 返回结构对齐，供"原位覆盖"写回机制复用） */
+export interface UpscaledImageResult {
+  dataUrl: string
+  blob: Blob
+  width: number
+  height: number
+}
+
+export async function upscaleImage(url: string, opts: UpscaleImageOptions = {}): Promise<UpscaledImageResult> {
   const {
     scale = 2,
     sharpen = true,
@@ -106,7 +128,7 @@ export async function upscaleImage(url, opts = {}) {
  * @param {HTMLCanvasElement} canvas 放大的画布（就地修改）
  * @param {number} amount 锐化强度 0~2
  */
-function applyUnsharpMask(canvas, amount) {
+function applyUnsharpMask(canvas: HTMLCanvasElement, amount: number): void {
   const W = canvas.width
   const H = canvas.height
   const ctx = canvas.getContext('2d')

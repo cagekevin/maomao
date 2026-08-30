@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { X, Check, Undo2, Redo2, RotateCcw, ScanFace, LayoutGrid, Ban, Grid3X3, Waves } from 'lucide-react'
-import { detectFaces, drawMosaicOnBox, MOSAIC_MODES, MOSAIC_PALETTE } from './faceMosaic.js'
+import { detectFaces, drawMosaicOnBox, MOSAIC_MODES, MOSAIC_PALETTE } from './faceMosaic.ts'
 import { createRafBatch } from './utils.ts'
 
 /**

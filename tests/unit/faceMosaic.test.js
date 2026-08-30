@@ -24,7 +24,7 @@ import {
   loadFaceDetector,
   drawMosaicOnBox,
   MOSAIC_PALETTE
-} from '../../src/components/base/faceMosaic.js'
+} from '../../src/components/base/faceMosaic.ts'
 
 function makeCtx() {
   return {
@@ -79,7 +79,7 @@ describe('loadFaceDetector', () => {
     vi.resetModules()
     const { FaceDetector } = await import('@mediapipe/tasks-vision')
     FaceDetector.createFromOptions.mockClear()
-    const { loadFaceDetector: load2 } = await import('../../src/components/base/faceMosaic.js')
+    const { loadFaceDetector: load2 } = await import('../../src/components/base/faceMosaic.ts')
     FaceDetector.createFromOptions.mockRejectedValueOnce(new Error('wasm init fail'))
     await expect(load2()).rejects.toThrow('wasm init fail')
     // 失败后再次调用应重新尝试（单例已被 catch 清空）

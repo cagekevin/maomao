@@ -18,7 +18,7 @@
  *  打开：zoomRef.current?.showModal()
  */
 import { forwardRef, useState, useRef, useCallback, useEffect } from 'react'
-import { toAbsoluteFileUrl } from './imageUrl.js'
+import { toAbsoluteFileUrl } from './imageUrl.ts'
 import { copyImageToClipboard, downloadUrl } from './clipboard.js'
 import { createRafBatch } from './utils.ts'
 

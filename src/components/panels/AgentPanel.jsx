@@ -10,7 +10,7 @@ import { loadAgentChatModel, AGENT_CHAT_MODEL_KEY } from '../base/settings/agent
 import { getAllSkills, markSkillUsed, repairMojibakeText, isSkillEnabled } from '../base/skillStore.js'
 import { contentGet, contentSet, contentSubscribe } from '../base/contentStore.js'
 import { toAbsoluteFileUrl } from '../base/filesApi.js'
-import { fileToDataUrl } from '../base/imageUrl.js'
+import { fileToDataUrl } from '../base/imageUrl.ts'
 import { runNodeGeneration } from '../base/taskStore.js'
 import { showToast } from '../base/toastStore.js'
 import { logger } from '../base/logger.ts'

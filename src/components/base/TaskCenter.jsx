@@ -7,7 +7,7 @@ import { pollOneTask } from './pollTask.ts'
 import { showToast } from './toastStore.js'
 import { makeAssetDragProps } from './useAssetDragToCanvas.js'
 import VideoThumbnail from './VideoThumbnail.jsx'
-import { useRenderImageResolver } from './imageUrl.js'
+import { useRenderImageResolver } from './imageUrl.ts'
 import { useOutsideClick } from './hooks.js'
 import { formatTime, createImeInput } from './utils.ts'
 

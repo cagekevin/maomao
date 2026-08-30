@@ -10,7 +10,7 @@ import PanoViewer from '../base/PanoViewer.jsx'
 import { generateId } from '../base/idGen.ts'
 import { buildSpawnNodes, spawnAndCommit } from '../base/deriveNodes.ts'
 import { useCanvasEdges } from '../base/CanvasEdgesContext.jsx'
-import { useRenderImageResolver } from '../base/imageUrl.js'
+import { useRenderImageResolver } from '../base/imageUrl.ts'
 
 /**
  * 720 全景图节点（复刻官方 Zl.jsx / panoramaNode）。

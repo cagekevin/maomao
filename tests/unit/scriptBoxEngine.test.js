@@ -15,7 +15,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 vi.mock('../../src/components/base/chatApi.js', () => ({ chatCompletions: vi.fn() }))
 vi.mock('../../src/components/base/imageApi.js', () => ({ generateImage: vi.fn() }))
 // 统一出口：toAbsoluteFileUrl 把相对 /files/ 补全为绝对原图（与 imageUrl.js 真实行为一致，注入 data.images 前收口）
-vi.mock('../../src/components/base/imageUrl.js', () => ({
+vi.mock('../../src/components/base/imageUrl.ts', () => ({
   toAbsoluteFileUrl: (u) => (u && u.startsWith('/files/') ? `http://127.0.0.1:18080${u}` : u || ''),
 }))
 vi.mock('../../src/components/base/providerModels.js', () => ({

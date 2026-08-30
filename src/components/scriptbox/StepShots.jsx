@@ -3,7 +3,7 @@ import { Loader2, Plus, Trash2, Film, Link2 } from 'lucide-react'
 import { SHOT_TYPES, LIGHTS, MOTIONS, dialogueText, textToDlg, dlgToText, hlAt, patchShots, createNewShot, removeShot, applyTailFrameSelection, parseShotSeconds } from '../base/scriptBoxPrompts.js'
 import MaterialStrip from '../base/MaterialStrip.jsx'
 import { useOutsideClick } from '../base/hooks.js'
-import { useRenderImageResolver } from '../base/imageUrl.js'
+import { useRenderImageResolver } from '../base/imageUrl.ts'
 import ScriptBoxModal from './ScriptBoxModal.jsx'
 
 /**

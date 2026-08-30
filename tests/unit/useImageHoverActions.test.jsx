@@ -13,8 +13,8 @@ import { useImageHoverActions } from '../../src/components/base/useImageHoverAct
 
 // 依赖 stub（hook 内部 import 的真实模块，测试中用轻量替身）
 vi.mock('../../src/components/base/ImageEditor.jsx', () => ({ default: () => null }))
-vi.mock('../../src/components/base/imageCompress.js', () => ({ compressImage: async (url) => ({ dataUrl: 'data:compressed', size: 1, originalSize: 2 }) }))
-vi.mock('../../src/components/base/imageUpscale.js', () => ({ upscaleImage: async (url) => ({ dataUrl: 'data:upscaled' }) }))
+vi.mock('../../src/components/base/imageCompress.ts', () => ({ compressImage: async (url) => ({ dataUrl: 'data:compressed', size: 1, originalSize: 2 }) }))
+vi.mock('../../src/components/base/imageUpscale.ts', () => ({ upscaleImage: async (url) => ({ dataUrl: 'data:upscaled' }) }))
 vi.mock('../../src/components/base/filesApi.js', () => ({ saveInlineToLocal: async () => 'local://saved' }))
 vi.mock('../../src/components/base/toastStore.js', () => ({ showToast: () => {}, toastError: () => {} }))
 

@@ -29,7 +29,26 @@ import { API_BASE } from './config.js'
 import { IMAGE_FETCH_TIMEOUT } from './config.js'
 import { API_ENDPOINTS } from './contracts.js'
 import { useAppSettings } from './appSettings.js'
-import { compressImage } from './imageCompress.js'
+import { compressImage } from './imageCompress.ts'
+
+/**
+ * 图片 URL 解析统一选项（resolveImageUrl / useRenderImageResolver 共用）。
+ * - scope='render' 显示用小图 / 'send' 原图；
+ * - thumbnail=false（渲染端关掉「显示缩略图」）时 render 也回原图绝对地址；
+ * - maxDim / format 仅 render 按需出图透传（format 非白名单不产出）。
+ */
+export interface ImageResolveOptions {
+  scope?: 'render' | 'send'
+  maxDim?: number
+  format?: string
+  /** 显示缩略图（仅 render 生效；false 时回原图绝对地址） */
+  thumbnail?: boolean
+}
+
+/** 发送归一化选项（normalizeImageUrlForSend / normalizeImageUrlsForSend 共用） */
+export interface ImageSendOptions {
+  preferBase64?: boolean
+}
 
 /**
  * 发送给 AI 的图片最长边上限（超过则前端压缩到该尺寸内，避免接口尺寸/体积限制）。
@@ -41,7 +60,7 @@ export const MAX_SEND_DIM = 1920
 /**
  * 相对 /files/ 路径 → 完整可访问 URL（对齐后端 resources.ts / base64Externalize 惯例）。
  */
-export function toAbsoluteFileUrl(url) {
+export function toAbsoluteFileUrl(url: string | null | undefined): string {
   if (!url || typeof url !== 'string') return url
   if (url.startsWith('/files/')) return `${API_BASE}${url}`
   return url
@@ -56,7 +75,7 @@ export function toAbsoluteFileUrl(url) {
  * @param {string} u
  * @returns {boolean}
  */
-export function isLocalFileUrl(u) {
+export function isLocalFileUrl(u: string): boolean {
   if (!u || typeof u !== 'string') return false
   return u.startsWith('/files/') || u.startsWith(`${API_BASE}/files/`)
 }
@@ -71,7 +90,7 @@ const SUPPORTED_THUMB_FORMATS = new Set(['png', 'jpg', 'jpeg', 'gif', 'bmp', 'ti
  * @param {string} u
  * @returns {string|null}
  */
-export function toRelativeFileUrl(u) {
+export function toRelativeFileUrl(u: string | null | undefined): string | null {
   if (!u || typeof u !== 'string') return null
   if (u.startsWith('/files/')) return u
   const m = /^https?:\/\/[^/]+(\/files\/.*)$/.exec(u)
@@ -95,7 +114,7 @@ export function toRelativeFileUrl(u) {
  * @param {string} u 可能是缩略图端点的 URL
  * @returns {string} 原图绝对地址；无法还原返回 ''
  */
-function thumbnailToOriginal(u) {
+function thumbnailToOriginal(u: string): string {
   if (typeof u !== 'string' || !u) return ''
   const qIndex = u.indexOf('?')
   if (qIndex === -1) return ''
@@ -117,7 +136,7 @@ function thumbnailToOriginal(u) {
  * @param {{ maxDim?: number, format?: string }} [opts]
  * @returns {string}
  */
-export function buildThumbnailUrl(url, opts = {}) {
+export function buildThumbnailUrl(url: string, opts: { maxDim?: number; format?: string } = {}): string {
   const rel = toRelativeFileUrl(url)
   if (!rel) return toAbsoluteFileUrl(url) // 非本地文件，出图端点无法服务，回原图绝对地址
   const q = new URLSearchParams()
@@ -146,7 +165,7 @@ export function buildThumbnailUrl(url, opts = {}) {
  * @param {{ scope?: 'render'|'send', maxDim?: number, format?: string }} [opts]
  * @returns {string}
  */
-export function resolveImageUrl(url, opts = {}) {
+export function resolveImageUrl(url: string, opts: ImageResolveOptions = {}): string {
   if (!url || typeof url !== 'string') return url
   const scope = opts.scope || 'render'
   // thumbnail:false（设置里关掉「显示缩略图」）→ render 也回原图绝对地址，不按需出图
@@ -161,11 +180,11 @@ export function resolveImageUrl(url, opts = {}) {
  * 自动读取 app_settings.thumbnailOn（实时生效），关掉缩略图即回原图。
  * 在渲染内/循环内（如网格格元）直接调用 resolve(u) 即可，避免 hook 进循环。
  */
-export function useRenderImageResolver() {
+export function useRenderImageResolver(): (u: string, extra?: ImageResolveOptions) => string {
   const settings = useAppSettings()
   const thumbnail = settings.thumbnailOn !== false
   return useCallback(
-    (u, extra) => resolveImageUrl(u, { scope: 'render', thumbnail, ...extra }),
+    (u: string, extra?: ImageResolveOptions) => resolveImageUrl(u, { scope: 'render', thumbnail, ...extra }),
     [thumbnail]
   )
 }
@@ -177,7 +196,7 @@ export function useRenderImageResolver() {
  * @param {string} url
  * @returns {string}
  */
-export function normalizeImageUrl(url) {
+export function normalizeImageUrl(url: string | null | undefined): string {
   return toAbsoluteFileUrl(url)
 }
 
@@ -188,7 +207,7 @@ export function normalizeImageUrl(url) {
  * @param {Blob|File} file
  * @returns {Promise<string>} data:...;base64,xxx
  */
-export function fileToDataUrl(file) {
+export function fileToDataUrl(file: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const fr = new FileReader()
     fr.onload = () => resolve(String(fr.result || ''))
@@ -203,7 +222,7 @@ export function fileToDataUrl(file) {
  * @param {string} u
  * @returns {Promise<string>}
  */
-async function blobToDataUrl(u) {
+async function blobToDataUrl(u: string): Promise<string> {
   try {
     const res = await httpRequest(u, { timeoutMs: IMAGE_FETCH_TIMEOUT, retries: 0, parseJson: false })
     const blob = await res.blob()
@@ -226,7 +245,7 @@ async function blobToDataUrl(u) {
  * @param {string} u 需要转 base64 的图片地址
  * @returns {Promise<string>} data:image/...;base64,xxx 或空字符串
  */
-async function urlToDataUrl(u) {
+async function urlToDataUrl(u: string): Promise<string> {
   if (typeof u !== 'string' || !u) return ''
   if (u.startsWith('data:')) return u // 已是 base64，直接返回
   const absolute = toAbsoluteFileUrl(u) // 相对 /files/ 先补全
@@ -266,7 +285,7 @@ async function urlToDataUrl(u) {
  * @param {{ preferBase64?: boolean }} [opts]
  * @returns {Promise<string>}
  */
-export async function normalizeImageUrlForSend(u, opts = {}) {
+export async function normalizeImageUrlForSend(u: string, opts: ImageSendOptions = {}): Promise<string> {
   if (typeof u !== 'string') return ''
   // 发送侧硬契约：禁止发送缩略图端点 URL。若误入 render 结果，先还原回原图再走后续归一。
   const original = thumbnailToOriginal(u)
@@ -311,7 +330,7 @@ export async function normalizeImageUrlForSend(u, opts = {}) {
  * @param {{ preferBase64?: boolean }} [opts]
  * @returns {Promise<string[]>}
  */
-export async function normalizeImageUrlsForSend(images, opts = {}) {
+export async function normalizeImageUrlsForSend(images: string[] | null | undefined, opts: ImageSendOptions = {}): Promise<string[]> {
   const urls = (images || []).filter((u) => typeof u === 'string' && u)
   // 【带图可观测】发送前记录本次带了几张图、每张是 URL 还是 Base64（基于原始输入，不携带图片内容）。
   // 统一收口在发送归一化出口：覆盖生图/文本/视频/AI 聊天全部带图发送路径，一处埋点全链路可 grep。
@@ -329,7 +348,7 @@ export async function normalizeImageUrlsForSend(images, opts = {}) {
  * 用于聊天消息让 AI 看图反推提示词。
  * @param {string[]} urls 已 normalize 的网关可用 URL
  */
-export function toImageContentBlocks(urls) {
+export function toImageContentBlocks(urls: string[] | null | undefined): Array<{ type: 'image_url'; image_url: { url: string } }> {
   return (urls || []).map((url) => ({ type: 'image_url', image_url: { url } }))
 }
 
@@ -341,7 +360,7 @@ export function toImageContentBlocks(urls) {
  * @param {string} url
  * @returns {'url'|'base64'}
  */
-export function classifyImageType(url) {
+export function classifyImageType(url: string): 'url' | 'base64' {
   return typeof url === 'string' && url.startsWith('data:') ? 'base64' : 'url'
 }
 
@@ -351,7 +370,7 @@ export function classifyImageType(url) {
  * @param {Array<string>} images 原始图片 URL 数组
  * @returns {{ count:number, urls:number, base64s:number }}
  */
-export function summarizeImages(images) {
+export function summarizeImages(images: string[] | null | undefined): { count: number; urls: number; base64s: number } {
   const list = (images || []).filter((u) => typeof u === 'string' && u)
   let urls = 0
   let base64s = 0
@@ -370,7 +389,7 @@ export function summarizeImages(images) {
  * 递归替换结构里所有等于 `from` 的字符串（覆盖嵌套对象 / 数组）。
  * 无变化返回**原引用**，便于调用方用 `!==` 判脏、避免无谓重渲染与落盘。
  */
-export function replaceUrlDeep(value, from, to) {
+export function replaceUrlDeep(value: unknown, from: string, to: string): unknown {
   if (typeof value === 'string') return value.includes(from) ? value.split(from).join(to) : value
   if (Array.isArray(value)) {
     const next = value.map((v) => replaceUrlDeep(v, from, to))
@@ -400,7 +419,7 @@ export function replaceUrlDeep(value, from, to) {
  * 【单一来源】App.jsx（画布 / 脚本箱节点）与 taskStore（任务中心 resultUrl）共用本函数，
  * 禁止任一处另写一份——各写一份正是"改名只改一半"的根源（清单 #8）。
  */
-export function buildUrlRewritePairs(oldAbs, newAbs) {
+export function buildUrlRewritePairs(oldAbs: string, newAbs: string): string[][] {
   const toRel = (abs = '') => (/^https?:\/\/[^/]+(\/files\/.*)$/.exec(abs) || [])[1]
   const oldRel = toRel(oldAbs)
   const newRel = toRel(newAbs)

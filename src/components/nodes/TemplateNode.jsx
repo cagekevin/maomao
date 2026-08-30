@@ -23,7 +23,7 @@ import { useNodePrefs } from '../base/nodePrefs.ts'
 import { showToast } from '../base/toastStore.js'
 import { generateImage } from '../base/imageApi.js'
 import { toAbsoluteFileUrl } from '../base/filesApi.js'
-import { useRenderImageResolver } from '../base/imageUrl.js'
+import { useRenderImageResolver } from '../base/imageUrl.ts'
 import { debounce, mergeRefImages, buildEffectivePrompt } from '../base/utils.ts'
 
 /**

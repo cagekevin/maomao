@@ -157,7 +157,7 @@ vi.mock('../../src/components/base/asyncGuard.ts', () => ({
   TimeoutError: class TimeoutError extends Error {},
   isTimeoutError: (e) => e instanceof Error && e.name === 'TimeoutError',
 }))
-import { compressImage } from '../../src/components/base/imageCompress.js'
+import { compressImage } from '../../src/components/base/imageCompress.ts'
 
 describe('imageCompress —— 压缩（含浏览器依赖，部分 mock）', () => {
   beforeEach(() => {

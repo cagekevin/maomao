@@ -52,7 +52,7 @@ vi.mock('../../src/components/base/filesApi.js', () => ({
   toAbsoluteFileUrl: (u) => `ABS:${u}`,
 }))
 vi.mock('../../src/components/base/toastStore.js', () => ({ showToast: mocks.showToast, toastError: mocks.toastError, toastWarning: mocks.toastWarning }))
-vi.mock('../../src/components/base/faceMosaic.js', () => ({
+vi.mock('../../src/components/base/faceMosaic.ts', () => ({
   applyMosaic: (...a) => h.applyMosaicMock(...a),
   MOSAIC_MODES: [
     { mode: 'mosaic', label: '马赛克' },
