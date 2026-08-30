@@ -20,11 +20,11 @@
  * 我们（对齐后）：本文件实现 token 编解码；历史图仍不进 LLM 上下文，跨轮用图靠 execute_plan
  *   （useCanvasAgentTools.js）经 getCurrentImageMap / getLastGeneratedImages 反查。
  */
+import type { RefImageAttrs, RefTokenNode, RefKnownImage } from '@/types'
 
 /** 编码一张参考图成 token 文本（对齐大雄 agentEncodeRefToken）。
- *  @param {{url,name?,label?,nodeId?,x?,y?,refIndex?}} att 参考图元信息
- *  @returns {string} token 文本；url 为空返回 '' */
-export function encodeRefToken(att = {}) {
+ *  url 为空返回 '' */
+export function encodeRefToken(att: RefImageAttrs = {}): string {
   const url = String(att.url || '').trim()
   if (!url) return ''
   const name = String(att.name || att.label || 'image').trim() || 'image'
@@ -32,20 +32,17 @@ export function encodeRefToken(att = {}) {
   const x = Number(att.x) || 0
   const y = Number(att.y) || 0
   const idx = Number(att.refIndex) || 0
-  const enc = (s) => encodeURIComponent(String(s ?? ''))
+  const enc = (s: string) => encodeURIComponent(String(s ?? ''))
   return `[参考图${idx || 1}:${name}]{{agent-ref url="${enc(url)}" name="${enc(name)}" node="${enc(nodeId)}" x="${x}" y="${y}"}}`
 }
 
 /**
- * 从任意文本里解析 token，还原成节点数组 [{type:'image'|'text', ...}]。
+ * 从任意文本里解析 token，还原成节点数组。
  * 对齐大雄 agentParseRefTokensFromText：优先解析新格式 token；若文本含旧格式 [参考图N:name]，
  * 则需结合 knownRefCatalog（收集历史已知图）反查 url。这里只负责纯 token 解析，
  * 反查历史 catalog 由调用方传入 knownImages 完成（保持纯函数、可单测）。
- * @param {string} text
- * @param {Array<{url,name?,nodeId?,x?,y?,refIndex?}>} [knownImages] 已知参考图目录（用于旧格式反查）
- * @returns {Array<{type:'image'|'text', url?,name?,nodeId?,x?,y?,refIndex?, text?}>}
  */
-export function parseRefTokensFromText(text = '', knownImages = []) {
+export function parseRefTokensFromText(text = '', knownImages: RefKnownImage[] = []): RefTokenNode[] {
   const raw = String(text || '')
   if (!raw) return []
   const nodes = []
