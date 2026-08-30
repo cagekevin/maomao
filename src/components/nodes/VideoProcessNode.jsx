@@ -28,7 +28,7 @@ import { buildSpawnNodes, spawnAndCommit } from '../base/deriveNodes.ts'
 import { useCanvasEdges } from '../base/CanvasEdgesContext.jsx'
 import { httpRequest } from '../base/httpClient.js'
 import previewUrls from '../base/previewUrl.ts'
-import { UPLOAD_DIRS } from '../base/uploadDirs.js'
+import { UPLOAD_DIRS } from '../base/uploadDirs.ts'
 import { DOWNLOAD_TIMEOUT, VIDEO_DOWNLOAD_TIMEOUT } from '../base/config.js'
 import { createRafBatch } from '../base/utils.ts'
 

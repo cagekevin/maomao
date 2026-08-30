@@ -31,7 +31,7 @@ import { httpRequest } from './httpClient.js'
 import { logger } from './logger.ts'
 import { UPLOAD_TIMEOUT } from './config.js'
 import { formatTime, dataUrlToBlob, safeFileName } from './utils.ts'
-import { UPLOAD_DIRS } from './uploadDirs.js'
+import { UPLOAD_DIRS } from './uploadDirs.ts'
 export { toAbsoluteFileUrl } from './imageUrl.js'
 export { EXT_BY_TYPE }
 import { isLocalFileUrl } from './imageUrl.js'

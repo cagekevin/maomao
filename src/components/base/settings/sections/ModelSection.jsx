@@ -1,6 +1,6 @@
 import React from 'react'
 import { Plus, Trash2, Image as ImageIcon, MessageSquare, Video as VideoIcon } from 'lucide-react'
-import { FIXED_PROTOCOL_PROVIDER_IDS } from '../../providerProtocols.js'
+import { FIXED_PROTOCOL_PROVIDER_IDS } from '../../providerProtocols.ts'
 
 /**
  * 模型清单分区（供应商编辑面板的一部分，样式对齐 SkillSettings 的 zinc 黑白系）。

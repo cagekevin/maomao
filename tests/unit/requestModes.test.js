@@ -4,7 +4,7 @@ import {
   imageModePath, isResponsesMode, buildResponsesInput, buildResponsesImageBody,
   parseResponsesImage, extractMarkdownImage, parseResponsesJson, normalizeToolCalls,
   resolveChatMode, buildResponsesChatBody, parseResponsesChatJson, parseResponsesSSEChunk,
-} from '../../src/components/base/requestModes.js'
+} from '../../src/components/base/requestModes.ts'
 
 describe('请求形态层（前端镜像）', () => {
   it('imageModePath：四形态端点映射，未知回退 openai', () => {

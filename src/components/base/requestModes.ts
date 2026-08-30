@@ -11,7 +11,7 @@
 export const REQUIRES_RESPONSES_MODEL = /gpt-5\.6|gpt-5-6/
 
 /** 生图形态 → 端点 path（相对 provider base）。未知/空 → 默认 openai（M2-5 保守）。 */
-export function imageModePath(mode) {
+export function imageModePath(mode: string): string {
   switch (mode) {
     case 'openai-responses': return 'responses'
     case 'openai-video-proxy': return 'videos'
@@ -22,13 +22,13 @@ export function imageModePath(mode) {
 }
 
 /** 是否 responses 形态（聊天/生图共用，单一真相不做域名嗅探）。 */
-export function isResponsesMode(mode) {
+export function isResponsesMode(mode: string | undefined): boolean {
   return mode === 'openai-responses' || mode === 'responses'
 }
 
 /** responses 的 input 数组：文本 input_text，参考图 input_image（只收 image，契约 E7）。 */
-export function buildResponsesInput(prompt, images = []) {
-  const input = [{ type: 'input_text', text: prompt }]
+export function buildResponsesInput(prompt: string, images: any[] = []): Array<Record<string, any>> {
+  const input: Array<Record<string, any>> = [{ type: 'input_text', text: prompt }]
   for (const img of images) {
     if (typeof img === 'string' && img.trim()) input.push({ type: 'input_image', image_url: img.trim() })
   }
@@ -36,14 +36,15 @@ export function buildResponsesInput(prompt, images = []) {
 }
 
 /** responses 生图请求体（size 在 tool 内部，不在顶层）。 */
-export function buildResponsesImageBody({ model, prompt, images = [], size = '', quality }) {
-  const tool = { type: 'image_generation' }
+export function buildResponsesImageBody(p: { model: string; prompt: string; images?: any[]; size?: string; quality?: string }): Record<string, any> {
+  const { model, prompt, images = [], size = '', quality } = p
+  const tool: Record<string, any> = { type: 'image_generation' }
   if (size) tool.size = size
   return { model, input: buildResponsesInput(prompt, images), tools: [tool], tool_choice: 'auto' }
 }
 
 /** 从 responses output[] 提取生图 URL（image_generation_call + completed 的 result）。 */
-export function parseResponsesImage(data) {
+export function parseResponsesImage(data: any): string | undefined {
   const output = Array.isArray(data?.output) ? data.output : []
   for (const item of output) {
     if (item?.type === 'image_generation_call' && item?.status === 'completed'
@@ -55,7 +56,7 @@ export function parseResponsesImage(data) {
 }
 
 /** 文本 → 首张图片 URL：markdown 优先，裸 URL 兜底（H2）。 */
-export function extractMarkdownImage(text) {
+export function extractMarkdownImage(text: string): string | undefined {
   if (!text) return undefined
   const md = text.match(/!\[[^\]]*\]\(([^)]+)\)/)
   if (md) return md[1].trim()
@@ -64,7 +65,7 @@ export function extractMarkdownImage(text) {
 }
 
 /** responses 生图响应解析（H2 兜底链）：image_generation_call → output_text markdown。 */
-export function parseResponsesJson(data) {
+export function parseResponsesJson(data: any): string | undefined {
   const direct = parseResponsesImage(data)
   if (direct) return direct
   const output = Array.isArray(data?.output) ? data.output : []
@@ -84,9 +85,9 @@ export function parseResponsesJson(data) {
  * 工具调用归一（M2-4）：responses function_call / chat message.tool_calls → 统一
  * { id, type:'function', function:{ name, arguments } }，供现有 agent 工具循环消费。
  */
-export function normalizeToolCalls(source) {
+export function normalizeToolCalls(source: any): Array<{ id?: string; type: 'function'; function: { name: string; arguments?: string } }> {
   const output = Array.isArray(source) ? source : (Array.isArray(source?.output) ? source.output : [])
-  const out = []
+  const out: Array<{ id?: string; type: 'function'; function: { name: string; arguments?: string } }> = []
   for (const tc of output) {
     if (tc?.function && typeof tc.function.name === 'string') {
       out.push({ id: tc.id, type: 'function', function: { name: tc.function.name, arguments: tc.function.arguments } })
@@ -106,7 +107,7 @@ export function normalizeToolCalls(source) {
  * @param {string|undefined} mode provider.chat_request_mode
  * @param {string} model 当前聊天模型名（用于自动判断）
  */
-export function resolveChatMode(mode, model = '') {
+export function resolveChatMode(mode: string | undefined, model = ''): 'responses' | 'chat' {
   if (isResponsesMode(mode)) return 'responses'
   // 自动判断：gpt-5.6 系模型在 chat/completions 不支持 tools，必须走 responses
   const m = String(model || '').toLowerCase()
@@ -121,8 +122,16 @@ export function resolveChatMode(mode, model = '') {
  *  - assistant 历史 tool_calls → function_call 项；
  *  - role='tool'（工具结果）→ function_call_output（call_id + output）。
  */
-export function buildResponsesChatBody({ model, messages = [], toolSchemas = [], temperature, stream, responseFormat }) {
-  const input = []
+export function buildResponsesChatBody(p: {
+  model: string
+  messages?: any[]
+  toolSchemas?: any[]
+  temperature?: number
+  stream?: boolean
+  responseFormat?: string
+}): Record<string, any> {
+  const { model, messages = [], toolSchemas = [], temperature, stream, responseFormat } = p
+  const input: any[] = []
   for (const m of messages) {
     if (m?.role === 'tool') {
       input.push({
@@ -159,7 +168,7 @@ export function buildResponsesChatBody({ model, messages = [], toolSchemas = [],
       }
     }
   }
-  const body = { model, input }
+  const body: Record<string, any> = { model, input }
   if (typeof temperature === 'number') body.temperature = temperature
   if (typeof stream === 'boolean') body.stream = stream
   if (responseFormat) body.text = { format: { type: responseFormat } }
@@ -179,9 +188,9 @@ export function buildResponsesChatBody({ model, messages = [], toolSchemas = [],
  * responses 聊天响应解析（非流式，M2-2/M2-4）：
  *   output[] 的 message → content[].text 拼 content；function_call → 归一 tool_calls。
  */
-export function parseResponsesChatJson(json) {
-  const content = []
-  const toolCalls = []
+export function parseResponsesChatJson(json: any): { content: string; toolCalls: any[] } {
+  const content: string[] = []
+  const toolCalls: any[] = []
   const output = Array.isArray(json?.output) ? json.output : []
   for (const item of output) {
     if (item?.type === 'message' && Array.isArray(item?.content)) {
@@ -201,7 +210,7 @@ export function parseResponsesChatJson(json) {
  *   response.function_call_arguments.delta（含 .done）拼工具名与参数。
  *   acc 与 parseSSEChunk 同构（{content, reasoning, toolCalls}），可无损并入 roundTrip 循环。
  */
-function parseResponsesSSEDataLine(line, acc) {
+function parseResponsesSSEDataLine(line: string, acc: any): void {
   const payload = line.slice(5).trim()
   if (!payload || payload === '[DONE]') return
   try {
@@ -242,7 +251,7 @@ function parseResponsesSSEDataLine(line, acc) {
  * roundTrip 按 \n\n 分块后，chunk 以 `event:` 开头，若按「整块必须 data: 开头」会全部漏解析
  * （表现为 status 200 但 contentLen=0）。这里按行遍历，忽略 event:/空行，逐个解析 data: 行。
  */
-export function parseResponsesSSEChunk(line, acc = { content: '', reasoning: '', toolCalls: [] }) {
+export function parseResponsesSSEChunk(line: string, acc: { content: string; reasoning: string; toolCalls: any[] } = { content: '', reasoning: '', toolCalls: [] }): void {
   if (!line) return
   const lines = line.split('\n')
   for (const l of lines) {
@@ -253,7 +262,7 @@ export function parseResponsesSSEChunk(line, acc = { content: '', reasoning: '',
 }
 
 /** 友好错误降级提示（G1）：命中给中文提示，未命中空串原样透传。 */
-export function friendlyRequestError(text) {
+export function friendlyRequestError(text: string): string {
   const s = String(text || '').toLowerCase()
   if (/reasoning_effort/.test(s)) return '该模型不支持在 chat/completions 用工具，建议改用 responses 端点或换模型'
   if (/(?:401)|(?:unauthorized)|(?:invalid.{0,10}(?:api.?key|key))|(?:api.?key.{0,10}invalid)/.test(s)) return 'API Key 无效或已过期'

@@ -30,7 +30,7 @@ import {
 import { GIFEncoder, quantize, applyPalette } from 'gifenc'
 import { logger } from './logger.ts'
 import { uploadFileToLocal } from './filesApi.js'
-import { UPLOAD_DIRS } from './uploadDirs.js'
+import { UPLOAD_DIRS } from './uploadDirs.ts'
 import { safeFileName } from './utils.ts'
 
 /** clamp：保证是偶数且 ≥2 */

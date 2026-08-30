@@ -19,7 +19,7 @@
 import { kvGet, kvSet } from './localToolApi.js'
 import { withTimeout } from './asyncGuard.ts'
 import { saveInlineToLocal } from './filesApi.js'
-import { UPLOAD_DIRS } from './uploadDirs.js'
+import { UPLOAD_DIRS } from './uploadDirs.ts'
 import { logger } from './logger.ts'
 import { showToast } from './toastStore.js'
 import { KV_TIMEOUT } from './config.js'

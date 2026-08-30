@@ -1,7 +1,7 @@
 import React from 'react'
 import { Trash2, Eye, EyeOff, KeyRound, RefreshCw, CircleDot, Check, AlertCircle, Star } from 'lucide-react'
 import ModelSection from './ModelSection.jsx'
-import { PROVIDER_PROTOCOL_LABELS, CLI_PROTOCOLS, GENERAL_PROTOCOLS, SPECIAL_PROTOCOLS } from '../../providerProtocols.js'
+import { PROVIDER_PROTOCOL_LABELS, CLI_PROTOCOLS, GENERAL_PROTOCOLS, SPECIAL_PROTOCOLS } from '../../providerProtocols.ts'
 
 /**
  * 供应商编辑面板（ApiSettings 右侧主内容，样式对齐 SkillSettings 的 zinc 黑白系）。

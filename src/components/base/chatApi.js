@@ -20,7 +20,7 @@ import { normalizeImageUrlsForSend, toImageContentBlocks } from './imageUrl.js'
 import { logger } from './logger.ts'
 import { chatProxy } from './proxyGenerate.js'
 // 请求形态层：聊天 responses 形态构造请求体（chat_completions 默认，M2-2）
-import { resolveChatMode, buildResponsesChatBody } from './requestModes.js'
+import { resolveChatMode, buildResponsesChatBody } from './requestModes.ts'
 
 /** 把参考图附加到最后一条 user 消息（content 转数组 + image_url 块）。 */
 async function attachImages(messages, images, provider) {

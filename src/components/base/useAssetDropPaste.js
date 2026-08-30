@@ -5,7 +5,7 @@ import { sanitizePastedText } from './clipboard.js'
 import { showToast } from './toastStore.js'
 import { uploadFileToLocal, downloadRemoteToLocal, WEB_DROP_SUBFOLDER } from './filesApi.js'
 import { fileToDataUrl } from './imageUrl.js'
-import { UPLOAD_DIRS } from './uploadDirs.js'
+import { UPLOAD_DIRS } from './uploadDirs.ts'
 import { logger } from './logger.ts'
 
 /**

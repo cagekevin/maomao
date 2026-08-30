@@ -16,7 +16,7 @@
  */
 import { httpRequest, httpPost } from './httpClient.js'
 import { API_BASE } from './config.js'
-import { UPLOAD_DIRS } from './uploadDirs.js'
+import { UPLOAD_DIRS } from './uploadDirs.ts'
 
 // ─────────────────────────── tasks ───────────────────────────
 // GET /api/tasks?page&pageSize&keyword → { items, total }

@@ -37,10 +37,10 @@ import { logger } from './logger.ts'
 // 【出口回收】所有 /api/proxy 出口经统一 httpRequest（B5），不再裸写 fetch
 import { httpRequest } from './httpClient.js'
 // 可插拔协议适配器：统一 buildTargetUrl（openai 伪协议 / apimart base_url 拼装）
-import { buildTargetUrl } from './providerProtocols.js'
+import { buildTargetUrl } from './providerProtocols.ts'
 // 统一 envelope/URL 解析器（P1-B φ2）：readSseUrl / 轮询提取全部委托之（唯一实现）
 import { extractResultUrl } from './resultUrlExtractor.js'
-import { imageModePath, isResponsesMode, parseResponsesJson, resolveChatMode, parseResponsesChatJson } from './requestModes.js'
+import { imageModePath, isResponsesMode, parseResponsesJson, resolveChatMode, parseResponsesChatJson } from './requestModes.ts'
 
 // ── 内部共享原语（调用方不可见）──────────────────────────────────────
 
