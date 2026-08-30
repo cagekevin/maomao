@@ -85,10 +85,10 @@ vi.mock('../../src/components/base/hooks.js', () => ({
   useNodeResize: () => ({ onInputResize: vi.fn() }),
   useOutsideClick: () => {},
 }))
-vi.mock('../../src/components/base/useConnectedInputs.js', () => ({ useConnectedInputs: () => ({}) }))
-vi.mock('../../src/components/base/useMediaDegrade.js', () => ({ useMediaDegrade: () => ({ isHidden: () => false }) }))
+vi.mock('../../src/components/base/useConnectedInputs.ts', () => ({ useConnectedInputs: () => ({}) }))
+vi.mock('../../src/components/base/useMediaDegrade.ts', () => ({ useMediaDegrade: () => ({ isHidden: () => false }) }))
 vi.mock('../../src/components/base/nodePrefs.ts', () => ({ useNodePrefs: () => ({ prefs: {}, set: vi.fn() }) }))
-vi.mock('../../src/components/base/useSyncNodeData.js', () => ({ useSyncNodeData: () => {} }))
+vi.mock('../../src/components/base/useSyncNodeData.ts', () => ({ useSyncNodeData: () => {} }))
 vi.mock('../../src/components/base/filesApi.ts', () => ({ toAbsoluteFileUrl: (x) => x, saveResultToTasks: vi.fn(async () => undefined) }))
 
 const mockFetchTasks = vi.fn(async () => ({ data: { items: [] } }))

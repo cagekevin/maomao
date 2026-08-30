@@ -116,7 +116,7 @@ describe('useCanvasHistory 撤销/重做 hook 桥接', () => {
 // ───────────────────────────────────────────────────────────
 // 2. useSyncNodeData
 // ───────────────────────────────────────────────────────────
-import { useSyncNodeData } from '../../src/components/base/useSyncNodeData.js'
+import { useSyncNodeData } from '../../src/components/base/useSyncNodeData.ts'
 
 describe('useSyncNodeData 节点 data 同步 hook', () => {
   it('data 字段变化 → 调对应 setter(next)', () => {

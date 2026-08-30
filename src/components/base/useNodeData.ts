@@ -1,18 +1,31 @@
 import { useCallback, useEffect, useMemo } from 'react'
 import { useReactFlow } from '@xyflow/react'
+import type { Node } from '@xyflow/react'
 import { debounce } from './utils.ts'
 import { NODE_PATCH_DEBOUNCE_MS } from './config.js'
 
 /**
  * 节点 data 不可变写回纯函数（节点写回唯一入口，useNodeData.patchData 与宿主通用写回共用）。
  * 语义：把 patch 合并进 id 节点的 data（不可变更新）；节点不存在（如已删除）时原样返回，天然安全。
- * @param {(updater: (ns) => ns) => void} setNodes React Flow setNodes
- * @param {string} id 目标节点 id
- * @param {object} patch 要合并进 node.data 的字段
+ * setNodes 用 reactflow Node[] 泛型（与 useReactFlow().setNodes 及 App.jsx 传入的 setNodes 一致）。
  */
-export function patchNodeDataById(setNodes, id, patch) {
+
+export function patchNodeDataById(
+  setNodes: (updater: (ns: Node[]) => Node[]) => void,
+  id: string,
+  patch: Record<string, unknown>,
+): void {
   if (!setNodes || !id || !patch) return
   setNodes((ns) => ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, ...patch } } : n)))
+}
+
+/** patch 载荷（节点 data 局部字段合并对象） */
+type Patch = Record<string, unknown>
+/** useNodeData.patchDebounced 返回形态（utils.debounce 的结构化子集，仅本模块用，就地定义） */
+type PatchDebouncedFn = {
+  (patch: Patch): void
+  cancel(): void
+  flush(): void
 }
 
 /**
@@ -36,9 +49,15 @@ export function patchNodeDataById(setNodes, id, patch) {
  *  - 必须在 ReactFlowProvider 树内调用（经 useReactFlow 取 setNodes），节点天然满足。
  *  - 纯逻辑不写 UI，可覆盖单测（patchData 不可变更新 / patchDebounced 防抖 + flush）。
  */
-export function useNodeData(id) {
+export function useNodeData(id: string): {
+  patchData: (patch: Patch) => void
+  patchDebounced: PatchDebouncedFn
+} {
   const { setNodes } = useReactFlow()
-  const patchData = useCallback((patch) => patchNodeDataById(setNodes, id, patch), [id, setNodes])
+  const patchData = useCallback<(patch: Patch) => void>(
+    (patch) => patchNodeDataById(setNodes, id, patch),
+    [id, setNodes]
+  )
   const patchDebounced = useMemo(() => debounce(patchData, NODE_PATCH_DEBOUNCE_MS), [patchData])
   useEffect(() => () => patchDebounced.flush(), [patchDebounced])
   return { patchData, patchDebounced }

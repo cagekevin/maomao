@@ -97,10 +97,10 @@ vi.mock('../../src/components/base/ResizeFullscreenHandle.jsx', () => ({ default
 vi.mock('../../src/components/base/FullscreenModal.jsx', () => ({ default: ({ open, children }) => (open ? <div data-testid="fullscreen">{children}</div> : null) }))
 vi.mock('../../src/components/base/VideoThumbnail.jsx', () => ({ default: () => <div data-testid="video-thumb" /> }))
 
-vi.mock('../../src/components/base/useConnectedInputs.js', () => ({ useConnectedInputs: () => ({ images: [], texts: [] }) }))
-vi.mock('../../src/components/base/useMediaDegrade.js', () => ({ useMediaDegrade: () => ({ isHidden: () => false }) }))
+vi.mock('../../src/components/base/useConnectedInputs.ts', () => ({ useConnectedInputs: () => ({ images: [], texts: [] }) }))
+vi.mock('../../src/components/base/useMediaDegrade.ts', () => ({ useMediaDegrade: () => ({ isHidden: () => false }) }))
 vi.mock('../../src/components/base/hooks.js', () => ({ useNodeResize: () => ({ onInputResize: vi.fn() }), useOutsideClick: () => {} }))
-vi.mock('../../src/components/base/useVideoPoster.js', () => ({ useVideoPoster: () => null }))
+vi.mock('../../src/components/base/useVideoPoster.ts', () => ({ useVideoPoster: () => null }))
 vi.mock('../../src/components/base/nodePrefs.ts', () => ({
   useNodePrefs: () => ({ prefs: { model: '', size: '', resolution: '', seconds: '' }, set: (...a) => h.vidPrefsSet(...a) }),
 }))

@@ -115,7 +115,12 @@ function genericOutput(d, id) {
  *  统一调度：特殊类型（剧本盒子/文本节点）→ 节点产出声明表 → 通用字段兜底。
  *  · 为什么统一返回 { id, url, label, text } 对象：下游渲染缩略图/文本都需要 id 作 key、label 作显示名。
  *  · 无产出返回空对象，不返回 undefined：调用方可直接 push，无需判空。 */
-export function getNodeOutput(node, sourceHandle) {
+export function getNodeOutput(node: any, sourceHandle?: string): {
+  images: any[]
+  texts: any[]
+  videos: any[]
+  audios: any[]
+} {
   const empty = { images: [], texts: [], videos: [], audios: [] }
   if (!node || !node.data) return empty
   const d = node.data

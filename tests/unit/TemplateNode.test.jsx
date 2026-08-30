@@ -36,8 +36,8 @@ vi.mock('../../src/components/base/ResizeFullscreenHandle.jsx', () => ({ default
 vi.mock('../../src/components/base/FullscreenModal.jsx', () => ({ default: mocks.FullscreenModal }))
 vi.mock('../../src/components/base/GeneratingOverlay.jsx', () => ({ default: mocks.GeneratingOverlay }))
 vi.mock('../../src/components/base/hooks.js', () => ({ useNodeResize: mocks.useNodeResize, useOutsideClick: mocks.useOutsideClick }))
-vi.mock('../../src/components/base/useConnectedInputs.js', () => ({ useConnectedInputs: mocks.useConnectedInputs }))
-vi.mock('../../src/components/base/useMediaDegrade.js', () => ({ useMediaDegrade: mocks.useMediaDegrade }))
+vi.mock('../../src/components/base/useConnectedInputs.ts', () => ({ useConnectedInputs: mocks.useConnectedInputs }))
+vi.mock('../../src/components/base/useMediaDegrade.ts', () => ({ useMediaDegrade: mocks.useMediaDegrade }))
 // useNodeGeneration：记录 config，复刻真实 hook 的声明式写回（resultKey + recoverable）以对齐 P0-2-c。
 // 桩经 h.setNodes 写入 node.data，供断言「成功/广播回填」后 data 自动更新（不再依赖节点手写 patchData）。
 let genConfig = null
@@ -70,7 +70,7 @@ vi.mock('../../src/components/base/useNodeGeneration.js', () => ({
   },
 }))
 vi.mock('../../src/components/base/nodePrefs.ts', () => ({ useNodePrefs: mocks.useNodePrefs }))
-vi.mock('../../src/components/base/useSyncNodeData.js', () => ({ useSyncNodeData: mocks.useSyncNodeData }))
+vi.mock('../../src/components/base/useSyncNodeData.ts', () => ({ useSyncNodeData: mocks.useSyncNodeData }))
 vi.mock('../../src/components/base/toastStore.ts', () => ({ showToast: mocks.showToast, toastWarning: mocks.toastWarning, toastError: mocks.toastError }))
 vi.mock('../../src/components/base/imageApi.ts', () => ({ generateImage: mocks.generateImage }))
 vi.mock('../../src/components/base/filesApi.ts', () => ({ toAbsoluteFileUrl: mocks.toAbsoluteFileUrl, saveResultToTasks: mocks.saveResultToTasks }))

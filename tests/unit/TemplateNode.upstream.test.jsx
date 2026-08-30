@@ -47,11 +47,11 @@ vi.mock('../../src/components/base/PromptLibraryButton.jsx', () => ({ default: (
 vi.mock('../../src/components/base/hooks.js', async (importOriginal) => ({ ...(await importOriginal()), useNodeResize: () => ({ onInputResize: vi.fn() }), useOutsideClick: () => {} }))
 
 let connectedInputs = { images: [], texts: [] }
-vi.mock('../../src/components/base/useConnectedInputs.js', () => ({ useConnectedInputs: () => connectedInputs }))
+vi.mock('../../src/components/base/useConnectedInputs.ts', () => ({ useConnectedInputs: () => connectedInputs }))
 
-vi.mock('../../src/components/base/useMediaDegrade.js', () => ({ useMediaDegrade: () => ({ isHidden: () => false }) }))
+vi.mock('../../src/components/base/useMediaDegrade.ts', () => ({ useMediaDegrade: () => ({ isHidden: () => false }) }))
 vi.mock('../../src/components/base/nodePrefs.ts', () => ({ useNodePrefs: () => ({ prefs: {}, set: vi.fn() }) }))
-vi.mock('../../src/components/base/useSyncNodeData.js', () => ({ useSyncNodeData: () => {} }))
+vi.mock('../../src/components/base/useSyncNodeData.ts', () => ({ useSyncNodeData: () => {} }))
 vi.mock('../../src/components/base/filesApi.ts', () => ({ toAbsoluteFileUrl: (x) => x, saveResultToTasks: vi.fn(async () => undefined) }))
 vi.mock('../../src/components/base/settings/providerStore.js', () => ({ useProviders: () => ({ providers: [] }), load: vi.fn(() => Promise.resolve()) }))
 vi.mock('../../src/components/base/localToolApi.ts', () => ({ fetchTasks: vi.fn(async () => ({ items: [] })) }))

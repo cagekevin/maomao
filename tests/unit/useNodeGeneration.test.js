@@ -15,7 +15,7 @@ const busState = vi.hoisted(() => ({ handler: null, logger: { info: vi.fn(), deb
 const saveResultToTasksMock = vi.hoisted(() => vi.fn(async (url) => url))
 const reportDegradeMock = vi.hoisted(() => vi.fn())
 
-vi.mock('../../src/components/base/useNodeData.js', () => ({ useNodeData: () => ({ patchData: patchDataMock }) }))
+vi.mock('../../src/components/base/useNodeData.ts', () => ({ useNodeData: () => ({ patchData: patchDataMock }) }))
 vi.mock('../../src/components/base/taskStore.js', () => ({
   reportGenerate: () => taskCtlMock,
   registerTaskRetry: vi.fn(),

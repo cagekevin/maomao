@@ -4,7 +4,7 @@ import { saveResultToTasks } from './filesApi.ts'
 import { logger } from './logger.ts'
 import { subscribe } from './eventBus.ts'
 import { showToast } from './toastStore.ts'
-import { useNodeData } from './useNodeData.js'
+import { useNodeData } from './useNodeData.ts'
 import { classifyError } from './genErrors.ts'
 import { reportDegrade } from './degrade.ts'
 

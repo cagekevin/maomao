@@ -4,8 +4,8 @@ import { Grid3X3, SlidersHorizontal, Scissors, CircleCheck, RotateCcw, Expand, T
 import { useReactFlow, Handle, Position } from '@xyflow/react'
 import NodeShell from '../base/NodeShell.jsx'
 import CustomHandle from '../edges/CustomHandle.jsx'
-import { useConnectedInputs } from '../base/useConnectedInputs.js'
-import { useMediaDegrade } from '../base/useMediaDegrade.js'
+import { useConnectedInputs } from '../base/useConnectedInputs.ts'
+import { useMediaDegrade } from '../base/useMediaDegrade.ts'
 import { useContentHeightSync } from '../base/hooks.js'
 import { showToast, toastWarning } from '../base/toastStore.ts' // 保留阻断校验提示
 import { toAbsoluteFileUrl } from '../base/filesApi.ts'

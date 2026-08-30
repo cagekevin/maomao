@@ -12,7 +12,7 @@ vi.mock('@xyflow/react', () => ({
   useReactFlow: () => ({ setNodes: setNodesMock })
 }))
 
-const { useNodeData } = await import('../../src/components/base/useNodeData.js')
+const { useNodeData } = await import('../../src/components/base/useNodeData.ts')
 
 describe('useNodeData — patchData', () => {
   beforeEach(() => setNodesMock.mockClear())

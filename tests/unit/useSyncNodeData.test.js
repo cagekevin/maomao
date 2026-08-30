@@ -9,7 +9,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
 
-const { useSyncNodeData } = await import('../../src/components/base/useSyncNodeData.js')
+const { useSyncNodeData } = await import('../../src/components/base/useSyncNodeData.ts')
 
 describe('useSyncNodeData — 字段同步', () => {
   it('data 中映射字段变化 → 对应 setter 被调用', () => {

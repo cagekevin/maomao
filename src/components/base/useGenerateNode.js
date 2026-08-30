@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { useProviders } from './settings/providerStore.js'
 import { buildAllModels } from './providerModels.js'
-import { useSyncNodeData } from './useSyncNodeData.js'
+import { useSyncNodeData } from './useSyncNodeData.ts'
 import { useNodeGeneration } from './useNodeGeneration.js'
 
 /**

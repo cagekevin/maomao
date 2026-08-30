@@ -9,7 +9,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
 
-const { useVideoPoster } = await import('../../src/components/base/useVideoPoster.js')
+const { useVideoPoster } = await import('../../src/components/base/useVideoPoster.ts')
 
 // 仅取一次原生 createElement，避免 beforeEach 重复包装使 orig 指向 wrapper 造成递归
 const nativeCreate = document.createElement.bind(document)
