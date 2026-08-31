@@ -112,7 +112,7 @@ vi.mock('../../src/components/scriptbox/StepPrompt.tsx', () => ({
     </div>
   ),
 }))
-vi.mock('../../src/components/scriptbox/GearSettings.jsx', () => ({
+vi.mock('../../src/components/scriptbox/GearSettings.tsx', () => ({
   default: ({ updateData }) => (
     <div data-testid="gear-settings">
       <button type="button" data-testid="gear-save" onClick={() => updateData({ aspectRatio: '9:16' })}>保存设置</button>

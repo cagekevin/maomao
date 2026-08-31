@@ -12,7 +12,7 @@ import StepAssets from '../scriptbox/StepAssets.tsx'
 import StepPrompt from '../scriptbox/StepPrompt.tsx'
 import StepNav from '../scriptbox/StepNav.tsx'
 import ScriptBoxFullscreen from '../scriptbox/ScriptBoxFullscreen.tsx'
-import GearSettings from '../scriptbox/GearSettings.jsx'
+import GearSettings from '../scriptbox/GearSettings.tsx'
 
 /**
  * 剧本盒子（scriptBoxNode）—— 复刻 c_.jsx，按 docs/剧本盒子 的职责架构实现。

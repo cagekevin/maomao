@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react'
 import { Pencil, Trash2, Plus, Check, X, Download, Upload, ChevronDown, ChevronRight } from 'lucide-react'
 import ScriptBoxModal from './ScriptBoxModal.tsx'
 import { getAllPlaybooks, saveCustomPlaybook, deleteCustomPlaybook, createCustomFrom } from './scriptBoxPlaybookStore.ts'
+import type { Playbook } from './scriptBoxPlaybookIO.ts'
 import { DEFAULT_WORKFLOW } from './scriptBoxWorkflows.ts'
 import { exportText, parseImport } from './scriptBoxPlaybookIO.ts'
 import { downloadBlob } from '../base/clipboard.ts'
@@ -18,7 +19,13 @@ import { toastSuccess, toastError } from '../base/toastStore.ts'
  * - 导出（⭳）：每行（官方+我的）下载该 playbook 单个 JSON，给外部/AI 改。
  * - 导入（⤒）：读一个 playbook JSON，解析/归一化/去重后落为「我的」自定义。
  */
-export default function ScriptBoxPlaybookManager({ currentId, onSelect, onClose }) {
+export interface ScriptBoxPlaybookManagerProps {
+  currentId: string
+  onSelect: (id: string) => void
+  onClose: () => void
+}
+
+export default function ScriptBoxPlaybookManager({ currentId, onSelect, onClose }: ScriptBoxPlaybookManagerProps) {
   const [officialOpen, setOfficialOpen] = useState(false)
   const [showNew, setShowNew] = useState(false)
   const [newName, setNewName] = useState('')
@@ -31,19 +38,19 @@ export default function ScriptBoxPlaybookManager({ currentId, onSelect, onClose 
   const official = playbooks.filter((p) => p.builtin)
   const mine = playbooks.filter((p) => !p.builtin)
 
-  const nameTaken = (t, excludeId) => playbooks.some((p) => p.label === t && p.id !== excludeId)
+  const nameTaken = (t: string, excludeId: string) => playbooks.some((p) => p.label === t && p.id !== excludeId)
 
-  const pick = (id) => { onSelect(id); onClose() }
+  const pick = (id: string) => { onSelect(id); onClose() }
 
   const commitNew = () => {
     const t = String(newName || '').trim()
-    if (!t || nameTaken(t)) return
+    if (!t || nameTaken(t, '')) return
     // 新建起点 = 官方漫剧默认模板（开箱可用，稳定可预期；不复制「当前选中」）
     const id = createCustomFrom(DEFAULT_WORKFLOW, {}, t)
     if (id) pick(id)
   }
 
-  const commitRename = (pb) => {
+  const commitRename = (pb: Playbook) => {
     const t = String(renameVal || '').trim()
     if (!t || nameTaken(t, pb.id)) return
     saveCustomPlaybook({ ...pb, label: t })
@@ -58,11 +65,11 @@ export default function ScriptBoxPlaybookManager({ currentId, onSelect, onClose 
     if (deletingCurrent) { onSelect(DEFAULT_WORKFLOW); onClose() } // 回退漫剧
   }
 
-  const stop = (e) => { e.stopPropagation() }
+  const stop = (e: React.MouseEvent) => { e.stopPropagation() }
 
   // 导出：单个 playbook → 下载 JSON（官方+我的都可导，给外部/AI 改）
-  const onExport = (pb) => {
-    const { text, filename } = exportText(pb)
+  const onExport = (pb: Playbook) => {
+    const { text, filename } = exportText(pb as unknown as Record<string, unknown>)
     downloadBlob(new Blob([text], { type: 'application/json' }), filename)
   }
 
@@ -74,7 +81,7 @@ export default function ScriptBoxPlaybookManager({ currentId, onSelect, onClose 
     try {
       const text = await f.text()
       const r = parseImport(text)
-      if (!r.ok) { toastError(r.error); return }
+      if (!('playbook' in r)) { toastError(r.error); return }
       const { playbook } = r
       const labels = new Set(playbooks.map((p) => p.label))
       let label = playbook.label
@@ -88,7 +95,7 @@ export default function ScriptBoxPlaybookManager({ currentId, onSelect, onClose 
     }
   }
 
-  const row = (pb) => {
+  const row = (pb: Playbook) => {
     const using = pb.id === currentId
     const isMine = !pb.builtin
     return (

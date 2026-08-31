@@ -5,7 +5,7 @@ import StepNav from './StepNav.tsx'
 import StepShots from './StepShots.tsx'
 import StepAssets from './StepAssets.tsx'
 import StepPrompt from './StepPrompt.tsx'
-import GearSettings from './GearSettings.jsx'
+import GearSettings from './GearSettings.tsx'
 import { toastInfo } from '../base/toastStore.ts'
 import type { ScriptBoxData, ScriptBoxUpdateData, ScriptBoxCallbacks } from './scriptBoxSchema.ts'
 

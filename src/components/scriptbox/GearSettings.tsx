@@ -5,9 +5,12 @@ import { buildAllModels } from '../base/providerModels.ts'
 import ModelSelect from '../base/ModelSelect.tsx'
 import Select from '../base/Select.tsx'
 import ScriptBoxModal from './ScriptBoxModal.tsx'
-import ScriptBoxPlaybookManager from './scriptBoxPlaybookManager.jsx'
+import ScriptBoxPlaybookManager from './scriptBoxPlaybookManager.tsx'
 import { getAllPlaybooks, getPlaybook, isBuiltin, saveCustomPlaybook } from './scriptBoxPlaybookStore.ts'
+import type { Playbook } from './scriptBoxPlaybookIO.ts'
 import { DEFAULT_WORKFLOW } from './scriptBoxWorkflows.ts'
+import type { ScriptBoxData, ScriptBoxUpdateData } from './scriptBoxSchema.ts'
+import type { ModelOption } from '../base/providerModels.ts'
 
 /**
  * 剧本盒子 齿轮设置弹窗 —— Playbook 编辑器（收口后无覆盖层）。
@@ -19,11 +22,20 @@ import { DEFAULT_WORKFLOW } from './scriptBoxWorkflows.ts'
  *
  * 编辑态 = 当前 playbook 的复制；切 playbook 时经 useEffect 重置，所见即所得。
  */
-export default function GearSettings({ data, updateData, onClose }) {
-  const d = data || {}
-  const ratios = ['16:9', '9:16', '1:1', '3:4', '4:3', '21:9']
+export interface GearSettingsProps {
+  /** 当前节点 data（含 playbookId / aspectRatio / 本片参数）。 */
+  data: ScriptBoxData
+  /** node.data 写回通道（对象或函数式 patch）。 */
+  updateData: ScriptBoxUpdateData
+  /** 关闭弹窗回调。 */
+  onClose: () => void
+}
 
-  const TABS = [
+export default function GearSettings({ data, updateData, onClose }: GearSettingsProps) {
+  const d = data ?? ({} as ScriptBoxData)
+  const ratios: string[] = ['16:9', '9:16', '1:1', '3:4', '4:3', '21:9']
+
+  const TABS: Array<[string, string]> = [
     ['basic', '基础'],
     ['script', '剧本'],
     ['shot', '分镜'],
@@ -38,17 +50,20 @@ export default function GearSettings({ data, updateData, onClose }) {
     if (!providers || providers.length === 0) loadProviders().catch((e) => logger.warn('provider', 'load-fail', { error: e?.message }))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
-  const chatModels = buildAllModels(providers, 'chat')
-  const imageModels = buildAllModels(providers, 'image')
+  const chatModels: ModelOption[] = buildAllModels(providers, 'chat')
+  const imageModels: ModelOption[] = buildAllModels(providers, 'image')
 
   // ── 选中 playbook（本片层）──
   const allPlaybooks = getAllPlaybooks()
-  const [playbookId, setPlaybookId] = useState(d.playbookId || DEFAULT_WORKFLOW)
+  const [playbookId, setPlaybookId] = useState((d.playbookId as string) || DEFAULT_WORKFLOW)
   const current = getPlaybook(playbookId)
   const builtin = isBuiltin(playbookId) || current.builtin
 
   /** 从 playbook 抽取可编辑提示词配置（保持统一结构）。 */
-  const pickEditable = (pb) => ({
+  const pickEditable = (pb: Playbook): Playbook => ({
+    id: pb.id,
+    label: pb.label,
+    builtin: pb.builtin,
     script: pb.script || '',
     shot: pb.shot || '',
     audit: pb.audit || '',
@@ -58,7 +73,9 @@ export default function GearSettings({ data, updateData, onClose }) {
     constraints: { image: pb.constraints?.image || '', video: pb.constraints?.video || '' },
     negative: { common: pb.negative?.common || '', image: pb.negative?.image || '', video: pb.negative?.video || '' },
   })
-  const [editing, setEditing] = useState(() => pickEditable(current))
+  const [editing, setEditing] = useState<Playbook>(() => pickEditable(current))
+  /** 字段级合并更新（修复原 JS 的 setEditing 整体替换导致其它字段被清空的隐性 bug）。 */
+  const setEdit = (patch: Partial<Playbook>) => setEditing((prev) => ({ ...prev, ...patch }))
   // 切 playbook → 重置编辑态为所选项（所见即所得）
   useEffect(() => {
     setEditing(pickEditable(getPlaybook(playbookId)))
@@ -66,10 +83,10 @@ export default function GearSettings({ data, updateData, onClose }) {
   }, [playbookId])
 
   // ── 本片参数（per-node，始终可写）──
-  const [aspectRatio, setAspectRatio] = useState(d.aspectRatio || '16:9')
-  const [customAspectRatio, setCustomAspectRatio] = useState(d.customAspectRatio || '')
-  const [textModel, setTextModel] = useState(() => (d.textModel || d.selectedModel || chatModels[0]?.id || ''))
-  const [assetModel, setAssetModel] = useState(() => (d.assetModelSettings?.globalModel || imageModels[0]?.id || ''))
+  const [aspectRatio, setAspectRatio] = useState((d.aspectRatio as string) || '16:9')
+  const [customAspectRatio, setCustomAspectRatio] = useState((d.customAspectRatio as string) || '')
+  const [textModel, setTextModel] = useState(() => ((d.textModel as string) || (d.selectedModel as string) || chatModels[0]?.id || ''))
+  const [assetModel, setAssetModel] = useState(() => (((d.assetModelSettings as { globalModel?: string } | undefined)?.globalModel) || imageModels[0]?.id || ''))
 
   const isDirty = () => JSON.stringify(editing) !== JSON.stringify(pickEditable(current))
 
@@ -82,7 +99,7 @@ export default function GearSettings({ data, updateData, onClose }) {
       playbookLabel: current.label,
       textModel,
       selectedModel: textModel,
-      assetModelSettings: { ...d.assetModelSettings, globalModel: assetModel }
+      assetModelSettings: { ...(d.assetModelSettings as { globalModel?: string } | undefined), globalModel: assetModel }
     })
     // 2) 自定义 playbook 有改动 → 写回 store（单一数据源），全局生效
     if (!builtin && playbookId && isDirty()) {
@@ -114,7 +131,7 @@ export default function GearSettings({ data, updateData, onClose }) {
       {/* 顶部条：playbook 选择 + 可写性提示 */}
       <div className="flex items-center gap-2 px-5 py-2.5 shrink-0 border-b border-white/[0.06]">
         <span className="text-body-xs text-secondary shrink-0">剧本盒子工作流</span>
-        <Select
+        <Select<string>
           value={playbookId}
           onChange={setPlaybookId}
           options={allPlaybooks.map((p) => ({ value: p.id, label: p.label }))}
@@ -202,7 +219,7 @@ export default function GearSettings({ data, updateData, onClose }) {
             <div className="text-caption-sm text-muted">资产参考图模板（角色 / 场景 / 道具）</div>
             {[['character', '角色'], ['scene', '场景'], ['prop', '道具']].map(([k, n]) => (
               <Field key={k} label={n}>
-                <EditableTextarea heightClass="h-28" value={editing.assetTemplates[k] || ''} name={`as-${k}`} disabled={builtin} onChange={(v) => setEdit({ assetTemplates: { ...editing.assetTemplates, [k]: v } })} />
+                <EditableTextarea heightClass="h-28" value={String(editing.assetTemplates[k] ?? '')} name={`as-${k}`} disabled={builtin} onChange={(v) => setEdit({ assetTemplates: { ...editing.assetTemplates, [k]: v } })} />
               </Field>
             ))}
           </div>
@@ -221,7 +238,16 @@ export default function GearSettings({ data, updateData, onClose }) {
 }
 
 /** playbook 提示词编辑区：内置只读（disabled + 降透明度），自定义可编辑。heightClass 控制各提示词高度。 */
-function EditableTextarea({ value, name, disabled, heightClass = 'h-36', onChange }) {
+interface EditableTextareaProps {
+  value: string
+  name: string
+  disabled: boolean
+  heightClass?: string
+  /** 内容变化回调（返回纯文本）。 */
+  onChange: (value: string) => void
+}
+
+function EditableTextarea({ value, name, disabled, heightClass = 'h-36', onChange }: EditableTextareaProps) {
   return (
     <textarea
       value={value}
@@ -233,11 +259,21 @@ function EditableTextarea({ value, name, disabled, heightClass = 'h-36', onChang
   )
 }
 
-function Field({ label, children }) {
+interface FieldProps {
+  label: string
+  children: React.ReactNode
+}
+
+function Field({ label, children }: FieldProps) {
   return <label className="block text-caption-sm text-muted">{label}<div className="mt-1.5">{children}</div></label>
 }
 
-function Section({ title, children }) {
+interface SectionProps {
+  title: string
+  children: React.ReactNode
+}
+
+function Section({ title, children }: SectionProps) {
   return (
     <div>
       <div className="text-caption-sm text-muted mb-2">{title}</div>
