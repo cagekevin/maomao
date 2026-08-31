@@ -35,7 +35,7 @@ import {
   demoPlan,
   imageModeLooksLikePerReferenceEdit,
   buildPerReferenceGenerations,
-} from './agentCore.js'
+} from './agentCore.ts'
 // 运行时逻辑（依赖注入版本）。hook 内以 const roundTrip 等同名闭包封装调用，
 // 故此处用别名避免与 hook 内的函数名冲突。
 import { roundTrip as agentRuntimeRoundTrip, runToolCalls as agentRuntimeRunToolCalls, runDemoMode as agentRuntimeRunDemoMode } from './agentRuntime.js'

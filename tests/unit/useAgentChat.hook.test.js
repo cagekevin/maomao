@@ -143,7 +143,7 @@ vi.mock('../../src/components/agent/conversation/conversationStore.ts', () => {
 })
 
 import { useAgentChat, buildRequestMessages, parseSSEChunk, parseGenerationsFromReply } from '../../src/components/agent/runtime/useAgentChat.js'
-import { resolveSkillExecutionRules } from '../../src/components/agent/runtime/agentCore.js'
+import { resolveSkillExecutionRules } from '../../src/components/agent/runtime/agentCore.ts'
 import * as convStore from '../../src/components/agent/conversation/conversationStore.ts'
 
 // ── SSE 流构造助手 ──

@@ -25,11 +25,81 @@
  * useAgentChat.hook.test.js / scripts/test_agent_tools.cjs）import 路径不变。
  * ════════════════════════════════════════════════════════════════
  */
+import type { WorkMode } from './runModeRegistry.ts'
 import { contentGet } from '../../base/contentStore.ts'
 import { logger } from '../../base/logger.ts'
 import { toImageContentBlocks } from '../../base/imageUrl.ts'
 import { getSystemPromptForWorkMode, RUN_MODE_IDS } from './runModeRegistry.ts'
 import { AGENT_PROMPTS } from '../agentConfig.js'
+
+/** 单条工具调用（对齐 OpenAI chat tool_calls 形态）。 */
+export interface ToolCall {
+  id?: string
+  type?: 'function'
+  function?: { name: string; arguments: string }
+  index?: number
+}
+
+/** 单条对话消息（覆盖 LLM 协议各角色，字段按实际取值宽松可选）。 */
+export interface ChatMessage {
+  role: 'system' | 'user' | 'assistant' | 'tool'
+  content?: string | Array<{ type: string; [k: string]: unknown }>
+  tool_calls?: ToolCall[]
+  tool_call_id?: string
+  reasoning?: string
+  attachments?: Array<{ url?: string; x?: number; y?: number; [k: string]: unknown }>
+  refCatalog?: string
+}
+
+/** SSE 增量累加器（parseSSEChunk 就地累加）。 */
+export interface SSEAccumulator {
+  content: string
+  reasoning: string
+  toolCalls: ToolCall[]
+}
+
+/** 启用的 Skill（buildRequestMessages 注入用）。 */
+export interface SkillItem {
+  name?: string
+  content?: string
+}
+
+/** 对话记忆（buildRequestMessages memory 注入）。 */
+export interface AgentMemory {
+  summary?: string
+  lastSharedStyle?: string
+  facts?: Array<{ k: string; v: string }>
+  notes?: string[]
+  lastPlan?: { plan_text?: string; generations?: GenerationSpec[] }
+  global_contract?: {
+    visual_positioning?: string
+    unified_style_prompt?: string
+    unified_negative_prompt?: string
+  }
+}
+
+/** 可引用图编号目录项（对齐大雄 agentCurrentImageMap）。 */
+export interface ImageRef {
+  num: number
+  url?: string
+  name?: string
+  source?: 'gen' | 'ref'
+}
+
+/** 单个 generation（生图步骤，大雄协议核心）。 */
+export interface GenerationSpec {
+  id?: string
+  title?: string
+  prompt?: string
+  ratio?: string
+  resolution?: string
+  depends_on_previous?: boolean
+  dependency_mode?: string
+  use_attachments?: boolean
+  attachment_indices?: number[]
+  type?: string
+  [k: string]: unknown
+}
 
 // 工具循环常量已收口到 agentConfig（docs/66 §4/A 层）。此处 re-export 保持
 // useAgentChat 与既有单测的 import 契约不变（re-export 保测试契约，见本文件头注释）。
@@ -56,7 +126,7 @@ export const SKILL_EXECUTION_RULES = AGENT_PROMPTS.SKILL_EXECUTION_RULES
  * Skill 只编排思维路径、不改变确认粒度；确认粒度永远由三态决定。
  * auto（完全自主）时：SKILL 的【阶段2 · 等待确认】作废，展示策划后直接进阶段3 execute_plan，防 LLM 误等确认卡住。
  */
-export function resolveSkillExecutionRules(workMode) {
+export function resolveSkillExecutionRules(workMode: WorkMode): string {
   if (String(workMode || '').toLowerCase() === RUN_MODE_IDS.AUTO) {
     return `${SKILL_EXECUTION_RULES}\n\n【确认粒度自适应 · 完全自主】当前为完全自主模式：上述【阶段2 · 等待确认】作废——展示 show_plan_for_confirm 策划后【不要】等待用户确认，直接进入【阶段3 · 执行】调用 execute_plan。`
   }
@@ -68,10 +138,10 @@ export function resolveSkillExecutionRules(workMode) {
 //   - 数量：默认每步 count=1；只有用户明确要求"一次出 N 张同构图"才在某步 count>1；"5主图+8详情"是多个步骤，不是 count=13。
 
 /** 旧单会话历史键（仅用于首次迁移到多对话；会话隔离后消息存 conversationStore） */
-export const historyKey = (agentKey) => `agent_history_${agentKey || 'canvas-assistant'}`
+export const historyKey = (agentKey: string): string => `agent_history_${agentKey || 'canvas-assistant'}`
 
 /** 从 localStorage 读旧单会话历史（首次启动迁移用，对齐大雄"messages → conversations"迁移） */
-export function loadHistory(agentKey) {
+export function loadHistory(agentKey: string): ChatMessage[] {
   try {
     const arr = contentGet(historyKey(agentKey))
     return Array.isArray(arr) ? arr : []
@@ -82,7 +152,7 @@ export function loadHistory(agentKey) {
 
 /** SSE 解析（复刻官方 dr 内 v 函数：按 data: 前缀解析 delta，含 content/reasoning/tool_calls）。
  *  导出供单测（AI 助手前端逻辑核心：多轮工具循环依赖它对 SSE 流式结果的解析）。 */
-export function parseSSEChunk(line, acc) {
+export function parseSSEChunk(line: string, acc: SSEAccumulator): void {
   if (!line.startsWith('data:')) return
   const payload = line.slice(5).trim()
   if (!payload || payload === '[DONE]') return
@@ -208,8 +278,19 @@ export function parseGenerationsFromReply(content = '') {
  *  @param {string} [projectMemoryContext] 可选「记」注入块：调用方用 buildProjectMemoryContextFromStore
  *                                   提取的按 agentKey 全局长期记忆（MMR 排序/限 token）。空串=不注入。
  *  导出供单测（AI 助手前端逻辑核心：确认发给 LLM 的 messages 组装正确）。 */
-export function buildRequestMessages(messages, systemPrompt, enhance = true, skills = [], memory = null, imageCatalog = [], historyTurns = 0, learnedContext = '', projectMemoryContext = '', workMode = 'auto') {
-  const out = []
+export function buildRequestMessages(
+  messages: ChatMessage[],
+  systemPrompt: string,
+  enhance: boolean = true,
+  skills: SkillItem[] = [],
+  memory: AgentMemory | null = null,
+  imageCatalog: ImageRef[] = [],
+  historyTurns: number = 0,
+  learnedContext: string = '',
+  projectMemoryContext: string = '',
+  workMode: WorkMode = RUN_MODE_IDS.AUTO,
+) {
+  const out: ChatMessage[] = []
   // 工具消息配对：assistant 声明 tool_calls 时登记其 id，后续 tool 消息需命中才保留（防孤儿 tool 消息）
   const pendingToolIds = new Set()
   // 画布准则（CANVAS_AGENT_RULES）始终注入（enhance 控制），不因历史已含 system 而跳过。
@@ -328,16 +409,16 @@ export function buildRequestMessages(messages, systemPrompt, enhance = true, ski
       if (currentHasImages && i === lastUserIdx) {
         // 本轮：内联本轮图 + refCatalog/坐标（供 attachment_indices 精确引用）
         // 收口：图片 content block 统一用 toImageContentBlocks（见 imageUrl.js），与 chatApi 保持一致，禁散写。
-        const content = toImageContentBlocks(m.attachments.map((a) => a.url).filter(Boolean))
+        const content: Array<{ type: string; text?: string; url?: string; image_url?: { url: string }; [k: string]: unknown }> = toImageContentBlocks(m.attachments.map((a) => a.url).filter(Boolean))
         // 参考图编号目录（对齐大雄）：附加给 AI，让它能用 attachment_indices 精确引用第几张参考图。
         // 对齐参考项目（daxiong-canvas-plugins canvas-agent）：参考图附件带画布坐标 x/y，
         // 这里把坐标以文本形式附给 LLM，让它感知每张参考图来自画布哪个位置。
         const coordLines = m.attachments
           .map((a, i) => (a.x != null || a.y != null ? `参考图${i + 1}：画布坐标 x=${Number(a.x) || 0}, y=${Number(a.y) || 0}` : ''))
           .filter(Boolean)
-        if (m.refCatalog) content.push({ type: 'text', text: `${m.refCatalog}\n${coordLines.join('\n')}\n${m.content || ''}` })
-        else if (coordLines.length > 0) content.push({ type: 'text', text: `${coordLines.join('\n')}\n${m.content || ''}` })
-        else if (m.content) content.push({ type: 'text', text: m.content })
+        if (m.refCatalog) content.push({ type: 'text', text: `${m.refCatalog}\n${coordLines.join('\n')}\n${String(m.content || '')}` })
+        else if (coordLines.length > 0) content.push({ type: 'text', text: `${coordLines.join('\n')}\n${String(m.content || '')}` })
+        else if (m.content) content.push({ type: 'text', text: String(m.content) })
         out.push({ role: 'user', content })
       } else {
         // 历史 user 消息（含 historyTurns 回溯范围内的）：图一律不进上下文，仅保留纯文字
@@ -358,13 +439,13 @@ export function buildRequestMessages(messages, systemPrompt, enhance = true, ski
       // 触发后端 `Empty tool_calls is not supported in message`。
       if (realCalls.length > 0) {
         for (const t of realCalls) if (t.id) pendingToolIds.add(t.id)
-        const obj = { role: m.role, content: m.content || '', tool_calls: realCalls }
+        const obj: ChatMessage = { role: m.role, content: m.content || '', tool_calls: realCalls }
         if (m.reasoning) obj.reasoning = m.reasoning
         out.push(obj)
       }
       // 空/无 tool_calls 的 assistant：直接透传（不带 tool_calls 字段）
       else {
-        const obj = { role: m.role, content: m.content || '' }
+        const obj: ChatMessage = { role: m.role, content: m.content || '' }
         if (m.reasoning) obj.reasoning = m.reasoning
         out.push(obj)
       }
@@ -382,7 +463,7 @@ export function buildRequestMessages(messages, systemPrompt, enhance = true, ski
     // （CANVAS_AGENT_RULES / systemPrompt / Skill / memory / imageCatalog），历史 system 不回传，
     // 保持与 fresh-task（historyTurns=0）一致的行为，避免「旧 system 覆盖新准则」。
     if (m.role === 'system') continue
-    const obj = { role: m.role, content: m.content || '' }
+    const obj: ChatMessage = { role: m.role, content: m.content || '' }
     if (m.tool_call_id) obj.tool_call_id = m.tool_call_id
     out.push(obj)
   }
@@ -394,7 +475,7 @@ export function buildRequestMessages(messages, systemPrompt, enhance = true, ski
 /** 统一解析 Agent 请求的错误响应（proxy / agent 两条路径共用）。
  *  从非 2xx 响应体提取可读错误信息（兼容 OpenAI {error:{message}} 与本地 {error} 两种形态），
  *  失败/非 JSON 回退到默认文案。避免两条路径各写一套错误处理。 */
-export async function parseAgentError(res, fallback = '调用失败') {
+export async function parseAgentError(res: Response, fallback: string = '调用失败'): Promise<string> {
   let msg = `${fallback} (${res.status})`
   try {
     const text = await res.text()
@@ -412,11 +493,11 @@ export async function parseAgentError(res, fallback = '调用失败') {
  * 返回 [{ name, args }, ...]；不认识的话返回 []（assistant 纯文字答复）。
  * 说明：这是原型演示用的简化规则，真实对话应走 roundTrip（真实 LLM）。
  */
-export function demoPlan(text, callTool) {
+export function demoPlan(text: string, callTool?: unknown): Array<{ name: string; args: Record<string, unknown> }> {
   const t = text.trim().toLowerCase()
 
   // 识别节点类型关键词 → type
-  const typeMap = [
+  const typeMap: Array<[RegExp, string]> = [
     [/生图|图片|画(?:一张|个)?|生成.*图|image|prompt/i, 'promptNode'],
     [/视频|video/i, 'discountVideoNode'],
     [/文本|text/i, 'textNode'],
@@ -486,7 +567,7 @@ export function demoPlan(text, callTool) {
  * 把整批参考图拆成 N 个独立 generation，每步 attachment_indices:[i] 只挂自己那张，
  * 让底层 execute_plan / canvasPlanExecutor 按步精确图生图。非分别语义保持原单 generation 行为。
  */
-export function imageModeLooksLikePerReferenceEdit(text = '', attachCount = 0) {
+export function imageModeLooksLikePerReferenceEdit(text: string = '', attachCount: number = 0): boolean {
   if (attachCount < 2) return false // 单张/无图不拆（对齐大雄 L2262）
   const t = String(text || '')
   // 情况 A：直接「分别/各自/逐一/逐个/每张/各出/各改…」（对齐大雄 L2263）
@@ -506,7 +587,7 @@ export function imageModeLooksLikePerReferenceEdit(text = '', attachCount = 0) {
 }
 
 /** 构造「每参考图一对一」的 N 个 generation（对齐大雄 agentExpandPerReferenceGenerations L2334） */
-export function buildPerReferenceGenerations(referenceImages = [], prompt = '', panel = {}) {
+export function buildPerReferenceGenerations(referenceImages: string[] = [], prompt: string = '', panel: { ratio?: string; resolution?: string } = {}): GenerationSpec[] {
   return referenceImages.map((url, i) => ({
     id: `direct_image_${Date.now()}_ref${i + 1}`,
     title: `参考图${i + 1}`,
