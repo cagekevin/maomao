@@ -34,6 +34,25 @@ import { LayoutGrid, Map, Maximize, RefreshCw, Zap } from 'lucide-react'
  * @param {Function} [props.onClearCache] 清理缓存（App 传入：释放节点内大 dataURL 资源）
  * @param {boolean} [props.localToolConnected] 本地引擎是否连接（左上角第一个对号/断开按钮）
  */
+export interface CanvasToolbarProps {
+  /** 小地图开关（激活白高亮） */
+  minimapOn: boolean
+  onToggleMinimap: () => void
+  /** 整理画布（dagre 自动排版） */
+  onArrange: () => void
+  /** 适合视图（fitView） */
+  onFitView: () => void
+  /** 当前缩放百分比（整型） */
+  zoomPercent: number
+  /** 缩放性能模式开关（激活黄高亮） */
+  performanceMode: boolean
+  onTogglePerformance: () => void
+  /** 清理缓存（App 传入：释放节点内大 dataURL 资源） */
+  onClearCache?: () => void
+  /** 本地引擎是否连接（左上角第一个对号/断开按钮） */
+  localToolConnected?: boolean
+}
+
 function CanvasToolbar({
   minimapOn,
   onToggleMinimap,
@@ -44,7 +63,7 @@ function CanvasToolbar({
   onTogglePerformance,
   onClearCache,
   localToolConnected,
-}) {
+}: CanvasToolbarProps) {
   // 缩放%按钮可点击回到 100%
   const zoomPercentText = useMemo(() => `${zoomPercent}%`, [zoomPercent])
 

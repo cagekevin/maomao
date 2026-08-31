@@ -1,5 +1,6 @@
 import React from 'react'
-import ProjectSelector from './ProjectSelector.jsx'
+import ProjectSelector from './ProjectSelector.tsx'
+import type { Project } from './projectStore.ts'
 import { showToast } from './toastStore.ts'
 
 /**
@@ -23,8 +24,34 @@ const AVATAR_URL = '/user-avatar.jpg'
 // 头像加载失败兜底（复刻官方占位习惯）
 const AVATAR_FALLBACK = 'https://api.dicebear.com/9.x/thumbs/svg?seed=maomao'
 
-function TopNav({ view, onNavigate, onSwitchProject, onCreateProject, agentOpen, onToggleAgent, onPushToCloud, onPullFromCloud }) {
-  const tabs = [
+/** 云端同步结果（push/pull 回调的返回） */
+export interface SyncResult {
+  ok: boolean
+  count?: number
+  error?: string
+}
+
+export interface TopNavProps {
+  /** 当前视图 'canvas' | 'accounts' | 'settings' */
+  view: 'canvas' | 'accounts' | 'settings'
+  /** 切视图回调（App 传 setView） */
+  onNavigate: (view: 'canvas' | 'accounts' | 'settings') => void
+  /** 项目切换回调（App 负责保存/加载画布快照） */
+  onSwitchProject: (id: string) => void
+  /** 新建项目回调 */
+  onCreateProject: (proj: Project, prevProjectId: string) => void
+  /** AI 助手面板开关 */
+  agentOpen: boolean
+  /** 切换 AI 助手回调 */
+  onToggleAgent: () => void
+  /** 推送到云端（CloudSyncEngine.push），未接入时可为空 */
+  onPushToCloud?: () => Promise<SyncResult>
+  /** 从云端拉取（CloudSyncEngine.pull） */
+  onPullFromCloud?: () => Promise<SyncResult>
+}
+
+function TopNav({ view, onNavigate, onSwitchProject, onCreateProject, agentOpen, onToggleAgent, onPushToCloud, onPullFromCloud }: TopNavProps) {
+  const tabs: { key: 'canvas' | 'accounts'; label: string }[] = [
     { key: 'canvas', label: '画布' },
     { key: 'accounts', label: '多开' },
   ]
@@ -99,14 +126,14 @@ function TopNav({ view, onNavigate, onSwitchProject, onCreateProject, agentOpen,
               draggable={false}
               loading="lazy"
               decoding="async"
-              onError={(t) => { if (t.target.src !== AVATAR_FALLBACK) t.target.src = AVATAR_FALLBACK }}
+              onError={(t) => { if (t.currentTarget.src !== AVATAR_FALLBACK) t.currentTarget.src = AVATAR_FALLBACK }}
             />
           </button>
           {/* hover 用户菜单（复刻官方 Component797，含「同步设置」区块） */}
           <div className="fixed right-2 top-16 w-64 bg-surface border border-edge rounded-xl shadow-2xl opacity-0 invisible group-hover/avatar:opacity-100 group-hover/avatar:visible transition-all duration-200 z-float overflow-hidden flex flex-col">
             {/* 头部：头像 + 昵称 */}
             <div className="p-4 border-b border-edge flex items-center gap-3">
-              <img src={AVATAR_URL} alt="avatar" className="w-10 h-10 rounded-full object-cover border border-edge-muted" draggable={false} loading="lazy" decoding="async" onError={(t) => { if (t.target.src !== AVATAR_FALLBACK) t.target.src = AVATAR_FALLBACK }} />
+              <img src={AVATAR_URL} alt="avatar" className="w-10 h-10 rounded-full object-cover border border-edge-muted" draggable={false} loading="lazy" decoding="async" onError={(t) => { if (t.currentTarget.src !== AVATAR_FALLBACK) t.currentTarget.src = AVATAR_FALLBACK }} />
               <div className="flex flex-col">
                 <div className="text-white font-bold text-sm truncate">画布用户</div>
                 <div className="text-secondary text-xs">猫猫</div>
