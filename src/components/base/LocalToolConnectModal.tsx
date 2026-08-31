@@ -16,7 +16,16 @@ import { AlertTriangle, RefreshCw, Loader2 } from 'lucide-react'
  *  - 底部按钮：「稍后再说」（灰）+ 「重试连接」（蓝，点击后转圈 2s 还原，官方用 setTimeout 2000 复位）
  *  - 底部状态文案「当前状态：未检测到 localTool 连接」
  */
-export default function LocalToolConnectModal({ isVisible, onClose, onRetry }) {
+export interface LocalToolConnectModalProps {
+  /** 是否显示（官方 `e`） */
+  isVisible: boolean
+  /** 点「稍后再说」（父层还需同时标记「用户已关闭」避免再次自动弹） */
+  onClose: () => void
+  /** 点「重试连接」（父层传 checkConnection） */
+  onRetry: () => void
+}
+
+export default function LocalToolConnectModal({ isVisible, onClose, onRetry }: LocalToolConnectModalProps) {
   const [retrying, setRetrying] = React.useState(false)
   if (!isVisible) return null
 

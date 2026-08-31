@@ -6,7 +6,7 @@ import { Globe, Maximize2, X, Camera, Scan, Grid3X3, CircleDot, Settings } from 
 import NodeShell from '../base/NodeShell.jsx'
 import HoverToolbar from '../base/HoverToolbar.tsx'
 import { useConnectedInputs } from '../../hooks/useConnectedInputs.ts'
-import PanoViewer from '../base/PanoViewer.jsx'
+import PanoViewer from '../base/PanoViewer.tsx'
 import { generateId } from '../base/idGen.ts'
 import { buildSpawnNodes, spawnAndCommit } from '../base/deriveNodes.ts'
 import { useCanvasEdges } from '../base/CanvasEdgesContext.tsx'

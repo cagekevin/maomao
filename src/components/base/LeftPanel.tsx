@@ -1,5 +1,6 @@
 import React, { useMemo, useEffect, useRef } from 'react'
 import { Clock, FolderOpen, Sparkles, Pin, PinOff, BookOpen } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 import TaskCenter from './TaskCenter.tsx'
 import GeneratedView from './GeneratedView.jsx'
 import AssetLibrary from './AssetLibrary.jsx'
@@ -8,7 +9,15 @@ import { useTasks, usePanel, setPanel, getPanel, togglePin } from './taskStore.t
 import { useAssets } from './assetStore.ts'
 
 // tab 配置：任务 / 生成 / 素材 / 提示词库
-const TABS = [
+export type PanelTabKey = 'tasks' | 'generated' | 'assets' | 'prompts'
+
+interface PanelTab {
+  key: PanelTabKey
+  label: string
+  icon: LucideIcon
+}
+
+const TABS: PanelTab[] = [
   { key: 'tasks', label: '任务', icon: Clock },
   { key: 'generated', label: '生成', icon: Sparkles },
   { key: 'assets', label: '素材', icon: FolderOpen },
@@ -25,22 +34,26 @@ const TABS = [
  */
 export default function LeftPanel() {
   const { expanded, activeTab, pinned } = usePanel()
-  const setActiveTab = (key) => setPanel({ activeTab: key })
-  const setExpanded = (v) => setPanel({ expanded: v })
+  const setActiveTab = (key: PanelTabKey) => setPanel({ activeTab: key })
+  const setExpanded = (v: boolean) => setPanel({ expanded: v })
   const tasks = useTasks()
   const assets = useAssets()
-  const panelRef = useRef(null)
+  const panelRef = useRef<HTMLDivElement>(null)
 
   // 未读角标：失败任务数 + 进行中任务数
-  const badgeCount = useMemo(() => tasks.filter((t) => t.status === 'failed' || t.status === 'running' || t.status === 'queued').length, [tasks])
+  // 「进行中」口径对齐 TaskCenter（running || pending）；pending 是「已建单未开跑」，
+  // statusLabel 同样显示为「生成中」，漏掉会导致刚提交的任务不显示角标。
+  // 注：此处原写作 `status === 'queued'`，但 TaskStatus 无该取值（queued 属消息媒体态
+  // mediaStatus / 节点 node.queued，与本任务表无关），是永假分支，已修正为 pending。
+  const badgeCount = useMemo(() => tasks.filter((t) => t.status === 'failed' || t.status === 'running' || t.status === 'pending').length, [tasks])
 
   // 点面板外部收起
   useEffect(() => {
     if (!expanded) return
-    const onDown = (e) => {
+    const onDown = (e: PointerEvent) => {
       // 钉住态：点击面板外部不收起
       if (getPanel().pinned) return
-      if (panelRef.current && !panelRef.current.contains(e.target)) setExpanded(false)
+      if (panelRef.current && !panelRef.current.contains(e.target as Node)) setExpanded(false)
     }
     // 延时注册，避免展开瞬间的点击误关
     const t = setTimeout(() => document.addEventListener('pointerdown', onDown), 0)

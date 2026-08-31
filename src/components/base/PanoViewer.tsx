@@ -22,7 +22,25 @@ import * as THREE from 'three'
  *
  * 纹理映射（对齐官方）：cylinder→UVMapping(300)，sphere→EquirectangularReflectionMapping(303)。
  */
-const PanoViewer = forwardRef(({ url, panoType, fov, highQuality, orbitControlsRefLocal }, ref) => {
+export interface PanoViewerProps {
+  /** 全景图 URL */
+  url: string
+  /** 'sphere'（球状）| 'cylinder'（柱状） */
+  panoType: 'sphere' | 'cylinder'
+  /** 视野角度（滚轮缩放） */
+  fov: number
+  /** 高画质（各向异性 = 显卡最大） */
+  highQuality: boolean
+  /** 外部 OrbitControls ref（供外壳全屏漫游时控制） */
+  orbitControlsRefLocal?: React.MutableRefObject<unknown> | null
+}
+
+/** 对外能力：通过 ref.capture(angles, ratio) 截图，返回 dataURL 数组 */
+export interface PanoViewerHandle {
+  capture: (angles: number[], ratioStr: string) => Promise<string[]>
+}
+
+const PanoViewer = forwardRef<PanoViewerHandle, PanoViewerProps>(({ url, panoType, fov, highQuality, orbitControlsRefLocal }, ref) => {
   const { gl, scene, camera } = useThree()
   const texture = useTexture(url)
 
