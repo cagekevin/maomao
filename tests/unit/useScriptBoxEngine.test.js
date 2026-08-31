@@ -29,7 +29,7 @@ const engineCallbacks = {
   onUpdate: vi.fn(),
 }
 const createScriptBoxEngine = vi.fn((cfg) => ({ ...engineCallbacks, __cfg: cfg }))
-vi.mock('../../src/components/base/scriptBoxEngine.ts', () => ({ createScriptBoxEngine: (...a) => createScriptBoxEngine(...a) }))
+vi.mock('../../src/components/scriptbox/scriptBoxEngine.ts', () => ({ createScriptBoxEngine: (...a) => createScriptBoxEngine(...a) }))
 
 // 节点参数记忆（yimao_node_prefs）落点：nodePrefs 经 contentStore 读写，这里用内存态替代，
 // 只让 key 命中 'yimao_node_prefs' 时返回，避免牵动 contentStore 的真实注册/后端逻辑。

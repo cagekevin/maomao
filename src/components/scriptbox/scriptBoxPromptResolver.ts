@@ -5,8 +5,9 @@
  *  单一数据源 = getPlaybook(playbookId)[key]，无第二级、无「留空即跟随」的隐式语义。
  *  §4.1：resolveSystem / resolveImageGenSys / resolveConstraints / resolveNegatives。
  *
- * 【依赖方向】resolver(base) → playbookPlaybookStore(scriptbox)。依赖单向，纯读。
- *  引擎 scriptBoxEngine(base) → 本层；scriptBoxPrompts(base) 的具名纯函数 → 本层。
+ * 【依赖方向】resolver(scriptbox) → playbookStore(scriptbox)。依赖单向，纯读。
+ *  引擎 scriptBoxEngine(scriptbox) → 本层；scriptBoxPrompts(scriptbox) 的具名纯函数 → 本层。
+ *  更新(2026-08-31)：本文件自 base/ 迁入 scriptbox/（解 base⇄scriptbox 循环，见 download/REPORT）。
  */
 import { getPlaybook, getAllPlaybooks } from '../scriptbox/scriptBoxPlaybookStore'
 import type { Playbook } from '../scriptbox/scriptBoxPlaybookIO'

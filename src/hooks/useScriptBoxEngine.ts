@@ -1,6 +1,6 @@
 import { useEffect, useRef, useCallback } from 'react'
 import { useReactFlow } from '@xyflow/react'
-import { createScriptBoxEngine } from '../components/base/scriptBoxEngine.ts'
+import { createScriptBoxEngine } from '../components/scriptbox/scriptBoxEngine.ts'
 import { normalizeScriptBoxData } from '../components/base/scriptBoxSchema.ts'
 import { injectNodePrefs } from '../components/base/nodePrefs.ts'
 import { useProvidersList, load as loadProviders } from '../components/base/settings/providerStore.ts'

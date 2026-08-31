@@ -8,7 +8,7 @@
  *
  * 【安全约定】导入一律落为「我的」自定义，绝不覆盖内置；id/label 去重由调用方（Manager）做。
  */
-import type { ImageGenTemplate, ScriptBoxConstraints, ScriptBoxNegatives } from '../base/scriptBoxPromptResolver'
+import type { ImageGenTemplate, ScriptBoxConstraints, ScriptBoxNegatives } from './scriptBoxPromptResolver'
 
 /** 单个 playbook 的规范形状（导出/导入/存储共用）。 */
 export interface Playbook {

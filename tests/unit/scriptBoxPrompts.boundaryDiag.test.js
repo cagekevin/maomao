@@ -13,7 +13,7 @@
  * 若某断言与期望（正确行为）不符，说明确有缺陷——由调用方决定是否修复。
  */
 import { describe, it, expect } from 'vitest'
-import { matchAsset, matchAssetNames, collectAssets, mergeShotsForVideo } from '../../src/components/base/scriptBoxPrompts.ts'
+import { matchAsset, matchAssetNames, collectAssets, mergeShotsForVideo } from '@/components/scriptbox/scriptBoxPrompts.ts'
 
 // ═══════════════════════════════════════════════════════════════════
 // §0 用户真实镜头数据（2026-08-28 实测：镜头1 的 description + prompt）——钉死断点

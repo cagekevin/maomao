@@ -1,21 +1,24 @@
+/**
+ * 剧本盒子引擎（生成/连线回调）。更新(2026-08-31)：自 base/ 迁入 scriptbox/（解 base⇄scriptbox 循环，见 download/REPORT）。
+ */
 import { buildShotImageUser, collectAssets, matchAssetNames, ZgPrompt, IMAGE_GEN_DEFAULT, SCRIPT_WRITER_FORMAT, buildAuditUser, normalizeDialogue, mergeShotsForVideo, MERGE_VIDEO_SYSTEM, buildMergedVideoUser, SHOT_DIRECTOR_SYSTEM, SHOT_AUDIT_SYSTEM, SCRIPT_WRITER_SYSTEM } from './scriptBoxPrompts.ts'
 import { resolveSystem, resolveImageGenSys, resolveConstraints, resolveNegatives, resolveAssetTemplates } from './scriptBoxPromptResolver.ts'
-import { chatCompletions } from './chatApi.ts'
-import { generateImage } from './imageApi.ts'
-import { resolveProviderModel, buildAllModels } from './providerModels.ts'
-import { localizeAndStoreToLibrary, assetFolderOf } from './assetStore.ts'
-import { uploadFileToLocal, saveResultToTasks } from './filesApi.ts'
-import { toAbsoluteFileUrl } from './imageUrl.ts'
-import { showToast } from './toastStore.ts'
-import { logger } from './logger.ts'
-import { reportGenerate } from './taskStore.ts'
-import { shotHandleId } from './contracts.js'
-import { SCRIPTBOX_DOWNSTREAM_GRID_COLS, SCRIPTBOX_DOWNSTREAM_CELL_W, SCRIPTBOX_DOWNSTREAM_CELL_H, SCRIPTBOX_DOWNSTREAM_GAP_X, SCRIPT_TEXT_TIMEOUT, SCRIPT_IMAGE_TIMEOUT } from './config.js'
+import { chatCompletions } from '../base/chatApi.ts'
+import { generateImage } from '../base/imageApi.ts'
+import { resolveProviderModel, buildAllModels } from '../base/providerModels.ts'
+import { localizeAndStoreToLibrary, assetFolderOf } from '../base/assetStore.ts'
+import { uploadFileToLocal, saveResultToTasks } from '../base/filesApi.ts'
+import { toAbsoluteFileUrl } from '../base/imageUrl.ts'
+import { showToast } from '../base/toastStore.ts'
+import { logger } from '../base/logger.ts'
+import { reportGenerate } from '../base/taskStore.ts'
+import { shotHandleId } from '../base/contracts.js'
+import { SCRIPTBOX_DOWNSTREAM_GRID_COLS, SCRIPTBOX_DOWNSTREAM_CELL_W, SCRIPTBOX_DOWNSTREAM_CELL_H, SCRIPTBOX_DOWNSTREAM_GAP_X, SCRIPT_TEXT_TIMEOUT, SCRIPT_IMAGE_TIMEOUT } from '../base/config.js'
 // 任务级总耗时兜底（R2 边界守卫）：给整段生成任务加超时，杜绝「转圈永不结束」
-import { withTimeout } from './asyncGuard.ts'
+import { withTimeout } from '../base/asyncGuard.ts'
 import type { Shot, ScriptAsset, Dialogue } from './scriptBoxPrompts.ts'
-import type { ProviderWithModels } from './providerModels.ts'
-import type { ScriptBoxUpdateData } from './scriptBoxSchema.ts'
+import type { ProviderWithModels } from '../base/providerModels.ts'
+import type { ScriptBoxUpdateData } from '../base/scriptBoxSchema.ts'
 
 /** toast 状态档（与 toastStore 的 ToastType 同形，后者未导出故此处本地声明） */
 type ToastType = 'success' | 'error' | 'warning' | 'info'

@@ -16,7 +16,7 @@
  *  2. 填齐 script / shot / audit / qg / assetTemplates / imageGenTemplates / constraints / negative；
  *  3. GearSettings 工作流下拉会自动列出，即可一键切换。
  */
-import type { ImageGenTemplate } from '../base/scriptBoxPromptResolver'
+import type { ImageGenTemplate } from './scriptBoxPromptResolver'
 
 /** 单套工作流预设的完整形状（manga / seeding 共用，是「默认提示词」的权威来源）。 */
 export interface WorkflowSpec {

@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react'
 import { Loader2, Image as ImageIcon, Video, LayoutGrid, Columns2, RefreshCw, Link2, Wand2, Copy, Check } from 'lucide-react'
-import { dialogueText, hlAt, patchShots, formatLineBreaks } from '../base/scriptBoxPrompts.ts'
+import { dialogueText, hlAt, patchShots, formatLineBreaks } from './scriptBoxPrompts.ts'
 import { getPlaybook } from './scriptBoxPlaybookStore.ts'
 import { toastWarning } from '../base/toastStore.ts'
 import ScriptBoxModal from './ScriptBoxModal.jsx'

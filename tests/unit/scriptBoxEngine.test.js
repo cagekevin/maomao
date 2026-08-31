@@ -43,7 +43,7 @@ const {
   dialogueLines,
   assembleShotUser,
   createScriptBoxEngine,
-} = await import('../../src/components/base/scriptBoxEngine.ts')
+} = await import('@/components/scriptbox/scriptBoxEngine.ts')
 
 const { chatCompletions } = await import('../../src/components/base/chatApi.ts')
 

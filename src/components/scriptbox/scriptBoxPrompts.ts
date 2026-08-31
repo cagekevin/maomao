@@ -9,9 +9,10 @@
  *
  * 铁律：本文件 100% 纯函数，无 React、无 state、无副作用。
  * UI 与引擎都从这里取函数，保证「依赖单向：UI→引擎→纯函数」。
+ * 更新(2026-08-31)：本文件自 base/ 迁入 scriptbox/（解 base⇄scriptbox 循环，见 download/REPORT）。
  */
 
-import { SCRIPT_BOX_WORKFLOWS } from '../scriptbox/scriptBoxWorkflows.ts'
+import { SCRIPT_BOX_WORKFLOWS } from './scriptBoxWorkflows.ts'
 
 /**
  * 【边界】scriptBoxWorkflows 仍是 .js（真相源，暂不转），其结构按下游实际消费的字段
