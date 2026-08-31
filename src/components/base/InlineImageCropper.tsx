@@ -25,6 +25,17 @@ import { loadImageWithTimeout } from './asyncGuard.ts'
  * @param {Function} props.onSave  保存回调，入参 { dataUrl }
  * @param {Function} props.onClose 关闭回调
  */
+
+/** 就地裁剪浮层 Props。 */
+interface InlineImageCropperProps {
+  /** 要裁剪的图片 URL */
+  imageUrl: string
+  /** 保存回调，入参 { dataUrl } */
+  onSave?: (payload: { dataUrl: string }) => void
+  /** 关闭回调 */
+  onClose?: () => void
+}
+
 /**
  * 把 ReactCrop 的选区换算成原图像素上的裁剪矩形。
  *
@@ -61,7 +72,7 @@ export function cropRectFromSelection({ sel, renderW, renderH, natW, natH }) {
   return { sx, sy, sw, sh }
 }
 
-export default function InlineImageCropper({ imageUrl, onSave, onClose }) {
+export default function InlineImageCropper({ imageUrl, onSave, onClose }: InlineImageCropperProps) {
   const imgRef = useRef(null)
   // 干净绘制源：预加载一份 crossOrigin='anonymous' 的图（复用 loadImageWithTimeout，
   // 与压缩/放大同机制）。直接 drawImage 渲染用的 <img> 会把跨域图污染 canvas → toDataURL

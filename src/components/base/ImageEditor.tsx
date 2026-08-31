@@ -43,6 +43,18 @@ import { createRafBatch } from './utils.ts'
  * @param {Function} props.onClose   关闭回调
  */
 
+/** 全屏图片编辑器 Props。 */
+interface ImageEditorProps {
+  /** 要编辑的图片 URL（dataURL / http / blob） */
+  imageUrl: string
+  /** 初始工具：'crop' 或绘制工具，未知值回退 'pencil' */
+  initialTool?: string
+  /** 保存回调，入参 { dataUrl } */
+  onSave?: (payload: { dataUrl: string }) => void
+  /** 关闭回调 */
+  onClose?: () => void
+}
+
 // 可绘制/标记工具集合（裁剪在 ReactCrop 层处理，不参与 canvas 绘制）
 const DRAW_TOOLS = ['pencil', 'eraser', 'text', 'line', 'arrow', 'square', 'circle', 'number', 'eyedropper']
 // 全部可用工具（含裁剪）
@@ -58,7 +70,7 @@ const CROP_RATIOS = [
   { label: '3:4', value: 3 / 4 },
 ]
 
-export default function ImageEditor({ imageUrl, initialTool = 'pencil', onSave, onClose }) {
+export default function ImageEditor({ imageUrl, initialTool = 'pencil', onSave, onClose }: ImageEditorProps) {
   const canvasRef = useRef(null)
   const viewportRef = useRef(null) // 可滚动画布容器
   const imgRef = useRef(null) // 原始图（清空/橡皮擦恢复用）
@@ -435,7 +447,7 @@ export default function ImageEditor({ imageUrl, initialTool = 'pencil', onSave, 
     onClose?.()
   }, [onSave, onClose])
 
-  const toolBtn = (t, icon, title, active) => (
+  const toolBtn = (t: string, icon: React.ReactNode, title: string, active: boolean) => (
     <button
       type="button"
       className={`p-2 rounded transition-colors ${active ? 'bg-blue-500 text-white' : 'text-secondary hover:text-white hover:bg-surface-hover-strong'}`}

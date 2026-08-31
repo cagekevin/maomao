@@ -12,6 +12,28 @@ import { toAbsoluteFileUrl } from './imageUrl.ts'
  *   onActivate（由父组件决定：播放 / 打开预览）；其余区域点击会冒泡给父容器（如切抽屉）。
  * - onDoubleClick 可选：双击触发（如打开大图预览）。
  */
+
+/** 视频缩略图 Props。 */
+interface VideoThumbnailProps {
+  /** 视频源 URL（相对路径经 toAbsoluteFileUrl 补成 file:// 绝对路径） */
+  src: string
+  /** 封面图 URL（可选，留空则靠 preload=metadata 取首帧） */
+  poster?: string
+  /** 是否静音（默认 true，便于自动/首屏播放） */
+  muted?: boolean
+  /** 填充方式：'cover' 裁切铺满 | 'contain' 留白完整 */
+  fit?: 'cover' | 'contain'
+  /** 尺寸档：'lg' 大 / 'sm' 小（影响播放按钮与图标大小） */
+  size?: 'lg' | 'sm'
+  className?: string
+  /** 点击播放按钮触发（stopPropagation 后），父组件决定播放/预览 */
+  onActivate?: () => void
+  /** 双击触发（如打开大图预览），默认无 */
+  onDoubleClick?: () => void
+  /** 透传 video 元素 ref */
+  videoRef?: React.Ref<HTMLVideoElement>
+}
+
 function VideoThumbnail({
   src,
   poster,
@@ -22,7 +44,7 @@ function VideoThumbnail({
   onActivate,
   onDoubleClick, // 双击触发（如打开大图预览）；默认无
   videoRef
-}) {
+}: VideoThumbnailProps) {
   const btn =
     size === 'sm'
       ? { wrap: 'w-7 h-7', icon: 'w-3 h-3' }

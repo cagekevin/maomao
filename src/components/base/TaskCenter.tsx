@@ -1,12 +1,12 @@
 import React, { useState, useMemo, useRef } from 'react'
 import { Search, Filter, MoreVertical, Copy, Play, RotateCw, Trash2, X, RefreshCw, ChevronDown, Download, Image as ImageIcon } from 'lucide-react'
-import { useTasks, statusDotClass, statusLabel, typeLabel, removeTask, retryTask, clearTasksBy, clearAllTasks } from './taskStore.ts'
+import { useTasks, statusDotClass, statusLabel, typeLabel, removeTask, retryTask, clearTasksBy, clearAllTasks, type Task } from './taskStore.ts'
 import { logger } from './logger.ts'
 import { downloadUrl } from './clipboard.ts'
 import { pollOneTask } from './pollTask.ts'
 import { showToast } from './toastStore.ts'
 import { makeAssetDragProps } from '../../hooks/useAssetDragToCanvas.ts'
-import VideoThumbnail from './VideoThumbnail.jsx'
+import VideoThumbnail from './VideoThumbnail.tsx'
 import { useRenderImageResolver } from './imageUrl.ts'
 import { useOutsideClick } from './hooks.ts'
 import { formatTime, createImeInput } from './utils.ts'
@@ -122,9 +122,9 @@ function TaskCenter() {
               value={keyword}
               onChange={(e) => {
                 setKeyword(e.target.value)
-                searchIme.current?.onChange(e.target.value, e.nativeEvent.isComposing)
+                searchIme.current?.onChange(e.target.value, (e.nativeEvent as InputEvent).isComposing)
               }}
-              onCompositionEnd={(e) => searchIme.current?.onCompositionEnd(e.target.value)}
+              onCompositionEnd={(e) => searchIme.current?.onCompositionEnd((e.target as HTMLInputElement).value)}
               onBlur={() => searchIme.current?.cancel()}
               placeholder="搜索提示词或渠道..."
               className="w-full h-[32px] bg-surface-strong border border-edge rounded-lg pl-8 pr-3 text-primary text-body-xs outline-none focus:border-edge-strong box-border"
@@ -176,6 +176,7 @@ function TaskCenter() {
               src={previewUrl}
               alt="预览"
               {...makeAssetDragProps({ url: previewUrl, name: '预览', type: 'image' })}
+              draggable
               className="max-h-[80vh] max-w-full rounded-lg object-contain cursor-grab active:cursor-grabbing"
               onLoad={(e) => {
                 const el = e.currentTarget
@@ -202,7 +203,7 @@ function TaskCenter() {
   )
 }
 
-const CleanItem = React.memo(function CleanItem({ label, onClick, danger }) {
+const CleanItem = React.memo(function CleanItem({ label, onClick, danger }: { label: string; onClick: () => void; danger?: boolean }) {
   return (
     <button className={`w-full flex items-center px-2 py-1.5 rounded-md text-caption-sm transition-colors cursor-pointer border-none text-left ${danger ? 'text-red-400 hover:bg-red-500/10' : 'text-[#bbb] hover:bg-surface-hover-2 hover:text-white'}`} onClick={onClick}>
       {label}
@@ -210,8 +211,20 @@ const CleanItem = React.memo(function CleanItem({ label, onClick, danger }) {
   )
 })
 
+/** 单条任务卡片 Props（对齐官方 jn.jsx）。 */
+interface TaskCardProps {
+  task: Task
+  moreOpen: boolean
+  onToggleMore: () => void
+  onCloseMore: () => void
+  onCopy: () => void
+  onRetry: () => void
+  onRemove: () => void
+  onPreview: (url: string) => void
+}
+
 // 单条任务卡片（对齐官方 jn.jsx）
-const TaskCard = React.memo(function TaskCard({ task, moreOpen, onToggleMore, onCloseMore, onCopy, onRetry, onRemove, onPreview }) {
+const TaskCard = React.memo(function TaskCard({ task, moreOpen, onToggleMore, onCloseMore, onCopy, onRetry, onRemove, onPreview }: TaskCardProps) {
   const render = useRenderImageResolver()
   const [showData, setShowData] = useState(false)
   const menuRef = useRef(null) // 任务卡片「⋮」更多菜单容器 ref，点击外部自动关闭
@@ -319,6 +332,7 @@ const TaskCard = React.memo(function TaskCard({ task, moreOpen, onToggleMore, on
               src={render(task.resultUrl)}
               alt={task.modelName || '结果图'}
               {...makeAssetDragProps({ url: task.resultUrl, name: task.modelName || '结果图', type: task.type })}
+              draggable
               className="w-full h-full object-cover block cursor-grab active:cursor-grabbing"
             />
           )}
@@ -341,7 +355,15 @@ const TaskCard = React.memo(function TaskCard({ task, moreOpen, onToggleMore, on
   )
 })
 
-const MenuBtn = React.memo(function MenuBtn({ icon: Icon, label, onClick, danger }) {
+/** 任务卡片「⋮」菜单项（icon + label + onClick）。 */
+interface MenuBtnProps {
+  icon: React.ComponentType<{ size?: number }>
+  label: string
+  onClick: (e: React.MouseEvent) => void | Promise<unknown>
+  danger?: boolean
+}
+
+const MenuBtn = React.memo(function MenuBtn({ icon: Icon, label, onClick, danger }: MenuBtnProps) {
   return (
     <button className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-caption-sm transition-colors cursor-pointer border-none text-left ${danger ? 'text-red-400 hover:bg-red-500/10' : 'text-body hover:bg-surface-hover-2 hover:text-white'}`} onClick={onClick}>
       <Icon size={12} /> {label}

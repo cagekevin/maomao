@@ -70,10 +70,10 @@ vi.mock('../../src/components/base/hooks.ts', () => ({ useOutsideClick: () => {}
 vi.mock('../../src/components/base/imageUrl.ts', () => ({
   useRenderImageResolver: () => (u) => (u && u.startsWith('/files/') ? `THUMB${u}` : u || ''),
 }))
-vi.mock('../../src/components/base/VideoThumbnail.jsx', () => ({ default: ({ src, onActivate }) =>
+vi.mock('../../src/components/base/VideoThumbnail.tsx', () => ({ default: ({ src, onActivate }) =>
   React.createElement('div', { 'data-testid': 'video-thumbnail', onClick: onActivate }, src) }))
 
-import TaskCenter from '../../src/components/base/TaskCenter.jsx'
+import TaskCenter from '../../src/components/base/TaskCenter.tsx'
 
 function makeTask(overrides = {}) {
   return {

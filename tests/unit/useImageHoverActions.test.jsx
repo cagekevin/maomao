@@ -9,10 +9,10 @@ import React from 'react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
 
-import { useImageHoverActions } from '../../src/components/base/useImageHoverActions.jsx'
+import { useImageHoverActions } from '../../src/components/base/useImageHoverActions.tsx'
 
 // 依赖 stub（hook 内部 import 的真实模块，测试中用轻量替身）
-vi.mock('../../src/components/base/ImageEditor.jsx', () => ({ default: () => null }))
+vi.mock('../../src/components/base/ImageEditor.tsx', () => ({ default: () => null }))
 vi.mock('../../src/components/base/imageCompress.ts', () => ({ compressImage: async (url) => ({ dataUrl: 'data:compressed', size: 1, originalSize: 2 }) }))
 vi.mock('../../src/components/base/imageUpscale.ts', () => ({ upscaleImage: async (url) => ({ dataUrl: 'data:upscaled' }) }))
 vi.mock('../../src/components/base/filesApi.ts', () => ({ saveInlineToLocal: async () => 'local://saved' }))

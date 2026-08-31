@@ -57,7 +57,7 @@ vi.mock('../../src/components/base/clipboard.ts', async (importOriginal) => {
 
 // ImageEditor：记录最近渲染的 imageUrl，便于断言「打开编辑器」
 let lastEditorUrl = null
-vi.mock('../../src/components/base/ImageEditor.jsx', () => ({
+vi.mock('../../src/components/base/ImageEditor.tsx', () => ({
   default: ({ imageUrl, onSave, onClose }) => {
     lastEditorUrl = imageUrl
     return <div data-testid="image-editor" data-url={imageUrl} />
@@ -65,7 +65,7 @@ vi.mock('../../src/components/base/ImageEditor.jsx', () => ({
 }))
 // InlineImageCropper：记录是否打开（就地裁剪浮层）
 let inlineCropperOpen = false
-vi.mock('../../src/components/base/InlineImageCropper.jsx', () => ({
+vi.mock('../../src/components/base/InlineImageCropper.tsx', () => ({
   default: ({ imageUrl, onSave, onClose }) => {
     inlineCropperOpen = true
     return <div data-testid="inline-cropper" data-url={imageUrl} />

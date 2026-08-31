@@ -11,7 +11,7 @@ import { mocks } from './_nodeMocks.mjs'
 vi.mock('@xyflow/react', () => mocks.xyflow)
 vi.mock('../../src/components/base/NodeShell.jsx', () => ({ default: mocks.NodeShell }))
 vi.mock('../../src/components/base/HoverToolbar.jsx', () => ({ default: mocks.HoverToolbar }))
-vi.mock('../../src/components/base/ImageEditor.jsx', () => ({ default: mocks.ImageEditor }))
+vi.mock('../../src/components/base/ImageEditor.tsx', () => ({ default: mocks.ImageEditor }))
 vi.mock('../../src/hooks/useMediaDegrade.ts', () => ({ useMediaDegrade: mocks.useMediaDegrade }))
 vi.mock('../../src/hooks/useFitNodeRatio.ts', () => ({ useFitNodeRatio: mocks.useFitNodeRatio }))
 vi.mock('../../src/hooks/useVideoPoster.ts', () => ({ useVideoPoster: mocks.useVideoPoster }))

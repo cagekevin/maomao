@@ -95,7 +95,7 @@ vi.mock('../../src/components/base/PromptLibraryButton.tsx', () => ({ default: (
 vi.mock('../../src/components/base/GeneratingOverlay.jsx', () => ({ default: () => null }))
 vi.mock('../../src/components/base/ResizeFullscreenHandle.jsx', () => ({ default: () => null }))
 vi.mock('../../src/components/base/FullscreenModal.jsx', () => ({ default: ({ open, children }) => (open ? <div data-testid="fullscreen">{children}</div> : null) }))
-vi.mock('../../src/components/base/VideoThumbnail.jsx', () => ({ default: () => <div data-testid="video-thumb" /> }))
+vi.mock('../../src/components/base/VideoThumbnail.tsx', () => ({ default: () => <div data-testid="video-thumb" /> }))
 
 vi.mock('../../src/hooks/useConnectedInputs.ts', () => ({ useConnectedInputs: () => ({ images: [], texts: [] }) }))
 vi.mock('../../src/hooks/useMediaDegrade.ts', () => ({ useMediaDegrade: () => ({ isHidden: () => false }) }))

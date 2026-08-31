@@ -1,6 +1,6 @@
 import React, { useMemo, useEffect, useRef } from 'react'
 import { Clock, FolderOpen, Sparkles, Pin, PinOff, BookOpen } from 'lucide-react'
-import TaskCenter from './TaskCenter.jsx'
+import TaskCenter from './TaskCenter.tsx'
 import GeneratedView from './GeneratedView.jsx'
 import AssetLibrary from './AssetLibrary.jsx'
 import PromptHub from './PromptHub.jsx'

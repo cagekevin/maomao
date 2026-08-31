@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react'
 import { Crop, Pencil, Maximize2, Minimize2 } from 'lucide-react'
-import ImageEditor from './ImageEditor.jsx'
-import InlineImageCropper from './InlineImageCropper.jsx'
+import ImageEditor from './ImageEditor.tsx'
+import InlineImageCropper from './InlineImageCropper.tsx'
 import { compressImage } from './imageCompress.ts'
 import { upscaleImage } from './imageUpscale.ts'
 import { saveInlineToLocal } from './filesApi.ts'
@@ -40,7 +40,20 @@ import { showToast, toastError } from './toastStore.ts'
  *   renderEditor     // 渲染 ImageEditor 的函数（返回 JSX 或 null）
  * }}
  */
-export function useImageHoverActions({ id, url, hasImage, label, onImageReplaced }) {
+interface UseImageHoverActionsArgs {
+  /** 节点 id（裁剪/压缩/放大请求定位用） */
+  id: string
+  /** 当前图片 URL（裁剪/压缩/放大源） */
+  url: string
+  /** 是否已有图片（控制 crop/edit/compress 显示） */
+  hasImage: boolean
+  /** 节点 label（发送素材库命名用） */
+  label: string
+  /** 新图写回回调（裁剪保存 / 压缩覆盖都走它），入参 dataUrl */
+  onImageReplaced: (dataUrl: string) => void
+}
+
+export function useImageHoverActions({ id, url, hasImage, label, onImageReplaced }: UseImageHoverActionsArgs) {
   const [editor, setEditor] = useState(null) // 全屏 ImageEditor（重编辑入口，保留）
   const [cropping, setCropping] = useState(false) // 就地裁剪浮层
   const [compressing, setCompressing] = useState(false)
