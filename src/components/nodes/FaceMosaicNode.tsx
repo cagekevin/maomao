@@ -10,7 +10,7 @@ import { useRenderImageResolver } from '../base/imageUrl.ts'
 import { showToast, toastError, toastWarning } from '../base/toastStore.ts'
 import { logger } from '../base/logger.ts'
 import { classifyError } from '../base/genErrors.ts'
-import { applyMosaic, MOSAIC_MODES, MOSAIC_PALETTE } from '../base/faceMosaic.ts'
+import { applyMosaic, MOSAIC_MODES, MOSAIC_PALETTE, type MosaicMode } from '../base/faceMosaic.ts'
 import FaceMosaicEditor from '../base/FaceMosaicEditor.tsx'
 import ImageZoomDialog from '../base/ImageZoomDialog.tsx'
 import { generateId } from '../base/idGen.ts'
@@ -27,14 +27,34 @@ import { dataUrlToBlob } from '../base/utils.ts'
  *  - 手动：打开 FaceMosaicEditor 全屏编辑器，拖拽框选 + 自动识别人脸
  *  - 结果：成功输出 imageNode（与官方 onSpawnImageNode 对齐）
  */
-function FaceMosaicNode({ id, data, selected }) {
+interface FaceMosaicResultInfo {
+  count: number
+  faceTotal: number
+}
+interface FaceMosaicNodeData {
+  label?: string
+  mode?: MosaicMode
+  strength?: number
+  color?: string
+  imageUrls?: string[]
+  errorMessage?: string
+  resultInfo?: FaceMosaicResultInfo | null
+  resultUrls?: string[]
+  [key: string]: unknown
+}
+interface FaceMosaicNodeProps {
+  id: string
+  data: FaceMosaicNodeData
+  selected?: boolean
+}
+function FaceMosaicNode({ id, data, selected }: FaceMosaicNodeProps) {
   const { setNodes, getNodes, getNode } = useReactFlow()
   // 标题改名 → 写回 data.label，让下游 @名 匹配 / 素材条显示跟随
-  const rename = useCallback((name) => {
+  const rename = useCallback((name: string) => {
     setNodes((ns) => ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, label: name } } : n)))
   }, [id, setNodes])
   const { hideMedia } = useMediaDegrade()
-  const fileRef = useRef(null)
+  const fileRef = useRef<HTMLInputElement | null>(null)
 
   // 模式与参数（复刻官方 o/c/u）
   const [mode, setMode] = useState(data.mode || 'mosaic')
@@ -64,7 +84,7 @@ function FaceMosaicNode({ id, data, selected }) {
   const [errorMessage, setErrorMessage] = useState(data.errorMessage || '')
   const [resultInfo, setResultInfo] = useState(data.resultInfo || null)
   const [resultUrls, setResultUrls] = useState(data.resultUrls || [])
-  const zoomRef = useRef(null) // 原生 <dialog> 查看大图
+  const zoomRef = useRef<HTMLDialogElement | null>(null) // 原生 <dialog> 查看大图
 
   // 写回模式/参数（复刻官方 useEffect r(e,{mode,strength,color})）
   useEffect(() => {
@@ -73,7 +93,7 @@ function FaceMosaicNode({ id, data, selected }) {
   }, [mode, strength, color, id, setNodes])
 
   // 上传文件 → localImages
-  const onUpload = (e) => {
+  const onUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
     if (!files || files.length === 0) return
     Array.from(files).forEach(async (file) => {
@@ -88,7 +108,7 @@ function FaceMosaicNode({ id, data, selected }) {
 
   // 输出结果（复刻官方 y）：spawn imageNode（原型无 imageBox 直连，统一 spawn）
   const outputResults = useCallback(
-    (items) => {
+    (items: Array<{ url: string; label: string }>) => {
       const me = getNode(id)
       const baseX = (me?.position?.x ?? 100) + (me?.measured?.width ?? 320) + 60
       const baseY = me?.position?.y ?? 100
@@ -146,7 +166,7 @@ function FaceMosaicNode({ id, data, selected }) {
 
   // 手动打码保存（复刻官方 x：editor onSave）
   const handleManualSave = useCallback(
-    async (dataUrl) => {
+    async (dataUrl: string) => {
       setManualOpen(false)
       setLoading(true)
       setProgress(0)
@@ -337,7 +357,7 @@ function FaceMosaicNode({ id, data, selected }) {
   )
 }
 
-function MODE_LABEL(mode) {
+function MODE_LABEL(mode: MosaicMode | string) {
   return MOSAIC_MODES.find((m) => m.mode === mode)?.label || '打码'
 }
 export default React.memo(FaceMosaicNode)

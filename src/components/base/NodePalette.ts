@@ -15,7 +15,7 @@ import VideoExtractNode from '../nodes/VideoExtractNode.jsx'
 import ImageBoxNode from '../nodes/ImageBoxNode.jsx'
 import GridSplitNode from '../nodes/GridSplitNode.jsx'
 import GridMergeNode from '../nodes/GridMergeNode.jsx'
-import FaceMosaicNode from '../nodes/FaceMosaicNode.jsx'
+import FaceMosaicNode from '../nodes/FaceMosaicNode.tsx'
 import GroupNode from '../nodes/GroupNode.jsx'
 import ScriptBoxNode from '../nodes/ScriptBoxNode.jsx'
 // 重依赖节点（3D / 视频处理）**不在此静态 import**：静态 import 会让 vendor-3d(1.06MB) 与
