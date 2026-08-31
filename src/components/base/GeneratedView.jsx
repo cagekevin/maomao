@@ -10,6 +10,7 @@ import { logger } from './logger.ts'
 import { isAudio } from './mediaType.ts'
 import VideoThumbnail from './VideoThumbnail.tsx'
 import LazyImage from './LazyImage.tsx'
+import ImageZoomDialog from './ImageZoomDialog.tsx'
 
 // 类型过滤 pill（沿用素材库 AssetLibrary 的小圆按钮形式）
 const TYPE_FILTERS = [
@@ -93,6 +94,14 @@ function GeneratedView() {
   const [totalPages, setTotalPages] = useState(1)
   const [loading, setLoading] = useState(false)
   const [preview, setPreview] = useState(null) // 点击大图/视频/文字/音频预览
+  const videoZoomRef = useRef(null) // 视频预览统一走 ImageZoomDialog（含截屏按钮）
+
+  // 视频预览：preview 变为视频时自动打开统一视频框（关闭由 onClose 复位 preview）
+  useEffect(() => {
+    if (preview && (preview.type === 'video' || String(preview.type).startsWith('video'))) {
+      videoZoomRef.current?.showModal()
+    }
+  }, [preview])
 
   const [typeFilter, setTypeFilter] = useState('all') // all/image/video/text
   const [folder, setFolder] = useState('tasks') // 当前目录（eqOrPrefix 前缀），初始 tasks
@@ -478,14 +487,12 @@ function GeneratedView() {
         {loading && <span className="text-caption text-faint whitespace-nowrap mr-1">加载中...</span>}
       </div>
 
-      {/* 点击大图/视频/文字/音频预览（与素材库一致） */}
-      {preview && (
+      {/* 点击大图/文字/音频预览（与素材库一致）；视频统一走下方 ImageZoomDialog */}
+      {preview && preview.type !== 'video' && !String(preview.type).startsWith('video') && (
         <div className="absolute inset-0 z-20 bg-black/80 flex items-center justify-center p-4" onClick={() => setPreview(null)}>
           <div className="max-w-full max-h-full flex flex-col items-center gap-3" onClick={(e) => e.stopPropagation()}>
             {preview.type === 'text' ? (
               <TextPreview url={preview.url} name={preview.name} />
-            ) : preview.type === 'video' || (preview.type && preview.type.startsWith('video')) ? (
-              <video src={preview.url} controls className="max-h-[70vh] max-w-full rounded-lg" />
             ) : isAudio(preview.type, preview.url) ? (
               <div className="w-[300px] bg-surface-2 rounded-xl p-6 flex flex-col items-center gap-3">
                 <Music size={40} className="text-green-400" />
@@ -500,6 +507,15 @@ function GeneratedView() {
             <button className="px-4 py-1.5 rounded-lg bg-surface-hover text-body hover:bg-surface-hover-strong text-xs cursor-pointer border-none" onClick={() => setPreview(null)}>关闭</button>
           </div>
         </div>
+      )}
+      {/* 视频预览统一收口到 ImageZoomDialog（含截屏当前帧/尾帧按钮） */}
+      {preview && (preview.type === 'video' || String(preview.type).startsWith('video')) && (
+        <ImageZoomDialog
+          ref={videoZoomRef}
+          url={preview.url}
+          kind="video"
+          onClose={() => setPreview(null)}
+        />
       )}
     </div>
   )

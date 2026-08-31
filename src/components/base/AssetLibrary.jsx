@@ -10,6 +10,7 @@ import { onAssetSent, emitAssetSent } from './assetStore.ts'
 import { logger } from './logger.ts'
 import { isAudio } from './mediaType.ts'
 import LazyImage from './LazyImage.tsx'
+import ImageZoomDialog from './ImageZoomDialog.tsx'
 
 // 目录 pill（folder 前缀对齐本地磁盘 migrated 结构，与后端 /api/resources 一一对应）
 const FOLDER_PILLS = [
@@ -82,6 +83,14 @@ function AssetLibrary() {
 
   const [folder, setFolder] = useState('migrated') // 当前目录前缀路径（migrated 为「全部」根）
   const [preview, setPreview] = useState(null)
+  const videoZoomRef = useRef(null) // 视频预览统一走 ImageZoomDialog（含截屏按钮）
+
+  // 视频预览：preview 变为视频时自动打开统一视频框（关闭由 onClose 复位 preview）
+  useEffect(() => {
+    if (preview && (preview.type === 'video' || String(preview.type).startsWith('video'))) {
+      videoZoomRef.current?.showModal()
+    }
+  }, [preview])
   const [items, setItems] = useState([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(false)
@@ -502,14 +511,12 @@ function AssetLibrary() {
         </div>
       )}
 
-      {/* 点击大图/视频/文字/音频预览 */}
-      {preview && (
+      {/* 点击大图/文字/音频预览；视频统一走下方 ImageZoomDialog */}
+      {preview && preview.type !== 'video' && !String(preview.type).startsWith('video') && (
         <div className="absolute inset-0 z-20 bg-black/80 flex items-center justify-center p-4" onClick={() => setPreview(null)}>
           <div className="max-w-full max-h-full flex flex-col items-center gap-3" onClick={(e) => e.stopPropagation()}>
             {preview.type === 'text' ? (
               <TextPreview url={preview.url} name={preview.name} />
-            ) : preview.type === 'video' || (preview.type && preview.type.startsWith('video')) ? (
-              <video src={preview.url} controls className="max-h-[70vh] max-w-full rounded-lg" />
             ) : isAudio(preview.type, preview.url) ? (
               <div className="w-[300px] bg-surface-2 rounded-xl p-6 flex flex-col items-center gap-3">
                 <Music size={40} className="text-green-400" />
@@ -524,6 +531,15 @@ function AssetLibrary() {
             <button className="px-4 py-1.5 rounded-lg bg-surface-hover text-body hover:bg-surface-hover-strong text-xs cursor-pointer border-none" onClick={() => setPreview(null)}>关闭</button>
           </div>
         </div>
+      )}
+      {/* 视频预览统一收口到 ImageZoomDialog（含截屏当前帧/尾帧按钮） */}
+      {preview && (preview.type === 'video' || String(preview.type).startsWith('video')) && (
+        <ImageZoomDialog
+          ref={videoZoomRef}
+          url={preview.url}
+          kind="video"
+          onClose={() => setPreview(null)}
+        />
       )}
     </div>
   )

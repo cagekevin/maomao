@@ -18,6 +18,7 @@ import { httpRequest } from './httpClient.ts'
 import { DOWNLOAD_TIMEOUT } from './config.js'
 import { generateId } from './idGen.ts'
 import { deepClone } from './utils.ts'
+import { withTimeout, TimeoutError } from './asyncGuard.ts'
 
 /** 剪贴板操作统一返回信封：{ ok, msg }，调用方负责 toast。 */
 type ClipResult = { ok: boolean; msg: string }
@@ -82,6 +83,87 @@ export async function copyImageToClipboard(url: string): Promise<ClipResult> {
     } catch {
       return { ok: false, msg: '复制失败，可能因跨域或权限限制' }
     }
+  }
+}
+
+/**
+ * 把 <video> 当前（或尾帧）画面绘制到 canvas 并返回 canvas。
+ * 纯函数（无副作用），供 copyVideoFrameToClipboard 复用，便于单测。
+ * @param video 已加载的视频元素（videoWidth>0 才有效）
+ * @param opts.last true=截尾帧（currentTime 跳到 duration-0.1，极短视频兜底到中段）；false=截当前帧
+ * @returns 绘制好的 canvas
+ * @throws 视频未加载 / seek 超时 / canvas 上下文缺失等真实错误（不静默吞）
+ */
+export async function drawVideoFrameToCanvas(video: HTMLVideoElement, opts: { last?: boolean } = {}): Promise<HTMLCanvasElement> {
+  if (!video || !(video.videoWidth > 0) || !(video.videoHeight > 0)) {
+    throw new Error('视频尚未加载，无法截屏')
+  }
+  // 尾帧：定位到接近末尾；极端短视频（duration 很小）兜底到中段，避免越界取不到帧
+  if (opts.last) {
+    const wasPaused = video.paused
+    const dur = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : 0
+    const target = dur > 0 ? Math.max(0, Math.min(dur - 0.1, dur * 0.5)) : video.currentTime
+    if (target !== video.currentTime) {
+      await withTimeout(
+        new Promise<void>((resolve, reject) => {
+          const onSeeked = () => { cleanup(); resolve() }
+          const onErr = () => { cleanup(); reject(new Error('尾帧定位失败')) }
+          const cleanup = () => {
+            video.removeEventListener('seeked', onSeeked)
+            video.removeEventListener('error', onErr)
+          }
+          video.addEventListener('seeked', onSeeked)
+          video.addEventListener('error', onErr)
+          video.pause() // 暂停，避免 seek 后再被 playback 推进，确保停在尾帧
+          video.currentTime = target
+        }),
+        5000,
+        '尾帧定位超时',
+      )
+    }
+    // seeked 后渲染面未必立即更新到解码帧，等两帧 rAF 确保尾帧已上屏再 drawImage
+    await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())))
+    if (!wasPaused) { /* 调用方预览框仍可继续播放，此处不强制恢复，避免干扰用户 */ }
+  }
+  const canvas = document.createElement('canvas')
+  canvas.width = video.videoWidth
+  canvas.height = video.videoHeight
+  const ctx = canvas.getContext('2d')
+  if (!ctx) throw new Error('无法获取 canvas 上下文')
+  ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+  return canvas
+}
+
+/**
+ * 截取视频帧并复制到系统剪贴板（image/png）。供统一视频预览框「截屏当前帧 / 截屏尾帧」按钮调用。
+ * 复用 clipboard 统一信封 { ok, msg }，调用方负责 toast。
+ * 失败（未加载 / 跨域污染 SecurityError / 超时 / 剪贴板权限）一律透传真实错误文案，不静默降级为复制链接
+ * （视频帧无法靠链接兜底，故不沿用 copyImageToClipboard 的 fallback 思路）。
+ * @param video 预览框内的 <video> 元素
+ * @param opts.last true=尾帧，false/undefined=当前帧
+ */
+export async function copyVideoFrameToClipboard(video: HTMLVideoElement, opts: { last?: boolean } = {}): Promise<ClipResult> {
+  if (!video) return { ok: false, msg: '没有可截屏的视频' }
+  try {
+    const canvas = await drawVideoFrameToCanvas(video, opts)
+    const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, 'image/png'))
+    if (!blob) throw new Error('帧导出失败（canvas 可能被跨域污染）')
+    await withTimeout(
+      navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]),
+      5000,
+      '复制到剪贴板超时',
+    )
+    return { ok: true, msg: opts.last ? '尾帧已复制到剪贴板' : '当前帧已复制到剪贴板' }
+  } catch (e) {
+    const err = e as Error
+    // 超时 / 跨域 SecurityError 等真实原因原样透传，禁止用泛化错误掩盖
+    const msg = err instanceof TimeoutError
+      ? `截屏失败：${err.message}`
+      : /SecurityError|tainted/i.test(err.message)
+        ? '截屏失败：视频跨域，canvas 被污染，无法复制到剪贴板'
+        : `截屏失败：${err.message || '未知错误'}`
+    logger.warn('clipboard', '复制视频帧失败', err?.message)
+    return { ok: false, msg }
   }
 }
 

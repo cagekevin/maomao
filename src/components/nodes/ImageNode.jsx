@@ -302,8 +302,9 @@ function ImageNode({ id, data, selected }) {
     {/* 图片编辑器（裁剪/标记）：统一机制渲染，editor 关闭时返回 null */}
     {renderEditor()}
 
-    {/* 查看大图：共享 ImageZoomDialog（滚轮缩放/拖拽/双击关闭 + 复制图片/下载） */}
-    <ImageZoomDialog ref={dialogRef} url={displayUrl} />
+    {/* 查看大图：共享 ImageZoomDialog。
+        图片→kind="image" 看海报/大图；视频→kind="video" 统一走视频播放预览（含截屏按钮） */}
+    <ImageZoomDialog ref={dialogRef} url={type === 'video' ? url : displayUrl} kind={type === 'video' ? 'video' : 'image'} />
     </>
   )
 }

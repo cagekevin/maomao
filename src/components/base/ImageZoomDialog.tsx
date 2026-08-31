@@ -19,15 +19,16 @@
  */
 import { forwardRef, ForwardedRef, useState, useRef, useCallback, useEffect } from 'react'
 import { toAbsoluteFileUrl } from './imageUrl.ts'
-import { copyImageToClipboard, downloadUrl } from './clipboard.ts'
+import { copyImageToClipboard, copyVideoFrameToClipboard, downloadUrl } from './clipboard.ts'
 import { createRafBatch } from './utils.ts'
 
 interface ImageZoomDialogProps {
   url?: string
   kind?: 'image' | 'video'
+  onClose?: () => void
 }
 
-const ImageZoomDialog = forwardRef(function ImageZoomDialog({ url, kind = 'image' }: ImageZoomDialogProps, ref: ForwardedRef<HTMLDialogElement>) {
+const ImageZoomDialog = forwardRef(function ImageZoomDialog({ url, kind = 'image', onClose }: ImageZoomDialogProps, ref: ForwardedRef<HTMLDialogElement>) {
   const isVideo = kind === 'video'
   const [scale, setScale] = useState(1)
   const [offset, setOffset] = useState({ x: 0, y: 0 })
@@ -119,7 +120,8 @@ const ImageZoomDialog = forwardRef(function ImageZoomDialog({ url, kind = 'image
   const close = useCallback((e) => {
     const dlg = (e?.currentTarget)?.closest?.('dialog') || (typeof ref === 'function' ? null : ref?.current)
     dlg?.close?.()
-  }, [ref])
+    onClose?.() // 通知外部（如 GeneratedView/AssetLibrary 复位 preview），失败不静默吞
+  }, [ref, onClose])
 
   const handleCopy = useCallback(async () => {
     const abs = toAbsoluteFileUrl(url || '')
@@ -133,6 +135,18 @@ const ImageZoomDialog = forwardRef(function ImageZoomDialog({ url, kind = 'image
     const name = (url || '').split('/').pop() || 'image.png'
     await downloadUrl(abs, name)
   }, [url])
+
+  // 视频模式：截屏当前帧 / 尾帧 → 复制到剪贴板；结果直接体现在按钮文案上（与图片复制同构）
+  const captureTimer = useRef<number | null>(null)
+  const [captureState, setCaptureState] = useState<{ which: 'current' | 'last'; status: 'ok' | 'err' } | null>(null)
+  const handleCaptureFrame = useCallback(async (last: boolean) => {
+    const which = last ? 'last' : 'current'
+    const video = imgRef.current as unknown as HTMLVideoElement | null
+    const { ok } = await copyVideoFrameToClipboard(video, { last })
+    setCaptureState({ which, status: ok ? 'ok' : 'err' })
+    if (captureTimer.current) clearTimeout(captureTimer.current)
+    captureTimer.current = window.setTimeout(() => setCaptureState(null), 2000)
+  }, [])
 
   const src = url ? toAbsoluteFileUrl(url) : ''
   // 「点空白关闭」判断放内部容器 div（onClick）而非本 dialog：因容器 fixed inset-0 铺满覆盖本层，
@@ -158,6 +172,7 @@ const ImageZoomDialog = forwardRef(function ImageZoomDialog({ url, kind = 'image
               controls
               autoPlay
               playsInline
+              crossOrigin="anonymous"
               onClick={(e) => e.stopPropagation()}
               className="max-w-full max-h-[85vh] object-contain rounded-lg"
             />
@@ -215,6 +230,41 @@ const ImageZoomDialog = forwardRef(function ImageZoomDialog({ url, kind = 'image
             >
               下载
             </button>
+            {isVideo && (
+              <>
+                <span className="opacity-30">|</span>
+                {/* 截屏当前帧：按钮自身三态变化（截屏当前帧 → 已复制✓ / 失败✗） */}
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); handleCaptureFrame(false) }}
+                  className={`px-3 py-1 rounded-full transition-colors ${
+                    captureState?.which === 'current' && captureState.status === 'ok' ? 'bg-emerald-600/80 text-white'
+                    : captureState?.which === 'current' && captureState.status === 'err' ? 'bg-red-600/80 text-white'
+                    : 'hover:bg-white/15'
+                  }`}
+                  title="截取当前播放画面并复制到剪贴板"
+                >
+                  {captureState?.which === 'current'
+                    ? (captureState.status === 'ok' ? '当前帧已复制✓' : captureState.status === 'err' ? '截屏失败✗' : '截屏中…')
+                    : '截屏当前帧'}
+                </button>
+                {/* 截屏尾帧：按钮自身三态变化 */}
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); handleCaptureFrame(true) }}
+                  className={`px-3 py-1 rounded-full transition-colors ${
+                    captureState?.which === 'last' && captureState.status === 'ok' ? 'bg-emerald-600/80 text-white'
+                    : captureState?.which === 'last' && captureState.status === 'err' ? 'bg-red-600/80 text-white'
+                    : 'hover:bg-white/15'
+                  }`}
+                  title="跳到视频结尾截取最后一帧并复制到剪贴板"
+                >
+                  {captureState?.which === 'last'
+                    ? (captureState.status === 'ok' ? '尾帧已复制✓' : captureState.status === 'err' ? '截屏失败✗' : '截屏中…')
+                    : '截屏尾帧'}
+                </button>
+              </>
+            )}
             {!isVideo && <span className="opacity-50 ml-1 hidden sm:inline">滚轮缩放 · 拖拽平移 · 点空白关闭</span>}
           </div>
         </div>
