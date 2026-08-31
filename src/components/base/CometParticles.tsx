@@ -15,12 +15,20 @@ import React from 'react'
  *  - uid         唯一标识（用于生成 filter id，避免多个实例冲突）
  *  - headRadius  发光头半径（Comet 用 3.4，ConnectionLine 用 3.6）
  */
-export default function CometParticles({ pathId, uid, headRadius = 3.4 }) {
+interface CometParticlesProps {
+  /** 粒子沿其运动的隐藏 <path id={pathId}> 的 id */
+  pathId: string
+  /** 唯一标识（生成 filter id 用，避免多实例冲突） */
+  uid: string
+  headRadius?: number
+}
+
+export default function CometParticles({ pathId, uid, headRadius = 3.4 }: CometParticlesProps) {
   const dur = '1.8s'
   const filterId = `cust-particles-filter-${uid}`
 
-  // 16 个拖尾点：半径 4.6→0.6，透明度 1→0.05，begin 逐点错开 18ms
-  const dots = []
+  // 16 个拖尾点：[半径, 透明度, begin(ms)]；半径 4.6→0.6，透明度 1→0.05，begin 逐点错开 18ms
+  const dots: Array<[number, number, number]> = []
   for (let e = 0; e < 16; e++) {
     const t = e / 15
     const r = 4.6 - t * 4

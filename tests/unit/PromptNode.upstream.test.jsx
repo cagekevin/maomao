@@ -57,7 +57,7 @@ vi.mock('../../src/components/base/ResizeFullscreenHandle.jsx', () => ({ default
 vi.mock('../../src/components/base/FullscreenModal.jsx', () => ({ default: () => null }))
 vi.mock('../../src/components/base/GeneratingOverlay.jsx', () => ({ default: () => null }))
 vi.mock('../../src/components/base/PromptLibraryButton.jsx', () => ({ default: () => null }))
-vi.mock('../../src/components/base/JianyingIcon.jsx', () => ({ default: () => null }))
+vi.mock('../../src/components/base/JianyingIcon.tsx', () => ({ default: () => null }))
 vi.mock('../../src/components/base/hooks.ts', () => ({ useNodeResize: () => ({ onInputResize: vi.fn() }), useOutsideClick: () => {} }))
 
 // ---- 可控的 useConnectedInputs：测试内动态覆盖其返回值 ----

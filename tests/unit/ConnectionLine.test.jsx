@@ -33,7 +33,7 @@ vi.mock('@xyflow/react', () => ({
   Position: { Left: 'left', Right: 'right', Top: 'top', Bottom: 'bottom' },
 }))
 
-vi.mock('../../src/components/base/CometParticles.jsx', () => ({
+vi.mock('../../src/components/base/CometParticles.tsx', () => ({
   default: (props) => h.CometParticlesMock(props),
 }))
 

@@ -38,7 +38,7 @@ const h = vi.hoisted(() => {
 })
 
 vi.mock('@xyflow/react', () => mocks.xyflow)
-vi.mock('../../src/components/base/NodeTitle.jsx', () => ({ default: mocks.NodeTitle }))
+vi.mock('../../src/components/base/NodeTitle.tsx', () => ({ default: mocks.NodeTitle }))
 vi.mock('../../src/hooks/useConnectedInputs.ts', () => ({ useConnectedInputs: () => h.connected }))
 vi.mock('../../src/hooks/useMediaDegrade.ts', () => ({ useMediaDegrade: mocks.useMediaDegrade }))
 vi.mock('../../src/components/base/toastStore.ts', () => ({

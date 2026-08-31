@@ -9,7 +9,21 @@ import React, { useState, useEffect } from 'react'
  *  - 不传则保持「仅本地显示」的原行为，对其他节点零影响。
  * @param {function(string):void} [onRename]
  */
-function NodeTitle({ label, defaultTitle, icon, className = '', floating = false, onRename }) {
+interface NodeTitleProps {
+  /** 当前标题（受控：外部 label 变化时同步回显） */
+  label?: string
+  /** label 为空时的兜底标题 */
+  defaultTitle?: string
+  /** 标题前的小图标节点 */
+  icon?: React.ReactNode
+  className?: string
+  /** 浮层模式：绝对定位到节点上方（默认内联在标题栏） */
+  floating?: boolean
+  /** 改名提交回调；不传则只改本地显示（保持原行为） */
+  onRename?: (next: string) => void
+}
+
+function NodeTitle({ label, defaultTitle, icon, className = '', floating = false, onRename }: NodeTitleProps) {
   const [val, setVal] = useState(label || defaultTitle)
   const [editing, setEditing] = useState(false)
 
@@ -17,7 +31,7 @@ function NodeTitle({ label, defaultTitle, icon, className = '', floating = false
     setVal(label || defaultTitle)
   }, [label, defaultTitle])
 
-  const commit = (text) => {
+  const commit = (text: string) => {
     const next = text.trim() || defaultTitle
     setVal(next)
     if (typeof onRename === 'function') onRename(next)

@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react'
 import { NodeResizer, useStore } from '@xyflow/react'
-import NodeTitle from './NodeTitle.jsx'
+import NodeTitle from './NodeTitle.tsx'
 import CustomHandle from '../edges/CustomHandle.jsx'
 import { useSizeSync } from './hooks.ts'
 import { NODE_AREA_FIXED_BASE_SIZE } from './config.js'

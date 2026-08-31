@@ -13,7 +13,7 @@
 import React from 'react'
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
-import NodeTitle from '../../src/components/base/NodeTitle.jsx'
+import NodeTitle from '../../src/components/base/NodeTitle.tsx'
 
 function setup(props = {}) {
   const view = render(
