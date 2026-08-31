@@ -2,12 +2,26 @@ import { memo, useState } from 'react'
 import {
   ensureCurrentPrompt, confirmPrompt, editPrompt, savePromptEdit,
   cancelPromptEdit, reopenPrompt, confirmAllPrompts, PROMPT_STATUS,
+  type PromptItem, type PromptStatus,
 } from '../base/promptFlow.ts'
 
 const P = PROMPT_STATUS
 
+interface PromptApplyResult {
+  prompts?: PromptItem[]
+  done?: boolean
+  generations?: unknown[]
+}
+
+interface PromptConfirmCardProps {
+  prompts?: PromptItem[]
+  onUpdatePrompts?: (newPrompts: PromptItem[]) => void
+  onGenerate?: (generations: unknown[], genPrompt?: unknown) => void
+  requestedCount?: number
+}
+
 /** 状态图标（SVG，不用 emoji/字符）：✓ 已确认 / × 已跳过 / ▶ 进行中 / ○ 待处理 */
-const StatusIcon = memo(function StatusIcon({ status }) {
+const StatusIcon = memo(function StatusIcon({ status }: { status: PromptStatus }) {
   const s = 'shrink-0'
   if (status === P.CONFIRMED) {
     return <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={`text-emerald-400 ${s}`}><polyline points="20 6 9 17 4 12" /></svg>
@@ -43,7 +57,7 @@ const StatusIcon = memo(function StatusIcon({ status }) {
  *  @param {Function} onGenerate(generations)     全部确认后触发生图（执行 generations）
  *  @param {number} [requestedCount] 用户请求数量（用于数量校验提示，对齐大雄 3838）
  */
-function PromptConfirmCard({ prompts = [], onUpdatePrompts, onGenerate, requestedCount = 0 }) {
+function PromptConfirmCard({ prompts = [], onUpdatePrompts, onGenerate, requestedCount = 0 }: PromptConfirmCardProps) {
   const [draft, setDraft] = useState('') // 当前 editing 项的编辑草稿
   if (!Array.isArray(prompts) || prompts.length === 0) return null
 
@@ -57,11 +71,14 @@ function PromptConfirmCard({ prompts = [], onUpdatePrompts, onGenerate, requeste
   if (skippedCount > 0) progressParts.push(`${skippedCount}已跳过`)
   const progress = progressParts.length ? ` · ${progressParts.join(' · ')}` : ''
 
-  // 更新 prompts 到消息；若 done 则转生图
-  const apply = (res, genPrompt) => {
+  // 更新 prompts 到消息；若 done 则转生图。
+  // confirmPrompt/savePromptEdit/confirmAllPrompts 返回 PromptFlowResult（含 prompts/done/generations）；
+  // reopenPrompt/cancelPromptEdit 直接返回 PromptItem[]。统一用 Array.isArray 区分。
+  const apply = (res: PromptApplyResult | PromptItem[] | null, genPrompt?: unknown) => {
     if (!res) return
-    if (typeof onUpdatePrompts === 'function') onUpdatePrompts(res.prompts)
-    if (res.done && res.generations && res.generations.length && typeof onGenerate === 'function') {
+    const nextPrompts = Array.isArray(res) ? res : res.prompts
+    if (typeof onUpdatePrompts === 'function') onUpdatePrompts(nextPrompts)
+    if (!Array.isArray(res) && res.done && res.generations && res.generations.length && typeof onGenerate === 'function') {
       onGenerate(res.generations, genPrompt)
     }
   }

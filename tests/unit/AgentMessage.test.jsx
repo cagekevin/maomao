@@ -21,7 +21,7 @@ vi.mock('../../src/components/base/api/filesApi.ts', () => ({ toAbsoluteFileUrl:
 vi.mock('../../src/components/base/LazyImage.tsx', () => ({
   default: ({ src }) => React.createElement('img', { src }),
 }))
-vi.mock('../../src/components/panels/PromptConfirmCard.jsx', () => ({ default: mocks.Passthrough }))
+vi.mock('../../src/components/panels/PromptConfirmCard.tsx', () => ({ default: mocks.Passthrough }))
 
 import AgentMessage from '../../src/components/panels/AgentMessage.jsx'
 

@@ -57,7 +57,7 @@ export interface PromptItem {
   use_attachments: boolean
   use_last_outputs?: boolean
   attachment_indices?: number[]
-  status: string
+  status: PromptStatus
   title?: string
   ratio?: string
   resolution?: string
@@ -125,14 +125,14 @@ export function normalizePrompts(prompts: RawPrompt[] | undefined | null): Promp
           count: number
           use_attachments: boolean
           use_last_outputs: boolean
-          status: string
+          status: PromptStatus
           attachment_indices?: number[]
         } = {
           prompt: p.prompt.trim(),
           count: Math.max(1, Math.min(8, Number(p.count) || 1)),
           use_attachments: !!p.use_attachments,
           use_last_outputs: !!p.use_last_outputs,
-          status: p.status || PROMPT_STATUS.PENDING,
+          status: (p.status as PromptStatus) || PROMPT_STATUS.PENDING,
         }
         if (Array.isArray(p.attachment_indices)) {
           normalized.attachment_indices = p.attachment_indices

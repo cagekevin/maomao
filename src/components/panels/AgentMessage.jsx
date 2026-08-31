@@ -1,7 +1,7 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { toAbsoluteFileUrl } from '../base/api/index.ts'
 import LazyImage from '../base/LazyImage.tsx'
-import PromptConfirmCard from './PromptConfirmCard.jsx'
+import PromptConfirmCard from './PromptConfirmCard.tsx'
 import AgentConfirmCard from './AgentConfirmCard.jsx'
 import ImageZoomDialog from '../base/ImageZoomDialog.tsx'
 
