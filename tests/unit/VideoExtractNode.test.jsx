@@ -53,7 +53,7 @@ vi.mock('../../src/components/base/api/filesApi.ts', () => ({ toAbsoluteFileUrl:
 // 结果落盘唯一入口：断言节点把 extractedImages 写回 node.data（刷新不丢）
 vi.mock('../../src/hooks/useNodeData.ts', () => ({ useNodeData: () => ({ patchData: (...a) => h.patchData(...a) }) }))
 
-import VideoExtractNode from '../../src/components/nodes/VideoExtractNode.jsx'
+import VideoExtractNode from '../../src/components/nodes/VideoExtractNode.tsx'
 
 // jsdom 无 navigator.clipboard；复制逻辑依赖它，固定为可断言 mock
 Object.defineProperty(globalThis.navigator, 'clipboard', {

@@ -37,8 +37,49 @@ const MULTIWINDOW_CLIPBOARD_KEY = 'mutiwindow-clipboard'
  *  - 单帧/全部复制（mutiwindow-images 格式，可 Ctrl+V 粘贴成图片节点）
  *  - 带进度条、错误提示
  */
-function VideoExtractNode({ id, data, selected }) {
-  const connected = useConnectedInputs(id)
+/** 视频抽帧节点 data 契约 */
+interface VideoExtractNodeData {
+  label?: string
+  mode?: string
+  frameCount?: number
+  intervalSec?: number
+  sensitivity?: number
+  videoUrl?: string
+  videoName?: string
+  extractedImages?: string[]
+  [key: string]: unknown
+}
+
+/** 上游产出（来自 useConnectedInputs）的最小只读结构 */
+interface ConnectedOutput {
+  images: Array<{ id?: string; url?: string; label?: string }>
+  texts: Array<{ id?: string; label?: string; text?: unknown }>
+  videos: Array<{ id?: string; url?: string }>
+  audios: unknown[]
+}
+
+interface VideoExtractNodeProps {
+  id: string
+  data: VideoExtractNodeData
+  selected?: boolean
+}
+
+/**
+ * computeTimes 的返回形态。
+ * 智能模式返回 times=[] + duration/threshold（交回主流程边扫边截）；
+ * 其余模式返回时间点列表（duration/threshold 填 0）。
+ * 用单一形态而非判别联合：此处按 smart 分流的收窄在现有 tsconfig 下不可靠，
+ * 统一形态可让两条分支都直接取字段，行为不变。
+ */
+interface ExtractTimes {
+  smart: boolean
+  times: number[]
+  duration: number
+  threshold: number
+}
+
+function VideoExtractNode({ id, data, selected }: VideoExtractNodeProps) {
+  const connected = useConnectedInputs(id) as ConnectedOutput
   const { isHidden } = useMediaDegrade()
   const hideVideo = isHidden('video')
   const render = useRenderImageResolver()
@@ -50,7 +91,7 @@ function VideoExtractNode({ id, data, selected }) {
   const [sensitivity, setSensitivity] = useState(data.sensitivity || 30)
 
   // 视频来源
-  const [file, setFile] = useState(null) // 上传的 File
+  const [file, setFile] = useState<File | null>(null) // 上传的 File
   const [videoUrl, setVideoUrl] = useState(data.videoUrl || '')
   const [videoName, setVideoName] = useState(data.videoName || '')
 
@@ -74,15 +115,15 @@ function VideoExtractNode({ id, data, selected }) {
   // （index.css .react-flow__node::before 用 inset 锚定 wrapper）就会高度不贴合。
   // 必须传 wrapperRef（NodeShell 根 div，含标题栏）作测量基准——若只绑内容区会漏标题栏，
   // 写回的 node.height 比视觉框矮（停在最后内容底部）。syncWidth 保持宽度贴合。
-  const wrapperRef = useRef(null)
+  const wrapperRef = useRef<HTMLDivElement | null>(null)
   useContentHeightSync(null, id, { minHeight: mode === 'manual' ? 380 : 220, fallbackWidth: 420, syncWidth: true, wrapperRef })
 
   // 手动模式：播放器 + 帧轨道
-  const videoRef = useRef(null)
+  const videoRef = useRef<HTMLVideoElement | null>(null)
   const [duration, setDuration] = useState(0)
   const [currentTime, setCurrentTime] = useState(0)
   const [showConfig, setShowConfig] = useState(false)
-  const fileInputRef = useRef(null)
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   // 从上游自动获取视频链接（对齐官方 ec.jsx 的连接检测）
   const upstreamVideo = connected.videos?.[0]?.url || ''
@@ -97,7 +138,7 @@ function VideoExtractNode({ id, data, selected }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [upstreamVideo])
 
-  function extractName(url) {
+  function extractName(url: string) {
     if (url.startsWith('data:video/')) return 'base64_video.mp4'
     try {
       const u = new URL(url)
@@ -108,7 +149,7 @@ function VideoExtractNode({ id, data, selected }) {
     }
   }
 
-  const onUpload = (e) => {
+  const onUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0]
     if (!f) return
     setFile(f)
@@ -123,8 +164,8 @@ function VideoExtractNode({ id, data, selected }) {
   }
 
   // 抽一帧（seek 后 drawImage 到 canvas → base64）
-  const seekTo = useCallback((video, time) => {
-    return new Promise((resolve, reject) => {
+  const seekTo = useCallback((video: HTMLVideoElement, time: number) => {
+    return new Promise<string>((resolve, reject) => {
       let done = false
       const onSeeked = () => {
         if (done) return
@@ -165,8 +206,8 @@ function VideoExtractNode({ id, data, selected }) {
   }, [])
 
   // 智能检测：16×16 缩略图像素差
-  const smartCapture = useCallback((video, time) => {
-    return new Promise((resolve, reject) => {
+  const smartCapture = useCallback((video: HTMLVideoElement, time: number) => {
+    return new Promise<Uint8ClampedArray>((resolve, reject) => {
       let done = false
       const onSeeked = () => {
         if (done) return
@@ -197,8 +238,8 @@ function VideoExtractNode({ id, data, selected }) {
   }, [])
 
   // 计算抽帧时间点列表
-  function computeTimes(duration, mode, count, interval, sens) {
-    const times = []
+  function computeTimes(duration: number, mode: string, count: number, interval: number, sens: number): ExtractTimes {
+    const times: number[] = []
     if (mode === 'count') {
       const n = Math.max(1, count)
       const step = duration / (n + 1)
@@ -212,9 +253,9 @@ function VideoExtractNode({ id, data, selected }) {
       // 0.5s 步进扫描 16×16 像素差
       const threshold = (0.01 + Math.pow((100 - sens) / 100, 2) * 0.24) * 195840
       // 智能模式在主流程里单独处理（需要边扫描边截帧），这里返回空由调用方特殊处理
-      return { smart: true, duration, threshold }
+      return { smart: true, times, duration, threshold }
     }
-    return { smart: false, times }
+    return { smart: false, times, duration: 0, threshold: 0 }
   }
 
   const startExtract = async () => {
@@ -257,12 +298,20 @@ function VideoExtractNode({ id, data, selected }) {
       }
 
       const times = computeTimes(dur, mode, frameCount, intervalSec, sensitivity)
-      const frames = []
-      if (times.smart) {
+      const frames: string[] = []
+      if (!times.smart) {
+        // 固定数量 / 等距 / 首尾帧：按时间点列表逐帧截取
+        const list = times.times
+        for (let i = 0; i < list.length; i++) {
+          setProgress(50 + Math.round(i / list.length * 50))
+          frames.push(await seekTo(video, list[i]))
+          setExtractedImages([...frames])
+        }
+      } else {
         // 智能转场检测
         const threshold = times.threshold
-        let prev = null
-        const allTimes = []
+        let prev: Uint8ClampedArray | null = null
+        const allTimes: number[] = []
         for (let t = 0.5; t < times.duration; t += 0.5) {
           setProgress(Math.round(t / times.duration * 50))
           const data = await smartCapture(video, t)
@@ -286,12 +335,6 @@ function VideoExtractNode({ id, data, selected }) {
         for (let i = 0; i < allTimes.length; i++) {
           setProgress(50 + Math.round(i / allTimes.length * 50))
           frames.push(await seekTo(video, allTimes[i]))
-          setExtractedImages([...frames])
-        }
-      } else {
-        for (let i = 0; i < times.times.length; i++) {
-          setProgress(50 + Math.round(i / times.times.length * 50))
-          frames.push(await seekTo(video, times.times[i]))
           setExtractedImages([...frames])
         }
       }
@@ -344,7 +387,7 @@ function VideoExtractNode({ id, data, selected }) {
     }
   }
 
-  const copySingle = async (img) => {
+  const copySingle = async (img: string) => {
     try {
       const payload = JSON.stringify({ type: 'mutiwindow-images', images: [img] })
       try { await navigator.clipboard.writeText(payload) }
