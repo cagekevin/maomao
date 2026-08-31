@@ -5,7 +5,7 @@
  *  再用 MMR（最大边际相关）挑选 top-K，兼顾相关性去冗余。上下文组装时只注入相关子集，
  *  而不是把全部记忆倒进去（避免稀释）。
  */
-import { getCachedProjectMemories, PROJECT_MEMORY_KIND_LABELS, PROJECT_MEMORY_KINDS } from './projectMemoryStore.js'
+import { getCachedProjectMemories, PROJECT_MEMORY_KIND_LABELS, PROJECT_MEMORY_KINDS } from './projectMemoryStore.ts'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 /** 类别优先级：decision ≈ fact > constraint > preference（对齐参考项目 PROJECT_MEMORY_KIND_PRIORITY 的思路） */
@@ -15,14 +15,9 @@ const DEFAULT_LIMIT = 6
 /** 注入块总长度上限 */
 const MEMORY_BLOCK_CHAR_LIMIT = 1_800
 
-/** 项目记忆条目（本层消费字段；projectMemoryStore 转 .ts 后可换成其真实类型） */
-export interface ProjectMemoryLike {
-  content?: string
-  kind?: string
-  enabled?: boolean
-  updatedAt?: number
-  [key: string]: unknown
-}
+// 项目记忆的权威类型来自 projectMemoryStore（本层只读消费，故 re-export 别名保持调用方不变）
+import type { ProjectMemory } from './projectMemoryStore.ts'
+export type ProjectMemoryLike = ProjectMemory
 
 /** 分词：拉丁按词（≥2 字符）+ CJK 单字与相邻双字，兼顾相关性。 */
 function terms(value: unknown): Set<string> {

@@ -168,7 +168,7 @@ export {
   getCurrentRefImages, setCurrentRefImages,
 } from './conversationAiState.js'
 // runModeRegistry：workMode 读写（三态单一真源，docs/65 M4 透出）
-export { getWorkMode, setWorkMode } from '../runtime/runModeRegistry.js'
+export { getWorkMode, setWorkMode } from '../runtime/runModeRegistry.ts'
 // conversationSkillState：Skill 三阶段门禁状态（阶段3 编排轴子域化）
 export {
   getActivePendingGenerations, setActivePendingGenerations, getAwaitingConfirm, setAwaitingConfirm,

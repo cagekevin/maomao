@@ -17,7 +17,7 @@ vi.mock('../../src/components/base/contentStore.ts', () => ({
   contentDeleteAsync: vi.fn(async (key) => { h.store.delete(key) }),
 }))
 
-const mod = await import('../../src/components/agent/runtime/projectMemoryStore.js')
+const mod = await import('../../src/components/agent/runtime/projectMemoryStore.ts')
 const { sanitizeMemoryContent, saveProjectMemory, loadProjectMemories, removeProjectMemory, getCachedProjectMemories, PROJECT_MEMORY_LIMIT } = mod
 
 beforeEach(async () => {

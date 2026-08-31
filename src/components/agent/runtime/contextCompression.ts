@@ -60,13 +60,19 @@ const SUMMARY_SYSTEM_PROMPT = [
  * @param {Array<{role:string, content:*} >} messages 历史消息
  * @returns {string}
  */
-export function serializeMessagesForSummary(previousSummary, messages) {
-  const parts = []
+/** 进入摘要输入的消息（本层只消费 role / content） */
+export interface SummaryMessage {
+  role?: string
+  content?: unknown
+}
+
+export function serializeMessagesForSummary(previousSummary: string, messages: SummaryMessage[]): string {
+  const parts: string[] = []
   if (previousSummary) {
     parts.push(`【已有摘要，需要合并进新摘要】\n${previousSummary}`)
   }
   let total = parts.join('').length
-  const serialized = []
+  const serialized: string[] = []
   for (let i = messages.length - 1; i >= 0; i--) {
     const message = messages[i]
     const roleLabel = message.role === 'user' ? '用户' : '助手'
@@ -87,7 +93,7 @@ export function serializeMessagesForSummary(previousSummary, messages) {
 }
 
 /** 提取摘要里的锚点（可引用图编号、URL 等），用于校验摘要是否保留关键引用 */
-export function extractSummaryAnchors(value) {
+export function extractSummaryAnchors(value: string): string[] {
   const patterns = [
     /图[0-9]+/g,
     /#[0-9]+/g,
@@ -105,7 +111,14 @@ export function extractSummaryAnchors(value) {
  * @param {string} [opts.previousSummary] 已有的 memory.summary
  * @returns {Promise<string|null>}
  */
-export async function compressToSummary({ provider, model, messages, previousSummary = '' }) {
+export async function compressToSummary(
+  { provider, model, messages, previousSummary = '' }: {
+    provider: any
+    model?: string
+    messages?: SummaryMessage[]
+    previousSummary?: string
+  }
+): Promise<string | null> {
   const input = serializeMessagesForSummary(previousSummary, Array.isArray(messages) ? messages : [])
   const body = [
     { role: 'system', content: SUMMARY_SYSTEM_PROMPT },
@@ -136,6 +149,8 @@ export async function compressToSummary({ provider, model, messages, previousSum
       logger.warn('AI助手', `[记] 摘要缺失区段【${title}】`)
     }
   }
-  logger.info('AI助手', '[记] 压缩成功', { summaryLen: summary.length, anchors: extractSummaryAnchors(summary).length }, { module: 'agent' })
+  // 注：logger.info 只有 3 参（第 4 参 { module } 仅 debug 支持，运行时被忽略）；
+  // TS 迁移按签名去掉这个无效实参，日志输出内容不变。
+  logger.info('AI助手', '[记] 压缩成功', { summaryLen: summary.length, anchors: extractSummaryAnchors(summary).length })
   return summary
 }

@@ -31,16 +31,30 @@ export const RUN_MODE_IDS = Object.freeze({
   AUTO: 'auto',
 })
 
+/** 合法 workMode（三态） */
+export type WorkMode = typeof RUN_MODE_IDS[keyof typeof RUN_MODE_IDS]
+
+/** 兼容字段 inputMode（image=直接模式 / agent=走 LLM 编排） */
+export type InputMode = 'image' | 'agent'
+
 export const DEFAULT_WORK_MODE = RUN_MODE_IDS.AUTO
 
 /** 旧值 → 新值收敛（历史数据迁移：image=直接模式旧取值，semi=半自动旧代号） */
 const LEGACY_WORK_MODE_MAP = Object.freeze({
   image: RUN_MODE_IDS.DIRECT,
   semi: RUN_MODE_IDS.STEP_CONFIRM,
-})
+}) as Record<string, WorkMode>
+
+/** 三态定义表条目 */
+export interface WorkModeDef {
+  id: WorkMode
+  label: string
+  /** 注入 LLM 的分流指令片段；direct 不经 LLM 故为 null */
+  systemPrompt: string | null
+}
 
 /** 三态定义：label（展示）+ systemPrompt 注入片段（direct 不经 LLM，systemPrompt 为 null） */
-export const WORK_MODE_DEFS = Object.freeze({
+export const WORK_MODE_DEFS: Record<WorkMode, WorkModeDef> = Object.freeze({
   [RUN_MODE_IDS.DIRECT]: {
     id: RUN_MODE_IDS.DIRECT,
     label: '直接生图',
@@ -63,7 +77,7 @@ export const WORK_MODE_DEFS = Object.freeze({
 /* ── 纯函数（可单测，无副作用）────────────────────────────── */
 
 /** 归一化任意入参 → 合法 workMode（非法/未知 → 默认；旧值 image/semi 走迁移映射收敛） */
-export function normalizeWorkMode(raw) {
+export function normalizeWorkMode(raw: unknown): WorkMode {
   const k = String(raw || '').toLowerCase()
   if (k === RUN_MODE_IDS.DIRECT) return RUN_MODE_IDS.DIRECT
   if (k === RUN_MODE_IDS.STEP_CONFIRM) return RUN_MODE_IDS.STEP_CONFIRM
@@ -73,29 +87,29 @@ export function normalizeWorkMode(raw) {
 }
 
 /** 归一（resolveWorkMode）——任意入参归一到合法 workMode */
-export function resolveWorkMode(raw) {
+export function resolveWorkMode(raw: unknown): WorkMode {
   return normalizeWorkMode(raw)
 }
 
 /** workMode → 注入 LLM 的分流指令片段（direct 返回 ''，不经 LLM） */
-export function getSystemPromptForWorkMode(wm) {
+export function getSystemPromptForWorkMode(wm: unknown): string {
   return WORK_MODE_DEFS[normalizeWorkMode(wm)]?.systemPrompt || ''
 }
 
 /** workMode → 兼容字段 inputMode（image/agent），由 setWorkMode 原子同步用 */
-export function resolveInputMode(wm) {
+export function resolveInputMode(wm: unknown): InputMode {
   return normalizeWorkMode(wm) === RUN_MODE_IDS.DIRECT ? 'image' : 'agent'
 }
 
 /** workMode → 兼容字段 runMode（step-confirm/auto；direct→auto），由 setWorkMode 原子同步用 */
-export function resolveConvRunMode(wm) {
+export function resolveConvRunMode(wm: unknown): WorkMode {
   return normalizeWorkMode(wm) === RUN_MODE_IDS.STEP_CONFIRM
     ? RUN_MODE_IDS.STEP_CONFIRM
     : RUN_MODE_IDS.AUTO
 }
 
 /** workMode 是否走 LLM 编排（direct 为 false） */
-export function isAgentWorkMode(wm) {
+export function isAgentWorkMode(wm: unknown): boolean {
   return normalizeWorkMode(wm) !== RUN_MODE_IDS.DIRECT
 }
 
@@ -106,18 +120,18 @@ export function isAgentWorkMode(wm) {
  */
 
 /** 注册「读当前会话 runMode」钩子，用于首次迁移派生初始 workMode */
-let legacyRunModeReader = null
-export function registerLegacyRunModeReader(fn) {
-  legacyRunModeReader = typeof fn === 'function' ? fn : null
+let legacyRunModeReader: (() => unknown) | null = null
+export function registerLegacyRunModeReader(fn: unknown): void {
+  legacyRunModeReader = typeof fn === 'function' ? (fn as () => unknown) : null
 }
 
 /** 注册「写当前会话 runMode」钩子，setWorkMode 原子写三处时同步 per-conversation runMode */
-let runModeSyncHook = null
-export function registerRunModeSync(fn) {
-  runModeSyncHook = typeof fn === 'function' ? fn : null
+let runModeSyncHook: ((mode: WorkMode) => void) | null = null
+export function registerRunModeSync(fn: unknown): void {
+  runModeSyncHook = typeof fn === 'function' ? (fn as (mode: WorkMode) => void) : null
 }
 
-function safeContentGet(key) {
+function safeContentGet(key: string): unknown {
   try {
     const v = contentGet(key)
     if (v === undefined || v === null || v === '') return null
@@ -127,7 +141,7 @@ function safeContentGet(key) {
   }
 }
 
-function safeContentSet(key, value) {
+function safeContentSet(key: string, value: unknown): void {
   try {
     contentSet(key, value)
   } catch {
@@ -136,7 +150,7 @@ function safeContentSet(key, value) {
 }
 
 /** 由遗留 inputMode + 当前会话 runMode 推导初始 workMode（仅首次迁移用） */
-function deriveFromLegacy() {
+function deriveFromLegacy(): WorkMode {
   const legacyInput = String(safeContentGet(INPUT_MODE_STORAGE_KEY) || 'agent').toLowerCase()
   if (legacyInput === 'image') return RUN_MODE_IDS.DIRECT
   // 读取对外钩子反射出的当前会话 runMode（未注册钩子时默认 auto）
@@ -151,7 +165,7 @@ function deriveFromLegacy() {
 }
 
 /** 读当前 workMode（唯一真源）；首次/缺省从遗留 inputMode/runMode 推导并回写迁移 */
-export function getWorkMode() {
+export function getWorkMode(): WorkMode {
   const stored = safeContentGet(WORK_MODE_STORAGE_KEY)
   if (stored !== null) return normalizeWorkMode(stored)
   const derived = deriveFromLegacy()
@@ -160,7 +174,7 @@ export function getWorkMode() {
 }
 
 /** 写 workMode：原子写三处（workMode + inputMode + 当前会话 runMode），返回归一后的 workMode */
-export function setWorkMode(raw) {
+export function setWorkMode(raw: unknown): WorkMode {
   const next = normalizeWorkMode(raw)
   safeContentSet(WORK_MODE_STORAGE_KEY, next)
   safeContentSet(INPUT_MODE_STORAGE_KEY, resolveInputMode(next))

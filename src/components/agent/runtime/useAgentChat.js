@@ -40,22 +40,22 @@ import {
 // 故此处用别名避免与 hook 内的函数名冲突。
 import { roundTrip as agentRuntimeRoundTrip, runToolCalls as agentRuntimeRunToolCalls, runDemoMode as agentRuntimeRunDemoMode } from './agentRuntime.js'
 // 「学」：从本对话历史成功生图样本提学习块（照搬参考项目 promptLearningService），注入 buildRequestMessages
-import { buildLearnedContext } from './promptLearning.js'
+import { buildLearnedContext } from './promptLearning.ts'
 // 「记·长期」：按 agentKey 全局长期记忆注入块（照搬参考项目 memoryRetrieval + contextManager），注入 buildRequestMessages
 import { buildProjectMemoryContextFromStore } from './memoryRetrieval.ts'
 // 「记·长期」持久化：memory_suggest 确认后落库（agentKey 全局）
-import { saveProjectMemory, PROJECT_MEMORY_KIND_LABELS } from './projectMemoryStore.js'
+import { saveProjectMemory, PROJECT_MEMORY_KIND_LABELS } from './projectMemoryStore.ts'
 // 【刷新恢复去重解析器】pending(messageId 引用) → action/text/attachments（纯函数，见 pendingRecovery.js）
-import { resolvePendingRecovery } from './pendingRecovery.js'
+import { resolvePendingRecovery } from './pendingRecovery.ts'
 // 「记」：分层压缩历史→memory.summary（照搬参考项目 contextCompressionService），挂 send 收尾触发
-import { compressToSummary, RECENT_KEEP_COUNT } from './contextCompression.js'
+import { compressToSummary, RECENT_KEEP_COUNT } from './contextCompression.ts'
 // 上下文预算触发压缩（照搬参考项目 contextManager）：决策吃 messages，内部估算 token，75% 预压缩 / 90% 强制压缩
 import { decideContextCompression, resolveInputBudget } from './tokenBudget.ts'
 // 集中配置：AI 助手上下文窗口默认值与输出预算留白比例（无模型 contextWindow 声明时的保守兜底）
 import { AGENT_CONTEXT_WINDOW_DEFAULT, AGENT_CONTEXT_OUTPUT_BUDGET_RATIO } from '../../base/config.js'
 // 工作流状态迁移（M2 收口：steer/起步/awaiting_confirm/终态/队列出队的纯函数，落盘仍走 patchCurrentWorkflow）
 import { wfStart, wfSteer, wfFinish, wfAwaitConfirm, wfNextSteer } from './workflowState.ts'
-import { isAgentWorkMode } from './runModeRegistry.js'
+import { isAgentWorkMode } from './runModeRegistry.ts'
 // 消息构造/落盘 + 附件归一化（M3 下沉：appendMsg/setHistory/updateLastStreaming/endStreaming/stripStreaming → agentMessages；附件/参考图目录 → agentAttachments）
 import { appendMsg, setHistory, updateLastStreaming, endStreaming, stripStreaming } from './agentMessages.ts'
 import { normalizeAttachmentsForSend, buildRefCatalog } from './agentAttachments.ts'

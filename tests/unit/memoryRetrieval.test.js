@@ -8,7 +8,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 
 // 隔离 store，避免触发真实 IO：getCachedProjectMemories 由本测试以 fixture 注入。
-vi.mock('../../src/components/agent/runtime/projectMemoryStore.js', async (importOriginal) => {
+vi.mock('../../src/components/agent/runtime/projectMemoryStore.ts', async (importOriginal) => {
   const actual = await importOriginal()
   return {
     ...actual,
@@ -16,7 +16,7 @@ vi.mock('../../src/components/agent/runtime/projectMemoryStore.js', async (impor
   }
 })
 
-const store = await import('../../src/components/agent/runtime/projectMemoryStore.js')
+const store = await import('../../src/components/agent/runtime/projectMemoryStore.ts')
 const { getCachedProjectMemories } = store
 const { rankProjectMemories, buildProjectMemoryBlock, buildProjectMemoryContextFromStore } =
   await import('../../src/components/agent/runtime/memoryRetrieval.ts')

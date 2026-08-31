@@ -25,16 +25,29 @@ const VIDEO_INTENT_RE = /(?:视频|动画|分镜|镜头|运镜|转场|时长|vid
 const CREATIVE_INTENT_RE = /(?:生成|创作|设计|制作|提示词|prompt|generate|create|design)/i
 const VIDEO_SAMPLE_RE = /(?:视频|动画|分镜|运镜|转场|video|animation)/i
 
+/** 可学习的历史媒体类型 */
+export type PromptLearningKind = 'image' | 'video'
+
+/** 历史成功样本（提样源：memory.lastPlan.generations 的步骤 prompt） */
+export interface PromptLearningSample {
+  prompt?: string
+  kind?: PromptLearningKind
+  timestamp?: number
+}
+
 /** 根据当前请求选择可复用的历史媒体类型；非创作意图不加载历史。 */
-export function inferPromptLearningKinds(query) {
-  const image = IMAGE_INTENT_RE.test(query)
-  const video = VIDEO_INTENT_RE.test(query)
-  if (image || video) return [...(image ? ['image'] : []), ...(video ? ['video'] : [])]
-  return CREATIVE_INTENT_RE.test(query) ? ['image', 'video'] : []
+export function inferPromptLearningKinds(query: unknown): PromptLearningKind[] {
+  // query 运行时可为 undefined（调用方 options?.query 未传）：原实现由 RegExp.test 隐式转字符串，
+  // 此处显式 String(...) 等价（这些正则都不匹配 "undefined"，结果一致）。
+  const text = String(query ?? '')
+  const image = IMAGE_INTENT_RE.test(text)
+  const video = VIDEO_INTENT_RE.test(text)
+  if (image || video) return [...(image ? ['image'] : []), ...(video ? ['video'] : [])] as PromptLearningKind[]
+  return CREATIVE_INTENT_RE.test(text) ? ['image', 'video'] : []
 }
 
 /** 分词：拉丁按词（≥2 字符），中文用相邻双字，兼顾两类提示词的相关性排序。 */
-function terms(value) {
+function terms(value: unknown): Set<string> {
   const normalized = String(value || '').toLocaleLowerCase().normalize('NFKC')
   const output = new Set(normalized.match(/[a-z0-9_-]{2,}/g) ?? [])
   const cjk = [...normalized].filter((char) => /[\u3400-\u9fff]/.test(char))
@@ -43,7 +56,7 @@ function terms(value) {
 }
 
 /** 词法相似度：命中 / 左集合大小（0 空际即 0）。 */
-function lexicalSimilarity(left, right) {
+function lexicalSimilarity(left: Set<string>, right: Set<string>): number {
   if (left.size === 0 || right.size === 0) return 0
   let matches = 0
   for (const term of left) if (right.has(term)) matches += 1
@@ -51,7 +64,7 @@ function lexicalSimilarity(left, right) {
 }
 
 /** 移除不能进模型上下文的媒体数据、链接、本地引用、绝对路径、常见凭据；压缩空白并限长。 */
-export function sanitizePromptSample(prompt) {
+export function sanitizePromptSample(prompt: unknown): string {
   return String(prompt || '')
     .normalize('NFKC')
     .replace(/data:[^\s]+/gi, '[已隐藏媒体数据]')
@@ -65,7 +78,7 @@ export function sanitizePromptSample(prompt) {
 }
 
 /** 判定单条样本属于哪种媒体（缺 nodeType 时按内容里的视频关键词弱判，缺省视为图像）。 */
-function sampleKind(sample) {
+function sampleKind(sample: PromptLearningSample): PromptLearningKind {
   if (sample && sample.kind) return sample.kind
   return VIDEO_SAMPLE_RE.test(sample?.prompt || '') ? 'video' : 'image'
 }
@@ -77,13 +90,16 @@ function sampleKind(sample) {
  * @param {{ query: string, now?: number }} options
  * @returns {string} 空串 = 不注入
  */
-export function buildPromptLearningBlock(samples, options) {
-  const requestedKinds = new Set(inferPromptLearningKinds(options?.query))
+export function buildPromptLearningBlock(
+  samples: PromptLearningSample[] | null | undefined,
+  options: { query?: unknown; now?: number }
+): string {
+  const requestedKinds = new Set<PromptLearningKind>(inferPromptLearningKinds(options?.query))
   if (requestedKinds.size === 0) return ''
   const queryTerms = terms(options?.query)
   const now = options?.now ?? Date.now()
-  const seen = new Set()
-  const candidates = (samples || []).flatMap((sample) => {
+  const seen = new Set<string>()
+  const candidates: Array<{ kind: PromptLearningKind; prompt: string; score: number }> = (samples || []).flatMap((sample) => {
     const kind = sampleKind(sample)
     const prompt = sanitizePromptSample(sample.prompt)
     const dedupeKey = prompt.toLocaleLowerCase()
@@ -96,8 +112,11 @@ export function buildPromptLearningBlock(samples, options) {
     return [{ kind, prompt, score: relevance * 0.82 + recency * 0.18 }]
   })
 
+  // ⚠️ 保真历史行为（疑似历史 bug，未修）：candidate 对象上没有 timestamp 字段，
+  // 故这个次排序键恒为 0（同分时等价于不稳定排序）。TS 迁移不改运行时语义，仅补类型断言留痕；
+  // 若要修复需把 ts 带入 candidate 并补回归用例。
   const selected = candidates
-    .sort((a, b) => b.score - a.score || (a.timestamp || 0) - (b.timestamp || 0))
+    .sort((a, b) => b.score - a.score || ((a as any).timestamp || 0) - ((b as any).timestamp || 0))
     .slice(0, CONTEXT_SAMPLE_LIMIT)
   if (selected.length === 0) return ''
 
@@ -119,8 +138,8 @@ export function buildPromptLearningBlock(samples, options) {
  * @param {string} query  当前用户意图（用于提样后就地生成注入块）
  * @returns {string} 注入块（空串=不注入）
  */
-export function buildLearnedContext(memory, query) {
-  const gens = Array.isArray(memory?.lastPlan?.generations) ? memory.lastPlan.generations : []
+export function buildLearnedContext(memory: Record<string, any> | null | undefined, query: string): string {
+  const gens: Array<Record<string, any>> = Array.isArray(memory?.lastPlan?.generations) ? memory.lastPlan.generations : []
   if (gens.length === 0) return ''
   const now = Date.now()
   const ts = Number(memory?.lastPlan?.ts || now)

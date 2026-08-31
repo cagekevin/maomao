@@ -28,7 +28,7 @@
 import { contentGet } from '../../base/contentStore.ts'
 import { logger } from '../../base/logger.ts'
 import { toImageContentBlocks } from '../../base/imageUrl.ts'
-import { getSystemPromptForWorkMode, RUN_MODE_IDS } from './runModeRegistry.js'
+import { getSystemPromptForWorkMode, RUN_MODE_IDS } from './runModeRegistry.ts'
 import { AGENT_PROMPTS } from '../agentConfig.js'
 
 // 工具循环常量已收口到 agentConfig（docs/66 §4/A 层）。此处 re-export 保持

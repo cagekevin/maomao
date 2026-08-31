@@ -7,7 +7,7 @@
 import { describe, it, expect } from 'vitest'
 
 const { inferPromptLearningKinds, sanitizePromptSample, buildPromptLearningBlock, buildLearnedContext } =
-  await import('../../src/components/agent/runtime/promptLearning.js')
+  await import('../../src/components/agent/runtime/promptLearning.ts')
 
 describe('inferPromptLearningKinds —— 意图识别（学 T1）', () => {
   it('生图意图 → 只选 image', () => {

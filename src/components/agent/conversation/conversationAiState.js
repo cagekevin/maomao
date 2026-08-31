@@ -15,7 +15,7 @@ import { getActiveConv, commit, getState, normalizeMemory } from './conversation
 import {
   getWorkMode, setWorkMode, resolveConvRunMode,
   registerLegacyRunModeReader, registerRunModeSync,
-} from '../runtime/runModeRegistry.js'
+} from '../runtime/runModeRegistry.ts'
 
 /**
  * runMode（执行分级）现为 workMode 的兼容派生态（docs/64 §5.3 / docs/65 M4）：

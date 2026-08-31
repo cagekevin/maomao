@@ -353,6 +353,12 @@ describe('剧本盒引擎深度业务 §2.7', () => {
     // 抽帧来自上一镜视频；官方 B1：只调一次资产生图合成「综合图」
     expect(cf).toHaveBeenCalledWith('/files/prev.mp4', 1)
     expect(generateImage).toHaveBeenCalledTimes(1)
+    // 回归：signal 必须落在第 3 位 generateImage(opts, onProgress?, signal?)。
+    // 错位到第 2 位时，imageProxy 首句 onProgress?.(10,…) 会对 AbortSignal 对象发起调用而
+    // TypeError（对象非 nullish，?.() 不短路）→ 请求发出前即失败，综合图永远拿不到结果。
+    // 本用例用 vi.fn 记录全部实参，故能拦住该错位（_nodeMocks 的默认 mock 只记 a[0]，拦不住）。
+    expect(generateImage.mock.calls[0][1]).toBeUndefined()
+    expect(generateImage.mock.calls[0][2]).toBeInstanceOf(AbortSignal)
     // 最终写回［原版 + composed］、自动选中 composed、关 loading
     const last = patches[patches.length - 1]
     const shot = last.shots.find((s) => s.id === 's2')

@@ -26,7 +26,7 @@ import {
   normalizeWorkMode, resolveWorkMode, getSystemPromptForWorkMode, resolveInputMode,
   resolveConvRunMode, isAgentWorkMode,
   getWorkMode, setWorkMode, registerLegacyRunModeReader, registerRunModeSync,
-} from '../../src/components/agent/runtime/runModeRegistry.js'
+} from '../../src/components/agent/runtime/runModeRegistry.ts'
 
 beforeEach(() => {
   __store.clear()

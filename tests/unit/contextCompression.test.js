@@ -13,7 +13,7 @@ vi.mock('../../src/components/base/chatApi.ts', () => ({
 
 const chatApi = await import('../../src/components/base/chatApi.ts')
 const { serializeMessagesForSummary, compressToSummary, SUMMARY_REQUIRED_SECTIONS } =
-  await import('../../src/components/agent/runtime/contextCompression.js')
+  await import('../../src/components/agent/runtime/contextCompression.ts')
 
 beforeEach(() => {
   vi.clearAllMocks()

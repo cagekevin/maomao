@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { resolvePendingRecovery } from '../../src/components/agent/runtime/pendingRecovery.js'
+import { resolvePendingRecovery } from '../../src/components/agent/runtime/pendingRecovery.ts'
 
 describe('pendingRecovery.resolvePendingRecovery（刷新恢复解析器）', () => {
   it('无 pending / 不属于当前对话 → action=none（不碰别人的任务）', () => {

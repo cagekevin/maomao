@@ -1123,10 +1123,13 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
           size: imageSize,
           n: 1,
           aspectRatio,
-          // ⚠️ 保真历史行为：signal 传在第 2 位（generateImage 的 onProgress 位），第 3 位（signal）为空，
-          // 即「尾帧综合图实际不接中止」。TS 迁移不改运行时语义，故原位保留并显式断言留痕；
-          // 后续若要让它可中止，应改为 `}, undefined, signal)` 并补回归用例（现单测 mock 了 imageApi，未覆盖此差异）。
-        }, signal as any)
+          // 中止信号必须落在第 3 位：generateImage(opts, onProgress?, signal?)。
+          // 【已修历史 bug】曾误传在第 2 位 onProgress 位 → imageProxy/pollUntilDone 首句
+          // onProgress?.(10,…) 对 AbortSignal 对象发起调用 → TypeError（AbortSignal 非 nullish，
+          // ?.() 不短路）→ 被 catch 后 classifyError 以 `e instanceof TypeError` 判为 network →
+          // fail('onProgress is not a function')。三条分支（responses/async 轮询/同步 SSE）首句均如此，
+          // 请求在发出前就已失败，综合图从未成功过。回归断言见 scriptBoxEngine.deep.test.js。
+        }, undefined, signal)
         if (r.ok && r.url) {
           let cUrl = r.url
           try {
@@ -1143,6 +1146,7 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
             selectedTailFrameVariantId: 'composed',
             prevShotImageRefUrls: cUrl ? [cUrl] : s.prevShotImageRefUrls,
           }))
+          toast('尾帧综合图生成完毕（原版 + 1 张综合图），已自动选中', 'success')
         } else {
           patchShot((s) => ({
             ...s,
@@ -1156,9 +1160,8 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
         patchShot((s) => ({ ...s, tailFrameVariantsError: '请先在「设置」中配置资产生图大模型' }))
       }
 
-      // 4) 收尾：loading 复位
+      // 4) 收尾：loading 复位（成功 toast 已在综合图写回分支内发出，此处不再无条件报成功）
       patchShot((s) => ({ ...s, tailFrameVariantsLoading: false }))
-      toast(`尾帧综合图生成完毕（原版 + 1 张综合图），已自动选中`, 'success')
       logger.info('scriptBox', '尾帧变体·完成', { nodeId, shotId, angleIds, composedOk: !!origUrl })
     }, { logLabel: '尾帧变体', toastFail: '尾帧变体生成失败', ctx: { nodeId, shotId }, timeoutMs: SCRIPT_IMAGE_TIMEOUT })
   }

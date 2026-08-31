@@ -15,7 +15,29 @@
  * @param {string}   param.activeConversationId 当前活跃会话 id
  * @returns {{action:'none'|'send'|'drop', text?:string, attachments?:Array}}
  */
-export function resolvePendingRecovery({ pending, messages = [], activeConversationId }) {
+/** pending 引用形态（刷新恢复用；text 为迁移期旧字段，正文优先按 messageId 找回） */
+export interface PendingRef {
+  conversationId?: string
+  messageId?: string
+  text?: string
+  attachments?: unknown[]
+  [key: string]: unknown
+}
+
+/** 恢复决策：none=不碰 / send=重发 / drop=悬空丢弃 */
+export interface PendingRecoveryResult {
+  action: 'none' | 'send' | 'drop'
+  text?: string
+  attachments?: unknown[]
+}
+
+export function resolvePendingRecovery(
+  { pending, messages = [], activeConversationId }: {
+    pending?: PendingRef | null
+    messages?: Array<Record<string, any>>
+    activeConversationId?: string
+  }
+): PendingRecoveryResult {
   if (!pending || pending.conversationId !== activeConversationId) return { action: 'none' }
   const byId = pending.messageId ? messages.find((m) => m && m.id === pending.messageId) : null
   const text = byId?.content || pending.text || ''
