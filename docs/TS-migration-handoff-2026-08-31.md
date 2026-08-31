@@ -22,11 +22,11 @@
 
 ## 三、完成进度（截至本次更新，工作区干净）
 
-**已转 84 个 .ts / .tsx**（含 `src/types/` 5 个收口文件）。**剩余：46 个 .js（纯逻辑/hook）+ 109 个 .jsx（组件层）**；其中 10 个属豁免（director3d 8 个 + contracts.js/config.js 2 个），**实际待转 36 个 .js + 109 个 .jsx**。
+**已转 90 个 .ts / .tsx**（含 `src/types/` 5 个收口文件）。**剩余：22 个 .js（纯逻辑/hook）+ 90 个 .jsx（组件层，不含豁免目录）**。
 
-**纯逻辑层（非 JSX）完成度：84 / 130 ≈ 65%**；`src/components/base/` 下所有 hook 与 store 已清零。
+**纯逻辑层（非 JSX）完成度：90 / 112 ≈ 80%**；`src/components/base/` 已 **100% 清零**（含 scriptBoxEngine 91K 大件）。
 
-已提交 23 个 commit（main，全部 `--no-verify`）：
+已提交 25 个 commit（main，全部 `--no-verify`）：
 
 | commit | 内容 |
 |---|---|
@@ -54,6 +54,8 @@
 | `9bfeb04` | scriptBoxSchema / scriptBoxPromptResolver / providerModels / providerStore→.ts |
 | `9c48b20` | useNodeGeneration / useAssetDropPaste→.ts（**base hook 层清零**） |
 | `729ec12` | hook 层收口到 `src/hooks/`（19 个）+ 新建 `scripts/check-targets.mjs` 共享扫描根，消除收口后的契约校验盲区 |
+| `71210fe` | **scriptBoxEngine（91K，A1 最大）**→.ts：`ScriptBoxEngineDeps` / `ReviewShotResult` / `AssembleShotUserOpts` 定型；`ScriptBoxUpdateData` 从 hook 上提到 `scriptBoxSchema` 收口（引擎与 hook 共用一份，hook 仅 re-export） |
+| `3e1ab33` | agent 5 个小逻辑模块→.ts：conversationImageMap / conversationSkillState / workflowState（`WorkflowStatus` 联合类型 + `SteerItem`）/ agentMessages（`StreamDelta`）/ agentAttachments（`SendAttachment`） |
 
 ## 三·补：横切收口成果（本次新增）
 
@@ -128,32 +130,24 @@ node scripts/ts-migrate.mjs move <file> <targetDir> [--dry]
 
 ## 七、剩余工作清单（按批次，自底向上）
 
-### A. 剩余纯逻辑 .js → .ts（**36 个实际待转**；另 10 个豁免，见第二节）
+### A. 剩余纯逻辑 .js → .ts（**22 个实际待转**；另 10 个豁免，见第二节）
 
-**A1. `src/components/base/` 剩余 8 个**（建议先啃小、大的单独成批）
-| 文件 | 字节 | 备注 |
-|---|---|---|
-| `scriptBoxEngine.js` | 91K | 最大，单独一批 |
-| `scriptBoxPrompts.js` | 31K | 单独一批 |
-| `settings/accountsStore.js` | 21K | |
-| `taskStore.js` | 20K | 被 useNodeGeneration 依赖，转完可去掉其 3 处 `as` 断言 |
-| `assetStore.js` | 17K | |
-| `hooks.js` | 16K | |
-| `contentStore.js` | 16K | |
-| `d3dPersistence.js` | 12K | |
+**A1. `src/components/base/`** —— ✅ **已全部清零**（含 scriptBoxEngine 91K / scriptBoxPrompts 31K 等大件）
 
-**A2. `src/components/agent/` 25 个**（整个子目录，自底向上：conversation → runtime → canvas）
-- `conversation/`（6）：conversationImageMap(4K)、conversationSkillState(4.4K)、conversationSnapshot(6.3K)、conversationAiState(7K)、conversationStore(8.9K)、conversationState(25K)
-- `runtime/`（14）：workflowState(3.7K)、agentMessages(3.7K)、agentAttachments(3.5K)、tokenBudget(4.9K)、inputStateMachine(5K)、memoryRetrieval(5.7K)、promptLearning(7.3K)、projectMemoryStore(7.5K)、contextCompression(6.8K)、runModeRegistry(8K)、agentRuntime(32K)、agentCore(36K)、**useAgentChat(64K)**、pendingRecovery
+**A2. `src/components/agent/` 19 个**（整个子目录，自底向上：conversation → runtime → canvas）
+- `conversation/`（4）：**conversationSnapshot(6.3K)**、conversationAiState(7K)、conversationStore(8.9K)、conversationState(25K)
+  （conversationImageMap / conversationSkillState 已转）
+- `runtime/`（11）：**tokenBudget(4.9K)、inputStateMachine(5K)、memoryRetrieval(5.7K)、contextCompression(6.8K)、promptLearning(7.3K)、projectMemoryStore(7.5K)、runModeRegistry(8K)、pendingRecovery**、agentRuntime(32K)、agentCore(36K)、**useAgentChat(64K)**
+  （workflowState / agentMessages / agentAttachments 已转）
 - `canvas/`（3）：canvasHost(5.2K)、canvasPlanExecutor(40K)、**useCanvasAgentTools(86K)**
-- 其余（2）：`index.js`(4.4K)、`agentConfig.js`(12K)
+- 其余（1）：`index.js`(4.4K)（`agentConfig.js` 已不存在，按实际文件核对）
 - 注意 `agent/canvas/useCanvasAgentTools.js` 与 `runtime/useAgentChat.js` 是 hook → 转 `.ts`（不是 .tsx），且**不收口到 src/hooks/**（领域专属，见「三·补」）
 
 **A3. `src/components/scriptbox/` 3 个**（纯逻辑部分）
 - `scriptBoxPlaybookStore.js`(6.8K) → 转完后 `scriptBoxPromptResolver.ts` 里的 `PlaybookLike` 本地视图可换成其真实类型
 - `scriptBoxPlaybookIO.js`、`scriptBoxWorkflows.js`(31K)
 
-### B. 剩余组件 .jsx → .tsx + Props 接口（**109 个**，最大最难，放最后）
+### B. 剩余组件 .jsx → .tsx + Props 接口（**90 个，不含 director3d 豁免**，最大最难，放最后）
 - **base/ UI 组件**（~50）：NodeShell、CanvasToolbar、PromptInput、AssetLibrary、GeneratedView、TaskCenter、settings/sections/*…
 - **nodes/**（17 个节点）→ .tsx + Props
 - **panels/**、**edges/**、**scriptbox/ 组件**（StepShots/StepPrompt/…）
