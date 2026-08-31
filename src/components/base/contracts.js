@@ -104,13 +104,13 @@ export const EVENTS = {
     note: '跨 sub-window 画布移除边通知：App.jsx:1105 用 window.addEventListener 监听（window.dispatchEvent 通道，与 eventBus 并存），非 eventBus publish/subscribe 字面量，故反向校验跳过；当前无在源码内的发布方（孤儿监听，由子窗口/插件侧派发）',
   },
   'project:import': {
-    from: ['ProjectSelector.jsx:103'],
+    from: ['ProjectSelector.tsx:117'],
     to: ['App.jsx'],
     payload: '{}',
     note: '导入按钮 → App 处理文件（App.jsx:414 标准 subscribe 承接，已核对，D5）。生产使用',
   },
   'project:export': {
-    from: ['ProjectSelector.jsx:107'],
+    from: ['ProjectSelector.tsx:121'],
     to: ['App.jsx'],
     payload: '{}',
     note: '导出按钮 → App 下载。生产使用',

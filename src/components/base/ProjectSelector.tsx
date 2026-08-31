@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { ChevronDown, Plus, MoreVertical, Pencil, Trash2 } from 'lucide-react'
 import { useProjects, createProject, switchProject, deleteProject, renameProject, getCurrentProject } from './projectStore.ts'
+import type { Project } from './projectStore.ts'
 import { showToast } from './toastStore.ts'
 import { publish } from './eventBus.ts'
 
@@ -10,11 +11,24 @@ import { publish } from './eventBus.ts'
  * UI/交互与官方一致：触发器纯文字+底部线、下拉 hover 展开（项目列表+⋮菜单）、+ 新建按钮、
  * 新建(项目名称)/重命名(项目名称)弹窗 `bg-surface-hover w-64`。
  */
-export default function ProjectSelector({ onSwitch, onCreate }) {
+export interface ProjectSelectorProps {
+  /** 切换项目回调（缺省走 projectStore.switchProject） */
+  onSwitch?: (id: string) => void
+  /** 新建项目回调（App 传入，需先用旧项目 id 保存旧画布） */
+  onCreate?: (proj: Project, prevProjectId: string) => void
+}
+
+interface ProjectModalState {
+  mode: 'create' | 'rename'
+  id?: string
+  name?: string
+}
+
+export default function ProjectSelector({ onSwitch, onCreate }: ProjectSelectorProps) {
   const { projects, currentProjectId } = useProjects()
-  const [modal, setModal] = useState(null)
+  const [modal, setModal] = useState<ProjectModalState | null>(null)
   const [name, setName] = useState('')
-  const wrapRef = useRef(null)
+  const wrapRef = useRef<HTMLDivElement>(null)
 
   const current = getCurrentProject()
   const currentName = current?.name || '选择项目'
