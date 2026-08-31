@@ -1106,7 +1106,7 @@ export async function runExistingPlanTool(ctx) {
     publish(CREDIT_GATE_EVENT, { pending: false })
   }
   const status = anyFailed && anyDone ? 'completed_with_errors' : anyFailed ? 'failed' : 'completed'
-  return { ok: true, data: { workflow: { ...(result.workflow || {}), status }, entries: result.entries } }
+  return { ok: true, data: { workflow: { ...result.workflow, status }, entries: result.entries } }
 }
 
 /**

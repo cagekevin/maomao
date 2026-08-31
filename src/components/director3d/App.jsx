@@ -170,7 +170,7 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
   const [transformSpace, setTransformSpace] = useState('world')
   const [snapEnabled, setSnapEnabled] = useState(true)
   const [groundRequest, setGroundRequest] = useState(null)
-  const [camera, setCamera] = useState(() => ({ ...initialCamera, ...(startupProject?.camera || {}) }))
+  const [camera, setCamera] = useState(() => ({ ...initialCamera, ...startupProject?.camera }))
   const [lighting, setLighting] = useState(() => normalizeLighting(startupProject?.lighting))
   const [reference, setReference] = useState(() => normalizeReference(startupProject?.reference))
   const [keyframes, setKeyframes] = useState(() => startupProject?.keyframes || initialKeyframes)
@@ -1133,7 +1133,7 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
     const objectMaps = {}
     for (const move of moves) {
       if (move.kind === 'camera') cameraMap[move.fromFrame] = move.toFrame
-      else if (move.trackId) objectMaps[move.trackId] = { ...(objectMaps[move.trackId] || {}), [move.fromFrame]: move.toFrame }
+      else if (move.trackId) objectMaps[move.trackId] = { ...objectMaps[move.trackId], [move.fromFrame]: move.toFrame }
     }
     if (Object.keys(cameraMap).length) setKeyframes(channels => moveCameraFrames(channels, cameraMap))
     for (const [id, map] of Object.entries(objectMaps)) {

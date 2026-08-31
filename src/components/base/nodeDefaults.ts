@@ -53,7 +53,7 @@ export function applyNodeTypeDefaults(node: Record<string, any>): Record<string,
       next[k] = k === 'width' ? fallbackW : k === 'height' ? fallbackH : d[k]
     }
   }
-  next.style = next.style ? { ...(d.style || {}), ...next.style } : (d.style || next.style)
+  next.style = next.style ? { ...d.style, ...next.style } : (d.style || next.style)
   // group 的 data.name 缺失兜底
   if (node.type === 'group') {
     next.data = { ...node.data, name: node.data?.name || '编组' }

@@ -29,7 +29,7 @@ export function classifyError(e: unknown): ClassifiedError {
   if (name === 'AbortError' || err?.aborted) return { type: 'abort', message, retryable: false }
   if (isTimeoutError(e) || name === 'TimeoutError') return { type: 'timeout', message, retryable: true }
   // fetch 断网以 TypeError 拒绝；历史代码曾用「网络错误」前缀文案，向后兼容一并识别
-  if (name === 'NetworkError' || err?.isNetwork === true || e instanceof TypeError || /^网络错误/.test(message)) {
+  if (name === 'NetworkError' || err?.isNetwork === true || e instanceof TypeError || message.startsWith('网络错误')) {
     return { type: 'network', message, retryable: true }
   }
   if (name === 'HttpError' || typeof err?.status === 'number') return { type: 'http', message, retryable: false }

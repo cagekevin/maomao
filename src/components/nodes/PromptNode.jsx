@@ -229,7 +229,7 @@ function PromptNode({ id, data, selected }) {
       // data.imageUrl 已由 resultField:'imageUrl' 在 hook 内自动 patchData。
       // 仅当上游返回临时地址、落盘后有持久 URL 时才再覆盖写 data.imageUrl（刷新不丢）。
       // 否则若上游返回的是外链/临时地址，刷新后节点会因 URL 失效而丢图（taskStore 落盘只回写任务中心，不回写节点）。
-      if (r.url && !/^blob:/.test(r.url)) {
+      if (r.url && !r.url.startsWith('blob:')) {
         saveResultToTasks(r.url, 'image').then((persistedUrl) => {
           if (persistedUrl && persistedUrl !== r.url) {
             setImageUrl(persistedUrl)

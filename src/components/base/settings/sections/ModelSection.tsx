@@ -37,7 +37,7 @@ export default function ModelSection({ p, onUpdate }) {
   const addProtocolSelect = !locked // 锁死平台忽略单模型协议覆盖，不可选
   const setModelProtocol = (catKey, modelId, val) => {
     if (catKey === 'video_models') return
-    const mp = { ...(p.model_protocols || {}) }
+    const mp = { ...p.model_protocols }
     const v = (val || '').toLowerCase()
     if (PROTOCOL_OPTIONS.includes(v)) {
       if (v) mp[modelId] = v

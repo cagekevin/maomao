@@ -318,7 +318,7 @@ export async function localizeAndStoreToLibrary(
     const ext = EXT_BY_TYPE[detectAssetType({ name: '', type: mime })] || (mime.split('/')[1] || 'png')
     const file = new File([blob], `${name || 'asset'}.${ext}`, { type: mime })
     localized = await uploadFileToLocal(file, folder)
-  } else if (/^\/files\//.test(src) || /^https?:\/\/127\.0\.0\.1:\d+\/files\//.test(src)) {
+  } else if (src.startsWith('/files/') || /^https?:\/\/127\.0\.0\.1:\d+\/files\//.test(src)) {
     localized = src // 已是本地持久 URL
   } else {
     throw new Error('不支持的素材来源')

@@ -120,7 +120,7 @@ function thumbnailToOriginal(u: string): string {
   if (qIndex === -1) return ''
   // 仅当确实命中缩略图端点路径才处理（避免误拆普通带 query 的原图 URL）。
   const path = u.slice(0, qIndex)
-  if (!/\/files\/thumbnail$/.test(path)) return ''
+  if (!path.endsWith('/files/thumbnail')) return ''
   const rel = new URLSearchParams(u.slice(qIndex + 1)).get('url')
   if (!rel) return ''
   return toAbsoluteFileUrl(rel)

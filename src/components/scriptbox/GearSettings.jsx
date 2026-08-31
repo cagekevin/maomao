@@ -53,8 +53,8 @@ export default function GearSettings({ data, updateData, onClose }) {
     shot: pb.shot || '',
     audit: pb.audit || '',
     qg: pb.qg || '',
-    assetTemplates: { ...(pb.assetTemplates || {}) },
-    imageGenTemplates: { ...(pb.imageGenTemplates || {}) },
+    assetTemplates: { ...pb.assetTemplates },
+    imageGenTemplates: { ...pb.imageGenTemplates },
     constraints: { image: pb.constraints?.image || '', video: pb.constraints?.video || '' },
     negative: { common: pb.negative?.common || '', image: pb.negative?.image || '', video: pb.negative?.video || '' },
   })
@@ -82,7 +82,7 @@ export default function GearSettings({ data, updateData, onClose }) {
       playbookLabel: current.label,
       textModel,
       selectedModel: textModel,
-      assetModelSettings: { ...(d.assetModelSettings || {}), globalModel: assetModel }
+      assetModelSettings: { ...d.assetModelSettings, globalModel: assetModel }
     })
     // 2) 自定义 playbook 有改动 → 写回 store（单一数据源），全局生效
     if (!builtin && playbookId && isDirty()) {

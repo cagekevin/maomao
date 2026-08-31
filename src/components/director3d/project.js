@@ -269,7 +269,7 @@ export function channelsToSnapshotKeys(entityType, channels = {}) {
       const entry = merged.get(key.frame) || { frame: key.frame, interpolation: normalizeInterpolation(key.interpolation) }
       if (key.interpolation) entry.interpolation = normalizeInterpolation(key.interpolation)
       if (key.fields && typeof key.fields === 'object') {
-        entry.fields = { ...(entry.fields || {}), ...cloneProjectValue(key.fields) }
+        entry.fields = { ...entry.fields, ...cloneProjectValue(key.fields) }
       }
       merged.set(key.frame, entry)
     }

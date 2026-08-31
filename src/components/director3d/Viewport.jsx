@@ -149,10 +149,10 @@ function SceneObject({ data, selected, selectedId, activeJoint, transformMode, t
           showBoneGizmo={!preview && transformMode === 'select'}
           onSelectJoint={jointId => onJointSelect?.(data.id, jointId)}
           onRotateJoint={(jointId, rotation) => onUpdate(data.id, {
-            joints: { ...(data.joints || {}), [jointId]: rotation },
+            joints: { ...data.joints, [jointId]: rotation },
           })}
           onRotateJoints={rotations => onUpdate(data.id, {
-            joints: { ...(data.joints || {}), ...rotations },
+            joints: { ...data.joints, ...rotations },
           })}
           onSurfacePointerDown={beginObjectInteraction}
           onSurfacePointerMove={rotateObjectFromSurface}

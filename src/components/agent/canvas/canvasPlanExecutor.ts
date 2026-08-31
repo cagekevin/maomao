@@ -160,7 +160,7 @@ function extractSubjectLabel(text = '', index = 0) {
   ]
   for (const re of patterns) {
     const m = t.match(re)
-    if (m && m[1] && !/^与/.test(m[1])) return m[1].slice(0, 12)
+    if (m && m[1] && !m[1].startsWith('与')) return m[1].slice(0, 12)
   }
   const first = (t.split(/[，。；;\n]/)[0] || t).replace(/^(?:与|和|的|及)\s*/, '')
   return first.slice(0, 12) || `素材${index + 1}`
@@ -218,9 +218,10 @@ function normalizeRatio(ratio) {
 /** 档位归一：1k/1K → '1K'，2k/4k 同理 */
 function normalizeResolution(res) {
   const r = String(res || '').trim().toLowerCase().replace(/\s+/g, '')
-  if (r === '1k' || r === '1k' || r === '1080' || r === '高清') return '1K'
-  if (r === '2k' || r === '2k' || r === '超清') return '2K'
-  if (r === '4k' || r === '4k') return '4K'
+  // 修复(2026-08-31)：删 oxlint const-comparisons 报的重复比较（r 已 toLowerCase，'1k' 可命中 '1K'）
+  if (r === '1k' || r === '1080' || r === '高清') return '1K'
+  if (r === '2k' || r === '超清') return '2K'
+  if (r === '4k') return '4K'
   return '1K'
 }
 

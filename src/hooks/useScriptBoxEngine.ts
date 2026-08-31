@@ -93,7 +93,7 @@ export function useScriptBoxEngine(nodeId: string, data?: Record<string, unknown
         if (!addNodes) return
         const base = screenToFlowPosition?.({ x: 0, y: 0 }) ?? { x: 0, y: 0 }
         addNodes(nodes.map((nd) => {
-          const data = { ...(nd.data || {}) }
+          const data = { ...nd.data }
           injectNodePrefs(nd.type, data)
           return {
             ...nd,
@@ -112,7 +112,7 @@ export function useScriptBoxEngine(nodeId: string, data?: Record<string, unknown
 
   // 把引擎全部回调写回 node.data.onXxx（官方注入点语义，含 P1-2 尾帧变体），保证复制/分享后回调仍在
   useEffect(() => {
-    setNodes((ns) => ns.map((n) => (n.id === nodeId ? { ...n, data: { ...(n.data || {}), ...callbacks } } : n)))
+    setNodes((ns) => ns.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, ...callbacks } } : n)))
     // 仅挂载时注入一次；nodeId 变化时重新注入
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nodeId])

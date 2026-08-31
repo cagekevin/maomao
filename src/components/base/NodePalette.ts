@@ -98,7 +98,7 @@ export const getNodesByCategory = (cat) => paletteNodes.filter((n) => n.cat === 
 // 统一兜底 expanded:false → 新建节点输入框默认收起（子项可在 palette 的 data 里显式传 expanded:true 覆盖）
 export const defaultNodeData = (type) => ({
   expanded: false,
-  ...(getPaletteNode(type)?.data || {})
+  ...getPaletteNode(type)?.data
 })
 
 // 已复刻节点的类型集合

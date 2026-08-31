@@ -153,7 +153,10 @@ export default function ProjectSelector({ onSwitch, onCreate }: ProjectSelectorP
               value={name}
               onChange={(e) => setName(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === 'Enter') modal.mode === 'create' ? handleCreate() : handleRename()
+                if (e.key === 'Enter') {
+                  if (modal.mode === 'create') handleCreate()
+                  else handleRename()
+                }
                 if (e.key === 'Escape') setModal(null)
               }}
               placeholder={modal.mode === 'create' ? '项目名称' : '项目名称'}

@@ -158,7 +158,7 @@ export function createCustomFrom(
     builtin: false,
   }
   // negative.common 若源是旧结构缺位则补空，保证统一结构
-  merged.negative = { common: '', image: '', video: '', ...(src.negative || {}), ...(override.negative || {}) }
+  merged.negative = { common: '', image: '', video: '', ...src.negative, ...override.negative }
   saveCustomPlaybook(merged)
   return id
 }

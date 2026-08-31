@@ -400,7 +400,7 @@ export async function runToolCalls(ctx, tools, callIdFor: (tc: ToolCall) => stri
     appendMsg({
       role: 'tool',
       // 失败时也携带 result.nodeId（若工具失败返回了），供对话侧「重试此步骤」定位节点（对齐大雄）
-      content: result?.ok ? JSON.stringify({ ok: true, ...(result.data || {}) }) : JSON.stringify({ ok: false, error: result?.error, ...(result?.nodeId ? { nodeId: result.nodeId } : {}) }),
+      content: result?.ok ? JSON.stringify({ ok: true, ...result.data }) : JSON.stringify({ ok: false, error: result?.error, ...(result?.nodeId ? { nodeId: result.nodeId } : {}) }),
       tool_call_id: callIdFor(tc),
       createdAt: Date.now()
     })
@@ -484,7 +484,7 @@ export async function runDemoMode(ctx, text) {
       const r = await callTool(p.name, p.args)
       appendMsg({
         role: 'tool',
-        content: r?.ok ? JSON.stringify({ ok: true, ...(r.data || {}) }) : JSON.stringify({ ok: false, error: r?.error }),
+        content: r?.ok ? JSON.stringify({ ok: true, ...r.data }) : JSON.stringify({ ok: false, error: r?.error }),
         tool_call_id: assistantMsg.tool_calls[i].id,
         createdAt: Date.now()
       })

@@ -60,7 +60,7 @@ export function GlobalSettingsPanel({ cameraAspect, onAspectChange, projectSetti
           {selected === 'custom' && (
             <div className="custom-aspect-inputs"><span>自定义</span><input aria-label="自定义画幅宽" type="number" min="0.1" max="100" step="0.1" value={customWidth} onChange={event => onAspectChange(customAspectValue(event.target.value, customHeight))} /><i>:</i><input aria-label="自定义画幅高" type="number" min="0.1" max="100" step="0.1" value={customHeight} onChange={event => onAspectChange(customAspectValue(customWidth, event.target.value))} /></div>
           )}
-          <label className={`global-check loop-playback-check ${Boolean(settings.loopPlayback) ? 'is-checked' : ''}`}><input type="checkbox" checked={Boolean(settings.loopPlayback)} onChange={event => onApplySettings({ ...settings, loopPlayback: event.target.checked })} /><span>循环播放</span></label>
+          <label className={`global-check loop-playback-check ${settings.loopPlayback ? 'is-checked' : ''}`}><input type="checkbox" checked={Boolean(settings.loopPlayback)} onChange={event => onApplySettings({ ...settings, loopPlayback: event.target.checked })} /><span>循环播放</span></label>
           {hasDurationConflict && <p className="settings-warning">当前时长放不下关键帧，请至少设置 {requiredSeconds} 秒。</p>}
         </div>
 
@@ -68,9 +68,9 @@ export function GlobalSettingsPanel({ cameraAspect, onAspectChange, projectSetti
         <div className="section-title timeline-section-title"><span>视口</span></div>
         <div className="property-group">
           <div className="global-check-row">
-            <label className={`global-check ${Boolean(showGrid) ? 'is-checked' : ''}`}><input type="checkbox" checked={Boolean(showGrid)} onChange={onToggleGrid} /><span>显示网格</span></label>
-            <label className={`global-check ${Boolean(performanceMode) ? 'is-checked' : ''}`}><input type="checkbox" checked={Boolean(performanceMode)} onChange={onTogglePerformance} /><span>性能模式</span></label>
-            <label className={`global-check ${Boolean(seamlessBackground) ? 'is-checked' : ''}`}><input type="checkbox" checked={Boolean(seamlessBackground)} onChange={onToggleSeamless} /><span>无缝背景</span></label>
+            <label className={`global-check ${showGrid ? 'is-checked' : ''}`}><input type="checkbox" checked={Boolean(showGrid)} onChange={onToggleGrid} /><span>显示网格</span></label>
+            <label className={`global-check ${performanceMode ? 'is-checked' : ''}`}><input type="checkbox" checked={Boolean(performanceMode)} onChange={onTogglePerformance} /><span>性能模式</span></label>
+            <label className={`global-check ${seamlessBackground ? 'is-checked' : ''}`}><input type="checkbox" checked={Boolean(seamlessBackground)} onChange={onToggleSeamless} /><span>无缝背景</span></label>
           </div>
         </div>
 

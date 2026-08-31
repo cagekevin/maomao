@@ -23,7 +23,7 @@ export function useConfirm() {
   const resolverRef = useState({ cur: null })[0]
 
   const ask = useCallback((message, opts) => {
-    const { confirmText, cancelText, danger } = { ...DEFAULT_OPTS, ...(opts || {}) }
+    const { confirmText, cancelText, danger } = { ...DEFAULT_OPTS, ...opts }
     return new Promise(resolve => {
       // 若已有弹窗未决，先以取消关闭旧弹窗，避免状态覆盖
       if (resolverRef.cur) resolverRef.cur(false)

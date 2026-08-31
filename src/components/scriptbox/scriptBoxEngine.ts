@@ -475,12 +475,12 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
       const p = onGenerateAssetImage(asset.id).finally(() => pool.delete(p))
       pool.add(p)
       if (pool.size >= MAX_CONCURRENT) {
-        await Promise.race([...pool]) // 在途已达 4：等其中一个完成再启动下一张
+        await Promise.race(pool) // 在途已达 4：等其中一个完成再启动下一张
       } else if (next < target.length) {
         await sleep(START_GAP_MS) // 启动下一张之前先隔 START_GAP_MS
       }
     }
-    await Promise.all([...pool])
+    await Promise.all(pool)
     logger.info('scriptBox', '批量生成资产图·完成', { nodeId, count: target.length })
   }
 
@@ -622,13 +622,13 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
       pool.add(p)
       if (pool.size >= MAX_CONCURRENT) {
         // 在途已达 4：等其中一个完成再继续（释放一个名额）
-        await Promise.race([...pool])
+        await Promise.race(pool)
       } else if (next < target.length) {
         // 启动下一个分镜之前，先隔 START_GAP_MS
         await sleep(START_GAP_MS)
       }
     }
-    await Promise.all([...pool])
+    await Promise.all(pool)
     // 批量结束：立即把缓冲中最后一批分镜写回（避免等 200ms 窗口），并清掉待发定时器
     flushPatches()
     if (Array.isArray(shotIds) && shotIds.length) {

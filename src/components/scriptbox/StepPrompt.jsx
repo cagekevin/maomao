@@ -60,7 +60,7 @@ export default function StepPrompt({ data, updateData, callbacks }) {
     if (!editing || draft == null) return
     if (editing.field === 'imgGen') {
       const s = shots[editing.idx]
-      patchShot(editing.idx, { imgGen: { ...(s?.imgGen || {}), prompt: draft } })
+      patchShot(editing.idx, { imgGen: { ...s?.imgGen, prompt: draft } })
     } else {
       patchShot(editing.idx, editing.field, draft)
     }

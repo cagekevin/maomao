@@ -60,7 +60,7 @@ function loadAll(): NodePrefsMap {
  * @returns {object} 合并后的参数
  */
 export function getNodePrefs(type: string, defaults: NodePrefsMap = {}): NodePrefsMap {
-  return { ...defaults, ...(loadAll()[type] || {}) }
+  return { ...defaults, ...loadAll()[type] }
 }
 
 // data 键名 → 记忆键名 的映射（记忆里存的是官方口径，data 里是节点口径，如 selectedModel←model）
@@ -106,7 +106,7 @@ export function injectNodePrefs(type: string, data: NodePrefsMap): NodePrefsMap 
 export function useNodePrefs(type: string, defaults: NodePrefsMap = {}): { prefs: NodePrefsMap; set: (patch: NodePrefsMap) => void } {
   const [prefs, setPrefs] = useState<NodePrefsMap>(() => {
     const all = loadAll()
-    return { ...defaults, ...(all[type] || {}) }
+    return { ...defaults, ...all[type] }
   })
 
   const set = useCallback(
