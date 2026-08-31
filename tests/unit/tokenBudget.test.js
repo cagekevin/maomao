@@ -15,7 +15,7 @@
 import { describe, it, expect } from 'vitest'
 
 const { resolveInputBudget, decideContextCompression, estimateMessagesTokens } =
-  await import('../../src/components/agent/runtime/tokenBudget.js')
+  await import('../../src/components/agent/runtime/tokenBudget.ts')
 
 /**
  * 单条消息的结构开销，与 tokenBudget.js 的 PER_MESSAGE_OVERHEAD 对齐。

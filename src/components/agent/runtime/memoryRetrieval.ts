@@ -15,10 +15,19 @@ const DEFAULT_LIMIT = 6
 /** 注入块总长度上限 */
 const MEMORY_BLOCK_CHAR_LIMIT = 1_800
 
+/** 项目记忆条目（本层消费字段；projectMemoryStore 转 .ts 后可换成其真实类型） */
+export interface ProjectMemoryLike {
+  content?: string
+  kind?: string
+  enabled?: boolean
+  updatedAt?: number
+  [key: string]: unknown
+}
+
 /** 分词：拉丁按词（≥2 字符）+ CJK 单字与相邻双字，兼顾相关性。 */
-function terms(value) {
+function terms(value: unknown): Set<string> {
   const normalized = String(value || '').toLocaleLowerCase().normalize('NFKC')
-  const output = new Set()
+  const output = new Set<string>()
   for (const w of normalized.match(/[a-z0-9_-]{2,}/g) ?? []) output.add(w)
   const cjk = [...normalized].filter((char) => /[\u3400-\u9fff]/.test(char))
   for (const char of cjk) output.add(char)
@@ -27,7 +36,7 @@ function terms(value) {
 }
 
 /** 词法相似度：命中 / 左集合大小（0 空集即 0）。 */
-function similarity(left, right) {
+function similarity(left: Set<string>, right: Set<string>): number {
   if (left.size === 0 || right.size === 0) return 0
   let hit = 0
   for (const term of left) if (right.has(term)) hit += 1
@@ -35,7 +44,7 @@ function similarity(left, right) {
 }
 
 /** 去冗余相似度（Jaccard）越相近越扣分，用于 MMR 惩罚重复。 */
-function diversitySimilarity(left, right) {
+function diversitySimilarity(left: Set<string>, right: Set<string>): number {
   if (left.size === 0 || right.size === 0) return 0
   let hit = 0
   for (const term of left) if (right.has(term)) hit += 1
@@ -50,12 +59,17 @@ function diversitySimilarity(left, right) {
  * @param {{limit?:number, mmrLambda?:number, now?:number}} [options]
  * @returns {Array} 选中的记忆记录
  */
-export function rankProjectMemories(memories, query, options = {}) {
+export function rankProjectMemories(
+  memories: ProjectMemoryLike[] | null | undefined,
+  query: string,
+  options: { limit?: number; mmrLambda?: number; now?: number } = {}
+): ProjectMemoryLike[] {
   const now = options.now ?? Date.now()
   const limit = Math.max(1, options.limit ?? DEFAULT_LIMIT)
   const lambda = Math.min(1, Math.max(0, options.mmrLambda ?? 0.78))
   const queryTerms = terms(query)
-  const scored = (Array.isArray(memories) ? memories : [])
+  const list: ProjectMemoryLike[] = Array.isArray(memories) ? memories : []
+  const scored = list
     .filter((m) => m && m.enabled !== false && typeof m.content === 'string' && m.content)
     .map((m) => {
       const memoryTerms = terms(m.content)
@@ -90,7 +104,7 @@ export function rankProjectMemories(memories, query, options = {}) {
  * 把选中的项目记忆拼成「不可信只读」注入块（空串 = 不注入）。
  * @param {Array} memories 经 rank 后的记忆
  */
-export function buildProjectMemoryBlock(memories) {
+export function buildProjectMemoryBlock(memories: ProjectMemoryLike[] | null | undefined): string {
   const list = (Array.isArray(memories) ? memories : []).filter(
     (m) => m && typeof m.content === 'string' && m.content.trim(),
   )
@@ -114,7 +128,7 @@ export function buildProjectMemoryBlock(memories) {
  * @param {string} query
  * @returns {string}
  */
-export function buildProjectMemoryContextFromStore(agentKey, projectId, query) {
+export function buildProjectMemoryContextFromStore(agentKey: string, projectId: string | undefined, query: string): string {
   const memories = getCachedProjectMemories(agentKey, projectId)
   if (memories.length === 0) return ''
   return buildProjectMemoryBlock(rankProjectMemories(memories, query))

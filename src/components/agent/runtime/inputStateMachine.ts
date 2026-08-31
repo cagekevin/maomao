@@ -30,11 +30,31 @@
  * ════════════════════════════════════════════════════════════════
  */
 
+/** 输入区状态（对齐大雄） */
+export type InputStatus =
+  | 'idle' | 'planning' | 'creating_nodes' | 'ready'
+  | 'running' | 'stopping' | 'failed' | 'completed'
+
+/** action() 推导出的按钮语义 */
+export type InputAction = 'send' | 'stop' | 'steer' | 'retry' | 'idle' | 'stopping'
+
+/** 状态快照（不含内部 submitLocked） */
+export interface InputSnapshot {
+  status: InputStatus
+  draft: string
+  attachments: unknown[]
+  workflow: any
+}
+
 /** 运行中状态集合（RUNNING，对齐大雄） */
-const RUNNING = new Set(['planning', 'creating_nodes', 'ready', 'running'])
+const RUNNING = new Set<InputStatus>(['planning', 'creating_nodes', 'ready', 'running'])
 
 export class InputStateMachine {
-  constructor(options = {}) {
+  conversationId: string
+  state: InputSnapshot & { submitLocked: boolean }
+  onChange: ((snapshot: InputSnapshot, action: InputAction) => void) | null
+
+  constructor(options: { onChange?: (snapshot: InputSnapshot, action: InputAction) => void } = {}) {
     this.conversationId = ''
     this.state = { status: 'idle', draft: '', attachments: [], workflow: null, submitLocked: false }
     // 状态变化回调：onChange(snapshot, action)（对齐大雄 options.onChange）
@@ -42,7 +62,7 @@ export class InputStateMachine {
   }
 
   /** 按对话加载状态（切换对话时调用，隔离各对话状态） */
-  load(conversationId, saved = {}) {
+  load(conversationId: string, saved: Partial<InputSnapshot> = {}): InputSnapshot {
     this.conversationId = conversationId || 'default'
     this.state = {
       status: saved.status || 'idle',
@@ -55,7 +75,7 @@ export class InputStateMachine {
   }
 
   /** 当前状态快照 */
-  snapshot() {
+  snapshot(): InputSnapshot {
     return {
       status: this.state.status,
       draft: this.state.draft,
@@ -65,17 +85,17 @@ export class InputStateMachine {
   }
 
   /** 是否运行中 */
-  isRunning() {
+  isRunning(): boolean {
     return RUNNING.has(this.state.status)
   }
 
   /** 输入框是否有内容（草稿或附件） */
-  hasContent() {
+  hasContent(): boolean {
     return Boolean(this.state.draft.trim() || this.state.attachments.length)
   }
 
   /** 推导用户当前该按什么按钮（send/stop/steer/retry/idle/stopping） */
-  action() {
+  action(): InputAction {
     if (this.state.status === 'stopping') return 'stopping'
     if (this.state.status === 'failed') return this.hasContent() ? 'retry' : 'idle'
     if (this.isRunning()) return this.hasContent() ? 'steer' : 'stop'
@@ -83,33 +103,33 @@ export class InputStateMachine {
   }
 
   /** 更新草稿 */
-  setDraft(value) {
+  setDraft(value: string): void {
     this.state.draft = String(value || '')
     this.emit()
   }
 
   /** 更新附件 */
-  setAttachments(items) {
+  setAttachments(items: unknown[]): void {
     this.state.attachments = Array.isArray(items) ? items.slice() : []
     this.emit()
   }
 
   /** 任务开始（状态置为 planning 或给定 status） */
-  start(workflow) {
+  start(workflow?: { status?: InputStatus } | null): void {
     this.state.workflow = workflow || this.state.workflow
     this.state.status = workflow?.status || 'planning'
     this.emit()
   }
 
   /** 设置状态；completed/stopped 归一为 idle（对齐大雄 setStatus） */
-  setStatus(status) {
+  setStatus(status: InputStatus): void {
     this.state.status = status || 'idle'
     if (['completed', 'stopped'].includes(status)) this.state.status = 'idle'
     this.emit()
   }
 
   /** 发送后清空草稿和附件，返回 { text, attachments } 供调用方使用 */
-  consume() {
+  consume(): { text: string; attachments: unknown[] } {
     const payload = { text: this.state.draft.trim(), attachments: this.state.attachments.slice() }
     this.state.draft = ''
     this.state.attachments = []
@@ -118,7 +138,7 @@ export class InputStateMachine {
   }
 
   /** 触发 onChange(snapshot, action)，驱动 UI 更新 */
-  emit() {
+  emit(): void {
     if (typeof this.onChange === 'function') this.onChange(this.snapshot(), this.action())
   }
 }

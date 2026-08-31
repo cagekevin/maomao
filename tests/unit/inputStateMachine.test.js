@@ -12,7 +12,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { InputStateMachine } from '../../src/components/agent/runtime/inputStateMachine.js'
+import { InputStateMachine } from '../../src/components/agent/runtime/inputStateMachine.ts'
 
 describe('InputStateMachine', () => {
   let sm

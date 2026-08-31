@@ -19,7 +19,7 @@ vi.mock('../../src/components/agent/runtime/projectMemoryStore.js', async (impor
 const store = await import('../../src/components/agent/runtime/projectMemoryStore.js')
 const { getCachedProjectMemories } = store
 const { rankProjectMemories, buildProjectMemoryBlock, buildProjectMemoryContextFromStore } =
-  await import('../../src/components/agent/runtime/memoryRetrieval.js')
+  await import('../../src/components/agent/runtime/memoryRetrieval.ts')
 
 beforeEach(() => {
   vi.clearAllMocks()

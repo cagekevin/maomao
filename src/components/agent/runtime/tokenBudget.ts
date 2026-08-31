@@ -36,7 +36,7 @@ const CONTEXT_PRECOMPRESS_RATIO = 0.75
 const CONTEXT_FORCE_COMPRESS_RATIO = 0.9
 
 /** 估算单段纯文本的 token 数（启发式）。模块私有——外部只需 estimateMessagesTokens。 */
-function estimateTokens(value) {
+function estimateTokens(value: unknown): number {
   const s = typeof value === 'string' ? value : (value == null ? '' : String(value))
   if (!s) return 0
   const cjk = (s.match(CJK_RE) || []).length
@@ -45,9 +45,9 @@ function estimateTokens(value) {
 }
 
 /** 估算一组消息（含 role/结构开销 + 可选 tool_calls）的 token 数。 */
-export function estimateMessagesTokens(messages) {
+export function estimateMessagesTokens(messages: unknown[] | null | undefined): number {
   let total = 0
-  for (const m of Array.isArray(messages) ? messages : []) {
+  for (const m of (Array.isArray(messages) ? messages : []) as Record<string, any>[]) {
     if (!m || typeof m !== 'object') continue
     total += PER_MESSAGE_OVERHEAD + estimateTokens(typeof m.content === 'string' ? m.content : '')
     if (Array.isArray(m.tool_calls)) {
@@ -64,7 +64,9 @@ export function estimateMessagesTokens(messages) {
  * @param {number} [opts.outputBudgetRatio] 输出预算留白比例（默认 0.2）
  * @returns {number} 输入预算（token），无效输入返回 0
  */
-export function resolveInputBudget({ contextWindow = 0, outputBudgetRatio = 0.2 } = {}) {
+export function resolveInputBudget(
+  { contextWindow = 0, outputBudgetRatio = 0.2 }: { contextWindow?: number; outputBudgetRatio?: number } = {}
+): number {
   if (contextWindow <= 0) return 0
   return Math.round(contextWindow * (1 - Math.min(1, Math.max(0, outputBudgetRatio))))
 }
@@ -76,7 +78,12 @@ export function resolveInputBudget({ contextWindow = 0, outputBudgetRatio = 0.2 
  * @param {number} [opts.inputBudget] 模型输入预算（token）
  * @returns {'force'|'precompress'|'none'} force=强制压缩 / precompress=后台预压缩 / none=不压缩
  */
-export function decideContextCompression({ messages = [], inputBudget = 0 } = {}) {
+/** 压缩决策：force=请求前强制压缩 / precompress=后台预压缩 / none=不压缩 */
+export type CompressionDecision = 'force' | 'precompress' | 'none'
+
+export function decideContextCompression(
+  { messages = [], inputBudget = 0 }: { messages?: unknown[]; inputBudget?: number } = {}
+): CompressionDecision {
   if (inputBudget <= 0 || messages.length === 0) return 'none'
   const ratio = estimateMessagesTokens(messages) / inputBudget
   if (ratio >= CONTEXT_FORCE_COMPRESS_RATIO) return 'force'
