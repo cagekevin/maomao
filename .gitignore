@@ -112,6 +112,10 @@ scripts/report-chunks.json
 Temp/
 tmp/
 
+# ── 本地代码审计工具沙盒（oxlint/depcruise/madge/knip/jscpd，自带 node_modules 与 out/ 报告）──
+# 独立沙盒、不进主工程 package.json 依赖；产物可随时重建，不入库（见 download/package.json）。
+download/
+
 # ── 外部学习仓库 / 第三方工具（他人仓库与嵌套 git 仓库，仅本地参考用，不入库）──
 infinite-canvas别人仓库学习专用/
 # tools/ 下均为第三方仓库副本（ProPainter-Webui 等嵌套 git 仓库 + ProPainter 空仓库），
