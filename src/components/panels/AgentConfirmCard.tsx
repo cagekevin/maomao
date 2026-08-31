@@ -1,4 +1,4 @@
-import { memo } from 'react'
+import { memo, type ReactNode } from 'react'
 
 /**
  * ════════════════════════════════════════════════════════════════
@@ -10,17 +10,27 @@ import { memo } from 'react'
  *   · 副按钮：中性灰；图标一律 SVG（不用 emoji）
  *   · 圆角统一 rounded-md
  * ════════════════════════════════════════════════════════════════
- *
- * @param {ReactNode} icon         标题行图标（SVG）
- * @param {string}    title        卡片标题
- * @param {string}    [desc]       说明文案
- * @param {string}    [confirmText] 主按钮文案（默认「确认」）
- * @param {string}    [cancelText]  副按钮文案（默认「取消」）
- * @param {Function}  onConfirm     确认回调
- * @param {Function}  [onCancel]    取消回调（不传则不显示取消按钮）
- * @param {boolean}   [disabled]    确认按钮禁用
  */
-function AgentConfirmCard({ icon, title, desc, confirmText = '确认', cancelText = '取消', onConfirm, onCancel, disabled = false }) {
+interface AgentConfirmCardProps {
+  /** 标题行图标（SVG） */
+  icon?: ReactNode
+  /** 卡片标题 */
+  title: string
+  /** 说明文案 */
+  desc?: string
+  /** 主按钮文案（默认「确认」） */
+  confirmText?: string
+  /** 副按钮文案（默认「取消」） */
+  cancelText?: string
+  /** 确认回调 */
+  onConfirm?: () => void
+  /** 取消回调（不传则不显示取消按钮） */
+  onCancel?: () => void
+  /** 确认按钮禁用 */
+  disabled?: boolean
+}
+
+function AgentConfirmCard({ icon, title, desc, confirmText = '确认', cancelText = '取消', onConfirm, onCancel, disabled = false }: AgentConfirmCardProps) {
   return (
     <div className="mt-2 border border-edge-faint rounded-md bg-surface-sunken">
       <div className="flex items-center gap-1.5 px-2.5 py-1.5 text-caption-sm text-body">

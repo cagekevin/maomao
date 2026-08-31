@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useAgentChat, setGenParams, getGenParams, getCreditSwitch, setCreditSwitch, getWorkMode, setWorkMode as setWorkModeGlobal, RUN_MODE_IDS, WORK_MODE_STORAGE_KEY } from '../agent/index.ts'
 import { useProviders, load as loadProviders } from '../base/settings/providerStore.ts'
-import AgentMessage from './AgentMessage.jsx'
-import AgentConfirmCard from './AgentConfirmCard.jsx'
+import AgentMessage from './AgentMessage.tsx'
+import AgentConfirmCard from './AgentConfirmCard.tsx'
 import ModelSelect from '../base/ModelSelect.tsx'
 import { buildAllModels } from '../base/providerModels.ts'
 import { useOutsideClick } from '../base/hooks.ts'
@@ -63,7 +63,46 @@ function loadWidth() {
   return DEFAULT_WIDTH
 }
 
-export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt = '', open, onClose, onWidthChange, onEnabledChange, selectedImageNodes = [] }) {
+/** useAgentChat 返回值的最小只读视图（hook 内部实现未全量定型，消费端按真实用法收窄）。 */
+interface UseAgentChatReturn {
+  messages: any[]
+  sending: boolean
+  error: string | null
+  model: string
+  setModel: (model: string) => void
+  send: (...args: any[]) => any
+  stop: (...args: any[]) => any
+  clear: (...args: any[]) => any
+  stateAction: string
+  conversations: any[]
+  activeConversationId: string
+  newChat: (...args: any[]) => any
+  switchChat: (...args: any[]) => any
+  deleteChat: (...args: any[]) => any
+  updateMessageByContent: (...args: any[]) => any
+  executePlanDirect: (...args: any[]) => any
+  sendContentToCanvas: (...args: any[]) => any
+  confirmPendingMemorySuggest: (...args: any[]) => any
+  getActivePendingMemorySuggest: (...args: any[]) => any
+  cancelPendingConfirm: (...args: any[]) => any
+  runExistingConfirm: (...args: any[]) => any
+  getCreditGate: (...args: any[]) => any
+  clearCreditGate: (...args: any[]) => any
+  setCurrentSnapshot: (...args: any[]) => any
+  setAwaitingConfirm: (...args: any[]) => any
+  getCurrentRunMode: (...args: any[]) => any
+  setCurrentRunMode: (...args: any[]) => any
+}
+
+export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt = '', open, onClose, onWidthChange, onEnabledChange, selectedImageNodes = [] }: {
+  agentKey?: string
+  systemPrompt?: string
+  open?: boolean
+  onClose?: () => void
+  onWidthChange?: (w: number) => void
+  onEnabledChange?: (enabled: boolean) => void
+  selectedImageNodes?: Array<{ url: string; label?: string; nodeId?: string; nodeType?: string; x?: number; y?: number }>
+}) {
   const [width, setWidth] = useState(loadWidth)
   const [dragging, setDragging] = useState(false)
   // 【设置即生效·方案 B】聊天模型配置（agent_chat_model）变更计数器。
@@ -104,7 +143,7 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
   const [genModel, setGenModel] = useState(() => getGenParams().model || '')
   const [genSize, setGenSize] = useState(() => getGenParams().resolution || '1K')
   const [genRatio, setGenRatio] = useState(() => getGenParams().ratio || 'Auto')
-  const [genQuality, setGenQuality] = useState(() => getGenParams().quality || 'auto')
+  const [genQuality, setGenQuality] = useState(() => (getGenParams() as { quality?: string }).quality || 'auto')
   useEffect(() => {
     if (!genModel && genModels.length > 0) {
       const first = genModels[0].id
@@ -186,7 +225,7 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
     provider: agentProvider,
     skills: activeSkills,
     onConversationChange: handleConversationChange
-  })
+  }) as unknown as UseAgentChatReturn
 
   // 【设置即生效·方案 B】订阅「设置 → AI 助手」的聊天模型键（agent_chat_model）。
   // 该键由 AgentChatSettings.saveAgentChatModel → contentSet 写入，contentSubscribe 即时回调。
@@ -196,13 +235,16 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
   useEffect(() => {
     const unsubscribe = contentSubscribe(AGENT_CHAT_MODEL_KEY, (cfg) => {
       setChatModelVersion((v) => v + 1)
-      if (cfg && typeof cfg === 'object' && cfg.modelId) setModel(cfg.modelId)
+      if (cfg && typeof cfg === 'object') {
+        const c = cfg as { modelId?: string }
+        if (c.modelId) setModel(c.modelId)
+      }
     })
     return unsubscribe
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const [input, setInput] = useState(() => { try { return contentGet(AGENT_DRAFT_KEY) || '' } catch { return '' } })
+  const [input, setInput] = useState<string>(() => { try { return String(contentGet(AGENT_DRAFT_KEY) || '') } catch { return '' } })
   const [attachments, setAttachments] = useState([])
   const [uploading, setUploading] = useState(false)
   // 【三态收敛 · docs/65 M8】workMode 由注册表单一真源驱动（getWorkMode 读 / setWorkModeGlobal 原子写三处）。
@@ -245,7 +287,8 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
   const [creditGateDismissed, setCreditGateDismissed] = useState(false)
   useEffect(() => {
     const unsub = subscribe(CREDIT_GATE_EVENT, (payload) => {
-      if (payload && payload.pending === true) {
+      const p = payload as { pending?: boolean } | null
+      if (p && p.pending === true) {
         try { setCreditGatePreview(getCreditGate()) } catch { /* ignore */ }
         setCreditGateDismissed(false)
       } else {
@@ -470,7 +513,7 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
   useEffect(() => { scrollToBottom('auto') }, [activeConversationId, scrollToBottom])
 
   // 发送
-  const handleSend = (overrideText) => {
+  const handleSend = (overrideText?: string) => {
     // 待发图 = 正式附件 + 待确认引用（灰态），按序去重合并后随本次发出；发送后清空两者
     const allImages = [...attachments, ...pendingImageNodes]
       .filter((a) => a?.url)
@@ -535,7 +578,7 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
     handleSend(text)
   }
 
-  const handleFiles = async (e) => {
+  const handleFiles = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
     if (!files || files.length === 0) return
     setUploading(true)
@@ -547,10 +590,10 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
           try {
             const text = await readTextFile(f)
             const name = f.name.replace(/\.(md|markdown|txt)$/i, '')
-            applySkill({ id: `skill_file_${Date.now()}_${i}`, name, description: '', content: repairMojibakeText(text) })
+            applySkill({ id: `skill_file_${Date.now()}_${i}`, name, description: '', content: String(repairMojibakeText(text)) })
             showToast(`已导入 Skill「${name}」`, { type: 'success' })
           } catch (err) {
-            showToast(`Skill 导入失败：${err?.message || err}`, { type: 'error' })
+            showToast(`Skill 导入失败：${(err as { message?: string })?.message || err}`, { type: 'error' })
           }
           continue
         }
@@ -1097,7 +1140,7 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
             ) : (
               <button
                 type="button"
-                onClick={handleSend}
+                onClick={() => handleSend()}
                 disabled={!canSend}
                 className={`relative z-[60] w-8 h-8 flex items-center justify-center rounded-full transition-colors cursor-pointer ${canSend ? 'bg-white hover:bg-gray-200 text-black' : 'bg-surface-hover text-muted cursor-not-allowed'}`}
                 title="发送"
@@ -1116,7 +1159,7 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
 }
 
 /** File → text（用于 .md/.markdown/.txt Skill 导入） */
-function readTextFile(file) {
+function readTextFile(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
     reader.onload = () => resolve(String(reader.result || ''))

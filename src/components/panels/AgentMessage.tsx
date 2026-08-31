@@ -1,15 +1,30 @@
-import { memo, useCallback, useEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { toAbsoluteFileUrl } from '../base/api/index.ts'
 import LazyImage from '../base/LazyImage.tsx'
 import PromptConfirmCard from './PromptConfirmCard.tsx'
-import AgentConfirmCard from './AgentConfirmCard.jsx'
+import AgentConfirmCard from './AgentConfirmCard.tsx'
 import ImageZoomDialog from '../base/ImageZoomDialog.tsx'
+import { type ToolCall, type ChatMessage } from '../agent/runtime/agentCore.ts'
+import { type PromptItem } from '../base/promptFlow.ts'
+
+/** AgentMessage 实际渲染的消息形状：兼容 LLM 协议（ChatMessage）并扩展 UI 态字段。
+ *  UI 层只处理文本/图片类消息，故将 content 收窄为 string（协议层 ChatMessage 允许数组形态，UI 不消费）。 */
+interface AgentMessageData extends ChatMessage {
+  content?: string
+  streaming?: boolean
+  skills?: Array<{ name?: string; id?: string; [k: string]: unknown }>
+  generations?: Array<{ id?: string; title?: string; professionalPrompt?: string; prompt?: string; plannedPrompt?: string; ratio?: string; resolution?: string; [k: string]: unknown }>
+  prompts?: PromptItem[]
+  requestedCount?: number
+  awaiting_confirm?: boolean
+  memory_suggest?: boolean
+}
 
 /** 直观判断：一个 URL 是否该渲染成图片。
  *  - 跳过临时协议：blob:/ipfs:/ipns:（持久化后必破图）
  *  - data: 只接受 data:image/
  *  - http(s)：带图片后缀(.png/.jpg…)直接渲染；无后缀则排除网页类后缀(.html/.json…)后渲染（兼容无后缀图床） */
-function isImageUrl(u) {
+function isImageUrl(u: string) {
   u = String(u || '').trim().toLowerCase()
   if (!u) return false
   if (/^(?:blob:|ipfs:|ipns:)/.test(u)) return false
@@ -20,44 +35,55 @@ function isImageUrl(u) {
 }
 
 /** 从文本里按顺序找出所有「图片 URL 候选」及其位置（含 markdown ![]() 与 <img src>）。 */
-function extractImageSpans(text) {
-  const spans = []
+interface ImageSpan {
+  url: string
+  start: number
+  end: number
+}
+function extractImageSpans(text: string): ImageSpan[] {
+  const spans: ImageSpan[] = []
   // 1) markdown 图片 ![](url) / ![alt](url)
   //    允许 url 内部包含一对括号 (…)，只在结尾的 ) 处闭合，避免含 ) 的签名链接被截断
   for (const m of text.matchAll(/!\[[^\]]*\]\(([^()\s]*(?:\([^()\s]*\)[^()\s]*)*)\)/g)) {
-    spans.push({ url: m[1], start: m.index, end: m.index + m[0].length })
+    spans.push({ url: m[1], start: m.index ?? 0, end: (m.index ?? 0) + m[0].length })
   }
   // 2) HTML <img src="url">
   for (const m of text.matchAll(/<img\b[^>]*\bsrc=["']([^"']+)["'][^>]*>/gi)) {
-    spans.push({ url: m[1], start: m.index, end: m.index + m[0].length })
+    spans.push({ url: m[1], start: m.index ?? 0, end: (m.index ?? 0) + m[0].length })
   }
   // 3) 裸链接：http(s)://… 或 data:image/…
   //    读到空白才停（不再遇 ) 即截断，保留 url 内部的 ) 与 ?query 参数）；
   //    尾随的中英文标点/括号/引号不属于 url，用非捕获组剥离；
   //    排除被 blob:/ipfs:/ipns: 协议前缀包裹的 URL（与 isImageUrl「临时协议不渲染」契约冲突）
   for (const m of text.matchAll(/(https?:\/\/[^\s]+?|data:image\/[^\s"]+?)(?:[)\]}'"，。、,!?；;]+)?(?=\s|$)/gi)) {
-    const before = text.slice(Math.max(0, m.index - 5), m.index)
+    const before = text.slice(Math.max(0, (m.index ?? 0) - 5), m.index ?? 0)
     if (/^(?:blob:|ipfs:|ipns:)$/.test(before)) continue
-    spans.push({ url: m[1] ?? m[0], start: m.index, end: m.index + m[0].length })
+    spans.push({ url: m[1] ?? m[0], start: m.index ?? 0, end: (m.index ?? 0) + m[0].length })
   }
   // 去重 + 只保留真正是图片的 + 按出现顺序
   // 去重 key 用「纯 url」：markdown 与裸链接多处出现同一 url 只渲染一次（根治重复显示）
-  const seen = new Set()
+  const seen = new Set<string>()
   return spans
     .filter((s) => isImageUrl(s.url) && !seen.has(s.url) && seen.add(s.url))
     .sort((a, b) => a.start - b.start)
 }
 
+interface RenderNode {
+  type: 'text' | 'image'
+  value: string
+  key: string
+}
+
 /** 把 assistant 的纯文本 content 按图片 URL 切分：文本段原样（保留换行），图片段渲染成图。
  *  onOpenImage(url)：点击图片时打开原生 dialog 查看大图（替代原 target=_blank 新窗口）。 */
-function renderContentWithImages(text, onOpenImage) {
+function renderContentWithImages(text: string, onOpenImage: (url: string) => void): ReactNode {
   const str = String(text || '')
   if (!str) return null
   const spans = extractImageSpans(str)
   if (spans.length === 0) {
     return <span className="whitespace-pre-wrap break-words">{str}</span>
   }
-  const nodes = []
+  const nodes: RenderNode[] = []
   let last = 0
   spans.forEach((s, i) => {
     if (s.start > last) nodes.push({ type: 'text', value: str.slice(last, s.start), key: `t${i}` })
@@ -106,7 +132,7 @@ function renderContentWithImages(text, onOpenImage) {
  */
 
 /** 思考过程折叠面板（复刻 Sr.jsx） */
-const Reasoning = memo(function Reasoning({ text, streaming }) {
+const Reasoning = memo(function Reasoning({ text, streaming }: { text?: string; streaming?: boolean }) {
   // 默认折叠：仅流式进行中（streaming=true）才展开显示"思考中"；
   // 历史消息（streaming=false/undefined）默认折叠，刷新后不展开（修复：原本 useState(true) 刷新后必展开）
   const [open, setOpen] = useState(!!streaming)
@@ -144,7 +170,7 @@ const Reasoning = memo(function Reasoning({ text, streaming }) {
 })
 
 /** 工具调用标签（复刻 _Component34.jsx） */
-const ToolCallChip = memo(function ToolCallChip({ name, args }) {
+const ToolCallChip = memo(function ToolCallChip({ name, args }: { name?: string; args?: string }) {
   let display = args || ''
   try {
     const obj = JSON.parse(args || '{}')
@@ -162,7 +188,7 @@ const ToolCallChip = memo(function ToolCallChip({ name, args }) {
 })
 
 /** 生成步骤卡片（对齐大雄 agentExecutionPromptsHtml：阶段1 把 generations 渲染成可检查的步骤列表） */
-const GenerationStepsCard = memo(function GenerationStepsCard({ generations }) {
+const GenerationStepsCard = memo(function GenerationStepsCard({ generations }: { generations?: AgentMessageData['generations'] }) {
   const [open, setOpen] = useState(true)
   const list = (generations || []).filter((g) => g && typeof g === 'object')
   if (!list.length) return null
@@ -211,7 +237,24 @@ const GenerationStepsCard = memo(function GenerationStepsCard({ generations }) {
  *  @param {Function} onRetryStep   重试失败步骤
  *  @param {Function} [onPromptAction] prompts 逐条确认通道：{ action, prompts, index?, text? } →
  *      应用后写回消息并可能触发出图（prompts 通道，对齐大雄 confirm/edit/save/reopen/regenerate/confirm-all） */
-function AgentMessage({ message, onConfirmPlan, onCancelPlan, onRetryStep, onPromptAction, onSendToCanvas }) {
+/** prompts 逐条确认通道的 action 载荷（与 AgentPanel.handlePromptAction 对齐） */
+interface PromptActionPayload {
+  action: 'update' | 'generate' | 'edit' | 'save' | 'reopen' | 'regenerate' | 'confirm-all' | string
+  assistantContent?: string
+  prompts?: PromptItem[]
+  generations?: unknown[]
+}
+
+interface AgentMessageProps {
+  message: AgentMessageData
+  onConfirmPlan?: () => void
+  onCancelPlan?: (content?: string) => void
+  onRetryStep?: (nodeId: string) => void
+  onPromptAction?: (payload: PromptActionPayload) => void
+  onSendToCanvas?: (content: string) => void
+}
+
+function AgentMessage({ message, onConfirmPlan, onCancelPlan, onRetryStep, onPromptAction, onSendToCanvas }: AgentMessageProps) {
   // 图片查看大图（原生 dialog）：点击消息里的图片 → 打开查看，替代 target=_blank 新窗口
   const zoomRef = useRef(null)
   const [zoomUrl, setZoomUrl] = useState(null)

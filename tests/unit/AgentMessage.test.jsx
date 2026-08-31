@@ -23,7 +23,7 @@ vi.mock('../../src/components/base/LazyImage.tsx', () => ({
 }))
 vi.mock('../../src/components/panels/PromptConfirmCard.tsx', () => ({ default: mocks.Passthrough }))
 
-import AgentMessage from '../../src/components/panels/AgentMessage.jsx'
+import AgentMessage from '../../src/components/panels/AgentMessage.tsx'
 
 const noop = () => {}
 
