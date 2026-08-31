@@ -17,12 +17,17 @@
  *  <ImageZoomDialog ref={zoomRef} url={zoomUrl} />
  *  打开：zoomRef.current?.showModal()
  */
-import { forwardRef, useState, useRef, useCallback, useEffect } from 'react'
+import { forwardRef, ForwardedRef, useState, useRef, useCallback, useEffect } from 'react'
 import { toAbsoluteFileUrl } from './imageUrl.ts'
 import { copyImageToClipboard, downloadUrl } from './clipboard.ts'
 import { createRafBatch } from './utils.ts'
 
-const ImageZoomDialog = forwardRef(function ImageZoomDialog({ url, kind = 'image' }, ref) {
+interface ImageZoomDialogProps {
+  url?: string
+  kind?: 'image' | 'video'
+}
+
+const ImageZoomDialog = forwardRef(function ImageZoomDialog({ url, kind = 'image' }: ImageZoomDialogProps, ref: ForwardedRef<HTMLDialogElement>) {
   const isVideo = kind === 'video'
   const [scale, setScale] = useState(1)
   const [offset, setOffset] = useState({ x: 0, y: 0 })

@@ -5,7 +5,7 @@ import { resolveAssetTemplates } from '../base/scriptBoxPromptResolver.ts'
 import { assetFolderOf } from '../base/assetStore.ts'
 import { useOutsideClick } from '../base/hooks.ts'
 import { useRenderImageResolver, toAbsoluteFileUrl } from '../base/imageUrl.ts'
-import ImageZoomDialog from '../base/ImageZoomDialog.jsx'
+import ImageZoomDialog from '../base/ImageZoomDialog.tsx'
 import ScriptBoxAssetPicker from './ScriptBoxAssetPicker.jsx'
 
 /**

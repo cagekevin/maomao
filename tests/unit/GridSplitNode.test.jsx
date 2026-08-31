@@ -12,7 +12,7 @@ import { mocks } from './_nodeMocks.mjs'
 vi.mock('@xyflow/react', () => mocks.xyflow)
 vi.mock('../../src/components/base/NodeShell.jsx', () => ({ default: mocks.NodeShell }))
 vi.mock('../../src/components/edges/CustomHandle.jsx', () => ({ default: mocks.CustomHandle }))
-vi.mock('../../src/components/base/OverlayEditor.jsx', () => ({ OverlayEditor: mocks.OverlayEditor, renderOverlayCanvas: mocks.renderOverlayCanvas }))
+vi.mock('../../src/components/base/OverlayEditor.tsx', () => ({ OverlayEditor: mocks.OverlayEditor, renderOverlayCanvas: mocks.renderOverlayCanvas }))
 vi.mock('../../src/hooks/useConnectedInputs.ts', () => ({ useConnectedInputs: mocks.useConnectedInputs }))
 vi.mock('../../src/hooks/useMediaDegrade.ts', () => ({ useMediaDegrade: mocks.useMediaDegrade }))
 vi.mock('../../src/components/base/hooks.ts', () => ({ useNodeResize: mocks.useNodeResize, useContentHeightSync: mocks.useContentHeightSync }))

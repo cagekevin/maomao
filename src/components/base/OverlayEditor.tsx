@@ -325,7 +325,7 @@ export default function OverlayEditor({ state, onChange, upstreamUrls }) {
     if (w <= 0 || h <= 0) return
     let cancelled = false
     ;(async () => {
-      await new Promise((r) => requestAnimationFrame(() => r()))
+      await new Promise<void>((r) => requestAnimationFrame(() => r(undefined as void)))
       if (cancelled) return
       const canvas = paintCanvasRef.current
       if (!canvas) return
@@ -543,7 +543,7 @@ export default function OverlayEditor({ state, onChange, upstreamUrls }) {
   const isTop = menuIndex === 0
   const isBottom = menuIndex === sortedLayers.length - 1
 
-  const MenuItem = ({ icon, label, disabled, onClick, danger }) => (
+  const MenuItem = ({ icon, label, disabled, onClick, danger }: { icon?: React.ReactNode; label?: string; disabled?: boolean; onClick?: () => void; danger?: boolean }) => (
     <button
       disabled={disabled}
       onClick={(e) => {

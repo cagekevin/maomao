@@ -23,7 +23,15 @@ import LazyImage from './LazyImage.tsx'
  *  - onDisconnect (sourceNodeId) => void   点击红色 × 断开该来源节点 → 本节点的连线
  *  - readOnly boolean         只读展示：去掉「点击 @插入」交互，仅显示缩略图/文字标签（含 × 断线）
  */
-function MaterialStrip({ images = [], texts = [], onInsert, onDisconnect, readOnly = false }) {
+interface MaterialStripProps {
+  images?: Array<{ id?: string; label?: string; url?: string; kind?: string; sourceNodeId?: string }>
+  texts?: Array<{ id?: string; label?: string; kind?: string; text?: string; sourceNodeId?: string }>
+  onInsert?: (item: unknown) => void
+  onDisconnect?: (sourceNodeId: string) => void
+  readOnly?: boolean
+}
+
+function MaterialStrip({ images = [], texts = [], onInsert, onDisconnect, readOnly = false }: MaterialStripProps) {
   if (images.length === 0 && texts.length === 0) return null
   return (
     <div className="flex flex-wrap gap-2 mb-1">

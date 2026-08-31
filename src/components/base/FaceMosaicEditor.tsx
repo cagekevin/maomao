@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { X, Check, Undo2, Redo2, RotateCcw, ScanFace, LayoutGrid, Ban, Grid3X3, Waves } from 'lucide-react'
-import { detectFaces, drawMosaicOnBox, MOSAIC_MODES, MOSAIC_PALETTE } from './faceMosaic.ts'
+import { detectFaces, drawMosaicOnBox, MOSAIC_MODES, MOSAIC_PALETTE, MosaicMode } from './faceMosaic.ts'
 import { createRafBatch } from './utils.ts'
 
 /**
@@ -11,12 +11,18 @@ import { createRafBatch } from './utils.ts'
  * 也可「自动识别人脸」一键框出所有脸；支持撤销/重做/重置 + 模式/强度/颜色。
  * 完成 → onSave(dataUrl)；取消 → onClose。
  */
-export default function FaceMosaicEditor({ imageUrl, onSave, onClose }) {
+interface FaceMosaicEditorProps {
+  imageUrl?: string
+  onSave?: (dataUrl: string) => void
+  onClose?: () => void
+}
+
+export default function FaceMosaicEditor({ imageUrl, onSave, onClose }: FaceMosaicEditorProps) {
   const canvasRef = useRef(null)
   const wrapRef = useRef(null)
   const origImgRef = useRef(null) // 原始 Image（mosaic/blur 需要原图做像素源）
   const historyRef = useRef([]) // getImageData 快照栈
-  const [mode, setMode] = useState('mosaic')
+  const [mode, setMode] = useState<MosaicMode>('mosaic')
   const [strength, setStrength] = useState(0.5)
   const [color, setColor] = useState('#000000')
   const [dims, setDims] = useState({ w: 0, h: 0 })

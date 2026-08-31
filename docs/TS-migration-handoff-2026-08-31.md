@@ -280,3 +280,32 @@ npm run test:tools           # agent 工具
 5. **脚本里硬编码的源码路径可用 `resolveSourceFile` 一劳永逸免疫**：`scripts/test_agent_tools.cjs` 原本写死 `useCanvasAgentTools.js` / `useAgentChat.js`，每转一个就要手改一次。已改成 `require('./ts-exts.cjs').resolveSourceFile(path.join(ROOT, '.../Xxx.js'))`（扩展名无关，自动命中 .ts/.tsx）。**以后遇到 scripts/ 下拼源码路径的地方，优先改成这种方式**，而不是每次同步后缀。
 6. **全量单测规模已增长到 171 文件 / 2178 用例（约 50-60s）**。终端工具单次命令约 10s 就会回显，直接跑会被截断看不到汇总——用「后台跑 + `Start-Sleep` 后读输出文件」的方式取汇总行（`npx vitest run --reporter=dot *> $env:TEMP\vtall.txt` → `Start-Sleep 50` → `Get-Content ... -Tail 8`）。
 7. **`vi.mock` 盲区再次命中（第 3 次）**：`useCanvasAgentTools` 改名后 `agentPersistRecovery.test.js` / `useAgentChat.hook.test.js` 两处 `vi.mock('.../useCanvasAgentTools.js')` 失效。注意 **`import()` 动态导入脚本会自动同步**（本次 `useCanvasAgentTools.test.js:13` 的 `await import('...')` 已被脚本改写），但 **`vi.mock` 不会** —— 转前 `refs <file>` 逐个确认。
+
+### 10.3 本轮（第四段会话）新增踩坑 / 经验（必读）
+
+> 时间段：紧接着第三段会话之后，继续推 B 批组件层。本段最大的教训是**又栽在同一条 `vi.mock` 盲区上，且一度误诊为 vitest 工具 bug**，白白绕了路。
+
+1. **`vi.mock` 漏同步到 `.tsx` 会直接卡死 husky pre-commit（本次主坑，误判教训）**：
+   - 把 `ModelSelect.jsx` / `GenerateButton.jsx` / `ResizeFullscreenHandle.jsx` / `ExpandablePanel.tsx` 转成 `.tsx` 后，只同步了调用方 `import ... from`，**忘了同步 `tests/unit/**` 里 `vi.mock('.../Xxx.jsx')` 的字符串参数**。
+   - 后果：`vi.mock` 路径和实际模块（`.tsx`）对不上 → mock 失效 → **真实组件被加载**。真实 `ModelSelect.tsx` 没有 `data-testid="model-select"`，`PromptNode.imgMenu.test.jsx` 的「点击模型选择后 patchData 写入 selectedModel」直接 FAIL（"Unable to find an element by: [data-testid="model-select"]"）。
+   - 该测试在 `vitest run --changed` 范围内 → **退出码非 0 → husky pre-commit 门禁挂、提交被拦**。
+   - ⚠️ **误诊弯路**：当时先入为主以为"vitest 2.1.8 的 `--changed` 在 git hook 环境崩溃（'failed to find the current suite'）"，去查 husky 配置、怀疑坏 fd，浪费了多轮。**真相是代码/test 本身没过，不是工具 bug**。`--changed` 偶发的 "failed to find the current suite" 只是 Windows git hook 坏 fd 环境的叠加表象，根因仍是测试失败。
+   - **修法**：把 12 个测试里共 21 处 `vi.mock` 路径由 `.jsx` 改成 `.tsx`（涉及 `ModelSelect`/`GenerateButton`/`ResizeFullscreenHandle` 各 10 处、`ExpandablePanel` 9 处），门禁即全绿（type-check / check:jsx / check:events / check:node-types / test:smoke / test:regression / vitest --changed 21 文件 343 passed 全 PASS）。
+   - **铁律（本次收口）**：**每转一个组件，转前先 `node scripts/ts-migrate.mjs refs <file>` 列出所有字符串残留，把 `vi.mock('.../Xxx.jsx')` 一并改成 `.tsx` 再提交**。这条在 §10.1 已写，但本次仍漏 —— 根因是"只想着同步 `import`、忘了 `vi.mock` 是独立字符串"。建议把 `refs` 输出里的 `vi.mock` 行当成和 `import` 同等优先级的待办，转完逐个勾掉。
+
+2. **`ts-migrate` 批量 convert 会静默跳过（脚本盲区，本次新发现）**：
+   - `node scripts/ts-migrate.mjs batch <dir> --limit N` 多文件模式**只真正转换第一个文件**，其余文件被静默跳过（不产生 `.tsx`、不改 import）。一度以为 9 个 settings/sections 都转了，实际 git status 只有 1 个。
+   - **修法**：放弃批量，改用**单文件 `convert <file>`** 逐个转（已验证单文件模式可靠）。转完用 `git status --short` 核对实际改名数量，确认 N 个文件都进了 staging 再继续。
+   - 受影响批次：本段先误用 batch 转 settings/sections，发现后补用单文件重转了 8 个漏掉的 section（`f2a71de`），并修了补转后暴露的 `Toggle`/`Field`/`AgentChatSettings`/`SkillSettings` 真实类型错误。
+
+3. **本段 B 批进度（截至本次更新）**：
+   - 已转（本段新增，`base/` 层 + 收尾）：`NodePalette`(.ts)、`CanvasEdgesContext`(.tsx)、`ExpandablePanel`(.tsx)、`ResizeFullscreenHandle`(.tsx)、`GenerateButton`(.tsx)、`ModelSelect`(.tsx)、`ErrorBoundary`(.tsx)、`settings/sections/*` 全部 9 个（`.tsx`，含 AccountsSettings/ApiSettings/ModelSection/OtherSettings/ProviderForm/SkillSettings/StorageMonitor/AgentChatSettings/FetchModelsModal）+ SettingsFrame(.tsx)。
+   - 全部补 Props 接口 + 验证全绿（门禁见第 1 条）。当前 B 批已完成约 30+ 个 `.jsx→.tsx`，**剩余组件层 .jsx 约 44–54 个**（不含 director3d 豁免）。
+   - 提交：`f2a71de`（补转 8 个 sections + 类型修复）、`bb8a78b`（NodePalette/CanvasEdgesContext/ExpandablePanel→.tsx + Props）、`95d9097`（同步 vi.mock 路径到 .tsx，修复 husky 门禁失败）。
+
+4. **director3d 豁免边界再确认**：`src/components/director3d/ErrorBoundary.jsx` 是**该目录自带的命名导出** ErrorBoundary，**不要**指向 `base/ErrorBoundary.tsx`（默认导出，已转）。`Director3DOverlay.jsx` 的 import 保持 `./ErrorBoundary.jsx`（本地 director3d，豁免不转）。本次一度误改指向 base，已 revert。
+
+5. **PowerShell 下的命令注意（Windows 环境）**：
+   - 无 `head`/`tail` 命令，取 vitest 汇总用 `npx vitest run > out.txt 2>&1` 再 `Get-Content out.txt`（或读文件）。
+   - `Set-Content` 写文件被护栏拦（编码风险），文本替换请用 IDE 编辑工具而非 shell sed。
+   - `git commit` 成功判定以 `git log -1` 为准，不要凭"命令返回即成功"判断 —— 钩子失败时 commit 不落盘但 shell 可能已退出。

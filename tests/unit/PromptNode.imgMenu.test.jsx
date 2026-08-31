@@ -72,12 +72,12 @@ vi.mock('../../src/components/base/GenerateButton.tsx', () => ({
 
 vi.mock('../../src/components/base/NodeShell.jsx', () => ({ default: ({ children }) => children }))
 vi.mock('../../src/components/base/ExpandablePanel.tsx', () => ({ default: ({ children }) => children }))
-vi.mock('../../src/components/base/MaterialStrip.jsx', () => ({ default: ({ children }) => children }))
+vi.mock('../../src/components/base/MaterialStrip.tsx', () => ({ default: ({ children }) => children }))
 vi.mock('../../src/components/base/HoverToolbar.jsx', () => ({ default: () => null }))
-vi.mock('../../src/components/base/PromptInput.jsx', () => ({ default: () => null }))
+vi.mock('../../src/components/base/PromptInput.tsx', () => ({ default: () => null }))
 vi.mock('../../src/components/base/ResizeFullscreenHandle.tsx', () => ({ default: () => null }))
 vi.mock('../../src/components/base/FullscreenModal.jsx', () => ({ default: () => null }))
-vi.mock('../../src/components/base/GeneratingOverlay.jsx', () => ({ default: () => null }))
+vi.mock('../../src/components/base/GeneratingOverlay.tsx', () => ({ default: () => null }))
 vi.mock('../../src/components/base/PromptLibraryButton.tsx', () => ({ default: () => null }))
 vi.mock('../../src/components/base/JianyingIcon.tsx', () => ({ default: () => null }))
 

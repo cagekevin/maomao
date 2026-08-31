@@ -5,7 +5,7 @@ import {
 import { useReactFlow } from '@xyflow/react'
 import NodeShell from '../base/NodeShell.jsx'
 import HoverToolbar from '../base/HoverToolbar.tsx'
-import ImageZoomDialog from '../base/ImageZoomDialog.jsx'
+import ImageZoomDialog from '../base/ImageZoomDialog.tsx'
 import { detectMediaType } from '../base/mediaType.ts'
 import { useMediaDegrade } from '../../hooks/useMediaDegrade.ts'
 import { useFitNodeRatio } from '../../hooks/useFitNodeRatio.ts'

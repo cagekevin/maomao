@@ -3,7 +3,7 @@ import { toAbsoluteFileUrl } from '../base/filesApi.ts'
 import LazyImage from '../base/LazyImage.tsx'
 import PromptConfirmCard from './PromptConfirmCard.jsx'
 import AgentConfirmCard from './AgentConfirmCard.jsx'
-import ImageZoomDialog from '../base/ImageZoomDialog.jsx'
+import ImageZoomDialog from '../base/ImageZoomDialog.tsx'
 
 /** 直观判断：一个 URL 是否该渲染成图片。
  *  - 跳过临时协议：blob:/ipfs:/ipns:（持久化后必破图）

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback, forwardRef } from 'react'
+import React, { useState, useRef, useCallback, forwardRef, ForwardedRef } from 'react'
 import { createPortal } from 'react-dom'
 import { useOutsideClick } from './hooks.ts'
 import LazyImage from './LazyImage.tsx'
@@ -32,6 +32,20 @@ import {
  *    不随画布缩放；全屏编辑器内传 portalTarget={null} 走内联 absolute（弹窗本身已是最顶层）。
  *  - 方向键上下切换高亮、Enter 选中、Esc 关闭（同一 @ 不再重弹）、失焦/点外部关闭、IME 组字中不判定。
  */
+interface PromptInputProps {
+  value?: string
+  onChange?: (v: string) => void
+  placeholder?: string
+  refImages?: Array<{ id?: string; label?: string; url?: string }>
+  refTexts?: Array<{ id?: string; label?: string; url?: string }>
+  onInsert?: (item: { kind: 'image' | 'text'; url?: string; label?: string }) => void
+  onReady?: (fn: (item: unknown) => void) => void
+  inputWidth?: number | string
+  inputHeight?: number | string
+  autoFocus?: boolean
+  portalTarget?: HTMLElement | null
+}
+
 const PromptInput = forwardRef(function PromptInput(
   {
     value,
@@ -45,8 +59,8 @@ const PromptInput = forwardRef(function PromptInput(
     inputHeight,
     autoFocus = false, // 挂载后自动聚焦并把光标放到末尾（仅全屏弹窗等主动打开的场景传 true）
     portalTarget = document.body // null → 全屏弹窗内保持内联；默认 portal 到 body
-  },
-  ref
+  }: PromptInputProps,
+  ref: ForwardedRef<HTMLDivElement>
 ) {
   // 素材候选统一形态
   const all = [
@@ -59,6 +73,7 @@ const PromptInput = forwardRef(function PromptInput(
     ...refTexts.map((t, idx) => ({
       id: t.id ?? `text-${idx}`,
       label: t.label || `文本${idx + 1}`,
+      url: t.url,
       kind: 'text',
     })),
   ]

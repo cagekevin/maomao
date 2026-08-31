@@ -12,7 +12,7 @@
 import React, { useState } from 'react'
 import { describe, it, expect } from 'vitest'
 import { render, fireEvent, act } from '@testing-library/react'
-import PromptInput from '../../src/components/base/PromptInput.jsx'
+import PromptInput from '../../src/components/base/PromptInput.tsx'
 
 /** 面板实例 + 全屏实例，共用同一份 value（复刻节点里的挂载形态） */
 function SharedValueHarness() {

@@ -19,7 +19,15 @@ import { ImageOff } from 'lucide-react'
  *  - src, alt, className, onDoubleClick（透传给外层 div）
  *  - imgClassName：img 内部类名（默认 w-full h-full object-cover）
  */
-function LazyImage({ src, alt = '', className, onDoubleClick, imgClassName = 'w-full h-full object-cover' }) {
+interface LazyImageProps {
+  src?: string
+  alt?: string
+  className?: string
+  onDoubleClick?: () => void
+  imgClassName?: string
+}
+
+function LazyImage({ src, alt = '', className, onDoubleClick, imgClassName = 'w-full h-full object-cover' }: LazyImageProps) {
   const resolve = useRenderImageResolver()
   const resolvedSrc = resolve(src || '')
   const ref = useRef(null)

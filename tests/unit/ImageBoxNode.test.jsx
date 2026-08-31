@@ -45,7 +45,7 @@ vi.mock('../../src/components/base/LazyImage.tsx', () => ({ default: mocks.LazyI
 vi.mock('../../src/components/base/toastStore.ts', () => ({ showToast: mocks.showToast, toastError: mocks.toastError, toastWarning: mocks.toastWarning }))
 vi.mock('../../src/components/base/filesApi.ts', () => ({ toAbsoluteFileUrl: mocks.toAbsoluteFileUrl }))
 vi.mock('../../src/components/base/clipboard.ts', () => h.clipboardMock)
-vi.mock('../../src/components/base/ImageZoomDialog.jsx', () => ({ default: () => null }))
+vi.mock('../../src/components/base/ImageZoomDialog.tsx', () => ({ default: () => null }))
 
 import ImageBoxNode from '../../src/components/nodes/ImageBoxNode.jsx'
 

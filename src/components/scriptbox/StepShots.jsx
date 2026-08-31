@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react'
 import { Loader2, Plus, Trash2, Film, Link2 } from 'lucide-react'
 import { SHOT_TYPES, LIGHTS, MOTIONS, dialogueText, textToDlg, dlgToText, hlAt, patchShots, createNewShot, removeShot, applyTailFrameSelection, parseShotSeconds } from '../base/scriptBoxPrompts.ts'
-import MaterialStrip from '../base/MaterialStrip.jsx'
+import MaterialStrip from '../base/MaterialStrip.tsx'
 import { useOutsideClick } from '../base/hooks.ts'
 import { useRenderImageResolver } from '../base/imageUrl.ts'
 import ScriptBoxModal from './ScriptBoxModal.jsx'

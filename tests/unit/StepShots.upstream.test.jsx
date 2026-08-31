@@ -11,7 +11,7 @@ import React from 'react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 
-vi.mock('../../src/components/base/MaterialStrip.jsx', () => ({
+vi.mock('../../src/components/base/MaterialStrip.tsx', () => ({
   default: ({ images = [], texts = [], readOnly, onDisconnect }) => (
     <div data-testid="upstream-strip" data-readonly={String(!!readOnly)}>
       <span data-testid="strip-imgs">{images.length}</span>

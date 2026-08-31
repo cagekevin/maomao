@@ -62,14 +62,14 @@ vi.mock('../../src/components/base/faceMosaic.ts', () => ({
   ],
   MOSAIC_PALETTE: ['#000000', '#ffffff'],
 }))
-vi.mock('../../src/components/base/FaceMosaicEditor.jsx', () => ({
+vi.mock('../../src/components/base/FaceMosaicEditor.tsx', () => ({
   default: ({ imageUrl, onSave, onClose }) =>
     React.createElement('div', { 'data-testid': 'mosaic-editor' },
       React.createElement('span', null, '手动编辑器'),
       React.createElement('button', { onClick: () => onSave('data:image/png;base64,QUFBQQ==') }, '保存手动打码'),
       React.createElement('button', { onClick: onClose }, '关闭编辑器')),
 }))
-vi.mock('../../src/components/base/ImageZoomDialog.jsx', () => ({ default: () => null }))
+vi.mock('../../src/components/base/ImageZoomDialog.tsx', () => ({ default: () => null }))
 vi.mock('../../src/components/base/previewUrl.ts', () => ({ default: { create: () => 'http://preview.x' } }))
 
 import FaceMosaicNode from '../../src/components/nodes/FaceMosaicNode.jsx'
