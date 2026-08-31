@@ -2,7 +2,7 @@ import React from 'react'
 import { Plus, Trash2, Star, Check, Server, Layers, Boxes } from 'lucide-react'
 import { showToast } from '../../toastStore.ts'
 import { PROVIDER_PROTOCOL_LABELS, GENERAL_PROTOCOLS, SPECIAL_PROTOCOLS, isGeneralProtocol } from '../../providerProtocols.ts'
-import { useProviders, load, select, add, update, setPrimary, remove, test, fetchModels, applyFetchedModels, closeFetchedModels, save } from '../providerStore.js'
+import { useProviders, load, select, add, update, setPrimary, remove, test, fetchModels, applyFetchedModels, closeFetchedModels, save } from '../providerStore.ts'
 import ProviderForm from './ProviderForm.jsx'
 import FetchModelsModal from './FetchModelsModal.jsx'
 

@@ -6,7 +6,7 @@
  */
 import { beforeEach, afterEach, describe, expect, it } from 'vitest'
 import { __resetCustomCache } from '../../src/components/scriptbox/scriptBoxPlaybookStore.js'
-import { resolveSystem, resolveImageGenSys, resolveConstraints, resolveNegatives, resolveAssetTemplates } from '../../src/components/base/scriptBoxPromptResolver.js'
+import { resolveSystem, resolveImageGenSys, resolveConstraints, resolveNegatives, resolveAssetTemplates } from '../../src/components/base/scriptBoxPromptResolver.ts'
 import { PLAYBOOKS_KEY } from '../../src/components/scriptbox/scriptBoxPlaybookStore.js'
 
 const LKEY = 'yimao:' + PLAYBOOKS_KEY

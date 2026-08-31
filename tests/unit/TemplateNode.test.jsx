@@ -74,8 +74,8 @@ vi.mock('../../src/components/base/useSyncNodeData.ts', () => ({ useSyncNodeData
 vi.mock('../../src/components/base/toastStore.ts', () => ({ showToast: mocks.showToast, toastWarning: mocks.toastWarning, toastError: mocks.toastError }))
 vi.mock('../../src/components/base/imageApi.ts', () => ({ generateImage: mocks.generateImage }))
 vi.mock('../../src/components/base/filesApi.ts', () => ({ toAbsoluteFileUrl: mocks.toAbsoluteFileUrl, saveResultToTasks: mocks.saveResultToTasks }))
-vi.mock('../../src/components/base/settings/providerStore.js', () => ({ useProviders: mocks.useProviders, load: mocks.loadProviders }))
-vi.mock('../../src/components/base/providerModels.js', () => ({ buildAllModels: mocks.buildAllModels, resolveProviderModel: mocks.resolveProviderModel }))
+vi.mock('../../src/components/base/settings/providerStore.ts', () => ({ useProviders: mocks.useProviders, load: mocks.loadProviders }))
+vi.mock('../../src/components/base/providerModels.ts', () => ({ buildAllModels: mocks.buildAllModels, resolveProviderModel: mocks.resolveProviderModel }))
 
 import TemplateNode from '../../src/components/nodes/TemplateNode.jsx'
 

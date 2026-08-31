@@ -41,7 +41,7 @@ vi.mock('../../src/components/base/contentStore.js', () => ({
 
 const loadProviders = vi.fn(() => Promise.resolve())
 const useProvidersList = vi.fn(() => [{ id: 'p1', isPrimary: true }])
-vi.mock('../../src/components/base/settings/providerStore.js', () => ({ useProvidersList: (...a) => useProvidersList(...a), load: (...a) => loadProviders(...a) }))
+vi.mock('../../src/components/base/settings/providerStore.ts', () => ({ useProvidersList: (...a) => useProvidersList(...a), load: (...a) => loadProviders(...a) }))
 
 const { useScriptBoxEngine } = await import('../../src/components/base/useScriptBoxEngine.ts')
 

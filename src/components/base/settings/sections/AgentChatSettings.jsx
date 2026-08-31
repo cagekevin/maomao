@@ -1,6 +1,6 @@
 import React from 'react'
 import { Bot, Check } from 'lucide-react'
-import { useProviders, load } from '../providerStore.js'
+import { useProviders, load } from '../providerStore.ts'
 import { logger } from '../../logger.ts'
 import { showToast } from '../../toastStore.ts'
 import {

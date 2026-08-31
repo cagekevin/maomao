@@ -34,7 +34,7 @@ import { fetchTasks } from '../base/localToolApi.ts'
 import { generateImage } from '../base/imageApi.ts'
 import { useNodePrefs } from '../base/nodePrefs.ts'
 import { useRenderImageResolver } from '../base/imageUrl.ts'
-import { resolveProviderModel } from '../base/providerModels.js'
+import { resolveProviderModel } from '../base/providerModels.ts'
 import { debounce, mergeRefImages, buildEffectivePrompt } from '../base/utils.ts'
 import { resolvePromptChips } from '../base/promptChips.ts'
 

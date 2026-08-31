@@ -22,8 +22,8 @@ vi.mock('../../src/components/base/nodePrefs.ts', () => ({ useNodePrefs: mocks.u
 vi.mock('../../src/components/base/useSyncNodeData.ts', () => ({ useSyncNodeData: mocks.useSyncNodeData }))
 vi.mock('../../src/components/base/toastStore.ts', () => ({ showToast: mocks.showToast, toastWarning: mocks.toastWarning, toastError: mocks.toastError }))
 vi.mock('../../src/components/base/filesApi.ts', () => ({ toAbsoluteFileUrl: mocks.toAbsoluteFileUrl, saveResultToTasks: mocks.saveResultToTasks, saveTextToTasks: mocks.saveTextToTasks }))
-vi.mock('../../src/components/base/settings/providerStore.js', () => ({ useProviders: mocks.useProviders, load: mocks.loadProviders }))
-vi.mock('../../src/components/base/providerModels.js', () => ({ buildAllModels: mocks.buildAllModels, resolveProviderModel: mocks.resolveProviderModel }))
+vi.mock('../../src/components/base/settings/providerStore.ts', () => ({ useProviders: mocks.useProviders, load: mocks.loadProviders }))
+vi.mock('../../src/components/base/providerModels.ts', () => ({ buildAllModels: mocks.buildAllModels, resolveProviderModel: mocks.resolveProviderModel }))
 vi.mock('../../src/components/base/chatApi.ts', () => ({ chatCompletions: mocks.chatCompletions }))
 
 import TextNode from '../../src/components/nodes/TextNode.jsx'

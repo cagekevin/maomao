@@ -18,7 +18,7 @@ vi.mock('../../src/components/base/imageApi.ts', () => ({ generateImage: vi.fn()
 vi.mock('../../src/components/base/imageUrl.ts', () => ({
   toAbsoluteFileUrl: (u) => (u && u.startsWith('/files/') ? `http://127.0.0.1:18080${u}` : u || ''),
 }))
-vi.mock('../../src/components/base/providerModels.js', () => ({
+vi.mock('../../src/components/base/providerModels.ts', () => ({
   resolveProviderModel: vi.fn(() => ({ provider: 'openai', modelId: 'gpt-4o-mini' })),
   buildAllModels: vi.fn(() => [{ id: 'gpt-4o-mini' }]),
 }))
@@ -35,7 +35,7 @@ vi.mock('../../src/components/base/assetStore.js', () => ({
   FOLDERS: [],
 }))
 
-import { normalizeScriptBoxData, defaultScriptBoxTop, defaultShotFields, defaultAssetFields } from '../../src/components/base/scriptBoxSchema.js'
+import { normalizeScriptBoxData, defaultScriptBoxTop, defaultShotFields, defaultAssetFields } from '../../src/components/base/scriptBoxSchema.ts'
 
 const {
   parseJsonText,

@@ -10,20 +10,48 @@
  * - 生成时用 resolveProviderModel 解析回 { provider, modelId }，再经 /api/proxy 转发到该 provider。
  */
 
+/** 模型域：对应 provider 的 image_models / chat_models / video_models */
+export type ModelDomain = 'image' | 'chat' | 'video'
+
+/** 后端返回的模型条目（id 或 label 至少有一个） */
+export interface RawModel {
+  id?: string
+  label?: string
+  [key: string]: unknown
+}
+
+/** 带模型数组的 provider 形态（buildAllModels / resolveProviderModel 消费的字段子集） */
+export interface ProviderWithModels {
+  id?: string
+  name?: string
+  image_models?: RawModel[]
+  chat_models?: RawModel[]
+  video_models?: RawModel[]
+  [key: string]: unknown
+}
+
+/** 模型下拉项：id 为 `providerId::modelId` */
+export interface ModelOption {
+  id: string
+  label: string
+  badge: string
+  providerId: string | undefined
+  modelId: string
+}
+
 /** 模型 value 拼接：providerId::modelId */
-export function modelKey(providerId, modelId) {
+export function modelKey(providerId: string | undefined, modelId: string): string {
   return `${providerId}::${modelId}`
 }
 
 /**
  * 聚合所有 provider 的某类型模型，生成模型下拉项。
- * @param {Array} providers 全部供应商
- * @param {'image'|'chat'|'video'} type 模型类型（对应 image_models/chat_models/video_models）
- * @returns {Array<{id:string, label:string, badge:string, providerId:string, modelId:string}>}
+ * @param providers 全部供应商
+ * @param type 模型类型（对应 image_models/chat_models/video_models）
  */
-export function buildAllModels(providers, type) {
+export function buildAllModels(providers: ProviderWithModels[] | null | undefined, type: ModelDomain | string): ModelOption[] {
   const key = type === 'image' ? 'image_models' : type === 'chat' ? 'chat_models' : 'video_models'
-  const out = []
+  const out: ModelOption[] = []
   for (const p of providers || []) {
     for (const m of p[key] || []) {
       const modelId = m.id || m.label
@@ -43,12 +71,15 @@ export function buildAllModels(providers, type) {
 /**
  * 把「providerId::modelId」解析回 { provider, modelId }。
  * 兼容旧值：如果 selectedValue 不含 `::`，则视为主供应商的模型。
- * @param {Array} providers 全部供应商
- * @param {string} selectedValue 模型 value（providerId::modelId）
- * @param {object} primary 主供应商（找不到时回退）
- * @returns {{ provider: object|null, modelId: string }}
+ * @param providers 全部供应商
+ * @param selectedValue 模型 value（providerId::modelId）
+ * @param primary 主供应商（找不到时回退）
  */
-export function resolveProviderModel(providers, selectedValue, primary) {
+export function resolveProviderModel(
+  providers: ProviderWithModels[] | null | undefined,
+  selectedValue: string | undefined,
+  primary?: ProviderWithModels | null
+): { provider: ProviderWithModels | null; modelId: string } {
   if (!selectedValue) return { provider: primary || null, modelId: '' }
   const sep = selectedValue.indexOf('::')
   if (sep > 0) {

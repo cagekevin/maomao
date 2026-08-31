@@ -8,6 +8,7 @@
  *  - save() 时：_apiKey 非空 → api_key；_clearKey → clear_key；否则不传（沿用）
  */
 import { useSyncExternalStore } from 'react'
+import type { RawModel } from '../providerModels.ts'
 import { useStoreSelector } from '../useStoreSelector.ts'
 import { providerApi } from '../localToolApi.ts'
 import { contentSetAsync } from '../contentStore.js'
@@ -17,7 +18,59 @@ import { logger } from '../logger.ts'
 // useSyncExternalStore 要求：数据变化时 getSnapshot 必须返回「新引用」，
 // 否则 React 用 Object.is 判定无变化 → 不触发渲染（表现：按钮没反应、页面空白/卡）。
 // 因此 setState 一律返回新对象，绝不原地修改。
-let state = {
+/**
+ * 供应商实体（前端 UI/编辑态）。
+ * 【key 处理】key 只进后端 env，不回明文：GET 返回 has_key/key_preview；
+ *  编辑新 key 存 `_apiKey`（UI 态）、清除存 `_clearKey`，save() 时才映射到 api_key/clear_key。
+ */
+export interface Provider extends Record<string, unknown> {
+  id: string
+  name: string
+  base_url: string
+  protocol: string
+  image_request_mode: string
+  image_mode: string
+  chat_request_mode: string
+  enabled: boolean
+  primary: boolean
+  readonly: boolean
+  image_models: RawModel[]
+  chat_models: RawModel[]
+  video_models: RawModel[]
+  model_names: Record<string, unknown>
+  model_protocols: Record<string, unknown>
+  /** UI 态：待保存的新 key（含掩码 '••' 时视为未修改） */
+  _apiKey?: string
+  /** UI 态：标记清除已存 key */
+  _clearKey?: boolean
+}
+
+/** 拉取到的模型暂存（弹窗勾选后再 apply） */
+export interface FetchedModels {
+  id: string
+  image_models: RawModel[]
+  chat_models: RawModel[]
+  video_models: RawModel[]
+  warning?: string
+}
+
+/** providerStore 状态快照 */
+export interface ProviderState {
+  providers: Provider[]
+  selectedId: string | null
+  dirty: boolean
+  loading: boolean
+  saving: boolean
+  testingId: string | null
+  fetchingId: string | null
+  fetchedModels: FetchedModels | null
+  testResult: Record<string, unknown> | null
+  /** save() 后回写 api.config.json 的结果标记 */
+  configSynced?: boolean
+  configSyncError?: string
+}
+
+let state: ProviderState = {
   providers: [],
   selectedId: null,
   dirty: false,
@@ -28,9 +81,9 @@ let state = {
   fetchedModels: null,
   testResult: null,
 }
-const listeners = new Set()
+const listeners = new Set<() => void>()
 
-function setState(patch) {
+function setState(patch: Partial<ProviderState>): void {
   state = { ...state, ...patch }
   listeners.forEach((l) => l())
 }
@@ -47,25 +100,25 @@ function ensureAutoLoad() {
     load().catch((e) => logger.warn('provider', 'auto-load-fail', { error: e?.message }))
   }
 }
-function subscribe(cb) {
+function subscribe(cb: () => void): () => void {
   ensureAutoLoad()
   listeners.add(cb)
-  return () => listeners.delete(cb)
+  return () => { listeners.delete(cb) }
 }
-function getSnapshot() {
+function getSnapshot(): ProviderState {
   return state
 }
-export function useProviders() {
+export function useProviders(): ProviderState {
   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
 }
 
 /** 原子订阅：只订阅 providers 列表（P5）。只读供应商列表的消费方（useScriptBoxEngine 等）
  *  不随 dirty/loading/testResult 等 UI 态变更连坐重渲染。 */
-export function useProvidersList() {
+export function useProvidersList(): Provider[] {
   return useStoreSelector(subscribe, getSnapshot, (s) => s.providers)
 }
 
-function emptyProvider() {
+function emptyProvider(): Provider {
   return {
     id: generateId('p'),
     name: '新供应商',
@@ -86,11 +139,11 @@ function emptyProvider() {
 }
 
 // ── 动作 ──
-export async function load() {
+export async function load(): Promise<void> {
   setState({ loading: true, testResult: null })
   try {
     const data = await providerApi.getProviders()
-    const list = data?.data?.providers || []
+    const list: Provider[] = data?.data?.providers || []
     const primary = list.find((p) => p.primary) || list[0]
     setState({ providers: list, selectedId: primary ? primary.id : null, dirty: false })
   } finally {
@@ -98,31 +151,31 @@ export async function load() {
   }
 }
 
-export function select(id) {
+export function select(id: string | null): void {
   setState({ selectedId: id, testResult: null })
 }
 
-export function update(id, patch) {
+export function update(id: string, patch: Partial<Provider>): void {
   setState({
     providers: state.providers.map((p) => (p.id === id ? { ...p, ...patch } : p)),
     dirty: true,
   })
 }
 
-export function setPrimary(id) {
+export function setPrimary(id: string): void {
   setState({
     providers: state.providers.map((p) => ({ ...p, primary: p.id === id })),
     dirty: true,
   })
 }
 
-export function add() {
+export function add(): Provider {
   const np = emptyProvider()
   setState({ providers: [...state.providers, np], selectedId: np.id, dirty: true, testResult: null })
   return np
 }
 
-export function remove(id) {
+export function remove(id: string): void {
   const target = state.providers.find((p) => p.id === id)
   if (!target) return
   let next = state.providers.filter((p) => p.id !== id)
@@ -134,7 +187,7 @@ export function remove(id) {
   })
 }
 
-export async function test(id) {
+export async function test(id: string): Promise<void> {
   const p = state.providers.find((x) => x.id === id)
   if (!p) return
   setState({ testingId: id, testResult: null })
@@ -142,7 +195,7 @@ export async function test(id) {
     const key = p._apiKey && p._apiKey.trim() ? p._apiKey.trim() : undefined
     const payload = { id: p.id, base_url: p.base_url, key, protocol: p.protocol }
     // 1) 通用连通性探测（含 GET 健康/模型端点，失败时透传上游原始 body）
-    let data = await providerApi.testConnection(payload)
+    let data = (await providerApi.testConnection(payload)) as Record<string, unknown>
     // 2) apimart 异步协议：额外用假 task_id 嗅探异步端点，能区分
     //    「key 无效(401/403) / 非 apimart(404) / 端点存在(400+invalid task id)」。
     //    若通用探测已成功则跳过，避免无谓请求；失败时用异步嗅探结果补全诊断。
@@ -165,7 +218,7 @@ export async function test(id) {
   }
 }
 
-export async function fetchModels(id) {
+export async function fetchModels(id: string): Promise<{ ok: boolean; pending?: boolean; total?: number; warning?: string; error?: string }> {
   const p = state.providers.find((x) => x.id === id)
   if (!p) return { ok: false }
   setState({ fetchingId: id })
@@ -194,7 +247,7 @@ export async function fetchModels(id) {
 }
 
 /** 用户弹窗勾选后，把选定模型写入 provider（合并已有 + 勾选的新拉项）。 */
-export function applyFetchedModels(id, selected) {
+export function applyFetchedModels(id: string, selected: { image_models?: RawModel[]; chat_models?: RawModel[]; video_models?: RawModel[] } | null): void {
   const p = state.providers.find((x) => x.id === id)
   if (!p || !selected) return
   setState({
@@ -214,15 +267,17 @@ export function applyFetchedModels(id, selected) {
 }
 
 /** 关闭拉取弹窗（取消，不写入）。 */
-export function closeFetchedModels() {
+export function closeFetchedModels(): void {
   setState({ fetchedModels: null })
 }
 
-export async function save() {
+export async function save(): Promise<{ ok: boolean; error?: string }> {
   setState({ saving: true })
   try {
     const payload = state.providers.map((p) => {
-      const cleaned = {
+      // 出站体含协议特有字段（volcengine_*）与 key 通道（api_key/clear_key），
+      // 均按条件追加，故显式标注为可索引记录。
+      const cleaned: Record<string, unknown> = {
         id: p.id,
         name: p.name,
         base_url: p.base_url,

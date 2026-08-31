@@ -104,8 +104,8 @@ vi.mock('../../src/components/base/useVideoPoster.ts', () => ({ useVideoPoster: 
 vi.mock('../../src/components/base/nodePrefs.ts', () => ({
   useNodePrefs: () => ({ prefs: { model: '', size: '', resolution: '', seconds: '' }, set: (...a) => h.vidPrefsSet(...a) }),
 }))
-vi.mock('../../src/components/base/settings/providerStore.js', () => ({ useProviders: () => ({ providers: [] }), load: vi.fn(async () => {}) }))
-vi.mock('../../src/components/base/providerModels.js', () => ({ buildAllModels: () => [], resolveProviderModel: () => ({ provider: {}, modelId: 'm' }) }))
+vi.mock('../../src/components/base/settings/providerStore.ts', () => ({ useProviders: () => ({ providers: [] }), load: vi.fn(async () => {}) }))
+vi.mock('../../src/components/base/providerModels.ts', () => ({ buildAllModels: () => [], resolveProviderModel: () => ({ provider: {}, modelId: 'm' }) }))
 vi.mock('../../src/components/base/logger.ts', () => ({ logger: { info: (...a) => h.loggerInfo(...a), warn: () => {} } }))
 vi.mock('../../src/components/base/clipboard.ts', async (importOriginal) => {
   const actual = await importOriginal()

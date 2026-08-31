@@ -49,11 +49,11 @@ vi.mock('../../src/components/base/useMediaDegrade.ts', () => ({ useMediaDegrade
 vi.mock('../../src/components/base/nodePrefs.ts', () => ({ useNodePrefs: () => ({ prefs: {}, set: vi.fn() }) }))
 vi.mock('../../src/components/base/useSyncNodeData.ts', () => ({ useSyncNodeData: () => {} }))
 vi.mock('../../src/components/base/filesApi.ts', () => ({ toAbsoluteFileUrl: (x) => x, saveResultToTasks: vi.fn(async () => undefined) }))
-vi.mock('../../src/components/base/settings/providerStore.js', () => ({ useProviders: () => ({ providers: [] }), load: vi.fn(() => Promise.resolve()) }))
+vi.mock('../../src/components/base/settings/providerStore.ts', () => ({ useProviders: () => ({ providers: [] }), load: vi.fn(() => Promise.resolve()) }))
 vi.mock('../../src/components/base/localToolApi.ts', () => ({ fetchTasks: vi.fn(async () => ({ items: [] })) }))
 const mockGenerateVideo = vi.fn(async () => ({ url: 'http://gen.local/v.mp4' }))
 vi.mock('../../src/components/base/videoApi.ts', () => ({ generateVideo: (...a) => mockGenerateVideo(...a) }))
-vi.mock('../../src/components/base/providerModels.js', () => ({ buildAllModels: vi.fn(() => []), resolveProviderModel: vi.fn(() => ({ provider: {}, modelId: 'm' })) }))
+vi.mock('../../src/components/base/providerModels.ts', () => ({ buildAllModels: vi.fn(() => []), resolveProviderModel: vi.fn(() => ({ provider: {}, modelId: 'm' })) }))
 
 beforeEach(() => {
   mockSetNodes.mockClear()

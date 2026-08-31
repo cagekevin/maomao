@@ -102,9 +102,9 @@ vi.mock('../../src/components/agent/index.js', () => ({
   RUN_MODE_IDS: h.RUN_MODE_IDS,
   WORK_MODE_STORAGE_KEY: 'agent_work_mode',
 }))
-vi.mock('../../src/components/base/settings/providerStore.js', () => ({ useProviders: () => ({ providers: h.providers }), load: vi.fn(async () => {}) }))
+vi.mock('../../src/components/base/settings/providerStore.ts', () => ({ useProviders: () => ({ providers: h.providers }), load: vi.fn(async () => {}) }))
 vi.mock('../../src/components/base/settings/agentModelStore.ts', () => ({ loadAgentChatModel: () => h.agentModelCfg, AGENT_CHAT_MODEL_KEY: h.AGENT_CHAT_MODEL_KEY }))
-vi.mock('../../src/components/base/providerModels.js', () => ({ buildAllModels: () => [] }))
+vi.mock('../../src/components/base/providerModels.ts', () => ({ buildAllModels: () => [] }))
 vi.mock('../../src/components/base/hooks.js', () => ({ useOutsideClick: () => {} }))
 vi.mock('../../src/components/base/skillStore.ts', () => ({
   getAllSkills: () => h.skills,

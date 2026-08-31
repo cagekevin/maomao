@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef } from 'react'
-import type { GenerationProvider, GenerationResult } from '@/types'
-import { useProviders } from './settings/providerStore.js'
-import { buildAllModels } from './providerModels.js'
+import type { GenerationResult } from '@/types'
+import type { Provider } from './settings/providerStore.ts'
+import type { ModelOption } from './providerModels.ts'
+import { useProviders } from './settings/providerStore.ts'
+import { buildAllModels } from './providerModels.ts'
 import { useSyncNodeData } from './useSyncNodeData.ts'
 import { useNodeGeneration } from './useNodeGeneration.js'
 
@@ -16,9 +18,9 @@ export interface GenerateRunArgs {
  * 节点自有生成参数（imageSize/aspectRatio/…）仍走节点闭包，不进 ctx。
  */
 export interface GenerateNodeCtx {
-  providers: GenerationProvider[]
-  primary: GenerationProvider | null
-  models: Array<{ id: string; [key: string]: unknown }>
+  providers: Provider[]
+  primary: Provider | null
+  models: ModelOption[]
   selectedModel: string | undefined
   prefs: Record<string, unknown> | undefined
   setPrefs: (patch: Record<string, unknown>) => void
@@ -110,9 +112,7 @@ export function useGenerateNode({
   // ── 供应商/模型（统一选 provider / 模型下拉数据）──
   const { providers } = useProviders()
   const primary = providers?.find((p) => p.primary) || providers?.[0] || null
-  // 【边界断言】providerModels 仍是 .js，其 type 形参被推断成 'image'|'chat'|'video'
-  // 字面量联合；本 hook 的 type 为 string，故此处窄化断言，待其转 .ts 后统一对齐。
-  const models = buildAllModels(providers, type as 'image' | 'chat' | 'video')
+  const models = buildAllModels(providers, type)
 
   // ── 收编 useSyncNodeData（第71行）：外部 data 变更 → 本地 state ──
   useSyncNodeData(data, sync)

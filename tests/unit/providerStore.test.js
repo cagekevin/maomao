@@ -55,7 +55,7 @@ describe('providerStore §4 供应商数据层', () => {
     h.mockKvSet.mockReset()
     h.mockKvSet.mockReturnValue(Promise.resolve())
     h.mockSyncConfigBase.mockReturnValue(Promise.resolve())
-    mod = await import('../../src/components/base/settings/providerStore.js')
+    mod = await import('../../src/components/base/settings/providerStore.ts')
   })
 
   // ── 纯逻辑动作（不触网）──

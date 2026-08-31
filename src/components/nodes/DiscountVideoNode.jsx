@@ -30,7 +30,7 @@ import { useGenerateNode } from '../base/useGenerateNode.ts'
 import { generateVideo } from '../base/videoApi.ts'
 import { useNodePrefs } from '../base/nodePrefs.ts'
 import { logger } from '../base/logger.ts'
-import { resolveProviderModel } from '../base/providerModels.js'
+import { resolveProviderModel } from '../base/providerModels.ts'
 import { debounce, buildEffectivePrompt, clampSeconds } from '../base/utils.ts'
 
 /**
