@@ -47,7 +47,7 @@ vi.mock('../../src/components/base/api/filesApi.ts', () => ({ toAbsoluteFileUrl:
 vi.mock('../../src/components/base/clipboard.ts', () => h.clipboardMock)
 vi.mock('../../src/components/base/ImageZoomDialog.tsx', () => ({ default: () => null }))
 
-import ImageBoxNode from '../../src/components/nodes/ImageBoxNode.jsx'
+import ImageBoxNode from '../../src/components/nodes/ImageBoxNode.tsx'
 
 const nodeId = 'ib1'
 function setup(data = {}, connected = { images: [], texts: [] }) {

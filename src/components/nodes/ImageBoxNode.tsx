@@ -38,22 +38,44 @@ import { useRenderImageResolver, fileToDataUrl } from '../base/imageUrl.ts'
  *   portal 缩略图更多菜单（fixed 定位）
  *   <FullscreenModal> 放大查看大图 </FullscreenModal>
  */
-function ImageBoxNode({ id, data, selected }) {
+interface ImageBoxItem {
+  id: string
+  url: string
+  thumb?: string
+  label?: string
+  source?: string
+  createdAt?: number
+  [key: string]: unknown
+}
+interface ImageBoxNodeData {
+  label?: string
+  images?: ImageBoxItem[]
+  activeIndex?: number
+  expanded?: boolean
+  selectedIds?: string[]
+  [key: string]: unknown
+}
+interface ImageBoxNodeProps {
+  id: string
+  data: ImageBoxNodeData
+  selected?: boolean
+}
+function ImageBoxNode({ id, data, selected }: ImageBoxNodeProps) {
   const { setNodes } = useReactFlow()
   const { isHidden } = useMediaDegrade()
   const render = useRenderImageResolver()
   const hideImage = isHidden('image')
 
-  const fileRef = useRef(null)
+  const fileRef = useRef<HTMLInputElement | null>(null)
   // 直接从官方 Rg.jsx 借 state 命名：d=拖拽中, m=打开的缩略图下标, _=菜单定位, y=拖拽源, x=拖拽目标
   const [dragOver, setDragOver] = useState(false)
-  const [menuIndex, setMenuIndex] = useState(null)
-  const [menuPos, setMenuPos] = useState(null)
-  const [dragFrom, setDragFrom] = useState(null)
-  const [dragTo, setDragTo] = useState(null)
+  const [menuIndex, setMenuIndex] = useState<number | null>(null)
+  const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null)
+  const [dragFrom, setDragFrom] = useState<number | null>(null)
+  const [dragTo, setDragTo] = useState<number | null>(null)
   // 放大查看大图（原生 <dialog>）：zoomUrl 存当前图，openZoom 打开弹层
-  const [zoomUrl, setZoomUrl] = useState(null)
-  const zoomRef = useRef(null)
+  const [zoomUrl, setZoomUrl] = useState<string | null>(null)
+  const zoomRef = useRef<HTMLDialogElement | null>(null)
   const openZoom = useCallback((url) => {
     if (!url) return
     setZoomUrl(url)
@@ -70,14 +92,14 @@ function ImageBoxNode({ id, data, selected }) {
 
   // ---- data 写回（统一用 setNodes 不可变更新，与 ImageNode 一致）----
   const updateData = useCallback(
-    (patch) => {
+    (patch: Partial<ImageBoxNodeData>) => {
       setNodes((ns) => ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, ...patch } } : n)))
     },
     [id, setNodes]
   )
 
   // ---- 缩略图生成（对齐官方 _cmp_Tr(url, 256, 0.7)：canvas 等比缩到 max 256，jpg 0.7）----
-  const makeThumb = useCallback(async (url, max = 256, quality = 0.7) => {
+  const makeThumb = useCallback(async (url: string, max = 256, quality = 0.7) => {
       if (!url) return undefined
       // 图片加载收口到统一入口（超时兜底）；加载失败按原语义返回 undefined（不挂起）
       let img
@@ -107,8 +129,13 @@ function ImageBoxNode({ id, data, selected }) {
   }, [])
 
   // ---- 批量添加图片（生成缩略图 + 追加 + activeIndex 指向最后一张）----
+  interface AddImageInput {
+    url: string
+    label?: string
+    source?: string
+  }
   const addImages = useCallback(
-    async (items) => {
+    async (items: AddImageInput[]) => {
       if (!items || items.length === 0) return
       const enriched = await Promise.all(
         items.map(async (it) => {
@@ -132,7 +159,7 @@ function ImageBoxNode({ id, data, selected }) {
 
   // ---- 删除单个（对齐官方 k）----
   const removeAt = useCallback(
-    (index) => {
+    (index: number) => {
       const target = images[index]
       const rest = images.filter((_, n) => n !== index)
       updateData({
@@ -190,7 +217,7 @@ function ImageBoxNode({ id, data, selected }) {
 
   // ---- 拖拽排序（对齐官方 M）----
   const reorder = useCallback(
-    (from, to) => {
+    (from: number, to: number) => {
       if (from === to || from < 0 || to < 0 || from >= images.length || to >= images.length) return
       const arr = images.slice()
       const [moved] = arr.splice(from, 1)
@@ -238,7 +265,7 @@ function ImageBoxNode({ id, data, selected }) {
   }, [upstreamImages, images, addImages])
 
   // ---- 文件读取（对齐官方 te/ne：只收 image/，读成 dataURL）----
-  const readFiles = useCallback((files) => {
+  const readFiles = useCallback((files: FileList | File[]) => {
     const list = Array.from(files).filter((f) => f.type.startsWith('image/'))
     // 统一走 fileToDataUrl（官方出口，禁止散写 FileReader）；读取失败返回 null 由外层过滤丢弃
     return Promise.all(
@@ -247,7 +274,7 @@ function ImageBoxNode({ id, data, selected }) {
   }, [])
 
   const onFileInput = useCallback(
-    async (e) => {
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
       if (e.target.files) {
         const items = await readFiles(e.target.files)
         if (items.length > 0) addImages(items.map((n) => ({ ...n, source: 'upload' })))
@@ -260,9 +287,9 @@ function ImageBoxNode({ id, data, selected }) {
   // ---- 粘贴（选中时监听 window paste，复刻官方 Rg.jsx useEffect）----
   useEffect(() => {
     if (!selected) return
-    const onPaste = async (e) => {
+    const onPaste = async (e: ClipboardEvent) => {
       if (!e.clipboardData) return
-      const el = document.activeElement
+      const el = document.activeElement as HTMLElement | null
       if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)) return
       const files = Array.from(e.clipboardData.items)
         .filter((it) => it.kind === 'file' && it.type.startsWith('image/'))
@@ -346,7 +373,7 @@ function ImageBoxNode({ id, data, selected }) {
   }, [menuIndex])
 
   // ---- 复制图片到剪贴板（对齐官方 ce：画布转 blob 写 image/png，失败退化为写链接）----
-  const copyImage = useCallback(async (url) => {
+  const copyImage = useCallback(async (url: string) => {
     try {
       // 图片加载收口到统一入口（超时兜底）；加载失败由外层 catch 退化为写链接
       const img = await loadImageWithTimeout(url)
@@ -356,7 +383,7 @@ function ImageBoxNode({ id, data, selected }) {
       const ctx = canvas.getContext('2d')
       if (!ctx) throw new Error('canvas ctx')
       ctx.drawImage(img, 0, 0)
-      const blob = await new Promise((res) => canvas.toBlob(res, 'image/png'))
+      const blob = await new Promise<Blob | null>((res) => canvas.toBlob(res, 'image/png'))
       if (!blob) throw new Error('blob null')
       await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
       // 复制图片后用户可在画布粘贴，结果可见，无需 toast
@@ -371,7 +398,7 @@ function ImageBoxNode({ id, data, selected }) {
   }, [])
 
   // ---- 下载（对齐官方 W / ae）----
-  const downloadUrl = useCallback((url, name) => {
+  const downloadUrl = useCallback((url: string, name?: string) => {
     clipboardDownload(url, name || `image-${Date.now()}.png`)
   }, [])
 
