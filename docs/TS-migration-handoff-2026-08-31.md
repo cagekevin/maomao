@@ -309,3 +309,20 @@ npm run test:tools           # agent 工具
    - 无 `head`/`tail` 命令，取 vitest 汇总用 `npx vitest run > out.txt 2>&1` 再 `Get-Content out.txt`（或读文件）。
    - `Set-Content` 写文件被护栏拦（编码风险），文本替换请用 IDE 编辑工具而非 shell sed。
    - `git commit` 成功判定以 `git log -1` 为准，不要凭"命令返回即成功"判断 —— 钩子失败时 commit 不落盘但 shell 可能已退出。
+
+### 10.4 本轮（第五段会话）新增踩坑 / 经验（必读）
+
+> 时间段：承接第四段，继续推 B 批 `base/` 层组件。本段把 `base/` 层的 1 引用叶子（LocalToolConnectModal / PanoViewer / LeftPanel / PromptHub / PromptLibrary / AssetLibrary / GeneratedView）全部转完，并清掉一个**被 `git add -A` 误带进提交的临时沙盒目录**。
+
+1. **全量测试在本地/钩子里都全绿，用户却报「推送时钩子提示 300+ 错误」的排查结论**：`git pull` 拉回 B 批约 30+ 个 `.jsx→.tsx` 转换后，本机按 `pre-push` 原样跑（`sh .husky/pre-push`）是 171 文件 / 2178 用例全过、EXIT=0。**没有复现到错误**。结合交接文档 §10.3 的教训（`vi.mock` 漏同步会成百地挂测试），300+ 大概率是**拉取前旧工作区 + 未 `npm install` 的状态**产出的（本次拉取新增 `@babel/parser` 依赖）。后续如果真报错，第一优先查「`node_modules` 是否最新 + `vi.mock` 路径后缀」。
+2. **`tsconfig.tsbuildinfo` 增量缓存会掩盖存量类型错（重要，本段新发现）**：`tsconfig.compilerOptions.incremental:true` 生成了根目录 `tsconfig.tsbuildinfo`（已入 .gitignore）。只要没改到某文件上游，该文件的类型错**不会被增量 tsc 查出**。本段改 `utils.ts` 后 `agentCore.ts:546` 的 `tokens.find()` 类型错（`.toLowerCase` on `never`）才被暴露——它在 `git stash` 回退后也报错，**是存量潜伏错误不是本次引入**。修法：给 `tokens` 显式标注 `string[]`。**建议：手改类型前先 `rm -f tsconfig.tsbuildinfo` 强制全量重查，避免增量缓存掩盖你即将引入/存量存在的错误。**
+3. **`git add -A` 会把你没参与任务的目录一起带进提交**：本段误把根目录 `download/`（本地代码审计工具沙盒：oxlint/depcruise/madge/knip/jscpd + 自带 node_modules + out/ 报告）commit 了。处置：`git rm -r --cached download`（**只取消跟踪、不删本地文件**）+ 在 `.gitignore` 加 `download/`。教训：**`git add -A` 前先 `git status --short` 核对**，非任务目录单独处理。**push 阶段发现「300+ 错误」可能也与此类误加的大目录有关，务必先看 `git status` 有没有夹带。**
+4. **跨文件共享的「面板资源形状」收口到 API 层**：`AssetLibrary` / `GeneratedView` 两个面板的 `/api/resources` 资源项形状相同，本段下沉为 `localToolApi.ts` 的 `export interface ResourceItem`（字段可选 + 可赋值给 `useAssetMoveToFolder` 的 `AssetMoveItem`），两面板复用，杜绝各自 `interface` 漂移。同理把「`assetDragProps` 结果适配 `<img>`」的 `draggable` 布尔化工具收口为 `useAssetDragToCanvas.ts` 导出的 `toImgDragProps`（源 `draggable` 是 `string|boolean`，勿在源头 `!!` 收窄——React 对 draggable 一律渲染成 "true"/"false"，消费端 `Boolean()` 收窄 DOM 产物与原先完全一致，零行为变化）。
+5. **「看似是 bug 的死分支」要先验证再动**：`LeftPanel.tsx` 角标里 `status === 'queued'` 在 tsc 下报 TS2367（`TaskStatus` 无 `'queued'`）。查证后 `'queued'` 全库仅此一处、`TaskStatus` 声明为 `'pending'|'running'|'completed'|'failed'`，且 `queued` 在参考实现/文档里属**消息媒体态**（`mediaStatus: queued→generating→succeeded`）与任务表无关 → 确为永假分支。真正 bug 是**漏了 `pending`**（注释写「失败+进行中」，实际只算 failed+running）。经用户确认改成 `failed || running || pending`，对齐 TaskCenter「进行中=running||pending」口径（`TaskCenter.tsx:62/77/235`）。**教训：遇到 TS 报「unintentional comparison」别急着删/改，先查真实状态集合 + 兄弟 UI 口径，往往真正的错在别处。**
+6. **新增类型收口（本段）**：`utils.ts` 导出 `export type ImeInput = ReturnType<typeof createImeInput>`（供 `useRef<ImeInput|null>` 标注，TaskCenter/SkillSettings 里一直是裸 `useRef(null)`，后续可顺带收口）；`promptHubStore.ts` 的 `Prompt`、`promptManager.ts` 的 `LibraryCard` 由 internal 改为 `export` 供组件复用。
+7. **事件回调的 IME 写法（React 事件类型）**：`onChange` 里取 `e.nativeEvent.isComposing` 需 `(e.nativeEvent as InputEvent).isComposing`；`onCompositionEnd` 取 value 需 `(e.target as HTMLInputElement).value`——与 TaskCenter 既有写法完全一致，勿用 `e.target.value` 裸取（会报 `value` 不存在于 `EventTarget`）。
+8. **本段 B 批进度（截至本次更新）**：
+   - 已转（本段新增 7 个）：`LocalToolConnectModal` / `PanoViewer` / `LeftPanel` / `PromptHub` / `PromptLibrary` / `AssetLibrary` / `GeneratedView`（全部 `.tsx` + Props/内部类型 + EVENTS 行号同步 + 门禁全绿）。
+   - 顺手修复：`LeftPanel` 角标漏 `pending`（见第 5 条）；`agentCore.ts:546` 存量 `tokens` 推断为 `never` 的类型错（见第 2 条）；清理误入库的 `download/` 沙盒（见第 3 条）。
+   - 提交：`2de1565`（LocalToolConnectModal/PanoViewer/LeftPanel + 角标修复）、`c3255f6`（PromptHub/PromptLibrary + Prompt/LibraryCard/ImeInput 类型 + agentCore 存量修复）、`99a5c15`（AssetLibrary + 契约行号）、`cad2335`（清理 download/）、`8c1b221`（GeneratedView + ResourceItem/toImgDragProps 收口）。
+   - **剩余 `base/` 层 2 个**：`FullscreenEditor`（4 引用）、`NodeShell`（16 引用，最大，被全部节点 import——建议单独一批）；之后转 `panels/`（4）、`edges/`（4）、`scriptbox/`（9）、`nodes/`（17）、`src/main.jsx` / `src/App.jsx`。
