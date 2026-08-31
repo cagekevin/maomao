@@ -31,7 +31,7 @@ vi.mock('../../src/components/base/eventBus.ts', () => ({
 vi.mock('../../src/components/base/logger.ts', () => ({ logger: busState.logger }))
 vi.mock('../../src/components/base/toastStore.ts', () => ({ showToast: vi.fn() }))
 
-import { useNodeGeneration } from '../../src/components/base/useNodeGeneration.js'
+import { useNodeGeneration } from '../../src/components/base/useNodeGeneration.ts'
 
 const baseProps = {
   nodeId: 'n1',

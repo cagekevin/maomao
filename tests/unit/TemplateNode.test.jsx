@@ -42,7 +42,7 @@ vi.mock('../../src/components/base/useMediaDegrade.ts', () => ({ useMediaDegrade
 // 桩经 h.setNodes 写入 node.data，供断言「成功/广播回填」后 data 自动更新（不再依赖节点手写 patchData）。
 let genConfig = null
 const getGenConfig = () => genConfig
-vi.mock('../../src/components/base/useNodeGeneration.js', () => ({
+vi.mock('../../src/components/base/useNodeGeneration.ts', () => ({
   useNodeGeneration: (config) => {
     genConfig = config
     // 复刻真实的广播 handler：recoverable + resultKey 且广播带 resultUrl 时先自动写回，再透传原 onRecover

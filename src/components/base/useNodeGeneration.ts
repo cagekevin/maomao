@@ -8,11 +8,93 @@ import { useNodeData } from './useNodeData.ts'
 import { classifyError } from './genErrors.ts'
 import { reportDegrade } from './degrade.ts'
 
+/**
+ * reportGenerate 返回的任务控制器。
+ * 【边界】taskStore 仍是 .js（契约/真相源，暂不转），故在此按本 hook 实际消费的
+ * 三个方法（progress/done/fail）+ taskId 定义最小视图，避免 any 扩散到节点回调。
+ */
+export interface TaskController {
+  /** 请求级贯穿主键，经 run ctx 透传给 generateImage/generateVideo 的 opts.taskId */
+  taskId: string
+  progress: (percent: number, stage?: string) => void
+  done: (resultUrl: string) => void
+  fail: (errorMsg: string) => void
+}
+
+/** 任务上报信息（节点类型 / 提示词 / 模型名） */
+export interface GenerationTypeInfo {
+  type: string
+  prompt?: string
+  modelName?: string
+}
+
+/** 传给 run 执行器的参数 */
+export interface NodeGenerationRunArgs {
+  progress: (percent: number, stage?: string) => void
+  signal: AbortSignal
+  taskId: string
+}
+
+/** run 执行器返回的结果信封 */
+export interface NodeGenerationResult {
+  ok: boolean
+  url?: string
+  content?: string
+  error?: string
+  aborted?: boolean
+}
+
+/** start() 的返回值（成功 / 失败 / 中止 / 并发在跑） */
+export interface NodeGenerationStartResult {
+  ok: boolean
+  resultUrl?: string
+  error?: string
+  aborted?: boolean
+  inFlight?: boolean
+}
+
+/** onRecover 收到的广播详情（agent:task-completed 载荷子集） */
+export interface TaskCompletedDetail {
+  taskId?: string
+  nodeId?: string
+  resultUrl?: string
+  type?: string
+  status?: string
+}
+
+/** validate() → 错误文案或空串 */
+export type GenerationValidate = () => string | undefined | null
+/** run(args) → 结果信封 */
+export type GenerationRunner = (args: NodeGenerationRunArgs) => Promise<NodeGenerationResult | undefined>
+export type GenerationOnSuccess = (result: NodeGenerationResult, taskCtl: TaskController) => void
+export type GenerationOnRecover = (detail: TaskCompletedDetail) => void
+
+export interface UseNodeGenerationOptions {
+  nodeId: string
+  /** 任务上报信息 */
+  type: GenerationTypeInfo
+  validate?: GenerationValidate
+  run?: GenerationRunner
+  onSuccess?: GenerationOnSuccess
+  onRecover?: GenerationOnRecover
+  /** 声明后成功时自动 patchData({ [resultKey]: url })，省去 onSuccess 手写写回 */
+  resultKey?: string
+  /** 声明后收到 task-completed 自动回填 node.data[resultKey] */
+  recoverable?: boolean
+}
+
+export interface NodeGenerationApi {
+  loading: boolean
+  error: string
+  start: () => Promise<NodeGenerationStartResult | boolean>
+  stop: () => void
+}
+
 // 日志里的提示词只保留前 80 字：剧本盒子等场景的镜头提示词动辄上千字，
 // 全量打进 localTool 终端会淹没其它全链路日志。完整原文仍可在节点 data /
 // 任务中心（reportGenerate 上报）查到，日志侧只留可定位的摘要。
 const LOG_PROMPT_MAX = 80
-function promptPreview(p) {
+function promptPreview(p: string | undefined): string {
   const s = typeof p === 'string' ? p : String(p || '')
   return s.length > LOG_PROMPT_MAX ? `${s.slice(0, LOG_PROMPT_MAX)}…` : s
 }
@@ -74,37 +156,46 @@ function promptPreview(p) {
  *   stop() 目前只清 loading/error，不中断网络请求（真 API 的中断需 AbortController，
  *   待接真引擎时在 run 内用 AbortSignal 实现，start/stop 对外接口不变）。
  */
-export function useNodeGeneration({ nodeId, type, validate, run, onSuccess, onRecover, resultKey, recoverable }) {
+export function useNodeGeneration({
+  nodeId,
+  type,
+  validate,
+  run,
+  onSuccess,
+  onRecover,
+  resultKey,
+  recoverable,
+}: UseNodeGenerationOptions): NodeGenerationApi {
   // P0-2-b：声明 resultKey/recoverable 后可省去节点手写「写回 node.data」样板（经 useNodeData 统一 patchData）
   const { patchData } = useNodeData(nodeId)
-  const resultKeyRef = useRef(resultKey)
+  const resultKeyRef = useRef<string | undefined>(resultKey)
   resultKeyRef.current = resultKey
   const recoverableRef = useRef(!!recoverable)
   recoverableRef.current = !!recoverable
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   // AbortController：stop() 真中断请求（Step C）。run 执行器接收 signal 并传给底层 API（Step A 已支持）。
-  const abortRef = useRef(null)
+  const abortRef = useRef<AbortController | null>(null)
   // 【R4 防重入】同步 runningRef 原子防重：start 入口立即置位、finally 复位。
   // 旧实现用闭包 `loading`（重渲染后才更新），快速双击时第二次仍读到旧 false → 并发生图。
   // ref 同步更新，第二次 start 立即被拒，根治并发浪费（TASK-016 #6）。
   const runningRef = useRef(false)
 
-  const runRef = useRef(run)
+  const runRef = useRef<GenerationRunner | undefined>(run)
   runRef.current = run
-  const onSuccessRef = useRef(onSuccess)
+  const onSuccessRef = useRef<GenerationOnSuccess | undefined>(onSuccess)
   onSuccessRef.current = onSuccess
-  const onRecoverRef = useRef(onRecover)
+  const onRecoverRef = useRef<GenerationOnRecover | undefined>(onRecover)
   onRecoverRef.current = onRecover
-  const validateRef = useRef(validate)
+  const validateRef = useRef<GenerationValidate | undefined>(validate)
   validateRef.current = validate
-  const typeRef = useRef(type)
+  const typeRef = useRef<GenerationTypeInfo>(type)
   typeRef.current = type
 
-  const start = useCallback(async () => {
+  const start = useCallback(async (): Promise<NodeGenerationStartResult | boolean> => {
     // 【P1-E 跨发起方并发锁】先占单节点互斥锁（taskStore 层，任何发起方都经本 start 汇聚）。
     // 同节点已有进行中（Agent runNodeGeneration / 用户手动 / 再来一次）→ 明确返回「进行中」，不并发生成。
-    const claim = claimNodeRun(nodeId)
+    const claim = claimNodeRun(nodeId) as { ok: boolean; inFlight?: boolean }
     if (!claim.ok) {
       logger.debug('生成', '[节点] 已在生成，跳过并发', { nodeId }, { module: 'image' })
       return { ok: false, inFlight: true }
@@ -121,8 +212,9 @@ export function useNodeGeneration({ nodeId, type, validate, run, onSuccess, onRe
     abortRef.current?.abort()
     const ctl = new AbortController()
     abortRef.current = ctl
-    const t = typeRef.current || {}
-    const taskCtl = reportGenerate(nodeId, t.type, t.prompt, { modelName: t.modelName })
+    // 缺省兜底用完整形状而非 `|| {}`，否则 t 退化为 `{}`、取 t.type/t.prompt 会报属性不存在
+    const t: GenerationTypeInfo = typeRef.current || { type: '', prompt: '', modelName: '' }
+    const taskCtl = reportGenerate(nodeId, t.type, t.prompt, { modelName: t.modelName }) as TaskController
     taskCtl.progress(5, '准备中…')
     logger.info('生成', 'start', { nodeId, type: t.type, prompt: promptPreview(t.prompt) })
     // 【B层】节点生成入口：prompt 摘要 + 节点类型（定位是哪个节点、发的什么提示词触发生图）
@@ -220,7 +312,8 @@ export function useNodeGeneration({ nodeId, type, validate, run, onSuccess, onRe
   // 用 ref 存最新 onRecover，监听只在挂载时注册一次，避免每次渲染重建。
   useEffect(() => {
     if (!nodeId) return
-    const handler = (d) => {
+    const handler = (payload: unknown) => {
+      const d = payload as TaskCompletedDetail | undefined
       if (!d) return
       // 只认本节点 + 已完成 + 有结果 URL 的广播，其余忽略（精准）
       if (d.nodeId !== nodeId) return

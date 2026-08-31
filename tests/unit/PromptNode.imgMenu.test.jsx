@@ -28,7 +28,7 @@ vi.mock('@xyflow/react', () => ({
   useStore: vi.fn(() => () => {}),
 }))
 
-vi.mock('../../src/components/base/useNodeGeneration.js', () => ({
+vi.mock('../../src/components/base/useNodeGeneration.ts', () => ({
   useNodeGeneration: (config) => {
     genConfig = config
     // 复刻真实 hook 的广播 handler：recoverable + resultKey 时自动写回（先于 onRecover），

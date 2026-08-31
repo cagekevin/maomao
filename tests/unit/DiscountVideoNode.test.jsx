@@ -118,7 +118,7 @@ vi.mock('../../src/components/base/videoApi.ts', () => ({ generateVideo: vi.fn(a
 // 节点 onSuccess/onRecover 不再手写 patchData，data.videoUrl 由 resultKey/recoverable 自动写回。
 let genConfig = null
 let genLoading = false
-vi.mock('../../src/components/base/useNodeGeneration.js', () => ({
+vi.mock('../../src/components/base/useNodeGeneration.ts', () => ({
   useNodeGeneration: (config) => {
     genConfig = config
     // 复刻真实 hook 的广播 handler：recoverable + resultKey 且广播带 resultUrl 时自动写回 node.data

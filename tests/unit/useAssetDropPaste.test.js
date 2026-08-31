@@ -31,7 +31,7 @@ vi.mock('../../src/components/base/filesApi.ts', () => ({
 const toastMock = vi.fn()
 vi.mock('../../src/components/base/toastStore.ts', () => ({ showToast: toastMock }))
 
-const { useAssetDropPaste } = await import('../../src/components/base/useAssetDropPaste.js')
+const { useAssetDropPaste } = await import('../../src/components/base/useAssetDropPaste.ts')
 
 function makeFile(name, type) {
   return { name, type, size: 10 }

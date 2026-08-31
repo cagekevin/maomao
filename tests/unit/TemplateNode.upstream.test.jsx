@@ -17,7 +17,7 @@ vi.mock('@xyflow/react', () => ({
   useStore: vi.fn(() => () => {}),
 }))
 
-vi.mock('../../src/components/base/useNodeGeneration.js', () => ({
+vi.mock('../../src/components/base/useNodeGeneration.ts', () => ({
   useNodeGeneration: (config) => {
     genConfig = config
     return {

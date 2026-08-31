@@ -5,13 +5,11 @@ import type { ModelOption } from './providerModels.ts'
 import { useProviders } from './settings/providerStore.ts'
 import { buildAllModels } from './providerModels.ts'
 import { useSyncNodeData } from './useSyncNodeData.ts'
-import { useNodeGeneration } from './useNodeGeneration.js'
+import { useNodeGeneration } from './useNodeGeneration.ts'
+import type { NodeGenerationRunArgs } from './useNodeGeneration.ts'
 
-/** 生成回调注入的进度/中断参数（透传自 useNodeGeneration） */
-export interface GenerateRunArgs {
-  progress: (value: number) => void
-  signal: AbortSignal
-}
+/** 生成回调注入的进度/中断参数（直接复用 useNodeGeneration 契约，避免两处各定义一份） */
+export type GenerateRunArgs = NodeGenerationRunArgs
 
 /**
  * 注入给节点回调的 provider 管理态。

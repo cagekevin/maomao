@@ -61,7 +61,7 @@ export const CREDIT_GATE_EVENT = 'agent:credit-gate'
 export const EVENTS = {
   'agent:task-completed': {
     from: ['taskCompletionBus.ts:30'],
-    to: ['useNodeGeneration.js:235'],
+    to: ['useNodeGeneration.ts:328'],
     payload: '{ taskId, nodeId, resultUrl, type, status: "completed" }',
     note: '任务完成 → 精准回填节点（刷新不丢图）。现统一经 taskCompletionBus.publishTaskCompleted 唯一发布（P1-D）；done 已去落盘（P0-C），广播直接用持久 resultUrl',
   },

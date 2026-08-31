@@ -14,7 +14,7 @@ import { Type, Image as ImageIcon, Clapperboard, Trash2, Copy, Zap, RefreshCw, F
 import CanvasToolbar from './components/base/CanvasToolbar.jsx'
 import ArrangeConfirm from './components/base/ArrangeConfirm.jsx'
 import { useArrangeCanvas } from './components/base/useArrangeCanvas.ts'
-import { useAssetDropPaste, useGlobalPaste } from './components/base/useAssetDropPaste.js'
+import { useAssetDropPaste, useGlobalPaste } from './components/base/useAssetDropPaste.ts'
 import { copyImageToClipboard, downloadBlob } from './components/base/clipboard.ts'
 import GhostTargetNode from './components/nodes/GhostTargetNode.jsx'
 import AgentPanel from './components/panels/AgentPanel.jsx'

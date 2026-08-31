@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react'
+import type { DragEvent as ReactDragEvent, ClipboardEvent as ReactClipboardEvent } from 'react'
 import { detectFileType, isAssetUrl } from './mediaType.ts'
 import { isEditableTarget } from './hooks.js'
 import { sanitizePastedText } from './clipboard.ts'
@@ -7,6 +8,40 @@ import { uploadFileToLocal, downloadRemoteToLocal, WEB_DROP_SUBFOLDER } from './
 import { fileToDataUrl } from './imageUrl.ts'
 import { UPLOAD_DIRS } from './uploadDirs.ts'
 import { logger } from './logger.ts'
+
+/** 画布坐标（screenToFlowPosition 的输出 / addNode 的入参） */
+export interface FlowPosition {
+  x: number
+  y: number
+}
+
+/** 建节点：addNode(type, pos, data) → 返回节点 id */
+export type AddNodeFn = (type: string, pos: FlowPosition, data?: Record<string, unknown>) => string | undefined | null
+
+/** 屏幕坐标 → 画布坐标 */
+export type ScreenToFlowFn = (pos: FlowPosition) => FlowPosition
+
+/** 节点 data 写回（走 useNodeData 唯一入口） */
+export type PatchNodeDataFn = (id: string, patch: Record<string, unknown>) => void
+
+/** 粘贴节点组（mutiwindow-nodes）回调：onPasteNodeGroup(json, pos) */
+export type PasteNodeGroupFn = (json: string, pos: FlowPosition) => boolean | void
+
+export interface UseAssetDropPasteOptions {
+  addNode: AddNodeFn
+  screenToFlowPosition: ScreenToFlowFn
+  onPasteNodeGroup?: PasteNodeGroupFn
+  /** 不传则跳过网页图后台本地化（纯显示模式） */
+  patchNodeData?: PatchNodeDataFn
+}
+
+export interface AssetDropPasteApi {
+  onDragOver: (e: ReactDragEvent) => void
+  onDrop: (e: ReactDragEvent) => void
+  onPaste: (e: ReactClipboardEvent | ClipboardEvent) => void
+  /** 供右键菜单「上传」复用 */
+  createNodeFromFile: (file: File, pos: FlowPosition) => void
+}
 
 /**
  * ════════════════════════════════════════════════════════════════════════
@@ -60,13 +95,18 @@ import { logger } from './logger.ts'
  *                                         网页图后台本地化成功后替换 imageUrl 用；不传则跳过本地化）
  * @returns {{ onDragOver, onDrop, onPaste }} 挂到 ReactFlow 的事件 + 供 window paste 监听
  */
-export function useAssetDropPaste({ addNode, screenToFlowPosition, onPasteNodeGroup, patchNodeData }) {
+export function useAssetDropPaste({
+  addNode,
+  screenToFlowPosition,
+  onPasteNodeGroup,
+  patchNodeData,
+}: UseAssetDropPasteOptions): AssetDropPasteApi {
   // 记录最近一次鼠标位置（视口坐标）：粘贴时优先落在鼠标处，无鼠标则回退到视图中心。
   // paste 事件本身不带 clientX/Y，官方也是用「当前视口位置」建节点；这里用 mousemove 追踪
   // 更贴近用户预期（在哪儿右键/停留就在哪儿粘贴），对齐 H_.jsx 用视口坐标建节点的思路。
-  const lastMouse = useRef(null)
+  const lastMouse = useRef<FlowPosition | null>(null)
   useEffect(() => {
-    const track = (e) => {
+    const track = (e: MouseEvent) => {
       lastMouse.current = { x: e.clientX, y: e.clientY }
     }
     window.addEventListener('mousemove', track)
@@ -74,20 +114,20 @@ export function useAssetDropPaste({ addNode, screenToFlowPosition, onPasteNodeGr
   }, [])
 
   // 计算粘贴落点（flow 坐标）：最近鼠标位置优先，回退到视图中心。都经 screenToFlowPosition 换算。
-  const pastePos = useCallback(() => {
+  const pastePos = useCallback((): FlowPosition => {
     if (lastMouse.current) return screenToFlowPosition(lastMouse.current)
     return screenToFlowPosition({ x: window.innerWidth / 2, y: window.innerHeight / 2 })
   }, [screenToFlowPosition])
 
   // 拖入时阻止浏览器默认（打开文件），标记 copy
-  const onDragOver = useCallback((e) => {
+  const onDragOver = useCallback((e: ReactDragEvent) => {
     e.preventDefault()
     e.dataTransfer.dropEffect = 'copy'
   }, [])
 
   // 文件 → 建素材节点（图片/视频/音频→imageNode，文本→textNode）
   const createNodeFromFile = useCallback(
-    (file, pos) => {
+    (file: File, pos: FlowPosition) => {
       const type = detectFileType(file)
       // 文本：读文本 → textNode
       if (type === 'text') {
@@ -125,7 +165,7 @@ export function useAssetDropPaste({ addNode, screenToFlowPosition, onPasteNodeGr
   // 成功把节点 imageUrl 替换为本地 /files/ URL（发送/图生图/压缩/裁剪都能用）；失败保持原 URL，不打扰、日志留痕。
   // 不加 label：与 onPaste 的 html <img> 建图路径一致，节点 data 保持最简 { imageUrl }。
   const addImageNodeFromUrl = useCallback(
-    (pos, url) => {
+    (pos: FlowPosition, url: string) => {
       if (!url) return
       const id = addNode('imageNode', pos, { imageUrl: url })
       // 未注入 patchNodeData 则跳过本地化（纯显示模式）；非 http(s) 由 downloadRemoteToLocal 内部拦截（返回 null 不替换）
@@ -142,7 +182,7 @@ export function useAssetDropPaste({ addNode, screenToFlowPosition, onPasteNodeGr
 
   // 拖入
   const onDrop = useCallback(
-    (e) => {
+    (e: ReactDragEvent) => {
       e.preventDefault()
       const pos = screenToFlowPosition({ x: e.clientX, y: e.clientY })
 
@@ -150,7 +190,7 @@ export function useAssetDropPaste({ addNode, screenToFlowPosition, onPasteNodeGr
       const assetRaw = e.dataTransfer?.getData('application/x-yimao-asset')
       if (assetRaw) {
         try {
-          const asset = JSON.parse(assetRaw)
+          const asset = JSON.parse(assetRaw) as { url?: string; type?: string; text?: string; name?: string }
           if (asset?.url) {
             // 文字素材 → textNode（把 data:text 内容解码成文本）；图片/视频/音频 → imageNode
             if (asset.type === 'text') {
@@ -195,17 +235,17 @@ export function useAssetDropPaste({ addNode, screenToFlowPosition, onPasteNodeGr
 
   // 建 textNode（普通文本，经 sanitize 清洗；内部 mutiwindow-* JSON 用原始 text 解析，不在此清洗）
   const handleTextPaste = useCallback(
-    (rawText, pos) => {
+    (rawText: string, pos: FlowPosition) => {
       if (!rawText || !rawText.trim()) return
       try {
-        const parsed = JSON.parse(rawText)
+        const parsed = JSON.parse(rawText) as { type?: string; images?: unknown }
         if (parsed?.type === 'mutiwindow-nodes') {
           // 粘贴节点组（含连线），交由宿主（App）解析重建
           if (typeof onPasteNodeGroup === 'function') onPasteNodeGroup(rawText, pos)
           return
         }
         if (parsed?.type === 'mutiwindow-images' && Array.isArray(parsed.images)) {
-          const images = parsed.images
+          const images = parsed.images as string[]
           if (images.length === 0) return
           images.forEach((img, i) => {
             const col = i % 6
@@ -226,7 +266,7 @@ export function useAssetDropPaste({ addNode, screenToFlowPosition, onPasteNodeGr
   )
 
   // 从 text/html 里提取 <img src>（外部「复制图片」常是 text/html 带 <img>，而不是 image File）
-  const extractImgFromHtml = useCallback((html) => {
+  const extractImgFromHtml = useCallback((html: string): string => {
     if (!html) return ''
     // 用 DOMParser 解析（不依赖挂在 DOM 上），jsdom 可用；解析失败则正则兜底
     try {
@@ -239,13 +279,13 @@ export function useAssetDropPaste({ addNode, screenToFlowPosition, onPasteNodeGr
   }, [])
 
   // 把 ClipboardItem 的 Blob 包装成 File（createNodeFromFile 需要 name/type 判型）。name 从 mime 推。
-  const blobToPastedFile = useCallback((blob, mime) => {
+  const blobToPastedFile = useCallback((blob: Blob, mime: string): File => {
     const name = (mime.split('/')[1] || 'image').replace(/[^a-z0-9]/gi, '') || 'image'
     return new File([blob], name, { type: mime || blob.type || 'application/octet-stream' })
   }, [])
 
   // 读取 ClipboardItem 某类型的文本内容：getType 真浏览器返回 Blob、测试 mock 直接返回字符串，都兼容。
-  const readClipText = useCallback(async (item, type) => {
+  const readClipText = useCallback(async (item: ClipboardItem, type: string): Promise<string> => {
     const got = await item.getType(type)
     if (typeof got?.text === 'function') return got.text()
     return typeof got === 'string' ? got : String(got ?? '')
@@ -258,8 +298,8 @@ export function useAssetDropPaste({ addNode, screenToFlowPosition, onPasteNodeGr
   //  - input/textarea 内 return 走原生。
   //  - 极端兜底：同步数据完全为空时，再试 navigator.clipboard.read() 实时读（仅补充，不作为主路径）。
   const onPaste = useCallback(
-    (e) => {
-      const t = e?.target
+    (e: ReactClipboardEvent | ClipboardEvent) => {
+      const t = e?.target as (EventTarget & { isContentEditable?: boolean; closest?: (sel: string) => Element | null }) | null
       const isCE = !!(t && (t.isContentEditable || (t.closest && t.closest('[contenteditable="true"]'))))
       // 可编辑元素（contenteditable / input / textarea）内的粘贴默认走原生（在编辑区插入），
       // 不拦截、不建节点。但「节点组 / 图片组」JSON 是画布语义，必须放行到画布建节点，
@@ -270,15 +310,17 @@ export function useAssetDropPaste({ addNode, screenToFlowPosition, onPasteNodeGr
         if (!cd0 || typeof cd0.getData !== 'function') return ''
         try { return cd0.getData('text/plain') || '' } catch { return '' }
       }
-      const isCanvasGroupClip = (txt) => {
+      const isCanvasGroupClip = (txt: string): boolean => {
         if (!txt || !txt.trim()) return false
         try {
-          const p = JSON.parse(txt)
+          const p = JSON.parse(txt) as { type?: string }
           return p?.type === 'mutiwindow-nodes' || p?.type === 'mutiwindow-images'
         } catch { return false }
       }
       if (isCE) {
-        const ceItems = e.clipboardData?.items || []
+        // 【边界收窄】DataTransferItemList 无 some/every，但既有调用（含测试 mock）均按数组形态传入，
+        // 此处仅做类型收窄以取到数组方法，运行时行为不变。
+        const ceItems = (e.clipboardData?.items || []) as unknown as DataTransferItem[]
         const hasImageFile = ceItems.some((it) => it.kind === 'file' && it.type && it.type.startsWith('image/'))
         const onlyPlainText = !hasImageFile && ceItems.length > 0 && ceItems.every((it) => it.kind === 'string' && it.type === 'text/plain')
         // 纯文本（非节点组 JSON）→ 走原生；图片 / 节点组JSON → 放行到画布建节点
@@ -390,15 +432,18 @@ export function useAssetDropPaste({ addNode, screenToFlowPosition, onPasteNodeGr
  * 按「绝不可能贴样式的地方不加保险」原则不做拦截，交给 onPaste/浏览器原生。
  * @param {Function} onPaste
  */
-export function useGlobalPaste(onPaste) {
+/** window paste 的回调（与 onPaste 同签名） */
+export type GlobalPasteHandler = (e: ClipboardEvent) => void
+
+export function useGlobalPaste(onPaste: GlobalPasteHandler): void {
   // 用 ref 存最新 onPaste，监听只绑一次（空依赖）。目的：无论 onPaste 引用怎么变，
   // window 上的 paste 监听都稳定挂着，不因依赖变化反复重挂而「粘贴完全没反应」。
   // （React StrictMode 下也只会规范地 绑→解→绑 一次，不会因 onPaste 抖动丢失监听。）
-  const onPasteRef = useRef(onPaste)
+  const onPasteRef = useRef<GlobalPasteHandler>(onPaste)
   onPasteRef.current = onPaste
   useEffect(() => {
-    const handler = (e) => {
-      const t = e.target
+    const handler = (e: ClipboardEvent) => {
+      const t = e.target as (EventTarget & { isContentEditable?: boolean; closest?: (sel: string) => Element | null }) | null
       const isCE = t && (t.isContentEditable || (t.closest && t.closest('[contenteditable="true"]')))
       // contenteditable 内：纯文本/其他走浏览器原生（在可编辑区插入），不拦截；
       // 仅「图片」或「节点组/图片组 JSON」需放行到 onPaste 建节点（前者避免塞进富文本，

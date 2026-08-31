@@ -16,7 +16,7 @@ vi.mock('@xyflow/react', () => ({
   useReactFlow: () => ({ setNodes: mockSetNodes, setEdges: vi.fn(), getEdges: vi.fn(() => []), getNodes: mockGetNodes, addNodes: mockAddNodes }),
   useStore: vi.fn(() => () => {}),
 }))
-vi.mock('../../src/components/base/useNodeGeneration.js', () => ({
+vi.mock('../../src/components/base/useNodeGeneration.ts', () => ({
   useNodeGeneration: (config) => {
     genConfig = config
     return { loading: false, error: null, stop: vi.fn(), start: vi.fn() }
