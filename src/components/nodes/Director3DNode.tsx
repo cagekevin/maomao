@@ -20,10 +20,22 @@ import { useCanvasEdges } from '../base/CanvasEdgesContext.tsx'
  *  - 双击节点主体 → 全屏打开 3D 导演台
  *  - 退出时回写 directorProject + 截图（对齐 onCaptureToBox 送图片盒子）
  */
-function Director3DNode({ id, data, selected }) {
+interface Director3DNodeData {
+  label?: string
+  imageUrl?: string
+  images?: Array<{ url?: string; [key: string]: unknown }>
+  directorProject?: unknown
+  [key: string]: unknown
+}
+interface Director3DNodeProps {
+  id: string
+  data: Director3DNodeData
+  selected?: boolean
+}
+function Director3DNode({ id, data, selected }: Director3DNodeProps) {
   const { setNodes, getNodes, getNode, getEdges, setEdges } = useReactFlow()
   // 标题改名 → 写回 data.label，让下游 @名 匹配 / 素材条显示跟随
-  const rename = useCallback((name) => {
+  const rename = useCallback((name: string) => {
     setNodes((ns) => ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, label: name } } : n)))
   }, [id, setNodes])
   const history = useCanvasEdges()
@@ -44,8 +56,14 @@ function Director3DNode({ id, data, selected }) {
   // 截图输出到图片盒子（对齐全景图节点 / 官方 onCaptureToBox）。
   // 截图是 data: base64，直接塞进图片盒子 → 后端 KV 会外置成相对 /files/ 路径 → 刷新破图。
   // 这里先把每张截图落盘成「绝对」/files/ URL（saveInlineToLocal），刷新不破图且快照变小。
+  interface CaptureImage {
+    blob?: Blob
+    dataUrl?: string
+    url?: string
+    fileName?: string
+  }
   const onCaptureToBox = useCallback(
-    async (images) => {
+    async (images: CaptureImage[]) => {
       if (!images || images.length === 0) return
       const boxes = getEdges()
         .filter((e) => e.source === id)
@@ -82,7 +100,7 @@ function Director3DNode({ id, data, selected }) {
         const boxId = boxes[0]
         setNodes((ns) => ns.map((n) => {
           if (n.id !== boxId) return n
-          const existing = n.data?.images || []
+          const existing = (n.data?.images as Array<{ url?: string }> | undefined) || []
           const existingUrls = new Set(existing.map((x) => x.url))
           const fresh = newImages.filter((x) => !existingUrls.has(x.url))
           const merged = [...existing, ...fresh]
@@ -113,8 +131,12 @@ function Director3DNode({ id, data, selected }) {
   )
 
   // 视频回写到 ImageNode（图片视频素材节点）：落盘 /files/*.mp4 → 写 imageUrl + mediaType:'video'
+  interface CaptureVideo {
+    blob?: Blob
+    fileName?: string
+  }
   const onVideoToImageNode = useCallback(
-    async (videos) => {
+    async (videos: CaptureVideo[]) => {
       if (!videos || videos.length === 0) return
       // 落盘全部视频，取最后一个作为 ImageNode 展示（ImageNode 单媒体）
       let lastUrl = null
@@ -161,8 +183,15 @@ function Director3DNode({ id, data, selected }) {
 
   // 退出导演台：缩略图落盘 /files/ 写节点 imageUrl，彻底删除旧 directorProject；
   // 图片截图 → 图片盒子，视频 → ImageNode（有则写，无则新建并连线）
+  interface Director3DCapture {
+    type: 'image' | 'video'
+    blob?: Blob
+    dataUrl?: string
+    url?: string
+    fileName?: string
+  }
   const handleExit = useCallback(
-    async ({ thumbnailDataUrl, captures }) => {
+    async ({ thumbnailDataUrl, captures }: { thumbnailDataUrl?: string; captures?: Director3DCapture[] }) => {
       setOpen(false)
       // 缩略图 URL 化：blob:/data: 落盘成 /files/ 绝对 URL（刷新不破图）
       let persistedThumb = thumbnailDataUrl || null
@@ -180,7 +209,7 @@ function Director3DNode({ id, data, selected }) {
       // 写回节点：imageUrl 存缩略图，彻底移除旧 directorProject 字段
       setNodes((ns) => ns.map((n) => {
         if (n.id !== id) return n
-        const next = { ...n.data, imageUrl: persistedThumb || n.data.imageUrl || null }
+        const next = { ...n.data, imageUrl: persistedThumb || n.data.imageUrl || null } as Record<string, unknown>
         delete next.directorProject
         return { ...n, data: next }
       }))

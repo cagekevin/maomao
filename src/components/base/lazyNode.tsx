@@ -63,7 +63,7 @@ export function lazyNode(loader: () => Promise<{ default: React.ComponentType }>
  * 禁止写成 `import(`../nodes/${type}.jsx`)` —— 那会退化成运行时拼接，分析失效。
  */
 export const HEAVY_NODE_LOADERS = {
-  director3dNode: () => import('../nodes/Director3DNode.jsx'),
+  director3dNode: () => import('../nodes/Director3DNode.tsx'),
   panoramaNode: () => import('../nodes/PanoramaNode.jsx'),
   videoProcessNode: () => import('../nodes/VideoProcessNode.jsx'),
 }

@@ -8,9 +8,13 @@ import React, { createContext, useContext } from 'react'
  * 配合 base/deriveNodes.js 完成「建子节点+连线+record(显式快照)」原子操作。
  */
 
-/** 注入的画布历史句柄（含 record 等方法；具体形状见 useCanvasHistory 返回值）。 */
+/**
+ * 注入的画布历史句柄（含 record 等方法）。
+ * record 真实签名见 useCanvasHistory：record(snapshot?: CanvasSnapshot | null) => void
+ * （历史 .d.ts 误写成 (label: string, snapshot?) => void，导致节点用 record(snapshot) 编译不过，此处收口为真实形状）。
+ */
 type CanvasHistory = {
-  record: (label: string, snapshot?: unknown) => void
+  record: (snapshot?: unknown) => void
   [key: string]: unknown
 }
 
