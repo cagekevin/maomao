@@ -6,6 +6,8 @@
 > **本轮会话（第二段）新增成果**：A4 批 `src/components/scriptbox/` **3 个纯逻辑文件全部转完**（IO / Store / Workflows → .ts），`scriptBoxPromptResolver.ts` 的 `PlaybookLike` 已删除改用真实 `Playbook` 类型，并修复了库里存量断裂的 `DiscountVideoNode` 测试（根因是早前 HoverToolbar.jsx→.tsx 迁移时测试 mock 路径未同步）。详见第三节 commit 表。
 >
 > **本轮会话（第三段）新增成果**：**A 批（纯逻辑层）全部清零** —— A3 最后两个大件 `useAgentChat.js`(62K)→.ts、`useCanvasAgentTools.js`(84K)→.ts 全部转完（含 `vi.mock` 路径同步）。剩余 **0 个 .js、79 个 .jsx**，工作正式进入 B 批（组件层）单线推进。本轮还顺手修掉一个**存量 TDZ 崩溃**（`gens` 声明前使用）与两处跨层类型漂移，详见第三节 commit 表与 10.2。
+>
+> **本轮会话（第八段）新增成果**：`panels/` 首批 `PromptConfirmCard.jsx`→.tsx 转完（含 `PromptConfirmCardProps` / `PromptApplyResult` / `StatusIcon` 类型），并揭示一处**跨模块类型漂移**回到 `promptFlow.ts` 收口——`PromptItem.status` 由 `string` 收口为真实 `PromptStatus` 联合（连带修 `normalizePrompts` 局部收窄），`apply` 兼容 `PromptItem[] | PromptFlowResult` 两种返回形状（顺手修复 reopen/取消「不写回」的历史 bug）。详见第三节 commit 表与 §10.6。剩余 `.jsx` 累计 **31 个**（不含 director3d 豁免）。
 
 ---
 
@@ -85,6 +87,9 @@
 | `81a8ee6` | chore：移除误入仓库的 vitest 临时输出文件（排查期 `vresult*.txt` 被 `git add -A` 带进，已 `git rm`） |
 | `06d7885` | **A3 第 5 个**：`useAgentChat.js`(62K)→.ts。定义 `SendUserMessage`（send/runDirectBranch 两处 user 消息形状）、`runToolCalls` 的 `ToolCall[]`/`callIdFor` 定型；**收口两处跨层类型漂移**：`agentCore.ImageRef` 改为复用生产侧 `conversationImageMap.ImageMapEntry`（原 `source:'gen'\|'ref'` 与真实数据 `'gen'\|'att'` 不符）、`InputStatus` 补 `awaiting_confirm`（代码一直在置位，联合类型漏登记）；**修存量 TDZ 崩溃**：`gens` 在 `const` 声明前被 logger 读取（≥2 参考图 + 「分别改图」语义命中时必抛 ReferenceError），把该 logger 移到声明之后；同步 `contracts.js` 的 `agent_history_{agentKey}.store` |
 | `dbdb962` | **A3 收官**：`useCanvasAgentTools.js`(84K)→.ts → **A 批纯逻辑层 .js 清零**。`data`/`patch` 定 `Record<string, unknown>`（绕开 `defaultNodeData(type)` 的巨型联合类型与 `{}` 退化）；`runNodeGeneration` 返回值剥 `true` 分支再读 `ok/resultUrl`（跨代不统一，见 taskStore 注释）；手动同步 2 处 `vi.mock('.../useCanvasAgentTools.js')`（agentPersistRecovery / useAgentChat.hook）；`contracts.js` 的 `canvasAgentGenParams.store` + 5 处文档注释同步；**`scripts/test_agent_tools.cjs` 改用 `resolveSourceFile` 解析入口**（扩展名免疫，以后改名不再打断 test:tools） |
+| `7dee2c8` | **B 批**：`FullscreenEditor`(.tsx、base/ 层收尾 1/2) + `NodeShell` 下游 `CustomHandle` 前置收口铺垫；`PromptInputProps` 补 `richText?: boolean`（存量类型漂移修复） |
+| `52086b6` | **B 批**：`NodeShell`(.tsx、base/ 层收尾 2/2，16 引用) + 其下游 `CustomHandle`(.tsx、edges/ 首批，NodeShell 引用)；同步 11 处测试 `vi.mock` 路径 `.jsx`→`.tsx`。**base/ 层清零** |
+| `d862906` | **B 批**：`PromptConfirmCard`(.tsx、panels/ 首批) + 跨模块收口 `promptFlow.ts` 的 `PromptItem.status` 由 `string`→`PromptStatus`；`apply` 兼容 `PromptItem[] | PromptFlowResult`（兼修 reopen/取消不写回历史 bug）；同步 `AgentMessage.test.jsx` 的 `vi.mock` 后缀 |
 
 ## 三·补：横切收口成果（本次新增）
 
@@ -182,16 +187,18 @@ node scripts/ts-migrate.mjs move <file> <targetDir> [--dry]
 
 **A4. `src/components/scriptbox/` 3 个纯逻辑文件** —— ✅ **已全部清零（第二轮会话完成）**：`scriptBoxPlaybookIO.ts` / `scriptBoxPlaybookStore.ts` / `scriptBoxWorkflows.ts`。`scriptBoxPromptResolver.ts` 已删除 `PlaybookLike` 改用真实 `Playbook` 类型。
 
-### B. 剩余组件 .jsx → .tsx + Props 接口（**79 个，不含 director3d 豁免**；A 批清零后已是唯一主线）
-- **✅ 已完成（11 个，base/ 入口层）**：ArrangeConfirm / EmptyCanvasGuide / ToastContainer / ToolbarButton / HoverToolbar / FullscreenModal / ContextMenu / Select / ProjectSelector / CanvasToolbar / TopNav
-- **base/ UI 组件**（~40）：NodeShell、PromptInput、AssetLibrary、GeneratedView、TaskCenter、settings/sections/*…（未开始）
-- **nodes/**（17 个节点）→ .tsx + Props（未开始）
-- **panels/**、**edges/**、**scriptbox/ 组件**（StepShots/StepPrompt/…）（未开始）
+### B. 剩余组件 .jsx → .tsx + Props 接口（A 批清零后已是唯一主线）
+- **✅ 已完成（base/ 入口层 11 个）**：ArrangeConfirm / EmptyCanvasGuide / ToastContainer / ToolbarButton / HoverToolbar / FullscreenModal / ContextMenu / Select / ProjectSelector / CanvasToolbar / TopNav
+- **✅ base/ UI 组件（全清零）**：NodeShell、PromptInput、AssetLibrary、GeneratedView、TaskCenter、settings/sections/*（9 个）、LeftPanel、PromptHub、PromptLibrary、PanoViewer、LocalToolConnectModal、ErrorBoundary、ModelSelect、GenerateButton、ResizeFullscreenHandle、ExpandablePanel、CanvasEdgesContext、NodePalette、FullscreenEditor（含 5·3/5·4 段、6·5/6·6 段清单）
+- **✅ edges/（4/4 已转）**：CustomHandle、Comet、CustomEdge、ConnectionLine（均补 Props，`@xyflow/react` 的 `EdgeProps`/`ConnectionLineComponentProps`/`Position` 用字符串+`as` 断言，见 §10.5）
+- **🔶 panels/（1/4 已转）**：PromptConfirmCard 已转（§10.6）；剩余 AgentConfirmCard / AgentMessage / AgentPanel
+- **⏳ 未开始**：`scriptbox/`（9 个组件：GearSettings / ScriptBoxAssetPicker / ScriptBoxFullscreen / ScriptBoxModal / StepAssets / StepNav / StepPrompt / StepShots / scriptBoxPlaybookManager）、`nodes/`（17 个：含 Director3DNode 非豁免需转）、`src/main.jsx` / `src/App.jsx`（最后转）
+- **当前剩余 `.jsx` 计数：31 个**（不含 director3d 豁免目录；`find src -name '*.jsx' -not -path '*/director3d/*'` 实测）
 - 收尾：**全部 .jsx 清零后**把「禁止保留 jsx」红线落实；删掉 check-jsx 对 .jsx 的残留逻辑（若只剩 director3d 则保留）
 - `src/main.jsx`、`src/App.jsx` 最后转
 - 建议：先跑 `node scripts/ts-migrate.mjs plan` 看引用量，从**叶子组件**（被引用少）往上转，避免大范围级联改类型
-- **`plan src/components/base` 实测叶子清单**（本轮跑出，照此顺序推进）：1 引用 9 个 —— AssetLibrary / FaceMosaicEditor / GeneratedView / LeftPanel / LocalToolConnectModal / OverlayEditor / PanoViewer / PromptHub / PromptLibrary + settings/sections 全部 9 个；2 引用 —— CometParticles / ImageEditor / InlineImageCropper / NodeTitle / TaskCenter；3 引用 —— JianyingIcon / lazyNode / NodePalette / PromptLibraryButton / useImageHoverActions / VideoThumbnail。
-  ⚠️ **`NodePalette.jsx` 被判定为 → `.ts`**（疑似无 JSX、只是 `defaultNodeData` 等数据导出）。转前先确认它到底含不含组件，必要时 `convert --to tsx` 强制。
+- **`plan src/components/base` 实测叶子清单**（早期跑出，base/ 已清零，仅作参考）：1 引用 9 个 —— AssetLibrary / FaceMosaicEditor / GeneratedView / LeftPanel / LocalToolConnectModal / OverlayEditor / PanoViewer / PromptHub / PromptLabel + settings/sections 全部 9 个；2 引用 —— CometParticles / ImageEditor / InlineImageCropper / NodeTitle / TaskCenter；3 引用 —— JianyingIcon / lazyNode / NodePalette / PromptLibraryButton / useImageHoverActions / VideoThumbnail。
+  ⚠️ **`NodePalette.jsx` 被判定为 → `.ts`**（疑似无 JSX、只是 `defaultNodeData` 等数据导出），已用 `convert --to ts` 转完，实际为纯数据模块。
 - **已建立 B 批稳定配方**：`convert` → 读调用方确认 Props 真实形状 → 补 Props 接口（就近定义）+ 消除内部 any → type-check → smoke/regression/tools 门禁 → 提交。每批 1-2 个组件，保证可回退。
 
 ### C. 收尾验证（全部完成后）
@@ -340,3 +347,16 @@ npm run test:tools           # agent 工具
    - 已转（本段新增）：`FullscreenEditor`(.tsx、base/ 层收尾 1/2)、`NodeShell`(.tsx、base/ 层收尾 2/2，16 引用)、`CustomHandle`(.tsx、edges/ 首批，NodeShell 下游)。全部 Props 接口 + 验证全绿（type-check / 五门禁 / smoke / regression / 144 节点测试全 PASS）。
    - 提交：`7dee2c8`（FullscreenEditor + Props + PromptInput 补字段）、`52086b6`（NodeShell + CustomHandle + 11 测试 vi.mock 同步）。
    - **`base/` 层已清零**（全部 .tsx）。剩余 `.jsx`（不含 director3d 豁免）：`edges/`（Comet / ConnectionLine / CustomEdge，3 个，CustomHandle 已转）、`panels/`（4）、`scriptbox/`（9）、`nodes/`（17）、`src/main.jsx` / `src/App.jsx`（最后转）。
+
+### 10.6 本轮（第七段会话）新增踩坑 / 经验（必读）
+
+> 时间段：承接第六段，收尾 `panels/` 第一批 `PromptConfirmCard`，并揭示一处「跨模块类型漂移」需回到 `promptFlow.ts` 一并收口。
+
+1. **`PromptItem.status` 是 `string` 而非 `PromptStatus`，导致状态机组件 type-check 报错（跨模块类型漂移）**：`PromptConfirmCard.tsx` 的 `StatusIcon({ status }: { status: PromptStatus })` 接收 `p.status`，但 `promptFlow.ts` 导出的 `PromptItem.status` 标注为 `string` → TS2322。根因：`PromptItem` 是**已 export 的共享类型**，其 `status` 字段在 `.js` 期被宽松写成 `string`，而真实赋值全部来自 `PROMPT_STATUS`（即 `PromptStatus` 联合）。**修法**：把 `promptFlow.ts` 的 `PromptItem.status` 由 `string` 收口为 `PromptStatus`（真实类型，零行为变化）；同步把 `normalizePrompts` 内部局部变量 `normalized.status` 收窄为 `PromptStatus`、输入 `p.status` 用 `(p.status as PromptStatus) || PROMPT_STATUS.PENDING` 断言（来源是 `RawPrompt.status?: string`）。这比「把 `StatusIcon` 放宽成 `string`」更正——属于类型收口而非打补丁，符合 §五「复用而非重定义」。
+2. **同一文件的 `apply` 接收「两种不同返回形状」的 promptFlow 函数（历史设计，转 TS 才暴露）**：`confirmPrompt`/`savePromptEdit`/`confirmAllPrompts` 返回 `PromptFlowResult`（含 `prompts/done/generations`），而 `reopenPrompt`/`cancelPromptEdit`/`editPrompt` 直接返回 `PromptItem[]`。原 JS 代码统一 `apply(fn(...))`，对返回数组的函数 `res.prompts` 是 `undefined` → `onUpdatePrompts(undefined)` 实际不写回（**历史 bug**：reopen/取消点击后当前数组没回写消息）。转 TS 后 `apply(reopenPrompt(prompts, i))` 报 TS2559（`PromptItem[]` 与 `PromptApplyResult` 无共有属性）。**修法（兼修历史 bug）**：`apply` 的形参改为 `PromptApplyResult | PromptItem[] | null`，内部 `const nextPrompts = Array.isArray(res) ? res : res.prompts` 统一提取，done/generations 分支用 `!Array.isArray(res)` 保护。这样数组型函数也能正确写回（reopen/取消从「不写回」变为「写回」——**这是修复、零回归风险**；已确认 `tests/unit/AgentMessage.test.jsx` 把 `PromptConfirmCard` 当 Passthrough、`agentMessages.test.js` 无 apply 写回断言，无测试依赖旧的不写回行为）。
+3. **`vi.mock` 盲区再命中（铁律不变）**：`PromptConfirmCard` 有 1 处 `tests/unit/AgentMessage.test.jsx:24` 的 `vi.mock('.../PromptConfirmCard.jsx')` 字符串未同步 → 转后必须改 `.tsx`。convert 只改了 `AgentMessage.jsx:4` 的 `import ... from` 说明符。转完用 `refs <file>` 确认字符串残留清零。
+4. **本段 B 批进度（截至本次更新）**：
+   - 已转（本段新增）：`PromptConfirmCard`(.tsx、panels/ 首批，4 个 panels 中第 1 个)。补 `PromptConfirmCardProps` / `PromptApplyResult` / `StatusIcon`；`apply` 兼容 `PromptItem[] | PromptFlowResult`。
+   - 顺手收口：`promptFlow.ts` 的 `PromptItem.status` 由 `string` → `PromptStatus`（跨模块真实类型，连带修 `normalizePrompts` 局部收窄）。
+   - 提交：`d862906`（PromptConfirmCard→.tsx + promptFlow 收口 + AgentMessage.test 的 vi.mock 同步）。
+   - 剩余 `.jsx`（不含 director3d 豁免）：`panels/`（AgentConfirmCard / AgentMessage / AgentPanel，3 个）、`edges/`（Comet / ConnectionLine / CustomEdge，3 个，CustomHandle 已转）、`scriptbox/`（9 个）、`nodes/`（17 个，含 Director3DNode 非豁免需转）、`src/main.jsx` / `src/App.jsx`（最后转）。
