@@ -33,7 +33,7 @@ vi.mock('../../src/components/base/logger.ts', () => ({
 // 会话键已迁 KV（backend:'kv'）：落盘写 kvSet、读取走 kvGet。用 Map 兜底让 KV 确定性往返
 // （send 的 LLM 聊天走上面 stub 的全局 fetch；KV 走本 mock，互不干扰）。断言以 kvStore 为准。
 const kvStore = new Map()
-vi.mock('../../src/components/base/localToolApi.ts', async (importOriginal) => ({
+vi.mock('../../src/components/base/api/localToolApi.ts', async (importOriginal) => ({
   ...(await importOriginal()),
   kvGet: vi.fn(async (key) => (kvStore.has(key) ? kvStore.get(key) : null)),
   kvSet: vi.fn(async (key, value) => { kvStore.set(key, value); return { ok: true } }),

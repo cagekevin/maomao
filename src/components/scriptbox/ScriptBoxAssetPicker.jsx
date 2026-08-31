@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { Loader2, Image as ImageIcon } from 'lucide-react'
-import { fetchResources, rescanResources } from '../base/localToolApi.ts'
+import { fetchResources, rescanResources } from '../base/api'
 import { toAbsoluteFileUrl } from '../base/imageUrl.ts'
 import { useLocalToolStatus } from '../../hooks/useLocalToolStatus.ts'
 import { logger } from '../base/logger.ts'

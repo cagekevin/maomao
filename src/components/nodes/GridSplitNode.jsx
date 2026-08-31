@@ -8,7 +8,7 @@ import { useConnectedInputs } from '../../hooks/useConnectedInputs.ts'
 import { useMediaDegrade } from '../../hooks/useMediaDegrade.ts'
 import { useContentHeightSync } from '../base/hooks.ts'
 import { showToast, toastWarning } from '../base/toastStore.ts' // 保留阻断校验提示
-import { toAbsoluteFileUrl } from '../base/filesApi.ts'
+import { toAbsoluteFileUrl } from '../base/api'
 import { useRenderImageResolver } from '../base/imageUrl.ts'
 import { loadImageWithTimeout } from '../base/asyncGuard.ts'
 import { logger } from '../base/logger.ts'

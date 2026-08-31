@@ -10,7 +10,7 @@
 import { useSyncExternalStore } from 'react'
 import type { RawModel } from '../providerModels.ts'
 import { useStoreSelector } from '../../../hooks/useStoreSelector.ts'
-import { providerApi } from '../localToolApi.ts'
+import { providerApi } from '../api/localToolApi.ts'
 import { contentSetAsync } from '../contentStore.ts'
 import { generateId } from '../idGen.ts'
 import { logger } from '../logger.ts'

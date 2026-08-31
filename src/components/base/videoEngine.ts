@@ -29,7 +29,7 @@ import {
 } from 'mediabunny'
 import { GIFEncoder, quantize, applyPalette } from 'gifenc'
 import { logger } from './logger.ts'
-import { uploadFileToLocal } from './filesApi.ts'
+import { uploadFileToLocal } from './api/filesApi.ts'
 import { UPLOAD_DIRS } from './uploadDirs.ts'
 import { safeFileName } from './utils.ts'
 

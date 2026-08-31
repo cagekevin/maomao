@@ -7,7 +7,7 @@ import {
   releaseNodeRun,
 } from '../components/base/taskStore.ts'
 import type { TaskController, NodeRunClaim } from '../components/base/taskStore.ts'
-import { saveResultToTasks } from '../components/base/filesApi.ts'
+import { saveResultToTasks } from '../components/base/api'
 import { logger } from '../components/base/logger.ts'
 import { subscribe } from '../components/base/eventBus.ts'
 import { showToast } from '../components/base/toastStore.ts'

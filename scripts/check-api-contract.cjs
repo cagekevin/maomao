@@ -41,8 +41,8 @@ const VALID_ENVELOPES = new Set([...EXEMPT, 'ok', 'code-data', 'items', 'success
 // ── R5：前端 fn 存在性校验（防幽灵 ACTIVE）──
 // 只校验「形如 模块.符号 或 模块.对象.方法」（无空格/括号/+）的 fn，其余占位/描述一律豁免（保守，避免误伤）。
 const MODULE_FILES = {
-  localToolApi: 'src/components/base/localToolApi.ts',
-  filesApi: 'src/components/base/filesApi.ts',
+  localToolApi: 'src/components/base/api/localToolApi.ts',
+  filesApi: 'src/components/base/api/filesApi.ts',
   pollTask: 'src/components/base/api/pollTask.ts',
   proxyGenerate: 'src/components/base/api/proxyGenerate.ts',
   agentRuntime: 'src/components/agent/runtime/agentRuntime.js',

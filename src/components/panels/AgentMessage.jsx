@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
-import { toAbsoluteFileUrl } from '../base/filesApi.ts'
+import { toAbsoluteFileUrl } from '../base/api'
 import LazyImage from '../base/LazyImage.tsx'
 import PromptConfirmCard from './PromptConfirmCard.jsx'
 import AgentConfirmCard from './AgentConfirmCard.jsx'

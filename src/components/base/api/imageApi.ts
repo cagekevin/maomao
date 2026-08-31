@@ -16,11 +16,11 @@
  * 的语义与 httpClient 的「非 2xx 抛 HttpError + 自动重试」冲突；httpClient 自动重试会破坏流式/轮询节奏。
  * 故保持独立 proxyGenerate 链路，并在模块内部自行处理 AbortSignal。禁止把它迁移到 httpClient.js。
  */
-import { normalizeImageUrlsForSend } from './imageUrl.ts'
-import { imageProxy } from './api/proxyGenerate.ts'
-import { logger } from './logger.ts'
+import { normalizeImageUrlsForSend } from '../imageUrl.ts'
+import { imageProxy } from './proxyGenerate.ts'
+import { logger } from '../logger.ts'
 // 请求形态层：responses 形态按 input[] + tools 构造请求体（PRD 翻车点 1，消灭死字段）
-import { buildResponsesImageBody, isResponsesMode } from './requestModes.ts'
+import { buildResponsesImageBody, isResponsesMode } from '../requestModes.ts'
 import type { GenerationProvider, GenerationResult } from '@/types'
 
 /** 比例 × 清晰度档位 → 精确像素 查表（复刻官方 H_.jsx oe 表）。 */

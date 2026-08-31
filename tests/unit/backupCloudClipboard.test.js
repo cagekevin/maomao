@@ -27,7 +27,7 @@ vi.mock('../../src/components/base/projectStore.ts', () => ({
 }))
 
 // ── cloudSync / backupStore 依赖：providerApi / projectsApi / KV 读写（隔离网络）──
-vi.mock('../../src/components/base/localToolApi.ts', () => ({
+vi.mock('../../src/components/base/api/localToolApi.ts', () => ({
   providerApi: {
     getProviders: vi.fn(async () => ({ providers: [] })),
     saveProviders: vi.fn(async () => ({ ok: true })),

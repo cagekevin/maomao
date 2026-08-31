@@ -16,9 +16,9 @@
  * 路由路径以 contracts.js apiRegistry 登记为准（/api/kv/get|set|delete，非 docs 方案里的 /api/kv）。
  */
 
-import { kvGet, kvSet } from './localToolApi.ts'
+import { kvGet, kvSet } from './api/localToolApi.ts'
 import { withTimeout } from './asyncGuard.ts'
-import { saveInlineToLocal } from './filesApi.ts'
+import { saveInlineToLocal } from './api/filesApi.ts'
 import { UPLOAD_DIRS } from './uploadDirs.ts'
 import { logger } from './logger.ts'
 import { showToast } from './toastStore.ts'
