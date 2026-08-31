@@ -1,4 +1,5 @@
 import React from 'react'
+import type { Node, Edge } from '@xyflow/react'
 
 /**
  * 整理后「是否保留此次整理结果？」确认弹窗（复刻 H_.jsx:11993-12012）。
@@ -23,7 +24,16 @@ import React from 'react'
  * @param {Function} props.onRevert     还原按钮回调（调用方写回快照 + fitView + 关闭）
  * @param {Function} props.onKeep       保留按钮回调（调用方关闭弹窗）
  */
-export default function ArrangeConfirm({ snapshot, onRevert, onKeep }) {
+export interface ArrangeConfirmProps {
+  /** 排列前快照 { nodes, edges }；null 时不渲染 */
+  snapshot: { nodes: Node[]; edges: Edge[] } | null
+  /** 还原按钮回调（调用方写回快照 + fitView + 关闭） */
+  onRevert: () => void
+  /** 保留按钮回调（调用方关闭弹窗） */
+  onKeep: () => void
+}
+
+export default function ArrangeConfirm({ snapshot, onRevert, onKeep }: ArrangeConfirmProps) {
   if (!snapshot) return null
 
   return (

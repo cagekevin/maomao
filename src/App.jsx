@@ -12,7 +12,7 @@ import {
 } from '@xyflow/react'
 import { Type, Image as ImageIcon, Clapperboard, Trash2, Copy, Zap, RefreshCw, Folder, FolderOpen, Pin, PinOff, Upload } from 'lucide-react'
 import CanvasToolbar from './components/base/CanvasToolbar.jsx'
-import ArrangeConfirm from './components/base/ArrangeConfirm.jsx'
+import ArrangeConfirm from './components/base/ArrangeConfirm.tsx'
 import { useArrangeCanvas } from './hooks/useArrangeCanvas.ts'
 import { useAssetDropPaste, useGlobalPaste } from './hooks/useAssetDropPaste.ts'
 import { copyImageToClipboard, downloadBlob } from './components/base/clipboard.ts'
