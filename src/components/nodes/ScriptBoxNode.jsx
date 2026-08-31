@@ -11,7 +11,7 @@ import StepShots from '../scriptbox/StepShots.tsx'
 import StepAssets from '../scriptbox/StepAssets.tsx'
 import StepPrompt from '../scriptbox/StepPrompt.tsx'
 import StepNav from '../scriptbox/StepNav.tsx'
-import ScriptBoxFullscreen from '../scriptbox/ScriptBoxFullscreen.jsx'
+import ScriptBoxFullscreen from '../scriptbox/ScriptBoxFullscreen.tsx'
 import GearSettings from '../scriptbox/GearSettings.jsx'
 
 /**

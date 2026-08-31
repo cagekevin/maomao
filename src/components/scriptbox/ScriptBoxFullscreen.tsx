@@ -7,6 +7,16 @@ import StepAssets from './StepAssets.tsx'
 import StepPrompt from './StepPrompt.tsx'
 import GearSettings from './GearSettings.jsx'
 import { toastInfo } from '../base/toastStore.ts'
+import type { ScriptBoxData, ScriptBoxUpdateData, ScriptBoxCallbacks } from './scriptBoxSchema.ts'
+
+interface ScriptBoxFullscreenProps {
+  open: boolean
+  title?: string
+  data?: ScriptBoxData
+  updateData: ScriptBoxUpdateData
+  callbacks: ScriptBoxCallbacks
+  onClose: () => void
+}
 
 /**
  * 剧本盒子 —— 全屏工作台视图（自包含，替代通用 base/FullscreenModal 的浮窗卡片）。
@@ -27,12 +37,12 @@ import { toastInfo } from '../base/toastStore.ts'
  *  - callbacks   引擎回调（node.data.onXxx 生成/连线）
  *  - onClose     关闭回调（Esc / 关闭按钮）
  */
-export default function ScriptBoxFullscreen({ open, title = '剧本盒子', data, updateData, callbacks, onClose }) {
-  const d = data || {}
+export default function ScriptBoxFullscreen({ open, title = '剧本盒子', data, updateData, callbacks, onClose }: ScriptBoxFullscreenProps) {
+  const d = (data ?? ({} as ScriptBoxData))
   const step = d.step || 1
-  const setStep = (n) => updateData({ step: n })
+  const setStep = (n: number) => updateData({ step: n })
   // 三步组件契约统一为 ({ data, updateData, callbacks })，窗口/全屏完全复用
-  const stepProps = { data: d, updateData, callbacks }
+  const stepProps: { data: ScriptBoxData; updateData: ScriptBoxUpdateData; callbacks: ScriptBoxCallbacks } = { data: d, updateData, callbacks }
   // 全屏内的总体设置弹窗（与窗口模式共用 GearSettings）
   const [settingsOpen, setSettingsOpen] = useState(false)
 
@@ -74,7 +84,7 @@ export default function ScriptBoxFullscreen({ open, title = '剧本盒子', data
         {genMask && (
           <span className="flex items-center gap-1.5 text-caption-sm text-secondary bg-surface-subtle px-2.5 py-1 rounded-full">
             <Loader2 size={11} className="animate-spin text-emerald-400" />
-            生成中 {d.genChars || 0} 字 · {genSecs}s
+            生成中 {String(d.genChars || 0)} 字 · {genSecs}s
           </span>
         )}
         <div className="flex-1" />
