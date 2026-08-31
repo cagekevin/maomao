@@ -29,19 +29,27 @@ const POLL_DISCONNECTED_MS = 5000 // 未连接：5s 轮询一次（官方 Ul）
  * 单例共享状态：多个组件调用 useLocalToolStatus() 时复用同一份轮询，
  * 避免每个实例各自 setInterval 导致请求翻倍。
  */
-let sharedStatus = { isConnected: false, port: DEFAULT_PORT, version: '', message: '' }
-const listeners = new Set()
-let pollTimer = null
+/** localTool 连接状态快照（多组件共享同一份） */
+export interface LocalToolStatus {
+  isConnected: boolean
+  port: number
+  version: string
+  message: string
+}
+
+let sharedStatus: LocalToolStatus = { isConnected: false, port: DEFAULT_PORT, version: '', message: '' }
+const listeners = new Set<() => void>()
+let pollTimer: ReturnType<typeof setInterval> | null = null
 // 当前生效的轮询间隔（0 = 未启动）。兼作「是否已在跑」的判据，
 // 替代原先的 pollRunning 布尔标志（标志需靠别处记得复位，漏复位会让轮询永久停摆，见 ensurePoll 注释）。
 let pollIntervalMs = 0
 const disableLocalTool = false // 原型无该开关，恒 false
 
-function emit() {
+function emit(): void {
   for (const l of listeners) l()
 }
 
-async function runCheck() {
+async function runCheck(): Promise<void> {
   if (disableLocalTool) {
     if (sharedStatus.isConnected) {
       sharedStatus = { ...sharedStatus, isConnected: false }
@@ -96,7 +104,7 @@ async function runCheck() {
  * 断线检测就永久失效（界面永远显示「已连接」）。改用「目标间隔值比对」做判据，无需手动复位，
  * 结构性避免了这类漏复位 bug。副作用：顺带消除首次挂载重复 ping（原实现共发 3 次 /api/status）。
  */
-function ensurePoll() {
+function ensurePoll(): void {
   if (disableLocalTool) return
   const interval = sharedStatus.isConnected ? POLL_CONNECTED_MS : POLL_DISCONNECTED_MS
   if (pollTimer && pollIntervalMs === interval) return
@@ -107,8 +115,8 @@ function ensurePoll() {
   pollTimer = setInterval(runCheck, interval)
 }
 
-export function useLocalToolStatus() {
-  const subscribe = useCallback((cb) => {
+export function useLocalToolStatus(): { status: LocalToolStatus; checkConnection: () => Promise<void> } {
+  const subscribe = useCallback((cb: () => void) => {
     listeners.add(cb)
     // 首个订阅者启动轮询（ensurePoll 幂等，内部已含首次 runCheck，此处不再单独 ping）
     if (listeners.size === 1) ensurePoll()

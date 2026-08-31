@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react'
 import { FolderOpen, Image as ImageIcon, Play, FileText, Music, FolderPlus, ChevronLeft, MoreVertical, Pencil, Trash2 } from 'lucide-react'
-import { useLocalToolStatus } from './useLocalToolStatus.js'
+import { useLocalToolStatus } from './useLocalToolStatus.ts'
 import { fetchResources, rescanResources, deleteResource, renameResource, openLocalFolder, openFileDir, relativePathFromUrl, createFolder as createFolderApi } from './localToolApi.ts'
 import { showToast } from './toastStore.ts'
 import { publish } from './eventBus.ts'

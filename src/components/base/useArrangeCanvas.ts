@@ -1,5 +1,23 @@
 import { useCallback } from 'react'
 import dagre from 'dagre'
+import type { Edge, Node } from '@xyflow/react'
+
+/** 一次排版的结果：新布局的 nodes + 原样透传的 edges */
+export interface ArrangeResult {
+  nodes: Node[]
+  edges: Edge[]
+}
+
+export interface ArrangeOptions {
+  /** 当前节点快照（含 measured/style/position/data/parentId） */
+  nodes: Node[]
+  /** 当前边快照 */
+  edges: Edge[]
+  /** 写回回调，入参 { nodes, edges }（调用方 setNodes） */
+  onArrange?: (result: ArrangeResult) => void
+  /** 写回后回调（如 fitView） */
+  onComplete?: () => void
+}
 
 /**
  * 自动排版（复刻 H_.jsx:10985 `Ui` 整理画布 / Ctrl+L）。
@@ -28,7 +46,7 @@ import dagre from 'dagre'
  *
  * @returns {arrange: Function} 传入当前节点/边快照与可选回调，执行 dagre 布局并写回。
  */
-export function useArrangeCanvas() {
+export function useArrangeCanvas(): { arrange: (opts?: Partial<ArrangeOptions>) => ArrangeResult } {
   /**
    * @param {Object} opts
    * @param {Array} opts.nodes           当前节点快照（含 measured/style/position/data/parentId）
@@ -37,7 +55,7 @@ export function useArrangeCanvas() {
    * @param {Function} [opts.onComplete] 写回后回调（如 fitView）
    * @returns {Object} 返回 { nodes, edges } 以便调用方入历史栈 / 显示确认弹窗
    */
-  const arrange = useCallback(({ nodes, edges, onArrange, onComplete } = {}) => {
+  const arrange = useCallback(({ nodes, edges, onArrange, onComplete }: Partial<ArrangeOptions> = {}): ArrangeResult => {
     // 空画布直接跳过布局，仍调 onComplete（让 fitView 等收尾回调能跑）
     if (!nodes || !Array.isArray(nodes) || nodes.length === 0) {
       onComplete?.()

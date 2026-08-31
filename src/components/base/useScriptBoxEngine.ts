@@ -7,6 +7,14 @@ import { useProvidersList, load as loadProviders } from './settings/providerStor
 import { logger } from './logger.ts'
 
 /**
+ * 节点 data 写回通道。
+ * 支持对象 patch（直接合并）与函数式 patch `(latestData) => patch`（并发安全合并）。
+ */
+export type ScriptBoxUpdateData = (
+  patch: Record<string, unknown> | ((latest: Record<string, unknown>) => Record<string, unknown>)
+) => void
+
+/**
  * 剧本盒子 —— 引擎回调注入 hook（对应官方 H_.jsx 的注入机制 A/B）。
  *
  * 职责铁律（docs/剧本盒子/剧本盒子职责划分.md）：
@@ -26,7 +34,7 @@ import { logger } from './logger.ts'
  * @param nodeId  剧本盒子节点 id
  * @param data    节点当前 data（仅兜底；引擎主要经 getNodes 实时读最新 data）
  */
-export function useScriptBoxEngine(nodeId, data) {
+export function useScriptBoxEngine(nodeId: string, data?: Record<string, unknown>): { updateData: ScriptBoxUpdateData } {
   const { getNodes, getNode, setNodes, setEdges, addNodes, screenToFlowPosition } = useReactFlow()
 
   // 供应商（多 provider，接真系统）：引擎经 getProviderState 实时读 providers + 主供应商，
@@ -49,7 +57,7 @@ export function useScriptBoxEngine(nodeId, data) {
   // 书写回通道（统一收口，ScriptBoxNode / Step 组件共用）：
   // 支持对象 patch 与函数式 patch `(latestData)=>patch`（并发安全合并，避免读到旧引用导致状态互相覆盖）。
   // 用 useCallback 保证跨 render 稳定（ScriptBoxNode 是 React.memo，稳定引用可减少无谓重渲染）。
-  const updateData = useCallback(
+  const updateData = useCallback<ScriptBoxUpdateData>(
     (patch) =>
       setNodes((ns) => ns.map((n) => {
         if (n.id !== nodeId) return n

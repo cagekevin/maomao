@@ -11,7 +11,7 @@ import { renderHook } from '@testing-library/react'
 
 const GROUP_PAD = 40 // 与 useArrangeCanvas.js 中 group 外接矩形留白保持一致
 
-const { useArrangeCanvas } = await import('../../src/components/base/useArrangeCanvas.js')
+const { useArrangeCanvas } = await import('../../src/components/base/useArrangeCanvas.ts')
 
 describe('useArrangeCanvas', () => {
   it('空画布 → 原样返回 + 调用 onComplete', () => {

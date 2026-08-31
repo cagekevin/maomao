@@ -43,7 +43,7 @@ const loadProviders = vi.fn(() => Promise.resolve())
 const useProvidersList = vi.fn(() => [{ id: 'p1', isPrimary: true }])
 vi.mock('../../src/components/base/settings/providerStore.js', () => ({ useProvidersList: (...a) => useProvidersList(...a), load: (...a) => loadProviders(...a) }))
 
-const { useScriptBoxEngine } = await import('../../src/components/base/useScriptBoxEngine.js')
+const { useScriptBoxEngine } = await import('../../src/components/base/useScriptBoxEngine.ts')
 
 beforeEach(() => {
   setNodes.mockClear()
