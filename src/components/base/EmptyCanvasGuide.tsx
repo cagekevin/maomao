@@ -19,7 +19,12 @@ import { FileText, Image as ImageIcon, Clapperboard } from 'lucide-react'
  * @param {object} props
  *  - onAdd: (type) => void  新建节点回调（App 传 addNode，落点在画布中央）
  */
-export default function EmptyCanvasGuide({ onAdd }) {
+export interface EmptyCanvasGuideProps {
+  /** 新建节点回调（App 传 addNode，落点在画布中央），type 为三种生成入口的节点类型 */
+  onAdd: (type: 'textNode' | 'promptNode' | 'discountVideoNode') => void
+}
+
+export default function EmptyCanvasGuide({ onAdd }: EmptyCanvasGuideProps) {
   return (
     <div className="absolute inset-0 z-10 flex flex-col items-center justify-center pointer-events-none">
       <div className="flex flex-col items-center pointer-events-auto transform -translate-y-10">

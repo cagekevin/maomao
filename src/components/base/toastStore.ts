@@ -17,9 +17,9 @@
 
 // 单条 toast 结构：{ id, message, type, duration }
 /** toast 状态档（对应状态色模板 doc39 §3.2：success绿 / error红 / warning黄 / info蓝） */
-type ToastType = 'success' | 'error' | 'warning' | 'info'
-/** 单条 toast 结构 */
-interface Toast {
+export type ToastType = 'success' | 'error' | 'warning' | 'info'
+/** 单条 toast 结构（ToastContainer 渲染也用到，故导出） */
+export interface Toast {
   id: number
   message: string
   type: ToastType

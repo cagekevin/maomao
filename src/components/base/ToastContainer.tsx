@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { CheckCircle2, XCircle, AlertTriangle, Info, X } from 'lucide-react'
 import { subscribe, getToasts, dismissToast } from './toastStore.ts'
+import type { Toast } from './toastStore.ts'
 
 /**
  * 统一通知渲染容器（配合 toastStore 使用）。
@@ -19,11 +20,13 @@ import { subscribe, getToasts, dismissToast } from './toastStore.ts'
  *  - 多条纵向堆叠，自动消失。
  */
 function ToastContainer() {
-  const [items, setItems] = useState(getToasts())
-  const timers = useRef(new Map())
+  const [items, setItems] = useState<Toast[]>(getToasts())
+  const timers = useRef(new Map<number, ReturnType<typeof setTimeout>>())
 
-  // 订阅 store 变化
-  useEffect(() => subscribe(() => setItems(getToasts())), [])
+  // 订阅 store 变化（subscribe 返回 boolean 取消标记，与 useEffect 清理签名不兼容，包成 void 返回）
+  useEffect(() => {
+    subscribe(() => setItems(getToasts()))
+  }, [])
 
   // 每条 toast 自动消失：duration>0 时到点 dismiss（计时放在渲染侧，避免 store 持有 timer）
   useEffect(() => {
@@ -40,19 +43,19 @@ function ToastContainer() {
   }, [items])
 
   // 关闭某条（手动）
-  const close = useCallback((id) => dismissToast(id), [])
+  const close = useCallback((id: number) => dismissToast(id), [])
 
   if (typeof document === 'undefined') return null
   if (items.length === 0) return null
 
-  const ICONS = {
+  const ICONS: Record<Toast['type'], React.ReactNode> = {
     success: <CheckCircle2 size={12} className="text-emerald-300" />,
     error: <XCircle size={12} className="text-rose-300" />,
     warning: <AlertTriangle size={12} className="text-amber-300" />,
     info: <Info size={12} className="text-blue-300" />,
   }
   // doc39 §3.2 状态色模板（/10 填充 + /30 描边 + 20px/0.15 柔光）
-  const COLORS = {
+  const COLORS: Record<Toast['type'], string> = {
     success: 'from-green-500/10 to-emerald-500/10 border-green-500/30 shadow-glow-success',
     error: 'from-red-500/10 to-rose-500/10 border-red-500/30 shadow-glow-error',
     warning: 'from-yellow-500/10 to-amber-500/10 border-yellow-500/30 shadow-glow-warning',
