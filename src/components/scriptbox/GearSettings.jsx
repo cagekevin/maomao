@@ -3,7 +3,7 @@ import { useProviders, load as loadProviders } from '../base/settings/providerSt
 import { logger } from '../base/logger.ts'
 import { buildAllModels } from '../base/providerModels.ts'
 import ModelSelect from '../base/ModelSelect.jsx'
-import Select from '../base/Select.jsx'
+import Select from '../base/Select.tsx'
 import ScriptBoxModal from './ScriptBoxModal.jsx'
 import ScriptBoxPlaybookManager from './scriptBoxPlaybookManager.jsx'
 import { getAllPlaybooks, getPlaybook, isBuiltin, saveCustomPlaybook } from './scriptBoxPlaybookStore.js'

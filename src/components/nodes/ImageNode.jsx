@@ -4,7 +4,7 @@ import {
 } from 'lucide-react'
 import { useReactFlow } from '@xyflow/react'
 import NodeShell from '../base/NodeShell.jsx'
-import HoverToolbar from '../base/HoverToolbar.jsx'
+import HoverToolbar from '../base/HoverToolbar.tsx'
 import ImageZoomDialog from '../base/ImageZoomDialog.jsx'
 import { detectMediaType } from '../base/mediaType.ts'
 import { useMediaDegrade } from '../../hooks/useMediaDegrade.ts'

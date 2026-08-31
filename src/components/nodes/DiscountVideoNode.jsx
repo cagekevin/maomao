@@ -5,7 +5,7 @@ import {
   AlertCircle, Settings, Link as LinkIcon, RefreshCw, Coins
 } from 'lucide-react'
 import NodeShell from '../base/NodeShell.jsx'
-import HoverToolbar from '../base/HoverToolbar.jsx'
+import HoverToolbar from '../base/HoverToolbar.tsx'
 import ExpandablePanel from '../base/ExpandablePanel.jsx'
 import GenerateButton from '../base/GenerateButton.jsx'
 import ModelSelect from '../base/ModelSelect.jsx'
