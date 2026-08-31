@@ -49,7 +49,7 @@ vi.mock('../../src/components/base/contentStore.ts', () => ({ contentSet: (...a)
 vi.mock('../../src/components/base/clipboard.ts', () => ({ downloadUrl: (...a) => h.downloadUrl(...a) }))
 vi.mock('../../src/components/base/logger.ts', () => ({ logger: h.logger }))
 vi.mock('../../src/components/base/previewUrl.ts', () => ({ default: { create: (...a) => h.previewCreate(...a), release: vi.fn() } }))
-vi.mock('../../src/components/base/filesApi.ts', () => ({ toAbsoluteFileUrl: mocks.toAbsoluteFileUrl }))
+vi.mock('../../src/components/base/api/filesApi.ts', () => ({ toAbsoluteFileUrl: mocks.toAbsoluteFileUrl }))
 // 结果落盘唯一入口：断言节点把 extractedImages 写回 node.data（刷新不丢）
 vi.mock('../../src/hooks/useNodeData.ts', () => ({ useNodeData: () => ({ patchData: (...a) => h.patchData(...a) }) }))
 

@@ -12,7 +12,7 @@ import {
 // 会话键已迁 KV（backend:'kv'）：写走 kvSet、读走 kvGet。用 Map 兜底让 KV 确定性往返，
 // 避免走真实 localToolApi 网络（响铃 fetch 抛错 + 误导性降级告警 + 慢）。
 const kvStore = new Map()
-vi.mock('../../src/components/base/localToolApi.ts', async (importOriginal) => ({
+vi.mock('../../src/components/base/api/localToolApi.ts', async (importOriginal) => ({
   ...(await importOriginal()),
   kvGet: vi.fn(async (key) => (kvStore.has(key) ? kvStore.get(key) : null)),
   kvSet: vi.fn(async (key, value) => { kvStore.set(key, value); return { ok: true } }),

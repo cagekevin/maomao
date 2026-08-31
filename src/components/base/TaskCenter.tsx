@@ -3,7 +3,7 @@ import { Search, Filter, MoreVertical, Copy, Play, RotateCw, Trash2, X, RefreshC
 import { useTasks, statusDotClass, statusLabel, typeLabel, removeTask, retryTask, clearTasksBy, clearAllTasks, type Task } from './taskStore.ts'
 import { logger } from './logger.ts'
 import { downloadUrl } from './clipboard.ts'
-import { pollOneTask } from './pollTask.ts'
+import { pollOneTask } from './api/pollTask.ts'
 import { showToast } from './toastStore.ts'
 import { makeAssetDragProps } from '../../hooks/useAssetDragToCanvas.ts'
 import VideoThumbnail from './VideoThumbnail.tsx'

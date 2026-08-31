@@ -72,7 +72,7 @@ describe('useMediaDegrade —— lodLevel→hideMedia 映射', () => {
 // 依赖 storageAdapter.sGet/sSet。用内存实现 mock。
 // ───────────────────────────────────────────────────────────
 const prefsMem = new Map()
-vi.mock('../../src/components/base/storageAdapter.ts', () => ({
+vi.mock('../../src/components/base/storage/storageAdapter.ts', () => ({
   sGet: vi.fn((k) => (prefsMem.has(k) ? prefsMem.get(k) : null)),
   sSet: vi.fn((k, v) => { prefsMem.set(k, v) }),
   sRemove: vi.fn((k) => { prefsMem.delete(k) }),

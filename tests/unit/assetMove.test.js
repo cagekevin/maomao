@@ -5,7 +5,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { API_BASE } from '../../src/components/base/config.js'
-import { moveFile, canMoveAsset, resolveMovePaths } from '../../src/components/base/localToolApi.ts'
+import { moveFile, canMoveAsset, resolveMovePaths } from '@/components/base/api/localToolApi.ts'
 
 function mockFetchOnce(body, { ok = true, status = 200 } = {}) {
   const res = { ok, status, json: async () => body, text: async () => JSON.stringify(body) }

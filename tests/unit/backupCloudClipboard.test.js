@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 // ── 内存版 storageAdapter（参考 projectStore.test.js 的 mock 写法）──
 const memLS = new Map()
-vi.mock('../../src/components/base/storageAdapter.ts', () => ({
+vi.mock('../../src/components/base/storage/storageAdapter.ts', () => ({
   sGet: vi.fn((k) => (memLS.has(k) ? memLS.get(k) : null)),
   sSet: vi.fn((k, v) => { memLS.set(k, String(v)) }),
   sRemove: vi.fn((k) => { memLS.delete(k) }),
@@ -27,7 +27,7 @@ vi.mock('../../src/components/base/projectStore.ts', () => ({
 }))
 
 // ── cloudSync / backupStore 依赖：providerApi / projectsApi / KV 读写（隔离网络）──
-vi.mock('../../src/components/base/localToolApi.ts', () => ({
+vi.mock('../../src/components/base/api/localToolApi.ts', () => ({
   providerApi: {
     getProviders: vi.fn(async () => ({ providers: [] })),
     saveProviders: vi.fn(async () => ({ ok: true })),
@@ -59,7 +59,7 @@ beforeEach(async () => {
     text: async () => JSON.stringify({ ok: true, msg: 'sync ok' }),
   })))
   clipboard = await import('../../src/components/base/clipboard.ts')
-  backupStore = await import('../../src/components/base/backupStore.ts')
+  backupStore = await import('@/components/base/backupStore.ts')
   cloudSync = await import('../../src/components/base/cloudSync.ts')
 })
 

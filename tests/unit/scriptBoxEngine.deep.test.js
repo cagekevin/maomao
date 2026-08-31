@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-vi.mock('../../src/components/base/chatApi.ts', () => ({ chatCompletions: vi.fn() }))
-vi.mock('../../src/components/base/imageApi.ts', () => ({ generateImage: vi.fn() }))
+vi.mock('../../src/components/base/api/chatApi.ts', () => ({ chatCompletions: vi.fn() }))
+vi.mock('../../src/components/base/api/imageApi.ts', () => ({ generateImage: vi.fn() }))
 vi.mock('../../src/components/base/toastStore.ts', () => ({ showToast: vi.fn() }))
 vi.mock('../../src/components/base/assetStore.ts', () => ({
   localizeAndStoreToLibrary: vi.fn(),
@@ -12,8 +12,8 @@ vi.mock('../../src/components/base/assetStore.ts', () => ({
   FOLDERS: [],
 }))
 
-import { chatCompletions } from '../../src/components/base/chatApi.ts'
-import { generateImage } from '../../src/components/base/imageApi.ts'
+import { chatCompletions } from '@/components/base/api/chatApi.ts'
+import { generateImage } from '@/components/base/api/imageApi.ts'
 import { showToast } from '../../src/components/base/toastStore.ts'
 import { localizeAndStoreToLibrary } from '../../src/components/base/assetStore.ts'
 import { createScriptBoxEngine } from '@/components/scriptbox/scriptBoxEngine.ts'

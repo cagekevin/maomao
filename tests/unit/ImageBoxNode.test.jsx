@@ -43,7 +43,7 @@ vi.mock('../../src/hooks/useConnectedInputs.ts', () => ({ useConnectedInputs: mo
 vi.mock('../../src/hooks/useMediaDegrade.ts', () => ({ useMediaDegrade: mocks.useMediaDegrade }))
 vi.mock('../../src/components/base/LazyImage.tsx', () => ({ default: mocks.LazyImage }))
 vi.mock('../../src/components/base/toastStore.ts', () => ({ showToast: mocks.showToast, toastError: mocks.toastError, toastWarning: mocks.toastWarning }))
-vi.mock('../../src/components/base/filesApi.ts', () => ({ toAbsoluteFileUrl: mocks.toAbsoluteFileUrl }))
+vi.mock('../../src/components/base/api/filesApi.ts', () => ({ toAbsoluteFileUrl: mocks.toAbsoluteFileUrl }))
 vi.mock('../../src/components/base/clipboard.ts', () => h.clipboardMock)
 vi.mock('../../src/components/base/ImageZoomDialog.tsx', () => ({ default: () => null }))
 

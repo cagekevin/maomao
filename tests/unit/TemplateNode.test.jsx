@@ -72,8 +72,8 @@ vi.mock('../../src/hooks/useNodeGeneration.ts', () => ({
 vi.mock('../../src/components/base/nodePrefs.ts', () => ({ useNodePrefs: mocks.useNodePrefs }))
 vi.mock('../../src/hooks/useSyncNodeData.ts', () => ({ useSyncNodeData: mocks.useSyncNodeData }))
 vi.mock('../../src/components/base/toastStore.ts', () => ({ showToast: mocks.showToast, toastWarning: mocks.toastWarning, toastError: mocks.toastError }))
-vi.mock('../../src/components/base/imageApi.ts', () => ({ generateImage: mocks.generateImage }))
-vi.mock('../../src/components/base/filesApi.ts', () => ({ toAbsoluteFileUrl: mocks.toAbsoluteFileUrl, saveResultToTasks: mocks.saveResultToTasks }))
+vi.mock('../../src/components/base/api/imageApi.ts', () => ({ generateImage: mocks.generateImage }))
+vi.mock('../../src/components/base/api/filesApi.ts', () => ({ toAbsoluteFileUrl: mocks.toAbsoluteFileUrl, saveResultToTasks: mocks.saveResultToTasks }))
 vi.mock('../../src/components/base/settings/providerStore.ts', () => ({ useProviders: mocks.useProviders, load: mocks.loadProviders }))
 vi.mock('../../src/components/base/providerModels.ts', () => ({ buildAllModels: mocks.buildAllModels, resolveProviderModel: mocks.resolveProviderModel }))
 

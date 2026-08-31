@@ -14,7 +14,7 @@ vi.mock('../../src/components/base/taskStore.ts', () => ({
 
 import { API_BASE } from '../../src/components/base/config.js'
 import { getTasks, patchTask } from '../../src/components/base/taskStore.ts'
-import * as poll from '../../src/components/base/pollTask.ts'
+import * as poll from '@/components/base/api/pollTask.ts'
 
 function mockFetchJson(body, { ok = true, status = 200 } = {}) {
   const res = { ok, status, json: async () => body, text: async () => JSON.stringify(body) }

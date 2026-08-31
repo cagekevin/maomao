@@ -16,16 +16,16 @@
  * 路由路径以 contracts.js apiRegistry 登记为准（/api/kv/get|set|delete，非 docs 方案里的 /api/kv）。
  */
 
-import { kvGet, kvSet } from './localToolApi.ts'
+import { kvGet, kvSet } from './api/localToolApi.ts'
 import { withTimeout } from './asyncGuard.ts'
-import { saveInlineToLocal } from './filesApi.ts'
+import { saveInlineToLocal } from './api/filesApi.ts'
 import { UPLOAD_DIRS } from './uploadDirs.ts'
 import { logger } from './logger.ts'
 import { showToast } from './toastStore.ts'
 import { KV_TIMEOUT } from './config.js'
 // 【降级落点统一】本地降级副本走 storageAdapter（sGet/sSet，自动 yimao: 前缀），
 // 与 kvStore.storageGet 的降级回读一致，避免「裸 key vs 带前缀」两套副本互不可见（收口缺口）。
-import { sGet, sSet } from './storageAdapter.ts'
+import { sGet, sSet } from './storage/index.ts'
 
 /** 工程存储默认键（无 nodeId 独立运行场景，与 director3d/project.js 一致） */
 export const PROJECT_KEY_DEFAULT = 'director3d-project'

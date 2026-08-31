@@ -10,7 +10,7 @@
  *  - 后端 sendError 带 code → {error:{code,message}}；不传 code → {error:message}（B0 冻结形态不变）
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { extractErrorDetail, httpRequest, HttpError } from '../../src/components/base/httpClient.ts'
+import { extractErrorDetail, httpRequest, HttpError } from '@/components/base/api/httpClient.ts'
 
 describe('extractErrorDetail — 错误信封唯一解析入口', () => {
   it('error 为字符串 → 字符串兜底 {code:UNKNOWN}', () => {

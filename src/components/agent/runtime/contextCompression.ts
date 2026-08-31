@@ -11,7 +11,7 @@
  * 摘要必须保留：目标、约束、已做决定、未完成计划、节点 ID / 可引用图编号和失败原因。
  */
 
-import { chatCompletions } from '../../base/chatApi.ts'
+import { chatCompletions } from '@/components/base/api/index.ts'
 import { withTimeout, isTimeoutError } from '../../base/asyncGuard.ts'
 import { logger } from '../../base/logger.ts'
 

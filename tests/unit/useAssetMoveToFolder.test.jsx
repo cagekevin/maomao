@@ -13,12 +13,17 @@ const mocks = vi.hoisted(() => ({
   publish: vi.fn(),
 }))
 
-vi.mock('../../src/components/base/localToolApi.ts', async (importOriginal) => {
+vi.mock('../../src/components/base/api/localToolApi.ts', async (importOriginal) => {
   const actual = await importOriginal()
   return { ...actual, moveFile: mocks.moveFile }
 })
 vi.mock('../../src/components/base/toastStore.ts', () => ({ showToast: mocks.showToast }))
-vi.mock('../../src/components/base/eventBus.ts', () => ({ publish: mocks.publish }))
+vi.mock('../../src/components/base/eventBus.ts', () => ({
+  publish: mocks.publish,
+  subscribe: mocks.subscribe ?? (() => () => {}),
+  subscribeOnce: mocks.subscribeOnce ?? (() => () => {}),
+  clearEvent: mocks.clearEvent ?? (() => {}),
+}))
 
 function payload(item) {
   return JSON.stringify({ folder: item.folder || '', name: item.name, source: item.source, type: item.type })

@@ -27,20 +27,20 @@
  * ════════════════════════════════════════════════════════════════
  */
 
-import { API_BASE } from './config.js'
-import { setTaskPollId } from './taskStore.ts'
-import { GEN_TIMEOUT, GEN_POLL_INTERVAL, VIDEO_TIMEOUT, VIDEO_POLL_INTERVAL, CHAT_TIMEOUT } from './config.js'
-import { withTimeout, isTimeoutError } from './asyncGuard.ts'
-import { classifyError, timeoutMessage } from './genErrors.ts'
-import { GEN_ERRORS } from './contracts.js'
-import { logger } from './logger.ts'
+import { API_BASE } from '../config.js'
+import { setTaskPollId } from '../taskStore.ts'
+import { GEN_TIMEOUT, GEN_POLL_INTERVAL, VIDEO_TIMEOUT, VIDEO_POLL_INTERVAL, CHAT_TIMEOUT } from '../config.js'
+import { withTimeout, isTimeoutError } from '../asyncGuard.ts'
+import { classifyError, timeoutMessage } from '../genErrors.ts'
+import { GEN_ERRORS } from '../contracts.js'
+import { logger } from '../logger.ts'
 // 【出口回收】所有 /api/proxy 出口经统一 httpRequest（B5），不再裸写 fetch
 import { httpRequest } from './httpClient.ts'
 // 可插拔协议适配器：统一 buildTargetUrl（openai 伪协议 / apimart base_url 拼装）
-import { buildTargetUrl } from './providerProtocols.ts'
+import { buildTargetUrl } from '../providerProtocols.ts'
 // 统一 envelope/URL 解析器（P1-B φ2）：readSseUrl / 轮询提取全部委托之（唯一实现）
-import { extractResultUrl } from './resultUrlExtractor.ts'
-import { imageModePath, isResponsesMode, parseResponsesJson, resolveChatMode, parseResponsesChatJson } from './requestModes.ts'
+import { extractResultUrl } from '../resultUrlExtractor.ts'
+import { imageModePath, isResponsesMode, parseResponsesJson, resolveChatMode, parseResponsesChatJson } from '../requestModes.ts'
 import type { GenerationProvider, GenerationResult } from '@/types'
 
 // ── 内部共享原语（调用方不可见）──────────────────────────────────────

@@ -11,8 +11,8 @@
  * 【R1 系统性根因治理】写入失败不再静默吞掉：sSet/sRemove 任一持久化失败都发布
  * `persist:failed` 事件（含 key），由全局监听器节流上报 toast。调用方无需逐个改。
  */
-import { publish } from './eventBus.ts'
-import { logger } from './logger.ts'
+import { publish } from '../eventBus.ts'
+import { logger } from '../logger.ts'
 
 /** Chrome 扩展全局（宿主注入，本层仅用到 runtime/storage.local 最小子集）。type-check 需显式声明。 */
 declare const chrome: {

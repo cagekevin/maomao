@@ -15,7 +15,7 @@ vi.mock('../../src/components/base/ImageEditor.tsx', () => ({ default: mocks.Ima
 vi.mock('../../src/hooks/useMediaDegrade.ts', () => ({ useMediaDegrade: mocks.useMediaDegrade }))
 vi.mock('../../src/hooks/useFitNodeRatio.ts', () => ({ useFitNodeRatio: mocks.useFitNodeRatio }))
 vi.mock('../../src/hooks/useVideoPoster.ts', () => ({ useVideoPoster: mocks.useVideoPoster }))
-vi.mock('../../src/components/base/filesApi.ts', () => ({ toAbsoluteFileUrl: mocks.toAbsoluteFileUrl, saveInlineToLocal: mocks.saveInlineToLocal, uploadFileToLocal: mocks.uploadFileToLocal }))
+vi.mock('../../src/components/base/api/filesApi.ts', () => ({ toAbsoluteFileUrl: mocks.toAbsoluteFileUrl, saveInlineToLocal: mocks.saveInlineToLocal, uploadFileToLocal: mocks.uploadFileToLocal }))
 vi.mock('../../src/components/base/toastStore.ts', () => ({ showToast: mocks.showToast, toastError: mocks.toastError }))
 vi.mock('../../src/components/base/imageCompress.ts', () => ({ compressImage: mocks.compressImage }))
 

@@ -15,7 +15,7 @@ import { useImageHoverActions } from '../../src/components/base/useImageHoverAct
 vi.mock('../../src/components/base/ImageEditor.tsx', () => ({ default: () => null }))
 vi.mock('../../src/components/base/imageCompress.ts', () => ({ compressImage: async (url) => ({ dataUrl: 'data:compressed', size: 1, originalSize: 2 }) }))
 vi.mock('../../src/components/base/imageUpscale.ts', () => ({ upscaleImage: async (url) => ({ dataUrl: 'data:upscaled' }) }))
-vi.mock('../../src/components/base/filesApi.ts', () => ({ saveInlineToLocal: async () => 'local://saved' }))
+vi.mock('../../src/components/base/api/filesApi.ts', () => ({ saveInlineToLocal: async () => 'local://saved' }))
 vi.mock('../../src/components/base/toastStore.ts', () => ({ showToast: () => {}, toastError: () => {} }))
 
 const findBtn = (btns, key) => btns.find((b) => b.key === key)

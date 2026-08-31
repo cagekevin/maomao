@@ -20,7 +20,7 @@ vi.mock('../../src/components/base/taskStore.ts', () => ({
   setTaskPollId: vi.fn(),
 }))
 
-const api = await import('../../src/components/base/imageApi.ts')
+const api = await import('@/components/base/api/imageApi.ts')
 const { normalizeImageUrlsForSend } = await import('../../src/components/base/imageUrl.ts')
 const { setTaskPollId } = await import('../../src/components/base/taskStore.ts')
 

@@ -20,7 +20,7 @@ const h = vi.hoisted(() => ({
   mockKvSet: vi.fn(),
 }))
 
-vi.mock('../../src/components/base/localToolApi.ts', () => ({
+vi.mock('../../src/components/base/api/localToolApi.ts', () => ({
   providerApi: {
     getProviders: (...a) => h.mockGetProviders(...a),
     testConnection: (...a) => h.mockTestConnection(...a),
@@ -30,7 +30,7 @@ vi.mock('../../src/components/base/localToolApi.ts', () => ({
     syncConfigBase: (...a) => h.mockSyncConfigBase(...a),
   },
 }))
-vi.mock('../../src/components/base/kvStore.ts', () => ({
+vi.mock('../../src/components/base/storage/kvStore.ts', () => ({
   storageGet: vi.fn(),
   storageSet: (...a) => h.mockKvSet(...a),
   storageDelete: vi.fn(),

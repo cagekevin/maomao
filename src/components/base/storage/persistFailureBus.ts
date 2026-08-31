@@ -17,7 +17,7 @@
  *   onLog:  (key,error,suppressed) => void  每次事件的日志回调
  * @returns {(payload: {key?:string, error?:string}) => void}
  */
-import { THROTTLE_MS } from './config.js'
+import { THROTTLE_MS } from '../config.js'
 
 /** 工厂入参（可注入时间源与回调） */
 interface ThrottledPersistOptions {

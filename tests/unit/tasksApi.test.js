@@ -10,7 +10,7 @@ import { jsonResp } from './_testUtils.mjs'
 // 全局 fetch 已在 tests/setup.mjs 强制 mock 为 vi.fn()，此处取共享实例。
 const fetchMock = globalThis.fetch
 
-const api = await import('../../src/components/base/localToolApi.ts')
+const api = await import('@/components/base/api/localToolApi.ts')
 
 beforeEach(() => fetchMock.mockReset())
 afterEach(() => vi.unstubAllGlobals())

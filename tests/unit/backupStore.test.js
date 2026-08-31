@@ -22,14 +22,14 @@ vi.mock('../../src/components/base/projectStore.ts', () => ({
 // 会话键已迁 KV（backend:'kv'），为让「动态收集 AI 会话键」用例确定性往返，用 Map 兜底 kvGet/kvSet；
 // 不 stub 网络会走真实 localToolApi → 失败降级 + 误导性告警，故统一置 Map 存储（账号初始为空不打包）。
 const kvStore = new Map()
-vi.mock('../../src/components/base/localToolApi.ts', async (importOriginal) => ({
+vi.mock('../../src/components/base/api/localToolApi.ts', async (importOriginal) => ({
   ...(await importOriginal()),
   kvGet: vi.fn(async (key) => (kvStore.has(key) ? kvStore.get(key) : null)),
   kvSet: vi.fn(async (key, value) => { kvStore.set(key, value); return { ok: true } }),
   kvDelete: vi.fn(async (key) => { kvStore.delete(key); return { ok: true } }),
 }))
 
-const { exportAll, importAll, backupToBlob } = await import('../../src/components/base/backupStore.ts')
+const { exportAll, importAll, backupToBlob } = await import('@/components/base/backupStore.ts')
 
 beforeEach(() => {
   localStorage.clear()

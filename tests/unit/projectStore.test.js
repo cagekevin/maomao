@@ -5,7 +5,7 @@ import { flushAsync } from './_testUtils.mjs'
 const mem = new Map()
 // fetchProjects 返回可变 payload（供 initProjects 回退链测试注入后端响应）
 const projectsPayload = { projects: [], lastOpened: '' }
-vi.mock('../../src/components/base/kvStore.ts', () => ({
+vi.mock('../../src/components/base/storage/kvStore.ts', () => ({
   storageGet: vi.fn(async (k) => (mem.has(k) ? mem.get(k) : null)),
   storageSet: vi.fn(async (k, v) => { mem.set(k, v) }),
   storageDelete: vi.fn(async (k) => { mem.delete(k) }),
@@ -13,7 +13,7 @@ vi.mock('../../src/components/base/kvStore.ts', () => ({
   kvSet: vi.fn(async (k, v) => { mem.set(k, v) }),
   CANVAS_STATE_PREFIX: 'canvas-state-v1-',
 }))
-vi.mock('../../src/components/base/localToolApi.ts', () => ({
+vi.mock('../../src/components/base/api/localToolApi.ts', () => ({
   fetchProjects: vi.fn(async () => ({ data: { ...projectsPayload } })),
   saveProjects: vi.fn(async () => ({ ok: true })),
 }))

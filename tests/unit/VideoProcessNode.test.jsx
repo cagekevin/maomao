@@ -19,11 +19,17 @@ vi.mock('../../src/hooks/useConnectedInputs.ts', () => ({ useConnectedInputs: mo
 vi.mock('../../src/hooks/useMediaDegrade.ts', () => ({ useMediaDegrade: mocks.useMediaDegrade }))
 vi.mock('../../src/components/base/hooks.ts', () => ({ useNodeResize: mocks.useNodeResize, useContentHeightSync: mocks.useContentHeightSync, useOutsideClick: mocks.useOutsideClick }))
 vi.mock('../../src/components/base/toastStore.ts', () => ({ showToast: mocks.showToast, toastError: mocks.toastError, toastWarning: mocks.toastWarning }))
-vi.mock('../../src/components/base/eventBus.ts', () => ({ publish: mocks.publish }))
+// 补全 subscribe/subscribeOnce（taskStore 等模块顶层会 subscribe，缺则崩）；返回 no-op unsubscribe
+vi.mock('../../src/components/base/eventBus.ts', () => ({
+  publish: mocks.publish,
+  subscribe: mocks.subscribe ?? (() => () => {}),
+  subscribeOnce: mocks.subscribeOnce ?? (() => () => {}),
+  clearEvent: mocks.clearEvent ?? (() => {}),
+}))
 vi.mock('../../src/components/base/asyncGuard.ts', () => ({ withTimeout: mocks.withTimeout, isTimeoutError: mocks.isTimeoutError }))
 vi.mock('../../src/components/base/videoEngine.ts', () => ({ readVideoMetadata: mocks.readVideoMetadata, processVideo: mocks.processVideo, concatVideos: mocks.concatVideos, videoToGif: mocks.videoToGif, formatBytes: mocks.formatBytes, uploadResult: mocks.uploadResult, ProgressController: mocks.ProgressController, ConversionCanceled: mocks.ConversionCanceled }))
 // preserve 其余 httpClient 导出（deriveNodes 等依赖），仅把 network 请求 stub 成拒绝
-vi.mock('../../src/components/base/httpClient.ts', async (importOriginal) => {
+vi.mock('../../src/components/base/api/httpClient.ts', async (importOriginal) => {
   const mod = await importOriginal()
   return { ...mod, httpRequest: vi.fn(() => Promise.reject(new Error('mock: no network'))) }
 })

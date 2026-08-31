@@ -28,9 +28,9 @@ describe('config.js §API_BASE 日志与配置', () => {
     // （videoApi.js 已薄壳化，config 消费方收敛到深模块 proxyGenerate.js）
     // kvStore.js 的 KV 转发已收口到 localToolApi.js，不再直接依赖 config.js，故不在硬证据清单
     const apiFiles = [
-      'proxyGenerate.ts',
-      'localToolApi.ts',
-      'filesApi.ts',
+      'api/proxyGenerate.ts', // 深模块化后收进 base/api/（2026-08-31）
+      'api/localToolApi.ts',
+      'api/filesApi.ts',
       'logger.ts', // logger 已 TS 化（本清单读源码断言引用 config.js，路径后缀随改名同步）
     ]
     for (const f of apiFiles) {
@@ -38,10 +38,10 @@ describe('config.js §API_BASE 日志与配置', () => {
       expect(src).toMatch(/config\.js/)
     }
     // 软证据：衍生 API 层能成功 import（依赖解析未断）
-    const videoApi = await import('../../src/components/base/videoApi.ts')
-    const localToolApi = await import('../../src/components/base/localToolApi.ts')
-    const filesApi = await import('../../src/components/base/filesApi.ts')
-    const kvStore = await import('../../src/components/base/kvStore.ts')
+    const videoApi = await import('@/components/base/api/videoApi.ts')
+    const localToolApi = await import('@/components/base/api/localToolApi.ts')
+    const filesApi = await import('@/components/base/api/filesApi.ts')
+    const kvStore = await import('@/components/base/storage/kvStore.ts')
     expect(videoApi).toBeTruthy()
     expect(localToolApi).toBeTruthy()
     expect(filesApi).toBeTruthy()

@@ -17,7 +17,7 @@ import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { mocks } from './_nodeMocks.mjs'
 
-vi.mock('../../src/components/base/filesApi.ts', () => ({ toAbsoluteFileUrl: (u) => `ABS:${u}` }))
+vi.mock('../../src/components/base/api/filesApi.ts', () => ({ toAbsoluteFileUrl: (u) => `ABS:${u}` }))
 vi.mock('../../src/components/base/LazyImage.tsx', () => ({
   default: ({ src }) => React.createElement('img', { src }),
 }))

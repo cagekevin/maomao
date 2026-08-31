@@ -9,7 +9,7 @@
  *  - 内置 skill 始终存在；用户自定义可增删。
  */
 import { contentGet, contentSet } from './contentStore.ts'
-import { sGet } from './storageAdapter.ts'
+import { sGet } from './storage/index.ts'
 import { logger } from './logger.ts'
 
 /** Skill 结构（对齐大雄 builtin_skills：name/description 供 UI，content 无损注入 LLM） */
