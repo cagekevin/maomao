@@ -18,7 +18,7 @@ vi.mock('../../src/components/base/hooks.ts', () => ({ useNodeResize: mocks.useN
 vi.mock('../../src/components/base/toastStore.ts', () => ({ showToast: mocks.showToast }))
 vi.mock('../../src/components/base/api/filesApi.ts', () => ({ toAbsoluteFileUrl: mocks.toAbsoluteFileUrl }))
 
-import GridMergeNode from '../../src/components/nodes/GridMergeNode.jsx'
+import GridMergeNode from '../../src/components/nodes/GridMergeNode.tsx'
 beforeEach(() => { mocks.resetNodeMockState() })
 const setup = (props = {}) => render(<GridMergeNode id="gm1" data={{}} selected={false} {...props} />)
 

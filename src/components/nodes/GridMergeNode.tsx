@@ -1,5 +1,6 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { useDebouncedEffect, clamp } from '../base/utils.ts'
+import type { Position } from '@xyflow/react'
 import { buildSpawnNodes, spawnAndCommit } from '../base/deriveNodes.ts'
 import { useCanvasEdges } from '../base/CanvasEdgesContext.tsx'
 
@@ -37,15 +38,30 @@ import { loadImageOrNull } from '../base/asyncGuard.ts'
  * 端口：target default（按序填充）+ target cell-N（指定格子）；source merged-output / batch-output
  * ════════════════════════════════════════════════════════════════ */
 
-const parseGrid = (str) => {
+const parseGrid = (str: string | null | undefined): { rows: number; cols: number } | null => {
   const m = (str || '').trim().match(/^(\d+)\s*[x×*]\s*(\d+)$/i)
   if (!m) return null
   const rows = clamp(parseInt(m[1], 10), 1, 20)
   const cols = clamp(parseInt(m[2], 10), 1, 20)
   return rows && cols ? { rows, cols } : null
 }
+/** 叠加图层状态（OverlayEditor 的最小只读视图；完整形状见 base/OverlayEditor） */
+interface OverlayLayerState {
+  layers: unknown[]
+  canvasWidth: number
+  canvasHeight: number
+  bgColor: string
+  [key: string]: unknown
+}
 // 背景填充（复刻 shared.js Jo）：非透明→实色；透明预览→棋盘格；grid 预览→网格线
-const fillBg = (ctx, w, h, isExport, color, grid = null) => {
+const fillBg = (
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  isExport: boolean,
+  color: string,
+  grid: { rows: number; cols: number; cellW: number; cellH: number } | null = null
+) => {
   if (color !== 'transparent') {
     ctx.fillStyle = color
     ctx.fillRect(0, 0, w, h)
@@ -79,18 +95,45 @@ const GRID_PRESETS = [
   { label: '5×1', rows: 5, cols: 1 }
 ]
 
-function GridMergeNode({ id, data, selected }) {
+interface GridMergeNodeData {
+  label?: string
+  gridSize?: number
+  mergeMode?: string
+  rows?: number
+  cols?: number
+  cellSize?: number
+  aspectRatio?: string
+  autoSize?: boolean
+  titlePattern?: string
+  longDirection?: string
+  longGap?: number
+  longTargetSize?: number
+  longAutoSize?: boolean
+  bgColor?: string
+  gridText?: string
+  overlayState?: OverlayLayerState
+  canvasWidth?: number
+  canvasHeight?: number
+  imageUrl?: string
+  [key: string]: unknown
+}
+interface GridMergeNodeProps {
+  id: string
+  data: GridMergeNodeData
+  selected?: boolean
+}
+function GridMergeNode({ id, data, selected }: GridMergeNodeProps) {
   const { setNodes, getNodes, getNode, getEdges, setEdges } = useReactFlow()
   const history = useCanvasEdges()
   const { isHidden } = useMediaDegrade()
   const render = useRenderImageResolver()
-  const contentRef = useRef(null)
+  const contentRef = useRef<HTMLDivElement | null>(null)
   // NodeShell 根 div ref：useContentHeightSync 需测「含标题栏的完整节点」而非仅内容区，
   // 否则写回的 node.height 偏矮（漏标题栏），conic 连接跑马灯高度不贴合。
-  const wrapperRef = useRef(null)
+  const wrapperRef = useRef<HTMLDivElement | null>(null)
   // 双击预览图查看大图（原生 <dialog>）
-  const [zoomUrl, setZoomUrl] = useState(null)
-  const zoomRef = useRef(null)
+  const [zoomUrl, setZoomUrl] = useState<string | null>(null)
+  const zoomRef = useRef<HTMLDialogElement | null>(null)
   const openZoom = useCallback((url) => {
     if (!url) return
     setZoomUrl(url)
@@ -115,9 +158,9 @@ function GridMergeNode({ id, data, selected }) {
   const [bgColor, setBgColor] = useState(data.bgColor || 'transparent')
   const [preview, setPreview] = useState(null)
   const [exporting, setExporting] = useState(false)
-  const [gridCells, setGridCells] = useState([]) // rows×cols 定长数组
-  const [longList, setLongList] = useState([]) // 长图图片数组
-  const [overlayState, setOverlayState] = useState(() => {
+  const [gridCells, setGridCells] = useState<string[]>([]) // rows×cols 定长数组
+  const [longList, setLongList] = useState<string[]>([]) // 长图图片数组
+  const [overlayState, setOverlayState] = useState<OverlayLayerState>(() => {
     const e = data.overlayState
     if (e && Array.isArray(e.layers)) return e
     return { layers: [], canvasWidth: data.canvasWidth || 1024, canvasHeight: data.canvasHeight || 1024, bgColor: data.bgColor || 'transparent' }
@@ -176,7 +219,7 @@ function GridMergeNode({ id, data, selected }) {
         if (mergeMode === 'longImage') {
           const list = longList
           if (list.length === 0) return null
-          const imgs = (await Promise.all(list.map(loadImageOrNull))).filter(Boolean)
+          const imgs = (await Promise.all(list.map((u) => loadImageOrNull(u)))).filter(Boolean)
           if (imgs.length === 0) return null
           const vertical = longDirection === 'vertical'
           const base = longAutoSize ? (vertical ? imgs[0].width : imgs[0].height) : longTargetSize
@@ -338,7 +381,7 @@ function GridMergeNode({ id, data, selected }) {
   )
 
   // 交换 grid cell（拖拽）
-  const swapCells = useCallback((from, to) => {
+  const swapCells = useCallback((from: number, to: number) => {
     if (from === to) return
     suppressSyncRef.current = true
     setGridCells((arr) => {
@@ -350,7 +393,7 @@ function GridMergeNode({ id, data, selected }) {
     })
   }, [])
   // 交换 longList（拖拽）
-  const swapLong = useCallback((from, to) => {
+  const swapLong = useCallback((from: number, to: number) => {
     if (from === to) return
     setLongList((arr) => {
       const c = arr.slice()
@@ -365,7 +408,7 @@ function GridMergeNode({ id, data, selected }) {
   const totalCells = rows * cols
   const totalCount = mergeMode === 'longImage' ? Math.max(1, longList.length || 3) : totalCells
 
-  const modeBtn = (mode, label, icon, title) => (
+  const modeBtn = (mode: string, label: string, icon: React.ReactNode, title: string) => (
     <button
       key={mode}
       className={`node-btn-settings ${mergeMode === mode ? 'is-active' : ''}`}

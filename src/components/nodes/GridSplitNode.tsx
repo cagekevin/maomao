@@ -35,7 +35,7 @@ import { createRafBatch, clamp } from '../base/utils.ts'
  * ════════════════════════════════════════════════════════════════ */
 
 // ---- 工具（复刻 shared.js：Do/Oo/ko/No/Po/Ao/Fo）----
-const norm = (arr) =>
+const norm = (arr: number[]): number[] =>
   Array.from(new Set(arr.map((v) => clamp(v, 0.01, 0.99)).map((v) => Math.round(v * 10000) / 10000))).sort((a, b) => a - b)
 const pairs = (arr) => {
   const t = [0, ...arr, 1]
@@ -141,7 +141,31 @@ const GRID_PRESETS = [
 ]
 const LASSO_CURSOR = `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='6' cy='6' r='3'/><circle cx='6' cy='18' r='3'/><line x1='20' y1='4' x2='8.12' y2='15.88'/><line x1='14.47' y1='14.48' x2='20' y2='20'/><line x1='8.12' y1='8.12' x2='12' y2='12'/></svg>") 4 4, crosshair`
 
-function GridSplitNode({ id, data, selected }) {
+interface LassoShape {
+  id: string
+  points: Array<{ x: number; y: number }>
+  [key: string]: unknown
+}
+interface GridSplitNodeData {
+  label?: string
+  gridSize?: number
+  splitMode?: string
+  rows?: number
+  cols?: number
+  hLines?: number[]
+  vLines?: number[]
+  lassoShapes?: LassoShape[]
+  titlePattern?: string
+  sendToImageBox?: boolean
+  extractedImages?: string[]
+  [key: string]: unknown
+}
+interface GridSplitNodeProps {
+  id: string
+  data: GridSplitNodeData
+  selected?: boolean
+}
+function GridSplitNode({ id, data, selected }: GridSplitNodeProps) {
   const { setNodes, getNodes, getNode, setEdges, getEdges } = useReactFlow()
   const history = useCanvasEdges()
   const { isHidden } = useMediaDegrade()
@@ -171,7 +195,7 @@ function GridSplitNode({ id, data, selected }) {
   // ---- 上游图片（复刻 Lo.jsx F：data.imageUrl 优先，否则取上游 imageUrl）----
   const connected = useConnectedInputs(id)
   const upstreamImg = connected.images[0]?.url
-  const imageUrl = toAbsoluteFileUrl(data.imageUrl || (typeof upstreamImg === 'string' ? upstreamImg : '') || '')
+  const imageUrl = toAbsoluteFileUrl((data.imageUrl as string | undefined) || (typeof upstreamImg === 'string' ? upstreamImg : '') || '')
 
   // 画布引用
   const mainCanvasRef = useRef(null)

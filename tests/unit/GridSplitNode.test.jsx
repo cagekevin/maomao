@@ -19,7 +19,7 @@ vi.mock('../../src/components/base/hooks.ts', () => ({ useNodeResize: mocks.useN
 vi.mock('../../src/components/base/toastStore.ts', () => ({ showToast: mocks.showToast, toastWarning: mocks.toastWarning }))
 vi.mock('../../src/components/base/api/filesApi.ts', () => ({ toAbsoluteFileUrl: mocks.toAbsoluteFileUrl }))
 
-import GridSplitNode from '../../src/components/nodes/GridSplitNode.jsx'
+import GridSplitNode from '../../src/components/nodes/GridSplitNode.tsx'
 beforeEach(() => { mocks.resetNodeMockState() })
 const setup = (props = {}) => render(<GridSplitNode id="gs1" data={{}} selected={false} {...props} />)
 
