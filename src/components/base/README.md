@@ -15,12 +15,14 @@
 | `idGen.ts` | ID 生成唯一入口 |
 | `utils.ts` | 通用纯工具集合（deepClone/debounce/throttle…） |
 
-## 二、网络/API 层（后端通信）
-`chatApi` `imageApi` `videoApi` `httpClient` `localToolApi` `filesApi` `proxyGenerate` `pollTask`
+## 二、网络/API 层（深模块 `api/`，2026-08-31）
+`api/` 内：`chatApi` `imageApi` `videoApi` `httpClient` `localToolApi` `filesApi` `proxyGenerate` `pollTask`
+> **深模块**：外部统一 `import from 'base/api'`（index.ts 入口），内部互引走 `./` 相对。
 > SSE 三件套（chat/image/video）走独立 `proxyGenerate`，**勿迁 httpClient**（CONTEXT §五）。
 
-## 三、存储层（底层实现）
-`storageAdapter` `kvStore` `storageQuota` `persistFailureBus` `backupStore` `cloudSync`
+## 三、存储层（深模块 `storage/`，2026-08-31）
+`storage/` 内：`storageAdapter` `kvStore` `storageQuota` `persistFailureBus`
+> **深模块**：外部统一 `import from 'base/storage'`（index.ts 入口）。`contentStore`（横切唯一入口）与 `backupStore`（上层备份编排，依赖 contentStore/projectStore）留在 base/ 根。
 
 ## 四、store（各业务/领域独立状态）
 `assetStore` `projectStore` `skillStore` `taskStore` `promptHubStore` `appSettings` `accountsStore`(settings/) `agentModelStore`(settings/) `providerStore`(settings/)
