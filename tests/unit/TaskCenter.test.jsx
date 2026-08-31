@@ -63,7 +63,7 @@ vi.mock('../../src/components/base/taskStore.ts', () => ({
 }))
 vi.mock('../../src/components/base/logger.ts', () => ({ logger: { warn: (...a) => h.loggerWarn(...a) } }))
 vi.mock('../../src/components/base/clipboard.ts', () => ({ downloadUrl: (...a) => h.downloadUrl(...a) }))
-vi.mock('../../src/components/base/pollTask.ts', () => ({ pollOneTask: (...a) => h.pollOneTask(...a) }))
+vi.mock('../../src/components/base/api/pollTask.ts', () => ({ pollOneTask: (...a) => h.pollOneTask(...a) }))
 vi.mock('../../src/components/base/toastStore.ts', () => ({ showToast: (...a) => h.showToast(...a) }))
 vi.mock('../../src/hooks/useAssetDragToCanvas.ts', () => ({ makeAssetDragProps: () => ({ draggable: true }) }))
 vi.mock('../../src/components/base/hooks.ts', () => ({ useOutsideClick: () => {} }))

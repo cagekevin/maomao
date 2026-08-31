@@ -18,7 +18,7 @@
  */
 import { normalizeImageUrlsForSend, toImageContentBlocks } from './imageUrl.ts'
 import { logger } from './logger.ts'
-import { chatProxy } from './proxyGenerate.ts'
+import { chatProxy } from './api/proxyGenerate.ts'
 // 请求形态层：聊天 responses 形态构造请求体（chat_completions 默认，M2-2）
 import { resolveChatMode, buildResponsesChatBody } from './requestModes.ts'
 import type { GenerationProvider, GenerationResult } from '@/types'

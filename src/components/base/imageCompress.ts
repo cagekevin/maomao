@@ -16,7 +16,7 @@
  * @returns {Promise<{ dataUrl, blob, width, height, size, originalSize }>}
  */
 import { loadImageWithTimeout } from './asyncGuard.ts'
-import { httpRequest } from './httpClient.ts'
+import { httpRequest } from './api/httpClient.ts'
 import { IMAGE_LOAD_TIMEOUT, API_BASE } from './config.js'
 import { dataUrlToBlob } from './utils.ts'
 

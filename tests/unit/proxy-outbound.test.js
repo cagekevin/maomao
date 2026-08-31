@@ -14,7 +14,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 // 记录每一次 httpRequest 出站参数，且仍走真实 httpRequest（保留真实行为）
 const { outbound } = vi.hoisted(() => ({ outbound: { calls: [] } }))
-vi.mock('../../src/components/base/httpClient.ts', async (importOriginal) => {
+vi.mock('../../src/components/base/api/httpClient.ts', async (importOriginal) => {
   const actual = await importOriginal()
   return {
     ...actual,
@@ -25,7 +25,7 @@ vi.mock('../../src/components/base/httpClient.ts', async (importOriginal) => {
   }
 })
 
-const { chatProxy, imageProxy } = await import('../../src/components/base/proxyGenerate.ts')
+const { chatProxy, imageProxy } = await import('@/components/base/api/proxyGenerate.ts')
 const { roundTrip } = await import('../../src/components/agent/runtime/agentRuntime.ts')
 
 const provider = {

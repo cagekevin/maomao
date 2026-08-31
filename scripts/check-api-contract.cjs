@@ -43,8 +43,8 @@ const VALID_ENVELOPES = new Set([...EXEMPT, 'ok', 'code-data', 'items', 'success
 const MODULE_FILES = {
   localToolApi: 'src/components/base/localToolApi.ts',
   filesApi: 'src/components/base/filesApi.ts',
-  pollTask: 'src/components/base/pollTask.js',
-  proxyGenerate: 'src/components/base/proxyGenerate.ts',
+  pollTask: 'src/components/base/api/pollTask.ts',
+  proxyGenerate: 'src/components/base/api/proxyGenerate.ts',
   agentRuntime: 'src/components/agent/runtime/agentRuntime.js',
 };
 

@@ -28,7 +28,7 @@ describe('config.js §API_BASE 日志与配置', () => {
     // （videoApi.js 已薄壳化，config 消费方收敛到深模块 proxyGenerate.js）
     // kvStore.js 的 KV 转发已收口到 localToolApi.js，不再直接依赖 config.js，故不在硬证据清单
     const apiFiles = [
-      'proxyGenerate.ts',
+      'api/proxyGenerate.ts', // 深模块化后收进 base/api/（2026-08-31）
       'localToolApi.ts',
       'filesApi.ts',
       'logger.ts', // logger 已 TS 化（本清单读源码断言引用 config.js，路径后缀随改名同步）

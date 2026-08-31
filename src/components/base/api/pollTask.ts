@@ -22,11 +22,11 @@
  * 分支 + 本模块放开 type 限制即可。
  */
 import { httpRequest } from './httpClient.ts'
-import { API_BASE } from './config.js'
-import { getTasks, patchTask } from './taskStore.ts'
-import { publishTaskCompleted } from './taskCompletionBus.ts'
-import { extractResultUrl as extractResult } from './resultUrlExtractor.ts'
-import { logger } from './logger.ts'
+import { API_BASE } from '../config.js'
+import { getTasks, patchTask } from '../taskStore.ts'
+import { publishTaskCompleted } from '../taskCompletionBus.ts'
+import { extractResultUrl as extractResult } from '../resultUrlExtractor.ts'
+import { logger } from '../logger.ts'
 
 // 轮询节流：单进程内两次全量扫描最小间隔（ms）
 const POLL_INTERVAL: number = 5000

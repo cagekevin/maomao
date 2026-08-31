@@ -18,7 +18,7 @@
  */
 import { useCallback, useEffect, useSyncExternalStore } from 'react'
 import { logger } from '../components/base/logger.ts'
-import { httpRequest } from '../components/base/httpClient.ts'
+import { httpRequest } from '../components/base/api'
 import { API_BASE, LOCAL_TOOL_PORT, LOCAL_TOOL_PING_TIMEOUT } from '../components/base/config.js'
 
 const DEFAULT_PORT = LOCAL_TOOL_PORT
