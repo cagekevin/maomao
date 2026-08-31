@@ -23,29 +23,39 @@ import { useState, useSyncExternalStore } from 'react'
  * 浅比较：一层引用相等判断（同引用 / 同原始值 / 同键同值对象、数组 → true）。
  * 嵌套对象只比「引用」，不递归。
  */
-export function shallowEqual(a, b) {
+export function shallowEqual(a: unknown, b: unknown): boolean {
   if (a === b) return true
   if (a == null || b == null) return false
   if (typeof a !== 'object' || typeof b !== 'object') return false
-  const aKeys = Object.keys(a)
-  const bKeys = Object.keys(b)
+  const ao = a as Record<string, unknown>
+  const bo = b as Record<string, unknown>
+  const aKeys = Object.keys(ao)
+  const bKeys = Object.keys(bo)
   if (aKeys.length !== bKeys.length) return false
   for (const k of aKeys) {
-    if (!Object.prototype.hasOwnProperty.call(b, k)) return false
-    if (a[k] !== b[k]) return false
+    if (!Object.prototype.hasOwnProperty.call(bo, k)) return false
+    if (ao[k] !== bo[k]) return false
   }
   return true
 }
+
+/** store 订阅函数：注册回调并返回取消订阅函数 */
+export type StoreSubscribe = (onStoreChange: () => void) => () => void
 
 /**
  * selector 原子订阅：只订阅 selector 结果，非订阅字段变更不触发重渲染。
  * 缓存上一次选中值：新选中值浅比较相等 → 复用旧引用，避免 React 判不等导致无限重渲。
  */
-export function useStoreSelector(subscribe, getSnapshot, selector, isEqual = shallowEqual) {
+export function useStoreSelector<S, T>(
+  subscribe: StoreSubscribe,
+  getSnapshot: () => S,
+  selector: (state: S) => T,
+  isEqual: (a: T, b: T) => boolean = shallowEqual
+): T {
   // getSelection 用 useState 惰性初始化，缓存 memoizedSelection（跨调用复用同一引用）
   const [getSelection] = useState(() => {
     let hasValue = false
-    let memoizedSelection = null
+    let memoizedSelection: T = null as T
     return () => {
       const nextSelection = selector(getSnapshot())
       if (hasValue && isEqual(memoizedSelection, nextSelection)) {

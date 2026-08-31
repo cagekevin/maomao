@@ -16,7 +16,7 @@ import { renderHook, act } from '@testing-library/react'
 // ───────────────────────────────────────────────────────────
 // 1. useCanvasHistory
 // ───────────────────────────────────────────────────────────
-import { useCanvasHistory } from '../../src/components/base/useCanvasHistory.js'
+import { useCanvasHistory } from '../../src/components/base/useCanvasHistory.ts'
 
 describe('useCanvasHistory 撤销/重做 hook 桥接', () => {
   it('record(snapshot) 调 stack.push 并触发重渲染（canUndo 变 true）', () => {

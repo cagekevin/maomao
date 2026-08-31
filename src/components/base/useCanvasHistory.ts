@@ -1,5 +1,21 @@
 import { useState, useRef, useCallback } from 'react'
+import type { Edge, Node } from '@xyflow/react'
 import { HistoryStack } from './historyStack.ts'
+
+/** 一次画布快照：节点 + 连线 */
+export interface CanvasSnapshot {
+  nodes: Node[]
+  edges: Edge[]
+}
+
+export interface CanvasHistoryApi {
+  canUndo: boolean
+  canRedo: boolean
+  record: (snapshot?: CanvasSnapshot | null) => void
+  undo: () => void
+  redo: () => void
+  clear: () => void
+}
 
 /**
  * 画布撤销/重做历史栈 hook（复刻 H_.jsx:475-478,881-925 的 fn/hn/_n/vn 机制）。
@@ -12,12 +28,15 @@ import { HistoryStack } from './historyStack.ts'
  * @param apply       应用 { nodes, edges } 到画布
  * @returns { canUndo, canRedo, record, undo, redo, clear }
  */
-export function useCanvasHistory(getSnapshot, apply) {
+export function useCanvasHistory(
+  getSnapshot: () => CanvasSnapshot,
+  apply: (snapshot: CanvasSnapshot) => void
+): CanvasHistoryApi {
   // React state 镜像（供渲染 canUndo/canRedo 与 record 闭包用）
   const [version, setVersion] = useState(0)
   // 纯类实例：真实历史栈（不随渲染重建）
-  const stackRef = useRef(new HistoryStack())
-  const suppressTimerRef = useRef(null)
+  const stackRef = useRef(new HistoryStack<CanvasSnapshot>())
+  const suppressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const stack = stackRef.current
 
   // 记录一次画布变化（复刻 H_.jsx:881-897）。
@@ -26,7 +45,7 @@ export function useCanvasHistory(getSnapshot, apply) {
   // 注意：React setState 是异步的，addNode 等「先 setNodes 再 record」的场景，
   // 必须显式传快照，否则 record 会拿到旧的 nodes 导致 undo 丢失新增节点。
   const record = useCallback(
-    (snapshot) => {
+    (snapshot?: CanvasSnapshot | null) => {
       stack.push(snapshot || getSnapshot())
       setVersion((v) => v + 1)
     },

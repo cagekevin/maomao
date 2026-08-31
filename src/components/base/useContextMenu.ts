@@ -1,5 +1,37 @@
 import { useState, useCallback, useRef } from 'react'
+import type { RefObject, MouseEvent as ReactMouseEvent } from 'react'
+import type { Connection, Node } from '@xyflow/react'
 import { isEditableTarget } from './hooks.js'
+
+/** 菜单定位用的容器相对坐标（top/left 直接取值） */
+export interface ContextMenuPos {
+  x: number
+  y: number
+}
+
+/**
+ * 右键菜单状态。
+ * - client：原始视口坐标，供建节点时 screenToFlowPosition 换算落点
+ * - connection：仅「从端口拖出到空白」的菜单携带，菜单项据此决定是否自动连线
+ */
+export interface ContextMenuState extends ContextMenuPos {
+  type: string
+  nodeId?: string | null
+  client?: ContextMenuPos
+  connection?: Connection | null
+}
+
+export interface ContextMenuApi {
+  state: ContextMenuState | null
+  containerRef: RefObject<HTMLDivElement | null>
+  onPaneContextMenu: (e: ReactMouseEvent) => void
+  onNodeContextMenu: (e: ReactMouseEvent, node: Node) => void
+  onSelectionContextMenu: (e: ReactMouseEvent, nodes: Node[]) => void
+  onSelectionEnd: (e: ReactMouseEvent, nodes: Node[]) => void
+  onPaneClick: () => void
+  openConnection: (connection: Connection, clientX: number, clientY: number) => void
+  close: () => void
+}
 
 /**
  * 右键菜单状态 hook（复刻 H_.jsx:131,1324-1388 的 Fe/Xe 菜单状态与三个触发 handler）。
@@ -20,18 +52,18 @@ import { isEditableTarget } from './hooks.js'
  * ContextMenu 拿到 state.x/y 后 top/left 直接用它，就能让菜单左上角对齐鼠标点。
  * 注意：containerRef 必须和 ContextMenu 挂在同一个 relative div 上，否则坐标系错位。
  */
-export function useContextMenu() {
-  const [state, setState] = useState(null)
-  const containerRef = useRef(null)
+export function useContextMenu(): ContextMenuApi {
+  const [state, setState] = useState<ContextMenuState | null>(null)
+  const containerRef = useRef<HTMLDivElement | null>(null)
 
-  const toContainerPos = useCallback((clientX, clientY) => {
+  const toContainerPos = useCallback((clientX: number, clientY: number): ContextMenuPos => {
     const rect = containerRef.current?.getBoundingClientRect()
     if (!rect) return { x: clientX, y: clientY }
     return { x: clientX - rect.left, y: clientY - rect.top }
   }, [])
 
   const open = useCallback(
-    (type, nodeId, e) => {
+    (type: string, nodeId: string | null, e: ReactMouseEvent) => {
       if (isEditableTarget(e)) return
       e.preventDefault()
       e.stopPropagation()
@@ -47,7 +79,7 @@ export function useContextMenu() {
   // 单一数据源：直接复用空白处（canvas）同一套菜单，不另起 connection 菜单。
   // 仅把这次拖拽的源信息（connection）挂进 state，菜单项据此决定是否自动连线。
   const openConnection = useCallback(
-    (connection, clientX, clientY) => {
+    (connection: Connection, clientX: number, clientY: number) => {
       const { x, y } = toContainerPos(clientX, clientY)
       setState({ x, y, type: 'canvas', connection })
     },
@@ -55,14 +87,14 @@ export function useContextMenu() {
   )
 
   // 空白处右键
-  const onPaneContextMenu = useCallback((e) => open('canvas', null, e), [open])
+  const onPaneContextMenu = useCallback((e: ReactMouseEvent) => open('canvas', null, e), [open])
   // 节点右键
-  const onNodeContextMenu = useCallback((e, node) => open('node', node.id, e), [open])
+  const onNodeContextMenu = useCallback((e: ReactMouseEvent, node: Node) => open('node', node.id, e), [open])
   // 多选框右键
-  const onSelectionContextMenu = useCallback((e, nodes) => open('selection', null, e), [open])
+  const onSelectionContextMenu = useCallback((e: ReactMouseEvent, nodes: Node[]) => open('selection', null, e), [open])
   // 拖拽框结束且选中>1 时弹出（复刻 er：延迟 50ms 判断选中数）
   const onSelectionEnd = useCallback(
-    (e, nodes) => {
+    (e: ReactMouseEvent, nodes: Node[]) => {
       setTimeout(() => {
         const n = nodes || []
         if (n.length > 1) open('selection', null, e)

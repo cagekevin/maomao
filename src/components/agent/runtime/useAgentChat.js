@@ -95,7 +95,7 @@ import {
 // 【消息单源 P5 基座】按字段订阅 store 的 messages（含 activeId 从 store 同步读），
 // 避免整包 useConversationStore() 订阅 → 流式高频更新连坐重渲染整个面板。
 import { subscribe, getState } from '../conversation/conversationState.js'
-import { useStoreSelector, shallowEqual } from '../../base/useStoreSelector.js'
+import { useStoreSelector, shallowEqual } from '../../base/useStoreSelector.ts'
 
 // P15 列表 key 收口（收口在 agentMessages.js：appendMsg/setHistory 统一 withMsgId 补稳定唯一 id）
 

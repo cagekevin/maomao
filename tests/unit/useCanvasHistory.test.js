@@ -9,7 +9,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
 
-const { useCanvasHistory } = await import('../../src/components/base/useCanvasHistory.js')
+const { useCanvasHistory } = await import('../../src/components/base/useCanvasHistory.ts')
 
 beforeEach(() => { localStorage.clear() })
 afterEach(() => { vi.unstubAllGlobals() })

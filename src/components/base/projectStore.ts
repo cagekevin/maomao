@@ -8,7 +8,7 @@
  *  - 画布快照 canvas-state-v1-${projectId} 走 KV（跨端共享，见 kvStore）。
  */
 import { useSyncExternalStore } from 'react'
-import { useStoreSelector } from './useStoreSelector.js'
+import { useStoreSelector } from './useStoreSelector.ts'
 import { CANVAS_STATE_PREFIX } from './kvStore.ts'
 import { CANVAS_SCHEMA_VERSION } from './contracts.js'
 import { fetchProjects, saveProjects } from './localToolApi.ts'

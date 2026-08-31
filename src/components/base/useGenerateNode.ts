@@ -1,8 +1,61 @@
 import { useEffect, useMemo, useRef } from 'react'
+import type { GenerationProvider, GenerationResult } from '@/types'
 import { useProviders } from './settings/providerStore.js'
 import { buildAllModels } from './providerModels.js'
 import { useSyncNodeData } from './useSyncNodeData.ts'
 import { useNodeGeneration } from './useNodeGeneration.js'
+
+/** 生成回调注入的进度/中断参数（透传自 useNodeGeneration） */
+export interface GenerateRunArgs {
+  progress: (value: number) => void
+  signal: AbortSignal
+}
+
+/**
+ * 注入给节点回调的 provider 管理态。
+ * 节点自有生成参数（imageSize/aspectRatio/…）仍走节点闭包，不进 ctx。
+ */
+export interface GenerateNodeCtx {
+  providers: GenerationProvider[]
+  primary: GenerationProvider | null
+  models: Array<{ id: string; [key: string]: unknown }>
+  selectedModel: string | undefined
+  prefs: Record<string, unknown> | undefined
+  setPrefs: (patch: Record<string, unknown>) => void
+}
+
+/** validate(ctx) → 错误文案或空串 */
+export type GenerateValidate = (ctx: GenerateNodeCtx) => string | undefined | null
+/** run({progress,signal}, ctx) → 结果信封 */
+export type GenerateRun = (args: GenerateRunArgs, ctx: GenerateNodeCtx) => Promise<GenerationResult>
+export type GenerateSuccess = (result: GenerationResult, ctx: GenerateNodeCtx) => void
+export type GenerateRecover = (data: Record<string, unknown>, ctx: GenerateNodeCtx) => void
+
+export interface UseGenerateNodeOptions {
+  nodeId: string
+  /** 模型域：'image' | 'chat' | 'video'（buildAllModels 用） */
+  type: string
+  /** 任务上报用的节点类型（与模型域不一致时用，缺省 = type） */
+  reportType?: string
+  /** 任务上报用的有效提示词（节点的 effectivePrompt） */
+  prompt?: string
+  /** 节点当前 data（供 useSyncNodeData 与默认模型守卫） */
+  data?: Record<string, unknown>
+  /** 节点 useNodePrefs().prefs */
+  prefs?: Record<string, unknown>
+  setPrefs: (patch: Record<string, unknown>) => void
+  selectedModel?: string
+  setSelectedModel: (model: string) => void
+  /** { data字段: setState } → 收编 useSyncNodeData */
+  sync?: Record<string, (value: unknown) => void>
+  /** 成功/广播自动写回的 data 字段（如 'imageUrl'/'videoUrl'） */
+  resultField?: string
+  recoverable?: boolean
+  validate?: GenerateValidate
+  run?: GenerateRun
+  onSuccess?: GenerateSuccess
+  onRecover?: GenerateRecover
+}
 
 /**
  * ════════════════════════════════════════════════════════════════
@@ -53,11 +106,13 @@ export function useGenerateNode({
   run,
   onSuccess,
   onRecover,
-}) {
+}: UseGenerateNodeOptions) {
   // ── 供应商/模型（统一选 provider / 模型下拉数据）──
   const { providers } = useProviders()
   const primary = providers?.find((p) => p.primary) || providers?.[0] || null
-  const models = buildAllModels(providers, type)
+  // 【边界断言】providerModels 仍是 .js，其 type 形参被推断成 'image'|'chat'|'video'
+  // 字面量联合；本 hook 的 type 为 string，故此处窄化断言，待其转 .ts 后统一对齐。
+  const models = buildAllModels(providers, type as 'image' | 'chat' | 'video')
 
   // ── 收编 useSyncNodeData（第71行）：外部 data 变更 → 本地 state ──
   useSyncNodeData(data, sync)
@@ -75,24 +130,24 @@ export function useGenerateNode({
 
   // ── ctx：注入给 submit/生成回调的 provider 管理态 ──
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const ctx = useMemo(
+  const ctx = useMemo<GenerateNodeCtx>(
     () => ({ providers, primary, models, selectedModel, prefs, setPrefs }),
     [providers, primary, models, selectedModel, prefs, setPrefs]
   )
   // 用 ref 存回调，确保 useNodeGeneration 内部恒调用最新版并带上最新 ctx
-  const validateRef = useRef(validate); validateRef.current = validate
-  const runRef = useRef(run); runRef.current = run
-  const onSuccessRef = useRef(onSuccess); onSuccessRef.current = onSuccess
-  const onRecoverRef = useRef(onRecover); onRecoverRef.current = onRecover
+  const validateRef = useRef<GenerateValidate | undefined>(validate); validateRef.current = validate
+  const runRef = useRef<GenerateRun | undefined>(run); runRef.current = run
+  const onSuccessRef = useRef<GenerateSuccess | undefined>(onSuccess); onSuccessRef.current = onSuccess
+  const onRecoverRef = useRef<GenerateRecover | undefined>(onRecover); onRecoverRef.current = onRecover
 
   // ── 委托底层契约：resultKey 自动写回 + recoverable 自动回填 ──
   const gen = useNodeGeneration({
     nodeId,
     type: { type: reportType || type, prompt, modelName: selectedModel },
     validate: () => validateRef.current?.(ctx),
-    run: (args) => runRef.current?.(args, ctx),
-    onSuccess: (r) => onSuccessRef.current?.(r, ctx),
-    onRecover: (d) => onRecoverRef.current?.(d, ctx),
+    run: (args: GenerateRunArgs) => runRef.current?.(args, ctx),
+    onSuccess: (r: GenerationResult) => onSuccessRef.current?.(r, ctx),
+    onRecover: (d: Record<string, unknown>) => onRecoverRef.current?.(d, ctx),
     resultKey: resultField,
     recoverable,
   })

@@ -8,7 +8,7 @@
  *  - save() 时：_apiKey 非空 → api_key；_clearKey → clear_key；否则不传（沿用）
  */
 import { useSyncExternalStore } from 'react'
-import { useStoreSelector } from '../useStoreSelector.js'
+import { useStoreSelector } from '../useStoreSelector.ts'
 import { providerApi } from '../localToolApi.ts'
 import { contentSetAsync } from '../contentStore.js'
 import { generateId } from '../idGen.ts'

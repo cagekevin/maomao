@@ -12,9 +12,9 @@
  *  - push 截断被 redo 覆盖的分支（branchRef 之后清空）
  *  - undo/redo 移动 index，并进入 suppress（600ms 窗口防重复记录）
  */
-export class HistoryStack {
+export class HistoryStack<T = unknown> {
   max: number
-  history: unknown[]
+  history: T[]
   index: number
   suppress: boolean
   branchRef: number
@@ -36,7 +36,7 @@ export class HistoryStack {
   }
 
   /** 记录一次画布变化；suppress 期忽略；截断被 redo 覆盖的分支 */
-  push(snapshot: unknown): void {
+  push(snapshot: T): void {
     if (this.suppress) return
     // 截断 branchRef 之后的分支（redo 覆盖后再改 → 新分支）
     const next = this.history.slice(0, this.branchRef + 1)
@@ -48,7 +48,7 @@ export class HistoryStack {
   }
 
   /** 撤销：返回应应用的快照（index 前移）并进入 suppress；无则返回 null */
-  undo(): unknown | null {
+  undo(): T | null {
     if (this.index <= 0) return null
     this.suppress = true
     const snap = this.history[this.index - 1]
@@ -58,7 +58,7 @@ export class HistoryStack {
   }
 
   /** 重做：返回应应用的快照（index 后移）并进入 suppress；无则返回 null */
-  redo(): unknown | null {
+  redo(): T | null {
     if (this.index >= this.history.length - 1) return null
     this.suppress = true
     const snap = this.history[this.index + 1]
