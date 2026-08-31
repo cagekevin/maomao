@@ -14,6 +14,27 @@ import { ArrowUp, Square, RefreshCw } from 'lucide-react'
  *  - label        按钮文字（默认「生成」）
  *  - showCost     cost 是否显示（默认 true）
  */
+
+/** 生成/停止按钮 Props。 */
+interface GenerateButtonProps {
+  /** 是否生成中（生成中显示停止 + 刷新，否则显示生成） */
+  loading: boolean
+  /** 生成点击 */
+  onGenerate: () => void
+  /** 停止点击 */
+  onStop: () => void
+  /** 生成中时的「刷新」按钮（可选，视频生成有） */
+  onRefresh?: () => void
+  /** 币消耗（可选，显示在生成按钮内） */
+  cost?: React.ReactNode
+  /** 币颜色（默认橙 yellow） */
+  costColor?: string
+  /** 按钮文字（默认「生成」） */
+  label?: string
+  /** cost 是否显示（默认 true） */
+  showCost?: boolean
+}
+
 export default function GenerateButton({
   loading,
   onGenerate,
@@ -23,7 +44,7 @@ export default function GenerateButton({
   costColor = 'text-orange-400',
   label = '生成',
   showCost = true
-}) {
+}: GenerateButtonProps) {
   if (loading) {
     return (
       <div className="flex items-center gap-3 flex-shrink-0 ml-2">

@@ -7,7 +7,16 @@ import { useOutsideClick } from './hooks.ts'
  * - 'scheduled' → 调度（蓝）｜'third' → 三方（灰）｜'builtin'/空 → 内置（白）
  * - 其它字符串 → 直接作为标签（供应商自定义名，如 API 设置里起的名字）
  */
-function badgeMeta(badge) {
+/** 单个模型项形状（与上游 providers.yaml / 各节点 modelOptions 对齐）。 */
+interface ModelItem {
+  id: string
+  label?: string
+  /** 'builtin' | 'third' | 'scheduled' | 其它字符串直接作标签 */
+  badge?: string
+  cost?: number
+}
+
+function badgeMeta(badge: string): { label: string; className: string } {
   if (badge === 'scheduled') return { label: '调度', className: 'border-blue-400 text-blue-300' }
   if (badge === 'third') return { label: '三方', className: 'border-edge-raised text-body' }
   if (badge && badge !== 'builtin') return { label: badge, className: 'border-white/30 text-white/90' }
@@ -24,6 +33,27 @@ function badgeMeta(badge) {
  *  - placeholder 未选时文案（默认「选择模型」）
  *  - costMap     模型→币消耗映射（可选，显示在选项右侧）
  */
+
+/** 模型选择下拉 Props。 */
+interface ModelSelectProps {
+  /** 当前选中模型 id */
+  value?: string
+  /** 选中回调 (id) */
+  onChange: (id: string) => void
+  /** 模型数组 [{ id, label, badge, cost }] */
+  models?: ModelItem[]
+  /** 未选时文案（默认「选择模型」） */
+  placeholder?: string
+  /** 模型→币消耗映射（可选，显示在选项右侧） */
+  costMap?: Record<string, number>
+  /** 弹层方向：'up' 上 / 'down' 下，默认 up */
+  popupTo?: 'up' | 'down'
+  /** 是否显示左侧分隔线（默认 true） */
+  showDivider?: boolean
+  /** 标签最大宽度（如 '8rem'），超出省略 */
+  labelMaxWidth?: string
+}
+
 function ModelSelect({
   value,
   onChange,
@@ -33,14 +63,14 @@ function ModelSelect({
   popupTo = 'up',
   showDivider = true,
   labelMaxWidth = ''
-}) {
+}: ModelSelectProps) {
   const [open, setOpen] = useState(false)
   const ref = useRef(null)
 
   // 打开时点击外部自动关闭（公共 hook，见 hooks.js）
   useOutsideClick(ref, open, () => setOpen(false))
 
-  const badge = (id) => {
+  const badge = (id: string) => {
     const item = models.find((m) => m.id === id)
     return item?.badge || 'builtin'
   }

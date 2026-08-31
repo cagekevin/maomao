@@ -33,14 +33,14 @@ vi.mock('../../src/hooks/useNodeGeneration.ts', () => ({
   },
 }))
 
-vi.mock('../../src/components/base/ModelSelect.jsx', () => ({ default: ({ value, onChange }) => <button type="button" data-testid="model-select" onClick={() => onChange('model-x')}>{value || '选择模型'}</button> }))
-vi.mock('../../src/components/base/GenerateButton.jsx', () => ({ default: ({ onGenerate }) => <button type="button" onClick={onGenerate}>生成</button> }))
+vi.mock('../../src/components/base/ModelSelect.tsx', () => ({ default: ({ value, onChange }) => <button type="button" data-testid="model-select" onClick={() => onChange('model-x')}>{value || '选择模型'}</button> }))
+vi.mock('../../src/components/base/GenerateButton.tsx', () => ({ default: ({ onGenerate }) => <button type="button" onClick={onGenerate}>生成</button> }))
 vi.mock('../../src/components/base/NodeShell.jsx', () => ({ default: ({ children }) => children }))
-vi.mock('../../src/components/base/ExpandablePanel.jsx', () => ({ default: ({ children }) => children }))
+vi.mock('../../src/components/base/ExpandablePanel.tsx', () => ({ default: ({ children }) => children }))
 vi.mock('../../src/components/base/MaterialStrip.jsx', () => ({ default: ({ children }) => children }))
 vi.mock('../../src/components/base/HoverToolbar.jsx', () => ({ default: () => null }))
 vi.mock('../../src/components/base/PromptInput.jsx', () => ({ default: () => null }))
-vi.mock('../../src/components/base/ResizeFullscreenHandle.jsx', () => ({ default: () => null }))
+vi.mock('../../src/components/base/ResizeFullscreenHandle.tsx', () => ({ default: () => null }))
 vi.mock('../../src/components/base/FullscreenModal.jsx', () => ({ default: () => null }))
 vi.mock('../../src/components/base/GeneratingOverlay.jsx', () => ({ default: () => null }))
 vi.mock('../../src/components/base/PromptLibraryButton.tsx', () => ({ default: () => null }))

@@ -32,6 +32,22 @@ import { createRafBatch } from './utils.ts'
  *  - minWidth / maxWidth / minHeight / maxHeight
  *  - className        附加类
  */
+
+/** 右下角「拖拽改尺寸 + 双击全屏」手柄 Props。 */
+interface ResizeFullscreenHandleProps {
+  /** 要改尺寸的 DOM 元素 ref（拖拽时临时改其 inline width/height 即时预览） */
+  targetRef: React.RefObject<HTMLElement>
+  /** 双击全屏回调（通常打开全屏弹层） */
+  onRequestFullscreen?: () => void
+  /** 拖拽结束回调 (width, height)：把最终尺寸交调用方持久化 */
+  onResizeEnd?: (width: number, height: number) => void
+  minWidth?: number
+  maxWidth?: number
+  minHeight?: number
+  maxHeight?: number
+  className?: string
+}
+
 export default function ResizeFullscreenHandle({
   targetRef,
   onRequestFullscreen,
@@ -41,7 +57,7 @@ export default function ResizeFullscreenHandle({
   minHeight = 60,
   maxHeight = 9999,
   className = ''
-}) {
+}: ResizeFullscreenHandleProps) {
   const [hovered, setHovered] = useState(false)
 
   // 拖拽改尺寸（复刻 _Component23 u 函数）

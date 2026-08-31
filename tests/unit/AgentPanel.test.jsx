@@ -133,7 +133,7 @@ vi.mock('../../src/components/base/previewUrl.ts', () => ({ default: { create: v
 vi.mock('../../src/components/panels/AgentMessage.jsx', () => ({
   default: ({ message }) => React.createElement('div', { 'data-testid': `msg-${message.role}` }, message.content || null),
 }))
-vi.mock('../../src/components/base/ModelSelect.jsx', () => ({
+vi.mock('../../src/components/base/ModelSelect.tsx', () => ({
   default: () => React.createElement('span', null, 'ModelSelect'),
 }))
 

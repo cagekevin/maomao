@@ -3,7 +3,7 @@ import { useAgentChat, setGenParams, getGenParams, getCreditSwitch, setCreditSwi
 import { useProviders, load as loadProviders } from '../base/settings/providerStore.ts'
 import AgentMessage from './AgentMessage.jsx'
 import AgentConfirmCard from './AgentConfirmCard.jsx'
-import ModelSelect from '../base/ModelSelect.jsx'
+import ModelSelect from '../base/ModelSelect.tsx'
 import { buildAllModels } from '../base/providerModels.ts'
 import { useOutsideClick } from '../base/hooks.ts'
 import { loadAgentChatModel, AGENT_CHAT_MODEL_KEY } from '../base/settings/agentModelStore.ts'

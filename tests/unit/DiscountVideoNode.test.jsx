@@ -53,7 +53,7 @@ vi.mock('../../src/components/base/HoverToolbar.tsx', () => ({
     </div>
   ),
 }))
-vi.mock('../../src/components/base/ExpandablePanel.jsx', () => ({ default: ({ children }) => children }))
+vi.mock('../../src/components/base/ExpandablePanel.tsx', () => ({ default: ({ children }) => children }))
 // MaterialStrip：渲染可点的「插入素材」与「断开连线」按钮，透传回调
 vi.mock('../../src/components/base/MaterialStrip.jsx', () => ({
   default: ({ onInsert, onDisconnect }) => (
@@ -63,8 +63,8 @@ vi.mock('../../src/components/base/MaterialStrip.jsx', () => ({
     </div>
   ),
 }))
-vi.mock('../../src/components/base/GenerateButton.jsx', () => ({ default: ({ onGenerate }) => <button type="button" onClick={onGenerate}>生成</button> }))
-vi.mock('../../src/components/base/ModelSelect.jsx', () => ({ default: () => null }))
+vi.mock('../../src/components/base/GenerateButton.tsx', () => ({ default: ({ onGenerate }) => <button type="button" onClick={onGenerate}>生成</button> }))
+vi.mock('../../src/components/base/ModelSelect.tsx', () => ({ default: () => null }))
 // PromptInput：桩为 textarea，透传 value/onChange/placeholder；onReady 上抛一个
 // 「追加 @label 文本」的插入函数（复刻旧 textarea 行为），避免测试耦合富文本内部实现。
 // 富文本芯片本身的序列化/交互由 promptChips.test.js 与 PromptInput 自己的测试覆盖。
@@ -93,7 +93,7 @@ vi.mock('../../src/components/base/PromptInput.jsx', async (importOriginal) => {
 })
 vi.mock('../../src/components/base/PromptLibraryButton.tsx', () => ({ default: () => null }))
 vi.mock('../../src/components/base/GeneratingOverlay.jsx', () => ({ default: () => null }))
-vi.mock('../../src/components/base/ResizeFullscreenHandle.jsx', () => ({ default: () => null }))
+vi.mock('../../src/components/base/ResizeFullscreenHandle.tsx', () => ({ default: () => null }))
 vi.mock('../../src/components/base/FullscreenModal.jsx', () => ({ default: ({ open, children }) => (open ? <div data-testid="fullscreen">{children}</div> : null) }))
 vi.mock('../../src/components/base/VideoThumbnail.tsx', () => ({ default: () => <div data-testid="video-thumb" /> }))
 
