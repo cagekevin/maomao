@@ -8,7 +8,7 @@ import {
 // 注意：节点组件均不反向 import 本文件，故无循环依赖（已验证）。
 import TextNode from '../nodes/TextNode.jsx'
 import ImageNode from '../nodes/ImageNode.tsx'
-import LoopNode from '../nodes/LoopNode.jsx'
+import LoopNode from '../nodes/LoopNode.tsx'
 import PromptNode from '../nodes/PromptNode.jsx'
 import DiscountVideoNode from '../nodes/DiscountVideoNode.jsx'
 import VideoExtractNode from '../nodes/VideoExtractNode.jsx'

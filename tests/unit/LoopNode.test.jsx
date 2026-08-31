@@ -8,7 +8,7 @@ import React from 'react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { mocks } from './_nodeMocks.mjs'
-import { splitByMethod, splitSmartPromptItems } from '../../src/components/nodes/LoopNode.jsx'
+import { splitByMethod, splitSmartPromptItems } from '../../src/components/nodes/LoopNode.tsx'
 
 vi.mock('@xyflow/react', () => mocks.xyflow)
 vi.mock('../../src/components/base/NodeShell.tsx', () => ({ default: mocks.NodeShell }))
@@ -17,7 +17,7 @@ vi.mock('../../src/components/base/toastStore.ts', () => ({ showToast: mocks.sho
 vi.mock('../../src/hooks/useSyncNodeData.ts', () => ({ useSyncNodeData: mocks.useSyncNodeData }))
 vi.mock('../../src/components/base/hooks.ts', () => ({ useOutsideClick: mocks.useOutsideClick }))
 
-import LoopNodeComponent from '../../src/components/nodes/LoopNode.jsx'
+import LoopNodeComponent from '../../src/components/nodes/LoopNode.tsx'
 beforeEach(() => { mocks.resetNodeMockState() })
 const setup = (props = {}) => render(<LoopNodeComponent id="lp1" data={{}} selected={false} {...props} />)
 

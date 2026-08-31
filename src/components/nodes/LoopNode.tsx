@@ -10,6 +10,27 @@ import { generateId } from '../base/idGen.ts'
 import { buildSpawnNodes, spawnAndCommit } from '../base/deriveNodes.ts'
 import { useCanvasEdges } from '../base/CanvasEdgesContext.tsx'
 
+/** 循环节点 data 契约 */
+interface LoopNodeData {
+  label?: string
+  splitMethod?: string
+  [key: string]: unknown
+}
+
+/** 上游产出（来自 useConnectedInputs）的最小只读结构 */
+interface ConnectedOutput {
+  images: Array<{ id?: string; url?: string; label?: string }>
+  texts: Array<{ id?: string; label?: string; text?: unknown }>
+  videos: unknown[]
+  audios: unknown[]
+}
+
+interface LoopNodeProps {
+  id: string
+  data: LoopNodeData
+  selected?: boolean
+}
+
 /** 生成节点布局常量（避免 magic number） */
 const SPAWN_OFFSET_X = 80 // 生成节点相对循环节点右侧的横向偏移
 const SPAWN_ROW_GAP = 750 // 每段生成节点的纵向间距（节点高度 420 + 留白）
@@ -47,7 +68,7 @@ const SPAWN_DEFAULTS = { aspectRatio: '1:1', imageSize: '1K' } // 生成节点�
  * （对齐大雄 smartLoop 的「上游文案切段」，但放宽了分隔符后必须跟空格的限制，
  *   以兼容 `1.主图` / `1、主图` 这类无空格的常见写法。）
  */
-export function splitSmartPromptItems(text) {
+export function splitSmartPromptItems(text: unknown) {
   const trimmed = String(text || '').trim()
   if (!trimmed) return []
 
@@ -79,7 +100,7 @@ export const SPLIT_METHODS = [
 ]
 
 /** 按用户选定的方式切分上游文案为多段 */
-export function splitByMethod(text, method) {
+export function splitByMethod(text: unknown, method: string) {
   const trimmed = String(text || '').trim()
   if (!trimmed) return []
   const clean = (list) => list.map((s) => String(s ?? '').trim()).filter(Boolean)
@@ -108,9 +129,9 @@ export function splitByMethod(text, method) {
   }
 }
 
-function LoopNode({ id, data, selected }) {
+function LoopNode({ id, data, selected }: LoopNodeProps) {
   // 上游连线：读取直接上游节点的文本（textNode 产出 data.text）
-  const connected = useConnectedInputs(id)
+  const connected = useConnectedInputs(id) as ConnectedOutput
   const { setNodes, setEdges, getNodes, getEdges } = useReactFlow()
   const history = useCanvasEdges()
 
