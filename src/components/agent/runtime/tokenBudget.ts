@@ -8,7 +8,7 @@
  *
  * 【合并 · 2026-08-30】原 estimateTokens.js（32 行 / 2 出口）整体并入本文件并私有化：
  *   - 原先「估算 → 决策」是两个文件串成的单链，每层只做一步，且全链仅
- *     useAgentChat.js 一个消费者（2 处调用），属分层浅薄（见
+ *     useAgentChat.ts 一个消费者（2 处调用），属分层浅薄（见
  *     Temp/deepening-context-budget-seam-20260830-0010.md 候选 A）。
  *   - 合并后 Interface 面从 6 出口（2+4）收窄到 3 出口：
  *     resolveInputBudget / decideContextCompression / estimateMessagesTokens；

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { demoPlan } from '../../src/components/agent/runtime/useAgentChat.js'
+import { demoPlan } from '../../src/components/agent/runtime/useAgentChat.ts'
 
 // §2.15 AI 助手：demoPlan（Demo 规则引擎，VITE_AGENT_DEMO=1 时用）
 // 把「自然语言一句话」映射成工具调用序列；不认识返回 []。

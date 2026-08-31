@@ -10,7 +10,7 @@
  *
  * 【目录结构 · 每个文件干嘛】
  *   runtime/                     —— 对话引擎 + 运行时
- *     ├─ useAgentChat.js         对话 hook：send/stop/clear 编排骨架（M3 瘦身后只留编排）
+ *     ├─ useAgentChat.ts         对话 hook：send/stop/clear 编排骨架（M3 瘦身后只留编排）
  *     ├─ agentCore.js            纯函数：buildRequestMessages / parseSSEChunk / 规则注入
  *     ├─ agentRuntime.js         运行时：roundTrip / runToolCalls（依赖注入版）
  *     ├─ inputStateMachine.js    输入状态机：idle/planning/running/steer/retry
@@ -33,7 +33,7 @@
  *
  * 【改 X 看哪（快速定位）】
  *   - 加工具        → canvas/useCanvasAgentTools.js（注册 name/description/parameters/execute）
- *   - 改发送/循环    → runtime/useAgentChat.js
+ *   - 改发送/循环    → runtime/useAgentChat.ts
  *   - 改工作流状态   → runtime/workflowState.js
  *   - 改会话状态     → conversation/conversationState.js（底座）/ conversationStore.js（聚合）
  *   - 改批量出图     → canvas/canvasPlanExecutor.ts
@@ -50,7 +50,7 @@
  * 【对外的聚合 re-export】外部（AgentPanel/App）统一从这里 import，不绕深层路径。
  *   新增对外符号 → 在此追加 re-export，勿在外部直接 import 子目录深层路径。
  */
-export { useAgentChat } from './runtime/useAgentChat.js'
+export { useAgentChat } from './runtime/useAgentChat.ts'
 export { setGenParams, getGenParams, getNodeImageUrl, getCreditSwitch, setCreditSwitch } from './canvas/useCanvasAgentTools.js'
 export { setAgentKey } from './conversation/conversationStore.ts'
 // 运行模式注册表透出（docs/65 M1/M8）：三态单一真源，AgentPanel 从这里 import，不绕深层路径

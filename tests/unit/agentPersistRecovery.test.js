@@ -40,7 +40,7 @@ vi.mock('../../src/components/base/localToolApi.ts', async (importOriginal) => (
   kvDelete: vi.fn(async (key) => { kvStore.delete(key); return { ok: true } }),
 }))
 
-import { useAgentChat } from '../../src/components/agent/runtime/useAgentChat.js'
+import { useAgentChat } from '../../src/components/agent/runtime/useAgentChat.ts'
 
 describe('AI 助手会话刷新恢复（真实 store）', () => {
   beforeEach(() => {

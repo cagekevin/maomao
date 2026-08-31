@@ -13,8 +13,11 @@ const path = require('path');
 const os = require('os');
 const { execSync } = require('child_process');
 
+const { resolveSourceFile } = require('./ts-exts.cjs');
+
 const ROOT = path.resolve(__dirname, '..');
-const SRC = path.join(ROOT, 'src/components/agent/canvas/useCanvasAgentTools.js');
+// 扩展名无关解析：TS 化期间 .js/.jsx→.ts/.tsx 漂移不会再打断本脚本（见 ts-exts.cjs）
+const SRC = resolveSourceFile(path.join(ROOT, 'src/components/agent/canvas/useCanvasAgentTools.js'));
 const OUT = path.join(os.tmpdir(), `useCanvasAgentTools.bundle-${Date.now()}.cjs`);
 
 // 1. 用 esbuild（vite 自带）打包为 CJS（esm=true 让 export 挂到 module.exports）
@@ -40,8 +43,8 @@ try {
 
 const mod = require(OUT);
 
-// 1.5 额外打包 useAgentChat.js 取 demoPlan（纯函数；react/@xyflow external，不真正调用 hook）
-const SRC_CHAT = path.join(ROOT, 'src/components/agent/runtime/useAgentChat.js');
+// 1.5 额外打包 useAgentChat.ts 取 demoPlan（纯函数；react/@xyflow external，不真正调用 hook）
+const SRC_CHAT = resolveSourceFile(path.join(ROOT, 'src/components/agent/runtime/useAgentChat.js'));
 const OUT_CHAT = path.join(os.tmpdir(), `useAgentChat.bundle-${Date.now()}.cjs`);
 let modChat = null;
 try {

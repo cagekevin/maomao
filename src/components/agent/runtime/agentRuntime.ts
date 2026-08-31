@@ -3,7 +3,7 @@
  * agentRuntime —— AI 助手「运行时逻辑」下沉模块（依赖注入）
  * ════════════════════════════════════════════════════════════════
  *
- * 【职责】从 useAgentChat.js 抽出的「需要外部依赖、但本身不是 React hook」的
+ * 【职责】从 useAgentChat.ts 抽出的「需要外部依赖、但本身不是 React hook」的
  *   运行时逻辑。它们不再持有 hook 闭包，而是通过显式 ctx（上下文）注入依赖，
  *   由 useAgentChat 在调用点构造 ctx。包含：
  *     · roundTrip         单次 LLM 请求（流式 SSE / 非流式 JSON 双模式）
@@ -20,7 +20,7 @@
  * 的读写都经由 ctx 里注入的 appendMsg/callTool 完成，绝不绕过 hook 的消息同步。
  *
  * 【改动优先级】低于 agentCore（纯函数）——runToolCalls/roundTrip 涉及工具
- * 执行与 LLM 通信，改这里必读 useAgentChat.js 调用点及 docs/12-ai助手架构.md。
+ * 执行与 LLM 通信，改这里必读 useAgentChat.ts 调用点及 docs/12-ai助手架构.md。
  * ════════════════════════════════════════════════════════════════
  */
 

@@ -3,7 +3,7 @@
  * agentCore —— AI 助手「纯函数层 + 常量 + 系统提示词」下沉模块
  * ════════════════════════════════════════════════════════════════
  *
- * 【职责】从 useAgentChat.js 抽出的「无副作用 / 可独立单测」部分：
+ * 【职责】从 useAgentChat.ts 抽出的「无副作用 / 可独立单测」部分：
  *   - 系统提示词常量：CANVAS_AGENT_RULES / SKILL_EXECUTION_RULES（值已收口至 ../agentConfig.js AGENT_PROMPTS，此处别名 re-export）
  *   - 工具循环常量：MAX_TOOL_ROUNDS / ENABLE_TOOLS_ON_NON_STREAM（值已收口至 ../agentConfig.js，此处 re-export）
  *   - 纯函数：
@@ -17,10 +17,10 @@
  *     · historyKey / loadHistory 旧单会话历史迁移
  *
  * 【为何独立】这些函数不依赖 React hook 生命周期、不触碰 messagesRef/
- * sendingRef/abortRef 等可变 ref 闭包，抽出来零行为变化、可被 useAgentChat.js
+ * sendingRef/abortRef 等可变 ref 闭包，抽出来零行为变化、可被 useAgentChat.ts
  * 与单测共同引用（re-export 保测试契约）。改动优先级低于 hook 核心。
  *
- * 【测试契约】useAgentChat.js 会 re-export 本模块全部导出，既有单测
+ * 【测试契约】useAgentChat.ts 会 re-export 本模块全部导出，既有单测
  * （agentLogic.test.js / demoPlan.test.js / imageModeSplit.test.js /
  * useAgentChat.hook.test.js / scripts/test_agent_tools.cjs）import 路径不变。
  * ════════════════════════════════════════════════════════════════
@@ -31,6 +31,7 @@ import { logger } from '../../base/logger.ts'
 import { toImageContentBlocks } from '../../base/imageUrl.ts'
 import { getSystemPromptForWorkMode, RUN_MODE_IDS } from './runModeRegistry.ts'
 import { AGENT_PROMPTS } from '../agentConfig.ts'
+import type { ImageMapEntry } from '../conversation/conversationImageMap.ts'
 
 /** 单条工具调用（对齐 OpenAI chat tool_calls 形态）。 */
 export interface ToolCall {
@@ -78,13 +79,13 @@ export interface AgentMemory {
   }
 }
 
-/** 可引用图编号目录项（对齐大雄 agentCurrentImageMap）。 */
-export interface ImageRef {
-  num: number
-  url?: string
-  name?: string
-  source?: 'gen' | 'ref'
-}
+/**
+ * 可引用图编号目录项（对齐大雄 agentCurrentImageMap）。
+ * 【单一事实来源】真实数据由 conversationImageMap.getCurrentImageMap() 生产（source 只有
+ * 'gen'（上一轮生成图）/ 'att'（本轮附件）两种取值），此处直接复用生产侧定义，
+ * 避免「注入侧与生产侧各写一份 → source 取值漂移」（此前本处写成 'ref'，与真实数据不符）。
+ */
+export type ImageRef = ImageMapEntry
 
 /** 单个 generation（生图步骤，大雄协议核心）。 */
 export interface GenerationSpec {

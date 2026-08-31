@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseSSEChunk, buildRequestMessages, demoPlan } from '../../src/components/agent/runtime/useAgentChat.js'
+import { parseSSEChunk, buildRequestMessages, demoPlan } from '../../src/components/agent/runtime/useAgentChat.ts'
 
 // §2.15 AI 助手前端逻辑：parseSSEChunk（SSE 流式解析） + buildRequestMessages（发 LLM 的消息组装）
 // 这两个是 AI 助手多轮工具循环的核心纯函数（不依赖 React DOM），可直接单测。

@@ -360,10 +360,10 @@ export const STORAGE_KEYS = {
     note: '高消耗积分确认开关：任何模式真生成图/视频前是否先确认（默认 true = 开/安全）',
   },
 
-  // ── AI 历史迁移（useAgentChat.js）──────────────────────────────────
+  // ── AI 历史迁移（useAgentChat.ts）──────────────────────────────────
   'agent_history_{agentKey}': {
     domain: 'agent',
-    store: 'useAgentChat.js',
+    store: 'useAgentChat.ts',
     backend: 'local',
     pattern: true,
     note: '旧单会话历史（仅首次迁移用，从旧格式迁移到多对话体系后不再写入）',

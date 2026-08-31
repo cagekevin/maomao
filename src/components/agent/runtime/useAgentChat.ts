@@ -36,6 +36,7 @@ import {
   imageModeLooksLikePerReferenceEdit,
   buildPerReferenceGenerations,
 } from './agentCore.ts'
+import type { ToolCall } from './agentCore.ts'
 // 运行时逻辑（依赖注入版本）。hook 内以 const roundTrip 等同名闭包封装调用，
 // 故此处用别名避免与 hook 内的函数名冲突。
 import { roundTrip as agentRuntimeRoundTrip, runToolCalls as agentRuntimeRunToolCalls, runDemoMode as agentRuntimeRunDemoMode } from './agentRuntime.ts'
@@ -58,7 +59,7 @@ import { wfStart, wfSteer, wfFinish, wfAwaitConfirm, wfNextSteer } from './workf
 import { isAgentWorkMode } from './runModeRegistry.ts'
 // 消息构造/落盘 + 附件归一化（M3 下沉：appendMsg/setHistory/updateLastStreaming/endStreaming/stripStreaming → agentMessages；附件/参考图目录 → agentAttachments）
 import { appendMsg, setHistory, updateLastStreaming, endStreaming, stripStreaming } from './agentMessages.ts'
-import { normalizeAttachmentsForSend, buildRefCatalog } from './agentAttachments.ts'
+import { normalizeAttachmentsForSend, buildRefCatalog, type SendAttachment } from './agentAttachments.ts'
 import {
   ensureActiveConversation,
   setAgentKey,
@@ -98,6 +99,25 @@ import { subscribe, getState } from '../conversation/conversationState.ts'
 import { useStoreSelector, shallowEqual } from '../../../hooks/useStoreSelector.ts'
 
 // P15 列表 key 收口（收口在 agentMessages.js：appendMsg/setHistory 统一 withMsgId 补稳定唯一 id）
+
+/**
+ * send / runDirectBranch 构造并落盘的 user 消息形状。
+ * 落盘后仍被两处消费：① UI（AgentMessage 按 steer/statusLabel/mode 渲染气泡与标签）；
+ * ② 执行层（useCanvasAgentTools 按 attachments/url 取参考图）。字段按实际取值声明，不另造抽象。
+ * id 可选：runDirectBranch 走 setHistory 统一补 id（agentMessages.withMsgId）。
+ */
+interface SendUserMessage {
+  id?: string
+  role: 'user'
+  content: string
+  createdAt: number
+  skills: unknown[]
+  mode?: string
+  steer?: boolean
+  statusLabel?: string
+  attachments?: SendAttachment[]
+  refCatalog?: string
+}
 
 /**
  * ════════════════════════════════════════════════════════════════
@@ -391,7 +411,7 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
    *  回填 LLM `{ok:false,error:undefined}` → 误判失败 → 撞 MAX_TOOL_ROUNDS 死循环 + 重复建节点。
    *  改为 async + 逐个 await，确保回填真实结果（await 普通对象/值也安全，不改变行为）。
    *  【职责模块化】逻辑已下沉到 agentRuntime.runToolCalls（依赖注入），此处只构造 ctx 转发。 */
-  const runToolCalls = useCallback(async (tools, callIdFor = () => '') => {
+  const runToolCalls = useCallback(async (tools: ToolCall[], callIdFor: (tc: ToolCall) => string = () => '') => {
     return agentRuntimeRunToolCalls(
       { callTool, appendMsg, model, logger, getActivePendingGenerations },
       tools,
@@ -471,7 +491,7 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
 
       // 构造 user 消息（附件归一化：blob→data、相对→绝对；只认 base64 的 provider 转 base64）
       // 显式补稳定 id：供 setCurrentPending 以 messageId 引用；恢复时按 id 从 messages 找回正文（去重，不再在 pending 存 text 副本）
-      const userMsg = { id: generateId('msg'), role: 'user', content: text, createdAt: Date.now(), skills: skillsRef.current.slice() }
+      const userMsg: SendUserMessage = { id: generateId('msg'), role: 'user', content: text, createdAt: Date.now(), skills: skillsRef.current.slice() }
       if (attachments && attachments.length > 0) {
         // 发送统一出口守卫：附件图必经归一（含缩略图端点自动还原原图），禁止发 render 小图。见 agentAttachments.js
         userMsg.attachments = await normalizeAttachmentsForSend(attachments, { preferBase64: provider?.refFormat === 'base64' })
@@ -536,7 +556,7 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
           const action = decideContextCompression({ messages: contextMessages, inputBudget: budgetInput })
           if (action === 'force' && !forcedCompressed) {
             forcedCompressed = true
-            logger.info('AI助手', '[预算] 触发强制压缩', { round }, { module: 'agent' })
+            logger.info('AI助手', '[预算] 触发强制压缩', { round })
             const summary = await compressToSummary({ provider, model, messages: getCurrentSnapshot().messages, previousSummary: getCurrentMemory()?.summary || '' })
             if (summary) {
               setCurrentMemory({ ...getCurrentMemory(), summary })
@@ -667,7 +687,7 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
       setError(null)
       stateMachineRef.current.start({ status: 'running' })
 
-      const userMsg = { role: 'user', content: prompt, createdAt: Date.now(), mode: 'image', skills: [] }
+      const userMsg: SendUserMessage = { role: 'user', content: prompt, createdAt: Date.now(), mode: 'image', skills: [] }
       if (attachments && attachments.length > 0) {
         // 发送统一出口守卫：附件图必经归一（含缩略图端点自动还原原图），禁止发 render 小图。见 agentAttachments.js
         userMsg.attachments = await normalizeAttachmentsForSend(attachments, { preferBase64: provider?.refFormat === 'base64' })
@@ -684,8 +704,6 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
       // 必须先把参考图写入模块级 refPool，execute_plan 的 attachment_indices 才能按编号取到图。
       setCurrentReferenceImages(referenceImages)
       const perRef = referenceImages.length >= 2 && imageModeLooksLikePerReferenceEdit(prompt, referenceImages.length)
-      // 【B层】图像模式：是否触发「分别改图」拆分 + 拆出的 generation 数——定位多参考图链路
-      logger.debug('AI助手', '[图像] 拆分判定', { perRef, genCount: perRef ? gens.length : 1, refImageCount: referenceImages.length }, { module: 'agent' })
       const gens = perRef
         ? buildPerReferenceGenerations(referenceImages, prompt, panel)
         : [{
@@ -702,6 +720,9 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
             // 有参考图 → 整批共享（无 attachment_indices，execute_plan 按 use_attachments=true 全量挂 refPool）。
             ...(referenceImages.length ? { use_attachments: true } : {}),
           }]
+      // 【B层】图像模式：是否触发「分别改图」拆分 + 拆出的 generation 数——定位多参考图链路
+      // （必须在 gens 声明之后：const 有 TDZ，放在上面会在 perRef 命中时抛 ReferenceError）
+      logger.debug('AI助手', '[图像] 拆分判定', { perRef, genCount: perRef ? gens.length : 1, refImageCount: referenceImages.length }, { module: 'agent' })
 
       // 【积分闸】try 内未赋值时 finally 仍需安全引用（防抛错后 ReferenceError）
       let creditAwaited = false
@@ -783,7 +804,7 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
     const label = (PROJECT_MEMORY_KIND_LABELS[saved.kind] || saved.kind) || ''
     appendMsg({ role: 'assistant', content: `已保存长期记忆：[${label}] ${saved.content}`, model, createdAt: Date.now() })
     try { captureActiveConversation() } catch { /* ignore */ }
-    logger.info('AI助手', '[记] 确认落库', { kind: saved.kind, contentLen: (saved.content || '').length }, { module: 'agent' })
+    logger.info('AI助手', '[记] 确认落库', { kind: saved.kind, contentLen: (saved.content || '').length })
     return { ok: true }
   }, [agentKey, model, appendMsg])
 
