@@ -11,9 +11,16 @@ import { isAudio } from './mediaType.ts'
 import VideoThumbnail from './VideoThumbnail.tsx'
 import LazyImage from './LazyImage.tsx'
 import ImageZoomDialog from './ImageZoomDialog.tsx'
+import type { ResourceItem } from './localToolApi.ts'
+import { toImgDragProps } from '../../hooks/useAssetDragToCanvas.ts'
 
 // 类型过滤 pill（沿用素材库 AssetLibrary 的小圆按钮形式）
-const TYPE_FILTERS = [
+interface TypeFilter {
+  key: string
+  label: string
+}
+
+const TYPE_FILTERS: TypeFilter[] = [
   { key: 'all', label: '全部' },
   { key: 'image', label: '图片' },
   { key: 'video', label: '视频' },
@@ -31,7 +38,7 @@ const PAGE_SIZE = 20 // 每次加载 20 个，点击翻页（对齐官方 Un.jsx
 
 // fetchText/textCache 统一收敛到 useAssetDragToCanvas.js；isAudio 统一到 mediaType.js
 // 文字资源单元格：默认展示文件内容（前几行）
-const TextResourceCell = React.memo(function TextResourceCell({ url, name }) {
+const TextResourceCell = React.memo(function TextResourceCell({ url, name }: { url: string; name?: string }) {
   const [text, setText] = useState('')
   useEffect(() => {
     let alive = true
@@ -51,7 +58,7 @@ const TextResourceCell = React.memo(function TextResourceCell({ url, name }) {
 })
 
 // 文字预览：完整展示文件内容
-const TextPreview = React.memo(function TextPreview({ url, name }) {
+const TextPreview = React.memo(function TextPreview({ url, name }: { url: string; name?: string }) {
   const [text, setText] = useState('')
   useEffect(() => {
     let alive = true
@@ -88,13 +95,13 @@ function GeneratedView() {
   const { status } = useLocalToolStatus()
   const connected = status.isConnected
 
-  const [items, setItems] = useState([])
+  const [items, setItems] = useState<ResourceItem[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [loading, setLoading] = useState(false)
-  const [preview, setPreview] = useState(null) // 点击大图/视频/文字/音频预览
-  const videoZoomRef = useRef(null) // 视频预览统一走 ImageZoomDialog（含截屏按钮）
+  const [preview, setPreview] = useState<ResourceItem | null>(null) // 点击大图/视频/文字/音频预览
+  const videoZoomRef = useRef<HTMLDialogElement>(null) // 视频预览统一走 ImageZoomDialog（含截屏按钮）
 
   // 视频预览：preview 变为视频时自动打开统一视频框（关闭由 onClose 复位 preview）
   useEffect(() => {
@@ -108,21 +115,22 @@ function GeneratedView() {
   const [creating, setCreating] = useState(false)
   const [newFolderName, setNewFolderName] = useState('')
   const [menuOpen, setMenuOpen] = useState(false) // 「⋯」更多操作菜单
-  const [renameTarget, setRenameTarget] = useState(null) // 正在重命名的资源
+  const [renameTarget, setRenameTarget] = useState<ResourceItem | null>(null) // 正在重命名的资源
   const [renameName, setRenameName] = useState('')
-  const [menuItemId, setMenuItemId] = useState(null) // 卡片「⋯」菜单打开的卡片 id
+  const [menuItemId, setMenuItemId] = useState<string | null>(null) // 卡片「⋯」菜单打开的卡片 id
 
   const resetTokenRef = useRef(0)
 
   // 顶部标签行拖拽：按住左右拖动 = 横向滚动（标签超出一行可拖看后面），拖动超阈值不误触 pill 点击
-  const pillScrollRef = useRef(null)
-  const pillDragRef = useRef({ down: false, startX: 0, startScroll: 0, moved: false })
-  const onPillMouseDown = (e) => {
+  const pillScrollRef = useRef<HTMLDivElement>(null)
+  interface PillDragState { down: boolean; startX: number; startScroll: number; moved: boolean }
+  const pillDragRef = useRef<PillDragState>({ down: false, startX: 0, startScroll: 0, moved: false })
+  const onPillMouseDown = (e: React.MouseEvent) => {
     const el = pillScrollRef.current
     if (!el) return
     pillDragRef.current = { down: true, startX: e.clientX, startScroll: el.scrollLeft, moved: false }
   }
-  const onPillMouseMove = (e) => {
+  const onPillMouseMove = (e: React.MouseEvent) => {
     const d = pillDragRef.current
     const el = pillScrollRef.current
     if (!d.down || !el) return
@@ -131,7 +139,7 @@ function GeneratedView() {
     el.scrollLeft = d.startScroll - dx
   }
   const endPillDrag = () => { pillDragRef.current.down = false }
-  const onPillClickCapture = (e) => {
+  const onPillClickCapture = (e: React.MouseEvent) => {
     if (pillDragRef.current.moved) { e.stopPropagation(); e.preventDefault() }
   }
 
@@ -185,7 +193,7 @@ function GeneratedView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [connected, folder, typeFilter])
 
-  const handleDelete = async (item) => {
+  const handleDelete = async (item: ResourceItem) => {
     setItems((list) => list.filter((x) => x.id !== item.id))
     setTotal((t) => Math.max(0, t - 1))
     try {
@@ -202,7 +210,7 @@ function GeneratedView() {
       .catch(() => showToast('打开本地目录失败', { type: 'error' }))
   }
 
-  const handleOpenFileDir = (item) => {
+  const handleOpenFileDir = (item: ResourceItem) => {
     const rel = relativePathFromUrl(item.url)
     if (!rel) return showToast('打开所在目录失败', { type: 'error' })
     openFileDir(rel).catch(() => showToast('打开所在目录失败', { type: 'error' }))
@@ -230,7 +238,7 @@ function GeneratedView() {
   }
 
   // 新建文件夹（对齐官方 S.createFolder → POST /api/files/mkdir）
-  const createFolder = async (name) => {
+  const createFolder = async (name: string): Promise<boolean> => {
     if (!name || !connected) return false
     try {
       await createFolderApi(folder === 'tasks' ? `tasks/${name}` : `${folder}/${name}`)
@@ -500,7 +508,7 @@ function GeneratedView() {
                 <audio src={preview.url} controls className="w-full" />
               </div>
             ) : (
-              <img src={toAbsoluteFileUrl(preview.url)} alt={preview.name} {...assetDragProps({ url: toAbsoluteFileUrl(preview.url), name: preview.name, type: preview.type })}
+              <img src={toAbsoluteFileUrl(preview.url)} alt={preview.name} {...toImgDragProps(assetDragProps({ url: toAbsoluteFileUrl(preview.url), name: preview.name, type: preview.type }))}
                 className="max-h-[75vh] max-w-full rounded-lg object-contain cursor-grab active:cursor-grabbing" />
             )}
             <p className="text-xs text-muted m-0">{preview.name} · {preview.folder}</p>

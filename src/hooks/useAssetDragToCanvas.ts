@@ -17,7 +17,7 @@ export interface CanvasAssetLike {
  *
  * 【为什么收敛到这里】
  * 此前「把图片/视频/音频/文字素材拖到画布」的 onDragStart 在多个面板各写一遍：
- *  - AssetLibrary.tsx / GeneratedView.jsx（用 application/x-yimao-asset）
+ *  - AssetLibrary.tsx / GeneratedView.tsx（用 application/x-yimao-asset）
  *  - TaskCenter.tsx（用 text/plain，格式与前者不一致）
  * 接收端统一是 useAssetDropPaste.onDrop（画布侧）。这里把发起端收敛成一份：
  *  - 统一格式：全部写 application/x-yimao-asset（带 url/name/type/text，比 text/plain 信息更全）
@@ -79,6 +79,16 @@ export function makeAssetDragProps(asset: CanvasAssetLike, opts: { disable?: boo
 /** hook 版：与 makeAssetDragProps 等价，供 React 组件内取引用一致的版本 */
 export function useAssetDragToCanvas(): { assetDragProps: typeof makeAssetDragProps } {
   return { assetDragProps: makeAssetDragProps }
+}
+
+/**
+ * 把 assetDragProps 的结果适配到 <img>（素材库 / 生成 两个面板共用）：
+ * 源 `draggable` 是 `string | boolean`（url 非空即真 —— 勿在源头 `!!` 收窄，见 makeAssetDragProps），
+ * 而 React 的 img.draggable 只接受 Booleanish，故在消费端按真值收窄。
+ * React 对 draggable 一律渲染成 "true"/"false"，DOM 产物与收窄前完全一致，零行为变化。
+ */
+export function toImgDragProps(props: AssetDragSourceProps) {
+  return { ...props, draggable: Boolean(props.draggable) }
 }
 
 /**

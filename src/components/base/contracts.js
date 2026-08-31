@@ -92,7 +92,7 @@ export const EVENTS = {
     note: '素材落盘成功 → 素材库面板刷新（AssetLibrary 经 onAssetSent 订阅）。生产使用',
   },
   'resource:renamed': {
-    from: ['AssetLibrary.tsx:300', 'GeneratedView.jsx:214', 'useAssetMoveToFolder.ts:98'],
+    from: ['AssetLibrary.tsx:300', 'GeneratedView.tsx:231', 'useAssetMoveToFolder.ts:98'],
     to: ['App.jsx:445', 'taskStore.ts:167'],
     payload: '{ oldUrl, newUrl }',
     note: '素材 url 变更（改名/移动归类，前端入口）广播旧→新 url。两个订阅方各管一段内存态：App 改写画布/脚本箱节点并持久化（防下游图生图 404）；taskStore 改写内存任务的 resultUrl（防任务中心破图）。两侧共用 imageUrl.js 的 buildUrlRewritePairs/replaceUrlDeep，禁止各写一份。与后端 rewriteUrlReferences（localTool database.ts）配套，形态严格四态对账',

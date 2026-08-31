@@ -12,22 +12,8 @@ import { logger } from './logger.ts'
 import { isAudio } from './mediaType.ts'
 import LazyImage from './LazyImage.tsx'
 import ImageZoomDialog from './ImageZoomDialog.tsx'
-import type { AssetMoveItem, AssetDragSourceProps } from '../../hooks/useAssetMoveToFolder.ts'
-
-/**
- * 把 assetDragProps 的结果适配到 <img>：
- * 源 `draggable` 是 `string | boolean`（url 非空即真，见 useAssetDragToCanvas —— 勿在源头 `!!` 收窄），
- * 而 React 的 img.draggable 只接受 Booleanish，故在消费端按真值收窄
- * （React 对 draggable 一律渲染成 "true"/"false"，DOM 产物与收窄前完全一致）。
- */
-function toImgDragProps(props: AssetDragSourceProps) {
-  return { ...props, draggable: Boolean(props.draggable) }
-}
-
-/** /api/resources 返回的单条素材（后端报文，字段可选；拖拽形状复用 AssetMoveItem） */
-interface ResourceItem extends AssetMoveItem {
-  id: string
-}
+import type { ResourceItem } from './localToolApi.ts'
+import { toImgDragProps } from '../../hooks/useAssetDragToCanvas.ts'
 
 /** 目录 pill（folder 前缀对齐本地磁盘 migrated 结构，与后端 /api/resources 一一对应） */
 interface FolderPill {

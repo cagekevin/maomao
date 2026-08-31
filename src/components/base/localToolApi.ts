@@ -18,6 +18,20 @@ import { httpRequest, httpPost } from './httpClient.ts'
 import { API_BASE } from './config.js'
 import { UPLOAD_DIRS } from './uploadDirs.ts'
 
+/**
+ * GET /api/resources 返回的单条资源（后端报文，字段一律可选）。
+ * 素材库 AssetLibrary / 生成 GeneratedView 两个面板共用同一形状，收口在此避免两处各写一份漂移。
+ * 结构上可赋值给拖拽用的 AssetMoveItem（useAssetMoveToFolder）。
+ */
+export interface ResourceItem {
+  id: string
+  name?: string
+  url?: string
+  type?: string
+  folder?: string
+  source?: string
+}
+
 // ─────────────────────────── tasks ───────────────────────────
 // GET /api/tasks?page&pageSize&keyword → { items, total }
 export async function fetchTasks({ page = 1, pageSize = 200, keyword = '' }: { page?: number; pageSize?: number; keyword?: string } = {}): Promise<any> {
