@@ -27,7 +27,7 @@ export interface Preset {
 }
 
 /** 弹窗卡片行（mapToLibraryCards 输出，供 PromptLibrary 渲染） */
-interface LibraryCard {
+export interface LibraryCard {
   id: string
   title?: string
   content?: string

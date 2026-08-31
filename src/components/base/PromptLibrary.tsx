@@ -6,9 +6,11 @@ import {
   getRecent, recordRecent, getRecentCards, searchCards, mapToLibraryCards,
   TYPE_LABEL, TYPE_TAG_CLASS, CATEGORY_OPTIONS
 } from './promptManager.ts'
+import type { Preset, LibraryCard } from './promptManager.ts'
 import { showToast } from './toastStore.ts'
 import { subscribe } from './eventBus.ts'
 import { createImeInput } from './utils.ts'
+import type { ImeInput } from './utils.ts'
 
 /**
  * 提示词库大弹窗（复刻 maomao/src/components/prompts/PromptLibrary.jsx）。
@@ -16,26 +18,39 @@ import { createImeInput } from './utils.ts'
  * 入口：生图/文本/视频节点的「预设」按钮 → 打开本弹窗。
  * 卡片上提供两个动作：点「新建节点」→ onUse(prompt) 回调（宿主新建文本节点）；
  * 点「添加到提示词」→ onAppend(prompt) 回调（追加到当前节点提示词）。
- *
- * @param {object} props
- *  - open         是否打开
- *  - onClose      关闭回调
- *  - onUse        使用回调（content 为预设 prompt）→ 新增文本节点
- *  - onAppend     追加回调（content 为预设 prompt）→ 追加到当前节点提示词（可选）
- *  - defaultCategory 默认分类（image/video/text/''）
- *  - presetPrompts 可选的预设数组覆盖（不传则从本地读）
  */
-function PromptLibrary({ open, onClose, onUse, onAppend, defaultCategory = '', presetPrompts }) {
-  const [activeTab, setActiveTab] = useState('mine') // mine | recent
+export interface PromptLibraryProps {
+  /** 是否打开 */
+  open: boolean
+  /** 关闭回调 */
+  onClose: () => void
+  /** 使用回调（content 为预设 prompt）→ 新增文本节点 */
+  onUse?: (content: string) => void
+  /** 追加回调（content 为预设 prompt）→ 追加到当前节点提示词（可选） */
+  onAppend?: (content: string) => void
+  /** 默认分类（image/video/text/''） */
+  defaultCategory?: string
+  /** 可选的预设数组覆盖（不传则从本地读） */
+  presetPrompts?: Preset[]
+}
+
+interface PresetFormData {
+  title: string
+  type: string
+  prompt: string
+}
+
+function PromptLibrary({ open, onClose, onUse, onAppend, defaultCategory = '', presetPrompts }: PromptLibraryProps) {
+  const [activeTab, setActiveTab] = useState<'mine' | 'recent'>('mine')
   const [searchKeyword, setSearchKeyword] = useState('')
   const [debouncedKeyword, setDebouncedKeyword] = useState('') // P2：过滤用防抖值（输入即时、过滤停顿后触发）
   const [selectedCategory, setSelectedCategory] = useState(defaultCategory)
   const [editingIndex, setEditingIndex] = useState(-1)
   const [showNewForm, setShowNewForm] = useState(false)
-  const [formData, setFormData] = useState({ title: '', type: 'all', prompt: '' })
+  const [formData, setFormData] = useState<PresetFormData>({ title: '', type: 'all', prompt: '' })
 
   // P2/P12：搜索 IME 感知防抖提交（组字中不触发过滤，组字结束补提交一次）
-  const searchIme = useRef(null)
+  const searchIme = useRef<ImeInput | null>(null)
   if (searchIme.current == null) {
     searchIme.current = createImeInput((v) => setDebouncedKeyword(v), 200)
   }
@@ -46,7 +61,7 @@ function PromptLibrary({ open, onClose, onUse, onAppend, defaultCategory = '', p
 
   // 监听外部 presets-changed 广播（经 eventBus），保持同步
   useEffect(() => {
-    const onChanged = (presets) => setLocalPresets(presets || loadPresets())
+    const onChanged = (presets?: Preset[] | null) => setLocalPresets(presets || loadPresets())
     return subscribe('presets-changed', onChanged)
   }, [])
 
@@ -74,7 +89,7 @@ function PromptLibrary({ open, onClose, onUse, onAppend, defaultCategory = '', p
   }, [activeTab, recentCards, cards, selectedCategory, debouncedKeyword])
 
   // 点「新建节点」→ 把预设提示词新建为文本节点
-  const handleNewNode = (card) => {
+  const handleNewNode = (card: LibraryCard) => {
     recordRecent(card.id)
     if (onUse) {
       onUse(card.content)
@@ -86,7 +101,7 @@ function PromptLibrary({ open, onClose, onUse, onAppend, defaultCategory = '', p
   }
 
   // 点「添加到提示词」→ 把预设提示词追加到当前节点提示词
-  const handleAppend = (card) => {
+  const handleAppend = (card: LibraryCard) => {
     recordRecent(card.id)
     if (onAppend) {
       onAppend(card.content)
@@ -94,7 +109,7 @@ function PromptLibrary({ open, onClose, onUse, onAppend, defaultCategory = '', p
     }
   }
 
-  const startEdit = (presetIndex) => {
+  const startEdit = (presetIndex: number) => {
     const p = presets[presetIndex]
     if (!p) return
     setEditingIndex(presetIndex)
@@ -111,7 +126,7 @@ function PromptLibrary({ open, onClose, onUse, onAppend, defaultCategory = '', p
     showToast('已保存', { type: 'success' })
   }
 
-  const handleDelete = (presetIndex) => {
+  const handleDelete = (presetIndex: number) => {
     const next = presets.filter((_, i) => i !== presetIndex)
     saveAndNotify(next)
     if (!presetPrompts) setLocalPresets(next)
@@ -152,9 +167,9 @@ function PromptLibrary({ open, onClose, onUse, onAppend, defaultCategory = '', p
               value={searchKeyword}
               onChange={(e) => {
                 setSearchKeyword(e.target.value)
-                searchIme.current?.onChange(e.target.value, e.nativeEvent.isComposing)
+                searchIme.current?.onChange(e.target.value, (e.nativeEvent as InputEvent).isComposing)
               }}
-              onCompositionEnd={(e) => searchIme.current?.onCompositionEnd(e.target.value)}
+              onCompositionEnd={(e) => searchIme.current?.onCompositionEnd((e.target as HTMLInputElement).value)}
               onBlur={() => searchIme.current?.cancel()}
               placeholder="搜索标题或提示词内容"
               className="w-full h-[34px] bg-surface border border-edge rounded-[10px] pl-9 pr-3 text-body text-body-sm outline-none focus:border-edge-strong box-border"

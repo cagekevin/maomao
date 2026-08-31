@@ -5,28 +5,37 @@ import {
 import {
   getCachedPromptHub, loadPromptHub, getPromptHubErrors, getPromptHubSources,
 } from './promptHubStore.ts'
+import type { Prompt } from './promptHubStore.ts'
 import { toastWarning } from './toastStore.ts'
 import LazyImage from './LazyImage.tsx'
 import { createImeInput } from './utils.ts'
+import type { ImeInput } from './utils.ts'
 
-const fmtDate = (s) => {
+const fmtDate = (s: string): string => {
   if (!s) return '—'
   const d = new Date(s)
   if (Number.isNaN(d.getTime())) return s
-  const p = (n) => String(n).padStart(2, '0')
+  const p = (n: number) => String(n).padStart(2, '0')
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`
 }
 
-const getSrc = (it) => {
+const getSrc = (it: Prompt): string => {
   if (it.coverUrl) return it.coverUrl
   if (Array.isArray(it.referenceImageUrls) && it.referenceImageUrls[0]) return it.referenceImageUrls[0]
   return ''
 }
-const getName = (it) => it.title || it.name || '未命名'
+// 注：原名 `it.title || it.name || '未命名'` 中 `it.name` 恒为 undefined ——
+// normalizeItems 是白名单构造（不拷贝 name），且空 title 已在入库前被过滤，故安全去除该回退。
+const getName = (it: Prompt): string => it.title || '未命名'
 
-const getSources = () => ['all', ...getPromptHubSources().map((s) => s.name)]
+const getSources = (): string[] => ['all', ...getPromptHubSources().map((s) => s.name)]
 
-const HubCard = React.memo(function HubCard({ it, onOpen }) {
+interface HubCardProps {
+  it: Prompt
+  onOpen: (it: Prompt) => void
+}
+
+const HubCard = React.memo(function HubCard({ it, onOpen }: HubCardProps) {
   const src = getSrc(it)
   return (
     <div
@@ -54,7 +63,12 @@ const HubCard = React.memo(function HubCard({ it, onOpen }) {
   )
 })
 
-const DetailRow = React.memo(function DetailRow({ label, children }) {
+interface DetailRowProps {
+  label: string
+  children: React.ReactNode
+}
+
+const DetailRow = React.memo(function DetailRow({ label, children }: DetailRowProps) {
   return (
     <div className="flex gap-2 text-meta">
       <span className="text-muted w-12 shrink-0">{label}</span>
@@ -63,7 +77,12 @@ const DetailRow = React.memo(function DetailRow({ label, children }) {
   )
 })
 
-const HubDetail = React.memo(function HubDetail({ it, onClose }) {
+interface HubDetailProps {
+  it: Prompt
+  onClose: () => void
+}
+
+const HubDetail = React.memo(function HubDetail({ it, onClose }: HubDetailProps) {
   const refs = Array.isArray(it.referenceImageUrls) ? it.referenceImageUrls : []
   return (
     <div className="absolute inset-0 z-20 bg-input flex flex-col">
@@ -150,7 +169,12 @@ const HubLoading = React.memo(function HubLoading() {
   )
 })
 
-const HubEmpty = React.memo(function HubEmpty({ keyword, source }) {
+interface HubEmptyProps {
+  keyword: string
+  source: string
+}
+
+const HubEmpty = React.memo(function HubEmpty({ keyword, source }: HubEmptyProps) {
   return (
     <div className="flex-1 flex flex-col items-center justify-center gap-2 text-muted px-6 text-center">
       <ImageOff size={28} />
@@ -162,21 +186,23 @@ const HubEmpty = React.memo(function HubEmpty({ keyword, source }) {
   )
 })
 
+type HubStatus = 'idle' | 'loading' | 'ready' | 'error'
+
 function PromptHub() {
-  const [items, setItems] = useState([])
-  const [status, setStatus] = useState('idle') // idle | loading | ready | error
+  const [items, setItems] = useState<Prompt[]>([])
+  const [status, setStatus] = useState<HubStatus>('idle')
   const [error, setError] = useState('')
   const [sourceFilter, setSourceFilter] = useState('all')
   const [keyword, setKeyword] = useState('')
   const [debouncedKeyword, setDebouncedKeyword] = useState('')
-  const [openId, setOpenId] = useState(null)
+  const [openId, setOpenId] = useState<string | null>(null)
 
   const sources = useMemo(() => getSources(), [])
   const [expanded, setExpanded] = useState(false)
   const warnedRef = useRef(false)
 
   // P2/P12：搜索输入防抖 + IME 门控（替代原手写 setTimeout；组字中不触发过滤，组字结束补提交一次）
-  const searchIme = useRef(null)
+  const searchIme = useRef<ImeInput | null>(null)
   if (searchIme.current == null) {
     searchIme.current = createImeInput((v) => setDebouncedKeyword(v), 200)
   }
@@ -245,7 +271,7 @@ function PromptHub() {
   }, [items, sourceFilter, debouncedKeyword])
 
   const openItem = useMemo(() => items.find((it) => it.id === openId) || null, [items, openId])
-  const handleOpen = useCallback((it) => setOpenId(it.id), [])
+  const handleOpen = useCallback((it: Prompt) => setOpenId(it.id), [])
 
   return (
     <div className="relative flex flex-col h-full w-full bg-input text-primary">
@@ -284,9 +310,9 @@ function PromptHub() {
             value={keyword}
             onChange={(e) => {
               setKeyword(e.target.value)
-              searchIme.current?.onChange(e.target.value, e.nativeEvent.isComposing)
+              searchIme.current?.onChange(e.target.value, (e.nativeEvent as InputEvent).isComposing)
             }}
-            onCompositionEnd={(e) => searchIme.current?.onCompositionEnd(e.target.value)}
+            onCompositionEnd={(e) => searchIme.current?.onCompositionEnd((e.target as HTMLInputElement).value)}
             onBlur={() => searchIme.current?.cancel()}
             placeholder="搜索提示词…"
             className="w-full pl-8 pr-2 py-1.5 rounded bg-surface-2 text-body-sm outline-none focus:ring-1 focus:ring-blue-500"

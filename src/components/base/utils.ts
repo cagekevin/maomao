@@ -218,6 +218,9 @@ export function createImeInput(submit: (value: string) => void, ms = 200) {
   }
 }
 
+/** createImeInput 的句柄类型（供 useRef 标注，避免退化成 any） */
+export type ImeInput = ReturnType<typeof createImeInput>
+
 /** 节流（返回包装函数 + cancel） */
 export function throttle<T extends (...args: any[]) => void>(fn: T, ms: number): ThrottledFn<T> {
   let last = 0

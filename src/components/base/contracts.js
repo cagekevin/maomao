@@ -74,7 +74,7 @@ export const EVENTS = {
   },
   'presets-changed': {
     from: ['promptManager.ts:107'],
-    to: ['PromptLibrary.jsx:50'],
+    to: ['PromptLibrary.tsx:65'],
     payload: '{ presets }',
     note: '提示词库跨节点同步。生产使用',
   },

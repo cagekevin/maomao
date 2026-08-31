@@ -542,7 +542,7 @@ export function demoPlan(text: string, callTool?: unknown): Array<{ name: string
   // 3) 删除：「删除 X」。中文删除动词不被 [\w-]+ 匹配，故在全部 token 里取第一个非动词的当节点 id。
   //    （例：删除 text-1 → ['删除','text-1'] → text-1；把 text-1 删掉 → ['text-1'] → text-1）
   if (/删除|移除|删掉|delete/i.test(t)) {
-    const tokens = text.match(/([\w-]+)/g) || []
+    const tokens: string[] = text.match(/([\w-]+)/g) || []
     const id = tokens.find((s) => !DELETE_VERBS.has(s.toLowerCase()))
     if (id) calls.push({ name: 'delete_node', args: { nodeId: id } })
   }

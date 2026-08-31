@@ -29,7 +29,7 @@ interface PromptSource {
 }
 
 /** 归一化后的单条提示词（normalizeItems 输出，来源字段兜底齐全） */
-interface Prompt {
+export interface Prompt {
   id: string
   title: string
   prompt: string
