@@ -15,9 +15,28 @@ import { useOutsideClick } from './hooks.ts'
  *  - placeholder 未选时占位（默认「选择」）
  *  - popupTo     'down'（默认）| 'up'
  */
-export default function Select({ value, onChange, options = [], placeholder = '选择', popupTo = 'down', disabled = false }) {
+export interface SelectOption<T extends React.Key = string> {
+  value: T
+  label: string
+}
+
+export interface SelectProps<T extends React.Key = string> {
+  /** 当前选中值 */
+  value: T
+  /** 选择回调 */
+  onChange: (value: T) => void
+  /** 选项列表 */
+  options?: SelectOption<T>[]
+  /** 未选时占位（默认「选择」） */
+  placeholder?: string
+  /** 弹出方向：'down'（默认）| 'up' */
+  popupTo?: 'down' | 'up'
+  disabled?: boolean
+}
+
+export default function Select<T extends React.Key = string>({ value, onChange, options = [], placeholder = '选择', popupTo = 'down', disabled = false }: SelectProps<T>) {
   const [open, setOpen] = useState(false)
-  const ref = useRef(null)
+  const ref = useRef<HTMLDivElement>(null)
   useOutsideClick(ref, open, () => setOpen(false))
 
   const selected = options.find((o) => o.value === value)
