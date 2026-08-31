@@ -217,7 +217,7 @@ export default function AccountsSettings() {
                   className="w-12 h-12 rounded-full bg-canvas object-contain p-0.5 border border-edge mb-3 pointer-events-none"
                   draggable={false}
                   alt={e.name}
-                  onError={(t) => { t.target.src = `https://api.dicebear.com/7.x/avataaars/svg?seed=${e.name}` }}
+                  onError={(t) => { (t.target as HTMLImageElement).src = `https://api.dicebear.com/7.x/avataaars/svg?seed=${e.name}` }}
                 />
                 <div className="font-bold text-primary truncate text-sm w-full text-center px-2">{e.name}</div>
                 {isActive && (

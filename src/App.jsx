@@ -37,7 +37,7 @@ import { paletteCategories, getNodesByCategory, defaultNodeData, getPaletteNode,
 import LodProvider, { useLod } from './components/base/lod.tsx'
 import ToastContainer from './components/base/ToastContainer.tsx'
 import SettingsFrame from './components/base/settings/SettingsFrame.jsx'
-import AccountsSettings from './components/base/settings/sections/AccountsSettings.jsx'
+import AccountsSettings from './components/base/settings/sections/AccountsSettings.tsx'
 import TopNav from './components/base/TopNav.tsx'
 import { showToast } from './components/base/toastStore.ts'
 import { getSetting, setSetting } from './components/base/appSettings.ts'
