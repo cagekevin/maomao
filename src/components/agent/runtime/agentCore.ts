@@ -30,7 +30,7 @@ import { contentGet } from '../../base/contentStore.ts'
 import { logger } from '../../base/logger.ts'
 import { toImageContentBlocks } from '../../base/imageUrl.ts'
 import { getSystemPromptForWorkMode, RUN_MODE_IDS } from './runModeRegistry.ts'
-import { AGENT_PROMPTS } from '../agentConfig.js'
+import { AGENT_PROMPTS } from '../agentConfig.ts'
 
 /** 单条工具调用（对齐 OpenAI chat tool_calls 形态）。 */
 export interface ToolCall {
@@ -103,7 +103,7 @@ export interface GenerationSpec {
 
 // 工具循环常量已收口到 agentConfig（docs/66 §4/A 层）。此处 re-export 保持
 // useAgentChat 与既有单测的 import 契约不变（re-export 保测试契约，见本文件头注释）。
-export { MAX_TOOL_ROUNDS, ENABLE_TOOLS_ON_NON_STREAM } from '../agentConfig.js'
+export { MAX_TOOL_ROUNDS, ENABLE_TOOLS_ON_NON_STREAM } from '../agentConfig.ts'
 
 /** P6：删除节点工具的动词集合——提为模块常量，避免 parseIntent 每次调用重建 Set */
 const DELETE_VERBS = new Set(['删除', '移除', '删掉', 'delete'])

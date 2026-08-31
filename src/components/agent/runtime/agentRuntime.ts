@@ -31,7 +31,7 @@ import { httpRequest } from '../../base/httpClient.ts'
 // 请求形态层：聊天 responses 形态（gpt-5.6 用 /v1/responses 带工具不再报错，M2-2/M2-4）
 import { resolveChatMode, buildResponsesChatBody, parseResponsesChatJson, parseResponsesSSEChunk } from '../../base/requestModes.ts'
 // AI 助手配置真源（docs/66 §4/A 层）：聊天温度从 agentConfig 读取，不再硬编码
-import { AGENT_TEMPERATURE } from '../agentConfig.js'
+import { AGENT_TEMPERATURE } from '../agentConfig.ts'
 // 复用 agentCore 的权威消息/工具调用类型（同 runtime 目录，避免重定义漂移）
 import type { ChatMessage, ToolCall } from './agentCore.ts'
 

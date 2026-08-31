@@ -30,7 +30,7 @@
 
 **B 批组件层已启动**：已完成 11 个 `.jsx → .tsx`（ArrangeConfirm / EmptyCanvasGuide / ToastContainer / ToolbarButton / HoverToolbar / FullscreenModal / ContextMenu / Select / ProjectSelector / CanvasToolbar / TopNav），全部补 Props 接口 + 验证全绿。
 
-已提交 40+ 个 commit（main，全部 `--no-verify`）：
+已提交 40+ 个 commit（main，历史提交曾误用 `--no-verify`，见下方「提交策略」纠偏说明）：
 
 | commit | 内容 |
 |---|---|
@@ -74,7 +74,7 @@
 | `ec6f2d0` | Select→.tsx（泛型 `SelectProps<T extends React.Key>`） |
 | `3098162` | ProjectSelector→.tsx + Props；**同步 contracts.js EVENTS**（project:import/export 的 from `.jsx:103→.tsx:117` 等，check:events 恢复双向自洽） |
 | `326304d` | CanvasToolbar + TopNav→.tsx（TopNavProps 含 `SyncResult`；tabs key 收窄；img onError 用 currentTarget 取 src） |
-| `c741e75` | **A4 第 1 个**：`scriptBoxPlaybookIO.js`→.ts + 定义 `Playbook` 接口、`ImportResult` 类型；`exportText`/`parseImport` 定型（`--no-verify`） |
+| `c741e75` | **A4 第 1 个**：`scriptBoxPlaybookIO.js`→.ts + 定义 `Playbook` 接口、`ImportResult` 类型；`exportText`/`parseImport` 定型（⚠️ 该次提交误用 `--no-verify`，见下方提交策略纠偏） |
 | `c8eac23` | **A4 第 2 个**：`scriptBoxPlaybookStore.js`→.ts；复用 `Playbook`/`ImageGenTemplate`/`WorkflowSpec` 类型；`normalizeBuiltin`/`loadCustom`/`getAllPlaybooks`/`getPlaybook`/`isBuiltin`/`saveCustomPlaybook`/`deleteCustomPlaybook`/`createCustomFrom` 定型 |
 | `6597d96` | **A4 第 3 个**：`scriptBoxWorkflows.js`→.ts + 定义 `WorkflowSpec` 接口与 `SCRIPT_BOX_WORKFLOWS`/`DEFAULT_WORKFLOW`；**删除 `scriptBoxPromptResolver.ts` 的 `PlaybookLike`** 改用真实 `Playbook` 类型；**同步 `contracts.js` 的 `scriptbox_playbooks.store` 指向 `.ts`**；**修复存量 `DiscountVideoNode.test.jsx` 测试**（HoverToolbar mock 路径 `.jsx`→`.tsx`，3 个失败→17/17 全绿）；605 测试全过 |
 
@@ -110,7 +110,7 @@ src/hooks/  ← 19 个：useArrangeCanvas / useAssetDragToCanvas / useAssetDropP
    npm run check:keys / check:events / check:api / check:node-types / check:jsx   # 五门禁
    npm run test:smoke        # 冒烟
    npm run build             # 过 prebuild（check:api + check:events）
-4. git add -A && git commit --no-verify -m "refactor(ts-migrate): 转换 xxx→.ts"   # 钩子被临时跳过，靠手跑验证把关
+4. git add -A && git commit -m "refactor(ts-migrate): 转换 xxx→.ts"   # 正常走 husky pre-commit 钩子（5 道门禁）；过不了就是代码有问题，必须修代码，禁止 --no-verify 跳过
 ```
 
 **脚本另一个命令（横切收口用）**：
@@ -251,10 +251,12 @@ npm run test:smoke           # SSR 冒烟（esbuild bundle）
 npm run test:regression      # SSR 回归（14 节点）
 npm run test:tools           # agent 工具
 ```
-> **提交策略（用户已澄清，务必照此）**：Windows 环境下 `sh` 不可用，husky pre-commit 钩子（5 道门禁）**实际跑不起来**；因此本仓库迁移期统一用 `git commit --no-verify`，**门禁靠手动跑本节上面的命令把关**（不要试图绕过 —— 也**不要**在工具壳里反复重试钩子，那只会卡住）。每批提交前必须把上面 10 道门禁手动跑全绿。**注意**：`--no-verify` 只是跳过了 commit 钩子，不是跳过验证；验证必须人工跑。若用户改口要求「正常跑钩子」，则直接 `git commit`（但 Windows 下钩子会因无 sh 失败，需用户确认环境）。
+> **提交策略（用户已澄清，务必照此）**：本仓库迁移期**必须正常走 husky pre-commit 钩子**，统一用 `git commit`（不带 `--no-verify`）。钩子内含 type-check + vitest --changed + SSR smoke/regression/tools 等秒级门禁，**过不了就说明代码有问题，必须回去修代码，绝不靠 `--no-verify` 跳过**。每批提交前可先手动跑上面 10 道门禁预判，但最终以真实钩子通过为准。
+>
+> ⚠️ **纠偏（第二段会话曾写错，已作废）**：早先文档称「Windows 下 `sh` 不可用、husky 钩子跑不起来、统一 `--no-verify` 跳过」——**这是错误的**。实测 Windows + Git for Windows 自带 `sh.exe`，husky 钩子能正常跑（见 commit `d1f142c` 实测：type-check + SSR 13 节点 + 13 条 demo 规则全 PASS 后钩子放行）。历史 40+ commit 曾误用 `--no-verify`，系基于该误判，后续提交一律改正。
 
 ### 10.1 本轮（第二段会话）踩坑 / 用户强调点（必读，避免重蹈）
 - **测试 mock 路径是字符串，脚本不会同步**：`tests/unit/**` 里 `vi.mock('.../HoverToolbar.jsx')` 这类写死的 `.jsx` 后缀，在组件改名 `.tsx` 后**不会自动变**，会导致测试失败（根因：早前迁移 HoverToolbar 时漏同步）。**每转一个组件，先 `node scripts/ts-migrate.mjs refs <file>` 列出所有字符串残留（含测试 mock 路径），手动同步完再提交。** 本次就因为漏了 DiscountVideoNode.test.jsx 的 mock 路径，导致 3 个测试挂掉、提交被门禁拦下来。
 - **责任归属要诚实**：迁移是 AI 用脚本动的文件，测试断裂/类型问题若是迁移引入的，**就是迁移引入的，不要说成「用户改动」**。本次用户明确批评过这点。
-- **不要过度复杂化**：文档已经把公式和配方写清楚了，照着执行即可，别自己绕圈排查已写明的事项（如钩子机制）。
-- **做一点提交一点**：每转完一个文件、验证全绿后立即 `git add -A && git commit --no-verify`。不要攒一大批再提交。
+- **不要过度复杂化**：文档已经把公式和配方写清楚了，照着执行即可，别自己绕圈排查已写明的事项（如钩子机制——但钩子若拦你，就是代码有问题，必须修代码而非跳过）。
+- **做一点提交一点**：每转完一个文件、验证全绿后立即 `git add -A && git commit`（走真实 husky 钩子）。不要攒一大批再提交，也不要用 `--no-verify` 跳过钩子。
