@@ -16,6 +16,22 @@
  *  2. 填齐 script / shot / audit / qg / assetTemplates / imageGenTemplates / constraints / negative；
  *  3. GearSettings 工作流下拉会自动列出，即可一键切换。
  */
+import type { ImageGenTemplate } from '../base/scriptBoxPromptResolver'
+
+/** 单套工作流预设的完整形状（manga / seeding 共用，是「默认提示词」的权威来源）。 */
+export interface WorkflowSpec {
+  id: string
+  label: string
+  script: string
+  shot: string
+  audit: string
+  qg: string
+  assetTemplates: Record<string, string>
+  imageGenTemplates: Record<string, ImageGenTemplate>
+  constraints: { image?: string; video?: string; custom?: string }
+  negative: { image?: string; video?: string }
+}
+
 export const DEFAULT_WORKFLOW = 'manga'
 
 /** 漫剧 · 资产生图参考图模板（character/scene/prop） */
@@ -267,7 +283,7 @@ const SEED_NEGATIVE = { image: '无字幕、无水印、无logo、无卡通、�
  * 工作流预设法：key 为工作流 id，值结构统一。切 workowski = 整套默认提示词一起切。
  * 字段与 node.data 可覆盖字段的对应关系见使用处；customXxx 优先于这里。
  */
-export const SCRIPT_BOX_WORKFLOWS = {
+export const SCRIPT_BOX_WORKFLOWS: Record<string, WorkflowSpec> = {
   manga: {
     id: 'manga',
     label: '漫剧',

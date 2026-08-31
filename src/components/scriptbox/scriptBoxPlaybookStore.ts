@@ -15,24 +15,14 @@
  * 【依赖方向】store(scriptbox) → scriptBoxWorkflows(scriptbox) 内置 + contentStore(base)。
  *  下游 resolver(base) → 本 store。依赖单向，无回环。
  */
-import { SCRIPT_BOX_WORKFLOWS, DEFAULT_WORKFLOW } from './scriptBoxWorkflows.js'
+import { SCRIPT_BOX_WORKFLOWS, DEFAULT_WORKFLOW } from './scriptBoxWorkflows'
 import { contentGet, contentSet, contentClearCache } from '../base/contentStore'
 import { logger } from '../base/logger'
 import type { Playbook } from './scriptBoxPlaybookIO'
-import type { ImageGenTemplate } from '../base/scriptBoxPromptResolver'
+import type { WorkflowSpec } from './scriptBoxWorkflows'
 
-/** scriptBoxWorkflows.js 导出的内置工作流原始形状（比归一后 Playbook 少 negative.common 位）。 */
-interface RawWorkflow {
-  label: string
-  script?: string
-  shot?: string
-  audit?: string
-  qg?: string
-  assetTemplates?: Record<string, unknown>
-  imageGenTemplates?: Record<string, ImageGenTemplate>
-  constraints?: { image?: string; video?: string }
-  negative?: { image?: string; video?: string }
-}
+/** normalizeBuiltin 把内置 WorkflowSpec 归一为可存储的 Playbook（补 negative.common，丢弃 constraints.custom）。 */
+type RawWorkflow = WorkflowSpec
 
 /** 自定义 playbook 的 localStorage 键（已在 contracts.js STORAGE_KEYS 登记，domain:'settings'，backend:'local'）。 */
 export const PLAYBOOKS_KEY = 'scriptbox_playbooks'

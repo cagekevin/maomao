@@ -11,7 +11,7 @@
  * UI 与引擎都从这里取函数，保证「依赖单向：UI→引擎→纯函数」。
  */
 
-import { SCRIPT_BOX_WORKFLOWS } from '../scriptbox/scriptBoxWorkflows.js'
+import { SCRIPT_BOX_WORKFLOWS } from '../scriptbox/scriptBoxWorkflows.ts'
 
 /**
  * 【边界】scriptBoxWorkflows 仍是 .js（真相源，暂不转），其结构按下游实际消费的字段

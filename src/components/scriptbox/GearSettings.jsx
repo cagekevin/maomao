@@ -7,7 +7,7 @@ import Select from '../base/Select.tsx'
 import ScriptBoxModal from './ScriptBoxModal.jsx'
 import ScriptBoxPlaybookManager from './scriptBoxPlaybookManager.jsx'
 import { getAllPlaybooks, getPlaybook, isBuiltin, saveCustomPlaybook } from './scriptBoxPlaybookStore.ts'
-import { DEFAULT_WORKFLOW } from './scriptBoxWorkflows.js'
+import { DEFAULT_WORKFLOW } from './scriptBoxWorkflows.ts'
 
 /**
  * 剧本盒子 齿轮设置弹窗 —— Playbook 编辑器（收口后无覆盖层）。
