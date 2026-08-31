@@ -35,14 +35,58 @@ import previewUrls from '../base/previewUrl.ts'
  * 已迁移到基座：NodeShell + HoverToolbar + ExpandablePanel + ModelSelect + GenerateButton + PromptInput。
  * 保留差异化：文本编辑区（双击编辑）、自动拆分、预设菜单。
  */
-function TextNode({ id, data, selected }) {
+/** 参考图素材形态（MaterialStrip / PromptInput 共用） */
+interface RefImage {
+  id: string
+  url: string
+  label?: string
+  sourceNodeId?: string
+}
+
+/** 参考文本形态 */
+interface RefText {
+  id: string
+  label: string
+  text?: string
+  sourceNodeId?: string
+}
+
+/** 文本节点 data 契约 */
+interface TextNodeData {
+  label?: string
+  prompt?: string
+  text?: string
+  autoSplit?: boolean
+  expanded?: boolean
+  selectedModel?: string
+  images?: string[]
+  inputWidth?: number
+  inputHeight?: number
+  [key: string]: unknown
+}
+
+/** 上游产出（来自 useConnectedInputs）的最小只读结构 */
+interface ConnectedOutput {
+  images: RefImage[]
+  texts: RefText[]
+  videos: unknown[]
+  audios: unknown[]
+}
+
+interface TextNodeProps {
+  id: string
+  data: TextNodeData
+  selected?: boolean
+}
+
+function TextNode({ id, data, selected }: TextNodeProps) {
   // 通用连线数据传递：读取直接上游节点的文本/图片作为参考输入
-  const connected = useConnectedInputs(id)
+  const connected = useConnectedInputs(id) as ConnectedOutput
   const { setEdges, getEdges, getNodes, getNode, setNodes } = useReactFlow()
   const history = useCanvasEdges()
   // 断开连线：素材缩略图红色 × → 删除该来源节点 → 本节点的连线（仅对有 sourceNodeId 的素材）
   const disconnectSource = useCallback(
-    (sourceNodeId) => {
+    (sourceNodeId: string) => {
       if (!sourceNodeId) return
       setEdges((es) => es.filter((e) => !(e.source === sourceNodeId && e.target === id)))
     },
@@ -64,28 +108,28 @@ function TextNode({ id, data, selected }) {
   // P2：prompt/text 持续输入走 debouncedPatch（200ms 防抖合并），避免每键 setNodes 全图 node 数组重建；
   // 卸载时 flush 兜底（防抖窗口内输入不丢）。autoSplit/expanded 是低频切换，保持即时写回。
   const patchData = useCallback(
-    (patch) => {
+    (patch: Record<string, unknown>) => {
       setNodes((ns) => ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, ...patch } } : n)))
     },
     [id, setNodes]
   )
-  const debouncedPatch = useRef(null)
+  const debouncedPatch = useRef<{ (patch: Record<string, unknown>): void; flush(): void } | null>(null)
   if (debouncedPatch.current == null) {
     debouncedPatch.current = debounce(patchData, 200)
   }
   const setPromptPersist = useCallback(
-    (v) => {
+    (v: React.SetStateAction<string>) => {
       setPrompt((prev) => (typeof v === 'function' ? v(prev) : v))
     },
     []
   )
   const setTextPersist = useCallback(
-    (v) => {
+    (v: React.SetStateAction<string>) => {
       setText((prev) => (typeof v === 'function' ? v(prev) : v))
     },
     []
   )
-  const setAutoSplitPersist = useCallback((v) => { setAutoSplit(v) }, [])
+  const setAutoSplitPersist = useCallback((v: boolean) => { setAutoSplit(v) }, [])
   const [expanded, setExpanded] = useState(data.expanded === undefined ? true : data.expanded)
   // 抽屉展开/收起
   const toggleExpanded = useCallback(() => setExpanded((v) => !v), [])
@@ -119,11 +163,11 @@ function TextNode({ id, data, selected }) {
     () => resolvePromptChips(effectivePrompt, refImages, refTexts),
     [effectivePrompt, refImages, refTexts]
   )
-  const textAreaRef = useRef(null)
-  const fileRef = useRef(null)
-  const promptInputRef = useRef(null) // 提示词 textarea ref（供面板右下角手柄拖拽改尺寸）
-  const wrapperRef = useRef(null) // NodeShell 根 div ref（主框手柄拖拽改整体尺寸）
-  const insertAssetRef = useRef(null) // 富文本素材插入：由 PromptInput onReady 上抛（主框 MaterialStrip 共用）
+  const textAreaRef = useRef<HTMLTextAreaElement | null>(null)
+  const fileRef = useRef<HTMLInputElement | null>(null)
+  const promptInputRef = useRef<HTMLDivElement | null>(null) // 提示词编辑器 ref（供面板右下角手柄拖拽改尺寸）
+  const wrapperRef = useRef<HTMLDivElement | null>(null) // NodeShell 根 div ref（主框手柄拖拽改整体尺寸）
+  const insertAssetRef = useRef<((asset: unknown) => void) | null>(null) // 富文本素材插入：由 PromptInput onReady 上抛（主框 MaterialStrip 共用）
   const insertMention = (asset) => {
     if (typeof insertAssetRef.current === 'function') insertAssetRef.current(asset)
   }

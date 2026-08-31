@@ -66,7 +66,7 @@ beforeEach(() => {
   connectedInputs = { images: [], texts: [] }
 })
 
-import TextNode from '../../src/components/nodes/TextNode.jsx'
+import TextNode from '../../src/components/nodes/TextNode.tsx'
 
 function setup(data = {}) {
   return render(<TextNode id="n1" data={data} selected={false} />)

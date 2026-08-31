@@ -26,7 +26,7 @@ vi.mock('../../src/components/base/settings/providerStore.ts', () => ({ useProvi
 vi.mock('../../src/components/base/providerModels.ts', () => ({ buildAllModels: mocks.buildAllModels, resolveProviderModel: mocks.resolveProviderModel }))
 vi.mock('../../src/components/base/api/chatApi.ts', () => ({ chatCompletions: mocks.chatCompletions }))
 
-import TextNode from '../../src/components/nodes/TextNode.jsx'
+import TextNode from '../../src/components/nodes/TextNode.tsx'
 beforeEach(() => { mocks.resetNodeMockState() })
 const setup = (props = {}) => render(<TextNode id="txt1" data={{}} selected={false} {...props} />)
 
