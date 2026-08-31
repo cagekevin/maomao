@@ -186,6 +186,8 @@
 * **useAgentChat 三层拆分**：`agentCore.js`(纯函数)/`agentRuntime.js`(运行时)/`useAgentChat.js`(hook 编排)。契约：useAgentChat 顶部 re-export agentCore，**改纯函数去 agentCore.js**；roundTrip/runToolCalls 与状态机竞态耦合留在 hook 封装层，勿强行下钻。
 * **图片类节点共享 hover 能力**：`base/useImageHoverActions.jsx` 是 ImageNode / PromptNode 的「裁剪/标记/压缩」hover 操作唯一收口。写回经 `onImageReplaced(dataUrl)` 回调解耦（ImageNode 走 setNodes 不可变更新，PromptNode 走 setImageUrl+patchData），hook 只产出新 dataURL、不耦合节点写回方式。新增图片类 hover 操作走此 hook，勿在两节点各写一份（曾因各写一份导致生图节点 crop 漏 onClick 成死按钮）。
 * **API 契约真源（2026-08-22）**：前端↔localTool 端点唯一真源是 `contracts.js` 的 **`apiRegistry`**（55 条：fn/method/path/envelope/status），与 `localTool/src/router.ts` 的 `routes` 表双向互检由 **`npm run check:api`**（`scripts/check-api-contract.cjs`，挂 prebuild+pretest）完成。**改端点 = 「加函数 + 登记」双动作**，信封形态须标 `ok/code-data/success-data/items` 或豁免 `stream/sse/raw/probe/stub`。前端薄壳统一收口在 `localToolApi.js`/`filesApi.js`，散落点（GeneratedView/AssetLibrary/pollTask）已收进薄壳。**勿再引用过时的 `BACKEND_ROUTES`/`API_ENDPOINTS` 占位**（已弃，真源是 apiRegistry）。
+* **脚本盒全量收口至 scriptbox/（2026-08-31）**：`scriptBoxEngine/Prompts/PromptResolver/Schema` 已全部从 `base/` 迁入 `src/components/scriptbox/`（解 base⇄scriptbox 循环，见 download/REPORT P0）。**base/ 不再含任何 scriptbox 业务域专属文件**。
+* **base/ 维持现状、不做 UI/工具分层归组（2026-08-31 决策，勿重复做）**：评估过把 base/ 的 UI 组件收进 `base/ui/`、纯工具进 `base/util/` 等方案——**否决**。理由：① base/ 的 UI 组件（NodeShell/ModelSelect/LazyImage 等）被十几个节点深度依赖，属真·通用 UI 基座，留在 base/ 根即合理；② 应用壳组件（TopNav/LeftPanel/ToastContainer/ErrorBoundary）只被 App.jsx/main.jsx 引用，挪走无架构收益纯增 churn；③ 归类会制造几十处 import 变更 + 高风险，违背 CONTEXT §〇「重构边界」与 §一·C。**base/ 平铺 = 通用地基的合理形态，不主动重排**。若再遇「某个业务域专属文件平铺在 base/」→ 按本段第一条的 scriptBox 先例，逐个收回对应业务域（走 ts-migrate move + 三同步 + 独立 commit），而非整层重排。
 
 ### C. 🟡 顶层已知待办（改动前先查，看完删）
 
