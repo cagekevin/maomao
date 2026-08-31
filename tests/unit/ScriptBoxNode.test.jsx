@@ -120,7 +120,7 @@ vi.mock('../../src/components/scriptbox/GearSettings.tsx', () => ({
   ),
 }))
 
-import ScriptBoxNode from '../../src/components/nodes/ScriptBoxNode.jsx'
+import ScriptBoxNode from '../../src/components/nodes/ScriptBoxNode.tsx'
 
 // 每个用例前复位上游接入（避免上个用例残留的非空 upstream 污染后续断言）
 beforeEach(() => {

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { Clapperboard, Settings, Maximize2, Loader2 } from 'lucide-react'
-import { Handle, useReactFlow, useUpdateNodeInternals } from '@xyflow/react'
+import { Handle, Position, useReactFlow, useUpdateNodeInternals } from '@xyflow/react'
 import NodeShell from '../base/NodeShell.tsx'
 import CustomHandle from '../edges/CustomHandle.tsx'
 import { useScriptBoxEngine } from '../../hooks/useScriptBoxEngine.ts'
@@ -13,6 +13,36 @@ import StepPrompt from '../scriptbox/StepPrompt.tsx'
 import StepNav from '../scriptbox/StepNav.tsx'
 import ScriptBoxFullscreen from '../scriptbox/ScriptBoxFullscreen.tsx'
 import GearSettings from '../scriptbox/GearSettings.tsx'
+import type { ScriptBoxData, ScriptBoxCallbacks } from '../scriptbox/scriptBoxSchema.ts'
+
+/** 剧本盒子 data 契约（字段极多且动态，统一以宽松接口 + 索引签名兜底） */
+interface ScriptBoxNodeData {
+  label?: string
+  projectName?: string
+  step?: number
+  shots?: Array<{ id: string; [k: string]: unknown }>
+  assets?: unknown
+  genMask?: boolean
+  genChars?: number
+  upstreamStory?: string
+  upstreamImages?: Array<{ id?: string; url?: string; label?: string; sourceNodeId?: string }>
+  upstreamTexts?: Array<{ id?: string; label?: string; text?: unknown; sourceNodeId?: string }>
+  [key: string]: unknown
+}
+
+/** 上游产出（来自 useConnectedInputs）的最小只读结构 */
+interface ConnectedOutput {
+  images: Array<{ id?: string; url?: string; label?: string; sourceNodeId?: string }>
+  texts: Array<{ id?: string; label?: string; text?: unknown; sourceNodeId?: string }>
+  videos: unknown[]
+  audios: unknown[]
+}
+
+interface ScriptBoxNodeProps {
+  id: string
+  data: ScriptBoxNodeData
+  selected?: boolean
+}
 
 /**
  * 剧本盒子（scriptBoxNode）—— 复刻 c_.jsx，按 docs/剧本盒子 的职责架构实现。
@@ -26,12 +56,12 @@ import GearSettings from '../scriptbox/GearSettings.tsx'
  *
  * 三步状态机：①确认镜头 ②准备资产 ③合成提示词（可点击切换，不自动连跑）。
  */
-function ScriptBoxNode({ id, data, selected }) {
+function ScriptBoxNode({ id, data, selected }: ScriptBoxNodeProps) {
   // 引擎：创建并注入 node.data.onXxx（含连线，能建下游），并返回统一写回通道 updateData。
   // 写回经 updateData（对象或函数式 patch，并发安全）；生成/连线只调 d.onXxx?.(...)，本组件不做引擎。
   const { updateData } = useScriptBoxEngine(id, data)
 
-  const d = data || {}
+  const d: ScriptBoxNodeData = data
 
   // —— 上游输入接入（与文本节点一致：接受上游文本节点 + 图片节点） ——
   // 用 useConnectedInputs 读取「直接连到本剧本盒子」的上游文本/图片，
@@ -40,11 +70,11 @@ function ScriptBoxNode({ id, data, selected }) {
   // 展示交给第 1 步的 StepShots（剧情上方只读素材区）；生成剧本时引擎把上游内容一起交给编剧模型
   //（见 engine.onGenerateScript），让 AI 能「知道我产品外观」从而写出准确剧本。
   const { setEdges } = useReactFlow()
-  const connected = useConnectedInputs(id)
-  const upstreamTexts = (connected.texts || []).map((t) => (t.text || '').trim()).filter(Boolean).join('\n\n')
+  const connected = useConnectedInputs(id) as ConnectedOutput
+  const upstreamTexts = (connected.texts || []).map((t) => String(t.text ?? '').trim()).filter(Boolean).join('\n\n')
   useEffect(() => {
     // 上游文本/图片变化时同步到 data（断线后按空清理，避免旧内容一直混入生成）。
-    const patch = {}
+    const patch: Record<string, unknown> = {}
     const curText = d.upstreamStory || ''
     if (upstreamTexts && upstreamTexts !== curText) patch.upstreamStory = upstreamTexts
     else if (!upstreamTexts && curText) patch.upstreamStory = ''
@@ -121,7 +151,12 @@ function ScriptBoxNode({ id, data, selected }) {
 
   // 三步组件只调 d.onXxx?.(...)（引擎回调，由 useScriptBoxEngine 注入 node.data.onXxx）。
   // callbacks 追加断线回调（onDisconnectUpstream），供第 1 步 StepShots 的上游只读素材区断线用。
-  const stepProps = { id, data: d, updateData, callbacks: { ...d, onDisconnectUpstream: disconnectSource } }
+  const stepProps = {
+    id,
+    data: d as ScriptBoxData,
+    updateData,
+    callbacks: { ...d, onDisconnectUpstream: disconnectSource } as ScriptBoxCallbacks,
+  }
 
   return (
     <NodeShell
@@ -172,7 +207,7 @@ function ScriptBoxNode({ id, data, selected }) {
         </div>
 
         {/* 三步导航 */}
-        <StepNav step={step} setStep={setStep} shots={d.shots} assets={d.assets} />
+        <StepNav step={step} setStep={setStep} shots={d.shots as ScriptBoxData['shots']} assets={d.assets as ScriptBoxData['assets']} />
 
         {/* 三步内容：不裁剪不滚动（无限画布），让内容自然撑开，节点高度自适应内容 */}
         <div className="relative px-4 pb-4 min-h-0 overflow-visible" onClick={(e) => e.stopPropagation()}>
@@ -194,7 +229,7 @@ function ScriptBoxNode({ id, data, selected }) {
         <Handle
           key={s.id}
           type="source"
-          position="right"
+          position={'right' as Position}
           id={shotHandleId(s.id)}
           className="!absolute !h-0 !w-0 !min-w-0 !min-h-0 !border-0 !bg-transparent !opacity-0"
           style={{ right: 0, top: '50%' }}
@@ -204,7 +239,7 @@ function ScriptBoxNode({ id, data, selected }) {
       {/* 齿轮设置弹窗 */}
       {settingsOpen && (
         <div ref={settingsRef}>
-          <GearSettings data={d} updateData={updateData} onClose={() => setSettingsOpen(false)} />
+          <GearSettings data={d as ScriptBoxData} updateData={updateData} onClose={() => setSettingsOpen(false)} />
         </div>
       )}
 
@@ -212,9 +247,9 @@ function ScriptBoxNode({ id, data, selected }) {
       <ScriptBoxFullscreen
         open={fullscreen}
         title={d.projectName || '剧本盒子'}
-        data={d}
+        data={d as ScriptBoxData}
         updateData={updateData}
-        callbacks={d}
+        callbacks={d as ScriptBoxCallbacks}
         onClose={() => setFullscreen(false)}
       />
     </NodeShell>

@@ -17,7 +17,7 @@ import GridSplitNode from '../nodes/GridSplitNode.tsx'
 import GridMergeNode from '../nodes/GridMergeNode.tsx'
 import FaceMosaicNode from '../nodes/FaceMosaicNode.tsx'
 import GroupNode from '../nodes/GroupNode.tsx'
-import ScriptBoxNode from '../nodes/ScriptBoxNode.jsx'
+import ScriptBoxNode from '../nodes/ScriptBoxNode.tsx'
 // 重依赖节点（3D / 视频处理）**不在此静态 import**：静态 import 会让 vendor-3d(1.06MB) 与
 // vendor-media(705KB) 在首屏被强制下载（manualChunks 只拆文件、不改变加载时机）。
 // 统一走 lazyNode 动态 import，仅在对应节点首次渲染时才拉 chunk。见 ./lazyNode.jsx。

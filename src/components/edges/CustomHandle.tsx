@@ -14,7 +14,7 @@ interface CustomHandleProps {
   variant?: CustomHandleVariant
   position: Position | 'left' | 'right'
   handleId?: string
-  top?: number
+  top?: number | string
 }
 
 function CustomHandle({ className = '', variant = 'large', position, handleId, top }: CustomHandleProps) {
