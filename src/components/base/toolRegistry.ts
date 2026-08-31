@@ -23,20 +23,34 @@
  * 【幂等】getTools() 返回注册表数组引用（live）；resetTools() 仅供测试清空。
  * ════════════════════════════════════════════════════════════════
  */
-const tools = []
+/** 工具执行上下文（由 buildCanvasAgentTools 注入） */
+export type ToolExecuteCtx = Record<string, unknown>
+
+/** 工具定义（docs/25 · 阶段2） */
+export interface ToolDef {
+  name: string
+  description?: string
+  parameters?: unknown
+  /** mutating=true → 调用前统一压 AI 撤销栈，使 undo_ai 能整体撤回 */
+  mutating?: boolean
+  execute: (ctx: ToolExecuteCtx, args?: Record<string, unknown>) => unknown | Promise<unknown>
+  [key: string]: unknown
+}
+
+const tools: ToolDef[] = []
 
 /** 追加一个工具定义，返回 def（便于链式/赋值）。重复 name 允许（注册表按注册序排列）。 */
-export function registerTool(def) {
+export function registerTool<T extends ToolDef>(def: T): T {
   if (def && typeof def === 'object' && def.name) tools.push(def)
   return def
 }
 
 /** 返回注册表数组（live 引用；顺序 = 注册序 = 模型选择优先级）。 */
-export function getTools() {
+export function getTools(): ToolDef[] {
   return tools
 }
 
 /** 清空注册表（测试隔离用；生产不要调用）。 */
-export function resetTools() {
+export function resetTools(): void {
   tools.length = 0
 }

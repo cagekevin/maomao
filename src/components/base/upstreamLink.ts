@@ -24,11 +24,17 @@ import { logger } from './logger.ts'
  * 订阅 `upstream:updated`，打开开关时自动触发直接下游。返回取消函数。
  * 只取直接下游（edge.source === sourceNodeId → edge.target），不做多级递归。
  */
-export function useUpstreamAutoTrigger() {
+/** `upstream:updated` 事件载荷（eventBus 的 payload 为 unknown，此处按契约收窄） */
+export interface UpstreamUpdatedPayload {
+  sourceNodeId?: string
+}
+
+export function useUpstreamAutoTrigger(): void {
   const { getEdges } = useReactFlow()
   useEffect(() => {
     if (!AUTO_TRIGGER_DOWNSTREAM) return undefined
-    return subscribe('upstream:updated', ({ sourceNodeId }) => {
+    return subscribe('upstream:updated', (payload) => {
+      const { sourceNodeId } = (payload || {}) as UpstreamUpdatedPayload
       if (!sourceNodeId) return
       try {
         const targets = (getEdges() || [])

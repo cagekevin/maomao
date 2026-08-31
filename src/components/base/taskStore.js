@@ -21,7 +21,7 @@ import { useSyncExternalStore } from 'react'
 import { logger } from './logger.ts'
 import { createDebouncedPersist } from './contentStore.js'
 import { fetchTasks, saveTask, deleteTask, batchDeleteTasks, clearAllTasksApi } from './localToolApi.ts'
-import { publishTaskCompleted } from './taskCompletionBus.js'
+import { publishTaskCompleted } from './taskCompletionBus.ts'
 import { generateId } from './idGen.ts'
 import { GEN_MAX_CONCURRENT } from './config.js'
 // 用命名空间调用而非 `subscribe` 具名导入：本模块内部已有同名 `subscribe`（任务监听器），

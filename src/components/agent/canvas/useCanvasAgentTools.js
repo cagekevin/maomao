@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from 'react'
 import { useReactFlow } from '@xyflow/react'
-import { registerTool, getTools } from '../../base/toolRegistry.js'
+import { registerTool, getTools } from '../../base/toolRegistry.ts'
 import { defaultNodeData } from '../../base/NodePalette.jsx'
 import { runNodeGeneration } from '../../base/taskStore.js'
 import { createGroupFromNodes, deleteNodesWithCascade } from '../../base/groupNodes.ts'

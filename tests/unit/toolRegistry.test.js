@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { registerTool, getTools, resetTools } from '../../src/components/base/toolRegistry.js'
+import { registerTool, getTools, resetTools } from '../../src/components/base/toolRegistry.ts'
 
 beforeEach(() => {
   resetTools()

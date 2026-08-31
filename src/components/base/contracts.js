@@ -60,15 +60,15 @@ export const CREDIT_GATE_EVENT = 'agent:credit-gate'
  */
 export const EVENTS = {
   'agent:task-completed': {
-    from: ['taskCompletionBus.js:21'],
+    from: ['taskCompletionBus.ts:30'],
     to: ['useNodeGeneration.js:235'],
     payload: '{ taskId, nodeId, resultUrl, type, status: "completed" }',
     note: '任务完成 → 精准回填节点（刷新不丢图）。现统一经 taskCompletionBus.publishTaskCompleted 唯一发布（P1-D）；done 已去落盘（P0-C），广播直接用持久 resultUrl',
   },
   // 上游节点完成 → 直接下游可视需要自动触发（P2-G 安全网，AUTO_TRIGGER_DOWNSTREAM 默认关）
   'upstream:updated': {
-    from: ['taskCompletionBus.js:24'],
-    to: ['upstreamLink.js:31'],
+    from: ['taskCompletionBus.ts:33'],
+    to: ['upstreamLink.ts:36'],
     payload: '{ sourceNodeId }',
     note: '上游生成完成 → 直接下游（只接一层）自动触发（经 useUpstreamAutoTrigger；开关默认关，零行为改变）',
   },

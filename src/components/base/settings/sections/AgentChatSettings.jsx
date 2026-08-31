@@ -6,7 +6,7 @@ import { showToast } from '../../toastStore.ts'
 import {
   loadAgentChatModel, saveAgentChatModel,
   loadAgentHistoryTurns, saveAgentHistoryTurns,
-} from '../agentModelStore.js'
+} from '../agentModelStore.ts'
 import SkillSettings from './SkillSettings.jsx'
 
 /**

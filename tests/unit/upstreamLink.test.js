@@ -20,7 +20,7 @@ vi.mock('../../src/components/base/config.js', () => ({ AUTO_TRIGGER_DOWNSTREAM:
 vi.mock('../../src/components/base/taskStore.js', () => ({ runNodeGeneration: runNodeGenerationMock }))
 vi.mock('../../src/components/base/logger.ts', () => ({ logger: loggerState }))
 
-import { useUpstreamAutoTrigger } from '../../src/components/base/upstreamLink.js'
+import { useUpstreamAutoTrigger } from '../../src/components/base/upstreamLink.ts'
 
 describe('useUpstreamAutoTrigger — 下游触发失败可见（§3.3）', () => {
   beforeEach(() => {

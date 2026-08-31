@@ -11,7 +11,17 @@ import { contentGet, contentSet } from '../contentStore.js'
 
 export const AGENT_CHAT_MODEL_KEY = 'agent_chat_model'
 
-export function loadAgentChatModel() {
+/** 流式模式：'stream' 流式（默认） | 'non-stream' 非流式（仅普通 JSON 响应的模型/API） */
+export type AgentStreamMode = 'stream' | 'non-stream'
+
+/** AI 聊天模型配置（providerId + modelId + streamMode） */
+export interface AgentChatModelConfig {
+  providerId: string
+  modelId: string
+  streamMode: AgentStreamMode
+}
+
+export function loadAgentChatModel(): AgentChatModelConfig | null {
   try {
     const parsed = contentGet(AGENT_CHAT_MODEL_KEY)
     if (parsed && typeof parsed === 'object' && parsed.providerId && parsed.modelId) {
@@ -26,9 +36,9 @@ export function loadAgentChatModel() {
   return null
 }
 
-export function saveAgentChatModel(cfg) {
+export function saveAgentChatModel(cfg?: Partial<AgentChatModelConfig>): void {
   try {
-    const cur = loadAgentChatModel() || {}
+    const cur: Partial<AgentChatModelConfig> = loadAgentChatModel() || {}
     contentSet(AGENT_CHAT_MODEL_KEY, {
       providerId: cfg?.providerId ?? cur.providerId ?? '',
       modelId: cfg?.modelId ?? cur.modelId ?? '',
@@ -48,7 +58,7 @@ export const AGENT_HISTORY_TURNS_KEY = 'agent_history_turns'
 export const AGENT_HISTORY_TURNS_DEFAULT = 6 // 默认回传最近 6 轮
 
 /** 读历史回传轮数：合法返回非负整数；异常/非法回退默认 6。 */
-export function loadAgentHistoryTurns() {
+export function loadAgentHistoryTurns(): number {
   try {
     const raw = contentGet(AGENT_HISTORY_TURNS_KEY)
     if (raw === undefined || raw === null || raw === '') return AGENT_HISTORY_TURNS_DEFAULT
@@ -59,7 +69,7 @@ export function loadAgentHistoryTurns() {
 }
 
 /** 写历史回传轮数（非负整数；非法输入忽略）。 */
-export function saveAgentHistoryTurns(n) {
+export function saveAgentHistoryTurns(n: number | string): void {
   try {
     const v = typeof n === 'number' ? n : Number(n)
     if (!Number.isFinite(v) || v < 0) return

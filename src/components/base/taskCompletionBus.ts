@@ -10,12 +10,21 @@
 
 import { publish } from './eventBus.ts'
 
+/** 任务完成事件入参（与 agent:task-completed 载荷一致） */
+export interface TaskCompletedArg {
+  taskId: string
+  nodeId: string
+  resultUrl: string
+  type: string
+  status: string
+}
+
 /**
  * 校验并发布任务完成事件。
  * @param {{taskId:string, nodeId:string, resultUrl:string, type:string, status:string}} arg
  * @returns {boolean} 是否实际发布（false=校验未通过/未发布）
  */
-export function publishTaskCompleted({ taskId, nodeId, resultUrl, type, status }) {
+export function publishTaskCompleted({ taskId, nodeId, resultUrl, type, status }: TaskCompletedArg): boolean {
   if (status !== 'completed') return false
   if (typeof resultUrl !== 'string' || !resultUrl) return false
   publish('agent:task-completed', { taskId, nodeId, resultUrl, type, status: 'completed' })

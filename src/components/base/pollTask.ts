@@ -24,7 +24,7 @@
 import { httpRequest } from './httpClient.ts'
 import { API_BASE } from './config.js'
 import { getTasks, patchTask } from './taskStore.js'
-import { publishTaskCompleted } from './taskCompletionBus.js'
+import { publishTaskCompleted } from './taskCompletionBus.ts'
 import { extractResultUrl as extractResult } from './resultUrlExtractor.ts'
 import { logger } from './logger.ts'
 
