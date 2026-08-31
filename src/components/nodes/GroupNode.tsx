@@ -16,15 +16,27 @@ import CustomHandle from '../edges/CustomHandle.tsx'
  *
  * 由 React Flow 父子节点机制承载：作为父节点，子节点通过 parentId 挂在其下。
  */
-function GroupNode({ id, data, selected }) {
+interface GroupNodeData {
+  collapsed?: boolean
+  name?: string
+  expandedWidth?: number | string
+  expandedHeight?: number | string
+  [key: string]: unknown
+}
+interface GroupNodeProps {
+  id: string
+  data: GroupNodeData
+  selected?: boolean
+}
+function GroupNode({ id, data, selected }: GroupNodeProps) {
   const { setNodes } = useReactFlow()
-  const collapsed = data?.collapsed || false
-  const name = data?.name || '编组'
+  const collapsed = (data?.collapsed as boolean | undefined) || false
+  const name = (data?.name as string | undefined) || '编组'
 
   // 折叠 / 展开切换（React Flow 官方推荐）：
   //  - 折叠：设 data.collapsed，子节点 hidden:true（原生隐藏），父节点收缩成小胶囊
   //  - 展开：恢复 data.collapsed=false，子节点 hidden:false
-  const toggleCollapse = (e) => {
+  const toggleCollapse = (e: React.MouseEvent) => {
     e.stopPropagation()
     const next = !collapsed
     setNodes((ns) =>
@@ -44,8 +56,8 @@ function GroupNode({ id, data, selected }) {
             data: { ...n.data, collapsed: false },
             style: {
               ...n.style,
-              width: n.data?.expandedWidth || 300,
-              height: n.data?.expandedHeight || 200,
+              width: (n.data?.expandedWidth as number | string | undefined) || 300,
+              height: (n.data?.expandedHeight as number | string | undefined) || 200,
               backgroundColor: undefined,
               border: undefined
             }
