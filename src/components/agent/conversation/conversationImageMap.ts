@@ -9,7 +9,7 @@
  * ════════════════════════════════════════════════════════════════
  */
 import { getActiveConv } from './conversationState.js'
-import { getCurrentSnapshot } from './conversationSnapshot.js'
+import { getCurrentSnapshot } from './conversationSnapshot.ts'
 
 /** 图编号映射条目：num=「图N」编号（1-based），source=来源（gen=上一轮生成图 / att=当前附件） */
 export interface ImageMapEntry {

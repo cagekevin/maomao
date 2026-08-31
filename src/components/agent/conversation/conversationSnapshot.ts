@@ -16,8 +16,28 @@ import {
 // 【P1b L1 静态上限】写入口统一限容：lastResults 去重限条 + memory 限条，防止整包体积无界增长（见 volumePolicy.js）
 import { sanitizeMessages, capConversationMemory } from '../../base/volumePolicy.ts'
 
+/**
+ * 当前对话快照（对外读形状）。
+ * 具体字段类型待 conversationState.ts 转完后收敛为 Conversation 的子集视图；
+ * 此处以「结构 + 逐字段可空」为准，不改变运行时行为。
+ */
+export interface ConversationSnapshot {
+  messages: any[]
+  skills: any[]
+  attachments: any[]
+  draft: string
+  /** 工作流运行时状态（无则 null，见 workflowState.WorkflowStatus） */
+  workflow: any
+  /** 刷新恢复用的 pending 引用（无则 null） */
+  pending: any
+  memory: Record<string, any>
+}
+
+/** setCurrentSnapshot 入参：只覆盖传入字段，其余保留 */
+export type SnapshotPatch = Partial<ConversationSnapshot> & Record<string, unknown>
+
 /** 读当前对话的快照副本（对外） */
-export function getCurrentSnapshot() {
+export function getCurrentSnapshot(): ConversationSnapshot {
   const conv = getActiveConv()
   return {
     messages: conv ? [...conv.messages] : [],
@@ -34,7 +54,7 @@ export function getCurrentSnapshot() {
  * 同步当前对话的内存态（只覆盖传入字段，其余保留）。
  * 重构后这是唯一写入口之一：更新 active 对话并自动落盘。
  */
-export function setCurrentSnapshot(snap) {
+export function setCurrentSnapshot(snap?: SnapshotPatch | null): void {
   const conv = getActiveConv()
   if (!conv) return
   const rawMessages = Array.isArray(snap?.messages) ? snap.messages.slice(-AGENT_MSG_MAX) : conv.messages
@@ -65,7 +85,7 @@ export function setCurrentSnapshot(snap) {
  * 【同步性】commit 内部同步更新 states 并 notify，因此调用后立即 getState()/getCurrentSnapshot()
  *   读取到的就是最新消息（保证 send finally 同步读到完整 assistant 而非空 streaming 占位）。
  */
-export function patchCurrentMessages(messages) {
+export function patchCurrentMessages(messages?: any[] | null): void {
   const conv = getActiveConv()
   if (!conv) return
   commit({
@@ -77,12 +97,12 @@ export function patchCurrentMessages(messages) {
 }
 
 /** 读当前对话的 workflow（副本；无则 null） */
-export function getCurrentWorkflow() {
+export function getCurrentWorkflow(): any {
   return getActiveConv()?.workflow ? { ...getActiveConv().workflow, steerQueue: [...(getActiveConv().workflow.steerQueue || [])] } : null
 }
 
 /** 原地补丁当前对话的 workflow（运行时状态；更新后落盘） */
-export function patchCurrentWorkflow(patch = {}) {
+export function patchCurrentWorkflow(patch: Record<string, unknown> = {}): any {
   const conv = getActiveConv()
   if (!conv) return null
   const wf = conv.workflow ? { ...conv.workflow } : { status: 'planning', nodeIds: [], steerQueue: [] }
@@ -95,13 +115,13 @@ export function patchCurrentWorkflow(patch = {}) {
 }
 
 /** 读当前对话的 pending（副本；无则 null） */
-export function getCurrentPending() {
+export function getCurrentPending(): any {
   const p = getActiveConv()?.pending
   return p ? { ...p, attachments: [...(p.attachments || [])] } : null
 }
 
 /** 设置/清除当前对话的 pending（刷新后据此恢复任务） */
-export function setCurrentPending(p) {
+export function setCurrentPending(p: unknown): void {
   const conv = getActiveConv()
   if (!conv) return
   commit({
@@ -111,12 +131,12 @@ export function setCurrentPending(p) {
 }
 
 /** 读当前对话的 memory（副本；无则空记忆） */
-export function getCurrentMemory() {
+export function getCurrentMemory(): Record<string, any> {
   return getActiveConv()?.memory ? normalizeMemory(getActiveConv().memory) : emptyMemory()
 }
 
 /** 更新当前对话的 memory（提炼 lastPlan 等；【P1b】facts/artifacts 限容） */
-export function setCurrentMemory(m) {
+export function setCurrentMemory(m: unknown): void {
   const conv = getActiveConv()
   if (!conv) return
   commit({

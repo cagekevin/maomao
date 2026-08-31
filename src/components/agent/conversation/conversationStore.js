@@ -22,7 +22,7 @@ import {
   normalizeConversation, normalizeWorkflow, normalizePending, normalizeMemory,
   emptyMemory, AGENT_MSG_MAX,
 } from './conversationState.js'
-import { getCurrentSnapshot } from './conversationSnapshot.js'
+import { getCurrentSnapshot } from './conversationSnapshot.ts'
 
 /* ── 会话核心 CRUD（A 类：对话增删切换读写）────────────────── */
 
@@ -160,13 +160,13 @@ export {
 export {
   getCurrentSnapshot, setCurrentSnapshot, patchCurrentMessages, getCurrentWorkflow, patchCurrentWorkflow,
   getCurrentPending, setCurrentPending, getCurrentMemory, setCurrentMemory,
-} from './conversationSnapshot.js'
+} from './conversationSnapshot.ts'
 // conversationAiState：AI 编排状态（F 类）
 export {
   getCurrentRunMode, setCurrentRunMode, getCurrentGlobalContract, setCurrentGlobalContract,
   getCurrentArtifacts, setCurrentArtifacts, getActiveAiUndoStack, pushActiveAiUndo, popActiveAiUndo,
   getCurrentRefImages, setCurrentRefImages,
-} from './conversationAiState.js'
+} from './conversationAiState.ts'
 // runModeRegistry：workMode 读写（三态单一真源，docs/65 M4 透出）
 export { getWorkMode, setWorkMode } from '../runtime/runModeRegistry.ts'
 // conversationSkillState：Skill 三阶段门禁状态（阶段3 编排轴子域化）

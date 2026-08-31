@@ -35,13 +35,18 @@ registerRunModeSync((runMode) => {
   })
 })
 
+/** 执行分级（workMode 的派生态：step-confirm / auto） */
+export type RunMode = 'step-confirm' | 'auto'
+
 /** 【对齐大雄 agentGetRunMode】读当前执行分级：由 workMode 派生（step-confirm/auto；direct→auto）。 */
-export function getCurrentRunMode() {
-  return resolveConvRunMode(getWorkMode())
+export function getCurrentRunMode(): RunMode {
+  // resolveConvRunMode 签名是 WorkMode（三态），但其实现只可能返回 step-confirm / auto；
+  // 此处按运行时实际值域收窄为 RunMode，不改变行为。
+  return resolveConvRunMode(getWorkMode()) as RunMode
 }
 
 /** 【对齐大雄 agentSetRunMode】写执行分级：收敛为 setWorkMode（原子写 workMode+inputMode+当前会话 runMode）。 */
-export function setCurrentRunMode(mode) {
+export function setCurrentRunMode(mode: unknown): void {
   const normalized = String(mode || 'auto').toLowerCase()
   if (normalized !== 'auto') {
     // 非 auto（含旧值 'semi' / 任意非法值）一律归 'step-confirm'（对齐历史契约：只有 auto 全自动）
@@ -55,13 +60,23 @@ export function setCurrentRunMode(mode) {
 
 /* ── 统一风格契约 global_contract + 跨步成果 artifact（对齐大雄，per-conversation）── */
 
+/**
+ * 统一风格契约（阶段1 产出，逐字锁定每步）。
+ * unified_style_prompt / visual_positioning 是本项目消费的两个字段，其余字段透传。
+ */
+export interface GlobalContract {
+  unified_style_prompt?: string
+  visual_positioning?: string
+  [key: string]: unknown
+}
+
 /** 读当前对话的统一风格契约（无则 null） */
-export function getCurrentGlobalContract() {
+export function getCurrentGlobalContract(): GlobalContract | null {
   return getActiveConv()?.memory?.global_contract || null
 }
 
 /** 写当前对话的统一风格契约（阶段1 产出，逐字锁定每步） */
-export function setCurrentGlobalContract(c) {
+export function setCurrentGlobalContract(c: GlobalContract | null): void {
   const conv = getActiveConv()
   if (!conv) return
   commit({
@@ -78,12 +93,22 @@ export function setCurrentGlobalContract(c) {
 }
 
 /** 读当前对话的跨步成果资产（无则 null） */
-export function getCurrentArtifacts() {
+/** 跨步成果资产条目 */
+export interface Artifact {
+  id: string
+  type: string
+  title: string
+  description?: string
+  nodeId?: string
+  url?: string
+}
+
+export function getCurrentArtifacts(): Artifact[] | null {
   return getActiveConv()?.memory?.artifacts || null
 }
 
 /** 写当前对话的跨步成果资产（[{id,type,title,description,nodeId?,url?}]） */
-export function setCurrentArtifacts(arr) {
+export function setCurrentArtifacts(arr: Artifact[] | null): void {
   const conv = getActiveConv()
   if (!conv) return
   commit({
@@ -95,12 +120,12 @@ export function setCurrentArtifacts(arr) {
 /* ── 工作流运行时状态（per-conversation，Step D；替代模块级 aiUndoStack/pendingGenerations）── */
 
 /** 读当前对话的 AI 撤销栈（副本） */
-export function getActiveAiUndoStack() {
+export function getActiveAiUndoStack(): any[] {
   return [...(getActiveConv()?.aiUndoStack || [])]
 }
 
 /** 压入 AI 撤销快照（上限 20） */
-export function pushActiveAiUndo(snapshot) {
+export function pushActiveAiUndo(snapshot: Record<string, any>): void {
   const conv = getActiveConv()
   if (!conv) return
   const stack = [...(conv.aiUndoStack || []), snapshot]
@@ -112,7 +137,7 @@ export function pushActiveAiUndo(snapshot) {
 }
 
 /** 弹出最近 AI 撤销快照 */
-export function popActiveAiUndo() {
+export function popActiveAiUndo(): Record<string, any> | undefined {
   const conv = getActiveConv()
   if (!conv || !(conv.aiUndoStack || []).length) return null
   const stack = [...conv.aiUndoStack]
@@ -127,12 +152,12 @@ export function popActiveAiUndo() {
 /* ── 参考图引用（per-conversation，防跨对话泄漏）── */
 
 /** 读当前对话「本轮用户引用的参考图」URL 数组（per-conversation，TASK-006 #7 防跨对话泄漏） */
-export function getCurrentRefImages() {
+export function getCurrentRefImages(): string[] {
   return getActiveConv()?.referenceImages || []
 }
 
 /** 写当前对话「本轮用户引用的参考图」URL 数组 */
-export function setCurrentRefImages(urls = []) {
+export function setCurrentRefImages(urls: unknown[] = []): void {
   const conv = getActiveConv()
   if (!conv) return
   const next = Array.isArray(urls) ? urls.filter(Boolean) : []
