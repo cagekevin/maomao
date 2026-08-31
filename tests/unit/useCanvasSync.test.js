@@ -16,7 +16,7 @@ class FakeBroadcastChannel {
 const closeSpy = vi.fn()
 FakeBroadcastChannel.prototype.close = function () { this.closed = true; closeSpy(this.name) }
 
-const { useCanvasSync } = await import('../../src/components/base/useCanvasSync.ts')
+const { useCanvasSync } = await import('../../src/hooks/useCanvasSync.ts')
 
 beforeEach(() => {
   latestChannel = null

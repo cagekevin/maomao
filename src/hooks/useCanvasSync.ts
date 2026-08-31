@@ -16,8 +16,8 @@
  */
 import { useEffect, useRef, useState } from 'react'
 import type { MutableRefObject } from 'react'
-import { generateId } from './idGen.ts'
-import { logger } from './logger.ts'
+import { generateId } from '../components/base/idGen.ts'
+import { logger } from '../components/base/logger.ts'
 
 export interface CanvasSyncApi {
   /** 其他窗口保存了同一项目 → true（App 据此显示红色警告条） */

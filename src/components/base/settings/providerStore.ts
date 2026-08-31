@@ -9,7 +9,7 @@
  */
 import { useSyncExternalStore } from 'react'
 import type { RawModel } from '../providerModels.ts'
-import { useStoreSelector } from '../useStoreSelector.ts'
+import { useStoreSelector } from '../../../hooks/useStoreSelector.ts'
 import { providerApi } from '../localToolApi.ts'
 import { contentSetAsync } from '../contentStore.js'
 import { generateId } from '../idGen.ts'

@@ -14,7 +14,7 @@
 import React, { act } from 'react'
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
-import { useStoreSelector, shallowEqual } from '../../src/components/base/useStoreSelector.ts'
+import { useStoreSelector, shallowEqual } from '../../src/hooks/useStoreSelector.ts'
 
 /** 最小可操控外部 store（对齐各 store 的 subscribe/getSnapshot 契约） */
 function createStore(initial) {

@@ -28,7 +28,7 @@ vi.mock('@xyflow/react', () => ({
   useStore: vi.fn(() => () => {}),
 }))
 
-vi.mock('../../src/components/base/useNodeGeneration.ts', () => ({
+vi.mock('../../src/hooks/useNodeGeneration.ts', () => ({
   useNodeGeneration: (config) => {
     genConfig = config
     // 复刻真实 hook 的广播 handler：recoverable + resultKey 时自动写回（先于 onRecover），
@@ -85,10 +85,10 @@ vi.mock('../../src/components/base/hooks.js', () => ({
   useNodeResize: () => ({ onInputResize: vi.fn() }),
   useOutsideClick: () => {},
 }))
-vi.mock('../../src/components/base/useConnectedInputs.ts', () => ({ useConnectedInputs: () => ({}) }))
-vi.mock('../../src/components/base/useMediaDegrade.ts', () => ({ useMediaDegrade: () => ({ isHidden: () => false }) }))
+vi.mock('../../src/hooks/useConnectedInputs.ts', () => ({ useConnectedInputs: () => ({}) }))
+vi.mock('../../src/hooks/useMediaDegrade.ts', () => ({ useMediaDegrade: () => ({ isHidden: () => false }) }))
 vi.mock('../../src/components/base/nodePrefs.ts', () => ({ useNodePrefs: () => ({ prefs: {}, set: vi.fn() }) }))
-vi.mock('../../src/components/base/useSyncNodeData.ts', () => ({ useSyncNodeData: () => {} }))
+vi.mock('../../src/hooks/useSyncNodeData.ts', () => ({ useSyncNodeData: () => {} }))
 vi.mock('../../src/components/base/filesApi.ts', () => ({ toAbsoluteFileUrl: (x) => x, saveResultToTasks: vi.fn(async () => undefined) }))
 
 const mockFetchTasks = vi.fn(async () => ({ data: { items: [] } }))

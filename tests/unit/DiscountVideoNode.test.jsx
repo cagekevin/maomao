@@ -97,10 +97,10 @@ vi.mock('../../src/components/base/ResizeFullscreenHandle.jsx', () => ({ default
 vi.mock('../../src/components/base/FullscreenModal.jsx', () => ({ default: ({ open, children }) => (open ? <div data-testid="fullscreen">{children}</div> : null) }))
 vi.mock('../../src/components/base/VideoThumbnail.jsx', () => ({ default: () => <div data-testid="video-thumb" /> }))
 
-vi.mock('../../src/components/base/useConnectedInputs.ts', () => ({ useConnectedInputs: () => ({ images: [], texts: [] }) }))
-vi.mock('../../src/components/base/useMediaDegrade.ts', () => ({ useMediaDegrade: () => ({ isHidden: () => false }) }))
+vi.mock('../../src/hooks/useConnectedInputs.ts', () => ({ useConnectedInputs: () => ({ images: [], texts: [] }) }))
+vi.mock('../../src/hooks/useMediaDegrade.ts', () => ({ useMediaDegrade: () => ({ isHidden: () => false }) }))
 vi.mock('../../src/components/base/hooks.js', () => ({ useNodeResize: () => ({ onInputResize: vi.fn() }), useOutsideClick: () => {} }))
-vi.mock('../../src/components/base/useVideoPoster.ts', () => ({ useVideoPoster: () => null }))
+vi.mock('../../src/hooks/useVideoPoster.ts', () => ({ useVideoPoster: () => null }))
 vi.mock('../../src/components/base/nodePrefs.ts', () => ({
   useNodePrefs: () => ({ prefs: { model: '', size: '', resolution: '', seconds: '' }, set: (...a) => h.vidPrefsSet(...a) }),
 }))
@@ -118,7 +118,7 @@ vi.mock('../../src/components/base/videoApi.ts', () => ({ generateVideo: vi.fn(a
 // 节点 onSuccess/onRecover 不再手写 patchData，data.videoUrl 由 resultKey/recoverable 自动写回。
 let genConfig = null
 let genLoading = false
-vi.mock('../../src/components/base/useNodeGeneration.ts', () => ({
+vi.mock('../../src/hooks/useNodeGeneration.ts', () => ({
   useNodeGeneration: (config) => {
     genConfig = config
     // 复刻真实 hook 的广播 handler：recoverable + resultKey 且广播带 resultUrl 时自动写回 node.data

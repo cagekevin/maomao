@@ -10,7 +10,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
 
-const { useContextMenu } = await import('../../src/components/base/useContextMenu.ts')
+const { useContextMenu } = await import('../../src/hooks/useContextMenu.ts')
 
 function makeEvent({ target, clientX = 5, clientY = 6 } = {}) {
   const e = {

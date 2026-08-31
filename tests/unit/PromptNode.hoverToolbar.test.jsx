@@ -16,7 +16,7 @@ vi.mock('@xyflow/react', () => ({
   useReactFlow: () => ({ setNodes: mockSetNodes, setEdges: vi.fn(), getEdges: vi.fn(() => []), getNodes: mockGetNodes, addNodes: mockAddNodes }),
   useStore: vi.fn(() => () => {}),
 }))
-vi.mock('../../src/components/base/useNodeGeneration.ts', () => ({
+vi.mock('../../src/hooks/useNodeGeneration.ts', () => ({
   useNodeGeneration: (config) => {
     genConfig = config
     return { loading: false, error: null, stop: vi.fn(), start: vi.fn() }
@@ -42,8 +42,8 @@ vi.mock('../../src/components/base/GeneratingOverlay.jsx', () => ({ default: () 
 vi.mock('../../src/components/base/PromptLibraryButton.jsx', () => ({ default: () => null }))
 vi.mock('../../src/components/base/JianyingIcon.jsx', () => ({ default: () => null }))
 vi.mock('../../src/components/base/hooks.js', () => ({ useNodeResize: () => ({ onInputResize: vi.fn() }), useOutsideClick: () => {} }))
-vi.mock('../../src/components/base/useConnectedInputs.ts', () => ({ useConnectedInputs: () => ({}) }))
-vi.mock('../../src/components/base/useMediaDegrade.ts', () => ({ useMediaDegrade: () => ({ isHidden: () => false }) }))
+vi.mock('../../src/hooks/useConnectedInputs.ts', () => ({ useConnectedInputs: () => ({}) }))
+vi.mock('../../src/hooks/useMediaDegrade.ts', () => ({ useMediaDegrade: () => ({ isHidden: () => false }) }))
 vi.mock('../../src/components/base/nodePrefs.ts', () => ({ useNodePrefs: () => ({ prefs: {}, set: vi.fn() }) }))
 vi.mock('../../src/components/base/filesApi.ts', () => ({ toAbsoluteFileUrl: (x) => x, saveResultToTasks: vi.fn(async () => undefined) }))
 vi.mock('../../src/components/base/settings/providerStore.ts', () => ({ useProviders: () => ({ providers: [] }), load: vi.fn(() => Promise.resolve()) }))

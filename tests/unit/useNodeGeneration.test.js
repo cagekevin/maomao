@@ -15,7 +15,7 @@ const busState = vi.hoisted(() => ({ handler: null, logger: { info: vi.fn(), deb
 const saveResultToTasksMock = vi.hoisted(() => vi.fn(async (url) => url))
 const reportDegradeMock = vi.hoisted(() => vi.fn())
 
-vi.mock('../../src/components/base/useNodeData.ts', () => ({ useNodeData: () => ({ patchData: patchDataMock }) }))
+vi.mock('../../src/hooks/useNodeData.ts', () => ({ useNodeData: () => ({ patchData: patchDataMock }) }))
 vi.mock('../../src/components/base/taskStore.js', () => ({
   reportGenerate: () => taskCtlMock,
   registerTaskRetry: vi.fn(),
@@ -31,7 +31,7 @@ vi.mock('../../src/components/base/eventBus.ts', () => ({
 vi.mock('../../src/components/base/logger.ts', () => ({ logger: busState.logger }))
 vi.mock('../../src/components/base/toastStore.ts', () => ({ showToast: vi.fn() }))
 
-import { useNodeGeneration } from '../../src/components/base/useNodeGeneration.ts'
+import { useNodeGeneration } from '../../src/hooks/useNodeGeneration.ts'
 
 const baseProps = {
   nodeId: 'n1',

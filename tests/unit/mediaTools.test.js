@@ -11,7 +11,7 @@ vi.mock('../../src/components/base/lod.jsx', () => ({
   useLod: vi.fn(() => ({ lodLevel: 0 })),
 }))
 import { useLod } from '../../src/components/base/lod.jsx'
-import { useMediaDegrade } from '../../src/components/base/useMediaDegrade.ts'
+import { useMediaDegrade } from '../../src/hooks/useMediaDegrade.ts'
 import { contentClearCache } from '../../src/components/base/contentStore.js'
 
 describe('useMediaDegrade —— lodLevel→hideMedia 映射', () => {

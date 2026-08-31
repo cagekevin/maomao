@@ -34,6 +34,7 @@ import { build } from 'esbuild'
 import { readdirSync, statSync, readFileSync } from 'node:fs'
 import { join, resolve, extname } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+import { defaultTargets, SCAN_EXTS } from './check-targets.mjs'
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url))
 const root = resolve(__dirname, '..')
@@ -47,18 +48,7 @@ const LITERAL_EVENT_RE = new RegExp(
   'g'
 )
 
-function collectSources(dir, acc = []) {
-  for (const name of readdirSync(dir)) {
-    const full = join(dir, name)
-    const st = statSync(full)
-    if (st.isDirectory()) {
-      collectSources(full, acc)
-    } else if (['.js', '.jsx', '.ts', '.tsx'].includes(extname(name))) {
-      acc.push(full)
-    }
-  }
-  return acc
-}
+
 
 // ── 加载事件登记表 ──
 let EVENTS = {}
@@ -79,13 +69,13 @@ const targets =
   args.length > 0
     ? args.map((a) => resolve(root, a))
     : (() => {
-        // 默认扫 components 子树（原范围），并补扫 src 根目录的关键组件
+        // 默认扫 components + hooks（扫描根见 check-targets.mjs），并补扫 src 根目录的关键组件
         // （如 App.jsx 不在 components 下，却含事件总线订阅，漏扫会导致反向校验误报）
-        const base = collectSources(join(root, 'src/components'))
+        const base = defaultTargets(root)
         const rootSrc = join(root, 'src')
         for (const name of readdirSync(rootSrc)) {
           const full = join(rootSrc, name)
-          if (statSync(full).isFile() && ['.js', '.jsx', '.ts', '.tsx'].includes(extname(name))) {
+          if (statSync(full).isFile() && SCAN_EXTS.includes(extname(name))) {
             base.push(full)
           }
         }

@@ -12,7 +12,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
 
-const { useLocalToolStatus } = await import('../../src/components/base/useLocalToolStatus.ts')
+const { useLocalToolStatus } = await import('../../src/hooks/useLocalToolStatus.ts')
 
 const okBody = { ok: true, json: async () => ({ status: 'ok' }) }
 const badBody = { ok: true, json: async () => ({ status: 'down' }) }
@@ -78,7 +78,7 @@ describe('useLocalToolStatus 轮询（ensurePoll 幂等回归防线）', () => {
   // 每个用例 resetModules 后重新 import 拿干净实例，避免跨用例污染。
   const freshHook = async () => {
     vi.resetModules()
-    return (await import('../../src/components/base/useLocalToolStatus.ts')).useLocalToolStatus
+    return (await import('../../src/hooks/useLocalToolStatus.ts')).useLocalToolStatus
   }
 
   it('连接状态变化后轮询仍存活', async () => {

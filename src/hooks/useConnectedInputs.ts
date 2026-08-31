@@ -1,9 +1,9 @@
 import { useMemo } from 'react'
 import { useStore } from '@xyflow/react'
-import { collectAssets } from './scriptBoxPrompts.js'
-import { toAbsoluteFileUrl } from './filesApi.ts'
-import { resolveMediaType } from './resultUrlExtractor.ts'
-import { NODE_TYPES, parseShotHandle } from './contracts.js'
+import { collectAssets } from '../components/base/scriptBoxPrompts.js'
+import { toAbsoluteFileUrl } from '../components/base/filesApi.ts'
+import { resolveMediaType } from '../components/base/resultUrlExtractor.ts'
+import { NODE_TYPES, parseShotHandle } from '../components/base/contracts.js'
 
 /**
  * ════════════════════════════════════════════════════════════════

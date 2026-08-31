@@ -45,8 +45,8 @@ vi.mock('@xyflow/react', () => ({
 }))
 vi.mock('../../src/components/base/NodeShell.jsx', () => ({ default: mocks.NodeShell }))
 vi.mock('../../src/components/base/HoverToolbar.jsx', () => ({ default: mocks.HoverToolbar }))
-vi.mock('../../src/components/base/useConnectedInputs.ts', () => ({ useConnectedInputs: mocks.useConnectedInputs }))
-vi.mock('../../src/components/base/useMediaDegrade.ts', () => ({ useMediaDegrade: mocks.useMediaDegrade }))
+vi.mock('../../src/hooks/useConnectedInputs.ts', () => ({ useConnectedInputs: mocks.useConnectedInputs }))
+vi.mock('../../src/hooks/useMediaDegrade.ts', () => ({ useMediaDegrade: mocks.useMediaDegrade }))
 vi.mock('../../src/components/base/filesApi.ts', () => ({
   uploadFileToLocal: (...a) => h.uploadMock(...a),
   toAbsoluteFileUrl: (u) => `ABS:${u}`,

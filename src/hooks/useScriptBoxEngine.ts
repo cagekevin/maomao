@@ -1,10 +1,10 @@
 import { useEffect, useRef, useCallback } from 'react'
 import { useReactFlow } from '@xyflow/react'
-import { createScriptBoxEngine } from './scriptBoxEngine.js'
-import { normalizeScriptBoxData } from './scriptBoxSchema.ts'
-import { injectNodePrefs } from './nodePrefs.ts'
-import { useProvidersList, load as loadProviders } from './settings/providerStore.ts'
-import { logger } from './logger.ts'
+import { createScriptBoxEngine } from '../components/base/scriptBoxEngine.js'
+import { normalizeScriptBoxData } from '../components/base/scriptBoxSchema.ts'
+import { injectNodePrefs } from '../components/base/nodePrefs.ts'
+import { useProvidersList, load as loadProviders } from '../components/base/settings/providerStore.ts'
+import { logger } from '../components/base/logger.ts'
 
 /**
  * 节点 data 写回通道。

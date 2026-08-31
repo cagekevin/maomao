@@ -1,12 +1,12 @@
 import { useCallback, useRef, useState, useEffect } from 'react'
-import { reportGenerate, registerTaskRetry, unregisterTaskRetry, claimNodeRun, releaseNodeRun } from './taskStore.js'
-import { saveResultToTasks } from './filesApi.ts'
-import { logger } from './logger.ts'
-import { subscribe } from './eventBus.ts'
-import { showToast } from './toastStore.ts'
+import { reportGenerate, registerTaskRetry, unregisterTaskRetry, claimNodeRun, releaseNodeRun } from '../components/base/taskStore.js'
+import { saveResultToTasks } from '../components/base/filesApi.ts'
+import { logger } from '../components/base/logger.ts'
+import { subscribe } from '../components/base/eventBus.ts'
+import { showToast } from '../components/base/toastStore.ts'
 import { useNodeData } from './useNodeData.ts'
-import { classifyError } from './genErrors.ts'
-import { reportDegrade } from './degrade.ts'
+import { classifyError } from '../components/base/genErrors.ts'
+import { reportDegrade } from '../components/base/degrade.ts'
 
 /**
  * reportGenerate 返回的任务控制器。

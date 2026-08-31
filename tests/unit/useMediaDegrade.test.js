@@ -12,7 +12,7 @@ import { describe, it, expect } from 'vitest'
 import { renderHook } from '@testing-library/react'
 import { createElement } from 'react'
 
-const { useMediaDegrade } = await import('../../src/components/base/useMediaDegrade.ts')
+const { useMediaDegrade } = await import('../../src/hooks/useMediaDegrade.ts')
 const { LodContext } = await import('../../src/components/base/lod.jsx')
 
 function renderWithLod(lodLevel) {

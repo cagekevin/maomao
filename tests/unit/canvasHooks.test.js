@@ -16,7 +16,7 @@ import { renderHook, act } from '@testing-library/react'
 // ───────────────────────────────────────────────────────────
 // 1. useCanvasHistory
 // ───────────────────────────────────────────────────────────
-import { useCanvasHistory } from '../../src/components/base/useCanvasHistory.ts'
+import { useCanvasHistory } from '../../src/hooks/useCanvasHistory.ts'
 
 describe('useCanvasHistory 撤销/重做 hook 桥接', () => {
   it('record(snapshot) 调 stack.push 并触发重渲染（canUndo 变 true）', () => {
@@ -116,7 +116,7 @@ describe('useCanvasHistory 撤销/重做 hook 桥接', () => {
 // ───────────────────────────────────────────────────────────
 // 2. useSyncNodeData
 // ───────────────────────────────────────────────────────────
-import { useSyncNodeData } from '../../src/components/base/useSyncNodeData.ts'
+import { useSyncNodeData } from '../../src/hooks/useSyncNodeData.ts'
 
 describe('useSyncNodeData 节点 data 同步 hook', () => {
   it('data 字段变化 → 调对应 setter(next)', () => {

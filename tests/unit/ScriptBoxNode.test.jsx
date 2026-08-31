@@ -71,7 +71,7 @@ vi.mock('../../src/components/edges/CustomHandle.jsx', () => ({
 }))
 vi.mock('../../src/components/base/FullscreenModal.jsx', () => ({ default: ({ open, children }) => (open ? <div data-testid="fullscreen">{children}</div> : null) }))
 // 数据读写通道：真实 useScriptBoxEngine 负责注入回调副作用，仅把返回的 updateData 指向 h.updateData 以记录调用（StepNav 切步用）
-vi.mock('../../src/components/base/useScriptBoxEngine.ts', async (importOriginal) => {
+vi.mock('../../src/hooks/useScriptBoxEngine.ts', async (importOriginal) => {
   const real = await importOriginal()
   return {
     ...real,
@@ -87,7 +87,7 @@ vi.mock('../../src/components/base/settings/providerStore.ts', () => ({ useProvi
 vi.mock('../../src/components/base/logger.ts', () => ({ logger: { warn: vi.fn() } }))
 vi.mock('../../src/components/base/hooks.js', () => ({ useOutsideClick: () => {}, useNodeResize: () => ({ onMainBoxResize: vi.fn() }), useContentHeightSync: () => {} }))
 // 上游输入接入 hook：mock 返回可控的 h.upstream（默认空），避免依赖 @xyflow/react 的 useStore
-vi.mock('../../src/components/base/useConnectedInputs.ts', () => ({ useConnectedInputs: () => h.upstream }))
+vi.mock('../../src/hooks/useConnectedInputs.ts', () => ({ useConnectedInputs: () => h.upstream }))
 
 // 三步子组件 mock：渲染内容标记 + 可点的引擎回调按钮（验证 UI 只调回调）
 vi.mock('../../src/components/scriptbox/StepShots.jsx', () => ({

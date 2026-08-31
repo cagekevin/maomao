@@ -16,9 +16,10 @@
  *   node scripts/check-node-types.mjs src/App.jsx     # 指定文件
  */
 import { build } from 'esbuild'
-import { readdirSync, statSync, readFileSync } from 'node:fs'
-import { join, resolve, extname } from 'node:path'
+import { readFileSync } from 'node:fs'
+import { resolve, extname } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+import { defaultTargets } from './check-targets.mjs'
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url))
 const root = resolve(__dirname, '..')
@@ -31,19 +32,6 @@ const LITERAL_PREFS_RE = new RegExp(
   `\\b(${[...PREFS_FNS].join('|')})\\s*\\(\\s*(['"])([a-zA-Z0-9_:-]+)\\2`,
   'g'
 )
-
-function collectSources(dir, acc = []) {
-  for (const name of readdirSync(dir)) {
-    const full = join(dir, name)
-    const st = statSync(full)
-    if (st.isDirectory()) {
-      collectSources(full, acc)
-    } else if (['.js', '.jsx', '.ts', '.tsx'].includes(extname(name))) {
-      acc.push(full)
-    }
-  }
-  return acc
-}
 
 // ── 加载节点类型登记表 ──
 let NODE_TYPE_SET = new Set()
@@ -63,7 +51,7 @@ const args = process.argv.slice(2)
 const targets =
   args.length > 0
     ? args.map((a) => resolve(root, a))
-    : collectSources(join(root, 'src/components'))
+    : defaultTargets(root) // 扫描根见 check-targets.mjs（含 src/hooks，避免收口后形成校验盲区）
 
 let violations = 0
 

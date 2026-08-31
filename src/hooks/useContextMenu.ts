@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef } from 'react'
 import type { RefObject, MouseEvent as ReactMouseEvent } from 'react'
 import type { Connection, Node } from '@xyflow/react'
-import { isEditableTarget } from './hooks.js'
+import { isEditableTarget } from '../components/base/hooks.js'
 
 /** 菜单定位用的容器相对坐标（top/left 直接取值） */
 export interface ContextMenuPos {
