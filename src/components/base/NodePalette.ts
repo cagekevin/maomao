@@ -7,7 +7,7 @@ import {
 // 画布渲染组件引用（component 字段用于 App.jsx 派生 nodeTypes，避免双维护平行表）。
 // 注意：节点组件均不反向 import 本文件，故无循环依赖（已验证）。
 import TextNode from '../nodes/TextNode.jsx'
-import ImageNode from '../nodes/ImageNode.jsx'
+import ImageNode from '../nodes/ImageNode.tsx'
 import LoopNode from '../nodes/LoopNode.jsx'
 import PromptNode from '../nodes/PromptNode.jsx'
 import DiscountVideoNode from '../nodes/DiscountVideoNode.jsx'

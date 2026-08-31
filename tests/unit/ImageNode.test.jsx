@@ -19,7 +19,7 @@ vi.mock('../../src/components/base/api/filesApi.ts', () => ({ toAbsoluteFileUrl:
 vi.mock('../../src/components/base/toastStore.ts', () => ({ showToast: mocks.showToast, toastError: mocks.toastError }))
 vi.mock('../../src/components/base/imageCompress.ts', () => ({ compressImage: mocks.compressImage }))
 
-import ImageNode from '../../src/components/nodes/ImageNode.jsx'
+import ImageNode from '../../src/components/nodes/ImageNode.tsx'
 beforeEach(() => { mocks.resetNodeMockState() })
 const setup = (props = {}) => render(<ImageNode id="im1" data={{}} selected={false} {...props} />)
 

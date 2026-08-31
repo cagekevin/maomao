@@ -7,6 +7,7 @@ import NodeShell from '../base/NodeShell.tsx'
 import HoverToolbar from '../base/HoverToolbar.tsx'
 import ImageZoomDialog from '../base/ImageZoomDialog.tsx'
 import { detectMediaType } from '../base/mediaType.ts'
+import type { MediaType } from '@/types'
 import { useMediaDegrade } from '../../hooks/useMediaDegrade.ts'
 import { useFitNodeRatio } from '../../hooks/useFitNodeRatio.ts'
 import { useVideoPoster } from '../../hooks/useVideoPoster.ts'
@@ -32,9 +33,24 @@ import { openAssetLibrary } from '../base/taskStore.ts'
  * 通用能力抽到 base/：useMediaDegrade（性能降级）、useFitNodeRatio（宽高比自适应）、
  * useVideoPoster（视频首帧封面）、detectMediaType（类型判断）。
  */
-function ImageNode({ id, data, selected }) {
-  const fileRef = useRef(null)
-  const videoRef = useRef(null) // 播放视频元素（大播放按钮手势触发的 play() 用）
+interface ImageNodeData {
+  label?: string
+  imageUrl?: string
+  url?: string
+  mediaType?: MediaType
+  poster?: string
+  demoImage?: string
+  text?: string
+  [key: string]: unknown
+}
+interface ImageNodeProps {
+  id: string
+  data: ImageNodeData
+  selected?: boolean
+}
+function ImageNode({ id, data, selected }: ImageNodeProps) {
+  const fileRef = useRef<HTMLInputElement | null>(null)
+  const videoRef = useRef<HTMLVideoElement | null>(null) // 播放视频元素（大播放按钮手势触发的 play() 用）
   // 读取端兜底：相对 /files/ 路径统一补全为绝对 URL，刷新不破图
   const url = toAbsoluteFileUrl(data.imageUrl || data.url || '') || ''
   const { setNodes } = useReactFlow()
@@ -45,7 +61,7 @@ function ImageNode({ id, data, selected }) {
   const [playing, setPlaying] = useState(false)
 
   // 查看大图：原生 <dialog> 弹层（双击图片 → showModal，点图/Esc 关闭，无外框/标题栏）。
-  const dialogRef = useRef(null)
+  const dialogRef = useRef<HTMLDialogElement | null>(null)
 
   // 内容类型：优先显式 data.mediaType（blob: 等无扩展名/前缀的 URL 无法靠字符串判断，
   // 由产出方明确标注，如视频处理节点的 audio/video 输出），否则统一走 detectMediaType
@@ -62,7 +78,7 @@ function ImageNode({ id, data, selected }) {
 
   // 编辑器/压缩保存 → 写回节点图片（不可变更新，与 HoverToolbar 统一机制共享）。
   const replaceImage = useCallback(
-    (dataUrl) => {
+    (dataUrl: string) => {
       if (!dataUrl) return
       setNodes((ns) =>
         ns.map((n) =>
@@ -86,7 +102,7 @@ function ImageNode({ id, data, selected }) {
   // 文件名优先用节点 label，其次是 URL 里的文件名；无扩展名时按类型补扩展名。
   const handleDownload = useCallback(() => {
     if (!url) return
-    const extMap = { image: 'png', video: 'mp4', audio: 'm4a', text: 'txt' }
+    const extMap: Partial<Record<MediaType, string>> = { image: 'png', video: 'mp4', audio: 'm4a', text: 'txt' }
     let filename = data.label || ''
     try {
       const fromUrl = decodeURIComponent(new URL(url).pathname.split('/').pop() || '')
@@ -102,14 +118,14 @@ function ImageNode({ id, data, selected }) {
   // 图片/视频/音频：优先上传 localTool 成 /files/ 持久 URL（刷新不丢），失败回退 dataURL 内联（仍可显示，靠 base64 外置兜底）。
   // 文本文件：读文本写回 data.text，节点切到文本态。
   const rename = useCallback(
-    (name) => {
+    (name: string) => {
       setNodes((ns) =>
         ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, label: name } } : n))
       )
     },
     [id, setNodes]
   )
-  const handleFileSelect = useCallback(async (e) => {
+  const handleFileSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0]
     e.target.value = ''
     if (!f) return
@@ -162,7 +178,8 @@ function ImageNode({ id, data, selected }) {
       onClick: () => {
         if (!url) { toastError('没有可发送的素材'); return }
         const name = (data.label && String(data.label).trim()) || ''
-        sendToAssetLibrary(url, { name, type })
+        const assetType = (type === 'image' || type === 'video' || type === 'audio' || type === 'text') ? type : undefined
+        sendToAssetLibrary(url, { name, type: assetType })
         openAssetLibrary()
         showToast('已发送到素材库', { type: 'success' })
       }
