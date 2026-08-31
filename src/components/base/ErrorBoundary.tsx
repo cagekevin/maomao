@@ -11,17 +11,34 @@ import { logger } from './logger.ts'
  *    单个节点崩溃只在该节点内降级，不影响整个画布/其它节点。
  *  - onError：可选回调（上报后端等），node 粒度默认传 logger。
  */
-export default class ErrorBoundary extends React.Component {
-  constructor(props) {
+/** ErrorBoundary 粒度：'full' 根级全屏崩溃页 / 'node' 节点内局部错误框。 */
+type ErrorBoundaryVariant = 'full' | 'node'
+
+interface ErrorBoundaryProps {
+  /** 降级粒度：'full' 全屏崩溃页（默认） | 'node' 节点内局部错误框 */
+  variant?: ErrorBoundaryVariant
+  /** 捕获回调（上报后端等）；node 粒度默认传 logger */
+  onError?: (error: Error, errorInfo: React.ErrorInfo) => void
+  children?: React.ReactNode
+}
+
+interface ErrorBoundaryState {
+  hasError: boolean
+  error: Error | null
+  errorInfo: React.ErrorInfo | null
+}
+
+export default class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
     super(props)
     this.state = { hasError: false, error: null, errorInfo: null }
   }
 
-  static getDerivedStateFromError(error) {
+  static getDerivedStateFromError(error: Error): Partial<ErrorBoundaryState> {
     return { hasError: true, error }
   }
 
-  componentDidCatch(error, errorInfo) {
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     this.setState({ errorInfo })
     this.props.onError?.(error, errorInfo)
     // 统一日志上报（TASK-056 2.1）：走 logger 而非裸 console，接 localTool /api/logs 落盘，

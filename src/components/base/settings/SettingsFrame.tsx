@@ -1,9 +1,9 @@
 import React from 'react'
-import { Settings as SettingsIcon, Bot, Sliders, HardDrive } from 'lucide-react'
-import ApiSettings from './sections/ApiSettings.jsx'
-import AgentChatSettings from './sections/AgentChatSettings.jsx'
-import OtherSettings from './sections/OtherSettings.jsx'
-import StorageMonitor from './sections/StorageMonitor.jsx'
+import { Settings as SettingsIcon, Bot, Sliders, HardDrive, type LucideIcon } from 'lucide-react'
+import ApiSettings from './sections/ApiSettings.tsx'
+import AgentChatSettings from './sections/AgentChatSettings.tsx'
+import OtherSettings from './sections/OtherSettings.tsx'
+import StorageMonitor from './sections/StorageMonitor.tsx'
 
 /**
  * 设置主框架（侧栏 + 舞台）。
@@ -12,7 +12,15 @@ import StorageMonitor from './sections/StorageMonitor.jsx'
  *   - 侧栏 w-48，导航项激活 text-blue-500 font-bold border-edge bg-surface-active
  *   - 内容区 p-6 bg-canvas，内部 max-w-4xl 卡片布局
  */
-const SECTIONS = [
+/** 侧栏导航项（icon 用 lucide 组件，comp 是对应 section 组件名，供 renderSection 分发）。 */
+interface SectionNav {
+  key: string
+  label: string
+  icon: LucideIcon
+  comp: 'ApiSettings' | 'AgentChatSettings' | 'OtherSettings' | 'StorageMonitor'
+}
+
+const SECTIONS: SectionNav[] = [
   // 2026-08-18：AI 助手改得频繁，提到第一个，默认选中它
   { key: 'agent', label: 'AI 助手', icon: Bot, comp: 'AgentChatSettings' },
   { key: 'api', label: '第三方API配置', icon: SettingsIcon, comp: 'ApiSettings' },
@@ -58,7 +66,7 @@ export default function SettingsFrame() {
   )
 }
 
-function renderSection(key) {
+function renderSection(key: string) {
   switch (key) {
     case 'api':
       return <ApiSettings />

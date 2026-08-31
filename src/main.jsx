@@ -1,7 +1,7 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App.jsx'
-import ErrorBoundary from './components/base/ErrorBoundary.jsx'
+import ErrorBoundary from './components/base/ErrorBoundary.tsx'
 import '@xyflow/react/dist/style.css'
 import './index.css'
 import { initStorage } from './components/base/storageAdapter.ts'

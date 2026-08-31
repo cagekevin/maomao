@@ -22,7 +22,7 @@ import ScriptBoxNode from '../nodes/ScriptBoxNode.jsx'
 // vendor-media(705KB) 在首屏被强制下载（manualChunks 只拆文件、不改变加载时机）。
 // 统一走 lazyNode 动态 import，仅在对应节点首次渲染时才拉 chunk。见 ./lazyNode.jsx。
 // 【勿加回静态 import】加回即首屏 +1.7MB，且 tests/unit/lazyNode.test.jsx 会红。
-import { lazyNode, HEAVY_NODE_LOADERS } from './lazyNode.jsx'
+import { lazyNode, HEAVY_NODE_LOADERS } from './lazyNode.tsx'
 
 /**
  * 节点目录（复刻 H_.jsx:9423-9554 的 _i / vi）。

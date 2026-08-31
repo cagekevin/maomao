@@ -1,5 +1,5 @@
 import React, { Suspense } from 'react'
-import ErrorBoundary from './ErrorBoundary.jsx'
+import ErrorBoundary from './ErrorBoundary.tsx'
 import { logger } from './logger.ts'
 
 /**
@@ -22,7 +22,7 @@ import { logger } from './logger.ts'
  */
 
 /** 加载中占位：占满节点内容区，不破坏节点尺寸与端口定位（对齐 ErrorBoundary node 粒度） */
-function NodeLoading({ label }) {
+function NodeLoading({ label }: { label?: string }) {
   return (
     <div className="w-full h-full min-h-[120px] flex flex-col items-center justify-center gap-2 text-center">
       <div className="w-5 h-5 rounded-full border-2 border-edge border-t-transparent animate-spin" />
@@ -33,10 +33,10 @@ function NodeLoading({ label }) {
 
 /**
  * 把「() => import(...)」包装成可直接放进 nodeTypes 的懒加载节点组件。
- * @param {() => Promise<{default: React.ComponentType}>} loader 动态 import（必须字面量，供 Vite 静态分析）
- * @param {{ label?: string }} [opts] label 用于占位文案与错误日志
+ * @param loader 动态 import（必须字面量，供 Vite 静态分析），返回 { default: ComponentType }
+ * @param opts.label 用于占位文案与错误日志
  */
-export function lazyNode(loader, { label } = {}) {
+export function lazyNode(loader: () => Promise<{ default: React.ComponentType }>, { label }: { label?: string } = {}) {
   const Lazy = React.lazy(() =>
     loader().catch((e) => {
       // 失败必须可见：记日志后继续抛，交给下方 ErrorBoundary 降级（不静默吞错）
@@ -45,10 +45,10 @@ export function lazyNode(loader, { label } = {}) {
     })
   )
 
-  const LazyNode = (props) => (
+  const LazyNode = (props: Record<string, unknown>) => (
     <ErrorBoundary variant="node">
       <Suspense fallback={<NodeLoading label={label} />}>
-        <Lazy {...props} />
+        <Lazy {...(props as object)} />
       </Suspense>
     </ErrorBoundary>
   )
@@ -73,7 +73,7 @@ export const HEAVY_NODE_LOADERS = {
  * 让"真正渲染"时 chunk 已在模块缓存里，骨架屏一闪而过甚至不出现。
  * 预取失败无需处理：真正渲染时会走 ErrorBoundary 可见降级。
  */
-export function prefetchHeavyNode(type) {
+export function prefetchHeavyNode(type: keyof typeof HEAVY_NODE_LOADERS) {
   const load = HEAVY_NODE_LOADERS[type]
   if (!load) return
   load().catch(() => {})

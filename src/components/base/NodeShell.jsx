@@ -4,7 +4,7 @@ import NodeTitle from './NodeTitle.tsx'
 import CustomHandle from '../edges/CustomHandle.jsx'
 import { useSizeSync } from './hooks.ts'
 import { NODE_AREA_FIXED_BASE_SIZE } from './config.js'
-import ErrorBoundary from './ErrorBoundary.jsx'
+import ErrorBoundary from './ErrorBoundary.tsx'
 import { logger } from './logger.ts'
 
 // ReactFlow store 选择器：订阅单个节点的当前 width/height。

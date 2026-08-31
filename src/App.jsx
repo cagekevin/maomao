@@ -36,7 +36,7 @@ import { useCanvasShortcuts } from './hooks/useCanvasShortcuts.ts'
 import { paletteCategories, getNodesByCategory, defaultNodeData, getPaletteNode, buildNodeTypeComponents } from './components/base/NodePalette.jsx'
 import LodProvider, { useLod } from './components/base/lod.tsx'
 import ToastContainer from './components/base/ToastContainer.tsx'
-import SettingsFrame from './components/base/settings/SettingsFrame.jsx'
+import SettingsFrame from './components/base/settings/SettingsFrame.tsx'
 import AccountsSettings from './components/base/settings/sections/AccountsSettings.tsx'
 import TopNav from './components/base/TopNav.tsx'
 import { showToast } from './components/base/toastStore.ts'
@@ -64,7 +64,7 @@ import { useCanvasSync } from './hooks/useCanvasSync.ts'
 import { parseShotHandle } from './components/base/contracts.js'
 // url 引用改写工具（与 taskStore 共用同一份，禁止各写一份 → 改名只改一半）
 import { buildUrlRewritePairs, replaceUrlDeep } from './components/base/imageUrl.ts'
-import { prefetchHeavyNode } from './components/base/lazyNode.jsx'
+import { prefetchHeavyNode } from './components/base/lazyNode.tsx'
 
 /* ======================================================================
  * 【区 1】常量与配置区
