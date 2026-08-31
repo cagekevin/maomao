@@ -46,7 +46,7 @@ const files = [
   ['src/App', '画布壳'],
   ['src/index.css', '全局样式'],
   ['src/components/base/config', 'API 地址统一入口（原 apiBase.js 已合并至此）'],
-  ['src/components/base/storageAdapter', '存储适配（chrome.storage）'],
+  ['src/components/base/storage/storageAdapter', '存储适配（chrome.storage）'],
   ['src/components/base/groupNodes', '编组算法'],
   ['public/manifest.json', '插件 manifest'],
   ['public/background.js', '插件 background'],

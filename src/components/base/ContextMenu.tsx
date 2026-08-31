@@ -33,6 +33,7 @@ interface MenuLeafItem {
   shortcut?: string
   danger?: boolean
   disabled?: boolean
+  badge?: { tone: 'new' | 'hot'; text: string }
   onClick?: (e: React.MouseEvent) => void
   onMouseEnter?: () => void
   closeOnClick?: boolean

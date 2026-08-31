@@ -27,7 +27,7 @@ export interface ContextMenuApi {
   onPaneContextMenu: (e: ReactMouseEvent) => void
   onNodeContextMenu: (e: ReactMouseEvent, node: Node) => void
   onSelectionContextMenu: (e: ReactMouseEvent, nodes: Node[]) => void
-  onSelectionEnd: (e: ReactMouseEvent, nodes: Node[]) => void
+  onSelectionEnd: (e: ReactMouseEvent, nodes?: Node[]) => void
   onPaneClick: () => void
   openConnection: (connection: Connection, clientX: number, clientY: number) => void
   close: () => void
@@ -94,7 +94,7 @@ export function useContextMenu(): ContextMenuApi {
   const onSelectionContextMenu = useCallback((e: ReactMouseEvent, nodes: Node[]) => open('selection', null, e), [open])
   // 拖拽框结束且选中>1 时弹出（复刻 er：延迟 50ms 判断选中数）
   const onSelectionEnd = useCallback(
-    (e: ReactMouseEvent, nodes: Node[]) => {
+    (e: ReactMouseEvent, nodes?: Node[]) => {
       setTimeout(() => {
         const n = nodes || []
         if (n.length > 1) open('selection', null, e)

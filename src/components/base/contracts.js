@@ -93,7 +93,7 @@ export const EVENTS = {
   },
   'resource:renamed': {
     from: ['AssetLibrary.tsx:300', 'GeneratedView.tsx:231', 'useAssetMoveToFolder.ts:98'],
-    to: ['App.jsx:445', 'taskStore.ts:167'],
+    to: ['App.tsx:446', 'taskStore.ts:167'],
     payload: '{ oldUrl, newUrl }',
     note: '素材 url 变更（改名/移动归类，前端入口）广播旧→新 url。两个订阅方各管一段内存态：App 改写画布/脚本箱节点并持久化（防下游图生图 404）；taskStore 改写内存任务的 resultUrl（防任务中心破图）。两侧共用 imageUrl.js 的 buildUrlRewritePairs/replaceUrlDeep，禁止各写一份。与后端 rewriteUrlReferences（localTool database.ts）配套，形态严格四态对账',
   },
@@ -105,21 +105,21 @@ export const EVENTS = {
   },
   'project:import': {
     from: ['ProjectSelector.tsx:117'],
-    to: ['App.jsx'],
+    to: ['App.tsx:437'],
     payload: '{}',
-    note: '导入按钮 → App 处理文件（App.jsx:414 标准 subscribe 承接，已核对，D5）。生产使用',
+    note: '导入按钮 → App 处理文件（App.tsx:437 标准 subscribe 承接，已核对，D5）。生产使用',
   },
   'project:export': {
     from: ['ProjectSelector.tsx:121'],
-    to: ['App.jsx'],
+    to: ['App.tsx:438'],
     payload: '{}',
     note: '导出按钮 → App 下载。生产使用',
   },
   'persist:failed': {
     from: ['storageAdapter.ts:31'],
-    to: ['App.jsx:499'], // 全局监听器，节流 toast；分发逻辑收敛到 persistFailureBus
+    to: ['App.tsx:500'], // 全局监听器，节流 toast；分发逻辑收敛到 persistFailureBus
     payload: '{ key, error }',
-    note: '持久化失败广播（sSet/sRemove 失败）。已由 App.jsx 全局订阅',
+    note: '持久化失败广播（sSet/sRemove 失败）。已由 App.tsx 全局订阅',
   },
 }
 

@@ -103,12 +103,12 @@ describe('按需加载 · 静态 import 回归拦截', () => {
     ).toEqual([])
   })
 
-  it('App.jsx 不得静态 import Director3DNode', () => {
-    const imports = staticImportsOf(readSrc('src/App.jsx'))
+  it('App.tsx 不得静态 import Director3DNode', () => {
+    const imports = staticImportsOf(readSrc('src/App.tsx'))
     const offenders = imports.filter((l) => /Director3DNode/.test(l))
     expect(
       offenders,
-      `App.jsx 静态 import 了 Director3DNode：${offenders.join(' | ')}`
+      `App.tsx 静态 import 了 Director3DNode：${offenders.join(' | ')}`
     ).toEqual([])
   })
 

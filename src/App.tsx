@@ -10,6 +10,7 @@ import {
   useEdgesState,
   useReactFlow
 } from '@xyflow/react'
+import type { Node, Edge, Connection } from '@xyflow/react'
 import { Type, Image as ImageIcon, Clapperboard, Trash2, Copy, Zap, RefreshCw, Folder, FolderOpen, Pin, PinOff, Upload } from 'lucide-react'
 import CanvasToolbar from './components/base/CanvasToolbar.tsx'
 import ArrangeConfirm from './components/base/ArrangeConfirm.tsx'
@@ -27,8 +28,8 @@ import { createThrottledPersistHandler } from './components/base/storage'
 import { useNodePosition } from './components/base/hooks.ts'
 import CustomEdge from './components/edges/CustomEdge.tsx'
 import ConnectionLine from './components/edges/ConnectionLine.tsx'
-import ContextMenu from './components/base/ContextMenu.tsx'
-import { useContextMenu } from './hooks/useContextMenu.ts'
+import ContextMenu, { ContextMenuItem } from './components/base/ContextMenu.tsx'
+import { useContextMenu, type ContextMenuState } from './hooks/useContextMenu.ts'
 import { useCanvasHistory } from './hooks/useCanvasHistory.ts'
 import { patchNodeDataById } from './hooks/useNodeData.ts'
 import { CanvasEdgesProvider } from './components/base/CanvasEdgesContext.tsx'
@@ -213,15 +214,15 @@ function Canvas() {
   const viewportSaveTimer = React.useRef(null)
 
   // 画布 AI 助手面板开关（复刻官方 _Component40 的 open state），持久化到 app_settings
-  const [agentOpen, setAgentOpen] = React.useState(() => getSetting('agentOpen'))
+  const [agentOpen, setAgentOpen] = React.useState<boolean>(() => !!getSetting('agentOpen'))
   React.useEffect(() => { setSetting('agentOpen', agentOpen) }, [agentOpen])
 
   // 视图切换：canvas（画布）/ accounts（多开整页，复刻官方 V='accounts'）/ settings（独立设置框架：侧栏 + 舞台）
-  const [view, setView] = React.useState('canvas')
+  const [view, setView] = React.useState<'canvas' | 'accounts' | 'settings'>('canvas')
 
   // 小地图开关（复刻 H_.jsx:474 un/dn，默认关——用户要求默认不显示，点工具栏 Map 图标再开）。
   // 仅当开启且节点数 <100 时显示 MiniMap（官方 De.length<100）。持久化到 app_settings。
-  const [minimapOn, setMinimapOn] = React.useState(() => getSetting('minimapOn'))
+  const [minimapOn, setMinimapOn] = React.useState<boolean>(() => !!getSetting('minimapOn'))
   React.useEffect(() => { setSetting('minimapOn', minimapOn) }, [minimapOn])
 
   // P20 视窗恢复竞态修复：加载时若快照带视窗，则初始不 fitView（否则 <ReactFlow fitView>
@@ -231,7 +232,7 @@ function Canvas() {
 
   // 缩放性能模式开关（复刻 H_.jsx:79 ge，官方默认 true：性能模式默认开启）。
   // 从 app_settings 读入（对齐官方 Vr.jsx ei 从 app_settings 读），持久化刷新不丢。
-  const [performanceMode, setPerformanceMode] = React.useState(() => getSetting('performanceMode'))
+  const [performanceMode, setPerformanceMode] = React.useState<boolean>(() => !!getSetting('performanceMode'))
   React.useEffect(() => { setSetting('performanceMode', performanceMode) }, [performanceMode])
 
   // ── localTool 连接检测 + 全屏提醒（完整复刻官方 Vr.jsx L35/L95-106/L3274-3280）──
@@ -253,7 +254,7 @@ function Canvas() {
 
   // 整理后「是否保留」快照（复刻 H_.jsx:134 tt/nt，null = 无弹窗）。
   // 存「排列前」的 nodes/edges 快照，「还原」= 整体写回（见 revertArrange）。
-  const [arrangeSnapshot, setArrangeSnapshot] = React.useState(null)
+  const [arrangeSnapshot, setArrangeSnapshot] = React.useState<{ nodes: Node[]; edges: Edge[] } | null>(null)
 
   // 自动排版（复刻 H_.jsx:10985 Ui / Ctrl+L）。本 hook 只做纯布局计算，快照/历史/确认弹窗由
   // arrangeCanvas 在此统一编排（见能力区）。
@@ -414,12 +415,12 @@ function Canvas() {
       input.type = 'file'
       input.accept = '.json,application/json'
       input.onchange = async (e) => {
-        const file = e.target.files?.[0]
+        const file = (e.target as HTMLInputElement).files?.[0]
         if (!file) return
         const reader = new FileReader()
         reader.onload = async (ev) => {
           try {
-            const backup = JSON.parse(ev.target?.result)
+            const backup = JSON.parse(String(ev.target?.result))
             const res = await importAll(backup)
             if (!res.ok) throw new Error(res.error || '导入失败')
             showToast(`导入成功（${res.ls} 配置 + ${res.canvas} 画布），即将刷新应用`, { type: 'success' })
@@ -448,10 +449,10 @@ function Canvas() {
       const nodes = getNodes()
       let changed = false
       const next = nodes.map((n) => {
-        let data = n.data
+        let data: Record<string, unknown> = (n.data ?? ({} as Record<string, unknown>))
         for (const [from, to] of pairs) {
           const d = replaceUrlDeep(data, from, to)
-          if (d !== data) { data = d; changed = true }
+          if (d !== data) { data = d as Record<string, unknown>; changed = true }
         }
         return data === n.data ? n : { ...n, data }
       })
@@ -468,8 +469,8 @@ function Canvas() {
   // 「固定到右键菜单第一层」的节点集合（复刻官方 H_.jsx pt，默认固定 3 个常用，
   // 持久化到 app_settings.pinnedTools，刷新不丢）。固定项在小工具子菜单里有图钉开关，
   // 固定的节点直接渲染在右键菜单第一层，不用每次钻子菜单。
-  const [pinnedTools, setPinnedTools] = React.useState(() => getSetting('pinnedTools') || ['imageBoxNode', 'gridSplitNode', 'panoramaNode'])
-  const togglePinTool = useCallback((type) => {
+  const [pinnedTools, setPinnedTools] = React.useState<string[]>(() => (Array.isArray(getSetting('pinnedTools')) ? getSetting('pinnedTools') as string[] : ['imageBoxNode', 'gridSplitNode', 'panoramaNode']))
+  const togglePinTool = useCallback((type: string) => {
     setPinnedTools((prev) => {
       const next = prev.includes(type) ? prev.filter((t) => t !== type) : [...prev, type]
       setSetting('pinnedTools', next)
@@ -517,9 +518,9 @@ function Canvas() {
   // connection?: { source, sourceHandle, dropPosition } —— 从端口拖出到空白时，
   // 在 dropPosition 建节点并自动创建 source→新节点 的边；scriptBox 的 shot- 端口预填宽高比/时长。
   const addNode = useCallback(
-    (type, position, data = {}, connection) => {
+    (type: string, position: { x: number; y: number }, data: Record<string, unknown> = {}, connection?: { source: string; sourceHandle: string | null; dropPosition: { x: number; y: number } }) => {
       const id = generateId(type)
-      const nodeData = { label: '', ...data }
+      const nodeData: Record<string, unknown> = { label: '', ...data }
 
       // scriptBoxNode 的 `shot-${id}` 端口 → promptNode/discountVideoNode 时预填（复刻 di:8667-8687）
       // handle 名解析走 contracts.parseShotHandle，与写侧 shotHandleId 成对（前缀唯一事实来源）。
@@ -636,7 +637,7 @@ function Canvas() {
   // 复制选中节点组到系统剪贴板（对齐官方 Ci，H_.jsx:9966-10024）。
   // 格式 {type:'mutiwindow-nodes', nodes, edges, originalIds}，data 去掉函数与运行时字段，
   // 粘贴时（onPaste）解析 JSON 重建节点组（含连线），与官方完全一致。
-  const copySelectedNodes = useCallback(async (onlyId) => {
+  const copySelectedNodes = useCallback(async (onlyId?: string) => {
     let t = nodesRef.current.filter((n) => n.selected)
     // 若右键的是某个 node 且不在选中集合内，则只复制该节点（对齐官方 Ci:9971）
     if (onlyId && !t.some((n) => n.id === onlyId)) {
@@ -801,14 +802,14 @@ function Canvas() {
   const { onDragOver, onDrop, onPaste, createNodeFromFile } = useAssetDropPaste({
     addNode: (type, pos, data) => addNode(type, pos, data),
     screenToFlowPosition,
-    onPasteNodeGroup: pasteNodeGroup,
+    onPasteNodeGroup: (json, pos) => { void pasteNodeGroup(json, pos) },
     // 节点 data 写回走 useNodeData 唯一入口（网页图后台本地化成功后替换 imageUrl）
     patchNodeData: (id, patch) => patchNodeDataById(setNodes, id, patch)
   })
 
   // 右键菜单「上传」隐藏文件输入（复刻官方 Re.current）：选中文件 → 复用 createNodeFromFile 建素材节点
-  const uploadRef = useRef(null)
-  const handleUploadFile = useCallback((e) => {
+  const uploadRef = useRef<HTMLInputElement | null>(null)
+  const handleUploadFile = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) createNodeFromFile(file, posAtCenter())
     e.target.value = ''
@@ -822,7 +823,7 @@ function Canvas() {
    * ==================================================================== */
 
   // 空白处菜单：快速添加节点 + 小工具子菜单（复刻 H_.jsx:12232-12340）
-  const canvasMenuItems = (state) => {
+  const canvasMenuItems = (state: ContextMenuState): ContextMenuItem[] => {
     // 单个目录节点的菜单项 + 图钉（固定到第一层）尾随按钮。复刻官方 H_.jsx:12317-12335：
     // 小工具子菜单里每项右侧一个图钉，点一下从子菜单「固定」到右键菜单第一层直接展示。
     const toolItem = (n) => {
@@ -880,30 +881,33 @@ function Canvas() {
     const pinnedItems = pinnedTools
       .map((type) => getPaletteNode(type))
       .filter(Boolean)
-      .map((n) => ({
-        key: `pinned-${n.type}`,
-        icon: n.icon,
-        label: n.label,
-        badge: n.badge,
-        onClick: () => addNodeFromMenu(n.type)
-      }))
+      .map((n) => {
+        const item = n as { type: string; label: string; icon?: React.ComponentType<{ size?: number; className?: string }>; badge?: { text: string; tone: 'new' | 'hot' } }
+        return {
+          key: `pinned-${item.type}`,
+          icon: item.icon,
+          label: item.label,
+          badge: item.badge,
+          onClick: () => addNodeFromMenu(item.type)
+        }
+      })
 
     return [
       { key: 'text', icon: <Type size={16} className="text-green-500" />, label: '文本', shortcut: 'Q', onClick: () => addNodeFromMenu('textNode') },
       { key: 'image', icon: <ImageIcon size={16} className="text-blue-400" />, label: '图片', shortcut: 'W', onClick: () => addNodeFromMenu('promptNode') },
       { key: 'video', icon: <Clapperboard size={16} className="text-yellow-500" />, label: '视频', shortcut: 'E', onClick: () => addNodeFromMenu('discountVideoNode') },
       { key: 'scriptBox', icon: <Clapperboard size={16} className="text-fuchsia-300" />, label: '剧本盒子', badge: { text: 'Beta', tone: 'new' }, onClick: () => addNodeFromMenu('scriptBoxNode') },
-      { type: 'divider' },
+      { type: 'divider' as const },
       // 小工具子菜单（未固定项 + 图钉）
       ...(toolsSubmenu.length
         ? [
             { key: 'tools', icon: <Zap size={13} className="text-secondary" />, label: '小工具', items: toolsSubmenu },
-            { type: 'divider' }
+            { type: 'divider' as const }
           ]
         : []),
       // 已固定节点直接渲染在第一层（复刻官方 pt）
       ...pinnedItems,
-      { type: 'divider' },
+      { type: 'divider' as const },
       { key: 'upload', icon: <Upload size={16} className="text-secondary" />, label: '上传', onClick: () => uploadRef.current?.click() }
     ]
   }
@@ -911,12 +915,12 @@ function Canvas() {
   // 单选节点菜单：复制 / [复制图片] / 删除（复刻 H_.jsx:12573-12617）
   // 「复制」对齐官方：把节点（组）写入系统剪贴板，用户 Ctrl+V 粘贴重建。
   // 「复制图片」仅图片类节点（imageNode/promptNode）有：把图片本身复制到剪贴板（对齐官方 Ei，H_.jsx:12603）。
-  const nodeMenuItems = (state) => {
+  const nodeMenuItems = (state: ContextMenuState): ContextMenuItem[] => {
     const node = nodesRef.current.find((n) => n.id === state.nodeId)
     if (!node) return []
     const isImageLike = node.type === 'imageNode' || node.type === 'promptNode'
     const isGroup = node.type === 'group'
-    const items = [
+    const items: ContextMenuItem[] = [
       { key: 'duplicate', icon: <Copy size={16} className="text-body" />, label: '复制', onClick: () => copySelectedNodes(node.id) }
     ]
     if (isImageLike) {
@@ -980,15 +984,15 @@ function Canvas() {
         return
       }
       // 右键菜单（含工具子菜单/视频抽帧）：用公共 posAtMenu 算落点（右键位置，点哪建哪）
-      addNode(type, posAtMenu(menu.state), defaultNodeData(type))
+      addNode(type, posAtMenu((menu.state ?? null) as unknown as Parameters<typeof posAtMenu>[0]), defaultNodeData(type))
     },
     [menu.state, buildFromConnection, addNode, posAtMenu]
   )
 
   // 多选菜单：编组 / 复制 / 删除（对齐官方多选右键：复制选中节点组到剪贴板，粘贴时重建）
-  const selectionMenuItems = () => {
+  const selectionMenuItems = (): ContextMenuItem[] => {
     const selectedIds = nodesRef.current.filter((n) => n.selected).map((n) => n.id)
-    const items = []
+    const items: ContextMenuItem[] = []
     // 编组：选中≥2个普通节点时可用（治根：与 Agent group_nodes 共用 createGroupFromNodes）
     if (selectedIds.length >= 2) {
       items.push({
@@ -1032,9 +1036,9 @@ function Canvas() {
   }
 
   // 根据菜单类型分发到对应配置（单一数据源：拖线复用 canvas 菜单，故无独立 connection 分支）
-  const menuItems = (state) => {
+  const menuItems = (state: ContextMenuState): ContextMenuItem[] => {
     if (state.type === 'node') return nodeMenuItems(state)
-    if (state.type === 'selection') return selectionMenuItems(state)
+    if (state.type === 'selection') return selectionMenuItems()
     return canvasMenuItems(state)
   }
 
@@ -1125,7 +1129,7 @@ function Canvas() {
       // 弹「连接」菜单（官方 setTimeout 50ms，确保 ghost 渲染完成）
       setTimeout(() => {
         menu.openConnection(
-          { source: t.fromNode.id, sourceHandle: t.fromHandle.id || null, dropPosition: pos },
+          { source: t.fromNode.id, sourceHandle: t.fromHandle.id || null, dropPosition: pos } as unknown as Connection,
           (clientX - (rect?.left || 0)),
           (clientY - (rect?.top || 0))
         )

@@ -1,6 +1,6 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
-import App from './App.jsx'
+import App from './App.tsx'
 import ErrorBoundary from './components/base/ErrorBoundary.tsx'
 import '@xyflow/react/dist/style.css'
 import './index.css'

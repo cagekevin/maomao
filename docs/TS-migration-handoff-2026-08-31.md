@@ -13,7 +13,9 @@
 
 > **本轮会话（第十段）新增成果**：接第九段（含用户 `8529d75` 批：再转 3 个 .jsx→.tsx + `panels/` 清零，剩余 scriptbox 6 / nodes 17 / main·App 2）之后，**scriptbox/ 组件层再转 4 个**：`StepAssets`(c79632f) / `StepShots`(62b2fef) / `ScriptBoxAssetPicker`(93fc02d) / `ScriptBoxFullscreen`(ebff4e1)，全部补 Props 接口、复用 `ScriptBoxData`/`ScriptBoxUpdateData`/`ScriptBoxCallbacks`/`ResourceItem` 等既有类型，门禁全绿。**收口两处类型漂移**：①`scriptBoxSchema` 的 `ScriptBoxAsset` 补 `id` 字段 + 索引签名（此前漏登记 `id`，致 `removeAsset` 期望的 `ScriptAsset[]` 不兼容）；②`MaterialStrip` 导出 `MaterialStripProps`（供 StepShots 复用，消素材条 unknown 报错）。**诚实原则**：同工作区存在用户独立改动 `storageAdapter.ts`/`storageAdapter.test.js`（修 SSR `localStorage` warn），非本批迁移引入，提交时**显式 `git add` 本批文件、未用 `git add -A` 夹带**。详见第三节 commit 表与 §10.8。剩余 `.jsx` 实测 **21 个**（scriptbox 2：GearSettings / scriptBoxPlaybookManager + nodes 17 + main·App 2，不含 director3d 豁免）。
 
-> **本轮会话（第十一段）新增成果**：接第十段，**scriptbox/ 最后 2 个组件转完** —— `scriptBoxPlaybookManager` + `GearSettings` → .tsx（全部补 Props 接口、门禁全绿），**scriptbox/ 9/9 清零**。`GearSettings` 暴露并修复一处**存量隐性 bug**：`editing` 状态原用 `setEdit` 整体替换（笔误为 `setEditing`、运行期必崩，且整体替换会清空其它提示词字段），改为 `setEdit(patch: Partial<Playbook>)` 字段级合并。`Playbook` 类型从真相源 `scriptBoxPlaybookIO.ts` 导入（store 里仅 `import type` 未 re-export，从 store 导入会 TS2459）。**诚实原则**：仍不夹带 `storageAdapter.ts`/`storageAdapter.test.js` 独立改动。详见第三节 commit 表与 §10.9。剩余 `.jsx` 实测 **19 个**（nodes 17：含 Director3DNode 非豁免需转 + main·App 2，不含 director3d 豁免）。
+> **本轮会话（第十二段）新增成果**：**`nodes/` 17/17 全部转完**（含 ImageNode / LoopNode / ScriptBoxNode / TemplateNode / VideoExtractNode / VideoProcessNode / DiscountVideoNode / TextNode / PromptNode 等本段 9 个 + 前段 8 个），B 批组件层的主战场 `nodes/` 清零。迁移中**照出并修复 2 个存量运行时 bug**：①`TemplateNode` 的 `generateImage` 传了**不存在的字段 `refImages`**（真实 API 字段是 `images: string[]`）→ 参考图从未生效，转 .ts 后 TS2561 暴露；②`DiscountVideoNode` 的 `useVideoPoster(videoUrl)` **漏传 `enabled` 第二参** → 封面恒为 undefined 从不生成。另修 `tests/unit/nodePrefsRegression.test.js` 硬编码 `.jsx` 路径（改名后 ENOENT）→ 改为按节点名探测 `.jsx`/`.tsx`。**类型没收窄的实战配方已在 §10.10 系统沉淀**（判别联合不生效→用统一返回形态 / `in` 窄化；`{}` 退化→`Record<string,unknown>`；`unknown` 属性→`as`；`.jsx` 下游→最小只读接口收窄；API 字段漂移→照真相源收窄）。详见第三节 commit 表与 §10.10。剩余 `.jsx` 实测 **2 个**（`src/main.jsx` + `src/App.jsx`，不含 director3d 豁免）。
+>
+> **本轮会话（第十三段，收尾）新增成果**：**全部 .jsx 清零 —— `src/main.jsx`→.tsx、`src/App.jsx`→.tsx 最后 2 个转完，全仓库（除 director3d 豁免 + 永久豁免的 contracts.js/config.js）不再有 .jsx/.js 源码**，TS 规范化重构主线收官。`App.tsx` 转 .tsx 时补全约 29 处类型（`view` 收窄 `'canvas'|'accounts'|'settings'`、`getSetting` 返回 unknown 处断言、`addNode` 形参/`nodeData` 标 `Record<string,unknown>`、菜单函数返回 `ContextMenuItem[]` 并标注 `ContextMenuState`、`arrangeSnapshot`/`uploadRef`/`pinnedTools` 定型、`copySelectedNodes(onlyId?)` 可选参）。**跨文件类型收口**：①`ContextMenu.MenuLeafItem` 补 `badge` 字段（App 的 scriptBox 项一直传 badge，JS 期被类型宽松忽略）；②`CanvasEdgesContext` 的本地 `CanvasHistory` 改为复用 `useCanvasHistory` 的 `CanvasHistoryApi` 单一事实来源；③`useContextMenu.onSelectionEnd` 的 nodes 参数改可选（ReactFlow 的 `onSelectionEnd` 只传 1 参 event，2 参签名与库不兼容）。**修 3 处存量路径漂移**：①`index.html` 的入口 `src/main.jsx`→`src/main.tsx`（否则 `npm run build` 崩）；②`scripts/health-check.cjs` 的 storageAdapter 检查路径 `base/storageAdapter`→`base/storage/storageAdapter`（文件早在 hook 收口时移入 storage/ 子目录，health 一直红）；③`tests/unit/lazyNode.test.jsx` 的 `readSrc('src/App.jsx')`→`App.tsx`（改名后 ENOENT，vitest 1 失败）。门禁全绿（type-check 0 错 / 五门禁 / test:all 全 PASS / build / check:health 无错误）。详见第三节 commit 表与 §10.11。
 
 ---
 
@@ -34,11 +36,11 @@
 
 ## 三、完成进度（截至本次更新，工作区干净）
 
-**已转 110+ 个 .ts / .tsx**（纯逻辑层）+ **组件层 .tsx 持续累计**（含 base/ / panels/ / edges/ / scriptbox 大部分 / A3·A4 纯逻辑） + **A4 批 3 个 scriptbox 纯逻辑 .ts** + **A3 全部 6 个（agentConfig / canvasPlanExecutor / agentRuntime / agentCore / useAgentChat / useCanvasAgentTools）**。**剩余：0 个 .js + 21 个 .jsx（组件层，不含豁免目录；scriptbox 2 + nodes 17 + main·App 2）**。
+**已转 110+ 个 .ts / .tsx**（纯逻辑层）+ **组件层 .tsx 持续累计**（含 base/ / panels/ / edges/ / scriptbox 全部 / nodes 全部 / A3·A4 纯逻辑 / src/main / src/App） + **A4 批 3 个 scriptbox 纯逻辑 .ts** + **A3 全部 6 个（agentConfig / canvasPlanExecutor / agentRuntime / agentCore / useAgentChat / useCanvasAgentTools）**。**剩余：0 个 .js + 0 个 .jsx**（不含豁免目录；`src/main.tsx` + `src/App.tsx` 已收尾，TS 规范化重构全部清零）。
 
 **纯逻辑层（非 JSX）完成度：100% 清零** —— `base/`、`agent/conversation/`、`scriptbox/`、`agent/runtime/`、`agent/canvas/` 全部 .ts，`.js` 计数为 0（仓库里仅剩的 .js 是永久豁免的 `contracts.js` / `config.js` 与 director3d 目录）。
 
-**B 批组件层已启动**：已完成 11 个 `.jsx → .tsx`（ArrangeConfirm / EmptyCanvasGuide / ToastContainer / ToolbarButton / HoverToolbar / FullscreenModal / ContextMenu / Select / ProjectSelector / CanvasToolbar / TopNav），全部补 Props 接口 + 验证全绿。
+**B 批组件层完成度：100% 清零（第十三段收官）**：已完成 11 个 `.jsx → .tsx`（ArrangeConfirm / EmptyCanvasGuide / ToastContainer / ToolbarButton / HoverToolbar / FullscreenModal / ContextMenu / Select / ProjectSelector / CanvasToolbar / TopNav）+ base/（NodeShell 等全清零）+ edges/（4/4）+ panels/（4/4）+ scriptbox/（9/9）+ nodes/（17/17）+ **src/main.tsx + src/App.tsx（收尾）**，全部补 Props 接口 + 验证全绿。**全仓库（除豁免）不再有 .jsx/.js 源码。**
 
 已提交 40+ 个 commit（main，历史提交曾误用 `--no-verify`，见下方「提交策略」纠偏说明）：
 
@@ -101,6 +103,16 @@
 | `93fc02d` | **B 批**：`ScriptBoxAssetPicker`(.tsx、scriptbox/ 素材库选择器) + 补 Props（folder/onClose/onPick）与 `items: ResourceItem[]`（复用 `localToolApi.ts` 收口的 `ResourceItem`）；catch `e` 断言取 message；同步 `StepAssets.tsx` import 后缀。**未夹带** `storageAdapter.ts`/`storageAdapter.test.js` 独立改动 |
 | `ebff4e1` | **B 批**：`ScriptBoxFullscreen`(.tsx、scriptbox/ 全屏工作台) + 补 `ScriptBoxFullscreenProps`；`callbacks` 复用 `ScriptBoxCallbacks`（与三 Step 组件契约统一）；`d.genChars` 断言 string 防 unknown 渲染报错；同步 `ScriptBoxNode.jsx` import 后缀。**未夹带** `storageAdapter.ts`/`storageAdapter.test.js` 独立改动 |
 | `6a2b0b7` | **B 批**：`scriptBoxPlaybookManager` + `GearSettings`(.tsx、scriptbox/ 最后 2 个，9/9 清零) + 补 `ScriptBoxPlaybookManagerProps`/`GearSettingsProps`；`editing` 改字段级合并（修复整体替换清空提示词的隐性 bug + `setEdit` 笔误）；`Playbook` 从真相源 `scriptBoxPlaybookIO` 导入；同步 `ScriptBoxNode.jsx`/`ScriptBoxFullscreen.tsx` import 说明符 + `ScriptBoxNode.test.jsx` 的 `vi.mock` 路径。**未夹带** `storageAdapter.ts`/`storageAdapter.test.js` 独立改动 |
+| `2e96e54` | **B 批（nodes/ 第 9 个）**：`ImageNode`→.tsx。`type`(MediaType) 与 `sendToAssetLibrary` 的 `AssetType` 不兼容 → 收窄为 `type === 'image'|'video'|'audio'|'text' ? type : undefined` |
+| `5f950f5` | **B 批（nodes/ 第 10 个）**：`LoopNode`→.tsx。`useConnectedInputs` 返回宽松结构 → `as ConnectedOutput` 最小只读接口；纯函数 `splitSmartPromptItems`/`splitByMethod` 参数标注 |
+| `7f9206b` | **B 批（nodes/ 第 11 个）**：`ScriptBoxNode`→.tsx。复用 `ScriptBoxData`/`ScriptBoxCallbacks`；`CustomHandle` 的 `top` 支持字符串（`top="50%"`）；`Handle position` 用 `as Position` |
+| `b98a188` | **B 批（nodes/ 第 12 个）**：`TemplateNode`→.tsx。**照出存量 bug**：`generateImage` 原传 `refImages`（字段不存在于 `GenerateImageOptions`）→ 改为 `images: string[]`（取 url）+ 补 `resolveProviderModel` 解析 provider + `signal`；`run`/`onSuccess`/`onRecover` 对齐 `useGenerateNode` ctx 契约；同步修正 `TemplateNode.upstream.test.jsx` 断言（`refImages`→`images`） |
+| `ff8fcee` | **B 批（nodes/ 第 13 个）**：`VideoExtractNode`→.tsx。`computeTimes` 判别联合在现有 tsconfig 下窄化不可靠 → 改**统一返回形态**（`{smart,times,duration,threshold}` 恒有全字段）；`seekTo`/`smartCapture` 返回 `Promise<Blob>`/`Promise<Uint8ClampedArray>` |
+| `d7fc90e` | **B 批（nodes/ 第 14 个）**：`VideoProcessNode`(1554 行)→.tsx。`gifResult` 从 `string` 收口为 `GifResultInfo {width,height,frameCount,size}`；新建视频轨道补缺失 `muted` 字段；`sourceMetadata`/`timelineTracks` 用 `any`（动态容器） |
+| `0f31cfc` | **B 批（nodes/ 第 15 个）**：`DiscountVideoNode`→.tsx。**照出存量 bug**：`useVideoPoster(videoUrl)` 漏传 `enabled` 第二参 → 封面恒 undefined，改 `(videoUrl, !!videoUrl)`；`seconds` 转 `Number()`（`generateVideo` 要求 number） |
+| `b44ad65` | **B 批（nodes/ 第 16 个）**：`TextNode`→.tsx。契约接口 + ref 类型；`data.inputWidth/Height` 补入接口（消 unknown 报错） |
+| `22182ea` | **B 批（nodes/ 第 17 个，nodes/ 清零）**：`PromptNode`→.tsx。契约接口 + ref 类型；`onRecover` 的 `resultUrl` 用 `String()`、`data.name as string` |
+| `@HEAD@` | **收尾（全部 .jsx 清零）**：`src/App.jsx`→.tsx + `src/main.jsx`→.tsx（补约 29 处类型：view 收窄 / getSetting unknown 断言 / addNode 形参 Record<string,unknown> / 菜单函数 ContextMenuItem[] / copySelectedNodes onlyId?）。**跨文件收口**：`MenuLeafItem` 补 badge；`CanvasEdgesContext.CanvasHistory` 复用 `CanvasHistoryApi`；`useContextMenu.onSelectionEnd` nodes 参改可选（对齐 ReactFlow 1 参签名）。**修 3 处存量路径漂移**：`index.html` main.jsx→tsx（build 崩）、`health-check.cjs` storageAdapter 路径（文件在 storage/ 子目录）、`lazyNode.test.jsx` readSrc App.jsx→tsx（ENOENT）。门禁全绿（type-check / 五门禁 / test:all / build / check:health 无错误） |
 
 ## 三·补：横切收口成果（本次新增）
 
@@ -160,6 +172,15 @@ node scripts/ts-migrate.mjs move <file> <targetDir> [--dry]
 - 遇到「看似 bug 的历史行为」先查测试：如 `makeAssetDragProps` 的 `draggable` 实际返回 url 字符串，类型如实标注为 `boolean | string` 并注释，不要顺手 `!!` 收窄。
 - `x || {}` 兜底在 TS 下会让变量退化成 `{}`、取属性报错——改用完整形状兜底（如 `typeRef.current || { type:'', prompt:'', modelName:'' }`）。
 
+> **「类型没收窄怎么办」速查（详细配方见 §10.10）**：
+> - 判别联合窄化不生效 → 改用**统一返回形态**（全字段恒在）或 `in`/`typeof` 窄化。
+> - `data` 属性是 `unknown` → **先补进 data 契约接口**（比 `as` 更正），未登记字段才 `as string`。
+> - `{}` 兜底退化 → `const patch: Record<string, unknown> = {}` / `(data ?? ({} as XxxNodeData))`。
+> - API 字段对不上（如 `generateImage` 的 `refImages` vs 真实 `images: string[]`）→ **照被调函数真实签名收窄调用方**，别反着改函数。
+> - `.jsx` 下游形参过宽 → 本层定义**最小只读接口**再 `as` 收窄。
+> - 枚举在 `vi.mock` 下是 undefined → 用字符串字面量 + `as Position`，不依赖枚举值。
+> - 本可建模的动态容器（如 `gifResult`）**建真实接口**而非 `any`；只有能力面在外部/由上游数据决定的容器才 `any`。
+
 **B 批组件类型补法（本轮沉淀）**：
 - 优先复用**已有 .ts store 的类型**（如 `Project` 从 projectStore、`Toast` 从 toastStore 导出），避免重定义漂移。
 - 通用组件用**泛型**（如 `Select<T extends React.Key>`），`value` 作 React key 时必须约束 `extends React.Key`。
@@ -204,10 +225,10 @@ node scripts/ts-migrate.mjs move <file> <targetDir> [--dry]
 - **✅ edges/（4/4 已转）**：CustomHandle、Comet、CustomEdge、ConnectionLine（均补 Props，`@xyflow/react` 的 `EdgeProps`/`ConnectionLineComponentProps`/`Position` 用字符串+`as` 断言，见 §10.5）
 - **✅ panels/（4/4 已转）**：PromptConfirmCard / AgentConfirmCard / AgentMessage / AgentPanel（见 §10.6 / §10.7）
 - **✅ scriptbox/（9/9 已转）**：StepNav / StepPrompt / ScriptBoxModal（§10.7）+ StepAssets / StepShots / ScriptBoxAssetPicker / ScriptBoxFullscreen（第十段，§10.8）+ GearSettings / scriptBoxPlaybookManager（第十一段，§10.9）；**scriptbox/ 已清零**
-- **⏳ 未开始**：`nodes/`（17 个：含 Director3DNode 非豁免需转）、`src/main.jsx` / `src/App.jsx`（最后转）
-- **当前剩余 `.jsx` 计数：19 个**（nodes 17：Director3DNode / DiscountVideoNode / FaceMosaicNode / GhostTargetNode / GridMergeNode / GridSplitNode / GroupNode / ImageBoxNode / ImageNode / LoopNode / PanoramaNode / PromptNode / ScriptBoxNode / TemplateNode / TextNode / VideoExtractNode / VideoProcessNode + main·App 2；**scriptbox/ 已清零**，不含 director3d 豁免目录；`find src -name '*.jsx' -not -path '*/director3d/*'` 实测）
-- 收尾：**全部 .jsx 清零后**把「禁止保留 jsx」红线落实；删掉 check-jsx 对 .jsx 的残留逻辑（若只剩 director3d 则保留）
-- `src/main.jsx`、`src/App.jsx` 最后转
+- **✅ nodes/（17/17 已转）**：Director3DNode / DiscountVideoNode / FaceMosaicNode / GhostTargetNode / GridMergeNode / GridSplitNode / GroupNode / ImageBoxNode / ImageNode / LoopNode / PanoramaNode / PromptNode / ScriptBoxNode / TemplateNode / TextNode / VideoExtractNode / VideoProcessNode —— 本段（第十二段）转 ImageNode / LoopNode / ScriptBoxNode / TemplateNode / VideoExtractNode / VideoProcessNode / DiscountVideoNode / TextNode / PromptNode（9 个），前段已转 8 个
+- **✅ src/main + src/App（已收尾，第十三段清零）**：`src/main.jsx`→.tsx、`src/App.jsx`→.tsx。全仓库（除豁免）不再有 .jsx/.js 源码
+- **当前剩余 `.jsx` 计数：0 个**（不含 director3d 豁免目录；`find src -name '*.jsx' -not -path '*/director3d/*'` 实测为空）
+- 收尾：**全部 .jsx 已清零，「禁止保留 jsx」红线落实**；`check:jsx` 仍保留（用于校验 director3d 豁免边界 + .tsx 契约，已全绿）
 - 建议：先跑 `node scripts/ts-migrate.mjs plan` 看引用量，从**叶子组件**（被引用少）往上转，避免大范围级联改类型
 - **`plan src/components/base` 实测叶子清单**（早期跑出，base/ 已清零，仅作参考）：1 引用 9 个 —— AssetLibrary / FaceMosaicEditor / GeneratedView / LeftPanel / LocalToolConnectModal / OverlayEditor / PanoViewer / PromptHub / PromptLabel + settings/sections 全部 9 个；2 引用 —— CometParticles / ImageEditor / InlineImageCropper / NodeTitle / TaskCenter；3 引用 —— JianyingIcon / lazyNode / NodePalette / PromptLibraryButton / useImageHoverActions / VideoThumbnail。
   ⚠️ **`NodePalette.jsx` 被判定为 → `.ts`**（疑似无 JSX、只是 `defaultNodeData` 等数据导出），已用 `convert --to ts` 转完，实际为纯数据模块。
@@ -402,3 +423,74 @@ npm run test:tools           # agent 工具
    - 收口：`Playbook` 从真相源 `scriptBoxPlaybookIO` 导入；`GearSettingsProps` / `ScriptBoxPlaybookManagerProps` 就近定义；`editing` 合并 bug + `setEdit` 笔误修复。
    - 提交：`6a2b0b7`（均未夹带 storageAdapter 独立改动）。
    - 剩余 `.jsx`（不含 director3d 豁免）：`nodes/`（17 个，含 Director3DNode 非豁免需转）、`src/main.jsx` / `src/App.jsx`（最后转）。**scriptbox/ 已清零。**
+
+### 10.10 本轮（第十二段会话）新增踩坑 / 经验 —— 「类型没收窄怎么办」系统配方（必读）
+
+> 时间段：承接第十一段，清零 `nodes/` 17 个节点。本段集中遇到大量「TS 没按预期收窄」的情况，沉淀为下列**可复制的处理配方**。核心原则：**先判断 TS 不窄化的根因，再选对应解法；绝不靠 `as any` 一路糊、也不该为了过 tsc 而放宽真实契约。**
+
+1. **判别联合「收了、但没窄化成功」**（`VideoExtractNode.computeTimes`，本段真实踩坑）：
+   - 症状：`type ExtractTimes = { smart:true; ... } | { smart:false; times:number[] }`，`if (times.smart) { ... } else { times.times }` 的 else 分支仍报 `times.times` 不存在于 `{smart:true}`。
+   - 根因：该项目 tsconfig 是 `strict:false` 且未开足够严格的窄化，跨 `if/else` 的判别式收窄在部分 TS 版本/配置下不可靠（尤其 else 侧对 `smart:boolean` 而非字面量 true/false 的判别）。
+   - **解法（首选）**：**放弃判别联合，改成统一返回形态**——`interface ExtractTimes { smart: boolean; times: number[]; duration: number; threshold: number }`，两分支都返回全字段（智能分支 `times:[]`，其余分支 `duration:0; threshold:0`），逻辑里照旧 `if (times.smart) {...} else {...}` 用 `times.times`。**零行为变化，两条分支都能直接取字段。**
+   - 次选（仅当语义上确实是两种互斥形状时才用）：用 `'tag' in obj` / `typeof obj.kind === 'x'` 这类 **`in`/`typeof` 窄化**（见 §10.9 第 4 条的 `parseImport` 案例）而非布尔判别。
+
+2. **`{}` 兜底让变量退化成 `{}` 类型，取属性全报 TS2339**（老坑，本段 `ScriptBoxNode.patch` 再次命中）：
+   - 症状：`const patch = {}`，后面 `patch.upstreamStory = ...` 全报「Property 'upstreamStory' does not exist on type '{}'」。
+   - **解法**：`const patch: Record<string, unknown> = {}`。同理 `const d = data || {}` → 用 `const d: XxxNodeData = data` 或 `(data ?? ({} as XxxNodeData))`（§10.8 第 2 条）。**凡是「运行时兜底、运行后再动态加属性/读属性」的对象，一律给显式 `Record<string, ...>` 或真实接口类型，别让 TS 推断成 `{}`。**
+
+3. **`data` 字段经索引签名 `[key:string]:unknown` 读出来是 `unknown`，赋值给 string/number 报错**（本段 TextNode/PromptNode/ScriptBox 多次）：
+   - 症状：`inputWidth={data.inputWidth}` 报 `unknown` 不可赋给 `string | number`。
+   - **解法（首选）**：把该字段**补进 data 契约接口**（如 `interface TextNodeData { inputWidth?: number; ... }`），消索引签名兜底 → 直接可读。**字段确实是节点数据契约的一部分时，补接口比 `as` 断言更正。**
+   - 次选（存量未登记、不想扩 schema 的字段）：读取处显式 `(data.name as string)`（§10.9 第 3 条）。`onRecover` 的 `resultUrl` 这类 API 返回的字段用 `String(resultUrl ?? '')` 兜底。
+
+4. **`.jsx` 下游形参被推断成「含 any 的必填形状」或过宽形状**（本段 TemplateNode 的 `generateImage` 案例，续 §四/§10.5 第 1 条）：
+   - 症状：`generateImage({ refImages, ... })` 报 `refImages` 不存在于 `GenerateImageOptions`；或 `images: RefImage[]` 不兼容 `images: string[]`。
+   - 根因：**真实 API 字段是 `images: string[]`（URL 数组），模板里却写了 `refImages`（对象数组）**——这是存量 bug，不是类型形状问题。转 .ts 后 TS2561 照出来。
+   - **解法**：**照真相源（被调用的真实函数签名）收窄**，而不是改函数签名来迁就调用方。把 `refImages`（对象数组）取 url 变成 `images: mergeRefImages(...).map(im=>im.url).filter(Boolean)`。同理 `resolveProviderModel` 解析 provider、`seconds` 转 `Number()` 都是「对齐真实契约」。
+   - **判断准则**：TS 报错后先读**被调函数的真实签名**（`refs`/`read_file` 被调方），是「调用方传错字段」→ 改调用方；是「类型定义太宽/漏登记」→ 改定义。**不要反着迁就。**
+
+5. **枚举值在 `vi.mock('@xyflow/react')` 下运行期为 `undefined`**（续 §10.5 第 2 条，本段 ScriptBoxNode/GhostTarget 再遇）：
+   - `Handle position="left"`（字符串）报 `string` 不可赋给 `Position` 枚举 → 用 `position={'left' as Position}`（字符串字面量 + `as`，不依赖枚举值，运行期健壮）。
+
+6. **上游产出（`useConnectedInputs`）返回宽松结构，各字段访问报错**（本段几乎每个节点）：
+   - `const connected = useConnectedInputs(id)` 返回 `{images:any[],texts:any[]...}`，但实际给 `MaterialStrip`/`resolvePromptChips`/`mergeRefImages` 时要求 `{id:string,url:string}`。
+   - **解法**：在节点内定义**最小只读接口**（如 `RefImage {id:string;url:string;label?;sourceNodeId?}`、`ConnectedOutput`）再 `const connected = useConnectedInputs(id) as ConnectedOutput`。既消除 any 扩散，又不改 hook 签名（hook 保持通用）。
+   - 注意 `resolvePromptChips` 要求 `id`/`label` **必填**，此时 `RefImage`/`RefText` 的 `id`/`label` 要标必填，否则仍报「label optional」——**照下游消费方要求的形状定接口**。
+
+7. **`catch (e)` 的 `e` 是 `unknown`**（续 §10.8 第 5 条）：取 `e.message` 用 `(e as { message?: string }).message`，或 `String(e)`。
+
+8. **子类型未 `export` 导致跨文件复用失败**（续 §10.8 第 3 条）：需要跨文件复用的接口记得 `export`（如 `MaterialStripProps`），否则 `import { XxxProps }` 报「无导出成员」。
+
+9. **「为了过 tsc 而 `as any`」的边界（本段原则）**：
+   - **允许**：`controllerRef`/`scrubDrag` 这类 ref 存「能力面由外部决定的运行期对象」（`useRef<any>` + 注释说明）；`sourceMetadata`/`timelineTracks` 这类**动态容器**（字段形状由上游数据决定）标 `Record<string, any>`/`any[]`（显式 any，非隐式 any）。
+   - **禁止**：把**本可建模的节点数据契约**（如 `gifResult` 本该是 `{width,height,frameCount,size}`）糊成 `any`。这类要**建真实接口**（`GifResultInfo`），TS 会逼你把形状写对——本段 `gifResult` 从 `string` 收口为对象即如此。
+
+10. **本段 B 批进度（截至本次更新）**：
+    - 已转（本段新增 9 个）：`ImageNode` / `LoopNode` / `ScriptBoxNode` / `TemplateNode` / `VideoExtractNode` / `VideoProcessNode` / `DiscountVideoNode` / `TextNode` / `PromptNode`（全部 .tsx + 契约接口 + 消除内部 any）。**`nodes/` 17/17 清零。**
+    - 顺手修复：`TemplateNode.generateImage` 参考图字段 bug（`refImages`→`images: string[]`）；`DiscountVideoNode.useVideoPoster` 漏传 `enabled`；`CustomHandle.top` 支持字符串（`"50%"`）；`nodePrefsRegression.test.js` 硬编码 `.jsx` 路径改为探测 `.jsx`/`.tsx`；`VideoProcessNode` 新建轨道补 `muted`。
+    - 提交：`2e96e54` / `5f950f5` / `7f9206b` / `b98a188` / `ff8fcee` / `d7fc90e` / `0f31cfc` / `b44ad65` / `22182ea`。
+    - 剩余 `.jsx`（不含 director3d 豁免）：仅 `src/main.jsx` / `src/App.jsx`（2 个，最后转）。**nodes/ 已清零。**
+
+### 10.11 本轮（第十三段会话）新增踩坑 / 经验 —— 收尾批（main + App，全部 .jsx 清零）
+
+> 时间段：承接第十二段，收尾最后 2 个 `.jsx`（`src/main.jsx` / `src/App.jsx`），全仓库（除豁免）TS 化收官。本段最大的教训是**最后 2 个文件也是迁移，照旧会踩「入口引用 / 测试硬编码路径 / 契约行号」三类坑**，而且因为它们是整个应用入口，出问题直接影响 `npm run build` 与全量测试。
+
+1. **入口文件的引用不止在 import 里——`index.html` 的 `<script src>` 是脚本不动的硬编码**：`src/main.jsx`→.tsx 后，`npm run build` 报 `Rollup failed to resolve import "/src/main.jsx"`。根因：`index.html` 第 11 行写死 `<script type="module" src="/src/main.jsx">`，ts-migrate 的 `convert` 只改 import 说明符、**不改 HTML 里的入口引用**。修法：把 `index.html` 的 `/src/main.jsx`→`/src/main.tsx`。**教训：转「被 index.html 引用的入口文件」时，必须同步改 index.html（本项目唯一一次，最后收尾才碰到）。**
+2. **`npm run check:health` 的 storageAdapter 检查路径是存量漂移，与本次无关但收尾时被暴露**：`health-check.cjs` 第 49 行写死 `src/components/base/storageAdapter`，但文件早在 hook 收口时移入 `src/components/base/storage/storageAdapter.ts`（`729ec12`）。health 一直红（报「存储适配文件不存在」）。收尾期间 health 仍红，顺手修正为 `src/components/base/storage/storageAdapter`（扩展名无关解析）。**教训：health 脚本里「无扩展名源码条目」若目录也变了，只靠 resolveSourceFile 不够，路径本身要跟着目录结构走。**
+3. **收尾 2 个文件时 App.tsx 是最大类型密集区（约 29 处）**，主配方（照 §10.10）：
+   - **状态收窄**：`view` 从 `useState('canvas')` 收窄为 `useState<'canvas'|'accounts'|'settings'>('canvas')`（TopNav 的 `onNavigate` 严格要求三态联合）；`agentOpen`/`minimapOn`/`performanceMode` 用 `useState<boolean>(() => !!getSetting(...))`（`getSetting` 返回 `unknown`，直接赋 boolean 报错）；`pinnedTools` 用 `useState<string[]>(() => (Array.isArray(getSetting(...)) ? getSetting(...) as string[] : [...default]))`；`arrangeSnapshot` 标 `{nodes:Node[];edges:Edge[]}|null`；`uploadRef` 标 `HTMLInputElement|null`。
+   - **函数形参显式化**：`addNode(type, position, data: Record<string,unknown> = {}, connection?)`，`nodeData` 标 `Record<string,unknown>`（原 `data={}` 推断成 `{}`，后续 `nodeData.aspectRatio` 全报 TS2339）；`copySelectedNodes(onlyId?: string)` 让 `copySelectedNodes()` 无参调用合法（原 1 参必填导致 TS2554）。
+   - **菜单函数标注返回 `ContextMenuItem[]` + 参数 `ContextMenuState`**：`canvasMenuItems`/`nodeMenuItems`/`selectionMenuItems`/`menuItems` 全部显式标注，`const items: ContextMenuItem[] = []`（否则 items 推断成首元素类型，`items.push({type:'divider'})` 报「type 不存在」）。divider 用 `{ type: 'divider' as const }` 防 type 拓宽成 string。
+   - **`resource:renamed` 回调里 `replaceUrlDeep` 返回 `unknown`**：`let data: Record<string,unknown> = (n.data ?? ({} as Record<string,unknown>))`，`data = d as Record<string,unknown>`（`n.data || {}` 会退化成 `{}`，见 §10.10 第 2 条）。
+4. **跨文件类型收口（本段 3 处）**：
+   - `ContextMenu.MenuLeafItem` 补 `badge?: { tone:'new'|'hot'; text:string }`：App 的 canvas 菜单「剧本盒子」项一直传 `badge`，但 MenuLeafItem 类型漏登记（JS 期宽松忽略），转 .tsx 报 TS2353。
+   - `CanvasEdgesContext.CanvasHistory` 改为复用 `useCanvasHistory` 的 `CanvasHistoryApi`（删掉本地重复定义 + 索引签名）：App 把 `useCanvasHistory` 返回的 `CanvasHistoryApi` 传给 `CanvasEdgesProvider`（期望本地 `CanvasHistory`，带 `[key:string]:unknown`）报索引签名缺失。按 §五「跨模块复用而非重定义」收口到单一事实来源，零行为变化。
+   - `useContextMenu.onSelectionEnd` 的 nodes 参数改 `nodes?: Node[]`：原声明 `(e, nodes) => void` 2 参，但 ReactFlow 的 `onSelectionEnd` 类型是 `(event: ReactMouseEvent) => void`（1 参，`node_modules/@xyflow/react/dist/esm/types/component-props.d.ts:146` 实测），2 参函数赋给 1 参位置报「Expected 2 or more, but got 1」。改可选参后兼容（运行时 ReactFlow 只传 event，nodes 为 undefined，行为与 JS 期一致）。
+5. **`check:events` 契约行号照旧要同步（第 N 次）**：App.jsx→.tsx 后，`contracts.js` EVENTS 表里 4 处 `to` 指向 `App.jsx:xxx` 全漂移（resource:renamed / project:import / project:export / persist:failed），改后缀 + 按 `grep subscribe` 实测行号更新（446/437/438/500）。顺手把对应 note 里的 `.jsx` 引用同步为 `.tsx`。**收尾 2 个文件也不豁免这条铁律。**
+6. **测试硬编码路径照旧要同步（第 N 次）**：`tests/unit/lazyNode.test.jsx` 的 `readSrc('src/App.jsx')` 在改名后 ENOENT，1 个用例失败（「App.jsx 不得静态 import Director3DNode」）。改为 `src/App.tsx`（测试名/断言消息同步）。**这是本项目最后一次硬编码路径同步。**
+7. **本段 B 批进度（截至本次更新，全部收官）**：
+   - 已转（本段新增 2 个）：`src/App.tsx` / `src/main.tsx`。全部类型补全 + 验证全绿（type-check 0 错 / 五门禁 / test:all 2180 用例全 PASS / build / check:health 无错误）。
+   - 收口：`MenuLeafItem` 补 badge；`CanvasEdgesContext.CanvasHistory` 复用 `CanvasHistoryApi`；`useContextMenu.onSelectionEnd` nodes 参可选。
+   - 修复存量路径漂移：`index.html` main 入口 .jsx→.tsx（build 崩）；`health-check.cjs` storageAdapter 路径；`lazyNode.test.jsx` readSrc App.jsx→tsx。
+   - 提交：`@HEAD@`。
+   - **剩余 `.jsx`（不含 director3d 豁免）：0 个。TS 规范化重构全部清零。**
