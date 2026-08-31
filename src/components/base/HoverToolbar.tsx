@@ -1,5 +1,5 @@
 import React from 'react'
-import ToolbarButton from './ToolbarButton.jsx'
+import ToolbarButton from './ToolbarButton.tsx'
 
 /**
  * 节点 hover 操作栏（复刻各节点悬浮胶囊操作栏的公共结构）。
@@ -11,7 +11,25 @@ import ToolbarButton from './ToolbarButton.jsx'
  *  - loading   是否显示 loading 图标（可选）
  *  - loadingIcon  loading 图标节点（默认无）
  */
-function HoverToolbar({ buttons = [], loading = false, loadingIcon = null }) {
+export interface ToolbarButtonConfig {
+  key: string
+  icon: React.ReactNode
+  title: string
+  hoverClass?: string
+  show?: boolean
+  onClick?: (e: React.MouseEvent<HTMLButtonElement>) => void
+}
+
+export interface HoverToolbarProps {
+  /** 按钮配置数组（各节点 hover 操作栏声明同一形状） */
+  buttons?: ToolbarButtonConfig[]
+  /** 是否显示 loading 图标（可选） */
+  loading?: boolean
+  /** loading 图标节点（默认无） */
+  loadingIcon?: React.ReactNode
+}
+
+function HoverToolbar({ buttons = [], loading = false, loadingIcon = null }: HoverToolbarProps) {
   const visible = buttons.filter((b) => b.show !== false)
   if (visible.length === 0 && !loading) return null
 

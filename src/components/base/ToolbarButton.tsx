@@ -8,7 +8,18 @@ import React from 'react'
  * @param hoverClass hover 时的颜色/背景 class（默认灰色→白）
  * @param onClick 点击回调
  */
-function ToolbarButton({ icon, title, hoverClass = 'hover:text-white', onClick }) {
+export interface ToolbarButtonProps {
+  /** 图标节点 */
+  icon: React.ReactNode
+  /** tooltip */
+  title: string
+  /** hover 时的颜色/背景 class（默认灰色→白） */
+  hoverClass?: string
+  /** 点击回调（已 stopPropagation） */
+  onClick?: (e: React.MouseEvent<HTMLButtonElement>) => void
+}
+
+function ToolbarButton({ icon, title, hoverClass = 'hover:text-white', onClick }: ToolbarButtonProps) {
   return (
     <button
       type="button"
