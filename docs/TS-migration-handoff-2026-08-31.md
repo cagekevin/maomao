@@ -1,7 +1,9 @@
 # TS 规范化重构 · 交接文档（handoff）
 
-> 更新：2026-08-31。任务：对现有 React 代码做 TS 规范化重构——业务逻辑完全不动，只做「类型 + 文件规范」处理。
+> 更新：2026-08-31（第二轮会话后补）。任务：对现有 React 代码做 TS 规范化重构——业务逻辑完全不动，只做「类型 + 文件规范」处理。
 > 交接给下一个 AI / 下一段会话的**唯一入口**。读完即可无缝继续，不必重读本会话历史。
+>
+> **本轮会话（第二段）新增成果**：A4 批 `src/components/scriptbox/` **3 个纯逻辑文件全部转完**（IO / Store / Workflows → .ts），`scriptBoxPromptResolver.ts` 的 `PlaybookLike` 已删除改用真实 `Playbook` 类型，并修复了库里存量断裂的 `DiscountVideoNode` 测试（根因是早前 HoverToolbar.jsx→.tsx 迁移时测试 mock 路径未同步）。详见第三节 commit 表。
 
 ---
 
@@ -22,13 +24,13 @@
 
 ## 三、完成进度（截至本次更新，工作区干净）
 
-**已转 110 个 .ts / .tsx**（纯逻辑层）+ **11 个组件层 .tsx**。**剩余：9 个 .js（纯逻辑/hook）+ 79 个 .jsx（组件层，不含豁免目录）**。
+**已转 110 个 .ts / .tsx**（纯逻辑层）+ **11 个组件层 .tsx** + **A4 批 3 个 scriptbox 纯逻辑 .ts**。**剩余：6 个 .js（agent 纯逻辑/hook，见 A3）+ 79 个 .jsx（组件层，不含豁免目录）**。
 
-**纯逻辑层（非 JSX）完成度：110 / 119 ≈ 92%**；`src/components/base/` 与 `src/components/agent/conversation/` 已 **100% 清零**（含 scriptBoxEngine 91K 大件）。
+**纯逻辑层（非 JSX）完成度：base/ 与 agent/conversation/ 与 scriptbox/ 已 100% 清零**；`src/components/agent/runtime/`、`canvas/` 仅剩 6 个 .js（A3）。
 
 **B 批组件层已启动**：已完成 11 个 `.jsx → .tsx`（ArrangeConfirm / EmptyCanvasGuide / ToastContainer / ToolbarButton / HoverToolbar / FullscreenModal / ContextMenu / Select / ProjectSelector / CanvasToolbar / TopNav），全部补 Props 接口 + 验证全绿。
 
-已提交 42 个 commit（main，全部 `--no-verify`）：
+已提交 40+ 个 commit（main，全部 `--no-verify`）：
 
 | commit | 内容 |
 |---|---|
@@ -72,6 +74,9 @@
 | `ec6f2d0` | Select→.tsx（泛型 `SelectProps<T extends React.Key>`） |
 | `3098162` | ProjectSelector→.tsx + Props；**同步 contracts.js EVENTS**（project:import/export 的 from `.jsx:103→.tsx:117` 等，check:events 恢复双向自洽） |
 | `326304d` | CanvasToolbar + TopNav→.tsx（TopNavProps 含 `SyncResult`；tabs key 收窄；img onError 用 currentTarget 取 src） |
+| `c741e75` | **A4 第 1 个**：`scriptBoxPlaybookIO.js`→.ts + 定义 `Playbook` 接口、`ImportResult` 类型；`exportText`/`parseImport` 定型（`--no-verify`） |
+| `c8eac23` | **A4 第 2 个**：`scriptBoxPlaybookStore.js`→.ts；复用 `Playbook`/`ImageGenTemplate`/`WorkflowSpec` 类型；`normalizeBuiltin`/`loadCustom`/`getAllPlaybooks`/`getPlaybook`/`isBuiltin`/`saveCustomPlaybook`/`deleteCustomPlaybook`/`createCustomFrom` 定型 |
+| `6597d96` | **A4 第 3 个**：`scriptBoxWorkflows.js`→.ts + 定义 `WorkflowSpec` 接口与 `SCRIPT_BOX_WORKFLOWS`/`DEFAULT_WORKFLOW`；**删除 `scriptBoxPromptResolver.ts` 的 `PlaybookLike`** 改用真实 `Playbook` 类型；**同步 `contracts.js` 的 `scriptbox_playbooks.store` 指向 `.ts`**；**修复存量 `DiscountVideoNode.test.jsx` 测试**（HoverToolbar mock 路径 `.jsx`→`.tsx`，3 个失败→17/17 全绿）；605 测试全过 |
 
 ## 三·补：横切收口成果（本次新增）
 
@@ -120,6 +125,7 @@ node scripts/ts-migrate.mjs move <file> <targetDir> [--dry]
 - `contracts.js` 的 `EVENTS` 表：凡改名的文件被 `from/to` 引用，行号/后缀漂移会触发 check:events stale → 手动同步（**已发生 5 次**：promptManager、storageAdapter、useAssetMoveToFolder、taskCompletionBus/upstreamLink、useNodeGeneration）。
 - `check-api-contract.cjs` 的 `MODULE_FILES`（API 层文件映射 .js→.ts）。
 - 测试体内的**硬编码文件名枚举**（如 logger.test.js 的 `apiFiles` 数组、readFileSync 读源码的文件名）——脚本不改字符串，需手动同步。
+- **`vi.mock('.../Xxx.jsx')` 这类写死的 mock 路径**：组件改名 `.tsx` 后**必须同步改后缀**（脚本只改 import 说明符、不改字符串）。转组件前先 `refs <file>` 列出所有字符串残留，逐个同步。**这是本轮真实翻车点（DiscountVideoNode 测试挂掉）。**
 - 有 `useXxx` 的 `.js` 是 hook（无 JSX 也是 .ts，不是 .tsx）。
 - **改了目录结构后**：确认 `scripts/check-targets.mjs` 的 `SCAN_DIRS` 覆盖新路径，否则新目录整体逃出契约校验（详见「三·补」第 2 条）。
 
@@ -153,23 +159,20 @@ node scripts/ts-migrate.mjs move <file> <targetDir> [--dry]
 
 ## 七、剩余工作清单（按批次，自底向上）
 
-### A. 剩余纯逻辑 .js → .ts（**9 个实际待转**；另 10 个豁免，见第二节）
+### A. 剩余纯逻辑 .js → .ts（**A4 已清零；当前仅剩 A3 的 6 个**；另 10 个豁免，见第二节）
+
+> **下一步建议起点**：A3 的 `src/components/agent/canvas/canvasHost.js`（5.2K，最小，风险低）或 `runtime/agentCore.js`（36K）优先转。每个文件严格按「convert → refs 查 mock 残留 → 补类型 → 10 道门禁全绿 → 提交」执行。
 
 **A1. `src/components/base/`** —— ✅ **已全部清零**（含 scriptBoxEngine 91K 等大件）
 
 **A2. `src/components/agent/conversation/`** —— ✅ **已全部清零**（6 个文件 + index 聚合入口）
 
-**A3. `src/components/agent/` 剩余 6 个**
-- `runtime/`（3）：agentCore(36K)、agentRuntime(32K)、**useAgentChat(64K)** ← 最后三个大件
-- `canvas/`（3）：canvasHost(5.2K)、canvasPlanExecutor(40K)、**useCanvasAgentTools(86K)**
+**A3. `src/components/agent/` 剩余 6 个（全部纯逻辑，但含大件）**
+- `runtime/`（3）：`agentCore.js`(36K)、`agentRuntime.js`(32K)、**`useAgentChat.js`(64K)** ← 最后三个大件，hook → 转 `.ts`
+- `canvas/`（3）：`canvasHost.js`(5.2K，最小，建议先做)、`canvasPlanExecutor.js`(40K)、**`useCanvasAgentTools.js`(86K)** ← hook → 转 `.ts`
+- 注意：`useAgentChat.js` 与 `useCanvasAgentTools.js` 是 **hook → 转 `.ts`（不是 .tsx）**，且**不收口到 src/hooks/**（领域专属，见「三·补」）。
 
-**A4. `src/components/scriptbox/` 3 个**
-- `scriptBoxPlaybookIO.js`、`scriptBoxPlaybookStore.js`、`scriptBoxWorkflows.js`
-- 注意 `agent/canvas/useCanvasAgentTools.js` 与 `runtime/useAgentChat.js` 是 hook → 转 `.ts`（不是 .tsx），且**不收口到 src/hooks/**（领域专属，见「三·补」）
-
-**A3. `src/components/scriptbox/` 3 个**（纯逻辑部分）
-- `scriptBoxPlaybookStore.js`(6.8K) → 转完后 `scriptBoxPromptResolver.ts` 里的 `PlaybookLike` 本地视图可换成其真实类型
-- `scriptBoxPlaybookIO.js`、`scriptBoxWorkflows.js`(31K)
+**A4. `src/components/scriptbox/` 3 个纯逻辑文件** —— ✅ **已全部清零（第二轮会话完成）**：`scriptBoxPlaybookIO.ts` / `scriptBoxPlaybookStore.ts` / `scriptBoxWorkflows.ts`。`scriptBoxPromptResolver.ts` 已删除 `PlaybookLike` 改用真实 `Playbook` 类型。
 
 ### B. 剩余组件 .jsx → .tsx + Props 接口（**79 个，不含 director3d 豁免**，最大最难，放最后）
 - **✅ 已完成（11 个，base/ 入口层）**：ArrangeConfirm / EmptyCanvasGuide / ToastContainer / ToolbarButton / HoverToolbar / FullscreenModal / ContextMenu / Select / ProjectSelector / CanvasToolbar / TopNav
@@ -248,4 +251,10 @@ npm run test:smoke           # SSR 冒烟（esbuild bundle）
 npm run test:regression      # SSR 回归（14 节点）
 npm run test:tools           # agent 工具
 ```
-> 约定：全部用 `--no-verify` 提交（Windows 无 sh，钩子跑不了；门禁靠手动跑上面的命令把关）。
+> **提交策略（用户已澄清，务必照此）**：Windows 环境下 `sh` 不可用，husky pre-commit 钩子（5 道门禁）**实际跑不起来**；因此本仓库迁移期统一用 `git commit --no-verify`，**门禁靠手动跑本节上面的命令把关**（不要试图绕过 —— 也**不要**在工具壳里反复重试钩子，那只会卡住）。每批提交前必须把上面 10 道门禁手动跑全绿。**注意**：`--no-verify` 只是跳过了 commit 钩子，不是跳过验证；验证必须人工跑。若用户改口要求「正常跑钩子」，则直接 `git commit`（但 Windows 下钩子会因无 sh 失败，需用户确认环境）。
+
+### 10.1 本轮（第二段会话）踩坑 / 用户强调点（必读，避免重蹈）
+- **测试 mock 路径是字符串，脚本不会同步**：`tests/unit/**` 里 `vi.mock('.../HoverToolbar.jsx')` 这类写死的 `.jsx` 后缀，在组件改名 `.tsx` 后**不会自动变**，会导致测试失败（根因：早前迁移 HoverToolbar 时漏同步）。**每转一个组件，先 `node scripts/ts-migrate.mjs refs <file>` 列出所有字符串残留（含测试 mock 路径），手动同步完再提交。** 本次就因为漏了 DiscountVideoNode.test.jsx 的 mock 路径，导致 3 个测试挂掉、提交被门禁拦下来。
+- **责任归属要诚实**：迁移是 AI 用脚本动的文件，测试断裂/类型问题若是迁移引入的，**就是迁移引入的，不要说成「用户改动」**。本次用户明确批评过这点。
+- **不要过度复杂化**：文档已经把公式和配方写清楚了，照着执行即可，别自己绕圈排查已写明的事项（如钩子机制）。
+- **做一点提交一点**：每转完一个文件、验证全绿后立即 `git add -A && git commit --no-verify`。不要攒一大批再提交。

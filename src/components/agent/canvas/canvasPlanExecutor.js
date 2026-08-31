@@ -17,7 +17,7 @@ import { runNodeGeneration, isNodeRegistered } from '../../base/taskStore.ts'
 import { generateId } from '../../base/idGen.ts'
 import { logger } from '../../base/logger.ts'
 import { toAbsoluteFileUrl } from '../../base/imageUrl.ts'
-import { createCanvasHost } from './canvasHost.js'
+import { createCanvasHost } from './canvasHost.ts'
 
 /* ── 全局单飞锁（对齐大雄 __canvasAgentGenRunning）──
  * 同一时刻只允许一套 executePlan 批量生成在跑。防止「用户手动点节点生成 + AI 触发」

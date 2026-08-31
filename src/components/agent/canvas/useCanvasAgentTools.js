@@ -4,7 +4,7 @@ import { registerTool, getTools } from '../../base/toolRegistry.ts'
 import { defaultNodeData } from '../../base/NodePalette.jsx'
 import { runNodeGeneration } from '../../base/taskStore.ts'
 import { createGroupFromNodes, deleteNodesWithCascade } from '../../base/groupNodes.ts'
-import { createCanvasHost } from './canvasHost.js'
+import { createCanvasHost } from './canvasHost.ts'
 import { executePlan } from './canvasPlanExecutor.js'
 import {
   patchCurrentWorkflow, setCurrentMemory, getCurrentMemory,
