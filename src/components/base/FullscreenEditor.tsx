@@ -4,6 +4,32 @@ import FullscreenModal from './FullscreenModal'
 import MaterialStrip from './MaterialStrip'
 import PromptInput from './PromptInput'
 
+/** 上游连入的素材形状（图片 / 文本），与 MaterialStrip / PromptInput 对齐。 */
+interface RefAsset {
+  id?: string
+  label?: string
+  url?: string
+  kind?: string
+  sourceNodeId?: string
+  text?: string
+}
+
+interface FullscreenEditorProps {
+  open: boolean
+  onClose: () => void
+  variant?: 'prompt' | 'text'
+  value?: string
+  onChange?: (v: string) => void
+  placeholder?: string
+  refImages?: RefAsset[]
+  refTexts?: RefAsset[]
+  onInsert?: (label: string) => void
+  onDisconnect?: (sourceNodeId: string) => void
+  maxWidth?: number
+  widthRatio?: number
+  richText?: boolean
+}
+
 /**
  * 统一的全屏编辑弹层（编辑提示词 / 文本）。
  *
@@ -39,15 +65,15 @@ export default function FullscreenEditor({
   maxWidth = 1200,
   widthRatio = 0.9,
   richText = false
-}) {
+}: FullscreenEditorProps) {
   const showMaterials = variant === 'prompt'
   // 富文本模式：MaterialStrip 插入走 PromptInput 上抛的能力；否则兼容旧回调（提取 label 字符串）
-  const insertAssetRef = React.useRef(null)
-  const handleInsert = (asset) => {
+  const insertAssetRef = React.useRef<((asset: unknown) => void) | null>(null)
+  const handleInsert = (asset: unknown) => {
     if (richText && typeof insertAssetRef.current === 'function') {
       insertAssetRef.current(asset)
     } else {
-      const label = typeof asset === 'string' ? asset : (asset && asset.label) || ''
+      const label = typeof asset === 'string' ? asset : ((asset as { label?: string } | null)?.label) || ''
       onInsert?.(label)
     }
   }
@@ -73,7 +99,7 @@ export default function FullscreenEditor({
             placeholder={placeholder}
             refImages={refImages}
             refTexts={refTexts}
-            onInsert={onInsert}
+            onInsert={(item) => onInsert?.(item?.label ?? '')}
             onReady={(fn) => { insertAssetRef.current = fn }}
             inputHeight={538}
             richText

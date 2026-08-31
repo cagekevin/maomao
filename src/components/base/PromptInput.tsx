@@ -44,6 +44,7 @@ interface PromptInputProps {
   inputHeight?: number | string
   autoFocus?: boolean
   portalTarget?: HTMLElement | null
+  richText?: boolean
 }
 
 const PromptInput = forwardRef(function PromptInput(

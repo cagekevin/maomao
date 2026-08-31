@@ -12,7 +12,7 @@ import { resolvePromptChips } from '../base/promptChips.ts'
 import MaterialStrip from '../base/MaterialStrip.tsx'
 import ResizeFullscreenHandle from '../base/ResizeFullscreenHandle.tsx'
 import FullscreenModal from '../base/FullscreenModal.tsx'
-import FullscreenEditor from '../base/FullscreenEditor.jsx'
+import FullscreenEditor from '../base/FullscreenEditor.tsx'
 import GeneratingOverlay from '../base/GeneratingOverlay.tsx'
 // ═══ 基座 hook（统一范式）═══
 import { useNodeResize, useOutsideClick } from '../base/hooks.ts'
