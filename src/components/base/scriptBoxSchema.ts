@@ -66,6 +66,14 @@ export interface ScriptBoxAsset {
   imageError: string | undefined
 }
 
+/**
+ * data 写回通道（引擎 ↔ hook 的跨层契约，收口在此避免两处各写一份）。
+ * 支持对象 patch（直接合并）与函数式 patch `(latestData) => patch`（并发安全合并）。
+ */
+export type ScriptBoxUpdateData = (
+  patch: Record<string, any> | ((latest: any) => Record<string, any>)
+) => void
+
 /** 剧本盒节点 data 完整形状 */
 export interface ScriptBoxData extends ScriptBoxTop {
   shots: ScriptBoxShot[]

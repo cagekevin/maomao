@@ -1,18 +1,14 @@
 import { useEffect, useRef, useCallback } from 'react'
 import { useReactFlow } from '@xyflow/react'
-import { createScriptBoxEngine } from '../components/base/scriptBoxEngine.js'
+import { createScriptBoxEngine } from '../components/base/scriptBoxEngine.ts'
 import { normalizeScriptBoxData } from '../components/base/scriptBoxSchema.ts'
 import { injectNodePrefs } from '../components/base/nodePrefs.ts'
 import { useProvidersList, load as loadProviders } from '../components/base/settings/providerStore.ts'
 import { logger } from '../components/base/logger.ts'
 
-/**
- * 节点 data 写回通道。
- * 支持对象 patch（直接合并）与函数式 patch `(latestData) => patch`（并发安全合并）。
- */
-export type ScriptBoxUpdateData = (
-  patch: Record<string, unknown> | ((latest: Record<string, unknown>) => Record<string, unknown>)
-) => void
+// 写回通道契约收口在 scriptBoxSchema（引擎与 hook 共用同一份，避免两处漂移）
+import type { ScriptBoxUpdateData } from '../components/base/scriptBoxSchema.ts'
+export type { ScriptBoxUpdateData }
 
 /**
  * 剧本盒子 —— 引擎回调注入 hook（对应官方 H_.jsx 的注入机制 A/B）。

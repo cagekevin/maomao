@@ -16,7 +16,7 @@ import { chatCompletions } from '../../src/components/base/chatApi.ts'
 import { generateImage } from '../../src/components/base/imageApi.ts'
 import { showToast } from '../../src/components/base/toastStore.ts'
 import { localizeAndStoreToLibrary } from '../../src/components/base/assetStore.ts'
-import { createScriptBoxEngine } from '../../src/components/base/scriptBoxEngine.js'
+import { createScriptBoxEngine } from '../../src/components/base/scriptBoxEngine.ts'
 
 const providerState = {
   providers: [

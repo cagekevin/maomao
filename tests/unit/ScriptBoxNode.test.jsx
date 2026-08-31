@@ -82,7 +82,7 @@ vi.mock('../../src/hooks/useScriptBoxEngine.ts', async (importOriginal) => {
   }
 })
 // 引擎 hook：mock createScriptBoxEngine → 返回稳定引擎实例，验证真实注入链路
-vi.mock('../../src/components/base/scriptBoxEngine.js', () => ({ createScriptBoxEngine: () => h.engine }))
+vi.mock('../../src/components/base/scriptBoxEngine.ts', () => ({ createScriptBoxEngine: () => h.engine }))
 vi.mock('../../src/components/base/settings/providerStore.ts', () => ({ useProviders: () => ({ providers: [] }), useProvidersList: () => [], load: vi.fn(async () => {}) }))
 vi.mock('../../src/components/base/logger.ts', () => ({ logger: { warn: vi.fn() } }))
 vi.mock('../../src/components/base/hooks.ts', () => ({ useOutsideClick: () => {}, useNodeResize: () => ({ onMainBoxResize: vi.fn() }), useContentHeightSync: () => {} }))

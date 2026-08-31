@@ -13,10 +13,43 @@ import { shotHandleId } from './contracts.js'
 import { SCRIPTBOX_DOWNSTREAM_GRID_COLS, SCRIPTBOX_DOWNSTREAM_CELL_W, SCRIPTBOX_DOWNSTREAM_CELL_H, SCRIPTBOX_DOWNSTREAM_GAP_X, SCRIPT_TEXT_TIMEOUT, SCRIPT_IMAGE_TIMEOUT } from './config.js'
 // 任务级总耗时兜底（R2 边界守卫）：给整段生成任务加超时，杜绝「转圈永不结束」
 import { withTimeout } from './asyncGuard.ts'
+import type { Shot, ScriptAsset, Dialogue } from './scriptBoxPrompts.ts'
+import type { ProviderWithModels } from './providerModels.ts'
+import type { ScriptBoxUpdateData } from './scriptBoxSchema.ts'
+
+/** toast 状态档（与 toastStore 的 ToastType 同形，后者未导出故此处本地声明） */
+type ToastType = 'success' | 'error' | 'warning' | 'info'
+
+/** 审计改写结果（引擎不落盘，交给组件「确认才生效」） */
+export interface ReviewShotResult {
+  ok: boolean
+  text?: string
+  error?: string
+}
+
+/** 引擎回调宿主注入项（引擎不依赖 UI，全部经回调交互） */
+export interface ScriptBoxEngineDeps {
+  /** 读当前 node.data（宿主侧应经 normalizeScriptBoxData 补齐缺省） */
+  getData: () => any
+  /** 写回 node.data：对象 patch 或函数式 patch `(latest)=>patch`（并发安全合并） */
+  updateData: ScriptBoxUpdateData
+  /** 建下游节点（onConnect* 用，可选） */
+  addNodes?: (nodes: any[]) => void
+  /** 剧本盒子节点 id（连线 source / 下游打标用） */
+  nodeId: string
+  /** 建边（onConnect* 自动连线用，可选） */
+  setEdges?: (updater: (edges: any[]) => any[]) => void
+  /** 读全量节点（下游网格锚点 / 占用扫描用，可选） */
+  getNodes?: () => any[]
+  /** 供应商列表 + 主供应商（可选；缺省视为未配置） */
+  getProviderState?: () => { providers: ProviderWithModels[]; primary: ProviderWithModels | null }
+  /** 抽视频尾帧（默认走本模块 captureVideoFrame，单测可注入 mock） */
+  captureVideoFrame?: (src: string, atFraction?: number) => Promise<string>
+}
 
 /** 去掉 ```json 围栏、只保留首个 {...} 块（对齐官方 Ar/Ir 的解析）。
  *  顶层纯函数，导出供单测（剧本盒纯逻辑）。 */
-export function parseJsonText(raw) {
+export function parseJsonText(raw: unknown): { ok: boolean; data: any } {
   let s = String(raw || '')
     .replace(/```json/gi, '')
     .replace(/```/g, '')
@@ -33,7 +66,7 @@ export function parseJsonText(raw) {
 
 /** 是否使用 json_object（deepseek/claude 不强制，对齐官方 r 判定）。
  *  顶层纯函数，导出供单测（剧本盒纯逻辑）。 */
-export function useJsonObject(modelId) {
+export function useJsonObject(modelId?: string): boolean {
   const m = String(modelId || '').toLowerCase()
   return !m.includes('deepseek') && !m.includes('claude')
 }
@@ -75,9 +108,9 @@ export function useJsonObject(modelId) {
  *  - setEdges(updater)                 建边（onConnect* 自动连线用，可选）
  *  - getNodes()                        读节点位置（下游网格锚点/占用扫描用，可选）
  */
-export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, setEdges, getNodes, getProviderState, captureVideoFrame: cf = captureVideoFrame }) {
+export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, setEdges, getNodes, getProviderState, captureVideoFrame: cf = captureVideoFrame }: ScriptBoxEngineDeps) {
   // ── AbortController 注册表（onStopScriptItem 真中止用，对齐官方 zt.current）──
-  const abortMap = new Map()
+  const abortMap = new Map<string, AbortController>()
 
   // ═══════════════════════════════════════════════════════════════
   // 公共工具（纯函数，无副作用）
@@ -111,7 +144,7 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
    *   - 其余一律 → error（剧本盒引擎 toast 绝大多数是失败/配置缺失/上游错误等需醒目提示，
    *     上游错误文本（如「网络错误」）无法穷举关键词，故默认按 error 处理，避免漏显红条）
    */
-  function toast(msg, type) {
+  function toast(msg: string, type?: ToastType) {
     const m = String(msg || '')
     let t = type
     if (!t) {
@@ -128,9 +161,9 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
    * @param {(fn:(latest)=>data)=>void} updateData 写回更新器
    * @returns {{ enqueuePatch:(apply:(latest)=>data)=>void, flushPatches:()=>void }}
    */
-  function createPatchBatcher(updateData, windowMs = 200) {
-    const patchQueue = []
-    let flushTimer = null
+  function createPatchBatcher(updateData: ScriptBoxUpdateData, windowMs = 200) {
+    const patchQueue: Array<(latest: any) => any> = []
+    let flushTimer: ReturnType<typeof setTimeout> | null = null
     const flushPatches = () => {
       if (flushTimer) { clearTimeout(flushTimer); flushTimer = null }
       const q = patchQueue.splice(0)
@@ -163,7 +196,12 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
    * @param {{logLabel:string,toastFail:string,ctx:object,timeoutMs?:number}} info 分级日志/提示文案；
    *   timeoutMs=整段任务耗时上限，默认 SCRIPT_TEXT_TIMEOUT，走生图的任务显式传 SCRIPT_IMAGE_TIMEOUT。
    */
-  const runAbortable = async (key, onReset, task, info) => {
+  const runAbortable = async (
+    key: string,
+    onReset: (() => void) | undefined,
+    task: (signal: AbortSignal) => Promise<unknown>,
+    info: { logLabel: string; toastFail: string; ctx: Record<string, unknown>; timeoutMs?: number }
+  ) => {
     const ac = new AbortController()
     abortMap.set(key, ac)
     try {
@@ -328,7 +366,7 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
   // ═══════════════════════════════════════════════════════════════
   // 步骤2 资产参考图（对齐官方 Pr / Fr）
   // ═══════════════════════════════════════════════════════════════
-  const onGenerateAssetImage = async (assetId) => {
+  const onGenerateAssetImage = async (assetId: string) => {
     const assets = getData().assets || []
     const asset = assets.find((a) => a.id === assetId)
     if (!asset) return
@@ -414,7 +452,7 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
   // 批量生成资产参考图（对齐官方 Fr）：传数组=选中集；undefined=全部无图资产。
   // 与 onGenerateShotPrompts 同款的「滑动窗口并发」：每张资产独立上报任务中心（onGenerateAssetImage 内已
   // 用独立伪 nodeId 上报），每张启动之间隔 START_GAP_MS 错开发，避免瞬时打满连接池；独立写回、互不顶掉。
-  const onGenerateAllAssetImages = async (assetIds) => {
+  const onGenerateAllAssetImages = async (assetIds?: string[]) => {
     const assets = getData().assets || []
     const target = assetIds && assetIds.length > 0
       ? assets.filter((a) => assetIds.includes(a.id))
@@ -446,7 +484,7 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
   // ═══════════════════════════════════════════════════════════════
   // 步骤3 分镜提示词（对齐官方 Ir）
   // ═══════════════════════════════════════════════════════════════
-  const onGenerateShotPrompts = async (shotIds, feedback) => {
+  const onGenerateShotPrompts = async (shotIds?: string[], feedback?: string) => {
     const d = getData()
     const shots = d.shots || []
     // 分派目标：单 id / 数组 / 全部（对齐官方 Ir）
@@ -478,7 +516,7 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
     // 结束后据此区分「全成功」vs「部分失败」，避免"已生成 N 个"误导用户以为全成功。
     let failedCount = 0
 
-    const genShot = async (shot) => {
+    const genShot = async (shot: any) => {
       // 每个分镜发起时打一条日志（逐镜跟踪批量进度）
       logger.info('scriptBox', '生成分镜提示词·单镜开始', { nodeId, shotId: shot.id, index: shot.index })
       // 只在真正发起该分镜请求时置 loading → 动画精确反映「当前正在请求的分镜」。
@@ -605,7 +643,7 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
   // ═══════════════════════════════════════════════════════════════
   // AI 生成图提示词（关键帧/四宫格/九宫格/俯视调度图）—— 接真 chat
   // ═══════════════════════════════════════════════════════════════
-  const onGenerateShotImage = async (shotId, type = IMAGE_GEN_DEFAULT) => {
+  const onGenerateShotImage = async (shotId: string, type: string = IMAGE_GEN_DEFAULT) => {
     // type 有效性统一由 resolveImageGenSys 对当前 playbook 兜底（未知 type → 默认 keyframe），此处不再持漫剧白名单
     const d = getData()
     const shot = (d.shots || []).find((s) => s.id === shotId)
@@ -655,7 +693,7 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
   //  - 输出单条文本，只写回 shots[idx][field] 一个字段（不返回 JSON）
   //  - 复用 runAbortable + loading + logger/toast，与其它生成回调完全一致
   // ═══════════════════════════════════════════════════════════════
-  const onReviewShotPrompt = (shotId, field, feedback) => {
+  const onReviewShotPrompt = (shotId: string, field: string, feedback?: string): Promise<ReviewShotResult> => {
     if (field !== 'prompt' && field !== 'videoPrompt') return Promise.resolve({ ok: false })
     const d = getData()
     const shot = (d.shots || []).find((s) => s.id === shotId)
@@ -667,8 +705,8 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
 
     // 改写结果经 Promise resolve 交给组件（组件 await 后写进预览，点「应用」才落盘到 shot）。
     // 引擎只置 promptLoading 驱动动画，不直接写回 shot[field]——符合「确认才生效」，且避开 effect 侦测回滚。
-    let resolveResult
-    const done = new Promise((res) => { resolveResult = res })
+    let resolveResult: (r: ReviewShotResult) => void
+    const done = new Promise<ReviewShotResult>((res) => { resolveResult = res })
 
     updateData({ shots: getData().shots.map((s) => (s.id === shotId ? { ...s, promptLoading: true } : s)) })
     logger.info('scriptBox', '审计改写提示词·开始', { nodeId, shotId, field, feedback: String(feedback).trim() })
@@ -701,7 +739,7 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
   // ═══════════════════════════════════════════════════════════════
   // 停止生成（对齐官方 Un）：中止指定 AbortController + 清对应 loading
   // ═══════════════════════════════════════════════════════════════
-  const onStopScriptItem = (kind, id) => {
+  const onStopScriptItem = (kind?: string, id?: string) => {
     // 兼容多种调用：onStopScriptItem('asset', assetId) / ('shot', shotId) / 直接传 key
     let key
     if (kind && id != null) key = `${kind}-${id}`
@@ -735,7 +773,7 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
   // （assetStore.localizeAndStoreToLibrary → /files/migrated/{人物|场景|道具}）：
   //   落盘成功 → imageStatus='uploaded' + imageUrl 改写为本地化 URL；
   //   落盘失败 → imageStatus='failed' + imageError（依赖承诺，去假）。
-  const onRetryAssetImageUpload = async (assetId) => {
+  const onRetryAssetImageUpload = async (assetId: string) => {
     const d = getData()
     const asset = (d.assets || []).find((a) => a.id === assetId)
     // 无参考图时不能上传（上传的是 asset.imageUrl 到素材库），给出明确提示避免静默无反应
@@ -770,7 +808,7 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
   //  - file：<input type=file> 选中的本地图片
   //  - 成功 → imageUrl/thumbnailUrl/has 写入，imageStatus='uploaded'（表示已归档到素材库）；
   //  - 失败 → imageStatus='failed' + imageError。
-  const onUploadAssetImage = async (assetId, file) => {
+  const onUploadAssetImage = async (assetId: string, file?: File | null) => {
     const d = getData()
     const asset = (d.assets || []).find((a) => a.id === assetId)
     if (!asset) return
@@ -802,7 +840,7 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
   // 不再重复上传落盘（与 onUploadAssetImage 的「本地 file 落盘」互补：一个收 file，一个收现成 URL）。
   //  - url：素材库图片的 /files/ 相对地址
   //  - 成功 → imageUrl/thumbnailUrl/has 写入，imageStatus='uploaded'（素材库图等价于已归档）。
-  const onPickAssetImage = (assetId, url) => {
+  const onPickAssetImage = (assetId: string, url: string) => {
     const d = getData()
     const asset = (d.assets || []).find((a) => a.id === assetId)
     if (!asset) return
@@ -821,7 +859,7 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
   // 预填（P1-③）：复刻 App.jsx 对 shot- 端口建下游时的透传——
   //   image→aspectRatio；video→size + selectedSeconds(分镜时长) + durationFromScript。
   //   宽高比 custom 取 customAspectRatio；4:4 归一为 1:1（与官方 di 行为一致）。
-  const shotPrefill = (shot, type) => {
+  const shotPrefill = (shot: any, type: string) => {
     const d = getData()
     const raw = String(d.aspectRatio || '16:9')
     const ratio = raw === 'custom' ? String(d.customAspectRatio || '16:9') : raw
@@ -843,7 +881,7 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
   //   · 分配器按「一次批量/一次单个」作用域持有本批未提交的预留槽（pending），既保证同 tick 内连续分配
   //     也不撞、又不会长期占用（用完即弃）；单点之间靠 live 扫描天然看到上一次已提交的节点。
   // 以剧本盒子为原点，把 slot 折进「列×行」网格，向右下排布。
-  const positionOf = (slot) => {
+  const positionOf = (slot: number) => {
     const col = slot % SCRIPTBOX_DOWNSTREAM_GRID_COLS
     const row = Math.floor(slot / SCRIPTBOX_DOWNSTREAM_GRID_COLS)
     let base = { x: 0, y: 0 }, width = 900
@@ -857,8 +895,8 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
     }
   }
   // 本剧本盒子已连下游占据的格子（据节点 scriptboxParent/scriptboxSlot 打标）。
-  const occupiedLiveSlots = () => {
-    const set = new Set()
+  const occupiedLiveSlots = (): Set<number> => {
+    const set = new Set<number>()
     if (!getNodes) return set
     for (const n of getNodes()) {
       if (n?.data?.scriptboxParent === nodeId && Number.isInteger(n.data.scriptboxSlot)) set.add(n.data.scriptboxSlot)
@@ -866,9 +904,9 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
     return set
   }
   // 生成一个「一批」的槽分配器：期望格允许基于 live+本批 pending 向前顺延到空闲格。
-  const createSlotAllocator = (shotsCount) => {
-    const pending = new Set()
-    return ({ shotOrder, isVideo }) => {
+  const createSlotAllocator = (shotsCount: number) => {
+    const pending = new Set<number>()
+    return ({ shotOrder, isVideo }: { shotOrder: number; isVideo: boolean }) => {
       // 确定性期望格：生图占 images 区、生视频占 videos 区，镜头序映射成格号
       const preferred = isVideo ? shotsCount + shotOrder : shotOrder
       const taken = new Set(occupiedLiveSlots())
@@ -880,7 +918,7 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
     }
   }
 
-  const onConnectShot = (shotId, target = 'image') => {
+  const onConnectShot = (shotId: string, target: string = 'image') => {
     if (!addNodes) return
     const d = getData()
     const shot = d.shots.find((s) => s.id === shotId)
@@ -914,7 +952,7 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
   // 批量连下游（对齐官方 Ir 的「未选则全部」语义，与 onGenerateShotPrompts / onGenerateAllAssetImages 一致）：
   // 未传 / 空数组 → 全部镜头；传入选中 id 数组 → 只连选中的镜头。整批共享一个分配器，
   // 确保批内每镜各占一格（镜头序互异 → 期望格互异），单个点也同一定位逻辑。
-  const onConnectShots = (shotIds, target = 'image') => {
+  const onConnectShots = (shotIds: string[] | undefined, target: string = 'image') => {
     const d = getData()
     const shots = d.shots || []
     const ids = Array.isArray(shotIds) && shotIds.length > 0 ? shotIds : shots.map((s) => s.id)
@@ -951,7 +989,7 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
   // 思路A：勾选多个镜头 → 调 AI 把各镜资料合并生成「一条序号连贯的合并视频提示词」
   // （"第一个画面…第N个画面"一路排到底，避免直接拼装导致序号重复），再新建 discountVideoNode。
   // 参考图合并、时长累加（各镜 duration 之和，预选视频节点时长选项）；剧本数据完全不变。
-  const onGenerateMergedVideo = (shotIds, target = 'video') => {
+  const onGenerateMergedVideo = (shotIds: string[] | undefined, target: string = 'video') => {
     if (!addNodes) return
     const d = getData()
     const shots = d.shots || []
@@ -1026,13 +1064,13 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
   // 依赖：上一镜连出的 discountVideoNode（data.upstreamShotId === 上一镜 id）的 videoUrl（已持久化）。
   // ═══════════════════════════════════════════════════════════════
   /** 读取上一镜连出的 discountVideoNode 视频结果 URL（P1-0 已验证持久化）。 */
-  const findPrevShotVideoUrl = (prevShotId) => {
+  const findPrevShotVideoUrl = (prevShotId?: string): string => {
     if (!getNodes || !prevShotId) return ''
     return getNodes()
       .find((x) => x.type === 'discountVideoNode' && x.data?.upstreamShotId === prevShotId)?.data?.videoUrl || ''
   }
 
-  const onGenerateTailFrameVariants = async (shotId) => {
+  const onGenerateTailFrameVariants = async (shotId: string) => {
     const d = getData()
     const shots = d.shots || []
     const idx = shots.findIndex((s) => s.id === shotId)
@@ -1085,7 +1123,10 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
           size: imageSize,
           n: 1,
           aspectRatio,
-        }, signal)
+          // ⚠️ 保真历史行为：signal 传在第 2 位（generateImage 的 onProgress 位），第 3 位（signal）为空，
+          // 即「尾帧综合图实际不接中止」。TS 迁移不改运行时语义，故原位保留并显式断言留痕；
+          // 后续若要让它可中止，应改为 `}, undefined, signal)` 并补回归用例（现单测 mock 了 imageApi，未覆盖此差异）。
+        }, signal as any)
         if (r.ok && r.url) {
           let cUrl = r.url
           try {
@@ -1148,9 +1189,9 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
 /** 对白字符串 → 每行「说话者：完整原句」格式（对齐官方 Ir 内嵌解析 + Nr）。
  *  兼容 dialogue 双态（P2-⑤）：数组形态（UI 编辑后 [{kind,role,text}]）逐行转字符串，
  *  字符串形态（引擎产出）按行解析。导出供单测（剧本盒纯逻辑）。 */
-export function dialogueLines(dialogue) {
+export function dialogueLines(dialogue?: Dialogue[] | string | null): string {
   if (Array.isArray(dialogue)) {
-    return dialogue
+    return (dialogue as Dialogue[])
       .map((x) => {
         if (!x || typeof x !== 'object') return ''
         const role = String(x.role || '').trim()
@@ -1204,7 +1245,7 @@ export const TAIL_ANGLE_BY_ID = {
  *  @returns {{ prompt:string, label:string }}
  *    - label 形如「镜头向前移动 + 特写镜头 + 镜头左转45°」
  *    - prompt 含「请同时满足以下全部镜头调整要求，输出一张综合结果」 */
-export function buildTailComposePrompt(angleIds) {
+export function buildTailComposePrompt(angleIds?: string[]): { prompt: string; label: string } {
   const known = Array.isArray(angleIds) ? angleIds.map((e) => TAIL_ANGLE_BY_ID[e]).filter(Boolean) : []
   const label = known.map((e) => e.label).join(' + ') || '换角度图'
   const prompt = [
@@ -1227,7 +1268,30 @@ export function buildTailComposePrompt(angleIds) {
  *  - totalShots        全片总镜数（缺省取 shot.index）
  *  - prevShot / nextShot  上一镜 / 下一镜对象（读 description 作「承接 / 钩子」）
  *  - imageNegative / videoNegative  分通道负面词（用户设置，高优先级） */
-export function assembleShotUser(shot, refAssets, globalStyle, opts = {}) {
+/** assembleShotUser 可选入参（叙事密度 / 分通道负面词） */
+export interface AssembleShotUserOpts {
+  /** 0-based 镜头在整部短片中的位置（缺省取 shot.index - 1） */
+  shotIndexInStory?: number
+  /** 全片总镜数（缺省取 shot.index） */
+  totalShots?: number
+  /** 上一镜（读 description 作「承接」） */
+  prevShot?: Shot | null
+  /** 下一镜（读 description 作「钩子」） */
+  nextShot?: Shot | null
+  /** 生图负面词（仅作用于 prompt） */
+  imageNegative?: string
+  /** 生视频负面词（仅作用于 videoPrompt） */
+  videoNegative?: string
+  /** 通用负面词（prompt + videoPrompt 同时遵守） */
+  commonNegative?: string
+}
+
+export function assembleShotUser(
+  shot: Shot,
+  refAssets: ScriptAsset[] | null | undefined,
+  globalStyle: string,
+  opts: AssembleShotUserOpts = {}
+): string {
   const assets = Array.isArray(refAssets) ? refAssets : []
   // ── 位置标注：0-based 序号 + 开场/中段/结尾（对齐官方 u/d/m 判定）──
   const u = Number.isFinite(Number(opts.shotIndexInStory))
@@ -1345,11 +1409,11 @@ export function assembleShotUser(shot, refAssets, globalStyle, opts = {}) {
  * @param {number} [atFraction=1]  抽帧时刻（1 = 尾帧；0~1 按时长比例）
  * @returns {Promise<string>} dataURL
  */
-export async function captureVideoFrame(src, atFraction = 1) {
+export async function captureVideoFrame(src: string, atFraction = 1): Promise<string> {
   if (typeof document === 'undefined' || typeof HTMLVideoElement === 'undefined') {
     throw new Error('浏览器环境不支持抽帧')
   }
-  return new Promise((resolve, reject) => {
+  return new Promise<string>((resolve, reject) => {
     const video = document.createElement('video')
     video.muted = true
     video.playsInline = true
@@ -1357,7 +1421,7 @@ export async function captureVideoFrame(src, atFraction = 1) {
     video.preload = 'auto'
     video.src = String(src || '')
     let done = false
-    const finish = (err, dataUrl) => {
+    const finish = (err?: Error | null, dataUrl?: string) => {
       if (done) return
       done = true
       video.removeEventListener('loadeddata', onLoaded)

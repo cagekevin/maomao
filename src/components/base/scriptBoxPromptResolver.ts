@@ -54,10 +54,10 @@ export function resolveImageGenSys(playbookId: string, type: string, defaultType
   return tpls[type] || tpls[defaultType] || { label: type, sys: '' }
 }
 
-/** 取资产生图参考图模板 { character, scene, prop }（ZgPrompt 用）。 */
-export function resolveAssetTemplates(playbookId: string): Record<string, unknown> {
+/** 取资产生图参考图模板 { character, scene, prop }（ZgPrompt 用，值为模板字符串）。 */
+export function resolveAssetTemplates(playbookId: string): Record<string, string> {
   const pb = getPlaybook(playbookId) as PlaybookLike
-  return pb.assetTemplates || {}
+  return (pb.assetTemplates as Record<string, string>) || {}
 }
 
 /** 取正向约束 { image, video }（§4.3 已砍 custom 位）。 */
