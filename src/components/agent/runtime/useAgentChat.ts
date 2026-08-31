@@ -642,22 +642,25 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
           stateMachineRef.current.setStatus('awaiting_confirm')
           setSending(false)
           abortRef.current = null
-          return
+          // 注意：不再在 finally 里 return（会触发 no-unsafe-finally 并吞掉未处理异常）。
+          // 改用 if/else 结构，awaiting_confirm 分支自然跳过下方通用收尾（steer/压缩），
+          // 与原先「finally 里 return 中断收尾」语义完全等价，但消除了 unsafe-finally。
+        } else {
+          patchCurrentWorkflow(wfFinish(ok, aborted))
+          logger.debug('AI助手', '[发送] 终态', { status: wfStatus, rounds: round, pausedForConfirm, steerQueueLen: (getCurrentWorkflow()?.steerQueue || []).length }, { module: 'agent' })
+          setCurrentPending(null)
+          try { captureActiveConversation() } catch (e) { logger.warn('AI助手', '会话落盘失败', { error: e?.message || String(e) }) }
+          stateMachineRef.current.setStatus(ok ? 'idle' : 'failed')
+          setSending(false)
+          abortRef.current = null
+          // ── 「记」：本轮对话收尾后异步压缩历史→memory.summary（失败/超时只记日志，不影响主流程）──
+          maybeCompressSummary()
+          // ── steer 队列：当前任务结束，自动执行下一条补充指令（per-conversation workflow.steerQueue）──
+          const { next, patch: wfNextCtx } = wfNextSteer(wfStatus)
+          patchCurrentWorkflow(wfNextCtx)
+          try { captureActiveConversation() } catch (e) { logger.warn('AI助手', '会话落盘失败', { error: e?.message || String(e) }) }
+          if (next) sendRef.current?.(next.text, next.attachments)
         }
-        patchCurrentWorkflow(wfFinish(ok, aborted))
-        logger.debug('AI助手', '[发送] 终态', { status: wfStatus, rounds: round, pausedForConfirm, steerQueueLen: (getCurrentWorkflow()?.steerQueue || []).length }, { module: 'agent' })
-        setCurrentPending(null)
-        try { captureActiveConversation() } catch (e) { logger.warn('AI助手', '会话落盘失败', { error: e?.message || String(e) }) }
-        stateMachineRef.current.setStatus(ok ? 'idle' : 'failed')
-        setSending(false)
-        abortRef.current = null
-        // ── 「记」：本轮对话收尾后异步压缩历史→memory.summary（失败/超时只记日志，不影响主流程）──
-        maybeCompressSummary()
-        // ── steer 队列：当前任务结束，自动执行下一条补充指令（per-conversation workflow.steerQueue）──
-        const { next, patch: wfNextCtx } = wfNextSteer(wfStatus)
-        patchCurrentWorkflow(wfNextCtx)
-        try { captureActiveConversation() } catch (e) { logger.warn('AI助手', '会话落盘失败', { error: e?.message || String(e) }) }
-        if (next) sendRef.current?.(next.text, next.attachments)
       }
     },
     // 依赖：roundTrip 闭包了 model/provider/toolSchemas；sendRef 用于 steer 续跑（下方 useRef 保持最新）

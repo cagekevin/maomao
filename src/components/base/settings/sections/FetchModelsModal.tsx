@@ -77,7 +77,7 @@ export default function FetchModelsModal({ open, fetched, existing, fetching, on
       const fetchedMap = new Map((fetchedList[cat.key] || []).map((m) => [modelId(m), m]))
       const ids = new Set([
         ...(fetchedList[cat.key] || []).map(modelId),
-        ...[...selected[cat.key]], // 含已存在但本次未拉到的（它们未必在 fetchedList 里）
+        ...selected[cat.key], // 含已存在但本次未拉到的（它们未必在 fetchedList 里）
       ])
       const list = []
       for (const id of selected[cat.key]) {
