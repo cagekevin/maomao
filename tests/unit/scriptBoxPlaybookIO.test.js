@@ -4,7 +4,7 @@
  * run: npm run test:unit -- tests/unit/scriptBoxPlaybookIO.test.js
  */
 import { describe, it, expect } from 'vitest'
-import { exportText, parseImport } from '../../src/components/scriptbox/scriptBoxPlaybookIO.js'
+import { exportText, parseImport } from '../../src/components/scriptbox/scriptBoxPlaybookIO.ts'
 
 const MANGA = {
   id: 'manga',

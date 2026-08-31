@@ -3,7 +3,7 @@ import { Pencil, Trash2, Plus, Check, X, Download, Upload, ChevronDown, ChevronR
 import ScriptBoxModal from './ScriptBoxModal.jsx'
 import { getAllPlaybooks, saveCustomPlaybook, deleteCustomPlaybook, createCustomFrom } from './scriptBoxPlaybookStore.js'
 import { DEFAULT_WORKFLOW } from './scriptBoxWorkflows.js'
-import { exportText, parseImport } from './scriptBoxPlaybookIO.js'
+import { exportText, parseImport } from './scriptBoxPlaybookIO.ts'
 import { downloadBlob } from '../base/clipboard.ts'
 import { toastSuccess, toastError } from '../base/toastStore.ts'
 
