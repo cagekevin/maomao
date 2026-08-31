@@ -34,7 +34,7 @@ vi.mock('../../src/components/base/api/httpClient.ts', async (importOriginal) =>
   return { ...mod, httpRequest: vi.fn(() => Promise.reject(new Error('mock: no network'))) }
 })
 
-import VideoProcessNode from '../../src/components/nodes/VideoProcessNode.jsx'
+import VideoProcessNode from '../../src/components/nodes/VideoProcessNode.tsx'
 beforeEach(() => { mocks.resetNodeMockState() })
 const setup = (props = {}) => render(<VideoProcessNode id="vp1" data={{}} selected={false} {...props} />)
 

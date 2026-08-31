@@ -84,17 +84,17 @@ const GIF_COLORS = [
 const VIDEO_EXT = /\.(mp4|webm|mov|mkv|avi|m4v|ogg)(?:$|[?#])/i
 const PX_PER_SEC = 36 // 时间线像素比例
 
-const normalizeMode = (m) => {
+const normalizeMode = (m: string): string => {
   if (m === 'resize' || m === 'frameRate') return 'sizeFrameRate'
   if (m === 'trim' || m === 'extractAudio' || m === 'sizeFrameRate' || m === 'concat' || m === 'toGif') return m
   return 'trim'
 }
-const stripExt = (name) => (name || '').replace(/\.[^.]+$/, '') || 'video'
-const formatDuration = (s) => (Number.isFinite(s) ? `${Math.floor(s / 60)}:${Math.floor(s % 60).toString().padStart(2, '0')}` : '0:00')
-const evenRound = (v) => Math.max(2, Math.round(v / 2) * 2)
-const round2 = (v) => Number(v.toFixed(2))
-const makeId = (p) => `${p}-${generateId('v')}`
-const nameFromUrl = (url) => {
+const stripExt = (name: string): string => (name || '').replace(/\.[^.]+$/, '') || 'video'
+const formatDuration = (s: number): string => (Number.isFinite(s) ? `${Math.floor(s / 60)}:${Math.floor(s % 60).toString().padStart(2, '0')}` : '0:00')
+const evenRound = (v: number): number => Math.max(2, Math.round(v / 2) * 2)
+const round2 = (v: number): number => Number(v.toFixed(2))
+const makeId = (p: string): string => `${p}-${generateId('v')}`
+const nameFromUrl = (url: string): string => {
   if (url.startsWith('data:')) return 'video.mp4'
   if (url.startsWith('blob:')) return 'local-video.mp4'
   try {
@@ -105,14 +105,14 @@ const nameFromUrl = (url) => {
 }
 
 /** 连接源 → 名称（复刻官方 Lc） */
-const sourceName = (node, url) => {
+const sourceName = (node: any, url: string): string => {
   const n = node?.data?.sourceVideoName || node?.data?.videoName || node?.data?.fileName || node?.data?.label || node?.id
   return typeof n === 'string' && n ? n : nameFromUrl(url)
 }
 
 /** canvas 抽一帧（复刻官方 _cmp_mc） */
-function captureFrame(url, atTime, quality = 0.55) {
-  return new Promise((resolve, reject) => {
+function captureFrame(url: string, atTime: number, quality = 0.55): Promise<Blob> {
+  return new Promise<Blob>((resolve, reject) => {
     const video = document.createElement('video')
     video.crossOrigin = 'anonymous'
     video.preload = 'auto'
@@ -162,16 +162,57 @@ function captureFrame(url, atTime, quality = 0.55) {
   })
 }
 
-function VideoProcessNode({ id, data, selected }) {
+/** GIF 生成结果信息（官方 fc.jsx resultInfo） */
+interface GifResultInfo {
+  width: number
+  height: number
+  frameCount: number
+  size: number
+}
+
+/** 视频处理节点 data 契约（字段多，统一以宽松接口 + 索引签名兜底） */
+interface VideoProcessNodeData {
+  label?: string
+  mode?: string
+  audioFormat?: string
+  resizeWidth?: number
+  resizeHeight?: number
+  targetFps?: number
+  gifMaxSize?: number
+  gifFps?: number
+  gifSpeed?: number
+  gifColors?: number
+  gifStart?: number
+  gifEnd?: number
+  gifDuration?: number
+  gifCrop?: unknown
+  gifResult?: GifResultInfo | null
+  progress?: number
+  loading?: boolean
+  errorMessage?: string
+  sourceVideoUrl?: string
+  sourceVideoName?: string
+  sourceMetadata?: Record<string, any>
+  timelineTracks?: any[]
+  [key: string]: unknown
+}
+
+interface VideoProcessNodeProps {
+  id: string
+  data: VideoProcessNodeData
+  selected?: boolean
+}
+
+function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
   const { setNodes, getNodes, getNode, getEdges, setEdges } = useReactFlow()
   // 标题改名 → 写回 data.label，让下游 @名 匹配 / 素材条显示跟随
-  const rename = useCallback((name) => {
+  const rename = useCallback((name: string) => {
     setNodes((ns) => ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, label: name } } : n)))
   }, [id, setNodes])
   const history = useCanvasEdges()
   const { isHidden } = useMediaDegrade()
   const { onMainBoxResize } = useNodeResize(id)
-  const contentRef = useRef(null)
+  const contentRef = useRef<HTMLDivElement | null>(null)
 
   /* ---------- 状态（复刻官方 1-41 行） ---------- */
   const [mode, setMode] = useState(() => normalizeMode(data.mode))
@@ -201,16 +242,18 @@ function VideoProcessNode({ id, data, selected }) {
   const [errorMessage, setErrorMessage] = useState(data.errorMessage || '')
 
   // refs
-  const videoRef = useRef(null) // u
-  const scrubRef = useRef(null) // d
-  const scrubDrag = useRef(null) // P3：scrub 手势期 { batch, rect }
-  const fileRef = useRef(null) // a
-  const metaInFlight = useRef(new Set()) // f
-  const thumbUrls = useRef([]) // p
+  const videoRef = useRef<HTMLVideoElement | null>(null) // u
+  const scrubRef = useRef<HTMLDivElement | null>(null) // d
+  // P3：scrub 手势期 { batch, rect } —— batch 是 createRafBatch 的包装函数（签名随回调泛型而变），
+  // 此处不固化其类型，避免与调用处漂移。
+  const scrubDrag = useRef<any>(null)
+  const fileRef = useRef<HTMLInputElement | null>(null) // a
+  const metaInFlight = useRef<Set<string>>(new Set()) // f
+  const thumbUrls = useRef<string[]>([]) // p
   const isScrubbing = useRef(false) // m
-  const controllerRef = useRef(null) // c
-  const abortRef = useRef(null) // l
-  const timelineWrapRef = useRef(null) // Ne
+  const controllerRef = useRef<any>(null) // c（ProgressController 实例，能力面由 videoEngine 决定）
+  const abortRef = useRef<AbortController | null>(null) // l
+  const timelineWrapRef = useRef<HTMLDivElement | null>(null) // Ne
 
   /* ---------- 输入源（复刻官方 42-89 行） ---------- */
   const connected = useConnectedInputs(id)
@@ -303,7 +346,7 @@ function VideoProcessNode({ id, data, selected }) {
     // 确保有视频轨道
     let videoTrack = built.find((t) => t.kind === 'video')
     if (!videoTrack) {
-      videoTrack = { id: 'video-track-1', name: '视频 1', kind: 'video', clips: [] }
+      videoTrack = { id: 'video-track-1', name: '视频 1', kind: 'video', clips: [], muted: false }
       built.push(videoTrack)
     }
     // 把有元数据的未用源自动加入视频轨（复刻官方 5443-5466）
