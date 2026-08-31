@@ -369,10 +369,10 @@ export const STORAGE_KEYS = {
     note: '旧单会话历史（仅首次迁移用，从旧格式迁移到多对话体系后不再写入）',
   },
 
-  // ── AI 生图参数（useCanvasAgentTools.js）───────────────────────────
+  // ── AI 生图参数（useCanvasAgentTools.ts）───────────────────────────
   canvasAgentGenParams: {
     domain: 'agent',
-    store: 'useCanvasAgentTools.js',
+    store: 'useCanvasAgentTools.ts',
     backend: 'local',
     note: 'AI 生图默认参数：{ model, ratio, resolution }',
   },

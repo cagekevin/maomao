@@ -51,7 +51,7 @@ export function getLastGeneratedImages(): any[] {
 
 /** 【对齐大雄 agentCurrentImageMap】统一编号映射：上一轮生成图(图1~图M) + 当前附件(图M+1~图M+N)。
  *  返回 [{ num, url, name, source:'gen'|'att' }]。**两个消费方**（改前必读）：
- *   ① 执行层：execute_plan（useCanvasAgentTools.js）用它把 direct_refs 的 url 反查成「图N」，翻译 prompt 里的「图N」；
+ *   ① 执行层：execute_plan（useCanvasAgentTools.ts）用它把 direct_refs 的 url 反查成「图N」，翻译 prompt 里的「图N」；
  *   ② 发送层：useAgentChat.send 把它传给 buildRequestMessages 的 imageCatalog，注入 LLM（「当前可引用的图」），
  *      让 LLM 在 generations 里能用「图N」+ direct_refs 精确引用历史图/上一轮生成图（图本体不进 LLM 上下文）。
  *  数据源：上一轮生成图来自 getLastGeneratedImages()（assistant 消息的 lastResults，由 useAgentChat 在

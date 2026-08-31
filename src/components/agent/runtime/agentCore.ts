@@ -112,7 +112,7 @@ const DELETE_VERBS = new Set(['删除', '移除', '删掉', 'delete'])
 // ── 画布操作准则（单一来源，前端注入）──
 // 原设计把准则放后端 agentChat.ts unshift，但默认路径（provider 存在）走 /api/proxy，
 // 后端 agentChat.ts 不参与 → 准则在默认形态下是死代码。现改为前端在 useAgentChat 统一注入，
-// 覆盖 proxy 与 agent 两条路径。工具名与 useCanvasAgentTools.js 的 AGENT_TOOLS 一一对应。
+// 覆盖 proxy 与 agent 两条路径。工具名与 useCanvasAgentTools.ts 的 AGENT_TOOLS 一一对应。
 // 值已收口到 ../agentConfig.js 的 AGENT_PROMPTS.CANVAS_RULES；此处别名 re-export 保 useAgentChat/单测 import 契约。
 export const CANVAS_AGENT_RULES = AGENT_PROMPTS.CANVAS_RULES
 

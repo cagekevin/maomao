@@ -9,7 +9,7 @@ vi.mock('../../src/components/agent/conversation/conversationStore.ts', () => ({
   setActivePendingGenerations: vi.fn(),
   getActivePendingGenerations: vi.fn(() => null),
   // 勿加 setPendingGenerations/getPendingGenerations/clearPendingGenerations：
-  // 它们是 useCanvasAgentTools.js:106-113 的本地兼容壳，非本模块导出。
+  // 它们是 useCanvasAgentTools.ts:106-113 的本地兼容壳，非本模块导出。
   // 加进来会变成"多余 key 不报错"的死通道诱饵（详见 beforeEach 内注入注释）。
   setAwaitingConfirm: vi.fn(),
   getAwaitingConfirm: vi.fn(),
@@ -43,7 +43,7 @@ vi.mock('../../src/components/agent/canvas/canvasPlanExecutor.ts', async (import
   }
 })
 
-import { buildCanvasAgentTools, CANVAS_AGENT_TOOL_NAMES, getNodeImageUrl, setCurrentReferenceImages, runExistingPlanTool, setCreditSwitch, getCreditSwitch } from '../../src/components/agent/canvas/useCanvasAgentTools.js'
+import { buildCanvasAgentTools, CANVAS_AGENT_TOOL_NAMES, getNodeImageUrl, setCurrentReferenceImages, runExistingPlanTool, setCreditSwitch, getCreditSwitch } from '../../src/components/agent/canvas/useCanvasAgentTools.ts'
 import * as convStore from '../../src/components/agent/conversation/conversationStore.ts'
 import * as taskStore from '../../src/components/base/taskStore.ts'
 import { executePlan as mockExecutePlan, buildFusionPrompt, buildProductReferencePrompt } from '../../src/components/agent/canvas/canvasPlanExecutor.ts'
@@ -74,7 +74,7 @@ beforeEach(() => {
   vi.mocked(convStore.setCreditGate).mockImplementation((g) => { convStore.__state.creditGate = g || null })
   vi.mocked(convStore.clearCreditGate).mockImplementation(() => { convStore.__state.creditGate = null })
   // 注意：注入必须打在 barrel 真符号上。getPendingGenerations/setPendingGenerations 是
-  // useCanvasAgentTools.js:106-113 的本地兼容壳，不是 conversationStore 的导出——
+  // useCanvasAgentTools.ts:106-113 的本地兼容壳，不是 conversationStore 的导出——
   // 打在壳名上会形成死通道：写入无人读，真身读到的 getActivePendingGenerations 恒返回 mock 默认 null。
   vi.mocked(convStore.getActivePendingGenerations).mockImplementation(() => convStore.__state.pending)
   vi.mocked(convStore.setActivePendingGenerations).mockImplementation((g) => { convStore.__state.pending = g })
@@ -661,7 +661,7 @@ describe('画布 Agent 工具层 §2.5', () => {
 
   it('execute_plan 有阶段1暂存 → 主通道取暂存（pendingUsed 分支）', async () => {
     convStore.__state.awaiting = false
-    // 主来源①「阶段1 暂存 pendingGenerations」内存优先（见 useCanvasAgentTools.js:918-919）
+    // 主来源①「阶段1 暂存 pendingGenerations」内存优先（见 useCanvasAgentTools.ts:918-919）
     convStore.__state.pending = [{ id: 'g1', prompt: '一只猫' }]
     const ctx = makeCtx()
     const t = buildCanvasAgentTools(ctx)

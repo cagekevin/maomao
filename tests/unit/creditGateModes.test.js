@@ -5,7 +5,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
  *
  * 契约来源：docs/59-AI助手模式收敛-PRD-三按钮与积分确认（§4.3 / §8）、docs/60 施工执行计划（D1-D9）。
  *
- * 核心判定（收敛到 execute_plan 唯一入口，useCanvasAgentTools.js executePlanTool）：
+ * 核心判定（收敛到 execute_plan 唯一入口，useCanvasAgentTools.ts executePlanTool）：
  *   creditHit = getCreditSwitch()   // 2026-08-27 简化：全局总闸，与 runMode/模式正交
  *   · 命中（开关开）→ 强制 autoRun=false（只建节点、不烧积分），置 per-conv creditGate，返回 awaited:'credit'
  *   · 未命中（开关关）→ 按原 autoRun 放行（真烧积分）
@@ -36,7 +36,7 @@ vi.mock('../../src/components/agent/conversation/conversationStore.ts', () => ({
   setActivePendingGenerations: vi.fn(),
   getActivePendingGenerations: vi.fn(() => null),
   // 勿加 setPendingGenerations/getPendingGenerations/clearPendingGenerations：
-  // 它们是 useCanvasAgentTools.js:106-113 的本地兼容壳，非本模块导出。
+  // 它们是 useCanvasAgentTools.ts:106-113 的本地兼容壳，非本模块导出。
   // 加进来会变成"多余 key 不报错"的死通道诱饵（本文件此前 3 个 key 从未被注入过实现）。
   setAwaitingConfirm: vi.fn(),
   getAwaitingConfirm: vi.fn(),
@@ -74,7 +74,7 @@ vi.mock('../../src/components/agent/canvas/canvasPlanExecutor.ts', async (import
   }
 })
 
-import { buildCanvasAgentTools } from '../../src/components/agent/canvas/useCanvasAgentTools.js'
+import { buildCanvasAgentTools } from '../../src/components/agent/canvas/useCanvasAgentTools.ts'
 import * as convStore from '../../src/components/agent/conversation/conversationStore.ts'
 import { executePlan as mockExecutePlan } from '../../src/components/agent/canvas/canvasPlanExecutor.ts'
 

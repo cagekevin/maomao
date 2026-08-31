@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useCanvasAgentTools, getGenParams, setCurrentReferenceImages } from '../canvas/useCanvasAgentTools.js'
+import { useCanvasAgentTools, getGenParams, setCurrentReferenceImages } from '../canvas/useCanvasAgentTools.ts'
 import { loadAgentChatModel, loadAgentHistoryTurns } from '../../base/settings/agentModelStore.ts'
 import { logger } from '../../base/logger.ts'
 import { withTimeout } from '../../base/asyncGuard.ts'
@@ -207,7 +207,7 @@ interface SendUserMessage {
  *   global_contract）+ 当前可引用图编号（agentCurrentImageMap）。详见 buildRequestMessages 头注释。
  *
  * ── 四、执行层跨轮图（对齐大雄 executeAgentGenerations 8695 / 无Skill 10634）──
- *   参考图解析优先级（execute_plan 实现，见 useCanvasAgentTools.js）：
+ *   参考图解析优先级（execute_plan 实现，见 useCanvasAgentTools.ts）：
  *   ① direct_refs 优先（仅独立步骤，agentCurrentImageMap 翻译「图N」）；② attachment_indices
  *   （use_attachments + 取 refPool）；③ 无图不挂（agentForceNoStaleLastOutputs）。
  *   跨轮 lastResults 彻底关闭（use_last_outputs=false）——绝不自动挂历史生成图。
@@ -715,7 +715,7 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
             depends_on_previous: false,
             dependency_mode: 'none',
             // 【图生图·单图修复 2026-08-27】直连模式带参考图时必须声明 use_attachments（对齐多图路径
-            // buildPerReferenceGenerations），否则 execute_plan 的参考图解析分支③（useCanvasAgentTools.js）
+            // buildPerReferenceGenerations），否则 execute_plan 的参考图解析分支③（useCanvasAgentTools.ts）
             // 会把本步作废为 use_attachments:false → 参考图不会写入节点 data.images，图生图失效。
             // 有参考图 → 整批共享（无 attachment_indices，execute_plan 按 use_attachments=true 全量挂 refPool）。
             ...(referenceImages.length ? { use_attachments: true } : {}),

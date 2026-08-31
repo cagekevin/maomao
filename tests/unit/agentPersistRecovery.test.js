@@ -20,7 +20,7 @@ import { renderHook, act, waitFor } from '@testing-library/react'
 import * as convStore from '../../src/components/agent/conversation/conversationStore.ts'
 
 const callTool = vi.fn()
-vi.mock('../../src/components/agent/canvas/useCanvasAgentTools.js', () => ({
+vi.mock('../../src/components/agent/canvas/useCanvasAgentTools.ts', () => ({
   useCanvasAgentTools: () => ({ toolSchemas: [], callTool }),
   getGenParams: () => ({ model: '', ratio: 'Auto', resolution: '1K' }),
   setCurrentReferenceImages: vi.fn(),

@@ -19,7 +19,7 @@
  *     └─ agentAttachments.js     M3 附件归一/参考图编号（normalizeAttachmentsForSend/buildRefCatalog）
  *
  *   canvas/                      —— 画布操作 + 工具层
- *     ├─ useCanvasAgentTools.js  24 个画布工具（AI 调用的工具注册表）
+ *     ├─ useCanvasAgentTools.ts  24 个画布工具（AI 调用的工具注册表）
  *     ├─ canvasPlanExecutor.ts   多步执行器（Wave1 并行 + Wave2 依赖）
  *     └─ canvasHost.js           M1 画布原语层（getNode/createNode/deleteNodes/transaction，写操作唯一入口）
  *
@@ -32,7 +32,7 @@
  *     └─ conversationStore.js    聚合 re-export（外部统一从这 import）
  *
  * 【改 X 看哪（快速定位）】
- *   - 加工具        → canvas/useCanvasAgentTools.js（注册 name/description/parameters/execute）
+ *   - 加工具        → canvas/useCanvasAgentTools.ts（注册 name/description/parameters/execute）
  *   - 改发送/循环    → runtime/useAgentChat.ts
  *   - 改工作流状态   → runtime/workflowState.js
  *   - 改会话状态     → conversation/conversationState.js（底座）/ conversationStore.js（聚合）
@@ -51,7 +51,7 @@
  *   新增对外符号 → 在此追加 re-export，勿在外部直接 import 子目录深层路径。
  */
 export { useAgentChat } from './runtime/useAgentChat.ts'
-export { setGenParams, getGenParams, getNodeImageUrl, getCreditSwitch, setCreditSwitch } from './canvas/useCanvasAgentTools.js'
+export { setGenParams, getGenParams, getNodeImageUrl, getCreditSwitch, setCreditSwitch } from './canvas/useCanvasAgentTools.ts'
 export { setAgentKey } from './conversation/conversationStore.ts'
 // 运行模式注册表透出（docs/65 M1/M8）：三态单一真源，AgentPanel 从这里 import，不绕深层路径
 export { getWorkMode, setWorkMode, RUN_MODE_IDS, DEFAULT_WORK_MODE, isAgentWorkMode, WORK_MODE_STORAGE_KEY } from './runtime/runModeRegistry.ts'

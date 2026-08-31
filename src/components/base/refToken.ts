@@ -18,7 +18,7 @@
  *   → 大雄 LLM 上下文里一张历史图都没有，靠 token + 执行层反查跨轮用图。
  * 我们（对齐前）：完全没有这层，历史图直接以原图 URL 堆进 LLM 上下文 → 造成「真图堆积 + 撞号」→ 全反推。
  * 我们（对齐后）：本文件实现 token 编解码；历史图仍不进 LLM 上下文，跨轮用图靠 execute_plan
- *   （useCanvasAgentTools.js）经 getCurrentImageMap / getLastGeneratedImages 反查。
+ *   （useCanvasAgentTools.ts）经 getCurrentImageMap / getLastGeneratedImages 反查。
  */
 import type { RefImageAttrs, RefTokenNode, RefKnownImage } from '@/types'
 

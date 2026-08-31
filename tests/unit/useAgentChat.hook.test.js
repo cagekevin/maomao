@@ -21,7 +21,7 @@ import { renderHook, act, waitFor } from '@testing-library/react'
 // ── mock 工具层：返回可控 callTool ──
 const callTool = vi.fn()
 const toolSchemas = [{ type: 'function', function: { name: 'create_node' } }]
-vi.mock('../../src/components/agent/canvas/useCanvasAgentTools.js', () => ({
+vi.mock('../../src/components/agent/canvas/useCanvasAgentTools.ts', () => ({
   useCanvasAgentTools: () => ({ toolSchemas, callTool }),
   getGenParams: () => ({ model: '', ratio: 'Auto', resolution: '1K' }),
   setCurrentReferenceImages: vi.fn(),

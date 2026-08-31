@@ -337,7 +337,9 @@ function buildCreateNode(args, ctx, currentNodes) {
   // 用白名单而非 getPaletteNode：即使调色板里新增了剧本盒等类型，agent 也不会被允许创建。
   const ALLOWED_TYPES = ['textNode', 'promptNode', 'imageNode', 'discountVideoNode', 'group']
   if (!type || !ALLOWED_TYPES.includes(type)) return { error: `未知节点类型：${type}。可选：${ALLOWED_TYPES.join('、')}` }
-  const data = { ...defaultNodeData(type), ...(args.label ? { label: args.label } : {}), ...(args.prompt ? { prompt: args.prompt } : {}) }
+  // 节点 data 是各节点类型自有的自由字段集（defaultNodeData 按 type 返回不同形状），
+  // 此处按「可写任意字段的 data 容器」处理，便于下面按 type 补 text / aspectRatio / imageSize。
+  const data: Record<string, unknown> = { ...defaultNodeData(type), ...(args.label ? { label: args.label } : {}), ...(args.prompt ? { prompt: args.prompt } : {}) }
   // textNode 内容落「生成区」（data.text，TextNode 主容器/AI 生成结果显示处），而非抽屉区（data.prompt）。
   // 显式传 text（按钮「发到画布」等）时写 data.text；AI 走 prompt（抽屉区）的历史行为保持不变。
   if (type === 'textNode' && args.text !== undefined && args.text !== null) {
@@ -514,7 +516,7 @@ const updateNodeTool = {
     const id = str(args.nodeId)
     const node = host.getNode(id)
     if (!node) return { ok: false, error: `节点不存在：${id}` }
-    const patch = {}
+    const patch: Record<string, unknown> = {}
     for (const k of UPDATE_NODE_WHITELIST) {
       if (args[k] !== undefined) patch[k] = args[k]
     }
@@ -747,11 +749,14 @@ const triggerGenerationTool = {
       // 失败也带 nodeId，供对话侧「重试此步骤」定位节点（对齐大雄 retryAgentGeneration）
       return { ok: false, error: `节点 ${id} 未注册生成契约（类型 ${node.type} 暂不支持由 Agent 驱动）`, nodeId: id }
     }
-    if (res.ok === false) {
-      return { ok: false, error: res.error || '生成失败', nodeId: id }
+    // res 跨代不统一（见 taskStore.runNodeGeneration）：旧回调版返回 true（无结果对象），
+    // 新版返回 { ok, resultUrl }。先剥掉 true 分支，后面才读得动 ok / resultUrl。
+    const run = res === true ? null : res
+    if (run?.ok === false) {
+      return { ok: false, error: run.error || '生成失败', nodeId: id }
     }
     // res 可能是 { ok:true, resultUrl }（新版 start，await 到生成完成）或 true（旧回调）→ resultUrl 兜底空串
-    const resultUrl = res.resultUrl || ''
+    const resultUrl = run?.resultUrl || ''
     // 【收敛信号】对齐参考项目（daxiong canvas-agent）：给 AI 明确的「完成/进行中」状态，
     // 而不是一律写死"已提交等待完成"（那会误导 AI 以为没生成完 → 重复触发/重复建节点）。
     // - resultUrl 非空 → 生成已完成，明确告知"已生成"，不再需要任何重复操作。
@@ -925,7 +930,7 @@ const executePlanTool = {
         logger.error('AI助手', '[plan] execute_plan 拒绝：无有效计划来源', {
           pendingExists: Array.isArray(pending) && pending.length > 0,
           argsGenCount: argsGens.length,
-        }, { module: 'agent' })
+        })
         return {
           ok: false,
           error: '未找到生成计划。请确保本次生图已有计划来源：\n1. AI 在回复正文用 ```json 输出 generations 数组，或\n2. 调用 show_plan_for_confirm / 在 execute_plan 的 generations 参数中提供每步计划。\n（若走 Skill 流程，需先完成阶段1 策划确认。）',
@@ -1037,7 +1042,7 @@ const executePlanTool = {
       if (creditHit) {
         patchCurrentWorkflow({ status: 'ready', updatedAt: Date.now() })
         if (result.entries.length === 0) {
-          logger.error('AI助手', '[plan] execute_plan 命中积分闸但未建出节点', {}, { module: 'agent' })
+          logger.error('AI助手', '[plan] execute_plan 命中积分闸但未建出节点', {})
           return { ok: false, error: '计划未能建出节点，未进入积分确认' }
         }
         const map = {}
