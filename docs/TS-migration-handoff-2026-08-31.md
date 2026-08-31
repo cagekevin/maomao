@@ -241,6 +241,10 @@ npm test                # 全量四件套
 npm run build
 ```
 并更新 CLAUDE.md / spec/CONTEXT.md 里仍写 `.js`/`.jsx` 的路径描述（如目录结构、check 脚本说明）。
+—— **✅ 已完成（`036268e` 之后的文档批）**：`CLAUDE.md` 9 行 + `spec/CONTEXT.md` 40 行陈旧 `.js`/`.jsx` 引用全部同步为真实后缀，实测 15 处带目录引用全部命中存在文件。
+   ⚠️ **教训**：扫描时**不能只 grep `src/...` 完整路径**——`spec/CONTEXT.md` 大量用 `base/xxx.js` 简写形式，首轮因此只报出 2 行、实际有 40 行。扫描口径应覆盖「basename + 后缀」两种形态。
+   ⚠️ **命令坑**：macOS 自带 BSD `sed` **不支持 `\b` 词边界**，`s/\butils\.js\b/.../` 静默不匹配（本批首轮全军覆没，仅能匹配无边界的表达式）。批量替换一律用 `perl -pi -e`。
+   ⚠️ **不止换后缀，目录也漂了**：`useNodeGeneration`(→`src/hooks/`)、`storageAdapter`(→`base/storage/`)、`chatApi`/`imageApi`/`videoApi`/`httpClient`(→`base/api/`) 等在 hook 收口与深模块化时搬过家，纯后缀替换会留下错误路径。
 
 ## 八、脚本本身（勿删，用户明确要求保留）
 

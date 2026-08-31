@@ -10,7 +10,7 @@
 
 ```
 本目录（新建文件夹，正式工程）
-├── src/                        ← 【主力】可维护原型（App.jsx / components/ / base/…）
+├── src/                        ← 【主力】可维护原型（App.tsx / components/ / base/…）
 ├── public/                     ← 静态资源
 ├── index.html + vite.config.js + tailwind.config.js + package.json
 ├── scripts/                    ← 测试地基（smoke/regression/tools/health-check），见 scripts/README.md
@@ -49,7 +49,7 @@ node scripts/task-inspect.mjs --lost-check      # 全库丢图体检
 node scripts/task-inspect.mjs --canvas-health   # 画布结构体检
 ```
 
-**脚本 `task-inspect.mjs` 「查任务」**。它会自动判定 id 类型并拉出数据库+后端日志+前端日志全链路。**禁止**在查任务时去翻 `taskStore.js`/`tasks.ts` 硬猜断点——先跑它拿真实数据再定位。
+**脚本 `task-inspect.mjs` 「查任务」**。它会自动判定 id 类型并拉出数据库+后端日志+前端日志全链路。**禁止**在查任务时去翻 `taskStore.ts`/`tasks.ts` 硬猜断点——先跑它拿真实数据再定位。
 
 ### 注意
 - 下方 §〇~§七 是**通用工程规范 + 原型架构**，与 `src/` 直接相关。
@@ -135,11 +135,11 @@ node scripts/task-inspect.mjs --canvas-health   # 画布结构体检
 ## 二、 前端原型架构
 
 * **技术栈**：Vite + React 19（`package.json` 实测 `react@19.2.8`、`@types/react@^19` 已对齐）+ `@xyflow/react`(React Flow) + Tailwind。开发服务器 `localhost:5180`。tsconfig 暂未开启 `strict`/`checkJs`（`strict:false`），类型检查靠 `tsc --noEmit` + 测试门禁。
-* **入口**：`src/main.jsx` → `src/App.jsx`。
-* **节点体系**：`src/components/nodes/*.jsx`，每个节点一个文件，**当前共 17 个**（TextNode/ImageNode/PromptNode/DiscountVideoNode/VideoExtractNode/ImageBoxNode/GridSplitNode/GridMergeNode/VideoProcessNode/GroupNode/ScriptBoxNode/GhostTargetNode/Director3DNode/FaceMosaicNode/LoopNode/PanoramaNode/TemplateNode）。**新增节点权威流程 → `spec/NEW-NODE-GUIDE.md`**（NodeShell 外壳 + 注册同步 + NODE_OUTPUTS 管线契约，顶层规则见 `spec/CONTEXT.md` §一·5）。
+* **入口**：`src/main.tsx` → `src/App.tsx`。
+* **节点体系**：`src/components/nodes/*.tsx`，每个节点一个文件，**当前共 17 个**（TextNode/ImageNode/PromptNode/DiscountVideoNode/VideoExtractNode/ImageBoxNode/GridSplitNode/GridMergeNode/VideoProcessNode/GroupNode/ScriptBoxNode/GhostTargetNode/Director3DNode/FaceMosaicNode/LoopNode/PanoramaNode/TemplateNode）。**新增节点权威流程 → `spec/NEW-NODE-GUIDE.md`**（NodeShell 外壳 + 注册同步 + NODE_OUTPUTS 管线契约，顶层规则见 `spec/CONTEXT.md` §一·5）。
 * **通用能力地基**：`src/components/base/`（`NodeShell` 统一外框、`CanvasToolbar`、`useArrangeCanvas`、`useCanvasAgentTools` 脚本盒引擎、Toast、ImageEditor、OverlayEditor、设置面板、AI 助手面板 AgentPanel 等）。
 * **设计语言**：参照 `docs/BASE-CAPABILITIES.md`；节点视觉/交互规范见 `docs/README.md`「节点设计规范」。
-* **运行形态**：Chrome 扩展（MV3）。`public/manifest.json` + `background.js` + `icon*.png` 为插件壳；`src/` 编译后由 `vite.config.js`（`base:'./'`，兼容 `chrome-extension://`）打包进 `dist/`。存储经 `src/components/base/contentStore.js`（横切存储权威入口，按 `STORAGE_KEYS.backend` 自动路由 local/KV/native：local 走 `storageAdapter.js`（chrome.storage 扩展环境）/原生 `localStorage`；kv 走 localTool KV；native 后端如 director3d 直写原生 `localStorage`）。`npm run dev` 预览画布，`npm run build` 出 `dist/`。
+* **运行形态**：Chrome 扩展（MV3）。`public/manifest.json` + `background.js` + `icon*.png` 为插件壳；`src/` 编译后由 `vite.config.js`（`base:'./'`，兼容 `chrome-extension://`）打包进 `dist/`。存储经 `src/components/base/contentStore.ts`（横切存储权威入口，按 `STORAGE_KEYS.backend` 自动路由 local/KV/native：local 走 `base/storage/storageAdapter.ts`（chrome.storage 扩展环境）/原生 `localStorage`；kv 走 localTool KV；native 后端如 director3d 直写原生 `localStorage`）。`npm run dev` 预览画布，`npm run build` 出 `dist/`。
 
 * **3D 导演台（director3d）**：`src/components/director3d/` 是**从外部下载的开源仓库**（storyai-3d-director-desk）集成进来的，**非本仓库自有代码**。由 `Director3DNode` 双击进入。⚠️ **边界**：它基本独立于主画布（有自己的 store/schema/编辑器，TS 实现）。**不为它写测试、不纳入测试维护、不主动重构**；改动只做"必要的最小集成"，改前先读文件头注释。要查它怎么用，看 `spec/TEST-GUIDE.md` §八 批6 已标注"不开测"。
 
@@ -261,7 +261,7 @@ node scripts/task-inspect.mjs --canvas-health   # 画布结构体检
 2. **禁止新文件循环 import 大模块**（TDZ）：跨模块引用走既有 barrel / 已导出符号。
 3. **React 单实例不可破**：整工程唯一 React 实例，✗ 不可新增独立 react/react-dom 实例。
 4. **字符串契约零损伤**（见 §五.5）：`proxyMode=local-tool`、`127.0.0.1:18080`、`127.0.0.1:9004`、`/api/proxy`、`x-proxy-url`、画布硬编码字段 `t.data[0].url`、`{code,data}` 信封——改任何引用必须全量 grep 同步。
-5. **存储键禁止裸字符串（P0 红线）**：所有存储读写（`content*/s*/storage*/kv*`）的 key 必须引用 `contracts.js` 的 `STORAGE_KEYS` 登记项，**禁止裸字符串字面量 key**。新增键先登记、改键名全量 grep、删键先确认无引用。编译期拦截：`npm run check:keys`（静态）；运行时拦截：`contentStore.checkRegistered` 在 dev 环境对未登记字面量 key 直接 throw（`scripts/check-storage-keys.mjs` + `src/components/base/contentStore.js` 为权威实现，改此机制须同步本红线）。
+5. **存储键禁止裸字符串（P0 红线）**：所有存储读写（`content*/s*/storage*/kv*`）的 key 必须引用 `contracts.js` 的 `STORAGE_KEYS` 登记项，**禁止裸字符串字面量 key**。新增键先登记、改键名全量 grep、删键先确认无引用。编译期拦截：`npm run check:keys`（静态）；运行时拦截：`contentStore.checkRegistered` 在 dev 环境对未登记字面量 key 直接 throw（`scripts/check-storage-keys.mjs` + `src/components/base/contentStore.ts` 为权威实现，改此机制须同步本红线）。
 6. **事件名禁止裸字符串 + 登记表零滞后（P0 红线，与存储键对称）**：所有事件总线调用（`publish`/`subscribe`/`subscribeOnce`）的事件名必须是 `contracts.js` 的 `EVENTS` 登记项，**禁止裸字符串字面量事件名**（编译期 `npm run check:events` 拦截）。`EVENTS` 的 `from`/`to` 是发布/订阅事实源，**必须与代码实测的 `publish`/`subscribe` 位置自洽**：① 表 `to: []` 但代码实测有 `subscribe` → 视为"登记表滞后"（实际已被订阅），**禁止据此判定死事件/可删发布逻辑**；② 行号漂移须同步对齐。双向校验 `npm run check:events` 已挂 `prebuild`+`pretest`（`scripts/check-events.mjs` 为权威实现）。
 5. **降复杂度优先**：能减少复杂度又不引入 bug 的改动都做（混淆短名改语义长名、抽公共、删冗余），被运行时契约钉死的除外。改完必须 `npm run build` 验证。
 
@@ -273,7 +273,7 @@ node scripts/task-inspect.mjs --canvas-health   # 画布结构体检
 
 ### 5.5.1 生成链路真相源契约（P0 红线，索引）
 
-> **任务中心为结果权威源，node.data 为渲染缓存副本；写只走 `useNodeGeneration`，刷新后任务中心单向回填节点，节点不回写。** 完整红线细则见 `spec/CONTEXT.md §五 数据一致性防线`；机制见 `src/components/base/useNodeGeneration.js` 文件头 JSDoc（改 hook 必须同步文件头）。
+> **任务中心为结果权威源，node.data 为渲染缓存副本；写只走 `useNodeGeneration`，刷新后任务中心单向回填节点，节点不回写。** 完整红线细则见 `spec/CONTEXT.md §五 数据一致性防线`；机制见 `src/hooks/useNodeGeneration.ts` 文件头 JSDoc（改 hook 必须同步文件头）。
 
 ### 5.6 最小差异提交
 
@@ -299,8 +299,8 @@ node scripts/task-inspect.mjs --canvas-health   # 画布结构体检
 > 禁止在没查画布状态前直接猜测或下结论（避免「用户说 A、AI 说 B」）。
 > - `--canvas-health` 缺省取最近更新的画布快照；可传 projectId（如 `proj-xxx`）指定。
 > - 覆盖：数据结构类（节点/边/布局/保存）。**UI 视觉类**（样式、错位观感）查不到，需结合截图或
->   `--logs` 前端上报日志（`logger.js` 已上报 localTool `/api/logs`）。
-> - 常见判读：无 id 边 → EdgeRenderer 用 undefined 作 key 触发重复 key 警告（App.jsx `onConnect` 需补 id）；
+>   `--logs` 前端上报日志（`logger.ts` 已上报 localTool `/api/logs`）。
+> - 常见判读：无 id 边 → EdgeRenderer 用 undefined 作 key 触发重复 key 警告（App.tsx `onConnect` 需补 id）；
 >   重复 id/悬空边 → 数据链路错误。
 
 ### 1. 启动方式
