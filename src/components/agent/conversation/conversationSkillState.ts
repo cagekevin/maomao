@@ -11,7 +11,7 @@
  * （经 conversationStore 聚合 re-export）。
  * ════════════════════════════════════════════════════════════════
  */
-import { getActiveConv, commit, getState } from './conversationState.js'
+import { getActiveConv, commit, getState } from './conversationState.ts'
 import { CREDIT_GATE_FIELD } from '../../base/contracts.js'
 
 /**
@@ -74,7 +74,9 @@ export function setActivePendingMemorySuggest(suggest: Record<string, unknown> |
 
 /** 读当前对话的积分确认门禁（creditGate：null 或 { pending, gens, map(stepId→nodeId) }） */
 export function getCreditGate(): CreditGate | null {
-  return getActiveConv()?.[CREDIT_GATE_FIELD] || null
+  // creditGate 经动态键（CREDIT_GATE_FIELD）存取，索引签名取到 unknown；
+  // 其形状由 setCreditGate 写入时校验保证，故此处按 CreditGate 读。
+  return (getActiveConv()?.[CREDIT_GATE_FIELD] as CreditGate | undefined) || null
 }
 
 /**

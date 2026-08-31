@@ -34,8 +34,97 @@ import { applyConversationBudget, estimateConversationsBytes, SAFE_BUDGET_BYTES 
  * 存储键按 agentKey 隔离（每项目一个 agentKey → 每项目一套会话）。
  * 键形如 agent_conversations_canvas-assistant-<projectId>，天然按项目分开。
  */
-export const convKey = (k) => `agent_conversations_${k}`
-export const activeKey = (k) => `agent_active_conversation_id_${k}`
+export const convKey = (k: string) => `agent_conversations_${k}`
+export const activeKey = (k: string) => `agent_active_conversation_id_${k}`
+
+/**
+ * 会话记忆（对齐大雄 agentEmptyConversationMemory）。
+ * global_contract 为统一风格契约；artifacts 为跨步成果资产。
+ */
+export interface ConversationMemory {
+  summary: string
+  facts: any[]
+  lastPlan: Record<string, any> | null
+  lastSharedStyle: string
+  notes: any[]
+  global_contract: GlobalContractShape | null
+  artifacts: ArtifactShape[] | null
+  // 索引签名：①落盘数据可能携带历史遗留字段；②使本类型可赋值给 volumePolicy 的宽松
+  // ConversationMemory（TS 的 interface 无隐式索引签名，缺此会在跨层调用处报 TS2345）。
+  [key: string]: unknown
+}
+
+/** 统一风格契约的归一形状（三字段恒为 string） */
+export interface GlobalContractShape {
+  visual_positioning: string
+  unified_style_prompt: string
+  unified_negative_prompt: string
+}
+
+/** 跨步成果资产条目（归一后仅保证对象，字段由写入方约定） */
+export interface ArtifactShape {
+  id?: string
+  type?: string
+  title?: string
+  description?: string
+  nodeId?: string
+  url?: string
+  [key: string]: unknown
+}
+
+/** 工作流运行时状态（per-conversation，对齐大雄 conv.workflow） */
+export interface WorkflowState {
+  id: string
+  status: string
+  nodeIds: string[]
+  steerQueue: any[]
+  startedAt: number
+  updatedAt: number
+  [key: string]: unknown
+}
+
+/**
+ * pending 引用（刷新恢复用）。
+ * 【P1a 去重】新形态不存 text 副本，改引用 messageId；旧数据的 text 为迁移期兼容字段。
+ */
+export interface PendingRefState {
+  conversationId: string
+  messageId: string
+  text?: string
+  attachments?: any[]
+}
+
+/**
+ * 单条会话。字段由 normalizeConversation 保证齐全；
+ * 索引签名保留，因为落盘数据可能携带历史遗留字段（creditGate 等也经 CREDIT_GATE_FIELD 动态键访问）。
+ */
+export interface Conversation {
+  id: string
+  title: string
+  ts: number
+  updatedAt: number
+  draft: string
+  messages: any[]
+  skills: any[]
+  attachments: any[]
+  memory: ConversationMemory
+  workflow: WorkflowState | null
+  pending: PendingRefState | null
+  aiUndoStack: any[]
+  pendingGenerations: any[] | null
+  awaitingConfirm: boolean
+  pendingMemorySuggest: Record<string, any> | null
+  referenceImages: string[]
+  runMode: 'auto' | 'step-confirm'
+  [key: string]: unknown
+}
+
+/** 单个 agentKey 的状态（sending 仅内存、不落盘） */
+export interface ConversationStoreState {
+  conversations: Conversation[]
+  activeId: string
+  sending: boolean
+}
 /** AI 助手 agentKey 前缀（对齐 App.jsx / backupStore.ts，集中避免散落硬编码） */
 const AGENT_KEY_PREFIX = 'canvas-assistant'
 /** 旧全局会话键（迁移用）：改造前无 agentKey 后缀（contracts.js 登记为 migration 键） */
@@ -58,9 +147,9 @@ export function emptyMemory() {
  * 这样 AI 会话跟随项目走，项目作为最顶层，互不串话。
  * sending = 运行态标志（是否正在发送/流式）。仅存内存、不落盘（persist 只序列化 conversations + activeId）。
  */
-const states = {}           // { [agentKey]: { conversations, activeId, sending } }
-const hydratedSet = {}      // { [agentKey]: boolean } 该 key 是否已恢复过当前对话
-let currentAgentKey = AGENT_KEY_PREFIX  // 当前生效的 agentKey（由 setAgentKey 设置）
+const states: Record<string, ConversationStoreState> = {}  // { [agentKey]: { conversations, activeId, sending } }
+const hydratedSet: Record<string, boolean> = {}            // { [agentKey]: boolean } 该 key 是否已恢复过当前对话
+let currentAgentKey: string = AGENT_KEY_PREFIX             // 当前生效的 agentKey（由 setAgentKey 设置）
 
 // P4 落盘节流：commit 每次变更全量 stringify + 落盘是热路径（流式/轮询/记忆提炼高频触发），
 // 防抖合并成最终态一次落盘。通知订阅者（notify）保持即时，只有「落盘」被节流。
@@ -94,19 +183,19 @@ const persistDebounced = createDebouncedPersist(() => {
 }, 300)
 
 /** 强制立即落盘当前 agentKey 会话（页面卸载兜底 / 测试用） */
-export function flushPersist() {
+export function flushPersist(): void {
   persistDebounced.flush()
 }
 
 /** 订阅者 */
-const listeners = new Set()
+const listeners = new Set<() => void>()
 
 /** 订阅当前 agentKey 状态变更（供 useStoreSelector 按字段订阅，避免整包订阅连坐重渲染） */
-export function subscribe(cb) {
+export function subscribe(cb: () => void): () => void {
   listeners.add(cb)
   return () => listeners.delete(cb)
 }
-function getSnapshot() {
+function getSnapshot(): ConversationStoreState {
   return states[currentAgentKey] || { conversations: [], activeId: '', sending: false }
 }
 
@@ -129,10 +218,10 @@ export function useConversationStore() {
  */
 
 /** 正在异步水化的 agentKey 集合（防重复触发一次以上水化） */
-const hydrationInFlight = new Set()
+const hydrationInFlight = new Set<string>()
 
 /** 等待某 agentKey 水化完成的 resolve 集合：agentKey → Set<resolve>（支持多调用方同时等待） */
-const hydrationWaiters = new Map()
+const hydrationWaiters = new Map<string, Set<() => void>>()
 
 /**
  * 返回「某 agentKey 已水化完成」的 Promise（已水化则立即 resolve）。
@@ -141,15 +230,16 @@ const hydrationWaiters = new Map()
  * @param {string} k agentKey
  * @returns {Promise<void>}
  */
-export function waitHydrated(k) {
+export function waitHydrated(k?: string): Promise<void> {
   const key = k || AGENT_KEY_PREFIX
   if (hydratedSet[key]) return Promise.resolve()
   if (!hydrationWaiters.has(key)) hydrationWaiters.set(key, new Set())
-  return new Promise((resolve) => { hydrationWaiters.get(key).add(resolve) })
+  const waiters = hydrationWaiters.get(key)!
+  return new Promise<void>((resolve) => { waiters.add(resolve) })
 }
 
 /** 标记某 agentKey 水化完成并放行所有等待者 */
-function resolveHydration(k) {
+function resolveHydration(k: string): void {
   hydratedSet[k] = true
   const resolvers = hydrationWaiters.get(k)
   if (resolvers) {
@@ -159,7 +249,7 @@ function resolveHydration(k) {
 }
 
 /** 解析「可能已是 JSON 字符串」的原始值；失败原样返回（对齐 contentStore.tryParse 语义） */
-function hydrateParse(raw) {
+function hydrateParse(raw: unknown): unknown {
   if (typeof raw !== 'string') return raw
   try { return JSON.parse(raw) } catch { return raw }
 }
@@ -170,7 +260,7 @@ function hydrateParse(raw) {
  * @param {Array|null} kvConversations KV 读到的会话
  * @param {Array|null} localConversations localStorage 存量会话
  */
-export function shouldMigrateLocalToKV(kvConversations, localConversations) {
+export function shouldMigrateLocalToKV(kvConversations: unknown, localConversations: unknown): boolean {
   const kvEmpty = !Array.isArray(kvConversations) || kvConversations.length === 0
   return kvEmpty && Array.isArray(localConversations) && localConversations.length > 0
 }
@@ -179,7 +269,7 @@ export function shouldMigrateLocalToKV(kvConversations, localConversations) {
  * 设置当前 agentKey（项目切换/新建时调用）。首次出现的 key 立即放空壳（保 UI 同步可读），
  * 并异步水化真实数据（读 KV → 必要时迁存量 → 写全 states[k] → markHydrated）。
  */
-export function setAgentKey(key) {
+export function setAgentKey(key?: string): void {
   const k = key || AGENT_KEY_PREFIX
   const same = k === currentAgentKey
   currentAgentKey = k
@@ -190,7 +280,7 @@ export function setAgentKey(key) {
 }
 
 /** 确保某 agentKey 有 state：无则放空壳并触发异步水化（幂等：每个 key 最多一次水化） */
-function ensureState(k) {
+function ensureState(k: string): void {
   if (!states[k]) {
     // 空壳：让同步 getState/订阅立即有对象可读，不阻塞 UI
     states[k] = { conversations: [], activeId: '', sending: false }
@@ -208,10 +298,10 @@ function ensureState(k) {
  * 异步水化一个 agentKey：读 KV（新后端）→ 必要时把 localStorage 存量一次性迁入 KV（幂等）→ 写 states[k] → 标记 hydrated。
  * 时序：本函数把 states[k] 写全、hydratedSet[k] 置 true 之前，persistDebounced 对落盘是 no-op（见 commit 守卫）。
  */
-async function hydrateAsync(k) {
+async function hydrateAsync(k: string): Promise<void> {
   if (hydratedSet[k]) return
   // ① 读 KV（会话 + 活跃 id）；读失败视为无 KV 数据并走存量兜底，失败经 logger 可见（不静默）
-  let kvConversations = null
+  let kvConversations: unknown = null
   let kvActiveId = ''
   try {
     kvConversations = await withTimeout(contentGetAsync(convKey(k)), KV_TIMEOUT, `读取会话水化超时(${k})`)
@@ -227,15 +317,17 @@ async function hydrateAsync(k) {
 
   // ② 读取 localStorage 存量（键已翻成 kv 后端，contentGetAsync 会路由到 KV，故直读本地存量源）
   const localConvRaw = hydrateParse(sGet(convKey(k)))
-  const localConversations = Array.isArray(localConvRaw) ? localConvRaw.map(normalizeConversation).filter(Boolean) : []
+  const localConversations: Conversation[] = Array.isArray(localConvRaw)
+    ? (localConvRaw as any[]).map(normalizeConversation).filter(Boolean) as Conversation[]
+    : []
   const localActiveRaw = hydrateParse(sGet(activeKey(k)))
   const localActiveId = typeof localActiveRaw === 'string' ? localActiveRaw : ''
 
   // ③ 决定水化目标 + 是否需要存量迁移（KV 有数据绝不覆盖）
-  let conversations
+  let conversations: Conversation[]
   let activeId = ''
   if (Array.isArray(kvConversations) && kvConversations.length > 0) {
-    conversations = kvConversations.map(normalizeConversation).filter(Boolean)
+    conversations = (kvConversations as any[]).map(normalizeConversation).filter(Boolean) as Conversation[]
     activeId = kvActiveId
   } else if (shouldMigrateLocalToKV(kvConversations, localConversations)) {
     conversations = localConversations
@@ -276,8 +368,8 @@ async function hydrateAsync(k) {
 }
 
 /** 从旧固定键 agent_conversations 迁移一次（改造前会话归属默认项目）。旧键仍为 local 后端，contentGet 可读。 */
-function migrateLegacyGlobal() {
-  let conversations = []
+function migrateLegacyGlobal(): { conversations: Conversation[]; activeId: string } {
+  let conversations: Conversation[] = []
   try {
     const arr = contentGet(LEGACY_CONV_KEY)
     conversations = (Array.isArray(arr) ? arr : []).map(normalizeConversation).filter(Boolean)
@@ -296,14 +388,14 @@ function migrateLegacyGlobal() {
 }
 
 /** 读取当前 agentKey 的 state（确保已初始化）——供各分文件读写共享状态 */
-export function getState() {
+export function getState(): ConversationStoreState {
   ensureState(currentAgentKey)
   return states[currentAgentKey]
 }
 
 /** 统一提交：更新当前 agentKey 的 state + 通知；持久化由 persist 控制（hydrated 后才写 localStorage，防挂载覆盖）。
  *  persist=false 用于流式热路径的"仅通知不落盘"（patchCurrentMessages），最终态由 send finally 统一落盘。 */
-export function commit(next, opts = {}) {
+export function commit(next: ConversationStoreState, opts: { persist?: boolean } = {}): void {
   const { persist = true } = opts
   states[currentAgentKey] = next
   listeners.forEach((l) => l())
@@ -315,29 +407,29 @@ export function commit(next, opts = {}) {
  * 仅内存、不落盘（persist 只序列化 conversations + activeId，sending 会被忽略）。
  * 供 useAgentChat 订阅 sending（UI 展示"思考中"），与 sendingRef（异步闭包读）分离。
  */
-export function setSending(sending) {
+export function setSending(sending: boolean): void {
   const st = getState()
   commit({ ...st, sending: !!sending }, { persist: false })
 }
 
 /** 生成唯一 id（对齐大雄 uid('ac')） */
-export function uid(prefix) {
+export function uid(prefix?: string): string {
   return generateId(prefix || 'ac')
 }
 
 /** 读当前对话对象（内部；无则 null）——各分文件共用 */
-export function getActiveConv() {
+export function getActiveConv(): Conversation | null {
   return getState().conversations.find((c) => c.id === getState().activeId) || null
 }
 
 /** 标记当前 agentKey 已从存储恢复（hydrated=true，此后 commit 允许落盘）。
  *  由 applyConversation / importLegacy（conversationStore 聚合层）在恢复/切换成功后调用。 */
-export function markHydrated() {
+export function markHydrated(): void {
   resolveHydration(currentAgentKey)
 }
 
 /** 保证一个对话的结构完整（数组字段缺省补齐、workflow/pending/memory 归一） */
-export function normalizeConversation(c) {
+export function normalizeConversation(c: any): Conversation | null {
   if (!c || typeof c !== 'object') return null
   if (!Array.isArray(c.messages)) c.messages = []
   // P15 列表 key：保证每条消息有稳定唯一 id（无 id 的补一个，已有保留；幂等——补过的对象带 id，
@@ -378,7 +470,7 @@ export function normalizeConversation(c) {
 }
 
 /** 归一 workflow：保证结构完整（对齐大雄 conv.workflow） */
-export function normalizeWorkflow(w) {
+export function normalizeWorkflow(w: any): WorkflowState | null {
   if (!w || typeof w !== 'object') return null
   if (!w.id) w.id = generateId('awf')
   if (!w.status) w.status = 'planning'
@@ -394,9 +486,9 @@ export function normalizeWorkflow(w) {
  *   attachments 保留「原始输入」引用：恢复重发时走 send 归一化一次，避免对已归一 base64/绝对 URL 二次压缩（见 ②）。
  * 兼容旧数据：旧 pending（messageId 存在前）保留 text，迁移期仍可恢复。
  * 契约单一来源：构造用 makePendingRef、归一用本函数、消费见 useAgentChat 恢复（resolvePendingRecovery）。 */
-export function normalizePending(p) {
+export function normalizePending(p: any): PendingRefState | null {
   if (!p || typeof p !== 'object') return null
-  const next = {
+  const next: PendingRefState = {
     conversationId: p.conversationId || '',
     messageId: p.messageId || '',
   }
@@ -410,14 +502,16 @@ export function normalizePending(p) {
  * @param {{conversationId?:string, messageId?:string, attachments?:Array}} [obj]
  * @returns {{conversationId:string, messageId:string, attachments?:Array}}
  */
-export function makePendingRef({ conversationId, messageId, attachments } = {}) {
-  const p = { conversationId: conversationId || '', messageId: messageId || '' }
+export function makePendingRef(
+  { conversationId, messageId, attachments }: { conversationId?: string; messageId?: string; attachments?: any[] } = {}
+): PendingRefState {
+  const p: PendingRefState = { conversationId: conversationId || '', messageId: messageId || '' }
   if (Array.isArray(attachments) && attachments.length) p.attachments = attachments.slice()
   return p
 }
 
 /** 归一 memory（对齐大雄 agentEmptyConversationMemory） */
-export function normalizeMemory(m) {
+export function normalizeMemory(m: any): ConversationMemory {
   const base = emptyMemory()
   if (!m || typeof m !== 'object') return base
   return {
@@ -438,11 +532,11 @@ export function normalizeMemory(m) {
 }
 
 /** 重置 store 内存缓存（测试/硬重置用）：清空所有 agentKey 的缓存、等待者与在途水化 */
-export function resetConversationCache() {
+export function resetConversationCache(): void {
   for (const k of Object.keys(states)) delete states[k]
   for (const k of Object.keys(hydratedSet)) delete hydratedSet[k]
   // 放行悬挂的 waitHydrated（防止测试隔离/硬重置后等待者永久悬挂）
-  for (const resolvers of hydrationWaiters.values()) for (const r of resolvers) r(undefined)
+  for (const resolvers of hydrationWaiters.values()) for (const r of resolvers) r()
   hydrationWaiters.clear()
   // 清空在途水化：硬重置后应允许对最新 KV 重新水化（否则旧在途水化读到旧值会压制新水化）
   hydrationInFlight.clear()

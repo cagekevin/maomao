@@ -11,7 +11,7 @@
  * 依赖单向指向 conversationState 底座，命名/导出不变，消费方无感知。
  * ════════════════════════════════════════════════════════════════
  */
-import { getActiveConv, commit, getState, normalizeMemory } from './conversationState.js'
+import { getActiveConv, commit, getState, normalizeMemory } from './conversationState.ts'
 import {
   getWorkMode, setWorkMode, resolveConvRunMode,
   registerLegacyRunModeReader, registerRunModeSync,
@@ -60,15 +60,9 @@ export function setCurrentRunMode(mode: unknown): void {
 
 /* ── 统一风格契约 global_contract + 跨步成果 artifact（对齐大雄，per-conversation）── */
 
-/**
- * 统一风格契约（阶段1 产出，逐字锁定每步）。
- * unified_style_prompt / visual_positioning 是本项目消费的两个字段，其余字段透传。
- */
-export interface GlobalContract {
-  unified_style_prompt?: string
-  visual_positioning?: string
-  [key: string]: unknown
-}
+// 统一风格契约 / 跨步成果资产的权威形状定义在底座 conversationState（避免两处漂移），此处仅别名导出。
+import type { GlobalContractShape, ArtifactShape } from './conversationState.ts'
+export type GlobalContract = GlobalContractShape
 
 /** 读当前对话的统一风格契约（无则 null） */
 export function getCurrentGlobalContract(): GlobalContract | null {
@@ -93,15 +87,8 @@ export function setCurrentGlobalContract(c: GlobalContract | null): void {
 }
 
 /** 读当前对话的跨步成果资产（无则 null） */
-/** 跨步成果资产条目 */
-export interface Artifact {
-  id: string
-  type: string
-  title: string
-  description?: string
-  nodeId?: string
-  url?: string
-}
+/** 跨步成果资产条目（底座 ArtifactShape 的别名；字段由写入方约定，故全部可选） */
+export type Artifact = ArtifactShape
 
 export function getCurrentArtifacts(): Artifact[] | null {
   return getActiveConv()?.memory?.artifacts || null
@@ -160,7 +147,7 @@ export function getCurrentRefImages(): string[] {
 export function setCurrentRefImages(urls: unknown[] = []): void {
   const conv = getActiveConv()
   if (!conv) return
-  const next = Array.isArray(urls) ? urls.filter(Boolean) : []
+  const next: string[] = Array.isArray(urls) ? (urls.filter(Boolean) as string[]) : []
   commit({
     ...getState(),
     conversations: getState().conversations.map((c) => (c.id === conv.id ? { ...c, referenceImages: next, updatedAt: Date.now() } : c)),

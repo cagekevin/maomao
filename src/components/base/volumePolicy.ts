@@ -37,18 +37,19 @@ export interface ChatMessage {
   [key: string]: unknown
 }
 
-/** memory 形状（summary / facts / artifacts 限容） */
+/** memory 形状（summary / facts / artifacts 限容）。artifacts 可显式为 null（无跨步成果）。 */
 export interface ConversationMemory {
   summary?: string
   facts?: unknown[]
-  artifacts?: unknown[]
+  artifacts?: unknown[] | null
   [key: string]: unknown
 }
 
-/** 会话整包形状（L3 降级在投影副本上做，不改引用） */
+/** 会话整包形状（L3 降级在投影副本上做，不改引用）。
+ *  pending / workflow 经 conversationState 归一后可为 null（非仅 undefined），故显式允许 null。 */
 export interface Conversation {
   pending?: unknown
-  workflow?: { steerQueue?: unknown[] }
+  workflow?: { steerQueue?: unknown[] } | null
   messages?: ChatMessage[]
   memory?: ConversationMemory
   [key: string]: unknown
@@ -102,12 +103,16 @@ export function sanitizeMessages(list: ChatMessage[] | null | undefined): ChatMe
 }
 
 /** memory 限容（保最近）：facts → FACTS_MAX、artifacts → ARTIFACTS_MAX。入 prefer original 引用不变时原样返回。 */
-export function capConversationMemory(memory: ConversationMemory | null | undefined): ConversationMemory | null | undefined {
+/**
+ * 泛型保型：调用方的 memory 具体类型（如 conversationState 的 ConversationMemory）不被擦成本模块的宽松形状。
+ * 运行时逻辑不变。
+ */
+export function capConversationMemory<T extends ConversationMemory | null | undefined>(memory: T): T {
   if (!memory || typeof memory !== 'object') return memory
   const next: ConversationMemory = { ...memory }
   if (Array.isArray(next.facts) && next.facts.length > FACTS_MAX) next.facts = next.facts.slice(-FACTS_MAX)
   if (Array.isArray(next.artifacts) && next.artifacts.length > ARTIFACTS_MAX) next.artifacts = next.artifacts.slice(-ARTIFACTS_MAX)
-  return next
+  return next as T
 }
 
 /** 估算 conversations 整包序列化字节（用 JSON.stringify 长度，与落盘口径一致；兜底返回 0） */
@@ -158,7 +163,8 @@ function downgradeConversation(conv: Conversation | null | undefined, opt: Downg
 export function applyConversationBudget(
   conversations: Conversation[] | null | undefined,
   budget: number,
-  _activeId: string,
+  // 该形参目前未参与计算（保留位），调用方（conversationState 落盘投影）只传前两参，故标可选。
+  _activeId?: string,
 ): { conversations: Conversation[] | null | undefined; downgraded: boolean } {
   if (!Array.isArray(conversations) || conversations.length === 0) {
     return { conversations, downgraded: false }

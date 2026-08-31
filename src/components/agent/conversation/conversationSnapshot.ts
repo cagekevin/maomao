@@ -12,7 +12,7 @@
 import {
   getActiveConv, commit, getState, normalizeWorkflow, normalizePending, normalizeMemory,
   emptyMemory, AGENT_MSG_MAX,
-} from './conversationState.js'
+} from './conversationState.ts'
 // 【P1b L1 静态上限】写入口统一限容：lastResults 去重限条 + memory 限条，防止整包体积无界增长（见 volumePolicy.js）
 import { sanitizeMessages, capConversationMemory } from '../../base/volumePolicy.ts'
 

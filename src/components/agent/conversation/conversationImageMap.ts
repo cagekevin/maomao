@@ -8,7 +8,7 @@
  * 命名/导出不变，消费方无感知。
  * ════════════════════════════════════════════════════════════════
  */
-import { getActiveConv } from './conversationState.js'
+import { getActiveConv } from './conversationState.ts'
 import { getCurrentSnapshot } from './conversationSnapshot.ts'
 
 /** 图编号映射条目：num=「图N」编号（1-based），source=来源（gen=上一轮生成图 / att=当前附件） */

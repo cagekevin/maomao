@@ -21,7 +21,7 @@ import {
   getState, commit, uid, getActiveConv, markHydrated,
   normalizeConversation, normalizeWorkflow, normalizePending, normalizeMemory,
   emptyMemory, AGENT_MSG_MAX,
-} from './conversationState.js'
+} from './conversationState.ts'
 import { getCurrentSnapshot } from './conversationSnapshot.ts'
 
 /* ── 会话核心 CRUD（A 类：对话增删切换读写）────────────────── */
@@ -155,7 +155,7 @@ export {
   useConversationStore, setAgentKey, setSending, flushPersist, resetConversationCache,
   waitHydrated,
   normalizeConversation, normalizeWorkflow, normalizePending, normalizeMemory, makePendingRef,
-} from './conversationState.js'
+} from './conversationState.ts'
 // conversationSnapshot：当前对话快照（D 类）
 export {
   getCurrentSnapshot, setCurrentSnapshot, patchCurrentMessages, getCurrentWorkflow, patchCurrentWorkflow,

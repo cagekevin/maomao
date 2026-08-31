@@ -75,7 +75,7 @@ const sharedConvStore = vi.hoisted(() => {
   }
 })
 
-vi.mock('../../src/components/agent/conversation/conversationState.js', () => ({
+vi.mock('../../src/components/agent/conversation/conversationState.ts', () => ({
   subscribe: sharedConvStore.subscribe,
   getState: sharedConvStore.getState,
 }))

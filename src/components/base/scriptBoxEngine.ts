@@ -1148,12 +1148,15 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
           }))
           toast('尾帧综合图生成完毕（原版 + 1 张综合图），已自动选中', 'success')
         } else {
+          // 注：此处没有 r.aborted 分支——generateImage 不产 aborted 信封（只有 chatProxy 会返回
+          // { ok:false, aborted:true }，见 proxyGenerate.ts:275/297）。图像链路中止一律 AbortError
+          // 上抛，由 runAbortable 的 catch 兜底（记「已中止」warn），不会走到这里。
           patchShot((s) => ({
             ...s,
             prevTailFrameVariants: (s.prevTailFrameVariants || []).map((v) =>
-              v.id === 'composed' ? { ...v, loading: false, errorMsg: r.aborted ? '已取消' : (r.error || '综合图生成失败') } : v
+              v.id === 'composed' ? { ...v, loading: false, errorMsg: r.error || '综合图生成失败' } : v
             ),
-            tailFrameVariantsError: r.aborted ? '已取消' : (r.error || '综合图生成失败，可重试'),
+            tailFrameVariantsError: r.error || '综合图生成失败，可重试',
           }))
         }
       } else if (!(provider && modelId)) {
