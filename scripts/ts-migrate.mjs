@@ -1,40 +1,11 @@
 /**
- * ts-migrate.mjs — TS 规范化重构的「机械部分」辅助脚本
+ * ts-migrate.mjs — TS 规范化重构的「终极架构版」辅助脚本 (AST 精确解析 v3)
  *
- * 【职责边界】本脚本只做可验证的机械工作，不做语义改造：
- *   ── 做：
- *     1. 按 JSX 有无自动判定新扩展名（有 JSX → .tsx；纯逻辑 → .ts），可 `--to` 覆盖。
- *     2. `git mv` 或 fs rename 完成改名。
- *     3. 全库重写「所有 import/require/动态导入」指向该模块的说明符扩展名。
- *        · 按【解析后的绝对路径】比对，天然规避同名 basename 误伤
- *          （如 base/ErrorBoundary vs director3d/ErrorBoundary）。
- *   ── 不做：类型标注 / Props 接口 / types.ts 抽离 / EVENTS 表 from/to 的文件名引用同步。
- *     这些是在改名后逐文件的人工活；改名后 EVENTS 引用漂移由 `npm run check:events` 暴露并手工同步。
- *
- * 【实现】说明符的捕获与改写走 @babel/parser 的 AST（坐标精确替换），不再用正则扫文本：
- *   · 只认真正的模块说明符节点，注释/字符串里的同名文本永不误伤；
- *   · 替换只动说明符本体，原引号风格与缩进逐字节保留；
- *   · 解析失败/语法错误不再静默跳过，会汇总告警（防「悄悄漏改 import」）。
- *   ⚠️ 边界：模板串动态 import（`import(\`./x/${v}.js\`)`）AST 抓不到，本仓已明令禁止这种写法
- *      （见 src/components/base/lazyNode.jsx 注释），故不构成风险。
- *
- * 【用法】
- *   node scripts/ts-migrate.mjs convert <file> [--to ts|tsx] [--dry] [--force]
- *       将 <file> 改名为目标扩展名（缺省按内容 JSX 判定），并全库重写其 import 说明符。
- *       命中永久豁免（director3d / contracts.js / config.js）时拒绝，除非显式 --force。
- *   node scripts/ts-migrate.mjs plan <dir> [--limit N] [--all]
- *       列出 <dir> 下待转文件 + 被引用次数，按引用量升序（叶子优先）。
- *   node scripts/ts-migrate.mjs refs <file>
- *       列出谁引用了它：① 模块引用（convert 自动改写）② 硬编码字符串残留（需手工同步）。
- *   node scripts/ts-migrate.mjs report <dir>
- *       生成 ts-migration-view.csv（Excel 全景作战表，叶子优先排序，含引用方与残留位置）。
- *   node scripts/ts-migrate.mjs update-imports <file> [--to ts|tsx] [--dry]
- *       仅重写 import 说明符（文件已改名时用）。
- *   node scripts/ts-migrate.mjs move <file> <targetDir> [--dry]
- *       把 <file> 移到 <targetDir>（横切收口用，如 hook 收口到 src/hooks/），
- *       并全库重写指向它的 import 路径（含被移动文件自身的 import，因其相对基准变了）。
- *
- * 【注意】改完尺寸较大或被 EVENTS 引用的文件，务必跑 `npm run check:events` 确认反向校验仍自洽。
+ * 【终极版新增特性】
+ *  1. 批量转换 (batch): node scripts/ts-migrate.mjs batch src/components --limit 10
+ *  2. 平滑过渡 (--nocheck): 自动注入 // @ts-nocheck 避免打断 CI 门禁
+ *  3. Alias 净化: 文件移动/重写引用时，超过 ../../ 的路径会自动净化为 @/
+ *  4. 僵尸代码扫描 (find-dead): 一键排查 0 引用的孤儿文件
  */
 import { readFileSync, writeFileSync, readdirSync, statSync, existsSync, renameSync } from 'node:fs'
 import { resolve, join, dirname, extname, basename, relative } from 'node:path'
@@ -42,7 +13,6 @@ import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
 import { parseArgs } from 'node:util'
 
-// 运行时依赖检查，规避幽灵依赖炸弹
 let parse;
 try {
   import.meta.resolve('@babel/parser');
@@ -59,11 +29,10 @@ const __dirname = fileURLToPath(new URL('.', import.meta.url))
 const root = resolve(__dirname, '..')
 const SCAN_ROOTS = [join(root, 'src'), join(root, 'tests')]
 
-// 全局异常记录，防止静默漏改
 const parseWarnings = new Set()
 
 function toPosix(p) { return p.replace(/\\/g, '/') }
-function relOf(abs) { return toPosix(abs.slice(root.length).replace(/^[\/\\]/, '')) }
+function relOf(abs) { return toPosix(abs.slice(root.length).replace(/^[/\\]/, '')) }
 function isExemptAbs(abs) { return isExempt(relOf(abs)) }
 
 function collectFiles(dir, acc = []) {
@@ -143,7 +112,7 @@ function extractImportNodes(code, filepath) {
     }
     walk(ast.program)
   } catch (err) {
-    parseWarnings.add(`[解析崩溃] ${filepath} (严重：将丢失该文件的依赖重写)`)
+    parseWarnings.add(`[解析崩溃] ${filepath} (严重：将丢失该文件的依赖追踪/重写)`)
     return null
   }
   return nodes
@@ -178,9 +147,17 @@ function buildRefGraph() {
 // ============================================================================
 
 function computeNewSpec(fromFile, newAbs, oldSpec) {
-  if (oldSpec.startsWith('@/')) return '@/'.replace('@/', '@/') + toPosix(relative(resolve(root, 'src'), newAbs))
+  const srcRoot = resolve(root, 'src')
+  if (oldSpec.startsWith('@/')) return '@/'.replace('@/', '@/') + toPosix(relative(srcRoot, newAbs))
+  
   let rel = toPosix(relative(dirname(fromFile), newAbs))
   if (!rel.startsWith('.')) rel = './' + rel
+  
+  // 【特性 3: Alias 自动净化】如果相对路径过深 (回退两层及以上) 且都在 src/ 下，自动转为 @/ 别名
+  if (rel.startsWith('../../') && newAbs.startsWith(srcRoot)) {
+    return '@/' + toPosix(relative(srcRoot, newAbs))
+  }
+  
   return rel
 }
 
@@ -310,13 +287,13 @@ function renameFile(oldAbs, newAbs) {
 
 function printWarnings() {
   if (parseWarnings.size > 0) {
-    console.log('\n⚠ 发现以下解析告警，部分依赖重写可能失败：')
+    console.log('\n⚠ 发现以下解析告警，部分依赖重写可能受到影响：')
     for (const w of parseWarnings) console.log(`   - ${w}`)
   }
 }
 
 // ============================================================================
-// CLI 入口
+// CLI 入口解析
 // ============================================================================
 
 const { positionals, values } = parseArgs({
@@ -327,6 +304,7 @@ const { positionals, values } = parseArgs({
     limit: { type: 'string', default: '30' },
     all: { type: 'boolean', default: false },
     force: { type: 'boolean', default: false },
+    nocheck: { type: 'boolean', default: false }, // 【特性 2: 平滑注入选项】
   },
   allowPositionals: true,
 })
@@ -358,7 +336,7 @@ if (cmd === 'plan') {
 
   const byTo = pending.reduce((acc, f) => { acc[f.to] = (acc[f.to] || 0) + 1; return acc }, {})
   console.log(`\n待转 ${pending.length} 个文件（tsx:${byTo['.tsx'] || 0} / ts:${byTo['.ts'] || 0}）`
-    + ` [已排除永久豁免 ${exemptSkipped} 个：${TS_EXEMPT_DIRS.join(' / ')}、${TS_EXEMPT_FILES.join(' / ')}]`)
+    + `　[已排除永久豁免 ${exemptSkipped} 个：${TS_EXEMPT_DIRS.join(' / ')}、${TS_EXEMPT_FILES.join(' / ')}]`)
   console.log('排序：被引用次数升序（叶子优先，级联改动最小）\n')
 
   const shown = all ? pending : pending.slice(0, limitArg)
@@ -410,7 +388,6 @@ if (cmd === 'report') {
     if (!['.js', '.jsx'].includes(extname(f))) continue
     if (isExemptAbs(f)) continue 
     
-    // 复用文件读取内容
     const srcCode = readFileSync(f, 'utf8')
     const importers = graph.get(f) ? Array.from(graph.get(f)).map(relOf) : []
     
@@ -419,7 +396,6 @@ if (cmd === 'report') {
     const newAbs = f.slice(0, f.length - extname(f).length) + newExt
     const strRefs = findStringRefs(base, [f, newAbs]).map(h => `${h.file}:${h.line}`)
 
-    // 采用标准的 Excel 兼容换行符 \r\n
     pending.push({
       file: relOf(f),
       refCount: importers.length,
@@ -445,6 +421,108 @@ if (cmd === 'report') {
   process.exit(0)
 }
 
+// 【特性 4: 僵尸代码扫描】
+if (cmd === 'find-dead') {
+  const dir = resolve(root, fileArg || 'src')
+  console.log(`\n🧟 正在扫描 ${dir} 查找僵尸文件/孤儿节点...`)
+  
+  const graph = buildRefGraph()
+  const dead = []
+  // 常见入口文件或构建态代码
+  const ENTRY_HINTS = ['index.', 'main.', 'App.', 'router', 'setup', 'config', 'vite']
+
+  for (const f of collectFiles(dir, [])) {
+    if (isExemptAbs(f)) continue
+    
+    const base = basename(f)
+    if (ENTRY_HINTS.some(h => base.includes(h))) continue
+    if (base.includes('.test.') || base.includes('.spec.')) continue
+
+    const importers = graph.get(f)
+    if (!importers || importers.size === 0) {
+      dead.push(f)
+    }
+  }
+
+  if (dead.length === 0) {
+    console.log(`✔ 恭喜，未发现明显的孤儿代码！`)
+  } else {
+    console.log(`\n⚠ 发现 ${dead.length} 个无引用依赖的文件（疑似废弃代码）：`)
+    for (const f of dead) console.log(`   - ${relOf(f)}`)
+    console.log(`\n[提示] 请人工核实：这些文件未被 AST 探测到任何明确的 import/require 引用。`)
+    console.log(`可能原因：1. 确实是废弃代码； 2. 通过动态拼接字符串黑魔法引入； 3. 这是个独立入口点。`)
+  }
+  process.exit(0)
+}
+
+// 【特性 1: 批量转叶子节点】
+if (cmd === 'batch') {
+  const dir = resolve(root, fileArg || 'src')
+  const limitArg = Number(values.limit)
+  const graph = buildRefGraph()
+
+  const pending = []
+  for (const f of collectFiles(dir, [])) {
+    if (!['.js', '.jsx'].includes(extname(f))) continue
+    if (isExemptAbs(f)) continue
+    
+    const refCount = graph.get(f) ? graph.get(f).size : 0
+    if (refCount === 0) {
+      const code = readFileSync(f, 'utf8')
+      pending.push({ abs: f, to: detectExt(code, toFlag) })
+    }
+  }
+  
+  if (pending.length === 0) {
+    console.log(`\nℹ 目录 ${dir} 下暂无可安全的叶子节点（引用数为 0 的 js/jsx）。`)
+    process.exit(0)
+  }
+
+  // 叶子排序，优先处理浅层文件
+  pending.sort((a, b) => a.abs.localeCompare(b.abs))
+  const targets = pending.slice(0, limitArg)
+  
+  console.log(`\n🚀 [Batch] 找到 ${pending.length} 个叶子节点，本次将自动转换前 ${targets.length} 个...`)
+
+  for (let i = 0; i < targets.length; i++) {
+    const oldAbs = targets[i].abs
+    const toExt = targets[i].to
+    const oldExt = extname(oldAbs)
+    const newAbs = oldAbs.slice(0, oldAbs.length - oldExt.length) + toExt
+    const base = basename(oldAbs)
+
+    console.log(`\n[${i+1}/${targets.length}] 处理 ${relOf(oldAbs)} ...`)
+
+    if (!dry) {
+      // 【特性 2: 注入 // @ts-nocheck】
+      if (values.nocheck) {
+        let currentCode = readFileSync(oldAbs, 'utf8')
+        if (!currentCode.includes('// @ts-nocheck') && !currentCode.includes('// @ts-expect-error')) {
+          writeFileSync(oldAbs, '// @ts-nocheck\n' + currentCode, 'utf8')
+          console.log(`  ✔ 注入 // @ts-nocheck`)
+        }
+      }
+      
+      const how = renameFile(oldAbs, newAbs)
+      if (!how) { console.error(`  ✖ 改名失败`); continue }
+      console.log(`  ✔ 改名 ${base} → ${basename(newAbs)}`)
+    } else {
+      console.log(`  (预览) 拟改名 ${base} → ${basename(newAbs)}${values.nocheck ? ' (并注入 nocheck)' : ''}`)
+    }
+
+    const changed = rewriteImports(oldAbs, toExt, dry)
+    if (changed.length > 0) {
+      console.log(`  ✔ 同步 ${changed.length} 处引用: ${changed.map(c => basename(c)).join(', ')}`)
+    }
+  }
+  
+  if (dry) console.log('\n（--dry 仅预览，未实际落盘）')
+  else console.log('\n🎉 批量转换完成！跑一遍 `npm run check:events` 确认健康状态吧。')
+  
+  printWarnings()
+  process.exit(0)
+}
+
 if (cmd === 'convert' || cmd === 'update-imports') {
   if (!fileArg) { console.error('缺少 <file> 参数'); process.exit(1) }
   const oldAbs = resolve(root, fileArg)
@@ -461,6 +539,15 @@ if (cmd === 'convert' || cmd === 'update-imports') {
   const newAbs = oldAbs.slice(0, oldAbs.length - oldExt.length) + toExt
 
   if (cmd === 'convert' && !dry) {
+    // 【特性 2: 注入 // @ts-nocheck】
+    if (values.nocheck) {
+      let currentCode = readFileSync(oldAbs, 'utf8')
+      if (!currentCode.includes('// @ts-nocheck') && !currentCode.includes('// @ts-expect-error')) {
+        writeFileSync(oldAbs, '// @ts-nocheck\n' + currentCode, 'utf8')
+        console.log(`✔ 注入 // @ts-nocheck`)
+      }
+    }
+    
     const how = renameFile(oldAbs, newAbs)
     if (!how) { console.error(`改名失败：${oldAbs}`); process.exit(1) }
     console.log(`✔ 改名 ${basename(oldAbs)} → ${basename(newAbs)}（${how}）`)
@@ -514,5 +601,5 @@ if (cmd === 'move') {
   process.exit(0)
 }
 
-console.error(`未知命令：${cmd}\n用法见文件头 JSDoc。`)
-process.exit(1)
+console.error(`未知命令：${cmd}\n用法：请查阅脚本源码顶部的 JSDoc`);
+process.exit(1);

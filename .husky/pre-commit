@@ -1,6 +1,11 @@
 #!/bin/sh
-# 提交门禁：type-check（快）+ 只跑「改动相关」的单元测试（vitest --changed）。
+# 提交门禁：type-check（快）+ 只跑「改动相关」的单元测试（vitest --changed）
+# + 三个秒级 SSR 门禁（smoke/regression/tools，防「改名后 SSR 挂」这类问题）。
 # 全量单元测试放 pre-push（push 前才跑，兜底）。lint 已移除（门禁靠类型检查 + 测试）。
+#
+# 为什么补 SSR 门禁：TS 迁移期间同名组件 .jsx→.tsx 后，写死 .jsx 的 import 路径或
+# import.meta.env 在 CJS 下空对象等，会在 esbuild 打包 SSR 时当场崩，而 type-check 与
+# 纯 vitest 单元测试都扫不到。smoke/regression/tools 各 ~1.5s，放进 commit 门禁性价比最高。
 #
 # `set +e`：个别环境（特定 shell / 部分 CI）触发 git hook 时其 stdout 可能是坏 fd（sh 报
 # "echo: write error: Bad file descriptor"），而 husky 用 `sh -e` 运行本脚本，首个 echo 失败
@@ -10,4 +15,10 @@ npm run type-check
 tc=$?
 npx vitest run --changed
 vt=$?
-[ "$tc" -eq 0 ] && [ "$vt" -eq 0 ]
+node scripts/smoke_test.cjs
+sm=$?
+node scripts/regression_test.cjs
+rg=$?
+node scripts/test_agent_tools.cjs
+tl=$?
+[ "$tc" -eq 0 ] && [ "$vt" -eq 0 ] && [ "$sm" -eq 0 ] && [ "$rg" -eq 0 ] && [ "$tl" -eq 0 ]
