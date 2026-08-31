@@ -11,8 +11,16 @@
 import { getActiveConv } from './conversationState.js'
 import { getCurrentSnapshot } from './conversationSnapshot.js'
 
+/** 图编号映射条目：num=「图N」编号（1-based），source=来源（gen=上一轮生成图 / att=当前附件） */
+export interface ImageMapEntry {
+  num: number
+  url: string
+  name: string
+  source: 'gen' | 'att'
+}
+
 /** 向前找当前对话里最近一条带图 user 消息，返回其参考图 url 数组（对齐大雄 agentLastUserAttachments）。 */
-export function getLastUserReferenceImages() {
+export function getLastUserReferenceImages(): string[] {
   const conv = getActiveConv()
   const msgs = conv?.messages || []
   for (let i = msgs.length - 1; i >= 0; i--) {
@@ -29,7 +37,7 @@ export function getLastUserReferenceImages() {
  *  ⚠️ 消费方：只有 getCurrentImageMap() 用它做「图1~图M」编号供 direct_refs 引用，execute_plan **不直接
  *  调用它自动挂历史生成图**——对齐大雄 use_last_outputs=false「跨轮 lastResults 彻底关闭」，只有 LLM
  *  用 direct_refs 显式引用历史图时才用。图本体不进 LLM 上下文，执行层反查原图 url。 */
-export function getLastGeneratedImages() {
+export function getLastGeneratedImages(): any[] {
   const conv = getActiveConv()
   const msgs = conv?.messages || []
   for (let i = msgs.length - 1; i >= 0; i--) {
@@ -48,7 +56,7 @@ export function getLastGeneratedImages() {
  *      让 LLM 在 generations 里能用「图N」+ direct_refs 精确引用历史图/上一轮生成图（图本体不进 LLM 上下文）。
  *  数据源：上一轮生成图来自 getLastGeneratedImages()（assistant 消息的 lastResults，由 useAgentChat 在
  *  execute_plan 成功后回填）；当前附件来自 getCurrentSnapshot().attachments。 */
-export function getCurrentImageMap() {
+export function getCurrentImageMap(): ImageMapEntry[] {
   const genResults = getLastGeneratedImages()
   const attachments = getCurrentSnapshot().attachments || []
   const map = []

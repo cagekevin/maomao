@@ -174,8 +174,8 @@ export {
   getActivePendingGenerations, setActivePendingGenerations, getAwaitingConfirm, setAwaitingConfirm,
   getActivePendingMemorySuggest, setActivePendingMemorySuggest,
   getCreditGate, setCreditGate, clearCreditGate,
-} from './conversationSkillState.js'
+} from './conversationSkillState.ts'
 // conversationImageMap：跨轮图数据源（E 类）
 export {
   getLastUserReferenceImages, getLastGeneratedImages, getCurrentImageMap,
-} from './conversationImageMap.js'
+} from './conversationImageMap.ts'

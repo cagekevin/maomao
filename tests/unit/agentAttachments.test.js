@@ -21,7 +21,7 @@ vi.mock('../../src/components/base/logger.ts', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }))
 
-const { normalizeAttachmentsForSend, buildRefCatalog } = await import('../../src/components/agent/runtime/agentAttachments.js')
+const { normalizeAttachmentsForSend, buildRefCatalog } = await import('../../src/components/agent/runtime/agentAttachments.ts')
 const { normalizeImageUrlForSend, summarizeImages } = await import('../../src/components/base/imageUrl.ts')
 const { logger } = await import('../../src/components/base/logger.ts')
 

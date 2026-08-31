@@ -17,7 +17,7 @@ vi.mock('../../src/components/agent/conversation/conversationStore.js', () => ({
 }))
 
 const convStore = await import('../../src/components/agent/conversation/conversationStore.js')
-const { appendMsg, setHistory, updateLastStreaming, endStreaming, stripStreaming } = await import('../../src/components/agent/runtime/agentMessages.js')
+const { appendMsg, setHistory, updateLastStreaming, endStreaming, stripStreaming } = await import('../../src/components/agent/runtime/agentMessages.ts')
 
 beforeEach(() => {
   vi.clearAllMocks()

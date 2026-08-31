@@ -17,7 +17,7 @@ vi.mock('../../src/components/agent/conversation/conversationStore.js', () => ({
 }))
 
 const convStore = await import('../../src/components/agent/conversation/conversationStore.js')
-const { wfStart, wfSteer, wfFinish, wfAwaitConfirm, wfNextSteer, WORKFLOW_STATUS } = await import('../../src/components/agent/runtime/workflowState.js')
+const { wfStart, wfSteer, wfFinish, wfAwaitConfirm, wfNextSteer, WORKFLOW_STATUS } = await import('../../src/components/agent/runtime/workflowState.ts')
 
 beforeEach(() => { vi.clearAllMocks() })
 

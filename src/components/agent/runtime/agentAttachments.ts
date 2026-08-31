@@ -25,7 +25,20 @@ import { logger } from '../../base/logger.ts'
  * @param {object} [opts]  { preferBase64?: boolean } 只认 base64 的 provider 传 true
  * @returns {Promise<Array>} 归一后的附件数组（url 已归一化）
  */
-export async function normalizeAttachmentsForSend(attachments, { preferBase64 = false } = {}) {
+/** 附件条目（type/url/label/name/nodeId 为本层消费字段，其余透传） */
+export interface SendAttachment {
+  type?: string
+  url?: string
+  label?: string
+  name?: string
+  nodeId?: string
+  [key: string]: unknown
+}
+
+export async function normalizeAttachmentsForSend(
+  attachments: SendAttachment[],
+  { preferBase64 = false }: { preferBase64?: boolean } = {}
+): Promise<SendAttachment[]> {
   const imgs = (attachments || []).filter((a) => typeof a?.url === 'string' && a.url)
   // 【带图可观测】AI 工具附件走单图版归一化（不经数组版），这里单独在编排层记一条：
   // 本次附件带了几张图、URL 还是 Base64。与 normalizeImageUrlsForSend 的日志语义一致。
@@ -44,7 +57,7 @@ export async function normalizeAttachmentsForSend(attachments, { preferBase64 = 
  * @param {Array} imgAtts 已过滤出的图片附件数组
  * @returns {string} 目录文本（无图片附件时返回空串）
  */
-export function buildRefCatalog(imgAtts) {
+export function buildRefCatalog(imgAtts: SendAttachment[] | null | undefined): string {
   if (!imgAtts || imgAtts.length === 0) return ''
   const lines = ['【本轮参考图顺序（仅作为编号数据）】']
   imgAtts.forEach((a, i) => {

@@ -54,11 +54,11 @@ import { decideContextCompression, resolveInputBudget } from './tokenBudget.js'
 // 集中配置：AI 助手上下文窗口默认值与输出预算留白比例（无模型 contextWindow 声明时的保守兜底）
 import { AGENT_CONTEXT_WINDOW_DEFAULT, AGENT_CONTEXT_OUTPUT_BUDGET_RATIO } from '../../base/config.js'
 // 工作流状态迁移（M2 收口：steer/起步/awaiting_confirm/终态/队列出队的纯函数，落盘仍走 patchCurrentWorkflow）
-import { wfStart, wfSteer, wfFinish, wfAwaitConfirm, wfNextSteer } from './workflowState.js'
+import { wfStart, wfSteer, wfFinish, wfAwaitConfirm, wfNextSteer } from './workflowState.ts'
 import { isAgentWorkMode } from './runModeRegistry.js'
 // 消息构造/落盘 + 附件归一化（M3 下沉：appendMsg/setHistory/updateLastStreaming/endStreaming/stripStreaming → agentMessages；附件/参考图目录 → agentAttachments）
-import { appendMsg, setHistory, updateLastStreaming, endStreaming, stripStreaming } from './agentMessages.js'
-import { normalizeAttachmentsForSend, buildRefCatalog } from './agentAttachments.js'
+import { appendMsg, setHistory, updateLastStreaming, endStreaming, stripStreaming } from './agentMessages.ts'
+import { normalizeAttachmentsForSend, buildRefCatalog } from './agentAttachments.ts'
 import {
   ensureActiveConversation,
   setAgentKey,

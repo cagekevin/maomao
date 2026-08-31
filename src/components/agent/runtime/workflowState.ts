@@ -17,15 +17,26 @@
 
 import { getCurrentWorkflow } from '../conversation/conversationStore.js'
 
+/** workflow.status 合法取值（normalizeWorkflow 未硬校验，此处登记供迁移判断复用） */
+export type WorkflowStatus =
+  | 'planning' | 'running' | 'awaiting_confirm' | 'stopped'
+  | 'completed' | 'failed' | 'completed_with_errors'
+
 /** workflow.status 合法取值全集（normalizeWorkflow 未硬校验，此处登记供迁移判断复用） */
-export const WORKFLOW_STATUS = ['planning', 'running', 'awaiting_confirm', 'stopped', 'completed', 'failed', 'completed_with_errors']
+export const WORKFLOW_STATUS: WorkflowStatus[] = ['planning', 'running', 'awaiting_confirm', 'stopped', 'completed', 'failed', 'completed_with_errors']
+
+/** steerQueue 里的一条补充指令 */
+export interface SteerItem {
+  text: string
+  attachments: unknown[]
+}
 
 /**
  * 起步 / 重新置为 planning。
  * 返回 patch：进 planning 并记录开始时间；steerQueue 由 patchCurrentWorkflow 保持既有值（若 patch 未显式携带数组）。
  * @param {object} [patch] 额外覆盖字段（如 { status: 'running' }）
  */
-export function wfStart(patch = {}) {
+export function wfStart(patch: Record<string, unknown> = {}): Record<string, unknown> {
   return { status: 'planning', startedAt: Date.now(), ...patch }
 }
 
@@ -36,7 +47,7 @@ export function wfStart(patch = {}) {
  * @param {string} text  补充指令原文
  * @param {Array}  attachments 附带附件（默认 []）
  */
-export function wfSteer(text, attachments) {
+export function wfSteer(text: string, attachments?: unknown[]): Record<string, unknown> {
   const wf = getCurrentWorkflow()
   return {
     steerQueue: [...((wf && wf.steerQueue) || []), { text, attachments: attachments || [] }],
@@ -50,7 +61,7 @@ export function wfSteer(text, attachments) {
  * @param {boolean} [aborted] 是否被中止（ok 为 false 且 aborted 时 → stopped）
  * @returns {{ status: 'completed'|'failed'|'stopped' }}
  */
-export function wfFinish(ok, aborted) {
+export function wfFinish(ok: boolean, aborted?: boolean): { status: WorkflowStatus } {
   return { status: !ok ? (aborted ? 'stopped' : 'failed') : 'completed' }
 }
 
@@ -58,7 +69,7 @@ export function wfFinish(ok, aborted) {
  * 三阶段门禁：展示策划后暂停等待确认 → workflow.status 置 awaiting_confirm。
  * （awaitingConfirm 顶层字段的翻转不在此，走 setAwaitingConfirm）
  */
-export function wfAwaitConfirm() {
+export function wfAwaitConfirm(): { status: WorkflowStatus } {
   return { status: 'awaiting_confirm' }
 }
 
@@ -68,9 +79,10 @@ export function wfAwaitConfirm() {
  * @returns {{ next: {text:string, attachments:Array}|undefined, patch: object }}
  *          next 有值 → patch.status 置 planning（续跑），否则维持 terminalStatus。
  */
-export function wfNextSteer(terminalStatus) {
+export function wfNextSteer(terminalStatus?: WorkflowStatus):
+  { next: SteerItem | undefined; patch: { steerQueue: SteerItem[]; status: WorkflowStatus | undefined } } {
   const wf = getCurrentWorkflow()
-  const steerQ = (wf && wf.steerQueue) || []
-  const next = steerQ.shift()
+  const steerQ: SteerItem[] = (wf && wf.steerQueue) || []
+  const next = steerQ.shift() as SteerItem | undefined
   return { next, patch: { steerQueue: steerQ, status: next ? 'planning' : terminalStatus } }
 }

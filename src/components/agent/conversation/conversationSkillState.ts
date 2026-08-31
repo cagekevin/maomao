@@ -14,13 +14,24 @@
 import { getActiveConv, commit, getState } from './conversationState.js'
 import { CREDIT_GATE_FIELD } from '../../base/contracts.js'
 
+/**
+ * 积分确认门禁形状（高消耗积分确认）：pending=待用户确认，gens=待补跑的生成项，
+ * map=stepId→nodeId 的落点映射。合法形状由 setCreditGate 校验。
+ */
+export interface CreditGate {
+  pending: boolean
+  gens: any[]
+  map: Record<string, string>
+  [key: string]: unknown
+}
+
 /** 读当前对话的 Skill 阶段1 策划暂存（副本） */
-export function getActivePendingGenerations() {
+export function getActivePendingGenerations(): any[] | null {
   return getActiveConv()?.pendingGenerations || null
 }
 
 /** 设置/清除当前对话的 Skill 策划暂存 */
-export function setActivePendingGenerations(gens) {
+export function setActivePendingGenerations(gens: unknown[] | null): void {
   const conv = getActiveConv()
   if (!conv) return
   commit({
@@ -30,12 +41,12 @@ export function setActivePendingGenerations(gens) {
 }
 
 /** 读当前对话的 Skill 确认态 */
-export function getAwaitingConfirm() {
+export function getAwaitingConfirm(): boolean {
   return !!getActiveConv()?.awaitingConfirm
 }
 
 /** 设置当前对话的 Skill 确认态（仅前端确认按钮翻转） */
-export function setAwaitingConfirm(v) {
+export function setAwaitingConfirm(v: boolean): void {
   const conv = getActiveConv()
   if (!conv) return
   commit({
@@ -45,12 +56,12 @@ export function setAwaitingConfirm(v) {
 }
 
 /** 读当前对话的「记」项目记忆建议暂存（memory_suggest 待用户确认的候选内容） */
-export function getActivePendingMemorySuggest() {
+export function getActivePendingMemorySuggest(): Record<string, any> | null {
   return getActiveConv()?.pendingMemorySuggest || null
 }
 
 /** 设置/清除当前对话的「记」项目记忆建议暂存 */
-export function setActivePendingMemorySuggest(suggest) {
+export function setActivePendingMemorySuggest(suggest: Record<string, unknown> | null): void {
   const conv = getActiveConv()
   if (!conv) return
   commit({
@@ -62,7 +73,7 @@ export function setActivePendingMemorySuggest(suggest) {
 }
 
 /** 读当前对话的积分确认门禁（creditGate：null 或 { pending, gens, map(stepId→nodeId) }） */
-export function getCreditGate() {
+export function getCreditGate(): CreditGate | null {
   return getActiveConv()?.[CREDIT_GATE_FIELD] || null
 }
 
@@ -71,7 +82,7 @@ export function getCreditGate() {
  * gate 合法形状：{ pending:boolean, gens:array, map:object(stepId→nodeId) }。
  * 置位（pending=true）+ 清除（null）配对使用：补跑成功清、失败保留待重试。
  */
-export function setCreditGate(gate) {
+export function setCreditGate(gate: Partial<CreditGate> & Record<string, unknown> | null): void {
   const conv = getActiveConv()
   if (!conv) return
   const valid = gate && typeof gate === 'object'
@@ -87,7 +98,7 @@ export function setCreditGate(gate) {
 }
 
 /** 清除当前对话的积分确认门禁（补跑成功/取消后调用；不保留待确认态） */
-export function clearCreditGate() {
+export function clearCreditGate(): void {
   const conv = getActiveConv()
   if (!conv) return
   commit({
