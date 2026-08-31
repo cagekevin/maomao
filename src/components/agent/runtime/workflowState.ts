@@ -15,7 +15,7 @@
  * 依赖方向（单向）：useAgentChat → workflowState → conversationStore。（无环）
  */
 
-import { getCurrentWorkflow } from '../conversation/conversationStore.js'
+import { getCurrentWorkflow } from '../conversation/conversationStore.ts'
 
 /** workflow.status 合法取值（normalizeWorkflow 未硬校验，此处登记供迁移判断复用） */
 export type WorkflowStatus =

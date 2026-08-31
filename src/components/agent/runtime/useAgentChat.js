@@ -91,7 +91,7 @@ import {
   setCurrentRunMode,
   getWorkMode,
   waitHydrated,
-} from '../conversation/conversationStore.js'
+} from '../conversation/conversationStore.ts'
 // 【消息单源 P5 基座】按字段订阅 store 的 messages（含 activeId 从 store 同步读），
 // 避免整包 useConversationStore() 订阅 → 流式高频更新连坐重渲染整个面板。
 import { subscribe, getState } from '../conversation/conversationState.ts'

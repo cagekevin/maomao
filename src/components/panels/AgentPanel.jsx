@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useAgentChat, setGenParams, getGenParams, getCreditSwitch, setCreditSwitch, getWorkMode, setWorkMode as setWorkModeGlobal, RUN_MODE_IDS, WORK_MODE_STORAGE_KEY } from '../agent/index.js'
+import { useAgentChat, setGenParams, getGenParams, getCreditSwitch, setCreditSwitch, getWorkMode, setWorkMode as setWorkModeGlobal, RUN_MODE_IDS, WORK_MODE_STORAGE_KEY } from '../agent/index.ts'
 import { useProviders, load as loadProviders } from '../base/settings/providerStore.ts'
 import AgentMessage from './AgentMessage.jsx'
 import AgentConfirmCard from './AgentConfirmCard.jsx'

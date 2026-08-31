@@ -125,6 +125,13 @@ export interface ConversationStoreState {
   activeId: string
   sending: boolean
 }
+
+/**
+ * commit 入参：sending 可省略。
+ * 会话 CRUD（新建/切换/删除/迁移）历史上就只提交 { conversations, activeId }，
+ * sending 因此为 undefined（`!!sending` 判定等价 false）。TS 迁移保真该形态，不改运行时。
+ */
+export type ConversationStorePatch = Omit<ConversationStoreState, 'sending'> & { sending?: boolean }
 /** AI 助手 agentKey 前缀（对齐 App.jsx / backupStore.ts，集中避免散落硬编码） */
 const AGENT_KEY_PREFIX = 'canvas-assistant'
 /** 旧全局会话键（迁移用）：改造前无 agentKey 后缀（contracts.js 登记为 migration 键） */
@@ -395,9 +402,9 @@ export function getState(): ConversationStoreState {
 
 /** 统一提交：更新当前 agentKey 的 state + 通知；持久化由 persist 控制（hydrated 后才写 localStorage，防挂载覆盖）。
  *  persist=false 用于流式热路径的"仅通知不落盘"（patchCurrentMessages），最终态由 send finally 统一落盘。 */
-export function commit(next: ConversationStoreState, opts: { persist?: boolean } = {}): void {
+export function commit(next: ConversationStorePatch, opts: { persist?: boolean } = {}): void {
   const { persist = true } = opts
-  states[currentAgentKey] = next
+  states[currentAgentKey] = next as ConversationStoreState
   listeners.forEach((l) => l())
   if (hydratedSet[currentAgentKey] && persist) persistDebounced.schedule()
 }

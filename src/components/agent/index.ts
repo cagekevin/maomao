@@ -52,6 +52,6 @@
  */
 export { useAgentChat } from './runtime/useAgentChat.js'
 export { setGenParams, getGenParams, getNodeImageUrl, getCreditSwitch, setCreditSwitch } from './canvas/useCanvasAgentTools.js'
-export { setAgentKey } from './conversation/conversationStore.js'
+export { setAgentKey } from './conversation/conversationStore.ts'
 // 运行模式注册表透出（docs/65 M1/M8）：三态单一真源，AgentPanel 从这里 import，不绕深层路径
 export { getWorkMode, setWorkMode, RUN_MODE_IDS, DEFAULT_WORK_MODE, isAgentWorkMode, WORK_MODE_STORAGE_KEY } from './runtime/runModeRegistry.ts'

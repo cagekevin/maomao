@@ -29,7 +29,7 @@ vi.mock('../../src/components/base/contentStore.ts', async (importOriginal) => {
     contentSet: vi.fn((k, v) => { if (k === 'agent_credit_switch') __creditState = !!v; else return actual.contentSet(k, v) }),
   }
 })
-vi.mock('../../src/components/agent/conversation/conversationStore.js', () => ({
+vi.mock('../../src/components/agent/conversation/conversationStore.ts', () => ({
   pushActiveAiUndo: vi.fn(),
   popActiveAiUndo: vi.fn(() => null),
   getActiveAiUndoStack: vi.fn(() => []),
@@ -75,7 +75,7 @@ vi.mock('../../src/components/agent/canvas/canvasPlanExecutor.js', async (import
 })
 
 import { buildCanvasAgentTools } from '../../src/components/agent/canvas/useCanvasAgentTools.js'
-import * as convStore from '../../src/components/agent/conversation/conversationStore.js'
+import * as convStore from '../../src/components/agent/conversation/conversationStore.ts'
 import { executePlan as mockExecutePlan } from '../../src/components/agent/canvas/canvasPlanExecutor.js'
 
 function makeCtx() {

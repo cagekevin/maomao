@@ -93,7 +93,7 @@ const h = vi.hoisted(() => {
 
 // AgentPanel 现从聚合入口 agent/index.js import（useAgentChat/setGenParams/getGenParams），
 // vitest 按模块路径 mock——必须 mock index.js 而非深层路径，否则 mock 失效（M0 聚合入口收口）。
-vi.mock('../../src/components/agent/index.js', () => ({
+vi.mock('../../src/components/agent/index.ts', () => ({
   useAgentChat: (...a) => h.useAgentChat(...a),
   setGenParams: vi.fn(),
   getGenParams: () => ({}),
@@ -118,7 +118,7 @@ vi.mock('../../src/components/base/contentStore.ts', () => ({
   contentSubscribe: (...a) => h.contentSubscribe(...a),
 }))
 vi.mock('../../src/components/base/filesApi.ts', () => ({ toAbsoluteFileUrl: (u) => u }))
-vi.mock('../../src/components/agent/conversation/conversationStore.js', () => ({
+vi.mock('../../src/components/agent/conversation/conversationStore.ts', () => ({
   setCurrentSnapshot: (...a) => h.setCurrentSnapshot(...a),
   setAwaitingConfirm: vi.fn(),
   getCurrentRunMode: () => 'auto',

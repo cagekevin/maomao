@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 // 隔离依赖：AI 撤销栈 / 真实生成 / 多步执行器
 // 状态（awaiting / pending）用 beforeEach 内 vi.mocked 配对闭包管理，避免模块级变量在 vi.mock 工厂下 TDZ 怪异
-vi.mock('../../src/components/agent/conversation/conversationStore.js', () => ({
+vi.mock('../../src/components/agent/conversation/conversationStore.ts', () => ({
   pushActiveAiUndo: vi.fn(),
   popActiveAiUndo: vi.fn(() => null),
   getActiveAiUndoStack: vi.fn(() => []),
@@ -44,7 +44,7 @@ vi.mock('../../src/components/agent/canvas/canvasPlanExecutor.js', async (import
 })
 
 import { buildCanvasAgentTools, CANVAS_AGENT_TOOL_NAMES, getNodeImageUrl, setCurrentReferenceImages, runExistingPlanTool, setCreditSwitch, getCreditSwitch } from '../../src/components/agent/canvas/useCanvasAgentTools.js'
-import * as convStore from '../../src/components/agent/conversation/conversationStore.js'
+import * as convStore from '../../src/components/agent/conversation/conversationStore.ts'
 import * as taskStore from '../../src/components/base/taskStore.ts'
 import { executePlan as mockExecutePlan, buildFusionPrompt, buildProductReferencePrompt } from '../../src/components/agent/canvas/canvasPlanExecutor.js'
 

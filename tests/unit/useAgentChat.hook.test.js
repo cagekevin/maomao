@@ -80,7 +80,7 @@ vi.mock('../../src/components/agent/conversation/conversationState.ts', () => ({
   getState: sharedConvStore.getState,
 }))
 
-vi.mock('../../src/components/agent/conversation/conversationStore.js', () => {
+vi.mock('../../src/components/agent/conversation/conversationStore.ts', () => {
   let pending = null
   let activeId = 'c1'
   const conversations = [{ id: 'c1', title: '对话1' }, { id: 'c2', title: '对话2' }]
@@ -144,7 +144,7 @@ vi.mock('../../src/components/agent/conversation/conversationStore.js', () => {
 
 import { useAgentChat, buildRequestMessages, parseSSEChunk, parseGenerationsFromReply } from '../../src/components/agent/runtime/useAgentChat.js'
 import { resolveSkillExecutionRules } from '../../src/components/agent/runtime/agentCore.js'
-import * as convStore from '../../src/components/agent/conversation/conversationStore.js'
+import * as convStore from '../../src/components/agent/conversation/conversationStore.ts'
 
 // ── SSE 流构造助手 ──
 function sseChunks(deltas) {

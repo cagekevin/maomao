@@ -17,7 +17,7 @@
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { renderHook, act, waitFor } from '@testing-library/react'
-import * as convStore from '../../src/components/agent/conversation/conversationStore.js'
+import * as convStore from '../../src/components/agent/conversation/conversationStore.ts'
 
 const callTool = vi.fn()
 vi.mock('../../src/components/agent/canvas/useCanvasAgentTools.js', () => ({

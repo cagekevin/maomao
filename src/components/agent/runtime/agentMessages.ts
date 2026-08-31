@@ -16,7 +16,7 @@
  * 依赖方向（单向）：useAgentChat → agentMessages → conversationStore。无环。
  */
 
-import { patchCurrentMessages, setCurrentSnapshot, getCurrentSnapshot } from '../conversation/conversationStore.js'
+import { patchCurrentMessages, setCurrentSnapshot, getCurrentSnapshot } from '../conversation/conversationStore.ts'
 import { generateId } from '../../base/idGen.ts'
 
 /** 流式增量（模型逐 chunk 回传的 content/reasoning/toolCalls） */

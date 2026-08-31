@@ -11,12 +11,12 @@
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 
-vi.mock('../../src/components/agent/conversation/conversationStore.js', () => ({
+vi.mock('../../src/components/agent/conversation/conversationStore.ts', () => ({
   getCurrentWorkflow: vi.fn(() => null),
   patchCurrentWorkflow: vi.fn(() => null),
 }))
 
-const convStore = await import('../../src/components/agent/conversation/conversationStore.js')
+const convStore = await import('../../src/components/agent/conversation/conversationStore.ts')
 const { wfStart, wfSteer, wfFinish, wfAwaitConfirm, wfNextSteer, WORKFLOW_STATUS } = await import('../../src/components/agent/runtime/workflowState.ts')
 
 beforeEach(() => { vi.clearAllMocks() })

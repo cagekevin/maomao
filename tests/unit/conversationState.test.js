@@ -7,7 +7,7 @@ import {
   resetConversationCache, ensureActiveConversation, applyConversation, setAgentKey,
   flushPersist, getCurrentSnapshot, setCurrentSnapshot, patchCurrentMessages,
   setCurrentPending, getCurrentPending, makePendingRef,
-} from '../../src/components/agent/conversation/conversationStore.js'
+} from '../../src/components/agent/conversation/conversationStore.ts'
 
 // 会话键已迁 KV（backend:'kv'）：写走 kvSet、读走 kvGet。用 Map 兜底让 KV 确定性往返，
 // 避免走真实 localToolApi 网络（响铃 fetch 抛错 + 误导性降级告警 + 慢）。

@@ -10,13 +10,13 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 
 let store = []
 
-vi.mock('../../src/components/agent/conversation/conversationStore.js', () => ({
+vi.mock('../../src/components/agent/conversation/conversationStore.ts', () => ({
   getCurrentSnapshot: vi.fn(),
   setCurrentSnapshot: vi.fn(),
   patchCurrentMessages: vi.fn(),
 }))
 
-const convStore = await import('../../src/components/agent/conversation/conversationStore.js')
+const convStore = await import('../../src/components/agent/conversation/conversationStore.ts')
 const { appendMsg, setHistory, updateLastStreaming, endStreaming, stripStreaming } = await import('../../src/components/agent/runtime/agentMessages.ts')
 
 beforeEach(() => {

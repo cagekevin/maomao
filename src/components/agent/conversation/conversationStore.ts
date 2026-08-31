@@ -22,17 +22,19 @@ import {
   normalizeConversation, normalizeWorkflow, normalizePending, normalizeMemory,
   emptyMemory, AGENT_MSG_MAX,
 } from './conversationState.ts'
+import type { Conversation } from './conversationState.ts'
 import { getCurrentSnapshot } from './conversationSnapshot.ts'
+import type { ConversationSnapshot } from './conversationSnapshot.ts'
 
 /* ── 会话核心 CRUD（A 类：对话增删切换读写）────────────────── */
 
 /** 读当前对话 id */
-export function getActiveConversationId() {
+export function getActiveConversationId(): string {
   return getState().activeId || ''
 }
 
 /** 全量对话列表（浅拷贝，供 UI 渲染对话列表用） */
-export function getConversations() {
+export function getConversations(): Conversation[] {
   return getState().conversations.map((c) => ({
     ...c,
     messages: [...c.messages],
@@ -45,7 +47,7 @@ export function getConversations() {
 }
 
 /** 确保至少有一个对话；没有则建一个空的，并设为当前。返回当前对话 id */
-export function ensureActiveConversation() {
+export function ensureActiveConversation(): string {
   const st = getState()
   let { conversations, activeId } = st
   if (activeId && conversations.some((c) => c.id === activeId)) return activeId
@@ -62,7 +64,7 @@ export function ensureActiveConversation() {
  * 把当前对话写回 conversations（对外兼容；重构后 setCurrentSnapshot 已自动落盘，此函数基本不再需要）。
  * 保留兼容，但不做挂载期覆盖（内部由 commit 的 hydrated 守卫兜底）。
  */
-export function captureActiveConversation() {
+export function captureActiveConversation(): Conversation | null {
   // 无额外动作：setCurrentSnapshot 已把 active 对话写回并落盘。
   // 保留导出仅兼容旧调用方；若 activeId 无效则返回 null。
   if (!getActiveConv()) return null
@@ -70,7 +72,7 @@ export function captureActiveConversation() {
 }
 
 /** 把某对话加载进当前（恢复/切换），hydrated 置 true，返回快照 */
-export function applyConversation(id) {
+export function applyConversation(id: string): ConversationSnapshot {
   const st = getState()
   let conv = st.conversations.find((c) => c.id === id)
   // 目标不存在 → 回退当前；当前也没有 → 建空对话兜底
@@ -88,7 +90,7 @@ export function applyConversation(id) {
 }
 
 /** 新建对话：把当前对话先落盘，再建空对话并设为当前，返回新对话 id 与快照 */
-export function newConversation() {
+export function newConversation(): { id: string; snapshot: ConversationSnapshot } {
   const st = getState()
   const conv = normalizeConversation({ id: uid('ac'), title: '新对话', messages: [], skills: [], draft: '' })
   commit({ conversations: [conv, ...st.conversations], activeId: conv.id })
@@ -96,13 +98,13 @@ export function newConversation() {
 }
 
 /** 切换对话：apply 目标，返回目标快照 */
-export function switchConversation(id) {
+export function switchConversation(id: string): ConversationSnapshot {
   if (!id || id === getState().activeId) return getCurrentSnapshot()
   return applyConversation(id)
 }
 
 /** 删除对话：删空则建新对话。返回 { activeId, snapshot } */
-export function deleteConversation(id) {
+export function deleteConversation(id: string): { activeId: string; snapshot: ConversationSnapshot } {
   const st = getState()
   const remaining = st.conversations.filter((c) => c.id !== id)
   if (remaining.length > 0) {
@@ -115,7 +117,7 @@ export function deleteConversation(id) {
 }
 
 /** 重命名当前对话标题（UI 可选） */
-export function renameActiveConversation(title) {
+export function renameActiveConversation(title: string): void {
   const conv = getActiveConv()
   if (!conv) return
   commit({
@@ -127,7 +129,9 @@ export function renameActiveConversation(title) {
 }
 
 /** 从旧单会话数据迁移：conversations 为空且有旧 messages/skills 时，迁成一个对话 */
-export function importLegacy({ messages, skills }) {
+export function importLegacy(
+  { messages, skills }: { messages?: any[]; skills?: any[] }
+): ConversationSnapshot | null {
   if (!Array.isArray(messages) || messages.length === 0) return null
   if (getState().conversations.length > 0) return null // 已有对话，不迁移
   const firstUser = messages.find((m) => m.role === 'user' && m.content)

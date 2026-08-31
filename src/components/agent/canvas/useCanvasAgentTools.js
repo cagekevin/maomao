@@ -18,9 +18,9 @@ import {
   getCurrentRunMode, getCurrentSnapshot,
   getWorkMode,
   getCreditGate, setCreditGate, clearCreditGate,
-} from '../conversation/conversationStore.js'
+} from '../conversation/conversationStore.ts'
 // ═══ 补充 import（拆行放置，避免挤爆单行）═══
-import { getActivePendingMemorySuggest, setActivePendingMemorySuggest } from '../conversation/conversationStore.js'
+import { getActivePendingMemorySuggest, setActivePendingMemorySuggest } from '../conversation/conversationStore.ts'
 // 「记」项目记忆：记忆类别枚举 + 脱敏函数（memory_suggest 工具校验/脱敏用）
 import { PROJECT_MEMORY_KINDS, sanitizeMemoryContent } from '../runtime/projectMemoryStore.ts'
 import { contentGet, contentSet } from '../../base/contentStore.ts'
