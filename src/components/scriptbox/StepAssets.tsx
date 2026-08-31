@@ -6,7 +6,7 @@ import { assetFolderOf } from '../base/assetStore.ts'
 import { useOutsideClick } from '../base/hooks.ts'
 import { useRenderImageResolver, toAbsoluteFileUrl } from '../base/imageUrl.ts'
 import ImageZoomDialog from '../base/ImageZoomDialog.tsx'
-import ScriptBoxAssetPicker from './ScriptBoxAssetPicker.jsx'
+import ScriptBoxAssetPicker from './ScriptBoxAssetPicker.tsx'
 import type { ScriptBoxData, ScriptBoxUpdateData } from './scriptBoxSchema.ts'
 
 /** StepAssets 实际调用的引擎回调（来自 props.callbacks = { ...data, onDisconnectUpstream }） */

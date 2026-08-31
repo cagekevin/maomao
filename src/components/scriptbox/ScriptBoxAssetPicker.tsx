@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { Loader2, Image as ImageIcon } from 'lucide-react'
 import { fetchResources, rescanResources } from '../base/api/index.ts'
 import { toAbsoluteFileUrl } from '../base/imageUrl.ts'
+import type { ResourceItem } from '../base/api/localToolApi.ts'
 import { useLocalToolStatus } from '../../hooks/useLocalToolStatus.ts'
 import { logger } from '../base/logger.ts'
 import ScriptBoxModal from './ScriptBoxModal.tsx'
@@ -18,10 +19,14 @@ const PAGE_SIZE = 60
  *  - onClose 关闭回调
  *  - onPick(url)  选中图片回调（把该图 URL 设为资产参考图）
  */
-export default function ScriptBoxAssetPicker({ folder, onClose, onPick }) {
+export default function ScriptBoxAssetPicker({ folder, onClose, onPick }: {
+  folder: string
+  onClose: () => void
+  onPick: (url: string) => void
+}) {
   const { status } = useLocalToolStatus()
   const connected = status.isConnected
-  const [items, setItems] = useState([])
+  const [items, setItems] = useState<ResourceItem[]>([])
   const [loading, setLoading] = useState(false)
   const [err, setErr] = useState('')
 
@@ -35,10 +40,11 @@ export default function ScriptBoxAssetPicker({ folder, onClose, onPick }) {
         await rescanResources()
       }
       const data = await fetchResources({ folder, page: 1, pageSize: PAGE_SIZE, type: 'image' })
-      setItems((data?.data?.items) || [])
+      setItems(((data?.data?.items) as ResourceItem[]) || [])
     } catch (e) {
       // UI 红字已提示；再补 logger 便于排查本地引擎/后端问题
-      logger.warn('scriptBox', '素材库加载失败', { folder, error: e?.message || String(e) })
+      const errMsg = (e as { message?: string }).message || String(e)
+      logger.warn('scriptBox', '素材库加载失败', { folder, error: errMsg })
       setErr(e?.message || '素材库加载失败')
     } finally {
       setLoading(false)
