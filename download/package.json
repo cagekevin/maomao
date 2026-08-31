@@ -1,0 +1,25 @@
+{
+  "name": "maomao-code-audit-tools",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "AI 向代码审计工具箱：全部 CLI + JSON/结构化输出，装在独立沙盒，不进主工程 package.json 依赖",
+  "scripts": {
+    "arch:deps": "depcruise src --config .dependency-cruiser.cjs --output-type json --output-to out/deps.json",
+    "arch:cycles": "depcruise src --config .dependency-cruiser.cjs --output-type err",
+    "arch:dot": "depcruise src --config .dependency-cruiser.cjs --output-type dot --output-to out/deps.dot",
+    "dead:code": "knip --reporter json --no-exit-code",
+    "lint:bug": "oxlint . --format=json",
+    "cycles:madge": "madge src --extensions js,jsx,ts,tsx --json --warning",
+    "dup:code": "jscpd src --reporters json --output out/",
+    "sg": "ast-grep"
+  },
+  "dependencies": {
+    "@ast-grep/cli": "^0.45.3",
+    "dependency-cruiser": "^18.2.0",
+    "jscpd": "^5.1.0",
+    "knip": "^6.33.0",
+    "madge": "^8.0.0",
+    "oxlint": "^1.80.0"
+  }
+}

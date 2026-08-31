@@ -17,7 +17,7 @@ export interface CanvasAssetLike {
  *
  * 【为什么收敛到这里】
  * 此前「把图片/视频/音频/文字素材拖到画布」的 onDragStart 在多个面板各写一遍：
- *  - AssetLibrary.jsx / GeneratedView.jsx（用 application/x-yimao-asset）
+ *  - AssetLibrary.tsx / GeneratedView.jsx（用 application/x-yimao-asset）
  *  - TaskCenter.tsx（用 text/plain，格式与前者不一致）
  * 接收端统一是 useAssetDropPaste.onDrop（画布侧）。这里把发起端收敛成一份：
  *  - 统一格式：全部写 application/x-yimao-asset（带 url/name/type/text，比 text/plain 信息更全）

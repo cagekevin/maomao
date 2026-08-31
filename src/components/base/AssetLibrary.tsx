@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react'
 import { Upload, FileText, Music, Play, Image as ImageIcon, FolderOpen, FolderPlus, MoreVertical, ChevronLeft, Pencil, Trash2 } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 import { useLocalToolStatus } from '../../hooks/useLocalToolStatus.ts'
 import { fetchResources, rescanResources, deleteResource, renameResource, openLocalFolder, openFileDir, relativePathFromUrl, uploadFile, createFolder as createFolderApi } from './localToolApi.ts'
 import { showToast } from './toastStore.ts'
@@ -11,9 +12,31 @@ import { logger } from './logger.ts'
 import { isAudio } from './mediaType.ts'
 import LazyImage from './LazyImage.tsx'
 import ImageZoomDialog from './ImageZoomDialog.tsx'
+import type { AssetMoveItem, AssetDragSourceProps } from '../../hooks/useAssetMoveToFolder.ts'
 
-// 目录 pill（folder 前缀对齐本地磁盘 migrated 结构，与后端 /api/resources 一一对应）
-const FOLDER_PILLS = [
+/**
+ * 把 assetDragProps 的结果适配到 <img>：
+ * 源 `draggable` 是 `string | boolean`（url 非空即真，见 useAssetDragToCanvas —— 勿在源头 `!!` 收窄），
+ * 而 React 的 img.draggable 只接受 Booleanish，故在消费端按真值收窄
+ * （React 对 draggable 一律渲染成 "true"/"false"，DOM 产物与收窄前完全一致）。
+ */
+function toImgDragProps(props: AssetDragSourceProps) {
+  return { ...props, draggable: Boolean(props.draggable) }
+}
+
+/** /api/resources 返回的单条素材（后端报文，字段可选；拖拽形状复用 AssetMoveItem） */
+interface ResourceItem extends AssetMoveItem {
+  id: string
+}
+
+/** 目录 pill（folder 前缀对齐本地磁盘 migrated 结构，与后端 /api/resources 一一对应） */
+interface FolderPill {
+  key: string
+  label: string
+  folder: string
+}
+
+const FOLDER_PILLS: FolderPill[] = [
   { key: 'all', label: '全部', folder: 'migrated' },
   { key: 'character', label: '人物', folder: 'migrated/人物' },
   { key: 'scene', label: '场景', folder: 'migrated/场景' },
@@ -21,7 +44,12 @@ const FOLDER_PILLS = [
   { key: 'migrated', label: '素材库', folder: 'migrated' },
 ]
 
-const TYPE_BADGE = {
+interface TypeBadge {
+  icon: LucideIcon
+  cls: string
+}
+
+const TYPE_BADGE: Record<string, TypeBadge> = {
   image: { icon: ImageIcon, cls: 'text-blue-400 bg-blue-500/10' },
   video: { icon: Play, cls: 'text-purple-400 bg-purple-500/10' },
   audio: { icon: Music, cls: 'text-green-400 bg-green-500/10' },
@@ -32,7 +60,7 @@ const PAGE_SIZE = 20 // 每次加载 20 个，无限滚动追加
 
 // fetchText/textCache 统一收敛到 useAssetDragToCanvas.js；isAudio 统一到 mediaType.js
 // 文字素材单元格：默认展示文件内容（前几行）
-const TextAssetCell = React.memo(function TextAssetCell({ url, name }) {
+const TextAssetCell = React.memo(function TextAssetCell({ url, name }: { url: string; name?: string }) {
   const [text, setText] = useState('')
   useEffect(() => {
     let alive = true
@@ -52,7 +80,7 @@ const TextAssetCell = React.memo(function TextAssetCell({ url, name }) {
 })
 
 // 文字素材预览：完整展示文件内容
-const TextPreview = React.memo(function TextPreview({ url, name }) {
+const TextPreview = React.memo(function TextPreview({ url, name }: { url: string; name?: string }) {
   const [text, setText] = useState('')
   useEffect(() => {
     let alive = true
@@ -82,8 +110,8 @@ function AssetLibrary() {
   const connected = status.isConnected
 
   const [folder, setFolder] = useState('migrated') // 当前目录前缀路径（migrated 为「全部」根）
-  const [preview, setPreview] = useState(null)
-  const videoZoomRef = useRef(null) // 视频预览统一走 ImageZoomDialog（含截屏按钮）
+  const [preview, setPreview] = useState<ResourceItem | null>(null)
+  const videoZoomRef = useRef<HTMLDialogElement>(null) // 视频预览统一走 ImageZoomDialog（含截屏按钮）
 
   // 视频预览：preview 变为视频时自动打开统一视频框（关闭由 onClose 复位 preview）
   useEffect(() => {
@@ -91,32 +119,33 @@ function AssetLibrary() {
       videoZoomRef.current?.showModal()
     }
   }, [preview])
-  const [items, setItems] = useState([])
+  const [items, setItems] = useState<ResourceItem[]>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(false)
   const [hasMore, setHasMore] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const [creating, setCreating] = useState(false)
   const [newFolderName, setNewFolderName] = useState('')
-  const [renameTarget, setRenameTarget] = useState(null) // 正在重命名的资源
+  const [renameTarget, setRenameTarget] = useState<ResourceItem | null>(null) // 正在重命名的资源
   const [renameName, setRenameName] = useState('')
-  const [menuItemId, setMenuItemId] = useState(null) // 卡片「⋯」菜单打开的卡片 id
+  const [menuItemId, setMenuItemId] = useState<string | null>(null) // 卡片「⋯」菜单打开的卡片 id
 
-  const fileInputRef = useRef(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const [dragOver, setDragOver] = useState(false)
-  const scrollRef = useRef(null)
+  const scrollRef = useRef<HTMLDivElement>(null)
   const pageRef = useRef(1)
   const loadingRef = useRef(false)
   const resetTokenRef = useRef(0)
   // 顶部标签行拖拽：按住左右拖动 = 横向滚动（标签超出一行可拖看后面），拖动超阈值不误触 pill 点击
-  const pillScrollRef = useRef(null)
-  const pillDragRef = useRef({ down: false, startX: 0, startScroll: 0, moved: false })
-  const onPillMouseDown = (e) => {
+  const pillScrollRef = useRef<HTMLDivElement>(null)
+  interface PillDragState { down: boolean; startX: number; startScroll: number; moved: boolean }
+  const pillDragRef = useRef<PillDragState>({ down: false, startX: 0, startScroll: 0, moved: false })
+  const onPillMouseDown = (e: React.MouseEvent) => {
     const el = pillScrollRef.current
     if (!el) return
     pillDragRef.current = { down: true, startX: e.clientX, startScroll: el.scrollLeft, moved: false }
   }
-  const onPillMouseMove = (e) => {
+  const onPillMouseMove = (e: React.MouseEvent) => {
     const d = pillDragRef.current
     const el = pillScrollRef.current
     if (!d.down || !el) return
@@ -125,7 +154,7 @@ function AssetLibrary() {
     el.scrollLeft = d.startScroll - dx
   }
   const endPillDrag = () => { pillDragRef.current.down = false }
-  const onPillClickCapture = (e) => {
+  const onPillClickCapture = (e: React.MouseEvent) => {
     if (pillDragRef.current.moved) { e.stopPropagation(); e.preventDefault() }
   }
 
@@ -169,8 +198,8 @@ function AssetLibrary() {
   // 订阅「发送到素材库」成功事件：自动切到落盘目录并重新 rescan 拉取，
   // 解决此前「点完要切目录/点别处才刷新」的体感问题（assetStore 与面板互不相通）。
   useEffect(() => {
-    return onAssetSent((folder) => {
-      const target = folder || 'migrated'
+    return onAssetSent((sentFolder: string) => {
+      const target = sentFolder || 'migrated'
       setFolder(target) // 触发 currentFolder 变化 → 上面的 reset(true) 自动 rescan 刷新
     })
   }, [])
@@ -206,7 +235,7 @@ function AssetLibrary() {
   }, [loadMore])
 
   // 上传文件到后端（落盘当前目录 + rescan 收录）
-  const handleFiles = useCallback(async (files) => {
+  const handleFiles = useCallback(async (files: FileList | File[] | null) => {
     if (!connected) return showToast('请先连接本地引擎', { type: 'warning' })
     const list = Array.from(files)
     if (list.length === 0) return
@@ -228,13 +257,13 @@ function AssetLibrary() {
     }
   }, [connected, currentFolder, reset])
 
-  const onDrop = (e) => {
+  const onDrop = (e: React.DragEvent) => {
     e.preventDefault()
     setDragOver(false)
     if (e.dataTransfer?.files?.length) handleFiles(e.dataTransfer.files)
   }
 
-  const handleDelete = async (item) => {
+  const handleDelete = async (item: ResourceItem) => {
     setItems((list) => list.filter((x) => x.id !== item.id))
     setTotal((t) => Math.max(0, t - 1))
     try {
@@ -251,7 +280,7 @@ function AssetLibrary() {
       .catch(() => showToast('打开本地目录失败', { type: 'error' }))
   }
 
-  const handleOpenFileDir = (item) => {
+  const handleOpenFileDir = (item: ResourceItem) => {
     const rel = relativePathFromUrl(item.url)
     if (!rel) return showToast('打开所在目录失败', { type: 'error' })
     openFileDir(rel).catch(() => showToast('打开所在目录失败', { type: 'error' }))
@@ -278,7 +307,7 @@ function AssetLibrary() {
   }
 
   // 新建文件夹（对齐官方 → POST /api/files/mkdir）
-  const createFolder = async (name) => {
+  const createFolder = async (name: string): Promise<boolean> => {
     if (!name || !connected) return false
     try {
       await createFolderApi(`${currentFolder}/${name}`)
@@ -524,7 +553,7 @@ function AssetLibrary() {
                 <audio src={preview.url} controls className="w-full" />
               </div>
             ) : (
-              <img src={toAbsoluteFileUrl(preview.url)} alt={preview.name} {...assetDragProps({ url: toAbsoluteFileUrl(preview.url), name: preview.name, type: preview.type })}
+              <img src={toAbsoluteFileUrl(preview.url)} alt={preview.name} {...toImgDragProps(assetDragProps({ url: toAbsoluteFileUrl(preview.url), name: preview.name, type: preview.type }))}
                 className="max-h-[75vh] max-w-full rounded-lg object-contain cursor-grab active:cursor-grabbing" />
             )}
             <p className="text-xs text-muted m-0">{preview.name} · {preview.folder}</p>

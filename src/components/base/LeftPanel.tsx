@@ -3,7 +3,7 @@ import { Clock, FolderOpen, Sparkles, Pin, PinOff, BookOpen } from 'lucide-react
 import type { LucideIcon } from 'lucide-react'
 import TaskCenter from './TaskCenter.tsx'
 import GeneratedView from './GeneratedView.jsx'
-import AssetLibrary from './AssetLibrary.jsx'
+import AssetLibrary from './AssetLibrary.tsx'
 import PromptHub from './PromptHub.tsx'
 import { useTasks, usePanel, setPanel, getPanel, togglePin } from './taskStore.ts'
 import { useAssets } from './assetStore.ts'
