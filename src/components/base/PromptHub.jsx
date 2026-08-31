@@ -6,7 +6,7 @@ import {
   getCachedPromptHub, loadPromptHub, getPromptHubErrors, getPromptHubSources,
 } from './promptHubStore.ts'
 import { toastWarning } from './toastStore.ts'
-import LazyImage from './LazyImage.jsx'
+import LazyImage from './LazyImage.tsx'
 import { createImeInput } from './utils.ts'
 
 const fmtDate = (s) => {

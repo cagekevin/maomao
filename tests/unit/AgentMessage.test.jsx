@@ -18,7 +18,7 @@ import { render, screen, fireEvent } from '@testing-library/react'
 import { mocks } from './_nodeMocks.mjs'
 
 vi.mock('../../src/components/base/filesApi.ts', () => ({ toAbsoluteFileUrl: (u) => `ABS:${u}` }))
-vi.mock('../../src/components/base/LazyImage.jsx', () => ({
+vi.mock('../../src/components/base/LazyImage.tsx', () => ({
   default: ({ src }) => React.createElement('img', { src }),
 }))
 vi.mock('../../src/components/panels/PromptConfirmCard.jsx', () => ({ default: mocks.Passthrough }))

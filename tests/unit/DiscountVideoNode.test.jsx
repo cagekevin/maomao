@@ -91,7 +91,7 @@ vi.mock('../../src/components/base/PromptInput.jsx', async (importOriginal) => {
     }),
   }
 })
-vi.mock('../../src/components/base/PromptLibraryButton.jsx', () => ({ default: () => null }))
+vi.mock('../../src/components/base/PromptLibraryButton.tsx', () => ({ default: () => null }))
 vi.mock('../../src/components/base/GeneratingOverlay.jsx', () => ({ default: () => null }))
 vi.mock('../../src/components/base/ResizeFullscreenHandle.jsx', () => ({ default: () => null }))
 vi.mock('../../src/components/base/FullscreenModal.jsx', () => ({ default: ({ open, children }) => (open ? <div data-testid="fullscreen">{children}</div> : null) }))

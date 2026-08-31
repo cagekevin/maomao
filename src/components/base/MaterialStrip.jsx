@@ -1,6 +1,6 @@
 import React from 'react'
 import { X, Link as LinkIcon } from 'lucide-react'
-import LazyImage from './LazyImage.jsx'
+import LazyImage from './LazyImage.tsx'
 
 /**
  * 素材缩略图条（生图/文本/视频等节点的「下方素材参考区」通用组件）。

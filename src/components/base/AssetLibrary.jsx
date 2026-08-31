@@ -9,7 +9,7 @@ import { toAbsoluteFileUrl } from './filesApi.ts'
 import { onAssetSent, emitAssetSent } from './assetStore.ts'
 import { logger } from './logger.ts'
 import { isAudio } from './mediaType.ts'
-import LazyImage from './LazyImage.jsx'
+import LazyImage from './LazyImage.tsx'
 
 // 目录 pill（folder 前缀对齐本地磁盘 migrated 结构，与后端 /api/resources 一一对应）
 const FOLDER_PILLS = [

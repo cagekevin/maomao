@@ -9,7 +9,7 @@ import { toAbsoluteFileUrl } from './filesApi.ts'
 import { logger } from './logger.ts'
 import { isAudio } from './mediaType.ts'
 import VideoThumbnail from './VideoThumbnail.jsx'
-import LazyImage from './LazyImage.jsx'
+import LazyImage from './LazyImage.tsx'
 
 // 类型过滤 pill（沿用素材库 AssetLibrary 的小圆按钮形式）
 const TYPE_FILTERS = [

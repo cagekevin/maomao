@@ -34,7 +34,7 @@ vi.mock('../../src/components/base/appSettings.ts', () => ({
   useAppSettings: () => ({ thumbnailOn: true }),
 }))
 
-import LazyImage from '../../src/components/base/LazyImage.jsx'
+import LazyImage from '../../src/components/base/LazyImage.tsx'
 
 // 可操控的 IntersectionObserver 假实现：手动触发回调驱动「进入视口」
 const h = vi.hoisted(() => {
