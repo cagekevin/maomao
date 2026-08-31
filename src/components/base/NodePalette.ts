@@ -9,7 +9,7 @@ import {
 import TextNode from '../nodes/TextNode.tsx'
 import ImageNode from '../nodes/ImageNode.tsx'
 import LoopNode from '../nodes/LoopNode.tsx'
-import PromptNode from '../nodes/PromptNode.jsx'
+import PromptNode from '../nodes/PromptNode.tsx'
 import DiscountVideoNode from '../nodes/DiscountVideoNode.tsx'
 import VideoExtractNode from '../nodes/VideoExtractNode.tsx'
 import ImageBoxNode from '../nodes/ImageBoxNode.tsx'

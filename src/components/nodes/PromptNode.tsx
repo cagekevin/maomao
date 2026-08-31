@@ -44,14 +44,62 @@ import { resolvePromptChips } from '../base/promptChips.ts'
  * 保留差异化：主图片框、素材缩略图区、画质/比例/渲染质量菜单、请求格式、批量 xN。
  * 性能降级用通用 useMediaDegrade：lodLevel>=2 藏生图结果（与官方横幅"图片已隐藏"一致）。
  */
-function PromptNode({ id, data, selected }) {
+/** 参考图素材形态（MaterialStrip / PromptInput / generateImage 共用） */
+interface RefImage {
+  id: string
+  url: string
+  label?: string
+  sourceNodeId?: string
+}
+
+/** 参考文本形态（resolvePromptChips 要求 id/label 必填） */
+interface RefText {
+  id: string
+  label: string
+  text?: string
+  sourceNodeId?: string
+}
+
+/** 生图节点 data 契约 */
+interface PromptNodeData {
+  label?: string
+  prompt?: string
+  imageUrl?: string
+  aspectRatio?: string
+  imageSize?: string
+  quality?: string
+  selectedModel?: string
+  count?: number
+  expanded?: boolean
+  inputWidth?: number
+  inputHeight?: number
+  images?: RefImage[]
+  texts?: RefText[]
+  [key: string]: unknown
+}
+
+/** 上游产出（来自 useConnectedInputs）的最小只读结构 */
+interface ConnectedOutput {
+  images: RefImage[]
+  texts: RefText[]
+  videos: unknown[]
+  audios: unknown[]
+}
+
+interface PromptNodeProps {
+  id: string
+  data: PromptNodeData
+  selected?: boolean
+}
+
+function PromptNode({ id, data, selected }: PromptNodeProps) {
   const render = useRenderImageResolver()
   // 性能模式媒体降级（通用 hook）：hideResult = isHidden('image')，即 lodLevel>=2
   const { isHidden } = useMediaDegrade()
   const hideResult = isHidden('image')
 
   // 通用连线数据传递：读取直接上游节点的产出（图片/文本）作为参考输入
-  const connected = useConnectedInputs(id)
+  const connected = useConnectedInputs(id) as ConnectedOutput
   const [expanded, setExpanded] = useState(data.expanded === undefined ? true : data.expanded)
   const [prompt, setPrompt] = useState(data.prompt || '')
 
@@ -107,19 +155,19 @@ function PromptNode({ id, data, selected }) {
   // 断连线：点击素材缩略图红色 ×，删除该素材来源节点 → 本节点的连线。
   // 仅对来自连线的素材有效（有 sourceNodeId）；data.images（剧本盒子资产）无来源连线，不处理。
   const disconnectSource = useCallback(
-    (sourceNodeId) => {
+    (sourceNodeId: string) => {
       if (!sourceNodeId) return
       setEdges((es) => es.filter((e) => !(e.source === sourceNodeId && e.target === id)))
     },
     [id, setEdges]
   )
   // 用户手动选择 → 写回 node.data，让 data 始终是真实状态（Agent read_canvas 读到最新）
-  const patchData = useCallback((patch) => {
+  const patchData = useCallback((patch: Record<string, unknown>) => {
     setNodes((ns) => ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, ...patch } } : n)))
   }, [id, setNodes])
 
   // 标题改名 → 写回 data.label，让下游 @名 匹配 / 素材条显示跟随（与 ImageNode 一致）
-  const rename = useCallback((name) => {
+  const rename = useCallback((name: string) => {
     setNodes((ns) =>
       ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, label: name } } : n))
     )
@@ -128,10 +176,10 @@ function PromptNode({ id, data, selected }) {
   // 复用画布快照 KV（App.jsx 600ms 防抖 autoSave）→ 手动输入的提示词刷新不丢。
   // P2：prompt 持续输入走 debouncedPatch（200ms 防抖合并），避免每键 setNodes 全图 node 数组重建；
   // 卸载时 flush 兜底（防抖窗口内输入不丢）。expanded 是低频切换，保持即时写回。
-  const setPromptPersist = useCallback((v) => {
+  const setPromptPersist = useCallback((v: React.SetStateAction<string>) => {
     setPrompt((prev) => (typeof v === 'function' ? v(prev) : v))
   }, [])
-  const debouncedPatch = useRef(null)
+  const debouncedPatch = useRef<{ (patch: Record<string, unknown>): void; flush(): void } | null>(null)
   if (debouncedPatch.current == null) {
     debouncedPatch.current = debounce(patchData, 200)
   }
@@ -143,12 +191,12 @@ function PromptNode({ id, data, selected }) {
   React.useEffect(() => { patchData({ expanded }) }, [expanded]) // eslint-disable-line react-hooks/exhaustive-deps
   // 卸载前 flush 最后一次待提交（避免防抖窗口内丢数据）
   React.useEffect(() => () => { debouncedPatch.current?.flush() }, [])
-  const fileRef = useRef(null)
-  const promptInputRef = useRef(null) // 提示词 textarea ref（供面板右下角手柄拖拽改尺寸）
+  const fileRef = useRef<HTMLInputElement | null>(null)
+  const promptInputRef = useRef<HTMLDivElement | null>(null) // 提示词编辑器 ref（供面板右下角手柄拖拽改尺寸）
   // 双击大图：原生 <dialog> 弹窗（无外框、无背景容器，只显示图片）
-  const zoomRef = useRef(null)
-  const [zoomUrl, setZoomUrl] = useState(null)
-  const openZoom = useCallback((url) => {
+  const zoomRef = useRef<HTMLDialogElement | null>(null)
+  const [zoomUrl, setZoomUrl] = useState<string | null>(null)
+  const openZoom = useCallback((url: string) => {
     if (!url) return
     setZoomUrl(url)
     requestAnimationFrame(() => zoomRef.current?.showModal())
@@ -176,8 +224,8 @@ function PromptNode({ id, data, selected }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
   // 三个下拉菜单容器（画质/格式/数量）：ref 绑外层 relative，使「按钮+菜单」都在内，点外部才关
-  const imgMenuRef = useRef(null)
-  const countMenuRef = useRef(null)
+  const imgMenuRef = useRef<HTMLDivElement | null>(null)
+  const countMenuRef = useRef<HTMLDivElement | null>(null)
   useOutsideClick(imgMenuRef, showImgMenu, () => setShowImgMenu(false))
   useOutsideClick(countMenuRef, showCountMenu, () => setShowCountMenu(false))
 
@@ -263,7 +311,7 @@ function PromptNode({ id, data, selected }) {
         }])
         return
       }
-      setImageUrl(resultUrl)
+      setImageUrl(String(resultUrl ?? ''))
     },
   })
 
@@ -280,8 +328,8 @@ function PromptNode({ id, data, selected }) {
 
   // 富文本素材插入：由 PromptInput 挂载后通过 onReady 上抛（在光标处插芯片）。
   // MaterialStrip 的蓝色 @按钮点击也走这里，复用同一插入能力（保持组件职责内聚）。
-  const insertAssetRef = useRef(null)
-  const insertMention = (asset) => {
+  const insertAssetRef = useRef<((asset: unknown) => void) | null>(null)
+  const insertMention = (asset: unknown) => {
     if (typeof insertAssetRef.current === 'function') {
       insertAssetRef.current(asset)
     }
@@ -291,7 +339,7 @@ function PromptNode({ id, data, selected }) {
   // 下载生成的图片（<a download> 触发浏览器保存；文件名推导走统一 resolveDownloadFilename）
   const handleDownload = () => {
     if (!imageUrl) return
-    downloadUrl(imageUrl, resolveDownloadFilename(data.label || data.name, imageUrl, { ext: 'png', fallback: 'generated.png' }))
+    downloadUrl(imageUrl, resolveDownloadFilename(data.label || (data.name as string), imageUrl, { ext: 'png', fallback: 'generated.png' }))
   }
 
   // 共享图片 hover 能力（裁剪/标记/压缩）：写回走 setImageUrl + patchData（不可变落盘）。

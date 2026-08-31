@@ -114,7 +114,7 @@ beforeEach(() => {
   }
 })
 
-import PromptNode from '../../src/components/nodes/PromptNode.jsx'
+import PromptNode from '../../src/components/nodes/PromptNode.tsx'
 
 function setup(data = {}) {
   return render(<PromptNode id="n1" data={data} selected={false} />)

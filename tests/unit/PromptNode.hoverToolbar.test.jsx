@@ -72,7 +72,7 @@ vi.mock('../../src/components/base/InlineImageCropper.tsx', () => ({
   },
 }))
 
-import PromptNode from '../../src/components/nodes/PromptNode.jsx'
+import PromptNode from '../../src/components/nodes/PromptNode.tsx'
 
 beforeEach(() => {
   mockSetNodes.mockClear()
