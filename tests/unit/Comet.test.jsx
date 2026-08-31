@@ -29,7 +29,7 @@ vi.mock('../../src/components/base/CometParticles.tsx', () => ({
   default: (props) => h.CometParticlesMock(props),
 }))
 
-import Comet from '../../src/components/edges/Comet.jsx'
+import Comet from '../../src/components/edges/Comet.tsx'
 
 describe('Comet', () => {
   afterEach(() => {

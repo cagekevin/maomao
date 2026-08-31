@@ -1,6 +1,6 @@
 import React from 'react'
-import { getBezierPath, EdgeLabelRenderer, Position, useReactFlow } from '@xyflow/react'
-import Comet from './Comet.jsx'
+import { getBezierPath, EdgeLabelRenderer, Position, useReactFlow, type EdgeProps } from '@xyflow/react'
+import Comet from './Comet.tsx'
 
 /**
  * 自定义连线（复刻原 Mg.jsx）
@@ -17,7 +17,7 @@ function CustomEdge({
   markerEnd,
   selected,
   data
-}) {
+}: EdgeProps) {
   const relatedToSelected = !!data?.relatedToSelected
   const [path, labelX, labelY] = getBezierPath({
     sourceX,

@@ -1,5 +1,5 @@
 import React from 'react'
-import { getBezierPath, Position } from '@xyflow/react'
+import { getBezierPath, Position, type ConnectionLineComponentProps } from '@xyflow/react'
 import CometParticles from '../base/CometParticles.tsx'
 import { useLod } from '../base/lod.tsx'
 
@@ -11,7 +11,7 @@ import { useLod } from '../base/lod.tsx'
  * LOD 降级（复刻 Pg.jsx 的 f = o < 2）：lodLevel >= 2（缩到很小）时关闭辉光与粒子流，
  * 只保留基础线，节省大画布性能。
  */
-function ConnectionLine({ fromX, fromY, toX, toY }) {
+function ConnectionLine({ fromX, fromY, toX, toY }: ConnectionLineComponentProps) {
   const { lodLevel = 0 } = useLod()
   const [path] = getBezierPath({
     sourceX: fromX,

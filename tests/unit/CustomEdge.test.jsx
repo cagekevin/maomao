@@ -28,14 +28,14 @@ vi.mock('@xyflow/react', () => ({
   useReactFlow: () => ({ deleteElements: (...a) => h.deleteElements(...a) }),
 }))
 
-vi.mock('../../src/components/edges/Comet.jsx', () => ({
+vi.mock('../../src/components/edges/Comet.tsx', () => ({
   default: (props) => {
     h.cometProps.push(props)
     return <g data-testid="comet" />
   },
 }))
 
-import CustomEdge from '../../src/components/edges/CustomEdge.jsx'
+import CustomEdge from '../../src/components/edges/CustomEdge.tsx'
 
 const BASE_PROPS = {
   id: 'e1',

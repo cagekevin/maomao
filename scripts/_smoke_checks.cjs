@@ -141,18 +141,24 @@ function checkReactFlowApis(ROOT) {
     }
   }
 
-  // 从 'reactflow' 具名导入的 API 必须存在
+  // 从 '@xyflow/react' 具名导入的 API 必须存在（运行期导出集合校验）
   for (const f of files) {
     const content = read(f);
     const impRe = /import\s*\{([^}]+)\}\s*from\s*['"]@xyflow\/react['"]/g;
     let m;
     while ((m = impRe.exec(content)) !== null) {
       for (const name of m[1].split(',')) {
-        const api = name.trim().split(/\s+as\s+/)[0].trim();
+        const raw = name.trim();
+        if (!raw) continue;
+        // 类型导入（import { type Xxx } 或 import { type Xxx as Y }）仅编译期存在，
+        // 不参与运行期导出集合校验（@xyflow/react 的类型通过 export type / export * 聚合，
+        // 不在值导出块里，getReactFlowExports 抓不到）——TS 迁移期引入，跳过避免误报。
+        if (raw.startsWith('type ')) continue;
+        const api = raw.split(/\s+as\s+/)[0].trim();
         if (!api) continue;
         if (!exported.has(api)) {
           pass = false;
-          details.push(`  ✖ ${path.relative(ROOT, f)}: import { ${api} } from 'reactflow' 不存在`);
+          details.push(`  ✖ ${path.relative(ROOT, f)}: import { ${api} } from '@xyflow/react' 不存在`);
         }
       }
     }

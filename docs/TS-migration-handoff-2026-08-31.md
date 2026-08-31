@@ -326,3 +326,17 @@ npm run test:tools           # agent 工具
    - 顺手修复：`LeftPanel` 角标漏 `pending`（见第 5 条）；`agentCore.ts:546` 存量 `tokens` 推断为 `never` 的类型错（见第 2 条）；清理误入库的 `download/` 沙盒（见第 3 条）。
    - 提交：`2de1565`（LocalToolConnectModal/PanoViewer/LeftPanel + 角标修复）、`c3255f6`（PromptHub/PromptLibrary + Prompt/LibraryCard/ImeInput 类型 + agentCore 存量修复）、`99a5c15`（AssetLibrary + 契约行号）、`cad2335`（清理 download/）、`8c1b221`（GeneratedView + ResourceItem/toImgDragProps 收口）。
    - **剩余 `base/` 层 2 个**：`FullscreenEditor`（4 引用）、`NodeShell`（16 引用，最大，被全部节点 import——建议单独一批）；之后转 `panels/`（4）、`edges/`（4）、`scriptbox/`（9）、`nodes/`（17）、`src/main.jsx` / `src/App.jsx`。
+
+### 10.5 本轮（第六段会话）新增踩坑 / 经验（必读）
+
+> 时间段：承接第五段，收尾 `base/` 层 2 个（`FullscreenEditor` / `NodeShell`）并把 `NodeShell` 的下游 `CustomHandle` 一并转完（消类型错），正式进入 `edges/` 批次。
+
+1. **下游 `.jsx` 的 props 会被推断成含 any 必填形状，卡住上游 type-check**：`NodeShell` 转完引用 `CustomHandle.jsx`（未转），TS 把 `CustomHandle` 的 props 推断成 `{ className?, variant?, position: any, handleId: any, top: any }` 并要求必填 `handleId`/`top`，导致 `NodeShell` 报错。**照 §10.4/§四「优先先把下游转 .ts」原则**：把 `CustomHandle.jsx` 也转成 `.tsx` 并补 `CustomHandleProps`（`position: Position | 'left'|'right'`、`handleId?: string`、`top?: number`、`variant?: 'large'|'small'`），上游引用自然正确，无需临时断言。
+2. **`@xyflow/react` 的 `Position` 枚举在测试 `vi.mock('@xyflow/react')` 下运行期为 `undefined`**：`Handle position={Position.Left}` type-check 通过，但 `FaceMosaicNode.test.jsx` 等 mock 整个 `@xyflow/react` 后 `Position` 值丢失 → 渲染抛 `Position.Left is undefined`。修法：不依赖枚举值，用字符串字面量 + 类型断言 `position={(position === 'left' ? 'left' : 'right') as Position}`，零行为变化且运行期健壮。记录：`Handle` 的 `type` 用字符串 `'target'|'source'`（其类型是字符串联合，不是枚举）。
+3. **`vi.mock` 盲区再次命中（第 N 次，铁律不变）**：`NodeShell` 有 4 个测试 `vi.mock('.../NodeShell.jsx')`、`CustomHandle` 有 6 个测试 `vi.mock('.../CustomHandle.jsx')`（共 10 处 + 1 处 import 字符串）。convert 自动同步了 `import ... from` 说明符，**但 `vi.mock` 字符串全没动** → 必挂。转前 `refs <file>` 列出，转后用 sed 在 `tests/unit/` 把 `NodeShell.jsx`/`CustomHandle.jsx` 全部替换为 `.tsx`（macOS 下 sed 可用；Windows 按 §10.3 第 5 条走 IDE 编辑）。**务必转完逐个确认 `refs` 输出里的 `vi.mock` 行已清零**。
+4. **`PromptInput` 漏登记 `richText?: boolean` 字段（存量类型漂移）**：`FullscreenEditor` 一直传 `richText` 给 `PromptInput`，但 `PromptInputProps` 接口里没有该字段（注释写「所有调用方均传 richText、旧 textarea 分支已删」却没在类型上登记）。转 `FullscreenEditor` 时暴露。修法：在 `PromptInputProps` 补 `richText?: boolean`（真实 props 形状，属收口修复，非行为变更）。
+5. **`{}` 默认兜底在解构别名里也会退化**：`NodeShell` 的 `style: extraStyle = {}` 虽解构别名，但 `{}` 仍是 `{}` 类型；因显式 `style?: CSSProperties` 约束，推断回 `CSSProperties`，未报错（幸运）。但 `wrapStyle` 对象含 CSS 自定义属性 `'--cust-anchor-x'`，`CSSProperties` 不允许 → 用 `as CSSProperties` cast。遇到 CSS 变量一律 `as CSSProperties` 而非硬加索引签名。
+6. **本段 B 批进度（截至本次更新）**：
+   - 已转（本段新增）：`FullscreenEditor`(.tsx、base/ 层收尾 1/2)、`NodeShell`(.tsx、base/ 层收尾 2/2，16 引用)、`CustomHandle`(.tsx、edges/ 首批，NodeShell 下游)。全部 Props 接口 + 验证全绿（type-check / 五门禁 / smoke / regression / 144 节点测试全 PASS）。
+   - 提交：`7dee2c8`（FullscreenEditor + Props + PromptInput 补字段）、`52086b6`（NodeShell + CustomHandle + 11 测试 vi.mock 同步）。
+   - **`base/` 层已清零**（全部 .tsx）。剩余 `.jsx`（不含 director3d 豁免）：`edges/`（Comet / ConnectionLine / CustomEdge，3 个，CustomHandle 已转）、`panels/`（4）、`scriptbox/`（9）、`nodes/`（17）、`src/main.jsx` / `src/App.jsx`（最后转）。

@@ -1,6 +1,12 @@
 import React from 'react'
 import CometParticles from '../base/CometParticles.tsx'
 
+interface CometProps {
+  pathRef?: string
+  edgeId: string
+  isActive?: boolean
+}
+
 /**
  * 彗星流光（复刻原 _Component111.jsx）
  * 选中边时的流光效果：16 拖尾 + 发光头，沿 CustomEdge 里那条隐藏 path（id=cust-edge-mpath-{edgeId}）运动。
@@ -9,7 +15,7 @@ import CometParticles from '../base/CometParticles.tsx'
  *  - 外层 <g> 的 is-active 态（控制粒子流显隐）
  *  - 指定 mpath 指向的隐藏 path id
  */
-function Comet({ pathRef, edgeId, isActive }) {
+function Comet({ pathRef, edgeId, isActive }: CometProps) {
   const mpathId = `cust-edge-mpath-${edgeId}`
   const pathTarget = pathRef || mpathId
 
