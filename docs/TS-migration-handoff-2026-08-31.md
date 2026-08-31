@@ -112,7 +112,7 @@
 | `0f31cfc` | **B 批（nodes/ 第 15 个）**：`DiscountVideoNode`→.tsx。**照出存量 bug**：`useVideoPoster(videoUrl)` 漏传 `enabled` 第二参 → 封面恒 undefined，改 `(videoUrl, !!videoUrl)`；`seconds` 转 `Number()`（`generateVideo` 要求 number） |
 | `b44ad65` | **B 批（nodes/ 第 16 个）**：`TextNode`→.tsx。契约接口 + ref 类型；`data.inputWidth/Height` 补入接口（消 unknown 报错） |
 | `22182ea` | **B 批（nodes/ 第 17 个，nodes/ 清零）**：`PromptNode`→.tsx。契约接口 + ref 类型；`onRecover` 的 `resultUrl` 用 `String()`、`data.name as string` |
-| `@HEAD@` | **收尾（全部 .jsx 清零）**：`src/App.jsx`→.tsx + `src/main.jsx`→.tsx（补约 29 处类型：view 收窄 / getSetting unknown 断言 / addNode 形参 Record<string,unknown> / 菜单函数 ContextMenuItem[] / copySelectedNodes onlyId?）。**跨文件收口**：`MenuLeafItem` 补 badge；`CanvasEdgesContext.CanvasHistory` 复用 `CanvasHistoryApi`；`useContextMenu.onSelectionEnd` nodes 参改可选（对齐 ReactFlow 1 参签名）。**修 3 处存量路径漂移**：`index.html` main.jsx→tsx（build 崩）、`health-check.cjs` storageAdapter 路径（文件在 storage/ 子目录）、`lazyNode.test.jsx` readSrc App.jsx→tsx（ENOENT）。门禁全绿（type-check / 五门禁 / test:all / build / check:health 无错误） |
+| `14e23c3` | **收尾（全部 .jsx 清零）**：`src/App.jsx`→.tsx + `src/main.jsx`→.tsx（补约 29 处类型：view 收窄 / getSetting unknown 断言 / addNode 形参 Record<string,unknown> / 菜单函数 ContextMenuItem[] / copySelectedNodes onlyId?）。**跨文件收口**：`MenuLeafItem` 补 badge；`CanvasEdgesContext.CanvasHistory` 复用 `CanvasHistoryApi`；`useContextMenu.onSelectionEnd` nodes 参改可选（对齐 ReactFlow 1 参签名）。**修 3 处存量路径漂移**：`index.html` main.jsx→tsx（build 崩）、`health-check.cjs` storageAdapter 路径（文件在 storage/ 子目录）、`lazyNode.test.jsx` readSrc App.jsx→tsx（ENOENT）。门禁全绿（type-check / 五门禁 / test:all / build / check:health 无错误） |
 
 ## 三·补：横切收口成果（本次新增）
 
@@ -492,5 +492,5 @@ npm run test:tools           # agent 工具
    - 已转（本段新增 2 个）：`src/App.tsx` / `src/main.tsx`。全部类型补全 + 验证全绿（type-check 0 错 / 五门禁 / test:all 2180 用例全 PASS / build / check:health 无错误）。
    - 收口：`MenuLeafItem` 补 badge；`CanvasEdgesContext.CanvasHistory` 复用 `CanvasHistoryApi`；`useContextMenu.onSelectionEnd` nodes 参可选。
    - 修复存量路径漂移：`index.html` main 入口 .jsx→.tsx（build 崩）；`health-check.cjs` storageAdapter 路径；`lazyNode.test.jsx` readSrc App.jsx→tsx。
-   - 提交：`@HEAD@`。
+   - 提交：`14e23c3`。
    - **剩余 `.jsx`（不含 director3d 豁免）：0 个。TS 规范化重构全部清零。**
