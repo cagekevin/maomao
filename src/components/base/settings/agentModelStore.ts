@@ -7,7 +7,7 @@
  * - streamMode: 'stream'（流式，默认）| 'non-stream'（非流式，仅支持普通 JSON 响应的模型/API）
  * 与 agent_input_mode / agent_panel_width 等前端偏好一致，轻量即时，无需网络。
  */
-import { contentGet, contentSet } from '../contentStore.js'
+import { contentGet, contentSet } from '../contentStore.ts'
 
 export const AGENT_CHAT_MODEL_KEY = 'agent_chat_model'
 
@@ -23,7 +23,8 @@ export interface AgentChatModelConfig {
 
 export function loadAgentChatModel(): AgentChatModelConfig | null {
   try {
-    const parsed = contentGet(AGENT_CHAT_MODEL_KEY)
+    // contentGet 返回 unknown（存储值不可信），按 AgentChatModelConfig 收窄后再取字段
+    const parsed = contentGet(AGENT_CHAT_MODEL_KEY) as Partial<AgentChatModelConfig> | null
     if (parsed && typeof parsed === 'object' && parsed.providerId && parsed.modelId) {
       return {
         providerId: parsed.providerId,

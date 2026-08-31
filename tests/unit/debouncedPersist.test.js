@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { createDebouncedPersist } from '../../src/components/base/contentStore.js'
+import { createDebouncedPersist } from '../../src/components/base/contentStore.ts'
 
 describe('createDebouncedPersist（P4 落盘节流原语）', () => {
   beforeEach(() => { vi.useFakeTimers() })

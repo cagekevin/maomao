@@ -25,7 +25,7 @@
  * useAgentChat.hook.test.js / scripts/test_agent_tools.cjs）import 路径不变。
  * ════════════════════════════════════════════════════════════════
  */
-import { contentGet } from '../../base/contentStore.js'
+import { contentGet } from '../../base/contentStore.ts'
 import { logger } from '../../base/logger.ts'
 import { toImageContentBlocks } from '../../base/imageUrl.ts'
 import { getSystemPromptForWorkMode, RUN_MODE_IDS } from './runModeRegistry.js'

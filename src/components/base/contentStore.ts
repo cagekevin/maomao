@@ -37,21 +37,64 @@ import { STORAGE_KEYS } from './contracts.js'
 import { logger } from './logger.ts'
 import { compilePatternRegex } from './utils.ts'
 
+/** 存储后端：local(localStorage) / kv(云端 KV) / native(原生桥) */
+export type StorageBackend = 'local' | 'kv' | 'native'
+
+/**
+ * STORAGE_KEYS 中单条登记项。
+ * 【边界】contracts.js 是契约真相源（暂不转 .ts），故在此按本层实际消费的字段
+ * 定义最小视图，避免 any 扩散；待其转 .ts 后改为直接引用其类型。
+ */
+export interface StorageKeyEntry {
+  backend: StorageBackend
+  /** true = 动态键模板（如 'canvas-state-v1-{projectId}'），需正则匹配 */
+  pattern?: boolean
+  [key: string]: unknown
+}
+
+/** 缓存快照（contentGetSnapshot 的产物）：键名 → 值 */
+export type ContentSnapshot = Record<string, unknown>
+
+/** 按 key 订阅的回调 */
+export type ContentKeyListener = (value: unknown) => void
+/** 全局订阅的回调 */
+export type ContentGlobalListener = (key: string, value: unknown) => void
+
+/** 落盘节流原语的返回值 */
+export interface DebouncedPersist {
+  /** 标记待落盘；窗口内多次调用只落盘 1 次（write 必须是「读当前最新状态」的 thunk） */
+  schedule: () => void
+  /** 强制立即落盘（自动注册 pagehide 触发，防刷新丢数据） */
+  flush: () => void
+  /** 取消未落盘写（测试/重置用） */
+  cancel: () => void
+}
+
+/** 缓存统计信息 */
+export interface ContentStats {
+  cachedKeys: number
+  listeners: number
+  globalListeners: number
+}
+
 // ─────────────────────────────────────────────────────────────────
 // 内部状态
 // ─────────────────────────────────────────────────────────────────
 
 /** 内存缓存 { [key]: value|undefined }。undefined 表示未加载。 */
-const cache = new Map()
+const cache = new Map<string, unknown>()
 
 /** 按 key 的订阅者：{ [key]: Set<callback> } */
-const keyListeners = new Map()
+const keyListeners = new Map<string, Set<ContentKeyListener>>()
 
 /** 全局订阅者：Set<(key, value) => void> */
-const globalListeners = new Set()
+const globalListeners = new Set<ContentGlobalListener>()
 
 /** 已 warning 的未登记键集合（防重复 warning） */
-const warnedKeys = new Set()
+const warnedKeys = new Set<string>()
+
+/** STORAGE_KEYS 登记表（contracts.js 为 .js，此处按最小视图收窄一次，供全文件复用） */
+const KEYS = STORAGE_KEYS as Record<string, StorageKeyEntry>
 
 // P6：动态键模板 → 编译后正则，统一走 utils.compilePatternRegex（2026-08-30 收口，原本地副本已删）
 
@@ -60,7 +103,7 @@ const warnedKeys = new Set()
 // ─────────────────────────────────────────────────────────────────
 
 /** 尝试解析 JSON 字符串，失败返回原值 */
-function tryParse(s) {
+function tryParse(s: string): unknown {
   try { return JSON.parse(s) } catch { return s }
 }
 
@@ -69,8 +112,9 @@ function tryParse(s) {
  * 返回匹配的条目，无匹配返回 null。
  * 例如 key="canvas-state-v1-proj-123" 匹配模板 "canvas-state-v1-{projectId}"。
  */
-function findPatternEntry(key) {
-  for (const [k, v] of Object.entries(STORAGE_KEYS)) {
+function findPatternEntry(key: string): StorageKeyEntry | null {
+  // 用缓存的收窄视图 KEYS（等价原 Object.entries(STORAGE_KEYS)，避免 each 处再 as 一次）
+  for (const [k, v] of Object.entries(KEYS)) {
     if (!v.pattern) continue
     try {
       if (compilePatternRegex(k).test(key)) return v
@@ -79,7 +123,7 @@ function findPatternEntry(key) {
   return null
 }
 
-function isPatternMatch(key) {
+function isPatternMatch(key: string): boolean {
   return findPatternEntry(key) !== null
 }
 
@@ -95,8 +139,8 @@ function isPatternMatch(key) {
  *   - 生产环境保持原行为：仅 warning，不影响线上。
  *   - 新增存储键必须先在本文件 STORAGE_KEYS 登记（契约登记表单一事实来源）。
  */
-function checkRegistered(key) {
-  if (key in STORAGE_KEYS) return true
+function checkRegistered(key: string): boolean {
+  if (key in KEYS) return true
   if (isPatternMatch(key)) return true
   const isLiteral = typeof key === 'string' && key.length > 0
   // 编译期拦截补强（2026-08-19，对应架构 P0-1）：
@@ -113,17 +157,19 @@ function checkRegistered(key) {
   // warning 去重（开发/生产都打，但只打一次，避免刷屏）
   if (warnedKeys.has(key)) return false
   warnedKeys.add(key)
+  // 【签名对齐】logger.warn 现签名为 (category, action, detail?)；此处原按「整句即 category」的旧
+  // 用法传单参，转 .ts 后暴露。改为标准两参，日志输出从「整句」变为「contentStore | 整句」。
   if (isLiteral) {
-    logger.warn(`[contentStore] 未登记的存储键: "${key}"，请先在 contracts.js 的 STORAGE_KEYS 登记`)
+    logger.warn('contentStore', `未登记的存储键: "${key}"，请先在 contracts.js 的 STORAGE_KEYS 登记`)
   } else {
-    logger.warn(`[contentStore] 未登记的存储键(动态): "${key}"，请先在 contracts.js 的 STORAGE_KEYS 登记`)
+    logger.warn('contentStore', `未登记的存储键(动态): "${key}"，请先在 contracts.js 的 STORAGE_KEYS 登记`)
   }
   return false
 }
 
-/** 获取后端类型：local | kv | native | null（未知） */
-function getBackend(key) {
-  const entry = STORAGE_KEYS[key]
+/** 获取后端类型：local | kv | native（未登记键按 isKvKey 启发式判断） */
+function getBackend(key: string): StorageBackend {
+  const entry = KEYS[key]
   if (entry) return entry.backend
   // 动态键：查找匹配的模式键
   const patternEntry = findPatternEntry(key)
@@ -133,13 +179,13 @@ function getBackend(key) {
 }
 
 /** 通知所有订阅者 */
-function notify(key, value) {
+function notify(key: string, value: unknown): void {
   keyListeners.get(key)?.forEach((cb) => cb(value))
   globalListeners.forEach((cb) => cb(key, value))
 }
 
 /** 从 localStorage 加载键到缓存（同步） */
-function loadFromLocal(key) {
+function loadFromLocal(key: string): unknown {
   const raw = sGet(key)
   if (raw === null) {
     cache.set(key, undefined)
@@ -151,7 +197,7 @@ function loadFromLocal(key) {
 }
 
 /** 从 KV 加载键到缓存（异步） */
-async function loadFromKv(key) {
+async function loadFromKv(key: string): Promise<unknown> {
   const value = await storageGet(key)
   cache.set(key, value)
   return value
@@ -166,7 +212,7 @@ async function loadFromKv(key) {
  * - local/native 键：惰性加载，首次读从 localStorage 加载到缓存，后续读缓存
  * - KV 键：返回缓存值（如果之前未加载过则返回 undefined，需用 getAsync）
  */
-export function contentGet(key) {
+export function contentGet(key: string): unknown {
   checkRegistered(key)
   if (cache.has(key)) return cache.get(key)
   const backend = getBackend(key)
@@ -182,7 +228,7 @@ export function contentGet(key) {
  * - local/native 键：同步写缓存 + localStorage
  * - KV 键：同步写缓存 + 异步写 KV（fire-and-forget，失败仅 warning）
  */
-export function contentSet(key, value) {
+export function contentSet(key: string, value: unknown): void {
   checkRegistered(key)
   cache.set(key, value)
   const backend = getBackend(key)
@@ -201,7 +247,7 @@ export function contentSet(key, value) {
  * - local/native 键：同步删缓存 + localStorage
  * - KV 键：同步删缓存 + 异步删 KV（fire-and-forget）
  */
-export function contentDelete(key) {
+export function contentDelete(key: string): void {
   checkRegistered(key)
   cache.delete(key)
   const backend = getBackend(key)
@@ -219,7 +265,7 @@ export function contentDelete(key) {
  * 同步检查键是否存在（缓存或后端）。
  * 注意：KV 键如果缓存未命中，会返回 false（即使后端存在），建议用 getAsync 确认。
  */
-export function contentHas(key) {
+export function contentHas(key: string): boolean {
   checkRegistered(key)
   if (cache.has(key)) {
     const v = cache.get(key)
@@ -236,7 +282,7 @@ export function contentHas(key) {
 // ─────────────────────────────────────────────────────────────────
 
 /** 异步读取键值，总是从后端加载（同时更新缓存）。 */
-export async function contentGetAsync(key) {
+export async function contentGetAsync(key: string): Promise<unknown> {
   checkRegistered(key)
   const backend = getBackend(key)
   if (backend === 'kv') {
@@ -246,7 +292,7 @@ export async function contentGetAsync(key) {
 }
 
 /** 异步写入键值，等待持久化完成。 */
-export async function contentSetAsync(key, value) {
+export async function contentSetAsync(key: string, value: unknown): Promise<void> {
   checkRegistered(key)
   cache.set(key, value)
   const backend = getBackend(key)
@@ -259,7 +305,7 @@ export async function contentSetAsync(key, value) {
 }
 
 /** 异步删除键，等待删除完成。 */
-export async function contentDeleteAsync(key) {
+export async function contentDeleteAsync(key: string): Promise<void> {
   checkRegistered(key)
   cache.delete(key)
   const backend = getBackend(key)
@@ -281,10 +327,10 @@ export async function contentDeleteAsync(key) {
  * @param {(value: any) => void} callback
  * @returns {() => void} 取消订阅函数
  */
-export function contentSubscribe(key, callback) {
+export function contentSubscribe(key: string, callback: ContentKeyListener): () => void {
   if (!keyListeners.has(key)) keyListeners.set(key, new Set())
-  keyListeners.get(key).add(callback)
-  return () => keyListeners.get(key)?.delete(callback)
+  keyListeners.get(key)!.add(callback)
+  return () => { keyListeners.get(key)?.delete(callback) }
 }
 
 /**
@@ -292,9 +338,9 @@ export function contentSubscribe(key, callback) {
  * @param {(key: string, value: any) => void} callback
  * @returns {() => void} 取消订阅函数
  */
-export function contentSubscribeAll(callback) {
+export function contentSubscribeAll(callback: ContentGlobalListener): () => void {
   globalListeners.add(callback)
-  return () => globalListeners.delete(callback)
+  return () => { globalListeners.delete(callback) }
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -306,9 +352,9 @@ export function contentSubscribeAll(callback) {
  * 排除动态键（pattern: true）和未在缓存中的键。
  * 用于撤销/恢复/历史追踪。
  */
-export function contentGetSnapshot() {
-  const snapshot = {}
-  for (const [key, entry] of Object.entries(STORAGE_KEYS)) {
+export function contentGetSnapshot(): ContentSnapshot {
+  const snapshot: ContentSnapshot = {}
+  for (const [key, entry] of Object.entries(KEYS)) {
     if (entry.pattern) continue // 动态键跳过
     if (cache.has(key)) {
       const v = cache.get(key)
@@ -326,7 +372,7 @@ export function contentGetSnapshot() {
 }
 
 /** 获取指定键的不可变快照值。 */
-export function contentGetKeySnapshot(key) {
+export function contentGetKeySnapshot(key: string): unknown {
   checkRegistered(key)
   const backend = getBackend(key)
   if (cache.has(key)) return Object.freeze(cache.get(key))
@@ -353,10 +399,10 @@ export function contentGetKeySnapshot(key) {
  *  - cancel()：取消未落盘写（测试/重置用）。
  * 注意：通知订阅者（notify）保持即时，只有「落盘」被节流——UI 响应性不受影响。
  */
-export function createDebouncedPersist(write, delay = 300) {
-  let timer = null
+export function createDebouncedPersist(write: () => void, delay = 300): DebouncedPersist {
+  let timer: ReturnType<typeof setTimeout> | null = null
   let pending = false
-  function schedule() {
+  function schedule(): void {
     pending = true
     if (timer) return
     timer = setTimeout(() => {
@@ -365,7 +411,7 @@ export function createDebouncedPersist(write, delay = 300) {
       write()
     }, delay)
   }
-  function flush() {
+  function flush(): void {
     if (timer) {
       clearTimeout(timer)
       timer = null
@@ -375,7 +421,7 @@ export function createDebouncedPersist(write, delay = 300) {
       write()
     }
   }
-  function cancel() {
+  function cancel(): void {
     if (timer) {
       clearTimeout(timer)
       timer = null
@@ -393,7 +439,7 @@ export function createDebouncedPersist(write, delay = 300) {
  * 清除内容缓存（用于测试/重置）。
  * 注意：订阅者不受影响，后续 set/get 会重新加载。
  */
-export function contentClearCache() {
+export function contentClearCache(): void {
   cache.clear()
   warnedKeys.clear()
 }
@@ -402,7 +448,7 @@ export function contentClearCache() {
  * 获取缓存统计信息。
  * @returns {{ cachedKeys: number, listeners: number, globalListeners: number }}
  */
-export function contentStats() {
+export function contentStats(): ContentStats {
   return {
     cachedKeys: cache.size,
     listeners: keyListeners.size,

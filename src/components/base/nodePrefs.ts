@@ -32,7 +32,7 @@
  * 接真系统：可改为后端 KV（app_settings / node_prefs），本模块是纯前端唯一数据源。
  */
 import { useState, useCallback } from 'react'
-import { contentGet, contentSet } from './contentStore.js'
+import { contentGet, contentSet } from './contentStore.ts'
 
 const STORAGE_KEY = 'yimao_node_prefs'
 

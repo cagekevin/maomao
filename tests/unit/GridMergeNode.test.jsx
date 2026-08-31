@@ -14,7 +14,7 @@ vi.mock('../../src/components/edges/CustomHandle.jsx', () => ({ default: mocks.C
 vi.mock('../../src/components/base/OverlayEditor.jsx', () => ({ default: mocks.OverlayEditor, renderOverlayCanvas: mocks.renderOverlayCanvas }))
 vi.mock('../../src/hooks/useConnectedInputs.ts', () => ({ useConnectedInputs: mocks.useConnectedInputs }))
 vi.mock('../../src/hooks/useMediaDegrade.ts', () => ({ useMediaDegrade: mocks.useMediaDegrade }))
-vi.mock('../../src/components/base/hooks.js', () => ({ useNodeResize: mocks.useNodeResize, useContentHeightSync: mocks.useContentHeightSync }))
+vi.mock('../../src/components/base/hooks.ts', () => ({ useNodeResize: mocks.useNodeResize, useContentHeightSync: mocks.useContentHeightSync }))
 vi.mock('../../src/components/base/toastStore.ts', () => ({ showToast: mocks.showToast }))
 vi.mock('../../src/components/base/filesApi.ts', () => ({ toAbsoluteFileUrl: mocks.toAbsoluteFileUrl }))
 

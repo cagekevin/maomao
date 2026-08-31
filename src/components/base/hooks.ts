@@ -1,13 +1,21 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import type { Dispatch, SetStateAction, RefObject, Ref, MouseEvent as ReactMouseEvent } from 'react'
 import { useReactFlow, useUpdateNodeInternals } from '@xyflow/react'
 import { NODE_AREA_FIXED_BASE_SIZE } from './config.js'
 
 /**
  * 判断事件目标是否在可编辑元素内（INPUT / TEXTAREA / contenteditable）。
  * 右键菜单与快捷键都要「在输入框内跳过」，共用此判定（复刻 H_.jsx:1316-1323 Xn）。
+ *
+ * 入参放宽为「任意带 target 的事件」：既有调用方涵盖 React 合成事件与原生事件
+ * （useCanvasShortcuts 传的是原生 KeyboardEvent），故只约束到 target 这一最小契约。
  */
-export function isEditableTarget(e) {
-  const t = e?.target
+export function isEditableTarget(e?: { target?: EventTarget | null } | null): boolean {
+  const t = e?.target as (EventTarget & {
+    tagName?: string
+    isContentEditable?: boolean
+    closest?: (sel: string) => Element | null
+  }) | null
   if (!t) return false
   const tag = t.tagName
   return (
@@ -37,12 +45,16 @@ export function isEditableTarget(e) {
  * @param visible 弹层是否打开（仅打开时挂监听）
  * @param onClose 点击外部时的关闭回调
  */
-export function useOutsideClick(ref, visible, onClose) {
+export function useOutsideClick(
+  ref: RefObject<HTMLElement | null> | Array<RefObject<HTMLElement | null>>,
+  visible: boolean,
+  onClose?: () => void
+): void {
   useEffect(() => {
     if (!visible) return
     const refs = Array.isArray(ref) ? ref : [ref]
-    const close = (e) => {
-      const inside = refs.some((r) => r.current && r.current.contains(e.target))
+    const close = (e: globalThis.MouseEvent) => {
+      const inside = refs.some((r) => r.current && r.current.contains(e.target as Node))
       if (!inside) onClose?.()
     }
     document.addEventListener('mousedown', close, true)
@@ -56,7 +68,11 @@ export function useOutsideClick(ref, visible, onClose) {
  *  - 点击主显示框切换
  *  - 面板用 opacity/scale/h-0 过渡
  */
-export function useNodeExpanded(initial = true) {
+export function useNodeExpanded(initial = true): {
+  expanded: boolean
+  setExpanded: Dispatch<SetStateAction<boolean>>
+  toggle: () => void
+} {
   const [expanded, setExpanded] = useState(initial)
   const toggle = useCallback(() => setExpanded((v) => !v), [])
   return { expanded, setExpanded, toggle }
@@ -71,11 +87,30 @@ export function useNodeExpanded(initial = true) {
  *  - mode='width-fixed'（生图节点）：宽度固定，height = 当前宽度 ÷ 比例
  *  - mode='area-fixed'（视频生成）：面积固定，width = sqrt(ratio)*base，height = base/sqrt(ratio)
  *
+/** 尺寸模式：width-fixed（宽固定）/ area-fixed（面积固定，视频生成用） */
+export type SizeSyncMode = 'width-fixed' | 'area-fixed'
+
+export interface SizeSyncOptions {
+  /** 尺寸模式，默认 'width-fixed' */
+  mode?: SizeSyncMode
+  defaultWidth?: number
+  defaultHeight?: number
+  /** area-fixed 的面积基准 */
+  baseSize?: number
+}
+
+/** computeSizeSync / useSizeSync 的产物 */
+export interface SizeSync {
+  width: number
+  height: number
+}
+
+/**
  * @param id 节点 id
  * @param aspectRatio 当前比例字符串（'Auto' 或 '16:9'）
  * @param opts { mode, defaultWidth, defaultHeight, baseSize }
  */
-export function useSizeSync(id, aspectRatio, opts = {}) {
+export function useSizeSync(id: string, aspectRatio: string, opts: SizeSyncOptions = {}): number | null {
   const { getNode, setNodes } = useReactFlow()
   const updateNodeInternals = useUpdateNodeInternals()
   const mode = opts.mode || 'width-fixed'
@@ -88,8 +123,10 @@ export function useSizeSync(id, aspectRatio, opts = {}) {
     const n = getNode(id)
     if (!n) return
     // 尺寸计算收敛到纯函数 computeSizeSync（width-fixed / area-fixed / Auto），可单测
+    // Number() 归一：ReactFlow 的 style.width 可能是字符串（'260'），统一数值化保证后续算术合法
+    // （与 useFitNodeRatio 同口径；字符串在 React inline style 下本就是无效宽度值）。
     const { width: w, height: h } = computeSizeSync(ratio, {
-      mode, currentWidth: n.style?.width ?? n.width ?? defaultWidth, defaultWidth, defaultHeight, baseSize,
+      mode, currentWidth: Number(n.style?.width ?? n.width ?? defaultWidth), defaultWidth, defaultHeight, baseSize,
     })
     const changed =
       (n.style?.height ?? n.height) !== h || (n.style?.width ?? n.width) !== w
@@ -112,7 +149,7 @@ export function useSizeSync(id, aspectRatio, opts = {}) {
  * 解析 '16:9' / '1:1' / 'Auto' → 宽高比数值或 null。
  *  纯函数，导出供单测（useSizeSync 尺寸计算的输入解析）。
  */
-export function parseAspect(aspectRatio) {
+export function parseAspect(aspectRatio?: string | null): number | null {
   if (!aspectRatio || aspectRatio === 'Auto') return null
   const m = aspectRatio.match(/^(\d+(?:\.\d+)?)\s*[:：]\s*(\d+(?:\.\d+)?)$/)
   return m ? parseFloat(m[1]) / parseFloat(m[2]) : null
@@ -123,11 +160,13 @@ export function parseAspect(aspectRatio) {
  *  - ratio=null（Auto/无比例）→ 返回默认尺寸
  *  - mode='width-fixed'（生图节点）：宽固定 currentWidth，高 = 宽 ÷ 比例
  *  - mode='area-fixed'（视频生成）：宽 = sqrt(比例)*base，高 = base/sqrt(比例)
- * @param {number|null} ratio  宽高比值（parseAspect 的产物）
- * @param {object} opts { mode, currentWidth, defaultWidth, defaultHeight, baseSize }
- * @returns {{width, height}}
+ * @param ratio  宽高比值（parseAspect 的产物）
+ * @param opts { mode, currentWidth, defaultWidth, defaultHeight, baseSize }
  */
-export function computeSizeSync(ratio, opts = {}) {
+export function computeSizeSync(
+  ratio: number | null,
+  opts: SizeSyncOptions & { currentWidth?: number } = {}
+): SizeSync {
   const mode = opts.mode || 'width-fixed'
   const defaultWidth = opts.defaultWidth ?? 420
   const defaultHeight = opts.defaultHeight ?? 420
@@ -168,12 +207,17 @@ export function computeSizeSync(ratio, opts = {}) {
  *
  * @param id 节点 id
  */
-export function useNodeResize(id) {
+export function useNodeResize(id: string): {
+  /** 主框手柄 → 写回 node.width/height + updateNodeInternals */
+  onMainBoxResize: (w: number, h: number) => void
+  /** 输入框手柄 → 写回 node.data.inputWidth/inputHeight */
+  onInputResize: (w: number, h: number) => void
+} {
   const { setNodes } = useReactFlow()
   const updateNodeInternals = useUpdateNodeInternals()
 
   const onMainBoxResize = useCallback(
-    (w, h) => {
+    (w: number, h: number) => {
       setNodes((ns) =>
         ns.map((n) =>
           n.id === id ? { ...n, width: w, height: h, style: { ...n.style, width: w, height: h } } : n
@@ -185,7 +229,7 @@ export function useNodeResize(id) {
   )
 
   const onInputResize = useCallback(
-    (w, h) => {
+    (w: number, h: number) => {
       setNodes((ns) =>
         ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, inputWidth: w, inputHeight: h } } : n))
       )
@@ -234,13 +278,28 @@ export function useNodeResize(id) {
  *                      让 node.height 贴合完整视觉框。内容自适应节点都应传此参数。
  * @returns ref        调用方需把返回的 ref 绑到内容区根 div（用法见调用方）
  */
-export function useContentHeightSync(ref, id, { minHeight = 0, fallbackWidth = 420, syncWidth = false, wrapperRef } = {}) {
+export interface ContentHeightSyncOptions {
+  /** 写回时的最小高度（原各节点 Math.max(N, h) 的 N） */
+  minHeight?: number
+  /** 拿不到 node.width 时的兜底宽度 */
+  fallbackWidth?: number
+  /** 是否同时同步宽度为「内容元素实际宽度」，默认 false */
+  syncWidth?: boolean
+  /** 可选：NodeShell 根 div ref（传它则测完整节点，含标题栏） */
+  wrapperRef?: RefObject<HTMLElement | null>
+}
+
+export function useContentHeightSync(
+  ref: RefObject<HTMLElement | null>,
+  id: string,
+  { minHeight = 0, fallbackWidth = 420, syncWidth = false, wrapperRef }: ContentHeightSyncOptions = {}
+): void {
   const { getNode } = useReactFlow()
   const { onMainBoxResize } = useNodeResize(id)
 
   // 记录自己上次真正写回的高度（而非读滞后的 node.height），作为 4px 阈值防抖的判定来源。
   // 避免「读旧值→误判需更新→再写回→再触发」的同帧循环（ResizeObserver loop 告警根因）。
-  const lastWrittenH = useRef(0)
+  const lastWrittenH = useRef<number>(0)
 
   // 统一测量基准：有 wrapperRef 就测完整节点（含 NodeShell 标题栏），否则退回内容区。
   // 观察对象与写回高度都基于它，避免「contentRef 漏标题 → node.height 偏矮 → 跑马灯不贴」。
@@ -251,7 +310,7 @@ export function useContentHeightSync(ref, id, { minHeight = 0, fallbackWidth = 4
     if (!el) return
     let pendingRaf = 0
     let reobserveRaf = 0
-    let ro = null
+    let ro: ResizeObserver | null = null
 
     // 创建并挂载观察者。回调发现高度变化 → 先 disconnect（停止本轮观察），rAF 写回 node.height，
     // 下一帧尺寸稳定后再重新 observe。这样写回（setNodes→wrapper 尺寸变）不会被同一 observation 周期
@@ -271,9 +330,10 @@ export function useContentHeightSync(ref, id, { minHeight = 0, fallbackWidth = 4
           // syncWidth=true：宽度同步为「内容元素实际宽度」，让 ReactFlow 盒子(.react-flow__node)
           // 贴合视觉框（否则剧本盒等固定宽节点宽度从不同步，conic 连接跑马灯锚定的盒子宽度 ≠ 视觉宽）。
           // 内容元素在节点内通常 w-full，其 offsetWidth 即视觉宽度。
+          // Number() 归一：style.width 可能是字符串，且 onMainBoxResize 要求 number
           const curW = syncWidth
             ? Math.round(el.offsetWidth || n?.width || fallbackWidth)
-            : (n?.width ?? n?.style?.width ?? fallbackWidth)
+            : Number(n?.width ?? n?.style?.width ?? fallbackWidth)
           onMainBoxResize(Math.round(curW), Math.max(minHeight, Math.round(h)))
           // 下一帧（写回已生效、尺寸稳定）重新开始观察
           reobserveRaf = requestAnimationFrame(() => {
@@ -305,11 +365,26 @@ export function useContentHeightSync(ref, id, { minHeight = 0, fallbackWidth = 4
  *
  * 返回的 position 均为画布 flow 坐标，可直接传给 addNode / addNodes。
  */
-export function useNodePosition() {
+/** 画布坐标（screenToFlowPosition 输出 / addNode 入参） */
+export interface FlowPosition {
+  x: number
+  y: number
+}
+
+/** 右键菜单状态里本 hook 消费的部分（client 为视口坐标） */
+export interface MenuStateLike {
+  client?: FlowPosition
+  [key: string]: unknown
+}
+
+export function useNodePosition(): {
+  posAtMenu: (menuState?: MenuStateLike | null) => FlowPosition
+  posAtCenter: () => FlowPosition
+} {
   const { screenToFlowPosition } = useReactFlow()
 
   const posAtMenu = useCallback(
-    (menuState) => {
+    (menuState?: MenuStateLike | null): FlowPosition => {
       const s = menuState || {}
       return s.client
         ? screenToFlowPosition(s.client)
@@ -319,7 +394,7 @@ export function useNodePosition() {
   )
 
   const posAtCenter = useCallback(
-    () => screenToFlowPosition({ x: window.innerWidth / 2, y: window.innerHeight / 2 }),
+    (): FlowPosition => screenToFlowPosition({ x: window.innerWidth / 2, y: window.innerHeight / 2 }),
     [screenToFlowPosition]
   )
 

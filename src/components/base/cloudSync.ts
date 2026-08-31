@@ -23,7 +23,7 @@
  */
 import { getLocalKeys, STORAGE_KEYS } from './contracts.js'
 import { providerApi, fetchProjects, saveProjects } from './localToolApi.ts'
-import { contentGet, contentSet, contentGetAsync, contentSetAsync } from './contentStore.js'
+import { contentGet, contentSet, contentGetAsync, contentSetAsync } from './contentStore.ts'
 import { logger } from './logger.ts'
 import { CLOUD_SYNC_GAS_URL } from './config.js'
 

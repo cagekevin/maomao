@@ -10,7 +10,7 @@
  * 数据变更一律新引用，绝不原地修改（useSyncExternalStore 依赖引用变化触发渲染）。
  */
 import { useSyncExternalStore } from 'react'
-import { contentGetAsync, contentSetAsync } from '../contentStore.js'
+import { contentGetAsync, contentSetAsync } from '../contentStore.ts'
 import { generateId } from '../idGen.ts'
 
 const STORAGE_KEY = 'yimao_accounts'

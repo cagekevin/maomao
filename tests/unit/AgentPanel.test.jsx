@@ -105,14 +105,14 @@ vi.mock('../../src/components/agent/index.js', () => ({
 vi.mock('../../src/components/base/settings/providerStore.ts', () => ({ useProviders: () => ({ providers: h.providers }), load: vi.fn(async () => {}) }))
 vi.mock('../../src/components/base/settings/agentModelStore.ts', () => ({ loadAgentChatModel: () => h.agentModelCfg, AGENT_CHAT_MODEL_KEY: h.AGENT_CHAT_MODEL_KEY }))
 vi.mock('../../src/components/base/providerModels.ts', () => ({ buildAllModels: () => [] }))
-vi.mock('../../src/components/base/hooks.js', () => ({ useOutsideClick: () => {} }))
+vi.mock('../../src/components/base/hooks.ts', () => ({ useOutsideClick: () => {} }))
 vi.mock('../../src/components/base/skillStore.ts', () => ({
   getAllSkills: () => h.skills,
   markSkillUsed: (...a) => h.markSkillUsed(...a),
   isSkillEnabled: () => true,
   repairMojibakeText: (t) => t,
 }))
-vi.mock('../../src/components/base/contentStore.js', () => ({
+vi.mock('../../src/components/base/contentStore.ts', () => ({
   contentGet: () => null,
   contentSet: vi.fn(),
   contentSubscribe: (...a) => h.contentSubscribe(...a),

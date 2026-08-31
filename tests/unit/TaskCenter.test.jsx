@@ -66,7 +66,7 @@ vi.mock('../../src/components/base/clipboard.ts', () => ({ downloadUrl: (...a) =
 vi.mock('../../src/components/base/pollTask.ts', () => ({ pollOneTask: (...a) => h.pollOneTask(...a) }))
 vi.mock('../../src/components/base/toastStore.ts', () => ({ showToast: (...a) => h.showToast(...a) }))
 vi.mock('../../src/hooks/useAssetDragToCanvas.ts', () => ({ makeAssetDragProps: () => ({ draggable: true }) }))
-vi.mock('../../src/components/base/hooks.js', () => ({ useOutsideClick: () => {} }))
+vi.mock('../../src/components/base/hooks.ts', () => ({ useOutsideClick: () => {} }))
 vi.mock('../../src/components/base/imageUrl.ts', () => ({
   useRenderImageResolver: () => (u) => (u && u.startsWith('/files/') ? `THUMB${u}` : u || ''),
 }))

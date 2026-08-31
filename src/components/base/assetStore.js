@@ -17,7 +17,7 @@
  * （POST /api/files/upload，subfolder=folder）并 rescan，素材库面板（读 /api/resources）可读到。
  */
 import { useSyncExternalStore } from 'react'
-import { contentGet, contentSet, createDebouncedPersist } from './contentStore.js'
+import { contentGet, contentSet, createDebouncedPersist } from './contentStore.ts'
 import { generateId } from './idGen.ts'
 import { httpRequest } from './httpClient.ts'
 import { API_BASE } from './config.js'

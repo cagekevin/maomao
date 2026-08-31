@@ -19,7 +19,7 @@
  * ════════════════════════════════════════════════════════════════
  */
 import { useSyncExternalStore } from 'react'
-import { contentGet, contentSet, contentGetAsync, contentSetAsync, createDebouncedPersist } from '../../base/contentStore.js'
+import { contentGet, contentSet, contentGetAsync, contentSetAsync, createDebouncedPersist } from '../../base/contentStore.ts'
 import { sGet } from '../../base/storageAdapter.ts'
 import { withTimeout } from '../../base/asyncGuard.ts'
 import { generateId } from '../../base/idGen.ts'

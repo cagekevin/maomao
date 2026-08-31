@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { contentClearCache } from '../../src/components/base/contentStore.js'
+import { contentClearCache } from '../../src/components/base/contentStore.ts'
 import {
   resetConversationCache, ensureActiveConversation, newConversation, switchConversation,
   deleteConversation, applyConversation, importLegacy, getCurrentSnapshot, setCurrentSnapshot,

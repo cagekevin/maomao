@@ -39,7 +39,7 @@ vi.mock('../../src/components/base/ExpandablePanel.jsx', () => ({ default: ({ ch
 vi.mock('../../src/components/base/MaterialStrip.jsx', () => ({ default: ({ children }) => children }))
 vi.mock('../../src/components/base/HoverToolbar.jsx', () => ({ default: () => null }))
 vi.mock('../../src/components/base/PromptInput.jsx', () => ({ default: () => null }))
-vi.mock('../../src/components/base/hooks.js', async (importOriginal) => ({ ...(await importOriginal()), useNodeResize: () => ({ onInputResize: vi.fn() }), useOutsideClick: () => {} }))
+vi.mock('../../src/components/base/hooks.ts', async (importOriginal) => ({ ...(await importOriginal()), useNodeResize: () => ({ onInputResize: vi.fn() }), useOutsideClick: () => {} }))
 
 // 可控的 useConnectedInputs
 let connectedInputs = { images: [], texts: [] }

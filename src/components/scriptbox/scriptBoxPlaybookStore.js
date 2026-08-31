@@ -16,7 +16,7 @@
  *  下游 resolver(base) → 本 store。依赖单向，无回环。
  */
 import { SCRIPT_BOX_WORKFLOWS, DEFAULT_WORKFLOW } from './scriptBoxWorkflows.js'
-import { contentGet, contentSet, contentClearCache } from '../base/contentStore.js'
+import { contentGet, contentSet, contentClearCache } from '../base/contentStore.ts'
 import { logger } from '../base/logger.ts'
 
 /** 自定义 playbook 的 localStorage 键（已在 contracts.js STORAGE_KEYS 登记，domain:'settings'，backend:'local'）。 */

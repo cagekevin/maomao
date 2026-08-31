@@ -13,7 +13,7 @@ import { describe, it, expect, vi } from 'vitest'
 import {
   projectKvKey, isProjectImageUrl, isProjectPersistenceKey,
   externalizeProjectImages, pickProjectSource,
-} from '../../src/components/base/d3dPersistence.js'
+} from '../../src/components/base/d3dPersistence.ts'
 
 const png = 'data:image/png;base64,iVBORw0KGgo='
 const FILES = (n) => `http://127.0.0.1:18080/files/director3d/${n}.png`

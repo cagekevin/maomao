@@ -5,7 +5,7 @@ import {
   poseForObject, presetJoints, presetPhase, presetRoot,
 } from './rig.js'
 import { readJson, removeKey, writeJson } from './storage.js'
-import { isProjectImageUrl } from '../base/d3dPersistence.js'
+import { isProjectImageUrl } from '../base/d3dPersistence.ts'
 
 export const CAMERA_ID = '__shot_camera__'
 export const PROJECT_STORAGE_KEY = 'director3d-project'

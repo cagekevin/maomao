@@ -7,7 +7,7 @@
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { jsonResp, createKvMem } from './_testUtils.mjs'
-import { contentClearCache } from '../../src/components/base/contentStore.js'
+import { contentClearCache } from '../../src/components/base/contentStore.ts'
 
 // 复用 setup.mjs 强制 mock 的全局 fetch（Node 原生 fetch 不可配置，vi.stubGlobal 会静默失效）
 const fetchMock = globalThis.fetch
@@ -118,7 +118,7 @@ describe('cloudSync — uploadConfig / downloadConfig 边界', () => {
 
   it('uploadConfig 有数据且 push 成功 → ok:true + count', async () => {
     // 写入一些可同步的本地数据
-    const { contentSet } = await import('../../src/components/base/contentStore.js')
+    const { contentSet } = await import('../../src/components/base/contentStore.ts')
     contentSet('app_settings', { theme: 'dark' })
     fetchMock.mockResolvedValue(jsonResp({ msg: 'ok' }))
     const res = await uploadConfig(() => {})
@@ -128,7 +128,7 @@ describe('cloudSync — uploadConfig / downloadConfig 边界', () => {
 
   it('localTool 未连（getProviders 抛错）→ collectLocal 跳过 API 配置，仍成功且不含 providers', async () => {
     // 【R6 边角3】localTool 未连的降级路径：catch 静默跳过，不阻塞本地配置上传
-    const { contentSet } = await import('../../src/components/base/contentStore.js')
+    const { contentSet } = await import('../../src/components/base/contentStore.ts')
     contentSet('app_settings', { theme: 'dark' })
     providerApi.getProviders.mockRejectedValue(new Error('ECONNREFUSED'))
     fetchMock.mockResolvedValue(jsonResp({ msg: 'ok' }))
@@ -140,7 +140,7 @@ describe('cloudSync — uploadConfig / downloadConfig 边界', () => {
   })
 
   it('同步清单由 contracts.js getLocalKeys() 生成：真实设置进云，排除本机/临时/本地引用键', async () => {
-    const { contentSet } = await import('../../src/components/base/contentStore.js')
+    const { contentSet } = await import('../../src/components/base/contentStore.ts')
     // 真实设置（此前未进手写清单，收口后应同步）
     contentSet('agent_panel_width', '320')
     contentSet('agent_input_mode', 'agent')
@@ -162,7 +162,7 @@ describe('cloudSync — uploadConfig / downloadConfig 边界', () => {
   })
 
   it('account 领域开：账号环境（KV 后端）随上传进入云端', async () => {
-    const { contentSet, contentSetAsync } = await import('../../src/components/base/contentStore.js')
+    const { contentSet, contentSetAsync } = await import('../../src/components/base/contentStore.ts')
     contentSet('app_settings', { theme: 'dark' })
     await contentSetAsync('yimao_accounts', [{ id: 'acc1', name: '环境1' }])
     // 按 URL 分流：KV 读账号 → 返回账号数组；其余（GAS push / kvSet 写）→ 返回成功

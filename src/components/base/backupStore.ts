@@ -25,7 +25,7 @@
  * }
  */
 import { getLocalKeys } from './contracts.js'
-import { contentGet, contentSet, contentGetAsync, contentSetAsync } from './contentStore.js'
+import { contentGet, contentSet, contentGetAsync, contentSetAsync } from './contentStore.ts'
 import { loadCanvasState, saveCanvasState } from './projectStore.ts'
 import { logger } from './logger.ts'
 

@@ -10,7 +10,7 @@
  *   saveAndNotify(list)  —— 保存后广播 'yimao:presetsChanged'，方便跨节点同步
  *   recordRecent(id) / getRecent()
  */
-import { contentGet, contentSet } from './contentStore.js'
+import { contentGet, contentSet } from './contentStore.ts'
 import { publish } from './eventBus.ts'
 import { generateId } from './idGen.ts'
 

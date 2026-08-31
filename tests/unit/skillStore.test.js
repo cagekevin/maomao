@@ -4,7 +4,7 @@ import {
   upsertCustomSkill, deleteCustomSkill, markSkillUsed, getSkillUsage,
   repairMojibakeText,
 } from '../../src/components/base/skillStore.ts'
-import { contentClearCache } from '../../src/components/base/contentStore.js'
+import { contentClearCache } from '../../src/components/base/contentStore.ts'
 import { sGet } from '../../src/components/base/storageAdapter.ts'
 
 beforeEach(() => {

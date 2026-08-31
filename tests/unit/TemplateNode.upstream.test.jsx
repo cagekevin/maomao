@@ -44,7 +44,7 @@ vi.mock('../../src/components/base/ResizeFullscreenHandle.jsx', () => ({ default
 vi.mock('../../src/components/base/FullscreenModal.jsx', () => ({ default: () => null }))
 vi.mock('../../src/components/base/GeneratingOverlay.jsx', () => ({ default: () => null }))
 vi.mock('../../src/components/base/PromptLibraryButton.jsx', () => ({ default: () => null }))
-vi.mock('../../src/components/base/hooks.js', async (importOriginal) => ({ ...(await importOriginal()), useNodeResize: () => ({ onInputResize: vi.fn() }), useOutsideClick: () => {} }))
+vi.mock('../../src/components/base/hooks.ts', async (importOriginal) => ({ ...(await importOriginal()), useNodeResize: () => ({ onInputResize: vi.fn() }), useOutsideClick: () => {} }))
 
 let connectedInputs = { images: [], texts: [] }
 vi.mock('../../src/hooks/useConnectedInputs.ts', () => ({ useConnectedInputs: () => connectedInputs }))

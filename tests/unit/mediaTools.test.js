@@ -12,7 +12,7 @@ vi.mock('../../src/components/base/lod.jsx', () => ({
 }))
 import { useLod } from '../../src/components/base/lod.jsx'
 import { useMediaDegrade } from '../../src/hooks/useMediaDegrade.ts'
-import { contentClearCache } from '../../src/components/base/contentStore.js'
+import { contentClearCache } from '../../src/components/base/contentStore.ts'
 
 describe('useMediaDegrade —— lodLevel→hideMedia 映射', () => {
   beforeEach(() => {

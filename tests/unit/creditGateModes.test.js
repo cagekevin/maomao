@@ -21,7 +21,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 // 可控 creditSwitch：getX 读 __credit，setX 写 __credit（contentStore 的 contentGet/contentSet 也被 mock 到同一状态）
 let __creditState
 let __genParamsState
-vi.mock('../../src/components/base/contentStore.js', async (importOriginal) => {
+vi.mock('../../src/components/base/contentStore.ts', async (importOriginal) => {
   const actual = await importOriginal()
   return {
     ...actual,

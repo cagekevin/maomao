@@ -24,7 +24,7 @@ import { switchProject, loadCanvasState, saveCanvasState, getCurrentProject, ini
 import previewUrls from './components/base/previewUrl.ts'
 import { logger } from './components/base/logger.ts'
 import { createThrottledPersistHandler } from './components/base/persistFailureBus.ts'
-import { useNodePosition } from './components/base/hooks.js'
+import { useNodePosition } from './components/base/hooks.ts'
 import CustomEdge from './components/edges/CustomEdge.jsx'
 import ConnectionLine from './components/edges/ConnectionLine.jsx'
 import ContextMenu from './components/base/ContextMenu.jsx'

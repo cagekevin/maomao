@@ -8,7 +8,7 @@ import { showToast } from './toastStore.ts'
 import { makeAssetDragProps } from '../../hooks/useAssetDragToCanvas.ts'
 import VideoThumbnail from './VideoThumbnail.jsx'
 import { useRenderImageResolver } from './imageUrl.ts'
-import { useOutsideClick } from './hooks.js'
+import { useOutsideClick } from './hooks.ts'
 import { formatTime, createImeInput } from './utils.ts'
 
 const TYPE_ICON = {

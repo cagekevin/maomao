@@ -4,7 +4,7 @@
  * 严格基于 src/components/base/promptManager.js 真实导出编写。
  */
 import { beforeEach, afterEach, describe, it, expect, vi } from 'vitest'
-import { contentClearCache, contentGet, contentSet } from '../../src/components/base/contentStore.js'
+import { contentClearCache, contentGet, contentSet } from '../../src/components/base/contentStore.ts'
 import * as pm from '../../src/components/base/promptManager.ts'
 
 const STORAGE_KEY = 'yimao_preset_prompts' // 对齐 promptManager.js 内部 STORAGE_KEY

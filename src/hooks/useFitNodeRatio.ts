@@ -1,7 +1,7 @@
 import { useCallback } from 'react'
 import type { SyntheticEvent } from 'react'
 import { useReactFlow } from '@xyflow/react'
-import { useNodeResize } from '../components/base/hooks.js'
+import { useNodeResize } from '../components/base/hooks.ts'
 
 /** 媒体真实宽高 → 按比例调整节点形状（宽保持，高 = 宽 / 比例） */
 export type FitByRatio = (naturalW: number, naturalH: number) => void

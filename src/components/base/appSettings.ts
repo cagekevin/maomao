@@ -7,7 +7,7 @@
  * 本模块提供统一的 read/write + React hook，App 层用它初始化各 state 并在变化时写回。
  */
 import { useSyncExternalStore } from 'react'
-import { contentGet, contentSet } from './contentStore.js'
+import { contentGet, contentSet } from './contentStore.ts'
 import { buildDefaults } from './settings/settingRegistry.ts'
 
 const KEY: string = 'app_settings'

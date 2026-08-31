@@ -6,7 +6,7 @@
  * 策略：storageAdapter 走真实内存 localStorage（setup.mjs 提供），projectStore 用内存 stub。
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { contentGet, contentSet, contentClearCache } from '../../src/components/base/contentStore.js'
+import { contentGet, contentSet, contentClearCache } from '../../src/components/base/contentStore.ts'
 
 // ── stub projectStore：内存画布快照 ──
 const canvasStore = new Map()

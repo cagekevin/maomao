@@ -42,7 +42,7 @@ import {
   contentSubscribe, contentSubscribeAll,
   contentGetSnapshot, contentGetKeySnapshot,
   contentClearCache, contentStats,
-} from '../../src/components/base/contentStore.js'
+} from '../../src/components/base/contentStore.ts'
 
 import { STORAGE_KEYS } from '../../src/components/base/contracts.js'
 
@@ -427,7 +427,8 @@ describe('未登记键 生产环境降级（仅 warning 不抛）', () => {
   it('contentGet 未登记字面量键在生产环境仅 warning 不抛', () => {
     expect(contentGet('unknown-key')).toBeUndefined()
     expect(mockLogger.logger.warn).toHaveBeenCalled()
-    expect(mockLogger.logger.warn.mock.calls[0][0]).toContain('unknown-key')
+    // logger.warn 契约为 (category, action, detail?)：键名现在落在第 2 参 action 上
+    expect(mockLogger.logger.warn.mock.calls[0][1]).toContain('unknown-key')
   })
 
   it('contentSet 未登记字面量键在生产环境仅 warning 不抛', () => {

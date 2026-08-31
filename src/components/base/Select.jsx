@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react'
 import { ChevronDown, Check } from 'lucide-react'
-import { useOutsideClick } from './hooks.js'
+import { useOutsideClick } from './hooks.ts'
 
 /**
  * 通用下拉菜单（与 ModelSelect 同款交互/配色，供工作流等「少数固定选项」选择用）。

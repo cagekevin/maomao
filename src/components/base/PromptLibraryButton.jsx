@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { Sparkles } from 'lucide-react'
 import { useReactFlow } from '@xyflow/react'
-import { useNodePosition } from './hooks.js'
+import { useNodePosition } from './hooks.ts'
 import PromptLibrary from './PromptLibrary.jsx'
 import { generateId } from './idGen.ts'
 

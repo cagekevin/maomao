@@ -8,7 +8,7 @@
  * 【存储】内置 skill（代码常量）+ 用户自定义（localStorage，key=agent_skills）。
  *  - 内置 skill 始终存在；用户自定义可增删。
  */
-import { contentGet, contentSet } from './contentStore.js'
+import { contentGet, contentSet } from './contentStore.ts'
 import { sGet } from './storageAdapter.ts'
 import { logger } from './logger.ts'
 

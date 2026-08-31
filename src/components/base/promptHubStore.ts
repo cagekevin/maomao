@@ -16,7 +16,7 @@
  * 完全不碰 localtool.db / SQL 表。对你近期升级数据库零影响。
  */
 
-import { contentGet, contentSet } from './contentStore.js'
+import { contentGet, contentSet } from './contentStore.ts'
 // 【出口回收】所有网络请求统一走 httpRequest（自带超时/取消/错误分类），禁止裸写 fetch
 import { httpRequest } from './httpClient.ts'
 
@@ -188,7 +188,8 @@ function sourceSignature(source: PromptSource): string {
 
 /** 读整份缓存 { [sourceId]: { items, fetchedAt, signature, lastError } } */
 function readCache(): Record<string, SourceCache> {
-  const c = contentGet(CACHE_KEY)
+  // contentGet 返回 unknown（存储值不可信），按缓存表形状收窄
+  const c = contentGet(CACHE_KEY) as Record<string, SourceCache> | null
   return c && typeof c === 'object' ? c : {}
 }
 function writeCache(all: Record<string, SourceCache>): void {

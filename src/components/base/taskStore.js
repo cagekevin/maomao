@@ -19,7 +19,7 @@
  */
 import { useSyncExternalStore } from 'react'
 import { logger } from './logger.ts'
-import { createDebouncedPersist } from './contentStore.js'
+import { createDebouncedPersist } from './contentStore.ts'
 import { fetchTasks, saveTask, deleteTask, batchDeleteTasks, clearAllTasksApi } from './localToolApi.ts'
 import { publishTaskCompleted } from './taskCompletionBus.ts'
 import { generateId } from './idGen.ts'

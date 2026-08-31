@@ -3,7 +3,7 @@ import { Loader2, Wand2, User, Image as ImageIcon, Package, Plus, MoreVertical, 
 import { ZgPrompt, removeAsset, renameAssetRefs } from '../base/scriptBoxPrompts.js'
 import { resolveAssetTemplates } from '../base/scriptBoxPromptResolver.ts'
 import { assetFolderOf } from '../base/assetStore.js'
-import { useOutsideClick } from '../base/hooks.js'
+import { useOutsideClick } from '../base/hooks.ts'
 import { useRenderImageResolver, toAbsoluteFileUrl } from '../base/imageUrl.ts'
 import ImageZoomDialog from '../base/ImageZoomDialog.jsx'
 import ScriptBoxAssetPicker from './ScriptBoxAssetPicker.jsx'
