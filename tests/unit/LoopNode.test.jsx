@@ -11,7 +11,7 @@ import { mocks } from './_nodeMocks.mjs'
 import { splitByMethod, splitSmartPromptItems } from '../../src/components/nodes/LoopNode.jsx'
 
 vi.mock('@xyflow/react', () => mocks.xyflow)
-vi.mock('../../src/components/base/NodeShell.jsx', () => ({ default: mocks.NodeShell }))
+vi.mock('../../src/components/base/NodeShell.tsx', () => ({ default: mocks.NodeShell }))
 vi.mock('../../src/hooks/useConnectedInputs.ts', () => ({ useConnectedInputs: mocks.useConnectedInputs }))
 vi.mock('../../src/components/base/toastStore.ts', () => ({ showToast: mocks.showToast, toastWarning: mocks.toastWarning }))
 vi.mock('../../src/hooks/useSyncNodeData.ts', () => ({ useSyncNodeData: mocks.useSyncNodeData }))

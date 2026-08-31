@@ -37,8 +37,8 @@ vi.mock('@xyflow/react', () => ({
   useStore: () => () => ({}),
   ReactFlowProvider: ({ children }) => children,
 }))
-vi.mock('../../src/components/base/NodeShell.jsx', () => ({ default: mocks.NodeShell }))
-vi.mock('../../src/components/edges/CustomHandle.jsx', () => ({ default: mocks.CustomHandle }))
+vi.mock('../../src/components/base/NodeShell.tsx', () => ({ default: mocks.NodeShell }))
+vi.mock('../../src/components/edges/CustomHandle.tsx', () => ({ default: mocks.CustomHandle }))
 vi.mock('../../src/hooks/useConnectedInputs.ts', () => ({ useConnectedInputs: mocks.useConnectedInputs }))
 vi.mock('../../src/hooks/useMediaDegrade.ts', () => ({ useMediaDegrade: mocks.useMediaDegrade }))
 vi.mock('../../src/components/base/LazyImage.tsx', () => ({ default: mocks.LazyImage }))

@@ -4,7 +4,7 @@ import {
   Image as ImageIcon, Plus, ZoomIn, Send, Download, Link as LinkIcon,
   AlertCircle, X, Coins, Zap
 } from 'lucide-react'
-import NodeShell from '../base/NodeShell.jsx'
+import NodeShell from '../base/NodeShell.tsx'
 import HoverToolbar from '../base/HoverToolbar.tsx'
 import ExpandablePanel from '../base/ExpandablePanel.tsx'
 import GenerateButton from '../base/GenerateButton.tsx'

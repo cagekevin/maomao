@@ -1,11 +1,41 @@
-import React, { useMemo } from 'react'
+import React, { useMemo, type CSSProperties, type Ref, type ReactNode } from 'react'
 import { NodeResizer, useStore } from '@xyflow/react'
 import NodeTitle from './NodeTitle.tsx'
-import CustomHandle from '../edges/CustomHandle.jsx'
+import CustomHandle from '../edges/CustomHandle.tsx'
 import { useSizeSync } from './hooks.ts'
 import { NODE_AREA_FIXED_BASE_SIZE } from './config.js'
 import ErrorBoundary from './ErrorBoundary.tsx'
 import { logger } from './logger.ts'
+
+type SizeMode = 'width-fixed' | 'area-fixed'
+type HandleVariant = 'large' | 'small'
+
+interface NodeShellProps {
+  id: string
+  label?: string
+  defaultTitle?: string
+  icon?: ReactNode
+  selected?: boolean
+  resizable?: boolean
+  minWidth?: number
+  minHeight?: number
+  keepAspect?: boolean
+  aspectRatio?: string
+  defaultHeight?: number
+  sizeMode?: SizeMode
+  baseSize?: number
+  handleVariant?: HandleVariant
+  showHandles?: boolean
+  showTitle?: boolean
+  titleRight?: ReactNode
+  onRename?: (label: string) => void
+  className?: string
+  style?: CSSProperties
+  wrapperRef?: Ref<HTMLDivElement>
+  overlayHandles?: ReactNode
+  syncSize?: boolean
+  children?: ReactNode
+}
 
 // ReactFlow store 选择器：订阅单个节点的当前 width/height。
 // 目的：让根 div 的 inline width/height 永远等于 ReactFlow 的 node.width/height。
@@ -185,11 +215,11 @@ function NodeShell({
   overlayHandles,
   syncSize = true,
   children
-}) {
+}: NodeShellProps) {
   // 比例同步：改比例时同步 wrapper 尺寸。
   // syncSize=false（如编组节点）：不强制同步尺寸，尺寸完全由 ReactFlow 节点 style 决定，
   // 否则 useSizeSync 的 Auto 分支会把高度强制设成 defaultHeight，覆盖 group 实际尺寸。
-  const ratio = syncSize ? useSizeSync(id, aspectRatio, {
+  const ratio = syncSize ? useSizeSync(id, aspectRatio ?? '', {
     mode: sizeMode,
     defaultHeight,
     baseSize

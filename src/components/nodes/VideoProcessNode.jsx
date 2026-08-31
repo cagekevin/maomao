@@ -4,8 +4,8 @@ import {
   Loader2, Music, X, Volume2, VolumeX, Plus, Film, AlertCircle, X as XIcon
 } from 'lucide-react'
 import { useReactFlow } from '@xyflow/react'
-import NodeShell from '../base/NodeShell.jsx'
-import CustomHandle from '../edges/CustomHandle.jsx'
+import NodeShell from '../base/NodeShell.tsx'
+import CustomHandle from '../edges/CustomHandle.tsx'
 import { useConnectedInputs } from '../../hooks/useConnectedInputs.ts'
 import { useMediaDegrade } from '../../hooks/useMediaDegrade.ts'
 import { useNodeResize } from '../base/hooks.ts'

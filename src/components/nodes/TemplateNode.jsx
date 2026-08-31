@@ -2,7 +2,7 @@ import React, { useState, useRef, useCallback, useMemo } from 'react'
 import { useReactFlow } from '@xyflow/react'
 import { Image as ImageIcon, Plus, ZoomIn, Download } from 'lucide-react'
 // ═══ 基座组件（统一入口，禁止手写外壳/端口/背景）═══
-import NodeShell from '../base/NodeShell.jsx'
+import NodeShell from '../base/NodeShell.tsx'
 import HoverToolbar from '../base/HoverToolbar.tsx'
 import ExpandablePanel from '../base/ExpandablePanel.tsx'
 import GenerateButton from '../base/GenerateButton.tsx'

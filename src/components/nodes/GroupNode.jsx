@@ -1,8 +1,8 @@
 import React from 'react'
 import { Handle, Position, useReactFlow } from '@xyflow/react'
 import { FoldVertical, ChevronsUpDown, Folder } from 'lucide-react'
-import NodeShell from '../base/NodeShell.jsx'
-import CustomHandle from '../edges/CustomHandle.jsx'
+import NodeShell from '../base/NodeShell.tsx'
+import CustomHandle from '../edges/CustomHandle.tsx'
 
 /**
  * 群组 / 分组节点。

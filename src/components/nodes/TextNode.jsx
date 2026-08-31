@@ -4,7 +4,7 @@ import {
   FileText, Plus, Copy, ChevronDown, ChevronUp, Loader2,
   AlertCircle, Link as LinkIcon
 } from 'lucide-react'
-import NodeShell from '../base/NodeShell.jsx'
+import NodeShell from '../base/NodeShell.tsx'
 import HoverToolbar from '../base/HoverToolbar.tsx'
 import ExpandablePanel from '../base/ExpandablePanel.tsx'
 import GenerateButton from '../base/GenerateButton.tsx'

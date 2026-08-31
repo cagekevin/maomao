@@ -25,7 +25,7 @@ vi.mock('@xyflow/react', () => ({
   Position: { Left: 'left', Right: 'right', Top: 'top', Bottom: 'bottom' },
   useStore: () => () => ({}),
 }))
-vi.mock('../../src/components/base/NodeShell.jsx', () => ({ default: mocks.NodeShell }))
+vi.mock('../../src/components/base/NodeShell.tsx', () => ({ default: mocks.NodeShell }))
 vi.mock('../../src/components/base/HoverToolbar.jsx', () => ({ default: mocks.HoverToolbar }))
 vi.mock('../../src/components/base/ExpandablePanel.tsx', () => ({ default: mocks.ExpandablePanel }))
 vi.mock('../../src/components/base/GenerateButton.tsx', () => ({ default: mocks.GenerateButton }))

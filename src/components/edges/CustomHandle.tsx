@@ -1,5 +1,5 @@
-import React, { useEffect, useRef } from 'react'
-import { Handle } from '@xyflow/react'
+import React, { useEffect, useRef, type CSSProperties } from 'react'
+import { Handle, Position } from '@xyflow/react'
 import { createRafBatch } from '../base/utils.ts'
 
 /**
@@ -7,12 +7,22 @@ import { createRafBatch } from '../base/utils.ts'
  * 大号（48px）用于视频生成节点，小号（32px）用于文本/图片节点。
  * position: 'left' | 'right'
  */
-function CustomHandle({ className = '', variant = 'large', position, handleId, top }) {
+type CustomHandleVariant = 'large' | 'small'
+
+interface CustomHandleProps {
+  className?: string
+  variant?: CustomHandleVariant
+  position: Position | 'left' | 'right'
+  handleId?: string
+  top?: number
+}
+
+function CustomHandle({ className = '', variant = 'large', position, handleId, top }: CustomHandleProps) {
   const isLeft = position === 'left'
   const isRight = position === 'right'
   const size = variant === 'large' ? 48 : 32
   const half = size / 2
-  const ref = useRef(null)
+  const ref = useRef<HTMLDivElement | null>(null)
   // 端口圆心相对「主框边缘」的偏移：用 half（尺寸的一半）让整个圆整体外移到
   // 「圆心恰好落在主框边缘上」——左端口 left:-half、右端口 right:-half。
   // 之前固定 -16 对 large(48) 偏小 8px、且相对根 div 定位导致图片/视频节点端口偏离主框。
@@ -69,11 +79,11 @@ function CustomHandle({ className = '', variant = 'large', position, handleId, t
     <div
       ref={ref}
       className={`cust-handle-wrap ${variant === 'small' ? 'is-small' : ''}`}
-      style={wrapStyle}
+      style={wrapStyle as CSSProperties}
     >
       <Handle
         type={position === 'left' ? 'target' : 'source'}
-        position={position === 'left' ? 'left' : 'right'}
+        position={(position === 'left' ? 'left' : 'right') as Position}
         id={handleId}
         className={`!absolute !inset-0 !w-full !h-full !min-w-0 !min-h-0 !top-0 !left-0 !right-0 !bottom-0 !transform-none !bg-transparent !border-0 !rounded-none !opacity-0 ${className || ''}`}
         style={{

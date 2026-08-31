@@ -4,7 +4,7 @@ import {
   Clapperboard, Plus, Expand, Download, Trash2, Play,
   AlertCircle, Settings, Link as LinkIcon, RefreshCw, Coins
 } from 'lucide-react'
-import NodeShell from '../base/NodeShell.jsx'
+import NodeShell from '../base/NodeShell.tsx'
 import HoverToolbar from '../base/HoverToolbar.tsx'
 import ExpandablePanel from '../base/ExpandablePanel.tsx'
 import GenerateButton from '../base/GenerateButton.tsx'

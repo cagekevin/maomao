@@ -70,7 +70,7 @@ vi.mock('../../src/components/base/GenerateButton.tsx', () => ({
   default: ({ onGenerate }) => <button type="button" onClick={onGenerate}>生成</button>,
 }))
 
-vi.mock('../../src/components/base/NodeShell.jsx', () => ({ default: ({ children }) => children }))
+vi.mock('../../src/components/base/NodeShell.tsx', () => ({ default: ({ children }) => children }))
 vi.mock('../../src/components/base/ExpandablePanel.tsx', () => ({ default: ({ children }) => children }))
 vi.mock('../../src/components/base/MaterialStrip.tsx', () => ({ default: ({ children }) => children }))
 vi.mock('../../src/components/base/HoverToolbar.jsx', () => ({ default: () => null }))

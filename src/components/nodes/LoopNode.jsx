@@ -1,7 +1,7 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { useReactFlow } from '@xyflow/react'
 import { Repeat, Play, ChevronDown } from 'lucide-react'
-import NodeShell from '../base/NodeShell.jsx'
+import NodeShell from '../base/NodeShell.tsx'
 import { useConnectedInputs } from '../../hooks/useConnectedInputs.ts'
 import { toastWarning } from '../base/toastStore.ts'
 import { useSyncNodeData } from '../../hooks/useSyncNodeData.ts'

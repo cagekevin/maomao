@@ -57,7 +57,7 @@ vi.mock('@xyflow/react', () => ({
 
 // NodeShell mock：区分两个插槽 —— children（定位基准=主框，不含标题栏）与
 // overlayHandles（定位基准=整个节点）。剧本盒子的 in 端口必须走 overlayHandles。
-vi.mock('../../src/components/base/NodeShell.jsx', () => ({
+vi.mock('../../src/components/base/NodeShell.tsx', () => ({
   default: ({ children, overlayHandles }) => (
     <div>
       <div data-testid="node-children">{children}</div>
@@ -66,7 +66,7 @@ vi.mock('../../src/components/base/NodeShell.jsx', () => ({
   ),
 }))
 // 端口 mock：按 handleId 打标记，便于断言「in 端口挂在哪个插槽 / 是否存在」
-vi.mock('../../src/components/edges/CustomHandle.jsx', () => ({
+vi.mock('../../src/components/edges/CustomHandle.tsx', () => ({
   default: ({ handleId }) => <div data-testid={`handle-${handleId || 'default'}`} />,
 }))
 vi.mock('../../src/components/base/FullscreenModal.jsx', () => ({ default: ({ open, children }) => (open ? <div data-testid="fullscreen">{children}</div> : null) }))

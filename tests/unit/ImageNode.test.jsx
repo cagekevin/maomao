@@ -9,7 +9,7 @@ import { render, screen } from '@testing-library/react'
 import { mocks } from './_nodeMocks.mjs'
 
 vi.mock('@xyflow/react', () => mocks.xyflow)
-vi.mock('../../src/components/base/NodeShell.jsx', () => ({ default: mocks.NodeShell }))
+vi.mock('../../src/components/base/NodeShell.tsx', () => ({ default: mocks.NodeShell }))
 vi.mock('../../src/components/base/HoverToolbar.jsx', () => ({ default: mocks.HoverToolbar }))
 vi.mock('../../src/components/base/ImageEditor.tsx', () => ({ default: mocks.ImageEditor }))
 vi.mock('../../src/hooks/useMediaDegrade.ts', () => ({ useMediaDegrade: mocks.useMediaDegrade }))

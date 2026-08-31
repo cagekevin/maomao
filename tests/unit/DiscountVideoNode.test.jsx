@@ -42,7 +42,7 @@ vi.mock('@xyflow/react', () => ({
   useStore: () => () => ({}),
 }))
 
-vi.mock('../../src/components/base/NodeShell.jsx', () => ({ default: ({ children }) => children }))
+vi.mock('../../src/components/base/NodeShell.tsx', () => ({ default: ({ children }) => children }))
 // HoverToolbar：渲染按钮数组，供点击下载/删除/发送到剪映
 vi.mock('../../src/components/base/HoverToolbar.tsx', () => ({
   default: ({ buttons }) => (

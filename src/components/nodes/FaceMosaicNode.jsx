@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { useReactFlow } from '@xyflow/react'
 import { Upload, ScanFace, Loader2, AlertCircle, Image as ImageIcon, Wand2, Shuffle } from 'lucide-react'
-import NodeShell from '../base/NodeShell.jsx'
+import NodeShell from '../base/NodeShell.tsx'
 import HoverToolbar from '../base/HoverToolbar.tsx'
 import { useConnectedInputs } from '../../hooks/useConnectedInputs.ts'
 import { useMediaDegrade } from '../../hooks/useMediaDegrade.ts'

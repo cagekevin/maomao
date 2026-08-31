@@ -32,7 +32,7 @@ vi.mock('../../src/components/base/HoverToolbar.jsx', () => ({
     </>
   ),
 }))
-vi.mock('../../src/components/base/NodeShell.jsx', () => ({ default: ({ children }) => children }))
+vi.mock('../../src/components/base/NodeShell.tsx', () => ({ default: ({ children }) => children }))
 vi.mock('../../src/components/base/ExpandablePanel.tsx', () => ({ default: ({ children }) => children }))
 vi.mock('../../src/components/base/MaterialStrip.tsx', () => ({ default: () => null }))
 vi.mock('../../src/components/base/PromptInput.tsx', () => ({ default: () => null }))
