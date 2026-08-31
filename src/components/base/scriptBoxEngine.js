@@ -1,4 +1,4 @@
-import { buildShotImageUser, collectAssets, matchAssetNames, ZgPrompt, IMAGE_GEN_DEFAULT, SCRIPT_WRITER_FORMAT, buildAuditUser, normalizeDialogue, mergeShotsForVideo, MERGE_VIDEO_SYSTEM, buildMergedVideoUser, SHOT_DIRECTOR_SYSTEM, SHOT_AUDIT_SYSTEM, SCRIPT_WRITER_SYSTEM } from './scriptBoxPrompts.js'
+import { buildShotImageUser, collectAssets, matchAssetNames, ZgPrompt, IMAGE_GEN_DEFAULT, SCRIPT_WRITER_FORMAT, buildAuditUser, normalizeDialogue, mergeShotsForVideo, MERGE_VIDEO_SYSTEM, buildMergedVideoUser, SHOT_DIRECTOR_SYSTEM, SHOT_AUDIT_SYSTEM, SCRIPT_WRITER_SYSTEM } from './scriptBoxPrompts.ts'
 import { resolveSystem, resolveImageGenSys, resolveConstraints, resolveNegatives, resolveAssetTemplates } from './scriptBoxPromptResolver.ts'
 import { chatCompletions } from './chatApi.ts'
 import { generateImage } from './imageApi.ts'

@@ -13,13 +13,73 @@
 
 import { SCRIPT_BOX_WORKFLOWS } from '../scriptbox/scriptBoxWorkflows.js'
 
+/**
+ * 【边界】scriptBoxWorkflows 仍是 .js（真相源，暂不转），其结构按下游实际消费的字段
+ * 定义最小视图，避免 any 扩散到本层全部导出。待其转 .ts 后改为直接引用其类型。
+ */
+interface WorkflowLike {
+  script?: string
+  shot?: string
+  audit?: string
+  assetTemplates?: Record<string, string>
+  imageGenTemplates?: Record<string, ImageGenTemplate>
+}
+
+/** 生图类型定义：label=UI 显示名，sys=该类型专用的系统提示词片段 */
+export interface ImageGenTemplate {
+  label: string
+  sys: string
+}
+
+const WF = SCRIPT_BOX_WORKFLOWS as Record<string, WorkflowLike>
+const MANGA = WF.manga as WorkflowLike
+
+/** 资产类别：character=角色 / scene=场景 / prop=道具（消费方可能传任意字符串，转字符串处理） */
+export type AssetCategory = string
+
+/** 单条对白（kind 存任意字符串，运行时按 '台词'/'旁白' 展示；如实标注避免过度收窄） */
+export interface Dialogue {
+  kind: string
+  role: string
+  text: string
+}
+
+/** 分镜对象（本层只消费以下字段；引擎侧另有新字段，故保留索引签名） */
+export interface Shot {
+  id?: number | string
+  index?: number
+  duration?: string
+  description?: string
+  shotType?: string
+  lighting?: string
+  dialogue?: Dialogue[]
+  sound?: string
+  motion?: string
+  grid?: number
+  prompt?: string
+  videoPrompt?: string
+  [key: string]: unknown
+}
+
+/** 剧本资产（本层读 name / imageUrl / picked / id） */
+export interface ScriptAsset {
+  id?: string | number
+  name?: string
+  category?: AssetCategory
+  description?: string
+  imageUrl?: string
+  thumbnailUrl?: string
+  picked?: boolean
+  [key: string]: unknown
+}
+
 /** 角色 / 场景 / 道具 参考图模板（默认来自工作流「漫剧」，逐字对应 c_.jsx 设置弹窗默认值）。 */
-export const ASSET_TEMPLATES = SCRIPT_BOX_WORKFLOWS.manga.assetTemplates
+export const ASSET_TEMPLATES: Record<string, string> = MANGA.assetTemplates || {}
 
 /** 剧本生成——用户可编辑的创作部分（角色定位/创作哲学/创作流程）。
  *  只负责"怎么写故事"，不含输出 JSON 结构（结构在 SCRIPT_WRITER_FORMAT，固定不可改）。
  *  默认来自工作流「漫剧」。 */
-export const SCRIPT_WRITER_SYSTEM = SCRIPT_BOX_WORKFLOWS.manga.script
+export const SCRIPT_WRITER_SYSTEM: string = MANGA.script || ''
 
 /** 剧本生成——固定输出格式（运行时契约，引擎按此解析 shots/assets，用户不可改）。
  *  无论用户怎么改 SCRIPT_WRITER_SYSTEM，此格式都强制追加，保证 LLM 返回可解析的 JSON。 */
@@ -30,7 +90,7 @@ export const SCRIPT_WRITER_FORMAT = `
 【硬性要求】故事中出现的所有场景必须全部注册为 scene 资产，每个分镜的 description 必须 @ 引用其发生的场景；assets 的 name 必须与 shots 的 description 中 @ 引用的名称完全一致；分镜数量与时长要与剧情体量匹配，叙事连贯、有头有尾。`
 
 /** 分镜导演系统提示词（默认来自工作流「漫剧」，只返回 JSON prompt/videoPrompt） */
-export const SHOT_DIRECTOR_SYSTEM = SCRIPT_BOX_WORKFLOWS.manga.shot
+export const SHOT_DIRECTOR_SYSTEM: string = MANGA.shot || ''
 
 /**
  * 提示词审计改写系统提示词（聊天式"按意见改"专用通道；默认来自工作流「漫剧」）。
@@ -39,7 +99,7 @@ export const SHOT_DIRECTOR_SYSTEM = SCRIPT_BOX_WORKFLOWS.manga.shot
  * 做静默审计式改写——只改该改的，保持其余不变，输出**单条改写后的提示词文本**
  * （不再返回 JSON，因为只针对一个字段）。
  */
-export const SHOT_AUDIT_SYSTEM = SCRIPT_BOX_WORKFLOWS.manga.audit
+export const SHOT_AUDIT_SYSTEM: string = MANGA.audit || ''
 
 /**
  * 审计改写 user content 拼装（聊天式「按意见改」专用）。
@@ -53,7 +113,15 @@ export const SHOT_AUDIT_SYSTEM = SCRIPT_BOX_WORKFLOWS.manga.audit
  * @param {string[]} [assetNames] 资产名列表（仅作提示，不强约束）
  * @returns {string} user content
  */
-export function buildAuditUser(shot, field, feedback, assetNames = []) {
+/** 可被审计改写的提示词字段 */
+export type AuditField = 'prompt' | 'videoPrompt'
+
+export function buildAuditUser(
+  shot?: Shot | null,
+  field: AuditField = 'prompt',
+  feedback?: string,
+  assetNames: string[] = []
+): string {
   const current = String(shot?.[field] || '').trim()
   const desc = String(shot?.description || '').trim()
   const dia = dialogueText(shot?.dialogue)
@@ -70,7 +138,12 @@ export function buildAuditUser(shot, field, feedback, assetNames = []) {
 }
 
 /** 资产生图提示词拼装（对应 shared.js Zg）：`[视觉风格：xx] + desc + 句号 + 模板` */
-export function ZgPrompt(category, desc, style, customTemplates) {
+export function ZgPrompt(
+  category?: string,
+  desc?: string,
+  style?: string,
+  customTemplates?: Record<string, string> | null
+): string {
   const cat = ['character', 'scene', 'prop'].includes(category) ? category : 'character'
   const d = (desc || '').trim()
   const tpl = (customTemplates && customTemplates[cat]) || ASSET_TEMPLATES[cat]
@@ -79,7 +152,7 @@ export function ZgPrompt(category, desc, style, customTemplates) {
 }
 
 /** 单分镜对白数组 → 可读文本（"台词/旁白: text" 用 / 连接） */
-export function dialogueText(arr) {
+export function dialogueText(arr?: Dialogue[] | null): string {
   const list = Array.isArray(arr) ? arr : []
   if (!list.length) return ''
   return list
@@ -94,11 +167,11 @@ export function dialogueText(arr) {
  *  - 每行 `角色：台词` → { kind:'台词'|'旁白', role, text }
  *  - 无冒号的行 → { kind:'台词', role:'', text }
  */
-export function textToDlg(text) {
+export function textToDlg(text?: string | null): Dialogue[] {
   return String(text || '')
     .split('\n')
     .filter((l) => l.trim())
-    .map((l) => {
+    .map((l: string) => {
       const m = l.match(/^([^：:]+)[：:](.+)$/)
       if (m) {
         const role = m[1].trim()
@@ -109,7 +182,7 @@ export function textToDlg(text) {
 }
 
 /** 归一化 dialogue 字段：已是数组直接用；字符串（编剧模型返回）转成标准数组；否则空数组。 */
-export function normalizeDialogue(d) {
+export function normalizeDialogue(d?: unknown): Dialogue[] {
   if (Array.isArray(d)) return d
   if (d && typeof d === 'string' && d.trim()) return textToDlg(d)
   return []
@@ -117,14 +190,14 @@ export function normalizeDialogue(d) {
 
 /** 对白数组 → 可编辑文本（每行 `角色：文本`，与 textToDlg 互为逆；StepShots 对白编辑弹窗用）。
  *  roundtrip：textToDlg(dlgToText(arr)) 保持数据不丢（旁白/台词均可还原）。 */
-export function dlgToText(arr) {
+export function dlgToText(arr?: Dialogue[] | null): string {
   const list = Array.isArray(arr) ? arr : []
   return list.map((x) => `${x.role || '台词'}：${x.text}`).join('\n')
 }
 
 /** 长段提示词一键排版：每个句号类标点（。！？；）后补换行，标点留在行尾，合并多余空行。
  *  纯字符串处理，不破坏 @资产名 引用。供 StepPrompt 编辑弹窗打开时预格式化。 */
-export function formatLineBreaks(text) {
+export function formatLineBreaks(text?: string | null): string {
   if (!text) return text
   return String(text)
     .replace(/([。！？；])(?!\s*\n)/g, '$1\n') // 句号后补换行（若后面不是已有换行）
@@ -134,16 +207,16 @@ export function formatLineBreaks(text) {
 
 /** 分镜时长数值解析（表格输入）：parseInt 兜底，非法/0/空 → fallback（默认 3）。
  *  对齐 StepShots 时长输入 `parseInt(x) || 3` 的既有语义。 */
-export function parseShotSeconds(value, fallback = 3) {
+export function parseShotSeconds(value?: unknown, fallback = 3): number {
   const n = Number.parseInt(String(value ?? ''), 10)
   return n || fallback
 }
 
 /** P6：@资产名高亮正则缓存——按「排序后名字列表」缓存编译结果，避免 hlAt 每次渲染重排 new RegExp。
  *  资产名集合有限（每个剧本盒子的资产数几十量级），带 size 上限防无限膨胀。 */
-const HIGHLIGHT_RE_CACHE = new Map()
+const HIGHLIGHT_RE_CACHE = new Map<string, RegExp>()
 const HIGHLIGHT_RE_CACHE_MAX = 200
-function getHighlightPattern(sorted) {
+function getHighlightPattern(sorted: string[]): RegExp {
   const key = sorted.join('\u0001')
   let re = HIGHLIGHT_RE_CACHE.get(key)
   if (!re) {
@@ -172,9 +245,9 @@ function getHighlightPattern(sorted) {
  * @param {string[]} [assetNames] 已注册资产名列表
  * @returns {Set<string>} 被 `@` 引用且确为注册名的资产名集合（可判空 / forEach）
  */
-export function matchAssetNames(text, assetNames) {
+export function matchAssetNames(text?: string | null, assetNames?: string[] | null): Set<string> {
   const names = Array.isArray(assetNames) ? assetNames.map((n) => String(n ?? '')).filter(Boolean) : []
-  const hit = new Set()
+  const hit = new Set<string>()
   if (!text || names.length === 0) return hit
   const sorted = [...names].sort((a, b) => b.length - a.length)
   const pattern = getHighlightPattern(sorted)
@@ -199,8 +272,8 @@ export function matchAssetNames(text, assetNames) {
  * @param {string[]} [assetNames] 已注册资产名列表；缺省/为空时不高亮任何 @（保持原样）
  * @returns {string} HTML 字符串（配合 dangerouslySetInnerHTML 使用）
  */
-export function hlAt(text, assetNames) {
-  const esc = (s) => (s == null ? '' : String(s)).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))
+export function hlAt(text?: string | null, assetNames?: string[] | null): string {
+  const esc = (s: unknown) => (s == null ? '' : String(s)).replace(/[&<>]/g, (c) => (c === '&' ? '&amp;' : c === '<' ? '&lt;' : c === '>' ? '&gt;' : c))
   const s = esc(text)
   const names = Array.isArray(assetNames) ? assetNames.map((x) => String(x ?? '')).filter(Boolean) : []
   if (names.length === 0) return s
@@ -219,19 +292,28 @@ export function hlAt(text, assetNames) {
  *  field 支持两种形态：字符串字段名（配合 val）或对象 patch（一次性合并多个字段）。
  *  收口 StepShots / StepPrompt 各自的 patchShot 重复实现。纯函数，无副作用。
  *  @returns 新 shots 数组 */
-export function patchShots(shots, idx, field, val) {
+export function patchShots(
+  shots: Shot[] | null | undefined,
+  idx: number,
+  field: string | Record<string, unknown>,
+  val?: unknown
+): Shot[] {
   return (shots || []).map((s, i) => {
     if (i !== idx) return s
-    return typeof field === 'object' && field !== null ? { ...s, ...field } : { ...s, [field]: val }
+    // 正向分支收窄 field 联合（string | object），各自独立 return，避免在 else 侧取键时类型含糊
+    if (typeof field === 'string') return { ...s, [field]: val }
+    if (field && typeof field === 'object') return { ...s, ...field }
+    return s
   })
 }
 
 /** 新增分镜（StepShots addShot 纯函数化）：id/index 按当前数组末尾自增，缺省字段用默认值。 */
-export function createNewShot(shots) {
+export function createNewShot(shots?: Shot[] | null): Shot {
   const list = Array.isArray(shots) ? shots : []
   const last = list[list.length - 1]
+  // Number() 归一：last.id 可能来自旧数据（字符串），统一数值化自增
   return {
-    id: (last?.id || 0) + 1,
+    id: Number(last?.id || 0) + 1,
     index: list.length + 1,
     duration: '3s',
     description: '双击编辑画面描述（@引用资产）',
@@ -256,7 +338,7 @@ export function createNewShot(shots) {
 }
 
 /** 删除分镜（StepShots delShot 纯函数化）：移除第 idx 个并重排 index 连续。 */
-export function removeShot(shots, idx) {
+export function removeShot(shots: Shot[] | null | undefined, idx: number): Shot[] {
   return (shots || []).filter((_, i) => i !== idx).map((s, i) => ({ ...s, index: i + 1 }))
 }
 
@@ -267,7 +349,19 @@ export function removeShot(shots, idx) {
  *  @param variant 尾帧变体 { id, imageUrl }（useTail=false 时可空）
  *  @param useTail 是否使用尾帧
  *  @returns 新 shots 数组；找不到 shotId 返回 null（调用方据此直接 return，不写回） */
-export function applyTailFrameSelection(shots, shotId, variant, useTail) {
+/** 尾帧变体（选帧弹窗的候选项） */
+export interface TailFrameVariant {
+  id?: string
+  imageUrl?: string
+  [key: string]: unknown
+}
+
+export function applyTailFrameSelection(
+  shots: Shot[] | null | undefined,
+  shotId: number | string,
+  variant?: TailFrameVariant | null,
+  useTail?: boolean
+): Shot[] | null {
   const list = Array.isArray(shots) ? shots : []
   const idx = list.findIndex((x) => x.id === shotId)
   if (idx < 0) return null
@@ -281,7 +375,7 @@ export function applyTailFrameSelection(shots, shotId, variant, useTail) {
 
 /** 判断文本 e 中是否存在合法的 `@资产名` 引用（复刻官方 shared.js Fa）。
  *  规则：`@名` 后一位必须是结尾或非中英数，防止 `@小马` 误匹配 `@小马妈妈`。 */
-export function matchAsset(text, name) {
+export function matchAsset(text?: string | null, name?: string | null): boolean {
   if (!text || !name) return false
   let n = 0
   while (true) {
@@ -298,7 +392,8 @@ export function matchAsset(text, name) {
  *  使其不再被高亮 / 不再被当作参考图引用。边界与 matchAsset 完全一致
  *  （@名 后一位结尾或非中英数），避免误伤 `@名` 更长词（如 @小马妈妈）。
  *  返回的 name 用函数返回值注入，规避 String.replace 对 `$` 的特殊转义。 */
-export function stripAtRef(text, name) {
+export function stripAtRef(text?: string | null, name?: string | null): string | null {
+  // 空 text / 空 name → 原样返回（null 保持 null，测试契约断言 `toBe(null)`）
   if (!text || !name) return text
   const re = new RegExp(`@${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![\\u4e00-\\u9fa5A-Za-z0-9])`, 'g')
   return text.replace(re, () => name)
@@ -307,19 +402,32 @@ export function stripAtRef(text, name) {
 /** 删除资产联动清理（StepAssets delAsset 纯函数化）：移除资产后，把各镜头文本里的 `@名`
  *  标记去掉（复用 stripAtRef，只去 @ 保留名字文字）。返回 updateData 的 patch 对象。
  *  @returns {{ assets:Array, pickedCount:number, shots?:Array }} */
-export function removeAsset(assets, id, shots) {
+/** 删除资产后的 data patch：shots 仅在资产有 name（需清理引用）时出现 */
+export interface RemoveAssetPatch {
+  assets: ScriptAsset[]
+  pickedCount: number
+  shots?: Shot[]
+}
+
+export function removeAsset(
+  assets: ScriptAsset[] | null | undefined,
+  id: string | number,
+  shots?: Shot[] | null
+): RemoveAssetPatch {
   const list = Array.isArray(assets) ? assets : []
   const target = list.find((a) => a.id === id)
   const next = list.filter((a) => a.id !== id)
-  const patch = { assets: next, pickedCount: next.filter((a) => a.picked).length }
+  const patch: RemoveAssetPatch = { assets: next, pickedCount: next.filter((a) => a.picked).length }
   if (target?.name) {
     const shotList = Array.isArray(shots) ? shots : []
     patch.shots = shotList.map((s) => {
-      const nextShot = { ...s }
+      const nextShot = { ...s } as Record<string, unknown>
       ;['description', 'prompt', 'videoPrompt'].forEach((f) => {
-        if (nextShot[f]) nextShot[f] = stripAtRef(nextShot[f], target.name)
+        // 存储值不可信，取字符串子集交给 stripAtRef（纯字符串处理，数值/对象原样跳过）
+        const val = nextShot[f]
+        if (typeof val === 'string' && val) nextShot[f] = stripAtRef(val, target.name)
       })
-      return nextShot
+      return nextShot as Shot
     })
   }
   return patch
@@ -328,9 +436,13 @@ export function removeAsset(assets, id, shots) {
 /** 资产改名联动（StepAssets AssetPanel.save 纯函数化）：把全部镜头 description 里 `@旧名` 引用
  *  改写成 `@新名`。与既有实现一致：split('@') 后按「片段以旧名开头」判断（会同时命中 `@旧名xx` 等
  *  以旧名开头的更长词），抽取时不改变原有行为。 */
-export function renameAssetRefs(shots, oldName, newName) {
+export function renameAssetRefs(
+  shots: Shot[] | null | undefined,
+  oldName: string,
+  newName: string
+): Shot[] {
   return (shots || []).map((s) => {
-    const desc = s.description || ''
+    const desc = String(s.description || '')
     const next = desc
       .split('@')
       .map((seg, k) => (k ? (seg.startsWith(oldName) ? '@' + newName + seg.slice(oldName.length) : '@' + seg) : seg))
@@ -347,12 +459,19 @@ export function renameAssetRefs(shots, oldName, newName) {
  * 匹配口径（2026-08-28 修复缺陷②）：用「注册资产名词典 + 最长匹配」`matchAssetNames` 替代原
  * `matchAsset` 的「单名 + 后一位非中英数」边界。原因见 matchAssetNames 注释——场景 `@卧室内`
  * 原被边界误杀导致永远垫不上；现与 hlAt 高亮口径一致，高亮的即垫图的。 */
-export function collectAssets(shot, assets) {
+/** 收集到的参考图条目 */
+export interface CollectedAsset {
+  id: string
+  url: string
+  label: string
+}
+
+export function collectAssets(shot?: Shot | null, assets?: ScriptAsset[] | null): CollectedAsset[] {
   const list = Array.isArray(assets) ? assets : []
   if (!shot || list.length === 0) return []
   const text = `${shot.description || ''} ${shot.prompt || ''} ${shot.videoPrompt || ''} ${shot.dialogue || ''}`
   const refNames = matchAssetNames(text, list.map((a) => a.name))
-  const out = []
+  const out: CollectedAsset[] = []
   list.forEach((a) => {
     if (a?.name && a.imageUrl && refNames.has(a.name)) {
       // label = 资产名，让下游候选列表显示真实名（配合 PromptInput @名 自动匹配）
@@ -375,15 +494,25 @@ export function collectAssets(shot, assets) {
  *   - images  = 各镜引用的有图资产合并去重（复用 collectAssets 口径）
  *   - seconds = 各镜 duration 秒数累加（parseInt，缺省 5）
  */
-export function mergeShotsForVideo(shots, assets) {
+/** 合并生成视频的入参 */
+export interface MergedVideoInput {
+  /** 各镜 videoPrompt 拼接（空段跳过，用换行分隔） */
+  prompt: string
+  /** 各镜引用的有图资产合并去重 */
+  images: Array<{ id: string; url: string }>
+  /** 各镜 duration 秒数累加 */
+  seconds: number
+}
+
+export function mergeShotsForVideo(shots?: Shot[] | null, assets?: ScriptAsset[] | null): MergedVideoInput {
   const list = Array.isArray(shots) ? shots : []
   const prompt = list
     .map((s) => String(s?.videoPrompt || '').trim())
     .filter(Boolean)
     .join('\n\n')
   // 各镜 @资产图合并去重（url 为键，保留首个）
-  const seen = new Set()
-  const images = []
+  const seen = new Set<string>()
+  const images: Array<{ id: string; url: string }> = []
   for (const s of list) {
     for (const im of collectAssets(s, assets)) {
       if (!im?.url || seen.has(im.url)) continue
@@ -398,8 +527,9 @@ export function mergeShotsForVideo(shots, assets) {
   return { prompt, images, seconds }
 }
 
-/** 单个分镜的生图/生视频提示词（buildShots 模板生成用；约束已收敛到 playbook 经引擎注入，故无入参）。 */
-export function buildShotPrompts(shot) {
+/** 单个分镜的生图/生视频提示词（buildShots 模板生成用；约束已收敛到 playbook 经引擎注入，故无入参）。
+ *  注：就地写回 shot.prompt / shot.videoPrompt 并返回同一对象（历史行为，勿改成不可变）。 */
+export function buildShotPrompts(shot: Shot): Shot {
   const dlg = dialogueText(shot.dialogue)
   const base = `电影感画面，${shot.description}${shot.shotType ? `，景别：${shot.shotType}` : ''}${shot.lighting ? `，光影：${shot.lighting}` : ''}，运镜：${shot.motion || '固定'}`
   shot.prompt = base
@@ -437,8 +567,8 @@ const ASSET_POOL = [
 ]
 
 /** 按镜头数生成分镜数组（含提示词），无副作用 */
-export function buildShots(n) {
-  const shots = []
+export function buildShots(n: number): Shot[] {
+  const shots: Shot[] = []
   for (let i = 0; i < n; i++) {
     const t = SHOT_TPL[i % SHOT_TPL.length]
     const dur = 3 + (i % 3)
@@ -466,7 +596,7 @@ export function buildShots(n) {
 }
 
 /** 生成资产数组（角色/场景/道具三栏，prompt 走 ZgPrompt），无副作用 */
-export function buildAssets(style, customTemplates) {
+export function buildAssets(style?: string, customTemplates?: Record<string, string> | null): ScriptAsset[] {
   return ASSET_POOL.map((a) => ({
     id: a.name,
     category: a.cat,
@@ -491,13 +621,17 @@ export function buildAssets(style, customTemplates) {
 // ═══════════════════════════════════════════════════════════════════
 
 /** 生图类型定义：label=UI 显示名，sys=该类型专用的系统提示词片段（默认来自工作流「漫剧」） */
-export const IMAGE_GEN_TYPES = SCRIPT_BOX_WORKFLOWS.manga.imageGenTemplates
+export const IMAGE_GEN_TYPES: Record<string, ImageGenTemplate> = MANGA.imageGenTemplates || {}
 
 /** 默认选中类型 */
 export const IMAGE_GEN_DEFAULT = 'keyframe'
 
 /** 把单个分镜某类型的「用户内容」拼成一次 LLM 调用的 user message（纯函数，无副作用） */
-export function buildShotImageUser(shot, type, { globalStyle = '', assets = [] } = {}) {
+export function buildShotImageUser(
+  shot?: Shot | null,
+  type?: string,
+  { globalStyle = '', assets = [] }: { globalStyle?: string; assets?: ScriptAsset[] } = {}
+): string {
   const t = IMAGE_GEN_TYPES[type] || IMAGE_GEN_TYPES[IMAGE_GEN_DEFAULT]
   const dlg = dialogueText(shot.dialogue)
   const assetNames = (assets || []).map((a) => a.name).filter(Boolean).join('、')
@@ -539,7 +673,7 @@ export const MERGE_VIDEO_SYSTEM = `你是资深 AI 视频提示词工程师。�
  * @param {object[]} [assets] 剧本资产（可选，仅用于列出可用 @资产，不强约束）
  * @returns {string}
  */
-export function buildMergedVideoUser(shots, assets = []) {
+export function buildMergedVideoUser(shots?: Shot[] | null, assets: ScriptAsset[] = []): string {
   const list = Array.isArray(shots) ? shots : []
   const assetNames = (assets || []).map((a) => a.name).filter(Boolean).join('、')
   const parts = [

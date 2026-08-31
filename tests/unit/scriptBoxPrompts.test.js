@@ -5,7 +5,7 @@ import {
   createNewShot, removeShot, applyTailFrameSelection, removeAsset, renameAssetRefs,
   formatLineBreaks, parseShotSeconds,
   mergeShotsForVideo, buildMergedVideoUser,
-} from '../../src/components/base/scriptBoxPrompts.js'
+} from '../../src/components/base/scriptBoxPrompts.ts'
 
 describe('剧本盒纯函数 §2.7/2.17', () => {
   it('ZgPrompt：描述 + 模板拼接，style 前置', () => {

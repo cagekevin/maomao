@@ -12,7 +12,7 @@ import {
   clearCookies,
   requestDelete,
   moveEnv,
-} from '../accountsStore.js'
+} from '../accountsStore.ts'
 
 /**
  * 多开账号管理（整页视图）。

@@ -10,10 +10,90 @@
  * 数据变更一律新引用，绝不原地修改（useSyncExternalStore 依赖引用变化触发渲染）。
  */
 import { useSyncExternalStore } from 'react'
+import type { Ref } from 'react'
 import { contentGetAsync, contentSetAsync } from '../contentStore.ts'
 import { generateId } from '../idGen.ts'
 
 const STORAGE_KEY = 'yimao_accounts'
+
+/** 单个 Cookie 记录（chrome.cookies.Cookie 前端镜像；写入扩展时按 setOpts 缺字段降级） */
+export interface AccountCookie {
+  name: string
+  value: string
+  domain?: string
+  path?: string
+  secure?: boolean
+  httpOnly?: boolean
+  expirationDate?: number
+  sameSite?: string
+  storeId?: string
+  [key: string]: unknown
+}
+
+/** 浏览器环境 = 一组 Cookie 集合（+ localStorage 快照） */
+export interface AccountEnv {
+  id: string
+  name: string
+  siteName: string
+  siteUrl: string
+  avatar: string
+  cookies: AccountCookie[]
+  /** 登录态 token 等 localStorage 快照（扩展端抓取；换环境时一并恢复免重登） */
+  localStorage?: Record<string, string> | null
+  isFavorite?: boolean
+  [key: string]: unknown
+}
+
+/** store 状态快照 */
+export interface AccountsState {
+  envs: AccountEnv[]
+  activeId: string | null
+  confirmDeleteId: string | null
+  saving: boolean
+  formOpen: boolean
+  formEditId: string | null
+  formName: string
+  formCookies: string
+}
+
+/** saveEnvironment 返回值 */
+export interface SaveEnvironmentResult {
+  ok: boolean
+  error?: string
+}
+
+/** chrome 扩展的 tags 查询结果 tab（本模块只消费这几个字段） */
+interface ChromeTabLike {
+  id?: number
+  url?: string
+  title?: string
+  favIconUrl?: string
+}
+
+// 轻量全局 chrome 类型声明：扩展 API 只在运行时存在（isExtensionEnv 守卫），此处仅做非空收窄
+declare const chrome: {
+  runtime?: { id?: string }
+  tabs?: {
+    query: (q: { active: boolean; currentWindow: boolean }) => Promise<ChromeTabLike[]>
+    // 可选参在前会触发 TS1016；此处调用点可能只传 props（tabId 为 undefined 时语义上等同当前页），
+    // 如实声明为必填 + 调用处传 undefined，保持运行时行为不变
+    update: (tabId: number | undefined, props: { url: string }) => Promise<unknown>
+    reload: (tabId: number) => Promise<unknown>
+  }
+  cookies?: {
+    getAll: (d: { url: string } | { domain: string }) => Promise<AccountCookie[]>
+    set: (opts: Record<string, unknown>) => Promise<unknown>
+    remove: (d: { url: string; name: string; storeId?: string }) => Promise<unknown>
+  }
+  scripting?: {
+    executeScript: (d: {
+      target: { tabId: number }
+      world: string
+      func: (...args: unknown[]) => unknown
+      args?: unknown[]
+    }) => Promise<Array<{ result?: unknown }>>
+  }
+}
 
 // 演示环境占位常量（浏览器端降级新建环境时用的测试站点地址与头像，统一避免散落硬编码）
 export const TEST_SITE_URL = 'http://localhost:3000'
@@ -36,9 +116,10 @@ export function isExtensionEnv() {
  * 惰性执行一次，仅在环境列表仍为空时应用，避免与用户编辑竞态/覆盖。
  * @returns {Promise<Array>} 清洗后的环境数组
  */
-async function load() {
+async function load(): Promise<AccountEnv[]> {
   try {
-    const parsed = await contentGetAsync(STORAGE_KEY)
+    // contentGetAsync 返回 unknown（存储值不可信），按 AccountEnv[] 收窄后清洗
+    const parsed = await contentGetAsync(STORAGE_KEY) as AccountEnv[] | null
     const cleaned = Array.isArray(parsed)
       ? parsed.filter(
           (e) => !String(e.id || '').startsWith('env_demo_') && !(e.siteName === '开发测试网' && (e.cookies || []).every((c) => c.name === 'test'))
@@ -54,7 +135,7 @@ async function load() {
 
 // 模块级 state：环境数组 + 当前激活环境 id + 表单/菜单态（官方 rn/on/un/fn/mn/gn/ja）。
 // 不再同步 load（KV 为异步后端），初始为空，由上水合异步填充。
-let state = {
+let state: AccountsState = {
   envs: [],
   activeId: null,
   confirmDeleteId: null, // 删除二次确认（官方 `ja`）
@@ -64,30 +145,30 @@ let state = {
   formName: '',          // 表单名称（官方 `fn`）
   formCookies: '',       // 表单 Cookie 粘贴串（官方 `gn`）
 }
-const listeners = new Set()
+const listeners = new Set<() => void>()
 
-function setState(patch) {
+function setState(patch: Partial<AccountsState>): void {
   state = { ...state, ...patch }
   listeners.forEach((l) => l())
 }
-function subscribe(cb) {
+function subscribe(cb: () => void): () => void {
   listeners.add(cb)
-  return () => listeners.delete(cb)
+  return () => { listeners.delete(cb) }
 }
-function getSnapshot() {
+function getSnapshot(): AccountsState {
   return state
 }
-export function useAccounts() {
+export function useAccounts(): AccountsState {
   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
 }
 
 // 异步落盘（对齐官方 users 走 localTool KV；等待 KV 完成，避免写空覆盖丢历史）
-async function persist() {
+async function persist(): Promise<void> {
   await contentSetAsync(STORAGE_KEY, state.envs)
 }
 
 // 保存环境数组（复刻官方 `fa`：内存 + 异步持久化）
-async function saveEnvs(next) {
+async function saveEnvs(next: AccountEnv[]): Promise<void> {
   setState({ envs: next })
   await persist()
 }
@@ -96,27 +177,27 @@ async function saveEnvs(next) {
 void load()
 
 // ── 表单控制（复刻官方 dn/pn/hn/_n + 表单 ✕ 关闭）──
-export function openCreateForm() {
+export function openCreateForm(): void {
   setState({ formOpen: true, formEditId: null, formName: '', formCookies: '' })
 }
-export function openEditForm(envId) {
+export function openEditForm(envId: string): void {
   const env = state.envs.find((e) => e.id === envId)
   if (!env) return
   setState({ formOpen: true, formEditId: envId, formName: env.name, formCookies: JSON.stringify(env.cookies) })
 }
-export function closeForm() {
+export function closeForm(): void {
   setState({ formOpen: false, formEditId: null, formName: '', formCookies: '' })
 }
-export function setFormName(name) {
+export function setFormName(name: string): void {
   setState({ formName: name })
 }
-export function setFormCookies(str) {
+export function setFormCookies(str: string): void {
   setState({ formCookies: str })
 }
 
 // ── 解析手动粘贴的 Cookie（复刻官方 Sa L1840-1866）──
 // JSON 数组/单对象；失败且含 `=` 按 key=value; 拆（value 内可含 =）；否则 null。
-export function parseCookies(input, fallbackHost) {
+export function parseCookies(input: string, fallbackHost?: string): AccountCookie[] | null {
   const n = (input || '').trim()
   if (!n) return null
   try {
@@ -146,7 +227,7 @@ export function parseCookies(input, fallbackHost) {
 }
 
 // 抓取当前激活标签页（复刻官方 Sa L1882-1897：url/favIcon/cookies/title前5字）
-async function fetchActiveTab() {
+async function fetchActiveTab(): Promise<ChromeTabLike | null> {
   if (!isExtensionEnv()) return null
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
@@ -156,12 +237,12 @@ async function fetchActiveTab() {
   }
 }
 
-function dicebear(seed) {
+function dicebear(seed?: string): string {
   return `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(seed || 'env')}`
 }
 
 // cookie 全字段映射（复刻官方 Sa L1911-1923）
-function mapCookie(e) {
+function mapCookie(e: AccountCookie): AccountCookie {
   return {
     name: e.name,
     value: e.value,
@@ -176,7 +257,7 @@ function mapCookie(e) {
 }
 
 /** 从 URL 解析 hostname（去端口）；失败返回空串 */
-export function hostOf(url) {
+export function hostOf(url: string): string {
   try { return new URL(url).hostname } catch { return '' }
 }
 
@@ -185,8 +266,8 @@ export function hostOf(url) {
  * 不引入 tldts 等依赖：对公有后缀（如 .com.cn）会多上溯一层（com.cn），
  * 但多抓的这层通常无实际 cookie，仅多几次 getAll 调用，无害。
  */
-export function domainAscendants(host) {
-  const out = []
+export function domainAscendants(host?: string): string[] {
+  const out: string[] = []
   const parts = (host || '').split('.').filter(Boolean)
   for (let i = 0; i < parts.length - 1; i++) {
     out.push(parts.slice(i).join('.'))
@@ -202,10 +283,10 @@ export function domainAscendants(host) {
  *  - 合并去重（按 name + domain + path）。
  * 仅扩展端可用；任一级失败静默跳过（尽量多抓，抓不全不阻塞保存）。
  */
-async function collectAllCookies(url) {
+async function collectAllCookies(url: string): Promise<AccountCookie[]> {
   if (!isExtensionEnv() || !url) return []
-  const seen = new Set()
-  const out = []
+  const seen = new Set<string>()
+  const out: AccountCookie[] = []
   const push = (c) => {
     if (!c) return
     const key = `${c.name}|${c.domain}|${c.path}`
@@ -255,7 +336,7 @@ async function collectAllCookies(url) {
  * 登录态更完整。仅扩展端可用；非 http(s) 页或注入失败返回 null（不阻断保存/切换）。
  * @returns {Promise<Record<string,string>|null>} { key: value }，读取失败返回 null
  */
-async function readTabLocalStorage() {
+async function readTabLocalStorage(): Promise<Record<string, string> | null> {
   if (!isExtensionEnv()) return null
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
   if (!tab?.id || !tab?.url || !/^https?:/i.test(tab.url)) return null
@@ -266,10 +347,10 @@ async function readTabLocalStorage() {
       world: 'MAIN',
       func: () => {
         try {
-          const out = {}
+          const out: Record<string, string> = {}
           for (let i = 0; i < localStorage.length; i++) {
             const k = localStorage.key(i)
-            if (k) out[k] = localStorage.getItem(k)
+            if (k) out[k] = localStorage.getItem(k) ?? ''
           }
           return out
         } catch {
@@ -277,7 +358,8 @@ async function readTabLocalStorage() {
         }
       },
     })
-    return (res && typeof res.result === 'object' && res.result !== null) ? res.result : null
+    const r = res && typeof res.result === 'object' && res.result !== null ? res.result : null
+    return r as Record<string, string> | null
   } catch {
     return null
   }
@@ -289,7 +371,7 @@ async function readTabLocalStorage() {
  * 仅扩展端可用；非 http(s) 页或注入失败静默跳过（不影响 cookie 切换主流程）。
  * @param {Record<string,string>|null} data localStorage 快照
  */
-async function writeTabLocalStorage(data) {
+async function writeTabLocalStorage(data: Record<string, string> | null | undefined): Promise<void> {
   if (!isExtensionEnv() || !data) return
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
   if (!tab?.id || !tab?.url || !/^https?:/i.test(tab.url)) return
@@ -313,7 +395,7 @@ async function writeTabLocalStorage(data) {
 // ── 保存环境（复刻官方 `Sa(e)`，新建/修改同一入口）──
 // auto=true 对应官方 `Sa(true)`（「保存当前环境」卡片：忽略表单，自动抓取/降级 + 新建）。
 // 返回 { ok, error }；error 非空时调用方用 alert 提示（与官方一致）。
-export async function saveEnvironment(auto = false) {
+export async function saveEnvironment(auto = false): Promise<SaveEnvironmentResult> {
   setState({ saving: true })
   try {
     const formName = auto ? '' : state.formName
@@ -326,8 +408,8 @@ export async function saveEnvironment(auto = false) {
     if (!name && tab?.title) name = tab.title
     name ||= '新建环境'
 
-    let cookies = []
-    let localStorageData = null
+    let cookies: AccountCookie[] = []
+    let localStorageData: Record<string, string> | null = null
     let siteName = '未知网站'
     let siteUrl = ''
     let avatar = ''
@@ -370,14 +452,14 @@ export async function saveEnvironment(auto = false) {
 
     const mapped = cookies.map(mapCookie)
 
-    let next
+    let next: AccountEnv[]
     if (editId) {
       // 修改：保留 siteName/siteUrl/avatar，更新 name/cookies/localStorage
       next = state.envs.map((e) =>
         e.id === editId ? { ...e, name, cookies: mapped, localStorage: localStorageData ?? e.localStorage, avatar: avatar || e.avatar, siteName: e.siteName, siteUrl: e.siteUrl } : e
       )
     } else {
-      const newEnv = {
+      const newEnv: AccountEnv = {
         id: generateId('env'),
         name,
         siteName,
@@ -400,7 +482,7 @@ export async function saveEnvironment(auto = false) {
 }
 
 // ── 切换 / 激活环境（复刻官方 `ga`：pa 同步 → 扩展端跳 siteUrl → cn 标记激活）──
-export async function activateEnv(envId) {
+export async function activateEnv(envId: string): Promise<void> {
   const env = state.envs.find((e) => e.id === envId)
   if (!env) return
   await syncCookies(env)
@@ -414,14 +496,14 @@ export async function activateEnv(envId) {
 }
 
 // 环境同步注入（复刻官方 `pa`）：Cookie（先删多余 → 逐个 set）+ localStorage 快照，仅扩展端。
-async function syncCookies(env) {
+async function syncCookies(env: AccountEnv): Promise<void> {
   if (!isExtensionEnv()) return
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
     if (!tab?.url || !tab.url.startsWith('http')) return
     const url = tab.url
     const current = await chrome.cookies.getAll({ url })
-    const envNames = new Set((env.cookies || []).map((e) => e.name))
+    const envNames = new Set<string>((env.cookies || []).map((e) => e.name))
     for (const c of current) {
       if (!envNames.has(c.name)) {
         try { await chrome.cookies.remove({ url, name: c.name, storeId: c.storeId }) } catch { /* ignore */ }
@@ -429,7 +511,8 @@ async function syncCookies(env) {
     }
     for (const t of env.cookies || []) {
       try {
-        const setOpts = { url, name: t.name, value: t.value }
+        // 出站体含条件追加字段，显式标注为可索引记录
+        const setOpts: Record<string, unknown> = { url, name: t.name, value: t.value }
         if (t.domain !== undefined) setOpts.domain = t.domain
         if (t.path !== undefined) setOpts.path = t.path
         if (t.secure !== undefined) setOpts.secure = t.secure
@@ -450,7 +533,10 @@ async function syncCookies(env) {
 // ⚠️ 忠实复刻：官方 `ha` 里的 `e.cookies = []` 是【无效果副作用】（只改内存对象引用，不调
 //    `fa`/`an()` → 不触发 re-render、不落库），故此处【不做】任何 envs state 更新/持久化。
 // 返回 { ok, count, error }。
-export async function clearCookies(envId, all = false) {
+export async function clearCookies(
+  envId: string,
+  all = false
+): Promise<{ ok: boolean; count: number; error: string }> {
   void envId
   if (!isExtensionEnv()) return { ok: true, count: 0, error: '' }
   try {
@@ -478,7 +564,7 @@ export async function clearCookies(envId, all = false) {
 }
 
 // ── 删除环境（复刻官方 `Na`：二次确认，3s 未确认自动重置）──
-export async function requestDelete(envId) {
+export async function requestDelete(envId: string): Promise<void> {
   if (state.confirmDeleteId === envId) {
     // 二次确认：真正删除
     await saveEnvs(state.envs.filter((e) => e.id !== envId))
@@ -491,7 +577,7 @@ export async function requestDelete(envId) {
 }
 
 // ── 收藏（复刻官方 `Pa` toggle isFavorite）──
-export async function toggleFavorite(envId) {
+export async function toggleFavorite(envId: string): Promise<void> {
   setState({
     envs: state.envs.map((e) => (e.id === envId ? { ...e, isFavorite: !e.isFavorite } : e)),
   })
@@ -499,7 +585,7 @@ export async function toggleFavorite(envId) {
 }
 
 // ── 拖拽排序（复刻官方 `Da/Oa/ka/Aa`）──
-export async function moveEnv(fromIndex, toIndex) {
+export async function moveEnv(fromIndex: number | null, toIndex: number): Promise<void> {
   if (fromIndex === null || fromIndex === toIndex) return
   const next = [...state.envs]
   const [moved] = next.splice(fromIndex, 1)

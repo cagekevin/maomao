@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { Loader2, Wand2, User, Image as ImageIcon, Package, Plus, MoreVertical, Upload, RefreshCw, Trash2 } from 'lucide-react'
-import { ZgPrompt, removeAsset, renameAssetRefs } from '../base/scriptBoxPrompts.js'
+import { ZgPrompt, removeAsset, renameAssetRefs } from '../base/scriptBoxPrompts.ts'
 import { resolveAssetTemplates } from '../base/scriptBoxPromptResolver.ts'
 import { assetFolderOf } from '../base/assetStore.ts'
 import { useOutsideClick } from '../base/hooks.ts'
