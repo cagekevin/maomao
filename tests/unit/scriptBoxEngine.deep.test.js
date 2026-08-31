@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 vi.mock('../../src/components/base/chatApi.ts', () => ({ chatCompletions: vi.fn() }))
 vi.mock('../../src/components/base/imageApi.ts', () => ({ generateImage: vi.fn() }))
 vi.mock('../../src/components/base/toastStore.ts', () => ({ showToast: vi.fn() }))
-vi.mock('../../src/components/base/assetStore.js', () => ({
+vi.mock('../../src/components/base/assetStore.ts', () => ({
   localizeAndStoreToLibrary: vi.fn(),
   assetFolderOf: vi.fn(() => 'migrated/人物'),
   sendToAssetLibrary: vi.fn(),
@@ -15,7 +15,7 @@ vi.mock('../../src/components/base/assetStore.js', () => ({
 import { chatCompletions } from '../../src/components/base/chatApi.ts'
 import { generateImage } from '../../src/components/base/imageApi.ts'
 import { showToast } from '../../src/components/base/toastStore.ts'
-import { localizeAndStoreToLibrary } from '../../src/components/base/assetStore.js'
+import { localizeAndStoreToLibrary } from '../../src/components/base/assetStore.ts'
 import { createScriptBoxEngine } from '../../src/components/base/scriptBoxEngine.js'
 
 const providerState = {

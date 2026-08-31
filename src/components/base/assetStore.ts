@@ -28,11 +28,41 @@ import { safeFileName } from './utils.ts'
 import { logger } from './logger.ts'
 import { publish, subscribe } from './eventBus.ts'
 
+/** 素材类型（type 字段）：图片/视频/音频/文字 */
+export type AssetType = 'image' | 'video' | 'audio' | 'text'
+
+/** 素材记录 */
+export interface Asset {
+  id: string
+  /** 落盘目录，对齐 loctool 的 folder 结构（tasks / migrated / migrated/人物 …） */
+  folder: string
+  type: AssetType
+  name: string
+  url: string
+  size: number
+  ts: number
+  [key: string]: unknown
+}
+
+/** 目录 pill 配置 */
+export interface FolderPill {
+  key: string
+  label: string
+  /** null = 全部（不过滤） */
+  folder: string | null
+}
+
+/** detectAssetType 的入参最小契约：只需 name / type 两个字段（既有调用传字面量，非真 File） */
+export interface TypeProbe {
+  name?: string
+  type?: string
+}
+
 const STORAGE_KEY = 'yimao_asset_library'
-const listeners = new Set()
+const listeners = new Set<() => void>()
 
 // 预置演示素材（首次使用/本地为空时 seed，方便直观看到目录效果）
-const DEFAULT_ASSETS = [
+const DEFAULT_ASSETS: Asset[] = [
   { id: 'a_gen_1', folder: 'tasks', type: 'image', name: '赛博朋克夜景.png', url: 'https://picsum.photos/seed/cyberasset/200/200', size: 1024 * 320, ts: 0 },
   { id: 'a_gen_2', folder: 'tasks', type: 'video', name: '花园小猫.mp4', url: 'https://www.w3schools.com/html/mov_bbb.mp4', size: 1024 * 2100, ts: 0 },
   { id: 'a_mig_1', folder: 'migrated/人物', type: 'image', name: '主角立绘.png', url: 'https://picsum.photos/seed/char/200/200', size: 1024 * 280, ts: 0 },
@@ -41,8 +71,9 @@ const DEFAULT_ASSETS = [
   { id: 'a_mat_1', folder: 'migrated', type: 'audio', name: '背景音效.mp3', url: '', size: 1024 * 1500, ts: 0 }
 ]
 
-function load() {
-  const raw = contentGet(STORAGE_KEY)
+function load(): Asset[] {
+  // contentGet 返回 unknown（存储值不可信），按 Asset[] 收窄
+  const raw = contentGet(STORAGE_KEY) as Asset[] | null
   if (Array.isArray(raw) && raw.length > 0) return raw
   // 首次：seed 演示素材
   const seeded = DEFAULT_ASSETS.map((a) => ({ ...a, ts: Date.now() }))
@@ -54,7 +85,7 @@ function load() {
 let assets = load()
 
 // 目录 pill 配置（含 folder 前缀匹配）
-export const FOLDERS = [
+export const FOLDERS: FolderPill[] = [
   { key: 'all', label: '全部', folder: null },
   { key: 'generated', label: 'AI生成', folder: 'tasks' },
   { key: 'character', label: '人物', folder: 'migrated/人物' },
@@ -69,9 +100,9 @@ export const FOLDERS = [
  * @param {string} [category] character|scene|prop
  * @returns {string} 落盘目录（与后端 folder 结构一致）
  */
-export function assetFolderOf(category) {
-  const map = { character: 'migrated/人物', scene: 'migrated/场景', prop: 'migrated/道具' }
-  return map[category] || 'migrated'
+export function assetFolderOf(category?: string): string {
+  const map: Record<string, string> = { character: 'migrated/人物', scene: 'migrated/场景', prop: 'migrated/道具' }
+  return (category && map[category]) || 'migrated'
 }
 
 // P4 落盘节流：高频变更（拖入/批量生成/上传进度）合并落盘，消除主线程长任务。
@@ -79,36 +110,36 @@ export function assetFolderOf(category) {
 // 通知订阅者（notify）保持即时，只有「落盘」被节流，UI 响应性不受影响。
 const persistDebounced = createDebouncedPersist(() => contentSet(STORAGE_KEY, assets), 300)
 
-function notify() {
+function notify(): void {
   persistDebounced.schedule()
   listeners.forEach((l) => l())
 }
 
 /** 强制立即落盘（页面卸载兜底 / 测试用）；createDebouncedPersist 已自动注册 pagehide 兜底 */
-export function flushPersist() {
+export function flushPersist(): void {
   persistDebounced.flush()
 }
 
-function storeSubscribe(cb) {
+function storeSubscribe(cb: () => void): () => void {
   listeners.add(cb)
-  return () => listeners.delete(cb)
+  return () => { listeners.delete(cb) }
 }
 
-function getSnapshot() {
+function getSnapshot(): Asset[] {
   return assets
 }
 
 /** 读取当前内存素材列表（供测试/非 React 场景） */
-export function getAssets() {
+export function getAssets(): Asset[] {
   return assets
 }
 
-function genId() {
+function genId(): string {
   return generateId('asset')
 }
 
 // 判断文件类型（图片/视频/音频/文字/其他）
-export function detectAssetType(file) {
+export function detectAssetType(file?: TypeProbe | null): AssetType {
   const type = file?.type || ''
   if (type.startsWith('image/')) return 'image'
   if (type.startsWith('video/')) return 'video'
@@ -122,19 +153,22 @@ export function detectAssetType(file) {
 }
 
 // 判断目录命中：folder 是否为当前 pill 的 folder 前缀
-function matchesFolder(assetFolder, folder) {
+function matchesFolder(assetFolder: string, folder: string | null): boolean {
   if (folder === null) return true // 全部
   if (folder === 'migrated') return assetFolder === 'migrated' || assetFolder.startsWith('migrated/')
   return assetFolder === folder || assetFolder.startsWith(folder + '/')
 }
 
 // 按目录 pill 过滤素材
-export function filterByFolder(list, folder) {
+export function filterByFolder(list: Asset[], folder: string | null): Asset[] {
   return list.filter((a) => matchesFolder(a.folder, folder))
 }
 
+/** addAssets 的入参项：缺字段由 store 补默认（id/folder/type/name/size/ts） */
+export type NewAssetItem = Partial<Asset>
+
 // 新增素材（folder 指定落目录，缺省 migrated）
-export function addAssets(items, folder = UPLOAD_DIRS.migrated) {
+export function addAssets(items: NewAssetItem[], folder: string = UPLOAD_DIRS.migrated): Asset[] {
   const now = Date.now()
   const added = items.map((it) => ({
     id: it.id || genId(),
@@ -162,7 +196,10 @@ export function addAssets(items, folder = UPLOAD_DIRS.migrated) {
  * 落盘成功后 rescan，素材库面板即可读到。data: → multipart；http(s) → 下载成 Blob 后 multipart。
  * blob: 是本地临时地址，不落盘（调用方应传 data:/http）。
  */
-export function sendToAssetLibrary(url, { name, folder = UPLOAD_DIRS.migrated, type } = {}) {
+export function sendToAssetLibrary(
+  url: string,
+  { name, folder = UPLOAD_DIRS.migrated, type }: { name?: string; folder?: string; type?: AssetType } = {}
+): Asset[] {
   logger.debug('assetStore', '[SEND] sendToAssetLibrary 进入', { urlPrefix: String(url).slice(0, 60), folder, name }, { module: 'asset' })
   if (!url) return []
   let fname = '未命名'
@@ -194,7 +231,7 @@ export function sendToAssetLibrary(url, { name, folder = UPLOAD_DIRS.migrated, t
  *  行为与 utils.safeFileName(stripExt, fallback:'asset') 逐字节一致（有单测钉住）。
  *  @param {string} [name] 用户起的名字
  *  @returns {string} 安全文件名 base */
-export function safeAssetBase(name) {
+export function safeAssetBase(name?: string): string {
   return safeFileName(name, { stripExt: true, fallback: 'asset' })
 }
 
@@ -203,7 +240,7 @@ export function safeAssetBase(name) {
  *  @param {string} folder
  *  @param {string} [name] 用户起的名字（用于落盘文件名，保留给素材库面板/拖回画布）
  *  @param {string} [type] 素材类型（image/video/audio/text，推扩展名） */
-async function persistUrlToBackend(url, folder, name, type) {
+async function persistUrlToBackend(url: string, folder: string, name: string, type: AssetType): Promise<void> {
   logger.debug('assetStore', '[PERSIST] 开始', { kind: url.startsWith('data:') ? 'data' : url.startsWith('blob:') ? 'blob' : 'http', folder, name }, { module: 'asset' })
   try {
     if (url.startsWith('data:')) {
@@ -265,7 +302,10 @@ async function persistUrlToBackend(url, folder, name, type) {
  * 落盘成功后登记进素材库 store + 广播（AssetLibrary 面板自动刷新），与 sendToAssetLibrary 一致。
  * @returns {Promise<string>} 本地化后的持久 URL
  */
-export async function localizeAndStoreToLibrary(url, { name, folder = UPLOAD_DIRS.migrated } = {}) {
+export async function localizeAndStoreToLibrary(
+  url: string,
+  { name, folder = UPLOAD_DIRS.migrated }: { name?: string; folder?: string } = {}
+): Promise<string> {
   const src = String(url || '')
   if (!src) throw new Error('无素材可上传')
   let localized = null
@@ -290,25 +330,25 @@ export async function localizeAndStoreToLibrary(url, { name, folder = UPLOAD_DIR
   return localized
 }
 
-export function removeAsset(id) {
+export function removeAsset(id: string): void {
   assets = assets.filter((a) => a.id !== id)
   notify()
 }
 
-export function clearAssets() {
+export function clearAssets(): void {
   assets = []
   notify()
 }
 
 // 本地持久化时同步到内存（跨 tab）
-export function loadAssets() {
+export function loadAssets(): Asset[] {
   assets = load()
   notify()
   return assets
 }
 
 // React hook：订阅素材列表
-export function useAssets() {
+export function useAssets(): Asset[] {
   return useSyncExternalStore(storeSubscribe, getSnapshot, getSnapshot)
 }
 
@@ -317,9 +357,9 @@ export function useAssets() {
 // 互不相通。sendToAssetLibrary 落盘成功后，面板不会自动重新拉取，必须手动切目录才刷新
 // （用户体感「点别处才刷新」）。现经 eventBus 发布 asset:sent（EVENTS 已登记），面板订阅后主动刷新。
 // onAssetSent/emitAssetSent 保留为薄封装（调用方不变），底层走 eventBus，无平行回调桥。
-export function onAssetSent(cb) {
-  return subscribe('asset:sent', cb)
+export function onAssetSent(cb: (folder: string) => void): () => void {
+  return subscribe('asset:sent', cb as (payload: unknown) => void)
 }
-export function emitAssetSent(folder) {
+export function emitAssetSent(folder: string): void {
   publish('asset:sent', folder)
 }

@@ -124,7 +124,7 @@ vi.mock('../../src/components/agent/conversation/conversationStore.js', () => ({
   getCurrentRunMode: () => 'auto',
   setCurrentRunMode: (...a) => h.setCurrentRunMode(...a),
 }))
-vi.mock('../../src/components/base/taskStore.js', () => ({ runNodeGeneration: vi.fn() }))
+vi.mock('../../src/components/base/taskStore.ts', () => ({ runNodeGeneration: vi.fn() }))
 vi.mock('../../src/components/base/toastStore.ts', () => ({ showToast: (...a) => h.showToast(...a) }))
 vi.mock('../../src/components/base/logger.ts', () => ({ logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), log: vi.fn(), debug: vi.fn() } }))
 vi.mock('../../src/components/base/config.js', () => ({ AGENT_MODELS: ['gpt-4o-mini'] }))

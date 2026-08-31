@@ -40,7 +40,7 @@ Object.defineProperty(globalThis.navigator, 'clipboard', {
   configurable: true,
 })
 
-vi.mock('../../src/components/base/taskStore.js', () => ({
+vi.mock('../../src/components/base/taskStore.ts', () => ({
   useTasks: () => h.useTasks(),
   // 纯函数按真实实现兜底，不改组件行为
   statusDotClass: (status) => {

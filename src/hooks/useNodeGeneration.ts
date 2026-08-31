@@ -1,5 +1,12 @@
 import { useCallback, useRef, useState, useEffect } from 'react'
-import { reportGenerate, registerTaskRetry, unregisterTaskRetry, claimNodeRun, releaseNodeRun } from '../components/base/taskStore.js'
+import {
+  reportGenerate,
+  registerTaskRetry,
+  unregisterTaskRetry,
+  claimNodeRun,
+  releaseNodeRun,
+} from '../components/base/taskStore.ts'
+import type { TaskController, NodeRunClaim } from '../components/base/taskStore.ts'
 import { saveResultToTasks } from '../components/base/filesApi.ts'
 import { logger } from '../components/base/logger.ts'
 import { subscribe } from '../components/base/eventBus.ts'
@@ -9,17 +16,10 @@ import { classifyError } from '../components/base/genErrors.ts'
 import { reportDegrade } from '../components/base/degrade.ts'
 
 /**
- * reportGenerate 返回的任务控制器。
- * 【边界】taskStore 仍是 .js（契约/真相源，暂不转），故在此按本 hook 实际消费的
- * 三个方法（progress/done/fail）+ taskId 定义最小视图，避免 any 扩散到节点回调。
+ * 任务控制器：直接复用 taskStore 的权威定义（taskStore 已转 .ts，不再各写一份）。
+ * 重新导出以保留本文件原有的对外导出面，调用方无需改动。
  */
-export interface TaskController {
-  /** 请求级贯穿主键，经 run ctx 透传给 generateImage/generateVideo 的 opts.taskId */
-  taskId: string
-  progress: (percent: number, stage?: string) => void
-  done: (resultUrl: string) => void
-  fail: (errorMsg: string) => void
-}
+export type { TaskController } from '../components/base/taskStore.ts'
 
 /** 任务上报信息（节点类型 / 提示词 / 模型名） */
 export interface GenerationTypeInfo {
@@ -195,7 +195,7 @@ export function useNodeGeneration({
   const start = useCallback(async (): Promise<NodeGenerationStartResult | boolean> => {
     // 【P1-E 跨发起方并发锁】先占单节点互斥锁（taskStore 层，任何发起方都经本 start 汇聚）。
     // 同节点已有进行中（Agent runNodeGeneration / 用户手动 / 再来一次）→ 明确返回「进行中」，不并发生成。
-    const claim = claimNodeRun(nodeId) as { ok: boolean; inFlight?: boolean }
+    const claim: NodeRunClaim = claimNodeRun(nodeId)
     if (!claim.ok) {
       logger.debug('生成', '[节点] 已在生成，跳过并发', { nodeId }, { module: 'image' })
       return { ok: false, inFlight: true }
@@ -214,7 +214,7 @@ export function useNodeGeneration({
     abortRef.current = ctl
     // 缺省兜底用完整形状而非 `|| {}`，否则 t 退化为 `{}`、取 t.type/t.prompt 会报属性不存在
     const t: GenerationTypeInfo = typeRef.current || { type: '', prompt: '', modelName: '' }
-    const taskCtl = reportGenerate(nodeId, t.type, t.prompt, { modelName: t.modelName }) as TaskController
+    const taskCtl: TaskController = reportGenerate(nodeId, t.type, t.prompt, { modelName: t.modelName })
     taskCtl.progress(5, '准备中…')
     logger.info('生成', 'start', { nodeId, type: t.type, prompt: promptPreview(t.prompt) })
     // 【B层】节点生成入口：prompt 摘要 + 节点类型（定位是哪个节点、发的什么提示词触发生图）

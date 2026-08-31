@@ -16,8 +16,8 @@ import { useRenderImageResolver, fileToDataUrl } from '../base/imageUrl.ts'
 import { useImageHoverActions } from '../base/useImageHoverActions.jsx'
 import { downloadUrl } from '../base/clipboard.ts'
 import { showToast, toastError } from '../base/toastStore.ts'
-import { sendToAssetLibrary } from '../base/assetStore.js'
-import { openAssetLibrary } from '../base/taskStore.js'
+import { sendToAssetLibrary } from '../base/assetStore.ts'
+import { openAssetLibrary } from '../base/taskStore.ts'
 
 /**
  * 图片节点（复刻原 xi.jsx / imageNode）

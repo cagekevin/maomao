@@ -28,7 +28,7 @@
  */
 
 import { API_BASE } from './config.js'
-import { setTaskPollId } from './taskStore.js'
+import { setTaskPollId } from './taskStore.ts'
 import { GEN_TIMEOUT, GEN_POLL_INTERVAL, VIDEO_TIMEOUT, VIDEO_POLL_INTERVAL, CHAT_TIMEOUT } from './config.js'
 import { withTimeout, isTimeoutError } from './asyncGuard.ts'
 import { classifyError, timeoutMessage } from './genErrors.ts'

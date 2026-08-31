@@ -16,7 +16,7 @@ const saveResultToTasksMock = vi.hoisted(() => vi.fn(async (url) => url))
 const reportDegradeMock = vi.hoisted(() => vi.fn())
 
 vi.mock('../../src/hooks/useNodeData.ts', () => ({ useNodeData: () => ({ patchData: patchDataMock }) }))
-vi.mock('../../src/components/base/taskStore.js', () => ({
+vi.mock('../../src/components/base/taskStore.ts', () => ({
   reportGenerate: () => taskCtlMock,
   registerTaskRetry: vi.fn(),
   unregisterTaskRetry: vi.fn(),

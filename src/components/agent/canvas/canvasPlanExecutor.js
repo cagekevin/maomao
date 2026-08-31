@@ -13,7 +13,7 @@
  *
  * 【依赖第 1 步异步执行器】触发用 taskStore.runNodeGeneration（await 拿已落盘 resultUrl）。
  */
-import { runNodeGeneration, isNodeRegistered } from '../../base/taskStore.js'
+import { runNodeGeneration, isNodeRegistered } from '../../base/taskStore.ts'
 import { generateId } from '../../base/idGen.ts'
 import { logger } from '../../base/logger.ts'
 import { toAbsoluteFileUrl } from '../../base/imageUrl.ts'

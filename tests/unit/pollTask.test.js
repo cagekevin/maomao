@@ -7,13 +7,13 @@
 import { beforeEach, afterEach, describe, it, expect, vi } from 'vitest'
 
 // mock taskStore：隔离副作用，可控 getTasks / patchTask
-vi.mock('../../src/components/base/taskStore.js', () => ({
+vi.mock('../../src/components/base/taskStore.ts', () => ({
   getTasks: vi.fn(() => []),
   patchTask: vi.fn()
 }))
 
 import { API_BASE } from '../../src/components/base/config.js'
-import { getTasks, patchTask } from '../../src/components/base/taskStore.js'
+import { getTasks, patchTask } from '../../src/components/base/taskStore.ts'
 import * as poll from '../../src/components/base/pollTask.ts'
 
 function mockFetchJson(body, { ok = true, status = 200 } = {}) {

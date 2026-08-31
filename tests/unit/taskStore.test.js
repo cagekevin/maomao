@@ -27,7 +27,7 @@ const {
   isNodeRegistered,
   reportGenerate,
   getTasks,
-} = await import('../../src/components/base/taskStore.js')
+} = await import('../../src/components/base/taskStore.ts')
 
 beforeEach(() => {
   // 任务清理依赖内部 tasks 数组，逐测试前清空（clearAllTasks 会触发事件但不影响断言）
@@ -89,7 +89,7 @@ describe('taskStore §2.6 任务清理', () => {
     reportGenerate('n1', 'image', 'p1')
     reportGenerate('n2', 'video', 'p2')
     clearAllTasks()
-    const remaining = require('../../src/components/base/taskStore.js').getTasks()
+    const remaining = require('../../src/components/base/taskStore.ts').getTasks()
     expect(remaining).toHaveLength(0)
   })
 })

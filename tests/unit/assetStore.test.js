@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import {
   FOLDERS, detectAssetType, filterByFolder, addAssets, removeAsset, clearAssets, loadAssets, getAssets, flushPersist, safeAssetBase,
-} from '../../src/components/base/assetStore.js'
+} from '../../src/components/base/assetStore.ts'
 
 const STORAGE_KEY = 'yimao:yimao_asset_library' // storageAdapter 对键加 yimao: 前缀
 

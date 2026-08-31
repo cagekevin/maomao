@@ -18,13 +18,13 @@ vi.mock('../../src/components/base/imageUrl.ts', () => ({
   normalizeImageUrlForSend: vi.fn(async (u) => u),
   toImageContentBlocks: vi.fn((u) => []),
 }))
-vi.mock('../../src/components/base/taskStore.js', () => ({
+vi.mock('../../src/components/base/taskStore.ts', () => ({
   setTaskPollId: vi.fn(),
 }))
 
 const { generateVideo } = await import('../../src/components/base/videoApi.ts')
 const { normalizeImageUrlsForSend } = await import('../../src/components/base/imageUrl.ts')
-const { setTaskPollId } = await import('../../src/components/base/taskStore.js')
+const { setTaskPollId } = await import('../../src/components/base/taskStore.ts')
 
 /** 读提交/轮询请求的 body 里的 url（即后端要转发的上游 url） */
 function submittedUrl() {

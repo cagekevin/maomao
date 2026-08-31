@@ -16,13 +16,13 @@ vi.mock('../../src/components/base/imageUrl.ts', () => ({
   normalizeImageUrlForSend: vi.fn(async (u) => u),
   toImageContentBlocks: vi.fn((u) => []),
 }))
-vi.mock('../../src/components/base/taskStore.js', () => ({
+vi.mock('../../src/components/base/taskStore.ts', () => ({
   setTaskPollId: vi.fn(),
 }))
 
 const api = await import('../../src/components/base/imageApi.ts')
 const { normalizeImageUrlsForSend } = await import('../../src/components/base/imageUrl.ts')
-const { setTaskPollId } = await import('../../src/components/base/taskStore.js')
+const { setTaskPollId } = await import('../../src/components/base/taskStore.ts')
 
 beforeEach(() => {
   // mockReset 清掉上个用例遗留的 mockResolvedValueOnce / mockRejectedValueOnce 队列

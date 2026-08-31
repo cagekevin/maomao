@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef } from 'react'
 import { Search, Filter, MoreVertical, Copy, Play, RotateCw, Trash2, X, RefreshCw, ChevronDown, Download, Image as ImageIcon } from 'lucide-react'
-import { useTasks, statusDotClass, statusLabel, typeLabel, removeTask, retryTask, clearTasksBy, clearAllTasks } from './taskStore.js'
+import { useTasks, statusDotClass, statusLabel, typeLabel, removeTask, retryTask, clearTasksBy, clearAllTasks } from './taskStore.ts'
 import { logger } from './logger.ts'
 import { downloadUrl } from './clipboard.ts'
 import { pollOneTask } from './pollTask.ts'

@@ -1,13 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 // 隔离真实生图（TASK-012 依赖批调用层补全）
-vi.mock('../../src/components/base/taskStore.js', () => ({
+vi.mock('../../src/components/base/taskStore.ts', () => ({
   runNodeGeneration: vi.fn(async () => ({ ok: true, resultUrl: 'http://r/ok.png' })),
   isNodeRegistered: vi.fn(() => true),
 }))
 
 import { executePlan } from '../../src/components/agent/canvas/canvasPlanExecutor.js'
-import { runNodeGeneration } from '../../src/components/base/taskStore.js'
+import { runNodeGeneration } from '../../src/components/base/taskStore.ts'
 
 function makeCtx() {
   let nodes = []

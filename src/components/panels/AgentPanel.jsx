@@ -11,7 +11,7 @@ import { getAllSkills, markSkillUsed, repairMojibakeText, isSkillEnabled } from 
 import { contentGet, contentSet, contentSubscribe } from '../base/contentStore.ts'
 import { toAbsoluteFileUrl } from '../base/filesApi.ts'
 import { fileToDataUrl } from '../base/imageUrl.ts'
-import { runNodeGeneration } from '../base/taskStore.js'
+import { runNodeGeneration } from '../base/taskStore.ts'
 import { showToast } from '../base/toastStore.ts'
 import { logger } from '../base/logger.ts'
 import { AGENT_MODELS } from '../base/config.js'

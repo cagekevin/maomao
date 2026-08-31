@@ -30,17 +30,63 @@ import { GEN_MAX_CONCURRENT } from './config.js'
 import * as eventBus from './eventBus.ts'
 import { buildUrlRewritePairs } from './imageUrl.ts'
 
-let tasks = []
-const listeners = new Set()
+/** 任务状态机：pending(待跑) → running(进行中) → completed / failed */
+export type TaskStatus = 'pending' | 'running' | 'completed' | 'failed'
+
+/** 任务记录（对齐官方 Ln.jsx / jn.jsx 字段） */
+export interface Task {
+  /** 前端自造任务 id（= 贯穿链路主键，经 run ctx 透传给 generateImage opts.taskId） */
+  id: string
+  /** 归属节点 id；空则视为网关占位垃圾行，不进任务中心展示 */
+  nodeId: string
+  type: string
+  prompt?: string
+  modelName?: string
+  channelName?: string
+  status: TaskStatus
+  progress?: number
+  errorMsg?: string
+  resultUrl?: string
+  createdAt?: number
+  /** 当前进行到哪一步的文案（如「已转发到生成网关…」） */
+  stageLabel?: string
+  /** 异步任务的可轮询网关 task_id（= task_<thread_id>），同步任务无此字段 */
+  pollTaskId?: string
+  [key: string]: unknown
+}
+
+/**
+ * reportGenerate 返回的任务控制器。
+ * 这是权威定义：useNodeGeneration 等下游直接复用本类型，不再各写一份。
+ */
+export interface TaskController {
+  /** 请求级贯穿主键，经 run ctx 透传给 generateImage/generateVideo 的 opts.taskId */
+  taskId: string
+  progress: (percent: number, stage?: string) => void
+  done: (resultUrl: string) => void
+  fail: (errorMsg?: string) => void
+}
+
+/** 左侧面板状态 */
+export interface PanelState {
+  expanded: boolean
+  /** 'tasks' = 任务中心 | 'assets' = 素材库 */
+  activeTab: string
+  /** 钉住后点击面板外部不再自动收起 */
+  pinned: boolean
+}
+
+let tasks: Task[] = []
+const listeners = new Set<() => void>()
 
 // ── 启动时从后端加载历史任务 ──
 let loaded = false
-export function initTasks() {
+export function initTasks(): void {
   if (loaded) return
   loaded = true
   fetchTasks({ pageSize: 500 })
     .then((data) => {
-      const items = Array.isArray(data?.data?.items) ? data.data.items : []
+      const items = Array.isArray(data?.data?.items) ? (data.data.items as Task[]) : []
       if (items.length > 0) {
         tasks = items
         notify()
@@ -50,58 +96,59 @@ export function initTasks() {
 }
 
 // 后端保存（fire-and-forget，失败仅降级为内存态，前端流程不受影响）
-function persist(task) {
+function persist(task: Task): void {
   saveTask(task).catch((e) => logger.warn('task', 'persist-fail', { taskId: task?.id, error: e?.message }))
 }
 
 // 状态 → 圆点/文字 颜色（对齐官方 An）
-export function statusDotClass(status) {
+export function statusDotClass(status?: string): string {
   if (status === 'completed') return 'bg-emerald-400'
   if (status === 'failed') return 'bg-red-400'
   return 'bg-blue-400'
 }
 
 // 状态 → 文案（对齐官方 On）
-export function statusLabel(status, progress = 0) {
+export function statusLabel(status?: string, progress = 0): string {
   if (status === 'completed') return '已完成'
   if (status === 'failed') return '失败'
   if (status === 'pending') return '生成中'
   if (status === 'running') return progress > 0 ? `${Math.round(progress)}%` : '生成中'
-  return status
+  return status || ''
 }
 
 // 类型 → 文案（对齐官方 Tn 映射 + 补充）
-export function typeLabel(type) {
-  return {
+export function typeLabel(type?: string): string {
+  const MAP: Record<string, string> = {
     text: '文本',
     image: '生图',
     video: '视频',
     sd2Video: 'SD2视频',
     discountVideo: '视频生成',
     custom: '万能',
-    rhWebapp: 'AI应用'
-  }[type] || type || '任务'
+    rhWebapp: 'AI应用',
+  }
+  return (type && MAP[type]) || type || '任务'
 }
 
-function genId() {
+function genId(): string {
   return generateId('task')
 }
 
-function notify() {
+function notify(): void {
   listeners.forEach((l) => l())
 }
 
-function subscribe(cb) {
+function subscribe(cb: () => void): () => void {
   listeners.add(cb)
-  return () => listeners.delete(cb)
+  return () => { listeners.delete(cb) }
 }
 
 // 展示用快照（供 useTasks / 任务中心 UI）：过滤掉 nodeId 为空的无效任务。
 // 这类任务是网关占位垃圾行（persistThreadId 旧逻辑为网关 task_id 单独建的空行），
 // 没有归属节点，不应在任务中心展示。用快照缓存保证引用稳定，避免 useSyncExternalStore 无限重渲染。
 // 注意：轮询用的 getTasks() 仍返回完整原始数组（含无 nodeId 的行），不影响异步任务恢复逻辑。
-let snapshotCache = null
-function getSnapshot() {
+let snapshotCache: { source: Task[]; list: Task[] } | null = null
+function getSnapshot(): Task[] {
   if (!snapshotCache || snapshotCache.source !== tasks) {
     snapshotCache = { source: tasks, list: tasks.filter((t) => t.nodeId) }
   }
@@ -109,7 +156,7 @@ function getSnapshot() {
 }
 
 /** 非 React 环境读取当前任务列表（供轮询/脚本等模块级使用）。 */
-export function getTasks() {
+export function getTasks(): Task[] {
   return tasks
 }
 
@@ -117,7 +164,8 @@ export function getTasks() {
 // 后端已改写 tasks 表（rewriteUrlReferences），这里同步「当前页面内存」：
 // 否则任务中心卡片（缩略图渲染 / 下载 / 拖拽建节点）仍指旧路径 → 破图，刷新页面才恢复（清单 #8）。
 // 改写工具与 App.jsx（画布 / 脚本箱节点）共用 imageUrl.js 的同一份实现，不另写一套。
-eventBus.subscribe('resource:renamed', ({ oldUrl, newUrl }) => {
+eventBus.subscribe('resource:renamed', (payload) => {
+  const { oldUrl, newUrl } = (payload || {}) as { oldUrl?: string; newUrl?: string }
   if (!oldUrl || !newUrl || oldUrl === newUrl) return
   const pairs = buildUrlRewritePairs(oldUrl, newUrl)
   let changed = false
@@ -143,24 +191,24 @@ eventBus.subscribe('resource:renamed', ({ oldUrl, newUrl }) => {
 // 官方 H_.jsx 在每次提交生成任务时调用 H?.(true)（即 setShowTaskList(true)）弹出任务中心。
 // 我们统一契约里所有生成节点都走 reportGenerate，故在这里触发 openTaskCenter()，覆盖面最全
 // （节点生成 / Agent generate_node / 任务中心重试 提交任务都会自动弹面板切到任务中心）。
-let panel = { expanded: false, activeTab: 'tasks', pinned: false }
-const panelListeners = new Set()
-function notifyPanel() {
+let panel: PanelState = { expanded: false, activeTab: 'tasks', pinned: false }
+const panelListeners = new Set<() => void>()
+function notifyPanel(): void {
   panelListeners.forEach((l) => l())
 }
-function panelSubscribe(cb) {
+function panelSubscribe(cb: () => void): () => void {
   panelListeners.add(cb)
-  return () => panelListeners.delete(cb)
+  return () => { panelListeners.delete(cb) }
 }
-function getPanelSnapshot() {
+function getPanelSnapshot(): PanelState {
   return panel
 }
 /** 读取当前面板状态（供非 React 环境/持久化使用） */
-export function getPanel() {
+export function getPanel(): PanelState {
   return panel
 }
 /** 设置面板状态（保留未指定字段） */
-export function setPanel(next) {
+export function setPanel(next: Partial<PanelState>): void {
   panel = { ...panel, ...next }
   notifyPanel()
 }
@@ -182,13 +230,18 @@ export function usePanel() {
 }
 
 // 节点生成时上报任务（生成中 → 完成/失败）。返回更新函数。
-export function reportGenerate(nodeId, type, prompt, meta = {}) {
+export function reportGenerate(
+  nodeId: string,
+  type: string,
+  prompt?: string,
+  meta: { modelName?: string; channelName?: string } = {}
+): TaskController {
   // 对齐官方：提交生成任务时自动弹出任务中心
   openTaskCenter()
   // 结束同 nodeId 之前未完成的任务
   const old = tasks.find((t) => t.nodeId === nodeId && (t.status === 'running' || t.status === 'pending'))
   tasks = tasks.filter((t) => t !== old)
-  const task = {
+  const task: Task = {
     id: genId(), nodeId, type, prompt,
     modelName: meta.modelName || '', channelName: meta.channelName || '',
     status: 'running', progress: 0, errorMsg: '', resultUrl: '', stageLabel: '',
@@ -209,14 +262,14 @@ export function reportGenerate(nodeId, type, prompt, meta = {}) {
     // 经 payload.taskId 带给 localTool/网关（不再经全局 currentTaskId）。
     taskId: task.id,
     // 更新进度（可带阶段文案，如「已转发到生成网关…」，供任务中心展示当前进行到哪一步）
-    progress: (p, stage) => {
+    progress: (p: number, stage?: string) => {
       const stageLabel = typeof stage === 'string' && stage ? stage : task.stageLabel || ''
       tasks = tasks.map((t) => (t.id === task.id ? { ...t, status: 'running', progress: p, stageLabel } : t))
       notify()
       progressPersist.schedule() // 合并高频进度落库（窗口内只写最终态）
     },
     // 标记完成（resultUrl 应为已持久 /files/ URL；调用方先落盘再 done，见 P0-C 单向落盘契约）
-    done: (resultUrl) => {
+    done: (resultUrl: string) => {
       // 防御：resultUrl 必须是字符串（历史 bug：上游偶发返回对象/undefined，导致 .startsWith 崩）
       const safeUrl = typeof resultUrl === 'string' ? resultUrl : ''
       tasks = tasks.map((t) => (t.id === task.id ? { ...t, status: 'completed', progress: 100, resultUrl: safeUrl } : t))
@@ -229,7 +282,7 @@ export function reportGenerate(nodeId, type, prompt, meta = {}) {
       publishTaskCompleted({ taskId: task.id, nodeId: task.nodeId, resultUrl: safeUrl, type: task.type, status: 'completed' })
     },
     // 标记失败
-    fail: (errorMsg) => {
+    fail: (errorMsg?: string) => {
       tasks = tasks.map((t) => (t.id === task.id ? { ...t, status: 'failed', errorMsg: errorMsg || '生成失败' } : t))
       notify()
       progressPersist.cancel() // 同 done：取消未落的进度写
@@ -243,7 +296,7 @@ export function reportGenerate(nodeId, type, prompt, meta = {}) {
  * 用途：异步任务恢复轮询（见 pollTask.js）拿到新状态/结果后回写任务记录。
  * 【取舍】不新建 setter，统一走这里，避免散落多处改 tasks 的写法。
  */
-export function patchTask(id, patch) {
+export function patchTask(id: string, patch: Partial<Task>): void {
   if (!id || !patch) return
   let changed = false
   tasks = tasks.map((t) => {
@@ -263,12 +316,12 @@ export function patchTask(id, patch) {
  * @param {string} pollTaskId 网关返回的 task_id（= task_<thread_id>），用于 /api/v1/gateway/task 查询
  * 【取舍】只对异步任务写它；文本/生图 sync 同步阻塞无 task_id，不写（写了也查不了）。
  */
-export function setTaskPollId(taskId, pollTaskId) {
+export function setTaskPollId(taskId: string, pollTaskId: string): void {
   if (!taskId || !pollTaskId) return
   patchTask(taskId, { pollTaskId })
 }
 
-export function removeTask(id) {
+export function removeTask(id: string): void {
   tasks = tasks.filter((t) => t.id !== id)
   notify()
   deleteTask(id).catch(() => {}) // 后端删除
@@ -281,12 +334,19 @@ export function removeTask(id) {
  * 与 eventBus 广播不同（非事件通道、不走 EVENTS 登记）。禁止再开第三种注册形态。
  */
 // ── 「再来一次/刷新」真正触发节点重新生成 ──
-const retryRegistry = new Map()
+/**
+ * 节点重生成回调（节点 registerTaskRetry 注册）。
+ * 返回值跨代不统一：旧版同步返回 boolean、新版 start 返回 promise，故声明为 unknown，
+ * 由 runNodeGenerationNow 在调用处做 thenable 判定（P2 兼容逻辑，勿简化成统一 Promise）。
+ */
+export type TaskRetryFn = () => unknown
 
-export function registerTaskRetry(nodeId, fn) {
+const retryRegistry = new Map<string, TaskRetryFn>()
+
+export function registerTaskRetry(nodeId: string, fn: TaskRetryFn): void {
   if (nodeId) retryRegistry.set(nodeId, fn)
 }
-export function unregisterTaskRetry(nodeId) {
+export function unregisterTaskRetry(nodeId: string): void {
   if (nodeId) retryRegistry.delete(nodeId)
 }
 
@@ -294,7 +354,7 @@ export function unregisterTaskRetry(nodeId) {
  * 重试任务：触发对应节点的重新生成（若节点已注册回调）。
  * 返回是否成功触发（true=已触发，false=找不到节点回调）。
  */
-export function retryTask(id) {
+export function retryTask(id: string): boolean {
   const t = tasks.find((x) => x.id === id)
   const fn = t ? retryRegistry.get(t.nodeId) : undefined
   if (fn) {
@@ -313,7 +373,7 @@ export function retryTask(id) {
  * @param {string} nodeId
  * @returns {boolean}
  */
-export function isNodeRegistered(nodeId) {
+export function isNodeRegistered(nodeId: string): boolean {
   return !!nodeId && retryRegistry.has(nodeId)
 }
 
@@ -331,16 +391,21 @@ let genActive = 0
 // useNodeGeneration.start()。start 进入时经本 Map 占位、finally 释放；同节点已有进行中 →
 // claim 返回 { ok:false, inFlight:true }（明确"进行中"，不静默、不并发生成）。
 // 与 genActive（全局并发数）分层：genActive 先占全局任务槽，本 Map 管单节点互斥，两层不冲突。
-const nodeRunning = new Map() // nodeId -> true（仅作互斥位，不存 promise）
+const nodeRunning = new Map<string, boolean>() // nodeId -> true（仅作互斥位，不存 promise）
+/** 占单节点互斥锁的结果：ok=true 取得；ok=false + inFlight=true 表示同节点生成中 */
+export interface NodeRunClaim {
+  ok: boolean
+  inFlight?: boolean
+}
 /** 占单节点互斥锁。返回 { ok:true } 取得；或 { ok:false, inFlight:true } 同节点生成中。 */
-export function claimNodeRun(nodeId) {
+export function claimNodeRun(nodeId: string): NodeRunClaim {
   if (!nodeId) return { ok: true }
   if (nodeRunning.has(nodeId)) return { ok: false, inFlight: true }
   nodeRunning.set(nodeId, true)
   return { ok: true }
 }
 /** 释放单节点互斥锁（start 的 finally 调用，务必保证每个 claim 后都 release）。 */
-export function releaseNodeRun(nodeId) {
+export function releaseNodeRun(nodeId: string): void {
   if (nodeId) nodeRunning.delete(nodeId)
 }
 
@@ -361,7 +426,9 @@ export function releaseNodeRun(nodeId) {
  * @param {string} nodeId
  * @returns {Promise<false | true | {ok:boolean, resultUrl?:string, error?:string}>}
  */
-export async function runNodeGeneration(nodeId) {
+export async function runNodeGeneration(
+  nodeId: string
+): Promise<boolean | NodeGenerationRunResult> {
   if (!nodeId) return false
   // 并发上限：已满则返回 false（未触发），节点保持待生成，用户手动点
   if (genActive >= MAX_CONCURRENT_GEN) {
@@ -376,12 +443,23 @@ export async function runNodeGeneration(nodeId) {
   }
 }
 
-async function runNodeGenerationNow(nodeId) {
+/** runNodeGeneration 的结果：触发成功返回 ok:true（含已落盘 resultUrl）；失败返回 ok:false + error */
+export interface NodeGenerationRunResult {
+  ok: boolean
+  resultUrl?: string
+  error?: string
+}
+
+async function runNodeGenerationNow(nodeId: string): Promise<boolean | NodeGenerationRunResult> {
   const fn = retryRegistry.get(nodeId)
   if (fn) {
     try {
+      // thenable 判定（兼容旧版同步返回 boolean / 新版返回 promise），行为与原逻辑逐字一致
       const p = fn()
-      return p && typeof p.then === 'function' ? await p : true
+      const thenable = p && typeof (p as PromiseLike<unknown>).then === 'function'
+        ? (p as Promise<boolean | NodeGenerationRunResult>)
+        : null
+      return thenable ? await thenable : true
     } catch (e) {
       logger.error('gen', 'run-trigger-fail', { nodeId, error: e?.message })
       return { ok: false, error: e?.message || '触发失败' }
@@ -402,11 +480,18 @@ async function runNodeGenerationNow(nodeId) {
  * @param {number} [timeout] 超时 ms，默认 60s
  * @returns {Promise<{status:'completed'|'failed'|'timeout', resultUrl:string, errorMsg:string}>}
  */
-export function awaitTask(nodeId, timeout = 60000) {
+/** awaitTask 的等待结果：completed / failed / timeout 三态 */
+export interface AwaitTaskResult {
+  status: 'completed' | 'failed' | 'timeout'
+  resultUrl: string
+  errorMsg: string
+}
+
+export function awaitTask(nodeId: string, timeout = 60000): Promise<AwaitTaskResult> {
   return new Promise((resolve) => {
-    let unsub = null
+    let unsub: (() => void) | null = null
     let done = false
-    const finish = (r) => {
+    const finish = (r: AwaitTaskResult) => {
       if (done) return
       done = true
       if (unsub) unsub()
@@ -429,7 +514,7 @@ export function awaitTask(nodeId, timeout = 60000) {
 }
 
 // 清理：按条件批量删除（同步后端）
-export function clearTasksBy(predicate) {
+export function clearTasksBy(predicate: (t: Task) => boolean): void {
   const removed = tasks.filter((t) => predicate(t))
   if (removed.length > 0) {
     tasks = tasks.filter((t) => !predicate(t))
@@ -437,7 +522,7 @@ export function clearTasksBy(predicate) {
     batchDeleteTasks(removed.map((t) => t.id)).catch(() => {}) // fire-and-forget，后端删除失败不影响前端
   }
 }
-export function clearAllTasks() {
+export function clearAllTasks(): void {
   if (tasks.length > 0) {
     tasks = []
     notify()

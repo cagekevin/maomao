@@ -26,7 +26,7 @@ vi.mock('../../src/components/base/toastStore.ts', () => {
   const showToast = vi.fn()
   return { showToast, toastStore: { showToast } }
 })
-vi.mock('../../src/components/base/assetStore.js', () => ({
+vi.mock('../../src/components/base/assetStore.ts', () => ({
   localizeAndStoreToLibrary: vi.fn(),
   assetFolderOf: vi.fn(() => 'migrated/人物'),
   sendToAssetLibrary: vi.fn(),

@@ -31,7 +31,7 @@ vi.mock('../../src/components/agent/conversation/conversationStore.js', () => ({
   getWorkMode: vi.fn(() => 'auto'),
   getCurrentSnapshot: vi.fn(() => ({ skills: [] })),
 }))
-vi.mock('../../src/components/base/taskStore.js', () => ({
+vi.mock('../../src/components/base/taskStore.ts', () => ({
   runNodeGeneration: vi.fn(async () => ({ ok: true, resultUrl: 'http://r/x.png' })),
   isNodeRegistered: vi.fn(() => true),
 }))
@@ -45,7 +45,7 @@ vi.mock('../../src/components/agent/canvas/canvasPlanExecutor.js', async (import
 
 import { buildCanvasAgentTools, CANVAS_AGENT_TOOL_NAMES, getNodeImageUrl, setCurrentReferenceImages, runExistingPlanTool, setCreditSwitch, getCreditSwitch } from '../../src/components/agent/canvas/useCanvasAgentTools.js'
 import * as convStore from '../../src/components/agent/conversation/conversationStore.js'
-import * as taskStore from '../../src/components/base/taskStore.js'
+import * as taskStore from '../../src/components/base/taskStore.ts'
 import { executePlan as mockExecutePlan, buildFusionPrompt, buildProductReferencePrompt } from '../../src/components/agent/canvas/canvasPlanExecutor.js'
 
 function makeCtx(initialNodes = [], initialEdges = []) {

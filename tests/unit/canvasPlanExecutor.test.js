@@ -1,13 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 // 多步编排执行器：隔离 runNodeGeneration（真实生图 → 落盘 resultUrl）与 isNodeRegistered
-vi.mock('../../src/components/base/taskStore.js', () => ({
+vi.mock('../../src/components/base/taskStore.ts', () => ({
   runNodeGeneration: vi.fn(async () => ({ ok: true, resultUrl: 'http://r/ok.png' })),
   isNodeRegistered: vi.fn(() => true),
 }))
 
 import { executePlan } from '../../src/components/agent/canvas/canvasPlanExecutor.js'
-import { runNodeGeneration } from '../../src/components/base/taskStore.js'
+import { runNodeGeneration } from '../../src/components/base/taskStore.ts'
 
 // 最小 ctx：addNodes 记录、addEdges 记录、setNodes 写回 imageUrl、getNodes 反映最新
 // P7：executor 的 live 检查用 ctx.getNode（O(1)），mock 需提供（返回当前节点或 undefined）

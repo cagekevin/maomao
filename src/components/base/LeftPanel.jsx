@@ -4,8 +4,8 @@ import TaskCenter from './TaskCenter.jsx'
 import GeneratedView from './GeneratedView.jsx'
 import AssetLibrary from './AssetLibrary.jsx'
 import PromptHub from './PromptHub.jsx'
-import { useTasks, usePanel, setPanel, getPanel, togglePin } from './taskStore.js'
-import { useAssets } from './assetStore.js'
+import { useTasks, usePanel, setPanel, getPanel, togglePin } from './taskStore.ts'
+import { useAssets } from './assetStore.ts'
 
 // tab 配置：任务 / 生成 / 素材 / 提示词库
 const TABS = [
