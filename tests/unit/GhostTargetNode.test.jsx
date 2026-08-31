@@ -27,7 +27,7 @@ vi.mock('@xyflow/react', () => ({
   Handle: (props) => h.HandleMock(props),
 }))
 
-import GhostTargetNode from '../../src/components/nodes/GhostTargetNode.jsx'
+import GhostTargetNode from '../../src/components/nodes/GhostTargetNode.tsx'
 
 describe('GhostTargetNode', () => {
   afterEach(() => {

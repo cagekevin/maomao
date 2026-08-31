@@ -1,5 +1,5 @@
 import React from 'react'
-import { Handle } from '@xyflow/react'
+import { Handle, Position } from '@xyflow/react'
 
 /**
  * 幽灵目标节点（复刻官方 ghostTarget）：不可见占位节点。
@@ -16,7 +16,7 @@ function GhostTargetNode() {
   return (
     <Handle
       type="target"
-      position="left"
+      position={'left' as Position}
       style={{
         position: 'absolute',
         top: 0,
