@@ -11,25 +11,9 @@
  */
 import { getPlaybook, getAllPlaybooks } from '../scriptbox/scriptBoxPlaybookStore'
 import type { Playbook } from '../scriptbox/scriptBoxPlaybookIO'
-
-/** 生图模板条目 { label, sys } */
-export interface ImageGenTemplate {
-  label: string
-  sys: string
-}
-
-/** 正向约束 { image, video }（§4.3 已砍 custom 位） */
-export interface ScriptBoxConstraints {
-  image: string
-  video: string
-}
-
-/** 负面词 { common, image, video }（§4.4 新增 common 位） */
-export interface ScriptBoxNegatives {
-  common: string
-  image: string
-  video: string
-}
+// 共享类型自 scriptBoxTypes 取（解 resolver⇄workflows/IO 纯类型环，见该文件头注释）；re-export 保持对外 API 不变。
+import type { ImageGenTemplate, ScriptBoxConstraints, ScriptBoxNegatives } from './scriptBoxTypes'
+export type { ImageGenTemplate, ScriptBoxConstraints, ScriptBoxNegatives }
 
 /** 取某类文本 system（script/shot/audit/qg）。无回退：只读 playbook 原值；空则返回空串（调用方自行处置）。 */
 export function resolveSystem(playbookId: string, key: 'script' | 'shot' | 'audit' | 'qg'): string {
