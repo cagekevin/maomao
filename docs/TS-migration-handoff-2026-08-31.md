@@ -13,6 +13,8 @@
 
 > **本轮会话（第十段）新增成果**：接第九段（含用户 `8529d75` 批：再转 3 个 .jsx→.tsx + `panels/` 清零，剩余 scriptbox 6 / nodes 17 / main·App 2）之后，**scriptbox/ 组件层再转 4 个**：`StepAssets`(c79632f) / `StepShots`(62b2fef) / `ScriptBoxAssetPicker`(93fc02d) / `ScriptBoxFullscreen`(ebff4e1)，全部补 Props 接口、复用 `ScriptBoxData`/`ScriptBoxUpdateData`/`ScriptBoxCallbacks`/`ResourceItem` 等既有类型，门禁全绿。**收口两处类型漂移**：①`scriptBoxSchema` 的 `ScriptBoxAsset` 补 `id` 字段 + 索引签名（此前漏登记 `id`，致 `removeAsset` 期望的 `ScriptAsset[]` 不兼容）；②`MaterialStrip` 导出 `MaterialStripProps`（供 StepShots 复用，消素材条 unknown 报错）。**诚实原则**：同工作区存在用户独立改动 `storageAdapter.ts`/`storageAdapter.test.js`（修 SSR `localStorage` warn），非本批迁移引入，提交时**显式 `git add` 本批文件、未用 `git add -A` 夹带**。详见第三节 commit 表与 §10.8。剩余 `.jsx` 实测 **21 个**（scriptbox 2：GearSettings / scriptBoxPlaybookManager + nodes 17 + main·App 2，不含 director3d 豁免）。
 
+> **本轮会话（第十一段）新增成果**：接第十段，**scriptbox/ 最后 2 个组件转完** —— `scriptBoxPlaybookManager` + `GearSettings` → .tsx（全部补 Props 接口、门禁全绿），**scriptbox/ 9/9 清零**。`GearSettings` 暴露并修复一处**存量隐性 bug**：`editing` 状态原用 `setEdit` 整体替换（笔误为 `setEditing`、运行期必崩，且整体替换会清空其它提示词字段），改为 `setEdit(patch: Partial<Playbook>)` 字段级合并。`Playbook` 类型从真相源 `scriptBoxPlaybookIO.ts` 导入（store 里仅 `import type` 未 re-export，从 store 导入会 TS2459）。**诚实原则**：仍不夹带 `storageAdapter.ts`/`storageAdapter.test.js` 独立改动。详见第三节 commit 表与 §10.9。剩余 `.jsx` 实测 **19 个**（nodes 17：含 Director3DNode 非豁免需转 + main·App 2，不含 director3d 豁免）。
+
 ---
 
 ## 一、任务目标与规则（用户原话要点）
@@ -98,6 +100,7 @@
 | `62b2fef` | **B 批**：`StepShots`(.tsx、scriptbox/ 三步内容组件 1/3) + 就近定义 `StepShotsProps`/`StepShotsCallbacks`；`DropTable` 补参数类型 + ref 标注 `HTMLDivElement`；`editing`/`dlgEditing`/`tfShotId` 状态类型；上游素材/尾帧变体数组断言具体形状；`MaterialStrip` 导出 `MaterialStripProps`（类型收口）；同步 2 处测试 import/`vi.mock` 后缀 |
 | `93fc02d` | **B 批**：`ScriptBoxAssetPicker`(.tsx、scriptbox/ 素材库选择器) + 补 Props（folder/onClose/onPick）与 `items: ResourceItem[]`（复用 `localToolApi.ts` 收口的 `ResourceItem`）；catch `e` 断言取 message；同步 `StepAssets.tsx` import 后缀。**未夹带** `storageAdapter.ts`/`storageAdapter.test.js` 独立改动 |
 | `ebff4e1` | **B 批**：`ScriptBoxFullscreen`(.tsx、scriptbox/ 全屏工作台) + 补 `ScriptBoxFullscreenProps`；`callbacks` 复用 `ScriptBoxCallbacks`（与三 Step 组件契约统一）；`d.genChars` 断言 string 防 unknown 渲染报错；同步 `ScriptBoxNode.jsx` import 后缀。**未夹带** `storageAdapter.ts`/`storageAdapter.test.js` 独立改动 |
+| `6a2b0b7` | **B 批**：`scriptBoxPlaybookManager` + `GearSettings`(.tsx、scriptbox/ 最后 2 个，9/9 清零) + 补 `ScriptBoxPlaybookManagerProps`/`GearSettingsProps`；`editing` 改字段级合并（修复整体替换清空提示词的隐性 bug + `setEdit` 笔误）；`Playbook` 从真相源 `scriptBoxPlaybookIO` 导入；同步 `ScriptBoxNode.jsx`/`ScriptBoxFullscreen.tsx` import 说明符 + `ScriptBoxNode.test.jsx` 的 `vi.mock` 路径。**未夹带** `storageAdapter.ts`/`storageAdapter.test.js` 独立改动 |
 
 ## 三·补：横切收口成果（本次新增）
 
@@ -200,9 +203,9 @@ node scripts/ts-migrate.mjs move <file> <targetDir> [--dry]
 - **✅ base/ UI 组件（全清零）**：NodeShell、PromptInput、AssetLibrary、GeneratedView、TaskCenter、settings/sections/*（9 个）、LeftPanel、PromptHub、PromptLibrary、PanoViewer、LocalToolConnectModal、ErrorBoundary、ModelSelect、GenerateButton、ResizeFullscreenHandle、ExpandablePanel、CanvasEdgesContext、NodePalette、FullscreenEditor（含 5·3/5·4 段、6·5/6·6 段清单）
 - **✅ edges/（4/4 已转）**：CustomHandle、Comet、CustomEdge、ConnectionLine（均补 Props，`@xyflow/react` 的 `EdgeProps`/`ConnectionLineComponentProps`/`Position` 用字符串+`as` 断言，见 §10.5）
 - **✅ panels/（4/4 已转）**：PromptConfirmCard / AgentConfirmCard / AgentMessage / AgentPanel（见 §10.6 / §10.7）
-- **🔶 scriptbox/（7/9 已转）**：StepNav / StepPrompt / ScriptBoxModal（§10.7）+ StepAssets / StepShots / ScriptBoxAssetPicker / ScriptBoxFullscreen（第十段，§10.8）；**剩余 GearSettings / scriptBoxPlaybookManager**
+- **✅ scriptbox/（9/9 已转）**：StepNav / StepPrompt / ScriptBoxModal（§10.7）+ StepAssets / StepShots / ScriptBoxAssetPicker / ScriptBoxFullscreen（第十段，§10.8）+ GearSettings / scriptBoxPlaybookManager（第十一段，§10.9）；**scriptbox/ 已清零**
 - **⏳ 未开始**：`nodes/`（17 个：含 Director3DNode 非豁免需转）、`src/main.jsx` / `src/App.jsx`（最后转）
-- **当前剩余 `.jsx` 计数：21 个**（scriptbox 2 + nodes 17 + main·App 2；不含 director3d 豁免目录；`find src -name '*.jsx' -not -path '*/director3d/*'` 实测）
+- **当前剩余 `.jsx` 计数：19 个**（nodes 17：Director3DNode / DiscountVideoNode / FaceMosaicNode / GhostTargetNode / GridMergeNode / GridSplitNode / GroupNode / ImageBoxNode / ImageNode / LoopNode / PanoramaNode / PromptNode / ScriptBoxNode / TemplateNode / TextNode / VideoExtractNode / VideoProcessNode + main·App 2；**scriptbox/ 已清零**，不含 director3d 豁免目录；`find src -name '*.jsx' -not -path '*/director3d/*'` 实测）
 - 收尾：**全部 .jsx 清零后**把「禁止保留 jsx」红线落实；删掉 check-jsx 对 .jsx 的残留逻辑（若只剩 director3d 则保留）
 - `src/main.jsx`、`src/App.jsx` 最后转
 - 建议：先跑 `node scripts/ts-migrate.mjs plan` 看引用量，从**叶子组件**（被引用少）往上转，避免大范围级联改类型
@@ -384,3 +387,18 @@ npm run test:tools           # agent 工具
    - 收口：`scriptBoxSchema.ScriptBoxAsset` 补 `id` + 索引签名；`MaterialStrip` 导出 `MaterialStripProps`。
    - 提交：`c79632f` / `62b2fef` / `93fc02d` / `ebff4e1`（均未夹带 storageAdapter 独立改动）。
    - 剩余 `.jsx`（不含 director3d 豁免）：`scriptbox/`（GearSettings / scriptBoxPlaybookManager，2 个）、`nodes/`（17 个，含 Director3DNode 非豁免需转）、`src/main.jsx` / `src/App.jsx`（最后转）。
+
+### 10.9 本轮（第十一段会话）新增踩坑 / 经验（必读）
+
+> 时间段：承接第十段，清零 `scriptbox/` 最后 2 个组件（`GearSettings` / `scriptBoxPlaybookManager`），正式进入 `nodes/` 单线（含 `src/main.jsx` / `src/App.jsx` 收尾）。
+
+1. **`Playbook` 类型真相源在 `scriptBoxPlaybookIO.ts`，别从 `scriptBoxPlaybookStore.ts` 导入**：store 里 `Playbook` 是 `import type` 进来的（未 re-export）。从 store 导入会报 TS2459（Module declares 'Playbook' locally, but it is not exported）。两文件统一改为 `import type { Playbook } from './scriptBoxPlaybookIO.ts'`。
+2. **`GearSettings` 的 `editing` 状态有「整体替换」隐性 bug（转 TS 才暴露）**：原代码 `onChange={(v) => setEdit({ constraints: {...} })}` 用 `setEditing` 整体替换整个 `editing` 状态，每次编辑只保留当前字段、其余提示词被清空。转 TS 时 `setEditing(partial)` 因 `editing: Playbook` 要求完整对象而报错。**修法（修复真实 bug，零回归）**：定义 `const setEdit = (patch: Partial<Playbook>) => setEditing((prev) => ({ ...prev, ...patch }))`，所有 `onChange` 改用 `setEdit({...})` 做字段级合并。同时原代码 `setEdit` 名字笔误为 `setEditing`（运行期 `setEdit is not defined` 必崩）也一并纠正——统一为 wrapper `setEdit`。
+3. **`d`（node.data）经 `ScriptBoxData` 索引签名 `[key:string]:unknown` 后，所有未登记字段读取都是 `unknown`**：`d.textModel` / `d.aspectRatio` / `d.assetModelSettings?.globalModel` 等经 `||` 链不会自动收窄回 `string`（TS 把 `unknown || ''` 仍为 `unknown`）。修法：读取处显式 `(d.xxx as string)` / `(d.assetModelSettings as { globalModel?: string } | undefined)?.globalModel`。这些 per-node 字段（textModel/selectedModel/assetModelSettings）本就没在 `ScriptBoxTop` 登记，属存量，暂用 `as` 标注不扩 schema。
+4. **`scriptBoxPlaybookManager` 三处小修**：`nameTaken(t)` 漏第二参（JS 期 `excludeId` 为 undefined、不比对自身，行为等价）→ 补 `nameTaken(t, '')`；`exportText(pb)` 形参含 `Record<string,unknown>` 而 `Playbook` 无索引签名 → `pb as unknown as Record<string, unknown>`；`parseImport` 的 `ImportResult` 判别联合在 `if (!r.ok)` 下 TS 未窄化（疑似 `Playbook` 解析异常连锁），改用 `if (!('playbook' in r)) { toastError(r.error); return }` 的 `in` 窄化（error 分支无 `playbook` 字段），稳健通过。
+5. **`vi.mock` 盲区再次命中（铁律不变）**：`GearSettings` 改名后 `tests/unit/ScriptBoxNode.test.jsx:115` 的 `vi.mock('.../GearSettings.jsx')` 字符串未自动同步 → 转前 `refs <file>` 列出、转后手改 `.tsx`。`convert` 同步了 `ScriptBoxNode.jsx` / `ScriptBoxFullscreen.tsx` 的 `import ... from` 说明符（这俩本身仍是 .jsx，需随本批一起提交否则 import 指向不存在的 .tsx）。
+6. **本段 B 批进度（截至本次更新）**：
+   - 已转（本段新增 2 个）：`scriptBoxPlaybookManager` / `GearSettings`（全部 .tsx + Props + 消除内部 any；`editing` 字段级合并修复）。
+   - 收口：`Playbook` 从真相源 `scriptBoxPlaybookIO` 导入；`GearSettingsProps` / `ScriptBoxPlaybookManagerProps` 就近定义；`editing` 合并 bug + `setEdit` 笔误修复。
+   - 提交：`6a2b0b7`（均未夹带 storageAdapter 独立改动）。
+   - 剩余 `.jsx`（不含 director3d 豁免）：`nodes/`（17 个，含 Director3DNode 非豁免需转）、`src/main.jsx` / `src/App.jsx`（最后转）。**scriptbox/ 已清零。**
