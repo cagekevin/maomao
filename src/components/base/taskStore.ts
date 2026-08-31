@@ -369,7 +369,7 @@ export function retryTask(id: string): boolean {
  * 检查某节点是否已注册生成契约（供多步执行器在 addNodes 后等待节点渲染 + effect 注册）。
  * 场景：执行器用 ctx.addNodes 直接建节点，React 异步渲染后 PromptNode 才在 useNodeGeneration
  * effect 里 registerTaskRetry。执行器需轮询本函数确认注册完成，再 runNodeGeneration，否则
- * runNodeGeneration 会因找不到回调返回 false（见 canvasPlanExecutor.js）。
+ * runNodeGeneration 会因找不到回调返回 false（见 canvasPlanExecutor.ts）。
  * @param {string} nodeId
  * @returns {boolean}
  */

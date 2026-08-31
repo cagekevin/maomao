@@ -63,7 +63,7 @@ vi.mock('../../src/components/base/taskStore.ts', () => ({
   runNodeGeneration: vi.fn(async () => ({ ok: true, resultUrl: 'http://r/x.png' })),
   isNodeRegistered: vi.fn(() => true),
 }))
-vi.mock('../../src/components/agent/canvas/canvasPlanExecutor.js', async (importOriginal) => {
+vi.mock('../../src/components/agent/canvas/canvasPlanExecutor.ts', async (importOriginal) => {
   const actual = await importOriginal()
   return {
     ...actual,
@@ -76,7 +76,7 @@ vi.mock('../../src/components/agent/canvas/canvasPlanExecutor.js', async (import
 
 import { buildCanvasAgentTools } from '../../src/components/agent/canvas/useCanvasAgentTools.js'
 import * as convStore from '../../src/components/agent/conversation/conversationStore.ts'
-import { executePlan as mockExecutePlan } from '../../src/components/agent/canvas/canvasPlanExecutor.js'
+import { executePlan as mockExecutePlan } from '../../src/components/agent/canvas/canvasPlanExecutor.ts'
 
 function makeCtx() {
   let nodes = []

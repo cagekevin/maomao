@@ -17,7 +17,53 @@ import { runNodeGeneration, isNodeRegistered } from '../../base/taskStore.ts'
 import { generateId } from '../../base/idGen.ts'
 import { logger } from '../../base/logger.ts'
 import { toAbsoluteFileUrl } from '../../base/imageUrl.ts'
-import { createCanvasHost } from './canvasHost.ts'
+import { createCanvasHost, type CanvasHostCtx, type CanvasHost } from './canvasHost.ts'
+
+/** 计划单步（generations 数组元素）：字段均可选，因 LLM 计划数据可能不完整。 */
+interface GenerationStep {
+  id?: string
+  title?: string
+  prompt?: string
+  index?: number
+  ratio?: string
+  resolution?: string
+  quality?: string
+  depends_on_previous?: boolean
+  use_previous_results?: boolean
+  use_attachments?: boolean
+  dependency_mode?: string
+  referenceImages?: unknown[]
+  input_artifact_ids?: string[]
+}
+/** executePlan 入参：面板默认生图参数（model/ratio/resolution/quality 均可选）。 */
+interface PlanDefaults {
+  model?: string
+  ratio?: string
+  resolution?: string
+  quality?: string
+}
+/** executePlan 完整入参（仅标注运行期需要的字段形状，业务行为不变）。 */
+interface PlanOptions {
+  ctx: CanvasHostCtx
+  generations?: GenerationStep[]
+  autoRun?: boolean
+  model?: string
+  defaults?: PlanDefaults
+  referenceImages?: string[]
+  globalContract?: { visual_positioning?: string; unified_style_prompt?: string; unified_negative_prompt?: string } | null
+  artifacts?: unknown
+  onLog?: ((p: { level: string; message: string }) => void) | null
+  userText?: string
+  mode?: string
+  nodeMappings?: Record<string, string> | null
+}
+/** lockNodeSettings 入参：节点二次锁定要写回的设置项（均可选）。 */
+interface NodeSettings {
+  m?: string
+  ratio?: string
+  resolution?: string
+  quality?: string
+}
 
 /* ── 全局单飞锁（对齐大雄 __canvasAgentGenRunning）──
  * 同一时刻只允许一套 executePlan 批量生成在跑。防止「用户手动点节点生成 + AI 触发」
@@ -211,7 +257,7 @@ function nextAnchor(ctx, base, index, perRow = 3) {
  *                     （对齐大雄 executor onLog → workflowLogs → 折叠执行摘要）
  * @returns {Promise<{workflow, entries}>} entries: [{id,status,resultUrl,nodeId,error}]
  */
-export async function executePlan({ ctx, generations = [], autoRun = true, model = '', defaults = {}, referenceImages = [], globalContract = null, artifacts = null, onLog = null, userText = '', mode = 'normal', nodeMappings = null }) {
+export async function executePlan({ ctx, generations = [], autoRun = true, model = '', defaults = {}, referenceImages = [], globalContract = null, artifacts = null, onLog = null, userText = '', mode = 'normal', nodeMappings = null }: PlanOptions) {
   const log = (level, message) => { try { onLog?.({ level, message }) } catch { /* 日志失败不阻断执行 */ } }
   const steps = (generations || []).filter((s) => s && (s.prompt || s.title))
   // 全局单飞锁：同一时刻只允许一套批量生成在跑，防重复计费/重复建节点
@@ -260,7 +306,7 @@ export async function executePlan({ ctx, generations = [], autoRun = true, model
 
   // 【模型二次锁定】建节点/跑节点后强制写回 selectedModel/比例/分辨率，防 React 重渲染把模型回落默认
   // （对齐大雄 lockAgentNodeSettings）。合并而非覆盖，避免清掉 images 等字段。model 为空时不写 selectedModel（不污染）。
-  const lockNodeSettings = (nodeId, { m = model, ratio, resolution, quality } = {}) => {
+  const lockNodeSettings = (nodeId: string, { m = model, ratio, resolution, quality }: NodeSettings = {}) => {
     host.updateNodeData(nodeId, { ...(m ? { selectedModel: m } : {}), aspectRatio: ratio, imageSize: resolution, quality })
   }
 
@@ -322,9 +368,9 @@ export async function executePlan({ ctx, generations = [], autoRun = true, model
     const res = await runNodeGeneration(nodeId)
     // 【未触发（false）】：节点未注册 / 或并发已达上限被跳过——都视为「待生成」，不报失败，
     // 节点保持 ready（画布上就是「还没生成」的自然样子，用户可手动点触发）。
-    if (!res) return { status: 'ready', error: '' }
-    if (res.ok === false) return { status: 'failed', error: res.error || '生成失败' }
-    const resultUrl = res.resultUrl || ''
+    if (!res || res === true) return { status: 'ready', error: '' }
+    if (typeof res === 'object' && res.ok === false) return { status: 'failed', error: res.error || '生成失败' }
+    const resultUrl = (typeof res === 'object' ? res.resultUrl : '') || ''
     // 【live 节点防悬空（对齐大雄 liveNodeById）】await 完成后重新查节点，
     // 防节点在生成期间被删除/合并（409）导致对悬空对象写回。节点已消失则跳过写回。
     const live = host.getNode(nodeId)

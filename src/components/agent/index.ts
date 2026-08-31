@@ -20,7 +20,7 @@
  *
  *   canvas/                      —— 画布操作 + 工具层
  *     ├─ useCanvasAgentTools.js  24 个画布工具（AI 调用的工具注册表）
- *     ├─ canvasPlanExecutor.js   多步执行器（Wave1 并行 + Wave2 依赖）
+ *     ├─ canvasPlanExecutor.ts   多步执行器（Wave1 并行 + Wave2 依赖）
  *     └─ canvasHost.js           M1 画布原语层（getNode/createNode/deleteNodes/transaction，写操作唯一入口）
  *
  *   conversation/                —— 会话状态（单一数据源）
@@ -36,7 +36,7 @@
  *   - 改发送/循环    → runtime/useAgentChat.js
  *   - 改工作流状态   → runtime/workflowState.js
  *   - 改会话状态     → conversation/conversationState.js（底座）/ conversationStore.js（聚合）
- *   - 改批量出图     → canvas/canvasPlanExecutor.js
+ *   - 改批量出图     → canvas/canvasPlanExecutor.ts
  *   - 改画布操作     → canvas/canvasHost.js（写操作必须走它，禁裸 useReactFlow）
  *   - 改输入状态机   → runtime/inputStateMachine.js
  *   - 改 UI 面板     → panels/AgentPanel.jsx + panels/AgentMessage.jsx（UI 壳，留在 panels/）

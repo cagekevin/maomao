@@ -5,7 +5,7 @@ import { defaultNodeData } from '../../base/NodePalette.jsx'
 import { runNodeGeneration } from '../../base/taskStore.ts'
 import { createGroupFromNodes, deleteNodesWithCascade } from '../../base/groupNodes.ts'
 import { createCanvasHost } from './canvasHost.ts'
-import { executePlan } from './canvasPlanExecutor.js'
+import { executePlan } from './canvasPlanExecutor.ts'
 import {
   patchCurrentWorkflow, setCurrentMemory, getCurrentMemory,
   getActiveAiUndoStack, pushActiveAiUndo, popActiveAiUndo,

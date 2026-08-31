@@ -6,7 +6,7 @@ vi.mock('../../src/components/base/taskStore.ts', () => ({
   isNodeRegistered: vi.fn(() => true),
 }))
 
-import { executePlan } from '../../src/components/agent/canvas/canvasPlanExecutor.js'
+import { executePlan } from '../../src/components/agent/canvas/canvasPlanExecutor.ts'
 import { runNodeGeneration } from '../../src/components/base/taskStore.ts'
 
 // 最小 ctx：addNodes 记录、addEdges 记录、setNodes 写回 imageUrl、getNodes 反映最新
