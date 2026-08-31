@@ -1,6 +1,26 @@
 import { useEffect, useCallback } from 'react'
 import { isEditableTarget } from './hooks.js'
 
+/** 快捷键回调集合；未提供的快捷键自动不响应 */
+export interface CanvasShortcutHandlers {
+  /** Ctrl+Z */
+  onUndo?: () => void
+  /** Ctrl+Shift+Z / Ctrl+Y */
+  onRedo?: () => void
+  /** Ctrl+A */
+  onSelectAll?: () => void
+  /** Ctrl+D */
+  onDuplicate?: () => void
+  /** Ctrl+G 编组选中节点 */
+  onGroup?: () => void
+  /** Ctrl+Shift+G 取消编组 */
+  onUngroup?: () => void
+  /** Ctrl+L 自动排版（dagre） */
+  onArrange?: () => void
+  /** Q/W/E 快速添加节点，入参为节点类型（textNode/promptNode/discountVideoNode） */
+  onAdd?: (nodeType: string) => void
+}
+
 /**
  * 全局键盘快捷键 hook（复刻 H_.jsx:11427-11586 的 keydown/paste 监听）。
  *
@@ -18,7 +38,7 @@ import { isEditableTarget } from './hooks.js'
  *  - onAdd(type)              Q / W / E 快速添加文本/图片/视频
  *  - getPosition()            快速添加节点时的坐标（默认基于当前鼠标不可得时返回 0,0）
  */
-export function useCanvasShortcuts(handlers = {}) {
+export function useCanvasShortcuts(handlers: CanvasShortcutHandlers = {}) {
   const { onUndo, onRedo, onSelectAll, onDuplicate, onGroup, onUngroup, onArrange, onAdd } = handlers
 
   // 有选中文本（复刻 H_.jsx:11427-11434 n）
@@ -32,7 +52,7 @@ export function useCanvasShortcuts(handlers = {}) {
   }, [])
 
   useEffect(() => {
-    const onKeyDown = (e) => {
+    const onKeyDown = (e: KeyboardEvent) => {
       // 长按连发防护：keydown 在按住时会以系统速率重复触发，
       // Q/W/E 快速建节点若不加 e.repeat 守卫会爆发式生成大量重叠节点。
       if (e.repeat) return

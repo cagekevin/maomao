@@ -18,7 +18,7 @@
 import { describe, it, expect } from 'vitest'
 import { renderHook } from '@testing-library/react'
 
-const { useAssetCardDragProps } = await import('../../src/components/base/useAssetDragToCanvas.js')
+const { useAssetCardDragProps } = await import('../../src/components/base/useAssetDragToCanvas.ts')
 
 const ASSET = {
   id: 'local-migrated/道具-a.png',

@@ -1,7 +1,16 @@
 import { useCallback } from 'react'
+import type { DragEvent as ReactDragEvent } from 'react'
 import { httpRequest } from './httpClient.ts'
 import { LOCAL_TOOL_PING_TIMEOUT } from './config.js'
-import { useAssetMoveToFolder } from './useAssetMoveToFolder.js'
+import { useAssetMoveToFolder } from './useAssetMoveToFolder.ts'
+import type { AssetMoveItem, AssetMoveToFolderOptions, AssetDragSourceProps } from './useAssetMoveToFolder.ts'
+
+/** 素材最小形状（拖到画布建节点所需字段） */
+export interface CanvasAssetLike {
+  url?: string
+  name?: string
+  type?: string
+}
 
 /**
  * 素材拖拽到画布的【唯一发起端】公共 hook（对齐官方 H_.jsx onDrop 的素材通道）。
@@ -25,8 +34,8 @@ import { useAssetMoveToFolder } from './useAssetMoveToFolder.js'
  */
 
 // 文字素材内容缓存（模块级，面板间共享）：url → text。避免每次拖拽都重新 fetch。
-const textCache = new Map()
-function fetchText(url) {
+const textCache = new Map<string, string>()
+function fetchText(url: string): Promise<string> {
   if (textCache.has(url)) return Promise.resolve(textCache.get(url))
   return httpRequest(url, { timeoutMs: LOCAL_TOOL_PING_TIMEOUT, retries: 0, parseJson: false })
     .then((r) => (r.ok ? r.text() : ''))
@@ -38,7 +47,7 @@ function fetchText(url) {
 }
 
 /** 素材的完整拖拽格式（统一信封） */
-function assetPayload(asset, text) {
+function assetPayload(asset: CanvasAssetLike, text?: string): string {
   return JSON.stringify({ url: asset.url, name: asset.name, type: asset.type, text })
 }
 
@@ -48,11 +57,11 @@ function assetPayload(asset, text) {
  * @param {{disable?:boolean}} [opts] opts.disable 为 true 时不启用拖拽（如文件夹）
  * @returns {{ draggable:boolean, onDragStart:(e)=>void }}
  */
-export function makeAssetDragProps(asset, opts = {}) {
+export function makeAssetDragProps(asset: CanvasAssetLike, opts: { disable?: boolean } = {}): AssetDragSourceProps {
   const dragEnabled = !opts.disable && asset && asset.url
   return {
     draggable: dragEnabled,
-    onDragStart: (e) => {
+    onDragStart: (e: ReactDragEvent) => {
       if (!dragEnabled) return
       const text = textCache.get(asset.url)
       e.dataTransfer.setData('application/x-yimao-asset', assetPayload(asset, text))
@@ -68,7 +77,7 @@ export function makeAssetDragProps(asset, opts = {}) {
 }
 
 /** hook 版：与 makeAssetDragProps 等价，供 React 组件内取引用一致的版本 */
-export function useAssetDragToCanvas() {
+export function useAssetDragToCanvas(): { assetDragProps: typeof makeAssetDragProps } {
   return { assetDragProps: makeAssetDragProps }
 }
 
@@ -88,11 +97,11 @@ export function useAssetDragToCanvas() {
  * @param {{ connected: boolean, onRefreshed?: Function }} opts 透传给 useAssetMoveToFolder
  * @returns {{ cardDragProps: (item) => object }}
  */
-export function useAssetCardDragProps(opts) {
+export function useAssetCardDragProps(opts: AssetMoveToFolderOptions) {
   const { assetDragProps } = useAssetDragToCanvas()
   const { sourceDragProps, folderDropProps } = useAssetMoveToFolder(opts)
   const cardDragProps = useCallback(
-    (item) => {
+    (item: AssetMoveItem) => {
       // 文件夹卡片是「移动落点」，不是拖拽源
       if (item.type === 'folder') return folderDropProps(item)
       if (!item.url) return {}
@@ -100,7 +109,7 @@ export function useAssetCardDragProps(opts) {
       const toCanvas = assetDragProps(item)
       return {
         draggable: true,
-        onDragStart: (e) => {
+        onDragStart: (e: ReactDragEvent) => {
           move.onDragStart?.(e)
           toCanvas.onDragStart?.(e)
         },

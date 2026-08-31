@@ -1,20 +1,51 @@
 import { useCallback } from 'react'
+import type { DragEvent as ReactDragEvent } from 'react'
 import { moveFile, canMoveAsset, resolveMovePaths } from './localToolApi.ts'
 import { toAbsoluteFileUrl } from './imageUrl.ts'
 import { publish } from './eventBus.ts'
 import { showToast } from './toastStore.ts'
 
+/** 资源项（素材/生成/文件夹卡片共用的最小形状） */
+export interface AssetMoveItem {
+  folder?: string
+  name?: string
+  source?: string
+  type?: string
+  url?: string
+}
+
+/**
+ * 可拖拽属性（卡片作为拖拽源）。
+ * 注：draggable 历史实现为 `!disable && asset && asset.url`，有 url 时取到的是 url 字符串
+ * 而非布尔真值；此处如实标注为 boolean | string，保持运行时零改动（勿改成 !! 收窄）。
+ */
+export interface AssetDragSourceProps {
+  draggable: boolean | string
+  onDragStart: (e: ReactDragEvent) => void
+}
+
+/** 落点属性（文件夹卡片作为 drop 目标） */
+export interface FolderDropTargetProps {
+  onDragOver: (e: ReactDragEvent) => void
+  onDrop: (e: ReactDragEvent) => void
+}
+
+export interface AssetMoveToFolderOptions {
+  connected?: boolean
+  onRefreshed?: () => void
+}
+
 /** 移动拖拽专用 MIME（与素材「拖到画布」的 application/x-yimao-asset 区分，互不干扰） */
 export const ASSET_MOVE_MIME = 'application/x-yimao-move'
 
-function movePayload(item) {
+function movePayload(item: AssetMoveItem): string {
   return JSON.stringify({ folder: item.folder || '', name: item.name, source: item.source, type: item.type })
 }
-function parseMovePayload(str) {
+function parseMovePayload(str: string): AssetMoveItem | null {
   try { return JSON.parse(str) } catch { return null }
 }
 // 文件夹卡片的完整相对路径（落点目录）：parent/name。rescan 记录子目录 folder=父目录、name=目录名。
-function moveTargetDirOf(folderCard) {
+function moveTargetDirOf(folderCard: AssetMoveItem): string {
   return folderCard?.folder ? `${folderCard.folder}/${folderCard.name}` : (folderCard?.name || '')
 }
 
@@ -32,13 +63,16 @@ function moveTargetDirOf(folderCard) {
  *
  * 直接复用 localToolApi 的 canMoveAsset / resolveMovePaths / moveFile，遵守同一套相对路径与边界契约。
  */
-export function useAssetMoveToFolder({ connected, onRefreshed }) {
+export function useAssetMoveToFolder({ connected, onRefreshed }: AssetMoveToFolderOptions): {
+  sourceDragProps: (item: AssetMoveItem) => Partial<AssetDragSourceProps>
+  folderDropProps: (folderCard: AssetMoveItem) => FolderDropTargetProps
+} {
   // 源（文件卡片）拖拽属性：仅移动归类
-  const sourceDragProps = useCallback((item) => {
+  const sourceDragProps = useCallback((item: AssetMoveItem): Partial<AssetDragSourceProps> => {
     if (item.type === 'folder' || !item.url) return {}
     return {
       draggable: true,
-      onDragStart: (e) => {
+      onDragStart: (e: ReactDragEvent) => {
         e.dataTransfer.setData(ASSET_MOVE_MIME, movePayload(item))
         e.dataTransfer.effectAllowed = 'move'
       },
@@ -46,9 +80,9 @@ export function useAssetMoveToFolder({ connected, onRefreshed }) {
   }, [])
 
   // 目标（文件夹卡片）承接 drop
-  const folderDropProps = useCallback((folderCard) => ({
-    onDragOver: (e) => { e.preventDefault() },
-    onDrop: async (e) => {
+  const folderDropProps = useCallback((folderCard: AssetMoveItem): FolderDropTargetProps => ({
+    onDragOver: (e: ReactDragEvent) => { e.preventDefault() },
+    onDrop: async (e: ReactDragEvent) => {
       e.preventDefault(); e.stopPropagation() // 不落到面板层的上传 onDrop
       if (!connected) { showToast('请先连接本地引擎', { type: 'warning' }); return }
       const it = parseMovePayload(e.dataTransfer.getData(ASSET_MOVE_MIME))

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import React from 'react'
 import { render, act } from '@testing-library/react'
-import { useCanvasShortcuts } from '../../src/components/base/useCanvasShortcuts.js'
+import { useCanvasShortcuts } from '../../src/components/base/useCanvasShortcuts.ts'
 
 /**
  * 这些回归测试锁定 useCanvasShortcuts 的「守卫」行为，

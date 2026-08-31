@@ -11,7 +11,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { renderHook } from '@testing-library/react'
 
-const { makeAssetDragProps, useAssetDragToCanvas, fetchText, textCache } = await import('../../src/components/base/useAssetDragToCanvas.js')
+const { makeAssetDragProps, useAssetDragToCanvas, fetchText, textCache } = await import('../../src/components/base/useAssetDragToCanvas.ts')
 
 const fetchMock = globalThis.fetch
 

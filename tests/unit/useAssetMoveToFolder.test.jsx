@@ -5,7 +5,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { renderHook } from '@testing-library/react'
-import { useAssetMoveToFolder, ASSET_MOVE_MIME } from '../../src/components/base/useAssetMoveToFolder.js'
+import { useAssetMoveToFolder, ASSET_MOVE_MIME } from '../../src/components/base/useAssetMoveToFolder.ts'
 
 const mocks = vi.hoisted(() => ({
   moveFile: vi.fn(),
