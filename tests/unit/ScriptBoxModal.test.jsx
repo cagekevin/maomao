@@ -7,7 +7,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import React from 'react'
-import ScriptBoxModal from '../../src/components/scriptbox/ScriptBoxModal.jsx'
+import ScriptBoxModal from '../../src/components/scriptbox/ScriptBoxModal.tsx'
 
 describe('ScriptBoxModal（剧本盒统一节点内弹层容器）', () => {
   it('渲染标题 + 默认「取消/确定」页脚', () => {

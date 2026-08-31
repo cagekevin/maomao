@@ -4,7 +4,7 @@ import { SHOT_TYPES, LIGHTS, MOTIONS, dialogueText, textToDlg, dlgToText, hlAt, 
 import MaterialStrip from '../base/MaterialStrip.tsx'
 import { useOutsideClick } from '../base/hooks.ts'
 import { useRenderImageResolver } from '../base/imageUrl.ts'
-import ScriptBoxModal from './ScriptBoxModal.jsx'
+import ScriptBoxModal from './ScriptBoxModal.tsx'
 
 /**
  * 剧本盒子 步骤1「确认镜头」：左栏控制 + 右栏分镜表格（复刻原型 renderV1）。

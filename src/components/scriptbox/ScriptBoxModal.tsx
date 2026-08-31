@@ -1,5 +1,18 @@
-import React from 'react'
+import React, { ReactNode } from 'react'
 import { Minimize2 } from 'lucide-react'
+
+interface ScriptBoxModalProps {
+  title?: string
+  onClose: () => void
+  width?: number
+  height?: number
+  children?: ReactNode
+  footer?: ReactNode
+  onOk?: () => void
+  okText?: string
+  cancelText?: string
+  bodyClass?: string
+}
 
 /**
  * 剧本盒子 —— 统一节点内弹层容器（收口所有弹窗的外观差异）。
@@ -26,7 +39,7 @@ import { Minimize2 } from 'lucide-react'
  *  - cancelText 取消按钮文字（默认「取消」）
  *  - bodyClass 内容区追加 class（如内部需要滚动 flex-1）
  */
-export default function ScriptBoxModal({ title, onClose, width = 440, height, children, footer, onOk, okText = '确定', cancelText = '取消', bodyClass = '' }) {
+export default function ScriptBoxModal({ title, onClose, width = 440, height, children, footer, onOk, okText = '确定', cancelText = '取消', bodyClass = '' }: ScriptBoxModalProps) {
   return (
     <div className="absolute inset-0 z-modal flex items-center justify-center bg-black/50 nodrag nowheel" onClick={onClose}>
       <div

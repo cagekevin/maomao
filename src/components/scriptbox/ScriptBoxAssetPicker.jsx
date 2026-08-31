@@ -4,7 +4,7 @@ import { fetchResources, rescanResources } from '../base/api/index.ts'
 import { toAbsoluteFileUrl } from '../base/imageUrl.ts'
 import { useLocalToolStatus } from '../../hooks/useLocalToolStatus.ts'
 import { logger } from '../base/logger.ts'
-import ScriptBoxModal from './ScriptBoxModal.jsx'
+import ScriptBoxModal from './ScriptBoxModal.tsx'
 
 const PAGE_SIZE = 60
 

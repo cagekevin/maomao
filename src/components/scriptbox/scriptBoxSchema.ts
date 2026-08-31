@@ -9,6 +9,8 @@
  * 序列化随画布快照（canvas-state-v1-{projectId}）走，不另立存储键（见 contracts.js 注释），
  * 防止双写漂移。归一化返回新对象，不改动传入的 raw。
  */
+import type { Shot } from './scriptBoxPrompts'
+
 /** 剧本盒 data 顶层字段（P0-1 分通道 negative + tailFrameAngleIds 尾帧默认角度） */
 export interface ScriptBoxTop {
   step: number
@@ -26,28 +28,22 @@ export interface ScriptBoxTop {
   playbookLabel: string
 }
 
-/** 单个 shot 子字段（含 P1-1 连续性 / 尾帧变体全字段） */
-export interface ScriptBoxShot {
-  duration: string
-  description: string
-  shotType: string
-  lighting: string
-  dialogue: string[]
-  sound: string
-  motion: string
-  grid: number
-  prompt: string
-  videoPrompt: string
-  promptLoading: boolean
-  imgGenLoading: boolean
-  connImg: boolean
-  connVid: boolean
-  usePrevShotVideoTail: boolean
-  prevShotImageRefUrls: string[]
-  prevTailFrameVariants: unknown[]
-  selectedTailFrameVariantId: string
-  tailFrameVariantsLoading: boolean
-  tailFrameVariantsError: string | undefined
+/**
+ * 单个 shot 子字段（含 P1-1 连续性 / 尾帧变体全字段）。
+ * 基础形状复用 scriptBoxPrompts 的 `Shot`（含 id/index/dialogue/imgGen 等 + 索引签名），
+ * 这里补充引擎运行时动态写入的布尔/状态字段（Shot 未显式登记，否则经索引签名退化为 unknown）。
+ */
+export interface ScriptBoxShot extends Shot {
+  promptLoading?: boolean
+  imgGenLoading?: boolean
+  connImg?: boolean
+  connVid?: boolean
+  usePrevShotVideoTail?: boolean
+  prevShotImageRefUrls?: string[]
+  prevTailFrameVariants?: unknown[]
+  selectedTailFrameVariantId?: string
+  tailFrameVariantsLoading?: boolean
+  tailFrameVariantsError?: string | undefined
 }
 
 /** 单个 asset 子字段（含 P0-3 imageUrl / thumbnailUrl 分离） */
@@ -78,6 +74,24 @@ export type ScriptBoxUpdateData = (
 export interface ScriptBoxData extends ScriptBoxTop {
   shots: ScriptBoxShot[]
   assets: ScriptBoxAsset[]
+  [key: string]: unknown
+}
+
+/**
+ * 引擎注入 node.data 的回调集合（三步组件经 props.callbacks 调用，本组件不做计算）。
+ * 由 useScriptBoxEngine 注入 node.data.onXxx；ScriptBoxNode 额外补 onDisconnectUpstream。
+ * 索引签名兼容「{ ...d }」透传（d 含 shots/assets 等数据字段）。
+ */
+export interface ScriptBoxCallbacks {
+  onGenerateScript?: () => Promise<void> | void
+  onGenerateShotPrompts?: (ids: Array<string | number>) => void
+  onGenerateShotImage?: (shotId: string | number, type: string) => void
+  onConnectShot?: (shotId: string | number, kind: 'image' | 'video') => void
+  onConnectShots?: (ids: Array<string | number>, kind: 'image' | 'video') => void
+  onGenerateMergedVideo?: (ids: Array<string | number>) => Promise<void> | void
+  onReviewShotPrompt?: (shotId: string | number, field: string, msg: string) => Promise<{ ok: boolean; text?: string } | undefined>
+  onGenerateTailFrameVariants?: (shotId: string | number) => void
+  onDisconnectUpstream?: (sourceNodeId: string) => void
   [key: string]: unknown
 }
 

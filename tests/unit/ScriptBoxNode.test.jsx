@@ -105,7 +105,7 @@ vi.mock('../../src/components/scriptbox/StepAssets.jsx', () => ({
     </div>
   ),
 }))
-vi.mock('../../src/components/scriptbox/StepPrompt.jsx', () => ({
+vi.mock('../../src/components/scriptbox/StepPrompt.tsx', () => ({
   default: ({ data }) => (
     <div data-testid="step-prompt">
       <span data-testid="prompt-count">{data.shots?.length || 0}</span>

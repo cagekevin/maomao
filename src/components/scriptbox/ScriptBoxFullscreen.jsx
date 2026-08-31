@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Clapperboard, Settings, X, Loader2 } from 'lucide-react'
-import StepNav from './StepNav.jsx'
+import StepNav from './StepNav.tsx'
 import StepShots from './StepShots.jsx'
 import StepAssets from './StepAssets.jsx'
-import StepPrompt from './StepPrompt.jsx'
+import StepPrompt from './StepPrompt.tsx'
 import GearSettings from './GearSettings.jsx'
 import { toastInfo } from '../base/toastStore.ts'
 

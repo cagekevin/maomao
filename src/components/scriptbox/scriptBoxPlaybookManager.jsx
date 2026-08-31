@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react'
 import { Pencil, Trash2, Plus, Check, X, Download, Upload, ChevronDown, ChevronRight } from 'lucide-react'
-import ScriptBoxModal from './ScriptBoxModal.jsx'
+import ScriptBoxModal from './ScriptBoxModal.tsx'
 import { getAllPlaybooks, saveCustomPlaybook, deleteCustomPlaybook, createCustomFrom } from './scriptBoxPlaybookStore.ts'
 import { DEFAULT_WORKFLOW } from './scriptBoxWorkflows.ts'
 import { exportText, parseImport } from './scriptBoxPlaybookIO.ts'

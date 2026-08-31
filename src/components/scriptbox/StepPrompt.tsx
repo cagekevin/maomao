@@ -3,26 +3,55 @@ import { Loader2, Image as ImageIcon, Video, LayoutGrid, Columns2, RefreshCw, Li
 import { dialogueText, hlAt, patchShots, formatLineBreaks } from './scriptBoxPrompts.ts'
 import { getPlaybook } from './scriptBoxPlaybookStore.ts'
 import { toastWarning } from '../base/toastStore.ts'
-import ScriptBoxModal from './ScriptBoxModal.jsx'
+import type { ScriptBoxData, ScriptBoxShot, ScriptBoxUpdateData, ScriptBoxCallbacks } from './scriptBoxSchema'
+import type { ImageGenTemplate } from './scriptBoxTypes'
+import ScriptBoxModal from './ScriptBoxModal.tsx'
+
+interface ConnectedItem {
+  shotId: string
+  type: string
+  nodeId: string
+}
+
+/** 关键帧/四宫格等 AI 生图结果（运行时动态挂到 shot 上，Shot 经索引签名收口为 unknown） */
+interface ImgGenInfo {
+  type?: string
+  label: string
+  prompt: string
+  ts: number
+}
+
+interface StepPromptProps {
+  data: ScriptBoxData
+  updateData: ScriptBoxUpdateData
+  callbacks: ScriptBoxCallbacks
+}
+
+interface EditingState {
+  idx: number
+  field: string
+  title: string
+  awaiting?: boolean
+}
 
 /**
  * 剧本盒子 步骤3「合成提示词」：列表/单镜头双视图 + 每镜卡片（生图 prompt/生视频 prompt 双击编辑 + 宫格选择 + 生成）+
  * 已连线面板（复刻原型 renderV3）。
  */
-export default function StepPrompt({ data, updateData, callbacks }) {
-  const d = data || {}
+export default function StepPrompt({ data, updateData, callbacks }: StepPromptProps) {
+  const d = data
   const shots = d.shots || []
   // 生图类型全集从当前 playbook 取（单一数据源；内置四类与自定义 key 一致，label/sys 随 playbook 变）
-  const genTypes = getPlaybook(d.playbookId).imageGenTemplates || {}
+  const genTypes: Record<string, ImageGenTemplate> = getPlaybook(d.playbookId).imageGenTemplates || {}
   const genDefaultType = genTypes.keyframe ? 'keyframe' : (Object.keys(genTypes)[0] || 'keyframe')
-  const [view, setView] = useState('list')
-  const [editing, setEditing] = useState(null) // { idx, field, title, base, awaiting }
-  const [draft, setDraft] = useState(null) // 预览/编辑缓冲：AI 改写结果或人手直接改的内容，点「应用」才写回 shot
+  const [view, setView] = useState<'list' | 'grid'>('list')
+  const [editing, setEditing] = useState<EditingState | null>(null) // { idx, field, title, base, awaiting }
+  const [draft, setDraft] = useState<string | null>(null) // 预览/编辑缓冲：AI 改写结果或人手直接改的内容，点「应用」才写回 shot
   const [chatInput, setChatInput] = useState('') // 弹窗：下方输入意见（AI 改写用）
-  const [gridPick, setGridPick] = useState({}) // idx -> grid 模式
-  const [selShots, setSelShots] = useState(new Set())
-  const [genType, setGenType] = useState({}) // idx -> 选中的生图类型
-  const [copied, setCopied] = useState({}) // idx -> 是否已复制
+  const [gridPick, setGridPick] = useState<Record<number, number>>({}) // idx -> grid 模式
+  const [selShots, setSelShots] = useState<Set<number>>(new Set())
+  const [genType, setGenType] = useState<Record<number, string>>({}) // idx -> 选中的生图类型
+  const [copied, setCopied] = useState<Record<number, boolean>>({}) // idx -> 是否已复制
   const [singleIdx, setSingleIdx] = useState(0) // 单镜头视图：当前查看的镜头 idx
   const [mergeLoading, setMergeLoading] = useState(false) // 合并生成视频：按钮转圈+「生成中」
 
@@ -35,9 +64,9 @@ export default function StepPrompt({ data, updateData, callbacks }) {
     setSelShots(s2)
   }
 
-  const openField = (idx, field, title) => { setEditing({ idx, field, title, awaiting: false }); setDraft(formatLineBreaks(String(shots[idx]?.[field] ?? ''))); setChatInput('') }
+  const openField = (idx: number, field: string, title: string) => { setEditing({ idx, field, title, awaiting: false }); setDraft(formatLineBreaks(String(shots[idx]?.[field] ?? ''))); setChatInput('') }
   // AI 生图内容（关键帧/四宫格/九宫格/俯视调度图 imgGen）编辑：field 用 'imgGen'，提交写回 shots[i].imgGen.prompt
-  const openImgGen = (idx, title) => { setEditing({ idx, field: 'imgGen', title, awaiting: false }); setDraft(formatLineBreaks(String(shots[idx]?.imgGen?.prompt ?? ''))); setChatInput('') }
+  const openImgGen = (idx: number, title: string) => { setEditing({ idx, field: 'imgGen', title, awaiting: false }); setDraft(formatLineBreaks(String((shots[idx]?.imgGen as ImgGenInfo | undefined)?.prompt ?? ''))); setChatInput('') }
 
   /** 聊天式：把意见交给 AI 审计改写。引擎把改写结果 resolve 回来 → 写入 draft 预览；点「应用」才落盘。 */
   const sendFeedback = async () => {
@@ -60,7 +89,7 @@ export default function StepPrompt({ data, updateData, callbacks }) {
     if (!editing || draft == null) return
     if (editing.field === 'imgGen') {
       const s = shots[editing.idx]
-      patchShot(editing.idx, { imgGen: { ...s?.imgGen, prompt: draft } })
+      patchShot(editing.idx, 'imgGen', { ...(s?.imgGen as ImgGenInfo | undefined), prompt: draft })
     } else {
       patchShot(editing.idx, editing.field, draft)
     }
@@ -68,7 +97,8 @@ export default function StepPrompt({ data, updateData, callbacks }) {
     setEditing(null)
   }
 
-  const cardFor = (s, i) => {
+  const cardFor = (s: ScriptBoxShot, i: number) => {
+    const imgGen = (s.imgGen as ImgGenInfo | undefined)?.label !== undefined ? (s.imgGen as ImgGenInfo) : undefined
     // 卡片级生成中动画遮罩：该分镜正在生成（promptLoading=分镜提示词 / imgGenLoading=关键帧等 AI 生图）时，
     // 只给这一个卡片盖遮罩 + 锁定其内部所有操作（重新生成/生成关键帧/生图/生视频/编辑等），
     // 其他分镜照常可用。「每块拆开」——批量生成时分镜各自独立动画、互不影响。
@@ -123,18 +153,18 @@ export default function StepPrompt({ data, updateData, callbacks }) {
               {/* 生成完提示词 → 生图（连生图下游） */}
               <button className="flex items-center gap-1 px-2 py-1 text-caption text-body bg-surface-1 hover:bg-surface-hover rounded" onClick={() => callbacks.onConnectShot?.(s.id, 'image')}><ImageIcon size={10} /> 生图</button>
             </div>
-            {s.imgGen && !s.imgGenLoading && (
+            {imgGen && !s.imgGenLoading && (
               <div className="flex flex-col gap-1 bg-code-bg rounded p-2 border border-edge-faint">
                 <div className="flex items-center gap-1.5">
-                  <span className="text-meta text-secondary px-1 py-px rounded bg-surface-1">{s.imgGen.label}</span>
-                  <span className="text-meta text-muted-2">{new Date(s.imgGen.ts).toLocaleTimeString()}</span>
+                  <span className="text-meta text-secondary px-1 py-px rounded bg-surface-1">{imgGen.label}</span>
+                  <span className="text-meta text-muted-2">{new Date(imgGen.ts).toLocaleTimeString()}</span>
                   <div className="flex-1" />
-                  <button className="flex items-center gap-0.5 text-meta text-secondary hover:text-white" onClick={() => { navigator.clipboard?.writeText(s.imgGen.prompt).catch(() => toastWarning('复制提示词失败')); setCopied((c) => ({ ...c, [i]: true })); setTimeout(() => setCopied((c) => ({ ...c, [i]: false })), 1200) }}>
+                  <button className="flex items-center gap-0.5 text-meta text-secondary hover:text-white" onClick={() => { navigator.clipboard?.writeText(imgGen.prompt).catch(() => toastWarning('复制提示词失败')); setCopied((c) => ({ ...c, [i]: true })); setTimeout(() => setCopied((c) => ({ ...c, [i]: false })), 1200) }}>
                     {copied[i] ? <Check size={9} className="text-emerald-400" /> : <Copy size={9} />} {copied[i] ? '已复制' : '复制'}
                   </button>
-                  <button className="px-1.5 py-0.5 text-meta rounded bg-surface-hover hover:bg-surface-hover-strong text-body" onClick={() => patchShot(i, 'prompt', s.imgGen.prompt)}>应用到生图</button>
+                  <button className="px-1.5 py-0.5 text-meta rounded bg-surface-hover hover:bg-surface-hover-strong text-body" onClick={() => patchShot(i, 'prompt', imgGen.prompt)}>应用到生图</button>
                 </div>
-                <div className="text-caption text-body leading-relaxed line-clamp-4 break-words cursor-text hover:bg-surface-1 rounded px-1 -mx-1" title="双击编辑" onDoubleClick={() => openImgGen(i, s.imgGen.label)}><span dangerouslySetInnerHTML={{ __html: hlAt(s.imgGen.prompt, (d.assets || []).map((a) => a.name)) }} /></div>
+                <div className="text-caption text-body leading-relaxed line-clamp-4 break-words cursor-text hover:bg-surface-1 rounded px-1 -mx-1" title="双击编辑" onDoubleClick={() => openImgGen(i, imgGen.label)}><span dangerouslySetInnerHTML={{ __html: hlAt(imgGen.prompt, (d.assets || []).map((a) => a.name)) }} /></div>
               </div>
             )}
           </div>
@@ -249,12 +279,15 @@ export default function StepPrompt({ data, updateData, callbacks }) {
       )}
 
       {/* 已连线面板 */}
-      {(d.connected || []).length > 0 && (
-        <div className="text-caption-sm text-muted border-t border-edge-faint pt-2">
-          <div className="mb-1 text-secondary">已连线</div>
-          {d.connected.map((c, i) => <div key={i} className="text-muted">镜头{c.shotId} · {c.type} · {c.nodeId}</div>)}
-        </div>
-      )}
+      {(() => {
+        const connected = (d.connected as ConnectedItem[] | undefined) || []
+        return connected.length > 0 && (
+          <div className="text-caption-sm text-muted border-t border-edge-faint pt-2">
+            <div className="mb-1 text-secondary">已连线</div>
+            {connected.map((c, i) => <div key={i} className="text-muted">镜头{c.shotId} · {c.type} · {c.nodeId}</div>)}
+          </div>
+        )
+      })()}
 
       {/* 双击编辑弹窗：聊天式改提示词（上看当前提示词，下写意见→AI 改→上方自动刷新）。
           imgGen（关键帧提示词）无独立 AI 改写通道，仍走手写 textarea。 */}
@@ -297,7 +330,14 @@ export default function StepPrompt({ data, updateData, callbacks }) {
 }
 
 /** 提示词展示（标题栏右侧可选的"生成"按钮；onGen 为空则不渲染） */
-function PromptBox({ label, text, loading, onEdit, onGen, assetNames }) {
+function PromptBox({ label, text, loading, onEdit, onGen, assetNames }: {
+  label: string
+  text: string
+  loading?: boolean
+  onEdit: () => void
+  onGen?: () => void
+  assetNames: string[]
+}) {
   return (
     <div className="flex flex-col gap-1 bg-code-bg rounded p-2">
       <div className="flex items-center justify-between">
@@ -318,10 +358,20 @@ function PromptBox({ label, text, loading, onEdit, onGen, assetNames }) {
  * （让 AI 按意见改；imgGen 无 AI 通道，只有编辑区）。AI 改写时顶部显示状态行 + 按钮转圈。
  * 预览可直接手改；满意后点「应用」才写回 shot。⌘/Ctrl+Enter 发送意见。
  */
-function ChatEdit({ editing, shots, draft, chatInput, assetNames, onDraft, onInput, onSend, busy }) {
+function ChatEdit({ editing, shots, draft, chatInput, assetNames, onDraft, onInput, onSend, busy }: {
+  editing: EditingState
+  shots: ScriptBoxShot[]
+  draft: string | null
+  chatInput: string
+  assetNames: string[]
+  onDraft: (v: string) => void
+  onInput: (v: string) => void
+  onSend: () => void
+  busy: boolean
+}) {
   const cur = shots[editing.idx]
   const isImgGen = editing.field === 'imgGen'
-  const fieldCurrent = isImgGen ? cur?.imgGen?.prompt : (editing.field === 'prompt' ? cur?.prompt : cur?.videoPrompt)
+  const fieldCurrent = isImgGen ? (cur?.imgGen as ImgGenInfo | undefined)?.prompt : (editing.field === 'prompt' ? cur?.prompt : cur?.videoPrompt)
   const previewText = draft != null ? draft : fieldCurrent
   const changed = draft != null && draft !== fieldCurrent
   // 意见输入条 auto-resize：内容超过一行自动增高（上限 96px≈4行），不再裁掉换行后的第一行

@@ -1,21 +1,30 @@
 import React from 'react'
+import type { ScriptBoxShot, ScriptBoxAsset } from './scriptBoxSchema'
+
+interface StepNavProps {
+  step: number
+  setStep: (next: number) => void
+  shots?: ScriptBoxShot[]
+  assets?: ScriptBoxAsset[]
+}
+
+interface StepNavItem {
+  n: number
+  title: string
+  desc: string
+  p: number
+}
 
 /**
  * 剧本盒子 三步圆环导航（进度环：镜头/资产/提示词 完成度）。
  * 窗口模式（ScriptBoxNode）与全屏模式（ScriptBoxFullscreen）共用此导航，保证两种视图 UI 一致。
- *
- * @param props
- *  - step     当前步骤（1/2/3）
- *  - setStep  切换步骤回调
- *  - shots    node.data.shots（镜头进度统计）
- *  - assets   node.data.assets（资产进度统计）
  */
-export default function StepNav({ step, setStep, shots, assets }) {
+export default function StepNav({ step, setStep, shots, assets }: StepNavProps) {
   const t = (shots || []).length
   const n = (assets || []).length
   const i = (assets || []).filter((a) => a.has).length
   const a = (shots || []).filter((s) => s.prompt || s.videoPrompt).length
-  const steps = [
+  const steps: StepNavItem[] = [
     { n: 1, title: '确认镜头', desc: t ? `${t}镜头` : '暂无镜头', p: +(t > 0) },
     { n: 2, title: '准备资产', desc: n ? `${i}/${n}` : '暂无资产', p: n ? i / n : 0 },
     { n: 3, title: '合成提示词', desc: t ? `${a}/${t}` : '暂无镜头', p: t ? a / t : 0 }
