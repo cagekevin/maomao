@@ -26,7 +26,7 @@ import {
 import { generateId } from '../base/idGen.ts'
 import { buildSpawnNodes, spawnAndCommit } from '../base/deriveNodes.ts'
 import { useCanvasEdges } from '../base/CanvasEdgesContext.tsx'
-import { httpRequest } from '../base/api'
+import { httpRequest } from '../base/api/index.ts'
 import previewUrls from '../base/previewUrl.ts'
 import { UPLOAD_DIRS } from '../base/uploadDirs.ts'
 import { DOWNLOAD_TIMEOUT, VIDEO_DOWNLOAD_TIMEOUT } from '../base/config.js'

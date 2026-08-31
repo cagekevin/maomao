@@ -18,10 +18,10 @@
  *  - 错误体 { error: "<英文message>" }
  */
 import { sGet, sSet, sRemove } from './storageAdapter.ts'
-import { kvGet, kvSet, kvDelete } from './api/localToolApi.ts'
-import { reportDegrade } from './degrade.ts'
-import { CANVAS_STATE_PREFIX, STORAGE_KEYS } from './contracts.js' // 单一来源：画布 KV 前缀与后端判定统一在契约层
-import { compilePatternRegex } from './utils.ts'
+import { kvGet, kvSet, kvDelete } from '../api/localToolApi.ts'
+import { reportDegrade } from '../degrade.ts'
+import { CANVAS_STATE_PREFIX, STORAGE_KEYS } from '../contracts.js' // 单一来源：画布 KV 前缀与后端判定统一在契约层
+import { compilePatternRegex } from '../utils.ts'
 
 // 画布类 key 前缀（对齐官方 Ar.CANVAS_STATE_PREFIX，localTool KV 侧会带此前缀）
 // re-export 兼容既有 `import { CANVAS_STATE_PREFIX } from './kvStore.js'`（如 projectStore）

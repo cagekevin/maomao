@@ -7,7 +7,7 @@
  * 下次改 api 内部实现不影响外部契约。
  *
  * 【范围】已收 8 件：httpClient/proxyGenerate/pollTask/chatApi/imageApi/videoApi/localToolApi/filesApi。
- * 外部统一 `import { xxx } from 'base/api'`；base/ 内其他文件（assetStore/promptHubStore 等）
+ * 外部统一 `import { xxx } from 'base/api/index.ts'`；base/ 内其他文件（assetStore/promptHubStore 等）
  * 作为 api 内部消费者，走 `./api/xxx` 相对路径（后续如收进本模块再统一到入口）。
  *
  * 【契约注意】check-api-contract.cjs 按模块名找导出（不依赖路径），本入口 re-export 保持同名导出。

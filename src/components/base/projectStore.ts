@@ -9,7 +9,7 @@
  */
 import { useSyncExternalStore } from 'react'
 import { useStoreSelector } from '../../hooks/useStoreSelector.ts'
-import { CANVAS_STATE_PREFIX } from './kvStore.ts'
+import { CANVAS_STATE_PREFIX } from './storage/index.ts'
 import { CANVAS_SCHEMA_VERSION } from './contracts.js'
 import { fetchProjects, saveProjects } from './api/localToolApi.ts'
 import { contentGet, contentSet, contentGetAsync, contentSetAsync, contentDeleteAsync, createDebouncedPersist } from './contentStore.ts'

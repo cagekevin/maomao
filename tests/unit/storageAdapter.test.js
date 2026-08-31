@@ -8,7 +8,7 @@ vi.mock('../../src/components/base/eventBus.ts', () => ({
   subscribe: () => () => {},
 }))
 
-import { sSet, sRemove, isChromeExtension, initStorage } from '../../src/components/base/storageAdapter.ts'
+import { sSet, sRemove, isChromeExtension, initStorage } from '@/components/base/storage/storageAdapter.ts'
 
 /** 可控的 chrome 全局（模拟 普通网页 / 真实扩展 两种环境） */
 let chromeGlobal = null

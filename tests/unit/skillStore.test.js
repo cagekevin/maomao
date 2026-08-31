@@ -5,7 +5,7 @@ import {
   repairMojibakeText,
 } from '../../src/components/base/skillStore.ts'
 import { contentClearCache } from '../../src/components/base/contentStore.ts'
-import { sGet } from '../../src/components/base/storageAdapter.ts'
+import { sGet } from '@/components/base/storage/storageAdapter.ts'
 
 beforeEach(() => {
   localStorage.clear()

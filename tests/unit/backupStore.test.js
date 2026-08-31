@@ -29,7 +29,7 @@ vi.mock('../../src/components/base/api/localToolApi.ts', async (importOriginal) 
   kvDelete: vi.fn(async (key) => { kvStore.delete(key); return { ok: true } }),
 }))
 
-const { exportAll, importAll, backupToBlob } = await import('../../src/components/base/backupStore.ts')
+const { exportAll, importAll, backupToBlob } = await import('@/components/base/backupStore.ts')
 
 beforeEach(() => {
   localStorage.clear()
