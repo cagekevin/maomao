@@ -32,6 +32,14 @@ import { httpRequest } from '../../base/httpClient.ts'
 import { resolveChatMode, buildResponsesChatBody, parseResponsesChatJson, parseResponsesSSEChunk } from '../../base/requestModes.ts'
 // AI 助手配置真源（docs/66 §4/A 层）：聊天温度从 agentConfig 读取，不再硬编码
 import { AGENT_TEMPERATURE } from '../agentConfig.js'
+// 复用 agentCore 的权威消息/工具调用类型（同 runtime 目录，避免重定义漂移）
+import type { ChatMessage, ToolCall } from './agentCore.ts'
+
+/** roundTrip 返回的 assistant 消息：在 ChatMessage 基础上携带运行期必填字段。 */
+interface RuntimeAssistantMessage extends ChatMessage {
+  model: string
+  createdAt: number
+}
 
 /** ══════════════════════════════════════════════════════════════════════════════
  *  roundTrip —— 单次 LLM 请求（复刻官方 dr:2579-2778 的 v）。
@@ -196,7 +204,7 @@ export async function roundTrip(ctx, requestMessages, signal, onStream) {
     // responses 形态：output[] 里取 message.content[].text + function_call（挂 unmooted，下面统一归一手）
     if (isResponsesChat) {
       const { content: rContent, toolCalls: rCalls } = parseResponsesChatJson(json || {})
-      const rAssistant = {
+      const rAssistant: RuntimeAssistantMessage = {
         role: 'assistant',
         content: rContent || (rawText && !json ? rawText : ''),
         model, createdAt: Date.now(),
@@ -222,7 +230,7 @@ export async function roundTrip(ctx, requestMessages, signal, onStream) {
     const content = (msg?.content != null && String(msg.content).length > 0)
       ? String(msg.content)
       : (rawText && !json ? rawText : '')
-    const assistant = { role: 'assistant', content, model, createdAt: Date.now() }
+    const assistant: RuntimeAssistantMessage = { role: 'assistant', content, model, createdAt: Date.now() }
     // 【非流式工具】若开启 ENABLE_TOOLS_ON_NON_STREAM，响应里可能带 tool_calls（OpenAI 兼容
     //   格式：message.tool_calls: [{ id, type, function:{ name, arguments } }]）。解析后放进
     //   assistant，send 主循环即按工具调用处理（过滤空 name、多轮循环收敛）。
@@ -286,7 +294,7 @@ export async function roundTrip(ctx, requestMessages, signal, onStream) {
   if (buffer.trim()) { if (isResponsesChat) parseResponsesSSEChunk(buffer, acc); else parseSSEChunk(buffer, acc) }
   flush()
 
-  const assistant = { role: 'assistant', content: acc.content || '', model, createdAt: Date.now() }
+  const assistant: RuntimeAssistantMessage = { role: 'assistant', content: acc.content || '', model, createdAt: Date.now() }
   if (acc.reasoning) assistant.reasoning = acc.reasoning
   // 【根因修复】必须基于「过滤后的真实 tool_calls」判断，而非 acc.toolCalls.length。
   // parseSSEChunk 会为每段 tool_calls 创建占位（name 可能为空），若流里 tool_calls 的 name
@@ -374,7 +382,7 @@ function safeSummarizeArgs(args) {
   }
 }
 
-export async function runToolCalls(ctx, tools, callIdFor = () => '') {
+export async function runToolCalls(ctx, tools, callIdFor: (tc: ToolCall) => string = () => '') {
   const { callTool, appendMsg, model, logger, getActivePendingGenerations } = ctx
   // 【积分闸停点语义修正】creditHeld：本轮是否「execute_plan 命中积分闸（返回 awaited:'credit'）」。
   // 只有它才触发工具循环暂停等用户点生成；积分闸不影响任何其它工具/建节点/读节点（用户裁定）。
