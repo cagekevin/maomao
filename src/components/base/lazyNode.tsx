@@ -64,7 +64,7 @@ export function lazyNode(loader: () => Promise<{ default: React.ComponentType }>
  */
 export const HEAVY_NODE_LOADERS = {
   director3dNode: () => import('../nodes/Director3DNode.tsx'),
-  panoramaNode: () => import('../nodes/PanoramaNode.jsx'),
+  panoramaNode: () => import('../nodes/PanoramaNode.tsx'),
   videoProcessNode: () => import('../nodes/VideoProcessNode.jsx'),
 }
 

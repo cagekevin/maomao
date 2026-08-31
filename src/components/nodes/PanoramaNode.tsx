@@ -26,16 +26,35 @@ import { useRenderImageResolver } from '../base/imageUrl.ts'
 
 const RATIO_OPTIONS = ['16:9', '9:16', '1:1', 'custom']
 
-function PanoramaNode({ id, data, selected }) {
+interface PanoramaNodeData {
+  label?: string
+  imageUrl?: string
+  panoType?: string
+  aspectRatio?: string
+  images?: Array<{ url?: string; [key: string]: unknown }>
+  [key: string]: unknown
+}
+interface PanoramaNodeProps {
+  id: string
+  data: PanoramaNodeData
+  selected?: boolean
+}
+/** PanoViewer 暴露的命令式句柄（ref）。 */
+interface PanoViewerHandle {
+  capture: (angles: number[], ratio: string) => Promise<string[]>
+}
+function PanoramaNode({ id, data, selected }: PanoramaNodeProps) {
   const { setNodes, getNodes, getNode, getEdges, setEdges } = useReactFlow()
   // 标题改名 → 写回 data.label，让下游 @名 匹配 / 素材条显示跟随
-  const rename = useCallback((name) => {
+  const rename = useCallback((name: string) => {
     setNodes((ns) => ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, label: name } } : n)))
   }, [id, setNodes])
   const history = useCanvasEdges()
   const connected = useConnectedInputs(id)
   const thumbResolve = useRenderImageResolver()
-  const [panoType, setPanoType] = useState(data.panoType || 'sphere') // 球/柱
+  const [panoType, setPanoType] = useState<'sphere' | 'cylinder'>(
+    data.panoType === 'cylinder' ? 'cylinder' : 'sphere'
+  ) // 球/柱
   const [fullscreen, setFullscreen] = useState(false) // 全景漫游（球体视图）
   const [capturing, setCapturing] = useState(false)
   const [shotKind, setShotKind] = useState(null) // 'current'|'four'|'twelve'
@@ -44,8 +63,8 @@ function PanoramaNode({ id, data, selected }) {
   const [aspectRatio, setAspectRatio] = useState(data.aspectRatio || '16:9')
   const [customDim, setCustomDim] = useState({ w: 16, h: 9 })
   const [configOpen, setConfigOpen] = useState(false)
-  const viewerRef = useRef(null)
-  const orbitRef = useRef(null)
+  const viewerRef = useRef<PanoViewerHandle | null>(null)
+  const orbitRef = useRef<unknown>(null)
 
   const ratioStr = aspectRatio === 'custom' ? `${customDim.w}/${customDim.h}` : aspectRatio.replace(':', '/')
 
@@ -67,7 +86,7 @@ function PanoramaNode({ id, data, selected }) {
 
   // 截图（复刻官方 F：在全屏球体里选视角裁切输出局部）
   const doCapture = useCallback(
-    async (angles = [0]) => {
+    async (angles: number[] = [0]) => {
       if (!viewerRef.current) return
       setShotKind(angles.length >= 12 ? 'twelve' : angles.length >= 4 ? 'four' : 'current')
       setToast(angles.length >= 12 ? '正在截取12大视角…' : angles.length >= 4 ? '正在截取四大视角…' : '正在截取当前视角…')
@@ -97,7 +116,7 @@ function PanoramaNode({ id, data, selected }) {
             const boxId = boxes[0]
             setNodes((ns) => ns.map((n) => {
               if (n.id !== boxId) return n
-              const existing = n.data?.images || []
+              const existing = (n.data?.images as Array<{ url?: string }> | undefined) || []
               const existingUrls = new Set(existing.map((x) => x.url))
               const fresh = newImages.filter((x) => !existingUrls.has(x.url))
               const merged = [...existing, ...fresh]
@@ -152,7 +171,7 @@ function PanoramaNode({ id, data, selected }) {
   )
 
   // 截图按钮组（全屏球体里，始终显示）
-  const renderShotButtons = ({ size = 20 }) => (
+  const renderShotButtons = ({ size = 20 }: { size?: number }) => (
     <div className="absolute top-1/2 left-2 -translate-y-1/2 flex flex-col items-center gap-1 z-30 bg-black/60 p-1.5 rounded-xl backdrop-blur-md border border-white/10 shadow-popover nodrag" onClick={(e) => e.stopPropagation()}>
       <button onClick={() => doCapture([0])} title="当前视角截图" className={`p-2.5 text-secondary hover:text-white hover:bg-white/10 rounded-lg transition-all active:scale-95 cursor-pointer ${shotKind === 'current' ? 'text-white bg-white/10' : ''}`}>
         <CircleDot size={size} className={shotKind === 'current' ? 'animate-spin' : ''} />
@@ -251,7 +270,7 @@ function PanoramaNode({ id, data, selected }) {
             {configOpen && (
               <select
                 value={panoType}
-                onChange={(e) => { setPanoType(e.target.value); setNodes((ns) => ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, panoType: e.target.value } } : n))) }}
+                onChange={(e) => { const v = e.target.value as 'sphere' | 'cylinder'; setPanoType(v); setNodes((ns) => ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, panoType: v } } : n))) }}
                 className="bg-surface-black text-body text-caption px-1 py-0.5 rounded border border-edge-muted outline-none cursor-pointer"
               >
                 <option value="sphere">球状全景</option>
