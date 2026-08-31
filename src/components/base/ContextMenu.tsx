@@ -1,4 +1,65 @@
 import React, { useRef, useState, useLayoutEffect } from 'react'
+import type { ContextMenuState } from '../../hooks/useContextMenu.ts'
+
+/**
+ * 右键菜单项配置（支持 divider / 普通项 / 子菜单 / 分组工具面板，详见下方各接口）。
+ */
+
+/** 图标：组件引用（函数/forwardRef）或 React 元素 */
+type MenuIcon = React.ComponentType<{ size?: number; className?: string }> | React.ReactNode
+
+/** 工具面板叶子节点项（renderToolLeaf 用）：支持 badge / trailing 尾随槽 */
+interface ToolLeafItem {
+  key: string
+  icon?: MenuIcon
+  label: string
+  badge?: { tone: 'new' | 'hot'; text: string }
+  onClick?: (e: React.MouseEvent) => void
+  /** 尾随插槽：函数则实例化，否则原样渲染 */
+  trailing?: (() => React.ReactNode) | React.ReactNode
+  closeOnClick?: boolean
+}
+
+/** 分组工具面板的分类块（child 带 items） */
+interface ToolCategoryItem extends ToolLeafItem {
+  items?: ToolLeafItem[]
+}
+
+/** 普通菜单项（type 为可选判别字段：调用方可不传，默认 undefined = 普通项） */
+interface MenuLeafItem {
+  key: string
+  icon?: MenuIcon
+  label: string
+  shortcut?: string
+  danger?: boolean
+  disabled?: boolean
+  onClick?: (e: React.MouseEvent) => void
+  onMouseEnter?: () => void
+  closeOnClick?: boolean
+  /** 判别字段：普通项不传（undefined）或 'item'；与 divider 区分用 */
+  type?: 'item'
+}
+
+/** 右键菜单项（含 divider / leaf / submenu / 分组工具面板 四种形态） */
+export type ContextMenuItem =
+  | { type: 'divider' }
+  | (MenuLeafItem & {
+      /** 悬停展开的子菜单（同构，支持嵌套） */
+      submenu?: ContextMenuItem[]
+      /** 分组工具面板（小工具网格，见 renderItems） */
+      items?: ToolCategoryItem[]
+    })
+
+export interface ContextMenuProps {
+  /** 菜单状态（x/y 为相对画布容器坐标），null 时不渲染 */
+  state: ContextMenuState | null
+  /** 菜单项：可传数组，或按 state 返回菜单项的函数 */
+  items: ContextMenuItem[] | ((state: ContextMenuState) => ContextMenuItem[])
+  /** 关闭回调 */
+  onClose: () => void
+  /** 画布容器 ref（坐标基准 + 防溢出基准，需与本组件挂在同一个 relative div） */
+  containerRef: React.RefObject<HTMLDivElement | null>
+}
 
 /**
  * 通用右键菜单基座（复刻 H_.jsx:12229-12619 的 ContextMenu）。
@@ -40,8 +101,8 @@ import React, { useRef, useState, useLayoutEffect } from 'react'
  *  - onClose      关闭回调
  *  - containerRef 画布容器 ref（坐标基准 + 防溢出基准，需与本组件挂在同一个 relative div）
  */
-function ContextMenu({ state, items, onClose, containerRef }) {
-  const menuRef = useRef(null)
+function ContextMenu({ state, items, onClose, containerRef }: ContextMenuProps) {
+  const menuRef = useRef<HTMLDivElement>(null)
   const [pos, setPos] = useState({ top: 0, left: 0 })
 
   // 见头部「防溢出定位」注释：首次按鼠标点定位，绘制前按实际尺寸往左上收。
@@ -61,7 +122,7 @@ function ContextMenu({ state, items, onClose, containerRef }) {
   }, [state, containerRef])
 
   if (!state) return null
-  const menuItems = typeof items === 'function' ? items(state) : items
+  const menuItems: ContextMenuItem[] = typeof items === 'function' ? items(state) : items
 
   return (
     <div
@@ -79,17 +140,17 @@ function ContextMenu({ state, items, onClose, containerRef }) {
 export default React.memo(ContextMenu)
 
 // 统一渲染 icon：支持「组件引用（函数 / forwardRef 对象）」或「React 元素」两种形式
-function renderIcon(icon, size = 16, className = '') {
+function renderIcon(icon: MenuIcon | undefined, size = 16, className = '') {
   if (!icon) return null
   // 已是 React 元素（有 $$typeof）→ 直接渲染
   if (React.isValidElement(icon)) return icon
   // 否则视为组件引用（函数 或 forwardRef 对象），实例化。
   // 注意：forwardRef 组件 typeof 是 'object' 不是 'function'，必须用 React.createElement(icon) 统一处理。
-  return React.createElement(icon, { size, className })
+  return React.createElement(icon as React.ComponentType<{ size?: number; className?: string }>, { size, className })
 }
 
 // 渲染小工具面板里的单个节点项（支持尾随图钉，复刻 H_.jsx:12317-12335）
-function renderToolLeaf(child, onClose) {
+function renderToolLeaf(child: ToolLeafItem, onClose: () => void) {
   return (
     <div
       key={child.key}
@@ -125,7 +186,7 @@ function renderToolLeaf(child, onClose) {
 }
 
 // 渲染菜单项（支持 divider / submenu）
-function renderItems(items, onClose) {
+function renderItems(items: ContextMenuItem[], onClose: () => void) {
   return (items || []).map((item, index) => {
     if (item.type === 'divider') {
       // key 用索引保证稳定（divider 没有业务 key）

@@ -22,10 +22,31 @@ import { Pencil, X } from 'lucide-react'
  *  - showHeader    是否显示顶部标题栏（默认 true；false 时隐藏标题与关闭提示）
  *  - autoHeight    是否高度随内容自适应（默认 false；true 时高度由 children 决定，最大 95vh）
  */
-export default function FullscreenModal({ open, title = '编辑输入', onClose, children, widthRatio = 0.8, maxWidth = 1152, showHeader = true, autoHeight = false }) {
+export interface FullscreenModalProps {
+  /** 是否打开 */
+  open: boolean
+  /** 标题 */
+  title?: string
+  /** 关闭回调 */
+  onClose: () => void
+  /** 全屏编辑内容 */
+  children: React.ReactNode
+  /** 初始宽度占屏比（默认 0.8） */
+  widthRatio?: number
+  /** 弹层最大宽度（px，默认 1152；传小值可避免窗口过宽） */
+  maxWidth?: number
+  /** 是否显示顶部标题栏（默认 true；false 时隐藏标题与关闭提示） */
+  showHeader?: boolean
+  /** 是否高度随内容自适应（默认 false；true 时高度由 children 决定，最大 95vh） */
+  autoHeight?: boolean
+}
+
+interface ModalSize { w: number; h: number | null }
+
+export default function FullscreenModal({ open, title = '编辑输入', onClose, children, widthRatio = 0.8, maxWidth = 1152, showHeader = true, autoHeight = false }: FullscreenModalProps) {
   // 初始尺寸：宽度占屏约 widthRatio，受 maxWidth 约束。autoHeight 时高度由内容决定。
   // SSR 环境下 window 不存在，需守卫。
-  const [size, setSize] = useState(() => {
+  const [size, setSize] = useState<ModalSize>(() => {
     if (typeof window === 'undefined') return { w: 1000, h: autoHeight ? null : 700 }
     const vw = window.innerWidth
     const vh = window.innerHeight
@@ -33,12 +54,12 @@ export default function FullscreenModal({ open, title = '编辑输入', onClose,
     const h = autoHeight ? null : Math.max(320, Math.round(vh * 0.8))
     return { w, h }
   })
-  const panelRef = useRef(null)
+  const panelRef = useRef<HTMLDivElement>(null)
 
   // Esc 关闭（复刻 Ai.jsx useEffect）
   useEffect(() => {
     if (!open) return
-    const onKeyDown = (e) => {
+    const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()
     }
     window.addEventListener('keydown', onKeyDown)
@@ -47,14 +68,14 @@ export default function FullscreenModal({ open, title = '编辑输入', onClose,
 
   // 右下角拖拽改尺寸（复刻 Ai.jsx s 函数）
   const onPanelResize = useCallback(
-    (e) => {
+    (e: React.MouseEvent<HTMLDivElement>) => {
       e.preventDefault()
       e.stopPropagation()
       const startX = e.clientX
       const startY = e.clientY
       const baseW = panelRef.current?.offsetWidth ?? size.w
       const baseH = panelRef.current?.offsetHeight ?? size.h
-      const move = (ev) => {
+      const move = (ev: MouseEvent) => {
         setSize({
           w: Math.max(480, Math.min(window.innerWidth - 40, baseW + (ev.clientX - startX))),
           h: Math.max(320, Math.min(window.innerHeight - 40, baseH + (ev.clientY - startY)))
