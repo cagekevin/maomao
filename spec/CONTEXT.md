@@ -149,10 +149,13 @@
 
 ---
 
-## 五·五、外部仓库边界（director3d）
+## 五·五、director3d 子模块边界
 
-* **`src/components/director3d/` 是从外部下载的开源仓库**（storyai-3d-director-desk），非本仓库自有代码，**基本独立于主画布**（自有 store/schema/编辑器，TS 实现），耦合不深。由 `Director3DNode` 双击进入。
-* **边界红线**：**不为它写测试、不纳入测试维护、不主动重构**；改动只做"必要的最小集成"，改前先读文件头注释。它是独立设计，别当主项目机制深改。
+> 更新(2026-09-01)：**director3d 已解除豁免**——源出外部开源仓库（storyai-3d-director-desk），但按用户指示当自家仓库，**已全部 TS 化并纳入类型/契约校验，可以动、可以改、可以收口**。本节保留它作为「相对独立子模块」的边界指引，不是禁改红线。
+
+* **`src/components/director3d/` 源出外部开源仓库**（storyai-3d-director-desk），**基本独立于主画布**（自有 schema/编辑器，TS 实现），耦合不深。由 `Director3DNode` 双击进入。
+* **边界（可动，非禁改）**：**不为它写测试、不纳入测试维护**（改它不强制补单测，但 `type-check`/五门禁照跑）；改动按正常 src/ 流程走 + 最小差异，改前先读文件头注释。它是独立设计，别当主项目机制深改——**不是不能改，是要克制、有目的地改**。
+* **领域类型真相源**：`src/components/director3d/project.ts`（`ProjectCamera`/`ProjectObject`/`ProjectReference`/`ProjectSettings`/`ProjectLighting`/`PropertyRegistry`/`ChannelTracks`/`ChannelKey`/`EntityChannelMap`），App/Viewport/panels 复用，**禁止各自重定义后漂移**。新增 director3d 共享类型一律下沉此处。
 * **工程持久化收口（docs/45，2026-08-25）**：director3d 工程已从「纯 localStorage」收口到「localTool KV + uploads/director3d 落盘 + localStorage 降级」双通道。核心可测协议收在 **`src/components/base/d3dPersistence.ts`**（我方代码，唯一入口：`writeProject`/`hydrateProject`，纯函数 `projectKvKey`/`isProjectImageUrl`/`isProjectPersistenceKey`/`externalizeProjectImages`/`pickProjectSource`，走 `contracts.js apiRegistry` 已登记的 `/api/kv/get|set` 与 18080 绝对地址）。director3d 内只做最小适应（`storage.writeJson` 工程键委托异步 fire-and-forget、`project.js` normalize 复用 `isProjectImageUrl` 放行 `/files/` 地址、`App.tsx` 挂载 hydrate 覆盖）。**姿势库键 `director3d-custom-poses` 不进 KV（仍只写 localStorage）**。多开同 key 并发：非全锁，通过 `BroadcastChannel('yimao_director3d_kv')` 广播 D3D_SAVED + 落前冲突提示，把"静默覆盖"变可见（不阻塞编辑）。改持久化契约先改 `d3dPersistence.ts`，勿在 director3d 内部散写第二套。
 * **uploads 子目录后端白名单（docs/45 §2.3，2026-08-25）**：后端 `localTool/src/utils/fileStore.ts` 的 `normalizeSubfolder` 是唯一校验入口——**顶层根白名单**（`tasks`/`web`/`canvas`/`migrated`/`director3d`）+ 目录逃逸拦截（拒绝 `..`/绝对路径/盘符/未知根，非法回退 `canvas`）。⚠️ 刻意**不做"精确值全禁止"**：素材库有动态分类目录（`migrated/人物`、`migrated/脚本/尾帧变体` 等）与嵌套（`canvas/drop`、`canvas/video-process`），故白名单只卡顶层根、放行合法嵌套，防拼错/越根而非拦分类。
 
@@ -178,7 +181,7 @@
 
 * **通用工具**：`base/utils.ts`（`deepClone`/`formatTime`/`debounce`/`throttle`/`useDebouncedEffect`/`createImeInput`/`createRafBatch`）。边界：`director3d` 不纳入；时序敏感处（`useCanvasHistory` 抑制窗口、`useAgentChat` 流式 flush、`ghost-edge`）保留手写。全库散落手写防抖/深拷贝已收敛至此，勿再绕道。
 * **nodeTypes 单源**：`base/NodePalette.ts` 的 `paletteNodes`（含 `component` 字段），`buildNodeTypeComponents()` 派生 `App.tsx nodeTypes`，不再手写平行表。
-* **程序化建边**：`base/deriveNodes.ts`（`buildSpawnNodes`/`makeChildId`/`spawnAndCommit`）+ `CanvasEdgesContext.tsx`，建子节点+连线统一并原子进 undo。提交三连（applySpawnSnapshot→setNodes→setEdges→history.record）已收口至 `spawnAndCommit`，调用方只传 spawned 与画布句柄，禁止再手写提交三连（顺序错了 undo 丢新增节点）。边界：`scriptBoxEngine` 注入式引擎、`onConnect` 手连、`onConnectEnd` ghost-edge 保持原样；`Director3DNode` 按 §0/§五·五 豁免不收口。
+* **程序化建边**：`base/deriveNodes.ts`（`buildSpawnNodes`/`makeChildId`/`spawnAndCommit`）+ `CanvasEdgesContext.tsx`，建子节点+连线统一并原子进 undo。提交三连（applySpawnSnapshot→setNodes→setEdges→history.record）已收口至 `spawnAndCommit`，调用方只传 spawned 与画布句柄，禁止再手写提交三连（顺序错了 undo 丢新增节点）。边界：`scriptBoxEngine` 注入式引擎、`onConnect` 手连、`onConnectEnd` ghost-edge 保持原样；`Director3DNode` 按 §五·五 子模块边界不收口。
 * **本地预览**：`base/previewUrl.ts`（`create/release` 引用计数）。边界：下载走 `clipboard`、持久化降级走 `videoEngine`、`director3d` 不纳入。
 * **ID 生成**：`base/idGen.ts` `generateId`。边界：`accountsStore` 手写 `Date.now().toString` 已收敛回，勿再绕道。
 * **依赖同代纪律（P0-3）**：`@types/react`/`@types/react-dom` 必须与 `react`/`react-dom` 保持**同大版本**；`zustand` 单版本经 `package.json` 的 `overrides`（`^5.0.3`）锁定，防双实例。升级依赖时同步核对这三处，任一回退/错配即触发类型误报或双实例回归。`tsconfig` `skipLibCheck:true`/`strict:false` 为既有演进项，非紧急不缩紧。

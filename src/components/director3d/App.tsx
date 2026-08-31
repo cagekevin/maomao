@@ -97,10 +97,10 @@ import {
   FolderOpen, ImagePlus, Info, Magnet, Maximize2, Minimize2, Minus, MousePointer2, Move3D, PenLine, Redo2,
   RotateCw, Save, SlidersHorizontal, Trash2, Undo2, Video, X, XCircle, ZoomIn,
 } from 'lucide-react'
-import { MainViewport, CameraPreview } from './Viewport.jsx'
-import { measureModelScale } from './models.jsx'
-import { AssetMenu } from './panels/AssetMenu.jsx'
-import { cloneJointPose, normalizePoseId, poseForObject, presetJoints, presetPhase, presetRoot } from './rig.js'
+import { MainViewport, CameraPreview } from './Viewport.tsx'
+import { measureModelScale } from './models.tsx'
+import { AssetMenu } from './panels/AssetMenu.tsx'
+import { cloneJointPose, normalizePoseId, poseForObject, presetJoints, presetPhase, presetRoot } from './rig.ts'
 import {
   CAMERA_ID, CUSTOM_POSE_STORAGE_KEY, DEFAULT_LIGHTING, DEFAULT_PATH_SETTINGS, DEFAULT_PROJECT_SETTINGS, DEFAULT_REFERENCE,
   PROJECT_STORAGE_KEY, aspectLabel, aspectValue, bakePathKeyframes, cameraAtFrame, cameraRotationToward, clamp, cloneProjectValue,
@@ -111,25 +111,26 @@ import {
   readCachedProject, readCustomPoses, referenceCanvasForExport, referenceImageFromFile,
   snapshotKeysForTrack,
   timecodeAtFrame, uid, uniqueShotName, visualCenterForObject,
-} from './project.js'
+} from './project.ts'
+import type { ChannelKey, ChannelTracks } from './project.ts'
 import {
   bakeCameraPath, bakeObjectPath, clearObjectTrack, duplicateObjectTrack,
   moveCameraFrame, moveCameraFrames, moveObjectFrame, moveObjectFrames, removeCameraFrames, removeObjectFrames,
   setCameraInterpolation, setObjectInterpolation, upsertCameraSnapshot, upsertObjectSnapshot,
-} from './tracks.js'
-import { ToolButton } from './panels/controls.jsx'
-import { LeftSidebar } from './panels/Sidebar.jsx'
-import { Inspector } from './panels/Inspector.jsx'
-import { CameraAnglePanel } from './panels/CameraAnglePanel.jsx'
-import { Timeline } from './panels/Timeline.jsx'
-import { ReferenceOverlay } from './panels/ReferenceOverlay.jsx'
-import { consumeDefer, createHistoryState, flushChange, HISTORY_DEBOUNCE_MS, recordChange, redoPeek, resetHistory, undoPeek } from './history.js'
-import { log } from './log.js'
-import { writeJson } from './storage.js'
+} from './tracks.ts'
+import { ToolButton } from './panels/controls.tsx'
+import { LeftSidebar } from './panels/Sidebar.tsx'
+import { Inspector } from './panels/Inspector.tsx'
+import { CameraAnglePanel } from './panels/CameraAnglePanel.tsx'
+import { Timeline } from './panels/Timeline.tsx'
+import { ReferenceOverlay } from './panels/ReferenceOverlay.tsx'
+import { consumeDefer, createHistoryState, flushChange, HISTORY_DEBOUNCE_MS, recordChange, redoPeek, resetHistory, undoPeek } from './history.ts'
+import { log } from './log.ts'
+import { writeJson } from './storage.ts'
 import { hydrateProject } from '../base/d3dPersistence.ts'
-import { useToast } from './useToast.js'
-import { thumbnailFromCanvas } from './thumbnails.js'
-import { useConfirm } from './ConfirmDialog.jsx'
+import { useToast } from './useToast.ts'
+import { thumbnailFromCanvas } from './thumbnails.ts'
+import { useConfirm } from './ConfirmDialog.tsx'
 
 const nextPaint = () => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
 
@@ -174,7 +175,7 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
   const [lighting, setLighting] = useState(() => normalizeLighting(startupProject?.lighting))
   const [reference, setReference] = useState(() => normalizeReference(startupProject?.reference))
   const [keyframes, setKeyframes] = useState(() => startupProject?.keyframes || initialKeyframes)
-  const [characterKeyframes, setCharacterKeyframes] = useState(() => startupProject?.objectKeyframes || startupProject?.characterKeyframes || initialCharacterKeyframes)
+  const [characterKeyframes, setCharacterKeyframes] = useState<Record<string, ChannelTracks | ChannelKey[]>>(() => startupProject?.objectKeyframes || startupProject?.characterKeyframes || initialCharacterKeyframes)
   // 当前镜头下 targetId → 运动路径表（targetId 即对象 id，摄像机用 CAMERA_ID），随镜头切换一起走
   const [paths, setPaths] = useState(() => startupProject?.paths || {})
   // 画线编辑：editMode='path' 表示正在为选中对象（含摄像机）画运动路径；pathDraft 为当时正在编辑的路径
@@ -292,7 +293,7 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
     if (!pos) return null
     const tangent = pathTangentAtFraction(path, u) || [0, 0, -1]
     const position = [pos.x, pos.y, pos.z]
-    const snapshot = { position }
+    const snapshot: { position: number[]; rotation?: number[] } = { position }
     if (camera.targetMode !== 'object') {
       snapshot.rotation = cameraRotationToward(position, [pos.x + tangent[0], pos.y + tangent[1], pos.z + tangent[2]])
     }
@@ -1210,7 +1211,7 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
       }
       if (!canvas || canvas.width !== width || canvas.height !== height) throw new Error('截图画面初始化失败')
       await nextPaint()
-      const blob = await new Promise((resolve, reject) => canvas.toBlob(result => result ? resolve(result) : reject(new Error('PNG 生成失败')), 'image/png'))
+      const blob = await new Promise<Blob>((resolve, reject) => canvas.toBlob(result => result ? resolve(result) : reject(new Error('PNG 生成失败')), 'image/png'))
       const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')
       const fileName = `director3d-shot-${stamp}-frame-${String(currentFrameRef.current).padStart(3, '0')}.png`
       // 受控导出：先把产物交给宿主（落盘/回写画布），再按需触发浏览器下载
@@ -1339,7 +1340,7 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
     const reader = new FileReader()
     reader.onload = () => {
       try {
-        const loaded = normalizeProjectData(JSON.parse(reader.result))
+        const loaded = normalizeProjectData(JSON.parse(String(reader.result)))
         if (!loaded) throw new Error('invalid project')
         setSettings(loaded.settings)
         setShots(loaded.shots)
@@ -1492,7 +1493,7 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
               </>}
             </div></div>
             {monitorMode !== 'minimized' && <div className="monitor-frame">
-              <div className={`monitor-canvas ${previewAspectClass}`} style={{ '--preview-aspect': previewAspect }}>
+              <div className={`monitor-canvas ${previewAspectClass}`} style={{ '--preview-aspect': previewAspect } as React.CSSProperties}>
                 <CameraPreview objects={animatedObjects} animationTime={currentFrame / fps} cameraData={displayCamera} cameraAspect={previewAspect} lighting={lighting} performanceMode={performanceMode} seamlessBackground={seamlessBackground} backgroundCanvas={monitorReferenceBackground} onCanvasReady={canvas => { monitorCanvasRef.current = canvas }} />
                 <span className="safe-frame" />
                 <span className="monitor-timecode">{timecodeAtFrame(currentFrame, fps)}</span>

@@ -12,8 +12,8 @@ import {
   bakeObjectPath, bakeCameraPath, clearObjectTrack, duplicateObjectTrack,
   moveCameraFrame, moveCameraFrames, moveObjectFrame, moveObjectFrames, removeCameraFrames, removeObjectFrames,
   setCameraInterpolation, setObjectInterpolation, upsertCameraSnapshot, upsertObjectSnapshot,
-} from '../../src/components/director3d/tracks.js'
-import { normalizeCameraPath } from '../../src/components/director3d/project.js'
+} from '../../src/components/director3d/tracks.ts'
+import { normalizeCameraPath } from '../../src/components/director3d/project.ts'
 
 // ---- 样本（与 channelWrite.test.js 一致，保证可比） ----
 const walkJoints = { mixamorigHips: [0.02, 0.01, 0.03], mixamorigLeftUpLeg: [0.12, 0.02, 0.05] }

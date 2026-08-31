@@ -8,7 +8,7 @@
 // 依赖均为纯函数 + three，node 环境可跑（npm run test:unit:logic）。
 import { describe, it, expect } from 'vitest'
 import * as THREE from 'three'
-import { cameraRotationToward } from '../../src/components/director3d/project.js'
+import { cameraRotationToward } from '../../src/components/director3d/project.ts'
 
 const forwardAfter = (position, target, order) => {
   const rotation = cameraRotationToward(position, target)

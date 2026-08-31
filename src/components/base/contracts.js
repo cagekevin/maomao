@@ -404,7 +404,7 @@ export const STORAGE_KEYS = {
   },
   'director3d-custom-poses': {
     domain: 'director3d',
-    store: 'director3d/App.jsx',
+    store: 'director3d/App.tsx',
     backend: 'native',
     note: '3D 导演台自定义姿势库（仅 localStorage 直写，不进 KV，见 isProjectPersistenceKey）',
   },

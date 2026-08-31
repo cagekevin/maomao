@@ -1,11 +1,19 @@
 import { useState } from 'react'
 import { ArrowDownToLine, BoxSelect, ChevronDown, Copy, Focus, Lock, RotateCcw, Save, Trash2, Unlock } from 'lucide-react'
-import { JOINT_DEFINITIONS, JOINT_GROUPS, RIG_PRESET_GROUPS, RIG_PRESET_OPTIONS, normalizePoseId, poseCanLoop, poseForObject, presetJoints, presetPhase, presetRoot } from '../rig.js'
-import { CAMERA_ID, FOCAL_LENGTH_PRESETS } from '../project.js'
-import { GlobalSettingsPanel } from './GlobalSettingsPanel.jsx'
-import { ToolButton, VectorFields } from './controls.jsx'
+import { JOINT_DEFINITIONS, JOINT_GROUPS, RIG_PRESET_GROUPS, RIG_PRESET_OPTIONS, normalizePoseId, poseCanLoop, poseForObject, presetJoints, presetPhase, presetRoot } from '../rig.ts'
+import { CAMERA_ID, FOCAL_LENGTH_PRESETS } from '../project.ts'
+import { GlobalSettingsPanel } from './GlobalSettingsPanel.tsx'
+import { ToolButton, VectorFields } from './controls.tsx'
 
-function Collapsible({ title, meta, collapsed, onToggle, wrapperClass = 'inspector-subgroup', headClass = 'subgroup-head', children }) {
+function Collapsible({ title, meta = null, collapsed, onToggle, wrapperClass = 'inspector-subgroup', headClass = 'subgroup-head', children }: {
+  title: string
+  meta?: string | number | null
+  collapsed: boolean
+  onToggle: () => void
+  wrapperClass?: string
+  headClass?: string
+  children: React.ReactNode
+}) {
   return (
     <div className={wrapperClass}>
       <button type="button" className={`${headClass} collapse-toggle ${collapsed ? 'is-collapsed' : ''}`} aria-expanded={!collapsed} onClick={onToggle}>

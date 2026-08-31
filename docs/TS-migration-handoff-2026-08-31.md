@@ -1,6 +1,8 @@
 # TS 规范化重构 · 交接文档（handoff）
 
-> 更新：2026-08-31（第二轮会话后补）。任务：对现有 React 代码做 TS 规范化重构——业务逻辑完全不动，只做「类型 + 文件规范」处理。
+> 更新：2026-09-01（director3d 收敛批）。任务：对现有 React 代码做 TS 规范化重构——业务逻辑完全不动，只做「类型 + 文件规范」处理。
+>
+> **director3d 收敛批新增成果（第十四段，收官）**：用户明确指示「director3d 就当自家仓库，不要老当外部库」。**`src/components/director3d/` 26 个 .js/.jsx 全部 TS 化**（8 纯逻辑 .ts + 18 组件 .tsx），**解除其永久豁免**（`scripts/ts-exts.cjs` 的 `TS_EXEMPT_DIRS` 清空），`director3d` 不再是「禁止保留 jsx」的例外。转换按自底向上：纯逻辑叶子（log/storage/history/tracks/thumbnails/rig/depth/useToast/project）→ panels/（9）→ 顶层组件（primitives/models/ConfirmDialog/ErrorBoundary/SceneGizmo/Director3DOverlay/Viewport/App）。**全仓库不再有 .jsx/.js 源码（仅剩永久豁免的 contracts.js / config.js）。** 详见第三节 commit 表与 §10.12。
 > 交接给下一个 AI / 下一段会话的**唯一入口**。读完即可无缝继续，不必重读本会话历史。
 >
 > **本轮会话（第二段）新增成果**：A4 批 `src/components/scriptbox/` **3 个纯逻辑文件全部转完**（IO / Store / Workflows → .ts），`scriptBoxPromptResolver.ts` 的 `PlaybookLike` 已删除改用真实 `Playbook` 类型，并修复了库里存量断裂的 `DiscountVideoNode` 测试（根因是早前 HoverToolbar.jsx→.tsx 迁移时测试 mock 路径未同步）。详见第三节 commit 表。
@@ -26,19 +28,21 @@
 3. 按计划分批分步骤进行；**做一点提交一点**，随时可回退；中间不要停。
 4. 顺手收口（用户允许）：共享类型收口到一个目录、hooks 等横切能收口的一起收口。
 
-## 二、已确认的三条豁免（与用户对齐，勿推翻）
+## 二、豁免（与用户对齐）
+
+> 更新(2026-09-01)：**director3d 豁免已解除**（用户明确指示按自家仓库收敛），仅剩 contracts.js / config.js 两条永久豁免。
 
 | 对象 | 处置 | 原因 |
 |---|---|---|
-| `src/components/director3d/**`（26 个 js/jsx） | **保留 .js/.jsx 不动** | CLAUDE.md 红线：外部开源库，不重构不纳入测试；是「禁止保留 jsx」的唯一例外 |
+| `src/components/director3d/**` | ~~保留 .js/.jsx~~ → **已全部 TS 化（26/26，第十四段）** | 用户指示「当自家仓库」；`TS_EXEMPT_DIRS` 已清空，纳入契约校验 |
 | `contracts.js` / `config.js` | **保留 .js 不动** | 被 4 个 check 脚本（check:api/events/keys/node-types）Node 直接 `import()`，改名会崩 prebuild/pretest 门禁；它们是契约/配置真相源而非业务代码 |
-| `tests/unit/**`（160 个测试） | **保持 .js/.jsx** | 只机械同步测试里的 import 路径让单测继续绿；不把测试也 TS 化 |
+| `tests/unit/**` | **保持 .js/.jsx** | 只机械同步测试里的 import 路径让单测继续绿；不把测试也 TS 化 |
 
 ## 三、完成进度（截至本次更新，工作区干净）
 
-**已转 110+ 个 .ts / .tsx**（纯逻辑层）+ **组件层 .tsx 持续累计**（含 base/ / panels/ / edges/ / scriptbox 全部 / nodes 全部 / A3·A4 纯逻辑 / src/main / src/App） + **A4 批 3 个 scriptbox 纯逻辑 .ts** + **A3 全部 6 个（agentConfig / canvasPlanExecutor / agentRuntime / agentCore / useAgentChat / useCanvasAgentTools）**。**剩余：0 个 .js + 0 个 .jsx**（不含豁免目录；`src/main.tsx` + `src/App.tsx` 已收尾，TS 规范化重构全部清零）。
+**已转 110+ 个 .ts / .tsx**（纯逻辑层）+ **组件层 .tsx 持续累计**（含 base/ / panels/ / edges/ / scriptbox 全部 / nodes 全部 / A3·A4 纯逻辑 / src/main / src/App） + **A4 批 3 个 scriptbox 纯逻辑 .ts** + **A3 全部 6 个（agentConfig / canvasPlanExecutor / agentRuntime / agentCore / useAgentChat / useCanvasAgentTools）** + **director3d 26 个（第十四段）**。**剩余：0 个 .js + 0 个 .jsx**（不含豁免目录；`src/main.tsx` + `src/App.tsx` 已收尾，director3d 已收敛，TS 规范化重构全部清零）。
 
-**纯逻辑层（非 JSX）完成度：100% 清零** —— `base/`、`agent/conversation/`、`scriptbox/`、`agent/runtime/`、`agent/canvas/` 全部 .ts，`.js` 计数为 0（仓库里仅剩的 .js 是永久豁免的 `contracts.js` / `config.js` 与 director3d 目录）。
+**纯逻辑层（非 JSX）完成度：100% 清零** —— `base/`、`agent/conversation/`、`scriptbox/`、`agent/runtime/`、`agent/canvas/`、`director3d/`（纯逻辑 8 个）全部 .ts，`.js` 计数为 0（仓库里仅剩的 .js 是永久豁免的 `contracts.js` / `config.js`，director3d 目录已不再豁免）。
 
 **B 批组件层完成度：100% 清零（第十三段收官）**：已完成 11 个 `.jsx → .tsx`（ArrangeConfirm / EmptyCanvasGuide / ToastContainer / ToolbarButton / HoverToolbar / FullscreenModal / ContextMenu / Select / ProjectSelector / CanvasToolbar / TopNav）+ base/（NodeShell 等全清零）+ edges/（4/4）+ panels/（4/4）+ scriptbox/（9/9）+ nodes/（17/17）+ **src/main.tsx + src/App.tsx（收尾）**，全部补 Props 接口 + 验证全绿。**全仓库（除豁免）不再有 .jsx/.js 源码。**
 
@@ -113,6 +117,7 @@
 | `b44ad65` | **B 批（nodes/ 第 16 个）**：`TextNode`→.tsx。契约接口 + ref 类型；`data.inputWidth/Height` 补入接口（消 unknown 报错） |
 | `22182ea` | **B 批（nodes/ 第 17 个，nodes/ 清零）**：`PromptNode`→.tsx。契约接口 + ref 类型；`onRecover` 的 `resultUrl` 用 `String()`、`data.name as string` |
 | `14e23c3` | **收尾（全部 .jsx 清零）**：`src/App.jsx`→.tsx + `src/main.jsx`→.tsx（补约 29 处类型：view 收窄 / getSetting unknown 断言 / addNode 形参 Record<string,unknown> / 菜单函数 ContextMenuItem[] / copySelectedNodes onlyId?）。**跨文件收口**：`MenuLeafItem` 补 badge；`CanvasEdgesContext.CanvasHistory` 复用 `CanvasHistoryApi`；`useContextMenu.onSelectionEnd` nodes 参改可选（对齐 ReactFlow 1 参签名）。**修 3 处存量路径漂移**：`index.html` main.jsx→tsx（build 崩）、`health-check.cjs` storageAdapter 路径（文件在 storage/ 子目录）、`lazyNode.test.jsx` readSrc App.jsx→tsx（ENOENT）。门禁全绿（type-check / 五门禁 / test:all / build / check:health 无错误） |
+| `（第十四段，待提交）` | **director3d 全部收敛**：`src/components/director3d/` 26 个 .js/.jsx 全部→.ts/.tsx（8 纯逻辑 + 18 组件）。**解除 director3d 永久豁免**（`scripts/ts-exts.cjs` 的 `TS_EXEMPT_DIRS` 清空）。**在 `project.ts` 建立 director3d 领域类型真相源**（`ProjectCamera`/`ProjectObject`/`ProjectReference`/`ProjectSettings`/`ProjectLighting`/`PropertyRegistry`/`ChannelTracks`/`ChannelKey`/`EntityChannelMap` 等，供 App/Viewport/panels 复用）。**顺手修复 2 处存量 bug**：①`objectAtFrame` 的 `keyframes` 参数曾被推断为 `any[]`（默认 `= []`），真实可传通道结构，已标注 `ChannelTracks | ChannelKey[]`；②`FileReader.result` 读工程/参考图时可能为 ArrayBuffer，统一 `String(...)` 转字符串。同步 `contracts.js` 的 `director3d/App.jsx`→`.tsx`、`DEPENDENCIES.md`/`d3dPersistence.ts` 注释里的旧后缀。门禁全绿（type-check 0 错 / 五门禁 / test:all 2180 用例全 PASS / build / check:health 无错误） |
 
 ## 三·补：横切收口成果（本次新增）
 
@@ -498,3 +503,26 @@ npm run test:tools           # agent 工具
    - 修复存量路径漂移：`index.html` main 入口 .jsx→.tsx（build 崩）；`health-check.cjs` storageAdapter 路径；`lazyNode.test.jsx` readSrc App.jsx→tsx。
    - 提交：`14e23c3`。
    - **剩余 `.jsx`（不含 director3d 豁免）：0 个。TS 规范化重构全部清零。**
+
+### 10.12 本轮（第十四段会话）新增踩坑 / 经验 —— director3d 收敛批（收官）
+
+> 时间段：承接第十三段，把最后一块「永久豁免」`src/components/director3d/`（26 个 .js/.jsx）按用户指示「当自家仓库」全部 TS 化。这是 TS 规范化重构的**收官批**——此后全仓只剩 contracts.js / config.js 两条永久豁免。
+
+1. **转换顺序必须严格自底向上（leaf-first）**：先转纯逻辑叶子（`log`/`storage`/`history`/`tracks`/`thumbnails`/`rig`/`useToast`→.ts，`depth`→.tsx，`project`→.ts），再转 panels/（`controls`/`AssetMenu`/`Sidebar`/`CameraAnglePanel`/`ShotsPanel`/`GlobalSettingsPanel`/`Inspector`/`Timeline`/`ReferenceOverlay`），最后转顶层（`primitives`/`models`/`ConfirmDialog`/`ErrorBoundary`/`SceneGizmo`/`Director3DOverlay`/`Viewport`/`App`）。每个 `.js`/`.jsx` 都带 `.ts`/`.tsx` import，转后 `convert --force` 会自动同步内部 import；**先转被引用方，上游才不会因「下游还是 .jsx 推断成含 any 的必填形状」而报错**（与 §10.5 第 1 条同一条规律）。
+2. **`useThree()` 解构的 `camera`/`controls` 类型过宽**：`@react-three/fiber` 的 `useThree` 返回的 `camera` 是 `THREE.Camera`、`controls` 是 `EventDispatcher<{}>`，转 .tsx 后访问 `camera.fov`/`camera.aspect`/`controls.target`/`controls.enabled`/`controls.update()`/`controls.addEventListener('change')` 全报 TS2339/TS2345。**修法**：在消费点断言最小接口——`const camera = useThree(s => s.camera) as unknown as (THREE.PerspectiveCamera & { fov?: number }) | null`、`const controls = useThree(s => s.controls) as unknown as { enabled: boolean; update: () => void; target: THREE.Vector3; addEventListener: (t: string, fn: () => void) => void; removeEventListener: (t: string, fn: () => void) => void } | null`。R3F 的 controls 运行期就是 OrbitControls，字段都在，断言是「如实标注」而非糊 any。
+3. **`Object3D.traverse` 里的 `isBone`/`isMesh`/`material` 需要显式收窄**：`child.isBone`/`child.isMesh` 是运行期 duck-typing，`Object3D` 类型没有这些字段。修法：`(child as THREE.Bone).isBone` + `const bone = child as THREE.Bone`、`(child as THREE.Mesh).isMesh` + `const mesh = child as THREE.Mesh`（`mesh.material` 是 `Material | Material[]` 联合，clone 前先 `Array.isArray` 取单元素）。`MeshStandardMaterial` 的 `emissive`/`emissiveIntensity` 只有标准材质有，需 `as THREE.MeshStandardMaterial`。
+4. **`<group position={data.position}>` 传 `number[]` 报错**：three 的 `position`/`rotation`/`scale` prop 要 `Vector3` 或 `[x,y,z]` tuple，而 `ProjectObject.position` 是 `number[]`。修法：`position={data.position as [number, number, number]}`。同理 `new THREE.Euler(...arr, 'YXZ')`/`rotation.set(...arr, 'YXZ')` 展开 `number[]` 报 TS2556（spread 需 tuple）→ 改索引取值 `new THREE.Euler(arr[0]||0, arr[1]||0, arr[2]||0, 'YXZ')`。**经验：three API 里凡是「数组字面量当位置/旋转/缩放」的地方，都必须给 tuple 或索引构造，不能靠展开 `number[]`。**
+5. **`Component` 类组件缺 Props/State 泛型会全库连锁报错**（`ErrorBoundary`/`ModelErrorBoundary`）：`class X extends Component` 默认 `Readonly<{}>`，`this.props.children`/`this.props.fallback`/`this.state.failed` 全报「不存在」。修法：`class X extends Component<Props, State>`，`constructor(props: Props)` 显式标注。`componentDidCatch`/`getDerivedStateFromError` 的 `error` 参数是 `unknown`，取 `info?.componentStack` 要 `(info as { componentStack?: string } | null)?.componentStack`。
+6. **`FileReader.result` 可能是 `string | ArrayBuffer`**：`JSON.parse(reader.result)`、`image.src = reader.result`、`image.src = reader.result` 报「ArrayBuffer 不能赋 string」。修法：`JSON.parse(String(reader.result))`、`image.src = String(reader.result)`。readAsDataURL/readAsText 时运行期就是 string，转 String() 零行为变化。
+7. **React 组件 props 里三选一字段是 `unknown`**：`data.depthMapUrl`/`data.url`/`data.parts` 经 `ProjectObject` 索引签名 `[key:string]:unknown` 读出是 `unknown`，传给要求 string/数组的下游组件报错。修法：消费处显式 `String(data.depthMapUrl)`/`String(data.url)`/`data.parts as unknown[]`（§10.10 第 3 条）。
+8. **CSS 自定义属性（`--xxx`）在 `style` 里需 `as React.CSSProperties`**（§10.5 第 5 条再次命中，本次 3 处：`controls.tsx` 的 `--axis-color`、`ReferenceOverlay.tsx` 的 `--camera-aspect`、`App.tsx` 的 `--preview-aspect`）。
+9. **`maxLength` 用字符串会报 TS2322（number 需数字）**：`maxLength="30"`/`maxLength="40"` 在 `.tsx` 里报错，改 `maxLength={30}`/`maxLength={40}`。`<input>` 的 `onChange`/`onBlur` 里 `event.target.value` 需用 `event.currentTarget.value`（`target` 是 EventTarget 无 value），`onKeyDown` 里 `event.currentTarget` 是 EventTarget 需 `(event.currentTarget as HTMLInputElement).value`。
+10. **`.tsx` 组件若 Props 里某字段既是必填又只在预览分支用到，下游 `preview` 模式没传会报缺参**：`SceneObject` 的 `selected`/`selectedId`/`activeJoint`/`transformMode`/`groundRequest`/`onSelect`/`onUpdate` 等交互 props 在 `preview` 分支（`PreviewScene` 的 `<MemoSceneObject data={...} preview />`）不传。修法：把这些交互 props 全部改可选（`selected?`/`onSelect?` 等），函数体内调用处运行时已由 `!preview` 守卫，零行为变化。
+11. **`useGLTF(url)` 返回 `GLTF & ObjectMap` 或数组的联合**：`gltf.scene` 报「不存在于联合」。修法：`const root = (Array.isArray(gltf) ? gltf[0] : gltf) as { scene?: THREE.Group }`，`useMemo(() => skeletonClone(root.scene!), [root.scene])`。
+12. **门禁全绿才是验收**：director3d 全转后 type-check 0 错 / check:jsx·keys·events·api·node-types 五门禁 / smoke / regression / tools / test:all（171 文件 2180 用例）/ build / check:health 无错误。**`check:jsx` 的头部注释原写「.jsx 仍剩 director3d」，已同步改为「全仓不再有 .jsx 源码」**。
+13. **本段 B 批进度**：
+    - 已转（26/26）：`project` / `log` / `storage` / `history` / `tracks` / `thumbnails` / `rig` / `useToast`（.ts）+ `depth` / `primitives` / `models` / `ConfirmDialog` / `ErrorBoundary` / `SceneGizmo` / `Director3DOverlay` / `Viewport` / `App`（.tsx）+ `panels/*` 9 个（.tsx）。
+    - 收口：`project.ts` 建立 director3d 领域类型真相源（`ProjectCamera`/`ProjectObject`/`ProjectReference`/`ProjectSettings`/`ProjectLighting`/`PropertyRegistry`/`ChannelTracks`/`ChannelKey`/`EntityChannelMap`/`PropertyLayer`/`PropertyMeta`/`ChannelDefinition`/`EntityType`）；解除 `TS_EXEMPT_DIRS` 的 director3d 豁免；`controls.tsx` 导出 `ToolButtonProps`/`VectorFieldsProps`/`AxisSliderProps`。
+    - 顺手修复：`objectAtFrame` 参数类型（`any[]`→通道联合）；`FileReader.result` 转 String；`maxLength` 数字；事件回调 `currentTarget`。
+    - 同步：`contracts.js` 的 `director3d/App.jsx`→`.tsx`；`DEPENDENCIES.md` 6 处后缀；`d3dPersistence.ts` 注释后缀；`check-jsx.mjs` 头注释。
+    - **全仓库（除 contracts.js / config.js）不再有 .jsx/.js 源码。TS 规范化重构彻底收官。**

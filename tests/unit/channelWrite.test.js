@@ -10,12 +10,12 @@
 import { describe, it, expect } from 'vitest'
 import {
   cloneJointPose, interpolateJointPose, normalizePoseId, poseCanLoop, poseForObject, presetPhase,
-} from '../../src/components/director3d/rig.js'
+} from '../../src/components/director3d/rig.ts'
 import {
   lerp, segmentAmount, objectAtFrame,
   normalizeObjectTracks, normalizeCameraPath, snapshotToChannelKeys,
   writeObjectTrack, setChannelInterpolation,
-} from '../../src/components/director3d/project.js'
+} from '../../src/components/director3d/project.ts'
 
 const FPS = 24
 

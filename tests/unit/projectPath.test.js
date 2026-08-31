@@ -14,7 +14,7 @@ import {
   pathPositionAtFraction,
   pathTangentAtFraction,
   DEFAULT_PATH_SETTINGS,
-} from '../../src/components/director3d/project.js'
+} from '../../src/components/director3d/project.ts'
 
 // 直线控制点：从 (0,·,0) 平移到 (10,·,0)，y 恒为 0（对象贴地轨道）
 const straightPoints = [

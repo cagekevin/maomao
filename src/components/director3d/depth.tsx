@@ -27,8 +27,22 @@ function smoothDepthValues(values, width, height, passes) {
   return current
 }
 
-function DepthMeshModel({ url, settings = {}, color, selected }) {
-  const [geometry, setGeometry] = useState(null)
+interface DepthMeshModelProps {
+  url: string
+  settings?: {
+    invert?: boolean
+    near?: number
+    far?: number
+    fov?: number
+    density?: number
+    smoothing?: number
+  }
+  color?: string
+  selected?: boolean
+}
+
+function DepthMeshModel({ url, settings = {}, color, selected }: DepthMeshModelProps) {
+  const [geometry, setGeometry] = useState<THREE.BufferGeometry | null>(null)
   const invert = settings.invert ?? false
   const near = Math.max(0.05, Number(settings.near ?? 0.8))
   const far = Math.max(near + 0.1, Number(settings.far ?? 6))

@@ -1,5 +1,5 @@
 import { Component } from 'react'
-import { log } from './log.js'
+import { log } from './log.ts'
 
 /**
  * 顶层错误边界：兜住 overlay 内任意同步渲染异常，避免「整屏白屏」。
@@ -12,8 +12,17 @@ import { log } from './log.js'
  *  - label：边界名称（用于日志定位，默认 "Director3D"）
  *  - onReset：点“重新加载”时的回调（默认重载窗口）
  */
-export class ErrorBoundary extends Component {
-  state = { hasError: false, message: '' }
+interface ErrorBoundaryProps {
+  /** 边界名称（用于日志定位，默认 "Director3D"） */
+  label?: string
+  /** 点“重新加载”时的回调（默认重载窗口） */
+  onReset?: () => void
+  children: React.ReactNode
+}
+interface ErrorBoundaryState { hasError: boolean; message: string }
+
+export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  state: ErrorBoundaryState = { hasError: false, message: '' }
 
   static getDerivedStateFromError(error) {
     return { hasError: true, message: error?.message || String(error) }

@@ -9,7 +9,7 @@
 //     业务侧调用点签名不变（writeJson 仍同步返回，写是异步 fire-and-forget，内存态为权威）。
 //   - 姿势库键（director3d-custom-poses）→ 仍只走同步 localStorage（量小频繁，不进 KV，避免无关键污染）。
 // 读取仍同步（localStorage 种子），KV 覆盖交给 App 挂载后的 hydrateProject（读异步化见 App.jsx）。
-import { log } from './log.js'
+import { log } from './log.ts'
 import * as d3dPersistence from '../base/d3dPersistence.ts'
 
 /**

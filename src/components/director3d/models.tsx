@@ -4,8 +4,8 @@ import { useGLTF } from '@react-three/drei'
 import * as THREE from 'three'
 import { clone as skeletonClone } from 'three/examples/jsm/utils/SkeletonUtils.js'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
-import { poseForObject, presetDefinition } from './rig.js'
-import { log } from './log.js'
+import { poseForObject, presetDefinition } from './rig.ts'
+import { log } from './log.ts'
 
 // 内置人物模型：使用减面版（49k→15k 三角），蒙皮/骨骼/动画全保留，降低每帧渲染成本
 // 原件 xbot-animated.glb 保留在 public/models/ 作回退
@@ -17,7 +17,7 @@ const PERSON_HEIGHT_TARGET = 1.6
 
 // 导入模型自动适配：按包围盒高度把模型缩放到内置人物高度，并让底部落地（positionY）。
 // 解析失败回退 scale=1 / positionY=0（保持旧行为）。GLB 优先，.gltf 若带外部资源解析不了会走回退。
-export function measureModelScale(buffer) {
+export function measureModelScale(buffer: ArrayBuffer): Promise<{ scale: number; positionY: number }> {
   return new Promise(resolve => {
     try {
       const loader = new GLTFLoader()
@@ -151,9 +151,9 @@ function MixamoIKHandle({ bone, jointId, selected, modelRoot, onBeginDrag, onDra
 
 function MixamoPersonModel({ bodyType = 'standard', pose = 'idle', poseTime, continuousMotion = false, animationTime = 0, rigRoot, joints, footLock = false, color = '#e8e3d8', selected = false, selectedJoint, onSelectJoint, onRotateJoint, onRotateJoints, showBoneGizmo = false, onSurfacePointerDown, onSurfacePointerMove, onSurfacePointerUp }) {
   const gltf = useGLTF(BUILT_IN_MODEL_URL)
-  const orbitControls = useThree(state => state.controls)
+  const orbitControls = useThree(state => state.controls) as unknown as { enabled: boolean } | null
   const invalidate = useThree(state => state.invalidate)
-  const camera = useThree(state => state.camera)
+  const camera = useThree(state => state.camera) as unknown as (THREE.PerspectiveCamera & { fov?: number }) | null
   const viewportSize = useThree(state => state.size)
   const modelRoot = useRef(null)
   const rig = poseForObject({ pose, rigRoot, joints })
@@ -161,25 +161,27 @@ function MixamoPersonModel({ bodyType = 'standard', pose = 'idle', poseTime, con
   const boneDrag = useRef(null)
   const { scene, bones, bindTransforms, materials, mixer, clips } = useMemo(() => {
     const cloned = skeletonClone(gltf.scene)
-    const nextBones = {}
-    const nextBindTransforms = new WeakMap()
-    const nextMaterials = []
+    const nextBones: Record<string, THREE.Bone> = {}
+    const nextBindTransforms = new WeakMap<THREE.Bone, { position: THREE.Vector3; quaternion: THREE.Quaternion; scale: THREE.Vector3 }>()
+    const nextMaterials: THREE.MeshStandardMaterial[] = []
 
     cloned.traverse(child => {
-      if (child.isBone) {
-        nextBones[child.name] = child
-        nextBindTransforms.set(child, {
-          position: child.position.clone(),
-          quaternion: child.quaternion.clone(),
-          scale: child.scale.clone(),
+      if ((child as THREE.Bone).isBone) {
+        const bone = child as THREE.Bone
+        nextBones[bone.name] = bone
+        nextBindTransforms.set(bone, {
+          position: bone.position.clone(),
+          quaternion: bone.quaternion.clone(),
+          scale: bone.scale.clone(),
         })
       }
-      if (child.isMesh) {
-        child.castShadow = true
-        child.receiveShadow = true
-        child.frustumCulled = false
+      if ((child as THREE.Mesh).isMesh) {
+        const mesh = child as THREE.Mesh
+        mesh.castShadow = true
+        mesh.receiveShadow = true
+        mesh.frustumCulled = false
         const material = new THREE.MeshStandardMaterial({ color, roughness: 0.78, metalness: 0.02 })
-        child.material = material
+        mesh.material = material
         nextMaterials.push(material)
       }
     })
@@ -362,7 +364,7 @@ function MixamoPersonModel({ bodyType = 'standard', pose = 'idle', poseTime, con
     const bone = bones[drag.jointId]
     const sampled = sampledRotations.current.get(bone)
     if (!bone || !sampled) return
-    const delta = new THREE.Quaternion().setFromEuler(new THREE.Euler(...nextRotation, 'XYZ'))
+    const delta = new THREE.Quaternion().setFromEuler(new THREE.Euler(nextRotation[0] || 0, nextRotation[1] || 0, nextRotation[2] || 0, 'XYZ'))
     bone.quaternion.copy(sampled).multiply(delta).normalize()
     scene.updateMatrixWorld(true)
     drag.nextRotation = nextRotation
@@ -465,8 +467,8 @@ function MixamoPersonModel({ bodyType = 'standard', pose = 'idle', poseTime, con
   )
 }
 
-class ModelErrorBoundary extends Component {
-  constructor(props) {
+class ModelErrorBoundary extends Component<{ fallback: React.ReactNode; children: React.ReactNode }, { failed: boolean }> {
+  constructor(props: { fallback: React.ReactNode; children: React.ReactNode }) {
     super(props)
     this.state = { failed: false }
   }
@@ -476,8 +478,8 @@ class ModelErrorBoundary extends Component {
   }
 
   // 记录渲染异常（走统一日志层，便于排查，不阻塞回退 UI）
-  componentDidCatch(error, info) {
-    log.error('模型加载/渲染异常', error, info?.componentStack)
+  componentDidCatch(error: unknown, info: unknown) {
+    log.error('模型加载/渲染异常', error, (info as { componentStack?: string } | null)?.componentStack)
   }
 
   render() {
@@ -496,18 +498,22 @@ function StudioPerson(props) {
   )
 }
 
-function ImportedModel({ url, selected }) {
+function ImportedModel({ url, selected }: { url: string; selected?: boolean }) {
   const gltf = useGLTF(url)
-  const scene = useMemo(() => skeletonClone(gltf.scene), [gltf.scene])
+  const root = (Array.isArray(gltf) ? gltf[0] : gltf) as { scene?: THREE.Group }
+  const scene = useMemo(() => skeletonClone(root.scene!), [root.scene])
   useLayoutEffect(() => {
     scene.traverse(child => {
-      if (child.isMesh) {
-        child.castShadow = true
-        child.receiveShadow = true
-        if (selected && child.material) {
-          child.material = child.material.clone()
-          child.material.emissive = new THREE.Color('#312813')
-          child.material.emissiveIntensity = 0.22
+      if ((child as THREE.Mesh).isMesh) {
+        const mesh = child as THREE.Mesh
+        mesh.castShadow = true
+        mesh.receiveShadow = true
+        if (selected && mesh.material) {
+          const base = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material
+          const cloned = (base as THREE.MeshStandardMaterial).clone()
+          cloned.emissive = new THREE.Color('#312813')
+          cloned.emissiveIntensity = 0.22
+          mesh.material = cloned as THREE.Material
         }
       }
     })

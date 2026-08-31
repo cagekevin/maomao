@@ -24,9 +24,12 @@ const SOURCE_EXTS = ['.js', '.jsx', '.ts', '.tsx'];
 
 /**
  * 永久豁免目录：外部开源库（CLAUDE.md 红线：不重构、不纳入测试）。
- * 是「禁止保留 jsx」的唯一例外。
+ *
+ * 更新(2026-09-01)：director3d 已由用户明确要求「全部收敛」，26 个 .js/.jsx 全部 TS 化
+ * （App.tsx / Viewport.tsx / project.ts / rig.ts / panels/* 等），不再豁免，故清空本清单。
+ * 保留字段本身（各 check 脚本共用），后续若再引入外部库可在此登记。
  */
-const TS_EXEMPT_DIRS = ['src/components/director3d'];
+const TS_EXEMPT_DIRS = [];
 
 /**
  * 永久豁免文件：契约/配置真相源。被 4 个 check 脚本用 Node 直接 import()，

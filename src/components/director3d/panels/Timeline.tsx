@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Box, Camera, Copy, Magnet, Pause, Play, Plus, SkipBack, SkipForward, Trash2, UserRound } from 'lucide-react'
-import { clamp, normalizeInterpolation, poseLabel } from '../project.js'
+import { clamp, normalizeInterpolation, poseLabel } from '../project.ts'
 
 // 时间轴水平缩放（每帧像素）与吸附（整数帧/播放头）的默认/边界
 const PX_PER_FRAME_DEFAULT = 6

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Box, Camera, Lock, ScanLine, Sparkles, Unlock, UserRound } from 'lucide-react'
-import { ShotsPanel } from './ShotsPanel.jsx'
-import { CAMERA_ID } from '../project.js'
+import { ShotsPanel } from './ShotsPanel.tsx'
+import { CAMERA_ID } from '../project.ts'
 
 export function SceneList({ objects, selectedId, onSelect, onToggleVisible, onToggleLock }) {
   return (

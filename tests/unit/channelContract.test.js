@@ -9,7 +9,7 @@
 // 另含：迁移幂等性、keyframeMaxFrame/clampKeyframeFrames 通道化适配、写入口 upsert/remove、读侧桥 flatten。
 // 依赖均为纯函数，node 环境可跑（npm run test:unit:logic）。
 import { describe, it, expect } from 'vitest'
-import { presetJoints } from '../../src/components/director3d/rig.js'
+import { presetJoints } from '../../src/components/director3d/rig.ts'
 import {
   ENTITY_CHANNELS,
   snapshotToChannelKeys,
@@ -28,7 +28,7 @@ import {
   keyframeMaxFrame,
   clampKeyframeFrames,
   initialCamera,
-} from '../../src/components/director3d/project.js'
+} from '../../src/components/director3d/project.ts'
 
 // ---- 测试样本：与 objectKeyframeFromObject / addObjectKeyframe 产出形状一致的整快照 key ----
 

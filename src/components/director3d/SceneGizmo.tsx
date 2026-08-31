@@ -15,7 +15,7 @@ const VIEW_DIRS = {
   back: [0, 0, -1],
 }
 
-function Axis({ color, rotation }) {
+function Axis({ color, rotation }: { color: string; rotation: [number, number, number] }) {
   return (
     <group rotation={rotation}>
       <mesh position={[0.4, 0, 0]}>
@@ -26,7 +26,12 @@ function Axis({ color, rotation }) {
   )
 }
 
-function AxisHead({ color, label, position, onJump }) {
+function AxisHead({ color, label, position, onJump }: {
+  color: string
+  label?: string
+  position: [number, number, number]
+  onJump: (pos: [number, number, number]) => void
+}) {
   const gl = useThree(s => s.gl)
   const [hover, setHover] = useState(false)
   const texture = useMemo(() => {
@@ -71,7 +76,7 @@ function AxisHead({ color, label, position, onJump }) {
 
 export default function SceneGizmo({ onReady }) {
   const mainCamera = useThree(s => s.camera)
-  const controls = useThree(s => s.controls)
+  const controls = useThree(s => s.controls) as unknown as { update: () => void } | null
   const invalidate = useThree(s => s.invalidate)
   const size = useThree(s => s.size)
   const groupRef = useRef(null)

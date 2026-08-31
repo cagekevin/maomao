@@ -3,9 +3,108 @@
 import {
   RIG_PRESET_OPTIONS, cloneJointPose, interpolateJointPose, normalizePoseId, poseCanLoop,
   poseForObject, presetJoints, presetPhase, presetRoot,
-} from './rig.js'
-import { readJson, removeKey, writeJson } from './storage.js'
+} from './rig.ts'
+import { readJson, removeKey, writeJson } from './storage.ts'
 import { isProjectImageUrl } from '../base/d3dPersistence.ts'
+
+// ================================================================
+// 领域类型真相源（3D 导演台）
+// 本模块是 director3d 的领域逻辑层，project 数据形状在此唯一定义，
+// App.tsx / Viewport.tsx / panels/* 一律复用本处类型，禁止各自重定义后漂移。
+// 所有 normalize* 的入参都是「外部读入的脏数据」，故统一用 Partial<X> 接收，
+// 出参是规整后的完整 X（零行为变化，仅把 JS 期隐式的形状显式化）。
+// ================================================================
+
+/** 属性层级：animatable 进通道被打点驱动 / objectState 沿对象基线 / config 不参与求值 */
+export type PropertyLayer = 'animatable' | 'objectState' | 'config'
+export interface PropertyMeta {
+  layer: PropertyLayer
+  /** 所属通道名，仅 animatable 必填（transform/action/skeleton/lens） */
+  channel?: string
+}
+export type PropertyRegistry = Record<string, Record<string, PropertyMeta>>
+
+/** 通道定义：通道名 → 该通道负责的字段名数组（顺序 = 注册表内首次出现顺序，合成按此覆盖） */
+export type ChannelDefinition = Record<string, string[]>
+/** 实体类型 → 通道定义 */
+export type EntityChannelMap = Record<string, ChannelDefinition>
+
+/** 通道轨内单个关键帧：只含本通道字段（M1-C1，未含字段该帧不解接管） */
+export interface ChannelKey {
+  frame: number
+  interpolation?: string
+  fields?: Record<string, unknown>
+  [key: string]: unknown
+}
+/** 通道结构：通道名 → 关键帧数组 */
+export type ChannelTracks = Record<string, ChannelKey[]>
+
+/** 实体类型名 */
+export type EntityType = 'person' | 'object' | 'camera'
+
+/** 摄像机状态 */
+export interface ProjectCamera {
+  position: number[]
+  rotation: number[]
+  focalLength: number
+  aspectRatio: string
+  targetMode: 'manual' | 'object'
+  targetId: string
+  /** 旧工程遗留：无 rotation 时由 target 反解朝向 */
+  target?: number[]
+}
+
+/** 参考图（背景贴图） */
+export interface ProjectReference {
+  image: string
+  name: string
+  opacity: number
+  scale: number
+  x: number
+  y: number
+  visible: boolean
+  includeInExport: boolean
+}
+
+/** 工程/镜头级设置（帧率、时长、循环） */
+export interface ProjectSettings {
+  name: string
+  fps: number
+  durationSeconds: number
+  loopPlayback: boolean
+}
+
+/** 三点光照 */
+export interface ProjectLighting {
+  ambientIntensity: number
+  keyIntensity: number
+  fillIntensity: number
+  keyAzimuth: number
+  keyElevation: number
+  exposure: number
+  ambientColor: string
+  keyColor: string
+  fillColor: string
+}
+
+/**
+ * 场景对象（人物 / 粗模）。
+ * 带索引签名：求值器按 PROPERTY_REGISTRY 动态 Object.assign 接管字段，
+ * 且人物 pose/joints/rigRoot 等骨骼字段形状由 rig.ts 决定，不在此逐一钉死。
+ */
+export interface ProjectObject {
+  id: string
+  name?: string
+  type?: string
+  bodyType?: string
+  pose?: string
+  poseTime?: number
+  position?: number[]
+  rotation?: number[]
+  scale?: number[]
+  color?: string
+  [key: string]: unknown
+}
 
 export const CAMERA_ID = '__shot_camera__'
 export const PROJECT_STORAGE_KEY = 'director3d-project'
@@ -61,7 +160,7 @@ export const initialObjects = [
     position: [2.9, 0.18, 0.55], rotation: [0, -0.18, 0], scale: [1.7, 0.36, 1.1], color: '#77746d',
   },
 ]
-export const initialCamera = {
+export const initialCamera: ProjectCamera = {
   position: [...DEFAULT_CAMERA_POSITION],
   rotation: cameraRotationToward(DEFAULT_CAMERA_POSITION, LEGACY_DEFAULT_CAMERA_TARGET),
   focalLength: 42,
@@ -177,7 +276,7 @@ export function uniqueSortedKeyframes(keys) {
 //   3. 消费：渲染端（Viewport → models）读合成结果，开关最终决定行为（如 continuousMotion && loopable）。
 //   链路即：注册表 `登记` → `录制只捡量` → `求值 L2 沿基线` → `渲染消费`，全程不逐列特判。
 // ================================================================
-export const PROPERTY_REGISTRY = {
+export const PROPERTY_REGISTRY: PropertyRegistry = {
   person: {
     position:         { layer: 'animatable', channel: 'transform' },
     rotation:         { layer: 'animatable', channel: 'transform' },
@@ -215,10 +314,10 @@ export const PROPERTY_REGISTRY = {
 // 派生通道表（保留旧名 ENTITY_CHANNELS 以兼容 43 已交付消费方）。
 // 每个 entityType 产生 { channel: [field...] }，channel 顺序 = 注册表内首次出现顺序（合成按此覆盖，锁死）。
 // animatable 字段必须声明 channel（否则抛错），杜绝「漏标 channel 静默攒 undefined」。
-const deriveChannels = registry => {
-  const out = {}
+const deriveChannels = (registry: PropertyRegistry): EntityChannelMap => {
+  const out: EntityChannelMap = {}
   for (const [type, fields] of Object.entries(registry)) {
-    const channels = {}
+    const channels: ChannelDefinition = {}
     for (const [field, meta] of Object.entries(fields)) {
       if (meta.layer !== 'animatable') continue
       if (!meta.channel) throw new Error(`[PROPERTY_REGISTRY] ${type}.${field}: animatable 字段必须声明 channel`)
@@ -228,7 +327,7 @@ const deriveChannels = registry => {
   }
   return out
 }
-export const ENTITY_CHANNELS = deriveChannels(PROPERTY_REGISTRY)
+export const ENTITY_CHANNELS: EntityChannelMap = deriveChannels(PROPERTY_REGISTRY)
 
 // 预编译每实体 objectState 字段表：热路径只遍历字段名数组，不在循环里逐字段判 layer（47 热路径要求）。
 export const OBJECT_STATE_FIELDS = Object.fromEntries(
@@ -242,11 +341,11 @@ export const OBJECT_STATE_FIELDS = Object.fromEntries(
 // 只有 snapshot 里「存在」的字段才进对应通道的 fields；不存在的字段不补默认
 // （部分字段 key 语义，M1-C3）。派生量（如 motionStartTime）不在通道字段清单里，天然不落库（M1-C5）。
 // 返回 `{ channelName: [{frame, interpolation, fields}] }`，无字段的通道不出现。
-export function snapshotToChannelKeys(entityType, snapshot, frame, interpolation = 'smooth') {
+export function snapshotToChannelKeys(entityType: string, snapshot: Record<string, unknown>, frame: number, interpolation = 'smooth'): ChannelTracks {
   const definition = ENTITY_CHANNELS[entityType] || ENTITY_CHANNELS.object
-  const keys = {}
+  const keys: ChannelTracks = {}
   for (const [channel, fields] of Object.entries(definition)) {
-    const fieldValues = {}
+    const fieldValues: Record<string, unknown> = {}
     for (const field of fields) {
       if (snapshot[field] !== undefined) fieldValues[field] = cloneProjectValue(snapshot[field])
     }
@@ -259,14 +358,14 @@ export function snapshotToChannelKeys(entityType, snapshot, frame, interpolation
 
 // 通道结构 → 整快照 key 数组（读侧桥：M2 求值器落地前，旧 objectAtFrame/cameraAtFrame/Timeline
 // 仍吃整快照数组，用本函数把各通道按帧合并还原）。同帧多通道合并，插值取后写通道（M1 全通道同插值）。
-export function channelsToSnapshotKeys(entityType, channels = {}) {
+export function channelsToSnapshotKeys(entityType: string, channels: ChannelTracks = {}) {
   const definition = ENTITY_CHANNELS[entityType] || ENTITY_CHANNELS.object
   const fieldList = Object.values(definition).flat()
-  const merged = new Map()
+  const merged = new Map<number, { frame: number; interpolation: string; fields?: Record<string, unknown> }>()
   for (const list of Object.values(channels || {})) {
     for (const key of (Array.isArray(list) ? list : [])) {
       if (!key || key.frame === undefined) continue
-      const entry = merged.get(key.frame) || { frame: key.frame, interpolation: normalizeInterpolation(key.interpolation) }
+      const entry = merged.get(key.frame) || { frame: key.frame, interpolation: normalizeInterpolation(key.interpolation), fields: undefined }
       if (key.interpolation) entry.interpolation = normalizeInterpolation(key.interpolation)
       if (key.fields && typeof key.fields === 'object') {
         entry.fields = { ...entry.fields, ...cloneProjectValue(key.fields) }
@@ -275,7 +374,7 @@ export function channelsToSnapshotKeys(entityType, channels = {}) {
     }
   }
   return [...merged.values()].sort((a, b) => a.frame - b.frame).map(entry => {
-    const key = { frame: entry.frame, interpolation: entry.interpolation }
+    const key: Record<string, unknown> = { frame: entry.frame, interpolation: entry.interpolation }
     for (const field of fieldList) {
       if (entry.fields?.[field] !== undefined) key[field] = cloneProjectValue(entry.fields[field])
     }
@@ -284,14 +383,14 @@ export function channelsToSnapshotKeys(entityType, channels = {}) {
 }
 
 // 读侧桥便捷入口：轨道可能是「已通道化结构」或「旧整快照数组」，统一吐整快照数组。
-export function snapshotKeysForTrack(track, entityType = 'object') {
+export function snapshotKeysForTrack(track: ChannelTracks | ChannelKey[], entityType: string = 'object') {
   return Array.isArray(track) ? track : channelsToSnapshotKeys(entityType, track || {})
 }
 
 // 统计一个轨道（通道结构或旧数组）的「已打点帧数」。
 // 与旧实现 `keyframes.length`（= 已打点帧数）语义一致，供「轨道是否有动画 / 是否清空」判断；
 // 同帧多通道只计一次（时间轴上每帧一个点）。
-export function countChannelKeyframes(channels) {
+export function countChannelKeyframes(channels: ChannelTracks | ChannelKey[]) {
   if (Array.isArray(channels)) return channels.length
   if (!channels || typeof channels !== 'object') return 0
   return new Set(Object.values(channels)
@@ -300,8 +399,8 @@ export function countChannelKeyframes(channels) {
 
 // 写入口：把 snapshotToChannelKeys 产出的各通道 key 合并进现有通道结构（同帧覆盖）。
 // M1 各写入口（addObjectKeyframe/addKeyframe/粘贴/路径烘焙）统一经它落库（M4-C7 的雏形）。
-export function upsertChannelKeys(channels = {}, channelKeys = {}) {
-  const next = { ...channels }
+export function upsertChannelKeys(channels: ChannelTracks = {}, channelKeys: ChannelTracks = {}): ChannelTracks {
+  const next: ChannelTracks = { ...channels }
   for (const [channel, keys] of Object.entries(channelKeys)) {
     const frame = keys[0]?.frame
     if (frame === undefined) continue
@@ -311,9 +410,9 @@ export function upsertChannelKeys(channels = {}, channelKeys = {}) {
 }
 
 // 从所有通道删除指定帧（M1 各删除入口统一用它，避免漏删某通道遗留幽灵关键帧）。
-export function removeChannelFrames(channels = {}, frames = []) {
+export function removeChannelFrames(channels: ChannelTracks = {}, frames: number[] = []): ChannelTracks {
   const removed = new Set(frames)
-  const next = {}
+  const next: ChannelTracks = {}
   for (const [channel, list] of Object.entries(channels)) {
     const kept = (Array.isArray(list) ? list : []).filter(key => !removed.has(key.frame))
     if (kept.length) next[channel] = kept
@@ -378,30 +477,30 @@ export function writeObjectTrack(tracks = {}, id, operation) {
 }
 
 // 收集一个轨道（通道结构或旧数组）的所有帧号（keyframeMaxFrame 用）。
-const collectTrackFrames = track => {
+const collectTrackFrames = (track: ChannelTracks | ChannelKey[]): number[] => {
   const lists = Array.isArray(track) ? [track] : Object.values(track || {})
   return lists.flatMap(list => (Array.isArray(list) ? list : []).map(key => normalizeFrameNumber(key?.frame)))
 }
 
-export function clampKeyframeFrames(keys, maxFrame) {
-  const clampList = list => uniqueSortedKeyframes((Array.isArray(list) ? list : []).map(key => ({
+export function clampKeyframeFrames(keys: ChannelTracks | ChannelKey[], maxFrame: number) {
+  const clampList = (list: ChannelKey[]) => uniqueSortedKeyframes((Array.isArray(list) ? list : []).map(key => ({
     ...key,
     frame: clamp(normalizeFrameNumber(key?.frame), 0, maxFrame),
   })))
   if (Array.isArray(keys)) return clampList(keys)
   if (keys && typeof keys === 'object') {
-    return Object.fromEntries(Object.entries(keys).map(([channel, list]) => [channel, clampList(list)]).filter(([, list]) => list.length))
+    return Object.fromEntries(Object.entries(keys).map(([channel, list]) => [channel, clampList(list as ChannelKey[])]).filter(([, list]) => list.length))
   }
   return keys
 }
 
-export function keyframeMaxFrame(cameraKeys = [], objectTracks = {}) {
+export function keyframeMaxFrame(cameraKeys: ChannelTracks | ChannelKey[] = [], objectTracks: Record<string, ChannelTracks | ChannelKey[]> = {}) {
   const cameraFrames = collectTrackFrames(cameraKeys)
   const objectFrames = Object.values(objectTracks || {}).flatMap(track => collectTrackFrames(track))
   return Math.max(0, ...cameraFrames, ...objectFrames)
 }
 
-export function finiteVector3(value, fallback) {
+export function finiteVector3(value: unknown, fallback: number[]): number[] {
   return Array.isArray(value) && value.length >= 3
     ? value.slice(0, 3).map((item, index) => Number.isFinite(Number(item)) ? Number(item) : fallback[index])
     : [...fallback]
@@ -419,7 +518,7 @@ export function cameraRotationToward(position, target) {
   return [Math.asin(Math.min(1, Math.max(-1, dy))), Math.atan2(-dx, -dz), 0]
 }
 
-export function normalizeCamera(camera = {}) {
+export function normalizeCamera(camera: Partial<ProjectCamera> = {}): ProjectCamera {
   const position = finiteVector3(camera.position, initialCamera.position)
   const rotation = Array.isArray(camera.rotation)
     ? finiteVector3(camera.rotation, initialCamera.rotation)
@@ -439,26 +538,26 @@ export function normalizeCamera(camera = {}) {
 
 // 摄像机通道字段归一化（M1）：迁移/幂等时统一规整通道内字段。
 // 字段清单见 ENTITY_CHANNELS.camera；新增通道字段时在此补一条归一化规则。
-const normalizeCameraField = (field, value, fallbackCamera) => {
+const normalizeCameraField = (field: string, value: unknown, fallbackCamera: ProjectCamera) => {
   if (field === 'position') return finiteVector3(value, fallbackCamera.position)
   if (field === 'rotation') return Array.isArray(value) ? finiteVector3(value, fallbackCamera.rotation) : cameraRotationToward(fallbackCamera.position, LEGACY_DEFAULT_CAMERA_TARGET)
   if (field === 'focalLength') return clamp(Number(value) || fallbackCamera.focalLength, 18, 120)
   return value
 }
 
-export function normalizeCameraKeyframes(keys = [], fallbackCamera = initialCamera) {
+export function normalizeCameraKeyframes(keys: ChannelTracks | ChannelKey[] = [], fallbackCamera: ProjectCamera = initialCamera): ChannelTracks {
   // M1 通道化：输入兼容「旧整快照数组」与「已通道化结构」，输出统一为通道结构
   // `{ transform: [{frame, interpolation, fields:{position, rotation}}], lens: [...] }`。
   // 旧数组：逐 key 经 snapshotToChannelKeys 拆成 transform/lens 后合并（幂等迁移，
   //   旧工程一次性升级、无数据丢失）；已通道化：逐通道归一化字段后原样返回（幂等）。
   // 摄像机只有 transform（位移/旋转）+ lens（焦距）两通道，见 ENTITY_CHANNELS.camera。
-  const channels = Array.isArray(keys)
+  const channels: ChannelTracks = Array.isArray(keys)
     ? (Array.isArray(keys) ? keys.filter(Boolean) : []).reduce(
-        (merged, key) => upsertChannelKeys(merged, snapshotToChannelKeys('camera', key, key.frame, key.interpolation)),
+        (merged: ChannelTracks, key) => upsertChannelKeys(merged, snapshotToChannelKeys('camera', key, key.frame, key.interpolation)),
         {},
       )
     : (keys || {})
-  const result = {}
+  const result: ChannelTracks = {}
   for (const [channel, fields] of Object.entries(ENTITY_CHANNELS.camera)) {
     const list = (Array.isArray(channels[channel]) ? channels[channel].filter(Boolean) : []).map(key => ({
       frame: normalizeFrameNumber(key.frame),
@@ -474,7 +573,7 @@ export function normalizeCameraKeyframes(keys = [], fallbackCamera = initialCame
   return result
 }
 
-export function normalizeReference(reference = {}) {
+export function normalizeReference(reference: Partial<ProjectReference> = {}): ProjectReference {
   const image = typeof reference.image === 'string' && isProjectImageUrl(reference.image)
     ? reference.image
     : ''
@@ -490,7 +589,7 @@ export function normalizeReference(reference = {}) {
   }
 }
 
-export function normalizeProjectSettings(settings = {}) {
+export function normalizeProjectSettings(settings: Partial<ProjectSettings> = {}): ProjectSettings {
   const fps = FPS_OPTIONS.includes(Number(settings.fps)) ? Number(settings.fps) : DEFAULT_PROJECT_SETTINGS.fps
   const durationSeconds = clamp(Math.round(Number(settings.durationSeconds) || DEFAULT_PROJECT_SETTINGS.durationSeconds), 1, 60)
   return {
@@ -501,7 +600,7 @@ export function normalizeProjectSettings(settings = {}) {
   }
 }
 
-export function normalizeLighting(lighting = {}) {
+export function normalizeLighting(lighting: Partial<ProjectLighting> = {}): ProjectLighting {
   const numeric = (value, fallback, minimum, maximum) => {
     const parsed = Number(value)
     return clamp(Number.isFinite(parsed) ? parsed : fallback, minimum, maximum)
@@ -558,11 +657,11 @@ export function readCustomPoses() {
 
 // 对象/人物通道字段归一化（M1）：与旧整快照归一化规则一一对应，保证迁移后播放逐帧一致。
 // 字段清单见 ENTITY_CHANNELS；新增通道字段时在此补一条归一化规则。
-function normalizeObjectField(entityType, field, value) {
+function normalizeObjectField(entityType: string, field: string, value: unknown) {
   if (field === 'position' || field === 'rotation') return finiteVector3(value, [0, 0, 0])
   if (field === 'scale') return finiteVector3(value, [1, 1, 1])
-  if (field === 'pose') return normalizePoseId(value)
-  if (field === 'poseTime') return Number.isFinite(Number(value)) ? Number(value) : presetPhase(normalizePoseId(value))
+  if (field === 'pose') return normalizePoseId(value as string)
+  if (field === 'poseTime') return Number.isFinite(Number(value)) ? Number(value) : presetPhase(normalizePoseId(value as string))
   if (field === 'rigRoot') return Array.isArray(value) ? value.slice(0, 3).map(item => Number(item) || 0) : [0, 0, 0]
   if (field === 'joints') return cloneJointPose(value)
   return value
@@ -570,7 +669,7 @@ function normalizeObjectField(entityType, field, value) {
 
 // 通道结构可自推断实体类型（含 action/skeleton → person，含 lens → camera，否则 object）；
 // 旧整快照数组无法推断，需调用方显式传 entityTypes（normalizeShot 已从 objects 构建并传入）。
-const inferChannelEntityType = track => {
+const inferChannelEntityType = (track: ChannelTracks | ChannelKey[]): EntityType => {
   if (!track || typeof track !== 'object' || Array.isArray(track)) return 'object'
   if ('action' in track || 'skeleton' in track) return 'person'
   if ('lens' in track) return 'camera'
@@ -583,20 +682,20 @@ const inferChannelEntityType = track => {
 // 迁移时这些字段不得进 action/skeleton 通道——路径帧只保留 position 作为「路径接管位置」的
 // 来源标识（M3-C1 二选一由 M3 求值引擎保证，位置关键帧被显示忽略）。非路径帧（用户手动 K）
 // 的整快照完整迁移到对应通道。已通道化结构无路径残留（M3 起 bake 只写 position），幂等归一。
-const normalizeObjectTrack = (track, entityType, pathFrames = []) => {
+const normalizeObjectTrack = (track: ChannelTracks | ChannelKey[], entityType: string, pathFrames: number[] = []): ChannelTracks => {
   const definition = ENTITY_CHANNELS[entityType] || ENTITY_CHANNELS.object
   const pathFrameSet = new Set(pathFrames.map(normalizeFrameNumber))
-  const channels = Array.isArray(track)
+  const channels: ChannelTracks = Array.isArray(track)
     ? track.filter(Boolean)
         .map(key => pathFrameSet.has(normalizeFrameNumber(key.frame))
           ? { frame: key.frame, interpolation: key.interpolation, position: key.position }
           : key)
         .reduce(
-          (merged, key) => upsertChannelKeys(merged, snapshotToChannelKeys(entityType, key, key.frame, key.interpolation)),
+          (merged: ChannelTracks, key) => upsertChannelKeys(merged, snapshotToChannelKeys(entityType, key, key.frame, key.interpolation)),
           {},
         )
     : (track || {})
-  const result = {}
+  const result: ChannelTracks = {}
   for (const [channel, fields] of Object.entries(definition)) {
     const list = (Array.isArray(channels[channel]) ? channels[channel].filter(Boolean) : []).map(key => ({
       frame: normalizeFrameNumber(key.frame),
@@ -612,13 +711,17 @@ const normalizeObjectTrack = (track, entityType, pathFrames = []) => {
   return result
 }
 
-export function normalizeObjectTracks(tracks = {}, entityTypes = {}, paths = {}) {
+export function normalizeObjectTracks(
+  tracks: Record<string, ChannelTracks | ChannelKey[]> = {},
+  entityTypes: Record<string, string> = {},
+  paths: Record<string, { sourceKeyframeFrames?: number[] }> = {},
+): Record<string, ChannelTracks> {
   if (!tracks || typeof tracks !== 'object') return {}
   // M1 通道化：entityTypes 显式传入「对象 id → 实体类型」（person/object），决定按哪个通道定义拆包；
   // 未传时对已通道化结构按通道名自推断，旧数组一律回落为 object（无姿态语义，只留 transform）。
   // M4.2：paths 提供每对象路径烘焙帧号（sourceKeyframeFrames），迁移时剥掉路径帧姿态残留。
   return Object.fromEntries(Object.entries(tracks)
-    .map(([id, track]) => [id, normalizeObjectTrack(track, entityTypes[id] || inferChannelEntityType(track), paths?.[id]?.sourceKeyframeFrames || [])])
+    .map(([id, track]): [string, ChannelTracks] => [id, normalizeObjectTrack(track, entityTypes[id] || inferChannelEntityType(track), paths?.[id]?.sourceKeyframeFrames || [])])
     .filter(([, track]) => countChannelKeyframes(track) > 0))
 }
 
@@ -802,7 +905,7 @@ export function projectData({ settings, objects, camera, lighting, reference, ke
 // 查询基元：在已排序通道 key 数组里定位目标帧（M2-C6），四个通道与相机轨/对象轨共用。
 // 返回 { exact, left, right, t, bounds }：exact 命中该帧的 key（无则 null）；
 // bounds 区分 exact/首前/末后/段内，left/right 为段两侧 key，t 为段内插值进度。
-function locateChannelKey(keys, frame) {
+function locateChannelKey(keys: ChannelKey[], frame: number) {
   if (!Array.isArray(keys) || !keys.length) return { exact: null, left: null, right: null, t: 0, bounds: 'empty' }
   const exact = keys.find(key => key.frame === frame)
   if (exact) return { exact, left: exact, right: exact, t: 0, bounds: 'exact' }
@@ -825,10 +928,10 @@ function locateChannelKey(keys, frame) {
 // 其余数组字段逐元素 lerp、标量字段（focalLength）直接 lerp。
 // 段内两端字段不一致（一端缺字段）时不插值、保持有值一侧——「接管以该帧可确定为准」，不臆造缺口。
 // 返回 null 表示无 key（该通道未接管）；否则返回 `{ 字段名: 值 }` 的覆盖集合。
-function evaluateNumericChannel(keys, frame, { angleFields = new Set() } = {}) {
+function evaluateNumericChannel(keys: ChannelKey[], frame: number, { angleFields = new Set<string>() } = {}): Record<string, unknown> | null {
   const { left, right, t, bounds } = locateChannelKey(keys, frame)
   if (bounds === 'empty') return null
-  const fields = {}
+  const fields: Record<string, unknown> = {}
   if (bounds !== 'segment') {
     for (const field of Object.keys(left.fields || {})) {
       fields[field] = cloneProjectValue(left.fields[field])
@@ -844,11 +947,11 @@ function evaluateNumericChannel(keys, frame, { angleFields = new Set() } = {}) {
     if (a === undefined || b === undefined) {
       fields[field] = cloneProjectValue(a !== undefined ? a : b)
     } else if (angleFields.has(field)) {
-      fields[field] = a.map((value, index) => lerpAngle(value, b[index], t))
+      fields[field] = (a as number[]).map((value, index) => lerpAngle(value, (b as number[])[index], t))
     } else if (Array.isArray(a)) {
-      fields[field] = a.map((value, index) => lerp(value, b[index], t))
+      fields[field] = (a as number[]).map((value, index) => lerp(value, (b as number[])[index], t))
     } else {
-      fields[field] = lerp(a, b, t)
+      fields[field] = lerp(a as number, b as number, t)
     }
   }
   return fields
@@ -859,27 +962,29 @@ function evaluateNumericChannel(keys, frame, { angleFields = new Set() } = {}) {
 // motionStartTime = 状态段起始帧 / fps；并产出 interpolateState 供骨骼通道决定「插值 or 硬切」。
 // 返回 null 表示无动作 key（未接管，合成器保持基线）。
 // 注意：通道 key 的字段在 `key.fields` 下（M1 轨结构），必须经 field() 读取，勿用扁平访问。
-function evaluateActionChannel(keys, object, frame, fps) {
+function evaluateActionChannel(keys: ChannelKey[], object: ProjectObject, frame: number, fps: number) {
   if (!Array.isArray(keys) || !keys.length) return null
-  const field = (key, name) => key?.fields?.[name]
-  const motionEnabled = key => poseCanLoop(field(key, 'pose') || object.pose)
+  const field = (key: ChannelKey, name: string) => key?.fields?.[name]
+  // pose 是动作通道的核心判别量：key 未携带时回落对象基线（与旧 objectAtFrame 语义一致）
+  const poseOf = (key: ChannelKey) => (field(key, 'pose') as string) || object.pose
+  const motionEnabled = (key: ChannelKey) => poseCanLoop(poseOf(key))
     && (field(key, 'continuousMotion') === undefined ? Boolean(object.continuousMotion) : Boolean(field(key, 'continuousMotion')))
-  const sameState = (leftKey, rightKey) => normalizePoseId(field(leftKey, 'pose') || object.pose) === normalizePoseId(field(rightKey, 'pose') || object.pose)
+  const sameState = (leftKey: ChannelKey, rightKey: ChannelKey) => normalizePoseId(poseOf(leftKey)) === normalizePoseId(poseOf(rightKey))
     && motionEnabled(leftKey) === motionEnabled(rightKey)
-  const stateStartFrame = key => {
+  const stateStartFrame = (key: ChannelKey) => {
     let index = keys.indexOf(key)
     while (index > 0 && sameState(keys[index - 1], keys[index])) index -= 1
     return keys[index]?.frame ?? key.frame
   }
-  const poseTimeOf = key => {
-    const value = field(key, 'poseTime')
-    return Number.isFinite(value) ? value : presetPhase(field(key, 'pose') || object.pose)
+  const poseTimeOf = (key: ChannelKey): number => {
+    const value = Number(field(key, 'poseTime'))
+    return Number.isFinite(value) ? value : presetPhase(poseOf(key))
   }
   const { exact, left, right, t, bounds } = locateChannelKey(keys, frame)
   const key = exact || left
   const interpolateState = bounds === 'segment' ? sameState(left, right) : true
   return {
-    pose: normalizePoseId(field(key, 'pose') || object.pose),
+    pose: normalizePoseId(poseOf(key)),
     poseTime: interpolateState ? lerp(poseTimeOf(left), poseTimeOf(right), t) : poseTimeOf(left),
     continuousMotion: motionEnabled(key),
     motionStartTime: stateStartFrame(key) / fps,
@@ -893,9 +998,9 @@ function evaluateActionChannel(keys, object, frame, fps) {
 // 无动作上下文（仅骨骼 key 的极端情况）：无状态信息，按同状态插值兜底，不臆造状态段。
 // 返回 null 表示无骨骼 key（未接管，保持基线）。
 // 字段同样在 key.fields 下，经 field() 读取。
-function evaluateSkeletonChannel(keys, actionContext, object, frame) {
+function evaluateSkeletonChannel(keys: ChannelKey[], actionContext: { interpolateState: boolean } | null, object: ProjectObject, frame: number) {
   if (!Array.isArray(keys) || !keys.length) return null
-  const field = (key, name) => key?.fields?.[name]
+  const field = (key: ChannelKey, name: string) => key?.fields?.[name]
   const { exact, left, right, t, bounds } = locateChannelKey(keys, frame)
   const key = exact || left
   const jointsOf = k => field(k, 'joints') || poseForObject({ ...object, pose: field(k, 'pose') || object.pose }).joints
@@ -916,8 +1021,8 @@ function evaluateSkeletonChannel(keys, actionContext, object, frame) {
 //   position 唯一由路径提供（pathPositionAtFrame 弧长匀速），变换通道里的位置关键帧
 //   被显式忽略（二选一）；「有路径」即视为位置来源存在，变换轨为空也不回落基线（M3-C3）。
 //   rotation/scale 等其它变换字段仍按关键帧/基线求值；路径帧绝不写 pose/joints/rigRoot（M3-C2）。
-function synthesizeObjectState(object, channels, frame, fps, path = null) {
-  const result = { ...object }
+function synthesizeObjectState(object: ProjectObject, channels: ChannelTracks, frame: number, fps: number, path: object | null = null) {
+  const result: ProjectObject = { ...object }
   // transform 通道：数值插值（对象/人物的 rotation 走普通 lerp，与旧 objectAtFrame 行为一致）
   const transform = evaluateNumericChannel(channels?.transform || [], frame, {})
   // 路径作为独立位置来源：启用时 position 唯一由路径给出
@@ -979,7 +1084,7 @@ export function objectKeyframeFromObject(object, frame) {
   }
 }
 
-export function objectAtFrame(object, keyframes = [], frame, fps = DEFAULT_PROJECT_SETTINGS.fps, path = null) {
+export function objectAtFrame(object: ProjectObject, keyframes: ChannelTracks | ChannelKey[] = [], frame: number, fps = DEFAULT_PROJECT_SETTINGS.fps, path: object | null = null) {
   if (!object) return object
   // M2：keyframes 兼容「旧整快照数组」与「已通道化结构」；旧数组按实体类型经幂等归一化转通道。
   const channels = Array.isArray(keyframes) ? normalizeObjectTrack(keyframes, object.type) : (keyframes || {})
@@ -987,9 +1092,9 @@ export function objectAtFrame(object, keyframes = [], frame, fps = DEFAULT_PROJE
   return synthesizeObjectState(object, channels, frame, fps, path)
 }
 
-export function objectsAtFrame(objects, objectKeyframes, frame, fps, paths = {}) {
+export function objectsAtFrame(objects: ProjectObject[], objectKeyframes: Record<string, ChannelTracks | ChannelKey[]>, frame: number, fps: number, paths: Record<string, object> = {}) {
   // M3：paths 为 `{对象id → 运动路径}` 映射，逐对象透传给求值引擎作为独立位置来源
-  return objects.map(object => objectAtFrame(object, objectKeyframes[object.id], frame, fps, paths?.[object.id]))
+  return objects.map(object => objectAtFrame(object, objectKeyframes[object.id], frame, fps, paths?.[object.id] ?? null))
 }
 
 // ---- 运动路径（画线）领域逻辑：纯 JS，不依赖 three，可供 App / Viewport / 序列化复用 ----
@@ -1227,7 +1332,7 @@ export function fallbackCharacterKeyframes() {
   return {}
 }
 
-export function referenceImageFromFile(file) {
+export function referenceImageFromFile(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const imageExtension = /\.(png|jpe?g|webp|bmp|gif)$/i.test(file?.name || '')
     if (!file || (!file.type?.startsWith('image/') && !imageExtension)) { reject(new Error('请选择 PNG、JPG、WEBP、BMP 或 GIF 图片')); return }
@@ -1249,7 +1354,7 @@ export function referenceImageFromFile(file) {
         context.drawImage(image, 0, 0, canvas.width, canvas.height)
         resolve(canvas.toDataURL('image/jpeg', 0.84))
       }
-      image.src = reader.result
+      image.src = String(reader.result)
     }
     reader.readAsDataURL(file)
   })

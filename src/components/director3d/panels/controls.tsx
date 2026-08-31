@@ -1,7 +1,18 @@
+import type { LucideIcon } from 'lucide-react'
 import { Link2, Lock, Unlock, Unlink2 } from 'lucide-react'
-import { degToRad, radToDeg } from '../project.js'
+import { degToRad, radToDeg } from '../project.ts'
 
-export function ToolButton({ icon: Icon, active, label, onClick, disabled = false, shortcut }) {
+export interface ToolButtonProps {
+  icon: LucideIcon
+  /** 高亮态（如吸附/锁定选中时亮起） */
+  active?: boolean
+  label: string
+  onClick: () => void
+  disabled?: boolean
+  shortcut?: string
+}
+
+export function ToolButton({ icon: Icon, active = false, label, onClick, disabled = false, shortcut }: ToolButtonProps) {
   return (
     <button className={`icon-button ${active ? 'is-active' : ''}`} onClick={onClick} disabled={disabled} title={`${label}${shortcut ? ` (${shortcut})` : ''}`} aria-label={label}>
       <Icon size={15} strokeWidth={1.8} />
@@ -9,13 +20,28 @@ export function ToolButton({ icon: Icon, active, label, onClick, disabled = fals
   )
 }
 
-export function AxisSlider({ label, title, value, onChange, accent, min, max, step, unit = '', disabled = false, locked = false, onToggleLock }) {
+export interface AxisSliderProps {
+  label: string
+  title: string
+  value: number
+  onChange: (value: number) => void
+  accent: string
+  min: number
+  max: number
+  step: number
+  unit?: string
+  disabled?: boolean
+  locked?: boolean
+  onToggleLock?: () => void
+}
+
+export function AxisSlider({ label, title, value, onChange, accent, min, max, step, unit = '', disabled = false, locked = false, onToggleLock }: AxisSliderProps) {
   const numericValue = Number.isFinite(Number(value)) ? Number(value) : 0
   const safeMin = Math.min(min, Math.floor(numericValue / step) * step)
   const safeMax = Math.max(max, Math.ceil(numericValue / step) * step)
   const digits = step < 0.1 ? 2 : step < 1 ? 1 : 0
   return (
-    <div className={`axis-slider ${onToggleLock ? 'has-axis-lock' : ''} ${locked ? 'is-axis-locked' : ''}`} style={{ '--axis-color': accent }}>
+    <div className={`axis-slider ${onToggleLock ? 'has-axis-lock' : ''} ${locked ? 'is-axis-locked' : ''}`} style={{ '--axis-color': accent } as React.CSSProperties}>
       <span>{label}</span>
       <input aria-label={`${title} ${label}`} type="range" min={safeMin} max={safeMax} step={step} value={numericValue} onChange={event => onChange(Number(event.target.value))} disabled={disabled || locked} />
       <output>{numericValue.toFixed(digits)}{unit}</output>
@@ -24,7 +50,20 @@ export function AxisSlider({ label, title, value, onChange, accent, min, max, st
   )
 }
 
-export function VectorFields({ title, value, onChange, degrees = false, kind = 'position', disabled = false, proportionalScale = false, scaleAxisLocks = [false, false, false], onToggleProportionalScale, onToggleScaleAxis }) {
+export interface VectorFieldsProps {
+  title: string
+  value: number[]
+  onChange: (value: number[]) => void
+  degrees?: boolean
+  kind?: 'position' | 'rotation' | 'scale'
+  disabled?: boolean
+  proportionalScale?: boolean
+  scaleAxisLocks?: boolean[]
+  onToggleProportionalScale?: () => void
+  onToggleScaleAxis?: (axis: number) => void
+}
+
+export function VectorFields({ title, value, onChange, degrees = false, kind = 'position', disabled = false, proportionalScale = false, scaleAxisLocks = [false, false, false], onToggleProportionalScale, onToggleScaleAxis }: VectorFieldsProps) {
   const display = degrees ? value.map(radToDeg) : value
   const settings = degrees
     ? { min: -180, max: 180, step: 1, unit: '°' }

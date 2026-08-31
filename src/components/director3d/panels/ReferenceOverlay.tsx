@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import { ChevronDown, ChevronUp, FileImage, Move3D, Trash2 } from 'lucide-react'
-import { cloneProjectValue, DEFAULT_REFERENCE, normalizeReference } from '../project.js'
+import { cloneProjectValue, DEFAULT_REFERENCE, normalizeReference } from '../project.ts'
 
 export function ReferenceOverlay({ reference, onChange, cameraMode = false, cameraAspect = 16 / 9, children }) {
   const dragRef = useRef(null)
@@ -65,7 +65,7 @@ export function ReferenceOverlay({ reference, onChange, cameraMode = false, came
       )}
       {cameraMode ? (
         <div className="camera-edit-frame">
-          <div className="camera-edit-stage" style={{ aspectRatio: cameraAspect, '--camera-aspect': cameraAspect }}>
+          <div className="camera-edit-stage" style={{ aspectRatio: cameraAspect, '--camera-aspect': cameraAspect } as React.CSSProperties}>
             {referenceLayer}
             {children}
           </div>

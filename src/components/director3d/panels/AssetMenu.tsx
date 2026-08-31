@@ -1,5 +1,17 @@
+import type { LucideIcon } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { Box, ChevronRight, CircleDot, Grid3X3, Import, Layers, UserRound } from 'lucide-react'
+
+/** 资源库菜单节点：叶子节点带 kind（person/primitive/import），非叶子带 children 递归展开 */
+interface AssetNode {
+  label: string
+  icon?: LucideIcon
+  subtitle?: string
+  kind?: 'person' | 'primitive' | 'import'
+  value?: string
+  leaf?: boolean
+  children?: AssetNode[]
+}
 
 // 资源库菜单：层级完全自适应数据本身，有几层就渲染几列，不写死级数。
 // 叶子节点 kind 决定动作：
@@ -8,7 +20,7 @@ import { Box, ChevronRight, CircleDot, Grid3X3, Import, Layers, UserRound } from
 //   import    -> 触发文件选择（onImport）
 // 注意：动作预设不在资源库内（它属于右侧 Inspector 选中人物时的设置），不要在这里加。
 // 注意：不要为了凑"3 级"而塞无意义的子分类层（如"体型""基础几何体"），数据本身只有两级就两级。
-const ASSET_TREE = [
+const ASSET_TREE: AssetNode[] = [
   {
     label: '人物',
     icon: UserRound,
@@ -56,7 +68,7 @@ const ASSET_TREE = [
 
 const PRIMITIVE_ICON = { box: Box, sphere: CircleDot, cylinder: CircleDot, plane: Grid3X3 }
 
-function isLeaf(node) {
+function isLeaf(node: AssetNode) {
   return node.leaf || !node.children || node.children.length === 0
 }
 
@@ -91,8 +103,8 @@ export function AssetMenu({ onAddPerson, onAddPrimitive, onImport }) {
   }
 
   // 根据 path 逐级取出每一列要渲染的节点列表
-  const columns = [ASSET_TREE]
-  let cursor = ASSET_TREE
+  const columns: AssetNode[][] = [ASSET_TREE]
+  let cursor: AssetNode[] = ASSET_TREE
   for (const idx of path) {
     const next = cursor[idx]?.children
     if (!next) break

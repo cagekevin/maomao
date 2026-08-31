@@ -2,11 +2,12 @@ import { Suspense, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRe
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { ContactShadows, Grid, OrbitControls, TransformControls } from '@react-three/drei'
 import * as THREE from 'three'
-import { StudioPerson, ImportedModel } from './models.jsx'
-import { PrimitiveModel } from './primitives.jsx'
-import { DepthMeshModel } from './depth.jsx'
-import { CAMERA_ID, aspectValue, pathSamplePoints } from './project.js'
-import SceneGizmo from './SceneGizmo.jsx'
+import { StudioPerson, ImportedModel } from './models.tsx'
+import { PrimitiveModel } from './primitives.tsx'
+import { DepthMeshModel } from './depth.tsx'
+import { CAMERA_ID, aspectValue, pathSamplePoints } from './project.ts'
+import type { ProjectCamera, ProjectObject } from './project.ts'
+import SceneGizmo from './SceneGizmo.tsx'
 
 const normalizeNum = value => (Number.isFinite(Number(value)) ? Number(value) : 0)
 
@@ -28,15 +29,29 @@ function shouldKeepCurrentSelection(event, selectedId, selected, transformMode) 
   return event.intersections?.some(intersection => sceneObjectIdFromIntersection(intersection) === selectedId)
 }
 
-function SceneObject({ data, selected, selectedId, activeJoint, transformMode, transformSpace = 'world', snapEnabled = true, groundRequest, onSelect, onUpdate, onJointSelect, animationTime = 0, preview = false }) {
-  const groupRef = useRef(null)
-  const objectRotateDrag = useRef(null)
-  const scaleTransformStart = useRef(null)
-  const appliedGroundRequest = useRef(null)
-  const orbitControls = useThree(state => state.controls)
+function SceneObject({ data, selected, selectedId, activeJoint, transformMode, transformSpace = 'world', snapEnabled = true, groundRequest, onSelect, onUpdate, onJointSelect, animationTime = 0, preview = false }: {
+  data: ProjectObject
+  selected?: boolean
+  selectedId?: string | null
+  activeJoint?: string | null
+  transformMode?: 'select' | 'translate' | 'rotate' | 'scale'
+  transformSpace?: 'local' | 'world'
+  snapEnabled?: boolean
+  groundRequest?: { id: string; nonce: number } | null
+  onSelect?: (id: string) => void
+  onUpdate?: (id: string, patch: Record<string, unknown>) => void
+  onJointSelect?: (objectId: string, jointId: string) => void
+  animationTime?: number
+  preview?: boolean
+}) {
+  const groupRef = useRef<THREE.Group>(null)
+  const objectRotateDrag = useRef<{ pointerId: number; startX: number; startY: number; rotation: number[] } | null>(null)
+  const scaleTransformStart = useRef<number[] | null>(null)
+  const appliedGroundRequest = useRef<string | null>(null)
+  const orbitControls = useThree(state => state.controls) as unknown as { enabled: boolean } | null
   const invalidate = useThree(state => state.invalidate)
   const scaleAxisLocks = Array.isArray(data.scaleAxisLocks) ? data.scaleAxisLocks : [false, false, false]
-  const stateAnimationTime = Math.max(0, animationTime - (Number.isFinite(data.motionStartTime) ? data.motionStartTime : 0))
+  const stateAnimationTime = Math.max(0, animationTime - (Number.isFinite(Number(data.motionStartTime)) ? Number(data.motionStartTime) : 0))
   useEffect(() => {
     if (!groundRequest || groundRequest.id !== data.id || !groupRef.current || data.locked || preview) return
     const requestKey = `${groundRequest.id}:${groundRequest.nonce}`
@@ -52,7 +67,7 @@ function SceneObject({ data, selected, selectedId, activeJoint, transformMode, t
   const syncTransform = useCallback(() => {
     const object = groupRef.current
     if (!object) return
-    let nextScale = object.scale.toArray()
+    let nextScale: number[] = object.scale.toArray()
     if (transformMode === 'scale' && scaleTransformStart.current) {
       const baseline = scaleTransformStart.current
       const locks = Array.isArray(data.scaleAxisLocks) ? data.scaleAxisLocks : [false, false, false]
@@ -123,9 +138,9 @@ function SceneObject({ data, selected, selectedId, activeJoint, transformMode, t
   const content = (
     <group
       ref={groupRef}
-      position={data.position}
-      rotation={data.rotation}
-      scale={data.scale}
+      position={data.position as [number, number, number]}
+      rotation={data.rotation as [number, number, number]}
+      scale={data.scale as [number, number, number]}
       visible={data.visible !== false}
       userData={{ sceneObjectId: data.id }}
       onPointerDown={preview ? undefined : beginObjectInteraction}
@@ -149,21 +164,21 @@ function SceneObject({ data, selected, selectedId, activeJoint, transformMode, t
           showBoneGizmo={!preview && transformMode === 'select'}
           onSelectJoint={jointId => onJointSelect?.(data.id, jointId)}
           onRotateJoint={(jointId, rotation) => onUpdate(data.id, {
-            joints: { ...data.joints, [jointId]: rotation },
+            joints: { ...(data.joints as object), [jointId]: rotation },
           })}
           onRotateJoints={rotations => onUpdate(data.id, {
-            joints: { ...data.joints, ...rotations },
+            joints: { ...(data.joints as object), ...rotations },
           })}
           onSurfacePointerDown={beginObjectInteraction}
           onSurfacePointerMove={rotateObjectFromSurface}
           onSurfacePointerUp={endObjectInteraction}
         />
       ) : data.type === 'depthMesh' && data.depthMapUrl ? (
-        <DepthMeshModel url={data.depthMapUrl} settings={data.depthSettings} color={data.color} selected={selected} />
+        <DepthMeshModel url={String(data.depthMapUrl)} settings={data.depthSettings as { invert?: boolean; near?: number; far?: number; fov?: number; density?: number; smoothing?: number }} color={data.color as string} selected={selected} />
       ) : data.type === 'model' && data.url ? (
-        <Suspense fallback={<mesh position={[0, 0.5, 0]}><boxGeometry /><meshStandardMaterial color="#7f7b72" wireframe /></mesh>}><ImportedModel url={data.url} selected={selected} /></Suspense>
+        <Suspense fallback={<mesh position={[0, 0.5, 0]}><boxGeometry /><meshStandardMaterial color="#7f7b72" wireframe /></mesh>}><ImportedModel url={String(data.url)} selected={selected} /></Suspense>
       ) : (
-        <PrimitiveModel type={data.type} color={data.color || '#c7c2b7'} selected={selected} parts={data.parts} />
+        <PrimitiveModel type={String(data.type)} color={String(data.color || '#c7c2b7')} selected={selected} parts={data.parts as unknown[]} />
       )}
     </group>
   )
@@ -251,14 +266,23 @@ function CameraFrustum({ focalLength = 42, aspectRatio = '16:9', selected = fals
   )
 }
 
-function CameraModel({ data, selected, selectedId, transformMode, transformSpace = 'world', snapEnabled = true, onSelect, onUpdate }) {
-  const groupRef = useRef(null)
+function CameraModel({ data, selected, selectedId, transformMode, transformSpace = 'world', snapEnabled = true, onSelect, onUpdate }: {
+  data: ProjectCamera
+  selected: boolean
+  selectedId: string | null
+  transformMode: 'select' | 'translate' | 'rotate' | 'scale'
+  transformSpace?: 'local' | 'world'
+  snapEnabled?: boolean
+  onSelect: (id: string) => void
+  onUpdate: (id: string, patch: Record<string, unknown>) => void
+}) {
+  const groupRef = useRef<THREE.Group>(null)
   // 相机朝向欧拉用 'YXZ'（先 yaw 后 pitch）：与 cameraRotationToward 的生成约定一致，
   // 保证「始终面向对象」/路径切线朝向在目标位于侧方/后方时也精确对准（'XYZ' 有象限歧义会偏）。
-  const groupRotation = useMemo(() => new THREE.Euler(...data.rotation, 'YXZ'), [data.rotation])
+  const groupRotation = useMemo(() => new THREE.Euler(data.rotation[0] || 0, data.rotation[1] || 0, data.rotation[2] || 0, 'YXZ'), [data.rotation])
   const syncTransform = useCallback(() => {
     if (!groupRef.current) return
-    onUpdate({
+    onUpdate(CAMERA_ID, {
       position: groupRef.current.position.toArray(),
       rotation: [groupRef.current.rotation.x, groupRef.current.rotation.y, groupRef.current.rotation.z],
     })
@@ -266,7 +290,7 @@ function CameraModel({ data, selected, selectedId, transformMode, transformSpace
   useLayoutEffect(() => {
     if (!groupRef.current) return
     groupRef.current.position.fromArray(data.position)
-    groupRef.current.rotation.set(...data.rotation, 'YXZ')
+    groupRef.current.rotation.set(data.rotation[0] || 0, data.rotation[1] || 0, data.rotation[2] || 0, 'YXZ')
   }, [data.position, data.rotation])
   const selectCamera = event => {
     if (shouldKeepCurrentSelection(event, selectedId, selected, transformMode)) return
@@ -274,7 +298,7 @@ function CameraModel({ data, selected, selectedId, transformMode, transformSpace
     onSelect(CAMERA_ID)
   }
   const rig = (
-    <group ref={groupRef} position={data.position} rotation={groupRotation} userData={{ sceneObjectId: CAMERA_ID }} onPointerDown={selectCamera}>
+    <group ref={groupRef} position={data.position as [number, number, number]} rotation={groupRotation} userData={{ sceneObjectId: CAMERA_ID }} onPointerDown={selectCamera}>
       {/* 机身：简洁线框盒，与取景框同一套线框语言，选中时统一高亮为黄色。
           NOTE: 相机是辅助/工具对象，不参与阴影投射——线框 + castShadow 会在地面投出
           一个与透明线框不一致的「实心盒子阴影」，导致相机部件有的有影子有的没有。 */}
@@ -301,7 +325,7 @@ function CameraModel({ data, selected, selectedId, transformMode, transformSpace
       {selected && ['translate', 'rotate'].includes(transformMode) && (
         <TransformControls
           object={groupRef}
-          mode={transformMode}
+          mode={transformMode as 'translate' | 'rotate'}
           space={transformSpace}
           size={0.8}
           translationSnap={snapEnabled ? 0.1 : null}
@@ -331,8 +355,8 @@ function StudioLights({ lighting = DEFAULT_STUDIO_LIGHTING }) {
   const elevation = THREE.MathUtils.degToRad(lighting.keyElevation ?? DEFAULT_STUDIO_LIGHTING.keyElevation)
   const horizontal = Math.cos(elevation) * 10
   const height = Math.sin(elevation) * 10
-  const keyPosition = [Math.sin(azimuth) * horizontal, height, Math.cos(azimuth) * horizontal]
-  const fillPosition = [-keyPosition[0] * 0.85, Math.max(2.5, height * 0.42), -keyPosition[2] * 0.85]
+  const keyPosition: [number, number, number] = [Math.sin(azimuth) * horizontal, height, Math.cos(azimuth) * horizontal]
+  const fillPosition: [number, number, number] = [-keyPosition[0] * 0.85, Math.max(2.5, height * 0.42), -keyPosition[2] * 0.85]
   return (
     <>
       <hemisphereLight intensity={lighting.ambientIntensity ?? DEFAULT_STUDIO_LIGHTING.ambientIntensity} color={lighting.ambientColor || DEFAULT_STUDIO_LIGHTING.ambientColor} groundColor="#343536" />
@@ -349,7 +373,7 @@ function PerformanceLight({ lighting = DEFAULT_STUDIO_LIGHTING }) {
   const elevation = THREE.MathUtils.degToRad(lighting.keyElevation ?? DEFAULT_STUDIO_LIGHTING.keyElevation)
   const horizontal = Math.cos(elevation) * 10
   const height = Math.sin(elevation) * 10
-  const keyPosition = [Math.sin(azimuth) * horizontal, height, Math.cos(azimuth) * horizontal]
+  const keyPosition: [number, number, number] = [Math.sin(azimuth) * horizontal, height, Math.cos(azimuth) * horizontal]
   return (
     <>
       <directionalLight position={keyPosition} intensity={(lighting.keyIntensity ?? DEFAULT_STUDIO_LIGHTING.keyIntensity) * 1.1} color={lighting.keyColor || DEFAULT_STUDIO_LIGHTING.keyColor} />
@@ -384,11 +408,21 @@ function Ground({ showGrid = true, showSurface = true, plain = false, surfaceCol
   )
 }
 
-function ViewFocusController({ request }) {
-  const { camera, controls } = useThree()
+/** OrbitControls 在 R3F 里的运行期最小形状（target + update + change 事件） */
+interface OrbitLike {
+  target: THREE.Vector3
+  update: () => void
+  addEventListener: (type: string, fn: () => void) => void
+  removeEventListener: (type: string, fn: () => void) => void
+}
+
+function ViewFocusController({ request }: {
+  request: { position: [number, number, number]; height?: number; distance?: number } | null
+}) {
+  const { camera, controls } = useThree() as unknown as { camera: THREE.Camera; controls: OrbitLike | null }
   useEffect(() => {
     if (!request || !controls) return
-    const target = new THREE.Vector3(...request.position)
+    const target = new THREE.Vector3(request.position[0], request.position[1], request.position[2])
     target.y += request.height || 0
     const direction = camera.position.clone().sub(controls.target).normalize()
     if (!Number.isFinite(direction.x) || direction.lengthSq() < 0.001) direction.set(1, 0.65, 1).normalize()
@@ -399,8 +433,11 @@ function ViewFocusController({ request }) {
   return null
 }
 
-function EditorCameraReporter({ enabled, onChange }) {
-  const { camera, controls } = useThree()
+function EditorCameraReporter({ enabled, onChange }: {
+  enabled: boolean
+  onChange: (snapshot: { position: number[]; rotation: number[]; target: number[] }) => void
+}) {
+  const { camera, controls } = useThree() as unknown as { camera: THREE.Camera; controls: OrbitLike | null }
   useEffect(() => {
     if (!enabled || !controls || !onChange) return undefined
     let frame = 0
@@ -438,9 +475,17 @@ const CURVE_ADD_CURSOR = `url("data:image/svg+xml,${encodeURIComponent(
 // 每帧按距离补偿 scale；但远距离做封顶，避免相机拉太远时点被放得过大。悬停/拖动中再 ×1.4 高亮放大。
 // 颜色 hover 时变亮金色。
 const DOT_DIST_RATIO_CAP = 2 // 距离补偿封顶：distance>20(=10*2) 后点不再变大，避免拉远时点过大
-function ScreenConstantDot({ point, radius = 0.07, hot = false, onPointerDown, onPointerOver, onPointerOut, onContextMenu }) {
-  const ref = useRef()
-  const { camera } = useThree()
+function ScreenConstantDot({ point, radius = 0.07, hot = false, onPointerDown, onPointerOver, onPointerOut, onContextMenu }: {
+  point: { x: number; y: number; z: number }
+  radius?: number
+  hot?: boolean
+  onPointerDown?: (e: React.PointerEvent) => void
+  onPointerOver?: (e: React.PointerEvent) => void
+  onPointerOut?: (e: React.PointerEvent) => void
+  onContextMenu?: (e: React.PointerEvent) => void
+}) {
+  const ref = useRef<THREE.Mesh>(null)
+  const { camera } = useThree() as unknown as { camera: THREE.Camera }
   const worldPos = useMemo(() => new THREE.Vector3(), [])
   const hotRef = useRef(hot)
   hotRef.current = hot
@@ -465,9 +510,9 @@ function ScreenConstantDot({ point, radius = 0.07, hot = false, onPointerDown, o
 function PathEditor({ pathDraft, anchorY = 0, onPathChange, density = 'mid', drawing = false, onContextMenuAt }) {
   // 控制点抽稀间距：拖动超过该距离才新增一个点。档位越大点越少（曲线由平滑样条补齐，无需密点）
   const spacing = { dense: 0.6, mid: 1.4, sparse: 2.8 }[density] || 1.4
-  const { camera, gl, invalidate } = useThree()
-  const controls = useThree(state => state.controls)
-  const [points, setPoints] = useState([])
+  const { camera, gl, invalidate } = useThree() as unknown as { camera: THREE.Camera; gl: THREE.WebGLRenderer; invalidate: () => void }
+  const controls = useThree(state => state.controls) as unknown as { enabled: boolean } | null
+  const [points, setPoints] = useState<{ x: number; y: number; z: number }[]>([])
   const activeMode = useRef(null) // null | 'draw' | grab 的索引
   const trailRef = useRef([]) // 绘制态进行中的笔画轨迹
   const [selectedDot, setSelectedDot] = useState(-1)
@@ -715,12 +760,12 @@ function EditorScene({ objects, selectedId, activeJoint, onSelect, onJointSelect
   )
 }
 
-function PreviewCameraController({ cameraData, cameraAspect }) {
-  const { camera, size } = useThree()
+function PreviewCameraController({ cameraData, cameraAspect }: { cameraData: ProjectCamera; cameraAspect: number }) {
+  const { camera, size } = useThree() as unknown as { camera: THREE.PerspectiveCamera; size: { width: number; height: number } }
   useFrame(() => {
     camera.position.fromArray(cameraData.position)
     // 'YXZ'（先 yaw 后 pitch）：与 cameraRotationToward 的生成约定一致，目标在侧方/后方也精确对准
-    camera.rotation.set(...cameraData.rotation, 'YXZ')
+    camera.rotation.set(cameraData.rotation[0] || 0, cameraData.rotation[1] || 0, cameraData.rotation[2] || 0, 'YXZ')
     const fov = THREE.MathUtils.radToDeg(2 * Math.atan(24 / (2 * cameraData.focalLength)))
     const nextAspect = Number.isFinite(cameraAspect) && cameraAspect > 0 ? cameraAspect : size.width / Math.max(1, size.height)
     if (Math.abs(camera.fov - fov) > 0.01 || Math.abs(camera.aspect - nextAspect) > 0.0001) {
@@ -766,7 +811,10 @@ function PreviewScene({ objects, cameraData, cameraAspect, lighting, backgroundC
 export function MainViewport(props) {
   const editorCamera = props.editorCameraData || {}
   // 摄像机视角的初始相机朝向用 'YXZ'：与 cameraRotationToward 生成约定一致（见 PreviewCameraController）
-  const shotCameraRotation = useMemo(() => new THREE.Euler(...(props.cameraData.rotation || [0, 0, 0]), 'YXZ'), [props.cameraData.rotation])
+  const shotCameraRotation = useMemo(() => {
+    const rotation = props.cameraData.rotation || [0, 0, 0]
+    return new THREE.Euler(rotation[0] || 0, rotation[1] || 0, rotation[2] || 0, 'YXZ')
+  }, [props.cameraData.rotation])
   const cameraSettings = props.cameraView
     ? { position: props.cameraData.position, rotation: shotCameraRotation, fov: 42, near: 0.05, far: 200 }
     : {

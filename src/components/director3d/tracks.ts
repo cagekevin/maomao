@@ -12,7 +12,7 @@
 import {
   cameraRotationToward, countChannelKeyframes, moveChannelFrames, pathTangentAtFraction,
   removeChannelFrames, setChannelInterpolation, snapshotToChannelKeys, upsertChannelKeys, writeObjectTrack,
-} from './project.js'
+} from './project.ts'
 
 // ---- 对象轨 ----
 

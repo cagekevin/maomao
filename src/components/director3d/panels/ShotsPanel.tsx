@@ -1,6 +1,36 @@
 import { Camera, Copy, FileImage, Plus, Trash2 } from 'lucide-react'
 
-export function ShotsPanel({ shots, activeShotId, onSelect, onAdd, onDuplicate, onDelete, onRename, onCapture }) {
+/** 镜头卡片所需的最小形状（来自 normalizeShot 产出的完整 shot） */
+interface ShotCard {
+  id: string
+  name: string
+  thumbnail?: string
+  fps: number
+  durationSeconds: number
+  keyframes?: unknown
+  objectKeyframes?: Record<string, unknown>
+}
+interface ShotsPanelProps {
+  shots: ShotCard[]
+  activeShotId: string | null
+  onSelect: (id: string) => void
+  onAdd: () => void
+  onDuplicate: (id: string) => void
+  onDelete: (id: string) => void
+  onRename: (id: string, name: string, commit?: boolean) => void
+  onCapture: (id: string) => void
+}
+
+/** 统计镜头关键帧数：keyframes 兼容通道结构或旧整快照数组，objectKeyframes 按各轨道累计 */
+function shotKeyframeCount(shot: ShotCard): number {
+  const cameraKeys = Array.isArray(shot.keyframes)
+    ? shot.keyframes.length
+    : Object.values(shot.keyframes || {}).reduce<number>((sum, list) => sum + (Array.isArray(list) ? list.length : 0), 0)
+  const objectKeys = Object.values(shot.objectKeyframes || {}).reduce<number>((sum, track) => sum + (Array.isArray(track) ? track.length : 0), 0)
+  return cameraKeys + objectKeys
+}
+
+export function ShotsPanel({ shots, activeShotId, onSelect, onAdd, onDuplicate, onDelete, onRename, onCapture }: ShotsPanelProps) {
   return (
     <div className="shots-panel">
       <div className="shots-panel-head">
@@ -23,8 +53,8 @@ export function ShotsPanel({ shots, activeShotId, onSelect, onAdd, onDuplicate, 
                 <div className="shot-card-copy-head">
                   <input
                     value={shot.name}
-                    maxLength="30"
-                    onChange={event => onRename(shot.id, event.target.value)}
+                    maxLength={30}
+                    onChange={event => onRename(shot.id, event.currentTarget.value)}
                     onBlur={event => onRename(shot.id, event.target.value, true)}
                     onKeyDown={event => { if (event.key === 'Enter') event.currentTarget.blur() }}
                     aria-label={`镜头 ${index + 1} 名称`}
@@ -35,7 +65,7 @@ export function ShotsPanel({ shots, activeShotId, onSelect, onAdd, onDuplicate, 
                     <button type="button" title="删除镜头" aria-label={`删除${shot.name}`} onClick={() => onDelete(shot.id)} disabled={shots.length === 1}><Trash2 size={12} /></button>
                   </div>
                 </div>
-                <span>{shot.durationSeconds} 秒 · {shot.fps} FPS · {(shot.keyframes?.length || 0) + Object.values(shot.objectKeyframes || {}).reduce((sum, track) => sum + (track?.length || 0), 0)} 个关键帧</span>
+                <span>{shot.durationSeconds} 秒 · {shot.fps} FPS · {shotKeyframeCount(shot)} 个关键帧</span>
               </div>
             </article>
           )

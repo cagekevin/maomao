@@ -47,13 +47,13 @@
 
 ## 相关文件
 
-- `src/components/director3d/App.jsx` — 主界面（Director3DApp + 状态编排）
-- `src/components/director3d/Viewport.jsx` — 3D 视口与场景编排（场景/画布/编辑器）
-- `src/components/director3d/models.jsx` — Mixamo 骨骼人模型（StudioPerson/ImportedModel）
-- `src/components/director3d/primitives.jsx` — 场景粗模（几何体）
-- `src/components/director3d/depth.jsx` — 深度网格模型
-- `src/components/director3d/project.js` — 领域逻辑（常量/归一化/插值/序列化）
+- `src/components/director3d/App.tsx` — 主界面（Director3DApp + 状态编排）
+- `src/components/director3d/Viewport.tsx` — 3D 视口与场景编排（场景/画布/编辑器）
+- `src/components/director3d/models.tsx` — Mixamo 骨骼人模型（StudioPerson/ImportedModel）
+- `src/components/director3d/primitives.tsx` — 场景粗模（几何体）
+- `src/components/director3d/depth.tsx` — 深度网格模型
+- `src/components/director3d/project.ts` — 领域逻辑（常量/归一化/插值/序列化）
 - `src/components/director3d/Director3DOverlay.jsx` — 画布接入外壳
 - `src/components/director3d/styles.css` — 样式
-- `src/components/director3d/rig.js` — 骨骼/动作
+- `src/components/director3d/rig.ts` — 骨骼/动作
 - `src/components/director3d/panels/` — UI 面板（Sidebar/Inspector/Timeline/ShotsPanel/GlobalSettingsPanel/AssetMenu/CameraAnglePanel/ReferenceOverlay/controls）

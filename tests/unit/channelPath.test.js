@@ -8,11 +8,11 @@
 //   M3-C6 仅路径、无手动 pose 帧时，动作/骨骼通道仍按状态段规则插值，不锁死 source 当前值
 // 依赖均为纯函数，node 环境可跑（npm run test:unit:logic）。
 import { describe, it, expect } from 'vitest'
-import { cloneJointPose } from '../../src/components/director3d/rig.js'
+import { cloneJointPose } from '../../src/components/director3d/rig.ts'
 import {
   objectAtFrame, objectsAtFrame, pathActive, pathPositionAtFrame,
   normalizeCameraPath, bakePathKeyframes, snapshotToChannelKeys, upsertChannelKeys,
-} from '../../src/components/director3d/project.js'
+} from '../../src/components/director3d/project.ts'
 
 const FPS = 24
 

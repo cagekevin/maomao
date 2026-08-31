@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { Director3DApp } from './App.jsx'
-import { ErrorBoundary } from './ErrorBoundary.jsx'
+import { Director3DApp } from './App.tsx'
+import { ErrorBoundary } from './ErrorBoundary.tsx'
 import './styles.css'
 
 /**

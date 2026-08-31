@@ -141,7 +141,7 @@ node scripts/task-inspect.mjs --canvas-health   # 画布结构体检
 * **设计语言**：参照 `docs/BASE-CAPABILITIES.md`；节点视觉/交互规范见 `docs/README.md`「节点设计规范」。
 * **运行形态**：Chrome 扩展（MV3）。`public/manifest.json` + `background.js` + `icon*.png` 为插件壳；`src/` 编译后由 `vite.config.js`（`base:'./'`，兼容 `chrome-extension://`）打包进 `dist/`。存储经 `src/components/base/contentStore.ts`（横切存储权威入口，按 `STORAGE_KEYS.backend` 自动路由 local/KV/native：local 走 `base/storage/storageAdapter.ts`（chrome.storage 扩展环境）/原生 `localStorage`；kv 走 localTool KV；native 后端如 director3d 直写原生 `localStorage`）。`npm run dev` 预览画布，`npm run build` 出 `dist/`。
 
-* **3D 导演台（director3d）**：`src/components/director3d/` 是**从外部下载的开源仓库**（storyai-3d-director-desk）集成进来的，**非本仓库自有代码**。由 `Director3DNode` 双击进入。⚠️ **边界**：它基本独立于主画布（有自己的 store/schema/编辑器，TS 实现）。**不为它写测试、不纳入测试维护、不主动重构**；改动只做"必要的最小集成"，改前先读文件头注释。要查它怎么用，看 `spec/TEST-GUIDE.md` §八 批6 已标注"不开测"。
+* **3D 导演台（director3d）**：`src/components/director3d/` 源出外部开源仓库（storyai-3d-director-desk），但**自 2026-09-01 起按自家仓库处理，已全部 TS 化（26/26 .ts/.tsx）并纳入类型与契约校验，不再豁免——可以动、可以改、可以收口**。由 `Director3DNode` 双击进入。⚠️ **边界**：它仍是相对独立的子模块（自有 schema/编辑器），改动遵循「先读文件头注释 + 按正常 src/ 流程走 + 最小差异」，但不是不能碰的红线。**领域类型真相源在 `src/components/director3d/project.ts`**（`ProjectCamera`/`ProjectObject`/`ProjectReference`/`ProjectSettings`/`ProjectLighting`/`ChannelTracks`/`ChannelKey` 等，App/Viewport/panels 复用，禁止各自重定义漂移）。不为它写测试、不纳入测试维护（改它不强制补单测，但类型/门禁照跑）。
 
 > 与 history 区别：旧版 `src/bundle/` 是混淆还原源码；当前 `src/` 是直接可读可维护的工程，构建产物仍是 Chrome 扩展 `dist/`。
 
