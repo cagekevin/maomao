@@ -203,3 +203,49 @@ npm run build
 配套：`scripts/ts-exts.cjs`（扩展名无关解析 + 永久豁免清单 + JSX 探测唯一事实来源）、`scripts/check-targets.mjs`（各 check 脚本共享扫描根）。勿删。
 
 **`.husky/pre-commit` 已补 smoke/regression/tools 三个秒级 SSR 门禁**（type-check + vitest --changed 基础上）。TS 迁移期间 .jsx→.tsx 改名后写死 .jsx 的 import、或 `import.meta.env` 在 CJS 空对象，会在 esbuild SSR 打包当场崩，而 type-check 与纯单元测试都扫不到，故放 commit 门禁拦截。
+
+## 九、脚本做了什么 / **不**做什么（AI 必读，别以为跑脚本就完事）
+
+> 核心结论：**脚本只负责「机械改名 + 同步 import」**，一个文件转完它就算完成任务。**Props 接口、类型标注、业务逻辑审查、验证、提交，全都要 AI 手动做。** 脚本从来不是「一键迁移」，只是「帮你把最机械、最易错、最重复的那一步做掉」。
+
+### 9.1 脚本会自动做的（convert 一个文件时）
+1. 判定目标后缀：内容含 JSX → `.tsx`，纯逻辑 → `.ts`（可用 `--to ts|tsx` 强制覆盖）。
+2. `git mv` 改名（非跟踪文件退回 fs rename）。
+3. **AST 全库重写**指向该模块的 import 说明符扩展名（坐标精确替换；注释/字符串里的同名文本不误伤；按解析后绝对路径比对，规避同名 basename 误伤）。
+4. 解析失败/语法错误时**汇总告警**（不静默跳过）。
+5. 命中永久豁免（director3d / contracts.js / config.js）时**拒绝转换**（除非显式 `--force`）。
+
+### 9.2 脚本【不】会做的（转完文件后，全部要你手动）
+- ❌ **不会补 Props 接口**。转完的 `.tsx` 里 `function Foo({ bar })` 的 `bar` 还是 `any`。
+- ❌ **不会消除内部 any**（`useRef(null)`、`useState()`、事件回调参数、`Map()`、泛型缺失等）。
+- ❌ **不会改 `contracts.js` 的 EVENTS 表**。改名后若该文件被 EVENTS from/to 引用（如 ProjectSelector），行号/后缀会漂移 → `npm run check:events` 会报 stale，**必须手动同步**（本项目已发生多次）。
+- ❌ **不会改 scripts/ 里的硬编码路径**（regression_test / health-check / smoke 等拼出的 `.jsx` import）。`refs <file>` 会列出这些字符串残留，需**手动同步**。
+- ❌ **不会跑测试 / 不会验证 / 不会提交**。验证与提交是 AI 的事。
+- ❌ **不会改业务逻辑**。若改名后发现 `import.meta.env`、`process` 等 Node/SSR 下不存在的东西导致崩，那是**存量源码问题**，脚本不管，要你修（参考「每批提交前必查」）。
+
+### 9.3 AI 每转完一个文件的【必须】手动清单
+```
+1. convert 后：读调用方（App.jsx / 各节点）确认 Props 真实形状（类型/必填/回调签名）
+2. 在 .tsx 里补 Props 接口（就近定义；跨模块复用的下沉 src/types/）
+3. 消除内部 any（ref/state/事件/回调/泛型）
+4. npm run type-check        # 必须 0 错
+5. npm run check:events      # 若该文件被 EVENTS 引用，同步 contracts.js 后必须重跑自洽
+6. smoke / regression / tools   # 三个 SSR 门禁必须全绿
+7. git commit（做一点提交一点，随时可回退）
+```
+
+## 十、验证门禁速查（每批提交前必跑）
+
+```
+npm run type-check           # tsc 0 错
+npm run check:api            # API 契约
+npm run check:jsx            # jsx 残留
+npm run check:keys           # key 检查
+npm run check:events         # EVENTS 双向自洽（改名后必查！）
+npm run check:node-types     # 节点类型契约
+npm run check:health         # 全量健康度（含 TDZ 扫描）
+npm run test:smoke           # SSR 冒烟（esbuild bundle）
+npm run test:regression      # SSR 回归（14 节点）
+npm run test:tools           # agent 工具
+```
+> 约定：全部用 `--no-verify` 提交（Windows 无 sh，钩子跑不了；门禁靠手动跑上面的命令把关）。
