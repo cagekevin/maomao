@@ -48,6 +48,7 @@ export interface ScriptBoxShot extends Shot {
 
 /** 单个 asset 子字段（含 P0-3 imageUrl / thumbnailUrl 分离） */
 export interface ScriptBoxAsset {
+  id: string
   category: string
   name: string
   description: string
@@ -60,6 +61,7 @@ export interface ScriptBoxAsset {
   /** 资产参考图上传状态（历史 videoStatus/videoError 在归一化时迁移到此处） */
   imageStatus: string
   imageError: string | undefined
+  [key: string]: unknown
 }
 
 /**
@@ -144,6 +146,7 @@ export function defaultShotFields(): ScriptBoxShot {
 /** 单个 asset 子字段默认值（含 P0-3 imageUrl / thumbnailUrl 分离）。 */
 export function defaultAssetFields(): ScriptBoxAsset {
   return {
+    id: '',
     category: 'character',
     name: '',
     description: '',

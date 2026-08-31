@@ -7,6 +7,23 @@ import { useOutsideClick } from '../base/hooks.ts'
 import { useRenderImageResolver, toAbsoluteFileUrl } from '../base/imageUrl.ts'
 import ImageZoomDialog from '../base/ImageZoomDialog.tsx'
 import ScriptBoxAssetPicker from './ScriptBoxAssetPicker.jsx'
+import type { ScriptBoxData, ScriptBoxUpdateData } from './scriptBoxSchema.ts'
+
+/** StepAssets 实际调用的引擎回调（来自 props.callbacks = { ...data, onDisconnectUpstream }） */
+interface AssetCallbacks {
+  onGenerateAssetImage?: (assetId: string) => void
+  onGenerateAllAssetImages?: (assetIds?: string[]) => void
+  onRetryAssetImageUpload?: (assetId: string) => void
+  onUploadAssetImage?: (assetId: string, file?: File | null) => void
+  onDisconnectUpstream?: (sourceNodeId: string) => void
+  [key: string]: unknown
+}
+
+interface StepAssetsProps {
+  data?: ScriptBoxData
+  updateData: ScriptBoxUpdateData
+  callbacks: AssetCallbacks
+}
 
 /**
  * 剧本盒子 步骤2「准备资产」：角色/场景/道具三栏 + 资产卡(选中框/图片上传状态/more菜单) +
@@ -19,17 +36,17 @@ import ScriptBoxAssetPicker from './ScriptBoxAssetPicker.jsx'
  * 编辑经 updateData；生成/上传经 callbacks.onGenerateAssetImage / onGenerateAllAssetImages /
  * onRetryAssetImageUpload / onUploadAssetImage。
  */
-export default function StepAssets({ data, updateData, callbacks }) {
-  const d = data || {}
+export default function StepAssets({ data, updateData, callbacks }: StepAssetsProps) {
+  const d = (data ?? ({} as ScriptBoxData))
   const assets = d.assets || []
   const pickedCount = d.pickedCount || 0
   // 当前选中编辑的资产 idx（点资产卡选中；默认 null 显示空态，不遮挡任何资产）
-  const [editIdx, setEditIdx] = useState(null)
+  const [editIdx, setEditIdx] = useState<number | null>(null)
   // 双击查看大图（复用通用 ImageZoomDialog，同生图节点）：zoomUrl 记录当前要放大的图片 URL
-  const zoomRef = React.useRef(null)
+  const zoomRef = React.useRef<HTMLDialogElement>(null)
   const [zoomUrl, setZoomUrl] = useState('')
   // 「从素材库选择」：picking 记录正在选图的资产 id（非空时弹出素材库选择器）
-  const [picking, setPicking] = useState(null)
+  const [picking, setPicking] = useState<number | null>(null)
   // 缩略图显示复用系统统一按需出图出口（与 ImageNode 一致），不再各自落盘独立缩略图文件
   const render = useRenderImageResolver()
 
@@ -148,7 +165,7 @@ export default function StepAssets({ data, updateData, callbacks }) {
 }
 
 /** 新增资产（按当前风格生成 prompt），返回新资产的 index（数组末尾） */
-function addAsset(updateData, cat, assets) {
+function addAsset(updateData: ScriptBoxUpdateData, cat: string, assets: ScriptBoxData['assets']) {
   const name = `${cat === 'character' ? '角色' : cat === 'scene' ? '场景' : '道具'}${assets.length + 1}`
   const newAsset = {
     id: `${cat}-${Date.now()}`,
@@ -162,10 +179,26 @@ function addAsset(updateData, cat, assets) {
 }
 
 /** 资产卡：缩略图 + 选中框 + 名称/描述 + 图片上传状态 + more 菜单 */
-function AssetCard({ asset, idx, data, updateData, callbacks, render, onOpen, onTogglePick, onDel, onUpload, onRetry, onEditPrompt, onPickFromLibrary, onZoomClick, selected }) {
+function AssetCard({ asset, idx, data, updateData, callbacks, render, onOpen, onTogglePick, onDel, onUpload, onRetry, onEditPrompt, onPickFromLibrary, onZoomClick, selected }: {
+  asset: ScriptBoxData['assets'][number]
+  idx: number
+  data: ScriptBoxData
+  updateData: ScriptBoxUpdateData
+  callbacks: AssetCallbacks
+  render: (url: string) => string
+  onOpen: () => void
+  onTogglePick: () => void
+  onDel: () => void
+  onUpload: (id: string, file: File) => void
+  onRetry: () => void
+  onEditPrompt: () => void
+  onPickFromLibrary: () => void
+  onZoomClick: (url: string) => void
+  selected: boolean
+}) {
   const [more, setMore] = useState(false)
-  const moreRef = React.useRef(null)
-  const fileRef = React.useRef(null)
+  const moreRef = React.useRef<HTMLDivElement>(null)
+  const fileRef = React.useRef<HTMLInputElement>(null)
   useOutsideClick(moreRef, more, () => setMore(false))
   // 选图后回调（复用上传底层，把图设为该资产参考图）；失败/取消重置 input 便于再次选择
   const handlePickFile = (e) => {
@@ -210,7 +243,7 @@ function AssetCard({ asset, idx, data, updateData, callbacks, render, onOpen, on
   )
 }
 
-function MenuItem({ icon, text, onClick, danger }) {
+function MenuItem({ icon, text, onClick, danger }: { icon: React.ReactNode; text: string; onClick: () => void; danger?: boolean }) {
   return (
     <button className={`flex items-center gap-2 w-full px-2.5 py-1.5 text-caption-sm text-left ${danger ? 'text-red-400 hover:bg-red-500/10' : 'text-body hover:bg-surface-hover'}`} onClick={onClick}>{icon}{text}</button>
   )
@@ -218,7 +251,14 @@ function MenuItem({ icon, text, onClick, danger }) {
 
 /** 右侧固定编辑面板（选中资产的名称/描述/提示词 + 生图），不遮挡资产卡片。
  *  作为 StepAssets 右侧固定栏常驻，点资产卡切换编辑对象；含改名联动 @旧名→@新名。 */
-function AssetPanel({ asset, idx, data, updateData, onGen, onClose }) {
+function AssetPanel({ asset, idx, data, updateData, onGen, onClose }: {
+  asset: ScriptBoxData['assets'][number]
+  idx: number
+  data: ScriptBoxData
+  updateData: ScriptBoxUpdateData
+  onGen: () => void
+  onClose: () => void
+}) {
   const [name, setName] = useState(asset.name)
   const [desc, setDesc] = useState(asset.description)
   const [prompt, setPrompt] = useState(asset.prompt)

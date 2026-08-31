@@ -8,6 +8,8 @@
 > **本轮会话（第三段）新增成果**：**A 批（纯逻辑层）全部清零** —— A3 最后两个大件 `useAgentChat.js`(62K)→.ts、`useCanvasAgentTools.js`(84K)→.ts 全部转完（含 `vi.mock` 路径同步）。剩余 **0 个 .js、79 个 .jsx**，工作正式进入 B 批（组件层）单线推进。本轮还顺手修掉一个**存量 TDZ 崩溃**（`gens` 声明前使用）与两处跨层类型漂移，详见第三节 commit 表与 10.2。
 >
 > **本轮会话（第八段）新增成果**：`panels/` 首批 `PromptConfirmCard.jsx`→.tsx 转完（含 `PromptConfirmCardProps` / `PromptApplyResult` / `StatusIcon` 类型），并揭示一处**跨模块类型漂移**回到 `promptFlow.ts` 收口——`PromptItem.status` 由 `string` 收口为真实 `PromptStatus` 联合（连带修 `normalizePrompts` 局部收窄），`apply` 兼容 `PromptItem[] | PromptFlowResult` 两种返回形状（顺手修复 reopen/取消「不写回」的历史 bug）。详见第三节 commit 表与 §10.6。剩余 `.jsx` 累计 **31 个**（不含 director3d 豁免）。
+>
+> **本轮会话（第九段）新增成果**：`panels/` **全部清零**——`AgentConfirmCard` / `AgentMessage` / `AgentPanel` 三个 `.jsx`→.tsx 转完（含 Props 接口 + `vi.mock` 后缀同步）。`edges/` **全部清零**——`Comet` / `CustomEdge` / `ConnectionLine` 三个 `.jsx`→.tsx 转完（用 `@xyflow/react` 的 `EdgeProps` / `ConnectionLineComponentProps`，`Position` 用字符串 + `as` 断言，`Handle type` 用字符串 `'target'|'source'`）。`scriptbox/` 已转 **3 个**（StepNav / StepPrompt / ScriptBoxModal），并**收口 `ScriptBoxShot` 类型漂移**（由过时不全类型改为 `extends Shot` + 补运行时字段）、新增 `ScriptBoxCallbacks` 类型；顺手修复 StepPrompt 内 `patchShot` 真实调用 bug（2 参→3 参）。详见第三节 commit 表与 §10.7。剩余 `.jsx` 实测 **27 个**（不含 director3d 豁免）。
 
 ---
 

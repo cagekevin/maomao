@@ -98,7 +98,7 @@ vi.mock('../../src/components/scriptbox/StepShots.jsx', () => ({
     </div>
   ),
 }))
-vi.mock('../../src/components/scriptbox/StepAssets.jsx', () => ({
+vi.mock('../../src/components/scriptbox/StepAssets.tsx', () => ({
   default: ({ data }) => (
     <div data-testid="step-assets">
       <span data-testid="assets-count">{data.assets?.length || 0}</span>
