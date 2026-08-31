@@ -18,7 +18,7 @@ import { SCRIPTBOX_DOWNSTREAM_GRID_COLS, SCRIPTBOX_DOWNSTREAM_CELL_W, SCRIPTBOX_
 import { withTimeout } from '../base/asyncGuard.ts'
 import type { Shot, ScriptAsset, Dialogue } from './scriptBoxPrompts.ts'
 import type { ProviderWithModels } from '../base/providerModels.ts'
-import type { ScriptBoxUpdateData } from '../base/scriptBoxSchema.ts'
+import type { ScriptBoxUpdateData } from './scriptBoxSchema.ts'
 
 /** toast 状态档（与 toastStore 的 ToastType 同形，后者未导出故此处本地声明） */
 type ToastType = 'success' | 'error' | 'warning' | 'info'

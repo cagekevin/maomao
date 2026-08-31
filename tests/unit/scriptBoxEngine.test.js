@@ -35,7 +35,7 @@ vi.mock('../../src/components/base/assetStore.ts', () => ({
   FOLDERS: [],
 }))
 
-import { normalizeScriptBoxData, defaultScriptBoxTop, defaultShotFields, defaultAssetFields } from '../../src/components/base/scriptBoxSchema.ts'
+import { normalizeScriptBoxData, defaultScriptBoxTop, defaultShotFields, defaultAssetFields } from '@/components/scriptbox/scriptBoxSchema.ts'
 
 const {
   parseJsonText,
