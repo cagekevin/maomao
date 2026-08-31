@@ -77,7 +77,7 @@ vi.mock('../../src/components/base/api/filesApi.ts', () => ({ toAbsoluteFileUrl:
 vi.mock('../../src/components/base/settings/providerStore.ts', () => ({ useProviders: mocks.useProviders, load: mocks.loadProviders }))
 vi.mock('../../src/components/base/providerModels.ts', () => ({ buildAllModels: mocks.buildAllModels, resolveProviderModel: mocks.resolveProviderModel }))
 
-import TemplateNode from '../../src/components/nodes/TemplateNode.jsx'
+import TemplateNode from '../../src/components/nodes/TemplateNode.tsx'
 
 beforeEach(() => {
   mocks.resetNodeMockState()

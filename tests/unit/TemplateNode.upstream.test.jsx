@@ -70,7 +70,7 @@ beforeEach(() => {
   connectedInputs = { images: [], texts: [] }
 })
 
-import TemplateNode from '../../src/components/nodes/TemplateNode.jsx'
+import TemplateNode from '../../src/components/nodes/TemplateNode.tsx'
 
 function setup(data = {}) {
   return render(<TemplateNode id="n1" data={data} selected={false} />)
@@ -114,7 +114,7 @@ describe('TemplateNode 上游文本/图片合并（修复点）', () => {
     expect(p).toContain('副标题')
   })
 
-  it('多个上游图片节点合并进 refImages', async () => {
+  it('多个上游图片节点合并进 images（generateImage 契约：images 为 URL 数组）', async () => {
     connectedInputs = {
       images: [
         { id: 'i1', url: 'http://up/a.png', sourceNodeId: 's1' },
@@ -127,8 +127,8 @@ describe('TemplateNode 上游文本/图片合并（修复点）', () => {
     await waitFor(() => expect(mockGenerateImage).toHaveBeenCalled())
     const call = mockGenerateImage.mock.calls[0][0]
     expect(call.prompt).toContain('融合两张图')
-    expect(call.refImages).toHaveLength(2)
-    expect(call.refImages.map((r) => r.url)).toEqual(['http://up/a.png', 'http://up/b.png'])
+    expect(call.images).toHaveLength(2)
+    expect(call.images).toEqual(['http://up/a.png', 'http://up/b.png'])
   })
 
   it('本地与上游皆为空时，提示请输入提示词', () => {

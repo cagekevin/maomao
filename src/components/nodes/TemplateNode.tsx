@@ -25,6 +25,7 @@ import { generateImage } from '../base/api/index.ts'
 import { toAbsoluteFileUrl } from '../base/api/index.ts'
 import { useRenderImageResolver } from '../base/imageUrl.ts'
 import { debounce, mergeRefImages, buildEffectivePrompt } from '../base/utils.ts'
+import { resolveProviderModel } from '../base/providerModels.ts'
 
 /**
  * ════════════════════════════════════════════════════════════════
@@ -105,10 +106,55 @@ import { debounce, mergeRefImages, buildEffectivePrompt } from '../base/utils.ts
  *  - 按钮 hover 统一 hover:bg-surface-hover + hover:text-white
  */
 
-function TemplateNode({ id, data, selected }) {
+/** 参考图素材形态（MaterialStrip / PromptInput / generateImage 共用） */
+interface RefImage {
+  id: string
+  url: string
+  label?: string
+  sourceNodeId?: string
+}
+
+/** 参考文本形态（resolvePromptChips 要求 id/label 必填） */
+interface RefText {
+  id: string
+  label: string
+  text?: string
+  sourceNodeId?: string
+}
+
+/** 模板节点 data 契约（新节点复制本文件后按需增改） */
+interface TemplateNodeData {
+  label?: string
+  prompt?: string
+  imageUrl?: string
+  aspectRatio?: string
+  selectedModel?: string
+  expanded?: boolean
+  inputWidth?: number
+  inputHeight?: number
+  images?: RefImage[]
+  texts?: RefText[]
+  [key: string]: unknown
+}
+
+/** 上游产出（来自 useConnectedInputs）的最小只读结构 */
+interface ConnectedOutput {
+  images: RefImage[]
+  texts: RefText[]
+  videos: unknown[]
+  audios: unknown[]
+}
+
+interface TemplateNodeProps {
+  id: string
+  data: TemplateNodeData
+  selected?: boolean
+}
+
+function TemplateNode({ id, data, selected }: TemplateNodeProps) {
   // ─── 1. 上游数据 + 性能降级（通用）───
   // useConnectedInputs：读取直接上游节点的产出（图片/文本）作为参考输入；空则渲染空态
-  const connected = useConnectedInputs(id)
+  const connected = useConnectedInputs(id) as ConnectedOutput
   // useMediaDegrade：lodLevel>=2 时隐藏生成结果（大画布性能降级）
   const { isHidden } = useMediaDegrade()
   const render = useRenderImageResolver()
@@ -125,7 +171,7 @@ function TemplateNode({ id, data, selected }) {
   const { setNodes, setEdges } = useReactFlow()
 
   // patchData：改 node.data 的唯一入口（不可变局部更新；Agent read_canvas 能读到最新）
-  const patchData = useCallback((patch) => {
+  const patchData = useCallback((patch: Record<string, unknown>) => {
     setNodes((ns) => ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, ...patch } } : n)))
   }, [id, setNodes])
 
@@ -156,11 +202,11 @@ function TemplateNode({ id, data, selected }) {
   // 外部同步：Agent update_node 改 data 时，把变更同步回本地 state ——已收进 useGenerateNode 的 sync 参数。
 
   // 提示词落盘：本地 state + 写回 node.data（支持函数式更新；刷新不丢）
-  const setPromptPersist = useCallback((v) => {
+  const setPromptPersist = useCallback((v: React.SetStateAction<string>) => {
     setPrompt((prev) => (typeof v === 'function' ? v(prev) : v))
   }, [])
   // P2：prompt 持续输入走防抖写回（避免每键 setNodes 全图 node 数组重建）；卸载 flush 兜底
-  const debouncedPatch = useRef(null)
+  const debouncedPatch = useRef<{ (patch: Record<string, unknown>): void; flush(): void } | null>(null)
   if (debouncedPatch.current == null) {
     debouncedPatch.current = debounce(patchData, 200)
   }
@@ -175,18 +221,18 @@ function TemplateNode({ id, data, selected }) {
   React.useEffect(() => () => { debouncedPatch.current?.flush() }, [])
 
   // ─── 4. refs + 尺寸写回（通用）───
-  const wrapperRef = useRef(null)      // NodeShell 根 div（供主框手柄拖拽）
-  const promptInputRef = useRef(null)  // 提示词 textarea（供面板手柄拖拽）
-  const insertAssetRef = useRef(null)  // 富文本素材插入：由 PromptInput onReady 上抛（主框 MaterialStrip 共用）
-  const insertMention = (asset) => {
+  const wrapperRef = useRef<HTMLDivElement | null>(null)      // NodeShell 根 div（供主框手柄拖拽）
+  const promptInputRef = useRef<HTMLDivElement | null>(null)  // 提示词编辑器（PromptInput 暴露 contentEditable div）
+  const insertAssetRef = useRef<((asset: unknown) => void) | null>(null)  // 富文本素材插入：由 PromptInput onReady 上抛（主框 MaterialStrip 共用）
+  const insertMention = (asset: unknown) => {
     if (typeof insertAssetRef.current === 'function') insertAssetRef.current(asset)
   }
-  const fileRef = useRef(null)         // 隐藏 file input
+  const fileRef = useRef<HTMLInputElement | null>(null)         // 隐藏 file input
   const { onMainBoxResize, onInputResize } = useNodeResize(id)  // 主框/输入框尺寸写回 ReactFlow
 
   // 断连线：点击素材缩略图红色 ×，删除该素材来源节点 → 本节点的连线（通用）
   const disconnectSource = useCallback(
-    (sourceNodeId) => {
+    (sourceNodeId: string) => {
       if (!sourceNodeId) return
       setEdges((es) => es.filter((e) => !(e.source === sourceNodeId && e.target === id)))
     },
@@ -212,22 +258,33 @@ function TemplateNode({ id, data, selected }) {
     recoverable: true,
     // 前置校验：本地 prompt（含芯片解析后的文本或参考图）或上游文本任一非空即可生图
     validate: () => ((effectivePrompt?.trim() || chipResolved.refImages.length > 0) ? '' : '请输入提示词'),
-    run: async ({ progress, taskId }) => generateImage({              // 真执行器（换成你的 API）
-      model: selectedModel,
-      // 芯片解析后的纯文本（图片芯片已替换为「图片N」，文本芯片已替换为纯文本）
-      prompt: chipResolved.text || effectivePrompt,
-      // 参考图 = 用户显式 @ 的芯片图（顺序对应 prompt 里的「图片N」）+ 其余上游图（按 id 去重）
-      refImages: mergeRefImages(chipResolved.refImages, refImages),
-      aspectRatio,
-      taskId, // P0-A 请求级贯穿
-    }, progress),
+    // ctx 由 useGenerateNode 注入：{ providers, primary, models, selectedModel, prefs, setPrefs }
+    run: async ({ progress, signal, taskId }, { providers, primary }) => {
+      // 从「providerId::modelId」解析出实际 provider 和 modelId（跨 provider 选模型）
+      const { provider: useProvider, modelId } = resolveProviderModel(providers, selectedModel, primary)
+      // 参考图 = 用户显式 @ 的芯片图（顺序对应 prompt 里的「图片N」）+ 其余上游图（按 url 去重）。
+      // generateImage 只收 URL 数组（GenerateImageOptions.images: string[]）。
+      const chipUrls = chipResolved.refImages.map((im) => im?.url)
+      const upstreamUrls = refImages.map((im) => im?.url)
+      const refUrls = [...new Set([...chipUrls, ...upstreamUrls])].filter((u): u is string => !!u)
+      return generateImage({                                 // 真执行器（换成你的 API）
+        provider: useProvider,
+        // 芯片解析后的纯文本（图片芯片已替换为「图片N」，文本芯片已替换为纯文本）
+        prompt: chipResolved.text || effectivePrompt || '',
+        model: modelId,
+        images: refUrls,
+        aspectRatio,
+        taskId, // P0-A 请求级贯穿
+        // 中止信号必须落在第 3 位：generateImage(opts, onProgress?, signal?)
+      }, progress, signal)
+    },
     onSuccess: (r) => {                                      // 成功：本地 state + 业务记忆；写 node.data 交由 resultField
-      setImageUrl(r.url)
+      setImageUrl(r.url ?? '')
       setMyPrefs({ model: selectedModel, aspectRatio })
     },
     // 【真相源契约·onRecover】任务中心完成广播 → 刷新后结果自动恢复（node.data 回填由 recoverable 自动完成）
     onRecover: ({ resultUrl }) => {
-      setImageUrl(resultUrl)
+      setImageUrl(String(resultUrl ?? ''))
     },
   })
 
