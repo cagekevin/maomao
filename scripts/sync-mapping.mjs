@@ -10,9 +10,11 @@
  *   node scripts/sync-mapping.mjs                      # 输出到控制台 + 写 node-types-map.md
  *   node scripts/sync-mapping.mjs --json=node-types.json
  */
-import { readFileSync, writeFileSync, existsSync } from 'node:fs'
+import { readFileSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+// 扩展名无关解析（与 check-* / smoke / health 等脚本共用一份）
+import { resolveSourceFile } from './check-targets.mjs'
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url))
 const root = resolve(__dirname, '..')
@@ -60,15 +62,14 @@ const rows = []
 for (const [type, symbol] of typeToSymbol) {
   const short = symbol.replace('_cmp_', '')
   const file = compMap[short] || short
-  // 检查真实文件是否存在于混淆组件目录
-  const exists =
-    existsSync(join(compDir, `${file}.jsx`)) || existsSync(join(compDir, `${file}.js`))
+  // 检查真实文件是否存在于混淆组件目录（扩展名无关：.jsx / .tsx 都算命中）
+  const resolved = resolveSourceFile(join(compDir, file))
   rows.push({
     type,
     symbol,
     shortName: short,
-    file: `${file}.jsx`,
-    exists
+    file: resolved ? resolved.split(/[\\/]/).pop() : `${file}.jsx`,
+    exists: !!resolved
   })
 }
 

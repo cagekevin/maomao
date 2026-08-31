@@ -11,18 +11,38 @@
  * 这里把扫描根集中成一处：以后新增顶层目录（如 src/hooks、未来的 src/context）
  * 只改本文件，避免「改了目录结构、忘了补校验范围」再次形成盲区。
  *
+ * 另外：本文件是 ESM 侧拿「永久豁免清单 + 扩展名无关解析 + JSX 探测」的转出口，
+ * 真实定义在 ts-exts.cjs（CJS，.cjs/.mjs 两边共用一份）。
+ *
  * 界限：
  *  - 只列【应受契约校验】的源码目录；third-party / 生成物 / 测试夹具不在内。
  *  - 目录不存在时静默跳过（本地分支可能尚未创建该目录），保持脚本可用。
  */
 import { readdirSync, statSync, existsSync } from 'node:fs'
 import { join, extname } from 'node:path'
+import { createRequire } from 'node:module'
+
+// 扩展名无关解析 + 永久豁免清单 + JSX 探测的唯一事实来源（CJS，供 .cjs/.mjs 共用）
+const require = createRequire(import.meta.url)
+const {
+  SOURCE_EXTS,
+  TS_EXEMPT_DIRS,
+  TS_EXEMPT_FILES,
+  isExempt,
+  resolveSourceFile,
+  hasJsx,
+  hasJsxHintRaw,
+  detectExt,
+} = require('./ts-exts.cjs')
 
 /** 受契约校验的源码目录（相对仓库根） */
 export const SCAN_DIRS = ['src/components', 'src/hooks']
 
 /** 受校验的源码扩展名 */
-export const SCAN_EXTS = ['.js', '.jsx', '.ts', '.tsx']
+export const SCAN_EXTS = SOURCE_EXTS
+
+/** 转出口：ESM 脚本（ts-migrate / extract-tailwind / sync-mapping）从这里取，避免各写一份 */
+export { TS_EXEMPT_DIRS, TS_EXEMPT_FILES, isExempt, resolveSourceFile, hasJsx, hasJsxHintRaw, detectExt }
 
 /** 递归收集 dir 下的源码文件绝对路径 */
 export function collectSources(dir, acc = []) {

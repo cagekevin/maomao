@@ -7,7 +7,7 @@
  *   2. npm scripts 完整性
  *   3. npm run build（能构建）
  *   4. npm run test:all（统一测试门禁：smoke + regression + tools）
- *   5. TDZ 风险扫描（扫 src 下所有 .jsx/.js，防「Cannot access before initialization」）
+ *   5. TDZ 风险扫描（扫 src 下所有源码 .jsx/.js/.ts/.tsx，防「Cannot access before initialization」）
  *   6. dist 构建产物基线（借鉴 1mao safety-net：防 dist 意外增删/体积异常）
  *
  * 用法: node scripts/health-check.cjs        （或 npm run check:health）
@@ -16,6 +16,8 @@
 const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
+// 扩展名无关：TS 化期间源码后缀会在 .js/.jsx/.ts/.tsx 间漂移，写死后继扩展名的检查会在改名那刻误红
+const { resolveSourceFile } = require('./ts-exts.cjs');
 
 const ROOT = path.resolve(__dirname, '..');
 const DIST = path.join(ROOT, 'dist');
@@ -37,13 +39,15 @@ console.log('═'.repeat(54));
 
 // ── 1. 文件存在性 ──
 console.log('\n📁 文件存在性');
+// 说明：源码条目【不写扩展名】——后缀会随 TS 化漂移（storageAdapter.js→.ts、groupNodes.js→.ts
+// 已经把这项检查搞红过一次），统一走扩展名无关解析；非源码条目（css/插件文件/脚本）照旧写全名。
 const files = [
-  ['src/main.jsx', '入口'],
-  ['src/App.jsx', '画布壳'],
+  ['src/main', '入口'],
+  ['src/App', '画布壳'],
   ['src/index.css', '全局样式'],
-  ['src/components/base/config.js', 'API 地址统一入口（原 apiBase.js 已合并至此）'],
-  ['src/components/base/storageAdapter.js', '存储适配（chrome.storage）'],
-  ['src/components/base/groupNodes.js', '编组算法'],
+  ['src/components/base/config', 'API 地址统一入口（原 apiBase.js 已合并至此）'],
+  ['src/components/base/storageAdapter', '存储适配（chrome.storage）'],
+  ['src/components/base/groupNodes', '编组算法'],
   ['public/manifest.json', '插件 manifest'],
   ['public/background.js', '插件 background'],
   ['public/icon16.png', '插件图标 16'],
@@ -55,7 +59,14 @@ const files = [
   ['scripts/run_all_tests.cjs', '统一门禁'],
   ['vite.config.js', '构建配置'],
 ];
-for (const [f, name] of files) check(`${name} (${f})`, fs.existsSync(path.join(ROOT, f)));
+const relOf = (p) => path.relative(ROOT, p).split(path.sep).join('/');
+for (const [f, name] of files) {
+  // 有扩展名 → 直接判断存在性；无扩展名 → 按源码扩展名全集解析真实文件
+  const hit = path.extname(f)
+    ? (fs.existsSync(path.join(ROOT, f)) ? f : null)
+    : resolveSourceFile(path.join(ROOT, f));
+  check(`${name} (${hit ? (path.extname(f) ? f : relOf(hit)) : f})`, !!hit);
+}
 
 // ── 2. npm scripts ──
 console.log('\n🔧 npm scripts');
@@ -109,8 +120,8 @@ try {
   check('check:node-types', false, (e.stdout || e.message || '').slice(0, 160));
 }
 
-// ── 5. TDZ 风险扫描（扫 src 下 .jsx/.js）──
-console.log('\n🛡️ TDZ 风险扫描（src/*.jsx/js）');
+// ── 5. TDZ 风险扫描（扫 src 下 .jsx/.js/.ts/.tsx）──
+console.log('\n🛡️ TDZ 风险扫描（src/*.jsx|js|ts|tsx）');
 const tdzPatterns = [
   [/Cannot access '(\w+)' before initialization/g, 'TDZ 引用错误'],
   [/'(\w+)' is not defined/g, '未定义变量引用'],
@@ -122,7 +133,7 @@ let tdzHits = 0;
   for (const e of fs.readdirSync(d, { withFileTypes: true })) {
     const p = path.join(d, e.name);
     if (e.isDirectory()) { walkDir(p); continue; }
-    if (!/\.(jsx|js)$/.test(e.name)) continue;
+    if (!/\.(jsx|js|ts|tsx)$/.test(e.name)) continue;
     const code = fs.readFileSync(p, 'utf-8');
     for (const [pattern, label] of tdzPatterns) {
       const m = [...code.matchAll(pattern)];

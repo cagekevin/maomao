@@ -28,7 +28,9 @@ try {
     platform: 'node',
     format: 'cjs',
     outfile: OUT,
-    // 未用到的 import 不会拖入；NodePalette.jsx 会被 esbuild 转译 JSX
+    // 未用到的 import 不会拖入；NodePalette 会被 esbuild 转译 JSX
+    // Node 下无 Vite 的 import.meta.env，CJS 里它是空对象 → 读 .DEV 直接崩（同 regression_test 的处理）
+    define: { 'import.meta.env': '{}' },
     logLevel: 'silent',
   });
 } catch (e) {
@@ -51,6 +53,7 @@ try {
     format: 'cjs',
     outfile: OUT_CHAT,
     // 全部打入（含 react/@xyflow/react），仅调用纯函数 demoPlan，不触发 hook/DOM
+    define: { 'import.meta.env': '{}' },
     logLevel: 'silent',
   });
   modChat = require(OUT_CHAT);

@@ -14,6 +14,8 @@
 import { readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs'
 import { join, resolve, extname, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
+// 扩展名无关：源码后缀会在 .jsx→.tsx 间漂移，只扫 .jsx/.js 会让 TS 化后的 className 被静默漏提
+import { SCAN_EXTS } from './check-targets.mjs'
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url))
 const root = resolve(__dirname, '..')
@@ -42,7 +44,7 @@ function collectFiles(dir, acc = []) {
     if (e.name.startsWith('.')) continue
     const full = join(dir, e.name)
     if (e.isDirectory()) collectFiles(full, acc)
-    else if (extname(e.name) === '.jsx' || extname(e.name) === '.js') acc.push(full)
+    else if (SCAN_EXTS.includes(extname(e.name))) acc.push(full)
   }
   return acc
 }
@@ -52,7 +54,7 @@ const srcDir = source ? resolve(root, source) : join(root, 'src/components')
 const files = collectFiles(srcDir)
 
 if (files.length === 0) {
-  console.error(`未找到任何 .jsx/.js 文件: ${srcDir}`)
+  console.error(`未找到任何源码文件（${SCAN_EXTS.join('/')}）: ${srcDir}`)
   process.exit(1)
 }
 

@@ -96,6 +96,8 @@ Thumbs.db
 scripts/rollback/snapshot-*/
 
 # ── 运行产物（每次运行/验收自动生成，随时间变化，不入库）──
+# ts-migrate.mjs report 生成的 Excel 全景迁移作战表（随时可重建）
+ts-migration-view.csv
 # safety-net.cjs --save 的 dist 基线快照
 scripts/dist-snapshot.json
 # verify-ext.cjs 真机验收结果
