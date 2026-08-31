@@ -6,7 +6,7 @@ import ModelSelect from '../base/ModelSelect.jsx'
 import Select from '../base/Select.tsx'
 import ScriptBoxModal from './ScriptBoxModal.jsx'
 import ScriptBoxPlaybookManager from './scriptBoxPlaybookManager.jsx'
-import { getAllPlaybooks, getPlaybook, isBuiltin, saveCustomPlaybook } from './scriptBoxPlaybookStore.js'
+import { getAllPlaybooks, getPlaybook, isBuiltin, saveCustomPlaybook } from './scriptBoxPlaybookStore.ts'
 import { DEFAULT_WORKFLOW } from './scriptBoxWorkflows.js'
 
 /**

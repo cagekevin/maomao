@@ -16,8 +16,23 @@
  *  下游 resolver(base) → 本 store。依赖单向，无回环。
  */
 import { SCRIPT_BOX_WORKFLOWS, DEFAULT_WORKFLOW } from './scriptBoxWorkflows.js'
-import { contentGet, contentSet, contentClearCache } from '../base/contentStore.ts'
-import { logger } from '../base/logger.ts'
+import { contentGet, contentSet, contentClearCache } from '../base/contentStore'
+import { logger } from '../base/logger'
+import type { Playbook } from './scriptBoxPlaybookIO'
+import type { ImageGenTemplate } from '../base/scriptBoxPromptResolver'
+
+/** scriptBoxWorkflows.js 导出的内置工作流原始形状（比归一后 Playbook 少 negative.common 位）。 */
+interface RawWorkflow {
+  label: string
+  script?: string
+  shot?: string
+  audit?: string
+  qg?: string
+  assetTemplates?: Record<string, unknown>
+  imageGenTemplates?: Record<string, ImageGenTemplate>
+  constraints?: { image?: string; video?: string }
+  negative?: { image?: string; video?: string }
+}
 
 /** 自定义 playbook 的 localStorage 键（已在 contracts.js STORAGE_KEYS 登记，domain:'settings'，backend:'local'）。 */
 export const PLAYBOOKS_KEY = 'scriptbox_playbooks'
@@ -33,7 +48,7 @@ export function __resetCustomCache() {
 }
 
 /** 读取内置 playbook 并归一为统一结构（补 builtin / constraints 去 custom / negative 补 common）。 */
-function normalizeBuiltin(id, wf) {
+function normalizeBuiltin(id: string, wf: RawWorkflow): Playbook {
   return {
     id,
     label: wf.label,
@@ -52,10 +67,10 @@ function normalizeBuiltin(id, wf) {
 
 /** 解析本地自定义 playbook 列表（contentGet 返回解析后对象；坏数据降级为空对象）。
  * contentStore 对 local 键读 sGet（同 yimao: 前缀）+ 自身缓存，语义与旧 sGet 等价。 */
-function loadCustom() {
+function loadCustom(): Record<string, Playbook> {
   try {
     const obj = contentGet(PLAYBOOKS_KEY)
-    return obj && typeof obj === 'object' && !Array.isArray(obj) ? obj : {}
+    return obj && typeof obj === 'object' && !Array.isArray(obj) ? (obj as Record<string, Playbook>) : {}
   } catch (e) {
     logger.warn('scriptbox', '自定义 playbook 解析失败，降级为空', { error: e?.message })
     return {}
@@ -76,7 +91,7 @@ function persist(obj) {
  * 取所有 playbook（内置在前 + 自定义在后），供 GearSettings 下拉 / 管理面板。
  * @returns {Array<object>} playbook 数组（含 builtin 标志）
  */
-export function getAllPlaybooks() {
+export function getAllPlaybooks(): Playbook[] {
   const builtin = Object.entries(SCRIPT_BOX_WORKFLOWS).map(([id, wf]) => normalizeBuiltin(id, wf))
   const custom = Object.values(loadCustom())
   return builtin.concat(custom)
@@ -87,7 +102,7 @@ export function getAllPlaybooks() {
  * @param {string} id playbook id
  * @returns {object} playbook；未知 id 返回 DEFAULT_WORKFLOW 且 logger.warn（供悬挂引用显式提示）
  */
-export function getPlaybook(id) {
+export function getPlaybook(id: string | null | undefined): Playbook {
   const rid = String(id || '')
   const custom = loadCustom()
   if (rid && custom[rid]) return custom[rid]
@@ -99,7 +114,7 @@ export function getPlaybook(id) {
 }
 
 /** 是否内置（内置只读，不可删改，只可「另存为」）。 */
-export function isBuiltin(id) {
+export function isBuiltin(id: string | null | undefined): boolean {
   return Boolean(SCRIPT_BOX_WORKFLOWS[String(id || '')])
 }
 
@@ -108,7 +123,7 @@ export function isBuiltin(id) {
  * @param {object} pb 自定义 playbook（含 id/label/…统一结构 + builtin:false）
  * @returns {boolean} 是否成功（id 为内置则拒绝）
  */
-export function saveCustomPlaybook(pb) {
+export function saveCustomPlaybook(pb: Playbook): boolean {
   if (!pb || !pb.id) return false
   if (isBuiltin(pb.id)) { logger.warn('scriptbox', '拒绝覆盖内置 playbook', { id: pb.id }); return false }
   const list = loadCustom()
@@ -122,7 +137,7 @@ export function saveCustomPlaybook(pb) {
  * @param {string} id
  * @returns {boolean}
  */
-export function deleteCustomPlaybook(id) {
+export function deleteCustomPlaybook(id: string): boolean {
   if (isBuiltin(id)) return false
   const list = loadCustom()
   if (!(id in list)) return false
@@ -138,7 +153,11 @@ export function deleteCustomPlaybook(id) {
  * @param {string} label 新名称（调用方已校验非空/不重名）
  * @returns {string} 新 playbook id（失败返回空串）
  */
-export function createCustomFrom(sourceId, override = {}, label) {
+export function createCustomFrom(
+  sourceId: string | null | undefined,
+  override: Partial<Playbook> = {},
+  label?: string,
+): string {
   const src = getPlaybook(sourceId)
   const id = `custom-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`
   const merged = {

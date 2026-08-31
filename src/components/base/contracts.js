@@ -197,7 +197,7 @@ export const STORAGE_KEYS = {
   },
   scriptbox_playbooks: {
     domain: 'settings',
-    store: 'scriptBoxPlaybookStore.js',
+    store: 'scriptBoxPlaybookStore.ts',
     backend: 'local',
     note: '剧本盒子自定义 Playbook 列表 { id: playbook }。整键随云同步+备份（内置走代码常量，不在此）',
   },
