@@ -38,6 +38,25 @@ export function isChromeExtension(): boolean {
   }
 }
 
+/**
+ * localStorage 是否可用。
+ *
+ * 【SSR / Node 兜底】服务端渲染、Node 测试环境、或刻意剥离 DOM 的运行环境里
+ * `localStorage` 是未定义标识符，直接访问会抛 ReferenceError。此时不抛、不 warn，
+ * 所有读写静默回退到内存 Map（见下方的 memFallback），避免初始化期就炸掉，
+ * 也避免 persistFailureBus 收到无意义的 persist:failed 噪声。
+ */
+export function hasLocalStorage(): boolean {
+  try {
+    return typeof localStorage !== 'undefined'
+  } catch {
+    return false
+  }
+}
+
+/** 内存兜底缓存：仅当 localStorage 不可用时启用，保证 SSR/Node 下读写零抛错。 */
+const memFallback = new Map<string, string>()
+
 /** 写入失败上报（统一事件，全局监听器节流 toast；测试可替换全局 publish）。
  * 【P0·M3 观测】失败落日志（warn），供离线 grep 探明根因（key + error.message），
  * 不改变事件链路——事件照常 publish，logger 仅旁路记录。 */
@@ -79,6 +98,8 @@ export function initStorage(): void {
 /** 同步读取（字符串或 null，与 localStorage 一致） */
 export function sGet(key: string): string | null {
   if (!isChromeExtension()) {
+    // 【SSR/Node 兜底】localStorage 不可用时走内存，零抛错、不 warn
+    if (!hasLocalStorage()) return memFallback.get(KEY_PREFIX + key) ?? null
     try { return localStorage.getItem(KEY_PREFIX + key) } catch { return null }
   }
   const v = cache.get(key)
@@ -89,6 +110,8 @@ export function sGet(key: string): string | null {
 export function sSet(key: string, value: unknown): void {
   const fullKey = KEY_PREFIX + key
   if (!isChromeExtension()) {
+    // 【SSR/Node 兜底】localStorage 不可用时写内存，不触发 persist:failed
+    if (!hasLocalStorage()) { memFallback.set(fullKey, value as string); return }
     try { localStorage.setItem(fullKey, value as string) } catch (e) { reportPersistFailure(key, e) }
     return
   }
@@ -112,6 +135,8 @@ export function sSet(key: string, value: unknown): void {
 export function sRemove(key: string): void {
   const fullKey = KEY_PREFIX + key
   if (!isChromeExtension()) {
+    // 【SSR/Node 兜底】localStorage 不可用时从内存删，不触发 persist:failed
+    if (!hasLocalStorage()) { memFallback.delete(fullKey); return }
     try { localStorage.removeItem(fullKey) } catch (e) { reportPersistFailure(key, e) }
     return
   }

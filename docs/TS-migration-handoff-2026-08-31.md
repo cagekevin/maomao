@@ -11,6 +11,8 @@
 >
 > **本轮会话（第九段）新增成果**：`panels/` **全部清零**——`AgentConfirmCard` / `AgentMessage` / `AgentPanel` 三个 `.jsx`→.tsx 转完（含 Props 接口 + `vi.mock` 后缀同步）。`edges/` **全部清零**——`Comet` / `CustomEdge` / `ConnectionLine` 三个 `.jsx`→.tsx 转完（用 `@xyflow/react` 的 `EdgeProps` / `ConnectionLineComponentProps`，`Position` 用字符串 + `as` 断言，`Handle type` 用字符串 `'target'|'source'`）。`scriptbox/` 已转 **3 个**（StepNav / StepPrompt / ScriptBoxModal），并**收口 `ScriptBoxShot` 类型漂移**（由过时不全类型改为 `extends Shot` + 补运行时字段）、新增 `ScriptBoxCallbacks` 类型；顺手修复 StepPrompt 内 `patchShot` 真实调用 bug（2 参→3 参）。详见第三节 commit 表与 §10.7。剩余 `.jsx` 实测 **27 个**（不含 director3d 豁免）。
 
+> **本轮会话（第十段）新增成果**：接第九段（含用户 `8529d75` 批：再转 3 个 .jsx→.tsx + `panels/` 清零，剩余 scriptbox 6 / nodes 17 / main·App 2）之后，**scriptbox/ 组件层再转 4 个**：`StepAssets`(c79632f) / `StepShots`(62b2fef) / `ScriptBoxAssetPicker`(93fc02d) / `ScriptBoxFullscreen`(ebff4e1)，全部补 Props 接口、复用 `ScriptBoxData`/`ScriptBoxUpdateData`/`ScriptBoxCallbacks`/`ResourceItem` 等既有类型，门禁全绿。**收口两处类型漂移**：①`scriptBoxSchema` 的 `ScriptBoxAsset` 补 `id` 字段 + 索引签名（此前漏登记 `id`，致 `removeAsset` 期望的 `ScriptAsset[]` 不兼容）；②`MaterialStrip` 导出 `MaterialStripProps`（供 StepShots 复用，消素材条 unknown 报错）。**诚实原则**：同工作区存在用户独立改动 `storageAdapter.ts`/`storageAdapter.test.js`（修 SSR `localStorage` warn），非本批迁移引入，提交时**显式 `git add` 本批文件、未用 `git add -A` 夹带**。详见第三节 commit 表与 §10.8。剩余 `.jsx` 实测 **21 个**（scriptbox 2：GearSettings / scriptBoxPlaybookManager + nodes 17 + main·App 2，不含 director3d 豁免）。
+
 ---
 
 ## 一、任务目标与规则（用户原话要点）
@@ -30,7 +32,7 @@
 
 ## 三、完成进度（截至本次更新，工作区干净）
 
-**已转 110+ 个 .ts / .tsx**（纯逻辑层）+ **11 个组件层 .tsx** + **A4 批 3 个 scriptbox 纯逻辑 .ts** + **A3 全部 6 个（agentConfig / canvasPlanExecutor / agentRuntime / agentCore / useAgentChat / useCanvasAgentTools）**。**剩余：0 个 .js + 79 个 .jsx（组件层，不含豁免目录）**。
+**已转 110+ 个 .ts / .tsx**（纯逻辑层）+ **组件层 .tsx 持续累计**（含 base/ / panels/ / edges/ / scriptbox 大部分 / A3·A4 纯逻辑） + **A4 批 3 个 scriptbox 纯逻辑 .ts** + **A3 全部 6 个（agentConfig / canvasPlanExecutor / agentRuntime / agentCore / useAgentChat / useCanvasAgentTools）**。**剩余：0 个 .js + 21 个 .jsx（组件层，不含豁免目录；scriptbox 2 + nodes 17 + main·App 2）**。
 
 **纯逻辑层（非 JSX）完成度：100% 清零** —— `base/`、`agent/conversation/`、`scriptbox/`、`agent/runtime/`、`agent/canvas/` 全部 .ts，`.js` 计数为 0（仓库里仅剩的 .js 是永久豁免的 `contracts.js` / `config.js` 与 director3d 目录）。
 
@@ -92,6 +94,10 @@
 | `7dee2c8` | **B 批**：`FullscreenEditor`(.tsx、base/ 层收尾 1/2) + `NodeShell` 下游 `CustomHandle` 前置收口铺垫；`PromptInputProps` 补 `richText?: boolean`（存量类型漂移修复） |
 | `52086b6` | **B 批**：`NodeShell`(.tsx、base/ 层收尾 2/2，16 引用) + 其下游 `CustomHandle`(.tsx、edges/ 首批，NodeShell 引用)；同步 11 处测试 `vi.mock` 路径 `.jsx`→`.tsx`。**base/ 层清零** |
 | `d862906` | **B 批**：`PromptConfirmCard`(.tsx、panels/ 首批) + 跨模块收口 `promptFlow.ts` 的 `PromptItem.status` 由 `string`→`PromptStatus`；`apply` 兼容 `PromptItem[] | PromptFlowResult`（兼修 reopen/取消不写回历史 bug）；同步 `AgentMessage.test.jsx` 的 `vi.mock` 后缀 |
+| `c79632f` | **B 批**：`StepAssets`(.tsx、scriptbox/ 三步内容组件 2/3) + 就近定义 `StepAssetsProps`/`AssetCallbacks`（复用 `ScriptBoxData`/`ScriptBoxUpdateData`）；`AssetCard`/`AssetPanel`/`MenuItem`/`addAsset` 补参数类型；ref 标注 `HTMLDialogElement`/`HTMLDivElement`/`HTMLInputElement`；`scriptBoxSchema` 的 `ScriptBoxAsset` 补 `id` + 索引签名（修 `removeAsset` 的 `ScriptAsset[]` 兼容）；同步 `ScriptBoxNode.test.jsx` 的 `vi.mock` 后缀 |
+| `62b2fef` | **B 批**：`StepShots`(.tsx、scriptbox/ 三步内容组件 1/3) + 就近定义 `StepShotsProps`/`StepShotsCallbacks`；`DropTable` 补参数类型 + ref 标注 `HTMLDivElement`；`editing`/`dlgEditing`/`tfShotId` 状态类型；上游素材/尾帧变体数组断言具体形状；`MaterialStrip` 导出 `MaterialStripProps`（类型收口）；同步 2 处测试 import/`vi.mock` 后缀 |
+| `93fc02d` | **B 批**：`ScriptBoxAssetPicker`(.tsx、scriptbox/ 素材库选择器) + 补 Props（folder/onClose/onPick）与 `items: ResourceItem[]`（复用 `localToolApi.ts` 收口的 `ResourceItem`）；catch `e` 断言取 message；同步 `StepAssets.tsx` import 后缀。**未夹带** `storageAdapter.ts`/`storageAdapter.test.js` 独立改动 |
+| `ebff4e1` | **B 批**：`ScriptBoxFullscreen`(.tsx、scriptbox/ 全屏工作台) + 补 `ScriptBoxFullscreenProps`；`callbacks` 复用 `ScriptBoxCallbacks`（与三 Step 组件契约统一）；`d.genChars` 断言 string 防 unknown 渲染报错；同步 `ScriptBoxNode.jsx` import 后缀。**未夹带** `storageAdapter.ts`/`storageAdapter.test.js` 独立改动 |
 
 ## 三·补：横切收口成果（本次新增）
 
@@ -193,9 +199,10 @@ node scripts/ts-migrate.mjs move <file> <targetDir> [--dry]
 - **✅ 已完成（base/ 入口层 11 个）**：ArrangeConfirm / EmptyCanvasGuide / ToastContainer / ToolbarButton / HoverToolbar / FullscreenModal / ContextMenu / Select / ProjectSelector / CanvasToolbar / TopNav
 - **✅ base/ UI 组件（全清零）**：NodeShell、PromptInput、AssetLibrary、GeneratedView、TaskCenter、settings/sections/*（9 个）、LeftPanel、PromptHub、PromptLibrary、PanoViewer、LocalToolConnectModal、ErrorBoundary、ModelSelect、GenerateButton、ResizeFullscreenHandle、ExpandablePanel、CanvasEdgesContext、NodePalette、FullscreenEditor（含 5·3/5·4 段、6·5/6·6 段清单）
 - **✅ edges/（4/4 已转）**：CustomHandle、Comet、CustomEdge、ConnectionLine（均补 Props，`@xyflow/react` 的 `EdgeProps`/`ConnectionLineComponentProps`/`Position` 用字符串+`as` 断言，见 §10.5）
-- **🔶 panels/（1/4 已转）**：PromptConfirmCard 已转（§10.6）；剩余 AgentConfirmCard / AgentMessage / AgentPanel
-- **⏳ 未开始**：`scriptbox/`（9 个组件：GearSettings / ScriptBoxAssetPicker / ScriptBoxFullscreen / ScriptBoxModal / StepAssets / StepNav / StepPrompt / StepShots / scriptBoxPlaybookManager）、`nodes/`（17 个：含 Director3DNode 非豁免需转）、`src/main.jsx` / `src/App.jsx`（最后转）
-- **当前剩余 `.jsx` 计数：31 个**（不含 director3d 豁免目录；`find src -name '*.jsx' -not -path '*/director3d/*'` 实测）
+- **✅ panels/（4/4 已转）**：PromptConfirmCard / AgentConfirmCard / AgentMessage / AgentPanel（见 §10.6 / §10.7）
+- **🔶 scriptbox/（7/9 已转）**：StepNav / StepPrompt / ScriptBoxModal（§10.7）+ StepAssets / StepShots / ScriptBoxAssetPicker / ScriptBoxFullscreen（第十段，§10.8）；**剩余 GearSettings / scriptBoxPlaybookManager**
+- **⏳ 未开始**：`nodes/`（17 个：含 Director3DNode 非豁免需转）、`src/main.jsx` / `src/App.jsx`（最后转）
+- **当前剩余 `.jsx` 计数：21 个**（scriptbox 2 + nodes 17 + main·App 2；不含 director3d 豁免目录；`find src -name '*.jsx' -not -path '*/director3d/*'` 实测）
 - 收尾：**全部 .jsx 清零后**把「禁止保留 jsx」红线落实；删掉 check-jsx 对 .jsx 的残留逻辑（若只剩 director3d 则保留）
 - `src/main.jsx`、`src/App.jsx` 最后转
 - 建议：先跑 `node scripts/ts-migrate.mjs plan` 看引用量，从**叶子组件**（被引用少）往上转，避免大范围级联改类型
@@ -362,3 +369,18 @@ npm run test:tools           # agent 工具
    - 顺手收口：`promptFlow.ts` 的 `PromptItem.status` 由 `string` → `PromptStatus`（跨模块真实类型，连带修 `normalizePrompts` 局部收窄）。
    - 提交：`d862906`（PromptConfirmCard→.tsx + promptFlow 收口 + AgentMessage.test 的 vi.mock 同步）。
    - 剩余 `.jsx`（不含 director3d 豁免）：`panels/`（AgentConfirmCard / AgentMessage / AgentPanel，3 个）、`edges/`（Comet / ConnectionLine / CustomEdge，3 个，CustomHandle 已转）、`scriptbox/`（9 个）、`nodes/`（17 个，含 Director3DNode 非豁免需转）、`src/main.jsx` / `src/App.jsx`（最后转）。
+
+### 10.8 本轮（第十段会话）新增踩坑 / 经验（必读）
+
+> 时间段：承接第九段（含用户 `8529d75` 批），继续推 scriptbox/ 组件层，再转 4 个三步内容/全屏组件。
+
+1. **schema 漏登记的字段会在下游转 .ts 时「照出」类型错（续 §10.2 第 3 条）**：转 `StepAssets` 时报 `ScriptBoxAsset` 缺 `id`——`scriptBoxSchema` 的 `ScriptBoxAsset` 接口从未登记 `id`（尽管 `addAsset` 一直生产 `id`、StepAssets 一直读 `a.id`）。补 `id: string` 后；同时因 `scriptBoxPrompts.removeAsset(assets: ScriptAsset[])` 的 `ScriptAsset` 带 `[key:string]:unknown` 索引签名，而 `ScriptBoxAsset` 原先无索引签名 → 两类型不重叠、直接赋报错。修法：给 `ScriptBoxAsset` 也加 `[key: string]: unknown` 索引签名（与 `ScriptBoxData` 一致，真实运行期 asset 也常透传额外字段），消除后 `removeAsset(assets, ...)` 直接通过、无需 `as` 断言。
+2. **`{}` 兜底在 `.tsx` 入口 `const d = data || {}` 会退化成 `{}` 类型（续 §四经验）**：StepAssets/StepShots/ScriptBoxFullscreen 的 `d` 原本 `data || {}` 在 TS 下退化为 `{}`，导致 `d.assets`/`d.shots`/`d.step` 全报 TS2339。统一改为 `const d = (data ?? ({} as ScriptBoxData))`（运行期 data 总被引擎注入，行为不变）。注意 `d.genChars` 经索引签名是 `unknown`，渲染 `{d.genChars || 0}` 报「unknown 不可赋 ReactNode」→ 改为 `String(d.genChars || 0)`。
+3. **组件私有子类型未 export，跨文件复用会失败**：`StepShots` 用到 `MaterialStrip` 的 props 形状做断言，但 `MaterialStripProps` 原为**未 export 的 interface** → `import { MaterialStripProps }` 报「无导出成员」。修法：给 `MaterialStrip.tsx` 的 `MaterialStripProps` 加 `export`（类型收口，且 AssetLibrary/GeneratedView 等面板与其同源，后续可一并复用）。
+4. **`storageAdapter.ts` / `storageAdapter.test.js` 是独立改动，提交时勿夹带（诚实原则，续 §10.1）**：本会话工作区里这两文件有 47 行未提交改动（用户修 SSR `localStorage is not defined` warn 的独立任务），与 scriptbox 迁移无关。提交本批时**显式 `git add` 本批文件（ScriptBoxX.tsx + 调用方 import 同步）**，不用 `git add -A`，避免把不属于迁移的改动混进迁移 commit、误导「迁移引入存储层改动」的归因。门禁仍全过（1415 测试 green）。
+5. **`data` 经 `fetchResources` 返回 `Promise<any>`，`data?.data?.items` 是 any**：`ScriptBoxAssetPicker` 的 `items` 显式 `useState<ResourceItem[]>([])`，赋值时 `setItems(((data?.data?.items) as ResourceItem[]) || [])`；catch 的 `e` 在严格模式是 `unknown`，取 message 用 `(e as { message?: string }).message`（勿直接 `e?.message`）。`ResourceItem` 复用 `localToolApi.ts` 已收口的面板资源形状（第九段 AssetLibrary/GeneratedView 收口成果）。
+6. **本段 B 批进度（截至本次更新）**：
+   - 已转（本段新增 4 个）：`StepAssets` / `StepShots` / `ScriptBoxAssetPicker` / `ScriptBoxFullscreen`（全部 .tsx + Props + 消除内部 any；callbacks 统一复用 `ScriptBoxCallbacks`，与 StepPrompt 契约一致）。
+   - 收口：`scriptBoxSchema.ScriptBoxAsset` 补 `id` + 索引签名；`MaterialStrip` 导出 `MaterialStripProps`。
+   - 提交：`c79632f` / `62b2fef` / `93fc02d` / `ebff4e1`（均未夹带 storageAdapter 独立改动）。
+   - 剩余 `.jsx`（不含 director3d 豁免）：`scriptbox/`（GearSettings / scriptBoxPlaybookManager，2 个）、`nodes/`（17 个，含 Director3DNode 非豁免需转）、`src/main.jsx` / `src/App.jsx`（最后转）。

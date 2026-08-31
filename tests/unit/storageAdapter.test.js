@@ -8,7 +8,7 @@ vi.mock('../../src/components/base/eventBus.ts', () => ({
   subscribe: () => () => {},
 }))
 
-import { sSet, sRemove, isChromeExtension, initStorage } from '@/components/base/storage/storageAdapter.ts'
+import { sSet, sGet, sRemove, isChromeExtension, initStorage } from '@/components/base/storage/storageAdapter.ts'
 
 /** 可控的 chrome 全局（模拟 普通网页 / 真实扩展 两种环境） */
 let chromeGlobal = null
@@ -65,6 +65,27 @@ function makeBrokenExtensionChrome() {
     storage: { local: {} }, // get/set 缺失 → 应判为非扩展
   }
 }
+
+describe('storageAdapter SSR/Node 内存兜底（localStorage 不可用时不抛、不报）', () => {
+  it('localStorage 未定义：sGet/sSet/sRemove 走内存，零抛错且不发布 persist:failed', () => {
+    vi.stubGlobal('localStorage', undefined)
+    expect(typeof localStorage).toBe('undefined')
+    expect(() => {
+      sSet('ssr_k', 'ssr_v')
+      expect(sGet('ssr_k')).toBe('ssr_v')
+      sRemove('ssr_k')
+      expect(sGet('ssr_k')).toBeNull()
+    }).not.toThrow()
+    // 内存兜底路径不触发 persist:failed（没有真实写入失败）
+    expect(publishMock).not.toHaveBeenCalled()
+  })
+
+  it('localStorage 未定义：sSet 不 warn/不抛（与真实写入失败区分，无事件噪声）', () => {
+    vi.stubGlobal('localStorage', undefined)
+    sSet('ssr_quiet', 'x')
+    expect(publishMock).not.toHaveBeenCalled()
+  })
+})
 
 describe('storageAdapter R1 写入失败事件化', () => {
   it('sSet 正常写入：不发布 persist:failed', () => {
