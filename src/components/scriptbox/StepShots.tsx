@@ -2,9 +2,25 @@ import React, { useState, useRef } from 'react'
 import { Loader2, Plus, Trash2, Film, Link2 } from 'lucide-react'
 import { SHOT_TYPES, LIGHTS, MOTIONS, dialogueText, textToDlg, dlgToText, hlAt, patchShots, createNewShot, removeShot, applyTailFrameSelection, parseShotSeconds } from './scriptBoxPrompts.ts'
 import MaterialStrip from '../base/MaterialStrip.tsx'
+import type { MaterialStripProps } from '../base/MaterialStrip.tsx'
 import { useOutsideClick } from '../base/hooks.ts'
 import { useRenderImageResolver } from '../base/imageUrl.ts'
 import ScriptBoxModal from './ScriptBoxModal.tsx'
+import type { ScriptBoxData, ScriptBoxUpdateData } from './scriptBoxSchema.ts'
+
+/** StepShots 实际调用的引擎回调（来自 props.callbacks = { ...data, onDisconnectUpstream }） */
+interface StepShotsCallbacks {
+  onGenerateScript?: () => Promise<void> | void
+  onGenerateTailFrameVariants?: (shotId: string | number) => void
+  onDisconnectUpstream?: (sourceNodeId: string) => void
+  [key: string]: unknown
+}
+
+interface StepShotsProps {
+  data?: ScriptBoxData
+  updateData: ScriptBoxUpdateData
+  callbacks: StepShotsCallbacks
+}
 
 /**
  * 剧本盒子 步骤1「确认镜头」：左栏控制 + 右栏分镜表格（复刻原型 renderV1）。
@@ -12,14 +28,14 @@ import ScriptBoxModal from './ScriptBoxModal.tsx'
  *
  * 表格 8 列：镜号/时长/画面描述(双击编辑,@资产高亮)/景别/光影/对白(双击弹窗)/音效/运镜 + 删除。
  */
-export default function StepShots({ data, updateData, callbacks }) {
-  const d = data || {}
+export default function StepShots({ data, updateData, callbacks }: StepShotsProps) {
+  const d = (data ?? ({} as ScriptBoxData))
   const shots = d.shots || []
-  const [editing, setEditing] = useState(null) // { idx, field, title }
+  const [editing, setEditing] = useState<{ idx: number; field: string; title: string } | null>(null) // { idx, field, title }
   const [editVal, setEditVal] = useState('')
-  const [dlgEditing, setDlgEditing] = useState(null) // 对白编辑器 idx
+  const [dlgEditing, setDlgEditing] = useState<number | null>(null) // 对白编辑器 idx
   const [dlgText, setDlgText] = useState('')
-  const [tfShotId, setTfShotId] = useState(null) // 尾帧变体浮层：当前查看的 shot id（P1-1）
+  const [tfShotId, setTfShotId] = useState<string | number | null>(null) // 尾帧变体浮层：当前查看的 shot id（P1-1）
   // 生成中状态直接派生自 data.genMask（引擎发起请求时同步置位、结束时复位），不用本地 state：
   // 切步骤/关全屏导致组件卸载后回来不会丢状态，也就不会重复发起第二次生成。
   const scriptLoading = !!d.genMask
@@ -76,9 +92,9 @@ export default function StepShots({ data, updateData, callbacks }) {
           {/* 上游接入只读素材区（位置在剧情框上方）：展示连入的上游文本/图片，内容只读不可改，仅可断线。
               素材来自 node.data.upstreamTexts / upstreamImages（ScriptBoxNode 经 useConnectedInputs 同步）；
               多个时 flex-wrap 自动换行。 */}
-          {(d.upstreamImages?.length > 0 || d.upstreamTexts?.length > 0) && (
+          {((d.upstreamImages as MaterialStripProps['images'])?.length > 0 || (d.upstreamTexts as MaterialStripProps['texts'])?.length > 0) && (
             <div className="mb-1.5">
-              <MaterialStrip images={d.upstreamImages || []} texts={d.upstreamTexts || []} readOnly onDisconnect={callbacks?.onDisconnectUpstream} />
+              <MaterialStrip images={(d.upstreamImages as MaterialStripProps['images']) ?? []} texts={(d.upstreamTexts as MaterialStripProps['texts']) ?? []} readOnly onDisconnect={callbacks?.onDisconnectUpstream} />
             </div>
           )}
           <textarea value={d.story || ''} onChange={(e) => setStory(e.target.value)} placeholder="输入你的故事……" className="w-full h-32 bg-surface-strong border border-edge rounded-lg p-2.5 text-body-xs text-primary outline-none resize-none custom-scrollbar nodrag nowheel" />
@@ -190,7 +206,7 @@ export default function StepShots({ data, updateData, callbacks }) {
       {tfShotId !== null && (() => {
         const tfShot = shots.find((x) => x.id === tfShotId)
         if (!tfShot) { setTfShotId(null); return null }
-        const variants = Array.isArray(tfShot.prevTailFrameVariants) ? tfShot.prevTailFrameVariants : []
+        const variants = (Array.isArray(tfShot.prevTailFrameVariants) ? tfShot.prevTailFrameVariants : []) as Array<{ id: string; imageUrl?: string }>
         return (
           <ScriptBoxModal title={`镜头${tfShot.index} · 尾帧变体（视觉起点）`} onClose={() => setTfShotId(null)}>
             {tfShot.tailFrameVariantsLoading && (
@@ -233,9 +249,9 @@ export default function StepShots({ data, updateData, callbacks }) {
 }
 
 /** 表格下拉（景别/光影/音效/运镜），用 base 的 useOutsideClick 自动关闭 */
-function DropTable({ opts, val, onPick }) {
+function DropTable({ opts, val, onPick }: { opts: string[]; val: string; onPick: (v: string) => void }) {
   const [open, setOpen] = useState(false)
-  const ref = useRef(null)
+  const ref = useRef<HTMLDivElement>(null)
   useOutsideClick(ref, open, () => setOpen(false))
   return (
     <div ref={ref} className="relative" onClick={(e) => e.stopPropagation()}>

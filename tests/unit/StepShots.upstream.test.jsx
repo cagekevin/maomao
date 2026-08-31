@@ -25,7 +25,7 @@ vi.mock('../../src/components/base/MaterialStrip.tsx', () => ({
 vi.mock('../../src/components/scriptbox/ScriptBoxModal.tsx', () => ({ default: () => null }))
 vi.mock('../../src/components/base/hooks.ts', () => ({ useOutsideClick: () => {} }))
 
-import StepShots from '../../src/components/scriptbox/StepShots.jsx'
+import StepShots from '../../src/components/scriptbox/StepShots.tsx'
 
 const nodeId = 'sb1'
 function setup(data = {}) {

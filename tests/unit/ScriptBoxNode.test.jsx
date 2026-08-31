@@ -90,7 +90,7 @@ vi.mock('../../src/components/base/hooks.ts', () => ({ useOutsideClick: () => {}
 vi.mock('../../src/hooks/useConnectedInputs.ts', () => ({ useConnectedInputs: () => h.upstream }))
 
 // 三步子组件 mock：渲染内容标记 + 可点的引擎回调按钮（验证 UI 只调回调）
-vi.mock('../../src/components/scriptbox/StepShots.jsx', () => ({
+vi.mock('../../src/components/scriptbox/StepShots.tsx', () => ({
   default: ({ data, callbacks }) => (
     <div data-testid="step-shots">
       <span data-testid="shots-count">{data.shots?.length || 0}</span>
