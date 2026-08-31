@@ -9,7 +9,7 @@ import { useConnectedInputs } from '../../hooks/useConnectedInputs.ts'
 import PanoViewer from '../base/PanoViewer.jsx'
 import { generateId } from '../base/idGen.ts'
 import { buildSpawnNodes, spawnAndCommit } from '../base/deriveNodes.ts'
-import { useCanvasEdges } from '../base/CanvasEdgesContext.jsx'
+import { useCanvasEdges } from '../base/CanvasEdgesContext.tsx'
 import { useRenderImageResolver } from '../base/imageUrl.ts'
 
 /**

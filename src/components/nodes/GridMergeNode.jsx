@@ -1,7 +1,7 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { useDebouncedEffect, clamp } from '../base/utils.ts'
 import { buildSpawnNodes, spawnAndCommit } from '../base/deriveNodes.ts'
-import { useCanvasEdges } from '../base/CanvasEdgesContext.jsx'
+import { useCanvasEdges } from '../base/CanvasEdgesContext.tsx'
 
 import { Grid3X3, PanelsTopLeft, Layers, Loader2 } from 'lucide-react'
 import { useReactFlow } from '@xyflow/react'

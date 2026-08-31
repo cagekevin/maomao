@@ -146,7 +146,7 @@ function useNodeSize(id) {
  *     应分别用 imageCompress / clipboard.js。
  *
  * ── 7. 注册（4 处同步，漏一处 → 要么建不出 / 要么下游拿不到数据）──
- *   · components/base/NodePalette.jsx paletteNodes 加一行 { type, label, icon, cat, data, builtin:true }。
+ *   · components/base/NodePalette.ts paletteNodes 加一行 { type, label, icon, cat, data, builtin:true }。
  *   · App.jsx nodeTypes 加一行 type → 组件。
  *   · **base/useConnectedInputs.js 的 NODE_OUTPUTS 加一行**（有产出的节点必须登记，否则下游连线拿不到数据；
  *     数组型产出 extractedImages[] 用 arrayImages 归一）。这是最容易漏的一处。

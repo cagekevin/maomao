@@ -1,7 +1,7 @@
 import { useCallback, useMemo } from 'react'
 import { useReactFlow } from '@xyflow/react'
 import { registerTool, getTools } from '../../base/toolRegistry.ts'
-import { defaultNodeData } from '../../base/NodePalette.jsx'
+import { defaultNodeData } from '../../base/NodePalette.ts'
 import { runNodeGeneration } from '../../base/taskStore.ts'
 import { createGroupFromNodes, deleteNodesWithCascade } from '../../base/groupNodes.ts'
 import { createCanvasHost } from './canvasHost.ts'

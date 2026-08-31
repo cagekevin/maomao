@@ -4,7 +4,7 @@ import { Image as ImageIcon, Plus, ZoomIn, Download } from 'lucide-react'
 // ═══ 基座组件（统一入口，禁止手写外壳/端口/背景）═══
 import NodeShell from '../base/NodeShell.jsx'
 import HoverToolbar from '../base/HoverToolbar.tsx'
-import ExpandablePanel from '../base/ExpandablePanel.jsx'
+import ExpandablePanel from '../base/ExpandablePanel.tsx'
 import GenerateButton from '../base/GenerateButton.jsx'
 import ModelSelect from '../base/ModelSelect.jsx'
 import PromptInput from '../base/PromptInput.jsx'

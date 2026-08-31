@@ -25,7 +25,7 @@ import {
 } from '../base/videoEngine.ts'
 import { generateId } from '../base/idGen.ts'
 import { buildSpawnNodes, spawnAndCommit } from '../base/deriveNodes.ts'
-import { useCanvasEdges } from '../base/CanvasEdgesContext.jsx'
+import { useCanvasEdges } from '../base/CanvasEdgesContext.tsx'
 import { httpRequest } from '../base/httpClient.ts'
 import previewUrls from '../base/previewUrl.ts'
 import { UPLOAD_DIRS } from '../base/uploadDirs.ts'

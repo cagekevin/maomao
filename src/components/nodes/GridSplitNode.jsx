@@ -14,7 +14,7 @@ import { loadImageWithTimeout } from '../base/asyncGuard.ts'
 import { logger } from '../base/logger.ts'
 import { generateId } from '../base/idGen.ts'
 import { buildSpawnNodes, spawnAndCommit } from '../base/deriveNodes.ts'
-import { useCanvasEdges } from '../base/CanvasEdgesContext.jsx'
+import { useCanvasEdges } from '../base/CanvasEdgesContext.tsx'
 import { createRafBatch, clamp } from '../base/utils.ts'
 
 /* ════════════════════════════════════════════════════════════════

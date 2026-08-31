@@ -92,7 +92,7 @@ describe('按需加载 · 静态 import 回归拦截', () => {
     src.split('\n').filter((l) => /^\s*import\s.+from\s/.test(l))
 
   it('NodePalette 不得静态 import 重依赖节点（否则 vendor-3d/media 进首屏）', () => {
-    const imports = staticImportsOf(readSrc('src/components/base/NodePalette.jsx'))
+    const imports = staticImportsOf(readSrc('src/components/base/NodePalette.ts'))
     const offenders = imports.filter((l) =>
       /VideoProcessNode|PanoramaNode|Director3DNode/.test(l)
     )

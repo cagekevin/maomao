@@ -10,7 +10,7 @@ import { Director3DOverlay } from '../director3d/Director3DOverlay.jsx'
 import { uploadFileToLocal } from '../base/filesApi.ts'
 import { generateId } from '../base/idGen.ts'
 import { buildSpawnNodes, applySpawnSnapshot } from '../base/deriveNodes.ts'
-import { useCanvasEdges } from '../base/CanvasEdgesContext.jsx'
+import { useCanvasEdges } from '../base/CanvasEdgesContext.tsx'
 
 /**
  * 3D 导演台节点（复刻开源 storyai-3d-director-desk，与"一毛"一致）。

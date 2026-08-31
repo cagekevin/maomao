@@ -7,7 +7,7 @@
 import { describe, it, expect } from 'vitest'
 
 // 用顶层 await 动态 import，避免 NodePalette 顶部同步加载大量组件在收集期报错
-const mod = await import('../../src/components/base/NodePalette.jsx')
+const mod = await import('../../src/components/base/NodePalette.ts')
 const { buildNodeTypeComponents, paletteNodes, builtinNodeTypes } = mod
 
 // React.memo/forwardRef 在 React 19 返回带 $$typeof 标记的对象而非裸函数，

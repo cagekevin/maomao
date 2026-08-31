@@ -19,12 +19,25 @@ import React from 'react'
  *  - children      面板内容（提示词输入 + 底部参数区 + 手柄）
  *  - onClickStop   面板内部点击是否需要 stopPropagation（默认 true）
  */
+
+/** 展开面板基座 Props。 */
+interface ExpandablePanelProps {
+  /** 是否展开（展开→opacity-100 可见；收起→opacity-0 隐藏且 h-0） */
+  expanded: boolean
+  /** 面板最小宽度（px，默认 500） */
+  minWidth?: number
+  /** 面板内容（提示词输入 + 底部参数区 + 手柄） */
+  children?: React.ReactNode
+  /** 面板内部点击是否 stopPropagation（默认 true，避免点面板误触画布） */
+  onClickStop?: boolean
+}
+
 export default function ExpandablePanel({
   expanded,
   minWidth = 500,
   children,
   onClickStop = true
-}) {
+}: ExpandablePanelProps) {
   return (
     <div
       className={`absolute top-full left-1/2 -translate-x-1/2 mt-2 bg-surface-raised rounded-2xl border border-edge shadow-2xl w-max max-w-[920px] transition-all duration-300 origin-top z-40

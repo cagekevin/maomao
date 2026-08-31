@@ -8,7 +8,7 @@ import { useSyncNodeData } from '../../hooks/useSyncNodeData.ts'
 import { useOutsideClick } from '../base/hooks.ts'
 import { generateId } from '../base/idGen.ts'
 import { buildSpawnNodes, spawnAndCommit } from '../base/deriveNodes.ts'
-import { useCanvasEdges } from '../base/CanvasEdgesContext.jsx'
+import { useCanvasEdges } from '../base/CanvasEdgesContext.tsx'
 
 /** 生成节点布局常量（避免 magic number） */
 const SPAWN_OFFSET_X = 80 // 生成节点相对循环节点右侧的横向偏移

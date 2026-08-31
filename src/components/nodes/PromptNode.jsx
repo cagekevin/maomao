@@ -6,7 +6,7 @@ import {
 } from 'lucide-react'
 import NodeShell from '../base/NodeShell.jsx'
 import HoverToolbar from '../base/HoverToolbar.tsx'
-import ExpandablePanel from '../base/ExpandablePanel.jsx'
+import ExpandablePanel from '../base/ExpandablePanel.tsx'
 import GenerateButton from '../base/GenerateButton.jsx'
 import ModelSelect from '../base/ModelSelect.jsx'
 import PromptInput from '../base/PromptInput.jsx'
