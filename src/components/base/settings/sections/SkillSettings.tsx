@@ -13,7 +13,7 @@ function emptyForm() {
 }
 
 /** 小型开关组件（对齐整体 zinc 风格，开启为青蓝色） */
-function Toggle({ checked, onChange, disabled }) {
+function Toggle({ checked, onChange, disabled = false }: { checked: boolean; onChange: (v: boolean) => void; disabled?: boolean }) {
   return (
     <button
       type="button"
@@ -202,7 +202,7 @@ export default function SkillSettings() {
   }
 
   // .md 导入
-  const handleMdImport = (e) => {
+  const handleMdImport = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
     if (!files || files.length === 0) return
     try {
@@ -273,9 +273,9 @@ export default function SkillSettings() {
                 value={keyword}
                 onChange={(e) => {
                   setKeyword(e.target.value)
-                  searchIme.current?.onChange(e.target.value, e.nativeEvent.isComposing)
+                  searchIme.current?.onChange(e.target.value, (e.nativeEvent as InputEvent).isComposing)
                 }}
-                onCompositionEnd={(e) => searchIme.current?.onCompositionEnd(e.target.value)}
+                onCompositionEnd={(e) => searchIme.current?.onCompositionEnd((e.target as HTMLInputElement).value)}
                 onBlur={() => searchIme.current?.cancel()}
                 placeholder="搜索技能"
                 className="w-full h-9 bg-canvas border border-edge rounded-xl pl-9 pr-3 text-xs text-body outline-none focus:border-blue-500/50"

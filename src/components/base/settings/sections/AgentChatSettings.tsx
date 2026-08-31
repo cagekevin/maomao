@@ -7,7 +7,7 @@ import {
   loadAgentChatModel, saveAgentChatModel,
   loadAgentHistoryTurns, saveAgentHistoryTurns,
 } from '../agentModelStore.ts'
-import SkillSettings from './SkillSettings.jsx'
+import SkillSettings from './SkillSettings.tsx'
 
 /**
  * 设置分区 · AI 助手（样式对齐 SkillSettings 的 zinc 黑白系）。
@@ -37,14 +37,14 @@ export default function AgentChatSettings() {
   })
 
   const selectedProvider = chatProviders.find((p) => p.id === providerId) || chatProviders[0] || null
-  const chatModels = (selectedProvider?.chat_models || []).map((m) => m.id || m.label || m).filter(Boolean)
-  const modelOptions = Array.from(new Set(chatModels))
+  const chatModels = (selectedProvider?.chat_models || []).map((m) => m.id || m.label || '').filter(Boolean)
+  const modelOptions = Array.from(new Set(chatModels)) as string[]
   const effectiveModelId = modelOptions.includes(modelId) ? modelId : (modelOptions[0] || '')
 
-  const handleProviderChange = (pid) => {
+  const handleProviderChange = (pid: string) => {
     setProviderId(pid)
     const p = chatProviders.find((x) => x.id === pid)
-    const models = (p?.chat_models || []).map((m) => m.id || m.label || m).filter(Boolean)
+    const models = (p?.chat_models || []).map((m) => m.id || m.label || '').filter(Boolean)
     const first = models[0] || ''
     setModelId(first)
     if (pid && first) {
@@ -53,7 +53,7 @@ export default function AgentChatSettings() {
     }
   }
 
-  const handleModelChange = (mid) => {
+  const handleModelChange = (mid: string) => {
     setModelId(mid)
     if (providerId && mid) {
       saveAgentChatModel({ providerId, modelId: mid, streamMode })

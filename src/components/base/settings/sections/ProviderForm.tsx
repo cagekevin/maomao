@@ -1,6 +1,6 @@
 import React from 'react'
 import { Trash2, Eye, EyeOff, KeyRound, RefreshCw, CircleDot, Check, AlertCircle, Star } from 'lucide-react'
-import ModelSection from './ModelSection.jsx'
+import ModelSection from './ModelSection.tsx'
 import { PROVIDER_PROTOCOL_LABELS, CLI_PROTOCOLS, GENERAL_PROTOCOLS, SPECIAL_PROTOCOLS } from '../../providerProtocols.ts'
 
 /**
@@ -36,7 +36,7 @@ function Section({ title, desc, children }) {
   )
 }
 
-function Field({ label, hint, children }) {
+function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return (
     <label className="block">
       <span className="block text-xs text-secondary mb-1.5">{label}</span>

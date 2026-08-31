@@ -3,7 +3,7 @@ import { useAppSettings, setSetting } from '../../appSettings.ts'
 import { UI_SETTING_ROWS } from '../settingRegistry.ts'
 
 /** 小型开关组件（对齐整体 zinc 风格，开启为青蓝色；与 SkillSettings 一致） */
-function Toggle({ checked, onChange, disabled }) {
+function Toggle({ checked, onChange, disabled = false }: { checked: boolean; onChange: (v: boolean) => void; disabled?: boolean }) {
   return (
     <button
       type="button"
