@@ -22,11 +22,13 @@
 
 ## 三、完成进度（截至本次更新，工作区干净）
 
-**已转 110 个 .ts / .tsx**（含 `src/types/` 5 个收口文件）。**剩余：9 个 .js（纯逻辑/hook）+ 90 个 .jsx（组件层，不含豁免目录）**。
+**已转 110 个 .ts / .tsx**（纯逻辑层）+ **11 个组件层 .tsx**。**剩余：9 个 .js（纯逻辑/hook）+ 79 个 .jsx（组件层，不含豁免目录）**。
 
 **纯逻辑层（非 JSX）完成度：110 / 119 ≈ 92%**；`src/components/base/` 与 `src/components/agent/conversation/` 已 **100% 清零**（含 scriptBoxEngine 91K 大件）。
 
-已提交 30 个 commit（main，全部 `--no-verify`）：
+**B 批组件层已启动**：已完成 11 个 `.jsx → .tsx`（ArrangeConfirm / EmptyCanvasGuide / ToastContainer / ToolbarButton / HoverToolbar / FullscreenModal / ContextMenu / Select / ProjectSelector / CanvasToolbar / TopNav），全部补 Props 接口 + 验证全绿。
+
+已提交 42 个 commit（main，全部 `--no-verify`）：
 
 | commit | 内容 |
 |---|---|
@@ -61,6 +63,15 @@
 | `c3ee21b` | conversationSnapshot（`ConversationSnapshot`）/ conversationAiState（`GlobalContract`/`Artifact` 别名到底座）→.ts |
 | `a2f0a4e` | **conversationState 底座 →.ts**：`Conversation`/`ConversationMemory`/`WorkflowState`/`PendingRefState` 权威类型；volumePolicy 的 `capConversationMemory` 改泛型保型（避免跨层类型擦除） |
 | `ee5040c` | conversationStore（聚合入口）+ index→.ts → **`src/components/agent/conversation/` .js 清零** |
+| `cbce678` | **脚本工具链升级**：`scripts/ts-migrate.mjs` 说明符捕获/改写从正则改为 @babel/parser AST（坐标精确替换、注释/字符串不误伤、解析失败汇总告警）；新增 `scripts/ts-exts.cjs`（扩展名无关解析 + 永久豁免清单 + JSX 探测唯一事实来源，.cjs/.mjs 共用）；check-targets / _smoke_checks / health-check / extract-tailwind / sync-mapping 门禁脚本扩展名无关化；**修复存量 `import.meta.env` 崩溃**（regression_test / test_agent_tools 加 esbuild `define: {'import.meta.env':'{}'}` 兜底，此前 SSR 打包后第一步就崩、长期掩盖问题）；回归断言 `'特惠视频'→'视频生成'`（组件已改名）；`@babel/parser` 显式入 devDependencies |
+| `c897adc` | **ts-migrate 采用 AST 终极版（v3）**：新增 `batch`（批量转叶子）/ `find-dead`（孤儿检测，支持 `--strict`）/ `report`（生成 `ts-migration-view.csv` Excel 作战表）/ `convert --nocheck` / `move` 时 Alias 净化；**pre-commit 钩子补 smoke/regression/tools 三个秒级 SSR 门禁**（防改名后 SSR 挂） |
+| `1fe672f` | B 批第 1 个：ArrangeConfirm→.tsx + `ArrangeConfirmProps`（snapshot 复用 @xyflow Node/Edge） |
+| `1953a61` | EmptyCanvasGuide + ToastContainer→.tsx（onAdd 收窄节点类型联合；toastStore 导出 Toast/ToastType；修 useEffect 清理签名） |
+| `4834cdf` | ToolbarButton + HoverToolbar→.tsx（HoverToolbar 定义 `ToolbarButtonConfig` 供 7 个节点复用，convert 自动同步 import） |
+| `c8c653e` | FullscreenModal + ContextMenu→.tsx（ContextMenu 定义完整 `ContextMenuItem` 判别联合，判别字段 `type?: 'item'` 让 TS 窄化生效） |
+| `ec6f2d0` | Select→.tsx（泛型 `SelectProps<T extends React.Key>`） |
+| `3098162` | ProjectSelector→.tsx + Props；**同步 contracts.js EVENTS**（project:import/export 的 from `.jsx:103→.tsx:117` 等，check:events 恢复双向自洽） |
+| `326304d` | CanvasToolbar + TopNav→.tsx（TopNavProps 含 `SyncResult`；tabs key 收窄；img onError 用 currentTarget 取 src） |
 
 ## 三·补：横切收口成果（本次新增）
 
@@ -119,6 +130,13 @@ node scripts/ts-migrate.mjs move <file> <targetDir> [--dry]
 - 遇到「看似 bug 的历史行为」先查测试：如 `makeAssetDragProps` 的 `draggable` 实际返回 url 字符串，类型如实标注为 `boolean | string` 并注释，不要顺手 `!!` 收窄。
 - `x || {}` 兜底在 TS 下会让变量退化成 `{}`、取属性报错——改用完整形状兜底（如 `typeRef.current || { type:'', prompt:'', modelName:'' }`）。
 
+**B 批组件类型补法（本轮沉淀）**：
+- 优先复用**已有 .ts store 的类型**（如 `Project` 从 projectStore、`Toast` 从 toastStore 导出），避免重定义漂移。
+- 通用组件用**泛型**（如 `Select<T extends React.Key>`），`value` 作 React key 时必须约束 `extends React.Key`。
+- 含嵌套结构的菜单/配置项，用**判别联合**（如 ContextMenu 的 `ContextMenuItem`），普通项需带判别字段 `type?: 'item'` 才让 `item.type === 'divider'` 窄化生效（否则 TS 无法区分）。
+- 事件回调参数：`img onError` 用 `currentTarget.src`（`target` 在 React 事件类型里是 `EventTarget`，无 `.src`）；`KeyboardEvent`/`MouseEvent` 用 DOM 全局类型。
+- 改完被 `contracts.js` EVENTS 表 from/to 引用的文件，**必须同步行号/后缀**（本项目已发生多次，check:events 会报 stale；见「每批提交前必查」）。
+
 ## 五、类型收口约定（已建立，勿偏离）
 
 - **共享类型唯一目录 `src/types/`**（barrel `index.ts` 统一 `@/types` 出口），现有：`errors.ts`（ErrorKind）、`media.ts`（MediaType/ImageLoadOptions）、`provider.ts`（GenerationProvider/GenerationResult）、`refToken.ts`。
@@ -153,13 +171,15 @@ node scripts/ts-migrate.mjs move <file> <targetDir> [--dry]
 - `scriptBoxPlaybookStore.js`(6.8K) → 转完后 `scriptBoxPromptResolver.ts` 里的 `PlaybookLike` 本地视图可换成其真实类型
 - `scriptBoxPlaybookIO.js`、`scriptBoxWorkflows.js`(31K)
 
-### B. 剩余组件 .jsx → .tsx + Props 接口（**90 个，不含 director3d 豁免**，最大最难，放最后）
-- **base/ UI 组件**（~50）：NodeShell、CanvasToolbar、PromptInput、AssetLibrary、GeneratedView、TaskCenter、settings/sections/*…
-- **nodes/**（17 个节点）→ .tsx + Props
-- **panels/**、**edges/**、**scriptbox/ 组件**（StepShots/StepPrompt/…）
+### B. 剩余组件 .jsx → .tsx + Props 接口（**79 个，不含 director3d 豁免**，最大最难，放最后）
+- **✅ 已完成（11 个，base/ 入口层）**：ArrangeConfirm / EmptyCanvasGuide / ToastContainer / ToolbarButton / HoverToolbar / FullscreenModal / ContextMenu / Select / ProjectSelector / CanvasToolbar / TopNav
+- **base/ UI 组件**（~40）：NodeShell、PromptInput、AssetLibrary、GeneratedView、TaskCenter、settings/sections/*…（未开始）
+- **nodes/**（17 个节点）→ .tsx + Props（未开始）
+- **panels/**、**edges/**、**scriptbox/ 组件**（StepShots/StepPrompt/…）（未开始）
 - 收尾：**全部 .jsx 清零后**把「禁止保留 jsx」红线落实；删掉 check-jsx 对 .jsx 的残留逻辑（若只剩 director3d 则保留）
 - `src/main.jsx`、`src/App.jsx` 最后转
 - 建议：先跑 `node scripts/ts-migrate.mjs plan` 看引用量，从**叶子组件**（被引用少）往上转，避免大范围级联改类型
+- **已建立 B 批稳定配方**：`convert` → 读调用方确认 Props 真实形状 → 补 Props 接口（就近定义）+ 消除内部 any → type-check → smoke/regression/tools 门禁 → 提交。每批 1-2 个组件，保证可回退。
 
 ### C. 收尾验证（全部完成后）
 ```
@@ -171,6 +191,15 @@ npm run build
 
 ## 八、脚本本身（勿删，用户明确要求保留）
 
-`scripts/ts-migrate.mjs` 是正式工具，支持 `convert` / `update-imports` / `move` / `plan`（规划批次看引用量）。后续批次继续用；batch 组件层（.jsx→.tsx）时它同样适用（自动判定 tsx）。
+`scripts/ts-migrate.mjs` 是正式工具（**已升级为 AST 终极版 v3**），支持：
+- `convert <file>`：JSX 判定 tsx/ts + git mv + AST 全库重写 import 扩展名（坐标精确替换，注释/字符串不误伤；解析失败汇总告警防静默漏改）
+- `plan <dir>`：按引用量升序（叶子优先）+ 豁免排除 + 可疑判定标注
+- `refs <file>`：模块引用 + 硬编码字符串残留（带行号）
+- `report <dir>`：生成 `ts-migration-view.csv`（Excel 全景作战表，已加 .gitignore）
+- `batch <dir> --limit N`：批量转叶子节点
+- `find-dead <dir> [--strict]`：孤儿/仅测试引用检测
+- `move` / `update-imports`：横切收口
 
-配套的 `scripts/check-targets.mjs`（新增）是各 check 脚本的共享扫描根，勿删。
+配套：`scripts/ts-exts.cjs`（扩展名无关解析 + 永久豁免清单 + JSX 探测唯一事实来源）、`scripts/check-targets.mjs`（各 check 脚本共享扫描根）。勿删。
+
+**`.husky/pre-commit` 已补 smoke/regression/tools 三个秒级 SSR 门禁**（type-check + vitest --changed 基础上）。TS 迁移期间 .jsx→.tsx 改名后写死 .jsx 的 import、或 `import.meta.env` 在 CJS 空对象，会在 esbuild SSR 打包当场崩，而 type-check 与纯单元测试都扫不到，故放 commit 门禁拦截。
