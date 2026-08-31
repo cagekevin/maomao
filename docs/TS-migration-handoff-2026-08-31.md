@@ -4,6 +4,8 @@
 > 交接给下一个 AI / 下一段会话的**唯一入口**。读完即可无缝继续，不必重读本会话历史。
 >
 > **本轮会话（第二段）新增成果**：A4 批 `src/components/scriptbox/` **3 个纯逻辑文件全部转完**（IO / Store / Workflows → .ts），`scriptBoxPromptResolver.ts` 的 `PlaybookLike` 已删除改用真实 `Playbook` 类型，并修复了库里存量断裂的 `DiscountVideoNode` 测试（根因是早前 HoverToolbar.jsx→.tsx 迁移时测试 mock 路径未同步）。详见第三节 commit 表。
+>
+> **本轮会话（第三段）新增成果**：**A 批（纯逻辑层）全部清零** —— A3 最后两个大件 `useAgentChat.js`(62K)→.ts、`useCanvasAgentTools.js`(84K)→.ts 全部转完（含 `vi.mock` 路径同步）。剩余 **0 个 .js、79 个 .jsx**，工作正式进入 B 批（组件层）单线推进。本轮还顺手修掉一个**存量 TDZ 崩溃**（`gens` 声明前使用）与两处跨层类型漂移，详见第三节 commit 表与 10.2。
 
 ---
 
@@ -24,9 +26,9 @@
 
 ## 三、完成进度（截至本次更新，工作区干净）
 
-**已转 110+ 个 .ts / .tsx**（纯逻辑层）+ **11 个组件层 .tsx** + **A4 批 3 个 scriptbox 纯逻辑 .ts** + **A3 已转 4 个（agentConfig / canvasPlanExecutor / agentRuntime / 本轮新增）**。**剩余：2 个 .js（agent 纯逻辑/hook，见 A3）+ 79 个 .jsx（组件层，不含豁免目录）**。
+**已转 110+ 个 .ts / .tsx**（纯逻辑层）+ **11 个组件层 .tsx** + **A4 批 3 个 scriptbox 纯逻辑 .ts** + **A3 全部 6 个（agentConfig / canvasPlanExecutor / agentRuntime / agentCore / useAgentChat / useCanvasAgentTools）**。**剩余：0 个 .js + 79 个 .jsx（组件层，不含豁免目录）**。
 
-**纯逻辑层（非 JSX）完成度：base/ 与 agent/conversation/ 与 scriptbox/ 已 100% 清零**；`src/components/agent/runtime/`、`canvas/` 仅剩 2 个 .js（A3：useAgentChat、useCanvasAgentTools）。
+**纯逻辑层（非 JSX）完成度：100% 清零** —— `base/`、`agent/conversation/`、`scriptbox/`、`agent/runtime/`、`agent/canvas/` 全部 .ts，`.js` 计数为 0（仓库里仅剩的 .js 是永久豁免的 `contracts.js` / `config.js` 与 director3d 目录）。
 
 **B 批组件层已启动**：已完成 11 个 `.jsx → .tsx`（ArrangeConfirm / EmptyCanvasGuide / ToastContainer / ToolbarButton / HoverToolbar / FullscreenModal / ContextMenu / Select / ProjectSelector / CanvasToolbar / TopNav），全部补 Props 接口 + 验证全绿。
 
@@ -81,6 +83,8 @@
 | `1e8da90` | **A3 下一批·1**：`agentConfig.js`→.ts 常量收口（纯常量导出，0 类型错误，兄弟文件 import 自动同步） |
 | `fa9d179` | **A3 下一批·2**：`canvasPlanExecutor.js`→.ts + 补 `GenerationStep`/`PlanOptions`/`PlanDefaults`/`NodeSettings` 类型（复用 canvasHost 的 `CanvasHostCtx`/`CanvasHost`）；**踩坑**：convert 只改 `import ... from` 说明符、**不改 `vi.mock('...js')` 字符串**，导致 `canvasAgentTools.test.js`/`creditGateModes.test.js` 的 mock 路径失效、18 个用例报「不是 spy」→ 手工同步 2 处 `vi.mock` 路径为 `.ts` 后全绿 |
 | `81a8ee6` | chore：移除误入仓库的 vitest 临时输出文件（排查期 `vresult*.txt` 被 `git add -A` 带进，已 `git rm`） |
+| `06d7885` | **A3 第 5 个**：`useAgentChat.js`(62K)→.ts。定义 `SendUserMessage`（send/runDirectBranch 两处 user 消息形状）、`runToolCalls` 的 `ToolCall[]`/`callIdFor` 定型；**收口两处跨层类型漂移**：`agentCore.ImageRef` 改为复用生产侧 `conversationImageMap.ImageMapEntry`（原 `source:'gen'\|'ref'` 与真实数据 `'gen'\|'att'` 不符）、`InputStatus` 补 `awaiting_confirm`（代码一直在置位，联合类型漏登记）；**修存量 TDZ 崩溃**：`gens` 在 `const` 声明前被 logger 读取（≥2 参考图 + 「分别改图」语义命中时必抛 ReferenceError），把该 logger 移到声明之后；同步 `contracts.js` 的 `agent_history_{agentKey}.store` |
+| `dbdb962` | **A3 收官**：`useCanvasAgentTools.js`(84K)→.ts → **A 批纯逻辑层 .js 清零**。`data`/`patch` 定 `Record<string, unknown>`（绕开 `defaultNodeData(type)` 的巨型联合类型与 `{}` 退化）；`runNodeGeneration` 返回值剥 `true` 分支再读 `ok/resultUrl`（跨代不统一，见 taskStore 注释）；手动同步 2 处 `vi.mock('.../useCanvasAgentTools.js')`（agentPersistRecovery / useAgentChat.hook）；`contracts.js` 的 `canvasAgentGenParams.store` + 5 处文档注释同步；**`scripts/test_agent_tools.cjs` 改用 `resolveSourceFile` 解析入口**（扩展名免疫，以后改名不再打断 test:tools） |
 
 ## 三·补：横切收口成果（本次新增）
 
@@ -163,22 +167,22 @@ node scripts/ts-migrate.mjs move <file> <targetDir> [--dry]
 
 ## 七、剩余工作清单（按批次，自底向上）
 
-### A. 剩余纯逻辑 .js → .ts（**A4 已清零；当前仅剩 A3 的 6 个**；另 10 个豁免，见第二节）
+### A. 剩余纯逻辑 .js → .ts —— ✅ **A 批全部清零（第三段会话收官）**
 
-> **下一步建议起点**：A3 的 `src/components/agent/canvas/canvasHost.js`（5.2K，最小，风险低）或 `runtime/agentCore.js`（36K）优先转。每个文件严格按「convert → refs 查 mock 残留 → 补类型 → 10 道门禁全绿 → 提交」执行。
+> 仓库内 `.js` 计数为 **0**（仅剩永久豁免：`contracts.js` / `config.js` / `director3d/**`）。**后续全部精力转 B 批组件层。**
 
 **A1. `src/components/base/`** —— ✅ **已全部清零**（含 scriptBoxEngine 91K 等大件）
 
 **A2. `src/components/agent/conversation/`** —— ✅ **已全部清零**（6 个文件 + index 聚合入口）
 
-**A3. `src/components/agent/`（本轮续作后仅剩 2 个）**
-- `runtime/`（已转 2）：`agentCore.js`(36K)→.ts（前轮）、`agentRuntime.js`(32K)→.ts（NUL 污染修复，`d1f142c`）；**剩 `useAgentChat.js`(64K)** ← 大件 hook → 转 `.ts`
-- `canvas/`（已转 2）：`canvasHost.js`(5.2K)→.ts（前轮）、`canvasPlanExecutor.js`(40K)→.ts（`fa9d179`）；**剩 `useCanvasAgentTools.js`(86K)** ← 大件 hook → 转 `.ts`
-- 注意：`useAgentChat.js` 与 `useCanvasAgentTools.js` 是 **hook → 转 `.ts`（不是 .tsx）**，且**不收口到 src/hooks/**（领域专属，见「三·补」）。
+**A3. `src/components/agent/`** —— ✅ **已全部清零（6/6）**
+- `runtime/`：`agentConfig.ts`、`agentCore.ts`(36K)、`agentRuntime.ts`(32K，NUL 污染修复 `d1f142c`)、`useAgentChat.ts`(62K，`06d7885`)
+- `canvas/`：`canvasHost.ts`(5.2K)、`canvasPlanExecutor.ts`(40K)、`useCanvasAgentTools.ts`(84K，`dbdb962`)
+- 备注：两个大件 hook 转的是 `.ts`（**不是 .tsx**），且**未收口到 `src/hooks/`**（领域专属，见「三·补」）。
 
 **A4. `src/components/scriptbox/` 3 个纯逻辑文件** —— ✅ **已全部清零（第二轮会话完成）**：`scriptBoxPlaybookIO.ts` / `scriptBoxPlaybookStore.ts` / `scriptBoxWorkflows.ts`。`scriptBoxPromptResolver.ts` 已删除 `PlaybookLike` 改用真实 `Playbook` 类型。
 
-### B. 剩余组件 .jsx → .tsx + Props 接口（**79 个，不含 director3d 豁免**，最大最难，放最后）
+### B. 剩余组件 .jsx → .tsx + Props 接口（**79 个，不含 director3d 豁免**；A 批清零后已是唯一主线）
 - **✅ 已完成（11 个，base/ 入口层）**：ArrangeConfirm / EmptyCanvasGuide / ToastContainer / ToolbarButton / HoverToolbar / FullscreenModal / ContextMenu / Select / ProjectSelector / CanvasToolbar / TopNav
 - **base/ UI 组件**（~40）：NodeShell、PromptInput、AssetLibrary、GeneratedView、TaskCenter、settings/sections/*…（未开始）
 - **nodes/**（17 个节点）→ .tsx + Props（未开始）
@@ -186,6 +190,8 @@ node scripts/ts-migrate.mjs move <file> <targetDir> [--dry]
 - 收尾：**全部 .jsx 清零后**把「禁止保留 jsx」红线落实；删掉 check-jsx 对 .jsx 的残留逻辑（若只剩 director3d 则保留）
 - `src/main.jsx`、`src/App.jsx` 最后转
 - 建议：先跑 `node scripts/ts-migrate.mjs plan` 看引用量，从**叶子组件**（被引用少）往上转，避免大范围级联改类型
+- **`plan src/components/base` 实测叶子清单**（本轮跑出，照此顺序推进）：1 引用 9 个 —— AssetLibrary / FaceMosaicEditor / GeneratedView / LeftPanel / LocalToolConnectModal / OverlayEditor / PanoViewer / PromptHub / PromptLibrary + settings/sections 全部 9 个；2 引用 —— CometParticles / ImageEditor / InlineImageCropper / NodeTitle / TaskCenter；3 引用 —— JianyingIcon / lazyNode / NodePalette / PromptLibraryButton / useImageHoverActions / VideoThumbnail。
+  ⚠️ **`NodePalette.jsx` 被判定为 → `.ts`**（疑似无 JSX、只是 `defaultNodeData` 等数据导出）。转前先确认它到底含不含组件，必要时 `convert --to tsx` 强制。
 - **已建立 B 批稳定配方**：`convert` → 读调用方确认 Props 真实形状 → 补 Props 接口（就近定义）+ 消除内部 any → type-check → smoke/regression/tools 门禁 → 提交。每批 1-2 个组件，保证可回退。
 
 ### C. 收尾验证（全部完成后）
@@ -264,3 +270,13 @@ npm run test:tools           # agent 工具
 - **责任归属要诚实**：迁移是 AI 用脚本动的文件，测试断裂/类型问题若是迁移引入的，**就是迁移引入的，不要说成「用户改动」**。本次用户明确批评过这点。
 - **不要过度复杂化**：文档已经把公式和配方写清楚了，照着执行即可，别自己绕圈排查已写明的事项（如钩子机制——但钩子若拦你，就是代码有问题，必须修代码而非跳过）。
 - **做一点提交一点**：每转完一个文件、验证全绿后立即 `git add -A && git commit`（走真实 husky 钩子）。不要攒一大批再提交，也不要用 `--no-verify` 跳过钩子。
+
+### 10.2 本轮（第三段会话）新增踩坑 / 经验（必读）
+
+1. **`logger` 四个方法参数个数不同**：`info/warn/error/log` 只有 3 参 `(category, action, detail?)`，**只有 `debug` 有第 4 参 `{ module }`**。存量代码里有若干 `logger.info(..., { detail }, { module:'agent' })`（JS 期被静默忽略），转 .ts 后报 TS2554。修法是**直接删掉第 4 参**（运行时本就忽略它，零行为变化），不要改成 `logger.debug`（会改变日志级别与开关行为）。本轮修了 4 处（useAgentChat 2、useCanvasAgentTools 2）。
+2. **转 .ts 会「照出」存量的真实 bug**：`useAgentChat` 的 `runDirectBranch` 里 `logger.debug(... gens.length ...)` 写在 `const gens = ...` **之前**，`const` 有 TDZ —— JS 期只要走到「≥2 张参考图 + 命中『分别改图』语义」就必抛 `ReferenceError`。转 TS 时才由 TS2448 暴露。**遇到 TS2448 先判断是不是真 bug，是就把语句移到声明之后**（只挪位置、不改逻辑）。
+3. **跨层同形类型会「静默漂移」**：`agentCore.ImageRef.source` 写成 `'gen'|'ref'`，而真实数据由 `conversationImageMap.getCurrentImageMap()` 生产（`'gen'|'att'`），JS 期无人发现，转 .ts 后直接赋值报错。修法遵循「复用而非重定义」：把 `ImageRef` 改成 `export type ImageRef = ImageMapEntry`（生产侧单一事实来源），别两边各改一半。同类：`InputStatus` 漏登记 `awaiting_confirm`（代码一直在 `setStatus('awaiting_confirm')`，与 `workflowRuntime`/`WorkflowStatus` 不一致）。
+4. **`{}` 字面量在 TS 下会退化成 `{}` 类型**，后续 `patch.resolution` 全部报错（交接文档第四节已记，本轮在 `updateNodeTool` 再次遇到）。统一用 `const patch: Record<string, unknown> = {}`。同理，`defaultNodeData(type)` 返回的是**按 type 分支的巨型联合类型**，直接往结果上挂字段会报「属性不存在」——把 data 显式声明成 `Record<string, unknown>`。
+5. **脚本里硬编码的源码路径可用 `resolveSourceFile` 一劳永逸免疫**：`scripts/test_agent_tools.cjs` 原本写死 `useCanvasAgentTools.js` / `useAgentChat.js`，每转一个就要手改一次。已改成 `require('./ts-exts.cjs').resolveSourceFile(path.join(ROOT, '.../Xxx.js'))`（扩展名无关，自动命中 .ts/.tsx）。**以后遇到 scripts/ 下拼源码路径的地方，优先改成这种方式**，而不是每次同步后缀。
+6. **全量单测规模已增长到 171 文件 / 2178 用例（约 50-60s）**。终端工具单次命令约 10s 就会回显，直接跑会被截断看不到汇总——用「后台跑 + `Start-Sleep` 后读输出文件」的方式取汇总行（`npx vitest run --reporter=dot *> $env:TEMP\vtall.txt` → `Start-Sleep 50` → `Get-Content ... -Tail 8`）。
+7. **`vi.mock` 盲区再次命中（第 3 次）**：`useCanvasAgentTools` 改名后 `agentPersistRecovery.test.js` / `useAgentChat.hook.test.js` 两处 `vi.mock('.../useCanvasAgentTools.js')` 失效。注意 **`import()` 动态导入脚本会自动同步**（本次 `useCanvasAgentTools.test.js:13` 的 `await import('...')` 已被脚本改写），但 **`vi.mock` 不会** —— 转前 `refs <file>` 逐个确认。
