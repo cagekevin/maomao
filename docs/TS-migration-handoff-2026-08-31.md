@@ -24,9 +24,9 @@
 
 ## 三、完成进度（截至本次更新，工作区干净）
 
-**已转 110 个 .ts / .tsx**（纯逻辑层）+ **11 个组件层 .tsx** + **A4 批 3 个 scriptbox 纯逻辑 .ts**。**剩余：6 个 .js（agent 纯逻辑/hook，见 A3）+ 79 个 .jsx（组件层，不含豁免目录）**。
+**已转 110+ 个 .ts / .tsx**（纯逻辑层）+ **11 个组件层 .tsx** + **A4 批 3 个 scriptbox 纯逻辑 .ts** + **A3 已转 4 个（agentConfig / canvasPlanExecutor / agentRuntime / 本轮新增）**。**剩余：2 个 .js（agent 纯逻辑/hook，见 A3）+ 79 个 .jsx（组件层，不含豁免目录）**。
 
-**纯逻辑层（非 JSX）完成度：base/ 与 agent/conversation/ 与 scriptbox/ 已 100% 清零**；`src/components/agent/runtime/`、`canvas/` 仅剩 6 个 .js（A3）。
+**纯逻辑层（非 JSX）完成度：base/ 与 agent/conversation/ 与 scriptbox/ 已 100% 清零**；`src/components/agent/runtime/`、`canvas/` 仅剩 2 个 .js（A3：useAgentChat、useCanvasAgentTools）。
 
 **B 批组件层已启动**：已完成 11 个 `.jsx → .tsx`（ArrangeConfirm / EmptyCanvasGuide / ToastContainer / ToolbarButton / HoverToolbar / FullscreenModal / ContextMenu / Select / ProjectSelector / CanvasToolbar / TopNav），全部补 Props 接口 + 验证全绿。
 
@@ -77,6 +77,10 @@
 | `c741e75` | **A4 第 1 个**：`scriptBoxPlaybookIO.js`→.ts + 定义 `Playbook` 接口、`ImportResult` 类型；`exportText`/`parseImport` 定型（⚠️ 该次提交误用 `--no-verify`，见下方提交策略纠偏） |
 | `c8eac23` | **A4 第 2 个**：`scriptBoxPlaybookStore.js`→.ts；复用 `Playbook`/`ImageGenTemplate`/`WorkflowSpec` 类型；`normalizeBuiltin`/`loadCustom`/`getAllPlaybooks`/`getPlaybook`/`isBuiltin`/`saveCustomPlaybook`/`deleteCustomPlaybook`/`createCustomFrom` 定型 |
 | `6597d96` | **A4 第 3 个**：`scriptBoxWorkflows.js`→.ts + 定义 `WorkflowSpec` 接口与 `SCRIPT_BOX_WORKFLOWS`/`DEFAULT_WORKFLOW`；**删除 `scriptBoxPromptResolver.ts` 的 `PlaybookLike`** 改用真实 `Playbook` 类型；**同步 `contracts.js` 的 `scriptbox_playbooks.store` 指向 `.ts`**；**修复存量 `DiscountVideoNode.test.jsx` 测试**（HoverToolbar mock 路径 `.jsx`→`.tsx`，3 个失败→17/17 全绿）；605 测试全过 |
+| `d1f142c` | **A3 续·agentRuntime 清洗**：修复 `agentRuntime.ts` 被 NUL 字节整体污染（上一会话转写失败）、从 `HEAD:agentRuntime.js` 取回干净源码重写；补 9 个真实 TS 类型错误（复用 agentCore 的 `ChatMessage`/`ToolCall`，新增 `RuntimeAssistantMessage`），`git commit` 真实 husky 钩子全绿（**破「Windows 钩子跑不起来」误判，实证可过关**） |
+| `1e8da90` | **A3 下一批·1**：`agentConfig.js`→.ts 常量收口（纯常量导出，0 类型错误，兄弟文件 import 自动同步） |
+| `fa9d179` | **A3 下一批·2**：`canvasPlanExecutor.js`→.ts + 补 `GenerationStep`/`PlanOptions`/`PlanDefaults`/`NodeSettings` 类型（复用 canvasHost 的 `CanvasHostCtx`/`CanvasHost`）；**踩坑**：convert 只改 `import ... from` 说明符、**不改 `vi.mock('...js')` 字符串**，导致 `canvasAgentTools.test.js`/`creditGateModes.test.js` 的 mock 路径失效、18 个用例报「不是 spy」→ 手工同步 2 处 `vi.mock` 路径为 `.ts` 后全绿 |
+| `81a8ee6` | chore：移除误入仓库的 vitest 临时输出文件（排查期 `vresult*.txt` 被 `git add -A` 带进，已 `git rm`） |
 
 ## 三·补：横切收口成果（本次新增）
 
@@ -125,7 +129,7 @@ node scripts/ts-migrate.mjs move <file> <targetDir> [--dry]
 - `contracts.js` 的 `EVENTS` 表：凡改名的文件被 `from/to` 引用，行号/后缀漂移会触发 check:events stale → 手动同步（**已发生 5 次**：promptManager、storageAdapter、useAssetMoveToFolder、taskCompletionBus/upstreamLink、useNodeGeneration）。
 - `check-api-contract.cjs` 的 `MODULE_FILES`（API 层文件映射 .js→.ts）。
 - 测试体内的**硬编码文件名枚举**（如 logger.test.js 的 `apiFiles` 数组、readFileSync 读源码的文件名）——脚本不改字符串，需手动同步。
-- **`vi.mock('.../Xxx.jsx')` 这类写死的 mock 路径**：组件改名 `.tsx` 后**必须同步改后缀**（脚本只改 import 说明符、不改字符串）。转组件前先 `refs <file>` 列出所有字符串残留，逐个同步。**这是本轮真实翻车点（DiscountVideoNode 测试挂掉）。**
+- **`vi.mock('.../Xxx.js')` / `vi.mock('.../Xxx.jsx')` 这类写死的 mock 路径**：改名 `.ts`/`.tsx` 后**必须同步改后缀**（脚本 `convert` 只改 `import ... from` 说明符、**不改 `vi.mock()` 的字符串参数**，这是脚本盲区）。转文件前先 `refs <file>` 列出所有字符串残留，逐个同步。**两轮真实翻车**：① DiscountVideoNode 测试因 canvasPlanExecutor 改名后 HoverToolbar 的 `vi.mock` 路径 `.jsx` 未改 → 3 个失败；② canvasPlanExecutor 改名后 `canvasAgentTools.test.js`/`creditGateModes.test.js` 的 `vi.mock('...canvasPlanExecutor.js')` 未改 → 18 个用例报「is not a spy or a call to a spy!」（mock 路径失效、真实函数被导入）。**务必在 convert 后把 `vi.mock` 里的旧后缀一并改成新后缀。**
 - 有 `useXxx` 的 `.js` 是 hook（无 JSX 也是 .ts，不是 .tsx）。
 - **改了目录结构后**：确认 `scripts/check-targets.mjs` 的 `SCAN_DIRS` 覆盖新路径，否则新目录整体逃出契约校验（详见「三·补」第 2 条）。
 
@@ -167,9 +171,9 @@ node scripts/ts-migrate.mjs move <file> <targetDir> [--dry]
 
 **A2. `src/components/agent/conversation/`** —— ✅ **已全部清零**（6 个文件 + index 聚合入口）
 
-**A3. `src/components/agent/` 剩余 6 个（全部纯逻辑，但含大件）**
-- `runtime/`（3）：`agentCore.js`(36K)、`agentRuntime.js`(32K)、**`useAgentChat.js`(64K)** ← 最后三个大件，hook → 转 `.ts`
-- `canvas/`（3）：`canvasHost.js`(5.2K，最小，建议先做)、`canvasPlanExecutor.js`(40K)、**`useCanvasAgentTools.js`(86K)** ← hook → 转 `.ts`
+**A3. `src/components/agent/`（本轮续作后仅剩 2 个）**
+- `runtime/`（已转 2）：`agentCore.js`(36K)→.ts（前轮）、`agentRuntime.js`(32K)→.ts（NUL 污染修复，`d1f142c`）；**剩 `useAgentChat.js`(64K)** ← 大件 hook → 转 `.ts`
+- `canvas/`（已转 2）：`canvasHost.js`(5.2K)→.ts（前轮）、`canvasPlanExecutor.js`(40K)→.ts（`fa9d179`）；**剩 `useCanvasAgentTools.js`(86K)** ← 大件 hook → 转 `.ts`
 - 注意：`useAgentChat.js` 与 `useCanvasAgentTools.js` 是 **hook → 转 `.ts`（不是 .tsx）**，且**不收口到 src/hooks/**（领域专属，见「三·补」）。
 
 **A4. `src/components/scriptbox/` 3 个纯逻辑文件** —— ✅ **已全部清零（第二轮会话完成）**：`scriptBoxPlaybookIO.ts` / `scriptBoxPlaybookStore.ts` / `scriptBoxWorkflows.ts`。`scriptBoxPromptResolver.ts` 已删除 `PlaybookLike` 改用真实 `Playbook` 类型。
