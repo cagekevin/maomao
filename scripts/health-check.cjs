@@ -147,6 +147,16 @@ let tdzHits = 0;
 if (tdzHits === 0) console.log('  ✅ 未扫描到典型 TDZ / 未定义 / 非函数调用');
 else warn('TDZ 扫描', false, `${tdzHits} 处风险（仅提醒，不阻断）`);
 
+// ── 5.5 架构校验（循环依赖 + base 分层，check-arch.mjs）──
+console.log('\n🏛 架构校验（no-circular + base 分层）');
+try {
+  execSync('node scripts/check-arch.mjs', { cwd: ROOT, stdio: 'pipe' });
+  console.log('  ✅ 架构校验通过');
+} catch (e) {
+  const msg = e.stdout ? String(e.stdout) : e.message;
+  check('架构校验', false, msg.split('\n').filter(Boolean).slice(-2).join(' | '));
+}
+
 // ── 6. dist 构建产物基线（借鉴 safety-net）──
 console.log('\n📊 dist 构建产物基线');
 const scanDist = (dir, prefix = '') => {

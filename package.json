@@ -27,6 +27,7 @@
     "test": "npm run test:all",
     "pretest": "npm run check:api && npm run check:events",
     "check:health": "node scripts/health-check.cjs",
+    "check:arch": "node scripts/check-arch.mjs",
     "type-check": "tsc --noEmit",
     "prepare": "husky"
   },
