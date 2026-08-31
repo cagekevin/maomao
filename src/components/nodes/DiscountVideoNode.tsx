@@ -39,23 +39,70 @@ import { debounce, buildEffectivePrompt, clampSeconds } from '../base/utils.ts'
  * 保留差异化：主显示区、比例/分辨率/时长菜单、素材区、提示词输入。
  * 性能降级用通用 useMediaDegrade：lodLevel>=3 藏视频（与官方横幅 yt===3 一致）。
  */
-function DiscountVideoNode({ id, data, selected }) {
+/** 参考图素材形态（MaterialStrip / PromptInput 共用） */
+interface RefImage {
+  id: string
+  url: string
+  label?: string
+  sourceNodeId?: string
+}
+
+/** 参考文本形态（resolvePromptChips 要求 id/label 必填） */
+interface RefText {
+  id: string
+  label: string
+  text?: string
+  sourceNodeId?: string
+}
+
+/** 视频生成节点 data 契约 */
+interface DiscountVideoNodeData {
+  label?: string
+  prompt?: string
+  videoUrl?: string
+  poster?: string
+  size?: string
+  resolution?: string
+  selectedSeconds?: string | number
+  selectedModel?: string
+  expanded?: boolean
+  inputWidth?: number
+  inputHeight?: number
+  texts?: RefText[]
+  [key: string]: unknown
+}
+
+/** 上游产出（来自 useConnectedInputs）的最小只读结构 */
+interface ConnectedOutput {
+  images: RefImage[]
+  texts: RefText[]
+  videos: unknown[]
+  audios: unknown[]
+}
+
+interface DiscountVideoNodeProps {
+  id: string
+  data: DiscountVideoNodeData
+  selected?: boolean
+}
+
+function DiscountVideoNode({ id, data, selected }: DiscountVideoNodeProps) {
   // 性能模式媒体降级（通用 hook）：hideVideo = isHidden('video')，即 lodLevel>=3
   const { isHidden } = useMediaDegrade()
   const hideVideo = isHidden('video')
 
   // 通用连线数据传递：读取直接上游节点的图片/文本作为参考素材
-  const connected = useConnectedInputs(id)
+  const connected = useConnectedInputs(id) as ConnectedOutput
   // 上游文本合并（多个文本节点自动聚合；data.texts 额外资产也并入），作为提示词的一部分
   const refTexts = [...(connected.texts || []), ...(data.texts?.length ? data.texts : [])]
   const { setEdges, setNodes } = useReactFlow()
   // 标题改名 → 写回 data.label，让下游 @名 匹配 / 素材条显示跟随
-  const rename = useCallback((name) => {
+  const rename = useCallback((name: string) => {
     setNodes((ns) => ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, label: name } } : n)))
   }, [id, setNodes])
   // 断开连线：素材缩略图红色 × → 删除该来源节点 → 本节点的连线（仅对有 sourceNodeId 的素材）
   const disconnectSource = useCallback(
-    (sourceNodeId) => {
+    (sourceNodeId: string) => {
       if (!sourceNodeId) return
       setEdges((es) => es.filter((e) => !(e.source === sourceNodeId && e.target === id)))
     },
@@ -76,19 +123,19 @@ function DiscountVideoNode({ id, data, selected }) {
   // 提示词落盘：本地 state + 写回 node.data（支持函数式更新）。
   // 复用画布快照 KV（App.jsx 600ms 防抖 autoSave）→ 手动输入的提示词刷新不丢。
   const patchData = useCallback(
-    (patch) => {
+    (patch: Record<string, unknown>) => {
       setNodes((ns) => ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, ...patch } } : n)))
     },
     [id, setNodes]
   )
   const setPromptPersist = useCallback(
-    (v) => {
+    (v: React.SetStateAction<string>) => {
       setPrompt((prev) => (typeof v === 'function' ? v(prev) : v))
     },
     []
   )
   // P2：prompt 持续输入走防抖写回（避免每键 setNodes 全图 node 数组重建）；卸载 flush 兜底
-  const debouncedPatch = useRef(null)
+  const debouncedPatch = useRef<{ (patch: Record<string, unknown>): void; flush(): void } | null>(null)
   if (debouncedPatch.current == null) {
     debouncedPatch.current = debounce(patchData, 200)
   }
@@ -113,18 +160,20 @@ function DiscountVideoNode({ id, data, selected }) {
 
   // 视频首帧封面（复刻官方 xi.jsx poster 机制）：未播放时只显示首帧封面、不加载视频本体，点击才加载播放
   // 注意：必须在 videoUrl state 定义之后调用，否则触发 TDZ「Cannot access before initialization」
-  const posterUrl = useVideoPoster(videoUrl)
-  const fileRef = useRef(null)
-  const videoRef = useRef(null) // 主视频元素（点击播放按钮用）
-  const promptInputRef = useRef(null) // 提示词 textarea ref（供面板右下角手柄拖拽改尺寸）
-  const insertAssetRef = useRef(null) // 富文本素材插入：由 PromptInput onReady 上抛（主框 MaterialStrip 共用）
-  const insertMention = (asset) => {
+  // enabled 必传：原调用漏传第二参 → enabled 恒为 undefined → 首帧封面永不生成（poster 静默失效），
+  // 节点只能显示 <video> 本体（未播放时黑块）。本节点无播放态跟踪，有 videoUrl 即抓封面。
+  const posterUrl = useVideoPoster(videoUrl, !!videoUrl)
+  const fileRef = useRef<HTMLInputElement | null>(null)
+  const videoRef = useRef<HTMLVideoElement | null>(null) // 主视频元素（点击播放按钮用）
+  const promptInputRef = useRef<HTMLDivElement | null>(null) // 提示词编辑器 ref（供面板右下角手柄拖拽改尺寸）
+  const insertAssetRef = useRef<((asset: unknown) => void) | null>(null) // 富文本素材插入：由 PromptInput onReady 上抛（主框 MaterialStrip 共用）
+  const insertMention = (asset: unknown) => {
     if (typeof insertAssetRef.current === 'function') insertAssetRef.current(asset)
   }
   // 双击视频查看大图（原生 <dialog> + 原生 <video> 播放器）
   const [zoomUrl, setZoomUrl] = useState('')
-  const zoomRef = useRef(null)
-  const openVideoZoom = useCallback((url) => {
+  const zoomRef = useRef<HTMLDialogElement | null>(null)
+  const openVideoZoom = useCallback((url: string) => {
     if (!url) return
     setZoomUrl(url)
     requestAnimationFrame(() => zoomRef.current?.showModal())
@@ -134,7 +183,7 @@ function DiscountVideoNode({ id, data, selected }) {
   // 再由 dblclick 补一次 toggle 抵消，抽屉回到原位并打开大图。单击则只 toggle 一次，无延迟。
   const lastClickTime = useRef(0)
   const doubleClickPending = useRef(false)
-  const ratioMenuRef = useRef(null) // 比例/分辨率/时长菜单容器（点击外部关闭）
+  const ratioMenuRef = useRef<HTMLDivElement | null>(null) // 比例/分辨率/时长菜单容器（点击外部关闭）
   useOutsideClick(ratioMenuRef, showRatioMenu, () => setShowRatioMenu(false))
 
   // 输入框尺寸写回 node.data（基座 useNodeResize，复刻官方 inputWidth/inputHeight）
@@ -187,7 +236,7 @@ function DiscountVideoNode({ id, data, selected }) {
         model: modelId,
         size: ratio,
         resolution,
-        seconds,
+        seconds: Number(seconds) || 10,
         images: refUrls,
         taskId, // P0-A 请求级贯穿
       }, (pct, stage) => progress(Math.max(10, Math.min(98, Math.round(pct))), stage), signal)
@@ -200,7 +249,7 @@ function DiscountVideoNode({ id, data, selected }) {
     },
     // 【精准节点回填】异步视频任务刷新后恢复轮询完成的广播 → 节点卡片自动恢复显示（data 回填由 recoverable 自动，此处同步本地 state 供渲染/下载）。
     onRecover: ({ resultUrl }) => {
-      setVideoUrl(resultUrl)
+      setVideoUrl(String(resultUrl ?? ''))
     },
   })
 

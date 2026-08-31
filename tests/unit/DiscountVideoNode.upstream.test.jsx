@@ -66,7 +66,7 @@ beforeEach(() => {
   connectedInputs = { images: [], texts: [] }
 })
 
-import DiscountVideoNode from '../../src/components/nodes/DiscountVideoNode.jsx'
+import DiscountVideoNode from '../../src/components/nodes/DiscountVideoNode.tsx'
 
 function setup(data = {}) {
   return render(<DiscountVideoNode id="n1" data={data} selected={false} />)
