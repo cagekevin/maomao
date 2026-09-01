@@ -7,7 +7,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 //   - 流式模型默认带 tools（无论开关）
 import { roundTrip } from '../../src/components/agent/runtime/agentRuntime.ts'
 
-function makeCtx({ streamMode = 'stream', ENABLE_TOOLS_ON_NON_STREAM = false, toolSchemas = [{ name: 'show_plan_for_confirm' }], provider = null, useProxy = false, onStream } = {}): any {
+function makeCtx({ streamMode = 'stream', ENABLE_TOOLS_ON_NON_STREAM = false, toolSchemas = [{ name: 'show_plan_for_confirm' }], provider = null, useProxy = false, onStream }: any = {}): any {
   return {
     endpoint: 'http://local/api/agent/key/chat',
     model: 'test-model',

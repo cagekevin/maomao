@@ -1,4 +1,3 @@
-// @ts-nocheck
 // 对象动画「通道化」M3 路径独立化 纯逻辑测试
 // 覆盖：
 //   M3-C1 路径存在且启用时 position 唯一由路径提供，位置关键帧被忽略（显式二选一）
@@ -106,7 +105,7 @@ describe('M3-C2/C5 路径烘焙只产出 position，绝不写姿态快照 / 不�
   // 复刻 applyPathBake 对象分支的纯函数链路：bake → 逐帧 position-only snapshot → 拆通道落轨
   const bakeTrackFromPath = (path, entityType = 'person') => {
     const { frames } = bakePathKeyframes(path, FPS)
-    let track = {}
+    let track: any = {}
     for (const frame of frames) {
       const snapshot = { frame: frame.frame, interpolation: 'linear', position: frame.position }
       track = upsertChannelKeys(track, snapshotToChannelKeys(entityType, snapshot, snapshot.frame, snapshot.interpolation))

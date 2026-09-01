@@ -1,5 +1,4 @@
 // @vitest-environment jsdom
-// @ts-nocheck
 /**
  * nodeTypes 单源化测试 —— NodePalette 派生画布 nodeTypes。
  * 覆盖：buildNodeTypeComponents 覆盖全部可创建节点、值为组件函数、含 HIDDEN 顶部快捷。
@@ -19,7 +18,7 @@ const isReactComponent = (v) =>
 
 describe('NodePalette.buildNodeTypeComponents（nodeTypes 单源化）', () => {
   it('返回 type → 组件函数 映射', () => {
-    const map = buildNodeTypeComponents()
+    const map: any = buildNodeTypeComponents()
     expect(map).toBeTypeOf('object')
     for (const [type, comp] of Object.entries(map)) {
       expect(typeof type).toBe('string')
@@ -28,7 +27,7 @@ describe('NodePalette.buildNodeTypeComponents（nodeTypes 单源化）', () => {
   })
 
   it('覆盖 paletteNodes 全部类型（重依赖节点亦持 component，为 lazyNode 包装）', () => {
-    const map = buildNodeTypeComponents()
+    const map: any = buildNodeTypeComponents()
     const types = new Set(Object.keys(map))
     for (const n of paletteNodes) {
       // 3D/视频处理等重依赖节点的 component 是 lazyNode 包装（动态 import），仍属「持 component」
@@ -38,7 +37,7 @@ describe('NodePalette.buildNodeTypeComponents（nodeTypes 单源化）', () => {
   })
 
   it('含顶部快捷 HIDDEN 节点（textNode/promptNode/discountVideoNode）', () => {
-    const map = buildNodeTypeComponents()
+    const map: any = buildNodeTypeComponents()
     expect(isReactComponent(map.textNode), 'textNode 非合法组件类型').toBe(true)
     expect(isReactComponent(map.promptNode), 'promptNode 非合法组件类型').toBe(true)
     expect(isReactComponent(map.discountVideoNode), 'discountVideoNode 非合法组件类型').toBe(true)

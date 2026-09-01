@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 // appSettings 用模块级单例 + 默认兜底；用 resetModules 隔离每次导入，保证测试独立。
@@ -50,14 +49,14 @@ describe('appSettings §2.10/2.20 读写兜底', () => {
   it('setSetting debugOn=true → 同步 window.__DEBUG_ALL（总开关实时生效）', async () => {
     // node 测试环境无 window，stub 一个用于断言 syncDebugAll 的副作用
     const prevWindow = globalThis.window
-    globalThis.window = { __DEBUG_ALL: false }
+    ;(globalThis as any).window = { __DEBUG_ALL: false }
     const { setSetting } = await import('../../src/components/base/appSettings.ts')
     setSetting('debugOn', true)
-    expect(globalThis.window.__DEBUG_ALL).toBe(true)
+    expect((globalThis.window as any).__DEBUG_ALL).toBe(true)
     // 关闭后清除
     setSetting('debugOn', false)
-    expect(globalThis.window.__DEBUG_ALL).toBe(false)
-    if (prevWindow === undefined) delete globalThis.window
-    else globalThis.window = prevWindow
+    expect((globalThis.window as any).__DEBUG_ALL).toBe(false)
+    if (prevWindow === undefined) delete (globalThis as any).window
+    else (globalThis as any).window = prevWindow
   })
 })

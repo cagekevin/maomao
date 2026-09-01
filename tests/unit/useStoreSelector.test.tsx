@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * store selector 浅比较锚点（P5 原子 hook 的测试基座）。
  *
@@ -20,7 +19,7 @@ import { useStoreSelector, shallowEqual } from '../../src/hooks/useStoreSelector
 /** 最小可操控外部 store（对齐各 store 的 subscribe/getSnapshot 契约） */
 function createStore(initial) {
   let state = initial
-  const listeners = new Set()
+  const listeners = new Set<() => void>()
   return {
     getState: () => state,
     setState: (next) => { state = next; listeners.forEach((l) => l()) },
@@ -29,8 +28,8 @@ function createStore(initial) {
 }
 
 /** 探针组件：订阅 selector，每次渲染回调 onRender（统计重渲染次数） */
-function Probe({ store, selector, isEqual, onRender }) {
-  const v = useStoreSelector(store.subscribe, store.getState, selector, isEqual)
+function Probe({ store, selector, isEqual, onRender }: any) {
+  const v = (useStoreSelector as any)(store.subscribe, store.getState, selector, isEqual)
   onRender()
   return <div data-testid="value">{typeof v === 'object' ? JSON.stringify(v) : String(v)}</div>
 }

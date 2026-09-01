@@ -10,7 +10,7 @@
 import { vi, describe, it, expect } from 'vitest'
 
 // mock mediapipe：不加载真实 wasm / 模型
-const fakeFaceDetector = {}
+const fakeFaceDetector = {} as any
 vi.mock('@mediapipe/tasks-vision', () => ({
   FilesetResolver: {
     forVisionTasks: vi.fn(async () => ({ __wasm: true }))
@@ -62,7 +62,7 @@ function installOffscreenCanvasSpy() {
   })
 }
 
-const SRC = { width: 100, height: 100 }
+const SRC: any = { width: 100, height: 100 }
 const BOX = { x: 10, y: 10, w: 30, h: 30 }
 
 describe('loadFaceDetector', () => {
@@ -122,7 +122,7 @@ describe('drawMosaicOnBox', () => {
 
   it('非法 mode 不抛错（回退默认分支）', () => {
     const ctx = makeCtx()
-    expect(() => drawMosaicOnBox(ctx, SRC, BOX, 'unknown-mode', 0.5)).not.toThrow()
+    expect(() => drawMosaicOnBox(ctx, SRC, BOX, 'unknown-mode' as any, 0.5)).not.toThrow()
   })
 })
 

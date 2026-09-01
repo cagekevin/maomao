@@ -160,7 +160,7 @@ describe('M1-C6 旧整快照无损迁移 → 播放逐帧一致', () => {
     const legacyResults = sampleFrames.map(frame => objectAtFrame(person, legacyPersonKeys, frame, 24))
     const channels = normalizeObjectTracks({ 'actor-lead': legacyPersonKeys }, { 'actor-lead': 'person' })
     const flatBack = channelsToSnapshotKeys('person', channels['actor-lead'] as any)
-    const migratedResults = sampleFrames.map(frame => objectAtFrame(person, flatBack, frame, 24))
+    const migratedResults = sampleFrames.map(frame => objectAtFrame(person, flatBack as any, frame, 24))
     expect(migratedResults).toEqual(legacyResults)
   })
 
@@ -168,7 +168,7 @@ describe('M1-C6 旧整快照无损迁移 → 播放逐帧一致', () => {
     const legacyResults = sampleFrames.map(frame => objectAtFrame(box, legacyBoxKeys, frame, 24))
     const channels = normalizeObjectTracks({ 'block-stage': legacyBoxKeys }, { 'block-stage': 'object' })
     const flatBack = channelsToSnapshotKeys('object', channels['block-stage'] as any)
-    const migratedResults = sampleFrames.map(frame => objectAtFrame(box, flatBack, frame, 24))
+    const migratedResults = sampleFrames.map(frame => objectAtFrame(box, flatBack as any, frame, 24))
     // 物体无姿态语义（M1-C1 只留 transform 通道），求值回退的 poseTime 等字段不影响渲染；
     // 断言对渲染真正生效的 transform 字段逐帧一致即可。
     const pickTransform = result => ({ position: result.position, rotation: result.rotation, scale: result.scale })

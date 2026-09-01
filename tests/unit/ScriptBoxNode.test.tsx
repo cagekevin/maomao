@@ -43,7 +43,7 @@ const h = vi.hoisted(() => {
 
 vi.mock('@xyflow/react', () => ({
   useReactFlow: () => ({
-    setNodes: (...a) => h.setNodesMock(...a),
+    setNodes: (...a: any[]) => (h.setNodesMock as any)(...a),
     getNodes: () => h.getNodesMock(),
     setEdges: vi.fn(),
     addNodes: vi.fn(),

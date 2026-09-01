@@ -1,5 +1,4 @@
 // @vitest-environment node
-// @ts-nocheck
 /**
  * hooks 单测（批 1-7，纯函数部分）。
  * hooks.js 既有 React hooks（useOutsideClick/useNodeResize 等，需 jsdom，留批 3），
@@ -14,14 +13,14 @@ const { isEditableTarget, parseAspect, computeSizeSync } = await import(
 
 describe('hooks — isEditableTarget', () => {
   it('INPUT/TEXTAREA 标志位 → true', () => {
-    expect(isEditableTarget({ target: { tagName: 'INPUT' } })).toBe(true)
-    expect(isEditableTarget({ target: { tagName: 'TEXTAREA' } })).toBe(true)
+    expect(isEditableTarget({ target: { tagName: 'INPUT' } } as any)).toBe(true)
+    expect(isEditableTarget({ target: { tagName: 'TEXTAREA' } } as any)).toBe(true)
   })
   it('contentEditable → true', () => {
-    expect(isEditableTarget({ target: { isContentEditable: true } })).toBe(true)
+    expect(isEditableTarget({ target: { isContentEditable: true } } as any)).toBe(true)
   })
   it('普通元素 → false', () => {
-    expect(isEditableTarget({ target: { tagName: 'DIV' } })).toBe(false)
+    expect(isEditableTarget({ target: { tagName: 'DIV' } } as any)).toBe(false)
   })
   it('无 target / 无事件 → false', () => {
     expect(isEditableTarget(null)).toBe(false)

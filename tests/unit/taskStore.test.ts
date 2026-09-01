@@ -136,7 +136,7 @@ describe('taskStore §P4 进度落库节流', () => {
     expect(saveTask).toHaveBeenCalledTimes(1) // 窗口内未落
     vi.advanceTimersByTime(200)
     expect(saveTask).toHaveBeenCalledTimes(2) // 合并落 1 次，写最终态
-    const last = vi.mocked(saveTask).mock.calls.at(-1)[0]
+    const last = vi.mocked(saveTask).mock.calls.at(-1)[0] as any
     expect(last.id).toBe(handle.taskId)
     expect(last.progress).toBe(70)
     expect(last.stageLabel).toBe('阶段C')
@@ -149,7 +149,7 @@ describe('taskStore §P4 进度落库节流', () => {
     handle.progress(30, '阶段')
     handle.done('/result.png')
     expect(saveTask).toHaveBeenCalledTimes(1)
-    const last = vi.mocked(saveTask).mock.calls.at(-1)[0]
+    const last = vi.mocked(saveTask).mock.calls.at(-1)[0] as any
     expect(last.status).toBe('completed')
     expect(last.progress).toBe(100)
     expect(last.resultUrl).toBe('/result.png')
@@ -164,7 +164,7 @@ describe('taskStore §P4 进度落库节流', () => {
     handle.progress(50, '阶段')
     handle.fail('网络错误')
     expect(saveTask).toHaveBeenCalledTimes(1)
-    const last = vi.mocked(saveTask).mock.calls.at(-1)[0]
+    const last = vi.mocked(saveTask).mock.calls.at(-1)[0] as any
     expect(last.status).toBe('failed')
     expect(last.errorMsg).toBe('网络错误')
     vi.advanceTimersByTime(400)

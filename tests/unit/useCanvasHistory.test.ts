@@ -1,5 +1,4 @@
 // @vitest-environment jsdom
-// @ts-nocheck
 /**
  * useCanvasHistory 单测（批 1-8，hook 桥接）。
  * 覆盖：返回 canUndo/canRedo/record/undo/redo/clear；record 后 canUndo 为真；
@@ -40,8 +39,8 @@ describe('useCanvasHistory — 基础', () => {
 describe('useCanvasHistory — 记录与撤销', () => {
   it('record 两次后 canUndo 为真；undo 把上一份快照交给 apply', () => {
     const apply = vi.fn()
-    const s1 = { nodes: [{ id: 'n1' }], edges: [] }
-    const s2 = { nodes: [{ id: 'n2' }], edges: [] }
+    const s1: any = { nodes: [{ id: 'n1' }], edges: [] }
+    const s2: any = { nodes: [{ id: 'n2' }], edges: [] }
     const { result } = renderHook(() => useCanvasHistory(() => ({ nodes: [], edges: [] }), apply))
 
     act(() => result.current.record(s1))
@@ -54,8 +53,8 @@ describe('useCanvasHistory — 记录与撤销', () => {
 
   it('redo 在 undo 后可用', () => {
     const apply = vi.fn()
-    const s1 = { nodes: [{ id: 'a' }], edges: [] }
-    const s2 = { nodes: [{ id: 'b' }], edges: [] }
+    const s1: any = { nodes: [{ id: 'a' }], edges: [] }
+    const s2: any = { nodes: [{ id: 'b' }], edges: [] }
     const { result } = renderHook(() => useCanvasHistory(() => ({ nodes: [], edges: [] }), apply))
 
     act(() => result.current.record(s1))
@@ -70,8 +69,8 @@ describe('useCanvasHistory — 记录与撤销', () => {
     const { result } = renderHook(() =>
       useCanvasHistory(() => ({ nodes: [], edges: [] }), () => {})
     )
-    act(() => result.current.record({ nodes: [], edges: [] }))
-    act(() => result.current.record({ nodes: [{ id: 'x' }], edges: [] }))
+    act(() => result.current.record({ nodes: [], edges: [] } as any))
+    act(() => result.current.record({ nodes: [{ id: 'x' }], edges: [] } as any))
     expect(result.current.canUndo).toBe(true)
     act(() => result.current.clear())
     expect(result.current.canUndo).toBe(false)

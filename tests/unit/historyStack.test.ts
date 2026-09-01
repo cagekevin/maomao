@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { describe, it, expect } from 'vitest'
 import { HistoryStack } from '../../src/components/base/historyStack.ts'
 
@@ -37,8 +36,8 @@ describe('HistoryStack MAX=15 上限', () => {
     pushN(s, 20)
     expect(s.history).toHaveLength(15)
     // 最早的 5 条被挤出
-    expect(s.history[0].i).toBe(6)
-    expect(s.history.at(-1).i).toBe(20)
+    expect((s.history[0] as any).i).toBe(6)
+    expect((s.history.at(-1) as any).i).toBe(20)
   })
 })
 
@@ -47,7 +46,7 @@ describe('HistoryStack undo/redo', () => {
     const s = new HistoryStack()
     pushN(s, 3)
     const snap = s.undo()
-    expect(snap.i).toBe(2)
+    expect((snap as any).i).toBe(2)
     expect(s.canRedo).toBe(true)
   })
 
@@ -57,7 +56,7 @@ describe('HistoryStack undo/redo', () => {
     s.undo()
     s.undo()
     const snap = s.redo()
-    expect(snap.i).toBe(2)
+    expect((snap as any).i).toBe(2)
     expect(s.canUndo).toBe(true)
   })
 
@@ -96,7 +95,7 @@ describe('HistoryStack 分支截断 + suppress', () => {
     s.undo() // 进入 suppress
     s.push({ i: 'ignored' })
     expect(s.history).toHaveLength(3)
-    expect(s.history.at(-1).i).toBe(3)
+    expect((s.history.at(-1) as any).i).toBe(3)
   })
 
   it('releaseSuppress 后可正常 push', () => {
@@ -105,7 +104,7 @@ describe('HistoryStack 分支截断 + suppress', () => {
     s.undo()
     s.releaseSuppress()
     s.push({ i: 4 })
-    expect(s.history.at(-1).i).toBe(4)
+    expect((s.history.at(-1) as any).i).toBe(4)
   })
 })
 

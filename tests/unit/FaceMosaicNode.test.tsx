@@ -30,7 +30,7 @@ const h = vi.hoisted(() => {
 
 vi.mock('@xyflow/react', () => ({
   useReactFlow: () => ({
-    setNodes: (...a) => h.setNodesMock(...a),
+    setNodes: (...a: any[]) => (h.setNodesMock as any)(...a),
     getNodes: () => h.state.nodes,
     // P7：FaceMosaicNode 输出用 getNode(id) 读自身位置（替 getNodes().find），mock 需同步提供
     getNode: (id) => h.state.nodes.find((n) => n.id === id),
@@ -48,12 +48,12 @@ vi.mock('../../src/components/base/HoverToolbar.tsx', () => ({ default: mocks.Ho
 vi.mock('../../src/hooks/useConnectedInputs.ts', () => ({ useConnectedInputs: mocks.useConnectedInputs }))
 vi.mock('../../src/hooks/useMediaDegrade.ts', () => ({ useMediaDegrade: mocks.useMediaDegrade }))
 vi.mock('../../src/components/base/api/filesApi.ts', () => ({
-  uploadFileToLocal: (...a) => h.uploadMock(...a),
+  uploadFileToLocal: (...a: any[]) => (h.uploadMock as any)(...a),
   toAbsoluteFileUrl: (u) => `ABS:${u}`,
 }))
 vi.mock('../../src/components/base/toastStore.ts', () => ({ showToast: mocks.showToast, toastError: mocks.toastError, toastWarning: mocks.toastWarning }))
 vi.mock('../../src/components/base/faceMosaic.ts', () => ({
-  applyMosaic: (...a) => h.applyMosaicMock(...a),
+  applyMosaic: (...a: any[]) => (h.applyMosaicMock as any)(...a),
   MOSAIC_MODES: [
     { mode: 'mosaic', label: '马赛克' },
     { mode: 'bar', label: '黑条' },

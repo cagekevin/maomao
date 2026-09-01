@@ -1,5 +1,4 @@
 // @vitest-environment node
-// @ts-nocheck
 /**
  * workflowState 单测（M2 收口）。
  * 覆盖 5 个纯函数迁移动作的 patch 输出：
@@ -40,7 +39,7 @@ describe('wfStart — 起步', () => {
 
 describe('wfSteer — 补充指令入队', () => {
   it('向当前 workflow.steerQueue 追加；attachments 缺省为 []', () => {
-    convStore.getCurrentWorkflow.mockReturnValue({ status: 'running', steerQueue: [{ text: 'a', attachments: [] }] })
+    vi.mocked(convStore.getCurrentWorkflow).mockReturnValue({ status: 'running', steerQueue: [{ text: 'a', attachments: [] }] })
     const patch = wfSteer('b', [{ type: 'image', url: 'x' }])
     expect(patch.steerQueue).toHaveLength(2)
     expect(patch.steerQueue[1]).toEqual({ text: 'b', attachments: [{ type: 'image', url: 'x' }] })
@@ -48,7 +47,7 @@ describe('wfSteer — 补充指令入队', () => {
   })
 
   it('无 workflow 时以 running 起步（与 useAgentChat 原「无则建 running」语义等价）', () => {
-    convStore.getCurrentWorkflow.mockReturnValue(null)
+    vi.mocked(convStore.getCurrentWorkflow).mockReturnValue(null)
     const patch = wfSteer('补充')
     expect(patch.steerQueue).toHaveLength(1)
     expect(patch.steerQueue[0].text).toBe('补充')
@@ -57,7 +56,7 @@ describe('wfSteer — 补充指令入队', () => {
 
   it('不 mutate 原 workflow 的 steerQueue（基于副本追加）', () => {
     const orig = { steerQueue: [{ text: 'a', attachments: [] }] }
-    convStore.getCurrentWorkflow.mockReturnValue(orig)
+    vi.mocked(convStore.getCurrentWorkflow).mockReturnValue(orig)
     wfSteer('b')
     expect(orig.steerQueue).toHaveLength(1)
   })
@@ -75,7 +74,7 @@ describe('wfAwaitConfirm — 等待确认', () => {
 
 describe('wfNextSteer — 队列出队', () => {
   it('有下一条：出队并置 planning，next 返回该条', () => {
-    convStore.getCurrentWorkflow.mockReturnValue({ steerQueue: [{ text: '续', attachments: [] }, { text: '再', attachments: [] }] })
+    vi.mocked(convStore.getCurrentWorkflow).mockReturnValue({ steerQueue: [{ text: '续', attachments: [] }, { text: '再', attachments: [] }] })
     const { next, patch } = wfNextSteer('completed')
     expect(next.text).toBe('续')
     expect(patch.steerQueue).toHaveLength(1)
@@ -84,7 +83,7 @@ describe('wfNextSteer — 队列出队', () => {
   })
 
   it('无下一条：next 为 undefined，维持终态', () => {
-    convStore.getCurrentWorkflow.mockReturnValue({ steerQueue: [] })
+    vi.mocked(convStore.getCurrentWorkflow).mockReturnValue({ steerQueue: [] })
     const { next, patch } = wfNextSteer('completed')
     expect(next).toBeUndefined()
     expect(patch.steerQueue).toHaveLength(0)
@@ -92,7 +91,7 @@ describe('wfNextSteer — 队列出队', () => {
   })
 
   it('无 workflow：按空队列处理，维持终态', () => {
-    convStore.getCurrentWorkflow.mockReturnValue(null)
+    vi.mocked(convStore.getCurrentWorkflow).mockReturnValue(null)
     const { next, patch } = wfNextSteer('failed')
     expect(next).toBeUndefined()
     expect(patch.status).toBe('failed')

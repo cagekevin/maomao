@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * promptManager 单元测试（阶段一·算法与逻辑层）
  * 覆盖：预设加载/种子数据、全量保存、新建模板、最近使用、卡片映射/搜索/分类。
@@ -122,7 +121,7 @@ describe('cards mapping', () => {
       { id: '1', title: 'A' },
       { id: '2', title: 'B' },
       { id: '3', title: 'C' }
-    ]
+    ] as any
     expect(pm.getRecentCards(cards, ['3', '1'])).toEqual([{ id: '3', title: 'C' }, { id: '1', title: 'A' }])
   })
 
@@ -130,7 +129,7 @@ describe('cards mapping', () => {
     const cards = [
       { id: '1', title: '赛博', content: '城市' },
       { id: '2', title: '小猫', content: '花园' }
-    ]
+    ] as any
     expect(pm.searchCards(cards, '赛博').length).toBe(1)
     expect(pm.searchCards(cards, '花园').length).toBe(1)
     expect(pm.searchCards(cards, '').length).toBe(2)

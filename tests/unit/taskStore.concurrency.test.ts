@@ -1,5 +1,4 @@
 // @vitest-environment node
-// @ts-nocheck
 /**
  * taskStore 生图并发上限测试。
  * 验证 runNodeGeneration 同时最多跑 MAX_CONCURRENT_GEN(6) 个，第 7 个返回 { ok:false, skipped:true }，
@@ -56,7 +55,7 @@ describe('taskStore 生图并发上限（最多 6 个同时跑，超出跳过）
     // 释放前 6 个挂起的任务，让它们完成
     for (const r of resolvers) r()
     const firstSix = await Promise.all(promises.slice(0, 6))
-    expect(firstSix.every((r) => r?.ok === true)).toBe(true)
+    expect(firstSix.every((r) => (r as any)?.ok === true)).toBe(true)
 
     // 清理
     for (let i = 0; i < 7; i++) unregisterTaskRetry(`conc-${i}`)
@@ -72,11 +71,11 @@ describe('taskStore 生图并发上限（最多 6 个同时跑，超出跳过）
     await Promise.resolve()
     // 第二个此时 genActive=1<6，可触发（立即完成）
     const p2 = runNodeGeneration('conc-b')
-    expect((await p2).ok).toBe(true)
+    expect((await p2 as any).ok).toBe(true)
 
     // 释放第一个 → 槽位释放，无异常
     resolve()
-    expect((await p1).ok).toBe(true)
+    expect((await p1 as any).ok).toBe(true)
 
     unregisterTaskRetry('conc-a')
     unregisterTaskRetry('conc-b')
@@ -100,7 +99,7 @@ describe('taskStore P1-E 单节点互斥锁（claimNodeRun/releaseNodeRun）', (
   })
 
   it('无 nodeId 不锁（视为可占）', () => {
-    expect(claimNodeRun()).toEqual({ ok: true })
+    expect(claimNodeRun(undefined as any)).toEqual({ ok: true })
     expect(claimNodeRun('')).toEqual({ ok: true })
   })
 })

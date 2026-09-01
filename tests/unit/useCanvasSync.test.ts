@@ -1,5 +1,4 @@
 // @vitest-environment jsdom
-// @ts-nocheck
 /**
  * useCanvasSync 单测（多窗口画布同步检测 hook）。
  * 策略：stub 全局 BroadcastChannel 为可捕获 onmessage 的 fake，模拟收到 CANVAS_SAVED 消息，
@@ -9,20 +8,23 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
 
 // fake BroadcastChannel：捕获最新实例，供测试注入消息
-let latestChannel = null
+let latestChannel: any = null
 class FakeBroadcastChannel {
-  constructor(name) { this.name = name; this.onmessage = null; this.closed = false; latestChannel = this }
+  name: string
+  onmessage: ((ev: any) => void) | null
+  closed: boolean
+  constructor(name: string) { this.name = name; this.onmessage = null; this.closed = false; latestChannel = this }
   close() { this.closed = true }
 }
 const closeSpy = vi.fn()
-FakeBroadcastChannel.prototype.close = function () { this.closed = true; closeSpy(this.name) }
+FakeBroadcastChannel.prototype.close = function (this: FakeBroadcastChannel) { this.closed = true; closeSpy(this.name) }
 
 const { useCanvasSync } = await import('../../src/hooks/useCanvasSync.ts')
 
 beforeEach(() => {
   latestChannel = null
   closeSpy.mockClear()
-  vi.stubGlobal('BroadcastChannel', FakeBroadcastChannel)
+  vi.stubGlobal('BroadcastChannel', FakeBroadcastChannel as any)
 })
 afterEach(() => {
   vi.unstubAllGlobals()
