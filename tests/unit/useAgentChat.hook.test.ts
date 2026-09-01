@@ -38,6 +38,18 @@ vi.mock('../../src/components/base/logger.ts', () => ({
 // 【阶段1A 消息单源】useAgentChat 渲染走 useStoreSelector(subscribe, getState)（conversationState），
 //   消息写入走 setCurrentSnapshot/patchCurrentMessages（conversationStore）。为让「写入→订阅连通」，
 //   conversationState 与 conversationStore 的 mock 必须共享同一份内存 store（会话消息单源不变量）。
+// 测试 fixture 在 ChatMessage 上挂 attachments/refCatalog/steer/mode 等扩展字段。
+// 用「ChatMessage + 可选扩展字段」交叉类型：可选字段下 ChatMessage 仍可赋值给它（去 any 且不引发级联报错）。
+type TestChatMessage = ChatMessage & {
+  attachments?: unknown
+  refCatalog?: unknown
+  steer?: unknown
+  mode?: unknown
+  streaming?: unknown
+}
+// buildRequestMessages 输出的消息：content 可能为字符串或内容块数组（测试需按块读 type/text/image_url）
+type ContentBlock = { type: string; text?: string; image_url?: { url: string } }
+type AssembledMsg = { role: string; content: string | ContentBlock[]; [k: string]: unknown }
 // 【类型消化】sharedConvStore 加显式类型：vitest 的 vi.hoisted 在复杂闭包下推断失败会把返回值当 '{}'，
 // 导致 state.conversations.find 报 TS2349、subscribe/getState 被当成不可调用，连锁让 useAgentChat 的
 // messages 推断为 unknown。显式标注返回类型后，mock 形状与原始 conversationState 契约对齐。
@@ -45,12 +57,12 @@ interface ConvStoreMock {
   state: {
     activeId: string
     sending: boolean
-    conversations: { id: string; title: string; messages: any[]; skills: any[]; draft: string; attachments: any[] }[]
+    conversations: { id: string; title: string; messages: TestChatMessage[]; skills: unknown[]; draft: string; attachments: unknown[] }[]
   }
   listeners: Set<() => void>
-  getActiveConv(): { id: string; title: string; messages: any[]; skills: any[]; draft: string; attachments: any[] } | null
+  getActiveConv(): { id: string; title: string; messages: TestChatMessage[]; skills: unknown[]; draft: string; attachments: unknown[] } | null
   notify(): void
-  setActiveMessages(messages: any): void
+  setActiveMessages(messages: TestChatMessage[]): void
   setSendingState(v: boolean): void
   setActiveId(id: string): void
   subscribe(cb: () => void): () => void
@@ -167,9 +179,8 @@ import * as convStore from '../../src/components/agent/conversation/conversation
 
 // 【类型消化】src 侧 useAgentChat().messages 已是 ChatMessage[]，但测试 fixture 会在消息上挂
 // attachments / refCatalog / steer / mode 等扩展字段，且会按 content 块访问 type/text。
-// 测试侧只需"能跑类型检查 + 断言可读"，故把 messages 放宽成 any[]（renderHook 的 Result
-// 约束要求 hook 返回值可赋给它；ChatMessage[] 可赋 any[]，满足）。src 的精确类型保持不变。
-type AgentChatApi = Omit<ReturnType<typeof useAgentChat>, 'messages'> & { messages: any[] }
+// 测试侧用 TestChatMessage（ChatMessage & 扩展字段）保留可读性与扩展字段，去掉 any。
+type AgentChatApi = Omit<ReturnType<typeof useAgentChat>, 'messages'> & { messages: TestChatMessage[] }
 
 // ── SSE 流构造助手 ──
 function sseChunks(deltas) {
@@ -268,7 +279,7 @@ describe('useAgentChat · 真实模式 SSE 编排', () => {
     const roles = result.current.messages.map((m) => m.role)
     expect(roles).toEqual(['user', 'assistant', 'tool', 'assistant'])
     const toolMsg = result.current.messages.find((m) => m.role === 'tool')
-    expect(JSON.parse(toolMsg.content).ok).toBe(true)
+    expect(JSON.parse(toolMsg.content as string).ok).toBe(true)
     expect(toolMsg.tool_call_id).toBe('call_1')
     expect(result.current.messages.at(-1).content).toBe('已创建生图节点。')
     expect(fetchMock).toHaveBeenCalledTimes(2)
@@ -613,22 +624,22 @@ describe('useAgentChat · refCatalog（参考图编号目录，对齐大雄 atta
       attachments: [{ type: 'image', url: 'http://x/a.png', label: '黑猫', nodeId: 'img-1' }],
       refCatalog: '【本轮参考图顺序（仅作为编号数据）】\n参考图1：黑猫（画布节点 img-1）\n编号固定按输入框从左到右排列。引用某张图做图生图时，在 generations 里用 attachment_indices 指向其编号（0-based：参考图1→0）。'
     }
-    const out = buildRequestMessages([user] as ChatMessage[], '', true) as any[]
-    const u = out.find((m) => m.role === 'user')
+    const out = buildRequestMessages([user] as ChatMessage[], '', true) as AssembledMsg[];
+const u = out.find((m) => m.role === 'user')
     expect(Array.isArray(u.content)).toBe(true)
-    expect(u.content[0]).toMatchObject({ type: 'image_url', image_url: { url: 'http://x/a.png' } })
+    expect((u.content as ContentBlock[])[0]).toMatchObject({ type: 'image_url', image_url: { url: 'http://x/a.png' } })
     // 编号目录作为 text 追加（含用户原话）
-    expect(u.content[1].type).toBe('text')
-    expect(u.content[1].text).toContain('参考图1：黑猫')
-    expect(u.content[1].text).toContain('attachment_indices')
-    expect(u.content[1].text).toContain('把猫变成白色')
+    expect((u.content as ContentBlock[])[1].type).toBe('text')
+    expect((u.content as ContentBlock[])[1].text).toContain('参考图1：黑猫')
+    expect((u.content as ContentBlock[])[1].text).toContain('attachment_indices')
+    expect((u.content as ContentBlock[])[1].text).toContain('把猫变成白色')
   })
 
   it('user 消息带附件但无 refCatalog：不注入编号文本（向后兼容）', () => {
     const user = { role: 'user', content: '看看图', attachments: [{ type: 'image', url: 'http://x/a.png' }] }
-    const out = buildRequestMessages([user] as ChatMessage[], '', true) as any[]
-    const u = out.find((m) => m.role === 'user')
-    expect(u.content[1]).toMatchObject({ type: 'text', text: '看看图' })
+    const out = buildRequestMessages([user] as ChatMessage[], '', true) as AssembledMsg[];
+const u = out.find((m) => m.role === 'user')
+    expect((u.content as ContentBlock[])[1]).toMatchObject({ type: 'text', text: '看看图' })
   })
 
   it('【fresh-task 彻底对齐大雄】历史 user 消息（含图/文字）全部不进 LLM 上下文，只发本轮 user', () => {
@@ -642,12 +653,12 @@ describe('useAgentChat · refCatalog（参考图编号目录，对齐大雄 atta
       { role: 'assistant', content: 'ok3' },
       { role: 'user', content: '反推图一', attachments: [{ type: 'image', url: 'http://x/d.png' }], refCatalog: '参考图1：D' },
     ] as ChatMessage[]
-    const out = buildRequestMessages(history, '', true) as any[]
-    // 历史轮次被丢弃：只保留本轮 user（含本轮图内联）
+    const out = buildRequestMessages(history, '', true) as AssembledMsg[];
+// 历史轮次被丢弃：只保留本轮 user（含本轮图内联）
     const users = out.filter((m) => m.role === 'user')
     expect(users).toHaveLength(1)
     expect(Array.isArray(users[0].content)).toBe(true)
-    expect(users[0].content[0]).toMatchObject({ type: 'image_url', image_url: { url: 'http://x/d.png' } })
+    expect((users[0].content as ContentBlock[])[0]).toMatchObject({ type: 'image_url', image_url: { url: 'http://x/d.png' } })
     // 整条请求里只有本轮这张图（http://x/d.png），历史 a/b/c 三张真图一律不出现
     const allImageUrls = out.flatMap((m) => (Array.isArray(m.content) ? m.content : []))
       .filter((c) => c.type === 'image_url')
@@ -663,8 +674,8 @@ describe('useAgentChat · refCatalog（参考图编号目录，对齐大雄 atta
       { role: 'assistant', content: 'ok1' },
       { role: 'user', content: '本轮纯文字不带图' },
     ] as ChatMessage[]
-    const out = buildRequestMessages(history, '', true) as any[]
-    // 无任何 image_url（历史图不进上下文）
+    const out = buildRequestMessages(history, '', true) as AssembledMsg[];
+// 无任何 image_url（历史图不进上下文）
     const allImageUrls = out.flatMap((m) => (Array.isArray(m.content) ? m.content : []))
       .filter((c) => c.type === 'image_url')
     expect(allImageUrls).toHaveLength(0)
@@ -688,8 +699,8 @@ describe('useAgentChat · buildRequestMessages 深度（请求体组装）', () 
   ] as ChatMessage[]
 
   it('enhance=true 且无 system：前置注入画布准则 + 三态分流段（默认 auto），历史消息按顺序接在后面', () => {
-    const out = buildRequestMessages(base, '', true) as any[]
-    // 首条是系统准则
+    const out = buildRequestMessages(base, '', true) as AssembledMsg[];
+// 首条是系统准则
     expect(out[0].role).toBe('system')
     expect(out[0].content).toContain('你是猫猫画布助手')
     // 三态分流段（默认 auto）紧随准则作为独立 system（docs/65 M5：引导 show_plan_for_confirm 可调性）
@@ -703,28 +714,28 @@ describe('useAgentChat · buildRequestMessages 深度（请求体组装）', () 
   })
 
   it('enhance=true 且传入 systemPrompt：准则之后拼接 systemPrompt，不覆盖准则', () => {
-    const out = buildRequestMessages(base, '你是严格模式', true) as any[]
-    expect(out[0].content).toContain('你是猫猫画布助手')
+    const out = buildRequestMessages(base, '你是严格模式', true) as AssembledMsg[];
+expect(out[0].content).toContain('你是猫猫画布助手')
     expect(out[1]).toMatchObject({ role: 'system', content: '你是严格模式' })
   })
 
   it('enhance=false 且无 systemPrompt：完全不注入 system（保持最小请求）', () => {
-    const out = buildRequestMessages(base, '', false) as any[]
-    expect(out.every((m) => m.role !== 'system')).toBe(true)
+    const out = buildRequestMessages(base, '', false) as AssembledMsg[];
+expect(out.every((m) => m.role !== 'system')).toBe(true)
     expect(out).toHaveLength(3)
   })
 
   it('enhance=false 但传入 systemPrompt：仅保留该 systemPrompt', () => {
-    const out = buildRequestMessages(base, '外部系统指令', false) as any[]
-    expect(out).toHaveLength(4)
+    const out = buildRequestMessages(base, '外部系统指令', false) as AssembledMsg[];
+expect(out).toHaveLength(4)
     expect(out[0]).toMatchObject({ role: 'system', content: '外部系统指令' })
   })
 
   it('【fresh-task】历史 system 不进 LLM：只保留注入的画布准则，历史消息（含 system）丢弃', () => {
     // fresh-task 对齐大雄：历史轮次整体不进上下文，历史 system 也不回传；画布准则始终注入。
     const withSys = [{ role: 'system', content: '旧的历史 system' }, ...base]
-    const out = buildRequestMessages(withSys as ChatMessage[], '', true) as any[]
-    // 首条是补注入的画布准则（无条件，画布操作能力不丢失）
+    const out = buildRequestMessages(withSys as ChatMessage[], '', true) as AssembledMsg[];
+// 首条是补注入的画布准则（无条件，画布操作能力不丢失）
     expect(out[0].role).toBe('system')
     expect(out[0].content).toContain('猫猫画布助手')
     // 历史 system 不回传（fresh-task 只发本轮 + 注入的 system）
@@ -736,8 +747,8 @@ describe('useAgentChat · buildRequestMessages 深度（请求体组装）', () 
 
   it('Skill 无损注入：原文包成 ==== Skill 文档 ==== 且不 rewrite，并追加 SKILL_EXECUTION_RULES', () => {
     const skills = [{ name: '电商主图', content: '原始 Skill 内容 #@! 不可被改写' }]
-    const out = buildRequestMessages(base, '', true, skills) as any[]
-    const skillSys = out.find((m) => m.role === 'system' && m.content.includes('Skill 文档'))
+    const out = buildRequestMessages(base, '', true, skills) as AssembledMsg[];
+const skillSys = out.find((m) => m.role === 'system' && (m.content as string).includes('Skill 文档'))
     expect(skillSys).toBeTruthy()
     expect(skillSys.content).toContain('===== Skill 文档开始：电商主图 =====')
     expect(skillSys.content).toContain('原始 Skill 内容 #@! 不可被改写')
@@ -750,8 +761,8 @@ describe('useAgentChat · buildRequestMessages 深度（请求体组装）', () 
       { name: 'A', content: '内容A' },
       { name: 'B', content: '内容B' },
     ]
-    const out = buildRequestMessages(base, '', true, skills) as any[]
-    const skillSys = out.find((m) => m.role === 'system' && m.content.includes('Skill 文档'))
+    const out = buildRequestMessages(base, '', true, skills) as AssembledMsg[];
+const skillSys = out.find((m) => m.role === 'system' && (m.content as string).includes('Skill 文档'))
     expect(skillSys.content).toContain('===== Skill 文档开始：A =====')
     expect(skillSys.content).toContain('===== Skill 文档开始：B =====')
     expect(skillSys.content).toContain('内容A')
@@ -760,31 +771,31 @@ describe('useAgentChat · buildRequestMessages 深度（请求体组装）', () 
 
   it('memory.lastPlan 注入：最近策划以独立 system 注入，供多轮延续', () => {
     const memory = { lastPlan: { plan_text: '策划说明', generations: [{ title: '主图', prompt: '一只猫' }] } }
-    const out = buildRequestMessages(base, '', true, [], memory) as any[]
-    const memSys = out.find((m) => m.role === 'system' && m.content.includes('本对话最近策划'))
+    const out = buildRequestMessages(base, '', true, [], memory) as AssembledMsg[];
+const memSys = out.find((m) => m.role === 'system' && (m.content as string).includes('本对话最近策划'))
     expect(memSys).toBeTruthy()
     expect(memSys.content).toContain('策划说明')
     expect(memSys.content).toContain('- 主图: 一只猫')
   })
 
   it('memory 无 lastPlan：不注入 memory system（避免空 system）', () => {
-    const out = buildRequestMessages(base, '', true, [], { lastPlan: null }) as any[]
-    expect(out.find((m) => m.role === 'system' && m.content.includes('本对话最近策划'))).toBeFalsy()
+    const out = buildRequestMessages(base, '', true, [], { lastPlan: null }) as AssembledMsg[];
+expect(out.find((m) => m.role === 'system' && (m.content as string).includes('本对话最近策划'))).toBeFalsy()
   })
 
   it('附件转 image_url：user 带 attachments → content 变为数组，image_url 在前、原文 text 在后', () => {
     const msgs = [{ role: 'user', content: '看这张图', attachments: [{ type: 'image', url: 'http://x/r.png' }], isCurrent: true }]
-    const out = buildRequestMessages(msgs as ChatMessage[], '', true) as any[]
-    const u = out.find((m) => m.role === 'user')
+    const out = buildRequestMessages(msgs as ChatMessage[], '', true) as AssembledMsg[];
+const u = out.find((m) => m.role === 'user')
     expect(Array.isArray(u.content)).toBe(true)
-    expect(u.content[0]).toMatchObject({ type: 'image_url', image_url: { url: 'http://x/r.png' } })
-    expect(u.content[1]).toMatchObject({ type: 'text', text: '看这张图' })
+    expect((u.content as ContentBlock[])[0]).toMatchObject({ type: 'image_url', image_url: { url: 'http://x/r.png' } })
+    expect((u.content as ContentBlock[])[1]).toMatchObject({ type: 'text', text: '看这张图' })
   })
 
   it('附件为空数组：user 不转数组，保持纯文本 content', () => {
     const msgs = [{ role: 'user', content: '纯文本', attachments: [] }]
-    const out = buildRequestMessages(msgs as ChatMessage[], '', true) as any[]
-    const u = out.find((m) => m.role === 'user')
+    const out = buildRequestMessages(msgs as ChatMessage[], '', true) as AssembledMsg[];
+const u = out.find((m) => m.role === 'user')
     expect(typeof u.content).toBe('string')
     expect(u.content).toBe('纯文本')
   })
@@ -794,16 +805,16 @@ describe('useAgentChat · buildRequestMessages 深度（请求体组装）', () 
       { role: 'assistant', content: '', tool_calls: [{ id: 'c9', type: 'function', function: { name: 'create_node', arguments: '{"x":1}' } }] },
       { role: 'tool', content: '{"ok":true}', tool_call_id: 'c9' },
     ]
-    const out = buildRequestMessages(msgs as ChatMessage[], '', false) as any[]
-    const a = out.find((m) => m.role === 'assistant')
+    const out = buildRequestMessages(msgs as ChatMessage[], '', false) as AssembledMsg[];
+const a = out.find((m) => m.role === 'assistant')
     const t = out.find((m) => m.role === 'tool')
     expect(a.tool_calls).toEqual([{ id: 'c9', type: 'function', function: { name: 'create_node', arguments: '{"x":1}' } }])
     expect(t.tool_call_id).toBe('c9')
   })
 
   it('空 messages：enhance=true 仍至少注入 system（画布准则 + 三态分流段，LLM 永远有规则）', () => {
-    const out = buildRequestMessages([], '', true) as any[]
-    expect(out).toHaveLength(2)
+    const out = buildRequestMessages([], '', true) as AssembledMsg[];
+expect(out).toHaveLength(2)
     expect(out.every((m) => m.role === 'system')).toBe(true)
     expect(out[0].content).toContain('猫猫画布助手')
     expect(out[1].content).toContain('show_plan_for_confirm')
@@ -833,8 +844,8 @@ describe('useAgentChat · 三态 × Skill 四象限提示词注入（docs/65 M5�
   })
 
   it('noSkill × auto：注入「完全自主」分流段，引导 plan 可调且不卡确认（R2）', () => {
-    const out = buildRequestMessages(base, '', true, [], null, [], 0, '', '', 'auto') as any[]
-    const joined = systemTexts(out).join('\n')
+    const out = buildRequestMessages(base, '', true, [], null, [], 0, '', '', 'auto') as AssembledMsg[];
+const joined = systemTexts(out).join('\n')
     expect(joined).toContain('show_plan_for_confirm')
     expect(joined).toContain('完全自主')
     expect(joined).toContain('不阻塞') // 不卡确认
@@ -842,24 +853,24 @@ describe('useAgentChat · 三态 × Skill 四象限提示词注入（docs/65 M5�
   })
 
   it('noSkill × step-confirm：注入「分步确认」分流段，引导 plan 等待确认', () => {
-    const out = buildRequestMessages(base, '', true, [], null, [], 0, '', '', 'step-confirm') as any[]
-    const joined = systemTexts(out).join('\n')
+    const out = buildRequestMessages(base, '', true, [], null, [], 0, '', '', 'step-confirm') as AssembledMsg[];
+const joined = systemTexts(out).join('\n')
     expect(joined).toContain('show_plan_for_confirm')
     expect(joined).toContain('分步确认')
     expect(joined).toContain('等待用户确认')
   })
 
   it('skill × auto：Skill 阶段2 不等待（追加自适应），确认粒度仍由 auto 决定（R1）', () => {
-    const out = buildRequestMessages(base, '', true, skill(), null, [], 0, '', '', 'auto') as any[]
-    const texts = systemTexts(out)
+    const out = buildRequestMessages(base, '', true, skill(), null, [], 0, '', '', 'auto') as AssembledMsg[];
+const texts = systemTexts(out)
     const skillSys = texts.find((t) => t.includes('Skill 文档'))
     expect(skillSys).toContain('【确认粒度自适应 · 完全自主】') // 阶段2 作废
     expect(texts.join('\n')).toContain('不阻塞') // 全局 auto 分流段
   })
 
   it('skill × step-confirm：Skill 阶段2 保持等待确认，确认粒度由 step-confirm 决定', () => {
-    const out = buildRequestMessages(base, '', true, skill(), null, [], 0, '', '', 'step-confirm') as any[]
-    const texts = systemTexts(out)
+    const out = buildRequestMessages(base, '', true, skill(), null, [], 0, '', '', 'step-confirm') as AssembledMsg[];
+const texts = systemTexts(out)
     const skillSys = texts.find((t) => t.includes('Skill 文档'))
     expect(skillSys).not.toContain('作废')
     expect(skillSys).toContain('【阶段2 · 等待确认】')
