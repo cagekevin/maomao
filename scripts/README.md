@@ -36,6 +36,9 @@
 | `npm run build` | 构建校验 + 回灌 `dist/`（改完 `src/` 必跑） |
 | `npm test` | 统一测试门禁（smoke + regression + tools） |
 | `npm run check:health` | 全量健康度检查（脚手架 / build / smoke / regression / TDZ / dist 基线） |
+| `node scripts/ts-tests.mjs status` | **测试类型消化进度**：批量剥全部 @ts-nocheck → tsc → finally 还原（已修复可靠）。**摘帽/收尾前先跑它**，会列出 0 错的「白拿」文件 | 手动 |
+| `node scripts/ts-tests.mjs verify <file>` | 单文件收尾：剥 @ts-nocheck → tsc → vitest，全过才**永久摘帽** | 手动 |
+| `node scripts/ts-detail.mjs <片段>` | 看某文件/某系列测试的**逐条类型错误**（跑 1 次 tsc 过滤出多文件，含解析率自检） | 手动 |
 
 > AI 改动工作流：改完 `src/` → `npm run test:smoke` → `npm run build` → 较大改动 `npm run check:health` + 浏览器走查。
 
