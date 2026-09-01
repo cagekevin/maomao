@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { describe, it, expect } from 'vitest'
 import { detectMediaType, detectFileType, isAssetUrl, isAudio } from '../../src/components/base/mediaType.ts'
 
@@ -16,13 +15,13 @@ describe('mediaType §2.17', () => {
   })
 
   it('detectFileType 按 File.type/name', () => {
-    expect(detectFileType({ type: 'image/png', name: 'a.png' })).toBe('image')
-    expect(detectFileType({ type: 'video/webm', name: 'a.webm' })).toBe('video')
-    expect(detectFileType({ type: 'audio/wav', name: 'a.wav' })).toBe('audio')
-    expect(detectFileType({ type: 'text/markdown', name: 'a.md' })).toBe('text')
+    expect(detectFileType({ type: 'image/png', name: 'a.png' } as any)).toBe('image')
+    expect(detectFileType({ type: 'video/webm', name: 'a.webm' } as any)).toBe('video')
+    expect(detectFileType({ type: 'audio/wav', name: 'a.wav' } as any)).toBe('audio')
+    expect(detectFileType({ type: 'text/markdown', name: 'a.md' } as any)).toBe('text')
     // 无 type 但 name 带扩展名也能识别
-    expect(detectFileType({ name: 'a.svg' })).toBe('image')
-    expect(detectFileType({ name: 'a.mp4' })).toBe('video')
+    expect(detectFileType({ name: 'a.svg' } as any)).toBe('image')
+    expect(detectFileType({ name: 'a.mp4' } as any)).toBe('video')
   })
 
   it('isAssetUrl 识别 http/data/blob', () => {
@@ -35,7 +34,7 @@ describe('mediaType §2.17', () => {
   })
 
   it('isAudio 按 type 或扩展名', () => {
-    expect(isAudio('audio')).toBe(true)
+    expect(isAudio('audio', undefined)).toBe(true)
     expect(isAudio('video', '/x.mp3?t=1')).toBe(true)
     expect(isAudio(undefined, '/x.wav')).toBe(true)
     expect(isAudio('image', '/x.png')).toBe(false)

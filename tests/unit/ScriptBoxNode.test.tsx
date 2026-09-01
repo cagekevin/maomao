@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * ScriptBoxNode 深度测试。
  *
@@ -73,7 +72,7 @@ vi.mock('../../src/components/edges/CustomHandle.tsx', () => ({
 vi.mock('../../src/components/base/FullscreenModal.tsx', () => ({ default: ({ open, children }) => (open ? <div data-testid="fullscreen">{children}</div> : null) }))
 // 数据读写通道：真实 useScriptBoxEngine 负责注入回调副作用，仅把返回的 updateData 指向 h.updateData 以记录调用（StepNav 切步用）
 vi.mock('../../src/hooks/useScriptBoxEngine.ts', async (importOriginal) => {
-  const real = await importOriginal()
+  const real = (await importOriginal()) as any
   return {
     ...real,
     useScriptBoxEngine: (nodeId, data) => {
@@ -129,16 +128,16 @@ beforeEach(() => {
 })
 
 const nodeId = 'sb1'
-function setup(data = {}) {
+function setup(data: any = {}) {
   // 传入含引擎回调的 data（模拟挂载后注入完成状态），使步骤子组件能调 callbacks
   const nodeData0 = { ...data, ...h.engine }
   h.state.nodes = [{ id: nodeId, data: { ...nodeData0 } }]
   h.updateData.mockClear()
   Object.values(h.engine).forEach((fn) => fn.mockClear())
-  return render(<ScriptBoxNode id={nodeId} data={{ ...nodeData0 }} selected={false} />)
+  return render(<ScriptBoxNode id={nodeId} data={{ ...nodeData0 } as any} selected={false} />)
 }
 function nodeData() {
-  return h.state.nodes.find((n) => n.id === nodeId)?.data
+  return h.state.nodes.find((n) => n.id === nodeId)?.data as any
 }
 
 describe('ScriptBoxNode — 三步状态机渲染', () => {
@@ -276,10 +275,10 @@ describe('ScriptBoxNode — 端口注册（code-008 回归）', () => {
     const { rerender } = setup({ shots: [{ id: 1 }] })
     expect(h.updateNodeInternals).toHaveBeenCalledTimes(1)
     // 新增镜头 → 端口集合变了，必须重测，否则新 shot 端口进不了 handleBounds（边报 code-008）
-    rerender(<ScriptBoxNode id={nodeId} data={{ shots: [{ id: 1 }, { id: 2 }] }} selected={false} />)
+    rerender(<ScriptBoxNode id={nodeId} data={{ shots: [{ id: 1 }, { id: 2 }] } as any} selected={false} />)
     expect(h.updateNodeInternals).toHaveBeenCalledTimes(2)
     // 只改镜头字段（id 列表不变）→ 不重测，避免高频抖动
-    rerender(<ScriptBoxNode id={nodeId} data={{ shots: [{ id: 1, prompt: 'x' }, { id: 2 }] }} selected={false} />)
+    rerender(<ScriptBoxNode id={nodeId} data={{ shots: [{ id: 1, prompt: 'x' }, { id: 2 }] } as any} selected={false} />)
     expect(h.updateNodeInternals).toHaveBeenCalledTimes(2)
   })
 })

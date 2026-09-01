@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { describe, it, expect } from 'vitest'
 import {
   ZgPrompt, dialogueText, textToDlg, dlgToText, stripAtRef, hlAt, matchAsset, collectAssets, buildShotPrompts,
@@ -27,10 +26,10 @@ describe('剧本盒纯函数 §2.7/2.17', () => {
   })
 
   it('dialogueText：台词/旁白格式化', () => {
-    expect(dialogueText([{ kind: '台词', role: '小马', text: '你好' }])).toBe('小马: 你好')
-    expect(dialogueText([{ kind: '旁白', text: '天黑了' }])).toBe('[旁白] 天黑了')
+    expect(dialogueText([{ kind: '台词', role: '小马', text: '你好' }] as any)).toBe('小马: 你好')
+    expect(dialogueText([{ kind: '旁白', text: '天黑了' }] as any)).toBe('[旁白] 天黑了')
     expect(dialogueText([])).toBe('')
-    expect(dialogueText([{ role: 'A', text: '1' }, { role: 'B', text: '2' }])).toBe('A: 1 / B: 2')
+    expect(dialogueText([{ role: 'A', text: '1' }, { role: 'B', text: '2' }] as any)).toBe('A: 1 / B: 2')
   })
 
   it('hlAt：只高亮真实资产名（传资产列表），非资产 @ 不高亮', () => {
@@ -102,7 +101,7 @@ describe('剧本盒纯函数 §2.7/2.17', () => {
 
   it('dlgToText：非数组 → 空串', () => {
     expect(dlgToText(null)).toBe('')
-    expect(dlgToText('字符串')).toBe('')
+    expect(dlgToText('字符串' as any)).toBe('')
   })
 
   it('formatLineBreaks：句号类标点（。！？；）后补换行，标点留在行尾', () => {
@@ -202,7 +201,7 @@ describe('剧本盒纯函数 §2.7/2.17', () => {
 
   it('buildShotPrompts：生成 prompt/videoPrompt 并保留 @资产', () => {
     const shot = { description: '@小马 奔跑', shotType: '中景', lighting: '自然光', motion: '推', duration: '5s', dialogue: [{ role: '小马', text: '冲' }], sound: '风声' }
-    const r = buildShotPrompts(shot)
+    const r = buildShotPrompts(shot as any)
     expect(r.prompt).toContain('@小马')
     expect(r.prompt).toContain('中景')
     expect(r.videoPrompt).toContain('镜头时长 5s')
@@ -224,7 +223,7 @@ describe('剧本盒纯函数 §2.7/2.17', () => {
     expect(cats.has('character')).toBe(true)
     expect(cats.has('scene')).toBe(true)
     expect(cats.has('prop')).toBe(true)
-    expect(assets.every((a) => a.prompt.includes('[视觉风格：皮克斯]'))).toBe(true)
+    expect(assets.every((a: any) => a.prompt.includes('[视觉风格：皮克斯]'))).toBe(true)
     expect(assets.every((a) => a.has === false)).toBe(true)
   })
 
@@ -424,7 +423,7 @@ describe('剧本盒纯函数 · 合并生成视频', () => {
 
     it('dialogue 是字符串（非数组）→ 当前 dialogueText 返回空，标"（无）"（潜在 bug：有对白却标无）', () => {
       const shot = { id: 's1', index: 1, duration: '3s', description: 'a', dialogue: '小狗：好吃吗' }
-      const user = buildMergedVideoUser([shot], [])
+      const user = buildMergedVideoUser([shot] as any, [])
       // 当前行为：dialogueText('小狗：好吃吗') 非数组 → '' → 标（无）。先固化，标注潜在坑。
       expect(user).toContain('对白/旁白：（无）')
     })

@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 // 隔离真实生图（TASK-012 依赖批调用层补全）
@@ -10,7 +9,7 @@ vi.mock('../../src/components/base/taskStore.ts', () => ({
 import { executePlan } from '../../src/components/agent/canvas/canvasPlanExecutor.ts'
 import { runNodeGeneration } from '../../src/components/base/taskStore.ts'
 
-function makeCtx() {
+function makeCtx(): any {
   let nodes = []
   let edges = []
   return {
@@ -35,7 +34,7 @@ describe('TASK-012 依赖批改写调用层补全', () => {
       generations: [
         { id: 'product', prompt: '产品定稿' },
         { id: 'page1', prompt: '主图', dependency_mode: 'product_reference', depends_on_previous: true, attachment_indices: [0] },
-      ],
+      ] as any,
       referenceImages: ['http://user/ref.png'], // 用户上传参考图
     })
     // 独立批产品定稿先建（nodes[0]），依赖批主图（nodes[1]）的 data.images 应为空（不写用户参考图）

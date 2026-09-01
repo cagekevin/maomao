@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * FaceMosaicNode 深度测试。
  *
@@ -76,7 +75,7 @@ vi.mock('../../src/components/base/previewUrl.ts', () => ({ default: { create: (
 import FaceMosaicNode from '../../src/components/nodes/FaceMosaicNode.tsx'
 
 const nodeId = 'fm1'
-function setup(data = {}, connected = { images: [], texts: [] }) {
+function setup(data: any = {}, connected: any = { images: [], texts: [] }) {
   h.state.nodes = [{ id: nodeId, data: { ...data } }]
   mocks.resetNodeMockState()
   mocks.setConnectedInputs(connected)
@@ -109,8 +108,8 @@ describe('FaceMosaicNode — 空态与图片源', () => {
     setup()
     const ai = screen.getByText(/AI打码/)
     const manual = screen.getByTitle('手动打码')
-    expect(ai.closest('button').disabled).toBe(true)
-    expect(manual.disabled).toBe(true)
+    expect((ai.closest('button') as HTMLButtonElement).disabled).toBe(true)
+    expect((manual as HTMLButtonElement).disabled).toBe(true)
   })
 })
 

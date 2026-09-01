@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * NodeTitle 深度测试。
  *
@@ -16,7 +15,7 @@ import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import NodeTitle from '../../src/components/base/NodeTitle.tsx'
 
-function setup(props = {}) {
+function setup(props: any = {}) {
   const view = render(
     <NodeTitle
       label={props.label}
@@ -76,7 +75,7 @@ describe('NodeTitle — 双击改名交互', () => {
     fireEvent.doubleClick(screen.getByRole('button', { name: '旧名' }))
     const input = screen.getByRole('textbox')
     expect(input).toBeTruthy()
-    expect(input.value).toBe('旧名')
+    expect((input as HTMLInputElement).value).toBe('旧名')
   })
 
   it('Enter 提交新名称', () => {

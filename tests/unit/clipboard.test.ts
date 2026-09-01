@@ -1,5 +1,4 @@
 // @vitest-environment jsdom
-// @ts-nocheck
 /**
  * clipboard 单测（批 1-2）。
  * 覆盖：sanitizePastedText 清洗规则（纯函数，重点）、copyText、copyImageToClipboard（含跨域 fallback）、
@@ -83,6 +82,8 @@ describe('clipboard — copyText', () => {
 describe('clipboard — copyImageToClipboard', () => {
   function mockImage(ok) {
     vi.stubGlobal('Image', class {
+      onload?: () => void
+      onerror?: (e: any) => void
       set src(_v) {
         if (ok) queueMicrotask(() => this.onload && this.onload())
         else queueMicrotask(() => this.onerror && this.onerror(new Error('x')))
@@ -102,11 +103,11 @@ describe('clipboard — copyImageToClipboard', () => {
     mockImage(true)
     const write = vi.fn().mockResolvedValue(undefined)
     vi.stubGlobal('navigator', { clipboard: { write, writeText: vi.fn() } })
-    HTMLCanvasElement.prototype.getContext = () => ({ drawImage() {} })
+    HTMLCanvasElement.prototype.getContext = (() => ({ drawImage() {} })) as any
     HTMLCanvasElement.prototype.toBlob = function (cb) {
       cb(new Blob(['x'], { type: 'image/png' }))
     }
-    globalThis.ClipboardItem = class { constructor(d) { this.items = d } }
+    globalThis.ClipboardItem = class { static supports = () => true; items: any; constructor(d: any) { this.items = d } } as any
     const res = await copyImageToClipboard('http://x/y.png')
     expect(res.ok).toBe(true)
     expect(write).toHaveBeenCalled()
