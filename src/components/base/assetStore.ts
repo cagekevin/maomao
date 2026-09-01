@@ -72,9 +72,10 @@ const DEFAULT_ASSETS: Asset[] = [
 ]
 
 function load(): Asset[] {
-  // contentGet 返回 unknown（存储值不可信），按 Asset[] 收窄
-  const raw = contentGet(STORAGE_KEY) as Asset[] | null
-  if (Array.isArray(raw) && raw.length > 0) return raw
+  // contentGet 返回 unknown（存储值不可信）：先 Array.isArray 判「确实是数组」，再按 Asset[]
+  // 收窄（外层有运行时守卫才诚实，F9），不要在断言后才补守卫。
+  const raw = contentGet(STORAGE_KEY)
+  if (Array.isArray(raw) && raw.length > 0) return raw as Asset[]
   // 首次：seed 演示素材
   const seeded = DEFAULT_ASSETS.map((a) => ({ ...a, ts: Date.now() }))
   contentSet(STORAGE_KEY, seeded)

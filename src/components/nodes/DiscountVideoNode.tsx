@@ -72,14 +72,6 @@ interface DiscountVideoNodeData {
   [key: string]: unknown
 }
 
-/** 上游产出（来自 useConnectedInputs）的最小只读结构 */
-interface ConnectedOutput {
-  images: RefImage[]
-  texts: RefText[]
-  videos: unknown[]
-  audios: unknown[]
-}
-
 interface DiscountVideoNodeProps {
   id: string
   data: DiscountVideoNodeData
@@ -92,7 +84,7 @@ function DiscountVideoNode({ id, data, selected }: DiscountVideoNodeProps) {
   const hideVideo = isHidden('video')
 
   // 通用连线数据传递：读取直接上游节点的图片/文本作为参考素材
-  const connected = useConnectedInputs(id) as ConnectedOutput
+  const connected = useConnectedInputs(id)
   // 上游文本合并（多个文本节点自动聚合；data.texts 额外资产也并入），作为提示词的一部分
   const refTexts = [...(connected.texts || []), ...(data.texts?.length ? data.texts : [])]
   const { setEdges, setNodes } = useReactFlow()

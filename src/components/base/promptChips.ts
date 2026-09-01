@@ -216,19 +216,19 @@ export function renderPromptToNodes(text: string, metaMap?: Map<string, ChipMeta
  *   - 文本素材芯片 → 替换为其 label（作为纯文本随 prompt 发出）；
  *   - 找不到对应素材 → 替换为空（不产生垃圾字符）。
  * @param {string} rawPrompt 含 `@{id:label}` 的原始 prompt
- * @param {Array<{id:string,url:string}>} refImages 可用图片素材（按 id 查 url）
- * @param {Array<{id:string,label:string}>} refTexts 可用文本素材（按 id 查 label）
+ * @param {Array<{id?:string,url?:string}>} refImages 可用图片素材（按 id 查 url；id/url 缺省的项忽略）
+ * @param {Array<{id?:string,label?:string}>} refTexts 可用文本素材（按 id 查 label；id/label 缺省的项忽略）
  * @returns {{ text: string, refImages: Array<{id:string,url:string}> }}
  */
 export function resolvePromptChips(
   rawPrompt: string,
-  refImages: Array<{ id: string; url: string }> = [],
-  refTexts: Array<{ id: string; label: string }> = [],
+  refImages: Array<{ id?: string; url?: string }> = [],
+  refTexts: Array<{ id?: string; label?: string }> = [],
 ): { text: string; refImages: Array<{ id: string; url: string }> } {
   const imgById = new Map<string, string>()
-  for (const im of refImages) if (im && im.id) imgById.set(im.id, im.url)
+  for (const im of refImages) if (im && im.id && im.url) imgById.set(im.id, im.url)
   const textById = new Map<string, string>()
-  for (const t of refTexts) if (t && t.id) textById.set(t.id, t.label)
+  for (const t of refTexts) if (t && t.id && t.label) textById.set(t.id, t.label)
 
   const imageKeyToIndex = new Map<string, number>() // 图引用去重：id → 图片N
   const resolvedRefImages: Array<{ id: string; url: string }> = []

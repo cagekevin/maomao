@@ -51,8 +51,8 @@ export interface ScriptBoxEngineDeps {
   nodeId: string
   /** 建边（onConnect* 自动连线用，可选） */
   setEdges?: (updater: (edges: unknown[]) => unknown[]) => void
-  /** 读全量节点（下游网格锚点 / 占用扫描用，可选） */
-  getNodes?: () => unknown[]
+  /** 读全量节点（下游网格锚点 / 占用扫描用，可选）。宿主侧（reactflow Node）需可赋值给 NodeLike 最小形状 */
+  getNodes?: () => NodeLike[]
   /** 供应商列表 + 主供应商（可选；缺省视为未配置） */
   getProviderState?: () => { providers: ProviderWithModels[]; primary: ProviderWithModels | null }
   /** 抽视频尾帧（默认走本模块 captureVideoFrame，单测可注入 mock） */
@@ -902,7 +902,7 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
     const row = Math.floor(slot / SCRIPTBOX_DOWNSTREAM_GRID_COLS)
     let base = { x: 0, y: 0 }, width = 900
     if (getNodes && nodeId) {
-      const self = getNodes().find((n) => (n as NodeLike).id === nodeId) as NodeLike | undefined
+      const self = getNodes().find((n) => n.id === nodeId)
       if (self?.position) { base = self.position; width = self.width ?? 900 }
     }
     return {
@@ -914,7 +914,7 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
   const occupiedLiveSlots = (): Set<number> => {
     const set = new Set<number>()
     if (!getNodes) return set
-    for (const n of getNodes() as NodeLike[]) {
+    for (const n of getNodes()) {
       if (n?.data?.scriptboxParent === nodeId && Number.isInteger(n.data.scriptboxSlot)) set.add(n.data.scriptboxSlot as number)
     }
     return set
@@ -1082,7 +1082,7 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
   /** 读取上一镜连出的 discountVideoNode 视频结果 URL（P1-0 已验证持久化）。 */
   const findPrevShotVideoUrl = (prevShotId?: string): string => {
     if (!getNodes || !prevShotId) return ''
-    const found = getNodes().find((x) => (x as NodeLike).type === 'discountVideoNode' && (x as NodeLike).data?.upstreamShotId === prevShotId) as NodeLike | undefined
+    const found = getNodes().find((x) => x.type === 'discountVideoNode' && x.data?.upstreamShotId === prevShotId)
     return String(found?.data?.videoUrl || '')
   }
 
@@ -1213,7 +1213,7 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
  *  字符串形态（引擎产出）按行解析。导出供单测（剧本盒纯逻辑）。 */
 export function dialogueLines(dialogue?: Dialogue[] | string | null): string {
   if (Array.isArray(dialogue)) {
-    return (dialogue as Dialogue[])
+    return dialogue
       .map((x) => {
         if (!x || typeof x !== 'object') return ''
         const role = String(x.role || '').trim()

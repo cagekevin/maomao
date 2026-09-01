@@ -57,10 +57,25 @@ import { NODE_TYPES, parseShotHandle } from '../components/base/contracts.ts'
  *    多端口节点（剧本盒按 shot- 端口区分）靠此机制表达「类型命中但端口不匹配」，
  *    切勿改成返回空对象 —— 那会屏蔽通用兜底。
  */
-function arrayImages(list, prefix = 'img', labelFn) {
-  return (list || [])
-    .map((url, i) => ({ id: `${prefix}-${i}`, url, label: labelFn ? labelFn(i) : '' }))
-    .filter((x) => x.url)
+/** 把未知值归为可选 string（防假收窄：诚实标注缺省为 undefined，不谎报类型） */
+function str(v: unknown): string | undefined {
+  return v == null ? undefined : String(v)
+}
+
+/** 从「运行时确实是对象」的未知值里取字段并归为可选 string（对象校验后按 Record 视为键值映射，诚实） */
+function objField(obj: unknown, key: string): string | undefined {
+  return obj && typeof obj === 'object' ? str((obj as Record<string, unknown>)[key]) : undefined
+}
+
+function arrayImages(list: unknown, prefix = 'img', labelFn?: (i: number) => string): NodeOutputItem[] {
+  // 数组型产出（extractedImages 等 dataURL 列表）：统一归一为 {id,url,label}。
+  // url 用 typeof 控制流收窄才算诚实——只有真是非空 string 才 push，编译期据此拿到 string 形态。
+  const out: NodeOutputItem[] = []
+  const arr = Array.isArray(list) ? list : []
+  arr.forEach((url: unknown, i: number) => {
+    if (typeof url === 'string' && url) out.push({ id: `${prefix}-${i}`, url, label: labelFn ? labelFn(i) : '' })
+  })
+  return out
 }
 
 export const NODE_OUTPUTS = {
@@ -80,11 +95,15 @@ export const NODE_OUTPUTS = {
     return { images: shot ? collectAssets(shot, d.assets) : [] }
   },
   // 图片盒子：多图（对象数组 {id,url,label}），产出全部图；mediaType 由 URL 判定
-  imageBoxNode: (d) => ({
-    images: (d.images || [])
-      .map((im) => ({ id: im.id, url: im.url, label: im.label || '' }))
-      .filter((x) => x.url),
-  }),
+  imageBoxNode: (d) => {
+    const images: NodeOutputItem[] = []
+    const list: unknown[] = Array.isArray(d.images) ? (d.images as unknown[]) : []
+    for (const im of list) {
+      const url = objField(im, 'url')
+      if (url) images.push({ id: objField(im, 'id'), url, label: objField(im, 'label') || '' })
+    }
+    return { images }
+  },
   // 视频抽帧 / 网格切图 / 网格合并：data.extractedImages[]（dataURL 字符串数组）
   videoExtractNode: (d) => ({ images: arrayImages(d.extractedImages, 'frame', (i) => `帧 ${i + 1}`) }),
   gridSplitNode: (d) => ({ images: arrayImages(d.extractedImages, 'split', (i) => `切片 ${i + 1}`) }),
@@ -92,18 +111,27 @@ export const NODE_OUTPUTS = {
 }
 
 /** 通用单产出兜底：imageUrl > videoUrl > resultUrl，且尊重 data.mediaType */
-function genericOutput(d, id) {
-  const empty = { images: [], texts: [], videos: [], audios: [] }
-  const candidates = [
+function genericOutput(d: Record<string, unknown>, id: string): NodeOutputGroup {
+  const empty: NodeOutputGroup = { images: [], texts: [], videos: [], audios: [] }
+  // 候选 url / mediaType 都用控制流收窄（非 as）：只有真是 string / 已知枚举才生效。
+  const raw: Array<{ url: unknown; mediaType: unknown }> = [
     { url: d.imageUrl, mediaType: d.mediaType },
     { url: d.videoUrl, mediaType: d.mediaType },
     { url: d.resultUrl, mediaType: d.mediaType },
-  ].filter((c) => c.url && typeof c.url === 'string')
+  ]
+  const candidates: Array<{ url: string; mediaType: 'image' | 'video' | 'audio' | undefined }> = []
+  for (const c of raw) {
+    if (typeof c.url === 'string' && c.url) {
+      // mediaType 只认白名单枚举：非已知值视为未声明（undefined），交 resolveMediaType 按 URL 判。
+      const mediaType = c.mediaType === 'image' || c.mediaType === 'video' || c.mediaType === 'audio' ? c.mediaType : undefined
+      candidates.push({ url: c.url, mediaType })
+    }
+  }
   for (const { url, mediaType } of candidates) {
     const kind = resolveMediaType(url, mediaType)
     // label 统一带上 d.label（图片/视频/音频都带，供下游候选列表显示 / 未来 @名 匹配视频）。
     // 单图/单视频节点（imageNode/promptNode/panorama/discountVideo/...）双击标题改的名即 d.label。
-    const item = { id, url, label: d.label }
+    const item: NodeOutputItem = { id, url, label: str(d.label) }
     if (kind === 'video') return { ...empty, videos: [item] }
     if (kind === 'audio') return { ...empty, audios: [item] }
     return { ...empty, images: [item] }
@@ -115,15 +143,20 @@ function genericOutput(d, id) {
  *  统一调度：特殊类型（剧本盒子/文本节点）→ 节点产出声明表 → 通用字段兜底。
  *  · 为什么统一返回 { id, url, label, text } 对象：下游渲染缩略图/文本都需要 id 作 key、label 作显示名。
  *  · 无产出返回空对象，不返回 undefined：调用方可直接 push，无需判空。 */
-/** 节点产出资源项（id 作 key、label 作显示名、url/text 二选一） */
+/** 节点产出资源项（id 作 key、label 作显示名、url/text 二选一）。
+ *  字段定型为【真实运行时形态】——全部 string 可选，供下游 MaterialStrip / PromptInput /
+ *  mergeRefImages 等消费方直接使用，不再需要调侧再 `as` 收窄。unknown 源值在上游
+ *  (arrayImages/genericOutput/imageBox) 用 typeof 控制流归一，此处不谎报类型。 */
 export interface NodeOutputItem {
-  id: unknown
-  url?: unknown
-  label?: unknown
-  text?: unknown
+  id?: string
+  url?: string
+  label?: string
+  text?: string
+  sourceNodeId?: string
+  kind?: string
 }
 
-/** 聚合产出的四个媒体通道 */
+/** 聚合产出的四个媒体通道（useConnectedInputs 的返回类型真相源） */
 export interface NodeOutputGroup {
   images: NodeOutputItem[]
   texts: NodeOutputItem[]
@@ -151,7 +184,7 @@ export function getNodeOutput(node: Record<string, unknown>, sourceHandle?: stri
   // 保留特判而非入表：它读的是 node.id（节点身份）而非纯 data 派生，与 NODE_OUTPUTS
   // 「data → 产出」的声明语义不符；且它不引入任何业务模块依赖，无架构债。
   if (type === 'textNode' && d.text && typeof d.text === 'string') {
-    return { ...empty, texts: [{ id, label: d.label || '参考文本', text: d.text }] }
+    return { ...empty, texts: [{ id, label: str(d.label) || '参考文本', text: d.text }] }
   }
 
   // 2. 通用单产出兜底（imageUrl/videoUrl/resultUrl + 尊重 mediaType）。
@@ -160,11 +193,11 @@ export function getNodeOutput(node: Record<string, unknown>, sourceHandle?: stri
 
 /** 聚合「直接上游」节点的产出（下游生成时读取）。
  *  用 useStore 订阅 nodes/edges 数组，连线或节点数据变化时自动重算。 */
-export function useConnectedInputs(nodeId) {
+export function useConnectedInputs(nodeId?: string): NodeOutputGroup {
   const nodes = useStore((s) => s.nodes)
   const edges = useStore((s) => s.edges)
   return useMemo(() => {
-    const out = { images: [], texts: [], videos: [], audios: [] }
+    const out: NodeOutputGroup = { images: [], texts: [], videos: [], audios: [] }
     if (!nodeId) return out
     // P7：双层遍历改 Map——edges×nodes 的 find 每次 O(n)，建一次 nodeById 索引后按 id O(1) 查。
     // Map 在 useMemo 内随 nodes 引用变化重建，不会缓存过期。

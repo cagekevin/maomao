@@ -234,7 +234,11 @@ export const providerApi = {
 // ─────────────────────────── kv 底层（localTool KV，非 localStorage 分流）───────────────────────────
 // GET /api/kv/get?key=... → 解析后的值或 null（key 不存在）
 export async function kvGet<T = unknown>(key: string): Promise<T | null> {
-  return httpRequest(`${API_BASE}/api/kv/get?key=${encodeURIComponent(key)}`, { label: 'kvGet' }) as Promise<T | null>
+  // 诚实标注（防假收窄）：泛型 T 由【调用方】单方面声明，本函数不对 T 做运行时校验——服务端已做 JSON.parse，
+  // 返回的是「真实 JSON 原样」。若调用侧 T 与实际 JSON 形状不符会静默错位（读到 undefined）。
+  // 需要强形状保证的 key：请在调用侧 normalize（形如 localStorage 读取处的 normalizeXxx），勿假定 kvGet 自证。
+  const value: unknown = await httpRequest(`${API_BASE}/api/kv/get?key=${encodeURIComponent(key)}`, { label: 'kvGet' })
+  return value == null ? null : (value as T)
 }
 
 // POST /api/kv/set { key, value } → { ok:true }

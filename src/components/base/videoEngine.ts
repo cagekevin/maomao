@@ -320,20 +320,23 @@ export async function concatVideos(blobs: Blob[], t: ConcatOptions = {}): Promis
     })
     t.controller?.attachOutput(outputTarget)
 
-    // mediabunny 1.54 的组件 API（samples/add/close）与本拼装逻辑错配，用 any 保留运行时行为（官方 Oc）
-    const videoSink: any = new VideoSampleSink({
+    // 编码输出统一用 `*Source` 系列：VideoSampleSource / AudioBufferSource 构造参数是 Video/AudioEncodingConfig，
+    // `.add(sample)` 编码后送进输出；addVideoTrack / addAudioTrack 第一参类型约束为 VideoSource / AudioSource，运行时
+    // 会做 instanceof 校验。历史反例：videoSink 曾被 `new VideoSampleSink({...} as never)` + `: any` 掩盖——VideoSampleSink
+    // 是解码侧 sink（非 VideoSource），addVideoTrack 运行时会抛 TypeError，且 `as never`/`any` 让下游彻底失类型（官方 Oc 复刻，已修正）。
+    const videoSource = new VideoSampleSource({
       codec: 'avc',
       bitrate: 5000000,
       sizeChangeBehavior: 'contain',
       transform: { width: outW, height: outH, fit: 'contain', frameRate: outFps }
-    } as never)
-    const audioSink: any = new AudioBufferSource({
+    })
+    const audioSource = new AudioBufferSource({
       codec: 'aac',
       bitrate: 192000,
       transform: { sampleRate: 48000, numberOfChannels: 2 }
     })
-    outputTarget.addVideoTrack(videoSink, { frameRate: outFps })
-    outputTarget.addAudioTrack(audioSink)
+    outputTarget.addVideoTrack(videoSource, { frameRate: outFps })
+    outputTarget.addAudioTrack(audioSource)
     await outputTarget.start()
 
     let progressMax = 0
@@ -346,7 +349,8 @@ export async function concatVideos(blobs: Blob[], t: ConcatOptions = {}): Promis
     for (let i = 0; i < items.length; i++) {
       if (t.controller?.isCanceled) throw new ConversionCanceled()
       const it = items[i]
-      const source: any = new VideoSampleSource(it.video)
+      // 解码用 VideoSampleSink（构造参数 InputVideoTrack，.samples(start,end) 读样本流）；输出编码走 videoSource（见上）
+      const source = new VideoSampleSink(it.video)
       for await (const sample of source.samples(it.start, it.end)) {
         try {
           if (t.controller?.isCanceled) throw new ConversionCanceled()
@@ -355,19 +359,22 @@ export async function concatVideos(blobs: Blob[], t: ConcatOptions = {}): Promis
           if (rel >= it.duration) break
           sample.setTimestamp(timeline + rel)
           if (rel + sample.duration > it.duration) sample.setDuration(it.duration - rel)
-          await videoSink.add(sample)
+          await videoSource.add(sample)
           report((timeline + Math.min(it.duration, rel)) / totalDur)
         } finally {
           sample.close()
         }
       }
       if (it.audio && !it.muted) {
-        const audioSource: AudioSampleSink = new AudioSampleSink(it.audio)
+        // 解码用 audioIn（AudioSampleSink 只读样本流，无 .add）；混音后的 buf 喂给外层编码器 audioSource。
+        // ⚠️ 命名避 shadow：此前沿用 audioSource 会让下方 audioSource.add(buf) 误指解码 sink 而 TS 报
+        //   "Property 'add' does not exist"（AudioSampleSink 无 add），运行时也会 TypeError——解码/编码必须两对象。
+        const audioIn: AudioSampleSink = new AudioSampleSink(it.audio)
         const firstTs = (await it.audio.getFirstTimestamp()) + it.start
         const rate = await it.audio.getSampleRate()
         const ch = await it.audio.getNumberOfChannels()
         const buf = new AudioBuffer({ length: Math.max(1, Math.round(it.duration * rate)), numberOfChannels: ch, sampleRate: rate })
-        for await (const sample of audioSource.samples(firstTs, firstTs + it.duration)) {
+        for await (const sample of audioIn.samples(firstTs, firstTs + it.duration)) {
           try {
             if (t.controller?.isCanceled) throw new ConversionCanceled()
             const rel = sample.timestamp - firstTs
@@ -385,15 +392,15 @@ export async function concatVideos(blobs: Blob[], t: ConcatOptions = {}): Promis
             sample.close()
           }
         }
-        await audioSink.add(await Tc(buf))
+        await audioSource.add(await Tc(buf))
       } else {
-        await audioSink.add(wc(it.duration))
+        await audioSource.add(wc(it.duration))
       }
       timeline += it.duration
       report(timeline / totalDur)
     }
-    videoSink.close()
-    audioSink.close()
+    videoSource.close()
+    audioSource.close()
     await outputTarget.finalize()
     if (!target.buffer) throw new Error('视频拼接未生成输出文件')
     return {

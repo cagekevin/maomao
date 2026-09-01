@@ -40,7 +40,9 @@ export default function ScriptBoxAssetPicker({ folder, onClose, onPick }: {
         await rescanResources()
       }
       const data = await fetchResources({ folder, page: 1, pageSize: PAGE_SIZE, type: 'image' })
-      setItems(((data?.data?.items) as ResourceItem[]) || [])
+      // fetchResources 返回 unknown：先 Array.isArray 判「确实是数组」再按 ResourceItem[] 收窄（F13）
+      const list = Array.isArray(data?.data?.items) ? (data.data.items as ResourceItem[]) : []
+      setItems(list)
     } catch (e) {
       // UI 红字已提示；再补 logger 便于排查本地引擎/后端问题
       const errMsg = (e as { message?: string }).message || String(e)

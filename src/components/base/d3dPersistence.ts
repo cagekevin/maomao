@@ -138,7 +138,11 @@ export type SaveInlineFn = (dataUrl: string, dir?: string) => Promise<string | n
 function readLocalJson(key: string): D3dProject | null {
   try {
     const raw = sGet(key)
-    return raw == null ? null : (JSON.parse(raw) as D3dProject)
+    if (raw == null) return null
+    const parsed: unknown = JSON.parse(raw)
+    // JSON.parse 产物为纯数据；D3dProject 含 [key:string]:unknown 索引签名是宽松形状，
+    // 仅需「确实是非空对象」守卫即可诚实收窄，避免把 null/基础值谎报成工程对象（F6）。
+    return parsed && typeof parsed === 'object' ? (parsed as D3dProject) : null
   } catch {
     return null
   }

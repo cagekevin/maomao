@@ -206,7 +206,16 @@ export default function StepShots({ data, updateData, callbacks }: StepShotsProp
       {tfShotId !== null && (() => {
         const tfShot = shots.find((x) => x.id === tfShotId)
         if (!tfShot) { setTfShotId(null); return null }
-        const variants = (Array.isArray(tfShot.prevTailFrameVariants) ? tfShot.prevTailFrameVariants : []) as Array<{ id: string; imageUrl?: string }>
+        // prevTailFrameVariants 经索引签名收口为 unknown[]，逐元素 object 守卫 + id 为 string 才收窄（F33）
+        const variants: Array<{ id: string; imageUrl?: string }> = []
+        if (Array.isArray(tfShot.prevTailFrameVariants)) {
+          for (const raw of tfShot.prevTailFrameVariants) {
+            if (raw && typeof raw === 'object') {
+              const rec = raw as Record<string, unknown>
+              if (typeof rec.id === 'string') variants.push({ id: rec.id, imageUrl: typeof rec.imageUrl === 'string' ? rec.imageUrl : undefined })
+            }
+          }
+        }
         return (
           <ScriptBoxModal title={`镜头${tfShot.index} · 尾帧变体（视觉起点）`} onClose={() => setTfShotId(null)}>
             {tfShot.tailFrameVariantsLoading && (

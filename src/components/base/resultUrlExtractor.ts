@@ -87,7 +87,8 @@ export function extractResultUrl({ data, json, type = 'image' }: { data?: unknow
     if (!holder || typeof holder !== 'object') continue
     for (const p of paths) {
       const url = unwrap(dig(holder, p))
-      if (url) return url as string
+      // 仅 typeof string 且非空才收窄为 URL（避免把 number/对象当 string 返回，F26）
+      if (typeof url === 'string' && url) return url
     }
   }
   return undefined

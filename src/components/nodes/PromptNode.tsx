@@ -78,13 +78,8 @@ interface PromptNodeData {
   [key: string]: unknown
 }
 
-/** 上游产出（来自 useConnectedInputs）的最小只读结构 */
-interface ConnectedOutput {
-  images: RefImage[]
-  texts: RefText[]
-  videos: unknown[]
-  audios: unknown[]
-}
+/** 上游产出（来自 useConnectedInputs）的共享返回类型真相源：src/hooks/useConnectedInputs.ts NodeOutputGroup。
+ *  不在此处重复声明 ConnectedOutput，避免与 hook 返回类型漂移（防假收窄）。 */
 
 interface PromptNodeProps {
   id: string
@@ -99,7 +94,7 @@ function PromptNode({ id, data, selected }: PromptNodeProps) {
   const hideResult = isHidden('image')
 
   // 通用连线数据传递：读取直接上游节点的产出（图片/文本）作为参考输入
-  const connected = useConnectedInputs(id) as ConnectedOutput
+  const connected = useConnectedInputs(id)
   const [expanded, setExpanded] = useState(data.expanded === undefined ? true : data.expanded)
   const [prompt, setPrompt] = useState(data.prompt || '')
 

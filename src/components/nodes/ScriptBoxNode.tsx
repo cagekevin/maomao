@@ -30,14 +30,6 @@ interface ScriptBoxNodeData {
   [key: string]: unknown
 }
 
-/** 上游产出（来自 useConnectedInputs）的最小只读结构 */
-interface ConnectedOutput {
-  images: Array<{ id?: string; url?: string; label?: string; sourceNodeId?: string }>
-  texts: Array<{ id?: string; label?: string; text?: unknown; sourceNodeId?: string }>
-  videos: unknown[]
-  audios: unknown[]
-}
-
 interface ScriptBoxNodeProps {
   id: string
   data: ScriptBoxNodeData
@@ -70,7 +62,7 @@ function ScriptBoxNode({ id, data, selected }: ScriptBoxNodeProps) {
   // 展示交给第 1 步的 StepShots（剧情上方只读素材区）；生成剧本时引擎把上游内容一起交给编剧模型
   //（见 engine.onGenerateScript），让 AI 能「知道我产品外观」从而写出准确剧本。
   const { setEdges } = useReactFlow()
-  const connected = useConnectedInputs(id) as ConnectedOutput
+  const connected = useConnectedInputs(id)
   const upstreamTexts = (connected.texts || []).map((t) => String(t.text ?? '').trim()).filter(Boolean).join('\n\n')
   useEffect(() => {
     // 上游文本/图片变化时同步到 data（断线后按空清理，避免旧内容一直混入生成）。

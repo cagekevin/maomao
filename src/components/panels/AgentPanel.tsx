@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useAgentChat, setGenParams, getGenParams, getCreditSwitch, setCreditSwitch, getWorkMode, setWorkMode as setWorkModeGlobal, RUN_MODE_IDS, WORK_MODE_STORAGE_KEY } from '../agent/index.ts'
+import { useAgentChat, setGenParams, getGenParams, getCreditSwitch, setCreditSwitch, getWorkMode, setWorkMode as setWorkModeGlobal, RUN_MODE_IDS, WORK_MODE_STORAGE_KEY, type UseAgentChatReturn } from '../agent/index.ts'
 import { useProviders, load as loadProviders } from '../base/settings/providerStore.ts'
-import AgentMessage, { type AgentMessageData } from './AgentMessage.tsx'
-import type { Conversation } from '../agent/conversation/conversationState.ts'
+import AgentMessage from './AgentMessage.tsx'
 import AgentConfirmCard from './AgentConfirmCard.tsx'
 import ModelSelect from '../base/ModelSelect.tsx'
 import { buildAllModels } from '../base/providerModels.ts'
@@ -62,40 +61,6 @@ function loadWidth() {
     if (Number.isFinite(n)) return Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, n))
   } catch { /* ignore */ }
   return DEFAULT_WIDTH
-}
-
-/**
- * useAgentChat 返回值的最小只读视图（hook 内部实现未全量定型，消费端按真实用法收窄）。
- * 与 useAgentChat 之间以 `as unknown as` 断言收敛，字段类型按 AgentPanel 实际调用精确标注。
- */
-interface UseAgentChatReturn {
-  messages: AgentMessageData[]
-  sending: boolean
-  error: string | null
-  model: string
-  setModel: (model: string) => void
-  send: (text: string, attachments?: unknown[]) => Promise<{ ok?: boolean; error?: string } | undefined>
-  stop: () => void
-  clear: () => void
-  stateAction: string
-  conversations: Conversation[]
-  activeConversationId: string
-  newChat: () => void
-  switchChat: (id: string) => void
-  deleteChat: (id: string) => void
-  updateMessageByContent: (content: string, patch?: Record<string, unknown>) => void
-  executePlanDirect: (generations: unknown) => Promise<{ ok?: boolean; error?: string }>
-  sendContentToCanvas: (msg: unknown) => void
-  confirmPendingMemorySuggest: () => Promise<{ ok?: boolean; error?: string }>
-  getActivePendingMemorySuggest: () => unknown
-  cancelPendingConfirm: () => void
-  runExistingConfirm: () => Promise<{ ok?: boolean; error?: string }>
-  getCreditGate: () => { pending?: boolean; gens?: unknown[] } | null
-  clearCreditGate: () => void
-  setCurrentSnapshot: (patch: Record<string, unknown>) => void
-  setAwaitingConfirm: (v: boolean) => void
-  getCurrentRunMode: () => string
-  setCurrentRunMode: (mode: string) => void
 }
 
 export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt = '', open, onClose, onWidthChange, onEnabledChange, selectedImageNodes = [] }: {
@@ -229,7 +194,7 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
     provider: agentProvider,
     skills: activeSkills,
     onConversationChange: handleConversationChange
-  }) as unknown as UseAgentChatReturn
+  })
 
   // 【设置即生效·方案 B】订阅「设置 → AI 助手」的聊天模型键（agent_chat_model）。
   // 该键由 AgentChatSettings.saveAgentChatModel → contentSet 写入，contentSubscribe 即时回调。
@@ -305,7 +270,7 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
   const handleConfirmCredit = useCallback(async () => {
     const res = await runExistingConfirm()
     if (!res?.ok) {
-      if (typeof showToast === 'function') showToast(res?.error || '补跑生成失败，已保留待确认态可重试', { type: 'error' })
+      if (typeof showToast === 'function') showToast(typeof res?.error === 'string' ? res.error : '补跑生成失败，已保留待确认态可重试', { type: 'error' })
       return
     }
     // 成功：节点已触发真生成；creditGate 已清、事件已广播，卡片由订阅收起。
@@ -565,7 +530,7 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
     } else if (action === 'generate') {
       if (typeof showToast === 'function') showToast('正在执行全部提示词…', { type: 'info' })
       Promise.resolve(executePlanDirect(generations))
-        .then((r) => { if (!r.ok && typeof showToast === 'function') showToast(r.error || '生成失败', { type: 'error' }) })
+        .then((r) => { if (!r.ok && typeof showToast === 'function') showToast(typeof r.error === 'string' ? r.error : '生成失败', { type: 'error' }) })
         .catch((e) => logger.error('Agent', 'prompts 全确认生图失败', e))
     }
   }, [updateMessageByContent, executePlanDirect])

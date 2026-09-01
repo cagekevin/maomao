@@ -97,7 +97,9 @@ export async function pollOneTask(task: PollableTask): Promise<boolean> {
 
 /** 一轮扫描：找 running/pending 且有 pollTaskId 的任务，逐个查询。 */
 async function runRound(): Promise<void> {
-  const tasks = getTasks() as PollableTask[]
+  // getTasks() 已返回类型化 Task[]，Task 结构上包含 PollableTask 全部字段（status TaskStatus ⊂ string），
+  // 直接声明为 PollableTask[] 是合法子类型收窄（F12），不是无守卫的假 assert。
+  const tasks: PollableTask[] = getTasks()
   const candidates = tasks.filter(
     (t) => (t.status === 'running' || t.status === 'pending') && t.pollTaskId
   )

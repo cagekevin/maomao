@@ -280,7 +280,9 @@ export default function StepPrompt({ data, updateData, callbacks }: StepPromptPr
 
       {/* 已连线面板 */}
       {(() => {
-        const connected = (d.connected as ConnectedItem[] | undefined) || []
+        // connected 来自节点 data 存储值（不可信）：Array.isArray 守卫 + 逐条校验关键字段（F14）
+        const connected: ConnectedItem[] = (Array.isArray(d.connected) ? d.connected : [])
+          .filter((c): c is ConnectedItem => !!c && typeof c === 'object' && typeof (c as { shotId?: unknown }).shotId === 'string')
         return connected.length > 0 && (
           <div className="text-caption-sm text-muted border-t border-edge-faint pt-2">
             <div className="mb-1 text-secondary">已连线</div>

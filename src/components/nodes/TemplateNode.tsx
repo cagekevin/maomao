@@ -137,14 +137,6 @@ interface TemplateNodeData {
   [key: string]: unknown
 }
 
-/** 上游产出（来自 useConnectedInputs）的最小只读结构 */
-interface ConnectedOutput {
-  images: RefImage[]
-  texts: RefText[]
-  videos: unknown[]
-  audios: unknown[]
-}
-
 interface TemplateNodeProps {
   id: string
   data: TemplateNodeData
@@ -154,7 +146,7 @@ interface TemplateNodeProps {
 function TemplateNode({ id, data, selected }: TemplateNodeProps) {
   // ─── 1. 上游数据 + 性能降级（通用）───
   // useConnectedInputs：读取直接上游节点的产出（图片/文本）作为参考输入；空则渲染空态
-  const connected = useConnectedInputs(id) as ConnectedOutput
+  const connected = useConnectedInputs(id)
   // useMediaDegrade：lodLevel>=2 时隐藏生成结果（大画布性能降级）
   const { isHidden } = useMediaDegrade()
   const render = useRenderImageResolver()

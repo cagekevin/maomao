@@ -196,7 +196,7 @@ describe('providerStore §4 供应商数据层', () => {
       const id = mod.useProviders().selectedId
       h.mockFetchModels.mockResolvedValue({
         data: {
-          image_models: ['i1'], chat_models: ['c1', 'c2'], video_models: [], warning: null,
+          image_models: [{ id: 'i1' }], chat_models: [{ id: 'c1' }, { id: 'c2' }], video_models: [], warning: null,
         },
       })
       const res = await mod.fetchModels(id)
@@ -204,13 +204,13 @@ describe('providerStore §4 供应商数据层', () => {
       expect(res.total).toBe(3)
       // 先暂存，provider 未被直接改写
       const st = mod.useProviders().fetchedModels
-      expect(st).toMatchObject({ id, image_models: ['i1'], chat_models: ['c1', 'c2'], video_models: [] })
+      expect(st).toMatchObject({ id, image_models: [{ id: 'i1' }], chat_models: [{ id: 'c1' }, { id: 'c2' }], video_models: [] })
       expect(mod.useProviders().providers.find((x) => x.id === id).image_models).toEqual([])
       // 勾选后写入并清暂存、标 dirty
       mod.applyFetchedModels(id, { image_models: st.image_models, chat_models: st.chat_models, video_models: st.video_models })
       const p = mod.useProviders().providers.find((x) => x.id === id)
-      expect(p.image_models).toEqual(['i1'])
-      expect(p.chat_models).toEqual(['c1', 'c2'])
+      expect(p.image_models).toEqual([{ id: 'i1' }])
+      expect(p.chat_models).toEqual([{ id: 'c1' }, { id: 'c2' }])
       expect(p.video_models).toEqual([])
       expect(mod.useProviders().dirty).toBe(true)
       expect(mod.useProviders().fetchedModels).toBeNull()
@@ -219,7 +219,7 @@ describe('providerStore §4 供应商数据层', () => {
     it('fetchModels 返回结构缺字段返回 ok=false', async () => {
       mod.add()
       const id = mod.useProviders().selectedId
-      h.mockFetchModels.mockResolvedValue({ data: { image_models: ['i1'] } }) // 缺 chat/video
+      h.mockFetchModels.mockResolvedValue({ data: { image_models: [{ id: 'i1' }] } }) // 缺 chat/video
       const res = await mod.fetchModels(id)
       expect(res.ok).toBe(false)
     })

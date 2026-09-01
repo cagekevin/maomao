@@ -65,14 +65,6 @@ interface TextNodeData {
   [key: string]: unknown
 }
 
-/** 上游产出（来自 useConnectedInputs）的最小只读结构 */
-interface ConnectedOutput {
-  images: RefImage[]
-  texts: RefText[]
-  videos: unknown[]
-  audios: unknown[]
-}
-
 interface TextNodeProps {
   id: string
   data: TextNodeData
@@ -81,7 +73,7 @@ interface TextNodeProps {
 
 function TextNode({ id, data, selected }: TextNodeProps) {
   // 通用连线数据传递：读取直接上游节点的文本/图片作为参考输入
-  const connected = useConnectedInputs(id) as ConnectedOutput
+  const connected = useConnectedInputs(id)
   const { setEdges, getEdges, getNodes, getNode, setNodes } = useReactFlow()
   const history = useCanvasEdges()
   // 断开连线：素材缩略图红色 × → 删除该来源节点 → 本节点的连线（仅对有 sourceNodeId 的素材）

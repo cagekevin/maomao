@@ -64,7 +64,7 @@ export default function StepAssets({ data, updateData, callbacks }: StepAssetsPr
   // 删除资产
   const delAsset = (id) => {
     // 联动清理逻辑收口到纯函数 removeAsset：删资产 → 各镜头文本里 @名 标记去掉（只去 @、保留名字）
-    updateData(removeAsset(assets, id, d.shots) as unknown as Record<string, unknown>)
+    updateData(removeAsset(assets, id, d.shots))
   }
   // 批量生图：用选中集（未选则全部无图资产），走真批量引擎（onGenerateAllAssetImages）
   const batchGen = () => {

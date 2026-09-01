@@ -100,8 +100,11 @@ import {
 // 【消息单源 P5 基座】按字段订阅 store 的 messages（含 activeId 从 store 同步读），
 // 避免整包 useConversationStore() 订阅 → 流式高频更新连坐重渲染整个面板。
 import { subscribe, getState } from '../conversation/conversationState.ts'
-import type { ConversationStoreState } from '../conversation/conversationState.ts'
+import type { ConversationStoreState, Conversation } from '../conversation/conversationState.ts'
 import { useStoreSelector, shallowEqual } from '../../../hooks/useStoreSelector.ts'
+// UI 渲染层消息形状（extends ChatMessage + 可选 UI 态字段）。hook 返回的 messages 即此形状，
+// 在此 import 类型保证「hook 产出」与「AgentPanel 消费」共用一份定义，消除两端的 `as unknown as`（F3）。
+import type { AgentMessageData } from '../../panels/AgentMessage.tsx'
 
 // P15 列表 key 收口（收口在 agentMessages.js：appendMsg/setHistory 统一 withMsgId 补稳定唯一 id）
 
@@ -274,21 +277,55 @@ export {
  * @returns { messages, sending, error, model, setModel, send, stop, clear, ... }
  */
 
-export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '', defaultModel = CHAT_MODEL, provider = null, skills = [], onConversationChange = null } = {}) {
+/**
+ * useAgentChat 返回句柄。所有字段类型按 hook 实测返回值声明，与 AgentPanel 消费端共用一份
+ * 定义（经 agent/index.ts 透出），杜绝消费端单方 `as unknown as` 声明形状、hook 改字段即静默失效（F3）。
+ */
+export interface UseAgentChatReturn {
+  messages: AgentMessageData[]
+  sending: boolean
+  error: string | null
+  model: string
+  setModel: (model: string) => void
+  send: (text: string, attachments?: unknown[]) => Promise<void>
+  stop: () => void
+  clear: () => void
+  stateAction: string
+  conversations: Conversation[]
+  activeConversationId: string
+  newChat: () => void
+  switchChat: (id: string) => void
+  deleteChat: (id: string) => void
+  updateMessageByContent: (content: string, patch?: Record<string, unknown>) => void
+  executePlanDirect: (generations: unknown) => Promise<{ ok: boolean; error: unknown; awaited?: unknown | null; entries?: Record<string, unknown>[] }>
+  sendContentToCanvas: (msg: unknown) => void
+  confirmPendingMemorySuggest: () => Promise<{ ok?: boolean; error?: string }>
+  getActivePendingMemorySuggest: () => unknown
+  cancelPendingConfirm: (assistantContent?: unknown) => void
+  runExistingConfirm: () => Promise<{ ok: boolean; error: unknown; data: unknown }>
+  getCreditGate: () => { pending?: boolean; gens?: unknown[] } | null
+  clearCreditGate: () => void
+  setCurrentSnapshot: (patch: Record<string, unknown>) => void
+  setAwaitingConfirm: (v: boolean) => void
+  getCurrentRunMode: () => string
+  setCurrentRunMode: (mode: string) => void
+}
+
+export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '', defaultModel = CHAT_MODEL, provider = null, skills = [], onConversationChange = null } = {}): UseAgentChatReturn {
   // ── 消息单源（阶段1A）：不再自持 messages state，改为按字段订阅 store 的
   //    conversations[activeId].messages。流式高频更新只重渲染消息订阅者，其余字段不连坐。
-  const messages = useStoreSelector<ConversationStoreState, ChatMessage[]>(subscribe, getState, (s) => {
+  const messages = useStoreSelector<ConversationStoreState, AgentMessageData[]>(subscribe, getState, (s) => {
     const cur = (s.conversations || []).find((c) => c.id === s.activeId)
-    // 存储侧消息为宽松 ConversationMessage[]（含流式中间态），此处收窄为强类型 ChatMessage[] 供请求组装
-    return (cur?.messages ?? []) as ChatMessage[]
+    // 存储侧消息为宽松 ConversationMessage[]（含流式中间态），此处收窄为 UI 渲染形状 AgentMessageData[]
+    return (cur?.messages ?? []) as AgentMessageData[]
   }, shallowEqual)
   // ── 阶段1D·薄壳化：sending / activeConversationId / conversations 改为 store 字段订阅（非本地 useState）──
-  const sending = useStoreSelector(subscribe, getState, (s) => !!s.sending, shallowEqual)
+  const sending = useStoreSelector<ConversationStoreState, boolean>(subscribe, getState, (s) => !!s.sending, shallowEqual)
   const [error, setError] = useState(null)
   const [model, setModel] = useState(defaultModel)
   // ── 会话隔离（#9）：当前对话 id + 对话列表由 store 字段订阅（薄壳化，删本地 state + refreshConversations）──
-  const activeConversationId = useStoreSelector(subscribe, getState, (s) => s.activeId || '', shallowEqual)
-  const conversations = useStoreSelector(subscribe, getState, (s) => s.conversations || [], shallowEqual)
+  const activeConversationId = useStoreSelector<ConversationStoreState, string>(subscribe, getState, (s) => s.activeId || '', shallowEqual)
+  const conversations = useStoreSelector<ConversationStoreState, Conversation[]>(subscribe, getState, (s) => s.conversations || [], shallowEqual)
 
   // 工具层（替代官方 lr()）
   const { toolSchemas, callTool } = useCanvasAgentTools()

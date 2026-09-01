@@ -82,7 +82,18 @@ export function wfAwaitConfirm(): { status: WorkflowStatus } {
 export function wfNextSteer(terminalStatus?: WorkflowStatus):
   { next: SteerItem | undefined; patch: { steerQueue: SteerItem[]; status: WorkflowStatus | undefined } } {
   const wf = getCurrentWorkflow()
-  const steerQ: SteerItem[] = ((wf && wf.steerQueue) as SteerItem[]) || []
-  const next = steerQ.shift() as SteerItem | undefined
+  // steerQueue 在持久化中元素类型为 unknown（WorkflowState.steerQueue: unknown[]）。
+  // 逐条校验成 SteerItem 才算诚实窄化（F18）——不要整体 `as SteerItem[]` 后 shift 出假形状。
+  const rawQueue: unknown[] = Array.isArray(wf?.steerQueue) ? wf.steerQueue : []
+  const steerQ: SteerItem[] = []
+  for (const v of rawQueue) {
+    if (v && typeof v === 'object') {
+      const o = v as Record<string, unknown>
+      if (typeof o.text === 'string') {
+        steerQ.push({ text: o.text, attachments: Array.isArray(o.attachments) ? o.attachments : [] })
+      }
+    }
+  }
+  const next = steerQ.shift()
   return { next, patch: { steerQueue: steerQ, status: next ? 'planning' : terminalStatus } }
 }

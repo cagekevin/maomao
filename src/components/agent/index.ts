@@ -51,6 +51,7 @@
  *   新增对外符号 → 在此追加 re-export，勿在外部直接 import 子目录深层路径。
  */
 export { useAgentChat } from './runtime/useAgentChat.ts'
+export type { UseAgentChatReturn } from './runtime/useAgentChat.ts'
 export { setGenParams, getGenParams, getNodeImageUrl, getCreditSwitch, setCreditSwitch } from './canvas/useCanvasAgentTools.ts'
 export { setAgentKey } from './conversation/conversationStore.ts'
 // 运行模式注册表透出（docs/65 M1/M8）：三态单一真源，AgentPanel 从这里 import，不绕深层路径

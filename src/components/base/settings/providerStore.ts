@@ -138,12 +138,58 @@ function emptyProvider(): Provider {
   }
 }
 
+/**
+ * 校验并补默认地把外部/API 来源的 provider 收窄为 `Provider`（防假收窄）。
+ * 只对已知字段做运行时校验；未知扩展字段（如 volcengine_* / ms_loras / api_key）经 `...p` 原样保留，
+ * 避免白名单丢弃导致 round-trip 丢数据。空/非对象 → emptyProvider 兜底。
+ */
+function normalizeProvider(raw: unknown): Provider {
+  if (!raw || typeof raw !== 'object') return emptyProvider()
+  const p = raw as Partial<Provider>
+  const base = emptyProvider()
+  return {
+    ...base,
+    ...p,
+    id: typeof p.id === 'string' ? p.id : base.id,
+    name: typeof p.name === 'string' ? p.name : base.name,
+    base_url: typeof p.base_url === 'string' ? p.base_url : base.base_url,
+    protocol: typeof p.protocol === 'string' ? p.protocol : base.protocol,
+    image_request_mode: typeof p.image_request_mode === 'string' ? p.image_request_mode : base.image_request_mode,
+    image_mode: typeof p.image_mode === 'string' ? p.image_mode : base.image_mode,
+    chat_request_mode: typeof p.chat_request_mode === 'string' ? p.chat_request_mode : base.chat_request_mode,
+    enabled: typeof p.enabled === 'boolean' ? p.enabled : base.enabled,
+    primary: p.primary === true,
+    readonly: p.readonly === true,
+    image_models: toRawModelList(p.image_models, base.image_models),
+    chat_models: toRawModelList(p.chat_models, base.chat_models),
+    video_models: toRawModelList(p.video_models, base.video_models),
+    model_names: p.model_names && typeof p.model_names === 'object' ? p.model_names : base.model_names,
+    model_protocols: p.model_protocols && typeof p.model_protocols === 'object' ? p.model_protocols : base.model_protocols,
+  }
+}
+
+/**
+ * 把 unknown 数组收窄成 RawModel[]。
+ * 兼容两种元素形态（后端契约返回对象数组 `{id,label,...}`；部分来源/旧测试可能为字符串 id）：
+ *  - 对象元素：原样保留（RawModel 为 `{id?,label?,[k]:unknown}` 松记录，仅需对象形态校验）；
+ *  - 字符串元素：转成 `{ id: str }`（视作模型 id），避免被误丢弃导致模型列表为空；
+ *  - 其余非对象/非字符串（null、数字等）：丢弃。
+ */
+function toRawModelList(raw: unknown, fallback: RawModel[]): RawModel[] {
+  if (!Array.isArray(raw)) return fallback
+  return raw.flatMap((x): RawModel[] => {
+    if (x && typeof x === 'object') return [x as RawModel]
+    if (typeof x === 'string' && x.trim()) return [{ id: x }]
+    return []
+  })
+}
+
 // ── 动作 ──
 export async function load(): Promise<void> {
   setState({ loading: true, testResult: null })
   try {
     const data = await providerApi.getProviders()
-    const list: Provider[] = (data?.data?.providers as Provider[]) || []
+    const list: Provider[] = Array.isArray(data?.data?.providers) ? data.data.providers.map(normalizeProvider) : []
     const primary = list.find((p) => p.primary) || list[0]
     setState({ providers: list, selectedId: primary ? primary.id : null, dirty: false })
   } finally {
@@ -230,9 +276,9 @@ export async function fetchModels(id: string): Promise<{ ok: boolean; pending?: 
       setState({
         fetchedModels: {
           id,
-          image_models: m.image_models as RawModel[],
-          chat_models: m.chat_models as RawModel[],
-          video_models: m.video_models as RawModel[],
+          image_models: toRawModelList(m.image_models, []),
+          chat_models: toRawModelList(m.chat_models, []),
+          video_models: toRawModelList(m.video_models, []),
           warning: m.warning,
         },
       })
@@ -302,7 +348,7 @@ export async function save(): Promise<{ ok: boolean; error?: string }> {
       return cleaned
     })
     const data = await providerApi.saveProviders(payload)
-    const savedProviders = (data?.data?.providers as Provider[]) || state.providers
+    const savedProviders = Array.isArray(data?.data?.providers) ? data.data.providers.map(normalizeProvider) : state.providers
     setState({ providers: savedProviders, dirty: false })
     // 方案A：把保存后的结果回写 api.config.json，消除双源漂移。
     // 回写是辅助动作，失败不影响主保存（避免 json 写失败导致保存报错）。

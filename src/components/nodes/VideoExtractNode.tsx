@@ -50,14 +50,6 @@ interface VideoExtractNodeData {
   [key: string]: unknown
 }
 
-/** 上游产出（来自 useConnectedInputs）的最小只读结构 */
-interface ConnectedOutput {
-  images: Array<{ id?: string; url?: string; label?: string }>
-  texts: Array<{ id?: string; label?: string; text?: unknown }>
-  videos: Array<{ id?: string; url?: string }>
-  audios: unknown[]
-}
-
 interface VideoExtractNodeProps {
   id: string
   data: VideoExtractNodeData
@@ -79,7 +71,7 @@ interface ExtractTimes {
 }
 
 function VideoExtractNode({ id, data, selected }: VideoExtractNodeProps) {
-  const connected = useConnectedInputs(id) as ConnectedOutput
+  const connected = useConnectedInputs(id)
   const { isHidden } = useMediaDegrade()
   const hideVideo = isHidden('video')
   const render = useRenderImageResolver()

@@ -17,14 +17,6 @@ interface LoopNodeData {
   [key: string]: unknown
 }
 
-/** 上游产出（来自 useConnectedInputs）的最小只读结构 */
-interface ConnectedOutput {
-  images: Array<{ id?: string; url?: string; label?: string }>
-  texts: Array<{ id?: string; label?: string; text?: unknown }>
-  videos: unknown[]
-  audios: unknown[]
-}
-
 interface LoopNodeProps {
   id: string
   data: LoopNodeData
@@ -131,7 +123,7 @@ export function splitByMethod(text: unknown, method: string) {
 
 function LoopNode({ id, data, selected }: LoopNodeProps) {
   // 上游连线：读取直接上游节点的文本（textNode 产出 data.text）
-  const connected = useConnectedInputs(id) as ConnectedOutput
+  const connected = useConnectedInputs(id)
   const { setNodes, setEdges, getNodes, getEdges } = useReactFlow()
   const history = useCanvasEdges()
 

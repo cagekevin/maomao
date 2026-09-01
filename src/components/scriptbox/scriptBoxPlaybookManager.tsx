@@ -69,7 +69,7 @@ export default function ScriptBoxPlaybookManager({ currentId, onSelect, onClose 
 
   // 导出：单个 playbook → 下载 JSON（官方+我的都可导，给外部/AI 改）
   const onExport = (pb: Playbook) => {
-    const { text, filename } = exportText(pb as unknown as Record<string, unknown>)
+    const { text, filename } = exportText(pb)
     downloadBlob(new Blob([text], { type: 'application/json' }), filename)
   }
 

@@ -408,6 +408,8 @@ export interface RemoveAssetPatch {
   assets: ScriptAsset[]
   pickedCount: number
   shots?: Shot[]
+  /** 统一 data patch 形状：可整体喂给 updateData(patch: Record<string, unknown>)（节点 data 合并），无需调用侧再降级断言 */
+  [key: string]: unknown
 }
 
 export function removeAsset(
@@ -422,13 +424,16 @@ export function removeAsset(
   if (target?.name) {
     const shotList = Array.isArray(shots) ? shots : []
     patch.shots = shotList.map((s) => {
-      const nextShot = { ...s } as Record<string, unknown>
+      // s 已是 Shot（shots: Shot[]）。不再「摊开成 Record 再断言回 Shot」往返（F22）；
+      // 仅对三个字符串字段开一个 Record 视图读写，避免把已知的 Shot 谎报/降级成 unknown。
+      const nextShot: Shot = { ...s }
+      const view = nextShot as Record<string, unknown>
       ;['description', 'prompt', 'videoPrompt'].forEach((f) => {
         // 存储值不可信，取字符串子集交给 stripAtRef（纯字符串处理，数值/对象原样跳过）
-        const val = nextShot[f]
-        if (typeof val === 'string' && val) nextShot[f] = stripAtRef(val, target.name)
+        const val = view[f]
+        if (typeof val === 'string' && val) view[f] = stripAtRef(val, target.name)
       })
-      return nextShot as Shot
+      return nextShot
     })
   }
   return patch

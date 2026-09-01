@@ -118,10 +118,11 @@ export function isExtensionEnv() {
  */
 async function load(): Promise<AccountEnv[]> {
   try {
-    // contentGetAsync 返回 unknown（存储值不可信），按 AccountEnv[] 收窄后清洗
-    const parsed = await contentGetAsync(STORAGE_KEY) as AccountEnv[] | null
+    // contentGetAsync 返回 unknown（存储值不可信）：先 Array.isArray 判数组，再按 AccountEnv[]
+    // 收窄（外层有运行时守卫才诚实，F11），不要在断言后才补守卫。
+    const parsed: unknown = await contentGetAsync(STORAGE_KEY)
     const cleaned = Array.isArray(parsed)
-      ? parsed.filter(
+      ? (parsed as AccountEnv[]).filter(
           (e) => !String(e.id || '').startsWith('env_demo_') && !(e.siteName === '开发测试网' && (e.cookies || []).every((c) => c.name === 'test'))
         )
       : []
@@ -358,8 +359,14 @@ async function readTabLocalStorage(): Promise<Record<string, string> | null> {
         }
       },
     })
-    const r = res && typeof res.result === 'object' && res.result !== null ? res.result : null
-    return r as Record<string, string> | null
+    const rr = res && typeof res.result === 'object' && res.result !== null && !Array.isArray(res.result) ? res.result : null
+    if (!rr) return null
+    // 注入函数写侧产出 string 值，但读侧仍逐值取 string 子集（F28：值类型不整体断言为 Record<string,string>）
+    const out: Record<string, string> = {}
+    for (const [k, v] of Object.entries(rr as Record<string, unknown>)) {
+      if (typeof v === 'string') out[k] = v
+    }
+    return out
   } catch {
     return null
   }

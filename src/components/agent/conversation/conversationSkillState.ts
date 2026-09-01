@@ -72,11 +72,19 @@ export function setActivePendingMemorySuggest(suggest: Record<string, unknown> |
   })
 }
 
+/** creditGate 运行时形状守护：与 setCreditGate 的内部校验保持同一套判定（pending++gens 数组+map 对象）。 */
+function isCreditGate(v: unknown): v is CreditGate {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return false
+  const o = v as Record<string, unknown>
+  return o.pending === true && Array.isArray(o.gens) && !!o.map && typeof o.map === 'object' && !Array.isArray(o.map)
+}
+
 /** 读当前对话的积分确认门禁（creditGate：null 或 { pending, gens, map(stepId→nodeId) }） */
 export function getCreditGate(): CreditGate | null {
   // creditGate 经动态键（CREDIT_GATE_FIELD）存取，索引签名取到 unknown；
-  // 其形状由 setCreditGate 写入时校验保证，故此处按 CreditGate 读。
-  return (getActiveConv()?.[CREDIT_GATE_FIELD] as CreditGate | undefined) || null
+  // 读侧用 isCreditGate 运行时守护（与写侧 setCreditGate 校验一致），不再裸 as（F25）。
+  const g = getActiveConv()?.[CREDIT_GATE_FIELD]
+  return isCreditGate(g) ? g : null
 }
 
 /**

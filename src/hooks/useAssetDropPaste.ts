@@ -238,14 +238,16 @@ export function useAssetDropPaste({
     (rawText: string, pos: FlowPosition) => {
       if (!rawText || !rawText.trim()) return
       try {
-        const parsed = JSON.parse(rawText) as { type?: string; images?: unknown }
-        if (parsed?.type === 'mutiwindow-nodes') {
+        const parsedRaw: unknown = JSON.parse(rawText)
+        // 剪贴板 JSON 逐字段读取（type 需 string、images 需数组），不做整体形状假断言（F7）
+        const d = parsedRaw && typeof parsedRaw === 'object' ? (parsedRaw as { type?: unknown; images?: unknown }) : null
+        if (d?.type === 'mutiwindow-nodes') {
           // 粘贴节点组（含连线），交由宿主（App）解析重建
           if (typeof onPasteNodeGroup === 'function') onPasteNodeGroup(rawText, pos)
           return
         }
-        if (parsed?.type === 'mutiwindow-images' && Array.isArray(parsed.images)) {
-          const images = parsed.images as string[]
+        if (d?.type === 'mutiwindow-images') {
+          const images = (Array.isArray(d.images) ? d.images : []).filter((x): x is string => typeof x === 'string')
           if (images.length === 0) return
           images.forEach((img, i) => {
             const col = i % 6
@@ -313,8 +315,10 @@ export function useAssetDropPaste({
       const isCanvasGroupClip = (txt: string): boolean => {
         if (!txt || !txt.trim()) return false
         try {
-          const p = JSON.parse(txt) as { type?: string }
-          return p?.type === 'mutiwindow-nodes' || p?.type === 'mutiwindow-images'
+          const p: unknown = JSON.parse(txt)
+          // 仅取 type 字段判断，object 守卫后按 Record 读，不做形状假断言（F7）
+          const o = p && typeof p === 'object' ? (p as Record<string, unknown>) : null
+          return o?.type === 'mutiwindow-nodes' || o?.type === 'mutiwindow-images'
         } catch { return false }
       }
       if (isCE) {

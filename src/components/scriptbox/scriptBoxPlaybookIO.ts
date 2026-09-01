@@ -38,7 +38,7 @@ function sanitize(name: string): string {
 }
 
 /** 导出单个 playbook → { text, filename }。pb 需含 label/id（至少其一），可附带 __meta（会被刷新）。 */
-export function exportText(pb: (Partial<Playbook> & Record<string, unknown>) | null | undefined): { text: string; filename: string } {
+export function exportText(pb: Partial<Playbook> | null | undefined): { text: string; filename: string } {
   const { __meta, ...rest } = (pb || {}) as Record<string, unknown>
   // __meta 每持最新时间戳 + 版本标记（不持久化在 store，仅导出文件识别用）
   const text = JSON.stringify({ __meta: { ...FILE_META, exportedAt: Date.now() }, ...rest }, null, 2)
