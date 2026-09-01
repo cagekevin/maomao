@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * LazyImage 关键交互锚点（P9 懒加载复用原语）。
  *
@@ -40,6 +39,7 @@ import LazyImage from '../../src/components/base/LazyImage.tsx'
 // 可操控的 IntersectionObserver 假实现：手动触发回调驱动「进入视口」
 const h = vi.hoisted(() => {
   class FakeIO {
+    cb: any
     static instances = []
     constructor(cb) {
       this.cb = cb
@@ -60,7 +60,7 @@ const triggerIntersect = (entries) => {
 
 beforeEach(() => {
   h.FakeIO.instances = []
-  global.IntersectionObserver = h.FakeIO
+  global.IntersectionObserver = h.FakeIO as any
 })
 
 describe('LazyImage — 懒加载语义', () => {

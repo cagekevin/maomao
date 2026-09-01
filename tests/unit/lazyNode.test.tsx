@@ -1,5 +1,4 @@
 // @vitest-environment jsdom
-// @ts-nocheck
 /**
  * 重依赖节点按需加载（lazyNode）护栏。
  *
@@ -58,7 +57,7 @@ describe('lazyNode · 占位与失败降级', () => {
 
 describe('prefetchHeavyNode', () => {
   it('未知类型直接返回，不抛', () => {
-    expect(() => prefetchHeavyNode('notExist')).not.toThrow()
+    expect(() => prefetchHeavyNode('notExist' as any)).not.toThrow()
     expect(() => prefetchHeavyNode(undefined)).not.toThrow()
   })
 

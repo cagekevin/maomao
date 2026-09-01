@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * LoopNode 深度测试。
  * 审计建议 P1：循环次数、上游连接、拆分逻辑。
@@ -36,7 +35,7 @@ describe('LoopNode — 拆分纯函数契约（splitSmartPromptItems）', () => 
   it('空/空白输入 → 空数组', () => {
     expect(splitSmartPromptItems('')).toEqual([])
     expect(splitSmartPromptItems('   ')).toEqual([])
-    expect(splitSmartPromptItems()).toEqual([])
+    expect(splitSmartPromptItems(undefined as any)).toEqual([])
   })
 })
 

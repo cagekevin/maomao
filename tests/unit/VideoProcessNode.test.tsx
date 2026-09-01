@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * VideoProcessNode 深度测试（修复"大而复杂测最浅"）。
  *
@@ -31,7 +30,7 @@ vi.mock('../../src/components/base/asyncGuard.ts', () => ({ withTimeout: mocks.w
 vi.mock('../../src/components/base/videoEngine.ts', () => ({ readVideoMetadata: mocks.readVideoMetadata, processVideo: mocks.processVideo, concatVideos: mocks.concatVideos, videoToGif: mocks.videoToGif, formatBytes: mocks.formatBytes, uploadResult: mocks.uploadResult, ProgressController: mocks.ProgressController, ConversionCanceled: mocks.ConversionCanceled }))
 // preserve 其余 httpClient 导出（deriveNodes 等依赖），仅把 network 请求 stub 成拒绝
 vi.mock('../../src/components/base/api/httpClient.ts', async (importOriginal) => {
-  const mod = await importOriginal()
+  const mod = await importOriginal() as any
   return { ...mod, httpRequest: vi.fn(() => Promise.reject(new Error('mock: no network'))) }
 })
 

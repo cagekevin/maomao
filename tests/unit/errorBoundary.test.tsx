@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import React from 'react'
 import { render, screen, fireEvent } from '@testing-library/react'
@@ -8,6 +7,7 @@ import ErrorBoundary from '../../src/components/base/ErrorBoundary.tsx'
 function Boom() {
   throw new Error('节点内容模拟崩溃')
 }
+const BoomAny: any = Boom
 
 /** 正常子组件 */
 function Fine() {
@@ -23,7 +23,7 @@ describe('ErrorBoundary §架构地基', () => {
     const onError = vi.fn()
     render(
       <ErrorBoundary variant="node" onError={onError}>
-        <Boom />
+        <BoomAny />
       </ErrorBoundary>
     )
     // 节点内错误框（NodeShell 用）
@@ -48,7 +48,7 @@ describe('ErrorBoundary §架构地基', () => {
   it('full 粒度（默认）：children 崩溃 → 渲染全屏崩溃页（根级 main.jsx 用）', () => {
     render(
       <ErrorBoundary>
-        <Boom />
+        <BoomAny />
       </ErrorBoundary>
     )
     expect(screen.getByText('画面出错了')).toBeTruthy()

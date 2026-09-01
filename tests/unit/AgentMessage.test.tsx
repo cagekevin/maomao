@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * AgentMessage 深度测试。
  *

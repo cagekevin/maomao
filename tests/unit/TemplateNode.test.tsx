@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * TemplateNode 单测（阶段五）。
  * 复用共享 mock kit（tests/unit/_nodeMocks.mjs）。
@@ -17,7 +16,7 @@ const h = vi.hoisted(() => {
 })
 vi.mock('@xyflow/react', () => ({
   useReactFlow: () => ({
-    setNodes: (...a) => h.setNodes(...a),
+    setNodes: (...a) => (h.setNodes as any)(...a),
     setEdges: (...a) => a[0],
     getNodes: () => h.state.nodes,
     getEdges: () => [],
@@ -86,7 +85,7 @@ beforeEach(() => {
   h.setNodes.mockClear()
 })
 
-function setup(props = {}) {
+function setup(props: any = {}) {
   const id = props.id || 't1'
   const data = props.data || {}
   h.state.nodes = [{ id, data: { ...data } }]

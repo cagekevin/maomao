@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * ConnectionLine 深度测试。
  *
@@ -50,7 +49,7 @@ describe('ConnectionLine — 正常渲染（lodLevel < 2）', () => {
     h.setLodLevel(0)
   })
 
-  function setup(props = {}) {
+  function setup(props: any = {}) {
     const view = render(
       <ConnectionLine fromX={0} fromY={0} toX={100} toY={100} {...props} />
     )
@@ -96,7 +95,7 @@ describe('ConnectionLine — LOD 性能降级（lodLevel >= 2）', () => {
 
   function setup(lod) {
     h.setLodLevel(lod)
-    const view = render(<ConnectionLine fromX={0} fromY={0} toX={100} toY={100} />)
+    const view = render(<ConnectionLine fromX={0} fromY={0} toX={100} toY={100} {...({} as any)} />)
     return view
   }
 
