@@ -29,7 +29,8 @@ describe('GridSplitNode — 空态', () => {
     expect(screen.getByText('请连接图片')).toBeTruthy()
     const btn = screen.getByText(/批量切分/).closest('button')
     expect(btn).toBeTruthy()
-    expect(btn.disabled).toBe(true)
+    // 可选链：DOM 查不到时由上一行断言先失败，避免这里抛 TypeError 盖掉真实失败原因
+    expect(btn?.disabled).toBe(true)
   })
 })
 

@@ -34,7 +34,8 @@ describe('ImageNode — 内容态', () => {
     const { container } = setup({ data: { imageUrl: 'http://x/a.png' } })
     const img = container.querySelector('img[alt="Content"]')
     expect(img).toBeTruthy()
-    expect(img.getAttribute('src')).toBe('http://x/a.png')
+    // 可选链：查不到时由上一行断言先失败，避免这里抛 TypeError 盖掉真实失败原因
+    expect(img?.getAttribute('src')).toBe('http://x/a.png')
   })
 
   it('mediaType=text → 渲染文本文件占位', () => {

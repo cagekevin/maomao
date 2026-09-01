@@ -39,6 +39,7 @@ describe('pendingRecovery.resolvePendingRecovery（刷新恢复解析器）', ()
     const r = resolvePendingRecovery({ pending: { conversationId: 'c1', messageId: 'm9', attachments: [{ type: 'image', url: '/files/a.png' }] }, messages: [{ id: 'm9', role: 'user', content: '' }], activeConversationId: 'c1' })
     expect(r.action).toBe('send')
     expect(r.text).toBe('')
-    expect(r.attachments.length).toBe(1)
+    // attachments 在返回类型上是可选的；此处断言其确实存在且只有一条
+    expect(r.attachments?.length).toBe(1)
   })
 })
