@@ -11,6 +11,21 @@ import assert from 'node:assert'
  */
 const DEFAULT_MODELS = ['gpt-4o-mini', 'gpt-4o', 'gpt-4o-vision-preview', 'deepseek-chat', 'Qwen/Qwen3-14B']
 
+/**
+ * 补齐调试开关的全局类型。
+ * src 侧用 `window[`__DEBUG_${upper}`]` 动态索引读取（noImplicitAny:false 下合法，故未显式声明），
+ * 测试侧需要显式读写具体开关，故在此声明，省掉 8 处 `as any`。
+ * 附带收益：去掉 `(globalThis.window as any).x = ...` 的括号前缀后，
+ * handoff 踩坑 #18 的 ASI 续行陷阱也一并消失。
+ */
+declare global {
+  interface Window {
+    __DEBUG_ALL?: boolean
+    __DEBUG_IMAGE?: boolean
+    __DEBUG_ASSET?: boolean
+  }
+}
+
 /** 重新加载 config 模块（顶层 const 在 import 时求值，需 resetModules 使 env 覆盖生效）。 */
 async function loadConfig() {
   vi.resetModules()
@@ -84,11 +99,11 @@ describe('config — env 覆盖契约', () => {
 
 describe('config — isDebugModuleOn（调试开关实时判断）', () => {
   beforeEach(() => {
-    // 每次干净：清空 window.__DEBUG_*（node 环境用 globalThis.window 模拟）
-    ;(globalThis as any).window = globalThis.window || {}
-    delete (globalThis.window as any).__DEBUG_ALL
-    delete (globalThis.window as any).__DEBUG_IMAGE
-    delete (globalThis.window as any).__DEBUG_ASSET
+    // 每次干净：清空 window.__DEBUG_*（node 环境无 window，用空对象模拟）
+    globalThis.window = globalThis.window || ({} as unknown as Window & typeof globalThis)
+    delete globalThis.window.__DEBUG_ALL
+    delete globalThis.window.__DEBUG_IMAGE
+    delete globalThis.window.__DEBUG_ASSET
   })
 
   it('默认关闭：未设任何开关时全部 debug 关闭', async () => {
@@ -100,7 +115,7 @@ describe('config — isDebugModuleOn（调试开关实时判断）', () => {
 
   it('运行时设 window.__DEBUG_ALL=true → 总开关全开（任意模块都开）', async () => {
     const c = await loadConfig();
-    (globalThis.window as any).__DEBUG_ALL = true
+    globalThis.window.__DEBUG_ALL = true
     // 总开关实时生效：image/asset/agent 全开，无需重载模块
     expect(c.isDebugModuleOn('image')).toBe(true)
     expect(c.isDebugModuleOn('asset')).toBe(true)
@@ -109,17 +124,17 @@ describe('config — isDebugModuleOn（调试开关实时判断）', () => {
 
   it('关闭总开关（false）→ 恢复关闭', async () => {
     const c = await loadConfig();
-    (globalThis.window as any).__DEBUG_ALL = true
+    globalThis.window.__DEBUG_ALL = true
     const onTrue = c.isDebugModuleOn('image')
     assert.strictEqual(onTrue, true)
-    ;(globalThis.window as any).__DEBUG_ALL = false
+    globalThis.window.__DEBUG_ALL = false
     const onFalse = c.isDebugModuleOn('image')
     assert.strictEqual(onFalse, false)
   })
 
   it('运行时设 window.__DEBUG_IMAGE=true → 只开 image，不开其它模块（AI 细粒度）', async () => {
     const c = await loadConfig();
-    (globalThis.window as any).__DEBUG_IMAGE = true
+    globalThis.window.__DEBUG_IMAGE = true
     expect(c.isDebugModuleOn('image')).toBe(true)
     expect(c.isDebugModuleOn('asset')).toBe(false)
     expect(c.isDebugModuleOn('agent')).toBe(false)

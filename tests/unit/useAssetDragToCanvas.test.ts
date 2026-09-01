@@ -10,6 +10,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { renderHook } from '@testing-library/react'
+import type { DragEvent as ReactDragEvent } from 'react'
 
 const { makeAssetDragProps, useAssetDragToCanvas, fetchText, textCache } = await import('../../src/hooks/useAssetDragToCanvas.ts')
 
@@ -39,7 +40,8 @@ describe('makeAssetDragProps', () => {
     // 源码 dragEnabled = asset && asset.url → draggable 为「真值 URL 字符串」
     expect(props.draggable).toBeTruthy()
     const dt = fakeDataTransfer()
-    props.onDragStart({ dataTransfer: dt } as any)
+    // 只喂被测用到的 dataTransfer 字段（踩坑记录 #11 的 DOM mock 收尾惯例）
+    props.onDragStart({ dataTransfer: dt } as unknown as ReactDragEvent)
     const parsed = JSON.parse(dt.getData('application/x-yimao-asset'))
     expect(parsed).toMatchObject({ url: 'http://x/y.png', name: '图', type: 'image' })
     expect(dt.effectAllowed).toBe('copy')
@@ -49,7 +51,8 @@ describe('makeAssetDragProps', () => {
     const props = makeAssetDragProps({ name: '无图' })
     expect(props.draggable).toBeFalsy()
     const dt = fakeDataTransfer()
-    props.onDragStart({ dataTransfer: dt } as any)
+    // 只喂被测用到的 dataTransfer 字段（踩坑记录 #11 的 DOM mock 收尾惯例）
+    props.onDragStart({ dataTransfer: dt } as unknown as ReactDragEvent)
     expect(dt.getData('application/x-yimao-asset')).toBeFalsy()
   })
 
@@ -62,7 +65,8 @@ describe('makeAssetDragProps', () => {
     fetchMock.mockImplementation(() => Promise.resolve({ ok: true, text: async () => '正文内容' }))
     const props = makeAssetDragProps({ url: 'http://x/t.txt', name: '文', type: 'text' })
     const dt = fakeDataTransfer()
-    props.onDragStart({ dataTransfer: dt } as any)
+    // 只喂被测用到的 dataTransfer 字段（踩坑记录 #11 的 DOM mock 收尾惯例）
+    props.onDragStart({ dataTransfer: dt } as unknown as ReactDragEvent)
     // 初次仅有 url/name/type
     const first = JSON.parse(dt.getData('application/x-yimao-asset'))
     expect(first.text).toBeUndefined()
@@ -80,7 +84,8 @@ describe('useAssetDragToCanvas', () => {
     const props = result.current.assetDragProps({ url: 'http://x/y.png', name: '图', type: 'image' })
     expect(props.draggable).toBeTruthy()
     const dt = fakeDataTransfer()
-    props.onDragStart({ dataTransfer: dt } as any)
+    // 只喂被测用到的 dataTransfer 字段（踩坑记录 #11 的 DOM mock 收尾惯例）
+    props.onDragStart({ dataTransfer: dt } as unknown as ReactDragEvent)
     expect(JSON.parse(dt.getData('application/x-yimao-asset')).url).toBe('http://x/y.png')
   })
 })

@@ -79,11 +79,12 @@ describe('kvStore isKvKey', () => {
   })
   it('非字符串输入返回 false（边界/异常输入）', () => {
     // isKvKey 运行时用 typeof 判非字符串直接返回 false，但 src 形参标注为 string（偏窄）；
-    // 此处专测该边界路径，用 as any 收敛到运行时真实接受的入参类型。
-    expect(isKvKey(null as any)).toBe(false)
-    expect(isKvKey(undefined as any)).toBe(false)
-    expect(isKvKey(123 as any)).toBe(false)
-    expect(isKvKey({} as any)).toBe(false)
+    // 此处专测该边界路径，故显式「喂错类型」——用 as unknown as string 而非 any，
+    // 让"这里是故意的"在代码里可检索、不被淹没。
+    expect(isKvKey(null as unknown as string)).toBe(false)
+    expect(isKvKey(undefined as unknown as string)).toBe(false)
+    expect(isKvKey(123 as unknown as string)).toBe(false)
+    expect(isKvKey({} as unknown as string)).toBe(false)
   })
 })
 

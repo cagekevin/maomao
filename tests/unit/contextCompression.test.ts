@@ -45,14 +45,14 @@ describe('serializeMessagesForSummary —— 序列化（记 T1）', () => {
 
 describe('compressToSummary —— 压缩入库（记 T2~T4）', () => {
   it('LLM 成功 → 返回摘要字符串', async () => {
-    vi.mocked(chatApi.chatCompletions).mockResolvedValue({ content: fullSummary } as any)
+    vi.mocked(chatApi.chatCompletions).mockResolvedValue({ ok: true, content: fullSummary })
     const msg = await compressToSummary({ provider: {}, model: 'm', messages: [{ role: 'user', content: 'a' }] })
     expect(msg).toBe(fullSummary)
     expect(vi.mocked(chatApi.chatCompletions)).toHaveBeenCalledTimes(1)
   })
 
   it('必然写入 system 压缩提示与 6 区段要求', async () => {
-    vi.mocked(chatApi.chatCompletions).mockResolvedValue({ content: fullSummary } as any)
+    vi.mocked(chatApi.chatCompletions).mockResolvedValue({ ok: true, content: fullSummary })
     await compressToSummary({ provider: {}, model: 'm', messages: [] })
     const [opts] = vi.mocked(chatApi.chatCompletions).mock.calls[0]
     expect(opts.messages[0].role).toBe('system')
@@ -61,7 +61,7 @@ describe('compressToSummary —— 压缩入库（记 T2~T4）', () => {
   })
 
   it('【回归】压缩走流式 stream:true（根治非流式慢模型 30s 超时）', async () => {
-    vi.mocked(chatApi.chatCompletions).mockResolvedValue({ content: fullSummary } as any)
+    vi.mocked(chatApi.chatCompletions).mockResolvedValue({ ok: true, content: fullSummary })
     await compressToSummary({ provider: {}, model: 'm', messages: [] })
     const [opts] = vi.mocked(chatApi.chatCompletions).mock.calls[0]
     // 关键：压缩请求必须流式（同主请求通道，边生成边累积），不能走非流式等完整生成
@@ -75,13 +75,13 @@ describe('compressToSummary —— 压缩入库（记 T2~T4）', () => {
   })
 
   it('空 content → 返回 null', async () => {
-    vi.mocked(chatApi.chatCompletions).mockResolvedValue({ content: '' } as any)
+    vi.mocked(chatApi.chatCompletions).mockResolvedValue({ ok: true, content: '' })
     const msg = await compressToSummary({ provider: {}, model: 'm', messages: [] })
     expect(msg).toBeNull()
   })
 
   it('摘要缺少必需区段 → 仍返回但不补占位（用 warn 提示，避免二次往返污染）', async () => {
-    vi.mocked(chatApi.chatCompletions).mockResolvedValue({ content: '【目标与背景】只有一段' } as any)
+    vi.mocked(chatApi.chatCompletions).mockResolvedValue({ ok: true, content: '【目标与背景】只有一段' })
     const msg = await compressToSummary({ provider: {}, model: 'm', messages: [] })
     expect(msg).toContain('【目标与背景】')
   })

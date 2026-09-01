@@ -8,10 +8,10 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
 
 // fake BroadcastChannel：捕获最新实例，供测试注入消息
-let latestChannel: any = null
+let latestChannel: FakeBroadcastChannel | null = null
 class FakeBroadcastChannel {
   name: string
-  onmessage: ((ev: any) => void) | null
+  onmessage: ((ev: MessageEvent) => void) | null
   closed: boolean
   constructor(name: string) { this.name = name; this.onmessage = null; this.closed = false; latestChannel = this }
   close() { this.closed = true }
@@ -24,7 +24,7 @@ const { useCanvasSync } = await import('../../src/hooks/useCanvasSync.ts')
 beforeEach(() => {
   latestChannel = null
   closeSpy.mockClear()
-  vi.stubGlobal('BroadcastChannel', FakeBroadcastChannel as any)
+  vi.stubGlobal('BroadcastChannel', FakeBroadcastChannel)
 })
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -34,7 +34,8 @@ afterEach(() => {
 /** 触发一次 onmessage（模拟跨窗口广播） */
 function emit(data) {
   if (!latestChannel?.onmessage) throw new Error('无 onmessage 处理器')
-  latestChannel.onmessage({ data })
+  // 仅 hook 读取 ev.data，故只补该字段（踩坑记录 #11 的 DOM mock 收尾惯例）
+  latestChannel.onmessage({ data } as MessageEvent)
 }
 
 describe('useCanvasSync — 多窗口画布同步检测', () => {

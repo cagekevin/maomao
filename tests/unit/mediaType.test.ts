@@ -15,13 +15,14 @@ describe('mediaType §2.17', () => {
   })
 
   it('detectFileType 按 File.type/name', () => {
-    expect(detectFileType({ type: 'image/png', name: 'a.png' } as any)).toBe('image')
-    expect(detectFileType({ type: 'video/webm', name: 'a.webm' } as any)).toBe('video')
-    expect(detectFileType({ type: 'audio/wav', name: 'a.wav' } as any)).toBe('audio')
-    expect(detectFileType({ type: 'text/markdown', name: 'a.md' } as any)).toBe('text')
+    // 用真实 File 对象（Node 22 起 File 已是全局），既零 cast 又贴近浏览器真实入参
+    expect(detectFileType(new File([], 'a.png', { type: 'image/png' }))).toBe('image')
+    expect(detectFileType(new File([], 'a.webm', { type: 'video/webm' }))).toBe('video')
+    expect(detectFileType(new File([], 'a.wav', { type: 'audio/wav' }))).toBe('audio')
+    expect(detectFileType(new File([], 'a.md', { type: 'text/markdown' }))).toBe('text')
     // 无 type 但 name 带扩展名也能识别
-    expect(detectFileType({ name: 'a.svg' } as any)).toBe('image')
-    expect(detectFileType({ name: 'a.mp4' } as any)).toBe('video')
+    expect(detectFileType(new File([], 'a.svg'))).toBe('image')
+    expect(detectFileType(new File([], 'a.mp4'))).toBe('video')
   })
 
   it('isAssetUrl 识别 http/data/blob', () => {
