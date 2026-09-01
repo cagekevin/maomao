@@ -840,9 +840,12 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
           type="button"
           onClick={() => scrollToBottom('smooth')}
           aria-label="回到底部"
-          aria-hidden={atBottom}
           title="回到底部"
           tabIndex={atBottom ? -1 : 0}
+          // 用 inert 替代 aria-hidden：aria-hidden 包裹可获得焦点的元素会触发
+          // 「focused element under aria-hidden」警告（辅助技术无法访问），
+          // 且 aria-hidden 本身不阻止焦点。inert 既阻止焦点又不被辅助技术识别。
+          inert={atBottom || undefined}
           className={`absolute bottom-3 left-1/2 z-float w-9 h-9 flex items-center justify-center rounded-full border border-edge-strong/70 bg-surface-1/90 text-secondary shadow-popover backdrop-blur-sm cursor-pointer transition-all duration-200 hover:bg-surface-hover hover:text-primary hover:border-edge-strong ${
             atBottom ? '-translate-x-1/2 translate-y-1 opacity-0 pointer-events-none' : '-translate-x-1/2 translate-y-0 opacity-100 pointer-events-auto'
           }`}
