@@ -120,7 +120,7 @@ async function readErrorBody(res: Response): Promise<unknown> {
  * @returns {Promise<any>}        解析后的响应体（parseJson=true）或 Response
  * @throws {TimeoutError|NetworkError|HttpError|AbortError}
  */
-export async function httpRequest<T = any>(url: string, {
+export async function httpRequest<T = unknown>(url: string, {
   method = 'GET',
   headers,
   body,
@@ -206,8 +206,8 @@ export async function httpRequest<T = any>(url: string, {
  * 快速 JSON 请求助手：POST 且自动序列化 body、带 Content-Type。
  * 用法：httpPost('/api/x', { foo: 1 }, { signal })
  */
-export function httpPost(url: string, data?: unknown, opts: HttpRequestOptions = {}): Promise<any> {
-  return httpRequest(url, {
+export function httpPost<T = unknown>(url: string, data?: unknown, opts: HttpRequestOptions = {}): Promise<T> {
+  return httpRequest<T>(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: data == null ? undefined : JSON.stringify(data),
@@ -218,7 +218,7 @@ export function httpPost(url: string, data?: unknown, opts: HttpRequestOptions =
 /**
  * 带日志的请求（API 层默认用这个）：失败统一记录到 logger，符合「错误走 logger」约定。
  */
-export async function httpRequestLogged(url: string, opts: HttpRequestOptions = {}, label = 'http'): Promise<any> {
+export async function httpRequestLogged<T = unknown>(url: string, opts: HttpRequestOptions = {}, label = 'http'): Promise<T> {
   try {
     return await httpRequest(url, opts)
   } catch (e: unknown) {

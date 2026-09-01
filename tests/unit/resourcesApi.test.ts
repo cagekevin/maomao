@@ -52,11 +52,11 @@ describe('fetchResources', () => {
 
 describe('rescanResources', () => {
   it('POST rescan 并返回 json', async () => {
-    const fetchMock = mockFetchOnce({ scanned: 3 })
+    const fetchMock = mockFetchOnce({ data: { scanned: 3 } })
     const r = await ra.rescanResources()
     expect(fetchMock.mock.calls[0][0]).toBe(`${API_BASE}/api/resources/rescan`)
     expect(fetchMock.mock.calls[0][1].method).toBe('POST')
-    expect(r.scanned).toBe(3)
+    expect(r.data.scanned).toBe(3)
   })
 
   it('非 2xx 抛 HttpError', async () => {
@@ -97,12 +97,12 @@ describe('saveResource', () => {
 
 describe('renameResource', () => {
   it('id 与 name 都进 query 且被编码', async () => {
-    const fetchMock = mockFetchOnce({ ok: true, id: '1', url: 'u', name: '新名' })
+    const fetchMock = mockFetchOnce({ data: { ok: true, id: '1', url: 'u', name: '新名' } })
     const r = await ra.renameResource('1', '新名')
     const url = fetchMock.mock.calls[0][0]
     expect(url).toContain('id=' + encodeURIComponent('1'))
     expect(url).toContain('name=' + encodeURIComponent('新名'))
-    expect(r.name).toBe('新名')
+    expect(r.data.name).toBe('新名')
   })
 
   it('失败时优先用后端 error 文案', async () => {

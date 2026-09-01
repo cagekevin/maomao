@@ -11,7 +11,7 @@ import { useSyncExternalStore } from 'react'
 import { useStoreSelector } from '../../hooks/useStoreSelector.ts'
 import { CANVAS_STATE_PREFIX } from './storage/index.ts'
 import { CANVAS_SCHEMA_VERSION } from './contracts.ts'
-import { fetchProjects, saveProjects } from './api/localToolApi.ts'
+import { fetchProjects, saveProjects, ApiEnvelope, ProjectsData } from './api/localToolApi.ts'
 import { contentGet, contentSet, contentGetAsync, contentSetAsync, contentDeleteAsync, createDebouncedPersist } from './contentStore.ts'
 import { logger } from './logger.ts'
 
@@ -22,14 +22,7 @@ export interface Project {
 }
 
 /** 后端 /api/projects 返回信封（含项目列表、整表版本号、上次打开与冲突标记） */
-interface ProjectBackendData {
-  data?: {
-    projects?: { id: string; name: string }[]
-    version?: number
-    lastOpened?: string | null
-    conflict?: boolean
-  }
-}
+type ProjectBackendData = ApiEnvelope<ProjectsData>
 
 /** 画布快照（规范化读取结构；nodes 可能为 null=空/未存） */
 interface CanvasSnapshot {
@@ -242,20 +235,20 @@ export async function loadCanvasState(projectId: string): Promise<CanvasSnapshot
 // edges 同理只保留 source/target/type/data 等必要字段。
 const NODE_KEEP: string[] = ['id', 'type', 'position', 'data', 'width', 'height', 'parentId', 'extent', 'style', 'initialWidth', 'initialHeight']
 const EDGE_KEEP: string[] = ['id', 'source', 'target', 'sourceHandle', 'targetHandle', 'type', 'data', 'label']
-function sanitizeNodes(nodes: Record<string, any>[] | null): Record<string, any>[] | null {
+function sanitizeNodes(nodes: Record<string, unknown>[] | null): Record<string, unknown>[] | null {
   if (!Array.isArray(nodes)) return nodes
   return nodes.map((n) => {
-    const out: Record<string, any> = {}
+    const out: Record<string, unknown> = {}
     for (const k of NODE_KEEP) {
       if (n[k] !== undefined && n[k] !== null) out[k] = n[k]
     }
     return out
   })
 }
-function sanitizeEdges(edges: Record<string, any>[] | null): Record<string, any>[] | null {
+function sanitizeEdges(edges: Record<string, unknown>[] | null): Record<string, unknown>[] | null {
   if (!Array.isArray(edges)) return edges
   return edges.map((e) => {
-    const out: Record<string, any> = {}
+    const out: Record<string, unknown> = {}
     for (const k of EDGE_KEEP) {
       if (e[k] !== undefined && e[k] !== null) out[k] = e[k]
     }
@@ -264,8 +257,8 @@ function sanitizeEdges(edges: Record<string, any>[] | null): Record<string, any>
 }
 export async function saveCanvasState(
   projectId: string,
-  nodes: Record<string, any>[] | null,
-  edges: Record<string, any>[] | null,
+  nodes: Record<string, unknown>[] | null,
+  edges: Record<string, unknown>[] | null,
   viewport?: { x?: number; y?: number; zoom?: number } | null
 ): Promise<SaveCanvasResult> {
   const key = CANVAS_STATE_PREFIX + (projectId || currentProjectId)

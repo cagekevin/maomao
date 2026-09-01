@@ -143,7 +143,7 @@ export async function load(): Promise<void> {
   setState({ loading: true, testResult: null })
   try {
     const data = await providerApi.getProviders()
-    const list: Provider[] = data?.data?.providers || []
+    const list: Provider[] = (data?.data?.providers as Provider[]) || []
     const primary = list.find((p) => p.primary) || list[0]
     setState({ providers: list, selectedId: primary ? primary.id : null, dirty: false })
   } finally {
@@ -224,15 +224,15 @@ export async function fetchModels(id: string): Promise<{ ok: boolean; pending?: 
   setState({ fetchingId: id })
   try {
     const data = await providerApi.fetchModels(id)
-    const m = data?.data || {}
+    const m = data?.data
     if (Array.isArray(m.image_models) && Array.isArray(m.chat_models) && Array.isArray(m.video_models)) {
       // 不直接全量写入：把拉取结果暂存，由 UI 弹窗让用户勾选后再 apply。
       setState({
         fetchedModels: {
           id,
-          image_models: m.image_models,
-          chat_models: m.chat_models,
-          video_models: m.video_models,
+          image_models: m.image_models as RawModel[],
+          chat_models: m.chat_models as RawModel[],
+          video_models: m.video_models as RawModel[],
           warning: m.warning,
         },
       })
@@ -302,7 +302,7 @@ export async function save(): Promise<{ ok: boolean; error?: string }> {
       return cleaned
     })
     const data = await providerApi.saveProviders(payload)
-    const savedProviders = data?.data?.providers || state.providers
+    const savedProviders = (data?.data?.providers as Provider[]) || state.providers
     setState({ providers: savedProviders, dirty: false })
     // 方案A：把保存后的结果回写 api.config.json，消除双源漂移。
     // 回写是辅助动作，失败不影响主保存（避免 json 写失败导致保存报错）。

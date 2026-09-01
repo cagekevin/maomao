@@ -18,9 +18,9 @@ afterEach(() => vi.unstubAllGlobals())
 
 describe('tasksApi — 成功路径', () => {
   it('fetchTasks 解析分页响应', async () => {
-    fetchMock.mockResolvedValue(jsonResp({ items: [{ id: 't1' }], total: 1 }))
+    fetchMock.mockResolvedValue(jsonResp({ data: { items: [{ id: 't1' }], total: 1 } }))
     const res = await api.fetchTasks({ keyword: '视频' })
-    expect(res.items).toHaveLength(1)
+    expect(res.data.items).toHaveLength(1)
     expect(fetchMock.mock.calls[0][0]).toContain('/api/tasks?')
     expect(fetchMock.mock.calls[0][0]).toContain('keyword=%E8%A7%86%E9%A2%91')
   })

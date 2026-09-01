@@ -247,7 +247,7 @@ async function pollUntilDone({ provider, url, genBody, extractUrl, pollInterval,
 /** chatProxy 入参 */
 interface ChatProxyOpts {
   provider?: GenerationProvider
-  body?: any
+  body?: Record<string, unknown>
   signal?: AbortSignal
   stream?: boolean
 }
@@ -263,7 +263,7 @@ interface ChatProxyOpts {
  */
 export async function chatProxy({ provider, body, signal, stream = false }: ChatProxyOpts): Promise<GenerationResult> {
   // 请求形态：responses 走 /v1/responses 端点 + output[] 解析；默认 chat/completions（M2-2）
-  const responses = resolveChatMode(provider?.chat_request_mode, body?.model) === 'responses'
+  const responses = resolveChatMode(provider?.chat_request_mode, String(body?.model ?? '')) === 'responses'
   const target = buildTargetUrl(provider, responses ? 'responses' : 'chat/completions')
   const payload = __buildProxyPayload({ provider, target, method: 'POST', body })
   // 【出口回收】走 /api/proxy 经 httpRequest 出站。LLM 生成较慢，正常不走 httpClient 默认 15s 掐断；
@@ -381,7 +381,7 @@ function parseNestedError(j: unknown): string {
 /** 生图/视频代理入参 */
 interface GenProxyOpts {
   provider?: GenerationProvider
-  genBody?: any
+  genBody?: Record<string, unknown>
   onProgress?: ProgressFn
   signal?: AbortSignal
   taskId?: string
@@ -455,7 +455,7 @@ export async function imageProxy({ provider, genBody, onProgress, signal, taskId
 export async function videoProxy({ provider, genBody, onProgress, signal, taskId }: GenProxyOpts): Promise<GenerationResult> {
   const url = buildTargetUrl(provider, 'videos/generations')
   // 【B层】视频代理开始：prompt 摘要 + 目标（定位视频提交是否进入轮询）
-  logger.debug('视频', '[视频] 开始', { prompt: String(genBody?.prompt || '').slice(0, 100), model: genBody?.model, size: genBody?.size, refCount: (genBody?.image_urls || []).length, taskId }, { module: 'image' })
+  logger.debug('视频', '[视频] 开始', { prompt: String(genBody?.prompt || '').slice(0, 100), model: genBody?.model, size: genBody?.size, refCount: (Array.isArray(genBody?.image_urls) ? genBody.image_urls.length : 0), taskId }, { module: 'image' })
   return pollUntilDone(
     { provider, url, genBody, extractUrl: ({ data, json }) => extractResultUrl({ data, json, type: 'video' }), pollInterval: VIDEO_POLL_INTERVAL, timeoutMs: VIDEO_TIMEOUT, frontTaskId: taskId },
     onProgress,

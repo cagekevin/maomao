@@ -162,10 +162,10 @@ function AssetLibrary() {
       if (rescan) await rescanResources()
       const data = await fetchResources({ folder: currentFolder, page: 1, pageSize: PAGE_SIZE })
       if (token !== resetTokenRef.current) return
-      const d = data?.data || {}
-      setItems(d.items || [])
-      setTotal(d.total || 0)
-      setHasMore((d.items || []).length < (d.total || 0))
+      const d = data?.data
+      setItems(d?.items || [])
+      setTotal(d?.total || 0)
+      setHasMore((d?.items || []).length < (d?.total || 0))
     } catch (e) {
       logger.warn('AssetLibrary', '加载失败（localTool 未连？）', e?.message)
       if (token === resetTokenRef.current) setItems([])
@@ -198,8 +198,8 @@ function AssetLibrary() {
     const next = pageRef.current + 1
     try {
       const data = await fetchResources({ folder: currentFolder, page: next, pageSize: PAGE_SIZE })
-      const d = data?.data || {}
-      if (d.page > 1) {
+      const d = data?.data
+      if (d?.page && d.page > 1) {
         setItems((prev) => {
           const seen = new Set(prev.map((x) => x.id))
           return [...prev, ...(d.items || []).filter((x) => !seen.has(x.id))]
@@ -279,8 +279,8 @@ function AssetLibrary() {
     if (!name) { setRenameTarget(null); return }
     try {
       const res = await renameResource(renameTarget.id, name)
-      const d = res?.data || {}
-      setItems((list) => list.map((x) => (x.id === renameTarget.id ? { ...x, id: d.id, url: d.url, name: d.name } : x)))
+      const d = res?.data
+      if (d) setItems((list) => list.map((x) => (x.id === renameTarget.id ? { ...x, id: d.id, url: d.url, name: d.name } : x)))
       textCache.delete(renameTarget.url)
       // 广播改名：画布/脚本箱节点里引用旧 url 的字段改写为新 url（App 订阅），防下游图生图 404
       if (d.url && d.url !== renameTarget.url) publish('resource:renamed', { oldUrl: renameTarget.url, newUrl: d.url })

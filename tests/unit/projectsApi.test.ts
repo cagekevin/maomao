@@ -17,10 +17,10 @@ afterEach(() => vi.unstubAllGlobals())
 
 describe('projectsApi — 成功路径', () => {
   it('fetchProjects 返回 {projects,lastOpened}', async () => {
-    fetchMock.mockResolvedValue(jsonResp({ projects: [{ id: 'p1' }], lastOpened: 'p1' }))
+    fetchMock.mockResolvedValue(jsonResp({ data: { projects: [{ id: 'p1' }], lastOpened: 'p1' } }))
     const res = await api.fetchProjects()
-    expect(res.projects).toHaveLength(1)
-    expect(res.lastOpened).toBe('p1')
+    expect(res.data.projects).toHaveLength(1)
+    expect(res.data.lastOpened).toBe('p1')
     expect(fetchMock.mock.calls[0][0]).toContain('/api/projects')
   })
 

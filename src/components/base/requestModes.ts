@@ -27,8 +27,8 @@ export function isResponsesMode(mode: string | undefined): boolean {
 }
 
 /** responses 的 input 数组：文本 input_text，参考图 input_image（只收 image，契约 E7）。 */
-export function buildResponsesInput(prompt: string, images: any[] = []): Array<Record<string, any>> {
-  const input: Array<Record<string, any>> = [{ type: 'input_text', text: prompt }]
+export function buildResponsesInput(prompt: string, images: unknown[] = []): Array<Record<string, unknown>> {
+  const input: Array<Record<string, unknown>> = [{ type: 'input_text', text: prompt }]
   for (const img of images) {
     if (typeof img === 'string' && img.trim()) input.push({ type: 'input_image', image_url: img.trim() })
   }
@@ -36,20 +36,21 @@ export function buildResponsesInput(prompt: string, images: any[] = []): Array<R
 }
 
 /** responses 生图请求体（size 在 tool 内部，不在顶层）。 */
-export function buildResponsesImageBody(p: { model: string; prompt: string; images?: any[]; size?: string; quality?: string }): Record<string, any> {
+export function buildResponsesImageBody(p: { model: string; prompt: string; images?: unknown[]; size?: string; quality?: string }): Record<string, unknown> {
   const { model, prompt, images = [], size = '', quality } = p
-  const tool: Record<string, any> = { type: 'image_generation' }
+  const tool: Record<string, unknown> = { type: 'image_generation' }
   if (size) tool.size = size
   return { model, input: buildResponsesInput(prompt, images), tools: [tool], tool_choice: 'auto' }
 }
 
 /** 从 responses output[] 提取生图 URL（image_generation_call + completed 的 result）。 */
-export function parseResponsesImage(data: any): string | undefined {
-  const output = Array.isArray(data?.output) ? data.output : []
+export function parseResponsesImage(data: unknown): string | undefined {
+  const output = Array.isArray((data as Record<string, unknown>)?.output) ? ((data as Record<string, unknown>).output as unknown[]) : []
   for (const item of output) {
-    if (item?.type === 'image_generation_call' && item?.status === 'completed'
-      && typeof item?.result === 'string' && item.result.trim()) {
-      return item.result.trim()
+    const it = item as Record<string, unknown>
+    if (it?.type === 'image_generation_call' && it?.status === 'completed'
+      && typeof it?.result === 'string' && (it.result as string).trim()) {
+      return (it.result as string).trim()
     }
   }
   return undefined
@@ -65,16 +66,19 @@ export function extractMarkdownImage(text: string): string | undefined {
 }
 
 /** responses 生图响应解析（H2 兜底链）：image_generation_call → output_text markdown。 */
-export function parseResponsesJson(data: any): string | undefined {
+export function parseResponsesJson(data: unknown): string | undefined {
   const direct = parseResponsesImage(data)
   if (direct) return direct
-  const output = Array.isArray(data?.output) ? data.output : []
-  const texts = []
+  const d = data as Record<string, unknown>
+  const output = Array.isArray(d?.output) ? (d.output as unknown[]) : []
+  const texts: string[] = []
   for (const item of output) {
-    if (item?.type === 'output_text' && typeof item?.text === 'string') texts.push(item.text)
-    if (item?.type === 'message' && Array.isArray(item?.content)) {
-      for (const c of item.content) {
-        if (c?.type === 'output_text' && typeof c?.text === 'string') texts.push(c.text)
+    const it = item as Record<string, unknown>
+    if (it?.type === 'output_text' && typeof it?.text === 'string') texts.push(it.text as string)
+    if (it?.type === 'message' && Array.isArray(it?.content)) {
+      for (const c of it.content as unknown[]) {
+        const cc = c as Record<string, unknown>
+        if (cc?.type === 'output_text' && typeof cc?.text === 'string') texts.push(cc.text as string)
       }
     }
   }
@@ -85,14 +89,17 @@ export function parseResponsesJson(data: any): string | undefined {
  * 工具调用归一（M2-4）：responses function_call / chat message.tool_calls → 统一
  * { id, type:'function', function:{ name, arguments } }，供现有 agent 工具循环消费。
  */
-export function normalizeToolCalls(source: any): Array<{ id?: string; type: 'function'; function: { name: string; arguments?: string } }> {
-  const output = Array.isArray(source) ? source : (Array.isArray(source?.output) ? source.output : [])
+export function normalizeToolCalls(source: unknown): Array<{ id?: string; type: 'function'; function: { name: string; arguments?: string } }> {
+  const s = source as Record<string, unknown>
+  const output = Array.isArray(source) ? (source as unknown[]) : (Array.isArray(s?.output) ? (s.output as unknown[]) : [])
   const out: Array<{ id?: string; type: 'function'; function: { name: string; arguments?: string } }> = []
   for (const tc of output) {
-    if (tc?.function && typeof tc.function.name === 'string') {
-      out.push({ id: tc.id, type: 'function', function: { name: tc.function.name, arguments: tc.function.arguments } })
-    } else if (tc?.type === 'function_call' && typeof tc?.name === 'string') {
-      out.push({ id: tc.call_id, type: 'function', function: { name: tc.name, arguments: tc.arguments } })
+    const item = tc as Record<string, unknown>
+    const fn = item?.function as Record<string, unknown> | undefined
+    if (fn && typeof fn.name === 'string') {
+      out.push({ id: item.id as string | undefined, type: 'function', function: { name: fn.name, arguments: fn.arguments as string | undefined } })
+    } else if (item?.type === 'function_call' && typeof item?.name === 'string') {
+      out.push({ id: item.call_id as string | undefined, type: 'function', function: { name: item.name as string, arguments: item.arguments as string | undefined } })
     }
   }
   return out
@@ -124,20 +131,21 @@ export function resolveChatMode(mode: string | undefined, model = ''): 'response
  */
 export function buildResponsesChatBody(p: {
   model: string
-  messages?: any[]
-  toolSchemas?: any[]
+  messages?: unknown[]
+  toolSchemas?: unknown[]
   temperature?: number
   stream?: boolean
   responseFormat?: string
-}): Record<string, any> {
+}): Record<string, unknown> {
   const { model, messages = [], toolSchemas = [], temperature, stream, responseFormat } = p
-  const input: any[] = []
+  const input: unknown[] = []
   for (const m of messages) {
-    if (m?.role === 'tool') {
+    const msg = m as Record<string, unknown>
+    if (msg?.role === 'tool') {
       input.push({
         type: 'function_call_output',
-        call_id: m.tool_call_id || '',
-        output: typeof m.content === 'string' ? m.content : JSON.stringify(m?.content ?? ''),
+        call_id: (msg.tool_call_id as string) || '',
+        output: typeof msg.content === 'string' ? (msg.content as string) : JSON.stringify(msg?.content ?? ''),
       })
       continue
     }
@@ -145,40 +153,46 @@ export function buildResponsesChatBody(p: {
     //  - user:    input_text / input_image
     //  - assistant: 只能 output_text / refusal（上游用 input_text 会报
     //    "Invalid value: 'input_text'. Supported values are: 'output_text' and 'refusal'"）
-    const isAssistant = m?.role === 'assistant'
-    const items = Array.isArray(m?.content) ? m.content : [{ type: isAssistant ? 'output_text' : 'input_text', text: typeof m?.content === 'string' ? m.content : String(m?.content ?? '') }]
+    const isAssistant = msg?.role === 'assistant'
+    const items = Array.isArray(msg?.content) ? (msg.content as unknown[]) : [{ type: isAssistant ? 'output_text' : 'input_text', text: typeof msg?.content === 'string' ? (msg.content as string) : String(msg?.content ?? '') }]
     const mapped = (items || []).map((c) => {
-      if (c?.type === 'image_url') {
-        const raw = c?.image_url?.url || c?.image_url
-        return { type: 'input_image', image_url: raw, detail: c?.image_url?.detail }
+      const cc = c as Record<string, unknown>
+      if (cc?.type === 'image_url') {
+        const raw = (cc?.image_url as Record<string, unknown>)?.url || cc?.image_url
+        return { type: 'input_image', image_url: raw, detail: (cc?.image_url as Record<string, unknown>)?.detail }
       }
-      if (c?.type === 'text') return { type: isAssistant ? 'output_text' : 'input_text', text: c.text }
+      if (cc?.type === 'text') return { type: isAssistant ? 'output_text' : 'input_text', text: cc.text }
       // 保留显式给出的 output_text（assistant 历史回传），其余原样透传
       return c
     })
-    input.push({ role: m?.role, content: mapped })
-    if (Array.isArray(m?.tool_calls)) {
-      for (const tc of m.tool_calls) {
+    input.push({ role: msg?.role, content: mapped })
+    if (Array.isArray(msg?.tool_calls)) {
+      for (const tc of msg.tool_calls as unknown[]) {
+        const t = tc as Record<string, unknown>
         input.push({
           type: 'function_call',
-          call_id: tc?.id || '',
-          name: tc?.function?.name || '',
-          arguments: tc?.function?.arguments || '{}',
+          call_id: (t?.id as string) || '',
+          name: (t?.function as Record<string, unknown>)?.name || '',
+          arguments: (t?.function as Record<string, unknown>)?.arguments || '{}',
         })
       }
     }
   }
-  const body: Record<string, any> = { model, input }
+  const body: Record<string, unknown> = { model, input }
   if (typeof temperature === 'number') body.temperature = temperature
   if (typeof stream === 'boolean') body.stream = stream
   if (responseFormat) body.text = { format: { type: responseFormat } }
   if (toolSchemas?.length) {
-    body.tools = toolSchemas.map((t) => ({
-      type: 'function',
-      name: t?.function?.name || t?.name || '',
-      description: t?.function?.description || '',
-      parameters: t?.function?.parameters || {},
-    }))
+    body.tools = toolSchemas.map((t) => {
+      const tt = t as Record<string, unknown>
+      const fn = tt?.function as Record<string, unknown> | undefined
+      return {
+        type: 'function',
+        name: fn?.name || tt?.name || '',
+        description: fn?.description || '',
+        parameters: fn?.parameters || {},
+      }
+    })
     body.tool_choice = 'auto'
   }
   return body
@@ -188,17 +202,20 @@ export function buildResponsesChatBody(p: {
  * responses 聊天响应解析（非流式，M2-2/M2-4）：
  *   output[] 的 message → content[].text 拼 content；function_call → 归一 tool_calls。
  */
-export function parseResponsesChatJson(json: any): { content: string; toolCalls: any[] } {
+export function parseResponsesChatJson(json: unknown): { content: string; toolCalls: unknown[] } {
   const content: string[] = []
-  const toolCalls: any[] = []
-  const output = Array.isArray(json?.output) ? json.output : []
+  const toolCalls: unknown[] = []
+  const d = json as Record<string, unknown>
+  const output = Array.isArray(d?.output) ? (d.output as unknown[]) : []
   for (const item of output) {
-    if (item?.type === 'message' && Array.isArray(item?.content)) {
-      for (const c of item.content) {
-        if (c?.type === 'output_text' && typeof c?.text === 'string') content.push(c.text)
+    const it = item as Record<string, unknown>
+    if (it?.type === 'message' && Array.isArray(it?.content)) {
+      for (const c of it.content as unknown[]) {
+        const cc = c as Record<string, unknown>
+        if (cc?.type === 'output_text' && typeof cc?.text === 'string') content.push(cc.text as string)
       }
-    } else if (item?.type === 'function_call' && typeof item?.name === 'string') {
-      toolCalls.push({ id: item.call_id || '', type: 'function', function: { name: item.name, arguments: item.arguments || '' } })
+    } else if (it?.type === 'function_call' && typeof it?.name === 'string') {
+      toolCalls.push({ id: it.call_id || '', type: 'function', function: { name: it.name as string, arguments: it.arguments || '' } })
     }
   }
   return { content: content.join(''), toolCalls }
@@ -210,7 +227,14 @@ export function parseResponsesChatJson(json: any): { content: string; toolCalls:
  *   response.function_call_arguments.delta（含 .done）拼工具名与参数。
  *   acc 与 parseSSEChunk 同构（{content, reasoning, toolCalls}），可无损并入 roundTrip 循环。
  */
-function parseResponsesSSEDataLine(line: string, acc: any): void {
+/** SSE 累积器：content/reasoning 文本 + toolCalls 归一数组（元素可被逐 delta 增量改写）。 */
+interface SSEAcc {
+  content: string
+  reasoning: string
+  toolCalls: Array<{ id?: string; type: 'function'; function: { name: string; arguments: string } }>
+}
+
+function parseResponsesSSEDataLine(line: string, acc: SSEAcc): void {
   const payload = line.slice(5).trim()
   if (!payload || payload === '[DONE]') return
   try {
@@ -251,7 +275,7 @@ function parseResponsesSSEDataLine(line: string, acc: any): void {
  * roundTrip 按 \n\n 分块后，chunk 以 `event:` 开头，若按「整块必须 data: 开头」会全部漏解析
  * （表现为 status 200 但 contentLen=0）。这里按行遍历，忽略 event:/空行，逐个解析 data: 行。
  */
-export function parseResponsesSSEChunk(line: string, acc: { content: string; reasoning: string; toolCalls: any[] } = { content: '', reasoning: '', toolCalls: [] }): void {
+export function parseResponsesSSEChunk(line: string, acc: SSEAcc = { content: '', reasoning: '', toolCalls: [] }): void {
   if (!line) return
   const lines = line.split('\n')
   for (const l of lines) {

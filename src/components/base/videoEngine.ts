@@ -18,6 +18,8 @@ import {
   Conversion,
   ConversionCanceledError,
   Input,
+  InputVideoTrack,
+  InputAudioTrack,
   Mp3OutputFormat,
   Mp4OutputFormat,
   Output,
@@ -37,6 +39,17 @@ import { safeFileName } from './utils.ts'
 interface ProgressOptions {
   controller?: ProgressController
   onProgress?: (p: number) => void
+}
+
+/** concatVideos 内部每段拼接单元的精确形状（替代原来的 any[]，字段均来自 mediabunny 轨道类型） */
+interface ConcatSegment {
+  video: InputVideoTrack
+  audio: InputAudioTrack | null
+  sourceDuration: number
+  start: number
+  end: number
+  duration: number
+  muted: boolean
 }
 /** processVideo 选项（对齐官方 Dc 的 t） */
 interface ProcessVideoOptions extends ProgressOptions {
@@ -122,20 +135,25 @@ export class ConversionCanceled extends Error {
   }
 }
 
+/** mediabunny 组件最小可取消契约（conversion/output attach 的对象只需提供 cancel）。 */
+interface Cancelable {
+  cancel(): void | Promise<unknown>
+}
+
 /** 进度控制器（官方 bc）：attach conversion / output，支持 cancel */
 export class ProgressController {
-  conversion: any = null
-  output: any = null
+  conversion: Cancelable | null = null
+  output: Cancelable | null = null
   canceled = false
   get isCanceled() {
     return this.canceled
   }
-  // conversion/output 的 cancel() 来自手动装配的 mediabunny 组件，签名随版本不稳，用 any 兜底（官方 bc）
-  attach(conversion: any) {
+  // conversion/output 的 cancel() 来自手动装配的 mediabunny 组件，签名随版本不稳，用最小 Cancelable 契约兜底（官方 bc）
+  attach(conversion: Cancelable) {
     this.conversion = conversion
     if (this.canceled) conversion.cancel()
   }
-  attachOutput(output: any) {
+  attachOutput(output: Cancelable) {
     this.output = output
     if (this.canceled) output.cancel()
   }
@@ -261,10 +279,10 @@ export async function processVideo(blob: Blob, t: ProcessVideoOptions): Promise<
 export async function concatVideos(blobs: Blob[], t: ConcatOptions = {}): Promise<VideoProcessResult> {
   if (blobs.length < 2) throw new Error('视频拼接至少需要 2 个输入视频')
   const inputs: Input[] = []
-  let outputTarget: any = null
+  let outputTarget: Output | null = null
   try {
     for (const b of blobs) inputs.push(await xc(b))
-    const items: any[] = []
+    const items: ConcatSegment[] = []
     for (let i = 0; i < inputs.length; i++) {
       const input = inputs[i]
       if (!(await input.canRead())) throw new Error(`第 ${i + 1} 个视频格式无法识别`)
@@ -344,7 +362,7 @@ export async function concatVideos(blobs: Blob[], t: ConcatOptions = {}): Promis
         }
       }
       if (it.audio && !it.muted) {
-        const audioSource: any = new AudioSampleSink(it.audio)
+        const audioSource: AudioSampleSink = new AudioSampleSink(it.audio)
         const firstTs = (await it.audio.getFirstTimestamp()) + it.start
         const rate = await it.audio.getSampleRate()
         const ch = await it.audio.getNumberOfChannels()

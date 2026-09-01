@@ -45,6 +45,7 @@ export interface ToolDef {
  *  这也正符合本类型「信封」语义——调用方按需读 data/error，不必强约束二选一。 */
 export type ToolResult = {
   ok: boolean
+  /** 工具执行返回值（任意 JSON 值）。 */
   data?: any
   error?: unknown
 }

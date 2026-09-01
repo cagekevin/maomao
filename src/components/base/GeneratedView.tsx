@@ -153,10 +153,10 @@ function GeneratedView() {
       if (rescan) await rescanResources()
       const data = await fetchResources({ folder, page: 1, pageSize: PAGE_SIZE, type: typeFilter === 'all' ? undefined : typeFilter })
       if (token !== resetTokenRef.current) return // 已被更新的请求覆盖
-      const d = data?.data || {}
-      setItems(d.items || [])
-      setTotal(d.total || 0)
-      setTotalPages(d.totalPages || 1)
+      const d = data?.data
+      setItems(d?.items || [])
+      setTotal(d?.total || 0)
+      setTotalPages(d?.totalPages || 1)
     } catch (e) {
       logger.warn('GeneratedView', '加载失败（localTool 未连？）', e?.message)
       if (token === resetTokenRef.current) setItems([])
@@ -174,11 +174,11 @@ function GeneratedView() {
     try {
       const data = await fetchResources({ folder, page: target, pageSize: PAGE_SIZE, type: typeFilter === 'all' ? undefined : typeFilter })
       if (token !== resetTokenRef.current) return
-      const d = data?.data || {}
-      setItems(d.items || [])
-      setTotal(d.total || 0)
-      setTotalPages(d.totalPages || 1)
-      setPage(d.page || target)
+      const d = data?.data
+      setItems(d?.items || [])
+      setTotal(d?.total || 0)
+      setTotalPages(d?.totalPages || 1)
+      setPage(d?.page || target)
     } catch (e) {
       logger.warn('GeneratedView', '翻页加载失败', e?.message)
     } finally {
@@ -224,8 +224,8 @@ function GeneratedView() {
     try {
       const res = await renameResource(renameTarget.id, name)
       // 更新本地列表（id/url/name 已变）
-      const d = res?.data || {}
-      setItems((list) => list.map((x) => (x.id === renameTarget.id ? { ...x, id: d.id, url: d.url, name: d.name } : x)))
+      const d = res?.data
+      if (d) setItems((list) => list.map((x) => (x.id === renameTarget.id ? { ...x, id: d.id, url: d.url, name: d.name } : x)))
       textCache.delete(renameTarget.url)
       // 广播改名：画布/脚本箱节点里引用旧 url 的字段改写为新 url（App 订阅），防下游图生图 404
       if (d.url && d.url !== renameTarget.url) publish('resource:renamed', { oldUrl: renameTarget.url, newUrl: d.url })

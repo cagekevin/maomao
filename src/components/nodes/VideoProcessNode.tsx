@@ -285,7 +285,7 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
   const metaInFlight = useRef<Set<string>>(new Set()) // f
   const thumbUrls = useRef<string[]>([]) // p
   const isScrubbing = useRef(false) // m
-  const controllerRef = useRef<any>(null) // c（ProgressController 实例，能力面由 videoEngine 决定）
+  const controllerRef = useRef<ProgressController | null>(null) // c（ProgressController 实例，能力面由 videoEngine 决定）
   const abortRef = useRef<AbortController | null>(null) // l
   const timelineWrapRef = useRef<HTMLDivElement | null>(null) // Ne
 
