@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import type { Dispatch, SetStateAction, RefObject, Ref, MouseEvent as ReactMouseEvent } from 'react'
 import { useReactFlow, useUpdateNodeInternals } from '@xyflow/react'
-import { NODE_AREA_FIXED_BASE_SIZE } from './config.js'
+import { NODE_AREA_FIXED_BASE_SIZE } from './config.ts'
 
 /**
  * 判断事件目标是否在可编辑元素内（INPUT / TEXTAREA / contenteditable）。

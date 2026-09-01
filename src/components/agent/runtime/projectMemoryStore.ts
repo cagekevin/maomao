@@ -20,7 +20,7 @@ import { contentGetAsync, contentSetAsync, contentDeleteAsync } from '../../base
 import { withTimeout } from '../../base/asyncGuard.ts'
 import { generateId } from '../../base/idGen.ts'
 import { logger } from '../../base/logger.ts'
-import { KV_TIMEOUT } from '../../base/config.js'
+import { KV_TIMEOUT } from '../../base/config.ts'
 
 /** 单条记忆正文长度上限 */
 export const PROJECT_MEMORY_CONTENT_LIMIT = 500

@@ -1,6 +1,6 @@
 /**
  * ── 唯一性/兄弟声明（2026-08-30）──
- * 运行模式声明表（WORK_MODE_DEFS 静态对象），与 settingRegistry.js（SETTING_DEFS）、contracts.js
+ * 运行模式声明表（WORK_MODE_DEFS 静态对象），与 settingRegistry.js（SETTING_DEFS）、contracts.ts
  * 各登记表同属「静态声明表」家族——兄弟。注意：registerRunModeSync / registerLegacyRunModeReader 是
  * 「状态同步回调注册」，非模式注册（模式本体是静态 WORK_MODE_DEFS）。新增此类先并入既有表，禁止另起新表。
  *

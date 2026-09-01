@@ -26,10 +26,10 @@
  *  - saveResultToTasks(url, type)  生成结果 → tasks（data:→multipart；http→fileUrl 代下载）
  *  - saveTextToTasks(text, name)  纯文本结果 → tasks/*.txt（后端 rescan 识别 type='text'）
  */
-import { API_BASE } from '../config.js'
+import { API_BASE } from '../config.ts'
 import { httpRequest } from './httpClient.ts'
 import { logger } from '../logger.ts'
-import { UPLOAD_TIMEOUT } from '../config.js'
+import { UPLOAD_TIMEOUT } from '../config.ts'
 import { formatTime, dataUrlToBlob, safeFileName } from '../utils.ts'
 import { UPLOAD_DIRS } from '../uploadDirs.ts'
 export { toAbsoluteFileUrl } from '../imageUrl.ts'

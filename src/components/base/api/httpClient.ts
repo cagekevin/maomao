@@ -15,7 +15,7 @@
  */
 import { withTimeout, TimeoutError, isTimeoutError } from '../asyncGuard.ts'
 import { logger } from '../logger.ts'
-import { HTTP_DEFAULT_TIMEOUT } from '../config.js'
+import { HTTP_DEFAULT_TIMEOUT } from '../config.ts'
 
 /** httpRequest 选项（fetch 统一入口的参数契约） */
 export interface HttpRequestOptions {

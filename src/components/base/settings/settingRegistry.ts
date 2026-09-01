@@ -1,7 +1,7 @@
 /**
  * ── 唯一性/兄弟声明（2026-08-30）──
  * 设置声明表（静态数组 SETTING_DEFS + buildDefaults 派生），与 runModeRegistry.js（WORK_MODE_DEFS）、
- * contracts.js 各登记表（EVENTS/STORAGE_KEYS/NODE_TYPES/apiRegistry）同属「静态声明表」家族——兄弟。
+ * contracts.ts 各登记表（EVENTS/STORAGE_KEYS/NODE_TYPES/apiRegistry）同属「静态声明表」家族——兄弟。
  * 三者均为「声明式表 + 派生」，非运行时注册。新增此类先并入既有表，禁止另起新表。
  *
  * 统一设置注册表（应用设置的"单一事实来源"）。
@@ -11,7 +11,7 @@
  * 收口后：每项设置只在本表声明一次，自动派生三样东西——
  *  1. appSettings.js 的 DEFAULTS（默认值）
  *  2. 「其他设置」页的开关行（OtherSettings.jsx 遍历渲染，含 title/desc/icon/分组）
- *  3. 云同步：app_settings 整键已在 contracts.js 登记 backend:'local'，本表内所有项自动随键上传/下载
+ *  3. 云同步：app_settings 整键已在 contracts.ts 登记 backend:'local'，本表内所有项自动随键上传/下载
  *
  * 【如何新增一个开关】只在此表末尾加一个对象：
  *  { key, default, ui, group, icon, title, desc }

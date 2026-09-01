@@ -127,7 +127,7 @@ vi.mock('../../src/components/agent/conversation/conversationStore.ts', () => ({
 vi.mock('../../src/components/base/taskStore.ts', () => ({ runNodeGeneration: vi.fn() }))
 vi.mock('../../src/components/base/toastStore.ts', () => ({ showToast: (...a) => h.showToast(...a) }))
 vi.mock('../../src/components/base/logger.ts', () => ({ logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), log: vi.fn(), debug: vi.fn() } }))
-vi.mock('../../src/components/base/config.js', () => ({ AGENT_MODELS: ['gpt-4o-mini'] }))
+vi.mock('../../src/components/base/config.ts', () => ({ AGENT_MODELS: ['gpt-4o-mini'] }))
 vi.mock('../../src/components/base/previewUrl.ts', () => ({ default: { create: vi.fn(() => 'blob:x'), release: vi.fn() } }))
 // AgentMessage 子组件用最小桩
 vi.mock('../../src/components/panels/AgentMessage.tsx', () => ({

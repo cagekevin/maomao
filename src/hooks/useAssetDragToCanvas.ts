@@ -1,7 +1,7 @@
 import { useCallback } from 'react'
 import type { DragEvent as ReactDragEvent } from 'react'
 import { httpRequest } from '../components/base/api/index.ts'
-import { LOCAL_TOOL_PING_TIMEOUT } from '../components/base/config.js'
+import { LOCAL_TOOL_PING_TIMEOUT } from '../components/base/config.ts'
 import { useAssetMoveToFolder } from './useAssetMoveToFolder.ts'
 import type { AssetMoveItem, AssetMoveToFolderOptions, AssetDragSourceProps } from './useAssetMoveToFolder.ts'
 

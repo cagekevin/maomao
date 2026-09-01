@@ -17,7 +17,7 @@ import { useEffect } from 'react'
 import { useReactFlow } from '@xyflow/react'
 import { subscribe } from './eventBus.ts'
 import { runNodeGeneration } from './taskStore.ts'
-import { AUTO_TRIGGER_DOWNSTREAM } from './config.js'
+import { AUTO_TRIGGER_DOWNSTREAM } from './config.ts'
 import { logger } from './logger.ts'
 
 /**

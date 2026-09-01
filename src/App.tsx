@@ -62,7 +62,7 @@ import { buildNodesFromClipboard } from './components/base/clipboard.ts'
 import { applyNodeTypeDefaults } from './components/base/nodeDefaults.ts'
 import { injectNodePrefs } from './components/base/nodePrefs.ts'
 import { useCanvasSync } from './hooks/useCanvasSync.ts'
-import { parseShotHandle } from './components/base/contracts.js'
+import { parseShotHandle } from './components/base/contracts.ts'
 // url 引用改写工具（与 taskStore 共用同一份，禁止各写一份 → 改名只改一半）
 import { buildUrlRewritePairs, replaceUrlDeep } from './components/base/imageUrl.ts'
 import { prefetchHeavyNode } from './components/base/lazyNode.tsx'

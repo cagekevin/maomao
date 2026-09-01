@@ -21,7 +21,7 @@ import { FilesetResolver, FaceDetector, type Detection } from '@mediapipe/tasks-
 // 图片加载走系统统一入口（asyncGuard 已声明替代本文件的私有实现）：带超时 + crossOrigin + 可取消，
 // 超时值统一取 config 的 IMAGE_LOAD_TIMEOUT，不再自带第二套 20s。
 import { loadImageWithTimeout } from './asyncGuard.ts'
-import { IMAGE_LOAD_TIMEOUT } from './config.js'
+import { IMAGE_LOAD_TIMEOUT } from './config.ts'
 
 /** 打码模式（对齐官方 xl/yl） */
 export type MosaicMode = 'mosaic' | 'bar' | 'grid' | 'blur'

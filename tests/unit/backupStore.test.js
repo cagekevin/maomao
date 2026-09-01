@@ -73,7 +73,7 @@ describe('backupStore — 导出 exportAll', () => {
     expect(backup.ls['agent_conversations_canvas-assistant-p2']).toBeUndefined()
   })
 
-  it('备份清单由 contracts.js getLocalKeys() 统一生成，新增登记键自动进备份（无手写清单漂移）', async () => {
+  it('备份清单由 contracts.ts getLocalKeys() 统一生成，新增登记键自动进备份（无手写清单漂移）', async () => {
     // 这些新登记键此前未进手写 LS_KEYS，收口后必须自动进备份
     contentSet('agent_panel_width', '320')
     contentSet('agent_input_mode', 'agent')

@@ -36,10 +36,10 @@ const LITERAL_PREFS_RE = new RegExp(
 // ── 加载节点类型登记表 ──
 let NODE_TYPE_SET = new Set()
 try {
-  const mod = await import(pathToFileURL(resolve(root, 'src/components/base/contracts.js')).href)
+  const mod = await import(pathToFileURL(resolve(root, 'src/components/base/contracts.ts')).href)
   NODE_TYPE_SET = mod.NODE_TYPE_SET || new Set()
 } catch (e) {
-  console.error('  ✖ 无法加载 contracts.js 节点类型登记表：', e.message)
+  console.error('  ✖ 无法加载 contracts.ts 节点类型登记表：', e.message)
   process.exit(1)
 }
 
@@ -103,6 +103,6 @@ if (violations === 0) {
   process.exit(0)
 } else {
   console.error(`\n发现 ${violations} 处未登记裸 useNodePrefs 命名空间 ✖`)
-  console.error('请先在 src/components/base/contracts.js 的 NODE_TYPES 登记（禁止裸字符串 nodePrefs 命名空间）。')
+  console.error('请先在 src/components/base/contracts.ts 的 NODE_TYPES 登记（禁止裸字符串 nodePrefs 命名空间）。')
   process.exit(1)
 }

@@ -12,7 +12,7 @@ import { jsonResp } from './_testUtils.mjs'
 
 const mod = await import('@/components/base/api/proxyGenerate.ts')
 const { chatProxy, imageProxy } = mod
-const { GEN_TIMEOUT } = await import('../../src/components/base/config.js')
+const { GEN_TIMEOUT } = await import('../../src/components/base/config.ts')
 const { timeoutMessage } = await import('../../src/components/base/genErrors.ts')
 
 vi.stubGlobal('fetch', vi.fn())

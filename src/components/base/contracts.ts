@@ -159,7 +159,21 @@ export const CANVAS_STATE_PREFIX = 'canvas-state-v1-'
  */
 export const CANVAS_SCHEMA_VERSION = 1
 
-export const STORAGE_KEYS = {
+/** STORAGE_KEYS 单条登记的元信息形状（存储键登记表唯一类型）。 */
+export interface StorageKeyMeta {
+  domain: string
+  /** 产出该键的源码文件（尽量不带扩展名，扩展名无关） */
+  store: string
+  /** 后端通道：local（localStorage）/ kv（localTool KV） */
+  backend: 'local' | 'kv' | 'native'
+  /** 是否为动态键模板（含 {xxx} 占位，运行时按实际 id 展开） */
+  pattern?: boolean
+  /** 旧键迁移映射：`旧键模板 → 新键模板`，存在时表示该键曾由旧键迁移而来 */
+  migration?: string
+  note: string
+}
+
+export const STORAGE_KEYS: Record<string, StorageKeyMeta> = {
   // ── 项目（projectStore）────────────────────────────────────────────
   projects: {
     domain: 'project',

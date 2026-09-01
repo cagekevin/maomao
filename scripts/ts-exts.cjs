@@ -32,10 +32,15 @@ const SOURCE_EXTS = ['.js', '.jsx', '.ts', '.tsx'];
 const TS_EXEMPT_DIRS = [];
 
 /**
- * 永久豁免文件：契约/配置真相源。被 4 个 check 脚本用 Node 直接 import()，
- * 改名会打断 prebuild/pretest 门禁；它们不是业务代码，不参与 TS 化。
+ * 永久豁免文件：契约/配置真相源。
+ *
+ * 更新(2026-09-01)：contracts.js / config.js 均已 TS 化（config.ts / contracts.ts），
+ * 不再豁免（此前因「被 4 个 check 脚本 Node 直接 import()，改名会崩门禁」而豁免，
+ * 实测 Node import() 扩展名无关 + resolveSourceFile 免疫，障碍仅为脚本路径字符串同步）。
+ * 现全仓已无任何永久豁免源码文件，清空本清单。保留字段本身（各 check 脚本共用），
+ * 后续若再引入外部库/特殊文件可在此登记。
  */
-const TS_EXEMPT_FILES = ['src/components/base/contracts.js', 'src/components/base/config.js'];
+const TS_EXEMPT_FILES = [];
 
 function toPosix(p) {
   return String(p).split(path.sep).join('/');

@@ -16,7 +16,7 @@ vi.mock('@xyflow/react', () => ({ useReactFlow: () => ({ getEdges: () => rfState
 vi.mock('../../src/components/base/eventBus.ts', () => ({
   subscribe: (evt, cb) => { busState.handler = cb; return () => {} }
 }))
-vi.mock('../../src/components/base/config.js', () => ({ AUTO_TRIGGER_DOWNSTREAM: true }))
+vi.mock('../../src/components/base/config.ts', () => ({ AUTO_TRIGGER_DOWNSTREAM: true }))
 vi.mock('../../src/components/base/taskStore.ts', () => ({ runNodeGeneration: runNodeGenerationMock }))
 vi.mock('../../src/components/base/logger.ts', () => ({ logger: loggerState }))
 

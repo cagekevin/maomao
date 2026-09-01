@@ -27,7 +27,7 @@ import { contentGet, contentSet } from '../../base/contentStore.ts'
 import { generateId } from '../../base/idGen.ts'
 import { logger } from '../../base/logger.ts'
 import { publish } from '../../base/eventBus.ts'
-import { CREDIT_SWITCH_KEY, CREDIT_GATE_EVENT } from '../../base/contracts.js'
+import { CREDIT_SWITCH_KEY, CREDIT_GATE_EVENT } from '../../base/contracts.ts'
 
 /* ════════════════════════════════════════════════════════════════
  * AI 生图默认参数（genParams）—— 由 AgentPanel 生图参数区设置，execute_plan 读取。

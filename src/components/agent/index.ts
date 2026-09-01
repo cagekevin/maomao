@@ -42,8 +42,8 @@
  *   - 改 UI 面板     → panels/AgentPanel.jsx + panels/AgentMessage.jsx（UI 壳，留在 panels/）
  *
  * 【契约（改前必查，注册表收口）】
- *   - 事件名    → base/contracts.js 的 EVENTS（publish/subscribe 必须用登记名）
- *   - 存储键    → base/contracts.js 的 STORAGE_KEYS（禁裸字符串 key）
+ *   - 事件名    → base/contracts.ts 的 EVENTS（publish/subscribe 必须用登记名）
+ *   - 存储键    → base/contracts.ts 的 STORAGE_KEYS（禁裸字符串 key）
  *   - 画布写操作 → 只经 canvasHost，禁止裸 ctx.setNodes/setEdges/addNodes
  *   - 工具信封  → { ok, data | error }，禁止异常冒泡到 Agent 层
  *

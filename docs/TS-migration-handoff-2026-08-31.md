@@ -2,7 +2,9 @@
 
 > 更新：2026-09-01（director3d 收敛批）。任务：对现有 React 代码做 TS 规范化重构——业务逻辑完全不动，只做「类型 + 文件规范」处理。
 >
-> **director3d 收敛批新增成果（第十四段，收官）**：用户明确指示「director3d 就当自家仓库，不要老当外部库」。**`src/components/director3d/` 26 个 .js/.jsx 全部 TS 化**（8 纯逻辑 .ts + 18 组件 .tsx），**解除其永久豁免**（`scripts/ts-exts.cjs` 的 `TS_EXEMPT_DIRS` 清空），`director3d` 不再是「禁止保留 jsx」的例外。转换按自底向上：纯逻辑叶子（log/storage/history/tracks/thumbnails/rig/depth/useToast/project）→ panels/（9）→ 顶层组件（primitives/models/ConfirmDialog/ErrorBoundary/SceneGizmo/Director3DOverlay/Viewport/App）。**全仓库不再有 .jsx/.js 源码（仅剩永久豁免的 contracts.js / config.js）。** 详见第三节 commit 表与 §10.12。
+> **director3d 收敛批新增成果（第十四段，收官）**：用户明确指示「director3d 就当自家仓库，不要老当外部库」。**`src/components/director3d/` 26 个 .js/.jsx 全部 TS 化**（8 纯逻辑 .ts + 18 组件 .tsx），**解除其永久豁免**（`scripts/ts-exts.cjs` 的 `TS_EXEMPT_DIRS` 清空），`director3d` 不再是「禁止保留 jsx」的例外。转换按自底向上：纯逻辑叶子（log/storage/history/tracks/thumbnails/rig/depth/useToast/project）→ panels/（9）→ 顶层组件（primitives/models/ConfirmDialog/ErrorBoundary/SceneGizmo/Director3DOverlay/Viewport/App）。详见第三节 commit 表与 §10.12。
+>
+> **contracts/config 收敛批新增成果（第十五段，全仓豁免清零）**：用户质疑「这两 GS 还有必要豁免吗」，架构评估后判定原豁免理由（Node `import()` 会崩门禁）不成立，**`contracts.js` / `config.js` 也全部 TS 化（→`contracts.ts` / `config.ts`）**，`TS_EXEMPT_FILES` 清空。**全仓库不再有 .js/.jsx 源码，也无任何永久豁免源码文件，TS 规范化重构彻底收官。** 同步 4 个 check 脚本路径 + 提示文本 + `check-jsx` 头注释；`contracts.ts` 新增 `StorageKeyMeta` 接口、`contentStore` 本地 `StorageKeyEntry` 改为复用该类型（兑现收口约定）。详见第三节 commit 表与 §10.13。
 > 交接给下一个 AI / 下一段会话的**唯一入口**。读完即可无缝继续，不必重读本会话历史。
 >
 > **本轮会话（第二段）新增成果**：A4 批 `src/components/scriptbox/` **3 个纯逻辑文件全部转完**（IO / Store / Workflows → .ts），`scriptBoxPromptResolver.ts` 的 `PlaybookLike` 已删除改用真实 `Playbook` 类型，并修复了库里存量断裂的 `DiscountVideoNode` 测试（根因是早前 HoverToolbar.jsx→.tsx 迁移时测试 mock 路径未同步）。详见第三节 commit 表。
@@ -30,19 +32,19 @@
 
 ## 二、豁免（与用户对齐）
 
-> 更新(2026-09-01)：**director3d 豁免已解除**（用户明确指示按自家仓库收敛），仅剩 contracts.js / config.js 两条永久豁免。
+> 更新(2026-09-01)：**豁免已全部解除**——director3d（第十四段）+ contracts/config（第十五段）均 TS 化。**全仓已无任何永久豁免源码文件**。
 
 | 对象 | 处置 | 原因 |
 |---|---|---|
 | `src/components/director3d/**` | ~~保留 .js/.jsx~~ → **已全部 TS 化（26/26，第十四段）** | 用户指示「当自家仓库」；`TS_EXEMPT_DIRS` 已清空，纳入契约校验 |
-| `contracts.js` / `config.js` | **保留 .js 不动** | 被 4 个 check 脚本（check:api/events/keys/node-types）Node 直接 `import()`，改名会崩 prebuild/pretest 门禁；它们是契约/配置真相源而非业务代码 |
+| `contracts.js` / `config.js` | ~~保留 .js 不动~~ → **已全部 TS 化（config.ts / contracts.ts，第十五段）** | 原「被 4 个 check 脚本 Node 直接 `import()`，改名会崩门禁」的理由实测不成立（Node `import()` 扩展名无关 + `resolveSourceFile` 免疫），仅需同步脚本路径字符串；`TS_EXEMPT_FILES` 已清空 |
 | `tests/unit/**` | **保持 .js/.jsx** | 只机械同步测试里的 import 路径让单测继续绿；不把测试也 TS 化 |
 
 ## 三、完成进度（截至本次更新，工作区干净）
 
 **已转 110+ 个 .ts / .tsx**（纯逻辑层）+ **组件层 .tsx 持续累计**（含 base/ / panels/ / edges/ / scriptbox 全部 / nodes 全部 / A3·A4 纯逻辑 / src/main / src/App） + **A4 批 3 个 scriptbox 纯逻辑 .ts** + **A3 全部 6 个（agentConfig / canvasPlanExecutor / agentRuntime / agentCore / useAgentChat / useCanvasAgentTools）** + **director3d 26 个（第十四段）**。**剩余：0 个 .js + 0 个 .jsx**（不含豁免目录；`src/main.tsx` + `src/App.tsx` 已收尾，director3d 已收敛，TS 规范化重构全部清零）。
 
-**纯逻辑层（非 JSX）完成度：100% 清零** —— `base/`、`agent/conversation/`、`scriptbox/`、`agent/runtime/`、`agent/canvas/`、`director3d/`（纯逻辑 8 个）全部 .ts，`.js` 计数为 0（仓库里仅剩的 .js 是永久豁免的 `contracts.js` / `config.js`，director3d 目录已不再豁免）。
+**纯逻辑层（非 JSX）完成度：100% 清零** —— `base/`、`agent/conversation/`、`scriptbox/`、`agent/runtime/`、`agent/canvas/`、`director3d/`（纯逻辑 8 个）全部 .ts，`.js` 计数为 0（含 `contracts.ts` / `config.ts`；**全仓已无任何永久豁免源码文件**）。
 
 **B 批组件层完成度：100% 清零（第十三段收官）**：已完成 11 个 `.jsx → .tsx`（ArrangeConfirm / EmptyCanvasGuide / ToastContainer / ToolbarButton / HoverToolbar / FullscreenModal / ContextMenu / Select / ProjectSelector / CanvasToolbar / TopNav）+ base/（NodeShell 等全清零）+ edges/（4/4）+ panels/（4/4）+ scriptbox/（9/9）+ nodes/（17/17）+ **src/main.tsx + src/App.tsx（收尾）**，全部补 Props 接口 + 验证全绿。**全仓库（除豁免）不再有 .jsx/.js 源码。**
 
@@ -118,6 +120,7 @@
 | `22182ea` | **B 批（nodes/ 第 17 个，nodes/ 清零）**：`PromptNode`→.tsx。契约接口 + ref 类型；`onRecover` 的 `resultUrl` 用 `String()`、`data.name as string` |
 | `14e23c3` | **收尾（全部 .jsx 清零）**：`src/App.jsx`→.tsx + `src/main.jsx`→.tsx（补约 29 处类型：view 收窄 / getSetting unknown 断言 / addNode 形参 Record<string,unknown> / 菜单函数 ContextMenuItem[] / copySelectedNodes onlyId?）。**跨文件收口**：`MenuLeafItem` 补 badge；`CanvasEdgesContext.CanvasHistory` 复用 `CanvasHistoryApi`；`useContextMenu.onSelectionEnd` nodes 参改可选（对齐 ReactFlow 1 参签名）。**修 3 处存量路径漂移**：`index.html` main.jsx→tsx（build 崩）、`health-check.cjs` storageAdapter 路径（文件在 storage/ 子目录）、`lazyNode.test.jsx` readSrc App.jsx→tsx（ENOENT）。门禁全绿（type-check / 五门禁 / test:all / build / check:health 无错误） |
 | `（第十四段，待提交）` | **director3d 全部收敛**：`src/components/director3d/` 26 个 .js/.jsx 全部→.ts/.tsx（8 纯逻辑 + 18 组件）。**解除 director3d 永久豁免**（`scripts/ts-exts.cjs` 的 `TS_EXEMPT_DIRS` 清空）。**在 `project.ts` 建立 director3d 领域类型真相源**（`ProjectCamera`/`ProjectObject`/`ProjectReference`/`ProjectSettings`/`ProjectLighting`/`PropertyRegistry`/`ChannelTracks`/`ChannelKey`/`EntityChannelMap` 等，供 App/Viewport/panels 复用）。**顺手修复 2 处存量 bug**：①`objectAtFrame` 的 `keyframes` 参数曾被推断为 `any[]`（默认 `= []`），真实可传通道结构，已标注 `ChannelTracks | ChannelKey[]`；②`FileReader.result` 读工程/参考图时可能为 ArrayBuffer，统一 `String(...)` 转字符串。同步 `contracts.js` 的 `director3d/App.jsx`→`.tsx`、`DEPENDENCIES.md`/`d3dPersistence.ts` 注释里的旧后缀。门禁全绿（type-check 0 错 / 五门禁 / test:all 2180 用例全 PASS / build / check:health 无错误） |
+| `（第十五段，待提交）` | **contracts.js / config.js 收敛，全仓豁免清零**：两文件→`.ts`（`config.ts` 纯常量、`contracts.ts` 契约真相源）。**架构判断**：原「被 4 个 check 脚本 Node `import()` 改名会崩门禁」的豁免理由不成立（Node `import()` 扩展名无关 + `resolveSourceFile` 免疫），且 `.js` 契约层会让 20+ 个 .ts 消费方的类型在边界擦除成 any，违背类型收口目标——故解除。同步 4 个 check 脚本（check:api/events/keys/node-types）的 `contracts.js`→`.ts` 路径与提示文本、`check-jsx` 头注释、`ts-exts.cjs` 的 `TS_EXEMPT_FILES` 清空。**类型收口**：`contracts.ts` 新增 `StorageKeyMeta` 接口（`STORAGE_KEYS` 标注 `Record<string, StorageKeyMeta>`，使 `pattern?`/`migration?` 可选）；`contentStore.ts` 的本地 `StorageKeyEntry` 改为 `type StorageKeyEntry = StorageKeyMeta`（兑现「待其转 .ts 后直接引用其类型」的收口约定）。门禁全绿（type-check 0 错 / 五门禁 / test:all / build / check:health 无错误） |
 
 ## 三·补：横切收口成果（本次新增）
 
@@ -526,3 +529,20 @@ npm run test:tools           # agent 工具
     - 顺手修复：`objectAtFrame` 参数类型（`any[]`→通道联合）；`FileReader.result` 转 String；`maxLength` 数字；事件回调 `currentTarget`。
     - 同步：`contracts.js` 的 `director3d/App.jsx`→`.tsx`；`DEPENDENCIES.md` 6 处后缀；`d3dPersistence.ts` 注释后缀；`check-jsx.mjs` 头注释。
     - **全仓库（除 contracts.js / config.js）不再有 .jsx/.js 源码。TS 规范化重构彻底收官。**
+
+### 10.13 本轮（第十五段会话）新增踩坑 / 经验 —— contracts/config 收敛，全仓豁免清零（收官）
+
+> 时间段：承接第十四段，把最后两条永久豁免 `contracts.js` / `config.js` 也 TS 化。这是 TS 规范化重构的**最终收官批**——全仓不再有 .jsx/.js 源码、无任何永久豁免。
+
+1. **「Node `import()` 会崩门禁」的豁免理由不成立（架构判断）**：`contracts.js` 被 4 个 check 脚本用 `await import(pathToFileURL(resolve(root, '.../contracts.js')).href)` 加载。实测 **Node `import()` 是扩展名无关的**——路径带 `.js` 时若文件已改名 `.ts` 会解析失败，但项目已有 `ts-exts.cjs` 的 `resolveSourceFile`（扩展名无关解析）可免疫。真正的工作量只是「把脚本里几处 `.js` 路径字符串改成 `.ts`」，**不是「不能转」的硬约束**。同理 `health-check.cjs` 里 `['src/components/base/config', ...]` 本就不带扩展名、走 resolveSourceFile，config.js→.ts 后自动命中 config.ts，无需改。
+2. **`.js` 契约层拖着 `.ts` 业务层，类型在边界反复擦除——这是最大的架构债**：`contracts.js` 被 20+ 个 .ts 文件静态 import，其导出在消费方被当成宽松类型，`STORAGE_KEYS` 的值在 `contentStore` 里要本地 `as Record<string, StorageKeyEntry>` 断言、各字段访问靠索引签名兜底。转 .ts 后这些断言/索引签名兜底能收掉。**判断豁免是否该保留的架构准则：如果某文件是「被大量 .ts 消费的契约/配置真相源」，它恰恰最该有类型、最该被 `tsc` 检查——豁免只会让类型边界反复擦除，违背收口目标。**
+3. **`STORAGE_KEYS` 是异构对象字面量，直接推断成字段不全的联合**：部分条目有 `pattern`/`migration`，部分没有。`getLocalKeys()` 里 `v.backend === 'local' && !v.migration && !v.pattern` 访问这些可选字段时报 TS2339。修法：定义 `StorageKeyMeta` 接口（`backend: 'local'|'kv'|'native'` 必填 + `pattern?`/`migration?` 可选 + `domain`/`store`/`note`），`STORAGE_KEYS: Record<string, StorageKeyMeta>` 显式标注，异构即被规整为统一可选字段。
+4. **下游「本地最小视图」接口可兑现收口约定**：`contentStore.ts` 曾为 `STORAGE_KEYS` 定义本地 `StorageKeyEntry`（带索引签名），注释写明「待其转 .ts 后改为直接引用其类型」。contracts.ts 转完、`StorageKeyMeta` 出现后，把 `StorageKeyEntry` 改成 `type StorageKeyEntry = StorageKeyMeta` 别名，`const KEYS = STORAGE_KEYS as Record<string, StorageKeyEntry>` 里的断言随之可去（同构）。**这是「先最小视图收窄、后真相源落地」配方的完整兑现。**
+5. **check 脚本里的「错误提示文本」也要同步后缀**：`check-*.mjs` 里除了实际 `import()` 路径，还有 `console.error('请先在 contracts.js 的 ... 登记')` 这类提示字符串、头注释。功能不受影响（纯文案），但为文档准确应一并 `.js`→`.ts`。**转前 `grep -rn "contracts\.js" scripts/` 全量列出，逐个清。**
+6. **`check-jsx` 头注释的「永久豁免仅剩 contracts/config」要同步**：改后缀后全仓无豁免，头注释更新为「全仓不再有 .jsx 源码，也无任何永久豁免源码文件」。
+7. **本段（第十五段）进度**：
+    - 已转：`config.ts`（纯常量，40 个消费方 import 自动同步）、`contracts.ts`（契约真相源，20 个消费方 import 自动同步）。
+    - 收口：`contracts.ts` 新增 `StorageKeyMeta` 接口；`contentStore.ts` 的 `StorageKeyEntry` 改为 `type StorageKeyEntry = StorageKeyMeta`（删本地重定义）。
+    - 同步：`ts-exts.cjs` 的 `TS_EXEMPT_FILES` 清空；`check-node-types.mjs`/`check-storage-keys.mjs`/`check-events.mjs`/`check-api-contract.cjs` 的 `contracts.js`→`.ts` 路径 + 提示文本；`check-jsx.mjs` 头注释；`health-check.cjs` 无需改（路径本就无扩展名）。
+    - 门禁全绿：type-check 0 错 / 五门禁 / test:all / build / check:health 无错误。
+    - **全仓库不再有 .jsx/.js 源码、无任何永久豁免。TS 规范化重构彻底收官。**

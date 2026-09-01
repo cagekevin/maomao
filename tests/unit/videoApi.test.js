@@ -7,7 +7,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { jsonResp, fastPollTimers } from './_testUtils.mjs'
 import { timeoutMessage } from '../../src/components/base/genErrors.ts'
-import { VIDEO_TIMEOUT } from '../../src/components/base/config.js'
+import { VIDEO_TIMEOUT } from '../../src/components/base/config.ts'
 
 const fetchMock = globalThis.fetch
 

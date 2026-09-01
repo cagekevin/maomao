@@ -20,7 +20,7 @@
  *        → mapKeyToDomain()（查 STORAGE_KEYS 精确/pattern 映射到 domain）→ 按 domain 聚合
  *
  * 三个函数都经 enumerateLocalEntries() 枚举「实际落盘的原始键（rawKey 带 yimao: 前缀）」，
- * 保证统计的是真实数据；domain 映射以 contracts.js 的 STORAGE_KEYS 为唯一事实源。
+ * 保证统计的是真实数据；domain 映射以 contracts.ts 的 STORAGE_KEYS 为唯一事实源。
  *
  * 【口径（与 UI 约定）】
  *   - estimateBrowserStorage()：navigator.storage.estimate() → IndexedDB + Cache Storage 用量。
@@ -30,7 +30,7 @@
  *     经 STORAGE_KEYS 映射到 domain，按 domain 汇总占用（只读，无副作用）。
  *
  * 【红线】本模块只读存储，不写、不删。任何清理动作必须走 contentStore 唯一入口，禁止散写。
- *   domain 映射以 contracts.js 的 STORAGE_KEYS 为唯一事实源，不硬编码键名/前缀。
+ *   domain 映射以 contracts.ts 的 STORAGE_KEYS 为唯一事实源，不硬编码键名/前缀。
  *   前缀用 storageAdapter.KEY_PREFIX（单一来源，已导出），勿在本文件硬编码 'yimao:'。
  *
  * 【⚠️ 清理建议（若下个 AI 做「清理」，先读这条）】
@@ -45,7 +45,7 @@
  *      「可删的无用数据」。真正确认可删，要靠业务语义（如过期缓存、已导出的历史快照），别凭大小猜。
  */
 import { isChromeExtension, KEY_PREFIX } from './storageAdapter.ts'
-import { STORAGE_KEYS } from '../contracts.js'
+import { STORAGE_KEYS } from '../contracts.ts'
 import { compilePatternRegex } from '../utils.ts'
 
 /**
@@ -65,7 +65,7 @@ export const STORAGE_PRESSURE_RATIO = 0.85
 
 /**
  * 【已弃用】AI 会话键级本地存储预算预警。
- * 会话键 `agent_conversations_*` 已迁 localTool KV（contracts.js backend:'kv'，
+ * 会话键 `agent_conversations_*` 已迁 localTool KV（contracts.ts backend:'kv'，
  * 见 docs/AI助手会话存储迁移-KV收口事实记录.md），不再占用 localStorage / chrome.storage，
  * 故「本地存储配额键级预警」已无意义。本函数固定返回 null（不枚举、不误报）。
  * 真正兜底会话体积的是 volumePolicy 的 L3 预算降级（applyConversationBudget），与本地存储配额无关。

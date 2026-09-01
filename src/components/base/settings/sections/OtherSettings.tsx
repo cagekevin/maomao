@@ -23,7 +23,7 @@ function SettingRow({ icon: Icon, title, desc, checked, onChange }) {
  * 其他设置（应用设置统一收口，见 docs/18）。
  *
  * 开关由 settings/settingRegistry.js 的 UI_SETTING_ROWS 驱动——新增开关只需在注册表加一项，
- * 这里自动渲染。切换经 appSettings 持久化，且 app_settings 整键随云端同步（见 contracts.js）。
+ * 这里自动渲染。切换经 appSettings 持久化，且 app_settings 整键随云端同步（见 contracts.ts）。
  */
 export default function OtherSettings() {
   const settings = useAppSettings()

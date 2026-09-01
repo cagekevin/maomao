@@ -29,7 +29,7 @@ function stubFileReader() {
   }
 }
 
-// API_BASE 在 config.js 硬编码为 http://127.0.0.1:18080
+// API_BASE 在 config.ts 硬编码为 http://127.0.0.1:18080
 describe('imageUrl §2.17', () => {
   it('toAbsoluteFileUrl 把 /files/ 相对路径补全为绝对 URL', () => {
     expect(toAbsoluteFileUrl('/files/a.png')).toBe('http://127.0.0.1:18080/files/a.png')

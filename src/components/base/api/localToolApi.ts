@@ -15,7 +15,7 @@
  *  非 2xx 抛 HttpError，本模块不吞错误、不改写 message（CONTEXT 错误透传铁律）。
  */
 import { httpRequest, httpPost } from './httpClient.ts'
-import { API_BASE } from '../config.js'
+import { API_BASE } from '../config.ts'
 import { UPLOAD_DIRS } from '../uploadDirs.ts'
 
 /**

@@ -5,7 +5,7 @@
  *  - 业务共享数据（画布 canvas-state-* / 账号 yimao_accounts / endpoint active_api_endpoint）→ 走 localTool KV（/api/kv/*，SQLite，磁盘持久化/跨端共享）
  *  - 纯本机数据（projects/app_settings/configs 等）→ 浏览器 localStorage
  *
- * 「哪个键走 KV」以 contracts.js STORAGE_KEYS 登记为准（见 isKvKey，单一事实源），
+ * 「哪个键走 KV」以 contracts.ts STORAGE_KEYS 登记为准（见 isKvKey，单一事实源），
  * 而非仅靠前缀——避免登记成 kv 的键仍被当 local 写进浏览器存储。
  *
  * 本模块实现同样的「统一存储抽象」storageGet/storageSet/storageDelete，
@@ -20,7 +20,7 @@
 import { sGet, sSet, sRemove } from './storageAdapter.ts'
 import { kvGet, kvSet, kvDelete } from '../api/localToolApi.ts'
 import { reportDegrade } from '../degrade.ts'
-import { CANVAS_STATE_PREFIX, STORAGE_KEYS } from '../contracts.js' // 单一来源：画布 KV 前缀与后端判定统一在契约层
+import { CANVAS_STATE_PREFIX, STORAGE_KEYS } from '../contracts.ts' // 单一来源：画布 KV 前缀与后端判定统一在契约层
 import { compilePatternRegex } from '../utils.ts'
 
 // 画布类 key 前缀（对齐官方 Ar.CANVAS_STATE_PREFIX，localTool KV 侧会带此前缀）
@@ -31,7 +31,7 @@ export { CANVAS_STATE_PREFIX }
 export { kvGet, kvSet, kvDelete }
 
 /**
- * 后端判定统一收口：以 contracts.js STORAGE_KEYS 登记为准（backend === 'kv'）。
+ * 后端判定统一收口：以 contracts.ts STORAGE_KEYS 登记为准（backend === 'kv'）。
  * 修 R1：此前仅认 canvas-state- 前缀，登记成 kv 的键（如 yimao_accounts）会被当 local 写进浏览器存储 → 关闭插件重开丢。
  *
  * 判断规则：

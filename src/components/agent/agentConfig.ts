@@ -10,7 +10,7 @@
  *   - A 运行时常量（本层定义）——由 agentCore/agentRuntime 迁入：
  *       MAX_TOOL_ROUNDS / ENABLE_TOOLS_ON_NON_STREAM / AGENT_TEMPERATURE
  *   - B 内置 system prompt（占位，P1 迁入）——CANVAS_AGENT_RULES / SKILL_EXECUTION_RULES
- *   - C env 重导出——来自 base/config.js（env 读取仍归 config.js，这里只 re-export 不重复定义）
+ *   - C env 重导出——来自 base/config.ts（env 读取仍归 config.ts，这里只 re-export 不重复定义）
  *   - D 用户持久化偏好透传（占位，后续聚合）——agentModelStore / runModeRegistry
  *
  * 【不变量】（docs/66 §7）本文件只挪「常量位置」，不触碰 buildRequestMessages /
@@ -26,7 +26,7 @@ import {
   AGENT_MODELS,
   AGENT_CONTEXT_WINDOW_DEFAULT,
   AGENT_CONTEXT_OUTPUT_BUDGET_RATIO,
-} from '../base/config.js'
+} from '../base/config.ts'
 
 // ── A. 运行时常量 ────────────────────────────────────────────────
 /** 多轮工具循环硬上限（复刻官方 shared.js ur=8，防 AI 死循环） */
@@ -124,9 +124,9 @@ export const AGENT_PROMPTS = Object.freeze({
 - 【统一风格契约（对齐大雄 global_contract）】阶段1 策划须先给出 global_contract 三字段：visual_positioning（视觉整体定位）、unified_style_prompt（统一风格提示词）、unified_negative_prompt（统一负面提示词），并在 show_plan_for_confirm 里传 global_contract；后续每步 prompt 头部必须原样携带这三项，不可改写、不可省略。`,
 })
 
-// ── C. env 重导出（来自 base/config.js，避免双源）────────────────
-// 说明：env 读取的单一来源仍是 base/config.js，此处仅 re-export 供 AI 助手统一入口引用，
-// 不产生第二个定义。当前零消费者（消费方仍走 base/config.js），无害且为后续切换铺路。
+// ── C. env 重导出（来自 base/config.ts，避免双源）────────────────
+// 说明：env 读取的单一来源仍是 base/config.ts，此处仅 re-export 供 AI 助手统一入口引用，
+// 不产生第二个定义。当前零消费者（消费方仍走 base/config.ts），无害且为后续切换铺路。
 export {
   LLM_CHAT_BASE_URL,
   LLM_CHAT_API_KEY,

@@ -1,7 +1,7 @@
-// 回归测试：logger.js、config.js 中的 API_BASE
+// 回归测试：logger.js、config.ts 中的 API_BASE
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { readFileSync } from 'node:fs'
-import { API_BASE } from '../../src/components/base/config.js'
+import { API_BASE } from '../../src/components/base/config.ts'
 
 // logger 内部有模块级单例去重状态 _lastReport，跨测试会污染。
 // 每个测试前 resetModules + 动态 import 拿干净实例，保证去重计时从零开始。
@@ -13,7 +13,7 @@ beforeEach(async () => {
   logger = mod.logger
 })
 
-describe('config.js §API_BASE 日志与配置', () => {
+describe('config.ts §API_BASE 日志与配置', () => {
   it('API_BASE 是字符串且以 http 开头', () => {
     expect(typeof API_BASE).toBe('string')
     expect(API_BASE.startsWith('http')).toBe(true)
@@ -24,18 +24,18 @@ describe('config.js §API_BASE 日志与配置', () => {
   })
 
   it('所有 API 层统一从这里取 API_BASE（被引用）', async () => {
-    // 硬证据：直接读 API 层源码，断言其 import 语句确实引用了 config.js
+    // 硬证据：直接读 API 层源码，断言其 import 语句确实引用了 config.ts
     // （videoApi.js 已薄壳化，config 消费方收敛到深模块 proxyGenerate.js）
-    // kvStore.js 的 KV 转发已收口到 localToolApi.js，不再直接依赖 config.js，故不在硬证据清单
+    // kvStore.js 的 KV 转发已收口到 localToolApi.js，不再直接依赖 config.ts，故不在硬证据清单
     const apiFiles = [
       'api/proxyGenerate.ts', // 深模块化后收进 base/api/（2026-08-31）
       'api/localToolApi.ts',
       'api/filesApi.ts',
-      'logger.ts', // logger 已 TS 化（本清单读源码断言引用 config.js，路径后缀随改名同步）
+      'logger.ts', // logger 已 TS 化（本清单读源码断言引用 config.ts，路径后缀随改名同步）
     ]
     for (const f of apiFiles) {
       const src = readFileSync(`src/components/base/${f}`, 'utf8')
-      expect(src).toMatch(/config\.js/)
+      expect(src).toMatch(/config\.(js|ts)/)
     }
     // 软证据：衍生 API 层能成功 import（依赖解析未断）
     const videoApi = await import('@/components/base/api/videoApi.ts')

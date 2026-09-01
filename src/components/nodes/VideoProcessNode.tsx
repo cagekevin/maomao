@@ -29,7 +29,7 @@ import { useCanvasEdges } from '../base/CanvasEdgesContext.tsx'
 import { httpRequest } from '../base/api/index.ts'
 import previewUrls from '../base/previewUrl.ts'
 import { UPLOAD_DIRS } from '../base/uploadDirs.ts'
-import { DOWNLOAD_TIMEOUT, VIDEO_DOWNLOAD_TIMEOUT } from '../base/config.js'
+import { DOWNLOAD_TIMEOUT, VIDEO_DOWNLOAD_TIMEOUT } from '../base/config.ts'
 import { createRafBatch } from '../base/utils.ts'
 
 /* ════════════════════════════════════════════════════════════════

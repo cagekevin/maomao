@@ -139,7 +139,7 @@ describe('cloudSync — uploadConfig / downloadConfig 边界', () => {
     expect(ls.providers).toBeUndefined() // API 配置跳过
   })
 
-  it('同步清单由 contracts.js getLocalKeys() 生成：真实设置进云，排除本机/临时/本地引用键', async () => {
+  it('同步清单由 contracts.ts getLocalKeys() 生成：真实设置进云，排除本机/临时/本地引用键', async () => {
     const { contentSet } = await import('../../src/components/base/contentStore.ts')
     // 真实设置（此前未进手写清单，收口后应同步）
     contentSet('agent_panel_width', '320')

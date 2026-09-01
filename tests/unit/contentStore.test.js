@@ -44,7 +44,7 @@ import {
   contentClearCache, contentStats,
 } from '../../src/components/base/contentStore.ts'
 
-import { STORAGE_KEYS } from '../../src/components/base/contracts.js'
+import { STORAGE_KEYS } from '../../src/components/base/contracts.ts'
 
 /* ════════════════════════════════════════════════════════════════
  * 准备工作：每个测试前重置 mock

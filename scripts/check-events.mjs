@@ -53,10 +53,10 @@ const LITERAL_EVENT_RE = new RegExp(
 // ── 加载事件登记表 ──
 let EVENTS = {}
 try {
-  const mod = await import(pathToFileURL(resolve(root, 'src/components/base/contracts.js')).href)
+  const mod = await import(pathToFileURL(resolve(root, 'src/components/base/contracts.ts')).href)
   EVENTS = mod.EVENTS || {}
 } catch (e) {
-  console.error('  ✖ 无法加载 contracts.js 事件登记表：', e.message)
+  console.error('  ✖ 无法加载 contracts.ts 事件登记表：', e.message)
   process.exit(1)
 }
 
@@ -101,7 +101,7 @@ for (const file of targets) {
     continue
   }
   // 跳过登记表自身与 eventBus 定义（其含文档示例，且自身是校验目标）
-  // 扩展名无关：contracts.js 保留 .js、eventBus 可能转 .ts，故按不含扩展名的 basename 判断
+  // 扩展名无关：contracts.ts / eventBus.ts 均可能改后缀，故按不含扩展名的 basename 判断
   const relNoExt = rel.slice(0, rel.length - extname(rel).length)
   if (relNoExt.endsWith('contracts') || relNoExt.endsWith('eventBus')) continue
 
@@ -231,6 +231,6 @@ if (violations === 0) {
 } else {
   console.error(`\n发现 ${violations} 处事件契约问题 ✖`)
   console.error('① 裸事件名未登记 或 ② 登记表 to/from 与代码实测不一致（滞后/漂移/stale）。')
-  console.error('请同步更新 src/components/base/contracts.js 的 EVENTS（禁止仅凭表内 to:[] 判定死事件）。')
+  console.error('请同步更新 src/components/base/contracts.ts 的 EVENTS（禁止仅凭表内 to:[] 判定死事件）。')
   process.exit(1)
 }

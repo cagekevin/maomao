@@ -38,7 +38,7 @@
 
 * **组件目录归类**：已全部归类至 `nodes/`、`panels/`、`scriptbox/`、`base/`、`edges/`。**禁止新增平铺顶层组件**。
 * **Hook 分类**：分为数据桥接、交互、能力、引擎、状态、lod。命名 `useXxx`，只封装逻辑不写 UI，纯逻辑需可单测。
-* **配置集中**：环境变量统一在 `config.js` 读一次。魔法数字/超时/阈值命名常量。禁止各文件裸读 env 或裸写数字。
+* **配置集中**：环境变量统一在 `config.ts` 读一次。魔法数字/超时/阈值命名常量。禁止各文件裸读 env 或裸写数字。
 
 ### C. 重型重构 SOP（目录迁移 / 大范围改动必走）
 
@@ -75,7 +75,7 @@
 * **程序化建节点+连线**：**唯一**走 `base/deriveNodes.ts` 链路，原子进 undo。
 * **单源节点目录**：`base/NodePalette.ts` 是唯一目录。
 * **⚠️ 新增节点必做 3 处同步**：1. Palette 登记；2. `useConnectedInputs.ts` 声明产出（漏写会导致下游拿不到数据）；3. 文档登记。例外：`director3dNode` 与 `ghostTarget` 由 App.tsx 派生后补充。
-* **节点类型/参数记忆契约**：`useNodePrefs` 首参（节点命名空间）必须先登记 `contracts.js` 的 `NODE_TYPES`（编译期由 `npm run check:node-types` 拦截），禁止散落裸字符串当命名空间；拼错会让该节点「上次参数」跨窗口静默失效。
+* **节点类型/参数记忆契约**：`useNodePrefs` 首参（节点命名空间）必须先登记 `contracts.ts` 的 `NODE_TYPES`（编译期由 `npm run check:node-types` 拦截），禁止散落裸字符串当命名空间；拼错会让该节点「上次参数」跨窗口静默失效。
 * **节点统一范式**：外壳用 `NodeShell`（禁止手写外壳）；UI 用 `useState(data.xxx)`、写回用 `setNodes` 不可变更新；上游数据走 `useConnectedInputs`。详见 `spec/NEW-NODE-GUIDE.md`。
 * **管线契约**：`useConnectedInputs.ts` 的 `NODE_OUTPUTS` 是「下游自动拿上游数据」的唯一声明，有产出的节点必须登记，数组型用 `arrayImages` 归一。
 
@@ -92,7 +92,7 @@
 
 | 模块 | 唯一入口 | 核心规则 | 🚫 严禁行为 |
 | --- | --- | --- | --- |
-| **① 通信** | `eventBus.ts` | 瞬时事件广播；事件先在 `contracts.js` 登记（编译期由 `npm run check:events` 静态拦截裸事件名）。 | eventBus 存状态 / store 发事件 |
+| **① 通信** | `eventBus.ts` | 瞬时事件广播；事件先在 `contracts.ts` 登记（编译期由 `npm run check:events` 静态拦截裸事件名）。 | eventBus 存状态 / store 发事件 |
 | **② 表现** | `toastStore.ts` | 业务只调语义化 4 档 (Success/Error/Warning/Info)。 | `showToast('x',{type})` 混写 |
 | **③ 观测** | `logger.ts` | 记录+上报，供排查使用。 | 裸写 `console.log/warn/error` |
 | **④ 持久化** | `contentStore` | 横切存储权威入口；按 KEYS 自动路由底层存储。 | 业务直调 storageAdapter / 散落字符串 |
@@ -101,9 +101,9 @@
 | **⑥ 工具** | `idGen.ts` / `utils.ts` | 通用纯工具集合。 | 手写 `Date.now().toString(36)` 造 ID |
 | **⑦ 下载** | `clipboard.downloadUrl` | 统一文件下载与导出。 | 自写 `createObjectURL + a.download` |
 
-> **协作规则（不越层）**：弹提示→②、记日志→③、广播→①、存数据→④、算/转换→⑤⑥、下载→⑦。**禁止越层**（toast 不写日志、logger 不弹提示）。新增事件/存储键/错误类型先到 `contracts.js` 登记再实现。
+> **协作规则（不越层）**：弹提示→②、记日志→③、广播→①、存数据→④、算/转换→⑤⑥、下载→⑦。**禁止越层**（toast 不写日志、logger 不弹提示）。新增事件/存储键/错误类型先到 `contracts.ts` 登记再实现。
 
-> **debug 开关（查 bug 临时日志用，已升级为通用 DEBUG）**：`config.js` 的 `DEBUG`（`isDebugModuleOn(module)`）按模块分类控制 `logger.debug` 输出，默认全关、不上报后端。模块位集中在 `DEBUG_MODULES = ['asset','agent','image','text']`（素材库 / AI 助手 / 图片生成全链路 / 文本节点）。开启：`.env` 加 `VITE_DEBUG_ALL=1`（全开）或 `VITE_DEBUG_<MODULE>=1`（单模块），运行时 `window.__DEBUG_ALL` / `window.__DEBUG_<MODULE>`。`DEBUG_ASSET` 保留为 asset 模块位别名（旧引用不破）。**新增模块直接在 `DEBUG_MODULES` 登记，禁止再起独立散开关**。详见 CLAUDE.md §3.2（改 bug 先加日志）。
+> **debug 开关（查 bug 临时日志用，已升级为通用 DEBUG）**：`config.ts` 的 `DEBUG`（`isDebugModuleOn(module)`）按模块分类控制 `logger.debug` 输出，默认全关、不上报后端。模块位集中在 `DEBUG_MODULES = ['asset','agent','image','text']`（素材库 / AI 助手 / 图片生成全链路 / 文本节点）。开启：`.env` 加 `VITE_DEBUG_ALL=1`（全开）或 `VITE_DEBUG_<MODULE>=1`（单模块），运行时 `window.__DEBUG_ALL` / `window.__DEBUG_<MODULE>`。`DEBUG_ASSET` 保留为 asset 模块位别名（旧引用不破）。**新增模块直接在 `DEBUG_MODULES` 登记，禁止再起独立散开关**。详见 CLAUDE.md §3.2（改 bug 先加日志）。
 
 ---
 
@@ -137,10 +137,10 @@
 * **新增 store/持久化自查**：会不会产生画布↔任务↔磁盘不一致？写码时主动规避（排查脚本见 CLAUDE.md §四）。
 * **字符串契约零损伤（红线，改任何引用必须全量 grep 同步）**：`proxyMode=local-tool`、`127.0.0.1:18080`、`127.0.0.1:9004`、`/api/proxy`、`x-proxy-url`、画布硬编码字段 `t.data[0].url`、`{code,data}` 信封、SSE 事件格式。禁止局部替换漏网。
 * **SSE 流式三件套豁免 httpClient（红线）**：`chatApi.ts`/`imageApi.ts`/`videoApi.ts` 走独立 `proxyGenerate.ts` 深模块（SSE 逐块/轮询 + envelope 语义），**禁止迁移到 `httpClient.ts`**——httpClient 的「非 2xx 抛 HttpError + 网络/超时自动重试」会破坏流式增量、多轮工具循环与轮询节奏。三个文件头部均带「为何不走 httpClient」注释。新网络请求仍一律走 httpClient，本豁免仅限此三件套。
-* **本地后端地址单一来源（P0-4 红线）**：localTool 端口统一读 `config.js` 的 `LOCAL_TOOL_PORT`，全库禁止裸写 `18080`/`localhost:18080`/`127.0.0.1:18080`。前端 `API_BASE` 经 `VITE_API_BASE` env 覆盖；`public/background.js` 为独立 service worker 无法 import，单独声明但统一为 `127.0.0.1:18080` 并注释对齐原因。改地址只动 config.js（+ 必要时 background.js 顶部常量）。
-* **后端预留路由勿当死代码删（P0-4 红线）**：`admin.ts`/`official.ts`/`platform.ts`/`passthrough.ts` 存在但前端零调用的端点为「预留/上游转发」，改动前后端契约前先看 `contracts.js` 的 **`apiRegistry`**（唯一契约真源，含 RESERVED 组标 status='RESERVED'，勿当死代码删），并跑 `npm run check:api` 双向校验。**check:api 已含前端 fn 存在性校验（R5，2026-08-22）**：ACTIVE 条目的 fn（形如 `模块.符号`/`模块.对象.方法`）必须能在对应前端模块找到导出，找不到报 `warn 幽灵ACTIVE`（RESERVED 报 `info fn缺失(保留待实现)`）；占位/描述形态（含空格/括号/`+`、`(前端零消费)`、`API_ENDPOINTS.*` 常量引用）豁免。新增 ACTIVE 登记时必须保证前端确有对应函数，防幽灵条目。
-* **API 信封契约（P0 红线，2026-08-22 统一）**：localTool 具名 CRUD handler 成功返回统一 `{code:0,data:{...}}`（前端薄壳读 `res.data.xxx`），错误 `{error:{code,message}}`（后端 sendError 带 code，前端 `extractErrorDetail` 兜底保留字符串形态）。**豁免类型不套信封**：`stream`（files read/thumbnail 二进制流）/`sse`（agentChat/proxy 流）/`raw`（kvGet 裸 null/裸值）/`probe`（status 探针）/`stub`（jianying/workflow-apps 桩）——新增端点先查 `contracts.js apiRegistry` 的 envelope 标注，改 handler 必须同步登记表，否则 `check:api` 报错。
-* **画布快照 schema 版本化（P0-4 红线）**：`saveCanvasState` 落盘 `schemaVersion`（读 `contracts.js.CANVAS_SCHEMA_VERSION`）；`loadCanvasState` 兼容缺版本旧快照（视为 v1）。变更快照结构须提升版本 + 补迁移，禁止原地改旧结构影响可恢复性。
+* **本地后端地址单一来源（P0-4 红线）**：localTool 端口统一读 `config.ts` 的 `LOCAL_TOOL_PORT`，全库禁止裸写 `18080`/`localhost:18080`/`127.0.0.1:18080`。前端 `API_BASE` 经 `VITE_API_BASE` env 覆盖；`public/background.js` 为独立 service worker 无法 import，单独声明但统一为 `127.0.0.1:18080` 并注释对齐原因。改地址只动 config.ts（+ 必要时 background.js 顶部常量）。
+* **后端预留路由勿当死代码删（P0-4 红线）**：`admin.ts`/`official.ts`/`platform.ts`/`passthrough.ts` 存在但前端零调用的端点为「预留/上游转发」，改动前后端契约前先看 `contracts.ts` 的 **`apiRegistry`**（唯一契约真源，含 RESERVED 组标 status='RESERVED'，勿当死代码删），并跑 `npm run check:api` 双向校验。**check:api 已含前端 fn 存在性校验（R5，2026-08-22）**：ACTIVE 条目的 fn（形如 `模块.符号`/`模块.对象.方法`）必须能在对应前端模块找到导出，找不到报 `warn 幽灵ACTIVE`（RESERVED 报 `info fn缺失(保留待实现)`）；占位/描述形态（含空格/括号/`+`、`(前端零消费)`、`API_ENDPOINTS.*` 常量引用）豁免。新增 ACTIVE 登记时必须保证前端确有对应函数，防幽灵条目。
+* **API 信封契约（P0 红线，2026-08-22 统一）**：localTool 具名 CRUD handler 成功返回统一 `{code:0,data:{...}}`（前端薄壳读 `res.data.xxx`），错误 `{error:{code,message}}`（后端 sendError 带 code，前端 `extractErrorDetail` 兜底保留字符串形态）。**豁免类型不套信封**：`stream`（files read/thumbnail 二进制流）/`sse`（agentChat/proxy 流）/`raw`（kvGet 裸 null/裸值）/`probe`（status 探针）/`stub`（jianying/workflow-apps 桩）——新增端点先查 `contracts.ts apiRegistry` 的 envelope 标注，改 handler 必须同步登记表，否则 `check:api` 报错。
+* **画布快照 schema 版本化（P0-4 红线）**：`saveCanvasState` 落盘 `schemaVersion`（读 `contracts.ts.CANVAS_SCHEMA_VERSION`）；`loadCanvasState` 兼容缺版本旧快照（视为 v1）。变更快照结构须提升版本 + 补迁移，禁止原地改旧结构影响可恢复性。
 * **降级透明度（P1-3 红线）**：关键降级（画布 KV→localStorage 等）统一走 `base/degrade.ts` 的 `reportDegrade`（集中日志 + 可选 toast 节流），禁止各处散写 `logger.warn` 后静默，也禁止手写高频 toast 刷屏。
 * **生成链路真相源契约（红线，所有生成节点必守）**：任务中心为结果权威源，node.data 为渲染缓存副本。① `onSuccess` 必须把结果写回 node.data（`data.imageUrl`/`data.videoUrl`），否则刷新丢结果；② 异步可恢复节点必须传 `onRecover`，收到 `agent:task-completed` 广播回填 `resultUrl`；③ **文本类节点例外**——结果本体在 `data.text`、任务中心 `resultUrl` 为空，不套用 onRecover，由 data.text 随画布快照落盘恢复；④ 方向单向：写只走 `useNodeGeneration`，刷新后任务中心→节点回填，节点不回写任务中心。样板：PromptNode / DiscountVideoNode；机制见 `src/hooks/useNodeGeneration.ts` 文件头。
 * **生成节点真相源自查表（新增/改节点必核，缺一项即违约）**：① 是否接入 `useNodeGeneration`？绕开 hook 自写 `reportGenerate`/进度/`setNodes` 即违约；② `onSuccess` 是否写回 `node.data`（`imageUrl`/`videoUrl`/`text`）？只 `setXxx` 不写 data = 刷新丢结果；③ 异步节点是否传 `onRecover`？缺 = 异步完成刷新不恢复（文本例外）；④ `onRecover` 是否对齐 PromptNode 的"节点消失重建"兜底？不一致即样板断裂；⑤ 结果字段命名是否统一（`imageUrl`/`videoUrl`/`text`）？禁双字段冗余（如 `ImageNode` 的 `url`+`imageUrl`）；⑥ 未接入生成节点清单（P1 已收口完毕，2026-08-22 逐节点审计）：**已收口 1 个**：`VideoExtractNode`——原结果仅存 state 刷新丢，已改走 `useNodeData.patchData` 写 `data.extractedImages` 随画布快照落盘（本地 canvas 处理无 server 任务，不走 `useNodeGeneration`，对齐本条③文本类例外思路）。**审计豁免 12 个**：`VideoProcessNode`（本地 ffmpeg，`gifResult`/`outputInfo` 经 `setNodes` 落盘 + spawn 子节点交付）、`GridSplitNode`/`LoopNode`（同步/编排，`spawnAndCommit` 子节点持久）、`GridMergeNode`（结果写 `data.imageUrl`）、`PanoramaNode`（写 `data.imageUrl` + spawn 子节点）、`FaceMosaicNode`（结果经 `outputResults` 生成 imageNode 子节点持久，本节点 `resultUrls` 仅预览）、`ImageNode`/`ImageBoxNode`（非生成节点，落盘 URL 持久）、`GhostTargetNode`/`Director3DNode`/`ScriptBoxNode`/`GroupNode`（无生成语义）。这些节点结果均已落盘/以子节点交付，刷新不丢，**不塞进生成 Seam**（踩 §0 豁免），新节点仍禁自写 `reportGenerate`/进度/`setNodes` 绕开 `useNodeGeneration`。
@@ -156,7 +156,7 @@
 * **`src/components/director3d/` 源出外部开源仓库**（storyai-3d-director-desk），**基本独立于主画布**（自有 schema/编辑器，TS 实现），耦合不深。由 `Director3DNode` 双击进入。
 * **边界（可动，非禁改）**：**不为它写测试、不纳入测试维护**（改它不强制补单测，但 `type-check`/五门禁照跑）；改动按正常 src/ 流程走 + 最小差异，改前先读文件头注释。它是独立设计，别当主项目机制深改——**不是不能改，是要克制、有目的地改**。
 * **领域类型真相源**：`src/components/director3d/project.ts`（`ProjectCamera`/`ProjectObject`/`ProjectReference`/`ProjectSettings`/`ProjectLighting`/`PropertyRegistry`/`ChannelTracks`/`ChannelKey`/`EntityChannelMap`），App/Viewport/panels 复用，**禁止各自重定义后漂移**。新增 director3d 共享类型一律下沉此处。
-* **工程持久化收口（docs/45，2026-08-25）**：director3d 工程已从「纯 localStorage」收口到「localTool KV + uploads/director3d 落盘 + localStorage 降级」双通道。核心可测协议收在 **`src/components/base/d3dPersistence.ts`**（我方代码，唯一入口：`writeProject`/`hydrateProject`，纯函数 `projectKvKey`/`isProjectImageUrl`/`isProjectPersistenceKey`/`externalizeProjectImages`/`pickProjectSource`，走 `contracts.js apiRegistry` 已登记的 `/api/kv/get|set` 与 18080 绝对地址）。director3d 内只做最小适应（`storage.writeJson` 工程键委托异步 fire-and-forget、`project.js` normalize 复用 `isProjectImageUrl` 放行 `/files/` 地址、`App.tsx` 挂载 hydrate 覆盖）。**姿势库键 `director3d-custom-poses` 不进 KV（仍只写 localStorage）**。多开同 key 并发：非全锁，通过 `BroadcastChannel('yimao_director3d_kv')` 广播 D3D_SAVED + 落前冲突提示，把"静默覆盖"变可见（不阻塞编辑）。改持久化契约先改 `d3dPersistence.ts`，勿在 director3d 内部散写第二套。
+* **工程持久化收口（docs/45，2026-08-25）**：director3d 工程已从「纯 localStorage」收口到「localTool KV + uploads/director3d 落盘 + localStorage 降级」双通道。核心可测协议收在 **`src/components/base/d3dPersistence.ts`**（我方代码，唯一入口：`writeProject`/`hydrateProject`，纯函数 `projectKvKey`/`isProjectImageUrl`/`isProjectPersistenceKey`/`externalizeProjectImages`/`pickProjectSource`，走 `contracts.ts apiRegistry` 已登记的 `/api/kv/get|set` 与 18080 绝对地址）。director3d 内只做最小适应（`storage.writeJson` 工程键委托异步 fire-and-forget、`project.js` normalize 复用 `isProjectImageUrl` 放行 `/files/` 地址、`App.tsx` 挂载 hydrate 覆盖）。**姿势库键 `director3d-custom-poses` 不进 KV（仍只写 localStorage）**。多开同 key 并发：非全锁，通过 `BroadcastChannel('yimao_director3d_kv')` 广播 D3D_SAVED + 落前冲突提示，把"静默覆盖"变可见（不阻塞编辑）。改持久化契约先改 `d3dPersistence.ts`，勿在 director3d 内部散写第二套。
 * **uploads 子目录后端白名单（docs/45 §2.3，2026-08-25）**：后端 `localTool/src/utils/fileStore.ts` 的 `normalizeSubfolder` 是唯一校验入口——**顶层根白名单**（`tasks`/`web`/`canvas`/`migrated`/`director3d`）+ 目录逃逸拦截（拒绝 `..`/绝对路径/盘符/未知根，非法回退 `canvas`）。⚠️ 刻意**不做"精确值全禁止"**：素材库有动态分类目录（`migrated/人物`、`migrated/脚本/尾帧变体` 等）与嵌套（`canvas/drop`、`canvas/video-process`），故白名单只卡顶层根、放行合法嵌套，防拼错/越根而非拦分类。
 
 ---
@@ -168,7 +168,7 @@
 | 档位 | 判定条件 | 记录位置 | 🚫 严禁行为 |
 | --- | --- | --- | --- |
 | **代码注释** | 单文件局部机制、调用方单一 | **对应代码文件头**写清「为什么/边界/红线」 | 不另写文档 |
-| **CONTEXT.md** | 横跨 ≥2 处 / 全库决策 / 选型入口 | 本文档对应章节 + `contracts.js` 落地 | 不立 ADR 文件 |
+| **CONTEXT.md** | 横跨 ≥2 处 / 全库决策 / 选型入口 | 本文档对应章节 + `contracts.ts` 落地 | 不立 ADR 文件 |
 | **专项文档** | 需要长篇幅的策略（如错误重试） | 极少数现有专项文档，并在本文档索引 | 不为普通决策新开 |
 
 > **铁律**：1. **不立 ADR 文件**（`docs/adr/` 非决策渠道，历史为空）；2. **主注释优先于散碎注释**——改文件同步更新文件头 JSDoc，别只在改动行塞注释（否则后续 AI 读不到全貌）；3. **本文件只写收口/唯一入口/红线这类决策**，**不记具体 bug 修复**——修 bug 直接在对应代码里写注释说明「为什么改/边界」即可，别往本文件塞。
@@ -185,10 +185,10 @@
 * **本地预览**：`base/previewUrl.ts`（`create/release` 引用计数）。边界：下载走 `clipboard`、持久化降级走 `videoEngine`、`director3d` 不纳入。
 * **ID 生成**：`base/idGen.ts` `generateId`。边界：`accountsStore` 手写 `Date.now().toString` 已收敛回，勿再绕道。
 * **依赖同代纪律（P0-3）**：`@types/react`/`@types/react-dom` 必须与 `react`/`react-dom` 保持**同大版本**；`zustand` 单版本经 `package.json` 的 `overrides`（`^5.0.3`）锁定，防双实例。升级依赖时同步核对这三处，任一回退/错配即触发类型误报或双实例回归。`tsconfig` `skipLibCheck:true`/`strict:false` 为既有演进项，非紧急不缩紧。
-* **模型源唯一（P0-4）**：前端**唯一**模型源是 `base/providerModels.ts` 的 `buildAllModels/resolveProviderModel`（本地 providers 聚合）；后端 `platform.ts` 的 `/api/public/platform/builtin`、`/api/public/platform/models`、`/plugin/manifest.json` 前端**零调用**（**无 `fetchBuiltin`/`Xi`/`fetchPluginManifest` 函数，未实现**），归 `contracts.js` `apiRegistry` 的 `status:'RESERVED'`（handler 保留为「自研替换官方」兜底，勿删）。新增模型下拉一律走 `buildAllModels`，勿再引第二套模型源。
+* **模型源唯一（P0-4）**：前端**唯一**模型源是 `base/providerModels.ts` 的 `buildAllModels/resolveProviderModel`（本地 providers 聚合）；后端 `platform.ts` 的 `/api/public/platform/builtin`、`/api/public/platform/models`、`/plugin/manifest.json` 前端**零调用**（**无 `fetchBuiltin`/`Xi`/`fetchPluginManifest` 函数，未实现**），归 `contracts.ts` `apiRegistry` 的 `status:'RESERVED'`（handler 保留为「自研替换官方」兜底，勿删）。新增模型下拉一律走 `buildAllModels`，勿再引第二套模型源。
 * **useAgentChat 三层拆分**：`agentCore.ts`(纯函数)/`agentRuntime.ts`(运行时)/`useAgentChat.ts`(hook 编排)。契约：useAgentChat 顶部 re-export agentCore，**改纯函数去 agentCore.ts**；roundTrip/runToolCalls 与状态机竞态耦合留在 hook 封装层，勿强行下钻。
 * **图片类节点共享 hover 能力**：`base/useImageHoverActions.tsx` 是 ImageNode / PromptNode 的「裁剪/标记/压缩」hover 操作唯一收口。写回经 `onImageReplaced(dataUrl)` 回调解耦（ImageNode 走 setNodes 不可变更新，PromptNode 走 setImageUrl+patchData），hook 只产出新 dataURL、不耦合节点写回方式。新增图片类 hover 操作走此 hook，勿在两节点各写一份（曾因各写一份导致生图节点 crop 漏 onClick 成死按钮）。
-* **API 契约真源（2026-08-22）**：前端↔localTool 端点唯一真源是 `contracts.js` 的 **`apiRegistry`**（55 条：fn/method/path/envelope/status），与 `localTool/src/router.ts` 的 `routes` 表双向互检由 **`npm run check:api`**（`scripts/check-api-contract.cjs`，挂 prebuild+pretest）完成。**改端点 = 「加函数 + 登记」双动作**，信封形态须标 `ok/code-data/success-data/items` 或豁免 `stream/sse/raw/probe/stub`。前端薄壳统一收口在 `localToolApi.ts`/`filesApi.ts`，散落点（GeneratedView/AssetLibrary/pollTask）已收进薄壳。**勿再引用过时的 `BACKEND_ROUTES`/`API_ENDPOINTS` 占位**（已弃，真源是 apiRegistry）。
+* **API 契约真源（2026-08-22）**：前端↔localTool 端点唯一真源是 `contracts.ts` 的 **`apiRegistry`**（55 条：fn/method/path/envelope/status），与 `localTool/src/router.ts` 的 `routes` 表双向互检由 **`npm run check:api`**（`scripts/check-api-contract.cjs`，挂 prebuild+pretest）完成。**改端点 = 「加函数 + 登记」双动作**，信封形态须标 `ok/code-data/success-data/items` 或豁免 `stream/sse/raw/probe/stub`。前端薄壳统一收口在 `localToolApi.ts`/`filesApi.ts`，散落点（GeneratedView/AssetLibrary/pollTask）已收进薄壳。**勿再引用过时的 `BACKEND_ROUTES`/`API_ENDPOINTS` 占位**（已弃，真源是 apiRegistry）。
 * **脚本盒全量收口至 scriptbox/（2026-08-31）**：`scriptBoxEngine/Prompts/PromptResolver/Schema` 已全部从 `base/` 迁入 `src/components/scriptbox/`（解 base⇄scriptbox 循环，见 download/REPORT P0）。**base/ 不再含任何 scriptbox 业务域专属文件**。
 * **base/ 维持现状、不做 UI/工具分层归组（2026-08-31 决策，勿重复做）**：评估过把 base/ 的 UI 组件收进 `base/ui/`、纯工具进 `base/util/` 等方案——**否决**。理由：① base/ 的 UI 组件（NodeShell/ModelSelect/LazyImage 等）被十几个节点深度依赖，属真·通用 UI 基座，留在 base/ 根即合理；② 应用壳组件（TopNav/LeftPanel/ToastContainer/ErrorBoundary）只被 App.tsx/main.tsx 引用，挪走无架构收益纯增 churn；③ 归类会制造几十处 import 变更 + 高风险，违背 CONTEXT §〇「重构边界」与 §一·C。**base/ 平铺 = 通用地基的合理形态，不主动重排**。若再遇「某个业务域专属文件平铺在 base/」→ 按本段第一条的 scriptBox 先例，逐个收回对应业务域（走 ts-migrate move + 三同步 + 独立 commit），而非整层重排。
 * **网络/存储层深模块化（2026-08-31）**：`base/api/`（8 件：httpClient/proxyGenerate/pollTask/chatApi/imageApi/videoApi/localToolApi/filesApi）与 `base/storage/`（4 件：storageAdapter/kvStore/storageQuota/persistFailureBus）已收成深模块，**外部统一从 `base/api`/`base/storage` 的 index 入口 import，禁绕深层路径**（CONTEXT §一·C）。`contentStore`（横切唯一入口）与 `backupStore`（依赖 contentStore/projectStore）留 base/ 根。**教训**：① backupStore 放 storage/ 会与 projectStore→contentStore→storage 成环，已撤回——深模块按依赖方向收，不机械塞；② **vitest node 环境不支持裸目录 import**，深模块引用一律用显式 `index.ts` 后缀。**UI 组件网（互相引用 + 被 App/edges/节点引用）不深模块化**（无内聚 + 大 churn，见上一条）。

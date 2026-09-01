@@ -33,7 +33,8 @@
  */
 import { sGet, sSet, sRemove } from './storage/index.ts'
 import { storageGet, storageSet, storageDelete, isKvKey } from './storage/index.ts'
-import { STORAGE_KEYS } from './contracts.js'
+import { STORAGE_KEYS } from './contracts.ts'
+import type { StorageKeyMeta } from './contracts.ts'
 import { logger } from './logger.ts'
 import { compilePatternRegex } from './utils.ts'
 
@@ -42,15 +43,10 @@ export type StorageBackend = 'local' | 'kv' | 'native'
 
 /**
  * STORAGE_KEYS 中单条登记项。
- * 【边界】contracts.js 是契约真相源（暂不转 .ts），故在此按本层实际消费的字段
- * 定义最小视图，避免 any 扩散；待其转 .ts 后改为直接引用其类型。
+ * 复用 contracts.ts 的 StorageKeyMeta（单一事实来源，2026-09-01 起 contracts 已转 .ts，
+ * 原「待其转 .ts 后改为直接引用其类型」的收口约定就此兑现，不再本地重定义漂移）。
  */
-export interface StorageKeyEntry {
-  backend: StorageBackend
-  /** true = 动态键模板（如 'canvas-state-v1-{projectId}'），需正则匹配 */
-  pattern?: boolean
-  [key: string]: unknown
-}
+export type StorageKeyEntry = StorageKeyMeta
 
 /** 缓存快照（contentGetSnapshot 的产物）：键名 → 值 */
 export type ContentSnapshot = Record<string, unknown>
@@ -93,7 +89,7 @@ const globalListeners = new Set<ContentGlobalListener>()
 /** 已 warning 的未登记键集合（防重复 warning） */
 const warnedKeys = new Set<string>()
 
-/** STORAGE_KEYS 登记表（contracts.js 为 .js，此处按最小视图收窄一次，供全文件复用） */
+/** STORAGE_KEYS 登记表（单一事实来源，直接引用，供全文件复用） */
 const KEYS = STORAGE_KEYS as Record<string, StorageKeyEntry>
 
 // P6：动态键模板 → 编译后正则，统一走 utils.compilePatternRegex（2026-08-30 收口，原本地副本已删）
@@ -150,7 +146,7 @@ function checkRegistered(key: string): boolean {
   if (isLiteral && process.env.NODE_ENV !== 'production') {
     throw new Error(
       `[contentStore] 未登记的存储键: "${key}"。` +
-      `请先在 src/components/base/contracts.js 的 STORAGE_KEYS 登记（禁止裸字符串 key）。` +
+      `请先在 src/components/base/contracts.ts 的 STORAGE_KEYS 登记（禁止裸字符串 key）。` +
       `动态拼接键请确认拼接结果已登记为 pattern 模板。`
     )
   }
@@ -160,9 +156,9 @@ function checkRegistered(key: string): boolean {
   // 【签名对齐】logger.warn 现签名为 (category, action, detail?)；此处原按「整句即 category」的旧
   // 用法传单参，转 .ts 后暴露。改为标准两参，日志输出从「整句」变为「contentStore | 整句」。
   if (isLiteral) {
-    logger.warn('contentStore', `未登记的存储键: "${key}"，请先在 contracts.js 的 STORAGE_KEYS 登记`)
+    logger.warn('contentStore', `未登记的存储键: "${key}"，请先在 contracts.ts 的 STORAGE_KEYS 登记`)
   } else {
-    logger.warn('contentStore', `未登记的存储键(动态): "${key}"，请先在 contracts.js 的 STORAGE_KEYS 登记`)
+    logger.warn('contentStore', `未登记的存储键(动态): "${key}"，请先在 contracts.ts 的 STORAGE_KEYS 登记`)
   }
   return false
 }

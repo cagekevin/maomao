@@ -5,7 +5,7 @@
  *
  * 背景（docs/26-API中转层连接优化-执行计划-2026-08-22.md §B1）：
  * 前端薄壳无中央端点登记表（PRD 缺口①），`BACKEND_ROUTES`/`API_ENDPOINTS` 实为字符串占位（缺口⑨）。
- * 本脚本把 `src/components/base/contracts.js` 的 `apiRegistry`（唯一真源）与
+ * 本脚本把 `src/components/base/contracts.ts` 的 `apiRegistry`（唯一真源）与
  * `localTool/src/router.ts` 的 `routes` 表做程序化互检，防「前端调了后端没实现」的白实现、
  * 「前后端路径错位」的镜像漂移、「信封标注与 handler 形态不符」。
  *
@@ -27,7 +27,7 @@ const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 
 const ROOT = path.resolve(__dirname, '..');
-const CONTRACTS = path.join(ROOT, 'src/components/base/contracts.js');
+const CONTRACTS = path.join(ROOT, 'src/components/base/contracts.ts');
 const ROUTER = path.join(ROOT, 'localTool/src/router.ts');
 const ROUTES_DIR = path.join(ROOT, 'localTool/src/routes');
 
@@ -239,7 +239,7 @@ async function main() {
     const mod = await import(pathToFileURL(CONTRACTS).href);
     registry = mod.apiRegistry || {};
   } catch (e) {
-    console.error('  ✖ 无法加载 contracts.js apiRegistry：', e.message);
+    console.error('  ✖ 无法加载 contracts.ts apiRegistry：', e.message);
     process.exit(1);
   }
   const texts = loadHandlerTexts();

@@ -15,7 +15,7 @@
 
 import { logger } from './logger.ts'
 import { httpRequest } from './api/httpClient.ts'
-import { DOWNLOAD_TIMEOUT } from './config.js'
+import { DOWNLOAD_TIMEOUT } from './config.ts'
 import { generateId } from './idGen.ts'
 import { deepClone } from './utils.ts'
 import { withTimeout, TimeoutError } from './asyncGuard.ts'

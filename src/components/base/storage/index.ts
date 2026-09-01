@@ -9,7 +9,7 @@
  * 注意：contentStore 是「横切存储唯一入口」（CONTEXT §④，dev 校验裸 key），留在 base/ 根
  * 作为对外统一入口；backupStore 依赖 contentStore/projectStore（上层备份编排），留在 base/ 根
  * （放本模块会与 projectStore→contentStore→storage 形成循环，2026-08-31 实测后撤回）。
- * contracts.js EVENTS 表的 from/to 按 basename 匹配（check-events），本模块内文件改名不影响。
+ * contracts.ts EVENTS 表的 from/to 按 basename 匹配（check-events），本模块内文件改名不影响。
  */
 export * from './storageAdapter.ts'
 export * from './kvStore.ts'

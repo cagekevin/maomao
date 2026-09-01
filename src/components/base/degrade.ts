@@ -16,7 +16,7 @@
  */
 import { logger } from './logger.ts'
 import { showToast } from './toastStore.ts'
-import { THROTTLE_MS } from './config.js'
+import { THROTTLE_MS } from './config.ts'
 
 /** 对象形态入参（或字符串兼容形态：层名 → layer） */
 interface ReportDegradeArgs {

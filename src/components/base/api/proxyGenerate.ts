@@ -27,12 +27,12 @@
  * ════════════════════════════════════════════════════════════════
  */
 
-import { API_BASE } from '../config.js'
+import { API_BASE } from '../config.ts'
 import { setTaskPollId } from '../taskStore.ts'
-import { GEN_TIMEOUT, GEN_POLL_INTERVAL, VIDEO_TIMEOUT, VIDEO_POLL_INTERVAL, CHAT_TIMEOUT } from '../config.js'
+import { GEN_TIMEOUT, GEN_POLL_INTERVAL, VIDEO_TIMEOUT, VIDEO_POLL_INTERVAL, CHAT_TIMEOUT } from '../config.ts'
 import { withTimeout, isTimeoutError } from '../asyncGuard.ts'
 import { classifyError, timeoutMessage } from '../genErrors.ts'
-import { GEN_ERRORS } from '../contracts.js'
+import { GEN_ERRORS } from '../contracts.ts'
 import { logger } from '../logger.ts'
 // 【出口回收】所有 /api/proxy 出口经统一 httpRequest（B5），不再裸写 fetch
 import { httpRequest } from './httpClient.ts'

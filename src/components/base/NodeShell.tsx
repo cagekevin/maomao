@@ -3,7 +3,7 @@ import { NodeResizer, useStore } from '@xyflow/react'
 import NodeTitle from './NodeTitle.tsx'
 import CustomHandle from '../edges/CustomHandle.tsx'
 import { useSizeSync } from './hooks.ts'
-import { NODE_AREA_FIXED_BASE_SIZE } from './config.js'
+import { NODE_AREA_FIXED_BASE_SIZE } from './config.ts'
 import ErrorBoundary from './ErrorBoundary.tsx'
 import { logger } from './logger.ts'
 

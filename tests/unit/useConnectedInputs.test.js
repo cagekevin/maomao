@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { getNodeOutput, NODE_OUTPUTS } from '../../src/hooks/useConnectedInputs.ts'
-import { SHOT_HANDLE_PREFIX, shotHandleId, parseShotHandle } from '../../src/components/base/contracts.js'
+import { SHOT_HANDLE_PREFIX, shotHandleId, parseShotHandle } from '../../src/components/base/contracts.ts'
 
 // 分镜端口契约（contracts.SHOT_HANDLE_PREFIX）：写侧 shotHandleId / 读侧 parseShotHandle 必须成对往返
 describe('分镜端口 handle 契约', () => {

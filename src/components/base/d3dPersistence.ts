@@ -6,14 +6,14 @@
  *    把「可测的持久化协议」全部收在这里，director3d 只做最小适应（storage.writeJson 委托 +
  *    normalize 放行 /files/ 地址），业务可测、第三方零污染。
  *  - 本模块依赖的传输全部复用既有唯一入口：
- *      · kvGet/kvSet              —— localToolApi（已登记 contracts.js apiRegistry）
+ *      · kvGet/kvSet              —— localToolApi（已登记 contracts.ts apiRegistry）
  *      · saveInlineToLocal        —— filesApi（sha1 幂等落盘）
  *      · withTimeout              —— asyncGuard（项目统一总超时，防无限挂起）
  *      · UPLOAD_DIRS.director3d   —— uploadDirs（uploads/ 目录中央常量表）
  *
  * 写入契约：POST /api/kv/set { key, value }（本地直写做降级，不吞错）
  * 读取契约：GET  /api/kv/get?key=... → 解析后工程对象或 null
- * 路由路径以 contracts.js apiRegistry 登记为准（/api/kv/get|set|delete，非 docs 方案里的 /api/kv）。
+ * 路由路径以 contracts.ts apiRegistry 登记为准（/api/kv/get|set|delete，非 docs 方案里的 /api/kv）。
  */
 
 import { kvGet, kvSet } from './api/localToolApi.ts'
@@ -22,7 +22,7 @@ import { saveInlineToLocal } from './api/filesApi.ts'
 import { UPLOAD_DIRS } from './uploadDirs.ts'
 import { logger } from './logger.ts'
 import { showToast } from './toastStore.ts'
-import { KV_TIMEOUT } from './config.js'
+import { KV_TIMEOUT } from './config.ts'
 // 【降级落点统一】本地降级副本走 storageAdapter（sGet/sSet，自动 yimao: 前缀），
 // 与 kvStore.storageGet 的降级回读一致，避免「裸 key vs 带前缀」两套副本互不可见（收口缺口）。
 import { sGet, sSet } from './storage/index.ts'

@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 /**
  * config —— 集中配置契约测试。
- * config.js 是 env 变量的唯一读取入口，业务代码不得散落 import.meta.env。
+ * config.ts 是 env 变量的唯一读取入口，业务代码不得散落 import.meta.env。
  * 这里锁两类契约：
  *  1) 默认值（无 env 时各常量取文档化默认）；
  *  2) env 覆盖（VITE_AGENT_MODELS / VITE_AGENT_DEMO 等能正确改写输出）。
@@ -13,7 +13,7 @@ const DEFAULT_MODELS = ['gpt-4o-mini', 'gpt-4o', 'gpt-4o-vision-preview', 'deeps
 /** 重新加载 config 模块（顶层 const 在 import 时求值，需 resetModules 使 env 覆盖生效）。 */
 async function loadConfig() {
   vi.resetModules()
-  return await import('../../src/components/base/config.js')
+  return await import('../../src/components/base/config.ts')
 }
 
 afterEach(() => {

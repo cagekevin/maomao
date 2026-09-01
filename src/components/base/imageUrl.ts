@@ -25,9 +25,9 @@
 import { useCallback } from 'react'
 import { logger } from './logger.ts'
 import { httpRequest } from './api/httpClient.ts'
-import { API_BASE } from './config.js'
-import { IMAGE_FETCH_TIMEOUT } from './config.js'
-import { API_ENDPOINTS } from './contracts.js'
+import { API_BASE } from './config.ts'
+import { IMAGE_FETCH_TIMEOUT } from './config.ts'
+import { API_ENDPOINTS } from './contracts.ts'
 import { useAppSettings } from './appSettings.ts'
 import { compressImage } from './imageCompress.ts'
 

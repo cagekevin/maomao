@@ -21,7 +21,7 @@
  */
 
 import { formatTime } from './utils.ts'
-import { isDebugModuleOn, API_BASE } from './config.js'
+import { isDebugModuleOn, API_BASE } from './config.ts'
 
 /** 日志级别（对齐 console 方法） */
 export type LogLevel = 'info' | 'warn' | 'error'

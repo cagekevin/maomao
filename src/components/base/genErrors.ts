@@ -4,14 +4,14 @@
  * 【为什么存在】此前错误判断散落各处（节点自写 if(/网络错误/)、各 API 各写各的），
  * 分类口径不一致。本模块把「错误 → 类型 → 决策依据」集中：
  *  - classifyError(e) → { type, message, retryable }
- *  - type ∈ abort | timeout | network | http | business（登记于 contracts.js GEN_ERRORS）
+ *  - type ∈ abort | timeout | network | http | business（登记于 contracts.ts GEN_ERRORS）
  *  - retryable：仅 timeout/network 可自动重试（业务失败不重试，防封号）
  *
  * 【用法】调用方拿到 type 后统一决策（abort 原样上抛 / network·timeout 降级 / 其余按业务
- * 处理），禁止再自写 if(/网络错误/) 之类关键词判断。类型登记/文案在 contracts.js GEN_ERRORS。
+ * 处理），禁止再自写 if(/网络错误/) 之类关键词判断。类型登记/文案在 contracts.ts GEN_ERRORS。
  */
 import { isTimeoutError } from './asyncGuard.ts'
-import { GEN_ERRORS } from './contracts.js'
+import { GEN_ERRORS } from './contracts.ts'
 import type { ErrorKind } from '@/types'
 
 /** 错误分类结果 */

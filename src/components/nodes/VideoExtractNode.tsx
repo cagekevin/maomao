@@ -15,7 +15,7 @@ import { logger } from '../base/logger.ts'
 import { classifyError } from '../base/genErrors.ts'
 import previewUrls from '../base/previewUrl.ts'
 
-/** 多窗口剪贴板存储键（contracts.js STORAGE_KEYS 登记，集中避免裸键） */
+/** 多窗口剪贴板存储键（contracts.ts STORAGE_KEYS 登记，集中避免裸键） */
 const MULTIWINDOW_CLIPBOARD_KEY = 'mutiwindow-clipboard'
 
 /**

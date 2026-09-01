@@ -14,10 +14,10 @@ import { fileToDataUrl } from '../base/imageUrl.ts'
 import { runNodeGeneration } from '../base/taskStore.ts'
 import { showToast } from '../base/toastStore.ts'
 import { logger } from '../base/logger.ts'
-import { AGENT_MODELS } from '../base/config.js'
+import { AGENT_MODELS } from '../base/config.ts'
 import previewUrls from '../base/previewUrl.ts'
 import { subscribe } from '../base/eventBus.ts'
-import { CREDIT_GATE_EVENT } from '../base/contracts.js'
+import { CREDIT_GATE_EVENT } from '../base/contracts.ts'
 
 /**
  * ════════════════════════════════════════════════════════════════
@@ -34,7 +34,7 @@ import { CREDIT_GATE_EVENT } from '../base/contracts.js'
  * ════════════════════════════════════════════════════════════════
  */
 
-// 模型列表从 config.js 读取（env VITE_AGENT_MODELS 可覆盖）
+// 模型列表从 config.ts 读取（env VITE_AGENT_MODELS 可覆盖）
 const PANEL_WIDTH_KEY = 'agent_panel_width'
 const AGENT_DRAFT_KEY = 'agent_draft'
 const MIN_WIDTH = 320
@@ -273,7 +273,7 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
   // 它：①与三态选择器完全正交（在直接生图/分步确认/完全自主下一视同仁）；②只控媒体生成，
   //   不管「改画布/改布局」这类零成本操作（那由三态决定）。
   // 判定收敛在 useCanvasAgentTools.executePlanTool 一处：creditHit = getCreditSwitch()。
-  // 读写走 contracts.js 登记的 CREDIT_SWITCH_KEY（index.js 透传 getCreditSwitch/setCreditSwitch）。
+  // 读写走 contracts.ts 登记的 CREDIT_SWITCH_KEY（index.js 透传 getCreditSwitch/setCreditSwitch）。
   const [creditSwitch, setCreditSwitchState] = useState(() => { try { return getCreditSwitch() } catch { return true } })
   const toggleCreditSwitch = () => {
     const next = !creditSwitch

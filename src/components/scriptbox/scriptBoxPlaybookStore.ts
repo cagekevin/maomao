@@ -4,7 +4,7 @@
  * 【职责】
  *  内置 playbook（`scriptBoxWorkflows.js` 里的 SCRIPT_BOX_WORKFLOWS）为只读常量；
  *  自定义 playbook（用户另存为/编辑/删除）持久化在 localStorage 键 `scriptbox_playbooks`
- *  （经 contentStore 统一存储层，键已在 contracts.js STORAGE_KEYS 登记，backend:'local'；
+ *  （经 contentStore 统一存储层，键已在 contracts.ts STORAGE_KEYS 登记，backend:'local'；
  *  禁止直调 storageAdapter / 裸 localStorage）。
  *
  * 【单一数据源铁律】
@@ -24,7 +24,7 @@ import type { WorkflowSpec } from './scriptBoxWorkflows'
 /** normalizeBuiltin 把内置 WorkflowSpec 归一为可存储的 Playbook（补 negative.common，丢弃 constraints.custom）。 */
 type RawWorkflow = WorkflowSpec
 
-/** 自定义 playbook 的 localStorage 键（已在 contracts.js STORAGE_KEYS 登记，domain:'settings'，backend:'local'）。 */
+/** 自定义 playbook 的 localStorage 键（已在 contracts.ts STORAGE_KEYS 登记，domain:'settings'，backend:'local'）。 */
 export const PLAYBOOKS_KEY = 'scriptbox_playbooks'
 
 /**

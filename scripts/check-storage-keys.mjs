@@ -49,10 +49,10 @@ const LITERAL_KEY_RE = new RegExp(
 // ── 加载登记表（运行时导入 contracts.js，含 pattern 模板）──
 let STORAGE_KEYS = {}
 try {
-  const mod = await import(pathToFileURL(resolve(root, 'src/components/base/contracts.js')).href)
+  const mod = await import(pathToFileURL(resolve(root, 'src/components/base/contracts.ts')).href)
   STORAGE_KEYS = mod.STORAGE_KEYS || {}
 } catch (e) {
-  console.error('  ✖ 无法加载 contracts.js 登记表：', e.message)
+  console.error('  ✖ 无法加载 contracts.ts 登记表：', e.message)
   process.exit(1)
 }
 
@@ -124,6 +124,6 @@ if (violations === 0) {
   process.exit(0)
 } else {
   console.error(`\n发现 ${violations} 处未登记裸存储键 ✖`)
-  console.error('请先在 src/components/base/contracts.js 的 STORAGE_KEYS 登记（禁止裸字符串 key）。')
+  console.error('请先在 src/components/base/contracts.ts 的 STORAGE_KEYS 登记（禁止裸字符串 key）。')
   process.exit(1)
 }

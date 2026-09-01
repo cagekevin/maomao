@@ -12,7 +12,7 @@
 本目录（新建文件夹，正式工程）
 ├── src/                        ← 【主力】可维护原型（App.tsx / components/ / base/…）
 ├── public/                     ← 静态资源
-├── index.html + vite.config.js + tailwind.config.js + package.json
+├── index.html + vite.config.ts + tailwind.config.ts + package.json
 ├── scripts/                    ← 测试地基（smoke/regression/tools/health-check），见 scripts/README.md
 ├── spec/                       ← 🏛️ 权威规范（永不误删）：CONTEXT.md（写码决策）/ TEST-GUIDE.md（测试）/ NEW-NODE-GUIDE.md / 横切分层 / 代码组织
 ├── docs/                       ← 临时/历史文档（调查产物，可过时可清理，不维护）
@@ -33,7 +33,7 @@ npm run test:smoke    # AI 默认自检：冒烟质量门（极快）
 npm run check:health  # 工程健康全量检查（内含 check:keys + check:events + check:node-types + build + test:all + TDZ + dist 基线）
 npm run check:events  # 事件契约双向校验：① 裸事件名必须登记 EVENTS；② EVENTS 的 to/from 须与代码实测 subscribe/publish 自洽（防 to:[] 误判死事件）。挂 prebuild+pretest
 npm run check:node-types  # 节点类型静态校验：NODE_TYPES 裸 nodePrefs 命名空间拦截（useNodePrefs 首参必须登记）
-npm run check:api     # API 契约双向校验：contracts.js apiRegistry ↔ localTool router.ts 互检（防白实现/镜像漂移/信封不符），挂 prebuild+pretest
+npm run check:api     # API 契约双向校验：contracts.ts apiRegistry ↔ localTool router.ts 互检（防白实现/镜像漂移/信封不符），挂 prebuild+pretest
 npm run type-check    # tsc --noEmit 类型检查（仅校验 .ts/.tsx，strict 暂未开启）
 ```
 
@@ -64,7 +64,7 @@ node scripts/task-inspect.mjs --canvas-health   # 画布结构体检
 
 | 改动类型 | 决策记在哪 | 一句话 |
 |---------|-----------|--------|
-| 横跨 ≥2 处 / 全库级决策（新增唯一入口、收口、红线） | **`spec/CONTEXT.md`** 对应 § + `contracts.js` | 记 CONTEXT，不另写文档 |
+| 横跨 ≥2 处 / 全库级决策（新增唯一入口、收口、红线） | **`spec/CONTEXT.md`** 对应 § + `contracts.ts` | 记 CONTEXT，不另写文档 |
 | 单文件局部机制 | 该文件**文件头 JSDoc** | 改文件必须同步文件头注释 |
 | 需要篇幅的策略（错误重试等） | 极少数既有专项文档 + CONTEXT 记索引 | 不为普通决策新开 |
 
@@ -139,7 +139,7 @@ node scripts/task-inspect.mjs --canvas-health   # 画布结构体检
 * **节点体系**：`src/components/nodes/*.tsx`，每个节点一个文件，**当前共 17 个**（TextNode/ImageNode/PromptNode/DiscountVideoNode/VideoExtractNode/ImageBoxNode/GridSplitNode/GridMergeNode/VideoProcessNode/GroupNode/ScriptBoxNode/GhostTargetNode/Director3DNode/FaceMosaicNode/LoopNode/PanoramaNode/TemplateNode）。**新增节点权威流程 → `spec/NEW-NODE-GUIDE.md`**（NodeShell 外壳 + 注册同步 + NODE_OUTPUTS 管线契约，顶层规则见 `spec/CONTEXT.md` §一·5）。
 * **通用能力地基**：`src/components/base/`（`NodeShell` 统一外框、`CanvasToolbar`、`useArrangeCanvas`、`useCanvasAgentTools` 脚本盒引擎、Toast、ImageEditor、OverlayEditor、设置面板、AI 助手面板 AgentPanel 等）。
 * **设计语言**：参照 `docs/BASE-CAPABILITIES.md`；节点视觉/交互规范见 `docs/README.md`「节点设计规范」。
-* **运行形态**：Chrome 扩展（MV3）。`public/manifest.json` + `background.js` + `icon*.png` 为插件壳；`src/` 编译后由 `vite.config.js`（`base:'./'`，兼容 `chrome-extension://`）打包进 `dist/`。存储经 `src/components/base/contentStore.ts`（横切存储权威入口，按 `STORAGE_KEYS.backend` 自动路由 local/KV/native：local 走 `base/storage/storageAdapter.ts`（chrome.storage 扩展环境）/原生 `localStorage`；kv 走 localTool KV；native 后端如 director3d 直写原生 `localStorage`）。`npm run dev` 预览画布，`npm run build` 出 `dist/`。
+* **运行形态**：Chrome 扩展（MV3）。`public/manifest.json` + `background.js` + `icon*.png` 为插件壳；`src/` 编译后由 `vite.config.ts`（`base:'./'`，兼容 `chrome-extension://`）打包进 `dist/`。存储经 `src/components/base/contentStore.ts`（横切存储权威入口，按 `STORAGE_KEYS.backend` 自动路由 local/KV/native：local 走 `base/storage/storageAdapter.ts`（chrome.storage 扩展环境）/原生 `localStorage`；kv 走 localTool KV；native 后端如 director3d 直写原生 `localStorage`）。`npm run dev` 预览画布，`npm run build` 出 `dist/`。
 
 * **3D 导演台（director3d）**：`src/components/director3d/` 源出外部开源仓库（storyai-3d-director-desk），但**自 2026-09-01 起按自家仓库处理，已全部 TS 化（26/26 .ts/.tsx）并纳入类型与契约校验，不再豁免——可以动、可以改、可以收口**。由 `Director3DNode` 双击进入。⚠️ **边界**：它仍是相对独立的子模块（自有 schema/编辑器），改动遵循「先读文件头注释 + 按正常 src/ 流程走 + 最小差异」，但不是不能碰的红线。**领域类型真相源在 `src/components/director3d/project.ts`**（`ProjectCamera`/`ProjectObject`/`ProjectReference`/`ProjectSettings`/`ProjectLighting`/`ChannelTracks`/`ChannelKey` 等，App/Viewport/panels 复用，禁止各自重定义漂移）。不为它写测试、不纳入测试维护（改它不强制补单测，但类型/门禁照跑）。
 
@@ -176,7 +176,7 @@ node scripts/task-inspect.mjs --canvas-health   # 画布结构体检
 
 > 命令速查（详见 `spec/TEST-GUIDE.md`，权威）：**`npm test`（= `npm run test:all`）= 冒烟 + vitest 全量单测 + 回归 + Agent 工具** 四件套一次跑完，提交前首选；单项：`npm run test:smoke`（冒烟）/`test:unit`（vitest 单测）/`test:regression`（SSR 回归）/`test:tools`（Agent 工具）；`npm run check:health` 全量编排（含构建 + 测试 + TDZ + dist 基线）。
 
-> ⚠️ **跑 vitest 单次**：`vitest.config.js` 已默认 `watch:false`，裸调 `npx vitest xxx` 也会单次跑完即退（不会挂住）。但**优先用脚本**（内部已配好）：`npm test` / `npm run test:unit`（全量）或 `npx vitest run tests/unit/xxx.test.js`（单文件）。需 watch 时显式 `npx vitest --watch`。若已误入 watch，`Ctrl+C` 或 `pkill -f vitest` 退出。
+> ⚠️ **跑 vitest 单次**：`vitest.config.ts` 已默认 `watch:false`，裸调 `npx vitest xxx` 也会单次跑完即退（不会挂住）。但**优先用脚本**（内部已配好）：`npm test` / `npm run test:unit`（全量）或 `npx vitest run tests/unit/xxx.test.js`（单文件）。需 watch 时显式 `npx vitest --watch`。若已误入 watch，`Ctrl+C` 或 `pkill -f vitest` 退出。
 > 提交前 `pre-commit` 钩子自动跑 `type-check` + `vitest run --changed`（只测改动相关，~2-3s）；**全量单测移到 `pre-push`**（push 前跑 `npm run test:unit` 兜底，避免每次 commit 等全量 ~20s，2026-08-21 起）。`main` 分支的 push/PR 由 `.github/workflows/ci.yml` 云端跑 type-check + 单测。**全量 lint 门禁已移除（弊大于利，门禁靠类型检查 + 测试）**；但保留**单条存储键契约编译期拦截**（不恢复全量 eslint）：`npm run check:keys` 静态校验裸 `STORAGE_KEYS` key（挂 `npm run check:health`）+ `contentStore.checkRegistered` 在 dev 环境对未登记字面量 key 直接 throw。两者零新依赖、不碰 §3.1 的 lint 决策。
 > **写完代码跑哪个**：平时 `npm run type-check` + `test:unit`；改画布/地基或合 main 前再跑 `npm test` 全量兜底（regression/tools 已含在内）。
 
@@ -185,7 +185,7 @@ node scripts/task-inspect.mjs --canvas-health   # 画布结构体检
 **体感类 bug（不落盘/没反应/点了没用）第一反应是加日志让用户复现，不是猜根因改逻辑。**
 
 1. 在可疑链路加 `logger.debug(分类, 动作, 详情)`，仅 `DEBUG_ASSET` 开启时输出，默认安静、不上报后端。
-2. 开关集中 `config.js`：根目录 `.env` 加 `VITE_DEBUG_ASSET=1`，或运行时 `window.__DEBUG_ASSET=true`。业务代码禁散落 `console.log`，统一走 `logger`。
+2. 开关集中 `config.ts`：根目录 `.env` 加 `VITE_DEBUG_ASSET=1`，或运行时 `window.__DEBUG_ASSET=true`。业务代码禁散落 `console.log`，统一走 `logger`。
 3. 拿真实日志（前端 debug / Network / 后端 `[frontend]` 三方对齐）确认根因后再改；改完保留 `debug` 级日志，删临时 `info/warn` 噪音。
 4. **修复完成确认 `DEBUG_ASSET` 已关闭**：默认即关，勿在 `.env` 留 `VITE_DEBUG_ASSET=1`，运行时设的 `window.__DEBUG_ASSET` 排查完清掉。开关默认安静才提交。
 
@@ -261,8 +261,8 @@ node scripts/task-inspect.mjs --canvas-health   # 画布结构体检
 2. **禁止新文件循环 import 大模块**（TDZ）：跨模块引用走既有 barrel / 已导出符号。
 3. **React 单实例不可破**：整工程唯一 React 实例，✗ 不可新增独立 react/react-dom 实例。
 4. **字符串契约零损伤**（见 §五.5）：`proxyMode=local-tool`、`127.0.0.1:18080`、`127.0.0.1:9004`、`/api/proxy`、`x-proxy-url`、画布硬编码字段 `t.data[0].url`、`{code,data}` 信封——改任何引用必须全量 grep 同步。
-5. **存储键禁止裸字符串（P0 红线）**：所有存储读写（`content*/s*/storage*/kv*`）的 key 必须引用 `contracts.js` 的 `STORAGE_KEYS` 登记项，**禁止裸字符串字面量 key**。新增键先登记、改键名全量 grep、删键先确认无引用。编译期拦截：`npm run check:keys`（静态）；运行时拦截：`contentStore.checkRegistered` 在 dev 环境对未登记字面量 key 直接 throw（`scripts/check-storage-keys.mjs` + `src/components/base/contentStore.ts` 为权威实现，改此机制须同步本红线）。
-6. **事件名禁止裸字符串 + 登记表零滞后（P0 红线，与存储键对称）**：所有事件总线调用（`publish`/`subscribe`/`subscribeOnce`）的事件名必须是 `contracts.js` 的 `EVENTS` 登记项，**禁止裸字符串字面量事件名**（编译期 `npm run check:events` 拦截）。`EVENTS` 的 `from`/`to` 是发布/订阅事实源，**必须与代码实测的 `publish`/`subscribe` 位置自洽**：① 表 `to: []` 但代码实测有 `subscribe` → 视为"登记表滞后"（实际已被订阅），**禁止据此判定死事件/可删发布逻辑**；② 行号漂移须同步对齐。双向校验 `npm run check:events` 已挂 `prebuild`+`pretest`（`scripts/check-events.mjs` 为权威实现）。
+5. **存储键禁止裸字符串（P0 红线）**：所有存储读写（`content*/s*/storage*/kv*`）的 key 必须引用 `contracts.ts` 的 `STORAGE_KEYS` 登记项，**禁止裸字符串字面量 key**。新增键先登记、改键名全量 grep、删键先确认无引用。编译期拦截：`npm run check:keys`（静态）；运行时拦截：`contentStore.checkRegistered` 在 dev 环境对未登记字面量 key 直接 throw（`scripts/check-storage-keys.mjs` + `src/components/base/contentStore.ts` 为权威实现，改此机制须同步本红线）。
+6. **事件名禁止裸字符串 + 登记表零滞后（P0 红线，与存储键对称）**：所有事件总线调用（`publish`/`subscribe`/`subscribeOnce`）的事件名必须是 `contracts.ts` 的 `EVENTS` 登记项，**禁止裸字符串字面量事件名**（编译期 `npm run check:events` 拦截）。`EVENTS` 的 `from`/`to` 是发布/订阅事实源，**必须与代码实测的 `publish`/`subscribe` 位置自洽**：① 表 `to: []` 但代码实测有 `subscribe` → 视为"登记表滞后"（实际已被订阅），**禁止据此判定死事件/可删发布逻辑**；② 行号漂移须同步对齐。双向校验 `npm run check:events` 已挂 `prebuild`+`pretest`（`scripts/check-events.mjs` 为权威实现）。
 5. **降复杂度优先**：能减少复杂度又不引入 bug 的改动都做（混淆短名改语义长名、抽公共、删冗余），被运行时契约钉死的除外。改完必须 `npm run build` 验证。
 
 ### 5.5 卡帕西编码准则 (Karpathy Rules)
@@ -353,7 +353,7 @@ node scripts/task-inspect.mjs --canvas-health   # 画布结构体检
 | `spec/CONTEXT.md` | **写码决策地图（唯一中心）**：顶层架构（画布编排×节点体系×地基收口×收口准则）/ 代码组织（含**重型重构 SOP** §一·C）/ 横切 7 块入口 / 并发治理 / 安全密钥 / 数据一致性 |
 | `spec/TEST-GUIDE.md` | **测试体系权威**：命令/分层/SOP/输出规范 |
 | `spec/NEW-NODE-GUIDE.md` | **新建节点权威流程**（高频：骨架/注册/契约/常见坑） |
-| `tailwind.config.js` | **样式令牌唯一真相**（禁裸色值，勿再引用已删的 tailwind-tokens.md） |
+| `tailwind.config.ts` | **样式令牌唯一真相**（禁裸色值，勿再引用已删的 tailwind-tokens.md） |
 
 **🟡 按需参考（不用日常维护；用到了才看）**
 | 文档 | 用途 |
@@ -377,7 +377,7 @@ node scripts/task-inspect.mjs --canvas-health   # 画布结构体检
 
 | 场景 | 做法 |
 | --- | --- |
-| 要改/查 API 端点 | **先看 `contracts.js apiRegistry`（前端↔后端唯一契约真源，55 条）+ 跑 `npm run check:api` 双向校验**；改端点须「加函数+登记」双动作，信封形态标 `ok/code-data/success-data/items` 或豁免 `stream/sse/raw/probe/stub` |
+| 要改/查 API 端点 | **先看 `contracts.ts apiRegistry`（前端↔后端唯一契约真源，55 条）+ 跑 `npm run check:api` 双向校验**；改端点须「加函数+登记」双动作，信封形态标 `ok/code-data/success-data/items` 或豁免 `stream/sse/raw/probe/stub` |
 | 要改代理/转发逻辑 | `localTool/src/routes/system.ts`（`/api/proxy` 剥信封/SSE/异步转同步） |
 | 要查官方权益转发 | `localTool/src/routes/official.ts`（中转+短缓存，不伪造权限） |
 | 要改画布前端 | 改 `src/` → `npm run test:smoke` → `npm run build`；严禁直接手改 dist |

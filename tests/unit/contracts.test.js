@@ -1,6 +1,6 @@
-// 回归测试：contracts.js（横切契约登记表）
+// 回归测试：contracts.ts（横切契约登记表）
 import { describe, it, expect } from 'vitest'
-import { EVENTS, STORAGE_KEYS, GEN_ERRORS, getLocalKeys, getKvKeyPatterns } from '../../src/components/base/contracts.js'
+import { EVENTS, STORAGE_KEYS, GEN_ERRORS, getLocalKeys, getKvKeyPatterns } from '../../src/components/base/contracts.ts'
 
 /* ════════════════════════════════════════════════════════════════
  * STORAGE_KEYS 结构检查

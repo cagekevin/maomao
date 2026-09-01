@@ -12,7 +12,7 @@ vi.mock('../../src/components/base/taskStore.ts', () => ({
   patchTask: vi.fn()
 }))
 
-import { API_BASE } from '../../src/components/base/config.js'
+import { API_BASE } from '../../src/components/base/config.ts'
 import { getTasks, patchTask } from '../../src/components/base/taskStore.ts'
 import * as poll from '@/components/base/api/pollTask.ts'
 

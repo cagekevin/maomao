@@ -19,7 +19,7 @@
 import { useCallback, useEffect, useSyncExternalStore } from 'react'
 import { logger } from '../components/base/logger.ts'
 import { httpRequest } from '../components/base/api/index.ts'
-import { API_BASE, LOCAL_TOOL_PORT, LOCAL_TOOL_PING_TIMEOUT } from '../components/base/config.js'
+import { API_BASE, LOCAL_TOOL_PORT, LOCAL_TOOL_PING_TIMEOUT } from '../components/base/config.ts'
 
 const DEFAULT_PORT = LOCAL_TOOL_PORT
 const POLL_CONNECTED_MS = 15000 // 已连接：15s 轮询一次（官方 Wl）

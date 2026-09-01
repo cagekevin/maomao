@@ -6,7 +6,7 @@
  *  - 任何功能需新字段 → 先在此登记「默认值」，禁止在 UI / 引擎裸加字段；
  *  - 所有读取 node.data 前先经 normalizeScriptBoxData 补齐缺省（向后兼容迁移旧画布数据）。
  *
- * 序列化随画布快照（canvas-state-v1-{projectId}）走，不另立存储键（见 contracts.js 注释），
+ * 序列化随画布快照（canvas-state-v1-{projectId}）走，不另立存储键（见 contracts.ts 注释），
  * 防止双写漂移。归一化返回新对象，不改动传入的 raw。
  */
 import type { Shot } from './scriptBoxPrompts'

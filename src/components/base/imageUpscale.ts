@@ -26,7 +26,7 @@
  */
 import { toAbsoluteFileUrl } from './imageUrl.ts'
 import { loadImageWithTimeout } from './asyncGuard.ts'
-import { IMAGE_LOAD_TIMEOUT } from './config.js'
+import { IMAGE_LOAD_TIMEOUT } from './config.ts'
 import { dataUrlToBlob } from './utils.ts'
 
 /** 图片放大入参（upscaleImage.opts；均可选，见函数头 JSDoc） */

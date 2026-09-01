@@ -4,7 +4,7 @@
  * fetch 全部 mock。
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { API_BASE } from '../../src/components/base/config.js'
+import { API_BASE } from '../../src/components/base/config.ts'
 import { moveFile, canMoveAsset, resolveMovePaths } from '@/components/base/api/localToolApi.ts'
 
 function mockFetchOnce(body, { ok = true, status = 200 } = {}) {

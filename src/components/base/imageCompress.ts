@@ -17,7 +17,7 @@
  */
 import { loadImageWithTimeout } from './asyncGuard.ts'
 import { httpRequest } from './api/httpClient.ts'
-import { IMAGE_LOAD_TIMEOUT, API_BASE } from './config.js'
+import { IMAGE_LOAD_TIMEOUT, API_BASE } from './config.ts'
 import { dataUrlToBlob } from './utils.ts'
 
 // 加载用地址补全：/files/ 相对 → 绝对（本地引擎端口）。与 imageUrl.js 的 toAbsoluteFileUrl 逻辑一致，

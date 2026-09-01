@@ -24,13 +24,13 @@
  *   accounts: [...]                             // 账号环境（KV 后端，非空才含）
  * }
  */
-import { getLocalKeys } from './contracts.js'
+import { getLocalKeys } from './contracts.ts'
 import { contentGet, contentSet, contentGetAsync, contentSetAsync } from './contentStore.ts'
 import { loadCanvasState, saveCanvasState } from './projectStore.ts'
 import { logger } from './logger.ts'
 
-/** localStorage 备份清单 —— 由 contracts.js STORAGE_KEYS 权威登记生成（getLocalKeys()）。
- *  新增存储键先在 contracts.js 登记即自动进备份，禁止再手写清单（防漂移漏备份）。 */
+/** localStorage 备份清单 —— 由 contracts.ts STORAGE_KEYS 权威登记生成（getLocalKeys()）。
+ *  新增存储键先在 contracts.ts 登记即自动进备份，禁止再手写清单（防漂移漏备份）。 */
 const LS_KEYS = getLocalKeys()
 
 /** AI 助手 agentKey 前缀（对齐 App.jsx / conversationState.js 的 agentKey 命名，集中避免散落硬编码） */

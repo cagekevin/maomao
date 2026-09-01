@@ -23,10 +23,10 @@ import { contentGet, contentSet, contentGetAsync, contentSetAsync, createDebounc
 import { sGet } from '@/components/base/storage/index.ts'
 import { withTimeout } from '../../base/asyncGuard.ts'
 import { generateId } from '../../base/idGen.ts'
-import { CREDIT_GATE_FIELD } from '../../base/contracts.js'
+import { CREDIT_GATE_FIELD } from '../../base/contracts.ts'
 import { logger } from '../../base/logger.ts'
 import { reportDegrade } from '../../base/degrade.ts'
-import { KV_TIMEOUT } from '../../base/config.js'
+import { KV_TIMEOUT } from '../../base/config.ts'
 // 【P1c L3 整包预算安全网】落盘前对归一化副本做投影降级，保证整包序列化体积有界（见 volumePolicy.js）
 import { applyConversationBudget, estimateConversationsBytes, SAFE_BUDGET_BYTES } from '../../base/volumePolicy.ts'
 
@@ -134,7 +134,7 @@ export interface ConversationStoreState {
 export type ConversationStorePatch = Omit<ConversationStoreState, 'sending'> & { sending?: boolean }
 /** AI 助手 agentKey 前缀（对齐 App.jsx / backupStore.ts，集中避免散落硬编码） */
 const AGENT_KEY_PREFIX = 'canvas-assistant'
-/** 旧全局会话键（迁移用）：改造前无 agentKey 后缀（contracts.js 登记为 migration 键） */
+/** 旧全局会话键（迁移用）：改造前无 agentKey 后缀（contracts.ts 登记为 migration 键） */
 const LEGACY_CONV_KEY = 'agent_conversations'
 const LEGACY_ACTIVE_KEY = 'agent_active_conversation_id'
 /** 每个 agentKey 的对话消息上限（对齐大雄 AGENT_MSG_MAX = 60，防无限膨胀） */
@@ -214,7 +214,7 @@ export function useConversationStore() {
 /**
  * 【会话存储迁移至 KV】（AI助手会话存储迁移-KV收口事实记录.md）
  * 会话键 `agent_conversations_{agentKey}` / `agent_active_conversation_id_{agentKey}` 已由
- * contracts.js 登记为 `backend:'kv'`。因此读取不能再走同步 `contentGet`（KV 键缓存未命中返回 undefined），
+ * contracts.ts 登记为 `backend:'kv'`。因此读取不能再走同步 `contentGet`（KV 键缓存未命中返回 undefined），
  * 水化改为异步 `contentGetAsync`，并把 localStorage 里的存量会话【幂等】一次性迁入 KV。
  *
  * 交叉/黑盒处理（2026-08-28，防竞态与静默失败）：

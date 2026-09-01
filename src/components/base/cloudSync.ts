@@ -7,7 +7,7 @@
  *  - 之前是 localStorage 模拟假数据；现直接替换为真实云端收发（引擎代码原样保留）。
  *
  * 【同步内容】全量配置/用户数据同步（用户确认体积小，全部进云端）：
- *  - localStorage 用户数据/配置：由 contracts.js STORAGE_KEYS 权威登记生成
+ *  - localStorage 用户数据/配置：由 contracts.ts STORAGE_KEYS 权威登记生成
  *    （getLocalKeys() 减去下方 SYNC_EXCLUDE 不同步清单；项目、应用设置、自定义 Skill、预设、节点偏好、账号环境等）
  *  - API 配置（providers）：走 localTool /api/providers（独立于 localStorage）
  *
@@ -21,15 +21,15 @@
  *
  * ⚠️ 含用户数据（账号环境/API key 等），同步到云端需注意保密。
  */
-import { getLocalKeys, STORAGE_KEYS } from './contracts.js'
+import { getLocalKeys, STORAGE_KEYS } from './contracts.ts'
 import { providerApi, fetchProjects, saveProjects } from './api/localToolApi.ts'
 import { contentGet, contentSet, contentGetAsync, contentSetAsync } from './contentStore.ts'
 import { logger } from './logger.ts'
-import { CLOUD_SYNC_GAS_URL } from './config.js'
+import { CLOUD_SYNC_GAS_URL } from './config.ts'
 
 /* ======================================================================
  * 【标准同步引擎】原样保留，勿改动内部通讯逻辑。
- * 终点 URL 已移入 config.js 的 CLOUD_SYNC_GAS_URL（P2-H 透明化，便于替换/审计）。
+ * 终点 URL 已移入 config.ts 的 CLOUD_SYNC_GAS_URL（P2-H 透明化，便于替换/审计）。
  * ====================================================================== */
 const CloudSyncEngine = {
 config: {
@@ -266,7 +266,7 @@ export async function downloadConfig(onProgress) {
 // 保留引擎导出（供需要直接调用引擎的调用方用），但日常同步请走 uploadConfig/downloadConfig。
 export { CloudSyncEngine }
 
-/* ── localStorage 同步清单：由 contracts.js STORAGE_KEYS 权威登记生成（getLocalKeys()），
+/* ── localStorage 同步清单：由 contracts.ts STORAGE_KEYS 权威登记生成（getLocalKeys()），
  * 显式排除不适合跨设备同步的键（与文件头【不同步】原则一致）：
  *  - lastOpenedProject / agent_draft：本机/临时偏好（不同步）
  *  - yimao_asset_library：本地 URL 引用，跨设备无意义（不同步）
@@ -278,7 +278,7 @@ const LS_KEYS = getLocalKeys().filter((k) => !SYNC_EXCLUDE.has(k))
 
 /**
  * 云同步领域开关（开发者配置常量，集中治理「哪些领域允许进云端」）。
- * KEY 对应 contracts.js STORAGE_KEYS.entry.domain（如 project / account，而非存储键名）。
+ * KEY 对应 contracts.ts STORAGE_KEYS.entry.domain（如 project / account，而非存储键名）。
  *  - account：true，账号环境走 KV，需专门上传/下载（见 collectLocal/restoreLocal）。
  *  - project：false，项目若经 saveProjects 云端覆盖（未带版本号）有丢新项目风险，先关堵。
  * 未在本表登记的领域默认放行（维持既有行为）。
