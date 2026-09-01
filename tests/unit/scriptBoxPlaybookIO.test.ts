@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * scriptBoxPlaybookIO — 单个 playbook 导出/导入往返（给 AI 改的闭环）。
  * 覆盖：导出含 __meta + 文件名净化；导入解析/净化/归一化/强制 builtin:false；坏输入容错。
@@ -6,6 +5,7 @@
  */
 import { describe, it, expect } from 'vitest'
 import { exportText, parseImport } from '../../src/components/scriptbox/scriptBoxPlaybookIO.ts'
+import type { ImportResult } from '../../src/components/scriptbox/scriptBoxPlaybookIO.ts'
 
 const MANGA = {
   id: 'manga',
@@ -41,7 +41,8 @@ describe('exportText', () => {
 describe('parseImport', () => {
   it('导出→导入往返：保留内容、builtin 强制 false（即使源是内置）', () => {
     const { text } = exportText(MANGA)
-    const r = parseImport(text)
+    // ImportResult 为可辨识联合；测试只覆盖成功分支，用 Extract 收窄到 { ok:true; playbook }
+    const r: Extract<ImportResult, { ok: true }> = parseImport(text) as Extract<ImportResult, { ok: true }>
     expect(r.ok).toBe(true)
     expect(r.playbook.builtin).toBe(false) // 导入一律落为「我的」
     expect(r.playbook.label).toBe('漫剧')
@@ -51,7 +52,7 @@ describe('parseImport', () => {
   })
 
   it('宽容归一化：缺字段补默认，未知键保留', () => {
-    const r = parseImport('{"label":"空配置"}')
+    const r: Extract<ImportResult, { ok: true }> = parseImport('{"label":"空配置"}') as Extract<ImportResult, { ok: true }>
     expect(r.ok).toBe(true)
     expect(r.playbook.script).toBe('')
     expect(r.playbook.constraints).toEqual({ image: '', video: '' })

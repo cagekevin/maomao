@@ -1,4 +1,3 @@
-// @ts-nocheck
 // 回归测试：useCanvasHistory.js、useSyncNodeData.js、workflowRuntime.ts
 // @vitest-environment jsdom
 /**
@@ -13,6 +12,8 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
+import type { Node } from '@xyflow/react'
+import type { CanvasSnapshot } from '../../src/hooks/useCanvasHistory.ts'
 
 // ───────────────────────────────────────────────────────────
 // 1. useCanvasHistory
@@ -27,18 +28,18 @@ describe('useCanvasHistory 撤销/重做 hook 桥接', () => {
 
     expect(result.current.canUndo).toBe(false)
     act(() => {
-      result.current.record({ nodes: [{ id: 'a' }], edges: [] })
+      result.current.record({ nodes: [{ id: 'a' } as Node], edges: [] } as CanvasSnapshot)
     })
     // 显式快照被 push，首次记录后 index=0 仍不能撤（HistoryStack 行为），
     // 但再 record 一条后即可撤销
     act(() => {
-      result.current.record({ nodes: [{ id: 'b' }], edges: [] })
+      result.current.record({ nodes: [{ id: 'b' } as Node], edges: [] } as CanvasSnapshot)
     })
     expect(result.current.canUndo).toBe(true)
   })
 
   it('record 不传 snapshot 时回退用 getSnapshot()', () => {
-    const snap = { nodes: [{ id: 'x' }], edges: [] }
+    const snap: CanvasSnapshot = { nodes: [{ id: 'x' } as Node], edges: [] }
     const getSnapshot = vi.fn(() => snap)
     const apply = vi.fn()
     const { result } = renderHook(() => useCanvasHistory(getSnapshot, apply))
@@ -48,7 +49,7 @@ describe('useCanvasHistory 撤销/重做 hook 桥接', () => {
     })
     expect(getSnapshot).toHaveBeenCalled()
     act(() => {
-      result.current.record({ nodes: [{ id: 'y' }], edges: [] })
+      result.current.record({ nodes: [{ id: 'y' } as Node], edges: [] } as CanvasSnapshot)
     })
     expect(result.current.canUndo).toBe(true)
   })
@@ -59,8 +60,8 @@ describe('useCanvasHistory 撤销/重做 hook 桥接', () => {
     const { result } = renderHook(() => useCanvasHistory(getSnapshot, apply))
 
     act(() => {
-      result.current.record({ nodes: [{ id: '1' }], edges: [] })
-      result.current.record({ nodes: [{ id: '2' }], edges: [] })
+      result.current.record({ nodes: [{ id: '1' } as Node], edges: [] } as CanvasSnapshot)
+      result.current.record({ nodes: [{ id: '2' } as Node], edges: [] } as CanvasSnapshot)
     })
     expect(result.current.canUndo).toBe(true)
 
@@ -75,7 +76,7 @@ describe('useCanvasHistory 撤销/重做 hook 桥接', () => {
     // suppress 窗口内再 record 应被忽略（history 不增长）
     const beforeLen = result.current.canRedo
     act(() => {
-      result.current.record({ nodes: [{ id: 'ignored' }], edges: [] })
+      result.current.record({ nodes: [{ id: 'ignored' } as Node], edges: [] } as CanvasSnapshot)
     })
     // 立即 record 处于 suppress，不会新增分支，canRedo 行为由 HistoryStack 决定
     expect(typeof beforeLen).toBe('boolean')
@@ -87,8 +88,8 @@ describe('useCanvasHistory 撤销/重做 hook 桥接', () => {
     const { result } = renderHook(() => useCanvasHistory(getSnapshot, apply))
 
     act(() => {
-      result.current.record({ nodes: [{ id: '1' }], edges: [] })
-      result.current.record({ nodes: [{ id: '2' }], edges: [] })
+      result.current.record({ nodes: [{ id: '1' } as Node], edges: [] } as CanvasSnapshot)
+      result.current.record({ nodes: [{ id: '2' } as Node], edges: [] } as CanvasSnapshot)
     })
     act(() => { result.current.undo() })
     apply.mockClear()
@@ -104,8 +105,8 @@ describe('useCanvasHistory 撤销/重做 hook 桥接', () => {
     const { result } = renderHook(() => useCanvasHistory(getSnapshot, apply))
 
     act(() => {
-      result.current.record({ nodes: [{ id: '1' }], edges: [] })
-      result.current.record({ nodes: [{ id: '2' }], edges: [] })
+      result.current.record({ nodes: [{ id: '1' } as Node], edges: [] } as CanvasSnapshot)
+      result.current.record({ nodes: [{ id: '2' } as Node], edges: [] } as CanvasSnapshot)
     })
     expect(result.current.canUndo).toBe(true)
     act(() => { result.current.clear() })
@@ -253,7 +254,8 @@ describe('workflowRuntime createWorkflow 生命周期', () => {
     // 超过 20 条时最旧的被挤出
     for (let i = 0; i < 25; i++) wf.pushUndo({ i })
     expect(wf.aiUndoStack).toHaveLength(20)
-    expect(wf.aiUndoStack[0].i).toBe(5)
+    // createWorkflow 的 aiUndoStack 为 unknown[]（src 泛型），断言其为含 i 的对象
+    expect((wf.aiUndoStack[0] as { i: number }).i).toBe(5)
   })
 
   it('confirm 翻转 awaitingConfirm（requestConfirm → confirm）', () => {

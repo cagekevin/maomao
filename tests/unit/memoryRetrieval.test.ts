@@ -1,5 +1,4 @@
 // @vitest-environment node
-// @ts-nocheck
 /**
  * memoryRetrieval（「记」检索注入）单测。
  * 覆盖：rankProjectMemories 排序（相关度/类别权重/近因 + MMR 去冗余）、
@@ -7,10 +6,12 @@
  * buildProjectMemoryContextFromStore 集成（空缓存 → 空串）。
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest'
+import type { ProjectMemory, ProjectMemoryKind } from '../../src/components/agent/runtime/projectMemoryStore.ts'
 
 // 隔离 store，避免触发真实 IO：getCachedProjectMemories 由本测试以 fixture 注入。
 vi.mock('../../src/components/agent/runtime/projectMemoryStore.ts', async (importOriginal) => {
-  const actual = await importOriginal()
+  // importOriginal 返回类型泛型推断为 unknown，spread 需对象类型，故断言为 Record
+  const actual = (await importOriginal()) as Record<string, unknown>
   return {
     ...actual,
     getCachedProjectMemories: vi.fn(() => []),
@@ -27,7 +28,9 @@ beforeEach(() => {
 })
 
 // ── 构造记忆的兜底主体：同一个主体在不同类别下复用，便于验证类别权重
-const mem = (content, kind = 'fact', updatedAt = Date.now()) => ({ id: content, kind, content, enabled: true, updatedAt })
+// ProjectMemory 必需 id/kind/content/enabled/createdAt/updatedAt；kind 为字面量联合
+const mem = (content: string, kind: ProjectMemoryKind = 'fact', updatedAt = Date.now()): ProjectMemory =>
+  ({ id: content, kind, content, enabled: true, createdAt: updatedAt, updatedAt })
 
 describe('rankProjectMemories —— 相关度 + 类别权重 + 近因（T1）', () => {
   it('与 query 词法相关度高的记忆排前面', () => {
@@ -65,7 +68,7 @@ describe('rankProjectMemories —— 相关度 + 类别权重 + 近因（T1）',
   })
 
   it('禁用（enabled:false）与空正文被过滤', () => {
-    const list = [mem('可用', 'fact'), { ...mem('禁用', 'fact'), enabled: false }, { kind: 'fact', content: '' }]
+    const list = [mem('可用', 'fact'), { ...mem('禁用', 'fact'), enabled: false }, { ...mem('', 'fact'), content: '' }]
     const ranked = rankProjectMemories(list, '可用禁用', { now: Date.now() })
     const contents = ranked.map((m) => m.content)
     expect(contents).toContain('可用')
@@ -105,7 +108,7 @@ describe('buildProjectMemoryBlock —— 注入块（T3）', () => {
 
   it('空/无有效正文 → 空串', () => {
     expect(buildProjectMemoryBlock([])).toBe('')
-    expect(buildProjectMemoryBlock([{ kind: 'fact', content: '   ' }])).toBe('')
+    expect(buildProjectMemoryBlock([{ ...mem('   ', 'fact'), content: '   ' }])).toBe('')
     expect(buildProjectMemoryBlock(null)).toBe('')
   })
 
@@ -117,12 +120,12 @@ describe('buildProjectMemoryBlock —— 注入块（T3）', () => {
 
 describe('buildProjectMemoryContextFromStore —— 集成（T4）', () => {
   it('缓存放回空数组 → 返回空串', () => {
-    getCachedProjectMemories.mockReturnValue([])
+    vi.mocked(getCachedProjectMemories).mockReturnValue([])
     expect(buildProjectMemoryContextFromStore('gw', '', 'any query')).toBe('')
   })
 
   it('有候选 → 排行后生成注入块', () => {
-    getCachedProjectMemories.mockReturnValue([
+    vi.mocked(getCachedProjectMemories).mockReturnValue([
       mem('偏好深色主题的界面', 'preference', Date.now()),
       mem('输出必须是 JSON 格式', 'constraint', Date.now()),
     ])
