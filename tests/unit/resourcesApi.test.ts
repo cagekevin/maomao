@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * resourcesApi 单元测试（阶段一·算法与逻辑层）
  * 覆盖：资源分页查询/重扫/删除/保存/重命名/打开目录，以及 URL→相对路径纯解析。
@@ -10,7 +9,9 @@ import * as ra from '@/components/base/api/localToolApi.ts'
 
 function mockFetchOnce(body, { ok = true, status = 200 } = {}) {
   const res = { ok, status, json: async () => body, text: async () => JSON.stringify(body) }
-  const fetchMock = vi.fn(async () => res)
+  // vi.fn() 的 mock.calls 会被推断为无参空元组（[]），导致 calls[0][0]/[1] 报 TS2493/TS18048；
+  // 测试需按调用实参断言 URL 与 init，故标注为 any 保留完整调用记录访问。
+  const fetchMock: any = vi.fn(async () => res)
   vi.stubGlobal('fetch', fetchMock)
   return fetchMock
 }

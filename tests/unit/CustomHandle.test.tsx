@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * CustomHandle 深度测试。
  *
@@ -12,12 +11,12 @@
  *  - 左端口 shift-x 只往左侧（≤0）、右端口只往右侧（≥0）
  */
 import React from 'react'
-import { describe, it, expect, vi, afterEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render } from '@testing-library/react'
 import { fireEvent } from '@testing-library/react'
 
 const h = vi.hoisted(() => {
-  const handleProps = []
+  const handleProps: any[] = []
   return {
     handleProps,
     HandleMock: (props) => {
@@ -40,7 +39,8 @@ describe('CustomHandle — 变体与定位', () => {
 
   function setup(props) {
     const view = render(<CustomHandle {...props} />)
-    const wrap = view.container.querySelector('.cust-handle-wrap')
+    // querySelector 默认返回 Element（无 style 属性），用泛型收窄到 HTMLElement
+    const wrap = view.container.querySelector<HTMLElement>('.cust-handle-wrap')
     return { view, wrap }
   }
 
@@ -110,7 +110,8 @@ describe('CustomHandle — 鼠标追踪（--cust-shift-x/y）', () => {
 
   function setup(props) {
     const view = render(<CustomHandle {...props} />)
-    const wrap = view.container.querySelector('.cust-handle-wrap')
+    // querySelector 默认返回 Element（无 style 属性），用泛型收窄到 HTMLElement
+    const wrap = view.container.querySelector<HTMLElement>('.cust-handle-wrap')
     return { view, wrap }
   }
 

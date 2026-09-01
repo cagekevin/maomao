@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * 阶段三（entry 组件）· 脚本盒引擎纯逻辑单测
  *
@@ -109,9 +108,10 @@ describe('scriptBoxEngine · 纯导出函数', () => {
   describe('assembleShotUser', () => {
     const ref = [{ name: '城堡' }]
     it('合并 shot 字段 + 参考资源 + 全局风格', () => {
+      // Shot.dialogue 为 Dialogue[]（src 侧对象数组；assembleShotUser 不消费该字段）
       const shot = {
         index: 1, duration: '5s', shotType: '近景', lighting: '暖光',
-        motion: '推镜', description: '主角登场', dialogue: '旁白：开始', sound: '风声',
+        motion: '推镜', description: '主角登场', dialogue: [{ kind: '旁白', role: '旁白', text: '开始' }], sound: '风声',
       }
       const out = assembleShotUser(shot, ref, '写实风')
       expect(out).toContain('镜头编号：1')
@@ -222,7 +222,8 @@ describe('scriptBoxEngine · 引擎编排', () => {
     const addNodes = vi.fn()
     const getData = vi.fn(() => store)
     const updateData = vi.fn((patch) => { Object.assign(store, patch); return true })
-    const getProviderState = vi.fn(() => ({ providers: [{ id: 'openai' }], primary: 'openai' }))
+    // getProviderState 签名：primary 为 ProviderWithModels 对象（src 侧非字符串）
+    const getProviderState = vi.fn(() => ({ providers: [{ id: 'openai' }], primary: { id: 'openai' } }))
     const setEdges = vi.fn((updater) => { store._edges = updater(store._edges || []) })
     const engine = createScriptBoxEngine({
       getData, updateData, addNodes, setEdges,
@@ -235,7 +236,8 @@ describe('scriptBoxEngine · 引擎编排', () => {
 
   it('onGenerateScript 校验：无剧情时仅 toast 不调用 chat', async () => {
     const { chatCompletions } = await import('@/components/base/api/chatApi.ts')
-    const { toastStore } = await import('../../src/components/base/toastStore.ts')
+    // toastStore 由本文件顶部 vi.mock 工厂提供（src 无该具名导出），用 as any 收敛
+    const { toastStore } = (await import('../../src/components/base/toastStore.ts')) as any
     const { engine, store } = makeEngine({})
     await engine.onGenerateScript()
     expect(chatCompletions).not.toHaveBeenCalled()
@@ -245,7 +247,7 @@ describe('scriptBoxEngine · 引擎编排', () => {
 
   it('onGenerateScript 调用 chatCompletions 并归一化写回 shots/assets', async () => {
     const { chatCompletions } = await import('@/components/base/api/chatApi.ts')
-    chatCompletions.mockResolvedValueOnce({
+    vi.mocked(chatCompletions).mockResolvedValueOnce({
       ok: true,
       content: '```json\n{"projectName":"小猫历险","globalStyle":"手绘","shots":[{"index":1,"description":"猫跳上桌"}],"assets":[{"name":"猫","category":"character","description":"橘猫"}]}\n```',
     })
@@ -262,7 +264,7 @@ describe('scriptBoxEngine · 引擎编排', () => {
 
   it('onGenerateScript 把上游接入图片传给 chatCompletions（编剧 AI 看产品外观）', async () => {
     const { chatCompletions } = await import('@/components/base/api/chatApi.ts')
-    chatCompletions.mockResolvedValueOnce({ ok: true, content: '```json\n{"shots":[{"description":"展示产品"}]}\n```' })
+    vi.mocked(chatCompletions).mockResolvedValueOnce({ ok: true, content: '```json\n{"shots":[{"description":"展示产品"}]}\n```' })
     const { engine, store } = makeEngine({
       story: '为产品拍一支广告',
       upstreamStory: '产品是一款无线耳机',
@@ -270,7 +272,7 @@ describe('scriptBoxEngine · 引擎编排', () => {
     })
     await engine.onGenerateScript()
     expect(chatCompletions).toHaveBeenCalled()
-    const call = chatCompletions.mock.calls[0][0]
+    const call = vi.mocked(chatCompletions).mock.calls[0][0]
     // 上游图片以 images 传给模型（转 image_url 内容块）
     expect(call.images).toEqual(['http://127.0.0.1:18080/files/p.png', '/files/q.png'])
     // 上游文本并入剧情
@@ -284,17 +286,18 @@ describe('scriptBoxEngine · 引擎编排', () => {
 
   it('onGenerateScript 无上游图片时 images 为空数组', async () => {
     const { chatCompletions } = await import('@/components/base/api/chatApi.ts')
-    chatCompletions.mockResolvedValueOnce({ ok: true, content: '```json\n{"shots":[{"description":"x"}]}\n```' })
+    vi.mocked(chatCompletions).mockResolvedValueOnce({ ok: true, content: '```json\n{"shots":[{"description":"x"}]}\n```' })
     const { engine } = makeEngine({ story: 'no imgs' })
     await engine.onGenerateScript()
-    const call = chatCompletions.mock.calls[0][0]
+    const call = vi.mocked(chatCompletions).mock.calls[0][0]
     expect(call.images).toEqual([])
   })
 
   it('onGenerateScript 模型返回非 JSON 时回退 genMask=false 并 toast', async () => {
     const { chatCompletions } = await import('@/components/base/api/chatApi.ts')
-    const { toastStore } = await import('../../src/components/base/toastStore.ts')
-    chatCompletions.mockResolvedValueOnce({ ok: true, content: '不是json' })
+    // toastStore 由本文件顶部 vi.mock 工厂提供（src 无该具名导出），用 as any 收敛
+    const { toastStore } = (await import('../../src/components/base/toastStore.ts')) as any
+    vi.mocked(chatCompletions).mockResolvedValueOnce({ ok: true, content: '不是json' })
     const { engine, store } = makeEngine({ story: 'x' })
     await engine.onGenerateScript()
     expect(store.genMask).toBe(false)
@@ -303,7 +306,7 @@ describe('scriptBoxEngine · 引擎编排', () => {
 
   it('onStopScriptItem 全停：中止所有 AbortController', async () => {
     const { chatCompletions } = await import('@/components/base/api/chatApi.ts')
-    chatCompletions.mockImplementationOnce(() => new Promise(() => {})) // 永不 resolve，保持运行
+    vi.mocked(chatCompletions).mockImplementationOnce(() => new Promise(() => {})) // 永不 resolve，保持运行
     const { engine, store } = makeEngine({ story: '长跑剧情' })
     const p = engine.onGenerateScript() // 触发一次生成并挂起
     // 等待引擎进入请求（abortMap 注册 'script'）
@@ -493,7 +496,7 @@ describe('scriptBoxEngine · P11 批量写回合并', () => {
       store.assets = next.assets || store.assets
       return true
     })
-    const getProviderState = vi.fn(() => ({ providers: [{ id: 'openai' }], primary: 'openai' }))
+    const getProviderState = vi.fn(() => ({ providers: [{ id: 'openai' }], primary: { id: 'openai' } }))
     const engine = createScriptBoxEngine({
       getData, updateData, addNodes: vi.fn(), setEdges: vi.fn(),
       nodeId: 'node-batch', getNodes: vi.fn(() => []), getProviderState,
@@ -503,8 +506,8 @@ describe('scriptBoxEngine · P11 批量写回合并', () => {
 
   beforeEach(() => {
     vi.useFakeTimers()
-    chatCompletions.mockReset()
-    chatCompletions.mockResolvedValue({
+    vi.mocked(chatCompletions).mockReset()
+    vi.mocked(chatCompletions).mockResolvedValue({
       ok: true,
       content: JSON.stringify({ prompt: '分镜画面提示词', videoPrompt: '【时长 5秒】视频内容' }),
     })
@@ -547,8 +550,8 @@ describe('scriptBoxEngine · P11 批量写回合并', () => {
     ]
     const { engine, store, updateData } = makeBatchEngine(shots)
     // 第二个分镜返回非 JSON → 走「回退 + toast」分支，仍应并入合并 flush
-    chatCompletions.mockResolvedValueOnce({ ok: true, content: JSON.stringify({ prompt: 'ok-p', videoPrompt: 'ok-v' }) })
-    chatCompletions.mockResolvedValueOnce({ ok: true, content: '不是json' })
+    vi.mocked(chatCompletions).mockResolvedValueOnce({ ok: true, content: JSON.stringify({ prompt: 'ok-p', videoPrompt: 'ok-v' }) })
+    vi.mocked(chatCompletions).mockResolvedValueOnce({ ok: true, content: '不是json' })
 
     const p = engine.onGenerateShotPrompts()
     await vi.advanceTimersByTimeAsync(shots.length * 600 + 500)
