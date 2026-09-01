@@ -1,5 +1,4 @@
 // @vitest-environment node
-// @ts-nocheck
 /**
  * filesApi 单测（批 2，API 封装层）。
  * 覆盖：saveInlineToLocal / saveResultToTasks / saveTextToTasks / uploadFileToLocal
@@ -11,14 +10,16 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 
 // 保证 webcrypto 可用（sha1Hex 用 crypto.subtle.digest）
 if (!globalThis.crypto?.subtle) {
+  // 仅测 sha1Hex 的 digest 路径，cast 为 Crypto 以对齐类型（其余 SubtleCrypto 方法不会被测到）
   globalThis.crypto = {
     subtle: {
       digest: async () => new Uint8Array(20).fill(0xab).buffer,
     },
-  }
+  } as unknown as Crypto
 }
 
-const fetchMock = globalThis.fetch
+// setup.mjs 已把 globalThis.fetch 定义为共享 vi.fn；此处做类型对齐以启用 .mock* / mock.calls。
+const fetchMock = globalThis.fetch as unknown as ReturnType<typeof vi.fn>
 
 const api = await import('@/components/base/api/filesApi.ts')
 
@@ -121,7 +122,7 @@ describe('filesApi — saveTextToTasks', () => {
   })
   it('空/非字符串 → null', async () => {
     expect(await api.saveTextToTasks('   ')).toBeNull()
-    expect(await api.saveTextToTasks(123)).toBeNull()
+    expect(await api.saveTextToTasks(123 as unknown as string)).toBeNull()
   })
   it('自定义 name 前缀清洗非法字符/空格', async () => {
     fetchMock.mockResolvedValue(uploadResp('http://x/t.txt'))

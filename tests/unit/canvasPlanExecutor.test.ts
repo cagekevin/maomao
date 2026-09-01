@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 // 多步编排执行器：隔离 runNodeGeneration（真实生图 → 落盘 resultUrl）与 isNodeRegistered
@@ -10,6 +9,10 @@ vi.mock('../../src/components/base/taskStore.ts', () => ({
 import { executePlan } from '../../src/components/agent/canvas/canvasPlanExecutor.ts'
 import { runNodeGeneration } from '../../src/components/base/taskStore.ts'
 
+// vi.mock 工厂已把 runNodeGeneration 替换为 vi.fn，但静态类型仍是 src 的原始签名（无 .mock）。
+// 测试侧用 .mockImplementationOnce/.mockReturnValueOnce 断言，故降为 any。
+const runNodeGenerationMock: any = runNodeGeneration
+
 // 最小 ctx：addNodes 记录、addEdges 记录、setNodes 写回 imageUrl、getNodes 反映最新
 // P7：executor 的 live 检查用 ctx.getNode（O(1)），mock 需提供（返回当前节点或 undefined）
 function makeCtx(initialNodes = []) {
@@ -20,6 +23,7 @@ function makeCtx(initialNodes = []) {
     edges: () => edges,
     getNodes: () => nodes,
     getNode: (id) => nodes.find((n) => n.id === id),
+    getEdges: () => edges,
     addNodes: (ns) => { nodes = [...nodes, ...ns] },
     addEdges: (es) => { edges = [...edges, ...es] },
     setNodes: (fn) => { nodes = typeof fn === 'function' ? fn(nodes) : fn },
@@ -48,7 +52,7 @@ describe('多步编排执行器 executePlan §2.5/2.6', () => {
     // 让第一个 executePlan 挂起（runNodeGeneration 不 resolve），锁保持持有
     let release
     const gate = new Promise((res) => { release = res })
-    vi.mocked(runNodeGeneration).mockReturnValueOnce(gate.then(() => ({ ok: true, resultUrl: 'http://r/a.png' })))
+    runNodeGenerationMock.mockReturnValueOnce(gate.then(() => ({ ok: true, resultUrl: 'http://r/a.png' })))
     const ctx = makeCtx()
     const p1 = executePlan({ ctx, generations: [{ id: 'g1', prompt: '猫' }] }) // 不 await，挂起中
 
@@ -119,7 +123,7 @@ describe('多步编排执行器 executePlan §2.5/2.6', () => {
   it('依赖批：前置任一步失败 → 整批跳过（不生成）', async () => {
     const ctx = makeCtx()
     // 强制第一个节点生成失败
-    runNodeGeneration.mockImplementationOnce(async () => ({ ok: false, error: '生成失败' }))
+    runNodeGenerationMock.mockImplementationOnce(async () => ({ ok: false, error: '生成失败' }))
     const r = await executePlan({
       ctx,
       generations: [
@@ -218,7 +222,7 @@ describe('TASK-009 逐步进度日志 onLog + 跳过文案带数字', () => {
 
   it('依赖批失败：跳过文案带「成功 X / 共 Y」且日志含 warn', async () => {
     const ctx = makeCtx()
-    runNodeGeneration.mockImplementationOnce(async () => ({ ok: false, error: '生成失败' }))
+    runNodeGenerationMock.mockImplementationOnce(async () => ({ ok: false, error: '生成失败' }))
     const logs = []
     const r = await executePlan({
       ctx,
@@ -271,7 +275,7 @@ describe('TASK-009 逐步进度日志 onLog + 跳过文案带数字', () => {
   it('部分成功 + 部分失败：结尾提示「可重试失败项」', async () => {
     const ctx = makeCtx()
     // 2 个独立批：第一个失败、第二个成功 → 无依赖批
-    runNodeGeneration.mockImplementationOnce(async () => ({ ok: false, error: '生成失败' }))
+    runNodeGenerationMock.mockImplementationOnce(async () => ({ ok: false, error: '生成失败' }))
     const logs = []
     await executePlan({
       ctx,
@@ -340,7 +344,7 @@ describe('Gap B 依赖批 DAG 拓扑调度（兄弟依赖步并行）', () => {
     const ctx = makeCtx()
     let concurrency = 0
     let maxConcurrency = 0
-    runNodeGeneration.mockImplementation(async () => {
+    runNodeGenerationMock.mockImplementation(async () => {
       concurrency++
       maxConcurrency = Math.max(maxConcurrency, concurrency)
       await new Promise((r) => setTimeout(r, 5))
@@ -373,7 +377,7 @@ describe('Gap B 依赖批 DAG 拓扑调度（兄弟依赖步并行）', () => {
   it('存在真实依赖链（b 依赖 a）时仍按拓扑序等待，不提前触发，b 只连 a', async () => {
     const ctx = makeCtx()
     const order = []
-    runNodeGeneration.mockImplementation(async (nodeId) => {
+    runNodeGenerationMock.mockImplementation(async (nodeId) => {
       order.push(nodeId)
       return { ok: true, resultUrl: 'http://r/ok.png' }
     })

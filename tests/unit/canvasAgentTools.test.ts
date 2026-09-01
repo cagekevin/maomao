@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 // 隔离依赖：AI 撤销栈 / 真实生成 / 多步执行器
@@ -31,7 +30,7 @@ vi.mock('../../src/components/agent/conversation/conversationStore.ts', () => ({
   getCurrentRunMode: vi.fn(() => 'auto'),
   getWorkMode: vi.fn(() => 'auto'),
   getCurrentSnapshot: vi.fn(() => ({ skills: [] })),
-}))
+} as any))
 vi.mock('../../src/components/base/taskStore.ts', () => ({
   runNodeGeneration: vi.fn(async () => ({ ok: true, resultUrl: 'http://r/x.png' })),
   isNodeRegistered: vi.fn(() => true),
@@ -39,7 +38,7 @@ vi.mock('../../src/components/base/taskStore.ts', () => ({
 vi.mock('../../src/components/agent/canvas/canvasPlanExecutor.ts', async (importOriginal) => {
   const actual = await importOriginal()
   return {
-    ...actual, // 保留真实纯函数（buildFusionPrompt/buildProductReferencePrompt 等）
+    ...(actual as any), // 保留真实纯函数（buildFusionPrompt/buildProductReferencePrompt 等）
     executePlan: vi.fn(async () => ({ workflow: { status: 'completed' }, entries: [{ status: 'completed', nodeId: 'n1', resultUrl: 'http://r/x.png' }] })),
   }
 })
@@ -47,7 +46,15 @@ vi.mock('../../src/components/agent/canvas/canvasPlanExecutor.ts', async (import
 import { buildCanvasAgentTools, CANVAS_AGENT_TOOL_NAMES, getNodeImageUrl, setCurrentReferenceImages, runExistingPlanTool, setCreditSwitch, getCreditSwitch } from '../../src/components/agent/canvas/useCanvasAgentTools.ts'
 import * as convStore from '../../src/components/agent/conversation/conversationStore.ts'
 import * as taskStore from '../../src/components/base/taskStore.ts'
-import { executePlan as mockExecutePlan, buildFusionPrompt, buildProductReferencePrompt } from '../../src/components/agent/canvas/canvasPlanExecutor.ts'
+import { executePlan, buildFusionPrompt, buildProductReferencePrompt } from '../../src/components/agent/canvas/canvasPlanExecutor.ts'
+
+// vi.mock 工厂已把 executePlan 替换为 vi.fn，但静态类型仍是 src 的原始函数签名（无 .mock）。
+// 测试侧用 .mock.calls 断言，故把它降为 any。
+const mockExecutePlan: any = executePlan
+
+// 对「模块命名空间 convStore」直接写 convMock.__state = {...} 会触发 vitest/TS
+// 推断 bug：会连坐同一作用域里 vi/expect 变成不可调用（探针实测）。故统一收口到本地 any 别名。
+const convMock: any = convStore
 
 function makeCtx(initialNodes = [], initialEdges = []) {
   let nodes = [...initialNodes]
@@ -68,19 +75,19 @@ function makeCtx(initialNodes = [], initialEdges = []) {
 beforeEach(() => {
   vi.clearAllMocks()
   // 配对状态：getX 始终读 __state，setX 写 __state（用例可直接翻转 __state 模拟前端确认）
-  convStore.__state = { awaiting: false, pending: null, refImages: [], creditGate: null }
-  vi.mocked(convStore.getAwaitingConfirm).mockImplementation(() => convStore.__state.awaiting)
-  vi.mocked(convStore.setAwaitingConfirm).mockImplementation((v) => { convStore.__state.awaiting = !!v })
-  vi.mocked(convStore.getCreditGate).mockImplementation(() => convStore.__state.creditGate)
-  vi.mocked(convStore.setCreditGate).mockImplementation((g) => { convStore.__state.creditGate = g || null })
-  vi.mocked(convStore.clearCreditGate).mockImplementation(() => { convStore.__state.creditGate = null })
+  convMock.__state = { awaiting: false, pending: null, refImages: [], creditGate: null }
+  vi.mocked(convStore.getAwaitingConfirm).mockImplementation(() => convMock.__state.awaiting)
+  vi.mocked(convStore.setAwaitingConfirm).mockImplementation((v) => { convMock.__state.awaiting = !!v })
+  vi.mocked(convStore.getCreditGate).mockImplementation(() => convMock.__state.creditGate)
+  vi.mocked(convStore.setCreditGate).mockImplementation((g) => { convMock.__state.creditGate = g || null })
+  vi.mocked(convStore.clearCreditGate).mockImplementation(() => { convMock.__state.creditGate = null })
   // 注意：注入必须打在 barrel 真符号上。getPendingGenerations/setPendingGenerations 是
   // useCanvasAgentTools.ts:106-113 的本地兼容壳，不是 conversationStore 的导出——
   // 打在壳名上会形成死通道：写入无人读，真身读到的 getActivePendingGenerations 恒返回 mock 默认 null。
-  vi.mocked(convStore.getActivePendingGenerations).mockImplementation(() => convStore.__state.pending)
-  vi.mocked(convStore.setActivePendingGenerations).mockImplementation((g) => { convStore.__state.pending = g })
-  vi.mocked(convStore.getCurrentRefImages).mockImplementation(() => convStore.__state.refImages)
-  vi.mocked(convStore.setCurrentRefImages).mockImplementation((u) => { convStore.__state.refImages = Array.isArray(u) ? u : [] })
+  vi.mocked(convStore.getActivePendingGenerations).mockImplementation(() => convMock.__state.pending)
+  vi.mocked(convStore.setActivePendingGenerations).mockImplementation((g) => { convMock.__state.pending = g })
+  vi.mocked(convStore.getCurrentRefImages).mockImplementation(() => convMock.__state.refImages)
+  vi.mocked(convStore.setCurrentRefImages).mockImplementation((u) => { convMock.__state.refImages = Array.isArray(u) ? u : [] })
 })
 
 describe('画布 Agent 工具层 §2.5', () => {
@@ -414,7 +421,7 @@ describe('画布 Agent 工具层 §2.5', () => {
     const t = buildCanvasAgentTools(ctx)
     const r = await t.generate_node({ nodeId: 'a' })
     expect(r.ok).toBe(false)
-    expect(r.nodeId).toBe('a') // 失败也带 nodeId
+    expect((r as any).nodeId).toBe('a') // 失败也带 nodeId
     expect(r.error).toBe('模型超时')
   })
 
@@ -442,31 +449,31 @@ describe('画布 Agent 工具层 §2.5', () => {
     const r = await t.show_plan_for_confirm({ plan_text: '做5张主图', generations: [{ id: 'g1', prompt: '猫' }] })
     expect(r.ok).toBe(true)
     expect(convStore.setAwaitingConfirm).toHaveBeenCalledWith(true)
-    expect(convStore.__state.awaiting).toBe(true)
+    expect(convMock.__state.awaiting).toBe(true)
   })
 
   it('【对齐大雄 全自动 auto】无 Skill + auto：show_plan_for_confirm 不进入 awaiting（规划后直接执行，不弹确认）', async () => {
-    convStore.__state.awaiting = false
+    convMock.__state.awaiting = false
     vi.mocked(convStore.getWorkMode).mockReturnValue('auto')
-    vi.mocked(convStore.getCurrentSnapshot).mockReturnValue({ skills: [] }) // 无 Skill
+    vi.mocked(convStore.getCurrentSnapshot).mockReturnValue({ skills: [] } as any) // 无 Skill
     const ctx = makeCtx()
     const t = buildCanvasAgentTools(ctx)
     const r = await t.show_plan_for_confirm({ plan_text: '做1张猫图', generations: [{ id: 'g1', prompt: '一只猫' }] })
     expect(r.ok).toBe(true)
     // 关键：auto 无 Skill 不进入 awaiting → awaiting_confirm:false，execute_plan 不被拒（可直接执行）
     expect(r.data.awaiting_confirm).toBe(false)
-    expect(convStore.__state.awaiting).toBe(false)
+    expect(convMock.__state.awaiting).toBe(false)
   })
 
   it('【对齐大雄 半自动 step-confirm】无 Skill + step-confirm：show_plan_for_confirm 进入 awaiting（规划后确认再执行）', async () => {
-    convStore.__state.awaiting = false
+    convMock.__state.awaiting = false
     vi.mocked(convStore.getWorkMode).mockReturnValue('step-confirm')
     const ctx = makeCtx()
     const t = buildCanvasAgentTools(ctx)
     const r = await t.show_plan_for_confirm({ plan_text: '做1张猫图', generations: [{ id: 'g1', prompt: '一只猫' }] })
     expect(r.ok).toBe(true)
     expect(r.data.awaiting_confirm).toBe(true)
-    expect(convStore.__state.awaiting).toBe(true)
+    expect(convMock.__state.awaiting).toBe(true)
     // 恢复默认 runMode，避免污染后续用例
     vi.mocked(convStore.getWorkMode).mockReturnValue('auto')
   })
@@ -474,37 +481,37 @@ describe('画布 Agent 工具层 §2.5', () => {
   it('【D7 真值表】hasSkillNow=true + auto：不再进入 awaiting（删 hasSkillNow 强制项，needConfirm 只由 runMode===\'step-confirm\' 决定）', async () => {
     // D7：show_plan 判定收敛为 needConfirm = runMode==='step-confirm'，hasSkillNow 已删除。
     // 此用例覆盖「有 Skill 但 runMode=auto」→ 不再强制进入 awaiting（awaitingConfirm=false）。
-    convStore.__state.awaiting = false
+    convMock.__state.awaiting = false
     vi.mocked(convStore.getWorkMode).mockReturnValue('auto')
-    vi.mocked(convStore.getCurrentSnapshot).mockReturnValue({ skills: [{ name: 'poster', params: {} }] })
+    vi.mocked(convStore.getCurrentSnapshot).mockReturnValue({ skills: [{ name: 'poster', params: {} }] } as any)
     const ctx = makeCtx()
     const t = buildCanvasAgentTools(ctx)
     const r = await t.show_plan_for_confirm({ plan_text: '做5张主图+8详情', generations: [{ id: 'g1', prompt: '主图1' }] })
     expect(r.ok).toBe(true)
     expect(r.data.awaiting_confirm).toBe(false)
-    expect(convStore.__state.awaiting).toBe(false)
+    expect(convMock.__state.awaiting).toBe(false)
     expect(convStore.setAwaitingConfirm).not.toHaveBeenCalledWith(true)
   })
 
   it('【对齐大雄 §12.1 真值表】hasSkillNow=false + auto：不进入 awaiting（全自动直接执行）', async () => {
     // 真值表另一角：无 Skill 且 auto → needConfirm 为假。
-    convStore.__state.awaiting = false
+    convMock.__state.awaiting = false
     vi.mocked(convStore.getWorkMode).mockReturnValue('auto')
-    vi.mocked(convStore.getCurrentSnapshot).mockReturnValue({ skills: [] })
+    vi.mocked(convStore.getCurrentSnapshot).mockReturnValue({ skills: [] } as any)
     const ctx = makeCtx()
     const t = buildCanvasAgentTools(ctx)
     const r = await t.show_plan_for_confirm({ plan_text: '做1张猫图', generations: [{ id: 'g1', prompt: '一只猫' }] })
     expect(r.ok).toBe(true)
     expect(r.data.awaiting_confirm).toBe(false)
-    expect(convStore.__state.awaiting).toBe(false)
+    expect(convMock.__state.awaiting).toBe(false)
     // 全自动：execute_plan 不被 awaiting 门禁拦截，可直接执行
-    convStore.__state.awaiting = false
+    convMock.__state.awaiting = false
     const r2 = await t.execute_plan({ generations: [{ id: 'g1', prompt: '一只猫' }] })
     expect(r2.ok).toBe(true)
   })
 
   it('execute_plan 未确认被拒', async () => {
-    convStore.__state.awaiting = true // 模拟 show_plan_for_confirm 已暂存、进入待确认
+    convMock.__state.awaiting = true // 模拟 show_plan_for_confirm 已暂存、进入待确认
     const ctx = makeCtx()
     const t = buildCanvasAgentTools(ctx)
     const r = await t.execute_plan({ generations: [{ id: 'g1', prompt: '猫' }] })
@@ -574,7 +581,7 @@ describe('画布 Agent 工具层 §2.5', () => {
 
   // ── Skill 三阶段确认门禁闭环（AI 编排关键防护）──
   it('show_plan_for_confirm → 返回 awaiting_confirm:true（进入待确认态）', async () => {
-    convStore.__state.awaiting = false
+    convMock.__state.awaiting = false
     // D7：step-confirm 半自动 → 必进入 awaiting 确认（策划暂存 + 待确认）
     vi.mocked(convStore.getWorkMode).mockReturnValue('step-confirm')
     const ctx = makeCtx()
@@ -590,7 +597,7 @@ describe('画布 Agent 工具层 §2.5', () => {
   })
 
   it('【T4】execute_plan credit 命中（creditSwitch 默认开）→ 只建节点待确认，不真生成', async () => {
-    convStore.__state.awaiting = false
+    convMock.__state.awaiting = false
     // 2026-08-27 简化：credit = creditSwitch（全局总闸，与 runMode 正交）。开关默认开即命中。
     vi.mocked(convStore.getWorkMode).mockReturnValue('auto') // 保持上下文，表明与 runMode 无关
     const ctx = makeCtx()
@@ -604,15 +611,15 @@ describe('画布 Agent 工具层 §2.5', () => {
     expect(mockExecutePlan).toHaveBeenCalledTimes(1)
     expect(mockExecutePlan.mock.calls[0][0].autoRun).toBe(false)
     // 节点已建好（ready）、置 per-conv creditGate 持久化
-    expect(convStore.__state.creditGate?.pending).toBe(true)
-    expect(convStore.__state.creditGate?.map).toBeTruthy()
-    expect(convStore.__state.creditGate?.gens[0].prompt).toBe('猫')
+    expect(convMock.__state.creditGate?.pending).toBe(true)
+    expect(convMock.__state.creditGate?.map).toBeTruthy()
+    expect(convMock.__state.creditGate?.gens[0].prompt).toBe('猫')
     // 未置分步确认态（D1：两条门禁独立）
-    expect(convStore.__state.awaiting).toBe(false)
+    expect(convMock.__state.awaiting).toBe(false)
   })
 
   it('【T5】execute_plan credit 未命中（creditSwitch=关）→ 行为与改动前一致（autoRun 按入参放行）', async () => {
-    convStore.__state.awaiting = false
+    convMock.__state.awaiting = false
     // 2026-08-27 简化：credit = creditSwitch（全局总闸，与 runMode 正交）。
     // 未命中只由「开关关」决定，runMode 已不再是判定输入。
     setCreditSwitch(false)
@@ -623,12 +630,12 @@ describe('画布 Agent 工具层 §2.5', () => {
     expect(r.data.awaited).toBeUndefined() // 未命中积分闸
     expect(mockExecutePlan).toHaveBeenCalledTimes(1)
     expect(mockExecutePlan.mock.calls[0][0].autoRun).toBe(true) // 原 autoRun 语义保留
-    expect(convStore.__state.creditGate).toBeNull() // 不置积分待确认态
+    expect(convMock.__state.creditGate).toBeNull() // 不置积分待确认态
     setCreditSwitch(true) // 还原默认开，避免污染后续
   })
 
   it('【T6】runExistingPlanTool 前置：creditGate 未置位 → 拒绝且不触发任何生成', async () => {
-    convStore.__state.creditGate = null // 无待点生成的计划
+    convMock.__state.creditGate = null // 无待点生成的计划
     const ctx = makeCtx()
     const r = await runExistingPlanTool(ctx)
     expect(r.ok).toBe(false)
@@ -637,7 +644,7 @@ describe('画布 Agent 工具层 §2.5', () => {
   })
 
   it('用户在积分确认卡片点确认（creditGate pending）→ runExistingPlanTool 补跑并清 gate', async () => {
-    convStore.__state.creditGate = { pending: true, gens: [{ id: 'g1', prompt: '猫' }], map: { g1: 'n1' } }
+    convMock.__state.creditGate = { pending: true, gens: [{ id: 'g1', prompt: '猫' }], map: { g1: 'n1' } }
     const ctx = makeCtx()
     const r = await runExistingPlanTool(ctx)
     expect(r.ok).toBe(true)
@@ -645,12 +652,12 @@ describe('画布 Agent 工具层 §2.5', () => {
     const arg = mockExecutePlan.mock.calls[0][0]
     expect(arg.mode).toBe('runExisting') // D5：复用执行器，不重建节点
     expect(arg.nodeMappings).toEqual({ g1: 'n1' }) // D6：映射来自同一次 execute_plan
-    expect(convStore.__state.creditGate).toBeNull() // 成功清 gate（失败保留待重试）
+    expect(convMock.__state.creditGate).toBeNull() // 成功清 gate（失败保留待重试）
   })
 
   it('execute_plan 未传 generations 且无暂存 → 报错（不死循环/不崩溃）', async () => {
-    convStore.__state.awaiting = false
-    convStore.__state.pending = null
+    convMock.__state.awaiting = false
+    convMock.__state.pending = null
     const ctx = makeCtx()
     const t = buildCanvasAgentTools(ctx)
     const r = await t.execute_plan({}) // 无 generations 也无暂存
@@ -661,9 +668,9 @@ describe('画布 Agent 工具层 §2.5', () => {
   })
 
   it('execute_plan 有阶段1暂存 → 主通道取暂存（pendingUsed 分支）', async () => {
-    convStore.__state.awaiting = false
+    convMock.__state.awaiting = false
     // 主来源①「阶段1 暂存 pendingGenerations」内存优先（见 useCanvasAgentTools.ts:918-919）
-    convStore.__state.pending = [{ id: 'g1', prompt: '一只猫' }]
+    convMock.__state.pending = [{ id: 'g1', prompt: '一只猫' }]
     const ctx = makeCtx()
     const t = buildCanvasAgentTools(ctx)
     const r = await t.execute_plan({}) // 不传 generations，只靠暂存
@@ -677,7 +684,7 @@ describe('画布 Agent 工具层 §2.5', () => {
   })
 
   it('execute_plan：按 attachment_indices 精确取用户参考图（对齐大雄，每步独立）', async () => {
-    convStore.__state.awaiting = false
+    convMock.__state.awaiting = false
     // 参考图池 = 用户引用图的 URL 数组（useAgentChat.send 写入）
     setCurrentReferenceImages(['http://ref/1.png', 'http://ref/2.png'])
     const ctx = makeCtx()
@@ -701,8 +708,8 @@ describe('画布 Agent 工具层 §2.5', () => {
   })
 
   it('【对齐大雄 agentLastUserAttachments】本轮无图时 execute_plan 回退用历史 user 图（attachment_indices 精确取）', async () => {
-    convStore.__state.awaiting = false
-    convStore.__state.refImages = [] // 本轮无参考图
+    convMock.__state.awaiting = false
+    convMock.__state.refImages = [] // 本轮无参考图
     // 历史 user 图（当前对话最近一条带图 user 消息，模拟 getLastUserReferenceImages 返回）
     vi.mocked(convStore.getLastUserReferenceImages).mockReturnValue(['http://hist/1.png', 'http://hist/2.png'])
     const ctx = makeCtx()
@@ -721,8 +728,8 @@ describe('画布 Agent 工具层 §2.5', () => {
   })
 
   it('【对齐大雄 direct_refs】execute_plan 按图编号引用历史/生成图，prompt 里「图N」翻译成「第X张参考图」', async () => {
-    convStore.__state.awaiting = false
-    convStore.__state.refImages = []
+    convMock.__state.awaiting = false
+    convMock.__state.refImages = []
     // 当前可引用图编号映射：图1=上一轮生成，图2=上一轮生成（agentCurrentImageMap）
     vi.mocked(convStore.getCurrentImageMap).mockReturnValue([
       { num: 1, url: 'http://x/gen1.png', name: '主图', source: 'gen' },
@@ -761,8 +768,8 @@ describe('画布 Agent 工具层 §2.5', () => {
   })
 
   it('execute_plan 无 generations 且无暂存 → 报错（不死循环/不崩溃）', async () => {
-    convStore.__state.awaiting = false
-    convStore.__state.pending = null
+    convMock.__state.awaiting = false
+    convMock.__state.pending = null
     const ctx = makeCtx()
     const t = buildCanvasAgentTools(ctx)
     const r = await t.execute_plan({}) // 无 generations 也无暂存

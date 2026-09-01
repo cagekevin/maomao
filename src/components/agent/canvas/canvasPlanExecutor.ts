@@ -31,6 +31,7 @@ interface GenerationStep {
   depends_on_previous?: boolean
   use_previous_results?: boolean
   use_attachments?: boolean
+  depends_on_steps?: string[]
   dependency_mode?: string
   referenceImages?: unknown[]
   input_artifact_ids?: string[]

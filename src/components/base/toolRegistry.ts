@@ -37,6 +37,18 @@ export interface ToolDef {
   [key: string]: unknown
 }
 
+/** 工具执行返回的统一信封（全项目工具统一返回该形状）：
+ *  成功：{ ok: true, data: ... }；失败：{ ok: false, error: '...' }
+ *  在 buildCanvasAgentTools 里被 try/catch 兜底成同一形状（异常 → { ok:false, error }）。
+ *  采用宽松对象（data/error 均可选）而非判别联合：项目 strict:false，消费方（useAgentChat 等）
+ *  直接访问 .data/.error 不 narrow，判别联合会让这些既有 src 报错、把已绿的 src 弄红（见 75 陷阱1）。
+ *  这也正符合本类型「信封」语义——调用方按需读 data/error，不必强约束二选一。 */
+export type ToolResult = {
+  ok: boolean
+  data?: any
+  error?: unknown
+}
+
 const tools: ToolDef[] = []
 
 /** 追加一个工具定义，返回 def（便于链式/赋值）。重复 name 允许（注册表按注册序排列）。 */

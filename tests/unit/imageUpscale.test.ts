@@ -1,5 +1,4 @@
 // @vitest-environment jsdom
-// @ts-nocheck
 /**
  * imageUpscale 单测（纯浏览器 canvas 放大）。
  * 覆盖：×2 等比放大、maxOutputSize clamp、锐化开关、输入校验、
@@ -14,7 +13,8 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 
 const { upscaleImage } = await import('../../src/components/base/imageUpscale.ts')
 
-const fetchMock = globalThis.fetch
+// setup.mjs 已把 globalThis.fetch 定义为共享 vi.fn；此处做类型对齐以启用 .mock* / mock.calls。
+const fetchMock = globalThis.fetch as unknown as ReturnType<typeof vi.fn>
 
 // mock HTMLImageElement：onload 同步触发，带 naturalWidth/Height
 let imgSize = { w: 2000, h: 1000 }
@@ -44,7 +44,7 @@ function installImageMock() {
 let createdCanvases = []
 function installCanvasMock() {
   createdCanvases = []
-  HTMLCanvasElement.prototype.getContext = function () {
+  HTMLCanvasElement.prototype.getContext = (function () {
     if (!this._w) this._w = this.width
     if (!this._h) this._h = this.height
     return {
@@ -61,8 +61,8 @@ function installCanvasMock() {
         return { data: new Uint8ClampedArray(len) }
       },
       putImageData() {},
-    }
-  }
+    } as unknown as CanvasRenderingContext2D
+  }) as unknown as typeof HTMLCanvasElement.prototype.getContext
   HTMLCanvasElement.prototype.toDataURL = function (type) {
     return `data:${type || 'image/png'};base64,${btoa('fakeupscaled')}`
   }

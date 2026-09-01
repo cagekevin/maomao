@@ -1,5 +1,4 @@
 // @vitest-environment node
-// @ts-nocheck
 /**
  * agentMessages 单测（M3 下沉 2：消息构造/落盘层）。
  * 覆盖：appendMsg / setHistory / updateLastStreaming / endStreaming / stripStreaming
@@ -9,7 +8,7 @@
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 
-let store = []
+let store: any = []
 
 vi.mock('../../src/components/agent/conversation/conversationStore.ts', () => ({
   getCurrentSnapshot: vi.fn(),
@@ -18,6 +17,7 @@ vi.mock('../../src/components/agent/conversation/conversationStore.ts', () => ({
 }))
 
 const convStore = await import('../../src/components/agent/conversation/conversationStore.ts')
+const convMock: any = convStore
 const { appendMsg, setHistory, updateLastStreaming, endStreaming, stripStreaming } = await import('../../src/components/agent/runtime/agentMessages.ts')
 
 beforeEach(() => {
@@ -25,9 +25,9 @@ beforeEach(() => {
   // 内存 store：set 覆盖 current，get 返回 current
   store.current = []
   store.set = (arr) => { store.current = arr }
-  convStore.getCurrentSnapshot.mockImplementation(() => ({ messages: store.current }))
-  convStore.setCurrentSnapshot.mockImplementation((p) => { if (p.messages) store.set(p.messages) })
-  convStore.patchCurrentMessages.mockImplementation((next) => store.set(next))
+  convMock.getCurrentSnapshot.mockImplementation(() => ({ messages: store.current }))
+  convMock.setCurrentSnapshot.mockImplementation((p) => { if (p.messages) store.set(p.messages) })
+  convMock.patchCurrentMessages.mockImplementation((next) => store.set(next))
 })
 
 describe('appendMsg — 追加一条消息', () => {
@@ -69,7 +69,7 @@ describe('updateLastStreaming — 流式增量（仅通知）', () => {
     const last = store.current[store.current.length - 1]
     expect(last.content).toBe('hi')
     expect(last.tool_calls[0].function.name).toBe('f')
-    expect(convStore.patchCurrentMessages).toHaveBeenCalled()
+    expect(convMock.patchCurrentMessages).toHaveBeenCalled()
   })
 
   it('空 toolCalls 不写 tool_calls 字段（杜绝 Empty tool_calls）', () => {

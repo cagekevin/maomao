@@ -1,5 +1,4 @@
 // @vitest-environment node
-// @ts-nocheck
 /**
  * tasksApi 单测（批 2，API 封装层）。
  * 覆盖：fetchTasks/saveTask/batchSaveTasks/deleteTask/batchDeleteTasks/clearAllTasksApi
@@ -9,7 +8,8 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { jsonResp } from './_testUtils.mjs'
 
 // 全局 fetch 已在 tests/setup.mjs 强制 mock 为 vi.fn()，此处取共享实例。
-const fetchMock = globalThis.fetch
+// 类型对齐：TS 默认把 globalThis.fetch 当 typeof fetch，cast 为 vi.fn 类型以启用 .mock* / mock.calls。
+const fetchMock = globalThis.fetch as unknown as ReturnType<typeof vi.fn>
 
 const api = await import('@/components/base/api/localToolApi.ts')
 

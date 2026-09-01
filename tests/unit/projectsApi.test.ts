@@ -1,5 +1,4 @@
 // @vitest-environment node
-// @ts-nocheck
 /**
  * projectsApi 单测（批 2，API 封装层）。
  * 覆盖：fetchProjects / saveProjects 成功路径与 HTTP 错误抛出。
@@ -8,7 +7,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { jsonResp } from './_testUtils.mjs'
 
-const fetchMock = globalThis.fetch
+// setup.mjs 已把 globalThis.fetch 定义为共享 vi.fn；此处做类型对齐以启用 .mock* / mock.calls。
+const fetchMock = globalThis.fetch as unknown as ReturnType<typeof vi.fn>
 
 const api = await import('@/components/base/api/localToolApi.ts')
 

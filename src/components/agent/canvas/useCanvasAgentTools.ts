@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from 'react'
 import { useReactFlow } from '@xyflow/react'
-import { registerTool, getTools } from '../../base/toolRegistry.ts'
+import { registerTool, getTools, type ToolResult } from '../../base/toolRegistry.ts'
 import { defaultNodeData } from '../../base/NodePalette.ts'
 import { runNodeGeneration } from '../../base/taskStore.ts'
 import { createGroupFromNodes, deleteNodesWithCascade } from '../../base/groupNodes.ts'
@@ -1387,8 +1387,10 @@ const AGENT_TOOLS = (() => {
  * @returns { [name]: (args) => { ok, data|error } }
  * 每个工具执行带 try/catch，异常包成 { ok:false, error }，绝不让异常冒泡到 Agent 层。
  */
-export function buildCanvasAgentTools(ctx) {
-  const map = {}
+export type CanvasAgentTools = Record<string, (args?: unknown) => ToolResult>
+
+export function buildCanvasAgentTools(ctx: any): CanvasAgentTools {
+  const map: CanvasAgentTools = {}
   for (const t of AGENT_TOOLS) {
     const execute = t.execute
     // 【docs/25 阶段2】mutating 由注册条目的 toolDef.mutating 派生（注册时从 MUTATING_TOOLS 派生），
@@ -1400,7 +1402,10 @@ export function buildCanvasAgentTools(ctx) {
         pushActiveAiUndo({ nodes: ctx.getNodes(), edges: ctx.getEdges(), action: t.name })
       }
       try {
-        return execute(args, ctx)
+        // execute 返回类型为 unknown，但全项目工具统一返回 { ok, data|error } 信封（见 ToolResult 注释）。
+        // 此处按约定收窄成 ToolResult，避免把"信封语义"泄露成 unknown 导致下游 TS2339。
+        // args 为 unknown，按实际用法（工具内部 str(args.xx) 读字段）转成 Record<string,unknown>。
+        return execute(args as Record<string, unknown>, ctx) as ToolResult
       } catch (e) {
         return { ok: false, error: `${t.name} 执行异常：${e?.message || e}` }
       }

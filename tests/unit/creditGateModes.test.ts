@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 /**
@@ -23,9 +22,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 let __creditState
 let __genParamsState
 vi.mock('../../src/components/base/contentStore.ts', async (importOriginal) => {
-  const actual = await importOriginal()
+  const actual: any = await importOriginal()
   return {
-    ...actual,
+    ...(actual as any),
     contentGet: vi.fn((k) => (k === 'agent_credit_switch' ? __creditState : actual.contentGet(k))),
     contentSet: vi.fn((k, v) => { if (k === 'agent_credit_switch') __creditState = !!v; else return actual.contentSet(k, v) }),
   }
@@ -67,7 +66,7 @@ vi.mock('../../src/components/base/taskStore.ts', () => ({
 vi.mock('../../src/components/agent/canvas/canvasPlanExecutor.ts', async (importOriginal) => {
   const actual = await importOriginal()
   return {
-    ...actual,
+    ...(actual as any),
     executePlan: vi.fn(async (args) => ({
       workflow: { status: args?.autoRun ? 'completed' : 'ready' },
       entries: [{ status: args?.autoRun ? 'completed' : 'ready', nodeId: 'n1', stepId: 'g1', resultUrl: args?.autoRun ? 'http://r/x.png' : '' }],
@@ -77,7 +76,14 @@ vi.mock('../../src/components/agent/canvas/canvasPlanExecutor.ts', async (import
 
 import { buildCanvasAgentTools } from '../../src/components/agent/canvas/useCanvasAgentTools.ts'
 import * as convStore from '../../src/components/agent/conversation/conversationStore.ts'
-import { executePlan as mockExecutePlan } from '../../src/components/agent/canvas/canvasPlanExecutor.ts'
+import { executePlan } from '../../src/components/agent/canvas/canvasPlanExecutor.ts'
+
+// vi.mock 工厂已把 executePlan 替换为 vi.fn，但静态类型仍是 src 原始签名（无 .mock）。
+// 测试侧用 .mock.calls 断言，故降为 any。
+const mockExecutePlan: any = executePlan
+// 对「模块命名空间 convStore」直接写 convMock.__state 会触发 vitest/TS 推断 bug，
+// 连坐同一作用域 vi/expect 变不可调用（canvasAgentTools.test.ts 探针实测）。收口到本地 any 别名。
+const convMock: any = convStore
 
 function makeCtx() {
   let nodes = []
@@ -99,14 +105,14 @@ beforeEach(() => {
   vi.clearAllMocks()
   __creditState = true // 默认开（安全）
   // 配对状态
-  convStore.__state = { awaiting: false, creditGate: null, runMode: 'auto' }
-  vi.mocked(convStore.getAwaitingConfirm).mockImplementation(() => convStore.__state.awaiting)
-  vi.mocked(convStore.setAwaitingConfirm).mockImplementation((v) => { convStore.__state.awaiting = !!v })
-  vi.mocked(convStore.getCreditGate).mockImplementation(() => convStore.__state.creditGate)
-  vi.mocked(convStore.setCreditGate).mockImplementation((g) => { convStore.__state.creditGate = g || null })
-  vi.mocked(convStore.clearCreditGate).mockImplementation(() => { convStore.__state.creditGate = null })
-  vi.mocked(convStore.getCurrentRunMode).mockImplementation(() => convStore.__state.runMode)
-  vi.mocked(convStore.setCurrentRunMode).mockImplementation((m) => { convStore.__state.runMode = m })
+  convMock.__state = { awaiting: false, creditGate: null, runMode: 'auto' }
+  vi.mocked(convStore.getAwaitingConfirm).mockImplementation(() => convMock.__state.awaiting)
+  vi.mocked(convStore.setAwaitingConfirm).mockImplementation((v) => { convMock.__state.awaiting = !!v })
+  vi.mocked(convStore.getCreditGate).mockImplementation(() => convMock.__state.creditGate)
+  vi.mocked(convStore.setCreditGate).mockImplementation((g) => { convMock.__state.creditGate = g || null })
+  vi.mocked(convStore.clearCreditGate).mockImplementation(() => { convMock.__state.creditGate = null })
+  vi.mocked(convStore.getCurrentRunMode).mockImplementation(() => convMock.__state.runMode)
+  vi.mocked(convStore.setCurrentRunMode).mockImplementation((m) => { convMock.__state.runMode = m })
 })
 
 function buildTool() {
@@ -116,7 +122,7 @@ function buildTool() {
 describe('三种模式 × 积分开关 × execute_plan 唯一入口', () => {
   describe('完全自主（runMode=auto）', () => {
     it('开关开【拦截】→ 强制 autoRun=false、建节点、置 creditGate、返回 awaited:credit，不烧积分', async () => {
-      convStore.__state.runMode = 'auto'
+      convMock.__state.runMode = 'auto'
       __creditState = true
       const t = buildTool()
       const r = await t.execute_plan({ generations: GENS, auto_run: true })
@@ -126,14 +132,14 @@ describe('三种模式 × 积分开关 × execute_plan 唯一入口', () => {
       expect(mockExecutePlan).toHaveBeenCalledTimes(1)
       expect(mockExecutePlan.mock.calls[0][0].autoRun).toBe(false)
       // creditGate 置位并持久化
-      expect(convStore.__state.creditGate?.pending).toBe(true)
-      expect(convStore.__state.creditGate?.map).toBeTruthy()
+      expect(convMock.__state.creditGate?.pending).toBe(true)
+      expect(convMock.__state.creditGate?.map).toBeTruthy()
       // 分步确认态未置位（两条门禁独立）
-      expect(convStore.__state.awaiting).toBe(false)
+      expect(convMock.__state.awaiting).toBe(false)
     })
 
     it('开关关【放行】→ 按 auto_run 直接烧积分、不置 creditGate', async () => {
-      convStore.__state.runMode = 'auto'
+      convMock.__state.runMode = 'auto'
       __creditState = false
       const t = buildTool()
       const r = await t.execute_plan({ generations: GENS, auto_run: true })
@@ -141,13 +147,13 @@ describe('三种模式 × 积分开关 × execute_plan 唯一入口', () => {
       expect(r.data.awaited).toBeUndefined()
       expect(mockExecutePlan).toHaveBeenCalledTimes(1)
       expect(mockExecutePlan.mock.calls[0][0].autoRun).toBe(true)
-      expect(convStore.__state.creditGate).toBeNull()
+      expect(convMock.__state.creditGate).toBeNull()
     })
   })
 
   describe('直接生图（inputMode=image，runMode 沿用默认 auto）', () => {
     it('开关开【拦截】→ 不再 auto_run 直出，建节点等确认（PRD §8.4 / 边界 §4）', async () => {
-      convStore.__state.runMode = 'auto' // 直接生图不改 runMode，默认 auto
+      convMock.__state.runMode = 'auto' // 直接生图不改 runMode，默认 auto
       __creditState = true
       const t = buildTool()
       // 直接生图真实路径：sendImageMode → callTool('execute_plan', {generations, auto_run:true})
@@ -156,11 +162,11 @@ describe('三种模式 × 积分开关 × execute_plan 唯一入口', () => {
       expect(r.data.awaited).toBe('credit')
       expect(mockExecutePlan).toHaveBeenCalledTimes(1)
       expect(mockExecutePlan.mock.calls[0][0].autoRun).toBe(false) // 不直出
-      expect(convStore.__state.creditGate?.pending).toBe(true)
+      expect(convMock.__state.creditGate?.pending).toBe(true)
     })
 
     it('开关关【放行】→ 直接 auto_run 出图，不弹确认（PRD §8.4）', async () => {
-      convStore.__state.runMode = 'auto'
+      convMock.__state.runMode = 'auto'
       __creditState = false
       const t = buildTool()
       const r = await t.execute_plan({ generations: GENS, auto_run: true })
@@ -168,44 +174,44 @@ describe('三种模式 × 积分开关 × execute_plan 唯一入口', () => {
       expect(r.data.awaited).toBeUndefined()
       expect(mockExecutePlan).toHaveBeenCalledTimes(1)
       expect(mockExecutePlan.mock.calls[0][0].autoRun).toBe(true) // 直出
-      expect(convStore.__state.creditGate).toBeNull()
+      expect(convMock.__state.creditGate).toBeNull()
     })
 
     it('【回归·BUG】直接生图若残留 runMode=step-confirm（先前切过分步确认），开关开必须仍拦截（PRD：直接生图受通用积分闸，与残留 runMode 无关）', async () => {
       // 用户先切「分步确认」(runMode='step-confirm')，再切「直接生图」——runMode 残留 step-confirm。
       // 直接生图语义下积分闸应只看 creditSwitch，绝不能因残留 step-confirm 被跳过。
-      convStore.__state.runMode = 'step-confirm'
+      convMock.__state.runMode = 'step-confirm'
       __creditState = true
       const t = buildTool()
       const r = await t.execute_plan({ generations: GENS, auto_run: true })
       expect(r.ok).toBe(true)
       expect(r.data.awaited).toBe('credit')
       expect(mockExecutePlan.mock.calls[0][0].autoRun).toBe(false)
-      expect(convStore.__state.creditGate?.pending).toBe(true)
+      expect(convMock.__state.creditGate?.pending).toBe(true)
     })
   })
 
   describe('分步确认（runMode=step-confirm）', () => {
     it('开关开【通用闸一视同仁】→ 分步确认同样拦截，建节点置 creditGate、返回 awaited:credit（2026-08-27 简化：删 D2 不叠分支）', async () => {
-      convStore.__state.runMode = 'step-confirm'
+      convMock.__state.runMode = 'step-confirm'
       __creditState = true
       const t = buildTool()
       const r = await t.execute_plan({ generations: GENS, auto_run: true })
       expect(r.ok).toBe(true)
       expect(r.data.awaited).toBe('credit') // 通用总闸一视同仁，无论模式开关开都拦
-      expect(convStore.__state.creditGate?.pending).toBe(true)
+      expect(convMock.__state.creditGate?.pending).toBe(true)
       expect(mockExecutePlan).toHaveBeenCalledTimes(1)
       expect(mockExecutePlan.mock.calls[0][0].autoRun).toBe(false)
     })
 
     it('开关关【放行】→ 不置 creditGate，按 auto_run 执行', async () => {
-      convStore.__state.runMode = 'step-confirm'
+      convMock.__state.runMode = 'step-confirm'
       __creditState = false
       const t = buildTool()
       const r = await t.execute_plan({ generations: GENS, auto_run: true })
       expect(r.ok).toBe(true)
       expect(r.data.awaited).toBeUndefined()
-      expect(convStore.__state.creditGate).toBeNull()
+      expect(convMock.__state.creditGate).toBeNull()
       expect(mockExecutePlan).toHaveBeenCalledTimes(1)
       expect(mockExecutePlan.mock.calls[0][0].autoRun).toBe(true)
     })

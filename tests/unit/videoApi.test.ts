@@ -1,5 +1,4 @@
 // @vitest-environment node
-// @ts-nocheck
 /**
  * videoApi 单测（批 2，API 封装层）。
  * 覆盖：generateVideo 强制 async（提交→轮询→取 url）；无 task_id 失败；网络错误分支。
@@ -10,7 +9,8 @@ import { jsonResp, fastPollTimers } from './_testUtils.mjs'
 import { timeoutMessage } from '../../src/components/base/genErrors.ts'
 import { VIDEO_TIMEOUT } from '../../src/components/base/config.ts'
 
-const fetchMock = globalThis.fetch
+// setup.mjs 已把 globalThis.fetch 定义为共享 vi.fn；此处做类型对齐以启用 .mock* / mock.calls。
+const fetchMock = globalThis.fetch as unknown as ReturnType<typeof vi.fn>
 
 vi.mock('../../src/components/base/imageUrl.ts', () => ({
   normalizeImageUrlsForSend: vi.fn(async () => []),
@@ -35,9 +35,9 @@ function submittedUrl() {
 
 beforeEach(() => {
   fetchMock.mockReset()
-  normalizeImageUrlsForSend.mockReset()
-  normalizeImageUrlsForSend.mockResolvedValue([])
-  setTaskPollId.mockReset()
+  vi.mocked(normalizeImageUrlsForSend).mockReset()
+  vi.mocked(normalizeImageUrlsForSend).mockResolvedValue([])
+  vi.mocked(setTaskPollId).mockReset()
   vi.restoreAllMocks()
   // 加速轮询里的 setTimeout(5000)：统一走共享 helper（见 _testUtils.fastPollTimers）
   fastPollTimers()
@@ -101,7 +101,7 @@ describe('videoApi — generateVideo async 成功', () => {
   })
 
   it('参考图 → normalizeImageUrlsForSend 且写 image_urls', async () => {
-    normalizeImageUrlsForSend.mockResolvedValue(['http://ref/a.png'])
+    vi.mocked(normalizeImageUrlsForSend).mockResolvedValue(['http://ref/a.png'])
     fetchMock.mockResolvedValueOnce(jsonResp({ data: { result: { videos: [{ url: 'http://x/v.mp4' }] } } }))
     await generateVideo({ provider: {}, prompt: 'x', model: 'm', images: ['blob:x'] })
     expect(normalizeImageUrlsForSend).toHaveBeenCalledWith(['blob:x'], { preferBase64: false })
@@ -110,7 +110,7 @@ describe('videoApi — generateVideo async 成功', () => {
   })
 
   it('refFormat=base64 → normalizeImageUrlsForSend 传 preferBase64', async () => {
-    normalizeImageUrlsForSend.mockResolvedValue([])
+    vi.mocked(normalizeImageUrlsForSend).mockResolvedValue([])
     fetchMock.mockResolvedValueOnce(jsonResp({ data: { result: { videos: [{ url: 'http://x/v.mp4' }] } } }))
     await generateVideo({ provider: { refFormat: 'base64' }, prompt: 'x', model: 'm', images: ['http://x/a.png'] })
     expect(normalizeImageUrlsForSend).toHaveBeenCalledWith(['http://x/a.png'], { preferBase64: true })

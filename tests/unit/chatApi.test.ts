@@ -1,5 +1,4 @@
 // @vitest-environment node
-// @ts-nocheck
 /**
  * chatApi 单测（批 2，API 封装层）。
  * 覆盖：chatCompletions 成功返回 content / 网络异常 / AbortError / 上游无文本。
@@ -7,7 +6,8 @@
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 
-const fetchMock = globalThis.fetch
+// setup.mjs 已把 globalThis.fetch 定义为共享 vi.fn；此处做类型对齐以启用 .mock* / mock.calls。
+const fetchMock = globalThis.fetch as unknown as ReturnType<typeof vi.fn>
 
 vi.mock('../../src/components/base/imageUrl.ts', () => ({
   normalizeImageUrlsForSend: vi.fn(async () => []),
@@ -87,7 +87,7 @@ describe('chatApi — chatCompletions 成功', () => {
   })
 
   it('有参考图时调用 normalizeImageUrlsForSend 并追加 image_url 内容块到末条 user 消息', async () => {
-    normalizeImageUrlsForSend.mockResolvedValue(['http://ref/x.png'])
+    vi.mocked(normalizeImageUrlsForSend).mockResolvedValue(['http://ref/x.png'])
     fetchMock.mockResolvedValue(proxyResp({ data: { choices: [{ message: { content: 'x' } }] } }))
     await chatCompletions({
       provider: {},
@@ -107,7 +107,7 @@ describe('chatApi — chatCompletions 成功', () => {
   })
 
   it('无参考图（images 空）→ 不调 normalizeImageUrlsForSend，消息原样', async () => {
-    normalizeImageUrlsForSend.mockClear()
+    vi.mocked(normalizeImageUrlsForSend).mockClear()
     fetchMock.mockResolvedValue(proxyResp({ data: { choices: [{ message: { content: 'x' } }] } }))
     await chatCompletions({ provider: {}, model: 'm', messages: [{ role: 'user', content: 'hi' }], images: [] })
     expect(normalizeImageUrlsForSend).not.toHaveBeenCalled()
@@ -115,14 +115,14 @@ describe('chatApi — chatCompletions 成功', () => {
   })
 
   it('normalizeImageUrlsForSend 返回空 → 不追加图片块', async () => {
-    normalizeImageUrlsForSend.mockResolvedValue([])
+    vi.mocked(normalizeImageUrlsForSend).mockResolvedValue([])
     fetchMock.mockResolvedValue(proxyResp({ data: { choices: [{ message: { content: 'x' } }] } }))
     await chatCompletions({ provider: {}, model: 'm', messages: [{ role: 'user', content: 'hi' }], images: ['blob:x'] })
     expect(innerBody().messages).toEqual([{ role: 'user', content: 'hi' }])
   })
 
   it('refFormat=base64 → normalizeImageUrlsForSend 传 preferBase64', async () => {
-    normalizeImageUrlsForSend.mockResolvedValue([])
+    vi.mocked(normalizeImageUrlsForSend).mockResolvedValue([])
     fetchMock.mockResolvedValue(proxyResp({ data: { choices: [{ message: { content: 'x' } }] } }))
     await chatCompletions({ provider: { refFormat: 'base64' }, model: 'm', messages: [], images: ['http://x/a.png'] })
     expect(normalizeImageUrlsForSend).toHaveBeenCalledWith(['http://x/a.png'], { preferBase64: true })

@@ -1,5 +1,4 @@
 // @vitest-environment node
-// @ts-nocheck
 /**
  * cloudSync 单测（批 1-3）。
  * 覆盖：CloudSyncEngine.callGateway（URL 校验/重入守卫/响应解析）、push/pull 成功与失败分支、
@@ -11,7 +10,8 @@ import { jsonResp, createKvMem } from './_testUtils.mjs'
 import { contentClearCache } from '../../src/components/base/contentStore.ts'
 
 // 复用 setup.mjs 强制 mock 的全局 fetch（Node 原生 fetch 不可配置，vi.stubGlobal 会静默失效）
-const fetchMock = globalThis.fetch
+// 类型对齐：TS 默认把 globalThis.fetch 当 typeof fetch，cast 为 vi.fn 类型以启用 .mock* / mock.calls。
+const fetchMock = globalThis.fetch as unknown as ReturnType<typeof vi.fn>
 
 // 账号 KV mock：走内存 Map，让 contentSetAsync('yimao_accounts') 先落 KV 再被 collectLocal 读回，
 // 走真实 KV 读写路径；若缺 kvGet/kvSet，将退化为「写读都降级到本地副本」的误导链。
@@ -47,8 +47,8 @@ beforeEach(() => {
   globalThis.fetch = fetchMock
   fetchMock.mockClear()
   kv.memKV.clear()
-  providerApi.getProviders.mockReset()
-  providerApi.getProviders.mockResolvedValue({ data: null }) // 默认无 providers，与既有用例行为一致
+  vi.mocked(providerApi.getProviders).mockReset()
+  vi.mocked(providerApi.getProviders).mockResolvedValue({ data: null }) // 默认无 providers，与既有用例行为一致
   CloudSyncEngine.isSyncing = false
   localStorage.clear()
   contentClearCache()
@@ -131,7 +131,7 @@ describe('cloudSync — uploadConfig / downloadConfig 边界', () => {
     // 【R6 边角3】localTool 未连的降级路径：catch 静默跳过，不阻塞本地配置上传
     const { contentSet } = await import('../../src/components/base/contentStore.ts')
     contentSet('app_settings', { theme: 'dark' })
-    providerApi.getProviders.mockRejectedValue(new Error('ECONNREFUSED'))
+    vi.mocked(providerApi.getProviders).mockRejectedValue(new Error('ECONNREFUSED'))
     fetchMock.mockResolvedValue(jsonResp({ msg: 'ok' }))
     const res = await uploadConfig(() => {})
     expect(res.ok).toBe(true)

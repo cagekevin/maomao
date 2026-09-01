@@ -1,5 +1,4 @@
 // @vitest-environment jsdom
-// @ts-nocheck
 /**
  * useAssetDragToCanvas 单测（批 3）。
  * 覆盖：
@@ -14,17 +13,19 @@ import { renderHook } from '@testing-library/react'
 
 const { makeAssetDragProps, useAssetDragToCanvas, fetchText, textCache } = await import('../../src/hooks/useAssetDragToCanvas.ts')
 
-const fetchMock = globalThis.fetch
+// setup.mjs 已把 globalThis.fetch 定义为共享 vi.fn；此处做类型对齐以启用 .mock* / mock.calls。
+const fetchMock = globalThis.fetch as unknown as ReturnType<typeof vi.fn>
 
 function fakeDataTransfer() {
   const store = {}
+  // 仅 mock 被测用到的 setData/getData/setDragImage/effectAllowed；cast 成 DataTransfer 以满足 onDragStart 入参类型
   return {
     setData: (k, v) => { store[k] = v },
     getData: (k) => store[k],
     setDragImage: vi.fn(),
     effectAllowed: '',
     _store: store,
-  }
+  } as unknown as DataTransfer
 }
 
 describe('makeAssetDragProps', () => {
@@ -38,7 +39,7 @@ describe('makeAssetDragProps', () => {
     // 源码 dragEnabled = asset && asset.url → draggable 为「真值 URL 字符串」
     expect(props.draggable).toBeTruthy()
     const dt = fakeDataTransfer()
-    props.onDragStart({ dataTransfer: dt })
+    props.onDragStart({ dataTransfer: dt } as any)
     const parsed = JSON.parse(dt.getData('application/x-yimao-asset'))
     expect(parsed).toMatchObject({ url: 'http://x/y.png', name: '图', type: 'image' })
     expect(dt.effectAllowed).toBe('copy')
@@ -48,7 +49,7 @@ describe('makeAssetDragProps', () => {
     const props = makeAssetDragProps({ name: '无图' })
     expect(props.draggable).toBeFalsy()
     const dt = fakeDataTransfer()
-    props.onDragStart({ dataTransfer: dt })
+    props.onDragStart({ dataTransfer: dt } as any)
     expect(dt.getData('application/x-yimao-asset')).toBeFalsy()
   })
 
@@ -61,7 +62,7 @@ describe('makeAssetDragProps', () => {
     fetchMock.mockImplementation(() => Promise.resolve({ ok: true, text: async () => '正文内容' }))
     const props = makeAssetDragProps({ url: 'http://x/t.txt', name: '文', type: 'text' })
     const dt = fakeDataTransfer()
-    props.onDragStart({ dataTransfer: dt })
+    props.onDragStart({ dataTransfer: dt } as any)
     // 初次仅有 url/name/type
     const first = JSON.parse(dt.getData('application/x-yimao-asset'))
     expect(first.text).toBeUndefined()
@@ -79,7 +80,7 @@ describe('useAssetDragToCanvas', () => {
     const props = result.current.assetDragProps({ url: 'http://x/y.png', name: '图', type: 'image' })
     expect(props.draggable).toBeTruthy()
     const dt = fakeDataTransfer()
-    props.onDragStart({ dataTransfer: dt })
+    props.onDragStart({ dataTransfer: dt } as any)
     expect(JSON.parse(dt.getData('application/x-yimao-asset')).url).toBe('http://x/y.png')
   })
 })

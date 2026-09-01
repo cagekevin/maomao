@@ -1,5 +1,4 @@
 // @vitest-environment node
-// @ts-nocheck
 /**
  * imageApi 单测（批 2，API 封装层）。
  * 覆盖：resolveImagePixel 查表与边界（纯函数）；generateImage sync 模式成功取 url；
@@ -8,7 +7,9 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { jsonResp, sseResp } from './_testUtils.mjs'
 
-const fetchMock = globalThis.fetch
+// setup.mjs 已把 globalThis.fetch 定义为共享 vi.fn（node 下原生 fetch 不可配置，见 _testUtils 踩坑 #1）。
+// TS 默认把 globalThis.fetch 当 typeof fetch（无 mock 方法），此处做类型对齐以启用 .mock* / mock.calls。
+const fetchMock = globalThis.fetch as unknown as ReturnType<typeof vi.fn>
 
 vi.mock('../../src/components/base/imageUrl.ts', () => ({
   normalizeImageUrlsForSend: vi.fn(async () => []),
@@ -28,9 +29,9 @@ const { setTaskPollId } = await import('../../src/components/base/taskStore.ts')
 beforeEach(() => {
   // mockReset 清掉上个用例遗留的 mockResolvedValueOnce / mockRejectedValueOnce 队列
   fetchMock.mockReset()
-  normalizeImageUrlsForSend.mockReset()
-  normalizeImageUrlsForSend.mockResolvedValue([])
-  setTaskPollId.mockReset()
+  vi.mocked(normalizeImageUrlsForSend).mockReset()
+  vi.mocked(normalizeImageUrlsForSend).mockResolvedValue([])
+  vi.mocked(setTaskPollId).mockReset()
   vi.restoreAllMocks() // 清掉上个用例 spy 的 setTimeout
 })
 afterEach(() => vi.unstubAllGlobals())
@@ -108,7 +109,7 @@ describe('imageApi — generateImage sync 成功', () => {
   })
 
   it('参考图 → normalizeImageUrlsForSend 且写 image_urls', async () => {
-    normalizeImageUrlsForSend.mockResolvedValue(['http://ref/a.png'])
+    vi.mocked(normalizeImageUrlsForSend).mockResolvedValue(['http://ref/a.png'])
     fetchMock.mockResolvedValue(sseResp(['data: {"status":"succeeded","results":[{"url":"http://x/y.png"}]}']))
     await api.generateImage({ provider: {}, prompt: 'x', model: 'm', images: ['blob:x'] })
     expect(normalizeImageUrlsForSend).toHaveBeenCalledWith(['blob:x'], { preferBase64: false })
@@ -117,7 +118,7 @@ describe('imageApi — generateImage sync 成功', () => {
   })
 
   it('refFormat=base64 → normalizeImageUrlsForSend 传 preferBase64', async () => {
-    normalizeImageUrlsForSend.mockResolvedValue([])
+    vi.mocked(normalizeImageUrlsForSend).mockResolvedValue([])
     fetchMock.mockResolvedValue(sseResp(['data: {"status":"succeeded","results":[{"url":"http://x/y.png"}]}']))
     await api.generateImage({ provider: { refFormat: 'base64' }, prompt: 'x', model: 'm', images: ['http://x/a.png'] })
     expect(normalizeImageUrlsForSend).toHaveBeenCalledWith(['http://x/a.png'], { preferBase64: true })

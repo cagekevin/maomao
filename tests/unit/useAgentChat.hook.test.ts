@@ -1,5 +1,4 @@
 // @vitest-environment jsdom
-// @ts-nocheck
 /**
  * useAgentChat hook 编排层深度测试。
  * 覆盖之前只有"调一下返回 ok"的浅层盲区：
@@ -39,8 +38,27 @@ vi.mock('../../src/components/base/logger.ts', () => ({
 // 【阶段1A 消息单源】useAgentChat 渲染走 useStoreSelector(subscribe, getState)（conversationState），
 //   消息写入走 setCurrentSnapshot/patchCurrentMessages（conversationStore）。为让「写入→订阅连通」，
 //   conversationState 与 conversationStore 的 mock 必须共享同一份内存 store（会话消息单源不变量）。
-const sharedConvStore = vi.hoisted(() => {
-  const state = {
+// 【类型消化】sharedConvStore 加显式类型：vitest 的 vi.hoisted 在复杂闭包下推断失败会把返回值当 '{}'，
+// 导致 state.conversations.find 报 TS2349、subscribe/getState 被当成不可调用，连锁让 useAgentChat 的
+// messages 推断为 unknown。显式标注返回类型后，mock 形状与原始 conversationState 契约对齐。
+interface ConvStoreMock {
+  state: {
+    activeId: string
+    sending: boolean
+    conversations: { id: string; title: string; messages: any[]; skills: any[]; draft: string; attachments: any[] }[]
+  }
+  listeners: Set<() => void>
+  getActiveConv(): { id: string; title: string; messages: any[]; skills: any[]; draft: string; attachments: any[] } | null
+  notify(): void
+  setActiveMessages(messages: any): void
+  setSendingState(v: boolean): void
+  setActiveId(id: string): void
+  subscribe(cb: () => void): () => void
+  getState(): ConvStoreMock['state']
+  reset(): void
+}
+const sharedConvStore = vi.hoisted((): ConvStoreMock => {
+  const state: ConvStoreMock['state'] = {
     activeId: 'c1',
     sending: false,
     conversations: [
@@ -48,7 +66,7 @@ const sharedConvStore = vi.hoisted(() => {
       { id: 'c2', title: '对话2', messages: [], skills: [], draft: '', attachments: [] },
     ],
   }
-  const listeners = new Set()
+  const listeners = new Set<() => void>()
   const getActiveConv = () => state.conversations.find((c) => c.id === state.activeId) || null
   const notify = () => listeners.forEach((l) => l())
   // 更新当前对话 messages（唯一写口；模拟 setCurrentSnapshot/patchCurrentMessages 的落 store 语义）
@@ -144,8 +162,14 @@ vi.mock('../../src/components/agent/conversation/conversationStore.ts', () => {
 })
 
 import { useAgentChat, buildRequestMessages, parseSSEChunk, parseGenerationsFromReply } from '../../src/components/agent/runtime/useAgentChat.ts'
-import { resolveSkillExecutionRules } from '../../src/components/agent/runtime/agentCore.ts'
+import { resolveSkillExecutionRules, ChatMessage } from '../../src/components/agent/runtime/agentCore.ts'
 import * as convStore from '../../src/components/agent/conversation/conversationStore.ts'
+
+// 【类型消化】src 侧 useAgentChat().messages 已是 ChatMessage[]，但测试 fixture 会在消息上挂
+// attachments / refCatalog / steer / mode 等扩展字段，且会按 content 块访问 type/text。
+// 测试侧只需"能跑类型检查 + 断言可读"，故把 messages 放宽成 any[]（renderHook 的 Result
+// 约束要求 hook 返回值可赋给它；ChatMessage[] 可赋 any[]，满足）。src 的精确类型保持不变。
+type AgentChatApi = Omit<ReturnType<typeof useAgentChat>, 'messages'> & { messages: any[] }
 
 // ── SSE 流构造助手 ──
 function sseChunks(deltas) {
@@ -164,8 +188,8 @@ function makeStreamResponse(body) {
 function deltaMsg({ content = '', reasoning = '', tool_calls = [] }) {
   return { choices: [{ delta: { content, reasoning_content: reasoning, tool_calls } }] }
 }
-function toolCallDelta(index, { id, name, args } = {}) {
-  const fn = {}
+function toolCallDelta(index, { id, name, args }: { id?: string; name?: string; args?: string } = {}) {
+  const fn: Record<string, unknown> = {}
   if (name !== undefined) fn.name = name
   if (args !== undefined) fn.arguments = args
   return { choices: [{ delta: { tool_calls: [{ index, id, function: fn }] } }] }
@@ -204,7 +228,7 @@ const textStream = (content) => makeStreamResponse(sseChunks([deltaMsg({ content
 describe('useAgentChat · 真实模式 SSE 编排', () => {
   it('空内容 send 不改 messages（no-op 保护）', async () => {
     fetchMock.mockResolvedValue(textStream('不应出现'))
-    const { result } = renderHook(() => useAgentChat())
+    const { result } = renderHook<AgentChatApi, unknown>(() => useAgentChat())
     await act(async () => {
       await result.current.send('')
     })
@@ -214,7 +238,7 @@ describe('useAgentChat · 真实模式 SSE 编排', () => {
 
   it('单轮纯文本：SSE 无 tool_calls → 收敛，追加 user+assistant', async () => {
     fetchMock.mockResolvedValue(textStream('你好，我帮你操作画布。'))
-    const { result } = renderHook(() => useAgentChat())
+    const { result } = renderHook<AgentChatApi, unknown>(() => useAgentChat())
     await act(async () => {}) // 会话水化/初始恢复为异步：flush 微任务等 restore 完成，避免其复位消息
     await act(async () => {
       await result.current.send('帮我看看画布')
@@ -232,7 +256,7 @@ describe('useAgentChat · 真实模式 SSE 编排', () => {
       .mockResolvedValueOnce(toolStream())
       .mockResolvedValueOnce(textStream('已创建生图节点。'))
 
-    const { result } = renderHook(() => useAgentChat())
+    const { result } = renderHook<AgentChatApi, unknown>(() => useAgentChat())
     await act(async () => {}) // 会话水化/初始恢复为异步：flush 微任务等 restore 完成，避免其复位消息
     await act(async () => {
       await result.current.send('创建一个生图节点')
@@ -253,7 +277,7 @@ describe('useAgentChat · 真实模式 SSE 编排', () => {
   it('复合忙判定：任务进行中（发送锁 + 状态机 running）再次 send 走 steer，不触发第二次请求', async () => {
     // 第一轮 fetch 挂起（pending），保证发送锁保持 true、状态机 running
     fetchMock.mockImplementation((url, opts) => new Promise(() => {}))
-    const { result } = renderHook(() => useAgentChat())
+    const { result } = renderHook<AgentChatApi, unknown>(() => useAgentChat())
     // 发起第一轮
     act(() => { result.current.send('第一轮任务').catch(() => {}) })
     await waitFor(() => expect(result.current.sending).toBe(true))
@@ -283,7 +307,7 @@ describe('useAgentChat · 真实模式 SSE 编排', () => {
       .mockResolvedValueOnce(toolStream('call_1', 'show_plan_for_confirm', '{"plan_text":"一套策划","generations":[]}'))
       .mockResolvedValueOnce(textStream('不该出现的第二轮'))
 
-    const { result } = renderHook(() => useAgentChat())
+    const { result } = renderHook<AgentChatApi, unknown>(() => useAgentChat())
     await act(async () => {
       await result.current.send('帮我策划一套图')
     })
@@ -303,7 +327,7 @@ describe('useAgentChat · 真实模式 SSE 编排', () => {
     fetchMock
       .mockResolvedValueOnce(toolStream('call_1', 'create_node', '{"type":"promptNode","label":"生图节点"}'))
       .mockResolvedValueOnce(textStream('已创建。'))
-    const { result } = renderHook(() => useAgentChat())
+    const { result } = renderHook<AgentChatApi, unknown>(() => useAgentChat())
     await act(async () => { await result.current.send('创建一个生图节点') })
     // 关键：残留 creditGate.pending 不打断 → create_node 执行 + 第二轮 LLM 收敛
     expect(callTool).toHaveBeenCalledWith('create_node', { type: 'promptNode', label: '生图节点' })
@@ -318,7 +342,7 @@ describe('useAgentChat · 真实模式 SSE 编排', () => {
     fetchMock
       .mockResolvedValueOnce(toolStream('call_1', 'execute_plan', '{}'))
       .mockResolvedValueOnce(textStream('不该出现的第二轮'))
-    const { result } = renderHook(() => useAgentChat())
+    const { result } = renderHook<AgentChatApi, unknown>(() => useAgentChat())
     await act(async () => { await result.current.send('生成一张图') })
     // 关键：execute_plan 命中 credit → 只有 1 次 LLM 请求（暂停等点生成）
     expect(fetchMock).toHaveBeenCalledTimes(1)
@@ -333,7 +357,7 @@ describe('useAgentChat · 真实模式 SSE 编排', () => {
         if (sig) sig.addEventListener('abort', () => reject(new DOMException('The operation was aborted', 'AbortError')))
       })
     )
-    const { result } = renderHook(() => useAgentChat())
+    const { result } = renderHook<AgentChatApi, unknown>(() => useAgentChat())
     act(() => { result.current.send('生一张图').catch(() => {}) })
     await waitFor(() => expect(result.current.sending).toBe(true))
 
@@ -346,7 +370,7 @@ describe('useAgentChat · 真实模式 SSE 编排', () => {
   it('超过 MAX_TOOL_ROUNDS 仍不收敛 → 自动停止提示（防死循环）', async () => {
     // 注意：每次必须返回「新」的 Response/Stream 实例，否则复用的 stream 第二次读已 done
     fetchMock.mockImplementation(() => toolStream('call_loop', 'create_node', '{"type":"promptNode"}'))
-    const { result } = renderHook(() => useAgentChat())
+    const { result } = renderHook<AgentChatApi, unknown>(() => useAgentChat())
     await act(async () => {
       await result.current.send('一直创建')
     })
@@ -368,7 +392,7 @@ describe('useAgentChat · steer 排队（任务进行中补充指令）', () => 
   it('任务进行中再 send → 第二条进 steer 队列（标记 steer），不并发双发', async () => {
     let resolveFirst
     fetchMock.mockReturnValueOnce(new Promise((r) => { resolveFirst = r }))
-    const { result } = renderHook(() => useAgentChat())
+    const { result } = renderHook<AgentChatApi, unknown>(() => useAgentChat())
 
     act(() => { result.current.send('第一个任务').catch(() => {}) })
     // 第一个进行中发第二个：应被拦下进 steer 队列，不再调 fetch
@@ -391,7 +415,7 @@ describe('useAgentChat · steer 排队（任务进行中补充指令）', () => 
       n += 1
       return Promise.resolve(n % 2 === 1 ? toolStream(`call_${n}`, 'create_node', '{"type":"promptNode"}') : textStream(`完成${n}`))
     })
-    const { result } = renderHook(() => useAgentChat())
+    const { result } = renderHook<AgentChatApi, unknown>(() => useAgentChat())
     await act(async () => {}) // 会话水化/初始恢复为异步：flush 微任务等 restore 完成，避免其复位消息
     await act(async () => { await result.current.send('创建节点A') })
     await act(async () => { await result.current.send('创建节点B') })
@@ -404,7 +428,7 @@ describe('useAgentChat · steer 排队（任务进行中补充指令）', () => 
 describe('useAgentChat · clear / stateAction', () => {
   it('clear 清空当前对话 messages', async () => {
     fetchMock.mockResolvedValue(textStream('hi'))
-    const { result } = renderHook(() => useAgentChat())
+    const { result } = renderHook<AgentChatApi, unknown>(() => useAgentChat())
     await act(async () => { await result.current.send('你好') })
     expect(result.current.messages.length).toBeGreaterThan(0)
     act(() => { result.current.clear() })
@@ -415,7 +439,7 @@ describe('useAgentChat · clear / stateAction', () => {
   it('stateAction 空闲为 idle，send 过程中进入非 idle，结束后回 idle', async () => {
     let resolveFirst
     fetchMock.mockReturnValueOnce(new Promise((r) => { resolveFirst = r }))
-    const { result } = renderHook(() => useAgentChat())
+    const { result } = renderHook<AgentChatApi, unknown>(() => useAgentChat())
     expect(result.current.stateAction).toBe('idle')
     act(() => { result.current.send('挂起任务').catch(() => {}) })
     await waitFor(() => expect(result.current.stateAction).not.toBe('idle'))
@@ -428,7 +452,7 @@ describe('useAgentChat · 直接生图（三态=direct，send 内部第一行分
   // direct 分支 = 原 sendImageMode 正文，经 send 单入口在 workMode=direct 时 bypass LLM 触发
   it('空提示词不发送（no-op）', async () => {
     vi.mocked(convStore.getWorkMode).mockReturnValue('direct')
-    const { result } = renderHook(() => useAgentChat())
+    const { result } = renderHook<AgentChatApi, unknown>(() => useAgentChat())
     await act(async () => { await result.current.send('', []) })
     expect(callTool).not.toHaveBeenCalled()
     expect(result.current.messages).toHaveLength(0)
@@ -437,7 +461,7 @@ describe('useAgentChat · 直接生图（三态=direct，send 内部第一行分
   it('成功：callTool(execute_plan) 返回 ok → 追加 image 模式 assistant 消息', async () => {
     vi.mocked(convStore.getWorkMode).mockReturnValue('direct')
     callTool.mockReturnValue({ ok: true, data: { entries: [{ status: 'completed' }, { status: 'completed' }] } })
-    const { result } = renderHook(() => useAgentChat())
+    const { result } = renderHook<AgentChatApi, unknown>(() => useAgentChat())
     await act(async () => {
       await result.current.send('一只赛博猫', [{ type: 'image', url: 'http://x/r.png' }])
     })
@@ -457,7 +481,7 @@ describe('useAgentChat · 直接生图（三态=direct，send 内部第一行分
     // 2026-08-27 简化：直接生图在积分开关开时也被拦截，execute_plan 返回 awaited:'credit'（节点建好未真生成）。
     // direct 分支（直连点）必须兼容该语义：不写「已在画布生图」、不二次 execute_plan（红线 §6.4）。
     callTool.mockReturnValue({ ok: true, data: { awaited: 'credit', steps: [{ id: 'g1', status: 'ready', nodeId: 'n1' }], note: '节点已建好，生成待积分确认' } })
-    const { result } = renderHook(() => useAgentChat())
+    const { result } = renderHook<AgentChatApi, unknown>(() => useAgentChat())
     await act(async () => {}) // 会话水化/初始恢复为异步：flush 微任务等 restore 完成，避免其复位消息
     await act(async () => {
       await result.current.send('一只猫', [])
@@ -475,7 +499,7 @@ describe('useAgentChat · 直接生图（三态=direct，send 内部第一行分
     // 单参考图 → perRef 拆分不触发（referenceImages.length>=2 才拆），走单 generation。
     // 该 generation 必须带 use_attachments:true，让 execute_plan 把它整批共享挂到节点 data.images（对齐多图 buildPerReferenceGenerations）。
     callTool.mockReturnValue({ ok: true, data: { entries: [{ status: 'completed', nodeId: 'n1' }] } })
-    const { result } = renderHook(() => useAgentChat())
+    const { result } = renderHook<AgentChatApi, unknown>(() => useAgentChat())
     await act(async () => {
       await result.current.send('把它改成红色的猫', [{ type: 'image', url: 'http://x/ref.png' }])
     })
@@ -489,7 +513,7 @@ describe('useAgentChat · 直接生图（三态=direct，send 内部第一行分
   it('【图生图】直连模式无参考图 → generation 不带 use_attachments（纯文生图，不误挂）', async () => {
     vi.mocked(convStore.getWorkMode).mockReturnValue('direct')
     callTool.mockReturnValue({ ok: true, data: { entries: [{ status: 'completed', nodeId: 'n1' }] } })
-    const { result } = renderHook(() => useAgentChat())
+    const { result } = renderHook<AgentChatApi, unknown>(() => useAgentChat())
     await act(async () => {
       await result.current.send('一只纯文字生成的猫', [])
     })
@@ -500,7 +524,7 @@ describe('useAgentChat · 直接生图（三态=direct，send 内部第一行分
   it('失败：callTool(execute_plan) 返回 error → 设置 error', async () => {
     vi.mocked(convStore.getWorkMode).mockReturnValue('direct')
     callTool.mockReturnValueOnce({ ok: false, error: '生图服务异常' })
-    const { result } = renderHook(() => useAgentChat())
+    const { result } = renderHook<AgentChatApi, unknown>(() => useAgentChat())
     await act(async () => {}) // 会话水化/初始恢复为异步：flush 微任务等 restore 完成，避免其复位消息
     await act(async () => {
       await result.current.send('一只猫', [])
@@ -513,7 +537,7 @@ describe('useAgentChat · 直接生图（三态=direct，send 内部第一行分
 
 describe('useAgentChat · 多对话隔离（newChat/switchChat/deleteChat）', () => {
   it('newChat：创建新对话，activeConversationId 变化，messages 清空', async () => {
-    const { result } = renderHook(() => useAgentChat())
+    const { result } = renderHook<AgentChatApi, unknown>(() => useAgentChat())
     // 先在 c1 留一条消息
     fetchMock.mockResolvedValue(textStream('hi'))
     await act(async () => { await result.current.send('你好') })
@@ -524,14 +548,14 @@ describe('useAgentChat · 多对话隔离（newChat/switchChat/deleteChat）', (
   })
 
   it('switchChat：切换到已存在对话，同步其快照', async () => {
-    const { result } = renderHook(() => useAgentChat())
+    const { result } = renderHook<AgentChatApi, unknown>(() => useAgentChat())
     act(() => { result.current.switchChat('c2') })
     expect(result.current.activeConversationId).toBe('c2')
     expect(result.current.messages).toHaveLength(0)
   })
 
   it('deleteChat：删除当前对话后自动切回 activeId', async () => {
-    const { result } = renderHook(() => useAgentChat())
+    const { result } = renderHook<AgentChatApi, unknown>(() => useAgentChat())
     // 当前是 c1，删除 c1 → 内部 deleteConversation mock 把 activeId 置回 c1
     act(() => { result.current.deleteChat('c1') })
     expect(result.current.activeConversationId).toBe('c1')
@@ -542,7 +566,7 @@ describe('useAgentChat · 多对话隔离（newChat/switchChat/deleteChat）', (
 describe('useAgentChat · roundTrip 双路径（默认 / proxy）', () => {
   it('默认路径：fetch 指向 /api/agent/{agentKey}/chat', async () => {
     fetchMock.mockResolvedValue(textStream('默认路径回复'))
-    const { result } = renderHook(() => useAgentChat({ agentKey: 'canvas-assistant' }))
+    const { result } = renderHook<AgentChatApi, unknown>(() => useAgentChat({ agentKey: 'canvas-assistant' }))
     await act(async () => { await result.current.send('hi') })
     const url = fetchMock.mock.calls[0][0]
     expect(url).toContain('/api/agent/canvas-assistant/chat')
@@ -551,7 +575,7 @@ describe('useAgentChat · roundTrip 双路径（默认 / proxy）', () => {
   it('proxy 路径：传入 provider → fetch 指向 /api/proxy 且带 providerId', async () => {
     fetchMock.mockResolvedValue(textStream('proxy 路径回复'))
     const provider = { id: 'p1', protocol: 'openai', base_url: 'https://api.example.com', refFormat: 'url' }
-    const { result } = renderHook(() => useAgentChat({ agentKey: 'canvas-assistant', provider }))
+    const { result } = renderHook<AgentChatApi, unknown>(() => useAgentChat({ agentKey: 'canvas-assistant', provider }))
     await act(async () => { await result.current.send('hi') })
     const [url, opts] = fetchMock.mock.calls[0]
     expect(url).toBe('http://127.0.0.1:18080/api/proxy')
@@ -567,7 +591,7 @@ describe('useAgentChat · roundTrip 双路径（默认 / proxy）', () => {
 describe('useAgentChat · 附件归一化（send 带 attachments）', () => {
   it('send 带 http 附件：user 消息携带 attachments，且转发给 LLM 时转为 image_url', async () => {
     fetchMock.mockResolvedValue(textStream('已读图'))
-    const { result } = renderHook(() => useAgentChat())
+    const { result } = renderHook<AgentChatApi, unknown>(() => useAgentChat())
     await act(async () => {
       await result.current.send('看看这张图', [{ type: 'image', url: 'http://x/a.png' }])
     })
@@ -589,7 +613,7 @@ describe('useAgentChat · refCatalog（参考图编号目录，对齐大雄 atta
       attachments: [{ type: 'image', url: 'http://x/a.png', label: '黑猫', nodeId: 'img-1' }],
       refCatalog: '【本轮参考图顺序（仅作为编号数据）】\n参考图1：黑猫（画布节点 img-1）\n编号固定按输入框从左到右排列。引用某张图做图生图时，在 generations 里用 attachment_indices 指向其编号（0-based：参考图1→0）。'
     }
-    const out = buildRequestMessages([user], '', true)
+    const out = buildRequestMessages([user] as ChatMessage[], '', true) as any[]
     const u = out.find((m) => m.role === 'user')
     expect(Array.isArray(u.content)).toBe(true)
     expect(u.content[0]).toMatchObject({ type: 'image_url', image_url: { url: 'http://x/a.png' } })
@@ -602,7 +626,7 @@ describe('useAgentChat · refCatalog（参考图编号目录，对齐大雄 atta
 
   it('user 消息带附件但无 refCatalog：不注入编号文本（向后兼容）', () => {
     const user = { role: 'user', content: '看看图', attachments: [{ type: 'image', url: 'http://x/a.png' }] }
-    const out = buildRequestMessages([user], '', true)
+    const out = buildRequestMessages([user] as ChatMessage[], '', true) as any[]
     const u = out.find((m) => m.role === 'user')
     expect(u.content[1]).toMatchObject({ type: 'text', text: '看看图' })
   })
@@ -617,8 +641,8 @@ describe('useAgentChat · refCatalog（参考图编号目录，对齐大雄 atta
       { role: 'user', content: '轮3', attachments: [{ type: 'image', url: 'http://x/c.png' }], refCatalog: '参考图1：C' },
       { role: 'assistant', content: 'ok3' },
       { role: 'user', content: '反推图一', attachments: [{ type: 'image', url: 'http://x/d.png' }], refCatalog: '参考图1：D' },
-    ]
-    const out = buildRequestMessages(history, '', true)
+    ] as ChatMessage[]
+    const out = buildRequestMessages(history, '', true) as any[]
     // 历史轮次被丢弃：只保留本轮 user（含本轮图内联）
     const users = out.filter((m) => m.role === 'user')
     expect(users).toHaveLength(1)
@@ -638,8 +662,8 @@ describe('useAgentChat · refCatalog（参考图编号目录，对齐大雄 atta
       { role: 'user', content: '轮1', attachments: [{ type: 'image', url: 'http://x/a.png' }], refCatalog: '参考图1：A' },
       { role: 'assistant', content: 'ok1' },
       { role: 'user', content: '本轮纯文字不带图' },
-    ]
-    const out = buildRequestMessages(history, '', true)
+    ] as ChatMessage[]
+    const out = buildRequestMessages(history, '', true) as any[]
     // 无任何 image_url（历史图不进上下文）
     const allImageUrls = out.flatMap((m) => (Array.isArray(m.content) ? m.content : []))
       .filter((c) => c.type === 'image_url')
@@ -661,10 +685,10 @@ describe('useAgentChat · buildRequestMessages 深度（请求体组装）', () 
     { role: 'user', content: '帮我建个节点' },
     { role: 'assistant', content: '已建', tool_calls: [{ id: 'c1', type: 'function', function: { name: 'create_node', arguments: '{}' } }] },
     { role: 'tool', content: '{"ok":true}', tool_call_id: 'c1' },
-  ]
+  ] as ChatMessage[]
 
   it('enhance=true 且无 system：前置注入画布准则 + 三态分流段（默认 auto），历史消息按顺序接在后面', () => {
-    const out = buildRequestMessages(base, '', true)
+    const out = buildRequestMessages(base, '', true) as any[]
     // 首条是系统准则
     expect(out[0].role).toBe('system')
     expect(out[0].content).toContain('你是猫猫画布助手')
@@ -679,19 +703,19 @@ describe('useAgentChat · buildRequestMessages 深度（请求体组装）', () 
   })
 
   it('enhance=true 且传入 systemPrompt：准则之后拼接 systemPrompt，不覆盖准则', () => {
-    const out = buildRequestMessages(base, '你是严格模式', true)
+    const out = buildRequestMessages(base, '你是严格模式', true) as any[]
     expect(out[0].content).toContain('你是猫猫画布助手')
     expect(out[1]).toMatchObject({ role: 'system', content: '你是严格模式' })
   })
 
   it('enhance=false 且无 systemPrompt：完全不注入 system（保持最小请求）', () => {
-    const out = buildRequestMessages(base, '', false)
+    const out = buildRequestMessages(base, '', false) as any[]
     expect(out.every((m) => m.role !== 'system')).toBe(true)
     expect(out).toHaveLength(3)
   })
 
   it('enhance=false 但传入 systemPrompt：仅保留该 systemPrompt', () => {
-    const out = buildRequestMessages(base, '外部系统指令', false)
+    const out = buildRequestMessages(base, '外部系统指令', false) as any[]
     expect(out).toHaveLength(4)
     expect(out[0]).toMatchObject({ role: 'system', content: '外部系统指令' })
   })
@@ -699,7 +723,7 @@ describe('useAgentChat · buildRequestMessages 深度（请求体组装）', () 
   it('【fresh-task】历史 system 不进 LLM：只保留注入的画布准则，历史消息（含 system）丢弃', () => {
     // fresh-task 对齐大雄：历史轮次整体不进上下文，历史 system 也不回传；画布准则始终注入。
     const withSys = [{ role: 'system', content: '旧的历史 system' }, ...base]
-    const out = buildRequestMessages(withSys, '', true)
+    const out = buildRequestMessages(withSys as ChatMessage[], '', true) as any[]
     // 首条是补注入的画布准则（无条件，画布操作能力不丢失）
     expect(out[0].role).toBe('system')
     expect(out[0].content).toContain('猫猫画布助手')
@@ -712,7 +736,7 @@ describe('useAgentChat · buildRequestMessages 深度（请求体组装）', () 
 
   it('Skill 无损注入：原文包成 ==== Skill 文档 ==== 且不 rewrite，并追加 SKILL_EXECUTION_RULES', () => {
     const skills = [{ name: '电商主图', content: '原始 Skill 内容 #@! 不可被改写' }]
-    const out = buildRequestMessages(base, '', true, skills)
+    const out = buildRequestMessages(base, '', true, skills) as any[]
     const skillSys = out.find((m) => m.role === 'system' && m.content.includes('Skill 文档'))
     expect(skillSys).toBeTruthy()
     expect(skillSys.content).toContain('===== Skill 文档开始：电商主图 =====')
@@ -726,7 +750,7 @@ describe('useAgentChat · buildRequestMessages 深度（请求体组装）', () 
       { name: 'A', content: '内容A' },
       { name: 'B', content: '内容B' },
     ]
-    const out = buildRequestMessages(base, '', true, skills)
+    const out = buildRequestMessages(base, '', true, skills) as any[]
     const skillSys = out.find((m) => m.role === 'system' && m.content.includes('Skill 文档'))
     expect(skillSys.content).toContain('===== Skill 文档开始：A =====')
     expect(skillSys.content).toContain('===== Skill 文档开始：B =====')
@@ -736,7 +760,7 @@ describe('useAgentChat · buildRequestMessages 深度（请求体组装）', () 
 
   it('memory.lastPlan 注入：最近策划以独立 system 注入，供多轮延续', () => {
     const memory = { lastPlan: { plan_text: '策划说明', generations: [{ title: '主图', prompt: '一只猫' }] } }
-    const out = buildRequestMessages(base, '', true, [], memory)
+    const out = buildRequestMessages(base, '', true, [], memory) as any[]
     const memSys = out.find((m) => m.role === 'system' && m.content.includes('本对话最近策划'))
     expect(memSys).toBeTruthy()
     expect(memSys.content).toContain('策划说明')
@@ -744,13 +768,13 @@ describe('useAgentChat · buildRequestMessages 深度（请求体组装）', () 
   })
 
   it('memory 无 lastPlan：不注入 memory system（避免空 system）', () => {
-    const out = buildRequestMessages(base, '', true, [], { lastPlan: null })
+    const out = buildRequestMessages(base, '', true, [], { lastPlan: null }) as any[]
     expect(out.find((m) => m.role === 'system' && m.content.includes('本对话最近策划'))).toBeFalsy()
   })
 
   it('附件转 image_url：user 带 attachments → content 变为数组，image_url 在前、原文 text 在后', () => {
     const msgs = [{ role: 'user', content: '看这张图', attachments: [{ type: 'image', url: 'http://x/r.png' }], isCurrent: true }]
-    const out = buildRequestMessages(msgs, '', true)
+    const out = buildRequestMessages(msgs as ChatMessage[], '', true) as any[]
     const u = out.find((m) => m.role === 'user')
     expect(Array.isArray(u.content)).toBe(true)
     expect(u.content[0]).toMatchObject({ type: 'image_url', image_url: { url: 'http://x/r.png' } })
@@ -759,7 +783,7 @@ describe('useAgentChat · buildRequestMessages 深度（请求体组装）', () 
 
   it('附件为空数组：user 不转数组，保持纯文本 content', () => {
     const msgs = [{ role: 'user', content: '纯文本', attachments: [] }]
-    const out = buildRequestMessages(msgs, '', true)
+    const out = buildRequestMessages(msgs as ChatMessage[], '', true) as any[]
     const u = out.find((m) => m.role === 'user')
     expect(typeof u.content).toBe('string')
     expect(u.content).toBe('纯文本')
@@ -770,7 +794,7 @@ describe('useAgentChat · buildRequestMessages 深度（请求体组装）', () 
       { role: 'assistant', content: '', tool_calls: [{ id: 'c9', type: 'function', function: { name: 'create_node', arguments: '{"x":1}' } }] },
       { role: 'tool', content: '{"ok":true}', tool_call_id: 'c9' },
     ]
-    const out = buildRequestMessages(msgs, '', false)
+    const out = buildRequestMessages(msgs as ChatMessage[], '', false) as any[]
     const a = out.find((m) => m.role === 'assistant')
     const t = out.find((m) => m.role === 'tool')
     expect(a.tool_calls).toEqual([{ id: 'c9', type: 'function', function: { name: 'create_node', arguments: '{"x":1}' } }])
@@ -778,7 +802,7 @@ describe('useAgentChat · buildRequestMessages 深度（请求体组装）', () 
   })
 
   it('空 messages：enhance=true 仍至少注入 system（画布准则 + 三态分流段，LLM 永远有规则）', () => {
-    const out = buildRequestMessages([], '', true)
+    const out = buildRequestMessages([], '', true) as any[]
     expect(out).toHaveLength(2)
     expect(out.every((m) => m.role === 'system')).toBe(true)
     expect(out[0].content).toContain('猫猫画布助手')
@@ -796,7 +820,7 @@ describe('useAgentChat · 三态 × Skill 四象限提示词注入（docs/65 M5�
     { role: 'user', content: '生成一张猫图' },
     { role: 'assistant', content: 'ok', tool_calls: [{ id: 'c1', type: 'function', function: { name: 'execute_plan', arguments: '{}' } }] },
     { role: 'tool', content: '{"ok":true}', tool_call_id: 'c1' },
-  ]
+  ] as ChatMessage[]
   const skill = (name = '电商主图') => [{ name, content: 'Skill 原文内容' }]
 
   const systemTexts = (out) => out.filter((m) => m.role === 'system').map((m) => m.content)
@@ -809,7 +833,7 @@ describe('useAgentChat · 三态 × Skill 四象限提示词注入（docs/65 M5�
   })
 
   it('noSkill × auto：注入「完全自主」分流段，引导 plan 可调且不卡确认（R2）', () => {
-    const out = buildRequestMessages(base, '', true, [], null, 0, '', '', '', 'auto')
+    const out = buildRequestMessages(base, '', true, [], null, [], 0, '', '', 'auto') as any[]
     const joined = systemTexts(out).join('\n')
     expect(joined).toContain('show_plan_for_confirm')
     expect(joined).toContain('完全自主')
@@ -818,7 +842,7 @@ describe('useAgentChat · 三态 × Skill 四象限提示词注入（docs/65 M5�
   })
 
   it('noSkill × step-confirm：注入「分步确认」分流段，引导 plan 等待确认', () => {
-    const out = buildRequestMessages(base, '', true, [], null, 0, '', '', '', 'step-confirm')
+    const out = buildRequestMessages(base, '', true, [], null, [], 0, '', '', 'step-confirm') as any[]
     const joined = systemTexts(out).join('\n')
     expect(joined).toContain('show_plan_for_confirm')
     expect(joined).toContain('分步确认')
@@ -826,7 +850,7 @@ describe('useAgentChat · 三态 × Skill 四象限提示词注入（docs/65 M5�
   })
 
   it('skill × auto：Skill 阶段2 不等待（追加自适应），确认粒度仍由 auto 决定（R1）', () => {
-    const out = buildRequestMessages(base, '', true, skill(), null, 0, '', '', '', 'auto')
+    const out = buildRequestMessages(base, '', true, skill(), null, [], 0, '', '', 'auto') as any[]
     const texts = systemTexts(out)
     const skillSys = texts.find((t) => t.includes('Skill 文档'))
     expect(skillSys).toContain('【确认粒度自适应 · 完全自主】') // 阶段2 作废
@@ -834,7 +858,7 @@ describe('useAgentChat · 三态 × Skill 四象限提示词注入（docs/65 M5�
   })
 
   it('skill × step-confirm：Skill 阶段2 保持等待确认，确认粒度由 step-confirm 决定', () => {
-    const out = buildRequestMessages(base, '', true, skill(), null, 0, '', '', '', 'step-confirm')
+    const out = buildRequestMessages(base, '', true, skill(), null, [], 0, '', '', 'step-confirm') as any[]
     const texts = systemTexts(out)
     const skillSys = texts.find((t) => t.includes('Skill 文档'))
     expect(skillSys).not.toContain('作废')
@@ -995,7 +1019,7 @@ describe('useAgentChat · 全链路 400 错误透传（发图被拒）', () => {
       JSON.stringify({ error: { message: 'model does not support image_url' } }),
       { status: 400, statusText: 'Bad Request', headers: { 'content-type': 'application/json' } }
     ))
-    const { result } = renderHook(() => useAgentChat())
+    const { result } = renderHook<AgentChatApi, unknown>(() => useAgentChat())
     await act(async () => {
       await result.current.send('看看这张图', [{ type: 'image', url: 'http://x/a.png' }])
     })
@@ -1015,7 +1039,7 @@ describe('useAgentChat · 阶段1B 卸载不 abort / 切 key abort', () => {
       resolveFetch = resolve
       if (opts.signal) opts.signal.addEventListener('abort', () => {})
     }))
-    const { result, unmount } = renderHook(() => useAgentChat({ agentKey: 'k1' }))
+    const { result, unmount } = renderHook<AgentChatApi, unknown>(() => useAgentChat({ agentKey: 'k1' }))
     act(() => { result.current.send('挂起任务').catch(() => {}) })
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
     expect(capturedSignal.aborted).toBe(false)
@@ -1028,7 +1052,7 @@ describe('useAgentChat · 阶段1B 卸载不 abort / 切 key abort', () => {
   it('切 agentKey → 旧流被显式 abort（运行态不串台），新 key 独立', async () => {
     const signals = []
     fetchMock.mockImplementation(() => new Promise(() => { /* 永不 resolve，保持进行中 */ }))
-    const { result, rerender } = renderHook(
+    const { result, rerender } = renderHook<AgentChatApi, { agentKey: string }>(
       ({ agentKey }) => useAgentChat({ agentKey }),
       { initialProps: { agentKey: 'projA' } }
     )
@@ -1045,7 +1069,7 @@ describe('useAgentChat · 阶段1B 卸载不 abort / 切 key abort', () => {
 // 若有人重新引入「setMessages / messagesRef 本地消息副本」，下列断言即红（实现一变必红）。
 describe('useAgentChat · 消息单源（store 唯一真相）', () => {
   it('渲染跟随 store：外部直接写 store → hook 重渲染读同一份（无本地消息副本）', async () => {
-    const { result } = renderHook(() => useAgentChat())
+    const { result } = renderHook<AgentChatApi, unknown>(() => useAgentChat())
     // 模拟「其他模块直接写 store」——若 hook 自持 messages 副本，此处不会更新渲染
     act(() => {
       sharedConvStore.setActiveMessages([{ role: 'user', content: '来自别的模块写入' }])
@@ -1057,7 +1081,7 @@ describe('useAgentChat · 消息单源（store 唯一真相）', () => {
 
   it('流式结束后占位替换为完整 assistant 且无 streaming 残留，内容与 store 一致', async () => {
     fetchMock.mockResolvedValue(textStream('带一句回复'))
-    const { result } = renderHook(() => useAgentChat())
+    const { result } = renderHook<AgentChatApi, unknown>(() => useAgentChat())
     await act(async () => {
       await result.current.send('发消息')
     })
@@ -1072,7 +1096,7 @@ describe('useAgentChat · 消息单源（store 唯一真相）', () => {
 // ── 阶段1D 薄壳化：sending / activeConversationId 为 store 字段订阅（非本地 useState）──
 describe('useAgentChat · 阶段1D 薄壳化（sending/activeId 订阅 store）', () => {
   it('sending 单源：外部 setSending → hook 订阅重渲染', () => {
-    const { result } = renderHook(() => useAgentChat())
+    const { result } = renderHook<AgentChatApi, unknown>(() => useAgentChat())
     expect(result.current.sending).toBe(false)
     act(() => { sharedConvStore.setSendingState(true) })
     expect(result.current.sending).toBe(true)
@@ -1081,14 +1105,14 @@ describe('useAgentChat · 阶段1D 薄壳化（sending/activeId 订阅 store）'
   })
 
   it('activeConversationId 单源：跟随 store.activeId', () => {
-    const { result } = renderHook(() => useAgentChat())
+    const { result } = renderHook<AgentChatApi, unknown>(() => useAgentChat())
     expect(result.current.activeConversationId).toBe('c1')
     act(() => { sharedConvStore.setActiveId('c9') })
     expect(result.current.activeConversationId).toBe('c9')
   })
 
   it('收口穿透：回传 AgentPanel 所需的 4 个 store 原子 handler（指向聚合层，非新造）', () => {
-    const { result } = renderHook(() => useAgentChat())
+    const { result } = renderHook<AgentChatApi, unknown>(() => useAgentChat())
     // 若将来用 hook 时忘回传、或改成局部新造，此断言即红（保证 AgentPanel 不直连 store 仍可用）
     expect(result.current.setCurrentSnapshot).toBe(convStore.setCurrentSnapshot)
     expect(result.current.setAwaitingConfirm).toBe(convStore.setAwaitingConfirm)
@@ -1099,7 +1123,7 @@ describe('useAgentChat · 阶段1D 薄壳化（sending/activeId 订阅 store）'
   it('发送锁单一真相：send 一开始即同步置位 store.sending（不再依赖独立 sendingRef）', async () => {
     // fetch 挂起（不 resolve），保证发送中；store.sending 应是同步 true 且无需等 UI 渲染
     fetchMock.mockImplementation(() => new Promise(() => {}))
-    const { result } = renderHook(() => useAgentChat())
+    const { result } = renderHook<AgentChatApi, unknown>(() => useAgentChat())
     expect(sharedConvStore.state.sending).toBe(false)
     act(() => { result.current.send('挂起任务').catch(() => {}) })
     // 同步锁：进入 send 骨架即置位，异步闭包 getState().sending 可读——是"发送锁"的唯一真相

@@ -36,7 +36,7 @@ import {
   imageModeLooksLikePerReferenceEdit,
   buildPerReferenceGenerations,
 } from './agentCore.ts'
-import type { ToolCall } from './agentCore.ts'
+import type { ToolCall, ChatMessage } from './agentCore.ts'
 // 运行时逻辑（依赖注入版本）。hook 内以 const roundTrip 等同名闭包封装调用，
 // 故此处用别名避免与 hook 内的函数名冲突。
 import { roundTrip as agentRuntimeRoundTrip, runToolCalls as agentRuntimeRunToolCalls, runDemoMode as agentRuntimeRunDemoMode } from './agentRuntime.ts'
@@ -96,6 +96,7 @@ import {
 // 【消息单源 P5 基座】按字段订阅 store 的 messages（含 activeId 从 store 同步读），
 // 避免整包 useConversationStore() 订阅 → 流式高频更新连坐重渲染整个面板。
 import { subscribe, getState } from '../conversation/conversationState.ts'
+import type { ConversationStoreState } from '../conversation/conversationState.ts'
 import { useStoreSelector, shallowEqual } from '../../../hooks/useStoreSelector.ts'
 
 // P15 列表 key 收口（收口在 agentMessages.js：appendMsg/setHistory 统一 withMsgId 补稳定唯一 id）
@@ -268,7 +269,7 @@ export {
 export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '', defaultModel = CHAT_MODEL, provider = null, skills = [], onConversationChange = null } = {}) {
   // ── 消息单源（阶段1A）：不再自持 messages state，改为按字段订阅 store 的
   //    conversations[activeId].messages。流式高频更新只重渲染消息订阅者，其余字段不连坐。
-  const messages = useStoreSelector(subscribe, getState, (s) => {
+  const messages = useStoreSelector<ConversationStoreState, ChatMessage[]>(subscribe, getState, (s) => {
     const cur = (s.conversations || []).find((c) => c.id === s.activeId)
     return cur?.messages ?? []
   }, shallowEqual)
@@ -460,7 +461,7 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
 
   /** 发送（复刻官方 dr:2786-2895 的 send：SSE + 多轮工具循环） */
   const send = useCallback(
-    async (text, attachments) => {
+    async (text, attachments = []) => {
       // ── 保护：空内容直接返回 ──
       if (!text.trim() && (!attachments || attachments.length === 0)) return
 

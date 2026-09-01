@@ -1,5 +1,4 @@
 // @vitest-environment jsdom
-// @ts-nocheck
 /**
  * useAssetDropPaste 单测（粘贴收口 · 万全之策）。
  *
@@ -22,11 +21,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
 
-const uploadMock = vi.fn(async (file) => 'http://local/' + (file?.name || 'drag'))
-const downloadRemoteMock = vi.fn(async () => null)
+const uploadMock = vi.fn(async (file, folder) => 'http://local/' + (file?.name || 'drag'))
+const downloadRemoteMock = vi.fn(async (url, opts) => null)
 vi.mock('../../src/components/base/api/filesApi.ts', () => ({
-  uploadFileToLocal: (...a) => uploadMock(...a),
-  downloadRemoteToLocal: (...a) => downloadRemoteMock(...a),
+  uploadFileToLocal: (file, folder) => uploadMock(file, folder),
+  downloadRemoteToLocal: (url, opts) => downloadRemoteMock(url, opts),
   WEB_DROP_SUBFOLDER: 'web',
 }))
 const toastMock = vi.fn()
@@ -48,7 +47,7 @@ function makeOpts(overrides = {}) {
 }
 
 // 造一个 navigator.clipboard，read() 可控；默认没有 write 以验证只读路径
-function installClipboard({ read, write, writeText } = {}) {
+function installClipboard({ read, write, writeText }: { read?: any; write?: any; writeText?: any } = {}) {
   const clipboard = {
     read: read || vi.fn().mockRejectedValue(new Error('not implemented')),
     write: write || vi.fn().mockResolvedValue(undefined),
@@ -96,7 +95,7 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
     const { result } = renderHook(() => useAssetDropPaste(opts))
     // 故意传一个不含 items 的 paste 事件（模拟 getAsFile 拿不到的场景）
     const e = { preventDefault: vi.fn(), target: document.createElement('div'), clipboardData: { items: [] } }
-    await act(async () => { await result.current.onPaste(e) })
+    await act(async () => { await result.current.onPaste(e as any) })
     // 补充路径（read() 异步）不依赖 e.preventDefault（异步期调用无效），只需验证节点被正确建立
     expect(uploadMock).toHaveBeenCalled()
     expect(opts.addNode).toHaveBeenCalledWith('imageNode', expect.any(Object), { imageUrl: 'http://local/png', label: 'png' })
@@ -107,7 +106,7 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
     const opts = makeOpts()
     const { result } = renderHook(() => useAssetDropPaste(opts))
     const e = { preventDefault: vi.fn(), target: document.createElement('div'), clipboardData: { items: [] } }
-    await act(async () => { await result.current.onPaste(e) })
+    await act(async () => { await result.current.onPaste(e as any) })
     expect(opts.addNode).toHaveBeenCalledWith('imageNode', expect.any(Object), { imageUrl: 'http://ext/cat.png' })
   })
 
@@ -117,7 +116,7 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
     const opts = makeOpts()
     const { result } = renderHook(() => useAssetDropPaste(opts))
     const e = { preventDefault: vi.fn(), target: document.createElement('div'), clipboardData: { items: [] } }
-    await act(async () => { await result.current.onPaste(e) })
+    await act(async () => { await result.current.onPaste(e as any) })
     expect(opts.addNode).toHaveBeenCalledWith('textNode', expect.any(Object), { text: 'hello world', expanded: false })
   })
 
@@ -128,7 +127,7 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
     const opts = makeOpts()
     const { result } = renderHook(() => useAssetDropPaste(opts))
     const e = { preventDefault: vi.fn(), target: document.createElement('div'), clipboardData: { items: [] } }
-    await act(async () => { await result.current.onPaste(e) })
+    await act(async () => { await result.current.onPaste(e as any) })
     expect(opts.onPasteNodeGroup).toHaveBeenCalledWith(json, expect.any(Object))
   })
 
@@ -139,7 +138,7 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
     const opts = makeOpts()
     const { result } = renderHook(() => useAssetDropPaste(opts))
     const e = { preventDefault: vi.fn(), target: document.createElement('div'), clipboardData: { items: [] } }
-    await act(async () => { await result.current.onPaste(e) })
+    await act(async () => { await result.current.onPaste(e as any) })
     expect(opts.addNode).toHaveBeenCalledWith('imageNode', expect.any(Object), { imageUrl: 'http://x/1.png', label: '提取帧 1' })
     expect(opts.addNode).toHaveBeenCalledWith('imageNode', expect.any(Object), { imageUrl: 'http://x/2.png', label: '提取帧 2' })
   })
@@ -152,7 +151,7 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
     const ce = document.createElement('div')
     ce.setAttribute('contenteditable', 'true')
     const e = { preventDefault: vi.fn(), target: ce, clipboardData: { items: [] } }
-    await act(async () => { await result.current.onPaste(e) })
+    await act(async () => { await result.current.onPaste(e as any) })
     expect(opts.addNode).toHaveBeenCalledWith('imageNode', expect.any(Object), { imageUrl: 'http://local/png', label: 'png' })
   })
 
@@ -163,7 +162,7 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
     const ce = document.createElement('div')
     ce.setAttribute('contenteditable', 'true')
     const e = { preventDefault: vi.fn(), target: ce, clipboardData: { items: [] } }
-    await act(async () => { await result.current.onPaste(e) })
+    await act(async () => { await result.current.onPaste(e as any) })
     expect(opts.addNode).not.toHaveBeenCalled()
   })
 
@@ -178,7 +177,7 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
       target: document.createElement('div'),
       clipboardData: { getData: (k) => (k === 'text/plain' ? 'fallback text' : null), items: [] },
     }
-    await act(async () => { await result.current.onPaste(e) })
+    await act(async () => { await result.current.onPaste(e as any) })
     expect(opts.addNode).toHaveBeenCalledWith('textNode', expect.any(Object), { text: 'fallback text', expanded: false })
   })
 
@@ -192,7 +191,7 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
       target: document.createElement('div'),
       clipboardData: { getData: () => null, files: [file], items: [{ kind: 'file', type: 'image/png', getAsFile: () => file }] },
     }
-    await act(async () => { await result.current.onPaste(e) })
+    await act(async () => { await result.current.onPaste(e as any) })
     expect(uploadMock).toHaveBeenCalledWith(file, 'canvas/drop')
     expect(opts.addNode).toHaveBeenCalledWith('imageNode', expect.any(Object), { imageUrl: 'http://local/fb.png', label: 'fb.png' })
   })
@@ -208,7 +207,7 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
       target: document.createElement('div'),
       clipboardData: { getData: () => null, files: [file], items: [{ kind: 'file', type: 'image/png', getAsFile: () => file }] },
     }
-    await act(async () => { await result.current.onPaste(e) })
+    await act(async () => { await result.current.onPaste(e as any) })
     expect(opts.addNode).toHaveBeenCalledWith('imageNode', expect.any(Object), { imageUrl: 'http://local/ev.png', label: 'ev.png' })
   })
 
@@ -222,7 +221,7 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
       target: document.createElement('div'),
       clipboardData: { getData: () => null, files: [], items: [] },
     }
-    await act(async () => { await result.current.onPaste(e) })
+    await act(async () => { await result.current.onPaste(e as any) })
     expect(opts.addNode).not.toHaveBeenCalled()
     expect(toastMock).toHaveBeenCalled()
     const msg = toastMock.mock.calls[0][0]
@@ -246,7 +245,7 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
         items: [{ kind: 'string', type: 'text/plain', getAsString: () => {} }],
       },
     }
-    await act(async () => { await result.current.onPaste(e) })
+    await act(async () => { await result.current.onPaste(e as any) })
     expect(opts.onPasteNodeGroup).toHaveBeenCalledWith(json, expect.any(Object))
   })
 
@@ -261,7 +260,7 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
       target: document.createElement('input'),
       clipboardData: { items: [] },
     }
-    await act(async () => { await result.current.onPaste(e) })
+    await act(async () => { await result.current.onPaste(e as any) })
     expect(readMock).not.toHaveBeenCalled()
     expect(opts.addNode).not.toHaveBeenCalled()
   })
@@ -283,7 +282,7 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
         items: [{ kind: 'string', type: 'text/plain', getAsString: () => {} }],
       },
     }
-    await act(async () => { await result.current.onPaste(e) })
+    await act(async () => { await result.current.onPaste(e as any) })
     expect(opts.onPasteNodeGroup).toHaveBeenCalledWith(json, expect.any(Object))
   })
 
@@ -299,7 +298,7 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
         items: [{ kind: 'string', type: 'text/plain', getAsString: () => {} }],
       },
     }
-    await act(async () => { await result.current.onPaste(e) })
+    await act(async () => { await result.current.onPaste(e as any) })
     expect(opts.addNode).toHaveBeenCalledWith('imageNode', expect.any(Object), { imageUrl: 'http://x/1.png', label: '提取帧 1' })
   })
 
@@ -311,7 +310,7 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
   //       （用户核心诉求：粘贴表格/富文本时绝不当图片/带样式贴进来，必须清晰纯文本）；
   //       A 粘贴到 textarea 走原生插入；B 无论焦点在哪都放行建节点组。
   // ════════════════════════════════════════════════════════════════
-  function plainEvent(text, target) {
+  function plainEvent(text, target): any {
     return {
       preventDefault: vi.fn(),
       target,
@@ -373,7 +372,7 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
         getData: (k) => (k === 'text/uri-list' ? 'https://www.qq.com/img/cat.png' : k === 'text/plain' ? '' : ''),
       },
     }
-    result.current.onDrop(e)
+    result.current.onDrop(e as any)
     // 直接用原网络 URL 建节点（不做下载/本地化，保持简单；不加 label）
     expect(opts.addNode).toHaveBeenCalledWith('imageNode', { x: 0, y: 0 }, { imageUrl: 'https://www.qq.com/img/cat.png' })
     expect(e.preventDefault).toHaveBeenCalled()
@@ -389,7 +388,7 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
         getData: (k) => (k === 'text/uri-list' ? 'hello world' : k === 'text/plain' ? '' : ''),
       },
     }
-    result.current.onDrop(e)
+    result.current.onDrop(e as any)
     expect(opts.addNode).toHaveBeenCalledWith('textNode', expect.any(Object), { text: 'hello world', expanded: false })
   })
 
@@ -403,7 +402,7 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
         getData: (k) => (k === 'text/uri-list' ? '' : k === 'text/plain' ? 'https://cdn/x/1.jpg' : ''),
       },
     }
-    result.current.onDrop(e)
+    result.current.onDrop(e as any)
     expect(opts.addNode).toHaveBeenCalledWith('imageNode', { x: 0, y: 0 }, { imageUrl: 'https://cdn/x/1.jpg' })
   })
 
@@ -414,7 +413,7 @@ describe('useAssetDropPaste — onPaste（万全之策）', () => {
       preventDefault: vi.fn(),
       dataTransfer: { files: [], getData: () => '' },
     }
-    result.current.onDrop(e)
+    result.current.onDrop(e as any)
     expect(opts.addNode).not.toHaveBeenCalled()
   })
 })
@@ -436,7 +435,7 @@ describe('useAssetDropPaste — 网页图后台本地化（web 目录）', () =>
       preventDefault: vi.fn(),
       dataTransfer: { files: [], getData: (k) => (k === 'text/uri-list' ? 'https://x/cat.png' : '') },
     }
-    result.current.onDrop(e)
+    result.current.onDrop(e as any)
     // 立即用原 URL 建节点（无 label）
     expect(opts.addNode).toHaveBeenCalledWith('imageNode', { x: 0, y: 0 }, { imageUrl: 'https://x/cat.png' })
     // 后台本地化 → 专用 web 目录
@@ -455,7 +454,7 @@ describe('useAssetDropPaste — 网页图后台本地化（web 目录）', () =>
       preventDefault: vi.fn(),
       dataTransfer: { files: [], getData: (k) => (k === 'text/uri-list' ? 'https://x/cat.png' : '') },
     }
-    result.current.onDrop(e)
+    result.current.onDrop(e as any)
     await act(async () => {})
     expect(patchNodeData).not.toHaveBeenCalled()
     expect(opts.addNode).toHaveBeenCalledWith('imageNode', { x: 0, y: 0 }, { imageUrl: 'https://x/cat.png' })
@@ -470,7 +469,7 @@ describe('useAssetDropPaste — 网页图后台本地化（web 目录）', () =>
       preventDefault: vi.fn(),
       dataTransfer: { files: [], getData: (k) => (k === 'text/uri-list' ? 'https://x/cat.png' : '') },
     }
-    result.current.onDrop(e)
+    result.current.onDrop(e as any)
     await act(async () => {})
     expect(patchNodeData).not.toHaveBeenCalled()
   })
@@ -482,7 +481,7 @@ describe('useAssetDropPaste — 网页图后台本地化（web 目录）', () =>
       preventDefault: vi.fn(),
       dataTransfer: { files: [], getData: (k) => (k === 'text/uri-list' ? 'https://x/cat.png' : '') },
     }
-    result.current.onDrop(e)
+    result.current.onDrop(e as any)
     expect(opts.addNode).toHaveBeenCalledWith('imageNode', { x: 0, y: 0 }, { imageUrl: 'https://x/cat.png' })
     expect(downloadRemoteMock).not.toHaveBeenCalled()
   })

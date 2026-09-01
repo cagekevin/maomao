@@ -1,5 +1,4 @@
 // @vitest-environment jsdom
-// @ts-nocheck
 /**
  * imageCompress 单测（批 1）。
  * 覆盖：compressImage 等比缩放（maxSize clamp）、质量/格式入参、白底 JPEG 兜底、
@@ -15,7 +14,8 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 
 const { compressImage } = await import('../../src/components/base/imageCompress.ts')
 
-const fetchMock = globalThis.fetch
+// setup.mjs 已把 globalThis.fetch 定义为共享 vi.fn；此处做类型对齐以启用 .mock* / mock.calls。
+const fetchMock = globalThis.fetch as unknown as ReturnType<typeof vi.fn>
 
 // mock HTMLImageElement：onload 同步触发，并带 naturalWidth/Height
 let imgSize = { w: 2000, h: 1000 }
@@ -43,13 +43,13 @@ function installImageMock() {
 
 // mock canvas：getContext 返回含 drawImage/fillRect 的 2d ctx；toDataURL 返回合法 JPEG dataURL
 function installCanvasMock() {
-  HTMLCanvasElement.prototype.getContext = function () {
+  HTMLCanvasElement.prototype.getContext = (function () {
     return {
       fillStyle: '',
       fillRect() {},
       drawImage() {},
-    }
-  }
+    } as unknown as CanvasRenderingContext2D
+  }) as unknown as typeof HTMLCanvasElement.prototype.getContext
   HTMLCanvasElement.prototype.toDataURL = function (type) {
     // 返回一段合法 data:image/jpeg;base64, 头 + 占位内容，供 dataUrlToBlob 解析
     return `data:${type || 'image/jpeg'};base64,${btoa('fakeimagedata')}`
