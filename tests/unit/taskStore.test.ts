@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 // 隔离 taskStore 的 IO 依赖（localToolApi/filesApi 走 fetch → localTool），
@@ -128,7 +127,7 @@ describe('taskStore §P4 进度落库节流', () => {
   afterEach(() => { vi.useRealTimers() })
 
   it('高频 progress 在防抖窗口内只落库 1 次（创建即时 + 进度合并为最终态）', () => {
-    saveTask.mockClear()
+    vi.mocked(saveTask).mockClear()
     const handle = reportGenerate('n1', 'image', 'p1')
     expect(saveTask).toHaveBeenCalledTimes(1) // 创建即时
     handle.progress(10, '阶段A')
@@ -137,20 +136,20 @@ describe('taskStore §P4 进度落库节流', () => {
     expect(saveTask).toHaveBeenCalledTimes(1) // 窗口内未落
     vi.advanceTimersByTime(200)
     expect(saveTask).toHaveBeenCalledTimes(2) // 合并落 1 次，写最终态
-    const last = saveTask.mock.calls.at(-1)[0]
+    const last = vi.mocked(saveTask).mock.calls.at(-1)[0]
     expect(last.id).toBe(handle.taskId)
     expect(last.progress).toBe(70)
     expect(last.stageLabel).toBe('阶段C')
   })
 
   it('done 取消未落进度写，即时落完成态且不被晚到的进度覆盖', () => {
-    saveTask.mockClear()
+    vi.mocked(saveTask).mockClear()
     const handle = reportGenerate('n2', 'image', 'p2')
-    saveTask.mockClear() // 只统计完成路径的落库
+    vi.mocked(saveTask).mockClear() // 只统计完成路径的落库
     handle.progress(30, '阶段')
     handle.done('/result.png')
     expect(saveTask).toHaveBeenCalledTimes(1)
-    const last = saveTask.mock.calls.at(-1)[0]
+    const last = vi.mocked(saveTask).mock.calls.at(-1)[0]
     expect(last.status).toBe('completed')
     expect(last.progress).toBe(100)
     expect(last.resultUrl).toBe('/result.png')
@@ -159,13 +158,13 @@ describe('taskStore §P4 进度落库节流', () => {
   })
 
   it('fail 同 done：取消未落进度写，即时落失败态', () => {
-    saveTask.mockClear()
+    vi.mocked(saveTask).mockClear()
     const handle = reportGenerate('n3', 'image', 'p3')
-    saveTask.mockClear()
+    vi.mocked(saveTask).mockClear()
     handle.progress(50, '阶段')
     handle.fail('网络错误')
     expect(saveTask).toHaveBeenCalledTimes(1)
-    const last = saveTask.mock.calls.at(-1)[0]
+    const last = vi.mocked(saveTask).mock.calls.at(-1)[0]
     expect(last.status).toBe('failed')
     expect(last.errorMsg).toBe('网络错误')
     vi.advanceTimersByTime(400)

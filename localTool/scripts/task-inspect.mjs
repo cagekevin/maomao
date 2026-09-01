@@ -789,6 +789,24 @@ function runLifecycle(db, id) {
     console.log(mode === 'node_id' ? '[数据库] 该 node 无任务记录' : '[数据库] 该 task_id/thread_id 无记录');
   }
 
+  // 1.5) 诊断推算（仅单任务模式）：用 submit_ack_at 埋点反推「前端→网关确认」耗时
+  // 注：completed_at / poll_count 需前端埋点（当前未启用），故仅展示已落库的 submit_ack_at。
+  if (mode !== 'node_id' && rows.length) {
+    const r = rows[0];
+    const created = r.created_at, ack = r.submit_ack_at;
+    console.log(`\n[诊断] 网关确认耗时（锚点B埋点 submit_ack_at）:`);
+    const fmt = (ms) => ms == null ? 'NULL（前端未落到网关/旧任务）' : `${(ms / 1000).toFixed(1)}s`;
+    const localToGateway = ack != null && created != null ? ack - created : null; // 前端→网关确认接单
+    console.log(`  前端接单(created_at)→网关确认接单(submit_ack_at): ${fmt(localToGateway)}`);
+    if (localToGateway != null && localToGateway > 5000) {
+      console.log(`  初步判断: 卡在「前端→网关」段（localTool/代理/VPN 抖？建议查网关日志 thread=${r.thread_id || 'N/A'}）`);
+    } else if (localToGateway != null) {
+      console.log(`  初步判断: 前端→网关段正常（生图慢/链路卡需 completed_at+poll_count，当前未启用）`);
+    } else {
+      console.log(`  初步判断: 数据不足（submit_ack_at 为空，非网关异步提交任务或旧任务）`);
+    }
+  }
+
   // 2) 日志时间线（后端日志 + 前端上报日志，同文件 localtool_18080.log）
   // 日志里同一任务两种格式都出现：[poll]/[confirm] 用 thread=xxx，[submit]/[submit:parse] 用 task_id=task_xxx。
   // 因此按 id 与 task_+id 双键匹配，确保 thread_id 能贯通 submit→poll 全链路。

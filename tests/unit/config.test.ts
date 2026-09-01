@@ -1,5 +1,5 @@
-// @ts-nocheck
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import assert from 'node:assert'
 
 /**
  * config —— 集中配置契约测试。
@@ -85,10 +85,10 @@ describe('config — env 覆盖契约', () => {
 describe('config — isDebugModuleOn（调试开关实时判断）', () => {
   beforeEach(() => {
     // 每次干净：清空 window.__DEBUG_*（node 环境用 globalThis.window 模拟）
-    globalThis.window = globalThis.window || {}
-    delete globalThis.window.__DEBUG_ALL
-    delete globalThis.window.__DEBUG_IMAGE
-    delete globalThis.window.__DEBUG_ASSET
+    ;(globalThis as any).window = globalThis.window || {}
+    delete (globalThis.window as any).__DEBUG_ALL
+    delete (globalThis.window as any).__DEBUG_IMAGE
+    delete (globalThis.window as any).__DEBUG_ASSET
   })
 
   it('默认关闭：未设任何开关时全部 debug 关闭', async () => {
@@ -99,8 +99,8 @@ describe('config — isDebugModuleOn（调试开关实时判断）', () => {
   })
 
   it('运行时设 window.__DEBUG_ALL=true → 总开关全开（任意模块都开）', async () => {
-    const c = await loadConfig()
-    globalThis.window.__DEBUG_ALL = true
+    const c = await loadConfig();
+    (globalThis.window as any).__DEBUG_ALL = true
     // 总开关实时生效：image/asset/agent 全开，无需重载模块
     expect(c.isDebugModuleOn('image')).toBe(true)
     expect(c.isDebugModuleOn('asset')).toBe(true)
@@ -108,16 +108,18 @@ describe('config — isDebugModuleOn（调试开关实时判断）', () => {
   })
 
   it('关闭总开关（false）→ 恢复关闭', async () => {
-    const c = await loadConfig()
-    globalThis.window.__DEBUG_ALL = true
-    expect(c.isDebugModuleOn('image')).toBe(true)
-    globalThis.window.__DEBUG_ALL = false
-    expect(c.isDebugModuleOn('image')).toBe(false)
+    const c = await loadConfig();
+    (globalThis.window as any).__DEBUG_ALL = true
+    const onTrue = c.isDebugModuleOn('image')
+    assert.strictEqual(onTrue, true)
+    ;(globalThis.window as any).__DEBUG_ALL = false
+    const onFalse = c.isDebugModuleOn('image')
+    assert.strictEqual(onFalse, false)
   })
 
   it('运行时设 window.__DEBUG_IMAGE=true → 只开 image，不开其它模块（AI 细粒度）', async () => {
-    const c = await loadConfig()
-    globalThis.window.__DEBUG_IMAGE = true
+    const c = await loadConfig();
+    (globalThis.window as any).__DEBUG_IMAGE = true
     expect(c.isDebugModuleOn('image')).toBe(true)
     expect(c.isDebugModuleOn('asset')).toBe(false)
     expect(c.isDebugModuleOn('agent')).toBe(false)

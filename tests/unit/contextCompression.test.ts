@@ -1,5 +1,4 @@
 // @vitest-environment node
-// @ts-nocheck
 /**
  * contextCompression（「记」）单测 —— 照搬参考项目 contextCompressionService 的压缩器。
  * 覆盖：serializeMessagesForSummary / compressToSummary（LLM 成功/失败/超时/缺区段）
@@ -46,43 +45,43 @@ describe('serializeMessagesForSummary —— 序列化（记 T1）', () => {
 
 describe('compressToSummary —— 压缩入库（记 T2~T4）', () => {
   it('LLM 成功 → 返回摘要字符串', async () => {
-    chatApi.chatCompletions.mockResolvedValue({ content: fullSummary })
+    vi.mocked(chatApi.chatCompletions).mockResolvedValue({ content: fullSummary })
     const msg = await compressToSummary({ provider: {}, model: 'm', messages: [{ role: 'user', content: 'a' }] })
     expect(msg).toBe(fullSummary)
-    expect(chatApi.chatCompletions).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(chatApi.chatCompletions)).toHaveBeenCalledTimes(1)
   })
 
   it('必然写入 system 压缩提示与 6 区段要求', async () => {
-    chatApi.chatCompletions.mockResolvedValue({ content: fullSummary })
+    vi.mocked(chatApi.chatCompletions).mockResolvedValue({ content: fullSummary })
     await compressToSummary({ provider: {}, model: 'm', messages: [] })
-    const [opts] = chatApi.chatCompletions.mock.calls[0]
+    const [opts] = vi.mocked(chatApi.chatCompletions).mock.calls[0]
     expect(opts.messages[0].role).toBe('system')
     expect(opts.messages[0].content).toContain('对话上下文压缩器')
     expect(opts.messages[0].content).toContain('【目标与背景】')
   })
 
   it('【回归】压缩走流式 stream:true（根治非流式慢模型 30s 超时）', async () => {
-    chatApi.chatCompletions.mockResolvedValue({ content: fullSummary })
+    vi.mocked(chatApi.chatCompletions).mockResolvedValue({ content: fullSummary })
     await compressToSummary({ provider: {}, model: 'm', messages: [] })
-    const [opts] = chatApi.chatCompletions.mock.calls[0]
+    const [opts] = vi.mocked(chatApi.chatCompletions).mock.calls[0]
     // 关键：压缩请求必须流式（同主请求通道，边生成边累积），不能走非流式等完整生成
     expect(opts.stream).toBe(true)
   })
 
   it('LLM 失败 → 返回 null（不抛错、不动旧摘要）', async () => {
-    chatApi.chatCompletions.mockRejectedValue(new Error('network down'))
+    vi.mocked(chatApi.chatCompletions).mockRejectedValue(new Error('network down'))
     const msg = await compressToSummary({ provider: {}, model: 'm', messages: [] })
     expect(msg).toBeNull()
   })
 
   it('空 content → 返回 null', async () => {
-    chatApi.chatCompletions.mockResolvedValue({ content: '' })
+    vi.mocked(chatApi.chatCompletions).mockResolvedValue({ content: '' })
     const msg = await compressToSummary({ provider: {}, model: 'm', messages: [] })
     expect(msg).toBeNull()
   })
 
   it('摘要缺少必需区段 → 仍返回但不补占位（用 warn 提示，避免二次往返污染）', async () => {
-    chatApi.chatCompletions.mockResolvedValue({ content: '【目标与背景】只有一段' })
+    vi.mocked(chatApi.chatCompletions).mockResolvedValue({ content: '【目标与背景】只有一段' })
     const msg = await compressToSummary({ provider: {}, model: 'm', messages: [] })
     expect(msg).toContain('【目标与背景】')
   })

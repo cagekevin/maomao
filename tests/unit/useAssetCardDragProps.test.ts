@@ -1,5 +1,4 @@
 // @vitest-environment jsdom
-// @ts-nocheck
 /**
  * useAssetCardDragProps 单测（素材卡片拖拽 · 回归护栏）。
  *
@@ -48,11 +47,11 @@ function renderCardProps() {
 describe('useAssetCardDragProps — 文件卡片', () => {
   it('可拖拽，且一次 dragstart 同时写「移动归类」与「拖到画布」两套 MIME', () => {
     const { cardDragProps } = renderCardProps()
-    const props = cardDragProps(ASSET)
+    const props = cardDragProps(ASSET) as { draggable: boolean; onDragStart: (e: any) => void }
     expect(props.draggable).toBe(true)
 
     const dt = fakeDataTransfer()
-    props.onDragStart({ dataTransfer: dt })
+    props.onDragStart({ dataTransfer: dt } as unknown as DragEvent)
 
     // 缺了 asset 这条 → 画布认不出素材 → 误判成网页图 → 重复下载进 uploads/web
     expect(dt.data['application/x-yimao-asset']).toBeTruthy()
@@ -62,7 +61,8 @@ describe('useAssetCardDragProps — 文件卡片', () => {
   it('拖到画布的 payload 带 url/name/type（画布据此建节点）', () => {
     const { cardDragProps } = renderCardProps()
     const dt = fakeDataTransfer()
-    cardDragProps(ASSET).onDragStart({ dataTransfer: dt })
+    const p = cardDragProps(ASSET) as { onDragStart: (e: any) => void }
+    p.onDragStart({ dataTransfer: dt } as unknown as DragEvent)
 
     const payload = JSON.parse(dt.data['application/x-yimao-asset'])
     expect(payload.url).toBe(ASSET.url)
@@ -72,14 +72,18 @@ describe('useAssetCardDragProps — 文件卡片', () => {
 
   it('无 url 的条目不可拖拽（返回空属性，不挂 draggable）', () => {
     const { cardDragProps } = renderCardProps()
-    expect(cardDragProps({ id: 'x', name: 'x.png', type: 'image' })).toEqual({})
+    expect(cardDragProps({ id: 'x', name: 'x.png', type: 'image' } as any)).toEqual({})
   })
 })
 
 describe('useAssetCardDragProps — 文件夹卡片', () => {
   it('作为移动落点：不给 draggable，只给 drop/dragOver 承接', () => {
     const { cardDragProps } = renderCardProps()
-    const props = cardDragProps({ id: 'f', name: '道具', type: 'folder', folder: 'migrated' })
+    const props = cardDragProps({ id: 'f', name: '道具', type: 'folder', folder: 'migrated' } as any) as {
+      draggable?: boolean
+      onDrop?: (e: any) => void
+      onDragOver?: (e: any) => void
+    }
     expect(props.draggable).toBeUndefined()
     expect(typeof props.onDrop).toBe('function')
     expect(typeof props.onDragOver).toBe('function')

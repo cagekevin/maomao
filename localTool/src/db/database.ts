@@ -354,7 +354,7 @@ export function debouncedSaveDb(): void {
 
 function initTables(db: any): void {
   db.run(`CREATE TABLE IF NOT EXISTS kv (key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at INTEGER NOT NULL DEFAULT (unixepoch()))`);
-  db.run(`CREATE TABLE IF NOT EXISTS tasks (task_id TEXT PRIMARY KEY, node_id TEXT, prompt TEXT, result_url TEXT, thumbnail_url TEXT, error_msg TEXT, custom_output_type TEXT, channel_name TEXT, model_name TEXT, progress INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL DEFAULT 0, not_found_count INTEGER NOT NULL DEFAULT 0, custom_result_data TEXT, custom_raw_response TEXT, request_data TEXT, response_data TEXT, media_meta TEXT, extra_fields TEXT, thread_id TEXT)`);
+  db.run(`CREATE TABLE IF NOT EXISTS tasks (task_id TEXT PRIMARY KEY, node_id TEXT, prompt TEXT, result_url TEXT, thumbnail_url TEXT, error_msg TEXT, custom_output_type TEXT, channel_name TEXT, model_name TEXT, progress INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL DEFAULT 0, not_found_count INTEGER NOT NULL DEFAULT 0, custom_result_data TEXT, custom_raw_response TEXT, request_data TEXT, response_data TEXT, media_meta TEXT, extra_fields TEXT, thread_id TEXT, submit_ack_at INTEGER, completed_at INTEGER, poll_count INTEGER NOT NULL DEFAULT 0)`);
   db.run(`CREATE TABLE IF NOT EXISTS resources (id TEXT PRIMARY KEY, url TEXT NOT NULL, type TEXT NOT NULL, source TEXT, folder TEXT, name TEXT, page_url TEXT, page_title TEXT, is_favorite INTEGER NOT NULL DEFAULT 0, timestamp INTEGER NOT NULL DEFAULT 0)`);
   db.run(`CREATE TABLE IF NOT EXISTS projects (id TEXT PRIMARY KEY, name TEXT NOT NULL, is_last_opened INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL DEFAULT 0)`);
   // 项目列表整体版本号（并发覆盖保护，对齐画布快照 canvas-state-v1-{projectId}_version 思路）。

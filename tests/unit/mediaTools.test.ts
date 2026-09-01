@@ -1,5 +1,4 @@
 // @vitest-environment jsdom
-// @ts-nocheck
 // 回归测试：useMediaDegrade.js、nodePrefs.js、imageCompress.js
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
@@ -21,7 +20,7 @@ describe('useMediaDegrade —— lodLevel→hideMedia 映射', () => {
   })
 
   it('lodLevel>=3 → hideMedia="image video audio"', () => {
-    useLod.mockReturnValue({ lodLevel: 3 })
+    vi.mocked(useLod).mockReturnValue({ lodLevel: 3 })
     const { result } = renderHook(() => useMediaDegrade())
     expect(result.current.hideMedia).toBe('image video audio')
     expect(result.current.isHidden('image')).toBe(true)
@@ -30,7 +29,7 @@ describe('useMediaDegrade —— lodLevel→hideMedia 映射', () => {
   })
 
   it('lodLevel=2 → hideMedia="image"', () => {
-    useLod.mockReturnValue({ lodLevel: 2 })
+    vi.mocked(useLod).mockReturnValue({ lodLevel: 2 })
     const { result } = renderHook(() => useMediaDegrade())
     expect(result.current.hideMedia).toBe('image')
     expect(result.current.isHidden('image')).toBe(true)
@@ -39,7 +38,7 @@ describe('useMediaDegrade —— lodLevel→hideMedia 映射', () => {
   })
 
   it('lodLevel<2（=1）→ hideMedia=""', () => {
-    useLod.mockReturnValue({ lodLevel: 1 })
+    vi.mocked(useLod).mockReturnValue({ lodLevel: 1 })
     const { result } = renderHook(() => useMediaDegrade())
     expect(result.current.hideMedia).toBe('')
     expect(result.current.isHidden('image')).toBe(false)
@@ -47,20 +46,20 @@ describe('useMediaDegrade —— lodLevel→hideMedia 映射', () => {
   })
 
   it('lodLevel=0（默认）→ hideMedia=""', () => {
-    useLod.mockReturnValue({ lodLevel: 0 })
+    vi.mocked(useLod).mockReturnValue({ lodLevel: 0 })
     const { result } = renderHook(() => useMediaDegrade())
     expect(result.current.hideMedia).toBe('')
     expect(result.current.isHidden('image')).toBe(false)
   })
 
   it('lodLevel 未定义（兜底 0）→ hideMedia=""', () => {
-    useLod.mockReturnValue({})
+    vi.mocked(useLod).mockReturnValue({})
     const { result } = renderHook(() => useMediaDegrade())
     expect(result.current.hideMedia).toBe('')
   })
 
   it('isHidden(type) = hideMedia.includes(type)', () => {
-    useLod.mockReturnValue({ lodLevel: 3 })
+    vi.mocked(useLod).mockReturnValue({ lodLevel: 3 })
     const { result } = renderHook(() => useMediaDegrade())
     // includes 语义正确性：任意未列出的类型都隐藏为 false
     expect(result.current.isHidden('text')).toBe(false)
@@ -177,7 +176,7 @@ describe('imageCompress —— 压缩（含浏览器依赖，部分 mock）', ()
     mockImage.naturalWidth = 100
     mockImage.naturalHeight = 100
     // 验证：相对 /files/ 路径会被补全成 API_BASE 绝对地址
-    const loadSpy = asyncGuard.loadImageWithTimeout.mockImplementation(async (url) => {
+    const loadSpy = vi.mocked(asyncGuard.loadImageWithTimeout).mockImplementation(async (url) => {
       expect(url.startsWith('http://127.0.0.1:18080/files/')).toBe(true)
       return { naturalWidth: 100, naturalHeight: 100 }
     })
@@ -252,8 +251,8 @@ function setupCanvasMock(w, h, toDataUrlReturn) {
           drawImage: vi.fn(),
         }),
         toDataURL: vi.fn(() => toDataUrlReturn),
-      }
+      } as unknown as HTMLCanvasElement
     }
-    return {}
-  })
+    return {} as unknown as HTMLElement
+  }) as unknown as typeof document.createElement
 }

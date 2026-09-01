@@ -1,5 +1,4 @@
 // @vitest-environment jsdom
-// @ts-nocheck
 /**
  * faceMosaic 单元测试（阶段一·算法与逻辑层）
  * 按 C1 可测性优先：mock 重环境（@mediapipe/tasks-vision / Image / canvas 真实渲染），
@@ -49,7 +48,7 @@ function makeCtx() {
     stroke: vi.fn(),
     strokeStyle: '',
     lineWidth: 1
-  }
+  } as unknown as CanvasRenderingContext2D
 }
 
 // mosaic/blur 内部会 document.createElement('canvas') 取离屏 2d context，
@@ -79,12 +78,12 @@ describe('loadFaceDetector', () => {
   it('加载失败抛出且单例清空，下次调用可重试', async () => {
     vi.resetModules()
     const { FaceDetector } = await import('@mediapipe/tasks-vision')
-    FaceDetector.createFromOptions.mockClear()
+    vi.mocked(FaceDetector.createFromOptions).mockClear()
     const { loadFaceDetector: load2 } = await import('../../src/components/base/faceMosaic.ts')
-    FaceDetector.createFromOptions.mockRejectedValueOnce(new Error('wasm init fail'))
+    vi.mocked(FaceDetector.createFromOptions).mockRejectedValueOnce(new Error('wasm init fail'))
     await expect(load2()).rejects.toThrow('wasm init fail')
     // 失败后再次调用应重新尝试（单例已被 catch 清空）
-    FaceDetector.createFromOptions.mockResolvedValueOnce(fakeFaceDetector)
+    vi.mocked(FaceDetector.createFromOptions).mockResolvedValueOnce(fakeFaceDetector)
     const retry = await load2()
     expect(retry).toBe(fakeFaceDetector)
     expect(FaceDetector.createFromOptions).toHaveBeenCalledTimes(2)
