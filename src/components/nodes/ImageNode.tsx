@@ -1,11 +1,12 @@
-import React, { useState, useRef, useCallback } from 'react'
+import React, { useRef, useCallback } from 'react'
 import {
-  Image as ImageIcon, Video, Music, FileText, Plus, Send, Download, Play
+  Image as ImageIcon, Video, Music, FileText, Plus, Send, Download
 } from 'lucide-react'
 import { useReactFlow } from '@xyflow/react'
 import NodeShell from '../base/NodeShell.tsx'
 import HoverToolbar from '../base/HoverToolbar.tsx'
 import ImageZoomDialog from '../base/ImageZoomDialog.tsx'
+import VideoThumbnail from '../base/VideoThumbnail.tsx'
 import { detectMediaType } from '../base/mediaType.ts'
 import type { MediaType } from '@/types'
 import { useMediaDegrade } from '../../hooks/useMediaDegrade.ts'
@@ -50,15 +51,11 @@ interface ImageNodeProps {
 }
 function ImageNode({ id, data, selected }: ImageNodeProps) {
   const fileRef = useRef<HTMLInputElement | null>(null)
-  const videoRef = useRef<HTMLVideoElement | null>(null) // 播放视频元素（大播放按钮手势触发的 play() 用）
   // 读取端兜底：相对 /files/ 路径统一补全为绝对 URL，刷新不破图
   const url = toAbsoluteFileUrl(data.imageUrl || data.url || '') || ''
   const { setNodes } = useReactFlow()
   // 订阅「画布显示缩略图」设置：显示地址实时随开关（见 docs/18）
   const render = useRenderImageResolver()
-
-  // 视频播放态（复刻官方 xi.jsx `s`）：false=显示海报+播放按钮，true=渲染 <video controls autoPlay>
-  const [playing, setPlaying] = useState(false)
 
   // 查看大图：原生 <dialog> 弹层（双击图片 → showModal，点图/Esc 关闭，无外框/标题栏）。
   const dialogRef = useRef<HTMLDialogElement | null>(null)
@@ -74,7 +71,7 @@ function ImageNode({ id, data, selected }: ImageNodeProps) {
   const { fitFromImage, fitFromVideo } = useFitNodeRatio(id)
 
   // 视频首帧封面（未播放时显示首帧，避免视频 URL 当 img 破图）
-  const posterUrl = useVideoPoster(url, type === 'video' && !playing)
+  const posterUrl = useVideoPoster(url, type === 'video')
 
   // 编辑器/压缩保存 → 写回节点图片（不可变更新，与 HoverToolbar 统一机制共享）。
   const replaceImage = useCallback(
@@ -236,64 +233,20 @@ function ImageNode({ id, data, selected }: ImageNodeProps) {
               onDoubleClick={(e) => { e.stopPropagation(); dialogRef.current?.showModal() }}
               className="w-full h-full object-cover cursor-pointer" draggable={false} />
           )}
-          {/* 视频（复刻官方 xi.jsx：未播放显示海报+播放按钮，点击播放 → <video controls autoPlay>）
-              无论是否播放都渲染一个 <video preload="metadata"> 读真实宽高 → onLoadedMetadata 调
-              fitFromVideo 按视频宽高自适应节点形状（useFitNodeRatio）。
-              未播放时该 video 隐藏（仅读元数据），海报用 <img> 显示；播放时显示 controls。 */}
+          {/* 视频：统一 VideoThumbnail 组件（与视频生成节点一致）。
+              封面用抓取的 posterUrl（首帧 dataURL）；playable 开启节点内 controls 播放态；
+              onLoadedMetadata 按视频宽高自适应节点形状（useFitNodeRatio）；
+              双击容器打开自定义大图弹窗（含截屏/下载当前帧按钮）。 */}
           {type === 'video' && !hideMedia.includes('video') && (
-            <div className="w-full h-full relative"
-              onDoubleClick={(e) => {
-                e.preventDefault()   // 阻止正在播放的 <video controls> 触发浏览器原生播放界面
-                e.stopPropagation()
-                // 暂停播放中视频，避免原生控件干扰；再打开自定义大图弹窗（含截屏/下载当前帧按钮）
-                try { videoRef.current?.pause?.() } catch {}
-                setPlaying(false)
-                dialogRef.current?.showModal()
-              }}
-            >
-              {/* 元数据读取器 / 播放器：始终存在（未播放时隐藏），loadedmetadata 触发节点比例自适应。
-                  播放由大播放按钮手势触发 video.play()（避免 autoplay 政策拦截带声音视频） */}
-              <video
-                ref={videoRef}
-                src={url}
-                preload="metadata"
-                className={playing ? 'max-w-full w-full h-full object-cover block' : 'hidden'}
-                controls={playing}
-                onLoadedMetadata={fitFromVideo}
-                onClick={(e) => e.stopPropagation()}
-              />
-              {/* 未播放：首帧封面 + 播放按钮。封面用抓取的 posterUrl（首帧 dataURL），
-                  避免用视频 URL 当 <img> src 导致破图（官方用 localTool _frame1.jpg）。
-                  点击大播放按钮：setPlaying(true) 显示 controls，并在同一用户手势里调 play()，
-                  这样不用再点视频左下角的小播放按钮（autoplay 政策拦的是无手势的自动播放，
-                  用户点击触发 play() 是允许的）。 */}
-              {!playing && (
-                <>
-                  {posterUrl ? (
-                    <img src={posterUrl} alt="video poster" loading="lazy" decoding="async"
-                      draggable={false} className="w-full h-full object-cover cursor-pointer" />
-                  ) : (
-                    <div className="absolute inset-0 flex items-center justify-center bg-surface-muted">
-                      <Video size={32} className="text-gray-700" />
-                    </div>
-                  )}
-                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                    <div
-                      className="w-12 h-12 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center opacity-80 hover:opacity-100 hover:bg-black/70 transition-all nodrag pointer-events-auto cursor-pointer"
-                      title="播放视频"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        setPlaying(true)
-                        // 同一用户手势里显式 play()，绕开 autoplay 政策（带声音视频不被自动播放拦截）
-                        try { videoRef.current?.play?.() } catch {}
-                      }}
-                    >
-                      <Play className="text-white w-6 h-6" fill="currentColor" />
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
+            <VideoThumbnail
+              src={url}
+              poster={posterUrl}
+              fit="cover"
+              size="lg"
+              playable
+              onLoadedMetadata={fitFromVideo}
+              onContainerDoubleClick={() => dialogRef.current?.showModal()}
+            />
           )}
           {/* 音频 */}
           {type === 'audio' && !hideMedia.includes('audio') && (

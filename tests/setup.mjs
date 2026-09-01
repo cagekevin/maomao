@@ -36,6 +36,29 @@ if (typeof globalThis.HTMLCanvasElement !== 'undefined' && !globalThis.HTMLCanva
   globalThis.HTMLCanvasElement.prototype.getContext = () => ({})
 }
 
+// jsdom 未实现 HTMLMediaElement（<video>/<audio>）的核心媒体方法（load/play/pause）。
+// 注意：jsdom 的 load/play/pause 是「已定义但内部走 not-implemented 抛错」的实现（见
+// not-implemented.js），不是完全缺失，因此必须无条件覆盖（不能用 if(!proto.x) 守卫）。
+// useVideoPoster 等抓帧逻辑（v.load()）、VideoThumbnail/ImageZoomDialog 播放态（v.play()/pause()）
+// 在 jsdom 里会抛 "Not implemented: HTMLMediaElement.prototype.load"。这是 jsdom 共性缺能力
+// （与 Win/Mac 无关），统一在此覆盖，保证双平台测试行为一致。
+if (typeof globalThis.HTMLMediaElement !== 'undefined') {
+  const proto = globalThis.HTMLMediaElement.prototype
+  const mediaStub = () => {}
+  proto.load = mediaStub
+  proto.play = () => Promise.resolve()
+  proto.pause = mediaStub
+  proto.canPlayType = () => ''
+  // 首帧抓取依赖 videoWidth/videoHeight 返回可绘制的尺寸（见 useVideoPoster）；jsdom 默认返回 0，
+  // 给一个非 0 默认值使 canvas 绘制路径不因 0 尺寸而异常（getContext 已被 mock）。
+  if (!Object.getOwnPropertyDescriptor(proto, 'videoWidth')) {
+    Object.defineProperty(proto, 'videoWidth', { configurable: true, get: () => 320 })
+  }
+  if (!Object.getOwnPropertyDescriptor(proto, 'videoHeight')) {
+    Object.defineProperty(proto, 'videoHeight', { configurable: true, get: () => 240 })
+  }
+}
+
 // Node 原生 fetch 在 globalThis 上可能为不可配置属性，vi.stubGlobal 会静默失败。
 // 用 defineProperty 强制覆盖为一个共享「响铃 fetch」mock（见下）。各测试文件通过
 // globalThis.fetch 取用，并在 beforeEach 用 mockClear() / 在用例内 mockResolvedValue(-Once)
