@@ -43,7 +43,8 @@ const h = vi.hoisted(() => {
 
 vi.mock('@xyflow/react', () => ({
   useReactFlow: () => ({
-    setNodes: (...a: any[]) => (h.setNodesMock as any)(...a),
+    // 工厂用 Parameters<> 精确透传，去掉 (x as any)(...a) 强转
+    setNodes: (...a: Parameters<typeof h.setNodesMock>) => h.setNodesMock(...a),
     getNodes: () => h.getNodesMock(),
     setEdges: vi.fn(),
     addNodes: vi.fn(),
@@ -72,7 +73,8 @@ vi.mock('../../src/components/edges/CustomHandle.tsx', () => ({
 vi.mock('../../src/components/base/FullscreenModal.tsx', () => ({ default: ({ open, children }) => (open ? <div data-testid="fullscreen">{children}</div> : null) }))
 // 数据读写通道：真实 useScriptBoxEngine 负责注入回调副作用，仅把返回的 updateData 指向 h.updateData 以记录调用（StepNav 切步用）
 vi.mock('../../src/hooks/useScriptBoxEngine.ts', async (importOriginal) => {
-  const real = (await importOriginal()) as any
+  // importOriginal 在 vitest 类型里返回 unknown（类型限制），断言回具体模块命名空间
+  const real = (await importOriginal()) as unknown as typeof import('../../src/hooks/useScriptBoxEngine.ts')
   return {
     ...real,
     useScriptBoxEngine: (nodeId, data) => {
@@ -122,22 +124,26 @@ vi.mock('../../src/components/scriptbox/GearSettings.tsx', () => ({
 
 import ScriptBoxNode from '../../src/components/nodes/ScriptBoxNode.tsx'
 
+// ScriptBoxNodeProps.data 在 src 侧未导出，故用 ComponentProps 索引拿到精确类型（避免 any）
+type ScriptBoxNodeData = React.ComponentProps<typeof ScriptBoxNode>['data']
+
 // 每个用例前复位上游接入（避免上个用例残留的非空 upstream 污染后续断言）
 beforeEach(() => {
   h.upstream = { images: [], texts: [], videos: [], audios: [] }
 })
 
 const nodeId = 'sb1'
-function setup(data: any = {}) {
+// data 入参用宽松的 Record（测试常喂 number id 等偏窄形状，props 处再断言到精确类型）
+function setup(data: Record<string, unknown> = {}) {
   // 传入含引擎回调的 data（模拟挂载后注入完成状态），使步骤子组件能调 callbacks
   const nodeData0 = { ...data, ...h.engine }
   h.state.nodes = [{ id: nodeId, data: { ...nodeData0 } }]
   h.updateData.mockClear()
   Object.values(h.engine).forEach((fn) => fn.mockClear())
-  return render(<ScriptBoxNode id={nodeId} data={{ ...nodeData0 } as any} selected={false} />)
+  return render(<ScriptBoxNode id={nodeId} data={{ ...nodeData0 } as unknown as ScriptBoxNodeData} selected={false} />)
 }
 function nodeData() {
-  return h.state.nodes.find((n) => n.id === nodeId)?.data as any
+  return h.state.nodes.find((n) => n.id === nodeId)?.data as ScriptBoxNodeData
 }
 
 describe('ScriptBoxNode — 三步状态机渲染', () => {
@@ -275,10 +281,10 @@ describe('ScriptBoxNode — 端口注册（code-008 回归）', () => {
     const { rerender } = setup({ shots: [{ id: 1 }] })
     expect(h.updateNodeInternals).toHaveBeenCalledTimes(1)
     // 新增镜头 → 端口集合变了，必须重测，否则新 shot 端口进不了 handleBounds（边报 code-008）
-    rerender(<ScriptBoxNode id={nodeId} data={{ shots: [{ id: 1 }, { id: 2 }] } as any} selected={false} />)
+    rerender(<ScriptBoxNode id={nodeId} data={{ shots: [{ id: 1 }, { id: 2 }] } as unknown as ScriptBoxNodeData} selected={false} />)
     expect(h.updateNodeInternals).toHaveBeenCalledTimes(2)
     // 只改镜头字段（id 列表不变）→ 不重测，避免高频抖动
-    rerender(<ScriptBoxNode id={nodeId} data={{ shots: [{ id: 1, prompt: 'x' }, { id: 2 }] } as any} selected={false} />)
+    rerender(<ScriptBoxNode id={nodeId} data={{ shots: [{ id: 1, prompt: 'x' }, { id: 2 }] } as unknown as ScriptBoxNodeData} selected={false} />)
     expect(h.updateNodeInternals).toHaveBeenCalledTimes(2)
   })
 })

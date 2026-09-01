@@ -10,6 +10,7 @@
 // 依赖均为纯函数，node 环境可跑（npm run test:unit:logic）。
 import { describe, it, expect } from 'vitest'
 import { presetJoints } from '../../src/components/director3d/rig.ts'
+import type { ChannelTracks, ChannelKey, ProjectObject } from '../../src/components/director3d/project.ts'
 import {
   ENTITY_CHANNELS,
   snapshotToChannelKeys,
@@ -159,16 +160,16 @@ describe('M1-C6 旧整快照无损迁移 → 播放逐帧一致', () => {
   it('人物：迁移+flatten 后 objectAtFrame 逐帧输出与旧实现完全一致', () => {
     const legacyResults = sampleFrames.map(frame => objectAtFrame(person, legacyPersonKeys, frame, 24))
     const channels = normalizeObjectTracks({ 'actor-lead': legacyPersonKeys }, { 'actor-lead': 'person' })
-    const flatBack = channelsToSnapshotKeys('person', channels['actor-lead'] as any)
-    const migratedResults = sampleFrames.map(frame => objectAtFrame(person, flatBack as any, frame, 24))
+    const flatBack = channelsToSnapshotKeys('person', channels['actor-lead']) as ChannelKey[]
+    const migratedResults = sampleFrames.map(frame => objectAtFrame(person, flatBack, frame, 24))
     expect(migratedResults).toEqual(legacyResults)
   })
 
   it('普通物体：旧实现写入的 pose 字段被收敛后，播放输出不变', () => {
     const legacyResults = sampleFrames.map(frame => objectAtFrame(box, legacyBoxKeys, frame, 24))
     const channels = normalizeObjectTracks({ 'block-stage': legacyBoxKeys }, { 'block-stage': 'object' })
-    const flatBack = channelsToSnapshotKeys('object', channels['block-stage'] as any)
-    const migratedResults = sampleFrames.map(frame => objectAtFrame(box, flatBack as any, frame, 24))
+    const flatBack = channelsToSnapshotKeys('object', channels['block-stage']) as ChannelKey[]
+    const migratedResults = sampleFrames.map(frame => objectAtFrame(box, flatBack, frame, 24))
     // 物体无姿态语义（M1-C1 只留 transform 通道），求值回退的 poseTime 等字段不影响渲染；
     // 断言对渲染真正生效的 transform 字段逐帧一致即可。
     const pickTransform = result => ({ position: result.position, rotation: result.rotation, scale: result.scale })
@@ -245,7 +246,8 @@ describe('归一化与通道化工具（幂等/统计/clamp/写入口）', () =>
   })
 
   it('通道化 key 归一化 frame/interpolation（frame 字符串/越界自动规整）', () => {
-    const noisy = { 'actor-lead': { transform: [{ frame: '3', interpolation: 'hold', fields: { position: [1, 2, 3] } }] } } as any
+    // 故意喂 frame:'3'（字符串脏数据）测 clamp 兜底；用 unknown as 标注此处为故意
+    const noisy = { 'actor-lead': { transform: [{ frame: '3', interpolation: 'hold', fields: { position: [1, 2, 3] } }] } } as unknown as ChannelTracks
     const normalized = normalizeObjectTracks(noisy, { 'actor-lead': 'person' })
     expect(normalized['actor-lead'].transform[0].frame).toBe(3)
     expect(normalized['actor-lead'].transform[0].interpolation).toBe('hold')
@@ -268,14 +270,14 @@ describe('归一化与通道化工具（幂等/统计/clamp/写入口）', () =>
 
   it('clampKeyframeFrames 对通道化结构逐通道 clamp', () => {
     const channels = normalizeObjectTracks({ 'actor-lead': legacyPersonKeys }, { 'actor-lead': 'person' })
-    const clamped = clampKeyframeFrames(channels['actor-lead'] as any, 30)
-    const frames = Object.values(clamped as any).flatMap((list: any[]) => list.map((key: any) => key.frame))
+    const clamped = clampKeyframeFrames(channels['actor-lead'], 30)
+    const frames = Object.values(clamped).flatMap((list: ChannelKey[]) => list.map((key: ChannelKey) => key.frame))
     expect(Math.max(...frames)).toBeLessThanOrEqual(30)
-    expect((clamped as any).transform.map((key: any) => key.frame)).toEqual([0, 24, 30])
+    expect((clamped as ChannelTracks).transform.map((key: ChannelKey) => key.frame)).toEqual([0, 24, 30])
   })
 
   it('upsertChannelKeys：写入口按通道合并，同帧覆盖', () => {
-    let channels = {}
+    let channels: ChannelTracks = {}
     channels = upsertChannelKeys(channels, snapshotToChannelKeys('person', legacyPersonKeys[0], 0, 'smooth'))
     channels = upsertChannelKeys(channels, snapshotToChannelKeys('person', legacyPersonKeys[1], 24, 'linear'))
     expect(countChannelKeyframes(channels)).toBe(2)
@@ -284,11 +286,11 @@ describe('归一化与通道化工具（幂等/统计/clamp/写入口）', () =>
     const overwrite = { ...legacyPersonKeys[0], position: [9, 9, 9] }
     channels = upsertChannelKeys(channels, snapshotToChannelKeys('person', overwrite, 0, 'smooth'))
     expect(countChannelKeyframes(channels)).toBe(2)
-    expect((channels as any).transform[0].fields.position).toEqual([9, 9, 9])
+    expect((channels).transform[0].fields.position).toEqual([9, 9, 9])
   })
 
   it('removeChannelFrames：从所有通道删除指定帧', () => {
-    let channels = {}
+    let channels: ChannelTracks = {}
     channels = upsertChannelKeys(channels, snapshotToChannelKeys('person', legacyPersonKeys[0], 0, 'smooth'))
     channels = upsertChannelKeys(channels, snapshotToChannelKeys('person', legacyPersonKeys[1], 24, 'linear'))
     const removed = removeChannelFrames(channels, [24])
@@ -297,17 +299,17 @@ describe('归一化与通道化工具（幂等/统计/clamp/写入口）', () =>
   })
 
   it('moveChannelFrames：把某帧在所有通道整体平移为另一帧', () => {
-    let channels = {}
+    let channels: ChannelTracks = {}
     channels = upsertChannelKeys(channels, snapshotToChannelKeys('person', legacyPersonKeys[0], 0, 'smooth'))
     channels = upsertChannelKeys(channels, snapshotToChannelKeys('person', legacyPersonKeys[1], 24, 'linear'))
     const moved = moveChannelFrames(channels, 24, 12)
     expect(countChannelKeyframes(moved)).toBe(2)
-    expect((moved as any).transform.map((key: any) => key.frame).sort()).toEqual([0, 12])
-    expect((moved as any).action.map((key: any) => key.frame).sort()).toEqual([0, 12])
+    expect((moved as ChannelTracks).transform.map((key: ChannelKey) => key.frame).sort()).toEqual([0, 12])
+    expect((moved as ChannelTracks).action.map((key: ChannelKey) => key.frame).sort()).toEqual([0, 12])
     // 移到已存在的帧：目标帧旧 key 被覆盖，帧数不重复
     const collide = moveChannelFrames(channels, 0, 24)
     expect(countChannelKeyframes(collide)).toBe(1)
-    expect((collide as any).transform[0].frame).toBe(24)
+    expect((collide as ChannelTracks).transform[0].frame).toBe(24)
     // 同帧平移为幂等
     expect(moveChannelFrames(channels, 0, 0)).toBe(channels)
   })

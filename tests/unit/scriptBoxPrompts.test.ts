@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest'
+import type { Dialogue, Shot, ScriptAsset } from '@/components/scriptbox/scriptBoxPrompts.ts'
 import {
   ZgPrompt, dialogueText, textToDlg, dlgToText, stripAtRef, hlAt, matchAsset, collectAssets, buildShotPrompts,
   buildShots, buildAssets, IMAGE_GEN_TYPES, ASSET_TEMPLATES, patchShots,
@@ -26,10 +27,11 @@ describe('剧本盒纯函数 §2.7/2.17', () => {
   })
 
   it('dialogueText：台词/旁白格式化', () => {
-    expect(dialogueText([{ kind: '台词', role: '小马', text: '你好' }] as any)).toBe('小马: 你好')
-    expect(dialogueText([{ kind: '旁白', text: '天黑了' }] as any)).toBe('[旁白] 天黑了')
+    // 旁白无 role / 纯 role 无 kind 是真实输入边界，用 as Dialogue 标注「故意喂偏类型」测容错分支
+    expect(dialogueText([{ kind: '台词', role: '小马', text: '你好' }])).toBe('小马: 你好')
+    expect(dialogueText([{ kind: '旁白', text: '天黑了' } as Dialogue])).toBe('[旁白] 天黑了')
     expect(dialogueText([])).toBe('')
-    expect(dialogueText([{ role: 'A', text: '1' }, { role: 'B', text: '2' }] as any)).toBe('A: 1 / B: 2')
+    expect(dialogueText([{ role: 'A', text: '1' }, { role: 'B', text: '2' }] as Dialogue[])).toBe('A: 1 / B: 2')
   })
 
   it('hlAt：只高亮真实资产名（传资产列表），非资产 @ 不高亮', () => {
@@ -101,7 +103,8 @@ describe('剧本盒纯函数 §2.7/2.17', () => {
 
   it('dlgToText：非数组 → 空串', () => {
     expect(dlgToText(null)).toBe('')
-    expect(dlgToText('字符串' as any)).toBe('')
+    // 故意喂字符串（非 Dialogue[]）测兜底分支，用 unknown as 标注
+    expect(dlgToText('字符串' as unknown as Dialogue[])).toBe('')
   })
 
   it('formatLineBreaks：句号类标点（。！？；）后补换行，标点留在行尾', () => {
@@ -200,8 +203,9 @@ describe('剧本盒纯函数 §2.7/2.17', () => {
   })
 
   it('buildShotPrompts：生成 prompt/videoPrompt 并保留 @资产', () => {
-    const shot = { description: '@小马 奔跑', shotType: '中景', lighting: '自然光', motion: '推', duration: '5s', dialogue: [{ role: '小马', text: '冲' }], sound: '风声' }
-    const r = buildShotPrompts(shot as any)
+    // dialogue 里的 {role,text} 缺 kind（真实输入边界），用 as Dialogue[] 标注故意偏类型
+    const shot = { description: '@小马 奔跑', shotType: '中景', lighting: '自然光', motion: '推', duration: '5s', dialogue: [{ role: '小马', text: '冲' } as Dialogue], sound: '风声' } as Shot
+    const r = buildShotPrompts(shot)
     expect(r.prompt).toContain('@小马')
     expect(r.prompt).toContain('中景')
     expect(r.videoPrompt).toContain('镜头时长 5s')
@@ -223,8 +227,9 @@ describe('剧本盒纯函数 §2.7/2.17', () => {
     expect(cats.has('character')).toBe(true)
     expect(cats.has('scene')).toBe(true)
     expect(cats.has('prop')).toBe(true)
-    expect(assets.every((a: any) => a.prompt.includes('[视觉风格：皮克斯]'))).toBe(true)
-    expect(assets.every((a) => a.has === false)).toBe(true)
+    // ScriptAsset 带 [key:string]:unknown 索引签名，prompt/has 经此皆为 unknown，故用 String 收窄
+    expect(assets.every((a: ScriptAsset) => String(a.prompt).includes('[视觉风格：皮克斯]'))).toBe(true)
+    expect(assets.every((a: ScriptAsset) => a.has === false)).toBe(true)
   })
 
   it('IMAGE_GEN_TYPES 含 4 种（keyframe/grid4/grid9/topdown）', () => {
@@ -422,8 +427,9 @@ describe('剧本盒纯函数 · 合并生成视频', () => {
     })
 
     it('dialogue 是字符串（非数组）→ 当前 dialogueText 返回空，标"（无）"（潜在 bug：有对白却标无）', () => {
-      const shot = { id: 's1', index: 1, duration: '3s', description: 'a', dialogue: '小狗：好吃吗' }
-      const user = buildMergedVideoUser([shot] as any, [])
+      // dialogue 为 string（真实边界输入），用 as Shot 标注故意偏类型
+      const shot = { id: 's1', index: 1, duration: '3s', description: 'a', dialogue: '小狗：好吃吗' } as unknown as Shot
+      const user = buildMergedVideoUser([shot], [])
       // 当前行为：dialogueText('小狗：好吃吗') 非数组 → '' → 标（无）。先固化，标注潜在坑。
       expect(user).toContain('对白/旁白：（无）')
     })

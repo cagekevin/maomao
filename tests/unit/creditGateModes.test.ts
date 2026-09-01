@@ -22,9 +22,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 let __creditState
 let __genParamsState
 vi.mock('../../src/components/base/contentStore.ts', async (importOriginal) => {
-  const actual: any = await importOriginal()
+  // importOriginal 在 vitest 类型里返回 unknown（类型限制），断言回具体模块命名空间以保留 .contentGet 等调用
+  const actual = (await importOriginal()) as unknown as typeof import('../../src/components/base/contentStore.ts')
   return {
-    ...(actual as any),
+    ...actual,
     contentGet: vi.fn((k) => (k === 'agent_credit_switch' ? __creditState : actual.contentGet(k))),
     contentSet: vi.fn((k, v) => { if (k === 'agent_credit_switch') __creditState = !!v; else return actual.contentSet(k, v) }),
   }
@@ -64,9 +65,9 @@ vi.mock('../../src/components/base/taskStore.ts', () => ({
   isNodeRegistered: vi.fn(() => true),
 }))
 vi.mock('../../src/components/agent/canvas/canvasPlanExecutor.ts', async (importOriginal) => {
-  const actual = await importOriginal()
+  const actual = (await importOriginal()) as unknown as typeof import('../../src/components/agent/canvas/canvasPlanExecutor.ts')
   return {
-    ...(actual as any),
+    ...actual,
     executePlan: vi.fn(async (args) => ({
       workflow: { status: args?.autoRun ? 'completed' : 'ready' },
       entries: [{ status: args?.autoRun ? 'completed' : 'ready', nodeId: 'n1', stepId: 'g1', resultUrl: args?.autoRun ? 'http://r/x.png' : '' }],
@@ -77,13 +78,16 @@ vi.mock('../../src/components/agent/canvas/canvasPlanExecutor.ts', async (import
 import { buildCanvasAgentTools } from '../../src/components/agent/canvas/useCanvasAgentTools.ts'
 import * as convStore from '../../src/components/agent/conversation/conversationStore.ts'
 import { executePlan } from '../../src/components/agent/canvas/canvasPlanExecutor.ts'
+import type { CreditGate } from '../../src/components/agent/conversation/conversationSkillState.ts'
+import type { RunMode } from '../../src/components/agent/conversation/conversationAiState.ts'
 
-// vi.mock 工厂已把 executePlan 替换为 vi.fn，但静态类型仍是 src 原始签名（无 .mock）。
-// 测试侧用 .mock.calls 断言，故降为 any。
-const mockExecutePlan: any = executePlan
+// vi.mock 工厂已把 executePlan 替换为 vi.fn，vi.mocked() 可恢复其 mock 类型（含 .mock.calls），零 any
+const mockExecutePlan = vi.mocked(executePlan)
 // 对「模块命名空间 convStore」直接写 convMock.__state 会触发 vitest/TS 推断 bug，
-// 连坐同一作用域 vi/expect 变不可调用（canvasAgentTools.test.ts 探针实测）。收口到本地 any 别名。
-const convMock: any = convStore
+// 连坐同一作用域 vi/expect 变不可调用（canvasAgentTools.test.ts 探针实测）。
+// 合并本地 __state 字段类型（替代原 any 别名），保留规避意图且零 any。
+type ConvMock = typeof convStore & { __state: { awaiting: boolean; creditGate: CreditGate | null; runMode: RunMode } }
+const convMock = convStore as unknown as ConvMock
 
 function makeCtx() {
   let nodes = []
@@ -108,11 +112,12 @@ beforeEach(() => {
   convMock.__state = { awaiting: false, creditGate: null, runMode: 'auto' }
   vi.mocked(convStore.getAwaitingConfirm).mockImplementation(() => convMock.__state.awaiting)
   vi.mocked(convStore.setAwaitingConfirm).mockImplementation((v) => { convMock.__state.awaiting = !!v })
-  vi.mocked(convStore.getCreditGate).mockImplementation(() => convMock.__state.creditGate)
-  vi.mocked(convStore.setCreditGate).mockImplementation((g) => { convMock.__state.creditGate = g || null })
+  // __state.creditGate 本地存 Partial 形状，mock 出口处断言回 CreditGate（运行时 g 已是兼容结构）
+  vi.mocked(convStore.getCreditGate).mockImplementation(() => convMock.__state.creditGate as CreditGate | null)
+  vi.mocked(convStore.setCreditGate).mockImplementation((g) => { convMock.__state.creditGate = (g || null) as CreditGate | null })
   vi.mocked(convStore.clearCreditGate).mockImplementation(() => { convMock.__state.creditGate = null })
   vi.mocked(convStore.getCurrentRunMode).mockImplementation(() => convMock.__state.runMode)
-  vi.mocked(convStore.setCurrentRunMode).mockImplementation((m) => { convMock.__state.runMode = m })
+  vi.mocked(convStore.setCurrentRunMode).mockImplementation((m) => { convMock.__state.runMode = m as RunMode })
 })
 
 function buildTool() {
