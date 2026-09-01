@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * StepShots 上游接入只读素材区测试。
  *
@@ -27,17 +26,23 @@ vi.mock('../../src/components/scriptbox/ScriptBoxModal.tsx', () => ({ default: (
 vi.mock('../../src/components/base/hooks.ts', () => ({ useOutsideClick: () => {} }))
 
 import StepShots from '../../src/components/scriptbox/StepShots.tsx'
+import type { ScriptBoxData } from '../../src/components/scriptbox/scriptBoxSchema.ts'
 
 const nodeId = 'sb1'
-function setup(data = {}) {
-  return render(
-    <StepShots
-      id={nodeId}
-      data={data}
-      updateData={() => {}}
-      callbacks={{ ...data, onDisconnectUpstream: vi.fn() }}
-    />
-  )
+// 两点说明：
+//  1. data 只传被测用到的字段（ScriptBoxData 有 20+ 必填项）；cast 走 as unknown as，
+//     因 Partial<ScriptBoxData> 与 ScriptBoxData 重叠不足，直接 as 会报 TS2352。
+//  2. props 组装成对象再 spread，而非在 JSX 上直接写 id={…}：StepShotsProps 无 id 字段，
+//     直接写会触发 JSX 多余属性检查（TS2322）；spread 不检查多余属性，与生产侧
+//     <StepShots {...stepProps} />（ScriptBoxNode）用法一致。
+function setup(data: Partial<ScriptBoxData> = {}) {
+  const props = {
+    id: nodeId,
+    data: data as unknown as ScriptBoxData,
+    updateData: () => {},
+    callbacks: { ...data, onDisconnectUpstream: vi.fn() } as any,
+  }
+  return render(<StepShots {...props} />)
 }
 
 beforeEach(() => vi.clearAllMocks())
@@ -61,14 +66,13 @@ describe('StepShots — 上游接入素材区（在剧情上方）', () => {
 
   it('断线回调透传：点红色 × 调用 onDisconnectUpstream(sourceNodeId)', () => {
     const onDisconnect = vi.fn()
-    render(
-      <StepShots
-        id={nodeId}
-        data={{ story: '', upstreamImages: [{ id: 'i1', url: 'http://u/a.png', sourceNodeId: 's1' }] }}
-        updateData={() => {}}
-        callbacks={{ onDisconnectUpstream: onDisconnect }}
-      />
-    )
+    const props = {
+      id: nodeId,
+      data: { story: '', upstreamImages: [{ id: 'i1', url: 'http://u/a.png', sourceNodeId: 's1' }] } as unknown as ScriptBoxData,
+      updateData: () => {},
+      callbacks: { onDisconnectUpstream: onDisconnect },
+    }
+    render(<StepShots {...props} />)
     fireEvent.click(screen.getByTestId('disconnect'))
     expect(onDisconnect).toHaveBeenCalledWith('s1')
   })

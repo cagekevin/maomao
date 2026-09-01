@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * assetsMove 单元测试（阶段三·算法与逻辑层）
  * 覆盖：moveFile 端点透传、canMoveAsset 边界、resolveMovePaths 相对路径推导。
@@ -8,9 +7,16 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { API_BASE } from '../../src/components/base/config.ts'
 import { moveFile, canMoveAsset, resolveMovePaths } from '@/components/base/api/localToolApi.ts'
 
+/**
+ * 一次性 fetch mock。
+ *
+ * 【为什么必须显式声明参数元组】`vi.fn(async () => res)` 的泛型会被推断成空元组 `[]`，
+ * 于是 `fetchMock.mock.calls[0]` 解构出的 `[url, init]` 双双报 TS2493 / TS18048。
+ * 写成 `(..._args: any[])` 后 calls 元素类型为 any，断言处即可正常访问。
+ */
 function mockFetchOnce(body, { ok = true, status = 200 } = {}) {
   const res = { ok, status, json: async () => body, text: async () => JSON.stringify(body) }
-  const fetchMock = vi.fn(async () => res)
+  const fetchMock = vi.fn(async (..._args: any[]) => res)
   vi.stubGlobal('fetch', fetchMock)
   return fetchMock
 }

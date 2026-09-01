@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * PromptNode 上游合并测试（本次修复核心逻辑）。
  * 覆盖：上游文本节点/图片节点连线后，文字与图片合并进生图请求；
@@ -71,7 +70,9 @@ vi.mock('../../src/hooks/useSyncNodeData.ts', () => ({ useSyncNodeData: () => {}
 vi.mock('../../src/components/base/api/filesApi.ts', () => ({ toAbsoluteFileUrl: (x) => x, saveResultToTasks: vi.fn(async () => undefined) }))
 vi.mock('../../src/components/base/settings/providerStore.ts', () => ({ useProviders: () => ({ providers: [] }), load: vi.fn(() => Promise.resolve()) }))
 vi.mock('../../src/components/base/api/localToolApi.ts', () => ({ fetchTasks: vi.fn(async () => ({ items: [] })) }))
-const mockGenerateImage = vi.fn(async () => ({ url: 'http://gen.local/img.png' }))
+// 显式声明参数元组：vi.fn(async () => …) 会把参数推断成空元组 []，
+// 导致后续 mock.calls[0][0] 报 TS2493、mockGenerateImage(...a) 报 TS2556。
+const mockGenerateImage = vi.fn(async (..._args: any[]) => ({ url: 'http://gen.local/img.png' }))
 vi.mock('../../src/components/base/api/imageApi.ts', () => ({ generateImage: (...a) => mockGenerateImage(...a) }))
 vi.mock('../../src/components/base/providerModels.ts', () => ({ buildAllModels: vi.fn(() => []), resolveProviderModel: vi.fn(() => ({ provider: {}, modelId: 'm' })) }))
 
@@ -85,7 +86,8 @@ beforeEach(() => {
   genConfig = null
   connectedInputs = {}
   if (!global.IntersectionObserver) {
-    global.IntersectionObserver = class { observe() {} unobserve() {} disconnect() {} }
+    // stub 只实现被测用到的 3 个方法，缺 root/thresholds/takeRecords 等成员 → cast 收尾
+    global.IntersectionObserver = class { observe() {} unobserve() {} disconnect() {} } as unknown as typeof IntersectionObserver
   }
 })
 

@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * TextNode 上游合并测试（本次修复核心逻辑）。
  * 覆盖：上游文本节点连线后文字合并进文本生成消息；多上游文本/图片合并；
@@ -52,7 +51,9 @@ vi.mock('../../src/hooks/useSyncNodeData.ts', () => ({ useSyncNodeData: () => {}
 vi.mock('../../src/components/base/api/filesApi.ts', () => ({ toAbsoluteFileUrl: (x) => x, saveResultToTasks: vi.fn(async () => undefined) }))
 vi.mock('../../src/components/base/settings/providerStore.ts', () => ({ useProviders: () => ({ providers: [] }), load: vi.fn(() => Promise.resolve()) }))
 vi.mock('../../src/components/base/api/localToolApi.ts', () => ({ fetchTasks: vi.fn(async () => ({ items: [] })) }))
-const mockChat = vi.fn(async () => ({ ok: true, content: '生成结果' }))
+// 显式声明参数元组：vi.fn(async () => …) 会把参数推断成空元组 []，
+// 导致后续 mock.calls[0][0] 报 TS2493、mockChat(...a) 报 TS2556。
+const mockChat = vi.fn(async (..._args: any[]) => ({ ok: true, content: '生成结果' }))
 vi.mock('../../src/components/base/api/chatApi.ts', () => ({ chatCompletions: (...a) => mockChat(...a) }))
 vi.mock('../../src/components/base/providerModels.ts', () => ({ buildAllModels: vi.fn(() => []), resolveProviderModel: vi.fn(() => ({ provider: {}, modelId: 'm' })) }))
 

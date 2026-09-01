@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * DiscountVideoNode 上游合并测试（本次修复核心逻辑）。
  * 覆盖：上游文本节点连线后文字合并进生视频 prompt；多上游文本/图片合并；
@@ -52,7 +51,9 @@ vi.mock('../../src/hooks/useSyncNodeData.ts', () => ({ useSyncNodeData: () => {}
 vi.mock('../../src/components/base/api/filesApi.ts', () => ({ toAbsoluteFileUrl: (x) => x, saveResultToTasks: vi.fn(async () => undefined) }))
 vi.mock('../../src/components/base/settings/providerStore.ts', () => ({ useProviders: () => ({ providers: [] }), load: vi.fn(() => Promise.resolve()) }))
 vi.mock('../../src/components/base/api/localToolApi.ts', () => ({ fetchTasks: vi.fn(async () => ({ items: [] })) }))
-const mockGenerateVideo = vi.fn(async () => ({ url: 'http://gen.local/v.mp4' }))
+// 显式声明参数元组：vi.fn(async () => …) 会把参数推断成空元组 []，
+// 导致后续 mock.calls[0][0] 报 TS2493、mockGenerateVideo(...a) 报 TS2556。
+const mockGenerateVideo = vi.fn(async (..._args: any[]) => ({ url: 'http://gen.local/v.mp4' }))
 vi.mock('../../src/components/base/api/videoApi.ts', () => ({ generateVideo: (...a) => mockGenerateVideo(...a) }))
 vi.mock('../../src/components/base/providerModels.ts', () => ({ buildAllModels: vi.fn(() => []), resolveProviderModel: vi.fn(() => ({ provider: {}, modelId: 'm' })) }))
 

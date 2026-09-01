@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * useAssetMoveToFolder 测试：把文件「拖到文件夹卡片」归类。
  * 复用真实 canMoveAsset/resolveMovePaths，仅 mock moveFile 与 toast。
@@ -6,16 +5,22 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { renderHook } from '@testing-library/react'
+import type { DragEvent } from 'react'
 import { useAssetMoveToFolder, ASSET_MOVE_MIME } from '../../src/hooks/useAssetMoveToFolder.ts'
 
+// 事件总线 mock 也在此声明：否则 mocks.subscribe 等属性不存在 → TS2339
 const mocks = vi.hoisted(() => ({
   moveFile: vi.fn(),
   showToast: vi.fn(),
   publish: vi.fn(),
+  subscribe: vi.fn(() => () => {}),
+  subscribeOnce: vi.fn(() => () => {}),
+  clearEvent: vi.fn(),
 }))
 
 vi.mock('../../src/components/base/api/localToolApi.ts', async (importOriginal) => {
-  const actual = await importOriginal()
+  // importOriginal 返回 unknown，直接 spread 会报 TS2698
+  const actual = (await importOriginal()) as Record<string, unknown>
   return { ...actual, moveFile: mocks.moveFile }
 })
 vi.mock('../../src/components/base/toastStore.ts', () => ({ showToast: mocks.showToast }))
@@ -29,17 +34,22 @@ vi.mock('../../src/components/base/eventBus.ts', () => ({
 function payload(item) {
   return JSON.stringify({ folder: item.folder || '', name: item.name, source: item.source, type: item.type })
 }
+/**
+ * 拖拽事件 mock：只实现被测用到的字段（preventDefault/stopPropagation/dataTransfer），
+ * 缺 DragEvent 的其余必填成员 → 统一 as unknown as 收尾（踩坑记录 #11）。
+ */
 function makeDropEvent(data) {
   return {
     preventDefault: vi.fn(),
     stopPropagation: vi.fn(),
     dataTransfer: { getData: () => data },
-  }
+  } as unknown as DragEvent<Element>
 }
 function makeDragStartEvent() {
   const setData = vi.fn()
   const dt = { setData, effectAllowed: '' }
-  return { dataTransfer: dt, setData }
+  // 交叉类型：既是合法 DragEvent（可传给 onDragStart），又保留 setData 供断言访问
+  return { dataTransfer: dt, setData } as unknown as DragEvent<Element> & { setData: ReturnType<typeof vi.fn> }
 }
 
 beforeEach(() => {

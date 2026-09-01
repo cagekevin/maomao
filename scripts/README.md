@@ -19,6 +19,9 @@
 | `check-jsx.mjs` | JSX 语法合规检查（禁 `<br>`/危险 `dangerouslySetInnerHTML` 等） | `npm run check:jsx` |
 | `extract-tailwind.mjs` | 从 `src/` 抽取 Tailwind 类到 `src/index.css` 白名单 | `npm run extract:tw` |
 | `sync-mapping.mjs` | 节点中文名 → 英文 type 映射同步（`docs/node-types-map.md`） | `npm run sync:mapping` |
+| `ts-tests.mjs` | 测试类型消化作战系统：`check`/`verify` 单文件、`status` 全局进度、`add/rm-nocheck`。**`status` 已修复可放心用**（批量剥 nocheck → tsc → finally 还原；早期恢复不可靠的历史问题已不再复现） | — |
+| `m1-scan.mjs` | 测试类型错误**全貌聚合**（只读）：复制到 `tmp/unit` 副本扫描，零污染。产出每个文件 × 错误数 × 错误码 | — |
+| `ts-detail.mjs` | 测试类型错误**逐条明细**（只读）：跑 1 次 tsc，按文件名片段过滤出多个目标文件的逐行错误。`check` 逐文件查太慢时用它 | — |
 
 数据文件（根目录，流水线输入/产物）：
 - `dist-snapshot.json`：dist 产物基线快照（体积/文件清单），`health-check` 比对用。
