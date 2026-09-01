@@ -17,19 +17,25 @@ import { render, screen } from '@testing-library/react'
 import { useStoreSelector, shallowEqual } from '../../src/hooks/useStoreSelector.ts'
 
 /** 最小可操控外部 store（对齐各 store 的 subscribe/getSnapshot 契约） */
-function createStore(initial) {
-  let state = initial
+function createStore(initial: Record<string, unknown>) {
+  let state: Record<string, unknown> = initial
   const listeners = new Set<() => void>()
   return {
     getState: () => state,
-    setState: (next) => { state = next; listeners.forEach((l) => l()) },
-    subscribe: (cb) => { listeners.add(cb); return () => listeners.delete(cb) },
+    setState: (next: Record<string, unknown>) => { state = next; listeners.forEach((l) => l()) },
+    subscribe: (cb: () => void) => { listeners.add(cb); return () => listeners.delete(cb) },
   }
 }
 
 /** 探针组件：订阅 selector，每次渲染回调 onRender（统计重渲染次数） */
-function Probe({ store, selector, isEqual, onRender }: any) {
-  const v = (useStoreSelector as any)(store.subscribe, store.getState, selector, isEqual)
+type ProbeProps = {
+  store: { subscribe: (cb: () => void) => () => void; getState: () => unknown }
+  selector: (state: Record<string, unknown>) => unknown
+  isEqual?: (a: unknown, b: unknown) => boolean
+  onRender: () => void
+}
+function Probe({ store, selector, isEqual, onRender }: ProbeProps) {
+  const v = useStoreSelector(store.subscribe, store.getState, selector, isEqual)
   onRender()
   return <div data-testid="value">{typeof v === 'object' ? JSON.stringify(v) : String(v)}</div>
 }

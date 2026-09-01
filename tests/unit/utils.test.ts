@@ -113,7 +113,8 @@ describe('buildEffectivePrompt（本地 prompt + 上游文本合并）', () => {
 
 describe('assetLabel（MaterialStrip onInsert 对象/字符串兼容）', () => {
   it('对象 → 取 label', () => {
-    expect(assetLabel({ id: 'img-1', label: '人物', kind: 'image' } as any)).toBe('人物')
+    // 真实对象常带 id/kind 等额外字段（assetLabel 只消费 label），断言到 {label?:string} 入参形状
+    expect(assetLabel({ id: 'img-1', label: '人物', kind: 'image' } as { label?: string })).toBe('人物')
   })
 
   it('字符串 → 原样返回', () => {
@@ -121,7 +122,7 @@ describe('assetLabel（MaterialStrip onInsert 对象/字符串兼容）', () => 
   })
 
   it('对象缺 label / 空值 → 空串', () => {
-    expect(assetLabel({ id: 'img-1' } as any)).toBe('')
+    expect(assetLabel({ id: 'img-1' } as { label?: string })).toBe('')
     expect(assetLabel(null)).toBe('')
     expect(assetLabel(undefined)).toBe('')
   })

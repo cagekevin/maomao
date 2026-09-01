@@ -83,7 +83,7 @@ describe('clipboard — copyImageToClipboard', () => {
   function mockImage(ok) {
     vi.stubGlobal('Image', class {
       onload?: () => void
-      onerror?: (e: any) => void
+      onerror?: (e: unknown) => void
       set src(_v) {
         if (ok) queueMicrotask(() => this.onload && this.onload())
         else queueMicrotask(() => this.onerror && this.onerror(new Error('x')))
@@ -103,11 +103,12 @@ describe('clipboard — copyImageToClipboard', () => {
     mockImage(true)
     const write = vi.fn().mockResolvedValue(undefined)
     vi.stubGlobal('navigator', { clipboard: { write, writeText: vi.fn() } })
-    HTMLCanvasElement.prototype.getContext = (() => ({ drawImage() {} })) as any
+    HTMLCanvasElement.prototype.getContext = (() => ({ drawImage() {} })) as unknown as typeof HTMLCanvasElement.prototype.getContext
     HTMLCanvasElement.prototype.toBlob = function (cb) {
       cb(new Blob(['x'], { type: 'image/png' }))
     }
-    globalThis.ClipboardItem = class { static supports = () => true; items: any; constructor(d: any) { this.items = d } } as any
+    // ClipboardItem 全局构造器类型在 DOM lib 存在，但本测试只需 items 字段，故用 unknown as 收口（踩坑 #11 的 DOM mock 收尾惯例）
+    globalThis.ClipboardItem = class { static supports = () => true; items: unknown; constructor(d: unknown) { this.items = d } } as unknown as typeof globalThis.ClipboardItem
     const res = await copyImageToClipboard('http://x/y.png')
     expect(res.ok).toBe(true)
     expect(write).toHaveBeenCalled()

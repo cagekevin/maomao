@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest'
+import type { LastResultItem } from '../../src/components/base/volumePolicy.ts'
 import {
   truncateTo, sanitizeLastResults, capConversationMemory,
   estimateConversationsBytes, applyConversationBudget,
@@ -31,7 +32,7 @@ describe('volumePolicy · sanitizeLastResults', () => {
       { id: 2, url: 'http://h/b.png' },
       { id: 3, url: 'http://h/a.png' }, // 重复 a，保留较新的 3
     ]
-    expect(sanitizeLastResults(list as any).map((i) => (i as any).id)).toEqual([2, 3]) // 保原时序：b 在前，较新的 a(3) 顶上
+    expect(sanitizeLastResults(list).map((i) => (i as { id: number }).id)).toEqual([2, 3]) // 保原时序：b 在前，较新的 a(3) 顶上
   })
   it('超上限只留最近 LAST_RESULTS_MAX 条', () => {
     const list = Array.from({ length: LAST_RESULTS_MAX + 5 }, (_, i) => ({ url: `http://h/u${i}.png` }))
@@ -39,7 +40,8 @@ describe('volumePolicy · sanitizeLastResults', () => {
     expect(out.length).toBe(LAST_RESULTS_MAX)
   })
   it('过滤无效项', () => {
-    const out = sanitizeLastResults([null, { url: 'http://h/x.png' }, 'bad'] as any)
+    // 故意喂 null/字符串 等非 LastResultItem 脏数据测容错；unknown as 标注此处为故意
+    const out = sanitizeLastResults([null, { url: 'http://h/x.png' }, 'bad'] as unknown as LastResultItem[])
     expect(out).toEqual([{ url: 'http://h/x.png' }])
   })
 })
