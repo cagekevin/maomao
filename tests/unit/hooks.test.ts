@@ -13,14 +13,14 @@ const { isEditableTarget, parseAspect, computeSizeSync } = await import(
 
 describe('hooks — isEditableTarget', () => {
   it('INPUT/TEXTAREA 标志位 → true', () => {
-    expect(isEditableTarget({ target: { tagName: 'INPUT' } } as any)).toBe(true)
-    expect(isEditableTarget({ target: { tagName: 'TEXTAREA' } } as any)).toBe(true)
+    expect(isEditableTarget({ target: { tagName: 'INPUT' } } as unknown as Parameters<typeof isEditableTarget>[0])).toBe(true)
+    expect(isEditableTarget({ target: { tagName: 'TEXTAREA' } } as unknown as Parameters<typeof isEditableTarget>[0])).toBe(true)
   })
   it('contentEditable → true', () => {
-    expect(isEditableTarget({ target: { isContentEditable: true } } as any)).toBe(true)
+    expect(isEditableTarget({ target: { isContentEditable: true } } as unknown as Parameters<typeof isEditableTarget>[0])).toBe(true)
   })
   it('普通元素 → false', () => {
-    expect(isEditableTarget({ target: { tagName: 'DIV' } } as any)).toBe(false)
+    expect(isEditableTarget({ target: { tagName: 'DIV' } } as unknown as Parameters<typeof isEditableTarget>[0])).toBe(false)
   })
   it('无 target / 无事件 → false', () => {
     expect(isEditableTarget(null)).toBe(false)
