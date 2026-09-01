@@ -1,5 +1,4 @@
 // @vitest-environment jsdom
-// @ts-nocheck
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { deepClone, formatTime, debounce, throttle, useDebouncedEffect, createImeInput, createRafBatch, mergeRefImages, buildEffectivePrompt, clampSeconds, clamp, assetLabel, dataUrlToBlob, safeFileName, compilePatternRegex } from '../../src/components/base/utils.ts'
 import { renderHook } from '@testing-library/react'
@@ -114,7 +113,7 @@ describe('buildEffectivePrompt（本地 prompt + 上游文本合并）', () => {
 
 describe('assetLabel（MaterialStrip onInsert 对象/字符串兼容）', () => {
   it('对象 → 取 label', () => {
-    expect(assetLabel({ id: 'img-1', label: '人物', kind: 'image' })).toBe('人物')
+    expect(assetLabel({ id: 'img-1', label: '人物', kind: 'image' } as any)).toBe('人物')
   })
 
   it('字符串 → 原样返回', () => {
@@ -122,7 +121,7 @@ describe('assetLabel（MaterialStrip onInsert 对象/字符串兼容）', () => 
   })
 
   it('对象缺 label / 空值 → 空串', () => {
-    expect(assetLabel({ id: 'img-1' })).toBe('')
+    expect(assetLabel({ id: 'img-1' } as any)).toBe('')
     expect(assetLabel(null)).toBe('')
     expect(assetLabel(undefined)).toBe('')
   })

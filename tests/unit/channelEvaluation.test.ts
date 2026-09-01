@@ -1,4 +1,3 @@
-// @ts-nocheck
 // 对象动画「通道化」M2 逐帧求值与合成引擎 纯逻辑测试
 // 覆盖：
 //   M2-C1 单通道求值只输出该帧 key 含字段；未含字段该帧不解接管（部分字段语义）
@@ -311,7 +310,7 @@ describe('M2-C7 骨骼决策消费动作通道派生上下文', () => {
     // 基线人物用 idle 姿态（骨骼=idle），动作通道 K walk —— 若骨骼自猜会落到 walk 骨骼，
     // 正确行为是「无骨骼关键帧 → 不解接管」，保持基线 idle 骨骼。
     const personIdle = { ...person, pose: 'idle', poseTime: 0, continuousMotion: false, joints: presetJoints('idle') }
-    let channels = {}
+    let channels: any = {}
     channels = upsertChannelKeys(channels, snapshotToChannelKeys('person', legacyPersonKeys[0], 0, 'smooth'))
     channels = upsertChannelKeys(channels, snapshotToChannelKeys('person', legacyPersonKeys[1], 24, 'linear'))
     const actionOnly = { action: channels.action }
@@ -344,7 +343,7 @@ describe('47 三层注册表：objectState 沿基线不被关键帧覆盖', () =
   it('先勾后打帧再播放：continuousMotion 恒沿基线 true，不被旧 action 关键帧 false 覆盖（46 病灶）', () => {
     // 基线勾选 true；但 action 通道已录一帧 continuousMotion=false（模拟旧数据或打帧当下为 false）
     const base = { ...person, continuousMotion: true }
-    let channels = {}
+    let channels: any = {}
     // 用不含 continuousMotion 的 action key（真值已撤出通道），叠加一个含 false 的旧结构 key，验证求值仍取基线
     channels = upsertChannelKeys(channels, snapshotToChannelKeys('person', { pose: 'walk', poseTime: 0.4 }, 0, 'smooth'))
     channels.action = [{ frame: 0, interpolation: 'smooth', fields: { pose: 'walk', poseTime: 0.4, continuousMotion: false } }]
@@ -357,7 +356,7 @@ describe('47 三层注册表：objectState 沿基线不被关键帧覆盖', () =
 
   it('footLock（objectState）同沿基线，不参与任何通道求值', () => {
     const base = { ...person, footLock: true }
-    let channels = {}
+    let channels: any = {}
     channels = upsertChannelKeys(channels, snapshotToChannelKeys('person', { pose: 'walk', poseTime: 0.4 }, 0, 'smooth'))
     expect(objectAtFrame(base, channels, 5, FPS).footLock).toBe(true)
   })

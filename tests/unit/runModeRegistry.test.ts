@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 /**
@@ -14,7 +13,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 // 可控 contentStore：内存 Map 模拟 localStorage 键值
 const __store = new Map()
 vi.mock('../../src/components/base/contentStore.ts', async (importOriginal) => {
-  const actual = await importOriginal()
+  const actual = await importOriginal() as any
   return {
     ...actual,
     contentGet: vi.fn((k) => (__store.has(k) ? __store.get(k) : undefined)),

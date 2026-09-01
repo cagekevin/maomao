@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { describe, it, expect, beforeEach } from 'vitest'
 import { registerTool, getTools, resetTools } from '../../src/components/base/toolRegistry.ts'
 
@@ -15,7 +14,7 @@ describe('toolRegistry（docs/25 阶段2：工具轴注册表）', () => {
   })
 
   it('resetTools 清空（测试隔离）', () => {
-    registerTool({ name: 'a' })
+    registerTool({ name: 'a' } as any)
     expect(getTools()).toHaveLength(1)
     resetTools()
     expect(getTools()).toHaveLength(0)
@@ -24,7 +23,7 @@ describe('toolRegistry（docs/25 阶段2：工具轴注册表）', () => {
   it('非法 def（无 name / 非对象）被忽略，不污染注册表', () => {
     registerTool({ name: 'ok1', execute: () => {} })
     registerTool(null)
-    registerTool({ execute: () => {} })
+    registerTool({ execute: () => {} } as any)
     expect(getTools().map((t) => t.name)).toEqual(['ok1'])
   })
 

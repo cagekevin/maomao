@@ -1,4 +1,3 @@
-// @ts-nocheck
 // 对象动画「通道化」M4 采集入口与兼容迁移 纯逻辑测试
 // 覆盖：
 //   M4-C1 统一写入口 writeObjectTrack（增/改/删/移动/改插值/清空/批处理）+ 空轨自动删条目
@@ -106,7 +105,7 @@ describe('M4-C1 writeObjectTrack 统一写入口', () => {
         { frame: 10, interpolation: 'linear', fields: { position: [1, 0, 0] } },
       ],
     }
-    const next = setChannelInterpolation(channels, 10, 'hold')
+    const next: any = setChannelInterpolation(channels, 10, 'hold')
     expect(next.transform[0].interpolation).toBe('smooth')
     expect(next.transform[1].interpolation).toBe('hold')
   })
