@@ -8,11 +8,14 @@ import { renderHook, act } from '@testing-library/react'
 // 依赖 useLod()（LodContext）。mock useLod 返回不同 lodLevel。
 // ───────────────────────────────────────────────────────────
 vi.mock('../../src/components/base/lod.tsx', () => ({
-  useLod: vi.fn(() => ({ lodLevel: 0 })),
+  useLod: vi.fn(() => ({ lodLevel: 0, viewportMoving: false, nodeCount: 0, handleFollowLimit: 60, edgeFxLimit: 50, useThumbnail: false })),
 }))
 import { useLod } from '../../src/components/base/lod.tsx'
 import { useMediaDegrade } from '../../src/hooks/useMediaDegrade.ts'
 import { contentClearCache } from '../../src/components/base/contentStore.ts'
+
+// useLod 实际返回完整 LOD 对象（lodLevel/viewportMoving/...6 字段），并非仅 {lodLevel}
+type LodValue = ReturnType<typeof useLod>
 
 describe('useMediaDegrade —— lodLevel→hideMedia 映射', () => {
   beforeEach(() => {
@@ -20,7 +23,7 @@ describe('useMediaDegrade —— lodLevel→hideMedia 映射', () => {
   })
 
   it('lodLevel>=3 → hideMedia="image video audio"', () => {
-    vi.mocked(useLod).mockReturnValue({ lodLevel: 3 } as any)
+    vi.mocked(useLod).mockReturnValue({ lodLevel: 3, viewportMoving: false, nodeCount: 0, handleFollowLimit: 60, edgeFxLimit: 50, useThumbnail: false })
     const { result } = renderHook(() => useMediaDegrade())
     expect(result.current.hideMedia).toBe('image video audio')
     expect(result.current.isHidden('image')).toBe(true)
@@ -29,7 +32,7 @@ describe('useMediaDegrade —— lodLevel→hideMedia 映射', () => {
   })
 
   it('lodLevel=2 → hideMedia="image"', () => {
-    vi.mocked(useLod).mockReturnValue({ lodLevel: 2 } as any)
+    vi.mocked(useLod).mockReturnValue({ lodLevel: 2, viewportMoving: false, nodeCount: 0, handleFollowLimit: 60, edgeFxLimit: 50, useThumbnail: false })
     const { result } = renderHook(() => useMediaDegrade())
     expect(result.current.hideMedia).toBe('image')
     expect(result.current.isHidden('image')).toBe(true)
@@ -38,7 +41,7 @@ describe('useMediaDegrade —— lodLevel→hideMedia 映射', () => {
   })
 
   it('lodLevel<2（=1）→ hideMedia=""', () => {
-    vi.mocked(useLod).mockReturnValue({ lodLevel: 1 } as any)
+    vi.mocked(useLod).mockReturnValue({ lodLevel: 1, viewportMoving: false, nodeCount: 0, handleFollowLimit: 60, edgeFxLimit: 50, useThumbnail: false })
     const { result } = renderHook(() => useMediaDegrade())
     expect(result.current.hideMedia).toBe('')
     expect(result.current.isHidden('image')).toBe(false)
@@ -46,20 +49,21 @@ describe('useMediaDegrade —— lodLevel→hideMedia 映射', () => {
   })
 
   it('lodLevel=0（默认）→ hideMedia=""', () => {
-    vi.mocked(useLod).mockReturnValue({ lodLevel: 0 } as any)
+    vi.mocked(useLod).mockReturnValue({ lodLevel: 0, viewportMoving: false, nodeCount: 0, handleFollowLimit: 60, edgeFxLimit: 50, useThumbnail: false })
     const { result } = renderHook(() => useMediaDegrade())
     expect(result.current.hideMedia).toBe('')
     expect(result.current.isHidden('image')).toBe(false)
   })
 
   it('lodLevel 未定义（兜底 0）→ hideMedia=""', () => {
-    vi.mocked(useLod).mockReturnValue({} as any)
+    // 故意喂缺 lodLevel 的 shape：验证 hook 对「未初始化 context」的兜底（用 unknown as 标注此处为故意）
+    vi.mocked(useLod).mockReturnValue({} as unknown as ReturnType<typeof useLod>)
     const { result } = renderHook(() => useMediaDegrade())
     expect(result.current.hideMedia).toBe('')
   })
 
   it('isHidden(type) = hideMedia.includes(type)', () => {
-    vi.mocked(useLod).mockReturnValue({ lodLevel: 3 } as any)
+    vi.mocked(useLod).mockReturnValue({ lodLevel: 3, viewportMoving: false, nodeCount: 0, handleFollowLimit: 60, edgeFxLimit: 50, useThumbnail: false })
     const { result } = renderHook(() => useMediaDegrade())
     // includes 语义正确性：任意未列出的类型都隐藏为 false
     expect(result.current.isHidden('text')).toBe(false)
@@ -176,9 +180,10 @@ describe('imageCompress —— 压缩（含浏览器依赖，部分 mock）', ()
     mockImage.naturalWidth = 100
     mockImage.naturalHeight = 100
     // 验证：相对 /files/ 路径会被补全成 API_BASE 绝对地址
-    const loadSpy = (vi.mocked(asyncGuard.loadImageWithTimeout) as any).mockImplementation(async (url) => {
+    const loadSpy = vi.mocked(asyncGuard.loadImageWithTimeout).mockImplementation(async (url) => {
       expect(url.startsWith('http://127.0.0.1:18080/files/')).toBe(true)
-      return { naturalWidth: 100, naturalHeight: 100 }
+      // loadImageWithTimeout 真实返回 HTMLImageElement；此处用最小替身满足类型（naturalWidth/Height 是测试关心的字段）
+      return { naturalWidth: 100, naturalHeight: 100 } as unknown as HTMLImageElement
     })
     // mock canvas
     setupCanvasMock(100, 100, 'data:image/jpeg;base64,AAAA')
