@@ -27,7 +27,7 @@ export interface StreamDelta {
 }
 
 /** 给无 id 的消息补稳定 id（P15：列表 key 稳定） */
-const withMsgId = (m: any) => (m && typeof m === 'object' && m.id ? m : { ...m, id: generateId('msg') })
+const withMsgId = (m: Record<string, unknown>) => (m && typeof m === 'object' && m.id ? m : { ...m, id: generateId('msg') })
 
 /** 追加一条消息（低频；落盘）。单源：读 store 当前消息 + 追加 → setCurrentSnapshot。 */
 export function appendMsg(msg: Record<string, unknown>): void {

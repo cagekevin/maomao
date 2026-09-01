@@ -107,12 +107,12 @@ export function setCurrentArtifacts(arr: Artifact[] | null): void {
 /* ── 工作流运行时状态（per-conversation，Step D；替代模块级 aiUndoStack/pendingGenerations）── */
 
 /** 读当前对话的 AI 撤销栈（副本） */
-export function getActiveAiUndoStack(): any[] {
+export function getActiveAiUndoStack(): unknown[] {
   return [...(getActiveConv()?.aiUndoStack || [])]
 }
 
 /** 压入 AI 撤销快照（上限 20） */
-export function pushActiveAiUndo(snapshot: Record<string, any>): void {
+export function pushActiveAiUndo(snapshot: Record<string, unknown>): void {
   const conv = getActiveConv()
   if (!conv) return
   const stack = [...(conv.aiUndoStack || []), snapshot]
@@ -124,11 +124,11 @@ export function pushActiveAiUndo(snapshot: Record<string, any>): void {
 }
 
 /** 弹出最近 AI 撤销快照 */
-export function popActiveAiUndo(): Record<string, any> | undefined {
+export function popActiveAiUndo(): Record<string, unknown> | undefined {
   const conv = getActiveConv()
   if (!conv || !(conv.aiUndoStack || []).length) return null
   const stack = [...conv.aiUndoStack]
-  const popped = stack.pop()
+  const popped = stack.pop() as Record<string, unknown> | undefined
   commit({
     ...getState(),
     conversations: getState().conversations.map((c) => (c.id === conv.id ? { ...c, aiUndoStack: stack, updatedAt: Date.now() } : c)),

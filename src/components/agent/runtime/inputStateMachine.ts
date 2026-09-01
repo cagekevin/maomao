@@ -48,7 +48,7 @@ export interface InputSnapshot {
   status: InputStatus
   draft: string
   attachments: unknown[]
-  workflow: any
+  workflow: unknown
 }
 
 /** 运行中状态集合（RUNNING，对齐大雄） */

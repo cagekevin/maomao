@@ -37,14 +37,14 @@ import { contentGet, contentSet } from './contentStore.ts'
 const STORAGE_KEY = 'yimao_node_prefs'
 
 /** 节点上次参数存储形状：{ [key]: any }（值类型因节点而异，宽松以兼容存量） */
-type NodePrefsMap = Record<string, any>
+type NodePrefsMap = Record<string, unknown>
 /** 节点类型 → data 键名 → 记忆键名 映射 */
 type PrefsFieldMap = Record<string, Record<string, string>>
 
 function loadAll(): NodePrefsMap {
   try {
     const parsed = contentGet(STORAGE_KEY)
-    return parsed && typeof parsed === 'object' ? parsed : {}
+    return parsed && typeof parsed === 'object' ? parsed as NodePrefsMap : {}
   } catch {
     return {}
   }
@@ -60,7 +60,7 @@ function loadAll(): NodePrefsMap {
  * @returns {object} 合并后的参数
  */
 export function getNodePrefs(type: string, defaults: NodePrefsMap = {}): NodePrefsMap {
-  return { ...defaults, ...loadAll()[type] }
+  return { ...defaults, ...(loadAll()[type] as Record<string, unknown> | undefined) }
 }
 
 // data 键名 → 记忆键名 的映射（记忆里存的是官方口径，data 里是节点口径，如 selectedModel←model）
@@ -106,7 +106,7 @@ export function injectNodePrefs(type: string, data: NodePrefsMap): NodePrefsMap 
 export function useNodePrefs(type: string, defaults: NodePrefsMap = {}): { prefs: NodePrefsMap; set: (patch: NodePrefsMap) => void } {
   const [prefs, setPrefs] = useState<NodePrefsMap>(() => {
     const all = loadAll()
-    return { ...defaults, ...all[type] }
+    return { ...defaults, ...(all[type] as Record<string, unknown> | undefined) }
   })
 
   const set = useCallback(

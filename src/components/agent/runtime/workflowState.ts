@@ -82,7 +82,7 @@ export function wfAwaitConfirm(): { status: WorkflowStatus } {
 export function wfNextSteer(terminalStatus?: WorkflowStatus):
   { next: SteerItem | undefined; patch: { steerQueue: SteerItem[]; status: WorkflowStatus | undefined } } {
   const wf = getCurrentWorkflow()
-  const steerQ: SteerItem[] = (wf && wf.steerQueue) || []
+  const steerQ: SteerItem[] = ((wf && wf.steerQueue) as SteerItem[]) || []
   const next = steerQ.shift() as SteerItem | undefined
   return { next, patch: { steerQueue: steerQ, status: next ? 'planning' : terminalStatus } }
 }

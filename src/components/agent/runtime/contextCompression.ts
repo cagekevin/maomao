@@ -113,7 +113,7 @@ export function extractSummaryAnchors(value: string): string[] {
  */
 export async function compressToSummary(
   { provider, model, messages, previousSummary = '' }: {
-    provider: any
+    provider: Parameters<typeof chatCompletions>[0]['provider']
     model?: string
     messages?: SummaryMessage[]
     previousSummary?: string

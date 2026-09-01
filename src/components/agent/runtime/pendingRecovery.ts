@@ -34,17 +34,17 @@ export interface PendingRecoveryResult {
 export function resolvePendingRecovery(
   { pending, messages = [], activeConversationId }: {
     pending?: PendingRef | null
-    messages?: Array<Record<string, any>>
+    messages?: Array<Record<string, unknown>>
     activeConversationId?: string
   }
 ): PendingRecoveryResult {
   if (!pending || pending.conversationId !== activeConversationId) return { action: 'none' }
   const byId = pending.messageId ? messages.find((m) => m && m.id === pending.messageId) : null
-  const text = byId?.content || pending.text || ''
-  const attachments =
+  const text = String(byId?.content || pending.text || '')
+  const attachments: unknown[] =
     Array.isArray(pending.attachments) && pending.attachments.length
       ? pending.attachments
-      : (byId?.attachments || [])
+      : (Array.isArray(byId?.attachments) ? byId.attachments as unknown[] : [])
   if (!text && (!attachments || attachments.length === 0)) return { action: 'drop' }
   return { action: 'send', text, attachments }
 }

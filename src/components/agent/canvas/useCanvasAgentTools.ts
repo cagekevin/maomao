@@ -1389,7 +1389,25 @@ const AGENT_TOOLS = (() => {
  */
 export type CanvasAgentTools = Record<string, (args?: unknown) => ToolResult>
 
-export function buildCanvasAgentTools(ctx: any): CanvasAgentTools {
+/** 画布节点最小形态（getNodes 返回；字段宽松可空 + 索引签名，兼容测试 mock 与真实 Node） */
+export type CanvasNodeLike = { id?: unknown; data?: Record<string, unknown>; [k: string]: unknown }
+
+/** 画布边最小形态（getEdges 返回；字段宽松可空 + 索引签名） */
+export type CanvasEdgeLike = { id?: unknown; source?: unknown; target?: unknown; [k: string]: unknown }
+
+/**
+ * 构建画布工具所需的 useReactFlow() 能力（或测试 mock 的最小形态）。
+ * 主函数体直接调用 getNodes/getEdges；其余能力（setNodes/setEdges/addNodes/
+ * screenToFlowPosition/fitView/zoomIn/zoomOut/setCenter…）由各工具经索引签名按需读取，
+ * 故以索引签名承载，避免强约束 ReactFlowInstance 全量方法导致 mock 无法构造。
+ */
+export type CanvasAgentCtx = {
+  getNodes: () => CanvasNodeLike[]
+  getEdges: () => CanvasEdgeLike[]
+  [key: string]: unknown
+}
+
+export function buildCanvasAgentTools(ctx: CanvasAgentCtx): CanvasAgentTools {
   const map: CanvasAgentTools = {}
   for (const t of AGENT_TOOLS) {
     const execute = t.execute

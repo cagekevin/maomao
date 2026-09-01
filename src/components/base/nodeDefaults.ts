@@ -34,29 +34,31 @@ export const NODE_TYPE_DEFAULTS: Record<string, NodeTypeDefault> = {
  * @param {object} node
  * @returns {object} 补齐默认后的新 node（未补任何字段时也返回浅拷贝新对象）
  */
-export function applyNodeTypeDefaults(node: Record<string, any>): Record<string, any> {
-  const d = NODE_TYPE_DEFAULTS[node.type]
+export function applyNodeTypeDefaults(node: Record<string, unknown>): Record<string, unknown> {
+  const type = String(node.type || '')
+  const d = NODE_TYPE_DEFAULTS[type]
   if (!d) return node
-  const next = { ...node }
+  const next: Record<string, unknown> = { ...node }
+  const data = (node.data as Record<string, unknown>) || {}
   // group 特殊：优先用折叠时记录的真实尺寸（expandedWidth/expandedHeight）兜底，
   // 否则旧快照 group 尺寸字段全丢时，会硬编码回默认 300×200（"刷新后编组大小变了"的根因之一）。
   // 仅当真实尺寸字段也缺失时才用类型默认值。
-  const fallbackW = node.type === 'group' && (node.data?.expandedWidth ?? node.data?.expandedHeight)
-    ? (node.data.expandedWidth || d.width)
+  const fallbackW = type === 'group' && (data.expandedWidth ?? data.expandedHeight)
+    ? (data.expandedWidth || d.width)
     : d.width
-  const fallbackH = node.type === 'group' && (node.data?.expandedWidth ?? node.data?.expandedHeight)
-    ? (node.data.expandedHeight || d.height)
+  const fallbackH = type === 'group' && (data.expandedWidth ?? data.expandedHeight)
+    ? (data.expandedHeight || d.height)
     : d.height
   // 尺寸/style/initial 只在缺失时补（存量快照若已有正确值则不覆盖）
   for (const k of ['width', 'height', 'initialWidth', 'initialHeight', 'className']) {
     if (next[k] === undefined || next[k] === null) {
-      next[k] = k === 'width' ? fallbackW : k === 'height' ? fallbackH : d[k]
+      next[k] = k === 'width' ? fallbackW : k === 'height' ? fallbackH : (d as Record<string, unknown>)[k]
     }
   }
-  next.style = next.style ? { ...d.style, ...next.style } : (d.style || next.style)
+  next.style = next.style ? { ...(d.style || {}), ...(next.style as Record<string, unknown>) } : (d.style || next.style)
   // group 的 data.name 缺失兜底
-  if (node.type === 'group') {
-    next.data = { ...node.data, name: node.data?.name || '编组' }
+  if (type === 'group') {
+    next.data = { ...data, name: data.name || '编组' }
   }
   return next
 }

@@ -98,10 +98,10 @@ describe('buildCanvasAgentTools', () => {
     expect(ctx.setNodes).toHaveBeenCalled()
     // 断言「写」的行为而非 setNodes 的实现形式（host 走函数式更新）：传入当前节点数组，
     // 应追加正确 data 的新节点、且不影响既有节点。
-    const applyFn = ctx.setNodes.mock.calls[0][0]
+    const applyFn = ctx.setNodes.mock.calls[0][0] as (nodes: Record<string, unknown>[]) => Record<string, unknown>[]
     expect(typeof applyFn).toBe('function')
     const result = applyFn([{ id: 'existing', data: {} }])
-    expect(result.some((n) => n.id === res.data.id && n.data.prompt === '你好')).toBe(true)
+    expect(result.some((n) => n.id === res.data.id && (n.data as Record<string, unknown>).prompt === '你好')).toBe(true)
     expect(result.some((n) => n.id === 'existing')).toBe(true)
   })
 
@@ -110,21 +110,21 @@ describe('buildCanvasAgentTools', () => {
     const tools = buildCanvasAgentTools(ctx)
     const res = tools.create_node({ type: 'textNode', text: 'AI 回复内容', position: { x: 1, y: 2 } })
     expect(res.ok).toBe(true)
-    const applyFn = ctx.setNodes.mock.calls[0][0]
+    const applyFn = ctx.setNodes.mock.calls[0][0] as (nodes: Record<string, unknown>[]) => Record<string, unknown>[]
     const result = applyFn([{ id: 'existing', data: {} }])
     const created = result.find((n) => n.id === res.data.id)
-    expect(created.data.text).toBe('AI 回复内容')
-    expect(created.data.prompt).toBeUndefined()
+    expect((created.data as Record<string, unknown>).text).toBe('AI 回复内容')
+    expect((created.data as Record<string, unknown>).prompt).toBeUndefined()
   })
 
   it('create_node 对 textNode 仅传 prompt → 内容落抽屉区 data.prompt（AI 既有行为不变）', () => {
     const ctx = makeCtx()
     const tools = buildCanvasAgentTools(ctx)
     const res = tools.create_node({ type: 'textNode', prompt: '抽屉提示词', position: { x: 1, y: 2 } })
-    const applyFn = ctx.setNodes.mock.calls[0][0]
+    const applyFn = ctx.setNodes.mock.calls[0][0] as (nodes: Record<string, unknown>[]) => Record<string, unknown>[]
     const result = applyFn([{ id: 'existing', data: {} }])
     const created = result.find((n) => n.id === res.data.id)
-    expect(created.data.prompt).toBe('抽屉提示词')
+    expect((created.data as Record<string, unknown>).prompt).toBe('抽屉提示词')
   })
 
   it('create_node 用非法 type → ok:false 且给出可选类型', () => {

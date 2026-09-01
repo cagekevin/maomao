@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { useStore } from '@xyflow/react'
+import { useStore, type Node } from '@xyflow/react'
 import { collectAssets } from '../components/scriptbox/scriptBoxPrompts.ts'
 import { toAbsoluteFileUrl } from '../components/base/api/index.ts'
 import { resolveMediaType } from '../components/base/resultUrlExtractor.ts'
@@ -115,20 +115,33 @@ function genericOutput(d, id) {
  *  统一调度：特殊类型（剧本盒子/文本节点）→ 节点产出声明表 → 通用字段兜底。
  *  · 为什么统一返回 { id, url, label, text } 对象：下游渲染缩略图/文本都需要 id 作 key、label 作显示名。
  *  · 无产出返回空对象，不返回 undefined：调用方可直接 push，无需判空。 */
-export function getNodeOutput(node: any, sourceHandle?: string): {
-  images: any[]
-  texts: any[]
-  videos: any[]
-  audios: any[]
-} {
-  const empty = { images: [], texts: [], videos: [], audios: [] }
+/** 节点产出资源项（id 作 key、label 作显示名、url/text 二选一） */
+export interface NodeOutputItem {
+  id: unknown
+  url?: unknown
+  label?: unknown
+  text?: unknown
+}
+
+/** 聚合产出的四个媒体通道 */
+export interface NodeOutputGroup {
+  images: NodeOutputItem[]
+  texts: NodeOutputItem[]
+  videos: NodeOutputItem[]
+  audios: NodeOutputItem[]
+}
+
+export function getNodeOutput(node: Record<string, unknown>, sourceHandle?: string): NodeOutputGroup {
+  const empty: NodeOutputGroup = { images: [], texts: [], videos: [], audios: [] }
   if (!node || !node.data) return empty
-  const d = node.data
+  const d = node.data as Record<string, unknown>
+  const type = String(node.type || '')
+  const id = String(node.id || '')
 
   // 1. 节点产出声明表（管线契约）：声明过的节点类型走这里（含剧本盒多端口 / 数组型产出 / 自带 mediaType）。
   // 声明可返回 undefined 表示「本声明不适用」（如剧本盒接到非分镜端口），此时继续往下走兜底，
   // 而非当成空产出直接返回 —— 否则会屏蔽通用兜底、改变既有行为。
-  const declared = NODE_OUTPUTS[node.type]
+  const declared = NODE_OUTPUTS[type]
   if (declared) {
     const out = declared(d, sourceHandle)
     if (out) return { ...empty, ...out }
@@ -137,12 +150,12 @@ export function getNodeOutput(node: any, sourceHandle?: string): {
   // 2. 文本节点：输出 data.text（统一为 {id,label,text} 对象，供 PromptInput/@弹层显示）。
   // 保留特判而非入表：它读的是 node.id（节点身份）而非纯 data 派生，与 NODE_OUTPUTS
   // 「data → 产出」的声明语义不符；且它不引入任何业务模块依赖，无架构债。
-  if (node.type === 'textNode' && d.text && typeof d.text === 'string') {
-    return { ...empty, texts: [{ id: node.id, label: d.label || '参考文本', text: d.text }] }
+  if (type === 'textNode' && d.text && typeof d.text === 'string') {
+    return { ...empty, texts: [{ id, label: d.label || '参考文本', text: d.text }] }
   }
 
   // 2. 通用单产出兜底（imageUrl/videoUrl/resultUrl + 尊重 mediaType）。
-  return genericOutput(d, node.id)
+  return genericOutput(d, id)
 }
 
 /** 聚合「直接上游」节点的产出（下游生成时读取）。

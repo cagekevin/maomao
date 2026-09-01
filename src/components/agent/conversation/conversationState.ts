@@ -29,6 +29,7 @@ import { reportDegrade } from '../../base/degrade.ts'
 import { KV_TIMEOUT } from '../../base/config.ts'
 // 【P1c L3 整包预算安全网】落盘前对归一化副本做投影降级，保证整包序列化体积有界（见 volumePolicy.js）
 import { applyConversationBudget, estimateConversationsBytes, SAFE_BUDGET_BYTES } from '../../base/volumePolicy.ts'
+import { type ChatMessage as AgentChatMessage } from '../runtime/agentCore.ts'
 
 /**
  * 存储键按 agentKey 隔离（每项目一个 agentKey → 每项目一套会话）。
@@ -43,14 +44,26 @@ export const activeKey = (k: string) => `agent_active_conversation_id_${k}`
  */
 export interface ConversationMemory {
   summary: string
-  facts: any[]
-  lastPlan: Record<string, any> | null
+  facts: unknown[]
+  lastPlan: Record<string, unknown> | null
   lastSharedStyle: string
-  notes: any[]
+  notes: unknown[]
   global_contract: GlobalContractShape | null
   artifacts: ArtifactShape[] | null
   // 索引签名：①落盘数据可能携带历史遗留字段；②使本类型可赋值给 volumePolicy 的宽松
   // ConversationMemory（TS 的 interface 无隐式索引签名，缺此会在跨层调用处报 TS2345）。
+  [key: string]: unknown
+}
+
+/** 反序列化用的宽松形态：所有字段可选 + 索引签名，供 normalize* 系列归一成精确类型 */
+export interface RawMemory {
+  summary?: unknown
+  facts?: unknown[]
+  lastPlan?: unknown
+  lastSharedStyle?: unknown
+  notes?: unknown[]
+  global_contract?: unknown
+  artifacts?: unknown
   [key: string]: unknown
 }
 
@@ -77,9 +90,20 @@ export interface WorkflowState {
   id: string
   status: string
   nodeIds: string[]
-  steerQueue: any[]
+  steerQueue: unknown[]
   startedAt: number
   updatedAt: number
+  [key: string]: unknown
+}
+
+/** 反序列化用的宽松形态（对齐 WorkflowState） */
+export interface RawWorkflow {
+  id?: unknown
+  status?: unknown
+  nodeIds?: unknown[]
+  steerQueue?: unknown[]
+  startedAt?: unknown
+  updatedAt?: unknown
   [key: string]: unknown
 }
 
@@ -91,7 +115,36 @@ export interface PendingRefState {
   conversationId: string
   messageId: string
   text?: string
-  attachments?: any[]
+  attachments?: unknown[]
+}
+
+/** 反序列化用的宽松形态（对齐 PendingRefState） */
+export interface RawPending {
+  conversationId?: unknown
+  messageId?: unknown
+  text?: unknown
+  attachments?: unknown[]
+  [key: string]: unknown
+}
+
+/**
+ * 单条会话消息：会话存储侧的宽松消息形状。
+ * 字段全部可选且以 unknown 承载，因为真实消息包含流式中间态（id/streaming 占位）、
+ * 体积降级字段（lastResults）、历史遗留字段等，且常被 `Record<string, unknown>` 直接赋值。
+ * 用 unknown 而非 any：既消除 any，又保留「这是消息对象」的结构提示与索引签名，消费方可自行收窄。
+ */
+export interface ConversationMessage {
+  id?: unknown
+  role?: unknown
+  content?: unknown
+  tool_calls?: unknown
+  tool_call_id?: unknown
+  reasoning?: unknown
+  attachments?: unknown
+  refCatalog?: unknown
+  lastResults?: unknown
+  streaming?: unknown
+  [key: string]: unknown
 }
 
 /**
@@ -104,18 +157,40 @@ export interface Conversation {
   ts: number
   updatedAt: number
   draft: string
-  messages: any[]
-  skills: any[]
-  attachments: any[]
+  messages: ConversationMessage[]
+  skills: unknown[]
+  attachments: unknown[]
   memory: ConversationMemory
   workflow: WorkflowState | null
   pending: PendingRefState | null
-  aiUndoStack: any[]
-  pendingGenerations: any[] | null
+  aiUndoStack: unknown[]
+  pendingGenerations: unknown[] | null
   awaitingConfirm: boolean
-  pendingMemorySuggest: Record<string, any> | null
+  pendingMemorySuggest: Record<string, unknown> | null
   referenceImages: string[]
   runMode: 'auto' | 'step-confirm'
+  [key: string]: unknown
+}
+
+/** 反序列化用的宽松形态（对齐 Conversation；供 normalizeConversation 归一成精确类型） */
+export interface RawConversation {
+  id?: unknown
+  title?: unknown
+  ts?: unknown
+  updatedAt?: unknown
+  draft?: unknown
+  messages?: unknown[]
+  skills?: unknown[]
+  attachments?: unknown[]
+  memory?: RawMemory
+  workflow?: RawWorkflow | null
+  pending?: RawPending | null
+  aiUndoStack?: unknown[]
+  pendingGenerations?: unknown[] | null
+  awaitingConfirm?: unknown
+  pendingMemorySuggest?: Record<string, unknown> | null
+  referenceImages?: string[]
+  runMode?: unknown
   [key: string]: unknown
 }
 
@@ -170,7 +245,12 @@ const persistDebounced = createDebouncedPersist(() => {
   // 再截断最大字符串，保证落盘字符串恒 < SAFE_BUDGET_BYTES（规避 QuotaExceededError）。
   // 只作用于落盘投影副本，绝不动 states 本体（内存态完整，撤销/上下文/恢复读取不受影响）。
   const normalized = next.conversations.map(normalizeConversation)
-  const { conversations: toStore, downgraded } = applyConversationBudget(normalized, SAFE_BUDGET_BYTES)
+  // volumePolicy 的 ChatMessage.content 是 string 窄类型；真实消息 content 可为数组，这里只在
+  // 落盘降级投影这一边界做一次断言（运行时 shape 兼容），避免把整套消息类型都收窄到 string。
+  const { conversations: toStore, downgraded } = applyConversationBudget(
+    normalized as Parameters<typeof applyConversationBudget>[0],
+    SAFE_BUDGET_BYTES,
+  )
   if (downgraded) {
     logger.warn('AI助手', '会话落盘触发体积降级', { key: convKey(currentAgentKey), rawBytes: estimateConversationsBytes(normalized), budget: SAFE_BUDGET_BYTES })
   }
@@ -325,7 +405,7 @@ async function hydrateAsync(k: string): Promise<void> {
   // ② 读取 localStorage 存量（键已翻成 kv 后端，contentGetAsync 会路由到 KV，故直读本地存量源）
   const localConvRaw = hydrateParse(sGet(convKey(k)))
   const localConversations: Conversation[] = Array.isArray(localConvRaw)
-    ? (localConvRaw as any[]).map(normalizeConversation).filter(Boolean) as Conversation[]
+    ? (localConvRaw as unknown[]).map((c) => normalizeConversation(c)).filter(Boolean) as Conversation[]
     : []
   const localActiveRaw = hydrateParse(sGet(activeKey(k)))
   const localActiveId = typeof localActiveRaw === 'string' ? localActiveRaw : ''
@@ -334,7 +414,7 @@ async function hydrateAsync(k: string): Promise<void> {
   let conversations: Conversation[]
   let activeId = ''
   if (Array.isArray(kvConversations) && kvConversations.length > 0) {
-    conversations = (kvConversations as any[]).map(normalizeConversation).filter(Boolean) as Conversation[]
+    conversations = (kvConversations as unknown[]).map((c) => normalizeConversation(c)).filter(Boolean) as Conversation[]
     activeId = kvActiveId
   } else if (shouldMigrateLocalToKV(kvConversations, localConversations)) {
     conversations = localConversations
@@ -436,14 +516,17 @@ export function markHydrated(): void {
 }
 
 /** 保证一个对话的结构完整（数组字段缺省补齐、workflow/pending/memory 归一） */
-export function normalizeConversation(c: any): Conversation | null {
-  if (!c || typeof c !== 'object') return null
+export function normalizeConversation(raw: unknown): Conversation | null {
+  if (!raw || typeof raw !== 'object') return null
+  // 反序列化入口：入参为运行时未知数据，此处断言为宽松形态便于字段归一（字段已逐项做 typeof/Array.isArray 校验）
+  const c = raw as RawConversation
   if (!Array.isArray(c.messages)) c.messages = []
   // P15 列表 key：保证每条消息有稳定唯一 id（无 id 的补一个，已有保留；幂等——补过的对象带 id，
   // 二次归一化直接返回原引用，不重生成 → 列表 key 稳定不重挂载）。
   c.messages = c.messages.map((m) => {
-    if (!m || typeof m !== 'object' || m.id) return m
-    return { ...m, id: generateId('msg') }
+    const msg = m as Record<string, unknown> | null
+    if (!msg || typeof msg !== 'object' || msg.id) return m
+    return { ...msg, id: generateId('msg') }
   })
   if (!Array.isArray(c.skills)) c.skills = []
   if (!Array.isArray(c.attachments)) c.attachments = []
@@ -473,19 +556,20 @@ export function normalizeConversation(c: any): Conversation | null {
   // 'step-confirm'（分步确认：出 generations 后展示 plan 确认再执行）。大雄 agentNormalizeRunModeState(1468)。
   // 旧值 'semi'（半自动旧代号）在此归一化自动迁移为 'step-confirm'（非 auto 一律归 step-confirm）。
   c.runMode = String(c.runMode || 'auto').toLowerCase() === 'auto' ? 'auto' : 'step-confirm'
-  return c
+  return c as Conversation
 }
 
 /** 归一 workflow：保证结构完整（对齐大雄 conv.workflow） */
-export function normalizeWorkflow(w: any): WorkflowState | null {
-  if (!w || typeof w !== 'object') return null
+export function normalizeWorkflow(raw: unknown): WorkflowState | null {
+  if (!raw || typeof raw !== 'object') return null
+  const w = raw as RawWorkflow
   if (!w.id) w.id = generateId('awf')
   if (!w.status) w.status = 'planning'
   if (!Array.isArray(w.nodeIds)) w.nodeIds = []
   if (!Array.isArray(w.steerQueue)) w.steerQueue = []
   if (!w.startedAt) w.startedAt = Date.now()
   if (!w.updatedAt) w.updatedAt = Date.now()
-  return w
+  return w as WorkflowState
 }
 
 /** 归一 pending（{ conversationId, messageId, [text] [attachments] }）。
@@ -493,11 +577,12 @@ export function normalizeWorkflow(w: any): WorkflowState | null {
  *   attachments 保留「原始输入」引用：恢复重发时走 send 归一化一次，避免对已归一 base64/绝对 URL 二次压缩（见 ②）。
  * 兼容旧数据：旧 pending（messageId 存在前）保留 text，迁移期仍可恢复。
  * 契约单一来源：构造用 makePendingRef、归一用本函数、消费见 useAgentChat 恢复（resolvePendingRecovery）。 */
-export function normalizePending(p: any): PendingRefState | null {
-  if (!p || typeof p !== 'object') return null
+export function normalizePending(raw: unknown): PendingRefState | null {
+  if (!raw || typeof raw !== 'object') return null
+  const p = raw as RawPending
   const next: PendingRefState = {
-    conversationId: p.conversationId || '',
-    messageId: p.messageId || '',
+    conversationId: String(p.conversationId || ''),
+    messageId: String(p.messageId || ''),
   }
   if (typeof p.text === 'string' && p.text) next.text = p.text
   if (Array.isArray(p.attachments) && p.attachments.length) next.attachments = p.attachments.slice()
@@ -510,7 +595,7 @@ export function normalizePending(p: any): PendingRefState | null {
  * @returns {{conversationId:string, messageId:string, attachments?:Array}}
  */
 export function makePendingRef(
-  { conversationId, messageId, attachments }: { conversationId?: string; messageId?: string; attachments?: any[] } = {}
+  { conversationId, messageId, attachments }: { conversationId?: string; messageId?: string; attachments?: unknown[] } = {}
 ): PendingRefState {
   const p: PendingRefState = { conversationId: conversationId || '', messageId: messageId || '' }
   if (Array.isArray(attachments) && attachments.length) p.attachments = attachments.slice()
@@ -518,23 +603,25 @@ export function makePendingRef(
 }
 
 /** 归一 memory（对齐大雄 agentEmptyConversationMemory） */
-export function normalizeMemory(m: any): ConversationMemory {
+export function normalizeMemory(raw: unknown): ConversationMemory {
   const base = emptyMemory()
-  if (!m || typeof m !== 'object') return base
+  if (!raw || typeof raw !== 'object') return base
+  const m = raw as RawMemory
+  const gc = (m.global_contract && typeof m.global_contract === 'object') ? m.global_contract as Record<string, unknown> : null
   return {
     summary: typeof m.summary === 'string' ? m.summary : base.summary,
     facts: Array.isArray(m.facts) ? m.facts.slice() : base.facts,
-    lastPlan: m.lastPlan || null,
+    lastPlan: (m.lastPlan as Record<string, unknown> | undefined) || null,
     lastSharedStyle: typeof m.lastSharedStyle === 'string' ? m.lastSharedStyle : base.lastSharedStyle,
     notes: Array.isArray(m.notes) ? m.notes.slice() : base.notes,
-    global_contract: (m && m.global_contract && typeof m.global_contract === 'object')
+    global_contract: gc
       ? {
-          visual_positioning: String(m.global_contract.visual_positioning || '').trim(),
-          unified_style_prompt: String(m.global_contract.unified_style_prompt || '').trim(),
-          unified_negative_prompt: String(m.global_contract.unified_negative_prompt || '').trim(),
+          visual_positioning: String(gc.visual_positioning || '').trim(),
+          unified_style_prompt: String(gc.unified_style_prompt || '').trim(),
+          unified_negative_prompt: String(gc.unified_negative_prompt || '').trim(),
         }
       : null,
-    artifacts: Array.isArray(m?.artifacts) ? m.artifacts.map((a) => ({ ...a })) : null,
+    artifacts: Array.isArray(m.artifacts) ? (m.artifacts as unknown[]).map((a) => ({ ...a as Record<string, unknown> })) : null,
   }
 }
 

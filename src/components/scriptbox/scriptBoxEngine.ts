@@ -18,10 +18,19 @@ import { SCRIPTBOX_DOWNSTREAM_GRID_COLS, SCRIPTBOX_DOWNSTREAM_CELL_W, SCRIPTBOX_
 import { withTimeout } from '../base/asyncGuard.ts'
 import type { Shot, ScriptAsset, Dialogue } from './scriptBoxPrompts.ts'
 import type { ProviderWithModels } from '../base/providerModels.ts'
-import type { ScriptBoxUpdateData } from './scriptBoxSchema.ts'
+import type { ScriptBoxUpdateData, ScriptBoxData, ScriptBoxShot } from './scriptBoxSchema.ts'
 
 /** toast 状态档（与 toastStore 的 ToastType 同形，后者未导出故此处本地声明） */
 type ToastType = 'success' | 'error' | 'warning' | 'info'
+
+/** 下游节点最小形状（getNodes 返回 reactflow Node，引擎只读 id/position/width/type/data 等字段） */
+type NodeLike = {
+  id?: unknown
+  position?: { x: number; y: number }
+  width?: number
+  type?: unknown
+  data?: Record<string, unknown>
+}
 
 /** 审计改写结果（引擎不落盘，交给组件「确认才生效」） */
 export interface ReviewShotResult {
@@ -33,17 +42,17 @@ export interface ReviewShotResult {
 /** 引擎回调宿主注入项（引擎不依赖 UI，全部经回调交互） */
 export interface ScriptBoxEngineDeps {
   /** 读当前 node.data（宿主侧应经 normalizeScriptBoxData 补齐缺省） */
-  getData: () => any
+  getData: () => ScriptBoxData
   /** 写回 node.data：对象 patch 或函数式 patch `(latest)=>patch`（并发安全合并） */
   updateData: ScriptBoxUpdateData
   /** 建下游节点（onConnect* 用，可选） */
-  addNodes?: (nodes: any[]) => void
+  addNodes?: (nodes: unknown[]) => void
   /** 剧本盒子节点 id（连线 source / 下游打标用） */
   nodeId: string
   /** 建边（onConnect* 自动连线用，可选） */
-  setEdges?: (updater: (edges: any[]) => any[]) => void
+  setEdges?: (updater: (edges: unknown[]) => unknown[]) => void
   /** 读全量节点（下游网格锚点 / 占用扫描用，可选） */
-  getNodes?: () => any[]
+  getNodes?: () => unknown[]
   /** 供应商列表 + 主供应商（可选；缺省视为未配置） */
   getProviderState?: () => { providers: ProviderWithModels[]; primary: ProviderWithModels | null }
   /** 抽视频尾帧（默认走本模块 captureVideoFrame，单测可注入 mock） */
@@ -52,7 +61,7 @@ export interface ScriptBoxEngineDeps {
 
 /** 去掉 ```json 围栏、只保留首个 {...} 块（对齐官方 Ar/Ir 的解析）。
  *  顶层纯函数，导出供单测（剧本盒纯逻辑）。 */
-export function parseJsonText(raw: unknown): { ok: boolean; data: any } {
+export function parseJsonText(raw: unknown): { ok: boolean; data: unknown } {
   let s = String(raw || '')
     .replace(/```json/gi, '')
     .replace(/```/g, '')
@@ -124,7 +133,7 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
     const d = getData()
     const { providers, primary } = getProviderState?.() || { providers: [], primary: null }
     const fallback = buildAllModels(providers, 'chat')[0]?.id || ''
-    const value = (d.textModel || d.selectedModel || fallback || '').trim()
+    const value = String(d.textModel || d.selectedModel || fallback || '').trim()
     return resolveProviderModel(providers, value, primary)
   }
 
@@ -133,7 +142,8 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
     const d = getData()
     const { providers, primary } = getProviderState?.() || { providers: [], primary: null }
     const fallback = buildAllModels(providers, 'image')[0]?.id || ''
-    const value = (d.assetModelSettings && d.assetModelSettings.globalModel) || fallback || ''
+    const assetSettings = d.assetModelSettings as Record<string, unknown> | undefined
+    const value = (assetSettings && String(assetSettings.globalModel || '')) || fallback || ''
     return resolveProviderModel(providers, value, primary)
   }
 
@@ -165,19 +175,20 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
    * @returns {{ enqueuePatch:(apply:(latest)=>data)=>void, flushPatches:()=>void }}
    */
   function createPatchBatcher(updateData: ScriptBoxUpdateData, windowMs = 200) {
-    const patchQueue: Array<(latest: any) => any> = []
+    const patchQueue: Array<(latest: ScriptBoxData) => Record<string, unknown>> = []
     let flushTimer: ReturnType<typeof setTimeout> | null = null
     const flushPatches = () => {
       if (flushTimer) { clearTimeout(flushTimer); flushTimer = null }
       const q = patchQueue.splice(0)
       if (!q.length) return
       updateData((latest) => {
-        let d = latest
-        for (const apply of q) d = apply(d)
+        // 累积合并：每个 apply 返回 partial patch，逐次 `{...d, ...patch}` 合并，d 始终为宽松对象
+        let d: Record<string, unknown> = { ...latest }
+        for (const apply of q) d = { ...d, ...apply(d as ScriptBoxData) }
         return d
       })
     }
-    const enqueuePatch = (apply) => {
+    const enqueuePatch = (apply: (latest: ScriptBoxData) => Record<string, unknown>) => {
       patchQueue.push(apply)
       if (flushTimer == null) flushTimer = setTimeout(flushPatches, windowMs)
     }
@@ -289,26 +300,26 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
       const parsed = parseJsonText(r.content)
       if (!parsed.ok) { updateData({ genMask: false }); toast('模型输出的 JSON 不完整或格式有误，请重试'); logger.error('scriptBox', '生成剧本·JSON解析失败', { nodeId }); return }
 
-      const m = parsed.data
-      const rawShots = Array.isArray(m) ? m : m.shots || []
+      const m = parsed.data as Record<string, unknown>
+      const rawShots: Record<string, unknown>[] = Array.isArray(m) ? m as Record<string, unknown>[] : (Array.isArray(m.shots) ? m.shots as Record<string, unknown>[] : [])
       // 分镜归一化（对齐官方 Ar）：补默认字段，id 用 `${nodeId}-shot-${n}`
       const shots = rawShots
         .filter((s) => s && typeof s === 'object' && (s.description || s.prompt || s.videoPrompt))
         .map((t, n) => ({
           id: `${nodeId}-shot-${n}`,
           index: typeof t.index === 'number' ? t.index : n + 1,
-          duration: t.duration || '5s',
-          description: t.description || '',
-          shotType: t.shotType || '',
-          lighting: t.lighting || '',
+          duration: String(t.duration || '5s'),
+          description: String(t.description || ''),
+          shotType: String(t.shotType || ''),
+          lighting: String(t.lighting || ''),
           // dialogue 归一化为标准数组 [{kind,role,text}]：编剧模型按 SCRIPT_WRITER_FORMAT
           // 返回的是字符串，而 dialogueText / StepShots 对白编辑弹窗期望数组；
           // 若直接存字符串，表格对白/旁白列会因 dialogueText 只认数组而显示为空。
-          dialogue: normalizeDialogue(t.dialogue),
-          sound: t.sound || '',
-          motion: t.motion || '',
-          prompt: t.prompt || '',
-          videoPrompt: t.videoPrompt || '',
+          dialogue: normalizeDialogue(t.dialogue as unknown),
+          sound: String(t.sound || ''),
+          motion: String(t.motion || ''),
+          prompt: String(t.prompt || ''),
+          videoPrompt: String(t.videoPrompt || ''),
           grid: 0,
           promptLoading: false,
           connImg: false,
@@ -329,15 +340,15 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
         : story.replace(/[，。！？,.!?\s].*$/, '').slice(0, 8)) || '剧本项目'
       const customTemplates = resolveAssetTemplates(d.playbookId)
       // 资产归一化（对齐官方 Ar）：补默认字段 + 用 ZgPrompt 拼生图提示词
-      const assets = (m.assets || [])
+      const assets = (Array.isArray(m.assets) ? m.assets as Record<string, unknown>[] : [])
         .filter((e) => e && e.name)
         .map((t, n) => {
-          const category = ['character', 'scene', 'prop'].includes(t.category) ? t.category : 'character'
-          const desc = t.description || ''
+          const category = ['character', 'scene', 'prop'].includes(String(t.category)) ? String(t.category) : 'character'
+          const desc = String(t.description || '')
           return {
             id: `${nodeId}-asset-${n}`,
             category,
-            name: t.name,
+            name: String(t.name || ''),
             description: desc,
             prompt: ZgPrompt(category, desc, globalStyle, customTemplates),
             imageUrl: '',
@@ -375,9 +386,9 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
     if (!asset) return
     const { provider, modelId } = resolveImageModel()
     if (!provider || !modelId) { toast('请先在「设置」中配置资产生图大模型'); return }
-    const ams = getData().assetModelSettings || {}
-    const aspectRatio = ams.globalAspectRatio || '16:9'
-    const imageSize = ams.globalSize || '2K'
+    const ams = (getData().assetModelSettings as Record<string, unknown>) || {}
+    const aspectRatio = String(ams.globalAspectRatio || '16:9')
+    const imageSize = String(ams.globalSize || '2K')
     // 参考图提示词（对齐官方 Pr）：资产已编辑 prompt → 直接用；未编辑 → Zg 拼默认模板
     const globalStyle = getData().globalStyle || ''
     const prompt = asset.prompt && asset.prompt.trim()
@@ -492,7 +503,7 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
     const shots = d.shots || []
     // 分派目标：单 id / 数组 / 全部（对齐官方 Ir）
     const target = Array.isArray(shotIds) && shotIds.length > 0
-      ? shots.filter((s) => shotIds.includes(s.id))
+      ? shots.filter((s) => shotIds.includes(String(s.id)))
       : shots
     if (target.length === 0) { toast('没有可生成的分镜'); return }
     const { provider, modelId } = resolveTextModel()
@@ -519,7 +530,7 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
     // 结束后据此区分「全成功」vs「部分失败」，避免"已生成 N 个"误导用户以为全成功。
     let failedCount = 0
 
-    const genShot = async (shot: any) => {
+    const genShot = async (shot: ScriptBoxShot) => {
       // 每个分镜发起时打一条日志（逐镜跟踪批量进度）
       logger.info('scriptBox', '生成分镜提示词·单镜开始', { nodeId, shotId: shot.id, index: shot.index })
       // 只在真正发起该分镜请求时置 loading → 动画精确反映「当前正在请求的分镜」。
@@ -579,7 +590,9 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
           logger.error('scriptBox', '生成分镜提示词·JSON解析失败', { nodeId, shotId: shot.id })
           return
         }
-        const { prompt, videoPrompt } = parsed.data || {}
+        const parsedData = (parsed.data as Record<string, unknown>) || {}
+        const prompt = parsedData.prompt
+        const videoPrompt = parsedData.videoPrompt
         // 结构校验：JSON 合法但缺 prompt/videoPrompt → 视为格式不符，明确提示且不写回空值。
         if (!prompt && !videoPrompt) {
           failedCount++
@@ -588,8 +601,8 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
           logger.error('scriptBox', '生成分镜提示词·格式不符', { nodeId, shotId: shot.id })
           return
         }
-        let pText = prompt || ''
-        let vText = videoPrompt || ''
+        let pText = String(prompt || '')
+        let vText = String(videoPrompt || '')
         // 后处理：开启上一镜尾帧时，强制让 prompt/videoPrompt 显式含视觉起点引用标签
         // （对齐官方「最终输出必须显式包含 @图片1」：prompt 查 @图片1，videoPrompt 查 @视频1 或 @图片1），
         // 避免模型漏掉视觉起点引用。/[@＠]\s*(图片|视频)\s*1\b/i 双标签与官方一致。
@@ -671,7 +684,7 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
       })
       const parsed = r.ok ? parseJsonText(r.content) : { ok: false, data: null }
       const prompt = parsed.ok && typeof parsed.data === 'string' ? parsed.data
-        : parsed.ok && parsed.data?.prompt ? parsed.data.prompt
+        : parsed.ok && (parsed.data as Record<string, unknown>)?.prompt ? (parsed.data as Record<string, unknown>).prompt
           : (r.ok ? r.content : '')
       // r.ok 但返回非 JSON：降级写回原文（不丢结果、不吓用户），但必须留痕，便于发现模型格式漂移
       if (r.ok && !parsed.ok) logger.warn('scriptBox', 'AI生图提示词·非JSON降级写回原文', { nodeId, shotId, type, len: (r.content || '').length })
@@ -683,7 +696,7 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
         ),
       })
       if (!r.ok && !r.aborted) toast(r.error || '提示词生成失败')
-      if (r.ok && !r.aborted) logger.info('scriptBox', 'AI生图提示词·成功', { nodeId, shotId, type, promptLen: (prompt || '').length })
+      if (r.ok && !r.aborted) logger.info('scriptBox', 'AI生图提示词·成功', { nodeId, shotId, type, promptLen: String(prompt || '').length })
       else if (!r.aborted) logger.error('scriptBox', 'AI生图提示词·失败', { nodeId, shotId, type, error: r.error })
       else logger.warn('scriptBox', 'AI生图提示词·已中止', { nodeId, shotId })
     }, { logLabel: 'AI生图提示词', toastFail: '提示词生成失败', ctx: { nodeId, shotId, type } })
@@ -862,7 +875,7 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
   // 预填（P1-③）：复刻 App.jsx 对 shot- 端口建下游时的透传——
   //   image→aspectRatio；video→size + selectedSeconds(分镜时长) + durationFromScript。
   //   宽高比 custom 取 customAspectRatio；4:4 归一为 1:1（与官方 di 行为一致）。
-  const shotPrefill = (shot: any, type: string) => {
+  const shotPrefill = (shot: ScriptBoxShot, type: string) => {
     const d = getData()
     const raw = String(d.aspectRatio || '16:9')
     const ratio = raw === 'custom' ? String(d.customAspectRatio || '16:9') : raw
@@ -889,7 +902,7 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
     const row = Math.floor(slot / SCRIPTBOX_DOWNSTREAM_GRID_COLS)
     let base = { x: 0, y: 0 }, width = 900
     if (getNodes && nodeId) {
-      const self = getNodes().find((n) => n.id === nodeId)
+      const self = getNodes().find((n) => (n as NodeLike).id === nodeId) as NodeLike | undefined
       if (self?.position) { base = self.position; width = self.width ?? 900 }
     }
     return {
@@ -901,8 +914,8 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
   const occupiedLiveSlots = (): Set<number> => {
     const set = new Set<number>()
     if (!getNodes) return set
-    for (const n of getNodes()) {
-      if (n?.data?.scriptboxParent === nodeId && Number.isInteger(n.data.scriptboxSlot)) set.add(n.data.scriptboxSlot)
+    for (const n of getNodes() as NodeLike[]) {
+      if (n?.data?.scriptboxParent === nodeId && Number.isInteger(n.data.scriptboxSlot)) set.add(n.data.scriptboxSlot as number)
     }
     return set
   }
@@ -1069,8 +1082,8 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
   /** 读取上一镜连出的 discountVideoNode 视频结果 URL（P1-0 已验证持久化）。 */
   const findPrevShotVideoUrl = (prevShotId?: string): string => {
     if (!getNodes || !prevShotId) return ''
-    return getNodes()
-      .find((x) => x.type === 'discountVideoNode' && x.data?.upstreamShotId === prevShotId)?.data?.videoUrl || ''
+    const found = getNodes().find((x) => (x as NodeLike).type === 'discountVideoNode' && (x as NodeLike).data?.upstreamShotId === prevShotId) as NodeLike | undefined
+    return String(found?.data?.videoUrl || '')
   }
 
   const onGenerateTailFrameVariants = async (shotId: string) => {
@@ -1079,7 +1092,7 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
     const idx = shots.findIndex((s) => s.id === shotId)
     if (idx < 1) { toast('仅第 2 镜及以后可用上一镜尾帧作视觉起点'); return }
     const prevShot = shots[idx - 1]
-    const videoUrl = findPrevShotVideoUrl(prevShot.id)
+    const videoUrl = findPrevShotVideoUrl(String(prevShot.id))
     if (!videoUrl) { toast('未找到上一镜的视频结果，请先生成上一镜视频'); return }
     // 本镜 loading 置位 / 复位（尾帧可中止，注册 `tailframe-${id}`）
     const patchShot = (apply) => updateData({ shots: (getData().shots || []).map((s) => (s.id === shotId ? apply(s) : s)) })
@@ -1115,9 +1128,9 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
       // 3) 以「原版尾帧」为参考图（images:[origUrl]），调一次资产生图模型合成「综合图」→ 自动选中 composed
       const { provider, modelId } = resolveImageModel()
       if (provider && modelId && origUrl) {
-        const ams = d.assetModelSettings || {}
-        const aspectRatio = ams.globalAspectRatio || '16:9'
-        const imageSize = ams.globalSize || '2K'
+        const ams = (d.assetModelSettings as Record<string, unknown>) || {}
+        const aspectRatio = String(ams.globalAspectRatio || '16:9')
+        const imageSize = String(ams.globalSize || '2K')
         const r = await generateImage({
           provider,
           prompt: composePrompt,

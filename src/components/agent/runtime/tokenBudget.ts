@@ -47,7 +47,7 @@ function estimateTokens(value: unknown): number {
 /** 估算一组消息（含 role/结构开销 + 可选 tool_calls）的 token 数。 */
 export function estimateMessagesTokens(messages: unknown[] | null | undefined): number {
   let total = 0
-  for (const m of (Array.isArray(messages) ? messages : []) as Record<string, any>[]) {
+  for (const m of (Array.isArray(messages) ? messages : []) as Record<string, unknown>[]) {
     if (!m || typeof m !== 'object') continue
     total += PER_MESSAGE_OVERHEAD + estimateTokens(typeof m.content === 'string' ? m.content : '')
     if (Array.isArray(m.tool_calls)) {

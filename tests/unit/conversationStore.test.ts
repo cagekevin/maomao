@@ -127,7 +127,7 @@ describe('会话隔离数据层 §2.15', () => {
     for (let i = 0; i < 25; i++) pushActiveAiUndo({ i })
     const stack = getActiveAiUndoStack()
     expect(stack).toHaveLength(20)
-    expect(stack.at(-1).i).toBe(24)
+    expect((stack.at(-1) as Record<string, unknown>).i).toBe(24)
     const popped = popActiveAiUndo()
     expect(popped.i).toBe(24)
     expect(getActiveAiUndoStack()).toHaveLength(19)
@@ -269,7 +269,7 @@ describe('跨轮图引用数据源（对齐大雄 agentLastUserAttachments / age
     ])
     const r = getLastGeneratedImages()
     expect(r).toHaveLength(2)
-    expect(r[0].url).toBe('http://x/new1.png')
+    expect((r[0] as Record<string, unknown>).url).toBe('http://x/new1.png')
   })
 
   it('getCurrentImageMap：上一轮生成图(图1~M) + 当前附件(图M+1~N) 统一编号', () => {

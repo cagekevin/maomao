@@ -179,10 +179,30 @@ export async function copyVideoFrameToClipboard(video: HTMLVideoElement, opts: {
  *   非 mutiwindow-nodes 格式 / 空节点 → null；否则返回重建后的 nodes（新节点 selected:true、
  *   旧节点 selected:false）与 edges（id 已重映射）。
  */
+/** 剪贴板还原的节点（字段宽松可空 + 索引签名，兼容跨平台画布快照） */
+export interface ClipboardNode {
+  id: string
+  type?: string
+  position: { x: number; y: number }
+  data: Record<string, unknown>
+  selected?: boolean
+  [key: string]: unknown
+}
+
+/** 剪贴板还原的边 */
+export interface ClipboardEdge {
+  id: string
+  source: string
+  target: string
+  type?: string
+  selected?: boolean
+  [key: string]: unknown
+}
+
 export function buildNodesFromClipboard(
   jsonStr: string,
   pos: { x: number; y: number },
-): { nodes: any[]; edges: any[]; count: number } | null {
+): { nodes: ClipboardNode[]; edges: ClipboardEdge[]; count: number } | null {
   let t
   try {
     t = JSON.parse(jsonStr)

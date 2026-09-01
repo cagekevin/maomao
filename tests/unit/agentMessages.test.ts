@@ -46,7 +46,7 @@ beforeEach(() => {
     workflow: null,
     pending: null,
     memory: {},
-  }))
+  }) as unknown as import('../../src/components/agent/conversation/conversationSnapshot.ts').ConversationSnapshot)
   setCurrentSnapshot.mockImplementation((p) => { if (p.messages) store.set(p.messages as TestChatMessage[]) })
   patchCurrentMessages.mockImplementation((next) => store.set(next as TestChatMessage[]))
 })

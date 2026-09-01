@@ -140,7 +140,7 @@ function Canvas() {
         // 避免存量快照里「子节点残留 hidden:true 但父已展开」或「父折叠但子却可见」导致
         // 子节点永久隐藏/误显（visibleNodes 只会在折叠时加 hidden，不会在展开时清除 hidden）。
         const collapsedById = new Set(
-          rawNodes.filter((n) => n.type === 'group' && n.data?.collapsed).map((n) => n.id)
+          rawNodes.filter((n) => n.type === 'group' && (n.data as Record<string, unknown>)?.collapsed).map((n) => n.id)
         )
         const loadedNodes = rawNodes.map((n) =>
           n.parentId && collapsedById.has(n.parentId) ? { ...n, hidden: true }
@@ -150,7 +150,7 @@ function Canvas() {
         setNodes(loadedNodes)
         // 预取重依赖节点 chunk：画布里若含 3D/视频处理节点，立即预热（不阻塞渲染），
         // 让节点真正渲染时 chunk 已在模块缓存里，骨架屏一闪而过甚至不出现。
-        for (const n of loadedNodes) prefetchHeavyNode(n.type)
+        for (const n of loadedNodes) prefetchHeavyNode(n.type as Parameters<typeof prefetchHeavyNode>[0])
         // 兜底：历史快照里可能有旧 onConnect 建的「无 id」边 → 补唯一 id，
         // 否则 EdgeRenderer 用 undefined 作 key 触发重复 key 警告。
         // 同时修正「连到剧本盒子却缺 targetHandle」的历史坏边：scriptBoxNode 的输入口

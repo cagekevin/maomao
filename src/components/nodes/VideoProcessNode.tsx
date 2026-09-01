@@ -3,7 +3,7 @@ import {
   Clapperboard, Play, Pause, Scissors, Trash2, Upload,
   Loader2, Music, X, Volume2, VolumeX, Plus, Film, AlertCircle, X as XIcon
 } from 'lucide-react'
-import { useReactFlow } from '@xyflow/react'
+import { useReactFlow, type Node } from '@xyflow/react'
 import NodeShell from '../base/NodeShell.tsx'
 import CustomHandle from '../edges/CustomHandle.tsx'
 import { useConnectedInputs } from '../../hooks/useConnectedInputs.ts'
@@ -105,8 +105,9 @@ const nameFromUrl = (url: string): string => {
 }
 
 /** 连接源 → 名称（复刻官方 Lc） */
-const sourceName = (node: any, url: string): string => {
-  const n = node?.data?.sourceVideoName || node?.data?.videoName || node?.data?.fileName || node?.data?.label || node?.id
+const sourceName = (node: Node, url: string): string => {
+  const d = node?.data as Record<string, unknown> | undefined
+  const n = d?.sourceVideoName || d?.videoName || d?.fileName || d?.label || node?.id
   return typeof n === 'string' && n ? n : nameFromUrl(url)
 }
 
@@ -192,8 +193,42 @@ interface VideoProcessNodeData {
   errorMessage?: string
   sourceVideoUrl?: string
   sourceVideoName?: string
-  sourceMetadata?: Record<string, any>
-  timelineTracks?: any[]
+  sourceMetadata?: Record<string, SourceMeta>
+  timelineTracks?: TimelineTrack[]
+  [key: string]: unknown
+}
+
+/** 视频源元信息（sourceMetadata 条目）：时长/分辨率/帧率等，字段宽松可空 */
+export interface SourceMeta {
+  duration?: number
+  width?: number
+  height?: number
+  fps?: number
+  [key: string]: unknown
+}
+
+/** 时间线片段：sourceId 引源、duration/start/end 为时间窗（字段来自外部导入数据，宽松可空） */
+export interface TimelineClip {
+  sourceId?: string | number
+  duration?: number
+  start?: number
+  end?: number
+  sourceStart?: number
+  sourceEnd?: number
+  timelineStart?: number
+  [key: string]: unknown
+}
+
+/** 时间线轨道：kind/type 区分视频/音频，clips/segments 承载片段 */
+export interface TimelineTrack {
+  id?: string | number
+  kind?: string
+  type?: string
+  name?: string
+  label?: string
+  muted?: boolean
+  clips?: TimelineClip[]
+  segments?: TimelineClip[]
   [key: string]: unknown
 }
 
@@ -244,9 +279,8 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
   // refs
   const videoRef = useRef<HTMLVideoElement | null>(null) // u
   const scrubRef = useRef<HTMLDivElement | null>(null) // d
-  // P3：scrub 手势期 { batch, rect } —— batch 是 createRafBatch 的包装函数（签名随回调泛型而变），
-  // 此处不固化其类型，避免与调用处漂移。
-  const scrubDrag = useRef<any>(null)
+  // P3：scrub 手势期 { batch, rect } —— batch 是 createRafBatch 的包装函数（可调用 + flush）。
+  const scrubDrag = useRef<{ batch: ((x: number) => void) & { flush: () => void }; rect?: DOMRect } | null>(null)
   const fileRef = useRef<HTMLInputElement | null>(null) // a
   const metaInFlight = useRef<Set<string>>(new Set()) // f
   const thumbUrls = useRef<string[]>([]) // p

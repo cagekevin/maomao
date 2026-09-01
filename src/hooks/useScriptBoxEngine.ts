@@ -1,7 +1,7 @@
 import { useEffect, useRef, useCallback } from 'react'
-import { useReactFlow } from '@xyflow/react'
+import { useReactFlow, type Node } from '@xyflow/react'
 import { createScriptBoxEngine } from '../components/scriptbox/scriptBoxEngine.ts'
-import { normalizeScriptBoxData } from '../components/scriptbox/scriptBoxSchema.ts'
+import { normalizeScriptBoxData, type ScriptBoxData } from '../components/scriptbox/scriptBoxSchema.ts'
 import { injectNodePrefs } from '../components/base/nodePrefs.ts'
 import { useProvidersList, load as loadProviders } from '../components/base/settings/providerStore.ts'
 import { logger } from '../components/base/logger.ts'
@@ -58,7 +58,7 @@ export function useScriptBoxEngine(nodeId: string, data?: Record<string, unknown
       setNodes((ns) => ns.map((n) => {
         if (n.id !== nodeId) return n
         const latest = n.data || {}
-        const resolved = typeof patch === 'function' ? patch(latest) : patch
+        const resolved = typeof patch === 'function' ? patch(latest as ScriptBoxData) : patch
         return { ...n, data: { ...latest, ...resolved } }
       })),
     [nodeId, setNodes]
@@ -76,7 +76,7 @@ export function useScriptBoxEngine(nodeId: string, data?: Record<string, unknown
       // 供并发场景下安全合并，避免 getData() 读到旧引用导致状态互相覆盖）。
       updateData,
       nodeId,
-      setEdges,
+      setEdges: setEdges as unknown as (updater: (edges: unknown[]) => unknown[]) => void,
       getNodes,
       // 供应商解析（接真系统）：返回 { providers, primary }，供引擎选模型/转发
       // 注意：读 providersRef.current 而非闭包捕获的 providers，避免闭包过期读到空数组。
@@ -92,7 +92,8 @@ export function useScriptBoxEngine(nodeId: string, data?: Record<string, unknown
       addNodes: (nodes) => {
         if (!addNodes) return
         const base = screenToFlowPosition?.({ x: 0, y: 0 }) ?? { x: 0, y: 0 }
-        addNodes(nodes.map((nd) => {
+        addNodes(nodes.map((raw) => {
+          const nd = raw as Node
           const data = { ...nd.data }
           injectNodePrefs(nd.type, data)
           return {

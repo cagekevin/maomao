@@ -20,13 +20,13 @@ import { CREDIT_GATE_FIELD } from '../../base/contracts.ts'
  */
 export interface CreditGate {
   pending: boolean
-  gens: any[]
+  gens: unknown[]
   map: Record<string, string>
   [key: string]: unknown
 }
 
 /** 读当前对话的 Skill 阶段1 策划暂存（副本） */
-export function getActivePendingGenerations(): any[] | null {
+export function getActivePendingGenerations(): unknown[] | null {
   return getActiveConv()?.pendingGenerations || null
 }
 
@@ -56,7 +56,7 @@ export function setAwaitingConfirm(v: boolean): void {
 }
 
 /** 读当前对话的「记」项目记忆建议暂存（memory_suggest 待用户确认的候选内容） */
-export function getActivePendingMemorySuggest(): Record<string, any> | null {
+export function getActivePendingMemorySuggest(): Record<string, unknown> | null {
   return getActiveConv()?.pendingMemorySuggest || null
 }
 

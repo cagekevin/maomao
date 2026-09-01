@@ -69,7 +69,7 @@ export interface ScriptBoxAsset {
  * 支持对象 patch（直接合并）与函数式 patch `(latestData) => patch`（并发安全合并）。
  */
 export type ScriptBoxUpdateData = (
-  patch: Record<string, any> | ((latest: any) => Record<string, any>)
+  patch: Record<string, unknown> | ((latest: ScriptBoxData) => Record<string, unknown>)
 ) => void
 
 /** 剧本盒节点 data 完整形状 */

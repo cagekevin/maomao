@@ -220,7 +220,7 @@ describe('scriptBoxEngine · 引擎编排', () => {
   function makeEngine(initial) {
     const store = { ...initial }
     const addNodes = vi.fn()
-    const getData = vi.fn(() => store)
+    const getData = vi.fn(() => store as unknown as import('@/components/scriptbox/scriptBoxSchema.ts').ScriptBoxData)
     const updateData = vi.fn((patch) => { Object.assign(store, patch); return true })
     // getProviderState 签名：primary 为 ProviderWithModels 对象（src 侧非字符串）
     const getProviderState = vi.fn(() => ({ providers: [{ id: 'openai' }], primary: { id: 'openai' } }))
@@ -488,7 +488,7 @@ describe('scriptBoxEngine · P11 批量写回合并', () => {
     // 真实记录每次 setNodes 调用（函数式补丁也计一次）；不直接应用，留给 flush 统一应用，
     // 以模拟 ReactFlow 的「一次 setNodes = 一次全图重建」代价。
     const setNodesCalls = []
-    const getData = vi.fn(() => store)
+    const getData = vi.fn(() => store as unknown as import('@/components/scriptbox/scriptBoxSchema.ts').ScriptBoxData)
     const updateData = vi.fn((patch) => {
       setNodesCalls.push(patch)
       const next = typeof patch === 'function' ? patch(store) : patch

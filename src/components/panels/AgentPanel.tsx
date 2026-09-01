@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useAgentChat, setGenParams, getGenParams, getCreditSwitch, setCreditSwitch, getWorkMode, setWorkMode as setWorkModeGlobal, RUN_MODE_IDS, WORK_MODE_STORAGE_KEY } from '../agent/index.ts'
 import { useProviders, load as loadProviders } from '../base/settings/providerStore.ts'
-import AgentMessage from './AgentMessage.tsx'
+import AgentMessage, { type AgentMessageData } from './AgentMessage.tsx'
+import type { Conversation } from '../agent/conversation/conversationState.ts'
 import AgentConfirmCard from './AgentConfirmCard.tsx'
 import ModelSelect from '../base/ModelSelect.tsx'
 import { buildAllModels } from '../base/providerModels.ts'
@@ -63,35 +64,38 @@ function loadWidth() {
   return DEFAULT_WIDTH
 }
 
-/** useAgentChat 返回值的最小只读视图（hook 内部实现未全量定型，消费端按真实用法收窄）。 */
+/**
+ * useAgentChat 返回值的最小只读视图（hook 内部实现未全量定型，消费端按真实用法收窄）。
+ * 与 useAgentChat 之间以 `as unknown as` 断言收敛，字段类型按 AgentPanel 实际调用精确标注。
+ */
 interface UseAgentChatReturn {
-  messages: any[]
+  messages: AgentMessageData[]
   sending: boolean
   error: string | null
   model: string
   setModel: (model: string) => void
-  send: (...args: any[]) => any
-  stop: (...args: any[]) => any
-  clear: (...args: any[]) => any
+  send: (text: string, attachments?: unknown[]) => Promise<{ ok?: boolean; error?: string } | undefined>
+  stop: () => void
+  clear: () => void
   stateAction: string
-  conversations: any[]
+  conversations: Conversation[]
   activeConversationId: string
-  newChat: (...args: any[]) => any
-  switchChat: (...args: any[]) => any
-  deleteChat: (...args: any[]) => any
-  updateMessageByContent: (...args: any[]) => any
-  executePlanDirect: (...args: any[]) => any
-  sendContentToCanvas: (...args: any[]) => any
-  confirmPendingMemorySuggest: (...args: any[]) => any
-  getActivePendingMemorySuggest: (...args: any[]) => any
-  cancelPendingConfirm: (...args: any[]) => any
-  runExistingConfirm: (...args: any[]) => any
-  getCreditGate: (...args: any[]) => any
-  clearCreditGate: (...args: any[]) => any
-  setCurrentSnapshot: (...args: any[]) => any
-  setAwaitingConfirm: (...args: any[]) => any
-  getCurrentRunMode: (...args: any[]) => any
-  setCurrentRunMode: (...args: any[]) => any
+  newChat: () => void
+  switchChat: (id: string) => void
+  deleteChat: (id: string) => void
+  updateMessageByContent: (content: string, patch?: Record<string, unknown>) => void
+  executePlanDirect: (generations: unknown) => Promise<{ ok?: boolean; error?: string }>
+  sendContentToCanvas: (msg: unknown) => void
+  confirmPendingMemorySuggest: () => Promise<{ ok?: boolean; error?: string }>
+  getActivePendingMemorySuggest: () => unknown
+  cancelPendingConfirm: () => void
+  runExistingConfirm: () => Promise<{ ok?: boolean; error?: string }>
+  getCreditGate: () => { pending?: boolean; gens?: unknown[] } | null
+  clearCreditGate: () => void
+  setCurrentSnapshot: (patch: Record<string, unknown>) => void
+  setAwaitingConfirm: (v: boolean) => void
+  getCurrentRunMode: () => string
+  setCurrentRunMode: (mode: string) => void
 }
 
 export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt = '', open, onClose, onWidthChange, onEnabledChange, selectedImageNodes = [] }: {

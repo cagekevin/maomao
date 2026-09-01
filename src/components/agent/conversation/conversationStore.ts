@@ -130,16 +130,17 @@ export function renameActiveConversation(title: string): void {
 
 /** 从旧单会话数据迁移：conversations 为空且有旧 messages/skills 时，迁成一个对话 */
 export function importLegacy(
-  { messages, skills }: { messages?: any[]; skills?: any[] }
+  { messages, skills }: { messages?: unknown[]; skills?: unknown[] }
 ): ConversationSnapshot | null {
   if (!Array.isArray(messages) || messages.length === 0) return null
   if (getState().conversations.length > 0) return null // 已有对话，不迁移
-  const firstUser = messages.find((m) => m.role === 'user' && m.content)
+  const msgs = messages as Record<string, unknown>[]
+  const firstUser = msgs.find((m) => m.role === 'user' && m.content)
   const conv = normalizeConversation({
     id: uid('ac'),
     title: (firstUser?.content ? String(firstUser.content).slice(0, 30) : '对话'),
-    messages: messages.slice(-AGENT_MSG_MAX),
-    skills: Array.isArray(skills) ? skills.map((s) => ({ ...s })) : [],
+    messages: msgs.slice(-AGENT_MSG_MAX),
+    skills: Array.isArray(skills) ? (skills as Record<string, unknown>[]).map((s) => ({ ...s })) : [],
     attachments: [],
     draft: '',
     workflow: null,

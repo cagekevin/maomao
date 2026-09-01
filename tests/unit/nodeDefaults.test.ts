@@ -33,12 +33,12 @@ describe('applyNodeTypeDefaults — 节点结构默认补齐', () => {
 
   it('group 缺 data.name → 补「编组」', () => {
     const r = applyNodeTypeDefaults({ id: 'g', type: 'group', data: {}, position: { x: 0, y: 0 } })
-    expect(r.data.name).toBe('编组')
+    expect((r.data as Record<string, unknown>).name).toBe('编组')
   })
 
   it('group 有 data.name → 保留', () => {
     const r = applyNodeTypeDefaults({ id: 'g', type: 'group', data: { name: '我的组' }, position: { x: 0, y: 0 } })
-    expect(r.data.name).toBe('我的组')
+    expect((r.data as Record<string, unknown>).name).toBe('我的组')
   })
 
   it('group 有 expandedWidth/expandedHeight → 用真实尺寸而非默认 300×200', () => {

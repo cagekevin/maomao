@@ -37,7 +37,7 @@ export function getLastUserReferenceImages(): string[] {
  *  ⚠️ 消费方：只有 getCurrentImageMap() 用它做「图1~图M」编号供 direct_refs 引用，execute_plan **不直接
  *  调用它自动挂历史生成图**——对齐大雄 use_last_outputs=false「跨轮 lastResults 彻底关闭」，只有 LLM
  *  用 direct_refs 显式引用历史图时才用。图本体不进 LLM 上下文，执行层反查原图 url。 */
-export function getLastGeneratedImages(): any[] {
+export function getLastGeneratedImages(): unknown[] {
   const conv = getActiveConv()
   const msgs = conv?.messages || []
   for (let i = msgs.length - 1; i >= 0; i--) {
@@ -59,9 +59,18 @@ export function getLastGeneratedImages(): any[] {
 export function getCurrentImageMap(): ImageMapEntry[] {
   const genResults = getLastGeneratedImages()
   const attachments = getCurrentSnapshot().attachments || []
+  /** @type {ImageMapEntry[]} */
   const map = []
-  genResults.forEach((r, i) => map.push({ num: i + 1, url: r.url, name: r.name || `图${i + 1}`, source: 'gen' }))
+  genResults.forEach((r, i) => {
+    const item = r as Record<string, unknown>
+    map.push({ num: i + 1, url: String(item.url || ''), name: String(item.name || `图${i + 1}`), source: 'gen' })
+  })
   const offset = genResults.length
-  attachments.filter((a) => a && a.url).forEach((a, i) => map.push({ num: offset + i + 1, url: a.url, name: a.name || a.label || `图${offset + i + 1}`, source: 'att' }))
+  attachments
+    .filter((a) => !!a && !!(a as Record<string, unknown>).url)
+    .forEach((a, i) => {
+      const att = a as Record<string, unknown>
+      map.push({ num: offset + i + 1, url: String(att.url || ''), name: String(att.name || att.label || `图${offset + i + 1}`), source: 'att' })
+    })
   return map
 }

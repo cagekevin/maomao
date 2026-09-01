@@ -116,7 +116,7 @@ export function buildPromptLearningBlock(
   // 故这个次排序键恒为 0（同分时等价于不稳定排序）。TS 迁移不改运行时语义，仅补类型断言留痕；
   // 若要修复需把 ts 带入 candidate 并补回归用例。
   const selected = candidates
-    .sort((a, b) => b.score - a.score || ((a as any).timestamp || 0) - ((b as any).timestamp || 0))
+    .sort((a, b) => b.score - a.score || Number((a as { timestamp?: unknown }).timestamp || 0) - Number((b as { timestamp?: unknown }).timestamp || 0))
     .slice(0, CONTEXT_SAMPLE_LIMIT)
   if (selected.length === 0) return ''
 
@@ -138,11 +138,12 @@ export function buildPromptLearningBlock(
  * @param {string} query  当前用户意图（用于提样后就地生成注入块）
  * @returns {string} 注入块（空串=不注入）
  */
-export function buildLearnedContext(memory: Record<string, any> | null | undefined, query: string): string {
-  const gens: Array<Record<string, any>> = Array.isArray(memory?.lastPlan?.generations) ? memory.lastPlan.generations : []
+export function buildLearnedContext(memory: Record<string, unknown> | null | undefined, query: string): string {
+  const lastPlan = memory?.lastPlan as Record<string, unknown> | undefined
+  const gens: Array<Record<string, unknown>> = Array.isArray(lastPlan?.generations) ? lastPlan.generations as Record<string, unknown>[] : []
   if (gens.length === 0) return ''
   const now = Date.now()
-  const ts = Number(memory?.lastPlan?.ts || now)
+  const ts = Number(lastPlan?.ts || now)
   const samples = gens
     .map((g) => (g && g.prompt ? { prompt: String(g.prompt) } : null))
     .filter(Boolean)

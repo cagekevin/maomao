@@ -13,6 +13,7 @@ import {
   getActiveConv, commit, getState, normalizeWorkflow, normalizePending, normalizeMemory,
   emptyMemory, AGENT_MSG_MAX,
 } from './conversationState.ts'
+import type { ConversationMessage, WorkflowState, PendingRefState, ConversationMemory, Conversation } from './conversationState.ts'
 // 【P1b L1 静态上限】写入口统一限容：lastResults 去重限条 + memory 限条，防止整包体积无界增长（见 volumePolicy.js）
 import { sanitizeMessages, capConversationMemory } from '../../base/volumePolicy.ts'
 
@@ -22,15 +23,15 @@ import { sanitizeMessages, capConversationMemory } from '../../base/volumePolicy
  * 此处以「结构 + 逐字段可空」为准，不改变运行时行为。
  */
 export interface ConversationSnapshot {
-  messages: any[]
-  skills: any[]
-  attachments: any[]
+  messages: ConversationMessage[]
+  skills: unknown[]
+  attachments: unknown[]
   draft: string
   /** 工作流运行时状态（无则 null，见 workflowState.WorkflowStatus） */
-  workflow: any
+  workflow: WorkflowState | null
   /** 刷新恢复用的 pending 引用（无则 null） */
-  pending: any
-  memory: Record<string, any>
+  pending: PendingRefState | null
+  memory: ConversationMemory
 }
 
 /** setCurrentSnapshot 入参：只覆盖传入字段，其余保留 */
@@ -62,9 +63,9 @@ export function setCurrentSnapshot(snap?: SnapshotPatch | null): void {
   const next = {
     ...conv,
     // 【P1b L1】写入口统一限容：lastResults 去重限条 + memory 限条
-    messages: sanitizeMessages(rawMessages),
-    skills: Array.isArray(snap?.skills) ? snap.skills.map((s) => ({ ...s })) : conv.skills,
-    attachments: Array.isArray(snap?.attachments) ? snap.attachments.map((a) => ({ ...a })) : conv.attachments,
+    messages: sanitizeMessages(rawMessages as Parameters<typeof sanitizeMessages>[0]) as ConversationMessage[],
+    skills: Array.isArray(snap?.skills) ? snap.skills.map((s) => ({ ...s as Record<string, unknown> })) : conv.skills,
+    attachments: Array.isArray(snap?.attachments) ? snap.attachments.map((a) => ({ ...a as Record<string, unknown> })) : conv.attachments,
     draft: typeof snap?.draft === 'string' ? snap.draft : conv.draft,
     workflow: snap?.workflow ? normalizeWorkflow(snap.workflow) : conv.workflow,
     pending: snap?.pending !== undefined ? normalizePending(snap.pending) : conv.pending,
@@ -85,7 +86,7 @@ export function setCurrentSnapshot(snap?: SnapshotPatch | null): void {
  * 【同步性】commit 内部同步更新 states 并 notify，因此调用后立即 getState()/getCurrentSnapshot()
  *   读取到的就是最新消息（保证 send finally 同步读到完整 assistant 而非空 streaming 占位）。
  */
-export function patchCurrentMessages(messages?: any[] | null): void {
+export function patchCurrentMessages(messages?: ConversationMessage[] | null): void {
   const conv = getActiveConv()
   if (!conv) return
   commit({
@@ -97,12 +98,12 @@ export function patchCurrentMessages(messages?: any[] | null): void {
 }
 
 /** 读当前对话的 workflow（副本；无则 null） */
-export function getCurrentWorkflow(): any {
+export function getCurrentWorkflow(): WorkflowState | null {
   return getActiveConv()?.workflow ? { ...getActiveConv().workflow, steerQueue: [...(getActiveConv().workflow.steerQueue || [])] } : null
 }
 
 /** 原地补丁当前对话的 workflow（运行时状态；更新后落盘） */
-export function patchCurrentWorkflow(patch: Record<string, unknown> = {}): any {
+export function patchCurrentWorkflow(patch: Record<string, unknown> = {}): WorkflowState | null {
   const conv = getActiveConv()
   if (!conv) return null
   const wf = conv.workflow ? { ...conv.workflow } : { status: 'planning', nodeIds: [], steerQueue: [] }
@@ -115,7 +116,7 @@ export function patchCurrentWorkflow(patch: Record<string, unknown> = {}): any {
 }
 
 /** 读当前对话的 pending（副本；无则 null） */
-export function getCurrentPending(): any {
+export function getCurrentPending(): PendingRefState | null {
   const p = getActiveConv()?.pending
   return p ? { ...p, attachments: [...(p.attachments || [])] } : null
 }
@@ -131,7 +132,7 @@ export function setCurrentPending(p: unknown): void {
 }
 
 /** 读当前对话的 memory（副本；无则空记忆） */
-export function getCurrentMemory(): Record<string, any> {
+export function getCurrentMemory(): ConversationMemory {
   return getActiveConv()?.memory ? normalizeMemory(getActiveConv().memory) : emptyMemory()
 }
 
