@@ -59,6 +59,7 @@ const __dirname = fileURLToPath(new URL('.', import.meta.url))
 const root = resolve(__dirname, '..')
 const SCAN_ROOTS = [join(root, 'src'), join(root, 'tests')]
 
+/** @type {Set<string>} */
 const parseWarnings = new Set()
 
 function toPosix(p) { return p.replace(/\\/g, '/') }
@@ -92,6 +93,7 @@ function resolveSpec(spec, fromDir) {
 }
 
 function allSources() {
+  /** @type {Set<string>} */
   const set = new Set()
   for (const dir of SCAN_ROOTS) {
     if (!existsSync(dir)) continue
@@ -115,6 +117,7 @@ function allSources() {
  *       本仓已明令禁止这种写法（见 lazyNode.jsx 注释），故不构成风险。
  */
 function extractImportNodes(code, filepath) {
+  /** @type {Array<{ value: string, start: number, end: number }>} */
   const nodes = []
   try {
     const ast = parse(code, {
@@ -174,10 +177,12 @@ function extractImportNodes(code, filepath) {
  * @returns {Map<string, Set<string>>} targetAbs -> Set<importerAbs>
  */
 function buildRefGraph() {
+  /** @type {Map<string, Set<string>>} */
   const graph = new Map()
   const push = (target, from) => {
-    if (!graph.has(target)) graph.set(target, new Set())
-    graph.get(target).add(from)
+    let set = graph.get(target)
+    if (!set) { set = new Set(); graph.set(target, set) }
+    set.add(from)
   }
   
   for (const file of allSources()) {
@@ -233,6 +238,12 @@ function computeNewSpec(fromFile, newAbs, oldSpec) {
  * @returns 被改动文件的相对路径列表
  * @note 仅重写「解析后绝对路径 === oldAbs」的说明符，规避同名 basename 误伤
  *      （如 base/ErrorBoundary vs director3d/ErrorBoundary）。
+ */
+/**
+ * @param {string} oldAbs
+ * @param {(fromFile: string, fullSpec: string) => string} makeNewSpec
+ * @param {boolean} [dry]
+ * @param {Set<string>} [skip]
  */
 function rewriteSpecs(oldAbs, makeNewSpec, dry = false, skip = new Set()) {
   const changed = []
@@ -506,7 +517,8 @@ if (cmd === 'report') {
     if (isExemptAbs(f)) continue 
     
     const srcCode = readFileSync(f, 'utf8')
-    const importers = graph.get(f) ? Array.from(graph.get(f)).map(relOf) : []
+    const importerSet = graph.get(f)
+    const importers = importerSet ? Array.from(importerSet).map(relOf) : []
     
     const base = basename(f)
     const newExt = detectExt(srcCode, toFlag)

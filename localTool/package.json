@@ -5,10 +5,10 @@
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
-    "build": "tsc",
-    "start": "node dist/index.js",
-    "dev": "tsc && node dist/index.js",
-    "test": "tsc && node --test test/*.test.js",
+    "build": "tsc --noEmit && esbuild src/index.ts --bundle --platform=node --format=esm --packages=external --outfile=dist/index.js --sourcemap",
+    "start": "node --enable-source-maps dist/index.js",
+    "dev": "npm run build && node --enable-source-maps dist/index.js",
+    "test": "tsc --noEmit && node --test --import tsx test/*.test.js",
     "inspect": "node scripts/task-inspect.mjs",
     "inspect:vacuum": "node scripts/task-inspect.mjs --vacuum",
     "db": "node scripts/task-inspect.mjs",
@@ -20,6 +20,7 @@
   },
   "devDependencies": {
     "@types/node": "^20.11.0",
+    "tsx": "^4.23.13",
     "typescript": "^5.6.2"
   }
 }

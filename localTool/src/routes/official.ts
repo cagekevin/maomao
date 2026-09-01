@@ -100,14 +100,43 @@ export async function readOfficialBase(req: IncomingMessage): Promise<string> {
     const db = await getDb();
     const row = queryOne(db, 'SELECT value FROM kv WHERE key = ?', ['active_api_endpoint']);
     if (row && row.value) {
-      const raw = row.value.trim().replace(/^"|"$/g, '').trim();
-      const base = raw.replace(/\/$/, '');
+      const base = extractBaseFromEndpointValue(row.value);
       if (base && !isSelfBase(base)) return base;
     }
   } catch { /* 读 KV 失败回退默认 */ }
 
   // 优先级 3：官方候选主接入点
   return OFFICIAL_DEFAULT_BASE;
+}
+
+/**
+ * 从 KV active_api_endpoint 的值里提取「可用的 base URL 字符串」。
+ *
+ * 兼容两种写入格式（前端 providerStore.ts 2026-08 起写入对象格式）：
+ *  - 旧格式：纯 URL 字符串，如 `https://www.1mao.cc`（或带引号包裹的）。
+ *  - 新格式：provider 配置 JSON，如
+ *      {"providerId":"lovart","name":"Lovart","base_url":"http://127.0.0.1:9004","protocol":"apimart","updatedAt":...}
+ *    此时需取其中的 `base_url` 字段，否则 new URL() 会把整段 JSON 当 URL → Invalid passthrough target。
+ * 返回规范化后（去尾斜杠）的 base；解析不出合法 URL 返回空串。
+ */
+function extractBaseFromEndpointValue(value: string): string {
+  let raw = value.trim();
+  if (!raw) return '';
+  // 剥掉包裹的引号（旧格式可能被存成 "https://..."）
+  raw = raw.replace(/^"|"$/g, '').trim();
+
+  // 1) 尝试当纯 URL 字符串解析：http(s) 开头直接命中
+  if (/^https?:\/\//i.test(raw)) return raw.replace(/\/$/, '');
+
+  // 2) 尝试当 JSON 对象解析：取其 base_url 字段
+  try {
+    const obj = JSON.parse(raw);
+    if (obj && typeof obj === 'object' && typeof obj.base_url === 'string' && /^https?:\/\//i.test(obj.base_url)) {
+      return obj.base_url.replace(/\/$/, '');
+    }
+  } catch { /* 非 JSON，忽略 */ }
+
+  return '';
 }
 
 /**

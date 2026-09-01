@@ -42,11 +42,19 @@ const TS_EXEMPT_DIRS = [];
  */
 const TS_EXEMPT_FILES = [];
 
+/**
+ * @param {string} p
+ * @returns {string}
+ */
 function toPosix(p) {
   return String(p).split(path.sep).join('/');
 }
 
-/** relPath（posix，相对仓库根）是否命中永久豁免 */
+/**
+ * relPath（posix，相对仓库根）是否命中永久豁免
+ * @param {string} relPath
+ * @returns {boolean}
+ */
 function isExempt(relPath) {
   const p = toPosix(relPath);
   if (TS_EXEMPT_DIRS.some((d) => p === d || p.startsWith(d + '/'))) return true;
@@ -61,6 +69,11 @@ function isExempt(relPath) {
  *   '…/nodes/ImageNode'      → ImageNode.jsx / .tsx 都能命中
  *   '…/nodes/ImageNode.jsx'  → 只剩 .tsx 时也能回退命中（防存量引用失效）
  *   '…/base'                 → base/index.tsx
+ */
+/**
+ * 解析模块绝对路径（可带也可不带扩展名）→ 真实存在的源码文件绝对路径；找不到返回 null。
+ * @param {string} abs
+ * @returns {string|null}
  */
 function resolveSourceFile(abs) {
   if (!abs) return null;
@@ -113,6 +126,10 @@ const HTML_TAGS = new Set([
  *  - 含点但小写开头 → 不当 JSX（多为成员访问/比较运算，如 `a < b.c > d`）
  *  - 小写无点 → 必须在 HTML 标签白名单内
  */
+/**
+ * @param {string} name
+ * @returns {boolean}
+ */
 function isJsxTagName(name) {
   if (/^[A-Z]/.test(name)) return true;
   if (name.includes('.')) return false;
@@ -131,6 +148,10 @@ function isJsxTagName(name) {
  *
  * 已知残留误判面：正则字面量里的 HTML 形文本（如 `/[\\/:*?"<>|]/`）在字符串剥离后
  * 可能拼出伪标签。故 hasJsx 只用于【建议后缀】，最终以后 `convert --to` 可强制覆盖。
+ */
+/**
+ * @param {string} code
+ * @returns {boolean}
  */
 function hasJsx(code) {
   const stripped = String(code)
@@ -162,11 +183,19 @@ function hasJsx(code) {
  * 用途：hasJsx 的结论如果来自「剥离后的拼接产物」，原文里就不会有形如 `<Tag` / `<>` 的字样，
  * 此时判为「可疑」，交给人工确认（plan 会打标），避免机械脚本悄悄给文件定错后缀。
  */
+/**
+ * @param {string} code
+ * @returns {boolean}
+ */
 function hasJsxHintRaw(code) {
   return /<\/?[A-Za-z][\w.-]*/.test(String(code)) || /<>/.test(String(code));
 }
 
-/** 判定目标后缀：有 JSX → .tsx；纯逻辑 → .ts */
+/**
+ * 判定目标后缀：有 JSX → .tsx；纯逻辑 → .ts
+ * @param {string} code
+ * @returns {'.ts'|'.tsx'}
+ */
 function detectExt(code) {
   return hasJsx(code) ? '.tsx' : '.ts';
 }

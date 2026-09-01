@@ -2,7 +2,7 @@
  * 阶段二：localTool 后端路由/工具单测
  *
  * 对应 docs/10-测试覆盖补齐计划-2026-08-17.md §二「待开始（尚未实施）」。
- * 覆盖（均指向最新 dist 产物，遵循 C3）：
+ * 覆盖（均指向 src/ 源码，--experimental-strip-types 直接执行）：
  *   - routes/logs.ts        —— 前端日志上报（handleLogsPost）
  *   - routes/projects.ts    —— 项目全量 upsert + lastOpened 标记
  *   - utils/fileStore.ts    —— 文件名净化 / 路径解析 / 写入 / 缩略图 / 缩放
@@ -23,8 +23,8 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DIST = path.join(__dirname, '..', 'dist');
-const importDist = (rel) => import(pathToFileURL(path.join(DIST, rel)).href);
+const SRC = path.join(__dirname, '..', 'src');
+const importSrc = (rel) => import(pathToFileURL(path.join(SRC, rel)).href);
 
 // ── 隔离数据目录（在 import 业务模块前设置）──
 const TEST_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'maomao-stage2-'));
@@ -67,7 +67,7 @@ function parseResBody(res) {
 // ════════════════════════════════════════════════════════════════════════
 // routes/logs.ts
 // ════════════════════════════════════════════════════════════════════════
-const { handleLogsPost } = await importDist(path.join('routes', 'logs.js'));
+const { handleLogsPost } = await importSrc(path.join('routes', 'logs.ts'));
 
 // 收集所有 console 方法输出（logs.ts 用 console[level] ?? console.log）
 function captureConsole() {
@@ -123,7 +123,7 @@ test('[logs] 未知 level 回落 default 分支（info 兜底）', async () => {
 // ════════════════════════════════════════════════════════════════════════
 // routes/projects.ts
 // ════════════════════════════════════════════════════════════════════════
-const { handleProjectsGet, handleProjectsSave } = await importDist(path.join('routes', 'projects.js'));
+const { handleProjectsGet, handleProjectsSave } = await importSrc(path.join('routes', 'projects.ts'));
 
 test('[projects] 空库 GET 返回 {projects:[], lastOpened}', async () => {
   const res = makeRes();
@@ -223,7 +223,7 @@ test('[projects] 旧版本保存 → conflict 拒绝覆盖（防双页面/旧数
 // ════════════════════════════════════════════════════════════════════════
 // utils/fileStore.ts
 // ════════════════════════════════════════════════════════════════════════
-const fileStore = await importDist(path.join('utils', 'fileStore.js'));
+const fileStore = await importSrc(path.join('utils', 'fileStore.ts'));
 
 test('[fileStore] sanitizeFilename 去除非法字符与空白', () => {
   // 真实：< > : " / \ | ? * \x00-\x1f → _，空格 → _；* 在正则字符集中但不在替换列表
@@ -304,7 +304,7 @@ test('[fileStore] resizeImage 真实缩放（jimp 读图→写图）', async () 
 // ════════════════════════════════════════════════════════════════════════
 // utils/netProxy.ts
 // ════════════════════════════════════════════════════════════════════════
-const netProxy = await importDist(path.join('utils', 'netProxy.js'));
+const netProxy = await importSrc(path.join('utils', 'netProxy.ts'));
 
 test('[netProxy] fetchWithProxy 本地目标直连、且 requiresProxy 命中 Lovart 时尝试代理（行为验证）', async () => {
   // isLocalTarget / requiresProxy / proxyFromEnv 为模块内部函数（未导出），
@@ -393,7 +393,7 @@ test('[netProxy] fetchWithProxy 本地目标走直连（stub fetch 验证只调�
 // ════════════════════════════════════════════════════════════════════════
 // utils/logWriter.ts（仅 initLogWriter 导出）
 // ════════════════════════════════════════════════════════════════════════
-const logWriter = await importDist(path.join('utils', 'logWriter.js'));
+const logWriter = await importSrc(path.join('utils', 'logWriter.ts'));
 
 test('[logWriter] 模块仅导出 initLogWriter（内部 getKeepDays/cleanupOldLogs 未暴露）', () => {
   const keys = Object.keys(logWriter);
@@ -414,10 +414,10 @@ test('[logWriter] initLogWriter 幂等（多次调用不重复接管 console）'
 
 // ════════════════════════════════════════════════════════════════════════
 // 路由表装配要点
-// 路由声明式集中在 dist/router.js；index.js 只负责调度 + 顺序。
+// 路由声明式集中在 src/router.ts；index.ts 只负责调度 + 顺序。
 // ════════════════════════════════════════════════════════════════════════
-const routerSrc = fs.readFileSync(path.join(DIST, 'router.js'), 'utf-8');
-const indexSrc = fs.readFileSync(path.join(DIST, 'index.js'), 'utf-8');
+const routerSrc = fs.readFileSync(path.join(SRC, 'router.ts'), 'utf-8');
+const indexSrc = fs.readFileSync(path.join(SRC, 'index.ts'), 'utf-8');
 
 test('[index] 关键业务路由均已注册（logs/projects/kv/files/passthrough）', () => {
   for (const seg of ['/api/logs', '/api/projects', '/api/kv/get', '/api/files/upload', 'handlePassthrough']) {

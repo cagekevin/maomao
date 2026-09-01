@@ -107,24 +107,24 @@ function makeCanvasState(projectId, extraNodes = []) {
   };
 }
 
-// 动态 import dist 模块（用最新构建产物）
-const dist = path.join(__dirname, '..', 'dist');
+// 动态 import src 模块（--experimental-strip-types 直接执行 .ts）
+const src = path.join(__dirname, '..', 'src');
 function toFileUrl(p) {
   return 'file:///' + p.split(path.sep).join('/');
 }
-const kvMod = await import(toFileUrl(path.join(dist, 'routes', 'kv.js')));
-const tasksMod = await import(toFileUrl(path.join(dist, 'routes', 'tasks.js')));
-const resourcesMod = await import(toFileUrl(path.join(dist, 'routes', 'resources.js')));
-const adminMod = await import(toFileUrl(path.join(dist, 'routes', 'admin.js')));
-const filesMod = await import(toFileUrl(path.join(dist, 'routes', 'files.js')));
-const dbMod = await import(toFileUrl(path.join(dist, 'db', 'database.js')));
-const helpersMod = await import(toFileUrl(path.join(dist, 'utils', 'helpers.js')));
-const b64Mod = await import(toFileUrl(path.join(dist, 'utils', 'base64Externalize.js')));
-const gcMod = await import(toFileUrl(path.join(dist, 'utils', 'orphanGc.js')));
-const platformMod = await import(toFileUrl(path.join(dist, 'routes', 'platform.js')));
-const systemMod = await import(toFileUrl(path.join(dist, 'routes', 'system.js')));
+const kvMod = await import(toFileUrl(path.join(src, 'routes', 'kv.ts')));
+const tasksMod = await import(toFileUrl(path.join(src, 'routes', 'tasks.ts')));
+const resourcesMod = await import(toFileUrl(path.join(src, 'routes', 'resources.ts')));
+const adminMod = await import(toFileUrl(path.join(src, 'routes', 'admin.ts')));
+const filesMod = await import(toFileUrl(path.join(src, 'routes', 'files.ts')));
+const dbMod = await import(toFileUrl(path.join(src, 'db', 'database.ts')));
+const helpersMod = await import(toFileUrl(path.join(src, 'utils', 'helpers.ts')));
+const b64Mod = await import(toFileUrl(path.join(src, 'utils', 'base64Externalize.ts')));
+const gcMod = await import(toFileUrl(path.join(src, 'utils', 'orphanGc.ts')));
+const platformMod = await import(toFileUrl(path.join(src, 'routes', 'platform.ts')));
+const systemMod = await import(toFileUrl(path.join(src, 'routes', 'system.ts')));
 // 版本号单源（version.ts），断言随实现走，改版本号时测试永不脱节
-const { VERSION } = await import(toFileUrl(path.join(dist, 'version.js')));
+const { VERSION } = await import(toFileUrl(path.join(src, 'version.ts')));
 
 // ── 每个测试独立数据目录 ──
 beforeEach(() => {

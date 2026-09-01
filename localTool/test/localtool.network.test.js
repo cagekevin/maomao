@@ -19,18 +19,18 @@ import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 let TEST_DIR = '';
-const dist = path.join(__dirname, '..', 'dist');
+const src = path.join(__dirname, '..', 'src');
 function toFileUrl(p) { return 'file:///' + p.split(path.sep).join('/'); }
 
 // 模块在顶层 import（network 模块内 fetch 为运行时全局查找，替换 globalThis.fetch 有效）
-const officialMod = await import(toFileUrl(path.join(dist, 'routes', 'official.js')));
-const passthroughMod = await import(toFileUrl(path.join(dist, 'routes', 'passthrough.js')));
-const agentChatMod = await import(toFileUrl(path.join(dist, 'routes', 'agentChat.js')));
-const systemMod = await import(toFileUrl(path.join(dist, 'routes', 'system.js')));
-const filesMod = await import(toFileUrl(path.join(dist, 'routes', 'files.js')));
-const dbMod = await import(toFileUrl(path.join(dist, 'db', 'database.js')));
-const kvMod = await import(toFileUrl(path.join(dist, 'routes', 'kv.js')));
-const { resetProxyCache } = await import(toFileUrl(path.join(dist, 'utils', 'netProxy.js')));
+const officialMod = await import(toFileUrl(path.join(src, 'routes', 'official.ts')));
+const passthroughMod = await import(toFileUrl(path.join(src, 'routes', 'passthrough.ts')));
+const agentChatMod = await import(toFileUrl(path.join(src, 'routes', 'agentChat.ts')));
+const systemMod = await import(toFileUrl(path.join(src, 'routes', 'system.ts')));
+const filesMod = await import(toFileUrl(path.join(src, 'routes', 'files.ts')));
+const dbMod = await import(toFileUrl(path.join(src, 'db', 'database.ts')));
+const kvMod = await import(toFileUrl(path.join(src, 'routes', 'kv.ts')));
+const { resetProxyCache } = await import(toFileUrl(path.join(src, 'utils', 'netProxy.ts')));
 
 function makeRes() {
   const r = {

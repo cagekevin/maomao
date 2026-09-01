@@ -17,8 +17,8 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import Jimp from 'jimp';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DIST = path.join(__dirname, '..', 'dist');
-const importDist = (rel) => import(pathToFileURL(path.join(DIST, rel)).href);
+const SRC = path.join(__dirname, '..', 'src');
+const importSrc = (rel) => import(pathToFileURL(path.join(SRC, rel)).href);
 
 // ── 隔离数据目录（在 import 业务模块前设置，database 运行时读 env）──
 const TEST_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'maomao-localpatch-'));
@@ -26,8 +26,8 @@ process.env.MAOMAO_DATA_DIR = TEST_DIR;
 
 let ops, routes;
 before(async () => {
-  ops = await importDist(path.join('utils', 'localPatchOps.js'));
-  routes = await importDist(path.join('routes', 'localPatch.js'));
+  ops = await importSrc(path.join('utils', 'localPatchOps.ts'));
+  routes = await importSrc(path.join('routes', 'localPatch.ts'));
 });
 
 const uploadDir = () => path.join(TEST_DIR, 'uploads');

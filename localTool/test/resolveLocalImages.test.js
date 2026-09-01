@@ -5,7 +5,7 @@
  *       公网 http 透传 / 文件缺失保留原 URL / 嵌套结构（messages+image_urls）/
  *       超大图压缩≤1920 / 原对象不变
  *
- * 运行：node --test test/*.test.js（先 npm run build 编译 dist）
+ * 运行：node --test test/*.test.js（直接 import src/，无需编译）
  * 隔离：临时 MAOMAO_DATA_DIR，绝不触碰真实 ~/.maomao-localtool/ 数据。
  */
 import test from 'node:test';
@@ -17,11 +17,11 @@ import { fileURLToPath } from 'node:url';
 import Jimp from 'jimp';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const dist = path.join(__dirname, '..', 'dist');
+const src = path.join(__dirname, '..', 'src');
 function toFileUrl(p) { return 'file:///' + p.split(path.sep).join('/'); }
 
-const { resolveLocalImages } = await import(toFileUrl(path.join(dist, 'utils', 'resolveLocalImages.js')));
-const { getUploadDir } = await import(toFileUrl(path.join(dist, 'db', 'database.js')));
+const { resolveLocalImages } = await import(toFileUrl(path.join(src, 'utils', 'resolveLocalImages.ts')));
+const { getUploadDir } = await import(toFileUrl(path.join(src, 'db', 'database.ts')));
 
 // ── 隔离数据目录 + 固定夹具（顶层 await 一次建好）──
 process.env.MAOMAO_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'maomao-resolve-test-'));

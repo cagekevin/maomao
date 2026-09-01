@@ -8,10 +8,10 @@
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { execSync } from 'node:child_process';
 import { createServer } from 'node:net';
 import { getDb, closeDb, getUploadDir, getDataDir, backupDb, startBackupSchedule } from './db/database.js';
+import { getEnvFile, getFrontendDistDir, getApimartGatewayEnv } from './paths.js';
 import { VERSION } from './version.js';
 import { sendError } from './utils/helpers.js';
 // 声明式路由表：所有具名路由集中在 router.ts，新增端点只加一行（详见 docs/11）
@@ -22,39 +22,28 @@ import { handlePassthrough } from './routes/passthrough.js';
 import { initLogWriter } from './utils/logWriter.js';
 
 // ── 轻量 .env 加载（无 dotenv 依赖，localTool 仅 sql.js 一个运行时依赖）──
-// 读取 <localTool 根>/<项目根>/localTool/.env，注入 process.env。
+// 读取 localTool/.env（路径真源 paths.ts），注入 process.env。
 // 用途：LLM_CHAT_BASE_URL / LLM_CHAT_API_KEY / AI_CANVAS_ENHANCE 等 AI 操控画布配置。
 function loadDotEnv(): void {
-  const candidates = [
-    path.join(__dirname, '..', '.env'),              // localTool/dist/ → localTool/.env
-    path.join(__dirname, '.env'),                    // localTool/       → localTool/.env
-    path.join(process.cwd(), '.env'),                // 从 localTool 根启动
-  ];
-  for (const envPath of candidates) {
-    try {
-      const raw = fs.readFileSync(envPath, 'utf-8');
-      for (const line of raw.split(/\r?\n/)) {
-        const m = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)\s*$/);
-        if (!m) continue;
-        const key = m[1];
-        let val = m[2].trim();
-        if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
-          val = val.slice(1, -1);
-        }
-        if (!(key in process.env)) process.env[key] = val;
+  const envPath = getEnvFile();
+  try {
+    const raw = fs.readFileSync(envPath, 'utf-8');
+    for (const line of raw.split(/\r?\n/)) {
+      const m = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)\s*$/);
+      if (!m) continue;
+      const key = m[1];
+      let val = m[2].trim();
+      if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+        val = val.slice(1, -1);
       }
-      return; // 找到并加载完成
-    } catch {
-      // 该路径不存在，尝试下一个
+      if (!(key in process.env)) process.env[key] = val;
     }
+  } catch {
+    // .env 不存在，跳过
   }
 }
 
-// ESM 兼容：Node.js ES 模块无 __dirname，手动构造
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-// 必须在 __dirname 定义之后调用（TDZ：const 声明前访问会抛 ReferenceError）
+// 必须在 paths.ts 导入之后调用（getEnvFile 依赖 paths.ts）
 loadDotEnv();
 // 进程内接管 console → 按天轮转 + 自动删过期日志（替代 launch-all.ps1 的 stdout 重定向）。
 // ⚠️ 须在 loadDotEnv() 之后、服务启动早期调用：晚调会漏掉前面的日志输出。
@@ -158,7 +147,7 @@ function handleStaticFile(req: http.IncomingMessage, res: http.ServerResponse, u
 }
 
 // ── 画布前端页面托管（dist/ 静态资源）──
-const DIST_DIR = path.join(__dirname, '..', '..', 'dist');
+const DIST_DIR = getFrontendDistDir();
 const FRONTEND_MIME: Record<string, string> = {
   '.html': 'text/html', '.js': 'application/javascript', '.css': 'text/css',
   '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
@@ -264,8 +253,7 @@ async function main(): Promise<void> {
 
   // ── 凭据检查：读取网关 .env，警告占位凭据 ──
   const envPaths = [
-    path.join(__dirname, '..', '..', 'apimart-gateway', '.env'),      // localTool/dist/ → 项目根/apimart-gateway/.env
-    path.join(__dirname, '..', 'apimart-gateway', '.env'),            // localTool/ → 项目根/apimart-gateway/.env
+    getApimartGatewayEnv(),                                          // localTool/ → 项目根/apimart-gateway/.env
     path.join(process.cwd(), 'apimart-gateway', '.env'),              // 从项目根启动
   ];
   let credsOk = false;

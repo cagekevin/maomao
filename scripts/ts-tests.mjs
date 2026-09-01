@@ -20,6 +20,7 @@ const root = resolve(__dirname, '..')
 const TESTS_TSCONFIG = resolve(root, 'tests', 'tsconfig.json')
 
 // ===================== 状态安全管理 (解决 Ctrl+C 弄脏工作区的问题) =====================
+/** @type {Map<string, string>} */
 const restoreMap = new Map()
 let isRestoring = false
 
@@ -199,11 +200,13 @@ if (cmd === 'check') {
     if (errs.length === 0) {
       console.log(`✔ 无类型错误！现在运行 \`node scripts/ts-tests.mjs verify ${fileArg}\` 确立战果！`)
     } else {
+      /** @type {Record<string, number>} */
       const byCode = {}
       errs.forEach(e => { const m = e.match(/error TS(\d+)/); if (m) byCode[m[1]] = (byCode[m[1]] || 0) + 1 })
 
       console.log(`✖ 发现 ${errs.length} 个类型错误`)
-      console.log('📊 错误码分布: ' + Object.entries(byCode).map(([c, n]) => `TS${c}×${n}`).join('  '))
+      const byCodeRows = Object.entries(byCode).map(([c, n]) => ({ c, n: /** @type {number} */ (n) }))
+      console.log('📊 错误码分布: ' + byCodeRows.map(({ c, n }) => `TS${c}×${n}`).join('  '))
 
       console.log('\n📝 详情 (终端按住 Cmd/Ctrl 点击路径可直达代码):')
       errs.slice(0, 15).forEach(e => {

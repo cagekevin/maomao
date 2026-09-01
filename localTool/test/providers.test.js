@@ -2,9 +2,7 @@
  * providers（多供应商）单元测试
  * ------------------------------------------------------------
  * 运行：node --test test/*.test.js        （在 localTool/ 下）
- * 注意：必须先构建使 dist 反映最新 src（npm test 会先跑 tsc 编译）。
- * ⚠️ 本测试 import 的是编译产物 dist/routes/*.js。改 src 后若只跑 `tsc --noEmit`
- *    （不产出 dist）就测，会测到旧逻辑导致误判失败/通过。请一律 `npm test`（自带 tsc）。
+ * 注意：测试直接 import src/ 源码（--experimental-strip-types），无需先编译。
  *
  * 隔离策略：
  *   - MAOMAO_DATA_DIR 指向临时目录 → providers.json 落在临时目录
@@ -26,15 +24,15 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-// 必须在动态 import 前设置 env（providers.js 模块顶层读取 MAOMAO_DATA_DIR / MAOMAO_ENV_FILE）
+// 必须在动态 import 前设置 env（providers.ts 模块顶层读取 MAOMAO_DATA_DIR / MAOMAO_ENV_FILE）
 const TEST_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'maomao-provider-test-'));
 process.env.MAOMAO_DATA_DIR = TEST_DIR;
 process.env.MAOMAO_ENV_FILE = path.join(TEST_DIR, '.env');
 const ENV_FILE = process.env.MAOMAO_ENV_FILE;
 
-const dist = path.join(__dirname, '..', 'dist');
-const providersMod = await import(pathToFileURL(path.join(dist, 'routes', 'providers.js')));
-const protocolsMod = await import(pathToFileURL(path.join(dist, 'routes', 'protocolAdapters.js')));
+const src = path.join(__dirname, '..', 'src');
+const providersMod = await import(pathToFileURL(path.join(src, 'routes', 'providers.ts')));
+const protocolsMod = await import(pathToFileURL(path.join(src, 'routes', 'protocolAdapters.ts')));
 
 // 每个 test 复用同一临时目录；每次 PUT 都是全量覆盖，天然隔离。
 // test 之间不删目录，避免 ensureFile 写 providers.json 时目录不存在（ENOENT）。

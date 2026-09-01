@@ -19,12 +19,10 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { getLogsDir } from '../paths.js';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-// localTool/logs（与 task-inspect.mjs 的 LOGS_DIR 一致）
-const LOGS_DIR = path.join(__dirname, '..', '..', 'logs');
+// localTool/logs（路径真源 paths.ts，与 task-inspect.mjs 的 LOGS_DIR 一致）
+const LOGS_DIR = getLogsDir();
 const BASE_NAME = 'localtool_18080';
 
 let _stream: fs.WriteStream | null = null;

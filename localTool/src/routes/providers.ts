@@ -16,8 +16,8 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { getDataDir } from '../db/database.js';
+import { getEnvFile, getApiConfigFile } from '../paths.js';
 import { json, parseJsonBody, sendError } from '../utils/helpers.js';
 // 可插拔协议适配器：各协议一个 adapter，统一分派转发目标（协议类型单一真相在此）
 import { resolveProviderTarget as resolveProviderTargetAdapter, PROVIDER_PROTOCOLS } from './protocolAdapters.js';
@@ -131,11 +131,9 @@ export interface ApiProvider {
   key_env?: string;
 }
 
-// ── env 文件路径（localTool/.env，与 index.ts loadDotEnv 一致）──
+// ── env 文件路径（localTool/.env，路径真源 paths.ts）──
 // 支持 MAOMAO_ENV_FILE 覆盖（测试隔离用），默认 localTool/.env
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const ENV_FILE = process.env.MAOMAO_ENV_FILE || path.join(__dirname, '..', '..', '.env');
+const ENV_FILE = getEnvFile();
 
 // 旧版单 models[] / url / key 字段向后兼容
 function splitLegacyModels(models: any[] = []): { image: ProviderModel[]; chat: ProviderModel[]; video: ProviderModel[] } {
@@ -846,7 +844,7 @@ const CONFIG_SYNC_FIELDS: Array<{
   { key: 'volcengine_region' },
 ];
 
-const CONFIG_FILE = process.env.MAOMAO_CONFIG_FILE || path.join(__dirname, '..', '..', 'api.config.json');
+const CONFIG_FILE = getApiConfigFile();
 
 export function syncConfigJson(providers: ApiProvider[]): void {
   let cfg: any = {};

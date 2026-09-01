@@ -34,13 +34,10 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { Readable } from 'node:stream';
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { createGunzip, createInflate, createBrotliDecompress } from 'node:zlib';
 import { parseJsonBody, sendError } from '../utils/helpers.js';
 import { fetchWithProxy } from '../utils/netProxy.js';
 import { resolveLocalImages } from '../utils/resolveLocalImages.js';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // ── 配置集中读取（惰性，.env 由 index.ts 启动时注入）──
 interface AgentChatConfig {

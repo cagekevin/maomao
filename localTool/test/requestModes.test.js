@@ -1,7 +1,7 @@
 /**
  * requestModes（请求形态层）单元测试
  * ------------------------------------------------------------
- * 运行：node --test test/requestModes.test.js   （先 ts 编译出 dist）
+ * 运行：node --test test/requestModes.test.js   （直接 import src/，无需编译）
  * 覆盖：state 2 对模块 2 的断言——形态分派 / responses body / 响应解析 / markdown 兜底 / tool 归一 / 友好错误
  */
 import test from 'node:test';
@@ -10,8 +10,8 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const dist = path.join(__dirname, '..', 'dist');
-const mod = await import(pathToFileURL(path.join(dist, 'routes', 'requestModes.js')));
+const src = path.join(__dirname, '..', 'src');
+const mod = await import(pathToFileURL(path.join(src, 'routes', 'requestModes.ts')));
 
 test('imageModePath：四形态端点映射，未知回退 openai（M2-1/M2-5 保守）', () => {
   assert.equal(mod.imageModePath('openai'), 'images/generations');

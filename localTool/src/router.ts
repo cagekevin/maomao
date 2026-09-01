@@ -18,9 +18,8 @@
  */
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import fs from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { json } from './utils/helpers.js';
+import { getBaselinePath } from './paths.js';
 
 import { handleKvGet, handleKvSet, handleKvDelete } from './routes/kv.js';
 import {
@@ -83,16 +82,13 @@ export type RouteMiddleware = (
   url: URL,
 ) => boolean | void | Promise<boolean | void>;
 
-// ESM 兼容：手动构造 __dirname（与 index.ts 同输出目录 localTool/dist）
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 const PORT = Number(process.env.PORT) || 18080;
 
 // ── /api/sync/default 本地兜底（A2）──
 // 原为 index.ts 内联逻辑：读 data/apiConfigs.baseline.json 并替换占位 URL。
 async function handleSyncDefault(_req: IncomingMessage, res: ServerResponse): Promise<void> {
   try {
-    const baselinePath = path.join(__dirname, '..', 'data', 'apiConfigs.baseline.json');
+    const baselinePath = getBaselinePath();
     const raw = fs.readFileSync(baselinePath, 'utf-8');
     const replaced = raw.replace(/\{VITE_API_BASE_URL\}/g, `http://127.0.0.1:${PORT}`);
     res.writeHead(200, { 'Content-Type': 'application/json' });

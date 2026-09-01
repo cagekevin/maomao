@@ -162,9 +162,12 @@ const matched = errs.filter((e) => {
 if (matched.length === 0) {
   console.log(`\nℹ 无匹配错误。过滤条件：${wantAll ? '(全部)' : needles.join(', ')}`)
   console.log('  当前有错的文件（文件 × 错误数）：')
+  /** @type {Record<string, number>} */
   const cnt = {}
   errs.forEach((e) => { cnt[e.file] = (cnt[e.file] || 0) + 1 })
-  Object.entries(cnt).sort((a, b) => b[1] - a[1]).forEach(([f, n]) => console.log(`   ${String(n).padStart(3)}  ${f}`))
+  /** @type {{ file: string, n: number }[]} */
+  const cntRows = Object.entries(cnt).map(([file, n]) => ({ file, n: /** @type {number} */ (n) }))
+  cntRows.sort((a, b) => b.n - a.n).forEach(({ file, n }) => console.log(`   ${String(n).padStart(3)}  ${file}`))
   process.exit(0)
 }
 
@@ -176,10 +179,14 @@ for (const e of matched) {
   console.log(`  ${String(e.line).padStart(4)}:${String(e.col).padStart(3)}  ${e.code}  ${e.msg.slice(0, 220)}`)
 }
 
+/** @type {Record<string, number>} */
 const byCode = {}
 matched.forEach((e) => { byCode[e.code] = (byCode[e.code] || 0) + 1 })
+/** @type {Record<string, number>} */
 const byFile = {}
 matched.forEach((e) => { byFile[e.file] = (byFile[e.file] || 0) + 1 })
 
 console.log(`\n──── 明细 ${matched.length} 条，涉及 ${Object.keys(byFile).length} 个文件`)
-console.log('错误码：' + Object.entries(byCode).sort((a, b) => b[1] - a[1]).map(([c, n]) => `${c}×${n}`).join('  '))
+const byCodeRows = Object.entries(byCode).map(([code, n]) => ({ code, n: /** @type {number} */ (n) }))
+byCodeRows.sort((a, b) => b.n - a.n)
+console.log('错误码：' + byCodeRows.map(({ code, n }) => `${code}×${n}`).join('  '))
