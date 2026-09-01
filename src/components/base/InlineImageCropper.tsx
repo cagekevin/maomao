@@ -1,8 +1,9 @@
-import React, { useState, useRef, useCallback, useEffect } from 'react'
+import React, { useState, useRef, useCallback } from 'react'
 import ReactCrop from 'react-image-crop'
 import 'react-image-crop/dist/ReactCrop.css'
 import { toastError } from './toastStore.ts'
 import { loadImageWithTimeout } from './asyncGuard.ts'
+import { compressImage } from './imageCompress.ts'
 
 /**
  * 就地裁剪浮层（极简，只做裁剪）。
@@ -13,10 +14,19 @@ import { loadImageWithTimeout } from './asyncGuard.ts'
  *     保存时换算回原始像素，不缩放失真。
  *  3. 选完选区后，点「裁剪」按钮确认保存写回。
  *
- * 【坐标精确的关键】图片不能用 object-contain：object-contain 会让 <img> 元素盒子
- * 大于实际可见图（留白），导致 ReactCrop 测量的渲染尺寸与可见图不一致，换算坐标错位、
- * drawImage 取到空白区 → 点确认"没效果"。改用默认等比缩放（max-w/h-full），<img> 元素
- * 盒子正好等于可见图尺寸，ReactCrop 的 completedCrop 与 img.width 一致，换算精确。
+ * 【坐标精确的关键】图片用 object-contain 撑满容器（这样 ReactCrop 盒子 = 容器，选区手柄
+ * 能拖到最边边，不留白）。object-contain 会让 img 元素盒子含四周留白（letterbox），因此
+ * ReactCrop 的 % 坐标是相对「盒子」而非「可见图」——保存时需先用渲染 <img> 的自然/客户尺寸
+ * 算 containScale 与 offsetX/offsetY 留白偏移，把 % 换算到可见图内容框、再映射回原图像素，
+ * 否则会裁到留白或"右边多出一截"。
+ *
+ * 【绘制源与输出格式（TASK 治理：三处根源 bug 一次修净）】
+ *  - 绘制源不再手动 cleanImgRef 加载，统一走 compressImage(url, { keepOriginalFormat: true })
+ *    拿「原尺寸 + 同源 dataURL + 原图格式」，再 loadImageWithTimeout(dataUrl) 得到 100% 干净
+ *    Image（dataURL 天然同源，canvas 永不污染）→ 杜绝跨域 SecurityError 静默崩溃。
+ *  - 输出格式跟随原图：PNG/WebP 等带透明 → 输出 PNG（不丢透明、不变黑底）；JPEG → 白底填充。
+ *    不再写死 image/jpeg 0.9（那是透明图变黑底的根源）。
+ *  - 跨域/加载失败 → compressImage 抛明确错误，toast 透传真实原因，不静默吞错。
  *
  * 挂载：由调用方放在图片区 `relative` 容器内，本组件 `absolute inset-0` 覆盖。
  *
@@ -74,36 +84,9 @@ export function cropRectFromSelection({ sel, renderW, renderH, natW, natH }) {
 
 export default function InlineImageCropper({ imageUrl, onSave, onClose }: InlineImageCropperProps) {
   const imgRef = useRef(null)
-  // 干净绘制源：预加载一份 crossOrigin='anonymous' 的图（复用 loadImageWithTimeout，
-  // 与压缩/放大同机制）。直接 drawImage 渲染用的 <img> 会把跨域图污染 canvas → toDataURL
-  // 抛 SecurityError，故绘制一律用这份干净图（服务端允许 CORS 时才能拿到，拿不到则回退原 <img>）。
-  const cleanImgRef = useRef(null)
   const [crop, setCrop] = useState(undefined)
   // 百分比选区：保存用它（相对图片本身，布局无关，最稳）；onChange 第二个参数即 PercentCrop
   const [percentCrop, setPercentCrop] = useState(undefined)
-
-  // 预加载干净图（供保存时绘制）
-  useEffect(() => {
-    if (!imageUrl) return
-    let cancelled = false
-    cleanImgRef.current = null
-    loadImageWithTimeout(imageUrl)
-      .then((im) => { if (!cancelled) cleanImgRef.current = im })
-      .catch(() => { /* 保持 null；保存时回退原 <img>（跨域无法导出时 toast 提示） */ })
-    return () => { cancelled = true }
-  }, [imageUrl])
-
-  // 取绘制源：优先干净图，未就绪/失败则现场再加载一次，再不行回退渲染 <img>
-  const getDrawImage = useCallback(async () => {
-    if (cleanImgRef.current) return cleanImgRef.current
-    try {
-      const im = await loadImageWithTimeout(imageUrl)
-      cleanImgRef.current = im
-      return im
-    } catch {
-      return imgRef.current || null
-    }
-  }, [imageUrl])
 
   // 图片加载 → 默认整图选区（100%），即初始尺寸 = 图片尺寸
   const onImageLoad = useCallback((e) => {
@@ -113,49 +96,78 @@ export default function InlineImageCropper({ imageUrl, onSave, onClose }: Inline
     setPercentCrop(full)
   }, [])
 
-  // 确认裁剪：把选区换算成原图像素 → canvas 裁切 → 回传 dataURL。
+  // 确认裁剪：把选区换算成原图像素 → 用干净绘制源 canvas 裁切 → 回传 dataURL。
+  // 绘制源统一走 compressImage（keepOriginalFormat）拿「原尺寸 + 同源 dataURL + 原图格式」，
+  // 不手动 new Image / 不回退渲染 <img>，从根上避免跨域污染与绘制源不一致。
   const handleSave = useCallback(async () => {
-    const img = imgRef.current
-    if (!img) { onClose?.(); return }
-    const drawImg = (await getDrawImage()) || img
-    const rect = cropRectFromSelection({
-      sel: percentCrop,          // 百分比选区（布局无关），直接映射原图像素，不出「右边多出一截」
-      renderW: img.width || img.naturalWidth,
-      renderH: img.height || img.naturalHeight,
-      natW: drawImg.naturalWidth,
-      natH: drawImg.naturalHeight,
-    })
-    if (!rect) { onClose?.(); return }
-    const { sx, sy, sw, sh } = rect
-    // 裁切导出（跨域且服务端不允许 CORS 时，canvas 仍会污染 → toDataURL 抛 SecurityError，显式透传）
+    if (!percentCrop || !percentCrop.width || !percentCrop.height) { onClose?.(); return }
     try {
+      // 1) 干净原图 + 原图格式（compressImage 内部已补 /files/ 相对路径、带超时、
+      //    keepOriginalFormat 推断 MIME：透明图回退 PNG、JPEG 白底填充、跨域抛明确错误）
+      const clean = await compressImage(imageUrl, { keepOriginalFormat: true })
+      // 2) 同源 dataURL 再加载成绘制源（100% 干净，canvas 永不污染）
+      const drawImg = await loadImageWithTimeout(clean.dataUrl)
+      // 2.5) ReactCrop 的 % 相对「img 元素盒子」（=容器）。img 用 object-contain 撑满容器，
+      //      盒子含四周留白（letterbox），% 不是相对可见图 → 需先换算到可见图内容框。
+      //      用渲染 <img>（imgRef.current，盒子=容器）的自然/客户尺寸算 contain 内容框偏移。
+      const renderImg = imgRef.current
+      const boxW = renderImg?.clientWidth || drawImg.naturalWidth
+      const boxH = renderImg?.clientHeight || drawImg.naturalHeight
+      const natW = drawImg.naturalWidth
+      const natH = drawImg.naturalHeight
+      const containScale = Math.min(boxW / natW, boxH / natH)
+      const contentW = natW * containScale
+      const contentH = natH * containScale
+      const offsetX = (boxW - contentW) / 2   // 左右留白宽
+      const offsetY = (boxH - contentH) / 2   // 上下留白高
+      // %（相对盒子）→ 内容框内像素（相对可见图）→ 再映射到自然像素
+      const toNat = (pct, box, content, offset, nat) => Math.round((pct / 100 * box - offset) / content * nat)
+      const rect = {
+        sx: toNat(percentCrop.x, boxW, contentW, offsetX, natW),
+        sy: toNat(percentCrop.y, boxH, contentH, offsetY, natH),
+        sw: toNat(percentCrop.width, boxW, contentW, offsetX, natW),
+        sh: toNat(percentCrop.height, boxH, contentH, offsetY, natH),
+      }
+      // 收敛到自然像素边界，杜绝越界/负值
+      rect.sx = Math.max(0, rect.sx)
+      rect.sy = Math.max(0, rect.sy)
+      rect.sw = Math.max(1, Math.min(natW - rect.sx, rect.sw))
+      rect.sh = Math.max(1, Math.min(natH - rect.sy, rect.sh))
+      if (!rect.sw || !rect.sh) { onClose?.(); return }
+      const { sx, sy, sw, sh } = rect
+      // 3) 按选区裁切；输出格式跟随原图（从 dataURL header 推断），透明图不转 JPEG 变黑底
       const canvas = document.createElement('canvas')
       canvas.width = sw
       canvas.height = sh
       const ctx = canvas.getContext('2d')
       if (!ctx) { toastError('裁剪失败：无法创建画布'); return }
       ctx.drawImage(drawImg, sx, sy, sw, sh, 0, 0, sw, sh)
-      onSave?.({ dataUrl: canvas.toDataURL('image/jpeg', 0.9) })
+      const m = /^data:([^;,]+)/.exec(clean.dataUrl)
+      const outFormat = m && m[1] === 'image/jpeg' ? 'image/jpeg' : 'image/png'
+      onSave?.({ dataUrl: canvas.toDataURL(outFormat, 0.9) })
       onClose?.()
     } catch (e) {
-      toastError(`裁剪保存失败：${e?.message || '图片跨域限制，无法导出'}`)
+      toastError(`裁剪保存失败：${e?.message || '图片加载失败'}`)
     }
-  }, [percentCrop, onSave, onClose, getDrawImage])
+  }, [imageUrl, percentCrop, onSave, onClose])
 
   return (
     <div className="absolute inset-0 z-30 flex flex-col bg-black/70 nodrag">
-      {/* 图片区：ReactCrop 直接叠在图片上，按图片比例铺满（等比缩放，无 contain 留白） */}
-      <div className="flex-1 flex items-center justify-center p-2 overflow-hidden">
+      {/* 图片区：ReactCrop 撑满容器、图片 object-contain 完整显示。
+          关键：必须让 ReactCrop 盒子 = 容器（无留白），选区手柄才能拖到最边边。
+          原实现 flex 居中 + p-2 使图片盒子 < 容器，选区到图片边缘即停，四周留白处拖不到。 */}
+      <div className="flex-1 relative overflow-hidden">
         <ReactCrop
           crop={crop}
           onChange={(_, pc) => { setCrop(pc); setPercentCrop(pc) }}
-          style={{ maxWidth: '100%', maxHeight: '100%' }}
+          className="w-full h-full"
+          style={{ width: '100%', height: '100%', display: 'block' }}
         >
           <img
             src={imageUrl}
             alt="裁剪预览"
             onLoad={onImageLoad}
-            className="block max-w-full max-h-full select-none"
+            className="block w-full h-full object-contain select-none"
             draggable={false}
           />
         </ReactCrop>
