@@ -30,7 +30,7 @@ import {
   handleTasksGet, handleTasksSave, handleTasksBatchSave, handleTasksDelete,
   handleTasksBatchDelete, handleTasksClear,
 } from './routes/tasks.js';
-import { handleLogsPost } from './routes/logs.js';
+import { handleLogsPost, handleLogsStream } from './routes/logs.js';
 import {
   handleResourcesGet, handleResourcesSave, handleResourcesBatchSave,
   handleResourcesDelete, handleResourcesClear, handleResourcesRescan,
@@ -116,6 +116,7 @@ export const routes: Route[] = [
   // ── 系统 ──
   { method: 'GET',  pattern: '/api/status', handler: handleStatus },
   { method: 'POST', pattern: '/api/logs',   handler: handleLogsPost },
+  { method: 'GET',  pattern: '/api/logs/stream', handler: handleLogsStream },
 
   // ── KV ──
   { method: 'GET',  pattern: '/api/kv/get',    handler: handleKvGet },

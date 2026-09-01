@@ -46,7 +46,7 @@ export const AGENT_DEMO_MODE = import.meta.env?.VITE_AGENT_DEMO === '1'
  *   - 这是「第 2 个模块（agent）加入」后由单模块 DEBUG_ASSET 升级而来——触发条件就是
  *     「≥2 个无关模块要排查日志」，此时不再新增 DEBUG_XXX 散开关，统一走本 DEBUG。
  *   - DEBUG_ASSET 保留为别名（向后兼容既有引用），等价于 DEBUG 的 asset 模块位。 */
-export const DEBUG_MODULES = ['asset', 'agent', 'image', 'text', 'project'] // 支持的模块位（新增模块在此登记）；'text'=文本节点复制/落盘链路；'project'=项目切换/快照/备份/同步
+export const DEBUG_MODULES = ['asset', 'agent', 'image', 'text', 'project', 'http'] // 支持的模块位（新增模块在此登记）；'text'=文本节点复制/落盘链路；'project'=项目切换/快照/备份/同步；'http'=统一请求层(httpClient)传输日志
 
 const _debugOn = (key, upper) => {
   if (import.meta.env?.[`VITE_DEBUG_${upper}`] === '1') return true

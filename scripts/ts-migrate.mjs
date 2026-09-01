@@ -432,6 +432,7 @@ const { positionals, values } = parseArgs({
     all: { type: 'boolean', default: false },
     force: { type: 'boolean', default: false },
     strict: { type: 'boolean', default: false },
+    count: { type: 'boolean', default: false }, // 【特性: any 汇总模式】
     nocheck: { type: 'boolean', default: false }, // 【特性 2: 平滑注入选项】
   },
   allowPositionals: true,
@@ -547,6 +548,70 @@ if (cmd === 'report') {
   console.log(`  提示：记得将该文件加入 .gitignore！`)
   
   printWarnings()
+  process.exit(0)
+}
+
+// 【特性: any 残留定位（只读）】
+// 扫描 src/ + tests/，定位「显式 any」残留（排除注释行），按文件聚合带行号。
+// 用法：
+//   any                        全量扫描 src + tests
+//   any <片段>                 仅扫描路径含该片段的文件（如 any localToolApi / any requestModes）
+//   any <片段> --count         仅输出「文件 × 处数」汇总，不列明细
+// 设计：纯只读、零落盘、零污染，取代文档里手写的 grep 命令。
+if (cmd === 'any') {
+  const filter = fileArg || ''
+  const onlyCount = values.count
+  // 显式 any 形态：: any / as any / <any> / any[] / Record<string, any> / Promise<any>
+  // 排除明显注释行（// 或 * 或 /* 开头的行），与文档 grep 口径一致。
+  const ANY_RE = /:\s*any\b|as\s+any\b|<\s*any\s*>|any\[\]|<any>|Record<string,\s*any>|Promise<any>/g
+  const COMMENT_RE = /^\s*(\/\/|\*|\/\*)/
+
+  // collectFiles 接收单个目录，依次喂入每个根并合并文件绝对路径。
+  const files = []
+  for (const r of SCAN_ROOTS) {
+    if (existsSync(r)) files.push(...collectFiles(r, []))
+  }
+  const targets = files.filter((f) => /\.(ts|tsx|js|jsx|mjs|cjs)$/.test(extname(f)))
+  const matched = []
+  for (const f of files) {
+    if (filter && !relOf(f).includes(filter)) continue
+    const lines = readFileSync(f, 'utf8').split('\n')
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i]
+      if (COMMENT_RE.test(line)) continue
+      const re = new RegExp(ANY_RE)
+      if (re.test(line)) {
+        matched.push({ file: relOf(f), line: i + 1, text: line.trim() })
+      }
+    }
+  }
+
+  // 按文件聚合
+  const byFile = new Map()
+  for (const m of matched) {
+    if (!byFile.has(m.file)) byFile.set(m.file, [])
+    byFile.get(m.file).push(m)
+  }
+
+  if (onlyCount) {
+    console.log('\n📊 any 残留汇总（文件 × 处数）：')
+    let total = 0
+    const rows = [...byFile.entries()].sort((a, b) => b[1].length - a[1].length)
+    for (const [file, ms] of rows) {
+      console.log(`  ${String(ms.length).padStart(3, ' ')}  ${file}`)
+      total += ms.length
+    }
+    console.log(`\n合计：${total} 处（覆盖 ${byFile.size} 个文件）`)
+  } else {
+    console.log('\n🔍 显式 any 残留明细：')
+    for (const [file, ms] of byFile) {
+      console.log(`\n──── ${file} (${ms.length}) ────`)
+      for (const m of ms) console.log(`  ${String(m.line).padStart(4, ' ')}: ${m.text}`)
+    }
+    let total = 0
+    for (const ms of byFile.values()) total += ms.length
+    console.log(`\n合计：${total} 处（覆盖 ${byFile.size} 个文件）`)
+  }
   process.exit(0)
 }
 

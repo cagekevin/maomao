@@ -35,6 +35,10 @@ import {
   demoPlan,
   imageModeLooksLikePerReferenceEdit,
   buildPerReferenceGenerations,
+  classifyLocalIntent,
+  buildIntentHint,
+  INTENT_HINT,
+  LOCAL_INTENT_THRESHOLD,
 } from './agentCore.ts'
 import type { ToolCall, ChatMessage, AgentMemory } from './agentCore.ts'
 // 运行时逻辑（依赖注入版本）。hook 内以 const roundTrip 等同名闭包封装调用，
@@ -252,6 +256,10 @@ export {
   demoPlan,
   imageModeLooksLikePerReferenceEdit,
   buildPerReferenceGenerations,
+  classifyLocalIntent,
+  buildIntentHint,
+  INTENT_HINT,
+  LOCAL_INTENT_THRESHOLD,
 }
 
 /**
@@ -544,6 +552,10 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
         // 具体「是否进入 awaiting」由 useCanvasAgentTools 的 show_plan_for_confirm 按 runMode 决定（见 presentPlanTool）。
         // 【三阶段门禁】是否因 show_plan_for_confirm（待用户确认策划）而提前暂停循环。
         // 对齐大雄 awaiting_confirm：展示策划后 stop 工具循环，等用户确认，不再让 AI 继续自言自语/重复推演。
+        // 【意图预判（docs/76）】本地规则高置信时把结论直接告诉 LLM，省掉它自己推理——
+        // 本次故障中模型曾为此在两档之间摇摆 6 轮。tools 照常全量传，本句只作引导，
+        // 不限制任何能力（刻意不做「请求体不传 tools」的硬拦，见 agentCore 段落注释）。
+        const intentHint = buildIntentHint(text)
         for (; round < MAX_TOOL_ROUNDS; round++) {
           // 追加流式 assistant 占位（复刻官方）
           appendMsg({ role: 'assistant', content: '', model, streaming: true, createdAt: Date.now() })
@@ -551,7 +563,12 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
           // 【过渡方案·2026-08-18】historyTurns 实时读取（AI 助手设置可配）：
           // 0=不回传、1=只上一轮、N=最近 N 轮纯文字历史（图片仍编号化 imageCatalog 图N，不内联，不破坏
           // 「反推图一却全反推」安全底线）。见文件顶部注释 + agentCore.js buildRequestMessages 头注释。
-          const makeContextMessages = () => buildRequestMessages(getCurrentSnapshot().messages as ChatMessage[], systemRef.current, true, skillsRef.current, getCurrentMemory() as AgentMemory, getCurrentImageMap(), loadAgentHistoryTurns(), buildLearnedContext(getCurrentMemory(), text), buildProjectMemoryContextFromStore(agentKey, '', text), getWorkMode())
+          // 意图预判提示随每轮重建（msgs 每轮都是新数组，不会跨轮重复累积）
+          const makeContextMessages = () => {
+            const msgs = buildRequestMessages(getCurrentSnapshot().messages as ChatMessage[], systemRef.current, true, skillsRef.current, getCurrentMemory() as AgentMemory, getCurrentImageMap(), loadAgentHistoryTurns(), buildLearnedContext(getCurrentMemory(), text), buildProjectMemoryContextFromStore(agentKey, '', text), getWorkMode())
+            if (intentHint) msgs.push({ role: 'system', content: intentHint })
+            return msgs
+          }
           // ── 上下文预算触发压缩（照搬 contextManager）：估算当前请求，按 inputBudget 决定预/强制压缩 ──
           //  force  → 请求前强制压缩：await 压缩写回 summary 后用新摘要重新组装（压缩失败只记日志，不发超限请求前先尝试）；
           //  precompress → 后台预压缩（复用 maybeCompressSummary 节流），不阻塞本次请求；

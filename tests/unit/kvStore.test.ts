@@ -10,12 +10,14 @@ vi.mock('../../src/components/base/storage/storageAdapter.ts', () => ({
 
 // kvStore 内部 logger.warn 会 fire-and-forget 调 fetch(/api/logs)，
 // 为避免污染 fetch 断言，mock 掉 logger（属可 mock 的外部依赖/浏览器 API 封装）。
+// 注意：接口须与真实 logger 对齐（含 debug），否则 httpClient 间接调 logger.debug 会崩。
 vi.mock('../../src/components/base/logger.ts', () => ({
   logger: {
     warn: vi.fn(),
     info: vi.fn(),
     error: vi.fn(),
     log: vi.fn(),
+    debug: vi.fn(),
   },
 }))
 

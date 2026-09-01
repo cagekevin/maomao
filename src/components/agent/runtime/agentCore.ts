@@ -14,6 +14,7 @@
  *     · demoPlan                 Demo 规则引擎
  *     · imageModeLooksLikePerReferenceEdit  图像模式「分别改图」语义判断
  *     · buildPerReferenceGenerations        每参考图一对一 generation 构造
+ *     · classifyLocalIntent / buildIntentHint  意图本地判定与预判提示（docs/76 L1 层）
  *     · historyKey / loadHistory 旧单会话历史迁移
  *
  * 【为何独立】这些函数不依赖 React hook 生命周期、不触碰 messagesRef/
@@ -23,6 +24,20 @@
  * 【测试契约】useAgentChat.ts 会 re-export 本模块全部导出，既有单测
  * （agentLogic.test.js / demoPlan.test.js / imageModeSplit.test.js /
  * useAgentChat.hook.test.js / scripts/test_agent_tools.cjs）import 路径不变。
+ *
+ * 【更新 2026-09-01 · 意图本地判定（docs/76）】新增 classifyLocalIntent /
+ *   buildIntentHint / INTENT_HINT / LOCAL_INTENT_THRESHOLD / LocalIntent 类型。
+ *   根因：用户发图 +「反推图像提示词」时，模型在【查看画布】与【生成/改图】之间
+ *   摇摆 6 轮后误调 get_node_details —— 该工具只返回节点结构化 data，读不到图像
+ *   画面内容，属无效调用。
+ *   治理三层（均为文字层，零新增架构，不限制 AI 任何能力）：
+ *     ① agentConfig.CANVAS_RULES 补「内容理解/产出文字」档 + 工具能力边界铁律
+ *       （决策前：给模型一个可归类的档位）；
+ *     ② useCanvasAgentTools 读类工具 description 声明「只返回结构化数据，不含
+ *       画面内容」（选工具那一刻：这是 function calling 时唯一必读的位置）；
+ *     ③ 本层本地判定 → buildIntentHint 注入一句意图预判（消摇摆：不必自己推理）。
+ *   刻意不做「请求体不传 tools」的硬拦：误调只读工具只慢一轮，误判却会让 AI 整轮
+ *   无法操作画布，代价不对称。本层只判消歧收益最高的三类，其余一律交 LLM。
  * ════════════════════════════════════════════════════════════════
  */
 import type { WorkMode } from './runModeRegistry.ts'
@@ -608,4 +623,86 @@ export function buildPerReferenceGenerations(referenceImages: string[] = [], pro
     use_attachments: true,
     attachment_indices: [i],
   }))
+}
+
+/* ════════════════════════════════════════════════════════════════
+ * 意图本地判定（docs/76 · L1 层）——纯函数，零副作用，可独立单测
+ * ────────────────────────────────────────────────────────────────
+ * 【用途】把本地规则的判定结论**告诉 LLM**，让它不必自己推理意图。
+ *   这是引导，不是拦截：tools 照常全量传给模型，本层只多追加一句 system 提示。
+ *
+ * 【为什么需要】docs/76 §0 的故障：用户发图 +「反推图像提示词」，模型在
+ *   【查看画布】与【生成/改图】之间摇摆 6 轮才动手，最后误调 get_node_details。
+ *   分流表补档（agentConfig.CANVAS_RULES）给了它档位，但仍要靠它自己推理；
+ *   本地规则能确定性命中时直接把答案给它，从源头消掉摇摆。
+ *
+ * 【为什么不做硬拦】曾设计「禁工具意图 → 请求体不传 tools 字段」，代价不对称：
+ *   误调只读工具只是慢一轮，误判却会让 AI 整轮无法操作画布。故只引导、不拦截。
+ *   治理分三层互补：① 分流表补档（决策前）② 工具 description 声明读不到画面内容
+ *   （选工具那一刻）③ 本层预判注入（消摇摆）。三者都是文字，零新增架构。
+ *
+ * 【刻意不判的意图】create / organize / undo / lock / query 一律交 LLM ——
+ *   本地规则只用于「消歧收益最高」的这一类，不追求统一识别（docs/76 §2.3）。
+ *
+ * 【判定顺序】生成动词优先于内容理解动词：「反推提示词并生成一张」必须判
+ *   generate，否则会把一次真实出图引导成「不用工具」。
+ *
+ * 【失败模式】宁可漏判（返回 null → 不注入，行为同现状），不可误判。
+ *   正则因此偏向精确而非召回。
+ * ════════════════════════════════════════════════════════════════ */
+
+/** L1 本地判定的意图（仅覆盖「消歧收益最高」的三类，非全局意图枚举）。 */
+export type LocalIntent = 'chat' | 'content' | 'generate'
+
+/** 命中时注入给 LLM 的提示文案（作为独立 system 消息追加，不拦截任何能力）。 */
+export const INTENT_HINT: Record<LocalIntent, string> = {
+  chat: '纯聊天/无操作意图 —— 只做简洁文字回应，不调用任何画布工具',
+  content: '内容理解/产出文字（反推提示词、描述图片、提取图上文字、翻译润色、起标题等）—— 直接给出文字结果，不需要调用任何画布工具；图片内容已在你的输入里，直接看即可',
+  generate: '生成/改图 —— 按【修改与生成】流程执行',
+}
+
+/** 注入门槛：≥ 此值才注入提示，否则不注入（行为同现状）。 */
+export const LOCAL_INTENT_THRESHOLD = 0.8
+
+// ── 正则（按判定顺序；越靠前优先级越高）──
+/** 生成/改图动词：命中即判 generate（用户真要出图，绝不引导成「不用工具」）。 */
+const GENERATE_RE = /(生成|出图|生图|画一张|画个|画出来|重画|重生成|重新生成|做一张|跑一下|改成|变成|换成|批量)/i
+/** 内容理解/文字产出：反推提示词 / 描述图片 / 提取图上文字 / 翻译润色 / 起标题。 */
+const CONTENT_RE = /(反推|逆向|倒推|提取|描述|解读|讲讲|识别)|(这张图|这张图片|这张|图中|图上|这里).{0,10}(有什么|是什么|什么风格|什么内容|写的什么|啥)|什么(风格|内容|品牌|材质|构图)|(提示词|prompt|文案|卖点|标题|广告语).{0,8}(是什么|怎么写|帮我写|来一个|给我|怎么写)|帮我(写|想|起|取)(个)?(提示词|文案|标题|名字|卖点|名字)|(翻译|润色|改写|扩写|缩写)/i
+/** 纯聊天：整句为短问候/致谢才命中（锚定首尾，避免误伤长句）。 */
+const CHAT_RE = /^(你好|您好|您|hi|hello|嗨|哈喽|嗨喽|在吗|在么|测试|谢谢|感谢|好的|好嘞|嗯|哦|明白了|辛苦了|不错|厉害|牛|666)[\s。.!！?？~～,，]*/i
+
+/**
+ * 本地意图判定（纯函数）。
+ * @param {string} text 用户本轮输入
+ * @param {object} ctx 附加信号（hasAttachments：本轮是否带图片附件；当前不参与判定，预留）
+ * @returns {{ intent: LocalIntent | null, confidence: number, rule?: string }}
+ *   intent 为 null = 本地判不出，调用方不注入提示（行为同现状）。
+ */
+export function classifyLocalIntent(
+  text: string,
+  ctx: { hasAttachments?: boolean } = {},
+): { intent: LocalIntent | null; confidence: number; rule?: string } {
+  const t = String(text || '').trim()
+  if (!t) return { intent: null, confidence: 0 }
+
+  // 1) 生成动词优先——绝不把真实出图需求引导成「不用工具」
+  if (GENERATE_RE.test(t)) return { intent: 'generate', confidence: 0.8, rule: 'generate-verb' }
+  // 2) 内容理解/产出文字（本次故障中无处安放的那一档，docs/76 §0）
+  if (CONTENT_RE.test(t)) return { intent: 'content', confidence: 0.85, rule: 'content' }
+  // 3) 纯聊天（短问候）
+  if (CHAT_RE.test(t)) return { intent: 'chat', confidence: 0.9, rule: 'chat' }
+  // 4) 判不出 → 不注入（保留 hasAttachments 供后续扩展，当前不参与判定）
+  void ctx
+  return { intent: null, confidence: 0 }
+}
+
+/**
+ * 生成本轮意图预判提示（纯函数，供 useAgentChat 追加为 system 消息）。
+ * 未命中返回空串 —— 调用方据此跳过注入，行为与改动前完全一致。
+ */
+export function buildIntentHint(text: string): string {
+  const { intent, confidence } = classifyLocalIntent(text)
+  if (!intent || confidence < LOCAL_INTENT_THRESHOLD) return ''
+  return `【本轮意图预判（本地规则）】${INTENT_HINT[intent]}`
 }

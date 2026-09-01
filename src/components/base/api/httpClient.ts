@@ -140,6 +140,11 @@ export async function httpRequest<T = any>(url: string, {
     else signal.addEventListener('abort', onExternalAbort, { once: true })
   }
 
+  const start = Date.now()
+  const tag = label || url
+  // 排查用日志：走 debug（模块位 http），不触发 /api/logs 上报（避免每次请求多一次 fire-and-forget fetch）
+  logger.debug('http', '[请求] 发出', { method, url: tag, timeoutMs, retries }, { module: 'http' })
+
   try {
     for (let attempt = 0; attempt <= retries; attempt++) {
       // signal 已中止 → 立即抛，不 fetch
@@ -162,6 +167,7 @@ export async function httpRequest<T = any>(url: string, {
             const { message } = extractErrorDetail(data)
             throw new HttpError(res.status, message, data)
           }
+          logger.debug('http', '[请求] 成功', { method, url: tag, status: res.status, elapsedMs: Date.now() - start }, { module: 'http' })
           return data
         }
         if (!res.ok) {
@@ -170,6 +176,7 @@ export async function httpRequest<T = any>(url: string, {
           const { message } = extractErrorDetail(data)
           throw new HttpError(res.status, message, data)
         }
+        logger.debug('http', '[请求] 成功', { method, url: tag, status: res.status, elapsedMs: Date.now() - start }, { module: 'http' })
         return res
       } catch (e: unknown) {
         const err = e as { name?: string; message?: string } | undefined
@@ -184,6 +191,9 @@ export async function httpRequest<T = any>(url: string, {
         }
         // 归类：TypeError 通常是 fetch 网络失败（断网/拒绝连接）
         if (e instanceof TypeError) throw new NetworkError(err?.message || '网络错误', e)
+        // 传输层事实（状态码/错误类型/耗时）统一记录，便于定位「哪条请求断在哪」
+        const status = e instanceof HttpError ? e.status : undefined
+        logger.debug('http', '[请求] 失败', { method, url: tag, status, error: err?.name || 'Error', elapsedMs: Date.now() - start }, { module: 'http' })
         throw e
       }
     }

@@ -687,7 +687,7 @@ const listEdgesTool = {
 /** 读单个节点详情（get_node_details）—— 只读 */
 const getNodeDetailsTool = {
   name: 'get_node_details',
-  description: '读取指定节点完整 data（提示词/模型/尺寸/结果 URL 等）。',
+  description: '读取指定节点完整 data（提示词/模型/尺寸/结果 URL 等）。⚠️ 只返回结构化数据，不含图像/视频的画面内容：要分析图片（反推提示词、描述图片、识别图中文字等）请直接看用户消息里的图，不要调用本工具。',
   parameters: { type: 'object', properties: { nodeId: { type: 'string' } }, required: ['nodeId'] },
   execute(args, ctx) {
     const id = str(args.nodeId)
@@ -700,7 +700,7 @@ const getNodeDetailsTool = {
 /** 读整个画布结构（read_canvas）—— list_nodes + list_edges 合并，供 Agent 一次看清 */
 const readCanvasTool = {
   name: 'read_canvas',
-  description: '一次读取画布全貌（所有节点+连线，含各节点提示词、文本内容与生成结果）。要了解全局时优先用它。',
+  description: '一次读取画布全貌（所有节点+连线，含各节点提示词、文本内容与生成结果）。⚠️ 只返回结构化数据，不含图像/视频的画面内容；分析图片内容（反推提示词、描述图片、识别图中文字等）不要用本工具，直接看用户消息里的图。',
   parameters: { type: 'object', properties: {}, required: [] },
   execute(args, ctx) {
     const nodes = ctx.getNodes().map((n) => ({
@@ -1432,12 +1432,30 @@ export function buildCanvasAgentTools(ctx: CanvasAgentCtx): CanvasAgentTools {
   return map
 }
 
+/**
+ * 不暴露给 LLM 的工具名单（仅对模型隐藏，注册表 AGENT_TOOLS 仍保留，代码直调不受影响）。
+ * 这些工具要么由代码/UI 直接调用（fit_view 被 agentCore 自动布局后回正视图直调），
+ * 要么是防御性幽灵工具（zoom_in/out 仅为避免后端准则误调时报「未知工具」），
+ * 要么不是生成/编排意图、AI 主动调容易离题（lock_node 锁定、move_node 移动——
+ * 二者均为人工编辑动作，自动布局已处理位置，暴露给模型易致「该生成时跑去锁节点/挪位置」）。
+ * 隐藏后模型看不到其名称与描述，不会误调；后续要恢复只需从此名单移除。
+ */
+const LLM_HIDDEN_TOOLS: ReadonlySet<string> = new Set([
+  'fit_view',
+  'zoom_in',
+  'zoom_out',
+  'lock_node',
+  'move_node',
+])
+
 /** OpenAI function calling schema 数组（直接喂 LLM，让模型学会调这些工具） */
 export function buildCanvasAgentToolSchemas() {
-  return AGENT_TOOLS.map((t) => ({
-    type: 'function',
-    function: { name: t.name, description: t.description, parameters: t.parameters }
-  }))
+  return AGENT_TOOLS
+    .filter((t) => !LLM_HIDDEN_TOOLS.has(t.name))
+    .map((t) => ({
+      type: 'function',
+      function: { name: t.name, description: t.description, parameters: t.parameters }
+    }))
 }
 
 /**

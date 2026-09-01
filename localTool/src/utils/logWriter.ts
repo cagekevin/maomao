@@ -18,12 +18,37 @@
  * readLogLines 已读全部 .log，按天轮转天然兼容。
  */
 import fs from 'node:fs';
+import type { ServerResponse } from 'node:http';
 import path from 'node:path';
 import { getLogsDir } from '../paths.js';
 
 // localTool/logs（路径真源 paths.ts，与 task-inspect.mjs 的 LOGS_DIR 一致）
 const LOGS_DIR = getLogsDir();
 const BASE_NAME = 'localtool_18080';
+
+// ── 实时日志广播（SSE）：所有经 write() 的日志行同时推给已连接的前端日志面板 ──
+// 维护一个轻量 client 集合（每项为一个 SSE 响应的 ServerResponse）；
+// 断连由 routes/logs.ts 的 req 'close' 事件移除，避免内存泄漏。
+const _sseClients = new Set<ServerResponse>();
+
+/** 注册一个 SSE 客户端（routes/logs.ts 的 handleLogsStream 调用） */
+export function addLogClient(res: ServerResponse): void {
+  _sseClients.add(res);
+}
+
+/** 移除一个 SSE 客户端（连接关闭时调用） */
+export function removeLogClient(res: ServerResponse): void {
+  _sseClients.delete(res);
+}
+
+/** 把一行日志广播给所有已连接客户端（失败静默，绝不影响主链路写文件） */
+function broadcastLog(line: string): void {
+  if (_sseClients.size === 0) return;
+  for (const res of _sseClients) {
+    try { res.write(`data: ${line}\n\n`); } catch { /* 单客户端写入失败忽略，不影响其他 */ }
+  }
+}
+
 
 let _stream: fs.WriteStream | null = null;
 let _currentDate = '';
@@ -80,6 +105,8 @@ function write(level: string, args: unknown[]): void {
   ).join(' ');
   const line = `${ts} [${level}] ${msg}\n`;
   try { ensureStream().write(line); } catch { /* 日志写失败不阻断业务 */ }
+  // 实时广播给前端日志面板（SSE）；client 为空时 broadcastLog 内部直接返回，零开销
+  broadcastLog(line);
   // 同步到原始 console（前台/启动脚本可见）
   const orig = (console as unknown as Record<string, (...a: unknown[]) => void>)[`_orig_${level}`] || console[level as 'log'];
   try { orig.call(console, ...args); } catch { /* ignore */ }

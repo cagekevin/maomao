@@ -38,6 +38,15 @@ APIMart 兼容中转站（Relay） —— 后端对接 Lovart
     export LOVART_ACCESS_KEY=ak_xxx
     export LOVART_SECRET_KEY=sk_xxx
     uvicorn main:app --host 0.0.0.0 --port 9004
+
+日志（docs/统一日志总线）：
+    本网关不自行轮转日志，而是「双写」：
+      1) 本地兜底：stdout 由启动脚本重定向到 apimart_9004.log（单文件，供独立排查）。
+      2) 统一总线：每行日志经后台线程 fire-and-forget POST 到
+         {LOCALTOOL_URL}/api/logs（source="apimart"，见 _log / _report_to_localtool），
+         由 localTool(18080) 的 logWriter 按天轮转落盘 localtool_18080_*.log，
+         并实时广播给前端「实时日志」面板（SSE）。LOCALTOOL_URL 从 .env 读，不硬编码。
+    前端打开「实时日志」抽屉即可看全链路：前端 + 18080 + 9004，按 [source] 前缀区分。
 """
 
 import asyncio
@@ -45,7 +54,9 @@ import base64
 import json
 import os
 import re
+import threading
 import time
+import urllib.request
 import uuid
 from urllib.parse import urlparse
 from typing import Any, Dict, Optional, Tuple, List
@@ -83,7 +94,55 @@ def _log(msg: str, level: str = "info") -> None:
     # flush=True 确保 launch-all 重定向到 .log 时不丢尾。
     if level == "debug" and Config.GATEWAY_LOG_LEVEL != "debug":
         return
-    print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [{level}] {msg}", flush=True)
+    ts = time.strftime('%Y-%m-%d %H:%M:%S')
+    # 本地兜底：始终 print 到 stdout（启动脚本可重定向到 apimart_9004.log 作双写兜底），
+    # 本地格式自带 [ts] [level] 前缀，便于单文件 grep。
+    print(f"[{ts}] [{level}] {msg}", flush=True)
+    # 统一日志总线：fire-and-forget 上报 localTool /api/logs（source=apimart）。
+    # 上报的是「原始 msg」（不含本地已加的 [ts][level]），level 单独传，
+    # 由 18080 统一拼 [source][level] 前缀，避免双重前缀、且级别高亮才生效。
+    # 后台线程发送，绝阻塞 uvicorn 事件循环；地址从 .env 的 LOCALTOOL_URL 读（默认 18080），不硬编码。
+    _report_to_localtool(msg, level)
+
+
+def _report_to_localtool(msg: str, level: str) -> None:
+    """把一行网关日志 fire-and-forget 上报到 localTool 统一日志总线（/api/logs）。
+
+    设计要点：
+      - 只传原始 msg + level，[source][level] 前缀由 18080 统一拼，避免双层前缀。
+      - 用后台守护线程发送，主事件循环零阻塞（_log 在请求路径被高频调用，绝不可同步 HTTP）。
+      - 仅用标准库 urllib（零新依赖，Windows/Linux/macOS 通用）。
+      - 失败静默：localTool 未启动/网络异常不影响网关主链路。
+      - source 固定 "apimart"，18080 据此打 [apimart] 前缀并归类到后端日志。
+    """
+    url = os.getenv("LOCALTOOL_URL", "http://127.0.0.1:18080").rstrip("/") + "/api/logs"
+    payload = json.dumps({
+        "timestamp": time.strftime('%Y-%m-%dT%H:%M:%S'),
+        "level": level,
+        "source": "apimart",
+        "category": "gateway",
+        "action": "log",
+        "detail": msg,
+    }).encode("utf-8")
+    try:
+        t = threading.Thread(
+            target=_post_log_worker, args=(url, payload), daemon=True,
+        )
+        t.start()
+    except Exception:
+        pass  # 线程起不来也绝不抛，保主链路
+
+
+def _post_log_worker(url: str, payload: bytes) -> None:
+    try:
+        req = urllib.request.Request(
+            url, data=payload, headers={"Content-Type": "application/json"}, method="POST",
+        )
+        # 短超时：localTool 是本机服务，慢了就不等（日志可丢，不可阻塞）
+        with urllib.request.urlopen(req, timeout=1.0) as resp:
+            _ = resp.read(1)  # 触发请求即可，不关心响应体
+    except Exception:
+        pass  # fire-and-forget：上报失败静默忽略
 
 
 # ============================================================================
@@ -647,14 +706,14 @@ class TaskService:
                     except Exception as e:
                         last_upload_err = str(e)
                         failed_count += 1
-                        _log(f"[resolve:error] 第{i}个本机回环URL下载/上传失败，已丢弃: {u[:160]} -> {e}")
+                        _log(f"[resolve:error] 第{i}个本机回环URL下载/上传失败，已丢弃: {u[:160]} -> {e}", level="error")
                         continue
                     if cdn:
                         out.append(cdn)
                     else:
                         last_upload_err = "本机图上传CDN返回空"
                         failed_count += 1
-                        _log(f"[resolve:warn] 第{i}个本机回环URL上传CDN返回空，已丢弃: {u[:160]}")
+                        _log(f"[resolve:warn] 第{i}个本机回环URL上传CDN返回空，已丢弃: {u[:160]}", level="warn")
                     continue
                 # 1b) 其余外网 URL：直接透传（正常，不打日志）
                 out.append(u)
@@ -670,7 +729,7 @@ class TaskService:
                     # 异常：解码或上传抛异常
                     last_upload_err = str(e)
                     failed_count += 1
-                    _log(f"[resolve:error] 第{i}个 data:base64 处理失败: {e}，前80字符={u[:80]!r}")
+                    _log(f"[resolve:error] 第{i}个 data:base64 处理失败: {e}，前80字符={u[:80]!r}", level="error")
                     continue
                 if cdn:
                     out.append(cdn)  # 正常，不打日志
@@ -678,7 +737,7 @@ class TaskService:
                     # 异常：上传 CDN 返回空
                     last_upload_err = "上传 CDN 返回空"
                     failed_count += 1
-                    _log(f"[resolve:warn] 第{i}个 data:base64 上传CDN返回空，已丢弃")
+                    _log(f"[resolve:warn] 第{i}个 data:base64 上传CDN返回空，已丢弃", level="warn")
                 continue
             # 3) 无前缀裸 base64：识别魔数后解码上传 CDN
             if looks_like_base64_media(u):
@@ -690,7 +749,7 @@ class TaskService:
                     # 异常：解码或上传抛异常
                     last_upload_err = str(e)
                     failed_count += 1
-                    _log(f"[resolve:error] 第{i}个裸base64 解码/上传失败: {e}，前80字符={u[:80]!r}")
+                    _log(f"[resolve:error] 第{i}个裸base64 解码/上传失败: {e}，前80字符={u[:80]!r}", level="error")
                     continue
                 if cdn:
                     out.append(cdn)  # 正常，不打日志
@@ -698,7 +757,7 @@ class TaskService:
                     # 异常：上传 CDN 返回空
                     last_upload_err = "上传 CDN 返回空"
                     failed_count += 1
-                    _log(f"[resolve:warn] 第{i}个裸base64 上传CDN返回空，已丢弃")
+                    _log(f"[resolve:warn] 第{i}个裸base64 上传CDN返回空，已丢弃", level="warn")
                 continue
             # 4) 其他（blob: / 本地路径 / 未知）：网关拿不到内容，直接丢弃，
             #    避免把无效 URL 原样透传给 Lovart 造成图生图一直 running
@@ -786,7 +845,7 @@ class TaskService:
                     await client.confirm(thread_id)
                     _log(f"[poll:confirm] traceId={meta.get('tid','-')} thread={thread_id} AUTO_CONFIRM triggered")
                 except LovartError:
-                    _log(f"[poll:confirm] traceId={meta.get('tid','-')} thread={thread_id} AUTO_CONFIRM FAILED")
+                    _log(f"[poll:confirm] traceId={meta.get('tid','-')} thread={thread_id} AUTO_CONFIRM FAILED", level="error")
                     pass
             return False, ok(DataFormatter.task_view(task_id, "processing", 50, created))
 
@@ -814,7 +873,7 @@ class TaskService:
                     await client.confirm(thread_id)
                     _log(f"[poll:confirm2] traceId={meta.get('tid','-')} thread={thread_id} AUTO_CONFIRM triggered (via get_result)")
                 except LovartError:
-                    _log(f"[poll:confirm2] traceId={meta.get('tid','-')} thread={thread_id} AUTO_CONFIRM FAILED (via get_result)")
+                    _log(f"[poll:confirm2] traceId={meta.get('tid','-')} thread={thread_id} AUTO_CONFIRM FAILED (via get_result)", level="error")
                     pass
                 return False, ok(DataFormatter.task_view(task_id, "processing", 60, created))
             return False, ok(DataFormatter.task_view(task_id, "processing", 60, created,

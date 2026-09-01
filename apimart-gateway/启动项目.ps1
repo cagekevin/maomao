@@ -105,6 +105,13 @@ $LOG_ERR = Join-Path $ScriptDir "apimart_$PORT.err.log"
 Write-Host "  🚀 启动 Lovart 网关: http://$HostIP`:$PORT/" -ForegroundColor Green
 Write-Host "      日志： $LOG" -ForegroundColor Cyan
 Write-Host "      错误日志： $LOG_ERR" -ForegroundColor Cyan
+# ── 日志双写（docs/统一日志总线）──
+# 1) 本地兜底：stdout/stderr 重定向到 apimart_9004.log / .err.log（单文件，供独立排查）。
+# 2) 统一总线：main.py 的 _log 会后台线程 fire-and-forget POST 到 {LOCALTOOL_URL}/api/logs
+#    （source=apimart），由 localTool(18080) 轮转落盘 + 实时广播前端「实时日志」面板。
+#    故此处【保留】-RedirectStandardOutput/Error 作本地兜底，不与 18080 冲突（18080 接管的是
+#    自身 console，不接管 9004 的 stdout）；两处独立写各自文件，双写无重复。
+#    LOCALTOOL_URL 在 .env 配置（默认 http://127.0.0.1:18080），勿硬编码端口。
 Start-Process -FilePath $launcher -ArgumentList $procArgs -RedirectStandardOutput $LOG -RedirectStandardError $LOG_ERR -NoNewWindow
 Start-Sleep -Seconds 3
 
