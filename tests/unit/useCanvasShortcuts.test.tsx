@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import React from 'react'
 import { render, act } from '@testing-library/react'
@@ -27,14 +26,14 @@ function fireKeyDown(init) {
 }
 
 // 可控的 window.getSelection
-function setSelectionText(text) {
-  window.getSelection = vi.fn(() => ({
+function setSelectionText(text: string) {
+  ;(window as any).getSelection = vi.fn(() => ({
     toString: () => text,
   }))
 }
 
 beforeEach(() => {
-  window.getSelection = vi.fn(() => ({ toString: () => '' }))
+  ;(window as any).getSelection = vi.fn(() => ({ toString: () => '' }))
   localStorage.clear()
 })
 

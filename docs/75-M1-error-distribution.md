@@ -1,17 +1,17 @@
 # 75 · M1 错误全貌（只读扫描，零工作区污染）
 
-- 生成时间：2026-09-01T08:43:59.956Z
+- 生成时间：2026-09-01T08:54:28.968Z
 - 方法：复制 tests/unit → gitignored tmp/unit，副本剥离 @ts-nocheck，临时 tsconfig 跑 tsc
-- 总计错误：**227**（tests/unit 227 / src 0）
-- 涉及文件：tests 59 个 / src 0 个
+- 总计错误：**215**（tests/unit 215 / src 0）
+- 涉及文件：tests 58 个 / src 0 个
 
 ## 错误码分布
 
 | 错误码 | 数量 |
 |---|---|
-| TS2339 | 105 |
-| TS2345 | 37 |
-| TS2322 | 23 |
+| TS2339 | 83 |
+| TS2345 | 49 |
+| TS2322 | 21 |
 | TS2353 | 14 |
 | TS2556 | 14 |
 | TS2741 | 13 |
@@ -32,20 +32,19 @@
 | `tests/unit/FaceMosaicNode.test.tsx` | 9 | TS2345×5, TS2556×3, TS2339×1 |
 | `tests/unit/agentRuntime.test.ts` | 8 | TS2353×3, TS2740×3, TS2339×1, TS2345×1 |
 | `tests/unit/channelContract.test.ts` | 8 | TS2339×5, TS2345×3 |
-| `tests/unit/config.test.ts` | 8 | TS2339×7, TS2322×1 |
-| `tests/unit/contextCompression.test.ts` | 8 | TS2339×8 |
 | `tests/unit/faceMosaic.test.ts` | 8 | TS2345×5, TS2339×3 |
-| `tests/unit/mediaTools.test.ts` | 8 | TS2339×7, TS2322×1 |
 | `tests/unit/taskStore.test.ts` | 8 | TS2339×8 |
 | `tests/unit/useAssetCardDragProps.test.ts` | 8 | TS2339×6, TS2353×2 |
 | `tests/unit/canvasPlanExecutor.deps.test.ts` | 7 | TS2741×6, TS2353×1 |
 | `tests/unit/clipboard.test.ts` | 7 | TS2339×5, TS2322×1, TS2741×1 |
+| `tests/unit/mediaTools.test.ts` | 7 | TS2345×7 |
 | `tests/unit/mediaType.test.ts` | 7 | TS2345×6, TS2554×1 |
 | `tests/unit/NodeTitle.test.tsx` | 7 | TS2339×7 |
 | `tests/unit/ScriptBoxNode.test.tsx` | 7 | TS2322×4, TS2339×1, TS2556×1, TS2698×1 |
 | `tests/unit/scriptBoxPrompts.test.ts` | 7 | TS2741×3, TS2345×2, TS2322×1, TS2339×1 |
 | `tests/unit/historyStack.test.ts` | 6 | TS2339×6 |
 | `tests/unit/workflowState.test.ts` | 6 | TS2339×6 |
+| `tests/unit/contextCompression.test.ts` | 5 | TS2345×5 |
 | `tests/unit/promptManager.test.ts` | 5 | TS2345×5 |
 | `tests/unit/useCanvasHistory.test.ts` | 5 | TS2345×4, TS2322×1 |
 | `tests/unit/addNodeConcurrency.test.tsx` | 4 | TS2339×2, TS2322×1, TS2345×1 |

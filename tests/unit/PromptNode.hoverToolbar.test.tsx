@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * PromptNode hover 工具栏回归测试（State 2 契约细化）。
  * 核心验证：生图节点的「裁剪」按钮此前是死按钮（无 onClick），
@@ -52,7 +51,7 @@ vi.mock('../../src/components/base/api/localToolApi.ts', () => ({ fetchTasks: vi
 vi.mock('../../src/components/base/api/imageApi.ts', () => ({ generateImage: vi.fn(async () => ({ url: 'http://gen.local/img.png' })) }))
 vi.mock('../../src/components/base/providerModels.ts', () => ({ buildAllModels: vi.fn(() => []), resolveProviderModel: vi.fn(() => ({ provider: {}, modelId: 'm' })) }))
 vi.mock('../../src/components/base/clipboard.ts', async (importOriginal) => {
-  const actual = await importOriginal()
+  const actual = await importOriginal() as Record<string, unknown>
   return { ...actual, downloadUrl: vi.fn() }
 })
 
@@ -82,7 +81,7 @@ beforeEach(() => {
   genConfig = null
   lastEditorUrl = null
   inlineCropperOpen = false
-  if (!global.IntersectionObserver) global.IntersectionObserver = class { observe() {} unobserve() {} disconnect() {} }
+  if (!(global as any).IntersectionObserver) (global as any).IntersectionObserver = class { observe() {} unobserve() {} disconnect() {} }
 })
 
 describe('PromptNode hover 工具栏 — 共享图片能力', () => {

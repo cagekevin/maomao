@@ -1,5 +1,4 @@
 // @vitest-environment node
-// @ts-nocheck
 /**
  * projectMemoryStore（「记」项目级长期记忆）单测。
  * 映射阶段3·定数据流的存储契约：按 agentKey 全局共用（不分项目），60 条上限淘汰最旧，
@@ -63,7 +62,7 @@ describe('saveProjectMemory / loadProjectMemories —— 保存与读取（T2）
   })
 
   it('kind 非法时回退 fact，content 超长截断', async () => {
-    const saved = await saveProjectMemory('gw', { kind: 'badKind', content: 'c'.repeat(600) })
+    const saved = await saveProjectMemory('gw', { kind: 'badKind' as any, content: 'c'.repeat(600) })
     expect(saved.kind).toBe('fact')
     expect(saved.content.length).toBeLessThanOrEqual(500)
   })

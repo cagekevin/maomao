@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * PromptNode（图片生成节点）交互测试。
  * 覆盖：比例/画质/渲染质量菜单、批量数量菜单、模型选择、刷新恢复、生成成功回填、异步恢复。
@@ -94,9 +93,9 @@ vi.mock('../../src/components/base/api/filesApi.ts', () => ({ toAbsoluteFileUrl:
 
 const mockFetchTasks = vi.fn(async () => ({ data: { items: [] } }))
 vi.mock('../../src/components/base/settings/providerStore.ts', () => ({ useProviders: () => ({ providers: [] }), load: vi.fn(() => Promise.resolve()) }))
-vi.mock('../../src/components/base/api/localToolApi.ts', () => ({ fetchTasks: (...a) => mockFetchTasks(...a) }))
+vi.mock('../../src/components/base/api/localToolApi.ts', () => ({ fetchTasks: (...a: any[]) => (mockFetchTasks as any)(...a) }))
 const mockGenerateImage = vi.fn(async () => ({ url: 'http://gen.local/img.png' }))
-vi.mock('../../src/components/base/api/imageApi.ts', () => ({ generateImage: (...a) => mockGenerateImage(...a) }))
+vi.mock('../../src/components/base/api/imageApi.ts', () => ({ generateImage: (...a: any[]) => (mockGenerateImage as any)(...a) }))
 vi.mock('../../src/components/base/providerModels.ts', () => ({ buildAllModels: vi.fn(() => []), resolveProviderModel: vi.fn(() => ({ provider: {}, modelId: 'm' })) }))
 
 // jsdom 可能缺少 IntersectionObserver / requestAnimationFrame
@@ -110,8 +109,8 @@ beforeEach(() => {
   mockFetchTasks.mockReset()
   mockFetchTasks.mockResolvedValue({ data: { items: [] } })
   genConfig = null
-  if (!global.IntersectionObserver) {
-    global.IntersectionObserver = class { observe() {} unobserve() {} disconnect() {} }
+  if (!(global as any).IntersectionObserver) {
+    ;(global as any).IntersectionObserver = class { observe() {} unobserve() {} disconnect() {} }
   }
 })
 

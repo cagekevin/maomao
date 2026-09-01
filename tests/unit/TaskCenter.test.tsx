@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * TaskCenter 深度测试。
  *
@@ -56,16 +55,16 @@ vi.mock('../../src/components/base/taskStore.ts', () => ({
     if (status === 'running') return progress > 0 ? `${Math.round(progress)}%` : '生成中'
     return status
   },
-  typeLabel: (type) => ({ text: '文本', image: '生图', video: '视频', sd2Video: 'SD2视频', discountVideo: '特惠视频', custom: '万能', rhWebapp: 'AI应用' }[type] || type),
-  removeTask: (...a) => h.removeTask(...a),
-  retryTask: (...a) => h.retryTask(...a),
-  clearTasksBy: (...a) => h.clearTasksBy(...a),
-  clearAllTasks: (...a) => h.clearAllTasks(...a),
+  typeLabel: (type: any) => ({ text: '文本', image: '生图', video: '视频', sd2Video: 'SD2视频', discountVideo: '特惠视频', custom: '万能', rhWebapp: 'AI应用' }[type] || type),
+  removeTask: (...a: any[]) => h.removeTask(...a),
+  retryTask: (...a: any[]) => (h.retryTask as any)(...a),
+  clearTasksBy: (...a: any[]) => h.clearTasksBy(...a),
+  clearAllTasks: (...a: any[]) => h.clearAllTasks(...a),
 }))
-vi.mock('../../src/components/base/logger.ts', () => ({ logger: { warn: (...a) => h.loggerWarn(...a) } }))
-vi.mock('../../src/components/base/clipboard.ts', () => ({ downloadUrl: (...a) => h.downloadUrl(...a) }))
-vi.mock('../../src/components/base/api/pollTask.ts', () => ({ pollOneTask: (...a) => h.pollOneTask(...a) }))
-vi.mock('../../src/components/base/toastStore.ts', () => ({ showToast: (...a) => h.showToast(...a) }))
+vi.mock('../../src/components/base/logger.ts', () => ({ logger: { warn: (...a: any[]) => h.loggerWarn(...a) } }))
+vi.mock('../../src/components/base/clipboard.ts', () => ({ downloadUrl: (...a: any[]) => (h.downloadUrl as any)(...a) }))
+vi.mock('../../src/components/base/api/pollTask.ts', () => ({ pollOneTask: (...a: any[]) => h.pollOneTask(...a) }))
+vi.mock('../../src/components/base/toastStore.ts', () => ({ showToast: (...a: any[]) => h.showToast(...a) }))
 vi.mock('../../src/hooks/useAssetDragToCanvas.ts', () => ({ makeAssetDragProps: () => ({ draggable: true }) }))
 vi.mock('../../src/components/base/hooks.ts', () => ({ useOutsideClick: () => {} }))
 vi.mock('../../src/components/base/imageUrl.ts', () => ({

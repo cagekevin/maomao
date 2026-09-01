@@ -1,5 +1,4 @@
 // @vitest-environment jsdom
-// @ts-nocheck
 /**
  * useFitNodeRatio 单测（批 3）。
  * 覆盖 useFitNodeRatio(id).fitByRatio(naturalW, naturalH)：
@@ -60,11 +59,11 @@ describe('useFitNodeRatio', () => {
   it('fitFromImage / fitFromVideo 透传到 fitByRatio（读取节点尺寸）', () => {
     const { result } = renderHook(() => useFitNodeRatio('n1'))
     getNode.mockClear()
-    result.current.fitFromImage({ currentTarget: { naturalWidth: 800, naturalHeight: 400 } })
+    result.current.fitFromImage({ currentTarget: { naturalWidth: 800, naturalHeight: 400 } } as unknown as React.SyntheticEvent<HTMLImageElement>)
     // handler 透传 media 尺寸 → fitByRatio 读取当前节点尺寸
     expect(getNode).toHaveBeenCalled()
     getNode.mockClear()
-    result.current.fitFromVideo({ currentTarget: { videoWidth: 1600, videoHeight: 400 } })
+    result.current.fitFromVideo({ currentTarget: { videoWidth: 1600, videoHeight: 400 } } as unknown as React.SyntheticEvent<HTMLVideoElement>)
     expect(getNode).toHaveBeenCalled()
   })
 })

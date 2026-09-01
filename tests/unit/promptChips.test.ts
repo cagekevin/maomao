@@ -1,5 +1,4 @@
 // @vitest-environment jsdom
-// @ts-nocheck
 import { describe, it, expect } from 'vitest'
 import {
   PROMPT_CHIP_RE,
@@ -48,9 +47,9 @@ describe('promptChips 序列化往返', () => {
     const root = renderToDom(serialized, null)
     const chip = root.querySelector('[data-ref-id="img-1"]')
     expect(chip).not.toBeNull()
-    const img = chip.querySelector('.prompt-chip-thumb')
+    const img = chip.querySelector('.prompt-chip-thumb') as HTMLImageElement | null
     expect(img).not.toBeNull()
-    expect(img.src).toBe('http://x/a.png')
+    expect(img!.src).toBe('http://x/a.png')
     expect(serializeDOM(root)).toBe(serialized) // 二次序列化稳定
   })
 
@@ -103,9 +102,9 @@ describe('buildChipEl', () => {
   it('图片素材且带缩略图 → span 内含 img 缩略图', () => {
     const chip = buildChipEl('img-1', '人物', 'image', 'http://x/p.png')
     expect(chip.className).toContain('prompt-chip')
-    const img = chip.querySelector('.prompt-chip-thumb')
+    const img = chip.querySelector('.prompt-chip-thumb') as HTMLImageElement | null
     expect(img).not.toBeNull()
-    expect(img.src).toBe('http://x/p.png')
+    expect(img!.src).toBe('http://x/p.png')
     expect(chip.getAttribute('data-ref-id')).toBe('img-1')
     expect(chip.contentEditable).toBe('false')
   })

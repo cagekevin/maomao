@@ -1,5 +1,4 @@
 // @vitest-environment jsdom
-// @ts-nocheck
 /**
  * useContextMenu 单测（批 3）。
  * 覆盖 useContextMenu() hook 的状态/回调行为：
@@ -13,8 +12,8 @@ import { renderHook, act } from '@testing-library/react'
 
 const { useContextMenu } = await import('../../src/hooks/useContextMenu.ts')
 
-function makeEvent({ target, clientX = 5, clientY = 6 } = {}) {
-  const e = {
+function makeEvent({ target, clientX = 5, clientY = 6 }: { target?: EventTarget | null; clientX?: number; clientY?: number } = {}) {
+  const e: any = {
     clientX,
     clientY,
     preventDefault: vi.fn(),

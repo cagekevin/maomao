@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * CustomEdge 深度测试。
  *
@@ -38,15 +37,17 @@ vi.mock('../../src/components/edges/Comet.tsx', () => ({
 
 import CustomEdge from '../../src/components/edges/CustomEdge.tsx'
 
-const BASE_PROPS = {
+const BASE_PROPS: any = {
   id: 'e1',
+  source: 's1',
+  target: 't1',
   sourceX: 0, sourceY: 0, targetX: 100, targetY: 100,
   markerEnd: 'url(#arrow)',
   selected: false,
   data: {},
 }
 
-function setup(overrides = {}) {
+function setup(overrides: any = {}) {
   return render(<CustomEdge {...BASE_PROPS} {...overrides} />)
 }
 

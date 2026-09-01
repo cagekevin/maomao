@@ -1,5 +1,4 @@
 // @vitest-environment jsdom
-// @ts-nocheck
 /**
  * useVideoPoster 单测（批 3）。
  * 覆盖 useVideoPoster(url, enabled)：
@@ -23,8 +22,8 @@ beforeEach(() => {
   HTMLMediaElement.prototype.play = function () { return Promise.resolve() }
   // 全局 canvas mock
   HTMLCanvasElement.prototype.getContext = function () {
-    return { fillStyle: '', fillRect() {}, drawImage() {} }
-  }
+    return { fillStyle: '', fillRect() {}, drawImage() {} } as unknown as ReturnType<typeof HTMLCanvasElement.prototype.getContext>
+  } as typeof HTMLCanvasElement.prototype.getContext
   HTMLCanvasElement.prototype.toDataURL = function (type) {
     return `data:${type || 'image/jpeg'};base64,${btoa('posterframe')}`
   }
