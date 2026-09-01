@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { toAbsoluteFileUrl, toRelativeFileUrl, buildThumbnailUrl, resolveImageUrl, normalizeImageUrl, normalizeImageUrlForSend, normalizeImageUrlsForSend, toImageContentBlocks, fileToDataUrl, classifyImageType, summarizeImages } from '../../src/components/base/imageUrl.ts'
 
@@ -21,13 +20,18 @@ import { logger } from '../../src/components/base/logger.ts'
 import { compressImage } from '../../src/components/base/imageCompress.ts'
 
 // node 环境无 FileReader：stub 一个，readAsDataURL 直接产出预设 dataURL（配合 httpRequest mock 返回 {_dataUrl}）。
+// 显式声明 result/onload 字段（否则 this.xxx 报 TS2339）；stub 缺 EMPTY/LOADING/DONE 等
+// 静态成员，赋值时统一 as unknown as 收尾（踩坑记录 #11）。
 function stubFileReader() {
-  globalThis.FileReader = class {
-    readAsDataURL(blob) {
-      this.result = (blob && blob._dataUrl) || 'data:image/png;base64,stubdata'
+  class StubFileReader {
+    result: string | ArrayBuffer | null = null
+    onload: (() => void) | null = null
+    readAsDataURL(blob?: Blob) {
+      this.result = (blob && (blob as unknown as { _dataUrl?: string })._dataUrl) || 'data:image/png;base64,stubdata'
       this.onload?.()
     }
   }
+  globalThis.FileReader = StubFileReader as unknown as typeof FileReader
 }
 
 // API_BASE 在 config.ts 硬编码为 http://127.0.0.1:18080
@@ -90,8 +94,9 @@ describe('imageUrl · normalizeImageUrlForSend（发送端归一化）', () => {
   })
 
   it('blob: 本地图压缩失败 → 回退 blob 转 data base64（失败可见，不阻断发送）', async () => {
-    compressImage.mockRejectedValueOnce(new Error('canvas tainted'))
-    httpRequest.mockResolvedValueOnce({ blob: async () => ({ _dataUrl: 'data:image/png;base64,stubdata' }) })
+    // vi.mock'd 模块导入的函数：直接用 mock 方法会 TS2339，须包 vi.mocked（踩坑记录 #10）
+    vi.mocked(compressImage).mockRejectedValueOnce(new Error('canvas tainted'))
+    vi.mocked(httpRequest).mockResolvedValueOnce({ blob: async () => ({ _dataUrl: 'data:image/png;base64,stubdata' }) })
     const out = await normalizeImageUrlForSend('blob:http://x/abc')
     expect(out).toBe('data:image/png;base64,stubdata')
   })
@@ -104,7 +109,7 @@ describe('imageUrl · normalizeImageUrlForSend（发送端归一化）', () => {
   })
 
   it('preferBase64=true：公网图保持原尺寸转 base64（不压缩）', async () => {
-    httpRequest.mockResolvedValueOnce({ blob: async () => ({ _dataUrl: 'data:image/jpeg;base64,publicdata' }) })
+    vi.mocked(httpRequest).mockResolvedValueOnce({ blob: async () => ({ _dataUrl: 'data:image/jpeg;base64,publicdata' }) })
     const out = await normalizeImageUrlForSend('http://x/a.png', { preferBase64: true })
     expect(out).toBe('data:image/jpeg;base64,publicdata')
     expect(compressImage).not.toHaveBeenCalled()
@@ -217,7 +222,7 @@ describe('imageUrl · toImageContentBlocks', () => {
   })
 
   it('空/undefined → 空数组', () => {
-    expect(toImageContentBlocks()).toEqual([])
+    expect(toImageContentBlocks(undefined)).toEqual([])
     expect(toImageContentBlocks(null)).toEqual([])
   })
 })
@@ -227,11 +232,12 @@ describe('imageUrl · fileToDataUrl（本地文件→dataURL 收口）', () => {
   beforeEach(() => stubFileReader())
 
   it('File → data: base64（FileReader 收口，供发送附件，result 透传）', async () => {
-    await expect(fileToDataUrl({ _dataUrl: 'data:image/png;base64,fileimg' })).resolves.toBe('data:image/png;base64,fileimg')
+    // 参数是 Blob；测试用带 _dataUrl 的替身（stub FileReader 读它），故 as unknown as 收尾
+    await expect(fileToDataUrl({ _dataUrl: 'data:image/png;base64,fileimg' } as unknown as Blob)).resolves.toBe('data:image/png;base64,fileimg')
   })
 
   it('无自定义 result → 使用 FileReader 默认读取结果', async () => {
-    await expect(fileToDataUrl({})).resolves.toBe('data:image/png;base64,stubdata')
+    await expect(fileToDataUrl({} as unknown as Blob)).resolves.toBe('data:image/png;base64,stubdata')
   })
 })
 
@@ -258,13 +264,13 @@ describe('imageUrl · classifyImageType / summarizeImages（发送图片可观�
   })
 
   it('normalizeImageUrlsForSend 带图发送 → 记一条图片形态 info 日志（可观测）', async () => {
-    logger.info.mockClear()
+    vi.mocked(logger.info).mockClear()
     await normalizeImageUrlsForSend(['http://a.png', 'data:image/png;base64,xxx'])
     expect(logger.info).toHaveBeenCalledWith('imageUrl', '发送图片', { count: 2, urls: 1, base64s: 1, total: 2 })
   })
 
   it('normalizeImageUrlsForSend 无图 → 不记发送日志', async () => {
-    logger.info.mockClear()
+    vi.mocked(logger.info).mockClear()
     await normalizeImageUrlsForSend([], { preferBase64: true })
     expect(logger.info).not.toHaveBeenCalled()
   })

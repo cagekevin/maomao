@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * DiscountVideoNode 补充深度测试（非 upstream 部分）。
  *
@@ -33,10 +32,12 @@ const h = vi.hoisted(() => {
   return { state, setNodesMock, setEdgesMock, downloadUrl, vidPrefsSet, loggerInfo }
 })
 
+// 直接引用 h 的 mock 函数，不写 (...a) => h.x(...a)：后者因参数被推断成空元组 []
+// 会报 TS2556（与 AgentPanel.test.tsx 同根因）。h 属性不会被重新赋值，延迟绑定语义不变。
 vi.mock('@xyflow/react', () => ({
   useReactFlow: () => ({
-    setNodes: (...a) => h.setNodesMock(...a),
-    setEdges: (...a) => h.setEdgesMock(...a),
+    setNodes: h.setNodesMock,
+    setEdges: h.setEdgesMock,
     getNodes: () => h.state.nodes,
     getEdges: () => h.state.edges,
   }),
@@ -71,12 +72,25 @@ vi.mock('../../src/components/base/ModelSelect.tsx', () => ({ default: () => nul
 // 富文本芯片本身的序列化/交互由 promptChips.test.js 与 PromptInput 自己的测试覆盖。
 vi.mock('../../src/components/base/PromptInput.tsx', async (importOriginal) => {
   const ReactMock = (await import('react')).default
+  // 桩组件的 props 形状（只声明被测用到的字段）。不声明的话 forwardRef 把 props 推断成 {}，
+  // 解构 value/onChange/onReady 等会报 TS2339。
+  interface MockPromptInputProps {
+    value?: string
+    onChange?: (v: string) => void
+    onInsert?: unknown
+    onReady?: (insert: (asset: unknown) => void) => void
+    placeholder?: string
+  }
+  // importOriginal 返回 unknown，直接 spread 报 TS2698
   return {
-    ...(await importOriginal()),
-    default: ReactMock.forwardRef(function MockPromptInput({ value, onChange, onInsert, onReady, placeholder }, ref) {
+    ...((await importOriginal()) as Record<string, unknown>),
+    // 显式给 forwardRef 加泛型：否则 ref 是 ForwardedRef<unknown>，
+    // 赋给 textarea 的 Ref<HTMLTextAreaElement> 报 TS2322
+    default: ReactMock.forwardRef<HTMLTextAreaElement, MockPromptInputProps>(function MockPromptInput({ value, onChange, onInsert, onReady, placeholder }, ref) {
       ReactMock.useEffect(() => {
         onReady?.((asset) => {
-          const label = typeof asset === 'string' ? asset : (asset && asset.label) || ''
+          // asset 形参为 unknown，访问 label 前窄化（对象型才读 label）
+          const label = typeof asset === 'string' ? asset : (asset && (asset as { label?: string }).label) || ''
           onChange(value ? `${value} @${label} ` : `@${label} `)
         })
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -109,8 +123,9 @@ vi.mock('../../src/components/base/settings/providerStore.ts', () => ({ useProvi
 vi.mock('../../src/components/base/providerModels.ts', () => ({ buildAllModels: () => [], resolveProviderModel: () => ({ provider: {}, modelId: 'm' }) }))
 vi.mock('../../src/components/base/logger.ts', () => ({ logger: { info: (...a) => h.loggerInfo(...a), warn: () => {} } }))
 vi.mock('../../src/components/base/clipboard.ts', async (importOriginal) => {
-  const actual = await importOriginal()
-  return { ...actual, downloadUrl: (...a) => h.downloadUrl(...a) }
+  // importOriginal 返回 unknown，直接 spread 报 TS2698
+  const actual = (await importOriginal()) as Record<string, unknown>
+  return { ...actual, downloadUrl: h.downloadUrl }
 })
 vi.mock('../../src/components/base/api/videoApi.ts', () => ({ generateVideo: vi.fn(async () => ({ url: 'http://gen.local/v.mp4' })) }))
 
@@ -236,7 +251,7 @@ describe('DiscountVideoNode — 比例/分辨率/时长菜单', () => {
 describe('DiscountVideoNode — 提示词与素材', () => {
   it('输入提示词写回 node.data.prompt（落盘）', () => {
     setup()
-    const ta = screen.getByPlaceholderText('描述你想要的视频内容 (输入 @ 调出素材)...')
+    const ta = screen.getByPlaceholderText('描述你想要的视频内容 (输入 @ 调出素材)...') as HTMLTextAreaElement
     fireEvent.change(ta, { target: { value: '日落航拍' } })
     // P2：prompt 持续输入经 debouncedPatch（200ms）防抖写回 node.data
     return waitFor(() => expect(nodeData().prompt).toBe('日落航拍'))
@@ -245,7 +260,7 @@ describe('DiscountVideoNode — 提示词与素材', () => {
   it('点击素材 @插入 → 提示词追加 @素材A 并落盘', () => {
     setup()
     fireEvent.click(screen.getByTestId('insert'))
-    const ta = screen.getByPlaceholderText('描述你想要的视频内容 (输入 @ 调出素材)...')
+    const ta = screen.getByPlaceholderText('描述你想要的视频内容 (输入 @ 调出素材)...') as HTMLTextAreaElement
     expect(ta.value).toBe('@素材A ')
     // P2：插入后提示词经防抖写回 node.data
     return waitFor(() => expect(nodeData().prompt).toBe('@素材A '))

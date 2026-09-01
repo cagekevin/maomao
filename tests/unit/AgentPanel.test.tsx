@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * AgentPanel 深度测试 —— 画布 AI 助手聊天面板装配层。
  *
@@ -30,6 +29,7 @@ const h = vi.hoisted(() => {
   let agentState = {
     messages: [], sending: false, error: '', model: 'gpt-4o',
     conversations: [], activeConversationId: 'c1',
+    runMode: 'auto',
   }
   // Skill 列表
   let skills = []
@@ -94,12 +94,15 @@ const h = vi.hoisted(() => {
 
 // AgentPanel 现从聚合入口 agent/index.js import（useAgentChat/setGenParams/getGenParams），
 // vitest 按模块路径 mock——必须 mock index.js 而非深层路径，否则 mock 失效（M0 聚合入口收口）。
+// 【为什么不写 (...a) => h.x(...a)】h 的方法参数会被推断成空元组 []，spread 报 TS2556；
+// 且 h 的属性不会被重新赋值（见下方 setSubscribeCbs 注释），故直接引用函数对象即可，
+// 延迟绑定语义不变（vi.mock 工厂在模块首次导入时执行，此时 h 已由 vi.hoisted 就绪）。
 vi.mock('../../src/components/agent/index.ts', () => ({
-  useAgentChat: (...a) => h.useAgentChat(...a),
+  useAgentChat: h.useAgentChat,
   setGenParams: vi.fn(),
   getGenParams: () => ({}),
-  getWorkMode: (...a) => h.getWorkMode(...a),
-  setWorkMode: (...a) => h.setWorkMode(...a),
+  getWorkMode: h.getWorkMode,
+  setWorkMode: h.setWorkMode,
   RUN_MODE_IDS: h.RUN_MODE_IDS,
   WORK_MODE_STORAGE_KEY: 'agent_work_mode',
 }))
@@ -109,21 +112,21 @@ vi.mock('../../src/components/base/providerModels.ts', () => ({ buildAllModels: 
 vi.mock('../../src/components/base/hooks.ts', () => ({ useOutsideClick: () => {} }))
 vi.mock('../../src/components/base/skillStore.ts', () => ({
   getAllSkills: () => h.skills,
-  markSkillUsed: (...a) => h.markSkillUsed(...a),
+  markSkillUsed: h.markSkillUsed,
   isSkillEnabled: () => true,
   repairMojibakeText: (t) => t,
 }))
 vi.mock('../../src/components/base/contentStore.ts', () => ({
   contentGet: () => null,
   contentSet: vi.fn(),
-  contentSubscribe: (...a) => h.contentSubscribe(...a),
+  contentSubscribe: h.contentSubscribe,
 }))
 vi.mock('../../src/components/base/api/filesApi.ts', () => ({ toAbsoluteFileUrl: (u) => u }))
 vi.mock('../../src/components/agent/conversation/conversationStore.ts', () => ({
-  setCurrentSnapshot: (...a) => h.setCurrentSnapshot(...a),
+  setCurrentSnapshot: h.setCurrentSnapshot,
   setAwaitingConfirm: vi.fn(),
   getCurrentRunMode: () => 'auto',
-  setCurrentRunMode: (...a) => h.setCurrentRunMode(...a),
+  setCurrentRunMode: h.setCurrentRunMode,
 }))
 vi.mock('../../src/components/base/taskStore.ts', () => ({ runNodeGeneration: vi.fn() }))
 vi.mock('../../src/components/base/toastStore.ts', () => ({ showToast: (...a) => h.showToast(...a) }))
@@ -210,7 +213,7 @@ describe('AgentPanel — 面板显隐（阶段1C：常驻 DOM，CSS 显隐）', 
 describe('AgentPanel — 消息发送', () => {
   it('输入文本 → 回车发送（携带输入内容）', () => {
     render(<AgentPanel {...OPEN_PROPS} />)
-    const ta = screen.getByPlaceholderText(/输入消息/)
+    const ta = screen.getByPlaceholderText(/输入消息/) as HTMLTextAreaElement
     fireEvent.change(ta, { target: { value: '你好' } })
     fireEvent.keyDown(ta, { key: 'Enter', shiftKey: false })
     expect(h.send).toHaveBeenCalledWith('你好', undefined)
@@ -218,7 +221,7 @@ describe('AgentPanel — 消息发送', () => {
 
   it('无输入 → 发送按钮禁用', () => {
     render(<AgentPanel {...OPEN_PROPS} />)
-    expect(screen.getByTitle('发送').disabled).toBe(true)
+    expect((screen.getByTitle('发送') as HTMLButtonElement).disabled).toBe(true)
   })
 
   it('快捷 chip → 直接发送该文案', () => {
@@ -229,7 +232,7 @@ describe('AgentPanel — 消息发送', () => {
 
   it('发送后 → 清空输入框', () => {
     render(<AgentPanel {...OPEN_PROPS} />)
-    const ta = screen.getByPlaceholderText(/输入消息/)
+    const ta = screen.getByPlaceholderText(/输入消息/) as HTMLTextAreaElement
     fireEvent.change(ta, { target: { value: '你好' } })
     fireEvent.keyDown(ta, { key: 'Enter', shiftKey: false })
     expect(ta.value).toBe('')
@@ -374,7 +377,7 @@ describe('AgentPanel — 对话管理', () => {
     render(<AgentPanel {...OPEN_PROPS} />)
     fireEvent.click(screen.getByTitle('清空对话'))
     expect(h.clear).toHaveBeenCalled()
-    window.confirm.mockRestore()
+    vi.mocked(window.confirm).mockRestore()
   })
 
   it('清空对话取消确认 → 不 clear', () => {
@@ -383,12 +386,12 @@ describe('AgentPanel — 对话管理', () => {
     render(<AgentPanel {...OPEN_PROPS} />)
     fireEvent.click(screen.getByTitle('清空对话'))
     expect(h.clear).not.toHaveBeenCalled()
-    window.confirm.mockRestore()
+    vi.mocked(window.confirm).mockRestore()
   })
 
   it('无消息 → 清空对话按钮禁用', () => {
     render(<AgentPanel {...OPEN_PROPS} />)
-    expect(screen.getByTitle('清空对话').disabled).toBe(true)
+    expect((screen.getByTitle('清空对话') as HTMLButtonElement).disabled).toBe(true)
   })
 })
 
@@ -397,7 +400,7 @@ describe('AgentPanel — 待引用图确认', () => {
     render(<AgentPanel {...OPEN_PROPS} selectedImageNodes={[{ url: 'http://x/img.png', label: 'L', nodeId: 'n1', nodeType: 'image' }]} />)
     expect(screen.getByText('待引用：')).toBeTruthy()
     // 聚焦输入框 → 确认并入附件（此时发送附件非空）
-    const ta = screen.getByPlaceholderText(/输入消息/)
+    const ta = screen.getByPlaceholderText(/输入消息/) as HTMLTextAreaElement
     fireEvent.focus(ta)
     fireEvent.change(ta, { target: { value: '参考这张图' } })
     fireEvent.keyDown(ta, { key: 'Enter', shiftKey: false })
