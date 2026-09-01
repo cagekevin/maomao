@@ -94,7 +94,7 @@ vi.mock('../../src/components/base/PromptInput.tsx', async (importOriginal) => {
 vi.mock('../../src/components/base/PromptLibraryButton.tsx', () => ({ default: () => null }))
 vi.mock('../../src/components/base/GeneratingOverlay.tsx', () => ({ default: () => null }))
 vi.mock('../../src/components/base/ResizeFullscreenHandle.tsx', () => ({ default: () => null }))
-vi.mock('../../src/components/base/FullscreenModal.jsx', () => ({ default: ({ open, children }) => (open ? <div data-testid="fullscreen">{children}</div> : null) }))
+vi.mock('../../src/components/base/FullscreenModal.tsx', () => ({ default: ({ open, children }) => (open ? <div data-testid="fullscreen">{children}</div> : null) }))
 vi.mock('../../src/components/base/VideoThumbnail.tsx', () => ({ default: () => <div data-testid="video-thumb" /> }))
 
 vi.mock('../../src/hooks/useConnectedInputs.ts', () => ({ useConnectedInputs: () => ({ images: [], texts: [] }) }))

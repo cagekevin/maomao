@@ -53,7 +53,7 @@ try {
   process.exit(1);
 }
 
-import { SCAN_EXTS, TS_EXEMPT_DIRS, TS_EXEMPT_FILES, isExempt, resolveSourceFile, hasJsx, hasJsxHintRaw } from './check-targets.mjs'
+import { SCAN_EXTS, SOURCE_EXTS, TS_EXEMPT_DIRS, TS_EXEMPT_FILES, isExempt, resolveSourceFile, hasJsx, hasJsxHintRaw } from './check-targets.mjs'
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url))
 const root = resolve(__dirname, '..')
@@ -138,7 +138,16 @@ function extractImportNodes(code, filepath) {
       } else if (node.type === 'CallExpression') {
         const isRequire = node.callee.type === 'Identifier' && node.callee.name === 'require'
         const isDynamicImport = node.callee.type === 'Import'
-        if ((isRequire || isDynamicImport) && node.arguments.length > 0) {
+        // vi.mock('…/Xxx.jsx')：vitest 的 mock 路径是【字符串参数】，convert 改名后不自动变，
+        // 是 TS 迁移期反复翻车的最大盲区（见交接文档 §10.1/§10.3/§10.5/§10.6/§10.9/§10.11）。
+        // 这里把它当普通模块说明符抓进 AST，让 rewriteImports 在 convert 时自动同步后缀。
+        // 只认 `vi.mock(...)` 且首个实参是 StringLiteral；正则/变量形式的 mock 不处理（本仓不用）。
+        const isViMock =
+          node.callee.type === 'MemberExpression' &&
+          node.callee.object.type === 'Identifier' && node.callee.object.name === 'vi' &&
+          node.callee.property.type === 'Identifier' && node.callee.property.name === 'mock'
+        const isMockWithSpec = (isViMock && node.arguments.length > 0)
+        if ((isRequire || isDynamicImport || isMockWithSpec) && node.arguments.length > 0) {
           const arg = node.arguments[0]
           if (arg.type === 'StringLiteral') nodes.push(arg)
         }
@@ -237,8 +246,13 @@ function rewriteSpecs(oldAbs, makeNewSpec, dry = false, skip = new Set()) {
     if (!nodes) continue
 
     const hits = nodes.filter(node => {
-      const cand = resolveSpec(node.value, dirname(file))
-      return cand !== null && cand === oldAbs
+      const abs = resolveSpec(node.value, dirname(file))
+      if (abs === null) return false
+      // 用 resolveSourceFile 归一化（.jsx→.tsx 等），与 buildRefGraph 的判定一致——
+      // 否则 `vi.mock('…/Foo.jsx')` 指向已改名的 .tsx 时，resolveSpec 返回 .jsx 路径，
+      // 与 oldAbs(.tsx) 不相等，mock 引用就漏掉不重写（本批实测踩坑）。
+      const target = resolveSourceFile(abs)
+      return target !== null && target === oldAbs
     })
 
     if (hits.length > 0) {
@@ -261,13 +275,26 @@ function rewriteSpecs(oldAbs, makeNewSpec, dry = false, skip = new Set()) {
   return changed.map((f) => relOf(f))
 }
 
-/** convert 用的专用改写器：把指向 oldAbs 的说明符后缀从 oldExt 换成 newExt */
+/**
+ * convert 用的专用改写器：把指向 oldAbs 的说明符后缀统一换成 newExt。
+ *
+ * 注意：替换基准是【说明符自身携带的后缀】（extname(fullSpec)），而非 oldAbs 的扩展名。
+ * 原因：常规 import 的 spec 与 oldAbs 同后缀（.jsx→.tsx 时基准一致），但 `vi.mock('…/Foo.jsx')`
+ * 里 spec 的后缀可能与 oldAbs 不一致（源已 .tsx、mock 仍写 .jsx 的漂移场景）。
+ * 若用 oldAbs 的扩展名切，会把 `.jsx` 误切成 `.j.tsx`（§ State 4 实测踩坑）。按 spec 自身
+ * 后缀替换，无论写 .jsx/.tsx/无后缀，只要解析命中 oldAbs，一律换成 newExt。
+ */
 function rewriteImports(oldAbs, newExt, dry = false) {
   const oldExt = extname(oldAbs)
   const newAbs = oldAbs.slice(0, oldAbs.length - oldExt.length) + newExt
   return rewriteSpecs(
     oldAbs,
-    (_fromFile, fullSpec) => fullSpec.slice(0, fullSpec.length - oldExt.length) + newExt,
+    (_fromFile, fullSpec) => {
+      const specExt = extname(fullSpec)
+      // 只替换「源码扩展名」；spec 不带后缀或带非源码后缀（如 .json）时原样保留（append 无意义）
+      if (!SOURCE_EXTS.includes(specExt)) return fullSpec
+      return fullSpec.slice(0, fullSpec.length - specExt.length) + newExt
+    },
     dry,
     new Set([oldAbs, newAbs])
   )

@@ -23,7 +23,7 @@ vi.mock('../../src/hooks/useNodeGeneration.ts', () => ({
   },
 }))
 // HoverToolbar：把传入的 buttons 数组按 title 渲染成可点击按钮（show=false 不渲染）
-vi.mock('../../src/components/base/HoverToolbar.jsx', () => ({
+vi.mock('../../src/components/base/HoverToolbar.tsx', () => ({
   default: ({ buttons = [] }) => (
     <>
       {buttons.filter((b) => b.show !== false).map((b) => (
@@ -37,7 +37,7 @@ vi.mock('../../src/components/base/ExpandablePanel.tsx', () => ({ default: ({ ch
 vi.mock('../../src/components/base/MaterialStrip.tsx', () => ({ default: () => null }))
 vi.mock('../../src/components/base/PromptInput.tsx', () => ({ default: () => null }))
 vi.mock('../../src/components/base/ResizeFullscreenHandle.tsx', () => ({ default: () => null }))
-vi.mock('../../src/components/base/FullscreenModal.jsx', () => ({ default: () => null }))
+vi.mock('../../src/components/base/FullscreenModal.tsx', () => ({ default: () => null }))
 vi.mock('../../src/components/base/GeneratingOverlay.tsx', () => ({ default: () => null }))
 vi.mock('../../src/components/base/PromptLibraryButton.tsx', () => ({ default: () => null }))
 vi.mock('../../src/components/base/JianyingIcon.tsx', () => ({ default: () => null }))

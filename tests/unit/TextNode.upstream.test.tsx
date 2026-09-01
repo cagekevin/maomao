@@ -37,7 +37,7 @@ vi.mock('../../src/components/base/GenerateButton.tsx', () => ({ default: ({ onG
 vi.mock('../../src/components/base/NodeShell.tsx', () => ({ default: ({ children }) => children }))
 vi.mock('../../src/components/base/ExpandablePanel.tsx', () => ({ default: ({ children }) => children }))
 vi.mock('../../src/components/base/MaterialStrip.tsx', () => ({ default: ({ children }) => children }))
-vi.mock('../../src/components/base/HoverToolbar.jsx', () => ({ default: () => null }))
+vi.mock('../../src/components/base/HoverToolbar.tsx', () => ({ default: () => null }))
 vi.mock('../../src/components/base/PromptInput.tsx', () => ({ default: () => null }))
 vi.mock('../../src/components/base/hooks.ts', async (importOriginal) => ({ ...(await importOriginal()), useNodeResize: () => ({ onInputResize: vi.fn() }), useOutsideClick: () => {} }))
 

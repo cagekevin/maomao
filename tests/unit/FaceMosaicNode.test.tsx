@@ -44,7 +44,7 @@ vi.mock('@xyflow/react', () => ({
   ReactFlowProvider: ({ children }) => children,
 }))
 vi.mock('../../src/components/base/NodeShell.tsx', () => ({ default: mocks.NodeShell }))
-vi.mock('../../src/components/base/HoverToolbar.jsx', () => ({ default: mocks.HoverToolbar }))
+vi.mock('../../src/components/base/HoverToolbar.tsx', () => ({ default: mocks.HoverToolbar }))
 vi.mock('../../src/hooks/useConnectedInputs.ts', () => ({ useConnectedInputs: mocks.useConnectedInputs }))
 vi.mock('../../src/hooks/useMediaDegrade.ts', () => ({ useMediaDegrade: mocks.useMediaDegrade }))
 vi.mock('../../src/components/base/api/filesApi.ts', () => ({

@@ -1,26 +1,19 @@
 /**
- * PromptNode 上游合并测试（本次修复核心逻辑）。
- * 覆盖：上游文本节点/图片节点连线后，文字与图片合并进生图请求；
- * 本地 prompt 与上游文本结合；多上游节点合并；上游有内容时校验通过。
+ * TemplateNode 上游合并测试（本次修复核心逻辑）。
+ * 覆盖：上游文本/图片节点连线后文字与图片合并进生图请求；
+ * 多上游节点合并；上游有文本但本地 prompt 为空时校验通过。
  */
 import React from 'react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 
-// ---- 共享 ReactFlow mock ----
 const mockSetNodes = vi.fn()
 const mockGetNodes = vi.fn(() => [])
 const mockAddNodes = vi.fn()
 let genConfig = null
 
 vi.mock('@xyflow/react', () => ({
-  useReactFlow: () => ({
-    setNodes: mockSetNodes,
-    setEdges: vi.fn(),
-    getEdges: vi.fn(() => []),
-    getNodes: mockGetNodes,
-    addNodes: mockAddNodes,
-  }),
+  useReactFlow: () => ({ setNodes: mockSetNodes, setEdges: vi.fn(), getEdges: vi.fn(() => []), getNodes: mockGetNodes, addNodes: mockAddNodes }),
   useStore: vi.fn(() => () => {}),
 }))
 
@@ -40,28 +33,20 @@ vi.mock('../../src/hooks/useNodeGeneration.ts', () => ({
   },
 }))
 
-vi.mock('../../src/components/base/ModelSelect.tsx', () => ({
-  default: ({ value, onChange }) => (
-    <button type="button" data-testid="model-select" onClick={() => onChange('model-x')}>
-      {value || '选择模型'}
-    </button>
-  ),
-}))
+vi.mock('../../src/components/base/ModelSelect.tsx', () => ({ default: ({ value, onChange }) => <button type="button" data-testid="model-select" onClick={() => onChange('model-x')}>{value || '选择模型'}</button> }))
 vi.mock('../../src/components/base/GenerateButton.tsx', () => ({ default: ({ onGenerate }) => <button type="button" onClick={onGenerate}>生成</button> }))
 vi.mock('../../src/components/base/NodeShell.tsx', () => ({ default: ({ children }) => children }))
 vi.mock('../../src/components/base/ExpandablePanel.tsx', () => ({ default: ({ children }) => children }))
 vi.mock('../../src/components/base/MaterialStrip.tsx', () => ({ default: ({ children }) => children }))
-vi.mock('../../src/components/base/HoverToolbar.jsx', () => ({ default: () => null }))
+vi.mock('../../src/components/base/HoverToolbar.tsx', () => ({ default: () => null }))
 vi.mock('../../src/components/base/PromptInput.tsx', () => ({ default: () => null }))
 vi.mock('../../src/components/base/ResizeFullscreenHandle.tsx', () => ({ default: () => null }))
-vi.mock('../../src/components/base/FullscreenModal.jsx', () => ({ default: () => null }))
+vi.mock('../../src/components/base/FullscreenModal.tsx', () => ({ default: () => null }))
 vi.mock('../../src/components/base/GeneratingOverlay.tsx', () => ({ default: () => null }))
 vi.mock('../../src/components/base/PromptLibraryButton.tsx', () => ({ default: () => null }))
-vi.mock('../../src/components/base/JianyingIcon.tsx', () => ({ default: () => null }))
-vi.mock('../../src/components/base/hooks.ts', () => ({ useNodeResize: () => ({ onInputResize: vi.fn() }), useOutsideClick: () => {} }))
+vi.mock('../../src/components/base/hooks.ts', async (importOriginal) => ({ ...(await importOriginal()), useNodeResize: () => ({ onInputResize: vi.fn() }), useOutsideClick: () => {} }))
 
-// ---- 可控的 useConnectedInputs：测试内动态覆盖其返回值 ----
-let connectedInputs = {}
+let connectedInputs = { images: [], texts: [] }
 vi.mock('../../src/hooks/useConnectedInputs.ts', () => ({ useConnectedInputs: () => connectedInputs }))
 
 vi.mock('../../src/hooks/useMediaDegrade.ts', () => ({ useMediaDegrade: () => ({ isHidden: () => false }) }))
@@ -82,82 +67,71 @@ beforeEach(() => {
   mockGenerateImage.mockReset()
   mockGenerateImage.mockResolvedValue({ url: 'http://gen.local/img.png' })
   genConfig = null
-  connectedInputs = {}
-  if (!global.IntersectionObserver) {
-    global.IntersectionObserver = class { observe() {} unobserve() {} disconnect() {} }
-  }
+  connectedInputs = { images: [], texts: [] }
 })
 
-import PromptNode from '../../src/components/nodes/PromptNode.tsx'
+import TemplateNode from '../../src/components/nodes/TemplateNode.tsx'
 
 function setup(data = {}) {
-  return render(<PromptNode id="n1" data={data} selected={false} />)
+  return render(<TemplateNode id="n1" data={data} selected={false} />)
 }
 
-describe('PromptNode 上游文本/图片合并（修复点）', () => {
-  it('上游文本节点连入时，文字合并进生图 prompt（本地 prompt + 上游文本）', async () => {
-    connectedInputs = {
-      images: [],
-      texts: [{ id: 't1', text: '一只戴帽子的猫', sourceNodeId: 'srcText' }],
-    }
-    setup({ prompt: ' studio ghibli 风格' })
+describe('TemplateNode 上游文本/图片合并（修复点）', () => {
+  it('上游文本节点连入时，文字合并进生图 prompt', async () => {
+    connectedInputs = { images: [], texts: [{ id: 't1', text: '国潮风格模板', sourceNodeId: 's1' }] }
+    setup({ prompt: '海报' })
     fireEvent.click(screen.getByText('生成'))
 
     await waitFor(() => expect(mockGenerateImage).toHaveBeenCalled())
     const call = mockGenerateImage.mock.calls[0][0]
-    expect(call.prompt).toContain('studio ghibli 风格')
-    expect(call.prompt).toContain('一只戴帽子的猫')
+    expect(call.prompt).toContain('海报')
+    expect(call.prompt).toContain('国潮风格模板')
   })
 
-  it('上游有文本但本地 prompt 为空时，校验通过（不再提示请输入提示词）', async () => {
-    connectedInputs = { images: [], texts: [{ id: 't1', text: '红色跑车', sourceNodeId: 'srcText' }] }
+  it('上游有文本但本地 prompt 为空时，校验通过', async () => {
+    connectedInputs = { images: [], texts: [{ id: 't1', text: '电商主图', sourceNodeId: 's1' }] }
     setup({ prompt: '' })
-    // 触发 validate：start 内部先调用 config.validate
+    expect(genConfig.validate()).toBe('')
     fireEvent.click(screen.getByText('生成'))
-    expect(genConfig.validate()).toBe('') // 空串 = 通过
     await waitFor(() => expect(mockGenerateImage).toHaveBeenCalled())
-    expect(mockGenerateImage.mock.calls[0][0].prompt).toContain('红色跑车')
+    expect(mockGenerateImage.mock.calls[0][0].prompt).toContain('电商主图')
   })
 
-  it('多个上游文本节点合并（全部拼入）', async () => {
+  it('多个上游文本节点合并', async () => {
     connectedInputs = {
       images: [],
       texts: [
-        { id: 't1', text: '白天', sourceNodeId: 's1' },
-        { id: 't2', text: '雪山', sourceNodeId: 's2' },
-        { id: 't3', text: '湖泊', sourceNodeId: 's3' },
+        { id: 't1', text: '标题文案', sourceNodeId: 's1' },
+        { id: 't2', text: '副标题', sourceNodeId: 's2' },
       ],
     }
-    setup({ prompt: '风景照' })
+    setup({ prompt: '模板' })
     fireEvent.click(screen.getByText('生成'))
-
     await waitFor(() => expect(mockGenerateImage).toHaveBeenCalled())
     const p = mockGenerateImage.mock.calls[0][0].prompt
-    expect(p).toContain('风景照')
-    expect(p).toContain('白天')
-    expect(p).toContain('雪山')
-    expect(p).toContain('湖泊')
+    expect(p).toContain('模板')
+    expect(p).toContain('标题文案')
+    expect(p).toContain('副标题')
   })
 
-  it('多个上游图片节点合并进 refImages（图生图参考图）', async () => {
+  it('多个上游图片节点合并进 images（generateImage 契约：images 为 URL 数组）', async () => {
     connectedInputs = {
       images: [
         { id: 'i1', url: 'http://up/a.png', sourceNodeId: 's1' },
         { id: 'i2', url: 'http://up/b.png', sourceNodeId: 's2' },
       ],
-      texts: [{ id: 't1', text: '转成水墨', sourceNodeId: 's3' }],
+      texts: [{ id: 't1', text: '融合两张图', sourceNodeId: 's3' }],
     }
-    setup({ prompt: '风格化' })
+    setup({ prompt: '合成' })
     fireEvent.click(screen.getByText('生成'))
-
     await waitFor(() => expect(mockGenerateImage).toHaveBeenCalled())
     const call = mockGenerateImage.mock.calls[0][0]
-    expect(call.prompt).toContain('转成水墨')
-    // 注意 PromptNode 把 refImages 转成 url 数组后以 images 字段传下（图生图参考图）
+    expect(call.prompt).toContain('融合两张图')
+    expect(call.images).toHaveLength(2)
     expect(call.images).toEqual(['http://up/a.png', 'http://up/b.png'])
   })
 
-  it('本地 prompt 与上游文本皆为空时，仍提示请输入提示词', () => {
+  it('本地与上游皆为空时，提示请输入提示词', () => {
     connectedInputs = { images: [], texts: [] }
     setup({ prompt: '' })
     expect(genConfig.validate()).toBe('请输入提示词')

@@ -69,7 +69,7 @@ vi.mock('../../src/components/base/NodeShell.tsx', () => ({
 vi.mock('../../src/components/edges/CustomHandle.tsx', () => ({
   default: ({ handleId }) => <div data-testid={`handle-${handleId || 'default'}`} />,
 }))
-vi.mock('../../src/components/base/FullscreenModal.jsx', () => ({ default: ({ open, children }) => (open ? <div data-testid="fullscreen">{children}</div> : null) }))
+vi.mock('../../src/components/base/FullscreenModal.tsx', () => ({ default: ({ open, children }) => (open ? <div data-testid="fullscreen">{children}</div> : null) }))
 // 数据读写通道：真实 useScriptBoxEngine 负责注入回调副作用，仅把返回的 updateData 指向 h.updateData 以记录调用（StepNav 切步用）
 vi.mock('../../src/hooks/useScriptBoxEngine.ts', async (importOriginal) => {
   const real = await importOriginal()
