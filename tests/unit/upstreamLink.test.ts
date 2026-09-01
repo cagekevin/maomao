@@ -1,5 +1,4 @@
 // @vitest-environment jsdom
-// @ts-nocheck
 /**
  * upstreamLink.useUpstreamAutoTrigger 单测（§3.3 失败可见收口）。
  * 契约：上游完成广播触发直接下游，下游失败不得静默吞掉（.catch(() => {})），

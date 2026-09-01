@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { describe, it, expect, beforeEach } from 'vitest'
 import { getNodePrefs, injectNodePrefs } from '../../src/components/base/nodePrefs.ts'
 import { contentSet, contentClearCache } from '../../src/components/base/contentStore.ts'

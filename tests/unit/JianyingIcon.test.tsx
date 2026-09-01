@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * JianyingIcon 深度测试。
  *

@@ -1,5 +1,4 @@
 // @vitest-environment jsdom
-// @ts-nocheck
 /**
  * scriptBoxPromptResolver —— playbook 单一数据源读取自测（§4.1 解析层）。
  * 覆盖：内置默认 / 自定义覆盖 / 悬挂回退 / 约束+负面读取 / 生图类型取当前 playbook。

@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { describe, it, expect } from 'vitest'
 // 前端镜像层纯函数单测（规则唯一真相在后端 requestModes.ts；两端规则一致，此处锁定前端消费契约）
 import {

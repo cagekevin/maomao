@@ -1,5 +1,4 @@
 // @vitest-environment node
-// @ts-nocheck
 /**
  * workflowRuntime 单测（批 1-6）。
  * 覆盖：createWorkflow 生命周期状态机（idle/planning/running/awaiting_confirm/completed/failed）、

@@ -1,4 +1,3 @@
-// @ts-nocheck
 // 3D 导演台·轨道写操作领域（tracks.js）纯逻辑测试
 // 覆盖从 App.jsx 解耦抽出的复合操作（原内联逻辑迁移后行为不变）：
 //   - bakeObjectPath：路径烘焙批处理（先删旧路径帧再整批插新 = 原子 batch），路径帧只留 position，

@@ -1,5 +1,4 @@
 // @vitest-environment node
-// @ts-nocheck
 /**
  * previewUrl 单测 —— 本地预览 URL 生命周期管理器。
  * 覆盖：create 空安全 / 同 blob 复用 / release 引用计数 / 幂等 / clear 全量回收 /

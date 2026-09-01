@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { describe, it, expect } from 'vitest'
 import { demoPlan } from '../../src/components/agent/runtime/useAgentChat.ts'
 

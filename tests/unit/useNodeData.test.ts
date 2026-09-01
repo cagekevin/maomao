@@ -1,5 +1,4 @@
 // @vitest-environment jsdom
-// @ts-nocheck
 /**
  * useNodeData 单测（P0-2-a 基础设施）。
  * 纯 hook 逻辑：patchData 不可变局部更新 / patchDebounced 防抖 + flush。

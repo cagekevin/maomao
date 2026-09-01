@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { describe, it, expect } from 'vitest'
 import { parseAspect, computeSizeSync } from '../../src/components/base/hooks.ts'
 

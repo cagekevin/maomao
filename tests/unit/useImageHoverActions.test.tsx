@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * useImageHoverActions 共享机制单测（State 2 契约细化）。
  * 验证：① 按钮含 crop/edit/compress 且带 onClick（非死按钮，对齐图片节点）

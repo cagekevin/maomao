@@ -1,5 +1,4 @@
 // @vitest-environment node
-// @ts-nocheck
 /**
  * promptLearning（「学」）单测 —— 照搬参考项目 promptLearningService 的 JS 化纯函数。
  * 覆盖：inferPromptLearningKinds / sanitizePromptSample / buildPromptLearningBlock / buildLearnedContext

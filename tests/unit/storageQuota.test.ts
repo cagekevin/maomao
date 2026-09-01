@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * storageQuota 纯函数单测（node 环境）。
  * 遵循 TEST-GUIDE §六「值不值得写」：只锁「用户可感知的真实契约」，

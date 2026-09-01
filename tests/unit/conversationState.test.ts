@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import * as contentStore from '../../src/components/base/contentStore.ts'
 import { SAFE_BUDGET_BYTES } from '../../src/components/base/volumePolicy.ts'

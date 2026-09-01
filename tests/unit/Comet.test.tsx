@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * Comet 深度测试。
  *

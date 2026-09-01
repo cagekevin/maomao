@@ -1,5 +1,4 @@
 // @vitest-environment jsdom
-// @ts-nocheck
 /**
  * useCanvasAgentTools 单测（批 3）。
  * 覆盖对外暴露的纯函数（脱离 React 可测）：

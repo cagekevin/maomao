@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * 【集成契约】KV 降级链 → persist:failed（「部分数据保存失败」toast 来源）。
  *

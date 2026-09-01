@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 
 // 隔离 contentStore（避免真实写 localStorage / 触发未登记 warning）

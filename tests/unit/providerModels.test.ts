@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { describe, it, expect } from 'vitest'
 import { modelKey, buildAllModels, resolveProviderModel } from '../../src/components/base/providerModels.ts'
 

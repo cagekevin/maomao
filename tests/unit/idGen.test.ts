@@ -1,5 +1,4 @@
 // @vitest-environment node
-// @ts-nocheck
 /**
  * idGen 单测 —— 集中 ID 生成工具。
  * 覆盖：格式、唯一性、prefix 语义、非法 prefix 清洗。

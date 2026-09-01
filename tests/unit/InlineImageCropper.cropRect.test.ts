@@ -1,4 +1,3 @@
-// @ts-nocheck
 /**
  * InlineImageCropper 坐标换算纯逻辑单测。
  *
