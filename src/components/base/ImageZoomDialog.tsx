@@ -19,7 +19,7 @@
  */
 import { forwardRef, ForwardedRef, useState, useRef, useCallback, useEffect } from 'react'
 import { toAbsoluteFileUrl } from './imageUrl.ts'
-import { copyImageToClipboard, copyVideoFrameToClipboard, downloadUrl } from './clipboard.ts'
+import { copyImageToClipboard, copyVideoFrameToClipboard, downloadUrl, drawVideoFrameToCanvas, downloadBlob } from './clipboard.ts'
 import { createRafBatch } from './utils.ts'
 
 interface ImageZoomDialogProps {
@@ -148,6 +148,27 @@ const ImageZoomDialog = forwardRef(function ImageZoomDialog({ url, kind = 'image
     captureTimer.current = window.setTimeout(() => setCaptureState(null), 2000)
   }, [])
 
+  // 视频模式：下载当前帧为图片文件（PNG）。复用 drawVideoFrameToCanvas 抽帧 + downloadBlob 落盘。
+  const frameDownloadState = useRef<{ timer: number | null }>({ timer: null })
+  const [frameDl, setFrameDl] = useState<{ status: 'ok' | 'err' | 'busy' } | null>(null)
+  const handleDownloadFrame = useCallback(async () => {
+    const video = imgRef.current as unknown as HTMLVideoElement | null
+    if (!video) return
+    setFrameDl({ status: 'busy' })
+    try {
+      const canvas = await drawVideoFrameToCanvas(video, {})
+      const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, 'image/png'))
+      if (!blob) throw new Error('帧导出失败')
+      const name = (url || '').split('/').pop()?.replace(/\.[a-z0-9]+$/i, '') || 'video'
+      await downloadBlob(blob, `${name}_frame.png`)
+      setFrameDl({ status: 'ok' })
+    } catch {
+      setFrameDl({ status: 'err' })
+    }
+    if (frameDownloadState.current.timer) clearTimeout(frameDownloadState.current.timer)
+    frameDownloadState.current.timer = window.setTimeout(() => setFrameDl(null), 2000)
+  }, [url])
+
   const src = url ? toAbsoluteFileUrl(url) : ''
   // 「点空白关闭」判断放内部容器 div（onClick）而非本 dialog：因容器 fixed inset-0 铺满覆盖本层，
   //   dialog 的 e.target===currentTarget 永远不成立（死代码）。语义：点非图片/非工具栏的空白区即关闭。
@@ -165,13 +186,15 @@ const ImageZoomDialog = forwardRef(function ImageZoomDialog({ url, kind = 'image
           style={isVideo ? undefined : { cursor: dragging.current ? 'grabbing' : 'grab' }}
         >
           {isVideo ? (
-            /* 视频模式：系统原生播放器（kind='video'） */
+            /* 视频模式：应用内播放器（kind='video'）。
+                不加 autoPlay：避免弹窗打开即自动播放、触发浏览器原生播放界面挡住自定义工具栏。
+                playsInline 防止移动端强制全屏；用户点播放后即可「下载当前帧/复制当前帧」。 */
             <video
               ref={imgRef}
               src={src}
               controls
-              autoPlay
               playsInline
+              preload="metadata"
               crossOrigin="anonymous"
               onClick={(e) => e.stopPropagation()}
               className="max-w-full max-h-[85vh] object-contain rounded-lg"

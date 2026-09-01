@@ -241,7 +241,16 @@ function ImageNode({ id, data, selected }: ImageNodeProps) {
               fitFromVideo 按视频宽高自适应节点形状（useFitNodeRatio）。
               未播放时该 video 隐藏（仅读元数据），海报用 <img> 显示；播放时显示 controls。 */}
           {type === 'video' && !hideMedia.includes('video') && (
-            <div className="w-full h-full relative">
+            <div className="w-full h-full relative"
+              onDoubleClick={(e) => {
+                e.preventDefault()   // 阻止正在播放的 <video controls> 触发浏览器原生播放界面
+                e.stopPropagation()
+                // 暂停播放中视频，避免原生控件干扰；再打开自定义大图弹窗（含截屏/下载当前帧按钮）
+                try { videoRef.current?.pause?.() } catch {}
+                setPlaying(false)
+                dialogRef.current?.showModal()
+              }}
+            >
               {/* 元数据读取器 / 播放器：始终存在（未播放时隐藏），loadedmetadata 触发节点比例自适应。
                   播放由大播放按钮手势触发 video.play()（避免 autoplay 政策拦截带声音视频） */}
               <video
