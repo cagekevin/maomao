@@ -8,7 +8,13 @@
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 
-let store: any = []
+// 内存 store 夹具：src 中 ConversationSnapshot.messages 本就是 any[]，故字段对齐为 any[]。
+// .current 为最新消息数组，.set 整体替换（模拟 setCurrentSnapshot 写语义）。
+interface MemStore {
+  current: any[]
+  set: (arr: any[]) => void
+}
+let store: MemStore = { current: [], set: (a) => { store.current = a } }
 
 vi.mock('../../src/components/agent/conversation/conversationStore.ts', () => ({
   getCurrentSnapshot: vi.fn(),
@@ -17,7 +23,10 @@ vi.mock('../../src/components/agent/conversation/conversationStore.ts', () => ({
 }))
 
 const convStore = await import('../../src/components/agent/conversation/conversationStore.ts')
-const convMock: any = convStore
+// vi.mock 工厂不改变静态导入类型，需用 vi.mocked 标注才能拿到 .mockImplementation/.mock
+const getCurrentSnapshot = vi.mocked(convStore.getCurrentSnapshot)
+const setCurrentSnapshot = vi.mocked(convStore.setCurrentSnapshot)
+const patchCurrentMessages = vi.mocked(convStore.patchCurrentMessages)
 const { appendMsg, setHistory, updateLastStreaming, endStreaming, stripStreaming } = await import('../../src/components/agent/runtime/agentMessages.ts')
 
 beforeEach(() => {
@@ -25,9 +34,17 @@ beforeEach(() => {
   // 内存 store：set 覆盖 current，get 返回 current
   store.current = []
   store.set = (arr) => { store.current = arr }
-  convMock.getCurrentSnapshot.mockImplementation(() => ({ messages: store.current }))
-  convMock.setCurrentSnapshot.mockImplementation((p) => { if (p.messages) store.set(p.messages) })
-  convMock.patchCurrentMessages.mockImplementation((next) => store.set(next))
+  getCurrentSnapshot.mockImplementation(() => ({
+    messages: store.current,
+    skills: [],
+    attachments: [],
+    draft: '',
+    workflow: null,
+    pending: null,
+    memory: {},
+  }))
+  setCurrentSnapshot.mockImplementation((p) => { if (p.messages) store.set(p.messages) })
+  patchCurrentMessages.mockImplementation((next) => store.set(next))
 })
 
 describe('appendMsg — 追加一条消息', () => {
@@ -69,7 +86,7 @@ describe('updateLastStreaming — 流式增量（仅通知）', () => {
     const last = store.current[store.current.length - 1]
     expect(last.content).toBe('hi')
     expect(last.tool_calls[0].function.name).toBe('f')
-    expect(convMock.patchCurrentMessages).toHaveBeenCalled()
+    expect(patchCurrentMessages).toHaveBeenCalled()
   })
 
   it('空 toolCalls 不写 tool_calls 字段（杜绝 Empty tool_calls）', () => {
