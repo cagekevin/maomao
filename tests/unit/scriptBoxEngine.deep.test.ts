@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 vi.mock('../../src/components/base/api/chatApi.ts', () => ({ chatCompletions: vi.fn() }))
@@ -18,6 +17,11 @@ import { generateImage } from '@/components/base/api/imageApi.ts'
 import { showToast } from '../../src/components/base/toastStore.ts'
 import { localizeAndStoreToLibrary } from '../../src/components/base/assetStore.ts'
 import { createScriptBoxEngine } from '@/components/scriptbox/scriptBoxEngine.ts'
+
+// vi.mock 工厂不改变静态导入类型，用 vi.mocked 标注以拿到 .mockResolvedValue/.mock
+const chatCompletionsMock = vi.mocked(chatCompletions)
+const generateImageMock = vi.mocked(generateImage)
+const localizeMock = vi.mocked(localizeAndStoreToLibrary)
 
 const providerState = {
   providers: [
@@ -51,7 +55,7 @@ describe('剧本盒引擎深度业务 §2.7', () => {
 
   // ── onGenerateShotPrompts：@资产匹配 + 约束注入 + 并发写回 ──
   it('onGenerateShotPrompts：每个分镜按 @名 匹配有图资产作为参考，并注入约束', async () => {
-    chatCompletions.mockResolvedValue({
+    chatCompletionsMock.mockResolvedValue({
       ok: true,
       content: JSON.stringify({ prompt: '分镜画面提示词', videoPrompt: '【时长 5秒】视频内容' }),
     })
@@ -75,7 +79,7 @@ describe('剧本盒引擎深度业务 §2.7', () => {
     // 两个分镜都生成（并发 Promise.all）
     expect(chatCompletions).toHaveBeenCalledTimes(2)
     // 第一个分镜的 user 中应包含匹配到的参考资产
-    const firstCall = chatCompletions.mock.calls[0][0]
+    const firstCall = chatCompletionsMock.mock.calls[0][0]
     expect(firstCall.messages[1].content).toContain('@小红帽')
     expect(firstCall.messages[1].content).toContain('@森林')
     // 约束已收敛到 playbook（§4.2 单一数据源），不再读 node.data 的 image/videoGlobalConstraint。
@@ -90,7 +94,7 @@ describe('剧本盒引擎深度业务 §2.7', () => {
   })
 
   it('onGenerateShotPrompts：开启上一镜尾帧时，@图片1 缺失则后处理强制补写', async () => {
-    chatCompletions.mockResolvedValue({ ok: true, content: JSON.stringify({ prompt: '画面', videoPrompt: '视频' }) })
+    chatCompletionsMock.mockResolvedValue({ ok: true, content: JSON.stringify({ prompt: '画面', videoPrompt: '视频' }) })
     data = {
       shots: [
         { id: 's1', index: 1, description: '镜头1', usePrevShotVideoTail: false, prompt: '', videoPrompt: '' },
@@ -107,14 +111,14 @@ describe('剧本盒引擎深度业务 §2.7', () => {
     const s1 = last.shots.find((x) => x.id === 's1')
     expect(s1.prompt).not.toContain('@图片1')
     // 承接/钩子上下文也注入（s2 是结尾镜，只有上一镜承接，无下一镜钩子）
-    const s2Call = chatCompletions.mock.calls.find((c) => (c[0].messages[1].content || '').includes('镜头编号：2'))[0]
+    const s2Call = (chatCompletionsMock.mock.calls as any[]).find((c: any) => (c[0].messages[1].content || '').includes('镜头编号：2'))[0]
     expect(s2Call.messages[1].content).toContain('【剧情承接：上一镜状态描述】镜头1')
     expect(s2Call.messages[1].content).toContain('结尾镜')
     expect(s2Call.messages[1].content).toContain('【负面黑名单·绝对禁止出现】')
   })
 
   it('onGenerateShotPrompts：videoPrompt 已含 @视频1 时不重复补写标签', async () => {
-    chatCompletions.mockResolvedValue({ ok: true, content: JSON.stringify({ prompt: '画面', videoPrompt: '@视频1 从尾帧延续' }) })
+    chatCompletionsMock.mockResolvedValue({ ok: true, content: JSON.stringify({ prompt: '画面', videoPrompt: '@视频1 从尾帧延续' }) })
     data = {
       shots: [
         { id: 's1', index: 1, description: '镜头1', usePrevShotVideoTail: false, prompt: '', videoPrompt: '' },
@@ -132,7 +136,7 @@ describe('剧本盒引擎深度业务 §2.7', () => {
   })
 
   it('onGenerateShotPrompts：单个 shotId 只生成该分镜', async () => {
-    chatCompletions.mockResolvedValue({ ok: true, content: JSON.stringify({ prompt: 'P', videoPrompt: 'V' }) })
+    chatCompletionsMock.mockResolvedValue({ ok: true, content: JSON.stringify({ prompt: 'P', videoPrompt: 'V' }) })
     data = {
       shots: [
         { id: 's1', description: '镜头1', prompt: '', videoPrompt: '' },
@@ -148,7 +152,7 @@ describe('剧本盒引擎深度业务 §2.7', () => {
   })
 
   it('onGenerateShotPrompts：chat 失败 → 该分镜复位 promptLoading', async () => {
-    chatCompletions.mockResolvedValue({ ok: false, error: '超时' })
+    chatCompletionsMock.mockResolvedValue({ ok: false, error: '超时' })
     data = { shots: [{ id: 's1', description: '镜头1', promptLoading: true, prompt: '', videoPrompt: '' }] }
     const eng = createScriptBoxEngine(ctx())
     await eng.onGenerateShotPrompts(['s1'])
@@ -159,7 +163,7 @@ describe('剧本盒引擎深度业务 §2.7', () => {
 
   // ── onGenerateAllAssetImages：选中集 / 全量无图 ──
   it('onGenerateAllAssetImages：传 ids → 只生成选中', async () => {
-    generateImage.mockResolvedValue({ ok: true, url: '/files/x.png' })
+    generateImageMock.mockResolvedValue({ ok: true, url: '/files/x.png' })
     data = {
       assets: [
         { id: 'a1', name: '小红帽', category: 'character', description: '少女', prompt: '', imageUrl: '' },
@@ -175,7 +179,7 @@ describe('剧本盒引擎深度业务 §2.7', () => {
   })
 
   it('onGenerateAllAssetImages：undefined → 生成全部无图资产', async () => {
-    generateImage.mockResolvedValue({ ok: true, url: '/files/x.png' })
+    generateImageMock.mockResolvedValue({ ok: true, url: '/files/x.png' })
     data = {
       assets: [
         { id: 'a1', name: '小红帽', category: 'character', description: '少女', prompt: '', imageUrl: '' },
@@ -283,7 +287,7 @@ describe('剧本盒引擎深度业务 §2.7', () => {
 
   // ── onGenerateShotImage：成功写回 imgGen ──
   it('onGenerateShotImage：成功 → 写回 imgGen{type,label,prompt}', async () => {
-    chatCompletions.mockResolvedValue({ ok: true, content: '关键帧画面提示词' })
+    chatCompletionsMock.mockResolvedValue({ ok: true, content: '关键帧画面提示词' })
     data = { shots: [{ id: 's1', description: '镜头1', prompt: '', videoPrompt: '' }], globalStyle: '皮克斯' }
     const eng = createScriptBoxEngine(ctx())
     await eng.onGenerateShotImage('s1', 'keyframe')
@@ -301,7 +305,7 @@ describe('剧本盒引擎深度业务 §2.7', () => {
 
   // ── onGenerateScript 成功：分镜归一化细节（id/index/duration 兜底） ──
   it('onGenerateScript：分镜归一化补默认字段（duration/grid/connImg）', async () => {
-    chatCompletions.mockResolvedValue({
+    chatCompletionsMock.mockResolvedValue({
       ok: true,
       content: JSON.stringify({
         projectName: '小红帽',
@@ -337,7 +341,7 @@ describe('剧本盒引擎深度业务 §2.7', () => {
 
   it('onGenerateTailFrameVariants：抽上一镜尾帧 → 官方「原版 + composed 综合图」并自动选中 composed', async () => {
     const cf = vi.fn(async () => 'data:image/jpeg;base64,FRAME')
-    generateImage.mockResolvedValue({ ok: true, url: '/files/variant.png' })
+    generateImageMock.mockResolvedValue({ ok: true, url: '/files/variant.png' })
     data = {
       shots: [
         { id: 's1', index: 1 },
@@ -358,8 +362,8 @@ describe('剧本盒引擎深度业务 §2.7', () => {
     // 错位到第 2 位时，imageProxy 首句 onProgress?.(10,…) 会对 AbortSignal 对象发起调用而
     // TypeError（对象非 nullish，?.() 不短路）→ 请求发出前即失败，综合图永远拿不到结果。
     // 本用例用 vi.fn 记录全部实参，故能拦住该错位（_nodeMocks 的默认 mock 只记 a[0]，拦不住）。
-    expect(generateImage.mock.calls[0][1]).toBeUndefined()
-    expect(generateImage.mock.calls[0][2]).toBeInstanceOf(AbortSignal)
+    expect(generateImageMock.mock.calls[0][1]).toBeUndefined()
+    expect(generateImageMock.mock.calls[0][2]).toBeInstanceOf(AbortSignal)
     // 最终写回［原版 + composed］、自动选中 composed、关 loading
     const last = patches[patches.length - 1]
     const shot = last.shots.find((s) => s.id === 's2')
@@ -382,7 +386,7 @@ describe('剧本盒引擎深度业务 §2.7', () => {
 
   // ── P0-2 真上传 + P2-1 本地化落盘：imageStatus 状态机 / imageUrl 改写 / thumbnailUrl 生成 ──
   it('onRetryAssetImageUpload：成功 → uploading→uploaded，imageUrl 本地化', async () => {
-    localizeAndStoreToLibrary.mockResolvedValueOnce('/files/migrated/人物/主角.png')
+    localizeMock.mockResolvedValueOnce('/files/migrated/人物/主角.png')
     data = { assets: [{ id: 'a1', category: 'character', name: '主角', imageUrl: '/files/orig.png', imageStatus: '' }], shots: [] }
     const eng = createScriptBoxEngine(ctx())
     await eng.onRetryAssetImageUpload('a1')
@@ -395,7 +399,7 @@ describe('剧本盒引擎深度业务 §2.7', () => {
   })
 
   it('onRetryAssetImageUpload：失败 → failed + imageError', async () => {
-    localizeAndStoreToLibrary.mockRejectedValueOnce(new Error('落盘失败'))
+    localizeMock.mockRejectedValueOnce(new Error('落盘失败'))
     data = { assets: [{ id: 'a1', category: 'character', name: '主角', imageUrl: 'data:image/png;base64,x' }], shots: [] }
     const eng = createScriptBoxEngine(ctx())
     await eng.onRetryAssetImageUpload('a1')
@@ -405,8 +409,8 @@ describe('剧本盒引擎深度业务 §2.7', () => {
   })
 
   it('onGenerateAssetImage：生图成功后仅本地化落盘主图，不再自产独立缩略图（thumbnailUrl 回退原图）', async () => {
-    generateImage.mockResolvedValueOnce({ ok: true, url: 'https://upstream/x.png' })
-    localizeAndStoreToLibrary.mockResolvedValueOnce('/files/migrated/人物/角色1.png') // 仅主图本地化，不再二次落盘缩略图
+    generateImageMock.mockResolvedValueOnce({ ok: true, url: 'https://upstream/x.png' })
+    localizeMock.mockResolvedValueOnce('/files/migrated/人物/角色1.png') // 仅主图本地化，不再二次落盘缩略图
     data = { assets: [{ id: 'a1', category: 'character', name: '角色1', imageUrl: '', thumbnailUrl: '' }], shots: [] }
     const eng = createScriptBoxEngine(ctx())
     await eng.onGenerateAssetImage('a1')

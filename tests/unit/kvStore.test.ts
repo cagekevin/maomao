@@ -1,4 +1,3 @@
-// @ts-nocheck
 // 回归测试：kvStore.js
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
@@ -33,6 +32,11 @@ import {
 import { sGet, sSet, sRemove } from '@/components/base/storage/storageAdapter.ts'
 import { logger } from '../../src/components/base/logger.ts'
 
+// vi.mock 工厂不改变静态导入类型，用 vi.mocked 标注以拿到 .mockReset/.mockReturnValue
+const sGetMock = vi.mocked(sGet)
+const sSetMock = vi.mocked(sSet)
+const sRemoveMock = vi.mocked(sRemove)
+
 const API_BASE = 'http://127.0.0.1:18080'
 
 // 可变 fetch mock，每个用例自行设置实现
@@ -40,10 +44,10 @@ let fetchImpl
 beforeEach(() => {
   fetchImpl = vi.fn()
   vi.stubGlobal('fetch', fetchImpl)
-  sGet.mockReset()
-  sSet.mockReset()
-  sRemove.mockReset()
-  logger.warn.mockReset()
+  sGetMock.mockReset()
+  sSetMock.mockReset()
+  sRemoveMock.mockReset()
+  vi.mocked(logger.warn).mockReset()
 })
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -74,10 +78,12 @@ describe('kvStore isKvKey', () => {
     expect(isKvKey('users/abc')).toBe(false)
   })
   it('非字符串输入返回 false（边界/异常输入）', () => {
-    expect(isKvKey(null)).toBe(false)
-    expect(isKvKey(undefined)).toBe(false)
-    expect(isKvKey(123)).toBe(false)
-    expect(isKvKey({})).toBe(false)
+    // isKvKey 运行时用 typeof 判非字符串直接返回 false，但 src 形参标注为 string（偏窄）；
+    // 此处专测该边界路径，用 as any 收敛到运行时真实接受的入参类型。
+    expect(isKvKey(null as any)).toBe(false)
+    expect(isKvKey(undefined as any)).toBe(false)
+    expect(isKvKey(123 as any)).toBe(false)
+    expect(isKvKey({} as any)).toBe(false)
   })
 })
 
@@ -162,7 +168,7 @@ describe('kvStore storageGet', () => {
   it('非 KV 前缀走 sGet，并 JSON.parse 解析', async () => {
     const key = 'projects'
     const value = { id: 'p1', list: [1, 2] }
-    sGet.mockReturnValue(JSON.stringify(value))
+    sGetMock.mockReturnValue(JSON.stringify(value))
     const r = await storageGet(key)
     expect(sGet).toHaveBeenCalledWith('projects')
     expect(fetchImpl).not.toHaveBeenCalled()
@@ -170,7 +176,7 @@ describe('kvStore storageGet', () => {
   })
   it('KV 键读失败 → 降级读本地 sGet 副本（对称降级，修 R2）', async () => {
     const key = CANVAS_STATE_PREFIX + 'snap'
-    sGet.mockReturnValue(JSON.stringify({ v: 1 })) // storageSet 曾降级写的本地副本
+    sGetMock.mockReturnValue(JSON.stringify({ v: 1 })) // storageSet 曾降级写的本地副本
     fetchImpl.mockRejectedValue(new Error('kv down'))
     const r = await storageGet(key)
     expect(fetchImpl).toHaveBeenCalledTimes(1) // 先试 KV
@@ -178,12 +184,12 @@ describe('kvStore storageGet', () => {
     expect(r).toEqual({ v: 1 })
   })
   it('非 KV 前缀 sGet 返回 null → storageGet 返回 null', async () => {
-    sGet.mockReturnValue(null)
+    sGetMock.mockReturnValue(null)
     const r = await storageGet('missing')
     expect(r).toBeNull()
   })
   it('非 KV 前缀 sGet 返回非 JSON 字符串 → 原样返回（解析失败兜底）', async () => {
-    sGet.mockReturnValue('plain-string')
+    sGetMock.mockReturnValue('plain-string')
     const r = await storageGet('plain')
     expect(r).toBe('plain-string')
   })
@@ -209,8 +215,8 @@ describe('kvStore storageSet', () => {
     expect(fetchImpl).toHaveBeenCalledTimes(1)
     expect(sSet).toHaveBeenCalledTimes(1)
     // storageSet 内部 stringify 后写入
-    expect(sSet.mock.calls[0][0]).toBe(key)
-    expect(sSet.mock.calls[0][1]).toBe(JSON.stringify(value))
+    expect(sSetMock.mock.calls[0][0]).toBe(key)
+    expect(sSetMock.mock.calls[0][1]).toBe(JSON.stringify(value))
     // 记录降级 warn 日志
     expect(logger.warn).toHaveBeenCalledTimes(1)
     expect(r).toEqual({ ok: true, degraded: true })
@@ -232,7 +238,7 @@ describe('kvStore storageSet', () => {
   })
   it('KV 写成功后清除该键历史降级本地副本（P2-F1，防旧值复活）', async () => {
     const key = CANVAS_STATE_PREFIX + 'snap'
-    sGet.mockReturnValue(JSON.stringify({ stale: true })) // 曾降级写的本地副本在场
+    sGetMock.mockReturnValue(JSON.stringify({ stale: true })) // 曾降级写的本地副本在场
     fetchImpl.mockResolvedValue(okJson({ ok: true }))
     await storageSet(key, { nodes: [] })
     expect(sSet).not.toHaveBeenCalled() // 走 KV，不降级写本地

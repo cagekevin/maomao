@@ -1,5 +1,4 @@
 // @vitest-environment node
-// @ts-nocheck
 /**
  * backupStore 单测（批 1-1）。
  * 覆盖：LS_KEYS 清单读/写、conversationKeys 动态键、exportAll 打包、importAll 回写、
@@ -118,7 +117,7 @@ describe('backupStore — 导入 importAll', () => {
 
   it('canvas 快照 saveCanvasState 返回 skipped 时不计入 canvas 计数', async () => {
     const { saveCanvasState } = await import('../../src/components/base/projectStore.ts')
-    saveCanvasState.mockImplementationOnce(async () => ({ skipped: true }))
+    vi.mocked(saveCanvasState).mockImplementationOnce(async () => ({ success: false, skipped: true }))
     const res = await importAll({ ls: {}, canvas: { skip1: { nodes: [], edges: [] } } })
     expect(res.canvas).toBe(0)
   })

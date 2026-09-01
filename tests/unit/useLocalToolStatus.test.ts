@@ -1,5 +1,4 @@
 // @vitest-environment jsdom
-// @ts-nocheck
 /**
  * useLocalToolStatus 单测（批 3）。
  * 覆盖 useLocalToolStatus()：
@@ -15,12 +14,17 @@ import { renderHook, act } from '@testing-library/react'
 
 const { useLocalToolStatus } = await import('../../src/hooks/useLocalToolStatus.ts')
 
+// vi.mocked(globalThis.fetch) 包装后返回类型为 Mock，但 mock 的响应体 okBody 等并非真实 Response 形状，
+// 用 any 别名承载（运行时 fetch 已被 vi.stubGlobal 替换为 vi.fn）
+let fetchMock: any
+
 const okBody = { ok: true, json: async () => ({ status: 'ok' }) }
 const badBody = { ok: true, json: async () => ({ status: 'down' }) }
 const notOk = { ok: false, status: 503, json: async () => ({}) }
 
 beforeEach(() => {
   vi.stubGlobal('fetch', vi.fn())
+  fetchMock = vi.mocked(globalThis.fetch)
 })
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -29,7 +33,7 @@ afterEach(() => {
 
 describe('useLocalToolStatus', () => {
   it('ping 200 + body.status=ok → status.isConnected true', async () => {
-    globalThis.fetch.mockResolvedValue(okBody)
+    fetchMock.mockResolvedValue(okBody)
     const { result } = renderHook(() => useLocalToolStatus())
     await act(async () => { await Promise.resolve() })
     await act(async () => { await Promise.resolve() })
@@ -38,7 +42,7 @@ describe('useLocalToolStatus', () => {
   })
 
   it('ping 非 200 → status.isConnected false', async () => {
-    globalThis.fetch.mockResolvedValue(notOk)
+    fetchMock.mockResolvedValue(notOk)
     const { result } = renderHook(() => useLocalToolStatus())
     await act(async () => { await Promise.resolve() })
     await act(async () => { await Promise.resolve() })
@@ -46,7 +50,7 @@ describe('useLocalToolStatus', () => {
   })
 
   it('body.status 非 ok → status.isConnected false', async () => {
-    globalThis.fetch.mockResolvedValue(badBody)
+    fetchMock.mockResolvedValue(badBody)
     const { result } = renderHook(() => useLocalToolStatus())
     await act(async () => { await Promise.resolve() })
     await act(async () => { await Promise.resolve() })
@@ -54,7 +58,7 @@ describe('useLocalToolStatus', () => {
   })
 
   it('ping 抛错（工具未启动）→ status.isConnected false', async () => {
-    globalThis.fetch.mockRejectedValue(new Error('ECONNREFUSED'))
+    fetchMock.mockRejectedValue(new Error('ECONNREFUSED'))
     const { result } = renderHook(() => useLocalToolStatus())
     await act(async () => { await Promise.resolve() })
     await act(async () => { await Promise.resolve() })
@@ -62,13 +66,13 @@ describe('useLocalToolStatus', () => {
   })
 
   it('手动 checkConnection 覆盖上次结果（从 offline 到 online）', async () => {
-    globalThis.fetch.mockRejectedValue(new Error('down'))
+    fetchMock.mockRejectedValue(new Error('down'))
     const { result } = renderHook(() => useLocalToolStatus())
     await act(async () => { await Promise.resolve() })
     await act(async () => { await Promise.resolve() })
     expect(result.current.status.isConnected).toBe(false)
 
-    globalThis.fetch.mockResolvedValue(okBody)
+    fetchMock.mockResolvedValue(okBody)
     await act(async () => { await result.current.checkConnection() })
     expect(result.current.status.isConnected).toBe(true)
   })
@@ -87,16 +91,16 @@ describe('useLocalToolStatus 轮询（ensurePoll 幂等回归防线）', () => {
     // → interval 被杀后永不重建，连接一变化断线检测就永久失效。此处推进 15s 若不再 ping 即红。
     vi.useFakeTimers()
     try {
-      globalThis.fetch.mockResolvedValue(okBody)
+      fetchMock.mockResolvedValue(okBody)
       const useIt = await freshHook()
       const { result } = renderHook(() => useIt())
       await act(async () => { await Promise.resolve() })
       await act(async () => { await Promise.resolve() })
       expect(result.current.status.isConnected).toBe(true) // 触发 useEffect → 重建为 15s 间隔
 
-      const before = globalThis.fetch.mock.calls.length
+      const before = fetchMock.mock.calls.length
       await act(async () => { await vi.advanceTimersByTimeAsync(15000) })
-      expect(globalThis.fetch.mock.calls.length).toBeGreaterThan(before)
+      expect(fetchMock.mock.calls.length).toBeGreaterThan(before)
     } finally {
       vi.useRealTimers()
     }
@@ -109,12 +113,12 @@ describe('useLocalToolStatus 轮询（ensurePoll 幂等回归防线）', () => {
     // useEffect 那次被 ensurePoll 幂等挡掉。**幂等一旦失效就会变成 3 次 → 必红**。
     vi.useFakeTimers()
     try {
-      globalThis.fetch.mockResolvedValue(notOk) // 保持未连接，避免状态变化触发重建
+      fetchMock.mockResolvedValue(notOk) // 保持未连接，避免状态变化触发重建
       const useIt = await freshHook()
       renderHook(() => useIt())
       await act(async () => { await Promise.resolve() })
       await act(async () => { await Promise.resolve() })
-      expect(globalThis.fetch.mock.calls.length).toBeLessThanOrEqual(2)
+      expect(fetchMock.mock.calls.length).toBeLessThanOrEqual(2)
     } finally {
       vi.useRealTimers()
     }
@@ -124,22 +128,22 @@ describe('useLocalToolStatus 轮询（ensurePoll 幂等回归防线）', () => {
     vi.useFakeTimers()
     try {
       // 未连接：推进 5s 应触发一次轮询
-      globalThis.fetch.mockResolvedValue(notOk)
+      fetchMock.mockResolvedValue(notOk)
       const useIt = await freshHook()
       const { result } = renderHook(() => useIt())
       await act(async () => { await Promise.resolve() })
       await act(async () => { await Promise.resolve() })
-      const base = globalThis.fetch.mock.calls.length
+      const base = fetchMock.mock.calls.length
       await act(async () => { await vi.advanceTimersByTimeAsync(5000) })
-      expect(globalThis.fetch.mock.calls.length).toBeGreaterThan(base)
+      expect(fetchMock.mock.calls.length).toBeGreaterThan(base)
 
       // 切到已连接：间隔变 15s，推进 5s 不应触发（证明间隔确实变了，而非仍是 5s）
-      globalThis.fetch.mockResolvedValue(okBody)
+      fetchMock.mockResolvedValue(okBody)
       await act(async () => { await result.current.checkConnection() })
       await act(async () => { await Promise.resolve() })
-      const afterConnect = globalThis.fetch.mock.calls.length
+      const afterConnect = fetchMock.mock.calls.length
       await act(async () => { await vi.advanceTimersByTimeAsync(5000) })
-      expect(globalThis.fetch.mock.calls.length).toBe(afterConnect)
+      expect(fetchMock.mock.calls.length).toBe(afterConnect)
     } finally {
       vi.useRealTimers()
     }
