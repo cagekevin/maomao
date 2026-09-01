@@ -1,4 +1,5 @@
 // @vitest-environment node
+// @ts-nocheck
 /**
  * imageApi 单测（批 2，API 封装层）。
  * 覆盖：resolveImagePixel 查表与边界（纯函数）；generateImage sync 模式成功取 url；

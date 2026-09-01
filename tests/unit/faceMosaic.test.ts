@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+// @ts-nocheck
 /**
  * faceMosaic 单元测试（阶段一·算法与逻辑层）
  * 按 C1 可测性优先：mock 重环境（@mediapipe/tasks-vision / Image / canvas 真实渲染），

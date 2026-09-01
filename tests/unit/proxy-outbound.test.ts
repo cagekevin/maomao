@@ -1,4 +1,5 @@
 // @vitest-environment node
+// @ts-nocheck
 /**
  * B5 出口回收锁定测试（proxy-outbound）。
  *

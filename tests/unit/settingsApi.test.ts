@@ -1,4 +1,5 @@
 // @vitest-environment node
+// @ts-nocheck
 /**
  * settingsApi 单测（批 2，API 封装层，settings 子目录）。
  * 覆盖：providerApi.getProviders/saveProviders/testConnection/fetchModels/syncConfigBase

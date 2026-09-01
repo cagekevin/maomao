@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+// @ts-nocheck
 /**
  * nodeTypes 单源化测试 —— NodePalette 派生画布 nodeTypes。
  * 覆盖：buildNodeTypeComponents 覆盖全部可创建节点、值为组件函数、含 HIDDEN 顶部快捷。

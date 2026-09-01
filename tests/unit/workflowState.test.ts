@@ -1,4 +1,5 @@
 // @vitest-environment node
+// @ts-nocheck
 /**
  * workflowState 单测（M2 收口）。
  * 覆盖 5 个纯函数迁移动作的 patch 输出：

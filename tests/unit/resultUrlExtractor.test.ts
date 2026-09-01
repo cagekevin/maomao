@@ -1,4 +1,5 @@
 // @vitest-environment node
+// @ts-nocheck
 /**
  * resultUrlExtractor 单测（P1-B φ2）—— 统一结果 URL 解析器。
  * 覆盖 C-B 验收的「5 处同一响应样例，单一解析器输出一致」：

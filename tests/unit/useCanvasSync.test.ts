@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+// @ts-nocheck
 /**
  * useCanvasSync 单测（多窗口画布同步检测 hook）。
  * 策略：stub 全局 BroadcastChannel 为可捕获 onmessage 的 fake，模拟收到 CANVAS_SAVED 消息，

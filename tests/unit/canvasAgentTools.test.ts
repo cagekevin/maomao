@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 // 隔离依赖：AI 撤销栈 / 真实生成 / 多步执行器

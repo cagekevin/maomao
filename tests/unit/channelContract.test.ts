@@ -1,3 +1,4 @@
+// @ts-nocheck
 // 对象动画「通道化」M1 数据契约 纯逻辑测试
 // 覆盖：
 //   M1-C1 三实体通道划分（camera/object/person）+ 轨内 key 只含本通道字段

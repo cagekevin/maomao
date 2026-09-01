@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+// @ts-nocheck
 /**
  * clipboard 单测（批 1-2）。
  * 覆盖：sanitizePastedText 清洗规则（纯函数，重点）、copyText、copyImageToClipboard（含跨域 fallback）、

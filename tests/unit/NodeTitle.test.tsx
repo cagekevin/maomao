@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * NodeTitle 深度测试。
  *

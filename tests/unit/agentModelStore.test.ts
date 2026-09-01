@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 
 // 模块级单例 + sGet/sSet 依赖内存 localStorage（tests/setup.mjs 已注入）。

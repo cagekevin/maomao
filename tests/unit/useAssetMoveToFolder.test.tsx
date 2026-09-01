@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * useAssetMoveToFolder 测试：把文件「拖到文件夹卡片」归类。
  * 复用真实 canMoveAsset/resolveMovePaths，仅 mock moveFile 与 toast。

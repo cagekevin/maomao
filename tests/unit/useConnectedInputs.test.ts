@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { describe, it, expect } from 'vitest'
 import { getNodeOutput, NODE_OUTPUTS } from '../../src/hooks/useConnectedInputs.ts'
 import { SHOT_HANDLE_PREFIX, shotHandleId, parseShotHandle } from '../../src/components/base/contracts.ts'

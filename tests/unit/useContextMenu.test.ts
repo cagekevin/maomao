@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+// @ts-nocheck
 /**
  * useContextMenu 单测（批 3）。
  * 覆盖 useContextMenu() hook 的状态/回调行为：

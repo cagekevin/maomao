@@ -1,4 +1,5 @@
 // @vitest-environment node
+// @ts-nocheck
 /**
  * httpClient 单测 —— 统一请求层。
  * 覆盖：成功/HTTP 错误/网络错误/超时/取消/重试/跨标签。

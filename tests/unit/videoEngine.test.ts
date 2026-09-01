@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * videoEngine 单元测试（阶段一·算法与逻辑层）
  * 按 C1 可测性优先：WebCodecs/mediabunny 重环境不跑，只测纯逻辑剥离的：

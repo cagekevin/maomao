@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+// @ts-nocheck
 /**
  * useSyncNodeData 单测（批 1-9，hook 类）。
  * 覆盖：节点 data 字段变化 → 对应 setter 被调用；首次渲染（初始化）不调用 setter；

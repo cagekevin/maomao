@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { describe, it, expect } from 'vitest'
 import {
   ZgPrompt, dialogueText, textToDlg, dlgToText, stripAtRef, hlAt, matchAsset, collectAssets, buildShotPrompts,

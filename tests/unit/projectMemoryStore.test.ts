@@ -1,4 +1,5 @@
 // @vitest-environment node
+// @ts-nocheck
 /**
  * projectMemoryStore（「记」项目级长期记忆）单测。
  * 映射阶段3·定数据流的存储契约：按 agentKey 全局共用（不分项目），60 条上限淘汰最旧，

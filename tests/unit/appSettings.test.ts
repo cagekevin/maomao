@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 // appSettings 用模块级单例 + 默认兜底；用 resetModules 隔离每次导入，保证测试独立。

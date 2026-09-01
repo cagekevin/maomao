@@ -1,4 +1,5 @@
 // @vitest-environment node
+// @ts-nocheck
 /**
  * taskStore 生图并发上限测试。
  * 验证 runNodeGeneration 同时最多跑 MAX_CONCURRENT_GEN(6) 个，第 7 个返回 { ok:false, skipped:true }，

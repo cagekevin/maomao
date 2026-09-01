@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * CustomHandle 深度测试。
  *

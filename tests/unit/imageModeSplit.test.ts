@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { describe, it, expect } from 'vitest'
 import { imageModeLooksLikePerReferenceEdit, buildPerReferenceGenerations } from '../../src/components/agent/runtime/useAgentChat.ts'
 

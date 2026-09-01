@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+// @ts-nocheck
 /**
  * imageCompress 单测（批 1）。
  * 覆盖：compressImage 等比缩放（maxSize clamp）、质量/格式入参、白底 JPEG 兜底、

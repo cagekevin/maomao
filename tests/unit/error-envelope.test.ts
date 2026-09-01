@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * tests/unit/error-envelope.test.js
  * B2 错误信封统一：前端 extractErrorDetail 纯函数全分支 + httpRequest 集成 + 后端 sendError 带 code。

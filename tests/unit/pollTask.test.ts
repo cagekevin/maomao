@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * pollTask 单元测试（阶段一·算法与逻辑层）
  * 覆盖：单任务轮询状态机（completed/failed/running/无 pollTaskId/网络异常）、

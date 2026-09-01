@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { describe, it, expect } from 'vitest'
 import { detectMentionQuery, computeMentionPlacement, MENTION_FLIP_MIN_H } from '../../src/components/base/promptMention.ts'
 

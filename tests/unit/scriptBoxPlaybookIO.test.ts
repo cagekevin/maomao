@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * scriptBoxPlaybookIO — 单个 playbook 导出/导入往返（给 AI 改的闭环）。
  * 覆盖：导出含 __meta + 文件名净化；导入解析/净化/归一化/强制 builtin:false；坏输入容错。

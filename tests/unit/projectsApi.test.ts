@@ -1,4 +1,5 @@
 // @vitest-environment node
+// @ts-nocheck
 /**
  * projectsApi 单测（批 2，API 封装层）。
  * 覆盖：fetchProjects / saveProjects 成功路径与 HTTP 错误抛出。

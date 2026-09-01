@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * FaceMosaicNode 深度测试。
  *

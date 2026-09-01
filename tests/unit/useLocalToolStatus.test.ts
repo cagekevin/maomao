@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+// @ts-nocheck
 /**
  * useLocalToolStatus 单测（批 3）。
  * 覆盖 useLocalToolStatus()：

@@ -1,3 +1,4 @@
+// @ts-nocheck
 // 摄像机朝向欧拉约定 纯逻辑测试
 // 背景：cameraRotationToward 生成「先 yaw（绕 Y）再 pitch（绕 X）」的欧拉角（pitch=asin(dy), yaw=atan2(-dx,-dz)），
 //   必须在 THREE Euler 'YXZ' 下应用才精确；'XYZ' 的 yaw 用 asin 有象限歧义，目标在侧方/后方时前向会偏转，

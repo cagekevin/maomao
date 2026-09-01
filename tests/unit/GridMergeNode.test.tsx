@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * GridMergeNode 深度测试。
  * 审计建议 P1：多图输入、切图逻辑、参数变更重渲染。

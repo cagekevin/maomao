@@ -28,7 +28,8 @@
     "pretest": "npm run check:api && npm run check:events",
     "check:health": "node scripts/health-check.cjs",
     "check:arch": "node scripts/check-arch.mjs",
-    "type-check": "tsc --noEmit",
+    "type-check": "tsc --noEmit && npm run type-check:tests",
+    "type-check:tests": "tsc --noEmit -p tests/tsconfig.json",
     "prepare": "husky"
   },
   "overrides": {

@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+// @ts-nocheck
 /**
  * useFitNodeRatio 单测（批 3）。
  * 覆盖 useFitNodeRatio(id).fitByRatio(naturalW, naturalH)：

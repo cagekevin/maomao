@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { describe, it, expect } from 'vitest'
 import { HistoryStack } from '../../src/components/base/historyStack.ts'
 

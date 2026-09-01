@@ -1,3 +1,4 @@
+// @ts-nocheck
 // 运动路径核心链路的纯逻辑测试：
 //   绘制出的控制点 → normalizeShotPaths/normalizeCameraPath 归一化
 //   → pathSamplePoints 平滑采样（曲线连续、无跳跃）

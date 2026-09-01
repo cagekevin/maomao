@@ -1,4 +1,5 @@
 // @vitest-environment node
+// @ts-nocheck
 /**
  * hooks 单测（批 1-7，纯函数部分）。
  * hooks.js 既有 React hooks（useOutsideClick/useNodeResize 等，需 jsdom，留批 3），

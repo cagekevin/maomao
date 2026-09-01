@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * DiscountVideoNode 上游合并测试（本次修复核心逻辑）。
  * 覆盖：上游文本节点连线后文字合并进生视频 prompt；多上游文本/图片合并；

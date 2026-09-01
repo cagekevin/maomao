@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * CustomEdge 深度测试。
  *

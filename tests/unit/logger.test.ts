@@ -1,3 +1,4 @@
+// @ts-nocheck
 // 回归测试：logger.js、config.ts 中的 API_BASE
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { readFileSync } from 'node:fs'

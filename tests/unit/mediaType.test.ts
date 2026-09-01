@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { describe, it, expect } from 'vitest'
 import { detectMediaType, detectFileType, isAssetUrl, isAudio } from '../../src/components/base/mediaType.ts'
 

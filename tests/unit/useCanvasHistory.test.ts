@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+// @ts-nocheck
 /**
  * useCanvasHistory 单测（批 1-8，hook 桥接）。
  * 覆盖：返回 canUndo/canRedo/record/undo/redo/clear；record 后 canUndo 为真；

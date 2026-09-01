@@ -1,4 +1,5 @@
 // @vitest-environment node
+// @ts-nocheck
 /**
  * contextCompression（「记」）单测 —— 照搬参考项目 contextCompressionService 的压缩器。
  * 覆盖：serializeMessagesForSummary / compressToSummary（LLM 成功/失败/超时/缺区段）

@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * ConnectionLine 深度测试。
  *

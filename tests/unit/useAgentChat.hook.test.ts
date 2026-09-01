@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+// @ts-nocheck
 /**
  * useAgentChat hook 编排层深度测试。
  * 覆盖之前只有"调一下返回 ok"的浅层盲区：

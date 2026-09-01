@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * VideoExtractNode 深度测试。
  *

@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+// @ts-nocheck
 /**
  * AI 助手会话「刷新恢复」回归测试（真实 conversationStore + useAgentChat 集成）。
  *

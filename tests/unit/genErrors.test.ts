@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { describe, it, expect } from 'vitest'
 import { classifyError, timeoutMessage } from '../../src/components/base/genErrors.ts'
 import { TimeoutError } from '../../src/components/base/asyncGuard.ts'

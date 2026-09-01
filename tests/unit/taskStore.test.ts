@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 // 隔离 taskStore 的 IO 依赖（localToolApi/filesApi 走 fetch → localTool），

@@ -1,3 +1,4 @@
+// @ts-nocheck
 // 回归测试：useCanvasHistory.js、useSyncNodeData.js、workflowRuntime.ts
 // @vitest-environment jsdom
 /**

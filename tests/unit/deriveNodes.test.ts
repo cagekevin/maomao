@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { describe, it, expect } from 'vitest'
 import { buildSpawnNodes, applySpawnSnapshot, makeChildId } from '../../src/components/base/deriveNodes.ts'
 

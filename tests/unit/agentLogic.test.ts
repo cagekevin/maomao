@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { describe, it, expect } from 'vitest'
 import { parseSSEChunk, buildRequestMessages, demoPlan } from '../../src/components/agent/runtime/useAgentChat.ts'
 

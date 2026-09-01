@@ -1,4 +1,5 @@
 // @vitest-environment node
+// @ts-nocheck
 /**
  * chatApi 单测（批 2，API 封装层）。
  * 覆盖：chatCompletions 成功返回 content / 网络异常 / AbortError / 上游无文本。

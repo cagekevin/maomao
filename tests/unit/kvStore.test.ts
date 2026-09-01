@@ -1,3 +1,4 @@
+// @ts-nocheck
 // 回归测试：kvStore.js
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 

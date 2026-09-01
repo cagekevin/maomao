@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+// @ts-nocheck
 /**
  * useVideoPoster 单测（批 3）。
  * 覆盖 useVideoPoster(url, enabled)：

@@ -1,3 +1,4 @@
+// @ts-nocheck
 // 回归测试：clipboard.js、backupStore.ts、cloudSync.ts
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 

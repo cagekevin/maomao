@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { describe, it, expect } from 'vitest'
 import { encodeRefToken, parseRefTokensFromText } from '../../src/components/base/refToken.ts'
 

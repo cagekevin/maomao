@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * externalizeInlineData 单测（内联资源外置纯函数）。
  * 策略：注入 mock save，验证遍历/替换/计数/失败保留，不依赖真实落盘。

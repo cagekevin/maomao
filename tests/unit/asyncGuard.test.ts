@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { withTimeout, isTimeoutError, TimeoutError, loadImageWithTimeout } from '../../src/components/base/asyncGuard.ts'
 

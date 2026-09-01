@@ -27,7 +27,7 @@ export default defineConfig({
     // worker 会被 OOM 杀掉（"Worker exited unexpectedly"）。这里把并发压到 3 并给
     // 每个 worker 显式堆上限，平衡速度与内存峰值；内存紧张时可进一步降到 2/1。
     pool: 'forks',
-    maxWorkers: 3,
+    maxWorkers: 8,
     minWorkers: 1,
     poolOptions: {
       forks: {
@@ -35,17 +35,19 @@ export default defineConfig({
         execArgv: ['--max-old-space-size=1024'],
       },
     },
-    // 覆盖率（`npm run test:coverage`）：以 src 业务逻辑为统计面，剔除 .jsx 组件与纯样式/契约常量。
+    // 覆盖率（`npm run test:coverage`）：以 src 业务逻辑为统计面，剔除 UI 组件与纯样式/契约常量。
     // 门槛取保守值，先让数据沉淀、暴露低覆盖盲区，后续再逐步收紧（避免一次压实 CI）。
+    // 注：src 已全 TS 化（2026-09-01 收官），include/exclude 用 .ts/.tsx 而非过时的 .js/.jsx。
     coverage: {
       provider: 'v8',
       enabled: false, // 默认不跑，仅 test:coverage 显式开启，避免拖慢普通 test:unit
       reporter: ['text', 'lcov'],
-      include: ['src/**/*.js'],
+      include: ['src/**/*.{ts,tsx}'],
       exclude: [
         'src/components/nodes/**', 'src/components/panels/**', 'src/components/agent/**',
-        'src/components/scriptbox/**', 'src/**/*.jsx',
-        '**/contracts.js', '**/config.js',
+        'src/components/scriptbox/**', 'src/components/director3d/**',
+        '**/contracts.ts', '**/config.ts',
+        '**/*.tsx', // 纯 UI 组件不计覆盖（含 nodes/panels/scriptbox 的 tsx），避免分母失真
       ],
       thresholds: {
         lines: 50, functions: 40, statements: 50, branches: 30,

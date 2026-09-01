@@ -1,4 +1,5 @@
 // @vitest-environment node
+// @ts-nocheck
 /**
  * agentMessages 单测（M3 下沉 2：消息构造/落盘层）。
  * 覆盖：appendMsg / setHistory / updateLastStreaming / endStreaming / stripStreaming

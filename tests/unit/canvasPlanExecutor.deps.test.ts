@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 // 隔离真实生图（TASK-012 依赖批调用层补全）

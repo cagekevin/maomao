@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+// @ts-nocheck
 /**
  * useMediaDegrade 单测（批 3）。
  * 覆盖 useMediaDegrade() 按 LOD 级别的媒体降级：

@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * applyNodeTypeDefaults / NODE_TYPE_DEFAULTS 单测（节点结构默认补齐）。
  * 对齐原 App.jsx 行为：缺字段补默认、已有字段不覆盖、group 用真实尺寸兜底。

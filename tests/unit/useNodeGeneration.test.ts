@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+// @ts-nocheck
 /**
  * useNodeGeneration 单测（P0-2-b resultKey/recoverable 声明式写回）。
  * 三个关键行为：

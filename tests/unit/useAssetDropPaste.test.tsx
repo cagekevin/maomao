@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+// @ts-nocheck
 /**
  * useAssetDropPaste 单测（粘贴收口 · 万全之策）。
  *

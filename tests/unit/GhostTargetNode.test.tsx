@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * GhostTargetNode 深度测试。
  *

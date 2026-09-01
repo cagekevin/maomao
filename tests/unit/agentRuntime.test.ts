@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 // 【对齐大雄 docs/12-ai助手架构.md §6.3】

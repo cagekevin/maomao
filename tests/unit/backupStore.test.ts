@@ -1,4 +1,5 @@
 // @vitest-environment node
+// @ts-nocheck
 /**
  * backupStore 单测（批 1-1）。
  * 覆盖：LS_KEYS 清单读/写、conversationKeys 动态键、exportAll 打包、importAll 回写、

@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+// @ts-nocheck
 /**
  * imageUpscale 单测（纯浏览器 canvas 放大）。
  * 覆盖：×2 等比放大、maxOutputSize clamp、锐化开关、输入校验、

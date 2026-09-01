@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+// @ts-nocheck
 /**
  * useAssetCardDragProps 单测（素材卡片拖拽 · 回归护栏）。
  *

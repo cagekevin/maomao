@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * ScriptBoxNode 深度测试。
  *

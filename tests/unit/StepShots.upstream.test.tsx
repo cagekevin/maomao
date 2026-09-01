@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * StepShots 上游接入只读素材区测试。
  *

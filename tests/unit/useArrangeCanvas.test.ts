@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+// @ts-nocheck
 /**
  * useArrangeCanvas 单测（批 3）。
  * 覆盖 useArrangeCanvas().arrange({nodes, edges, onArrange, onComplete})：

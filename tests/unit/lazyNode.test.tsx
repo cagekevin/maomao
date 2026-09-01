@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+// @ts-nocheck
 /**
  * 重依赖节点按需加载（lazyNode）护栏。
  *

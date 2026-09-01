@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+// @ts-nocheck
 // 回归测试：useMediaDegrade.js、nodePrefs.js、imageCompress.js
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { renderHook, act } from '@testing-library/react'

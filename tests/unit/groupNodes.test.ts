@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { describe, it, expect } from 'vitest'
 import { adoptUserNodes, getNodeDimensions } from '@xyflow/system'
 import { createGroupFromNodes, ungroupNodes, deleteNodesWithCascade, duplicateSelectedWithEdges, resolveDragGrouping } from '../../src/components/base/groupNodes.ts'

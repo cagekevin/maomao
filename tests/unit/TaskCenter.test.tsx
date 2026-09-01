@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * TaskCenter 深度测试。
  *

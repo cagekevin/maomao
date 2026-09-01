@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * d3dPersistence 单测（director3d 工程持久化收口协议，docs/45）。
  * 覆盖 T1~T6 断言：

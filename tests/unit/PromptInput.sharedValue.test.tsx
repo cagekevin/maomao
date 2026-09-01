@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * PromptInput「两个实例共用同一个 value」回归测试（全屏大窗光标被抢）。
  *

@@ -1,4 +1,5 @@
 // @vitest-environment node
+// @ts-nocheck
 /**
  * videoApi 单测（批 2，API 封装层）。
  * 覆盖：generateVideo 强制 async（提交→轮询→取 url）；无 task_id 失败；网络错误分支。

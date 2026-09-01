@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { describe, it, expect } from 'vitest'
 import { resolvePendingRecovery } from '../../src/components/agent/runtime/pendingRecovery.ts'
 

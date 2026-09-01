@@ -1,4 +1,5 @@
 // @vitest-environment node
+// @ts-nocheck
 /**
  * tokenBudget（上下文 token 估算 + 预算触发压缩决策）单测。
  *

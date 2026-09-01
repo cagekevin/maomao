@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * PromptNode hover 工具栏回归测试（State 2 契约细化）。
  * 核心验证：生图节点的「裁剪」按钮此前是死按钮（无 onClick），

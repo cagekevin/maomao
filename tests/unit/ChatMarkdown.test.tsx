@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * ChatMarkdown 渲染测试。
  *

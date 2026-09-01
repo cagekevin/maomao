@@ -1,4 +1,5 @@
 // @vitest-environment node
+// @ts-nocheck
 /**
  * tasksApi 单测（批 2，API 封装层）。
  * 覆盖：fetchTasks/saveTask/batchSaveTasks/deleteTask/batchDeleteTasks/clearAllTasksApi

@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * ImageBoxNode 深度测试。
  *

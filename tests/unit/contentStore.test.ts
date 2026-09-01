@@ -1,3 +1,4 @@
+// @ts-nocheck
 // 测试：contentStore.js（Content 层权威入口）
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 

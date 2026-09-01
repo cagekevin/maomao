@@ -1,4 +1,5 @@
 // @vitest-environment node
+// @ts-nocheck
 /**
  * proxyGenerate 单测（补测试缺口，不重复 imageApi/chatApi/videoApi 已覆盖路径）。
  * imageApi.test.js 已覆盖 imageProxy sync SSE 取 url；chatApi/videoApi 已覆盖成功/错误路径。

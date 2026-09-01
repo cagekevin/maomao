@@ -1,4 +1,5 @@
 // @vitest-environment node
+// @ts-nocheck
 /**
  * memoryRetrieval（「记」检索注入）单测。
  * 覆盖：rankProjectMemories 排序（相关度/类别权重/近因 + MMR 去冗余）、

@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+// @ts-nocheck
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { createDebouncedPersist } from '../../src/components/base/contentStore.ts'
 

@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * assetsMove 单元测试（阶段三·算法与逻辑层）
  * 覆盖：moveFile 端点透传、canMoveAsset 边界、resolveMovePaths 相对路径推导。

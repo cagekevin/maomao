@@ -1,4 +1,5 @@
 // @vitest-environment node
+// @ts-nocheck
 /**
  * cloudSync 单测（批 1-3）。
  * 覆盖：CloudSyncEngine.callGateway（URL 校验/重入守卫/响应解析）、push/pull 成功与失败分支、

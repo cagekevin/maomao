@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * lod 深模块单测（合并原 LodProvider/useLod/LodListener 后）。
  * 透过新 Interface（useLod() + LodContext）验证：

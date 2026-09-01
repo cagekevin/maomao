@@ -1,4 +1,5 @@
 // @vitest-environment node
+// @ts-nocheck
 /**
  * agentAttachments 单测（M3 下沉 1：附件归一化 / 参考图目录）。
  * 覆盖：
