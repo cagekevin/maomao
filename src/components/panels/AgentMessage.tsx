@@ -1,9 +1,10 @@
-import { memo, useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { toAbsoluteFileUrl } from '../base/api/index.ts'
 import LazyImage from '../base/LazyImage.tsx'
 import PromptConfirmCard from './PromptConfirmCard.tsx'
 import AgentConfirmCard from './AgentConfirmCard.tsx'
 import ImageZoomDialog from '../base/ImageZoomDialog.tsx'
+import ChatMarkdown from './ChatMarkdown.tsx'
 import { type ToolCall, type ChatMessage } from '../agent/runtime/agentCore.ts'
 import { type PromptItem } from '../base/promptFlow.ts'
 
@@ -18,100 +19,6 @@ interface AgentMessageData extends ChatMessage {
   requestedCount?: number
   awaiting_confirm?: boolean
   memory_suggest?: boolean
-}
-
-/** 直观判断：一个 URL 是否该渲染成图片。
- *  - 跳过临时协议：blob:/ipfs:/ipns:（持久化后必破图）
- *  - data: 只接受 data:image/
- *  - http(s)：带图片后缀(.png/.jpg…)直接渲染；无后缀则排除网页类后缀(.html/.json…)后渲染（兼容无后缀图床） */
-function isImageUrl(u: string) {
-  u = String(u || '').trim().toLowerCase()
-  if (!u) return false
-  if (/^(?:blob:|ipfs:|ipns:)/.test(u)) return false
-  if (u.startsWith('data:')) return u.startsWith('data:image/')
-  if (!/^https?:\/\//.test(u)) return false
-  if (/\.(?:png|jpe?g|gif|webp|svg|bmp)(?:[?#]|$)/.test(u)) return true
-  return !/\.(?:html?|php|json|xml|css|js|mjs|txt|md|csv|pdf)(?:[?#]|$)/.test(u)
-}
-
-/** 从文本里按顺序找出所有「图片 URL 候选」及其位置（含 markdown ![]() 与 <img src>）。 */
-interface ImageSpan {
-  url: string
-  start: number
-  end: number
-}
-function extractImageSpans(text: string): ImageSpan[] {
-  const spans: ImageSpan[] = []
-  // 1) markdown 图片 ![](url) / ![alt](url)
-  //    允许 url 内部包含一对括号 (…)，只在结尾的 ) 处闭合，避免含 ) 的签名链接被截断
-  for (const m of text.matchAll(/!\[[^\]]*\]\(([^()\s]*(?:\([^()\s]*\)[^()\s]*)*)\)/g)) {
-    spans.push({ url: m[1], start: m.index ?? 0, end: (m.index ?? 0) + m[0].length })
-  }
-  // 2) HTML <img src="url">
-  for (const m of text.matchAll(/<img\b[^>]*\bsrc=["']([^"']+)["'][^>]*>/gi)) {
-    spans.push({ url: m[1], start: m.index ?? 0, end: (m.index ?? 0) + m[0].length })
-  }
-  // 3) 裸链接：http(s)://… 或 data:image/…
-  //    读到空白才停（不再遇 ) 即截断，保留 url 内部的 ) 与 ?query 参数）；
-  //    尾随的中英文标点/括号/引号不属于 url，用非捕获组剥离；
-  //    排除被 blob:/ipfs:/ipns: 协议前缀包裹的 URL（与 isImageUrl「临时协议不渲染」契约冲突）
-  for (const m of text.matchAll(/(https?:\/\/[^\s]+?|data:image\/[^\s"]+?)(?:[)\]}'"，。、,!?；;]+)?(?=\s|$)/gi)) {
-    const before = text.slice(Math.max(0, (m.index ?? 0) - 5), m.index ?? 0)
-    if (/^(?:blob:|ipfs:|ipns:)$/.test(before)) continue
-    spans.push({ url: m[1] ?? m[0], start: m.index ?? 0, end: (m.index ?? 0) + m[0].length })
-  }
-  // 去重 + 只保留真正是图片的 + 按出现顺序
-  // 去重 key 用「纯 url」：markdown 与裸链接多处出现同一 url 只渲染一次（根治重复显示）
-  const seen = new Set<string>()
-  return spans
-    .filter((s) => isImageUrl(s.url) && !seen.has(s.url) && seen.add(s.url))
-    .sort((a, b) => a.start - b.start)
-}
-
-interface RenderNode {
-  type: 'text' | 'image'
-  value: string
-  key: string
-}
-
-/** 把 assistant 的纯文本 content 按图片 URL 切分：文本段原样（保留换行），图片段渲染成图。
- *  onOpenImage(url)：点击图片时打开原生 dialog 查看大图（替代原 target=_blank 新窗口）。 */
-function renderContentWithImages(text: string, onOpenImage: (url: string) => void): ReactNode {
-  const str = String(text || '')
-  if (!str) return null
-  const spans = extractImageSpans(str)
-  if (spans.length === 0) {
-    return <span className="whitespace-pre-wrap break-words">{str}</span>
-  }
-  const nodes: RenderNode[] = []
-  let last = 0
-  spans.forEach((s, i) => {
-    if (s.start > last) nodes.push({ type: 'text', value: str.slice(last, s.start), key: `t${i}` })
-    nodes.push({ type: 'image', value: s.url, key: `i${i}` })
-    last = s.end
-  })
-  if (last < str.length) nodes.push({ type: 'text', value: str.slice(last), key: `t${spans.length}` })
-  return (
-    <div className="space-y-2">
-      {nodes.map((n) =>
-        n.type === 'text' ? (
-          <span key={n.key} className="whitespace-pre-wrap break-words block">
-            {n.value}
-          </span>
-        ) : (
-          <button
-            key={n.key}
-            type="button"
-            onClick={() => onOpenImage?.(n.value)}
-            className="block w-full max-w-[280px] rounded-md overflow-hidden border border-white/15 hover:border-white/40 transition-colors cursor-zoom-in p-0 text-left"
-            title="点击查看大图"
-          >
-            <LazyImage src={n.value} alt="" className="w-full max-h-[240px] bg-black/30" imgClassName="w-full h-auto max-h-[240px] object-contain" />
-          </button>
-        )
-      )}
-    </div>
-  )
 }
 
 /**
@@ -321,7 +228,7 @@ function AgentMessage({ message, onConfirmPlan, onCancelPlan, onRetryStep, onPro
           )}
           {message.content && (
             <div className="relative bg-canvas border border-edge-faint text-primary text-sm rounded-lg rounded-bl-sm px-3 py-2">
-              {renderContentWithImages(message.content, openZoom)}
+              <ChatMarkdown value={message.content} onOpenImage={openZoom} />
               {message.streaming && <span className="inline-block w-1 h-3 bg-gray-400 ml-0.5 animate-pulse align-middle" />}
               {/* 右下角箭头：把整段回复发到画布 → 新建文本节点（内容落生成区 data.text） */}
               {!message.streaming && onSendToCanvas && (

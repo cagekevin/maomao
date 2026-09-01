@@ -253,6 +253,48 @@ export async function roundTrip(ctx, requestMessages, signal, onStream) {
   let buffer = ''
   const acc = { content: '', reasoning: '', toolCalls: [] }
 
+  // 【吞输出兜底】部分模型/网关在 streamMode='stream' 时仍返回「普通 JSON 非流式响应」
+  //（choices[0].message.content，而非 choices[0].delta 的 SSE）。parseSSEChunk 只认 data: 前缀，
+  //  会把这类响应整个吞掉（status 200 但 contentLen=0，且无任何提示）。
+  //  这里在 acc 尚无内容时，尝试把「合法完整 JSON 对象」按非流式结构解析出 content/tool_calls，
+  //  避免输出被静默吞掉。命中返回 true；不命中（真 SSE / 非法 JSON / 已有内容）返回 false，不影响主链路。
+  const tryParseNonStreamJsonFallback = (text: string): boolean => {
+    if (acc.content || acc.reasoning || acc.toolCalls.length) return false
+    const t = String(text || '').trim()
+    if (!t.startsWith('{')) return false
+    try {
+      const json = JSON.parse(t)
+      const msg = json?.choices?.[0]?.message
+      if (!msg || typeof msg !== 'object') return false
+      let hit = false
+      if (typeof msg.content === 'string' && msg.content) {
+        acc.content += msg.content
+        hit = true
+      }
+      if (Array.isArray(msg.tool_calls)) {
+        for (const tc of msg.tool_calls) {
+          if (tc?.function?.name) {
+            acc.toolCalls.push({
+              id: tc.id || '',
+              type: 'function',
+              function: { name: tc.function.name, arguments: tc.function.arguments || '' },
+            })
+            hit = true
+          }
+        }
+      }
+      if (hit) {
+        logger.warn('AI助手', '流式收到非流式JSON响应，已兜底解析（避免吞输出）', {
+          contentLen: (msg.content || '').length,
+          toolCallCount: Array.isArray(msg.tool_calls) ? msg.tool_calls.length : 0,
+        })
+      }
+      return hit
+    } catch {
+      return false
+    }
+  }
+
   // 流式回调（节流 50ms，复刻官方 v）
   let lastFlush = 0
   let pendingFlush = false
@@ -286,12 +328,21 @@ export async function roundTrip(ctx, requestMessages, signal, onStream) {
       const before = acc.content.length + acc.reasoning.length + acc.toolCalls.length
       // 请求形态差异：responses 走自带 SSE 事件解析，chat/completions 走原 parseSSEChunk
       if (isResponsesChat) parseResponsesSSEChunk(chunk, acc)
-      else parseSSEChunk(chunk, acc)
+      else if (!parseSSEChunk(chunk, acc)) {
+        // parseSSEChunk 返回 false（非 data: 前缀）→ 尝试非流式 JSON 兜底，防吞输出
+        tryParseNonStreamJsonFallback(chunk)
+        scheduleFlush()
+        continue
+      }
       if (acc.content.length + acc.reasoning.length + acc.toolCalls.length > before) scheduleFlush()
     }
   }
   buffer += decoder.decode()
-  if (buffer.trim()) { if (isResponsesChat) parseResponsesSSEChunk(buffer, acc); else parseSSEChunk(buffer, acc) }
+  if (buffer.trim()) {
+    // 末尾残余：responses 走 SSE，chat 先走 SSE、非 data: 再尝试非流式 JSON 兜底（单行 JSON 落这里）
+    if (isResponsesChat) parseResponsesSSEChunk(buffer, acc)
+    else if (!parseSSEChunk(buffer, acc)) tryParseNonStreamJsonFallback(buffer)
+  }
   flush()
 
   const assistant: RuntimeAssistantMessage = { role: 'assistant', content: acc.content || '', model, createdAt: Date.now() }

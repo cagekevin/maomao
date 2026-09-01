@@ -153,13 +153,20 @@ export function loadHistory(agentKey: string): ChatMessage[] {
 
 /** SSE 解析（复刻官方 dr 内 v 函数：按 data: 前缀解析 delta，含 content/reasoning/tool_calls）。
  *  导出供单测（AI 助手前端逻辑核心：多轮工具循环依赖它对 SSE 流式结果的解析）。 */
-export function parseSSEChunk(line: string, acc: SSEAccumulator): void {
-  if (!line.startsWith('data:')) return
+/**
+ * 解析一条 SSE 增量。
+ * @returns {boolean} true = 这是一条 SSE 的 data: 数据行（已按 SSE 语义消费，无论是否提取到内容）；
+ *                    false = 不是 data: 前缀（可能是非流式 JSON 响应体），调用方可尝试非流式兜底解析。
+ * 【吞输出兜底·契约】roundTrip 流式循环依赖该返回值：只有当返回 false 时才把该 chunk 交给
+ *   tryParseNonStreamJsonFallback（防「流式模式下收到非流式 JSON」被静默吞掉）。
+ */
+export function parseSSEChunk(line: string, acc: SSEAccumulator): boolean {
+  if (!line.startsWith('data:')) return false
   const payload = line.slice(5).trim()
-  if (!payload || payload === '[DONE]') return
+  if (!payload || payload === '[DONE]') return true
   try {
     const delta = JSON.parse(payload).choices?.[0]?.delta
-    if (!delta) return
+    if (!delta) return true
     if (delta.content) acc.content += delta.content
     if (delta.reasoning_content) acc.reasoning += delta.reasoning_content
     else if (delta.reasoning) acc.reasoning += delta.reasoning
@@ -175,6 +182,7 @@ export function parseSSEChunk(line: string, acc: SSEAccumulator): void {
   } catch {
     /* 忽略单条解析失败 */
   }
+  return true
 }
 
 /**
