@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { describe, it, expect } from 'vitest'
 import { imageModeLooksLikePerReferenceEdit, buildPerReferenceGenerations } from '../../src/components/agent/runtime/useAgentChat.ts'
 
@@ -8,7 +7,7 @@ import { imageModeLooksLikePerReferenceEdit, buildPerReferenceGenerations } from
  */
 describe('TASK-008 图像模式「每参考图一对一」拆分', () => {
   describe('imageModeLooksLikePerReferenceEdit 语义判断', () => {
-    const cases = [
+    const cases: [string, number, boolean][] = [
       // 命中（应返回 true）
       ['分别把这两张图变成白色和黑色', 2, true],
       ['每张图各生成一张高清图', 3, true],

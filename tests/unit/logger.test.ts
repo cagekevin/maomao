@@ -1,4 +1,3 @@
-// @ts-nocheck
 // 回归测试：logger.js、config.ts 中的 API_BASE
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { readFileSync } from 'node:fs'
@@ -106,7 +105,7 @@ describe('logger §日志格式', () => {
   })
 
   it('detail 为不可序列化对象时降级为 String（不抛错）', () => {
-    const circular = {}
+    const circular: any = {}
     circular.self = circular
     expect(() => log('生成', 'loop', circular)).not.toThrow()
     expect(infoSpy).toHaveBeenCalledTimes(1)

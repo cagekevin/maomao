@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { describe, it, expect } from 'vitest'
 import { encodeRefToken, parseRefTokensFromText } from '../../src/components/base/refToken.ts'
 
@@ -45,7 +44,7 @@ describe('refToken · 参考图 token 编解码（对齐大雄 agentEncodeRefTok
   })
 
   it('parseRefTokensFromText：旧格式 [参考图N:name] 结合 knownImages 反查 url', () => {
-    const known = [{ url: 'http://x/a.png', name: '黑猫', refIndex: 1 }]
+    const known = [{ type: 'image' as const, url: 'http://x/a.png', name: '黑猫', refIndex: 1 }]
     const nodes = parseRefTokensFromText('[参考图1:黑猫] 把它改白', known)
     const img = nodes.find((n) => n.type === 'image')
     expect(img).toMatchObject({ type: 'image', url: 'http://x/a.png', refIndex: 1 })

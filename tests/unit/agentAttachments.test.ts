@@ -1,5 +1,4 @@
 // @vitest-environment node
-// @ts-nocheck
 /**
  * agentAttachments 单测（M3 下沉 1：附件归一化 / 参考图目录）。
  * 覆盖：
@@ -25,6 +24,8 @@ vi.mock('../../src/components/base/logger.ts', () => ({
 const { normalizeAttachmentsForSend, buildRefCatalog } = await import('../../src/components/agent/runtime/agentAttachments.ts')
 const { normalizeImageUrlForSend, summarizeImages } = await import('../../src/components/base/imageUrl.ts')
 const { logger } = await import('../../src/components/base/logger.ts')
+// vi.mock 工厂不改变静态导入类型，用 vi.mocked 标注以拿到 .mockClear/.toHaveBeenCalledWith
+const loggerInfo = vi.mocked(logger.info)
 
 describe('normalizeAttachmentsForSend — 附件统一归一出口', () => {
   it('每条附件经 normalizeImageUrlForSend，保留其它字段', async () => {
@@ -44,13 +45,13 @@ describe('normalizeAttachmentsForSend — 附件统一归一出口', () => {
 
   it('带图发送 → 记一条图片形态 info 日志（不携带图片内容）', async () => {
     await normalizeAttachmentsForSend([{ url: 'http://a.png' }, { url: 'data:image/png;base64,xxx' }])
-    expect(logger.info).toHaveBeenCalledWith('agentAttachments', '发送图片', { count: 2, urls: 1, base64s: 1, total: 2 })
+    expect(loggerInfo).toHaveBeenCalledWith('agentAttachments', '发送图片', { count: 2, urls: 1, base64s: 1, total: 2 })
   })
 
   it('无图附件 → 不记发送日志', async () => {
-    logger.info.mockClear()
+    loggerInfo.mockClear()
     await normalizeAttachmentsForSend([{ type: 'node', id: 'n1' }])
-    expect(logger.info).not.toHaveBeenCalled()
+    expect(loggerInfo).not.toHaveBeenCalled()
   })
 })
 

@@ -1,4 +1,3 @@
-// @ts-nocheck
 // 运动路径核心链路的纯逻辑测试：
 //   绘制出的控制点 → normalizeShotPaths/normalizeCameraPath 归一化
 //   → pathSamplePoints 平滑采样（曲线连续、无跳跃）
@@ -175,7 +174,7 @@ describe('default 参数（服务现状约束）', () => {
     expect(DEFAULT_PATH_SETTINGS.keyframeCount).toBe(5)
   })
   it('createEmptyPath 与默认 duration*fps 对齐', () => {
-    const empty = createEmptyPath({ durationSeconds: 15, fps: 24 })
+    const empty = createEmptyPath({ name: '', durationSeconds: 15, fps: 24, loopPlayback: false })
     expect(empty.startFrame).toBe(0)
     expect(empty.endFrame).toBe(360)
     expect(empty.keyframeCount).toBe(DEFAULT_PATH_SETTINGS.keyframeCount)

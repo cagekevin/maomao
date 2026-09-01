@@ -1,5 +1,5 @@
-// @ts-nocheck
 import { describe, it, expect, beforeEach, vi } from 'vitest'
+import type { AgentStreamMode } from '../../src/components/base/settings/agentModelStore.ts'
 
 // 模块级单例 + sGet/sSet 依赖内存 localStorage（tests/setup.mjs 已注入）。
 // 用 resetModules 隔离每次导入，beforeEach 清空 localStorage 保证独立。
@@ -29,7 +29,8 @@ describe('agentModelStore §4 读取/保存 AI 聊天模型偏好', () => {
 
   it('streamMode 非 "non-stream" 一律回落 stream（向后兼容旧配置）', async () => {
     const { loadAgentChatModel, saveAgentChatModel } = await import('../../src/components/base/settings/agentModelStore.ts')
-    saveAgentChatModel({ providerId: 'p1', modelId: 'm1', streamMode: 'whatever' })
+    // 专测非 'non-stream' 字符串一律回落 stream：运行时仅做字符串比较，类型放宽以覆盖非法旧配置
+    saveAgentChatModel({ providerId: 'p1', modelId: 'm1', streamMode: 'whatever' as AgentStreamMode })
     expect(loadAgentChatModel().streamMode).toBe('stream')
   })
 
