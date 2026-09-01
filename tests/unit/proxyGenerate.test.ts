@@ -19,7 +19,7 @@ vi.stubGlobal('fetch', vi.fn())
 
 // vi.mocked(globalThis.fetch) 后返回类型为 Mock，但 mock 的响应体由 jsonResp 构造（非真实 Response 形状），
 // 用 any 别名承载（运行时 fetch 已被 vi.stubGlobal 替换为 vi.fn）
-let fetchMock: any
+let fetchMock: ReturnType<typeof vi.fn>
 
 const provider = {
   id: 'openai',

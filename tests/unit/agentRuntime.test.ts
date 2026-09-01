@@ -7,7 +7,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 //   - 流式模型默认带 tools（无论开关）
 import { roundTrip } from '../../src/components/agent/runtime/agentRuntime.ts'
 
-function makeCtx({ streamMode = 'stream', ENABLE_TOOLS_ON_NON_STREAM = false, toolSchemas = [{ name: 'show_plan_for_confirm' }], provider = null, useProxy = false, onStream }: any = {}): any {
+function makeCtx(args: Record<string, unknown> = {}): Record<string, unknown> {
+  const { streamMode = 'stream', ENABLE_TOOLS_ON_NON_STREAM = false, toolSchemas = [{ name: 'show_plan_for_confirm' }], provider = null, useProxy = false, onStream } = args
   return {
     endpoint: 'http://local/api/agent/key/chat',
     model: 'test-model',
@@ -25,7 +26,7 @@ function makeCtx({ streamMode = 'stream', ENABLE_TOOLS_ON_NON_STREAM = false, to
 }
 
 // 构造 mock fetch：记录请求体，返回给定响应
-function mockFetchOnce({ assertBody, jsonResp, status = 200, headers = {} }: any) {
+function mockFetchOnce({ assertBody, jsonResp, status = 200, headers = {} }: { assertBody?: (b: unknown) => void; jsonResp?: unknown; status?: number; headers?: Record<string, string> }) {
   const fetchMock = vi.fn(async (url, opts) => {
     const body = JSON.parse(opts.body)
     if (assertBody) assertBody(body)

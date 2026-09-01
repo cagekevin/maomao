@@ -16,7 +16,7 @@ import { render } from '@testing-library/react'
 import { fireEvent } from '@testing-library/react'
 
 const h = vi.hoisted(() => {
-  const handleProps: any[] = []
+  const handleProps: Array<Record<string, unknown>> = []
   return {
     handleProps,
     HandleMock: (props) => {
@@ -87,7 +87,7 @@ describe('CustomHandle — 变体与定位', () => {
 
   it('Handle 本体透明铺满端口区域（视觉由 CSS 伪元素提供）', () => {
     setup({ position: 'left' })
-    const s = h.handleProps[0].style
+    const s = h.handleProps[0].style as unknown as Record<string, unknown>
     expect(s.opacity).toBe(0)
     expect(s.background).toBe('transparent')
     expect(s.border).toBe(0)

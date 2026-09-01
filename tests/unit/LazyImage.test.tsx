@@ -39,7 +39,7 @@ import LazyImage from '../../src/components/base/LazyImage.tsx'
 // 可操控的 IntersectionObserver 假实现：手动触发回调驱动「进入视口」
 const h = vi.hoisted(() => {
   class FakeIO {
-    cb: any
+    cb: (entries: unknown, observer: unknown) => void
     static instances = []
     constructor(cb) {
       this.cb = cb
@@ -60,7 +60,7 @@ const triggerIntersect = (entries) => {
 
 beforeEach(() => {
   h.FakeIO.instances = []
-  global.IntersectionObserver = h.FakeIO as any
+  global.IntersectionObserver = h.FakeIO as unknown as typeof IntersectionObserver
 })
 
 describe('LazyImage — 懒加载语义', () => {

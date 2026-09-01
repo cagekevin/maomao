@@ -247,14 +247,14 @@ describe('accountsStore §4 多开账号管理', () => {
   describe('存储走 KV + 空读不写（doc31 §二）', () => {
     it('保存后经 /api/kv/set 落盘 yimao_accounts（KV 持久化，非浏览器内存）', async () => {
       await createEnv('即梦小号')
-      const setCalls = (globalThis.fetch as any).mock.calls.filter((c: any) => String(c[0]).includes('/api/kv/set'))
+      const setCalls = (globalThis.fetch as unknown as { mock: { calls: unknown[] } }).mock.calls.filter((c: unknown[]) => String(c[0]).includes('/api/kv/set'))
       expect(setCalls.length).toBeGreaterThan(0)
     })
 
     it('load() KV 空 → envs 保持空，不写空覆盖（无 /api/kv/set、不写 localStorage）', async () => {
       await flushAsync() // 等模块导入时 `void load()` 的异步 KV 读落定
       expect(mod.useAccounts().envs).toEqual([])
-      const setCalls = (globalThis.fetch as any).mock.calls.filter((c: any) => String(c[0]).includes('/api/kv/set'))
+      const setCalls = (globalThis.fetch as unknown as { mock: { calls: unknown[] } }).mock.calls.filter((c: unknown[]) => String(c[0]).includes('/api/kv/set'))
       expect(setCalls).toHaveLength(0)
       expect(localStorage.getItem('yimao_accounts')).toBeNull()
     })
@@ -315,6 +315,6 @@ describe('accountsStore §4 扩展端 · localStorage 隔离', () => {
     const env = mod.useAccounts().envs[0]
     await mod.activateEnv(env.id)
     // syncCookies 内部最后调 writeTabLocalStorage → executeScript 被调用
-    expect((globalThis as any).chrome.scripting.executeScript).toHaveBeenCalled()
+    expect((globalThis as unknown as { chrome?: { scripting: { executeScript: ReturnType<typeof vi.fn> } } }).chrome?.scripting.executeScript).toHaveBeenCalled()
   })
 })

@@ -16,7 +16,7 @@ const h = vi.hoisted(() => {
 })
 vi.mock('@xyflow/react', () => ({
   useReactFlow: () => ({
-    setNodes: (...a) => (h.setNodes as any)(...a),
+    setNodes: (...a: unknown[]) => (h.setNodes as unknown as (...x: unknown[]) => void)(...a),
     setEdges: (...a) => a[0],
     getNodes: () => h.state.nodes,
     getEdges: () => [],
@@ -85,7 +85,7 @@ beforeEach(() => {
   h.setNodes.mockClear()
 })
 
-function setup(props: any = {}) {
+function setup(props: { id?: string; data?: Record<string, unknown> } = {}) {
   const id = props.id || 't1'
   const data = props.data || {}
   h.state.nodes = [{ id, data: { ...data } }]

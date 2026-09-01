@@ -50,12 +50,12 @@ describe('httpRequest — 结构化错误信封透传 message（B2 无 HTTP 前�
   beforeEach(() => { global.fetch = vi.fn() })
 
   it('error:{code,message} → HttpError.status 单独暴露，message 纯业务', async () => {
-    ;(global.fetch as any).mockResolvedValue({ ok: false, status: 422, json: () => Promise.resolve({ error: { code: 'business', message: '参数非法' } }) })
+    ;(global.fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: false, status: 422, json: () => Promise.resolve({ error: { code: 'business', message: '参数非法' } }) })
     await expect(httpRequest('/api/x')).rejects.toMatchObject({ name: 'HttpError', status: 422, message: '参数非法' })
   })
 
   it('提取结果仍能抛 HttpError', async () => {
-    ;(global.fetch as any).mockResolvedValue({ ok: false, status: 500, json: () => Promise.resolve({ error: 'server err' }) })
+    ;(global.fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: false, status: 500, json: () => Promise.resolve({ error: 'server err' }) })
     await expect(httpRequest('/api/x')).rejects.toThrow(HttpError)
   })
 })

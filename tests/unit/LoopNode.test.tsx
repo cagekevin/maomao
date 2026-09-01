@@ -35,7 +35,7 @@ describe('LoopNode — 拆分纯函数契约（splitSmartPromptItems）', () => 
   it('空/空白输入 → 空数组', () => {
     expect(splitSmartPromptItems('')).toEqual([])
     expect(splitSmartPromptItems('   ')).toEqual([])
-    expect(splitSmartPromptItems(undefined as any)).toEqual([])
+    expect(splitSmartPromptItems(undefined)).toEqual([])
   })
 })
 

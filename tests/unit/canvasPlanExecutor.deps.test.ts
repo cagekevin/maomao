@@ -7,21 +7,42 @@ vi.mock('../../src/components/base/taskStore.ts', () => ({
 }))
 
 import { executePlan } from '../../src/components/agent/canvas/canvasPlanExecutor.ts'
+import type { CanvasHostCtx } from '../../src/components/agent/canvas/canvasHost.ts'
+import type { Node, Edge } from '@xyflow/react'
 import { runNodeGeneration } from '../../src/components/base/taskStore.ts'
 
-function makeCtx(): any {
+// 本地对齐 canvasPlanExecutor.GenerationStep 的形状（未导出），仅用于测试构造入参
+type GenStep = {
+  id?: string
+  title?: string
+  prompt?: string
+  index?: number
+  ratio?: string
+  resolution?: string
+  quality?: string
+  depends_on_previous?: boolean
+  use_previous_results?: boolean
+  use_attachments?: boolean
+  depends_on_steps?: string[]
+  dependency_mode?: string
+  referenceImages?: unknown[]
+  input_artifact_ids?: string[]
+}
+
+type MockCtx = CanvasHostCtx & { nodes: () => Node[]; edges: () => Edge[] }
+function makeCtx(): MockCtx {
   let nodes = []
   let edges = []
-  return {
-    nodes: () => nodes,
-    edges: () => edges,
-    getNodes: () => nodes,
-    addNodes: (ns) => { nodes = [...nodes, ...ns] },
-    addEdges: (es) => { edges = [...edges, ...es] },
-    setNodes: (fn) => { nodes = typeof fn === 'function' ? fn(nodes) : fn },
-    setEdges: (fn) => { edges = typeof fn === 'function' ? fn(edges) : fn },
+    return {
+      nodes: () => nodes,
+      edges: () => edges,
+      getNodes: () => nodes,
+      addNodes: (ns) => { nodes = [...nodes, ...ns] },
+      addEdges: (es) => { edges = [...edges, ...es] },
+      setNodes: (fn) => { nodes = typeof fn === 'function' ? fn(nodes) : fn },
+      setEdges: (fn) => { edges = typeof fn === 'function' ? fn(edges) : fn },
+    } as unknown as MockCtx
   }
-}
 
 beforeEach(() => { vi.clearAllMocks() })
 
@@ -34,7 +55,7 @@ describe('TASK-012 依赖批改写调用层补全', () => {
       generations: [
         { id: 'product', prompt: '产品定稿' },
         { id: 'page1', prompt: '主图', dependency_mode: 'product_reference', depends_on_previous: true, attachment_indices: [0] },
-      ] as any,
+      ] as GenStep[],
       referenceImages: ['http://user/ref.png'], // 用户上传参考图
     })
     // 独立批产品定稿先建（nodes[0]），依赖批主图（nodes[1]）的 data.images 应为空（不写用户参考图）

@@ -12,6 +12,7 @@ import { cloneJointPose } from '../../src/components/director3d/rig.ts'
 import {
   objectAtFrame, objectsAtFrame, pathActive, pathPositionAtFrame,
   normalizeCameraPath, bakePathKeyframes, snapshotToChannelKeys, upsertChannelKeys,
+  type ChannelTracks,
 } from '../../src/components/director3d/project.ts'
 
 const FPS = 24
@@ -105,7 +106,7 @@ describe('M3-C2/C5 路径烘焙只产出 position，绝不写姿态快照 / 不�
   // 复刻 applyPathBake 对象分支的纯函数链路：bake → 逐帧 position-only snapshot → 拆通道落轨
   const bakeTrackFromPath = (path, entityType = 'person') => {
     const { frames } = bakePathKeyframes(path, FPS)
-    let track: any = {}
+    let track: ChannelTracks = {}
     for (const frame of frames) {
       const snapshot = { frame: frame.frame, interpolation: 'linear', position: frame.position }
       track = upsertChannelKeys(track, snapshotToChannelKeys(entityType, snapshot, snapshot.frame, snapshot.interpolation))

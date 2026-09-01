@@ -16,8 +16,9 @@ import React, { useRef, useEffect, useState } from 'react'
 import { render, act } from '@testing-library/react'
 
 // 制造自增 id 的节点（不能用 Date.now()，同一 tick 内会撞 id）
+type TestNode = { id: string; type: string; position: { x: unknown; y: number }; data: Record<string, unknown> }
 let counter = 0
-function makeNode(): any {
+function makeNode(): TestNode {
   counter += 1
   const id = `n${counter}`
   return { id, type: 'imageNode', position: { x: id, y: 0 }, data: {} }
@@ -29,8 +30,8 @@ function makeNode(): any {
  *  - 'fixed'：addNode 内建完就地同步 nodesRef.current（修复后的正确写法）
  *  - 'buggy'：只读旧 nodesRef、直接 setNodes，不同步 ref（修复前的 bug 写法，证明测试能抓到）
  */
-function Harness({ mode = 'fixed', onCount, holder }) {
-  const [nodes, setNodes] = useState<any[]>([{ id: 'base', type: 'imageNode', position: { x: 0, y: 0 }, data: {} }])
+function Harness({ mode = 'fixed', onCount, holder }: { mode?: string; onCount?: (n: number) => void; holder?: { addNode?: () => void } }) {
+  const [nodes, setNodes] = useState<TestNode[]>([{ id: 'base', type: 'imageNode', position: { x: 0, y: 0 }, data: {} }])
   const nodesRef = useRef(nodes)
   useEffect(() => { nodesRef.current = nodes }, [nodes])
 
@@ -49,7 +50,7 @@ function Harness({ mode = 'fixed', onCount, holder }) {
 
 describe('addNode 同一 tick 批量调用并发安全', () => {
   it('fixed：同一 tick 连续 addNode 5 次 → 最终 1 基座 + 5 = 6 个节点（不丢）', () => {
-    const holder: any = {}
+    const holder: { addNode?: () => void } = {}
     let latestCount = 0
     render(<Harness mode="fixed" onCount={(n) => { latestCount = n }} holder={holder} />)
     act(() => {
@@ -60,7 +61,7 @@ describe('addNode 同一 tick 批量调用并发安全', () => {
 
   it('buggy（旧写法只读 ref 不同步）：同一 tick 5 次 addNode → 只剩 2 个（丢失复现）', () => {
     // 该用例证明测试能抓到 bug：若无「就地同步 ref」的修复，批量追加会互相覆盖只剩最后一张
-    const holder: any = {}
+    const holder: { addNode?: () => void } = {}
     let latestCount = 0
     render(<Harness mode="buggy" onCount={(n) => { latestCount = n }} holder={holder} />)
     act(() => {

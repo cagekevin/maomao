@@ -53,7 +53,7 @@ vi.mock('../../src/components/base/settings/providerStore.ts', () => ({ useProvi
 vi.mock('../../src/components/base/api/localToolApi.ts', () => ({ fetchTasks: vi.fn(async () => ({ items: [] })) }))
 // 显式声明参数元组：vi.fn(async () => …) 会把参数推断成空元组 []，
 // 导致后续 mock.calls[0][0] 报 TS2493、mockChat(...a) 报 TS2556。
-const mockChat = vi.fn(async (..._args: any[]) => ({ ok: true, content: '生成结果' }))
+const mockChat = vi.fn(async (..._args: unknown[]) => ({ ok: true, content: '生成结果' }))
 vi.mock('../../src/components/base/api/chatApi.ts', () => ({ chatCompletions: (...a) => mockChat(...a) }))
 vi.mock('../../src/components/base/providerModels.ts', () => ({ buildAllModels: vi.fn(() => []), resolveProviderModel: vi.fn(() => ({ provider: {}, modelId: 'm' })) }))
 
@@ -81,7 +81,7 @@ describe('TextNode 上游文本/图片合并（修复点）', () => {
     fireEvent.click(screen.getByText('生成'))
 
     await waitFor(() => expect(mockChat).toHaveBeenCalled())
-    const call = mockChat.mock.calls[0][0]
+    const call = mockChat.mock.calls[0][0] as unknown as { messages: Array<{ role: string; [k: string]: unknown }> }
     const userMsg = call.messages.find((m) => m.role === 'user')
     expect(userMsg.content).toContain('改写成小红书风格')
     expect(userMsg.content).toContain('原始文案：今天天气好')
@@ -93,7 +93,7 @@ describe('TextNode 上游文本/图片合并（修复点）', () => {
     expect(genConfig.validate()).toBe('')
     fireEvent.click(screen.getByText('生成'))
     await waitFor(() => expect(mockChat).toHaveBeenCalled())
-    const userMsg = mockChat.mock.calls[0][0].messages.find((m) => m.role === 'user')
+    const userMsg = (mockChat.mock.calls[0][0] as unknown as { messages: Array<{ role: string; [k: string]: unknown }> }).messages.find((m) => m.role === 'user')
     expect(userMsg.content).toContain('产品卖点')
   })
 
@@ -108,7 +108,7 @@ describe('TextNode 上游文本/图片合并（修复点）', () => {
     setup({ prompt: '汇总' })
     fireEvent.click(screen.getByText('生成'))
     await waitFor(() => expect(mockChat).toHaveBeenCalled())
-    const userMsg = mockChat.mock.calls[0][0].messages.find((m) => m.role === 'user')
+    const userMsg = (mockChat.mock.calls[0][0] as unknown as { messages: Array<{ role: string; [k: string]: unknown }> }).messages.find((m) => m.role === 'user')
     expect(userMsg.content).toContain('汇总')
     expect(userMsg.content).toContain('段落A')
     expect(userMsg.content).toContain('段落B')
@@ -122,7 +122,7 @@ describe('TextNode 上游文本/图片合并（修复点）', () => {
     setup({ prompt: '看图说话' })
     fireEvent.click(screen.getByText('生成'))
     await waitFor(() => expect(mockChat).toHaveBeenCalled())
-    const call = mockChat.mock.calls[0][0]
+    const call = mockChat.mock.calls[0][0] as unknown as { messages: Array<{ role: string; [k: string]: unknown }>; images?: unknown }
     expect(call.images).toEqual(['http://up/a.png'])
     const userMsg = call.messages.find((m) => m.role === 'user')
     expect(userMsg.content).toContain('看图说话')
@@ -142,7 +142,7 @@ describe('TextNode 上游文本/图片合并（修复点）', () => {
     setup({ prompt: '请描述 @{i1:参考图|http%3A%2F%2Fup%2Fref.png} 的画面', text: '' })
     fireEvent.click(screen.getByText('生成'))
     await waitFor(() => expect(mockChat).toHaveBeenCalled())
-    const call = mockChat.mock.calls[0][0]
+    const call = mockChat.mock.calls[0][0] as unknown as { messages: Array<{ role: string; [k: string]: unknown }>; images?: unknown }
     // 芯片被解析为可读文本（图片 → 图片N），绝不把 @{id:label|url} 噪音原样发给 LLM
     const userMsg = call.messages.find((m) => m.role === 'user')
     expect(userMsg.content).not.toContain('@{i1')

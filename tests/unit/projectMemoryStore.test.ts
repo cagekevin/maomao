@@ -62,7 +62,7 @@ describe('saveProjectMemory / loadProjectMemories —— 保存与读取（T2）
   })
 
   it('kind 非法时回退 fact，content 超长截断', async () => {
-    const saved = await saveProjectMemory('gw', { kind: 'badKind' as any, content: 'c'.repeat(600) })
+    const saved = await saveProjectMemory('gw', { kind: 'badKind' as unknown as Parameters<typeof saveProjectMemory>[1]['kind'], content: 'c'.repeat(600) })
     expect(saved.kind).toBe('fact')
     expect(saved.content.length).toBeLessThanOrEqual(500)
   })

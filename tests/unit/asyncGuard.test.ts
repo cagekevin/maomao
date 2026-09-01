@@ -76,16 +76,16 @@ describe('asyncGuard.loadImageWithTimeout（统一图片加载入口）', () => 
   afterEach(() => { vi.useRealTimers() })
 
   it('onload 成功 → resolve HTMLImageElement', async () => {
-    const img = { src: '', crossOrigin: '', onload: null, onerror: null }
-    global.Image = vi.fn(() => img) as any
+    const img: { src: string; crossOrigin: string; onload: (() => void) | null; onerror: (() => void) | null } = { src: '', crossOrigin: '', onload: null, onerror: null }
+    global.Image = vi.fn(() => img) as unknown as typeof Image
     const p = loadImageWithTimeout('http://x/a.png')
     img.onload()
     expect(await p).toBe(img)
   })
 
   it('onerror 失败 → reject 明确错误', async () => {
-    const img = { src: '', crossOrigin: '', onload: null, onerror: null }
-    global.Image = vi.fn(() => img) as any
+    const img: { src: string; crossOrigin: string; onload: (() => void) | null; onerror: (() => void) | null } = { src: '', crossOrigin: '', onload: null, onerror: null }
+    global.Image = vi.fn(() => img) as unknown as typeof Image
     const p = loadImageWithTimeout('http://x/a.png')
     img.onerror()
     await expect(p).rejects.toThrow('图片加载失败')
@@ -93,8 +93,8 @@ describe('asyncGuard.loadImageWithTimeout（统一图片加载入口）', () => 
 
   it('超时未加载 → reject TimeoutError（不再永久挂起）', async () => {
     vi.useFakeTimers()
-    const img = { src: '', crossOrigin: '', onload: null, onerror: null }
-    global.Image = vi.fn(() => img) as any
+    const img: { src: string; crossOrigin: string; onload: (() => void) | null; onerror: (() => void) | null } = { src: '', crossOrigin: '', onload: null, onerror: null }
+    global.Image = vi.fn(() => img) as unknown as typeof Image
     const p = loadImageWithTimeout('http://x/a.png', { timeoutMs: 1000 })
     let settled = false
     p.catch(() => { settled = true })
@@ -104,8 +104,8 @@ describe('asyncGuard.loadImageWithTimeout（统一图片加载入口）', () => 
   })
 
   it('设置 crossOrigin = anonymous（跨域 canvas 不污染）', () => {
-    const img = { src: '', crossOrigin: '', onload: null, onerror: null }
-    global.Image = vi.fn(() => img) as any
+    const img: { src: string; crossOrigin: string; onload: (() => void) | null; onerror: (() => void) | null } = { src: '', crossOrigin: '', onload: null, onerror: null }
+    global.Image = vi.fn(() => img) as unknown as typeof Image
     loadImageWithTimeout('http://x/a.png')
     expect(img.crossOrigin).toBe('anonymous')
   })

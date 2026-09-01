@@ -236,8 +236,8 @@ describe('scriptBoxEngine · 引擎编排', () => {
 
   it('onGenerateScript 校验：无剧情时仅 toast 不调用 chat', async () => {
     const { chatCompletions } = await import('@/components/base/api/chatApi.ts')
-    // toastStore 由本文件顶部 vi.mock 工厂提供（src 无该具名导出），用 as any 收敛
-    const { toastStore } = (await import('../../src/components/base/toastStore.ts')) as any
+    // toastStore 由本文件顶部 vi.mock 工厂提供（src 无该具名导出），用本地类型收窄
+    const { toastStore } = (await import('../../src/components/base/toastStore.ts')) as unknown as { toastStore: { showToast: (msg: string, opts?: unknown) => void } }
     const { engine, store } = makeEngine({})
     await engine.onGenerateScript()
     expect(chatCompletions).not.toHaveBeenCalled()
@@ -295,8 +295,8 @@ describe('scriptBoxEngine · 引擎编排', () => {
 
   it('onGenerateScript 模型返回非 JSON 时回退 genMask=false 并 toast', async () => {
     const { chatCompletions } = await import('@/components/base/api/chatApi.ts')
-    // toastStore 由本文件顶部 vi.mock 工厂提供（src 无该具名导出），用 as any 收敛
-    const { toastStore } = (await import('../../src/components/base/toastStore.ts')) as any
+    // toastStore 由本文件顶部 vi.mock 工厂提供（src 无该具名导出），用本地类型收窄
+    const { toastStore } = (await import('../../src/components/base/toastStore.ts')) as unknown as { toastStore: { showToast: (msg: string, opts?: unknown) => void } }
     vi.mocked(chatCompletions).mockResolvedValueOnce({ ok: true, content: '不是json' })
     const { engine, store } = makeEngine({ story: 'x' })
     await engine.onGenerateScript()

@@ -15,7 +15,7 @@ import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import NodeTitle from '../../src/components/base/NodeTitle.tsx'
 
-function setup(props: any = {}) {
+function setup(props: { label?: string; defaultTitle?: string; icon?: React.ReactNode; className?: string; floating?: boolean; onRename?: () => void } = {}) {
   const view = render(
     <NodeTitle
       label={props.label}

@@ -18,7 +18,7 @@ import * as poll from '@/components/base/api/pollTask.ts'
 
 function mockFetchJson(body, { ok = true, status = 200 } = {}) {
   const res = { ok, status, json: async () => body, text: async () => JSON.stringify(body) }
-  const fetchMock: any = vi.fn(async () => res)
+  const fetchMock = vi.fn(async () => res) as unknown as ReturnType<typeof vi.fn>
   vi.stubGlobal('fetch', fetchMock)
   return fetchMock
 }

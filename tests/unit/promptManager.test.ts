@@ -121,7 +121,7 @@ describe('cards mapping', () => {
       { id: '1', title: 'A' },
       { id: '2', title: 'B' },
       { id: '3', title: 'C' }
-    ] as any
+    ] as unknown as Parameters<typeof pm.getRecentCards>[0]
     expect(pm.getRecentCards(cards, ['3', '1'])).toEqual([{ id: '3', title: 'C' }, { id: '1', title: 'A' }])
   })
 
@@ -129,7 +129,7 @@ describe('cards mapping', () => {
     const cards = [
       { id: '1', title: '赛博', content: '城市' },
       { id: '2', title: '小猫', content: '花园' }
-    ] as any
+    ] as unknown as Parameters<typeof pm.getRecentCards>[0]
     expect(pm.searchCards(cards, '赛博').length).toBe(1)
     expect(pm.searchCards(cards, '花园').length).toBe(1)
     expect(pm.searchCards(cards, '').length).toBe(2)

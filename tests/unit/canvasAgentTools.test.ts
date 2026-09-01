@@ -57,7 +57,7 @@ const mockExecutePlan = vi.mocked(executePlan)
 // 推断 bug：会连坐同一作用域里 vi/expect 变成不可调用（探针实测）。故统一收口到本地别名，
 // 用合并类型保留 __state 扩展字段（参考 creditGateModes 的 ConvMock 方案）。
 type CreditGateMock = { pending: boolean; gens: { id: string; prompt: string }[]; map: Record<string, string> }
-type ConvMock = typeof convStore & { __state: { awaiting: boolean; pending: any[] | null; refImages: string[]; creditGate: CreditGateMock | null } }
+type ConvMock = typeof convStore & { __state: { awaiting: boolean; pending: unknown[] | null; refImages: string[]; creditGate: CreditGateMock | null } }
 const convMock = convStore as unknown as ConvMock
 
 function makeCtx(initialNodes = [], initialEdges = []) {

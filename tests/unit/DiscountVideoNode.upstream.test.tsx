@@ -53,7 +53,7 @@ vi.mock('../../src/components/base/settings/providerStore.ts', () => ({ useProvi
 vi.mock('../../src/components/base/api/localToolApi.ts', () => ({ fetchTasks: vi.fn(async () => ({ items: [] })) }))
 // 显式声明参数元组：vi.fn(async () => …) 会把参数推断成空元组 []，
 // 导致后续 mock.calls[0][0] 报 TS2493、mockGenerateVideo(...a) 报 TS2556。
-const mockGenerateVideo = vi.fn(async (..._args: any[]) => ({ url: 'http://gen.local/v.mp4' }))
+const mockGenerateVideo = vi.fn(async (..._args: unknown[]) => ({ url: 'http://gen.local/v.mp4' }))
 vi.mock('../../src/components/base/api/videoApi.ts', () => ({ generateVideo: (...a) => mockGenerateVideo(...a) }))
 vi.mock('../../src/components/base/providerModels.ts', () => ({ buildAllModels: vi.fn(() => []), resolveProviderModel: vi.fn(() => ({ provider: {}, modelId: 'm' })) }))
 
@@ -81,7 +81,7 @@ describe('DiscountVideoNode 上游文本/图片合并（修复点）', () => {
     fireEvent.click(screen.getByText('生成'))
 
     await waitFor(() => expect(mockGenerateVideo).toHaveBeenCalled())
-    const call = mockGenerateVideo.mock.calls[0][0]
+    const call = mockGenerateVideo.mock.calls[0][0] as unknown as { prompt: string; images?: unknown }
     expect(call.prompt).toContain('快节奏剪辑')
     expect(call.prompt).toContain('产品开箱视频')
   })
@@ -92,7 +92,7 @@ describe('DiscountVideoNode 上游文本/图片合并（修复点）', () => {
     expect(genConfig.validate()).toBe('')
     fireEvent.click(screen.getByText('生成'))
     await waitFor(() => expect(mockGenerateVideo).toHaveBeenCalled())
-    expect(mockGenerateVideo.mock.calls[0][0].prompt).toContain('夏日促销')
+    expect((mockGenerateVideo.mock.calls[0][0] as unknown as { prompt: string }).prompt).toContain('夏日促销')
   })
 
   it('多个上游文本节点合并', async () => {
@@ -106,7 +106,7 @@ describe('DiscountVideoNode 上游文本/图片合并（修复点）', () => {
     setup({ prompt: 'vlog' })
     fireEvent.click(screen.getByText('生成'))
     await waitFor(() => expect(mockGenerateVideo).toHaveBeenCalled())
-    const p = mockGenerateVideo.mock.calls[0][0].prompt
+    const p = (mockGenerateVideo.mock.calls[0][0] as unknown as { prompt: string }).prompt
     expect(p).toContain('vlog')
     expect(p).toContain('镜头一：城市')
     expect(p).toContain('镜头二：海边')
@@ -120,7 +120,7 @@ describe('DiscountVideoNode 上游文本/图片合并（修复点）', () => {
     setup({ prompt: '模仿' })
     fireEvent.click(screen.getByText('生成'))
     await waitFor(() => expect(mockGenerateVideo).toHaveBeenCalled())
-    const call = mockGenerateVideo.mock.calls[0][0]
+    const call = mockGenerateVideo.mock.calls[0][0] as unknown as { prompt: string; images?: unknown }
     expect(call.prompt).toContain('模仿')
     expect(call.images).toEqual(['http://up/a.png'])
   })

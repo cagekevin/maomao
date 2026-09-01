@@ -40,7 +40,7 @@ function setup(data: Partial<ScriptBoxData> = {}) {
     id: nodeId,
     data: data as unknown as ScriptBoxData,
     updateData: () => {},
-    callbacks: { ...data, onDisconnectUpstream: vi.fn() } as any,
+    callbacks: { ...data, onDisconnectUpstream: vi.fn() } as unknown as Record<string, unknown>,
   }
   return render(<StepShots {...props} />)
 }

@@ -25,7 +25,7 @@ const h = vi.hoisted(() => {
 
 vi.mock('@xyflow/react', () => ({
   useReactFlow: () => ({
-    setNodes: (...a) => (h.setNodesMock as any)(...a),
+    setNodes: (...a: unknown[]) => (h.setNodesMock as unknown as (...x: unknown[]) => void)(...a),
     getNodes: () => h.state.nodes,
     getEdges: () => [],
     addNodes: () => {},
@@ -79,7 +79,7 @@ describe('ImageBoxNode — 空态与文件选择', () => {
   it('点击空态 → 触发隐藏文件选择 input', () => {
     const { container } = setup()
     const input = container.querySelector('input[type="file"]')
-    const clickSpy = vi.spyOn(input as any, 'click')
+    const clickSpy = vi.spyOn(input as unknown as HTMLInputElement, 'click')
     fireEvent.click(screen.getByText('拖拽 / 粘贴 / 点击添加图片'))
     expect(clickSpy).toHaveBeenCalled()
   })

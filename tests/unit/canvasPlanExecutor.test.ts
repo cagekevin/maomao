@@ -10,8 +10,8 @@ import { executePlan } from '../../src/components/agent/canvas/canvasPlanExecuto
 import { runNodeGeneration } from '../../src/components/base/taskStore.ts'
 
 // vi.mock 工厂已把 runNodeGeneration 替换为 vi.fn，但静态类型仍是 src 的原始签名（无 .mock）。
-// 测试侧用 .mockImplementationOnce/.mockReturnValueOnce 断言，故降为 any。
-const runNodeGenerationMock: any = runNodeGeneration
+// 测试侧用 .mockImplementationOnce/.mockReturnValueOnce 断言，故用 vi.mocked 恢复 mock 类型。
+const runNodeGenerationMock = vi.mocked(runNodeGeneration)
 
 // 最小 ctx：addNodes 记录、addEdges 记录、setNodes 写回 imageUrl、getNodes 反映最新
 // P7：executor 的 live 检查用 ctx.getNode（O(1)），mock 需提供（返回当前节点或 undefined）

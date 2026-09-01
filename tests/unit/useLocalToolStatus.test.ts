@@ -16,7 +16,7 @@ const { useLocalToolStatus } = await import('../../src/hooks/useLocalToolStatus.
 
 // vi.mocked(globalThis.fetch) 包装后返回类型为 Mock，但 mock 的响应体 okBody 等并非真实 Response 形状，
 // 用 any 别名承载（运行时 fetch 已被 vi.stubGlobal 替换为 vi.fn）
-let fetchMock: any
+let fetchMock: ReturnType<typeof vi.fn>
 
 const okBody = { ok: true, json: async () => ({ status: 'ok' }) }
 const badBody = { ok: true, json: async () => ({ status: 'down' }) }

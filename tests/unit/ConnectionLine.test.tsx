@@ -49,9 +49,11 @@ describe('ConnectionLine — 正常渲染（lodLevel < 2）', () => {
     h.setLodLevel(0)
   })
 
-  function setup(props: any = {}) {
+  function setup(props: Partial<React.ComponentProps<typeof ConnectionLine>> = {}) {
     const view = render(
-      <ConnectionLine fromX={0} fromY={0} toX={100} toY={100} {...props} />
+      React.createElement(ConnectionLine as unknown as React.ComponentType<Record<string, unknown>>, {
+        fromX: 0, fromY: 0, toX: 100, toY: 100, ...props,
+      })
     )
     return view
   }
@@ -95,7 +97,11 @@ describe('ConnectionLine — LOD 性能降级（lodLevel >= 2）', () => {
 
   function setup(lod) {
     h.setLodLevel(lod)
-    const view = render(<ConnectionLine fromX={0} fromY={0} toX={100} toY={100} {...({} as any)} />)
+    const view = render(
+      React.createElement(ConnectionLine as unknown as React.ComponentType<Record<string, unknown>>, {
+        fromX: 0, fromY: 0, toX: 100, toY: 100,
+      })
+    )
     return view
   }
 

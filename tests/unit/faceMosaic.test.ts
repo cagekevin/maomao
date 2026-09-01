@@ -8,9 +8,10 @@
  *  - MOSAIC_PALETTE 色板常量
  */
 import { vi, describe, it, expect } from 'vitest'
+import type { MosaicMode } from '../../src/components/base/faceMosaic.ts'
 
 // mock mediapipe：不加载真实 wasm / 模型
-const fakeFaceDetector = {} as any
+const fakeFaceDetector: Record<string, unknown> = {}
 vi.mock('@mediapipe/tasks-vision', () => ({
   FilesetResolver: {
     forVisionTasks: vi.fn(async () => ({ __wasm: true }))
@@ -62,7 +63,7 @@ function installOffscreenCanvasSpy() {
   })
 }
 
-const SRC: any = { width: 100, height: 100 }
+const SRC = { width: 100, height: 100 } as unknown as CanvasImageSource
 const BOX = { x: 10, y: 10, w: 30, h: 30 }
 
 describe('loadFaceDetector', () => {
@@ -83,7 +84,7 @@ describe('loadFaceDetector', () => {
     vi.mocked(FaceDetector.createFromOptions).mockRejectedValueOnce(new Error('wasm init fail'))
     await expect(load2()).rejects.toThrow('wasm init fail')
     // 失败后再次调用应重新尝试（单例已被 catch 清空）
-    vi.mocked(FaceDetector.createFromOptions).mockResolvedValueOnce(fakeFaceDetector)
+    vi.mocked(FaceDetector.createFromOptions).mockResolvedValueOnce(fakeFaceDetector as unknown as import('@mediapipe/tasks-vision').FaceDetector)
     const retry = await load2()
     expect(retry).toBe(fakeFaceDetector)
     expect(FaceDetector.createFromOptions).toHaveBeenCalledTimes(2)
@@ -122,7 +123,7 @@ describe('drawMosaicOnBox', () => {
 
   it('非法 mode 不抛错（回退默认分支）', () => {
     const ctx = makeCtx()
-    expect(() => drawMosaicOnBox(ctx, SRC, BOX, 'unknown-mode' as any, 0.5)).not.toThrow()
+    expect(() => drawMosaicOnBox(ctx, SRC, BOX, 'unknown-mode' as unknown as MosaicMode, 0.5)).not.toThrow()
   })
 })
 

@@ -12,11 +12,11 @@ import { moveFile, canMoveAsset, resolveMovePaths } from '@/components/base/api/
  *
  * 【为什么必须显式声明参数元组】`vi.fn(async () => res)` 的泛型会被推断成空元组 `[]`，
  * 于是 `fetchMock.mock.calls[0]` 解构出的 `[url, init]` 双双报 TS2493 / TS18048。
- * 写成 `(..._args: any[])` 后 calls 元素类型为 any，断言处即可正常访问。
+ * 写成 `(..._args: unknown[])` 后 calls 元素类型为 unknown[]，断言处用 as unknown as 收窄即可正常访问。
  */
 function mockFetchOnce(body, { ok = true, status = 200 } = {}) {
   const res = { ok, status, json: async () => body, text: async () => JSON.stringify(body) }
-  const fetchMock = vi.fn(async (..._args: any[]) => res)
+  const fetchMock = vi.fn(async (..._args: unknown[]) => res)
   vi.stubGlobal('fetch', fetchMock)
   return fetchMock
 }
@@ -29,7 +29,7 @@ describe('moveFile', () => {
   it('POST /api/files/move，body 传相对 uploadDir 的 src/dst，且不重试', async () => {
     const fetchMock = mockFetchOnce({ code: 0, data: { ok: true } })
     const r = await moveFile('migrated/a.png', 'migrated/主题/a.png')
-    const [url, init] = fetchMock.mock.calls[0]
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, { method: string; headers: Record<string, string>; body: string }]
     expect(url).toBe(`${API_BASE}/api/files/move`)
     expect(init.method).toBe('POST')
     expect(init.headers['Content-Type']).toBe('application/json')

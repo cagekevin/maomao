@@ -57,7 +57,7 @@ vi.mock('../../src/components/base/settings/providerStore.ts', () => ({ useProvi
 vi.mock('../../src/components/base/api/localToolApi.ts', () => ({ fetchTasks: vi.fn(async () => ({ items: [] })) }))
 // 显式声明参数元组：vi.fn(async () => …) 会把参数推断成空元组 []，
 // 导致后续 mock.calls[0][0] 报 TS2493、mockGenerateImage(...a) 报 TS2556。
-const mockGenerateImage = vi.fn(async (..._args: any[]) => ({ url: 'http://gen.local/img.png' }))
+const mockGenerateImage = vi.fn(async (..._args: unknown[]) => ({ url: 'http://gen.local/img.png' }))
 vi.mock('../../src/components/base/api/imageApi.ts', () => ({ generateImage: (...a) => mockGenerateImage(...a) }))
 vi.mock('../../src/components/base/providerModels.ts', () => ({ buildAllModels: vi.fn(() => []), resolveProviderModel: vi.fn(() => ({ provider: {}, modelId: 'm' })) }))
 
@@ -85,7 +85,7 @@ describe('TemplateNode 上游文本/图片合并（修复点）', () => {
     fireEvent.click(screen.getByText('生成'))
 
     await waitFor(() => expect(mockGenerateImage).toHaveBeenCalled())
-    const call = mockGenerateImage.mock.calls[0][0]
+    const call = mockGenerateImage.mock.calls[0][0] as unknown as { prompt: string; images?: unknown }
     expect(call.prompt).toContain('海报')
     expect(call.prompt).toContain('国潮风格模板')
   })
@@ -96,7 +96,7 @@ describe('TemplateNode 上游文本/图片合并（修复点）', () => {
     expect(genConfig.validate()).toBe('')
     fireEvent.click(screen.getByText('生成'))
     await waitFor(() => expect(mockGenerateImage).toHaveBeenCalled())
-    expect(mockGenerateImage.mock.calls[0][0].prompt).toContain('电商主图')
+    expect((mockGenerateImage.mock.calls[0][0] as unknown as { prompt: string }).prompt).toContain('电商主图')
   })
 
   it('多个上游文本节点合并', async () => {
@@ -110,7 +110,7 @@ describe('TemplateNode 上游文本/图片合并（修复点）', () => {
     setup({ prompt: '模板' })
     fireEvent.click(screen.getByText('生成'))
     await waitFor(() => expect(mockGenerateImage).toHaveBeenCalled())
-    const p = mockGenerateImage.mock.calls[0][0].prompt
+    const p = (mockGenerateImage.mock.calls[0][0] as unknown as { prompt: string; images?: unknown }).prompt
     expect(p).toContain('模板')
     expect(p).toContain('标题文案')
     expect(p).toContain('副标题')
@@ -127,7 +127,7 @@ describe('TemplateNode 上游文本/图片合并（修复点）', () => {
     setup({ prompt: '合成' })
     fireEvent.click(screen.getByText('生成'))
     await waitFor(() => expect(mockGenerateImage).toHaveBeenCalled())
-    const call = mockGenerateImage.mock.calls[0][0]
+    const call = mockGenerateImage.mock.calls[0][0] as unknown as { prompt: string; images?: unknown }
     expect(call.prompt).toContain('融合两张图')
     expect(call.images).toHaveLength(2)
     expect(call.images).toEqual(['http://up/a.png', 'http://up/b.png'])

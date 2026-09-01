@@ -105,7 +105,7 @@ describe('M4-C1 writeObjectTrack 统一写入口', () => {
         { frame: 10, interpolation: 'linear', fields: { position: [1, 0, 0] } },
       ],
     }
-    const next: any = setChannelInterpolation(channels, 10, 'hold')
+    const next = setChannelInterpolation(channels, 10, 'hold') as unknown as { transform: Array<{ interpolation: string }> }
     expect(next.transform[0].interpolation).toBe('smooth')
     expect(next.transform[1].interpolation).toBe('hold')
   })

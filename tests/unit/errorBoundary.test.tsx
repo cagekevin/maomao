@@ -7,7 +7,7 @@ import ErrorBoundary from '../../src/components/base/ErrorBoundary.tsx'
 function Boom() {
   throw new Error('节点内容模拟崩溃')
 }
-const BoomAny: any = Boom
+const BoomAny = Boom as unknown as React.ComponentType
 
 /** 正常子组件 */
 function Fine() {

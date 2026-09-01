@@ -5,9 +5,12 @@
 import { describe, it, expect, vi } from 'vitest'
 import { externalizeInlineData } from '../../src/components/base/externalizeInline.ts'
 
+// 本地对齐 externalizeInline.ExternalizeDeps（未导出）
+type ExternalizeDeps = { save: (dataUrl: string) => Promise<string | null> }
+
 describe('externalizeInlineData — 内联资源外置', () => {
   it('缺少 save 依赖抛错', async () => {
-    await expect(externalizeInlineData({} as any, {} as any)).rejects.toThrow('save')
+    await expect(externalizeInlineData({} as unknown as Record<string, unknown>, {} as unknown as ExternalizeDeps)).rejects.toThrow('save')
   })
 
   it('转换成功：data: 字段被 URL 替换，converted=1 failed=0', async () => {
@@ -75,7 +78,7 @@ describe('externalizeInlineData — 内联资源外置', () => {
       { level: { nested: { poster: 'data:image/jpeg;base64,deep' } } },
       { save }
     )
-    expect((r.data as any).level.nested.poster).toBe('http://x/deep.png')
+    expect((r.data as unknown as { level: { nested: { poster: string } } }).level.nested.poster).toBe('http://x/deep.png')
     expect(r.converted).toBe(1)
   })
 })

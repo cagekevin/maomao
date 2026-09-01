@@ -105,7 +105,7 @@ describe('logger §日志格式', () => {
   })
 
   it('detail 为不可序列化对象时降级为 String（不抛错）', () => {
-    const circular: any = {}
+    const circular: Record<string, unknown> = {}
     circular.self = circular
     expect(() => log('生成', 'loop', circular)).not.toThrow()
     expect(infoSpy).toHaveBeenCalledTimes(1)

@@ -30,7 +30,7 @@ const h = vi.hoisted(() => {
 
 vi.mock('@xyflow/react', () => ({
   useReactFlow: () => ({
-    setNodes: (...a: any[]) => (h.setNodesMock as any)(...a),
+    setNodes: (...a: unknown[]) => (h.setNodesMock as unknown as (...x: unknown[]) => void)(...a),
     getNodes: () => h.state.nodes,
     // P7：FaceMosaicNode 输出用 getNode(id) 读自身位置（替 getNodes().find），mock 需同步提供
     getNode: (id) => h.state.nodes.find((n) => n.id === id),
@@ -48,12 +48,12 @@ vi.mock('../../src/components/base/HoverToolbar.tsx', () => ({ default: mocks.Ho
 vi.mock('../../src/hooks/useConnectedInputs.ts', () => ({ useConnectedInputs: mocks.useConnectedInputs }))
 vi.mock('../../src/hooks/useMediaDegrade.ts', () => ({ useMediaDegrade: mocks.useMediaDegrade }))
 vi.mock('../../src/components/base/api/filesApi.ts', () => ({
-  uploadFileToLocal: (...a: any[]) => (h.uploadMock as any)(...a),
+  uploadFileToLocal: (...a: unknown[]) => (h.uploadMock as unknown as (...x: unknown[]) => void)(...a),
   toAbsoluteFileUrl: (u) => `ABS:${u}`,
 }))
 vi.mock('../../src/components/base/toastStore.ts', () => ({ showToast: mocks.showToast, toastError: mocks.toastError, toastWarning: mocks.toastWarning }))
 vi.mock('../../src/components/base/faceMosaic.ts', () => ({
-  applyMosaic: (...a: any[]) => (h.applyMosaicMock as any)(...a),
+  applyMosaic: (...a: unknown[]) => (h.applyMosaicMock as unknown as (...x: unknown[]) => void)(...a),
   MOSAIC_MODES: [
     { mode: 'mosaic', label: '马赛克' },
     { mode: 'bar', label: '黑条' },
@@ -75,7 +75,7 @@ vi.mock('../../src/components/base/previewUrl.ts', () => ({ default: { create: (
 import FaceMosaicNode from '../../src/components/nodes/FaceMosaicNode.tsx'
 
 const nodeId = 'fm1'
-function setup(data: any = {}, connected: any = { images: [], texts: [] }) {
+function setup(data: Record<string, unknown> = {}, connected: { images?: unknown[]; texts?: unknown[] } = { images: [], texts: [] }) {
   h.state.nodes = [{ id: nodeId, data: { ...data } }]
   mocks.resetNodeMockState()
   mocks.setConnectedInputs(connected)
