@@ -25,15 +25,18 @@ function fireKeyDown(init) {
   return e
 }
 
-// 可控的 window.getSelection
+// jsdom 的 Selection 无法直接构造；hook 只调用 toString()，故用最小替身
+function stubSelection(text: string): Selection {
+  return { toString: () => text } as unknown as Selection
+}
+
+// 可控的 window.getSelection（保留 vi.fn 以便被 restoreAllMocks 统一回收）
 function setSelectionText(text: string) {
-  ;(window as any).getSelection = vi.fn(() => ({
-    toString: () => text,
-  }))
+  window.getSelection = vi.fn(() => stubSelection(text))
 }
 
 beforeEach(() => {
-  ;(window as any).getSelection = vi.fn(() => ({ toString: () => '' }))
+  window.getSelection = vi.fn(() => stubSelection(''))
   localStorage.clear()
 })
 

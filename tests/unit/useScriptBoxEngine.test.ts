@@ -11,6 +11,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
+import type { ScriptBoxEngineDeps } from '../../src/components/scriptbox/scriptBoxEngine.ts'
 
 const setNodes = vi.fn()
 const getNodes = vi.fn(() => [{ id: 'sb1', data: { shots: [] } }])
@@ -28,8 +29,11 @@ const engineCallbacks = {
   onAddNodes: vi.fn(),
   onUpdate: vi.fn(),
 }
-const createScriptBoxEngine = vi.fn((cfg) => ({ ...engineCallbacks, __cfg: cfg }))
-vi.mock('../../src/components/scriptbox/scriptBoxEngine.ts', () => ({ createScriptBoxEngine: (...a: any[]) => (createScriptBoxEngine as any)(...a) }))
+const createScriptBoxEngine = vi.fn((cfg: ScriptBoxEngineDeps) => ({ ...engineCallbacks, __cfg: cfg }))
+// 工厂用 Parameters<> 精确透传：既无 as any，又保留 mock.calls[0][0] 的精确类型
+vi.mock('../../src/components/scriptbox/scriptBoxEngine.ts', () => ({
+  createScriptBoxEngine: (...a: Parameters<typeof createScriptBoxEngine>) => createScriptBoxEngine(...a),
+}))
 
 // 节点参数记忆（yimao_node_prefs）落点：nodePrefs 经 contentStore 读写，这里用内存态替代，
 // 只让 key 命中 'yimao_node_prefs' 时返回，避免牵动 contentStore 的真实注册/后端逻辑。
@@ -41,7 +45,10 @@ vi.mock('../../src/components/base/contentStore.ts', () => ({
 
 const loadProviders = vi.fn(() => Promise.resolve())
 const useProvidersList = vi.fn(() => [{ id: 'p1', isPrimary: true }])
-vi.mock('../../src/components/base/settings/providerStore.ts', () => ({ useProvidersList: (...a: any[]) => (useProvidersList as any)(...a), load: (...a: any[]) => (loadProviders as any)(...a) }))
+vi.mock('../../src/components/base/settings/providerStore.ts', () => ({
+  useProvidersList: (...a: Parameters<typeof useProvidersList>) => useProvidersList(...a),
+  load: (...a: Parameters<typeof loadProviders>) => loadProviders(...a),
+}))
 
 const { useScriptBoxEngine } = await import('../../src/hooks/useScriptBoxEngine.ts')
 

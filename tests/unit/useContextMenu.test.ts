@@ -9,18 +9,23 @@
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
+import type { MouseEvent as ReactMouseEvent } from 'react'
 
 const { useContextMenu } = await import('../../src/hooks/useContextMenu.ts')
 
-function makeEvent({ target, clientX = 5, clientY = 6 }: { target?: EventTarget | null; clientX?: number; clientY?: number } = {}) {
-  const e: any = {
+/**
+ * 构造右键事件替身。
+ * React 合成事件无法直接 new，而 hook 只读取 clientX/clientY 与
+ * preventDefault/stopPropagation/target，故拼最小形状后集中断言一次类型。
+ */
+function makeEvent({ target, clientX = 5, clientY = 6 }: { target?: EventTarget | null; clientX?: number; clientY?: number } = {}): ReactMouseEvent {
+  return {
     clientX,
     clientY,
     preventDefault: vi.fn(),
     stopPropagation: vi.fn(),
     target: target || document.createElement('div'),
-  }
-  return e
+  } as unknown as ReactMouseEvent
 }
 
 describe('useContextMenu', () => {

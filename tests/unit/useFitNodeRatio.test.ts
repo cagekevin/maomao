@@ -9,6 +9,7 @@
  */
 import { describe, it, expect, vi } from 'vitest'
 import { renderHook } from '@testing-library/react'
+import type { SyntheticEvent } from 'react'
 
 const setNodes = vi.fn()
 const getNodes = vi.fn(() => [{ id: 'n1', width: 400, height: 100, style: { width: 400, height: 100 } }])
@@ -26,6 +27,17 @@ const { useFitNodeRatio } = await import('../../src/hooks/useFitNodeRatio.ts')
 function lastSetNodesUpdate() {
   const updater = setNodes.mock.calls[setNodes.mock.calls.length - 1][0]
   return updater([{ id: 'n1', data: {}, style: {} }])[0]
+}
+
+/**
+ * 构造仅带媒体尺寸的合成事件替身。
+ * React 合成事件无法直接 new，而 hook 只读取 e.currentTarget 的宽高属性，
+ * 故用真实 DOM 元素（naturalWidth/videoWidth 是只读属性，只能 defineProperty 注入）拼最小形状。
+ */
+function mediaEvent<T extends Element>(tag: 'img' | 'video', dims: Record<string, number>): SyntheticEvent<T> {
+  const el = document.createElement(tag)
+  for (const [k, v] of Object.entries(dims)) Object.defineProperty(el, k, { value: v, configurable: true })
+  return { currentTarget: el } as unknown as SyntheticEvent<T>
 }
 
 describe('useFitNodeRatio', () => {
@@ -59,11 +71,11 @@ describe('useFitNodeRatio', () => {
   it('fitFromImage / fitFromVideo 透传到 fitByRatio（读取节点尺寸）', () => {
     const { result } = renderHook(() => useFitNodeRatio('n1'))
     getNode.mockClear()
-    result.current.fitFromImage({ currentTarget: { naturalWidth: 800, naturalHeight: 400 } } as unknown as React.SyntheticEvent<HTMLImageElement>)
+    result.current.fitFromImage(mediaEvent<HTMLImageElement>('img', { naturalWidth: 800, naturalHeight: 400 }))
     // handler 透传 media 尺寸 → fitByRatio 读取当前节点尺寸
     expect(getNode).toHaveBeenCalled()
     getNode.mockClear()
-    result.current.fitFromVideo({ currentTarget: { videoWidth: 1600, videoHeight: 400 } } as unknown as React.SyntheticEvent<HTMLVideoElement>)
+    result.current.fitFromVideo(mediaEvent<HTMLVideoElement>('video', { videoWidth: 1600, videoHeight: 400 }))
     expect(getNode).toHaveBeenCalled()
   })
 })

@@ -81,7 +81,18 @@ beforeEach(() => {
   genConfig = null
   lastEditorUrl = null
   inlineCropperOpen = false
-  if (!(global as any).IntersectionObserver) (global as any).IntersectionObserver = class { observe() {} unobserve() {} disconnect() {} }
+  // jsdom 无 IntersectionObserver；补一个类型完整的最小实现（DOM lib 已有声明，故无需 as any）
+  if (!globalThis.IntersectionObserver) {
+    globalThis.IntersectionObserver = class implements IntersectionObserver {
+      readonly root: Element | Document | null = null
+      readonly rootMargin = ''
+      readonly thresholds: ReadonlyArray<number> = []
+      observe(): void {}
+      unobserve(): void {}
+      disconnect(): void {}
+      takeRecords(): IntersectionObserverEntry[] { return [] }
+    }
+  }
 })
 
 describe('PromptNode hover 工具栏 — 共享图片能力', () => {

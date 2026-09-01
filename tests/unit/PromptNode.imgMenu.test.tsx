@@ -91,11 +91,12 @@ vi.mock('../../src/components/base/nodePrefs.ts', () => ({ useNodePrefs: () => (
 vi.mock('../../src/hooks/useSyncNodeData.ts', () => ({ useSyncNodeData: () => {} }))
 vi.mock('../../src/components/base/api/filesApi.ts', () => ({ toAbsoluteFileUrl: (x) => x, saveResultToTasks: vi.fn(async () => undefined) }))
 
-const mockFetchTasks = vi.fn(async () => ({ data: { items: [] } }))
+// 带 rest 参数声明：保证 mock 工厂可无损透传调用参数，无需 as any 强转
+const mockFetchTasks = vi.fn(async (..._a: unknown[]) => ({ data: { items: [] } }))
 vi.mock('../../src/components/base/settings/providerStore.ts', () => ({ useProviders: () => ({ providers: [] }), load: vi.fn(() => Promise.resolve()) }))
-vi.mock('../../src/components/base/api/localToolApi.ts', () => ({ fetchTasks: (...a: any[]) => (mockFetchTasks as any)(...a) }))
-const mockGenerateImage = vi.fn(async () => ({ url: 'http://gen.local/img.png' }))
-vi.mock('../../src/components/base/api/imageApi.ts', () => ({ generateImage: (...a: any[]) => (mockGenerateImage as any)(...a) }))
+vi.mock('../../src/components/base/api/localToolApi.ts', () => ({ fetchTasks: (...a: unknown[]) => mockFetchTasks(...a) }))
+const mockGenerateImage = vi.fn(async (..._a: unknown[]) => ({ url: 'http://gen.local/img.png' }))
+vi.mock('../../src/components/base/api/imageApi.ts', () => ({ generateImage: (...a: unknown[]) => mockGenerateImage(...a) }))
 vi.mock('../../src/components/base/providerModels.ts', () => ({ buildAllModels: vi.fn(() => []), resolveProviderModel: vi.fn(() => ({ provider: {}, modelId: 'm' })) }))
 
 // jsdom 可能缺少 IntersectionObserver / requestAnimationFrame
@@ -109,8 +110,17 @@ beforeEach(() => {
   mockFetchTasks.mockReset()
   mockFetchTasks.mockResolvedValue({ data: { items: [] } })
   genConfig = null
-  if (!(global as any).IntersectionObserver) {
-    ;(global as any).IntersectionObserver = class { observe() {} unobserve() {} disconnect() {} }
+  // jsdom 无 IntersectionObserver；补一个类型完整的最小实现（DOM lib 已有声明，故无需 as any）
+  if (!globalThis.IntersectionObserver) {
+    globalThis.IntersectionObserver = class implements IntersectionObserver {
+      readonly root: Element | Document | null = null
+      readonly rootMargin = ''
+      readonly thresholds: ReadonlyArray<number> = []
+      observe(): void {}
+      unobserve(): void {}
+      disconnect(): void {}
+      takeRecords(): IntersectionObserverEntry[] { return [] }
+    }
   }
 })
 

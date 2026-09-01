@@ -36,18 +36,22 @@ vi.mock('../../src/components/edges/Comet.tsx', () => ({
 }))
 
 import CustomEdge from '../../src/components/edges/CustomEdge.tsx'
+import type { EdgeProps } from '@xyflow/react'
+import { Position } from '@xyflow/react'
 
-const BASE_PROPS: any = {
+const BASE_PROPS: EdgeProps = {
   id: 'e1',
   source: 's1',
   target: 't1',
   sourceX: 0, sourceY: 0, targetX: 100, targetY: 100,
+  sourcePosition: Position.Right,
+  targetPosition: Position.Left,
   markerEnd: 'url(#arrow)',
   selected: false,
   data: {},
 }
 
-function setup(overrides: any = {}) {
+function setup(overrides: Partial<EdgeProps> = {}) {
   return render(<CustomEdge {...BASE_PROPS} {...overrides} />)
 }
 
@@ -79,7 +83,8 @@ describe('CustomEdge — 未激活态', () => {
   })
 
   it('markerEnd 非字符串时不透传', () => {
-    const view = setup({ markerEnd: { id: 'obj' } })
+    // 故意喂错类型：验证组件对脏数据的防御（markerEnd 正常应为 string）
+    const view = setup({ markerEnd: { id: 'obj' } as unknown as string })
     expect(view.container.querySelector('.cust-edge-base').getAttribute('marker-end')).toBeNull()
   })
 

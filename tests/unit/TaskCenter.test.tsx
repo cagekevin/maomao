@@ -23,11 +23,12 @@ const h = vi.hoisted(() => {
   const useTasks = vi.fn(() => tasks)
   const setTasks = (list) => { tasks = list }
   const removeTask = vi.fn()
-  const retryTask = vi.fn(() => true)
+  // 带 rest 参数声明：保证 mock 工厂可无损透传调用参数，无需 as any 强转
+  const retryTask = vi.fn((..._a: unknown[]) => true)
   const clearTasksBy = vi.fn()
   const clearAllTasks = vi.fn()
   const pollOneTask = vi.fn()
-  const downloadUrl = vi.fn(async () => ({ ok: true }))
+  const downloadUrl = vi.fn(async (..._a: unknown[]) => ({ ok: true }))
   const showToast = vi.fn()
   const clipboardWrite = vi.fn()
   const loggerWarn = vi.fn()
@@ -55,16 +56,17 @@ vi.mock('../../src/components/base/taskStore.ts', () => ({
     if (status === 'running') return progress > 0 ? `${Math.round(progress)}%` : '生成中'
     return status
   },
-  typeLabel: (type: any) => ({ text: '文本', image: '生图', video: '视频', sd2Video: 'SD2视频', discountVideo: '特惠视频', custom: '万能', rhWebapp: 'AI应用' }[type] || type),
-  removeTask: (...a: any[]) => h.removeTask(...a),
-  retryTask: (...a: any[]) => (h.retryTask as any)(...a),
-  clearTasksBy: (...a: any[]) => h.clearTasksBy(...a),
-  clearAllTasks: (...a: any[]) => h.clearAllTasks(...a),
+  typeLabel: (type: string) =>
+    ({ text: '文本', image: '生图', video: '视频', sd2Video: 'SD2视频', discountVideo: '特惠视频', custom: '万能', rhWebapp: 'AI应用' } as Record<string, string>)[type] || type,
+  removeTask: (...a: unknown[]) => h.removeTask(...a),
+  retryTask: (...a: unknown[]) => h.retryTask(...a),
+  clearTasksBy: (...a: unknown[]) => h.clearTasksBy(...a),
+  clearAllTasks: (...a: unknown[]) => h.clearAllTasks(...a),
 }))
-vi.mock('../../src/components/base/logger.ts', () => ({ logger: { warn: (...a: any[]) => h.loggerWarn(...a) } }))
-vi.mock('../../src/components/base/clipboard.ts', () => ({ downloadUrl: (...a: any[]) => (h.downloadUrl as any)(...a) }))
-vi.mock('../../src/components/base/api/pollTask.ts', () => ({ pollOneTask: (...a: any[]) => h.pollOneTask(...a) }))
-vi.mock('../../src/components/base/toastStore.ts', () => ({ showToast: (...a: any[]) => h.showToast(...a) }))
+vi.mock('../../src/components/base/logger.ts', () => ({ logger: { warn: (...a: unknown[]) => h.loggerWarn(...a) } }))
+vi.mock('../../src/components/base/clipboard.ts', () => ({ downloadUrl: (...a: unknown[]) => h.downloadUrl(...a) }))
+vi.mock('../../src/components/base/api/pollTask.ts', () => ({ pollOneTask: (...a: unknown[]) => h.pollOneTask(...a) }))
+vi.mock('../../src/components/base/toastStore.ts', () => ({ showToast: (...a: unknown[]) => h.showToast(...a) }))
 vi.mock('../../src/hooks/useAssetDragToCanvas.ts', () => ({ makeAssetDragProps: () => ({ draggable: true }) }))
 vi.mock('../../src/components/base/hooks.ts', () => ({ useOutsideClick: () => {} }))
 vi.mock('../../src/components/base/imageUrl.ts', () => ({
