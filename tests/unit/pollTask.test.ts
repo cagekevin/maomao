@@ -11,9 +11,15 @@ vi.mock('../../src/components/base/taskStore.ts', () => ({
   getTasks: vi.fn(() => []),
   patchTask: vi.fn()
 }))
+// mock filesApi.saveResultToTasks：恢复落盘补丁(刷新时任务还在跑→恢复 completed 也落盘)用；
+// 默认返回 null(落盘失败→回退原 URL)，使既有断言不受影响；新增用例再 mockResolvedValue 指定持久 URL
+vi.mock('../../src/components/base/api/filesApi.ts', () => ({
+  saveResultToTasks: vi.fn(async () => null),
+}))
 
 import { API_BASE } from '../../src/components/base/config.ts'
 import { getTasks, patchTask } from '../../src/components/base/taskStore.ts'
+import { saveResultToTasks } from '../../src/components/base/api/filesApi.ts'
 import * as poll from '@/components/base/api/pollTask.ts'
 
 function mockFetchJson(body, { ok = true, status = 200 } = {}) {
@@ -169,5 +175,42 @@ describe('pollOneTask - 恢复不覆盖已持久 resultUrl（S2-b）', () => {
     await pollOne({ id: 't-ext', type: 'video', nodeId: 'n1', pollTaskId: 'p1', resultUrl: 'https://old.external.com/x.mp4' })
     // 旧外链非 /files/，应被网关最新结果覆盖
     expect(patchTask).toHaveBeenCalledWith('t-ext', expect.objectContaining({ resultUrl: 'https://gw/real.mp4' }))
+  })
+})
+
+// ══════════════════════════════════════════════════════════════
+// 恢复落盘缺口：刷新时任务还在跑 → 恢复 completed 回源拿到外链 → 先落盘成 /files/ 再广播
+// ══════════════════════════════════════════════════════════════
+describe('pollOneTask - 恢复 completed 也落盘（刷新前还在跑场景）', () => {
+  beforeEach(() => {
+    vi.mocked(saveResultToTasks).mockClear()
+    vi.mocked(saveResultToTasks).mockResolvedValue(null)
+  })
+  it('任务无已持久 URL + 回源外链 → 先 saveResultToTasks 落盘，用持久 URL 回写/广播', async () => {
+    // 落盘成功返回持久 /files/ URL
+    vi.mocked(saveResultToTasks).mockResolvedValue('http://127.0.0.1:18080/files/tasks/generated_rec.mp4')
+    mockFetchJson(gw({ status: 'completed', result: { videos: [{ url: 'https://a.lovart.ai/expired.mp4' }] } }))
+    await pollOne({ id: 't-recover-persist', type: 'video', nodeId: 'n1', pollTaskId: 'p1' })
+    // 应触发落盘(把回源外链交给 saveResultToTasks)
+    expect(saveResultToTasks).toHaveBeenCalledWith('https://a.lovart.ai/expired.mp4', 'video')
+    // 回写/广播用落盘后的持久 URL，而非外链
+    expect(patchTask).toHaveBeenCalledWith('t-recover-persist', expect.objectContaining({ status: 'completed', resultUrl: 'http://127.0.0.1:18080/files/tasks/generated_rec.mp4' }))
+    expect(patchTask).not.toHaveBeenCalledWith('t-recover-persist', expect.objectContaining({ resultUrl: 'https://a.lovart.ai/expired.mp4' }))
+  })
+
+  it('落盘失败(返回 null) → 回退原回源 URL(宁显示外链不丢图)', async () => {
+    vi.mocked(saveResultToTasks).mockResolvedValue(null) // 落盘失败
+    mockFetchJson(gw({ status: 'completed', result: { videos: [{ url: 'https://v/fallback.mp4' }] } }))
+    await pollOne({ id: 't-recover-fail', type: 'video', nodeId: 'n1', pollTaskId: 'p1' })
+    expect(saveResultToTasks).toHaveBeenCalled()
+    expect(patchTask).toHaveBeenCalledWith('t-recover-fail', expect.objectContaining({ resultUrl: 'https://v/fallback.mp4' }))
+  })
+
+  it('任务已有已持久 URL → 不再触发 saveResultToTasks(直接复用，不重复落盘)', async () => {
+    vi.mocked(saveResultToTasks).mockResolvedValue('http://should-not-be-used')
+    mockFetchJson(gw({ status: 'completed', result: { videos: [{ url: 'https://a.lovart.ai/expired.mp4' }] } }))
+    await pollOne({ id: 't-no-redownload', type: 'video', nodeId: 'n1', pollTaskId: 'p1', resultUrl: '/files/tasks/already.png' })
+    expect(saveResultToTasks).not.toHaveBeenCalled() // 已持久，无需再落盘
+    expect(patchTask).toHaveBeenCalledWith('t-no-redownload', expect.objectContaining({ resultUrl: '/files/tasks/already.png' }))
   })
 })

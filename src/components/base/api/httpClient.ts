@@ -36,6 +36,12 @@ export interface HttpRequestOptions {
   onRetry?: (attempt: number, err: unknown) => void
   /** 错误消息上下文 */
   label?: string
+  /**
+   * 静默成功（日志降噪 80§十#3）：成功时不再记 [请求] 成功 debug（成功可还原、无排查增量），
+   * 仅失败/重试仍记。适用高频低价值写请求(saveTask/kvSet 等 upsert)，避免"每轮回写成功"刷屏。
+   * 失败路径不变（失败必须可见）。
+   */
+  silentSuccess?: boolean
 }
 
 /** 错误信封解析结果 { code, message } */
@@ -131,6 +137,7 @@ export async function httpRequest<T = unknown>(url: string, {
   parseJson = true,
   onRetry,
   label,
+  silentSuccess = false,
 }: HttpRequestOptions = {}) {
   // 内部 controller：外部 signal 与内部超时都中止它，互不污染（超时不误伤组件其他请求）
   const internalCtrl = new AbortController()
@@ -142,8 +149,10 @@ export async function httpRequest<T = unknown>(url: string, {
 
   const start = Date.now()
   const tag = label || url
-  // 排查用日志：走 debug（模块位 http），不触发 /api/logs 上报（避免每次请求多一次 fire-and-forget fetch）
-  logger.debug('http', '[请求] 发出', { method, url: tag, timeoutMs, retries }, { module: 'http' })
+  // 排查用日志：走 debug（模块位 http），不触发 /api/logs 上报（避免每次请求多一次 fire-and-forget fetch）。
+  // 【日志降噪 80§十#1】首次"发出"不再记：一次请求是否成功/失败由下方 [请求] 成功/失败 日志定位，
+  // "发出"对正常请求无排查增量，只会让高频请求(轮询/saveTask)每请求多一条噪音。改为仅重试轮记
+  // (attempt>0) 的"重试发出"，定位重试链；成功/失败仍带耗时，足够排查。
 
   try {
     for (let attempt = 0; attempt <= retries; attempt++) {
@@ -152,6 +161,9 @@ export async function httpRequest<T = unknown>(url: string, {
         const err = new Error('The user aborted a request.')
         err.name = 'AbortError'
         throw err
+      }
+      if (attempt > 0) {
+        logger.debug('http', '[请求] 重试发出', { method, url: tag, attempt: attempt + 1, timeoutMs, retries }, { module: 'http' })
       }
       try {
         const res = await withTimeout(
@@ -167,7 +179,9 @@ export async function httpRequest<T = unknown>(url: string, {
             const { message } = extractErrorDetail(data)
             throw new HttpError(res.status, message, data)
           }
-          logger.debug('http', '[请求] 成功', { method, url: tag, status: res.status, elapsedMs: Date.now() - start }, { module: 'http' })
+          if (!silentSuccess) {
+            logger.debug('http', '[请求] 成功', { method, url: tag, status: res.status, elapsedMs: Date.now() - start }, { module: 'http' })
+          }
           return data
         }
         if (!res.ok) {
@@ -176,7 +190,9 @@ export async function httpRequest<T = unknown>(url: string, {
           const { message } = extractErrorDetail(data)
           throw new HttpError(res.status, message, data)
         }
-        logger.debug('http', '[请求] 成功', { method, url: tag, status: res.status, elapsedMs: Date.now() - start }, { module: 'http' })
+        if (!silentSuccess) {
+          logger.debug('http', '[请求] 成功', { method, url: tag, status: res.status, elapsedMs: Date.now() - start }, { module: 'http' })
+        }
         return res
       } catch (e: unknown) {
         const err = e as { name?: string; message?: string } | undefined

@@ -96,12 +96,15 @@ export async function fetchTasks({ page = 1, pageSize = 200, keyword = '' }: { p
 }
 
 // POST /api/tasks/save { task } → { ok:true }（单条 upsert）
+// silentSuccess: 任务回写是高频(每轮轮询/progress 都 saveTask)、可还原(任务中心内存态+后端重查可恢复)，
+// 成功无排查增量 → 静默成功，仅失败/重试记录（日志降噪 80§十#3）。失败仍走 httpClient 失败日志可见。
 export async function saveTask(task: unknown): Promise<OkResult> {
   return httpRequest(`${API_BASE}/api/tasks/save`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(task),
     label: 'saveTask',
+    silentSuccess: true,
   })
 }
 
@@ -113,6 +116,7 @@ export async function batchSaveTasks(tasks: unknown[]): Promise<OkResult> {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(tasks),
     label: 'batchSaveTasks',
+    silentSuccess: true,
   })
 }
 

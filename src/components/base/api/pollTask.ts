@@ -27,6 +27,7 @@ import { getTasks, patchTask, ensurePolling, isPolling } from '../taskStore.ts'
 import { publishTaskCompleted } from '../taskCompletionBus.ts'
 import { extractResultUrl as extractResult } from '../resultUrlExtractor.ts'
 import { isLocalFileUrl } from '../imageUrl.ts'
+import { saveResultToTasks } from './filesApi.ts'
 import { logger } from '../logger.ts'
 
 // 恢复轮询单轮间隔（与旧全量扫描节流一致）
@@ -50,6 +51,10 @@ interface PollableTask {
 
 let lastRun: number = 0
 let timer: ReturnType<typeof setInterval> | null = null
+// 【日志降噪 80§十#2】记录每个恢复任务上次轮询到的 progress。
+// "进行中"日志仅当 progress 变化时才打，避免恢复轮询对同一未变进度每轮刷屏
+//（网关 progress 常是固定外壳值，多轮不变 → 之前"进行中"每轮一条全冗余）。
+const lastProgressByTask = new Map<string, number | undefined>()
 
 /** 查询单个异步任务最新状态并回写任务记录。返回是否达到终态（completed/failed）。 */
 export async function pollOneTask(task: PollableTask): Promise<boolean> {
@@ -75,27 +80,40 @@ export async function pollOneTask(task: PollableTask): Promise<boolean> {
   if (!data) return false
   const status = data.status
   if (status === 'completed') {
-    // 【S2-b 修根因 C：恢复不得覆盖已持久结果】任务记录里若已有已持久 /files/ resultUrl
-    //（in-flight 阶段经 useNodeGeneration 落盘过），恢复轮询必须保留它，不能再用网关提取的
-    // 原始上游外链覆盖——否则刷新后节点把持久 URL 换成会过期的外链 → 丢图。
-    // 仅当任务记录无 resultUrl（如进程崩在落盘前、刷新后从未落盘）才回源网关拿原始 URL 兜底
-    // （宁可显示外链也不丢图；此极端边界彻底根治留 S4 撤销 P0-C）。
+    // 【恢复不得覆盖已持久结果】任务记录里已有已持久 /files/ resultUrl（in-flight 阶段经
+    // useNodeGeneration 落盘过）→ 保留它，不能用网关提取的原始上游外链覆盖（否则刷新后丢图）。
     const existingPersisted = task.resultUrl && isLocalFileUrl(task.resultUrl)
-    const resultUrl = existingPersisted
+    // 【恢复结果落盘缺口】仅当任务记录无已持久 URL（刷新时任务还在跑、还没 in-flight 落盘）
+    // 才回源网关拿原始 URL；此时必须【先 saveResultToTasks 落盘】成 /files/ 持久 URL，再回写/
+    // 广播——否则节点 onRecover 拿到的是会过期的上游外链，将来刷新仍丢图（与 in-flight 落盘对齐）。
+    const fallbackUrl = existingPersisted
       ? task.resultUrl!
       : (extractResult({ data, type: task.type as 'image' | 'video' | 'audio' }) || '')
-    // patchTask 是合并式更新：仅当兜底取到 URL 或要修正空值时才带 resultUrl 字段；
-    // 若任务记录已有持久 URL 且网关兜底为空，仍保留原持久 URL 不回退成空。
-    const finalResultUrl = resultUrl || task.resultUrl || ''
+
+    let finalResultUrl = fallbackUrl || task.resultUrl || ''
+    let persisted = existingPersisted
+    if (!existingPersisted && finalResultUrl && !isLocalFileUrl(finalResultUrl)) {
+      // 回源拿到的是非持久 URL(上游外链) → 落盘持久化；落盘失败(返回 null)回退原 URL(宁显示外链不丢图)
+      const persistedUrl = await saveResultToTasks(finalResultUrl, task.type).catch((e) => {
+        logger.warn('任务', '[恢复轮询] 落盘失败回退', { taskId: task.id, error: e?.message })
+        return null
+      })
+      if (persistedUrl) {
+        finalResultUrl = persistedUrl
+        persisted = true
+      }
+    }
     patchTask(task.id, { status: 'completed', progress: 100, resultUrl: finalResultUrl })
+    lastProgressByTask.delete(task.id) // 终态收敛，清掉降噪用的进度记录，防泄漏
     // 广播完成事件（统一入口 publishTaskCompleted）：节点监听 agent:task-completed 回写（经 eventBus，解耦 window）
     publishTaskCompleted({ taskId: task.id, nodeId: task.nodeId, resultUrl: finalResultUrl, type: task.type, status: 'completed' })
-    logger.debug('任务', '[恢复轮询] 完成', { taskId: task.id, nodeId: task.nodeId, hasResult: !!finalResultUrl, reusedPersisted: !!existingPersisted }, { module: 'image' })
+    logger.debug('任务', '[恢复轮询] 完成', { taskId: task.id, nodeId: task.nodeId, hasResult: !!finalResultUrl, reusedPersisted: persisted }, { module: 'image' })
     return true
   }
   if (status === 'failed' || status === 'error') {
     const msg = data.error?.message || data.error || '任务失败'
     patchTask(task.id, { status: 'failed', errorMsg: typeof msg === 'object' ? JSON.stringify(msg) : msg })
+    lastProgressByTask.delete(task.id) // 终态收敛，清掉进度记录
     logger.debug('任务', '[恢复轮询] 失败', { taskId: task.id, nodeId: task.nodeId, error: typeof msg === 'object' ? JSON.stringify(msg) : msg }, { module: 'image' })
     return true
   }
@@ -106,7 +124,13 @@ export async function pollOneTask(task: PollableTask): Promise<boolean> {
   } else {
     patchTask(task.id, { status: 'running' })
   }
-  logger.debug('任务', '[恢复轮询] 进行中', { taskId: task.id, nodeId: task.nodeId, progress: progress ?? 'n/a' }, { module: 'image' })
+  // 【日志降噪 80§十#2】"进行中"仅在 progress 与上轮不同时打：网关 progress 常为固定外壳值，
+  // 多轮不变则每轮打"进行中"纯冗余。记一次变化即可定位"任务还在跑且进度推进到哪"。
+  const lastP = lastProgressByTask.get(task.id)
+  if (progress !== lastP) {
+    logger.debug('任务', '[恢复轮询] 进行中', { taskId: task.id, nodeId: task.nodeId, progress: progress ?? 'n/a' }, { module: 'image' })
+    lastProgressByTask.set(task.id, progress)
+  }
   return false
 }
 
