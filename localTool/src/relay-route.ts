@@ -21,6 +21,11 @@ import type { ProtocolJsonValue } from './relay-engine/types/protocol.js';
 import { presets } from './relay-presets.js';
 
 const ts = () => new Date().toISOString().replace('T', ' ').slice(0, 19);
+/** 文件名时间戳(对齐前端 formatTime mode:file → YYYYMMDD_HHMMSS)，用于生成结果命名 */
+function fileStamp(d = new Date()): string {
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
+}
 
 /**
  * POST /api/relay
@@ -74,12 +79,15 @@ export async function handleRelay(req: IncomingMessage, res: ServerResponse): Pr
     // result: { urls?, text?, taskId? }
     console.log(`[relay] ${ts()} | ${providerId}/${capability} stage=extract status=${result.urls?.length ? 'succeeded' : 'done'} urlCount=${result.urls?.length ?? 0}`);
     // 结果落盘：把上游返回的 url 落成 /files/ 持久 URL(localTool 独占下载归属 saveRemoteUrl，S1 已加并发锁)。
+    // 对齐既有生成结果落盘规范(前端 saveResultToTasks 同款)：落 uploads/tasks 目录 + 文件名
+    // `generated_<YYYYMMDD_HHMMSS>`(sha1 前缀由 saveRemoteUrl 加 → `<sha1>_generated_<stamp>.<ext>`)，
+    // 与存量生成结果命名一致，能被 rescan/生成面板按 tasks 目录 + 扩展名识别。
     // 落盘失败回退原 url(宁显示外链不丢)；前端拿到的直接是 /files/ 持久地址，刷新不丢图。
     const rawUrl = result.urls?.[0];
     let url = rawUrl;
     if (typeof rawUrl === 'string' && rawUrl && !rawUrl.includes('/files/')) {
       try {
-        const persisted = await saveRemoteUrl('tasks', rawUrl);
+        const persisted = await saveRemoteUrl('tasks', rawUrl, `generated_${fileStamp()}`);
         if (persisted?.url) url = persisted.url;
       } catch (e) {
         console.error(`[relay] ${ts()} | 落盘失败回退: ${(e as Error)?.message}`);
