@@ -135,3 +135,39 @@ describe('pollOneTask - 异常与边界', () => {
     expect(fetchMock.mock.calls[0][0]).toBe(`${API_BASE}/api/v1/gateway/task/${encodeURIComponent('a/b c')}`)
   })
 })
+
+// ══════════════════════════════════════════════════════════════
+// S2-b 修根因 C：恢复轮询不得用网关外链覆盖已持久 /files/ resultUrl
+// ══════════════════════════════════════════════════════════════
+describe('pollOneTask - 恢复不覆盖已持久 resultUrl（S2-b）', () => {
+  it('任务记录已有已持久 /files/ resultUrl → 保留，不覆盖成网关外链', async () => {
+    // 网关已 completed 且返回原始上游外链
+    mockFetchJson(gw({ status: 'completed', result: { videos: [{ url: 'https://a.lovart.ai/expired.mp4' }] } }))
+    // 任务记录里 in-flight 阶段已落盘 /files/ 持久 URL
+    const done = await pollOne({ id: 't-persisted', type: 'video', nodeId: 'n1', pollTaskId: 'p1', resultUrl: 'http://127.0.0.1:18080/files/tasks/generated_1.mp4' })
+    expect(done).toBe(true)
+    // patchTask 应保留持久 URL，而非覆盖成外链
+    expect(patchTask).toHaveBeenCalledWith('t-persisted', expect.objectContaining({ status: 'completed', resultUrl: 'http://127.0.0.1:18080/files/tasks/generated_1.mp4' }))
+    // 广播也用持久 URL（不污染节点回填）
+    expect(patchTask).not.toHaveBeenCalledWith('t-persisted', expect.objectContaining({ resultUrl: 'https://a.lovart.ai/expired.mp4' }))
+  })
+
+  it('相对 /files/ 形态同样视为已持久 → 保留', async () => {
+    mockFetchJson(gw({ status: 'completed', result: { images: [{ url: 'https://a.lovart.ai/expired.png' }] } }))
+    await pollOne({ id: 't-rel', type: 'image', nodeId: 'n1', pollTaskId: 'p1', resultUrl: '/files/tasks/abc.png' })
+    expect(patchTask).toHaveBeenCalledWith('t-rel', expect.objectContaining({ resultUrl: '/files/tasks/abc.png' }))
+  })
+
+  it('任务记录无持久 resultUrl（崩在落盘前）→ 回源网关原始 URL 兜底（现状不破）', async () => {
+    mockFetchJson(gw({ status: 'completed', result: { videos: [{ url: 'https://v/fallback.mp4' }] } }))
+    await pollOne({ id: 't-fallback', type: 'video', nodeId: 'n1', pollTaskId: 'p1' }) // 无 resultUrl
+    expect(patchTask).toHaveBeenCalledWith('t-fallback', expect.objectContaining({ status: 'completed', resultUrl: 'https://v/fallback.mp4' }))
+  })
+
+  it('任务记录 resultUrl 是外链(非已持久) → 以网关为准回写（不因误判空而丢）', async () => {
+    mockFetchJson(gw({ status: 'completed', result: { videos: [{ url: 'https://gw/real.mp4' }] } }))
+    await pollOne({ id: 't-ext', type: 'video', nodeId: 'n1', pollTaskId: 'p1', resultUrl: 'https://old.external.com/x.mp4' })
+    // 旧外链非 /files/，应被网关最新结果覆盖
+    expect(patchTask).toHaveBeenCalledWith('t-ext', expect.objectContaining({ resultUrl: 'https://gw/real.mp4' }))
+  })
+})

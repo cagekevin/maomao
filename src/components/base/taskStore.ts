@@ -513,6 +513,165 @@ export function awaitTask(nodeId: string, timeout = 60000): Promise<AwaitTaskRes
   })
 }
 
+/* ──────────────────────────────────────────────────────────────
+ * 轮询调度注册表（S2 · ensurePolling）—— 消双轮询的地基（纯新增，暂不接调用方）
+ *
+ * 【为什么存在】image/video 异步任务有两个轮询源头会查同一 taskId：
+ *   ① in-flight（当前页 proxyGenerate while，实时进度，生命周期=页面）
+ *   ② 恢复（刷新后 pollTask，捞回结果，生命周期=数据/localTool）
+ * 二者触发时机/生命周期不同不能删一套，但同一时刻必须只有一个在管——
+ * 本注册表保证"一个 taskId 只有一个 poller"：in-flight 先注册占位；
+ * 刷新后注册表(运行时态)清空，启动扫描对未注册任务重新注册恢复 poller。
+ *
+ * 【职责】只做"调度 + 单轮驱动 + 终态收敛"，不掺 provider/传输知识。
+ *  单轮"怎么查"由调用方经 register 回调提供(proxyGenerate 走 /api/proxy、
+ *  pollTask 走 gateway/task 各自保留)；taskStore 不统一传输、不硬编码超时。
+ *
+ * 【S2-a 状态】本段只落地注册表骨架与 ensurePolling/stopPolling/isPolling，
+ *  不接任何调用方(proxyGenerate/pollTask 的接入在 S2-c)，故当前无生产调用。
+ *  ────────────────────────────────────────────────────────────── */
+
+/** 轮询句柄：注册后持有，可 stop 中止。 */
+export interface PollerHandle {
+  /** 句柄对应 taskId */
+  taskId: string
+  /** 中止轮询：清定时器 + 移除注册。终态收敛 / 取消 / 超时时调用。 */
+  stop: () => void
+}
+
+/** ensurePolling 入参 */
+export interface EnsurePollingOptions {
+  /**
+   * 单轮回调：查一次任务状态，到终态(completed/failed)返回 true 停止；未到返回 false 继续。
+   * 由 ensurePolling 定时驱动（每 pollIntervalMs 调一次）。**occupyOnly 时忽略**。
+   */
+  register: (taskId: string) => Promise<boolean>
+  /** 单轮间隔 ms（调用方按类型传：image GEN_POLL_INTERVAL / video VIDEO_POLL_INTERVAL） */
+  pollIntervalMs?: number
+  /** 总超时 ms（到点强停，防止轮询无限挂起，铁律：异步必须带总超时） */
+  timeoutMs?: number
+  /** 可选取消信号：abort 时 stop */
+  signal?: AbortSignal
+  /**
+   * 纯占位模式（in-flight 自驱动轮询用）：只登记"该 taskId 已被接管"的标记，
+   * 不让 ensurePolling 起定时器/驱动 register（in-flight 自己有 while 循环驱动）。
+   * 目的：让恢复扫描看到 isPolling(taskId) 为真 → 不对同一 taskId 重复起恢复 poller。
+   * 调用方自己负责在轮询结束/取消时 stopPolling(taskId) 释放占位。
+   */
+  occupyOnly?: boolean
+}
+
+/** 注册表条目内部态 */
+interface PollerEntry {
+  taskId: string
+  stop: () => void
+  timer: ReturnType<typeof setInterval> | null
+  stopped: boolean
+}
+
+// taskId -> 轮询条目。一个 taskId 只可能有一个 entry（ensurePolling 保证）。
+const pollers = new Map<string, PollerEntry>()
+
+const DEFAULT_POLL_INTERVAL_MS = 3000
+const DEFAULT_TIMEOUT_MS = 300_000
+
+/**
+ * 唯一轮询入口：为 taskId 注册一个轮询器，保证同一 taskId 只有一个 poller。
+ * - taskId 已注册 → 返回已有句柄，不起第二个（双轮询在构造上不可能，无需去重判断）。
+ * - 未注册 → 注册并立即启动首轮，随后按 pollIntervalMs 定时驱动 register 单轮回调，
+ *   直到 register 返回 true(终态)/超时/stop 为止。
+ * @param {string} taskId 前端自造任务 id（taskStore 主键，非网关 task_id）
+ * @param {EnsurePollingOptions} opts register 为必填单轮回调
+ * @returns {PollerHandle}
+ */
+export function ensurePolling(taskId: string, opts: EnsurePollingOptions): PollerHandle {
+  const existing = pollers.get(taskId)
+  if (existing) return { taskId: existing.taskId, stop: existing.stop } // 已有 poller → 复用，杜绝双重轮询
+
+  const intervalMs = opts.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS
+  const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS
+  const startedAt = Date.now()
+  let timer: ReturnType<typeof setInterval> | null = null
+
+  // 先造 entry 再赋值 stop/timer（runOnce/stop 引用 entry，需先有可闭包引用对象）
+  const entry: PollerEntry = { taskId, stop: () => {}, timer: null, stopped: false }
+
+  // 单次驱动：跑一轮 register，到终态/超时/中止则收敛清理
+  const runOnce = async () => {
+    if (entry.stopped) return
+    // 总超时：到点强停，防无限挂起
+    if (Date.now() - startedAt > timeoutMs) {
+      logger.warn('task', 'poll-timeout-stop', { taskId, elapsedMs: Date.now() - startedAt })
+      entry.stop()
+      return
+    }
+    try {
+      const done = await opts.register(taskId)
+      if (done || entry.stopped) entry.stop()
+    } catch (e) {
+      // 单轮异常(网络抖动等)：不误判失败，下轮再试；连续异常仍受总超时约束
+      logger.warn('task', 'poll-round-error', { taskId, error: e?.message })
+    }
+  }
+
+  // stop 里清理 signal 监听：避免正常终态 stop 后，signal 上仍挂着该 poller 的 abort 监听
+  const onAbort = () => stop()
+  const stop = () => {
+    if (entry.stopped) return
+    entry.stopped = true
+    if (timer) { clearInterval(timer); timer = null }
+    pollers.delete(taskId) // 释放注册，stop 后同 taskId 可被重新 ensurePolling
+    if (opts.signal) opts.signal.removeEventListener('abort', onAbort)
+    logger.debug('任务', '[轮询] stop', { taskId }, { module: 'image' })
+  }
+  entry.stop = stop
+
+  // 先注册（occupyOnly 与驱动模式都要在注册表占位，保证恢复扫描能 isPolling 命中）
+  pollers.set(taskId, entry)
+
+  if (opts.occupyOnly) {
+    // 【纯占位】in-flight 自驱动轮询用：只登记"该 taskId 已被接管"，不起定时器/不驱动 register。
+    // register 单轮回调不会被调用（in-flight 自己有 while 驱动）。调用方结束/取消时自行 stopPolling。
+    if (opts.signal) {
+      if (opts.signal.aborted) stop()
+      else opts.signal.addEventListener('abort', onAbort, { once: true })
+    }
+    return { taskId: entry.taskId, stop: entry.stop }
+  }
+
+  // 立即跑首轮（异步），再挂定时器驱动后续轮
+  void runOnce()
+  timer = setInterval(() => { void runOnce() }, intervalMs)
+  entry.timer = timer
+
+  // 外部取消信号：abort → stop
+  if (opts.signal) {
+    if (opts.signal.aborted) {
+      stop()
+    } else {
+      opts.signal.addEventListener('abort', onAbort, { once: true })
+    }
+  }
+
+  return { taskId: entry.taskId, stop: entry.stop }
+}
+
+/** 显式中止某 taskId 的轮询（终态收敛/取消时调用）。 */
+export function stopPolling(taskId: string): void {
+  const entry = pollers.get(taskId)
+  if (entry) entry.stop()
+}
+
+/** 诊断/测试：该 taskId 当前是否已被注册轮询。 */
+export function isPolling(taskId: string): boolean {
+  return pollers.has(taskId)
+}
+
+/** 诊断：当前注册的轮询任务数（防泄漏检查用）。 */
+export function pollingCount(): number {
+  return pollers.size
+}
+
 // 清理：按条件批量删除（同步后端）
 export function clearTasksBy(predicate: (t: Task) => boolean): void {
   const removed = tasks.filter((t) => predicate(t))

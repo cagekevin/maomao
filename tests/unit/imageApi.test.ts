@@ -20,6 +20,9 @@ vi.mock('../../src/components/base/imageUrl.ts', () => ({
 }))
 vi.mock('../../src/components/base/taskStore.ts', () => ({
   setTaskPollId: vi.fn(),
+  // S2-c：in-flight async 轮询前会 occupyOnly 占位注册，测试只需不崩即可（占位不影响单测轮询逻辑）
+  ensurePolling: vi.fn((taskId: string) => ({ taskId, stop: vi.fn() })),
+  stopPolling: vi.fn(),
 }))
 
 const api = await import('@/components/base/api/imageApi.ts')

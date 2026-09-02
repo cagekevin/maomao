@@ -23,15 +23,18 @@
  */
 import { httpRequest } from './httpClient.ts'
 import { API_BASE } from '../config.ts'
-import { getTasks, patchTask } from '../taskStore.ts'
+import { getTasks, patchTask, ensurePolling, isPolling } from '../taskStore.ts'
 import { publishTaskCompleted } from '../taskCompletionBus.ts'
 import { extractResultUrl as extractResult } from '../resultUrlExtractor.ts'
+import { isLocalFileUrl } from '../imageUrl.ts'
 import { logger } from '../logger.ts'
 
-// 轮询节流：单进程内两次全量扫描最小间隔（ms）
+// 恢复轮询单轮间隔（与旧全量扫描节流一致）
 const POLL_INTERVAL: number = 5000
-// 每轮最多并发查询的任务数（避免一次刷新几十个任务打爆网关）
-const MAX_PER_ROUND: number = 5
+// 恢复轮询总超时兜底：单任务最多恢复轮询多久，到点强停防挂起
+const POLL_TIMEOUT_MS: number = 600_000
+// 补扫周期：周期发现"启动扫描后新变为 running&&有 pollTaskId"的迟达候选并接管
+const SCAN_INTERVAL: number = 5000
 
 /** 可轮询的异步任务形状（taskStore 持久任务字段子集；type/status 为 string） */
 interface PollableTask {
@@ -41,6 +44,8 @@ interface PollableTask {
   status: string
   pollTaskId?: string
   progress?: number
+  /** 任务记录里已持久化的 resultUrl（若 in-flight 阶段已落盘 /files/ 则非空） */
+  resultUrl?: string
 }
 
 let lastRun: number = 0
@@ -70,12 +75,22 @@ export async function pollOneTask(task: PollableTask): Promise<boolean> {
   if (!data) return false
   const status = data.status
   if (status === 'completed') {
-    // 提取结果 URL（直达统一解析器 resultUrlExtractor；|| '' 兜底空值，避免 undefined 落进任务记录）
-    const resultUrl = extractResult({ data, type: task.type as 'image' | 'video' | 'audio' }) || ''
-    patchTask(task.id, { status: 'completed', progress: 100, resultUrl })
+    // 【S2-b 修根因 C：恢复不得覆盖已持久结果】任务记录里若已有已持久 /files/ resultUrl
+    //（in-flight 阶段经 useNodeGeneration 落盘过），恢复轮询必须保留它，不能再用网关提取的
+    // 原始上游外链覆盖——否则刷新后节点把持久 URL 换成会过期的外链 → 丢图。
+    // 仅当任务记录无 resultUrl（如进程崩在落盘前、刷新后从未落盘）才回源网关拿原始 URL 兜底
+    // （宁可显示外链也不丢图；此极端边界彻底根治留 S4 撤销 P0-C）。
+    const existingPersisted = task.resultUrl && isLocalFileUrl(task.resultUrl)
+    const resultUrl = existingPersisted
+      ? task.resultUrl!
+      : (extractResult({ data, type: task.type as 'image' | 'video' | 'audio' }) || '')
+    // patchTask 是合并式更新：仅当兜底取到 URL 或要修正空值时才带 resultUrl 字段；
+    // 若任务记录已有持久 URL 且网关兜底为空，仍保留原持久 URL 不回退成空。
+    const finalResultUrl = resultUrl || task.resultUrl || ''
+    patchTask(task.id, { status: 'completed', progress: 100, resultUrl: finalResultUrl })
     // 广播完成事件（统一入口 publishTaskCompleted）：节点监听 agent:task-completed 回写（经 eventBus，解耦 window）
-    publishTaskCompleted({ taskId: task.id, nodeId: task.nodeId, resultUrl, type: task.type, status: 'completed' })
-    logger.debug('任务', '[恢复轮询] 完成', { taskId: task.id, nodeId: task.nodeId, hasResult: !!resultUrl }, { module: 'image' })
+    publishTaskCompleted({ taskId: task.id, nodeId: task.nodeId, resultUrl: finalResultUrl, type: task.type, status: 'completed' })
+    logger.debug('任务', '[恢复轮询] 完成', { taskId: task.id, nodeId: task.nodeId, hasResult: !!finalResultUrl, reusedPersisted: !!existingPersisted }, { module: 'image' })
     return true
   }
   if (status === 'failed' || status === 'error') {
@@ -95,32 +110,53 @@ export async function pollOneTask(task: PollableTask): Promise<boolean> {
   return false
 }
 
-/** 一轮扫描：找 running/pending 且有 pollTaskId 的任务，逐个查询。 */
-async function runRound(): Promise<void> {
-  // getTasks() 已返回类型化 Task[]，Task 结构上包含 PollableTask 全部字段（status TaskStatus ⊂ string），
-  // 直接声明为 PollableTask[] 是合法子类型收窄（F12），不是无守卫的假 assert。
-  const tasks: PollableTask[] = getTasks()
-  const candidates = tasks.filter(
+/**
+ * 【S2-c】为单个恢复任务构造 ensurePolling 的单轮回调。
+ * 每次 ensurePolling 驱动时，按 taskId 从任务记录取最新任务再跑 pollOneTask 单轮：
+ * - 任务已不存在 → 视为终态(true)让 poller 停，避免对已删任务空转
+ * - 否则 pollOneTask(fresh) 单轮查询网关，completed/failed 返回 true(poller 自停)
+ */
+function registerPollRound(seed: PollableTask): (taskId: string) => Promise<boolean> {
+  return async (taskId) => {
+    const fresh = getTasks().find((t) => t.id === taskId) as PollableTask | undefined
+    if (!fresh) return true // 任务已删/已清 → 恢复轮询没必要继续，收敛
+    return pollOneTask(fresh)
+  }
+}
+
+/** 启动扫描：找 running/pending 且有 pollTaskId 的任务，逐个 ensurePolling 接管。 */
+function startRecoveryRound(): void {
+  const candidates = getTasks().filter(
     (t) => (t.status === 'running' || t.status === 'pending') && t.pollTaskId
-  )
+  ) as PollableTask[]
   if (candidates.length === 0) return
-  // 每轮最多查 MAX_PER_ROUND 个，防止一次刷新几十个任务打爆网关；超出的下轮再查
-  const slice = candidates.slice(0, MAX_PER_ROUND)
-  // 【P0 埋点】本轮待恢复任务数（排查「刷新后任务没恢复」：确认有候选且每轮扫到）
-  logger.debug('任务', '[恢复轮询] 本轮', { candidates: candidates.length, querying: slice.length }, { module: 'image' })
-  await Promise.all(slice.map((t) => pollOneTask(t).catch(() => false)))
+  for (const t of candidates) {
+    // 已被 in-flight 占位(occupyOnly)或已被本轮/既往 ensurePolling 注册 → 跳过，杜绝双轮询
+    if (isPolling(t.id)) continue
+    // 未接管 → 注册恢复 poller（ensurePolling 内部保证同 taskId 只有一个，定时驱动 register 到终态）
+    ensurePolling(t.id, {
+      register: registerPollRound(t),
+      pollIntervalMs: POLL_INTERVAL,
+      timeoutMs: POLL_TIMEOUT_MS,
+    })
+    logger.debug('任务', '[恢复轮询] 接管', { taskId: t.id, nodeId: t.nodeId, pollTaskId: t.pollTaskId, type: t.type }, { module: 'image' })
+  }
 }
 
 /**
  * 启动全局任务恢复轮询（App 挂载后调用一次）。
+ * - 首次：启动扫描，对 running/pending && pollTaskId 且未占位/未驱动的任务注册 ensurePolling 接管。
+ * - 周期补扫：迟达候选(启动扫描后新变为 running&&有 pollTaskId 的)也会被接管；
+ *   ensurePolling/isPolling 去重保证同 taskId 不重复注册，故周期重扫安全、无双轮询。
  * 只对有 pollTaskId 的异步任务生效；文本/生图 sync 无 pollTaskId，天然跳过。
  */
 export function initTaskRecovery(): void {
   if (timer) return // 防重复启动
+  startRecoveryRound()
   timer = setInterval(() => {
     const now = Date.now()
-    if (now - lastRun < POLL_INTERVAL) return
+    if (now - lastRun < SCAN_INTERVAL) return
     lastRun = now
-    runRound()
-  }, 2000) // 用 2s 检查 + 5s 节流，兼顾即时性与频率
+    startRecoveryRound()
+  }, 2000) // 2s 检查 + 5s 补扫节流，兼顾即时与频率
 }

@@ -28,7 +28,7 @@
  */
 
 import { API_BASE } from '../config.ts'
-import { setTaskPollId } from '../taskStore.ts'
+import { setTaskPollId, ensurePolling, stopPolling } from '../taskStore.ts'
 import { GEN_TIMEOUT, GEN_POLL_INTERVAL, VIDEO_TIMEOUT, VIDEO_POLL_INTERVAL, CHAT_TIMEOUT } from '../config.ts'
 import { withTimeout, isTimeoutError } from '../asyncGuard.ts'
 import { classifyError, timeoutMessage } from '../genErrors.ts'
@@ -208,6 +208,35 @@ async function pollUntilDone({ provider, url, genBody, extractUrl, pollInterval,
   // 用请求级 frontTaskId（P0-A），不再读全局单例。
   if (frontTaskId) setTaskPollId(frontTaskId, taskId)
 
+  // 【S2-c 消双轮询】in-flight 自驱动轮询开始前，先向 taskStore 注册表【纯占位】登记
+  // "该 taskId 已被本进程接管"→ 恢复扫描(isPolling) sees 为真 → 不对同一 taskId 重复起恢复 poller。
+  // 本占位不驱动(occupyOnly)，in-flight 的 while 循环仍自驱动(带 onProgress 实时进度)。
+  // 页面刷新时注册表(运行时态)随内存清空 → 恢复扫描对未占位任务重新注册，恢复机制不变。
+  const occupied = frontTaskId ? ensurePolling(frontTaskId, { register: async () => false, occupyOnly: true, signal }) : null
+
+  try {
+    return await pollInFlight({ provider, taskId, extractUrl, pollInterval, timeoutMs, onProgress, signal })
+  } finally {
+    // in-flight 结束(拿到结果/失败/取消/超时) → 释放占位，允许同 taskId 后续被恢复或重试接管
+    if (occupied) stopPolling(frontTaskId as string)
+  }
+}
+
+/**
+ * 【S2-c】in-flight 自驱动轮询主体（原 pollUntilDone 的 while 循环，逻辑逐字保留）：
+ * 提交已拿到 task_id，这里按 pollInterval 周期查询 provider tasks/{id}，到提取到 URL(成功)
+ * 或 failed(失败)/超时为止。由 pollUntilDone 外层以占位方式接入注册表后调用。
+ * @returns {Promise<GenerationResult>} ok(url) / fail(...) / 取消抛 AbortError
+ */
+async function pollInFlight({ provider, taskId, extractUrl, pollInterval, timeoutMs, onProgress, signal }: {
+  provider?: GenerationProvider
+  taskId: string
+  extractUrl: (arg: { data: unknown; json: unknown }) => string | undefined
+  pollInterval: number
+  timeoutMs: number
+  onProgress?: ProgressFn
+  signal?: AbortSignal
+}): Promise<GenerationResult> {
   const pollUrl = buildTargetUrl(provider, `tasks/${taskId}`)
   const start = Date.now()
   let _polls = 0 // 【B层】轮询次数
