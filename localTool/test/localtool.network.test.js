@@ -540,3 +540,81 @@ test('files·upload JSON fileUrl（无后缀）重复下载 → 幂等，带后�
   const rel = b1.data.url.replace(/^http:\/\/127\.0\.0\.1:18080\/files\//, '');
   assert.ok(fs.existsSync(path.join(TEST_DIR, 'uploads', rel)), '最终文件应落盘');
 });
+
+// ── S1 并发去重（in-flight 锁）──
+// 延迟工具：让 mock fetch 在响应前挂起一小段，制造"两个并发请求重叠窗口"。
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+test('files·saveRemoteUrl 并发两请求同 URL → 底层 fetch 只调 1 次、磁盘一份', async () => {
+  let calls = 0;
+  mockFetchOnce(async (url) => {
+    calls++;
+    // 下载在途(挂起)，确保第二个并发请求到达时第一个还没释放锁 → 命中 in-flight
+    await sleep(30);
+    assert.match(url, /\/img\.png$/);
+    return new Response(new Uint8Array(RED_PNG_BUFFER), { status: 200, headers: { 'content-type': 'image/png' } });
+  });
+  const opts = { fileUrl: 'https://cdn.example.com/img.png', subfolder: 'canvas' };
+  // 并发发出：不 await 第一个就发第二个（结果写入各自 res）
+  const res1 = makeRes();
+  const res2 = makeRes();
+  await Promise.all([
+    filesMod.handleUpload(makeJsonReq(opts), res1),
+    filesMod.handleUpload(makeJsonReq(opts), res2),
+  ]);
+  const b1 = parseResBody(res1);
+  const b2 = parseResBody(res2);
+  assert.equal(calls, 1, '并发同 URL 应只触发一次底层下载(fetch)，第二个复用 in-flight');
+  assert.equal(b1.code, 0);
+  assert.equal(b2.code, 0);
+  assert.ok(b1.data.url && b1.data.url.startsWith('http://127.0.0.1:18080/files/canvas/'), '应返回落盘 URL');
+  assert.equal(b1.data.url, b2.data.url, '两并发请求应返回同一最终 URL');
+  const rel = b1.data.url.replace(/^http:\/\/127\.0\.0\.1:18080\/files\//, '');
+  const diskPath = path.join(TEST_DIR, 'uploads', rel);
+  assert.ok(fs.existsSync(diskPath), '下载文件应落盘');
+  // 目录下只应有 1 个原图(锁防住了并发双写)
+  const canvasDir = path.join(TEST_DIR, 'uploads', 'canvas');
+  const files = fs.readdirSync(canvasDir).filter((f) => !f.startsWith('.'));
+  assert.equal(files.length, 1, '并发同 URL 磁盘应只落 1 个文件');
+});
+
+test('files·saveRemoteUrl 顺序两请求(无后缀 URL) → 锁不缓存，仍下两次 calls=2（回归既有行为）', async () => {
+  let calls = 0;
+  mockFetchOnce(async () => { calls++; await sleep(5); return new Response(new Uint8Array(RED_PNG_BUFFER), { status: 200, headers: { 'content-type': 'image/png' } }); });
+  const opts = { fileUrl: 'https://cdn.example.com/ep5579504', subfolder: 'web' };
+  const r1 = makeRes();
+  await filesMod.handleUpload(makeJsonReq(opts), r1);
+  const r2 = makeRes();
+  await filesMod.handleUpload(makeJsonReq(opts), r2);
+  const b1 = parseResBody(r1);
+  const b2 = parseResBody(r2);
+  // 顺序(非并发)时锁已释放(settle 即删)，无后缀 URL 需重新下载拿 Content-Type → 与现状一致仍 2 次
+  assert.equal(calls, 2, '顺序两请求(锁不重叠)应仍各下一次——证明锁不缓存结果、不改变顺序行为');
+  assert.equal(b1.data.url, b2.data.url, '同一 URL 顺序两次应返回同一最终 URL');
+});
+
+test('files·saveRemoteUrl 并发同 URL 且首次下载失败 → 两请求都失败，不静默误报成功', async () => {
+  let calls = 0;
+  mockFetchOnce(async () => {
+    calls++;
+    await sleep(20);
+    return new Response('boom', { status: 500, headers: { 'content-type': 'text/plain' } });
+  });
+  const opts = { fileUrl: 'https://cdn.example.com/fail.png', subfolder: 'canvas' };
+  const res1 = makeRes();
+  const res2 = makeRes();
+  await Promise.all([
+    filesMod.handleUpload(makeJsonReq(opts), res1),
+    filesMod.handleUpload(makeJsonReq(opts), res2),
+  ]);
+  // 两请求共享同一 in-flight Promise → 都失败(HTTP 400)，第二个不得因等锁误报成功
+  assert.equal(calls, 1, '并发失败也只在首次触发一次下载');
+  assert.equal(res1.status, 400, '第一个请求应失败');
+  assert.equal(res2.status, 400, '第二个请求应拿到同一失败，不得误报成功');
+  const e1 = parseResBody(res1);
+  const e2 = parseResBody(res2);
+  assert.ok(e1?.error, '第一个请求应有失败原因');
+  assert.ok(e2?.error, '第二个请求应有失败原因');
+  assert.match(String(e1?.error), /Failed to download|HTTP|boom/i, '应返回真实失败原因，非泛化成功');
+});
+

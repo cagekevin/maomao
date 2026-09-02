@@ -47,6 +47,31 @@ const MIME_TO_EXT: Record<string, string> = {
   'audio/ogg': 'ogg',
 };
 
+/**
+ * saveRemoteUrl 的落盘结果信封。
+ */
+interface SaveRemoteResult {
+  url: string;
+  path: string;
+  thumbnailUrl?: string;
+}
+
+/**
+ * 进程内 in-flight 下载去重表：dedupeKey -> 正在下载的 Promise。
+ *
+ * 【为什么需要它】saveRemoteUrl 靠 fs.existsSync 做文件级幂等，只能挡"顺序重复到达"
+ * （第一份已写完，第二份判 existsSync 命中即跳过），挡不住"并发重叠窗口"：
+ * 前端双落盘(useNodeGeneration + PromptNode.onSuccess)会对同一远程 URL 发两个并发
+ * POST /api/files/upload，两个请求到达时都还没下载完、existsSync 都判 false → 都真下载。
+ *
+ * 【锁语义】只挡"重叠并发窗口"：Promise settle 后 finally 必删该键，不缓存结果。
+ *  - 并发窗口内：第二个请求 await 第一个的同一 Promise，复用其成功结果或同样的失败。
+ *  - 窗口之后(顺序重复)：键已删，走既有 existsSync 文件幂等(带后缀 URL)或重新下载拿
+ *    Content-Type(无后缀 URL)——与现状行为逐字一致，不因加锁改变顺序调用次数。
+ *  - set 时机必须在"真正开始下载/fetch yield"之前，否则两并发仍可能都 miss。
+ */
+const inflightDownloads = new Map<string, Promise<SaveRemoteResult>>();
+
 // ── upload ──
 export async function handleUpload(req: IncomingMessage, res: ServerResponse): Promise<void> {
   const contentType = req.headers['content-type'] || '';
@@ -132,6 +157,36 @@ async function saveFile(data: Buffer, subfolder: string, filename: string): Prom
 
 /**
  * 远程 URL → 本地文件（【唯一下载归属点】+ 幂等，任何调用方都走这里保证去重）。
+ *
+ * 本函数是并发协调层：对"同一远程 URL 的并发请求"只真下载一次（见 inflightDownloads 注释），
+ * 内部实现委托 doSaveRemoteUrl（原函数体，含 existsSync 文件幂等 + fetchWithProxy 下载）。
+ * 调用方(handleUploadFormData / handleUploadJson / polling / 迁移)签名不变、不感知锁。
+ *
+ * 去重键 = subfolder + fileUrl（不含 filename）：filename 只影响落盘命名，不影响"是否同一份下载"。
+ */
+async function saveRemoteUrl(subfolder: string, fileUrl: string, filename?: string): Promise<SaveRemoteResult> {
+  const dedupeKey = `${subfolder}\u0000${fileUrl}`;
+  const inFlight = inflightDownloads.get(dedupeKey);
+  if (inFlight) {
+    // 【并发窗口命中】已有同一 URL 在下载中 → 复用其结果(含失败)，不重复下载。
+    // 打可查留痕(非静默)，供"下载去重是否生效"排障。不打断主流程，await 抛错由调用方统一处理。
+    console.log(`[download] ${new Date().toISOString().replace('T', ' ').slice(0, 19)} | INFLIGHT(并发复用) | ${fileUrl}`);
+    return inFlight;
+  }
+  // set 必须在真正开始下载(fetch yield)之前：doSaveRemoteUrl 内部首个 await 前已入表，
+  // 保证并发请求 B 到达时查 Map 必命中 A 的 promise，消灭"两并发都 miss"窗口。
+  const p = doSaveRemoteUrl(subfolder, fileUrl, filename);
+  inflightDownloads.set(dedupeKey, p);
+  try {
+    return await p;
+  } finally {
+    // Promise settle(成功或失败) 必删键：不缓存结果、不泄漏。后续顺序重复走既有 existsSync 幂等。
+    inflightDownloads.delete(dedupeKey);
+  }
+}
+
+/**
+ * 【原 saveRemoteUrl 实现体，改名保留既有幂等逻辑，逐字不变】
  * - 文件名 = sha1(fileUrl) 前 16 位 + 原 basename → 同一远程地址永远映射到同一文件名;
  * - URL basename 不带后缀时（很多 CDN 图 URL 如此），下载后按响应 Content-Type 补扩展名
  *   （否则落盘无后缀 → 服务端按扩展名的 Content-Type/缩略图/类型识别全部失效，见 MIME_TO_EXT）;
@@ -139,7 +194,7 @@ async function saveFile(data: Buffer, subfolder: string, filename: string): Prom
  * - 单次成功调用产出【1 原图 + 1 缩略图】两个文件(缩略图在 .thumbnails/ 下),这是正常设计,不是"重复下载"。
  * 调用方(polling ii→Zr / gateway / 迁移)下载失败表现为 POST /api/files/upload 返回 400,由 Zr 打 WARN 暴露。
  */
-async function saveRemoteUrl(subfolder: string, fileUrl: string, filename?: string): Promise<{ url: string; path: string; thumbnailUrl?: string }> {
+async function doSaveRemoteUrl(subfolder: string, fileUrl: string, filename?: string): Promise<SaveRemoteResult> {
   const urlHash = crypto.createHash('sha1').update(fileUrl).digest('hex').slice(0, 16);
   const base = filename || path.basename(new URL(fileUrl).pathname) || 'download';
   const stableName = sanitizeFilename(`${urlHash}_${base}`);
