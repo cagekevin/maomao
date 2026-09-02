@@ -58,8 +58,8 @@ interface ImageEditorProps {
 
 // 可绘制/标记工具集合（裁剪在 ReactCrop 层处理，不参与 canvas 绘制）
 const DRAW_TOOLS = ['pencil', 'eraser', 'text', 'line', 'arrow', 'square', 'circle', 'number', 'eyedropper']
-// 全部可用工具（含裁剪）
-const ALL_TOOLS = [...DRAW_TOOLS, 'crop']
+// 全部可用工具（含裁剪、扩图）
+const ALL_TOOLS = [...DRAW_TOOLS, 'crop', 'expand']
 
 // 裁剪比例选项（官方 _Component129:530-535）
 const CROP_RATIOS = [
@@ -71,39 +71,85 @@ const CROP_RATIOS = [
   { label: '3:4', value: 3 / 4 },
 ]
 
-/* ── 外扩白边（复刻 AI-Canvas ExpandEditor 的 zoom 机制）──
- * 不拖裁剪框出图，而是用「外扩量」控制原图在目标画布中的占比：
- *  - zoom 取值范围 [0.3, 1]，UI 显示「外扩量 = (1-zoom)*100%」；
- *  - zoom 越小 → 原图占目标画布比例越小 → 四周白边越多；
- *  - zoom=1 → 目标画布=裁剪结果，退化普通裁剪（无白边）。
- * 原图始终保持原始分辨率居中绘制，只放大画布留白，不拉伸原图。 */
+/* ── 扩图工具（复刻 AI-Canvas ExpandEditor）──
+ * 扩图是独立于裁剪的工具：不选内部区域，而是「原图整体 + 四周白边」。
+ * 交互参考 AI-Canvas ExpandEditor：
+ *  - 目标比例：扩图后整张图的画幅（如 1:1 / 16:9），原图按比例「贴边内接」；
+ *  - 外扩量 zoom（0.3~1，越小外扩越多）：目标画布 = 原图内接尺寸 / zoom，四周留白；
+ *  - 原图可在目标画布内拖动（offset 归一化 [-0.5, 0.5]）。
+ * 原图始终保持原始分辨率，不拉伸，只放大画布留白。 */
 const OUTPAINT_ZOOM_MIN = 0.3
 const OUTPAINT_ZOOM_MAX = 1
 const OUTPAINT_ZOOM_STEP = 0.02
-/** 外扩后画布相对裁剪结果的填充色（纯白）。 */
+/** 扩图白边填充色（纯白）。 */
 export const OUTPAINT_FILL = '#ffffff'
 
+/** 扩图目标比例选项（AI-Canvas ExpandEditor ASPECT_OPTIONS 同款）。 */
+export const OUTPAINT_RATIOS = [
+  { key: '1:1', label: '1:1', ratio: 1 },
+  { key: '4:3', label: '4:3', ratio: 4 / 3 },
+  { key: '3:4', label: '3:4', ratio: 3 / 4 },
+  { key: '16:9', label: '16:9', ratio: 16 / 9 },
+  { key: '9:16', label: '9:16', ratio: 9 / 16 },
+] as const
+
 /**
- * 计算「外扩白边」后的目标画布尺寸与原图居中偏移（纯函数，可单测）。
+ * 计算扩图目标画布（纯函数，可单测）。
  *
- * @param crop 裁剪选区的原图像素矩形 {x,y,width,height}（已钳制在图内）
- * @param zoom 外扩量控制（0.3~1），越小白边越多；越界自动钳制
- * @returns {tw, th, dx, dy} 目标画布宽高 + 原图在画布内的居中偏移；zoom=1 时退化无白边
+ * @param srcW 原图自然宽
+ * @param srcH 原图自然高
+ * @param ratio 目标画幅比例（宽/高）；不传则用原图比例（只外扩不改画幅）
+ * @param zoom 外扩量（0.3~1，越小白边越多）；越界自动钳制
+ * @returns 目标画布 tw×th、原图尺寸 sw×sh、原图可移动范围 maxOffX/maxOffY（自然像素）
  */
-export function computeOutpaintRect(
-  crop: { x: number; y: number; width: number; height: number },
+export function computeOutpaintTarget(
+  srcW: number,
+  srcH: number,
+  ratio: number | undefined,
   zoom: number,
-): { tw: number; th: number; dx: number; dy: number } {
-  const w = Math.max(1, Math.round(crop.width))
-  const h = Math.max(1, Math.round(crop.height))
+): { tw: number; th: number; sw: number; sh: number; maxOffX: number; maxOffY: number } {
+  const sw = Math.max(1, Math.round(srcW))
+  const sh = Math.max(1, Math.round(srcH))
+  const srcRatio = sw / sh
+  const r = ratio && Number.isFinite(ratio) && ratio > 0 ? ratio : srcRatio
+  // 按目标比例让原图「贴边内接」得 base 画布
+  let baseW: number
+  let baseH: number
+  if (r >= srcRatio) {
+    // 目标更宽 → 高度贴边
+    baseH = sh
+    baseW = Math.round(sh * r)
+  } else {
+    // 目标更高 → 宽度贴边
+    baseW = sw
+    baseH = Math.round(sw / r)
+  }
+  // 除以 zoom 放大画布，使原图四周留白
   const z = Math.max(OUTPAINT_ZOOM_MIN, Math.min(OUTPAINT_ZOOM_MAX, zoom))
-  const tw = Math.round(w / z)
-  const th = Math.round(h / z)
+  const tw = Math.round(baseW / z)
+  const th = Math.round(baseH / z)
   return {
     tw,
     th,
-    dx: Math.round((tw - w) / 2),
-    dy: Math.round((th - h) / 2),
+    sw,
+    sh,
+    maxOffX: (tw - sw) / 2,
+    maxOffY: (th - sh) / 2,
+  }
+}
+
+/**
+ * 由「归一化偏移 offset（[-0.5,0.5]）」计算原图在目标画布内的绘制起点（纯函数，可单测）。
+ * offset=-0.5 → 贴左/贴上；+0.5 → 贴右/贴下；0 → 居中。
+ */
+export function computeOutpaintDrawPos(
+  offset: { x: number; y: number },
+  maxOffX: number,
+  maxOffY: number,
+): { dx: number; dy: number } {
+  return {
+    dx: Math.round(maxOffX + Math.max(-0.5, Math.min(0.5, offset.x)) * 2 * maxOffX),
+    dy: Math.round(maxOffY + Math.max(-0.5, Math.min(0.5, offset.y)) * 2 * maxOffY),
   }
 }
 
@@ -141,8 +187,11 @@ export default function ImageEditor({ imageUrl, initialTool = 'pencil', onSave, 
   const [crop, setCrop] = useState(undefined)
   const [completedCrop, setCompletedCrop] = useState(undefined)
   const [cropAspect, setCropAspect] = useState(undefined)
-  // 外扩白边量（0.3~1，越小白边越多；1=不扩）。复刻 AI-Canvas ExpandEditor 的 zoom 机制
-  const [outpaintZoom, setOutpaintZoom] = useState(1)
+
+  // 扩图态（独立工具）：目标比例 + 外扩量 + 原图拖动偏移（归一化 [-0.5,0.5]）
+  const [outpaintRatioKey, setOutpaintRatioKey] = useState('1:1')
+  const [outpaintZoom, setOutpaintZoom] = useState(0.8)
+  const [outpaintOffset, setOutpaintOffset] = useState({ x: 0, y: 0 })
 
   const scrollRef = useRef({ x: 0, y: 0, scrollLeft: 0, scrollTop: 0 })
 
@@ -450,8 +499,7 @@ export default function ImageEditor({ imageUrl, initialTool = 'pencil', onSave, 
   }, [tool, onDrawMove, onShapePreview])
 
   // 确认裁剪（复刻官方 537-574）：把 ReactCrop 的 crop 换算成 canvas 像素 → 裁切。
-  // 扩展：外扩白边（outpaintZoom<1 时）——裁剪结果居中放到白底大画布，四周留白，
-  // 复刻 AI-Canvas ExpandEditor 的 zoom 机制（原图不拉伸，只放大画布留白）。
+  // 裁剪只往内裁，不做外扩；外扩白边由独立的「扩图」工具承担。
   const applyCrop = useCallback(() => {
     const canvas = canvasRef.current
     const ctx = canvas?.getContext('2d')
@@ -467,38 +515,94 @@ export default function ImageEditor({ imageUrl, initialTool = 'pencil', onSave, 
     const sw = Math.max(1, Math.min(pw, canvas.width - sx))
     const sh = Math.max(1, Math.min(ph, canvas.height - sy))
     const data = ctx.getImageData(sx, sy, sw, sh)
-
-    // 外扩白边目标画布（zoom<1 时 tw>sw 四周留白；zoom=1 退化为普通裁剪）
-    const { tw, th, dx, dy } = computeOutpaintRect({ x: sx, y: sy, width: sw, height: sh }, outpaintZoom)
-    const hasOutpaint = tw !== sw || th !== sh
-
-    // 临时 canvas 承载裁剪 ImageData（drawImage 需要画布/位图源，不能直接用 ImageData）
-    const tmp = document.createElement('canvas')
-    tmp.width = sw
-    tmp.height = sh
-    const tmpCtx = tmp.getContext('2d')
-    if (!tmpCtx) { toastError('裁剪失败：无法创建画布'); return }
-    tmpCtx.putImageData(data, 0, 0)
-
     pushHistory()
-    canvas.width = tw
-    canvas.height = th
-    if (hasOutpaint) {
-      ctx.fillStyle = OUTPAINT_FILL
-      ctx.fillRect(0, 0, tw, th)
-      ctx.drawImage(tmp, dx, dy)
-    } else {
-      ctx.drawImage(tmp, 0, 0)
-    }
+    canvas.width = sw
+    canvas.height = sh
+    ctx.putImageData(data, 0, 0)
     imgRef.current = null // 裁剪后原始图失效
-    setImgSize({ w: tw, h: th })
+    setImgSize({ w: sw, h: sh })
     setCrop(undefined)
     setCompletedCrop(undefined)
-    setOutpaintZoom(1) // 重置外扩量，避免下次误用
     setTool('pencil')
-  }, [completedCrop, pushHistory, outpaintZoom])
+  }, [completedCrop, pushHistory])
 
   const lastCropStart = useRef({ x: 0, y: 0 })
+
+  // ── 扩图工具（独立，复刻 AI-Canvas ExpandEditor）──
+  // 用 imgRef.current（原始图）按「目标比例 + 外扩量 + 拖动偏移」实时重画 canvas。
+  const renderOutpaint = useCallback(() => {
+    const canvas = canvasRef.current
+    const ctx = canvas?.getContext('2d')
+    const im = imgRef.current
+    if (!canvas || !ctx || !im) return
+    const ratio = OUTPAINT_RATIOS.find((r) => r.key === outpaintRatioKey)?.ratio
+    const t = computeOutpaintTarget(im.naturalWidth, im.naturalHeight, ratio, outpaintZoom)
+    const { dx, dy } = computeOutpaintDrawPos(outpaintOffset, t.maxOffX, t.maxOffY)
+    // 预览态不入撤销栈（拖动/调参高频触发）；确认扩图时才 pushHistory 记录最终结果
+    canvas.width = t.tw
+    canvas.height = t.th
+    ctx.fillStyle = OUTPAINT_FILL
+    ctx.fillRect(0, 0, t.tw, t.th)
+    ctx.drawImage(im, dx, dy, t.sw, t.sh)
+    setImgSize({ w: t.tw, h: t.th })
+  }, [outpaintRatioKey, outpaintZoom, outpaintOffset])
+
+  // 确认扩图：把当前「原图+白边」画布作为结果，退出扩图态
+  const applyOutpaint = useCallback(() => {
+    renderOutpaint()
+    pushHistory() // 扩图结果入撤销栈
+    imgRef.current = null // 扩图后原始图失效（后续不可再重画预览）
+    setCrop(undefined)
+    setCompletedCrop(undefined)
+    setTool('pencil')
+  }, [renderOutpaint, pushHistory])
+
+  // 拖动原图重定位：屏幕位移 → 归一化 offset（相对可移动范围）
+  const outpaintDragRef = useRef<{ startX: number; startY: number; ox: number; oy: number } | null>(null)
+  const onOutpaintPointerDown = useCallback((e: React.PointerEvent) => {
+    if (tool !== 'expand') return
+    e.preventDefault()
+    e.stopPropagation()
+    ;(e.target as HTMLElement).setPointerCapture?.(e.pointerId)
+    outpaintDragRef.current = { startX: e.clientX, startY: e.clientY, ox: outpaintOffset.x, oy: outpaintOffset.y }
+  }, [tool, outpaintOffset])
+  const onOutpaintPointerMove = useCallback((e: React.PointerEvent) => {
+    const d = outpaintDragRef.current
+    if (!d || tool !== 'expand') return
+    const canvas = canvasRef.current
+    const im = imgRef.current
+    if (!canvas || !im) return
+    const ratio = OUTPAINT_RATIOS.find((r) => r.key === outpaintRatioKey)?.ratio
+    const t = computeOutpaintTarget(im.naturalWidth, im.naturalHeight, ratio, outpaintZoom)
+    // 屏幕位移 → 画布内部像素位移（画布内部像素 / 渲染尺寸 ≈ 1，直接按渲染盒比例换算）
+    const scale = canvas.width / canvas.offsetWidth
+    const dxNat = (e.clientX - d.startX) * scale
+    const dyNat = (e.clientY - d.startY) * scale
+    const nx = t.maxOffX > 0 ? d.ox + dxNat / (2 * t.maxOffX) : 0
+    const ny = t.maxOffY > 0 ? d.oy + dyNat / (2 * t.maxOffY) : 0
+    const next = { x: Math.max(-0.5, Math.min(0.5, nx)), y: Math.max(-0.5, Math.min(0.5, ny)) }
+    // 直接按新 offset 重画预览（绕过 state 异步，保证拖动跟手）
+    const ctx = canvas.getContext('2d')
+    if (ctx) {
+      ctx.fillStyle = OUTPAINT_FILL
+      ctx.fillRect(0, 0, t.tw, t.th)
+      const pos = computeOutpaintDrawPos(next, t.maxOffX, t.maxOffY)
+      ctx.drawImage(im, pos.dx, pos.dy, t.sw, t.sh)
+    }
+    setOutpaintOffset(next)
+  }, [tool, outpaintRatioKey, outpaintZoom])
+  const onOutpaintPointerUp = useCallback((e: React.PointerEvent) => {
+    outpaintDragRef.current = null
+    ;(e.target as HTMLElement).releasePointerCapture?.(e.pointerId)
+  }, [])
+
+  // 进入扩图工具 / 比例 / 外扩量变化：渲染预览。拖动偏移由 onOutpaintPointerMove 内手动重画（跟手）。
+  useEffect(() => {
+    if (tool !== 'expand') return
+    setOutpaintOffset({ x: 0, y: 0 })
+    renderOutpaint()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tool, outpaintRatioKey, outpaintZoom])
 
   // 保存
   const handleSave = useCallback(() => {
@@ -537,6 +641,7 @@ export default function ImageEditor({ imageUrl, initialTool = 'pencil', onSave, 
             {toolBtn('number', <ListOrdered size={16} />, '序号标记', tool === 'number')}
             {toolBtn('eyedropper', <Pipette size={16} />, '吸管取色', tool === 'eyedropper')}
             {toolBtn('crop', <Crop size={16} />, '裁剪', tool === 'crop')}
+            {toolBtn('expand', <ImageIcon size={16} />, '扩图', tool === 'expand')}
           </div>
           <div className="h-6 w-[1px] bg-surface-3 mx-2" />
           {/* 颜色 + 粗细 */}
@@ -572,22 +677,40 @@ export default function ImageEditor({ imageUrl, initialTool = 'pencil', onSave, 
                   <option key={r.label} value={r.value ?? 'free'}>{r.label}</option>
                 ))}
               </select>
-              {/* 外扩白边（复刻 AI-Canvas ExpandEditor）：外扩量=(1-zoom)*100%，越小白边越多；0 不扩 */}
-              <label className="flex items-center gap-1.5 bg-surface-hover rounded border border-edge-muted px-2 py-1.5" title="把裁剪结果四周扩展为白边，供图生图节点补全">
-                <span className="text-xs text-secondary whitespace-nowrap">外扩白边</span>
+              <button type="button" onClick={applyCrop} className="px-3 py-1.5 rounded-lg bg-green-600 hover:bg-green-500 text-white transition-colors flex items-center gap-1 text-sm font-medium mr-2">
+                <Check size={16} /> 确认裁剪
+              </button>
+            </React.Fragment>
+          )}
+          {/* 扩图控件（独立工具，复刻 AI-Canvas ExpandEditor）：目标比例 + 外扩量 + 确认 */}
+          {tool === 'expand' && (
+            <React.Fragment>
+              <select
+                value={outpaintRatioKey}
+                onChange={(e) => setOutpaintRatioKey(e.target.value)}
+                className="bg-surface-hover text-xs text-primary px-2 py-1.5 rounded border border-edge-muted focus:outline-none"
+                title="扩图后整张图的画幅比例"
+              >
+                {OUTPAINT_RATIOS.map((r) => (
+                  <option key={r.key} value={r.key}>{r.label}</option>
+                ))}
+              </select>
+              <label className="flex items-center gap-1.5 bg-surface-hover rounded border border-edge-muted px-2 py-1.5" title="外扩量越大，四周白边越多；原图可拖到白边内任意位置">
+                <span className="text-xs text-secondary whitespace-nowrap">外扩量</span>
                 <input
                   type="range"
                   min={OUTPAINT_ZOOM_MIN}
                   max={OUTPAINT_ZOOM_MAX}
                   step={OUTPAINT_ZOOM_STEP}
                   value={outpaintZoom}
-                  onChange={(e) => setOutpaintZoom(parseFloat(e.target.value))}
+                  onChange={(e) => { setOutpaintZoom(parseFloat(e.target.value)); setOutpaintOffset({ x: 0, y: 0 }) }}
                   className="w-24 accent-blue-500"
                 />
                 <span className="text-xs text-primary tabular-nums w-10 text-right">{Math.round((1 - outpaintZoom) * 100)}%</span>
               </label>
-              <button type="button" onClick={applyCrop} className="px-3 py-1.5 rounded-lg bg-green-600 hover:bg-green-500 text-white transition-colors flex items-center gap-1 text-sm font-medium mr-2">
-                <Check size={16} /> 确认裁剪
+              <span className="text-xs text-secondary whitespace-nowrap">拖动原图定位</span>
+              <button type="button" onClick={applyOutpaint} className="px-3 py-1.5 rounded-lg bg-green-600 hover:bg-green-500 text-white transition-colors flex items-center gap-1 text-sm font-medium mr-2">
+                <Check size={16} /> 确认扩图
               </button>
             </React.Fragment>
           )}
@@ -609,7 +732,7 @@ export default function ImageEditor({ imageUrl, initialTool = 'pencil', onSave, 
         style={{ cursor: spaceDown ? (panning ? 'grabbing' : 'grab') : undefined }}
       >
         <div className="min-w-full min-h-full flex items-center justify-center p-4 w-fit">
-          {/* ReactCrop 裁剪层 + canvas 绘制层 */}
+          {/* ReactCrop 裁剪层 + canvas 绘制层（expand 扩图模式：ReactCrop 禁用，走拖动原图） */}
           <ReactCrop
             crop={crop}
             onChange={(_, pc) => setCrop(pc)}
@@ -622,14 +745,17 @@ export default function ImageEditor({ imageUrl, initialTool = 'pencil', onSave, 
           >
             <canvas
               ref={canvasRef}
-              onMouseDown={tool === 'crop' ? undefined : onDrawStart}
-              onMouseMove={tool === 'crop' ? undefined : handleCanvasMove}
-              onMouseUp={tool === 'crop' ? undefined : onDrawEnd}
-              onMouseLeave={tool === 'crop' ? undefined : onDrawEnd}
-              onTouchStart={tool === 'crop' ? undefined : onDrawStart}
-              onTouchMove={tool === 'crop' ? undefined : onShapePreview}
-              onTouchEnd={tool === 'crop' ? undefined : onDrawEnd}
-              className="block shadow-2xl bg-white cursor-crosshair"
+              onPointerDown={tool === 'expand' ? onOutpaintPointerDown : undefined}
+              onPointerMove={tool === 'expand' ? onOutpaintPointerMove : undefined}
+              onPointerUp={tool === 'expand' ? onOutpaintPointerUp : undefined}
+              onMouseDown={tool === 'crop' || tool === 'expand' ? undefined : onDrawStart}
+              onMouseMove={tool === 'crop' || tool === 'expand' ? undefined : handleCanvasMove}
+              onMouseUp={tool === 'crop' || tool === 'expand' ? undefined : onDrawEnd}
+              onMouseLeave={tool === 'crop' || tool === 'expand' ? undefined : onDrawEnd}
+              onTouchStart={tool === 'crop' || tool === 'expand' ? undefined : onDrawStart}
+              onTouchMove={tool === 'crop' || tool === 'expand' ? undefined : onShapePreview}
+              onTouchEnd={tool === 'crop' || tool === 'expand' ? undefined : onDrawEnd}
+              className={`block shadow-2xl bg-white ${tool === 'expand' ? 'cursor-move' : 'cursor-crosshair'}`}
               style={{
                 touchAction: 'none',
                 width: imgSize.w ? `${imgSize.w * zoom}px` : undefined,
