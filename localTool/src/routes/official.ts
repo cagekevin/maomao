@@ -159,12 +159,6 @@ function officialBaseHeader(req: IncomingMessage): string | undefined {
   return typeof v === 'string' && v.trim() ? v.trim().replace(/\/$/, '') : undefined;
 }
 
-/** 解析 x-official-base 覆盖头（可选） */
-function officialBase(req: IncomingMessage): string | undefined {
-  const v = req.headers['x-official-base'];
-  return typeof v === 'string' && v.trim() ? v.trim().replace(/\/$/, '') : undefined;
-}
-
 /** 透传响应头（排除 hop-by-hop） */
 function buildResHeaders(headers: Headers): Record<string, string> {
   const out: Record<string, string> = {};
@@ -214,7 +208,7 @@ async function forwardGet(
   try {
     const fetchRes = await fetch(target, {
       method: 'GET',
-      headers: { ...(auth ? { Authorization: auth } : {}) },
+      headers: auth ? { Authorization: auth } : {},
       signal: controller.signal,
     });
     clearTimeout(timeout);
@@ -334,7 +328,7 @@ export async function handleOfficialVipCheck(req: IncomingMessage, res: ServerRe
 export async function handleOfficialInvalidate(req: IncomingMessage, res: ServerResponse): Promise<void> {
   let removed = 0;
   const targetPrefix = req.headers['x-cache-key'];
-  for (const [k, v] of memCache) {
+  for (const k of memCache.keys()) {
     if (targetPrefix && !k.startsWith(String(targetPrefix))) continue;
     memCache.delete(k);
     removed++;

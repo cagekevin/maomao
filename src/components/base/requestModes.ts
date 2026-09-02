@@ -285,12 +285,7 @@ export function parseResponsesSSEChunk(line: string, acc: SSEAcc = { content: ''
   }
 }
 
-/** 友好错误降级提示（G1）：命中给中文提示，未命中空串原样透传。 */
+/** 错误透传（契约 G1，2026-09-03 修订）：上游返回什么就显示什么，禁止翻译成中文提示。 */
 export function friendlyRequestError(text: string): string {
-  const s = String(text || '').toLowerCase()
-  if (/reasoning_effort/.test(s)) return '该模型不支持在 chat/completions 用工具，建议改用 responses 端点或换模型'
-  if (/(?:401)|(?:unauthorized)|(?:invalid.{0,10}(?:api.?key|key))|(?:api.?key.{0,10}invalid)/.test(s)) return 'API Key 无效或已过期'
-  if (/(?:429)|(?:rate\s*limit)|(?:too many requests)/.test(s)) return '请求过于频繁，稍后再试'
-  if (/(?:not found)|(?:invalid endpoint)|(?:failed to find model)|(?:model.*select)/.test(s)) return '模型不存在或需改用 ep- 接入点'
-  return ''
+  return text;
 }

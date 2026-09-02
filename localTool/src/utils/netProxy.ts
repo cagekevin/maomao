@@ -165,7 +165,6 @@ function proxyRequest(proxyUrl: string, targetUrl: string, init?: RequestInit): 
 
     // 接收 CONNECT 响应头（直到 \r\n\r\n）
     let headBuf = Buffer.alloc(0);
-    let connected = false;
 
     const onHeadData = (chunk: Buffer) => {
       headBuf = Buffer.concat([headBuf, chunk]);
@@ -184,7 +183,6 @@ function proxyRequest(proxyUrl: string, targetUrl: string, init?: RequestInit): 
       }
 
       // 隧道建立成功，剥离 CONNECT 响应头后的剩余数据作为首块
-      connected = true;
       clearTimeout(timeoutTimer);
       const rest = headBuf.slice(idx + 4);
 
@@ -288,12 +286,7 @@ export async function fetchWithProxy(input: string | URL, init?: RequestInit): P
   if (requiresProxy(host)) {
     const proxy = await resolveProxy();
     if (proxy) {
-      try {
-        return await proxyRequest(proxy, url.toString(), init);
-      } catch (proxyErr) {
-        // 代理也失败：抛代理错误（调用方降级）
-        throw proxyErr;
-      }
+      return await proxyRequest(proxy, url.toString(), init);
     }
     // 无可用代理：退回直连（调用方降级，至少尝试一次）
     return fetch(url.toString(), init);
@@ -312,12 +305,7 @@ export async function fetchWithProxy(input: string | URL, init?: RequestInit): P
     return fetch(url.toString(), init);
   }
 
-  try {
-    return await proxyRequest(proxy, url.toString(), init);
-  } catch (proxyErr) {
-    // 代理也失败：抛代理错误（调用方降级）
-    throw proxyErr;
-  }
+  return await proxyRequest(proxy, url.toString(), init);
 }
 
 /** 供调试：打印当前代理解析结果 */

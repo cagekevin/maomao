@@ -757,11 +757,23 @@ select::placeholder {
 
 /* ===== 摄影棚面板专用样式 ===== */
 .camera-studio-viewport {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
   display: block;
   outline: none;
   cursor: grab;
+  overflow: hidden;
+}
+/* Three.js 的 renderer.domElement（canvas）是替换元素，其布局尺寸默认取
+   width/height 属性（绘图缓冲像素，常达上千 px），会撑破左侧 flex 栏导致
+   3D 视口比全屏还大、右侧参数栏被挤出。强制 canvas 用 CSS 填满视口容器，
+   与 renderer.setSize(w, h, false)（只更新绘图缓冲、不写 style）配合。 */
+.camera-studio-viewport canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
 }
 .camera-studio-viewport:active {
   cursor: grabbing;

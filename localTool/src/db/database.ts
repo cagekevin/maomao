@@ -35,7 +35,7 @@ const DAILY_BACKUP_INTERVAL = 24 * 60 * 60 * 1000; // 每日自动备份间隔�
 let _backupTimer: ReturnType<typeof setTimeout> | null = null;
 
 /** 每天这个时刻触发一次结构化导出（本地凌晨 3:00，近似，足够兜底） */
-const DAILY_EXPORT_HOUR = 3;
+const _DAILY_EXPORT_HOUR = 3;
 
 export async function getDb(): Promise<SqlJsDatabase> {
   if (_db) return _db;

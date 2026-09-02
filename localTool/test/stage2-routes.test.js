@@ -395,9 +395,16 @@ test('[netProxy] fetchWithProxy 本地目标走直连（stub fetch 验证只调�
 // ════════════════════════════════════════════════════════════════════════
 const logWriter = await importSrc(path.join('utils', 'logWriter.ts'));
 
-test('[logWriter] 模块仅导出 initLogWriter（内部 getKeepDays/cleanupOldLogs 未暴露）', () => {
+test('[logWriter] 仅导出对外 API（addLogClient/removeLogClient/initLogWriter），内部函数未暴露', () => {
   const keys = Object.keys(logWriter);
-  assert.deepEqual(keys, ['initLogWriter']);
+  // 对外 API 必须存在
+  assert.ok(keys.includes('initLogWriter'), '应导出 initLogWriter');
+  assert.ok(keys.includes('addLogClient'), '应导出 addLogClient（SSE 日志广播注册客户端）');
+  assert.ok(keys.includes('removeLogClient'), '应导出 removeLogClient（SSE 日志广播移除客户端）');
+  // 内部实现函数不得暴露
+  assert.ok(!keys.includes('getKeepDays'), '内部 getKeepDays 不应暴露');
+  assert.ok(!keys.includes('cleanupOldLogs'), '内部 cleanupOldLogs 不应暴露');
+  assert.ok(!keys.includes('broadcastLog'), '内部 broadcastLog 不应暴露');
 });
 
 test('[logWriter] initLogWriter 幂等（多次调用不重复接管 console）', () => {

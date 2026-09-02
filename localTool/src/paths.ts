@@ -11,7 +11,6 @@
  */
 
 import path from 'node:path';
-import fs from 'node:fs';
 
 /** localTool 根目录（process.cwd() 或 MAOMAO_ROOT 覆盖） */
 function getRoot(): string {

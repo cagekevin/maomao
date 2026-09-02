@@ -4,13 +4,11 @@
  */
 
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import fs from 'node:fs';
-import path from 'node:path';
 import { Readable, Transform } from 'node:stream';
 import { createGunzip, createInflate, createBrotliDecompress } from 'node:zlib';
 import { json, parseJsonBody, readRawBody, sendError } from '../utils/helpers.js';
 import { VERSION } from '../version.js';
-import { resolveProviderTarget, type ResolvedTarget } from './providers.js';
+import { resolveProviderTarget } from './providers.js';
 import { isProxyProtocol } from './protocolAdapters.js';
 import { fetchWithProxy } from '../utils/netProxy.js';
 import { persistThreadId } from './tasks.js';

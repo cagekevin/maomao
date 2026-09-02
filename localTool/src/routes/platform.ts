@@ -12,7 +12,7 @@
  */
 
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { json, sendError } from '../utils/helpers.js';
+import { json } from '../utils/helpers.js';
 import { VERSION } from '../version.js';
 
 // ── GET /plugin/manifest.json ──
@@ -25,7 +25,7 @@ export async function handlePluginManifest(_req: IncomingMessage, res: ServerRes
 export async function handleWorkflowAppsByProject(
   _req: IncomingMessage,
   res: ServerResponse,
-  url: URL,
+  _url: URL,
 ): Promise<void> {
   // 本地模式无工作流应用，返回 null
   return json(res, {

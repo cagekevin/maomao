@@ -4,7 +4,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
-import { getDb, getUploadDir, saveDb, queryAll, queryOne, run, LOCAL_FILE_BASE } from '../db/database.js';
+import { getDb, getUploadDir, saveDb, queryAll, queryOne, run } from '../db/database.js';
 import { json, parseJsonBody, sendError } from '../utils/helpers.js';
 import { runReferenceGc } from '../utils/orphanGc.js';
 
@@ -178,17 +178,3 @@ function dirSize(dir: string): number {
   return total;
 }
 
-function walkFiles(dir: string): string[] {
-  const files: string[] = [];
-  try {
-    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-      const p = path.join(dir, entry.name);
-      if (entry.isDirectory() && !entry.name.startsWith('.')) {
-        files.push(...walkFiles(p));
-      } else if (entry.isFile()) {
-        files.push(p);
-      }
-    }
-  } catch { /* ignore */ }
-  return files;
-}

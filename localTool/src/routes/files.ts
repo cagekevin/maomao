@@ -10,7 +10,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { getUploadDir } from '../db/database.js';
 import { ensureDir, sanitizeFilename, resolveUploadTarget, writeUploadBuffer, writeUploadBufferAt, ensureThumbnailTarget, resizeImage, normalizeSubfolder } from '../utils/fileStore.js';
-import { json, parseMultipart, parseJsonBody, readRawBody, sendError, HttpStatusError } from '../utils/helpers.js';
+import { json, parseMultipart, parseJsonBody, sendError, HttpStatusError } from '../utils/helpers.js';
 import { fetchWithProxy } from '../utils/netProxy.js';
 import { applyResourceIdentityChange } from './resources.js';
 
@@ -386,7 +386,6 @@ export async function handleThumbnail(req: IncomingMessage, res: ServerResponse,
   const stemName = (path.basename(filePath).replace(/\.[a-z0-9]+$/i, '')) || `thumb_${Date.now()}`;
   const thumbName = `thumb_${maxDim}x${quality}_${outExt}_${stemName}.${outExt}`;
   const thumbPath = path.join(thumbDir, thumbName);
-  const thumbUrl = `/files/${path.relative(getUploadDir(), thumbDir).replace(/\\/g, '/')}/${thumbName}`;
 
   // maxDim/quality 真正参与缩放与压缩（此前仅拼进文件名后缀，见 docs/35 §2.3）；
   // jimp 不可用/异常时回退复制原图（兜底，docs/19 约束 3「兜底保留」）

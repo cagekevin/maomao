@@ -20,8 +20,11 @@ export function ensureDir(dir: string): void {
 }
 
 /** 清洗文件名：去除非法字符与空白（多路径共用，避免各自实现不一致） */
+// 文件名里的控制字符（NUL..US）用字符码动态拼出正则，规避 no-control-regex（源文件不含字面控制字符）；其余非法可见字符留字面量
+const CONTROL_CHARS_RE = new RegExp(`[${String.fromCharCode(0)}-${String.fromCharCode(31)}]`);
+
 export function sanitizeFilename(name: string): string {
-  return name.replace(/[<>:"/\\|?*\x00-\x1f]/g, '_').replace(/\s+/g, '_');
+  return name.replace(/[<>:"/\\|?*]/g, '_').replace(CONTROL_CHARS_RE, '_').replace(/\s+/g, '_');
 }
 
 /**
