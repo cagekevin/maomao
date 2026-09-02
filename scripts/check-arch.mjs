@@ -59,7 +59,13 @@ function extractImportAbs(code, filepath) {
       if (!node) return
       if (Array.isArray(node)) { node.forEach(walk); return }
       if (node.type === 'ImportDeclaration' || node.type === 'ExportNamedDeclaration' || node.type === 'ExportAllDeclaration') {
-        if (node.source) out.push(node.source.value)
+        // 跳过 type-only 边：`import type { A }` / `export type { A }` 编译后完全擦除，不构成运行时
+        // 依赖，也就不存在 ESM 循环的 TDZ 问题（CLAUDE.md §5.4.2 红线针对的是运行时循环）。
+        //   · ImportDeclaration.importKind === 'type'  ⇔ 纯 `import type`，跳过
+        //   · 混用 `import { A, type B }` 的 importKind 是 'value'（含运行时符号）→ 保留整条边
+        //   · ExportNamedDeclaration.exportKind === 'type'  ⇔ 纯 `export type`，跳过
+        const kind = node.importKind || node.exportKind
+        if (kind !== 'type') out.push(node.source.value)
       } else if (node.type === 'CallExpression' && node.callee.type === 'Import' && node.arguments.length) {
         const a = node.arguments[0]
         if (a.type === 'StringLiteral') out.push(a.value)

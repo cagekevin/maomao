@@ -30,8 +30,16 @@
     "src/**/*.ts",
     "src/**/*.tsx",
     "localTool/src/**/*.ts",
-    "vite.config.js",
-    "vitest.config.js"
+    // 根配置：2026-09-02 随全仓 TS 化（.js→.ts），现已可被 tsc 真校验。
+    // 此前只列 vite/vitest 两个 .js，且 allowJs:true + checkJs:false → 配置层零类型安全，
+    // 写错插件名/选项键只能等构建或运行时炸。
+    // 不含 postcss.config.js：它刻意保持 .js（postcss-load-config@6 加载 .ts 需 ts-node，
+    // 为一个 6 行插件表引入依赖不划算，详见该文件头注释）。
+    "vite.config.ts",
+    "vitest.config.ts",
+    "vitest.logic.config.ts",
+    "playwright.config.ts",
+    "tailwind.config.ts"
   ],
   "exclude": ["node_modules", "dist", "dev"]
 }

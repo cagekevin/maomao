@@ -1,8 +1,8 @@
-import base from './vitest.config.js'
+import base from './vitest.config.ts'
 
 // 逻辑层专用运行面（快速定向）：只跑 *.test.ts（纯逻辑 / API / 状态 / hooks），
 // 把需要 jsdom 的 .test.tsx 组件测试（最耗时）挡在门外面。
-// 用法：`npm run test:unit:logic`，或 `npx vitest run <文件> --config vitest.logic.config.js`。
+// 用法：`npm run test:unit:logic`，或 `npx vitest run <文件> --config vitest.logic.config.ts`。
 // 说明：
 //  - 复用了 vitest.config.js 的路由/池/mock 基建（setup.mjs、forks 池、alias 等），保证行为一致。
 //  - 测试已全部 TS 化（2026-09-01 收官）：纯逻辑统一 *.test.ts（node），组件 *.test.tsx（jsdom）。

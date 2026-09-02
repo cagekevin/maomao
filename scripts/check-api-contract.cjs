@@ -45,7 +45,7 @@ const MODULE_FILES = {
   filesApi: 'src/components/base/api/filesApi.ts',
   pollTask: 'src/components/base/api/pollTask.ts',
   proxyGenerate: 'src/components/base/api/proxyGenerate.ts',
-  agentRuntime: 'src/components/agent/runtime/agentRuntime.js',
+  agentRuntime: 'src/components/agent/runtime/agentRuntime.ts',
 };
 
 // 常量命名空间（引用的是契约常量而非前端函数，豁免，如 API_ENDPOINTS.fileThumbnail）

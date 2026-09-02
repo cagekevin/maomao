@@ -75,7 +75,9 @@ export function flushAsync() {
  * 用完请在用例内 / afterEach 调用 vi.restoreAllMocks() 还原。
  */
 export function fastPollTimers() {
-  return vi.spyOn(global, 'setTimeout').mockImplementation((fn) => Promise.resolve().then(fn))
+  // 放行返回值差异：setTimeout 契约是返回 Timeout 句柄，这里刻意返回 Promise（把轮询间隔变成
+  // 立即微任务）。测试要的是「回调被调度」，无人断言句柄；收紧成 Timeout 反而要伪造句柄对象。
+  return vi.spyOn(global, 'setTimeout').mockImplementation(/** @type {any} */ ((fn) => Promise.resolve().then(fn)))
 }
 
 /**

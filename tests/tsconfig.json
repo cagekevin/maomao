@@ -12,7 +12,7 @@
     "noEmit": true,
     "allowImportingTsExtensions": true,
     "allowJs": true,
-    "checkJs": false,
+    "checkJs": true,
     "strict": false,
     "noImplicitAny": false,
     "strictNullChecks": false,
@@ -20,5 +20,23 @@
     "baseUrl": "..",
     "paths": { "@/*": ["./src/*"] }
   },
-  "include": ["./unit/**/*.ts", "./unit/**/*.tsx"]
+  // 更新(2026-09-02)：两处扩面，都填的是「TS 化后遗留的类型检查盲区」。
+  //  ① e2e 随 src 一起 TS 化（4 个 .spec.ts + utils/canvasHelpers.ts）。此前 include 只有
+  //     unit/**，e2e 长期游离在 `npm run type-check` 之外——改 helper 签名、改 DOM 选择器
+  //     都只能等 playwright 真跑起来才暴露。
+  //  ② 共享基建 .mjs（setup.mjs / unit/_testUtils.mjs / unit/_nodeMocks.mjs）开 checkJs。
+  //     这三个是 130+ 个组件测试的公共底座（全局 fetch 响铃、KV 桩、共享 mock 命名空间），
+  //     此前零类型检查——改错一个导出名要等全量单测才炸。实测开启后错误仅 6 处（均为「有意
+  //     的部分浏览器垫片」，已用 shim() 标注放行），成本可接受。
+  //     注：三者只依赖 vitest/react，不 import src/，故不会把 src 拉进本 tsconfig 的程序图。
+  // 注：unit 走 vitest globals、e2e 从 @playwright/test 具名导入 test/expect，两者不冲突
+  // （playwright 不声明全局，e2e 不做裸 test() 调用）。
+  "include": [
+    "./unit/**/*.ts",
+    "./unit/**/*.tsx",
+    "./e2e/**/*.ts",
+    "./setup.mjs",
+    "./unit/_*.mjs"
+  ],
+  "exclude": ["./e2e/results.json"]
 }

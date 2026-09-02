@@ -16,7 +16,7 @@
 | `run_all_tests.cjs` | 一键跑所有层级测试（smoke + regression + tools） | `npm test` |
 | `health-check.cjs` | 工程健康编排：脚手架/构建/冒烟/回归/TDZ/契约比对一键跑 | `npm run check:health` |
 | `_syntax_check.ps1` | 启动脚本 `launch-all.ps1` 语法检查 | — |
-| `check-jsx.mjs` | JSX 语法合规检查（禁 `<br>`/危险 `dangerouslySetInnerHTML` 等） | `npm run check:jsx` |
+| `check-jsx.mjs` | esbuild 批量校验 `src/` 下组件的 JSX/TSX 语法（防手工拼接 JSX 的括号/闭合错误）。src 已全 TS 化，实际只命中 `.tsx`；保留 `.jsx` 收集分支是零成本兜底 | `npm run check:jsx` |
 | `extract-tailwind.mjs` | 从 `src/` 抽取 Tailwind 类到 `src/index.css` 白名单 | `npm run extract:tw` |
 | `sync-mapping.mjs` | 节点中文名 → 英文 type 映射同步（`docs/node-types-map.md`） | `npm run sync:mapping` |
 | `ts-tests.mjs` | 测试类型消化作战系统：`check`/`verify` 单文件、`status` 全局进度、`add/rm-nocheck`。**`status` 已修复可放心用**（批量剥 nocheck → tsc → finally 还原；早期恢复不可靠的历史问题已不再复现） | — |

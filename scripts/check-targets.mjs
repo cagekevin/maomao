@@ -18,7 +18,7 @@
  *  - 只列【应受契约校验】的源码目录；third-party / 生成物 / 测试夹具不在内。
  *  - 目录不存在时静默跳过（本地分支可能尚未创建该目录），保持脚本可用。
  */
-import { readdirSync, statSync, existsSync } from 'node:fs'
+import { readdirSync, statSync, existsSync, readFileSync } from 'node:fs'
 import { join, extname } from 'node:path'
 import { createRequire } from 'node:module'
 
@@ -43,6 +43,22 @@ export const SCAN_EXTS = SOURCE_EXTS
 
 /** 转出口：ESM 脚本（ts-migrate / extract-tailwind / sync-mapping）从这里取，避免各写一份 */
 export { SOURCE_EXTS, TS_EXEMPT_DIRS, TS_EXEMPT_FILES, isExempt, resolveSourceFile, hasJsx, hasJsxHintRaw, detectExt }
+
+/**
+ * 读取源码文件内容（扩展名无关）。
+ *
+ * 用途：诊断/一次性脚本（如 test_group_*.mjs）需要按路径读源码做静态断言，写死后继扩展名
+ * 会在 TS 化那刻直接 ENOENT，且这类脚本不在任何门禁里，坏了长期无人发现（2026-09-02 实测
+ * 4 个 group 诊断脚本全在指 projectStore.js / groupNodes.js）。统一走这里即可免疫后缀漂移。
+ *
+ * @param {string} abs 绝对路径，可带也可不带扩展名（'.../projectStore' 或 '.../projectStore.js'）
+ * @returns {string} 文件内容
+ */
+export function readSourceFile(abs) {
+  const hit = resolveSourceFile(abs)
+  if (!hit) throw new Error(`[check-targets] 源码文件未找到（扩展名无关解析失败）: ${abs}`)
+  return readFileSync(hit, 'utf8')
+}
 
 /** 递归收集 dir 下的源码文件绝对路径 */
 export function collectSources(dir, acc = []) {

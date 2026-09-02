@@ -1,4 +1,4 @@
-import { test, expect } from './utils/canvasHelpers.js'
+import { test, expect } from './utils/canvasHelpers'
 
 // L4 §2.9/2.10：设置 / TopNav / 素材库入口可见性
 test.describe('设置与导航 §2.9/2.10', () => {

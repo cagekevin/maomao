@@ -1,11 +1,14 @@
 // 系统性验证：所有节点（普通 + 编组子节点）落盘->加载后 position 是否与落盘前一致
-import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { adoptUserNodes } from '@xyflow/system';
-import { createGroupFromNodes } from '../src/components/base/groupNodes.js';
+// 扩展名无关：projectStore / groupNodes 已 TS 化（.js→.ts），写死后继后缀会直接 ENOENT
+// （本脚本不在任何门禁里，坏了长期无人发现）。groupNodes 按项目惯例显式指 .ts（Node 原生类型剥离可直跑）。
+import { readSourceFile } from './check-targets.mjs';
+import { createGroupFromNodes } from '../src/components/base/groupNodes.ts';
 
-// 读取真实 NODE_KEEP
-const src = readFileSync(new URL('../src/components/base/projectStore.js', import.meta.url), 'utf8');
-const KEEP = src.match(/const NODE_KEEP = \[([^\]]+)\]/)[1].split(',').map((s) => s.trim().replace(/['"`]/g, '')).filter(Boolean);
+// 读取真实 NODE_KEEP（正则兼容 TS 标注：`const NODE_KEEP: string[] = [...]`）
+const src = readSourceFile(fileURLToPath(new URL('../src/components/base/projectStore', import.meta.url)));
+const KEEP = src.match(/const NODE_KEEP(?:\s*:\s*string\[\])?\s*=\s*\[([^\]]+)\]/)[1].split(',').map((s) => s.trim().replace(/['"`]/g, '')).filter(Boolean);
 
 function sanitize(nodes) {
   return nodes.map((n) => {

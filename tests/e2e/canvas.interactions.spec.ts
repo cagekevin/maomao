@@ -1,5 +1,5 @@
-import { test, expect } from './utils/canvasHelpers.js'
-import { addNodeByPalette, lastNode, clearCanvas, expectNodeCount } from './utils/canvasHelpers.js'
+import { test, expect } from './utils/canvasHelpers'
+import { addNodeByPalette, lastNode, clearCanvas, expectNodeCount } from './utils/canvasHelpers'
 
 // L4 §2.2/2.3：画布交互 —— 新增 / 删除 / 选中 / 快捷键
 test.describe('画布交互 §2.2/2.3', () => {

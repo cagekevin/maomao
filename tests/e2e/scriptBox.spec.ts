@@ -1,5 +1,5 @@
-import { test, expect } from './utils/canvasHelpers.js'
-import { addNodeByPalette, lastNode, clearCanvas } from './utils/canvasHelpers.js'
+import { test, expect } from './utils/canvasHelpers'
+import { addNodeByPalette, lastNode, clearCanvas } from './utils/canvasHelpers'
 
 // L4 §2.7/2.16：剧本盒子节点 UI 状态机（三步：策划→分镜→资产）+ 镜头端口
 test.describe('剧本盒子状态机 §2.7/2.16', () => {

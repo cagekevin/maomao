@@ -643,7 +643,7 @@ export const apiRegistry = {
   gatewayTask:           { fn: 'pollTask.pollOneTask (跨进程)',       method: 'GET',    path: '/api/v1/gateway/task/{id}',   envelope: 'code-data', status: 'ACTIVE' },
   status:                { fn: 'useLocalToolStatus',                  method: 'GET',    path: '/api/status',                 envelope: 'probe',    status: 'ACTIVE' },
   logs:                  { fn: '统一日志总线（前端/各后端上报，source 区分）', method: 'POST',   path: '/api/logs',                   envelope: 'ok',       status: 'ACTIVE' },
-  agentChat:             { fn: 'agentRuntime 直连 localTool A1',       method: 'POST',   path: '/api/agent/{id}/chat',        envelope: 'sse',      status: 'ACTIVE' },
+  agentChat:             { fn: 'agentRuntime.roundTrip',                method: 'POST',   path: '/api/agent/{id}/chat',        envelope: 'sse',      status: 'ACTIVE' },
   jianying:              { fn: '(前端零消费)',                          method: 'POST',   path: '/api/jianying/send',          envelope: 'stub',     status: 'RESERVED' },
   /** platform 域（RESERVED：前端零消费——模型源是 providerModels.js 聚合，不走 platform；handler 保留为「自研替换官方」兜底） */
   pluginManifest:        { fn: '(前端零消费·未实现)',                  method: 'GET',    path: '/plugin/manifest.json',       envelope: 'code-data', status: 'RESERVED' },

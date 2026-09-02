@@ -1,12 +1,18 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
+import { fileURLToPath } from 'node:url'
+
+// 更新(2026-09-02)：配置随全仓 TS 化，.js→.ts。__dirname 是 CJS 全局，在 ESM 配置里之所以能用，
+// 靠的是 Vite 打包配置时注入的 esbuild define——换个加载器（或直接 node 跑）就会变 undefined。
+// 改用标准 ESM 写法，不依赖任何打包器注入，tsc 也能真校验（此前 .js + checkJs:false = 零检查）。
+const rootDir = path.dirname(fileURLToPath(import.meta.url))
 
 export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, './src'),
+      '@': path.resolve(rootDir, './src'),
     },
   },
   base: './', // 相对路径：兼容 Chrome 插件（side panel 通过 chrome-extension:// 加载）

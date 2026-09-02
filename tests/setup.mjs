@@ -1,5 +1,21 @@
 import { vi } from 'vitest'
 
+/**
+ * 浏览器 API 垫片的「有意放行」标注。
+ *
+ * 为什么需要：本文件补的都是 jsdom/Node 缺失的浏览器 API，但只实现【被测代码真正会调用】的
+ * 那几个方法（如 matchMedia 只用 matches + addEventListener），与 lib.dom 的完整接口天然
+ * 不对齐（MediaQueryList 还要求 media/onchange/dispatchEvent，RenderingContext 是一堆绘制方法）。
+ * 开了 checkJs 后这些「部分垫片」会被 tsc 判为类型不符。
+ *
+ * 取舍：补齐全部接口既无断言价值（测试永远不会调 media/dispatchEvent），又会随 lib.dom 版本
+ * 漂移而反复变红。故统一从这里放行——它唯一的价值是把「有意的部分垫片」与「无心漏实现」区分开：
+ * 看到 shim(...) 就知道是刻意的，没有 shim 的同类报错就该真改。
+ *
+ * @type {(v: any) => any}
+ */
+const shim = (v) => v
+
 // 测试环境准备：为 node 环境注入内存版 localStorage / sessionStorage，
 // 使 storageAdapter(sGet/sSet)、projectStore、conversationStore 等依赖 localStorage 的模块可测。
 class MemStorage {
@@ -30,10 +46,12 @@ if (typeof globalThis.ResizeObserver === 'undefined') {
   globalThis.ResizeObserver = ResizeObserverStub
 }
 if (typeof globalThis.matchMedia === 'undefined') {
-  globalThis.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} })
+  // shim：被测代码只用到 matches + add/removeEventListener，不补 media/onchange/dispatchEvent
+  globalThis.matchMedia = shim(() => ({ matches: false, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} }))
 }
 if (typeof globalThis.HTMLCanvasElement !== 'undefined' && !globalThis.HTMLCanvasElement.prototype.getContext) {
-  globalThis.HTMLCanvasElement.prototype.getContext = () => ({})
+  // shim：仅满足「getContext 存在且返回对象」，不模拟任何绘制 API（无测试断言绘制结果）
+  globalThis.HTMLCanvasElement.prototype.getContext = shim(() => ({}))
 }
 
 // jsdom 未实现 HTMLMediaElement（<video>/<audio>）的核心媒体方法（load/play/pause）。
@@ -91,8 +109,10 @@ if (typeof globalThis.fetch === 'function' || globalThis.fetch === undefined) {
 // 组件里用 rAF 做动画/自适应测量时（node 环境无 rAF，jsdom 的 rAF 又常滞后）回调可能永不执行。
 // 统一用 setTimeout(cb,0) 可靠地立即触发，并回传时间戳。此前散落在 6 个 .jsx 测试文件里
 // 重复手写同一份覆盖（TextNode/PromptNode/TemplateNode/DiscountVideoNode.upstream 等），现收口于此。
-globalThis.requestAnimationFrame = (cb) => setTimeout(() => cb(Date.now()), 0)
-globalThis.cancelAnimationFrame = (id) => clearTimeout(id)
+// shim：rAF 契约是「返回 number 句柄」，Node 的 setTimeout 返回 Timeout 对象。测试只做
+//「注册→触发→取消」，无一处断言句柄类型，故放行返回值差异（cancelAnimationFrame 同侧消费）。
+globalThis.requestAnimationFrame = shim((cb) => setTimeout(() => cb(Date.now()), 0))
+globalThis.cancelAnimationFrame = shim((id) => clearTimeout(id))
 
 // jsdom 不实现 Element.prototype.scrollTo / scrollIntoView，
 // 聊天面板、节点面板等组件在 effect 里调用会抛 "not implemented" 导致测试崩。
@@ -107,9 +127,11 @@ if (typeof globalThis.HTMLElement !== 'undefined' && !globalThis.HTMLElement.pro
 // createObjectURL + a.click() 触发，jsdom 会尝试导航并刷 "Not implemented: navigation"
 // 栈噪音（clipboard.test.js）。把 a.click() 置空，保留<a>的创建/download/URL 释放断言，
 // 从源头杜绝导航尝试。fireEvent.click 走事件派发而非原型 .click()，不受影响。
-if (typeof globalThis.HTMLAnchorElement !== 'undefined' && !globalThis.HTMLAnchorElement.prototype.click.__stubbed) {
-  globalThis.HTMLAnchorElement.prototype.click = () => {}
-  globalThis.HTMLAnchorElement.prototype.click.__stubbed = true
+// shim：给原型方法挂 __stubbed 标记（防重复覆盖），函数类型上本无此属性。
+const anchorClick = shim(globalThis.HTMLAnchorElement?.prototype?.click)
+if (typeof globalThis.HTMLAnchorElement !== 'undefined' && !anchorClick?.__stubbed) {
+  globalThis.HTMLAnchorElement.prototype.click = shim(() => {})
+  shim(globalThis.HTMLAnchorElement.prototype.click).__stubbed = true
 }
 
 // ── 测试态 logger 降噪（分层：滤噪音，保失败信号）──

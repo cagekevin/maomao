@@ -81,7 +81,7 @@ src/
 
 | 脚本 | npm 命令 | 作用 |
 | --- | --- | --- |
-| `check-jsx.mjs` | `npm run check:jsx` | esbuild 批量校验 `src/components/**/*.jsx` 语法 |
+| `check-jsx.mjs` | `npm run check:jsx` | esbuild 批量校验 `src/` 下组件的 JSX/TSX 语法（src 已全 TS 化，实际只命中 `.tsx`） |
 | `extract-tailwind.mjs` | `npm run extract:tw` | 从 `src/` 抽取 Tailwind class 到 `src/index.css` 白名单 |
 
 > 说明：`extract-tailwind` 现扫描 `src/`（原型源码）。`sync-mapping.mjs` 因依赖已移除的 `src/bundle/` 混淆产物已失效，其产物 `node-types-map.md` 已从仓库删除；节点类型映射改以 `src/components/` 实际组件为准。

@@ -143,6 +143,30 @@ export function flushPersist(): void {
   persistDebounced.flush()
 }
 
+/**
+ * 【测试专用】重置模块级内存状态到初始态（仅保留 default 项目）。
+ *
+ * 为什么需要（2026-09-02 修复 projectStore.test.ts 全量并发偶发红）：
+ * 测试此前用「vi.resetModules() + 每例动态 import」隔离模块级单例，但 `deleteProject` 等用例
+ * 偶发读到残留的 `projects=[p1,p2,default]` 且 `loaded=false`——证明动态 import 拿到的实例与
+ * 源码 `deleteProject` 闭包捕获的实例在 vitest 并发/fork 下可能分裂，静态隔离不可靠。
+ * 这里提供一个显式 reset 出口，让测试直接重置内存状态（等同重新 import 一份干净模块，但
+ * 无实例分裂风险），也符合 `flushPersist` 已有的「测试出口」先例。
+ *
+ * 说明：不清 `localStorage`——那是存储层的事，由测试按需 clear；这里只把模块内存态归零，
+ * 保证后续 `loadProjects()` 重新从存储读最新值。`lastSnapshot` 需同步重建，避免
+ * `useSyncExternalStore` 持有 stale 快照。
+ */
+export function __resetForTest(): void {
+  projects = loadProjects()
+  currentProjectId = loadLastOpened()
+  loaded = false
+  lastSavedVersion = 0
+  projectVersion = 0
+  listeners.clear()
+  lastSnapshot = { projects, currentProjectId }
+}
+
 // 启动时从后端加载项目，与本地合并去重（防「后端缺项/双页面旧数据」覆盖掉本地独有项目）。
 // 【根因修复】旧实现「以后端为准整体覆盖本地」+ saveProjects 全量覆盖语义：若后端某次缺项
 // （saveProjects 失败静默 / 双页面旧列表覆盖后端），刷新时后端缺项会把本地独有新项目冲掉，

@@ -1,5 +1,13 @@
-/** @type {import('tailwindcss').Config} */
-export default {
+import type { Config } from 'tailwindcss'
+
+/**
+ * 样式令牌唯一真相源（CLAUDE.md §七.1 指定；禁裸色值，勿再引用已删的 tailwind-tokens.md）。
+ *
+ * 更新(2026-09-02)：随全仓 TS 化 .js→.ts，JSDoc 的 `@type` 换成真 `Config` 类型标注
+ * （等价于原约束，但可被 `npm run type-check` 真正校验：写错 theme 结构/插件名会被拦住）。
+ * src 已全 TS 化，content glob 里的 .js/.jsx 保留作兜底（万一有人新建，样式仍能被提取）。
+ */
+const config: Config = {
   content: ['./index.html', './src/**/*.{js,jsx,ts,tsx}'],
   theme: {
     extend: {
@@ -122,3 +130,5 @@ export default {
   },
   plugins: [],
 }
+
+export default config

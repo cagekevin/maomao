@@ -1,10 +1,12 @@
 // 模拟 group 折叠/展开/刷新 各场景，确认尺寸是否塌成默认 300x200
-import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { adoptUserNodes, getNodeDimensions } from '@xyflow/system';
+// 扩展名无关：projectStore 已 TS 化（.js→.ts），写死后继后缀会直接 ENOENT（本脚本不在任何门禁里，坏了无人发现）
+import { readSourceFile } from './check-targets.mjs';
 
-// 读取真实 NODE_KEEP
-const src = readFileSync(new URL('../src/components/base/projectStore.js', import.meta.url), 'utf8');
-const KEEP = src.match(/const NODE_KEEP = \[([^\]]+)\]/)[1].split(',').map((s) => s.trim().replace(/['"`]/g, '')).filter(Boolean);
+// 读取真实 NODE_KEEP（正则兼容 TS 标注：`const NODE_KEEP: string[] = [...]`）
+const src = readSourceFile(fileURLToPath(new URL('../src/components/base/projectStore', import.meta.url)));
+const KEEP = src.match(/const NODE_KEEP(?:\s*:\s*string\[\])?\s*=\s*\[([^\]]+)\]/)[1].split(',').map((s) => s.trim().replace(/['"`]/g, '')).filter(Boolean);
 const sanitize = (arr) => arr.map((n) => { const out = {}; for (const k of KEEP) if (n[k] !== undefined && n[k] !== null) out[k] = n[k]; return out; });
 
 // 复刻 App.jsx applyNodeTypeDefaults 的 group 兜底

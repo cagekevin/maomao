@@ -1,9 +1,9 @@
-import { test, expect } from './utils/canvasHelpers.js'
-import { addNodeByPalette, lastNode, clearCanvas } from './utils/canvasHelpers.js'
+import { test, expect } from './utils/canvasHelpers'
+import { addNodeByPalette, lastNode, clearCanvas } from './utils/canvasHelpers'
 
 // L4 §2.1：每节点 E2E 渲染 + 基础参数可见性（数据驱动）
 // 节点参数矩阵（label 对齐调色板/快捷键文本）。扩展时在 NODE_MATRIX 增行即可。
-const NODE_MATRIX = [
+const NODE_MATRIX: Array<{ label: string; type: string; expectText: string }> = [
   { label: '文本', type: 'textNode', expectText: '文本' },
   { label: '图片', type: 'promptNode', expectText: '生图' },
   { label: '视频', type: 'discountVideoNode', expectText: '特惠' },

@@ -57,15 +57,26 @@ const files = [
   ['scripts/regression_test.cjs', '回归测试'],
   ['scripts/test_agent_tools.cjs', 'Agent 工具测试'],
   ['scripts/run_all_tests.cjs', '统一门禁'],
-  ['vite.config.js', '构建配置'],
+  // 扩展名无关：根配置已随全仓 TS 化（.js→.ts，2026-09-02）。写死 .js 会在改名那刻误红，
+  // 与上面源码条目同一处理（resolveSourceFile 自动命中 .ts/.js）。
+  ['vite.config', '构建配置'],
+  ['vitest.config', '单测配置'],
+  ['playwright.config', 'E2E 配置'],
+  ['tailwind.config', '样式令牌真相源'],
+  // 注：postcss.config 刻意保持 .js（postcss-load-config@6 加载 .ts 需 ts-node），不加进清单。
 ];
 const relOf = (p) => path.relative(ROOT, p).split(path.sep).join('/');
 for (const [f, name] of files) {
-  // 有扩展名 → 直接判断存在性；无扩展名 → 按源码扩展名全集解析真实文件
-  const hit = path.extname(f)
-    ? (fs.existsSync(path.join(ROOT, f)) ? f : null)
-    : resolveSourceFile(path.join(ROOT, f));
-  check(`${name} (${hit ? (path.extname(f) ? f : relOf(hit)) : f})`, !!hit);
+  // 先按原样判存在（css / 插件文件 / 脚本等写全名的条目），不存在再走扩展名无关解析。
+  //
+  // ⚠️ 为什么不用 `path.extname(f) ? 存在性 : resolveSourceFile()` 的写法（2026-09-02 修正）：
+  //   `path.extname('vite.config')` 返回 '.config'（truthy），会被当成「已写全扩展名」的条目，
+  //   直接 existsSync 判 false → 根配置 TS 化后整项误红。点号文件名普遍存在（*.config / *.min 等），
+  //   用 extname 是否为空来区分「写全名 vs 待解析」并不可靠。
+  //   改成「原样存在即用，否则扩展名无关解析」后两类条目都成立，且保持「改名不误红」的初衷。
+  const abs = path.join(ROOT, f);
+  const hit = fs.existsSync(abs) ? f : resolveSourceFile(abs);
+  check(`${name} (${hit === f ? f : hit ? relOf(hit) : f})`, !!hit);
 }
 
 // ── 2. npm scripts ──
