@@ -2,7 +2,7 @@ import React, { useState, useRef, useCallback, useMemo } from 'react'
 import { useReactFlow } from '@xyflow/react'
 import {
   Image as ImageIcon, Plus, ZoomIn, Send, Download, Link as LinkIcon,
-  AlertCircle, X, Coins, Zap
+  AlertCircle, X, Coins, Zap, Camera
 } from 'lucide-react'
 import NodeShell from '../base/NodeShell.tsx'
 import HoverToolbar from '../base/HoverToolbar.tsx'
@@ -33,11 +33,14 @@ import { toAbsoluteFileUrl, saveResultToTasks } from '../base/api/index.ts'
 import { logger } from '../base/logger.ts'
 import { fetchTasks } from '../base/api/index.ts'
 import { generateImage } from '../base/api/index.ts'
-import { useNodePrefs } from '../base/nodePrefs.ts'
+import { useNodePrefs, injectNodePrefs } from '../base/nodePrefs.ts'
 import { useRenderImageResolver } from '../base/imageUrl.ts'
 import { resolveProviderModel } from '../base/providerModels.ts'
 import { debounce, mergeRefImages, buildEffectivePrompt } from '../base/utils.ts'
 import { resolvePromptChips } from '../base/promptChips.ts'
+import CameraStudioPanel from '../base/CameraStudioPanel.tsx'
+import { generateId } from '../base/idGen.ts'
+import type { CameraStudioResult } from '../base/cameraStudio.ts'
 
 /**
  * 生图节点（复刻原 bo.jsx / promptNode）
@@ -150,7 +153,7 @@ function PromptNode({ id, data, selected }: PromptNodeProps) {
   // 用旧 <img> 尺寸覆盖刚设的正确比例（编辑保存后 aspectRatio 置 Auto 会误触发该 effect）。
   const editedRatioRef = useRef(false)
   // useSyncNodeData（Agent update_node 改 data → 同步本地 state）已收进 useGenerateNode 的 sync 参数，此处不再手写。
-  const { setNodes, setEdges, getEdges, getNodes, addNodes } = useReactFlow()
+  const { setNodes, setEdges, getEdges, getNodes, addNodes, addEdges } = useReactFlow()
 
   // 断连线：点击素材缩略图红色 ×，删除该素材来源节点 → 本节点的连线。
   // 仅对来自连线的素材有效（有 sourceNodeId）；data.images（剧本盒子资产）无来源连线，不处理。
@@ -354,12 +357,64 @@ function PromptNode({ id, data, selected }: PromptNodeProps) {
     }
   }
   const hasImage = !!imageUrl
+  const [isCameraStudioOpen, setIsCameraStudioOpen] = useState(false)
 
   // 下载生成的图片（<a download> 触发浏览器保存；文件名推导走统一 resolveDownloadFilename）
   const handleDownload = () => {
     if (!imageUrl) return
     downloadUrl(imageUrl, resolveDownloadFilename(data.label || (data.name as string), imageUrl, { ext: 'png', fallback: 'generated.png' }))
   }
+
+  // 摄影棚生成：创建新生图节点，预填摄影棚提示词，连线提供垫图
+  const handleCameraStudioGenerate = useCallback(
+    (result: CameraStudioResult) => {
+      const sourceNode = getNodes().find((n) => n.id === id)
+      if (!sourceNode) return
+
+      const { mode, prompt } = result
+      const modeLabel = mode === 'camera' ? '摄影机视角' : mode === 'lighting' ? '摄影棚打光' : '视角与打光'
+
+      const newNodeId = generateId()
+      // 新节点位置：右下偏移，避免重叠
+      const newPos = {
+        x: sourceNode.position.x + 340,
+        y: sourceNode.position.y + 300,
+      }
+
+      // 【同步默认参数】摄像机新建节点绕过 App.addNode，需手动注入上次记忆的参数
+      // （模型/比例/尺寸），否则组件只能落到纯常量默认（Auto/1K/空模型），
+      // 与手动新建的生图节点默认不一致（记忆只影响新建，不污染存量）。
+      const nodeData: Record<string, unknown> = {
+        type: 'promptNode',
+        label: modeLabel,
+        prompt: prompt,
+        role: 'generator',
+        status: 'idle',
+        promptState: 'completed',
+      }
+      injectNodePrefs('promptNode', nodeData)
+
+      const newNode = {
+        id: newNodeId,
+        type: 'promptNode',
+        position: newPos,
+        data: nodeData,
+        width: 420,
+        height: 420,
+      }
+
+      const newEdge = {
+        id: `e-${id}-${newNodeId}`,
+        source: id,
+        target: newNodeId,
+      }
+
+      addNodes([newNode])
+      addEdges([newEdge])
+      setIsCameraStudioOpen(false)
+    },
+    [id, setNodes, getNodes, setEdges],
+  )
 
   // 共享图片 hover 能力（裁剪/标记/压缩）：写回走 setImageUrl + patchData（不可变落盘）。
   const { editor, setEditor, renderEditor, renderInlineCropper, imageButtons } = useImageHoverActions({
@@ -396,6 +451,7 @@ function PromptNode({ id, data, selected }: PromptNodeProps) {
     ...(hasImage
       ? [
           { key: 'zoom', icon: <ZoomIn size={14} />, title: '放大' },
+          { key: 'cameraStudio', icon: <Camera size={14} />, title: '摄影棚', onClick: () => setIsCameraStudioOpen(true) },
           // 共享图片能力：裁剪/标记（开 ImageEditor）/压缩，show 已由 hook 控制为 hasImage
           ...imageButtons,
           {
@@ -414,10 +470,13 @@ function PromptNode({ id, data, selected }: PromptNodeProps) {
           { key: 'jianying', icon: <JianyingIcon size={14} />, title: '发送到剪映素材库', hoverClass: 'hover:text-emerald-400' },
           { key: 'download', icon: <Download size={14} />, title: '下载', onClick: handleDownload }
         ]
-      : [])
+      : [
+          { key: 'cameraStudio', icon: <Camera size={14} />, title: '摄影棚', onClick: () => setIsCameraStudioOpen(true) }
+        ])
   ]
 
   return (
+    <>
     <NodeShell
       id={id}
       label={data.label}
@@ -604,6 +663,15 @@ function PromptNode({ id, data, selected }: PromptNodeProps) {
       {/* 图片编辑器（裁剪/标记/压缩）：统一机制渲染，editor 关闭时返回 null */}
       {renderEditor()}
     </NodeShell>
+
+    {/* 摄影棚面板 */}
+    <CameraStudioPanel
+      isOpen={isCameraStudioOpen}
+      imageUrl={imageUrl || undefined}
+      onClose={() => setIsCameraStudioOpen(false)}
+      onGenerate={handleCameraStudioGenerate}
+    />
+    </>
   )
 }
 export default React.memo(PromptNode)

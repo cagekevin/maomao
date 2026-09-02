@@ -1,6 +1,6 @@
-import React, { useRef, useCallback } from 'react'
+import React, { useState, useRef, useCallback } from 'react'
 import {
-  Image as ImageIcon, Video, Music, FileText, Plus, Send, Download
+  Image as ImageIcon, Video, Music, FileText, Plus, Send, Download, Camera
 } from 'lucide-react'
 import { useReactFlow } from '@xyflow/react'
 import NodeShell from '../base/NodeShell.tsx'
@@ -20,6 +20,10 @@ import { downloadUrl } from '../base/clipboard.ts'
 import { showToast, toastError } from '../base/toastStore.ts'
 import { sendToAssetLibrary } from '../base/assetStore.ts'
 import { openAssetLibrary } from '../base/taskStore.ts'
+import CameraStudioPanel from '../base/CameraStudioPanel.tsx'
+import { injectNodePrefs } from '../base/nodePrefs.ts'
+import { generateId } from '../base/idGen.ts'
+import type { CameraStudioResult } from '../base/cameraStudio.ts'
 
 /**
  * 图片节点（复刻原 xi.jsx / imageNode）
@@ -53,7 +57,8 @@ function ImageNode({ id, data, selected }: ImageNodeProps) {
   const fileRef = useRef<HTMLInputElement | null>(null)
   // 读取端兜底：相对 /files/ 路径统一补全为绝对 URL，刷新不破图
   const url = toAbsoluteFileUrl(data.imageUrl || data.url || '') || ''
-  const { setNodes } = useReactFlow()
+  const { setNodes, getNodes, setEdges, addNodes, addEdges } = useReactFlow()
+  const [isCameraStudioOpen, setIsCameraStudioOpen] = useState(false)
   // 订阅「画布显示缩略图」设置：显示地址实时随开关（见 docs/18）
   const render = useRenderImageResolver()
 
@@ -125,6 +130,57 @@ function ImageNode({ id, data, selected }: ImageNodeProps) {
     },
     [id, setNodes]
   )
+
+  // 摄影棚生成回调：创建新 PromptNode，用户手动触发生成
+  const handleCameraStudioGenerate = useCallback(
+    (result: CameraStudioResult) => {
+      const sourceNode = getNodes().find((n) => n.id === id)
+      if (!sourceNode) return
+
+      const { mode, prompt } = result
+      const modeLabel = mode === 'camera' ? '摄影机视角' : mode === 'lighting' ? '摄影棚打光' : '视角与打光'
+
+      const newNodeId = generateId()
+      // 新节点位置：右下偏移，避免重叠
+      const newPos = {
+        x: sourceNode.position.x + 340,
+        y: sourceNode.position.y + 300,
+      }
+
+      // 【同步默认参数】摄像机新建节点绕过 App.addNode，需手动注入上次记忆的参数
+      // （模型/比例/尺寸），否则新 promptNode 会落到纯常量默认（Auto/1K/空模型），
+      // 与手动新建的生图节点默认不一致（记忆只影响新建，不污染存量）。
+      const nodeData: Record<string, unknown> = {
+        type: 'promptNode',
+        label: modeLabel,
+        prompt: prompt,
+        role: 'generator',
+        status: 'idle',
+        promptState: 'completed',
+      }
+      injectNodePrefs('promptNode', nodeData)
+
+      const newNode = {
+        id: newNodeId,
+        type: 'promptNode',
+        position: newPos,
+        data: nodeData,
+        width: 420,
+        height: 420,
+      }
+
+      const newEdge = {
+        id: `e-${id}-${newNodeId}`,
+        source: id,
+        target: newNodeId,
+      }
+
+      addNodes([newNode])
+      addEdges([newEdge])
+      setIsCameraStudioOpen(false)
+    },
+    [id, setNodes, getNodes, setEdges],
+  )
   const handleFileSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0]
     e.target.value = ''
@@ -169,6 +225,7 @@ function ImageNode({ id, data, selected }: ImageNodeProps) {
       title: '上传/替换',
       onClick: () => fileRef.current?.click()
     },
+    { key: 'cameraStudio', icon: <Camera size={14} />, title: '摄影棚', show: type === 'image', onClick: () => setIsCameraStudioOpen(true) },
     ...imageButtons,
     {
       key: 'send',
@@ -287,6 +344,14 @@ function ImageNode({ id, data, selected }: ImageNodeProps) {
     {/* 查看大图：共享 ImageZoomDialog。
         图片→kind="image" 看海报/大图；视频→kind="video" 统一走视频播放预览（含截屏按钮） */}
     <ImageZoomDialog ref={dialogRef} url={type === 'video' ? url : displayUrl} kind={type === 'video' ? 'video' : 'image'} />
+
+    {/* 摄影棚面板 */}
+    <CameraStudioPanel
+      isOpen={isCameraStudioOpen}
+      imageUrl={type === 'image' ? url : undefined}
+      onClose={() => setIsCameraStudioOpen(false)}
+      onGenerate={handleCameraStudioGenerate}
+    />
     </>
   )
 }

@@ -754,3 +754,70 @@ select::placeholder {
 .prompt-chip * {
   pointer-events: none;
 }
+
+/* ===== 摄影棚面板专用样式 ===== */
+.camera-studio-viewport {
+  width: 100%;
+  height: 100%;
+  display: block;
+  outline: none;
+  cursor: grab;
+}
+.camera-studio-viewport:active {
+  cursor: grabbing;
+}
+.camera-studio-range {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 4px;
+  border-radius: 999px;
+  background: rgb(var(--mao-edge));
+  outline: none;
+  cursor: pointer;
+}
+.camera-studio-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: rgb(var(--mao-text-primary));
+  border: 2px solid rgb(var(--mao-edge-strong));
+  cursor: pointer;
+  transition: transform 0.12s, background 0.12s;
+}
+.camera-studio-range::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+  background: rgb(var(--mao-text-strong));
+}
+.camera-studio-toggle {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  width: 32px;
+  height: 18px;
+  border-radius: 999px;
+  background: rgb(var(--mao-surface-hover));
+  border: 1px solid rgb(var(--mao-edge));
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+  flex-shrink: 0;
+}
+.camera-studio-toggle.is-on {
+  background: rgb(var(--mao-accent) / 0.35);
+  border-color: rgb(var(--mao-accent) / 0.6);
+}
+.camera-studio-toggle::after {
+  content: '';
+  position: absolute;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: rgb(var(--mao-text-muted));
+  transition: transform 0.2s, background 0.2s;
+}
+.camera-studio-toggle.is-on::after {
+  transform: translateX(14px);
+  background: rgb(var(--mao-accent-strong));
+}
