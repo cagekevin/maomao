@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import {
   Pencil, Eraser, Crop, Square, Circle, Minus, MoveUpRight, ListOrdered,
   Pipette, Type, Undo2, Trash2, ZoomIn, ZoomOut, Maximize, X, Check,
-  Image as ImageIcon
+  Expand
 } from 'lucide-react'
 import ReactCrop, { centerCrop, makeAspectCrop } from 'react-image-crop'
 import 'react-image-crop/dist/ReactCrop.css'
@@ -50,8 +50,8 @@ interface ImageEditorProps {
   imageUrl: string
   /** 初始工具：'crop' 或绘制工具，未知值回退 'pencil' */
   initialTool?: string
-  /** 保存回调，入参 { dataUrl } */
-  onSave?: (payload: { dataUrl: string }) => void
+  /** 保存回调，入参 { dataUrl, width, height }（width/height 为最终画布真实像素尺寸，供节点按真实比例自适应） */
+  onSave?: (payload: { dataUrl: string; width: number; height: number }) => void
   /** 关闭回调 */
   onClose?: () => void
 }
@@ -75,12 +75,17 @@ const CROP_RATIOS = [
  * 扩图是独立于裁剪的工具：不选内部区域，而是「原图整体 + 四周白边」。
  * 交互参考 AI-Canvas ExpandEditor：
  *  - 目标比例：扩图后整张图的画幅（如 1:1 / 16:9），原图按比例「贴边内接」；
- *  - 外扩量 zoom（0.3~1，越小外扩越多）：目标画布 = 原图内接尺寸 / zoom，四周留白；
+ *  - 画布放大倍数 factor（1~√2，滑块从左到右白边越来越多）：目标画布 = 原图内接尺寸 × factor，
+ *    面积随 factor² 增长，factor=√2 时整张图面积恰好是原图内接面积的 2 倍（白边最多上限）；
  *  - 原图可在目标画布内拖动（offset 归一化 [-0.5, 0.5]）。
- * 原图始终保持原始分辨率，不拉伸，只放大画布留白。 */
-const OUTPAINT_ZOOM_MIN = 0.3
-const OUTPAINT_ZOOM_MAX = 1
-const OUTPAINT_ZOOM_STEP = 0.02
+ * 原图始终保持原始分辨率，不拉伸，只放大画布留白。
+ * factor 与内部 computeOutpaintTarget 的 zoom 语义相反（zoom = 1/factor）。 */
+const OUTPAINT_FACTOR_MIN = 1
+const OUTPAINT_FACTOR_MAX = Math.SQRT2 // 面积 = factor² 倍 → 最多 2 倍面积
+const OUTPAINT_FACTOR_STEP = 0.01
+// 内部 computeOutpaintTarget 的 zoom（= 1/factor）边界：factor∈[1,√2] → zoom∈[1/√2,1]
+const OUTPAINT_ZOOM_MIN = 1 / OUTPAINT_FACTOR_MAX
+const OUTPAINT_ZOOM_MAX = 1 / OUTPAINT_FACTOR_MIN
 /** 扩图白边填充色（纯白）。 */
 export const OUTPAINT_FILL = '#ffffff'
 
@@ -188,9 +193,9 @@ export default function ImageEditor({ imageUrl, initialTool = 'pencil', onSave, 
   const [completedCrop, setCompletedCrop] = useState(undefined)
   const [cropAspect, setCropAspect] = useState(undefined)
 
-  // 扩图态（独立工具）：目标比例 + 外扩量 + 原图拖动偏移（归一化 [-0.5,0.5]）
+  // 扩图态（独立工具）：目标比例 + 画布放大倍数 factor + 原图拖动偏移（归一化 [-0.5,0.5]）
   const [outpaintRatioKey, setOutpaintRatioKey] = useState('1:1')
-  const [outpaintZoom, setOutpaintZoom] = useState(0.8)
+  const [outpaintFactor, setOutpaintFactor] = useState(1) // 默认 1 = 无白边、原图铺满（factor 越大白边越多）
   const [outpaintOffset, setOutpaintOffset] = useState({ x: 0, y: 0 })
 
   const scrollRef = useRef({ x: 0, y: 0, scrollLeft: 0, scrollTop: 0 })
@@ -260,14 +265,23 @@ export default function ImageEditor({ imageUrl, initialTool = 'pencil', onSave, 
     setZoom(clampZoom(Math.min((vp.clientWidth - 32) / imgSize.w, (vp.clientHeight - 32) / imgSize.h, 1)))
   }, [imgSize, clampZoom])
 
-  // 滚轮缩放（画布区）；P3：高频 → rAF 合并 setZoom（last-args-wins，每帧只按最新 deltaY 缩放一次）
+  // 滚轮缩放（画布区）；P3：高频 → rAF 合并 setZoom（last-args-wins，每帧只按最新 deltaY 缩放一次）。
+  // 用原生 addEventListener({ passive: false }) 绑定：React 的 onWheel 是被动监听器，
+  // 其 preventDefault() 无效且触发 "Unable to preventDefault inside passive event listener" 告警；
+  // 原生非被动监听才能拦截页面滚动、独占画布滚轮缩放。
   const wheelRaf = useRef(null)
   if (wheelRaf.current == null) {
     wheelRaf.current = createRafBatch((deltaY) => setZoom((z) => clampZoom(z * (deltaY < 0 ? 1.1 : 0.9))))
   }
-  const onWheel = useCallback((e) => {
-    e.preventDefault()
-    wheelRaf.current(e.deltaY)
+  useEffect(() => {
+    const vp = viewportRef.current
+    if (!vp) return
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault()
+      wheelRaf.current?.(e.deltaY)
+    }
+    vp.addEventListener('wheel', onWheel, { passive: false })
+    return () => vp.removeEventListener('wheel', onWheel)
   }, [])
 
   // 空格平移
@@ -498,6 +512,18 @@ export default function ImageEditor({ imageUrl, initialTool = 'pencil', onSave, 
     else onShapePreview(e)
   }, [tool, onDrawMove, onShapePreview])
 
+  // 把当前 canvas 的像素作为「新的底图」回填到 imgRef，供后续裁剪/扩图复用。
+  // 这是裁剪↔扩图收口的关键：每一步的结果都成为下一步的输入，两者可任意先后、可重复。
+  const commitCanvasToImgRef = useCallback(() => {
+    const canvas = canvasRef.current
+    if (!canvas || !canvas.width || !canvas.height) return
+    const img = new Image()
+    img.onload = () => {
+      imgRef.current = img
+    }
+    img.src = canvas.toDataURL('image/png')
+  }, [])
+
   // 确认裁剪（复刻官方 537-574）：把 ReactCrop 的 crop 换算成 canvas 像素 → 裁切。
   // 裁剪只往内裁，不做外扩；外扩白边由独立的「扩图」工具承担。
   const applyCrop = useCallback(() => {
@@ -519,43 +545,61 @@ export default function ImageEditor({ imageUrl, initialTool = 'pencil', onSave, 
     canvas.width = sw
     canvas.height = sh
     ctx.putImageData(data, 0, 0)
-    imgRef.current = null // 裁剪后原始图失效
+    // 裁剪结果回填为新的底图（不再置 null），后续扩图/再裁剪均以此为基础
+    commitCanvasToImgRef()
     setImgSize({ w: sw, h: sh })
     setCrop(undefined)
     setCompletedCrop(undefined)
     setTool('pencil')
-  }, [completedCrop, pushHistory])
+  }, [completedCrop, pushHistory, commitCanvasToImgRef])
 
   const lastCropStart = useRef({ x: 0, y: 0 })
 
   // ── 扩图工具（独立，复刻 AI-Canvas ExpandEditor）──
-  // 用 imgRef.current（原始图）按「目标比例 + 外扩量 + 拖动偏移」实时重画 canvas。
+  // 用「当前底图」按「目标比例 + 外扩量 + 拖动偏移」实时重画 canvas。
+  // 底图来源：优先 imgRef.current（原始图 / 上一步裁剪或扩图回填的结果）；
+  // 若异步回填尚未完成则回退 canvasRef.current（当前已绘制内容），保证可重复操作不卡空白。
   const renderOutpaint = useCallback(() => {
     const canvas = canvasRef.current
     const ctx = canvas?.getContext('2d')
+    if (!canvas || !ctx) return
+    // 底图来源：优先 imgRef.current（原始图 / 上一步裁剪或扩图回填的结果）；
+    // 若异步回填尚未完成，则在重置 canvas 尺寸前先缓存当前像素到临时 canvas 作兜底源，
+    // 避免 self-drawImage 在 width 被重置清空后只画空白（虚假兜底）。
     const im = imgRef.current
-    if (!canvas || !ctx || !im) return
+    const srcW = im ? im.naturalWidth : canvas.width
+    const srcH = im ? im.naturalHeight : canvas.height
+    if (!srcW || !srcH) return
     const ratio = OUTPAINT_RATIOS.find((r) => r.key === outpaintRatioKey)?.ratio
-    const t = computeOutpaintTarget(im.naturalWidth, im.naturalHeight, ratio, outpaintZoom)
+    const t = computeOutpaintTarget(srcW, srcH, ratio, 1 / outpaintFactor)
     const { dx, dy } = computeOutpaintDrawPos(outpaintOffset, t.maxOffX, t.maxOffY)
+    const fallbackCanvas = im ? null : (() => {
+      const c = document.createElement('canvas')
+      c.width = canvas.width
+      c.height = canvas.height
+      c.getContext('2d')?.drawImage(canvas, 0, 0)
+      return c
+    })()
     // 预览态不入撤销栈（拖动/调参高频触发）；确认扩图时才 pushHistory 记录最终结果
     canvas.width = t.tw
     canvas.height = t.th
     ctx.fillStyle = OUTPAINT_FILL
     ctx.fillRect(0, 0, t.tw, t.th)
-    ctx.drawImage(im, dx, dy, t.sw, t.sh)
+    const source = im || fallbackCanvas
+    if (source) ctx.drawImage(source, dx, dy, t.sw, t.sh)
     setImgSize({ w: t.tw, h: t.th })
-  }, [outpaintRatioKey, outpaintZoom, outpaintOffset])
+  }, [outpaintRatioKey, outpaintFactor, outpaintOffset])
 
   // 确认扩图：把当前「原图+白边」画布作为结果，退出扩图态
   const applyOutpaint = useCallback(() => {
     renderOutpaint()
     pushHistory() // 扩图结果入撤销栈
-    imgRef.current = null // 扩图后原始图失效（后续不可再重画预览）
+    // 扩图结果回填为新的底图（不再置 null），后续裁剪/再扩图均以此为基础
+    commitCanvasToImgRef()
     setCrop(undefined)
     setCompletedCrop(undefined)
     setTool('pencil')
-  }, [renderOutpaint, pushHistory])
+  }, [renderOutpaint, pushHistory, commitCanvasToImgRef])
 
   // 拖动原图重定位：屏幕位移 → 归一化 offset（相对可移动范围）
   const outpaintDragRef = useRef<{ startX: number; startY: number; ox: number; oy: number } | null>(null)
@@ -573,7 +617,7 @@ export default function ImageEditor({ imageUrl, initialTool = 'pencil', onSave, 
     const im = imgRef.current
     if (!canvas || !im) return
     const ratio = OUTPAINT_RATIOS.find((r) => r.key === outpaintRatioKey)?.ratio
-    const t = computeOutpaintTarget(im.naturalWidth, im.naturalHeight, ratio, outpaintZoom)
+    const t = computeOutpaintTarget(im.naturalWidth, im.naturalHeight, ratio, 1 / outpaintFactor)
     // 屏幕位移 → 画布内部像素位移（画布内部像素 / 渲染尺寸 ≈ 1，直接按渲染盒比例换算）
     const scale = canvas.width / canvas.offsetWidth
     const dxNat = (e.clientX - d.startX) * scale
@@ -590,7 +634,7 @@ export default function ImageEditor({ imageUrl, initialTool = 'pencil', onSave, 
       ctx.drawImage(im, pos.dx, pos.dy, t.sw, t.sh)
     }
     setOutpaintOffset(next)
-  }, [tool, outpaintRatioKey, outpaintZoom])
+  }, [tool, outpaintRatioKey, outpaintFactor])
   const onOutpaintPointerUp = useCallback((e: React.PointerEvent) => {
     outpaintDragRef.current = null
     ;(e.target as HTMLElement).releasePointerCapture?.(e.pointerId)
@@ -602,13 +646,15 @@ export default function ImageEditor({ imageUrl, initialTool = 'pencil', onSave, 
     setOutpaintOffset({ x: 0, y: 0 })
     renderOutpaint()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tool, outpaintRatioKey, outpaintZoom])
+  }, [tool, outpaintRatioKey, outpaintFactor])
 
   // 保存
   const handleSave = useCallback(() => {
     const canvas = canvasRef.current
     if (!canvas) return
-    onSave?.({ dataUrl: canvas.toDataURL('image/jpeg', 0.9) })
+    // 一并回传画布真实像素尺寸：扩图/裁剪后画布尺寸会变，节点据此用 fitByRatio 显式自适应，
+    // 不再依赖缩略图端点还原的尺寸（缩略图压到最长边 640 会吞掉等比外扩带来的比例变化）。
+    onSave?.({ dataUrl: canvas.toDataURL('image/jpeg', 0.9), width: canvas.width, height: canvas.height })
     onClose?.()
   }, [onSave, onClose])
 
@@ -641,7 +687,7 @@ export default function ImageEditor({ imageUrl, initialTool = 'pencil', onSave, 
             {toolBtn('number', <ListOrdered size={16} />, '序号标记', tool === 'number')}
             {toolBtn('eyedropper', <Pipette size={16} />, '吸管取色', tool === 'eyedropper')}
             {toolBtn('crop', <Crop size={16} />, '裁剪', tool === 'crop')}
-            {toolBtn('expand', <ImageIcon size={16} />, '扩图', tool === 'expand')}
+            {toolBtn('expand', <Expand size={16} />, '扩图', tool === 'expand')}
           </div>
           <div className="h-6 w-[1px] bg-surface-3 mx-2" />
           {/* 颜色 + 粗细 */}
@@ -695,18 +741,18 @@ export default function ImageEditor({ imageUrl, initialTool = 'pencil', onSave, 
                   <option key={r.key} value={r.key}>{r.label}</option>
                 ))}
               </select>
-              <label className="flex items-center gap-1.5 bg-surface-hover rounded border border-edge-muted px-2 py-1.5" title="外扩量越大，四周白边越多；原图可拖到白边内任意位置">
-                <span className="text-xs text-secondary whitespace-nowrap">外扩量</span>
+              <label className="flex items-center gap-1.5 bg-surface-hover rounded border border-edge-muted px-2 py-1.5" title="向右拖动放大画布、四周白边越来越多；最多扩展为原图 2 倍面积。原图可拖到白边内任意位置">
+                <span className="text-xs text-secondary whitespace-nowrap">扩展</span>
                 <input
                   type="range"
-                  min={OUTPAINT_ZOOM_MIN}
-                  max={OUTPAINT_ZOOM_MAX}
-                  step={OUTPAINT_ZOOM_STEP}
-                  value={outpaintZoom}
-                  onChange={(e) => { setOutpaintZoom(parseFloat(e.target.value)); setOutpaintOffset({ x: 0, y: 0 }) }}
+                  min={OUTPAINT_FACTOR_MIN}
+                  max={OUTPAINT_FACTOR_MAX}
+                  step={OUTPAINT_FACTOR_STEP}
+                  value={outpaintFactor}
+                  onChange={(e) => { setOutpaintFactor(parseFloat(e.target.value)); setOutpaintOffset({ x: 0, y: 0 }) }}
                   className="w-24 accent-blue-500"
                 />
-                <span className="text-xs text-primary tabular-nums w-10 text-right">{Math.round((1 - outpaintZoom) * 100)}%</span>
+                <span className="text-xs text-primary tabular-nums w-12 text-right">+{Math.round((outpaintFactor * outpaintFactor - 1) * 100)}%</span>
               </label>
               <span className="text-xs text-secondary whitespace-nowrap">拖动原图定位</span>
               <button type="button" onClick={applyOutpaint} className="px-3 py-1.5 rounded-lg bg-green-600 hover:bg-green-500 text-white transition-colors flex items-center gap-1 text-sm font-medium mr-2">
@@ -726,7 +772,6 @@ export default function ImageEditor({ imageUrl, initialTool = 'pencil', onSave, 
       {/* 画布区（复刻 _Component129:596-660）：可滚动画布容器 */}
       <div
         ref={viewportRef}
-        onWheel={onWheel}
         onMouseDown={spaceDown ? onPanStart : undefined}
         className="flex-1 overflow-auto bg-surface-sunken relative"
         style={{ cursor: spaceDown ? (panning ? 'grabbing' : 'grab') : undefined }}

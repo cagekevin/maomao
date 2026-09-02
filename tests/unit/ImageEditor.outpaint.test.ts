@@ -25,13 +25,26 @@ describe('computeOutpaintTarget', () => {
     expect(r.maxOffY).toBe(0)
   })
 
-  it('zoom=0.5 + 原图比例 → 画布翻倍，四周各留 25% 白边', () => {
-    const r = computeOutpaintTarget(200, 100, undefined, 0.5)
-    // 原图 2:1，目标比例=原图 → base=200x100，/0.5 → 400x200
-    expect(r.tw).toBe(400)
-    expect(r.th).toBe(200)
-    expect(r.maxOffX).toBe(100)
-    expect(r.maxOffY).toBe(50)
+  it('zoom=1/√2（factor=√2，面积2倍上限）+ 原图比例 → 画布线性放大√2', () => {
+    const r = computeOutpaintTarget(200, 100, undefined, 1 / Math.SQRT2)
+    // 原图 2:1，目标比例=原图 → base=200x100，/(1/√2)=×√2 → 面积恰好 2 倍
+    const tw = Math.round(200 * Math.SQRT2)
+    const th = Math.round(100 * Math.SQRT2)
+    expect(r.tw).toBe(tw)
+    expect(r.th).toBe(th)
+    // sw/sh 保持原图原始尺寸（200×100），可拖动偏移 = (画布 - 原图)/2
+    expect(r.sw).toBe(200)
+    expect(r.sh).toBe(100)
+    expect(r.maxOffX).toBe((tw - 200) / 2)
+    expect(r.maxOffY).toBe((th - 100) / 2)
+  })
+
+  it('zoom=1（factor=1）→ 画布等于原图内接尺寸，四周无白边', () => {
+    const r = computeOutpaintTarget(200, 100, undefined, 1)
+    expect(r.tw).toBe(200)
+    expect(r.th).toBe(100)
+    expect(r.maxOffX).toBe(0)
+    expect(r.maxOffY).toBe(0)
   })
 
   it('指定目标比例 1:1 → 原图贴边内接，再按 zoom 外扩', () => {
@@ -46,9 +59,9 @@ describe('computeOutpaintTarget', () => {
     expect(r.maxOffY).toBe(Math.round((r.th - 100) / 2))
   })
 
-  it('zoom 越界钳制到 [0.3,1]', () => {
+  it('zoom 越界钳制到 [1/√2,1]（factor ∈ [1,√2] → 面积最多 2 倍）', () => {
     const lo = computeOutpaintTarget(100, 100, undefined, 0.1)
-    expect(lo.tw).toBe(Math.round(100 / 0.3))
+    expect(lo.tw).toBe(Math.round(100 / (1 / Math.SQRT2)))
     const hi = computeOutpaintTarget(100, 100, undefined, 5)
     expect(hi.tw).toBe(100)
     expect(hi.maxOffX).toBe(0)

@@ -344,6 +344,8 @@ function PromptNode({ id, data, selected }: PromptNodeProps) {
     hasImage,
     label: data.label,
     onImageReplaced: (dataUrl) => {
+      // 注：第二参 dims（画布真实尺寸）用于 ImageNode 按真实比例自适应；PromptNode 走
+      // setImageUrl + patchData 写回，无 fitByRatio 自适应机制，故忽略 dims。
       setImageUrl(dataUrl)
       patchData({ imageUrl: dataUrl })
     },

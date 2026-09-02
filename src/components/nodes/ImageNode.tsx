@@ -68,22 +68,25 @@ function ImageNode({ id, data, selected }: ImageNodeProps) {
   const { hideMedia } = useMediaDegrade()
 
   // 节点按媒体宽高比自适应（图片 img / 视频 video 共用）
-  const { fitFromImage, fitFromVideo } = useFitNodeRatio(id)
+  const { fitFromImage, fitFromVideo, fitByRatio } = useFitNodeRatio(id)
 
   // 视频首帧封面（未播放时显示首帧，避免视频 URL 当 img 破图）
   const posterUrl = useVideoPoster(url, type === 'video')
 
   // 编辑器/压缩保存 → 写回节点图片（不可变更新，与 HoverToolbar 统一机制共享）。
+  // dims 为可选画布真实尺寸（扩图/裁剪后画布尺寸变化），传入则按真实比例自适应节点形状，
+  // 避免缩略图端点压到最长边 640 后吞掉等比外扩带来的比例变化（扩图后节点比例不变的问题）。
   const replaceImage = useCallback(
-    (dataUrl: string) => {
+    (dataUrl: string, dims?: { width: number; height: number }) => {
       if (!dataUrl) return
       setNodes((ns) =>
         ns.map((n) =>
           n.id === id ? { ...n, data: { ...n.data, imageUrl: dataUrl, url: dataUrl } } : n
         )
       )
+      if (dims?.width && dims?.height) fitByRatio(dims.width, dims.height)
     },
-    [id, setNodes]
+    [id, setNodes, fitByRatio]
   )
 
   // 共享图片 hover 能力（裁剪/标记/压缩）：写回走 replaceImage

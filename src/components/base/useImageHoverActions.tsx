@@ -49,8 +49,8 @@ interface UseImageHoverActionsArgs {
   hasImage: boolean
   /** 节点 label（发送素材库命名用） */
   label: string
-  /** 新图写回回调（裁剪保存 / 压缩覆盖都走它），入参 dataUrl */
-  onImageReplaced: (dataUrl: string) => void
+  /** 新图写回回调（裁剪保存 / 压缩覆盖都走它），入参 (dataUrl, dims?)；dims={width,height} 为可选画布真实尺寸，供节点按真实比例自适应 */
+  onImageReplaced: (dataUrl: string, dims?: { width: number; height: number }) => void
 }
 
 export function useImageHoverActions({ id, url, hasImage, label, onImageReplaced }: UseImageHoverActionsArgs) {
@@ -59,11 +59,11 @@ export function useImageHoverActions({ id, url, hasImage, label, onImageReplaced
   const [compressing, setCompressing] = useState(false)
   const [upscaling, setUpscaling] = useState(false)
 
-  // 编辑器保存（裁剪/标记）→ 写回节点图片。失败透传 toastError，不静默。
+  // 编辑器保存（裁剪/标记/扩图）→ 写回节点图片，并透传画布真实尺寸让节点自适应。失败透传 toastError，不静默。
   const handleEditorSave = useCallback(
-    ({ dataUrl }) => {
+    ({ dataUrl, width, height }) => {
       if (!dataUrl) return
-      onImageReplaced?.(dataUrl)
+      onImageReplaced?.(dataUrl, width && height ? { width, height } : undefined)
       setEditor(null)
     },
     [onImageReplaced]
