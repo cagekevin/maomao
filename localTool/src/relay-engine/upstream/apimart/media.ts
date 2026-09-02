@@ -1,11 +1,11 @@
 /**
  * APIMart 媒体 Provider Adapter，封装图片、视频和音频任务的提交、轮询与结果归一化。
  */
-import { DEFAULT_BASE_URLS } from '../../providers/base-urls';
+import { DEFAULT_BASE_URLS } from '../../_aux/providers/base-urls';
 import { useAppStore } from '../../core/host-store';
-import type { AIAudioGenParams, AIVideoGenParams, AudioGenerationResult } from '../../types/protocol';
+import type { AIAudioGenParams, AIVideoGenParams, AudioGenerationResult } from '../../4-types/protocol';
 import type { BaseNodeData } from '../../core/host-types';
-import { mapImageDimensions } from '../../deps/aiDimensions';
+import { mapImageDimensions } from '../../_aux/deps/aiDimensions';
 import { pollTask } from '../../core/polling';
 import {
   cleanupNodePolling,
@@ -13,7 +13,7 @@ import {
   removePendingTask,
   savePendingTask,
   updatePendingTask,
-} from '../../deps/pollManager';
+} from '../../_aux/deps/pollManager';
 import {
   extractFlowMusicLyrics,
   extractFlowMusicTrack,
@@ -30,7 +30,7 @@ import { getApimartSeedanceCapability, isApimartSeedanceModel } from './videoMod
 import { getMediaReferenceUrl } from '../connectedReferenceMedia';
 import { extractModelName } from '../helpers';
 import { resolveImageUrlArray } from '../imageUtils';
-import { resolveMediaReferenceUrl } from '../../deps/uploadService';
+import { resolveMediaReferenceUrl } from '../../_aux/deps/uploadService';
 import type { MediaProviderAdapter } from '../mediaProviderRegistry';
 
 function resolveApimartConnection(): { apiKey: string; baseUrl: string } {

@@ -3,7 +3,7 @@ import type {
   AudioGenerationResult,
   AudioOutputFormat,
   AudioTtsVoice,
-} from '../../types/protocol';
+} from '../../4-types/protocol';
 import { buildAuthHeaders, parseResponseError } from '../httpUtils';
 import { corsSafeFetch } from '../../core/transport';
 import {

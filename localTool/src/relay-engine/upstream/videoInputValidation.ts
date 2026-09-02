@@ -3,7 +3,7 @@ import type {
   VideoGenerationReferenceInput,
   VideoInputConstraints,
   VideoModelCapability,
-} from '../types/protocol';
+} from '../4-types/protocol';
 
 export interface ReferenceMediaMetadata {
   durationSeconds?: number;

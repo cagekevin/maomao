@@ -37,7 +37,7 @@
  *   - 扩展名无关 + 豁免清单 + JSX 探测定义在 ts-exts.cjs，经 check-targets.mjs 转出，
  *     与 check-* / smoke / health / sync-mapping 等脚本共用一份，避免各写一份。
  */
-import { readFileSync, writeFileSync, readdirSync, statSync, existsSync, renameSync } from 'node:fs'
+import { readFileSync, writeFileSync, readdirSync, statSync, existsSync, renameSync, mkdirSync } from 'node:fs'
 import { resolve, join, dirname, extname, basename, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
@@ -57,6 +57,8 @@ import { SCAN_EXTS, SOURCE_EXTS, TS_EXEMPT_DIRS, TS_EXEMPT_FILES, isExempt, reso
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url))
 const root = resolve(__dirname, '..')
+// 默认扫描根：仓库根 src/ 与 tests/（前端）。可用 --root <dir> 追加更多根（如 localTool/src），
+// 让 move/refs/plan 等能重写该根下的文件引用（物理重排 relay-engine 等后端目录需要）。
 const SCAN_ROOTS = [join(root, 'src'), join(root, 'tests')]
 
 /** @type {Set<string>} */
@@ -317,6 +319,68 @@ function rewriteImportsForMove(oldAbs, newAbs, dry = false) {
 }
 
 /**
+ * 整体重写"解析路径落在 oldDir 下"的 import 说明符 → 对应 dstDir 下的新路径。
+ *
+ * 【为什么需要它 / 与 rewriteImportsForMove 的区别】move(单文件) 靠
+ *   `resolveSourceFile(abs) === oldAbs` 判定命中，要求被移文件"仍能按旧路径解析到"才重写。
+ *   但整目录移动时，被移文件已被 git mv 走，import 方还写着旧目录段(如 ../protocol/executor)，
+ *   此时旧路径解析不到 → 判不中 → 漏改(实测踩坑)。本函数不依赖旧文件是否存在：
+ *   只要 import 说明符【解析后的绝对路径落在 oldDir 下】，就把它按"该文件现在应位于 dstDir 下"
+ *   重算成新说明符。适用于整目录搬到新位置(relay-engine 内部按链路重排等)。
+ * @param {string} oldDir 移动前目录绝对路径
+ * @param {string} newDir 移动后目录绝对路径（含目录名，如 …/2-engine）
+ * @param {boolean} [dry]
+ * @returns 被改动文件相对路径列表
+ */
+function rewriteImportsByDir(oldDir, newDir, dry = false) {
+  const changed = []
+  for (const file of allSources()) {
+    let src
+    try { src = readFileSync(file, 'utf8') } catch { continue }
+    const nodes = extractImportNodes(src, relOf(file))
+    if (!nodes) continue
+    const hits = nodes.filter((node) => {
+      const spec = node.value
+      if (!(spec.startsWith('.') || spec.startsWith('@/') || spec.startsWith('/'))) return false
+      const abs = resolveSpec(spec, dirname(file))
+      if (abs === null) return false
+      // 落在旧目录下即命中（无论旧文件是否已被移走）
+      const relUnder = toPosix(relative(oldDir, abs))
+      return relUnder !== '' && !relUnder.startsWith('..')
+    })
+    if (hits.length === 0) continue
+    hits.sort((a, b) => b.start - a.start)
+    let nextSrc = src
+    for (const node of hits) {
+      const abs = resolveSpec(node.value, dirname(file))
+      const relUnder = toPosix(relative(oldDir, abs))
+      const newAbs = join(newDir, relUnder)
+      const newSpec = computeNewSpec(file, newAbs, node.value)
+      if (newSpec === node.value) continue
+      const q = nextSrc[node.start]
+      nextSrc = nextSrc.slice(0, node.start) + `${q}${newSpec}${q}` + nextSrc.slice(node.end)
+    }
+    if (nextSrc !== src) {
+      changed.push(file)
+      if (!dry) writeFileSync(file, nextSrc, 'utf8')
+    }
+  }
+  return changed.map((f) => relOf(f))
+}
+
+/** 递归收集 srcDir 下所有源码文件绝对路径（相对顺序，供 move-dir 逐文件 git mv）。 */
+function collectSourceFilesUnder(dir, acc = []) {
+  for (const name of readdirSync(dir)) {
+    const full = join(dir, name)
+    let st
+    try { st = statSync(full) } catch { continue }
+    if (st.isDirectory()) collectSourceFilesUnder(full, acc)
+    else if (SOURCE_EXTS.includes(extname(name))) acc.push(full)
+  }
+  return acc
+}
+
+/**
  * 重写【被移动文件自身】的 import 路径（其相对基准随移动变了）。
  * @param fileAbs 被移动的文件
  * @param oldDir  移动前所在目录（作为相对基准）
@@ -434,9 +498,21 @@ const { positionals, values } = parseArgs({
     strict: { type: 'boolean', default: false },
     count: { type: 'boolean', default: false }, // 【特性: any 汇总模式】
     nocheck: { type: 'boolean', default: false }, // 【特性 2: 平滑注入选项】
+    root: { type: 'string', multiple: true },      // 追加扫描根（如 --root localTool/src），可多次
+    undo: { type: 'boolean', default: false },     // move-dir 回退：撤销上一次 move-dir 并还原 import
   },
   allowPositionals: true,
 })
+
+// 追加用户指定的扫描根（resolve 到仓库根下；存在才加，去重），使 move/refs/plan 能覆盖
+// localTool/ 等默认根之外的目录。
+if (values.root) {
+  for (const r of values.root) {
+    const abs = resolve(root, r)
+    if (!existsSync(abs)) { console.error(`✖ --root 目录不存在：${r}`); process.exit(1) }
+    if (!SCAN_ROOTS.some((existing) => existing === abs)) SCAN_ROOTS.push(abs)
+  }
+}
 
 const cmd = positionals[0]
 const fileArg = positionals[1]
@@ -777,6 +853,98 @@ if (cmd === 'convert' || cmd === 'update-imports') {
   }
   if (dry) console.log('（--dry 仅预览，未实际落盘/改名）')
   
+  printWarnings()
+  process.exit(0)
+}
+
+if (cmd === 'move-dir') {
+  const UNDO_MANIFEST = join(__dirname, '.move-dir-undo.json')
+
+  // ── 回退模式：move-dir --undo 读上次的 manifest，把文件从 dstDir 移回 srcDir，并还原 import ──
+  if (values.undo) {
+    if (!existsSync(UNDO_MANIFEST)) { console.error('✖ 没有可回退的 move-dir 记录（无 .move-dir-undo.json）'); process.exit(1) }
+    let manifest
+    try { manifest = JSON.parse(readFileSync(UNDO_MANIFEST, 'utf8')) } catch { console.error('✖ 回退清单损坏，无法回退'); process.exit(1) }
+    const { srcDir, dstDir, pairs } = manifest
+    // 先还原 import（dstDir 的引用 → 回到 srcDir），再反向移动文件
+    const changed = rewriteImportsByDir(dstDir, srcDir, dry)
+    if (changed.length === 0) console.log('ℹ 无指向 dstDir 的 import 需回退')
+    else { console.log(`✔ 已回退 ${changed.length} 个文件的 import 路径：`); for (const c of changed) console.log('   - ' + c) }
+    for (const { oldAbs, newAbs } of pairs) {
+      if (!existsSync(newAbs)) { console.log(`  ℹ 跳过（目标不存在）：${relOf(newAbs)}`); continue }
+      const how = dry ? 'dry' : renameFile(newAbs, oldAbs)
+      if (dry) console.log(`  (dry) ${relOf(newAbs)} → ${relOf(oldAbs)}`)
+      else if (how) console.log(`✔ ${relOf(newAbs)} → ${relOf(oldAbs)}（${how}）`)
+      else { console.error(`✖ 回退失败：${relOf(newAbs)}`); process.exit(1) }
+    }
+    if (!dry) { try { writeFileSync(UNDO_MANIFEST, '[]', 'utf8') } catch {} }
+    if (dry) console.log('\n（--dry 仅预览，未实际移动/落盘）')
+    printWarnings()
+    process.exit(0)
+  }
+
+  const targetArg = positionals[2]
+  if (!fileArg || !targetArg) { console.error('用法：move-dir <srcDir> <dstDir> [--dry] | move-dir --undo'); process.exit(1) }
+  const srcDir = resolve(root, fileArg)
+  const dstDir = resolve(root, targetArg)
+  if (!existsSync(srcDir)) { console.error(`源目录不存在：${fileArg}`); process.exit(1) }
+  if (!dry) mkdirSync(dstDir, { recursive: true })
+
+  // 1) 逐文件 git mv（保子目录结构），并记录回退清单
+  const moved = collectSourceFilesUnder(srcDir, [])
+  if (moved.length === 0) { console.error(`源目录下无源码文件可移：${fileArg}`); process.exit(1) }
+  const movedPairs = []
+  for (const oldAbs of moved) {
+    const relUnder = toPosix(relative(srcDir, oldAbs))
+    const newAbs = join(dstDir, relUnder)
+    if (existsSync(oldAbs)) {
+      if (!dry) mkdirSync(dirname(newAbs), { recursive: true })
+      const how = dry ? 'dry' : renameFile(oldAbs, newAbs)
+      if (dry) { console.log(`  (dry) ${relOf(oldAbs)} → ${relOf(newAbs)}`) }
+      else if (how) { console.log(`✔ ${relOf(oldAbs)} → ${relOf(newAbs)}（${how}）`) }
+      else { console.error(`✖ 移动失败：${relOf(oldAbs)}`); process.exit(1) }
+    } else {
+      console.log(`  ℹ ${relOf(oldAbs)} 已不在源目录（可能已移），跳过`)
+    }
+    movedPairs.push({ oldAbs, newAbs })
+  }
+  if (!dry) writeFileSync(UNDO_MANIFEST, JSON.stringify({ srcDir, dstDir, pairs: movedPairs }, null, 2), 'utf8')
+
+  // 1.5) 重写被移文件自身的出向 import：目录下移一层后，指向上层根级成员的相对路径(../X)需变(../../X)。
+  //      逐个用 rewriteOutgoingImports(newAbs, dirname(oldAbs)) 处理（基准 = 移动前所在目录）。
+  let outgoingFixed = 0
+  for (const { oldAbs, newAbs } of movedPairs) {
+    if (!existsSync(newAbs)) continue
+    const fixed = rewriteOutgoingImports(newAbs, dirname(oldAbs), dry)
+    if (fixed) outgoingFixed++
+  }
+  if (outgoingFixed > 0) console.log(`✔ 已重写 ${outgoingFixed} 个被移文件自身的出向 import 路径`)
+
+  // 2) 重写全库：把解析路径落在旧目录下的 import → 新目录路径（不依赖旧文件是否存在）
+  const changed = rewriteImportsByDir(srcDir, dstDir, dry)
+  if (changed.length === 0) {
+    console.log(`ℹ 无引用旧目录的 import（可能此前已同步）`)
+  } else {
+    console.log(`✔ 已同步 ${changed.length} 个文件的 import 路径：`)
+    for (const c of changed) console.log('   - ' + c)
+  }
+
+  if (!dry) console.log(`\nℹ 本次移动已记录回退清单：scripts/.move-dir-undo.json\n   出错想回退执行：node scripts/ts-migrate.mjs move-dir --undo --root <扫描根>`)
+  if (dry) console.log('\n（--dry 仅预览，未实际移动/落盘）')
+  printWarnings()
+  process.exit(0)
+}
+
+if (cmd === 'fix-outgoing') {
+  const baseArg = positionals[2]
+  if (!fileArg || !baseArg) { console.error('用法：fix-outgoing <file> <oldBaseDir> [--dry]（重写该文件自身出向 import，基准=移动前的旧目录）'); process.exit(1) }
+  const fileAbs = resolve(root, fileArg)
+  const oldDir = resolve(root, baseArg)
+  if (!existsSync(fileAbs)) { console.error(`文件不存在：${fileArg}`); process.exit(1) }
+  const fixed = rewriteOutgoingImports(fileAbs, oldDir, dry)
+  console.log(fixed
+    ? `✔ 已重写 ${relOf(fileAbs)} 的出向 import（基准 ${relOf(oldDir)}）`
+    : `ℹ ${relOf(fileAbs)} 出向 import 无需改动`)
   printWarnings()
   process.exit(0)
 }

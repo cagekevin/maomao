@@ -12,8 +12,8 @@ import {
   parseGeneralImageResponses,
 } from '../helpers';
 import { runBatchTasks } from '../batchUtils';
-import type { ImageReferenceRequestMode } from '../../types/connection';
-import type { BatchImageResult, ImageGenerationResult } from '../../types/protocol';
+import type { ImageReferenceRequestMode } from '../../4-types/connection';
+import type { BatchImageResult, ImageGenerationResult } from '../../4-types/protocol';
 import { buildStandardImageRequestBody } from '../imageParameterMappings';
 
 export interface StandardImageParams {

@@ -56,6 +56,7 @@ import {
   handleLocalPatchCrop, handleLocalPatchMerge, handleLocalPatchFingerprint,
 } from './routes/localPatch.js';
 import { handleRelay } from './relay-route.js';
+import { handleGenerateSubmit, handleGenerateGet, handleGenerateCancel } from './relay-poll.js';
 
 // handler 第三参统一为 url:URL。无需第三参者少参直接放；需 string id 者闭包提取。
 // 返回值允许 boolean：catch-all 的 handlePassthrough 返回 Promise<boolean>（转发判定），
@@ -160,6 +161,11 @@ export const routes: Route[] = [
 
   // ── relay（前端只发意图，localTool 独占平台协议）──
   { method: 'POST', pattern: '/api/relay', handler: handleRelay },
+
+  // ── relay 轮询后端化（90 号方案 R1~R4）：提交返 taskId + 可 attach 的进度/结果查询/取消 ──
+  { method: 'POST', pattern: '/api/generate', handler: handleGenerateSubmit },
+  { method: 'GET',  pattern: /^\/api\/generate\/[^/]+$/, handler: handleGenerateGet },
+  { method: 'POST', pattern: /^\/api\/generate\/[^/]+\/cancel$/, handler: handleGenerateCancel },
 
   // ── 特惠视频任务查询 ──
   { method: 'GET', pattern: /^\/api\/v1\/gateway\/task\/[^/]+$/, handler: handleGatewayTask },

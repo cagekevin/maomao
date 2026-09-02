@@ -15,13 +15,13 @@
  *  completed / failed / processing / pending。Lovart running→processing、abort→failed。
  *  声明里 successValues=['completed']、failureValues=['failed']，绝不写 running/abort。
  */
-import type { NormalizedModelExecutionProtocol } from './relay-engine/types/protocol';
+import type { NormalizedModelExecutionProtocol } from './relay-engine/4-types/protocol';
 
 /** 9004 image（/v1/images/generations 异步）：提交返回 {code,data:[{status:'submitted',task_id}]}（数组）
  *  图生图：9004 认 image_urls 字段(main.py _do_submit 读 body.image_urls)，kit 把它归一成 imageUrls
  *  变量并填入 {{imageUrls}}(见 relay-engine/protocol/variables.ts imageurls 归一)。无参考图时该变量为空，
  *  kit renderRequestBody 会去掉空数组(不污染请求体)，故可安全带上。 */
-const LOVART_IMAGE: NormalizedModelExecutionProtocol = {
+export const LOVART_IMAGE: NormalizedModelExecutionProtocol = {
   version: 2,
   mode: 'async',
   submit: {
@@ -47,7 +47,7 @@ const LOVART_IMAGE: NormalizedModelExecutionProtocol = {
 };
 
 /** 9004 video（/v1/videos/generations 异步）：提交返回 {code,data:{id,status,task_id}}（对象非数组） */
-const LOVART_VIDEO: NormalizedModelExecutionProtocol = {
+export const LOVART_VIDEO: NormalizedModelExecutionProtocol = {
   version: 2,
   mode: 'async',
   submit: {
@@ -70,13 +70,4 @@ const LOVART_VIDEO: NormalizedModelExecutionProtocol = {
     },
     intervalMs: 3000,
   },
-};
-
-/**
- * 协议声明总表：capability → { providerId: protocol, default: protocol }
- * 命中 provider.id 优先，否则 default（同类能力平台复用同份声明，差异由平台专属字段覆盖时再加）。
- */
-export const presets: Record<string, Record<string, NormalizedModelExecutionProtocol>> = {
-  image: { lovart: LOVART_IMAGE, default: LOVART_IMAGE },
-  video: { lovart: LOVART_VIDEO, default: LOVART_VIDEO },
 };

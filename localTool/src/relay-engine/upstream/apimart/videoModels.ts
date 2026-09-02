@@ -1,7 +1,7 @@
 /**
  * 声明 APIMart Seedance 视频模型能力表，并将通用生成参数映射为各模型请求字段。
  */
-import type { VideoGenerationOperation, VideoModelCapability } from '../../types/protocol';
+import type { VideoGenerationOperation, VideoModelCapability } from '../../4-types/protocol';
 import { mapVideoParameters } from '../videoParameterMappings';
 
 export type ApimartSeedanceRatioField = 'aspect_ratio' | 'size';

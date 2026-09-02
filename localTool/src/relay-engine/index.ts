@@ -60,7 +60,7 @@ export type {
   ProviderCatalogAdapter,
   ProviderModelSelection,
   WebSearchProviderId,
-} from './types/connection';
+} from './4-types/connection';
 
 export type {
   ModelExecutionProtocol,
@@ -80,7 +80,7 @@ export type {
   ProtocolJsonValue,
   ResolvedModelProtocolPoll,
   VideoModelCapability,
-} from './types/protocol';
+} from './4-types/protocol';
 
 // ══════════════════════════════════════════════════════════════
 // 逃生舱：绕过门面直接操作底层（自定义流程、测试、扩展）
@@ -108,7 +108,7 @@ export {
   parseModelExecutionProtocol,
   resolveModelExecutionProfile,
   validateModelExecutionProtocol,
-} from './protocol/schema';
+} from './2-engine/schema';
 export {
   buildModelProtocolRequest,
   executeModelProtocol,
@@ -126,7 +126,7 @@ export {
   type ModelProtocolVariables,
   type SubmitModelProtocolOptions,
   type SubmittedModelProtocol,
-} from './protocol/executor';
+} from './2-engine/executor';
 export {
   PROTOCOL_VARIABLES,
   PROTOCOL_VARIABLE_NAMES,
@@ -136,21 +136,21 @@ export {
   getCategoryProtocolVariables,
   resolveProtocolFieldTemplate,
   type ProtocolVariableSpec,
-} from './protocol/variables';
-export { serializeModelProtocolBody, redactModelProtocolMultipartPreview } from './protocol/body';
+} from './2-engine/variables';
+export { serializeModelProtocolBody, redactModelProtocolMultipartPreview } from './2-engine/body';
 export {
   readModelProtocolFirstScalar,
   readModelProtocolPathValues,
   readModelProtocolUrls,
   previewNormalizedModelProtocolResponse,
-} from './protocol/response';
+} from './2-engine/response';
 export {
   analyzeModelProtocolDocument,
   analyzeModelProtocolExamples,
   type ModelProtocolExamples,
   type ModelProtocolImportResult,
   type ModelProtocolImportOptions,
-} from './protocol/import';
+} from './2-engine/import';
 
 // ── 厂商与目录 ──
 export {
@@ -170,8 +170,8 @@ export {
   type ProviderCredentialField,
   type ProviderDefinition,
   type FetchProviderCatalogOptions,
-} from './providers/catalog';
-export { testConnection } from './providers/connection-test';
+} from './_aux/providers/catalog';
+export { testConnection } from './_aux/providers/connection-test';
 export {
   APIMART_BASE_URL,
   VOLCENGINE_BASE_URL,
@@ -184,10 +184,10 @@ export {
   ZHIPU_SEARCH_BASE_URL,
   EXA_SEARCH_BASE_URL,
   DEFAULT_BASE_URLS,
-} from './providers/base-urls';
-export { XAI_BASE_URL, XAI_MODEL_MANIFEST } from './providers/manifests/xai';
-export { GOOGLE_GEMINI_BASE_URL, GOOGLE_MODEL_MANIFEST } from './providers/manifests/google';
-export { SORA2U_BASE_URL, SORA2U_MODEL_MANIFEST, SORA2U_REQUEST_QUERY } from './providers/manifests/sora2u';
+} from './_aux/providers/base-urls';
+export { XAI_BASE_URL, XAI_MODEL_MANIFEST } from './_aux/providers/manifests/xai';
+export { GOOGLE_GEMINI_BASE_URL, GOOGLE_MODEL_MANIFEST } from './_aux/providers/manifests/google';
+export { SORA2U_BASE_URL, SORA2U_MODEL_MANIFEST, SORA2U_REQUEST_QUERY } from './_aux/providers/manifests/sora2u';
 
 // ── 文档抓取与中转站探测（「不知道对方 API 长什么样」时的起点） ──
 export {
@@ -196,15 +196,15 @@ export {
   type DiscoveredModel,
   type DiscoverOptions,
   type ProviderDiscovery,
-} from './docs/discover';
+} from './_aux/docs/discover';
 export {
   readProviderDocsPage,
   sliceDocText,
   type ProviderDocLink,
   type ProviderDocsPage,
-} from './docs/reader';
-export { normalizeDocUrl, isDocUrlAllowed, isSameOrigin, extractDocUrls } from './docs/safety';
-export { shouldRenderDynamicHtml } from './docs/spa-detect';
+} from './_aux/docs/reader';
+export { normalizeDocUrl, isDocUrlAllowed, isSameOrigin, extractDocUrls } from './_aux/docs/safety';
+export { shouldRenderDynamicHtml } from './_aux/docs/spa-detect';
 export {
   setDocBridge,
   getDocBridge,
@@ -212,7 +212,7 @@ export {
   createStaticDocBridge,
   type DocBridge,
   type NativeDocResponse,
-} from './docs/bridge';
+} from './_aux/docs/bridge';
 export {
   beginProviderDocRead,
   completeProviderDocRead,
@@ -224,14 +224,14 @@ export {
   clearProviderDocsGrantsForTests,
   type ProviderDocReadCompletion,
   type ProviderDocReadReservation,
-} from './docs/grant';
+} from './_aux/docs/grant';
 
 // ── 连接分享 ──
 export {
   parseConnectionShare,
   serializeConnection,
   type ParsedConnectionShare,
-} from './share/connection';
+} from './_aux/share/connection';
 
 // ── new-api 中转站 ──
 export {
@@ -242,11 +242,11 @@ export {
   parseNewApiStatusPayload,
   type NewApiPricingItem,
   type NewApiStatusInfo,
-} from './stations/new-api';
+} from './_aux/stations/new-api';
 
 // ── 生成入口（可单独用，不必经过 createRelay） ──
-export { generateText, buildChatMessages } from './generate/text';
-export { generateImage } from './generate/image';
-export { generateVideo } from './generate/video';
-export { generateAudio } from './generate/audio';
-export { runModel, findUnusedReferenceVariables } from './generate/run';
+export { generateText, buildChatMessages } from './1-intent/text';
+export { generateImage } from './1-intent/image';
+export { generateVideo } from './1-intent/video';
+export { generateAudio } from './1-intent/audio';
+export { runModel, findUnusedReferenceVariables } from './1-intent/run';

@@ -12,7 +12,7 @@
  * 这样原文件的业务代码一行都不用改，只需要把
  * `import { useAppStore } from '../../store/useAppStore'` 指向本文件。
  */
-import type { ApiProviderConfig, GeneralModelConfig } from '../types/connection';
+import type { ApiProviderConfig, GeneralModelConfig } from '../4-types/connection';
 import type { BaseNodeData, DramaAsset } from './host-types';
 
 export interface RelayStoreConfig {

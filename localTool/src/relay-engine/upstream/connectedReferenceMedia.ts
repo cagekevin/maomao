@@ -3,9 +3,9 @@
  * 视频与音频生成共用：连线即引用，图片包含 3D 导演台截图。
  */
 import { useAppStore } from '../core/host-store';
-import { collectDirectorImageUrls } from '../deps/directorDeskService';
+import { collectDirectorImageUrls } from '../_aux/deps/directorDeskService';
 import type { BaseNodeData } from '../core/host-types';
-import type { MediaReference, MediaReferenceKind } from '../types/protocol';
+import type { MediaReference, MediaReferenceKind } from '../4-types/protocol';
 
 export interface ConnectedReferenceMedia {
   references: MediaReference[];

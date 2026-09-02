@@ -2,7 +2,7 @@
  * ai/helpers — 模型解析、尺寸格式化、响应解析
  */
 import { useAppStore } from '../core/host-store';
-import type { ApiProviderConfig, GeneralModelConfig } from '../types/connection';
+import type { ApiProviderConfig, GeneralModelConfig } from '../4-types/connection';
 
 /** 去掉 model value 中的 provider/ 前缀，得到实际的模型名 */
 export function extractModelName(modelValue: string, provider: string): string {

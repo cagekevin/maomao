@@ -20,6 +20,7 @@ import { routes, matchRoute } from './router.js';
 // 这是「改 dist base 指向 18080」的硬前置——否则未接管的 /api/* 会直接 404。
 import { handlePassthrough } from './routes/passthrough.js';
 import { initLogWriter } from './utils/logWriter.js';
+import { initRelayPoller } from './relay-poll.js';
 
 // ── 轻量 .env 加载（无 dotenv 依赖，localTool 仅 sql.js 一个运行时依赖）──
 // 读取 localTool/.env（路径真源 paths.ts），注入 process.env。
@@ -250,6 +251,13 @@ async function main(): Promise<void> {
 
   // 初始化数据库（async）
   await getDb();
+
+  // relay 轮询句柄恢复：读库中未完成(processing/pending)任务，重启后重新起后台轮询（90 号方案 R4）
+  try {
+    await initRelayPoller();
+  } catch (e) {
+    console.error(`[relay] 启动恢复轮询句柄失败(不影响服务): ${(e as Error)?.message}`);
+  }
 
   // ── 凭据检查：读取网关 .env，警告占位凭据 ──
   const envPaths = [

@@ -27,8 +27,8 @@ import {
   type FetchProviderCatalogOptions,
   type ProviderCatalogResult,
   type ProviderDefinition,
-} from './providers/catalog';
-import { testConnection } from './providers/connection-test';
+} from './_aux/providers/catalog';
+import { testConnection } from './_aux/providers/connection-test';
 
 import {
   getDefaultCustomProtocol,
@@ -36,7 +36,7 @@ import {
   modelProtocolUsesVariable,
   parseModelExecutionProtocol,
   validateModelExecutionProtocol,
-} from './protocol/schema';
+} from './2-engine/schema';
 import {
   buildModelProtocolRequest,
   pollResolvedModelProtocol,
@@ -46,37 +46,37 @@ import {
   executeModelProtocol,
   getDefaultModelProtocolPollRetryConfig,
   type ModelProtocolVariables,
-} from './protocol/executor';
+} from './2-engine/executor';
 import {
   getCategoryProtocolVariables,
   resolveProtocolFieldTemplate,
   PROTOCOL_VARIABLES,
   PROTOCOL_VARIABLE_NAMES,
   REFERENCE_PROTOCOL_VARIABLES,
-} from './protocol/variables';
-import { analyzeModelProtocolDocument, analyzeModelProtocolExamples } from './protocol/import';
+} from './2-engine/variables';
+import { analyzeModelProtocolDocument, analyzeModelProtocolExamples } from './2-engine/import';
 import type {
   ModelProtocolExamples,
   ModelProtocolImportOptions,
   ModelProtocolImportResult,
-} from './protocol/import';
+} from './2-engine/import';
 
-import { parseConnectionShare, serializeConnection } from './share/connection';
-import type { ParsedConnectionShare } from './share/connection';
+import { parseConnectionShare, serializeConnection } from './_aux/share/connection';
+import type { ParsedConnectionShare } from './_aux/share/connection';
 
 import {
   discoverProvider,
   probeStation,
   type DiscoverOptions,
   type ProviderDiscovery,
-} from './docs/discover';
-import { readProviderDocsPage, type ProviderDocsPage } from './docs/reader';
+} from './_aux/docs/discover';
+import { readProviderDocsPage, type ProviderDocsPage } from './_aux/docs/reader';
 import {
   extractDocUrls,
   isDocUrlAllowed,
   isSameOrigin,
   normalizeDocUrl,
-} from './docs/safety';
+} from './_aux/docs/safety';
 import {
   createStaticDocBridge,
   createTauriDocBridge,
@@ -84,7 +84,7 @@ import {
   setDocBridge,
   type DocBridge,
   type NativeDocResponse,
-} from './docs/bridge';
+} from './_aux/docs/bridge';
 import {
   beginProviderDocRead,
   clearProviderDocsGrantsForTests,
@@ -96,7 +96,7 @@ import {
   releaseProviderDocRead,
   type ProviderDocReadCompletion,
   type ProviderDocReadReservation,
-} from './docs/grant';
+} from './_aux/docs/grant';
 
 import {
   buildGroupedModelChoiceList,
@@ -106,16 +106,16 @@ import {
   parseNewApiStatusPayload,
   type NewApiPricingItem,
   type NewApiStatusInfo,
-} from './stations/new-api';
+} from './_aux/stations/new-api';
 
-import { generateText } from './generate/text';
-import { generateImage } from './generate/image';
-import { generateVideo } from './generate/video';
-import { generateAudio } from './generate/audio';
-import { findUnusedReferenceVariables, runModel } from './generate/run';
+import { generateText } from './1-intent/text';
+import { generateImage } from './1-intent/image';
+import { generateVideo } from './1-intent/video';
+import { generateAudio } from './1-intent/audio';
+import { findUnusedReferenceVariables, runModel } from './1-intent/run';
 
-import type { ApiProviderConfig, GeneralModelCategory } from './types/connection';
-import type { ModelExecutionProtocol, ProtocolJsonValue } from './types/protocol';
+import type { ApiProviderConfig, GeneralModelCategory } from './4-types/connection';
+import type { ModelExecutionProtocol, ProtocolJsonValue } from './4-types/protocol';
 import type {
   ConnectionTestInput,
   ConnectionTestResult,

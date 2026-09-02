@@ -4,7 +4,7 @@
  * format、speed、soundPrompt、lyrics、title、bpm、length 等上层参数换算成各家 API 字段名，
  * 供 buildAudioSpeechRequestBody / buildAudioMusicRequestBody 生成请求体。
  */
-import type { AIAudioGenParams, AudioOutputFormat, AudioTtsVoice } from '../types/protocol';
+import type { AIAudioGenParams, AudioOutputFormat, AudioTtsVoice } from '../4-types/protocol';
 
 export type AudioParameterKey =
   | 'model'

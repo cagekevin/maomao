@@ -9,12 +9,12 @@ import type {
   ModelExecutionProtocol,
   ModelExecutionProfile,
   ProtocolJsonValue,
-} from './types/protocol';
+} from './4-types/protocol';
 import type {
   AppConfig,
   GeneralModelCategory,
   ImageReferenceRequestMode,
-} from './types/connection';
+} from './4-types/connection';
 
 /** 创建一个 relay 实例时的可选项。 */
 export interface RelayOptions {

@@ -6,7 +6,7 @@
  * 字段语义与 types/aiTypes.ts 的 ImageModelCapability / AudioModelCapability 对齐，
  * 供参数面板与生成入口消费。
  */
-import type { AudioModelCapability, ImageModelCapability } from '../types/protocol';
+import type { AudioModelCapability, ImageModelCapability } from '../4-types/protocol';
 
 /* ── 生图能力表 ── */
 

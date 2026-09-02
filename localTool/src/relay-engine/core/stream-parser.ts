@@ -9,7 +9,7 @@
  * - OpenAI 兼容的 SSE 事件类型
  * - UTF-8 多字节字符的跨 chunk 拼接
  */
-import type { AssistantStreamEvent, FinishReason } from '../types/stream';
+import type { AssistantStreamEvent, FinishReason } from '../4-types/stream';
 
 // ============================================
 // SSE line decoder

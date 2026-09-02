@@ -4,7 +4,7 @@
  * 按厂商与模型模式换算成各家 API 的真实字段名（如 apimart 的 resolution/size、火山 seedream 的 image），
  * 供 buildStandardImageRequestBody 生成图片请求体，避免在调用点散落厂商判断。
  */
-import type { ImageReferenceRequestMode } from '../types/connection';
+import type { ImageReferenceRequestMode } from '../4-types/connection';
 
 export type ImageParameterKey =
   | 'model'

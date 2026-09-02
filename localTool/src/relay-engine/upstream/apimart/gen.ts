@@ -3,9 +3,9 @@
  */
 import { useAppStore } from '../../core/host-store';
 import { pollTask } from '../../core/polling';
-import { savePendingTask, updatePendingTask, removePendingTask, registerNodePolling, cleanupNodePolling } from '../../deps/pollManager';
+import { savePendingTask, updatePendingTask, removePendingTask, registerNodePolling, cleanupNodePolling } from '../../_aux/deps/pollManager';
 import { parseMultiPathResponse, splitCommaSeparatedUrls } from '../helpers';
-import type { BatchImageResult } from '../../types/protocol';
+import type { BatchImageResult } from '../../4-types/protocol';
 import {
   buildApimartSeedanceRequest,
   type ApimartSeedanceRequestParams,

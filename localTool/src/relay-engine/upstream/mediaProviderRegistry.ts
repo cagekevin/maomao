@@ -8,7 +8,7 @@ import type {
   AudioGenerationResult,
   BatchImageResult,
   VideoGenerationReferenceInput,
-} from '../types/protocol';
+} from '../4-types/protocol';
 import { apimartMediaProviderAdapter } from './apimart/media';
 
 export type MediaProviderCapability = 'image' | 'video' | 'audio';

@@ -1,8 +1,8 @@
 /**
  * ai/imageUtils — 图片加载、URL 解析、上传辅助
  */
-import { uploadToRemote, isLocalImageUrl } from '../deps/uploadService';
-import { getAssetUrlFromPath } from '../deps/fileService';
+import { uploadToRemote, isLocalImageUrl } from '../_aux/deps/uploadService';
+import { getAssetUrlFromPath } from '../_aux/deps/fileService';
 import { corsSafeFetch } from '../core/transport';
 
 const BASE64_IMAGE_DATA_URL_RE = /^data:image\/[^;,]+(?:;[^,]*)*;base64,/i;

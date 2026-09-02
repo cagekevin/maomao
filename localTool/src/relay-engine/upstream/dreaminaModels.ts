@@ -2,7 +2,7 @@
  * 即梦 CLI v1.4.17 模型目录与视频能力表。
  * 版本值必须与官方 CLI `--model_version` 完全一致（包括 5.0Pro 的大小写）。
  */
-import type { VideoGenerationOperation } from '../types/protocol';
+import type { VideoGenerationOperation } from '../4-types/protocol';
 
 export interface DreaminaModelCatalogItem {
   version: string;
