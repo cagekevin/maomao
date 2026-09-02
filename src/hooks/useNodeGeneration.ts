@@ -248,6 +248,14 @@ export function useNodeGeneration({
             })
           : null
         const finalUrl = persistedUrl || strUrl
+        // 【S3 落盘唯一出口】resultKey 自动写回(L235)用的是原始 r.url；落盘拿到持久 URL 后，
+        // 必须再覆盖写回 node.data[resultKey]，否则节点存的是会过期的外链而非 /files/ 持久 URL
+        // (此前各节点在 onSuccess 里各自二次 saveResultToTasks 补这个洞 → 双落盘)。统一在此补。
+        // 仅当落盘成功且持久 URL 与原始 URL 不同才覆盖(避免无谓写 + 幂等)；patchData 经 useSyncNodeData
+        // 同步回节点本地 state，节点无需再手动二次落盘。
+        if (resultKey && persistedUrl && persistedUrl !== strUrl) {
+          patchData({ [resultKey]: persistedUrl })
+        }
         taskCtl.done(finalUrl)
         logger.debug('生成', '[节点] 落盘', { nodeId, persisted: !!persistedUrl, urlHead: finalUrl.slice(0, 80) }, { module: 'image' })
         logger.info('生成', 'success', { nodeId, type: t.type })

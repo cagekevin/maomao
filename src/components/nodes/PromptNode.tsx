@@ -29,7 +29,7 @@ import { useConnectedInputs } from '../../hooks/useConnectedInputs.ts'
 import { useMediaDegrade } from '../../hooks/useMediaDegrade.ts'
 import { useGenerateNode } from '../../hooks/useGenerateNode.ts'
 import { useFitNodeRatio } from '../../hooks/useFitNodeRatio.ts'
-import { toAbsoluteFileUrl, saveResultToTasks } from '../base/api/index.ts'
+import { toAbsoluteFileUrl } from '../base/api/index.ts'
 import { logger } from '../base/logger.ts'
 import { fetchTasks } from '../base/api/index.ts'
 import { generateImage } from '../base/api/index.ts'
@@ -295,18 +295,11 @@ function PromptNode({ id, data, selected }: PromptNodeProps) {
       }, (pct) => progress(Math.max(15, Math.min(98, Math.round(pct)))), signal)
     },
     onSuccess: (r) => {
-      setImageUrl(r.url)
-      // data.imageUrl 已由 resultField:'imageUrl' 在 hook 内自动 patchData。
-      // 仅当上游返回临时地址、落盘后有持久 URL 时才再覆盖写 data.imageUrl（刷新不丢）。
-      // 否则若上游返回的是外链/临时地址，刷新后节点会因 URL 失效而丢图（taskStore 落盘只回写任务中心，不回写节点）。
-      if (r.url && !r.url.startsWith('blob:')) {
-        saveResultToTasks(r.url, 'image').then((persistedUrl) => {
-          if (persistedUrl && persistedUrl !== r.url) {
-            setImageUrl(persistedUrl)
-            patchData({ imageUrl: persistedUrl })
-          }
-        }).catch((e) => logger.warn('task', 'persist-fail', { nodeId: id, error: e?.message }))
-      }
+      // 【S3 落盘唯一出口】data.imageUrl 由 resultField:'imageUrl' 在 hook 内自动 patchData(原始 r.url)，
+      // 落盘后 useNodeGeneration 主落盘再把持久 /files/ URL 覆盖写回 node.data[resultKey]，
+      // 经 useSyncNodeData 同步回本节点 state → 节点显示持久 URL。此处不再二次 saveResultToTasks
+      // (旧逻辑为补"落盘持久 URL 未回写 node.data"的洞而多落一次 → 双落盘)，S3 统一由主落盘出口承接。
+      setImageUrl(r.url) // 即时反馈(可能短暂显示原始 URL，data 同步后覆盖为持久 URL)
       // 记忆本次参数（模型/比例/尺寸），供新建节点复用
       setImgPrefs({ model: selectedModel, aspectRatio, imageSize })
     },
