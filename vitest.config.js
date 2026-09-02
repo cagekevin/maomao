@@ -11,15 +11,16 @@ export default defineConfig({
     // 环境路由规则（单一事实源，勿在两处互相覆盖）：
     // - 默认 node：纯逻辑单测。
     // - glob 匹配 '*.test.jsx' / '*.test.tsx' → jsdom：组件/涉及 DOM 的测试无需文件内注释。
-    // - 其余 .js/.ts 测试若确实需要 DOM，必须在文件首行写 `// @vitest-environment jsdom`——
-    //   glob 无法只挑「部分 .js」，故不能并入上面的 glob；此注释不可误删。
+    // - 其余 .ts 测试若确实需要 DOM，必须在文件首行写 `// @vitest-environment jsdom`——
+    //   glob 无法只挑「部分 .ts」，故不能并入上面的 glob；此注释不可误删。
     environment: 'node',
     environmentMatchGlobs: [
-      // 组件测试（.jsx/.tsx 一律 jsdom）——兜底：每个文件已用文件级 @vitest-environment jsdom 注解，
+      // 组件测试（.tsx 一律 jsdom）——兜底：每个文件已用文件级 @vitest-environment jsdom 注解，
       // glob 仅在漏注解时兜底，避免全量并发下 glob 路由抖动导致 document is not defined。
-      ['tests/unit/**/*.test.{jsx,tsx}', 'jsdom'],
+      ['tests/unit/**/*.test.tsx', 'jsdom'],
     ],
-    include: ['tests/unit/**/*.test.{js,jsx,ts,tsx}'],
+    // 测试已全 TS 化（2026-09-01 收官）：统一 .test.ts（node 纯逻辑）/ .test.tsx（jsdom 组件）。
+    include: ['tests/unit/**/*.test.{ts,tsx}'],
     globals: true,
     setupFiles: ['tests/setup.mjs'],
     // 并发优化：forks 池默认懒启动、minForks 偏低导致整包跑得慢。

@@ -9,6 +9,7 @@ import ReactCrop, { centerCrop, makeAspectCrop } from 'react-image-crop'
 import 'react-image-crop/dist/ReactCrop.css'
 import { logger } from './logger.ts'
 import { createRafBatch } from './utils.ts'
+import { toastError } from './toastStore.ts'
 
 /**
  * 全屏图片编辑器（复刻官方 _Component129.jsx 图片编辑 / ImageNode 的「裁剪」「标记」入口）。
@@ -70,6 +71,42 @@ const CROP_RATIOS = [
   { label: '3:4', value: 3 / 4 },
 ]
 
+/* ── 外扩白边（复刻 AI-Canvas ExpandEditor 的 zoom 机制）──
+ * 不拖裁剪框出图，而是用「外扩量」控制原图在目标画布中的占比：
+ *  - zoom 取值范围 [0.3, 1]，UI 显示「外扩量 = (1-zoom)*100%」；
+ *  - zoom 越小 → 原图占目标画布比例越小 → 四周白边越多；
+ *  - zoom=1 → 目标画布=裁剪结果，退化普通裁剪（无白边）。
+ * 原图始终保持原始分辨率居中绘制，只放大画布留白，不拉伸原图。 */
+const OUTPAINT_ZOOM_MIN = 0.3
+const OUTPAINT_ZOOM_MAX = 1
+const OUTPAINT_ZOOM_STEP = 0.02
+/** 外扩后画布相对裁剪结果的填充色（纯白）。 */
+export const OUTPAINT_FILL = '#ffffff'
+
+/**
+ * 计算「外扩白边」后的目标画布尺寸与原图居中偏移（纯函数，可单测）。
+ *
+ * @param crop 裁剪选区的原图像素矩形 {x,y,width,height}（已钳制在图内）
+ * @param zoom 外扩量控制（0.3~1），越小白边越多；越界自动钳制
+ * @returns {tw, th, dx, dy} 目标画布宽高 + 原图在画布内的居中偏移；zoom=1 时退化无白边
+ */
+export function computeOutpaintRect(
+  crop: { x: number; y: number; width: number; height: number },
+  zoom: number,
+): { tw: number; th: number; dx: number; dy: number } {
+  const w = Math.max(1, Math.round(crop.width))
+  const h = Math.max(1, Math.round(crop.height))
+  const z = Math.max(OUTPAINT_ZOOM_MIN, Math.min(OUTPAINT_ZOOM_MAX, zoom))
+  const tw = Math.round(w / z)
+  const th = Math.round(h / z)
+  return {
+    tw,
+    th,
+    dx: Math.round((tw - w) / 2),
+    dy: Math.round((th - h) / 2),
+  }
+}
+
 export default function ImageEditor({ imageUrl, initialTool = 'pencil', onSave, onClose }: ImageEditorProps) {
   const canvasRef = useRef(null)
   const viewportRef = useRef(null) // 可滚动画布容器
@@ -104,6 +141,8 @@ export default function ImageEditor({ imageUrl, initialTool = 'pencil', onSave, 
   const [crop, setCrop] = useState(undefined)
   const [completedCrop, setCompletedCrop] = useState(undefined)
   const [cropAspect, setCropAspect] = useState(undefined)
+  // 外扩白边量（0.3~1，越小白边越多；1=不扩）。复刻 AI-Canvas ExpandEditor 的 zoom 机制
+  const [outpaintZoom, setOutpaintZoom] = useState(1)
 
   const scrollRef = useRef({ x: 0, y: 0, scrollLeft: 0, scrollTop: 0 })
 
@@ -410,7 +449,9 @@ export default function ImageEditor({ imageUrl, initialTool = 'pencil', onSave, 
     else onShapePreview(e)
   }, [tool, onDrawMove, onShapePreview])
 
-  // 确认裁剪（复刻官方 537-574）：把 ReactCrop 的 crop 换算成 canvas 像素 → 裁切
+  // 确认裁剪（复刻官方 537-574）：把 ReactCrop 的 crop 换算成 canvas 像素 → 裁切。
+  // 扩展：外扩白边（outpaintZoom<1 时）——裁剪结果居中放到白底大画布，四周留白，
+  // 复刻 AI-Canvas ExpandEditor 的 zoom 机制（原图不拉伸，只放大画布留白）。
   const applyCrop = useCallback(() => {
     const canvas = canvasRef.current
     const ctx = canvas?.getContext('2d')
@@ -426,16 +467,36 @@ export default function ImageEditor({ imageUrl, initialTool = 'pencil', onSave, 
     const sw = Math.max(1, Math.min(pw, canvas.width - sx))
     const sh = Math.max(1, Math.min(ph, canvas.height - sy))
     const data = ctx.getImageData(sx, sy, sw, sh)
+
+    // 外扩白边目标画布（zoom<1 时 tw>sw 四周留白；zoom=1 退化为普通裁剪）
+    const { tw, th, dx, dy } = computeOutpaintRect({ x: sx, y: sy, width: sw, height: sh }, outpaintZoom)
+    const hasOutpaint = tw !== sw || th !== sh
+
+    // 临时 canvas 承载裁剪 ImageData（drawImage 需要画布/位图源，不能直接用 ImageData）
+    const tmp = document.createElement('canvas')
+    tmp.width = sw
+    tmp.height = sh
+    const tmpCtx = tmp.getContext('2d')
+    if (!tmpCtx) { toastError('裁剪失败：无法创建画布'); return }
+    tmpCtx.putImageData(data, 0, 0)
+
     pushHistory()
-    canvas.width = sw
-    canvas.height = sh
-    ctx.putImageData(data, 0, 0)
+    canvas.width = tw
+    canvas.height = th
+    if (hasOutpaint) {
+      ctx.fillStyle = OUTPAINT_FILL
+      ctx.fillRect(0, 0, tw, th)
+      ctx.drawImage(tmp, dx, dy)
+    } else {
+      ctx.drawImage(tmp, 0, 0)
+    }
     imgRef.current = null // 裁剪后原始图失效
-    setImgSize({ w: sw, h: sh })
+    setImgSize({ w: tw, h: th })
     setCrop(undefined)
     setCompletedCrop(undefined)
+    setOutpaintZoom(1) // 重置外扩量，避免下次误用
     setTool('pencil')
-  }, [completedCrop, pushHistory])
+  }, [completedCrop, pushHistory, outpaintZoom])
 
   const lastCropStart = useRef({ x: 0, y: 0 })
 
@@ -511,6 +572,20 @@ export default function ImageEditor({ imageUrl, initialTool = 'pencil', onSave, 
                   <option key={r.label} value={r.value ?? 'free'}>{r.label}</option>
                 ))}
               </select>
+              {/* 外扩白边（复刻 AI-Canvas ExpandEditor）：外扩量=(1-zoom)*100%，越小白边越多；0 不扩 */}
+              <label className="flex items-center gap-1.5 bg-surface-hover rounded border border-edge-muted px-2 py-1.5" title="把裁剪结果四周扩展为白边，供图生图节点补全">
+                <span className="text-xs text-secondary whitespace-nowrap">外扩白边</span>
+                <input
+                  type="range"
+                  min={OUTPAINT_ZOOM_MIN}
+                  max={OUTPAINT_ZOOM_MAX}
+                  step={OUTPAINT_ZOOM_STEP}
+                  value={outpaintZoom}
+                  onChange={(e) => setOutpaintZoom(parseFloat(e.target.value))}
+                  className="w-24 accent-blue-500"
+                />
+                <span className="text-xs text-primary tabular-nums w-10 text-right">{Math.round((1 - outpaintZoom) * 100)}%</span>
+              </label>
               <button type="button" onClick={applyCrop} className="px-3 py-1.5 rounded-lg bg-green-600 hover:bg-green-500 text-white transition-colors flex items-center gap-1 text-sm font-medium mr-2">
                 <Check size={16} /> 确认裁剪
               </button>
