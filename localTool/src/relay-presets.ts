@@ -17,14 +17,17 @@
  */
 import type { NormalizedModelExecutionProtocol } from './relay-engine/types/protocol';
 
-/** 9004 image（/v1/images/generations 异步）：提交返回 {code,data:[{status:'submitted',task_id}]}（数组） */
+/** 9004 image（/v1/images/generations 异步）：提交返回 {code,data:[{status:'submitted',task_id}]}（数组）
+ *  图生图：9004 认 image_urls 字段(main.py _do_submit 读 body.image_urls)，kit 把它归一成 imageUrls
+ *  变量并填入 {{imageUrls}}(见 relay-engine/protocol/variables.ts imageurls 归一)。无参考图时该变量为空，
+ *  kit renderRequestBody 会去掉空数组(不污染请求体)，故可安全带上。 */
 const LOVART_IMAGE: NormalizedModelExecutionProtocol = {
   version: 2,
   mode: 'async',
   submit: {
     method: 'POST',
     path: '/v1/images/generations',
-    body: { model: '{{model}}', prompt: '{{prompt}}', size: '{{size}}' },
+    body: { model: '{{model}}', prompt: '{{prompt}}', size: '{{size}}', image_urls: '{{imageUrls}}' },
   },
   // 图片 data 是数组 [{status, task_id}] → 下标 0 取 task_id
   response: { type: 'json', taskIdPath: 'data.0.task_id' },

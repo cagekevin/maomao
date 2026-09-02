@@ -53,11 +53,13 @@ export async function handleRelay(req: IncomingMessage, res: ServerResponse): Pr
     const apiKey = readProviderKey(providerId);
     // 协议变量：从归一后的 body 平坦映射(providerId/capability/stream/taskId 等端点字段不喂 kit)。
     // body 来自 parseJsonBody(JSON 解析)，值本就 JSON 安全(可 JSON 序列化)，故收敛到 kit ProtocolJsonValue。
+    // images(参考图, resolveLocalImages 已把 /files/ 内联成 base64) 归一成 kit 的 imageUrls 变量
+    // (relay-engine variables.ts 用 imageurls 匹配 9004 的 image_urls 字段)。
     const variables: ModelProtocolVariables = {};
     for (const [k, v] of Object.entries(resolved ?? {})) {
       if (['providerId', 'capability', 'stream', 'taskId'].includes(k)) continue;
       if (v === undefined) continue;
-      variables[k] = v as ProtocolJsonValue;
+      variables[k === 'images' ? 'imageUrls' : k] = v as ProtocolJsonValue;
     }
 
     console.log(`[relay] ${ts()} | providerId=${providerId} capability=${capability} model=${model} stage=submit`);
