@@ -120,9 +120,16 @@ export function useSizeSync(id: string, aspectRatio: string, opts: SizeSyncOptio
   const ratio = parseAspect(aspectRatio)
 
   useEffect(() => {
+    // Auto / 无比例（ratio=null）：不干预节点尺寸。
+    // 【为什么不再重置为默认方框】Auto 意味着「节点尺寸由实际媒体/编辑决定」——
+    // PromptNode 裁剪/扩图后用 fitByRatio 跟随图片真实比例，ImageNode 用 <img onLoad> 自动跟随。
+    // 若 Auto 仍把高度强制设成 defaultHeight，会覆盖这些媒体自适应结果（表现成「框被锁定」）。
+    // 各节点初始显示仍有 NodeShell 的 useNodeSize + fallback 兜底，不会塌陷（见 NodeShell L242-248）。
+    // GroupNode 已用 syncSize={false} 手动关掉本行为，印证 Auto 强制重置是已知副作用。
+    if (!ratio) return
     const n = getNode(id)
     if (!n) return
-    // 尺寸计算收敛到纯函数 computeSizeSync（width-fixed / area-fixed / Auto），可单测
+    // 尺寸计算收敛到纯函数 computeSizeSync（width-fixed / area-fixed），可单测
     // Number() 归一：ReactFlow 的 style.width 可能是字符串（'260'），统一数值化保证后续算术合法
     // （与 useFitNodeRatio 同口径；字符串在 React inline style 下本就是无效宽度值）。
     const { width: w, height: h } = computeSizeSync(ratio, {

@@ -28,6 +28,7 @@ import { useNodeResize, useOutsideClick } from '../base/hooks.ts'
 import { useConnectedInputs } from '../../hooks/useConnectedInputs.ts'
 import { useMediaDegrade } from '../../hooks/useMediaDegrade.ts'
 import { useGenerateNode } from '../../hooks/useGenerateNode.ts'
+import { useFitNodeRatio } from '../../hooks/useFitNodeRatio.ts'
 import { toAbsoluteFileUrl, saveResultToTasks } from '../base/api/index.ts'
 import { logger } from '../base/logger.ts'
 import { fetchTasks } from '../base/api/index.ts'
@@ -144,6 +145,10 @@ function PromptNode({ id, data, selected }: PromptNodeProps) {
   const [imageUrl, setImageUrl] = useState(data.imageUrl || '')
   const [showImgMenu, setShowImgMenu] = useState(false)
   const [showCountMenu, setShowCountMenu] = useState(false)
+  const mainImgRef = useRef<HTMLImageElement | null>(null)
+  // 编辑保存（裁剪/扩图）刚用 dims 的 fitByRatio 设过节点框时的标记：防「切 Auto」useEffect
+  // 用旧 <img> 尺寸覆盖刚设的正确比例（编辑保存后 aspectRatio 置 Auto 会误触发该 effect）。
+  const editedRatioRef = useRef(false)
   // useSyncNodeData（Agent update_node 改 data → 同步本地 state）已收进 useGenerateNode 的 sync 参数，此处不再手写。
   const { setNodes, setEdges, getEdges, getNodes, addNodes } = useReactFlow()
 
@@ -160,6 +165,25 @@ function PromptNode({ id, data, selected }: PromptNodeProps) {
   const patchData = useCallback((patch: Record<string, unknown>) => {
     setNodes((ns) => ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, ...patch } } : n)))
   }, [id, setNodes])
+
+  // 节点框按媒体真实宽高比自适应（类似 ImageNode）：
+  //  - Auto 比例下，<img onLoad={fitFromImage}> 让节点框跟随图片真实比例；
+  //  - 裁剪/扩图保存后 onImageReplaced 用 fitByRatio(dims) 让节点框跟随编辑后真实画布。
+  // 配合 useSizeSync 的「Auto 不干预」改动，编辑/生成后节点框不再被旧比例锁定（见 docs/78 复盘）。
+  const { fitFromImage, fitByRatio } = useFitNodeRatio(id)
+
+  // 用户切到 Auto 时（且已有图）：useSizeSync 已改为 Auto 不干预（见 hooks.ts Auto 分支），
+  // 需主动读当前图片真实尺寸让节点框跟随图片本身比例（否则 <img> src 未变不触发 onLoad）。
+  // 编辑保存（editedRatioRef 为 true）时跳过：dims 的 fitByRatio 已设正确尺寸，避免旧图覆盖。
+  React.useEffect(() => {
+    if (editedRatioRef.current) { editedRatioRef.current = false; return }
+    if (aspectRatio !== 'Auto') return
+    const im = mainImgRef.current
+    if (im && im.naturalWidth && im.naturalHeight) {
+      fitByRatio(im.naturalWidth, im.naturalHeight)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [aspectRatio])
 
   // 标题改名 → 写回 data.label，让下游 @名 匹配 / 素材条显示跟随（与 ImageNode 一致）
   const rename = useCallback((name: string) => {
@@ -343,10 +367,22 @@ function PromptNode({ id, data, selected }: PromptNodeProps) {
     url: imageUrl,
     hasImage,
     label: data.label,
-    onImageReplaced: (dataUrl) => {
-      // 注：第二参 dims（画布真实尺寸）用于 ImageNode 按真实比例自适应；PromptNode 走
-      // setImageUrl + patchData 写回，无 fitByRatio 自适应机制，故忽略 dims。
+    onImageReplaced: (dataUrl, dims) => {
+      // 消费 dims（裁剪/扩图后画布真实尺寸）：用 fitByRatio 让节点框跟随编辑后真实比例，
+      // 并把 aspectRatio 置 'Auto'——这样 useSizeSync 不再按固定比例锁定节点框，也不会把
+      // 自定义 'W:H' 污染到后续生图的比例选择里。Auto 下节点框尺寸由媒体真实比例决定（见 docs/78）。
       setImageUrl(dataUrl)
+      if (dims?.width && dims?.height) {
+        const w = Math.round(dims.width)
+        const h = Math.round(dims.height)
+        if (w > 0 && h > 0) {
+          editedRatioRef.current = true // 标记：本次置 Auto 由编辑保存触发，跳过「切 Auto 读图」effect
+          fitByRatio(w, h) // 直接改 node 尺寸跟随图片，等价 ImageNode 消费 dims 的落点
+          setAspectRatio('Auto')
+          patchData({ imageUrl: dataUrl, aspectRatio: 'Auto' })
+          return
+        }
+      }
       patchData({ imageUrl: dataUrl })
     },
   })
@@ -420,10 +456,12 @@ function PromptNode({ id, data, selected }: PromptNodeProps) {
           )}
           {hasImage && !hideResult && (
             <img
+              ref={mainImgRef}
               src={render(imageUrl)}
               alt="Generated Content"
               loading="lazy"
               decoding="async"
+              onLoad={fitFromImage}
               className={`max-w-full w-full h-full object-cover block ${loading ? 'opacity-50 blur-sm' : ''}`}
               draggable={false}
             />
