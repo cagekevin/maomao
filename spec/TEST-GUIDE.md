@@ -135,8 +135,8 @@ npm run build            # 构建插件包（dist/）
 scripts/
 ├── smoke_test.cjs          # 冒烟：静态检查（调用 _smoke_checks.cjs）
 ├── _smoke_checks.cjs       # 冒烟检查明细（含 ReactFlow useReactFlow 白名单等）
-├── regression_test.cjs     # 回归：SSR 渲染节点 + class 断言
-├── test_agent_tools.cjs    # Agent 工具单测（被门禁引用；与 vitest canvasAgentTools 并存）
+├── regression_test.cjs     # 已删除：SSR 回归迁至 tests/unit/nodes/ssrRegression.test.ts（vitest）
+├── test_agent_tools.cjs    # 已删除：Agent 工具单测迁至 vitest（与 canvasAgentTools.test.ts 合并）
 ├── run_all_tests.cjs       # 统一门禁聚合脚本（smoke + vitest + regression + tools）
 ├── health-check.cjs        # 工程健康度全量检查
 └── dist-snapshot.json      # dist 基线快照（自动生成，勿手改）
@@ -290,7 +290,7 @@ describe('MyNode', () => {
 
 ### 1. 改了节点外观，regression 报 class 找不到
 回归测试断言的是节点**根 / 主容器的关键 class**（如 `bg-surface-raised`、`rounded-xl`、`border-edge`、`cust-handle`）。
-如果你改动了 NodeShell 外壳 / 节点外观，同步更新 `scripts/regression_test.cjs` 里对应节点的 `expect` 数组。
+如果你改动了 NodeShell 外壳 / 节点外观，同步更新 `tests/unit/nodes/ssrRegression.test.ts` 里对应节点的 `expect` 数组。
 
 ### 2. 用了新的 ReactFlow API，smoke 报 warning
 `_smoke_checks.cjs` 里有 `allowedFromUseReactFlow` 白名单。React Flow 12 的 `useReactFlow()` 返回值若不在白名单会 warning。

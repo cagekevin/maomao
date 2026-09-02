@@ -141,7 +141,7 @@ const hideMedia = lodLevel >= 2 // 按需调阈值
 
 1. 在 `useCanvasAgentTools.js` 定义工具对象（`name/description/parameters/execute`，`execute(args, ctx)` 返回信封）。
 2. 加入 `AGENT_TOOLS` 数组 → 自动出现在 `toolSchemas`（LLM 可见）与 `CANVAS_AGENT_TOOL_NAMES`。
-3. 在 `scripts/test_agent_tools.cjs` 加一条用例（`npm run test:tools`）。
+3. 在 `tests/unit/canvasAgentTools.test.ts` 加一条用例（`npm run test:tools`）。
 4. 登记进 `BASE-CAPABILITIES.md` §二.5 清单。
 
 ### 接真系统路径

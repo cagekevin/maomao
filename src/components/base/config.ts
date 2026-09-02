@@ -74,6 +74,14 @@ export function isDebugModuleOn(module) {
  *  旧代码引用 DEBUG_ASSET 处无需改动。 */
 export const DEBUG_ASSET = isDebugModuleOn('asset')
 
+// ── director3d 调试日志开关 ────────────────────────────────────────
+/** director3d 调试日志开关（原散落在 director3d/log.ts 的裸 import.meta 读取，已收口至此）。
+ *  开启条件（沿用原语义，未改名）：VITE_DEBUG_LOG='1' 或开发模式（import.meta.env.DEV）。
+ *  注意：此处用 import.meta.env?.X 安全形式，根脚本 define:{'import.meta.env':'{}'} 可正常覆盖，
+ *  不再出现 "import.meta is not available with cjs" 警告。 */
+export const DIRECTOR3D_DEBUG =
+  import.meta.env?.VITE_DEBUG_LOG === '1' || import.meta.env?.DEV === true
+
 // ── AI 助手模型列表 ──────────────────────────────────────────────
 /** 默认模型列表，env 可覆盖 */
 const DEFAULT_AGENT_MODELS = [

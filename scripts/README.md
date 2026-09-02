@@ -11,8 +11,8 @@
 | --- | --- | --- |
 | `smoke_test.cjs` | Tier 2 冒烟测试（硬断言质量门），任一项 FAIL 退出码 1。零依赖，AI 默认自检 | `npm run test:smoke` |
 | `_smoke_checks.cjs` | 可复用静态冒烟检查集（被 `smoke_test.cjs` 调用），零依赖 | — |
-| `regression_test.cjs` | Tier 3 回归测试：节点注册表 + 脚本盒引擎快照比对 | `npm run test:regression` |
-| `test_agent_tools.cjs` | Tier 4 画布 Agent 工具单元验证（20 项） | `npm run test:tools` |
+| `tests/unit/nodes/ssrRegression.test.ts` | Tier 3 回归测试：SSR 渲染节点 + class 断言（vitest 移植，替代原 `regression_test.cjs`） | `npm run test:regression` |
+| `tests/unit/canvasAgentTools.test.ts` + `demoPlan.test.ts` | Tier 4 画布 Agent 工具单元验证（vitest，替代原 `test_agent_tools.cjs`） | `npm run test:tools` |
 | `run_all_tests.cjs` | 一键跑所有层级测试（smoke + regression + tools） | `npm test` |
 | `health-check.cjs` | 工程健康编排：脚手架/构建/冒烟/回归/TDZ/契约比对一键跑 | `npm run check:health` |
 | `_syntax_check.ps1` | 启动脚本 `launch-all.ps1` 语法检查 | — |

@@ -54,8 +54,9 @@ const files = [
   ['public/icon48.png', '插件图标 48'],
   ['public/icon128.png', '插件图标 128'],
   ['scripts/smoke_test.cjs', '冒烟测试'],
-  ['scripts/regression_test.cjs', '回归测试'],
-  ['scripts/test_agent_tools.cjs', 'Agent 工具测试'],
+  ['tests/unit/nodes/ssrRegression.test', 'SSR 结构回归 (vitest)'],
+  ['tests/unit/canvasAgentTools.test', 'Agent 工具单测 (vitest)'],
+  ['tests/unit/demoPlan.test', 'demoPlan 规则 (vitest)'],
   ['scripts/run_all_tests.cjs', '统一门禁'],
   // 扩展名无关：根配置已随全仓 TS 化（.js→.ts，2026-09-02）。写死 .js 会在改名那刻误红，
   // 与上面源码条目同一处理（resolveSourceFile 自动命中 .ts/.js）。

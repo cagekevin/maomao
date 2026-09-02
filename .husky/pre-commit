@@ -1,6 +1,8 @@
 #!/bin/sh
 # 提交门禁：type-check（快）+ 只跑「改动相关」的单元测试（vitest --changed）
 # + 三个秒级 SSR 门禁（smoke/regression/tools，防「改名后 SSR 挂」这类问题）。
+#   regression/tools 已迁为 vitest 用例（见 tests/unit/nodes/ssrRegression.test.ts、
+#   canvasAgentTools.test.ts、demoPlan.test.ts），不再用 esbuild 把前端代码打成 CJS。
 # 全量单元测试放 pre-push（push 前才跑，兜底）。lint 已移除（门禁靠类型检查 + 测试）。
 #
 # 为什么补 SSR 门禁：TS 迁移期间同名组件 .jsx→.tsx 后，写死 .jsx 的 import 路径或
@@ -17,8 +19,8 @@ npx vitest run --changed
 vt=$?
 node scripts/smoke_test.cjs
 sm=$?
-node scripts/regression_test.cjs
+npm run test:regression
 rg=$?
-node scripts/test_agent_tools.cjs
+npm run test:tools
 tl=$?
 [ "$tc" -eq 0 ] && [ "$vt" -eq 0 ] && [ "$sm" -eq 0 ] && [ "$rg" -eq 0 ] && [ "$tl" -eq 0 ]

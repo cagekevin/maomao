@@ -1,10 +1,13 @@
 // 统一日志层（director3d）。
 // 纪律：
 //  - 所有关键链路/重要错误的记录统一走本模块，禁止散写 console.*（本地调试除外）。
-//  - 默认「安静」：仅 error 级别实际输出；debug 级由 DEBUG_ENABLED 开关控制，默认关闭，不上报。
+//  - 默认「安静」：仅 error 级别实际输出；debug 级由 DEBUG 开关控制，默认关闭，不上报。
 //  - 支持挂接可选上报函数（configureErrorReporting），供接线真实上报通道；未挂接时仅 console。
+//  - DEBUG 开关收口到 config.ts（DIRECTOR3D_DEBUG），本模块不再裸读 import.meta（见 base/config.ts 注释）。
 
-const DEBUG_ENABLED = typeof import.meta !== 'undefined' && import.meta.env ? (import.meta.env.VITE_DEBUG_LOG === '1' || import.meta.env.DEV === true) : false
+import { DIRECTOR3D_DEBUG } from '../base/config.js'
+
+const DEBUG_ENABLED = DIRECTOR3D_DEBUG
 
 // 可选错误上报通道（外部挂接，例如接入 apimart gateway 或飞书）。
 let errorReporter = null

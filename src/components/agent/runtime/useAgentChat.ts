@@ -241,7 +241,7 @@ const DEMO_MODE = AGENT_DEMO_MODE
 // ── 职责模块化拆分（commit 待补）──
 // 以下常量/系统提示词/纯函数已下沉到 agentCore.js，本文件保留 re-export 以维持既有测试契约
 // （agentLogic.test.js / demoPlan.test.js / imageModeSplit.test.js / useAgentChat.hook.test.js /
-//  scripts/test_agent_tools.cjs 仍从 useAgentChat.js import）。
+//  canvasAgentTools.test.ts / demoPlan.test.ts 等仍从本文件（re-export）取用）。
 //   · MAX_TOOL_ROUNDS / ENABLE_TOOLS_ON_NON_STREAM / CANVAS_AGENT_RULES / SKILL_EXECUTION_RULES
 //   · historyKey / loadHistory / parseSSEChunk / parseGenerationsFromReply / buildRequestMessages
 //   · parseAgentError / demoPlan / imageModeLooksLikePerReferenceEdit / buildPerReferenceGenerations

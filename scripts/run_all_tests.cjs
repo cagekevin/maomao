@@ -18,14 +18,14 @@ function findVitestBin() {
 }
 
 // 门禁套件说明：
-//  - L2 vitest run 已是全量（含 canvasAgentTools.test.js），故不重复单跑 L3，避免连续起
-//    两个 vitest 进程导致偶发失败（spawnSync 串行 + vitest 进程清理时序问题）。
-//  - Agent 工具层另由 esbuild 版 test_agent_tools.cjs 覆盖（更快更稳，作为工具层门禁）。
+//  - L2 vitest run 已是全量（含 canvasAgentTools / demoPlan 工具层单测），不再单独起 esbuild 进程。
+//  - SSR 结构回归（原 regression_test.cjs 的 esbuild-CJS 版）已迁为 vitest 用例
+//    tests/unit/nodes/ssrRegression.test.ts，直接用 vitest 跑，消除 "import.meta is not available
+//    with cjs" 警告（vitest 原生支持 import.meta.env / ESM，无需 esbuild CJS 黑魔法）。
 const suites = [
   { name: '冒烟测试 (Tier 2)', cmd: 'node', args: ['scripts/smoke_test.cjs'] },
   { name: 'L2/L3 纯逻辑+工具单测 (Vitest, 全量)', cmd: process.execPath, args: [findVitestBin(), 'run'] },
-  { name: '回归测试 (SSR / L1)', cmd: 'node', args: ['scripts/regression_test.cjs'] },
-  { name: 'Agent 工具测试 (esbuild)', cmd: 'node', args: ['scripts/test_agent_tools.cjs'] },
+  { name: 'SSR 结构回归 (Vitest, nodes/ssrRegression)', cmd: process.execPath, args: [findVitestBin(), 'run', 'tests/unit/nodes/ssrRegression.test.ts'] },
 ];
 
 let allPass = true;

@@ -23,7 +23,7 @@
  *
  * 【测试契约】useAgentChat.ts 会 re-export 本模块全部导出，既有单测
  * （agentLogic.test.js / demoPlan.test.js / imageModeSplit.test.js /
- * useAgentChat.hook.test.js / scripts/test_agent_tools.cjs）import 路径不变。
+ * useAgentChat.hook.test.ts / canvasAgentTools.test.ts）import 路径不变。
  *
  * 【更新 2026-09-01 · 意图本地判定（docs/76）】新增 classifyLocalIntent /
  *   buildIntentHint / INTENT_HINT / LOCAL_INTENT_THRESHOLD / LocalIntent 类型。
