@@ -14,6 +14,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { readProviderKey, getProvider } from './routes/providers.js';
 import { resolveLocalImages } from './utils/resolveLocalImages.js';
 import { parseJsonBody, sendError, json } from './utils/helpers.js';
+import { saveRemoteUrl } from './routes/files.js';
 import { executeModelProtocol } from './relay-engine/protocol/executor.js';
 import type { ModelProtocolVariables } from './relay-engine/protocol/contract.js';
 import type { ProtocolJsonValue } from './relay-engine/types/protocol.js';
@@ -72,10 +73,22 @@ export async function handleRelay(req: IncomingMessage, res: ServerResponse): Pr
     });
     // result: { urls?, text?, taskId? }
     console.log(`[relay] ${ts()} | ${providerId}/${capability} stage=extract status=${result.urls?.length ? 'succeeded' : 'done'} urlCount=${result.urls?.length ?? 0}`);
+    // 结果落盘：把上游返回的 url 落成 /files/ 持久 URL(localTool 独占下载归属 saveRemoteUrl，S1 已加并发锁)。
+    // 落盘失败回退原 url(宁显示外链不丢)；前端拿到的直接是 /files/ 持久地址，刷新不丢图。
+    const rawUrl = result.urls?.[0];
+    let url = rawUrl;
+    if (typeof rawUrl === 'string' && rawUrl && !rawUrl.includes('/files/')) {
+      try {
+        const persisted = await saveRemoteUrl('tasks', rawUrl);
+        if (persisted?.url) url = persisted.url;
+      } catch (e) {
+        console.error(`[relay] ${ts()} | 落盘失败回退: ${(e as Error)?.message}`);
+      }
+    }
     return json(res, {
       code: 0,
       data: {
-        url: result.urls?.[0],
+        url,
         content: result.text,
         taskId: result.taskId,
       },

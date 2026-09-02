@@ -164,7 +164,7 @@ async function saveFile(data: Buffer, subfolder: string, filename: string): Prom
  *
  * 去重键 = subfolder + fileUrl（不含 filename）：filename 只影响落盘命名，不影响"是否同一份下载"。
  */
-async function saveRemoteUrl(subfolder: string, fileUrl: string, filename?: string): Promise<SaveRemoteResult> {
+export async function saveRemoteUrl(subfolder: string, fileUrl: string, filename?: string): Promise<SaveRemoteResult> {
   const dedupeKey = `${subfolder}\u0000${fileUrl}`;
   const inFlight = inflightDownloads.get(dedupeKey);
   if (inFlight) {
