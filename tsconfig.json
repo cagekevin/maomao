@@ -29,7 +29,6 @@
   "include": [
     "src/**/*.ts",
     "src/**/*.tsx",
-    "localTool/src/**/*.ts",
     // 根配置：2026-09-02 随全仓 TS 化（.js→.ts），现已可被 tsc 真校验。
     // 此前只列 vite/vitest 两个 .js，且 allowJs:true + checkJs:false → 配置层零类型安全，
     // 写错插件名/选项键只能等构建或运行时炸。
@@ -44,10 +43,6 @@
   "exclude": [
     "node_modules",
     "dist",
-    "dev",
-    // vendored 协议引擎(relay-engine)由 localTool 自己 tsconfig(strict:true, ES2023) 检查并已通过；
-    // 根 tsconfig strict:false + strictNullChecks:false 的收窄差异会让其 sanitizeValue 类型误报，
-    // 故从根检查排除，避免重复检查因 strict 差异报错(符合"vendored 代码不做手改"原则)。
-    "localTool/src/relay-engine"
+    "dev"
   ]
 }
