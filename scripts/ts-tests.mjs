@@ -7,6 +7,12 @@
  *   node scripts/ts-tests.mjs status [--export]  # [追踪] 统计全局进度，支持导出 CSV 和 交接 Markdown
  *   node scripts/ts-tests.mjs add-nocheck <dir>  # [基建] 批量加 nocheck (幂等)
  *   node scripts/ts-tests.mjs rm-nocheck <file>  # [基建] 强制删 nocheck (仅删顶部)
+ *
+ *   全局选项（指向任意子项目，默认 tests/）：
+ *     --project <dir>     指定含 tsconfig.json 的项目根目录
+ *     --tsconfig <file>  显式指定 tsconfig（默认 <project>/tsconfig.json）
+ *     --scan <dir>        status 扫描目录（默认 <project> 递归 / 旧 tests/unit）
+ *   例：node scripts/ts-tests.mjs --project download/ai-relay status
  */
 
 import { readFileSync, writeFileSync, existsSync, readdirSync, statSync } from 'node:fs'
@@ -17,7 +23,6 @@ import { parseArgs } from 'node:util'
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url))
 const root = resolve(__dirname, '..')
-const TESTS_TSCONFIG = resolve(root, 'tests', 'tsconfig.json')
 
 // ===================== 状态安全管理 (解决 Ctrl+C 弄脏工作区的问题) =====================
 /** @type {Map<string, string>} */
@@ -87,21 +92,50 @@ function ensureTsNoCheck(src) {
 // ===================== CLI 参数解析 =====================
 const { positionals, values } = parseArgs({
   args: process.argv.slice(2),
-  options: { export: { type: 'boolean' } },
+  options: {
+    export: { type: 'boolean' },
+    project: { type: 'string' },
+    tsconfig: { type: 'string' },
+    scan: { type: 'string' },
+  },
   allowPositionals: true,
 })
 const cmd = positionals[0]
 const fileArg = positionals[1]
 
+/** 把用户传入的相对/绝对路径解析为绝对路径（相对仓库根） */
+function resolveArg(arg) {
+  if (!arg) return null
+  return resolve(arg.startsWith('/') || /^[A-Za-z]:[\\/]/.test(arg) ? arg : resolve(root, arg))
+}
+
+/**
+ * 项目根（含 tsconfig.json 的目录）：
+ *   --project 指定 → 该目录；否则回退到仓库根（兼容旧 tests/ 行为）。
+ */
+const hasProject = Boolean(values.project)
+const projectRoot = hasProject ? resolveArg(values.project) : root
+/** 实际使用的 tsconfig：--tsconfig > <project>/tsconfig.json（旧：tests/tsconfig.json） */
+const tsconfigPath = values.tsconfig
+  ? resolveArg(values.tsconfig)
+  : (hasProject ? resolve(projectRoot, 'tsconfig.json') : resolve(root, 'tests', 'tsconfig.json'))
+/** status 扫描目录：--scan > <project 根递归> > 旧 tests/unit */
+const scanDir = values.scan
+  ? resolveArg(values.scan)
+  : (hasProject ? projectRoot : resolve(root, 'tests', 'unit'))
+/** 报表输出目录：指定项目 → 项目根；否则 → tests/ */
+const exportDir = hasProject ? projectRoot : resolve(root, 'tests')
+
 if (!cmd) {
   console.error(`✖ 缺少命令。可用命令: add-nocheck, rm-nocheck, check, verify, status`)
+  console.error(`  可选全局选项: --project <dir> [--tsconfig <file>] [--scan <dir>] [--export]`)
   process.exit(1)
 }
 
 // ===================== 子命令: add-nocheck =====================
 if (cmd === 'add-nocheck') {
   if (!fileArg) { console.error('用法：node scripts/ts-tests.mjs add-nocheck <dir>'); process.exit(1) }
-  const targetDir = resolve(root, fileArg)
+  const targetDir = resolve(projectRoot, fileArg)
   const files = walkDir(targetDir)
   let added = 0, skipped = 0
 
@@ -122,7 +156,7 @@ if (cmd === 'add-nocheck') {
 // ===================== 子命令: rm-nocheck =====================
 if (cmd === 'rm-nocheck') {
   if (!fileArg) { console.error('用法：node scripts/ts-tests.mjs rm-nocheck <file>'); process.exit(1) }
-  const abs = resolve(root, fileArg)
+  const abs = resolve(projectRoot, fileArg)
   if (!existsSync(abs)) { console.error(`✖ 文件不存在：${fileArg}`); process.exit(1) }
 
   const src = readFileSync(abs, 'utf8')
@@ -139,7 +173,7 @@ if (cmd === 'rm-nocheck') {
 // ===================== 子命令: verify =====================
 if (cmd === 'verify') {
   if (!fileArg) { console.error('用法：node scripts/ts-tests.mjs verify <file>'); process.exit(1) }
-  const abs = resolve(root, fileArg)
+  const abs = resolve(projectRoot, fileArg)
   let src = readFileSync(abs, 'utf8')
   const { src: strippedSrc, removed } = stripTsNoCheck(src)
 
@@ -152,19 +186,23 @@ if (cmd === 'verify') {
 
   try {
     console.log(`⏳ 1/2 正在进行类型检查 (tsc)...`)
-    const tscRes = spawnSync('npx', ['tsc', '--noEmit', '-p', 'tests/tsconfig.json'], { cwd: root, encoding: 'utf8', shell: true })
+    const tscRes = spawnSync('npx', ['tsc', '--noEmit', '-p', tsconfigPath], { cwd: projectRoot, encoding: 'utf8', shell: true })
     if (tscRes.status !== 0) {
       console.log(`✖ 类型检查失败！请先使用 check 命令修错。`)
       restoreAll()
       process.exit(1)
     }
 
-    console.log(`⏳ 2/2 正在运行单元测试 (vitest)...`)
-    const vitestRes = spawnSync('npx', ['vitest', 'run', fileArg], { cwd: root, encoding: 'utf8', shell: true, stdio: 'inherit' })
-    if (vitestRes.status !== 0) {
-      console.log(`✖ 测试运行失败！可能破坏了业务逻辑。`)
-      restoreAll()
-      process.exit(1)
+    if (!hasProject) {
+      console.log(`⏳ 2/2 正在运行单元测试 (vitest)...`)
+      const vitestRes = spawnSync('npx', ['vitest', 'run', fileArg], { cwd: projectRoot, encoding: 'utf8', shell: true, stdio: 'inherit' })
+      if (vitestRes.status !== 0) {
+        console.log(`✖ 测试运行失败！可能破坏了业务逻辑。`)
+        restoreAll()
+        process.exit(1)
+      }
+    } else {
+      console.log(`ℹ 子项目模式：跳过单元测试，仅校验类型正确性。`)
     }
 
     // 全通过，清理保护网，不恢复原状
@@ -179,7 +217,7 @@ if (cmd === 'verify') {
 // ===================== 子命令: check =====================
 if (cmd === 'check') {
   if (!fileArg) { console.error('用法：node scripts/ts-tests.mjs check <file>'); process.exit(1) }
-  const abs = resolve(root, fileArg)
+  const abs = resolve(projectRoot, fileArg)
   if (!existsSync(abs)) { console.error(`✖ 文件不存在：${fileArg}`); process.exit(1) }
 
   let src = readFileSync(abs, 'utf8')
@@ -190,9 +228,9 @@ if (cmd === 'check') {
   }
 
   try {
-    const res = spawnSync('npx', ['tsc', '--noEmit', '-p', 'tests/tsconfig.json'], { cwd: root, encoding: 'utf8', shell: true })
+    const res = spawnSync('npx', ['tsc', '--noEmit', '-p', tsconfigPath], { cwd: projectRoot, encoding: 'utf8', shell: true })
     // 精确匹配：统一转正斜杠
-    const unifiedRelTarget = relative(root, abs).replace(/\\/g, '/')
+    const unifiedRelTarget = relative(projectRoot, abs).replace(/\\/g, '/')
     const allOut = res.stdout + '\n' + res.stderr
     
     const errs = allOut.split('\n').filter(l => l.includes('error TS') && l.replace(/\\/g, '/').startsWith(unifiedRelTarget))
@@ -211,7 +249,7 @@ if (cmd === 'check') {
       console.log('\n📝 详情 (终端按住 Cmd/Ctrl 点击路径可直达代码):')
       errs.slice(0, 15).forEach(e => {
         const formatted = e.trim().replace(/^([^(]+)(\(\d+,\d+\))/, (match, fileRel, pos) => {
-          return resolve(root, fileRel) + pos
+          return resolve(projectRoot, fileRel) + pos
         })
         console.log('  👉 ' + formatted)
       })
@@ -225,7 +263,7 @@ if (cmd === 'check') {
 
 // ===================== 子命令: status =====================
 if (cmd === 'status') {
-  const unitDir = resolve(root, 'tests/unit')
+  const unitDir = scanDir
   const files = walkDir(unitDir)
   const nocheckFiles = [], cleanFiles = []
 
@@ -241,7 +279,7 @@ if (cmd === 'status') {
   // 核心修复 Bug 1：用「全小写+正斜杠的相对路径」作为 Map 的 Key，彻底规避盘符大小写和斜杠方向问题
   const fileStats = {}
   nocheckFiles.forEach(f => {
-    const unifiedKey = relative(root, f).replace(/\\/g, '/').toLowerCase()
+    const unifiedKey = relative(projectRoot, f).replace(/\\/g, '/').toLowerCase()
     fileStats[unifiedKey] = { abs: f, count: 0, codes: {} }
   })
 
@@ -259,7 +297,7 @@ if (cmd === 'status') {
     })
 
     // 2. 跑 tsc
-    const res = spawnSync('npx', ['tsc', '--noEmit', '-p', 'tests/tsconfig.json'], { cwd: root, encoding: 'utf8', shell: true })
+    const res = spawnSync('npx', ['tsc', '--noEmit', '-p', tsconfigPath], { cwd: projectRoot, encoding: 'utf8', shell: true })
     allOut = res.stdout + '\n' + res.stderr
   } finally {
     // 3. 无论成功失败，第一时间执行恢复
@@ -281,7 +319,7 @@ if (cmd === 'status') {
   })
 
   const sorted = Object.values(fileStats)
-    .map(stat => ({ fileRel: relative(root, stat.abs).replace(/\\/g, '/'), stat }))
+    .map(stat => ({ fileRel: relative(projectRoot, stat.abs).replace(/\\/g, '/'), stat }))
     .sort((a, b) => a.stat.count - b.stat.count)
 
   if (values.export) {
@@ -292,7 +330,7 @@ if (cmd === 'status') {
       const other = item.stat.count - t2339 - t2345
       csvLines.push(`${item.fileRel},${item.stat.count},${t2339},${t2345},${other}`)
     })
-    writeFileSync(resolve(root, 'tests/type_migration_report.csv'), csvLines.join('\n'), 'utf8')
+    writeFileSync(resolve(exportDir, 'type_migration_report.csv'), csvLines.join('\n'), 'utf8')
 
     const nextTarget = sorted.find(s => s.stat.count > 0) || sorted[0]
     const md = `# 测试类型修复交接文档 (自动生成)
@@ -311,7 +349,7 @@ if (cmd === 'status') {
 node scripts/ts-tests.mjs check ${nextTarget.fileRel}
 \`\`\`
 `
-    writeFileSync(resolve(root, 'tests/TYPE_MIGRATION_TODO.md'), md, 'utf8')
+    writeFileSync(resolve(exportDir, 'TYPE_MIGRATION_TODO.md'), md, 'utf8')
     console.log(`✔ 已生成 tests/type_migration_report.csv 和 tests/TYPE_MIGRATION_TODO.md`)
   } else {
     console.log(`ℹ 进度总览：已解 ${cleanFiles.length} / 总计 ${files.length}。待处理：${nocheckFiles.length} 个。`)

@@ -13,6 +13,8 @@
  *   node scripts/ts-detail.mjs <片段> [片段...]      按文件名片段过滤（子串匹配，不分大小写）
  *   node scripts/ts-detail.mjs --all                 列出全部有错文件 × 错误数（等价分布视图）
  *   node scripts/ts-detail.mjs --all --src           额外纳入 src 连带错（M3 收口前量化用）
+ *   node scripts/ts-detail.mjs --project <dir> --all 对任意子项目（含自身 tsconfig）量化错误分布
+ *   node scripts/ts-detail.mjs --project download/ai-relay src  例：扫描 ai-relay 全部错误
  *
  * 例：
  *   node scripts/ts-detail.mjs upstream              # 一次看全部 4 个 upstream 测试
@@ -27,7 +29,7 @@
  *   - 正则刻意不加行尾 `$` 锚定：TS 错误消息可能含 `(`、换行等，宽松匹配更稳。
  */
 import { readFileSync, writeFileSync, existsSync, mkdirSync, rmSync, readdirSync, statSync, cpSync } from 'node:fs'
-import { resolve, join } from 'node:path'
+import { resolve, join, relative, basename } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
 import { parseArgs } from 'node:util'
@@ -36,15 +38,31 @@ const { positionals: filters, values } = parseArgs({
   options: {
     all: { type: 'boolean' },
     src: { type: 'boolean' },
+    project: { type: 'string' },
+    tsconfig: { type: 'string' },
   },
   allowPositionals: true,
 })
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url))
 const root = resolve(__dirname, '..')
-const SRC_UNIT = resolve(root, 'tests', 'unit')
-const TMP_UNIT = resolve(root, 'tmp', 'unit')
-const TMP_TSCONFIG = resolve(root, 'tmp', 'tsconfig.json')
+
+/** 解析用户传入的相对/绝对路径为绝对路径（相对仓库根） */
+function resolveArg(arg) {
+  return resolve(arg.startsWith('/') || /^[A-Za-z]:[\\/]/.test(arg) ? arg : resolve(root, arg))
+}
+
+/**
+ * 项目根（含 tsconfig.json 的目录）：
+ *   --project 指定 → 该目录；否则回退到旧行为（扫描 tests/unit）。
+ */
+const hasProject = Boolean(values.project)
+const projectRoot = hasProject ? resolveArg(values.project) : root
+const projectRel = (hasProject ? relative(root, projectRoot) : 'tests/unit').replace(/\\/g, '/')
+const TMP_NAME = hasProject ? basename(projectRoot) : 'unit'
+const SRC = hasProject ? projectRoot : resolve(root, 'tests', 'unit')
+const TMP = resolve(root, 'tmp', TMP_NAME)
+let TMP_TSCONFIG = resolve(root, 'tmp', `tsconfig.${TMP_NAME}.json`)
 
 const wantAll = values.all || filters.length === 0
 const wantSrc = Boolean(values.src)
@@ -69,49 +87,64 @@ function stripTsNoCheck(src) {
   return lines.join('\n')
 }
 
-/** tmp/unit/xxx → tests/unit/xxx，便于对照工作区真实路径 */
+/** tmp/<name>/xxx → <projectRel>/xxx，便于对照工作区真实路径 */
 function normPath(p) {
   const clean = p.trim().replace(/\\/g, '/')
-  if (clean.startsWith('tmp/unit/')) return 'tests/unit/' + clean.slice('tmp/unit/'.length)
-  if (clean.startsWith('./tmp/unit/')) return 'tests/unit/' + clean.slice('./tmp/unit/'.length)
+  const prefix = 'tmp/' + TMP_NAME + '/'
+  const dotPrefix = './' + prefix
+  if (clean.startsWith(prefix)) return projectRel + '/' + clean.slice(prefix.length)
+  if (clean.startsWith(dotPrefix)) return projectRel + '/' + clean.slice(dotPrefix.length)
   if (clean.startsWith('./src/')) return clean.slice(2)
   return clean
 }
 
 // ── 1. 重建副本 + 剥 nocheck ──
-rmSync(TMP_UNIT, { recursive: true, force: true })
-mkdirSync(TMP_UNIT, { recursive: true })
-cpSync(SRC_UNIT, TMP_UNIT, { recursive: true })
-for (const f of walkDir(TMP_UNIT)) writeFileSync(f, stripTsNoCheck(readFileSync(f, 'utf8')), 'utf8')
+rmSync(TMP, { recursive: true, force: true })
+mkdirSync(TMP, { recursive: true })
+// 子项目模式跳过 node_modules/dist（复制即浪费且可能干扰）
+cpSync(SRC, TMP, {
+  recursive: true,
+  filter: (src) => !/(^|[/\\])(node_modules|dist)([/\\]|$)/.test(src),
+})
+for (const f of walkDir(TMP)) writeFileSync(f, stripTsNoCheck(readFileSync(f, 'utf8')), 'utf8')
 
-// ── 2. 临时 tsconfig（baseUrl=根，@/* → src）──
-writeFileSync(TMP_TSCONFIG, JSON.stringify({
-  compilerOptions: {
-    target: 'ES2022',
-    lib: ['ES2022', 'DOM', 'DOM.Iterable'],
-    module: 'ESNext',
-    moduleResolution: 'bundler',
-    jsx: 'react-jsx',
-    resolveJsonModule: true,
-    esModuleInterop: true,
-    forceConsistentCasingInFileNames: true,
-    skipLibCheck: true,
-    noEmit: true,
-    allowImportingTsExtensions: true,
-    allowJs: true,
-    checkJs: false,
-    strict: false,
-    noImplicitAny: false,
-    strictNullChecks: false,
-    types: ['node', 'vite/client', 'vitest/globals'],
-    baseUrl: root,
-    paths: { '@/*': ['./src/*'] },
-  },
-  include: [join(root, 'tmp', 'unit', '**', '*.ts'), join(root, 'tmp', 'unit', '**', '*.tsx')],
-}, null, 2), 'utf8')
+// ── 2. 临时 tsconfig ──
+if (hasProject) {
+  // 原样复制子项目的 tsconfig 进副本：结构镜像（tmp/<name> 与原项目同深度），
+  // 故原 include/paths 等相对解析依旧正确，避免跨目录 extends 解析失败（TS5083）。
+  const origTs = values.tsconfig ? resolveArg(values.tsconfig) : resolve(projectRoot, 'tsconfig.json')
+  TMP_TSCONFIG = join(TMP, 'tsconfig.json')
+  if (existsSync(origTs)) cpSync(origTs, TMP_TSCONFIG)
+} else {
+  // 旧 tests 模式：玩具 tsconfig（vitest 环境 + 宽松）
+  writeFileSync(TMP_TSCONFIG, JSON.stringify({
+    compilerOptions: {
+      target: 'ES2022',
+      lib: ['ES2022', 'DOM', 'DOM.Iterable'],
+      module: 'ESNext',
+      moduleResolution: 'bundler',
+      jsx: 'react-jsx',
+      resolveJsonModule: true,
+      esModuleInterop: true,
+      forceConsistentCasingInFileNames: true,
+      skipLibCheck: true,
+      noEmit: true,
+      allowImportingTsExtensions: true,
+      allowJs: true,
+      checkJs: false,
+      strict: false,
+      noImplicitAny: false,
+      strictNullChecks: false,
+      types: ['node', 'vite/client', 'vitest/globals'],
+      baseUrl: root,
+      paths: { '@/*': ['./src/*'] },
+    },
+    include: [join(root, 'tmp', 'unit', '**', '*.ts'), join(root, 'tmp', 'unit', '**', '*.tsx')],
+  }, null, 2), 'utf8')
+}
 
 // ── 3. 跑 tsc（只读，扫副本）──
-const res = spawnSync('npx', ['tsc', '--noEmit', '-p', 'tmp/tsconfig.json'], {
+const res = spawnSync('npx', ['tsc', '--noEmit', '-p', TMP_TSCONFIG], {
   cwd: root,
   encoding: 'utf8',
   shell: true,
@@ -137,7 +170,7 @@ for (const line of lines) {
   errs.push({ file, line: Number(m[2]), col: Number(m[3]), code: m[4], msg: m[5].trim() })
 }
 
-rmSync(TMP_UNIT, { recursive: true, force: true })
+rmSync(TMP, { recursive: true, force: true })
 rmSync(TMP_TSCONFIG, { recursive: true, force: true })
 
 // ── 5. 解析率自检：正则失配时静默「0 错」会把人骗过去，必须显式暴露 ──
@@ -155,7 +188,7 @@ if (errLineCount === 0) {
 const needles = filters.map((f) => f.toLowerCase())
 const matched = errs.filter((e) => {
   if (!wantAll && !needles.some((n) => e.file.toLowerCase().includes(n))) return false
-  if (!wantSrc && !e.file.startsWith('tests/unit/')) return false
+  if (!wantSrc && !e.file.startsWith(projectRel + '/')) return false
   return true
 })
 
