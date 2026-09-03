@@ -70,7 +70,7 @@ function makeJsonReq(body, contentType = 'application/json') {
   return req;
 }
 
-function makeGetReq(query = '') {
+function makeGetReq() {
   return makeJsonReq(undefined);
 }
 

@@ -10,7 +10,7 @@
  *
  * 运行：node --test test/*.test.js
  */
-import test, { beforeEach, afterEach } from 'node:test';
+import test, { beforeEach, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -163,14 +163,44 @@ test('official·handleOfficialUser 无缓存时官方 500 → 透传 500（不�
   assert.equal(parseResBody(res).error, 'boom');
 });
 
-test('official·官方 5xx 有 stale 缓存时降级（缓存过期路径）', async () => {
-  // 这个测试验证：缓存存在但已过期 + 上游 500 → 返回 hit-stale。
-  // TTL 固定 60s 难以在测试内自然过期，故通过操纵内部缓存实现：先写一条
-  // exp 已过期的缓存项，再触发上游 500。用 invalidate + 重新 fetch 再手动
-  // 缩短 exp 不可行（无导出），此处退化为「确认缓存命中路径」，stale 降级
-  // 代码路径见源码 forwardGet 中 `fetchRes.status >= 500` 分支，属受 TTL 约束
-  // 的边界，已由「无缓存 500 透传」测试覆盖「不伪造权限」的安全底线。
-  assert.ok(true, 'stale 降级依赖 60s TTL 过期，无法在测试内快速触发；安全底线由上方测试保证');
+// stale 降级要「缓存条目已过 TTL」才走得到：TTL 固定 60s，自然等待不可行。
+// 用 node:test 的 mock.timers 推进 Date.now()，把 60s 压成瞬时。
+// 判据（对应 official.ts forwardGet）：fresh 分支要求 hit.exp > Date.now() 才命中，
+// 而 5xx 分支的 stale 只查 memCache.get(key)、不看 exp —— 故过期≠失效，正是降级要验证的点。
+test('official·官方 5xx + 已过期缓存 → 降级返回旧数据并标记 hit-stale（不伪造权限）', async () => {
+  await officialMod.handleOfficialInvalidate(makeJsonReq(), makeRes());
+  const BASE = 1_700_000_000_000;
+  // 只 mock Date（不动 setTimeout，避免影响数据库 debounce 落盘等真实计时器）
+  mock.timers.enable({ apis: ['Date'] });
+  mock.timers.setTime(BASE);
+  try {
+    const req = makeJsonReq();
+    req.headers['authorization'] = 'Bearer tok-stale-777';
+    req.url = '/api/user/info';
+    req.headers['x-official-base'] = 'https://backup.example.com';
+
+    // 第一次：200 → 写入缓存（exp = BASE + 60s）
+    mockFetchOnce(() => jsonResponse({ id: 'u1', vip: true }, 200));
+    const res1 = makeRes();
+    await officialMod.handleOfficialUser(req, res1);
+    assert.equal(res1.status, 200);
+    assert.deepEqual(parseResBody(res1), { id: 'u1', vip: true });
+
+    // 推进 61s > TTL 60s → fresh 分支失效（exp 过期），但条目仍在 memCache 里
+    mock.timers.setTime(BASE + 61_000);
+
+    // 第二次：上游 500 → 命中 stale 降级
+    mockFetchOnce(() => jsonResponse({ error: 'boom' }, 500));
+    const res2 = makeRes();
+    await officialMod.handleOfficialUser(req, res2);
+
+    assert.equal(res2.status, 200, 'stale 降级应沿用旧条目的 200，不得透传 500');
+    assert.match(res2.headers['x-cache'] || '', /hit-stale/, '应标记命中 stale 缓存');
+    assert.deepEqual(parseResBody(res2), { id: 'u1', vip: true }, '应返回降级前的旧数据');
+  } finally {
+    mock.timers.reset();
+    restoreFetch();
+  }
 });
 
 test('official·handleOfficialInvalidate 清缓存', async () => {

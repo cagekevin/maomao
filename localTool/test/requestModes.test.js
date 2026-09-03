@@ -91,13 +91,24 @@ test('normalizeToolCalls：responses function_call 归一成统一 tool_calls（
   assert.equal(mod.normalizeToolCalls({ output: [{ type: 'output_text', text: 'hi' }] }).length, 0);
 });
 
-test('friendlyRequestError：命中各关键词给中文提示，未命中返回空串原样透传（G1）', () => {
-  assert.match(mod.friendlyRequestError('unsupported reasoning_effort parameter'), /chat\/completions 用工具/);
-  assert.equal(mod.friendlyRequestError('invalid api key'), 'API Key 无效或已过期');
-  assert.equal(mod.friendlyRequestError('HTTP 401 Unauthorized'), 'API Key 无效或已过期');
-  assert.equal(mod.friendlyRequestError('You exceeded rate limit'), '请求过于频繁，稍后再试');
-  assert.ok(mod.friendlyRequestError('model not found, use ep-')?.includes('ep-'));
-  assert.equal(mod.friendlyRequestError('完全正常的上游返回'), '');
+// G1 契约（2026-09-03 修订）：上游返回什么就显示什么，禁止翻译成中文提示。
+// 本用例冻结该契约——一旦实现重新引入关键词改写/翻译/兜底文案，下列断言立即变红。
+test('friendlyRequestError：错误原样透传，不做中文改写或翻译（G1 契约冻结）', () => {
+  const rawSamples = [
+    'unsupported reasoning_effort parameter',
+    'invalid api key',
+    'HTTP 401 Unauthorized',
+    'You exceeded rate limit',
+    'model not found, use ep-20260903-abc',
+  ];
+  for (const raw of rawSamples) {
+    assert.equal(mod.friendlyRequestError(raw), raw, `应原样透传上游原文: ${raw}`);
+  }
+
+  // 边界：无错误文本时不抛错、不捏造文案，归一为空串
+  assert.equal(mod.friendlyRequestError(''), '');
+  assert.equal(mod.friendlyRequestError(undefined), '');
+  assert.equal(mod.friendlyRequestError(null), '');
 });
 
 test('SUPPORTED_IMAGE_REQUEST_MODES 含四形态（与 ProviderForm 一致）', () => {

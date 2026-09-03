@@ -1,17 +1,24 @@
 #!/bin/sh
-# 提交门禁：type-check（快）+ 只跑「改动相关」的单元测试（vitest --changed）
+# 提交门禁（仅前端）：type-check（快）+ 只跑「改动相关」的单元测试（vitest --changed）
 # + 三个秒级 SSR 门禁（smoke/regression/tools，防「改名后 SSR 挂」这类问题）。
-#   regression/tools 已迁为 vitest 用例（见 tests/unit/nodes/ssrRegression.test.ts、
-#   canvasAgentTools.test.ts、demoPlan.test.ts），不再用 esbuild 把前端代码打成 CJS。
-# 全量单元测试放 pre-push（push 前才跑，兜底）。lint 已移除（门禁靠类型检查 + 测试）。
+#   regression/tools 已迁为 vitest 用例（ssrRegression / canvasAgentTools / demoPlan），
+#   不再用 esbuild 把前端代码打成 CJS。它们在此处「无条件」跑，是因为 SSR 崩通常来自
+#   src 里 .jsx→.tsx 改名，而非测试文件本身改动；`vitest --changed` 只跑改动的测试文件，
+#   会漏掉这类回归，故单独保留（各 ~1.5s）。
 #
-# 为什么补 SSR 门禁：TS 迁移期间同名组件 .jsx→.tsx 后，写死 .jsx 的 import 路径或
-# import.meta.env 在 CJS 下空对象等，会在 esbuild 打包 SSR 时当场崩，而 type-check 与
-# 纯 vitest 单元测试都扫不到。smoke/regression/tools 各 ~1.5s，放进 commit 门禁性价比最高。
+# 重测试已默认排除：imageUpscale.test.ts（真实 canvas 缩放，单次 7.4s，是全量最慢的 4 倍）
+# 在 vitest.config.ts 的 exclude 里，本门禁的 `vitest run --changed` 不会跑它；需要回归时
+# 用 `npm run test:unit:heavy`。日常改前端 99% 用不到它，故默认拿掉。
 #
-# `set +e`：个别环境（特定 shell / 部分 CI）触发 git hook 时其 stdout 可能是坏 fd（sh 报
-# "echo: write error: Bad file descriptor"），而 husky 用 `sh -e` 运行本脚本，首个 echo 失败
-# 即被 set -e 中止、误判为门禁失败。故关闭 errexit；门禁结论纯由下方命令退出码推导（末行 `[ ]`）。
+# 本地改动 localtool：本钩子不覆盖（后端是独立子项目，另有 `cd localTool && npm test`
+# 与 CI 的 localtool job 两道门禁）。改 localtool 时请单独跑那一侧。
+#
+# 全量前端测试不再在本地重复跑：pre-push 已删除（其 `vitest run` 与下方 --changed 重叠，
+# 也与 CI 的 test:coverage 重叠），全量兜底由 CI 的 frontend job 负责。本地只做快速守卫。
+# lint 已移除（门禁靠类型检查 + 测试）。
+#
+# `set +e`：个别环境触发 git hook 时 stdout 可能是坏 fd，husky 用 `sh -e` 运行本脚本，
+# 首个 echo 失败即被 set -e 中止、误判为门禁失败。故关闭 errexit；门禁结论纯由末行命令退出码推导。
 set +e
 npm run type-check
 tc=$?

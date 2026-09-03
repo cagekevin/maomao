@@ -1,9 +1,12 @@
 {
   "name": "maomao-localtool",
   "version": "1.0",
-  "description": "猫猫AI画布 — 本地工具服务 (替代闭源 Go 二进制)",
+  "description": "猫猫AI画布 — 本地工具服务",
   "type": "module",
   "main": "dist/index.js",
+  "engines": {
+    "node": ">=20.4.0"
+  },
   "scripts": {
     "build": "tsc --noEmit && esbuild src/index.ts --bundle --platform=node --format=esm --packages=external --outfile=dist/index.js --sourcemap",
     "start": "node --enable-source-maps dist/index.js",
@@ -20,6 +23,7 @@
   },
   "devDependencies": {
     "@types/node": "^20.11.0",
+    "esbuild": "^0.21.5",
     "tsx": "^4.23.13",
     "typescript": "^5.6.2"
   }

@@ -1,4 +1,4 @@
-import { defineConfig } from 'vitest/config'
+import { defineConfig, defaultExclude } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 import path from 'path'
 import { fileURLToPath } from 'node:url'
@@ -25,6 +25,11 @@ export default defineConfig({
     ],
     // 测试已全 TS 化（2026-09-01 收官）：统一 .test.ts（node 纯逻辑）/ .test.tsx（jsdom 组件）。
     include: ['tests/unit/**/*.test.{ts,tsx}'],
+    // 重测试默认排除：imageUpscale 是真实 canvas 图片缩放（×2/clamp/锐化走
+    // getImageData/putImageData），单次 7.4s 是全量最慢的 4 倍，99% 的日常改动用不到。
+    // 排除后默认 `vitest run` / 门禁 / 覆盖率都不跑它；需要回归时显式跑即可（见 test:unit:heavy）。
+    // 注：exclude 不影响「指定文件路径」的调用，故 test:unit:heavy 仍能覆盖到本文件。
+    exclude: [...defaultExclude, 'tests/unit/imageUpscale.test.ts'],
     globals: true,
     setupFiles: ['tests/setup.mjs'],
     // 并发优化：forks 池默认懒启动、minForks 偏低导致整包跑得慢。

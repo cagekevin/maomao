@@ -29,6 +29,10 @@ const importSrc = (rel) => import(pathToFileURL(path.join(SRC, rel)).href);
 // ── 隔离数据目录（在 import 业务模块前设置）──
 const TEST_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'maomao-stage2-'));
 process.env.MAOMAO_DATA_DIR = TEST_DIR;
+// MAOMAO_ROOT 决定 paths.ts 的 getRoot()。必须在任何 importSrc 之前设置：
+// logWriter.ts 在【模块顶层】就把日志目录固化为 getRoot()/logs，而 routes/logs.ts
+// 又 import 了它 —— 不隔离的话，本文件的日志会写进真实的 localTool/logs/。
+process.env.MAOMAO_ROOT = TEST_DIR;
 
 // ── 与 localtool.test.js 一致的 req/res 辅助 ──
 function makeRes() {
@@ -410,13 +414,19 @@ test('[logWriter] 仅导出对外 API（addLogClient/removeLogClient/initLogWrit
 test('[logWriter] initLogWriter 幂等（多次调用不重复接管 console）', () => {
   // 接管前记录原始 console 方法引用
   const orig = { log: console.log, info: console.info, warn: console.warn, error: console.error };
-  logWriter.initLogWriter();
-  const afterFirst = { log: console.log, info: console.info, warn: console.warn, error: console.error };
-  logWriter.initLogWriter(); // 第二次
-  const afterSecond = { log: console.log, info: console.info, warn: console.warn, error: console.error };
-  // 第一次后已被接管（引用变化），第二次调用不应再次改变（引用不变 → 幂等）
-  assert.notDeepEqual(afterFirst, orig, '首次 init 应接管 console');
-  assert.deepEqual(afterFirst, afterSecond, '二次 init 不应再次改变 console 引用（幂等）');
+  try {
+    logWriter.initLogWriter();
+    const afterFirst = { log: console.log, info: console.info, warn: console.warn, error: console.error };
+    logWriter.initLogWriter(); // 第二次
+    const afterSecond = { log: console.log, info: console.info, warn: console.warn, error: console.error };
+    // 第一次后已被接管（引用变化），第二次调用不应再次改变（引用不变 → 幂等）
+    assert.notDeepEqual(afterFirst, orig, '首次 init 应接管 console');
+    assert.deepEqual(afterFirst, afterSecond, '二次 init 不应再次改变 console 引用（幂等）');
+  } finally {
+    // 生产态接管不可逆（进程 = 服务生命周期），但测试必须自己摘掉：
+    // 否则本文件后续用例的 console 输出全被吞进日志流，断言失败时看不到任何诊断信息。
+    Object.assign(console, orig);
+  }
 });
 
 // ════════════════════════════════════════════════════════════════════════

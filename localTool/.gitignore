@@ -8,3 +8,6 @@ localtool_18080.err.log
 
 # 编译产物
 dist/
+
+# 测试运行输出（一次性重定向产物，非源码）
+test/*-out.txt

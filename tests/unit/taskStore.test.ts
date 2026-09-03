@@ -91,7 +91,9 @@ describe('taskStore §2.6 任务清理', () => {
     reportGenerate('n1', 'image', 'p1')
     reportGenerate('n2', 'video', 'p2')
     clearAllTasks()
-    const remaining = require('../../src/components/base/taskStore.ts').getTasks()
+    // 用顶部已导入的单例 getTasks：taskStore 是模块级单例，require() 拿不到新实例，
+    // 且在 Node <22.12 上 require(esm) 会抛 "Cannot use import statement outside a module"。
+    const remaining = getTasks()
     expect(remaining).toHaveLength(0)
   })
 })

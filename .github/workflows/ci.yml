@@ -32,3 +32,35 @@ jobs:
 
       - name: Full unit tests + coverage
         run: npm run test:coverage
+
+  # localTool（本地工具服务）此前完全没有门禁：源码改坏类型/逻辑时 CI 全绿。
+  # 独立 job 与前端并行，锁文件与缓存均指向 localTool/package-lock.json。
+  localtool:
+    name: localTool (type-check + build + test)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # 与前端 job 统一 Node 20。注意：localTool 测试用了 node:test 的 mock.timers
+      # （20.4.0+ 才有，20.x 上属实验特性），故 Node 不得低于 20.4。
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: localTool/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: localTool
+
+      # build = tsc --noEmit + esbuild 打包，同时守住「类型正确」与「可打包」两条底线。
+      - name: Type check + build
+        run: npm run build
+        working-directory: localTool
+
+      # 测试直接 import src/*.ts（经 tsx 装载），无需先编译，故必须与 build 分开跑。
+      - name: Tests
+        run: npm test
+        working-directory: localTool
