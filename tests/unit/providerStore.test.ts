@@ -62,7 +62,7 @@ describe('providerStore §4 供应商数据层（新时代配置型）', () => {
     h.mockKvSet.mockReset()
     h.mockKvSet.mockReturnValue(Promise.resolve())
     h.mockSyncConfigBase.mockReturnValue(Promise.resolve())
-    mod = await import('../../src/components/base/settings/providerStore.ts')
+    mod = await import('../../src/components/base/store/providerStore.ts')
   })
 
   describe('load / select（配置型数据源）', () => {

@@ -1,66 +1,93 @@
 # base/ · 通用能力地基（目录地图）
 
 > 定位：全项目「通用地基」，所有层（nodes/panels/agent/scriptbox/hooks）都可依赖它；**业务域反向依赖它 = 架构违规**（`npm run check:arch` 拦截）。
-> 更新(2026-08-31)：本目录不按子目录物理重排（NodeShell/ModelSelect 等是真通用基座，整层搬 = churn + 高风险，决策见 `spec/CONTEXT.md` §六·B）。改文件前先看本索引定位归属。
+> **更新(2026-09-04)**：base/ 已按语义子目录物理分组，并经另一子代理「按文件头+导出+依赖」复核（17 移/115 保持）后执行。目录归属以本索引为准；发现架构不合理要移位置/改名，一律走 `scripts/ts-migrate.mjs`（见 CLAUDE §5.4·8）。
 
-## 一、横切唯一入口（P0 红线，别绕道）
+## 目录结构（2026-09-04）
 
-| 文件                | 职责                                                                                            |
-| ----------------- | --------------------------------------------------------------------------------------------- |
-| `contracts.js`    | 契约真源（apiRegistry/EVENTS/STORAGE\_KEYS/NODE\_TYPES），`check:api`/`check:events`/`check:keys` 依赖 |
-| `config.js`       | 环境变量/常量唯一入口（端口/超时/魔法数字）                                                                       |
-| `contentStore.ts` | 存储横切唯一入口（按 STORAGE\_KEYS 路由底层，dev 校验裸 key）                                                    |
-| `eventBus.ts`     | 事件广播唯一入口                                                                                      |
-| `logger.ts`       | 日志/上报唯一入口                                                                                     |
-| `toastStore.ts`   | 提示唯一入口                                                                                        |
-| `confirmStore.ts` | 确认弹窗唯一入口（`askConfirm` → `Promise<boolean>`，与 toastStore 同形：模块级 store + 全局容器渲染）                |
-| `idGen.ts`        | ID 生成唯一入口                                                                                     |
-| `utils.ts`        | 通用纯工具集合（deepClone/debounce/throttle…）                                                         |
+| 子目录           | 语义                                        |
+| ------------- | ----------------------------------------- |
+| `core/`       | 横切唯一入口（P0 红线）+ 通用地基工具                     |
+| `api/`        | 发网络请求的模块                                  |
+| `storage/`    | 持久化底层（深模块）                                |
+| `store/`      | 业务独立状态库                                   |
+| `canvas/`     | 画布编排（节点注册/默认值/编组/派生/lazy/历史栈/工作流触发/工具注册表） |
+| `ui/`         | 真·通用展示基座（被多节点/多页复用）                       |
+| `panels/`     | 应用壳/大面板（含 `sections/` 设置分区）               |
+| `editors/`    | 内容编辑/查看器                                  |
+| `prompt/`     | 提示词域（输入/提示词库/纯函数/store）                   |
+| `depthVideo/` | 深度视频域                                     |
 
-## 二、网络/API 层（深模块 `api/`，2026-08-31）
+> 专项归位（2026-09-04 复核执行）：`d3dPersistence` → `director3d/`、`useImageHoverActions` → `nodes/`（业务域专属件回收）；`upstreamLink`/`toolRegistry` → `canvas/`；`settings/` 已拆分清空删除（组件→ui/、框架→panels/、store→store/、sections→panels/sections/）。`promptFlow.ts` 经复核为边缘死代码，另立 TODO 清理。
 
-`api/` 内：`chatApi` `imageApi` `videoApi` `httpClient` `localToolApi` `filesApi` `relayProxy` `genIntent` `pollTask`
+## 一、core/ （横切唯一入口 P0 红线 + 通用地基）
 
-> **深模块**：外部统一 `import from 'base/api'`（index.ts 入口），内部互引走 `./` 相对。
-> **统一生成入口收口（2026-09-03）**：chat/image/video 门面统一直连 `/api/generate`（capability=chat/image/video 分流），旧 `proxyGenerate`（/api/proxy 出站）与旧 `/api/relay` 路由已整文件退役/并入。SSE 三件套不再走 proxyGenerate；`relayProxy` 为唯一 relay 客户端。
+- **红线（多个** **`scripts/`** **校验按字面路径引用，改名/移动须同步 scripts）**：`contracts.ts`（apiRegistry/EVENTS/STORAGE\_KEYS/NODE\_TYPES）、`config.ts`（环境变量/常量）、`contentStore.ts`（存储唯一入口）、`eventBus.ts`、`logger.ts`
 
-## 三、存储层（深模块 `storage/`，2026-08-31）
+- 其余：`confirmStore.ts`（统一确认弹窗 store）、`toastStore.ts`（统一通知 store）、`idGen.ts`、`hooks.ts`（通用 hooks）、`utils.ts`（通用纯工具：deepClone/debounce/throttle…）
 
-`storage/` 内：`storageAdapter` `kvStore` `storageQuota` `persistFailureBus`
+## 二、api/ （发网络请求）
 
-> **深模块**：外部统一 `import from 'base/storage'`（index.ts 入口）。`contentStore`（横切唯一入口）与 `backupStore`（上层备份编排，依赖 contentStore/projectStore）留在 base/ 根。
+`chatApi.ts` `imageApi.ts` `videoApi.ts` `filesApi.ts` `localToolApi.ts` `httpClient.ts` `relayProxy.ts` `pollTask.ts` `genIntent.ts` `index.ts`
 
-## 四、store（各业务/领域独立状态）
+> **深模块**：外部统一 `import from 'base/api'`（index.ts 入口）。**统一生成入口收口（2026-09-03）**：chat/image/video 门面统一直连 `/api/generate`，旧 `proxyGenerate`（/api/proxy）与旧 `/api/relay` 路由已退役/并入；`relayProxy` 为唯一 relay 客户端。
 
-`assetStore` `projectStore` `skillStore` `taskStore` `promptHubStore` `appSettings` `accountsStore`(settings/) `agentModelStore`(settings/) `providerStore`(settings/)
+## 三、storage/ （持久化底层，深模块）
 
-## 五、画布编排（核心链路，勿轻动）
+`storageAdapter.ts` `kvStore.ts` `storageQuota.ts` `persistFailureBus.ts` `index.ts`
 
-`NodePalette` `nodeDefaults` `nodePrefs` `groupNodes` `deriveNodes` `lazyNode` `CanvasEdgesContext` `historyStack` `workflowRuntime` `ArrangeConfirm` `lod`
+> **深模块**：外部统一 `import from 'base/storage'`。`contentStore`（core/ 横切）为唯一路由入口，`backupStore`（store/）负责上层备份编排。
 
-## 六、纯函数/工具（无副作用，可单测）
+## 四、store/ （业务独立状态库）
 
-`asyncGuard` `clipboard` `imageCompress` `imageUpscale` `imageUrl` `mediaType` `previewUrl` `refToken` `requestModes` `volumePolicy` `uploadDirs` `resultUrlExtractor` `externalizeInline` `faceMosaic` `genErrors` `degrade` `providerModels` `providerProtocols` `promptChips` `promptFlow` `promptManager` `promptMention` `nodeDefaults`(与画布共用) `upstreamLink` `d3dPersistence`(director3d 持久化协议) `videoEngine`
+`assetStore.ts` `projectStore.ts` `skillStore.ts` `taskStore.ts` `taskCompletionBus.ts` `backupStore.ts` `cloudSync.ts` `appSettings.ts`
+（自 `settings/` 并入）`accountsStore.ts` `agentModelStore.ts` `providerStore.ts` `settingRegistry.ts`
 
-## 七、纯 UI 组件（通用展示基座，被多节点/App 复用）
+## 五、canvas/ （画布编排，核心链路勿轻动）
 
-`NodeShell` `ModelSelect` `LazyImage` `NodeTitle` `ToolbarButton` `Select` `ToastContainer` `ConfirmContainer` `ErrorBoundary` `ExpandablePanel` `ContextMenu` `CometParticles` `JianyingIcon` `VideoThumbnail` `ResizeFullscreenHandle` `GeneratingOverlay` `GenerateButton`
+`NodePalette.ts` `nodeDefaults.ts` `nodePrefs.ts` `groupNodes.ts` `deriveNodes.ts` `lazyNode.tsx` `CanvasEdgesContext.tsx` `historyStack.ts` `workflowRuntime.ts` `ArrangeConfirm.tsx` `lod.tsx`
+（复核并入）`upstreamLink.ts`（拓扑触发安全网）`toolRegistry.ts`（画布 AI 工具注册表）
 
-## 八、应用壳/大面板组件（只被 App.jsx 或单入口用）
+## 六、utils/ （无副作用纯函数工具，可单测）
 
-`TopNav` `LeftPanel` `TaskCenter` `AssetLibrary` `MaterialStrip` `GeneratedView` `PromptHub` `PromptLibrary` `PromptLibraryButton` `PromptInput` `ProjectSelector` `FullscreenEditor` `FullscreenModal` `LocalToolConnectModal` `ImageEditor` `OverlayEditor` `ImageZoomDialog` `InlineImageCropper` `FaceMosaicEditor` `EmptyCanvasGuide` `CanvasToolbar` `HoverToolbar` `PanoViewer` `ScriptBoxSchema`(已移 scriptbox/) `useImageHoverActions`
+`asyncGuard.ts` `clipboard.ts` `degrade.ts` `externalizeInline.ts` `faceMosaic.ts` `genErrors.ts` `imageCompress.ts` `imageUpscale.ts` `imageUrl.ts` `mediaType.ts` `previewUrl.ts` `providerModels.ts` `providerProtocols.ts` `refToken.ts` `requestModes.ts` `resultUrlExtractor.ts` `uploadDirs.ts` `videoEngine.ts` `volumePolicy.ts`
 
-> ⚠️ 已迁出 base/ 的脚本盒专属件：`scriptBoxEngine/Prompts/PromptResolver/Schema` → `scriptbox/`（见 CONTEXT §六·B）。
+## 七、ui/ （真·通用展示基座）
+
+`NodeShell.tsx` `ModelSelect.tsx` `LazyImage.tsx` `NodeTitle.tsx` `ToolbarButton.tsx` `Select.tsx` `ToastContainer.tsx` `ConfirmContainer.tsx` `ErrorBoundary.tsx` `ExpandablePanel.tsx` `ContextMenu.tsx` `CometParticles.tsx` `JianyingIcon.tsx` `VideoThumbnail.tsx` `ResizeFullscreenHandle.tsx` `GeneratingOverlay.tsx` `GenerateButton.tsx`
+（自 `settings/` 并入）`Toggle.tsx`
+
+## 八、panels/ （应用壳/大面板 + sections/ 设置分区）
+
+`TopNav.tsx` `LeftPanel.tsx` `TaskCenter.tsx` `AssetLibrary.tsx` `MaterialStrip.tsx` `GeneratedView.tsx` `CanvasToolbar.tsx` `HoverToolbar.tsx` `ProjectSelector.tsx` `FullscreenEditor.tsx` `FullscreenModal.tsx` `LocalToolConnectModal.tsx` `EmptyCanvasGuide.tsx`
+（自 `settings/` 并入）`SettingsFrame.tsx` + `sections/`{`AccountsSettings` `AgentChatSettings` `ApiSettings` `FetchModelsModal` `OtherSettings` `SkillSettings` `StorageMonitor`}
+
+## 九、editors/ （内容编辑/查看器）
+
+`ImageEditor.tsx` `OverlayEditor.tsx` `ImageZoomDialog.tsx` `InlineImageCropper.tsx` `FaceMosaicEditor.tsx` `PanoViewer.tsx` `CameraStudioPanel.tsx` `cameraStudio.ts`
+
+## 十、prompt/ （提示词域）
+
+UI：`PromptInput.tsx` `PromptLibrary.tsx` `PromptLibraryButton.tsx` `PromptHub.tsx`
+纯函数：`promptChips.ts` `promptMention.ts`
+数据层：`promptHubStore.ts` `promptManager.ts`
+（`promptFlow.ts` 复核为边缘死代码，另立 TODO 清理）
+
+## 十一、depthVideo/ （深度视频域）
+
+`engine.ts` `loader.ts` `path.ts` `spawn.ts` `DepthVideoModal.tsx`
 
 ## 找文件速查
 
-- 想发请求 → 看「二 网络/API 层」
+- 想发请求 → `api/`
 
-- 想存数据 → 看「一 contentStore」或「四 store」
+- 想存数据 → `core/contentStore` 或 `store/`
 
-- 想改画布节点行为 → 看「五 画布编排」+ `spec/NEW-NODE-GUIDE.md`
+- 想改画布节点行为 → `canvas/` + `spec/NEW-NODE-GUIDE.md`
 
-- 想加通用函数 → 看「一 utils.ts」优先，再「六 纯函数」
+- 想加通用函数 → `core/utils` 优先，再 `utils/`
 
-- 想复用 UI → 看「七 纯 UI」
+- 想复用 UI → `ui/`
+
+- 想改编辑/查看器 → `editors/`；改提示词 → `prompt/`；改设置 → `panels/sections/` + `store/`
 

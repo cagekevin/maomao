@@ -1,7 +1,7 @@
 import React from 'react'
 import { useAppSettings, setSetting } from '../../store/appSettings.ts'
-import { UI_SETTING_ROWS } from '../settingRegistry.ts'
-import { Toggle } from '../Toggle'
+import { UI_SETTING_ROWS } from '../../store/settingRegistry.ts'
+import { Toggle } from '../../ui/Toggle.tsx'
 
 /** 单项设置行：标题 + 说明 + 右侧开关 */
 function SettingRow({ icon: Icon, title, desc, checked, onChange }) {

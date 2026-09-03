@@ -45,7 +45,7 @@ vi.mock('../../src/components/base/core/contentStore.ts', () => ({
 
 const loadProviders = vi.fn(() => Promise.resolve())
 const useProvidersList = vi.fn(() => [{ id: 'p1', isPrimary: true }])
-vi.mock('../../src/components/base/settings/providerStore.ts', () => ({
+vi.mock('../../src/components/base/store/providerStore.ts', () => ({
   useProvidersList: (...a: Parameters<typeof useProvidersList>) => useProvidersList(...a),
   load: (...a: Parameters<typeof loadProviders>) => loadProviders(...a),
 }))

@@ -93,7 +93,7 @@ vi.mock('../../src/components/base/api/filesApi.ts', () => ({ toAbsoluteFileUrl:
 
 // 带 rest 参数声明：保证 mock 工厂可无损透传调用参数，无需 as any 强转
 const mockFetchTasks = vi.fn(async (..._a: unknown[]) => ({ data: { items: [] } }))
-vi.mock('../../src/components/base/settings/providerStore.ts', () => ({ useProviders: () => ({ providers: [] }), load: vi.fn(() => Promise.resolve()) }))
+vi.mock('../../src/components/base/store/providerStore.ts', () => ({ useProviders: () => ({ providers: [] }), load: vi.fn(() => Promise.resolve()) }))
 vi.mock('../../src/components/base/api/localToolApi.ts', () => ({ fetchTasks: (...a: unknown[]) => mockFetchTasks(...a) }))
 const mockGenerateImage = vi.fn(async (..._a: unknown[]) => ({ url: 'http://gen.local/img.png' }))
 vi.mock('../../src/components/base/api/imageApi.ts', () => ({ generateImage: (...a: unknown[]) => mockGenerateImage(...a) }))

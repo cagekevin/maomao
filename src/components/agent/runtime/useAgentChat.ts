@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useCanvasAgentTools, getGenParams, setCurrentReferenceImages } from '../canvas/useCanvasAgentTools.ts'
-import { loadAgentChatModel, loadAgentHistoryTurns } from '../../base/settings/agentModelStore.ts'
+import { loadAgentChatModel, loadAgentHistoryTurns } from '../../base/store/agentModelStore.ts'
 import { logger } from '../../base/core/logger.ts'
 import { withTimeout } from '../../base/utils/asyncGuard.ts'
 import { API_BASE, KV_TIMEOUT } from '../../base/core/config.ts'

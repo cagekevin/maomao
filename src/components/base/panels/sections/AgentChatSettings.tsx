@@ -1,12 +1,12 @@
 import React from 'react'
 import { Bot, Check } from 'lucide-react'
-import { useProviders, load } from '../providerStore.ts'
+import { useProviders, load } from '../../store/providerStore.ts'
 import { logger } from '../../core/logger.ts'
 import { showToast } from '../../core/toastStore.ts'
 import {
   loadAgentChatModel, saveAgentChatModel,
   loadAgentHistoryTurns, saveAgentHistoryTurns,
-} from '../agentModelStore.ts'
+} from '../../store/agentModelStore.ts'
 import SkillSettings from './SkillSettings.tsx'
 
 /**

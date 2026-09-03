@@ -2,7 +2,7 @@ import React from 'react'
 import { Check, Star, Server, RefreshCw, CircleDot, AlertCircle, Image, MessagesSquare, Video, Plus, Trash2 } from 'lucide-react'
 import { showToast } from '../../core/toastStore.ts'
 import { PROVIDER_PROTOCOL_LABELS } from '../../utils/providerProtocols.ts'
-import { useProviders, load, select, setPrimary, test, fetchModels, applyFetchedModels, closeFetchedModels, save, enabledProviders, candidateProviders, toggleProviderEnabled, addModel, removeModel, updateProviderField } from '../providerStore.ts'
+import { useProviders, load, select, setPrimary, test, fetchModels, applyFetchedModels, closeFetchedModels, save, enabledProviders, candidateProviders, toggleProviderEnabled, addModel, removeModel, updateProviderField } from '../../store/providerStore.ts'
 import FetchModelsModal from './FetchModelsModal.tsx'
 import type { RawModel } from '../../utils/providerModels.ts'
 

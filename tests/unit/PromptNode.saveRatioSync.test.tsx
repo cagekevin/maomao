@@ -74,7 +74,7 @@ vi.mock('../../src/components/base/api/index.ts', () => ({
   generateImage: vi.fn(async () => ({ url: 'http://gen.local/img.png' })),
 }))
 vi.mock('../../src/components/base/utils/providerModels.ts', () => ({ buildAllModels: vi.fn(() => []), resolveProviderModel: vi.fn(() => ({ provider: {}, modelId: 'm' })) }))
-vi.mock('../../src/components/base/settings/providerStore.ts', () => ({ useProviders: () => ({ providers: [] }), load: vi.fn(() => Promise.resolve()) }))
+vi.mock('../../src/components/base/store/providerStore.ts', () => ({ useProviders: () => ({ providers: [] }), load: vi.fn(() => Promise.resolve()) }))
 
 // ImageEditor：记录 onSave（模拟裁剪/扩图保存回传 dims）
 vi.mock('../../src/components/base/editors/ImageEditor.tsx', () => ({

@@ -119,7 +119,7 @@ vi.mock('../../src/hooks/useVideoPoster.ts', () => ({ useVideoPoster: () => null
 vi.mock('../../src/components/base/canvas/nodePrefs.ts', () => ({
   useNodePrefs: () => ({ prefs: { model: '', size: '', resolution: '', seconds: '' }, set: (...a) => h.vidPrefsSet(...a) }),
 }))
-vi.mock('../../src/components/base/settings/providerStore.ts', () => ({ useProviders: () => ({ providers: [] }), load: vi.fn(async () => {}) }))
+vi.mock('../../src/components/base/store/providerStore.ts', () => ({ useProviders: () => ({ providers: [] }), load: vi.fn(async () => {}) }))
 vi.mock('../../src/components/base/utils/providerModels.ts', () => ({ buildAllModels: () => [], resolveProviderModel: () => ({ provider: {}, modelId: 'm' }) }))
 vi.mock('../../src/components/base/core/logger.ts', () => ({ logger: { info: (...a) => h.loggerInfo(...a), warn: () => {} } }))
 vi.mock('../../src/components/base/utils/clipboard.ts', async (importOriginal) => {

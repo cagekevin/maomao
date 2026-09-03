@@ -5,7 +5,7 @@ import {
   poseForObject, presetJoints, presetPhase, presetRoot,
 } from './rig.ts'
 import { readJson, removeKey, writeJson } from './storage.ts'
-import { isProjectImageUrl } from '../base/utils/d3dPersistence.ts'
+import { isProjectImageUrl } from './d3dPersistence.ts'
 
 // ================================================================
 // 领域类型真相源（3D 导演台）

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { useProviders, load as loadProviders } from '../base/settings/providerStore.ts'
+import { useProviders, load as loadProviders } from '../base/store/providerStore.ts'
 import { logger } from '../base/core/logger.ts'
 import { buildAllModels } from '../base/utils/providerModels.ts'
 import ModelSelect from '../base/ui/ModelSelect.tsx'

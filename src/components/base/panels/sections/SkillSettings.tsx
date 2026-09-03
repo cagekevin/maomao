@@ -5,7 +5,7 @@ import { showToast } from '../../core/toastStore.ts'
 import { askConfirm } from '../../core/confirmStore.ts'
 import { downloadBlob } from '../../utils/clipboard.ts'
 import { createImeInput } from '../../core/utils.ts'
-import { Toggle } from '../Toggle'
+import { Toggle } from '../../ui/Toggle.tsx'
 
 const inputCls =
   'w-full bg-canvas border border-edge text-body text-sm px-3 py-2.5 rounded-xl outline-none placeholder:text-muted focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/10 transition disabled:opacity-50'

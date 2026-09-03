@@ -305,6 +305,13 @@ node scripts/task-inspect.mjs --canvas-health   # 画布结构体检
 5. **存储键禁止裸字符串（P0 红线）**：所有存储读写（`content*/s*/storage*/kv*`）的 key 必须引用 `contracts.ts` 的 `STORAGE_KEYS` 登记项，**禁止裸字符串字面量 key**。新增键先登记、改键名全量 grep、删键先确认无引用。编译期拦截：`npm run check:keys`（静态）；运行时拦截：`contentStore.checkRegistered` 在 dev 环境对未登记字面量 key 直接 throw（`scripts/check-storage-keys.mjs` + `src/components/base/contentStore.ts` 为权威实现，改此机制须同步本红线）。
 6. **事件名禁止裸字符串 + 登记表零滞后（P0 红线，与存储键对称）**：所有事件总线调用（`publish`/`subscribe`/`subscribeOnce`）的事件名必须是 `contracts.ts` 的 `EVENTS` 登记项，**禁止裸字符串字面量事件名**（编译期 `npm run check:events` 拦截）。`EVENTS` 的 `from`/`to` 是发布/订阅事实源，**必须与代码实测的** **`publish`/`subscribe`** **位置自洽**：① 表 `to: []` 但代码实测有 `subscribe` → 视为"登记表滞后"（实际已被订阅），**禁止据此判定死事件/可删发布逻辑**；② 行号漂移须同步对齐。双向校验 `npm run check:events` 已挂 `prebuild`+`pretest`（`scripts/check-events.mjs` 为权威实现）。
 7. **降复杂度优先**：能减少复杂度又不引入 bug 的改动都做（混淆短名改语义长名、抽公共、删冗余），被运行时契约钉死的除外。改完必须 `npm run build` 验证。
+8. **架构重排（移位置/改名字）统一走** **`scripts/ts-migrate.mjs`**（最高优先，改动前必读）：一旦发现架构不合理需要给文件**移位置或改名字**，一律用 `node scripts/ts-migrate.mjs move <src> <dst> --suffix ts` / `rename <file> <newName> --suffix ts` / `move-dir`，**禁止手写** **`mv`/手改 import**。工具是事务式（git mv + 全库同步 import + 可 `undo` 回退，`--dry` 预览），且 2026-09-04 已修复被移文件自身出向 import 不重写的 bug。要点：
+
+   - **必须带** **`--suffix ts`**（本项目 import 显式写 `.ts/.tsx`，勿用默认 `auto`——会把 import 改成 `.js` 破工程约定）。
+
+   - 每批移动/改名后跑 `npm run type-check`，收尾 `npm run build` + `npm run test:smoke` 验证。
+
+   - `scripts/` 校验脚本（check-api/events/storage-keys/node-types/health-check/arch/group 测试等）**按字面路径**引用 `src/components/base/core/` 的 contracts/config/contentStore 等——`ts-migrate` 只改 import、不改 scripts 字符串路径，所以**改名/移动这几处时须同步 scripts 路径**，否则 `check:health` 会红。
 
 ### 5.5 卡帕西编码准则 (Karpathy Rules)
 
@@ -414,6 +421,7 @@ node scripts/task-inspect.mjs --canvas-health   # 画布结构体检
 | `spec/CONTEXT.md`        | **写码决策地图（唯一中心）**：顶层架构（画布编排×节点体系×地基收口×收口准则）/ 代码组织（含**重型重构 SOP** §一·C）/ 横切 7 块入口 / 并发治理 / 安全密钥 / 数据一致性 |
 | `spec/TEST-GUIDE.md`     | **测试体系权威**：命令/分层/SOP/输出规范                                                                            |
 | `spec/NEW-NODE-GUIDE.md` | **新建节点权威流程**（高频：骨架/注册/契约/常见坑）                                                                        |
+| `spec/DATAFLOW.md`       | **数据流链路索引**：生成/存储/资产/画布/提示词/编辑/3D 各链路的一页图（refs 实证，AI 快速 trace 一条链路用，勿跨目录乱猜）                    |
 | `tailwind.config.ts`     | **样式令牌唯一真相**（禁裸色值，勿再引用已删的 tailwind-tokens.md）                                                        |
 
 **🟡 按需参考（不用日常维护；用到了才看）**

@@ -20,7 +20,7 @@ describe('accountsStore §4 多开账号管理', () => {
     globalThis.fetch = vi.fn().mockResolvedValue({
       ok: true, status: 200, json: async () => null, text: async () => '',
     })
-    mod = await import('../../src/components/base/settings/accountsStore.ts')
+    mod = await import('../../src/components/base/store/accountsStore.ts')
   })
 
   // 造环境：浏览器端降级分支（非扩展）写入「开发测试网」测试数据（store 已不再预置演示假数据 env_demo_*）。
@@ -293,7 +293,7 @@ describe('accountsStore §4 扩展端 · localStorage 隔离', () => {
       ok: true, status: 200, json: async () => null, text: async () => '',
     })
     vi.stubGlobal('confirm', vi.fn(() => true))
-    mod = await import('../../src/components/base/settings/accountsStore.ts')
+    mod = await import('../../src/components/base/store/accountsStore.ts')
   })
 
   afterEach(() => {

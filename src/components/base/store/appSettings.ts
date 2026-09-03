@@ -8,7 +8,7 @@
  */
 import { useSyncExternalStore } from 'react'
 import { contentGet, contentSet } from '../core/contentStore.ts'
-import { buildDefaults } from '../settings/settingRegistry.ts'
+import { buildDefaults } from './settingRegistry.ts'
 
 const KEY: string = 'app_settings'
 
