@@ -29,7 +29,7 @@ declare global {
 /** 重新加载 config 模块（顶层 const 在 import 时求值，需 resetModules 使 env 覆盖生效）。 */
 async function loadConfig() {
   vi.resetModules()
-  return await import('../../src/components/base/config.ts')
+  return await import('../../src/components/base/core/config.ts')
 }
 
 afterEach(() => {

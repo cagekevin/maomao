@@ -13,10 +13,10 @@
  * temperature/response_format 经 relayChat 透传后端（preset 纯模板有传才进 body）——TextNode JSON 输出与
  * 采样温度依赖它们。已随 proxyGenerate 退役移除 chatProxy / resolveChatMode / buildResponsesChatBody。
  */
-import { normalizeImageUrlsForSend, toImageContentBlocks } from '../imageUrl.ts'
-import { logger } from '../logger.ts'
+import { normalizeImageUrlsForSend, toImageContentBlocks } from '../utils/imageUrl.ts'
+import { logger } from '../core/logger.ts'
 import { relayChat } from './relayProxy.ts'
-import { CHAT_TIMEOUT } from '../config.ts'
+import { CHAT_TIMEOUT } from '../core/config.ts'
 import type { GenerationProvider, GenerationResult } from '@/types'
 
 /** 聊天气息内容块（text / image_url），供 content 数组形式的消息使用 */

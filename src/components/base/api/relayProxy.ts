@@ -13,9 +13,9 @@
  * 【唯一出口纪律】传输统一 httpClient；协议执行在 localTool（ai-relay kit + relay-poll），本文件无字段抽取。
  */
 
-import { API_BASE, GEN_POLL_INTERVAL } from '../config.ts'
+import { API_BASE, GEN_POLL_INTERVAL } from '../core/config.ts'
 import { httpRequest } from './httpClient.ts'
-import { logger } from '../logger.ts'
+import { logger } from '../core/logger.ts'
 
 /** relay 能力（对齐 /api/generate 的 capability） */
 export type RelayCapability = 'image' | 'video' | 'chat'

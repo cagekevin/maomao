@@ -10,9 +10,9 @@ vi.mock('../../src/components/base/api/localToolApi.ts', () => ({
   clearAllTasksApi: vi.fn(async () => {}),
 }))
 import { saveTask } from '@/components/base/api/localToolApi.ts'
-import { publish } from '../../src/components/base/eventBus.ts'
+import { publish } from '../../src/components/base/core/eventBus.ts'
 // saveTask 的入参在 src 侧是 unknown（①类偏宽）；测试侧按落库形状用 Task 收敛，便于断言字段
-import type { Task } from '@/components/base/taskStore.ts'
+import type { Task } from '@/components/base/store/taskStore.ts'
 
 const {
   statusLabel,
@@ -29,7 +29,7 @@ const {
   isNodeRegistered,
   reportGenerate,
   getTasks,
-} = await import('../../src/components/base/taskStore.ts')
+} = await import('../../src/components/base/store/taskStore.ts')
 
 beforeEach(() => {
   // 任务清理依赖内部 tasks 数组，逐测试前清空（clearAllTasks 会触发事件但不影响断言）

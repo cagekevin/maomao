@@ -1,10 +1,10 @@
 import React, { useMemo, useRef, useState, useEffect } from 'react'
 import { Search, Plus, Bot, Sparkles, Upload, Download, Pencil, MoreHorizontal, X, Trash2 } from 'lucide-react'
-import { getAllSkills, readCustomSkills, upsertCustomSkill, deleteCustomSkill, isSkillEnabled, setSkillEnabled, getAllEnabledMap } from '../../skillStore.ts'
-import { showToast } from '../../toastStore.ts'
-import { askConfirm } from '../../confirmStore.ts'
-import { downloadBlob } from '../../clipboard.ts'
-import { createImeInput } from '../../utils.ts'
+import { getAllSkills, readCustomSkills, upsertCustomSkill, deleteCustomSkill, isSkillEnabled, setSkillEnabled, getAllEnabledMap } from '../../store/skillStore.ts'
+import { showToast } from '../../core/toastStore.ts'
+import { askConfirm } from '../../core/confirmStore.ts'
+import { downloadBlob } from '../../utils/clipboard.ts'
+import { createImeInput } from '../../core/utils.ts'
 import { Toggle } from '../Toggle'
 
 const inputCls =

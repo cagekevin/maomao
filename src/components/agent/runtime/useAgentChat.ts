@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useCanvasAgentTools, getGenParams, setCurrentReferenceImages } from '../canvas/useCanvasAgentTools.ts'
 import { loadAgentChatModel, loadAgentHistoryTurns } from '../../base/settings/agentModelStore.ts'
-import { logger } from '../../base/logger.ts'
-import { withTimeout } from '../../base/asyncGuard.ts'
-import { API_BASE, KV_TIMEOUT } from '../../base/config.ts'
-import { LLM_CHAT_BASE_URL, LLM_CHAT_API_KEY, LLM_CHAT_MODEL, AGENT_DEMO_MODE } from '../../base/config.ts'
+import { logger } from '../../base/core/logger.ts'
+import { withTimeout } from '../../base/utils/asyncGuard.ts'
+import { API_BASE, KV_TIMEOUT } from '../../base/core/config.ts'
+import { LLM_CHAT_BASE_URL, LLM_CHAT_API_KEY, LLM_CHAT_MODEL, AGENT_DEMO_MODE } from '../../base/core/config.ts'
 import { InputStateMachine } from './inputStateMachine.ts'
-import { generateId } from '../../base/idGen.ts'
+import { generateId } from '../../base/core/idGen.ts'
 
 /**
  * 【过渡方案·2026-08-18 决策注释】回传给 LLM 的「历史纯文字」轮数（由 AI 助手设置控制，不硬编码）。
@@ -57,7 +57,7 @@ import { compressToSummary, RECENT_KEEP_COUNT } from './contextCompression.ts'
 // 上下文预算触发压缩（照搬参考项目 contextManager）：决策吃 messages，内部估算 token，75% 预压缩 / 90% 强制压缩
 import { decideContextCompression, resolveInputBudget } from './tokenBudget.ts'
 // 集中配置：AI 助手上下文窗口默认值与输出预算留白比例（无模型 contextWindow 声明时的保守兜底）
-import { AGENT_CONTEXT_WINDOW_DEFAULT, AGENT_CONTEXT_OUTPUT_BUDGET_RATIO } from '../../base/config.ts'
+import { AGENT_CONTEXT_WINDOW_DEFAULT, AGENT_CONTEXT_OUTPUT_BUDGET_RATIO } from '../../base/core/config.ts'
 // 工作流状态迁移（M2 收口：steer/起步/awaiting_confirm/终态/队列出队的纯函数，落盘仍走 patchCurrentWorkflow）
 import { wfStart, wfSteer, wfFinish, wfAwaitConfirm, wfNextSteer } from './workflowState.ts'
 import { isAgentWorkMode } from './runModeRegistry.ts'

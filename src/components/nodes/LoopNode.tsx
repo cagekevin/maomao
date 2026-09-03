@@ -1,14 +1,14 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { useReactFlow } from '@xyflow/react'
 import { Repeat, Play, ChevronDown } from 'lucide-react'
-import NodeShell from '../base/NodeShell.tsx'
+import NodeShell from '../base/ui/NodeShell.tsx'
 import { useConnectedInputs } from '../../hooks/useConnectedInputs.ts'
-import { toastWarning } from '../base/toastStore.ts'
+import { toastWarning } from '../base/core/toastStore.ts'
 import { useSyncNodeData } from '../../hooks/useSyncNodeData.ts'
-import { useOutsideClick } from '../base/hooks.ts'
-import { generateId } from '../base/idGen.ts'
-import { buildSpawnNodes, spawnAndCommit } from '../base/deriveNodes.ts'
-import { useCanvasEdges } from '../base/CanvasEdgesContext.tsx'
+import { useOutsideClick } from '../base/core/hooks.ts'
+import { generateId } from '../base/core/idGen.ts'
+import { buildSpawnNodes, spawnAndCommit } from '../base/canvas/deriveNodes.ts'
+import { useCanvasEdges } from '../base/canvas/CanvasEdgesContext.tsx'
 
 /** 循环节点 data 契约 */
 interface LoopNodeData {

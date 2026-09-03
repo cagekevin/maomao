@@ -3,7 +3,7 @@
  * 策略：注入 mock save，验证遍历/替换/计数/失败保留，不依赖真实落盘。
  */
 import { describe, it, expect, vi } from 'vitest'
-import { externalizeInlineData } from '../../src/components/base/externalizeInline.ts'
+import { externalizeInlineData } from '../../src/components/base/utils/externalizeInline.ts'
 
 // 本地对齐 externalizeInline.ExternalizeDeps（未导出）
 type ExternalizeDeps = { save: (dataUrl: string) => Promise<string | null> }

@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useRef } from 'react'
 import type { DragEvent as ReactDragEvent, ClipboardEvent as ReactClipboardEvent } from 'react'
-import { detectFileType, isAssetUrl } from '../components/base/mediaType.ts'
-import { isEditableTarget } from '../components/base/hooks.ts'
-import { sanitizePastedText } from '../components/base/clipboard.ts'
-import { showToast } from '../components/base/toastStore.ts'
+import { detectFileType, isAssetUrl } from '../components/base/utils/mediaType.ts'
+import { isEditableTarget } from '../components/base/core/hooks.ts'
+import { sanitizePastedText } from '../components/base/utils/clipboard.ts'
+import { showToast } from '../components/base/core/toastStore.ts'
 import { uploadFileToLocal, downloadRemoteToLocal, WEB_DROP_SUBFOLDER } from '../components/base/api/index.ts'
-import { fileToDataUrl } from '../components/base/imageUrl.ts'
-import { UPLOAD_DIRS } from '../components/base/uploadDirs.ts'
-import { logger } from '../components/base/logger.ts'
+import { fileToDataUrl } from '../components/base/utils/imageUrl.ts'
+import { UPLOAD_DIRS } from '../components/base/utils/uploadDirs.ts'
+import { logger } from '../components/base/core/logger.ts'
 
 /** 画布坐标（screenToFlowPosition 的输出 / addNode 的入参） */
 export interface FlowPosition {

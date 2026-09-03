@@ -25,7 +25,7 @@
  * （undo_ai 恢复快照、group_nodes 整体替换），非局部操作。host 内部保持一致，调用方无需关心。
  */
 import type { Node, Edge } from '@xyflow/react'
-import { deleteNodesWithCascade } from '../../base/groupNodes.ts'
+import { deleteNodesWithCascade } from '@/components/base/canvas/groupNodes'
 
 /** 不传 ctx 时的安全空实现（保持「注入 ctx 即可测」语义，避免空 ctx 调用即崩）。 */
 const DEFAULT_CTX: CanvasHostCtx = {

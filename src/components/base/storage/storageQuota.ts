@@ -45,8 +45,8 @@
  *      「可删的无用数据」。真正确认可删，要靠业务语义（如过期缓存、已导出的历史快照），别凭大小猜。
  */
 import { isChromeExtension, KEY_PREFIX } from './storageAdapter.ts'
-import { STORAGE_KEYS } from '../contracts.ts'
-import { compilePatternRegex } from '../utils.ts'
+import { STORAGE_KEYS } from '../core/contracts.ts'
+import { compilePatternRegex } from '../core/utils.ts'
 
 /**
  * chrome 扩展全局的类型声明（与 storageAdapter.ts 同步的模块级最小声明）。

@@ -3,7 +3,7 @@ import {
   ensureCurrentPrompt, confirmPrompt, editPrompt, savePromptEdit,
   cancelPromptEdit, reopenPrompt, confirmAllPrompts, PROMPT_STATUS,
   type PromptItem, type PromptStatus,
-} from '../base/promptFlow.ts'
+} from '../base/prompt/promptFlow.ts'
 
 const P = PROMPT_STATUS
 

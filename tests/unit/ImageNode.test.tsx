@@ -9,15 +9,15 @@ import { render, screen } from '@testing-library/react'
 import { mocks } from './_nodeMocks.mjs'
 
 vi.mock('@xyflow/react', () => mocks.xyflow)
-vi.mock('../../src/components/base/NodeShell.tsx', () => ({ default: mocks.NodeShell }))
-vi.mock('../../src/components/base/HoverToolbar.tsx', () => ({ default: mocks.HoverToolbar }))
-vi.mock('../../src/components/base/ImageEditor.tsx', () => ({ default: mocks.ImageEditor }))
+vi.mock('../../src/components/base/ui/NodeShell.tsx', () => ({ default: mocks.NodeShell }))
+vi.mock('../../src/components/base/panels/HoverToolbar.tsx', () => ({ default: mocks.HoverToolbar }))
+vi.mock('../../src/components/base/editors/ImageEditor.tsx', () => ({ default: mocks.ImageEditor }))
 vi.mock('../../src/hooks/useMediaDegrade.ts', () => ({ useMediaDegrade: mocks.useMediaDegrade }))
 vi.mock('../../src/hooks/useFitNodeRatio.ts', () => ({ useFitNodeRatio: mocks.useFitNodeRatio }))
 vi.mock('../../src/hooks/useVideoPoster.ts', () => ({ useVideoPoster: mocks.useVideoPoster }))
 vi.mock('../../src/components/base/api/filesApi.ts', () => ({ toAbsoluteFileUrl: mocks.toAbsoluteFileUrl, saveInlineToLocal: mocks.saveInlineToLocal, uploadFileToLocal: mocks.uploadFileToLocal }))
-vi.mock('../../src/components/base/toastStore.ts', () => ({ showToast: mocks.showToast, toastError: mocks.toastError }))
-vi.mock('../../src/components/base/imageCompress.ts', () => ({ compressImage: mocks.compressImage }))
+vi.mock('../../src/components/base/core/toastStore.ts', () => ({ showToast: mocks.showToast, toastError: mocks.toastError }))
+vi.mock('../../src/components/base/utils/imageCompress.ts', () => ({ compressImage: mocks.compressImage }))
 
 import ImageNode from '../../src/components/nodes/ImageNode.tsx'
 beforeEach(() => { mocks.resetNodeMockState() })

@@ -12,7 +12,7 @@ vi.mock('@xyflow/react', () => ({
   Handle: () => null,
   Position: { Left: 'left', Right: 'right' },
 }))
-vi.mock('../../src/components/base/NodeShell.tsx', () => ({ default: ({ children, titleRight, label }) => (<div data-testid="shell" data-label={label}>{titleRight}{children}</div>) }))
+vi.mock('../../src/components/base/ui/NodeShell.tsx', () => ({ default: ({ children, titleRight, label }) => (<div data-testid="shell" data-label={label}>{titleRight}{children}</div>) }))
 vi.mock('../../src/components/edges/CustomHandle.tsx', () => ({ default: () => null }))
 
 import GroupNode from '../../src/components/nodes/GroupNode.tsx'

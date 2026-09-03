@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { Loader2, Image as ImageIcon } from 'lucide-react'
 import { fetchResources, rescanResources } from '../base/api/index.ts'
-import { toAbsoluteFileUrl } from '../base/imageUrl.ts'
+import { toAbsoluteFileUrl } from '../base/utils/imageUrl.ts'
 import type { ResourceItem } from '../base/api/localToolApi.ts'
 import { useLocalToolStatus } from '../../hooks/useLocalToolStatus.ts'
-import { logger } from '../base/logger.ts'
+import { logger } from '../base/core/logger.ts'
 import ScriptBoxModal from './ScriptBoxModal.tsx'
 
 const PAGE_SIZE = 60

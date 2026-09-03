@@ -4,10 +4,10 @@ import { adoptUserNodes } from '@xyflow/system';
 // 扩展名无关：projectStore / groupNodes 已 TS 化（.js→.ts），写死后继后缀会直接 ENOENT
 // （本脚本不在任何门禁里，坏了长期无人发现）。groupNodes 按项目惯例显式指 .ts（Node 原生类型剥离可直跑）。
 import { readSourceFile } from './check-targets.mjs';
-import { createGroupFromNodes } from '../src/components/base/groupNodes.ts';
+import { createGroupFromNodes } from '../src/components/base/canvas/groupNodes.ts';
 
 // 读取真实 NODE_KEEP（正则兼容 TS 标注：`const NODE_KEEP: string[] = [...]`）
-const src = readSourceFile(fileURLToPath(new URL('../src/components/base/projectStore', import.meta.url)));
+const src = readSourceFile(fileURLToPath(new URL('../src/components/base/store/projectStore', import.meta.url)));
 const KEEP = src.match(/const NODE_KEEP(?:\s*:\s*string\[\])?\s*=\s*\[([^\]]+)\]/)[1].split(',').map((s) => s.trim().replace(/['"`]/g, '')).filter(Boolean);
 
 function sanitize(nodes) {

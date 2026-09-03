@@ -2,8 +2,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 vi.mock('../../src/components/base/api/chatApi.ts', () => ({ chatCompletions: vi.fn() }))
 vi.mock('../../src/components/base/api/imageApi.ts', () => ({ generateImage: vi.fn() }))
-vi.mock('../../src/components/base/toastStore.ts', () => ({ showToast: vi.fn() }))
-vi.mock('../../src/components/base/assetStore.ts', () => ({
+vi.mock('../../src/components/base/core/toastStore.ts', () => ({ showToast: vi.fn() }))
+vi.mock('../../src/components/base/store/assetStore.ts', () => ({
   localizeAndStoreToLibrary: vi.fn(),
   assetFolderOf: vi.fn(() => 'migrated/人物'),
   sendToAssetLibrary: vi.fn(),
@@ -14,8 +14,8 @@ vi.mock('../../src/components/base/assetStore.ts', () => ({
 
 import { chatCompletions } from '@/components/base/api/chatApi.ts'
 import { generateImage } from '@/components/base/api/imageApi.ts'
-import { showToast } from '../../src/components/base/toastStore.ts'
-import { localizeAndStoreToLibrary } from '../../src/components/base/assetStore.ts'
+import { showToast } from '../../src/components/base/core/toastStore.ts'
+import { localizeAndStoreToLibrary } from '../../src/components/base/store/assetStore.ts'
 import { createScriptBoxEngine } from '@/components/scriptbox/scriptBoxEngine.ts'
 
 // vi.mock 工厂不改变静态导入类型，用 vi.mocked 标注以拿到 .mockResolvedValue/.mock

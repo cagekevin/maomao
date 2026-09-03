@@ -5,7 +5,7 @@ import { adoptUserNodes, getNodeDimensions } from '@xyflow/system';
 import { readSourceFile } from './check-targets.mjs';
 
 // 读取真实 NODE_KEEP（正则兼容 TS 标注：`const NODE_KEEP: string[] = [...]`）
-const src = readSourceFile(fileURLToPath(new URL('../src/components/base/projectStore', import.meta.url)));
+const src = readSourceFile(fileURLToPath(new URL('../src/components/base/store/projectStore', import.meta.url)));
 const KEEP = src.match(/const NODE_KEEP(?:\s*:\s*string\[\])?\s*=\s*\[([^\]]+)\]/)[1].split(',').map((s) => s.trim().replace(/['"`]/g, '')).filter(Boolean);
 const sanitize = (arr) => arr.map((n) => { const out = {}; for (const k of KEEP) if (n[k] !== undefined && n[k] !== null) out[k] = n[k]; return out; });
 

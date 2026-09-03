@@ -20,7 +20,7 @@ import { render, screen, fireEvent } from '@testing-library/react'
  */
 
 // 统一出口：resolveImageUrl(render) — 本地 /files/ → 缩略图端点；http 原样/补绝对；空/非字符串原样
-vi.mock('../../src/components/base/imageUrl.ts', () => ({
+vi.mock('../../src/components/base/utils/imageUrl.ts', () => ({
   useRenderImageResolver: () => (u) => {
     if (!u || typeof u !== 'string') return u
     if (u.startsWith('/files/')) return `THUMB${u}`
@@ -30,11 +30,11 @@ vi.mock('../../src/components/base/imageUrl.ts', () => ({
 }))
 
 // appSettings（thumbnailOn）：useRenderImageResolver 读取 —— mock 提供默认 true
-vi.mock('../../src/components/base/appSettings.ts', () => ({
+vi.mock('../../src/components/base/store/appSettings.ts', () => ({
   useAppSettings: () => ({ thumbnailOn: true }),
 }))
 
-import LazyImage from '../../src/components/base/LazyImage.tsx'
+import LazyImage from '../../src/components/base/ui/LazyImage.tsx'
 
 // 可操控的 IntersectionObserver 假实现：手动触发回调驱动「进入视口」
 const h = vi.hoisted(() => {

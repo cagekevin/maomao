@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { registerTool, getTools, resetTools, type ToolDef } from '../../src/components/base/toolRegistry.ts'
+import { registerTool, getTools, resetTools, type ToolDef } from '../../src/components/base/store/toolRegistry.ts'
 
 beforeEach(() => {
   resetTools()

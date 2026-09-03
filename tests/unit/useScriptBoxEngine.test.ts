@@ -38,7 +38,7 @@ vi.mock('../../src/components/scriptbox/scriptBoxEngine.ts', () => ({
 // 节点参数记忆（yimao_node_prefs）落点：nodePrefs 经 contentStore 读写，这里用内存态替代，
 // 只让 key 命中 'yimao_node_prefs' 时返回，避免牵动 contentStore 的真实注册/后端逻辑。
 let prefsStore = {}
-vi.mock('../../src/components/base/contentStore.ts', () => ({
+vi.mock('../../src/components/base/core/contentStore.ts', () => ({
   contentGet: (k) => (k === 'yimao_node_prefs' ? prefsStore : null),
   contentSet: (k, v) => { if (k === 'yimao_node_prefs') prefsStore = v },
 }))

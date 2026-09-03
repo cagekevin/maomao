@@ -1,5 +1,5 @@
 import React from 'react'
-import { useAppSettings, setSetting } from '../../appSettings.ts'
+import { useAppSettings, setSetting } from '../../store/appSettings.ts'
 import { UI_SETTING_ROWS } from '../settingRegistry.ts'
 import { Toggle } from '../Toggle'
 

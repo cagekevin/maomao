@@ -9,9 +9,9 @@
  * 出站形态（sync/async/responses）由后端 preset 决定，前端只发意图，不再拼 genBody / 判 request_mode。
  *  —— 已随 proxyGenerate 退役移除：isResponsesMode/buildResponsesImageBody/imageProxy 分支。
  */
-import { normalizeImageUrlsForSend } from '../imageUrl.ts'
+import { normalizeImageUrlsForSend } from '../utils/imageUrl.ts'
 import { relayGenerate } from './relayProxy.ts'
-import { GEN_TIMEOUT } from '../config.ts'
+import { GEN_TIMEOUT } from '../core/config.ts'
 import type { GenerationProvider, GenerationResult } from '@/types'
 
 /** 比例 × 清晰度档位 → 精确像素 查表（复刻官方 H_.jsx oe 表）。 */

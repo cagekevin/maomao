@@ -26,7 +26,7 @@ import {
   isPolling,
   pollingCount,
   type EnsurePollingOptions,
-} from '../../src/components/base/taskStore.ts'
+} from '../../src/components/base/store/taskStore.ts'
 
 beforeEach(() => {
   vi.useFakeTimers()

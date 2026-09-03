@@ -1,11 +1,11 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App.tsx'
-import ErrorBoundary from './components/base/ErrorBoundary.tsx'
+import ErrorBoundary from './components/base/ui/ErrorBoundary.tsx'
 import '@xyflow/react/dist/style.css'
 import './index.css'
 import { initStorage } from './components/base/storage'
-import { logger } from './components/base/logger.ts'
+import { logger } from './components/base/core/logger.ts'
 
 // Chrome 插件环境：启动时从 chrome.storage.local 加载配置缓存；普通环境无副作用
 initStorage()

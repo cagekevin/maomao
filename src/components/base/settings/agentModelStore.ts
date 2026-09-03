@@ -7,7 +7,7 @@
  * - streamMode: 'stream'（流式，默认）| 'non-stream'（非流式，仅支持普通 JSON 响应的模型/API）
  * 与 agent_input_mode / agent_panel_width 等前端偏好一致，轻量即时，无需网络。
  */
-import { contentGet, contentSet } from '../contentStore.ts'
+import { contentGet, contentSet } from '../core/contentStore.ts'
 
 export const AGENT_CHAT_MODEL_KEY = 'agent_chat_model'
 

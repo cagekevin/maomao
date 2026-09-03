@@ -4,8 +4,8 @@
  * 严格基于 src/components/base/promptManager.js 真实导出编写。
  */
 import { beforeEach, afterEach, describe, it, expect, vi } from 'vitest'
-import { contentClearCache, contentGet, contentSet } from '../../src/components/base/contentStore.ts'
-import * as pm from '../../src/components/base/promptManager.ts'
+import { contentClearCache, contentGet, contentSet } from '../../src/components/base/core/contentStore.ts'
+import * as pm from '../../src/components/base/prompt/promptManager.ts'
 
 const STORAGE_KEY = 'yimao_preset_prompts' // 对齐 promptManager.js 内部 STORAGE_KEY
 const RECENT_KEY = 'yimao_preset_recent' // 对齐 promptManager.js 内部 RECENT_KEY
@@ -81,7 +81,7 @@ describe('createPreset', () => {
 describe('saveAndNotify', () => {
   it('保存后通过 eventBus 广播 presets-changed', async () => {
     const handler = vi.fn()
-    const { subscribe } = await import('../../src/components/base/eventBus.ts')
+    const { subscribe } = await import('../../src/components/base/core/eventBus.ts')
     const unsub = subscribe('presets-changed', handler)
     const list = [{ id: 'n1', title: 't', type: 'text', prompt: 'p', enabled: true }]
     pm.saveAndNotify(list)

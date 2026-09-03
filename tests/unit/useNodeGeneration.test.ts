@@ -16,7 +16,7 @@ const saveResultToTasksMock = vi.hoisted(() => vi.fn(async (url) => url))
 const reportDegradeMock = vi.hoisted(() => vi.fn())
 
 vi.mock('../../src/hooks/useNodeData.ts', () => ({ useNodeData: () => ({ patchData: patchDataMock }) }))
-vi.mock('../../src/components/base/taskStore.ts', () => ({
+vi.mock('../../src/components/base/store/taskStore.ts', () => ({
   reportGenerate: () => taskCtlMock,
   registerTaskRetry: vi.fn(),
   unregisterTaskRetry: vi.fn(),
@@ -24,12 +24,12 @@ vi.mock('../../src/components/base/taskStore.ts', () => ({
   releaseNodeRun: vi.fn()
 }))
 vi.mock('../../src/components/base/api/filesApi.ts', () => ({ saveResultToTasks: saveResultToTasksMock }))
-vi.mock('../../src/components/base/degrade.ts', () => ({ reportDegrade: reportDegradeMock }))
-vi.mock('../../src/components/base/eventBus.ts', () => ({
+vi.mock('../../src/components/base/utils/degrade.ts', () => ({ reportDegrade: reportDegradeMock }))
+vi.mock('../../src/components/base/core/eventBus.ts', () => ({
   subscribe: (evt, cb) => { busState.handler = cb; return () => {} }
 }))
-vi.mock('../../src/components/base/logger.ts', () => ({ logger: busState.logger }))
-vi.mock('../../src/components/base/toastStore.ts', () => ({ showToast: vi.fn() }))
+vi.mock('../../src/components/base/core/logger.ts', () => ({ logger: busState.logger }))
+vi.mock('../../src/components/base/core/toastStore.ts', () => ({ showToast: vi.fn() }))
 
 import { useNodeGeneration } from '../../src/hooks/useNodeGeneration.ts'
 

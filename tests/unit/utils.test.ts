@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { deepClone, formatTime, debounce, throttle, useDebouncedEffect, createImeInput, createRafBatch, mergeRefImages, buildEffectivePrompt, clampSeconds, clamp, assetLabel, dataUrlToBlob, safeFileName, compilePatternRegex } from '../../src/components/base/utils.ts'
+import { deepClone, formatTime, debounce, throttle, useDebouncedEffect, createImeInput, createRafBatch, mergeRefImages, buildEffectivePrompt, clampSeconds, clamp, assetLabel, dataUrlToBlob, safeFileName, compilePatternRegex } from '../../src/components/base/core/utils.ts'
 import { renderHook } from '@testing-library/react'
 
 describe('deepClone', () => {

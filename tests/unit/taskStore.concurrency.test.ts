@@ -13,7 +13,7 @@ import {
   claimNodeRun,
   releaseNodeRun,
   type NodeGenerationRunResult,
-} from '../../src/components/base/taskStore.ts'
+} from '../../src/components/base/store/taskStore.ts'
 
 function makePending() {
   let resolve

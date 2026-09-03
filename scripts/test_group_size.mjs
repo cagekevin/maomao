@@ -4,7 +4,7 @@ import { adoptUserNodes, getNodeDimensions } from '@xyflow/system';
 // 扩展名无关：projectStore 已 TS 化（.js→.ts），写死后继后缀会直接 ENOENT（本脚本不在任何门禁里，坏了无人发现）
 import { readSourceFile } from './check-targets.mjs';
 
-const src = readSourceFile(fileURLToPath(new URL('../src/components/base/projectStore', import.meta.url)));
+const src = readSourceFile(fileURLToPath(new URL('../src/components/base/store/projectStore', import.meta.url)));
 // 正则兼容 TS 标注：源码是 `const NODE_KEEP: string[] = [...]`，写死无标注形态会匹配为 null 后崩
 const KEEP = src.match(/const NODE_KEEP(?:\s*:\s*string\[\])?\s*=\s*\[([^\]]+)\]/)[1].split(',').map((s) => s.trim().replace(/['"`]/g, '')).filter(Boolean);
 const sanitize = (arr) => arr.map((n) => { const out = {}; for (const k of KEEP) if (n[k] !== undefined && n[k] !== null) out[k] = n[k]; return out; });

@@ -16,11 +16,11 @@
  *
  * 【脱敏】写入前统一脱敏密钥/凭据/绝对路径并截断，禁止文件全文/网页全文/临时结果进入长期记忆。
  */
-import { contentGetAsync, contentSetAsync, contentDeleteAsync } from '../../base/contentStore.ts'
-import { withTimeout } from '../../base/asyncGuard.ts'
-import { generateId } from '../../base/idGen.ts'
-import { logger } from '../../base/logger.ts'
-import { KV_TIMEOUT } from '../../base/config.ts'
+import { contentGetAsync, contentSetAsync, contentDeleteAsync } from '../../base/core/contentStore.ts'
+import { withTimeout } from '../../base/utils/asyncGuard.ts'
+import { generateId } from '../../base/core/idGen.ts'
+import { logger } from '../../base/core/logger.ts'
+import { KV_TIMEOUT } from '../../base/core/config.ts'
 
 /** 单条记忆正文长度上限 */
 export const PROJECT_MEMORY_CONTENT_LIMIT = 500

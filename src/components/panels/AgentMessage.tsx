@@ -1,12 +1,12 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { toAbsoluteFileUrl } from '../base/api/index.ts'
-import LazyImage from '../base/LazyImage.tsx'
+import LazyImage from '../base/ui/LazyImage.tsx'
 import PromptConfirmCard from './PromptConfirmCard.tsx'
 import AgentConfirmCard from './AgentConfirmCard.tsx'
-import ImageZoomDialog from '../base/ImageZoomDialog.tsx'
+import ImageZoomDialog from '../base/editors/ImageZoomDialog.tsx'
 import ChatMarkdown from './ChatMarkdown.tsx'
 import { type ToolCall, type ChatMessage } from '../agent/runtime/agentCore.ts'
-import { type PromptItem } from '../base/promptFlow.ts'
+import { type PromptItem } from '../base/prompt/promptFlow.ts'
 
 /** AgentMessage 实际渲染的消息形状：兼容 LLM 协议（ChatMessage）并扩展 UI 态字段。
  *  UI 层只处理文本/图片类消息，故将 content 收窄为 string（协议层 ChatMessage 允许数组形态，UI 不消费）。 */

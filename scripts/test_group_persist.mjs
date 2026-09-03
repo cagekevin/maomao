@@ -4,7 +4,7 @@ import { adoptUserNodes, getNodeDimensions, getNodesInside } from '@xyflow/syste
 import { readSourceFile } from './check-targets.mjs';
 // 扩展名无关：groupNodes 已 TS 化（.js→.ts）。Node ≥23.6 原生类型剥离可直接 import .ts（本仓 tsconfig
 // allowImportingTsExtensions:true，源码内 import 亦写 .ts），故按项目惯例显式指 .ts。
-import { createGroupFromNodes } from '../src/components/base/groupNodes.ts';
+import { createGroupFromNodes } from '../src/components/base/canvas/groupNodes.ts';
 
 // 构造几个普通节点（带 style 尺寸，模拟真实画布节点）
 const baseNodes = [
@@ -20,7 +20,7 @@ if (!ok) { console.error('编组失败', grouped); process.exit(1); }
 const OLD_KEEP = ['id', 'type', 'position', 'data', 'width', 'height'];
 // 直接读取 projectStore 当前的真实 NODE_KEEP，验证最终代码
 // 扩展名无关 + 正则兼容 TS 标注 `const NODE_KEEP: string[] = [...]`（写死旧形态会 ENOENT / 匹配为 null）
-const src = readSourceFile(fileURLToPath(new URL('../src/components/base/projectStore', import.meta.url)));
+const src = readSourceFile(fileURLToPath(new URL('../src/components/base/store/projectStore', import.meta.url)));
 const m = src.match(/const NODE_KEEP(?:\s*:\s*string\[\])?\s*=\s*\[([^\]]+)\]/);
 const REAL_KEEP = m[1].split(',').map((s) => s.trim().replace(/['"`]/g, '')).filter(Boolean);
 const NEW_KEEP = REAL_KEEP;

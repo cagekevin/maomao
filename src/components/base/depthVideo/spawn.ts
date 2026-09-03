@@ -21,7 +21,7 @@ import {
   spawnAndCommit,
   makeChildId,
   type CanvasCommitHandles,
-} from '../../base/deriveNodes.ts'
+} from '../canvas/deriveNodes.ts'
 import type { Node } from '@xyflow/react'
 import { buildDepthChildSpec } from './engine.ts'
 

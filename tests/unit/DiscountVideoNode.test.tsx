@@ -44,9 +44,9 @@ vi.mock('@xyflow/react', () => ({
   useStore: () => () => ({}),
 }))
 
-vi.mock('../../src/components/base/NodeShell.tsx', () => ({ default: ({ children }) => children }))
+vi.mock('../../src/components/base/ui/NodeShell.tsx', () => ({ default: ({ children }) => children }))
 // HoverToolbar：渲染按钮数组，供点击下载/删除/发送到剪映
-vi.mock('../../src/components/base/HoverToolbar.tsx', () => ({
+vi.mock('../../src/components/base/panels/HoverToolbar.tsx', () => ({
   default: ({ buttons }) => (
     <div data-testid="hover-toolbar">
       {buttons.map((b) => (
@@ -55,9 +55,9 @@ vi.mock('../../src/components/base/HoverToolbar.tsx', () => ({
     </div>
   ),
 }))
-vi.mock('../../src/components/base/ExpandablePanel.tsx', () => ({ default: ({ children }) => children }))
+vi.mock('../../src/components/base/ui/ExpandablePanel.tsx', () => ({ default: ({ children }) => children }))
 // MaterialStrip：渲染可点的「插入素材」与「断开连线」按钮，透传回调
-vi.mock('../../src/components/base/MaterialStrip.tsx', () => ({
+vi.mock('../../src/components/base/panels/MaterialStrip.tsx', () => ({
   default: ({ onInsert, onDisconnect }) => (
     <div data-testid="material-strip">
       <button type="button" data-testid="insert" onClick={() => onInsert('素材A')}>插入素材A</button>
@@ -65,12 +65,12 @@ vi.mock('../../src/components/base/MaterialStrip.tsx', () => ({
     </div>
   ),
 }))
-vi.mock('../../src/components/base/GenerateButton.tsx', () => ({ default: ({ onGenerate }) => <button type="button" onClick={onGenerate}>生成</button> }))
-vi.mock('../../src/components/base/ModelSelect.tsx', () => ({ default: () => null }))
+vi.mock('../../src/components/base/ui/GenerateButton.tsx', () => ({ default: ({ onGenerate }) => <button type="button" onClick={onGenerate}>生成</button> }))
+vi.mock('../../src/components/base/ui/ModelSelect.tsx', () => ({ default: () => null }))
 // PromptInput：桩为 textarea，透传 value/onChange/placeholder；onReady 上抛一个
 // 「追加 @label 文本」的插入函数（复刻旧 textarea 行为），避免测试耦合富文本内部实现。
 // 富文本芯片本身的序列化/交互由 promptChips.test.js 与 PromptInput 自己的测试覆盖。
-vi.mock('../../src/components/base/PromptInput.tsx', async (importOriginal) => {
+vi.mock('../../src/components/base/prompt/PromptInput.tsx', async (importOriginal) => {
   const ReactMock = (await import('react')).default
   // 桩组件的 props 形状（只声明被测用到的字段）。不声明的话 forwardRef 把 props 推断成 {}，
   // 解构 value/onChange/onReady 等会报 TS2339。
@@ -106,23 +106,23 @@ vi.mock('../../src/components/base/PromptInput.tsx', async (importOriginal) => {
     }),
   }
 })
-vi.mock('../../src/components/base/PromptLibraryButton.tsx', () => ({ default: () => null }))
-vi.mock('../../src/components/base/GeneratingOverlay.tsx', () => ({ default: () => null }))
-vi.mock('../../src/components/base/ResizeFullscreenHandle.tsx', () => ({ default: () => null }))
-vi.mock('../../src/components/base/FullscreenModal.tsx', () => ({ default: ({ open, children }) => (open ? <div data-testid="fullscreen">{children}</div> : null) }))
-vi.mock('../../src/components/base/VideoThumbnail.tsx', () => ({ default: () => <div data-testid="video-thumb" /> }))
+vi.mock('../../src/components/base/prompt/PromptLibraryButton.tsx', () => ({ default: () => null }))
+vi.mock('../../src/components/base/ui/GeneratingOverlay.tsx', () => ({ default: () => null }))
+vi.mock('../../src/components/base/ui/ResizeFullscreenHandle.tsx', () => ({ default: () => null }))
+vi.mock('../../src/components/base/panels/FullscreenModal.tsx', () => ({ default: ({ open, children }) => (open ? <div data-testid="fullscreen">{children}</div> : null) }))
+vi.mock('../../src/components/base/ui/VideoThumbnail.tsx', () => ({ default: () => <div data-testid="video-thumb" /> }))
 
 vi.mock('../../src/hooks/useConnectedInputs.ts', () => ({ useConnectedInputs: () => ({ images: [], texts: [] }) }))
 vi.mock('../../src/hooks/useMediaDegrade.ts', () => ({ useMediaDegrade: () => ({ isHidden: () => false }) }))
-vi.mock('../../src/components/base/hooks.ts', () => ({ useNodeResize: () => ({ onInputResize: vi.fn() }), useOutsideClick: () => {} }))
+vi.mock('../../src/components/base/core/hooks.ts', () => ({ useNodeResize: () => ({ onInputResize: vi.fn() }), useOutsideClick: () => {} }))
 vi.mock('../../src/hooks/useVideoPoster.ts', () => ({ useVideoPoster: () => null }))
-vi.mock('../../src/components/base/nodePrefs.ts', () => ({
+vi.mock('../../src/components/base/canvas/nodePrefs.ts', () => ({
   useNodePrefs: () => ({ prefs: { model: '', size: '', resolution: '', seconds: '' }, set: (...a) => h.vidPrefsSet(...a) }),
 }))
 vi.mock('../../src/components/base/settings/providerStore.ts', () => ({ useProviders: () => ({ providers: [] }), load: vi.fn(async () => {}) }))
-vi.mock('../../src/components/base/providerModels.ts', () => ({ buildAllModels: () => [], resolveProviderModel: () => ({ provider: {}, modelId: 'm' }) }))
-vi.mock('../../src/components/base/logger.ts', () => ({ logger: { info: (...a) => h.loggerInfo(...a), warn: () => {} } }))
-vi.mock('../../src/components/base/clipboard.ts', async (importOriginal) => {
+vi.mock('../../src/components/base/utils/providerModels.ts', () => ({ buildAllModels: () => [], resolveProviderModel: () => ({ provider: {}, modelId: 'm' }) }))
+vi.mock('../../src/components/base/core/logger.ts', () => ({ logger: { info: (...a) => h.loggerInfo(...a), warn: () => {} } }))
+vi.mock('../../src/components/base/utils/clipboard.ts', async (importOriginal) => {
   // importOriginal 返回 unknown，直接 spread 报 TS2698
   const actual = (await importOriginal()) as Record<string, unknown>
   return { ...actual, downloadUrl: h.downloadUrl }

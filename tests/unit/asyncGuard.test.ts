@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { withTimeout, isTimeoutError, TimeoutError, loadImageWithTimeout } from '../../src/components/base/asyncGuard.ts'
+import { withTimeout, isTimeoutError, TimeoutError, loadImageWithTimeout } from '../../src/components/base/utils/asyncGuard.ts'
 
 describe('asyncGuard.withTimeout（R2 统一异步超时）', () => {
   beforeEach(() => { vi.useFakeTimers() })

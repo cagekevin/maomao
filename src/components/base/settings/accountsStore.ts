@@ -11,9 +11,9 @@
  */
 import { useSyncExternalStore } from 'react'
 import type { Ref } from 'react'
-import { contentGetAsync, contentSetAsync } from '../contentStore.ts'
-import { askConfirm } from '../confirmStore.ts'
-import { generateId } from '../idGen.ts'
+import { contentGetAsync, contentSetAsync } from '../core/contentStore.ts'
+import { askConfirm } from '../core/confirmStore.ts'
+import { generateId } from '../core/idGen.ts'
 
 const STORAGE_KEY = 'yimao_accounts'
 

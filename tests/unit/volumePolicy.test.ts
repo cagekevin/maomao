@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest'
-import type { LastResultItem } from '../../src/components/base/volumePolicy.ts'
+import type { LastResultItem } from '../../src/components/base/utils/volumePolicy.ts'
 import {
   truncateTo, sanitizeLastResults, capConversationMemory,
   estimateConversationsBytes, applyConversationBudget,
   MSG_CONTENT_MAX, LAST_RESULTS_MAX, FACTS_MAX, ARTIFACTS_MAX,
-} from '../../src/components/base/volumePolicy.ts'
+} from '../../src/components/base/utils/volumePolicy.ts'
 
 describe('volumePolicy · truncateTo', () => {
   it('短串原样返回', () => {

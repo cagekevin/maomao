@@ -41,9 +41,9 @@
  * ════════════════════════════════════════════════════════════════
  */
 import type { WorkMode } from './runModeRegistry.ts'
-import { contentGet } from '../../base/contentStore.ts'
-import { logger } from '../../base/logger.ts'
-import { toImageContentBlocks } from '../../base/imageUrl.ts'
+import { contentGet } from '../../base/core/contentStore.ts'
+import { logger } from '../../base/core/logger.ts'
+import { toImageContentBlocks } from '../../base/utils/imageUrl.ts'
 import { getSystemPromptForWorkMode, RUN_MODE_IDS } from './runModeRegistry.ts'
 import { AGENT_PROMPTS } from '../agentConfig.ts'
 import type { ImageMapEntry } from '../conversation/conversationImageMap.ts'

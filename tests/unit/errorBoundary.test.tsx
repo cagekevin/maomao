@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import React from 'react'
 import { render, screen, fireEvent } from '@testing-library/react'
-import ErrorBoundary from '../../src/components/base/ErrorBoundary.tsx'
+import ErrorBoundary from '../../src/components/base/ui/ErrorBoundary.tsx'
 
 /** 抛错的子组件：渲染时 throw，模拟「节点内容渲染崩溃」 */
 function Boom() {

@@ -14,7 +14,7 @@ import {
   saveCanvasState,
   loadCanvasState,
   __resetForTest,
-} from '../../src/components/base/projectStore.ts'
+} from '../../src/components/base/store/projectStore.ts'
 
 // 内存 KV / 项目后端 mock
 const mem = new Map()

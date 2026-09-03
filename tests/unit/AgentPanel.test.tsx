@@ -114,15 +114,15 @@ vi.mock('../../src/components/agent/index.ts', () => ({
 }))
 vi.mock('../../src/components/base/settings/providerStore.ts', () => ({ useProviders: () => ({ providers: h.providers }), load: vi.fn(async () => {}) }))
 vi.mock('../../src/components/base/settings/agentModelStore.ts', () => ({ loadAgentChatModel: () => h.agentModelCfg, AGENT_CHAT_MODEL_KEY: h.AGENT_CHAT_MODEL_KEY }))
-vi.mock('../../src/components/base/providerModels.ts', () => ({ buildAllModels: () => [] }))
-vi.mock('../../src/components/base/hooks.ts', () => ({ useOutsideClick: () => {} }))
-vi.mock('../../src/components/base/skillStore.ts', () => ({
+vi.mock('../../src/components/base/utils/providerModels.ts', () => ({ buildAllModels: () => [] }))
+vi.mock('../../src/components/base/core/hooks.ts', () => ({ useOutsideClick: () => {} }))
+vi.mock('../../src/components/base/store/skillStore.ts', () => ({
   getAllSkills: () => h.skills,
   markSkillUsed: h.markSkillUsed,
   isSkillEnabled: () => true,
   repairMojibakeText: (t) => t,
 }))
-vi.mock('../../src/components/base/contentStore.ts', () => ({
+vi.mock('../../src/components/base/core/contentStore.ts', () => ({
   contentGet: () => null,
   contentSet: vi.fn(),
   contentSubscribe: h.contentSubscribe,
@@ -134,18 +134,18 @@ vi.mock('../../src/components/agent/conversation/conversationStore.ts', () => ({
   getCurrentRunMode: () => 'auto',
   setCurrentRunMode: h.setCurrentRunMode,
 }))
-vi.mock('../../src/components/base/taskStore.ts', () => ({ runNodeGeneration: vi.fn() }))
-vi.mock('../../src/components/base/toastStore.ts', () => ({ showToast: (...a) => h.showToast(...a) }))
+vi.mock('../../src/components/base/store/taskStore.ts', () => ({ runNodeGeneration: vi.fn() }))
+vi.mock('../../src/components/base/core/toastStore.ts', () => ({ showToast: (...a) => h.showToast(...a) }))
 // 确认统一走 confirmStore（D8 收敛 window.confirm）：这里给可控答案，替代真实弹窗
-vi.mock('../../src/components/base/confirmStore.ts', () => ({ askConfirm: h.askConfirm }))
-vi.mock('../../src/components/base/logger.ts', () => ({ logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), log: vi.fn(), debug: vi.fn() } }))
-vi.mock('../../src/components/base/config.ts', () => ({ AGENT_MODELS: ['gpt-4o-mini'] }))
-vi.mock('../../src/components/base/previewUrl.ts', () => ({ default: { create: vi.fn(() => 'blob:x'), release: vi.fn() } }))
+vi.mock('../../src/components/base/core/confirmStore.ts', () => ({ askConfirm: h.askConfirm }))
+vi.mock('../../src/components/base/core/logger.ts', () => ({ logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), log: vi.fn(), debug: vi.fn() } }))
+vi.mock('../../src/components/base/core/config.ts', () => ({ AGENT_MODELS: ['gpt-4o-mini'] }))
+vi.mock('../../src/components/base/utils/previewUrl.ts', () => ({ default: { create: vi.fn(() => 'blob:x'), release: vi.fn() } }))
 // AgentMessage 子组件用最小桩
 vi.mock('../../src/components/panels/AgentMessage.tsx', () => ({
   default: ({ message }) => React.createElement('div', { 'data-testid': `msg-${message.role}` }, message.content || null),
 }))
-vi.mock('../../src/components/base/ModelSelect.tsx', () => ({
+vi.mock('../../src/components/base/ui/ModelSelect.tsx', () => ({
   default: () => React.createElement('span', null, 'ModelSelect'),
 }))
 

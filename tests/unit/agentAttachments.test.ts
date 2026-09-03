@@ -8,7 +8,7 @@
  */
 import { describe, it, expect, vi } from 'vitest'
 
-vi.mock('../../src/components/base/imageUrl.ts', () => ({
+vi.mock('../../src/components/base/utils/imageUrl.ts', () => ({
   normalizeImageUrlForSend: vi.fn(async (url, opts) => `norm:${url}${opts?.preferBase64 ? ':b64' : ''}`),
   summarizeImages: vi.fn((urls) => {
     const list = (urls || []).filter((u) => typeof u === 'string' && u)
@@ -17,13 +17,13 @@ vi.mock('../../src/components/base/imageUrl.ts', () => ({
     return { count: list.length, urls: list.length - base64s, base64s }
   }),
 }))
-vi.mock('../../src/components/base/logger.ts', () => ({
+vi.mock('../../src/components/base/core/logger.ts', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }))
 
 const { normalizeAttachmentsForSend, buildRefCatalog } = await import('../../src/components/agent/runtime/agentAttachments.ts')
-const { normalizeImageUrlForSend, summarizeImages } = await import('../../src/components/base/imageUrl.ts')
-const { logger } = await import('../../src/components/base/logger.ts')
+const { normalizeImageUrlForSend, summarizeImages } = await import('../../src/components/base/utils/imageUrl.ts')
+const { logger } = await import('../../src/components/base/core/logger.ts')
 // vi.mock 工厂不改变静态导入类型，用 vi.mocked 标注以拿到 .mockClear/.toHaveBeenCalledWith
 const loggerInfo = vi.mocked(logger.info)
 

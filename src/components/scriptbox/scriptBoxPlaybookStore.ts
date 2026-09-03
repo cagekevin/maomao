@@ -16,8 +16,8 @@
  *  下游 resolver(base) → 本 store。依赖单向，无回环。
  */
 import { SCRIPT_BOX_WORKFLOWS, DEFAULT_WORKFLOW } from './scriptBoxWorkflows'
-import { contentGet, contentSet, contentClearCache } from '../base/contentStore'
-import { logger } from '../base/logger'
+import { contentGet, contentSet, contentClearCache } from '../base/core/contentStore.ts'
+import { logger } from '../base/core/logger.ts'
 import type { Playbook } from './scriptBoxPlaybookIO'
 import type { WorkflowSpec } from './scriptBoxWorkflows'
 

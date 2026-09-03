@@ -11,7 +11,7 @@
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 
-const { upscaleImage } = await import('../../src/components/base/imageUpscale.ts')
+const { upscaleImage } = await import('../../src/components/base/utils/imageUpscale.ts')
 
 // setup.mjs 已把 globalThis.fetch 定义为共享 vi.fn；此处做类型对齐以启用 .mock* / mock.calls。
 const fetchMock = globalThis.fetch as unknown as ReturnType<typeof vi.fn>

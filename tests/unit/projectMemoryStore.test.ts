@@ -10,7 +10,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 // 用 vi.hoisted 提供内存态，隔离真实 Content 层 IO，且可任意模块态引用。
 const h = vi.hoisted(() => ({ store: new Map() }))
 
-vi.mock('../../src/components/base/contentStore.ts', () => ({
+vi.mock('../../src/components/base/core/contentStore.ts', () => ({
   // 提供 async 三件套即可；其余默认 undefined 不影响本模块导入
   contentGetAsync: vi.fn(async (key) => h.store.get(key)),
   contentSetAsync: vi.fn(async (key, val) => { h.store.set(key, val) }),

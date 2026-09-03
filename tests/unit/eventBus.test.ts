@@ -5,7 +5,7 @@ const {
   publish,
   subscribeOnce,
   clearEvent,
-} = await import('../../src/components/base/eventBus.ts')
+} = await import('../../src/components/base/core/eventBus.ts')
 
 beforeEach(() => {
   // 清空所有事件订阅，保证测试独立

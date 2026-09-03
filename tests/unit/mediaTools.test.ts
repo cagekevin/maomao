@@ -7,12 +7,12 @@ import { renderHook, act } from '@testing-library/react'
 // 1. useMediaDegrade.js
 // 依赖 useLod()（LodContext）。mock useLod 返回不同 lodLevel。
 // ───────────────────────────────────────────────────────────
-vi.mock('../../src/components/base/lod.tsx', () => ({
+vi.mock('../../src/components/base/canvas/lod.tsx', () => ({
   useLod: vi.fn(() => ({ lodLevel: 0, viewportMoving: false, nodeCount: 0, handleFollowLimit: 60, edgeFxLimit: 50, useThumbnail: false })),
 }))
-import { useLod } from '../../src/components/base/lod.tsx'
+import { useLod } from '../../src/components/base/canvas/lod.tsx'
 import { useMediaDegrade } from '../../src/hooks/useMediaDegrade.ts'
-import { contentClearCache } from '../../src/components/base/contentStore.ts'
+import { contentClearCache } from '../../src/components/base/core/contentStore.ts'
 
 // useLod 实际返回完整 LOD 对象（lodLevel/viewportMoving/...6 字段），并非仅 {lodLevel}
 type LodValue = ReturnType<typeof useLod>
@@ -81,7 +81,7 @@ vi.mock('../../src/components/base/storage/storageAdapter.ts', () => ({
   sSet: vi.fn((k, v) => { prefsMem.set(k, v) }),
   sRemove: vi.fn((k) => { prefsMem.delete(k) }),
 }))
-import { useNodePrefs } from '../../src/components/base/nodePrefs.ts'
+import { useNodePrefs } from '../../src/components/base/canvas/nodePrefs.ts'
 
 describe('nodePrefs —— 节点上次参数记忆', () => {
   beforeEach(() => {
@@ -153,7 +153,7 @@ describe('nodePrefs —— 节点上次参数记忆', () => {
 // TODO: 浏览器依赖未测 —— 真实 canvas drawImage/toDataURL 的像素输出未在 node 环境断言
 // ───────────────────────────────────────────────────────────
 const mockImage = { naturalWidth: 0, naturalHeight: 0 }
-vi.mock('../../src/components/base/asyncGuard.ts', () => ({
+vi.mock('../../src/components/base/utils/asyncGuard.ts', () => ({
   loadImageWithTimeout: vi.fn(async () => {
     // 返回带尺寸的对象，缩放逻辑可在此验证
     return { naturalWidth: mockImage.naturalWidth, naturalHeight: mockImage.naturalHeight }
@@ -161,7 +161,7 @@ vi.mock('../../src/components/base/asyncGuard.ts', () => ({
   TimeoutError: class TimeoutError extends Error {},
   isTimeoutError: (e) => e instanceof Error && e.name === 'TimeoutError',
 }))
-import { compressImage } from '../../src/components/base/imageCompress.ts'
+import { compressImage } from '../../src/components/base/utils/imageCompress.ts'
 
 describe('imageCompress —— 压缩（含浏览器依赖，部分 mock）', () => {
   beforeEach(() => {
@@ -176,7 +176,7 @@ describe('imageCompress —— 压缩（含浏览器依赖，部分 mock）', ()
 
   it('非 /files/ 输入原样经 toAbsoluteFileUrl 补全（http 不变）', async () => {
     // 通过 mock Image 尺寸 + document.createElement 验证 URL 被传入 loadImageWithTimeout
-    const asyncGuard = await import('../../src/components/base/asyncGuard.ts')
+    const asyncGuard = await import('../../src/components/base/utils/asyncGuard.ts')
     mockImage.naturalWidth = 100
     mockImage.naturalHeight = 100
     // 验证：相对 /files/ 路径会被补全成 API_BASE 绝对地址

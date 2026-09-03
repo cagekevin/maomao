@@ -41,7 +41,7 @@ Object.defineProperty(globalThis.navigator, 'clipboard', {
   configurable: true,
 })
 
-vi.mock('../../src/components/base/taskStore.ts', () => ({
+vi.mock('../../src/components/base/store/taskStore.ts', () => ({
   useTasks: () => h.useTasks(),
   // 纯函数按真实实现兜底，不改组件行为
   statusDotClass: (status) => {
@@ -63,19 +63,19 @@ vi.mock('../../src/components/base/taskStore.ts', () => ({
   clearTasksBy: (...a: unknown[]) => h.clearTasksBy(...a),
   clearAllTasks: (...a: unknown[]) => h.clearAllTasks(...a),
 }))
-vi.mock('../../src/components/base/logger.ts', () => ({ logger: { warn: (...a: unknown[]) => h.loggerWarn(...a) } }))
-vi.mock('../../src/components/base/clipboard.ts', () => ({ downloadUrl: (...a: unknown[]) => h.downloadUrl(...a) }))
+vi.mock('../../src/components/base/core/logger.ts', () => ({ logger: { warn: (...a: unknown[]) => h.loggerWarn(...a) } }))
+vi.mock('../../src/components/base/utils/clipboard.ts', () => ({ downloadUrl: (...a: unknown[]) => h.downloadUrl(...a) }))
 vi.mock('../../src/components/base/api/pollTask.ts', () => ({ pollOneTask: (...a: unknown[]) => h.pollOneTask(...a) }))
-vi.mock('../../src/components/base/toastStore.ts', () => ({ showToast: (...a: unknown[]) => h.showToast(...a) }))
+vi.mock('../../src/components/base/core/toastStore.ts', () => ({ showToast: (...a: unknown[]) => h.showToast(...a) }))
 vi.mock('../../src/hooks/useAssetDragToCanvas.ts', () => ({ makeAssetDragProps: () => ({ draggable: true }) }))
-vi.mock('../../src/components/base/hooks.ts', () => ({ useOutsideClick: () => {} }))
-vi.mock('../../src/components/base/imageUrl.ts', () => ({
+vi.mock('../../src/components/base/core/hooks.ts', () => ({ useOutsideClick: () => {} }))
+vi.mock('../../src/components/base/utils/imageUrl.ts', () => ({
   useRenderImageResolver: () => (u) => (u && u.startsWith('/files/') ? `THUMB${u}` : u || ''),
 }))
-vi.mock('../../src/components/base/VideoThumbnail.tsx', () => ({ default: ({ src, onActivate }) =>
+vi.mock('../../src/components/base/ui/VideoThumbnail.tsx', () => ({ default: ({ src, onActivate }) =>
   React.createElement('div', { 'data-testid': 'video-thumbnail', onClick: onActivate }, src) }))
 
-import TaskCenter from '../../src/components/base/TaskCenter.tsx'
+import TaskCenter from '../../src/components/base/panels/TaskCenter.tsx'
 
 function makeTask(overrides = {}) {
   return {

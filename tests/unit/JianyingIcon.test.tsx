@@ -11,7 +11,7 @@
 import React from 'react'
 import { describe, it, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
-import JianyingIcon from '../../src/components/base/JianyingIcon.tsx'
+import JianyingIcon from '../../src/components/base/ui/JianyingIcon.tsx'
 
 describe('JianyingIcon', () => {
   it('默认渲染 14px 剪映图标', () => {

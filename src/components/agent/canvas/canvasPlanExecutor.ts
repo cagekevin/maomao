@@ -13,10 +13,10 @@
  *
  * 【依赖第 1 步异步执行器】触发用 taskStore.runNodeGeneration（await 拿已落盘 resultUrl）。
  */
-import { runNodeGeneration, isNodeRegistered } from '../../base/taskStore.ts'
-import { generateId } from '../../base/idGen.ts'
-import { logger } from '../../base/logger.ts'
-import { toAbsoluteFileUrl } from '../../base/imageUrl.ts'
+import { runNodeGeneration, isNodeRegistered } from '../../base/store/taskStore.ts'
+import { generateId } from '../../base/core/idGen.ts'
+import { logger } from '../../base/core/logger.ts'
+import { toAbsoluteFileUrl } from '../../base/utils/imageUrl.ts'
 import { createCanvasHost, type CanvasHostCtx, type CanvasHost } from './canvasHost.ts'
 
 /** 计划单步（generations 数组元素）：字段均可选，因 LLM 计划数据可能不完整。 */

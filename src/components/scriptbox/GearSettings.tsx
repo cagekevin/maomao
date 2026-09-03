@@ -1,16 +1,16 @@
 import React, { useState, useEffect } from 'react'
 import { useProviders, load as loadProviders } from '../base/settings/providerStore.ts'
-import { logger } from '../base/logger.ts'
-import { buildAllModels } from '../base/providerModels.ts'
-import ModelSelect from '../base/ModelSelect.tsx'
-import Select from '../base/Select.tsx'
+import { logger } from '../base/core/logger.ts'
+import { buildAllModels } from '../base/utils/providerModels.ts'
+import ModelSelect from '../base/ui/ModelSelect.tsx'
+import Select from '../base/ui/Select.tsx'
 import ScriptBoxModal from './ScriptBoxModal.tsx'
 import ScriptBoxPlaybookManager from './scriptBoxPlaybookManager.tsx'
 import { getAllPlaybooks, getPlaybook, isBuiltin, saveCustomPlaybook } from './scriptBoxPlaybookStore.ts'
 import type { Playbook } from './scriptBoxPlaybookIO.ts'
 import { DEFAULT_WORKFLOW } from './scriptBoxWorkflows.ts'
 import type { ScriptBoxData, ScriptBoxUpdateData } from './scriptBoxSchema.ts'
-import type { ModelOption } from '../base/providerModels.ts'
+import type { ModelOption } from '../base/utils/providerModels.ts'
 
 /**
  * 剧本盒子 齿轮设置弹窗 —— Playbook 编辑器（收口后无覆盖层）。

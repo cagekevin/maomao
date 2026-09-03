@@ -12,7 +12,7 @@
  * ════════════════════════════════════════════════════════════════
  */
 import { getActiveConv, commit, getState } from './conversationState.ts'
-import { CREDIT_GATE_FIELD } from '../../base/contracts.ts'
+import { CREDIT_GATE_FIELD } from '../../base/core/contracts.ts'
 
 /**
  * 积分确认门禁形状（高消耗积分确认）：pending=待用户确认，gens=待补跑的生成项，

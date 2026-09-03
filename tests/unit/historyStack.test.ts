@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { HistoryStack } from '../../src/components/base/historyStack.ts'
+import { HistoryStack } from '../../src/components/base/canvas/historyStack.ts'
 
 // §2.3 画布历史栈（撤销/重做）：规划 §3.1 的 useCanvasHistory.test.js 遗漏项。
 // 核心逻辑已从 React hook 下沉为纯类 HistoryStack，可直接单测。

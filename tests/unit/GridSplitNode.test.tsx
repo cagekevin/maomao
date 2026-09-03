@@ -10,13 +10,13 @@ import { render, screen, fireEvent } from '@testing-library/react'
 import { mocks } from './_nodeMocks.mjs'
 
 vi.mock('@xyflow/react', () => mocks.xyflow)
-vi.mock('../../src/components/base/NodeShell.tsx', () => ({ default: mocks.NodeShell }))
+vi.mock('../../src/components/base/ui/NodeShell.tsx', () => ({ default: mocks.NodeShell }))
 vi.mock('../../src/components/edges/CustomHandle.tsx', () => ({ default: mocks.CustomHandle }))
-vi.mock('../../src/components/base/OverlayEditor.tsx', () => ({ OverlayEditor: mocks.OverlayEditor, renderOverlayCanvas: mocks.renderOverlayCanvas }))
+vi.mock('../../src/components/base/editors/OverlayEditor.tsx', () => ({ OverlayEditor: mocks.OverlayEditor, renderOverlayCanvas: mocks.renderOverlayCanvas }))
 vi.mock('../../src/hooks/useConnectedInputs.ts', () => ({ useConnectedInputs: mocks.useConnectedInputs }))
 vi.mock('../../src/hooks/useMediaDegrade.ts', () => ({ useMediaDegrade: mocks.useMediaDegrade }))
-vi.mock('../../src/components/base/hooks.ts', () => ({ useNodeResize: mocks.useNodeResize, useContentHeightSync: mocks.useContentHeightSync }))
-vi.mock('../../src/components/base/toastStore.ts', () => ({ showToast: mocks.showToast, toastWarning: mocks.toastWarning }))
+vi.mock('../../src/components/base/core/hooks.ts', () => ({ useNodeResize: mocks.useNodeResize, useContentHeightSync: mocks.useContentHeightSync }))
+vi.mock('../../src/components/base/core/toastStore.ts', () => ({ showToast: mocks.showToast, toastWarning: mocks.toastWarning }))
 vi.mock('../../src/components/base/api/filesApi.ts', () => ({ toAbsoluteFileUrl: mocks.toAbsoluteFileUrl }))
 
 import GridSplitNode from '../../src/components/nodes/GridSplitNode.tsx'

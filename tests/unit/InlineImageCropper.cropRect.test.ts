@@ -6,7 +6,7 @@
  * 负责把选区（% 或 px）统一归一为原图像素矩形并钳制到图内，这里用纯函数断言其精确性。
  */
 import { describe, it, expect } from 'vitest'
-import { cropRectFromSelection } from '../../src/components/base/InlineImageCropper.tsx'
+import { cropRectFromSelection } from '../../src/components/base/editors/InlineImageCropper.tsx'
 
 // 固定场景：原图 1200×800，渲染盒子 300×200（scale 4）
 const R = { renderW: 300, renderH: 200, natW: 1200, natH: 800 }

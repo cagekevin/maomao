@@ -16,8 +16,8 @@
  * 依赖方向（单向）：useAgentChat → agentAttachments → imageUrl。无环。
  */
 
-import { normalizeImageUrlForSend, summarizeImages } from '../../base/imageUrl.ts'
-import { logger } from '../../base/logger.ts'
+import { normalizeImageUrlForSend, summarizeImages } from '../../base/utils/imageUrl.ts'
+import { logger } from '../../base/core/logger.ts'
 
 /**
  * 归一化附件数组（发送统一出口）：每条 { ...a, url } 经 normalizeImageUrlForSend。

@@ -43,16 +43,16 @@ vi.mock('@xyflow/react', () => ({
   useStore: () => () => ({}),
   ReactFlowProvider: ({ children }) => children,
 }))
-vi.mock('../../src/components/base/NodeShell.tsx', () => ({ default: mocks.NodeShell }))
-vi.mock('../../src/components/base/HoverToolbar.tsx', () => ({ default: mocks.HoverToolbar }))
+vi.mock('../../src/components/base/ui/NodeShell.tsx', () => ({ default: mocks.NodeShell }))
+vi.mock('../../src/components/base/panels/HoverToolbar.tsx', () => ({ default: mocks.HoverToolbar }))
 vi.mock('../../src/hooks/useConnectedInputs.ts', () => ({ useConnectedInputs: mocks.useConnectedInputs }))
 vi.mock('../../src/hooks/useMediaDegrade.ts', () => ({ useMediaDegrade: mocks.useMediaDegrade }))
 vi.mock('../../src/components/base/api/filesApi.ts', () => ({
   uploadFileToLocal: (...a: unknown[]) => (h.uploadMock as unknown as (...x: unknown[]) => void)(...a),
   toAbsoluteFileUrl: (u) => `ABS:${u}`,
 }))
-vi.mock('../../src/components/base/toastStore.ts', () => ({ showToast: mocks.showToast, toastError: mocks.toastError, toastWarning: mocks.toastWarning }))
-vi.mock('../../src/components/base/faceMosaic.ts', () => ({
+vi.mock('../../src/components/base/core/toastStore.ts', () => ({ showToast: mocks.showToast, toastError: mocks.toastError, toastWarning: mocks.toastWarning }))
+vi.mock('../../src/components/base/utils/faceMosaic.ts', () => ({
   applyMosaic: (...a: unknown[]) => (h.applyMosaicMock as unknown as (...x: unknown[]) => void)(...a),
   MOSAIC_MODES: [
     { mode: 'mosaic', label: '马赛克' },
@@ -62,15 +62,15 @@ vi.mock('../../src/components/base/faceMosaic.ts', () => ({
   ],
   MOSAIC_PALETTE: ['#000000', '#ffffff'],
 }))
-vi.mock('../../src/components/base/FaceMosaicEditor.tsx', () => ({
+vi.mock('../../src/components/base/editors/FaceMosaicEditor.tsx', () => ({
   default: ({ imageUrl, onSave, onClose }) =>
     React.createElement('div', { 'data-testid': 'mosaic-editor' },
       React.createElement('span', null, '手动编辑器'),
       React.createElement('button', { onClick: () => onSave('data:image/png;base64,QUFBQQ==') }, '保存手动打码'),
       React.createElement('button', { onClick: onClose }, '关闭编辑器')),
 }))
-vi.mock('../../src/components/base/ImageZoomDialog.tsx', () => ({ default: () => null }))
-vi.mock('../../src/components/base/previewUrl.ts', () => ({ default: { create: () => 'http://preview.x' } }))
+vi.mock('../../src/components/base/editors/ImageZoomDialog.tsx', () => ({ default: () => null }))
+vi.mock('../../src/components/base/utils/previewUrl.ts', () => ({ default: { create: () => 'http://preview.x' } }))
 
 import FaceMosaicNode from '../../src/components/nodes/FaceMosaicNode.tsx'
 

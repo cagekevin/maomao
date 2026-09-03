@@ -19,16 +19,16 @@
  * ════════════════════════════════════════════════════════════════
  */
 import { useSyncExternalStore } from 'react'
-import { contentGet, contentSet, contentGetAsync, contentSetAsync, createDebouncedPersist } from '../../base/contentStore.ts'
+import { contentGet, contentSet, contentGetAsync, contentSetAsync, createDebouncedPersist } from '../../base/core/contentStore.ts'
 import { sGet } from '@/components/base/storage/index.ts'
-import { withTimeout } from '../../base/asyncGuard.ts'
-import { generateId } from '../../base/idGen.ts'
-import { CREDIT_GATE_FIELD } from '../../base/contracts.ts'
-import { logger } from '../../base/logger.ts'
-import { reportDegrade } from '../../base/degrade.ts'
-import { KV_TIMEOUT } from '../../base/config.ts'
+import { withTimeout } from '../../base/utils/asyncGuard.ts'
+import { generateId } from '../../base/core/idGen.ts'
+import { CREDIT_GATE_FIELD } from '../../base/core/contracts.ts'
+import { logger } from '../../base/core/logger.ts'
+import { reportDegrade } from '../../base/utils/degrade.ts'
+import { KV_TIMEOUT } from '../../base/core/config.ts'
 // 【P1c L3 整包预算安全网】落盘前对归一化副本做投影降级，保证整包序列化体积有界（见 volumePolicy.js）
-import { applyConversationBudget, estimateConversationsBytes, SAFE_BUDGET_BYTES } from '../../base/volumePolicy.ts'
+import { applyConversationBudget, estimateConversationsBytes, SAFE_BUDGET_BYTES } from '../../base/utils/volumePolicy.ts'
 import { type ChatMessage as AgentChatMessage } from '../runtime/agentCore.ts'
 
 /**

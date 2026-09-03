@@ -53,7 +53,7 @@ const LITERAL_EVENT_RE = new RegExp(
 // ── 加载事件登记表 ──
 let EVENTS = {}
 try {
-  const mod = await import(pathToFileURL(resolve(root, 'src/components/base/contracts.ts')).href)
+  const mod = await import(pathToFileURL(resolve(root, 'src/components/base/core/contracts.ts')).href)
   EVENTS = mod.EVENTS || {}
 } catch (e) {
   console.error('  ✖ 无法加载 contracts.ts 事件登记表：', e.message)
@@ -231,6 +231,6 @@ if (violations === 0) {
 } else {
   console.error(`\n发现 ${violations} 处事件契约问题 ✖`)
   console.error('① 裸事件名未登记 或 ② 登记表 to/from 与代码实测不一致（滞后/漂移/stale）。')
-  console.error('请同步更新 src/components/base/contracts.ts 的 EVENTS（禁止仅凭表内 to:[] 判定死事件）。')
+  console.error('请同步更新 src/components/base/core/contracts.ts 的 EVENTS（禁止仅凭表内 to:[] 判定死事件）。')
   process.exit(1)
 }

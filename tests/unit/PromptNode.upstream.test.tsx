@@ -40,32 +40,32 @@ vi.mock('../../src/hooks/useNodeGeneration.ts', () => ({
   },
 }))
 
-vi.mock('../../src/components/base/ModelSelect.tsx', () => ({
+vi.mock('../../src/components/base/ui/ModelSelect.tsx', () => ({
   default: ({ value, onChange }) => (
     <button type="button" data-testid="model-select" onClick={() => onChange('model-x')}>
       {value || '选择模型'}
     </button>
   ),
 }))
-vi.mock('../../src/components/base/GenerateButton.tsx', () => ({ default: ({ onGenerate }) => <button type="button" onClick={onGenerate}>生成</button> }))
-vi.mock('../../src/components/base/NodeShell.tsx', () => ({ default: ({ children }) => children }))
-vi.mock('../../src/components/base/ExpandablePanel.tsx', () => ({ default: ({ children }) => children }))
-vi.mock('../../src/components/base/MaterialStrip.tsx', () => ({ default: ({ children }) => children }))
-vi.mock('../../src/components/base/HoverToolbar.tsx', () => ({ default: () => null }))
-vi.mock('../../src/components/base/PromptInput.tsx', () => ({ default: () => null }))
-vi.mock('../../src/components/base/ResizeFullscreenHandle.tsx', () => ({ default: () => null }))
-vi.mock('../../src/components/base/FullscreenModal.tsx', () => ({ default: () => null }))
-vi.mock('../../src/components/base/GeneratingOverlay.tsx', () => ({ default: () => null }))
-vi.mock('../../src/components/base/PromptLibraryButton.tsx', () => ({ default: () => null }))
-vi.mock('../../src/components/base/JianyingIcon.tsx', () => ({ default: () => null }))
-vi.mock('../../src/components/base/hooks.ts', () => ({ useNodeResize: () => ({ onInputResize: vi.fn() }), useOutsideClick: () => {} }))
+vi.mock('../../src/components/base/ui/GenerateButton.tsx', () => ({ default: ({ onGenerate }) => <button type="button" onClick={onGenerate}>生成</button> }))
+vi.mock('../../src/components/base/ui/NodeShell.tsx', () => ({ default: ({ children }) => children }))
+vi.mock('../../src/components/base/ui/ExpandablePanel.tsx', () => ({ default: ({ children }) => children }))
+vi.mock('../../src/components/base/panels/MaterialStrip.tsx', () => ({ default: ({ children }) => children }))
+vi.mock('../../src/components/base/panels/HoverToolbar.tsx', () => ({ default: () => null }))
+vi.mock('../../src/components/base/prompt/PromptInput.tsx', () => ({ default: () => null }))
+vi.mock('../../src/components/base/ui/ResizeFullscreenHandle.tsx', () => ({ default: () => null }))
+vi.mock('../../src/components/base/panels/FullscreenModal.tsx', () => ({ default: () => null }))
+vi.mock('../../src/components/base/ui/GeneratingOverlay.tsx', () => ({ default: () => null }))
+vi.mock('../../src/components/base/prompt/PromptLibraryButton.tsx', () => ({ default: () => null }))
+vi.mock('../../src/components/base/ui/JianyingIcon.tsx', () => ({ default: () => null }))
+vi.mock('../../src/components/base/core/hooks.ts', () => ({ useNodeResize: () => ({ onInputResize: vi.fn() }), useOutsideClick: () => {} }))
 
 // ---- 可控的 useConnectedInputs：测试内动态覆盖其返回值 ----
 let connectedInputs = {}
 vi.mock('../../src/hooks/useConnectedInputs.ts', () => ({ useConnectedInputs: () => connectedInputs }))
 
 vi.mock('../../src/hooks/useMediaDegrade.ts', () => ({ useMediaDegrade: () => ({ isHidden: () => false }) }))
-vi.mock('../../src/components/base/nodePrefs.ts', () => ({ useNodePrefs: () => ({ prefs: {}, set: vi.fn() }) }))
+vi.mock('../../src/components/base/canvas/nodePrefs.ts', () => ({ useNodePrefs: () => ({ prefs: {}, set: vi.fn() }) }))
 vi.mock('../../src/hooks/useSyncNodeData.ts', () => ({ useSyncNodeData: () => {} }))
 vi.mock('../../src/components/base/api/filesApi.ts', () => ({ toAbsoluteFileUrl: (x) => x, saveResultToTasks: vi.fn(async () => undefined) }))
 vi.mock('../../src/components/base/settings/providerStore.ts', () => ({ useProviders: () => ({ providers: [] }), load: vi.fn(() => Promise.resolve()) }))
@@ -74,7 +74,7 @@ vi.mock('../../src/components/base/api/localToolApi.ts', () => ({ fetchTasks: vi
 // 导致后续 mock.calls[0][0] 报 TS2493、mockGenerateImage(...a) 报 TS2556。
 const mockGenerateImage = vi.fn(async (..._args: unknown[]) => ({ url: 'http://gen.local/img.png' }))
 vi.mock('../../src/components/base/api/imageApi.ts', () => ({ generateImage: (...a) => mockGenerateImage(...a) }))
-vi.mock('../../src/components/base/providerModels.ts', () => ({ buildAllModels: vi.fn(() => []), resolveProviderModel: vi.fn(() => ({ provider: {}, modelId: 'm' })) }))
+vi.mock('../../src/components/base/utils/providerModels.ts', () => ({ buildAllModels: vi.fn(() => []), resolveProviderModel: vi.fn(() => ({ provider: {}, modelId: 'm' })) }))
 
 beforeEach(() => {
   mockSetNodes.mockClear()

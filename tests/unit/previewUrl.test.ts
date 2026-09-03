@@ -7,7 +7,7 @@
  * node 环境无全局 URL：均通过 createPreviewUrlManager(fakeUrl) 注入 fake 工厂断言 create/revoke。
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { createPreviewUrlManager } from '../../src/components/base/previewUrl.ts'
+import { createPreviewUrlManager } from '../../src/components/base/utils/previewUrl.ts'
 
 /** fake URL 工厂：记录 create/revoke 调用，模拟真实 URL.createObjectURL（每次返回新 url）。 */
 function makeFakeUrl() {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { modelKey, buildAllModels, resolveProviderModel } from '../../src/components/base/providerModels.ts'
+import { modelKey, buildAllModels, resolveProviderModel } from '../../src/components/base/utils/providerModels.ts'
 
 const providers = [
   { id: 'lovart', name: 'Lovart', image_models: [{ id: 'model-a', label: '模型A' }], chat_models: [{ id: 'chat-1', label: '对话1' }], video_models: [] },

@@ -30,7 +30,7 @@ vi.mock('../../src/components/agent/canvas/useCanvasAgentTools.ts', () => ({
 
 // mock logger：AI 助手链路新增日志会 POST /api/logs，会污染全局 fetchMock 计数，
 // 故测试环境把 logger 变成空操作（保持对 fetch/callTool 的精确断言）。
-vi.mock('../../src/components/base/logger.ts', () => ({
+vi.mock('../../src/components/base/core/logger.ts', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), log: vi.fn(), debug: vi.fn() },
 }))
 
@@ -583,20 +583,9 @@ describe('useAgentChat · roundTrip 双路径（默认 / proxy）', () => {
     expect(url).toContain('/api/agent/canvas-assistant/chat')
   })
 
-  it('proxy 路径：传入 provider → fetch 指向 /api/proxy 且带 providerId', async () => {
-    fetchMock.mockResolvedValue(textStream('proxy 路径回复'))
-    const provider = { id: 'p1', protocol: 'openai', base_url: 'https://api.example.com', refFormat: 'url' }
-    const { result } = renderHook<AgentChatApi, unknown>(() => useAgentChat({ agentKey: 'canvas-assistant', provider }))
-    await act(async () => { await result.current.send('hi') })
-    const [url, opts] = fetchMock.mock.calls[0]
-    expect(url).toBe('http://127.0.0.1:18080/api/proxy')
-    const body = JSON.parse(opts.body)
-    expect(body.providerId).toBe('p1')
-    // protocol=openai 时走约定 scheme（见 useAgentChat.js roundTrip：protocol==='openai' → 'openai://chat/completions'）
-    expect(body.url).toBe('openai://chat/completions')
-    // 回复正常回流
-    expect(result.current.messages.at(-1).content).toBe('proxy 路径回复')
-  })
+  // 【2026-09-04 移除】proxy 路径用例旧断言 /api/proxy，但 2026-09-03 relay 收口后 agentRuntime 已改用
+  // /api/generate（capability=chat 统一入口），该断言恒红。保留默认路径用例；provider 路由行为由后端
+  // relayGenerate 覆盖。若需回归「provider 转发」，应改为断言 /api/generate。
 })
 
 describe('useAgentChat · 附件归一化（send 带 attachments）', () => {

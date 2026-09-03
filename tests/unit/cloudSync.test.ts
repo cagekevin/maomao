@@ -7,7 +7,7 @@
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { jsonResp, createKvMem } from './_testUtils.mjs'
-import { contentClearCache } from '../../src/components/base/contentStore.ts'
+import { contentClearCache } from '../../src/components/base/core/contentStore.ts'
 
 // 复用 setup.mjs 强制 mock 的全局 fetch（Node 原生 fetch 不可配置，vi.stubGlobal 会静默失效）
 // 类型对齐：TS 默认把 globalThis.fetch 当 typeof fetch，cast 为 vi.fn 类型以启用 .mock* / mock.calls。
@@ -37,7 +37,7 @@ const {
   diffWithLocal,
   describeUploadConflict,
   describeDownloadConflict,
-} = await import('../../src/components/base/cloudSync.ts')
+} = await import('../../src/components/base/store/cloudSync.ts')
 
 /**
  * 定位发往 GAS 的指定 action 请求（pull_data / push_data）。
@@ -134,7 +134,7 @@ describe('cloudSync — uploadConfig / downloadConfig 边界', () => {
 
   it('uploadConfig 有数据且 push 成功 → ok:true + count', async () => {
     // 写入一些可同步的本地数据
-    const { contentSet } = await import('../../src/components/base/contentStore.ts')
+    const { contentSet } = await import('../../src/components/base/core/contentStore.ts')
     contentSet('app_settings', { theme: 'dark' })
     fetchMock.mockResolvedValue(jsonResp({ msg: 'ok' }))
     const res = await uploadConfig(() => {})
@@ -144,7 +144,7 @@ describe('cloudSync — uploadConfig / downloadConfig 边界', () => {
 
   it('localTool 未连（getProviders 抛错）→ collectLocal 跳过 API 配置，仍成功且不含 providers', async () => {
     // 【R6 边角3】localTool 未连的降级路径：catch 静默跳过，不阻塞本地配置上传
-    const { contentSet } = await import('../../src/components/base/contentStore.ts')
+    const { contentSet } = await import('../../src/components/base/core/contentStore.ts')
     contentSet('app_settings', { theme: 'dark' })
     vi.mocked(providerApi.getProviders).mockRejectedValue(new Error('ECONNREFUSED'))
     fetchMock.mockResolvedValue(jsonResp({ msg: 'ok' }))
@@ -156,7 +156,7 @@ describe('cloudSync — uploadConfig / downloadConfig 边界', () => {
   })
 
   it('同步清单由 contracts.ts getLocalKeys() 生成：真实设置进云，排除本机/临时/本地引用键', async () => {
-    const { contentSet } = await import('../../src/components/base/contentStore.ts')
+    const { contentSet } = await import('../../src/components/base/core/contentStore.ts')
     // 真实设置（此前未进手写清单，收口后应同步）
     contentSet('agent_panel_width', '320')
     contentSet('agent_input_mode', 'agent')
@@ -178,7 +178,7 @@ describe('cloudSync — uploadConfig / downloadConfig 边界', () => {
   })
 
   it('account 领域开：账号环境（KV 后端）随上传进入云端', async () => {
-    const { contentSet, contentSetAsync } = await import('../../src/components/base/contentStore.ts')
+    const { contentSet, contentSetAsync } = await import('../../src/components/base/core/contentStore.ts')
     contentSet('app_settings', { theme: 'dark' })
     await contentSetAsync('yimao_accounts', [{ id: 'acc1', name: '环境1' }])
     // 按 URL 分流：KV 读账号 → 返回账号数组；其余（GAS push / kvSet 写）→ 返回成功
@@ -333,7 +333,7 @@ describe('cloudSync — 防覆盖保护：弹窗文案', () => {
 
 describe('cloudSync — 防覆盖保护：端到端（用户取消 / 用户确认）', () => {
   it('上传遇冲突且用户取消 → cancelled:true，且不发起 push（云端保持原样）', async () => {
-    const { contentSet } = await import('../../src/components/base/contentStore.ts')
+    const { contentSet } = await import('../../src/components/base/core/contentStore.ts')
     contentSet('app_settings', { theme: 'dark' })
     // 造台账：上次同步到 rev=1，且本地指纹已变（模拟本地改过）
     contentSet('yimao_cloud_sync_ledger', { rev: 1, syncedAt: 1, localHash: 'stale-hash' })
@@ -351,7 +351,7 @@ describe('cloudSync — 防覆盖保护：端到端（用户取消 / 用户确�
   })
 
   it('上传遇冲突但用户确认 → 正常推送，且 rev = 云端 rev + 1（单调递增）', async () => {
-    const { contentSet } = await import('../../src/components/base/contentStore.ts')
+    const { contentSet } = await import('../../src/components/base/core/contentStore.ts')
     contentSet('app_settings', { theme: 'dark' })
     contentSet('yimao_cloud_sync_ledger', { rev: 1, syncedAt: 1, localHash: 'stale-hash' })
     fetchMock.mockImplementation((_url, opt) => {
@@ -377,7 +377,7 @@ describe('cloudSync — 防覆盖保护：端到端（用户取消 / 用户确�
   })
 
   it('下载有覆盖项且用户取消 → cancelled:true，本地一个字节都没改', async () => {
-    const { contentSet, contentGet } = await import('../../src/components/base/contentStore.ts')
+    const { contentSet, contentGet } = await import('../../src/components/base/core/contentStore.ts')
     contentSet('app_settings', { theme: 'dark' })
     // 注意信封：CloudSyncEngine.pull 返回的是 res.data，故 GAS 回包必须是 { data: <完整同步包> }
     fetchMock.mockResolvedValue(jsonResp({
@@ -392,7 +392,7 @@ describe('cloudSync — 防覆盖保护：端到端（用户取消 / 用户确�
   })
 
   it('下载有覆盖项但用户确认 → 正常覆盖本地', async () => {
-    const { contentSet, contentGet } = await import('../../src/components/base/contentStore.ts')
+    const { contentSet, contentGet } = await import('../../src/components/base/core/contentStore.ts')
     contentSet('app_settings', { theme: 'dark' })
     // 注意信封：CloudSyncEngine.pull 返回的是 res.data，故 GAS 回包必须是 { data: <完整同步包> }
     fetchMock.mockResolvedValue(jsonResp({
@@ -407,7 +407,7 @@ describe('cloudSync — 防覆盖保护：端到端（用户取消 / 用户确�
   })
 
   it('下载成功后写台账：下一次上传不再误报冲突（基线已跟上云端 rev）', async () => {
-    const { contentSet } = await import('../../src/components/base/contentStore.ts')
+    const { contentSet } = await import('../../src/components/base/core/contentStore.ts')
     contentSet('app_settings', { theme: 'dark' })
     // 注意信封：CloudSyncEngine.pull 返回的是 res.data，故 GAS 回包必须是 { data: <完整同步包> }
     fetchMock.mockResolvedValue(jsonResp({

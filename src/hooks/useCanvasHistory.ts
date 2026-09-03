@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback } from 'react'
 import type { Edge, Node } from '@xyflow/react'
-import { HistoryStack } from '../components/base/historyStack.ts'
+import { HistoryStack } from '../components/base/canvas/historyStack.ts'
 
 /** 一次画布快照：节点 + 连线 */
 export interface CanvasSnapshot {

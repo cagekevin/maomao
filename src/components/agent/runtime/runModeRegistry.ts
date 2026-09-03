@@ -20,7 +20,7 @@
  *          首次启动（无 agent_work_mode 记录）由遗留 inputMode/runMode 推导初始值并回写。
  * ════════════════════════════════════════════════════════════════
  */
-import { contentGet, contentSet } from '../../base/contentStore.ts'
+import { contentGet, contentSet } from '../../base/core/contentStore.ts'
 
 export const WORK_MODE_STORAGE_KEY = 'agent_work_mode'
 export const INPUT_MODE_STORAGE_KEY = 'agent_input_mode'

@@ -5,7 +5,7 @@
 //  - 支持挂接可选上报函数（configureErrorReporting），供接线真实上报通道；未挂接时仅 console。
 //  - DEBUG 开关收口到 config.ts（DIRECTOR3D_DEBUG），本模块不再裸读 import.meta（见 base/config.ts 注释）。
 
-import { DIRECTOR3D_DEBUG } from '../base/config.js'
+import { DIRECTOR3D_DEBUG } from '../base/core/config.ts'
 
 const DEBUG_ENABLED = DIRECTOR3D_DEBUG
 

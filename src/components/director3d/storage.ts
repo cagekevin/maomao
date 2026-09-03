@@ -10,7 +10,7 @@
 //   - 姿势库键（director3d-custom-poses）→ 仍只走同步 localStorage（量小频繁，不进 KV，避免无关键污染）。
 // 读取仍同步（localStorage 种子），KV 覆盖交给 App 挂载后的 hydrateProject（读异步化见 App.jsx）。
 import { log } from './log.ts'
-import * as d3dPersistence from '../base/d3dPersistence.ts'
+import * as d3dPersistence from '../base/utils/d3dPersistence.ts'
 
 /**
  * 读取并 JSON 解析。key 不存在 / 解析失败均返回 fallback（默认 null）。

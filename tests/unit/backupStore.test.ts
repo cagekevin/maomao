@@ -6,11 +6,11 @@
  * 策略：storageAdapter 走真实内存 localStorage（setup.mjs 提供），projectStore 用内存 stub。
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { contentGet, contentSet, contentClearCache } from '../../src/components/base/contentStore.ts'
+import { contentGet, contentSet, contentClearCache } from '../../src/components/base/core/contentStore.ts'
 
 // ── stub projectStore：内存画布快照 ──
 const canvasStore = new Map()
-vi.mock('../../src/components/base/projectStore.ts', () => ({
+vi.mock('../../src/components/base/store/projectStore.ts', () => ({
   loadCanvasState: vi.fn(async (id) => canvasStore.get(id) || null),
   saveCanvasState: vi.fn(async (id, nodes, edges) => {
     canvasStore.set(id, { nodes, edges })
@@ -29,7 +29,7 @@ vi.mock('../../src/components/base/api/localToolApi.ts', async (importOriginal) 
   kvDelete: vi.fn(async (key) => { kvStore.delete(key); return { ok: true } }),
 }))
 
-const { exportAll, importAll, backupToBlob } = await import('@/components/base/backupStore.ts')
+const { exportAll, importAll, backupToBlob } = await import('@/components/base/store/backupStore.ts')
 
 beforeEach(() => {
   localStorage.clear()
@@ -116,7 +116,7 @@ describe('backupStore — 导入 importAll', () => {
   })
 
   it('canvas 快照 saveCanvasState 返回 skipped 时不计入 canvas 计数', async () => {
-    const { saveCanvasState } = await import('../../src/components/base/projectStore.ts')
+    const { saveCanvasState } = await import('../../src/components/base/store/projectStore.ts')
     vi.mocked(saveCanvasState).mockImplementationOnce(async () => ({ success: false, skipped: true }))
     const res = await importAll({ ls: {}, canvas: { skip1: { nodes: [], edges: [] } } })
     expect(res.canvas).toBe(0)

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import * as contentStore from '../../src/components/base/contentStore.ts'
-import { SAFE_BUDGET_BYTES } from '../../src/components/base/volumePolicy.ts'
+import * as contentStore from '../../src/components/base/core/contentStore.ts'
+import { SAFE_BUDGET_BYTES } from '../../src/components/base/utils/volumePolicy.ts'
 const { contentClearCache } = contentStore
 import { subscribe, getState } from '../../src/components/agent/conversation/conversationState.ts'
 import {

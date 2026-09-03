@@ -5,18 +5,18 @@ import {
   Check, ListChecks, Trash2, Grid2X2, List, MoreVertical
 } from 'lucide-react'
 import { useReactFlow } from '@xyflow/react'
-import NodeShell from '../base/NodeShell.tsx'
+import NodeShell from '../base/ui/NodeShell.tsx'
 import CustomHandle from '../edges/CustomHandle.tsx'
 import { useConnectedInputs } from '../../hooks/useConnectedInputs.ts'
 import { useMediaDegrade } from '../../hooks/useMediaDegrade.ts'
-import LazyImage from '../base/LazyImage.tsx'
-import ImageZoomDialog from '../base/ImageZoomDialog.tsx'
-import { showToast, toastError, toastWarning } from '../base/toastStore.ts'
-import { loadImageWithTimeout } from '../base/asyncGuard.ts'
-import { generateId } from '../base/idGen.ts'
-import { downloadUrl as clipboardDownload } from '../base/clipboard.ts'
+import LazyImage from '../base/ui/LazyImage.tsx'
+import ImageZoomDialog from '../base/editors/ImageZoomDialog.tsx'
+import { showToast, toastError, toastWarning } from '../base/core/toastStore.ts'
+import { loadImageWithTimeout } from '../base/utils/asyncGuard.ts'
+import { generateId } from '../base/core/idGen.ts'
+import { downloadUrl as clipboardDownload } from '../base/utils/clipboard.ts'
 
-import { useRenderImageResolver, fileToDataUrl } from '../base/imageUrl.ts'
+import { useRenderImageResolver, fileToDataUrl } from '../base/utils/imageUrl.ts'
 
 /**
  * 图片盒子节点（复刻官方 Rg.jsx / imageBoxNode）。

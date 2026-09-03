@@ -3,7 +3,7 @@ import { flushAsync } from './_testUtils.mjs'
 
 // mock eventBus.publish：捕获 persist:failed 事件
 const publishMock = vi.fn()
-vi.mock('../../src/components/base/eventBus.ts', () => ({
+vi.mock('../../src/components/base/core/eventBus.ts', () => ({
   publish: (...args) => publishMock(...args),
   subscribe: () => () => {},
 }))

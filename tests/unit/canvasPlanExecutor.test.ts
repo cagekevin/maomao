@@ -1,13 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 // 多步编排执行器：隔离 runNodeGeneration（真实生图 → 落盘 resultUrl）与 isNodeRegistered
-vi.mock('../../src/components/base/taskStore.ts', () => ({
+vi.mock('../../src/components/base/store/taskStore.ts', () => ({
   runNodeGeneration: vi.fn(async () => ({ ok: true, resultUrl: 'http://r/ok.png' })),
   isNodeRegistered: vi.fn(() => true),
 }))
 
 import { executePlan } from '../../src/components/agent/canvas/canvasPlanExecutor.ts'
-import { runNodeGeneration } from '../../src/components/base/taskStore.ts'
+import { runNodeGeneration } from '../../src/components/base/store/taskStore.ts'
 
 // vi.mock 工厂已把 runNodeGeneration 替换为 vi.fn，但静态类型仍是 src 的原始签名（无 .mock）。
 // 测试侧用 .mockImplementationOnce/.mockReturnValueOnce 断言，故用 vi.mocked 恢复 mock 类型。

@@ -23,7 +23,7 @@ vi.mock('../../src/hooks/useNodeGeneration.ts', () => ({
   },
 }))
 // HoverToolbar：把传入的 buttons 数组按 title 渲染成可点击按钮（show=false 不渲染）
-vi.mock('../../src/components/base/HoverToolbar.tsx', () => ({
+vi.mock('../../src/components/base/panels/HoverToolbar.tsx', () => ({
   default: ({ buttons = [] }) => (
     <>
       {buttons.filter((b) => b.show !== false).map((b) => (
@@ -32,32 +32,32 @@ vi.mock('../../src/components/base/HoverToolbar.tsx', () => ({
     </>
   ),
 }))
-vi.mock('../../src/components/base/NodeShell.tsx', () => ({ default: ({ children }) => children }))
-vi.mock('../../src/components/base/ExpandablePanel.tsx', () => ({ default: ({ children }) => children }))
-vi.mock('../../src/components/base/MaterialStrip.tsx', () => ({ default: () => null }))
-vi.mock('../../src/components/base/PromptInput.tsx', () => ({ default: () => null }))
-vi.mock('../../src/components/base/ResizeFullscreenHandle.tsx', () => ({ default: () => null }))
-vi.mock('../../src/components/base/FullscreenModal.tsx', () => ({ default: () => null }))
-vi.mock('../../src/components/base/GeneratingOverlay.tsx', () => ({ default: () => null }))
-vi.mock('../../src/components/base/PromptLibraryButton.tsx', () => ({ default: () => null }))
-vi.mock('../../src/components/base/JianyingIcon.tsx', () => ({ default: () => null }))
-vi.mock('../../src/components/base/hooks.ts', () => ({ useNodeResize: () => ({ onInputResize: vi.fn() }), useOutsideClick: () => {} }))
+vi.mock('../../src/components/base/ui/NodeShell.tsx', () => ({ default: ({ children }) => children }))
+vi.mock('../../src/components/base/ui/ExpandablePanel.tsx', () => ({ default: ({ children }) => children }))
+vi.mock('../../src/components/base/panels/MaterialStrip.tsx', () => ({ default: () => null }))
+vi.mock('../../src/components/base/prompt/PromptInput.tsx', () => ({ default: () => null }))
+vi.mock('../../src/components/base/ui/ResizeFullscreenHandle.tsx', () => ({ default: () => null }))
+vi.mock('../../src/components/base/panels/FullscreenModal.tsx', () => ({ default: () => null }))
+vi.mock('../../src/components/base/ui/GeneratingOverlay.tsx', () => ({ default: () => null }))
+vi.mock('../../src/components/base/prompt/PromptLibraryButton.tsx', () => ({ default: () => null }))
+vi.mock('../../src/components/base/ui/JianyingIcon.tsx', () => ({ default: () => null }))
+vi.mock('../../src/components/base/core/hooks.ts', () => ({ useNodeResize: () => ({ onInputResize: vi.fn() }), useOutsideClick: () => {} }))
 vi.mock('../../src/hooks/useConnectedInputs.ts', () => ({ useConnectedInputs: () => ({}) }))
 vi.mock('../../src/hooks/useMediaDegrade.ts', () => ({ useMediaDegrade: () => ({ isHidden: () => false }) }))
-vi.mock('../../src/components/base/nodePrefs.ts', () => ({ useNodePrefs: () => ({ prefs: {}, set: vi.fn() }) }))
+vi.mock('../../src/components/base/canvas/nodePrefs.ts', () => ({ useNodePrefs: () => ({ prefs: {}, set: vi.fn() }) }))
 vi.mock('../../src/components/base/api/filesApi.ts', () => ({ toAbsoluteFileUrl: (x) => x, saveResultToTasks: vi.fn(async () => undefined) }))
 vi.mock('../../src/components/base/settings/providerStore.ts', () => ({ useProviders: () => ({ providers: [] }), load: vi.fn(() => Promise.resolve()) }))
 vi.mock('../../src/components/base/api/localToolApi.ts', () => ({ fetchTasks: vi.fn(async () => ({ items: [] })) }))
 vi.mock('../../src/components/base/api/imageApi.ts', () => ({ generateImage: vi.fn(async () => ({ url: 'http://gen.local/img.png' })) }))
-vi.mock('../../src/components/base/providerModels.ts', () => ({ buildAllModels: vi.fn(() => []), resolveProviderModel: vi.fn(() => ({ provider: {}, modelId: 'm' })) }))
-vi.mock('../../src/components/base/clipboard.ts', async (importOriginal) => {
+vi.mock('../../src/components/base/utils/providerModels.ts', () => ({ buildAllModels: vi.fn(() => []), resolveProviderModel: vi.fn(() => ({ provider: {}, modelId: 'm' })) }))
+vi.mock('../../src/components/base/utils/clipboard.ts', async (importOriginal) => {
   const actual = await importOriginal() as Record<string, unknown>
   return { ...actual, downloadUrl: vi.fn() }
 })
 
 // ImageEditor：记录最近渲染的 imageUrl，便于断言「打开编辑器」
 let lastEditorUrl = null
-vi.mock('../../src/components/base/ImageEditor.tsx', () => ({
+vi.mock('../../src/components/base/editors/ImageEditor.tsx', () => ({
   default: ({ imageUrl, onSave, onClose }) => {
     lastEditorUrl = imageUrl
     return <div data-testid="image-editor" data-url={imageUrl} />
@@ -65,7 +65,7 @@ vi.mock('../../src/components/base/ImageEditor.tsx', () => ({
 }))
 // InlineImageCropper：记录是否打开（就地裁剪浮层）
 let inlineCropperOpen = false
-vi.mock('../../src/components/base/InlineImageCropper.tsx', () => ({
+vi.mock('../../src/components/base/editors/InlineImageCropper.tsx', () => ({
   default: ({ imageUrl, onSave, onClose }) => {
     inlineCropperOpen = true
     return <div data-testid="inline-cropper" data-url={imageUrl} />

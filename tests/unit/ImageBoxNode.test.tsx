@@ -37,15 +37,15 @@ vi.mock('@xyflow/react', () => ({
   useStore: () => () => ({}),
   ReactFlowProvider: ({ children }) => children,
 }))
-vi.mock('../../src/components/base/NodeShell.tsx', () => ({ default: mocks.NodeShell }))
+vi.mock('../../src/components/base/ui/NodeShell.tsx', () => ({ default: mocks.NodeShell }))
 vi.mock('../../src/components/edges/CustomHandle.tsx', () => ({ default: mocks.CustomHandle }))
 vi.mock('../../src/hooks/useConnectedInputs.ts', () => ({ useConnectedInputs: mocks.useConnectedInputs }))
 vi.mock('../../src/hooks/useMediaDegrade.ts', () => ({ useMediaDegrade: mocks.useMediaDegrade }))
-vi.mock('../../src/components/base/LazyImage.tsx', () => ({ default: mocks.LazyImage }))
-vi.mock('../../src/components/base/toastStore.ts', () => ({ showToast: mocks.showToast, toastError: mocks.toastError, toastWarning: mocks.toastWarning }))
+vi.mock('../../src/components/base/ui/LazyImage.tsx', () => ({ default: mocks.LazyImage }))
+vi.mock('../../src/components/base/core/toastStore.ts', () => ({ showToast: mocks.showToast, toastError: mocks.toastError, toastWarning: mocks.toastWarning }))
 vi.mock('../../src/components/base/api/filesApi.ts', () => ({ toAbsoluteFileUrl: mocks.toAbsoluteFileUrl }))
-vi.mock('../../src/components/base/clipboard.ts', () => h.clipboardMock)
-vi.mock('../../src/components/base/ImageZoomDialog.tsx', () => ({ default: () => null }))
+vi.mock('../../src/components/base/utils/clipboard.ts', () => h.clipboardMock)
+vi.mock('../../src/components/base/editors/ImageZoomDialog.tsx', () => ({ default: () => null }))
 
 import ImageBoxNode from '../../src/components/nodes/ImageBoxNode.tsx'
 

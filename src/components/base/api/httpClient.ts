@@ -13,9 +13,9 @@
  *
  * 【返回】parseJson=true（默认）时返回解析后的 JSON；HTTP 非 2xx 抛 HttpError。
  */
-import { withTimeout, TimeoutError, isTimeoutError } from '../asyncGuard.ts'
-import { logger } from '../logger.ts'
-import { HTTP_DEFAULT_TIMEOUT } from '../config.ts'
+import { withTimeout, TimeoutError, isTimeoutError } from '../utils/asyncGuard.ts'
+import { logger } from '../core/logger.ts'
+import { HTTP_DEFAULT_TIMEOUT } from '../core/config.ts'
 
 /** httpRequest 选项（fetch 统一入口的参数契约） */
 export interface HttpRequestOptions {

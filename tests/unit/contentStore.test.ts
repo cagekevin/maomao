@@ -29,7 +29,7 @@ const { mockStorageAdapter, mockKvStore, mockLogger } = vi.hoisted(() => {
 
 vi.mock('../../src/components/base/storage/storageAdapter.ts', () => mockStorageAdapter)
 vi.mock('../../src/components/base/storage/kvStore.ts', () => mockKvStore)
-vi.mock('../../src/components/base/logger.ts', () => mockLogger)
+vi.mock('../../src/components/base/core/logger.ts', () => mockLogger)
 
 // 防 logger 被 NODE_ENV 条件影响
 vi.stubEnv('NODE_ENV', 'test')
@@ -42,9 +42,9 @@ import {
   contentSubscribe, contentSubscribeAll,
   contentGetSnapshot, contentGetKeySnapshot,
   contentClearCache, contentStats,
-} from '../../src/components/base/contentStore.ts'
+} from '../../src/components/base/core/contentStore.ts'
 
-import { STORAGE_KEYS } from '../../src/components/base/contracts.ts'
+import { STORAGE_KEYS } from '../../src/components/base/core/contracts.ts'
 
 /* ════════════════════════════════════════════════════════════════
  * 准备工作：每个测试前重置 mock

@@ -33,11 +33,11 @@ vi.mock('@xyflow/react', () => ({
   Position: { Left: 'left', Right: 'right', Top: 'top', Bottom: 'bottom' },
 }))
 
-vi.mock('../../src/components/base/CometParticles.tsx', () => ({
+vi.mock('../../src/components/base/ui/CometParticles.tsx', () => ({
   default: (props) => h.CometParticlesMock(props),
 }))
 
-vi.mock('../../src/components/base/lod.tsx', () => ({
+vi.mock('../../src/components/base/canvas/lod.tsx', () => ({
   useLod: () => h.useLodMock(),
 }))
 

@@ -13,11 +13,11 @@
  *  - save() 时对整组透传；key 通道（api_key/clear_key）仅在有编辑态时映射（配置型下无编辑入口）
  */
 import { useSyncExternalStore } from 'react'
-import type { RawModel } from '../providerModels.ts'
+import type { RawModel } from '../utils/providerModels.ts'
 import { useStoreSelector } from '../../../hooks/useStoreSelector.ts'
 import { providerApi } from '../api/localToolApi.ts'
-import { contentSetAsync } from '../contentStore.ts'
-import { logger } from '../logger.ts'
+import { contentSetAsync } from '../core/contentStore.ts'
+import { logger } from '../core/logger.ts'
 
 // useSyncExternalStore 要求：数据变化时 getSnapshot 必须返回「新引用」，
 // 否则 React 用 Object.is 判定无变化 → 不触发渲染（表现：按钮没反应、页面空白/卡）。

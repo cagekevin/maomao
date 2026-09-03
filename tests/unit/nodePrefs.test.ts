@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { getNodePrefs, injectNodePrefs } from '../../src/components/base/nodePrefs.ts'
-import { contentSet, contentClearCache } from '../../src/components/base/contentStore.ts'
+import { getNodePrefs, injectNodePrefs } from '../../src/components/base/canvas/nodePrefs.ts'
+import { contentSet, contentClearCache } from '../../src/components/base/core/contentStore.ts'
 
 // 记忆写入必须走业务唯一入口 contentSet（带 yimao: 前缀 + STORAGE_KEYS 登记），
 // 禁止裸写 localStorage（会绕开前缀导致读不到，正是记忆功能失效的坑）。

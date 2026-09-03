@@ -4,7 +4,7 @@
  * 不写「真实流程不会发生」的假边界（缺字段/非法类型/未实现占位）。
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { formatBytes } from '../../src/components/base/utils.ts'
+import { formatBytes } from '../../src/components/base/core/utils.ts'
 import {
   STORAGE_PRESSURE_RATIO,
   estimateBrowserStorage,

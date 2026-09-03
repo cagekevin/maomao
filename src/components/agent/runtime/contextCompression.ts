@@ -12,8 +12,8 @@
  */
 
 import { chatCompletions } from '@/components/base/api/index.ts'
-import { withTimeout, isTimeoutError } from '../../base/asyncGuard.ts'
-import { logger } from '../../base/logger.ts'
+import { withTimeout, isTimeoutError } from '../../base/utils/asyncGuard.ts'
+import { logger } from '../../base/core/logger.ts'
 
 /** 可压缩的必要历史条数门槛（消息太少没压缩价值，调用方据此决定跑不跑） */
 export const RECENT_KEEP_COUNT = 8

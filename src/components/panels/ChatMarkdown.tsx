@@ -12,7 +12,7 @@
  */
 import { memo, useState } from 'react'
 import type { ReactNode } from 'react'
-import LazyImage from '../base/LazyImage.tsx'
+import LazyImage from '../base/ui/LazyImage.tsx'
 import { extractImageSpans, isImageUrl, type ImageSpan } from './markdownImages.ts'
 
 /** 行内匹配模式（含 markdown 图片，由外层切图先处理） */

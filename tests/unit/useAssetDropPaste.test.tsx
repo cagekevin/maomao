@@ -30,7 +30,7 @@ vi.mock('../../src/components/base/api/filesApi.ts', () => ({
   WEB_DROP_SUBFOLDER: 'web',
 }))
 const toastMock = vi.fn()
-vi.mock('../../src/components/base/toastStore.ts', () => ({ showToast: toastMock }))
+vi.mock('../../src/components/base/core/toastStore.ts', () => ({ showToast: toastMock }))
 
 const { useAssetDropPaste } = await import('../../src/hooks/useAssetDropPaste.ts')
 

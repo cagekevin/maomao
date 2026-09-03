@@ -13,14 +13,14 @@ const loggerState = vi.hoisted(() => ({ info: vi.fn(), warn: vi.fn() }))
 const runNodeGenerationMock = vi.hoisted(() => vi.fn())
 
 vi.mock('@xyflow/react', () => ({ useReactFlow: () => ({ getEdges: () => rfState.edges }) }))
-vi.mock('../../src/components/base/eventBus.ts', () => ({
+vi.mock('../../src/components/base/core/eventBus.ts', () => ({
   subscribe: (evt, cb) => { busState.handler = cb; return () => {} }
 }))
-vi.mock('../../src/components/base/config.ts', () => ({ AUTO_TRIGGER_DOWNSTREAM: true }))
-vi.mock('../../src/components/base/taskStore.ts', () => ({ runNodeGeneration: runNodeGenerationMock }))
-vi.mock('../../src/components/base/logger.ts', () => ({ logger: loggerState }))
+vi.mock('../../src/components/base/core/config.ts', () => ({ AUTO_TRIGGER_DOWNSTREAM: true }))
+vi.mock('../../src/components/base/store/taskStore.ts', () => ({ runNodeGeneration: runNodeGenerationMock }))
+vi.mock('../../src/components/base/core/logger.ts', () => ({ logger: loggerState }))
 
-import { useUpstreamAutoTrigger } from '../../src/components/base/upstreamLink.ts'
+import { useUpstreamAutoTrigger } from '../../src/components/base/utils/upstreamLink.ts'
 
 describe('useUpstreamAutoTrigger — 下游触发失败可见（§3.3）', () => {
   beforeEach(() => {

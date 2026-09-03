@@ -17,10 +17,10 @@
  * 【为什么不做文本 / 生图 sync】文本（chatCompletions）走 /api/generate（capability=chat）同步、生图 sync 无异步句柄，
  * 前端刷新即断，官方同此（reference-1mao shared.js Pt hook 也只对视频异步任务恢复）。
  */
-import { getTasks, patchTask, ensurePolling, isPolling, stopPolling } from '../taskStore.ts'
-import { publishTaskCompleted } from '../taskCompletionBus.ts'
+import { getTasks, patchTask, ensurePolling, isPolling, stopPolling } from '../store/taskStore.ts'
+import { publishTaskCompleted } from '../store/taskCompletionBus.ts'
 import { relayAttachUntilDone } from './relayProxy.ts'
-import { logger } from '../logger.ts'
+import { logger } from '../core/logger.ts'
 
 // 恢复轮询总超时兜底：单任务最多 attach 多久，到点 relayAttachUntilDone 强停防挂起
 const POLL_TIMEOUT_MS: number = 600_000

@@ -11,7 +11,7 @@ import React from 'react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 
-vi.mock('../../src/components/base/MaterialStrip.tsx', () => ({
+vi.mock('../../src/components/base/panels/MaterialStrip.tsx', () => ({
   default: ({ images = [], texts = [], readOnly, onDisconnect }) => (
     <div data-testid="upstream-strip" data-readonly={String(!!readOnly)}>
       <span data-testid="strip-imgs">{images.length}</span>
@@ -23,7 +23,7 @@ vi.mock('../../src/components/base/MaterialStrip.tsx', () => ({
   ),
 }))
 vi.mock('../../src/components/scriptbox/ScriptBoxModal.tsx', () => ({ default: () => null }))
-vi.mock('../../src/components/base/hooks.ts', () => ({ useOutsideClick: () => {} }))
+vi.mock('../../src/components/base/core/hooks.ts', () => ({ useOutsideClick: () => {} }))
 
 import StepShots from '../../src/components/scriptbox/StepShots.tsx'
 import type { ScriptBoxData } from '../../src/components/scriptbox/scriptBoxSchema.ts'

@@ -1,14 +1,14 @@
 // 回归测试：logger.js、config.ts 中的 API_BASE
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { readFileSync } from 'node:fs'
-import { API_BASE } from '../../src/components/base/config.ts'
+import { API_BASE } from '../../src/components/base/core/config.ts'
 
 // logger 内部有模块级单例去重状态 _lastReport，跨测试会污染。
 // 每个测试前 resetModules + 动态 import 拿干净实例，保证去重计时从零开始。
 let log, logger
 beforeEach(async () => {
   vi.resetModules()
-  const mod = await import('../../src/components/base/logger.ts')
+  const mod = await import('../../src/components/base/core/logger.ts')
   log = mod.log
   logger = mod.logger
 })
@@ -32,7 +32,7 @@ describe('config.ts §API_BASE 日志与配置', () => {
       'api/chatApi.ts', // relay 收口后 config 消费端（CHAT_TIMEOUT 等），2026-09-03 取代已退役的 proxyGenerate
       'api/localToolApi.ts',
       'api/filesApi.ts',
-      'logger.ts', // logger 已 TS 化（本清单读源码断言引用 config.ts，路径后缀随改名同步）
+      'core/logger.ts', // logger 已归 core/，本清单读源码断言引用 config.ts，路径后缀随改名同步
     ]
     for (const f of apiFiles) {
       const src = readFileSync(`src/components/base/${f}`, 'utf8')

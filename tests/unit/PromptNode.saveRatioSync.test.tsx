@@ -44,46 +44,46 @@ vi.mock('@xyflow/react', () => ({
 vi.mock('../../src/hooks/useGenerateNode.ts', () => ({
   useGenerateNode: () => ({ loading: false, error: null, stop: vi.fn(), start: vi.fn(), generate: vi.fn() }),
 }))
-vi.mock('../../src/components/base/HoverToolbar.tsx', () => ({ default: ({ buttons = [] }: any) => <>{buttons.filter((b: any) => b.show !== false).map((b: any) => <button key={b.key} title={b.title} onClick={b.onClick}>{b.title}</button>)}</> }))
-vi.mock('../../src/components/base/ExpandablePanel.tsx', () => ({ default: ({ children }: any) => children }))
-vi.mock('../../src/components/base/MaterialStrip.tsx', () => ({ default: () => null }))
-vi.mock('../../src/components/base/PromptInput.tsx', () => ({ default: () => null }))
-vi.mock('../../src/components/base/GenerateButton.tsx', () => ({ default: () => null }))
-vi.mock('../../src/components/base/ModelSelect.tsx', () => ({ default: () => null }))
-vi.mock('../../src/components/base/ResizeFullscreenHandle.tsx', () => ({ default: () => null }))
-vi.mock('../../src/components/base/FullscreenEditor.tsx', () => ({ default: () => null }))
-vi.mock('../../src/components/base/GeneratingOverlay.tsx', () => ({ default: () => null }))
-vi.mock('../../src/components/base/PromptLibraryButton.tsx', () => ({ default: () => null }))
-vi.mock('../../src/components/base/JianyingIcon.tsx', () => ({ default: () => null }))
-vi.mock('../../src/components/base/ImageZoomDialog.tsx', () => ({ default: () => null }))
+vi.mock('../../src/components/base/panels/HoverToolbar.tsx', () => ({ default: ({ buttons = [] }: any) => <>{buttons.filter((b: any) => b.show !== false).map((b: any) => <button key={b.key} title={b.title} onClick={b.onClick}>{b.title}</button>)}</> }))
+vi.mock('../../src/components/base/ui/ExpandablePanel.tsx', () => ({ default: ({ children }: any) => children }))
+vi.mock('../../src/components/base/panels/MaterialStrip.tsx', () => ({ default: () => null }))
+vi.mock('../../src/components/base/prompt/PromptInput.tsx', () => ({ default: () => null }))
+vi.mock('../../src/components/base/ui/GenerateButton.tsx', () => ({ default: () => null }))
+vi.mock('../../src/components/base/ui/ModelSelect.tsx', () => ({ default: () => null }))
+vi.mock('../../src/components/base/ui/ResizeFullscreenHandle.tsx', () => ({ default: () => null }))
+vi.mock('../../src/components/base/panels/FullscreenEditor.tsx', () => ({ default: () => null }))
+vi.mock('../../src/components/base/ui/GeneratingOverlay.tsx', () => ({ default: () => null }))
+vi.mock('../../src/components/base/prompt/PromptLibraryButton.tsx', () => ({ default: () => null }))
+vi.mock('../../src/components/base/ui/JianyingIcon.tsx', () => ({ default: () => null }))
+vi.mock('../../src/components/base/editors/ImageZoomDialog.tsx', () => ({ default: () => null }))
 vi.mock('../../src/components/edges/CustomHandle.tsx', () => ({ default: () => null }))
-vi.mock('../../src/components/base/NodeTitle.tsx', () => ({ default: () => null }))
-vi.mock('../../src/components/base/ErrorBoundary.tsx', () => ({ default: ({ children }: any) => children }))
-vi.mock('../../src/components/base/toastStore.ts', () => ({ showToast: vi.fn(), toastError: vi.fn() }))
-vi.mock('../../src/components/base/assetStore.ts', () => ({ sendToAssetLibrary: vi.fn() }))
-vi.mock('../../src/components/base/taskStore.ts', () => ({ openAssetLibrary: vi.fn() }))
-vi.mock('../../src/components/base/clipboard.ts', () => ({ downloadUrl: vi.fn(), resolveDownloadFilename: vi.fn() }))
-vi.mock('../../src/components/base/nodePrefs.ts', () => ({ useNodePrefs: () => ({ prefs: {}, set: vi.fn() }) }))
+vi.mock('../../src/components/base/ui/NodeTitle.tsx', () => ({ default: () => null }))
+vi.mock('../../src/components/base/ui/ErrorBoundary.tsx', () => ({ default: ({ children }: any) => children }))
+vi.mock('../../src/components/base/core/toastStore.ts', () => ({ showToast: vi.fn(), toastError: vi.fn() }))
+vi.mock('../../src/components/base/store/assetStore.ts', () => ({ sendToAssetLibrary: vi.fn() }))
+vi.mock('../../src/components/base/store/taskStore.ts', () => ({ openAssetLibrary: vi.fn() }))
+vi.mock('../../src/components/base/utils/clipboard.ts', () => ({ downloadUrl: vi.fn(), resolveDownloadFilename: vi.fn() }))
+vi.mock('../../src/components/base/canvas/nodePrefs.ts', () => ({ useNodePrefs: () => ({ prefs: {}, set: vi.fn() }) }))
 vi.mock('../../src/hooks/useConnectedInputs.ts', () => ({ useConnectedInputs: () => ({}) }))
 vi.mock('../../src/hooks/useMediaDegrade.ts', () => ({ useMediaDegrade: () => ({ isHidden: () => false }) }))
-vi.mock('../../src/components/base/imageUrl.ts', () => ({ useRenderImageResolver: () => (x: string) => x }))
+vi.mock('../../src/components/base/utils/imageUrl.ts', () => ({ useRenderImageResolver: () => (x: string) => x }))
 vi.mock('../../src/components/base/api/index.ts', () => ({
   toAbsoluteFileUrl: (x: string) => x,
   saveResultToTasks: vi.fn(async () => undefined),
   fetchTasks: vi.fn(async () => ({ items: [] })),
   generateImage: vi.fn(async () => ({ url: 'http://gen.local/img.png' })),
 }))
-vi.mock('../../src/components/base/providerModels.ts', () => ({ buildAllModels: vi.fn(() => []), resolveProviderModel: vi.fn(() => ({ provider: {}, modelId: 'm' })) }))
+vi.mock('../../src/components/base/utils/providerModels.ts', () => ({ buildAllModels: vi.fn(() => []), resolveProviderModel: vi.fn(() => ({ provider: {}, modelId: 'm' })) }))
 vi.mock('../../src/components/base/settings/providerStore.ts', () => ({ useProviders: () => ({ providers: [] }), load: vi.fn(() => Promise.resolve()) }))
 
 // ImageEditor：记录 onSave（模拟裁剪/扩图保存回传 dims）
-vi.mock('../../src/components/base/ImageEditor.tsx', () => ({
+vi.mock('../../src/components/base/editors/ImageEditor.tsx', () => ({
   default: ({ imageUrl, onSave, onClose }: any) => {
     lastEditorSave = onSave
     return <div data-testid="image-editor" data-url={imageUrl} />
   },
 }))
-vi.mock('../../src/components/base/InlineImageCropper.tsx', () => ({ default: () => null }))
+vi.mock('../../src/components/base/editors/InlineImageCropper.tsx', () => ({ default: () => null }))
 
 import PromptNode from '../../src/components/nodes/PromptNode.tsx'
 

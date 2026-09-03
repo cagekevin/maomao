@@ -1,7 +1,7 @@
 import React from 'react'
 import { Handle, Position, useReactFlow } from '@xyflow/react'
 import { FoldVertical, ChevronsUpDown, Folder } from 'lucide-react'
-import NodeShell from '../base/NodeShell.tsx'
+import NodeShell from '../base/ui/NodeShell.tsx'
 import CustomHandle from '../edges/CustomHandle.tsx'
 
 /**

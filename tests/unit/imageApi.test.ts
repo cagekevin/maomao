@@ -6,7 +6,7 @@
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 
-vi.mock('../../src/components/base/imageUrl.ts', () => ({
+vi.mock('../../src/components/base/utils/imageUrl.ts', () => ({
   normalizeImageUrlsForSend: vi.fn(async () => []),
   toAbsoluteFileUrl: vi.fn((u) => u),
   normalizeImageUrl: vi.fn((u) => u),
@@ -22,7 +22,7 @@ vi.mock('../../src/components/base/api/relayProxy.ts', () => ({
 }))
 
 const api = await import('@/components/base/api/imageApi.ts')
-const { normalizeImageUrlsForSend } = await import('../../src/components/base/imageUrl.ts')
+const { normalizeImageUrlsForSend } = await import('../../src/components/base/utils/imageUrl.ts')
 
 beforeEach(() => {
   h.mockRelayGenerate.mockReset()

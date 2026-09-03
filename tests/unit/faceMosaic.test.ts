@@ -8,7 +8,7 @@
  *  - MOSAIC_PALETTE 色板常量
  */
 import { vi, describe, it, expect } from 'vitest'
-import type { MosaicMode } from '../../src/components/base/faceMosaic.ts'
+import type { MosaicMode } from '../../src/components/base/utils/faceMosaic.ts'
 
 // mock mediapipe：不加载真实 wasm / 模型
 const fakeFaceDetector: Record<string, unknown> = {}
@@ -25,7 +25,7 @@ import {
   loadFaceDetector,
   drawMosaicOnBox,
   MOSAIC_PALETTE
-} from '../../src/components/base/faceMosaic.ts'
+} from '../../src/components/base/utils/faceMosaic.ts'
 
 function makeCtx() {
   return {
@@ -80,7 +80,7 @@ describe('loadFaceDetector', () => {
     vi.resetModules()
     const { FaceDetector } = await import('@mediapipe/tasks-vision')
     vi.mocked(FaceDetector.createFromOptions).mockClear()
-    const { loadFaceDetector: load2 } = await import('../../src/components/base/faceMosaic.ts')
+    const { loadFaceDetector: load2 } = await import('../../src/components/base/utils/faceMosaic.ts')
     vi.mocked(FaceDetector.createFromOptions).mockRejectedValueOnce(new Error('wasm init fail'))
     await expect(load2()).rejects.toThrow('wasm init fail')
     // 失败后再次调用应重新尝试（单例已被 catch 清空）

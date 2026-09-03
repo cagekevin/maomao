@@ -25,17 +25,17 @@ vi.mock('@xyflow/react', () => ({
   Position: { Left: 'left', Right: 'right', Top: 'top', Bottom: 'bottom' },
   useStore: () => () => ({}),
 }))
-vi.mock('../../src/components/base/NodeShell.tsx', () => ({ default: mocks.NodeShell }))
-vi.mock('../../src/components/base/HoverToolbar.tsx', () => ({ default: mocks.HoverToolbar }))
-vi.mock('../../src/components/base/ExpandablePanel.tsx', () => ({ default: mocks.ExpandablePanel }))
-vi.mock('../../src/components/base/GenerateButton.tsx', () => ({ default: mocks.GenerateButton }))
-vi.mock('../../src/components/base/ModelSelect.tsx', () => ({ default: mocks.ModelSelect }))
-vi.mock('../../src/components/base/PromptInput.tsx', () => ({ default: mocks.PromptInput }))
-vi.mock('../../src/components/base/MaterialStrip.tsx', () => ({ default: mocks.MaterialStrip }))
-vi.mock('../../src/components/base/ResizeFullscreenHandle.tsx', () => ({ default: mocks.ResizeFullscreenHandle }))
-vi.mock('../../src/components/base/FullscreenModal.tsx', () => ({ default: mocks.FullscreenModal }))
-vi.mock('../../src/components/base/GeneratingOverlay.tsx', () => ({ default: mocks.GeneratingOverlay }))
-vi.mock('../../src/components/base/hooks.ts', () => ({ useNodeResize: mocks.useNodeResize, useOutsideClick: mocks.useOutsideClick }))
+vi.mock('../../src/components/base/ui/NodeShell.tsx', () => ({ default: mocks.NodeShell }))
+vi.mock('../../src/components/base/panels/HoverToolbar.tsx', () => ({ default: mocks.HoverToolbar }))
+vi.mock('../../src/components/base/ui/ExpandablePanel.tsx', () => ({ default: mocks.ExpandablePanel }))
+vi.mock('../../src/components/base/ui/GenerateButton.tsx', () => ({ default: mocks.GenerateButton }))
+vi.mock('../../src/components/base/ui/ModelSelect.tsx', () => ({ default: mocks.ModelSelect }))
+vi.mock('../../src/components/base/prompt/PromptInput.tsx', () => ({ default: mocks.PromptInput }))
+vi.mock('../../src/components/base/panels/MaterialStrip.tsx', () => ({ default: mocks.MaterialStrip }))
+vi.mock('../../src/components/base/ui/ResizeFullscreenHandle.tsx', () => ({ default: mocks.ResizeFullscreenHandle }))
+vi.mock('../../src/components/base/panels/FullscreenModal.tsx', () => ({ default: mocks.FullscreenModal }))
+vi.mock('../../src/components/base/ui/GeneratingOverlay.tsx', () => ({ default: mocks.GeneratingOverlay }))
+vi.mock('../../src/components/base/core/hooks.ts', () => ({ useNodeResize: mocks.useNodeResize, useOutsideClick: mocks.useOutsideClick }))
 vi.mock('../../src/hooks/useConnectedInputs.ts', () => ({ useConnectedInputs: mocks.useConnectedInputs }))
 vi.mock('../../src/hooks/useMediaDegrade.ts', () => ({ useMediaDegrade: mocks.useMediaDegrade }))
 // useNodeGeneration：记录 config，复刻真实 hook 的声明式写回（resultKey + recoverable）以对齐 P0-2-c。
@@ -69,13 +69,13 @@ vi.mock('../../src/hooks/useNodeGeneration.ts', () => ({
     }
   },
 }))
-vi.mock('../../src/components/base/nodePrefs.ts', () => ({ useNodePrefs: mocks.useNodePrefs }))
+vi.mock('../../src/components/base/canvas/nodePrefs.ts', () => ({ useNodePrefs: mocks.useNodePrefs }))
 vi.mock('../../src/hooks/useSyncNodeData.ts', () => ({ useSyncNodeData: mocks.useSyncNodeData }))
-vi.mock('../../src/components/base/toastStore.ts', () => ({ showToast: mocks.showToast, toastWarning: mocks.toastWarning, toastError: mocks.toastError }))
+vi.mock('../../src/components/base/core/toastStore.ts', () => ({ showToast: mocks.showToast, toastWarning: mocks.toastWarning, toastError: mocks.toastError }))
 vi.mock('../../src/components/base/api/imageApi.ts', () => ({ generateImage: mocks.generateImage }))
 vi.mock('../../src/components/base/api/filesApi.ts', () => ({ toAbsoluteFileUrl: mocks.toAbsoluteFileUrl, saveResultToTasks: mocks.saveResultToTasks }))
 vi.mock('../../src/components/base/settings/providerStore.ts', () => ({ useProviders: mocks.useProviders, load: mocks.loadProviders }))
-vi.mock('../../src/components/base/providerModels.ts', () => ({ buildAllModels: mocks.buildAllModels, resolveProviderModel: mocks.resolveProviderModel }))
+vi.mock('../../src/components/base/utils/providerModels.ts', () => ({ buildAllModels: mocks.buildAllModels, resolveProviderModel: mocks.resolveProviderModel }))
 
 import TemplateNode from '../../src/components/nodes/TemplateNode.tsx'
 

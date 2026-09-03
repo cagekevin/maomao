@@ -1,5 +1,5 @@
 import React from 'react'
-import { showToast } from '../../toastStore.ts'
+import { showToast } from '../../core/toastStore.ts'
 import {
   useAccounts,
   isExtensionEnv,

@@ -26,15 +26,15 @@
  *  - saveResultToTasks(url, type)  生成结果 → tasks（data:→multipart；http→fileUrl 代下载）
  *  - saveTextToTasks(text, name)  纯文本结果 → tasks/*.txt（后端 rescan 识别 type='text'）
  */
-import { API_BASE } from '../config.ts'
+import { API_BASE } from '../core/config.ts'
 import { httpRequest } from './httpClient.ts'
-import { logger } from '../logger.ts'
-import { UPLOAD_TIMEOUT } from '../config.ts'
-import { formatTime, dataUrlToBlob, safeFileName } from '../utils.ts'
-import { UPLOAD_DIRS } from '../uploadDirs.ts'
-export { toAbsoluteFileUrl } from '../imageUrl.ts'
+import { logger } from '../core/logger.ts'
+import { UPLOAD_TIMEOUT } from '../core/config.ts'
+import { formatTime, dataUrlToBlob, safeFileName } from '../core/utils.ts'
+import { UPLOAD_DIRS } from '../utils/uploadDirs.ts'
+export { toAbsoluteFileUrl } from '../utils/imageUrl.ts'
 export { EXT_BY_TYPE }
-import { isLocalFileUrl } from '../imageUrl.ts'
+import { isLocalFileUrl } from '../utils/imageUrl.ts'
 const SUBFOLDER = UPLOAD_DIRS.tasks
 /** 网页拖图专用落盘目录（不与素材库/生成结果混放，见 docs/34 升级） */
 export const WEB_DROP_SUBFOLDER = UPLOAD_DIRS.web

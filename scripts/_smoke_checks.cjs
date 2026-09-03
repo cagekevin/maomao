@@ -181,16 +181,16 @@ function resolveCompFile(ROOT, comp) {
   return flat || path.join(ROOT, 'src/components/nodes', comp + '.jsx');
 }
 function checkNodeTypes(ROOT) {
-  const palette = read(resolveSourceFile(path.join(ROOT, 'src/components/base/NodePalette')) || '');
+  const palette = read(resolveSourceFile(path.join(ROOT, 'src/components/base/canvas/NodePalette')) || '');
   // 常规 component 字段：裸组件标识符（`component: ImageNode`）。排除 lazyNode(...) 函数调用包装：
   // `component: lazyNode(HEAVY_NODE_LOADERS.panoramaNode, ...)` 会被 \w+Node 误抓成 lazyNode
   // （存量 bug：lazyNode.jsx 无 default 导出导致冒烟误红），用 (?!\s*\() 负向前瞻跳过调用形态。
   const comps = [...palette.matchAll(/component:\s*(\w+Node)(?!\s*\()/g)].map((x) => x[1]);
   // 重依赖懒加载节点：lazyNode 只是动态 import 包装，底层仍是必存在的节点组件（防漏校验）。
   // 从 lazyNode.jsx 的 HEAVY_NODE_LOADERS 动态 import 路径抽取真实文件名，随常规组件一并校验。
-  const lazySrc = read(resolveSourceFile(path.join(ROOT, 'src/components/base/lazyNode')) || '');
+  const lazySrc = read(resolveSourceFile(path.join(ROOT, 'src/components/base/canvas/lazyNode')) || '');
   // 扩展名无关：动态 import 的后缀可能是 .jsx 也可能是 .tsx
-  const lazyComps = [...lazySrc.matchAll(/import\(['"]\.\.\/nodes\/(\w+Node)\.(?:jsx|tsx|js|ts)['"]\)/g)].map((x) => x[1]);
+  const lazyComps = [...lazySrc.matchAll(/import\(['"]\.\.?\.?\/nodes\/(\w+Node)\.(?:jsx|tsx|js|ts)['"]\)/g)].map((x) => x[1]);
   const compsAll = [...new Set([...comps, ...lazyComps])];
   let pass = true;
   const details = [];

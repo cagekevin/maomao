@@ -5,21 +5,21 @@ import {
   unregisterTaskRetry,
   claimNodeRun,
   releaseNodeRun,
-} from '../components/base/taskStore.ts'
-import type { TaskController, NodeRunClaim } from '../components/base/taskStore.ts'
+} from '../components/base/store/taskStore.ts'
+import type { TaskController, NodeRunClaim } from '../components/base/store/taskStore.ts'
 import { saveResultToTasks } from '../components/base/api/index.ts'
-import { logger } from '../components/base/logger.ts'
-import { subscribe } from '../components/base/eventBus.ts'
-import { showToast } from '../components/base/toastStore.ts'
+import { logger } from '../components/base/core/logger.ts'
+import { subscribe } from '../components/base/core/eventBus.ts'
+import { showToast } from '../components/base/core/toastStore.ts'
 import { useNodeData } from './useNodeData.ts'
-import { classifyError } from '../components/base/genErrors.ts'
-import { reportDegrade } from '../components/base/degrade.ts'
+import { classifyError } from '../components/base/utils/genErrors.ts'
+import { reportDegrade } from '../components/base/utils/degrade.ts'
 
 /**
  * 任务控制器：直接复用 taskStore 的权威定义（taskStore 已转 .ts，不再各写一份）。
  * 重新导出以保留本文件原有的对外导出面，调用方无需改动。
  */
-export type { TaskController } from '../components/base/taskStore.ts'
+export type { TaskController } from '../components/base/store/taskStore.ts'
 
 /** 任务上报信息（节点类型 / 提示词 / 模型名） */
 export interface GenerationTypeInfo {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { detectMediaType, detectFileType, isAssetUrl, isAudio } from '../../src/components/base/mediaType.ts'
+import { detectMediaType, detectFileType, isAssetUrl, isAudio } from '../../src/components/base/utils/mediaType.ts'
 
 describe('mediaType §2.17', () => {
   it('detectMediaType 按 dataURL 前缀/扩展名分类', () => {

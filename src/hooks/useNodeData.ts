@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo } from 'react'
 import { useReactFlow } from '@xyflow/react'
 import type { Node } from '@xyflow/react'
-import { debounce } from '../components/base/utils.ts'
-import { NODE_PATCH_DEBOUNCE_MS } from '../components/base/config.ts'
+import { debounce } from '../components/base/core/utils.ts'
+import { NODE_PATCH_DEBOUNCE_MS } from '../components/base/core/config.ts'
 
 /**
  * 节点 data 不可变写回纯函数（节点写回唯一入口，useNodeData.patchData 与宿主通用写回共用）。

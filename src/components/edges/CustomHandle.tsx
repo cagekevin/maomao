@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, type CSSProperties } from 'react'
 import { Handle, Position } from '@xyflow/react'
-import { createRafBatch } from '../base/utils.ts'
+import { createRafBatch } from '../base/core/utils.ts'
 
 /**
  * 自定义连接端口（复刻原 _Component12.jsx）

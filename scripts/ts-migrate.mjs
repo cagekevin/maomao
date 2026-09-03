@@ -470,15 +470,20 @@ function planDirMoveRewrites(oldDir, newDir) {
 /**
  * 重写【被移动文件自身】的出向 import（其相对基准随移动变了）。
  * 事务型：只规划、不落盘；返回 { pendingWrites, diffLogs }，由调用方在物理移动成功后 commit。
- * @param fileAbs 被移动的文件
- * @param baseDirForResolve 用于解析其相对 import 的基准目录（移动前所在目录），
- *                          与调用方传入的「旧目录」严格对应，Node relative() 会正确算嵌套 ../。
+ * ▎bug 修复(2026-09-04)：原实现用单个 fileAbs 同时当「读取源」「生成锚点」「回写目标」——但本函数
+ *   在 Plan 阶段（物理移动前）被调用，此时文件还在旧位置，fileAbs=newAbs 尚不存在 → readFileSync 抛错
+ *   被 catch 吞掉，导致 move/move-dir 的出向 import 从未被重写。现拆成三参数：
+ * @param readFromAbs 读取源：当前文件实际所在路径（Plan 阶段 = 旧路径，物理移动前仍存在）
+ * @param writeToAbs  回写目标 + 生成锚点：移动后的目标路径（物理移动成功后文件在此，computeNewSpec 以此
+ *                    为基准算嵌套 ../，pendingWrites 也以此为主键回写）
+ * @param baseDirForResolve 用于解析其相对 import 的基准目录（= 旧目录），
+ *                          内容按移动前位置写，须用旧目录解析才命中目标；Node relative() 会自动算嵌套 ../。
  */
-function planOutgoingRewrites(fileAbs, baseDirForResolve) {
+function planOutgoingRewrites(readFromAbs, writeToAbs, baseDirForResolve) {
   let src
-  try { src = readFileSync(fileAbs, 'utf8') } catch { return { pendingWrites: new Map(), diffLogs: [] } }
+  try { src = readFileSync(readFromAbs, 'utf8') } catch { return { pendingWrites: new Map(), diffLogs: [] } }
 
-  const nodes = extractImportNodes(src, relOf(fileAbs))
+  const nodes = extractImportNodes(src, relOf(readFromAbs))
   if (!nodes) return { pendingWrites: new Map(), diffLogs: [] }
 
   let hit = false
@@ -492,7 +497,7 @@ function planOutgoingRewrites(fileAbs, baseDirForResolve) {
     const abs = resolveSpec(spec, join(baseDirForResolve, '_self_placeholder.ts'))
     if (abs === null) return
 
-    const newSpec = computeNewSpec(fileAbs, abs, spec)
+    const newSpec = computeNewSpec(writeToAbs, abs, spec)
     if (newSpec !== spec) {
       hit = true
       diffs.push({ old: spec, new: newSpec })
@@ -502,7 +507,7 @@ function planOutgoingRewrites(fileAbs, baseDirForResolve) {
   })
 
   const pendingWrites = new Map()
-  if (hit) pendingWrites.set(fileAbs, nextSrc)
+  if (hit) pendingWrites.set(writeToAbs, nextSrc)
   return { pendingWrites, diffLogs: hit ? diffs : [] }
 }
 
@@ -781,8 +786,9 @@ if (cmd === 'move') {
   // 命中目标文件；改写后的新说明符要指向同一目标，故以【移动后】位置 newAbs 为生成基准。
   // Node relative(newAbs→目标) 会正确算出嵌套 ../，深层目录搬移不会算错。
   const { pendingWrites: selfWrites, diffLogs: selfDiffs } = planOutgoingRewrites(
-    newAbs, // 生成基准：移动后的文件位置
-    dirname(oldAbs), // 解析基准：移动前的目录（内容按旧位置写的 import 才能命中）
+    oldAbs, // 读取源：Plan 阶段文件仍在旧位置，从这里读内容
+    newAbs, // 回写目标 + 生成锚点：物理移动成功后文件在此，以它算嵌套 ../ 并回写
+    dirname(oldAbs), // 解析基准：内容按旧位置写的 import 才能命中目标
   )
 
   if (dry) {
@@ -912,7 +918,7 @@ if (cmd === 'move-dir') {
     const newAbs = join(dstDir, relUnder)
     pairs.push({ oldAbs, newAbs })
     // 自身出向：内容按旧位置写 → 以 dirname(oldAbs) 解析基准；改写后指向目标 → 生成基准用 newAbs。
-    const selfPlan = planOutgoingRewrites(newAbs, dirname(oldAbs))
+    const selfPlan = planOutgoingRewrites(oldAbs, newAbs, dirname(oldAbs))
     if (selfPlan.diffLogs.length) selfLogs.push({ file: relOf(oldAbs), diffs: selfPlan.diffLogs, plan: selfPlan })
   }
 

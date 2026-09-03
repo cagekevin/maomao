@@ -6,7 +6,7 @@ import StepShots from './StepShots.tsx'
 import StepAssets from './StepAssets.tsx'
 import StepPrompt from './StepPrompt.tsx'
 import GearSettings from './GearSettings.tsx'
-import { toastInfo } from '../base/toastStore.ts'
+import { toastInfo } from '../base/core/toastStore.ts'
 import type { ScriptBoxData, ScriptBoxUpdateData, ScriptBoxCallbacks } from './scriptBoxSchema.ts'
 
 interface ScriptBoxFullscreenProps {

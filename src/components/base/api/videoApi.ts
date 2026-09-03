@@ -9,9 +9,9 @@
  * 【新时代配置型（2026-09-03）】providerId = 13 个 config 厂商之一；model = 该厂商模型清单里的 id。
  * 出站形态由后端 preset 决定，前端只发意图。已随 proxyGenerate 退役移除 videoProxy/pollUntilDone。
  */
-import { normalizeImageUrlsForSend } from '../imageUrl.ts'
+import { normalizeImageUrlsForSend } from '../utils/imageUrl.ts'
 import { relayGenerate } from './relayProxy.ts'
-import { VIDEO_TIMEOUT } from '../config.ts'
+import { VIDEO_TIMEOUT } from '../core/config.ts'
 import type { GenerationProvider, GenerationResult } from '@/types'
 
 /** generateVideo 入参（对外签名不变） */

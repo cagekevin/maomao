@@ -1,6 +1,6 @@
 import React from 'react'
 import { RefreshCw, HardDrive, Database, CircleAlert, Boxes } from 'lucide-react'
-import { formatBytes } from '../../utils.ts'
+import { formatBytes } from '../../core/utils.ts'
 import { isChromeExtension } from '@/components/base/storage/index.ts'
 import { estimateBrowserStorage, estimateChromeStorage, estimateStoragePressure, analyzeStorageByKeys } from '@/components/base/storage/index.ts'
 

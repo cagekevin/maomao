@@ -11,7 +11,7 @@ vi.mock('../../src/components/base/storage/storageAdapter.ts', () => ({
 
 // ── projectStore mock：提供 loadCanvasState / saveCanvasState ──
 const memKV = new Map()
-vi.mock('../../src/components/base/projectStore.ts', () => ({
+vi.mock('../../src/components/base/store/projectStore.ts', () => ({
   loadCanvasState: vi.fn(async (id) => {
     const k = `canvas-state-v1-${id}`
     return memKV.has(k) ? memKV.get(k) : null
@@ -58,9 +58,9 @@ beforeEach(async () => {
     ok: true,
     text: async () => JSON.stringify({ ok: true, msg: 'sync ok' }),
   })))
-  clipboard = await import('../../src/components/base/clipboard.ts')
-  backupStore = await import('@/components/base/backupStore.ts')
-  cloudSync = await import('../../src/components/base/cloudSync.ts')
+  clipboard = await import('../../src/components/base/utils/clipboard.ts')
+  backupStore = await import('@/components/base/store/backupStore.ts')
+  cloudSync = await import('../../src/components/base/store/cloudSync.ts')
 })
 
 // ════════════════════════════════════════════════════════════════

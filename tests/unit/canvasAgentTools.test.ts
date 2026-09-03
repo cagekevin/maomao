@@ -31,7 +31,7 @@ vi.mock('../../src/components/agent/conversation/conversationStore.ts', () => ({
   getWorkMode: vi.fn(() => 'auto'),
   getCurrentSnapshot: vi.fn(() => ({ skills: [] })),
 } as unknown as typeof import('../../src/components/agent/conversation/conversationStore.ts')))
-vi.mock('../../src/components/base/taskStore.ts', () => ({
+vi.mock('../../src/components/base/store/taskStore.ts', () => ({
   runNodeGeneration: vi.fn(async () => ({ ok: true, resultUrl: 'http://r/x.png' })),
   isNodeRegistered: vi.fn(() => true),
 }))
@@ -46,7 +46,7 @@ vi.mock('../../src/components/agent/canvas/canvasPlanExecutor.ts', async (import
 import { buildCanvasAgentTools, CANVAS_AGENT_TOOL_NAMES, getNodeImageUrl, setCurrentReferenceImages, runExistingPlanTool, setCreditSwitch, getCreditSwitch } from '../../src/components/agent/canvas/useCanvasAgentTools.ts'
 import * as convStore from '../../src/components/agent/conversation/conversationStore.ts'
 import type { ConversationSnapshot } from '../../src/components/agent/conversation/conversationSnapshot.ts'
-import * as taskStore from '../../src/components/base/taskStore.ts'
+import * as taskStore from '../../src/components/base/store/taskStore.ts'
 import { executePlan, buildFusionPrompt, buildProductReferencePrompt } from '../../src/components/agent/canvas/canvasPlanExecutor.ts'
 
 // vi.mock 工厂已把 executePlan 替换为 vi.fn，但静态类型仍是 src 的原始函数签名（无 .mock）。

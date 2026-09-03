@@ -5,8 +5,8 @@ import { getAllPlaybooks, saveCustomPlaybook, deleteCustomPlaybook, createCustom
 import type { Playbook } from './scriptBoxPlaybookIO.ts'
 import { DEFAULT_WORKFLOW } from './scriptBoxWorkflows.ts'
 import { exportText, parseImport } from './scriptBoxPlaybookIO.ts'
-import { downloadBlob } from '../base/clipboard.ts'
-import { toastSuccess, toastError } from '../base/toastStore.ts'
+import { downloadBlob } from '../base/utils/clipboard.ts'
+import { toastSuccess, toastError } from '../base/core/toastStore.ts'
 
 /**
  * 剧本盒子 Playbook 管理面板（设计 B：官方折叠 + 我的主区，直白 CRUD，无「另存为」）。

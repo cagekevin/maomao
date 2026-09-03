@@ -26,7 +26,7 @@ vi.mock('../../src/components/agent/canvas/useCanvasAgentTools.ts', () => ({
   setCurrentReferenceImages: vi.fn(),
   getCurrentReferenceImages: () => [],
 }))
-vi.mock('../../src/components/base/logger.ts', () => ({
+vi.mock('../../src/components/base/core/logger.ts', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), log: vi.fn(), debug: vi.fn() },
 }))
 

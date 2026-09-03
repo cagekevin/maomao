@@ -4,7 +4,7 @@
  * 覆盖：格式、唯一性、prefix 语义、非法 prefix 清洗。
  */
 import { describe, it, expect } from 'vitest'
-import { generateId } from '../../src/components/base/idGen.ts'
+import { generateId } from '../../src/components/base/core/idGen.ts'
 
 describe('idGen — generateId', () => {
   it('默认前缀为 id', () => {

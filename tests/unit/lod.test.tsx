@@ -9,7 +9,7 @@ import { describe, it, expect } from 'vitest'
 import { renderHook } from '@testing-library/react'
 import { createElement } from 'react'
 
-const { useLod, LodContext } = await import('../../src/components/base/lod.tsx')
+const { useLod, LodContext } = await import('../../src/components/base/canvas/lod.tsx')
 
 describe('lod 深模块', () => {
   it('默认 context 含完整 LOD 字段且阈值由常量兜底', () => {

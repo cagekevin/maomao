@@ -9,14 +9,14 @@ import React from 'react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
 
-import { useImageHoverActions } from '../../src/components/base/useImageHoverActions.tsx'
+import { useImageHoverActions } from '../../src/components/base/panels/useImageHoverActions.tsx'
 
 // 依赖 stub（hook 内部 import 的真实模块，测试中用轻量替身）
-vi.mock('../../src/components/base/ImageEditor.tsx', () => ({ default: () => null }))
-vi.mock('../../src/components/base/imageCompress.ts', () => ({ compressImage: async (url) => ({ dataUrl: 'data:compressed', size: 1, originalSize: 2 }) }))
-vi.mock('../../src/components/base/imageUpscale.ts', () => ({ upscaleImage: async (url) => ({ dataUrl: 'data:upscaled' }) }))
+vi.mock('../../src/components/base/editors/ImageEditor.tsx', () => ({ default: () => null }))
+vi.mock('../../src/components/base/utils/imageCompress.ts', () => ({ compressImage: async (url) => ({ dataUrl: 'data:compressed', size: 1, originalSize: 2 }) }))
+vi.mock('../../src/components/base/utils/imageUpscale.ts', () => ({ upscaleImage: async (url) => ({ dataUrl: 'data:upscaled' }) }))
 vi.mock('../../src/components/base/api/filesApi.ts', () => ({ saveInlineToLocal: async () => 'local://saved' }))
-vi.mock('../../src/components/base/toastStore.ts', () => ({ showToast: () => {}, toastError: () => {} }))
+vi.mock('../../src/components/base/core/toastStore.ts', () => ({ showToast: () => {}, toastError: () => {} }))
 
 const findBtn = (btns, key) => btns.find((b) => b.key === key)
 

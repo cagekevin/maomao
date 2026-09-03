@@ -5,7 +5,7 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { httpRequest, httpPost, httpRequestLogged, HttpError, NetworkError } from '@/components/base/api/httpClient.ts'
-import { TimeoutError } from '../../src/components/base/asyncGuard.ts'
+import { TimeoutError } from '../../src/components/base/utils/asyncGuard.ts'
 
 let mockFetch
 

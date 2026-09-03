@@ -2,9 +2,9 @@ import { useEffect, useRef, useCallback } from 'react'
 import { useReactFlow, type Node } from '@xyflow/react'
 import { createScriptBoxEngine } from '../components/scriptbox/scriptBoxEngine.ts'
 import { normalizeScriptBoxData, type ScriptBoxData } from '../components/scriptbox/scriptBoxSchema.ts'
-import { injectNodePrefs } from '../components/base/nodePrefs.ts'
+import { injectNodePrefs } from '../components/base/canvas/nodePrefs.ts'
 import { useProvidersList, load as loadProviders } from '../components/base/settings/providerStore.ts'
-import { logger } from '../components/base/logger.ts'
+import { logger } from '../components/base/core/logger.ts'
 
 // 写回通道契约收口在 scriptBoxSchema（引擎与 hook 共用同一份，避免两处漂移）
 import type { ScriptBoxUpdateData } from '../components/scriptbox/scriptBoxSchema.ts'

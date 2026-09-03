@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 // 隔离真实生图（TASK-012 依赖批调用层补全）
-vi.mock('../../src/components/base/taskStore.ts', () => ({
+vi.mock('../../src/components/base/store/taskStore.ts', () => ({
   runNodeGeneration: vi.fn(async () => ({ ok: true, resultUrl: 'http://r/ok.png' })),
   isNodeRegistered: vi.fn(() => true),
 }))
@@ -9,7 +9,7 @@ vi.mock('../../src/components/base/taskStore.ts', () => ({
 import { executePlan } from '../../src/components/agent/canvas/canvasPlanExecutor.ts'
 import type { CanvasHostCtx } from '../../src/components/agent/canvas/canvasHost.ts'
 import type { Node, Edge } from '@xyflow/react'
-import { runNodeGeneration } from '../../src/components/base/taskStore.ts'
+import { runNodeGeneration } from '../../src/components/base/store/taskStore.ts'
 
 // 本地对齐 canvasPlanExecutor.GenerationStep 的形状（未导出），仅用于测试构造入参
 type GenStep = {

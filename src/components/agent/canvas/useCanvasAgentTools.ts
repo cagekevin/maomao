@@ -1,9 +1,9 @@
 import { useCallback, useMemo } from 'react'
 import { useReactFlow } from '@xyflow/react'
-import { registerTool, getTools, type ToolResult } from '../../base/toolRegistry.ts'
-import { defaultNodeData } from '../../base/NodePalette.ts'
-import { runNodeGeneration } from '../../base/taskStore.ts'
-import { createGroupFromNodes, deleteNodesWithCascade } from '../../base/groupNodes.ts'
+import { registerTool, getTools, type ToolResult } from '../../base/store/toolRegistry.ts'
+import { defaultNodeData } from '@/components/base/canvas/NodePalette'
+import { runNodeGeneration } from '../../base/store/taskStore.ts'
+import { createGroupFromNodes, deleteNodesWithCascade } from '@/components/base/canvas/groupNodes'
 import { createCanvasHost } from './canvasHost.ts'
 import { executePlan } from './canvasPlanExecutor.ts'
 import {
@@ -23,11 +23,11 @@ import {
 import { getActivePendingMemorySuggest, setActivePendingMemorySuggest } from '../conversation/conversationStore.ts'
 // 「记」项目记忆：记忆类别枚举 + 脱敏函数（memory_suggest 工具校验/脱敏用）
 import { PROJECT_MEMORY_KINDS, sanitizeMemoryContent } from '../runtime/projectMemoryStore.ts'
-import { contentGet, contentSet } from '../../base/contentStore.ts'
-import { generateId } from '../../base/idGen.ts'
-import { logger } from '../../base/logger.ts'
-import { publish } from '../../base/eventBus.ts'
-import { CREDIT_SWITCH_KEY, CREDIT_GATE_EVENT } from '../../base/contracts.ts'
+import { contentGet, contentSet } from '../../base/core/contentStore.ts'
+import { generateId } from '../../base/core/idGen.ts'
+import { logger } from '../../base/core/logger.ts'
+import { publish } from '../../base/core/eventBus.ts'
+import { CREDIT_SWITCH_KEY, CREDIT_GATE_EVENT } from '../../base/core/contracts.ts'
 
 /* ════════════════════════════════════════════════════════════════
  * AI 生图默认参数（genParams）—— 由 AgentPanel 生图参数区设置，execute_plan 读取。

@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { useLod } from '../components/base/lod.tsx'
+import { useLod } from '../components/base/canvas/lod.tsx'
 
 /**
  * 性能模式媒体降级 hook（复刻官方横幅"图片视频已隐藏"）。

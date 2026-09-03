@@ -42,7 +42,7 @@ import {
   AGENT_DEMO_MODE,
   AGENT_CONTEXT_WINDOW_DEFAULT,
   AGENT_CONTEXT_OUTPUT_BUDGET_RATIO,
-} from '../base/config.ts'
+} from '../base/core/config.ts'
 
 // ── A. 运行时常量 ────────────────────────────────────────────────
 /** 多轮工具循环硬上限（复刻官方 shared.js ur=8，防 AI 死循环） */

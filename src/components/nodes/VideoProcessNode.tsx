@@ -4,15 +4,15 @@ import {
   Loader2, Music, X, Volume2, VolumeX, Plus, Film, AlertCircle, X as XIcon
 } from 'lucide-react'
 import { useReactFlow, type Node } from '@xyflow/react'
-import NodeShell from '../base/NodeShell.tsx'
+import NodeShell from '../base/ui/NodeShell.tsx'
 import CustomHandle from '../edges/CustomHandle.tsx'
 import { useConnectedInputs } from '../../hooks/useConnectedInputs.ts'
 import { useMediaDegrade } from '../../hooks/useMediaDegrade.ts'
-import { useNodeResize } from '../base/hooks.ts'
-import { showToast } from '../base/toastStore.ts'
-import { logger } from '../base/logger.ts'
-import { classifyError } from '../base/genErrors.ts'
-import { withTimeout, isTimeoutError } from '../base/asyncGuard.ts'
+import { useNodeResize } from '../base/core/hooks.ts'
+import { showToast } from '../base/core/toastStore.ts'
+import { logger } from '../base/core/logger.ts'
+import { classifyError } from '../base/utils/genErrors.ts'
+import { withTimeout, isTimeoutError } from '../base/utils/asyncGuard.ts'
 import {
   readVideoMetadata,
   processVideo,
@@ -22,15 +22,15 @@ import {
   uploadResult,
   ProgressController,
   ConversionCanceled
-} from '../base/videoEngine.ts'
-import { generateId } from '../base/idGen.ts'
-import { buildSpawnNodes, spawnAndCommit } from '../base/deriveNodes.ts'
-import { useCanvasEdges } from '../base/CanvasEdgesContext.tsx'
+} from '../base/utils/videoEngine.ts'
+import { generateId } from '../base/core/idGen.ts'
+import { buildSpawnNodes, spawnAndCommit } from '../base/canvas/deriveNodes.ts'
+import { useCanvasEdges } from '../base/canvas/CanvasEdgesContext.tsx'
 import { httpRequest } from '../base/api/index.ts'
-import previewUrls from '../base/previewUrl.ts'
-import { UPLOAD_DIRS } from '../base/uploadDirs.ts'
-import { DOWNLOAD_TIMEOUT, VIDEO_DOWNLOAD_TIMEOUT } from '../base/config.ts'
-import { createRafBatch } from '../base/utils.ts'
+import previewUrls from '../base/utils/previewUrl.ts'
+import { UPLOAD_DIRS } from '../base/utils/uploadDirs.ts'
+import { DOWNLOAD_TIMEOUT, VIDEO_DOWNLOAD_TIMEOUT } from '../base/core/config.ts'
+import { createRafBatch } from '../base/core/utils.ts'
 
 /* ════════════════════════════════════════════════════════════════
  * 视频处理节点（复刻官方 Gc.jsx + fc.jsx 合并的 videoProcessNode）

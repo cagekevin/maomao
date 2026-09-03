@@ -183,7 +183,7 @@ describe('useSyncNodeData 节点 data 同步 hook', () => {
 // ───────────────────────────────────────────────────────────
 // 3. workflowRuntime
 // ───────────────────────────────────────────────────────────
-import { createWorkflow } from '../../src/components/base/workflowRuntime.ts'
+import { createWorkflow } from '../../src/components/base/canvas/workflowRuntime.ts'
 
 describe('workflowRuntime createWorkflow 生命周期', () => {
   it('createWorkflow 初始 status=idle', () => {

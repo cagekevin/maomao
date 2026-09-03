@@ -8,12 +8,12 @@
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 
-vi.mock('../../src/components/base/eventBus.ts', () => ({
+vi.mock('../../src/components/base/core/eventBus.ts', () => ({
   eventBus: { emit: vi.fn(), on: vi.fn(), off: vi.fn() },
   publish: vi.fn(),
 }))
 
-const { createWorkflow } = await import('../../src/components/base/workflowRuntime.ts')
+const { createWorkflow } = await import('../../src/components/base/canvas/workflowRuntime.ts')
 
 beforeEach(() => { vi.clearAllMocks() })
 

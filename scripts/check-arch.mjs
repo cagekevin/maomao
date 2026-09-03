@@ -140,8 +140,8 @@ if (!circularFound) console.log('  ✅ 未发现循环依赖')
 console.log('\n🏗 分层边界：base/ 禁止反向依赖业务域')
 // 豁免：NodePalette 节点注册表单源、lazyNode 重节点懒加载包装（刻意引用 nodes，已验证无环）
 const BASE_ALLOWLIST = new Set([
-  join(SRC, 'components/base/NodePalette.ts'),
-  join(SRC, 'components/base/lazyNode.tsx'),
+  join(SRC, 'components/base/canvas/NodePalette.ts'),
+  join(SRC, 'components/base/canvas/lazyNode.tsx'),
 ])
 const BUSINESS_RE = /^src\/components\/(nodes|scriptbox|agent|panels)\//
 let baseViol = 0

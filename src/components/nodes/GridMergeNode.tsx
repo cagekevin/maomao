@@ -1,26 +1,26 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react'
-import { useDebouncedEffect, clamp } from '../base/utils.ts'
+import { useDebouncedEffect, clamp } from '../base/core/utils.ts'
 import type { Position } from '@xyflow/react'
-import { buildSpawnNodes, spawnAndCommit } from '../base/deriveNodes.ts'
-import { useCanvasEdges } from '../base/CanvasEdgesContext.tsx'
+import { buildSpawnNodes, spawnAndCommit } from '../base/canvas/deriveNodes.ts'
+import { useCanvasEdges } from '../base/canvas/CanvasEdgesContext.tsx'
 
 import { Grid3X3, PanelsTopLeft, Layers, Loader2 } from 'lucide-react'
 import { useReactFlow } from '@xyflow/react'
-import NodeShell from '../base/NodeShell.tsx'
+import NodeShell from '../base/ui/NodeShell.tsx'
 import CustomHandle from '../edges/CustomHandle.tsx'
-import OverlayEditor, { renderOverlayCanvas } from '../base/OverlayEditor.tsx'
+import OverlayEditor, { renderOverlayCanvas } from '../base/editors/OverlayEditor.tsx'
 import { useConnectedInputs } from '../../hooks/useConnectedInputs.ts'
 import { useMediaDegrade } from '../../hooks/useMediaDegrade.ts'
-import ImageZoomDialog from '../base/ImageZoomDialog.tsx'
-import { useContentHeightSync } from '../base/hooks.ts'
-import { showToast } from '../base/toastStore.ts'
+import ImageZoomDialog from '../base/editors/ImageZoomDialog.tsx'
+import { useContentHeightSync } from '../base/core/hooks.ts'
+import { showToast } from '../base/core/toastStore.ts'
 import { toAbsoluteFileUrl } from '../base/api/index.ts'
-import { useRenderImageResolver } from '../base/imageUrl.ts'
-import { logger } from '../base/logger.ts'
-import { generateId } from '../base/idGen.ts'
+import { useRenderImageResolver } from '../base/utils/imageUrl.ts'
+import { logger } from '../base/core/logger.ts'
+import { generateId } from '../base/core/idGen.ts'
 // 图片加载统一走 asyncGuard：带超时 + crossOrigin（失败去 crossOrigin 重试一级）+ 坏图降级 null。
 // 替代本文件原有的无超时私有实现（图片挂起会让宫格合成永久卡住）。
-import { loadImageOrNull } from '../base/asyncGuard.ts'
+import { loadImageOrNull } from '../base/utils/asyncGuard.ts'
 
 /* ════════════════════════════════════════════════════════════════
  * 图片拼图节点（复刻官方 Yo.jsx / gridMergeNode）

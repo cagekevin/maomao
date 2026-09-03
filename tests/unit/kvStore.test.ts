@@ -11,7 +11,7 @@ vi.mock('../../src/components/base/storage/storageAdapter.ts', () => ({
 // kvStore 内部 logger.warn 会 fire-and-forget 调 fetch(/api/logs)，
 // 为避免污染 fetch 断言，mock 掉 logger（属可 mock 的外部依赖/浏览器 API 封装）。
 // 注意：接口须与真实 logger 对齐（含 debug），否则 httpClient 间接调 logger.debug 会崩。
-vi.mock('../../src/components/base/logger.ts', () => ({
+vi.mock('../../src/components/base/core/logger.ts', () => ({
   logger: {
     warn: vi.fn(),
     info: vi.fn(),
@@ -32,7 +32,7 @@ import {
   CANVAS_STATE_PREFIX,
 } from '@/components/base/storage/kvStore.ts'
 import { sGet, sSet, sRemove } from '@/components/base/storage/storageAdapter.ts'
-import { logger } from '../../src/components/base/logger.ts'
+import { logger } from '../../src/components/base/core/logger.ts'
 
 // vi.mock 工厂不改变静态导入类型，用 vi.mocked 标注以拿到 .mockReset/.mockReturnValue
 const sGetMock = vi.mocked(sGet)

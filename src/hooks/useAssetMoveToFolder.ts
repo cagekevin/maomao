@@ -1,9 +1,9 @@
 import { useCallback } from 'react'
 import type { DragEvent as ReactDragEvent } from 'react'
 import { moveFile, canMoveAsset, resolveMovePaths } from '../components/base/api/index.ts'
-import { toAbsoluteFileUrl } from '../components/base/imageUrl.ts'
-import { publish } from '../components/base/eventBus.ts'
-import { showToast } from '../components/base/toastStore.ts'
+import { toAbsoluteFileUrl } from '../components/base/utils/imageUrl.ts'
+import { publish } from '../components/base/core/eventBus.ts'
+import { showToast } from '../components/base/core/toastStore.ts'
 
 /** 资源项（素材/生成/文件夹卡片共用的最小形状） */
 export interface AssetMoveItem {

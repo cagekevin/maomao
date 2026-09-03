@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { classifyError, timeoutMessage } from '../../src/components/base/genErrors.ts'
-import { TimeoutError } from '../../src/components/base/asyncGuard.ts'
+import { classifyError, timeoutMessage } from '../../src/components/base/utils/genErrors.ts'
+import { TimeoutError } from '../../src/components/base/utils/asyncGuard.ts'
 
 /**
  * genErrors —— 统一错误分类契约测试。

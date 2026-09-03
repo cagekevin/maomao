@@ -17,9 +17,9 @@
  * 原型无此开关，默认 false（即始终启用连接检测）。
  */
 import { useCallback, useEffect, useSyncExternalStore } from 'react'
-import { logger } from '../components/base/logger.ts'
+import { logger } from '../components/base/core/logger.ts'
 import { httpRequest } from '../components/base/api/index.ts'
-import { API_BASE, LOCAL_TOOL_PORT, LOCAL_TOOL_PING_TIMEOUT } from '../components/base/config.ts'
+import { API_BASE, LOCAL_TOOL_PORT, LOCAL_TOOL_PING_TIMEOUT } from '../components/base/core/config.ts'
 
 const DEFAULT_PORT = LOCAL_TOOL_PORT
 const POLL_CONNECTED_MS = 15000 // 已连接：15s 轮询一次（官方 Wl）

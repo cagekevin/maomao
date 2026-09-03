@@ -21,9 +21,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 // 可控 creditSwitch：getX 读 __credit，setX 写 __credit（contentStore 的 contentGet/contentSet 也被 mock 到同一状态）
 let __creditState
 let __genParamsState
-vi.mock('../../src/components/base/contentStore.ts', async (importOriginal) => {
+vi.mock('../../src/components/base/core/contentStore.ts', async (importOriginal) => {
   // importOriginal 在 vitest 类型里返回 unknown（类型限制），断言回具体模块命名空间以保留 .contentGet 等调用
-  const actual = (await importOriginal()) as unknown as typeof import('../../src/components/base/contentStore.ts')
+  const actual = (await importOriginal()) as unknown as typeof import('../../src/components/base/core/contentStore.ts')
   return {
     ...actual,
     contentGet: vi.fn((k) => (k === 'agent_credit_switch' ? __creditState : actual.contentGet(k))),
@@ -60,7 +60,7 @@ vi.mock('../../src/components/agent/conversation/conversationStore.ts', () => ({
   getWorkMode: vi.fn(() => 'auto'),
   getCurrentSnapshot: vi.fn(() => ({ skills: [] })),
 }))
-vi.mock('../../src/components/base/taskStore.ts', () => ({
+vi.mock('../../src/components/base/store/taskStore.ts', () => ({
   runNodeGeneration: vi.fn(async () => ({ ok: true, resultUrl: 'http://r/x.png' })),
   isNodeRegistered: vi.fn(() => true),
 }))
