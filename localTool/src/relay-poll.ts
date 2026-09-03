@@ -31,7 +31,16 @@ import type {
   ModelProtocolPresetName,
   ModelProtocolSubmitResult,
   ResolvedPollConfig,
+  AuthConfig,
 } from './ai-relay/types.js';
+import {
+  submitLovartTask,
+  pollLovartTaskOnce,
+} from './ai-relay/providers/lovart/index.js';
+import { stableRequest } from './ai-relay/httpTransport.js';
+import { LOVART_DIRECT_BASE_URL } from './ai-relay/providerEndpoints.js';
+import type { LovartDirectProfile, LovartTransport } from './ai-relay/providers/lovart/lovart_contract.js';
+import { fetchWithProxy } from './utils/netProxy.js';
 import { resolveLocalImages } from './utils/resolveLocalImages.js';
 import { saveRemoteUrl } from './routes/files.js';
 import { upsertTask } from './routes/tasks.js';
@@ -101,6 +110,36 @@ function resolveApiKey(providerId: string, override?: string): string {
   return override || process.env[`API_PROVIDER_${providerId.toUpperCase()}_KEY`] || '';
 }
 
+/** 判断是否为 lovart-direct（原生直连，走 providers/lovart adapter，无 9004 网关）。 */
+function isLovartDirect(providerId: string): boolean {
+  return providerId === 'lovart-direct';
+}
+
+/**
+ * lovart.ai 出站传输：经代理（fetchWithProxy）。lovart 系域名本机必须经代理才能访问。
+ * adapter 的 transport 是稳定请求签名，这里包一层 stableRequest + 代理 fetch。
+ */
+function lovartProxyTransport(): LovartTransport {
+  // fetchWithProxy 只收 string|URL，与 typeof fetch 签名略有差异，此处断言注入（stableRequest 传的是 string url）
+  return (opts) => stableRequest({ ...opts, fetchImpl: fetchWithProxy as typeof fetch });
+}
+
+/**
+ * 构造 lovart-direct 的 HMAC profile。
+ * 凭证真源 = localTool 启动时从 apimart-gateway/.env 注入的 process.env.LOVART_ACCESS_KEY/SECRET_KEY
+ * （见 src/index.ts loadDotEnv 处）。仅驻内存，不入 DB。
+ * transport：注入走代理的 stableRequest（lovart.ai 域名必须经代理，见 netProxy.ts）。
+ */
+function lovartDirectProfile(baseUrl: string, signal?: AbortSignal, timeoutMs?: number): LovartDirectProfile {
+  const accessKey = process.env.LOVART_ACCESS_KEY || '';
+  const secretKey = process.env.LOVART_SECRET_KEY || '';
+  if (!accessKey || !secretKey) {
+    throw new Error('lovart-direct 需要 LOVART_ACCESS_KEY 与 LOVART_SECRET_KEY（apimart-gateway/.env）');
+  }
+  const auth: AuthConfig = { type: 'hmac', accessKey, secretKey };
+  return { baseUrl: baseUrl || LOVART_DIRECT_BASE_URL, auth, signal, timeoutMs, transport: lovartProxyTransport() };
+}
+
 // ── 轮询时序默认值（对齐前端 config.ts GEN_TIMEOUT/VIDEO_TIMEOUT 语义）──
 const DEFAULT_POLL_INTERVAL_MS = 3000;   // 单轮间隔（lovart preset 也是 3s）
 const DEFAULT_TOTAL_TIMEOUT_MS = 10 * 60 * 1000; // 总超时兜底，防无限挂（对齐 relay.ts 10min）
@@ -111,14 +150,16 @@ const RELAY_UPLOAD_SUBFOLDER = 'tasks';
 /** 内存句柄（key 不入库） */
 interface PollHandle {
   frontTaskId: string;
-  taskId: string;        // 上游 task_id
-  poll: ResolvedPollConfig; // 自包含、可 JSON 快照；不含 key
-  apiKey: string;        // 驻内存；重启重建时按 providerId 重读
+  taskId: string;        // 上游 task_id（9004=网关 task_id；lovart-direct=thread_id）
+  poll: ResolvedPollConfig | null; // 自包含、可 JSON 快照；不含 key。direct 任务为 null
+  apiKey: string;        // 驻内存；重启重建时按 providerId 重读（direct 任务可为空串）
   providerId: string;
   capability: RelayCapability;
   model: string;
   type: string;
   baseUrl: string;
+  /** true = lovart-direct 原生直连任务（经 providers/lovart adapter 轮询，无声明式 poll） */
+  direct?: boolean;
   startedAt: number;
   timer: ReturnType<typeof setInterval> | null;
   running: boolean;      // 单轮执行中防重入
@@ -139,13 +180,14 @@ function stopHandle(h: PollHandle): void {
 /** request_data 里内嵌的 relay 轮询快照（可 JSON 序列化，key 不入库） */
 interface RelayPollSnapshot {
   _relayPoll: {
-    taskId: string;                 // 上游 task_id
-    poll: ResolvedPollConfig;       // 自包含轮询配置
+    taskId: string;                 // 上游 task_id（direct=thread_id）
+    poll: ResolvedPollConfig | null; // 自包含轮询配置；direct 任务为 null
     providerId: string;
     capability: RelayCapability;
     model: string;
     type: string;
     baseUrl: string;
+    direct?: boolean;               // true = lovart-direct 原生直连
     startedAt: number;
   };
 }
@@ -165,6 +207,67 @@ export async function submitGenerateTask(input: RelaySubmitInput): Promise<{ ok:
     const capability = input.capability;
     const baseUrl = resolveBaseUrl(providerId, input.baseUrl);
     const apiKey = resolveApiKey(providerId);
+
+    // ── lovart-direct 原生直连：走 providers/lovart adapter（HMAC + chat-thread），不进声明式 preset ──
+    if (isLovartDirect(providerId)) {
+      // 参考图归一：/files/ 磁盘图 → data:base64（唯一出站口纪律，与 preset 路一致）
+      const images = input.images && input.images.length > 0
+        ? ((await resolveLocalImages(input.images)) as string[])
+        : undefined;
+      const profile = lovartDirectProfile(baseUrl);
+      const cap = capability === 'image' ? 'IMAGE' : 'VIDEO';
+      const handle = await submitLovartTask(profile, {
+        model: input.model,
+        prompt: input.prompt,
+        size: input.size,
+        images,
+        capability: cap as 'IMAGE' | 'VIDEO',
+      });
+      const threadId = handle.threadId;
+      // 落库在途行（与 preset 路同结构，direct 标记 + poll=null）
+      await upsertTask(await getDb(), {
+        task_id: frontTaskId,
+        type: input.type || capability,
+        model_name: input.model,
+        status: 'running',
+        progress: 0,
+        created_at: Date.now(),
+        submit_ack_at: Date.now(),
+        poll_task_id: threadId,
+        request_data: JSON.stringify({
+          _relayPoll: {
+            taskId: threadId,
+            poll: null,
+            providerId,
+            capability,
+            model: input.model,
+            type: input.type || capability,
+            baseUrl,
+            direct: true,
+            startedAt: Date.now(),
+          } satisfies RelayPollSnapshot['_relayPoll'],
+        } satisfies RelayPollSnapshot),
+      });
+      debouncedSaveDb();
+      registerHandle(frontTaskId, {
+        frontTaskId,
+        taskId: threadId,
+        poll: null,
+        apiKey: '',
+        providerId,
+        capability,
+        model: input.model,
+        type: input.type || capability,
+        baseUrl,
+        direct: true,
+        startedAt: Date.now(),
+        timer: null,
+        running: false,
+        stopped: false,
+      }, timeoutMs);
+      return { ok: true, frontTaskId };
+    }
+
     const protocolDef: ModelProtocol = structuredClone(getModelProtocolPreset(presetNameFor(capability)));
 
     // video 附参（resolution/duration）非模板字段：引擎对顶层 body 缺变量的模板字符串会抛错，
@@ -256,7 +359,9 @@ export async function submitGenerateTask(input: RelaySubmitInput): Promise<{ ok:
 /** 注册句柄并启动定时器驱动单轮。 */
 function registerHandle(frontTaskId: string, handle: PollHandle, timeoutMs: number): void {
   handles.set(frontTaskId, handle);
-  const interval = Math.max(500, handle.poll.intervalMs || DEFAULT_POLL_INTERVAL_MS);
+  const interval = Math.max(500, handle.direct
+    ? DEFAULT_POLL_INTERVAL_MS
+    : (handle.poll?.intervalMs || DEFAULT_POLL_INTERVAL_MS));
   const runOnce = async (): Promise<void> => {
     if (handle.stopped) return;
     if (handle.running) return; // 单轮进行中，跳过本轮防重入
@@ -268,7 +373,23 @@ function registerHandle(frontTaskId: string, handle: PollHandle, timeoutMs: numb
     }
     handle.running = true;
     try {
-      const r = await protocol.pollModelProtocolOnce(handle.poll, handle.apiKey, undefined, handle.baseUrl);
+      // direct（原生直连）→ adapter 单次轮询；其余 → 声明式 preset 轮询
+      if (handle.direct) {
+        const profile = lovartDirectProfile(handle.baseUrl);
+        const r = await pollLovartTaskOnce(profile, { handle: { threadId: handle.taskId, projectId: '' } });
+        if (handle.stopped) return;
+        if (r.status === 'completed') {
+          stopHandle(handle);
+          await upsertCompleted(handle, r.urls ?? []);
+        } else if (r.status === 'failed') {
+          stopHandle(handle);
+          await upsertFailed(handle, r.error || 'Lovart 任务失败');
+        } else {
+          await updateProgress(handle, undefined, r.error);
+        }
+        return;
+      }
+      const r = await protocol.pollModelProtocolOnce(handle.poll!, handle.apiKey, undefined, handle.baseUrl);
       if (handle.stopped) return;
       if (r.status === 'completed') {
         stopHandle(handle);
@@ -401,19 +522,22 @@ export async function initRelayPoller(opts: { timeoutMs?: number } = {}): Promis
       let snap: RelayPollSnapshot | undefined;
       try { snap = typeof row.request_data === 'string' ? JSON.parse(row.request_data) : row.request_data; } catch { snap = undefined; }
       const core = snap?._relayPoll;
-      if (!core || !core.poll || !core.taskId) continue; // 无轮询快照（旧数据），跳过
+      // direct 任务（lovart-direct）：允许 poll 为 null，仅需 thread_id(=taskId)
+      if (!core || !core.taskId) continue; // 无轮询快照（旧数据），跳过
+      if (!core.poll && !core.direct) continue; // 非 direct 但缺 poll → 旧/脏数据，跳过
       const apiKey = resolveApiKey(core.providerId);
       const remaining = Math.max(0, timeoutMs - (Date.now() - core.startedAt));
       registerHandle(frontTaskId, {
         frontTaskId,
         taskId: core.taskId,
-        poll: core.poll,
+        poll: core.poll ?? null,
         apiKey,
         providerId: core.providerId,
         capability: core.capability,
         model: core.model,
         type: core.type,
         baseUrl: core.baseUrl,
+        direct: !!core.direct,
         startedAt: core.startedAt,
         timer: null,
         running: false,

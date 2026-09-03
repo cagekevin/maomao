@@ -13,7 +13,7 @@ import type { ModelProtocolResponsePreviewEntry } from './protocol/response.js';
 /* 鉴权                                                                */
 /* ------------------------------------------------------------------ */
 
-export type AuthType = 'bearer' | 'header' | 'query' | 'oauth' | 'none';
+export type AuthType = 'bearer' | 'header' | 'query' | 'oauth' | 'none' | 'hmac';
 
 export interface AuthConfig {
   type: AuthType;
@@ -23,6 +23,10 @@ export interface AuthConfig {
   prefix?: string;
   /** oauth 时直接给 token */
   token?: string;
+  /** hmac 鉴权时的访问凭证（Lovart 原生 Agent 协议） */
+  accessKey?: string;
+  /** hmac 鉴权时的签名密钥 */
+  secretKey?: string;
 }
 
 /* ------------------------------------------------------------------ */
@@ -103,6 +107,10 @@ export interface CreateRelayConfig {
   baseUrl?: string;
   catalogId?: string;
   auth?: AuthConfig;
+  /** Lovart 直连（hmac）专用：访问凭证（与 apiKey 二选一，按 provider 而定） */
+  accessKey?: string;
+  /** Lovart 直连（hmac）专用：签名密钥 */
+  secretKey?: string;
 }
 
 /* ------------------------------------------------------------------ */
@@ -124,6 +132,8 @@ export interface StableRequestOptions {
   timeoutMs?: number;
   maxBytes?: number;
   maxRetries?: number;
+  /** 底层 fetch 实现；缺省全局 fetch。lovart-direct 等需走代理的域名注入 fetchWithProxy。 */
+  fetchImpl?: typeof fetch;
 }
 
 export interface StableRequestResult {

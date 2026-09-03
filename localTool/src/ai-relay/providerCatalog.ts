@@ -10,6 +10,7 @@ import {
   APIMART_BASE_URL, BOCHA_SEARCH_BASE_URL, EXA_SEARCH_BASE_URL, GRSAI_BASE_URL,
   RUNNINGHUB_MODEL_BASE_URL, TAVILY_BASE_URL, VOLCENGINE_BASE_URL, ZHIPU_SEARCH_BASE_URL,
   SORA2U_BASE_URL, SORA2U_REQUEST_QUERY, XAI_BASE_URL, GOOGLE_GEMINI_BASE_URL,
+  LOVART_DIRECT_BASE_URL,
 } from './providerEndpoints.js';
 import { XAI_MODEL_MANIFEST } from './manifests/xaiModelManifest.js';
 import { GOOGLE_MODEL_MANIFEST } from './manifests/googleModelManifest.js';
@@ -186,6 +187,24 @@ export const BUILT_IN_PROVIDER_DEFINITIONS: ProviderDefinition[] = [
     defaultBaseUrl: 'http://127.0.0.1:9004',
     allowCustomBaseUrl: false,
     credentials: [{ ...API_KEY_FIELD, label: 'Lovart Key' }],
+    models: LOVART_MODEL_MANIFEST,
+  },
+  // ── 第 14 个平台：lovart-direct（Lovart 原生 Agent 协议直连，绕过 9004）──
+  // 双轨策略：保留 lovart@9004 作回退，本轨直连 lgw.lovart.ai；跑通后删旧。
+  // 直连走 providers/lovart 命令式 adapter（HMAC 鉴权 + project/轮询/confirm/SSE 合成）。
+  {
+    id: 'lovart-direct',
+    name: 'Lovart 直连',
+    description: 'Lovart 原生 Agent 协议直连（lgw.lovart.ai），异步生图/生视频 + 文本',
+    badgeText: 'LV-D',
+    authType: 'api-key',
+    catalogAdapter: 'local-manifest',
+    defaultBaseUrl: LOVART_DIRECT_BASE_URL,
+    allowCustomBaseUrl: false,
+    credentials: [
+      { key: 'accessKey', label: 'Lovart Access Key', required: true, secret: true },
+      { key: 'secretKey', label: 'Lovart Secret Key', required: true, secret: true },
+    ],
     models: LOVART_MODEL_MANIFEST,
   },
 ];

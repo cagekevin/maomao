@@ -16,6 +16,7 @@
  */
 
 import { baseUrlCandidates } from './providerBaseUrl.js';
+import { createHmac } from 'node:crypto';
 import type { AuthConfig, StableRequestOptions, StableRequestResult } from './types.js';
 
 /** 与 Rust proxy_fetch 一致的响应体上限 */
@@ -61,6 +62,29 @@ export function buildAuthHeaders(auth: AuthConfig | undefined, apiKey?: string):
   return { Authorization: `${resolved.prefix ?? 'Bearer '}${apiKey}` };
 }
 
+/**
+ * HMAC-SHA256 鉴权头（Lovart 原生 Agent 协议）。
+ * 签名串 = "{METHOD}\n{path}\n{timestamp}"，每次请求（含重试）重算时间戳与签名。
+ * 与 .codebuddy/skills/lovart/agent_skill.py 的 _sign 完全一致。
+ */
+export function buildHmacAuthHeaders(
+  auth: AuthConfig,
+  method: string,
+  path: string,
+): Record<string, string> {
+  const ts = Math.floor(Date.now() / 1000).toString();
+  const raw = `${method}\n${path}\n${ts}`;
+  const sig = createHmac('sha256', auth.secretKey ?? '').update(raw).digest('hex');
+  return {
+    'X-Access-Key': auth.accessKey ?? '',
+    'X-Timestamp': ts,
+    'X-Signature': sig,
+    'X-Signed-Method': method,
+    'X-Signed-Path': path,
+    'User-Agent': 'LovartAgentSkill/1.0',
+  };
+}
+
 function mergeSearchParams(
   base: URL,
   query?: Record<string, string | number | boolean | null | undefined>,
@@ -81,6 +105,18 @@ function mergeSearchParams(
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** 判断请求体是否已是原生 BodyInit（multipart 上传等），若是则透传不 JSON 化。 */
+function isBodyInit(value: unknown): boolean {
+  if (value == null) return false;
+  if (typeof FormData !== 'undefined' && value instanceof FormData) return true;
+  if (typeof Blob !== 'undefined' && value instanceof Blob) return true;
+  if (value instanceof ArrayBuffer) return true;
+  if (ArrayBuffer.isView(value)) return true; // Uint8Array / Buffer / DataView
+  if (typeof ReadableStream !== 'undefined' && value instanceof ReadableStream) return true;
+  if (typeof URLSearchParams !== 'undefined' && value instanceof URLSearchParams) return true;
+  return false;
 }
 
 function withTimeout(
@@ -117,11 +153,14 @@ export async function stableRequest(opts: StableRequestOptions): Promise<StableR
   if (candidates.length === 0) throw new RelayHttpError(0, '请填写接口地址', undefined);
 
   const method = (opts.method || 'GET').toUpperCase();
-  const authHeaders = buildAuthHeaders(opts.auth, opts.apiKey);
-  const bodyStr = opts.body !== undefined && opts.body !== null
-    ? (typeof opts.body === 'string' ? opts.body : JSON.stringify(opts.body))
-    : undefined;
-  const extraHeaders: Record<string, string> = opts.body !== undefined && opts.body !== null && typeof opts.body !== 'string'
+  const isPlainJsonBody = opts.body !== undefined && opts.body !== null
+    && typeof opts.body !== 'string' && !isBodyInit(opts.body);
+  const bodyStr: string | undefined = typeof opts.body === 'string'
+    ? opts.body
+    : isPlainJsonBody
+      ? JSON.stringify(opts.body)
+      : undefined;
+  const extraHeaders: Record<string, string> = isPlainJsonBody
     ? { 'Content-Type': 'application/json' }
     : {};
 
@@ -138,12 +177,19 @@ export async function stableRequest(opts: StableRequestOptions): Promise<StableR
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       const timeout = withTimeout(opts.signal, opts.timeoutMs);
       try {
+        const authHeaders = opts.auth?.type === 'hmac'
+          ? buildHmacAuthHeaders(opts.auth, method, opts.path ?? '')
+          : buildAuthHeaders(opts.auth, opts.apiKey);
         const requestHeaders: Record<string, string> = { ...authHeaders, ...extraHeaders };
         if (opts.headers) Object.assign(requestHeaders, opts.headers);
-        const response = await fetch(finalUrl, {
+        const fetchBody: BodyInit | undefined = bodyStr !== undefined
+          ? bodyStr
+          : (opts.body !== undefined && opts.body !== null ? (opts.body as BodyInit) : undefined);
+        const fetchImpl: typeof fetch = opts.fetchImpl ?? fetch;
+        const response = await fetchImpl(finalUrl, {
           method,
           headers: requestHeaders,
-          body: bodyStr,
+          body: fetchBody,
           signal: timeout ? timeout.signal : opts.signal,
         });
 

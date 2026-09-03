@@ -112,6 +112,7 @@ Generate exactly ONE image using the {可读模型名} model.     # 生成意图
 统一把 `image_urls`/`images`/`attachments`/`reference_images`/`videos`(or `reference_videos`)/`audios`(or `reference_audios`)/`files` 抽成 Lovart CDN URL；
 支持 http(s)/data:base64/裸 base64(魔数识别)/本机回环(网关自下载再传 CDN)/blob 丢弃。
 **任一真实上传失败即阻断**（不发出不齐的参考图）。
+> ⚠️ 官方 `agent_skill.py.upload_file(local_path)` 只能吃**本地文件路径**（读磁盘），不能直接传 URL/base64 字节。`main.py` 的 `resolve_attachments` 先把 http(s)/base64/本机回环下载解码成字节再上传（对应 `lovart_client.py:269` `upload_file(filename, content: bytes)`）。relay 须自己实现"URL/base64 → 字节"这一步，port agent_skill.py 拿不到。
 
 ### 2.4 轮询与 confirm（`check_and_fire_task`，`main.py:792-895`）
 
@@ -215,6 +216,49 @@ Generate exactly ONE image using the {可读模型名} model.     # 生成意图
 - `/health` 返回 `{status, backend, auto_confirm, mode}`，供存活检测。
 - `X-Trace-Id` 头贯穿「提交 → 轮询」日志（`[submit]`/`[poll]` 打同 traceId），便于排障。relay 须在 `logWriter` 落 `source=relay-lovart` 并透传 traceId。
 
+### 2.10 官方 `agent_skill.py` 不支持、须 relay 自建（对照 lovart_client.py）
+
+`main.py` 实际依赖 `lovart_client.py`（async httpx + 代理回退 + 吃字节上传），而方案 B 是 port 官方 `agent_skill.py`（同步 urllib 客户端）。后者能力少一大截，以下 main.py 行为**官方 client 根本没有**，port 不来、必须 relay 自己造：
+
+| 能力 | 官方 `agent_skill.py` | 须 relay 自建 |
+|------|----------------------|---------------|
+| **SSE 流式** | 无（`urllib` 阻塞 + `watch` 子命令仅 stdout NDJSON） | 合成 `chat.completion.chunk` / `?wait=1` 进度流（§2.5 / §2.9.3） |
+| **REST 端点 `/v1/*`** | 无（它是客户端不是服务端） | 自建 images/videos/chat/tasks/models/health（§4.4） |
+| **附件上传** | `upload_file(local_path)` 仅本地文件路径 | URL/base64→字节 下载解码（或改吃 bytes，对应 `lovart_client.py:269`） |
+| **轮询语义** | `poll` 仅返 status 字符串、不自动 confirm、无 `task_view` 整形 | `check_and_fire_task` 全套：done 5s 防抖 / `AUTO_CONFIRM` 两处确认 / `task_view`（§2.4 / §2.9.6-7） |
+| **项目失效自愈** | 仅 `validate_project` 被动校验 | `clear_project`+重建+重试一次（`_PROJECT_INVALID_HINTS`，§2.9.1） |
+| **代理 / VPN** | 零代理支持（不读代理环境变量） | `netProxy.ts` / 代理环境变量兜底（`lovart_client.py:41-56` 有探测逻辑，TS 侧须等价实现） |
+| **字段别名** | 无 | `normalize_body`（`contract.py`，§2.9.2） |
+
+> 结论：port `agent_skill.py` 只解决"怎么正确调上游"（签名/建 project/发 prompt/轮询状态/确认/上传），**不解决"怎么对前端暴露 OpenAI 兼容接口"**（端点/SSE/响应整形/错误信封/自愈/代理）。后者全是 9004 网关层职责，relay 须 1:1 重写，不能指望 port 免费获得。
+
+### 2.11 聚焦 chat / image / video：哪些用官方最合理（含"必须传模型"）
+
+只评估三项功能，**不丢功能、且三功能都显式传模型**。按"port 官方原语 / 必须自建"二分：
+
+| 子能力 | 用官方最合理？ | 官方依据（`agent_skill.py`） | relay 须自建部分 |
+|--------|---------------|------------------------------|------------------|
+| HMAC 签名 | ✅ port | `_sign`（L56-69）= 上游契约权威 | — |
+| project 创建/校验 | ✅ port 原语 | `create_project` / `validate_project`（L147-150, 346-353） | 缓存层 + 失效自愈（clear+重建+重试，§2.9.1） |
+| **配额轴锁 fast** | ✅ port 必显式 | `set_mode(unlimited=False)`（L154-156） | 包成每次请求前置（§2.5/§2.8 #7） |
+| **选模型下发** | ✅ port 必显式 | `send` 的 `tool_config`：`prefer_models`→`prefer_tool_categories` / `include_tools` / `exclude_tools`（L278-286） | 双路冗余：gen_prefix 自然语言路（§2.2） |
+| 推理轴 mode | ✅ port | `send(mode="thinking"\|"fast")`（L260, 276-277，按 thread 锁） | — |
+| 状态/结果/confirm | ✅ port | `get_status` / `get_result` / `confirm`（L289-293, 164-166） | — |
+| 基础轮询 | ✅ port 核心 | `poll` 已含 done 5s 防抖 + `pending_confirmation` 探测（L306-342） | `AUTO_CONFIRM` 自动 confirm（§2.9.6） |
+| 附件上传 | ⚠️ 包装 | 官方仅 `upload_file(local_path)`（L170-205） | URL/base64→字节（§2.3） |
+| **SSE 流式** | ❌ 自建 | 官方无 HTTP SSE（L89-90 / `watch` 仅 stdout NDJSON L881-936） | 合成 `chat.completion.chunk` + `?wait=1` 进度（§2.5/§2.9.3） |
+| **/v1/* 端点** | ❌ 自建 | 官方是客户端非服务端 | images/videos/chat/tasks/models/health + 别名（§4.4） |
+| 响应整形 / 错误信封 | ❌ 自建 | 官方无 | `task_view` + `_LOVART_ERR_TYPES`（§2.9.5/§2.9.7） |
+| 字段别名 | ❌ 自建 | 官方无 | `normalize_body`（§2.9.2） |
+
+**"必须传模型"的保险做法（三功能统一、不依赖上游默认）**：
+- **结构化路（承载通道）**：`send(tool_config={ prefer_tool_categories: { IMAGE:[tool] / VIDEO:[tool] / CHAT:[tool] } })`——官方原生支持，必填。image 取 §2.1 精选 6、video 取精选 5、chat 取 `lovart-chat`。
+- **自然语言路（冗余保险）**：`build_gen_prefix` 把可读模型名写进 instruction（§2.2），main.py 双路行为保留——结构化路万一不被上游采信，自然语言路兜底，绝不裸发"用默认模型"。
+- **`prompt_only` 模型**（tool 空，如 `nano-bn-2-lite` / `minimax-h3`）→ 仅自然语言路，结构化路不下发 `prefer_tool_categories`（与 §2.2 #3 一致）。
+- chat 同样经 `tool_config` 显式（不靠默认聊天模型），满足"chat/image/video 三功能都传模型"。
+
+> 一句话：官方 = 干脏活（签名/建 project/发 prompt+模型/查状态/confirm/基础轮询）的最合理底座；relay = 把这套原语包成 OpenAI 兼容、加 SSE/自愈/字节上传/自动 confirm/整形。模型走官方 `tool_config` 显式下发，是"保险"的关键，绝不能省。
+
 ---
 
 ## 3. 当前 relay 集成现状（为什么必须改）
@@ -236,7 +280,8 @@ Generate exactly ONE image using the {可读模型名} model.     # 生成意图
 扩展 `AuthType` 增加 `'hmac-sha256'`，在 `buildAuthHeaders`（`httpTransport.ts:52`）加分支；或直接给 lovart 专用 `signer` 钩子。签名算法见 §1。**每次重试重签。**
 
 ### 4.2 port 官方 `AgentSkill` → `ai-relay/providers/lovart/client.ts`
-直接搬运 `agent_skill.py` 的 HMAC / 端点 / `chat`+`poll` / `upload` / `set_mode`（零依赖、经官方验证），避免自造签名/轮询 bug。
+只搬运 `agent_skill.py` 的**纯客户端方法**：HMAC 签名 / `create_project` / `set_mode`+`query_mode` / `send`（含 `tool_config`）/ `get_status` / `get_result` / `confirm` / `upload_file`（零依赖、经官方验证），避免自造签名/上传 bug。
+> ⚠️ `agent_skill.py` 是**客户端不是服务端**：它没有 `/v1/*` REST 端点，其 `poll` 也只返 status 字符串（不自动 confirm、无 `task_view` 整形）。端点、`chat`+`poll` 的完整轮询语义、SSE 全须 relay 自己建（见 §2.10）。
 
 ### 4.3 叠加 main.py 适配层
 - `prompt.ts`：复刻 `build_gen_prefix` + `<user_prompt>` 包裹 + 双路选模型 + `parse_size` 档位映射（§2.2 / §2.6）。

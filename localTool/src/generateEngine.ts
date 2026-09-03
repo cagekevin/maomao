@@ -17,6 +17,11 @@
  */
 
 import { getModelProtocolPreset, protocol, getProviderDefinition, chatWithTools, chat } from './ai-relay/index.js';
+import { chatLovartText } from './ai-relay/providers/lovart/index.js';
+import { stableRequest } from './ai-relay/httpTransport.js';
+import { LOVART_DIRECT_BASE_URL } from './ai-relay/providerEndpoints.js';
+import type { LovartDirectProfile, LovartTransport } from './ai-relay/providers/lovart/lovart_contract.js';
+import type { AuthConfig } from './ai-relay/types.js';
 import { resolveLocalImages } from './utils/resolveLocalImages.js';
 import { saveRemoteUrl } from './routes/files.js';
 import { fetchWithProxy } from './utils/netProxy.js';
@@ -196,6 +201,31 @@ export async function relayGenerate(input: RelayGenerateInput): Promise<RelayGen
     // 9004(lovart) 返回 {code,data} 双信封，必须走 LOVART preset 剥 data.；魔搭等标准 OpenAI 无信封，
     // 走 kit chat()。否则预设按 9004 信封抽 text 会拿空（AI 助手非流式"不生效"根因）。
     if (capability === 'chat') {
+      // lovart-direct：原生直连，走 adapter 非流式拿整段文本（对齐 9004 chat 同步语义）
+      if (providerId === 'lovart-direct') {
+        const ak = process.env.LOVART_ACCESS_KEY || '';
+        const sk = process.env.LOVART_SECRET_KEY || '';
+        if (!ak || !sk) throw new Error('lovart-direct 需要 LOVART_ACCESS_KEY 与 LOVART_SECRET_KEY');
+        const auth: AuthConfig = { type: 'hmac', accessKey: ak, secretKey: sk };
+        // lovart.ai 必须经代理访问：transport = stableRequest + 代理 fetch
+        const proxyTransport: LovartTransport = (opts) => stableRequest({ ...opts, fetchImpl: fetchWithProxy as typeof fetch });
+        const profile: LovartDirectProfile = { baseUrl: baseUrl || LOVART_DIRECT_BASE_URL, auth, timeoutMs, transport: proxyTransport };
+        const text = await chatLovartText(profile, {
+          model,
+          messages: (resolvedMessages ?? input.messages) as { role: string; content?: string }[],
+          signal: timeout.signal,
+          timeoutMs,
+        });
+        return {
+          ok: true,
+          providerId,
+          capability,
+          model,
+          kind: 'text',
+          text,
+          durationMs: Date.now() - startedAt,
+        };
+      }
       const isLovart9004 = providerId === 'lovart' || /:9004/.test(baseUrl);
       if (!isLovart9004) {
         const text = await chat({

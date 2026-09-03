@@ -24,9 +24,15 @@ import * as protocol from './protocol/index.js';
 import {
   chat, streamChat, chatWithTools, generateImage, generateVideo, generateAudio, getModelProtocolPreset,
 } from './generate.js';
+import { parseStream } from './assistantStream.js';
+import {
+  generateImageLovart, generateVideoLovart, streamChatLovart,
+} from './providers/lovart/index.js';
+import { LOVART_DIRECT_BASE_URL } from './providerEndpoints.js';
 import type {
   ProviderDefinition,
   CreateRelayConfig,
+  AuthConfig,
   CatalogModel,
   StableRequestOptions,
   ChatOptions,
@@ -36,6 +42,7 @@ import type {
   GenerateVideoOptions,
   GenerateAudioOptions,
 } from './types.js';
+import type { LovartDirectProfile } from './providers/lovart/lovart_contract.js';
 
 export { baseUrlCandidates, normalizeBaseUrl } from './providerBaseUrl.js';
 export { stableRequest, readCapped, buildAuthHeaders, RelayHttpError, DEFAULT_MAX_BYTES } from './httpTransport.js';
@@ -78,7 +85,7 @@ export function createRelay(config: CreateRelayConfig) {
   const candidates = baseUrlCandidates(effectiveBaseUrl ?? '');
   const auth = config.auth ?? (definition.authType === 'oauth' ? { type: 'oauth' } : { type: 'bearer' });
 
-  return {
+  const relay = {
     providerId: config.providerId,
     definition,
     /** 列出该中转可用模型（远程拉取 + 本地清单兜底）。 */
@@ -129,4 +136,35 @@ export function createRelay(config: CreateRelayConfig) {
       return generateAudio({ apiKey: config.apiKey, ...opts, baseUrl: effectiveBaseUrl ?? '' });
     },
   };
+
+  // ── 双轨分流：lovart-direct 走 providers/lovart 命令式 adapter（HMAC 原生协议）──
+  if (config.providerId === 'lovart-direct') {
+    const accessKey = config.accessKey ?? (config.auth?.type === 'hmac' ? config.auth.accessKey : undefined);
+    const secretKey = config.secretKey ?? (config.auth?.type === 'hmac' ? config.auth.secretKey : undefined);
+    if (!accessKey || !secretKey) {
+      throw new Error('lovart-direct 需要 accessKey 与 secretKey（HMAC 鉴权）');
+    }
+    const hmacAuth: AuthConfig = { type: 'hmac', accessKey, secretKey };
+    const profile: LovartDirectProfile = {
+      baseUrl: effectiveBaseUrl ?? LOVART_DIRECT_BASE_URL,
+      auth: hmacAuth,
+      timeoutMs: 180_000,
+    };
+    return {
+      ...relay,
+      providerId: 'lovart-direct',
+      generateImage(opts: GenerateImageOptions) {
+        return generateImageLovart({ ...profile, signal: opts.signal, timeoutMs: opts.timeoutMs ?? profile.timeoutMs }, opts);
+      },
+      generateVideo(opts: GenerateVideoOptions) {
+        return generateVideoLovart({ ...profile, signal: opts.signal, timeoutMs: opts.timeoutMs ?? profile.timeoutMs }, opts);
+      },
+      async streamChat(opts: StreamChatOptions) {
+        const response = await streamChatLovart({ ...profile, signal: opts.signal, timeoutMs: opts.timeoutMs ?? profile.timeoutMs }, opts);
+        return parseStream(response, { requestId: '', modelId: opts.model, onEvent: opts.onEvent, signal: opts.signal });
+      },
+    };
+  }
+
+  return relay;
 }
