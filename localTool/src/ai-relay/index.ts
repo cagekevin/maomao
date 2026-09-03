@@ -137,12 +137,12 @@ export function createRelay(config: CreateRelayConfig) {
     },
   };
 
-  // ── 双轨分流：lovart-direct 走 providers/lovart 命令式 adapter（HMAC 原生协议）──
-  if (config.providerId === 'lovart-direct') {
+  // ── 分流：lovart（原生直连）走 providers/lovart 命令式 adapter（HMAC 原生协议）──
+  if (config.providerId === 'lovart') {
     const accessKey = config.accessKey ?? (config.auth?.type === 'hmac' ? config.auth.accessKey : undefined);
     const secretKey = config.secretKey ?? (config.auth?.type === 'hmac' ? config.auth.secretKey : undefined);
     if (!accessKey || !secretKey) {
-      throw new Error('lovart-direct 需要 accessKey 与 secretKey（HMAC 鉴权）');
+      throw new Error('lovart 需要 accessKey 与 secretKey（HMAC 鉴权）');
     }
     const hmacAuth: AuthConfig = { type: 'hmac', accessKey, secretKey };
     const profile: LovartDirectProfile = {
@@ -152,7 +152,7 @@ export function createRelay(config: CreateRelayConfig) {
     };
     return {
       ...relay,
-      providerId: 'lovart-direct',
+      providerId: 'lovart',
       generateImage(opts: GenerateImageOptions) {
         return generateImageLovart({ ...profile, signal: opts.signal, timeoutMs: opts.timeoutMs ?? profile.timeoutMs }, opts);
       },

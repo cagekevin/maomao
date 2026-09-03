@@ -110,9 +110,9 @@ function resolveApiKey(providerId: string, override?: string): string {
   return override || process.env[`API_PROVIDER_${providerId.toUpperCase()}_KEY`] || '';
 }
 
-/** 判断是否为 lovart-direct（原生直连，走 providers/lovart adapter，无 9004 网关）。 */
+/** 判断是否为 lovart（原生直连，走 providers/lovart adapter，无 9004 网关）。 */
 function isLovartDirect(providerId: string): boolean {
-  return providerId === 'lovart-direct';
+  return providerId === 'lovart';
 }
 
 /**
@@ -125,7 +125,7 @@ function lovartProxyTransport(): LovartTransport {
 }
 
 /**
- * 构造 lovart-direct 的 HMAC profile。
+ * 构造 lovart 的 HMAC profile。
  * 凭证真源 = localTool 启动时从 apimart-gateway/.env 注入的 process.env.LOVART_ACCESS_KEY/SECRET_KEY
  * （见 src/index.ts loadDotEnv 处）。仅驻内存，不入 DB。
  * transport：注入走代理的 stableRequest（lovart.ai 域名必须经代理，见 netProxy.ts）。
@@ -134,7 +134,7 @@ function lovartDirectProfile(baseUrl: string, signal?: AbortSignal, timeoutMs?: 
   const accessKey = process.env.LOVART_ACCESS_KEY || '';
   const secretKey = process.env.LOVART_SECRET_KEY || '';
   if (!accessKey || !secretKey) {
-    throw new Error('lovart-direct 需要 LOVART_ACCESS_KEY 与 LOVART_SECRET_KEY（apimart-gateway/.env）');
+    throw new Error('lovart 需要 LOVART_ACCESS_KEY 与 LOVART_SECRET_KEY（apimart-gateway/.env）');
   }
   const auth: AuthConfig = { type: 'hmac', accessKey, secretKey };
   return { baseUrl: baseUrl || LOVART_DIRECT_BASE_URL, auth, signal, timeoutMs, transport: lovartProxyTransport() };
@@ -150,7 +150,7 @@ const RELAY_UPLOAD_SUBFOLDER = 'tasks';
 /** 内存句柄（key 不入库） */
 interface PollHandle {
   frontTaskId: string;
-  taskId: string;        // 上游 task_id（9004=网关 task_id；lovart-direct=thread_id）
+  taskId: string;        // 上游 task_id（9004=网关 task_id；lovart=thread_id）
   poll: ResolvedPollConfig | null; // 自包含、可 JSON 快照；不含 key。direct 任务为 null
   apiKey: string;        // 驻内存；重启重建时按 providerId 重读（direct 任务可为空串）
   providerId: string;
@@ -158,7 +158,7 @@ interface PollHandle {
   model: string;
   type: string;
   baseUrl: string;
-  /** true = lovart-direct 原生直连任务（经 providers/lovart adapter 轮询，无声明式 poll） */
+  /** true = lovart 原生直连任务（经 providers/lovart adapter 轮询，无声明式 poll） */
   direct?: boolean;
   startedAt: number;
   timer: ReturnType<typeof setInterval> | null;
@@ -187,7 +187,7 @@ interface RelayPollSnapshot {
     model: string;
     type: string;
     baseUrl: string;
-    direct?: boolean;               // true = lovart-direct 原生直连
+    direct?: boolean;               // true = lovart 原生直连
     startedAt: number;
   };
 }
@@ -208,7 +208,7 @@ export async function submitGenerateTask(input: RelaySubmitInput): Promise<{ ok:
     const baseUrl = resolveBaseUrl(providerId, input.baseUrl);
     const apiKey = resolveApiKey(providerId);
 
-    // ── lovart-direct 原生直连：走 providers/lovart adapter（HMAC + chat-thread），不进声明式 preset ──
+    // ── lovart 原生直连：走 providers/lovart adapter（HMAC + chat-thread），不进声明式 preset ──
     if (isLovartDirect(providerId)) {
       // 参考图归一：/files/ 磁盘图 → data:base64（唯一出站口纪律，与 preset 路一致）
       const images = input.images && input.images.length > 0
@@ -522,7 +522,7 @@ export async function initRelayPoller(opts: { timeoutMs?: number } = {}): Promis
       let snap: RelayPollSnapshot | undefined;
       try { snap = typeof row.request_data === 'string' ? JSON.parse(row.request_data) : row.request_data; } catch { snap = undefined; }
       const core = snap?._relayPoll;
-      // direct 任务（lovart-direct）：允许 poll 为 null，仅需 thread_id(=taskId)
+      // direct 任务（lovart）：允许 poll 为 null，仅需 thread_id(=taskId)
       if (!core || !core.taskId) continue; // 无轮询快照（旧数据），跳过
       if (!core.poll && !core.direct) continue; // 非 direct 但缺 poll → 旧/脏数据，跳过
       const apiKey = resolveApiKey(core.providerId);

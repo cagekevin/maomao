@@ -338,8 +338,8 @@ async function main(): Promise<void> {
       if (accessKeyMatch && secretKeyMatch) {
         const ak = accessKeyMatch[1].replace(/['"]/g, '');
         const sk = secretKeyMatch[1].replace(/['"]/g, '');
-        // 注入 process.env 供 relay 的 lovart-direct 直连（HMAC 鉴权）使用。
-        // 9004 网关与 lovart-direct 共用同一对 LOVART 凭证；直连后由 relay 直接持有，不再经网关。
+        // 注入 process.env 供 relay 的 lovart（原生直连，HMAC 鉴权）使用。
+        // 直连 Lovart 与旧轨 lovart-old(9004) 共用同一对 LOVART 凭证；直连后由 relay 直接持有，不再经网关。
         process.env.LOVART_ACCESS_KEY = ak;
         process.env.LOVART_SECRET_KEY = sk;
         if (baseUrlMatch) process.env.LOVART_BASE_URL = baseUrlMatch[1].replace(/['"]/g, '');

@@ -132,7 +132,7 @@ export interface StableRequestOptions {
   timeoutMs?: number;
   maxBytes?: number;
   maxRetries?: number;
-  /** 底层 fetch 实现；缺省全局 fetch。lovart-direct 等需走代理的域名注入 fetchWithProxy。 */
+  /** 底层 fetch 实现；缺省全局 fetch。lovart 等需走代理的域名注入 fetchWithProxy。 */
   fetchImpl?: typeof fetch;
 }
 
