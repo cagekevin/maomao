@@ -399,6 +399,19 @@ export const STORAGE_KEYS: Record<string, StorageKeyMeta> = {
     note: '多窗口剪贴板数据（跨窗口同步用）',
   },
 
+  // ── 云同步台账（cloudSync.ts）─────────────────────────────────
+  // 本机同步基线：{ rev, syncedAt, localHash }——记住「上次同步到云端哪一版 + 当时本地数据指纹」，
+  // 供上传/下载前判断「云端是不是比我新」「本地改没改过」（防覆盖保护的唯一依据）。
+  // ⚠️ 绝不能进云端：每台机器基线不同，同步它会互相污染判断 → 已由 cloudSync.ts 的
+  //    SYNC_EXCLUDE 显式排除（domain 标 sync 只为归类，不依赖 SYNC_DOMAIN_SWITCHES）。
+  // 进备份是自洽的：备份恢复时台账随数据一并还原，不会误报冲突。
+  yimao_cloud_sync_ledger: {
+    domain: 'sync',
+    store: 'cloudSync.ts',
+    backend: 'local',
+    note: '云同步台账 { rev, syncedAt, localHash }：上次同步的云端修订号 + 本地数据指纹（本机基线，不同步到云端）',
+  },
+
   // ── 3D 导演台工程（director3d）【P2-F2 登记修正】───────────
   // 注：director3d 工程经 base/d3dPersistence 收口——主通道写 localTool KV（/api/kv/set），
   // 18080 不可达才降级直写 localStorage。故 backend 标 kv（配下方动态 pattern），与实测一致；
@@ -639,9 +652,9 @@ export const apiRegistry = {
   probeAsync:            { fn: 'localToolApi.providerApi.probeAsync',        method: 'POST', path: '/api/providers/probe-async',    envelope: 'probe',    status: 'ACTIVE' },
   fetchModels:           { fn: 'localToolApi.providerApi.fetchModels',       method: 'POST', path: '/api/providers/{id}/fetch-models', envelope: 'code-data', status: 'ACTIVE' },
   /** 代理 / 网关 / 系统 */
-  /** relay 异步生成（submit 即返 taskId + GET attach；句柄归 localTool relay-poll 常驻轮询）。
-   *  前端 image/video 已切（relayProxy.relayGenerate），2026-09-03 起 ACTIVE。
-   *  （旧 /api/proxy 已随 relay 迁移退役移除登记，proxyGenerate 整文件退役见 git 历史。） */
+  /** relay 统一生成入口（按 capability 分流：chat 同步 / image|video 异步句柄）。
+   *  前端 image/video 走 relayGenerate + chat 走 relayChat，均打 POST /api/generate，2026-09-03 ACTIVE。
+   *  （旧 /api/proxy、/api/relay 已退役移除登记；generateGet/cancel 仅 image/video。） */
   generateSubmit:        { fn: 'relayProxy.relaySubmit',         method: 'POST',   path: '/api/generate',               envelope: 'code-data', status: 'ACTIVE' },
   generateGet:           { fn: 'relayProxy.relayPoll',          method: 'GET',    path: '/api/generate/{frontTaskId}', envelope: 'code-data', status: 'ACTIVE' },
   generateCancel:        { fn: 'relayProxy.relayCancel',        method: 'POST',   path: '/api/generate/{frontTaskId}/cancel', envelope: 'code-data', status: 'ACTIVE' },

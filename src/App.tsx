@@ -37,10 +37,12 @@ import { useCanvasShortcuts } from './hooks/useCanvasShortcuts.ts'
 import { paletteCategories, getNodesByCategory, defaultNodeData, getPaletteNode, buildNodeTypeComponents } from './components/base/NodePalette.ts'
 import LodProvider, { useLod } from './components/base/lod.tsx'
 import ToastContainer from './components/base/ToastContainer.tsx'
+import ConfirmContainer from './components/base/ConfirmContainer.tsx'
 import SettingsFrame from './components/base/settings/SettingsFrame.tsx'
 import AccountsSettings from './components/base/settings/sections/AccountsSettings.tsx'
 import TopNav from './components/base/TopNav.tsx'
 import { showToast } from './components/base/toastStore.ts'
+import { askConfirm } from './components/base/confirmStore.ts'
 import { getSetting, setSetting } from './components/base/appSettings.ts'
 import { subscribe } from './components/base/eventBus.ts'
 import { setAgentKey } from './components/agent/index.ts'
@@ -381,14 +383,21 @@ function Canvas() {
     logger.info('项目', 'create', { name: getCurrentProject().name })
   }, [setNodes, setEdges, history, persistCanvas, syncAgentKey])
 
-  // 【推送到云端】收集本地全量配置/用户数据通过 CloudSyncEngine 推送（不含画布）。
+  // 【推送到云端】收集本地全量配置/用户数据 → 云端更新时先问用户 → CloudSyncEngine 推送（不含画布）。
+  // 确认统一走 confirmStore（全局唯一确认入口，弹窗由根节点的 ConfirmContainer 渲染）：
+  // 用户取消时 uploadConfig 返回 cancelled，不发起 push，云端保持原样。
   const handlePushToCloud = useCallback(async () => {
-    return uploadConfig((msg) => showToast(msg, { type: 'info' }))
+    return uploadConfig((msg) => showToast(msg, { type: 'info' }), {
+      onConfirm: (copy) => askConfirm(copy),
+    })
   }, [])
 
-  // 【从云端拉取】CloudSyncEngine.pull → 覆盖恢复配置/用户数据，延迟刷新让各 store 重新加载生效。
+  // 【从云端拉取】CloudSyncEngine.pull → 有本地项会被覆盖时先列清单问用户 → 覆盖恢复配置/用户数据，
+  // 延迟刷新让各 store 重新加载生效。
   const handlePullFromCloud = useCallback(async () => {
-    const r = await downloadConfig((msg) => showToast(msg, { type: 'info' }))
+    const r = await downloadConfig((msg) => showToast(msg, { type: 'info' }), {
+      onConfirm: (copy) => askConfirm(copy),
+    })
     if (r.ok) {
       setTimeout(() => window.location.reload(), 1200)
     }
@@ -1518,6 +1527,8 @@ export default function App() {
       </ReactFlowProvider>
       {/* 统一通知容器（顶部居中，配合 toastStore.showToast 使用） */}
       <ToastContainer />
+      {/* 统一确认弹窗容器（配合 confirmStore.askConfirm 使用：云同步覆盖确认等） */}
+      <ConfirmContainer />
     </>
   )
 }

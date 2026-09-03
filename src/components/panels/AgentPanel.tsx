@@ -13,8 +13,8 @@ import { toAbsoluteFileUrl } from '../base/api/index.ts'
 import { fileToDataUrl } from '../base/imageUrl.ts'
 import { runNodeGeneration } from '../base/taskStore.ts'
 import { showToast } from '../base/toastStore.ts'
+import { askConfirm } from '../base/confirmStore.ts'
 import { logger } from '../base/logger.ts'
-import { AGENT_MODELS } from '../base/config.ts'
 import previewUrls from '../base/previewUrl.ts'
 import { subscribe } from '../base/eventBus.ts'
 import { CREDIT_GATE_EVENT } from '../base/contracts.ts'
@@ -34,7 +34,7 @@ import { CREDIT_GATE_EVENT } from '../base/contracts.ts'
  * ════════════════════════════════════════════════════════════════
  */
 
-// 模型列表从 config.ts 读取（env VITE_AGENT_MODELS 可覆盖）
+// 模型列表来自所选厂商在设置里实际配置的 chat_models（不再用 AGENT_MODELS 兜底）
 const PANEL_WIDTH_KEY = 'agent_panel_width'
 const AGENT_DRAFT_KEY = 'agent_draft'
 const MIN_WIDTH = 320
@@ -84,10 +84,10 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
     return providers?.find((p) => p.id === 'modelscope') || primary || null
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [providers, primary, chatModelVersion])
-  // AI 助手的可选模型：该 provider 的 chat_models；无则内置列表兜底
+  // AI 助手的可选模型：只用该 provider 在设置里实际配置的 chat_models。
+  // 不拿硬编码 AGENT_MODELS 兜底——未配置的模型不应在 AI 助手设置里出现（用户裁定）。
   const agentModels = useMemo(() => {
-    const fromProvider = (agentProvider?.chat_models || []).map((m) => m.id || m.label || m).filter(Boolean)
-    return fromProvider.length > 0 ? fromProvider : AGENT_MODELS
+    return (agentProvider?.chat_models || []).map((m) => m.id || m.label || m).filter(Boolean)
   }, [agentProvider])
   // AI 助手默认模型：优先「设置」里指定的聊天模型（用户显式选择，应直接生效，不依赖 providers 是否加载）；
   // 否则该 provider 第一个模型兜底。修复：刷新时 providers 异步加载，首次渲染若 providers 为空，
@@ -588,8 +588,9 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
     })
   }
 
-  const handleClear = () => {
-    if (window.confirm('清空当前会话的所有消息？')) clear()
+  // 确认统一走 confirmStore（D8 横切收敛：替代 window.confirm）
+  const handleClear = async () => {
+    if (await askConfirm({ title: '清空当前会话的所有消息？', confirmText: '清空', danger: true })) clear()
   }
 
   const focusTextarea = () => textareaRef.current?.focus()
@@ -690,7 +691,7 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
                       </button>
                       <button
                         type="button"
-                        onClick={(e) => { e.stopPropagation(); if (window.confirm(`删除对话「${title}」？`)) { deleteChat(c.id); setChatListOpen(false) } }}
+                        onClick={async (e) => { e.stopPropagation(); if (await askConfirm({ title: `删除对话「${title}」？`, confirmText: '删除', danger: true })) { deleteChat(c.id); setChatListOpen(false) } }}
                         className="shrink-0 p-1 text-muted-2 hover:text-red-400 hover:bg-surface rounded transition-colors opacity-0 group-hover:opacity-100"
                         title="删除对话"
                       >

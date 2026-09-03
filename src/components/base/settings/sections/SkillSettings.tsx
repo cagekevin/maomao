@@ -2,6 +2,7 @@ import React, { useMemo, useRef, useState, useEffect } from 'react'
 import { Search, Plus, Bot, Sparkles, Upload, Download, Pencil, MoreHorizontal, X, Trash2 } from 'lucide-react'
 import { getAllSkills, readCustomSkills, upsertCustomSkill, deleteCustomSkill, isSkillEnabled, setSkillEnabled, getAllEnabledMap } from '../../skillStore.ts'
 import { showToast } from '../../toastStore.ts'
+import { askConfirm } from '../../confirmStore.ts'
 import { downloadBlob } from '../../clipboard.ts'
 import { createImeInput } from '../../utils.ts'
 import { Toggle } from '../Toggle'
@@ -139,9 +140,11 @@ export default function SkillSettings() {
     showToast('Skill 已保存', { type: 'success' })
   }
 
-  const handleDelete = () => {
+  // 确认统一走 confirmStore（D8 横切收敛：替代 window.confirm）
+  const handleDelete = async () => {
     if (!selected || selected.builtin) return
-    if (!window.confirm(`删除 Skill「${selected.name}」？`)) return
+    const ok = await askConfirm({ title: `删除 Skill「${selected.name}」？`, confirmText: '删除', danger: true })
+    if (!ok) return
     const res = deleteCustomSkill(selected.id)
     if (!res.ok) {
       showToast(`Skill 删除失败：${res.error}`, { type: 'error' })

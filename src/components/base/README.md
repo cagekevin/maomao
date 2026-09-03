@@ -13,6 +13,7 @@
 | `eventBus.ts`     | 事件广播唯一入口                                                                                      |
 | `logger.ts`       | 日志/上报唯一入口                                                                                     |
 | `toastStore.ts`   | 提示唯一入口                                                                                        |
+| `confirmStore.ts` | 确认弹窗唯一入口（`askConfirm` → `Promise<boolean>`，与 toastStore 同形：模块级 store + 全局容器渲染） |
 | `idGen.ts`        | ID 生成唯一入口                                                                                     |
 | `utils.ts`        | 通用纯工具集合（deepClone/debounce/throttle…）                                                         |
 
@@ -43,7 +44,7 @@
 
 ## 七、纯 UI 组件（通用展示基座，被多节点/App 复用）
 
-`NodeShell` `ModelSelect` `LazyImage` `NodeTitle` `ToolbarButton` `Select` `ToastContainer` `ErrorBoundary` `ExpandablePanel` `ContextMenu` `CometParticles` `JianyingIcon` `VideoThumbnail` `ResizeFullscreenHandle` `GeneratingOverlay` `GenerateButton`
+`NodeShell` `ModelSelect` `LazyImage` `NodeTitle` `ToolbarButton` `Select` `ToastContainer` `ConfirmContainer` `ErrorBoundary` `ExpandablePanel` `ContextMenu` `CometParticles` `JianyingIcon` `VideoThumbnail` `ResizeFullscreenHandle` `GeneratingOverlay` `GenerateButton`
 
 ## 八、应用壳/大面板组件（只被 App.jsx 或单入口用）
 

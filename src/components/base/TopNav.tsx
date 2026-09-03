@@ -29,6 +29,8 @@ export interface SyncResult {
   ok: boolean
   count?: number
   error?: string
+  /** 用户在「是否覆盖」确认里选了取消 → 非错误，调用方应静默返回、不弹失败提示 */
+  cancelled?: boolean
 }
 
 export interface TopNavProps {
@@ -61,6 +63,7 @@ function TopNav({ view, onNavigate, onSwitchProject, onCreateProject, agentOpen,
     if (!onPushToCloud) { showToast('推送功能未接入', { type: 'info' }); return }
     try {
       const r = await onPushToCloud()
+      if (r?.cancelled) return // 用户取消覆盖：cloudSync 侧未做任何写操作，静默返回
       if (!r?.ok) showToast(r?.error || '推送失败', { type: 'error' })
       else showToast(`已推送到云端（${r.count} 项数据）`, { type: 'success' })
     } catch (e) {
@@ -73,6 +76,7 @@ function TopNav({ view, onNavigate, onSwitchProject, onCreateProject, agentOpen,
     if (!onPullFromCloud) { showToast('拉取功能未接入', { type: 'info' }); return }
     try {
       const r = await onPullFromCloud()
+      if (r?.cancelled) return // 用户取消覆盖：本地未被改写，静默返回
       if (!r?.ok) showToast(r?.error || '拉取失败', { type: 'error' })
       else showToast(`已从云端拉取（${r.count} 项数据）`, { type: 'success' })
     } catch (e) {

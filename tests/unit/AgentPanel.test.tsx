@@ -21,7 +21,7 @@
  */
 import React from 'react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent, within, act } from '@testing-library/react'
+import { render, screen, fireEvent, within, act, waitFor } from '@testing-library/react'
 
 // ── 可控 hoisted 状态 ──
 const h = vi.hoisted(() => {
@@ -42,6 +42,11 @@ const h = vi.hoisted(() => {
   const sendImageMode = vi.fn(async () => ({ ok: true }))
   const stop = vi.fn()
   const clear = vi.fn()
+  // 统一确认层（confirmStore.askConfirm）可控答案。
+  // 真实弹窗要 ConfirmContainer 渲染并点按钮才结算，测试环境没挂容器 → 直接给答案，
+  // 否则 `await askConfirm(...)` 永久挂起，用例会以「超时/假通过」形式失败。
+  let confirmAnswer = true
+  const askConfirm = vi.fn(() => Promise.resolve(confirmAnswer))
   const setModel = vi.fn()
   const newChat = vi.fn()
   const switchChat = vi.fn()
@@ -73,6 +78,7 @@ const h = vi.hoisted(() => {
 
   return {
     useAgentChat, setModel, send, stop, clear, newChat, switchChat, deleteChat,
+    askConfirm, setConfirmAnswer: (a) => { confirmAnswer = a },
     markSkillUsed, showToast, setCurrentSnapshot, setCurrentRunMode, setAwaitingConfirm, getCurrentRunMode,
     getWorkMode, setWorkMode, RUN_MODE_IDS,
     contentSubscribe, subscribeCbs, AGENT_CHAT_MODEL_KEY,
@@ -130,6 +136,8 @@ vi.mock('../../src/components/agent/conversation/conversationStore.ts', () => ({
 }))
 vi.mock('../../src/components/base/taskStore.ts', () => ({ runNodeGeneration: vi.fn() }))
 vi.mock('../../src/components/base/toastStore.ts', () => ({ showToast: (...a) => h.showToast(...a) }))
+// 确认统一走 confirmStore（D8 收敛 window.confirm）：这里给可控答案，替代真实弹窗
+vi.mock('../../src/components/base/confirmStore.ts', () => ({ askConfirm: h.askConfirm }))
 vi.mock('../../src/components/base/logger.ts', () => ({ logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), log: vi.fn(), debug: vi.fn() } }))
 vi.mock('../../src/components/base/config.ts', () => ({ AGENT_MODELS: ['gpt-4o-mini'] }))
 vi.mock('../../src/components/base/previewUrl.ts', () => ({ default: { create: vi.fn(() => 'blob:x'), release: vi.fn() } }))
@@ -365,22 +373,23 @@ describe('AgentPanel — 对话管理', () => {
     expect(h.switchChat).toHaveBeenCalledWith('c2')
   })
 
-  it('点击清空对话 → confirm 后 clear', () => {
+  it('点击清空对话 → confirm 后 clear', async () => {
+    h.setConfirmAnswer(true)
     h.setAgentState({ messages: [{ id: 'm1', role: 'user', content: 'x' }] })
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
     render(<AgentPanel {...OPEN_PROPS} />)
     fireEvent.click(screen.getByTitle('清空对话'))
-    expect(h.clear).toHaveBeenCalled()
-    vi.mocked(window.confirm).mockRestore()
+    await waitFor(() => expect(h.clear).toHaveBeenCalled())
   })
 
-  it('清空对话取消确认 → 不 clear', () => {
+  it('清空对话取消确认 → 不 clear', async () => {
+    h.setConfirmAnswer(false)
     h.setAgentState({ messages: [{ id: 'm1', role: 'user', content: 'x' }] })
-    vi.spyOn(window, 'confirm').mockReturnValue(false)
     render(<AgentPanel {...OPEN_PROPS} />)
     fireEvent.click(screen.getByTitle('清空对话'))
+    // 先证明「确实弹了确认」：否则一旦 askConfirm 没结算（挂起），
+    // 下面的 not.toHaveBeenCalled 也会成立 → 退化成永不失败的假通过。
+    await waitFor(() => expect(h.askConfirm).toHaveBeenCalled())
     expect(h.clear).not.toHaveBeenCalled()
-    vi.mocked(window.confirm).mockRestore()
   })
 
   it('无消息 → 清空对话按钮禁用', () => {

@@ -12,6 +12,7 @@
 import { useSyncExternalStore } from 'react'
 import type { Ref } from 'react'
 import { contentGetAsync, contentSetAsync } from '../contentStore.ts'
+import { askConfirm } from '../confirmStore.ts'
 import { generateId } from '../idGen.ts'
 
 const STORAGE_KEY = 'yimao_accounts'
@@ -451,8 +452,14 @@ export async function saveEnvironment(auto = false): Promise<SaveEnvironmentResu
       cookies = [{ name: 'test', value: '123' }]
     }
 
-    // 空 Cookie → 确认（复刻官方 Sa L1907 `e.length === 0 && !confirm(...)`；手动分支 cookies 恒>0，仅扩展端抓取为 0 时触发）
-    if (cookies.length === 0 && !window.confirm('当前页面未检测到 Cookie，且未手动输入，确定要保存吗？')) {
+    // 空 Cookie → 确认（复刻官方 Sa L1907 `e.length === 0 && !confirm(...)`；手动分支 cookies 恒>0，仅扩展端抓取为 0 时触发）。
+    // 走 confirmStore：模块级 store 让 store 内也能直接 await 用户选择，
+    // 不必把「用户是否确认」当参数从 UI 层一路传进来（这正是选 store 而非 hook 范式的价值）。
+    if (cookies.length === 0 && !(await askConfirm({
+      title: '当前页面未检测到 Cookie，且未手动输入，确定要保存吗？',
+      confirmText: '仍要保存',
+      danger: true,
+    }))) {
       setState({ saving: false })
       return { ok: false, error: '' }
     }

@@ -121,6 +121,49 @@ export function compilePatternRegex(template: string): RegExp {
 }
 
 /**
+ * 稳定序列化（键排序的 JSON.stringify）—— 全项目「内容是否相同」判定的唯一序列化入口。
+ *
+ * 收口理由：JS 对象的键顺序不保证稳定，直接 `JSON.stringify(a) === JSON.stringify(b)`
+ * 会因键序不同误判「内容变了」，在云同步场景就是「明明一样却报冲突」。
+ * 凡需内容比对/指纹的地方一律走本函数，禁止就地 stringify（各写一份即产生第二种排序规则，
+ * 是误判的源头）。与 compilePatternRegex 同族，属通用工具层。
+ *
+ * @param value 任意可 JSON 化的值（对象/数组/原始值/undefined）
+ * @returns 键序稳定的字符串；同内容必得同串
+ */
+export function stableStringify(value: unknown): string {
+  if (value === undefined) return 'null'
+  if (value === null || typeof value !== 'object') return JSON.stringify(value)
+  if (Array.isArray(value)) return `[${value.map(stableStringify).join(',')}]`
+  const obj = value as Record<string, unknown>
+  const keys = Object.keys(obj).sort()
+  return `{${keys.map((k) => `${JSON.stringify(k)}:${stableStringify(obj[k])}`).join(',')}}`
+}
+
+/**
+ * 字符串 → 短指纹（FNV-1a 32 位，与 promptHubStore 的 signature 同族）。
+ * 用途：给大对象（云同步整包）算内容指纹存台账，避免把整包内容复制一份落盘。
+ * 返回 `长度:hash36`，长度参与签名以降低碰撞误判。
+ * @param input 待哈希字符串（应先经 stableStringify 稳定化）
+ */
+export function hashString(input: string): string {
+  let hash = 2166136261
+  for (let i = 0; i < input.length; i += 1) {
+    hash ^= input.charCodeAt(i)
+    hash = Math.imul(hash, 16777619)
+  }
+  return `${input.length}:${(hash >>> 0).toString(36)}`
+}
+
+/**
+ * 任意值 → 内容指纹（稳定序列化 + 哈希）。判定「数据改没改过」的标准做法。
+ * 同内容必得同指纹；内容任一处变化指纹必变（弱碰撞概率忽略）。
+ */
+export function contentFingerprint(value: unknown): string {
+  return hashString(stableStringify(value))
+}
+
+/**
  * 时间格式化。opts：
  *  - 默认 `{ locale: 'zh-CN' }` → `new Date(ts).toLocaleString('zh-CN', { hour12: false })`（TaskCenter）
  *  - `{ mode: 'time' }` → HH:mm:ss（logger）

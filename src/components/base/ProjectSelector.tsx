@@ -4,6 +4,7 @@ import { ChevronDown, Plus, MoreVertical, Pencil, Trash2 } from 'lucide-react'
 import { useProjects, createProject, switchProject, deleteProject, renameProject, getCurrentProject } from './projectStore.ts'
 import type { Project } from './projectStore.ts'
 import { showToast } from './toastStore.ts'
+import { askConfirm } from './confirmStore.ts'
 import { publish } from './eventBus.ts'
 
 /**
@@ -66,9 +67,16 @@ export default function ProjectSelector({ onSwitch, onCreate }: ProjectSelectorP
     showToast('项目名称已更新', { type: 'success' })
   }
 
-  const handleDelete = () => {
+  // 确认统一走 confirmStore（D8 横切收敛：替代 window.confirm，样式统一且可列出受影响内容）
+  const handleDelete = async () => {
     if (projects.length <= 1) { showToast('至少保留一个项目', { type: 'warning' }); return }
-    if (!window.confirm('确定删除此项目吗？')) return
+    const ok = await askConfirm({
+      title: `删除项目「${currentName}」？`,
+      message: '该项目下的画布内容会一并删除，且无法撤销。',
+      confirmText: '删除',
+      danger: true,
+    })
+    if (!ok) return
     deleteProject(currentProjectId)
     if (onSwitch) onSwitch(getCurrentProject().id)
   }
