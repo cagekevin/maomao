@@ -3,6 +3,7 @@
 > **目的**：让 AI 能**在一处读完一整条数据流链路**，不必在 core/api/store/utils/nodes/panels/hooks 之间乱猜、乱跳。
 > **依据**：每条链路的「边」由 `scripts/ts-migrate.mjs refs <file>` 机械实证（2026-09-04），非凭文件名猜测。
 > **物理归属**见 `src/components/base/README.md`；本文件只画链路与流向，**不决定文件位置**。查「文件实际被谁 import / 实际在哪」→ 跑 `refs <file>`。
+> **省消耗铁律**：改某条链路时，照本文件该链路的文件清单走 + 读对应文件头注释即可，**不需要**为搞清楚「这条链路在哪几个文件」启动子代理全库乱搜——这张图就是答案。真拿不准单文件归属时才跑 `refs` 一锤定音。
 
 ***
 
@@ -89,9 +90,43 @@ prompt/promptChips · prompt/promptMention（纯函数）
 
 ```
 director3d/* + director3d/d3dPersistence（工程持久化，回收自 base）
-depthVideo/engine · loader · path · spawn · DepthVideoModal
+depthVideo/engine · loader · depthUrls · spawn · DepthVideoModal
 editors/cameraStudio · CameraStudioPanel · PanoViewer
 ```
+
+***
+
+## localTool 后端（服务端 `localTool/`）职责与数据流
+
+前端（base/core/api）只是薄壳，真正的协议执行/落盘/任务常驻在 localTool 服务端（`:18080`），再经网关（`:9004`）到上游（Lovart 需 VPN）。前端 `contracts.ts apiRegistry` ↔ 后端 `router.ts` 双向互检（`check:api`）。
+
+**文件分层**
+
+- 入口/路由：`src/index.ts`、`src/router.ts`、`src/routes/*`（HTTP 端点层）
+
+- 生成引擎：`src/generateEngine.ts`(relayGenerate/relayChat/relayChatStream)
+
+- 异步任务句柄：`src/relay-poll.ts`（attach + 落库 + 重启恢复；red line：chat 绝不进 poller）
+
+- provider 框架：`src/ai-relay/`（protocol/engine 协议注入、generate.ts 各模态能力、providerCatalog/baseUrl/Endpoints、manifests 模型目录）
+
+- 配置/路径：`src/providerConfigStore.ts`(每平台一 JSON)、`src/paths.ts`(文件路径单源)、`src/version.ts`
+
+- 持久化：`src/db/database.ts`(tasks)、`src/utils/fileStore.ts` + `/files/` 落盘、`routes/kv.ts`
+
+**生成数据流（服务端）**
+
+```
+前端 base/api/relayProxy ─→ POST :18080 /api/generate
+   → routes/generate.ts（capability 分流，端点无 fetch/落盘，只透传）
+       ├─ chat：generateEngine.relayChatStream(SSE 打字机) / relayChat（同步）
+       └─ image/video：relay-poll 注册句柄（submit 即返 taskId，GET attach 收结果）
+   → generateEngine → ai-relay/（protocol kit + providerCatalog + generate.ts 能力）
+   → 出站：厂商直连 / 网关 :9004 → Lovart（需 VPN）
+   → 结果：saveRemoteUrl 落盘成本地 /files/ url → 统一 {code,data} 回前端
+```
+
+> 后端改名记录（2026-09-04）：`relay.ts`→`generateEngine.ts`(生成引擎，与 ai-relay 框架/relay-poll 区分)、`providerConfig.ts`→`providerConfigStore.ts`(用户配置存储，与 ai-relay/providerCatalog 内置目录区分)、`ai-relay/generate/index.ts`→`ai-relay/generate.ts`(摊平单文件目录)。
 
 ***
 
