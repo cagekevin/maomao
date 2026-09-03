@@ -125,5 +125,14 @@ infinite-canvas别人仓库学习专用/
 # 体积大且非本工程源码，整体忽略，避免嵌套仓库导致 add 失败。
 tools/
 
+# ── 本机推理模型资源（体积大/可重拉，不入库；仅 MANIFEST 与文档入库）──
+# localTool/runtime-models/ 下的大体积二进制：模型权重(.onnx) + 推理运行时(.wasm/.mjs/.js)。
+# 这些文件由 localTool/scripts/fetch-runtime-models.mjs 按 MANIFEST.json 重建，不纳入版本库。
+# 规范见 docs/95-本机推理模型资源-GitHub规范.md
+localTool/runtime-models/**/*.onnx
+localTool/runtime-models/**/*.wasm
+localTool/runtime-models/**/transformers*.js
+localTool/runtime-models/**/ort*.mjs
+
 # .codebuddy：保留 commands/(命令) 与 memory/ 入库；仅忽略 teams/ 运行态数据
 .codebuddy/teams/

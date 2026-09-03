@@ -115,7 +115,6 @@ node localTool/scripts/fetch-runtime-models.mjs depth-video
 
 # 仅校验是否已就绪（不下载），CI/启动前自检
 node localTool/scripts/fetch-runtime-models.mjs --check
-node localTool/scripts/fetch-runtime-models.mjs --check
 
 # 从本地集成源目录拷贝（默认 C:/Users/xinye/Downloads/depth-video-converter，或 env DEPTH_VIDEO_SRC）
 node localTool/scripts/fetch-runtime-models.mjs --from "D:/some/depth-video-converter"
@@ -132,13 +131,33 @@ TRANSFORMERS_VERSION=3.5.2 ONNXRUNTIME_VERSION=1.20.1 node localTool/scripts/fet
 
 ---
 
+## 6.1 阿里云盘镜像（首选自托管源，已落地）
+
+整套资源压成单个 `depth-video.zip`（约 377 MB，含 `depth-video/models/` 与 `depth-video/vendor/`）放在**资源盘** `/runtime-models/`。
+依赖 `pip install aligo`，首次 `python localTool/scripts/aliyun-models.py login` 扫码（登录态持久化 `~/.aligo`）。
+
+```bash
+# 换机一键还原：下载 zip → 解压到 localTool/runtime-models/
+python localTool/scripts/aliyun-models.py download depth-video
+# 本地资源更新后重新打包上传：
+python localTool/scripts/aliyun-models.py upload depth-video
+# 其它：ls 列出云端文件 / reset 清空云端（移入回收站）
+python localTool/scripts/aliyun-models.py ls
+python localTool/scripts/aliyun-models.py reset
+```
+
+> 选 zip 而非逐文件上传，是为绕开阿里云盘「请求太频繁」限流；解压即还原，sha256 由 MANIFEST 兜底校验。
+> 已实测：云端下载 → 解压 → 与 MANIFEST 22 个文件大小全部一致。
+
+---
+
 ## 7. 工作流
 
 ### 7.1 首次 / 换机 / 新 clone
 ```bash
 git clone <repo>
-node localTool/scripts/fetch-runtime-models.mjs            # 按 MANIFEST 重建 ~470MB 资源
-node localTool/scripts/fetch-runtime-models.mjs --check    # 确认就绪
+python localTool/scripts/aliyun-models.py download depth-video   # 从资源盘还原 ~377MB zip（推荐）
+node localTool/scripts/fetch-runtime-models.mjs depth-video --check   # 确认就绪
 ```
 
 ### 7.2 CI / 测试环境

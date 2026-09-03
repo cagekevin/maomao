@@ -26,7 +26,18 @@ node localTool/scripts/fetch-runtime-models.mjs depth-video --check
 ```
 
 ### 从哪里拉取（优先级）
-1. **本地集成源**（与你磁盘现有字节一致，推荐）：默认 `C:/Users/xinye/Downloads/depth-video-converter`，或环境变量 `DEPTH_VIDEO_SRC`，或用 `--from` 指定：
+0. **阿里云盘镜像（推荐，已上传）**：整套资源压成单个 `depth-video.zip`（约 377 MB）放在资源盘 `/runtime-models/`。
+   需先 `pip install aligo` 并 `python localTool/scripts/aliyun-models.py login` 扫码一次（登录态持久化）。
+   ```bash
+   # 换机一键还原：下载 zip 并解压到 localTool/runtime-models/（已存在同大小则跳过）
+   python localTool/scripts/aliyun-models.py download depth-video
+   # 解压后建议校验：node localTool/scripts/fetch-runtime-models.mjs depth-video --check
+
+   # 本地资源有更新时，重新打包上传：
+   python localTool/scripts/aliyun-models.py upload depth-video
+   ```
+   zip 内结构为 `depth-video/models/...` 与 `depth-video/vendor/...`，解压即还原，sha256 由 MANIFEST 兜底。
+1. **本地集成源**（与你磁盘现有字节一致）：默认 `C:/Users/xinye/Downloads/depth-video-converter`，或环境变量 `DEPTH_VIDEO_SRC`，或用 `--from` 指定：
    ```bash
    node localTool/scripts/fetch-runtime-models.mjs depth-video --from "D:/some/depth-video-converter"
    ```
@@ -38,7 +49,7 @@ node localTool/scripts/fetch-runtime-models.mjs depth-video --check
 
 ### 脚本行为
 - 每文件：已存在且 `size` + `sha256` 一致 → 跳过；否则本地镜像 → CDN；落盘后再 sha256 校验，不符即报错指路，不静默覆盖。
-- 拉取后会校验 13 个文件；`--check` 只报「就绪 / 缺失」不下载。
+- 拉取后会校验 22 个文件；`--check` 只报「就绪 / 缺失」不下载。
 
 ---
 
