@@ -11,7 +11,7 @@ import path from 'node:path';
 import { execSync } from 'node:child_process';
 import { createServer } from 'node:net';
 import { getDb, closeDb, getUploadDir, getDataDir, backupDb, startBackupSchedule } from './db/database.js';
-import { getEnvFile, getFrontendDistDir, getApimartGatewayEnv } from './paths.js';
+import { getEnvFile, getFrontendDistDir, getApimartGatewayEnv, getDepthVideoDir } from './paths.js';
 import { VERSION } from './version.js';
 import { sendError } from './utils/helpers.js';
 // 声明式路由表：所有具名路由集中在 router.ts，新增端点只加一行（详见 docs/11）
@@ -146,6 +146,72 @@ function handleStaticFile(req: http.IncomingMessage, res: http.ServerResponse, u
   return true;
 }
 
+// ── 本机推理资源服务（/depth-video/* 路径映射到 runtime-models/depth-video/，纯 GET）──
+// 之所以单独一个处理器而非并入 handleStaticFile：磁盘根不同（upload vs runtime-models），
+// 且要覆盖 .wasm/.mjs/.onnx 这类深度推理运行时专属 MIME。这部分是【纯本地模型宿主】，
+// 不触碰 /api/* 与 catch-all；只是浏览器运行时 import(绝对 URL) 读取 vendor/models 的宿主目录。
+function handleDepthResource(res: http.ServerResponse, urlPath: string): boolean {
+  if (!urlPath.startsWith('/depth-video/')) return false;
+
+  const depthDir = getDepthVideoDir();
+  // percent-encoded 解码（中文模型子目录名也可能被编码）
+  let relativePath = urlPath.replace(/^\/depth-video\//, '');
+  try {
+    relativePath = decodeURIComponent(relativePath);
+  } catch {
+    // 非法编码保留原样，交给下方 existsSync 判 404
+  }
+  const filePath = path.join(depthDir, relativePath);
+
+  // 安全检查：防止路径遍历（与 handleStaticFile 同款）
+  const resolvedPath = path.resolve(filePath);
+  if (!resolvedPath.startsWith(path.resolve(depthDir))) {
+    sendError(res, 'Forbidden', 403);
+    return true;
+  }
+
+  if (!fs.existsSync(resolvedPath)) {
+    sendError(res, 'File not found', 404);
+    return true;
+  }
+
+  if (fs.statSync(resolvedPath).isDirectory()) {
+    sendError(res, 'Is a directory', 400);
+    return true;
+  }
+
+  const ext = path.extname(resolvedPath).toLowerCase();
+  const mimeMap: Record<string, string> = {
+    '.js': 'application/javascript',
+    '.mjs': 'application/javascript',
+    '.wasm': 'application/wasm',       // onnxruntime wasm，跨源 import 需正确类型
+    '.json': 'application/json',
+    '.config': 'application/json',
+    '.php': 'text/plain',
+    '.txt': 'text/plain',
+    '.onnx': 'application/octet-stream',
+    '.bin': 'application/octet-stream',
+    '.safetensors': 'application/octet-stream',
+    '.npy': 'application/octet-stream',
+  };
+  const contentType = mimeMap[ext] || 'application/octet-stream';
+  const stat = fs.statSync(resolvedPath);
+
+  // 长缓存：vendor/models 是本地静态资源，首次拉取后走 HTTP 强缓存（D1：不做额外缓存层）
+  // CORS：前端可能从不同 origin 访问（如 vite dev localhost:5180），缺 CORS 头会导致
+  // transformers.js 跨源构造 depth-anything 的 processor（fetch 模型的 preprocessor json）被浏览器
+  // 拦截后静默失败 → pipeline(); this.processor 恒为 null，推理时抛 "this.processor is not a function"。
+  // 这些是公开静态资源，放开跨源读取安全无副作用。
+  res.writeHead(200, {
+    'Content-Type': contentType,
+    'Content-Length': stat.size,
+    'Cache-Control': 'public, max-age=31536000',
+    'Access-Control-Allow-Origin': '*',
+  });
+  fs.createReadStream(resolvedPath).pipe(res);
+  return true;
+}
+
 // ── 画布前端页面托管（dist/ 静态资源）──
 const DIST_DIR = getFrontendDistDir();
 const FRONTEND_MIME: Record<string, string> = {
@@ -188,6 +254,11 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
   // 静态文件服务
   if (method === 'GET' && pathname.startsWith('/files/')) {
     if (handleStaticFile(req, res, pathname)) return;
+  }
+
+  // 本机推理资源服务（纯 GET，未命中继续走下方具名路由/前端兜底/404）
+  if (method === 'GET' && pathname.startsWith('/depth-video/')) {
+    if (handleDepthResource(res, pathname)) return;
   }
 
   // 仅打印有意义的请求；高频轮询端点（见 SILENT_LOG_PATHS）静默处理

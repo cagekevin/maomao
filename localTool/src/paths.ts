@@ -47,3 +47,15 @@ export function getFrontendDistDir(): string {
 export function getApimartGatewayEnv(): string {
   return path.join(getRoot(), '..', 'apimart-gateway', '.env');
 }
+
+/**
+ * 本机推理资源根（vendor + models，供浏览器运行时按 URL 读）。
+ * 物理收进 localTool/runtime-models/（与 data/、logs/ 这类运行时目录并列），
+ * 当前工具再下一层 depth-video/；未来可并列 rembg/ 等工具子目录。
+ * 说明：浏览器 URL 保持简短的 /depth-video/*（见 index.ts 静态分支做 URL→物理根映射），
+ * 物理路径 ≠ URL 路径。models/（几十 MB 权重）已 .gitignore，不入库/CI。
+ * 与 getFrontendDistDir()/getLogsDir() 同构 —— 全部基于 getRoot() + MAOMAO_ROOT 覆盖。
+ */
+export function getDepthVideoDir(): string {
+  return path.join(getRoot(), 'runtime-models', 'depth-video');
+}

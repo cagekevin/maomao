@@ -1,0 +1,164 @@
+{
+  "tool": "depth-video",
+  "description": "深度视频转换：浏览器端 transformers.js + onnxruntime-web 推理资源（vendor 运行时 + 三个深度模型权重）。",
+  "generatedAt": "2026-09-03",
+  "localMirror": {
+    "env": "DEPTH_VIDEO_SRC",
+    "default": "C:/Users/xinye/Downloads/depth-video-converter",
+    "note": "集成源目录，结构与 runtime-models/depth-video 对齐（含 vendor/ 与 models/）。脚本优先从此处拷贝以保证字节一致。"
+  },
+  "vendor": {
+    "transformers": {
+      "cdn": "https://cdn.jsdelivr.net/npm/@huggingface/transformers",
+      "versionEnv": "TRANSFORMERS_VERSION",
+      "note": "不钉版本时取 latest；若 CDN 版本漂移导致 sha256 不匹配，请设置 TRANSFORMERS_VERSION 钉死。"
+    },
+    "onnxruntime": {
+      "cdn": "https://cdn.jsdelivr.net/npm/onnxruntime-web",
+      "versionEnv": "ONNXRUNTIME_VERSION",
+      "note": "不钉版本时取 latest；若 sha256 不匹配，请设置 ONNXRUNTIME_VERSION 钉死。"
+    }
+  },
+  "files": [
+    {
+      "path": "depth-video/models/onnx-community/depth-anything-v2-small/onnx/model_q4f16.onnx",
+      "source": "https://huggingface.co/onnx-community/depth-anything-v2-small/resolve/main/onnx/model_q4f16.onnx",
+      "size": 19126267,
+      "sha256": "ECA72971AEA64216D767C70C534160DE53B5435B588D362BAC6DBD5A73F9BF1E"
+    },
+    {
+      "path": "depth-video/models/onnx-community/depth-anything-v2-small/onnx/model_quantized.onnx",
+      "source": "https://huggingface.co/onnx-community/depth-anything-v2-small/resolve/main/onnx/model_quantized.onnx",
+      "size": 27258801,
+      "sha256": "FCF51F1B230362B28690BB9D1809BF0431F29CAD20534E3F589BD7285547F20D"
+    },
+    {
+      "path": "depth-video/models/onnx-community/depth-anything-v2-small/config.json",
+      "source": "https://huggingface.co/onnx-community/depth-anything-v2-small/resolve/main/config.json",
+      "size": 38,
+      "sha256": "3AEE5B9BC4F711EE885C2526D871F0C8C6C8C4B26B8E04253D0167F6A83264F5"
+    },
+    {
+      "path": "depth-video/models/onnx-community/depth-anything-v2-small/preprocessor_config.json",
+      "source": "https://huggingface.co/onnx-community/depth-anything-v2-small/resolve/main/preprocessor_config.json",
+      "size": 461,
+      "sha256": "03576DB3C13DD0471FDF5F5E1428BEFCB95DE063FE699879150B293DC9E0A2C6"
+    },
+    {
+      "path": "depth-video/models/onnx-community/depth-anything-v2-small/quantize_config.json",
+      "source": "https://huggingface.co/onnx-community/depth-anything-v2-small/resolve/main/quantize_config.json",
+      "size": 3154,
+      "sha256": "758BD7D9943B790BB7896DFFF81E7043E46562558279EB2C3FD467279E3B22A5"
+    },
+    {
+      "path": "depth-video/models/Xenova/depth-anything-small-hf/onnx/model_q4f16.onnx",
+      "source": "https://huggingface.co/Xenova/depth-anything-small-hf/resolve/main/onnx/model_q4f16.onnx",
+      "size": 20336189,
+      "sha256": "DD2F330C2CF62FD056A0CBF9032F860D62F31F3074826F0D23DE3FFA7D3516E4"
+    },
+    {
+      "path": "depth-video/models/Xenova/depth-anything-small-hf/onnx/model_quantized.onnx",
+      "source": "https://huggingface.co/Xenova/depth-anything-small-hf/resolve/main/onnx/model_quantized.onnx",
+      "size": 27524771,
+      "sha256": "E4E2FFE9B0396EBD4A0C09B855762B186AAB338E79F76531B09777AAFC91DB84"
+    },
+    {
+      "path": "depth-video/models/Xenova/depth-anything-small-hf/config.json",
+      "source": "https://huggingface.co/Xenova/depth-anything-small-hf/resolve/main/config.json",
+      "size": 1020,
+      "sha256": "B5AB35D5107B16A6C1326D232DBB71BBCEA6215AE113381F429BAAE9AB558043"
+    },
+    {
+      "path": "depth-video/models/Xenova/depth-anything-small-hf/preprocessor_config.json",
+      "source": "https://huggingface.co/Xenova/depth-anything-small-hf/resolve/main/preprocessor_config.json",
+      "size": 437,
+      "sha256": "533B16A60445D7CAB5086D39B45F92BE45624B977972C62D5984D93E98366063"
+    },
+    {
+      "path": "depth-video/models/Xenova/depth-anything-small-hf/quantize_config.json",
+      "source": "https://huggingface.co/Xenova/depth-anything-small-hf/resolve/main/quantize_config.json",
+      "size": 948,
+      "sha256": "9379000C1FAE429606414BC0F1EA13D1F55F9DD7CE148851814D01DCE97B9FCA"
+    },
+    {
+      "path": "depth-video/models/Xenova/dpt-hybrid-midas/onnx/model_q4f16.onnx",
+      "source": "https://huggingface.co/Xenova/dpt-hybrid-midas/resolve/main/onnx/model_q4f16.onnx",
+      "size": 118219625,
+      "sha256": "9414439ED59A59778F4ABC2AEDA9975AFA98C48C2224848F82279F9BFCB4FDF7"
+    },
+    {
+      "path": "depth-video/models/Xenova/dpt-hybrid-midas/onnx/model_quantized.onnx",
+      "source": "https://huggingface.co/Xenova/dpt-hybrid-midas/resolve/main/onnx/model_quantized.onnx",
+      "size": 207787230,
+      "sha256": "E93AE95C198CD855C1F9119D09C9127498F07A357527F2D8821D4B412E2EF9A9"
+    },
+    {
+      "path": "depth-video/models/Xenova/dpt-hybrid-midas/config.json",
+      "source": "https://huggingface.co/Xenova/dpt-hybrid-midas/resolve/main/config.json",
+      "size": 9985,
+      "sha256": "D335C23439508D9BFB20B6FF3D194B458F4D07ECC0C42D5B5C3794F02425DD32"
+    },
+    {
+      "path": "depth-video/models/Xenova/dpt-hybrid-midas/preprocessor_config.json",
+      "source": "https://huggingface.co/Xenova/dpt-hybrid-midas/resolve/main/preprocessor_config.json",
+      "size": 384,
+      "sha256": "2CF452E8E8AFEA318B4E21FA5DBED0927996982A979617CFDC26A3F4665CBD0D"
+    },
+    {
+      "path": "depth-video/models/Xenova/dpt-hybrid-midas/quantize_config.json",
+      "source": "https://huggingface.co/Xenova/dpt-hybrid-midas/resolve/main/quantize_config.json",
+      "size": 1044,
+      "sha256": "76836B0CC81F54633E0102F7CAB15A1F96F974EC12BD670C184F14395EA27132"
+    },
+    {
+      "path": "depth-video/vendor/onnxruntime/ort-wasm-simd-threaded.asyncify.mjs",
+      "group": "onnxruntime",
+      "dist": "dist/ort-wasm-simd-threaded.asyncify.mjs",
+      "size": 47389,
+      "sha256": "5959C6733039619C9AF710D8E1BAE8D6E84402787990637BE987C2B1BD6C5FA9"
+    },
+    {
+      "path": "depth-video/vendor/onnxruntime/ort-wasm-simd-threaded.asyncify.wasm",
+      "group": "onnxruntime",
+      "dist": "dist/ort-wasm-simd-threaded.asyncify.wasm",
+      "size": 23567050,
+      "sha256": "E0C0C6D3E73D43B8A249972F8358F845B08CC16FEC3C80EFAFDF8BED40366786"
+    },
+    {
+      "path": "depth-video/vendor/onnxruntime/ort-wasm-simd-threaded.jsep.mjs",
+      "group": "onnxruntime",
+      "dist": "dist/ort-wasm-simd-threaded.jsep.mjs",
+      "size": 46490,
+      "sha256": "522B3769929F5684C83A12CF1E06EEDF073B65D161728B4F3757C75D62B14384"
+    },
+    {
+      "path": "depth-video/vendor/onnxruntime/ort-wasm-simd-threaded.jsep.wasm",
+      "group": "onnxruntime",
+      "dist": "dist/ort-wasm-simd-threaded.jsep.wasm",
+      "size": 26101073,
+      "sha256": "AE61141F8FBF0A4E43FD7B4F4D40A1A115627F6FACC4F33DDF84074A655E33EA"
+    },
+    {
+      "path": "depth-video/vendor/onnxruntime/ort.webgpu.bundle.min.mjs",
+      "group": "onnxruntime",
+      "dist": "dist/ort.webgpu.bundle.min.mjs",
+      "size": 112901,
+      "sha256": "2EC70F685749470635E64DD142C2510DC13B37BB593D9CD6AB4F8923E5204479"
+    },
+    {
+      "path": "depth-video/vendor/transformers/transformers.web.min.js",
+      "group": "transformers",
+      "dist": "dist/transformers.web.min.js",
+      "size": 431652,
+      "sha256": "0A96DCF4C48981B7D05F53827E6975EC239132606AD0D526BBC2DB0FCDBC4DED"
+    },
+    {
+      "path": "depth-video/vendor/transformers/transformers.min.js",
+      "group": "transformers",
+      "dist": "dist/transformers.min.js",
+      "size": 558373,
+      "sha256": "E74BD32ED4453369EBB0EDCAA27F6BC6204004A949A0233CDB87B62DDA8D6978",
+      "note": "集成源自带、当前未引用（app.js 只用 transformers.web.min.js），保留作兜底。"
+    }
+  ]
+}

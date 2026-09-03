@@ -1,6 +1,6 @@
 import React, { useState, useRef, useCallback } from 'react'
 import {
-  Image as ImageIcon, Video, Music, FileText, Plus, Send, Download, Camera
+  Image as ImageIcon, Video, Music, FileText, Plus, Send, Download, Camera, Layers
 } from 'lucide-react'
 import { useReactFlow } from '@xyflow/react'
 import NodeShell from '../base/NodeShell.tsx'
@@ -21,6 +21,9 @@ import { showToast, toastError } from '../base/toastStore.ts'
 import { sendToAssetLibrary } from '../base/assetStore.ts'
 import { openAssetLibrary } from '../base/taskStore.ts'
 import CameraStudioPanel from '../base/CameraStudioPanel.tsx'
+import { useCanvasEdges } from '../base/CanvasEdgesContext.tsx'
+import { DepthVideoModal } from '../base/DepthVideoModal.tsx'
+import { spawnDepthVideoNode } from '../base/depthVideo/spawn.ts'
 import { injectNodePrefs } from '../base/nodePrefs.ts'
 import { generateId } from '../base/idGen.ts'
 import type { CameraStudioResult } from '../base/cameraStudio.ts'
@@ -57,8 +60,11 @@ function ImageNode({ id, data, selected }: ImageNodeProps) {
   const fileRef = useRef<HTMLInputElement | null>(null)
   // 读取端兜底：相对 /files/ 路径统一补全为绝对 URL，刷新不破图
   const url = toAbsoluteFileUrl(data.imageUrl || data.url || '') || ''
-  const { setNodes, getNodes, setEdges, addNodes, addEdges } = useReactFlow()
+  const { setNodes, getNodes, getNode, getEdges, setEdges, addNodes, addEdges } = useReactFlow()
   const [isCameraStudioOpen, setIsCameraStudioOpen] = useState(false)
+  // 深度转视频弹窗开关 + 画布历史（undo）：供 spawnDepthVideoNode 原子提交，复用 DiscountVideoNode 范式
+  const [depthOpen, setDepthOpen] = useState(false)
+  const history = useCanvasEdges()
   // 订阅「画布显示缩略图」设置：显示地址实时随开关（见 docs/18）
   const render = useRenderImageResolver()
 
@@ -226,6 +232,7 @@ function ImageNode({ id, data, selected }: ImageNodeProps) {
       onClick: () => fileRef.current?.click()
     },
     { key: 'cameraStudio', icon: <Camera size={14} />, title: '摄影棚', show: type === 'image', onClick: () => setIsCameraStudioOpen(true) },
+    { key: 'depth', icon: <Layers size={14} />, title: '转深度视频', hoverClass: 'hover:text-sky-400', show: type === 'video' && !!url, onClick: () => setDepthOpen(true) },
     ...imageButtons,
     {
       key: 'send',
@@ -253,6 +260,7 @@ function ImageNode({ id, data, selected }: ImageNodeProps) {
       icon={titleIcon}
       selected={selected}
       handleVariant="small"
+      sourceHandleId="main-output"
       aspectRatio={null}
       onRename={rename}
       className="min-w-[120px] min-h-[80px]"
@@ -344,6 +352,19 @@ function ImageNode({ id, data, selected }: ImageNodeProps) {
     {/* 查看大图：共享 ImageZoomDialog。
         图片→kind="image" 看海报/大图；视频→kind="video" 统一走视频播放预览（含截屏按钮） */}
     <ImageZoomDialog ref={dialogRef} url={type === 'video' ? url : displayUrl} kind={type === 'video' ? 'video' : 'image'} />
+
+    {/* 深度转视频弹窗：视频态可转，产出落盘后 spawn 下游深度视频节点（链式） */}
+    {depthOpen && type === 'video' && url && (
+      <DepthVideoModal
+        videoUrl={url}
+        name={data.label || url.split('/').pop() || '视频'}
+        onClose={() => setDepthOpen(false)}
+        onSave={(outUrl, outName) => {
+          spawnDepthVideoNode(id, outUrl, outName, { getNode, getNodes, getEdges, setNodes, setEdges, history })
+          setDepthOpen(false)
+        }}
+      />
+    )}
 
     {/* 摄影棚面板 */}
     <CameraStudioPanel

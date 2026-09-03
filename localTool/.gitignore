@@ -9,5 +9,13 @@ localtool_18080.err.log
 # 编译产物
 dist/
 
+# 本机推理资源（深度转视频）整体不入库，本地手动铺 / 下载：
+#  - models/：几十 MB 权重
+#  - vendor/：transformers.js / onnxruntime 等第三方运行时（数 MB）
+#  - 顶层 MANIFEST.json / README.md：本机资源清单与说明
+# 原因：transformers.min.js 含有长标识符串，会被 GitHub 密钥扫描误报为 "Mistral AI API Key"，
+# 故整体 gitignore；运行时由 localTool(18080) 的 /depth-video/* 静态宿主提供，不进仓库、不影响 CI。
+runtime-models/
+
 # 测试运行输出（一次性重定向产物，非源码）
 test/*-out.txt

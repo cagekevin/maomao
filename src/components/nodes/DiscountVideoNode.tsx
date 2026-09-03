@@ -2,7 +2,7 @@ import React, { useState, useRef, useCallback, useMemo } from 'react'
 import { useReactFlow } from '@xyflow/react'
 import {
   Clapperboard, Plus, Expand, Download, Trash2, Play,
-  AlertCircle, Settings, Link as LinkIcon, RefreshCw, Coins
+  AlertCircle, Settings, Link as LinkIcon, RefreshCw, Coins, Layers
 } from 'lucide-react'
 import NodeShell from '../base/NodeShell.tsx'
 import HoverToolbar from '../base/HoverToolbar.tsx'
@@ -13,6 +13,9 @@ import ResizeFullscreenHandle from '../base/ResizeFullscreenHandle.tsx'
 import FullscreenEditor from '../base/FullscreenEditor.tsx'
 import GeneratingOverlay from '../base/GeneratingOverlay.tsx'
 import { NODE_AREA_FIXED_BASE_SIZE } from '../base/config.ts'
+import { useCanvasEdges } from '../base/CanvasEdgesContext.tsx'
+import { DepthVideoModal } from '../base/DepthVideoModal.tsx'
+import { spawnDepthVideoNode } from '../base/depthVideo/spawn.ts'
 import { downloadUrl, resolveDownloadFilename } from '../base/clipboard.ts'
 import PromptLibraryButton from '../base/PromptLibraryButton.tsx'
 import JianyingIcon from '../base/JianyingIcon.tsx'
@@ -87,7 +90,9 @@ function DiscountVideoNode({ id, data, selected }: DiscountVideoNodeProps) {
   const connected = useConnectedInputs(id)
   // 上游文本合并（多个文本节点自动聚合；data.texts 额外资产也并入），作为提示词的一部分
   const refTexts = [...(connected.texts || []), ...(data.texts?.length ? data.texts : [])]
-  const { setEdges, setNodes } = useReactFlow()
+  const { setEdges, setNodes, getNode, getNodes, getEdges } = useReactFlow()
+  // 画布历史（undo）：与 VideoProcessNode 的 spawn 语义一致，供 spawnDepthVideoNode 原子提交
+  const history = useCanvasEdges()
   // 标题改名 → 写回 data.label，让下游 @名 匹配 / 素材条显示跟随
   const rename = useCallback((name: string) => {
     setNodes((ns) => ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, label: name } } : n)))
@@ -148,6 +153,7 @@ function DiscountVideoNode({ id, data, selected }: DiscountVideoNodeProps) {
   // 卸载前 flush 最后一次待提交（避免防抖窗口内丢数据）
   React.useEffect(() => () => { debouncedPatch.current?.flush() }, [])
   const [videoUrl, setVideoUrl] = useState(data.videoUrl || '')
+  const [depthOpen, setDepthOpen] = useState(false)
   const [showRatioMenu, setShowRatioMenu] = useState(false)
 
   // 视频首帧封面（复刻官方 xi.jsx poster 机制）：未播放时只显示首帧封面、不加载视频本体，点击才加载播放
@@ -261,6 +267,13 @@ function DiscountVideoNode({ id, data, selected }: DiscountVideoNodeProps) {
           { key: 'fullscreen', icon: <Expand size={14} />, title: '全屏播放' },
           { key: 'download', icon: <Download size={14} />, title: '下载', onClick: handleDownload },
           {
+            key: 'depth',
+            icon: <Layers size={14} />,
+            title: '转深度视频',
+            hoverClass: 'hover:text-sky-400',
+            onClick: () => setDepthOpen(true)
+          },
+          {
             key: 'jianying',
             icon: <JianyingIcon size={14} />,
             title: '发送到剪映素材库',
@@ -287,6 +300,7 @@ function DiscountVideoNode({ id, data, selected }: DiscountVideoNodeProps) {
       className="min-w-[200px] min-h-[200px]"
       onRename={rename}
       handleVariant="small"
+      sourceHandleId="main-output"
     >
       {/* hover 操作栏（loading 时隐藏） */}
       {!loading && <HoverToolbar buttons={toolbarButtons} loading={false} />}
@@ -485,6 +499,19 @@ function DiscountVideoNode({ id, data, selected }: DiscountVideoNodeProps) {
 
       {/* 双击视频查看大图：原生 <dialog> + 系统原生 <video> 播放器 */}
       <ImageZoomDialog ref={zoomRef} url={zoomUrl} kind="video" />
+
+      {/* 转深度视频弹窗（无 iframe）：源 = 当前节点 videoUrl；onSave → spawn 下游 imageNode(mediaType:'video') 使链式可再转 */}
+      {depthOpen && videoUrl && (
+        <DepthVideoModal
+          videoUrl={videoUrl}
+          name={data.label || videoUrl.split('/').pop() || '视频'}
+          onClose={() => setDepthOpen(false)}
+          onSave={(url, outName) => {
+            spawnDepthVideoNode(id, url, outName, { getNode, getNodes, getEdges, setNodes, setEdges, history })
+            setDepthOpen(false)
+          }}
+        />
+      )}
     </NodeShell>
   )
 }

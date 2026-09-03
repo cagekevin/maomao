@@ -26,6 +26,10 @@ interface NodeShellProps {
   baseSize?: number
   handleVariant?: HandleVariant
   showHandles?: boolean
+  /** 右侧 source 端口的 handleId。
+      默认留空（React Flow 视为 null handle），关闭时不影响既有无 id 连边；
+      传 'main-output' 等值可让该节点作为固定契约的连线源头（如「转深度」spawn 写死 sourceHandle 的场景）。 */
+  sourceHandleId?: string
   showTitle?: boolean
   titleRight?: ReactNode
   onRename?: (label: string) => void
@@ -206,6 +210,7 @@ function NodeShell({
   baseSize = NODE_AREA_FIXED_BASE_SIZE,
   handleVariant = 'large',
   showHandles = true,
+  sourceHandleId,
   showTitle = true,
   titleRight,
   onRename,
@@ -290,7 +295,7 @@ function NodeShell({
         {showHandles && (
           <>
             <CustomHandle position="left" variant={handleVariant} />
-            <CustomHandle position="right" variant={handleVariant} />
+            <CustomHandle position="right" variant={handleVariant} handleId={sourceHandleId} />
           </>
         )}
       </div>
