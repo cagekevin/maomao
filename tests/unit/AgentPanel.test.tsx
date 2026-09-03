@@ -224,12 +224,6 @@ describe('AgentPanel — 消息发送', () => {
     expect((screen.getByTitle('发送') as HTMLButtonElement).disabled).toBe(true)
   })
 
-  it('快捷 chip → 直接发送该文案', () => {
-    render(<AgentPanel {...OPEN_PROPS} />)
-    fireEvent.click(screen.getByText('生成赛博朋克猫咪图'))
-    expect(h.send).toHaveBeenCalledWith('生成赛博朋克猫咪图', undefined)
-  })
-
   it('发送后 → 清空输入框', () => {
     render(<AgentPanel {...OPEN_PROPS} />)
     const ta = screen.getByPlaceholderText(/输入消息/) as HTMLTextAreaElement

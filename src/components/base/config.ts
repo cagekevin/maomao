@@ -119,7 +119,7 @@ export const DOWNLOAD_TIMEOUT = 30000
 export const VIDEO_DOWNLOAD_TIMEOUT = 60000
 /** 文件上传（filesApi.js） */
 export const UPLOAD_TIMEOUT = 30000
-/** 聊天/提示词生成总超时（chatProxy）：2 分钟，超时 abort 并复位 loading，避免动画无限挂起 */
+/** 聊天/提示词生成总超时（relayChat）：2 分钟，超时 abort 并复位 loading，避免动画无限挂起 */
 export const CHAT_TIMEOUT = 120000
 /** KV / 本地存储读写总超时（contentStore / conversationState / d3dPersistence / projectMemoryStore 共用） */
 export const KV_TIMEOUT = 8000
@@ -154,6 +154,9 @@ export const SCRIPT_IMAGE_TIMEOUT = GEN_TIMEOUT + 60000
 export const GEN_POLL_INTERVAL = 3000
 export const VIDEO_POLL_INTERVAL = 5000
 
+// ── 异步任务 relay 后端化（docs/90 R5）────────────────────────────
+// 前端 image/video 门面已硬切 relayGenerate（直连 /api/generate，后端 relay-poll 常驻轮询 + 落盘 /files/
+// + 写 result_url），chat 走 /api/relay。旧 proxyGenerate 出站已整文件退役（2026-09-03），不再有开关。
 // ── 并发上限 ────────────────────────────────────────────────────
 /** 生图同时真正触发上限（超出跳过，见 taskStore） */
 export const GEN_MAX_CONCURRENT = 6

@@ -5,7 +5,7 @@
  *   - official：readOfficialBase / 权益转发缓存 / stale 降级 / invalidate
  *   - passthrough：本地路径不转发 / 转发头构建 / 响应回传
  *   - agentChat：未配置 500 / 缺 messages 400 / SSE 透传 / 非 SSE 包装
- *   - system：handleProxy 协议翻译 / handleGatewayTask code 转换 / rewriteSelfGatewayUrl
+ *   - system：handleGatewayTask code 转换 / 400→404 归一
  *   - files：saveRemoteUrl（fileUrl 下载落盘）
  *
  * 运行：node --test test/*.test.js
@@ -416,72 +416,8 @@ test('agentChat·上游非 SSE → 包装成 data: 行', async () => {
 });
 
 // ══════════════════════════════════════════════════════════════
-// system：handleProxy 协议翻译 / handleGatewayTask
+// system：handleGatewayTask
 // ══════════════════════════════════════════════════════════════
-
-test('system·handleProxy JSON 形态剥 {code,data} 信封', async () => {
-  mockFetchOnce((url, init) => {
-    assert.match(url, /http:\/\/127\.0\.0\.1:9004\//, '本地代理应转发到 9004');
-    return jsonResponse({ code: 200, data: { url: 'result.jpg' } }, 200);
-  });
-  const res = makeRes();
-  await systemMod.handleProxy(makeJsonReq({ url: 'http://127.0.0.1:18080/api/v1/gateway/generate', method: 'POST', body: JSON.stringify({ prompt: 'x' }) }), res);
-  // 协议翻译：剥信封，前端拿 data
-  assert.deepEqual(parseResBody(res), { url: 'result.jpg' });
-});
-
-test('system·handleProxy JSON 缺 url → 400', async () => {
-  const res = makeRes();
-  await systemMod.handleProxy(makeJsonReq({ method: 'POST' }), res);
-  assert.equal(res.status, 400);
-});
-
-test('system·handleProxy 上游 400 + SSE 错误 → 剥壳透传真实 error（不再只显示状态码）', async () => {
-  mockFetchOnce(() => {
-    // 模拟上游非视觉模型拒绝 image_url：返回 400 + SSE 错误流
-    return new Response('data: {"error":{"message":"model does not support image_url"}}\n\ndata: [DONE]\n\n', {
-      status: 400,
-      headers: { 'content-type': 'text/event-stream' },
-    });
-  });
-  const res = makeRes();
-  await systemMod.handleProxy(
-    makeJsonReq({
-      url: 'http://127.0.0.1:9004/v1/chat/completions',
-      method: 'POST',
-      providerId: 'modelscope',
-      body: JSON.stringify({ model: 'x', messages: [{ role: 'user', content: [{ type: 'image_url', image_url: { url: 'http://x/a.png' } }] }] }),
-    }),
-    res
-  );
-  // 保留 400，且 body 剥 SSE 包裹、透传真实 error.message
-  assert.equal(res.status, 400);
-  assert.deepEqual(parseResBody(res), { error: { message: 'model does not support image_url' } });
-});
-
-test('system·handleProxy 上游 400 + JSON 错误 → 原样透传 status + body', async () => {
-  mockFetchOnce(() => {
-    return jsonResponse({ error: { message: 'invalid_request_error', code: 'bad_content' } }, 400);
-  });
-  const res = makeRes();
-  await systemMod.handleProxy(
-    makeJsonReq({ url: 'http://127.0.0.1:9004/v1/chat/completions', method: 'POST', providerId: 'modelscope', body: JSON.stringify({ model: 'x', messages: [] }) }),
-    res
-  );
-  assert.equal(res.status, 400);
-  assert.deepEqual(parseResBody(res), { error: { message: 'invalid_request_error', code: 'bad_content' } });
-});
-
-test('system·handleProxy 上游 2xx → 正常透传（4xx 分支不影响成功路径）', async () => {
-  mockFetchOnce(() => jsonResponse({ choices: [{ message: { content: 'ok' } }] }, 200));
-  const res = makeRes();
-  await systemMod.handleProxy(
-    makeJsonReq({ url: 'http://127.0.0.1:9004/v1/chat/completions', method: 'POST', providerId: 'modelscope', body: JSON.stringify({ model: 'x', messages: [] }) }),
-    res
-  );
-  assert.equal(res.status, 200);
-  assert.equal(parseResBody(res).choices[0].message.content, 'ok');
-});
 
 test('system·handleGatewayTask 转 code 200→1 且 400→404', async () => {
   let call = 0;

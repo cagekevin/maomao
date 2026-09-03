@@ -1,0 +1,61 @@
+/**
+ * protocol/variables — 声明式调用协议允许引用的变量名白名单。
+ *
+ * 与 AI-Canvas-tauri 的 modelProtocolVariables.ts 同源：协议模板只能引用
+ * 白名单里的受信变量，杜绝任意字段注入 / 越权读取。这里只导出引擎校验
+ * 实际需要的 PROTOCOL_VARIABLE_NAMES（类型相关的类别约束在 Node 侧省略）。
+ */
+
+/** 协议模板允许引用的变量名集合（供协议校验使用）。 */
+export const PROTOCOL_VARIABLE_NAMES = new Set([
+  'model',
+  'prompt',
+  'messages',
+  'stream',
+  'tools',
+  'toolChoice',
+  'temperature',
+  'response_format',
+  'size',
+  'aspectRatio',
+  'imageSize',
+  'seedanceResolution',
+  'width',
+  'height',
+  'n',
+  'frames8n1',
+  'fps',
+  'duration',
+  'generateAudio',
+  'audioVoice',
+  'audioFormat',
+  'audioSpeed',
+  'musicLyrics',
+  'musicTitle',
+  'musicBpm',
+  'imageWithRoles',
+  'firstImage',
+  'lastImage',
+  'referenceImageUrls',
+  'videoUrls',
+  'referenceVideoUrl',
+  'referenceVideoUrls',
+  'audioUrls',
+  'audioUrl',
+  'referenceAudioUrls',
+  'imageUrls',
+  'referenceUrls',
+  'inlineReferences',
+  'batchCount',
+  'frames',
+  'resolution',
+  'videoResolution',
+  'videoFrames',
+  'videoFps',
+  'seedanceRatio',
+  'seedanceDuration',
+  'videoOperation',
+  'videoInputMode',
+  'durationText',
+  'disableAudio',
+]);

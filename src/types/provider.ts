@@ -26,7 +26,7 @@ export interface GenerationProvider {
 
 /**
  * 生成/聊天统一结果信封：{ ok:true, url } / { ok:false, error }，
- * 聊天另含 content/aborted。对齐 proxyGenerate 的 ok/fail 契约。
+ * 聊天另含 content/aborted。对齐 relay（relayProxy）返回的 ok/fail 契约。
  */
 export interface GenerationResult {
   ok: boolean

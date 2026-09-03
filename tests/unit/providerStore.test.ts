@@ -7,9 +7,8 @@ vi.mock('react', () => ({
 }))
 
 // providerStore 依赖 settingsApi.providerApi（网络）与 kvStore.kvSet（落盘）。
-// 用 vi.mock 隔离两者；模块级 state 用 resetModules 重置。
-// 注意：vi.mock 工厂会被 hoist 到 import 之前，mock 函数必须用 vi.hoisted 声明，
-// 否则工厂闭包捕获的是 undefined。
+// 【新时代配置型】已删除 add/update/remove CRUD，测试种子一律经 load()（走 /api/providers 读配置型列表）。
+// 保留的核心契约断言：load 选主 / setPrimary 单 primary / test 连通 / fetchModels 拉取写入 / save 透传+KV。
 const h = vi.hoisted(() => ({
   mockGetProviders: vi.fn(),
   mockTestConnection: vi.fn(),
@@ -42,8 +41,16 @@ vi.mock('../../src/components/base/storage/kvStore.ts', () => ({
 }))
 
 
-describe('providerStore §4 供应商数据层', () => {
+describe('providerStore §4 供应商数据层（新时代配置型）', () => {
   let mod
+
+  /** 用 mock 的 /api/providers 种种子（配置型厂商），返回拉取后的 state。 */
+  async function seed(providers) {
+    h.mockGetProviders.mockResolvedValue({ data: { providers } })
+    await mod.load()
+    return mod.useProviders()
+  }
+
   beforeEach(async () => {
     vi.resetModules()
     h.mockGetProviders.mockReset()
@@ -58,81 +65,12 @@ describe('providerStore §4 供应商数据层', () => {
     mod = await import('../../src/components/base/settings/providerStore.ts')
   })
 
-  // ── 纯逻辑动作（不触网）──
-  describe('本地动作', () => {
-    it('add 追加空供应商并选中、标记 dirty', () => {
-      const n0 = mod.useProviders().providers.length
-      mod.add()
-      const s = mod.useProviders()
-      expect(s.providers).toHaveLength(n0 + 1)
-      expect(s.selectedId).toBe(s.providers[n0].id)
-      expect(s.dirty).toBe(true)
-      expect(s.providers[n0].name).toBe('新供应商')
-      expect(s.providers[n0].protocol).toBe('openai')
-    })
-
-    it('update 局部改字段并标 dirty', () => {
-      mod.add()
-      const id = mod.useProviders().selectedId
-      mod.update(id, { name: '改名', enabled: false })
-      const p = mod.useProviders().providers.find((x) => x.id === id)
-      expect(p.name).toBe('改名')
-      expect(p.enabled).toBe(false)
-      expect(p.protocol).toBe('openai') // 未动字段保留
-      expect(mod.useProviders().dirty).toBe(true)
-    })
-
-    it('select 切换选中并清 testResult', () => {
-      mod.add()
-      const id = mod.useProviders().selectedId
-      mod.select(id)
-      expect(mod.useProviders().selectedId).toBe(id)
-    })
-
-    it('setPrimary 仅一个 primary=true', () => {
-      mod.add()
-      mod.add()
-      const ids = mod.useProviders().providers.map((p) => p.id)
-      mod.setPrimary(ids[1])
-      const s = mod.useProviders()
-      expect(s.providers.filter((p) => p.primary)).toHaveLength(1)
-      expect(s.providers.find((p) => p.id === ids[1]).primary).toBe(true)
-    })
-
-    it('remove 删除目标，删的是主供应商则下个升任主', () => {
-      mod.add()
-      mod.add()
-      const ids = mod.useProviders().providers.map((p) => p.id)
-      mod.setPrimary(ids[0])
-      mod.remove(ids[0])
-      const s = mod.useProviders()
-      expect(s.providers.find((p) => p.id === ids[0])).toBeUndefined()
-      // ids[1] 升任 primary
-      expect(s.providers.find((p) => p.id === ids[1]).primary).toBe(true)
-      // selectedId 跟随
-      expect(s.selectedId).toBe(ids[1])
-    })
-
-    it('remove 不存在的 id 不崩', () => {
-      const n0 = mod.useProviders().providers.length
-      mod.remove('nope')
-      expect(mod.useProviders().providers).toHaveLength(n0)
-    })
-  })
-
-  // ── 异步动作（mock 网络/落盘）──
-  describe('网络动作', () => {
+  describe('load / select（配置型数据源）', () => {
     it('load 拉取列表并选中主供应商', async () => {
-      h.mockGetProviders.mockResolvedValue({
-        data: {
-          providers: [
-            { id: 'a', name: 'A', primary: false },
-            { id: 'b', name: 'B', primary: true },
-          ],
-        },
-      })
-      await mod.load()
-      const s = mod.useProviders()
+      const s = await seed([
+        { id: 'a', name: 'A', primary: false },
+        { id: 'b', name: 'B', primary: true },
+      ])
       expect(s.providers).toHaveLength(2)
       expect(s.selectedId).toBe('b') // 主供应商优先
       expect(s.dirty).toBe(false)
@@ -140,75 +78,80 @@ describe('providerStore §4 供应商数据层', () => {
     })
 
     it('load 无主供应商时选第一个', async () => {
-      h.mockGetProviders.mockResolvedValue({ data: { providers: [{ id: 'a', name: 'A' }] } })
-      await mod.load()
-      expect(mod.useProviders().selectedId).toBe('a')
+      const s = await seed([{ id: 'a', name: 'A' }])
+      expect(s.selectedId).toBe('a')
     })
 
+    it('select 切换选中并清 testResult', async () => {
+      const s = await seed([{ id: 'a', name: 'A' }, { id: 'b', name: 'B', primary: true }])
+      mod.select('a')
+      expect(mod.useProviders().selectedId).toBe('a')
+    })
+  })
+
+  describe('setPrimary（切哪个用哪个）', () => {
+    it('setPrimary 仅一个 primary=true', async () => {
+      await seed([{ id: 'a', name: 'A' }, { id: 'b', name: 'B' }])
+      mod.setPrimary('b')
+      const s = mod.useProviders()
+      expect(s.providers.filter((p) => p.primary)).toHaveLength(1)
+      expect(s.providers.find((p) => p.id === 'b').primary).toBe(true)
+      expect(s.dirty).toBe(true)
+    })
+  })
+
+  describe('test（连通性探测）', () => {
     it('成功写入 testResult', async () => {
-      mod.add()
-      const id = mod.useProviders().selectedId
+      await seed([{ id: 'a', name: 'A', protocol: 'openai' }])
       h.mockTestConnection.mockResolvedValue({ ok: true, latency: 12 })
-      await mod.test(id)
+      await mod.test('a')
       const s = mod.useProviders()
       expect(s.testResult).toEqual({ ok: true, latency: 12 })
       expect(s.testingId).toBeNull()
     })
 
     it('失败写入 error', async () => {
-      mod.add()
-      const id = mod.useProviders().selectedId
+      await seed([{ id: 'a', name: 'A' }])
       h.mockTestConnection.mockRejectedValue(new Error('conn refused'))
-      await mod.test(id)
-      const s = mod.useProviders()
-      expect(s.testResult).toEqual({ ok: false, error: 'conn refused' })
+      await mod.test('a')
+      expect(mod.useProviders().testResult).toEqual({ ok: false, error: 'conn refused' })
     })
 
     it('apimart 通用探测失败时用 probe-async 补全诊断（透传原始错误）', async () => {
-      mod.add()
-      const id = mod.useProviders().selectedId
-      // 设为 apimart 协议，且 test-connection 返回失败
-      mod.update(id, { protocol: 'apimart' })
+      await seed([{ id: 'a', name: 'A', protocol: 'apimart' }])
       h.mockTestConnection.mockResolvedValue({ ok: false, status: 0, error: '连接失败: Connect Timeout' })
       h.mockProbeAsync.mockResolvedValue({ ok: true, status: 400, stage: 'async_endpoint_ok', detail: 'Invalid task ID.' })
-      await mod.test(id)
-      const s = mod.useProviders()
-      // probe-async 确认异步端点存在 → 整体判 ok
+      await mod.test('a')
       expect(h.mockProbeAsync).toHaveBeenCalled()
-      expect(s.testResult.ok).toBe(true)
-      expect(s.testResult.stage).toBe('async_endpoint_ok')
+      expect(mod.useProviders().testResult.ok).toBe(true)
+      expect(mod.useProviders().testResult.stage).toBe('async_endpoint_ok')
     })
 
     it('apimart probe-async 本身抛错时保留 test-connection 原始信息（不覆盖）', async () => {
-      // 【R6 边角1】probe-async 失败（catch 空体）→ 保留 test-connection 的原始诊断，不被抹掉
-      mod.add()
-      const id = mod.useProviders().selectedId
-      mod.update(id, { protocol: 'apimart' })
+      await seed([{ id: 'a', name: 'A', protocol: 'apimart' }])
       h.mockTestConnection.mockResolvedValue({ ok: false, status: 0, error: '连接失败: Connect Timeout' })
       h.mockProbeAsync.mockRejectedValue(new Error('probe down'))
-      await mod.test(id)
-      const s = mod.useProviders()
-      expect(s.testResult).toEqual({ ok: false, status: 0, error: '连接失败: Connect Timeout' })
+      await mod.test('a')
+      expect(mod.useProviders().testResult).toEqual({ ok: false, status: 0, error: '连接失败: Connect Timeout' })
     })
+  })
 
+  describe('fetchModels / applyFetchedModels（拉模型写入）', () => {
     it('fetchModels 拉取结果暂存 fetchedModels（不直接写盘），applyFetchedModels 勾选后写入', async () => {
-      mod.add()
-      const id = mod.useProviders().selectedId
+      await seed([{ id: 'a', name: 'A', image_models: [], chat_models: [], video_models: [] }])
       h.mockFetchModels.mockResolvedValue({
         data: {
           image_models: [{ id: 'i1' }], chat_models: [{ id: 'c1' }, { id: 'c2' }], video_models: [], warning: null,
         },
       })
-      const res = await mod.fetchModels(id)
+      const res = await mod.fetchModels('a')
       expect(res.ok).toBe(true)
       expect(res.total).toBe(3)
-      // 先暂存，provider 未被直接改写
       const st = mod.useProviders().fetchedModels
-      expect(st).toMatchObject({ id, image_models: [{ id: 'i1' }], chat_models: [{ id: 'c1' }, { id: 'c2' }], video_models: [] })
-      expect(mod.useProviders().providers.find((x) => x.id === id).image_models).toEqual([])
-      // 勾选后写入并清暂存、标 dirty
-      mod.applyFetchedModels(id, { image_models: st.image_models, chat_models: st.chat_models, video_models: st.video_models })
-      const p = mod.useProviders().providers.find((x) => x.id === id)
+      expect(st).toMatchObject({ id: 'a', image_models: [{ id: 'i1' }], chat_models: [{ id: 'c1' }, { id: 'c2' }], video_models: [] })
+      expect(mod.useProviders().providers.find((x) => x.id === 'a').image_models).toEqual([])
+      mod.applyFetchedModels('a', { image_models: st.image_models, chat_models: st.chat_models, video_models: st.video_models })
+      const p = mod.useProviders().providers.find((x) => x.id === 'a')
       expect(p.image_models).toEqual([{ id: 'i1' }])
       expect(p.chat_models).toEqual([{ id: 'c1' }, { id: 'c2' }])
       expect(p.video_models).toEqual([])
@@ -217,57 +160,45 @@ describe('providerStore §4 供应商数据层', () => {
     })
 
     it('fetchModels 返回结构缺字段返回 ok=false', async () => {
-      mod.add()
-      const id = mod.useProviders().selectedId
+      await seed([{ id: 'a', name: 'A' }])
       h.mockFetchModels.mockResolvedValue({ data: { image_models: [{ id: 'i1' }] } }) // 缺 chat/video
-      const res = await mod.fetchModels(id)
+      const res = await mod.fetchModels('a')
       expect(res.ok).toBe(false)
     })
+  })
 
-    it('save 提交清洗后的 payload（api_key 仅在 _apiKey 非空且无 •• 时带上）', async () => {
-      mod.add()
-      const id = mod.useProviders().selectedId
-      // 模拟编辑：设置 _apiKey 与 _clearKey
-      mod.update(id, { _apiKey: 'sk-secret', _clearKey: false, name: '已改' })
-      h.mockSaveProviders.mockResolvedValue({ data: { providers: [{ id, name: '已改', primary: true }] } })
+  describe('save（透传 + 回退默认 KV）', () => {
+    it('save 透传整组 provider，剥离 key 通道字段，并把主供应商回写 active_api_endpoint', async () => {
+      await seed([{ id: 'a', name: 'A', primary: true, image_models: [{ id: 'm1' }] }])
+      h.mockSaveProviders.mockResolvedValue({ data: { providers: [{ id: 'a', name: 'A', primary: true }] } })
       const res = await mod.save()
       expect(res.ok).toBe(true)
-      // 校验 paylaod 构造
       const sent = h.mockSaveProviders.mock.calls[0][0]
       expect(Array.isArray(sent)).toBe(true)
-      const me = sent.find((p) => p.id === id)
-      expect(me.api_key).toBe('sk-secret')
-      expect(me.clear_key).toBeUndefined()
-      expect(me.name).toBe('已改')
+      const me = sent.find((p) => p.id === 'a')
+      // 透传保留模型等字段，且不带任何 key 通道
+      expect(me.image_models).toEqual([{ id: 'm1' }])
+      expect(me.api_key).toBeUndefined()
+      expect(me._apiKey).toBeUndefined()
+      expect(me._clearKey).toBeUndefined()
       // 主供应商回写 KV
-      expect(h.mockKvSet).toHaveBeenCalledWith('active_api_endpoint', expect.objectContaining({ providerId: id }))
-    })
-
-    it('save 当 _clearKey=true 带 clear_key，_apiKey 含 •• 不带走明文', async () => {
-      mod.add()
-      const id = mod.useProviders().selectedId
-      mod.update(id, { _apiKey: '••••••', _clearKey: true })
-      h.mockSaveProviders.mockResolvedValue({ data: { providers: [{ id }] } })
-      await mod.save()
-      const me = h.mockSaveProviders.mock.calls[0][0].find((p) => p.id === id)
-      expect(me.clear_key).toBe(true)
-      expect(me.api_key).toBeUndefined() // 含 •• 视为未改，不传
-    })
-
-    it('save 网络失败后返回 ok=false 带 error', async () => {
-      mod.add()
-      h.mockSaveProviders.mockRejectedValue(new Error('500'))
-      const res = await mod.save()
-      expect(res.ok).toBe(false)
-      expect(res.error).toBe('500')
+      expect(h.mockKvSet).toHaveBeenCalledWith('active_api_endpoint', expect.objectContaining({ providerId: 'a' }))
     })
 
     it('save 空 providers 时不写 active_api_endpoint（无主供应商）', async () => {
-      // 【R6 边角4】空 providers 时 primary 为 undefined，跳过 KV 回写
+      await seed([])
       h.mockSaveProviders.mockResolvedValue({ data: { providers: [] } })
       const res = await mod.save()
       expect(res.ok).toBe(true)
       expect(h.mockKvSet).not.toHaveBeenCalled()
+    })
+
+    it('save 网络失败后返回 ok=false 带 error', async () => {
+      await seed([{ id: 'a', name: 'A' }])
+      h.mockSaveProviders.mockRejectedValue(new Error('500'))
+      const res = await mod.save()
+      expect(res.ok).toBe(false)
+      expect(res.error).toBe('500')
     })
   })
 })

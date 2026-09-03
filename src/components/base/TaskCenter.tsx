@@ -1,9 +1,8 @@
 import React, { useState, useMemo, useRef } from 'react'
 import { Search, Filter, MoreVertical, Copy, Play, RotateCw, Trash2, X, RefreshCw, ChevronDown, Download, Image as ImageIcon } from 'lucide-react'
-import { useTasks, statusDotClass, statusLabel, typeLabel, removeTask, retryTask, clearTasksBy, clearAllTasks, type Task } from './taskStore.ts'
+import { statusLabel, typeLabel, removeTask, retryTask, clearTasksBy, clearAllTasks, type Task, useTasks, statusDotClass } from './taskStore.ts'
 import { logger } from './logger.ts'
 import { downloadUrl } from './clipboard.ts'
-import { pollOneTask } from './api/pollTask.ts'
 import { showToast } from './toastStore.ts'
 import { makeAssetDragProps } from '../../hooks/useAssetDragToCanvas.ts'
 import VideoThumbnail from './VideoThumbnail.tsx'
@@ -276,7 +275,6 @@ const TaskCard = React.memo(function TaskCard({ task, moreOpen, onToggleMore, on
               <div className="absolute right-0 top-full mt-1 bg-surface-1 border border-edge rounded-lg shadow-xl p-1 z-30 w-40 nowheel nopan nodrag">
                 {isCompleted && <MenuBtn icon={Download} label="下载结果" onClick={downloadResult} />}
                 <MenuBtn icon={RefreshCw} label="再来一次" onClick={onRetry} />
-                {!isActive && task.pollTaskId && <MenuBtn icon={RotateCw} label="刷新状态" onClick={() => pollOneTask(task)} />}
                 <MenuBtn icon={Copy} label="复制任务信息" onClick={onCopy} />
                 <div className="h-[1px] bg-surface-hover-strong my-1" />
                 <MenuBtn icon={Trash2} label="删除任务" onClick={onRemove} danger />

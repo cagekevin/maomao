@@ -631,7 +631,7 @@ export const apiRegistry = {
   kvGet:                 { fn: 'localToolApi.kvGet',                 method: 'GET',    path: '/api/kv/get',                 envelope: 'raw',      status: 'ACTIVE' },
   kvSet:                 { fn: 'localToolApi.kvSet',                 method: 'POST',   path: '/api/kv/set',                 envelope: 'code-data', status: 'ACTIVE' },
   kvDelete:              { fn: 'localToolApi.kvDelete',              method: 'POST',   path: '/api/kv/delete',              envelope: 'code-data', status: 'ACTIVE' },
-  /** providers 域 */
+  /** providers 域（配置型：每平台一个 JSON，localTool routes/providers.ts + providerConfig.ts） */
   getProviders:          { fn: 'localToolApi.providerApi.getProviders',      method: 'GET',  path: '/api/providers',                envelope: 'code-data', status: 'ACTIVE' },
   saveProviders:         { fn: 'localToolApi.providerApi.saveProviders',     method: 'PUT',  path: '/api/providers',                envelope: 'code-data', status: 'ACTIVE' },
   syncConfigBase:        { fn: 'localToolApi.providerApi.syncConfigBase',    method: 'PUT',  path: '/api/config/base',             envelope: 'code-data', status: 'ACTIVE' },
@@ -639,7 +639,12 @@ export const apiRegistry = {
   probeAsync:            { fn: 'localToolApi.providerApi.probeAsync',        method: 'POST', path: '/api/providers/probe-async',    envelope: 'probe',    status: 'ACTIVE' },
   fetchModels:           { fn: 'localToolApi.providerApi.fetchModels',       method: 'POST', path: '/api/providers/{id}/fetch-models', envelope: 'code-data', status: 'ACTIVE' },
   /** 代理 / 网关 / 系统 */
-  proxy:                 { fn: 'proxyGenerate.__proxyFetch + chatProxy', method: 'POST', path: '/api/proxy',                  envelope: 'sse',      status: 'ACTIVE' },
+  /** relay 异步生成（submit 即返 taskId + GET attach；句柄归 localTool relay-poll 常驻轮询）。
+   *  前端 image/video 已切（relayProxy.relayGenerate），2026-09-03 起 ACTIVE。
+   *  （旧 /api/proxy 已随 relay 迁移退役移除登记，proxyGenerate 整文件退役见 git 历史。） */
+  generateSubmit:        { fn: 'relayProxy.relaySubmit',         method: 'POST',   path: '/api/generate',               envelope: 'code-data', status: 'ACTIVE' },
+  generateGet:           { fn: 'relayProxy.relayPoll',          method: 'GET',    path: '/api/generate/{frontTaskId}', envelope: 'code-data', status: 'ACTIVE' },
+  generateCancel:        { fn: 'relayProxy.relayCancel',        method: 'POST',   path: '/api/generate/{frontTaskId}/cancel', envelope: 'code-data', status: 'ACTIVE' },
   gatewayTask:           { fn: 'pollTask.pollOneTask (跨进程)',       method: 'GET',    path: '/api/v1/gateway/task/{id}',   envelope: 'code-data', status: 'ACTIVE' },
   status:                { fn: 'useLocalToolStatus',                  method: 'GET',    path: '/api/status',                 envelope: 'probe',    status: 'ACTIVE' },
   logs:                  { fn: '统一日志总线（前端/各后端上报，source 区分）', method: 'POST',   path: '/api/logs',                   envelope: 'ok',       status: 'ACTIVE' },

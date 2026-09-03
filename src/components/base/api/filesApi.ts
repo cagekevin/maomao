@@ -188,6 +188,11 @@ async function sha1Hex(blob: Blob): Promise<string> {
  */
 export async function saveResultToTasks(url: string, type: string): Promise<string | null> {
   if (!url || url.startsWith('blob:')) return null // blob: 是本地临时地址，上传无意义（调用方应传 data:/http）
+  // 【relay 后端化】url 已是本机 /files/（relay-poll 后端已落盘 tasks 目录）→ 无需再落盘，直接返回原 url。
+  // 否则 uploadRemoteUrl 会把本机文件重新下载一份到 tasks → uploads/tasks 出现重复文件（M4-C4 / P0-C 双落盘洞）。
+  if (isLocalFileUrl(url)) {
+    return url
+  }
   const ext = EXT_BY_TYPE[type] || 'bin'
 
   try {

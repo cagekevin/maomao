@@ -223,13 +223,6 @@ describe('TaskCenter — 更多菜单操作', () => {
     expect(screen.queryByText('下载结果')).toBeNull()
     expect(screen.getByText('再来一次')).toBeTruthy()
   })
-
-  it('失败任务(有 pollTaskId) → 更多菜单显示「刷新状态」', () => {
-    h.setTasks([makeTask({ status: 'failed', pollTaskId: 'p1' })])
-    render(<TaskCenter />)
-    fireEvent.click(screen.getByTitle('更多操作'))
-    expect(screen.getByText('刷新状态')).toBeTruthy()
-  })
 })
 
 describe('TaskCenter — 大图预览', () => {

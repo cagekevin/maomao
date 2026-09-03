@@ -25,10 +25,11 @@ describe('config.ts §API_BASE 日志与配置', () => {
 
   it('所有 API 层统一从这里取 API_BASE（被引用）', async () => {
     // 硬证据：直接读 API 层源码，断言其 import 语句确实引用了 config.ts
-    // （videoApi.js 已薄壳化，config 消费方收敛到深模块 proxyGenerate.js）
+    // （proxyGenerate 已整文件退役（2026-09-03 relay 收口），chatApi/imageApi/videoApi 直连 relay
+    //   并消费 config.ts 的超时时长，故以 chatApi 为 config 消费端硬证据）
     // kvStore.js 的 KV 转发已收口到 localToolApi.js，不再直接依赖 config.ts，故不在硬证据清单
     const apiFiles = [
-      'api/proxyGenerate.ts', // 深模块化后收进 base/api/（2026-08-31）
+      'api/chatApi.ts', // relay 收口后 config 消费端（CHAT_TIMEOUT 等），2026-09-03 取代已退役的 proxyGenerate
       'api/localToolApi.ts',
       'api/filesApi.ts',
       'logger.ts', // logger 已 TS 化（本清单读源码断言引用 config.ts，路径后缀随改名同步）

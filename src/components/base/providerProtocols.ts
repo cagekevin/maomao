@@ -1,6 +1,7 @@
 /**
  * 前端可插拔协议适配器 —— 统一「前端目标 url」的拼装，替代散落在
- * proxyGenerate.buildTargetUrl / agentRuntime 内联判断的重复逻辑。
+ * modelProtocols / buildTargetUrl 参考来源（旧 proxyGenerate 出站已退役，2026-09-03 起前端直连 relay，
+ * 后端 ai-relay 内置目录为平台地址与协议的唯一真源）。
  * ------------------------------------------------------------
  * 目标：加一个新平台时，前端只需在此新增一个 adapter 并注册，
  * 所有调用方（生图/视频/聊天/AI助手）自动走新逻辑，不用逐个改。

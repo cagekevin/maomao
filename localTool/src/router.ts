@@ -36,7 +36,7 @@ import {
   handleResourcesDelete, handleResourcesClear, handleResourcesRescan,
   handleResourcesRename,
 } from './routes/resources.js';
-import { handleStatus, handleProxy, handleJianyingSend, handleGatewayTask } from './routes/system.js';
+import { handleStatus, handleJianyingSend, handleGatewayTask } from './routes/system.js';
 import { handleProjectsGet, handleProjectsSave } from './routes/projects.js';
 import { handlePluginManifest, handleWorkflowAppsByProject, handleBuiltin, handleModels } from './routes/platform.js';
 import {
@@ -47,10 +47,9 @@ import {
   handleOfficialUser, handleOfficialEntitlements, handleOfficialVipCheck, handleOfficialInvalidate,
 } from './routes/official.js';
 import { handleAgentChat } from './routes/agentChat.js';
-import {
-  handleProvidersGet, handleProvidersPut, handleProviderTest, handleProviderFetchModels,
-  handleProviderProbeAsync, handleConfigBasePut,
-} from './routes/providers.js';
+import { handleRelay } from './relay.js';
+import { handleGenerateSubmit, handleGenerateGet, handleGenerateCancel } from './routes/generate.js';
+import { handleProvidersGet, handleProvidersPut, handleConfigBasePut, handleProviderTest, handleProviderProbeAsync, handleProviderFetchModels } from './routes/providers.js';
 import { handlePassthrough } from './routes/passthrough.js';
 import {
   handleLocalPatchCrop, handleLocalPatchMerge, handleLocalPatchFingerprint,
@@ -106,17 +105,28 @@ const agentChatHandler: Handler = (req, res, url) => {
   return handleAgentChat(req, res, m ? m[1] : '');
 };
 
-const providerFetchModelsHandler: Handler = (req, res, url) => {
-  const m = url.pathname.match(/^\/api\/providers\/([^/]+)\/fetch-models$/);
-  return handleProviderFetchModels(req, res, m ? m[1] : '');
-};
-
 // ── 路由表（顺序即优先级）──
 export const routes: Route[] = [
   // ── 系统 ──
   { method: 'GET',  pattern: '/api/status', handler: handleStatus },
   { method: 'POST', pattern: '/api/logs',   handler: handleLogsPost },
   { method: 'GET',  pattern: '/api/logs/stream', handler: handleLogsStream },
+
+  // ── Relay（生成统一入口：前端发意图 → ai-relay 引擎 → 图片落盘 → 收口返回）──
+  { method: 'POST', pattern: '/api/relay', handler: handleRelay },
+
+  // ── Generate（异步生成：submit 即返 taskId + GET attach，句柄由 relay-poll 常驻轮询）──
+  { method: 'POST', pattern: '/api/generate', handler: handleGenerateSubmit },
+  { method: 'POST', pattern: /^\/api\/generate\/[^/]+\/cancel$/, handler: handleGenerateCancel },
+  { method: 'GET',  pattern: /^\/api\/generate\/[^/]+$/, handler: handleGenerateGet },
+
+  // ── Providers（配置型：一个平台一个 JSON，读 config/providers/；测连/拉模型委托 ai-relay）──
+  { method: 'GET',  pattern: '/api/providers', handler: handleProvidersGet },
+  { method: 'PUT',  pattern: '/api/providers', handler: handleProvidersPut },
+  { method: 'PUT',  pattern: '/api/config/base', handler: handleConfigBasePut },
+  { method: 'POST', pattern: '/api/providers/test-connection', handler: handleProviderTest },
+  { method: 'POST', pattern: '/api/providers/probe-async', handler: handleProviderProbeAsync },
+  { method: 'POST', pattern: /^\/api\/providers\/[^/]+\/fetch-models$/, handler: handleProviderFetchModels },
 
   // ── KV ──
   { method: 'GET',  pattern: '/api/kv/get',    handler: handleKvGet },
@@ -154,9 +164,6 @@ export const routes: Route[] = [
   { method: 'POST', pattern: '/api/resources/rescan', handler: handleResourcesRescan },
   { method: 'POST', pattern: '/api/resources/rename', handler: handleResourcesRename },
 
-  // ── 代理 ──
-  { method: 'POST', pattern: '/api/proxy', handler: handleProxy },
-
   // ── 特惠视频任务查询 ──
   { method: 'GET', pattern: /^\/api\/v1\/gateway\/task\/[^/]+$/, handler: handleGatewayTask },
 
@@ -177,14 +184,6 @@ export const routes: Route[] = [
   // AI 操控画布：A1 本地 Agent chat（SSE 透传）
   { method: 'POST', pattern: /^\/api\/agent\/([^/]+)\/chat$/, handler: agentChatHandler },
   { method: 'POST', pattern: '/api/official/entitlements/invalidate', handler: handleOfficialInvalidate },
-
-  // ── 多供应商 ──
-  { method: 'GET',  pattern: '/api/providers', handler: handleProvidersGet },
-  { method: 'PUT',  pattern: '/api/providers', handler: handleProvidersPut },
-  { method: 'PUT',  pattern: '/api/config/base', handler: handleConfigBasePut },
-  { method: 'POST', pattern: '/api/providers/test-connection', handler: handleProviderTest },
-  { method: 'POST', pattern: '/api/providers/probe-async', handler: handleProviderProbeAsync },
-  { method: 'POST', pattern: /^\/api\/providers\/([^/]+)\/fetch-models$/, handler: providerFetchModelsHandler },
 
   // ── 管理 ──
   { method: 'GET',  pattern: '/api/admin/stats',      handler: handleAdminStats },

@@ -1,0 +1,21 @@
+/**
+ * RunningHub 标准图片模型清单（从 AI-Canvas-tauri providers/runninghubImage.ts 的
+ * MODEL_ENDPOINTS 搬出）。均为图片生成模型，走 /openapi/v2/{endpoint} 异步任务协议。
+ */
+export const RUNNINGHUB_MODEL_MANIFEST: import('../types.js').CatalogModel[] = [
+  { id: 'nanobanana', name: 'NanoBanana', category: 'image', provider: 'runninghub-model', description: 'RunningHub NanoBanana 文生图' },
+  { id: 'rhart-image-v1', name: 'RHArt Image v1', category: 'image', provider: 'runninghub-model', description: 'RunningHub 标准图片 v1' },
+  { id: 'rhart-image-v1-official', name: 'RHArt Image v1 Official', category: 'image', provider: 'runninghub-model', description: 'RunningHub 官方图片 v1' },
+  { id: 'nanobanana-pro', name: 'NanoBanana Pro', category: 'image', provider: 'runninghub-model', description: 'RunningHub NanoBanana Pro' },
+  { id: 'rhart-image-n-pro', name: 'RHArt Image n-Pro', category: 'image', provider: 'runninghub-model', description: 'RunningHub 图片 n-Pro' },
+  { id: 'rhart-image-n-pro-official', name: 'RHArt Image n-Pro Official', category: 'image', provider: 'runninghub-model', description: 'RunningHub 官方图片 n-Pro' },
+  { id: 'nanobanana-2', name: 'NanoBanana 2', category: 'image', provider: 'runninghub-model', description: 'RunningHub NanoBanana 2（G31 Flash）' },
+  { id: 'rhart-image-n-g31-flash', name: 'RHArt Image n-G31 Flash', category: 'image', provider: 'runninghub-model', description: 'RunningHub G31 Flash 文生图' },
+  { id: 'rhart-image-n-g31-flash-official', name: 'RHArt Image n-G31 Flash Official', category: 'image', provider: 'runninghub-model', description: 'RunningHub 官方 G31 Flash' },
+  { id: 'gpt-image-2', name: 'GPT Image 2', category: 'image', provider: 'runninghub-model', description: 'RunningHub GPT Image 2' },
+  { id: 'rhart-image-g-2', name: 'RHArt Image g-2', category: 'image', provider: 'runninghub-model', description: 'RunningHub 图片 g-2' },
+  { id: 'rhart-image-g-2-official', name: 'RHArt Image g-2 Official', category: 'image', provider: 'runninghub-model', description: 'RunningHub 官方图片 g-2' },
+  { id: 'youchuan-v81', name: 'YouChuan v8.1', category: 'image', provider: 'runninghub-model', description: 'RunningHub 游川 v8.1 文生图' },
+  { id: 'youchuan-v7', name: 'YouChuan v7', category: 'image', provider: 'runninghub-model', description: 'RunningHub 游川 v7 文生图' },
+  { id: 'youchuan-v6', name: 'YouChuan v6', category: 'image', provider: 'runninghub-model', description: 'RunningHub 游川 v6 文生图' },
+];

@@ -1,45 +1,36 @@
 // @vitest-environment node
 /**
- * imageApi 单测（批 2，API 封装层）。
- * 覆盖：resolveImagePixel 查表与边界（纯函数）；generateImage sync 模式成功取 url；
- * 网络错误分支。策略：node + mock fetch(SSE reader) + mock imageUrl/taskStore。
+ * imageApi 单测（2026-09-03 relay 收口后重写）。
+ * generateImage 收 relayGenerate（直连 /api/generate），不再拼 /api/proxy genBody。
+ * 保留：resolveImagePixel 查表纯函数（复刻官方）；generateImage relay 意图组装 + 信封映射。
  */
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { jsonResp, sseResp } from './_testUtils.mjs'
-
-// setup.mjs 已把 globalThis.fetch 定义为共享 vi.fn（node 下原生 fetch 不可配置，见 _testUtils 踩坑 #1）。
-// TS 默认把 globalThis.fetch 当 typeof fetch（无 mock 方法），此处做类型对齐以启用 .mock* / mock.calls。
-const fetchMock = globalThis.fetch as unknown as ReturnType<typeof vi.fn>
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 
 vi.mock('../../src/components/base/imageUrl.ts', () => ({
   normalizeImageUrlsForSend: vi.fn(async () => []),
   toAbsoluteFileUrl: vi.fn((u) => u),
   normalizeImageUrl: vi.fn((u) => u),
   normalizeImageUrlForSend: vi.fn(async (u) => u),
-  toImageContentBlocks: vi.fn((u) => []),
+  toImageContentBlocks: vi.fn(() => []),
 }))
-vi.mock('../../src/components/base/taskStore.ts', () => ({
-  setTaskPollId: vi.fn(),
-  // S2-c：in-flight async 轮询前会 occupyOnly 占位注册，测试只需不崩即可（占位不影响单测轮询逻辑）
-  ensurePolling: vi.fn((taskId: string) => ({ taskId, stop: vi.fn() })),
-  stopPolling: vi.fn(),
+
+const h = vi.hoisted(() => ({
+  mockRelayGenerate: vi.fn(),
+}))
+vi.mock('../../src/components/base/api/relayProxy.ts', () => ({
+  relayGenerate: (...a) => h.mockRelayGenerate(...a),
 }))
 
 const api = await import('@/components/base/api/imageApi.ts')
 const { normalizeImageUrlsForSend } = await import('../../src/components/base/imageUrl.ts')
-const { setTaskPollId } = await import('../../src/components/base/taskStore.ts')
 
 beforeEach(() => {
-  // mockReset 清掉上个用例遗留的 mockResolvedValueOnce / mockRejectedValueOnce 队列
-  fetchMock.mockReset()
+  h.mockRelayGenerate.mockReset()
   vi.mocked(normalizeImageUrlsForSend).mockReset()
   vi.mocked(normalizeImageUrlsForSend).mockResolvedValue([])
-  vi.mocked(setTaskPollId).mockReset()
-  vi.restoreAllMocks() // 清掉上个用例 spy 的 setTimeout
 })
-afterEach(() => vi.unstubAllGlobals())
 
-describe('imageApi — resolveImagePixel（纯函数）', () => {
+describe('imageApi — resolveImagePixel（纯函数，复刻官方驻树）', () => {
   it('Auto / 空 → 空串（不指定 size）', () => {
     expect(api.resolveImagePixel('Auto', '1K')).toBe('')
     expect(api.resolveImagePixel('auto', '1K')).toBe('')
@@ -58,161 +49,58 @@ describe('imageApi — resolveImagePixel（纯函数）', () => {
   })
 })
 
-describe('imageApi — generateImage sync 成功', () => {
-  it('SSE 流含 succeeded + results[0].url → 返回 ok:true,url', async () => {
-    fetchMock.mockResolvedValue(
-      sseResp(['data: {"status":"succeeded","progress":100,"results":[{"url":"http://x/y.png"}]}'])
-    )
+describe('imageApi — generateImage relay 意图 + 信封', () => {
+  it('relay 返回 {ok:true,url} → 映射为 GenerationResult', async () => {
+    h.mockRelayGenerate.mockResolvedValue({ ok: true, url: 'http://127.0.0.1:18080/files/tasks/x.png' })
     const res = await api.generateImage({
-      provider: { id: 'p1' },
+      provider: { id: 'lovart' },
       prompt: 'a cat',
-      model: 'm',
+      model: 'gpt-image-2-low',
       aspectRatio: '9:16',
       size: '1K',
+      taskId: 'front-task-1',
     })
-    expect(res.ok).toBe(true)
-    expect(res.url).toBe('http://x/y.png')
-    // 请求打到 /api/proxy，且负载 url 指向 images/generations
-    expect(fetchMock.mock.calls[0][0]).toContain('/api/proxy')
-    const body = JSON.parse(fetchMock.mock.calls[0][1].body)
-    expect(body.url).toContain('images/generations')
+    expect(res).toEqual({ ok: true, url: 'http://127.0.0.1:18080/files/tasks/x.png' })
+    const { intent, timeoutMs } = h.mockRelayGenerate.mock.calls[0][0]
+    expect(intent.capability).toBe('image')
+    expect(intent.providerId).toBe('lovart')
+    expect(intent.model).toBe('gpt-image-2-low')
+    expect(intent.prompt).toBe('a cat')
+    // 9:16 + 1K → 精确像素 size
+    expect(intent.size).toBe('880x1776')
+    // 前端任务号透传
+    expect(intent.frontTaskId).toBe('front-task-1')
+    // 总超时对齐 GEN_TIMEOUT(300s)
+    expect(timeoutMs).toBe(300000)
   })
 
-  it('SSE 流无 url → 返回失败', async () => {
-    fetchMock.mockResolvedValue(sseResp(['data: {"status":"succeeded","progress":100}']))
-    const res = await api.generateImage({ provider: {}, prompt: 'x', model: 'm' })
+  it('relay 返回 error → {ok:false, error}', async () => {
+    h.mockRelayGenerate.mockResolvedValue({ ok: false, error: '生成失败' })
+    const res = await api.generateImage({ provider: { id: 'p1' }, prompt: 'x', model: 'm' })
     expect(res.ok).toBe(false)
-    expect(res.error).toContain('未返回图片')
+    expect(res.error).toBe('生成失败')
   })
 
-  it('genBody：比例非 Auto → size 转精确像素 + resolution/image_size/quality/n', async () => {
-    fetchMock.mockResolvedValue(sseResp(['data: {"status":"succeeded","results":[{"url":"http://x/y.png"}]}']))
-    await api.generateImage({ provider: {}, prompt: 'a cat', model: 'm', aspectRatio: '9:16', size: '2K', n: 2, quality: 'high' })
-    const body = JSON.parse(fetchMock.mock.calls[0][1].body)
-    const genBody = JSON.parse(body.body)
-    expect(genBody.size).toBe('1152x2048') // 9:16 + 2K
-    expect(genBody.resolution).toBe('2K')
-    expect(genBody.image_size).toBe('2K')
-    expect(genBody.quality).toBe('high')
-    expect(genBody.n).toBe(2)
+  it('relay 抛 AbortError → 转 aborted 信封', async () => {
+    const err = new Error('Aborted')
+    err.name = 'AbortError'
+    h.mockRelayGenerate.mockRejectedValue(err)
+    const res = await api.generateImage({ provider: { id: 'p1' }, prompt: 'x', model: 'm' })
+    expect(res.ok).toBe(false)
+    expect(res.aborted).toBe(true)
   })
 
-  it('genBody：比例 Auto → size 用传入档位原样', async () => {
-    fetchMock.mockResolvedValue(sseResp(['data: {"status":"succeeded","results":[{"url":"http://x/y.png"}]}']))
-    await api.generateImage({ provider: {}, prompt: 'x', model: 'm', aspectRatio: 'Auto', size: '1024' })
-    const genBody = JSON.parse(JSON.parse(fetchMock.mock.calls[0][1].body).body)
-    expect(genBody.size).toBe('1024')
+  it('比例 Auto → size 不指定（undefined）', async () => {
+    h.mockRelayGenerate.mockResolvedValue({ ok: true, url: 'http://x/y.png' })
+    await api.generateImage({ provider: { id: 'p1' }, prompt: 'x', model: 'm', aspectRatio: 'Auto', size: '1K' })
+    expect(h.mockRelayGenerate.mock.calls[0][0].intent.size).toBeUndefined()
   })
 
-  it('quality=auto → 不写 quality', async () => {
-    fetchMock.mockResolvedValue(sseResp(['data: {"status":"succeeded","results":[{"url":"http://x/y.png"}]}']))
-    await api.generateImage({ provider: {}, prompt: 'x', model: 'm', quality: 'auto' })
-    const genBody = JSON.parse(JSON.parse(fetchMock.mock.calls[0][1].body).body)
-    expect(genBody.quality).toBeUndefined()
-  })
-
-  it('参考图 → normalizeImageUrlsForSend 且写 image_urls', async () => {
+  it('参考图 → normalizeImageUrlsForSend 并透传 images', async () => {
     vi.mocked(normalizeImageUrlsForSend).mockResolvedValue(['http://ref/a.png'])
-    fetchMock.mockResolvedValue(sseResp(['data: {"status":"succeeded","results":[{"url":"http://x/y.png"}]}']))
-    await api.generateImage({ provider: {}, prompt: 'x', model: 'm', images: ['blob:x'] })
-    expect(normalizeImageUrlsForSend).toHaveBeenCalledWith(['blob:x'], { preferBase64: false })
-    const genBody = JSON.parse(JSON.parse(fetchMock.mock.calls[0][1].body).body)
-    expect(genBody.image_urls).toEqual(['http://ref/a.png'])
-  })
-
-  it('refFormat=base64 → normalizeImageUrlsForSend 传 preferBase64', async () => {
-    vi.mocked(normalizeImageUrlsForSend).mockResolvedValue([])
-    fetchMock.mockResolvedValue(sseResp(['data: {"status":"succeeded","results":[{"url":"http://x/y.png"}]}']))
-    await api.generateImage({ provider: { refFormat: 'base64' }, prompt: 'x', model: 'm', images: ['http://x/a.png'] })
-    expect(normalizeImageUrlsForSend).toHaveBeenCalledWith(['http://x/a.png'], { preferBase64: true })
-  })
-
-  it('openai 协议 → 提交 url 用伪协议 openai://images/generations 且带 wait=1', async () => {
-    fetchMock.mockResolvedValue(sseResp(['data: {"status":"succeeded","results":[{"url":"http://x/y.png"}]}']))
-    await api.generateImage({ provider: { protocol: 'openai' }, prompt: 'x', model: 'm' })
-    const body = JSON.parse(fetchMock.mock.calls[0][1].body)
-    expect(body.url).toBe('openai://images/generations?wait=1')
-  })
-
-  it('SSE 多事件：progress 单调封顶 + result.images 数组 url', async () => {
-    const progress = vi.fn()
-    fetchMock.mockResolvedValue(sseResp([
-      'data: {"status":"processing","progress":50}',
-      // 非单调：90 后又回 10，应被单调封顶不会掉回去
-      'data: {"status":"processing","progress":10}',
-      'data: {"status":"succeeded","progress":100,"result":{"images":[{"url":["http://x/arr.png"]}]}}',
-    ]))
-    const res = await api.generateImage({ provider: {}, prompt: 'x', model: 'm' }, progress)
-    expect(res.ok).toBe(true)
-    expect(res.url).toBe('http://x/arr.png')
-    // 触发过 progress
-    expect(progress).toHaveBeenCalled()
-  })
-
-  it('SSE 事件带 error → 因无 url 判失败（内部 catch 吞掉该条错误，落回未返回图片）', async () => {
-    fetchMock.mockResolvedValue(sseResp(['data: {"status":"failed","error":"content rejected"}']))
-    const res = await api.generateImage({ provider: {}, prompt: 'x', model: 'm' })
-    expect(res.ok).toBe(false)
-    expect(res.error).toContain('未返回图片')
-  })
-})
-
-describe('imageApi — 错误路径', () => {
-  it('fetch reject（网络错误）→ ok:false', async () => {
-    // 用共享 mock（beforeEach mockReset 会自动清理），不要替换 globalThis.fetch 以免污染后续用例
-    fetchMock.mockImplementation(async () => { throw new Error('net') })
-    const res = await api.generateImage({ provider: {}, prompt: 'x', model: 'm' })
-    expect(res.ok).toBe(false)
-    expect(res.error).toContain('生图失败')
-  })
-})
-
-describe('imageApi — async 模式（image_mode: async）', () => {
-  // 轮询循环内有真实 setTimeout(pollInterval=3s)。用 fake timers 把睡眠加速为近似瞬时：
-  // 先发起 promise，再 advanceTimersByTimeAsync(3000) 触发首个轮询 sleep，避免全量真等 3s/例。
-  // 注意：文件级 beforeEach 的 vi.restoreAllMocks() 不重置 fake timer，须显式 useRealTimers 还原。
-  beforeEach(() => { vi.useFakeTimers() })
-  afterEach(() => { vi.useRealTimers() })
-
-  it('提交拿 task_id → 轮询到 images url（数组形式）', async () => {
-    fetchMock
-      .mockResolvedValueOnce(jsonResp({ data: [{ status: 'submitted', task_id: 'T1' }] }))
-      .mockResolvedValueOnce(jsonResp({ data: { result: { images: [{ url: ['http://x/async.png'] }] } } }))
-    const p = api.generateImage({ provider: { image_mode: 'async' }, prompt: 'x', model: 'm', taskId: 'front-task-1' })
-    await vi.advanceTimersByTimeAsync(3000) // 触发首个轮询 sleep
-    const res = await p
-    expect(res.ok).toBe(true)
-    expect(res.url).toBe('http://x/async.png')
-    // 异步提交成功 → 回填 setTaskPollId（请求级 frontTaskId）
-    expect(setTaskPollId).toHaveBeenCalledWith('front-task-1', 'T1')
-  })
-
-  it('提交返回直接结果（非任务形态）→ 直接成功', async () => {
-    fetchMock.mockResolvedValueOnce(jsonResp({ data: { results: [{ url: 'http://x/d.png' }] } }))
-    const res = await api.generateImage({ provider: { image_mode: 'async' }, prompt: 'x', model: 'm' })
-    expect(res.ok).toBe(true)
-    expect(res.url).toBe('http://x/d.png')
-  })
-
-  it('轮询 status=failed → 失败', async () => {
-    fetchMock
-      .mockResolvedValueOnce(jsonResp({ data: [{ status: 'submitted', task_id: 'T1' }] }))
-      .mockResolvedValueOnce(jsonResp({ data: { status: 'failed', error: 'bad prompt' } }))
-    const p = api.generateImage({ provider: { image_mode: 'async' }, prompt: 'x', model: 'm' })
-    await vi.advanceTimersByTimeAsync(3000)
-    const res = await p
-    expect(res.ok).toBe(false)
-    expect(res.error).toBe('bad prompt')
-  })
-
-  it('轮询网络错误 → 失败', async () => {
-    fetchMock
-      .mockResolvedValueOnce(jsonResp({ data: [{ status: 'submitted', task_id: 'T1' }] }))
-      .mockRejectedValueOnce(new Error('net'))
-    const p = api.generateImage({ provider: { image_mode: 'async' }, prompt: 'x', model: 'm' })
-    await vi.advanceTimersByTimeAsync(3000)
-    const res = await p
-    expect(res.ok).toBe(false)
-    expect(res.error).toContain('轮询失败')
+    h.mockRelayGenerate.mockResolvedValue({ ok: true, url: 'http://x/y.png' })
+    await api.generateImage({ provider: { id: 'p1' }, prompt: 'x', model: 'm', images: ['blob:x'] })
+    expect(normalizeImageUrlsForSend).toHaveBeenCalledWith(['blob:x'])
+    expect(h.mockRelayGenerate.mock.calls[0][0].intent.images).toEqual(['http://ref/a.png'])
   })
 })

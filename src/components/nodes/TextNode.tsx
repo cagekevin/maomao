@@ -196,7 +196,7 @@ function TextNode({ id, data, selected }: TextNodeProps) {
       const chipUrls = chipResolved.refImages.map((im) => im.url)
       const upstreamUrls = refImages.map((img) => img.url)
       const refUrls = [...new Set([...chipUrls, ...upstreamUrls])]
-      // 文本为非流式请求：上报「连接本地服务」→「上游生成中」两个阶段
+      // 文本为非流式请求：上报「连接本地服务」→「上游生成中」两阶段（30% 在 await 前触发，否则被 100 覆盖不可见）
       progress?.(10, '正在连接本地服务…')
       // 对齐官方 H_.jsx Lr（6141-6152）：只有勾选「自动拆分」才把 system 换成
       // 「智能内容拆分助手」要求返回严格 JSON {items:[{title,content}]}；
@@ -204,6 +204,7 @@ function TextNode({ id, data, selected }: TextNodeProps) {
       const sysContent = autoSplit
         ? `你是一个智能内容拆分助手。请先仔细观察用户提供的图片内容，然后基于图片内容进行拆分。你必须将内容拆分成多个独立的部分，并返回一个严格的JSON对象，包含一个 items 数组，数组中的每个对象包含 title 和 content 两个字段。请直接返回纯JSON字符串，不要包含任何额外的解释文字或Markdown代码块。`
         : 'You are a helpful assistant.'
+      progress?.(30, '上游生成中…')
       const r = await chatCompletions({
         provider: useProvider,
         messages: [
@@ -214,7 +215,6 @@ function TextNode({ id, data, selected }: TextNodeProps) {
         images: refUrls,
         signal // 支持真取消（Step C）
       })
-      progress?.(30, '上游生成中…')
       if (!r.ok) return { ok: false, error: r.error || '生成失败' }
       return { ok: true, content: r.content }
     },

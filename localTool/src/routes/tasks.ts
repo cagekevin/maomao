@@ -68,7 +68,7 @@ function taskToRow(task: Record<string, unknown>) {
   return { row, droppedKeys };
 }
 
-function upsertTask(db: any, row: Record<string, unknown>) {
+export function upsertTask(db: any, row: Record<string, unknown>) {
   // 真 UPSERT：先取现有行合并，避免 DELETE+INSERT 抹掉已落库的诊断字段（request_data / response_data / error_msg 等）
   const existing = queryOne(db, `SELECT * FROM tasks WHERE task_id = ?`, [row.task_id]);
   const merged = existing ? { ...existing, ...row } : row;

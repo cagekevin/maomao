@@ -1,40 +1,30 @@
 /**
- * 异步任务恢复轮询（方案A：能查的才查，不能查的不查）
+ * 异步任务恢复轮询（R6，2026-09-03 收敛到 relay attach）。
  *
- * 【为什么做】（取舍，与后端注释一一对应）
- * 前端刷新网页 ≠ 网关重启。异步任务（生图 async 模式 / 视频）提交后，任务在
- * 网关/Lovart 继续跑，只是前端刷新丢了「等结果」的请求。本模块靠已落库的
- * pollTaskId（网关返回的 task_id，见 taskStore.setTaskPollId）重新发起查询，
- * 把任务状态/结果补回任务记录，实现「刷新后任务继续跑直到返回」。
+ * 【为什么做】
+ * 前端刷新网页 ≠ 网关重启。异步任务（生图 / 视频）提交后，后端 relay-poll 常驻句柄在
+ * localTool 进程继续跑，DB 是真相；前端刷新只是丢了「等结果回填」的动作。本模块刷新后从
+ * 任务记录读 running（有 id=frontTaskId 即后端句柄键）→ 统一走 relay attach(/api/generate/:id)
+ * 拿到终态 → 把持久 /files/ url 回填任务记录并广播节点。
  *
- * 【为什么不做文本 / 生图 sync】
- * 文本（chatCompletions）与生图 sync(SSE) 是同步阻塞请求，前端刷新即断、无
- * task_id 可查。官方（reference-1mao shared.js Pt hook）也只对视频异步任务做
- * 刷新轮询，对文本/同步直接「仅支持刷新视频任务状态」。故这里只轮询有
- * pollTaskId 的异步任务；要恢复文本需网关 chat 异步化（方案B，暂不做，见下）。
+ * 【唯一查询协议】恢复不再自建轮询/落盘：复用 relayProxy.relayAttachUntilDone（和 in-flight
+ * relayGenerate 同一 attach 循环），只 attach 不 cancel。结果 url = 后端已落盘 /files/，
+ * 前端无需再 saveResultToTasks（旧 /api/v1/gateway/task 协议分支已删）。
  *
- * 【为什么走 localTool /api/v1/gateway/task 而非具体 provider】
- * 该入口是 localTool 统一转发网关的固定查询端点（system.ts handleGatewayTask），
- * 按 task_id 查，不依赖具体 provider 的 base_url → 换 API 也有效，前端无感。
+ * 【候选判定】旧实现依赖 pollTaskId（需 setTaskPollId 写入，relay 下无人写 → 候选空、恢复失效）。
+ * 现改为 running 任务即可（task.id = frontTaskId = 后端句柄键），不再依赖 pollTaskId 字段。
  *
- * 【方案B（未实施）】文本恢复需让网关 chat 也「提交返回 task_id」+ 前端轮询，
- * 工作量大且要动网关，本期不做。若后续需要，在网关 chat_completions 加异步
- * 分支 + 本模块放开 type 限制即可。
+ * 【为什么不做文本 / 生图 sync】文本（chatCompletions）走 /api/relay 同步、生图 sync 无异步句柄，
+ * 前端刷新即断，官方同此（reference-1mao shared.js Pt hook 也只对视频异步任务恢复）。
  */
-import { httpRequest } from './httpClient.ts'
-import { API_BASE } from '../config.ts'
-import { getTasks, patchTask, ensurePolling, isPolling } from '../taskStore.ts'
+import { getTasks, patchTask, ensurePolling, isPolling, stopPolling } from '../taskStore.ts'
 import { publishTaskCompleted } from '../taskCompletionBus.ts'
-import { extractResultUrl as extractResult } from '../resultUrlExtractor.ts'
-import { isLocalFileUrl } from '../imageUrl.ts'
-import { saveResultToTasks } from './filesApi.ts'
+import { relayAttachUntilDone } from './relayProxy.ts'
 import { logger } from '../logger.ts'
 
-// 恢复轮询单轮间隔（与旧全量扫描节流一致）
-const POLL_INTERVAL: number = 5000
-// 恢复轮询总超时兜底：单任务最多恢复轮询多久，到点强停防挂起
+// 恢复轮询总超时兜底：单任务最多 attach 多久，到点 relayAttachUntilDone 强停防挂起
 const POLL_TIMEOUT_MS: number = 600_000
-// 补扫周期：周期发现"启动扫描后新变为 running&&有 pollTaskId"的迟达候选并接管
+// 补扫周期：周期发现"启动扫描后新变为 running"的迟达候选并接管
 const SCAN_INTERVAL: number = 5000
 
 /** 可轮询的异步任务形状（taskStore 持久任务字段子集；type/status 为 string） */
@@ -43,136 +33,89 @@ interface PollableTask {
   nodeId: string
   type: string
   status: string
-  pollTaskId?: string
   progress?: number
-  /** 任务记录里已持久化的 resultUrl（若 in-flight 阶段已落盘 /files/ 则非空） */
   resultUrl?: string
 }
 
 let lastRun: number = 0
 let timer: ReturnType<typeof setInterval> | null = null
-// 【日志降噪 80§十#2】记录每个恢复任务上次轮询到的 progress。
-// "进行中"日志仅当 progress 变化时才打，避免恢复轮询对同一未变进度每轮刷屏
-//（网关 progress 常是固定外壳值，多轮不变 → 之前"进行中"每轮一条全冗余）。
-const lastProgressByTask = new Map<string, number | undefined>()
 
-/** 查询单个异步任务最新状态并回写任务记录。返回是否达到终态（completed/failed）。 */
-export async function pollOneTask(task: PollableTask): Promise<boolean> {
-  const pollTaskId = task.pollTaskId
-  if (!pollTaskId) return false
-  // 【P0 埋点】恢复轮询：开始查询网关（排查「刷新后任务/节点没恢复」：确认轮询是否发起）
-  logger.debug('任务', '[恢复轮询] 查询', { taskId: task.id, nodeId: task.nodeId, pollTaskId, type: task.type }, { module: 'image' })
-  let res
+/** 构造完整 relayAttachUntilDone（阻塞到终态）恢复器：由外部 once 驱动，不再周期 ensurePolling 嵌套。 */
+export function attachRecoveryOnce(task: PollableTask): Promise<boolean> {
+  return pollOneTaskAttach(task)
+}
+
+/**
+ * 恢复单任务的完整 attach 闭环（阻塞到终态或失败）：复用 relayAttachUntilDone 同款循环，
+ * 一次调用即收敛——不复用 ensurePolling 周期驱动（避免「内嵌 while + 外层定时」嵌套轮询）。
+ */
+async function pollOneTaskAttach(task: PollableTask): Promise<boolean> {
+  const frontTaskId = task.id
+  if (!frontTaskId) return false
+  logger.debug('任务', '[恢复轮询] attach', { taskId: task.id, nodeId: task.nodeId, frontTaskId, type: task.type }, { module: 'image' })
+  let st
   try {
-    res = await httpRequest(`${API_BASE}/api/v1/gateway/task/${encodeURIComponent(pollTaskId)}`, { parseJson: false })
+    st = await relayAttachUntilDone({
+      frontTaskId,
+      timeoutMs: POLL_TIMEOUT_MS,
+      cancelOnAbort: false, // 恢复不取消，让后端句柄续跑到终态
+      onProgress: (p) => { if (p !== undefined) patchTask(task.id, { status: 'running', progress: p }) },
+    })
   } catch (e) {
-    // 网络抖动/网关未起：不误判失败，下轮再试（保持 running，避免刷新后误报 failed）
     logger.debug('任务', '[恢复轮询] 网络失败，下轮重试', { taskId: task.id, error: e?.message }, { module: 'image' })
     return false
   }
-  let body
-  try { body = await res.json() } catch {
-    logger.debug('任务', '[恢复轮询] 响应非 JSON，下轮重试', { taskId: task.id, pollTaskId }, { module: 'image' })
-    return false
-  }
-  // 网关任务查询返回 {code, data:{id,status,progress,result,error,video_url}}
-  const data = body?.data
-  if (!data) return false
-  const status = data.status
-  if (status === 'completed') {
-    // 【恢复不得覆盖已持久结果】任务记录里已有已持久 /files/ resultUrl（in-flight 阶段经
-    // useNodeGeneration 落盘过）→ 保留它，不能用网关提取的原始上游外链覆盖（否则刷新后丢图）。
-    const existingPersisted = task.resultUrl && isLocalFileUrl(task.resultUrl)
-    // 【恢复结果落盘缺口】仅当任务记录无已持久 URL（刷新时任务还在跑、还没 in-flight 落盘）
-    // 才回源网关拿原始 URL；此时必须【先 saveResultToTasks 落盘】成 /files/ 持久 URL，再回写/
-    // 广播——否则节点 onRecover 拿到的是会过期的上游外链，将来刷新仍丢图（与 in-flight 落盘对齐）。
-    const fallbackUrl = existingPersisted
-      ? task.resultUrl!
-      : (extractResult({ data, type: task.type as 'image' | 'video' | 'audio' }) || '')
-
-    let finalResultUrl = fallbackUrl || task.resultUrl || ''
-    let persisted = existingPersisted
-    if (!existingPersisted && finalResultUrl && !isLocalFileUrl(finalResultUrl)) {
-      // 回源拿到的是非持久 URL(上游外链) → 落盘持久化；落盘失败(返回 null)回退原 URL(宁显示外链不丢图)
-      const persistedUrl = await saveResultToTasks(finalResultUrl, task.type).catch((e) => {
-        logger.warn('任务', '[恢复轮询] 落盘失败回退', { taskId: task.id, error: e?.message })
-        return null
-      })
-      if (persistedUrl) {
-        finalResultUrl = persistedUrl
-        persisted = true
-      }
-    }
-    patchTask(task.id, { status: 'completed', progress: 100, resultUrl: finalResultUrl })
-    lastProgressByTask.delete(task.id) // 终态收敛，清掉降噪用的进度记录，防泄漏
-    // 广播完成事件（统一入口 publishTaskCompleted）：节点监听 agent:task-completed 回写（经 eventBus，解耦 window）
-    publishTaskCompleted({ taskId: task.id, nodeId: task.nodeId, resultUrl: finalResultUrl, type: task.type, status: 'completed' })
-    logger.debug('任务', '[恢复轮询] 完成', { taskId: task.id, nodeId: task.nodeId, hasResult: !!finalResultUrl, reusedPersisted: persisted }, { module: 'image' })
+  if (st.ok && st.url) {
+    // 完成：结果 url = 后端已落盘 /files/，直接回填
+    patchTask(task.id, { status: 'completed', progress: 100, resultUrl: st.url })
+    publishTaskCompleted({ taskId: task.id, nodeId: task.nodeId, resultUrl: st.url, type: task.type, status: 'completed' })
+    logger.debug('任务', '[恢复轮询] 完成', { taskId: task.id, nodeId: task.nodeId, hasResult: true }, { module: 'image' })
     return true
   }
-  if (status === 'failed' || status === 'error') {
-    const msg = data.error?.message || data.error || '任务失败'
-    patchTask(task.id, { status: 'failed', errorMsg: typeof msg === 'object' ? JSON.stringify(msg) : msg })
-    lastProgressByTask.delete(task.id) // 终态收敛，清掉进度记录
-    logger.debug('任务', '[恢复轮询] 失败', { taskId: task.id, nodeId: task.nodeId, error: typeof msg === 'object' ? JSON.stringify(msg) : msg }, { module: 'image' })
+  if (!st.ok && st.error) {
+    const msg = st.error || '任务失败'
+    patchTask(task.id, { status: 'failed', errorMsg: msg })
+    logger.debug('任务', '[恢复轮询] 失败', { taskId: task.id, nodeId: task.nodeId, error: msg }, { module: 'image' })
     return true
-  }
-  // 还在跑：更新进度（processing/pending）
-  const progress = typeof data.progress === 'number' ? data.progress : undefined
-  if (progress !== undefined) {
-    patchTask(task.id, { status: 'running', progress })
-  } else {
-    patchTask(task.id, { status: 'running' })
-  }
-  // 【日志降噪 80§十#2】"进行中"仅在 progress 与上轮不同时打：网关 progress 常为固定外壳值，
-  // 多轮不变则每轮打"进行中"纯冗余。记一次变化即可定位"任务还在跑且进度推进到哪"。
-  const lastP = lastProgressByTask.get(task.id)
-  if (progress !== lastP) {
-    logger.debug('任务', '[恢复轮询] 进行中', { taskId: task.id, nodeId: task.nodeId, progress: progress ?? 'n/a' }, { module: 'image' })
-    lastProgressByTask.set(task.id, progress)
   }
   return false
 }
 
 /**
- * 【S2-c】为单个恢复任务构造 ensurePolling 的单轮回调。
- * 每次 ensurePolling 驱动时，按 taskId 从任务记录取最新任务再跑 pollOneTask 单轮：
- * - 任务已不存在 → 视为终态(true)让 poller 停，避免对已删任务空转
- * - 否则 pollOneTask(fresh) 单轮查询网关，completed/failed 返回 true(poller 自停)
+ * 兼容旧签名：单轮查询。原 ensurePolling 周期驱动不再用于恢复（改用 attachRecoveryOnce）；
+ * 此函数保留给 TaskCenter「刷新状态」手动按钮做单轮 attach（该场景无需周期驱动，直接等终态）。
  */
-function registerPollRound(seed: PollableTask): (taskId: string) => Promise<boolean> {
-  return async (taskId) => {
-    const fresh = getTasks().find((t) => t.id === taskId) as PollableTask | undefined
-    if (!fresh) return true // 任务已删/已清 → 恢复轮询没必要继续，收敛
-    return pollOneTask(fresh)
-  }
+export async function pollOneTask(task: PollableTask): Promise<boolean> {
+  return pollOneTaskAttach(task)
 }
 
-/** 启动扫描：找 running/pending 且有 pollTaskId 的任务，逐个 ensurePolling 接管。 */
+/**
+ * 【启动扫描后接管】对「有后端异步句柄」的 running 任务发起完整 attach 闭环。
+ * 关键：只接管 image/video（relay-poll 期已 submitGenerateTask 注册句柄）；文本（type:text 走
+ * /api/relay 同步，从未 submit）无视 attach 句柄 → 若 attach 会因 relayPoll 恒 running 而空转推进
+ * 进度到 90 封顶、永不结束（2026-09-03 bug：曾对所有 running 任务 attach，文本卡 90）。故按 type 过滤。
+ * 用 isPolling 占位去重：同一 taskId 只接管一次；attach 结束后 release。
+ */
 function startRecoveryRound(): void {
   const candidates = getTasks().filter(
-    (t) => (t.status === 'running' || t.status === 'pending') && t.pollTaskId
+    (t) => (t.status === 'running' || t.status === 'pending') && (t.type === 'image' || t.type === 'video') && t.id
   ) as PollableTask[]
   if (candidates.length === 0) return
   for (const t of candidates) {
-    // 已被 in-flight 占位(occupyOnly)或已被本轮/既往 ensurePolling 注册 → 跳过，杜绝双轮询
+    // 已被 in-flight 占位(occupyOnly)或已被本轮/既往 attach 接管 → 跳过，杜绝双恢复
     if (isPolling(t.id)) continue
-    // 未接管 → 注册恢复 poller（ensurePolling 内部保证同 taskId 只有一个，定时驱动 register 到终态）
-    ensurePolling(t.id, {
-      register: registerPollRound(t),
-      pollIntervalMs: POLL_INTERVAL,
-      timeoutMs: POLL_TIMEOUT_MS,
-    })
-    logger.debug('任务', '[恢复轮询] 接管', { taskId: t.id, nodeId: t.nodeId, pollTaskId: t.pollTaskId, type: t.type }, { module: 'image' })
+    // 占位：让 in-flight 与其它扫描看到「该 taskId 在恢复中」，attach 结束(终态/失败)后释放
+    ensurePolling(t.id, { register: async () => true, occupyOnly: true })
+    logger.debug('任务', '[恢复轮询] 接管', { taskId: t.id, nodeId: t.nodeId, type: t.type }, { module: 'image' })
+    void attachRecoveryOnce(t).finally(() => stopPolling(t.id))
   }
 }
 
 /**
  * 启动全局任务恢复轮询（App 挂载后调用一次）。
- * - 首次：启动扫描，对 running/pending && pollTaskId 且未占位/未驱动的任务注册 ensurePolling 接管。
- * - 周期补扫：迟达候选(启动扫描后新变为 running&&有 pollTaskId 的)也会被接管；
- *   ensurePolling/isPolling 去重保证同 taskId 不重复注册，故周期重扫安全、无双轮询。
- * 只对有 pollTaskId 的异步任务生效；文本/生图 sync 无 pollTaskId，天然跳过。
+ * - 首次：启动扫描，对 running 任务逐个发起完整 attach 闭环（relayAttachUntilDone 低频 attach 到终态）。
+ * - 周期补扫：迟达候选(启动扫描后新变为 running 的)也会被接管；isPolling 去重保证同 taskId 不重复接管。
+ * 只对异步任务生效；文本/生图 sync 无异步句柄（attach 查 running），天然不恢复（chat 走 /api/relay 同步）。
  */
 export function initTaskRecovery(): void {
   if (timer) return // 防重复启动

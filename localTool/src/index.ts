@@ -20,6 +20,7 @@ import { routes, matchRoute } from './router.js';
 // 这是「改 dist base 指向 18080」的硬前置——否则未接管的 /api/* 会直接 404。
 import { handlePassthrough } from './routes/passthrough.js';
 import { initLogWriter } from './utils/logWriter.js';
+import { initRelayPoller } from './relay-poll.js';
 
 // ── 轻量 .env 加载（无 dotenv 依赖，localTool 仅 sql.js 一个运行时依赖）──
 // 读取 localTool/.env（路径真源 paths.ts），注入 process.env。
@@ -407,6 +408,11 @@ async function main(): Promise<void> {
     } catch (e) {
       console.error(`  ⚠️  备份初始化失败：${(e as Error).message}`);
     }
+
+    // ── 异步任务恢复：扫描 DB 在途行重建 relay-poll 句柄（localTool 重启不丢任务）──
+    void initRelayPoller().catch((e) => {
+      console.error(`  ⚠️  relay-poll 恢复扫描失败：${e instanceof Error ? e.message : String(e)}`);
+    });
 
     // 自动打开浏览器
     const pageUrl = `http://127.0.0.1:${PORT}`;

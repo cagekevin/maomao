@@ -6,6 +6,9 @@
  *   - proxyGenerate.extractImageUrl / extractVideoUrl（JSON 直返/轮询）
  *   - pollTask.extractResultUrl（网关 task_view 按 type 提 url）
  * 全部委托本模块，杜绝"同一响应样例各处解析结果不一致 / video 被当 image"。
+ *   ── 更新(2026-09-03 relay 收口)：下方两处 proxyGenerate 来源已随旧 /api/proxy 出站整文件退役；
+ *      relay 链路结果 URL 由后端落盘 /files/ 直接返回，前端不再自提 SSE/JSON url，本模块保留
+ *      （仍为 pollTask 恢复、脚本盒 JSON 直返等链路的唯一 URL 提取入口）。
  *
  * 【类型判定规则】与 useConnectedInputs.resolveMediaType 同源（本模块为唯一实现）：
  *   生产方 data.mediaType 优先，否则按扩展名 classifyUrl —— 消灭静默误分类。

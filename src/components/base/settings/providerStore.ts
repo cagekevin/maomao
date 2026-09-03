@@ -2,10 +2,15 @@
  * 供应商数据层（对齐 taskStore 范式：模块级 state + useSyncExternalStore）。
  * 所有网络请求收敛在 providerApi，组件只消费快照 + 调动作。
  *
+ * 【新时代配置型（docs/96、docs/101，2026-09-03）】厂商数据源已切到配置型：GET /api/providers
+ * 返回「13 个平台 JSON（config/providers/<id>.json）+ 内置目录」合并的厂商列表，含各自模型清单。
+ * 前端设置页语义 = 「切哪个用哪个」：所有已配置厂商都能用，用户挑当前想用的（= primary，仅作
+ * 回退默认；节点仍可经 providerId::modelId 独立选任意厂商模型）。已删除新时代不再支持的 CRUD：
+ * add / update / remove（厂商配置只能改 JSON 文件，不在设置页增删改）。
+ *
  * key 处理（契约：key 只进后端 env，不回明文）：
  *  - GET 返回 has_key / key_preview，无明文
- *  - 编辑新 key 存 provider._apiKey（UI 态）；清除存 provider._clearKey
- *  - save() 时：_apiKey 非空 → api_key；_clearKey → clear_key；否则不传（沿用）
+ *  - save() 时对整组透传；key 通道（api_key/clear_key）仅在有编辑态时映射（配置型下无编辑入口）
  */
 import { useSyncExternalStore } from 'react'
 import type { RawModel } from '../providerModels.ts'
@@ -201,34 +206,9 @@ export function select(id: string | null): void {
   setState({ selectedId: id, testResult: null })
 }
 
-export function update(id: string, patch: Partial<Provider>): void {
-  setState({
-    providers: state.providers.map((p) => (p.id === id ? { ...p, ...patch } : p)),
-    dirty: true,
-  })
-}
-
 export function setPrimary(id: string): void {
   setState({
     providers: state.providers.map((p) => ({ ...p, primary: p.id === id })),
-    dirty: true,
-  })
-}
-
-export function add(): Provider {
-  const np = emptyProvider()
-  setState({ providers: [...state.providers, np], selectedId: np.id, dirty: true, testResult: null })
-  return np
-}
-
-export function remove(id: string): void {
-  const target = state.providers.find((p) => p.id === id)
-  if (!target) return
-  let next = state.providers.filter((p) => p.id !== id)
-  if (target.primary && next.length) next = next.map((p, i) => (i === 0 ? { ...p, primary: true } : p))
-  setState({
-    providers: next,
-    selectedId: state.selectedId === id ? next[0]?.id || null : state.selectedId,
     dirty: true,
   })
 }
@@ -320,31 +300,14 @@ export function closeFetchedModels(): void {
 export async function save(): Promise<{ ok: boolean; error?: string }> {
   setState({ saving: true })
   try {
+    // 【新时代配置型】payload = 整组 provider 透传（保留模型/平台专属参数/协议字段），仅剥离
+    // key 通道（_apiKey/_clearKey/api_key → 后端已从 config 剔除，key 只进 .env）。前端不重造白名单，
+    // 避免重写 config 时丢失后端返回的扩展字段；配置型下无编辑入口（_apiKey 恒定为空）。
     const payload = state.providers.map((p) => {
-      // 出站体含协议特有字段（volcengine_*）与 key 通道（api_key/clear_key），
-      // 均按条件追加，故显式标注为可索引记录。
-      const cleaned: Record<string, unknown> = {
-        id: p.id,
-        name: p.name,
-        base_url: p.base_url,
-        protocol: p.protocol,
-        image_request_mode: p.image_request_mode || 'openai',
-        image_mode: p.image_mode === 'async' ? 'async' : 'sync',
-        enabled: p.enabled !== false,
-        primary: !!p.primary,
-        image_models: p.image_models || [],
-        chat_models: p.chat_models || [],
-        video_models: p.video_models || [],
-        model_names: p.model_names || {},
-        model_protocols: p.model_protocols || {},
-        ms_loras: p.ms_loras || [],
-      }
-      if (p.protocol === 'volcengine') {
-        cleaned.volcengine_project_name = p.volcengine_project_name
-        cleaned.volcengine_region = p.volcengine_region
-      }
-      if (p._apiKey && p._apiKey.trim() && !p._apiKey.includes('••')) cleaned.api_key = p._apiKey.trim()
-      if (p._clearKey === true) cleaned.clear_key = true
+      const cleaned: Record<string, unknown> = { ...p }
+      delete cleaned._apiKey
+      delete cleaned._clearKey
+      delete cleaned.api_key
       return cleaned
     })
     const data = await providerApi.saveProviders(payload)

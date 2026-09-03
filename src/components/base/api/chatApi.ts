@@ -1,26 +1,17 @@
 /**
- * 文本聊天 API —— 经 localTool /api/proxy 转发到供应商的 /v1/chat/completions。
+ * 文本聊天 API —— 「前端发意图 → localTool /api/relay（relay kit 后端化）」（docs/90 R5、docs/101）。
  *
- * 链路：本文件 → localTool:18080/api/proxy → 按 providerId 分派 → 供应商 /v1/chat/completions
- *  - apimart(Lovart)：url 原样透传；openai：url=openai://chat/completions，localTool 拼 base+key
+ * 链路：本文件 → relayChat（relayProxy）→ POST /api/relay → ai-relay 引擎按 providerId( config
+ * providers/<id>.json ) 出站 → 同步返回 {ok, content}。流式与否由后端 config 决定（Step 4），前端不传 stream。
  *
- * 参考图（images）：
- *  - user message 的 content 为数组时支持 { type:'image_url', image_url:{url} }，
- *    网关提取后经 resolve_attachments 处理。url 经 imageUrl.js 统一解析（blob:→data base64）。
- *
- * 【薄壳】代理请求脚手架（buildTargetUrl / proxyFetch / 嵌套错误解析 / 信封归一）已收口到
- * proxyGenerate.js 深模块；本文件仅负责「业务参数 → body + 委托 chatProxy」。
- *
- * ⚠️【为何不走 httpClient.js（SSE 豁免红线）】本模块走 SSE 流式（逐块解析 content/reasoning/tool_calls，
- * 流中断视为业务语义而非传输错误），其错误语义与 httpClient 的「非 2xx 抛 HttpError + 网络/超时自动重试」
- * 冲突；httpClient 的自动重试会破坏流式增量与多轮工具循环。故保持独立 proxyGenerate 链路，
- * 并在模块内部自行处理 AbortSignal。禁止把它迁移到 httpClient.js。
+ * 【新时代配置型（2026-09-03）】providerId = 13 个 config 厂商之一；model = 该厂商模型清单里的 id。
+ * temperature/response_format 经 relayChat 透传后端（preset 纯模板有传才进 body）——TextNode JSON 输出与
+ * 采样温度依赖它们。已随 proxyGenerate 退役移除 chatProxy / resolveChatMode / buildResponsesChatBody。
  */
 import { normalizeImageUrlsForSend, toImageContentBlocks } from '../imageUrl.ts'
 import { logger } from '../logger.ts'
-import { chatProxy } from './proxyGenerate.ts'
-// 请求形态层：聊天 responses 形态构造请求体（chat_completions 默认，M2-2）
-import { resolveChatMode, buildResponsesChatBody } from '../requestModes.ts'
+import { relayChat } from './relayProxy.ts'
+import { CHAT_TIMEOUT } from '../config.ts'
 import type { GenerationProvider, GenerationResult } from '@/types'
 
 /** 聊天气息内容块（text / image_url），供 content 数组形式的消息使用 */
@@ -39,7 +30,7 @@ export interface ChatMessage {
   [key: string]: unknown
 }
 
-/** chatCompletions 入参 */
+/** chatCompletions 入参（对外签名不变；stream 由后端 config 决定，前端传 true 仅表示「期望流式」） */
 export interface ChatCompletionsOptions {
   provider: GenerationProvider
   messages: ChatMessage[]
@@ -56,12 +47,11 @@ export interface ChatCompletionsOptions {
 async function attachImages(messages: ChatMessage[], images: string[] | null | undefined, provider: GenerationProvider | undefined): Promise<ChatMessage[]> {
   if (!images?.length) return messages
   // 发送统一出口守卫：参考图必经此归一（含缩略图端点自动还原原图），禁止绕过。见 imageUrl.js thumbnailToOriginal
-  // refFormat:'base64' 的 provider（只认 base64 的后端）→ 参考图统一转 base64 再发
-  const refUrls = await normalizeImageUrlsForSend(images, { preferBase64: provider?.refFormat === 'base64' })
+  const refUrls = await normalizeImageUrlsForSend(images)
   if (!refUrls.length) return messages
   const blocks = toImageContentBlocks(refUrls)
   const userIdx = messages.length - 1
-  // messages 为空的诚实判空：没有 user 消息可附加，直接原样返回（不再 `{} as ChatMessage` 谎称有完整消息）
+  // messages 为空的诚实判空：没有 user 消息可附加，直接原样返回
   if (userIdx < 0) return messages
   const last = messages[userIdx]
   const contentArr: ChatContentBlock[] = Array.isArray(last.content)
@@ -76,14 +66,25 @@ async function attachImages(messages: ChatMessage[], images: string[] | null | u
  * 文本补全。
  * @returns {{ ok:boolean, content?:string, error?:string, aborted?:boolean }}
  */
-export async function chatCompletions({ provider, messages, model, images, temperature = 0.1, responseFormat, signal, stream = false }: ChatCompletionsOptions): Promise<GenerationResult> {
+export async function chatCompletions({ provider, messages, model, images, temperature = 0.1, responseFormat, signal, stream }: ChatCompletionsOptions): Promise<GenerationResult> {
   const finalMessages = await attachImages(messages, images, provider)
-  // responses 形态：input[] + tools 顶层 name 构造请求体；默认 chat/completions（M2-2）
-  if (resolveChatMode(provider?.chat_request_mode, model) === 'responses') {
-    const body = buildResponsesChatBody({ model, messages: finalMessages, temperature, responseFormat: responseFormat === 'json' ? 'json_schema' : responseFormat === 'json_object' ? 'json_schema' : responseFormat, stream })
-    return chatProxy({ provider, body, signal, stream })
-  }
-  const body: Record<string, unknown> = { model, messages: finalMessages, temperature, stream }
-  if (responseFormat === 'json_object' || responseFormat === 'json') body.response_format = { type: responseFormat }
-  return chatProxy({ provider, body, signal, stream })
+  // 仅有参考图附加后产生有效消息才走；空消息后端校验失败返回错误
+  const r = await relayChat(
+    {
+      frontTaskId: '',
+      type: 'chat',
+      providerId: provider.id || 'lovart',
+      capability: 'chat',
+      model,
+      messages: finalMessages,
+    },
+    {
+      signal,
+      timeoutMs: CHAT_TIMEOUT,
+      ...(temperature !== undefined ? { temperature } : {}),
+      ...(responseFormat ? { responseFormat: responseFormat === 'json' ? 'json_object' : responseFormat } : {}),
+    }
+  )
+  if (r.ok && typeof r.content === 'string') return { ok: true, content: r.content }
+  return { ok: false, error: r.error || '上游未返回文本内容', aborted: r.aborted }
 }

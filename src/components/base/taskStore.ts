@@ -272,6 +272,8 @@ export function reportGenerate(
     done: (resultUrl: string) => {
       // 防御：resultUrl 必须是字符串（历史 bug：上游偶发返回对象/undefined，导致 .startsWith 崩）
       const safeUrl = typeof resultUrl === 'string' ? resultUrl : ''
+      // 【排障埋点 · 2026-09-03 任务不结束排查】任何任务 done 时打印 id/type/resultUrl，断「卡进度 vs 卡 done 未触发」。
+      logger.debug('任务', '[任务] done', { taskId: task.id, nodeId: task.nodeId, type: task.type, hasUrl: !!safeUrl }, { module: 'image' })
       tasks = tasks.map((t) => (t.id === task.id ? { ...t, status: 'completed', progress: 100, resultUrl: safeUrl } : t))
       notify()
       progressPersist.cancel() // 取消未落的进度写，避免晚于 completed 覆盖终态
@@ -283,6 +285,7 @@ export function reportGenerate(
     },
     // 标记失败
     fail: (errorMsg?: string) => {
+      logger.debug('任务', '[任务] fail', { taskId: task.id, nodeId: task.nodeId, type: task.type, error: errorMsg || '' }, { module: 'image' })
       tasks = tasks.map((t) => (t.id === task.id ? { ...t, status: 'failed', errorMsg: errorMsg || '生成失败' } : t))
       notify()
       progressPersist.cancel() // 同 done：取消未落的进度写
@@ -522,6 +525,9 @@ export function awaitTask(nodeId: string, timeout = 60000): Promise<AwaitTaskRes
  * 二者触发时机/生命周期不同不能删一套，但同一时刻必须只有一个在管——
  * 本注册表保证"一个 taskId 只有一个 poller"：in-flight 先注册占位；
  * 刷新后注册表(运行时态)清空，启动扫描对未注册任务重新注册恢复 poller。
+ *   ── 更新(2026-09-03 relay 收口)：① in-flight 的 proxyGenerate while 已随旧出站退役，
+ *      前端 relayGenerate（/api/generate，低频 GET attach）替代实时进度；② 恢复走 GET attach
+ *      同一句柄，刷新不丢——恢复机制与本注册表骨架仍有效（详见 Step5 R6）。
  *
  * 【职责】只做"调度 + 单轮驱动 + 终态收敛"，不掺 provider/传输知识。
  *  单轮"怎么查"由调用方经 register 回调提供(proxyGenerate 走 /api/proxy、
