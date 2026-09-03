@@ -1,17 +1,14 @@
 ﻿# =====================================================================
 # 猫猫AI画布 — 一键启动器 (launch-all)  [Windows / PowerShell]
 # ---------------------------------------------------------------------
-# 依次拉起：API 网关 (:9004)  +  本地服务 localTool (:18080，托管【原型】前端)
+# 依次拉起：本地服务 localTool (:18080，托管【原型】前端)
 # 说明：localTool 在 18080 同时托管【原型构建产物】(根目录 dist/) 与后端 API，
 #       打开 http://127.0.0.1:18080 即为【原型画布】（API 同源，无需跨端口）。
 #
 # 运行方式（Windows）：
 #   powershell -ExecutionPolicy Bypass -File .\launch-all.ps1
-#
-# 参数：
-#   1   仅前台运行 localTool（方便看终端 [proxy] 日志，Ctrl+C 退出）
-#   2   构建原型 + 启动 网关 + localTool（后台运行 + 守护自动重启）+ 打开画布
-#   （无参数）交互菜单
+#   本启动器每次运行都会【重启】localTool：先清理 18080 旧进程，再重新拉起，
+#   进入守护模式（掉线自动重启），并打开画布。
 # =====================================================================
 
 $ErrorActionPreference = "Continue"
@@ -20,7 +17,6 @@ Set-Location -Path $ScriptDir
 
 # ── ⚙️ 全局配置 ──
 $Config = @{
-    Gateway   = @{ Port = 9004;  Dir = "apimart-gateway"; Name = "AI 网关" }
     LocalTool = @{ Port = 18080; Dir = "localTool";       Name = "本地工具" }
 }
 
@@ -145,8 +141,17 @@ function Ensure-NodeEnvironment {
         }
         if ($NeedsBuild) {
             $distIndex = Join-Path $Path "dist\index.js"
-            $srcHasNewer = Get-ChildItem (Join-Path $Path "src") -Recurse -File -Filter "*.ts" -ErrorAction SilentlyContinue |
-                Where-Object { -not (Test-Path $distIndex) -or $_.LastWriteTime -gt (Get-Item $distIndex -ErrorAction SilentlyContinue).LastWriteTime }
+            # 短路径加速：产物已存在时只做一次时间戳比较，遇首个更新源码即判定（提前退出），
+            # 避免枚举整个 src 树后再筛选（src 文件多时可明显缩短启动耗时）。
+            $distTime = (Get-Item $distIndex -ErrorAction SilentlyContinue).LastWriteTime
+            $srcHasNewer = $false
+            if ($null -eq $distTime) {
+                $srcHasNewer = [bool](Get-ChildItem (Join-Path $Path "src") -Recurse -File -Filter "*.ts" -ErrorAction SilentlyContinue | Select-Object -First 1)
+            } else {
+                foreach ($f in (Get-ChildItem (Join-Path $Path "src") -Recurse -File -Filter "*.ts" -ErrorAction SilentlyContinue)) {
+                    if ($f.LastWriteTime -gt $distTime) { $srcHasNewer = $true; break }
+                }
+            }
             
             if ($srcHasNewer) {
                 Write-Log "  🛠️ [$Path] 检测到源码更新，正在编译 TypeScript..." "Info"
@@ -178,67 +183,6 @@ function Open-Canvas {
 # ── 🚀 业务功能模块 ──
 # =====================================================================
 
-function Start-Gateway {
-    $dir = Join-Path $ScriptDir $Config.Gateway.Dir
-    if (-not (Test-Path $dir)) { Write-Log "❌ 未找到网关目录: $dir" "Error"; return $false }
-
-    Clear-Port -Port $Config.Gateway.Port
-
-    $envFile = Join-Path $dir ".env"
-    if (Test-Path $envFile) {
-        Get-Content $envFile -Encoding UTF8 | Where-Object { $_ -match '^([^#=]+)=(.*)$' } | ForEach-Object {
-            $key = $Matches[1].Trim()
-            $val = $Matches[2].Trim() -replace '^["'']|["'']$', ''
-            [Environment]::SetEnvironmentVariable($key, $val)
-        }
-    }
-
-    function Test-UsablePython {
-        param([string]$Exe)
-        if (-not (Test-Path $Exe)) { return $false }
-        $out = & $Exe -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')" 2>$null
-        return ($LASTEXITCODE -eq 0 -and $out -and $out.Trim() -eq "3.12")
-    }
-
-    $SystemPython = $null
-    $pythonCmd = Get-Command python -ErrorAction SilentlyContinue
-    if ($pythonCmd -and (Test-UsablePython $pythonCmd.Source)) { $SystemPython = $pythonCmd.Source }
-    
-    if (-not $SystemPython) {
-        $pyOut = & py -3.12 -c "import sys; print(sys.executable)" 2>$null
-        if ($LASTEXITCODE -eq 0 -and $pyOut -and (Test-UsablePython $pyOut.Trim())) { $SystemPython = $pyOut.Trim() }
-    }
-    
-    if (-not $SystemPython) {
-        # 优化：使用系统环境变量替代原硬编码用户名
-        $cand = Join-Path $env:LOCALAPPDATA "Programs\Python\Python312\python.exe"
-        if (Test-UsablePython $cand) { $SystemPython = $cand }
-    }
-    
-    if (-not $SystemPython) {
-        Write-Log "  ❌ 未找到可用的系统 Python 3.12，请先安装 Python 3.12" "Error"
-        return $false
-    }
-    
-    Write-Log "  🐍 使用 Python: $SystemPython" "Dim"
-    $pythonExe = if (Test-Path (Join-Path (Split-Path $SystemPython) "pythonw.exe")) { Join-Path (Split-Path $SystemPython) "pythonw.exe" } else { $SystemPython }
-
-    $logDir = Join-Path $dir "logs"
-    if (-not (Test-Path $logDir)) { New-Item -ItemType Directory -Force -Path $logDir | Out-Null }
-
-    Start-Process -FilePath $pythonExe -ArgumentList "-m uvicorn main:app --host 127.0.0.1 --port $($Config.Gateway.Port)" `
-        -RedirectStandardOutput (Join-Path $logDir "apimart_9004.log") `
-        -RedirectStandardError (Join-Path $logDir "apimart_9004.err.log") `
-        -WindowStyle Hidden -WorkingDirectory $dir
-
-    if (Wait-PortReady -Port $Config.Gateway.Port -TimeoutSec 25) {
-        Write-Log "  ✅ AI 网关已启动 (日志: apimart-gateway\logs\apimart_9004.log)" "Success"
-        return $true
-    }
-    Write-Log "  ❌ AI 网关启动超时，请查看 apimart-gateway\logs\apimart_9004.err.log" "Error"
-    return $false
-}
-
 # ── 🖥️ 构建【原型】前端（npm run build → 根目录 dist/，供 localTool 在 18080 托管）──
 # [已注释] 前端已提前手动 build，启动流程不再自动构建
 <# function Build-Prototype {
@@ -264,7 +208,6 @@ function Start-Gateway {
 } #>
 
 function Start-LocalTool {
-    param([switch]$RunInForeground)
     $dir = Join-Path $ScriptDir $Config.LocalTool.Dir
     if (-not (Test-Path $dir)) { Write-Log "❌ 未找到 localTool 目录: $dir" "Error"; return $false }
 
@@ -275,24 +218,17 @@ function Start-LocalTool {
     
     Clear-Port -Port $Config.LocalTool.Port
 
-    if ($RunInForeground) {
-        Write-Log "`n🚀 前台运行 LocalTool (端口 $($Config.LocalTool.Port))... [按 Ctrl+C 停止]" "Success"
-        # 用 Push/Pop 恢复工作目录，避免 node 前台退出后脚本停留在 $dir、影响后续相对路径
-        Push-Location $dir
-        try { node dist/index.js } finally { Pop-Location }
-    } else {
-        # 日志改由 localTool 进程内接管（logWriter.ts 按天轮转 + 自动删 7 天前），
-        # 不再用 Start-Process 重定向 stdout/err，避免双写单文件。
-        Start-Process -FilePath "node" -ArgumentList (Join-Path $dir "dist\index.js") `
-            -WindowStyle Hidden -WorkingDirectory $dir
+    # 日志改由 localTool 进程内接管（logWriter.ts 按天轮转 + 自动删 7 天前），
+    # 不再用 Start-Process 重定向 stdout/err，避免双写单文件。
+    Start-Process -FilePath "node" -ArgumentList (Join-Path $dir "dist\index.js") `
+        -WindowStyle Hidden -WorkingDirectory $dir
 
-        if (Wait-PortReady -Port $Config.LocalTool.Port -TimeoutSec 25) {
-            Write-Log "  ✅ LocalTool 已启动 (日志: localTool\logs\localtool_18080_YYYY-MM-DD.log，自动轮转)" "Success"
-            return $true
-        }
-        Write-Log "  ❌ LocalTool 启动超时，请查看 localTool\logs\ 下当日日志" "Error"
-        return $false
+    if (Wait-PortReady -Port $Config.LocalTool.Port -TimeoutSec 25) {
+        Write-Log "  ✅ LocalTool 已启动 (日志: localTool\logs\localtool_18080_YYYY-MM-DD.log，自动轮转)" "Success"
+        return $true
     }
+    Write-Log "  ❌ LocalTool 启动超时，请查看 localTool\logs\ 下当日日志" "Error"
+    return $false
 }
 
 function Start-Watchdog {
@@ -300,12 +236,10 @@ function Start-Watchdog {
     Stop-Watchdog -Quiet
     if (-not (Acquire-WatchdogLock)) { exit 1 }
 
-    Write-Log "`n📡 正在启动服务群..." "Info"
+    Write-Log "`n📡 正在启动服务..." "Info"
     # [已注释] 前端已提前手动 build，启动流程不再调用 Build-Prototype
     # if (-not (Build-Prototype)) { Release-WatchdogLock; exit 1 }
-    $null = Start-Gateway
-    $null = Start-LocalTool
-    Start-Sleep -Seconds 1
+    $null = Start-LocalTool   # Start-LocalTool 内部已等端口就绪，无需再固定 sleep
     Open-Canvas
 
     Write-Log "`n🛡️ 进入守护模式 (5秒轮询，掉线自动重启)... [按 Ctrl+C 退出控制台则关闭所有]" "Info"
@@ -313,10 +247,6 @@ function Start-Watchdog {
     
     try {
         while ($true) {
-            if (-not (Test-PortStatus -Port $Config.Gateway.Port -Name $Config.Gateway.Name -Quiet)) {
-                Write-Log "  ⚠️ $(Get-Date -Format 'HH:mm:ss') 网关掉线，正在重启..." "Warn"
-                $null = Start-Gateway
-            }
             if (-not (Test-PortStatus -Port $Config.LocalTool.Port -Name $Config.LocalTool.Name -Quiet)) {
                 Write-Log "  ⚠️ $(Get-Date -Format 'HH:mm:ss') 本地工具掉线，正在重启..." "Warn"
                 $null = Start-LocalTool
@@ -328,49 +258,5 @@ function Start-Watchdog {
     }
 }
 
-# =====================================================================
-# ── 🖥️ 交互与路由 ──
-# =====================================================================
-
-function Show-Dashboard {
-    Clear-Host
-    Write-Host "========================================" -ForegroundColor Cyan
-    Write-Host "   猫猫AI画布 — 本地服务控制台" -ForegroundColor White
-    Write-Host "========================================" -ForegroundColor Cyan
-
-    Write-Log "`n📊 当前状态：" "Info"
-    $null = Test-PortStatus -Port $Config.Gateway.Port -Name $Config.Gateway.Name
-    $null = Test-PortStatus -Port $Config.LocalTool.Port -Name $Config.LocalTool.Name
-
-    Write-Host "`n========================================" -ForegroundColor Cyan
-    Write-Host "   [1] 启动 LocalTool (前台, 看 [proxy] 日志)"
-    Write-Host "   [2] 构建原型 + 启动 网关 + LocalTool (后台完全静默 + 守护 + 打开画布)"
-    Write-Host "   [q] 退出并清理后台进程" -ForegroundColor DarkGray
-    Write-Host "========================================" -ForegroundColor Cyan
-}
-
-if ($args.Count -gt 0) {
-    switch ($args[0]) {
-        "1" { Start-LocalTool -RunInForeground; exit 0 }
-        "2" { Start-Watchdog; exit 0 }
-    }
-}
-
-while ($true) {
-    Show-Dashboard
-    $CHOICE = Read-Host "`n👉 请选择操作 (1/2/q)"
-    switch ($CHOICE) {
-        "1" { Start-LocalTool -RunInForeground }
-        "2" { Start-Watchdog }
-        { $_ -match "^[qQ]$" } { 
-            Write-Log "👋 正在清理后台进程并退出..."
-            Clear-Port -Port $Config.Gateway.Port
-            Clear-Port -Port $Config.LocalTool.Port
-            Stop-Watchdog
-            exit 0 
-        }
-        default { Write-Log "❌ 无效选择，请重试" "Error"; Start-Sleep -Seconds 1 }
-    }
-    Write-Host "`n按回车键返回菜单..." -ForegroundColor DarkGray
-    $null = Read-Host
-}
+# ── 入口：直接进入守护模式（后台启动 localTool + 打开画布，掉线自动重启）──
+Start-Watchdog
