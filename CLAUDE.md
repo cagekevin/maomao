@@ -427,7 +427,6 @@ node scripts/task-inspect.mjs --canvas-health   # 画布结构体检
 | `docs/NODE-DESIGN-SPEC.md` / `docs/ARCHITECTURE.md`     | 节点长什么样 / 设计原则（ARCHITECTURE 路径前缀 `prototypes/...` 为旧写法，实际即根 `src/`） |
 | `docs/BASE-CAPABILITIES.md`                             | base 能力清单（**已并入 CONTEXT §二 横切层**，仅深挖用）                             |
 | `docs/CANVAS_PERFORMANCE.md` / `docs/node-types-map.md` | 性能 / 节点类型映射（生成产物）                                                  |
-| `docs/1mao-docs/`                                       | 原产品逆向/专题（历史参考）                                                     |
 
 **🚫 归档/禁止（不读）**
 
