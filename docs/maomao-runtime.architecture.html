@@ -5041,8 +5041,8 @@
         <path data-edge-from="nodes" data-edge-to="gen" data-edge-label="提交生成" data-edge-key="3" data-edge-id="nodes-to-gen" data-composition-points="185,93;260,93;260,189;335,189" d="M 185 93 L 252 93 Q 260 93 260 101 L 260 181 Q 260 189 268 189 L 335 189" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
         <path data-edge-from="gen" data-edge-to="apis" data-edge-label="组 body" data-edge-key="4" data-edge-id="gen-to-apis" data-composition-points="405,220;405,261" d="M 405 220 L 405 261" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
         <path data-edge-from="apis" data-edge-to="proxygen" data-edge-label="代理" data-edge-key="5" data-edge-id="apis-to-proxygen" data-composition-points="405,323;405,364" d="M 405 323 L 405 364" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path data-edge-from="proxygen" data-edge-to="http" data-edge-label="出站" data-edge-key="6" data-edge-id="proxygen-to-http" data-composition-points="405,426;405,467" d="M 405 426 L 405 467" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path data-edge-from="http" data-edge-to="localtool" data-edge-label="proxy" data-edge-key="7" data-edge-id="http-to-localtool" data-composition-points="475,498;625,498" d="M 475 498 L 625 498" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path data-edge-from="proxygen" data-edge-to="http" data-edge-label="出站 · ≤30s 握手超时" data-edge-key="6" data-edge-id="proxygen-to-http" data-composition-points="405,426;405,467" d="M 405 426 L 405 467" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path data-edge-from="http" data-edge-to="localtool" data-edge-label="proxy · 超时兜底" data-edge-key="7" data-edge-id="http-to-localtool" data-composition-points="475,498;625,498" d="M 475 498 L 625 498" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
         <path data-edge-from="localtool" data-edge-to="gateway" data-edge-label="/v1" data-edge-key="8" data-edge-id="localtool-to-gateway" data-composition-points="765,498;915,498" d="M 765 498 L 915 498" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
         <path data-edge-from="gateway" data-edge-to="lovart" data-edge-label="HTTPS" data-edge-key="9" data-edge-id="gateway-to-lovart" data-composition-points="1055,498;1205,498" d="M 1055 498 L 1205 498" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
         <path data-edge-from="proxygen" data-edge-to="extractor" data-edge-label="解析" data-edge-key="10" data-edge-id="proxygen-to-extractor" data-composition-points="335,395;185,395" d="M 335 395 L 185 395" class="a-default" stroke-width="1.5" marker-end="url(#arrowhead)"/>
@@ -5265,13 +5265,13 @@
           <rect x="390" y="327" width="30" height="14" rx="3" class="c-mask"/>
           <text x="405" y="337" class="t-backend" font-size="8" text-anchor="middle">代理</text>
         </g>
-        <g data-detail="context" data-edge-from="proxygen" data-edge-to="http" data-edge-label="出站" data-edge-key="6" data-edge-id="proxygen-to-http">
-          <rect x="390" y="430" width="30" height="14" rx="3" class="c-mask"/>
-          <text x="405" y="440" class="t-backend" font-size="8" text-anchor="middle">出站</text>
+        <g data-detail="context" data-edge-from="proxygen" data-edge-to="http" data-edge-label="出站 · ≤30s 握手超时" data-edge-key="6" data-edge-id="proxygen-to-http">
+          <rect x="360" y="430" width="90" height="14" rx="3" class="c-mask"/>
+          <text x="405" y="440" class="t-backend" font-size="8" text-anchor="middle">出站 · ≤30s 握手超时</text>
         </g>
-        <g data-detail="context" data-edge-from="http" data-edge-to="localtool" data-edge-label="proxy" data-edge-key="7" data-edge-id="http-to-localtool">
-          <rect x="533" y="478" width="34" height="14" rx="3" class="c-mask"/>
-          <text x="550" y="488" class="t-backend" font-size="8" text-anchor="middle">proxy</text>
+        <g data-detail="context" data-edge-from="http" data-edge-to="localtool" data-edge-label="proxy · 超时兜底" data-edge-key="7" data-edge-id="http-to-localtool">
+          <rect x="513" y="478" width="74" height="14" rx="3" class="c-mask"/>
+          <text x="550" y="488" class="t-backend" font-size="8" text-anchor="middle">proxy · 超时兜底</text>
         </g>
         <g data-detail="context" data-edge-from="localtool" data-edge-to="gateway" data-edge-label="/v1" data-edge-key="8" data-edge-id="localtool-to-gateway">
           <rect x="825" y="478" width="30" height="14" rx="3" class="c-mask"/>
@@ -5538,6 +5538,19 @@
         <ul>
           <li>&bull; 同步 SSE 回传；异步 pollTask 轮询 /api/v1/gateway/task/{id}</li>
           <li>&bull; resultUrlExtractor 抽 URL → filesApi / assetStore 落盘，taskStore 登记回填</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div class="card-dot rose"></div>
+          <h3>出站超时兜底与记账式失败可见性</h3>
+        </div>
+        <ul>
+          <li>&bull; PROXY_CONNECT_TIMEOUT=30s 掐住 httpClient 建连 + 提交响应头/body 首字节；retries:0 不重发，守住不双生图红线</li>
+          <li>&bull; 握手/body 挂死 → TimeoutError → classifyError 归 timeout → fail({ok:false,error})，不再被 AbortError 误判为「已停止」</li>
+          <li>&bull; 记账式可见性：失败经 useNodeGeneration 同帧上抛 节点红字 + 任务中心失败态 + 全局红 toast + logger，全链路可查</li>
+          <li>&bull; 安全恢复待补：网关无 taskId 幂等，重发会双生图/双扣费；需补 x-task-id 透传 + 按 thread 续查，替代同 taskId 重发</li>
         </ul>
       </div>
     </div>

@@ -29,7 +29,7 @@
 
 import { API_BASE } from '../config.ts'
 import { setTaskPollId, ensurePolling, stopPolling } from '../taskStore.ts'
-import { GEN_TIMEOUT, GEN_POLL_INTERVAL, VIDEO_TIMEOUT, VIDEO_POLL_INTERVAL, CHAT_TIMEOUT } from '../config.ts'
+import { GEN_TIMEOUT, GEN_POLL_INTERVAL, VIDEO_TIMEOUT, VIDEO_POLL_INTERVAL, CHAT_TIMEOUT, PROXY_CONNECT_TIMEOUT } from '../config.ts'
 import { withTimeout, isTimeoutError } from '../asyncGuard.ts'
 import { classifyError, timeoutMessage } from '../genErrors.ts'
 import { GEN_ERRORS } from '../contracts.ts'
@@ -95,7 +95,9 @@ async function __proxyFetch({ provider, target, method = 'POST', body, taskId }:
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
       ...(signal ? { signal } : {}),
-      timeoutMs: 0,
+      // 【§2.1 握手超时兜底】PROXY_CONNECT_TIMEOUT(30s) 只掐建连+响应头阶段，不替代长生成 GEN_TIMEOUT；
+      // 超时仅 abort 底层死连接、不重发（retries 维持 0，守住不双生图红线）。
+      timeoutMs: PROXY_CONNECT_TIMEOUT,
       retries: 0,
       parseJson: false,
       label: 'proxyFetch',
@@ -183,7 +185,10 @@ async function pollUntilDone({ provider, url, genBody, extractUrl, pollInterval,
     onProgress?.(10, '正在连接本地服务…')
     const res = await __proxyFetch({ provider, target: url, method: 'POST', body: genBody, taskId: frontTaskId }, signal)
     onProgress?.(20, '已提交到生成网关…')
-    const json = await res.json()
+    // 【§2.1 响应体首字节超时兜底】建连成功但 body 挂死（响应头已回、body 不流动）时不会永久挂起。
+    // 注意：务必【不要】把任务级 signal 透给 withTimeout —— 否则超时 abort 会污染用户取消信号，
+    // 被上层 AbortError 分支误判为「用户主动取消」，导致提交超时被显示成「已停止」。超时只 reject，不 abort 任务。
+    const json = await withTimeout(res.json(), PROXY_CONNECT_TIMEOUT, timeoutMessage(PROXY_CONNECT_TIMEOUT))
     const data = json?.data ?? json
     // 网关提交响应有两种形态（见 localTool system.ts extractAndPersistThreadId）：
     //  - 图片/普通：data 为数组 [{ status, task_id }]
@@ -250,7 +255,7 @@ async function pollInFlight({ provider, taskId, extractUrl, pollInterval, timeou
     }
     try {
       const pr = await __proxyFetch({ provider, target: pollUrl, method: 'GET' }, signal)
-      const pj = await pr.json()
+      const pj = await withTimeout(pr.json(), PROXY_CONNECT_TIMEOUT, timeoutMessage(PROXY_CONNECT_TIMEOUT))
       const pd = pj?.data ?? pj
       const url = extractUrl({ data: pd, json: pj })
       if (url) {
@@ -431,10 +436,12 @@ export async function imageProxy({ provider, genBody, onProgress, signal, taskId
       onProgress?.(10, '正在连接本地服务…')
       const res = await __proxyFetch({ provider, target: url, method: 'POST', body: genBody, taskId }, signal)
       onProgress?.(20, '已转发到生成网关…')
-      // 响应体读取也要有总超时（对齐下方 SSE 分支）：__proxyFetch 为长生成设了 timeoutMs:0，
-      // 若上游只回了响应头、body 悬挂，这里会永久挂起 → 生图节点 loading 永不复位。
-      // 超时时 abort 同一 signal（已透传到底层 fetch），真正掐断请求、不留悬挂资源。
-      const json = await withTimeout(res.json(), GEN_TIMEOUT, timeoutMessage(GEN_TIMEOUT), signal)
+      // 响应体读取也要有总超时（对齐下方 SSE 分支）：__proxyFetch 为长生成设了 PROXY_CONNECT_TIMEOUT 握手超时，
+      // 但若上游只回了响应头、body 悬挂，这里仍会永久挂起 → 生图节点 loading 永不复位。
+      // 注意：withTimeout 的【第4参不要传任务级 signal】——否则超时 abort 会污染用户取消信号，
+      // 被上层 AbortError 分支误判为「用户主动取消」，导致生图超时失败被显示成「已停止」。
+      // 超时只 reject（不 abort 任务 signal）；悬挂连接随任务结束回收（同 SSE 分支取舍）。
+      const json = await withTimeout(res.json(), GEN_TIMEOUT, timeoutMessage(GEN_TIMEOUT))
       const imgUrl = parseResponsesJson(json)
       return imgUrl ? ok(imgUrl) : fail('上游未返回图片')
     } catch (e) {

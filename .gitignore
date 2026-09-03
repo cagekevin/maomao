@@ -136,3 +136,4 @@ localTool/runtime-models/**/ort*.mjs
 
 # .codebuddy：保留 commands/(命令) 与 memory/ 入库；仅忽略 teams/ 运行态数据
 .codebuddy/teams/
+localTool/runtime-models/depth-video.zip

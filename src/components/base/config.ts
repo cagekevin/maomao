@@ -131,6 +131,13 @@ export const THROTTLE_MS = 5000
 // ── 生成轮询超时（ms）───────────────────────────────────────────
 /** 生图 async 模式轮询总超时 */
 export const GEN_TIMEOUT = 300000
+/**
+ * 生图出站握手/提交响应超时（仅覆盖"连不上/接住不回头"，绝不替代长生成 GEN_TIMEOUT）。
+ * 来源：docs/生图出站超时与记账式失败可见性设计.md §2.1。
+ *  - 只掐"建连 + 响应头(及异步 body 首字节)"阶段，正常 SSE 头毫秒到达，不会误伤正在进行的生图。
+ *  - 超时仅 abort 底层死连接、不重发（不触碰 retries:0 红线）；≤0 即禁用（同原 timeoutMs:0 语义）。
+ */
+export const PROXY_CONNECT_TIMEOUT = 300000 / 10
 /** 视频 async 模式轮询总超时 */
 export const VIDEO_TIMEOUT = 600000
 

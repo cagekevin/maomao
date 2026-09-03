@@ -46,13 +46,6 @@ const BOTTOM_EPS = 60
 /** scroll 事件静默该 ms 即认定平滑滚动动画结束（不依赖固定时长，长距离滚动同样准确） */
 const SCROLL_IDLE_MS = 120
 
-const SHORTCUTS = [
-  '生成赛博朋克猫咪图',
-  '把选中节点改成 9:16',
-  '锁定所有生图节点',
-  '撤回刚才的操作'
-]
-
 /** 面板宽度（localStorage 记忆） */
 function loadWidth() {
   try {
@@ -735,26 +728,14 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
               <div className="mb-3">{AI_ICON}</div>
               <div className="text-white text-base font-medium mb-1">有什么可以帮你？</div>
               <div className="text-muted text-xs mb-5">创建节点、生图、改布局，一句话的事</div>
-              <div className="flex flex-wrap justify-center gap-2 max-w-[320px]">
-                {SHORTCUTS.map((s) => (
-                  <button
-                    key={s}
-                    type="button"
-                    onClick={() => sendShortcut(s)}
-                    className="px-3 py-1.5 text-xs text-secondary bg-canvas border border-edge-faint rounded-full hover:border-edge hover:text-primary hover:bg-surface transition-colors cursor-pointer"
-                  >
-                    {s}
-                  </button>
-                ))}
-              </div>
               {allSkills.length > 0 && (
-                <div className="mt-4 flex flex-wrap justify-center gap-1.5 max-w-[320px]">
+                <div className="mt-4 flex flex-wrap justify-center gap-2 max-w-[320px]">
                   {allSkills.slice(0, 3).map((s) => (
                     <button
                       key={s.id}
                       type="button"
                       onClick={() => applySkill(s)}
-                      className="inline-flex items-center gap-1 text-caption-sm text-body bg-surface border border-edge-faint rounded-full px-2.5 py-1 hover:bg-surface-hover hover:border-edge transition-colors cursor-pointer"
+                      className="inline-flex items-center gap-1 px-3 py-1.5 text-xs text-secondary bg-canvas border border-edge-faint rounded-full hover:border-edge hover:text-primary hover:bg-surface transition-colors cursor-pointer"
                     >
                       <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
@@ -765,7 +746,6 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
                       {s.name}
                     </button>
                   ))}
-                  <span className="text-caption text-muted-2 px-2 py-1">输入 / 可快速调用更多 Skill</span>
                 </div>
               )}
             </div>
