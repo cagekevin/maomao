@@ -21,7 +21,7 @@ import { resolveLocalImages } from './utils/resolveLocalImages.js';
 import { saveRemoteUrl } from './routes/files.js';
 import { fetchWithProxy } from './utils/netProxy.js';
 import { sendError } from './utils/helpers.js';
-import { readProviderConfigFile } from './providerConfig.js';
+import { readProviderConfigFile } from './providerConfigStore.js';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { ModelProtocolPresetName } from './ai-relay/types.js';
 

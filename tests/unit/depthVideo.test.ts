@@ -1,9 +1,9 @@
 /**
  * 深度转视频 —— 纯函数单测（State 3 断言 A1–A6）。
- * 覆盖 depthVideo/path.ts、engine.ts、loader.ts 的纯逻辑，实现一变必红。
+ * 覆盖 depthVideo/depthUrls.ts、engine.ts、loader.ts 的纯逻辑，实现一变必红。
  */
 import { describe, it, expect } from 'vitest'
-import { buildRuntimeModels } from '../../src/components/base/depthVideo/path.ts'
+import { buildRuntimeModels } from '../../src/components/base/depthVideo/depthUrls.ts'
 import {
   adjustDepthValue,
   grayFromRaw,

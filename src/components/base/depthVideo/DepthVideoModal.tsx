@@ -24,7 +24,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { X, ArrowUp } from 'lucide-react'
-import { RUNTIME_MODELS } from './path.ts'
+import { RUNTIME_MODELS } from './depthUrls.ts'
 import {
   grayFromRaw,
   grayFromTensor,

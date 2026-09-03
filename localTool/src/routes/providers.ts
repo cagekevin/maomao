@@ -9,14 +9,14 @@
  *   POST /api/providers/probe-async        lovart/apimart 异步嗅探（mock task_id 探异步端点）
  *   POST /api/providers/:id/fetch-models   委托 ai-relay fetchProviderModelCatalog → {image/chat/video_models}
  *
- * 前端 Provider 契约不变（relay 未接前端）；key 不入配置文件（只进 .env，见 providerConfig 头注释）。
+ * 前端 Provider 契约不变（relay 未接前端）；key 不入配置文件（只进 .env，见 providerConfigStore 头注释）。
  */
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import fs from 'node:fs';
 import { json, parseJsonBody, sendError } from '../utils/helpers.js';
 import {
   readAllProviders, readProvider, writeProviderConfigFile, deleteProviderConfigFile, migrateFromApiConfigFile, readProviderConfigFile,
-} from '../providerConfig.js';
+} from '../providerConfigStore.js';
 import { getEnvFile, getApiConfigFile } from '../paths.js';
 import { getProviderDefinition } from '../ai-relay/index.js';
 import { testConnection as relayTestConnection } from '../ai-relay/connection.js';

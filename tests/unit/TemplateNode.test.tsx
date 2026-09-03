@@ -35,7 +35,7 @@ vi.mock('../../src/components/base/panels/MaterialStrip.tsx', () => ({ default: 
 vi.mock('../../src/components/base/ui/ResizeFullscreenHandle.tsx', () => ({ default: mocks.ResizeFullscreenHandle }))
 vi.mock('../../src/components/base/panels/FullscreenModal.tsx', () => ({ default: mocks.FullscreenModal }))
 vi.mock('../../src/components/base/ui/GeneratingOverlay.tsx', () => ({ default: mocks.GeneratingOverlay }))
-vi.mock('../../src/components/base/core/hooks.ts', () => ({ useNodeResize: mocks.useNodeResize, useOutsideClick: mocks.useOutsideClick }))
+vi.mock('../../src/components/base/core/uiHooks.ts', () => ({ useNodeResize: mocks.useNodeResize, useOutsideClick: mocks.useOutsideClick }))
 vi.mock('../../src/hooks/useConnectedInputs.ts', () => ({ useConnectedInputs: mocks.useConnectedInputs }))
 vi.mock('../../src/hooks/useMediaDegrade.ts', () => ({ useMediaDegrade: mocks.useMediaDegrade }))
 // useNodeGeneration：记录 config，复刻真实 hook 的声明式写回（resultKey + recoverable）以对齐 P0-2-c。

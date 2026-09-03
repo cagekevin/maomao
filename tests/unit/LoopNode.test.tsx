@@ -15,7 +15,7 @@ vi.mock('../../src/components/base/ui/NodeShell.tsx', () => ({ default: mocks.No
 vi.mock('../../src/hooks/useConnectedInputs.ts', () => ({ useConnectedInputs: mocks.useConnectedInputs }))
 vi.mock('../../src/components/base/core/toastStore.ts', () => ({ showToast: mocks.showToast, toastWarning: mocks.toastWarning }))
 vi.mock('../../src/hooks/useSyncNodeData.ts', () => ({ useSyncNodeData: mocks.useSyncNodeData }))
-vi.mock('../../src/components/base/core/hooks.ts', () => ({ useOutsideClick: mocks.useOutsideClick }))
+vi.mock('../../src/components/base/core/uiHooks.ts', () => ({ useOutsideClick: mocks.useOutsideClick }))
 
 import LoopNodeComponent from '../../src/components/nodes/LoopNode.tsx'
 beforeEach(() => { mocks.resetNodeMockState() })

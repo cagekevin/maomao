@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react'
 import { Coins } from 'lucide-react'
-import { useOutsideClick } from '../core/hooks.ts'
+import { useOutsideClick } from '../core/uiHooks.ts'
 
 /**
  * 模型 badge 元信息：

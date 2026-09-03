@@ -1,6 +1,6 @@
 import React, { useState, useRef, useCallback, forwardRef, ForwardedRef } from 'react'
 import { createPortal } from 'react-dom'
-import { useOutsideClick } from '../core/hooks.ts'
+import { useOutsideClick } from '../core/uiHooks.ts'
 import LazyImage from '../ui/LazyImage.tsx'
 import {
   isChipEl,

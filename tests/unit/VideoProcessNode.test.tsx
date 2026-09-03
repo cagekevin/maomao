@@ -17,7 +17,7 @@ vi.mock('../../src/components/base/ui/NodeShell.tsx', () => ({ default: mocks.No
 vi.mock('../../src/components/edges/CustomHandle.tsx', () => ({ default: mocks.CustomHandle }))
 vi.mock('../../src/hooks/useConnectedInputs.ts', () => ({ useConnectedInputs: mocks.useConnectedInputs }))
 vi.mock('../../src/hooks/useMediaDegrade.ts', () => ({ useMediaDegrade: mocks.useMediaDegrade }))
-vi.mock('../../src/components/base/core/hooks.ts', () => ({ useNodeResize: mocks.useNodeResize, useContentHeightSync: mocks.useContentHeightSync, useOutsideClick: mocks.useOutsideClick }))
+vi.mock('../../src/components/base/core/uiHooks.ts', () => ({ useNodeResize: mocks.useNodeResize, useContentHeightSync: mocks.useContentHeightSync, useOutsideClick: mocks.useOutsideClick }))
 vi.mock('../../src/components/base/core/toastStore.ts', () => ({ showToast: mocks.showToast, toastError: mocks.toastError, toastWarning: mocks.toastWarning }))
 // 补全 subscribe/subscribeOnce（taskStore 等模块顶层会 subscribe，缺则崩）；返回 no-op unsubscribe
 vi.mock('../../src/components/base/core/eventBus.ts', () => ({

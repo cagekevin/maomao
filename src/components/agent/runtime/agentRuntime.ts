@@ -25,7 +25,7 @@
  */
 
 // 可插拔协议适配器：统一 URL 拼装（openai 伪协议 / apimart base_url），避免散落协议判断
-import { buildTargetUrl } from '../../base/utils/providerProtocols.ts'
+import { buildTargetUrl } from '../../base/utils/providerUrlAdapters.ts'
 // 【出口回收】proxy 分支走 /api/proxy 经统一 httpRequest（B5），不裸写 fetch
 import { httpRequest } from '@/components/base/api/index.ts'
 // 请求形态层：聊天 responses 形态（gpt-5.6 用 /v1/responses 带工具不再报错，M2-2/M2-4）

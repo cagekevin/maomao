@@ -12,7 +12,7 @@
  */
 
 import { clampInt } from './engine.ts'
-import type { RuntimeModelPaths } from './path.ts'
+import type { RuntimeModelPaths } from './depthUrls.ts'
 import { logger } from '../core/logger.ts'
 
 /** 注入的 transformers.js 运行时（组件层动态 import 后传入） */

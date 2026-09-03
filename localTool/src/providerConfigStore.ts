@@ -1,5 +1,5 @@
 /**
- * providerConfig — provider 配置型存储（一个平台一个 JSON 文件）。
+ * providerConfigStore — provider 配置型存储（一个平台一个 JSON 文件）。
  *
  * ════════════════════════════════════════════════════════════════
  * 【为什么存在】relay 迁移删掉了旧 /api/providers 的动态多连接 CRUD（providers.json 单文件，历史残留）。

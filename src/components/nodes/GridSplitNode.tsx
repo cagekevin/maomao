@@ -6,7 +6,7 @@ import NodeShell from '../base/ui/NodeShell.tsx'
 import CustomHandle from '../edges/CustomHandle.tsx'
 import { useConnectedInputs } from '../../hooks/useConnectedInputs.ts'
 import { useMediaDegrade } from '../../hooks/useMediaDegrade.ts'
-import { useContentHeightSync } from '../base/core/hooks.ts'
+import { useContentHeightSync } from '../base/core/uiHooks.ts'
 import { showToast, toastWarning } from '../base/core/toastStore.ts' // 保留阻断校验提示
 import { toAbsoluteFileUrl } from '../base/api/index.ts'
 import { useRenderImageResolver } from '../base/utils/imageUrl.ts'

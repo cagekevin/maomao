@@ -10,8 +10,8 @@
  * 结果怎么从响应抽取，全部由声明式协议决定，调用方只需给 apiKey/baseUrl/模型/变量。
  */
 
-import { corsSafeFetch } from '../httpTransport.js';
-import { parseStream } from '../assistantStream.js';
+import { corsSafeFetch } from './httpTransport.js';
+import { parseStream } from './assistantStream.js';
 import type {
   ChatOptions,
   StreamChatOptions,
@@ -20,12 +20,12 @@ import type {
   GenerateVideoOptions,
   GenerateAudioOptions,
   ModelProtocolProfile,
-} from '../types.js';
+} from './types.js';
 import {
   executeModelProtocol,
   resolveModelExecutionProfile,
-} from '../protocol/engine.js';
-import { getModelProtocolPreset } from '../protocol/presets.js';
+} from './protocol/engine.js';
+import { getModelProtocolPreset } from './protocol/presets.js';
 
 function chatUrl(baseUrl: string | undefined): string {
   return `${(baseUrl || '').replace(/\/+$/, '')}/chat/completions`;

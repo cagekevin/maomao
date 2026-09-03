@@ -35,7 +35,7 @@ import type {
 import { resolveLocalImages } from './utils/resolveLocalImages.js';
 import { saveRemoteUrl } from './routes/files.js';
 import { upsertTask } from './routes/tasks.js';
-import { readProviderConfigFile } from './providerConfig.js';
+import { readProviderConfigFile } from './providerConfigStore.js';
 import { getDb, queryAll, debouncedSaveDb } from './db/database.js';
 
 export type RelayCapability = 'image' | 'video' | 'chat';

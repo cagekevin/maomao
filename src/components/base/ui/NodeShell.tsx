@@ -2,7 +2,7 @@ import React, { useMemo, type CSSProperties, type Ref, type ReactNode } from 're
 import { NodeResizer, useStore } from '@xyflow/react'
 import NodeTitle from './NodeTitle.tsx'
 import CustomHandle from '../../edges/CustomHandle.tsx'
-import { useSizeSync } from '../core/hooks.ts'
+import { useSizeSync } from '../core/uiHooks.ts'
 import { NODE_AREA_FIXED_BASE_SIZE } from '../core/config.ts'
 import ErrorBoundary from './ErrorBoundary.tsx'
 import { logger } from '../core/logger.ts'

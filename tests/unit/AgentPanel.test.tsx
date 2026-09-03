@@ -115,7 +115,7 @@ vi.mock('../../src/components/agent/index.ts', () => ({
 vi.mock('../../src/components/base/store/providerStore.ts', () => ({ useProviders: () => ({ providers: h.providers }), load: vi.fn(async () => {}) }))
 vi.mock('../../src/components/base/store/agentModelStore.ts', () => ({ loadAgentChatModel: () => h.agentModelCfg, AGENT_CHAT_MODEL_KEY: h.AGENT_CHAT_MODEL_KEY }))
 vi.mock('../../src/components/base/utils/providerModels.ts', () => ({ buildAllModels: () => [] }))
-vi.mock('../../src/components/base/core/hooks.ts', () => ({ useOutsideClick: () => {} }))
+vi.mock('../../src/components/base/core/uiHooks.ts', () => ({ useOutsideClick: () => {} }))
 vi.mock('../../src/components/base/store/skillStore.ts', () => ({
   getAllSkills: () => h.skills,
   markSkillUsed: h.markSkillUsed,

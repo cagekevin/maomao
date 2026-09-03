@@ -24,7 +24,7 @@
 
 - **红线（多个** **`scripts/`** **校验按字面路径引用，改名/移动须同步 scripts）**：`contracts.ts`（apiRegistry/EVENTS/STORAGE\_KEYS/NODE\_TYPES）、`config.ts`（环境变量/常量）、`contentStore.ts`（存储唯一入口）、`eventBus.ts`、`logger.ts`
 
-- 其余：`confirmStore.ts`（统一确认弹窗 store）、`toastStore.ts`（统一通知 store）、`idGen.ts`、`hooks.ts`（通用 hooks）、`utils.ts`（通用纯工具：deepClone/debounce/throttle…）
+- 其余：`confirmStore.ts`（统一确认弹窗 store）、`toastStore.ts`（统一通知 store）、`idGen.ts`、`uiHooks.ts`（通用 UI 小 hook：useOutsideClick/isEditableTarget/useSizeSync，区别于顶层 `src/hooks/` 领域业务 hooks）、`utils.ts`（通用纯工具：deepClone/debounce/throttle…）
 
 ## 二、api/ （发网络请求）
 

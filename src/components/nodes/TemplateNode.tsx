@@ -15,7 +15,7 @@ import FullscreenModal from '../base/panels/FullscreenModal.tsx'
 import FullscreenEditor from '../base/panels/FullscreenEditor.tsx'
 import GeneratingOverlay from '../base/ui/GeneratingOverlay.tsx'
 // ═══ 基座 hook（统一范式）═══
-import { useNodeResize, useOutsideClick } from '../base/core/hooks.ts'
+import { useNodeResize, useOutsideClick } from '../base/core/uiHooks.ts'
 import { useConnectedInputs } from '../../hooks/useConnectedInputs.ts'
 import { useMediaDegrade } from '../../hooks/useMediaDegrade.ts'
 import { useGenerateNode } from '../../hooks/useGenerateNode.ts'

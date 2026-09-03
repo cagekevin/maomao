@@ -81,7 +81,7 @@ vi.mock('../../src/components/base/ui/GeneratingOverlay.tsx', () => ({ default: 
 vi.mock('../../src/components/base/prompt/PromptLibraryButton.tsx', () => ({ default: () => null }))
 vi.mock('../../src/components/base/ui/JianyingIcon.tsx', () => ({ default: () => null }))
 
-vi.mock('../../src/components/base/core/hooks.ts', () => ({
+vi.mock('../../src/components/base/core/uiHooks.ts', () => ({
   useNodeResize: () => ({ onInputResize: vi.fn() }),
   useOutsideClick: () => {},
 }))

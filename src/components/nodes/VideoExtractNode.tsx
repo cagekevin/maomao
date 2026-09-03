@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { Clapperboard, Copy, Download, Settings, Camera, AlertCircle, Upload, Loader2, ArrowUp } from 'lucide-react'
 import NodeShell from '../base/ui/NodeShell.tsx'
-import { useContentHeightSync } from '../base/core/hooks.ts'
+import { useContentHeightSync } from '../base/core/uiHooks.ts'
 import GenerateButton from '../base/ui/GenerateButton.tsx'
 import { useConnectedInputs } from '../../hooks/useConnectedInputs.ts'
 import { useMediaDegrade } from '../../hooks/useMediaDegrade.ts'

@@ -1,6 +1,6 @@
 /**
  * 请求形态层（前端镜像）—— 对应 localTool/src/routes/requestModes.ts（后端基准层 + 单测）。
- * 规则唯一真相在后端 requestModes.ts；本文件镜像同规则供请求路径消费（同 providerProtocols.js
+ * 规则唯一真相在后端 requestModes.ts；本文件镜像同规则供请求路径消费（同 providerUrlAdapters
  * 镜像 protocolAdapters.ts 的先例）。改规则需两端同步 + 后端单测锁定。
  *
  * 用途：让 image_request_mode 4 形态真正驱动生图端点/body/响应解析（消灭死字段，PRD 翻车点 1）。

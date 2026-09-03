@@ -21,7 +21,7 @@ import {
   cancelGenerateTask,
 } from '../relay-poll.js';
 import type { RelayCapability } from '../relay-poll.js';
-import { relayGenerate, relayChatStream } from '../relay.js';
+import { relayGenerate, relayChatStream } from '../generateEngine.js';
 
 /** POST /api/generate —— 统一生成入口：按 capability 分流到聊天/图片/视频数据流。 */
 export async function handleGenerateSubmit(req: IncomingMessage, res: ServerResponse): Promise<void> {

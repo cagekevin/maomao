@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react'
 import type { DragEvent as ReactDragEvent, ClipboardEvent as ReactClipboardEvent } from 'react'
 import { detectFileType, isAssetUrl } from '../components/base/utils/mediaType.ts'
-import { isEditableTarget } from '../components/base/core/hooks.ts'
+import { isEditableTarget } from '../components/base/core/uiHooks.ts'
 import { sanitizePastedText } from '../components/base/utils/clipboard.ts'
 import { showToast } from '../components/base/core/toastStore.ts'
 import { uploadFileToLocal, downloadRemoteToLocal, WEB_DROP_SUBFOLDER } from '../components/base/api/index.ts'

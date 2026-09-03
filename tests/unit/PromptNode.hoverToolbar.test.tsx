@@ -41,7 +41,7 @@ vi.mock('../../src/components/base/panels/FullscreenModal.tsx', () => ({ default
 vi.mock('../../src/components/base/ui/GeneratingOverlay.tsx', () => ({ default: () => null }))
 vi.mock('../../src/components/base/prompt/PromptLibraryButton.tsx', () => ({ default: () => null }))
 vi.mock('../../src/components/base/ui/JianyingIcon.tsx', () => ({ default: () => null }))
-vi.mock('../../src/components/base/core/hooks.ts', () => ({ useNodeResize: () => ({ onInputResize: vi.fn() }), useOutsideClick: () => {} }))
+vi.mock('../../src/components/base/core/uiHooks.ts', () => ({ useNodeResize: () => ({ onInputResize: vi.fn() }), useOutsideClick: () => {} }))
 vi.mock('../../src/hooks/useConnectedInputs.ts', () => ({ useConnectedInputs: () => ({}) }))
 vi.mock('../../src/hooks/useMediaDegrade.ts', () => ({ useMediaDegrade: () => ({ isHidden: () => false }) }))
 vi.mock('../../src/components/base/canvas/nodePrefs.ts', () => ({ useNodePrefs: () => ({ prefs: {}, set: vi.fn() }) }))

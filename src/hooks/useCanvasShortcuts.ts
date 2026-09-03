@@ -1,5 +1,5 @@
 import { useEffect, useCallback } from 'react'
-import { isEditableTarget } from '../components/base/core/hooks.ts'
+import { isEditableTarget } from '../components/base/core/uiHooks.ts'
 
 /** 快捷键回调集合；未提供的快捷键自动不响应 */
 export interface CanvasShortcutHandlers {

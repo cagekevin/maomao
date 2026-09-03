@@ -12,7 +12,7 @@ import OverlayEditor, { renderOverlayCanvas } from '../base/editors/OverlayEdito
 import { useConnectedInputs } from '../../hooks/useConnectedInputs.ts'
 import { useMediaDegrade } from '../../hooks/useMediaDegrade.ts'
 import ImageZoomDialog from '../base/editors/ImageZoomDialog.tsx'
-import { useContentHeightSync } from '../base/core/hooks.ts'
+import { useContentHeightSync } from '../base/core/uiHooks.ts'
 import { showToast } from '../base/core/toastStore.ts'
 import { toAbsoluteFileUrl } from '../base/api/index.ts'
 import { useRenderImageResolver } from '../base/utils/imageUrl.ts'

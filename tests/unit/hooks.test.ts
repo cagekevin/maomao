@@ -8,7 +8,7 @@
 import { describe, it, expect } from 'vitest'
 
 const { isEditableTarget, parseAspect, computeSizeSync } = await import(
-  '../../src/components/base/core/hooks.ts'
+  '../../src/components/base/core/uiHooks.ts'
 )
 
 describe('hooks — isEditableTarget', () => {

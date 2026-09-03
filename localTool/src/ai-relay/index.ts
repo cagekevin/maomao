@@ -23,7 +23,7 @@ import { testConnection } from './connection.js';
 import * as protocol from './protocol/index.js';
 import {
   chat, streamChat, chatWithTools, generateImage, generateVideo, generateAudio, getModelProtocolPreset,
-} from './generate/index.js';
+} from './generate.js';
 import type {
   ProviderDefinition,
   CreateRelayConfig,
