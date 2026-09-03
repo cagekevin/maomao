@@ -1,5 +1,77 @@
 /**
- * ts-migrate.mjs — TS 规范化重构的「终极架构版」辅助脚本 (完美时序与多根重构版)
+ * ts-migrate.mjs — TS 规范化重构的「终极架构版」辅助脚本（完美时序 + 多根 + 事务型）
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * 概览：本脚本做【机械改名/移动/目录搬运 + AST 全库同步 import 说明符】。
+ * 它只负责「文件位置与引用的一致」，不处理 Props 接口、内部 any、契约表同步、
+ * 测试验证、提交等——这些仍由你手动完成。
+ *
+ * 事务模型（Plan → Move → Commit）：
+ *   1. Plan   内存规划全部 import 改写，不落盘；
+ *   2. Move   执行 git mv / fs rename（物理改名/移动）；
+ *   3. Commit 物理【成功后才】把内存改动一次性刷盘。
+ *   → 物理失败时改动自动丢弃，绝不产生「import 已改、文件却没搬」的脏写中间态。
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * 全局选项（放在命令前，可多次/组合）：
+ *   --root <dir>            追加扫描根（默认 src/ 与 tests/）。后端/子项目常用，
+ *                           例：--root download/ai-relay/src  --root localTool/src
+ *   --alias <from>:<to>     追加自定义 import 别名，如 --alias '@proto/:/src/protocol/'
+ *                           （from 须以 / 结尾，to 相对扫描根，可多次）
+ *   --suffix auto|ts|js     import 产物后缀策略（默认 auto）：
+ *                               auto → 按目标源码推断运行后缀（.ts 源写 .js，ESM 约定）
+ *                               ts   → 显式统一写 .ts；  js → 显式统一写 .js
+ *   --dry                   只预览改动，不落盘、不改名（对 rename/move/move-dir/convert/batch 均生效）
+ *   --force                 绕过永久豁免红线（convert 用）
+ *
+ * 其他命令专属选项见下。
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * 命令：
+ *   # 改扩展名 / 后缀（把 .js/.jsx → .ts/.tsx，自动同步引用方 import 后缀）
+ *   convert <file> [--to ts|tsx] [--dry] [--force] [--nocheck]
+ *       缺省按内容 JSX 判定（有 JSX → .tsx，纯逻辑 → .ts）。--nocheck 注入 // @ts-nocheck。
+ *   update-imports <file> [--dry]      仅重写指向它的 import（文件已手动改名时用）
+ *
+ *   # 改文件名（目录不变）+ 全库同步引用 —— 语义化重命名
+ *   rename <file> <newName> [--dry]    例：rename src/a.ts b.ts
+ *       <newName> 可带或不带扩展名（缺省沿用旧扩展名）。同目录不可覆盖已存在文件。
+ *
+ *   # 移动文件（可顺带改名）+ 全库同步引用
+ *   move <file> <targetDirOrFile> [--dry]
+ *       目标为已存在目录 → 移入并保留 basename；
+ *       目标为新文件路径   → 移动并改名（自动建目录）。
+ *       文件已移动过、重跑 = 修复模式（只同步引用不重复移动）。
+ *
+ *   # 整目录搬运 + 一键回退 —— 搬一个目录并同步所有落其下的引用
+ *   move-dir <srcDir> <dstDir> [--dry]
+ *       dstDir 不存在则创建。任何文件移动失败 → 丢弃改写并提示回退。
+ *   move-dir --undo [--dry]   按上次记录（scripts/.move-dir-undo.json）整目录回退并还原引用
+ *
+ *   # 只读侦察 / 视图
+ *   refs <file>               列出谁 import 它 + 字符串残留引用位置（改名/搬移前先看影响面）
+ *   plan [<dir>] [--limit N] [--all]
+ *                             按引用量升序列待转 .js/.jsx（叶子优先），规划 convert 批次
+ *   find-dead [<dir>] [--strict]
+ *                             找孤儿/仅被测试引用的文件（启发式，删前人工核实）
+ *   batch [<dir>] --limit N [--dry] [--nocheck]
+ *                             批量 convert 引用数为 0 的叶子节点（危险度高于单文件，先 --dry）
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * 常用示例：
+ *   # 对子项目重命名并让全仓（含该根下测试 .mjs/.cjs）引用指向新名，ESM 项目保持 .js：
+ *   node scripts/ts-migrate.mjs --root download/ai-relay/src rename download/ai-relay/src/connection.ts connectionTest.ts
+ *   # 强制 import 写 .ts（纯 bundler / 开了 allowImportingTsExtensions 的项目）：
+ *   node scripts/ts-migrate.mjs --root download/ai-relay/src --suffix ts rename download/ai-relay/src/a.ts b.ts
+ *   # 先 dry 预览整目录搬运影响面：
+ *   node scripts/ts-migrate.mjs --root localTool/src move-dir localTool/src/lib localTool/src/core --dry
+ *   # 搬完发现不对，一键回退：
+ *   node scripts/ts-migrate.mjs --root localTool/src move-dir --undo
+ *   # 子项目自定义别名：@proto/ → src/protocol/
+ *   node scripts/ts-migrate.mjs --alias '@proto/:/src/protocol/' rename src/x.ts y.ts
+ *
+ * 多根 Alias 说明：resolveSpec/computeNewSpec 通过 aliasTable 解析与生成，
+ * 并依据「路径前缀最长的扫描根」判断别名归属，避免多根含嵌套时误判。
  */
 import { readFileSync, writeFileSync, readdirSync, statSync, existsSync, renameSync, mkdirSync } from 'node:fs'
 import { resolve, join, dirname, extname, basename, relative } from 'node:path'
@@ -945,5 +1017,5 @@ if (cmd === 'refs') {
   printWarnings(); process.exit(0)
 }
 
-console.error(`未知或省略的命令：${cmd}\n已知命令：convert / update-imports / move / rename / move-dir / batch / plan / refs / find-dead / any`);
+console.error(`未知或省略的命令：${cmd}\n已知命令：convert / update-imports / move / rename / move-dir / batch / plan / refs / find-dead\n用法详见脚本顶部 JSDoc`);
 process.exit(1);
