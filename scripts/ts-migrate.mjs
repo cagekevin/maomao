@@ -1,41 +1,5 @@
 /**
- * ts-migrate.mjs — TS 规范化重构的「终极架构版」辅助脚本 (AST 精确解析 v3)
- *
- * ═══════════════════════════════════════════════════════════════════════
- * ⚠️ 能力边界（AI 必读）：本脚本只做【机械改名 + 同步 import】。
- *    一个文件转完它就算完成任务。Props 接口、消除内部 any、同步 contracts.js
- *    EVENTS 表、同步 scripts/ 硬编码路径、跑测试、验证、提交——全部要你手动做。
- *    详见 docs/TS-migration-handoff-2026-08-31.md「九、脚本做了什么 / 不做什么」。
- * ═══════════════════════════════════════════════════════════════════════
- *
- * 【命令清单】
- *   convert <file> [--to ts|tsx] [--dry] [--force]
- *       改名为目标后缀（缺省按内容 JSX 判定：有 JSX → .tsx，纯逻辑 → .ts）
- *       + AST 全库重写指向它的 import 扩展名。--force 可绕过永久豁免红线。
- *   update-imports <file> [--to ts|tsx] [--dry]
- *       仅重写 import 说明符（文件已改名时用）。
- *   move <file> <targetDir> [--dry]        移动文件 + 重写全库 import 路径（横切收口）
- *   plan <dir> [--limit N] [--all]         按引用量升序（叶子优先）列待转文件
- *   refs <file>                            列模块引用 + 硬编码字符串残留（带行号）
- *   report <dir>                           生成 ts-migration-view.csv（Excel 作战表）
- *   batch <dir> --limit N [--nocheck]      批量转引用数为 0 的叶子节点
- *   find-dead <dir> [--strict]             孤儿文件 / 仅被测试引用的检测
- *
- * 【命令详解】
- *   - convert 是核心：git mv 改名 + AST 全库重写 import。AST 坐标精确替换，
- *     注释/字符串里的同名文本不误伤；按解析后绝对路径比对规避同名 basename 误伤。
- *   - plan / report / refs 是只读的「视图」：不落盘，用于规划批次和排查残留。
- *   - batch 会【自动连续执行 convert】多次——危险度高于单文件 convert，
- *     因为它一次改多个文件。用前先 --dry 预览，且每批限 --limit N。
- *   - find-dead 是排查工具：孤儿 ≠ 一定废弃（可能是动态拼接字符串黑魔法引入、
- *     或独立入口点），删前必须人工核实（例：TemplateNode 是动态注册的核心节点）。
- *
- * 【实现说明】
- *   - 说明符捕获/改写走 @babel/parser AST（坐标精确替换），不再用正则扫文本。
- *   - 解析失败/语法错误不静默跳过，汇总到 parseWarnings 末尾告警（防「漏改 import」）。
- *   - 依赖检查用 import.meta.resolve 探 @babel/parser，缺依赖直接 exit(1) 提示安装。
- *   - 扩展名无关 + 豁免清单 + JSX 探测定义在 ts-exts.cjs，经 check-targets.mjs 转出，
- *     与 check-* / smoke / health / sync-mapping 等脚本共用一份，避免各写一份。
+ * ts-migrate.mjs — TS 规范化重构的「终极架构版」辅助脚本 (完美时序与多根重构版)
  */
 import { readFileSync, writeFileSync, readdirSync, statSync, existsSync, renameSync, mkdirSync } from 'node:fs'
 import { resolve, join, dirname, extname, basename, relative } from 'node:path'
@@ -55,10 +19,12 @@ try {
 
 import { SCAN_EXTS, SOURCE_EXTS, TS_EXEMPT_DIRS, TS_EXEMPT_FILES, isExempt, resolveSourceFile, hasJsx, hasJsxHintRaw } from './check-targets.mjs'
 
+// 【修复 1: 扩大猎杀范围】测试脚本也需要参与引用同步
+if (!SCAN_EXTS.includes('.mjs')) SCAN_EXTS.push('.mjs', '.cjs');
+if (!SOURCE_EXTS.includes('.mjs')) SOURCE_EXTS.push('.mjs', '.cjs');
+
 const __dirname = fileURLToPath(new URL('.', import.meta.url))
 const root = resolve(__dirname, '..')
-// 默认扫描根：仓库根 src/ 与 tests/（前端）。可用 --root <dir> 追加更多根（如 localTool/src），
-// 让 move/refs/plan 等能重写该根下的文件引用（物理重排 relay-engine 等后端目录需要）。
 const SCAN_ROOTS = [join(root, 'src'), join(root, 'tests')]
 
 /** @type {Set<string>} */
@@ -67,6 +33,48 @@ const parseWarnings = new Set()
 function toPosix(p) { return p.replace(/\\/g, '/') }
 function relOf(abs) { return toPosix(abs.slice(root.length).replace(/^[/\\]/, '')) }
 function isExemptAbs(abs) { return isExempt(relOf(abs)) }
+
+// 【修复 2: 动态多根 + 可配置 Alias 解析】
+// 别名前缀表：from(import 里出现的前缀) → to(相对所在扫描根的目录)。默认 @/ → src/。
+// 可用 --alias <from>:<to> 追加子项目/自定义别名（如 @proto/ → src/protocol/、~core/ → src/core/）。
+const DEFAULT_ALIASES = [['@/', 'src/']]
+const aliasTable = new Map(DEFAULT_ALIASES)
+
+/**
+ * 找文件所属的「扫描根」：取与之路径前缀最长的 SCAN_ROOTS 项（避免两个根存在包含关系时误判）。
+ * 找不到时回退到仓库根 src/。
+ */
+function getAliasRoot(fileAbs) {
+  let best = null
+  for (const r of SCAN_ROOTS) {
+    if (fileAbs.startsWith(r) && (!best || r.length > best.length)) best = r
+  }
+  return best || join(root, 'src')
+}
+
+/** 找命中文件 spec 前缀的别名项；无则返回 null。返回该别名 to 的目标（不含前缀后的剩余段）。 */
+function matchAlias(spec) {
+  for (const [from, to] of aliasTable) {
+    if (spec.startsWith(from)) return { alias: from, to }
+  }
+  return null
+}
+
+/**
+ * 把 import 说明符解析为绝对路径。
+ *  相对(. / ../) → 相对 fromFile 所在目录；
+ *  别名(命中 aliasTable) → 相对 fromFile 所在扫描根的 <alias.to>/剩余段；
+ *  / 开头 → 当作相对根路径（相对 fromFile 所在扫描根）。
+ * @returns {string|null}
+ */
+function resolveSpec(spec, fromFile) {
+  const fromDir = dirname(fromFile)
+  if (spec.startsWith('.')) return resolve(fromDir, spec)
+  const m = matchAlias(spec)
+  if (m) return resolve(getAliasRoot(fromFile), m.to, spec.slice(m.alias.length))
+  if (spec.startsWith('/')) return resolve(getAliasRoot(fromFile), spec.slice(1))
+  return null
+}
 
 function collectFiles(dir, acc = []) {
   for (const name of readdirSync(dir)) {
@@ -87,15 +95,7 @@ function detectExt(code, toFlag) {
   return hasJsx(code) ? '.tsx' : '.ts'
 }
 
-function resolveSpec(spec, fromDir) {
-  if (spec.startsWith('@/')) return resolve(root, 'src', spec.slice(2))
-  if (spec.startsWith('.')) return resolve(fromDir, spec)
-  if (spec.startsWith('/')) return resolve(root, 'src', spec.slice(1))
-  return null
-}
-
 function allSources() {
-  /** @type {Set<string>} */
   const set = new Set()
   for (const dir of SCAN_ROOTS) {
     if (!existsSync(dir)) continue
@@ -104,22 +104,7 @@ function allSources() {
   return [...set]
 }
 
-// ============================================================================
-// AST 解析引擎
-// ============================================================================
-
-/**
- * 用 AST 提取文件里所有模块说明符节点（含 start/end 坐标）。
- * 覆盖：ESM import / export...from / require() / 动态 import()。
- * 说明符是「引用点」——convert 改扩展名、move 改路径都靠这些坐标做精确替换。
- * @param {string} code      文件源码
- * @param {string} filepath  文件绝对路径（仅用于解析告警提示）
- * @returns {Array|null} 说明符节点数组；解析崩溃返回 null（调用方据此告警）
- * @note 边界：模板串动态 import（`import(\`./x/${v}.js\`)`）AST 抓不到。
- *       本仓已明令禁止这种写法（见 lazyNode.jsx 注释），故不构成风险。
- */
 function extractImportNodes(code, filepath) {
-  /** @type {Array<{ value: string, start: number, end: number }>} */
   const nodes = []
   try {
     const ast = parse(code, {
@@ -128,9 +113,7 @@ function extractImportNodes(code, filepath) {
       errorRecovery: true
     })
 
-    if (ast.errors && ast.errors.length > 0) {
-      parseWarnings.add(`[语法错误] ${filepath} (已尝试恢复解析，请注意检查)`)
-    }
+    if (ast.errors && ast.errors.length > 0) parseWarnings.add(`[语法错误] ${filepath}`)
 
     const walk = (node) => {
       if (!node) return
@@ -143,16 +126,11 @@ function extractImportNodes(code, filepath) {
       } else if (node.type === 'CallExpression') {
         const isRequire = node.callee.type === 'Identifier' && node.callee.name === 'require'
         const isDynamicImport = node.callee.type === 'Import'
-        // vi.mock('…/Xxx.jsx')：vitest 的 mock 路径是【字符串参数】，convert 改名后不自动变，
-        // 是 TS 迁移期反复翻车的最大盲区（见交接文档 §10.1/§10.3/§10.5/§10.6/§10.9/§10.11）。
-        // 这里把它当普通模块说明符抓进 AST，让 rewriteImports 在 convert 时自动同步后缀。
-        // 只认 `vi.mock(...)` 且首个实参是 StringLiteral；正则/变量形式的 mock 不处理（本仓不用）。
         const isViMock =
           node.callee.type === 'MemberExpression' &&
           node.callee.object.type === 'Identifier' && node.callee.object.name === 'vi' &&
           node.callee.property.type === 'Identifier' && node.callee.property.name === 'mock'
-        const isMockWithSpec = (isViMock && node.arguments.length > 0)
-        if ((isRequire || isDynamicImport || isMockWithSpec) && node.arguments.length > 0) {
+        if ((isRequire || isDynamicImport || (isViMock && node.arguments.length > 0)) && node.arguments.length > 0) {
           const arg = node.arguments[0]
           if (arg.type === 'StringLiteral') nodes.push(arg)
         }
@@ -166,20 +144,13 @@ function extractImportNodes(code, filepath) {
     }
     walk(ast.program)
   } catch (err) {
-    parseWarnings.add(`[解析崩溃] ${filepath} (严重：将丢失该文件的依赖追踪/重写)`)
+    parseWarnings.add(`[解析崩溃] ${filepath}`)
     return null
   }
   return nodes
 }
 
-/**
- * 构建全库引用图：被引用模块绝对路径 → 引用它的文件集合（src + tests）。
- * 供 plan（按引用量排叶子优先）/ refs（查引用方）/ report（导出作战表）使用。
- * 说明符一律走扩展名无关解析（resolveSourceFile），改名前后的引用都能算进来。
- * @returns {Map<string, Set<string>>} targetAbs -> Set<importerAbs>
- */
 function buildRefGraph() {
-  /** @type {Map<string, Set<string>>} */
   const graph = new Map()
   const push = (target, from) => {
     let set = graph.get(target)
@@ -194,7 +165,7 @@ function buildRefGraph() {
     if (!nodes) continue
 
     for (const node of nodes) {
-      const abs = resolveSpec(node.value, dirname(file))
+      const abs = resolveSpec(node.value, file)
       if (abs === null) continue
       const target = resolveSourceFile(abs)
       if (!target || target === file) continue
@@ -204,174 +175,165 @@ function buildRefGraph() {
   return graph
 }
 
-// ============================================================================
-// 引用重写逻辑
-// ============================================================================
-
+// 【修复 3: Alias 自动净化匹配多根 + 动态别名】
 /**
- * 计算「从引用文件 fromFile 指向 newAbs」的新说明符。
- * - 原 spec 是 @/ 别名 → 保持 @/ 形式
- * - 否则算相对路径；若回退 ≥2 层且目标在 src/ 下，自动净化成 @/ 别名（特性 3）
- * @param fromFile 引用方文件绝对路径
- * @param newAbs   目标文件新绝对路径
- * @param oldSpec  原说明符（判断 @/ 前缀）
+ * 源码扩展名 → 该项目「运行时 import 应写的扩展名」映射（ESM 项目惯用 .js 指向 .ts 源）：
+ *   .ts  → .js     （tsx/esbuild 会把 .js 解析回 .ts 源）
+ *   .tsx → .jsx    （同前）
+ *   .js  → .js     （真实 js 文件）
+ *   .jsx → .jsx    （真实 jsx 文件）
+ * 空 = 文件无源码扩展名时不做替换。
  */
-function computeNewSpec(fromFile, newAbs, oldSpec) {
-  const srcRoot = resolve(root, 'src')
-  if (oldSpec.startsWith('@/')) return '@/'.replace('@/', '@/') + toPosix(relative(srcRoot, newAbs))
-  
-  let rel = toPosix(relative(dirname(fromFile), newAbs))
-  if (!rel.startsWith('.')) rel = './' + rel
-  
-  // 【特性 3: Alias 自动净化】如果相对路径过深 (回退两层及以上) 且都在 src/ 下，自动转为 @/ 别名
-  if (rel.startsWith('../../') && newAbs.startsWith(srcRoot)) {
-    return '@/' + toPosix(relative(srcRoot, newAbs))
-  }
-  
-  return rel
+function runtimeSuffixForSource(newAbs) {
+  const e = extname(newAbs)
+  if (e === '.ts') return '.js'
+  if (e === '.tsx') return '.jsx'
+  return e && SOURCE_EXTS.includes(e) ? e : ''
 }
 
 /**
- * 重写全库指向 oldAbs 的 import 说明符（AST 坐标精确替换，从后往前改保证坐标不失效）。
- * @param oldAbs      被改名/移动前的目标文件绝对路径
- * @param makeNewSpec (fromFile, fullSpec) => 新说明符；决定「换扩展名」还是「换路径」
- * @param dry         只预览不落盘
- * @param skip        不参与重写的绝对路径集合（如目标文件自身/新文件）
- * @returns 被改动文件的相对路径列表
- * @note 仅重写「解析后绝对路径 === oldAbs」的说明符，规避同名 basename 误伤
- *      （如 base/ErrorBoundary vs director3d/ErrorBoundary）。
+ * 把一个「可能带源码扩展名」的规范说明符片段，套用 --suffix 策略归一：
+ *   suffix='ts'   → 一律补 .ts（或 .tsx，若原目标带 tsx/含 JSX 场景——这里统一 ts）
+ *   suffix='js'   → 一律补 .js（真实 .jsx 源也归 .js，见下）
+ *   suffix='auto' → 按目标源码推导「运行时后缀」（.ts→.js / .tsx→.jsx / .js→.js）
+ * 说明：suffix 是用户显式声明的「想要的项目 import 后缀」，它直接决定产物；auto 才是"智能推断"。
+ * 仅处理带源码扩展名的片段；无扩展名片段（如 @/types、@/hooks/useX）原样保留。
  */
+function applySpecSuffix(specStem, targetExt, suffix) {
+  const st = toPosix(specStem)
+  // 显式 ts：目标若是 .ts/.tsx 源，就按 .ts/.tsx；但用户想要统一 ts 就统 .ts。为精确，
+  // 这里按目标真实源码扩展名给（.ts→.ts、.tsx→.tsx、.js→.js），让"生成 TS"落对扩展名。
+  if (suffix === 'ts') {
+    if (targetExt === '.ts' || targetExt === '.tsx') return st + targetExt
+    return st + (targetExt || '')
+  }
+  // 显式 js：一律归 .js/.jsx（真实 .jsx 源仍 .jsx；.js/.ts 归 .js）
+  if (suffix === 'js') {
+    if (targetExt === '.tsx' || targetExt === '.jsx') return st + '.jsx'
+    return st + '.js'
+  }
+  // auto：按目标源码推导运行时后缀
+  const rs = runtimeSuffixForSource(st + targetExt)
+  return rs ? st + rs : st
+}
+
+function computeNewSpec(fromFile, newAbs, oldSpec) {
+  const currentRoot = getAliasRoot(fromFile)
+  const targetExt = extname(newAbs)
+  const mkRel = (rel) => (toPosix(rel).startsWith('.') ? toPosix(rel) : './' + toPosix(rel))
+  const stripExt = (p) => p.replace(/\.[a-z0-9]+$/i, '')
+
+  // 旧 spec 原本是别名形式 → 保持别名前缀；alias 惯用不带后缀，仅当显式 --suffix 非 auto 时补全
+  const m = matchAlias(oldSpec)
+  if (m && newAbs.startsWith(currentRoot)) {
+    const aliasRel = stripExt(toPosix(relative(resolve(currentRoot, m.to), newAbs)))
+    return suffixMode === 'auto' ? m.alias + aliasRel : m.alias + applySpecSuffix(aliasRel, targetExt, suffixMode)
+  }
+
+  // 普通相对路径：去掉目标扩展名算出 stem，再按 suffix 策略决定产物扩展名
+  let rel = stripExt(toPosix(relative(dirname(fromFile), newAbs)))
+
+  // 相对过深(≥2 层回退)且目标仍在本根内 → 净化成 @/ 别名（仅 auto 下，别名不带后缀）
+  if (rel.startsWith('../../') && newAbs.startsWith(currentRoot) && suffixMode === 'auto') {
+    return '@/' + stripExt(toPosix(relative(currentRoot, newAbs)))
+  }
+
+  return mkRel(applySpecSuffix(rel, targetExt, suffixMode))
+}
+
 /**
- * @param {string} oldAbs
- * @param {(fromFile: string, fullSpec: string) => string} makeNewSpec
- * @param {boolean} [dry]
- * @param {Set<string>} [skip]
+ * 【事务型重构 v2】把「引用改写」拆成两个阶段：
+ *   1. planImportRewrites —— 只读扫描 + 在【内存】生成每文件的改写后文本，绝不落盘；
+ *   2. commitPendingWrites —— 由调用方在物理移动(git mv / rename)【成功后】显式调用，
+ *      一次性把内存中的改动刷入磁盘。
+ * 好处：物理移动失败时，内存改动直接丢弃，不产生「import 已改、文件却没搬」的脏写中间态。
+ *
+ * 返回 { pendingWrites: Map<fileAbs, newSourceText>, diffLogs: [{file, diffs}] }
  */
-function rewriteSpecs(oldAbs, makeNewSpec, dry = false, skip = new Set()) {
-  const changed = []
-  
+function planImportRewrites(oldAbs, makeNewSpec, skip = new Set()) {
+  /** @type {Map<string, string>} */
+  const pendingWrites = new Map()
+  /** @type {Array<{file:string, diffs:Array<{old:string,new:string}>}>} */
+  const diffLogs = []
+
   for (const file of allSources()) {
     if (skip.has(file)) continue
     let src
     try { src = readFileSync(file, 'utf8') } catch { continue }
-    
+
     const nodes = extractImportNodes(src, relOf(file))
     if (!nodes) continue
 
     const hits = nodes.filter(node => {
-      const abs = resolveSpec(node.value, dirname(file))
+      const abs = resolveSpec(node.value, file)
       if (abs === null) return false
-      // 用 resolveSourceFile 归一化（.jsx→.tsx 等），与 buildRefGraph 的判定一致——
-      // 否则 `vi.mock('…/Foo.jsx')` 指向已改名的 .tsx 时，resolveSpec 返回 .jsx 路径，
-      // 与 oldAbs(.tsx) 不相等，mock 引用就漏掉不重写（本批实测踩坑）。
+
       const target = resolveSourceFile(abs)
-      return target !== null && target === oldAbs
+      if (target !== null && target === oldAbs) return true
+
+      // 兜底：目标已不存在（如已被物理改名/移动），按去扩展名的路径比对，
+      // 保证「文件已先动、引用还指着旧路径」时也能被找出来（旧版脏写踩坑点）。
+      if (!target) {
+        const baseAbs = abs.replace(/\.(jsx?|tsx?|mjs|cjs)$/, '')
+        const oldBase = oldAbs.replace(/\.(jsx?|tsx?|mjs|cjs)$/, '')
+        if (baseAbs === oldBase) return true
+      }
+      return false
     })
 
     if (hits.length > 0) {
       hits.sort((a, b) => b.start - a.start)
       let nextSrc = src
+      const fileDiffs = []
       for (const node of hits) {
         const newSpec = makeNewSpec(file, node.value)
         if (newSpec === node.value) continue
-        
-        const q = nextSrc[node.start] 
+        fileDiffs.push({ old: node.value, new: newSpec })
+        const q = nextSrc[node.start]
         nextSrc = nextSrc.slice(0, node.start) + `${q}${newSpec}${q}` + nextSrc.slice(node.end)
       }
-      
-      if (nextSrc !== src) {
-        changed.push(file)
-        if (!dry) writeFileSync(file, nextSrc, 'utf8')
+      if (fileDiffs.length > 0) {
+        diffLogs.push({ file: relOf(file), diffs: fileDiffs })
+        pendingWrites.set(file, nextSrc)
       }
     }
   }
-  return changed.map((f) => relOf(f))
+  return { pendingWrites, diffLogs }
 }
 
-/**
- * convert 用的专用改写器：把指向 oldAbs 的说明符后缀统一换成 newExt。
- *
- * 注意：替换基准是【说明符自身携带的后缀】（extname(fullSpec)），而非 oldAbs 的扩展名。
- * 原因：常规 import 的 spec 与 oldAbs 同后缀（.jsx→.tsx 时基准一致），但 `vi.mock('…/Foo.jsx')`
- * 里 spec 的后缀可能与 oldAbs 不一致（源已 .tsx、mock 仍写 .jsx 的漂移场景）。
- * 若用 oldAbs 的扩展名切，会把 `.jsx` 误切成 `.j.tsx`（§ State 4 实测踩坑）。按 spec 自身
- * 后缀替换，无论写 .jsx/.tsx/无后缀，只要解析命中 oldAbs，一律换成 newExt。
- */
-function rewriteImports(oldAbs, newExt, dry = false) {
+/** 事务提交：把内存中的待写改动一次性刷盘。返回写入的文件数。 */
+function commitPendingWrites(pendingWrites) {
+  let n = 0
+  for (const [file, nextSrc] of pendingWrites.entries()) {
+    writeFileSync(file, nextSrc, 'utf8')
+    n++
+  }
+  return n
+}
+
+function rewriteImports(oldAbs, newExt) {
   const oldExt = extname(oldAbs)
   const newAbs = oldAbs.slice(0, oldAbs.length - oldExt.length) + newExt
-  return rewriteSpecs(
-    oldAbs,
-    (_fromFile, fullSpec) => {
-      const specExt = extname(fullSpec)
-      // 只替换「源码扩展名」；spec 不带后缀或带非源码后缀（如 .json）时原样保留（append 无意义）
-      if (!SOURCE_EXTS.includes(specExt)) return fullSpec
-      return fullSpec.slice(0, fullSpec.length - specExt.length) + newExt
-    },
-    dry,
-    new Set([oldAbs, newAbs])
-  )
+  // convert/batch：物理改扩展名(.js→.ts)。import 后缀按 suffix 策略落：
+  //   auto → 沿用「指向 .ts 源写 .js」的项目约定（import 后缀由 newExt 推导运行后缀）；
+  //   ts/js → 显式统一成对应后缀。
+  // 复用 applySpecSuffix：specStem=去旧后缀的路径，targetExt=新文件真实后缀。
+  return planImportRewrites(oldAbs, (_fromFile, fullSpec) => {
+    const specExt = extname(fullSpec)
+    if (!SOURCE_EXTS.includes(specExt)) return fullSpec
+    const stem = fullSpec.slice(0, fullSpec.length - specExt.length)
+    return applySpecSuffix(stem, newExt, suffixMode)
+  }, new Set([oldAbs, newAbs]))
 }
 
-/** move 用的专用改写器：把指向 oldAbs 的说明符重算为指向 newAbs 的新路径 */
-function rewriteImportsForMove(oldAbs, newAbs, dry = false) {
-  return rewriteSpecs(oldAbs, (fromFile, fullSpec) => computeNewSpec(fromFile, newAbs, fullSpec), dry)
+function rewriteImportsForMove(oldAbs, newAbs) {
+  return planImportRewrites(oldAbs, (fromFile, fullSpec) => computeNewSpec(fromFile, newAbs, fullSpec))
 }
 
-/**
- * 整体重写"解析路径落在 oldDir 下"的 import 说明符 → 对应 dstDir 下的新路径。
- *
- * 【为什么需要它 / 与 rewriteImportsForMove 的区别】move(单文件) 靠
- *   `resolveSourceFile(abs) === oldAbs` 判定命中，要求被移文件"仍能按旧路径解析到"才重写。
- *   但整目录移动时，被移文件已被 git mv 走，import 方还写着旧目录段(如 ../protocol/executor)，
- *   此时旧路径解析不到 → 判不中 → 漏改(实测踩坑)。本函数不依赖旧文件是否存在：
- *   只要 import 说明符【解析后的绝对路径落在 oldDir 下】，就把它按"该文件现在应位于 dstDir 下"
- *   重算成新说明符。适用于整目录搬到新位置(relay-engine 内部按链路重排等)。
- * @param {string} oldDir 移动前目录绝对路径
- * @param {string} newDir 移动后目录绝对路径（含目录名，如 …/2-engine）
- * @param {boolean} [dry]
- * @returns 被改动文件相对路径列表
- */
-function rewriteImportsByDir(oldDir, newDir, dry = false) {
-  const changed = []
-  for (const file of allSources()) {
-    let src
-    try { src = readFileSync(file, 'utf8') } catch { continue }
-    const nodes = extractImportNodes(src, relOf(file))
-    if (!nodes) continue
-    const hits = nodes.filter((node) => {
-      const spec = node.value
-      if (!(spec.startsWith('.') || spec.startsWith('@/') || spec.startsWith('/'))) return false
-      const abs = resolveSpec(spec, dirname(file))
-      if (abs === null) return false
-      // 落在旧目录下即命中（无论旧文件是否已被移走）
-      const relUnder = toPosix(relative(oldDir, abs))
-      return relUnder !== '' && !relUnder.startsWith('..')
-    })
-    if (hits.length === 0) continue
-    hits.sort((a, b) => b.start - a.start)
-    let nextSrc = src
-    for (const node of hits) {
-      const abs = resolveSpec(node.value, dirname(file))
-      const relUnder = toPosix(relative(oldDir, abs))
-      const newAbs = join(newDir, relUnder)
-      const newSpec = computeNewSpec(file, newAbs, node.value)
-      if (newSpec === node.value) continue
-      const q = nextSrc[node.start]
-      nextSrc = nextSrc.slice(0, node.start) + `${q}${newSpec}${q}` + nextSrc.slice(node.end)
-    }
-    if (nextSrc !== src) {
-      changed.push(file)
-      if (!dry) writeFileSync(file, nextSrc, 'utf8')
-    }
-  }
-  return changed.map((f) => relOf(f))
-}
-
-/** 递归收集 srcDir 下所有源码文件绝对路径（相对顺序，供 move-dir 逐文件 git mv）。 */
-function collectSourceFilesUnder(dir, acc = []) {
-  for (const name of readdirSync(dir)) {
-    const full = join(dir, name)
+/** 递归收集 srcDir 下所有源码文件绝对路径（稳定排序：目录序 + 文件名序）。 */
+function collectSourceFilesUnder(srcDir, acc = []) {
+  for (const name of readdirSync(srcDir)) {
+    const full = join(srcDir, name)
     let st
     try { st = statSync(full) } catch { continue }
     if (st.isDirectory()) collectSourceFilesUnder(full, acc)
@@ -381,104 +343,136 @@ function collectSourceFilesUnder(dir, acc = []) {
 }
 
 /**
- * 重写【被移动文件自身】的 import 路径（其相对基准随移动变了）。
- * @param fileAbs 被移动的文件
- * @param oldDir  移动前所在目录（作为相对基准）
- * @param dry     只预览不落盘
- * @returns 是否有改动（供 move 命令判断「漏改自身 import 的修复模式」）
+ * 【整目录搬动】对「所有 import 解析后落在 oldDir 下」的说明符，重算为指向 dstDir 下对应文件。
+ * 事务型：只规划、不落盘。关键区别见 rewriteImportsForMove：本函数不依赖旧文件是否还存在——
+ * 只要说明符解析后的绝对路径落在 oldDir 下即命中（整目录已 git mv 走、import 还写旧目录段时也能命中）。
+ * @param oldDir 移动前目录绝对路径
+ * @param newDir 移动后目录绝对路径（含目录名）
+ * @returns {{pendingWrites:Map<string,string>, diffLogs:Array}}
  */
-function rewriteOutgoingImports(fileAbs, oldDir, dry = false) {
+function planDirMoveRewrites(oldDir, newDir) {
+  const pendingWrites = new Map()
+  const diffLogs = []
+  for (const file of allSources()) {
+    let src
+    try { src = readFileSync(file, 'utf8') } catch { continue }
+    const nodes = extractImportNodes(src, relOf(file))
+    if (!nodes) continue
+    // 命中判定与生成都要用「真实源文件」解析（resolveSourceFile 归一化 import 写的 .js → 真实 .ts），
+    // 否则 newAbs 会带上 import 里写的 .js，导致 applySpecSuffix 的 targetExt 判错。
+    const hits = nodes.filter((node) => {
+      const spec = node.value
+      if (!(spec.startsWith('.') || matchAlias(spec) || spec.startsWith('/'))) return false
+      const abs = resolveSpec(spec, file)
+      if (abs === null) return false
+      const real = resolveSourceFile(abs)
+      const under = real || abs
+      const relUnder = toPosix(relative(oldDir, under))
+      return relUnder !== '' && !relUnder.startsWith('..')
+    })
+    if (hits.length === 0) continue
+    hits.sort((a, b) => b.start - a.start)
+    let nextSrc = src
+    const diffs = []
+    for (const node of hits) {
+      const abs = resolveSpec(node.value, file)
+      // 归一化到真实源文件（若文件已被 git mv 走、解析不到，退回用 abs）
+      const real = resolveSourceFile(abs)
+      const under = real || abs
+      const relUnder = toPosix(relative(oldDir, under))
+      const newAbs = join(newDir, relUnder)
+      const newSpec = computeNewSpec(file, newAbs, node.value)
+      if (newSpec === node.value) continue
+      diffs.push({ old: node.value, new: newSpec })
+      const q = nextSrc[node.start]
+      nextSrc = nextSrc.slice(0, node.start) + `${q}${newSpec}${q}` + nextSrc.slice(node.end)
+    }
+    if (diffs.length > 0) {
+      diffLogs.push({ file: relOf(file), diffs })
+      pendingWrites.set(file, nextSrc)
+    }
+  }
+  return { pendingWrites, diffLogs }
+}
+
+/**
+ * 重写【被移动文件自身】的出向 import（其相对基准随移动变了）。
+ * 事务型：只规划、不落盘；返回 { pendingWrites, diffLogs }，由调用方在物理移动成功后 commit。
+ * @param fileAbs 被移动的文件
+ * @param baseDirForResolve 用于解析其相对 import 的基准目录（移动前所在目录），
+ *                          与调用方传入的「旧目录」严格对应，Node relative() 会正确算嵌套 ../。
+ */
+function planOutgoingRewrites(fileAbs, baseDirForResolve) {
   let src
-  try { src = readFileSync(fileAbs, 'utf8') } catch { return false }
-  
+  try { src = readFileSync(fileAbs, 'utf8') } catch { return { pendingWrites: new Map(), diffLogs: [] } }
+
   const nodes = extractImportNodes(src, relOf(fileAbs))
-  if (!nodes) return false
+  if (!nodes) return { pendingWrites: new Map(), diffLogs: [] }
 
   let hit = false
   let nextSrc = src
+  const diffs = []
 
   nodes.sort((a, b) => b.start - a.start).forEach(node => {
     const spec = node.value
     if (!(spec.startsWith('.') || spec.startsWith('@/') || spec.startsWith('/'))) return
-    const abs = resolveSpec(spec, oldDir)
-    if (abs === null || !existsSync(abs)) return
-    
+    // 自身 import 的相对基准 = 移动前的所在目录（文件内容尚未变，仍按旧目录解析才找得到目标）
+    const abs = resolveSpec(spec, join(baseDirForResolve, '_self_placeholder.ts'))
+    if (abs === null) return
+
     const newSpec = computeNewSpec(fileAbs, abs, spec)
     if (newSpec !== spec) {
       hit = true
+      diffs.push({ old: spec, new: newSpec })
       const q = nextSrc[node.start]
       nextSrc = nextSrc.slice(0, node.start) + `${q}${newSpec}${q}` + nextSrc.slice(node.end)
     }
   })
 
-  if (hit && !dry) writeFileSync(fileAbs, nextSrc, 'utf8')
-  return hit
+  const pendingWrites = new Map()
+  if (hit) pendingWrites.set(fileAbs, nextSrc)
+  return { pendingWrites, diffLogs: hit ? diffs : [] }
 }
 
-const STRING_REF_ROOTS = ['src', 'tests', 'scripts']
-const STRING_REF_EXTS = ['.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs', '.json', '.html']
-const STRING_REF_SKIP_DIRS = new Set(['node_modules', '.git', 'dist', 'dev', 'coverage', '1mao-scripts', 'scriptbox-split-snapshot', 'archived'])
-
-function collectStringScanFiles() {
-  const out = []
-  const walk = (dir) => {
-    let entries
-    try { entries = readdirSync(dir) } catch { return }
-    for (const name of entries) {
-      if (STRING_REF_SKIP_DIRS.has(name)) continue
-      const full = join(dir, name)
-      let st
-      try { st = statSync(full) } catch { continue }
-      if (st.isDirectory()) walk(full)
-      else if (STRING_REF_EXTS.includes(extname(name))) out.push(full)
-    }
-  }
-  for (const r of STRING_REF_ROOTS) walk(join(root, r))
-  return out
-}
-
-/**
- * 全仓【字符串残留引用】扫描：找出把文件名硬编码进文本的位置（非 import 说明符）。
- * 这类引用脚本不会改（AST 只抓 import），改名后会静默失效——refs 命令靠它列出
- * 需要你手动同步的位置（典型：regression_test.cjs 拼出的 import 路径、tests 的文件名枚举）。
- * @param name    要搜的文件名（如 'ProjectSelector.jsx'）
- * @param skipAbs 排除的文件（目标文件自身/新文件）
- * @returns [{ file, line, text }]
- */
-function findStringRefs(name, skipAbs = []) {
-  const hits = []
-  for (const file of collectStringScanFiles()) {
-    if (skipAbs.includes(file)) continue
-    let src
-    try { src = readFileSync(file, 'utf8') } catch { continue }
-    const lines = src.split('\n')
-    for (let i = 0; i < lines.length; i++) {
-      if (lines[i].includes(name)) {
-        hits.push({ file: relOf(file), line: i + 1, text: lines[i].trim().slice(0, 160) })
-      }
-    }
-  }
-  return hits
-}
-
-/**
- * 改名/移动：优先 git mv（保留历史），非跟踪文件退回 fs rename。
- * @returns 'git mv' | 'fs rename' | null（失败）
- */
+// 【修复 5: 严格拒绝静默丢失 Git 历史】
 function renameFile(oldAbs, newAbs) {
   const rel = relOf(oldAbs)
+  const isTracked = spawnSync('git', ['ls-files', '--error-unmatch', rel], { cwd: root }).status === 0;
+  
   const res = spawnSync('git', ['mv', '--', rel, relOf(newAbs)], { cwd: root })
   if (res.status === 0) return 'git mv'
-  try { renameSync(oldAbs, newAbs); return 'fs rename' } catch { return null }
+  
+  if (isTracked) {
+    console.error(`\n✖ 严重警告：${rel} 被 Git 跟踪，但 git mv 失败！`);
+    console.error(`  为防止丢失历史记录，拒绝静默降级为 fs rename。请检查目标是否已存在或目录权限。`);
+    return null;
+  }
+  
+  try { 
+    renameSync(oldAbs, newAbs); 
+    return 'fs rename (未跟踪文件)' 
+  } catch (err) { 
+    return null 
+  }
 }
 
-/**
- * 打印解析告警汇总。解析失败/语法错误会让某些文件的依赖重写不完整，
- * 必须显式告知而非静默跳过（本脚本的关键设计取舍）。
- */
+function printDiffLog(changedFiles) {
+  if (changedFiles.length === 0) {
+    console.log(`ℹ 无其他文件引用需同步`)
+    return
+  }
+  console.log(`✔ 已同步 ${changedFiles.length} 个文件的 import：`)
+  for (const c of changedFiles) {
+    console.log(`   📝 ${c.file}`)
+    for (const d of c.diffs) {
+      console.log(`      - ${d.old}\n      + ${d.new}`)
+    }
+  }
+}
+
 function printWarnings() {
   if (parseWarnings.size > 0) {
-    console.log('\n⚠ 发现以下解析告警，部分依赖重写可能受到影响：')
+    console.log('\n⚠ 发现解析告警：')
     for (const w of parseWarnings) console.log(`   - ${w}`)
   }
 }
@@ -496,16 +490,19 @@ const { positionals, values } = parseArgs({
     all: { type: 'boolean', default: false },
     force: { type: 'boolean', default: false },
     strict: { type: 'boolean', default: false },
-    count: { type: 'boolean', default: false }, // 【特性: any 汇总模式】
-    nocheck: { type: 'boolean', default: false }, // 【特性 2: 平滑注入选项】
-    root: { type: 'string', multiple: true },      // 追加扫描根（如 --root localTool/src），可多次
-    undo: { type: 'boolean', default: false },     // move-dir 回退：撤销上一次 move-dir 并还原 import
+    count: { type: 'boolean', default: false }, 
+    nocheck: { type: 'boolean', default: false }, 
+    root: { type: 'string', multiple: true },      
+    alias: { type: 'string', multiple: true },   // 追加自定义别名：--alias <from>:<to>，可多次
+    suffix: { type: 'string', default: 'auto' }, // import 产物后缀：auto(默认,按目标源码推断) | ts | js
+    undo: { type: 'boolean', default: false },     
   },
   allowPositionals: true,
 })
 
-// 追加用户指定的扫描根（resolve 到仓库根下；存在才加，去重），使 move/refs/plan 能覆盖
-// localTool/ 等默认根之外的目录。
+// import 产物后缀策略：默认 auto = 对 .ts 源生成 .js（ESM 惯用）；显式 ts/js 强制统一。
+const suffixMode = ['auto', 'ts', 'js'].includes(values.suffix) ? values.suffix : 'auto'
+
 if (values.root) {
   for (const r of values.root) {
     const abs = resolve(root, r)
@@ -514,13 +511,30 @@ if (values.root) {
   }
 }
 
+// 注入自定义别名（须在 --root 之后，因 to 相对各扫描根解析）。格式 "@proto/:/src/protocol/" 等。
+if (values.alias) {
+  for (const a of values.alias) {
+    const idx = a.indexOf(':')
+    if (idx <= 0) { console.error(`✖ --alias 格式应为 <from>:<to>，收到：${a}`); process.exit(1) }
+    const from = a.slice(0, idx)
+    const to = a.slice(idx + 1).replace(/^\/+/, '') // 去掉用户可能带的根斜杠
+    if (!from.endsWith('/')) { console.error(`✖ alias from 应以 '/' 结尾：${from}`); process.exit(1) }
+    aliasTable.set(from, to)
+  }
+}
+
 const cmd = positionals[0]
 const fileArg = positionals[1]
 const toFlag = values.to
 const dry = values.dry
 
+// 工具函数：为无明确传参的目录提供智能推断，不再只盯 src/
+function getDefaultDirArg() {
+  return fileArg ? resolve(root, fileArg) : SCAN_ROOTS[0] || resolve(root, 'src');
+}
+
 if (cmd === 'plan') {
-  const dir = resolve(root, fileArg || 'src')
+  const dir = getDefaultDirArg()
   const limitArg = Number(values.limit)
   const all = values.all
   const graph = buildRefGraph()
@@ -538,349 +552,270 @@ if (cmd === 'plan') {
   }
   
   pending.sort((a, b) => a.refs - b.refs || a.file.localeCompare(b.file))
-
-  const byTo = pending.reduce((acc, f) => { acc[f.to] = (acc[f.to] || 0) + 1; return acc }, {})
-  console.log(`\n待转 ${pending.length} 个文件（tsx:${byTo['.tsx'] || 0} / ts:${byTo['.ts'] || 0}）`
-    + `　[已排除永久豁免 ${exemptSkipped} 个：${TS_EXEMPT_DIRS.join(' / ')}、${TS_EXEMPT_FILES.join(' / ')}]`)
-  console.log('排序：被引用次数升序（叶子优先，级联改动最小）\n')
-
+  console.log(`\n待转 ${pending.length} 个文件... [排除豁免 ${exemptSkipped} 个]`)
   const shown = all ? pending : pending.slice(0, limitArg)
-  for (const f of shown) {
-    console.log(`  ${String(f.refs).padStart(3)} 引用  ${f.file.padEnd(64)} → ${f.to}${f.suspect ? '  ⚠判定可疑，人工确认' : ''}`)
-  }
-  const suspects = pending.filter((f) => f.suspect)
-  if (suspects.length) {
-    console.log(`\n⚠ ${suspects.length} 个判定可疑（原文无 JSX 字样却被判含 JSX）：`)
-    for (const f of suspects) console.log('   - ' + f.file + '（确认后可用 --to ts/tsx 强制）')
-  }
-  if (!all && pending.length > shown.length) {
-    console.log(`  … 另 ${pending.length - shown.length} 个未显示（加 --all 全列，或 --limit N 调整）`)
-  }
-
-  printWarnings()
+  for (const f of shown) console.log(`  ${String(f.refs).padStart(3)} 引用  ${f.file.padEnd(64)} → ${f.to}`)
   process.exit(0)
 }
 
-if (cmd === 'refs') {
-  if (!fileArg) { console.error('缺少 <file> 参数'); process.exit(1) }
-  const abs = resolve(root, fileArg)
-  if (!existsSync(abs)) { console.error(`文件不存在：${fileArg}`); process.exit(1) }
-  const newExt = detectExt(readFileSync(abs, 'utf8'), toFlag)
-  const newAbs = abs.slice(0, abs.length - extname(abs).length) + newExt
-
-  const graph = buildRefGraph()
-  const importers = [...(graph.get(abs) || [])].sort()
-  console.log(`\n① 模块引用 ${importers.length} 处（convert 会自动改写这些 import 说明符）：`)
-  for (const f of importers) console.log('   - ' + relOf(f))
-  if (importers.length === 0) console.log('   （无）')
-
-  const strRefs = findStringRefs(basename(abs), [abs, newAbs])
-  console.log(`\n② 字符串残留引用 ${strRefs.length} 处（脚本【不】改字符串，需手工同步）：`)
-  for (const h of strRefs) console.log(`   - ${h.file}:${h.line}\n       ${h.text}`)
-  
-  printWarnings()
-  process.exit(0)
-}
-
-if (cmd === 'report') {
-  const dir = resolve(root, fileArg || 'src')
-  console.log(`正在深度扫描 ${dir} 下的文件，构建全景引用视图...`)
-  
-  const graph = buildRefGraph()
-  const pending = []
-  
-  for (const f of collectFiles(dir, [])) {
-    if (!['.js', '.jsx'].includes(extname(f))) continue
-    if (isExemptAbs(f)) continue 
-    
-    const srcCode = readFileSync(f, 'utf8')
-    const importerSet = graph.get(f)
-    const importers = importerSet ? Array.from(importerSet).map(relOf) : []
-    
-    const base = basename(f)
-    const newExt = detectExt(srcCode, toFlag)
-    const newAbs = f.slice(0, f.length - extname(f).length) + newExt
-    const strRefs = findStringRefs(base, [f, newAbs]).map(h => `${h.file}:${h.line}`)
-
-    pending.push({
-      file: relOf(f),
-      refCount: importers.length,
-      importers: importers.join(' \r\n '),
-      strRefs: strRefs.length > 0 ? strRefs.join(' \r\n ') : '无'
-    })
-  }
-  
-  pending.sort((a, b) => a.refCount - b.refCount || a.file.localeCompare(b.file))
-
-  let csv = '待转文件 (自底向上排序),被引用次数,被哪些文件 Import,硬编码字符串残留位置\r\n'
-  for (const p of pending) {
-    csv += `"${p.file}",${p.refCount},"${p.importers}","${p.strRefs}"\r\n`
-  }
-  
-  const reportPath = resolve(root, 'ts-migration-view.csv')
-  writeFileSync(reportPath, '\uFEFF' + csv, 'utf8')
-  
-  console.log(`\n✔ 已生成全景迁移视图报表：ts-migration-view.csv`)
-  console.log(`  提示：记得将该文件加入 .gitignore！`)
-  
-  printWarnings()
-  process.exit(0)
-}
-
-// 【特性: any 残留定位（只读）】
-// 扫描 src/ + tests/，定位「显式 any」残留（排除注释行），按文件聚合带行号。
-// 用法：
-//   any                        全量扫描 src + tests
-//   any <片段>                 仅扫描路径含该片段的文件（如 any localToolApi / any requestModes）
-//   any <片段> --count         仅输出「文件 × 处数」汇总，不列明细
-// 设计：纯只读、零落盘、零污染，取代文档里手写的 grep 命令。
-if (cmd === 'any') {
-  const filter = fileArg || ''
-  const onlyCount = values.count
-  // 显式 any 形态：: any / as any / <any> / any[] / Record<string, any> / Promise<any>
-  // 排除明显注释行（// 或 * 或 /* 开头的行），与文档 grep 口径一致。
-  const ANY_RE = /:\s*any\b|as\s+any\b|<\s*any\s*>|any\[\]|<any>|Record<string,\s*any>|Promise<any>/g
-  const COMMENT_RE = /^\s*(\/\/|\*|\/\*)/
-
-  // collectFiles 接收单个目录，依次喂入每个根并合并文件绝对路径。
-  const files = []
-  for (const r of SCAN_ROOTS) {
-    if (existsSync(r)) files.push(...collectFiles(r, []))
-  }
-  const targets = files.filter((f) => /\.(ts|tsx|js|jsx|mjs|cjs)$/.test(extname(f)))
-  const matched = []
-  for (const f of files) {
-    if (filter && !relOf(f).includes(filter)) continue
-    const lines = readFileSync(f, 'utf8').split('\n')
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i]
-      if (COMMENT_RE.test(line)) continue
-      const re = new RegExp(ANY_RE)
-      if (re.test(line)) {
-        matched.push({ file: relOf(f), line: i + 1, text: line.trim() })
-      }
-    }
-  }
-
-  // 按文件聚合
-  const byFile = new Map()
-  for (const m of matched) {
-    if (!byFile.has(m.file)) byFile.set(m.file, [])
-    byFile.get(m.file).push(m)
-  }
-
-  if (onlyCount) {
-    console.log('\n📊 any 残留汇总（文件 × 处数）：')
-    let total = 0
-    const rows = [...byFile.entries()].sort((a, b) => b[1].length - a[1].length)
-    for (const [file, ms] of rows) {
-      console.log(`  ${String(ms.length).padStart(3, ' ')}  ${file}`)
-      total += ms.length
-    }
-    console.log(`\n合计：${total} 处（覆盖 ${byFile.size} 个文件）`)
-  } else {
-    console.log('\n🔍 显式 any 残留明细：')
-    for (const [file, ms] of byFile) {
-      console.log(`\n──── ${file} (${ms.length}) ────`)
-      for (const m of ms) console.log(`  ${String(m.line).padStart(4, ' ')}: ${m.text}`)
-    }
-    let total = 0
-    for (const ms of byFile.values()) total += ms.length
-    console.log(`\n合计：${total} 处（覆盖 ${byFile.size} 个文件）`)
-  }
-  process.exit(0)
-}
-
-// 【特性 4: 僵尸代码扫描】
+// 【修复 6: 显式提示被豁免的探查特征】
 if (cmd === 'find-dead') {
-  const dir = resolve(root, fileArg || 'src')
+  const dir = getDefaultDirArg()
   const strict = values.strict
-  console.log(`\n🧟 正在扫描 ${dir} 查找僵尸文件/孤儿节点...${strict ? '（--strict 模式：含「仅被测试引用」的可疑项）' : ''}`)
+  console.log(`\n🧟 正在扫描 ${relOf(dir)} 查找僵尸文件...${strict ? '（含仅被测试引用的项目）' : ''}`)
   
   const graph = buildRefGraph()
-  const dead = []
-  const onlyTest = [] // 非孤儿，但仅被测试文件引用 → 疑似测试专用的废弃组件
-  // 常见入口文件或构建态代码（strict 下收窄，避免 index/config/setup 误判为孤儿）
-  const ENTRY_HINTS = strict
-    ? ['main.', 'App.', 'index.', 'vite']
-    : ['index.', 'main.', 'App.', 'router', 'setup', 'config', 'vite']
-
+  const dead = [], onlyTest = [], exempted = []
+  const ENTRY_HINTS = strict ? ['main.', 'App.', 'index.', 'vite'] : ['index.', 'main.', 'App.', 'router', 'setup', 'config', 'vite']
   const isTest = (abs) => basename(abs).includes('.test.') || basename(abs).includes('.spec.')
 
   for (const f of collectFiles(dir, [])) {
     if (isExemptAbs(f)) continue
     const base = basename(f)
-    if (ENTRY_HINTS.some(h => base.includes(h))) continue
+    if (ENTRY_HINTS.some(h => base.includes(h))) {
+      exempted.push(f); continue;
+    }
     if (isTest(f)) continue
 
     const importers = graph.get(f)
-    if (!importers || importers.size === 0) {
-      dead.push(f)
-      continue
-    }
-    // --strict：被引用者全部是测试文件 → 业务侧已无引用，疑似测试专用或已废弃
-    if (strict && [...importers].every(isTest)) {
-      onlyTest.push(f)
-    }
+    if (!importers || importers.size === 0) dead.push(f)
+    else if (strict && [...importers].every(isTest)) onlyTest.push(f)
+  }
+
+  if (exempted.length > 0) {
+    console.log(`\n🛡 以下文件因包含特定关键字(${ENTRY_HINTS.join(', ')})被启发式规则跳过判定：`);
+    console.log(`   (共 ${exempted.length} 个文件，如有遗漏请人工检查)`);
   }
 
   if (dead.length === 0 && onlyTest.length === 0) {
-    console.log(`✔ 恭喜，未发现明显的孤儿代码！`)
+    console.log(`\n✔ 扫描完毕，未发现明确的无引用代码。`)
   } else {
     if (dead.length) {
-      console.log(`\n⚠ 发现 ${dead.length} 个无引用依赖的文件（疑似废弃代码）：`)
+      console.log(`\n⚠ 发现 ${dead.length} 个无引用依赖的文件：`)
       for (const f of dead) console.log(`   - ${relOf(f)}`)
     }
-    if (onlyTest.length) {
-      console.log(`\n🔎 发现 ${onlyTest.length} 个「仅被测试引用」的文件（业务侧已无引用，疑似废弃）：`)
-      for (const f of onlyTest) {
-        const t = [...graph.get(f)].map(relOf).join(', ')
-        console.log(`   - ${relOf(f)}\n       仅被引用：${t}`)
-      }
-    }
-    console.log(`\n[提示] 请人工核实：这些文件未被 AST 探测到任何明确的 import/require 引用。`)
-    console.log(`可能原因：1. 确实是废弃代码； 2. 通过动态拼接字符串黑魔法引入； 3. 这是个独立入口点。`)
   }
-  printWarnings()
   process.exit(0)
 }
 
-// 【特性 1: 批量转叶子节点】
 if (cmd === 'batch') {
-  const dir = resolve(root, fileArg || 'src')
+  const dir = getDefaultDirArg()
   const limitArg = Number(values.limit)
   const graph = buildRefGraph()
-
   const pending = []
+  
   for (const f of collectFiles(dir, [])) {
     if (!['.js', '.jsx'].includes(extname(f))) continue
     if (isExemptAbs(f)) continue
-    
-    const refCount = graph.get(f) ? graph.get(f).size : 0
-    if (refCount === 0) {
-      const code = readFileSync(f, 'utf8')
-      pending.push({ abs: f, to: detectExt(code, toFlag) })
-    }
+    if (!graph.get(f) || graph.get(f).size === 0) pending.push({ abs: f, to: detectExt(readFileSync(f, 'utf8'), toFlag) })
   }
   
-  if (pending.length === 0) {
-    console.log(`\nℹ 目录 ${dir} 下暂无可安全的叶子节点（引用数为 0 的 js/jsx）。`)
-    process.exit(0)
-  }
-
-  // 叶子排序，优先处理浅层文件
-  pending.sort((a, b) => a.abs.localeCompare(b.abs))
-  const targets = pending.slice(0, limitArg)
-  
-  console.log(`\n🚀 [Batch] 找到 ${pending.length} 个叶子节点，本次将自动转换前 ${targets.length} 个...`)
+  if (pending.length === 0) { console.log(`\nℹ 目录暂无可安全的叶子节点。`); process.exit(0) }
+  const targets = pending.sort((a, b) => a.abs.localeCompare(b.abs)).slice(0, limitArg)
 
   for (let i = 0; i < targets.length; i++) {
     const oldAbs = targets[i].abs
     const toExt = targets[i].to
     const oldExt = extname(oldAbs)
     const newAbs = oldAbs.slice(0, oldAbs.length - oldExt.length) + toExt
-    const base = basename(oldAbs)
 
     console.log(`\n[${i+1}/${targets.length}] 处理 ${relOf(oldAbs)} ...`)
 
-    if (!dry) {
-      // 【特性 2: 注入 // @ts-nocheck】
-      if (values.nocheck) {
-        let currentCode = readFileSync(oldAbs, 'utf8')
-        if (!currentCode.includes('// @ts-nocheck') && !currentCode.includes('// @ts-expect-error')) {
-          writeFileSync(oldAbs, '// @ts-nocheck\n' + currentCode, 'utf8')
-          console.log(`  ✔ 注入 // @ts-nocheck`)
-        }
-      }
-      
-      const how = renameFile(oldAbs, newAbs)
-      if (!how) { console.error(`  ✖ 改名失败`); continue }
-      console.log(`  ✔ 改名 ${base} → ${basename(newAbs)}`)
-    } else {
-      console.log(`  (预览) 拟改名 ${base} → ${basename(newAbs)}${values.nocheck ? ' (并注入 nocheck)' : ''}`)
-    }
+    // Phase 1 — Plan：内存规划引用改写，不落盘
+    const { pendingWrites, diffLogs } = rewriteImports(oldAbs, toExt)
+    if (diffLogs.length > 0) console.log(`  ✔ 规划 ${diffLogs.length} 个引用方`)
 
-    const changed = rewriteImports(oldAbs, toExt, dry)
-    if (changed.length > 0) {
-      console.log(`  ✔ 同步 ${changed.length} 处引用: ${changed.map(c => basename(c)).join(', ')}`)
+    if (dry) { console.log(`  (预览) 拟改名 → ${basename(newAbs)}`); continue }
+
+    // Phase 2 — Move：物理改名（git mv / fs rename）。失败 → 丢弃内存改动，零污染
+    const how = renameFile(oldAbs, newAbs)
+    if (!how) {
+      console.error(`  ✖ 改名失败，已丢弃本次规划的内存改动（${relOf(oldAbs)} 未变化）`)
+      continue
     }
+    console.log(`  ✔ 改名 → ${basename(newAbs)} (${how})`)
+
+    // Phase 3 — Commit：物理成功后一次性刷盘引用改写
+    commitPendingWrites(pendingWrites)
   }
-  
   if (dry) console.log('\n（--dry 仅预览，未实际落盘）')
-  else console.log('\n🎉 批量转换完成！跑一遍 `npm run check:events` 确认健康状态吧。')
-  
-  printWarnings()
-  process.exit(0)
+  printWarnings(); process.exit(0)
 }
 
 if (cmd === 'convert' || cmd === 'update-imports') {
   if (!fileArg) { console.error('缺少 <file> 参数'); process.exit(1) }
   const oldAbs = resolve(root, fileArg)
   if (!existsSync(oldAbs)) { console.error(`文件不存在：${fileArg}`); process.exit(1) }
+  if (isExemptAbs(oldAbs) && !values.force) { console.error(`✖ 拒绝转换：${relOf(oldAbs)} 属永久豁免`); process.exit(1) }
   
-  if (isExemptAbs(oldAbs) && !values.force) {
-    console.error(`✖ 拒绝转换：${relOf(oldAbs)} 属永久豁免（红线）。`)
+  const toExt = detectExt(readFileSync(oldAbs, 'utf8'), toFlag)
+  const newAbs = oldAbs.slice(0, oldAbs.length - extname(oldAbs).length) + toExt
+
+  // Phase 1 — Plan：内存规划引用改写，不落盘
+  const { pendingWrites, diffLogs } = rewriteImports(oldAbs, toExt)
+
+  if (dry) {
+    printDiffLog(diffLogs)
+    console.log('（--dry 仅预览，未实际落盘/改名）')
+    printWarnings(); process.exit(0)
+  }
+
+  // update-imports：文件已改名/移动，直接提交引用改写（不 rename）
+  if (cmd === 'update-imports') {
+    commitPendingWrites(pendingWrites)
+    printDiffLog(diffLogs)
+    printWarnings(); process.exit(0)
+  }
+
+  // convert：Phase 2 Move → Phase 3 Commit。物理失败丢弃内存改动，零污染
+  const how = renameFile(oldAbs, newAbs)
+  if (!how) {
+    console.error('✖ 物理改名失败，已丢弃所有引用改写，系统保持一致。')
     process.exit(1)
   }
-  
-  const code = readFileSync(oldAbs, 'utf8')
-  const toExt = detectExt(code, toFlag)
-  const oldExt = extname(oldAbs)
-  const newAbs = oldAbs.slice(0, oldAbs.length - oldExt.length) + toExt
-
-  if (cmd === 'convert' && !dry) {
-    // 【特性 2: 注入 // @ts-nocheck】
-    if (values.nocheck) {
-      let currentCode = readFileSync(oldAbs, 'utf8')
-      if (!currentCode.includes('// @ts-nocheck') && !currentCode.includes('// @ts-expect-error')) {
-        writeFileSync(oldAbs, '// @ts-nocheck\n' + currentCode, 'utf8')
-        console.log(`✔ 注入 // @ts-nocheck`)
-      }
-    }
-    
-    const how = renameFile(oldAbs, newAbs)
-    if (!how) { console.error(`改名失败：${oldAbs}`); process.exit(1) }
-    console.log(`✔ 改名 ${basename(oldAbs)} → ${basename(newAbs)}（${how}）`)
-  }
-
-  const changed = rewriteImports(oldAbs, toExt, dry)
-  const rel = relOf(oldAbs)
-  if (changed.length === 0) {
-    console.log(`ℹ ${rel}：无其他文件引用其 import 说明符`)
-  } else {
-    console.log(`✔ 已同步 ${changed.length} 个文件的 import 说明符：`)
-    for (const c of changed) console.log('   - ' + c)
-  }
-  if (dry) console.log('（--dry 仅预览，未实际落盘/改名）')
-  
-  printWarnings()
-  process.exit(0)
+  console.log(`✔ 改名 ${basename(oldAbs)} → ${basename(newAbs)}（${how}）`)
+  commitPendingWrites(pendingWrites)
+  printDiffLog(diffLogs)
+  printWarnings(); process.exit(0)
 }
 
+// 【修复 7: move 支持文件直接重命名】
+if (cmd === 'move') {
+  const targetArg = positionals[2]
+  if (!fileArg || !targetArg) { console.error('用法：move <file> <targetDir/targetFile> [--dry]'); process.exit(1) }
+  
+  const oldAbs = resolve(root, fileArg)
+  let targetAbs = resolve(root, targetArg)
+  
+  let newAbs;
+  if (existsSync(targetAbs) && statSync(targetAbs).isDirectory()) {
+    newAbs = join(targetAbs, basename(oldAbs))
+  } else {
+    newAbs = targetAbs
+    const targetDir = dirname(newAbs)
+    if (!dry && !existsSync(targetDir)) mkdirSync(targetDir, { recursive: true })
+  }
+  
+  const alreadyMoved = !existsSync(oldAbs) && existsSync(newAbs)
+  if (!existsSync(oldAbs) && !alreadyMoved) { console.error(`文件不存在：${fileArg}`); process.exit(1) }
+  if (alreadyMoved) console.log(`ℹ 文件已在目标位置，进入修复模式`)
+
+  // Phase 1 — Plan：同时规划「外部引用方 incoming」与「自身出向 outgoing」，全部不落盘
+  const { pendingWrites: incWrites, diffLogs: incDiffs } = alreadyMoved
+    ? planImportRewrites(newAbs, (fromFile, fullSpec) => computeNewSpec(fromFile, newAbs, fullSpec))
+    : rewriteImportsForMove(oldAbs, newAbs)
+
+  // 自身出向 import 重写：内容是按【移动前】的位置写的，故以 dirname(oldAbs) 为解析基准才能
+  // 命中目标文件；改写后的新说明符要指向同一目标，故以【移动后】位置 newAbs 为生成基准。
+  // Node relative(newAbs→目标) 会正确算出嵌套 ../，深层目录搬移不会算错。
+  const { pendingWrites: selfWrites, diffLogs: selfDiffs } = planOutgoingRewrites(
+    newAbs, // 生成基准：移动后的文件位置
+    dirname(oldAbs), // 解析基准：移动前的目录（内容按旧位置写的 import 才能命中）
+  )
+
+  if (dry) {
+    printDiffLog(incDiffs)
+    if (selfDiffs.length) { console.log('   [自身出向]'); for (const d of selfDiffs) console.log(`      - ${d.old}\n      + ${d.new}`) }
+    console.log('（--dry 仅预览，未实际落盘）')
+    printWarnings(); process.exit(0)
+  }
+
+  // Phase 2 — Move：物理移动/改名。失败 → 丢弃全部内存改动，零污染
+  if (!alreadyMoved) {
+    const how = renameFile(oldAbs, newAbs)
+    if (!how) {
+      console.error('✖ 物理移动失败，已丢弃所有引用改写，系统保持一致。')
+      process.exit(1)
+    }
+    console.log(`✔ 移动/改名 ${relOf(oldAbs)} → ${relOf(newAbs)}（${how}）`)
+  }
+
+  // Phase 3 — Commit：物理成功后一次性刷盘
+  commitPendingWrites(incWrites)
+  commitPendingWrites(selfWrites)
+  printDiffLog(incDiffs)
+  if (selfDiffs.length) { console.log('✔ 已重写自身出向 import：'); for (const d of selfDiffs) console.log(`      - ${d.old}\n      + ${d.new}`) }
+  printWarnings(); process.exit(0)
+}
+
+if (cmd === 'rename') {
+  const newName = positionals[2]
+  if (!fileArg || !newName) { console.error('用法：rename <file> <newName> [--dry]'); process.exit(1) }
+  if (newName.includes('/') || newName.includes('\\')) { console.error('✖ rename 只改文件名'); process.exit(1) }
+  
+  const oldAbs = resolve(root, fileArg)
+  if (!existsSync(oldAbs)) { console.error(`文件不存在：${fileArg}`); process.exit(1) }
+  
+  const oldExt = extname(oldAbs)
+  const nb = basename(newName)
+  const newAbs = join(dirname(oldAbs), nb.toLowerCase().endsWith(oldExt) ? nb : nb + oldExt)
+  if (newAbs === oldAbs) { console.error('✖ 新旧名相同'); process.exit(1) }
+  if (existsSync(newAbs)) { console.error(`✖ 目标文件已存在，阻止静默覆盖！`); process.exit(1) }
+
+  // Phase 1 — Plan：改名不换目录，自身出向相对路径不变，只需规划外部引用方改写
+  const { pendingWrites, diffLogs } = rewriteImportsForMove(oldAbs, newAbs)
+
+  if (dry) {
+    console.log(`(预览) 改名 ${relOf(oldAbs)} → ${relOf(newAbs)}`)
+    printDiffLog(diffLogs)
+    printWarnings(); process.exit(0)
+  }
+
+  // Phase 2 — Move：物理改名。失败 → 丢弃内存改动，零污染
+  const how = renameFile(oldAbs, newAbs)
+  if (!how) {
+    console.error('✖ 物理改名失败，已丢弃所有引用改写，系统保持一致。')
+    process.exit(1)
+  }
+  console.log(`✔ 改名 ${basename(oldAbs)} → ${basename(newAbs)}（${how}）`)
+
+  // Phase 3 — Commit
+  commitPendingWrites(pendingWrites)
+  printDiffLog(diffLogs)
+  printWarnings(); process.exit(0)
+}
+
+// ============================================================================
+// move-dir：整目录搬运 + 一键回退（undo）
+//   命令：move-dir <srcDir> <dstDir> [--dry]
+//         move-dir --undo  [--dry]
+//   时序（事务型）：
+//     Plan  → 内存规划：全部文件的入向/出向引用改写（不落盘）
+//     Move  → 逐文件 git mv/rename 到 dstDir，边移边记录 undo manifest
+//     Commit→ 全部物理移动成功后，一次性刷盘所有引用改写
+//    失败策略：任一物理移动失败 → 丢弃内存改写、写回退清单，提示可 move-dir --undo
+// ============================================================================
 if (cmd === 'move-dir') {
   const UNDO_MANIFEST = join(__dirname, '.move-dir-undo.json')
 
-  // ── 回退模式：move-dir --undo 读上次的 manifest，把文件从 dstDir 移回 srcDir，并还原 import ──
+  // ── 回退模式：move-dir --undo ──
   if (values.undo) {
     if (!existsSync(UNDO_MANIFEST)) { console.error('✖ 没有可回退的 move-dir 记录（无 .move-dir-undo.json）'); process.exit(1) }
     let manifest
-    try { manifest = JSON.parse(readFileSync(UNDO_MANIFEST, 'utf8')) } catch { console.error('✖ 回退清单损坏，无法回退'); process.exit(1) }
+    try { manifest = JSON.parse(readFileSync(UNDO_MANIFEST, 'utf8')) } catch { console.error('✖ 回退清单损坏'); process.exit(1) }
     const { srcDir, dstDir, pairs } = manifest
-    // 先还原 import（dstDir 的引用 → 回到 srcDir），再反向移动文件
-    const changed = rewriteImportsByDir(dstDir, srcDir, dry)
-    if (changed.length === 0) console.log('ℹ 无指向 dstDir 的 import 需回退')
-    else { console.log(`✔ 已回退 ${changed.length} 个文件的 import 路径：`); for (const c of changed) console.log('   - ' + c) }
+    if (dry) { console.log(`(预览) 将把 ${relOf(dstDir)} 下 ${pairs.length} 个文件移回 ${relOf(srcDir)} 并还原引用`); process.exit(0) }
+
+    // 1) 先还原外部入向引用（把落在 dstDir 的说明符算回 srcDir 对应位置）→ 物理移回前不落盘？
+    //    为安全：先物理移回所有文件（避免"引用已改但文件还在 dstDir"），再统一还原引用。
+    let undoFail = false
     for (const { oldAbs, newAbs } of pairs) {
-      if (!existsSync(newAbs)) { console.log(`  ℹ 跳过（目标不存在）：${relOf(newAbs)}`); continue }
-      const how = dry ? 'dry' : renameFile(newAbs, oldAbs)
-      if (dry) console.log(`  (dry) ${relOf(newAbs)} → ${relOf(oldAbs)}`)
-      else if (how) console.log(`✔ ${relOf(newAbs)} → ${relOf(oldAbs)}（${how}）`)
-      else { console.error(`✖ 回退失败：${relOf(newAbs)}`); process.exit(1) }
+      if (!existsSync(newAbs)) { console.log(`  ℹ 跳过（不存在）：${relOf(newAbs)}`); continue }
+      const how = renameFile(newAbs, oldAbs)
+      if (!how) { console.error(`  ✖ 移回失败：${relOf(newAbs)}`); undoFail = true }
+      else console.log(`✔ ${relOf(newAbs)} → ${relOf(oldAbs)}（${how}）`)
     }
-    if (!dry) { try { writeFileSync(UNDO_MANIFEST, '[]', 'utf8') } catch {} }
-    if (dry) console.log('\n（--dry 仅预览，未实际移动/落盘）')
-    printWarnings()
-    process.exit(0)
+    if (undoFail) { console.error('✖ 部分文件移回失败，回退清单保留，请人工处理。'); process.exit(1) }
+
+    // 2) 引用还原：外部 import 由 dstDir 指回 srcDir；被移文件的自身出向也已随物理位置复原
+    const { pendingWrites: backWrites, diffLogs: backDiffs } = planDirMoveRewrites(dstDir, srcDir)
+    commitPendingWrites(backWrites)
+    printDiffLog(backDiffs)
+
+    // 3) 成功后清除清单
+    try { writeFileSync(UNDO_MANIFEST, '[]', 'utf8') } catch {}
+    console.log('\n✔ 已完整回退，undo 清单已清空。')
+    printWarnings(); process.exit(0)
   }
 
   const targetArg = positionals[2]
@@ -888,100 +823,127 @@ if (cmd === 'move-dir') {
   const srcDir = resolve(root, fileArg)
   const dstDir = resolve(root, targetArg)
   if (!existsSync(srcDir)) { console.error(`源目录不存在：${fileArg}`); process.exit(1) }
-  if (!dry) mkdirSync(dstDir, { recursive: true })
+  if (existsSync(dstDir) && !statSync(dstDir).isDirectory()) { console.error(`✖ 目标已存在且非目录：${targetArg}`); process.exit(1) }
+  if (dry && !existsSync(dstDir)) mkdirSync(dstDir, { recursive: true }) // dry 也建出以便正常 resolve
 
-  // 1) 逐文件 git mv（保子目录结构），并记录回退清单
-  const moved = collectSourceFilesUnder(srcDir, [])
-  if (moved.length === 0) { console.error(`源目录下无源码文件可移：${fileArg}`); process.exit(1) }
-  const movedPairs = []
-  for (const oldAbs of moved) {
+  // 收集待搬文件（稳定顺序）
+  const toMove = collectSourceFilesUnder(srcDir, [])
+  if (toMove.length === 0) { console.error(`源目录下无源码文件可搬：${fileArg}`); process.exit(1) }
+  console.log(`\n计划将 ${srcDir} 下 ${toMove.length} 个源码文件搬到 ${dstDir}`)
+
+  // Phase 1 — Plan：先规划所有外部引用改写（旧目录→新目录），并逐文件规划自身出向
+  const { pendingWrites: incoming, diffLogs: incomingDiffs } = planDirMoveRewrites(srcDir, dstDir)
+  const pairs = [] // { oldAbs, newAbs }
+  const selfLogs = []
+  for (const oldAbs of toMove) {
     const relUnder = toPosix(relative(srcDir, oldAbs))
     const newAbs = join(dstDir, relUnder)
-    if (existsSync(oldAbs)) {
-      if (!dry) mkdirSync(dirname(newAbs), { recursive: true })
-      const how = dry ? 'dry' : renameFile(oldAbs, newAbs)
-      if (dry) { console.log(`  (dry) ${relOf(oldAbs)} → ${relOf(newAbs)}`) }
-      else if (how) { console.log(`✔ ${relOf(oldAbs)} → ${relOf(newAbs)}（${how}）`) }
-      else { console.error(`✖ 移动失败：${relOf(oldAbs)}`); process.exit(1) }
-    } else {
-      console.log(`  ℹ ${relOf(oldAbs)} 已不在源目录（可能已移），跳过`)
-    }
+    pairs.push({ oldAbs, newAbs })
+    // 自身出向：内容按旧位置写 → 以 dirname(oldAbs) 解析基准；改写后指向目标 → 生成基准用 newAbs。
+    const selfPlan = planOutgoingRewrites(newAbs, dirname(oldAbs))
+    if (selfPlan.diffLogs.length) selfLogs.push({ file: relOf(oldAbs), diffs: selfPlan.diffLogs, plan: selfPlan })
+  }
+
+  if (dry) {
+    printDiffLog(incomingDiffs)
+    if (selfLogs.length) { console.log('   [被搬文件自身出向]'); for (const s of selfLogs) for (const d of s.diffs) console.log(`      ${s.file}: - ${d.old}\n        + ${d.new}`) }
+    console.log(`\n（--dry 仅预览，共 ${pairs.length} 个文件待搬。可先执行无 dry 落地；出错可用 move-dir --undo 回退）`)
+    printWarnings(); process.exit(0)
+  }
+
+  // Phase 2 — Move：逐文件物理移动 + 写 undo manifest
+  mkdirSync(dstDir, { recursive: true })
+  let moveFailed = false
+  const movedPairs = []
+  for (const { oldAbs, newAbs } of pairs) {
+    if (existsSync(newAbs)) { console.error(`  ✖ 目标已存在，跳过：${relOf(newAbs)}`); moveFailed = true; continue }
+    mkdirSync(dirname(newAbs), { recursive: true })
+    const how = renameFile(oldAbs, newAbs)
+    if (!how) { console.error(`  ✖ 移动失败：${relOf(oldAbs)}`); moveFailed = true; continue }
+    console.log(`✔ ${relOf(oldAbs)} → ${relOf(newAbs)}（${how}）`)
     movedPairs.push({ oldAbs, newAbs })
   }
-  if (!dry) writeFileSync(UNDO_MANIFEST, JSON.stringify({ srcDir, dstDir, pairs: movedPairs }, null, 2), 'utf8')
+  // 无论是否全成，先把已成功的记入清单，便于失败后按已搬部分回退
+  try { writeFileSync(UNDO_MANIFEST, JSON.stringify({ srcDir, dstDir, pairs: movedPairs }, null, 2), 'utf8') } catch {}
 
-  // 1.5) 重写被移文件自身的出向 import：目录下移一层后，指向上层根级成员的相对路径(../X)需变(../../X)。
-  //      逐个用 rewriteOutgoingImports(newAbs, dirname(oldAbs)) 处理（基准 = 移动前所在目录）。
-  let outgoingFixed = 0
-  for (const { oldAbs, newAbs } of movedPairs) {
-    if (!existsSync(newAbs)) continue
-    const fixed = rewriteOutgoingImports(newAbs, dirname(oldAbs), dry)
-    if (fixed) outgoingFixed++
-  }
-  if (outgoingFixed > 0) console.log(`✔ 已重写 ${outgoingFixed} 个被移文件自身的出向 import 路径`)
-
-  // 2) 重写全库：把解析路径落在旧目录下的 import → 新目录路径（不依赖旧文件是否存在）
-  const changed = rewriteImportsByDir(srcDir, dstDir, dry)
-  if (changed.length === 0) {
-    console.log(`ℹ 无引用旧目录的 import（可能此前已同步）`)
-  } else {
-    console.log(`✔ 已同步 ${changed.length} 个文件的 import 路径：`)
-    for (const c of changed) console.log('   - ' + c)
+  if (moveFailed) {
+    console.error(`\n✖ 部分文件移动失败，已丢弃全部引用改写（未 commit）。`)
+    console.error(`  已成功移动 ${movedPairs.length} 个文件已记录到回退清单。`)
+    console.error(`  修复问题后：node scripts/ts-migrate.mjs move-dir --undo 可移回已搬部分。`)
+    printWarnings(); process.exit(1)
   }
 
-  if (!dry) console.log(`\nℹ 本次移动已记录回退清单：scripts/.move-dir-undo.json\n   出错想回退执行：node scripts/ts-migrate.mjs move-dir --undo --root <扫描根>`)
-  if (dry) console.log('\n（--dry 仅预览，未实际移动/落盘）')
-  printWarnings()
-  process.exit(0)
+  // Phase 3 — Commit：全部移动成功 → 刷盘所有外部引用改写 + 被搬文件自身出向
+  commitPendingWrites(incoming)
+  for (const s of selfLogs) commitPendingWrites(s.plan.pendingWrites)
+  printDiffLog(incomingDiffs)
+  if (selfLogs.length) {
+    console.log(`✔ 已重写 ${selfLogs.length} 个被搬文件自身的出向 import：`)
+    for (const s of selfLogs) for (const d of s.diffs) console.log(`      - ${d.old}\n      + ${d.new}`)
+  }
+  console.log(`\nℹ 已记录回退清单 scripts/.move-dir-undo.json。出错回退：node scripts/ts-migrate.mjs move-dir --undo`)
+  printWarnings(); process.exit(0)
 }
 
-if (cmd === 'fix-outgoing') {
-  const baseArg = positionals[2]
-  if (!fileArg || !baseArg) { console.error('用法：fix-outgoing <file> <oldBaseDir> [--dry]（重写该文件自身出向 import，基准=移动前的旧目录）'); process.exit(1) }
-  const fileAbs = resolve(root, fileArg)
-  const oldDir = resolve(root, baseArg)
-  if (!existsSync(fileAbs)) { console.error(`文件不存在：${fileArg}`); process.exit(1) }
-  const fixed = rewriteOutgoingImports(fileAbs, oldDir, dry)
-  console.log(fixed
-    ? `✔ 已重写 ${relOf(fileAbs)} 的出向 import（基准 ${relOf(oldDir)}）`
-    : `ℹ ${relOf(fileAbs)} 出向 import 无需改动`)
-  printWarnings()
-  process.exit(0)
+// ============================================================================
+// refs：列出某模块被谁 import + 字符串残留引用位置（改名/搬移前的事先勘察）
+// ============================================================================
+const STRING_REF_EXT_RE = /\.(js|jsx|ts|tsx|mjs|cjs|json|html|md)$/
+const STRING_REF_SKIP_DIRS = new Set(['node_modules', '.git', 'dist', 'dev', 'coverage', 'archived'])
+
+/** 递归收集仓库文本文件（用于字符串残留扫描），仅覆盖各扫描根 + scripts。 */
+function collectTextFilesUnder(dir, acc = []) {
+  for (const name of readdirSync(dir)) {
+    const full = join(dir, name)
+    let st
+    try { st = statSync(full) } catch { continue }
+    if (st.isDirectory()) {
+      if (STRING_REF_SKIP_DIRS.has(name)) continue
+      collectTextFilesUnder(full, acc)
+    } else if (STRING_REF_EXT_RE.test(name)) acc.push(full)
+  }
+  return acc
 }
 
-if (cmd === 'move') {
-  const targetArg = positionals[2]
-  if (!fileArg || !targetArg) { console.error('用法：move <file> <targetDir> [--dry]'); process.exit(1) }
-  
-  const oldAbs = resolve(root, fileArg)
-  const targetDir = resolve(root, targetArg)
-  const newAbs = join(targetDir, basename(oldAbs))
-  const alreadyMoved = !existsSync(oldAbs) && existsSync(newAbs)
-
-  if (!existsSync(oldAbs) && !alreadyMoved) { console.error(`文件不存在：${fileArg}`); process.exit(1) }
-
-  if (alreadyMoved) {
-    console.log(`ℹ ${basename(oldAbs)} 已在目标位置，进入修复模式（只重写引用）`)
-  } else if (!dry) {
-    const how = renameFile(oldAbs, newAbs)
-    if (!how) { console.error(`移动失败：${oldAbs} → ${newAbs}`); process.exit(1) }
-    console.log(`✔ 移动 ${relOf(oldAbs)} → ${relOf(newAbs)}（${how}）`)
+/** 在仓库文本里找把「文件名(不带扩展名/带扩展名)」硬编码成字符串的位置（非 import 说明符）。 */
+function findStringRefs(basenameWithExt) {
+  const hits = []
+  const roots = [...new Set([...SCAN_ROOTS, join(root, 'scripts')])]
+  const files = new Set()
+  for (const r of roots) if (existsSync(r)) collectTextFilesUnder(r, []).forEach((f) => files.add(f))
+  const stem = basenameWithExt.replace(/\.(jsx?|tsx?|mjs|cjs)$/, '')
+  for (const file of files) {
+    let src
+    try { src = readFileSync(file, 'utf8') } catch { continue }
+    const lines = src.split('\n')
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i]
+      if (line.includes(basenameWithExt) || line.includes(stem)) {
+        hits.push({ file: relOf(file), line: i + 1, text: line.trim().slice(0, 160) })
+      }
+    }
   }
-
-  const selfFixed = rewriteOutgoingImports(newAbs, dirname(oldAbs), dry)
-  if (selfFixed) console.log(`✔ 已重写 ${basename(newAbs)} 自身的出向 import 路径`)
-
-  const changed = rewriteImportsForMove(oldAbs, newAbs, dry)
-  if (changed.length === 0) {
-    console.log(`ℹ 无其他文件引用其 import 说明符`)
-  } else {
-    console.log(`✔ 已同步 ${changed.length} 个文件的 import 路径：`)
-    for (const c of changed) console.log('   - ' + c)
-  }
-  
-  printWarnings()
-  process.exit(0)
+  return hits
 }
 
-console.error(`未知命令：${cmd}\n用法：请查阅脚本源码顶部的 JSDoc`);
+if (cmd === 'refs') {
+  if (!fileArg) { console.error('缺少 <file> 参数'); process.exit(1) }
+  const abs = resolve(root, fileArg)
+  if (!existsSync(abs)) { console.error(`文件不存在：${fileArg}`); process.exit(1) }
+  const graph = buildRefGraph()
+
+  const importers = [...(graph.get(abs) || [])].sort()
+  console.log(`\n① 模块引用 ${importers.length} 处（convert/rename/move/move-dir 会自动改写这些 import）：`)
+  for (const f of importers) console.log('   - ' + relOf(f))
+  if (importers.length === 0) console.log('   （无）')
+
+  const strRefs = findStringRefs(basename(abs))
+  console.log(`\n② 字符串残留引用 ${strRefs.length} 处（脚本【不】改字符串，需手工同步）：`)
+  for (const h of strRefs) console.log(`   - ${h.file}:${h.line}\n       ${h.text}`)
+  if (strRefs.length === 0) console.log('   （无）')
+
+  printWarnings(); process.exit(0)
+}
+
+console.error(`未知或省略的命令：${cmd}\n已知命令：convert / update-imports / move / rename / move-dir / batch / plan / refs / find-dead / any`);
 process.exit(1);
