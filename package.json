@@ -21,6 +21,7 @@
     "test:unit": "vitest run",
     "test:unit:logic": "vitest run --config vitest.logic.config.ts",
     "test:unit:heavy": "vitest run --config vitest.heavy.config.ts",
+    "test:changed": "vitest run --changed",
     "test:coverage": "vitest run --coverage",
     "test:coverage:logic": "vitest run --coverage --config vitest.logic.config.ts",
     "test:e2e": "playwright test",

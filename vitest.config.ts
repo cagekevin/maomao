@@ -32,10 +32,9 @@ export default defineConfig({
     exclude: [...defaultExclude, 'tests/unit/imageUpscale.test.ts'],
     globals: true,
     setupFiles: ['tests/setup.mjs'],
-    // 并发优化：forks 池默认懒启动、minForks 偏低导致整包跑得慢。
-    // 注意：Windows 下 fork 进程各自独立占内存，并发过高 + 系统可用内存不足时，
-    // worker 会被 OOM 杀掉（"Worker exited unexpectedly"）。这里把并发压到 3 并给
-    // 每个 worker 显式堆上限，平衡速度与内存峰值；内存紧张时可进一步降到 2/1。
+    // 并发：保持原 forks 池（不动执行参数，只通过 test-affected 裁剪测试量）。
+    // Windows 下 fork 进程各自独立占内存，并发过高 + 系统可用内存不足时 worker 会被 OOM 杀掉
+    // （"Worker exited unexpectedly"）。原值 8 即平衡点；内存紧张时可降到 2/1。
     pool: 'forks',
     maxWorkers: 8,
     minWorkers: 1,

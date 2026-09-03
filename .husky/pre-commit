@@ -1,13 +1,15 @@
 #!/bin/sh
-# 提交门禁（仅前端）：type-check（快）+ 只跑「改动相关」的单元测试（vitest --changed）
+# 提交门禁（仅前端）：type-check（快）+ 只跑「改动相关」的单元测试（scripts/test-affected.cjs）
 # + 三个秒级 SSR 门禁（smoke/regression/tools，防「改名后 SSR 挂」这类问题）。
 #   regression/tools 已迁为 vitest 用例（ssrRegression / canvasAgentTools / demoPlan），
 #   不再用 esbuild 把前端代码打成 CJS。它们在此处「无条件」跑，是因为 SSR 崩通常来自
-#   src 里 .jsx→.tsx 改名，而非测试文件本身改动；`vitest --changed` 只跑改动的测试文件，
+#   src 里 .jsx→.tsx 改名，而非测试文件本身改动；test-affected 只跑与暂存改动相关的测试，
 #   会漏掉这类回归，故单独保留（各 ~1.5s）。
 #
+# test-affected.cjs 用「源码改动 → 同名 stem 测试文件」反查，真正只跑相关测试
+# （`vitest --changed` 只认改动的测试文件、漏掉源码改动触发的测试，故弃用）。
 # 重测试已默认排除：imageUpscale.test.ts（真实 canvas 缩放，单次 7.4s，是全量最慢的 4 倍）
-# 在 vitest.config.ts 的 exclude 里，本门禁的 `vitest run --changed` 不会跑它；需要回归时
+# 在 vitest.config.ts 的 exclude 里，test-affected 命中也跑不到它；需要回归时
 # 用 `npm run test:unit:heavy`。日常改前端 99% 用不到它，故默认拿掉。
 #
 # 本地改动 localtool：本钩子不覆盖（后端是独立子项目，另有 `cd localTool && npm test`
@@ -22,7 +24,7 @@
 set +e
 npm run type-check
 tc=$?
-npx vitest run --changed
+node scripts/test-affected.cjs
 vt=$?
 node scripts/smoke_test.cjs
 sm=$?
