@@ -9,7 +9,8 @@
  *   - 三层一致性断言（画布↔任务中心↔磁盘）          →  `--consistency [proj]`
  *   - 全库丢图体检                                  →  `--lost-check`
  *   - 画布结构体检（节点/边）                       →  `--canvas-health [proj]`
- *   - 拿 thread_id 直查 Lovart 上游状态/结果        →  `--lovart-status / --lovart-result`
+ *   - 拿 thread_id 直查 Lovart 上游状态/结果        →  `--lovart-status / --lovart-result`（仅适用直连 Lovart 上游；relay 重构后上游改为本地 relay 轮询，见下）
+ *   - 经 localTool 网关查 relay 轮询实时状态          →  `--poll-status <前端任务中心 task_id>`（relay 重构后替代 --lovart-status；上游不再是 Lovart thread_id，而是 tasks.poll_task_id）
  * 次要用途：通用查库（--tables/--table/--sql/--search/--kv）+ VACUUM 压缩（--vacuum）。
  *
  * 数据都来自 localTool 的 sql.js 数据库（~/.maomao-localtool/localtool.db）+ 磁盘 + 日志，
@@ -44,6 +45,7 @@
  * 环境变量：
  *   MAOMAO_DATA_DIR  指定数据目录（默认 ~/.maomao-localtool），单测/隔离环境用。
  *   LOVART_ACCESS_KEY/LOVART_SECRET_KEY/LOVART_BASE_URL/HTTPS_PROXY  供 --lovart-* 使用。
+ *   LOCALTOOL_BASE_URL  供 --poll-status 使用（默认 http://127.0.0.1:18080）。
  */
 import fs from 'node:fs';
 import os from 'node:os';
@@ -91,7 +93,8 @@ function usage() {
   node scripts/task-inspect.mjs <id>              直接贴 id 查全链路（等价 --lifecycle；id 可为 task_id / thread_id / node_id，AI 说"查任务"直接用这个）
   node scripts/task-inspect.mjs --lifecycle <id>  完整生命周期一键查（数据库 + 后端日志 + 前端日志全链路；id 可为 task_id / thread_id(Lovart上游室外ID) / node_id）
   node scripts/task-inspect.mjs --lovart-status <thread_id>  直接拿 Lovart 上游 thread_id 查任务状态（是否结束；HMAC 签名）
-  node scripts/task-inspect.mjs --lovart-result <thread_id>  拿 Lovart 上游 thread_id 查任务结果（出图URL/生成文本；同上凭据/base 约定）
+  node scripts/task-inspect.mjs --lovart-result <thread_id>  拿 Lovart 上游 thread_id 查任务结果（出图URL/生成文本；同上凭据/base 约定；仅直连 Lovart 上游适用）
+  node scripts/task-inspect.mjs --poll-status <前端任务中心 task_id>  经 localTool 网关查 relay 轮询实时状态（relay 重构后替代 --lovart-status；需 localTool 运行于 18080）
   node scripts/task-inspect.mjs --canvas-health [proj]  画布数据结构体检（节点/边统计 + 无id边/重复id边/悬空边高亮；缺省取最近更新的快照）
   node scripts/task-inspect.mjs --lost-check   丢图体检（tasks/磁盘/资源一致性 + 日志异常）
   node scripts/task-inspect.mjs --consistency [proj]  【三层一致性断言】画布快照节点 imageUrl ↔ 任务中心 result_url ↔ 磁盘文件 三方 URL 是否对得上（定位"刷新丢图/错位"根因）
@@ -448,6 +451,44 @@ async function runLovartResult(threadId) {
   return runLovartQuery(threadId, '/v1/openapi/chat/result', '结果');
 }
 
+// ── 现代上游状态查询：经 localTool 自身网关（relay-poll 聚合后状态）──
+// relay 重构后，上游不再是 Lovart thread_id，而是本地 relay 轮询任务（tasks.poll_task_id）。
+// 前端刷新即靠 GET /api/generate/{frontTaskId} 恢复状态，这里复用同一入口查「实时状态」。
+// 无需 Lovart HMAC/代理；需 localTool 在 18080 运行（与 result_url 同源）。
+async function runPollStatus(frontTaskId) {
+  if (!frontTaskId) {
+    console.error('[ABORT] 缺少 frontTaskId。用法: --poll-status <前端任务中心显示的 task_id>');
+    process.exit(1);
+  }
+  const base = (process.env['LOCALTOOL_BASE_URL'] || 'http://127.0.0.1:18080').replace(/\/+$/, '');
+  const url = `${base}/api/generate/${encodeURIComponent(frontTaskId)}`;
+  console.log(`正在向 localTool 网关查询 relay 实时状态: ${frontTaskId}`);
+  console.log(`GET ${url}\n`);
+  let body;
+  try {
+    const ctrl = new AbortController();
+    const to = setTimeout(() => ctrl.abort(), 8000);
+    const res = await fetch(url, { signal: ctrl.signal });
+    clearTimeout(to);
+    body = await res.text();
+  } catch (e) {
+    console.error(`[ERROR] 请求 localTool 失败（需 localTool 在 18080 运行）: ${e.message}`);
+    process.exit(1);
+  }
+  let data = null;
+  try { data = JSON.parse(body); } catch { /* 非 JSON */ }
+  if (!data) {
+    console.error(`[ERROR] 非 JSON 响应: ${body.slice(0, 200)}`);
+    process.exit(1);
+  }
+  console.log('=== localTool relay 实时状态 ===');
+  console.log(JSON.stringify(data, null, 2));
+  const d = data.data || {};
+  if (d.status) {
+    console.log(`\n状态: ${d.status}` + (d.url ? ` | 结果URL: ${d.url}` : '') + (d.type ? ` | type: ${d.type}` : ''));
+  }
+}
+
 // ── 同节点任务比对：列出某 node 的所有任务，各条进度/status/结果URL/是否本地 ──
 function runTaskCompare(db, nodeId) {
   const allow = /^[\w.-]+$/;   // 防注入：node_id 一般是 promptNode-xxx / img_xxx
@@ -789,6 +830,24 @@ function runLifecycle(db, id) {
     console.log(mode === 'node_id' ? '[数据库] 该 node 无任务记录' : '[数据库] 该 task_id/thread_id 无记录');
   }
 
+  // 1.2) relay 轮询上游链路（relay 重构后：thread_id 已弃用，上游改为本地 relay 轮询任务）
+  // 展示 tasks.poll_task_id + request_data._relayPoll（providerId/baseUrl/poll.url），并提示用 --poll-status 查实时状态。
+  if (mode !== 'node_id' && rows.length) {
+    const r0 = rows[0];
+    const pollId = r0.poll_task_id || null;
+    let relay = null;
+    try { const rd = typeof r0.request_data === 'string' ? JSON.parse(r0.request_data) : r0.request_data; relay = rd && rd._relayPoll; } catch { /* ignore */ }
+    if (pollId || relay) {
+      console.log(`\n[上游链路] relay 轮询任务:`);
+      if (pollId) console.log(`  poll_task_id(上游ID): ${pollId}`);
+      if (relay) {
+        console.log(`  provider: ${relay.providerId || '?'} | capability: ${relay.capability || '?'} | baseUrl: ${relay.baseUrl || '?'}`);
+        if (relay.poll && relay.poll.url) console.log(`  poll.url: ${relay.poll.url}`);
+      }
+      console.log(`  → 实时状态: node scripts/task-inspect.mjs --poll-status ${r0.task_id}`);
+    }
+  }
+
   // 1.5) 诊断推算（仅单任务模式）：用 submit_ack_at 埋点反推「前端→网关确认」耗时
   // 注：completed_at / poll_count 需前端埋点（当前未启用），故仅展示已落库的 submit_ack_at。
   if (mode !== 'node_id' && rows.length) {
@@ -799,7 +858,7 @@ function runLifecycle(db, id) {
     const localToGateway = ack != null && created != null ? ack - created : null; // 前端→网关确认接单
     console.log(`  前端接单(created_at)→网关确认接单(submit_ack_at): ${fmt(localToGateway)}`);
     if (localToGateway != null && localToGateway > 5000) {
-      console.log(`  初步判断: 卡在「前端→网关」段（localTool/代理/VPN 抖？建议查网关日志 thread=${r.thread_id || 'N/A'}）`);
+      console.log(`  初步判断: 卡在「前端→网关」段（localTool/代理/VPN 抖？建议查网关日志 poll=${r.poll_task_id || r.thread_id || 'N/A'}）`);
     } else if (localToGateway != null) {
       console.log(`  初步判断: 前端→网关段正常（生图慢/链路卡需 completed_at+poll_count，当前未启用）`);
     } else {
@@ -874,6 +933,12 @@ async function main() {
     return;
   }
 
+  // 0.16) relay 轮询实时状态（经 localTool 网关，relay 重构后替代 --lovart-status）
+  if (hasArg('--poll-status')) {
+    await runPollStatus(getArg('--poll-status'));
+    return;
+  }
+
   const db = await openDb();
 
   // 0.2) 同节点任务比对
@@ -937,7 +1002,7 @@ async function main() {
     const table = getArg('--table');
     const limit = parseInt(getArg('--limit', '20'), 10) || 20;
     // 白名单：只允许内置表名，防 SQL 注入
-    const allow = ['kv', 'tasks', 'resources'];
+    const allow = ['kv', 'tasks', 'resources', 'projects', 'project_meta'];
     if (!allow.includes(table)) {
       console.error(`[ABORT] 不允许的表名: ${table}（仅支持 ${allow.join('/')}）`);
       db.close();

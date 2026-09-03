@@ -16,7 +16,6 @@
 ├── scripts/                    ← 测试地基（smoke/regression/tools/health-check），见 scripts/README.md
 ├── spec/                       ← 🏛️ 权威规范（永不误删）：CONTEXT.md（写码决策）/ TEST-GUIDE.md（测试）/ NEW-NODE-GUIDE.md / 横切分层 / 代码组织
 ├── docs/                       ← 临时/历史文档（调查产物，可过时可清理，不维护）
-└── reference-1mao/             ← 【只读参考】原产品混淆还原代码（查实现用，不直接改）
 ```
 
 ### 改代码入口
@@ -57,8 +56,6 @@ node scripts/task-inspect.mjs --canvas-health   # 画布结构体检
 ### 注意
 
 - 下方 §〇\~§七 是**通用工程规范 + 原型架构**，与 `src/` 直接相关。
-
-- `reference-1mao/`、`localTool`、`apimart-gateway` 分别是「逆向参考」与「自研后端」，查后端实现时用对应目录，不要和前端原型混淆。
 
 - 原产品逆向方法论与中间产物在 `docs/逆向专用_ai 禁止读/`（标注「AI 禁止读」，默认不读）。
 
@@ -159,10 +156,6 @@ node scripts/task-inspect.mjs --canvas-health   # 画布结构体检
 
 - **运行形态**：Chrome 扩展（MV3）。`public/manifest.json` + `background.js` + `icon*.png` 为插件壳；`src/` 编译后由 `vite.config.ts`（`base:'./'`，兼容 `chrome-extension://`）打包进 `dist/`。存储经 `src/components/base/contentStore.ts`（横切存储权威入口，按 `STORAGE_KEYS.backend` 自动路由 local/KV/native：local 走 `base/storage/storageAdapter.ts`（chrome.storage 扩展环境）/原生 `localStorage`；kv 走 localTool KV；native 后端如 director3d 直写原生 `localStorage`）。`npm run dev` 预览画布，`npm run build` 出 `dist/`。
 
-- **3D 导演台（director3d）**：`src/components/director3d/` 源出外部开源仓库（storyai-3d-director-desk），但**自 2026-09-01 起按自家仓库处理，已全部 TS 化（26/26 .ts/.tsx）并纳入类型与契约校验，不再豁免——可以动、可以改、可以收口**。由 `Director3DNode` 双击进入。⚠️ **边界**：它仍是相对独立的子模块（自有 schema/编辑器），改动遵循「先读文件头注释 + 按正常 src/ 流程走 + 最小差异」，但不是不能碰的红线。**领域类型真相源在** **`src/components/director3d/project.ts`**（`ProjectCamera`/`ProjectObject`/`ProjectReference`/`ProjectSettings`/`ProjectLighting`/`ChannelTracks`/`ChannelKey` 等，App/Viewport/panels 复用，禁止各自重定义漂移）。不为它写测试、不纳入测试维护（改它不强制补单测，但类型/门禁照跑）。
-
-> 与 history 区别：旧版 `src/bundle/` 是混淆还原源码；当前 `src/` 是直接可读可维护的工程，构建产物仍是 Chrome 扩展 `dist/`。
-
 ***
 
 ## 三、 修改代码步骤与提交前验证流程（不跑不许提交）
@@ -241,18 +234,18 @@ node scripts/task-inspect.mjs --canvas-health   # 画布结构体检
   cd localTool && node scripts/task-inspect.mjs --lifecycle <id>
   ```
 
-  id 三种都可：`task_id`（`task_xxx`）/ **`thread_id`**（Lovart 上游"室外 ID"，即 task\_id 去掉 `task_` 前缀）/ `node_id`。脚本自动判定，用 `thread_id` 或 `task_id` 时把「数据库完整记录 + 网关后端日志 + 前端上报日志」全链路一次拉出（`[poll]` 记 `thread=xxx`、`[submit]` 记 `task_id=task_xxx`，双键匹配）。
+  id 三种都可：`task_id`（`task_xxx`，前端任务中心显示的主 ID）/ `thread_id`（Lovart 直连上游的"室外 ID"，即 task\_id 去掉 `task_` 前缀；relay 重构后 relay 任务的 `thread_id` 列已为 NULL，上游链路改看 `poll_task_id`）/ `node_id`。脚本自动判定，用 `task_id`/`thread_id` 时把「数据库完整记录 + 网关后端日志 + 前端上报日志」全链路一次拉出（双键匹配）。
 
   > **强调：排查图/视频/任务就用它，不要自己造查询。** 它覆盖：单任务全链路 `--lifecycle`、按节点比对 `--task`、**三层一致性断言** **`--consistency [proj]`（画布↔任务中心↔磁盘，定位刷新丢图/错位）**、丢图体检 `--lost-check`、画布体检 `--canvas-health`、日志过滤 `--logs`、全局搜 `--search`、任意 SQL `--sql`。
 
-- **查任务全链路三步走（前端可见 ID 贯穿到 Lovart 状态）**：
-  前端任务中心的 `task_id`（用户可见）就是贯穿主 ID。链路已打通：前端 `proxyRequest` 带 `taskId` → localTool `/api/proxy` 读它并透传网关 → 网关返回 Lovart `thread_id` → localTool 把「前端 task\_id ↔ thread\_id」关联落库（`tasks` 表 `thread_id` 列）。三步查询：
+- **查任务全链路三步走（前端可见 task_id 贯穿到上游状态）**：
+  前端任务中心的 `task_id`（用户可见）就是贯穿主 ID。relay 重构后，上游不再是 Lovart `thread_id`，而是本地 relay 轮询任务：localTool 提交后落库 `tasks.poll_task_id`（上游 task_id）+ `request_data._relayPoll`（含 providerId/baseUrl/poll.url）；`thread_id` 列对 relay 任务已为 NULL。三步查询：
 
-  1. **用前端 task\_id 查关联 + 全链路**：`node scripts/task-inspect.mjs --lifecycle <前端任务中心显示的id>` → 得到 `thread_id`。
-  2. **拿 thread\_id 查任务是否结束**：`LOVART_ACCESS_KEY=ak LOVART_SECRET_KEY=sk HTTPS_PROXY=http://127.0.0.1:7897 node scripts/task-inspect.mjs --lovart-status <thread_id>`（自动走代理，连 Lovart `/chat/status`）。
-  3. **拿 thread\_id 查任务结果（出图 URL/文本）**：同上命令换 `--lovart-result`（连 `/chat/result`）。
+  1. **用前端 task\_id 查全链路 + 上游链路**：`node scripts/task-inspect.mjs --lifecycle <前端任务中心显示的id>` → 打印 `poll_task_id` / provider / poll.url，并提示下一步。
+  2. **拿前端 task\_id 查实时状态（relay 重构后首选）**：`node scripts/task-inspect.mjs --poll-status <前端任务中心显示的id>` → 经 localTool 网关 `GET /api/generate/{id}` 返回 relay 聚合后的 `status`/`url`（需 localTool 运行于 18080，无需 Lovart HMAC/代理）。
+  3. **拿上游结果（出图 URL/文本）**：`--poll-status` 已直接返回 `data.url`；仅上游为直连 Lovart 时仍可用 `node scripts/task-inspect.mjs --lovart-result <thread_id>`（连 Lovart `/chat/result`，需 LOVART_* 凭据 + 代理）。
 
-  > 凭据与代理端口从网关进程 env 取（`ps eww $(lsof -tiTCP:9004 -sTCP:LISTEN | head -1)` 里 `LOVART_ACCESS_KEY/LOVART_SECRET_KEY`，代理用 7897）；连 Lovart 必须开 VPN/代理，脚本已内置代理探测（`HTTPS_PROXY` 等环境变量 + 常见端口）。
+  > relay 任务默认经本地网关（127.0.0.1:9004），`--poll-status` 走 localTool 自身 18080 网关即可，不必开 VPN/代理；`--lovart-*` 直连 Lovart 才需 `HTTPS_PROXY`（常见 7897）与 `LOVART_ACCESS_KEY/LOVART_SECRET_KEY`（从网关进程 env 取：`ps eww $(lsof -tiTCP:9004 -sTCP:LISTEN | head -1)`）。
 
 - **出站代理**：localTool 原生 `fetch` 不继承系统代理；经 `localTool/src/utils/netProxy.ts` 的 `fetchWithProxy`（直连→环境变量→探测本机代理端口→隧道）兜底。
 
@@ -306,6 +299,8 @@ node scripts/task-inspect.mjs --canvas-health   # 画布结构体检
 6. **事件名禁止裸字符串 + 登记表零滞后（P0 红线，与存储键对称）**：所有事件总线调用（`publish`/`subscribe`/`subscribeOnce`）的事件名必须是 `contracts.ts` 的 `EVENTS` 登记项，**禁止裸字符串字面量事件名**（编译期 `npm run check:events` 拦截）。`EVENTS` 的 `from`/`to` 是发布/订阅事实源，**必须与代码实测的** **`publish`/`subscribe`** **位置自洽**：① 表 `to: []` 但代码实测有 `subscribe` → 视为"登记表滞后"（实际已被订阅），**禁止据此判定死事件/可删发布逻辑**；② 行号漂移须同步对齐。双向校验 `npm run check:events` 已挂 `prebuild`+`pretest`（`scripts/check-events.mjs` 为权威实现）。
 7. **降复杂度优先**：能减少复杂度又不引入 bug 的改动都做（混淆短名改语义长名、抽公共、删冗余），被运行时契约钉死的除外。改完必须 `npm run build` 验证。
 8. **架构重排（移位置/改名字）统一走** **`scripts/ts-migrate.mjs`**（最高优先，改动前必读）：一旦发现架构不合理需要给文件**移位置或改名字**，一律用 `node scripts/ts-migrate.mjs move <src> <dst> --suffix ts` / `rename <file> <newName> --suffix ts` / `move-dir`，**禁止手写** **`mv`/手改 import**。工具是事务式（git mv + 全库同步 import + 可 `undo` 回退，`--dry` 预览），且 2026-09-04 已修复被移文件自身出向 import 不重写的 bug。要点：
+
+   - **💡 只读查数据流/依赖最优先用** **`refs <file>`**：`node scripts/ts-migrate.mjs refs <file>` 一屏给出「① 谁 import 它（消费者）+ ② 字符串残留引用」，是**查某条数据流/依赖方向/改动影响面最快**的命令，不需要为这启动子代理全库翻。惯用：想 trace 一条链路、想知道"改了这处会被谁影响"、想判断某文件是不是死代码 → 先 `refs` 一锤定音（0 引用且非入口即死）。链路图可直接更新进 `spec/DATAFLOW.md`（refs 实证）。`find-dead`/`plan` 可辅助扫孤儿/规划迁移。
 
    - **必须带** **`--suffix ts`**（本项目 import 显式写 `.ts/.tsx`，勿用默认 `auto`——会把 import 改成 `.js` 破工程约定）。
 
@@ -402,12 +397,12 @@ node scripts/task-inspect.mjs --canvas-health   # 画布结构体检
 
 > **本文件（CLAUDE.md）= 项目认知入口，每个 AI 第一站。** 读完它了解"项目是什么"后，按任务类型再读对应入口：
 
-| 任务类型    | 必读                       | 定位                         |
-| ------- | ------------------------ | -------------------------- |
-| 任何任务第一步 | **CLAUDE.md（本文件）**       | 项目认知：技术栈/架构/目录/红线/启动       |
-| 写代码     | **`spec/CONTEXT.md`**    | 决策地图：功能放哪 / 调哪个唯一入口 / 机制红线 |
-| 改数据流/架构  | **`spec/DATAFLOW.md`**  | 链路索引：先定位「这条链路在哪些文件」，再读 CONTEXT/文件头（防子代理乱搜） |
-| 写/改测试   | **`spec/TEST-GUIDE.md`** | 测试权威：命令/分层/SOP/输出规范        |
+| 任务类型    | 必读                       | 定位                                         |
+| ------- | ------------------------ | ------------------------------------------ |
+| 任何任务第一步 | **CLAUDE.md（本文件）**       | 项目认知：技术栈/架构/目录/红线/启动                       |
+| 写代码     | **`spec/CONTEXT.md`**    | 决策地图：功能放哪 / 调哪个唯一入口 / 机制红线                 |
+| 改数据流/架构 | **`spec/DATAFLOW.md`**   | 链路索引：先定位「这条链路在哪些文件」，再读 CONTEXT/文件头（防子代理乱搜） |
+| 写/改测试   | **`spec/TEST-GUIDE.md`** | 测试权威：命令/分层/SOP/输出规范                        |
 
 > 三个文件**互补不重叠**：CLAUDE 管"项目是什么"，CONTEXT 管"写码怎么决策"，TESTING 管"测试怎么做"。机制细节看对应代码注释（代码即知识）。
 
@@ -422,7 +417,7 @@ node scripts/task-inspect.mjs --canvas-health   # 画布结构体检
 | `spec/CONTEXT.md`        | **写码决策地图（唯一中心）**：顶层架构（画布编排×节点体系×地基收口×收口准则）/ 代码组织（含**重型重构 SOP** §一·C）/ 横切 7 块入口 / 并发治理 / 安全密钥 / 数据一致性 |
 | `spec/TEST-GUIDE.md`     | **测试体系权威**：命令/分层/SOP/输出规范                                                                            |
 | `spec/NEW-NODE-GUIDE.md` | **新建节点权威流程**（高频：骨架/注册/契约/常见坑）                                                                        |
-| `spec/DATAFLOW.md`       | **数据流链路索引**：生成/存储/资产/画布/提示词/编辑/3D 各链路的一页图（refs 实证，AI 快速 trace 一条链路用，勿跨目录乱猜）                    |
+| `spec/DATAFLOW.md`       | **数据流链路索引**：生成/存储/资产/画布/提示词/编辑/3D 各链路的一页图（refs 实证，AI 快速 trace 一条链路用，勿跨目录乱猜）                          |
 | `tailwind.config.ts`     | **样式令牌唯一真相**（禁裸色值，勿再引用已删的 tailwind-tokens.md）                                                        |
 
 **🟡 按需参考（不用日常维护；用到了才看）**
@@ -453,6 +448,7 @@ node scripts/task-inspect.mjs --canvas-health   # 画布结构体检
 | 要改代理/转发逻辑                                                  | `localTool/src/routes/system.ts`（`/api/proxy` 剥信封/SSE/异步转同步）                                                                                                                        |
 | 要查官方权益转发                                                   | `localTool/src/routes/official.ts`（中转+短缓存，不伪造权限）                                                                                                                                    |
 | 要改画布前端                                                     | 改 `src/` → `npm run test:smoke` → `npm run build`；严禁直接手改 dist                                                                                                                       |
+| **查数据流/依赖/谁引用谁**（trace 链路、改动影响面、判死代码）                      | **`node scripts/ts-migrate.mjs refs <file>`**（一屏看谁 import 它 + 字符串引用；链路图维护在 `spec/DATAFLOW.md`，先看它再 refs 单点验证）                                                                       |
 | 要新增画布节点                                                    | 按 `docs/README.md` 节点规范 + `docs/node-types-map.md`，放 `src/components/`                                                                                                              |
 | 画布问题排查（节点/边/布局/保存）                                         | **第一步必跑** `cd localTool && node scripts/task-inspect.mjs --canvas-health`（见 §六.0 铁律）                                                                                                |
 | **查图/视频/任务/日志/全链路**（task\_id / thread\_id 室外ID / node\_id） | **主入口** `cd localTool && node scripts/task-inspect.mjs --lifecycle <id>`（见 §四.2「查任务主入口」）。其余：`--logs` 日志、`--task` 节点比对、`--lost-check` 丢图、`--consistency` 三层一致性断言                     |
