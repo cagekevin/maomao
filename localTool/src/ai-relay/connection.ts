@@ -18,9 +18,22 @@ function connectionError(err: unknown): { status: number; warning: string } {
 
 export async function testConnection(providerId: string, config: ConnectionConfig, signal?: AbortSignal): Promise<ConnectionTestResult> {
   const definition: ProviderDefinition | undefined = getProviderDefinition(providerId, config);
-  if (!definition) return { ok: false, status: 0, warning: '未知厂商目录' };
-
-  const baseUrl = config.baseUrl || definition.defaultBaseUrl || '';
+  const baseUrl = config.baseUrl || definition?.defaultBaseUrl || '';
+  // 纯配置文件厂商（无内置目录定义，如魔搭 modelscope）但有显式 base_url：
+  // 按通用 openai-compatible 探测 /models，不再笼统报「未知厂商目录」。
+  if (!definition) {
+    if (!baseUrl) return { ok: false, status: 0, warning: '未知厂商目录（未配置接口地址）' };
+    try {
+      const { response, resolvedBaseUrl } = await stableRequest({
+        method: 'GET', path: '/models', baseUrl,
+        candidates: baseUrlCandidates(baseUrl), apiKey: config.apiKey, signal, maxRetries: 1,
+      });
+      return { ok: response.status < 400, status: response.status, resolvedBaseUrl };
+    } catch (err) {
+      const { status, warning } = connectionError(err);
+      return { ok: false, status, warning };
+    }
+  }
 
   // 1. 厂商自带连通探测路径（如 Sora2U 的 /api/v1/credits）
   if (definition.connectionTestPath) {

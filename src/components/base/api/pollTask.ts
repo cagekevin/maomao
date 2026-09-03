@@ -14,7 +14,7 @@
  * 【候选判定】旧实现依赖 pollTaskId（需 setTaskPollId 写入，relay 下无人写 → 候选空、恢复失效）。
  * 现改为 running 任务即可（task.id = frontTaskId = 后端句柄键），不再依赖 pollTaskId 字段。
  *
- * 【为什么不做文本 / 生图 sync】文本（chatCompletions）走 /api/relay 同步、生图 sync 无异步句柄，
+ * 【为什么不做文本 / 生图 sync】文本（chatCompletions）走 /api/generate（capability=chat）同步、生图 sync 无异步句柄，
  * 前端刷新即断，官方同此（reference-1mao shared.js Pt hook 也只对视频异步任务恢复）。
  */
 import { getTasks, patchTask, ensurePolling, isPolling, stopPolling } from '../taskStore.ts'
@@ -92,7 +92,7 @@ export async function pollOneTask(task: PollableTask): Promise<boolean> {
 /**
  * 【启动扫描后接管】对「有后端异步句柄」的 running 任务发起完整 attach 闭环。
  * 关键：只接管 image/video（relay-poll 期已 submitGenerateTask 注册句柄）；文本（type:text 走
- * /api/relay 同步，从未 submit）无视 attach 句柄 → 若 attach 会因 relayPoll 恒 running 而空转推进
+ * /api/generate（capability=chat）同步，从未 submit）无视 attach 句柄 → 若 attach 会因 relayPoll 恒 running 而空转推进
  * 进度到 90 封顶、永不结束（2026-09-03 bug：曾对所有 running 任务 attach，文本卡 90）。故按 type 过滤。
  * 用 isPolling 占位去重：同一 taskId 只接管一次；attach 结束后 release。
  */
@@ -115,7 +115,7 @@ function startRecoveryRound(): void {
  * 启动全局任务恢复轮询（App 挂载后调用一次）。
  * - 首次：启动扫描，对 running 任务逐个发起完整 attach 闭环（relayAttachUntilDone 低频 attach 到终态）。
  * - 周期补扫：迟达候选(启动扫描后新变为 running 的)也会被接管；isPolling 去重保证同 taskId 不重复接管。
- * 只对异步任务生效；文本/生图 sync 无异步句柄（attach 查 running），天然不恢复（chat 走 /api/relay 同步）。
+ * 只对异步任务生效；文本/生图 sync 无异步句柄（attach 查 running），天然不恢复（chat 走 /api/generate capability=chat 同步）。
  */
 export function initTaskRecovery(): void {
   if (timer) return // 防重复启动

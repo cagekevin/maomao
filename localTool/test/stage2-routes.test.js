@@ -458,6 +458,62 @@ test('[index] 默认端口 18080', () => {
   assert.ok(/PORT\) \|\| 18080/.test(indexSrc) || indexSrc.includes('|| 18080'), '默认端口应为 18080');
 });
 
+// ════════════════════════════════════════════════════════════════════════
+// routes/generate.ts —— 统一生成入口（Step 6：/api/relay 并入，chat 同步快路径）
+// ════════════════════════════════════════════════════════════════════════
+const { handleGenerateSubmit } = await importSrc(path.join('routes', 'generate.ts'));
+
+test('[generate] chat 同步快路径：不要求 frontTaskId 即进 relayGenerate（未知 provider 快速报错，不触网）', async () => {
+  const res = makeRes();
+  // __no_such_provider__ 无 defaultBaseUrl → relayGenerate 在 resolveBaseUrl 抛「未配置接口地址」→ code:-1
+  await handleGenerateSubmit(makeJsonReq({
+    capability: 'chat',
+    providerId: '__no_such_provider__',
+    model: 'm1',
+    prompt: 'hi',
+    frontTaskId: 'task_chat_test', // 任务中心 task_id 透传（后端不消费，但接收）
+  }), res);
+  const body = parseResBody(res);
+  assert.equal(body.code, -1);
+  assert.equal(typeof body.data.error, 'string');
+  // 未返 400 Missing frontTaskId → 证明 chat 无需 frontTaskId（聊天流程无句柄）
+  assert.notEqual(res.status, 400);
+});
+
+test('[generate] chat 带 tools 同样不要求 frontTaskId（走 chatWithTools 分支，非 400）', async () => {
+  const res = makeRes();
+  // 未知 provider → resolveBaseUrl 抛「未配置接口地址」→ relay 返回 code:-1；若非走 chatWithTools 提前 return，
+  // 也会被同一样 validate 拦截，关键仍是「不返 400 Missing frontTaskId」（画布 Agent 无任务句柄）。
+  await handleGenerateSubmit(makeJsonReq({
+    capability: 'chat',
+    providerId: '__no_such_provider__',
+    model: 'm1',
+    messages: [{ role: 'user', content: 'hi' }],
+    tools: [{ type: 'function', function: { name: 'execute_plan', description: 'x', parameters: {} } }],
+    tool_choice: 'auto',
+  }), res);
+  const body = parseResBody(res);
+  assert.equal(body.code, -1);
+  assert.equal(typeof body.data.error, 'string');
+  assert.notEqual(res.status, 400);
+});
+
+test('[generate] chat 缺 model → 400 Missing model', async () => {
+  const res = makeRes();
+  await handleGenerateSubmit(makeJsonReq({ capability: 'chat', providerId: 'lovart' }), res);
+  const body = parseResBody(res);
+  assert.equal(res.status, 400);
+  assert.match(body.error, /Missing model/);
+});
+
+test('[generate] image/video 缺 frontTaskId → 400 Missing frontTaskId', async () => {
+  const res = makeRes();
+  await handleGenerateSubmit(makeJsonReq({ capability: 'image', providerId: 'lovart', model: 'm1' }), res);
+  const body = parseResBody(res);
+  assert.equal(res.status, 400);
+  assert.match(body.error, /Missing frontTaskId/);
+});
+
 // ── 清理临时数据目录（延迟以等待 debouncedSaveDb 异步 flush 完成）──
 after(async () => {
   await new Promise((r) => setTimeout(r, 1500));

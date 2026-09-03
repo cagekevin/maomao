@@ -47,7 +47,6 @@ import {
   handleOfficialUser, handleOfficialEntitlements, handleOfficialVipCheck, handleOfficialInvalidate,
 } from './routes/official.js';
 import { handleAgentChat } from './routes/agentChat.js';
-import { handleRelay } from './relay.js';
 import { handleGenerateSubmit, handleGenerateGet, handleGenerateCancel } from './routes/generate.js';
 import { handleProvidersGet, handleProvidersPut, handleConfigBasePut, handleProviderTest, handleProviderProbeAsync, handleProviderFetchModels } from './routes/providers.js';
 import { handlePassthrough } from './routes/passthrough.js';
@@ -112,10 +111,8 @@ export const routes: Route[] = [
   { method: 'POST', pattern: '/api/logs',   handler: handleLogsPost },
   { method: 'GET',  pattern: '/api/logs/stream', handler: handleLogsStream },
 
-  // ── Relay（生成统一入口：前端发意图 → ai-relay 引擎 → 图片落盘 → 收口返回）──
-  { method: 'POST', pattern: '/api/relay', handler: handleRelay },
-
-  // ── Generate（异步生成：submit 即返 taskId + GET attach，句柄由 relay-poll 常驻轮询）──
+  // ── Generate（统一生成入口：按 capability 分流聊天/图片/视频；submit 即返 taskId + GET attach，
+  //   句柄由 relay-poll 常驻轮询。/api/relay 已于 2026-09-03 并入本端点，路由删除）──
   { method: 'POST', pattern: '/api/generate', handler: handleGenerateSubmit },
   { method: 'POST', pattern: /^\/api\/generate\/[^/]+\/cancel$/, handler: handleGenerateCancel },
   { method: 'GET',  pattern: /^\/api\/generate\/[^/]+$/, handler: handleGenerateGet },

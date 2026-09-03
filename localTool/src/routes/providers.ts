@@ -15,7 +15,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import fs from 'node:fs';
 import { json, parseJsonBody, sendError } from '../utils/helpers.js';
 import {
-  readAllProviders, readProvider, writeProviderConfigFile, deleteProviderConfigFile, migrateFromApiConfigFile,
+  readAllProviders, readProvider, writeProviderConfigFile, deleteProviderConfigFile, migrateFromApiConfigFile, readProviderConfigFile,
 } from '../providerConfig.js';
 import { getEnvFile, getApiConfigFile } from '../paths.js';
 import { getProviderDefinition } from '../ai-relay/index.js';
@@ -94,7 +94,14 @@ export async function handleProviderTest(req: IncomingMessage, res: ServerRespon
   const body = (await parseJsonBody(req)) as Record<string, unknown> | null;
   const id = typeof body?.id === 'string' ? body.id : '';
   if (!id) return sendError(res, 'Missing provider id', 400);
-  const baseUrl = typeof body?.base_url === 'string' && body.base_url ? body.base_url : undefined;
+  const baseUrl = typeof body?.base_url === 'string' && body.base_url ? body.base_url
+    // 纯配置文件厂商（无内置目录定义）→ 用配置文件 base_url 兜底，否则 test-connection 报「未知厂商目录」
+    : (() => {
+        const p = readProviderConfigFile(id);
+        return typeof (p as { base_url?: unknown } | null)?.base_url === 'string' && (p as { base_url: string }).base_url.trim()
+          ? (p as { base_url: string }).base_url
+          : undefined;
+      })();
   const apiKey = typeof body?.key === 'string' && body.key
     ? body.key
     : readEnvKey(id);

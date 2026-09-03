@@ -13,7 +13,7 @@
 | `eventBus.ts`     | 事件广播唯一入口                                                                                      |
 | `logger.ts`       | 日志/上报唯一入口                                                                                     |
 | `toastStore.ts`   | 提示唯一入口                                                                                        |
-| `confirmStore.ts` | 确认弹窗唯一入口（`askConfirm` → `Promise<boolean>`，与 toastStore 同形：模块级 store + 全局容器渲染） |
+| `confirmStore.ts` | 确认弹窗唯一入口（`askConfirm` → `Promise<boolean>`，与 toastStore 同形：模块级 store + 全局容器渲染）                |
 | `idGen.ts`        | ID 生成唯一入口                                                                                     |
 | `utils.ts`        | 通用纯工具集合（deepClone/debounce/throttle…）                                                         |
 
@@ -22,7 +22,7 @@
 `api/` 内：`chatApi` `imageApi` `videoApi` `httpClient` `localToolApi` `filesApi` `relayProxy` `genIntent` `pollTask`
 
 > **深模块**：外部统一 `import from 'base/api'`（index.ts 入口），内部互引走 `./` 相对。
-> **relay 收口（2026-09-03）**：chat/image/video 门面直连 relay（`chatApi→/api/relay`；`imageApi/videoApi→/api/generate`），旧 `proxyGenerate`（/api/proxy 出站）已整文件退役。SSE 三件套不再走 proxyGenerate；`relayProxy` 为唯一 relay 客户端。
+> **统一生成入口收口（2026-09-03）**：chat/image/video 门面统一直连 `/api/generate`（capability=chat/image/video 分流），旧 `proxyGenerate`（/api/proxy 出站）与旧 `/api/relay` 路由已整文件退役/并入。SSE 三件套不再走 proxyGenerate；`relayProxy` 为唯一 relay 客户端。
 
 ## 三、存储层（深模块 `storage/`，2026-08-31）
 

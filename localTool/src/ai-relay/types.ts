@@ -303,6 +303,13 @@ export interface ChatOptions {
   timeoutMs?: number;
 }
 
+/** 画布 Agent 需要的 chat 响应：文本或/且工具调用（非流式一次返回）。 */
+export interface ChatWithToolsResult {
+  text: string;
+  toolCalls?: unknown[];
+  finishReason?: string;
+}
+
 export interface StreamChatOptions {
   apiKey?: string;
   baseUrl: string;

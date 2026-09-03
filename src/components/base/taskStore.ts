@@ -517,7 +517,7 @@ export function awaitTask(nodeId: string, timeout = 60000): Promise<AwaitTaskRes
 }
 
 /* ──────────────────────────────────────────────────────────────
- * 轮询调度注册表（S2 · ensurePolling）—— 消双轮询的地基（纯新增，暂不接调用方）
+ * 轮询调度注册表（S2 · ensurePolling）—— 消双轮询的地基（2026-09-03 后接 pollTask 恢复消费）
  *
  * 【为什么存在】image/video 异步任务有两个轮询源头会查同一 taskId：
  *   ① in-flight（当前页 proxyGenerate while，实时进度，生命周期=页面）
@@ -528,13 +528,15 @@ export function awaitTask(nodeId: string, timeout = 60000): Promise<AwaitTaskRes
  *   ── 更新(2026-09-03 relay 收口)：① in-flight 的 proxyGenerate while 已随旧出站退役，
  *      前端 relayGenerate（/api/generate，低频 GET attach）替代实时进度；② 恢复走 GET attach
  *      同一句柄，刷新不丢——恢复机制与本注册表骨架仍有效（详见 Step5 R6）。
+ *   ── 更新(2026-09-04)：pollTask 恢复已消费 ensurePolling(occupyOnly) 占位 + isPolling 去重
+ *      （见 pollTask.ts startRecoveryRound），不再是"无生产调用"的空骨架。
  *
  * 【职责】只做"调度 + 单轮驱动 + 终态收敛"，不掺 provider/传输知识。
- *  单轮"怎么查"由调用方经 register 回调提供(proxyGenerate 走 /api/proxy、
- *  pollTask 走 gateway/task 各自保留)；taskStore 不统一传输、不硬编码超时。
+ *  单轮"怎么查"由调用方经 register 回调提供（本轮恢复只 register: occupyOnly，不驱动查询；
+ *  attach 查询闭环由 pollTask 的 relayAttachUntilDone 负责）；taskStore 不统一传输、不硬编码超时。
  *
- * 【S2-a 状态】本段只落地注册表骨架与 ensurePolling/stopPolling/isPolling，
- *  不接任何调用方(proxyGenerate/pollTask 的接入在 S2-c)，故当前无生产调用。
+ * 【S2 状态】注册表骨架 + ensurePolling/stopPolling/isPolling 已落地；当前生产消费方为
+ *  pollTask 恢复（occupyOnly 占位防双恢复），实时进度代理已随 proxyGenerate 退役。
  *  ────────────────────────────────────────────────────────────── */
 
 /** 轮询句柄：注册后持有，可 stop 中止。 */

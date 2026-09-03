@@ -22,7 +22,7 @@ import { fetchProviderModelCatalog } from './providerCatalogFetch.js';
 import { testConnection } from './connection.js';
 import * as protocol from './protocol/index.js';
 import {
-  chat, streamChat, generateImage, generateVideo, generateAudio, getModelProtocolPreset,
+  chat, streamChat, chatWithTools, generateImage, generateVideo, generateAudio, getModelProtocolPreset,
 } from './generate/index.js';
 import type {
   ProviderDefinition,
@@ -31,6 +31,7 @@ import type {
   StableRequestOptions,
   ChatOptions,
   StreamChatOptions,
+  ChatWithToolsResult,
   GenerateImageOptions,
   GenerateVideoOptions,
   GenerateAudioOptions,
@@ -47,8 +48,8 @@ export { testConnection } from './connection.js';
 
 /** 声明式调用协议引擎（请求体序列化 / 模板渲染 / 同步·异步执行 / 轮询重试 / 结果抽取）。 */
 export { protocol };
-/** 各模态「配套支持」入口：文本（流式/非流式）、图片、视频、音频。 */
-export { chat, streamChat, generateImage, generateVideo, generateAudio, getModelProtocolPreset };
+/** 各模态「配套支持」入口：文本（流式/非流式/带工具）、图片、视频、音频。 */
+export { chat, streamChat, chatWithTools, generateImage, generateVideo, generateAudio, getModelProtocolPreset };
 
 export function listProviders() {
   return getProviderDefinitions();

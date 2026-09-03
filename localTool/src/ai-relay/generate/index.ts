@@ -15,6 +15,7 @@ import { parseStream } from '../assistantStream.js';
 import type {
   ChatOptions,
   StreamChatOptions,
+  ChatWithToolsResult,
   GenerateImageOptions,
   GenerateVideoOptions,
   GenerateAudioOptions,
@@ -62,6 +63,40 @@ export async function chat({ apiKey, baseUrl, model, messages, signal, tools, to
   const content = json.choices?.[0]?.message?.content;
   if (!content) throw new Error('模型返回结果为空');
   return content;
+}
+
+/**
+ * OpenAI 兼容 chat（非流式）+ 返回 tool_calls —— 画布 Agent 工具循环出站。
+ * 【为什么新增】9004(lovart) 不支持流式+tools；魔搭等 OpenAI 兼容厂商无 data. 信封、
+ * 一次返回完整 tool_calls，是画布 Agent 唯一可用的工具出站。relay chat 按 provider 分流：
+ * 带 tools → 走本函数；普通文本 → 走 executeModelProtocol(LOVART preset)。非流式，打字机留后补。
+ */
+export async function chatWithTools({ apiKey, baseUrl, model, messages, signal, tools, toolChoice, timeoutMs }: ChatOptions): Promise<ChatWithToolsResult> {
+  const response = await corsSafeFetch(chatUrl(baseUrl), {
+    method: 'POST',
+    headers: bearerHeaders(apiKey),
+    body: JSON.stringify({
+      model,
+      messages,
+      stream: false,
+      ...(tools ? { tools } : {}),
+      ...(toolChoice ? { tool_choice: toolChoice } : {}),
+    }),
+    signal,
+  }, { timeoutMs });
+  if (!response.ok) {
+    const text = await response.text().catch(() => '');
+    let msg = `API 请求失败 (${response.status})`;
+    try { msg = JSON.parse(text)?.error?.message || msg; } catch { if (text) msg += `: ${text.slice(0, 200)}`; }
+    throw new Error(msg);
+  }
+  const json = await response.json();
+  const message = json.choices?.[0]?.message;
+  return {
+    text: message?.content ? String(message.content) : '',
+    toolCalls: message?.tool_calls || undefined,
+    finishReason: json.choices?.[0]?.finish_reason,
+  };
 }
 
 /** 流式文本生成：逐 token 通过 onEvent 回调，返回拼接后的完整文本。 */

@@ -24,6 +24,7 @@ export interface RawModel {
 export interface ProviderWithModels {
   id?: string
   name?: string
+  enabled?: boolean
   image_models?: RawModel[]
   chat_models?: RawModel[]
   video_models?: RawModel[]
@@ -53,6 +54,7 @@ export function buildAllModels(providers: ProviderWithModels[] | null | undefine
   const key = type === 'image' ? 'image_models' : type === 'chat' ? 'chat_models' : 'video_models'
   const out: ModelOption[] = []
   for (const p of providers || []) {
+    if (p.enabled === false) continue // 【全局生效】隐藏未启用的厂商（用户配置层，enabled 缺省视为可用）
     for (const m of p[key] || []) {
       const modelId = m.id || m.label
       if (!modelId) continue

@@ -17,7 +17,6 @@ import type { RawModel } from '../providerModels.ts'
 import { useStoreSelector } from '../../../hooks/useStoreSelector.ts'
 import { providerApi } from '../api/localToolApi.ts'
 import { contentSetAsync } from '../contentStore.ts'
-import { generateId } from '../idGen.ts'
 import { logger } from '../logger.ts'
 
 // useSyncExternalStore 要求：数据变化时 getSnapshot 必须返回「新引用」，
@@ -125,7 +124,9 @@ export function useProvidersList(): Provider[] {
 
 function emptyProvider(): Provider {
   return {
-    id: generateId('p'),
+    // 兜底空 provider：不再造随机 p_ id（用户分不清）。真实厂商 id 一律来自后端/候选内置；
+    // 只有 normalize 遇到空/非对象返回时才用可读占位，正常生效厂商不受影响（会用自身 id）。
+    id: '__unknown__',
     name: '新供应商',
     base_url: '',
     protocol: 'openai',
@@ -206,9 +207,83 @@ export function select(id: string | null): void {
   setState({ selectedId: id, testResult: null })
 }
 
+/** 已启用（用户已加进来）的厂商列表 —— 设置页「已用厂商」展示源；未启用的作候选。 */
+export function enabledProviders(providers: Provider[]): Provider[] {
+  return providers.filter((p) => p.enabled === true)
+}
+
+/** 候选（未启用/未配置，enabled 非 true）厂商 —— 「增加厂商」弹窗的选项源。 */
+export function candidateProviders(providers: Provider[]): Provider[] {
+  return providers.filter((p) => p.enabled !== true)
+}
+
+/**
+ * 启用/移出某厂商（用户配置层，save() 后写回后端 config JSON）。
+ * 启用会把该厂商加入已用列表；移出（置 enabled=false）从列表隐藏（内置厂商 revert 出厂，不删文件）。
+ */
+export function toggleProviderEnabled(id: string, on: boolean): void {
+  setState({
+    providers: state.providers.map((p) => (p.id === id ? { ...p, enabled: on } : p)),
+    dirty: true,
+    // 移出当前选中 → 清空选择；启用时保住现有选择
+    selectedId: !on && state.selectedId === id ? null : state.selectedId,
+  })
+}
+
+/**
+ * 合并两批模型（按 id 去重），用于「拉取勾选」与「手动新增」的合并去重：
+ * 以 id/label 为主键，后出现的覆盖同主键（拉取项可补全手输项的 label），保序、去重、不覆盖手输已加项。
+ */
+function mergeModelLists(existing: RawModel[] | undefined, incoming: RawModel[] | undefined): RawModel[] {
+  const map = new Map<string, RawModel>()
+  for (const m of existing || []) {
+    const k = (m?.id ?? m?.label) || ''
+    if (!k) continue
+    map.set(k, m)
+  }
+  for (const m of incoming || []) {
+    const k = (m?.id ?? m?.label) || ''
+    if (!k) continue
+    map.set(k, { ...m, id: m?.id || k })
+  }
+  return Array.from(map.values())
+}
+
+/** 给某厂商某能力（image_models/chat_models/video_models）新增一个模型（用户配置层；同 id 去重不重复加）。 */
+export function addModel(providerId: string, cap: 'image_models' | 'chat_models' | 'video_models', model: RawModel): void {
+  setState({
+    providers: state.providers.map((p) =>
+      p.id === providerId
+        ? { ...p, [cap]: mergeModelLists(p[cap], [model]) }
+        : p
+    ),
+    dirty: true,
+  })
+}
+
+/** 从某厂商某能力移除指定模型 id。 */
+export function removeModel(providerId: string, cap: 'image_models' | 'chat_models' | 'video_models', modelId: string): void {
+  setState({
+    providers: state.providers.map((p) =>
+      p.id === providerId
+        ? { ...p, [cap]: (p[cap] || []).filter((m) => (m?.id ?? '') !== modelId) }
+        : p
+    ),
+    dirty: true,
+  })
+}
+
 export function setPrimary(id: string): void {
   setState({
     providers: state.providers.map((p) => ({ ...p, primary: p.id === id })),
+    dirty: true,
+  })
+}
+
+/** 更新某厂商的单个字段（用户配置层，如 base_url/协议等），标记 dirty，save() 写回后端。 */
+export function updateProviderField(id: string, field: string, value: unknown): void {
+  setState({
+    providers: state.providers.map((p) => (p.id === id ? { ...p, [field]: value } : p)),
     dirty: true,
   })
 }
@@ -220,14 +295,17 @@ export async function test(id: string): Promise<void> {
   try {
     const key = p._apiKey && p._apiKey.trim() ? p._apiKey.trim() : undefined
     const payload = { id: p.id, base_url: p.base_url, key, protocol: p.protocol }
-    // 1) 通用连通性探测（含 GET 健康/模型端点，失败时透传上游原始 body）
-    let data = (await providerApi.testConnection(payload)) as Record<string, unknown>
+    // 1) 通用连通性探测（含 GET 健康/模型端点，失败时透传上游原始 body）。
+    //    后端返回 {code,data:{ok,...}}：先解包 data 再读 ok（信封错位会导致 ok=undefined → 误判失败）。
+    const raw = (await providerApi.testConnection(payload)) as { code?: number; data?: Record<string, unknown> }
+    let data = (raw?.data && typeof raw.data === 'object' ? raw.data : raw) as Record<string, unknown>
     // 2) apimart 异步协议：额外用假 task_id 嗅探异步端点，能区分
     //    「key 无效(401/403) / 非 apimart(404) / 端点存在(400+invalid task id)」。
     //    若通用探测已成功则跳过，避免无谓请求；失败时用异步嗅探结果补全诊断。
     if (p.protocol === 'apimart' && !data?.ok) {
       try {
-        const probe = await providerApi.probeAsync(payload)
+        const rawProbe = (await providerApi.probeAsync(payload)) as { code?: number; data?: Record<string, unknown> }
+        const probe = (rawProbe?.data && typeof rawProbe.data === 'object' ? rawProbe.data : rawProbe) as Record<string, unknown>
         // 优先展示异步嗅探的更精确原始信息；status 若为 0 则回填
         data = probe.ok
           ? { ...data, ...probe, ok: true }
@@ -281,9 +359,10 @@ export function applyFetchedModels(id: string, selected: { image_models?: RawMod
       x.id === id
         ? {
             ...x,
-            image_models: selected.image_models || [],
-            chat_models: selected.chat_models || [],
-            video_models: selected.video_models || [],
+            // 拉取勾选 → 与已有（手输/先前的）模型【合并去重】，不覆盖手输新增项
+            image_models: mergeModelLists(x.image_models, selected.image_models),
+            chat_models: mergeModelLists(x.chat_models, selected.chat_models),
+            video_models: mergeModelLists(x.video_models, selected.video_models),
           }
         : x
     ),

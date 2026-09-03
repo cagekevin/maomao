@@ -83,20 +83,8 @@ export const DIRECTOR3D_DEBUG =
   import.meta.env?.VITE_DEBUG_LOG === '1' || import.meta.env?.DEV === true
 
 // ── AI 助手模型列表 ──────────────────────────────────────────────
-/** 默认模型列表，env 可覆盖 */
-const DEFAULT_AGENT_MODELS = [
-  'gpt-4o-mini',
-  'gpt-4o',
-  'gpt-4o-vision-preview',
-  'deepseek-chat',
-  'Qwen/Qwen3-14B',
-]
-
-/** AI 助手可选模型列表（env VITE_AGENT_MODELS 可覆盖，逗号分隔） */
-export const AGENT_MODELS = (() => {
-  const env = import.meta.env?.VITE_AGENT_MODELS || ''
-  return env ? env.split(',').map((s) => s.trim()).filter(Boolean) : DEFAULT_AGENT_MODELS
-})()
+// 【2026-09-04 清理】AGENT_MODELS / DEFAULT_AGENT_MODELS 已随「AI 助手模型改用设置页厂商 chat_models」
+// 退役（AgentPanel 不再硬编码兜底），全库零消费者，删除。模型清单真相源 = 设置页/厂商配置。
 
 // ── AI 助手上下文预算默认值（无模型 contextWindow 声明时的保守兜底）────────────
 /** 默认上下文窗口（token）。项目模型未声明 contextWindow 时用此值，env VITE_AGENT_CONTEXT_WINDOW 可覆盖。 */
@@ -156,7 +144,8 @@ export const VIDEO_POLL_INTERVAL = 5000
 
 // ── 异步任务 relay 后端化（docs/90 R5）────────────────────────────
 // 前端 image/video 门面已硬切 relayGenerate（直连 /api/generate，后端 relay-poll 常驻轮询 + 落盘 /files/
-// + 写 result_url），chat 走 /api/relay。旧 proxyGenerate 出站已整文件退役（2026-09-03），不再有开关。
+// + 写 result_url），chat 亦走 /api/generate（capability=chat）。旧 proxyGenerate 出站与旧 /api/relay 路由
+// 已并入/退役（2026-09-03），不再有开关。
 // ── 并发上限 ────────────────────────────────────────────────────
 /** 生图同时真正触发上限（超出跳过，见 taskStore） */
 export const GEN_MAX_CONCURRENT = 6

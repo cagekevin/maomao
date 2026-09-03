@@ -114,7 +114,29 @@ export async function fetchProviderModelCatalog(options: CatalogFetchOptions): P
   const { providerId, config, fallbackModels = [], signal } = options;
   if (signal?.aborted) throw new Error('模型列表拉取已取消');
   const definition = getProviderDefinition(providerId, config);
-  if (!definition) throw new Error('未知厂商目录');
+  // 纯配置文件厂商（无内置目录定义，如魔搭 modelscope / 自定义 apimart）：
+  // 有 base_url 时按通用 OpenAI 兼容拉起 /models，不再笼统报「未知厂商目录」（2026-09-04）。
+  if (!definition) {
+    if (!config.baseUrl) throw new Error('未知厂商目录（未配置接口地址）');
+    const candidates = baseUrlCandidates(config.baseUrl);
+    if (candidates.length === 0) throw new Error('请填写接口地址');
+    const normalizedFallback = normalizeModels(fallbackModels, providerId);
+    let lastError: unknown;
+    for (const baseUrl of candidates) {
+      try {
+        const models = await fetchAt(baseUrl, { id: providerId, modelsPath: '/models' } as ProviderDefinition, providerId, config, signal);
+        return { models, source: 'remote', resolvedBaseUrl: baseUrl };
+      } catch (error) {
+        if (error instanceof Error && error.name === 'AbortError') throw error;
+        lastError = error;
+      }
+    }
+    const warning = safeCatalogError(lastError);
+    if (normalizedFallback.length > 0) {
+      return { models: normalizedFallback, source: 'local-fallback', warning };
+    }
+    throw new Error(warning, { cause: lastError });
+  }
 
   const normalizedFallback = normalizeModels(fallbackModels, providerId)
     .filter((model) => isProviderModelVisible(definition.id, model.id));

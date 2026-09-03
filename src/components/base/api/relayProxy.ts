@@ -17,7 +17,7 @@ import { API_BASE, GEN_POLL_INTERVAL } from '../config.ts'
 import { httpRequest } from './httpClient.ts'
 import { logger } from '../logger.ts'
 
-/** relay 能力（对齐 /api/relay + /api/generate 的 capability） */
+/** relay 能力（对齐 /api/generate 的 capability） */
 export type RelayCapability = 'image' | 'video' | 'chat'
 
 /** relay 提交意图（与 /api/generate body 对齐） */
@@ -239,8 +239,11 @@ export async function relayGenerate(opts: RelayGenerateOptions): Promise<RelayGe
 }
 
 /**
- * chat：经 localTool /api/relay 同步调用（后端 kit 出站）。返回 { ok, content? | error?, aborted? }。
+ * chat：经统一入口 POST /api/generate（capability=chat）同步调用（后端 relayGenerate 出站）。返回 { ok, content? | error?, aborted? }。
  * 流式与否由后端按 config/providers 里该 provider 的 streaming 决定（前端不传 stream）。
+ * 【2026-09-03 收口】统一生成入口，chat 与 image/video 同打 /api/generate（旧 /api/relay 已并入）；
+ * frontTaskId 透传
+ * 任务中心同一 task_id（聊天也贯穿任务中心，见 taskStore.reportGenerate），后端接收但不建轮询句柄。
  */
 export async function relayChat(
   intent: RelayIntent,
@@ -249,6 +252,7 @@ export async function relayChat(
   const { signal } = opts
   const timeoutMs = opts.timeoutMs ?? 120_000 // 对齐 CHAT_TIMEOUT
   const body: Record<string, unknown> = {
+    frontTaskId: intent.frontTaskId,
     providerId: intent.providerId,
     capability: 'chat',
     model: intent.model,
@@ -258,25 +262,24 @@ export async function relayChat(
   }
   if (opts.temperature !== undefined) body.temperature = opts.temperature
   if (opts.responseFormat) body.response_format = opts.responseFormat
-  let res: Response
   try {
-    res = await httpRequest(`${API_BASE}/api/relay`, {
+    // 统一入口：chat 走同步快路径，后端立即返 {code:0,data:{status:'completed',text}}。
+    // httpRequest 默认 parseJson:true → 成功返纯 data 对象；非 2xx 抛 HttpError 进 catch。
+    const env = (await httpRequest(`${API_BASE}/api/generate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
       signal,
       retries: 0,
-      parseJson: false,
       timeoutMs,
       label: 'relayChat',
-    })
+    })) as CodeData<{ status?: string; text?: string; error?: string }>
+    const d = env?.data
+    if (d?.text) return { ok: true, content: d.text }
+    if (d?.error) return { ok: false, error: d.error }
+    return { ok: false, error: '上游未返回文本内容' }
   } catch (e) {
-    if (e?.name === 'AbortError' || signal?.aborted) return { ok: false, aborted: true, error: '已停止' }
+    if (e instanceof Error && e.name === 'AbortError' || signal?.aborted) return { ok: false, aborted: true, error: '已停止' }
     return { ok: false, error: e instanceof Error ? e.message : '聊天失败' }
   }
-  let env: CodeData<{ text?: string; error?: string }>
-  try { env = await res.json() } catch { return { ok: false, error: `响应解析失败 (HTTP ${res.status})` } }
-  if (env?.data?.text) return { ok: true, content: env.data.text }
-  if (env?.data?.error) return { ok: false, error: env.data.error }
-  return { ok: false, error: '上游未返回文本内容' }
 }

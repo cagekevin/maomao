@@ -30,10 +30,11 @@ export default function AgentChatSettings() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // 可作聊天用的供应商（有 chat_models 或有默认模型；含内置 providerscope/主供应商）
+  // 可作聊天用的供应商 = 已启用(enabled)且有 chat_models 或 primary（排除未启用的内置厂商——
+  // 避免显示内置 manifest 的模型，只显示用户实际配置/启用的厂商模型，与全局「配置的才显示」一致）。
   const chatProviders = (providers || []).filter((p) => {
     const hasChat = Array.isArray(p.chat_models) && p.chat_models.length > 0
-    return hasChat || p.primary
+    return (hasChat || p.primary) && p.enabled !== false
   })
 
   const selectedProvider = chatProviders.find((p) => p.id === providerId) || chatProviders[0] || null

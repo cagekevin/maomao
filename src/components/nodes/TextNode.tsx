@@ -188,7 +188,7 @@ function TextNode({ id, data, selected }: TextNodeProps) {
     setSelectedModel,
     // 前置校验：本地 prompt/文本 或上游文本任一非空即可生成
     validate: () => (effectivePrompt?.trim() || chipResolved.refImages.length > 0 ? '' : '请输入提示词或文本'),
-    run: async ({ progress, signal }) => {
+    run: async ({ progress, signal, taskId }) => {
       // 从「providerId::modelId」解析出实际 provider 和 modelId（跨 provider 选模型）
       const { provider: useProvider, modelId } = resolveProviderModel(providers, selectedModel, primary)
       // 参考图 = 用户显式 @ 的芯片图（顺序对应文本里的「图片N」）+ 其余连线上游/上传图（去重）。
@@ -213,7 +213,8 @@ function TextNode({ id, data, selected }: TextNodeProps) {
         ],
         model: modelId,
         images: refUrls,
-        signal // 支持真取消（Step C）
+        signal, // 支持真取消（Step C）
+        taskId, // 任务中心 task_id 透传（chat 也贯穿任务中心）
       })
       if (!r.ok) return { ok: false, error: r.error || '生成失败' }
       return { ok: true, content: r.content }

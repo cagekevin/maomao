@@ -35,6 +35,7 @@ import type {
 import { resolveLocalImages } from './utils/resolveLocalImages.js';
 import { saveRemoteUrl } from './routes/files.js';
 import { upsertTask } from './routes/tasks.js';
+import { readProviderConfigFile } from './providerConfig.js';
 import { getDb, queryAll, debouncedSaveDb } from './db/database.js';
 
 export type RelayCapability = 'image' | 'video' | 'chat';
@@ -81,6 +82,14 @@ function presetNameFor(capability: RelayCapability): ModelProtocolPresetName {
 /** 平台 baseUrl 真源 = ai-relay 内置目录（第 13 平台 lovart 含 defaultBaseUrl） */
 function resolveBaseUrl(providerId: string, override?: string): string {
   if (override && override.trim()) return override.trim().replace(/\/+$/, '');
+  // 唯一出站地址真源 = 用户配置文件 base_url（modelscope/apimart 等在内置目录无 defaultBaseUrl 的厂商）。
+  // 只读内置目录会忽略用户配置 → 报「未配置接口地址」（2026-09-03 修复，与 relay.ts 对齐）。
+  const file = readProviderConfigFile(providerId);
+  const fileBase = typeof (file as { base_url?: unknown } | null)?.base_url === 'string'
+    && (file as { base_url?: string }).base_url!.trim()
+    ? (file as { base_url: string }).base_url
+    : '';
+  if (fileBase) return fileBase.replace(/\/+$/, '');
   const def = getProviderDefinition(providerId);
   const baseUrl = (def?.defaultBaseUrl || '').replace(/\/+$/, '');
   if (!baseUrl) throw new Error(`Provider ${providerId} 未配置接口地址`);

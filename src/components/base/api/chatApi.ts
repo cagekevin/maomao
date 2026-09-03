@@ -1,8 +1,13 @@
 /**
- * 文本聊天 API —— 「前端发意图 → localTool /api/relay（relay kit 后端化）」（docs/90 R5、docs/101）。
+ * 文本聊天 API —— 「前端发意图 → localTool /api/generate（capability=chat，统一生成入口）」（docs/90 R5、docs/101、Step 6 收口）。
  *
- * 链路：本文件 → relayChat（relayProxy）→ POST /api/relay → ai-relay 引擎按 providerId( config
- * providers/<id>.json ) 出站 → 同步返回 {ok, content}。流式与否由后端 config 决定（Step 4），前端不传 stream。
+ * 链路：本文件 → relayChat（relayProxy）→ POST /api/generate → relayGenerate 引擎按 providerId( config
+ * providers/<id>.json ) 出站 → 同步返 {ok, content}。统一生成入口收口（2026-09-03），chat 与 image/video
+ * 同走 /api/generate 分流（旧 /api/relay 已并入）。
+ * 流式与否由后端 config 决定（Step 4），前端不传 stream。
+ *
+ * 【taskId 贯穿任务中心】taskId 取前端 reportGenerate 的任务号，经 frontTaskId 透传后端（聊天也进任务中心）。
+ * scriptbox/AI 助手等内部工具调用无可选 taskId 时可不传。
  *
  * 【新时代配置型（2026-09-03）】providerId = 13 个 config 厂商之一；model = 该厂商模型清单里的 id。
  * temperature/response_format 经 relayChat 透传后端（preset 纯模板有传才进 body）——TextNode JSON 输出与
@@ -41,6 +46,8 @@ export interface ChatCompletionsOptions {
   responseFormat?: 'json_object' | 'json' | string
   signal?: AbortSignal
   stream?: boolean
+  /** 请求级前端 task_id（reportGenerate 任务号，经 frontTaskId 透传后端，贯穿任务中心；可选） */
+  taskId?: string
 }
 
 /** 把参考图附加到最后一条 user 消息（content 转数组 + image_url 块）。 */
@@ -66,12 +73,12 @@ async function attachImages(messages: ChatMessage[], images: string[] | null | u
  * 文本补全。
  * @returns {{ ok:boolean, content?:string, error?:string, aborted?:boolean }}
  */
-export async function chatCompletions({ provider, messages, model, images, temperature = 0.1, responseFormat, signal, stream }: ChatCompletionsOptions): Promise<GenerationResult> {
+export async function chatCompletions({ provider, messages, model, images, temperature = 0.1, responseFormat, signal, stream, taskId }: ChatCompletionsOptions): Promise<GenerationResult> {
   const finalMessages = await attachImages(messages, images, provider)
   // 仅有参考图附加后产生有效消息才走；空消息后端校验失败返回错误
   const r = await relayChat(
     {
-      frontTaskId: '',
+      frontTaskId: taskId || '',
       type: 'chat',
       providerId: provider.id || 'lovart',
       capability: 'chat',

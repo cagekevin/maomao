@@ -128,33 +128,40 @@ export async function roundTrip(ctx, requestMessages, signal, onStream) {
   //  - 直连官方分支（/api/agent/...，M1-a③ 白名单）保留原生 fetch，避免改动其既有 rejection 语义。
   // 响应仍由下方逐块解析 event 驱动多轮工具循环，与拆分前行为一致。
   // ── [debug] 非流式链路 · 跳②：fetch 发送（记录目标 URL + body 摘要） ──
-  const proxyBody = useProxy
+  // 【2026-09-03 统一收口】provider 存在（AI 助手默认恒有）→ 发 GenIntent 打统一生成入口
+  // POST /api/generate（capability=chat + tools + stream:true），后端 relayChatStream 透传 SSE；
+  // 前端 SSE 解析 / tool_calls delta 解析原样保留（打字机不丢）。旧 /api/proxy 已退役。
+  const relayBody = useProxy
     ? {
-        url: buildTargetUrl(provider, isResponsesChat ? 'responses' : 'chat/completions'),
         providerId: provider?.id,
-        method: 'POST',
-        body: JSON.stringify(llmBody)
+        capability: 'chat',
+        model,
+        messages: requestMessages,
+        ...(withTools ? { tools: toolSchemas, tool_choice: 'auto' } : {}),
+        // 流式：带 tools/AI 助手默认 → 后端 relayChatStream 透传 SSE（打字机+tool_calls delta）；
+        // 非流式（streamMode=non-stream）→ stream:false，后端同步 JSON。
+        stream: !isNonStream,
       }
     : null
   logger.debug('AI助手', '[非流式] 跳②发送', {
-    via: useProxy ? 'proxy' : 'agent',
-    target: useProxy ? proxyBody.url : endpoint,
-    bodyLen: JSON.stringify(llmBody).length,
-    hasImage: JSON.stringify(llmBody).includes('image_url') || JSON.stringify(llmBody).includes('input_image'),
+    via: useProxy ? 'relay' : 'agent',
+    target: useProxy ? `${apiBase}/api/generate` : endpoint,
+    bodyLen: JSON.stringify(relayBody ?? llmBody).length,
+    hasImage: JSON.stringify(relayBody ?? llmBody).includes('image_url') || JSON.stringify(relayBody ?? llmBody).includes('input_image'),
     accept,
   }, { module: 'agent' })
   let res
   if (useProxy) {
     try {
-      res = await httpRequest(`${apiBase}/api/proxy`, {
+      res = await httpRequest(`${apiBase}/api/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Accept: accept },
-        body: JSON.stringify(proxyBody),
+        body: JSON.stringify(relayBody),
         signal,
         timeoutMs: 0,
         retries: 0,
         parseJson: false,
-        label: 'agentRoundTrip.proxy',
+        label: 'agentRoundTrip.relay',
       })
     } catch (e) {
       if (e?.name === 'HttpError') {
@@ -229,7 +236,10 @@ export async function roundTrip(ctx, requestMessages, signal, onStream) {
     // 渲染层 extractImageSpans 仍能从纯文本里抽 URL 渲染图片。
     const content = (msg?.content != null && String(msg.content).length > 0)
       ? String(msg.content)
-      : (rawText && !json ? rawText : '')
+      // 【统一收口】AI 助手非流式走 /api/generate 同步，后端返回 relay 信封 {code,data:{status:'completed',text}}，
+      // 非 OpenAI choices 结构 —— 需兼容 data.text，否则拿不到文本（非流式"不生效"根因）。
+      : (typeof json?.data?.text === 'string' && json.data.text ? String(json.data.text)
+      : (rawText && !json ? rawText : ''))
     const assistant: RuntimeAssistantMessage = { role: 'assistant', content, model, createdAt: Date.now() }
     // 【非流式工具】若开启 ENABLE_TOOLS_ON_NON_STREAM，响应里可能带 tool_calls（OpenAI 兼容
     //   格式：message.tool_calls: [{ id, type, function:{ name, arguments } }]）。解析后放进

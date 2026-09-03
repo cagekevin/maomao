@@ -6,10 +6,10 @@ import assert from 'node:assert'
  * config.ts 是 env 变量的唯一读取入口，业务代码不得散落 import.meta.env。
  * 这里锁两类契约：
  *  1) 默认值（无 env 时各常量取文档化默认）；
- *  2) env 覆盖（VITE_AGENT_MODELS / VITE_AGENT_DEMO 等能正确改写输出）。
+ *  2) env 覆盖（VITE_AGENT_DEMO 等能正确改写输出）。
  * 若有人绕过 config 直接读 env 或在别处新增 env 读取，本文件守护的默认/覆盖契约仍保持生效。
+ * 2026-09-04：AGENT_MODELS 已随「AI 助手模型改用厂商 chat_models」退役删除，相关 2 条单测一并移除。
  */
-const DEFAULT_MODELS = ['gpt-4o-mini', 'gpt-4o', 'gpt-4o-vision-preview', 'deepseek-chat', 'Qwen/Qwen3-14B']
 
 /**
  * 补齐调试开关的全局类型。
@@ -49,11 +49,6 @@ describe('config — 默认值契约（无 env）', () => {
     expect((await loadConfig()).AGENT_DEMO_MODE).toBe(false)
   })
 
-  it('AGENT_MODELS 默认列表（5 个）', async () => {
-    const c = await loadConfig()
-    expect(c.AGENT_MODELS).toEqual(DEFAULT_MODELS)
-  })
-
   it('超时/轮询/并发默认值', async () => {
     const c = await loadConfig()
     expect(c.HTTP_DEFAULT_TIMEOUT).toBe(15000)
@@ -72,12 +67,6 @@ describe('config — 默认值契约（无 env）', () => {
 })
 
 describe('config — env 覆盖契约', () => {
-  it('VITE_AGENT_MODELS 覆盖模型列表（逗号分隔、去空白、过滤空项）', async () => {
-    vi.stubEnv('VITE_AGENT_MODELS', 'deepseek-chat,  Qwen/Qwen3-14B ,,gpt-4o')
-    const c = await loadConfig()
-    expect(c.AGENT_MODELS).toEqual(['deepseek-chat', 'Qwen/Qwen3-14B', 'gpt-4o'])
-  })
-
   it('VITE_AGENT_DEMO="1" 开启演示模式', async () => {
     vi.stubEnv('VITE_AGENT_DEMO', '1')
     expect((await loadConfig()).AGENT_DEMO_MODE).toBe(true)

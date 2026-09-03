@@ -50,7 +50,7 @@ export const CLI_PROTOCOLS: string[] = ['jimeng', 'codex', 'gemini-cli']
 /** 协议显示名（M5-1，与后端 protocolAdapters.ts 的 PROVIDER_PROTOCOLS 一一对应）。 */
 export const PROVIDER_PROTOCOL_LABELS: Record<string, string> = {
   openai: 'OpenAI 兼容',
-  apimart: 'apimart（Lovart 网关）',
+  apimart: 'Lovart',
   gemini: 'Gemini',
   volcengine: '火山方舟（Volcengine）',
   runninghub: 'RunningHub',
