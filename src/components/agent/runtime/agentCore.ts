@@ -432,7 +432,7 @@ export function buildRequestMessages(
     if (m.role === 'user' && m.attachments && m.attachments.length > 0) {
       if (currentHasImages && i === lastUserIdx) {
         // 本轮：内联本轮图 + refCatalog/坐标（供 attachment_indices 精确引用）
-        // 收口：图片 content block 统一用 toImageContentBlocks（见 imageUrl.js），与 chatApi 保持一致，禁散写。
+        // 收口：图片 content block 统一用 toImageContentBlocks（见 imageUrl.js），与 generate.ts 门面保持一致，禁散写。
         const content: Array<{ type: string; text?: string; url?: string; image_url?: { url: string }; [k: string]: unknown }> = toImageContentBlocks(m.attachments.map((a) => a.url).filter(Boolean))
         // 参考图编号目录（对齐大雄）：附加给 AI，让它能用 attachment_indices 精确引用第几张参考图。
         // 对齐参考项目（daxiong-canvas-plugins canvas-agent）：参考图附件带画布坐标 x/y，

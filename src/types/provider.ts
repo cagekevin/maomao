@@ -1,5 +1,5 @@
 /**
- * provider 与生成结果信封共享类型（chatApi / imageApi / videoApi 出口契约）。
+ * provider 与生成结果信封共享类型（generate.ts 门面出口契约；原 chatApi/imageApi/videoApi 三份门面已并入 generate.ts，L3 收口）。
  * 收口于 src/types/ 目录（由 index.ts barrel 统一导出）。
  * 【真相合规】provider 完整契约单一真相在 localTool/src/routes/providers.ts 的 ApiProvider；
  *          本处仅覆盖前端「出站组 body / 参考图归一」用到的字段，避免引入整表过大契约。

@@ -89,11 +89,11 @@ export function useJsonObject(modelId?: string): boolean {
  * 对应职责划分：引擎不依赖 UI，只通过「读 data + updateData 写回」与节点交互。
  * 本文件对齐官方 H_.jsx 的 Ar/Pr/Fr/Ir/Un/ai/oi/li/ui 回调语义，把原来的假实现
  * （setTimeout + 占位图）替换为真实 API 调用：
- *  - 文本（onGenerateScript / onGenerateShotPrompts / onGenerateShotImage）→ chatApi.chatCompletions
- *  - 图像（onGenerateAssetImage / onGenerateAllAssetImages）→ imageApi.generateImage
+ *  - 文本（onGenerateScript / onGenerateShotPrompts / onGenerateShotImage）→ generate.chatCompletions
+ *  - 图像（onGenerateAssetImage / onGenerateAllAssetImages）→ generate.generateImage
  *  - 上传 / 连线：保留原有 addNodes/连线能力。
  *
- * 并发安全：所有请求都是独立 fetch，无共享可变状态（chatApi/imageApi 同为纯函数）；
+ * 并发安全：所有请求都是独立 fetch，无共享可变状态（generate 门面的 chatCompletions/generateImage 同为纯函数）；
  * 每个可中止的生成都注册独立 AbortController 到 abortMap，互不影响（对齐官方 zt.current）。
  *
  * 10 个回调端点（挂到 node.data，由 useScriptBoxEngine 注入）：

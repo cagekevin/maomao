@@ -260,7 +260,7 @@ export {
  *  - defaultModel: 默认模型名
  *  - provider:     可选，AI 助手实际使用的供应商（来自 API 设置）。传了则打统一生成入口 /api/generate
  *                  （relayChatStream，保留 function calling + SSE），选的模型才真正生效；
- *                  不传则回退走 localTool /api/agent/:id/chat（env 配的 LLM；旧 /api/proxy 已退役）。
+ *                  未配 provider 时由 AgentPanel 禁用输入引导，不再回退直连（见 L3b 出口收口）。
  * @returns { messages, sending, error, model, setModel, send, stop, clear, ... }
  */
 
