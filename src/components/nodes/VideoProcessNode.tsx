@@ -27,6 +27,7 @@ import { generateId } from '../base/core/idGen.ts'
 import { buildSpawnNodes, spawnAndCommit } from '../base/canvas/deriveNodes.ts'
 import { useCanvasEdges } from '../base/canvas/CanvasEdgesContext.tsx'
 import { httpRequest } from '../base/api/index.ts'
+import { updateNodeRuntime, useNodeRuntime } from '../base/store/nodeRuntimeStore.ts'
 import previewUrls from '../base/utils/previewUrl.ts'
 import { UPLOAD_DIRS } from '../base/utils/uploadDirs.ts'
 import { DOWNLOAD_TIMEOUT, VIDEO_DOWNLOAD_TIMEOUT } from '../base/core/config.ts'
@@ -791,7 +792,9 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
   /* ---------- 处理（复刻官方 546-707 行） ---------- */
   const fail = useCallback(
     (msg) => {
-      setNodes((ns) => ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, loading: false, errorMessage: msg } } : n)))
+      // 【瞬态收口·阶段二】loading 归 nodeRuntimeStore，node.data 只留持久字段(errorMessage)。
+      updateNodeRuntime(id, { loading: false })
+      setNodes((ns) => ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, errorMessage: msg } } : n)))
       showToast(msg)
     },
     [id, setNodes]
@@ -902,10 +905,12 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
     const abort = new AbortController()
     controllerRef.current = controller
     abortRef.current = abort
+    // 【瞬态收口·阶段二】loading/progress 归 nodeRuntimeStore；node.data 只留持久字段。
+    updateNodeRuntime(id, { loading: true, progress: 0 })
     setNodes((ns) =>
       ns.map((n) =>
         n.id === id
-          ? { ...n, data: { ...n.data, loading: true, progress: 0, errorMessage: undefined, videoUrl: undefined, audioUrl: undefined } }
+          ? { ...n, data: { ...n.data, errorMessage: undefined, videoUrl: undefined, audioUrl: undefined } }
           : n
       )
     )
@@ -922,8 +927,7 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
             speed: gifSpeed,
             startTime: gifCrop ? gifStart : 0,
             endTime: gifCrop ? gifEnd : undefined,
-            onProgress: (p) =>
-              setNodes((ns) => ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, progress: Math.round(p * 100) } } : n)))
+            onProgress: (p) => updateNodeRuntime(id, { progress: Math.round(p * 100) })
           }),
           60000,
           'GIF 生成超时（可能解码卡死）',
@@ -933,6 +937,7 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
         // GIF 产物 URL 喂给 spawnGifNode 作持久节点源，非「组件预览」，不收进 previewUrl（见 CONTEXT §二⑤）
         const url = URL.createObjectURL(gif.blob)
         const outputName = `${stripExt(currentName || 'video')}_gif.gif`
+        updateNodeRuntime(id, { loading: false, progress: 100 })
         setNodes((ns) =>
           ns.map((n) =>
             n.id === id
@@ -940,8 +945,6 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
                   ...n,
                   data: {
                     ...n.data,
-                    loading: false,
-                    progress: 100,
                     errorMessage: undefined,
                     gifResult: { width: gif.width, height: gif.height, frameCount: gif.frameCount, size: gif.size },
                     outputName
@@ -960,17 +963,14 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
           const clip = clips[i]
           const blob = localFile && clip.url === localUrl ? localFile : await httpRequest(clip.url, { parseJson: false, retries: 0, timeoutMs: VIDEO_DOWNLOAD_TIMEOUT, label: 'downloadClip', signal: abort.signal }).then((r) => r.blob())
           blobs.push(blob)
-          setNodes((ns) =>
-            ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, progress: Math.round(((i + 1) / clips.length) * 20) } } : n))
-          )
+          updateNodeRuntime(id, { progress: Math.round(((i + 1) / clips.length) * 20) })
         }
         // 【R2 视频治理】concat 包总超时（每片段 90s 下限 5min），防 for await 长循环卡死（TASK-028 #15-29）
         result = await withTimeout(
           concatVideos(blobs, {
             segments: clips.map((c) => ({ start: c.sourceStart, end: c.sourceEnd, muted: c.muted })),
             controller,
-            onProgress: (p) =>
-              setNodes((ns) => ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, progress: 20 + Math.round(p * 80) } } : n)))
+            onProgress: (p) => updateNodeRuntime(id, { progress: 20 + Math.round(p * 80) })
           }),
           Math.max(5 * 60 * 1000, blobs.length * 90 * 1000),
           '视频拼接超时（可能解码卡死）',
@@ -983,7 +983,7 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
         const blob = localFile && src === localUrl ? localFile : await httpRequest(src, { parseJson: false, retries: 0, timeoutMs: VIDEO_DOWNLOAD_TIMEOUT, label: 'downloadVideo', signal: abort.signal }).then((r) => r.blob())
         const baseOpts = {
           controller,
-          onProgress: (p) => setNodes((ns) => ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, progress: Math.round(p * 100) } } : n)))
+          onProgress: (p) => updateNodeRuntime(id, { progress: Math.round(p * 100) })
         }
         let opts
         if (mode === 'trim') opts = { mode, start: clip.sourceStart, end: clip.sourceEnd, ...baseOpts }
@@ -1003,6 +1003,7 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
       const count = clips.length
       const suffix = mode === 'trim' ? (count > 1 ? `trimmed_${count}_clips` : 'trimmed') : mode === 'extractAudio' ? 'audio' : mode === 'sizeFrameRate' ? `${outW}x${outH}_${targetFps}fps` : `merged_${count}_clips`
       const outputName = `${stripExt(currentName || 'video')}_${suffix}.${result.extension}`
+      updateNodeRuntime(id, { loading: false, progress: 100 })
       setNodes((ns) =>
         ns.map((n) =>
           n.id === id
@@ -1010,8 +1011,6 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
                 ...n,
                 data: {
                   ...n.data,
-                  loading: false,
-                  progress: 100,
                   errorMessage: undefined,
                   videoUrl: undefined,
                   audioUrl: undefined,
@@ -1044,7 +1043,8 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
         logger.error('VideoProcessNode', 'process timeout', { error: e?.message, errType: cls.type, retryable: cls.retryable })
         fail(e instanceof Error ? e.message : '视频处理超时')
       } else if (e instanceof ConversionCanceled || abort.signal.aborted || controller.isCanceled) {
-        setNodes((ns) => ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, loading: false, progress: 0, errorMessage: undefined } } : n)))
+        updateNodeRuntime(id, { loading: false, progress: 0 })
+        setNodes((ns) => ns.map((n) => (n.id === id ? { ...n, data: { ...n.data, errorMessage: undefined } } : n)))
       } else {
         logger.error('VideoProcessNode', 'process failed', { error: e?.message, errType: cls.type, retryable: cls.retryable })
         fail(e instanceof Error ? e.message : '视频处理失败')
@@ -1055,7 +1055,11 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
     }
   }, [mode, exportClips, currentClip, currentUrl, resizeWidth, resizeHeight, targetFps, audioFormat, gifFps, gifMaxSize, gifColors, gifSpeed, gifCrop, gifStart, gifEnd, localFile, localUrl, currentName, id, setNodes, fail, spawnVideoNode, spawnAudioNode, spawnGifNode])
 
-  const loading = data.loading
+  // 【瞬态收口·阶段二】loading/progress 从 node.data 迁到 nodeRuntimeStore（内存级）。
+  // 旧快照 data 里可能残留 loading/progress，此处不再读 data，防「复制/刷新残留」误判遮罩。
+  const runtime = useNodeRuntime(id)
+  const loading = runtime.loading
+  const realtimeProgress = runtime.progress
   const inputCls = 'nodrag nowheel w-full h-8 bg-surface-1 border border-edge-raised rounded-md px-2 text-caption-sm text-primary outline-none focus:border-edge-strong'
   const presetCls = 'nodrag h-8 px-2 rounded-md border border-edge-raised bg-surface-active text-caption text-body hover:bg-surface-active-2 transition-colors disabled:opacity-35 disabled:cursor-not-allowed'
   const smallBtnCls = 'nodrag h-7 min-w-7 px-1.5 rounded border border-edge-raised bg-surface-hover text-secondary flex items-center justify-center hover:text-white disabled:opacity-30'
@@ -1556,7 +1560,7 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
               {loading ? (
                 <>
                   <Loader2 size={13} className="animate-spin" />
-                  处理中 {data.progress || 0}%
+                  处理中 {realtimeProgress || 0}%
                 </>
               ) : (
                 <>

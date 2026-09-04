@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState, useEffect } from 'react'
+import { useCallback, useRef, useEffect } from 'react'
 import {
   reportGenerate,
   registerTaskRetry,
@@ -6,6 +6,7 @@ import {
   claimNodeRun,
   releaseNodeRun,
 } from '../components/base/store/taskStore.ts'
+import { updateNodeRuntime, useNodeRuntime } from '../components/base/store/nodeRuntimeStore.ts'
 import type { TaskController, NodeRunClaim } from '../components/base/store/taskStore.ts'
 import { saveResultToTasks } from '../components/base/api/index.ts'
 import { logger } from '../components/base/core/logger.ts'
@@ -129,6 +130,11 @@ function promptPreview(p: string | undefined): string {
  *     由 data.text 随画布快照落盘恢复，无需传此回调。
  *  4. 方向单向：写只走本契约，刷新后任务中心 → 节点回填，节点不回写任务中心。
  *
+ * 【瞬态收口·阶段二】loading/error（瞬态）归 nodeRuntimeStore（按 nodeId 内存 Map），
+ *   不入 node.data / 画布快照 → 复制节点天然隔离，杜绝「半个 loading 被复制走」。
+ *   本 hook 直接经 useNodeRuntime 读、updateNodeRuntime 写，对外接口 { loading, error }
+ *   不变，各生成节点遮罩读取几乎不动；进度仍经 taskCtl.progress 走任务中心。
+ *
  * 【用法】
  *   const gen = useNodeGeneration({
  *     nodeId: id,
@@ -172,8 +178,9 @@ export function useNodeGeneration({
   resultKeyRef.current = resultKey
   const recoverableRef = useRef(!!recoverable)
   recoverableRef.current = !!recoverable
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
+  // 【瞬态收口·阶段二】loading/error 统一归 nodeRuntimeStore（内存级，按 nodeId 键，
+  // 复制天然隔离）。对外接口不变：本 hook 仍返回 { loading, error }，节点代码几乎不动。
+  const { loading, error } = useNodeRuntime(nodeId)
   // AbortController：stop() 真中断请求（Step C）。run 执行器接收 signal 并传给底层 API（Step A 已支持）。
   const abortRef = useRef<AbortController | null>(null)
   // 【R4 防重入】同步 runningRef 原子防重：start 入口立即置位、finally 复位。
@@ -204,10 +211,9 @@ export function useNodeGeneration({
     if (loading || runningRef.current) { releaseNodeRun(nodeId); return false }
     runningRef.current = true
     const v = validateRef.current?.()
-    if (v) { setError(v); runningRef.current = false; releaseNodeRun(nodeId); return false }
+    if (v) { updateNodeRuntime(nodeId, { error: v }); runningRef.current = false; releaseNodeRun(nodeId); return false }
 
-    setLoading(true)
-    setError('')
+    updateNodeRuntime(nodeId, { loading: true, error: '' })
     // 每次 start 重建 AbortController（旧请求先取消，避免并发）
     abortRef.current?.abort()
     const ctl = new AbortController()
@@ -265,7 +271,7 @@ export function useNodeGeneration({
         // 【R7 错误分类记录】run 返回 { ok:false } 是契约业务失败（message 为字符串），
         // classifyError 归 business（非网络/超时，不自动重试）——分类结果记录进日志，供全链路排查。
         const cls = classifyError(msg)
-        setError(msg)
+        updateNodeRuntime(nodeId, { error: msg })
         taskCtl.fail(msg)
         // 生成失败：统一 logger + 全局 toast（节点内红字易忽略；logger 供全链路排查）
         logger.error('生成', 'fail', { nodeId, type: t.type, prompt: promptPreview(t.prompt), error: msg, errType: cls.type, retryable: cls.retryable })
@@ -276,7 +282,7 @@ export function useNodeGeneration({
       if (e?.name === 'AbortError') {
         // 用户停止：不报错，返回取消标记，由调用方处理
         logger.debug('生成', '[节点] 用户停止', { nodeId }, { module: 'image' })
-        setError('')
+        updateNodeRuntime(nodeId, { error: '' })
         taskCtl.fail('已停止')
         return { ok: false, error: '已停止', aborted: true }
       }
@@ -285,14 +291,14 @@ export function useNodeGeneration({
       // 【R7 错误分类记录】异常对象经 classifyError 统一分类（abort/timeout/network/http/business），
       // 分类结果记录进日志：网络/超时（retryable）供「再来一次/自动重试」决策，业务失败不自动重试（防封号）。
       const cls = classifyError(e)
-      setError(msg)
+      updateNodeRuntime(nodeId, { error: msg })
       taskCtl.fail(msg)
       // 生成异常：统一 logger + 全局 toast（用户主动停止 AbortError 除外）
       logger.error('生成', 'fail', { nodeId, type: t.type, prompt: promptPreview(t.prompt), error: msg, errType: cls.type, retryable: cls.retryable })
       showToast(msg, { type: 'error' })
       return { ok: false, error: msg }
     } finally {
-      setLoading(false)
+      updateNodeRuntime(nodeId, { loading: false })
       runningRef.current = false // 【R4】原子防重复位
       releaseNodeRun(nodeId) // 【P1-E】释放单节点互斥锁
     }
@@ -301,7 +307,7 @@ export function useNodeGeneration({
   // stop：真中断底层请求（Step C）。请求经 signal 传到 imageApi/videoApi，abort 后 fetch/轮询中断。
   const stop = useCallback(() => {
     abortRef.current?.abort()
-    setLoading(false)
+    updateNodeRuntime(nodeId, { loading: false })
   }, [])
 
   // 「再来一次」注册：让任务中心重试 / Agent generate_node 能驱动本节点

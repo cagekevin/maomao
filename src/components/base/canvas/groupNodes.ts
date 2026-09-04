@@ -262,9 +262,19 @@ export function duplicateSelectedWithEdges(
     .filter((n) => toClone.has(String(n.id)))
     .map((n) => {
       const newId = idMap.get(String(n.id))
+      // 【瞬态收口·阶段一】克隆节点必须重开 data 为独立对象，切断与原节点共享引用。
+      // 根因：此前 `{ ...n }` 直接复用 n.data，复制带瞬态（如 VideoProcessNode 曾存的
+      //   data.loading）/带结果的节点后，两节点共享同一 data 引用，任何读/缓存引用点都
+      //   可能联动 →「Ctrl+D 复制后点生成，原节点动画异常」。配合阶段二把瞬态迁出 data
+      //   （nodeRuntimeStore），副本是干净副本。
+      //   ⚠️ 只会原地修改 data 的读点需要独立顶层集合：此刻先做顶层展开（足够断原引用）；
+      //   若后续发现 data 内「会被写者原地改的集合字段」（images[]/texts[]/outputs[]等）
+      //   仍串扰，再对这类字段逐一浅拷成新数组（非无脑递归深拷，避免无谓体积）。
+      const clonedData = n.data ? { ...n.data } : n.data
       return {
         ...n,
         id: newId,
+        data: clonedData,
         ...(n.parentId && idMap.has(String(n.parentId)) ? { parentId: idMap.get(String(n.parentId)) } : { parentId: undefined }),
         position: {
           x: n.position?.x || 0,

@@ -159,6 +159,26 @@ describe('R3 duplicateSelectedWithEdges 克隆子图（保留组关系 + 连线�
     // 3 原边 + 2 克隆边（e1 g→c1、e2 c1→c2 都有一端是克隆体 → 各克隆一条）
     expect(r.edges).toHaveLength(5)
   })
+
+  it('克隆断开 data 共享引用：克隆体 data !== 原节点 data', () => {
+    // 【瞬态收口·阶段一】克隆节点必须重开 data 为独立对象，杜绝复制后与原节点共享引用联动。
+    const base = { id: 'v', type: 'videoProcessNode', data: { label: '处理', mode: 'trim' }, position: { x: 0, y: 0 } }
+    const { clones } = duplicateSelectedWithEdges([base], [], ['v'])
+    const clone = clones[0]
+    expect(clone).toBeTruthy()
+    expect(clone.data).not.toBe(base.data) // toBe 断引用（同一对象），而非 toEqual
+    expect(clone.data).toEqual(base.data) // 值相等，结构不破坏
+  })
+
+  it('克隆后对克隆体 data 加字段，原节点 data 不受影响（各自独立，互不污染）', () => {
+    // 【瞬态收口·阶段一】后续各自 patch 互不影响：改克隆体 data，原节点同名字段不变。
+    const base = { id: 'v', type: 'videoProcessNode', data: { loading: true }, position: { x: 0, y: 0 } }
+    const { clones } = duplicateSelectedWithEdges([base], [], ['v'])
+    const clone = clones[0]
+    clone.data.loading = false // 模拟克隆体把「进行中」置为干净
+    expect(base.data.loading).toBe(true) // 原节点不受克隆体 patch 影响
+    expect(clone.data.loading).toBe(false)
+  })
 })
 
 describe('编组尺寸刷新保真（TASK: 编组后刷新大小变了）', () => {
