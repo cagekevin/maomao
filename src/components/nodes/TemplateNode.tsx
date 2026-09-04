@@ -350,8 +350,8 @@ function TemplateNode({ id, data, selected }: TemplateNodeProps) {
         <div className="space-y-3">
           {/* 素材缩略图区（通用 MaterialStrip，真实上游连线；空则不渲染） */}
           <MaterialStrip
-            images={connected.images}
-            texts={connected.texts}
+            images={refImages}
+            texts={refTexts}
             onInsert={insertMention}
             onDisconnect={disconnectSource}
           />
@@ -362,8 +362,8 @@ function TemplateNode({ id, data, selected }: TemplateNodeProps) {
             value={prompt}
             onChange={setPromptPersist}
             placeholder="描述内容，输入 @ 引用素材..."
-            refImages={connected.images}
-            refTexts={connected.texts}
+            refImages={refImages}
+            refTexts={refTexts}
             onInsert={insertMention}
             onReady={(fn) => { insertAssetRef.current = fn }}
             richText

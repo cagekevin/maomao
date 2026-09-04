@@ -55,6 +55,11 @@ export default function FullscreenModal({ open, title = '编辑输入', onClose,
     return { w, h }
   })
   const panelRef = useRef<HTMLDivElement>(null)
+  // 记录本次按下是否落在遮罩空白上（而非从面板内容开始拖拽/选中）。
+  // 用途：遮罩用 onClick 判定关闭，但「从右往左框选文字」时鼠标常会在面板外（遮罩）松开，
+  // 此时 click 的 target 会变成遮罩（面板为遮罩子元素，松开的公共祖先就是遮罩）→ 被误判为点击空白关闭。
+  // 只有「按下起点也在遮罩」的点击才算真·点空白，拖选松出框外不再误关。
+  const backdropStartRef = useRef(false)
 
   // Esc 关闭（复刻 Ai.jsx useEffect）
   useEffect(() => {
@@ -96,10 +101,18 @@ export default function FullscreenModal({ open, title = '编辑输入', onClose,
   return createPortal(
     <div
       className="fixed inset-0 z-ceiling-2 bg-black/85 backdrop-blur-sm flex items-center justify-center p-6 input-panel-fullscreen-root"
-      onMouseDown={(e) => e.stopPropagation()}
+      onMouseDown={(e) => {
+        e.stopPropagation()
+        // 记录按下起点：只有按在遮罩空白上（而非面板内容，如从右往左框选文字）才算「点空白」。
+        backdropStartRef.current = e.target === e.currentTarget
+      }}
       onWheel={(e) => e.stopPropagation()}
       onClick={(e) => {
-        if (e.target === e.currentTarget) onClose()
+        // 需同时满足：本次 click 落在遮罩（拖选松出框外时 target 也会落到遮罩）
+        // 且按下起点就在遮罩（排除从面板内容开始拖拽、最后在框外松开的场景）。
+        const closeByBackdrop = e.target === e.currentTarget && backdropStartRef.current
+        backdropStartRef.current = false
+        if (closeByBackdrop) onClose()
       }}
     >
       <div

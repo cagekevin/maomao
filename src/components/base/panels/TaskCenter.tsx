@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef } from 'react'
+import React, { useState, useMemo, useRef, useEffect } from 'react'
 import { Search, Filter, MoreVertical, Copy, Play, RotateCw, Trash2, X, RefreshCw, ChevronDown, Download, Image as ImageIcon } from 'lucide-react'
 import { statusLabel, typeLabel, removeTask, retryTask, clearTasksBy, clearAllTasks, type Task, useTasks, statusDotClass } from '../store/taskStore.ts'
 import { logger } from '../core/logger.ts'
@@ -6,6 +6,7 @@ import { downloadUrl } from '../utils/clipboard.ts'
 import { showToast } from '../core/toastStore.ts'
 import { makeAssetDragProps } from '../../../hooks/useAssetDragToCanvas.ts'
 import VideoThumbnail from '../ui/VideoThumbnail.tsx'
+import ImageZoomDialog from '../editors/ImageZoomDialog.tsx'
 import { useRenderImageResolver } from '../utils/imageUrl.ts'
 import { useOutsideClick } from '../core/uiHooks.ts'
 import { formatTime, createImeInput } from '../core/utils.ts'
@@ -46,9 +47,17 @@ function TaskCenter() {
   const [cleanOpen, setCleanOpen] = useState(false)
   const cleanRef = useRef(null) // 顶部「清理」下拉容器 ref，点击外部自动关闭
   useOutsideClick(cleanRef, cleanOpen, () => setCleanOpen(false))
-  // 大图预览（点击缩略图打开，右下角显示像素；官方 Ln.jsx 同款交互）
-  const [previewUrl, setPreviewUrl] = useState(null)
+  // 大图/视频预览（点击缩略图打开；图片显示像素/可拖到画布，视频走统一 ImageZoomDialog 播放器）
+  const [preview, setPreview] = useState<{ url: string; type: string } | null>(null)
   const [previewDims, setPreviewDims] = useState(null) // { w, h }
+  const videoZoomRef = useRef<HTMLDialogElement>(null) // 视频预览统一走 ImageZoomDialog（含截屏/下载当前帧）
+
+  // 视频预览：preview 变为视频时，等 dialog 挂载后自动 showModal（与 GeneratedView/生成面板一致）
+  useEffect(() => {
+    if (preview && preview.type === 'video') {
+      videoZoomRef.current?.showModal()
+    }
+  }, [preview])
 
   // P2/P12：搜索 IME 感知防抖提交（组字中不触发过滤，组字结束补提交一次）
   const searchIme = useRef(null)
@@ -160,21 +169,24 @@ function TaskCenter() {
                   showToast(ok ? '已重新生成' : '找不到对应节点，请在画布上重新生成', { type: ok ? 'info' : 'warning' })
                 }}
                 onRemove={() => { removeTask(t.id); setMoreOpenId(null); showToast('已删除', { type: 'success' }) }}
-                onPreview={(url) => { setPreviewUrl(url); setPreviewDims(null) }}
+                onPreview={(task) => {
+                  setPreviewDims(null)
+                  setPreview({ url: task.resultUrl, type: task.type })
+                }}
               />
             ))}
           </div>
         )}
       </div>
 
-      {/* 大图预览弹窗（点击缩略图打开；右下角显示像素，如 1920×1080）；图片可拖拽到画布成为节点 */}
-      {previewUrl && (
-        <div className="absolute inset-0 z-20 bg-black/85 flex items-center justify-center p-4" onClick={() => setPreviewUrl(null)}>
+      {/* 大图预览弹窗（图片；点击缩略图打开，右下角显示像素，如 1920×1080）；图片可拖拽到画布成为节点 */}
+      {preview && preview.type !== 'video' && (
+        <div className="absolute inset-0 z-20 bg-black/85 flex items-center justify-center p-4" onClick={() => setPreview(null)}>
           <div className="relative max-w-full max-h-full" onClick={(e) => e.stopPropagation()}>
             <img
-              src={previewUrl}
+              src={preview.url}
               alt="预览"
-              {...makeAssetDragProps({ url: previewUrl, name: '预览', type: 'image' })}
+              {...makeAssetDragProps({ url: preview.url, name: '预览', type: 'image' })}
               draggable
               className="max-h-[80vh] max-w-full rounded-lg object-contain cursor-grab active:cursor-grabbing"
               onLoad={(e) => {
@@ -192,11 +204,20 @@ function TaskCenter() {
                 {previewDims.w}×{previewDims.h}
               </span>
             )}
-            <button className="absolute top-2 right-2 w-8 h-8 rounded-md bg-black/60 flex items-center justify-center text-white hover:bg-black/80 transition-colors cursor-pointer border-none" onClick={() => setPreviewUrl(null)} title="关闭">
+            <button className="absolute top-2 right-2 w-8 h-8 rounded-md bg-black/60 flex items-center justify-center text-white hover:bg-black/80 transition-colors cursor-pointer border-none" onClick={() => setPreview(null)} title="关闭">
               <X size={16} />
             </button>
           </div>
         </div>
+      )}
+      {/* 视频预览：与生成面板一致，走统一 ImageZoomDialog 视频播放器（含截屏/下载当前帧） */}
+      {preview && preview.type === 'video' && (
+        <ImageZoomDialog
+          ref={videoZoomRef}
+          url={preview.url}
+          kind="video"
+          onClose={() => setPreview(null)}
+        />
       )}
 
     </div>
@@ -220,7 +241,7 @@ interface TaskCardProps {
   onCopy: () => void
   onRetry: () => void
   onRemove: () => void
-  onPreview: (url: string) => void
+  onPreview: (task: Task) => void
 }
 
 // 单条任务卡片（对齐官方 jn.jsx）
@@ -318,13 +339,13 @@ const TaskCard = React.memo(function TaskCard({ task, moreOpen, onToggleMore, on
       {isCompleted && task.resultUrl && (
         <div
           className="relative w-full h-[72px] rounded-lg overflow-hidden bg-surface-muted group cursor-pointer"
-          onClick={() => { if (typeof onPreview === 'function' && task.type === 'image') onPreview(task.resultUrl) }}
+          onClick={() => { if (typeof onPreview === 'function' && task.type === 'image') onPreview(task) }}
         >
           {task.type === 'video' ? (
             <VideoThumbnail
               src={task.resultUrl}
               className="w-full h-full"
-              onActivate={() => { if (typeof onPreview === 'function') onPreview(task.resultUrl) }}
+              onActivate={() => { if (typeof onPreview === 'function') onPreview(task) }}
             />
           ) : (
             <img

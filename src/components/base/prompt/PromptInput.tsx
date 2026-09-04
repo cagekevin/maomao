@@ -97,8 +97,8 @@ const PromptInput = forwardRef(function PromptInput(
     }
   }, [showMention])
 
-  const editorRef = useRef(null)
-  const wrapRef = useRef(null)
+  const editorRef = useRef<HTMLDivElement | null>(null)
+  const wrapRef = useRef<HTMLDivElement | null>(null)
   const popRef = useRef(null)
   const savedRangeRef = useRef(null)
   const syncingRef = useRef(false)
@@ -199,6 +199,12 @@ const PromptInput = forwardRef(function PromptInput(
     () => [...(refImages || []).map((i) => i.label || ''), ...(refTexts || []).map((t) => t.label || '')].join('\u0001'),
     [refImages, refTexts]
   )
+  // 素材 id 签名：跟踪 refImages/refTexts 的 id 集合，用于侦测「某素材已从素材列表消失
+  //（如上游节点被断开/删除）」，从而把富文本里引用它的芯片一并清掉。用 \u0002 连接防冲突。
+  const refIdsSignature = React.useMemo(
+    () => [...(refImages || []).map((i) => i.id || ''), ...(refTexts || []).map((t) => t.id || '')].join('\u0002'),
+    [refImages, refTexts]
+  )
 
   // 外部 value 变化 / 素材名字变化 → 重建 DOM。
   // 重建前先 autoLinkAssetsByName 把「@素材名」转成 @{id:label|thumb} 芯片字符串，
@@ -223,6 +229,37 @@ const PromptInput = forwardRef(function PromptInput(
     if (cursor !== null) restoreCursor(el, cursor)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value, chipMetaMap, nameSignature])
+
+  // 素材消失清理：某素材 id 从 refImages/refTexts 中消失（典型：点素材缩略图红 × 断开上游连线）
+  // → 把富文本里引用它的 @芯片 一并移除并写回，避免缩略图残留在富文本里指向已断上游。
+  // 说明：value 序列化字符串里芯片自带缩略图 URL（@{id:label|thumb}），只靠重建 DOM 不会消失，
+  // 必须按 id 命中后删除 DOM 芯片并经 emitDOM 同步回 value。
+  const prevRefIdsSigRef = useRef(refIdsSignature)
+  React.useEffect(() => {
+    const el = editorRef.current
+    const prevSig = prevRefIdsSigRef.current
+    prevRefIdsSigRef.current = refIdsSignature
+    if (!el || prevSig === refIdsSignature) return
+    // 本次仍存在的 id 集合
+    const remain = new Set(refIdsSignature.split('\u0002').filter(Boolean))
+    // 上一份里存在、本次消失的 id
+    const gone = prevSig.split('\u0002').filter((id) => id && !remain.has(id))
+    if (gone.length === 0) return
+    const goneSet = new Set(gone)
+    let changed = false
+    for (const chip of Array.from(el.querySelectorAll('[data-ref-id]'))) {
+      const id = chip.getAttribute('data-ref-id')
+      if (id && goneSet.has(id)) {
+        chip.remove()
+        changed = true
+      }
+    }
+    if (changed) {
+      normalizeChipSlots(el)
+      emitDOM()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refIdsSignature])
 
   const deleteChipNearCursor = useCallback(() => {
     const sel = window.getSelection()

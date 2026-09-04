@@ -107,7 +107,9 @@ export async function setLovartMode(deps: LovartClientDeps, unlimited = false): 
 export async function sendLovartChat(deps: LovartClientDeps, input: LovartSendInput): Promise<string> {
   const body = normalizeLovartSendBody(input); // 字段别名 projectId→project_id
   const data = await lovartRequest(deps, 'POST', '/chat', body);
-  return String(data?.thread_id ?? '');
+  const threadId = String(data?.thread_id ?? '');
+  console.info(`[lovart] chat 已提交，threadId=${threadId}`);
+  return threadId;
 }
 
 // ── Status / Result / Confirm ───────────────────────────────────────
