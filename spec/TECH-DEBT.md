@@ -22,4 +22,10 @@
 
 ## 已登记债
 
-
+### [TD-1] apiRegistry 校验只有登记表侧，白名单/fn 豁免洞致「前端真实调用」方向零覆盖
+- 状态：待处理
+- 现象：`check-api-contract.cjs` 全程以登记表为出发点；① fn 夹描述后缀（如 `filesApi.read (二进制流)`）触发 FN_CHAIN_RE 豁免 → ACTIVE 幽灵不报（`filesApi.ts` 实测无 read/list 导出）；② `模块.对象.方法` 只验第一层导出，providerApi 方法名拼错永不发现；③ MODULE_FILES 5 项手工白名单（`agentRuntime` 为死映射），未映射模块静默 info 不失败；④ 登记 fn ≠ 真实消费入口（relayProxy 三条登记底层原语，`base/api/index.ts` 不导出 relayProxy，真入口是 `generate.ts` 门面）。
+- 根因：R5（2026-08-22）为「防未来」设计的保守豁免规则，未把「源码实际 HTTP 调用点 → 登记表」做反向对账；`MODULE_FILES` 靠人手同步真源。
+- 为何现在不动：实测全量对账后确认无红色级路径失配（L3 收口已清），暴露面以登记语义错位为主；改造非紧急，需按 `docs/103-api契约校验盲区与全量扫描-审计与演进-2026-09-04.md` §4 顺序（先 4.2 fn 数据形态清洗，再 4.3 反向方向 D）分 commit 做，避免盲区打开的瞬时噪音与误伤。
+- 建议处理时机：下次动 check-api / apiRegistry 时一并；或新端点登记重复出现"漏登记→info 才暴露"时优先。
+- 登记于：2026-09-04 · 来源：系统治理（apiRegistry 白名单盲区研究）

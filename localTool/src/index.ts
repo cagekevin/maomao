@@ -85,6 +85,76 @@ function checkPortAvailable(port: number): Promise<void> {
   });
 }
 
+/**
+ * 静态文件统一发送：支持 HTTP Range（单字节区间）。
+ *
+ * 为什么必须支持：`/files/*` 下的视频是 <video>/<canvas> 的源（视频节点播放、深度视频逐帧 seek 抽帧），
+ * 浏览器对媒体会发 `Range: bytes=` 做随机访问；若服务端只回整包 200（无 206/Content-Range），
+ * Chrome 会判定资源不可 seek，`video.currentTime = t` 后只能停在已缓冲的最前部分 → 抽帧永远拿到第一帧。
+ *
+ * 约定：只处理「单区间 bytes=a-b / bytes=a- / bytes=-n」；其它形态（多区间等）回退整包 200；
+ * 区间不可满足（start >= size 等）如实回 416，并在 Content-Range 中回传资源总大小。
+ */
+function sendFileWithRange(
+  req: http.IncomingMessage,
+  res: http.ServerResponse,
+  filePath: string,
+  stat: fs.Stats,
+  contentType: string,
+  cacheControl: string
+): void {
+  const total = stat.size
+  const range = (req.headers.range || '').trim()
+  let status = 200
+  let start = 0
+  let end = total - 1
+  const extra: Record<string, string> = {}
+
+  if (range) {
+    const m = /^bytes=(\d*)-(\d*)$/.exec(range)
+    let satisfiable = false
+    if (m && total > 0) {
+      if (m[1] === '' && m[2] !== '') {
+        // bytes=-N：最后 N 字节
+        const suffix = parseInt(m[2], 10)
+        if (suffix > 0) {
+          start = Math.max(0, total - suffix)
+          satisfiable = true
+        }
+      } else if (m[1] !== '') {
+        const s = parseInt(m[1], 10)
+        const e = m[2] === '' ? total - 1 : parseInt(m[2], 10)
+        if (s <= e && s < total) {
+          start = s
+          end = Math.min(e, total - 1)
+          satisfiable = true
+        }
+      }
+    }
+    if (!satisfiable) {
+      res.writeHead(416, {
+        'Content-Type': contentType,
+        'Content-Range': `bytes */${total}`,
+        'Access-Control-Allow-Origin': '*',
+      })
+      res.end()
+      return
+    }
+    status = 206
+    extra['Content-Range'] = `bytes ${start}-${end}/${total}`
+  }
+  extra['Accept-Ranges'] = 'bytes'
+
+  res.writeHead(status, {
+    'Content-Type': contentType,
+    'Content-Length': status === 206 ? end - start + 1 : total,
+    'Cache-Control': cacheControl,
+    'Access-Control-Allow-Origin': '*',
+    ...extra,
+  })
+  fs.createReadStream(filePath, status === 206 ? { start, end } : undefined).pipe(res)
+}
+
 // ── 静态文件服务（/files/* 路径映射到磁盘）──
 function handleStaticFile(req: http.IncomingMessage, res: http.ServerResponse, urlPath: string): boolean {
   if (!urlPath.startsWith('/files/')) return false;
@@ -138,12 +208,8 @@ function handleStaticFile(req: http.IncomingMessage, res: http.ServerResponse, u
   const contentType = mimeMap[ext] || 'application/octet-stream';
   const stat = fs.statSync(resolvedPath);
 
-  res.writeHead(200, {
-    'Content-Type': contentType,
-    'Content-Length': stat.size,
-    'Cache-Control': 'public, max-age=31536000', // 静态文件长期缓存
-  });
-  fs.createReadStream(resolvedPath).pipe(res);
+  // 必须带 Range 支持：/files/* 的媒体是 <video> 随机 seek 的数据源（见 sendFileWithRange 注释）
+  sendFileWithRange(req, res, resolvedPath, stat, contentType, 'public, max-age=31536000'); // 静态文件长期缓存
   return true;
 }
 

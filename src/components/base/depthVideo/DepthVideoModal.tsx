@@ -23,7 +23,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { X, ArrowUp } from 'lucide-react'
+import { X } from 'lucide-react'
 import { RUNTIME_MODELS } from './depthUrls.ts'
 import {
   grayFromRaw,
@@ -562,19 +562,20 @@ export function DepthVideoModal({ videoUrl, name, onClose, onSave }: DepthVideoM
             </span>
             <div className="flex items-center gap-2 shrink-0">
               {converting ? (
-                <button className="px-3 py-1.5 rounded text-caption-sm bg-surface-raised text-body border border-edge hover:bg-surface-hover transition-colors" onClick={stopConvert} title="停止转换">
+                <button
+                  className="px-3 py-1.5 rounded text-caption-sm bg-red-500/10 text-red-300 border border-red-500/40 hover:bg-red-500/20 hover:border-red-500/60 transition-colors"
+                  onClick={stopConvert}
+                  title="停止转换"
+                >
                   停止
                 </button>
               ) : (
                 <button
-                  className="flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-surface-hover hover:bg-surface-hover-strong border border-edge text-white transition-colors"
+                  className="px-3 py-1.5 rounded text-caption-sm bg-surface-raised text-body border border-edge hover:bg-surface-hover transition-colors"
                   onClick={startConvert}
                   title="开始转换"
                 >
-                  <span className="text-caption-sm font-medium">开始转换</span>
-                  <span className="bg-white text-black w-5 h-5 rounded-full flex items-center justify-center">
-                    <ArrowUp size={12} strokeWidth={3} />
-                  </span>
+                  开始转换
                 </button>
               )}
             </div>
