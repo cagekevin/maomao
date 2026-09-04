@@ -12,10 +12,12 @@ import { getUploadDir } from '../db/database.js';
 import { ensureDir, sanitizeFilename, resolveUploadTarget, writeUploadBuffer, writeUploadBufferAt, ensureThumbnailTarget, resizeImage, normalizeSubfolder } from '../utils/fileStore.js';
 import { json, parseMultipart, parseJsonBody, sendError, HttpStatusError } from '../utils/helpers.js';
 import { fetchWithProxy } from '../utils/netProxy.js';
+import { logTs } from '../utils/relayHeaders.js';
+import { localToolBaseUrl } from '../utils/localToolBaseUrl.js';
+import { saveBase64ToFile } from '../utils/base64Externalize.js';
 import { applyResourceIdentityChange } from './resources.js';
 
-const PORT = Number(process.env.PORT) || 18080;
-const BASE_URL = `http://127.0.0.1:${PORT}`;
+const BASE_URL = localToolBaseUrl();
 
 /**
  * thumbnail `format` 参数白名单：仅 Jimp 0.22 实际可编码的扩展名。
@@ -86,7 +88,7 @@ export async function handleUpload(req: IncomingMessage, res: ServerResponse): P
 
 // upload 响应留痕：此前日志只记 [POST] /api/files/upload 请求、不记响应，失败（400）无法从日志看出。
 const uploadLog = (status: number, msg: string) =>
-  console.log(`[upload] ${new Date().toISOString().replace('T', ' ').slice(0, 19)} | ${status} | ${msg}`);
+  console.log(`[upload] ${logTs()} | ${status} | ${msg}`);
 
 async function handleUploadFormData(req: IncomingMessage, res: ServerResponse): Promise<void> {
   const { fields, files } = await parseMultipart(req);
@@ -131,13 +133,32 @@ async function handleUploadFormData(req: IncomingMessage, res: ServerResponse): 
 }
 
 async function handleUploadJson(req: IncomingMessage, res: ServerResponse): Promise<void> {
-  const body = (await parseJsonBody(req)) as { fileUrl?: string; subfolder?: string; filename?: string } | null;
-  if (!body || !body.fileUrl) {
-    uploadLog(400, 'missing fileUrl in JSON');
-    return sendError(res, 'Missing fileUrl in JSON body', 400);
+  const body = (await parseJsonBody(req)) as { fileUrl?: string; dataUri?: string; subfolder?: string; filename?: string } | null;
+  if (!body) {
+    uploadLog(400, 'missing body in JSON');
+    return sendError(res, 'Missing body', 400);
   }
 
   const subfolder = body.subfolder || 'canvas';
+
+  // dataUri 分支：前端 saveInlineToLocal 已收口为纯透传 base64 原文 + 子目录（deepening-files-upload-seam 候选 B）。
+  // 落盘统一委托 base64Externalize.saveBase64ToFile（sha1(base64 原文) 前 16 位幂等 + isValidBase64 严格校验），
+  // 单一实现杜绝前端另造一套 hash/校验导致的不一致。非法 dataUri 返回 400，由前端 catch → null 降级保留原 base64。
+  if (body.dataUri) {
+    const url = saveBase64ToFile(body.dataUri, subfolder);
+    if (!url) {
+      uploadLog(400, 'dataUri 非法/不可解码');
+      return sendError(res, 'Invalid dataUri', 400);
+    }
+    uploadLog(200, `dataUri -> ${url}`);
+    return json(res, { code: 0, data: { url } });
+  }
+
+  if (!body.fileUrl) {
+    uploadLog(400, 'missing fileUrl/dataUri in JSON');
+    return sendError(res, 'Missing fileUrl or dataUri in JSON body', 400);
+  }
+
   const filename = body.filename || undefined;
 
   try {
@@ -170,7 +191,7 @@ export async function saveRemoteUrl(subfolder: string, fileUrl: string, filename
   if (inFlight) {
     // 【并发窗口命中】已有同一 URL 在下载中 → 复用其结果(含失败)，不重复下载。
     // 打可查留痕(非静默)，供"下载去重是否生效"排障。不打断主流程，await 抛错由调用方统一处理。
-    console.log(`[download] ${new Date().toISOString().replace('T', ' ').slice(0, 19)} | INFLIGHT(并发复用) | ${fileUrl}`);
+    console.log(`[download] ${logTs()} | INFLIGHT(并发复用) | ${fileUrl}`);
     return inFlight;
   }
   // set 必须在真正开始下载(fetch yield)之前：doSaveRemoteUrl 内部首个 await 前已入表，
@@ -200,7 +221,7 @@ async function doSaveRemoteUrl(subfolder: string, fileUrl: string, filename?: st
   const stableName = sanitizeFilename(`${urlHash}_${base}`);
   // URL basename 是否带扩展名：无后缀时需下载拿 Content-Type 才能定最终文件名
   const needsExt = !path.extname(stableName);
-  const ts = () => new Date().toISOString().replace('T', ' ').slice(0, 19);
+  const ts = logTs;
 
   // 已带扩展名：先查存在（幂等快路径，命中即免一次下载）
   if (!needsExt) {

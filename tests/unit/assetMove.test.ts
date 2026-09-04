@@ -5,7 +5,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { API_BASE } from '../../src/components/base/core/config.ts'
-import { moveFile, canMoveAsset, resolveMovePaths } from '@/components/base/api/localToolApi.ts'
+import { moveFile, canMoveAsset, resolveMovePaths } from '@/components/base/api/filesApi.ts'
 
 /**
  * 一次性 fetch mock。

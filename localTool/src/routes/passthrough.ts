@@ -43,7 +43,7 @@
  * 【设计约束】（与 official.ts 转发层一致，避免两套语义）
  * ----------------------------------------------------------------------------
  * - 目标 base 复用 official.ts 的 readOfficialBase()：
- *     x-official-base 头 → KV active_api_endpoint（过滤自指值）→ 默认 https://www.1mao.cc。
+ *     x-official-base 头 → KV active_api_endpoint（过滤自指值）→ 无默认（两者皆无则跳过转发）。
  *   2026-08-05 修复登录回环：readOfficialBase 读 KV 时会过滤指向 localTool 自身
  *   （127.0.0.1/localhost:18080）的值，避免「把请求转发给自己」的无限回环（见 official.ts）。
  *   这样「转发给谁」只有一个决策点，改一处即可整体改道（官方/自建/第三方）。
@@ -51,8 +51,11 @@
  * - 原样回传：状态码 / 响应头 / body，**不改写、不包装、不缓存**。
  *   （缓存是 official.ts 对特定权益接口的**显式**行为；兜底层必须无副作用，
  *     否则会误缓存登录态、支付回调等敏感/一次性响应。）
- * - **流式透传**：用 body.pipeTo 而非 arrayBuffer，保证 SSE 可用
- *   （A1 画布助手 /agent/:id/chat 依赖流式，缓冲会导致「打字机效果」失效）。
+ * - **流式透传**：用 body.pipeTo 而非 arrayBuffer —— 本层不解析流内容，只保证任意流式
+ *   响应透传时不被缓冲破坏（含 AI SSE 如 A1 助手 /agent/:id/chat，以及大文件下载）。
+ *   注意：这里的「流式」是转发层用管道透传的通用姿势，与 AI 生成引擎 ai-relay
+ *   消费 SSE 的那条链路（assistantStream/streamChat，走 /api/generate）不是一回事，
+ *   本层不负责 SSE 协议。
  * - 不做鉴权判定、不解析业务语义：本层是「管道」，不是「网关策略层」。
  * - 日志脱敏：只记 token 前 4 位，绝不打印完整 Bearer、绝不落库。
  *
@@ -62,7 +65,8 @@
  * - `/files/` 前缀       → 本地磁盘文件服务（handleStaticFile）
  * - 前端静态页与资源     → dist/ 托管（handleFrontendPage）
  * - `/plugin/` 前缀      → 本地插件清单
- * 这些是纯本地资源，转发给官方没有意义且会 404。
+ * - `/.well-known/` 前缀 → 浏览器/DevTools 自发探测（com.chrome.devtools.json 等），本地不接不转发
+ * 这些是纯本地资源或本地噪音探测，转发给官方没有意义且会 404 / 报 ERR。
  *
  * 相关文档：docs/21 §六（执行前置）、docs/01 §〇（长期目标总纲）、docs/20（转发层方案）
  * ==========================================================================
@@ -72,6 +76,8 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { Writable } from 'node:stream';
 import { sendError } from '../utils/helpers.js';
 import { readOfficialBase } from './official.js';
+import { HOP_BY_HOP, maskToken, logTs, stripHopByHop } from '../utils/relayHeaders.js';
+import { fetchWithTimeout } from '../utils/fetchTimeout.js';
 
 /** 兜底透传超时（比 official.ts 略长，兼容慢接口/流式） */
 const PASSTHROUGH_TIMEOUT_MS = Number(process.env.PASSTHROUGH_TIMEOUT) || 30000;
@@ -79,31 +85,11 @@ const PASSTHROUGH_TIMEOUT_MS = Number(process.env.PASSTHROUGH_TIMEOUT) || 30000;
 /**
  * 不应转发给官方的本地路径前缀。
  * 命中这些前缀说明是本地资源请求，转发出去没有意义（官方也没有这些路径）。
+ * - `/files/`、`/plugin/`：纯本地资源。
+ * - `/.well-known/`：浏览器/DevTools 自发探测（如 com.chrome.devtools.json），转给上游必失败，
+ *   属于噪音，本地直接不接、不转发、不记日志（交回 404）。
  */
-const LOCAL_ONLY_PREFIXES = ['/files/', '/plugin/'];
-
-/**
- * hop-by-hop 头：属于「本跳连接」的元信息，不能跨跳转发（RFC 7230 §6.1）。
- * 强行转发会导致解码错乱（如上游已 gzip，我们再声明一次 content-encoding）。
- */
-const HOP_BY_HOP = new Set([
-  'connection', 'keep-alive', 'proxy-authenticate', 'proxy-authorization',
-  'te', 'trailer', 'transfer-encoding', 'upgrade',
-  'content-length',  // 由 fetch/undici 按实际 body 重算
-  'host',            // 必须换成目标站的 host，否则部分网关会拒绝
-]);
-
-/** Bearer → 前 4 位（日志脱敏用，与 official.ts 保持一致） */
-function tokenPrefix(auth: string | undefined): string {
-  if (!auth) return 'none';
-  const t = auth.replace(/^Bearer\s+/i, '');
-  return t.length > 4 ? t.slice(0, 4) : t;
-}
-
-/** 时间戳（日志用，与 official.ts 保持一致格式） */
-function ts(): string {
-  return new Date().toISOString().replace('T', ' ').slice(0, 19);
-}
+const LOCAL_ONLY_PREFIXES = ['/files/', '/plugin/', '/.well-known/'];
 
 /** 判断是否为本地专属路径（不转发） */
 export function isLocalOnlyPath(pathname: string): boolean {
@@ -127,15 +113,9 @@ function buildForwardHeaders(req: IncomingMessage, targetUrl: URL): Record<strin
   return out;
 }
 
-/** 构造回传给前端的响应头：剔除 hop-by-hop 与由 Node 自行管理的头 */
+/** 构造回传给前端的响应头：剔除 hop-by-hop 与由 Node 自行管理的头（统一 canonical，见 relayHeaders.ts） */
 function buildBackHeaders(headers: Headers): Record<string, string> {
-  const out: Record<string, string> = {};
-  const skip = new Set([...HOP_BY_HOP, 'content-encoding']); // fetch 已自动解压，不能再声明
-  headers.forEach((value, key) => {
-    if (skip.has(key.toLowerCase())) return;
-    out[key] = value;
-  });
-  return out;
+  return stripHopByHop(headers, 'back');
 }
 
 /**
@@ -163,6 +143,10 @@ export async function handlePassthrough(
 
   // 转发目标：复用 official.ts 的三级优先级，保证「转发给谁」只有一个决策点
   const base = await readOfficialBase(req);
+  if (!base) {
+    console.warn(`[passthrough] ${logTs()} | ${method} ${pathname} | 无可用官方 base（未配置 x-official-base / active_api_endpoint），跳过转发`);
+    return false;
+  }
   let targetUrl: URL;
   try {
     targetUrl = new URL(`${base}${pathname}${url.search}`);
@@ -171,24 +155,23 @@ export async function handlePassthrough(
     return true;
   }
 
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), PASSTHROUGH_TIMEOUT_MS);
+  // GET/HEAD 无 body；其余方法把请求流直接接给 fetch（避免整体缓冲大文件上传）
+  const hasBody = method !== 'GET' && method !== 'HEAD';
 
   try {
-    // GET/HEAD 无 body；其余方法把请求流直接接给 fetch（避免整体缓冲大文件上传）
-    const hasBody = method !== 'GET' && method !== 'HEAD';
-
-    const fetchRes = await fetch(targetUrl, {
-      method,
-      headers: buildForwardHeaders(req, targetUrl),
-      body: hasBody ? (req as unknown as ReadableStream) : undefined,
-      // Node 18+ 用请求流做 body 时必须显式声明半双工，否则报 duplex 错误
-      ...(hasBody ? { duplex: 'half' } : {}),
-      redirect: 'manual', // 重定向原样回传给前端，由前端决定跟不跟（保留 Set-Cookie 语义）
-      signal: controller.signal,
-    } as RequestInit);
-
-    clearTimeout(timer);
+    const fetchRes = await fetchWithTimeout(
+      targetUrl,
+      {
+        method,
+        headers: buildForwardHeaders(req, targetUrl),
+        body: hasBody ? (req as unknown as ReadableStream) : undefined,
+        // Node 18+ 用请求流做 body 时必须显式声明半双工，否则报 duplex 错误
+        ...(hasBody ? { duplex: 'half' } : {}),
+        redirect: 'manual', // 重定向原样回传给前端，由前端决定跟不跟（保留 Set-Cookie 语义）
+        // 超时由 fetchWithTimeout 内部 AbortController 处理（signal 自动注入）
+      } as RequestInit,
+      PASSTHROUGH_TIMEOUT_MS,
+    );
 
     res.writeHead(fetchRes.status, buildBackHeaders(fetchRes.headers));
 
@@ -203,15 +186,14 @@ export async function handlePassthrough(
     }
 
     console.log(
-      `[passthrough] ${ts()} | ${method} ${pathname} | -> ${targetUrl.host} | ${fetchRes.status} | ${Date.now() - start}ms | tk=${tokenPrefix(auth)}`,
+      `[passthrough] ${logTs()} | ${method} ${pathname} | -> ${targetUrl.host} | ${fetchRes.status} | ${Date.now() - start}ms | tk=${maskToken(auth)}`,
     );
     return true;
   } catch (e) {
-    clearTimeout(timer);
     const err = e as Error;
     const elapsed = Date.now() - start;
     console.error(
-      `[passthrough] ${ts()} | ${method} ${pathname} | -> ${targetUrl.host} | ${err.name === 'AbortError' ? 'TIMEOUT' : 'ERR'} | ${elapsed}ms | ${err.message}`,
+      `[passthrough] ${logTs()} | ${method} ${pathname} | -> ${targetUrl.host} | ${err.name === 'AbortError' ? 'TIMEOUT' : 'ERR'} | ${elapsed}ms | ${err.message}`,
     );
 
     // 响应头已发出（流式中途失败）→ 只能断流，不能再写状态码

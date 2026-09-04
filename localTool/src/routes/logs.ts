@@ -65,7 +65,8 @@ export async function handleLogsPost(req: IncomingMessage, res: ServerResponse):
 
 /**
  * 实时日志流（SSE）：前端「日志面板」经 EventSource('/api/logs/stream') 订阅，
- * 此后所有经 logWriter 的日志行（前端上报 [frontend] + 后端自身）实时推给面板。
+ * 仅推送 ≥ LOG_BROADCAST_LEVEL（默认 warn）的日志行；高频 info/log 噪音只落盘 +
+ * 服务端终端，不刷前端（见 logWriter.ts 级别阈值）。可用 LOG_BROADCAST_LEVEL 调高/调低。
  * 无历史回放（连接前日志不可见，需查 localtool_18080_*.log）；刷新即断开重连、面板清空。
  * 断连时由 req 'close' 移除 client，防内存泄漏；heartbeat 保活代理不掐断长连接。
  */

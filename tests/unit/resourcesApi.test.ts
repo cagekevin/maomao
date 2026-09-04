@@ -6,6 +6,7 @@
 import { beforeEach, afterEach, describe, it, expect, vi } from 'vitest'
 import { API_BASE } from '../../src/components/base/core/config.ts'
 import * as ra from '@/components/base/api/localToolApi.ts'
+import * as fl from '@/components/base/api/filesApi.ts'
 
 function mockFetchOnce(body, { ok = true, status = 200 } = {}) {
   const res = { ok, status, json: async () => body, text: async () => JSON.stringify(body) }
@@ -114,47 +115,47 @@ describe('renameResource', () => {
 describe('openLocalFolder / openFileDir', () => {
   it('openLocalFolder 默认 subfolder=tasks', async () => {
     const fetchMock = mockFetchOnce({ path: '/tmp' })
-    await ra.openLocalFolder()
+    await fl.openLocalFolder()
     expect(fetchMock.mock.calls[0][0]).toContain('open?subfolder=tasks')
-    await ra.openLocalFolder('gen')
+    await fl.openLocalFolder('gen')
     expect(fetchMock.mock.calls[1][0]).toContain('open?subfolder=gen')
   })
 
   it('openFileDir 空路径直接返回 undefined', async () => {
     const fetchMock = vi.fn()
     vi.stubGlobal('fetch', fetchMock)
-    const r = await ra.openFileDir('')
+    const r = await fl.openFileDir('')
     expect(r).toBeUndefined()
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
   it('openFileDir 正常请求 open-dir', async () => {
     const fetchMock = mockFetchOnce({ path: '/d' })
-    await ra.openFileDir('tasks/a.png')
+    await fl.openFileDir('tasks/a.png')
     expect(fetchMock.mock.calls[0][0]).toContain('open-dir?filepath=' + encodeURIComponent('tasks/a.png'))
   })
 
   it('openLocalFolder 非 2xx 抛 HttpError', async () => {
     mockFetchOnce({ error: 'x' }, { ok: false, status: 500 })
-    await expect(ra.openLocalFolder('tasks')).rejects.toMatchObject({ name: 'HttpError', status: 500, message: 'x' })
+    await expect(fl.openLocalFolder('tasks')).rejects.toMatchObject({ name: 'HttpError', status: 500, message: 'x' })
   })
 
   it('openFileDir 非 2xx 抛 HttpError', async () => {
     mockFetchOnce({ error: 'x' }, { ok: false, status: 500 })
-    await expect(ra.openFileDir('tasks/a.png')).rejects.toMatchObject({ name: 'HttpError', status: 500, message: 'x' })
+    await expect(fl.openFileDir('tasks/a.png')).rejects.toMatchObject({ name: 'HttpError', status: 500, message: 'x' })
   })
 })
 
 describe('relativePathFromUrl', () => {
   it('去掉 /files/ 前缀并解码', () => {
-    expect(ra.relativePathFromUrl('http://127.0.0.1:18080/files/tasks/a%20b.png')).toBe('tasks/a b.png')
+    expect(fl.relativePathFromUrl('http://127.0.0.1:18080/files/tasks/a%20b.png')).toBe('tasks/a b.png')
   })
 
   it('非 /files/ 前缀原样返回 pathname（含前导斜杠）', () => {
-    expect(ra.relativePathFromUrl('http://127.0.0.1:18080/other/x.png')).toBe('/other/x.png')
+    expect(fl.relativePathFromUrl('http://127.0.0.1:18080/other/x.png')).toBe('/other/x.png')
   })
 
   it('非法 url 返回 null', () => {
-    expect(ra.relativePathFromUrl('not a url')).toBeNull()
+    expect(fl.relativePathFromUrl('not a url')).toBeNull()
   })
 })

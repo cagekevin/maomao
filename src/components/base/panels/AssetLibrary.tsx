@@ -2,11 +2,11 @@ import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react'
 import { Upload, FileText, Music, Play, Image as ImageIcon, FolderOpen, FolderPlus, MoreVertical, ChevronLeft, Pencil, Trash2 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useLocalToolStatus } from '../../../hooks/useLocalToolStatus.ts'
-import { fetchResources, rescanResources, deleteResource, renameResource, openLocalFolder, openFileDir, relativePathFromUrl, uploadFile, createFolder as createFolderApi } from '../api/localToolApi.ts'
+import { fetchResources, rescanResources, deleteResource, renameResource } from '../api/localToolApi.ts'
 import { showToast } from '../core/toastStore.ts'
 import { publish } from '../core/eventBus.ts'
 import { fetchText, textCache, useAssetCardDragProps } from '../../../hooks/useAssetDragToCanvas.ts'
-import { toAbsoluteFileUrl } from '../api/filesApi.ts'
+import { toAbsoluteFileUrl, uploadFileToLocal, openLocalFolder, openFileDir, relativePathFromUrl, createFolder as createFolderApi } from '../api/filesApi.ts'
 import { onAssetSent, emitAssetSent } from '../store/assetStore.ts'
 import { logger } from '../core/logger.ts'
 import { isAudio } from '../utils/mediaType.ts'
@@ -227,10 +227,10 @@ function AssetLibrary() {
     if (list.length === 0) return
     let ok = 0
     for (const f of list) {
-      try {
-        await uploadFile(f, currentFolder)
-        ok++
-      } catch { /* 单个失败继续 */ }
+      // 候选 A（deepening-files-upload-seam）：uploadFileToLocal 失败返 null（等价原 try/catch 吞错），
+      // 成功才计数——不丢弃单文件失败、也不回滚已成功项。
+      const url = await uploadFileToLocal(f, currentFolder)
+      if (url) ok++
     }
     if (ok > 0) {
       showToast(`已上传 ${ok} 个素材`, { type: 'success' })

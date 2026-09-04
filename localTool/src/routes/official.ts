@@ -32,6 +32,8 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { createHash } from 'node:crypto';
 import { json, sendError } from '../utils/helpers.js';
 import { getDb, queryOne } from '../db/database.js';
+import { maskToken, logTs, stripHopByHop } from '../utils/relayHeaders.js';
+import { fetchWithTimeout } from '../utils/fetchTimeout.js';
 
 const OFFICIAL_TIMEOUT_MS = Number(process.env.OFFICIAL_TIMEOUT) || 15000; // 默认 15s
 
@@ -54,13 +56,6 @@ const CACHE_TTL: Record<string, number> = {
   [OFFICIAL_KEY_ENTITLEMENTS]: 300_000,
 };
 
-/** Bearer → 前4位（日志脱敏用） */
-function tokenPrefix(token: string | undefined): string {
-  if (!token) return 'none';
-  const t = token.replace(/^Bearer\s+/i, '');
-  return t.length > 4 ? t.slice(0, 4) : t;
-}
-
 /** 摘取 Bearer 并做 hash（缓存键用，隔离账号） */
 function tokenHash(auth: string | undefined): string {
   if (!auth) return 'anon';
@@ -70,11 +65,10 @@ function tokenHash(auth: string | undefined): string {
 
 /**
  * 官方接入点候选列表（对齐 endpointConfig `s()`/`g()`/`l()`）。
- * 前端权益 base 默认回退到 `s()[0].url` = 官方主接入点 https://www.1mao.cc。
- * localTool 转发层默认打这里（与前端 g() 回退一致），保证「前端直连官方」时
- * 本层若被改为接入（改前端 base 指向 18080）也能转发到同一官方地址。
+ * localTool 转发层不再硬编码任何官方 base（旧默认 https://www.1mao.cc 已移除）。
+ * 转发目标只来自：① x-official-base 请求头；② KV active_api_endpoint。
+ * 两者皆未配置时 readOfficialBase 返回 undefined，passthrough 直接跳过转发（交回 404）。
  */
-const OFFICIAL_DEFAULT_BASE = 'https://www.1mao.cc';
 
 /**
  * 读取转发目标官方 base（优先级）：
@@ -90,7 +84,7 @@ const OFFICIAL_DEFAULT_BASE = 'https://www.1mao.cc';
  * 故读 KV 时必须过滤掉指向 localTool 自身（127.0.0.1/localhost + 18080）的值；
  * 其余有效接入点（官方主/备用/自建）仍保留，`x-official-base` 头仍最优先。
  */
-export async function readOfficialBase(req: IncomingMessage): Promise<string> {
+export async function readOfficialBase(req: IncomingMessage): Promise<string | undefined> {
   // 优先级 1：请求头显式覆盖
   const headerBase = officialBaseHeader(req);
   if (headerBase && !isSelfBase(headerBase)) return headerBase;
@@ -105,15 +99,16 @@ export async function readOfficialBase(req: IncomingMessage): Promise<string> {
     }
   } catch { /* 读 KV 失败回退默认 */ }
 
-  // 优先级 3：官方候选主接入点
-  return OFFICIAL_DEFAULT_BASE;
+  // 优先级 3：无硬编码默认 —— 官方 base 必须由 x-official-base 头或 KV active_api_endpoint 显式提供。
+  // 旧默认 https://www.1mao.cc 已移除（不再依赖任何官方主接入点）。
+  return undefined;
 }
 
 /**
  * 从 KV active_api_endpoint 的值里提取「可用的 base URL 字符串」。
  *
  * 兼容两种写入格式（前端 providerStore.ts 2026-08 起写入对象格式）：
- *  - 旧格式：纯 URL 字符串，如 `https://www.1mao.cc`（或带引号包裹的）。
+ *  - 旧格式：纯 URL 字符串，如 `https://lgw.lovart.ai`（或带引号包裹的）。
  *  - 新格式：provider 配置 JSON，如
  *      {"providerId":"lovart","name":"Lovart","base_url":"http://127.0.0.1:9004","protocol":"apimart","updatedAt":...}
  *    此时需取其中的 `base_url` 字段，否则 new URL() 会把整段 JSON 当 URL → Invalid passthrough target。
@@ -159,14 +154,9 @@ function officialBaseHeader(req: IncomingMessage): string | undefined {
   return typeof v === 'string' && v.trim() ? v.trim().replace(/\/$/, '') : undefined;
 }
 
-/** 透传响应头（排除 hop-by-hop） */
+/** 透传响应头（排除 hop-by-hop，统一 canonical 宽集，见 relayHeaders.ts） */
 function buildResHeaders(headers: Headers): Record<string, string> {
-  const out: Record<string, string> = {};
-  const skip = new Set(['transfer-encoding', 'connection', 'keep-alive', 'content-encoding', 'content-length']);
-  headers.forEach((value, key) => {
-    if (!skip.has(key)) out[key] = value;
-  });
-  return out;
+  return stripHopByHop(headers, 'back');
 }
 
 /**
@@ -197,21 +187,20 @@ async function forwardGet(
       const hdrs: Record<string, string> = { ...hit.headers, 'x-cache': 'hit', 'x-official-cache-key': cacheKey };
       res.writeHead(hit.status, hdrs);
       res.end(hit.data);
-      console.log(`[official] ${new Date().toISOString().replace('T',' ').slice(0,19)} | GET ${target} | ${hit.status} | HIT | ${elapsed}ms | tk=${tokenPrefix(auth)}`);
+      console.log(`[official] ${logTs()} | GET ${target} | ${hit.status} | HIT | ${elapsed}ms | tk=${maskToken(auth)}`);
       return;
     }
   }
 
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), OFFICIAL_TIMEOUT_MS);
-
   try {
-    const fetchRes = await fetch(target, {
-      method: 'GET',
-      headers: auth ? { Authorization: auth } : {},
-      signal: controller.signal,
-    });
-    clearTimeout(timeout);
+    const fetchRes = await fetchWithTimeout(
+      target,
+      {
+        method: 'GET',
+        headers: auth ? { Authorization: auth } : {},
+      },
+      OFFICIAL_TIMEOUT_MS,
+    );
     const elapsed = Date.now() - start;
     const body = Buffer.from(await fetchRes.arrayBuffer());
     const resHeaders = buildResHeaders(fetchRes.headers);
@@ -224,7 +213,7 @@ async function forwardGet(
           const hdrs: Record<string, string> = { ...stale.headers, 'x-cache': 'hit-stale', 'x-official-cache-key': cacheKey };
           res.writeHead(stale.status, hdrs);
           res.end(stale.data);
-          console.log(`[official] ${new Date().toISOString().replace('T',' ').slice(0,19)} | GET ${target} | ${fetchRes.status} | STALE | ${elapsed}ms | tk=${tokenPrefix(auth)}`);
+          console.log(`[official] ${logTs()} | GET ${target} | ${fetchRes.status} | STALE | ${elapsed}ms | tk=${maskToken(auth)}`);
           return;
         }
       }
@@ -254,9 +243,8 @@ async function forwardGet(
     if (cacheKey) hdrs['x-official-cache-key'] = cacheKey;
     res.writeHead(fetchRes.status, hdrs);
     res.end(body);
-    console.log(`[official] ${new Date().toISOString().replace('T',' ').slice(0,19)} | GET ${target} | ${fetchRes.status} | ${elapsed}ms | tk=${tokenPrefix(auth)}`);
+    console.log(`[official] ${logTs()} | GET ${target} | ${fetchRes.status} | ${elapsed}ms | tk=${maskToken(auth)}`);
   } catch (e: any) {
-    clearTimeout(timeout);
     const elapsed = Date.now() - start;
     const err = e as Error;
     // 网络错/超时 → 若有 stale 缓存则返回；否则返回 502/504（本地错误）
@@ -266,11 +254,11 @@ async function forwardGet(
         const hdrs: Record<string, string> = { ...stale.headers, 'x-cache': 'hit-stale', 'x-official-cache-key': cacheKey };
         res.writeHead(stale.status, hdrs);
         res.end(stale.data);
-        console.log(`[official] ${new Date().toISOString().replace('T',' ').slice(0,19)} | GET ${target} | ERR(${err.name}) | STALE | ${elapsed}ms | tk=${tokenPrefix(auth)}`);
+        console.log(`[official] ${logTs()} | GET ${target} | ERR(${err.name}) | STALE | ${elapsed}ms | tk=${maskToken(auth)}`);
         return;
       }
     }
-    console.error(`[official] ${new Date().toISOString().replace('T',' ').slice(0,19)} | GET ${target} | ${err.name === 'AbortError' ? 'TIMEOUT' : 'ERR'} | ${elapsed}ms | ${err.message}`);
+    console.error(`[official] ${logTs()} | GET ${target} | ${err.name === 'AbortError' ? 'TIMEOUT' : 'ERR'} | ${elapsed}ms | ${err.message}`);
     if (err.name === 'AbortError') {
       sendError(res, `Official request timed out (${OFFICIAL_TIMEOUT_MS / 1000}s)`, 504);
     } else {
@@ -315,7 +303,7 @@ export async function handleOfficialVipCheck(req: IncomingMessage, res: ServerRe
   if (agentId === 'canvas-assistant' && process.env.AI_CANVAS_LOCAL !== '0') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ allowed: true, reason: 'local canvas assistant' }));
-    console.log(`[official] ${new Date().toISOString().replace('T',' ').slice(0,19)} | GET ${url.pathname} | 200 | LOCAL allow (canvas-assistant)`);
+    console.log(`[official] ${logTs()} | GET ${url.pathname} | 200 | LOCAL allow (canvas-assistant)`);
     return;
   }
 

@@ -11,12 +11,12 @@ import {
   useReactFlow
 } from '@xyflow/react'
 import type { Node, Edge, Connection } from '@xyflow/react'
-import { Type, Image as ImageIcon, Clapperboard, Trash2, Copy, Zap, RefreshCw, Folder, FolderOpen, Pin, PinOff, Upload } from 'lucide-react'
+import { Zap, RefreshCw } from 'lucide-react'
 import CanvasToolbar from './components/base/panels/CanvasToolbar.tsx'
 import ArrangeConfirm from './components/base/canvas/ArrangeConfirm.tsx'
 import { useArrangeCanvas } from './hooks/useArrangeCanvas.ts'
 import { useAssetDropPaste, useGlobalPaste } from './hooks/useAssetDropPaste.ts'
-import { copyImageToClipboard, downloadBlob } from './components/base/utils/clipboard.ts'
+import { copyImageToClipboard } from './components/base/utils/clipboard.ts'
 import GhostTargetNode from './components/nodes/GhostTargetNode.tsx'
 import AgentPanel from './components/panels/AgentPanel.tsx'
 import { getNodeImageUrl } from './components/agent/index.ts'
@@ -24,12 +24,13 @@ import LeftPanel from './components/base/panels/LeftPanel.tsx'
 import { switchProject, loadCanvasState, saveCanvasState, getCurrentProject, initProjects, useCurrentProjectId } from './components/base/store/projectStore.ts'
 import previewUrls from './components/base/utils/previewUrl.ts'
 import { logger } from './components/base/core/logger.ts'
-import { createThrottledPersistHandler } from './components/base/storage'
+import { useProjectBackupIO, useAssetUrlRewrite, usePersistFailureToast } from './components/base/canvas/useCanvasEventSubscriptions.ts'
+import { menuForState, type MenuActionCtx } from './components/base/canvas/canvasContextMenu.tsx'
 import { useNodePosition } from './components/base/core/uiHooks.ts'
 import CustomEdge from './components/edges/CustomEdge.tsx'
 import ConnectionLine from './components/edges/ConnectionLine.tsx'
 import ContextMenu, { ContextMenuItem } from './components/base/ui/ContextMenu.tsx'
-import { useContextMenu, type ContextMenuState } from './hooks/useContextMenu.ts'
+import { useContextMenu } from './hooks/useContextMenu.ts'
 import { useCanvasHistory } from './hooks/useCanvasHistory.ts'
 import { patchNodeDataById } from './hooks/useNodeData.ts'
 import { CanvasEdgesProvider } from './components/base/canvas/CanvasEdgesContext.tsx'
@@ -43,10 +44,8 @@ import AccountsSettings from './components/base/panels/sections/AccountsSettings
 import TopNav from './components/base/panels/TopNav.tsx'
 import { showToast } from './components/base/core/toastStore.ts'
 import { askConfirm } from './components/base/core/confirmStore.ts'
-import { getSetting, setSetting } from './components/base/store/appSettings.ts'
-import { subscribe } from './components/base/core/eventBus.ts'
+import { setSetting, useAppSettings } from './components/base/store/appSettings.ts'
 import { setAgentKey } from './components/agent/index.ts'
-import { exportAll, importAll, backupToBlob } from './components/base/store/backupStore.ts'
 import { uploadConfig, downloadConfig } from './components/base/store/cloudSync.ts'
 import { useLocalToolStatus } from './hooks/useLocalToolStatus.ts'
 import { useUpstreamAutoTrigger } from './components/base/canvas/upstreamLink.ts'
@@ -65,8 +64,6 @@ import { applyNodeTypeDefaults } from './components/base/canvas/nodeDefaults.ts'
 import { injectNodePrefs } from './components/base/canvas/nodePrefs.ts'
 import { useCanvasSync } from './hooks/useCanvasSync.ts'
 import { parseShotHandle } from './components/base/core/contracts.ts'
-// url 引用改写工具（与 taskStore 共用同一份，禁止各写一份 → 改名只改一半）
-import { buildUrlRewritePairs, replaceUrlDeep } from './components/base/utils/imageUrl.ts'
 import { prefetchHeavyNode } from './components/base/canvas/lazyNode.tsx'
 
 /* ======================================================================
@@ -215,17 +212,15 @@ function Canvas() {
   // 视窗拖拽/缩放结束后 600ms 防抖保存（P20），与 autoSave 节奏一致，避免高频移动反复写 KV
   const viewportSaveTimer = React.useRef(null)
 
-  // 画布 AI 助手面板开关（复刻官方 _Component40 的 open state），持久化到 app_settings
-  const [agentOpen, setAgentOpen] = React.useState<boolean>(() => !!getSetting('agentOpen'))
-  React.useEffect(() => { setSetting('agentOpen', agentOpen) }, [agentOpen])
+  // 应用设置单一订阅（读写唯一入口 appSettings）：agentOpen/minimapOn/performanceMode/pinnedTools 从此快照解构。
+  // 默认值/类型由 settingRegistry.ts 单一真源派生；写统一走 setSetting（内存+持久化+通知），不再用 useState+useEffect 镜像回写。
+  const { agentOpen, minimapOn, performanceMode, pinnedTools } = useAppSettings()
 
   // 视图切换：canvas（画布）/ accounts（多开整页，复刻官方 V='accounts'）/ settings（独立设置框架：侧栏 + 舞台）
   const [view, setView] = React.useState<'canvas' | 'accounts' | 'settings'>('canvas')
 
   // 小地图开关（复刻 H_.jsx:474 un/dn，默认关——用户要求默认不显示，点工具栏 Map 图标再开）。
-  // 仅当开启且节点数 <100 时显示 MiniMap（官方 De.length<100）。持久化到 app_settings。
-  const [minimapOn, setMinimapOn] = React.useState<boolean>(() => !!getSetting('minimapOn'))
-  React.useEffect(() => { setSetting('minimapOn', minimapOn) }, [minimapOn])
+  // 仅当开启且节点数 <100 时显示 MiniMap（官方 De.length<100）。持久化到 app_settings。值由 useAppSettings 订阅提供（见上）。
 
   // P20 视窗恢复竞态修复：加载时若快照带视窗，则初始不 fitView（否则 <ReactFlow fitView>
   // 会在 setNodes 后下一帧自动 fitView，把你恢复的 setViewport 位置覆盖成全图适配的固定位置）。
@@ -233,9 +228,7 @@ function Canvas() {
   const [initialFitView, setInitialFitView] = React.useState(true)
 
   // 缩放性能模式开关（复刻 H_.jsx:79 ge，官方默认 true：性能模式默认开启）。
-  // 从 app_settings 读入（对齐官方 Vr.jsx ei 从 app_settings 读），持久化刷新不丢。
-  const [performanceMode, setPerformanceMode] = React.useState<boolean>(() => !!getSetting('performanceMode'))
-  React.useEffect(() => { setSetting('performanceMode', performanceMode) }, [performanceMode])
+  // 从 app_settings 读入（对齐官方 Vr.jsx ei 从 app_settings 读），持久化刷新不丢。值由 useAppSettings 订阅提供（见上）。
 
   // ── localTool 连接检测 + 全屏提醒（完整复刻官方 Vr.jsx L35/L95-106/L3274-3280）──
   const { status: localTool, checkConnection } = useLocalToolStatus()
@@ -404,71 +397,10 @@ function Canvas() {
     return r
   }, [])
 
-  // 完整导入/导出（对齐官方 yimao 工作流备份）：承接 project:import / project:export 事件。
-  // 导出：exportAll 打包 → 下载 JSON；导入：选 .json → importAll 写回 → 刷新应用。
-  React.useEffect(() => {
-    const handleExport = async () => {
-      try {
-        const backup = await exportAll()
-        const blob = backupToBlob(backup)
-        const filename = `yimao-workflow-backup-${new Date().toISOString().split('T')[0]}.json`
-        await downloadBlob(blob, filename)
-        showToast('工作流备份导出成功', { type: 'success' })
-      } catch (e) {
-        logger.error('App', '导出失败', e)
-        showToast('导出失败：' + (e?.message || '未知错误'), { type: 'error' })
-      }
-    }
-    const handleImport = () => {
-      const input = document.createElement('input')
-      input.type = 'file'
-      input.accept = '.json,application/json'
-      input.onchange = async (e) => {
-        const file = (e.target as HTMLInputElement).files?.[0]
-        if (!file) return
-        const reader = new FileReader()
-        reader.onload = async (ev) => {
-          try {
-            const backup = JSON.parse(String(ev.target?.result))
-            const res = await importAll(backup)
-            if (!res.ok) throw new Error(res.error || '导入失败')
-            showToast(`导入成功（${res.ls} 配置 + ${res.canvas} 画布），即将刷新应用`, { type: 'success' })
-            setTimeout(() => window.location.reload(), 1500)
-          } catch (err) {
-            logger.error('App', '导入失败', err)
-            showToast('导入失败：文件格式不正确', { type: 'error' })
-          }
-        }
-        reader.readAsText(file)
-      }
-      input.click()
-    }
-    const offImport = subscribe('project:import', handleImport)
-    const offExport = subscribe('project:export', handleExport)
-    return () => { offImport(); offExport() }
-  }, [])
-
-  // 素材 url 变更（改名/移动）后同步画布/脚本箱节点引用（resource:renamed 由素材面板/移动 hook 广播）：
-  // 把当前节点 data 里引用旧 url 的字段改写为新 url，setNodes 触发自动持久化（防下游图生图 404）。
-  // 与后端 rewriteUrlReferences 配套：后端改库，这里改「当前打开页面内存里的节点」。
-  React.useEffect(() => {
-    const off = subscribe('resource:renamed', ({ oldUrl, newUrl }) => {
-      if (!oldUrl || !newUrl || oldUrl === newUrl) return
-      const pairs = buildUrlRewritePairs(oldUrl, newUrl) // 原样/编码 × 绝对/相对，与后端一致
-      const nodes = getNodes()
-      let changed = false
-      const next = nodes.map((n) => {
-        let data: Record<string, unknown> = (n.data ?? ({} as Record<string, unknown>))
-        for (const [from, to] of pairs) {
-          const d = replaceUrlDeep(data, from, to)
-          if (d !== data) { data = d as Record<string, unknown>; changed = true }
-        }
-        return data === n.data ? n : { ...n, data }
-      })
-      if (changed) setNodes(next) // setNodes → [nodes] 自动保存 effect 落盘
-    })
-    return off
-  }, [getNodes, setNodes])
+  // 完整工作流备份导入导出 / 素材 url 改写同步 / 持久化失败上报
+  // → 已收拢到 useCanvasEventSubscriptions.ts（本项目"抽独立事件订阅"收口，见该文件头）。
+  useProjectBackupIO()
+  useAssetUrlRewrite(getNodes, setNodes)
 
   // 右键菜单状态（基座 useContextMenu）
   const menu = useContextMenu()
@@ -478,14 +410,13 @@ function Canvas() {
   // 「固定到右键菜单第一层」的节点集合（复刻官方 H_.jsx pt，默认固定 3 个常用，
   // 持久化到 app_settings.pinnedTools，刷新不丢）。固定项在小工具子菜单里有图钉开关，
   // 固定的节点直接渲染在右键菜单第一层，不用每次钻子菜单。
-  const [pinnedTools, setPinnedTools] = React.useState<string[]>(() => (Array.isArray(getSetting('pinnedTools')) ? getSetting('pinnedTools') as string[] : ['imageBoxNode', 'gridSplitNode', 'panoramaNode']))
-  const togglePinTool = useCallback((type: string) => {
-    setPinnedTools((prev) => {
-      const next = prev.includes(type) ? prev.filter((t) => t !== type) : [...prev, type]
+  const togglePinTool = useCallback(
+    (type: string) => {
+      const next = pinnedTools.includes(type) ? pinnedTools.filter((t) => t !== type) : [...pinnedTools, type]
       setSetting('pinnedTools', next)
-      return next
-    })
-  }, [])
+    },
+    [pinnedTools]
+  )
 
   // 后端化初始化：任务中心从 /api/tasks 加载历史任务；项目系统从 /api/projects 加载项目（对齐官方）
   React.useEffect(() => {
@@ -499,19 +430,8 @@ function Canvas() {
     return () => clearTimeout(t)
   }, [])
 
-  // 【R1 系统性根因治理】持久化失败统一上报：storageAdapter 的 sSet/sRemove 失败会
-  // publish('persist:failed')，payload 含 { key, error }。这里挂全局监听器，对每个失败
-  // 的 key 原样透传提示（不做笼统兜底文案，便于定位到底是哪类数据没存上）。
-  // 节流策略：仅「同一 key」5s 内重复才合并，避免同一 key 高频刷屏；不同 key 各自弹出，不漏报。
-  React.useEffect(() => {
-    // 【P0·M3 观测 + Gap 测试】节流/透传逻辑收敛到 persistFailureBus 工厂（可单测）；
-    // App 只注入 showToast 与 logger。行为与改造前一致：同 key 5s 节流、逐 key 透传、被节流也 log。
-    const off = subscribe('persist:failed', createThrottledPersistHandler({
-      onLog: (key, error, suppressed) => logger.warn('存储', 'persist:failed', { key, error: error || '', toastSuppressed: suppressed }),
-      onToast: (key, error) => showToast(`数据保存失败 [${key}]${error ? `：${error}` : ''}，请检查浏览器存储空间/权限`, { type: 'error' }),
-    }))
-    return off
-  }, [])
+  // 持久化失败统一上报（persist:failed 节流/透传）→ usePersistFailureToast（收口同上）
+  usePersistFailureToast()
 
 
   /* ====================================================================
@@ -834,136 +754,11 @@ function Canvas() {
    * canvas（空白）/ node（单选节点）/ selection（多选）三套右键菜单项
    * ==================================================================== */
 
-  // 空白处菜单：快速添加节点 + 小工具子菜单（复刻 H_.jsx:12232-12340）
-  const canvasMenuItems = (state: ContextMenuState): ContextMenuItem[] => {
-    // 单个目录节点的菜单项 + 图钉（固定到第一层）尾随按钮。复刻官方 H_.jsx:12317-12335：
-    // 小工具子菜单里每项右侧一个图钉，点一下从子菜单「固定」到右键菜单第一层直接展示。
-    const toolItem = (n) => {
-      const pinned = pinnedTools.includes(n.type)
-      return {
-        key: n.type,
-        icon: n.icon,
-        label: n.label,
-        badge: n.badge,
-        onClick: () => addNodeFromMenu(n.type),
-        // 悬停即预热重依赖节点 chunk（3D/视频处理），点击时通常已就绪、看不到骨架屏。
-        // 轻量节点 prefetchHeavyNode 内部直接返回，无副作用。
-        onMouseEnter: () => prefetchHeavyNode(n.type),
-        // trailing 为函数形式 → ContextMenu 渲染时实例化（不随 pinnedTools 变化重建 item 数组）
-        trailing: () => (
-          <button
-            type="button"
-            className={`p-1 mr-1 rounded transition-colors ${pinned ? 'text-white hover:text-primary' : 'text-muted hover:text-body'}`}
-            title={pinned ? '已固定到右键菜单，点击取消' : '固定到右键菜单'}
-            onClick={(e) => { e.stopPropagation(); togglePinTool(n.type) }}
-          >
-            {pinned ? <Pin size={14} /> : <PinOff size={14} className="opacity-30" />}
-          </button>
-        )
-      }
-    }
+  // 空白右键菜单（文本/图片/视频/剧本盒子 + 图钉小工具 + 上传）+ 单选 + 多选三态菜单项
+  // → 已收口到 canvasContextMenu.tsx（buildCanvasMenuItems/buildNodeMenuItems/buildSelectionMenuItems / menuForState）。
+  //   图钉「一级显示≠删二级固定项」等反直觉决策随迁移保留在新模块文件头，勿丢。
 
-    // ── 右键菜单「小工具」子菜单（二级）──
-    // 一句话：每个节点只占一个入口；固定到一级的节点 = 常用，直接出现在一级；没固定的 = 待选，
-    // 留在二级。二级列「全部」节点，靠每项右侧的图钉区分状态（📌亮=已固定）。
-    //
-    // 复刻官方 H_.jsx:12307-12335。设计意图（需求原话「只要一级显示了，二级就不必显示，
-    // 除了那些固定项目的图钉」）：
-    //   一级显示 = 常用节点（固定的 + 顶部快捷）。
-    //   二级里已固定的节点「仍然显示」，但它的作用只是承载「取消固定」的图钉，不是让你再建一个。
-    //   图钉是取消固定唯一的把手，所以不能把二级里的固定项删掉，否则用户取消不了。
-    //
-    // ⚠️ 禁止项（别犯）：不要因为「一级已显示」就删掉二级里的固定项——图钉会跟着一起消失，
-    // 用户就没法取消固定了。真要删，必须先在固定到一级的那一项上加「取消」按钮。
-    const EXCLUDED_FROM_SUBMENU = ['scriptBoxNode']
-    const toolsSubmenu = paletteCategories
-      .map((cat) => {
-        const catNodes = getNodesByCategory(cat.key).filter((n) => !EXCLUDED_FROM_SUBMENU.includes(n.type))
-        if (catNodes.length === 0) return null
-        return {
-          key: `tools-${cat.key}`,
-          label: cat.label,
-          items: catNodes.map(toolItem)
-        }
-      })
-      .filter(Boolean)
-
-    // 固定到一级的节点，直接渲染在菜单第一层（常用，一眼可见）。复刻官方 H_.jsx:12380-12395。
-    // 这些节点在二级里也仍显示，但二级那项只是放「取消固定」的图钉——取消固定靠它。
-    const pinnedItems = pinnedTools
-      .map((type) => getPaletteNode(type))
-      .filter(Boolean)
-      .map((n) => {
-        const item = n as { type: string; label: string; icon?: React.ComponentType<{ size?: number; className?: string }>; badge?: { text: string; tone: 'new' | 'hot' } }
-        return {
-          key: `pinned-${item.type}`,
-          icon: item.icon,
-          label: item.label,
-          badge: item.badge,
-          onClick: () => addNodeFromMenu(item.type)
-        }
-      })
-
-    return [
-      { key: 'text', icon: <Type size={16} className="text-green-500" />, label: '文本', shortcut: 'Q', onClick: () => addNodeFromMenu('textNode') },
-      { key: 'image', icon: <ImageIcon size={16} className="text-blue-400" />, label: '图片', shortcut: 'W', onClick: () => addNodeFromMenu('promptNode') },
-      { key: 'video', icon: <Clapperboard size={16} className="text-yellow-500" />, label: '视频', shortcut: 'E', onClick: () => addNodeFromMenu('discountVideoNode') },
-      { key: 'scriptBox', icon: <Clapperboard size={16} className="text-fuchsia-300" />, label: '剧本盒子', badge: { text: 'Beta', tone: 'new' }, onClick: () => addNodeFromMenu('scriptBoxNode') },
-      { type: 'divider' as const },
-      // 小工具子菜单（未固定项 + 图钉）
-      ...(toolsSubmenu.length
-        ? [
-            { key: 'tools', icon: <Zap size={13} className="text-secondary" />, label: '小工具', items: toolsSubmenu },
-            { type: 'divider' as const }
-          ]
-        : []),
-      // 已固定节点直接渲染在第一层（复刻官方 pt）
-      ...pinnedItems,
-      { type: 'divider' as const },
-      { key: 'upload', icon: <Upload size={16} className="text-secondary" />, label: '上传', onClick: () => uploadRef.current?.click() }
-    ]
-  }
-
-  // 单选节点菜单：复制 / [复制图片] / 删除（复刻 H_.jsx:12573-12617）
-  // 「复制」对齐官方：把节点（组）写入系统剪贴板，用户 Ctrl+V 粘贴重建。
-  // 「复制图片」仅图片类节点（imageNode/promptNode）有：把图片本身复制到剪贴板（对齐官方 Ei，H_.jsx:12603）。
-  const nodeMenuItems = (state: ContextMenuState): ContextMenuItem[] => {
-    const node = nodesRef.current.find((n) => n.id === state.nodeId)
-    if (!node) return []
-    const isImageLike = node.type === 'imageNode' || node.type === 'promptNode'
-    const isGroup = node.type === 'group'
-    const items: ContextMenuItem[] = [
-      { key: 'duplicate', icon: <Copy size={16} className="text-body" />, label: '复制', onClick: () => copySelectedNodes(node.id) }
-    ]
-    if (isImageLike) {
-      items.push({
-        key: 'copyImage',
-        icon: <ImageIcon size={16} className="text-body" />,
-        label: '复制图片',
-        onClick: () => copyNodeImage(node.id)
-      })
-    }
-    // group 节点：取消编组（治根：与 Agent 共用 ungroupNodes）
-    if (isGroup) {
-      items.push({
-        key: 'ungroup',
-        icon: <FolderOpen size={16} className="text-body" />,
-        label: '取消编组',
-        onClick: () => {
-          const res = ungroupNodes(nodesRef.current, node.id)
-          if (res.ok) {
-            setNodes(res.nodes)
-            history.record({ nodes: res.nodes, edges: edgesRef.current })
-          }
-        }
-      })
-    }
-    items.push(
-      { type: 'divider' },
-      { key: 'delete', icon: <Trash2 size={16} className="text-red-400" />, label: '删除', danger: true, onClick: () => deleteNode(node.id) }
-    )
-    return items
-  }
+  // 单选菜单（复制 / 复制图片 / 取消编组 / 删除）→ buildNodeMenuItems（收口上同）
 
   // 从「连接」状态建下游节点：在 dropPosition 建节点 + 自动连线，并清掉 ghost（复刻官方 di + a()）
   const buildFromConnection = useCallback(
@@ -1001,57 +796,43 @@ function Canvas() {
     [menu.state, buildFromConnection, addNode, posAtMenu]
   )
 
-  // 多选菜单：编组 / 复制 / 删除（对齐官方多选右键：复制选中节点组到剪贴板，粘贴时重建）
-  const selectionMenuItems = (): ContextMenuItem[] => {
-    const selectedIds = nodesRef.current.filter((n) => n.selected).map((n) => n.id)
-    const items: ContextMenuItem[] = []
-    // 编组：选中≥2个普通节点时可用（治根：与 Agent group_nodes 共用 createGroupFromNodes）
-    if (selectedIds.length >= 2) {
-      items.push({
-        key: 'group',
-        icon: <Folder size={16} className="text-body" />,
-        label: '编组',
-        onClick: () => {
-          const res = createGroupFromNodes(nodesRef.current, selectedIds)
-          if (res.ok) {
-            setNodes(res.nodes)
-            history.record({ nodes: res.nodes, edges: edgesRef.current })
-          }
-        }
-      })
-      items.push({ type: 'divider' })
-    }
-    items.push(
-      {
-        key: 'duplicate',
-        icon: <Copy size={16} className="text-body" />,
-        label: '复制',
-        onClick: () => copySelectedNodes()
-      },
-      { type: 'divider' },
-      {
-        key: 'delete',
-        icon: <Trash2 size={16} className="text-red-400" />,
-        label: '删除',
-        danger: true,
-        onClick: () => {
-          const sel = nodesRef.current.filter((n) => n.selected).map((n) => n.id)
-          // R3：多选删除也级联删选中 group 的子孙节点（防留孤儿）
-          const { nodes: nextNodes, edges: nextEdges } = deleteNodesWithCascade(nodesRef.current, edgesRef.current, sel)
-          setNodes(nextNodes)
-          setEdges(nextEdges)
-          history.record({ nodes: nextNodes, edges: nextEdges })
-        }
+  // 三态菜单统一入口：组装 MenuActionCtx（动作回调由 App 提供；菜单项生成 → buildCanvas*/buildNode*/buildSelection* / menuForState）
+  // 动作发生在菜单项 onClick 里（渲染后触发），闭包引用安全；ctx 对象随渲染重建，与原内联实现一致。
+  // applyUngroup/applyGroup/applyDeleteSelected 原内联在菜单函数内，此处上移到 App 层供 ctx 复用。
+  const menuCtx: MenuActionCtx = {
+    pinnedTools,
+    addNodeFromMenu,
+    togglePinTool,
+    prefetchHeavyNode,
+    uploadRef,
+    nodeById: (id) => nodesRef.current.find((n) => n.id === id),
+    selectedCount: () => nodesRef.current.filter((n) => n.selected).length,
+    duplicateSelected: (onlyId?) => copySelectedNodes(onlyId),
+    copyNodeImage: (nodeId) => copyNodeImage(nodeId),
+    deleteNode: (id) => deleteNode(id),
+    applyUngroup: (groupId) => {
+      const res = ungroupNodes(nodesRef.current, groupId)
+      if (res.ok) {
+        setNodes(res.nodes)
+        history.record({ nodes: res.nodes, edges: edgesRef.current })
       }
-    )
-    return items
-  }
-
-  // 根据菜单类型分发到对应配置（单一数据源：拖线复用 canvas 菜单，故无独立 connection 分支）
-  const menuItems = (state: ContextMenuState): ContextMenuItem[] => {
-    if (state.type === 'node') return nodeMenuItems(state)
-    if (state.type === 'selection') return selectionMenuItems()
-    return canvasMenuItems(state)
+    },
+    applyGroup: () => {
+      const selectedIds = nodesRef.current.filter((n) => n.selected).map((n) => n.id)
+      const res = createGroupFromNodes(nodesRef.current, selectedIds)
+      if (res.ok) {
+        setNodes(res.nodes)
+        history.record({ nodes: res.nodes, edges: edgesRef.current })
+      }
+    },
+    applyDeleteSelected: () => {
+      const sel = nodesRef.current.filter((n) => n.selected).map((n) => n.id)
+      // R3：多选删除也级联删选中 group 的子孙节点（防留孤儿）
+      const { nodes: nextNodes, edges: nextEdges } = deleteNodesWithCascade(nodesRef.current, edgesRef.current, sel)
+      setNodes(nextNodes)
+      setEdges(nextEdges)
+      history.record({ nodes: nextNodes, edges: nextEdges })
+    }
   }
 
   /* ====================================================================
@@ -1335,10 +1116,10 @@ function Canvas() {
             // 在非画布视图（设置/多开）点 AI 助手按钮：【阶段1C】AgentPanel 现已任意视图常驻挂载
             //（open 控 CSS 显隐）。点按钮统一切回画布并打开面板，让用户回到画布看到面板。画布内则正常 toggle。
             if (view !== 'canvas') {
-              setAgentOpen(true)
+              setSetting('agentOpen', true)
               setView('canvas')
             } else {
-              setAgentOpen((v) => !v)
+              setSetting('agentOpen', !agentOpen)
             }
           }}
         />
@@ -1456,12 +1237,12 @@ function Canvas() {
                 {/* 占位按钮 onRun/onClearCache 未传：接真系统时在 App 传入（见 CanvasToolbar 注释） */}
             <CanvasToolbar
               minimapOn={minimapOn}
-              onToggleMinimap={() => setMinimapOn((v) => !v)}
+              onToggleMinimap={() => setSetting('minimapOn', !minimapOn)}
               onArrange={arrangeCanvas}
               onFitView={() => fitView({ padding: 0.2, duration: 800 })}
               zoomPercent={zoomPercent}
               performanceMode={performanceMode}
-              onTogglePerformance={() => setPerformanceMode((v) => !v)}
+              onTogglePerformance={() => setSetting('performanceMode', !performanceMode)}
               onClearCache={handleClearCache}
               localToolConnected={localTool.isConnected}
             />
@@ -1469,7 +1250,7 @@ function Canvas() {
             </div>
 
             {/* 右键菜单（基座 ContextMenu，挂载于画布外层） */}
-            <ContextMenu state={menu.state} items={menuItems} onClose={menu.close} containerRef={menu.containerRef} />
+            <ContextMenu state={menu.state} items={(state) => menuForState(state, menuCtx)} onClose={menu.close} containerRef={menu.containerRef} />
 
             {/* 右键菜单「上传」隐藏文件输入（复刻官方 Re，选中文件建素材节点） */}
             <input
@@ -1491,7 +1272,7 @@ function Canvas() {
           key={activeProjectId}
           agentKey={agentKeyForProject(activeProjectId)}
           open={agentOpen}
-          onClose={() => setAgentOpen(false)}
+          onClose={() => setSetting('agentOpen', false)}
           systemPrompt={''}
           selectedImageNodes={selectedImageNodes}
         />

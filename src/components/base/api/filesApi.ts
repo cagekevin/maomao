@@ -4,6 +4,9 @@
  * ════════════════════════════════════════════════════════════════
  * · 职责：把生成结果 / 素材 / 网页图从浏览器侧落盘到 localTool 后端的 uploads/ 目录，
  *   使「生成面板 / 素材库」能读到（后端 rescan 按目录收录）。
+ * · 2026-09-04（候选 C 收口）：本模块是【全站文件域单点】——除落盘外，文件访问端点
+ *   （move/mkdir/open/open-dir）+ 3 个纯函数（relativePathFromUrl/canMoveAsset/resolveMovePaths）
+ *   也收口在此；localToolApi 回归纯 CRUD + kv + providers（不再割裂文件域）。
  * · 后端：localTool 服务，默认 http://127.0.0.1:18080（API_BASE）。
  * · 唯一端点：只打 `POST ${API_BASE}/api/files/upload` 一个接口，两种请求模式——
  *     multipart FormData（file + subfolder [+filename]）→ 直接存本地文件；
@@ -32,9 +35,88 @@ import { logger } from '../core/logger.ts'
 import { UPLOAD_TIMEOUT } from '../core/config.ts'
 import { formatTime, dataUrlToBlob, safeFileName } from '../core/utils.ts'
 import { UPLOAD_DIRS } from '../utils/uploadDirs.ts'
+import type { ApiEnvelope } from './localToolApi.ts'
 export { toAbsoluteFileUrl } from '../utils/imageUrl.ts'
 export { EXT_BY_TYPE }
 import { isLocalFileUrl } from '../utils/imageUrl.ts'
+
+// ─────────────────────────── files 域（候选 C 收口：全站文件域单点可查）───────────────────────────
+// 此前文件域被劈成两半：落盘在 filesApi，move/mkdir/open + 3 个纯函数却住在 localToolApi
+// （其文件头还自述「filesApi 是深模块，不并入」——与事实不符）。候选 C（deepening 文档）
+// 把分散在 localToolApi 的文件域成员一并收口到本模块，localToolApi 回归纯 CRUD + kv + providers。
+
+/** GET /api/files/open|open-dir 响应内层。 */
+export interface OpenPathData {
+  path: string
+}
+/** POST /api/files/move|mkdir 响应。 */
+export interface FileOpResult {
+  code: number
+}
+
+// GET /api/files/open?subfolder=... → { path }
+export async function openLocalFolder(subfolder?: string): Promise<ApiEnvelope<OpenPathData>> {
+  return httpRequest(`${API_BASE}/api/files/open?subfolder=${encodeURIComponent(subfolder || 'tasks')}`, { label: 'openLocalFolder' })
+}
+
+// GET /api/files/open-dir?filepath=... → { path }；空路径短路
+export async function openFileDir(filepath: string): Promise<ApiEnvelope<OpenPathData> | undefined> {
+  if (!filepath) return
+  return httpRequest(`${API_BASE}/api/files/open-dir?filepath=${encodeURIComponent(filepath)}`, { label: 'openFileDir' })
+}
+
+/** 从资源的 18080 url 解析出相对路径（去 /files/ 前缀），供 open-dir 用。纯函数，非转发。 */
+export function relativePathFromUrl(url: string): string | null {
+  try {
+    return decodeURIComponent(new URL(url).pathname).replace(/^\/files\//, '')
+  } catch {
+    return null
+  }
+}
+
+// POST /api/files/move { src, dst } → { code:0, data:{ ok:true } }
+// src/dst 均为「相对 uploadDir」路径（后端拼 getUploadDir，口径同 createFolder/mkdir）。
+// 移动是即时操作，不重试（成功但响应超时的重试会撞「src 已不存在」404）。
+export async function moveFile(src: string, dst: string): Promise<FileOpResult> {
+  return httpRequest(`${API_BASE}/api/files/move`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ src, dst }),
+    retries: 0,
+    label: 'moveFile',
+  })
+}
+
+// 是否可移动到文件夹：仅本地文件型资源（local-tool）可移动；文件夹 / 远程 / 收藏类不提供移动入口。
+// 纯函数，供拖拽移动到文件夹（useAssetMoveToFolder）+ 单测。禁止在组件里手写 source/type 判断。
+export function canMoveAsset(item: { source?: string; type?: string } = {}): boolean {
+  return item.source === 'local-tool' && item.type !== 'folder'
+}
+
+// 由资源项 + 目标目录（相对 uploadDir）推导移动的 src/dst，并判断是否同目录。
+// - src  = folder ? folder/name : name（folder 为 rescan 记录的相对路径，可为空/undefined 顶层）
+// - dst  = targetFolderRel/name
+// - sameDir = (folder||'') === targetFolderRel（落点与源同目录 → 调用方忽略/提示）
+// 纯函数，供拖拽移动到文件夹（useAssetMoveToFolder）+ 单测；禁止各 tab 各自拼路径。
+export function resolveMovePaths(item: { folder?: unknown; name?: unknown } = {}, targetFolderRel = ''): { src: string; dst: string; sameDir: boolean } {
+  const srcFolder = item.folder ? String(item.folder) : ''
+  const src = srcFolder ? `${srcFolder}/${item.name}` : String(item.name || '')
+  const dst = targetFolderRel ? `${targetFolderRel}/${item.name}` : String(item.name || '')
+  return { src, dst, sameDir: srcFolder === (targetFolderRel || '') }
+}
+
+// POST /api/files/mkdir { folder } → { code:0, data:{ ok:true } }
+// 收口 GeneratedView/AssetLibrary 此前裸拼 `/api/files/mkdir` 的 createFolder 散落点。
+export async function createFolder(folder: string): Promise<FileOpResult> {
+  return httpRequest(`${API_BASE}/api/files/mkdir`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ folder }),
+    retries: 0, // mkdir 是 UI 即时操作，不重试
+    label: 'createFolder',
+  })
+}
+
 const SUBFOLDER = UPLOAD_DIRS.tasks
 /** 网页拖图专用落盘目录（不与素材库/生成结果混放，见 docs/34 升级） */
 export const WEB_DROP_SUBFOLDER = UPLOAD_DIRS.web
@@ -60,26 +142,24 @@ function safeName(base: string, ext: string): string {
 
 /**
  * 把内联 dataURL 落盘为本地文件 URL（「将内联资源转为URL / 清理缓存」核心）。
- * 语义对齐官方后端 base64Externalize.saveBase64ToFile：
- *  - 文件名 = sha1(base64 内容) 前 16 位 + 扩展名 → 幂等去重，重复转换不重复落盘；
- *  - 落盘失败返回 null，调用方保留原 base64（绝不删图）。
- * 走 localTool /api/files/upload，返回 http://127.0.0.1:18080/files/<subfolder>/<name>。
+ * 候选 B（deepening-files-upload-seam）：已收口为**纯透传**——只把 base64 原文 + subfolder
+ * 发给 localTool /api/files/upload 的 dataUri 分支；sha1 幂等、isValidBase64 严格校验、
+ * 扩展名推导全部移交后端 base64Externalize.saveBase64ToFile 单一实现，前端不再另造一套。
+ * 之前前端在此自算 sha1(blob) 40 位 + 无合法校验，与后端 sha1(base64) 16 位不一致 → 同一图
+ * 两种文件名互不去重，且残缺 base64 会落盘成损坏文件；收口后两链路一致并堵住损坏文件缺陷。
  * @param {string} dataUrl 形如 data:image/png;base64,xxxx
  * @param {string} [subfolder] 落盘子目录，默认 canvas（与官方 base64Externalize 一致）
- * @returns {Promise<string|null>} 落盘 URL；失败返回 null
+ * @returns {Promise<string|null>} 落盘 URL（http://127.0.0.1:18080/files/<subfolder>/<name>）；失败返回 null（调用方保留原 base64）
  */
 export async function saveInlineToLocal(dataUrl: string, subfolder: string = UPLOAD_DIRS.canvas): Promise<string | null> {
   if (!dataUrl || !dataUrl.startsWith('data:')) return null
   try {
-    const blob = dataUrlToBlob(dataUrl)
-    const fileExt = extFromMime(dataUrl) || 'png'
-    // sha1 去重：同一 base64 → 同一文件名（对齐官方 saveBase64ToFile 惯例）
-    const hash = await sha1Hex(blob)
-    const filename = `${hash}.${fileExt}`
-    const fd = new FormData()
-    fd.append('file', blob, filename)
-    fd.append('subfolder', subfolder)
-    const data = await httpRequest(`${API_BASE}/api/files/upload`, { method: 'POST', body: fd, ...UPLOAD_OPTS })
+    const data = await httpRequest(`${API_BASE}/api/files/upload`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dataUri: dataUrl, subfolder }),
+      ...UPLOAD_OPTS,
+    })
     return data?.data?.url || null
   } catch (e) {
     logger.warn('filesApi', '内联资源落盘失败', e)
@@ -157,26 +237,6 @@ async function uploadRemoteUrl(fileUrl: string, subfolder: string, filename?: st
   } catch (e) {
     logger.warn('filesApi', '远程 URL 落盘失败', e)
     return null
-  }
-}
-
-/** data: URL → 扩展名（不带点），按 mime 推导 */
-function extFromMime(dataUrl: string): string | null {
-  const m = /^data:([^;,]+)/.exec(dataUrl)?.[1]
-  if (!m) return null
-  const subtype = m.split('/')[1]?.toLowerCase()
-  const map: Record<string, string> = { jpeg: 'jpg', 'svg+xml': 'svg', 'quicktime': 'mov' }
-  return map[subtype] || subtype || null
-}
-
-/** blob → sha1 十六进制（Web Crypto），供幂等去重；失败返回空串 */
-async function sha1Hex(blob: Blob): Promise<string> {
-  try {
-    const buf = await blob.arrayBuffer()
-    const digest = await crypto.subtle.digest('SHA-1', buf)
-    return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, '0')).join('')
-  } catch {
-    return `${Date.now()}`
   }
 }
 

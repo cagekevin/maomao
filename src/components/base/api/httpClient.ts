@@ -6,7 +6,13 @@
  * 这类 bug。任何新网络请求必须走 httpRequest，禁止再裸写 fetch。
  *
  * 【能力】
- *  - 超时：默认 15s，超时抛 TimeoutError（asyncGuard.withTimeout），并中止底层请求。
+ *  - 超时：**无默认值**。需要时限的调用方显式传 timeoutMs（UPLOAD_TIMEOUT / GEN_TIMEOUT /
+ *    LOCAL_TOOL_PING_TIMEOUT…）；不传或 <=0 即不掐点。超时抛 TimeoutError（asyncGuard.withTimeout）
+ *    并中止底层请求。
+ *    更新(2026-09-04)：移除原默认 15000。① 15s 会把上传类长请求掐断（网络差时传不完即失败，真实 bug）；
+ *    ② 放大到 3 分钟也救不了——吃到默认值的 37 处全是本机 18080 的 CRUD（毫秒级，15s 与 3min 等价），
+ *    而真需要时限的链路早已各自显式声明。兜底值治不了真实问题却给未声明的新请求假安全感，故不设。
+ *    详见 config.ts「异步超时」区块。
  *  - 取消：接受外部 signal（组件生命周期），与内部超时 controller 隔离，互不污染。
  *  - 错误分类：TimeoutError / NetworkError / HttpError(status,data) / AbortError。
  *  - 受限重试：仅网络/超时错误自动重试（业务 4xx/5xx 不重试），默认最多 3 次。
@@ -15,7 +21,6 @@
  */
 import { withTimeout, TimeoutError, isTimeoutError } from '../utils/asyncGuard.ts'
 import { logger } from '../core/logger.ts'
-import { HTTP_DEFAULT_TIMEOUT } from '../core/config.ts'
 
 /** httpRequest 选项（fetch 统一入口的参数契约） */
 export interface HttpRequestOptions {
@@ -24,7 +29,7 @@ export interface HttpRequestOptions {
   body?: string | FormData | undefined
   /** 外部取消信号（组件生命周期） */
   signal?: AbortSignal
-  /** 超时毫秒，默认 15000；<=0 禁用超时 */
+  /** 超时毫秒；无默认值——不传即不掐点，需时限由调用方按场景显式声明；<=0 禁用超时 */
   timeoutMs?: number
   /** 网络/超时自动重试次数，默认 3；业务错误不重试 */
   retries?: number
@@ -117,7 +122,7 @@ async function readErrorBody(res: Response): Promise<unknown> {
  *   - headers?: Record<string,string>
  *   - body?: string
  *   - signal?: AbortSignal       外部取消信号（组件生命周期）
- *   - timeoutMs?: number         超时毫秒，默认 15000；<=0 禁用超时
+ *   - timeoutMs?: number         超时毫秒，无默认值（不传即不掐点，需时限则显式传）；<=0 禁用超时
  *   - retries?: number           网络/超时自动重试次数，默认 3；业务错误不重试
  *   - retryDelay?: number        首轮重试等待 ms，默认 500（递增）
  *   - parseJson?: boolean        是否解析 JSON，默认 true
@@ -131,7 +136,7 @@ export async function httpRequest<T = unknown>(url: string, {
   headers,
   body,
   signal,
-  timeoutMs = HTTP_DEFAULT_TIMEOUT,
+  timeoutMs = 0, // 无默认超时：见文件头【能力】·超时（原 15s 会掐断上传，放大到 3min 也救不了）
   retries = 3,
   retryDelay = 500,
   parseJson = true,

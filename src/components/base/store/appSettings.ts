@@ -8,19 +8,19 @@
  */
 import { useSyncExternalStore } from 'react'
 import { contentGet, contentSet } from '../core/contentStore.ts'
-import { buildDefaults } from './settingRegistry.ts'
+import { buildDefaults, type SettingKey, type SettingState, type SettingValue } from './settingRegistry.ts'
 
 const KEY: string = 'app_settings'
 
 // 默认应用设置：单一事实来源在 settings/settingRegistry.js（新增开关只改注册表）
-const DEFAULTS: Record<string, unknown> = buildDefaults()
+const DEFAULTS: SettingState = buildDefaults()
 
-let settings: Record<string, unknown> = load()
+let settings: SettingState = load()
 
-function load(): Record<string, unknown> {
+function load(): SettingState {
   try {
     const parsed = contentGet(KEY)
-    return { ...DEFAULTS, ...(parsed && typeof parsed === 'object' ? parsed : {}) }
+    return { ...DEFAULTS, ...(parsed && typeof parsed === 'object' ? (parsed as Partial<SettingState>) : {}) }
   } catch {
     return { ...DEFAULTS }
   }
@@ -38,18 +38,19 @@ function subscribe(cb: () => void): () => void {
   listeners.add(cb)
   return () => listeners.delete(cb)
 }
-function getSnapshot(): Record<string, unknown> {
+function getSnapshot(): SettingState {
   return settings
 }
 
-/** 读取某个设置（默认值兜底） */
-export function getSetting(key: string): unknown {
-  return settings[key] !== undefined ? settings[key] : DEFAULTS[key]
+/** 读取某个设置（默认值兜底）。key 受 SettingKey 约束，值类型由注册表 type 派生；拼错键编译期即红 */
+export function getSetting<K extends SettingKey>(key: K): SettingValue<K> {
+  // 注：TS 泛型索引 settingState[K] 无法直接塌缩为 SettingValue<K>（联合索引交集问题），此处显式收窄，诚实反映形状
+  return (settings[key] !== undefined ? settings[key] : DEFAULTS[key]) as SettingValue<K>
 }
 
-/** 写入一个设置（更新内存 + 持久化 + 通知） */
-export function setSetting(key: string, value: unknown): void {
-  settings = { ...settings, [key]: value }
+/** 写入一个设置（更新内存 + 持久化 + 通知）。value 类型随 key 收窄 */
+export function setSetting<K extends SettingKey>(key: K, value: SettingValue<K>): void {
+  settings = { ...settings, [key]: value } as SettingState
   save()
   notify()
   // 调试总开关桥接：同步写 window.__DEBUG_ALL，让 isDebugModuleOn（config.js）实时读到并全开 debug。
@@ -70,6 +71,6 @@ function syncDebugAll(v: boolean): void {
 syncDebugAll(!!getSetting('debugOn'))
 
 /** React hook：订阅 app_settings */
-export function useAppSettings(): Record<string, unknown> {
+export function useAppSettings(): SettingState {
   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
 }

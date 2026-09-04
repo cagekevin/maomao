@@ -92,9 +92,9 @@ afterEach(() => {
 // official：readOfficialBase
 // ══════════════════════════════════════════════════════════════
 
-test('official·readOfficialBase 默认官方地址', async () => {
+test('official·readOfficialBase 无 header/KV 时无硬编码默认（返回 undefined）', async () => {
   const base = await officialMod.readOfficialBase(makeJsonReq());
-  assert.equal(base, 'https://www.1mao.cc');
+  assert.equal(base, undefined);
 });
 
 test('official·readOfficialBase x-official-base 头优先', async () => {
@@ -110,10 +110,10 @@ test('official·readOfficialBase KV active_api_endpoint（非自指）', async (
   assert.equal(base, 'https://alt.example.com');
 });
 
-test('official·readOfficialBase 过滤自指 KV（127.0.0.1:18080）→ 回退默认', async () => {
+test('official·readOfficialBase 过滤自指 KV（127.0.0.1:18080）→ 无默认（返回 undefined）', async () => {
   await kvMod.handleKvSet(makeJsonReq({ key: 'active_api_endpoint', value: 'http://127.0.0.1:18080' }), makeRes());
   const base = await officialMod.readOfficialBase(makeJsonReq());
-  assert.equal(base, 'https://www.1mao.cc', '自指值应被过滤');
+  assert.equal(base, undefined, '自指值应被过滤，且无硬编码默认');
 });
 
 // ══════════════════════════════════════════════════════════════

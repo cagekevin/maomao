@@ -42,7 +42,7 @@ let lastRun: number = 0
 let timer: ReturnType<typeof setInterval> | null = null
 
 /** 构造完整 relayAttachUntilDone（阻塞到终态）恢复器：由外部 once 驱动，不再周期 ensurePolling 嵌套。 */
-export function attachRecoveryOnce(task: PollableTask): Promise<boolean> {
+function attachRecoveryOnce(task: PollableTask): Promise<boolean> {
   return pollOneTaskAttach(task)
 }
 
@@ -84,14 +84,6 @@ async function pollOneTaskAttach(task: PollableTask): Promise<boolean> {
     return true
   }
   return false
-}
-
-/**
- * 兼容旧签名：单轮查询。原 ensurePolling 周期驱动不再用于恢复（改用 attachRecoveryOnce）；
- * 此函数保留给 TaskCenter「刷新状态」手动按钮做单轮 attach（该场景无需周期驱动，直接等终态）。
- */
-export async function pollOneTask(task: PollableTask): Promise<boolean> {
-  return pollOneTaskAttach(task)
 }
 
 /**

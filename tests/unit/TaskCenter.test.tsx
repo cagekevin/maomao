@@ -27,12 +27,11 @@ const h = vi.hoisted(() => {
   const retryTask = vi.fn((..._a: unknown[]) => true)
   const clearTasksBy = vi.fn()
   const clearAllTasks = vi.fn()
-  const pollOneTask = vi.fn()
   const downloadUrl = vi.fn(async (..._a: unknown[]) => ({ ok: true }))
   const showToast = vi.fn()
   const clipboardWrite = vi.fn()
   const loggerWarn = vi.fn()
-  return { useTasks, setTasks, removeTask, retryTask, clearTasksBy, clearAllTasks, pollOneTask, downloadUrl, showToast, clipboardWrite, loggerWarn }
+  return { useTasks, setTasks, removeTask, retryTask, clearTasksBy, clearAllTasks, downloadUrl, showToast, clipboardWrite, loggerWarn }
 })
 
 // jsdom 无 navigator.clipboard；复制提示词逻辑依赖它，固定为一个可断言 mock
@@ -65,7 +64,6 @@ vi.mock('../../src/components/base/store/taskStore.ts', () => ({
 }))
 vi.mock('../../src/components/base/core/logger.ts', () => ({ logger: { warn: (...a: unknown[]) => h.loggerWarn(...a) } }))
 vi.mock('../../src/components/base/utils/clipboard.ts', () => ({ downloadUrl: (...a: unknown[]) => h.downloadUrl(...a) }))
-vi.mock('../../src/components/base/api/pollTask.ts', () => ({ pollOneTask: (...a: unknown[]) => h.pollOneTask(...a) }))
 vi.mock('../../src/components/base/core/toastStore.ts', () => ({ showToast: (...a: unknown[]) => h.showToast(...a) }))
 vi.mock('../../src/hooks/useAssetDragToCanvas.ts', () => ({ makeAssetDragProps: () => ({ draggable: true }) }))
 vi.mock('../../src/components/base/core/uiHooks.ts', () => ({ useOutsideClick: () => {} }))

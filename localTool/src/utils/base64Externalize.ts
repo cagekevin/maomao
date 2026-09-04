@@ -36,17 +36,16 @@ function isValidBase64(s: string): boolean {
   return /^[A-Za-z0-9+/]+$/.test(stripped);
 }
 
-/** 从 data URI 推断子目录（image/video/audio 统一放 canvas，可扩展） */
-function subfolderFor(_mime: string): string {
-  return 'canvas';
-}
-
 /**
  * 把单个 data URI 解码并落盘为 uploads/ 文件，返回可访问 /files/ URL。
  * 文件名 = sha1(base64 原文) 前 16 位 + 扩展名，幂等去重。
+ * @param subfolder 落盘子目录（默认 'canvas'）。本函数是 base64→落盘【唯一实现】，
+ *   同时服务两条链路：KV 入库外置（externalizeBase64InValue，恒 'canvas'）与
+ *   /api/files/upload 的 dataUri 分支（前端传 tasks/director3d/canvas 等调用方目录）。
+ *   以参数透传子目录，单一实现杜绝前后端两套 sha1/校验漂移（deepening-files-upload-seam 候选 B）。
  * 落盘失败返回 null（调用方保留原 base64）。
  */
-export function saveBase64ToFile(dataUri: string): string | null {
+export function saveBase64ToFile(dataUri: string, subfolder: string = 'canvas'): string | null {
   const m = dataUri.match(DATA_URI_RE);
   if (!m) return null;
   const mime = m[1];
@@ -59,7 +58,6 @@ export function saveBase64ToFile(dataUri: string): string | null {
   const hash = crypto.createHash('sha1').update(base64Data).digest('hex').slice(0, 16);
   const stableName = sanitizeFilename(`${hash}${ext}`);
 
-  const subfolder = subfolderFor(mime);
   const { savedPath, urlPath } = resolveUploadTarget(subfolder, stableName);
   ensureDir(path.dirname(savedPath));
 

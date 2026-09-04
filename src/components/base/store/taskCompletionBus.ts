@@ -1,7 +1,7 @@
 /**
  * P1-D 任务完成信号唯一发布入口（治 D1）。
  *
- * 【收口什么】此前 taskStore.done 与 pollTask.pollOneTask 各自散拼 payload 调
+ * 【收口什么】此前 taskStore.done 与 pollTask 恢复路径各散拼 payload 调
  * `publish('agent:task-completed', …)`，无校验。现收敛为单一入口 + 前置校验：
  *   - 非 completed / resultUrl 非空字符串 → 拒绝发布（防"空结果/半成品"广播污染节点回填）
  *   - 校验通过才 publish('agent:task-completed', payload)

@@ -41,9 +41,22 @@ export function removeLogClient(res: ServerResponse): void {
   _sseClients.delete(res);
 }
 
+/**
+ * 广播级别阈值：只有 ≥ 该级别的日志才推给前端 SSE（日志面板 / F12 镜像），
+ * 其余（高频 info/log 噪音）只落盘 + 服务端终端，不再刷前端。
+ * 可用环境变量 LOG_BROADCAST_LEVEL 覆盖（值：debug < info < log < warn < error，默认 warn）。
+ */
+function broadcastMinLevel(): number {
+  const order: Record<string, number> = { debug: 0, info: 1, log: 1, warn: 2, error: 3 };
+  const raw = (process.env['LOG_BROADCAST_LEVEL'] || 'warn').trim().toLowerCase();
+  return order[raw] ?? 2;
+}
+
 /** 把一行日志广播给所有已连接客户端（失败静默，绝不影响主链路写文件） */
-function broadcastLog(line: string): void {
+function broadcastLog(line: string, level: string): void {
   if (_sseClients.size === 0) return;
+  const order: Record<string, number> = { debug: 0, info: 1, log: 1, warn: 2, error: 3 };
+  if ((order[level] ?? 1) < broadcastMinLevel()) return; // 低于阈值：不推前端（仅落盘 + 服务端终端）
   for (const res of _sseClients) {
     try { res.write(`data: ${line}\n\n`); } catch { /* 单客户端写入失败忽略，不影响其他 */ }
   }
@@ -105,8 +118,9 @@ function write(level: string, args: unknown[]): void {
   ).join(' ');
   const line = `${ts} [${level}] ${msg}\n`;
   try { ensureStream().write(line); } catch { /* 日志写失败不阻断业务 */ }
-  // 实时广播给前端日志面板（SSE）；client 为空时 broadcastLog 内部直接返回，零开销
-  broadcastLog(line);
+  // 实时广播给前端日志面板（SSE）；低于阈值的噪音不推前端（仅落盘 + 服务端终端）。
+  // client 为空时 broadcastLog 内部直接返回，零开销。
+  broadcastLog(line, level);
   // 同步到原始 console（前台/启动脚本可见）
   const orig = (console as unknown as Record<string, (...a: unknown[]) => void>)[`_orig_${level}`] || console[level as 'log'];
   try { orig.call(console, ...args); } catch { /* ignore */ }

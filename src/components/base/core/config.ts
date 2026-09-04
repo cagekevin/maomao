@@ -83,8 +83,18 @@ export const AGENT_CONTEXT_WINDOW_DEFAULT = Number(import.meta.env?.VITE_AGENT_C
 export const AGENT_CONTEXT_OUTPUT_BUDGET_RATIO = 0.2
 
 // ── 异步超时（ms）───────────────────────────────────────────────
-/** httpClient 默认超时 */
-export const HTTP_DEFAULT_TIMEOUT = 15000
+/**
+ * 【httpClient 没有默认超时 —— 2026-09-04 移除 HTTP_DEFAULT_TIMEOUT】
+ * 演进两步，均不成立，故最终不设默认值：
+ *  ① 原 15000：把上传类长请求在 15s 掐断（网络稍差时大图/视频根本传不完即失败，真实 bug）。
+ *  ② 试算 180000：仍救不了——能吃到默认值的 37 处**全是本机 127.0.0.1:18080 的 CRUD**
+ *     （fetchTasks / kvGet / saveTask / fetchResources…，毫秒级返回，15s 与 3min 对它们完全等价）；
+ *     而真正需要时限的链路（上传 / 生图 / 视频 / 探活 / 图片读取）**早已各自显式声明**自己的常量。
+ *  结论：兜底值治不了任何真实超时问题，却给「未声明 timeoutMs 的新请求」假安全感（以为有保护）。
+ *
+ * 【现行契约】需要时限 → 调用方显式传 timeoutMs；不传或 <=0 → 不掐点（由 signal / 业务层负责）。
+ * 下方常量即各链路自己的时限，改哪条链路就改它对应的常量。
+ */
 /** localTool 探活 / 拖拽文本读取（短超时，快失败） */
 export const LOCAL_TOOL_PING_TIMEOUT = 5000
 /** 图片 URL → blob 读取（imageUrl.js） */

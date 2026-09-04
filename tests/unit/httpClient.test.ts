@@ -109,6 +109,16 @@ describe('httpRequest — 超时', () => {
     mockFetch.mockImplementation(() => new Promise(() => {})) // 永不返回
     await expect(httpRequest('/api/x', { timeoutMs: 50, retries: 0 })).rejects.toThrow(TimeoutError)
   })
+
+  it('不传 timeoutMs → 不掐点（无默认超时）', async () => {
+    // 契约锁：httpClient 曾默认 15s，把上传类长请求在 15s 掐断（网络稍差时大图/视频传不完即失败）。
+    // 现无默认值——需要时限的调用方显式传。若有人把默认值改回具体毫秒数，此用例必红。
+    mockFetch.mockImplementation(() => new Promise(() => {})) // 永不返回
+    let timedOut = false
+    httpRequest('/api/x').catch((e) => { timedOut = e instanceof TimeoutError })
+    await vi.advanceTimersByTimeAsync(5 * 60 * 1000) // 推进 5 分钟，远超原 15s 与试算的 3min
+    expect(timedOut).toBe(false)
+  })
 })
 
 /* ── 外部取消 ────────────────────────────────────────── */

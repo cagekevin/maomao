@@ -10,6 +10,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { json, parseJsonBody, sendError } from '../utils/helpers.js';
 import { VERSION } from '../version.js';
+import { fetchWithTimeout } from '../utils/fetchTimeout.js';
 
 const PORT = Number(process.env.PORT) || 18080;
 const APIMART_PORT = Number(process.env.APIMART_PORT) || 9004; // apimart-gateway 端口（见 CLAUDE.md 端口铁律）
@@ -36,15 +37,15 @@ export async function handleGatewayTask(
   }
   const target = `http://127.0.0.1:${APIMART_PORT}/v1/gateway/task/${encodeURIComponent(taskId)}`;
   const auth = req.headers['authorization'] as string | undefined;
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), PROXY_TIMEOUT_MS);
   try {
-    const fetchRes = await fetch(target, {
-      method: 'GET',
-      headers: auth ? { Authorization: auth, Accept: '*/*' } : { Accept: '*/*' },
-      signal: controller.signal,
-    });
-    clearTimeout(timeout);
+    const fetchRes = await fetchWithTimeout(
+      target,
+      {
+        method: 'GET',
+        headers: auth ? { Authorization: auth, Accept: '*/*' } : { Accept: '*/*' },
+      },
+      PROXY_TIMEOUT_MS,
+    );
     const raw = Buffer.from(await fetchRes.arrayBuffer());
     // 转换 apimart `{code:200, data}` → 前端期望 `{code:1, data}`（仅改 code，其余透传）
     let out: Buffer = raw;
@@ -65,7 +66,6 @@ export async function handleGatewayTask(
     });
     res.end(out);
   } catch (e) {
-    clearTimeout(timeout);
     const err = e as Error;
     if (err.name === 'AbortError') {
       sendError(res, `Gateway task query timed out (${PROXY_TIMEOUT_MS / 1000}s)`, 504);

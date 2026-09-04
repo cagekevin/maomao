@@ -2,21 +2,12 @@
 /**
  * filesApi 单测（批 2，API 封装层）。
  * 覆盖：saveInlineToLocal / saveResultToTasks / saveTextToTasks / uploadFileToLocal
- * 的成功路径与各类边界（非 data:/blob:/空/fetch 失败 → null，不抛）。
- * 策略：node + mock fetch（/api/files/upload）。依赖全局 Blob/FormData/atob/
- * crypto.subtle（node 18+ 自带；缺失时 stub）。
+ *   的成功路径与各类边界（非 data:/blob:/空/fetch 失败 → null，不抛）。
+ * 策略：node + mock fetch（/api/files/upload）。依赖全局 Blob/FormData/atob（node 18+ 自带）。
+ * 注：saveInlineToLocal 候选 B 起收口为纯透传 {dataUri, subfolder}，文件名/sha1/校验已移交后端，
+ *   前端不再用 crypto.subtle（sha1Hex 已删），故无需 webcrypto stub。
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-
-// 保证 webcrypto 可用（sha1Hex 用 crypto.subtle.digest）
-if (!globalThis.crypto?.subtle) {
-  // 仅测 sha1Hex 的 digest 路径，cast 为 Crypto 以对齐类型（其余 SubtleCrypto 方法不会被测到）
-  globalThis.crypto = {
-    subtle: {
-      digest: async () => new Uint8Array(20).fill(0xab).buffer,
-    },
-  } as unknown as Crypto
-}
 
 // setup.mjs 已把 globalThis.fetch 定义为共享 vi.fn；此处做类型对齐以启用 .mock* / mock.calls。
 const fetchMock = globalThis.fetch as unknown as ReturnType<typeof vi.fn>
@@ -41,21 +32,31 @@ describe('filesApi — saveInlineToLocal', () => {
     const url = await api.saveInlineToLocal(DATA_PNG)
     expect(url).toBe('http://127.0.0.1:18080/files/canvas/abc.png')
   })
-  it('data: URL → 幂等去重文件名（sha1 40 位十六进制）+ subfolder 透传', async () => {
-    fetchMock.mockResolvedValue(uploadResp('http://127.0.0.1:18080/files/canvas/abc.png'))
-    await api.saveInlineToLocal(DATA_PNG, 'canvas')
+  it('候选 B 收口为透传：body JSON 传 {dataUri, subfolder}（不再前端自算 sha1 文件名）', async () => {
+    fetchMock.mockResolvedValue(uploadResp('http://x/a.png'))
+    await api.saveInlineToLocal(DATA_PNG, 'tasks')
+    const [reqUrl, opts] = fetchMock.mock.calls[0]
+    expect(reqUrl).toContain('/api/files/upload')
+    const body = JSON.parse(opts.body)
+    expect(body.dataUri).toBe(DATA_PNG)
+    expect(body.subfolder).toBe('tasks')
+  })
+  it('subfolder 缺省 → canvas', async () => {
+    fetchMock.mockResolvedValue(uploadResp('http://x/a.png'))
+    await api.saveInlineToLocal(DATA_PNG)
     const [, opts] = fetchMock.mock.calls[0]
-    for (const [k, v] of opts.body.entries()) {
-      if (k === 'file') expect(v.name).toMatch(/^[a-f0-9]{40}\.png$/)
-      if (k === 'subfolder') expect(v).toBe('canvas')
-    }
+    expect(JSON.parse(opts.body).subfolder).toBe('canvas')
   })
   it('非 data: URL → 返回 null（不抛）', async () => {
     expect(await api.saveInlineToLocal('http://x/y.png')).toBeNull()
     expect(fetchMock).not.toHaveBeenCalled()
   })
-  it('上传失败 → 返回 null', async () => {
+  it('上传失败（!res.ok / fetch reject）→ 返回 null（非法 base64 由后端 400 → httpClient 抛 → 此处吞成 null）', async () => {
     fetchMock.mockResolvedValue(failResp())
+    expect(await api.saveInlineToLocal(DATA_PNG)).toBeNull()
+    fetchMock
+      .mockImplementationOnce(async () => { throw new Error('net') })
+      .mockResolvedValue({ ok: true, status: 200, json: async () => ({}) })
     expect(await api.saveInlineToLocal(DATA_PNG)).toBeNull()
   })
 })

@@ -93,7 +93,7 @@ export const EVENTS = {
   },
   'resource:renamed': {
     from: ['AssetLibrary.tsx:300', 'GeneratedView.tsx:231', 'useAssetMoveToFolder.ts:98'],
-    to: ['App.tsx:446', 'taskStore.ts:167'],
+    to: ['useCanvasEventSubscriptions.ts:79', 'taskStore.ts:165'],
     payload: '{ oldUrl, newUrl }',
     note: '素材 url 变更（改名/移动归类，前端入口）广播旧→新 url。两个订阅方各管一段内存态：App 改写画布/脚本箱节点并持久化（防下游图生图 404）；taskStore 改写内存任务的 resultUrl（防任务中心破图）。两侧共用 imageUrl.js 的 buildUrlRewritePairs/replaceUrlDeep，禁止各写一份。与后端 rewriteUrlReferences（localTool database.ts）配套，形态严格四态对账',
   },
@@ -105,21 +105,21 @@ export const EVENTS = {
   },
   'project:import': {
     from: ['ProjectSelector.tsx:117'],
-    to: ['App.tsx:437'],
+    to: ['useCanvasEventSubscriptions.ts:66'],
     payload: '{}',
     note: '导入按钮 → App 处理文件（App.tsx:437 标准 subscribe 承接，已核对，D5）。生产使用',
   },
   'project:export': {
     from: ['ProjectSelector.tsx:121'],
-    to: ['App.tsx:438'],
+    to: ['useCanvasEventSubscriptions.ts:67'],
     payload: '{}',
-    note: '导出按钮 → App 下载。生产使用',
+    note: '导出按钮 → useCanvasEventSubscriptions 下载。生产使用',
   },
   'persist:failed': {
     from: ['storageAdapter.ts:31'],
-    to: ['App.tsx:500'], // 全局监听器，节流 toast；分发逻辑收敛到 persistFailureBus
+    to: ['useCanvasEventSubscriptions.ts:102'], // 全局监听器，节流 toast；分发逻辑收敛到 persistFailureBus
     payload: '{ key, error }',
-    note: '持久化失败广播（sSet/sRemove 失败）。已由 App.tsx 全局订阅',
+    note: '持久化失败广播（sSet/sRemove 失败）。已由 useCanvasEventSubscriptions 全局订阅',
   },
 }
 
@@ -207,7 +207,7 @@ export const STORAGE_KEYS: Record<string, StorageKeyMeta> = {
     domain: 'settings',
     store: 'appSettings.ts',
     backend: 'local',
-    note: '应用设置：{ performanceMode, minimapOn, agentOpen, thumbnailOn }——整键随云端同步',
+    note: '应用设置：{ thumbnailOn, minimapOn, agentOpen, performanceMode, debugOn, pinnedTools }——整键随云端同步（手工 note，改动 settingRegistry 须同步，防漂移）',
   },
   scriptbox_playbooks: {
     domain: 'settings',
@@ -633,15 +633,15 @@ export const apiRegistry = {
   deleteResource:        { fn: 'localToolApi.deleteResource',        method: 'POST',   path: '/api/resources/delete',       envelope: 'code-data', status: 'ACTIVE' },
   saveResource:          { fn: 'localToolApi.saveResource',          method: 'POST',   path: '/api/resources/save',         envelope: 'code-data', status: 'ACTIVE' },
   renameResource:        { fn: 'localToolApi.renameResource',        method: 'POST',   path: '/api/resources/rename',       envelope: 'code-data', status: 'ACTIVE' },
-  /** files 域（stream 豁免 / 组件散落） */
-  openLocalFolder:       { fn: 'localToolApi.openLocalFolder',       method: 'GET',    path: '/api/files/open',             envelope: 'code-data', status: 'ACTIVE' },
-  openFileDir:           { fn: 'localToolApi.openFileDir',           method: 'GET',    path: '/api/files/open-dir',         envelope: 'code-data', status: 'ACTIVE' },
-  uploadFile:            { fn: 'localToolApi.uploadFile',            method: 'POST',   path: '/api/files/upload',           envelope: 'code-data', status: 'ACTIVE' },
-  createFolder:          { fn: 'localToolApi.createFolder',          method: 'POST',   path: '/api/files/mkdir',            envelope: 'code-data', status: 'ACTIVE' },
+  /** files 域（stream 豁免 / 组件散落；候选 C 2026-09-04：文件域成员已从 localToolApi 迁往 filesApi，fn 模块名同步） */
+  openLocalFolder:       { fn: 'filesApi.openLocalFolder',            method: 'GET',    path: '/api/files/open',             envelope: 'code-data', status: 'ACTIVE' },
+  openFileDir:           { fn: 'filesApi.openFileDir',                method: 'GET',    path: '/api/files/open-dir',         envelope: 'code-data', status: 'ACTIVE' },
+  uploadFile:            { fn: 'filesApi.uploadFileToLocal',        method: 'POST',   path: '/api/files/upload',           envelope: 'code-data', status: 'ACTIVE' },
+  createFolder:          { fn: 'filesApi.createFolder',              method: 'POST',   path: '/api/files/mkdir',            envelope: 'code-data', status: 'ACTIVE' },
   /** 2026-09-04（103 §4.2）：原登记 filesApi.read 为幽灵（filesApi 无 read 导出，且前端零消费）→ 改 RESERVED */
   fileRead:              { fn: '(前端零消费·原登记 filesApi.read 幽灵)', method: 'GET',    path: '/api/files/read',             envelope: 'stream',   status: 'RESERVED' },
   fileThumbnail:         { fn: 'API_ENDPOINTS.fileThumbnail',        method: 'GET',    path: '/api/files/thumbnail',        envelope: 'stream',   status: 'ACTIVE' },
-  filesMove:             { fn: 'localToolApi.moveFile',              method: 'POST',   path: '/api/files/move',             envelope: 'code-data', status: 'ACTIVE' },
+  filesMove:             { fn: 'filesApi.moveFile',                   method: 'POST',   path: '/api/files/move',             envelope: 'code-data', status: 'ACTIVE' },
   filesList:             { fn: '(前端零消费·未实现)',                  method: 'GET',    path: '/api/files/list',             envelope: 'code-data', status: 'RESERVED' },
   /** kv 域（raw 豁免：裸 null/裸值） */
   kvGet:                 { fn: 'localToolApi.kvGet',                 method: 'GET',    path: '/api/kv/get',                 envelope: 'raw',      status: 'ACTIVE' },

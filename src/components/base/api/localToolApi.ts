@@ -7,7 +7,9 @@
  *  - encodeURIComponent / JSON.stringify POST 样板收口；
  *  - 新增 localTool 端点只需在本文件加 1 个函数，不再开新薄壳文件。
  *
- * 【边界】filesApi.js 是深模块（sha1 去重 / dataURL↔Blob / blob: 短路），不并入。
+ * 【边界】filesApi 是本项目【全站文件域单点】（落盘 + move/mkdir/open/open-dir + 纯函数），
+ *   候选 C（2026-09-04）已把本模块散落的文件域成员全部迁往 filesApi；本模块不再持有文件域
+ *   （只剩 fileOpResult 这类返回类型已随迁），保证「文件域只在 filesApi」属实。
  *  kvStore.js 已折叠为纯 re-export 壳（2026-09-04）：storageGet/Set/Delete 分流外壳已收口进
  *  contentStore 的 writeKvWithFallback/readKvWithFallback/deleteKvWithFallback，不再存于 kvStore。
  *  本文件仍是 kv 三层件（kvGet/kvSet/kvDelete）的唯一实现来源，contentStore 直接 import 它们。
@@ -18,7 +20,6 @@
  */
 import { httpRequest, httpPost } from './httpClient.ts'
 import { API_BASE } from '../core/config.ts'
-import { UPLOAD_DIRS } from '../utils/uploadDirs.ts'
 
 /**
  * GET /api/resources 返回的单条资源（后端报文，字段一律可选）。
@@ -74,21 +75,7 @@ export interface TaskListItem {
   resultUrl?: string
   [key: string]: unknown
 }
-/** GET /api/files/open* 响应内层。 */
-export interface OpenPathData {
-  path: string
-}
-/** POST /api/files/move|mkdir 响应。 */
-export interface FileOpResult {
-  code: number
-}
-/** POST /api/files/upload 响应内层。 */
-export interface UploadData {
-  url: string
-  path: string
-  thumbnailUrl?: string
-}
-
+/** 候选 C：文件域类型 OpenPathData/FileOpResult 已随文件域成员一并迁至 filesApi.ts（文件域单点）。 */
 // ─────────────────────────── tasks ───────────────────────────
 // GET /api/tasks?page&pageSize&keyword → { items, total }
 export async function fetchTasks({ page = 1, pageSize = 200, keyword = '' }: { page?: number; pageSize?: number; keyword?: string } = {}): Promise<ApiEnvelope<PagedResult<TaskListItem>>> {
@@ -192,29 +179,9 @@ export async function saveResource(resource: unknown): Promise<ApiEnvelope<OkRes
   })
 }
 
-// POST /api/resources/rename?id=...&name=... → { data:{ id,url,name } }（重命名后回写资源）
+// GET /api/resources/rename?id=...&name=... → { data:{ id,url,name } }（重命名后回写资源）
 export async function renameResource(id: string, name: string): Promise<ApiEnvelope<ResourceItem>> {
   return httpPost(`${API_BASE}/api/resources/rename?id=${encodeURIComponent(id)}&name=${encodeURIComponent(name)}`, null, { label: 'renameResource' })
-}
-
-// GET /api/files/open?subfolder=... → { path }
-export async function openLocalFolder(subfolder?: string): Promise<ApiEnvelope<OpenPathData>> {
-  return httpRequest(`${API_BASE}/api/files/open?subfolder=${encodeURIComponent(subfolder || 'tasks')}`, { label: 'openLocalFolder' })
-}
-
-// GET /api/files/open-dir?filepath=... → { path }；空路径短路
-export async function openFileDir(filepath: string): Promise<ApiEnvelope<OpenPathData> | undefined> {
-  if (!filepath) return
-  return httpRequest(`${API_BASE}/api/files/open-dir?filepath=${encodeURIComponent(filepath)}`, { label: 'openFileDir' })
-}
-
-/** 从资源的 18080 url 解析出相对路径（去 /files/ 前缀），供 open-dir 用。纯函数，非转发。 */
-export function relativePathFromUrl(url: string): string | null {
-  try {
-    return decodeURIComponent(new URL(url).pathname).replace(/^\/files\//, '')
-  } catch {
-    return null
-  }
 }
 
 // ─────────────────────────── providers（供应商管理）───────────────────────────
@@ -262,57 +229,7 @@ export async function kvDelete(key: string): Promise<OkResult> {
   return httpRequest(`${API_BASE}/api/kv/delete?key=${encodeURIComponent(key)}`, { method: 'POST', label: 'kvDelete' })
 }
 
-// ─────────────────────────── files（散落点收口）───────────────────────────
-// ── 资源移动（移动到文件夹归类）───────────────────────────
-// POST /api/files/move { src, dst } → { code:0, data:{ ok:true } }
-// src/dst 均为「相对 uploadDir」路径（后端拼 getUploadDir，口径同 createFolder/mkdir）。
-// 移动是即时操作，不重试（成功但响应超时的重试会撞「src 已不存在」404）。
-export async function moveFile(src: string, dst: string): Promise<FileOpResult> {
-  return httpRequest(`${API_BASE}/api/files/move`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ src, dst }),
-    retries: 0,
-    label: 'moveFile',
-  })
-}
-
-// 是否可移动到文件夹：仅本地文件型资源（local-tool）可移动；文件夹 / 远程 / 收藏类不提供移动入口。
-// 纯函数，供拖拽移动到文件夹（useAssetMoveToFolder）+ 单测。禁止在组件里手写 source/type 判断。
-export function canMoveAsset(item: { source?: string; type?: string } = {}): boolean {
-  return item.source === 'local-tool' && item.type !== 'folder'
-}
-
-// 由资源项 + 目标目录（相对 uploadDir）推导移动的 src/dst，并判断是否同目录。
-// - src  = folder ? folder/name : name（folder 为 rescan 记录的相对路径，可为空/undefined 顶层）
-// - dst  = targetFolderRel/name
-// - sameDir = (folder||'') === targetFolderRel（落点与源同目录 → 调用方忽略/提示）
-// 纯函数，供拖拽移动到文件夹（useAssetMoveToFolder）+ 单测；禁止各 tab 各自拼路径。
-export function resolveMovePaths(item: { folder?: unknown; name?: unknown } = {}, targetFolderRel = ''): { src: string; dst: string; sameDir: boolean } {
-  const srcFolder = item.folder ? String(item.folder) : ''
-  const src = srcFolder ? `${srcFolder}/${item.name}` : String(item.name || '')
-  const dst = targetFolderRel ? `${targetFolderRel}/${item.name}` : String(item.name || '')
-  return { src, dst, sameDir: srcFolder === (targetFolderRel || '') }
-}
-
-// POST /api/files/mkdir { folder } → { code:0, data:{ ok:true } }
-// 收口 GeneratedView/AssetLibrary 此前裸拼 `/api/files/mkdir` 的 createFolder 散落点。
-export async function createFolder(folder: string): Promise<FileOpResult> {
-  return httpRequest(`${API_BASE}/api/files/mkdir`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ folder }),
-    retries: 0, // mkdir 是 UI 即时操作，不重试
-    label: 'createFolder',
-  })
-}
-
-// POST /api/files/upload multipart(file+subfolder=...) → { code:0, data:{ url, path, thumbnailUrl } }
-// 收口 AssetLibrary 此前裸拼 `/api/files/upload` 的上传散落点；filesApi 深模块的
-// sha1 去重 / dataURL↔Blob / blob: 短路逻辑留在 filesApi（本模块只收口纯透传 multipart）。
-export async function uploadFile(file: File | Blob, subfolder?: string, filename?: string): Promise<ApiEnvelope<UploadData>> {
-  const fd = new FormData()
-  fd.append('file', file, filename || (file as File).name || 'upload')
-  fd.append('subfolder', subfolder || UPLOAD_DIRS.migrated)
-  return httpRequest(`${API_BASE}/api/files/upload`, { method: 'POST', body: fd, retries: 0, label: 'uploadFile' })
-}
+// ─────────────────────────── files 域（候选 C 已移出 → filesApi）───────────────────────────
+// 文件域成员（openLocalFolder/openFileDir/relativePathFromUrl/moveFile/canMoveAsset/
+// resolveMovePaths/createFolder + OpenPathData/FileOpResult）已随候选 C 收口到 filesApi.ts
+// （全站文件域单点）。本模块不再持有文件域逻辑，保持纯 CRUD + kv + providers。

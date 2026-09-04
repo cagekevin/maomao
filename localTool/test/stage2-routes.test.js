@@ -459,6 +459,51 @@ test('[index] 默认端口 18080', () => {
 });
 
 // ════════════════════════════════════════════════════════════════════════
+// routes/files.ts —— upload dataUri 分支（deepening-files-upload-seam 候选 B）
+// saveInlineToLocal 已收口为「透传 base64 原文 + 子目录」，落盘统一走
+// saveBase64ToFile（sha1(base64原文)前16位幂等 + isValidBase64 严格校验）。
+// ════════════════════════════════════════════════════════════════════════
+const { handleUpload } = await importSrc(path.join('routes', 'files.ts'));
+
+// 1x1 透明 PNG（合法 base64）
+const TINY_PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
+const uploadBase = `http://127.0.0.1:${Number(process.env.PORT) || 18080}/files`;
+
+test('[files/dataUri] 合法 dataUri + subfolder → 200 + 落盘 /files/tasks/<hash>.png', async () => {
+  const res = makeRes();
+  await handleUpload(makeJsonReq({ dataUri: TINY_PNG, subfolder: 'tasks' }), res);
+  const body = parseResBody(res);
+  assert.equal(res.status, 200);
+  assert.equal(body.code, 0);
+  const url = body.data.url;
+  assert.ok(url.startsWith(`${uploadBase}/tasks/`), 'URL 应落 tasks 子目录，实际: ' + url);
+  assert.ok(url.endsWith('.png'), '扩展名应为 .png，实际: ' + url);
+  const name = url.split('/').pop();
+  assert.equal(name.length, 16 + 4, '文件名应为 sha1 前16位 + .png');
+  assert.ok(fs.existsSync(path.join(TEST_DIR, 'uploads', 'tasks', name)), '文件应真实落盘');
+});
+
+test('[files/dataUri] 幂等：同一 dataUri 二次上传返回同一 URL（不重复落盘）', async () => {
+  const a = makeRes(); await handleUpload(makeJsonReq({ dataUri: TINY_PNG, subfolder: 'tasks' }), a);
+  const b = makeRes(); await handleUpload(makeJsonReq({ dataUri: TINY_PNG, subfolder: 'tasks' }), b);
+  assert.equal(parseResBody(a).data.url, parseResBody(b).data.url, 'sha1 幂等 → 同 URL');
+});
+
+test('[files/dataUri] 子目录缺省回退 canvas / 嵌套目录合法', async () => {
+  const res = makeRes();
+  await handleUpload(makeJsonReq({ dataUri: TINY_PNG }), res);
+  const url = parseResBody(res).data.url;
+  assert.ok(url.startsWith(`${uploadBase}/canvas/`), '缺省应落 canvas，实际: ' + url);
+});
+
+test('[files/dataUri] 非法 base64 → 400（Node 宽容解码被 isValidBase64 拦截，杜绝落盘损坏文件）', async () => {
+  const res = makeRes();
+  await handleUpload(makeJsonReq({ dataUri: 'data:image/png;base64,@@invalid@@' }), res);
+  assert.equal(res.status, 400);
+  assert.match(parseResBody(res).error, /Invalid dataUri/);
+});
+
+// ════════════════════════════════════════════════════════════════════════
 // routes/generate.ts —— 统一生成入口（Step 6：/api/relay 并入，chat 同步快路径）
 // ════════════════════════════════════════════════════════════════════════
 const { handleGenerateSubmit } = await importSrc(path.join('routes', 'generate.ts'));

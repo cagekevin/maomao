@@ -42,16 +42,17 @@ import {
   type CropContext,
 } from '../utils/localPatchOps.js';
 import { json, parseJsonBody, sendError } from '../utils/helpers.js';
+import { logTs } from '../utils/relayHeaders.js';
+import { localToolBaseUrl } from '../utils/localToolBaseUrl.js';
 
-const PORT = Number(process.env.PORT) || 18080;
-const BASE_URL = `http://127.0.0.1:${PORT}`;
+const BASE_URL = localToolBaseUrl();
 
 /** 局部提取与图像融合产物落盘目录（local-patch 子目录，docs/19 §2.2）。 */
 const OUTPUT_SUBFOLDER = 'local-patch';
 
 /** 留痕日志（对齐 files.ts 的 [upload]/[download] 风格，供「图丢了」溯源）。 */
 const patchLog = (status: number, msg: string) =>
-  console.log(`[local-patch] ${new Date().toISOString().replace('T', ' ').slice(0, 19)} | ${status} | ${msg}`);
+  console.log(`[local-patch] ${logTs()} | ${status} | ${msg}`);
 
 /**
  * 源 URL → 磁盘绝对路径。

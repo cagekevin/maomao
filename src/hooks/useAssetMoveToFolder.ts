@@ -61,7 +61,7 @@ function moveTargetDirOf(folderCard: AssetMoveItem): string {
  * 不同（x-yimao-move / x-yimao-asset），互不冲突。切勿只挂 sourceDragProps：那样拖到画布时
  * 画布认不出素材，会把素材的本地 URL 当成网页图再下载一份落进 uploads/web（d7ac136 回归）。
  *
- * 直接复用 localToolApi 的 canMoveAsset / resolveMovePaths / moveFile，遵守同一套相对路径与边界契约。
+ * 直接复用 filesApi（候选 C 后文件域单点）的 canMoveAsset / resolveMovePaths / moveFile，遵守同一套相对路径与边界契约。
  */
 export function useAssetMoveToFolder({ connected, onRefreshed }: AssetMoveToFolderOptions): {
   sourceDragProps: (item: AssetMoveItem) => Partial<AssetDragSourceProps>

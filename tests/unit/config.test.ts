@@ -44,7 +44,6 @@ describe('config — 默认值契约（无 env）', () => {
 
   it('超时/轮询/并发默认值', async () => {
     const c = await loadConfig()
-    expect(c.HTTP_DEFAULT_TIMEOUT).toBe(15000)
     expect(c.LOCAL_TOOL_PING_TIMEOUT).toBe(5000)
     expect(c.IMAGE_FETCH_TIMEOUT).toBe(10000)
     expect(c.IMAGE_LOAD_TIMEOUT).toBe(10000)

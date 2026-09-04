@@ -9,6 +9,7 @@ import { getDb, getUploadDir, queryAll, queryOne, run, debouncedSaveDb, rewriteU
 import { json, parseJsonBody, sendError, HttpStatusError, parsePagination, buildPaginatedQuery, paginatedResult } from '../utils/helpers.js';
 import { writeUploadBuffer, ensureDir, resolveUploadFile } from '../utils/fileStore.js';
 import { runReferenceGc } from '../utils/orphanGc.js';
+import { localToolBaseUrl } from '../utils/localToolBaseUrl.js';
 
 // ── rescan：扫描 upload 目录，把磁盘文件/文件夹元数据同步进 resources 表 ──
 const RESCAN_FILE_TYPE: Record<string, string> = {
@@ -58,7 +59,9 @@ function decodeDataUrl(dataUrl: string): { buffer: Buffer; ext: string } | null 
 // 本地工具服务基址：资源面板运行在 chrome-extension:// 页面，
 // 直接 <img src="/files/..."> 会被解析成 chrome-extension://.../files/... → 404 破图。
 // 因此 rescan 入库的 url 必须补全为可访问的完整地址。
-const LOCAL_TOOL_BASE = 'http://127.0.0.1:18080';
+// 更新(2026-09-04)：基址改读 PORT（默认 18080），消除原硬编码 `:18080` 忽略 PORT 的弊病
+// （见 utils/localToolBaseUrl.ts / Temp/deepening-localtool-baseurl-seam-20260904.md）。
+const LOCAL_TOOL_BASE = localToolBaseUrl();
 function toAbsoluteFileUrl(relativePath: string): string {
   if (!relativePath) return relativePath;
   if (/^https?:\/\//i.test(relativePath)) return relativePath;

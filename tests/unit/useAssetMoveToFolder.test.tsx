@@ -18,7 +18,7 @@ const mocks = vi.hoisted(() => ({
   clearEvent: vi.fn(),
 }))
 
-vi.mock('../../src/components/base/api/localToolApi.ts', async (importOriginal) => {
+vi.mock('../../src/components/base/api/filesApi.ts', async (importOriginal) => {
   // importOriginal 返回 unknown，直接 spread 会报 TS2698
   const actual = (await importOriginal()) as Record<string, unknown>
   return { ...actual, moveFile: mocks.moveFile }
