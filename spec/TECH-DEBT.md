@@ -118,3 +118,17 @@
 
 - 登记于：2026-09-04 · 来源：系统治理（全身体检 Step 1）
 
+### \[TD-7] `STORAGE_KEYS.backend` 三态（local/kv/native）无法表达「KV 主通道 + localStorage 降级副本 + 独立超时」形态
+
+- 状态：待处理
+
+- 现象：`d3dPersistence.ts` 无法走 `contentStore`，必须绕过（裸调 `kvGet/kvSet` 带独立 `KV_TIMEOUT` + `sGet/sSet` 降级副本）。`contentStore` 内建的 `writeKvWithFallback` 无独立超时、且 P2-F1 成功后清副本——与 d3d 的「双通道」形态语义冲突。
+
+- 根因：`STORAGE_KEYS.backend` 枚举三态只表达了「落哪个后端」，表达不了 d3d 这种「KV 主通道 + local 降级副本 + 独立超时」的组合形态。
+
+- 为何现在不动：d3d 单点形态已有文件头注释明示「降级落点统一是有意为之」，不阻塞任何运行时；让登记表支持该形态属登记模型扩展，需另立决策。
+
+- 建议处理时机：登记表引入第四态，或为 entry 支持 `fallback`/`timeout` 字段时，把 d3dPersistence 收编进 contentStore，消除裸调点。
+
+- 登记于：2026-09-04 · 来源：存储板块中间层折叠（storage-fold，方案 §3.Phase 3）
+

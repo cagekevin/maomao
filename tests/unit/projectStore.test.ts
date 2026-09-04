@@ -20,17 +20,19 @@ import {
 const mem = new Map()
 // fetchProjects 返回可变 payload（供 initProjects 回退链测试注入后端响应）
 const projectsPayload = { projects: [], lastOpened: '' }
-vi.mock('../../src/components/base/storage/kvStore.ts', () => ({
-  storageGet: vi.fn(async (k) => (mem.has(k) ? mem.get(k) : null)),
-  storageSet: vi.fn(async (k, v) => { mem.set(k, v) }),
-  storageDelete: vi.fn(async (k) => { mem.delete(k) }),
-  kvGet: vi.fn(async (k) => (mem.has(k) ? mem.get(k) : null)),
-  kvSet: vi.fn(async (k, v) => { mem.set(k, v) }),
-  CANVAS_STATE_PREFIX: 'canvas-state-v1-',
-}))
+// 2026-09-04 中间层折叠：contentStore 不再 import kvStore 的 storageGet/Set/Delete，而是直接调
+// localToolApi 的 kvGet/kvSet/kvDelete → 三件套必须并进 localToolApi mock（原 kvStore mock 迁移来）。
+// kvStore mock 瘦身为只剩 CANVAS_STATE_PREFIX（projectStore 仍经 storage/index 引它）。
 vi.mock('../../src/components/base/api/localToolApi.ts', () => ({
   fetchProjects: vi.fn(async () => ({ data: { ...projectsPayload } })),
   saveProjects: vi.fn(async () => ({ ok: true })),
+  // ↓ 自原 kvStore mock(:24-29) 迁来：折叠后 contentStore 直接调这三个
+  kvGet: vi.fn(async (k) => (mem.has(k) ? mem.get(k) : null)),
+  kvSet: vi.fn(async (k, v) => { mem.set(k, v) }),
+  kvDelete: vi.fn(async (k) => { mem.delete(k) }),
+}))
+vi.mock('../../src/components/base/storage/kvStore.ts', () => ({
+  CANVAS_STATE_PREFIX: 'canvas-state-v1-',
 }))
 
 // 每例前重置内存态 + 清存储，再清掉上例可能残留的 debounce 定时器（300ms 落盘节流）。

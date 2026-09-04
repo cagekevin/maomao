@@ -8,8 +8,7 @@
  * 【存储】内置 skill（代码常量）+ 用户自定义（localStorage，key=agent_skills）。
  *  - 内置 skill 始终存在；用户自定义可增删。
  */
-import { contentGet, contentSet } from '../core/contentStore.ts'
-import { sGet } from '../storage/index.ts'
+import { contentGet, contentSet, contentReadThrough } from '../core/contentStore.ts'
 import { logger } from '../core/logger.ts'
 
 /** Skill 结构（对齐大雄 builtin_skills：name/description 供 UI，content 无损注入 LLM） */
@@ -193,7 +192,8 @@ export function saveCustomSkills(list: Skill[]): { ok: boolean; error?: string }
     return { ok: false, error: e?.message || String(e) }
   }
   // 落盘确认：比对持久化后的真值，防止「以为存上了其实没存上」
-  const raw = sGet(SKILLS_KEY)
+  // 2026-09-04 折叠治理：裸调 sGet 改走 contentReadThrough（同一「跳过缓存直读底层」语义，收口裸调点）
+  const raw = contentReadThrough(SKILLS_KEY)
   if (raw === null) {
     // 空列表且未存过时属于正常（无数据可存）
     if (payload.length === 0) return { ok: true }

@@ -28,16 +28,14 @@ vi.mock('../../src/components/base/api/localToolApi.ts', () => ({
     saveProviders: (...a) => h.mockSaveProviders(...a),
     syncConfigBase: (...a) => h.mockSyncConfigBase(...a),
   },
+  // 2026-09-04 中间层折叠：contentStore 直接调 localToolApi 的 kv 三件套。
+  // kvSet 断言钩子自原 kvStore mock 的 storageSet 迁来（providerStore 落盘走 contentSet → writeKvWithFallback → kvSet）。
+  kvGet: vi.fn(),
+  kvSet: (...a) => h.mockKvSet(...a),
+  kvDelete: vi.fn(),
 }))
 vi.mock('../../src/components/base/storage/kvStore.ts', () => ({
-  storageGet: vi.fn(),
-  storageSet: (...a) => h.mockKvSet(...a),
-  storageDelete: vi.fn(),
-  isKvKey: vi.fn(() => false),
   CANVAS_STATE_PREFIX: 'canvas-state-v1-',
-  kvGet: vi.fn(),
-  kvSet: vi.fn(),
-  kvDelete: vi.fn(),
 }))
 
 

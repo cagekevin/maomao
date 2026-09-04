@@ -3,18 +3,19 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 // ── Mock 依赖（vi.hoisted 确保变量提升到 vi.mock 之前） ────────────
 
-const { mockStorageAdapter, mockKvStore, mockLogger } = vi.hoisted(() => {
+const { mockStorageAdapter, mockLocalToolApi, mockLogger } = vi.hoisted(() => {
   return {
     mockStorageAdapter: {
       sGet: vi.fn(),
       sSet: vi.fn(),
       sRemove: vi.fn(),
     },
-    mockKvStore: {
-      storageGet: vi.fn(),
-      storageSet: vi.fn(),
-      storageDelete: vi.fn(),
-      isKvKey: vi.fn(),
+    // 2026-09-04 中间层折叠后 contentStore 不再 import kvStore，directly 调 localToolApi 的 kv 三件套。
+    // 工厂整体替换：缺任一符号即 undefined 崩溃，故三件套必须齐。
+    mockLocalToolApi: {
+      kvGet: vi.fn(async () => null),
+      kvSet: vi.fn(async () => ({ ok: true })),
+      kvDelete: vi.fn(async () => ({ ok: true })),
     },
     mockLogger: {
       logger: {
@@ -28,7 +29,7 @@ const { mockStorageAdapter, mockKvStore, mockLogger } = vi.hoisted(() => {
 })
 
 vi.mock('../../src/components/base/storage/storageAdapter.ts', () => mockStorageAdapter)
-vi.mock('../../src/components/base/storage/kvStore.ts', () => mockKvStore)
+vi.mock('../../src/components/base/api/localToolApi.ts', () => mockLocalToolApi)
 vi.mock('../../src/components/base/core/logger.ts', () => mockLogger)
 
 // 防 logger 被 NODE_ENV 条件影响
@@ -41,7 +42,7 @@ import {
   contentGetAsync, contentSetAsync, contentDeleteAsync,
   contentSubscribe, contentSubscribeAll,
   contentGetSnapshot, contentGetKeySnapshot,
-  contentClearCache, contentStats,
+  contentClearCache, contentStats, contentReadThrough,
 } from '../../src/components/base/core/contentStore.ts'
 
 import { STORAGE_KEYS } from '../../src/components/base/core/contracts.ts'
@@ -53,8 +54,6 @@ import { STORAGE_KEYS } from '../../src/components/base/core/contracts.ts'
 beforeEach(() => {
   vi.clearAllMocks()
   contentClearCache()
-  // 默认 isKvKey 返回 false
-  mockKvStore.isKvKey.mockReturnValue(false)
   // 默认 sGet 返回 null（不存在）
   mockStorageAdapter.sGet.mockReturnValue(null)
 })
@@ -169,52 +168,123 @@ describe('KV 键路由', () => {
   const KV_KEY = 'canvas-state-v1-test-project'
   const KV_VALUE = { nodes: [], edges: [] }
 
+  // 路由由 resolveBackend 读真实 STORAGE_KEYS 决定（canvas-state-v1-{projectId} pattern 登记为 kv），
+  // 不再由 mock 注入 isKvKey（2026-09-04 折叠）。这里只预设 kv 底层返回值。
   beforeEach(() => {
-    mockKvStore.isKvKey.mockReturnValue(true)
-    // 模拟 KV 存储返回
-    mockKvStore.storageGet.mockResolvedValue(KV_VALUE)
-    mockKvStore.storageSet.mockResolvedValue({ ok: true })
-    mockKvStore.storageDelete.mockResolvedValue({ ok: true })
+    mockLocalToolApi.kvGet.mockResolvedValue(KV_VALUE)
+    mockLocalToolApi.kvSet.mockResolvedValue({ ok: true })
+    mockLocalToolApi.kvDelete.mockResolvedValue({ ok: true })
   })
 
-  it('contentGetAsync 对 KV 键走 storageGet', async () => {
+  it('contentGetAsync 对 KV 键走 kvGet', async () => {
     const result = await contentGetAsync(KV_KEY)
-    expect(mockKvStore.storageGet).toHaveBeenCalledWith(KV_KEY)
+    expect(mockLocalToolApi.kvGet).toHaveBeenCalledWith(KV_KEY)
     expect(result).toEqual(KV_VALUE)
   })
 
-  it('contentSetAsync 对 KV 键走 storageSet', async () => {
+  it('contentSetAsync 对 KV 键走 kvSet', async () => {
     await contentSetAsync(KV_KEY, KV_VALUE)
-    expect(mockKvStore.storageSet).toHaveBeenCalledWith(KV_KEY, KV_VALUE)
+    expect(mockLocalToolApi.kvSet).toHaveBeenCalledWith(KV_KEY, KV_VALUE)
   })
 
-  it('contentDeleteAsync 对 KV 键走 storageDelete', async () => {
+  it('contentDeleteAsync 对 KV 键走 kvDelete', async () => {
     await contentDeleteAsync(KV_KEY)
-    expect(mockKvStore.storageDelete).toHaveBeenCalledWith(KV_KEY)
+    expect(mockLocalToolApi.kvDelete).toHaveBeenCalledWith(KV_KEY)
   })
 
   it('contentGet 对 KV 键（未缓存）返回 undefined', () => {
     expect(contentGet(KV_KEY)).toBeUndefined()
-    // 不应调 sGet 也不应调 storageGet（同步 API 不做网络请求）
+    // 不应调 sGet 也不应调 kvGet（同步 API 不做网络请求）
     expect(mockStorageAdapter.sGet).not.toHaveBeenCalled()
-    expect(mockKvStore.storageGet).not.toHaveBeenCalled()
+    expect(mockLocalToolApi.kvGet).not.toHaveBeenCalled()
   })
 
-  it('contentSet 对 KV 键 fire-and-forget 写 storageSet', async () => {
+  it('contentSet 对 KV 键 fire-and-forget 写 kvSet', async () => {
     contentSet(KV_KEY, KV_VALUE)
-    expect(mockKvStore.storageSet).toHaveBeenCalledWith(KV_KEY, KV_VALUE)
+    await Promise.resolve()
+    expect(mockLocalToolApi.kvSet).toHaveBeenCalledWith(KV_KEY, KV_VALUE)
     // 不会调 sSet
     expect(mockStorageAdapter.sSet).not.toHaveBeenCalled()
   })
 
   it('contentDelete 对 KV 键 fire-and-forget', async () => {
     contentDelete(KV_KEY)
-    expect(mockKvStore.storageDelete).toHaveBeenCalledWith(KV_KEY)
+    await Promise.resolve()
+    expect(mockLocalToolApi.kvDelete).toHaveBeenCalledWith(KV_KEY)
     expect(mockStorageAdapter.sRemove).not.toHaveBeenCalled()
   })
 
   it('contentHas 对 KV 键（未缓存）返回 false', () => {
     expect(contentHas(KV_KEY)).toBe(false)
+  })
+})
+
+/* ════════════════════════════════════════════════════════════════
+ * 折叠回归（2026-09-04 中间层折叠）：KV 降级行为/路由只判 1 次/native
+ * ════════════════════════════════════════════════════════════════ */
+
+describe('折叠回归（KV 降级 / 路由 / native）', () => {
+  const KV_KEY = 'canvas-state-v1-test-project'
+  const KV_VALUE = { nodes: [], edges: [] }
+
+  // clearAllMocks 只清调用不清实现（mockRejectedValue 会跨用例残留），故在此统一重置 kv 三件套为成功默认。
+  beforeEach(() => {
+    mockLocalToolApi.kvGet.mockResolvedValue(KV_VALUE)
+    mockLocalToolApi.kvSet.mockResolvedValue({ ok: true })
+    mockLocalToolApi.kvDelete.mockResolvedValue({ ok: true })
+  })
+
+  it('路由只判 1 次（kvGet 仅触发 1 次，不重复遍历登记表）', async () => {
+    mockLocalToolApi.kvGet.mockResolvedValue(KV_VALUE)
+    await contentGetAsync(KV_KEY)
+    expect(mockLocalToolApi.kvGet).toHaveBeenCalledTimes(1)
+  })
+
+  it('KV 写失败 → 降级写本地副本 + reportDegrade（layer 保留 kvStore）', async () => {
+    mockLocalToolApi.kvSet.mockRejectedValue(new Error('kv down'))
+    await contentSetAsync(KV_KEY, KV_VALUE)
+    expect(mockStorageAdapter.sSet).toHaveBeenCalledWith(KV_KEY, JSON.stringify(KV_VALUE))
+    // reportDegrade 内部走 logger.warn(layer='kvStore', '降级: ${key}', e)（degrade.ts:43）
+    expect(mockLogger.logger.warn).toHaveBeenCalledWith('kvStore', expect.stringContaining(KV_KEY), expect.anything())
+  })
+
+  it('KV 写成功 → sRemove 清历史降级副本（P2-F1，防旧值复活）', async () => {
+    // kvSet 默认 mock resolve({ ok:true })，KV 成功路径
+    await contentSetAsync(KV_KEY, KV_VALUE)
+    expect(mockLocalToolApi.kvSet).toHaveBeenCalledWith(KV_KEY, KV_VALUE)
+    expect(mockStorageAdapter.sRemove).toHaveBeenCalledWith(KV_KEY)
+  })
+
+  it('KV 删成功 → 不清本地副本（A3 回归锁：无条件 sRemove 会改行为）', async () => {
+    // kvDelete 默认 mock resolve({ ok:true })，KV 成功路径
+    await contentDeleteAsync(KV_KEY)
+    expect(mockLocalToolApi.kvDelete).toHaveBeenCalledWith(KV_KEY)
+    expect(mockStorageAdapter.sRemove).not.toHaveBeenCalled()
+  })
+
+  it('KV 删失败 → 清本地降级副本（修 R3，防副本残留）', async () => {
+    mockLocalToolApi.kvDelete.mockRejectedValue(new Error('kv down'))
+    await contentDeleteAsync(KV_KEY)
+    expect(mockStorageAdapter.sRemove).toHaveBeenCalledWith(KV_KEY)
+  })
+
+  it('native 键走 sGet，不触 KV/网络', () => {
+    mockStorageAdapter.sGet.mockReturnValue(JSON.stringify({ a: 1 }))
+    const r = contentGet('director3d-custom-poses')
+    expect(mockStorageAdapter.sGet).toHaveBeenCalledWith('director3d-custom-poses')
+    expect(mockLocalToolApi.kvGet).not.toHaveBeenCalled()
+    expect(r).toEqual({ a: 1 })
+  })
+
+  it('contentReadThrough 写后直读底层真值（绕过缓存，防自证式验证）', () => {
+    mockStorageAdapter.sGet.mockReturnValue(JSON.stringify({ id: 'p1' }))
+    contentSet('projects', [{ id: 'p1' }]) // 写缓存
+    // contentReadThrough 读底层 sGet（非缓存），用于落盘确认类场景
+    expect(contentReadThrough('projects')).toBe(JSON.stringify({ id: 'p1' }))
+  })
+
+  it('contentReadThrough 对 kv 键返回 null（kv 无法同步读）', () => {
+    expect(contentReadThrough('canvas-state-v1-test-project')).toBeNull()
   })
 })
 
@@ -348,13 +418,11 @@ describe('contentClearCache / contentStats', () => {
 
 describe('动态键模式匹配', () => {
   it('contentGet 动态 KV 键不 warning（匹配 pattern）', () => {
-    mockKvStore.isKvKey.mockReturnValue(true)
     contentGet('canvas-state-v1-any-project-id')
     expect(mockLogger.logger.warn).not.toHaveBeenCalled()
   })
 
   it('contentGet 动态 KV 键 + _version 不 warning', () => {
-    mockKvStore.isKvKey.mockReturnValue(true)
     contentGet('canvas-state-v1-any-project-id_version')
     expect(mockLogger.logger.warn).not.toHaveBeenCalled()
   })
@@ -369,30 +437,26 @@ describe('动态键模式匹配', () => {
     expect(mockLogger.logger.warn).not.toHaveBeenCalled()
   })
 
-  it('contentSet 动态 KV 键走 KV 路由', () => {
-    mockKvStore.isKvKey.mockReturnValue(true)
+  it('contentSet 动态 KV 键走 KV 路由', async () => {
     contentSet('canvas-state-v1-proj-999', { nodes: [], edges: [] })
-    expect(mockKvStore.storageSet).toHaveBeenCalled()
+    expect(mockLocalToolApi.kvSet).toHaveBeenCalledWith('canvas-state-v1-proj-999', { nodes: [], edges: [] })
     expect(mockStorageAdapter.sSet).not.toHaveBeenCalled()
   })
 
-  it('contentGetAsync 动态 KV 键走 storageGet', async () => {
-    mockKvStore.isKvKey.mockReturnValue(true)
-    mockKvStore.storageGet.mockResolvedValue({ nodes: [] })
+  it('contentGetAsync 动态 KV 键走 kvGet', async () => {
+    mockLocalToolApi.kvGet.mockResolvedValue({ nodes: [] })
     const result = await contentGetAsync('canvas-state-v1-proj-999')
-    expect(mockKvStore.storageGet).toHaveBeenCalledWith('canvas-state-v1-proj-999')
+    expect(mockLocalToolApi.kvGet).toHaveBeenCalledWith('canvas-state-v1-proj-999')
     expect(result).toEqual({ nodes: [] })
   })
 
-  it('contentDeleteAsync 动态 KV 键走 storageDelete', async () => {
-    mockKvStore.isKvKey.mockReturnValue(true)
-    mockKvStore.storageDelete.mockResolvedValue({ ok: true })
+  it('contentDeleteAsync 动态 KV 键走 kvDelete', async () => {
+    mockLocalToolApi.kvDelete.mockResolvedValue({ ok: true })
     await contentDeleteAsync('canvas-state-v1-proj-999')
-    expect(mockKvStore.storageDelete).toHaveBeenCalledWith('canvas-state-v1-proj-999')
+    expect(mockLocalToolApi.kvDelete).toHaveBeenCalledWith('canvas-state-v1-proj-999')
   })
 
   it('contentHas 动态 KV 键（未缓存）返回 false 且不 warning', () => {
-    mockKvStore.isKvKey.mockReturnValue(true)
     const result = contentHas('canvas-state-v1-proj-999')
     expect(result).toBe(false)
     expect(mockLogger.logger.warn).not.toHaveBeenCalled()

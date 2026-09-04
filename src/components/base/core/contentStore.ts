@@ -30,9 +30,21 @@
  *   2. 把 store 中 sGet/sSet → content.get/set
  *   3. 把 store 中 storageGet/storageSet → content.getAsync/setAsync
  *   4. 批量迁移结束后，删除旧直调代码
+ *
+ * 【2026-09-04 中间层折叠】kvStore 的 storageGet/Set/Delete + isKvKey + tryParse 已折叠进本模块
+ * （转为内部 resolveBackend / writeKvWithFallback / readKvWithFallback / deleteKvWithFallback）。
+ *   原因：实测该层在 src 侧唯一消费者就是本模块，是纯转发中间层；两套路由判定
+ *   （本模块 getBackend + kvStore.isKvKey）互相兜底，属第二份真相。折叠后 Interface
+ *   13 个导出签名逐字不变，391 处调用点零迁移。kvStore.ts 保留为 re-export 壳（CANVAS_STATE_PREFIX + kv 三件套）。
+ *   ⚠️ 有意不收口的 2 处例外（保留裸调 sGet/sSet）：
+ *   - conversationState.ts:406/410 —— 读旧 local 数据做 KV 迁移回读（键已登记 backend:'kv'，走本模块会读 KV → 语义即错）。
+ *   - d3dPersistence.ts:140,154 —— 双通道形态（KV 主通道 + localStorage 降级副本 + 独立 KV_TIMEOUT），本模块无对应能力。
+ *   本模块承载两组职责：缓存/订阅/节流 + KV 降级策略，现不拆。若未来新增第三后端（如 remote），
+ *   建议在文件内另起 `backends/` 小节，而非继续往主流程塞（C3 遗留建议）。
  */
 import { sGet, sSet, sRemove } from '../storage/index.ts'
-import { storageGet, storageSet, storageDelete, isKvKey } from '../storage/index.ts'
+import { kvGet, kvSet, kvDelete } from '../api/localToolApi.ts'
+import { reportDegrade } from '../utils/degrade.ts'
 import { STORAGE_KEYS } from './contracts.ts'
 import type { StorageKeyMeta } from './contracts.ts'
 import { logger } from './logger.ts'
@@ -163,15 +175,34 @@ function checkRegistered(key: string): boolean {
   return false
 }
 
-/** 获取后端类型：local | kv | native（未登记键按 isKvKey 启发式判断） */
-function getBackend(key: string): StorageBackend {
+/**
+ * 键 → 后端路由（全库唯一判定入口，2026-09-04 折叠 kvStore.isKvKey 后）。
+ * 三段式：精确键登记 → pattern 动态模板 → 未登记键启发式兜底。
+ * native 与 local 当前共用本地落地路径（见 contracts.ts「仅 localStorage 直写」），但语义独立保留，勿合并。
+ */
+function resolveBackend(key: string): StorageBackend {
   const entry = KEYS[key]
   if (entry) return entry.backend
-  // 动态键：查找匹配的模式键
+  // 动态键：查找匹配的模式键（首匹配，不看 backend）
   const patternEntry = findPatternEntry(key)
   if (patternEntry) return patternEntry.backend
-  // 未登记键：按 isKvKey 启发式判断
-  return isKvKey(key) ? 'kv' : 'local'
+  // 未登记键：按 isKvPatternKey 启发式判断（原 kvStore.isKvKey 的 pattern 部分）
+  return isKvPatternKey(key) ? 'kv' : 'local'
+}
+
+/**
+ * 未登记键的启发式兜底：命中任一 backend==='kv' 的 pattern 模板即走 KV。
+ * 由 kvStore.isKvKey 折叠而来（其精确键分支在 KEYS[key] 已查过后必不命中，只剩 pattern 扫描，语义等价）。
+ */
+function isKvPatternKey(key: string): boolean {
+  if (typeof key !== 'string' || !key) return false
+  for (const [k, v] of Object.entries(KEYS)) {
+    if (!v.pattern || v.backend !== 'kv') continue
+    try {
+      if (compilePatternRegex(k).test(key)) return true
+    } catch { /* 忽略无效正则模板 */ }
+  }
+  return false
 }
 
 /** 通知所有订阅者 */
@@ -194,9 +225,57 @@ function loadFromLocal(key: string): unknown {
 
 /** 从 KV 加载键到缓存（异步） */
 async function loadFromKv(key: string): Promise<unknown> {
-  const value = await storageGet(key)
+  const value = await readKvWithFallback(key)
   cache.set(key, value)
   return value
+}
+
+// ─────────────────────────────────────────────────────────────────
+// KV 降级统一（2026-09-04 自 kvStore storageGet/Set/Delete 折叠而来，行为逐字保持）
+// ─────────────────────────────────────────────────────────────────
+
+/**
+ * KV 读取 + 降级回读本地副本（自 kvStore.storageGet 折叠而来）。
+ * - KV 失败降级读本地副本（storageSet 曾降级写过的副本读得回，修 R2）。
+ */
+async function readKvWithFallback(key: string): Promise<unknown> {
+  try {
+    return await kvGet(key)
+  } catch (e) {
+    reportDegrade({ layer: 'kvStore', key, e, toast: '本地引擎存储暂不可用，已回退读取本地缓存' })
+    const raw = sGet(key)
+    return raw === null ? null : tryParse(raw)
+  }
+}
+
+/**
+ * KV 写入 + 降级（自 kvStore.storageSet 折叠而来，行为逐字保持）。
+ * - KV 成功后 sRemove 清历史降级副本（P2-F1）：否则 KV 再故障时旧副本"复活"覆盖新值。
+ * - KV 失败降级写 localStorage 并 reportDegrade
+ *   （layer 保留 'kvStore' 字面量：既有日志查询 task-inspect --logs 依赖，勿改）。
+ */
+async function writeKvWithFallback(key: string, value: unknown): Promise<void> {
+  try {
+    await kvSet(key, value)
+    sRemove(key)
+  } catch (e) {
+    sSet(key, typeof value === 'string' ? value : JSON.stringify(value))
+    reportDegrade({ layer: 'kvStore', key, e, toast: '本地引擎存储暂不可用，数据已暂存本地（跨设备同步可能丢失）' })
+  }
+}
+
+/**
+ * KV 删除 + 降级（自 kvStore.storageDelete 折叠而来，行为逐字保持）。
+ * ⚠️ 原语义（kvStore.ts:103-111）：KV 删除【成功即 return，不清本地副本】；
+ *    只有 KV 失败才落到 sRemove 清残留降级副本。
+ *    【禁止】写成 `await kvDelete(key); sRemove(key)` —— 那是无条件删副本，属行为变更（审计 A3 红）。
+ */
+async function deleteKvWithFallback(key: string): Promise<void> {
+  try {
+    await kvDelete(key)
+  } catch {
+    sRemove(key)
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -211,7 +290,7 @@ async function loadFromKv(key: string): Promise<unknown> {
 export function contentGet(key: string): unknown {
   checkRegistered(key)
   if (cache.has(key)) return cache.get(key)
-  const backend = getBackend(key)
+  const backend = resolveBackend(key)
   if (backend === 'kv') {
     // KV 键同步读不到（本地缓存未命中时不做网络请求）
     return undefined
@@ -227,9 +306,9 @@ export function contentGet(key: string): unknown {
 export function contentSet(key: string, value: unknown): void {
   checkRegistered(key)
   cache.set(key, value)
-  const backend = getBackend(key)
+  const backend = resolveBackend(key)
   if (backend === 'kv') {
-    storageSet(key, value).catch((e) => {
+    writeKvWithFallback(key, value).catch((e) => {
       logger.warn(`[contentStore] KV 写入失败 (fire-and-forget): ${key}`, e)
     })
   } else {
@@ -246,9 +325,9 @@ export function contentSet(key: string, value: unknown): void {
 export function contentDelete(key: string): void {
   checkRegistered(key)
   cache.delete(key)
-  const backend = getBackend(key)
+  const backend = resolveBackend(key)
   if (backend === 'kv') {
-    storageDelete(key).catch((e) => {
+    deleteKvWithFallback(key).catch((e) => {
       logger.warn(`[contentStore] KV 删除失败 (fire-and-forget): ${key}`, e)
     })
   } else {
@@ -267,7 +346,7 @@ export function contentHas(key: string): boolean {
     const v = cache.get(key)
     return v !== undefined && v !== null
   }
-  const backend = getBackend(key)
+  const backend = resolveBackend(key)
   if (backend === 'kv') return false // KV 键同步无法确认
   const raw = sGet(key)
   return raw !== null
@@ -280,7 +359,7 @@ export function contentHas(key: string): boolean {
 /** 异步读取键值，总是从后端加载（同时更新缓存）。 */
 export async function contentGetAsync(key: string): Promise<unknown> {
   checkRegistered(key)
-  const backend = getBackend(key)
+  const backend = resolveBackend(key)
   if (backend === 'kv') {
     return loadFromKv(key)
   }
@@ -291,9 +370,9 @@ export async function contentGetAsync(key: string): Promise<unknown> {
 export async function contentSetAsync(key: string, value: unknown): Promise<void> {
   checkRegistered(key)
   cache.set(key, value)
-  const backend = getBackend(key)
+  const backend = resolveBackend(key)
   if (backend === 'kv') {
-    await storageSet(key, value)
+    await writeKvWithFallback(key, value)
   } else {
     sSet(key, typeof value === 'string' ? value : JSON.stringify(value))
   }
@@ -304,13 +383,29 @@ export async function contentSetAsync(key: string, value: unknown): Promise<void
 export async function contentDeleteAsync(key: string): Promise<void> {
   checkRegistered(key)
   cache.delete(key)
-  const backend = getBackend(key)
+  const backend = resolveBackend(key)
   if (backend === 'kv') {
-    await storageDelete(key)
+    await deleteKvWithFallback(key)
   } else {
     sRemove(key)
   }
   notify(key, undefined)
+}
+
+// ─────────────────────────────────────────────────────────────────
+// 跳过缓存直读底层（2026-09-04 折叠治理补 Interface 缺口）
+// ─────────────────────────────────────────────────────────────────
+
+/**
+ * 跳过内存缓存，直读底层存储（按该键登记的后端路由）。
+ * 用途：「落盘确认」等必须验证真实落盘值的场景 —— 经 contentGet 会命中刚写入的缓存，
+ *       验证退化为自证式（恒真），失去意义。
+ * ⚠️ 不更新缓存、不触发订阅通知；同步语义，kv 键无法同步读时返回 null。
+ */
+export function contentReadThrough(key: string): string | null {
+  checkRegistered(key)
+  if (resolveBackend(key) === 'kv') return null   // kv 键无法同步读
+  return sGet(key)
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -356,7 +451,7 @@ export function contentGetSnapshot(): ContentSnapshot {
       const v = cache.get(key)
       if (v !== undefined) snapshot[key] = v
     } else {
-      const backend = getBackend(key)
+      const backend = resolveBackend(key)
       if (backend !== 'kv') {
         // 同步加载 local 键
         const v = loadFromLocal(key)
@@ -370,7 +465,7 @@ export function contentGetSnapshot(): ContentSnapshot {
 /** 获取指定键的不可变快照值。 */
 export function contentGetKeySnapshot(key: string): unknown {
   checkRegistered(key)
-  const backend = getBackend(key)
+  const backend = resolveBackend(key)
   if (cache.has(key)) return Object.freeze(cache.get(key))
   if (backend !== 'kv') {
     const v = loadFromLocal(key)

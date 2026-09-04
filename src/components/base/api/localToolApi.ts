@@ -8,7 +8,9 @@
  *  - 新增 localTool 端点只需在本文件加 1 个函数，不再开新薄壳文件。
  *
  * 【边界】filesApi.js 是深模块（sha1 去重 / dataURL↔Blob / blob: 短路），不并入。
- *  kvStore.js 的 storageGet/Set/Delete 分流外壳（含 localStorage 降级）也留在 kvStore。
+ *  kvStore.js 已折叠为纯 re-export 壳（2026-09-04）：storageGet/Set/Delete 分流外壳已收口进
+ *  contentStore 的 writeKvWithFallback/readKvWithFallback/deleteKvWithFallback，不再存于 kvStore。
+ *  本文件仍是 kv 三层件（kvGet/kvSet/kvDelete）的唯一实现来源，contentStore 直接 import 它们。
  *  本模块只收口「纯 /api/* 透传」的 CRUD + kv 底层。
  *
  * 【传输】一律经 httpClient.httpRequest，继承超时 / 取消 / 错误分类 / 受限重试。
