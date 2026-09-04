@@ -143,16 +143,39 @@ function lovartDirectProfile(baseUrl: string, signal?: AbortSignal, timeoutMs?: 
 // ── 轮询时序默认值（对齐前端 config.ts GEN_TIMEOUT/VIDEO_TIMEOUT 语义）──
 const DEFAULT_POLL_INTERVAL_MS = 3000;   // 单轮间隔（lovart preset 也是 3s）
 const DEFAULT_TOTAL_TIMEOUT_MS = 10 * 60 * 1000; // 总超时兜底，防无限挂（对齐 relay.ts 10min）
+/** direct(lovart) 单次出站请求超时兜底（后台补提交/轮询的底层单请求上限，防无限挂，对齐 ai-relay 180s）。
+ *  注：只兜「连不上/单步卡死」，绝不替代总超时 DEFAULT_TOTAL_TIMEOUT_MS（生成本身可远超此值）。 */
+const DIRECT_SUBMIT_TIMEOUT_MS = 180_000;
 // 连续单轮异常达此阈值 → 立即 failed 透传（默认 3s×30≈90s），避免未知持续异常静默挂起至总超时
 const MAX_CONSECUTIVE_POLL_ERRORS = 30;
 
 /** 落盘 /files/tasks/ 归属子目录（对齐 relay.ts RELAY_UPLOAD_SUBFOLDER）。 */
 const RELAY_UPLOAD_SUBFOLDER = 'tasks';
 
+/**
+ * lovart 原生直连任务的「提交入参」快照（可 JSON 序列化，供「提交即返回」后在后台/重启后补提交）。
+ * 根治·2026-09-04：POST /api/generate 不再同步 await 出站；任务先落库(running)+注册待提交句柄即返回，
+ * 真正的 submitLovartTask（ensureProject/mode/upload/sendChat）由句柄首轮在后台执行。此快照持久化待提交入参，
+ * 重启后 initRelayPoller 据此重建句柄续跑提交，不丢任务。
+ */
+export interface DirectSubmitInput {
+  model: string;
+  prompt?: string;
+  /** IMAGE：像素；VIDEO：比例（16:9） */
+  size?: string;
+  /** 参考图原始 url 列表（/files/ 或外链），后台提交时经 resolveLocalImages 归一为 data:base64 */
+  images?: string[];
+  /** video：清晰度 */
+  resolution?: string;
+  /** video：时长（秒） */
+  duration?: string;
+  capability: 'IMAGE' | 'VIDEO';
+}
+
 /** 内存句柄（key 不入库） */
 interface PollHandle {
   frontTaskId: string;
-  taskId: string;        // 上游 task_id（9004=网关 task_id；lovart=thread_id）
+  taskId: string;        // 上游 task_id（9004=网关 task_id；lovart=thread_id）；direct 待提交阶段为空串
   poll: ResolvedPollConfig | null; // 自包含、可 JSON 快照；不含 key。direct 任务为 null
   apiKey: string;        // 驻内存；重启重建时按 providerId 重读（direct 任务可为空串）
   providerId: string;
@@ -162,6 +185,8 @@ interface PollHandle {
   baseUrl: string;
   /** true = lovart 原生直连任务（经 providers/lovart adapter 轮询，无声明式 poll） */
   direct?: boolean;
+  /** direct 待提交入参：非空=尚未出站，首轮先 submit 再轮询；空/undefined=已完成提交进入轮询（根治·提交即返回） */
+  pendingDirectSubmit?: DirectSubmitInput | null;
   startedAt: number;
   timer: ReturnType<typeof setInterval> | null;
   running: boolean;      // 单轮执行中防重入
@@ -192,6 +217,8 @@ interface RelayPollSnapshot {
     type: string;
     baseUrl: string;
     direct?: boolean;               // true = lovart 原生直连
+    /** direct 待提交入参快照（重启后重建句柄续跑提交用）；提交完成后清除。非 direct 无此字段 */
+    pendingSubmit?: DirectSubmitInput;
     startedAt: number;
   };
 }
@@ -213,24 +240,22 @@ export async function submitGenerateTask(input: RelaySubmitInput): Promise<{ ok:
     const apiKey = resolveApiKey(providerId);
 
     // ── lovart 原生直连：走 providers/lovart adapter（HMAC + chat-thread），不进声明式 preset ──
+    // 【根治·2026-09-04】提交即返回：不再同步 await submitLovartTask 出站（ensureProject/mode/upload/sendChat
+    //  可因网络/上传参考图慢而拖慢 POST，前端 15s 曾被误掐断）。改为先落库(running)+注册「待提交」句柄即返回
+    //  taskId；真正出站由句柄首轮 runOnce 在后台执行（runSubmit），失败转 failed 透传，不丢任务、不受 HTTP 超时约束。
     if (isLovartDirect(providerId)) {
-      // 参考图归一：/files/ 磁盘图 → data:base64（唯一出站口纪律，与 preset 路一致）
-      const images = input.images && input.images.length > 0
-        ? ((await resolveLocalImages(input.images)) as string[])
-        : undefined;
-      const profile = lovartDirectProfile(baseUrl);
       const cap = capability === 'image' ? 'IMAGE' : 'VIDEO';
-      const handle = await submitLovartTask(profile, {
+      // 待提交入参快照（原始参考图 url 存库；后台提交时经 resolveLocalImages 归一为 data:base64，避免 base64 膨胀 DB）
+      const pending: DirectSubmitInput = {
         model: input.model,
         prompt: input.prompt,
         size: input.size,
-        images,
+        images: input.images && input.images.length > 0 ? input.images : undefined,
         resolution: input.resolution,
         duration: input.duration,
         capability: cap as 'IMAGE' | 'VIDEO',
-      });
-      const threadId = handle.threadId;
-      // 落库在途行（与 preset 路同结构，direct 标记 + poll=null）
+      };
+      // 落库在途行（direct 标记 + poll=null + pendingSubmit 待提交快照；taskId 暂空，提交完成后回填）
       await upsertTask(await getDb(), {
         task_id: frontTaskId,
         type: input.type || capability,
@@ -238,11 +263,9 @@ export async function submitGenerateTask(input: RelaySubmitInput): Promise<{ ok:
         status: 'running',
         progress: 0,
         created_at: Date.now(),
-        submit_ack_at: Date.now(),
-        poll_task_id: threadId,
         request_data: JSON.stringify({
           _relayPoll: {
-            taskId: threadId,
+            taskId: '',
             poll: null,
             providerId,
             capability,
@@ -250,6 +273,7 @@ export async function submitGenerateTask(input: RelaySubmitInput): Promise<{ ok:
             type: input.type || capability,
             baseUrl,
             direct: true,
+            pendingSubmit: pending,
             startedAt: Date.now(),
           } satisfies RelayPollSnapshot['_relayPoll'],
         } satisfies RelayPollSnapshot),
@@ -257,7 +281,7 @@ export async function submitGenerateTask(input: RelaySubmitInput): Promise<{ ok:
       debouncedSaveDb();
       registerHandle(frontTaskId, {
         frontTaskId,
-        taskId: threadId,
+        taskId: '',
         poll: null,
         apiKey: '',
         providerId,
@@ -266,6 +290,7 @@ export async function submitGenerateTask(input: RelaySubmitInput): Promise<{ ok:
         type: input.type || capability,
         baseUrl,
         direct: true,
+        pendingDirectSubmit: pending,
         startedAt: Date.now(),
         timer: null,
         running: false,
@@ -364,6 +389,61 @@ export async function submitGenerateTask(input: RelaySubmitInput): Promise<{ ok:
   }
 }
 
+/**
+ * 后台补执行 lovart 原生直连出站（「提交即返回」的落地点，runOnce 首轮调用）。
+ * 参考图归一 → submitLovartTask(ensureProject/mode/upload/sendChat) → 回填 thread_id、清 pending、落库。
+ * @returns true=提交成功（可继续进入轮询）；false=提交失败（已置 failed + 停句柄，错误原样透传）。
+ */
+async function runDirectSubmit(handle: PollHandle): Promise<boolean> {
+  const p = handle.pendingDirectSubmit;
+  if (!p) return true;
+  try {
+    // 单请求超时兜底（防底层出站单步卡死无限挂；任务总时长仍由 handle 总超时约束）
+    const profile = lovartDirectProfile(handle.baseUrl, undefined, DIRECT_SUBMIT_TIMEOUT_MS);
+    const images = p.images && p.images.length > 0
+      ? ((await resolveLocalImages(p.images)) as string[])
+      : undefined;
+    const out = await submitLovartTask(profile, {
+      model: p.model,
+      prompt: p.prompt,
+      size: p.size,
+      images,
+      resolution: p.resolution,
+      duration: p.duration,
+      capability: p.capability,
+    });
+    const threadId = out.threadId;
+    handle.taskId = threadId;
+    handle.pendingDirectSubmit = null; // 提交完成，转入轮询阶段
+    // 落库回填：thread_id + submit_ack_at + 清 pendingSubmit 快照（DB 真相，供 attach/恢复读取）
+    await upsertTask(await getDb(), {
+      task_id: handle.frontTaskId,
+      thread_id: threadId,
+      submit_ack_at: Date.now(),
+      request_data: JSON.stringify({
+        _relayPoll: {
+          taskId: threadId,
+          poll: null,
+          providerId: handle.providerId,
+          capability: handle.capability,
+          model: handle.model,
+          type: handle.type,
+          baseUrl: handle.baseUrl,
+          direct: true,
+          startedAt: handle.startedAt,
+        } satisfies RelayPollSnapshot['_relayPoll'],
+      } satisfies RelayPollSnapshot),
+    });
+    debouncedSaveDb();
+    return true;
+  } catch (e) {
+    // 提交失败：透传错误置 failed + 停句柄（前端经 GET attach 读到 failed，失败可见不静默）
+    stopHandle(handle);
+    await upsertFailed(handle, e instanceof Error ? e.message : String(e));
+    return false;
+  }
+}
+
 /** 注册句柄并启动定时器驱动单轮。 */
 function registerHandle(frontTaskId: string, handle: PollHandle, timeoutMs: number): void {
   handles.set(frontTaskId, handle);
@@ -383,7 +463,13 @@ function registerHandle(frontTaskId: string, handle: PollHandle, timeoutMs: numb
     try {
       // direct（原生直连）→ adapter 单次轮询；其余 → 声明式 preset 轮询
       if (handle.direct) {
-        const profile = lovartDirectProfile(handle.baseUrl);
+        // 【根治·2026-09-04】待提交阶段：先补后台出站（提交即返回的「真正提交」），
+        // 成功回填 thread_id 后本轮继续轮询；失败已在 runDirectSubmit 内置 failed + 停句柄。
+        if (handle.pendingDirectSubmit) {
+          const okSubmit = await runDirectSubmit(handle);
+          if (!okSubmit || handle.stopped) return;
+        }
+        const profile = lovartDirectProfile(handle.baseUrl, undefined, DIRECT_SUBMIT_TIMEOUT_MS);
         const r = await pollLovartTaskOnce(profile, { handle: { threadId: handle.taskId, projectId: '' } });
         handle.consecutiveErrors = 0; // 本轮有响应（未抛异常）→ 重置连续失败计数
         if (handle.stopped) return;
@@ -532,19 +618,47 @@ export async function initRelayPoller(opts: { timeoutMs?: number } = {}): Promis
   const timeoutMs = opts.timeoutMs ?? DEFAULT_TOTAL_TIMEOUT_MS;
   try {
     const db = await getDb();
+    // 在途 relay 任务 = 有 poll_task_id（存量/新近已提交）或 request_data 内含 _relayPoll 快照的行
+    // （普通前端 running 任务既无 poll_task_id 也不含此键，天然排除）。
+    // 兼容待提交任务（poll_task_id 为空但快照含 _relayPoll.pendingSubmit，提交即返回后未及出站即重启）→ 一并纳入。
     const rows = queryAll(db,
-      `SELECT task_id, status, poll_task_id, request_data FROM tasks WHERE status IN ('running','pending') AND poll_task_id IS NOT NULL AND poll_task_id != ''`);
+      `SELECT task_id, status, poll_task_id, request_data FROM tasks WHERE status IN ('running','pending')
+        AND ( (poll_task_id IS NOT NULL AND poll_task_id != '') OR request_data LIKE '%_relayPoll%' )`);
     for (const row of rows) {
       const frontTaskId = row.task_id as string;
       if (handles.has(frontTaskId)) continue;
       let snap: RelayPollSnapshot | undefined;
       try { snap = typeof row.request_data === 'string' ? JSON.parse(row.request_data) : row.request_data; } catch { snap = undefined; }
       const core = snap?._relayPoll;
-      // direct 任务（lovart）：允许 poll 为 null，仅需 thread_id(=taskId)
-      if (!core || !core.taskId) continue; // 无轮询快照（旧数据），跳过
+      if (!core) continue; // 无 relay 快照，跳过
+      const remaining = Math.max(0, timeoutMs - (Date.now() - core.startedAt));
+      // 【根治·2026-09-04】待提交任务（direct 提交即返回后重启、尚未出站拿到 thread_id）：
+      // 重建「待提交」句柄，首轮 runOnce 会补执行 runDirectSubmit 续跑提交，不丢任务。
+      if (core.direct && !core.taskId && core.pendingSubmit) {
+        registerHandle(frontTaskId, {
+          frontTaskId,
+          taskId: '',
+          poll: null,
+          apiKey: '',
+          providerId: core.providerId,
+          capability: core.capability,
+          model: core.model,
+          type: core.type,
+          baseUrl: core.baseUrl,
+          direct: true,
+          pendingDirectSubmit: core.pendingSubmit,
+          startedAt: core.startedAt,
+          timer: null,
+          running: false,
+          stopped: false,
+          consecutiveErrors: 0,
+        }, Math.max(1000, remaining));
+        continue;
+      }
+      // 已提交任务：需 thread_id(=taskId) 才能续轮询
+      if (!core.taskId) continue; // 无 taskId（脏数据），跳过
       if (!core.poll && !core.direct) continue; // 非 direct 但缺 poll → 旧/脏数据，跳过
       const apiKey = resolveApiKey(core.providerId);
-      const remaining = Math.max(0, timeoutMs - (Date.now() - core.startedAt));
       registerHandle(frontTaskId, {
         frontTaskId,
         taskId: core.taskId,

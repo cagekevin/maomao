@@ -82,11 +82,14 @@ export async function relaySubmit(intent: RelayIntent): Promise<{ ok: boolean; t
     }
     // httpRequest 默认 parseJson:true → 成功返纯 data 对象（无 .json()）；非 2xx 抛 HttpError 被下层 catch。
     // localTool 端点恒 200 + {code,data} 信封，故 res.ok 恒真；业务失败走 code:-1 + data.error。
+    // 【根治·2026-09-04】POST 提交只负责「接受任务入队」，localTool 端已提交即返回（出站挪进后台句柄），
+    // 响应近瞬回，无需默认 15s 掐点——去掉本层超时（timeoutMs:0=禁用），杜绝「已发到 lovart 却被 15s 误报超时」。
     const env = (await httpRequest(`${API_BASE}/api/generate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
       retries: 0,
+      timeoutMs: 0,
       label: 'relaySubmit',
     })) as CodeData<{ taskId?: string }>
     if (env?.data?.taskId) return { ok: true, taskId: env.data.taskId }
@@ -101,9 +104,13 @@ export async function relaySubmit(intent: RelayIntent): Promise<{ ok: boolean; t
 export async function relayPoll(frontTaskId: string): Promise<RelayPollData> {
   try {
     // parseJson:true 默认 → 返纯 data；非 2xx 抛 HttpError 进 catch → 返回 running 下轮续查
+    // 【根治·2026-09-04】单次 GET attach 只读 localTool 内存/DB 句柄，近瞬回；
+    // 真正的长等待由外层 relayAttachUntilDone 的 timeoutMs(GEN_TIMEOUT) 兜底，故去掉本层 15s 掐点，
+    // 避免后端忙时单次 attach 误超时被降级为 running 空转。
     const env = (await httpRequest(`${API_BASE}/api/generate/${encodeURIComponent(frontTaskId)}`, {
       method: 'GET',
       retries: 0,
+      timeoutMs: 0,
       label: 'relayPoll',
     })) as CodeData<RelayPollData>
     const d = env?.data

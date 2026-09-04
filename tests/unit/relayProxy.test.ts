@@ -116,4 +116,21 @@ describe('relayProxy §R6 — relayGenerate = submit + attach', () => {
     // 只 submit，无 attach
     expect(h.mockHttpRequest.mock.calls.every(([u]) => !u.includes('/api/generate/t'))).toBe(true)
   })
+
+  it('submit/attach 请求均禁用本层 HTTP 超时（timeoutMs:0，根治 15s 误报；真长等待由 GEN_TIMEOUT 兜底）', async () => {
+    h.mockHttpRequest.mockImplementation(async (url) => {
+      if (url.endsWith('/api/generate')) return envResp({ taskId: 'task-1' }) // submit
+      return envResp({ status: 'completed', url: '/files/tasks/x.png' }) // attach
+    })
+    const p = relayGenerate({ intent: { frontTaskId: 'task-1', type: 'image', providerId: 'lovart', capability: 'image', model: 'm', prompt: 'x' } })
+    const r = await runWithTimers(p)
+    expect(r.value).toEqual({ ok: true, url: '/files/tasks/x.png' })
+    // 提交与 attach 请求的 httpRequest options.timeoutMs 都应为 0（不再用默认 15s）
+    for (const [url, opts] of h.mockHttpRequest.mock.calls) {
+      expect(opts.timeoutMs).toBe(0)
+    }
+    // 且确实既发过 submit 也发过 attach
+    expect(h.mockHttpRequest.mock.calls.some(([u]) => u.endsWith('/api/generate'))).toBe(true)
+    expect(h.mockHttpRequest.mock.calls.some(([u]) => u.includes('/api/generate/task-1'))).toBe(true)
+  })
 })
