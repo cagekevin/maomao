@@ -221,6 +221,8 @@ export async function submitGenerateTask(input: RelaySubmitInput): Promise<{ ok:
         prompt: input.prompt,
         size: input.size,
         images,
+        resolution: input.resolution,
+        duration: input.duration,
         capability: cap as 'IMAGE' | 'VIDEO',
       });
       const threadId = handle.threadId;
@@ -399,7 +401,8 @@ function registerHandle(frontTaskId: string, handle: PollHandle, timeoutMs: numb
         await upsertFailed(handle, r.error);
       } else {
         // processing：写进度；错误留痕不静默（retryable 由 manager 下轮续查）
-        await updateProgress(handle, r.progress);
+        // 单轮异常的 error 必须透传落库，否则只写进度会把真实原因吞掉。
+        await updateProgress(handle, r.progress, r.error);
       }
     } catch (e) {
       // 单轮异常（如解析失败）：不误判终态，记日志，下轮续查（受总超时约束）

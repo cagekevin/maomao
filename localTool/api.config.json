@@ -123,7 +123,7 @@
           "id": "nano-bn-2-lite",
           "label": "Nano Banana 2 Lite",
           "streaming": false,
-          "promptOnly": false
+          "promptOnly": true
         }
       ],
       "chat_models": [
@@ -151,13 +151,13 @@
           "id": "seedance-2.0-mini",
           "label": "Seedance 2.0 Mini",
           "streaming": false,
-          "promptOnly": false
+          "promptOnly": true
         },
         {
           "id": "minimax-h3",
           "label": "MiniMax H3",
           "streaming": false,
-          "promptOnly": false
+          "promptOnly": true
         },
         {
           "id": "kling-v3-omni",

@@ -17,8 +17,12 @@ export async function ensureLovartProject(deps: LovartClientDeps): Promise<strin
   const key = deps.auth?.accessKey ?? '';
   const cached = projectCache.get(key);
   if (cached) {
-    // 失效自愈：validate 失败则清缓存重建
-    if (await validateLovartProject(deps, cached)) return cached;
+    // 失效自愈：validate 失败则清缓存重建。
+    // 校验请求自身异常（网络/鉴权）时 error 可见——不能被静默伪装成「project 失效」，
+    // 否则 AK/SK 错误会表现为反复重建，排查时看不到真实原因。
+    const { valid, error } = await validateLovartProject(deps, cached);
+    if (valid) return cached;
+    if (error) console.error(`[lovart] project 校验请求失败（将重建，原因可见）: ${error}`);
     projectCache.delete(key);
   }
   const projectId = await createLovartProject(deps);

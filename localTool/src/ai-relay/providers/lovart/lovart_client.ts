@@ -77,12 +77,21 @@ export async function createLovartProject(deps: LovartClientDeps): Promise<strin
   return String(data?.project_id ?? '');
 }
 
-export async function validateLovartProject(deps: LovartClientDeps, projectId: string): Promise<boolean> {
+/**
+ * 校验 project 是否有效。
+ * 返回 { valid, error }：error 为校验请求本身的异常原因（网络/鉴权/超时等），原样透传不吞，
+ * 便于上层区分「project 真失效（valid=false）」与「校验请求失败（error）」——
+ * 二者都触发重建，但后者需可见可查，否则 AK/SK 错误会被伪装成 project 失效反复重建。
+ */
+export async function validateLovartProject(
+  deps: LovartClientDeps,
+  projectId: string,
+): Promise<{ valid: boolean; error?: string }> {
   try {
     const data = await lovartRequest(deps, 'GET', '/project/validate', undefined, { project_id: projectId });
-    return Boolean(data?.valid);
-  } catch {
-    return false;
+    return { valid: Boolean(data?.valid) };
+  } catch (e) {
+    return { valid: false, error: e instanceof Error ? e.message : String(e) };
   }
 }
 

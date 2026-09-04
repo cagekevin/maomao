@@ -79,9 +79,32 @@ export function extractLovartArtifacts(result: any): string[] {
     }
   }
   if (urls.length === 0) {
-    throw new LovartError('任务完成但未生成任何产物（模型可能拒绝或超时）', -1, LOVART_ERR_TYPES.NO_ARTIFACT);
+    // 对齐 main.py:886——无产物时把 Lovart Agent 返回的原话透传出去，
+    // 而不是用固定文案盖掉：「AI 发回什么，我们就显示什么」（Agent 常以此解释拒绝原因/给出修改建议）。
+    // 仅在 Agent 也没返回任何文本时，才用兜底说明。
+    const agentText = extractLovartAssistantText(result);
+    throw new LovartError(
+      agentText || '生成完成但未产出任何素材（可能被内容审核拒绝或模型未调用生成工具）',
+      -1,
+      LOVART_ERR_TYPES.NO_ARTIFACT,
+    );
   }
   return urls;
+}
+
+/**
+ * 抽取 Lovart Agent 的说明性文本，对齐 main.py DataFormatter.assistant_text（389-391行）：
+ * 收集 items[].text 的非空项，用空行连接。
+ * 用途：无产物/异常时把 Agent 原话透给用户，避免固定文案掩盖真实原因。
+ */
+export function extractLovartAssistantText(result: any): string {
+  const items: any[] = result?.items ?? [];
+  const texts: string[] = [];
+  for (const it of items) {
+    const t = String(it?.text ?? '').trim();
+    if (t) texts.push(t);
+  }
+  return texts.join('\n\n');
 }
 
 /** 抽取对话文本（chat 用）。 */

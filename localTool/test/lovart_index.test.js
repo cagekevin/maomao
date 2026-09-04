@@ -57,9 +57,13 @@ test('C1+B5+B6 generateImageLovart 返回 string[]，send 请求体含 tool_conf
   assert.equal(t.sendBodies.length, 1);
   const sendBody = t.sendBodies[0];
   assert.equal(sendBody.project_id, 'proj-x');
-  assert.deepEqual(sendBody.tool_config.prefer_tool_categories.IMAGE, ['generate_image_gpt_image_2'], 'B5 端到端结构化路');
-  assert.match(sendBody.prompt, /\[model: GPT Image 2 Low\]/, 'B6 自然语言路');
-  assert.match(sendBody.prompt, /\[size: 1024x1024\]/, 'C3 尺寸');
+  // 对齐 main：gpt-image-2-low 映射到独立低档工具名（_IMAGE_RULES 首条，非合并的 generate_image_gpt_image_2）
+  assert.deepEqual(sendBody.tool_config.prefer_tool_categories.IMAGE, ['generate_image_gpt_image_2_low'], 'B5 端到端结构化路（对齐 main）');
+  // 双保险 prompt 硬约束：模型名嵌进生成指令句
+  // gpt-image-2-low 未登记于 _PROMPT_MODEL_NAMES，回退 model 原串（对齐 main）
+  assert.match(sendBody.prompt, /Generate exactly ONE image using the gpt-image-2-low model\./, 'B6 自然语言路句子内嵌硬约束');
+  // 尺寸走 target_size（对齐 main，非 [size:] 标签）
+  assert.match(sendBody.prompt, /target_size: 1024x1024/, 'C3 尺寸 target_size');
 });
 
 test('C1 generateVideoLovart 返回 { url }', async () => {
@@ -114,7 +118,7 @@ test('B8 参考图 base64 经上传成功：send 请求体 attachments 含 CDN U
   assert.equal(t.sendBodies.length, 1);
   assert.deepEqual(t.sendBodies[0].attachments, ['http://cdn/up.png'], 'C2 附件 URL 进 send.attachments');
   assert.match(t.sendBodies[0].prompt, /Reference image attached\./, '参考图被正确声明（对齐 main）');
-  assert.match(t.sendBodies[0].prompt, /Generate exactly ONE image\./, '生成份数声明（对齐 main）');
+  assert.match(t.sendBodies[0].prompt, /Generate exactly ONE image using the gpt-image-2-low model\./, '生成份数+模型硬约束声明（对齐 main）');
 });
 
 test('对齐 main：无前缀裸 base64（魔数识别）→ 解码上传 CDN 进 attachments', async () => {
@@ -137,7 +141,7 @@ test('对齐 main：blob:/本地路径/未知形态 drop（不阻断，不进 at
   );
   assert.deepEqual(out, ['http://cdn/r.png']);
   assert.ok(!('attachments' in t.sendBodies[0]), '无法识别形态 drop，不挂 attachments');
-  assert.match(t.sendBodies[0].prompt, /Generate exactly ONE image\./, 'drop 后按无参考图声明');
+  assert.match(t.sendBodies[0].prompt, /Generate exactly ONE image using the gpt-image-2-low model\./, 'drop 后按无参考图声明+模型硬约束');
 });
 
 // ── 统一异步原语（ADAPTER_SPEC §2）：submitTask → pollTaskOnce ──

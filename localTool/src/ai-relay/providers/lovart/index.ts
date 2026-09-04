@@ -108,10 +108,18 @@ export async function generateVideoLovart(
   const userPrompt = String(vars.prompt ?? '');
   const size = String(vars.size ?? '');
   const imageUrls = (vars.imageUrls as string[] | undefined) ?? undefined;
+  // 视频额外参数拼进 gen_prefix，对齐 main.py:1237-1247（duration / aspect_ratio / resolution）。
+  const extraParams: string[] = [];
+  const dur = vars.duration;
+  if (dur) extraParams.push(`duration: ${dur}`);
+  const ar = vars.aspect_ratio;
+  if (ar) extraParams.push(`aspect_ratio: ${ar}`);
+  const res = vars.resolution;
+  if (res) extraParams.push(`resolution: ${String(res).trim()}`);
   const projectId = await ensureLovartProject(deps);
   await setLovartMode(deps, false);
   const attachments = await resolveLovartAttachments(deps, imageUrls);
-  const prompt = buildLovartPrompt(opts.model, userPrompt, size, !!attachments);
+  const prompt = buildLovartPrompt(opts.model, userPrompt, size, !!attachments, extraParams);
   const toolConfig = buildLovartToolConfig(opts.model);
   const threadId = await sendLovartChat(deps, { prompt, projectId, attachments, toolConfig });
   const result = await pollLovartThread(deps, threadId);
@@ -168,9 +176,16 @@ export async function chatLovartText(
 export interface LovartTaskInput {
   model: string;
   prompt?: string;
+  /** IMAGE：具体像素（如 1024x1024）；VIDEO：比例（如 16:9） */
   size?: string;
   /** 参考图 URL / base64 列表 */
   images?: string[];
+  /** video：清晰度（如 '1080p'） */
+  resolution?: string;
+  /** video：时长（秒，字符串） */
+  duration?: string;
+  /** 额外生成参数（透传给 buildLovartPrompt，拼进 gen_prefix），对齐 main.py:1237-1247 */
+  extraParams?: string[];
 }
 
 export interface LovartTaskHandle {
@@ -189,7 +204,13 @@ export async function submitLovartTask(
   const projectId = await ensureLovartProject(deps);
   await setLovartMode(deps, false); // 锁 fast 配额轴（B4）
   const attachments = await resolveLovartAttachments(deps, opts.images);
-  const prompt = buildLovartPrompt(opts.model, opts.prompt ?? '', opts.size, !!attachments);
+  // 视频比例/清晰度/时长拼进 gen_prefix，对齐 main.py:1237-1247（aspect_ratio / duration / resolution）。
+  // 前端 video 的 size 语义是比例（如 16:9），故对 VIDEO 将其作为 aspect_ratio，而非常量 extraParams。
+  const extraParams = [...(opts.extraParams ?? [])];
+  if (opts.capability === 'VIDEO' && opts.size) extraParams.push(`aspect_ratio: ${opts.size}`);
+  if (opts.capability === 'VIDEO' && opts.duration) extraParams.push(`duration: ${opts.duration}`);
+  if (opts.capability === 'VIDEO' && opts.resolution) extraParams.push(`resolution: ${String(opts.resolution).trim()}`);
+  const prompt = buildLovartPrompt(opts.model, opts.prompt ?? '', opts.capability === 'IMAGE' ? opts.size : undefined, !!attachments, extraParams);
   const toolConfig = buildLovartToolConfig(opts.model); // 结构化路选模型（B5）
   const threadId = await sendLovartChat(deps, { prompt, projectId, attachments, toolConfig });
   return { threadId, projectId };

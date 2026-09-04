@@ -16,7 +16,7 @@ export const LOVART_MODEL_MANIFEST: import('../types.js').CatalogModel[] = [
   // 视频（异步任务，直连走 providers/lovart adapter）
   { id: 'seedance-2.0-fast', name: 'Seedance 2.0 Fast', category: 'video', provider: 'lovart', description: 'Lovart Seedance 2.0 Fast 文生视频' },
   { id: 'seedance-2', name: 'Seedance 2', category: 'video', provider: 'lovart', description: 'Lovart Seedance 2 文生视频' },
-  { id: 'seedance-2.0-mini', name: 'Seedance 2.0 Mini', category: 'video', provider: 'lovart', description: 'Lovart Seedance 2.0 Mini 文生视频' },
-  { id: 'minimax-h3', name: 'MiniMax H3', category: 'video', provider: 'lovart', description: 'Lovart MiniMax H3 文生视频' },
+  { id: 'seedance-2.0-mini', name: 'Seedance 2.0 Mini', category: 'video', provider: 'lovart', description: 'Lovart Seedance 2.0 Mini 文生视频（仅自然语言选模型）' },
+  { id: 'minimax-h3', name: 'MiniMax H3', category: 'video', provider: 'lovart', description: 'Lovart MiniMax H3 文生视频（仅自然语言选模型）' },
   { id: 'kling-v3-omni', name: 'Kling V3 Omni', category: 'video', provider: 'lovart', description: 'Lovart Kling V3 Omni 文生视频' },
 ];
