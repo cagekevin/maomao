@@ -44,7 +44,7 @@ const MODULE_FILES = {
   localToolApi: 'src/components/base/api/localToolApi.ts',
   filesApi: 'src/components/base/api/filesApi.ts',
   pollTask: 'src/components/base/api/pollTask.ts',
-  proxyGenerate: 'src/components/base/api/proxyGenerate.ts',
+  relayProxy: 'src/components/base/api/relayProxy.ts',
   agentRuntime: 'src/components/agent/runtime/agentRuntime.ts',
 };
 
