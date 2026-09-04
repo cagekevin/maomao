@@ -7,7 +7,7 @@
  *
  * 实现：
  * - 模型 value 用 `{providerId}::{modelId}`（双冒号，兼容 modelId 含 `/`，如 Qwen/Qwen3-14B）。
- * - 生成时用 resolveProviderModel 解析回 { provider, modelId }，再经 /api/proxy 转发到该 provider。
+ * - 生成时用 resolveProviderModel 解析回 { provider, modelId }，再经统一生成入口 /api/generate 转发到该 provider（旧 /api/proxy 出站已退役）。
  */
 
 /** 模型域：对应 provider 的 image_models / chat_models / video_models */

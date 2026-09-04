@@ -20,6 +20,7 @@
 import { getTasks, patchTask, ensurePolling, isPolling, stopPolling } from '../store/taskStore.ts'
 import { publishTaskCompleted } from '../store/taskCompletionBus.ts'
 import { relayAttachUntilDone } from './relayProxy.ts'
+import { showToast } from '../core/toastStore.ts'
 import { logger } from '../core/logger.ts'
 
 // 恢复轮询总超时兜底：单任务最多 attach 多久，到点 relayAttachUntilDone 强停防挂起
@@ -75,6 +76,10 @@ async function pollOneTaskAttach(task: PollableTask): Promise<boolean> {
   if (!st.ok && st.error) {
     const msg = st.error || '任务失败'
     patchTask(task.id, { status: 'failed', errorMsg: msg })
+    // A8：后端异步失败（relay-poll upsertFailed → attach 终态）原只进任务中心面板，不弹 toast；
+    // 此处弹错误 toast，让后台生图/视频失败对前端用户实时可见（live 路径已由 useNodeGeneration 弹，
+    // 本恢复路径经 isPolling 占位与候选仅含 running/pending 去重，不会与 live 双 toast、也不会重复弹）。
+    showToast(msg, { type: 'error' })
     logger.debug('任务', '[恢复轮询] 失败', { taskId: task.id, nodeId: task.nodeId, error: msg }, { module: 'image' })
     return true
   }

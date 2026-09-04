@@ -26,7 +26,7 @@
 
 // 可插拔协议适配器：统一 URL 拼装（openai 伪协议 / apimart base_url），避免散落协议判断
 import { buildTargetUrl } from '../../base/utils/providerUrlAdapters.ts'
-// 【出口回收】proxy 分支走 /api/proxy 经统一 httpRequest（B5），不裸写 fetch
+// 【出口回收】proxy 分支经统一出站 httpRequest（B5），不裸写 fetch（旧 /api/proxy 已退役）
 import { httpRequest } from '@/components/base/api/index.ts'
 // 请求形态层：聊天 responses 形态（gpt-5.6 用 /v1/responses 带工具不再报错，M2-2/M2-4）
 import { resolveChatMode, buildResponsesChatBody, parseResponsesChatJson, parseResponsesSSEChunk } from '../../base/utils/requestModes.ts'
@@ -52,7 +52,7 @@ interface RuntimeAssistantMessage extends ChatMessage {
  *    - endpoint:      LLM 端点 URL（useAgentChat 计算：CHAT_BASE_URL 或 /api/agent/:key/chat）
  *    - model:         当前模型名
  *    - toolSchemas:   工具 schema 数组（来自 useCanvasAgentTools）
- *    - provider:      主供应商对象（存在 → /api/proxy 链路）
+ *    - provider:      主供应商对象（存在 → 统一生成入口 /api/generate 链路，旧 /api/proxy 已退役）
  *    - apiBase:       API_BASE（本地网关地址）
  *    - chatApiKey:    CHAT_API_KEY（可选 Bearer）
  *    - logger:        链路日志对象
@@ -101,7 +101,7 @@ export async function roundTrip(ctx, requestMessages, signal, onStream) {
         temperature: AGENT_TEMPERATURE,
         ...(withTools ? { tools: toolSchemas, tool_choice: 'auto' } : {})
       }
-  // 是否走「多 provider /api/proxy 转发」：provider 存在时（如魔搭，支持 function calling）
+  // 是否走「多 provider 统一代理转发」（旧 /api/proxy，已退役）：provider 存在时（如魔搭，支持 function calling）
   const useProxy = !!provider
   // 非流式响应是普通 JSON，Accept 无需 text/event-stream
   const accept = isNonStream ? 'application/json' : 'text/event-stream'
@@ -122,7 +122,7 @@ export async function roundTrip(ctx, requestMessages, signal, onStream) {
     hasImageInBody: JSON.stringify(llmBody).includes('image_url') || JSON.stringify(llmBody).includes('input_image'),
   }, { module: 'agent' })
   // 【出口回收说明（B5）】本请求是 SSE 流式读 body 流 + 非流式普通 JSON 双模式，可走两条链路：
-  //  - proxy 分支（provider 存在走 /api/proxy 转发）经 httpRequest 出站 —— 用 SSE 模式
+  //  - proxy 分支（provider 存在走统一生成入口 /api/generate 转发，旧 /api/proxy 已退役）经 httpRequest 出站 —— 用 SSE 模式
   //    （timeoutMs:0 不被 15s 掐断 + retries:0 + parseJson:false 返回未消费原始 Response），
   //    回炉的是「HTTP 语义」，SSE 行协议豁免红线（缺口⑦/M5-e）不破；
   //  - 直连官方分支（/api/agent/...，M1-a③ 白名单）保留原生 fetch，避免改动其既有 rejection 语义。

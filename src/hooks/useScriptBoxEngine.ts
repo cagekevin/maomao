@@ -34,7 +34,7 @@ export function useScriptBoxEngine(nodeId: string, data?: Record<string, unknown
   const { getNodes, getNode, setNodes, setEdges, addNodes, screenToFlowPosition } = useReactFlow()
 
   // 供应商（多 provider，接真系统）：引擎经 getProviderState 实时读 providers + 主供应商，
-  // 生成/生图时按模型 value（providerId::modelId）解析到对应 provider 再经 /api/proxy 转发。
+  // 生成/生图时按模型 value（providerId::modelId）解析到对应 provider，再经统一生成入口 /api/generate 转发（旧 /api/proxy 出站已随 2026-09-03 收口退役）。
   // P5 原子订阅：只订阅 providers 列表，不随 providerStore 的 dirty/loading/testResult 连坐重渲染。
   const providers = useProvidersList()
   // 首次挂载确保供应商已加载（生成/生图前必须有 provider，否则解析不到模型）

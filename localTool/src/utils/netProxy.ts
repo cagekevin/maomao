@@ -293,16 +293,17 @@ export async function fetchWithProxy(input: string | URL, init?: RequestInit): P
   }
 
   // 其余公网：先直连（公网直连可达的最优路径），失败再走代理
+  let directErr: unknown;
   try {
     return await fetch(url.toString(), init);
-  } catch {
-    // 直连失败，尝试代理
+  } catch (e) {
+    directErr = e; // 保留原始直连错误，代理不可用时透传（不再丢弃）
   }
 
   const proxy = await resolveProxy();
   if (!proxy) {
     // 无可用代理：重新抛原始直连错误，由调用方按既有降级逻辑处理
-    return fetch(url.toString(), init);
+    throw directErr instanceof Error ? directErr : new Error('直连失败且无可用代理');
   }
 
   return await proxyRequest(proxy, url.toString(), init);

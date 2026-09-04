@@ -610,9 +610,12 @@ function Canvas() {
     const selectedIds = nodesRef.current.filter((n) => n.selected).map((n) => n.id)
     if (selectedIds.length === 0) return
     const { nodes: nextNodes, edges: nextEdges } = duplicateSelectedWithEdges(nodesRef.current, edgesRef.current, selectedIds)
-    setNodes(nextNodes)
-    setEdges(nextEdges)
-    history.record({ nodes: nextNodes, edges: nextEdges })
+    const idSet = new Set(selectedIds)
+    // 复制后只取消原节点/原边的选中，保留复制出的新节点/新边为选中态
+    const next = nextNodes.map((n) => (idSet.has(String(n.id)) ? { ...n, selected: false } : n))
+    setNodes(next)
+    setEdges(nextEdges.map((e) => (idSet.has(String(e.source)) && idSet.has(String(e.target)) ? { ...e, selected: false } : e)))
+    history.record({ nodes: next, edges: nextEdges })
   }, [setNodes, setEdges, history])
 
   // 编组选中节点（Ctrl+G；与右键菜单/Agent 共用 createGroupFromNodes）

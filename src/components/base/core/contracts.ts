@@ -575,8 +575,9 @@ export const API_ENDPOINTS = {
  * 前端【实际调用】的端点（改动需评估前端契约影响）：
  *   GET/POST /api/status、/api/logs、/api/tasks*、/api/projects*、/api/resources*、
  *   /api/files/*（upload/read/thumbnail/mkdir/move/open/open-dir/list）、
- *   /api/providers*、/api/config/base、/api/kv/*、/api/proxy、/api/agent/:key/chat。
- *   → 见 localToolApi.js / filesApi.js / logger.js / useLocalToolStatus.js / proxyGenerate.js 等。
+ *   /api/providers*、/api/config/base、/api/kv/*、/api/agent/:key/chat。
+ *   （注：旧 /api/proxy 已随 2026-09-03 收口退役，不在此列；proxyGenerate.js 亦已退役。）
+ *   → 见 localToolApi.js / filesApi.js / logger.js / useLocalToolStatus.js 等。
  *
  * 后端存在、前端【零调用】= 预留/上游转发（勿当死代码删，勿随前后端契约盲改）：
  *   admin.ts： /api/admin/stats、/api/admin/kv-list、/api/admin/clear-cache、
@@ -588,7 +589,7 @@ export const API_ENDPOINTS = {
  *   passthrough.ts（isLocalOnlyPath 判定后的上游转发补偿用）
  *
  * 注：/api/agent/:key/chat 前端在「未配 provider」时直连 localTool 这一端点；配了 provider
- * 则走 /api/proxy。两端点都是生产路径，改动仍会影响直连链路。
+ * 则打统一生成入口 /api/generate（relayChatStream）。两端点都是生产路径，改动仍会影响直连链路。旧 /api/proxy 已退役。
  */
 /**
  * 中央端点登记表（apiRegistry）—— 前端函数 ↔ 后端 route 的双向映射唯一真源（docs/26-M2-a/C1）。

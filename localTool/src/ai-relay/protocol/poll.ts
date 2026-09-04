@@ -117,10 +117,10 @@ export async function pollModelProtocolOnce(
     payload = await readJsonResponse(response, '模型任务查询失败', poll.errorPath);
   } catch (error) {
     const retryable = error instanceof ModelProtocolHttpError
-      ? true // HTTP 层错误交给调用方按 retryable httpStatuses 决定；此处不再吞掉
+      ? DEFAULT_RETRY_HTTP_STATUSES.includes(error.status) // 408/429/5xx 可重试；硬 4xx 确定性失败
       : isTransientNetworkError(error);
     return {
-      status: 'processing',
+      status: retryable ? 'processing' : 'failed', // 确定性硬失败立即 failed 透传，避免静默挂起
       error: error instanceof Error ? error.message : String(error),
       retryable,
     };

@@ -24,6 +24,17 @@ export const DEFAULT_MAX_BYTES = 64 * 1024 * 1024;
 
 const DEFAULT_RETRY_STATUSES = new Set([408, 429, 500, 502, 503, 504]);
 const DEFAULT_MAX_RETRIES = 3;
+
+/**
+ * 判断某 HTTP 状态码是否「可重试」（瞬态，下轮续查有希望恢复）。
+ * - 0：网络层/超时/取消（RelayHttpError(0,...)），瞬态 → 可重试；
+ * - 408/429/5xx：上游明确可重试或服务器瞬态 → 可重试；
+ * - 其余 4xx（401/403/404/400…）：确定性硬失败，重试无意义 → 不可重试。
+ * 轮询句柄据此把硬失败立即判为 failed 透传，避免任务静默挂起至总超时。
+ */
+export function isRetryableHttpStatus(status: number): boolean {
+  return status === 0 || DEFAULT_RETRY_STATUSES.has(status);
+}
 const DEFAULT_MAX_RETRY_DELAY_MS = 60_000;
 const DEFAULT_BASE_DELAY_MS = 800;
 

@@ -2,7 +2,7 @@
 
 > **本文件定位：项目认知入口。每个 AI 进来第一步读它**，了解"这是什么项目、技术栈、架构、目录、红线、怎么启动"。
 > 读完按任务再读对应入口：**写代码 →** **`spec/CONTEXT.md`（决策地图）**；**写/改测试 →** **`spec/TEST-GUIDE.md`（测试权威）**。三文件互补不重叠（见 §七.0）。
-> **最后更新**：2026-08-26（事件契约红线收口：`EVENTS` 登记表 `to/from` 须与代码实测自洽 + `npm run check:events` 双向校验接入 `prebuild`+`pretest`，见 §五.4.6/§五.4.1；此前为 2026-08-22 API 中转层收口）
+> **最后更新**：2026-09-04（三轮核对：① 计数 apiRegistry 57 条、tests/unit 132 文件/1802 用例；② 移除已删 `reference-1mao/`、不存 `docs/node-types-map.md`、已退役 `/api/proxy`/`proxyMode`/`x-proxy-url`、`Python 网关`/`lovart_client.py` 引用，节点规范改指 `spec/NEW-NODE-GUIDE.md`；③ 修正 `check:health` 覆盖、`localTool` 测试路径、`base/*.js`→`base/utils/`、`pre-commit` 跑 `test-affected`、`pre-push` 已删、`launch-all.ps1` 无参、relay 重构后 `9004` 仅 lovart-old 回退轨（非 relay 默认）、代理/转发逻辑改指 `passthrough.ts`/`generate.ts`/`relay-poll.ts`；此前为 2026-08-26 事件契约红线收口 + 2026-08-22 API 中转层收口）
 
 ## ⚠️ 最新情况（改动前必读）
 
@@ -22,7 +22,7 @@
 
 - **主力开发/使用**：改本目录 `src/`（原型）。
 
-- **查原产品怎么实现某功能**：看 `reference-1mao/`（混淆还原代码，作参考，已归档逆向脚本在 `scripts/1mao-scripts/`）。
+- **查原产品怎么实现某功能**：原 `reference-1mao/` 混淆还原代码**已移除**；查"原产品怎么实现某功能"以 `scripts/1mao-scripts/`（归档逆向脚本，默认不跑）+ `docs/`（历史调查产物，可过时可清理）为参考。
 
 ### 常用命令
 
@@ -32,7 +32,7 @@ npm run build         # 构建校验 + 回灌 dist/
 npm test              # 统一测试门禁（= test:all：smoke + vitest全量单测 + regression + tools）
 npm run test:unit     # vitest 全量单元测试（tests/unit/ 下数十个文件，纯逻辑/引擎/store 为主）
 npm run test:smoke    # AI 默认自检：冒烟质量门（极快）
-npm run check:health  # 工程健康全量检查（内含 check:keys + check:events + check:node-types + build + test:all + TDZ + dist 基线）
+npm run check:health  # 工程健康全量检查（文件存在性 + npm scripts 完整性 + build + test:all + check:keys/check:events/check:node-types/check-arch + TDZ 扫描 + dist 基线；**不含** `npm run check:api` 契约双向校验，需另跑）
 npm run check:events  # 事件契约双向校验：① 裸事件名必须登记 EVENTS；② EVENTS 的 to/from 须与代码实测 subscribe/publish 自洽（防 to:[] 误判死事件）。挂 prebuild+pretest
 npm run check:node-types  # 节点类型静态校验：NODE_TYPES 裸 nodePrefs 命名空间拦截（useNodePrefs 首参必须登记）
 npm run check:api     # API 契约双向校验：contracts.ts apiRegistry ↔ localTool router.ts 互检（防白实现/镜像漂移/信封不符），挂 prebuild+pretest
@@ -130,15 +130,6 @@ node scripts/task-inspect.mjs --canvas-health   # 画布结构体检
 
 ## 一、 项目全局定位 (TL;DR)
 
-- **项目本质**：高保真复刻「猫猫画布」的 **React 原型**，前端为可维护工程（`src/`）；后端复用自研的 `localTool`（`:18080`）与 `apimart-gateway`（`:9004`）替代官方闭源引擎，实现多端合一。
-
-- **当前进度**：
-
-  - **已完成**：`src/` 原型骨架（画布 + 节点体系 + 通用能力地基 `base/`）；`localTool` 已承担前端托管、请求代理、本地存储及生图异步转同步；`apimart-gateway` 已承担 Lovart 中继、聊天同步、图视异步、webhook 及自动确认。
-
-  - **进行中**：节点体系补全 + 通用能力地基打磨；网关原生双模（同步/异步）改造、落盘转存增强。
-
-  - **历史归档**：`reference-1mao/` 为官方混淆 `dist/` 逆向还原的可读源码（查实现用，不直接改）；逆向流水线脚本已归档到 `scripts/1mao-scripts/`。
 
 ***
 
@@ -152,7 +143,7 @@ node scripts/task-inspect.mjs --canvas-health   # 画布结构体检
 
 - **通用能力地基**：`src/components/base/`（`NodeShell` 统一外框、`CanvasToolbar`、`useArrangeCanvas`、`useCanvasAgentTools` 脚本盒引擎、Toast、ImageEditor、OverlayEditor、设置面板、AI 助手面板 AgentPanel 等）。
 
-- **设计语言**：参照 `docs/BASE-CAPABILITIES.md`；节点视觉/交互规范见 `docs/README.md`「节点设计规范」。
+- **设计语言**：参照 `docs/BASE-CAPABILITIES.md`；新建节点权威流程见 `spec/NEW-NODE-GUIDE.md`，节点视觉/交互规范见 `docs/ARCHITECTURE.md`（注意文档内 `prototypes/react-nodes/src/` 前缀为旧写法，实际即根目录 `src/`）。
 
 - **运行形态**：Chrome 扩展（MV3）。`public/manifest.json` + `background.js` + `icon*.png` 为插件壳；`src/` 编译后由 `vite.config.ts`（`base:'./'`，兼容 `chrome-extension://`）打包进 `dist/`。存储经 `src/components/base/contentStore.ts`（横切存储权威入口，按 `STORAGE_KEYS.backend` 自动路由 local/KV/native：local 走 `base/storage/storageAdapter.ts`（chrome.storage 扩展环境）/原生 `localStorage`；kv 走 localTool KV；native 后端如 director3d 直写原生 `localStorage`）。`npm run dev` 预览画布，`npm run build` 出 `dist/`。
 
@@ -163,10 +154,10 @@ node scripts/task-inspect.mjs --canvas-health   # 画布结构体检
 ### 3.0 写代码流程（动手前必走，顺序不可颠倒）
 
 1. **定契约**：输入/输出/边界是什么？状态归哪、走哪个唯一入口（见 `spec/CONTEXT.md`）？
-2. **构思测试 = 细化契约**：能写出「输入→输出」具体断言，契约才算定清。逻辑能抽纯函数则放 `base/*.js`，边写边锁单测；组件只补关键交互+防崩。断言须"源码一变必红"，自证式断言无效。
+2. **构思测试 = 细化契约**：能写出「输入→输出」具体断言，契约才算定清。逻辑能抽纯函数则放 `base/utils/`（或 `base/core/` 通用工具），边写边锁单测；组件只补关键交互+防崩。断言须"源码一变必红"，自证式断言无效。
 3. **定数据流**：数据从哪来、经哪些模块、落哪（状态/落盘/KV），对齐唯一入口与字符串契约（§五.5）。画通才动手。
 
-> 分层：纯逻辑 `base/*.js` → 补单测；hook → mock 锁返回值；组件 → 只补关键交互。SOP 见 `spec/TEST-GUIDE.md` §〇+§六。director3d 除外（见 §二）。
+> 分层：纯逻辑 `base/utils/`（或 `base/core/`）→ 补单测；hook → mock 锁返回值；组件 → 只补关键交互。SOP 见 `spec/TEST-GUIDE.md` §〇+§六。director3d 除外（见 §二）。
 
 ### 3.1 改动流程（通用，所有 `src/` 改动都走）
 
@@ -177,7 +168,7 @@ node scripts/task-inspect.mjs --canvas-health   # 画布结构体检
 ```
 0. npm run dev           ← 预览改动（非校验）
 1. npm run test:smoke    ← 冒烟质量门（每次改动都跑，默认自检）
-2. npm run test:unit     ← vitest 全量单元测试（tests/unit/ 下 24 文件/244 用例；
+2. npm run test:unit     ← vitest 全量单元测试（tests/unit/ 下 132 文件/1802 用例；
                            剧本盒引擎/AI 工具/纯函数等改动必跑，今天补的主力验证）
 3. npm run build         ← 构建校验 + 回灌 dist/（确认编译通过）
 4. npm run test:regression ← 节点注册表 + 脚本盒引擎回归（改了节点/引擎跑）
@@ -188,7 +179,7 @@ node scripts/task-inspect.mjs --canvas-health   # 画布结构体检
 > 命令速查（详见 `spec/TEST-GUIDE.md`，权威）：**`npm test`（=** **`npm run test:all`）= 冒烟 + vitest 全量单测 + 回归 + Agent 工具** 四件套一次跑完，提交前首选；单项：`npm run test:smoke`（冒烟）/`test:unit`（vitest 单测）/`test:regression`（SSR 回归）/`test:tools`（Agent 工具）；`npm run check:health` 全量编排（含构建 + 测试 + TDZ + dist 基线）。
 
 > ⚠️ **跑 vitest 单次**：`vitest.config.ts` 已默认 `watch:false`，裸调 `npx vitest xxx` 也会单次跑完即退（不会挂住）。但**优先用脚本**（内部已配好）：`npm test` / `npm run test:unit`（全量）或 `npx vitest run tests/unit/xxx.test.js`（单文件）。需 watch 时显式 `npx vitest --watch`。若已误入 watch，`Ctrl+C` 或 `pkill -f vitest` 退出。
-> 提交前 `pre-commit` 钩子自动跑 `type-check` + `vitest run --changed`（只测改动相关，\~2-3s）；**全量单测移到** **`pre-push`**（push 前跑 `npm run test:unit` 兜底，避免每次 commit 等全量 \~20s，2026-08-21 起）。`main` 分支的 push/PR 由 `.github/workflows/ci.yml` 云端跑 type-check + 单测。**全量 lint 门禁已移除（弊大于利，门禁靠类型检查 + 测试）**；但保留**单条存储键契约编译期拦截**（不恢复全量 eslint）：`npm run check:keys` 静态校验裸 `STORAGE_KEYS` key（挂 `npm run check:health`）+ `contentStore.checkRegistered` 在 dev 环境对未登记字面量 key 直接 throw。两者零新依赖、不碰 §3.1 的 lint 决策。
+> 提交前 `pre-commit` 钩子（`.husky/pre-commit`）自动跑 `type-check` + `node scripts/test-affected.cjs`（只测与暂存改动相关的单测，\~2-3s）+ 3 个秒级 SSR 门禁（`smoke`/`regression`/`tools`，防改名后 SSR 挂）；**`pre-push` 已删除**（与 CI 重叠，全量兜底见下）。`main` 分支的 push/PR 由 `.github/workflows/ci.yml` 云端跑 type-check + 全量单测（frontend + localtool 两个 job）。**全量 lint 门禁已移除（弊大于利，门禁靠类型检查 + 测试）**；但保留**单条存储键契约编译期拦截**（不恢复全量 eslint）：`npm run check:keys` 静态校验裸 `STORAGE_KEYS` key（挂 `npm run check:health`）+ `contentStore.checkRegistered` 在 dev 环境对未登记字面量 key 直接 throw。两者零新依赖、不碰 §3.1 的 lint 决策。
 > **写完代码跑哪个**：平时 `npm run type-check` + `test:unit`；改画布/地基或合 main 前再跑 `npm test` 全量兜底（regression/tools 已含在内）。
 
 ### 3.2 改 bug 先加日志、再动逻辑（最高优先）
@@ -204,7 +195,7 @@ node scripts/task-inspect.mjs --canvas-health   # 画布结构体检
 
 ### 3.3 localTool 改动必测
 
-> **凡改动** **`localTool/src/**`，提交前必须跑** **`cd localTool && npm test`**（先编译再测，全量用例覆盖 localtool.test / localtool.network / providers 三个文件，隔离临时库不碰真实数据）。理由：方案②改变了 KV 入库行为（base64→`/files/` 磁盘文件），无测试无法保证不回归。详见 `localTool/scripts/README.md`。
+> **凡改动** **`localTool/src/**`，提交前必须跑** **`cd localTool && npm test`**（先 `tsc --noEmit` 类型检查 + `node --test` 跑 `localTool/test/*.test.js` 全部用例，核心 `localtool.test.js` / `localtool.network.test.js`，隔离临时库不碰真实数据）。理由：方案②改变了 KV 入库行为（base64→`/files/` 磁盘文件），无测试无法保证不回归。详见 `localTool/scripts/README.md`。
 
 ***
 
@@ -220,7 +211,7 @@ node scripts/task-inspect.mjs --canvas-health   # 画布结构体检
 
 ### 2. 本地落盘与文件管理机制 (localTool)
 
-- **唯一入口**：localTool 的 `/files/` 是唯一文件入口，Python 网关不直接落盘。
+- **唯一入口**：localTool 的 `/files/` 是唯一文件入口，落盘由 `saveRemoteUrl`（`sha1(url)` 幂等，见下）统一收口；前端不再有独立落盘通道（旧 `proxyGenerate` 出站已随 2026-09-03 收口退役）。
 
 - **不丢图增强**：localTool 拿到 CDN url 后 `saveRemoteUrl`（基于 `sha1(url)` 幂等）转存本地。
 
@@ -245,11 +236,11 @@ node scripts/task-inspect.mjs --canvas-health   # 画布结构体检
   2. **拿前端 task\_id 查实时状态（relay 重构后首选）**：`node scripts/task-inspect.mjs --poll-status <前端任务中心显示的id>` → 经 localTool 网关 `GET /api/generate/{id}` 返回 relay 聚合后的 `status`/`url`（需 localTool 运行于 18080，无需 Lovart HMAC/代理）。
   3. **拿上游结果（出图 URL/文本）**：`--poll-status` 已直接返回 `data.url`；仅上游为直连 Lovart 时仍可用 `node scripts/task-inspect.mjs --lovart-result <thread_id>`（连 Lovart `/chat/result`，需 LOVART_* 凭据 + 代理）。
 
-  > relay 任务默认经本地网关（127.0.0.1:9004），`--poll-status` 走 localTool 自身 18080 网关即可，不必开 VPN/代理；`--lovart-*` 直连 Lovart 才需 `HTTPS_PROXY`（常见 7897）与 `LOVART_ACCESS_KEY/LOVART_SECRET_KEY`（从网关进程 env 取：`ps eww $(lsof -tiTCP:9004 -sTCP:LISTEN | head -1)`）。
+  > relay 任务主平台直连 `lgw.lovart.ai`（localTool 内部 `relay-poll` 常驻轮询 + 落盘 `/files/`），`lovart-old` 回退轨才经 127.0.0.1:9004；`--poll-status` 走 localTool 自身 18080 网关即可，不必开 VPN/代理；`--lovart-*` 仅 `lovart-old`/直连 Lovart 才需 `HTTPS_PROXY`（常见 7897）与 `LOVART_ACCESS_KEY/LOVART_SECRET_KEY`（从 lovart-old 进程 env 取：`ps eww $(lsof -tiTCP:9004 -sTCP:LISTEN | head -1)`）。
 
 - **出站代理**：localTool 原生 `fetch` 不继承系统代理；经 `localTool/src/utils/netProxy.ts` 的 `fetchWithProxy`（直连→环境变量→探测本机代理端口→隧道）兜底。
 
-> 前端原型（`src/`）通过 `proxyMode=local-tool` 把所有请求打到 localTool `:18080`，再由 localTool 转发网关 `:9004` → Lovart（需 VPN）。
+> 前端经 `config.ts` 的 `apiBase` 指向 localTool `:18080` 作为唯一本地入口；localTool 内部按 provider 走直连上游（`lgw.lovart.ai`）或 `lovart-old` 回退（`:9004`），旧 `/api/proxy` 出站已随 2026-09-03 生成入口收口退役。
 
 ***
 
@@ -257,7 +248,7 @@ node scripts/task-inspect.mjs --canvas-health   # 画布结构体检
 
 ### 5.1 绝对禁区 🚫
 
-- **端口与入口**：禁止改 `18080`/`9004` 端口；禁止改 `proxyMode=local-tool` 唯一入口。
+- **端口与入口**：禁止改 `18080`/`9004` 端口；禁止改唯一本地入口（前端 `config.ts` 的 `apiBase` → localTool `:18080`）。
 
 - **VPN 前置**：连 Lovart (`lgw.lovart.ai:443`) **必须开 VPN**，否则网关静默 502，非代码问题。
 
@@ -267,7 +258,7 @@ node scripts/task-inspect.mjs --canvas-health   # 画布结构体检
 
 - 任何反直觉/绕开既有逻辑的改动，在改动处立即注释「语义 + 原始混淆名/来源」（如 `// ol = tasks 数组，来自 H_.jsx`，不设 deadline）。
 
-- 跨大块改动（新增/删除节点、改脚本盒引擎）在 `docs/` 或改动文件顶部登记：改了哪、原始来源、目的、影响运行时行为。是后续对照 `reference-1mao/` 的唯一依据。
+- 跨大块改动（新增/删除节点、改脚本盒引擎）在 `docs/` 或改动文件顶部登记：改了哪、原始来源、目的、影响运行时行为。是后续对照历史实现/承前启后记录的依据。
 
 - **禁止直接手改** **`dist/`**：`dist/` 是 `src/` 的构建产物，前端改动一律改 `src/` 后 `npm run build`。
 
@@ -283,7 +274,7 @@ node scripts/task-inspect.mjs --canvas-health   # 画布结构体检
 
 ### 5.3 参考代码边界 🚫
 
-- `reference-1mao/` 是官方混淆还原的**只读参考**，查"原产品怎么实现某功能"用，不直接改、不把它的混淆符号当运行契约钉死。
+- 原 `reference-1mao/` 混淆还原只读代码**已移除**；查"原产品怎么实现某功能"以 `scripts/1mao-scripts/`（归档逆向脚本）和 `docs/`（历史调查产物）为参考，不直接改、不把混淆符号当运行契约钉死。
 
 - `scripts/1mao-scripts/` 是已归档的逆向/扩展脚本，默认不跑。
 
@@ -294,7 +285,7 @@ node scripts/task-inspect.mjs --canvas-health   # 画布结构体检
 1. **共享函数不随意从模块抽取**：被高频依赖的基座函数（如 `NodeShell`、`useArrangeCanvas`）改动需评估下游，避免破坏引用。
 2. **禁止新文件循环 import 大模块**（TDZ）：跨模块引用走既有 barrel / 已导出符号。
 3. **React 单实例不可破**：整工程唯一 React 实例，✗ 不可新增独立 react/react-dom 实例。
-4. **字符串契约零损伤**（见 §五.5）：`proxyMode=local-tool`、`127.0.0.1:18080`、`127.0.0.1:9004`、`/api/proxy`、`x-proxy-url`、画布硬编码字段 `t.data[0].url`、`{code,data}` 信封——改任何引用必须全量 grep 同步。
+4. **字符串契约零损伤**（见 §五.5）：`127.0.0.1:18080`、`127.0.0.1:9004`、`t.data[0].url`、`{code,data}` 信封——改任何引用必须全量 grep 同步。**注**：旧 `proxyMode=local-tool`/`/api/proxy`/`x-proxy-url` 已随 2026-09-03 生成入口收口退役，禁止恢复（前端直连 `/api/generate`，本地入口由 `config.ts` 的 `apiBase` 决定）。
 5. **存储键禁止裸字符串（P0 红线）**：所有存储读写（`content*/s*/storage*/kv*`）的 key 必须引用 `contracts.ts` 的 `STORAGE_KEYS` 登记项，**禁止裸字符串字面量 key**。新增键先登记、改键名全量 grep、删键先确认无引用。编译期拦截：`npm run check:keys`（静态）；运行时拦截：`contentStore.checkRegistered` 在 dev 环境对未登记字面量 key 直接 throw（`scripts/check-storage-keys.mjs` + `src/components/base/contentStore.ts` 为权威实现，改此机制须同步本红线）。
 6. **事件名禁止裸字符串 + 登记表零滞后（P0 红线，与存储键对称）**：所有事件总线调用（`publish`/`subscribe`/`subscribeOnce`）的事件名必须是 `contracts.ts` 的 `EVENTS` 登记项，**禁止裸字符串字面量事件名**（编译期 `npm run check:events` 拦截）。`EVENTS` 的 `from`/`to` 是发布/订阅事实源，**必须与代码实测的** **`publish`/`subscribe`** **位置自洽**：① 表 `to: []` 但代码实测有 `subscribe` → 视为"登记表滞后"（实际已被订阅），**禁止据此判定死事件/可删发布逻辑**；② 行号漂移须同步对齐。双向校验 `npm run check:events` 已挂 `prebuild`+`pretest`（`scripts/check-events.mjs` 为权威实现）。
 7. **降复杂度优先**：能减少复杂度又不引入 bug 的改动都做（混淆短名改语义长名、抽公共、删冗余），被运行时契约钉死的除外。改完必须 `npm run build` 验证。
@@ -330,11 +321,11 @@ node scripts/task-inspect.mjs --canvas-health   # 画布结构体检
 
 以下前后端契约值一字不差，改任何引用必须全量 grep 同步，禁止局部替换漏网：
 
-- `proxyMode=local-tool`、`127.0.0.1:18080`、`127.0.0.1:9004`、`/api/proxy`、`x-proxy-url`
+- `127.0.0.1:18080`、`127.0.0.1:9004`（端口铁律；旧 `proxyMode=local-tool`/`/api/proxy`/`x-proxy-url` 已随 2026-09-03 收口退役，勿恢复）
 
 - 画布硬编码字段：`t.data[0].url`、`{code,data}` 信封结构、SSE 事件格式
 
-- 模型别名映射（网关 `lovart_client.py` 内的工具名 ↔ Lovart 工具名）
+- 模型别名映射见 localTool 的 provider 配置（`ai-relay/providerCatalog.ts` 等），不再依赖已弃用的 Python 网关 `lovart_client.py`
 
 ***
 
@@ -359,13 +350,12 @@ node scripts/task-inspect.mjs --canvas-health   # 画布结构体检
 
 - **一键启动 (推荐)**：先开 VPN。
 
-  - Windows: `powershell -ExecutionPolicy Bypass -File .\launch-all.ps1 2`
+  - Windows: `powershell -ExecutionPolicy Bypass -File .\launch-all.ps1`
 
 - **独立调试**：
 
   - localTool: `cd localTool && npm run build && node dist/index.js`
 
-  - 网关: `cd apimart-gateway && python -m uvicorn main:app --host 127.0.0.1 --port 9004`
 
 - **仅前端原型**：`npm run dev`（localhost:5180，无需后端即可看画布）
 
@@ -383,7 +373,7 @@ node scripts/task-inspect.mjs --canvas-health   # 画布结构体检
 
 - **⚠️** **`vite build`** **报** **`Expected "..." but found "}"`**：根因是 **JSX 开标签属性列表里写了** **`{/* 注释 */}`**（esbuild 不支持，属性区只认裸 `/* */`）。改回 `/* */` 即过。复现：`<div a={1} {/* x */} b={2}/>` 必报；`<div a={1} /* x */ b={2}/>` 正常。子元素区（`<div>{/* x */}</div>`）不受影响，别误改。
 
-- **改 localTool 后端**：`cd localTool && npm test`（全量，localtool.test / localtool.network / providers 三个文件）必跑。
+- **改 localTool 后端**：`cd localTool && npm test`（`tsc --noEmit` + `node --test` 跑 `localTool/test/*.test.js` 全量，核心 `localtool.test.js` / `localtool.network.test.js`）必跑。
 
 ### 3. 缓存清理（前端原型不涉及 KV 缓存；后端排障见下）
 
@@ -426,13 +416,13 @@ node scripts/task-inspect.mjs --canvas-health   # 画布结构体检
 | ------------------------------------------------------- | ------------------------------------------------------------------ |
 | `docs/NODE-DESIGN-SPEC.md` / `docs/ARCHITECTURE.md`     | 节点长什么样 / 设计原则（ARCHITECTURE 路径前缀 `prototypes/...` 为旧写法，实际即根 `src/`） |
 | `docs/BASE-CAPABILITIES.md`                             | base 能力清单（**已并入 CONTEXT §二 横切层**，仅深挖用）                             |
-| `docs/CANVAS_PERFORMANCE.md` / `docs/node-types-map.md` | 性能 / 节点类型映射（生成产物）                                                  |
+| `docs/CANVAS_PERFORMANCE.md` / `docs/NODE-DESIGN-SPEC.md` | 性能 / 节点设计规范（节点类型映射以 `contracts.ts` 的 `NODE_TYPES` 为权威）                                                  |
 
 **🚫 归档/禁止（不读）**
 
 | 目录                      | 说明                  |
 | ----------------------- | ------------------- |
-| `reference-1mao/`       | 混淆还原只读源码（查实现用，不直接改） |
+| ~~`reference-1mao/`~~（已移除） | 原混淆还原只读源码**已移除**；参考 `scripts/1mao-scripts/`（归档逆向脚本）与 `docs/`（历史调查产物） |
 | `scripts/1mao-scripts/` | 归档逆向脚本（不跑）          |
 | `docs/逆向专用_ai 禁止读/`     | 还原方法论（AI 禁止读）       |
 | `daily/`                | 执行日志（不导航，不用维护）      |
@@ -443,14 +433,14 @@ node scripts/task-inspect.mjs --canvas-health   # 画布结构体检
 
 | 场景                                                         | 做法                                                                                                                                                                                  |
 | ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 要改/查 API 端点                                                | **先看** **`contracts.ts apiRegistry`（前端↔后端唯一契约真源，55 条）+ 跑** **`npm run check:api`** **双向校验**；改端点须「加函数+登记」双动作，信封形态标 `ok/code-data/success-data/items` 或豁免 `stream/sse/raw/probe/stub` |
-| 要改代理/转发逻辑                                                  | `localTool/src/routes/system.ts`（`/api/proxy` 剥信封/SSE/异步转同步）                                                                                                                        |
+| 要改/查 API 端点                                                | **先看** **`contracts.ts apiRegistry`（前端↔后端唯一契约真源，57 条）+ 跑** **`npm run check:api`** **双向校验**；改端点须「加函数+登记」双动作，信封形态标 `ok/code-data/success-data/items` 或豁免 `stream/sse/raw/probe/stub` |
+| 要改代理/转发逻辑                                                  | 现由 `localTool/src/routes/passthrough.ts`（`handlePassthrough`）+ `routes/generate.ts`（统一生成入口 `/api/generate`）+ `relay-poll.ts`（后端常驻轮询落盘）；旧 `/api/proxy` 已随 2026-09-03 收口退役                                                                                                                        |
 | 要查官方权益转发                                                   | `localTool/src/routes/official.ts`（中转+短缓存，不伪造权限）                                                                                                                                    |
 | 要改画布前端                                                     | 改 `src/` → `npm run test:smoke` → `npm run build`；严禁直接手改 dist                                                                                                                       |
 | **查数据流/依赖/谁引用谁**（trace 链路、改动影响面、判死代码）                      | **`node scripts/ts-migrate.mjs refs <file>`**（一屏看谁 import 它 + 字符串引用；链路图维护在 `spec/DATAFLOW.md`，先看它再 refs 单点验证）                                                                       |
-| 要新增画布节点                                                    | 按 `docs/README.md` 节点规范 + `docs/node-types-map.md`，放 `src/components/`                                                                                                              |
+| 要新增画布节点                                                    | 按 `spec/NEW-NODE-GUIDE.md`（新建节点权威流程）+ `docs/README.md` 节点规范，类型在 `src/components/base/core/contracts.ts` 的 `NODE_TYPES` 登记，放 `src/components/nodes/`                                                                                                              |
 | 画布问题排查（节点/边/布局/保存）                                         | **第一步必跑** `cd localTool && node scripts/task-inspect.mjs --canvas-health`（见 §六.0 铁律）                                                                                                |
 | **查图/视频/任务/日志/全链路**（task\_id / thread\_id 室外ID / node\_id） | **主入口** `cd localTool && node scripts/task-inspect.mjs --lifecycle <id>`（见 §四.2「查任务主入口」）。其余：`--logs` 日志、`--task` 节点比对、`--lost-check` 丢图、`--consistency` 三层一致性断言                     |
-| 改 localTool 后端                                             | `cd localTool && npm test`（全量，三个测试文件）                                                                                                                                               |
+| 改 localTool 后端                                             | `cd localTool && npm test`（`tsc --noEmit` + `node --test` 跑 `localTool/test/*.test.js` 全量）                                                                                                                                               |
 | 提交前验证                                                      | 前端 `npm test`（= smoke+vitest全量单测+regression+tools）+`npm run build`；较大改动加 `npm run check:health`；**localTool 改动另跑** **`cd localTool && npm test`**                                   |
 

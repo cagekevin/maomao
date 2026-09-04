@@ -271,9 +271,9 @@ export {
  *  - agentKey:     助手标识（默认 canvas-assistant）
  *  - systemPrompt: 注入的 system 提示词（可叠加画布操作准则）
  *  - defaultModel: 默认模型名
- *  - provider:     可选，AI 助手实际使用的供应商（来自 API 设置）。传了则经 /api/proxy
- *                  转发到该供应商（保留 function calling + SSE），选的模型才真正生效；
- *                  不传则回退走 localTool /api/agent/:id/chat（env 配的 LLM）。
+ *  - provider:     可选，AI 助手实际使用的供应商（来自 API 设置）。传了则打统一生成入口 /api/generate
+ *                  （relayChatStream，保留 function calling + SSE），选的模型才真正生效；
+ *                  不传则回退走 localTool /api/agent/:id/chat（env 配的 LLM；旧 /api/proxy 已退役）。
  * @returns { messages, sending, error, model, setModel, send, stop, clear, ... }
  */
 

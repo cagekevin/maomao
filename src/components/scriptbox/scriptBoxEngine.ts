@@ -84,7 +84,7 @@ export function useJsonObject(modelId?: string): boolean {
 }
 
 /**
- * 剧本盒子 —— 引擎层（接真系统，经 localTool /api/proxy → 供应商）。
+ * 剧本盒子 —— 引擎层（接真系统，经 localTool 统一生成入口 /api/generate → 供应商；旧 /api/proxy 出站已退役）。
  *
  * 对应职责划分：引擎不依赖 UI，只通过「读 data + updateData 写回」与节点交互。
  * 本文件对齐官方 H_.jsx 的 Ar/Pr/Fr/Ir/Un/ai/oi/li/ui 回调语义，把原来的假实现

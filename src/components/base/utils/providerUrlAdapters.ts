@@ -44,7 +44,7 @@ export function isGeneralProtocol(protocol: string): boolean {
   return GENERAL_PROTOCOLS.includes(protocol)
 }
 
-/** CLI 本地类协议：不走 /api/proxy，用本机登录态。 */
+/** CLI 本地类协议：不走统一代理转发（旧称 /api/proxy，已退役），用本机登录态。 */
 export const CLI_PROTOCOLS: string[] = ['jimeng', 'codex', 'gemini-cli']
 
 /** 协议显示名（M5-1，与后端 protocolAdapters.ts 的 PROVIDER_PROTOCOLS 一一对应）。 */
@@ -62,7 +62,7 @@ export const PROVIDER_PROTOCOL_LABELS: Record<string, string> = {
 /** 锁死平台 id：忽略单模型协议覆盖，只可改配置不可删除（M3 C1 / M5 G7，对齐后端 providers.ts FIXED_PROTOCOL_PROVIDER_IDS）。 */
 export const FIXED_PROTOCOL_PROVIDER_IDS: string[] = ['modelscope', 'volcengine', 'jimeng', 'runninghub']
 
-/** 是否走 /api/proxy 转发：CLI 类返回 false（调用方识别后走 CLI 专用通道）。 */
+/** 是否走统一代理转发（旧称 /api/proxy，已退役）：CLI 类返回 false（调用方识别后走 CLI 专用通道）。 */
 export function isProxyProtocol(protocol: string): boolean {
   return !CLI_PROTOCOLS.includes(protocol)
 }
@@ -110,7 +110,7 @@ function httpAdapter(protocol: string, prefix: string): ProtocolAdapter {
   }
 }
 
-/** CLI 类适配器：返回专用标记（不走 /api/proxy），供调用方经 isProxyProtocol 识别后走 CLI 通道。 */
+/** CLI 类适配器：返回专用标记（不走统一代理转发，旧 /api/proxy 已退役），供调用方经 isProxyProtocol 识别后走 CLI 通道。 */
 function cliAdapter(protocol: string): ProtocolAdapter {
   return {
     protocol,

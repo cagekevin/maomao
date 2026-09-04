@@ -2,7 +2,7 @@
  * genIntent — 前端「发意图」的统一数据契约（docs/100、docs/101）。
  *
  * 【为什么】前端 5 类入口（文本/promote/视频/剧本/AI助手）历史上把「整个 provider 富对象 + 散参数」
- * 塞给门面，再走 /api/proxy。本模块定义统一「意图」：前端只发 capability + providerId + model + 模态参数，
+ * 塞给门面（旧走 /api/proxy，已退役；现统一打 /api/generate）。本模块定义统一「意图」：前端只发 capability + providerId + model + 模态参数，
  * providerId = 后端 config/providers/<id>.json 的平台 id（= 13 个服务商之一）；出站细节由后端按 id 查。
  *
  * 【方向】先以本类型为锚点统一前端数据形状（门面逐步改收 GenIntent），再并后端 relay/API 成一个。

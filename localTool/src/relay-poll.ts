@@ -143,6 +143,8 @@ function lovartDirectProfile(baseUrl: string, signal?: AbortSignal, timeoutMs?: 
 // ── 轮询时序默认值（对齐前端 config.ts GEN_TIMEOUT/VIDEO_TIMEOUT 语义）──
 const DEFAULT_POLL_INTERVAL_MS = 3000;   // 单轮间隔（lovart preset 也是 3s）
 const DEFAULT_TOTAL_TIMEOUT_MS = 10 * 60 * 1000; // 总超时兜底，防无限挂（对齐 relay.ts 10min）
+// 连续单轮异常达此阈值 → 立即 failed 透传（默认 3s×30≈90s），避免未知持续异常静默挂起至总超时
+const MAX_CONSECUTIVE_POLL_ERRORS = 30;
 
 /** 落盘 /files/tasks/ 归属子目录（对齐 relay.ts RELAY_UPLOAD_SUBFOLDER）。 */
 const RELAY_UPLOAD_SUBFOLDER = 'tasks';
@@ -165,6 +167,8 @@ interface PollHandle {
   running: boolean;      // 单轮执行中防重入
   stopped: boolean;
   lastError?: string;
+  /** 连续单轮异常计数：达到阈值立即 failed 透传，避免未知持续异常静默挂起至总超时 */
+  consecutiveErrors: number;
 }
 
 // 进程单例：frontTaskId -> handle。一个 frontTaskId 只一个 poller。
@@ -266,6 +270,7 @@ export async function submitGenerateTask(input: RelaySubmitInput): Promise<{ ok:
         timer: null,
         running: false,
         stopped: false,
+        consecutiveErrors: 0,
       }, timeoutMs);
       return { ok: true, frontTaskId };
     }
@@ -350,6 +355,7 @@ export async function submitGenerateTask(input: RelaySubmitInput): Promise<{ ok:
       timer: null,
       running: false,
       stopped: false,
+      consecutiveErrors: 0,
     }, timeoutMs);
     return { ok: true, frontTaskId };
   } catch (e) {
@@ -379,6 +385,7 @@ function registerHandle(frontTaskId: string, handle: PollHandle, timeoutMs: numb
       if (handle.direct) {
         const profile = lovartDirectProfile(handle.baseUrl);
         const r = await pollLovartTaskOnce(profile, { handle: { threadId: handle.taskId, projectId: '' } });
+        handle.consecutiveErrors = 0; // 本轮有响应（未抛异常）→ 重置连续失败计数
         if (handle.stopped) return;
         if (r.status === 'completed') {
           stopHandle(handle);
@@ -392,6 +399,7 @@ function registerHandle(frontTaskId: string, handle: PollHandle, timeoutMs: numb
         return;
       }
       const r = await protocol.pollModelProtocolOnce(handle.poll!, handle.apiKey, undefined, handle.baseUrl);
+      handle.consecutiveErrors = 0; // 本轮有响应（未抛异常）→ 重置连续失败计数
       if (handle.stopped) return;
       if (r.status === 'completed') {
         stopHandle(handle);
@@ -405,8 +413,15 @@ function registerHandle(frontTaskId: string, handle: PollHandle, timeoutMs: numb
         await updateProgress(handle, r.progress, r.error);
       }
     } catch (e) {
-      // 单轮异常（如解析失败）：不误判终态，记日志，下轮续查（受总超时约束）
+      // 单轮异常（如解析失败/DB 写入异常）：不误判终态，记日志，下轮续查（受总超时约束）
       handle.lastError = e instanceof Error ? e.message : String(e);
+      handle.consecutiveErrors = (handle.consecutiveErrors || 0) + 1;
+      // 连续异常达阈值：实时失败透传，不再静默挂起至总超时（失败可见，不掩盖）
+      if (handle.consecutiveErrors >= MAX_CONSECUTIVE_POLL_ERRORS) {
+        stopHandle(handle);
+        await upsertFailed(handle, `轮询持续异常（${handle.consecutiveErrors} 次）：${handle.lastError}`);
+        return;
+      }
       await updateProgress(handle, undefined, handle.lastError);
     } finally {
       handle.running = false;
@@ -545,6 +560,7 @@ export async function initRelayPoller(opts: { timeoutMs?: number } = {}): Promis
         timer: null,
         running: false,
         stopped: false,
+        consecutiveErrors: 0,
       }, Math.max(1000, remaining));
     }
   } catch (e) {

@@ -20,6 +20,7 @@ import { buildLovartPrompt, buildLovartToolConfig } from './lovart_prompt.js';
 import { pollLovartThread, extractLovartArtifacts, extractLovartText } from './lovart_task.js';
 import { getLovartStatus, getLovartResult, confirmLovartThread } from './lovart_client.js';
 import { synthesizeLovartChatStream } from './lovart_stream.js';
+import { RelayHttpError, isRetryableHttpStatus } from '../../httpTransport.js';
 
 function toDeps(
   profile: LovartDirectProfile,
@@ -248,6 +249,12 @@ export async function pollLovartTaskOnce(
     }
     return { status: 'running' };
   } catch (e) {
-    return { status: 'running', error: (e as Error).message };
+    // 确定性硬失败（非可重试的 4xx，如 401/403/404/400）→ 立即 failed 透传，避免任务静默挂起至总超时；
+    // 可重试（5xx/429/408/网络）→ 仍 running，由下轮续查恢复。
+    const hard = e instanceof RelayHttpError && !isRetryableHttpStatus(e.status);
+    return {
+      status: hard ? 'failed' : 'running',
+      error: e instanceof Error ? e.message : String(e),
+    };
   }
 }
