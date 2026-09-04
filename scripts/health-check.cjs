@@ -7,7 +7,8 @@
  *   2. npm scripts 完整性
  *   3. npm run build（能构建）
  *   4. npm run test:all（统一测试门禁：smoke + regression + tools）
- *   5. TDZ 风险扫描（扫 src 下所有源码 .jsx/.js/.ts/.tsx，防「Cannot access before initialization」）
+ *   5. TDZ 风险扫描（扫 src 下所有源码 .jsx/.js/.ts/.tsx，防「Cannot access before initialization」；
+ *      逐行跳过注释——源码注释常引用报错文案作决策留痕，整文件盲扫会误报，见 depthUrls.ts:35 案例）
  *   6. dist 构建产物基线（借鉴 1mao safety-net：防 dist 意外增删/体积异常）
  *
  * 用法: node scripts/health-check.cjs        （或 npm run check:health）
@@ -147,11 +148,29 @@ let tdzHits = 0;
     if (e.isDirectory()) { walkDir(p); continue; }
     if (!/\.(jsx|js|ts|tsx)$/.test(e.name)) continue;
     const code = fs.readFileSync(p, 'utf-8');
-    for (const [pattern, label] of tdzPatterns) {
-      const m = [...code.matchAll(pattern)];
-      if (m.length) {
-        tdzHits += m.length;
-        console.log(`  ⚠️ ${path.relative(ROOT, p)}: ${label} ${m.length} 处`);
+    // 逐行扫描并跳过注释（2026-09-04 修误报）：源码注释常引用报错文案（如 "xxx is not a function"）
+    // 作决策留痕，整文件盲扫会把它们当风险（depthUrls.ts:35 / scriptBoxEngine.ts:1151）。
+    //  - /* */ 块注释（跨行状态机）、// 行注释、JSDoc 的 * 行 → 整体跳过；
+    //  - 代码行先剥行内 // 注释再匹配（URL 里的 // 也会被截断，但 TDZ 三模式不命中 URL，无影响）。
+    let inBlock = false;
+    for (const rawLine of code.split('\n')) {
+      const trimmed = rawLine.trim();
+      if (inBlock) {
+        if (trimmed.includes('*/')) inBlock = false;
+        continue;
+      }
+      if (trimmed.startsWith('/*')) {
+        if (!trimmed.includes('*/')) inBlock = true;
+        continue;
+      }
+      if (trimmed.startsWith('//') || trimmed.startsWith('*')) continue;
+      const codePart = rawLine.split('//')[0];
+      for (const [pattern, label] of tdzPatterns) {
+        const m = [...codePart.matchAll(pattern)];
+        if (m.length) {
+          tdzHits += m.length;
+          console.log(`  ⚠️ ${path.relative(ROOT, p)}: ${label} ${m.length} 处`);
+        }
       }
     }
   }
