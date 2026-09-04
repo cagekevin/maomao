@@ -12,8 +12,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 // 隔离外部依赖（网络 / 模型 / toast），仅保留 scriptBoxPrompts（纯提示词拼接）
-vi.mock('../../src/components/base/api/chatApi.ts', () => ({ chatCompletions: vi.fn() }))
-vi.mock('../../src/components/base/api/imageApi.ts', () => ({ generateImage: vi.fn() }))
+vi.mock('../../src/components/base/api/generate.ts', () => ({ chatCompletions: vi.fn(), generateImage: vi.fn() }))
 // 统一出口：toAbsoluteFileUrl 把相对 /files/ 补全为绝对原图（与 imageUrl.js 真实行为一致，注入 data.images 前收口）
 vi.mock('../../src/components/base/utils/imageUrl.ts', () => ({
   toAbsoluteFileUrl: (u) => (u && u.startsWith('/files/') ? `http://127.0.0.1:18080${u}` : u || ''),
@@ -45,7 +44,7 @@ const {
   createScriptBoxEngine,
 } = await import('@/components/scriptbox/scriptBoxEngine.ts')
 
-const { chatCompletions } = await import('@/components/base/api/chatApi.ts')
+const { chatCompletions } = await import('@/components/base/api/generate.ts')
 
 describe('scriptBoxEngine · 纯导出函数', () => {
   describe('parseJsonText', () => {
@@ -235,7 +234,7 @@ describe('scriptBoxEngine · 引擎编排', () => {
   beforeEach(() => vi.clearAllMocks())
 
   it('onGenerateScript 校验：无剧情时仅 toast 不调用 chat', async () => {
-    const { chatCompletions } = await import('@/components/base/api/chatApi.ts')
+    const { chatCompletions } = await import('@/components/base/api/generate.ts')
     // toastStore 由本文件顶部 vi.mock 工厂提供（src 无该具名导出），用本地类型收窄
     const { toastStore } = (await import('../../src/components/base/core/toastStore.ts')) as unknown as { toastStore: { showToast: (msg: string, opts?: unknown) => void } }
     const { engine, store } = makeEngine({})
@@ -246,7 +245,7 @@ describe('scriptBoxEngine · 引擎编排', () => {
   })
 
   it('onGenerateScript 调用 chatCompletions 并归一化写回 shots/assets', async () => {
-    const { chatCompletions } = await import('@/components/base/api/chatApi.ts')
+    const { chatCompletions } = await import('@/components/base/api/generate.ts')
     vi.mocked(chatCompletions).mockResolvedValueOnce({
       ok: true,
       content: '```json\n{"projectName":"小猫历险","globalStyle":"手绘","shots":[{"index":1,"description":"猫跳上桌"}],"assets":[{"name":"猫","category":"character","description":"橘猫"}]}\n```',
@@ -263,7 +262,7 @@ describe('scriptBoxEngine · 引擎编排', () => {
   })
 
   it('onGenerateScript 把上游接入图片传给 chatCompletions（编剧 AI 看产品外观）', async () => {
-    const { chatCompletions } = await import('@/components/base/api/chatApi.ts')
+    const { chatCompletions } = await import('@/components/base/api/generate.ts')
     vi.mocked(chatCompletions).mockResolvedValueOnce({ ok: true, content: '```json\n{"shots":[{"description":"展示产品"}]}\n```' })
     const { engine, store } = makeEngine({
       story: '为产品拍一支广告',
@@ -285,7 +284,7 @@ describe('scriptBoxEngine · 引擎编排', () => {
   })
 
   it('onGenerateScript 无上游图片时 images 为空数组', async () => {
-    const { chatCompletions } = await import('@/components/base/api/chatApi.ts')
+    const { chatCompletions } = await import('@/components/base/api/generate.ts')
     vi.mocked(chatCompletions).mockResolvedValueOnce({ ok: true, content: '```json\n{"shots":[{"description":"x"}]}\n```' })
     const { engine } = makeEngine({ story: 'no imgs' })
     await engine.onGenerateScript()
@@ -294,7 +293,7 @@ describe('scriptBoxEngine · 引擎编排', () => {
   })
 
   it('onGenerateScript 模型返回非 JSON 时回退 genMask=false 并 toast', async () => {
-    const { chatCompletions } = await import('@/components/base/api/chatApi.ts')
+    const { chatCompletions } = await import('@/components/base/api/generate.ts')
     // toastStore 由本文件顶部 vi.mock 工厂提供（src 无该具名导出），用本地类型收窄
     const { toastStore } = (await import('../../src/components/base/core/toastStore.ts')) as unknown as { toastStore: { showToast: (msg: string, opts?: unknown) => void } }
     vi.mocked(chatCompletions).mockResolvedValueOnce({ ok: true, content: '不是json' })
@@ -305,7 +304,7 @@ describe('scriptBoxEngine · 引擎编排', () => {
   })
 
   it('onStopScriptItem 全停：中止所有 AbortController', async () => {
-    const { chatCompletions } = await import('@/components/base/api/chatApi.ts')
+    const { chatCompletions } = await import('@/components/base/api/generate.ts')
     vi.mocked(chatCompletions).mockImplementationOnce(() => new Promise(() => {})) // 永不 resolve，保持运行
     const { engine, store } = makeEngine({ story: '长跑剧情' })
     const p = engine.onGenerateScript() // 触发一次生成并挂起

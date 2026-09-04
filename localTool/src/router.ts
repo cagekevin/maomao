@@ -46,7 +46,6 @@ import {
 import {
   handleOfficialUser, handleOfficialEntitlements, handleOfficialVipCheck, handleOfficialInvalidate,
 } from './routes/official.js';
-import { handleAgentChat } from './routes/agentChat.js';
 import { handleGenerateSubmit, handleGenerateGet, handleGenerateCancel } from './routes/generate.js';
 import { handleProvidersGet, handleProvidersPut, handleConfigBasePut, handleProviderTest, handleProviderProbeAsync, handleProviderFetchModels } from './routes/providers.js';
 import { handlePassthrough } from './routes/passthrough.js';
@@ -98,12 +97,6 @@ async function handleSyncDefault(_req: IncomingMessage, res: ServerResponse): Pr
 }
 
 // ── 需 string id 第三参的闭包适配 ──
-// router 命名路由只传 url，不保证字段顺序；带 id 的 handler 在此自行从 url.pathname 提取。
-const agentChatHandler: Handler = (req, res, url) => {
-  const m = url.pathname.match(/^\/api\/agent\/([^/]+)\/chat$/);
-  return handleAgentChat(req, res, m ? m[1] : '');
-};
-
 // ── 路由表（顺序即优先级）──
 export const routes: Route[] = [
   // ── 系统 ──
@@ -178,8 +171,6 @@ export const routes: Route[] = [
   { method: 'GET',  pattern: '/api/user/info', handler: handleOfficialUser },
   { method: 'GET',  pattern: '/api/user/model-entitlements', handler: handleOfficialEntitlements },
   { method: 'GET',  pattern: /^\/api\/agent\/[^/]+\/vip-check$/, handler: handleOfficialVipCheck },
-  // AI 操控画布：A1 本地 Agent chat（SSE 透传）
-  { method: 'POST', pattern: /^\/api\/agent\/([^/]+)\/chat$/, handler: agentChatHandler },
   { method: 'POST', pattern: '/api/official/entitlements/invalidate', handler: handleOfficialInvalidate },
 
   // ── 管理 ──

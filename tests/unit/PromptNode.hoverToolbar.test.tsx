@@ -48,7 +48,7 @@ vi.mock('../../src/components/base/canvas/nodePrefs.ts', () => ({ useNodePrefs: 
 vi.mock('../../src/components/base/api/filesApi.ts', () => ({ toAbsoluteFileUrl: (x) => x, saveResultToTasks: vi.fn(async () => undefined) }))
 vi.mock('../../src/components/base/store/providerStore.ts', () => ({ useProviders: () => ({ providers: [] }), load: vi.fn(() => Promise.resolve()) }))
 vi.mock('../../src/components/base/api/localToolApi.ts', () => ({ fetchTasks: vi.fn(async () => ({ items: [] })) }))
-vi.mock('../../src/components/base/api/imageApi.ts', () => ({ generateImage: vi.fn(async () => ({ url: 'http://gen.local/img.png' })) }))
+vi.mock('../../src/components/base/api/generate.ts', () => ({ generateImage: vi.fn(async () => ({ url: 'http://gen.local/img.png' })) }))
 vi.mock('../../src/components/base/utils/providerModels.ts', () => ({ buildAllModels: vi.fn(() => []), resolveProviderModel: vi.fn(() => ({ provider: {}, modelId: 'm' })) }))
 vi.mock('../../src/components/base/utils/clipboard.ts', async (importOriginal) => {
   const actual = await importOriginal() as Record<string, unknown>

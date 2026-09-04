@@ -24,7 +24,7 @@ vi.mock('../../src/components/base/core/toastStore.ts', () => ({ showToast: mock
 vi.mock('../../src/components/base/api/filesApi.ts', () => ({ toAbsoluteFileUrl: mocks.toAbsoluteFileUrl, saveResultToTasks: mocks.saveResultToTasks, saveTextToTasks: mocks.saveTextToTasks }))
 vi.mock('../../src/components/base/store/providerStore.ts', () => ({ useProviders: mocks.useProviders, load: mocks.loadProviders }))
 vi.mock('../../src/components/base/utils/providerModels.ts', () => ({ buildAllModels: mocks.buildAllModels, resolveProviderModel: mocks.resolveProviderModel }))
-vi.mock('../../src/components/base/api/chatApi.ts', () => ({ chatCompletions: mocks.chatCompletions }))
+vi.mock('../../src/components/base/api/generate.ts', () => ({ chatCompletions: mocks.chatCompletions }))
 
 import TextNode from '../../src/components/nodes/TextNode.tsx'
 beforeEach(() => { mocks.resetNodeMockState() })

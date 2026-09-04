@@ -574,18 +574,20 @@ describe('useAgentChat · 多对话隔离（newChat/switchChat/deleteChat）', (
   })
 })
 
-describe('useAgentChat · roundTrip 双路径（默认 / proxy）', () => {
-  it('默认路径：fetch 指向 /api/agent/{agentKey}/chat', async () => {
+describe('useAgentChat · roundTrip 出站（过期路径断言更新）', () => {
+  // 【L3b】旧断言「/api/agent/{agentKey}/chat 直连」已随 agentChat 退役——AI 助手聊天出站统一走
+  // /api/generate（capability=chat 统一入口，chatStream/relayChatStream）。这里锁定出站路径不改回直连。
+  it('默认路径：fetch 指向 /api/generate（统一生成入口），且 body.capability=chat', async () => {
     fetchMock.mockResolvedValue(textStream('默认路径回复'))
     const { result } = renderHook<AgentChatApi, unknown>(() => useAgentChat({ agentKey: 'canvas-assistant' }))
     await act(async () => { await result.current.send('hi') })
     const url = fetchMock.mock.calls[0][0]
-    expect(url).toContain('/api/agent/canvas-assistant/chat')
+    expect(url).toContain('/api/generate')
+    const sentBody = JSON.parse(fetchMock.mock.calls[0][1].body)
+    expect(sentBody.capability).toBe('chat')
   })
 
-  // 【2026-09-04 移除】proxy 路径用例旧断言 /api/proxy，但 2026-09-03 relay 收口后 agentRuntime 已改用
-  // /api/generate（capability=chat 统一入口），该断言恒红。保留默认路径用例；provider 路由行为由后端
-  // relayGenerate 覆盖。若需回归「provider 转发」，应改为断言 /api/generate。
+  // proxy/agent 双直连路径均已收口；provider 路由行为由后端 relayGenerate 覆盖，前端不再直连。
 })
 
 describe('useAgentChat · 附件归一化（send 带 attachments）', () => {

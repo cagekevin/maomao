@@ -25,11 +25,11 @@ describe('config.ts §API_BASE 日志与配置', () => {
 
   it('所有 API 层统一从这里取 API_BASE（被引用）', async () => {
     // 硬证据：直接读 API 层源码，断言其 import 语句确实引用了 config.ts
-    // （proxyGenerate 已整文件退役（2026-09-03 relay 收口），chatApi/imageApi/videoApi 直连 relay
-    //   并消费 config.ts 的超时时长，故以 chatApi 为 config 消费端硬证据）
+    // （imageApi/videoApi/chatApi 已并入 generate.ts（2026-09-04 L3 收口），generate 消费 config.ts 的超时时长，
+    //   故以 generate.ts 为 config 消费端硬证据）
     // kvStore.js 的 KV 转发已收口到 localToolApi.js，不再直接依赖 config.ts，故不在硬证据清单
     const apiFiles = [
-      'api/chatApi.ts', // relay 收口后 config 消费端（CHAT_TIMEOUT 等），2026-09-03 取代已退役的 proxyGenerate
+      'api/generate.ts', // L3 收口后 config 消费端（GEN_TIMEOUT/VIDEO_TIMEOUT/CHAT_TIMEOUT）
       'api/localToolApi.ts',
       'api/filesApi.ts',
       'core/logger.ts', // logger 已归 core/，本清单读源码断言引用 config.ts，路径后缀随改名同步
@@ -39,11 +39,11 @@ describe('config.ts §API_BASE 日志与配置', () => {
       expect(src).toMatch(/config\.(js|ts)/)
     }
     // 软证据：衍生 API 层能成功 import（依赖解析未断）
-    const videoApi = await import('@/components/base/api/videoApi.ts')
+    const generate = await import('@/components/base/api/generate.ts')
     const localToolApi = await import('@/components/base/api/localToolApi.ts')
     const filesApi = await import('@/components/base/api/filesApi.ts')
     const kvStore = await import('@/components/base/storage/kvStore.ts')
-    expect(videoApi).toBeTruthy()
+    expect(generate).toBeTruthy()
     expect(localToolApi).toBeTruthy()
     expect(filesApi).toBeTruthy()
     expect(kvStore).toBeTruthy()

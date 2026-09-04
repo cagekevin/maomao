@@ -58,7 +58,7 @@ vi.mock('../../src/components/base/api/localToolApi.ts', () => ({ fetchTasks: vi
 // 显式声明参数元组：vi.fn(async () => …) 会把参数推断成空元组 []，
 // 导致后续 mock.calls[0][0] 报 TS2493、mockGenerateImage(...a) 报 TS2556。
 const mockGenerateImage = vi.fn(async (..._args: unknown[]) => ({ url: 'http://gen.local/img.png' }))
-vi.mock('../../src/components/base/api/imageApi.ts', () => ({ generateImage: (...a) => mockGenerateImage(...a) }))
+vi.mock('../../src/components/base/api/generate.ts', () => ({ generateImage: (...a) => mockGenerateImage(...a) }))
 vi.mock('../../src/components/base/utils/providerModels.ts', () => ({ buildAllModels: vi.fn(() => []), resolveProviderModel: vi.fn(() => ({ provider: {}, modelId: 'm' })) }))
 
 beforeEach(() => {

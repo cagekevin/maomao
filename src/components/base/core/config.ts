@@ -20,16 +20,6 @@ export const API_BASE =
   import.meta.env?.VITE_API_BASE?.replace(/\/+$/, '') ||
   `http://127.0.0.1:${LOCAL_TOOL_PORT}`
 
-// ── LLM 聊天配置 ─────────────────────────────────────────────────
-/** LLM 端点 base URL（空则走 localTool 18080 代理） */
-export const LLM_CHAT_BASE_URL = import.meta.env?.VITE_LLM_CHAT_BASE_URL || ''
-
-/** LLM API Key */
-export const LLM_CHAT_API_KEY = import.meta.env?.VITE_LLM_CHAT_API_KEY || ''
-
-/** LLM 默认模型 */
-export const LLM_CHAT_MODEL = import.meta.env?.VITE_LLM_CHAT_MODEL || 'gpt-4o-mini'
-
 // ── 演示模式 ─────────────────────────────────────────────────────
 /** VITE_AGENT_DEMO='1' 时启用演示模式（不发真实 LLM 请求，用规则引擎模拟） */
 export const AGENT_DEMO_MODE = import.meta.env?.VITE_AGENT_DEMO === '1'
@@ -119,13 +109,6 @@ export const THROTTLE_MS = 5000
 // ── 生成轮询超时（ms）───────────────────────────────────────────
 /** 生图 async 模式轮询总超时 */
 export const GEN_TIMEOUT = 300000
-/**
- * 生图出站握手/提交响应超时（仅覆盖"连不上/接住不回头"，绝不替代长生成 GEN_TIMEOUT）。
- * 来源：docs/生图出站超时与记账式失败可见性设计.md §2.1。
- *  - 只掐"建连 + 响应头(及异步 body 首字节)"阶段，正常 SSE 头毫秒到达，不会误伤正在进行的生图。
- *  - 超时仅 abort 底层死连接、不重发（不触碰 retries:0 红线）；≤0 即禁用（同原 timeoutMs:0 语义）。
- */
-export const PROXY_CONNECT_TIMEOUT = 300000 / 10
 /** 视频 async 模式轮询总超时 */
 export const VIDEO_TIMEOUT = 600000
 
@@ -140,7 +123,6 @@ export const SCRIPT_IMAGE_TIMEOUT = GEN_TIMEOUT + 60000
 
 // ── 轮询间隔（ms）───────────────────────────────────────────────
 export const GEN_POLL_INTERVAL = 3000
-export const VIDEO_POLL_INTERVAL = 5000
 
 // ── 异步任务 relay 后端化（docs/90 R5）────────────────────────────
 // 前端 image/video 门面已硬切 relayGenerate（直连 /api/generate，后端 relay-poll 常驻轮询 + 落盘 /files/

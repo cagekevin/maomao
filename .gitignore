@@ -88,6 +88,9 @@ localTool/localtool_18080.err.log
 # ── 系统 / 编辑器 / 项目数据 ──
 .DS_Store
 Thumbs.db
+# vitest 运行期重定向输出（vitest 结果收集文件，非源码不入库）
+vitest-out.txt
+vitest-out_*.txt
 
 # ── 守护进程 PID 锁文件（launch-all.ps1 单实例保护，运行期生成）──
 .watchdog.lock

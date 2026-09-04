@@ -3,8 +3,7 @@ import { useCanvasAgentTools, getGenParams, setCurrentReferenceImages } from '..
 import { loadAgentChatModel, loadAgentHistoryTurns } from '../../base/store/agentModelStore.ts'
 import { logger } from '../../base/core/logger.ts'
 import { withTimeout } from '../../base/utils/asyncGuard.ts'
-import { API_BASE, KV_TIMEOUT } from '../../base/core/config.ts'
-import { LLM_CHAT_BASE_URL, LLM_CHAT_API_KEY, LLM_CHAT_MODEL, AGENT_DEMO_MODE } from '../../base/core/config.ts'
+import { KV_TIMEOUT, AGENT_DEMO_MODE } from '../../base/core/config.ts'
 import { InputStateMachine } from './inputStateMachine.ts'
 import { generateId } from '../../base/core/idGen.ts'
 
@@ -144,15 +143,8 @@ interface SendUserMessage {
  *  1. 工具执行器：lr → callTool（useCanvasAgentTools），LLM 侧无感知，返回信封不变。
  *  2. 鉴权：官方 We() 取登录 token；原型无登录，直接发请求。
  *  3. 历史持久化：官方 nr(n)/ir(n) 走后端；原型用 localStorage（键 = `agent_history_${agentKey}`）。
- *  4. LLM 端点：读 env（VITE_*，见下），默认走 localTool 18080 的 /api/agent/:id/chat，
- *     与 docs/27 一致（localTool 已落地支持 function calling 的 LLM 中转）。
- *
- * 【LLM 端点配置（.env 或 import.meta.env）】
- *  - VITE_LLM_CHAT_BASE_URL  默认 'http://127.0.0.1:18080/api/agent/{agentKey}/chat'
- *      （指向 localTool；localTool 再转发到支持 function calling 的 LLM，见 docs/27 §3/§11）
- *  - VITE_LLM_CHAT_API_KEY   可选，Bearer 鉴权
- *  - VITE_LLM_CHAT_MODEL     默认 'gpt-4o-mini'（localTool 会按配置覆盖，见 docs/27 §11.3）
- *  - 若想直接连某个 OpenAI 兼容端点：把 BASE_URL 设成该端点 /v1/chat/completions 即可。
+ *  4. LLM 端点：出站统一走前端生成门面 chatStream → POST /api/generate（capability=chat），
+ *     provider/model 由设置页/厂商配置提供（旧 VITE_LLM_CHAT_* 直连链路已退役，见 L3b）。
  *
  * 【消息契约（对齐官方 + LLM 可解析）】
  *  - user:      { role:'user', content, attachments?:[{type,url}], createdAt }
@@ -228,11 +220,6 @@ interface SendUserMessage {
  *   本轮已把这三处根治，并在此留档，勿再推翻。
  * ══════════════════════════════════════════════════════════════════════════════
  */
-
-// LLM 端点配置（从 config.js 读取，env 可覆盖；默认走 localTool 18080，与 docs/27 一致）
-const CHAT_BASE_URL = LLM_CHAT_BASE_URL
-const CHAT_API_KEY = LLM_CHAT_API_KEY
-const CHAT_MODEL = LLM_CHAT_MODEL
 
 // Demo 模式：AGENT_DEMO_MODE 为 true 时，不发真实 LLM 请求，
 // 用本地规则引擎模拟「说一句话 → 调工具 → 画布变化」。方便没配 LLM key 也能演示。
@@ -311,7 +298,7 @@ export interface UseAgentChatReturn {
   setCurrentRunMode: (mode: string) => void
 }
 
-export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '', defaultModel = CHAT_MODEL, provider = null, skills = [], onConversationChange = null } = {}): UseAgentChatReturn {
+export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '', defaultModel = '', provider = null, skills = [], onConversationChange = null } = {}): UseAgentChatReturn {
   // ── 消息单源（阶段1A）：不再自持 messages state，改为按字段订阅 store 的
   //    conversations[activeId].messages。流式高频更新只重渲染消息订阅者，其余字段不连坐。
   const messages = useStoreSelector<ConversationStoreState, AgentMessageData[]>(subscribe, getState, (s) => {
@@ -430,29 +417,25 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [agentKey])
 
-  // 组装端点：默认走 localTool /api/agent/{agentKey}/chat；env 可覆盖
-  const endpoint = CHAT_BASE_URL || `${API_BASE}/api/agent/${encodeURIComponent(agentKey)}/chat`
-
   /** 单次 SSE 请求，返回 { role:'assistant', content, reasoning?, tool_calls? }（复刻官方 dr:2579-2778 的 v）。
    *  支持流式（stream:true + SSE）与非流式（stream:false + 普通 JSON）两种模型：
    *  - 流式（默认）：传 tools（function calling），SSE 逐块解析。
    *  - 非流式：AI 助手设置里标注「非流式」时走普通 JSON 响应解析。默认不开工具（部分模型
    *    不支持 function calling）；若模型/网关支持，可把下方 enableToolsOnNonStream 置 true 测试。 */
   // 【职责模块化】roundTrip 已下沉到 agentRuntime.js（依赖注入）。此处只构造 ctx 并转发，
-  // 逻辑与拆分前完全一致（LLM 通信：流式 SSE / 非流式 JSON 双模式 + 双链路 proxy/agent）。
+  // 逻辑与拆分前完全一致（LLM 通信：流式 SSE / 非流式 JSON 双模式；出站统一走 chatStream/post 生成门面）。
   const roundTrip = useCallback(
     async (requestMessages, signal, onStream) => {
       return agentRuntimeRoundTrip(
         {
-          endpoint, model, toolSchemas, provider, apiBase: API_BASE,
-          chatApiKey: CHAT_API_KEY, logger,
+          model, toolSchemas, provider, logger,
           loadAgentChatModel, parseAgentError, parseSSEChunk,
           ENABLE_TOOLS_ON_NON_STREAM,
         },
         requestMessages, signal, onStream
       )
     },
-    [endpoint, model, toolSchemas, provider]
+    [model, toolSchemas, provider]
   )
 
   /** 执行一批工具调用并回填 tool 消息（send 的真实分支与 Demo 分支共用）。

@@ -4,7 +4,6 @@
  * 覆盖依赖出站 fetch 的模块，用替换 globalThis.fetch 的方式模拟外部响应：
  *   - official：readOfficialBase / 权益转发缓存 / stale 降级 / invalidate
  *   - passthrough：本地路径不转发 / 转发头构建 / 响应回传
- *   - agentChat：未配置 500 / 缺 messages 400 / SSE 透传 / 非 SSE 包装
  *   - system：handleGatewayTask code 转换 / 400→404 归一
  *   - files：saveRemoteUrl（fileUrl 下载落盘）
  *
@@ -25,7 +24,6 @@ function toFileUrl(p) { return 'file:///' + p.split(path.sep).join('/'); }
 // 模块在顶层 import（network 模块内 fetch 为运行时全局查找，替换 globalThis.fetch 有效）
 const officialMod = await import(toFileUrl(path.join(src, 'routes', 'official.ts')));
 const passthroughMod = await import(toFileUrl(path.join(src, 'routes', 'passthrough.ts')));
-const agentChatMod = await import(toFileUrl(path.join(src, 'routes', 'agentChat.ts')));
 const systemMod = await import(toFileUrl(path.join(src, 'routes', 'system.ts')));
 const filesMod = await import(toFileUrl(path.join(src, 'routes', 'files.ts')));
 const dbMod = await import(toFileUrl(path.join(src, 'db', 'database.ts')));
@@ -84,7 +82,7 @@ beforeEach(() => {
 });
 afterEach(() => {
   restoreFetch();
-  // 准则文件变量会改变 agentChat 的注入行为，必须逐用例清理，防止泄漏到其它用例
+  // AI_CANVAS_SYSTEM_PROMPT_FILE 变量须逐用例清理，防止泄漏到其它用例
   delete process.env.AI_CANVAS_SYSTEM_PROMPT_FILE;
   try { dbMod.closeDb(); } catch {}
   try { fs.rmSync(TEST_DIR, { recursive: true, force: true }); } catch {}
@@ -281,138 +279,6 @@ test('passthrough·转发 GET 并流式回传（mock fetch）', async () => {
   assert.equal(handled, true);
   assert.equal(res.status, 200);
   assert.equal(Buffer.concat(chunks).toString('utf-8'), body);
-});
-
-// ══════════════════════════════════════════════════════════════
-// agentChat
-// ══════════════════════════════════════════════════════════════
-
-test('agentChat·未配置 LLM_CHAT_BASE_URL → 500', async () => {
-  delete process.env.LLM_CHAT_BASE_URL;
-  const res = makeRes();
-  await agentChatMod.handleAgentChat(makeJsonReq({ messages: [{ role: 'user', content: 'hi' }] }), res, 'canvas-assistant');
-  assert.equal(res.status, 500);
-});
-
-test('agentChat·缺 messages → 400', async () => {
-  process.env.LLM_CHAT_BASE_URL = 'http://llm.local/v1/chat/completions';
-  const res = makeRes();
-  await agentChatMod.handleAgentChat(makeJsonReq({}), res, 'canvas-assistant');
-  assert.equal(res.status, 400);
-});
-
-test('agentChat·SSE 透传（mock fetchWithProxy→fetch）', async () => {
-  process.env.LLM_CHAT_BASE_URL = 'http://llm.local/v1/chat/completions';
-  process.env.LLM_CHAT_API_KEY = 'key';
-  process.env.LLM_CHAT_MODEL = 'test-model';
-  const sse = 'data: {"choices":[{"delta":{"content":"你好"}}]}\n\ndata: [DONE]\n\n';
-  mockFetchOnce(async (url, init) => {
-    assert.match(url, /http:\/\/llm\.local\/v1\/chat\/completions/);
-    // 断言透传了准则 + 流式
-    const sent = JSON.parse(init.body);
-    assert.equal(sent.model, 'test-model');
-    assert.equal(sent.stream, true);
-    // 画布准则的注入源在前端（agentCore.buildRequestMessages），覆盖 proxy / agent 两条路径；
-    // 后端默认路径（provider 存在）走 /api/proxy，agentChat 不参与，若后端也注入则默认形态下
-    // 是死代码。故后端仅在配置了 AI_CANVAS_SYSTEM_PROMPT_FILE 时兜底注入（见下一条用例），
-    // 未配置时不注入，避免与前端注入的准则重复。
-    assert.ok(
-      !sent.messages.some((m) => m.role === 'system'),
-      '未配准则文件时后端不注入 system（准则由前端单一注入）'
-    );
-    const stream = new ReadableStream({ start(c) { c.enqueue(new TextEncoder().encode(sse)); c.close(); } });
-    return new Response(stream, { status: 200, headers: { 'content-type': 'text/event-stream' } });
-  });
-
-  const { Writable } = await import('node:stream');
-  const chunks = [];
-  const res = new Writable({ write(c, e, cb) { chunks.push(Buffer.from(c)); cb(); } });
-  res.writeHead = (code, h) => { res.status = code; return res; };
-  res.flushHeaders = () => {};
-
-  await agentChatMod.handleAgentChat(makeJsonReq({ messages: [{ role: 'user', content: 'hi' }] }), res, 'canvas-assistant');
-  const out = Buffer.concat(chunks).toString('utf-8');
-  assert.match(out, /data: /);
-  assert.ok(out.includes('你好'), '应透传 SSE 内容');
-  assert.ok(out.includes('[DONE]'));
-});
-
-test('agentChat·配置外部准则文件时后端兜底注入 system', async () => {
-  process.env.LLM_CHAT_BASE_URL = 'http://llm.local/v1/chat/completions';
-  process.env.LLM_CHAT_API_KEY = 'key';
-  process.env.LLM_CHAT_MODEL = 'test-model';
-  const rulesPath = path.join(TEST_DIR, 'canvas-rules.txt');
-  fs.writeFileSync(rulesPath, '外部准则：先规划再执行', 'utf-8');
-  process.env.AI_CANVAS_SYSTEM_PROMPT_FILE = rulesPath;
-
-  let sent = null;
-  mockFetchOnce(async (_url, init) => {
-    sent = JSON.parse(init.body);
-    return new Response('data: {"choices":[{"delta":{"content":"ok"}}]}\n\ndata: [DONE]\n\n', {
-      status: 200,
-      headers: { 'content-type': 'text/event-stream' },
-    });
-  });
-
-  const { Writable } = await import('node:stream');
-  const chunks = [];
-  const res = new Writable({ write(c, e, cb) { chunks.push(Buffer.from(c)); cb(); } });
-  res.writeHead = (code, h) => { res.status = code; return res; };
-  res.flushHeaders = () => {};
-
-  await agentChatMod.handleAgentChat(makeJsonReq({ messages: [{ role: 'user', content: 'hi' }] }), res, 'canvas-assistant');
-
-  const sysList = sent.messages.filter((m) => m.role === 'system');
-  assert.equal(sysList.length, 1, '配了外部准则文件 → 后端兜底注入 1 条 system');
-  assert.match(sysList[0].content, /外部准则/);
-  assert.match(Buffer.concat(chunks).toString('utf-8'), /data: /);
-});
-
-test('agentChat·消息里已有 system 时不重复注入（前端已注入的场景）', async () => {
-  process.env.LLM_CHAT_BASE_URL = 'http://llm.local/v1/chat/completions';
-  process.env.LLM_CHAT_MODEL = 'test-model';
-  const rulesPath = path.join(TEST_DIR, 'canvas-rules.txt');
-  fs.writeFileSync(rulesPath, '外部准则', 'utf-8');
-  process.env.AI_CANVAS_SYSTEM_PROMPT_FILE = rulesPath;
-
-  let sent = null;
-  mockFetchOnce(async (_url, init) => {
-    sent = JSON.parse(init.body);
-    return new Response('data: [DONE]\n\n', { status: 200, headers: { 'content-type': 'text/event-stream' } });
-  });
-
-  const { Writable } = await import('node:stream');
-  const res = new Writable({ write(c, e, cb) { cb(); } });
-  res.writeHead = (code, h) => { res.status = code; return res; };
-  res.flushHeaders = () => {};
-
-  // 前端已注入准则 → 后端即使配了准则文件也不得再插一条（否则 LLM 收到两条重复准则）
-  await agentChatMod.handleAgentChat(
-    makeJsonReq({ messages: [{ role: 'system', content: '前端准则' }, { role: 'user', content: 'hi' }] }),
-    res,
-    'canvas-assistant'
-  );
-  const sysList = sent.messages.filter((m) => m.role === 'system');
-  assert.equal(sysList.length, 1, '已有 system 时不重复注入');
-  assert.equal(sysList[0].content, '前端准则', '不得覆盖前端注入的准则');
-});
-
-test('agentChat·上游非 SSE → 包装成 data: 行', async () => {
-  process.env.LLM_CHAT_BASE_URL = 'http://llm.local/v1/chat/completions';
-  const jsonErr = JSON.stringify({ error: 'overloaded' });
-  mockFetchOnce(async () => new Response(jsonErr, { status: 200, headers: { 'content-type': 'application/json' } }));
-
-  const { Writable } = await import('node:stream');
-  const chunks = [];
-  const res = new Writable({ write(c, e, cb) { chunks.push(Buffer.from(c)); cb(); } });
-  res.writeHead = (code, h) => { res.status = code; return res; };
-  res.flushHeaders = () => {};
-
-  await agentChatMod.handleAgentChat(makeJsonReq({ messages: [{ role: 'user', content: 'hi' }] }), res, 'canvas-assistant');
-  const out = Buffer.concat(chunks).toString('utf-8');
-  assert.match(out, /^data: /, '应以 data: 开头');
-  assert.ok(out.includes('overloaded'));
-  assert.ok(out.includes('[DONE]'));
 });
 
 // ══════════════════════════════════════════════════════════════

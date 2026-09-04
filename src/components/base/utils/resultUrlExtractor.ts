@@ -27,8 +27,8 @@
  *    一律走本模块（extractResultUrl / resolveMediaType / classifyUrl）。
  *  · 禁止在别处另起实现 / 就地手写字段映射 / 复制本模块逻辑（会导致"同一样例各
  *    处解析不一致 / video 被当 image"，正是当初收口的根因）。
- *  · 唯一例外：responses 协议生图（requestModes.parseResponsesJson 走
- *    output_text markdown 兜底）是不同响应形态，不适用本信封字段表，属合理例外；
+ *  · 唯一例外：responses 协议生图（parseResponsesJson 走 output_text markdown 兜底，原 requestModes
+ *    已随 L3b 退役）是不同响应形态，不适用本信封字段表，属合理例外；
  *    其余标准信封（result.images[].url 等）一律强制经本模块。
  * ════════════════════════════════════════════════════════════════
  */

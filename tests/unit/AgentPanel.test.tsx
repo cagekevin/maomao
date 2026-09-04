@@ -219,6 +219,10 @@ describe('AgentPanel — 面板显隐（阶段1C：常驻 DOM，CSS 显隐）', 
 })
 
 describe('AgentPanel — 消息发送', () => {
+  // 【L3b】空 provider 会禁用输入（noProvider）；本组验证「可发送」路径，故注入 modelscope 供应商。
+  beforeEach(() => {
+    h.setProviders([{ id: 'modelscope', name: '魔搭', primary: true, chat_models: [{ id: 'qwen-max' }] }])
+  })
   it('输入文本 → 回车发送（携带输入内容）', () => {
     render(<AgentPanel {...OPEN_PROPS} />)
     const ta = screen.getByPlaceholderText(/输入消息/) as HTMLTextAreaElement
@@ -242,6 +246,10 @@ describe('AgentPanel — 消息发送', () => {
 })
 
 describe('AgentPanel — 直接生图模式', () => {
+  // 【L3b】同「消息发送」：验证可发送路径，注入 modelscope 供应商避免 noProvider 禁用。
+  beforeEach(() => {
+    h.setProviders([{ id: 'modelscope', name: '魔搭', primary: true, chat_models: [{ id: 'qwen-max' }] }])
+  })
   it('切换到直接生图 → 提示文案与占位符变化', () => {
     render(<AgentPanel {...OPEN_PROPS} />)
     fireEvent.click(screen.getByRole('button', { name: '直接生图' }))
@@ -399,6 +407,10 @@ describe('AgentPanel — 对话管理', () => {
 })
 
 describe('AgentPanel — 待引用图确认', () => {
+  // 【L3b】本组聚焦输入框并发送，同「消息发送」注入 provider 避免 noProvider 禁用。
+  beforeEach(() => {
+    h.setProviders([{ id: 'modelscope', name: '魔搭', primary: true, chat_models: [{ id: 'qwen-max' }] }])
+  })
   it('选中画布图节点 → 显示待引用，聚焦输入框后并入附件并随发送带出', () => {
     render(<AgentPanel {...OPEN_PROPS} selectedImageNodes={[{ url: 'http://x/img.png', label: 'L', nodeId: 'n1', nodeType: 'image' }]} />)
     expect(screen.getByText('待引用：')).toBeTruthy()

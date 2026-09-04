@@ -128,10 +128,10 @@ export async function compressToSummary(
   const signal = new AbortController()
   let res
   try {
-    // 压缩走流式（stream:true）：边生成边累积 content，避免非流式慢模型（思考型）30s 挂起超时。
-    // 流式下响应头一到就持续有数据，超时窗口内能及时拿回摘要（即便未完整也会累积到大部分）。
+    // 上下文压缩是内部工具调用，不需要打字机：走 chatCompletions 同步快路径（不传 stream，
+    // 修订 7 —— stream 是死参数，真透传会把同步变 SSE、与 withTimeout 的非流式解析冲突）。
     res = await withTimeout(
-      chatCompletions({ provider, messages: body, model, temperature: 0.1, signal: signal.signal, stream: true }),
+      chatCompletions({ provider, messages: body, model, temperature: 0.1, signal: signal.signal }),
       SUMMARY_TIMEOUT_MS,
       '对话摘要压缩超时',
       signal.signal

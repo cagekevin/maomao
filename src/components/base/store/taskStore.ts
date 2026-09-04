@@ -50,8 +50,6 @@ export interface Task {
   createdAt?: number
   /** 当前进行到哪一步的文案（如「已转发到生成网关…」） */
   stageLabel?: string
-  /** 异步任务的可轮询网关 task_id（= task_<thread_id>），同步任务无此字段 */
-  pollTaskId?: string
   [key: string]: unknown
 }
 
@@ -313,17 +311,6 @@ export function patchTask(id: string, patch: Partial<Task>): void {
   }
 }
 
-/**
- * 异步任务（生图/视频）提交后回填「可轮询查询的网关 task_id」。
- * @param {string} taskId 前端自造任务 id（taskStore 主键）
- * @param {string} pollTaskId 网关返回的 task_id（= task_<thread_id>），用于 /api/v1/gateway/task 查询
- * 【取舍】只对异步任务写它；文本/生图 sync 同步阻塞无 task_id，不写（写了也查不了）。
- */
-export function setTaskPollId(taskId: string, pollTaskId: string): void {
-  if (!taskId || !pollTaskId) return
-  patchTask(taskId, { pollTaskId })
-}
-
 export function removeTask(id: string): void {
   tasks = tasks.filter((t) => t.id !== id)
   notify()
@@ -554,7 +541,7 @@ export interface EnsurePollingOptions {
    * 由 ensurePolling 定时驱动（每 pollIntervalMs 调一次）。**occupyOnly 时忽略**。
    */
   register: (taskId: string) => Promise<boolean>
-  /** 单轮间隔 ms（调用方按类型传：image GEN_POLL_INTERVAL / video VIDEO_POLL_INTERVAL） */
+  /** 单轮间隔 ms（调用方按上传模态传：image 用 GEN_POLL_INTERVAL） */
   pollIntervalMs?: number
   /** 总超时 ms（到点强停，防止轮询无限挂起，铁律：异步必须带总超时） */
   timeoutMs?: number

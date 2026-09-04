@@ -24,7 +24,7 @@ import { initRelayPoller } from './relay-poll.js';
 
 // ── 轻量 .env 加载（无 dotenv 依赖，localTool 仅 sql.js 一个运行时依赖）──
 // 读取 localTool/.env（路径真源 paths.ts），注入 process.env。
-// 用途：LLM_CHAT_BASE_URL / LLM_CHAT_API_KEY / AI_CANVAS_ENHANCE 等 AI 操控画布配置。
+// 用途：AI_CANVAS_ENHANCE 等 AI 操控画布配置（旧 LLM_CHAT_* 直连链路已随 agentChat 退役，见 L3b）。
 function loadDotEnv(): void {
   const envPath = getEnvFile();
   try {

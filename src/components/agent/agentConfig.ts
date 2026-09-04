@@ -36,9 +36,6 @@
  * ════════════════════════════════════════════════════════════════
  */
 import {
-  LLM_CHAT_BASE_URL,
-  LLM_CHAT_API_KEY,
-  LLM_CHAT_MODEL,
   AGENT_DEMO_MODE,
   AGENT_CONTEXT_WINDOW_DEFAULT,
   AGENT_CONTEXT_OUTPUT_BUDGET_RATIO,
@@ -144,9 +141,6 @@ export const AGENT_PROMPTS = Object.freeze({
 // 说明：env 读取的单一来源仍是 base/config.ts，此处仅 re-export 供 AI 助手统一入口引用，
 // 不产生第二个定义。当前零消费者（消费方仍走 base/config.ts），无害且为后续切换铺路。
 export {
-  LLM_CHAT_BASE_URL,
-  LLM_CHAT_API_KEY,
-  LLM_CHAT_MODEL,
   AGENT_DEMO_MODE,
   AGENT_CONTEXT_WINDOW_DEFAULT,
   AGENT_CONTEXT_OUTPUT_BUDGET_RATIO,

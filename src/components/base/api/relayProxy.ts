@@ -290,3 +290,50 @@ export async function relayChat(
     return { ok: false, error: e instanceof Error ? e.message : '聊天失败' }
   }
 }
+
+/**
+ * chat 流式出站（SSE，AI 助手专用）。打统一生成入口 POST /api/generate（capability=chat）。
+ * 返回**未消费 body** 的原始 Response，SSE 逐块解析交给调用方（agentRuntime.resolveBody）。
+ *  - stream 默认 true：后端透传 SSE（打字机 + tool_calls delta）；传 false 走同步 JSON。
+ *    （后端以 `body.stream===true || hasTools` 自动判定是否流式，故非流式须显式 stream:false 且不带 tools。）
+ *  - 非 2xx 抛 HttpError（httpClient 语义）；错误文案归一不在本层，交给 generate.chatStream 的 parseAgentError。
+ *  - timeoutMs:0 不在此掐点——流式 body 读取的总超时由调用方 withTimeout 兜底（对齐失败可见/异步总超时）。
+ */
+export async function relayChatStream(opts: {
+  intent: Pick<RelayIntent, 'frontTaskId' | 'providerId' | 'model'> & {
+    messages?: unknown[]
+    prompt?: string
+    images?: string[]
+  }
+  tools?: unknown[]
+  stream?: boolean
+  signal?: AbortSignal
+  label?: string
+}): Promise<Response> {
+  const { intent, tools, signal, label } = opts
+  const stream = opts.stream !== false
+  const body: Record<string, unknown> = {
+    frontTaskId: intent.frontTaskId || '',
+    providerId: intent.providerId,
+    capability: 'chat',
+    model: intent.model,
+    ...(intent.messages ? { messages: intent.messages } : {}),
+    ...(intent.prompt !== undefined ? { prompt: intent.prompt } : {}),
+    ...(intent.images && intent.images.length > 0 ? { images: intent.images } : {}),
+    ...(tools && tools.length > 0 ? { tools, tool_choice: 'auto' } : {}),
+    // 显式标注流式形态：stream=true 也写进 body（后端以 stream===true || hasTools 判流式），
+    // 保持「前端要什么形态就声明什么」的确定性契约。
+    ...(stream ? { stream: true } : { stream: false }),
+  }
+  // parseJson:false → 返未消费 body 的原始 Response；非 2xx 抛 HttpError 由上层 chatStream 归一。
+  return httpRequest(`${API_BASE}/api/generate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: stream ? 'text/event-stream' : 'application/json' },
+    body: JSON.stringify(body),
+    signal,
+    retries: 0,
+    timeoutMs: 0,
+    parseJson: false,
+    label: label || 'relayChatStream',
+  })
+}

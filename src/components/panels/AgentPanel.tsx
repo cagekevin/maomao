@@ -98,7 +98,9 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
     return ''
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chatModelVersion])
-  const defaultAgentModel = configuredModel ? configuredModel : agentModels[0]
+  // 默认模型必须是字符串模型 id（configuredModel 为 string；agentModels[0] 兜底时若为 RawModel
+  //   （无 id/label 的退化项）则放弃，避免把对象当字符串传给 useAgentChat）。
+  const defaultAgentModel = configuredModel ? configuredModel : (typeof agentModels[0] === 'string' ? agentModels[0] : '')
 
   // ── 生图参数 ──
   const genModels = useMemo(() => buildAllModels(providers || [], 'image'), [providers])
@@ -611,7 +613,9 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
     </span>
   )
 
-  const canSend = (input.trim() || attachments.length > 0) && stateAction !== 'stopping'
+  // 未配 AI 供应商 → 禁用发送（禁止静默失败，见 L3b）。canSend 网关 provider 存在。
+  const noProvider = !agentProvider
+  const canSend = (input.trim() || attachments.length > 0) && stateAction !== 'stopping' && !noProvider
 
   return (
     <div className={`absolute top-0 right-0 bottom-0 bg-surface-deep border-l border-edge-faint flex flex-col z-30 shadow-2xl ${open ? '' : 'hidden'} ${dragging ? 'select-none' : ''}`} style={{ width }}>
@@ -890,12 +894,16 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
               if (e.key === 'Escape' && skillSlashOpen) { e.preventDefault(); setSkillSlashOpen(false); return }
               if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); handleSend() }
             }}
-            placeholder={workMode === RUN_MODE_IDS.DIRECT ? '输入最终生图提示词，回车直接生图…' : '输入消息，回车发送，Shift+Enter 换行…'}
+            placeholder={noProvider ? '请先在「API/供应商设置」配置 AI 聊天供应商及模型' : (workMode === RUN_MODE_IDS.DIRECT ? '输入最终生图提示词，回车直接生图…' : '输入消息，回车发送，Shift+Enter 换行…')}
             rows={1}
-            disabled={sending}
+            disabled={sending || noProvider}
             className="w-full bg-transparent text-primary text-sm px-3 py-2.5 resize-none focus:outline-none disabled:opacity-60"
             style={{ minHeight: '72px', maxHeight: '160px' }}
           />
+          {/* 未配供应商引导：禁止静默失败，指引用户去设置（L3b） */}
+          {noProvider && (
+            <div className="px-3 pb-2 text-caption-xs text-muted">尚未配置 AI 聊天供应商，发送已禁用。请到「设置 → API/供应商」添加 OpenAI 兼容等供应商并选择聊天模型后使用。</div>
+          )}
 
           {/* Skill / 快捷调用下拉：锚定在输入框正下方，向上弹出紧贴 textarea */}
           {skillSlashOpen && (

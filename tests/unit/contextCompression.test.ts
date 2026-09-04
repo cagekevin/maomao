@@ -7,11 +7,11 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 
 // 隔离 chatCompletions，便于断言压缩请求与注入
-vi.mock('../../src/components/base/api/chatApi.ts', () => ({
+vi.mock('../../src/components/base/api/generate.ts', () => ({
   chatCompletions: vi.fn(),
 }))
 
-const chatApi = await import('@/components/base/api/chatApi.ts')
+const chatApi = await import('@/components/base/api/generate.ts')
 const { serializeMessagesForSummary, compressToSummary, SUMMARY_REQUIRED_SECTIONS } =
   await import('../../src/components/agent/runtime/contextCompression.ts')
 
@@ -60,12 +60,13 @@ describe('compressToSummary —— 压缩入库（记 T2~T4）', () => {
     expect(opts.messages[0].content).toContain('【目标与背景】')
   })
 
-  it('【回归】压缩走流式 stream:true（根治非流式慢模型 30s 超时）', async () => {
+  it('【修正 7 回归】压缩走 chatCompletions 同步，不透传 stream 死参数', async () => {
     vi.mocked(chatApi.chatCompletions).mockResolvedValue({ ok: true, content: fullSummary })
     await compressToSummary({ provider: {}, model: 'm', messages: [] })
     const [opts] = vi.mocked(chatApi.chatCompletions).mock.calls[0]
-    // 关键：压缩请求必须流式（同主请求通道，边生成边累积），不能走非流式等完整生成
-    expect(opts.stream).toBe(true)
+    // 上下文压缩是内部工具调用，走同步快路径；stream 已被删（原传 stream:true 会把同步变 SSE，
+    // 与 withTimeout 的非流式解析冲突），此处断言不携带该字段。
+    expect((opts as unknown as Record<string, unknown>).stream).toBeUndefined()
   })
 
   it('LLM 失败 → 返回 null（不抛错、不动旧摘要）', async () => {

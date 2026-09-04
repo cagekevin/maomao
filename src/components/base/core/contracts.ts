@@ -575,8 +575,8 @@ export const API_ENDPOINTS = {
  * 前端【实际调用】的端点（改动需评估前端契约影响）：
  *   GET/POST /api/status、/api/logs、/api/tasks*、/api/projects*、/api/resources*、
  *   /api/files/*（upload/read/thumbnail/mkdir/move/open/open-dir/list）、
- *   /api/providers*、/api/config/base、/api/kv/*、/api/agent/:key/chat。
- *   （注：旧 /api/proxy 已随 2026-09-03 收口退役，不在此列；proxyGenerate.js 亦已退役。）
+ *   /api/providers*、/api/config/base、/api/kv/*。
+ *   （注：旧 /api/proxy 与 /api/agent/:key/chat 均已收口退役——chat 出站统一打 /api/generate，见 L3b。）
  *   → 见 localToolApi.js / filesApi.js / logger.js / useLocalToolStatus.js 等。
  *
  * 后端存在、前端【零调用】= 预留/上游转发（勿当死代码删，勿随前后端契约盲改）：
@@ -588,8 +588,7 @@ export const API_ENDPOINTS = {
  *              /public/platform/builtin、/public/platform/models
  *   passthrough.ts（isLocalOnlyPath 判定后的上游转发补偿用）
  *
- * 注：/api/agent/:key/chat 前端在「未配 provider」时直连 localTool 这一端点；配了 provider
- * 则打统一生成入口 /api/generate（relayChatStream）。两端点都是生产路径，改动仍会影响直连链路。旧 /api/proxy 已退役。
+ * 注：旧 /api/agent/:key/chat 直连端点已随 L3b 退役——AI 助手 chat 出站统一打 /api/generate（relayChatStream）。
  */
 /**
  * 中央端点登记表（apiRegistry）—— 前端函数 ↔ 后端 route 的双向映射唯一真源（docs/26-M2-a/C1）。
@@ -659,10 +658,8 @@ export const apiRegistry = {
   generateSubmit:        { fn: 'relayProxy.relaySubmit',         method: 'POST',   path: '/api/generate',               envelope: 'code-data', status: 'ACTIVE' },
   generateGet:           { fn: 'relayProxy.relayPoll',          method: 'GET',    path: '/api/generate/{frontTaskId}', envelope: 'code-data', status: 'ACTIVE' },
   generateCancel:        { fn: 'relayProxy.relayCancel',        method: 'POST',   path: '/api/generate/{frontTaskId}/cancel', envelope: 'code-data', status: 'ACTIVE' },
-  gatewayTask:           { fn: 'pollTask.pollOneTask (跨进程)',       method: 'GET',    path: '/api/v1/gateway/task/{id}',   envelope: 'code-data', status: 'ACTIVE' },
   status:                { fn: 'useLocalToolStatus',                  method: 'GET',    path: '/api/status',                 envelope: 'probe',    status: 'ACTIVE' },
   logs:                  { fn: '统一日志总线（前端/各后端上报，source 区分）', method: 'POST',   path: '/api/logs',                   envelope: 'ok',       status: 'ACTIVE' },
-  agentChat:             { fn: 'agentRuntime.roundTrip',                method: 'POST',   path: '/api/agent/{id}/chat',        envelope: 'sse',      status: 'ACTIVE' },
   jianying:              { fn: '(前端零消费)',                          method: 'POST',   path: '/api/jianying/send',          envelope: 'stub',     status: 'RESERVED' },
   /** platform 域（RESERVED：前端零消费——模型源是 providerModels.js 聚合，不走 platform；handler 保留为「自研替换官方」兜底） */
   pluginManifest:        { fn: '(前端零消费·未实现)',                  method: 'GET',    path: '/plugin/manifest.json',       envelope: 'code-data', status: 'RESERVED' },

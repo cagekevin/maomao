@@ -96,7 +96,7 @@ const mockFetchTasks = vi.fn(async (..._a: unknown[]) => ({ data: { items: [] } 
 vi.mock('../../src/components/base/store/providerStore.ts', () => ({ useProviders: () => ({ providers: [] }), load: vi.fn(() => Promise.resolve()) }))
 vi.mock('../../src/components/base/api/localToolApi.ts', () => ({ fetchTasks: (...a: unknown[]) => mockFetchTasks(...a) }))
 const mockGenerateImage = vi.fn(async (..._a: unknown[]) => ({ url: 'http://gen.local/img.png' }))
-vi.mock('../../src/components/base/api/imageApi.ts', () => ({ generateImage: (...a: unknown[]) => mockGenerateImage(...a) }))
+vi.mock('../../src/components/base/api/generate.ts', () => ({ generateImage: (...a: unknown[]) => mockGenerateImage(...a) }))
 vi.mock('../../src/components/base/utils/providerModels.ts', () => ({ buildAllModels: vi.fn(() => []), resolveProviderModel: vi.fn(() => ({ provider: {}, modelId: 'm' })) }))
 
 // jsdom 可能缺少 IntersectionObserver / requestAnimationFrame

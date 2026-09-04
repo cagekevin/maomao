@@ -38,13 +38,6 @@ afterEach(() => {
 })
 
 describe('config — 默认值契约（无 env）', () => {
-  it('LLM 配置默认值', async () => {
-    const c = await loadConfig()
-    expect(c.LLM_CHAT_BASE_URL).toBe('')
-    expect(c.LLM_CHAT_API_KEY).toBe('')
-    expect(c.LLM_CHAT_MODEL).toBe('gpt-4o-mini')
-  })
-
   it('AGENT_DEMO_MODE 默认关闭，仅 VITE_AGENT_DEMO==="1" 才开启', async () => {
     expect((await loadConfig()).AGENT_DEMO_MODE).toBe(false)
   })
@@ -61,7 +54,6 @@ describe('config — 默认值契约（无 env）', () => {
     expect(c.GEN_TIMEOUT).toBe(300000)
     expect(c.VIDEO_TIMEOUT).toBe(600000)
     expect(c.GEN_POLL_INTERVAL).toBe(3000)
-    expect(c.VIDEO_POLL_INTERVAL).toBe(5000)
     expect(c.GEN_MAX_CONCURRENT).toBe(6)
   })
 })
@@ -75,14 +67,6 @@ describe('config — env 覆盖契约', () => {
   it('VITE_AGENT_DEMO 非 "1"（如 "0"）不开启演示模式', async () => {
     vi.stubEnv('VITE_AGENT_DEMO', '0')
     expect((await loadConfig()).AGENT_DEMO_MODE).toBe(false)
-  })
-
-  it('LLM 配置可被 env 覆盖', async () => {
-    vi.stubEnv('VITE_LLM_CHAT_BASE_URL', 'https://llm.example.com')
-    vi.stubEnv('VITE_LLM_CHAT_MODEL', 'deepseek-r1')
-    const c = await loadConfig()
-    expect(c.LLM_CHAT_BASE_URL).toBe('https://llm.example.com')
-    expect(c.LLM_CHAT_MODEL).toBe('deepseek-r1')
   })
 })
 

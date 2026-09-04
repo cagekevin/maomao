@@ -22,15 +22,15 @@
 
 ## 一、core/ （横切唯一入口 P0 红线 + 通用地基）
 
-- **红线（多个** **`scripts/`** **校验按字面路径引用，改名/移动须同步 scripts）**：`contracts.ts`（apiRegistry/EVENTS/STORAGE\_KEYS/NODE\_TYPES）、`config.ts`（环境变量/常量）、`contentStore.ts`（存储唯一入口）、`eventBus.ts`、`logger.ts`
+* **红线（多个** **`scripts/`** **校验按字面路径引用，改名/移动须同步 scripts）**：`contracts.ts`（apiRegistry/EVENTS/STORAGE\_KEYS/NODE\_TYPES）、`config.ts`（环境变量/常量）、`contentStore.ts`（存储唯一入口）、`eventBus.ts`、`logger.ts`
 
-- 其余：`confirmStore.ts`（统一确认弹窗 store）、`toastStore.ts`（统一通知 store）、`idGen.ts`、`uiHooks.ts`（通用 UI 小 hook：useOutsideClick/isEditableTarget/useSizeSync，区别于顶层 `src/hooks/` 领域业务 hooks）、`utils.ts`（通用纯工具：deepClone/debounce/throttle…）
+* 其余：`confirmStore.ts`（统一确认弹窗 store）、`toastStore.ts`（统一通知 store）、`idGen.ts`、`uiHooks.ts`（通用 UI 小 hook：useOutsideClick/isEditableTarget/useSizeSync，区别于顶层 `src/hooks/` 领域业务 hooks）、`utils.ts`（通用纯工具：deepClone/debounce/throttle…）
 
 ## 二、api/ （发网络请求）
 
-`chatApi.ts` `imageApi.ts` `videoApi.ts` `filesApi.ts` `localToolApi.ts` `httpClient.ts` `relayProxy.ts` `pollTask.ts` `genIntent.ts` `index.ts`
+`generate.ts` `filesApi.ts` `localToolApi.ts` `httpClient.ts` `relayProxy.ts` `pollTask.ts` `index.ts`
 
-> **深模块**：外部统一 `import from 'base/api'`（index.ts 入口）。**统一生成入口收口（2026-09-03）**：chat/image/video 门面统一直连 `/api/generate`，旧 `proxyGenerate`（/api/proxy）与旧 `/api/relay` 路由已退役/并入；`relayProxy` 为唯一 relay 客户端。
+> **深模块**：外部统一 `import from 'base/api'`（index.ts 入口）。**统一生成入口收口（2026-09-04 L3）**：chat/image/video 门面已并入 `generate.ts` 单一门面（内部 `generate()` + 具名导出），`imageApi/videoApi/chatApi/genIntent` 已删；`relayProxy` 为唯一 relay 客户端。
 
 ## 三、storage/ （持久化底层，深模块）
 
@@ -50,7 +50,7 @@
 
 ## 六、utils/ （无副作用纯函数工具，可单测）
 
-`asyncGuard.ts` `clipboard.ts` `degrade.ts` `externalizeInline.ts` `faceMosaic.ts` `genErrors.ts` `imageCompress.ts` `imageUpscale.ts` `imageUrl.ts` `mediaType.ts` `previewUrl.ts` `providerModels.ts` `providerProtocols.ts` `refToken.ts` `requestModes.ts` `resultUrlExtractor.ts` `uploadDirs.ts` `videoEngine.ts` `volumePolicy.ts`
+`asyncGuard.ts` `clipboard.ts` `degrade.ts` `externalizeInline.ts` `faceMosaic.ts` `genErrors.ts` `imageCompress.ts` `imagePixel.ts` `imageUpscale.ts` `imageUrl.ts` `mediaType.ts` `previewUrl.ts` `providerModels.ts` `providerProtocols.ts` `refToken.ts` `requestModes.ts` `resultUrlExtractor.ts` `uploadDirs.ts` `videoEngine.ts` `volumePolicy.ts`
 
 ## 七、ui/ （真·通用展示基座）
 
@@ -79,15 +79,15 @@ UI：`PromptInput.tsx` `PromptLibrary.tsx` `PromptLibraryButton.tsx` `PromptHub.
 
 ## 找文件速查
 
-- 想发请求 → `api/`
+* 想发请求 → `api/`
 
-- 想存数据 → `core/contentStore` 或 `store/`
+* 想存数据 → `core/contentStore` 或 `store/`
 
-- 想改画布节点行为 → `canvas/` + `spec/NEW-NODE-GUIDE.md`
+* 想改画布节点行为 → `canvas/` + `spec/NEW-NODE-GUIDE.md`
 
-- 想加通用函数 → `core/utils` 优先，再 `utils/`
+* 想加通用函数 → `core/utils` 优先，再 `utils/`
 
-- 想复用 UI → `ui/`
+* 想复用 UI → `ui/`
 
-- 想改编辑/查看器 → `editors/`；改提示词 → `prompt/`；改设置 → `panels/sections/` + `store/`
+* 想改编辑/查看器 → `editors/`；改提示词 → `prompt/`；改设置 → `panels/sections/` + `store/`
 

@@ -24,14 +24,11 @@
  * ════════════════════════════════════════════════════════════════
  */
 
-// 可插拔协议适配器：统一 URL 拼装（openai 伪协议 / apimart base_url），避免散落协议判断
-import { buildTargetUrl } from '../../base/utils/providerUrlAdapters.ts'
-// 【出口回收】proxy 分支经统一出站 httpRequest（B5），不裸写 fetch（旧 /api/proxy 已退役）
-import { httpRequest } from '@/components/base/api/index.ts'
-// 请求形态层：聊天 responses 形态（gpt-5.6 用 /v1/responses 带工具不再报错，M2-2/M2-4）
-import { resolveChatMode, buildResponsesChatBody, parseResponsesChatJson, parseResponsesSSEChunk } from '../../base/utils/requestModes.ts'
-// AI 助手配置真源（docs/66 §4/A 层）：聊天温度从 agentConfig 读取，不再硬编码
-import { AGENT_TEMPERATURE } from '../agentConfig.ts'
+// 【出口收口 L3b】出站统一走前端生成门面 chatStream（不再裸拼 provider URL / 直连 /api/agent）。
+// 旧 /api/proxy 已退役；providerUrlAdapters 的 URL 拼装链与 requestModes（responses 形态）随知识退场删除。
+import { chatStream } from '@/components/base/api/index.ts'
+import { withTimeout } from '../../base/utils/asyncGuard.ts'
+import { CHAT_TIMEOUT } from '../../base/core/config.ts'
 // 复用 agentCore 的权威消息/工具调用类型（同 runtime 目录，避免重定义漂移）
 import type { ChatMessage, ToolCall } from './agentCore.ts'
 
@@ -49,12 +46,9 @@ interface RuntimeAssistantMessage extends ChatMessage {
  *  - 非流式：AI 助手设置里标注「非流式」时走普通 JSON 响应解析。默认不开工具。
  *
  *  @param {object} ctx 注入依赖：
- *    - endpoint:      LLM 端点 URL（useAgentChat 计算：CHAT_BASE_URL 或 /api/agent/:key/chat）
  *    - model:         当前模型名
  *    - toolSchemas:   工具 schema 数组（来自 useCanvasAgentTools）
- *    - provider:      主供应商对象（存在 → 统一生成入口 /api/generate 链路，旧 /api/proxy 已退役）
- *    - apiBase:       API_BASE（本地网关地址）
- *    - chatApiKey:    CHAT_API_KEY（可选 Bearer）
+ *    - provider:      主供应商对象（出站统一走 /api/generate 链路，旧 /api/proxy 已退役）
  *    - logger:        链路日志对象
  *    - loadAgentChatModel: () => 读取 agentModelStore 的聊天模型配置
  *    - parseAgentError:  (res, fallback) => 统一错误解析（来自 agentCore）
@@ -65,15 +59,12 @@ interface RuntimeAssistantMessage extends ChatMessage {
  *  @returns {Promise<{ role, content, reasoning?, tool_calls? }>}
  */
 export async function roundTrip(ctx, requestMessages, signal, onStream) {
-  const { endpoint, model, toolSchemas, provider, apiBase, chatApiKey, logger, loadAgentChatModel, parseAgentError, parseSSEChunk, ENABLE_TOOLS_ON_NON_STREAM } = ctx
+  const { model, toolSchemas, provider, logger, loadAgentChatModel, parseAgentError, parseSSEChunk, ENABLE_TOOLS_ON_NON_STREAM } = ctx
   // 读取 AI 助手聊天模型配置：判断是否非流式（non-stream 模型不支持工具，仅对话）
   const streamMode = loadAgentChatModel()?.streamMode || 'stream'
   const isNonStream = streamMode === 'non-stream'
   // 非流式默认不传 tools；开启 ENABLE_TOOLS_ON_NON_STREAM 开关后两者都传（保持工具调用能力）。
   const withTools = !isNonStream || ENABLE_TOOLS_ON_NON_STREAM
-  // 聊天请求形态（M2-2）：provider.chat_request_mode === 'responses' → /v1/responses（gpt-5.6 带工具）。
-  // 默认 chat，走 /v1/chat/completions，现有模型零改动。
-  const isResponsesChat = resolveChatMode(provider?.chat_request_mode, model) === 'responses'
   // 【工具门禁】一次请求的关键判定日志：便于诊断「AI 是否拿到工具、为何不用」。
   //  - toolSchemaCount=0            → toolSchemas 空（工具注册表问题，见 useCanvasAgentTools AGENT_TOOLS）
   //  - withTools=false              → 模型被配成非流式 且 未开 ENABLE_TOOLS_ON_NON_STREAM（工具被主动关闭）
@@ -83,115 +74,55 @@ export async function roundTrip(ctx, requestMessages, signal, onStream) {
     streamMode, isNonStream, withTools,
     toolSchemaCount: Array.isArray(toolSchemas) ? toolSchemas.length : 0,
     toolNames: Array.isArray(toolSchemas) ? toolSchemas.map((t) => t?.function?.name).filter(Boolean).slice(0, 20) : [],
-    model, isResponsesChat,
+    model,
   }, { module: 'agent' })
-  const llmBody = isResponsesChat
-    ? buildResponsesChatBody({
-        model,
-        messages: requestMessages,
-        toolSchemas: withTools ? toolSchemas : [],
-        // 注意：responses 端点（gpt-5.6 系）不支持 temperature 参数，
-        // 传了会报 "Unsupported parameter: 'temperature' is not supported with this model."
-        stream: !isNonStream,
-      })
-    : {
-        model,
-        messages: requestMessages,
-        stream: !isNonStream,
-        temperature: AGENT_TEMPERATURE,
-        ...(withTools ? { tools: toolSchemas, tool_choice: 'auto' } : {})
-      }
-  // 是否走「多 provider 统一代理转发」（旧 /api/proxy，已退役）：provider 存在时（如魔搭，支持 function calling）
-  const useProxy = !!provider
-  // 非流式响应是普通 JSON，Accept 无需 text/event-stream
-  const accept = isNonStream ? 'application/json' : 'text/event-stream'
-  // 【链路日志】请求到网关：走 proxy 还是直接 /api/agent，模型、流式模式、消息数、是否带工具
-  logger.info('AI助手', '请求', { via: useProxy ? 'proxy' : 'agent', provider: provider?.id || '', model, stream: !isNonStream, msgCount: requestMessages.length, tools: withTools ? (toolSchemas || []).length : 0 })
+  // 【链路日志】请求到统一生成入口 relay：模型、流式模式、消息数、是否带工具
+  logger.info('AI助手', '请求', { via: 'relay', provider: provider?.id || '', model, stream: !isNonStream, msgCount: requestMessages.length, tools: withTools ? (toolSchemas || []).length : 0 })
   // 【B层】发往 LLM 的 messages 明细：每条约化（role + 是否有图 + content 长度 + 工具数）——定位发给模型的内容
   logger.debug('AI助手', '[请求] messages', {
     count: requestMessages.length,
     roles: requestMessages.map((m) => m.role),
     firstContentHead: requestMessages.find((m) => m.role === 'user')?.content ? String(requestMessages.find((m) => m.role === 'user').content).slice(0, 120) : '',
   }, { module: 'agent' })
-  // ── [debug] 非流式链路 · 跳①：请求形态判定 + body 构造 ──
-  logger.debug('AI助手', '[非流式] 跳①形态', {
-    streamMode, isNonStream, isResponsesChat, withTools,
-    bodyKeys: Object.keys(llmBody),
-    bodyStream: llmBody.stream,
-    msgCount: requestMessages.length,
-    hasImageInBody: JSON.stringify(llmBody).includes('image_url') || JSON.stringify(llmBody).includes('input_image'),
-  }, { module: 'agent' })
-  // 【出口回收说明（B5）】本请求是 SSE 流式读 body 流 + 非流式普通 JSON 双模式，可走两条链路：
-  //  - proxy 分支（provider 存在走统一生成入口 /api/generate 转发，旧 /api/proxy 已退役）经 httpRequest 出站 —— 用 SSE 模式
-  //    （timeoutMs:0 不被 15s 掐断 + retries:0 + parseJson:false 返回未消费原始 Response），
-  //    回炉的是「HTTP 语义」，SSE 行协议豁免红线（缺口⑦/M5-e）不破；
-  //  - 直连官方分支（/api/agent/...，M1-a③ 白名单）保留原生 fetch，避免改动其既有 rejection 语义。
-  // 响应仍由下方逐块解析 event 驱动多轮工具循环，与拆分前行为一致。
-  // ── [debug] 非流式链路 · 跳②：fetch 发送（记录目标 URL + body 摘要） ──
-  // 【2026-09-03 统一收口】provider 存在（AI 助手默认恒有）→ 发 GenIntent 打统一生成入口
-  // POST /api/generate（capability=chat + tools + stream:true），后端 relayChatStream 透传 SSE；
-  // 前端 SSE 解析 / tool_calls delta 解析原样保留（打字机不丢）。旧 /api/proxy 已退役。
-  const relayBody = useProxy
-    ? {
-        providerId: provider?.id,
-        capability: 'chat',
-        model,
-        messages: requestMessages,
-        ...(withTools ? { tools: toolSchemas, tool_choice: 'auto' } : {}),
-        // 流式：带 tools/AI 助手默认 → 后端 relayChatStream 透传 SSE（打字机+tool_calls delta）；
-        // 非流式（streamMode=non-stream）→ stream:false，后端同步 JSON。
-        stream: !isNonStream,
-      }
-    : null
-  logger.debug('AI助手', '[非流式] 跳②发送', {
-    via: useProxy ? 'relay' : 'agent',
-    target: useProxy ? `${apiBase}/api/generate` : endpoint,
-    bodyLen: JSON.stringify(relayBody ?? llmBody).length,
-    hasImage: JSON.stringify(relayBody ?? llmBody).includes('image_url') || JSON.stringify(relayBody ?? llmBody).includes('input_image'),
-    accept,
-  }, { module: 'agent' })
+  // 【出口收口·修正 5】出站统一入口：chatStream 负责发送 + HttpError 错误归一（统一文案，不再退化成裸 HttpError.message）。
+  // 返回未消费 body 的原始 Response（SSE 或 JSON），解析交给下方 resolveBody。
+  // 【L3b】只走统一生成入口 POST /api/generate（capability=chat，后端 relayChatStream 透传 SSE / 同步 JSON）；
+  // 旧 /api/agent/:id/chat 直连分支已退役（未配 provider 由 AgentPanel 禁用输入引导，不再回退直连）。
   let res
-  if (useProxy) {
-    try {
-      res = await httpRequest(`${apiBase}/api/generate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Accept: accept },
-        body: JSON.stringify(relayBody),
-        signal,
-        timeoutMs: 0,
-        retries: 0,
-        parseJson: false,
-        label: 'agentRoundTrip.relay',
-      })
-    } catch (e) {
-      if (e?.name === 'HttpError') {
-        logger.error('AI助手', '请求失败', { status: e.status, via: 'proxy', model })
-        // httpRequest 已在 HttpError 携带上游错误体，重建 res 供 parseAgentError 走统一「代理转发失败」文案
-        const fake = { status: e.status, text: async () => (e.data != null ? JSON.stringify(e.data) : '') }
-        throw new Error(await parseAgentError(fake, '代理转发失败'))
-      }
-      // 网络/超时/取消：原样上抛（与直连官方 fetch 的 rejection 语义一致）
-      throw e
-    }
-  } else {
-    res = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: accept,
-        ...(chatApiKey ? { Authorization: `Bearer ${chatApiKey}` } : {})
-      },
-      body: JSON.stringify(llmBody),
-      signal
+  try {
+    res = await chatStream({
+      provider,
+      model,
+      messages: requestMessages,
+      tools: withTools ? toolSchemas : undefined,
+      stream: !isNonStream,
+      signal,
+      parseAgentError,
     })
+  } catch (e) {
+    logger.error('AI助手', '请求失败', { via: 'relay', error: e?.message, model })
+    throw e
   }
-  if (!res.ok) {
-    // 仅直连官方分支会走到这里（proxy 分支非 2xx 已在上方 catch 抛错）
-    logger.error('AI助手', '请求失败', { status: res.status, via: useProxy ? 'proxy' : 'agent', model })
-    throw new Error(await parseAgentError(res, useProxy ? '代理转发失败' : '调用失败'))
-  }
-  // 【链路日志】到网关成功拿到响应头（HTTP 状态）
-  logger.info('AI助手', '响应', { status: res.status, via: useProxy ? 'proxy' : 'agent', stream: !isNonStream })
+  // 【链路日志】到网关成功拿到响应头（HTTP 状态；非 2xx 已在 chatStream 归一抛错，能到这即 2xx）
+  logger.info('AI助手', '响应', { status: res.status, stream: !isNonStream })
+
+  // 【总超时】流式/非流式 body 读取+解析整体兜底：内层 relayChatStream 不掐点（timeoutMs:0），
+  // 卡在响应体读取会被这里中断，超时 abort 底层响应流并抛 TimeoutError，绝不无限挂起（对齐失败可见/异步总超时）。
+  return withTimeout(
+    resolveBody(res, { isNonStream, model, logger, parseSSEChunk, ENABLE_TOOLS_ON_NON_STREAM, onStream }),
+    CHAT_TIMEOUT + 60_000,
+    'AI助手响应超时',
+    signal,
+    () => { try { res?.body?.cancel?.() } catch { /* 中断响应流 */ } }
+  )
+}
+
+/**
+ * resolveBody —— roundTrip 的「已拿到 HTTP 2xx 响应后」的 body 读取 + 解析心智（抽离以便挂 总超时）。
+ * 覆盖非流式（普通 JSON）与流式（SSE 逐块）两种形态（chat/completions）；
+ * responses 形态已随 requestModes 退役（L3b 知识退场）。语义与先前内联完全一致，仅被 withTimeout 包一层。
+ */
+async function resolveBody(res, { isNonStream, model, logger, parseSSEChunk, ENABLE_TOOLS_ON_NON_STREAM, onStream }): Promise<RuntimeAssistantMessage> {
 
   // ── 非流式：普通 JSON 响应 ──
   // 【加固】非流式一次性读取整个响应体，遇网关/代理缓冲断流、content-length 不符等会截断 JSON。
@@ -206,23 +137,7 @@ export async function roundTrip(ctx, requestMessages, signal, onStream) {
       rawLen: rawText.length,
       jsonParsed: !!json,
       rawHead: rawText.slice(0, 200),
-      isResponsesChat,
     }, { module: 'agent' })
-    // responses 形态：output[] 里取 message.content[].text + function_call（挂 unmooted，下面统一归一手）
-    if (isResponsesChat) {
-      const { content: rContent, toolCalls: rCalls } = parseResponsesChatJson(json || {})
-      const rAssistant: RuntimeAssistantMessage = {
-        role: 'assistant',
-        content: rContent || (rawText && !json ? rawText : ''),
-        model, createdAt: Date.now(),
-      }
-      if (rCalls.length > 0) rAssistant.tool_calls = rCalls
-      if (rawText && !json) logger.error('AI助手', 'responses 非流式解析失败(可能截断)', { rawLen: rawText.length, head: rawText.slice(0, 120) })
-      logger.debug('AI助手', '[非流式] 跳③ responses解析', { rContentLen: rContent.length, rCallCount: rCalls.length, rCalls }, { module: 'agent' })
-      onStream?.({ content: rAssistant.content, reasoning: '', toolCalls: rAssistant.tool_calls || [] })
-      logger.info('AI助手', 'responses 非流式结果', { contentLen: rAssistant.content.length, toolCallCount: rCalls.length })
-      return rAssistant
-    }
     const msg = json?.choices?.[0]?.message || {}
     logger.debug('AI助手', '[非流式] 跳③ chat解析', {
       jsonKeys: json ? Object.keys(json) : [],
@@ -336,9 +251,8 @@ export async function roundTrip(ctx, requestMessages, signal, onStream) {
     buffer = parts.pop() || ''
     for (const chunk of parts) {
       const before = acc.content.length + acc.reasoning.length + acc.toolCalls.length
-      // 请求形态差异：responses 走自带 SSE 事件解析，chat/completions 走原 parseSSEChunk
-      if (isResponsesChat) parseResponsesSSEChunk(chunk, acc)
-      else if (!parseSSEChunk(chunk, acc)) {
+      // chat/completions SSE 逐块解析；responses 形态已随 requestModes 退役（L3b 知识退场）
+      if (!parseSSEChunk(chunk, acc)) {
         // parseSSEChunk 返回 false（非 data: 前缀）→ 尝试非流式 JSON 兜底，防吞输出
         tryParseNonStreamJsonFallback(chunk)
         scheduleFlush()
@@ -349,9 +263,8 @@ export async function roundTrip(ctx, requestMessages, signal, onStream) {
   }
   buffer += decoder.decode()
   if (buffer.trim()) {
-    // 末尾残余：responses 走 SSE，chat 先走 SSE、非 data: 再尝试非流式 JSON 兜底（单行 JSON 落这里）
-    if (isResponsesChat) parseResponsesSSEChunk(buffer, acc)
-    else if (!parseSSEChunk(buffer, acc)) tryParseNonStreamJsonFallback(buffer)
+    // 末尾残余：先走 SSE、非 data: 再尝试非流式 JSON 兜底（单行 JSON 落这里）
+    if (!parseSSEChunk(buffer, acc)) tryParseNonStreamJsonFallback(buffer)
   }
   flush()
 
