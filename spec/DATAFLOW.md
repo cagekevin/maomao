@@ -1,7 +1,7 @@
 # spec/DATAFLOW\.md · 数据流链路索引
 
 > **目的**：让 AI 能**在一处读完一整条数据流链路**，不必在 core/api/store/utils/nodes/panels/hooks 之间乱猜、乱跳。
-> **依据**：每条链路的「边」由 `scripts/ts-migrate.mjs refs <file>` 机械实证（2026-09-04），非凭文件名猜测。
+> **依据**：每条链路的「边」由 `scripts/codemv.mjs refs <file>` 机械实证（2026-09-04），非凭文件名猜测。
 > **物理归属**见 `src/components/base/README.md`；本文件只画链路与流向，**不决定文件位置**。查「文件实际被谁 import / 实际在哪」→ 跑 `refs <file>`。
 > **省消耗铁律**：改某条链路时，照本文件该链路的文件清单走 + 读对应文件头注释即可，**不需要**为搞清楚「这条链路在哪几个文件」启动子代理全库乱搜——这张图就是答案。真拿不准单文件归属时才跑 `refs` 一锤定音。
 
@@ -134,7 +134,7 @@ editors/cameraStudio · CameraStudioPanel · PanoViewer
 
 - 想 trace「一条链路从哪来、走哪、落哪」→ 本文件
 
-- 想确认「某文件实际被谁 import / 依赖谁」→ `node scripts/ts-migrate.mjs refs <file>`
+- 想确认「某文件实际被谁 import / 依赖谁」→ `node scripts/codemv.mjs refs <file>`
 
 - 想改某个域的行为（生成/存储/资产/画布/提示词/编辑/3D）→ 按本索引该链路的文件清单逐个看文件头注释再动
 

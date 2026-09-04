@@ -1,5 +1,5 @@
 /**
- * ts-migrate.mjs — TS 规范化重构的「终极架构版」辅助脚本（完美时序 + 多根 + 事务型）
+ * codemv.mjs — TS 规范化重构的「终极架构版」辅助脚本（完美时序 + 多根 + 事务型）
  *
  * ═══════════════════════════════════════════════════════════════════════════
  * 概览：本脚本做【机械改名/移动/目录搬运 + AST 全库同步 import 说明符】。
@@ -60,15 +60,15 @@
  * ═══════════════════════════════════════════════════════════════════════════
  * 常用示例：
  *   # 对子项目重命名并让全仓（含该根下测试 .mjs/.cjs）引用指向新名，ESM 项目保持 .js：
- *   node scripts/ts-migrate.mjs --root download/ai-relay/src rename download/ai-relay/src/connection.ts connectionTest.ts
+ *   node scripts/codemv.mjs --root download/ai-relay/src rename download/ai-relay/src/connection.ts connectionTest.ts
  *   # 强制 import 写 .ts（纯 bundler / 开了 allowImportingTsExtensions 的项目）：
- *   node scripts/ts-migrate.mjs --root download/ai-relay/src --suffix ts rename download/ai-relay/src/a.ts b.ts
+ *   node scripts/codemv.mjs --root download/ai-relay/src --suffix ts rename download/ai-relay/src/a.ts b.ts
  *   # 先 dry 预览整目录搬运影响面：
- *   node scripts/ts-migrate.mjs --root localTool/src move-dir localTool/src/lib localTool/src/core --dry
+ *   node scripts/codemv.mjs --root localTool/src move-dir localTool/src/lib localTool/src/core --dry
  *   # 搬完发现不对，一键回退：
- *   node scripts/ts-migrate.mjs --root localTool/src move-dir --undo
+ *   node scripts/codemv.mjs --root localTool/src move-dir --undo
  *   # 子项目自定义别名：@proto/ → src/protocol/
- *   node scripts/ts-migrate.mjs --alias '@proto/:/src/protocol/' rename src/x.ts y.ts
+ *   node scripts/codemv.mjs --alias '@proto/:/src/protocol/' rename src/x.ts y.ts
  *
  * 多根 Alias 说明：resolveSpec/computeNewSpec 通过 aliasTable 解析与生成，
  * 并依据「路径前缀最长的扫描根」判断别名归属，避免多根含嵌套时误判。
@@ -947,7 +947,7 @@ if (cmd === 'move-dir') {
   if (moveFailed) {
     console.error(`\n✖ 部分文件移动失败，已丢弃全部引用改写（未 commit）。`)
     console.error(`  已成功移动 ${movedPairs.length} 个文件已记录到回退清单。`)
-    console.error(`  修复问题后：node scripts/ts-migrate.mjs move-dir --undo 可移回已搬部分。`)
+    console.error(`  修复问题后：node scripts/codemv.mjs move-dir --undo 可移回已搬部分。`)
     printWarnings(); process.exit(1)
   }
 
@@ -959,7 +959,7 @@ if (cmd === 'move-dir') {
     console.log(`✔ 已重写 ${selfLogs.length} 个被搬文件自身的出向 import：`)
     for (const s of selfLogs) for (const d of s.diffs) console.log(`      - ${d.old}\n      + ${d.new}`)
   }
-  console.log(`\nℹ 已记录回退清单 scripts/.move-dir-undo.json。出错回退：node scripts/ts-migrate.mjs move-dir --undo`)
+  console.log(`\nℹ 已记录回退清单 scripts/.move-dir-undo.json。出错回退：node scripts/codemv.mjs move-dir --undo`)
   printWarnings(); process.exit(0)
 }
 

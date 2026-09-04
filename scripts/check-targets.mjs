@@ -41,7 +41,7 @@ export const SCAN_DIRS = ['src/components', 'src/hooks']
 /** 受校验的源码扩展名 */
 export const SCAN_EXTS = SOURCE_EXTS
 
-/** 转出口：ESM 脚本（ts-migrate / extract-tailwind / sync-mapping）从这里取，避免各写一份 */
+/** 转出口：ESM 脚本（codemv / extract-tailwind / sync-mapping）从这里取，避免各写一份 */
 export { SOURCE_EXTS, TS_EXEMPT_DIRS, TS_EXEMPT_FILES, isExempt, resolveSourceFile, hasJsx, hasJsxHintRaw, detectExt }
 
 /**

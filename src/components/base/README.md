@@ -1,7 +1,7 @@
 # base/ · 通用能力地基（目录地图）
 
 > 定位：全项目「通用地基」，所有层（nodes/panels/agent/scriptbox/hooks）都可依赖它；**业务域反向依赖它 = 架构违规**（`npm run check:arch` 拦截）。
-> **更新(2026-09-04)**：base/ 已按语义子目录物理分组，并经另一子代理「按文件头+导出+依赖」复核（17 移/115 保持）后执行。目录归属以本索引为准；发现架构不合理要移位置/改名，一律走 `scripts/ts-migrate.mjs`（见 CLAUDE §5.4·8）。
+> **更新(2026-09-04)**：base/ 已按语义子目录物理分组，并经另一子代理「按文件头+导出+依赖」复核（17 移/115 保持）后执行。目录归属以本索引为准；发现架构不合理要移位置/改名，一律走 `scripts/codemv.mjs`（见 CLAUDE §5.4·8）。
 
 ## 目录结构（2026-09-04）
 
@@ -50,7 +50,7 @@
 
 ## 六、utils/ （无副作用纯函数工具，可单测）
 
-`asyncGuard.ts` `clipboard.ts` `degrade.ts` `externalizeInline.ts` `faceMosaic.ts` `genErrors.ts` `imageCompress.ts` `imagePixel.ts` `imageUpscale.ts` `imageUrl.ts` `mediaType.ts` `previewUrl.ts` `providerModels.ts` `providerProtocols.ts` `refToken.ts` `requestModes.ts` `resultUrlExtractor.ts` `uploadDirs.ts` `videoEngine.ts` `volumePolicy.ts`
+`asyncGuard.ts` `clipboard.ts` `degrade.ts` `externalizeInline.ts` `faceMosaic.ts` `genErrors.ts` `imageCompress.ts` `imagePixel.ts` `imageUpscale.ts` `imageUrl.ts` `mediaType.ts` `previewUrl.ts` `providerModels.ts` `providerProtocols.ts` `refToken.ts` `resultUrlExtractor.ts` `uploadDirs.ts` `videoEngine.ts` `volumePolicy.ts`
 
 ## 七、ui/ （真·通用展示基座）
 
