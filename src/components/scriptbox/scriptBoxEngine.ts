@@ -16,6 +16,8 @@ import { shotHandleId } from '../base/core/contracts.ts'
 import { SCRIPTBOX_DOWNSTREAM_GRID_COLS, SCRIPTBOX_DOWNSTREAM_CELL_W, SCRIPTBOX_DOWNSTREAM_CELL_H, SCRIPTBOX_DOWNSTREAM_GAP_X, SCRIPT_TEXT_TIMEOUT, SCRIPT_IMAGE_TIMEOUT } from '../base/core/config.ts'
 // 任务级总耗时兜底（R2 边界守卫）：给整段生成任务加超时，杜绝「转圈永不结束」
 import { withTimeout } from '../base/utils/asyncGuard.ts'
+// 【L3c】中止判定统一走 classifyError（唯一入口 genErrors.ts:24），替代原 /abort/i message 关键词判点（脆依赖）
+import { classifyError } from '../base/utils/genErrors.ts'
 import type { Shot, ScriptAsset, Dialogue } from './scriptBoxPrompts.ts'
 import type { ProviderWithModels } from '../base/utils/providerModels.ts'
 import type { ScriptBoxUpdateData, ScriptBoxData, ScriptBoxShot } from './scriptBoxSchema.ts'
@@ -231,7 +233,10 @@ export function createScriptBoxEngine({ getData, updateData, addNodes, nodeId, s
       )
     } catch (e) {
       onReset?.()
-      if (/abort/i.test(e?.message || '')) {
+      // 【L3c】中止判定统一走 classifyError（看 e.name，不再依赖 message 文案）。
+      // 唯一行为变更：业务错误 message 恰含 "abort" 但 name 非 AbortError 时，
+      // 由误判「已中止」改为正确 toast（原路径几乎不可达，见 L3c 方案 §1-C2）。
+      if (classifyError(e).type === 'abort') {
         logger.warn('scriptBox', `${info.logLabel}·已中止`, info.ctx)
       } else {
         toast(e?.message || info.toastFail)

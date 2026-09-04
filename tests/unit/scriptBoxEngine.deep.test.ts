@@ -10,11 +10,25 @@ vi.mock('../../src/components/base/store/assetStore.ts', () => ({
   useAssets: vi.fn(() => []),
   FOLDERS: [],
 }))
+// 【L3c】logger mock：断言「已中止」判定只走 warn、业务/超时走 error，且 showToast 不被误调
+vi.mock('../../src/components/base/core/logger.ts', () => ({
+  logger: { info: vi.fn(), debug: vi.fn(), warn: vi.fn(), error: vi.fn() },
+}))
+// 【L3c 遗留噪音消除】隔离 taskStore：engine 仅用 reportGenerate(:407)，其返回 taskCtl（progress/done/fail）。
+// 此前未 mock 时 onGenerateAssetImage 会触发真实 reportGenerate → saveTask 落库 fetch，被测试基建响铃
+// fetch 记为 logger.warn('task','persist-fail')（噪音，曾污染 T6/T7 的 logger.warn 断言）。
+vi.mock('../../src/components/base/store/taskStore.ts', () => ({
+  reportGenerate: () => ({ taskId: 't-task', progress: vi.fn(), done: vi.fn(), fail: vi.fn() }),
+}))
 
 import { chatCompletions, generateImage } from '@/components/base/api/generate.ts'
 import { showToast } from '../../src/components/base/core/toastStore.ts'
+import { logger } from '../../src/components/base/core/logger.ts'
 import { localizeAndStoreToLibrary } from '../../src/components/base/store/assetStore.ts'
 import { createScriptBoxEngine } from '@/components/scriptbox/scriptBoxEngine.ts'
+
+const loggerWarnMock = vi.mocked(logger.warn)
+const loggerErrorMock = vi.mocked(logger.error)
 
 // vi.mock 工厂不改变静态导入类型，用 vi.mocked 标注以拿到 .mockResolvedValue/.mock
 const chatCompletionsMock = vi.mocked(chatCompletions)
@@ -420,5 +434,39 @@ describe('剧本盒引擎深度业务 §2.7', () => {
     expect(final.thumbnailUrl).toBe('/files/migrated/人物/角色1.png')
     // 不再二次落盘缩略图文件（缩略图统一走系统按需出图端点）
     expect(localizeAndStoreToLibrary).toHaveBeenCalledTimes(1)
+  })
+
+  // ── L3c C2a 统一中止判定：runAbortable catch 走 classifyError 而非 /abort/i（证据 scriptBoxEngine:236）──
+  it('T5 中止判定：抛 AbortError(name) → logger.warn「已中止」，不弹 toast', async () => {
+    generateImageMock.mockRejectedValueOnce(Object.assign(new Error('Aborted'), { name: 'AbortError' }))
+    data = { assets: [{ id: 'a1', category: 'character', name: '角色1', imageUrl: '' }], shots: [] }
+    const eng = createScriptBoxEngine(ctx())
+    await eng.onGenerateAssetImage('a1')
+    expect(loggerWarnMock).toHaveBeenCalledWith('scriptBox', expect.stringContaining('已中止'), expect.anything())
+    expect(showToast).not.toHaveBeenCalled()
+    expect(loggerErrorMock).not.toHaveBeenCalled()
+  })
+
+  it('T6 中止判定：业务错 message 含 "abort" 但 name 非 AbortError → 弹 toast，不判中止（L3c 修正点）', async () => {
+    // 旧实现 /abort/i.test(message) 会把 name 非 AbortError 的“request aborted by provider”误判为已中止 → 只 warn 不 toast。
+    // 改走 classifyError 后应正确判 business → toast + logger.error（scriptBox 侧不产生「已中止」warn）。
+    generateImageMock.mockRejectedValueOnce(new Error('request aborted by provider: 429'))
+    data = { assets: [{ id: 'a1', category: 'character', name: '角色1', imageUrl: '' }], shots: [] }
+    const eng = createScriptBoxEngine(ctx())
+    await eng.onGenerateAssetImage('a1')
+    expect(showToast).toHaveBeenCalledTimes(1)
+    expect(loggerWarnMock).not.toHaveBeenCalledWith('scriptBox', expect.stringContaining('已中止'), expect.anything())
+    expect(loggerErrorMock).toHaveBeenCalled()
+  })
+
+  it('T7 中止判定：抛 TimeoutError → 弹 toast，不判中止', async () => {
+    const { TimeoutError } = await import('@/components/base/utils/asyncGuard.ts')
+    generateImageMock.mockRejectedValueOnce(new TimeoutError('尾帧变体生成失败（超时）'))
+    data = { assets: [{ id: 'a1', category: 'character', name: '角色1', imageUrl: '' }], shots: [] }
+    const eng = createScriptBoxEngine(ctx())
+    await eng.onGenerateAssetImage('a1')
+    expect(showToast).toHaveBeenCalledTimes(1)
+    expect(loggerWarnMock).not.toHaveBeenCalledWith('scriptBox', expect.stringContaining('已中止'), expect.anything())
+    expect(loggerErrorMock).toHaveBeenCalled()
   })
 })

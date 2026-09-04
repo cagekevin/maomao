@@ -13,9 +13,16 @@
  * 【唯一出口纪律】传输统一 httpClient；协议执行在 localTool（ai-relay kit + relay-poll），本文件无字段抽取。
  */
 
+import type { GenerationResult } from '@/types'
 import { API_BASE, GEN_POLL_INTERVAL } from '../core/config.ts'
 import { httpRequest } from './httpClient.ts'
 import { logger } from '../core/logger.ts'
+
+/**
+ * relay 生成最终结果信封 —— 别名对齐 GenerationResult（单一真源 src/types/provider.ts，L3c，禁另立 interface）。
+ * 原独立 interface 已收口为别名，字段改动会在本别名处编译期爆红。
+ */
+export type RelayGenerationResult = GenerationResult
 
 /** relay 能力（对齐 /api/generate 的 capability） */
 export type RelayCapability = 'image' | 'video' | 'chat'
@@ -46,15 +53,6 @@ export interface RelayPollData {
   progress?: number
   url?: string
   error?: string
-}
-
-/** relay 生成最终结果信封（对齐 GenerationResult：ok/url/content/error/aborted） */
-export interface RelayGenerationResult {
-  ok: boolean
-  url?: string
-  content?: string
-  error?: string
-  aborted?: boolean
 }
 
 /** 信封解析：localTool 端点 { code, data } */
@@ -286,7 +284,15 @@ export async function relayChat(
     if (d?.error) return { ok: false, error: d.error }
     return { ok: false, error: '上游未返回文本内容' }
   } catch (e) {
-    if (e instanceof Error && e.name === 'AbortError' || signal?.aborted) return { ok: false, aborted: true, error: '已停止' }
+    // 【中止判定】真·用户取消（AbortError）或 信号已中止（signal 先中止、后续步骤连带抛错）。
+    // 括号不可省：旧写法 `(A && B) || C` 靠读者自推优先级，后续改动极易写错。
+    // 【L3c】error 字段仍给 UI 中文文案（useNodeGeneration:270 不检查 aborted 就直接 toast，改英文会造成 UX 退化）；
+    //       真实原因改由 debug 日志承载，不再被 '已停止' 覆盖丢失。
+    const aborted = (e instanceof Error && e.name === 'AbortError') || !!signal?.aborted
+    if (aborted) {
+      logger.debug('生成', '[relay] chat 中止', { error: e instanceof Error ? e.message : String(e) }, { module: 'image' })
+      return { ok: false, aborted: true, error: '已停止' }
+    }
     return { ok: false, error: e instanceof Error ? e.message : '聊天失败' }
   }
 }

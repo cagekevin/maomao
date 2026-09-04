@@ -1,4 +1,5 @@
 import { useCallback, useRef, useEffect } from 'react'
+import type { GenerationResult } from '@/types'
 import {
   reportGenerate,
   registerTaskRetry,
@@ -36,14 +37,8 @@ export interface NodeGenerationRunArgs {
   taskId: string
 }
 
-/** run 执行器返回的结果信封 */
-export interface NodeGenerationResult {
-  ok: boolean
-  url?: string
-  content?: string
-  error?: string
-  aborted?: boolean
-}
+/** run 执行器返回的结果信封 —— 别名对齐 GenerationResult（单一真源 src/types/provider.ts，L3c，禁另立 interface） */
+export type NodeGenerationResult = GenerationResult
 
 /** start() 的返回值（成功 / 失败 / 中止 / 并发在跑） */
 export interface NodeGenerationStartResult {
@@ -279,7 +274,9 @@ export function useNodeGeneration({
         return { ok: false, error: msg }
       }
     } catch (e) {
-      if (e?.name === 'AbortError') {
+      // 【L3c】判定统一走 classifyError（唯一入口）：新判据是原 `e?.name === 'AbortError'` 的超集
+      // （新增 err?.aborted 覆盖），只可能多判 abort、不可能少判 → 零回归。align :273/:293 同文件口径。
+      if (classifyError(e).type === 'abort') {
         // 用户停止：不报错，返回取消标记，由调用方处理
         logger.debug('生成', '[节点] 用户停止', { nodeId }, { module: 'image' })
         updateNodeRuntime(nodeId, { error: '' })

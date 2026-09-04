@@ -14,6 +14,7 @@ const taskCtlMock = vi.hoisted(() => ({ taskId: 't1', progress: vi.fn(), done: v
 const busState = vi.hoisted(() => ({ handler: null, logger: { info: vi.fn(), debug: vi.fn(), warn: vi.fn(), error: vi.fn() } }))
 const saveResultToTasksMock = vi.hoisted(() => vi.fn(async (url) => url))
 const reportDegradeMock = vi.hoisted(() => vi.fn())
+const showToastMock = vi.hoisted(() => vi.fn())
 
 vi.mock('../../src/hooks/useNodeData.ts', () => ({ useNodeData: () => ({ patchData: patchDataMock }) }))
 vi.mock('../../src/components/base/store/taskStore.ts', () => ({
@@ -29,7 +30,7 @@ vi.mock('../../src/components/base/core/eventBus.ts', () => ({
   subscribe: (evt, cb) => { busState.handler = cb; return () => {} }
 }))
 vi.mock('../../src/components/base/core/logger.ts', () => ({ logger: busState.logger }))
-vi.mock('../../src/components/base/core/toastStore.ts', () => ({ showToast: vi.fn() }))
+vi.mock('../../src/components/base/core/toastStore.ts', () => ({ showToast: showToastMock }))
 
 import { useNodeGeneration } from '../../src/hooks/useNodeGeneration.ts'
 
@@ -48,6 +49,7 @@ describe('useNodeGeneration — resultKey/recoverable（P0-2-b）', () => {
     busState.logger.error.mockClear()
     saveResultToTasksMock.mockClear()
     reportDegradeMock.mockClear()
+    showToastMock.mockClear()
   })
 
   it('非破坏：默认不传时成功路径不自动写 node.data', async () => {
@@ -121,5 +123,19 @@ describe('useNodeGeneration — resultKey/recoverable（P0-2-b）', () => {
     })
     // P0-C 回退：落盘失败不得把整体生成判为失败
     expect(r).toEqual({ ok: true, resultUrl: 'http://x/y.png' })
+  })
+
+  it('T8 run 抛 AbortError → start 返回 {ok:false, error:"已停止", aborted:true}，不弹 toast（L3c C2b 回归）', async () => {
+    // 【L3c C2b】catch 里中止判定统一走 classifyError（原 `e?.name === 'AbortError'`）。
+    // 回归断言：AbortError 仍被正确判定为已中止，返回信封 + taskCtl.fail('已停止')，且不触发全局 toast。
+    const abortErr = Object.assign(new Error('Aborted'), { name: 'AbortError' })
+    const { result } = renderHook(() =>
+      useNodeGeneration({ ...baseProps, run: async () => { throw abortErr } })
+    )
+    let r
+    await act(async () => { r = await result.current.start() })
+    expect(r).toEqual({ ok: false, error: '已停止', aborted: true })
+    expect(showToastMock).not.toHaveBeenCalled()
+    expect(taskCtlMock.fail).toHaveBeenCalledWith('已停止')
   })
 })

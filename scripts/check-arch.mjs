@@ -159,5 +159,40 @@ for (const [from, deps] of graph) {
 }
 if (!baseViol) console.log('  ✅ base/ 无反向依赖业务域')
 
+// ── 3. 结果信封单一真源：禁另立 interface（L3c）──
+console.log('\n📦 结果信封单一真源：禁另立 interface（L3c）')
+// 真源 = src/types/provider.ts::GenerationResult；其余同名信封必须是 `export type X = GenerationResult` 别名。
+// 用 AST 而非正则：正则会误伤注释/字符串里的同名词。
+const ENVELOPE_INTERFACE_BAN = new Set([
+  'GenerationResult', 'RelayGenerationResult', 'NodeGenerationResult', 'GenerateResult',
+])
+const ENVELOPE_TRUE_SOURCE = 'src/types/provider.ts'
+let envelopeViol = 0
+for (const f of files) {                       // files：复用顶部 collectFiles(SRC) 的结果
+  const rel = f.slice(root.length + 1).replace(/\\/g, '/')
+  if (rel === ENVELOPE_TRUE_SOURCE) continue   // 真源本体豁免
+  let code
+  try { code = readFileSync(f, 'utf8') } catch { continue }
+  let ast
+  try {
+    ast = parse(code, { sourceType: 'unambiguous', plugins: ['jsx', 'typescript', 'decorators-legacy'], errorRecovery: true })
+  } catch { continue }
+  const walk = (n) => {
+    if (!n || typeof n !== 'object') return
+    if (Array.isArray(n)) { n.forEach(walk); return }
+    if (n.type === 'ExportNamedDeclaration' && n.declaration?.type === 'TSInterfaceDeclaration') {
+      const name = n.declaration.id?.name
+      if (ENVELOPE_INTERFACE_BAN.has(name)) {
+        envelopeViol++
+        fail(`结果信封被另立 interface: ${rel} → interface ${name}`
+          + `（必须改为 \`export type ${name} = GenerationResult\` 别名，真源 ${ENVELOPE_TRUE_SOURCE}）`)
+      }
+    }
+    for (const k in n) if (k !== 'loc' && k !== 'range' && typeof n[k] === 'object' && n[k] !== null) walk(n[k])
+  }
+  walk(ast.program)
+}
+if (!envelopeViol) console.log('  ✅ 无另立结果信封 interface')
+
 console.log(`\n${errors === 0 ? '✅ 架构校验通过' : `❌ ${errors} 处架构违规`}`)
 process.exit(errors === 0 ? 0 : 1)

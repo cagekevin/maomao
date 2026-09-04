@@ -8,8 +8,10 @@
  *
  * 【边界铁律 1 · 只接同步】capability:'chat' 一律走 relayChat（同步快路径）；任何流式一律走 chatStream（L3b 并入）。
  * 【边界铁律 2 · abort 原样上抛】image/video 中止一律**抛** AbortError，且必须**原样透传** relayGenerate 抛出的
- *   error（message 恒为 'Aborted'）——**禁止**自行 new Error('已停止')。原因：scriptBoxEngine 用 /abort/i 匹配
- *   message 判定中止（不看 e.name），中文 message 会误弹红色错误 toast。见裁定文档 §4.2.1。
+ *   error（name 恒为 'AbortError'、message 恒为 'Aborted'）——**禁止**自行 new Error('已停止')。
+ *   原因（L3c 更新）：生成链路的中止判定已统一走 classifyError（genErrors.ts:24），看的是 `e.name`；
+ *   若自行 new Error 且不设 name='AbortError'，会被判为 business → 中止时误弹红色错误 toast。
+ *   （L3 原文「scriptBoxEngine 用 /abort/i 匹配 message 判定中止」已于 L3c 失效，判定不再依赖 message 文案。）见裁定文档 §4.2.1。
  *
  * 【仅具名导出】内部 generate() 不导出——无人消费的抽象必然与别名实现漂移（修正 8 / §14.4①）。
  *

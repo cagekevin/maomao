@@ -27,6 +27,9 @@ export interface GenerationProvider {
 /**
  * 生成/聊天统一结果信封：{ ok:true, url } / { ok:false, error }，
  * 聊天另含 content/aborted。对齐 relay（relayProxy）返回的 ok/fail 契约。
+ *
+ * 【L3c 单一真源】relayProxy 的 RelayGenerationResult / useNodeGeneration 的 NodeGenerationResult
+ * 均为本类型别名（`export type X = GenerationResult`），禁止再另立 interface（check-arch 规则 3 拦截）。
  */
 export interface GenerationResult {
   ok: boolean

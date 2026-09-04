@@ -2,7 +2,7 @@
 /**
  * ts-exts.cjs — TS 规范化重构期【扩展名无关 + 永久豁免】的唯一事实来源。
  *
- * 为什么是 .cjs：消费方既有 .mjs（codemv / check-*），也有 .cjs（_smoke_checks /
+ * 为什么是 .cjs：消费方既有 .mjs（mv-sync-refs / check-*），也有 .cjs（_smoke_checks /
  * health-check / regression_test / test_agent_tools）。CJS 文件两边都能 require
  * （ESM 侧用 createRequire），从而只维护一份清单，避免「改了目录结构/改了后缀，
  * 忘了补某个脚本」再次形成盲区（本轮 hook 收口已经踩过一次，见 check-targets.mjs 头注释）。

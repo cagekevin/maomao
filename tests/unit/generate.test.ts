@@ -13,7 +13,10 @@
  *
  * 注：#5/#6/#9（chatStream 相关）随 L3b 并入本文件。
  */
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach, vi, expectTypeOf } from 'vitest'
+import type { GenerationResult } from '@/types'
+import type { RelayGenerationResult } from '@/components/base/api/relayProxy.ts'
+import type { NodeGenerationResult } from '@/hooks/useNodeGeneration.ts'
 
 vi.mock('../../src/components/base/utils/imageUrl.ts', () => ({
   normalizeImageUrlsForSend: vi.fn(async () => []),
@@ -148,13 +151,13 @@ describe('generate — 三模态差异与信封（#2/#3 + 迁移）', () => {
 })
 
 describe('generate — abort 统一抛（修正 1 选 A + §4.2.1 铁律，#4）', () => {
-  it('image 中止 → 抛 AbortError，且 /abort/i 可匹配 message（防中文 message 误弹红 toast）', async () => {
+  it('image 中止 → 抛 AbortError（L3c：判据是 name，不再依赖 message）', async () => {
     const err = new Error('Aborted')
     err.name = 'AbortError'
-    h.mockRelayGenerate.mockRejectedValue(err)
-    await expect(api.generateImage({ provider: { id: 'p1' }, prompt: 'x', model: 'm' })).rejects.toSatisfy(
-      (e) => (e as Error).name === 'AbortError' && /abort/i.test((e as Error).message || '')
-    )
+    h.mockRelayGenerate.mockRejectedValueOnce(err)
+    await expect(api.generateImage({ provider: { id: 'p1' }, prompt: 'x', model: 'm' })).rejects.toMatchObject({
+      name: 'AbortError',
+    })
   })
 
   it('video 中止 → 抛 AbortError（原样上抛，不吞成信封）', async () => {
@@ -295,5 +298,16 @@ describe('别名函数共用 generate 实现（#10，防各自实现漂移）', 
     expect(got.timeoutMs).toBe(120000) // CHAT_TIMEOUT（仅 generate() 的 chat 分支设置）
     const intent = h.mockRelayChat.mock.calls[0][0]
     expect(intent.capability).toBe('chat')
+  })
+})
+
+describe('C1 结果信封单一真源（#L3c，弱锁，仅 type-check 生效）', () => {
+  // 【T3】RelayGenerationResult / NodeGenerationResult 须与真源 GenerationResult 结构化相等（防字段漂移）。
+  // ⚠️ 硬约束：assertVitest 默认不执行 expectTypeOf（project 无 test.typecheck）→ 此断言仅在
+  //    `npm run type-check`（tsc -p tests/tsconfig.json）下报错。勿把「vitest 绿」当成类型断言通过。
+  // ⚠️ 它挡不住「把别名改回逐字相同的独立 interface」（结构性 Equal 判定相等）——真锁靠 check-arch 规则 3（T4）。
+  it('relay / node 信封与真源结构化相等', () => {
+    expectTypeOf<RelayGenerationResult>().toEqualTypeOf<GenerationResult>()
+    expectTypeOf<NodeGenerationResult>().toEqualTypeOf<GenerationResult>()
   })
 })
