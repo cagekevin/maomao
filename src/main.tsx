@@ -6,9 +6,14 @@ import '@xyflow/react/dist/style.css'
 import './index.css'
 import { initStorage } from './components/base/storage'
 import { logger } from './components/base/core/logger.ts'
+import { subscribeBackendLogStream } from './components/base/core/backendLogStream.ts'
 
 // Chrome 插件环境：启动时从 chrome.storage.local 加载配置缓存；普通环境无副作用
 initStorage()
+
+// 启动即镜像后端 localTool 实时日志到浏览器 console（带 [localTool] 前缀，F12 可看）
+// 失败静默重连，不影响主链路；见 backendLogStream.ts 文件头
+subscribeBackendLogStream()
 
 // ── 全局异常兜底（P0-5）────────────────────────────────────────────
 // window error / unhandledrejection 统一定向 logger.error（→ localTool /api/logs 落盘），
