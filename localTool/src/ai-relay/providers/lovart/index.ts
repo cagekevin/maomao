@@ -12,9 +12,8 @@ import type { LovartDirectProfile } from './lovart_contract.js';
 import { LOVART_MODEL_SPECS } from './lovart_config.js';
 import { LovartError, LOVART_ERR_TYPES } from './lovart_errors.js';
 import type { LovartClientDeps } from './lovart_client.js';
-import { ensureLovartProject } from './lovart_project.js';
+import { sendLovartChatWithProject } from './lovart_project.js';
 import { setLovartMode } from './lovart_client.js';
-import { sendLovartChat } from './lovart_client.js';
 import { resolveLovartAttachments } from './lovart_attachments.js';
 import { buildLovartPrompt, buildLovartToolConfig } from './lovart_prompt.js';
 import { pollLovartThread, extractLovartArtifacts, extractLovartText } from './lovart_task.js';
@@ -36,6 +35,7 @@ function toDeps(
     fetchImpl: profile.fetchImpl,
     pollIntervalMs: profile.pollIntervalMs,
     doneRecheckMs: profile.doneRecheckMs,
+    projectCacheFile: profile.projectCacheFile,
   };
 }
 
@@ -87,12 +87,11 @@ export async function generateImageLovart(
 ): Promise<string[]> {
   const deps = toDeps(profile, opts.signal, opts.timeoutMs);
   assertCategory(opts.model, 'IMAGE');
-  const projectId = await ensureLovartProject(deps);
   await setLovartMode(deps, false); // 锁 fast 配额轴（B4）
   const attachments = await resolveLovartAttachments(deps, opts.imageUrls);
   const prompt = buildLovartPrompt(opts.model, opts.prompt ?? '', opts.size, !!attachments);
   const toolConfig = buildLovartToolConfig(opts.model); // 结构化路选模型（B5）；prompt_only 返回 undefined（B7）
-  const threadId = await sendLovartChat(deps, { prompt, projectId, attachments, toolConfig });
+  const { threadId } = await sendLovartChatWithProject(deps, { prompt, attachments, toolConfig });
   const result = await pollLovartThread(deps, threadId);
   return extractLovartArtifacts(result);
 }
@@ -117,12 +116,11 @@ export async function generateVideoLovart(
   if (ar) extraParams.push(`aspect_ratio: ${ar}`);
   const res = vars.resolution;
   if (res) extraParams.push(`resolution: ${String(res).trim()}`);
-  const projectId = await ensureLovartProject(deps);
   await setLovartMode(deps, false);
   const attachments = await resolveLovartAttachments(deps, imageUrls);
   const prompt = buildLovartPrompt(opts.model, userPrompt, size, !!attachments, extraParams);
   const toolConfig = buildLovartToolConfig(opts.model);
-  const threadId = await sendLovartChat(deps, { prompt, projectId, attachments, toolConfig });
+  const { threadId } = await sendLovartChatWithProject(deps, { prompt, attachments, toolConfig });
   const result = await pollLovartThread(deps, threadId);
   const urls = extractLovartArtifacts(result);
   const url = urls[0];
@@ -141,13 +139,12 @@ export async function streamChatLovart(
   if (spec && spec.category !== 'CHAT') {
     // 非 chat 模型走对话不被鼓励，但允许（用可读名兜底）
   }
-  const projectId = await ensureLovartProject(deps);
   await setLovartMode(deps, false);
   const { text: userText, images } = extractChatTextAndImages(opts.messages as Array<{ role?: string; content?: unknown }>);
   const attachments = await resolveLovartAttachments(deps, images.length ? images : undefined);
   const prompt = buildLovartPrompt(opts.model, userText, undefined, !!attachments);
   const toolConfig = buildLovartToolConfig(opts.model);
-  const threadId = await sendLovartChat(deps, { prompt, projectId, attachments, toolConfig });
+  const { threadId } = await sendLovartChatWithProject(deps, { prompt, attachments, toolConfig });
   const result = await pollLovartThread(deps, threadId);
   const text = extractLovartText(result);
   return synthesizeLovartChatStream(text, deps.signal); // 交回 parseStream
@@ -161,12 +158,11 @@ export async function chatLovartText(
 ): Promise<string> {
   const deps = toDeps(profile, opts.signal, opts.timeoutMs);
   const { text: userText, images } = extractChatTextAndImages(opts.messages as Array<{ role?: string; content?: unknown }>);
-  const projectId = await ensureLovartProject(deps);
   await setLovartMode(deps, false);
   const attachments = await resolveLovartAttachments(deps, images.length ? images : undefined);
   const prompt = buildLovartPrompt(opts.model, userText, undefined, !!attachments);
   const toolConfig = buildLovartToolConfig(opts.model);
-  const threadId = await sendLovartChat(deps, { prompt, projectId, attachments, toolConfig });
+  const { threadId } = await sendLovartChatWithProject(deps, { prompt, attachments, toolConfig });
   const result = await pollLovartThread(deps, threadId);
   return extractLovartText(result);
 }
@@ -202,7 +198,6 @@ export async function submitLovartTask(
 ): Promise<LovartTaskHandle> {
   const deps = toDeps(profile, profile.signal, profile.timeoutMs);
   assertCategory(opts.model, opts.capability);
-  const projectId = await ensureLovartProject(deps);
   await setLovartMode(deps, false); // 锁 fast 配额轴（B4）
   const attachments = await resolveLovartAttachments(deps, opts.images);
   // 视频比例/清晰度/时长拼进 gen_prefix，对齐 main.py:1237-1247（aspect_ratio / duration / resolution）。
@@ -213,7 +208,7 @@ export async function submitLovartTask(
   if (opts.capability === 'VIDEO' && opts.resolution) extraParams.push(`resolution: ${String(opts.resolution).trim()}`);
   const prompt = buildLovartPrompt(opts.model, opts.prompt ?? '', opts.capability === 'IMAGE' ? opts.size : undefined, !!attachments, extraParams);
   const toolConfig = buildLovartToolConfig(opts.model); // 结构化路选模型（B5）
-  const threadId = await sendLovartChat(deps, { prompt, projectId, attachments, toolConfig });
+  const { threadId, projectId } = await sendLovartChatWithProject(deps, { prompt, attachments, toolConfig });
   return { threadId, projectId };
 }
 

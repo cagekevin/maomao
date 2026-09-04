@@ -8,6 +8,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
+import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -17,12 +18,14 @@ const toUrl = (p) => 'file:///' + p.split(path.sep).join('/');
 const { generateImageLovart, generateVideoLovart, submitLovartTask, pollLovartTaskOnce, chatLovartText } = await import(toUrl(path.join(src, 'ai-relay/providers/lovart/index.ts')));
 const { LovartError } = await import(toUrl(path.join(src, 'ai-relay/providers/lovart/lovart_errors.ts')));
 
+// projectCacheFile 指向临时文件，避免把 .lovart_project.json 写进仓库 cwd。
 const PROFILE = {
   baseUrl: 'https://fake',
   auth: { type: 'hmac', accessKey: 'ak', secretKey: 'sk' },
   pollIntervalMs: 0,
   doneRecheckMs: 0,
   timeoutMs: 5000,
+  projectCacheFile: path.join(os.tmpdir(), `lovart_index_proj_${Date.now()}_${Math.random().toString(16).slice(2)}.json`),
 };
 
 function makeTransport(projectId = 'proj-x') {

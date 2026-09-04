@@ -33,6 +33,8 @@ export interface LovartDirectProfile {
   pollIntervalMs?: number;
   /** done 后复核等待（ms）；缺省 lovart_config.DONE_RECHECK_MS。测试注入小值提速。 */
   doneRecheckMs?: number;
+  /** project 缓存文件路径（disk persist）；缺省 env LOVART_PROJECT_CACHE_FILE / cwd。 */
+  projectCacheFile?: string;
 }
 
 export interface LovartSendInput {
