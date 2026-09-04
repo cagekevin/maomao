@@ -11,12 +11,25 @@
  *
  * 检查档位：
  *  - error（exit 1）：ACTIVE 端点后端无路由（白实现，运行必崩）｜ 方法与后端不符 ｜ 信封标注与可静态判定形态明显不符
+ *                      ｜ ACTIVE 条目 fn 非「模块.符号[.符号]」形态（描述混入 fn，应拆 note 字段）｜
+ *                      源码调用点真实存在但未登记（反向差集 D）
  *  - warn  （exit 1）：RESERVED 端点后端无路由（登记了却无对应实现）｜ ACTIVE 条目 fn 指向的模块无该导出（幽灵 ACTIVE，R5）
  *  - info  （exit 0）：后端有路由但前端未登记（待补登记，含 RESERVED）；信封形态无法静态判定（交由测试兜底）；
- *                      RESERVED 条目 fn 指向的模块无该导出（保留待实现，R5）；fn 模块未映射/读取失败（R5，不脆断）
+ *                      RESERVED 条目 fn 指向的模块无该导出（保留待实现，R5）；fn 模块未映射/读取失败（R5，不脆断）；
+ *                      源码调用点路径变量化无法静态解析（反向差集 D，如 localToolApi.request() 泛化 helper）
  *
  * 豁免：`stream`/`sse`/`raw`/`probe`/`stub` 类型端点跳过信封形态检查（其形态本非统一信封，见 T3.1 豁免清单）。
  * 信封形态的「权威校验」由 B0 冻结测试承担；本脚本的检测为登记面的一致性防线，判定不了就 info，不脆断误伤。
+ *
+ * R5 盲区收口（docs/103-api契约校验盲区与全量扫描-审计与演进-2026-09-04.md，2026-09-04 实施）：
+ *  - 4.1 废除 MODULE_FILES 手工白名单 → 目录自动发现：base/api/*.ts 文件名 + 全仓 src 导出符号双索引
+ *       （兼容模块名=文件名 与 模块名=导出符号 两种形态，如 backendLogStream / logger）。
+ *  - 4.2 fn 数据形态清洗：ACTIVE 的 fn 禁止夹描述（不合 模块.符号[.符号] → error，描述放 registry 的 note 字段）；
+ *       两层导出校验：模块.对象.方法 同时验 `export const 对象` 存在 且 对象字面量含该方法名。
+ *  - 4.3 新增反向方向 D：静态扫全 src 的 httpRequest/httpPost/httpRequestLogged 模板字面量调用点，
+ *       归一化 `${encodeURIComponent(x)}`→{x} 后与登记表求差；未登记 → error；任意 URL 下载 / 非 /api/ 前缀豁免；
+ *       路径变量化 helper → info 显式标注（防黑盒）。
+ *  - 4.4 登记 fn 对齐真实消费链：relayProxy 原语条目加 consumer 字段（generate.* 门面），原语 + 门面双查。
  *
  * 用法：
  *   node scripts/check-api-contract.cjs
@@ -39,21 +52,173 @@ const EXEMPT = new Set(['stream', 'sse', 'raw', 'probe', 'stub']);
 const VALID_ENVELOPES = new Set([...EXEMPT, 'ok', 'code-data', 'items', 'success-data']);
 
 // ── R5：前端 fn 存在性校验（防幽灵 ACTIVE）──
-// 只校验「形如 模块.符号 或 模块.对象.方法」（无空格/括号/+）的 fn，其余占位/描述一律豁免（保守，避免误伤）。
-const MODULE_FILES = {
-  localToolApi: 'src/components/base/api/localToolApi.ts',
-  filesApi: 'src/components/base/api/filesApi.ts',
-  pollTask: 'src/components/base/api/pollTask.ts',
-  relayProxy: 'src/components/base/api/relayProxy.ts',
-  agentRuntime: 'src/components/agent/runtime/agentRuntime.ts',
-};
+// 【4.1 收口】废除 MODULE_FILES 手工白名单 → 目录自动发现：
+//  - byName：模块名 = 文件名（base/api/*.ts 优先 + 全仓同名文件兜底），兼容 localToolApi/filesApi/generate/backendLogStream 等
+//  - bySymbol：模块名 = 导出符号（兼容 useLocalToolStatus/logger 等「模块即导出」形态）
+// 首命中优先 base/api 与先扫到的文件；同名/同符号冲突取先者（本项目模块名均为文件名级唯一）。
+const API_DIR = 'src/components/base/api';
+const EXPORT_RE = /(?:export\s+(?:async\s+)?function\s+(\w+)|export\s+const\s+(\w+)\s*[=:])/g;
+
+let _moduleIndex = null;
+function buildModuleIndex() {
+  if (_moduleIndex) return _moduleIndex;
+  const byName = new Map();
+  const bySymbol = new Map();
+  const seed = (relFile) => {
+    const base = relFile.split('/').pop().replace(/\.(ts|tsx)$/, '');
+    if (!byName.has(base)) byName.set(base, relFile);
+    let src;
+    try { src = fs.readFileSync(path.join(ROOT, relFile), 'utf8'); } catch { return; }
+    for (const m of src.matchAll(EXPORT_RE)) {
+      const sym = m[1] || m[2];
+      if (sym && !bySymbol.has(sym)) bySymbol.set(sym, relFile);
+    }
+  };
+  // 1) base/api/*.ts 优先（薄入口真源，避免被同文件名的测试/别名抢占）
+  if (fs.existsSync(path.join(ROOT, API_DIR))) {
+    for (const name of fs.readdirSync(path.join(ROOT, API_DIR)).sort()) {
+      if (/\.ts$/.test(name) && !/\.(test|spec)\./.test(name)) seed(`${API_DIR}/${name}`);
+    }
+  }
+  // 2) 全仓 src 兜底（hooks/core/utils 等模块名=文件名的消费点）
+  const walk = (dir) => {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, e.name);
+      if (e.isDirectory()) {
+        if (e.name.startsWith('.')) continue;
+        walk(full);
+      } else if (/\.(ts|tsx)$/.test(e.name) && !/\.(test|spec)\./.test(e.name)) {
+        seed(path.relative(ROOT, full));
+      }
+    }
+  };
+  walk(path.join(ROOT, 'src'));
+  _moduleIndex = { byName, bySymbol };
+  return _moduleIndex;
+}
+
+function resolveModuleFile(moduleName) {
+  const { byName, bySymbol } = buildModuleIndex();
+  return byName.get(moduleName) || bySymbol.get(moduleName) || null;
+}
 
 // 常量命名空间（引用的是契约常量而非前端函数，豁免，如 API_ENDPOINTS.fileThumbnail）
 const NON_FN_MODULES = new Set(['API_ENDPOINTS']);
 
-// 纯点链：模块.符号 / 模块.对象.方法（不含空格、括号、+ 等描述后缀）
-const FN_CHAIN_RE = /^[\w$]+(\.[\w$]+)+$/;
-const EXPORT_RE = /(?:export\s+(?:async\s+)?function\s+(\w+)|export\s+const\s+(\w+)\s*[=:])/g;
+// 纯点链：模块.符号 / 模块.对象.方法 / 单符号模块（不含空格、括号、+ 等描述后缀）。
+// 【4.2】ACTIVE 条目 fn 必须符合此形态，否则 error；RESERVED 占位描述仍豁免。
+const FN_CHAIN_RE = /^[\w$]+(\.[\w$]+)*$/;
+
+// 提取源码文件的导出符号集合（export function / export async function / export const）。
+// 只覆盖「函数/常量引用」形态；re-export（export { x } from）与 export default 不在登记 fn 形态内，不提取。
+function collectExports(src) {
+  const out = new Set();
+  for (const m of src.matchAll(EXPORT_RE)) out.add(m[1] || m[2]);
+  return out;
+}
+
+// 提取 `export const 对象 = { ... }` 对象字面量的键集合（两层校验用）。
+// 返回 null 表示未定位到该对象定义（无法静态判定 → 不脆断）；定位到则返回键集合。
+function extractConstObjectKeys(src, name) {
+  const re = new RegExp(`export\\s+const\\s+${name}\\s*(?::\\s*[^{=]+?)?=\\s*\\{`);
+  const m = re.exec(src);
+  if (!m) return null;
+  let depth = 0;
+  const start = m.index + m[0].length - 1; // '{' 位置
+  for (let i = start; i < src.length; i++) {
+    if (src[i] === '{') depth++;
+    else if (src[i] === '}') {
+      depth--;
+      if (depth === 0) {
+        const body = src.slice(start + 1, i);
+        const keys = new Set();
+        for (const k of body.matchAll(/(?:^|[\s,{;])(['"`])?([\w$]+)\1?\s*(?=:)/g)) keys.add(k[2]);
+        return keys;
+      }
+    }
+  }
+  return null;
+}
+
+// 读取缓存（模块索引建过 + 单条校验各读一次 → 去重，防大文件重复 IO）
+const fileCache = new Map();
+function readFileCached(relFile) {
+  if (!fileCache.has(relFile)) fileCache.set(relFile, fs.readFileSync(path.join(ROOT, relFile), 'utf8'));
+  return fileCache.get(relFile);
+}
+
+// 校验单条 fn 链：单符号（useLocalToolStatus）/ 模块.符号 / 模块.对象.方法 三层形态。
+//  - fn 不合形态：ACTIVE → error（4.2，描述混入 fn 是豁免洞根源）；RESERVED 占位描述 → 豁免。
+//  - 模块无该导出 → ACTIVE warn（幽灵）/ RESERVED info（保留待实现）——维持既有档位。
+//  - 模块.对象.方法：同时验对象字面量含该方法（4.2 两层校验，防只验第一层）。
+//  - entry.consumer（4.4）：登记原语 + 真实门面双查（如 relayProxy.* 配 generate.* 门面）。
+function checkFnExists(entry, key) {
+  const fn = entry.fn;
+  if (!fn) return;
+  const first = fn.split('.')[0];
+  if (NON_FN_MODULES.has(first)) return; // 常量命名空间 → 豁免
+  if (!FN_CHAIN_RE.test(fn)) {
+    // 【4.2】ACTIVE 的 fn 夹描述/占位 = 豁免洞 → 升级为 error；描述应放 registry 的 note 字段
+    if (entry.status === 'ACTIVE') {
+      add('error', `fn 形态非法: ${key} fn='${fn}'（ACTIVE 必须为 模块.符号[.符号]，描述请放 note 字段）`);
+    }
+    return;
+  }
+  const parts = fn.split('.');
+  const moduleName = parts[0];
+  const relFile = resolveModuleFile(moduleName);
+  if (!relFile) {
+    add('info', `fn 模块未映射: ${fn}（自动发现未找到模块 ${moduleName}）`);
+    return;
+  }
+  let src;
+  try {
+    src = readFileCached(relFile);
+  } catch {
+    add('info', `fn 模块读取失败: ${fn}（${relFile}）`);
+    return;
+  }
+  const exported = collectExports(src);
+  const symbol = parts.length === 1 ? parts[0] : parts[1];
+  if (!exported.has(symbol)) {
+    add(
+      entry.status === 'ACTIVE' ? 'warn' : 'info',
+      entry.status === 'ACTIVE'
+        ? `幽灵ACTIVE: ${fn}（模块 ${moduleName} 无导出 ${symbol}）`
+        : `fn缺失(保留待实现): ${fn}（模块 ${moduleName} 无导出 ${symbol}）`,
+    );
+    return;
+  }
+  // 两层：模块.对象.方法 → 对象字面量须含该方法名（防只验第一层，方法名拼错永不发现）
+  if (parts.length >= 3) {
+    const keys = extractConstObjectKeys(src, parts[1]);
+    if (keys && !keys.has(parts[2])) {
+      add(
+        entry.status === 'ACTIVE' ? 'warn' : 'info',
+        entry.status === 'ACTIVE'
+          ? `幽灵ACTIVE: ${fn}（${moduleName} 导出 ${parts[1]} 对象但无方法 ${parts[2]}）`
+          : `fn缺失(保留待实现): ${fn}（${moduleName} 导出 ${parts[1]} 对象但无方法 ${parts[2]}）`,
+      );
+    }
+  }
+  // 4.4 consumer 门面链双查（校验原语存在 ≠ 前端仍走门面）
+  for (const c of entry.consumer || []) {
+    if (!c || !FN_CHAIN_RE.test(c)) {
+      add('info', `consumer 形态非法: ${key} consumer='${c}'`);
+      continue;
+    }
+    const cp = c.split('.');
+    const cFile = resolveModuleFile(cp[0]);
+    if (!cFile) { add('info', `consumer 模块未映射: ${key} consumer=${c}`); continue; }
+    let cSrc;
+    try { cSrc = readFileCached(cFile); } catch { add('info', `consumer 模块读取失败: ${key} consumer=${c}`); continue; }
+    const cExp = collectExports(cSrc);
+    const cSym = cp.length === 1 ? cp[0] : cp[1];
+    if (!cExp.has(cSym)) {
+      add('warn', `consumer 缺失: ${key} consumer=${c}（模块 ${cp[0]} 无导出 ${cSym}）`);
+    }
+  }
+}
 
 // 登记 path 比较模板：{id} → {x}
 const patternKey = (p) => (p || '').replace(/\{[A-Za-z_][\w]*\}/g, '{x}');
@@ -192,45 +357,67 @@ function checkEnvelope(entry, found, texts) {
   }
 }
 
-// ── R5：前端 fn 存在性校验 ──
-// 静态提取模块文件的导出符号（export function / export async function / export const），
-// 只覆盖「函数引用」形态；re-export（export { x } from …）与 export default 不在登记 fn 形态内，不提取。
-function extractExports(filePath) {
-  const out = new Set();
-  const src = fs.readFileSync(filePath, 'utf8');
-  for (const m of src.matchAll(EXPORT_RE)) out.add(m[1] || m[2]);
-  return out;
-}
+// ── 反向方向 D（4.3）：源码调用点 → 登记表差集 ──
+// 静态提取全 src 中 httpRequest/httpPost/httpRequestLogged 的【模板字面量】一参，
+// 归一化 `${encodeURIComponent(x)}`→{x} 后与登记表 path 求差：
+//  - 命中登记 → 计数（matched）
+//  - 非 `/api/` 前缀 / 任意 URL 下载 → 豁免（exempt，非 localTool 业务端点）
+//  - 路径来自变量（如 localToolApi.request() 的 `${API_BASE}${path}`）→ info 显式标注（unresolved，防黑盒）
+//  - 未登记 → error（unresolved 之外的真漂移：新增端点漏登记）
+// 局限：非字面量一参（变量 URL）的调用点静态不可见；该侧由登记 fn 存在性校验兜底。
+const CALL_RE = /(?:\bhttpRequest\b|\bhttpPost\b|\bhttpRequestLogged\b)\s*\(\s*`([^`]*)`/g;
 
-// 校验单条登记：fn 必须是「模块.符号」链且模块真实导出该符号，否则报 warn（ACTIVE 幽灵）/ info（RESERVED 保留）。
-// 占位/描述（含空格/括号/+、单符号、常量命名空间、`(前端零消费)` 等）一律豁免，不脆断误伤。
-function checkFnExists(entry) {
-  const fn = entry.fn;
-  if (!fn || !FN_CHAIN_RE.test(fn)) return; // 空 / 占位描述 → 豁免
-  const parts = fn.split('.');
-  const moduleName = parts[0];
-  if (NON_FN_MODULES.has(moduleName)) return; // 常量命名空间 → 豁免
-  const relFile = MODULE_FILES[moduleName];
-  if (!relFile) {
-    add('info', `fn 模块未映射: ${fn}（需在 check-api-contract.cjs 的 MODULE_FILES 登记）`);
-    return;
+function scanFrontendCallSites(registry) {
+  // 登记 path 索引（patternKey 归一 {frontTaskId}→{x}）
+  const paths = new Map();
+  for (const [k, e] of Object.entries(registry)) {
+    const pk = patternKey(e.path);
+    if (!paths.has(pk)) paths.set(pk, k);
   }
-  let exported;
-  try {
-    exported = extractExports(path.join(ROOT, relFile));
-  } catch (e) {
-    add('info', `fn 模块读取失败: ${fn}（${relFile}）`);
-    return;
+  const stat = { matched: 0, exempt: 0, unresolved: 0 };
+  const files = [];
+  const walk = (dir) => {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, e.name);
+      if (e.isDirectory()) {
+        if (e.name.startsWith('.')) continue;
+        walk(full);
+      } else if (/\.(ts|tsx)$/.test(e.name) && !/\.(test|spec)\./.test(e.name)) {
+        files.push(full);
+      }
+    }
+  };
+  walk(path.join(ROOT, 'src'));
+
+  for (const f of files) {
+    const src = fs.readFileSync(f, 'utf8');
+    for (const m of src.matchAll(CALL_RE)) {
+      const callFn = /\bhttpPost\b/.test(m[0]) ? 'httpPost' : /\bhttpRequestLogged\b/.test(m[0]) ? 'httpRequestLogged' : 'httpRequest';
+      // 模板归一：${...}（含 encodeURIComponent(x)）→ {x}
+      const t = m[1].replace(/\$\{[^}]*\}/g, '{x}');
+      const rel = path.relative(ROOT, f);
+      // 非 API_BASE 业务端点：任意 URL 下载 / 变量化路径 helper
+      if (!t.startsWith('{x}/')) {
+        if (t.startsWith('{x}{') || t === '{x}') {
+          stat.unresolved++;
+          add('info', `调用点路径变量化无法静态解析: ${callFn} 于 ${rel}（模板 ${JSON.stringify(t)}，若为业务端点请登记）`);
+        } else {
+          stat.exempt++; // 任意 URL 下载（非 API_BASE 前缀）
+        }
+        continue;
+      }
+      let p = t.slice('{x}'.length); // 剥 API_BASE
+      const qi = p.indexOf('?');
+      if (qi >= 0) p = p.slice(0, qi); // 剥 query（登记表不含 query）
+      p = p.replace(/\/+$/, '');
+      // 非 /api/ 前缀（/files/ 等资源服务）→ 豁免
+      if (!p.startsWith('/api/')) { stat.exempt++; continue; }
+      if (paths.has(patternKey(p))) { stat.matched++; continue; }
+      // 真漂移：源码真实调用但未登记 → error
+      add('error', `源码调用点未登记: ${callFn} ${p}（${rel}）——新端点须在 contracts.ts apiRegistry 登记`);
+    }
   }
-  const symbol = parts[1];
-  if (!exported.has(symbol)) {
-    add(
-      entry.status === 'ACTIVE' ? 'warn' : 'info',
-      entry.status === 'ACTIVE'
-        ? `幽灵ACTIVE: ${fn}（模块 ${moduleName} 无导出 ${symbol}）`
-        : `fn缺失(保留待实现): ${fn}（模块 ${moduleName} 无导出 ${symbol}）`,
-    );
-  }
+  return stat;
 }
 
 async function main() {
@@ -266,29 +453,34 @@ async function main() {
     if (!samePath.length) {
       if (entry.status === 'RESERVED') add('warn', `RESERVED 后端无路由: ${key} ${entry.path}`);
       else add('error', `白实现(前端有、后端无): ${key} fn=${entry.fn} path=${entry.path}`);
-      continue;
+    } else {
+      let found = samePath.find((r) => r.method === entry.method || entry.method === '*');
+      const methodMismatch = !found;
+      found = found || samePath[0];
+      matchedBackend.add(found);
+      if (methodMismatch) {
+        const backendMethods = [...new Set(samePath.map((r) => r.method))].join('/');
+        add('error', `方法不一致: ${key} ${entry.path} 前端=${entry.method}，后端仅=${backendMethods}`);
+      }
+      checkEnvelope(entry, found, texts);
     }
-    let found = samePath.find((r) => r.method === entry.method || entry.method === '*');
-    const methodMismatch = !found;
-    found = found || samePath[0];
-    matchedBackend.add(found);
-    if (methodMismatch) {
-      const backendMethods = [...new Set(samePath.map((r) => r.method))].join('/');
-      add('error', `方法不一致: ${key} ${entry.path} 前端=${entry.method}，后端仅=${backendMethods}`);
-    }
-    checkEnvelope(entry, found, texts);
-    checkFnExists(entry);
+    // R5 fn 校验与后端路由解耦（修 docs/103 盲区⑤：后端无路由时不得跳过 fn 校验，避免只报前半段）
+    checkFnExists(entry, key);
   }
 
-  // 2) 后端有、前端未登记 → info（待补登记）
+  // 2) 反向方向 D：源码调用点 → 登记表差集（4.3，先于「后端有前端未登记」输出，error 并入 RESULT）
+  const reverse = scanFrontendCallSites(registry);
+
+  // 3) 后端有、前端未登记 → info（待补登记）
   for (const r of concrete) {
     if (matchedBackend.has(r)) continue;
     add('info', `后端有、前端未登记: [${r.method}] ${r.template} handler=${r.handler}`);
   }
 
-  // 3) 输出
+  // 4) 输出
   const pad = (s, n) => s.toUpperCase().padEnd(n);
   console.log(`\napiRegistry 登记 ${Object.keys(registry).length} 条；解析后端路由 ${backendRoutes.length} 条（catch-all ${backendRoutes.length - concrete.length} 条豁免）`);
+  console.log(`[reverse] 源码调用点扫描：${reverse.matched} 命中登记 / ${reverse.exempt} 豁免(任意URL/非业务) / ${reverse.unresolved} 无法静态解析 / ${reverse.matched + reverse.exempt + reverse.unresolved} 处字面量调用`);
   for (const level of ['error', 'warn', 'info']) {
     if (RESULT[level].length) {
       console.log(`\n[${level}] ${RESULT[level].length} 项`);

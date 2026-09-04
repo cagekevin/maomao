@@ -41,7 +41,7 @@ export const SCAN_DIRS = ['src/components', 'src/hooks']
 /** 受校验的源码扩展名 */
 export const SCAN_EXTS = SOURCE_EXTS
 
-/** 转出口：ESM 脚本（mv-sync-refs / extract-tailwind / sync-mapping）从这里取，避免各写一份 */
+/** 转出口：ESM 脚本（mv-sync-refs / extract-tailwind / check-node-types / check-storage-keys）从这里取，避免各写一份 */
 export { SOURCE_EXTS, TS_EXEMPT_DIRS, TS_EXEMPT_FILES, isExempt, resolveSourceFile, hasJsx, hasJsxHintRaw, detectExt }
 
 /**
@@ -50,6 +50,10 @@ export { SOURCE_EXTS, TS_EXEMPT_DIRS, TS_EXEMPT_FILES, isExempt, resolveSourceFi
  * 用途：诊断/一次性脚本（如 test_group_*.mjs）需要按路径读源码做静态断言，写死后继扩展名
  * 会在 TS 化那刻直接 ENOENT，且这类脚本不在任何门禁里，坏了长期无人发现（2026-09-02 实测
  * 4 个 group 诊断脚本全在指 projectStore.js / groupNodes.js）。统一走这里即可免疫后缀漂移。
+ *
+ * 更新(2026-09-04)：上述 4 个 group 诊断脚本（`test_all_positions.mjs` / `test_group_collapse|persist|size.mjs`）
+ * 因全仓 0 引用已随治理清理删除，本函数的现存消费者只剩 `check-node-types.mjs` / `check-storage-keys.mjs` /
+ * `mv-sync-refs.mjs`。保留上段历史推理（说明"为什么"要有扩展名无关解析），勿删。
  *
  * @param {string} abs 绝对路径，可带也可不带扩展名（'.../projectStore' 或 '.../projectStore.js'）
  * @returns {string} 文件内容

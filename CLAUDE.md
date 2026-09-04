@@ -2,7 +2,7 @@
 
 > **本文件定位：项目认知入口。每个 AI 进来第一步读它**，了解"这是什么项目、技术栈、架构、目录、红线、怎么启动"。
 > 读完按任务再读对应入口：**写代码 →** **`spec/CONTEXT.md`（决策地图）**；**写/改测试 →** **`spec/TEST-GUIDE.md`（测试权威）**。三文件互补不重叠（见 §七.0）。
-> **最后更新**：2026-09-04（三轮核对：① 计数 apiRegistry 57 条、tests/unit 132 文件/1802 用例；② 移除已删 `reference-1mao/`、不存 `docs/node-types-map.md`、已退役 `/api/proxy`/`proxyMode`/`x-proxy-url`、`Python 网关`/`lovart_client.py` 引用，节点规范改指 `spec/NEW-NODE-GUIDE.md`；③ 修正 `check:health` 覆盖、`localTool` 测试路径、`base/*.js`→`base/utils/`、`pre-commit` 跑 `test-affected`、`pre-push` 已删、`launch-all.ps1` 无参、relay 重构后 `9004` 仅 lovart-old 回退轨（非 relay 默认）、代理/转发逻辑改指 `passthrough.ts`/`generate.ts`/`relay-poll.ts`；此前为 2026-08-26 事件契约红线收口 + 2026-08-22 API 中转层收口）
+> **最后更新**：2026-09-04（四轮核对：① 计数 apiRegistry 60 条、tests/unit 176 文件/约 2209 用例；② 移除已删 `reference-1mao/`、不存 `docs/node-types-map.md`、已退役 `/api/proxy`/`proxyMode`/`x-proxy-url`、`Python 网关`/`lovart_client.py` 引用，节点规范改指 `spec/NEW-NODE-GUIDE.md`；③ 修正 `check:health` 覆盖、`localTool` 测试路径、`base/*.js`→`base/utils/`、`pre-commit` 跑 `test-affected`、`pre-push` 已删、`launch-all.ps1` 无参、relay 重构后 `9004` 仅 lovart-old 回退轨（非 relay 默认）、代理/转发逻辑改指 `passthrough.ts`/`generate.ts`/`relay-poll.ts`；④ 治理清理：删 5 个 0 引用脚本（`merge-node-audit.cjs`/`test_all_positions.mjs`/`test_group_collapse|persist|size.mjs`）、假入口 `sync-mapping.mjs`（连带 `npm run sync:mapping`）、孤儿 `share/index.html`，卸载零引用包 `zustand`/`three-stdlib`/`@babel/parser`；此前为 2026-08-26 事件契约红线收口 + 2026-08-22 API 中转层收口）
 
 ## ⚠️ 最新情况（改动前必读）
 
@@ -168,7 +168,7 @@ node scripts/task-inspect.mjs --canvas-health   # 画布结构体检
 ```
 0. npm run dev           ← 预览改动（非校验）
 1. npm run test:smoke    ← 冒烟质量门（每次改动都跑，默认自检）
-2. npm run test:unit     ← vitest 全量单元测试（tests/unit/ 下 132 文件/1802 用例；
+2. npm run test:unit     ← vitest 全量单元测试（tests/unit/ 下 176 文件/约 2209 用例；
                            剧本盒引擎/AI 工具/纯函数等改动必跑，今天补的主力验证）
 3. npm run build         ← 构建校验 + 回灌 dist/（确认编译通过）
 4. npm run test:regression ← 节点注册表 + 脚本盒引擎回归（改了节点/引擎跑）
@@ -431,7 +431,7 @@ node scripts/task-inspect.mjs --canvas-health   # 画布结构体检
 
 | 场景                                                         | 做法                                                                                                                                                                                  |
 | ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 要改/查 API 端点                                                | **先看** **`contracts.ts apiRegistry`（前端↔后端唯一契约真源，57 条）+ 跑** **`npm run check:api`** **双向校验**；改端点须「加函数+登记」双动作，信封形态标 `ok/code-data/success-data/items` 或豁免 `stream/sse/raw/probe/stub` |
+| 要改/查 API 端点                                                | **先看** **`contracts.ts apiRegistry`（前端↔后端唯一契约真源，60 条）+ 跑** **`npm run check:api`** **双向校验**；改端点须「加函数+登记」双动作，信封形态标 `ok/code-data/success-data/items` 或豁免 `stream/sse/raw/probe/stub` |
 | 要改代理/转发逻辑                                                  | 现由 `localTool/src/routes/passthrough.ts`（`handlePassthrough`）+ `routes/generate.ts`（统一生成入口 `/api/generate`）+ `relay-poll.ts`（后端常驻轮询落盘）；旧 `/api/proxy` 已随 2026-09-03 收口退役                                                                                                                        |
 | 要查官方权益转发                                                   | `localTool/src/routes/official.ts`（中转+短缓存，不伪造权限）                                                                                                                                    |
 | 要改画布前端                                                     | 改 `src/` → `npm run test:smoke` → `npm run build`；严禁直接手改 dist                                                                                                                       |

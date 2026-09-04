@@ -599,13 +599,15 @@ export const API_ENDPOINTS = {
  * 与 `localTool/src/router.ts` 的 `routes` 表正则互检（前端有后端无→warn 白实现；
  * 后端有前端无→info 待补；信封标注与 handler 形态不符→error）。
  *
- * 【形态】每条 = { fn, method, path, envelope, status }
- *  - fn：   前端聚合函数/消费点（localToolApi 导出 / filesApi / pollTask / 组件散落点）
+ * 【形态】每条 = { fn, method, path, envelope, status, note?, consumer? }
+ *  - fn：   前端聚合函数/消费点（localToolApi 导出 / filesApi / generate / logger / hook 等；须为 `模块.符号[.符号]` 链）
  *  - method：GET/POST/PUT/DELETE（对齐 router.ts routes）
  *  - path：  后端 route pattern（字符串精确或正则源文本，与 router.ts 一致）
  *  - envelope：ok | code-data | items | success-data | raw | stream | sse | probe | stub。
  *       流式/探针/裸值/桩豁免信封检查（stream/sse/raw/probe/stub，check-api-contract 跳过）。
  *  - status：ACTIVE（前端已消费）/ RESERVED（后端有前端零消费，勿当死代码删）。
+ *  - note：  描述性说明（2026-09-04 起 fn 禁止夹描述，说明一律放本字段，check:api 对 ACTIVE 的 fn 形态强制校验）
+ *  - consumer：真实消费门面链（4.4：fn 是底层原语时用本字段登记门面，如 relayProxy.* 配 generate.*，check:api 双查）
  *
  * 【纪律】新增端点 → 先在本表登记 + 在 localToolApi/filesApi 加函数（M2-d「加函数+登记」双动作）。
  * 散落点（GeneratedView/AssetLibrary/pollTask）也须登记，即便它们暂走 httpRequest 直拼——
@@ -636,10 +638,11 @@ export const apiRegistry = {
   openFileDir:           { fn: 'localToolApi.openFileDir',           method: 'GET',    path: '/api/files/open-dir',         envelope: 'code-data', status: 'ACTIVE' },
   uploadFile:            { fn: 'localToolApi.uploadFile',            method: 'POST',   path: '/api/files/upload',           envelope: 'code-data', status: 'ACTIVE' },
   createFolder:          { fn: 'localToolApi.createFolder',          method: 'POST',   path: '/api/files/mkdir',            envelope: 'code-data', status: 'ACTIVE' },
-  fileRead:              { fn: 'filesApi.read (二进制流)',           method: 'GET',    path: '/api/files/read',             envelope: 'stream',   status: 'ACTIVE' },
+  /** 2026-09-04（103 §4.2）：原登记 filesApi.read 为幽灵（filesApi 无 read 导出，且前端零消费）→ 改 RESERVED */
+  fileRead:              { fn: '(前端零消费·原登记 filesApi.read 幽灵)', method: 'GET',    path: '/api/files/read',             envelope: 'stream',   status: 'RESERVED' },
   fileThumbnail:         { fn: 'API_ENDPOINTS.fileThumbnail',        method: 'GET',    path: '/api/files/thumbnail',        envelope: 'stream',   status: 'ACTIVE' },
   filesMove:             { fn: 'localToolApi.moveFile',              method: 'POST',   path: '/api/files/move',             envelope: 'code-data', status: 'ACTIVE' },
-  filesList:             { fn: 'filesApi.list',                      method: 'GET',    path: '/api/files/list',             envelope: 'code-data', status: 'RESERVED' },
+  filesList:             { fn: '(前端零消费·未实现)',                  method: 'GET',    path: '/api/files/list',             envelope: 'code-data', status: 'RESERVED' },
   /** kv 域（raw 豁免：裸 null/裸值） */
   kvGet:                 { fn: 'localToolApi.kvGet',                 method: 'GET',    path: '/api/kv/get',                 envelope: 'raw',      status: 'ACTIVE' },
   kvSet:                 { fn: 'localToolApi.kvSet',                 method: 'POST',   path: '/api/kv/set',                 envelope: 'code-data', status: 'ACTIVE' },
@@ -655,11 +658,21 @@ export const apiRegistry = {
   /** relay 统一生成入口（按 capability 分流：chat 同步 / image|video 异步句柄）。
    *  前端 image/video 走 relayGenerate + chat 走 relayChat，均打 POST /api/generate，2026-09-03 ACTIVE。
    *  （旧 /api/proxy、/api/relay 已退役移除登记；generateGet/cancel 仅 image/video。） */
-  generateSubmit:        { fn: 'relayProxy.relaySubmit',         method: 'POST',   path: '/api/generate',               envelope: 'code-data', status: 'ACTIVE' },
-  generateGet:           { fn: 'relayProxy.relayPoll',          method: 'GET',    path: '/api/generate/{frontTaskId}', envelope: 'code-data', status: 'ACTIVE' },
-  generateCancel:        { fn: 'relayProxy.relayCancel',        method: 'POST',   path: '/api/generate/{frontTaskId}/cancel', envelope: 'code-data', status: 'ACTIVE' },
+  /** 2026-09-04（103 §4.4）：新增 consumer 字段登记真实消费门面 generate.*（fn 保持 relayProxy.* 底层原语；
+   *  原洞：只验原语导出存在 ≠ 前端仍走 generate.ts 门面，见 base/api/index.ts 不导出 relayProxy） */
+  generateSubmit:        { fn: 'relayProxy.relaySubmit',         consumer: ['generate.generateImage', 'generate.generateVideo', 'generate.chatCompletions', 'generate.chatStream'], method: 'POST',   path: '/api/generate',               envelope: 'code-data', status: 'ACTIVE' },
+  generateGet:           { fn: 'relayProxy.relayPoll',          consumer: ['generate.generateImage', 'generate.generateVideo'], method: 'GET', path: '/api/generate/{frontTaskId}', envelope: 'code-data', status: 'ACTIVE' },
+  generateCancel:        { fn: 'relayProxy.relayCancel',        consumer: ['generate.generateImage', 'generate.generateVideo'], method: 'POST', path: '/api/generate/{frontTaskId}/cancel', envelope: 'code-data', status: 'ACTIVE' },
   status:                { fn: 'useLocalToolStatus',                  method: 'GET',    path: '/api/status',                 envelope: 'probe',    status: 'ACTIVE' },
-  logs:                  { fn: '统一日志总线（前端/各后端上报，source 区分）', method: 'POST',   path: '/api/logs',                   envelope: 'ok',       status: 'ACTIVE' },
+  logs:                  { fn: 'logger.log', note: '统一日志总线：前端/各后端上报，source 区分', method: 'POST', path: '/api/logs', envelope: 'ok', status: 'ACTIVE' },
+  /** 实时日志流（SSE）：backendLogStream.ts 用 EventSource 直连，不走 httpClient（SSE 三件套之外的第二个 SSE 点） */
+  logsStream:            { fn: 'backendLogStream.subscribeBackendLogStream', note: 'EventSource 直连，不走 httpRequest', method: 'GET', path: '/api/logs/stream', envelope: 'sse', status: 'ACTIVE' },
+  /** local-patch 局部重绘（RESERVED：当前前端零消费，端点供编辑器局部裁剪/拼回/指纹比对用） */
+  localPatchCrop:        { fn: '(前端零消费·局部裁剪)',                method: 'POST',   path: '/api/local-patch/crop',        envelope: 'code-data', status: 'RESERVED' },
+  localPatchMerge:       { fn: '(前端零消费·局部拼回)',                method: 'POST',   path: '/api/local-patch/merge',       envelope: 'code-data', status: 'RESERVED' },
+  localPatchFingerprint: { fn: '(前端零消费·指纹比对)',                method: 'POST',   path: '/api/local-patch/fingerprint', envelope: 'code-data', status: 'RESERVED' },
+  /** apimart 网关任务查询（RESERVED：旧轮询协议，前端 pollTask.ts 已不走此路） */
+  gatewayTask:           { fn: '(前端零消费·旧 apimart 轮询协议)',      method: 'GET',    path: '/api/v1/gateway/task/{x}+',    envelope: 'code-data', status: 'RESERVED' },
   jianying:              { fn: '(前端零消费)',                          method: 'POST',   path: '/api/jianying/send',          envelope: 'stub',     status: 'RESERVED' },
   /** platform 域（RESERVED：前端零消费——模型源是 providerModels.js 聚合，不走 platform；handler 保留为「自研替换官方」兜底） */
   pluginManifest:        { fn: '(前端零消费·未实现)',                  method: 'GET',    path: '/plugin/manifest.json',       envelope: 'code-data', status: 'RESERVED' },

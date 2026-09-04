@@ -14,7 +14,6 @@
     "check:api": "node scripts/check-api-contract.cjs",
     "check:node-types": "node scripts/check-node-types.mjs",
     "extract:tw": "node scripts/extract-tailwind.mjs",
-    "sync:mapping": "node scripts/sync-mapping.mjs",
     "test:smoke": "node scripts/smoke_test.cjs",
     "test:regression": "vitest run tests/unit/nodes/ssrRegression.test.ts",
     "test:tools": "vitest run tests/unit/canvasAgentTools.test.ts tests/unit/demoPlan.test.ts",
@@ -37,8 +36,7 @@
     "prepare": "husky"
   },
   "overrides": {
-    "typescript": "^5.6.0",
-    "zustand": "^5.0.3"
+    "typescript": "^5.6.0"
   },
   "dependencies": {
     "@mediapipe/tasks-vision": "^1.0.1",
@@ -52,12 +50,9 @@
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-image-crop": "^11.1.2",
-    "three": "^0.185.1",
-    "three-stdlib": "^2.36.1",
-    "zustand": "^5.0.3"
+    "three": "^0.185.1"
   },
   "devDependencies": {
-    "@babel/parser": "^7.29.8",
     "@playwright/test": "^1.62.1",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/react": "^16.3.2",

@@ -168,6 +168,8 @@
 
 * **字符串契约零损伤（红线，改任何引用必须全量 grep 同步）**：`proxyMode=local-tool`、`127.0.0.1:18080`、`127.0.0.1:9004`、`/api/proxy`、`x-proxy-url`、画布硬编码字段 `t.data[0].url`、`{code,data}` 信封、SSE 事件格式。禁止局部替换漏网。
 
+  > ⚠️ **已失效 2026-09-03（生成入口收口）：新行为 = 上列 `proxyMode=local-tool`、`/api/proxy`、`x-proxy-url` 三项已退役，禁止恢复。** 前端不再有 `/api/proxy` 出站通道：chat / image / video 一律打统一生成入口 `POST /api/generate`，本地入口由 `config.ts` 的 `apiBase` 决定（指向 localTool `:18080`）；出站由 localTool 侧 `routes/generate.ts` + `passthrough.ts` + `relay-poll.ts` 承担。仍有效的只有：`127.0.0.1:18080`、`127.0.0.1:9004`（relay 重构后仅 lovart-old 回退轨）、`t.data[0].url`、`{code,data}` 信封、SSE 事件格式。现行红线以 `CLAUDE.md` §5.4.4 / §5.7 为准。代码里散落的「旧 `/api/proxy` 已退役」注释是**决策留痕**，不是待恢复项（勿照此行反推回去"保护"死契约）。
+
 * **SSE 流式三件套豁免 httpClient（红线）**：`chatApi.ts`/`imageApi.ts`/`videoApi.ts` 走独立 `proxyGenerate.ts` 深模块（SSE 逐块/轮询 + envelope 语义），**禁止迁移到** **`httpClient.ts`**——httpClient 的「非 2xx 抛 HttpError + 网络/超时自动重试」会破坏流式增量、多轮工具循环与轮询节奏。三个文件头部均带「为何不走 httpClient」注释。新网络请求仍一律走 httpClient，本豁免仅限此三件套。
 
 * **本地后端地址单一来源（P0-4 红线）**：localTool 端口统一读 `config.ts` 的 `LOCAL_TOOL_PORT`，全库禁止裸写 `18080`/`localhost:18080`/`127.0.0.1:18080`。前端 `API_BASE` 经 `VITE_API_BASE` env 覆盖；`public/background.js` 为独立 service worker 无法 import，单独声明但统一为 `127.0.0.1:18080` 并注释对齐原因。改地址只动 config.ts（+ 必要时 background.js 顶部常量）。
