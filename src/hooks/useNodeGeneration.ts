@@ -15,7 +15,7 @@ import { subscribe } from '../components/base/core/eventBus.ts'
 import { showToast } from '../components/base/core/toastStore.ts'
 import { useNodeData } from './useNodeData.ts'
 import { classifyError } from '../components/base/utils/genErrors.ts'
-import { reportDegrade } from '../components/base/utils/degrade.ts'
+import { reportDegrade } from '../components/base/core/degrade.ts'
 
 /**
  * 任务控制器：直接复用 taskStore 的权威定义（taskStore 已转 .ts，不再各写一份）。

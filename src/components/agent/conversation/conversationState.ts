@@ -25,7 +25,7 @@ import { withTimeout } from '../../base/utils/asyncGuard.ts'
 import { generateId } from '../../base/core/idGen.ts'
 import { CREDIT_GATE_FIELD } from '../../base/core/contracts.ts'
 import { logger } from '../../base/core/logger.ts'
-import { reportDegrade } from '../../base/utils/degrade.ts'
+import { reportDegrade } from '../../base/core/degrade.ts'
 import { KV_TIMEOUT } from '../../base/core/config.ts'
 // 【P1c L3 整包预算安全网】落盘前对归一化副本做投影降级，保证整包序列化体积有界（见 volumePolicy.js）
 import { applyConversationBudget, estimateConversationsBytes, SAFE_BUDGET_BYTES } from '../../base/utils/volumePolicy.ts'

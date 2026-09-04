@@ -25,7 +25,7 @@ vi.mock('../../src/components/base/store/taskStore.ts', () => ({
   releaseNodeRun: vi.fn()
 }))
 vi.mock('../../src/components/base/api/filesApi.ts', () => ({ saveResultToTasks: saveResultToTasksMock }))
-vi.mock('../../src/components/base/utils/degrade.ts', () => ({ reportDegrade: reportDegradeMock }))
+vi.mock('../../src/components/base/core/degrade.ts', () => ({ reportDegrade: reportDegradeMock }))
 vi.mock('../../src/components/base/core/eventBus.ts', () => ({
   subscribe: (evt, cb) => { busState.handler = cb; return () => {} }
 }))

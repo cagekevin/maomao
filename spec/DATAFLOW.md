@@ -10,36 +10,63 @@
 ## 生成链路（意图 → 出站 → 任务 → 结果 → 回填）★主链路
 
 数据从画布节点发起，经统一生成入口，结果以「任务中心」为权威源回填节点。**结果权威源 = 任务中心，node.data 是渲染缓存副本**（红线，见 CONTEXT §五）。
+> 更新(2026-09-05, refs 实证)：下述结构为 2026-09-04 L3 收口后现状。`genIntent.ts` 已零引用退役；`chatApi/imageApi/videoApi` 三门面已并入单文件 `api/generate.ts`（内部 generate() + 具名导出）——**不再存在**，勿回找。画布节点实际入口为上层 hook `useGenerateNode`（它委托 `useNodeGeneration`）；另有**第二生成入口** `scriptbox/scriptBoxEngine.ts` 不经过 useGenerateNode、直接消费 generate 门面 + 自拼 reportGenerate 契约（旧版文档只画了一条节点链，漏此支线）。
 
 ```
-nodes/*Node ─→ hooks/useNodeGeneration ─→ api/genIntent(意图定型) ─→ api/relayProxy
-                                                                    │  作 POST /api/generate
-                                                                    │  (chat→relayChat / image/video→relayGenerate)
-                                          ┌── api/chatApi / imageApi / videoApi（门面收口）
-                       store/taskStore ◄──┤
-                       store/taskCompletionBus ── 完成事件
-                       api/pollTask ─→ relayProxy.relayAttachUntilDone（恢复/防丢）
-   回填 node.data ◄── hooks/useNodeGeneration ◄── store/taskStore
-   结果 URL 解析：utils/resultUrlExtractor ◄── hooks/useConnectedInputs
-   降级/错误：utils/degrade（useNodeGeneration/kvStore/TextNode）、utils/genErrors
-   展示：panels/TaskCenter、panels/GeneratedView
+─ 画布节点生成（主范式：经 useGenerateNode 委托契约）
+nodes/{PromptNode,TextNode,TemplateNode,DiscountVideoNode}
+  → hooks/useGenerateNode         (provider/模型管理 + useSyncNodeData + 委托 useNodeGeneration)
+      → hooks/useNodeGeneration   (统一契约：reportGenerate→progress→run→成败→retry + 落盘 + node.data 回填)
+          → base/api/generate.ts   (单门面：generateImage / generateVideo / chatCompletions / chatStream)
+              → base/api/relayProxy.ts (relaySubmit / relayAttachUntilDone / relayChat / relayChatStream)
+                  → POST :18080 /api/generate（chat→同步快路径 / image/video→relay-poll 异步句柄）
+  → store/taskStore.reportGenerate / progress / done / fail    （任务中心权威源）
+  → 落盘唯一出口 filesApi.saveResultToTasks（useNodeGeneration 单点调，杜绝双落盘）
+  → 刷新恢复 base/api/pollTask.ts ─→ 复用 relayProxy.relayAttachUntilDone（只 attach 不 cancel）
+      → taskStore.patchTask + taskCompletionBus.publishTaskCompleted（唯一发布入口）
+          → 广播 agent:task-completed → useNodeGeneration 精准回填 node.data（detail.nodeId===本节点）
+   回填 node.data ◄── hooks/useNodeGeneration ◄── taskCompletionBus 广播
+
+─ 剧本盒子生成（第二入口：不经过 useGenerateNode，直接消费 generate 门面）
+scriptbox/scriptBoxEngine.ts（ScriptBoxNode 挂载）
+  ① asset 生图（generateImage）→ 走 store/taskStore.reportGenerate（每张 asset 用独立伪 nodeId
+     `nodeId-asset-<id>` 对齐节点契约，防批量互顶）→ 回填节点 data.assets[].imageUrl
+     → 生成后本地化落盘 assetStore.localizeAndStoreToLibrary（migrated/ 目录）+ saveResultToTasks 副本
+     → 注：不声明 useNodeGeneration 的 retry 注册
+  ② 文本类 chatCompletions（写剧本/生图提示词/审计/合并视频提示词）→ 直接回填画布节点 data
+     （写剧本 / data.shots[].prompt 等），**不经过任务中心 reportGenerate**
+
+─ 其它直接消费 generate 门面（非「节点生成→任务中心回填」范式，仅供 trace chat 链路）
+  agent/runtime/agentRuntime.ts  → chatStream（AI 助手 SSE 对话，未消费 body 原样返回给 agent）
+  agent/runtime/contextCompression.ts → chatCompletions（上下文压缩，会话级，不经任务中心）
+  下游取上游 URL：utils/resultUrlExtractor ◄── hooks/useConnectedInputs
+  错误分类：utils/genErrors.classifyError（判定 abort/timeout/network/http/business）
+  展示：panels/TaskCenter、panels/GeneratedView
 ```
 
-关键边（refs 实证）：`relayProxy` ← chatApi/imageApi/videoApi/pollTask；`taskStore` ← pollTask/useNodeGeneration/ImageNode/PromptNode/TaskCenter/LeftPanel；`taskCompletionBus` ← pollTask/taskStore；`resultUrlExtractor` ← useConnectedInputs；`degrade` ← useNodeGeneration/TextNode/kvStore。
+关键边（refs 实证 2026-09-05）：`relayProxy` ← generate.ts / pollTask.ts（无节点/agent/scriptBox 直连，门面收口）；`generate.ts` 直接消费方 = 4 生成节点（经 useGenerateNode）+ scriptBoxEngine + agentRuntime + contextCompression（见上）；`taskCompletionBus` ← pollTask.ts / taskStore.ts（均发布方）；`useNodeGeneration` ← useGenerateNode + 节点测试；`degrade` ← useNodeGeneration/TextNode/conversationState/contentStore（kvStore 折叠后已不再消费 degrade）。
 
 ## 存储 / 持久化链路
 
-所有状态的落盘/恢复都走唯一入口，再路由到 KV/本地底层，备份与云同步在上层编排。
+所有状态的落盘/恢复都走唯一入口（contentStore），再路由到 KV/本地底层，备份与云同步在上层编排。
+> 更新(2026-09-05, refs 实证)：下述为 2026-09-04「存储中间层折叠」(commit 5afe1f3) 后现状。`kvStore.ts` 的
+> `storageGet/Set/Delete + isKvKey + tryParse` 已折叠进 `contentStore`（src 侧唯一消费者即它，是纯转发中间层），
+> `kvStore.ts` 现为 **re-export 壳**（仅 `CANVAS_STATE_PREFIX` + `kvGet/kvSet/kvDelete` 转发，不再参与读写链路）。
+> KV 路由判定唯一收口到 `contentStore.resolveBackend`（三段式：登记键 → pattern → 启发式兜底），
+> KV 降级策略（写失败落本地副本 + reportDegrade / 成功清副本）内联为 `writeKvWithFallback`/`readKvWithFallback`/`deleteKvWithFallback`。
+> 有意不收口保留裸调 sGet/sSet 的 2 处例外：`conversationState.ts`（KV 迁移回读旧 local）、`d3dPersistence.ts`（KV 主通道+本地副本双通道）。
 
 ```
-core/contentStore（STORAGE_KEYS 路由，dev 校验裸 key）
-   ├→ storage/kvStore · storage/storageAdapter · storage/storageQuota · storage/persistFailureBus
+core/contentStore（STORAGE_KEYS 路由 + resolveBackend 唯一判定 + 内联 KV 降级，dev 校验裸 key）
+   ├→ storage/storageAdapter（sGet/sSet/sRemove，local/native 落地）
+   ├→ api/localToolApi（kvGet/kvSet/kvDelete，KV 云端；不再经 kvStore 中间层）
+   ├→ storage/storageQuota · storage/persistFailureBus（旁路工具，不参与读写主链）
    └→ 上层：store/projectStore · store/backupStore · store/cloudSync
-fan-in：几乎全部 store（task/asset/project/backup/cloudSync/skill/appSettings/accounts/agentModel/provider…）
-        + canvas/nodePrefs + prompt/* + agent/*
+fan-in（refs 实证 38 处 import）：几乎全部 store（task/asset/project/backup/cloudSync/skill/appSettings/
+        accounts/agentModel/provider…）+ canvas/nodePrefs + prompt/* + agent/* + panels/AgentPanel
 ```
 
-关键边（refs 实证）：`contentStore` 被 \~20 处 import（见 base/README §一红线说明，它是横切唯一入口）。
+关键边（refs 实证 2026-09-05）：`contentStore` 被 **38 处** import（约 20 个 src 业务模块 + 18 个测试，见 base/README §一红线说明，它是横切唯一入口）；`kvStore` 现仅 3 处引用（storage/index + projectStore/providerStore 测试的 re-export 兼容），src 业务侧无直读。
 
 ## 资产 / 素材链路
 
@@ -62,7 +89,7 @@ api/filesApi · api/localToolApi（取数据/上传/刮削）
 canvas/NodePalette（节点注册表）+ canvas/nodeDefaults + canvas/nodePrefs（← App/各 nodes）
 canvas/groupNodes · canvas/deriveNodes · canvas/historyStack · canvas/CanvasEdgesContext
 canvas/lazyNode（重节点懒加载）· canvas/upstreamLink（拓扑自动触发）· canvas/toolRegistry（画布 AI 工具）
-生成触发入口：hooks/useNodeGeneration
+生成触发入口：hooks/useGenerateNode（节点编排 start/模型，委托 hooks/useNodeGeneration，见上方「生成链路」）
 ```
 
 关键边（refs 实证）：`nodePrefs` ← App/ImageNode/PromptNode/TextNode/DiscountVideoNode/TemplateNode/useScriptBoxEngine。

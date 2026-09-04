@@ -44,7 +44,7 @@
  */
 import { sGet, sSet, sRemove } from '../storage/index.ts'
 import { kvGet, kvSet, kvDelete } from '../api/localToolApi.ts'
-import { reportDegrade } from '../utils/degrade.ts'
+import { reportDegrade } from './degrade.ts'
 import { STORAGE_KEYS } from './contracts.ts'
 import type { StorageKeyMeta } from './contracts.ts'
 import { logger } from './logger.ts'

@@ -14,9 +14,9 @@
  * 【依赖分类】In-process。唯一外部依赖为 logger / toastStore（模块级引用），无 React。
  * 非 UI、可单测。
  */
-import { logger } from '../core/logger.ts'
-import { showToast } from '../core/toastStore.ts'
-import { THROTTLE_MS } from '../core/config.ts'
+import { logger } from './logger.ts'
+import { showToast } from './toastStore.ts'
+import { THROTTLE_MS } from './config.ts'
 
 /** 对象形态入参（或字符串兼容形态：层名 → layer） */
 interface ReportDegradeArgs {

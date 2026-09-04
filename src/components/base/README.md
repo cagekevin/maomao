@@ -24,7 +24,7 @@
 
 * **红线（多个** **`scripts/`** **校验按字面路径引用，改名/移动须同步 scripts）**：`contracts.ts`（apiRegistry/EVENTS/STORAGE\_KEYS/NODE\_TYPES）、`config.ts`（环境变量/常量）、`contentStore.ts`（存储唯一入口）、`eventBus.ts`、`logger.ts`
 
-* 其余：`confirmStore.ts`（统一确认弹窗 store）、`toastStore.ts`（统一通知 store）、`idGen.ts`、`uiHooks.ts`（通用 UI 小 hook：useOutsideClick/isEditableTarget/useSizeSync，区别于顶层 `src/hooks/` 领域业务 hooks）、`utils.ts`（通用纯工具：deepClone/debounce/throttle…）
+* 其余：`confirmStore.ts`（统一确认弹窗 store）、`toastStore.ts`（统一通知 store）、`degrade.ts`（降级收口：reportDegrade 统一日志 + toast 节流；随 toastStore/logger 归 core，2026-09-05 自 utils/ 移入）、`backendLogStream.ts`（启动级 SSE 镜像 localTool 日志到 console；刻意用 EventSource 直连、不归 api/ 深模块，故留在 core）、`idGen.ts`、`uiHooks.ts`（通用 UI 小 hook：useOutsideClick/isEditableTarget/useSizeSync，区别于顶层 `src/hooks/` 领域业务 hooks）、`utils.ts`（通用纯工具：deepClone/debounce/throttle…）
 
 ## 二、api/ （发网络请求）
 
@@ -50,7 +50,7 @@
 
 ## 六、utils/ （无副作用纯函数工具，可单测）
 
-`asyncGuard.ts` `clipboard.ts` `degrade.ts` `externalizeInline.ts` `faceMosaic.ts` `genErrors.ts` `imageCompress.ts` `imagePixel.ts` `imageUpscale.ts` `imageUrl.ts` `mediaType.ts` `previewUrl.ts` `providerModels.ts` `providerProtocols.ts` `refToken.ts` `resultUrlExtractor.ts` `uploadDirs.ts` `videoEngine.ts` `volumePolicy.ts`
+`asyncGuard.ts` `clipboard.ts` `externalizeInline.ts` `faceMosaic.ts` `genErrors.ts` `imageCompress.ts` `imagePixel.ts` `imageUpscale.ts` `imageUrl.ts` `mediaType.ts` `previewUrl.ts` `providerModels.ts` `providerUrlAdapters.ts` `refToken.ts` `resultUrlExtractor.ts` `uploadDirs.ts` `videoEngine.ts` `volumePolicy.ts`
 
 ## 七、ui/ （真·通用展示基座）
 
