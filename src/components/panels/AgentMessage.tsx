@@ -280,12 +280,6 @@ function AgentMessage({ message, onConfirmPlan, onCancelPlan, onRetryStep, onSen
           <div className="agent-foot">
             <span className="agent-meta">以上内容由 AI 生成</span>
             <div className="agent-actions">
-              <button type="button" className="agent-icon-btn is-xs" onClick={copyContent} title="复制回复">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="9" y="9" width="13" height="13" rx="2" />
-                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-                </svg>
-              </button>
               {/* 发到画布：整段回复 → 新建文本节点（内容落生成区 data.text） */}
               {onSendToCanvas && (
                 <button type="button" className="agent-icon-btn is-xs" onClick={() => onSendToCanvas(message.content)} title="发到画布生成文本节点">
@@ -295,6 +289,12 @@ function AgentMessage({ message, onConfirmPlan, onCancelPlan, onRetryStep, onSen
                   </svg>
                 </button>
               )}
+              <button type="button" className="agent-icon-btn is-xs" onClick={copyContent} title="复制回复">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="9" y="9" width="13" height="13" rx="2" />
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                </svg>
+              </button>
               {/* 重新生成：重发本条回复之前最近一条用户指令（useAgentChat 未单独暴露 regenerate，UI 层就近重发） */}
               {onRegenerate && (
                 <button type="button" className="agent-icon-btn is-xs" onClick={onRegenerate} title="重新生成（重发上一条指令）">

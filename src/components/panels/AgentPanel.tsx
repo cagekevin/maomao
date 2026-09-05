@@ -6,6 +6,7 @@ import { useProviders, load as loadProviders } from '../base/store/providerStore
 import AgentMessage from './AgentMessage.tsx'
 import AgentConfirmCard from './AgentConfirmCard.tsx'
 import ModelSelect from '../base/ui/ModelSelect.tsx'
+import { Package as PackageIcon, SlidersHorizontal } from 'lucide-react'
 import { buildAllModels } from '../base/utils/providerModels.ts'
 import { useOutsideClick } from '../base/core/uiHooks.ts'
 import { loadAgentChatModel, AGENT_CHAT_MODEL_KEY } from '../base/store/agentModelStore.ts'
@@ -982,7 +983,58 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
                 )}
               </span> */}
 
-              {/* Skill：第1位（最左）——点击弹「应用/取消 Skill」下拉（管理已移至设置页 AI 助手分区）。
+              {/* 生图模型选择：第1位（最左）——选择用哪个图像模型来生图，随时可切换。
+                  iconOnly：包裹图标表示「模型资产」（生图/3D 模型包），模型名收进 title（工具栏去文字化） */}
+              <span className="relative">
+                <ModelSelect
+                  value={genModel}
+                  onChange={onGenModel}
+                  models={genModels}
+                  placeholder="生图模型"
+                  popupTo="up"
+                  showDivider={false}
+                  iconOnly
+                  icon={<PackageIcon className="w-4 h-4" strokeWidth={1.8} />}
+                  active={!!genModel}
+                  triggerTitle={genModel ? `生图模型：${genModel}` : '选择生图模型'}
+                />
+              </span>
+
+              {/* 生图参数：第2位——选择画质/比例/渲染质量。图标化，当前值收进 title */}
+              <span ref={genImgMenuRef} className="relative">
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); setGenImgMenuOpen((v) => !v) }}
+                  className={`agent-icon-btn is-sm ${genImgMenuOpen ? 'is-active' : ''}`}
+                  title={`生图参数：${genSize} · ${genRatio}`}
+                >
+                  <SlidersHorizontal className="w-4 h-4" strokeWidth={1.8} />
+                </button>
+                {genImgMenuOpen && (
+                  <div className="agent-pop is-gen" style={{ maxHeight: 'calc(100vh - 200px)', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
+                    <div className="agent-gen-group">
+                      <div className="agent-gen-label">画质</div>
+                      <div className="agent-opts">{genSizeOptions.map((s) => (
+                        <button key={s} type="button" className={`agent-opt ${genSize === s ? 'is-on' : ''}`} onClick={() => onGenSize(s)}>{s}</button>
+                      ))}</div>
+                    </div>
+                    <div className="agent-gen-group">
+                      <div className="agent-gen-label">比例</div>
+                      <div className="agent-opts">{genRatioOptions.map((r) => (
+                        <button key={r} type="button" className={`agent-opt ${genRatio === r ? 'is-on' : ''}`} onClick={() => onGenRatio(r)}>{r}</button>
+                      ))}</div>
+                    </div>
+                    <div className="agent-gen-group">
+                      <div className="agent-gen-label">渲染质量</div>
+                      <div className="agent-opts">{genQualityOptions.map((q) => (
+                        <button key={q.value} type="button" className={`agent-opt ${genQuality === q.value ? 'is-on' : ''}`} onClick={() => onGenQuality(q.value)}>{q.label}</button>
+                      ))}</div>
+                    </div>
+                  </div>
+                )}
+              </span>
+
+              {/* Skill：第3位（最右）——点击弹「应用/取消 Skill」下拉（管理已移至设置页 AI 助手分区）。
                   Skill 用文字按钮而非纯图标（用户裁定）：未启用显示「Skill」，启用显示「Skill·首个名」，图标保留辅助。 */}
               <span ref={skillPickRef} className="relative">
                 <button
@@ -1033,60 +1085,6 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
                     })}
                   </div>
                 )}
-              </span>
-
-              {/* 生图参数：第2位——选择画质/比例/渲染质量。图标化，当前值收进 title */}
-              <span ref={genImgMenuRef} className="relative">
-                <button
-                  type="button"
-                  onClick={(e) => { e.stopPropagation(); setGenImgMenuOpen((v) => !v) }}
-                  className={`agent-icon-btn is-sm ${genImgMenuOpen ? 'is-active' : ''}`}
-                  title={`生图参数：${genSize} · ${genRatio}`}
-                >
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <rect x="3" y="3" width="18" height="18" rx="2" />
-                    <circle cx="8.5" cy="8.5" r="1.5" />
-                    <path d="M21 15l-5-5L5 21" />
-                  </svg>
-                </button>
-                {genImgMenuOpen && (
-                  <div className="agent-pop is-gen" style={{ maxHeight: 'calc(100vh - 200px)', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
-                    <div className="agent-gen-group">
-                      <div className="agent-gen-label">画质</div>
-                      <div className="agent-opts">{genSizeOptions.map((s) => (
-                        <button key={s} type="button" className={`agent-opt ${genSize === s ? 'is-on' : ''}`} onClick={() => onGenSize(s)}>{s}</button>
-                      ))}</div>
-                    </div>
-                    <div className="agent-gen-group">
-                      <div className="agent-gen-label">比例</div>
-                      <div className="agent-opts">{genRatioOptions.map((r) => (
-                        <button key={r} type="button" className={`agent-opt ${genRatio === r ? 'is-on' : ''}`} onClick={() => onGenRatio(r)}>{r}</button>
-                      ))}</div>
-                    </div>
-                    <div className="agent-gen-group">
-                      <div className="agent-gen-label">渲染质量</div>
-                      <div className="agent-opts">{genQualityOptions.map((q) => (
-                        <button key={q.value} type="button" className={`agent-opt ${genQuality === q.value ? 'is-on' : ''}`} onClick={() => onGenQuality(q.value)}>{q.label}</button>
-                      ))}</div>
-                    </div>
-                  </div>
-                )}
-              </span>
-
-              {/* 生图模型选择：第3位——选择用哪个图像模型来生图，随时可切换。
-                  iconOnly：只显示 cpu 图标，模型名收进 title（工具栏去文字化） */}
-              <span className="relative">
-                <ModelSelect
-                  value={genModel}
-                  onChange={onGenModel}
-                  models={genModels}
-                  placeholder="生图模型"
-                  popupTo="up"
-                  showDivider={false}
-                  iconOnly
-                  active={!!genModel}
-                  triggerTitle={genModel ? `生图模型：${genModel}` : '选择生图模型'}
-                />
               </span>
 
               {/* 图片上传：暂时隐藏（如需恢复，取消下方注释即可） */}
