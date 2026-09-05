@@ -43,9 +43,6 @@ import {
   handleAdminStats, handleAdminCleanup, handleAdminExport, handleAdminImport,
   handleAdminKvList, handleAdminClearCache,
 } from './routes/admin.js';
-import {
-  handleOfficialUser, handleOfficialEntitlements, handleOfficialVipCheck, handleOfficialInvalidate,
-} from './routes/official.js';
 import { handleGenerateSubmit, handleGenerateGet, handleGenerateCancel } from './routes/generate.js';
 import { handleProvidersGet, handleProvidersPut, handleConfigBasePut, handleProviderTest, handleProviderProbeAsync, handleProviderFetchModels } from './routes/providers.js';
 import { handlePassthrough } from './routes/passthrough.js';
@@ -166,12 +163,6 @@ export const routes: Route[] = [
   { method: 'GET', pattern: /^\/api\/workflow-apps\/by-project\//, handler: handleWorkflowAppsByProject },
   { method: 'GET', pattern: '/api/public/platform/builtin', handler: handleBuiltin },
   { method: 'GET', pattern: '/api/public/platform/models',  handler: handleModels },
-
-  // ── 官方权益接口转发层 ──
-  { method: 'GET',  pattern: '/api/user/info', handler: handleOfficialUser },
-  { method: 'GET',  pattern: '/api/user/model-entitlements', handler: handleOfficialEntitlements },
-  { method: 'GET',  pattern: /^\/api\/agent\/[^/]+\/vip-check$/, handler: handleOfficialVipCheck },
-  { method: 'POST', pattern: '/api/official/entitlements/invalidate', handler: handleOfficialInvalidate },
 
   // ── 管理 ──
   { method: 'GET',  pattern: '/api/admin/stats',      handler: handleAdminStats },

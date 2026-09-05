@@ -582,8 +582,6 @@ export const API_ENDPOINTS = {
  * 后端存在、前端【零调用】= 预留/上游转发（勿当死代码删，勿随前后端契约盲改）：
  *   admin.ts： /api/admin/stats、/api/admin/kv-list、/api/admin/clear-cache、
  *              /api/admin/cleanup、/api/admin/export、/api/admin/import
- *   official.ts：/api/user/info、/api/user/model-entitlements、/api/agent/:id/vip-check、
- *              /api/official/entitlements/invalidate
  *   platform.ts：/plugin/manifest.json、/api/workflow-apps/by-project/:id、
  *              /public/platform/builtin、/public/platform/models
  *   passthrough.ts（isLocalOnlyPath 判定后的上游转发补偿用）
@@ -679,11 +677,6 @@ export const apiRegistry = {
   builtin:               { fn: '(前端零消费·模型走 providerModels.js)', method: 'GET', path: '/api/public/platform/builtin', envelope: 'success-data', status: 'RESERVED' },
   models:                { fn: '(前端零消费·模型走 providerModels.js)', method: 'GET', path: '/api/public/platform/models', envelope: 'success-data', status: 'RESERVED' },
   workflowApps:          { fn: '(前端零消费)',                          method: 'GET',    path: '/api/workflow-apps/by-project/{id}', envelope: 'stub', status: 'RESERVED' },
-  /** 官方权益转发（RESERVED：前端直连官方，本层就绪未接管） */
-  officialUser:          { fn: '(前端零消费·直连官方)',                method: 'GET',    path: '/api/user/info',               envelope: 'code-data', status: 'RESERVED' },
-  officialEntitlements:  { fn: '(前端零消费·直连官方)',                method: 'GET',    path: '/api/user/model-entitlements', envelope: 'code-data', status: 'RESERVED' },
-  officialVipCheck:      { fn: '(前端零消费·直连官方)',                method: 'GET',    path: '/api/agent/{id}/vip-check',   envelope: 'code-data', status: 'RESERVED' },
-  officialInvalidate:    { fn: '(前端零消费)',                          method: 'POST',   path: '/api/official/entitlements/invalidate', envelope: 'code-data', status: 'RESERVED' },
   /** admin 域（RESERVED） */
   adminStats:            { fn: '(前端零消费)',                          method: 'GET',    path: '/api/admin/stats',            envelope: 'code-data', status: 'RESERVED' },
   adminKvList:           { fn: '(前端零消费)',                          method: 'GET',    path: '/api/admin/kv-list',          envelope: 'code-data', status: 'RESERVED' },

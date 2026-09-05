@@ -465,8 +465,6 @@ async function main(): Promise<void> {
     console.log('    平台:   /plugin/manifest.json  /api/workflow-apps/by-project/:id');
     console.log('    内置:   /public/platform/builtin  /public/platform/models');
     console.log('    供应:   /api/providers  /api/providers/test-connection  /api/providers/:id/fetch-models');
-    console.log('    权益:   /api/user/info  /api/user/model-entitlements');
-    console.log('           /api/agent/:id/vip-check  /api/official/entitlements/invalidate');
     console.log('    画布:   /  (dist/ 静态托管)');
     console.log('    兜底:   其余请求 → 透传官方（catch-all，日志前缀 [passthrough]）');
     console.log('');

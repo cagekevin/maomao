@@ -2,7 +2,7 @@
  * localTool 网络/转发层测试（依赖 mock global fetch）
  * ------------------------------------------------------------
  * 覆盖依赖出站 fetch 的模块，用替换 globalThis.fetch 的方式模拟外部响应：
- *   - official：readOfficialBase / 权益转发缓存 / stale 降级 / invalidate
+ *   - official：readOfficialBase（passthrough 转发目标 base 解析）
  *   - passthrough：本地路径不转发 / 转发头构建 / 响应回传
  *   - system：handleGatewayTask code 转换 / 400→404 归一
  *   - files：saveRemoteUrl（fileUrl 下载落盘）
@@ -117,140 +117,13 @@ test('official·readOfficialBase 过滤自指 KV（127.0.0.1:18080）→ 无默�
 });
 
 // ══════════════════════════════════════════════════════════════
-// official：权益转发（mock fetch）+ 内存缓存
-// ══════════════════════════════════════════════════════════════
-
-test('official·handleOfficialUser 转发并缓存（二次不触发 fetch）', async () => {
-  await officialMod.handleOfficialInvalidate(makeJsonReq(), makeRes());
-  let fetchCount = 0;
-  mockFetchOnce((url) => {
-    fetchCount++;
-    assert.match(url, /\/api\/user\/info/, '应带 /api 前缀');
-    return jsonResponse({ id: 'u1', vip: true }, 200);
-  });
-  const req = makeJsonReq();
-  req.headers['authorization'] = 'Bearer tok-cache-111';
-  req.url = '/api/user/info';
-  req.headers['x-official-base'] = 'https://backup.example.com'; // 避免真实外连
-
-  const res1 = makeRes();
-  await officialMod.handleOfficialUser(req, res1);
-  assert.equal(res1.status, 200);
-  assert.equal(parseResBody(res1).vip, true);
-
-  const res2 = makeRes();
-  await officialMod.handleOfficialUser(req, res2);
-  assert.equal(res2.status, 200);
-  assert.equal(fetchCount, 1, '命中缓存，不应再次 fetch');
-  assert.match(res2.headers['x-cache'] || '', /hit/);
-});
-
-test('official·handleOfficialUser 无缓存时官方 500 → 透传 500（不伪造权限）', async () => {
-  // 清空模块级内存缓存，避免前序测试泄漏
-  await officialMod.handleOfficialInvalidate(makeJsonReq(), makeRes());
-  mockFetchOnce((url) => jsonResponse({ error: 'boom' }, 500));
-  const req = makeJsonReq();
-  req.headers['authorization'] = 'Bearer tok-stale-999';
-  req.url = '/api/user/info';
-  req.headers['x-official-base'] = 'https://backup.example.com';
-
-  const res = makeRes();
-  await officialMod.handleOfficialUser(req, res);
-  // 无缓存可降级 → 透传官方 500，绝不伪造 allowed
-  assert.equal(res.status, 500);
-  assert.equal(parseResBody(res).error, 'boom');
-});
-
-// stale 降级要「缓存条目已过 TTL」才走得到：TTL 固定 60s，自然等待不可行。
-// 用 node:test 的 mock.timers 推进 Date.now()，把 60s 压成瞬时。
-// 判据（对应 official.ts forwardGet）：fresh 分支要求 hit.exp > Date.now() 才命中，
-// 而 5xx 分支的 stale 只查 memCache.get(key)、不看 exp —— 故过期≠失效，正是降级要验证的点。
-test('official·官方 5xx + 已过期缓存 → 降级返回旧数据并标记 hit-stale（不伪造权限）', async () => {
-  await officialMod.handleOfficialInvalidate(makeJsonReq(), makeRes());
-  const BASE = 1_700_000_000_000;
-  // 只 mock Date（不动 setTimeout，避免影响数据库 debounce 落盘等真实计时器）
-  mock.timers.enable({ apis: ['Date'] });
-  mock.timers.setTime(BASE);
-  try {
-    const req = makeJsonReq();
-    req.headers['authorization'] = 'Bearer tok-stale-777';
-    req.url = '/api/user/info';
-    req.headers['x-official-base'] = 'https://backup.example.com';
-
-    // 第一次：200 → 写入缓存（exp = BASE + 60s）
-    mockFetchOnce(() => jsonResponse({ id: 'u1', vip: true }, 200));
-    const res1 = makeRes();
-    await officialMod.handleOfficialUser(req, res1);
-    assert.equal(res1.status, 200);
-    assert.deepEqual(parseResBody(res1), { id: 'u1', vip: true });
-
-    // 推进 61s > TTL 60s → fresh 分支失效（exp 过期），但条目仍在 memCache 里
-    mock.timers.setTime(BASE + 61_000);
-
-    // 第二次：上游 500 → 命中 stale 降级
-    mockFetchOnce(() => jsonResponse({ error: 'boom' }, 500));
-    const res2 = makeRes();
-    await officialMod.handleOfficialUser(req, res2);
-
-    assert.equal(res2.status, 200, 'stale 降级应沿用旧条目的 200，不得透传 500');
-    assert.match(res2.headers['x-cache'] || '', /hit-stale/, '应标记命中 stale 缓存');
-    assert.deepEqual(parseResBody(res2), { id: 'u1', vip: true }, '应返回降级前的旧数据');
-  } finally {
-    mock.timers.reset();
-    restoreFetch();
-  }
-});
-
-test('official·handleOfficialInvalidate 清缓存', async () => {
-  await officialMod.handleOfficialInvalidate(makeJsonReq(), makeRes());
-  let fetchCount = 0;
-  mockFetchOnce((url) => { fetchCount++; return jsonResponse({ id: 'u1' }, 200); });
-  const req = makeJsonReq();
-  req.headers['authorization'] = 'Bearer tok-inv-222';
-  req.url = '/api/user/info';
-  req.headers['x-official-base'] = 'https://backup.example.com';
-  await officialMod.handleOfficialUser(req, makeRes());
-
-  const inv = makeRes();
-  await officialMod.handleOfficialInvalidate(makeJsonReq(), inv);
-  assert.ok(parseResBody(inv).data.removed >= 1);
-
-  const res2 = makeRes();
-  await officialMod.handleOfficialUser(req, res2);
-  assert.equal(fetchCount, 2, '失效后应重新 fetch');
-});
-
-// ══ B0·official vip 本地兜底冻结（缺口⑭⑤）══
-// handleOfficialVipCheck 对 canvas-assistant 且 AI_CANVAS_LOCAL !== '0' 时本地放行，
-// 返 {allowed:true,reason}，绝不外发官方。冻结此形态防 B3 信封收敛误包/误改造。
-test('official·vip-check 本地兜底返 {allowed:true,reason}（canvas-assistant）', async () => {
-  const prev = process.env.AI_CANVAS_LOCAL;
-  delete process.env.AI_CANVAS_LOCAL; // 默认开启本地放行
-  let fetchCount = 0;
-  mockFetchOnce((url) => { fetchCount++; return jsonResponse({ allowed: true }, 200); });
-  try {
-    const req = makeJsonReq();
-    req.headers['authorization'] = 'Bearer tok-vip-local';
-    req.url = '/api/agent/canvas-assistant/vip-check';
-    const res = makeRes();
-    await officialMod.handleOfficialVipCheck(req, res, new URL('http://x/api/agent/canvas-assistant/vip-check'));
-    assert.equal(res.status, 200);
-    assert.deepEqual(parseResBody(res), { allowed: true, reason: 'local canvas assistant' });
-    assert.equal(fetchCount, 0, '本地兜底不该外发官方');
-  } finally {
-    if (prev === undefined) delete process.env.AI_CANVAS_LOCAL; else process.env.AI_CANVAS_LOCAL = prev;
-    restoreFetch();
-  }
-});
-
-// ══════════════════════════════════════════════════════════════
 // passthrough
 // ══════════════════════════════════════════════════════════════
 
 test('passthrough·isLocalOnlyPath 识别本地路径', () => {
   assert.equal(passthroughMod.isLocalOnlyPath('/files/a.png'), true);
   assert.equal(passthroughMod.isLocalOnlyPath('/plugin/manifest.json'), true);
-  assert.equal(passthroughMod.isLocalOnlyPath('/api/user/info'), false);
+  assert.equal(passthroughMod.isLocalOnlyPath('/api/foo/bar'), false);
 });
 
 test('passthrough·本地路径不转发，返回 false', async () => {
@@ -449,4 +322,3 @@ test('files·saveRemoteUrl 并发同 URL 且首次下载失败 → 两请求都�
   assert.ok(e2?.error, '第二个请求应有失败原因');
   assert.match(String(e1?.error), /Failed to download|HTTP|boom/i, '应返回真实失败原因，非泛化成功');
 });
-
