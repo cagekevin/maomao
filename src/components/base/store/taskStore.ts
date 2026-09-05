@@ -95,7 +95,11 @@ export function initTasks(): void {
 
 // 后端保存（fire-and-forget，失败仅降级为内存态，前端流程不受影响）
 function persist(task: Task): void {
-  saveTask(task).catch((e) => logger.warn('task', 'persist-fail', { taskId: task?.id, error: e?.message }))
+  // 剥离纯运行时展示字段：stageLabel 是任务中心「进行到哪一步」的瞬时文案，
+  // 只在内存中供 UI 展示，后端 tasks 表无此列（taskToRow 白名单会过滤并刷 warn），
+  // 故落库前剥掉，避免每次进度持久化都携带无用载荷并触发 [taskToRow:dropped] 噪音。
+  const { stageLabel: _dropStageLabel, ...persistable } = task
+  saveTask(persistable).catch((e) => logger.warn('task', 'persist-fail', { taskId: task?.id, error: e?.message }))
 }
 
 // 状态 → 圆点/文字 颜色（对齐官方 An）

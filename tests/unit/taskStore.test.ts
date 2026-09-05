@@ -143,7 +143,9 @@ describe('taskStore §P4 进度落库节流', () => {
     const last = vi.mocked(saveTask).mock.calls.at(-1)[0] as Task
     expect(last.id).toBe(handle.taskId)
     expect(last.progress).toBe(70)
-    expect(last.stageLabel).toBe('阶段C')
+    // stageLabel 是纯运行时展示字段，落库前已被 persist 剥离（后端 tasks 表无此列），
+    // 故后端收到的载荷不应携带它 —— 验证剥离逻辑生效。
+    expect(last.stageLabel).toBeUndefined()
   })
 
   it('done 取消未落进度写，即时落完成态且不被晚到的进度覆盖', () => {

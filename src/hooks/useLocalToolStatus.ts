@@ -64,7 +64,7 @@ async function runCheck(): Promise<void> {
       timeoutMs: LOCAL_TOOL_PING_TIMEOUT,
       retries: 0,
     })
-    logger.info('useLocalToolStatus', '/api/status 响应', data?.status)
+    logger.debug('useLocalToolStatus', '/api/status 响应', data?.status)
     if (data?.status === 'ok') {
       if (
         !sharedStatus.isConnected ||
