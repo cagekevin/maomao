@@ -38,10 +38,6 @@ afterEach(() => {
 })
 
 describe('config — 默认值契约（无 env）', () => {
-  it('AGENT_DEMO_MODE 默认关闭，仅 VITE_AGENT_DEMO==="1" 才开启', async () => {
-    expect((await loadConfig()).AGENT_DEMO_MODE).toBe(false)
-  })
-
   it('超时/轮询/并发默认值', async () => {
     const c = await loadConfig()
     expect(c.LOCAL_TOOL_PING_TIMEOUT).toBe(5000)
@@ -54,18 +50,6 @@ describe('config — 默认值契约（无 env）', () => {
     expect(c.VIDEO_TIMEOUT).toBe(600000)
     expect(c.GEN_POLL_INTERVAL).toBe(3000)
     expect(c.GEN_MAX_CONCURRENT).toBe(6)
-  })
-})
-
-describe('config — env 覆盖契约', () => {
-  it('VITE_AGENT_DEMO="1" 开启演示模式', async () => {
-    vi.stubEnv('VITE_AGENT_DEMO', '1')
-    expect((await loadConfig()).AGENT_DEMO_MODE).toBe(true)
-  })
-
-  it('VITE_AGENT_DEMO 非 "1"（如 "0"）不开启演示模式', async () => {
-    vi.stubEnv('VITE_AGENT_DEMO', '0')
-    expect((await loadConfig()).AGENT_DEMO_MODE).toBe(false)
   })
 })
 

@@ -95,8 +95,8 @@ beforeEach(() => {
 })
 
 describe('画布 Agent 工具层 §2.5', () => {
-  it('共 26 个工具注册', () => {
-    expect(CANVAS_AGENT_TOOL_NAMES).toHaveLength(26)
+  it('共 20 个工具注册（奥卡姆精简后删除 6 个：fit_view/zoom_in/zoom_out/lock_node/move_node/group_nodes）', () => {
+    expect(CANVAS_AGENT_TOOL_NAMES).toHaveLength(20)
   })
 
   it('create_node 建文本节点成功 + 返回 id', () => {
@@ -523,50 +523,12 @@ describe('画布 Agent 工具层 §2.5', () => {
     expect(r.error).toContain('尚未确认')
   })
 
-  it('fit_view / zoom_in / zoom_out / focus_node 调视图 API', () => {
+  it('focus_node 居中聚焦视图 API', () => {
     const ctx = makeCtx([{ id: 'a', type: 'textNode', data: {}, position: { x: 5, y: 5 } }])
     const t = buildCanvasAgentTools(ctx)
-    expect(t.fit_view({}).ok).toBe(true)
-    expect(ctx.fitView).toHaveBeenCalled()
-    expect(t.zoom_in({}).data.zoomed).toBe('in')
-    expect(t.zoom_out({}).data.zoomed).toBe('out')
     expect(t.focus_node({ nodeId: 'a' }).ok).toBe(true)
     expect(ctx.setCenter).toHaveBeenCalled()
     expect(t.focus_node({ nodeId: 'z' }).ok).toBe(false)
-  })
-
-  it('lock_node 锁定单节点（draggable/selectable=false）', () => {
-    const ctx = makeCtx([{ id: 'a', type: 'promptNode', data: {}, position: {} }])
-    const t = buildCanvasAgentTools(ctx)
-    const r = t.lock_node({ nodeId: 'a' })
-    expect(r.ok).toBe(true)
-    const node = ctx.getNodes()[0]
-    expect(node.data.locked).toBe(true)
-    expect(node.draggable).toBe(false)
-    expect(node.selectable).toBe(false)
-  })
-
-  it('lock_node 按 type 批量锁', () => {
-    const ctx = makeCtx([{ id: 'a', type: 'promptNode', data: {} }, { id: 'b', type: 'promptNode', data: {} }])
-    const t = buildCanvasAgentTools(ctx)
-    const r = t.lock_node({ type: 'promptNode' })
-    expect(r.data.ids).toHaveLength(2)
-  })
-
-  it('move_node 移动坐标', () => {
-    const ctx = makeCtx([{ id: 'a', type: 'textNode', data: {}, position: { x: 0, y: 0 } }])
-    const t = buildCanvasAgentTools(ctx)
-    const r = t.move_node({ nodeId: 'a', position: { x: 100, y: 200 } })
-    expect(r.data.position).toEqual({ x: 100, y: 200 })
-  })
-
-  it('group_nodes 调 createGroupFromNodes', () => {
-    const ctx = makeCtx([{ id: 'a', type: 'textNode', data: {}, position: { x: 0, y: 0 } }, { id: 'b', type: 'promptNode', data: {}, position: { x: 50, y: 0 } }])
-    const t = buildCanvasAgentTools(ctx)
-    const r = t.group_nodes({ nodeIds: ['a', 'b'] })
-    expect(r.ok).toBe(true)
-    expect(ctx.getNodes().some((n) => n.type === 'group')).toBe(true)
-    expect(r.data.groupId).toBeTruthy()
   })
 
   it('undo_ai 无栈返回错误', () => {

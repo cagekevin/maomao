@@ -26,17 +26,15 @@
  *   ② agentCore.classifyLocalIntent / buildIntentHint 在 send 时注入一句意图预判
  *   （消摇摆，工具照常全量传，不限制任何能力）。治理三层均为文字层，零架构改动。
  *
- * 【更新 2026-09-01 · 工具精简（LLM 隐藏）】以下 5 个工具已从 LLM 可见 schema 隐藏
- *   （保留注册表，代码/UI 直调不受影响），对应引导词也从 CANVAS_RULES 移除：
- *     fit_view / zoom_in / zoom_out / lock_node / move_node
- *   隐藏名单见 useCanvasAgentTools.ts 的 LLM_HIDDEN_TOOLS（单行增删即可恢复暴露）。
- *   —— 若日后要恢复某个工具的 LLM 引导词，把下方注释块对应行移回 CANVAS_RULES 的【组织】段：
- *     · 用户要求锁定/解锁节点用 lock_node：传 nodeId 锁单个，传 type（如 promptNode）锁该类型全部节点。
- *     · 调整布局用 move_node；放大/缩小视口用 zoom_in/zoom_out。
+ * 【更新 2026-09-05 · 工具精简（奥卡姆删除）】以下 6 个画布 AI 工具已从注册表**整个删除**
+ *   （不再暴露给 LLM，也不再保留注册）：
+ *     fit_view / zoom_in / zoom_out / lock_node / move_node / group_nodes
+ *   对应引导词/意图分流已从 CANVAS_RULES 同步移除。画布侧共享底层能力
+ *   （createGroupFromNodes 右键编组、host.lockNodes/updateNodePosition、zoom 视口操作）不受影响，
+ *   仅 AI 不再有对应工具。
  * ════════════════════════════════════════════════════════════════
  */
 import {
-  AGENT_DEMO_MODE,
   AGENT_CONTEXT_WINDOW_DEFAULT,
   AGENT_CONTEXT_OUTPUT_BUDGET_RATIO,
 } from '../base/core/config.ts'
@@ -75,8 +73,7 @@ export const AGENT_PROMPTS = Object.freeze({
 | **查看/了解画布**（看看有哪些节点/结构/内容） | 【读取】流程 | 先 list_nodes 了解画布 |
 | **新建节点**（创建/添加文本/生图/视频/图片节点） | 【创建】流程 | 按【创建】执行 |
 | **生成/改图**（要生成图片、改图、批量生图） | 【修改与生成】流程 | 按【修改与生成】执行 |
-| **连线/布局/删除/缩放** | 【组织】流程 | 按【组织】执行 |
-| **锁定/解锁** | 【锁定】流程 | 按【锁定】执行 |
+| **连线/删除** | 【组织】流程 | 按【组织】执行 |
 | **撤回 AI 刚才的操作** | 【撤回】流程 | 按【撤回】执行 |
 | **意图不明确/含糊** | 【询问】 | 先问一句确认，不要靠猜直接动手 |
 
@@ -141,7 +138,6 @@ export const AGENT_PROMPTS = Object.freeze({
 // 说明：env 读取的单一来源仍是 base/config.ts，此处仅 re-export 供 AI 助手统一入口引用，
 // 不产生第二个定义。当前零消费者（消费方仍走 base/config.ts），无害且为后续切换铺路。
 export {
-  AGENT_DEMO_MODE,
   AGENT_CONTEXT_WINDOW_DEFAULT,
   AGENT_CONTEXT_OUTPUT_BUDGET_RATIO,
 }

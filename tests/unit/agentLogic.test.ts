@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseSSEChunk, buildRequestMessages, demoPlan } from '../../src/components/agent/runtime/useAgentChat.ts'
+import { parseSSEChunk, buildRequestMessages } from '../../src/components/agent/runtime/useAgentChat.ts'
 // buildRequestMessages 的 messages 参数为 ChatMessage[]（role 是字面量联合、content 是 string | 内容块数组联合），
 // 测试构造的消息需按该类型标注，避免字面量被宽化成 string。
 import type { ChatMessage } from '@/components/agent/runtime/agentCore.ts'
@@ -281,9 +281,3 @@ describe('AI 助手 buildRequestMessages（发 LLM 消息组装）§2.15', () =>
   })
 })
 
-// 复用 demoPlan 的补充断言（与 demoPlan.test.js 互补，验证与状态机无关的边界）
-describe('AI 助手 demoPlan 边界 §2.15', () => {
-  it('未匹配任何动作返回空数组', () => {
-    expect(demoPlan('随便聊聊', () => ({}))).toEqual([])
-  })
-})

@@ -15,13 +15,10 @@
 import React from 'react'
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
-import { mocks } from './_nodeMocks.mjs'
-
 vi.mock('../../src/components/base/api/filesApi.ts', () => ({ toAbsoluteFileUrl: (u) => `ABS:${u}` }))
 vi.mock('../../src/components/base/ui/LazyImage.tsx', () => ({
   default: ({ src }) => React.createElement('img', { src }),
 }))
-vi.mock('../../src/components/panels/PromptConfirmCard.tsx', () => ({ default: mocks.Passthrough }))
 
 import AgentMessage from '../../src/components/panels/AgentMessage.tsx'
 

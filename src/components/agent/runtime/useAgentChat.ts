@@ -3,7 +3,7 @@ import { useCanvasAgentTools, getGenParams, setCurrentReferenceImages } from '..
 import { loadAgentChatModel, loadAgentHistoryTurns } from '../../base/store/agentModelStore.ts'
 import { logger } from '../../base/core/logger.ts'
 import { withTimeout } from '../../base/utils/asyncGuard.ts'
-import { KV_TIMEOUT, AGENT_DEMO_MODE } from '../../base/core/config.ts'
+import { KV_TIMEOUT } from '../../base/core/config.ts'
 import { InputStateMachine } from './inputStateMachine.ts'
 import { generateId } from '../../base/core/idGen.ts'
 
@@ -31,9 +31,6 @@ import {
   parseGenerationsFromReply,
   buildRequestMessages,
   parseAgentError,
-  demoPlan,
-  imageModeLooksLikePerReferenceEdit,
-  buildPerReferenceGenerations,
   classifyLocalIntent,
   buildIntentHint,
   INTENT_HINT,
@@ -42,9 +39,7 @@ import {
 import type { ToolCall, ChatMessage, AgentMemory } from './agentCore.ts'
 // 运行时逻辑（依赖注入版本）。hook 内以 const roundTrip 等同名闭包封装调用，
 // 故此处用别名避免与 hook 内的函数名冲突。
-import { roundTrip as agentRuntimeRoundTrip, runToolCalls as agentRuntimeRunToolCalls, runDemoMode as agentRuntimeRunDemoMode } from './agentRuntime.ts'
-// 「学」：从本对话历史成功生图样本提学习块（照搬参考项目 promptLearningService），注入 buildRequestMessages
-import { buildLearnedContext } from './promptLearning.ts'
+import { roundTrip as agentRuntimeRoundTrip, runToolCalls as agentRuntimeRunToolCalls } from './agentRuntime.ts'
 // 「记·长期」：按 agentKey 全局长期记忆注入块（照搬参考项目 memoryRetrieval + contextManager），注入 buildRequestMessages
 import { buildProjectMemoryContextFromStore } from './memoryRetrieval.ts'
 // 「记·长期」持久化：memory_suggest 确认后落库（agentKey 全局）
@@ -175,14 +170,11 @@ interface SendUserMessage {
  * | 常规：理解→规划→执行 | agentRunUnderstandingStage(6806)→plan→execute | send + 工具循环(≤8轮) + 三阶段门禁 | ✅ 已对齐 |
  * | 常规：无 Skill 单阶段直出 | agentRunPlanningFromUnderstanding(6996) | 同上（工具循环内 execute_plan） | ✅ 已对齐 |
  * | 修改意见（不重跑理解） | agentApplyRevisePlanning(6595, messages:[]) | steer 队列(823) + 新 send | ⚠️ 简化对齐 |
- * | 重新生成某条 prompt | regenerateAgentPrompts(8619) | 未单独实现（靠工具循环重发） | ⚠️ 大雄该功能依附已废弃的 prompts 通道 |
- * | prompts 逐条确认/编辑/反悔/全确认 | confirm/edit/save-edit/reopen/confirm-all(8500-8577) | 【大雄已废弃】见下 | 🟡 保留为可选能力，当前不激活 |
+ * | 重新生成某条 prompt | regenerateAgentPrompts(8619) | 未单独实现（靠工具循环重发） | ⚠️ 大雄该功能依附 prompts 通道 |
  *
- * > ⚠️ prompts 逐条确认通道是大雄「思维模式」遗留，当前大雄 thinkingModeOn=false（5262/7302/9723）、
- * > 主要路径清空 prompts（7690/7725/7784），该通道是死代码；大雄当前走 generations 快速执行（我们已对齐）。
- * > 我们保留 promptFlow.js + PromptConfirmCard.jsx 作为可选增强，但 assistant 消息默认不带 prompts、
- * > 不走该通道。详见 promptFlow.js 文件头「★ 重要」。
- * > 【追加：保留决策已确认，2026-08-18】人类明确决策**不删、也不接入/补全**，维持保留。后续 AI 直接跳过此通道，勿当待办。
+ * > ⚠️ prompts 逐条确认通道是大雄「思维模式」遗留，当前大雄 thinkingModeOn=false、主要路径清空 prompts，
+ * > 该通道早已是死代码；大雄当前走 generations 快速执行（我们已对齐）。
+ * > 【2026-09-05 奥卡姆删除】promptFlow.ts / PromptConfirmCard.tsx 及其 UI 接入已从本仓删除。
  *
  * ── 二、执行分级 workMode（三态单一真源，runModeRegistry，docs/64 §3/§5 + docs/65 M1-M8）★ 为什么简单任务不 plan ★ ──
  *   用户反馈「发个信息它就执行 plan / 完全自主下 plan 调不了」的根因：此前确认粒度散落推导、且无 Skill 任务
@@ -221,17 +213,12 @@ interface SendUserMessage {
  * ══════════════════════════════════════════════════════════════════════════════
  */
 
-// Demo 模式：AGENT_DEMO_MODE 为 true 时，不发真实 LLM 请求，
-// 用本地规则引擎模拟「说一句话 → 调工具 → 画布变化」。方便没配 LLM key 也能演示。
-const DEMO_MODE = AGENT_DEMO_MODE
-
-// ── 职责模块化拆分（commit 待补）──
+// ── 职责模块化拆分 ──
 // 以下常量/系统提示词/纯函数已下沉到 agentCore.js，本文件保留 re-export 以维持既有测试契约
-// （agentLogic.test.js / demoPlan.test.js / imageModeSplit.test.js / useAgentChat.hook.test.js /
-//  canvasAgentTools.test.ts / demoPlan.test.ts 等仍从本文件（re-export）取用）。
+// （agentLogic.test.js / useAgentChat.hook.test.js / canvasAgentTools.test.ts 等仍从本文件（re-export）取用）。
 //   · MAX_TOOL_ROUNDS / ENABLE_TOOLS_ON_NON_STREAM / CANVAS_AGENT_RULES / SKILL_EXECUTION_RULES
 //   · historyKey / loadHistory / parseSSEChunk / parseGenerationsFromReply / buildRequestMessages
-//   · parseAgentError / demoPlan / imageModeLooksLikePerReferenceEdit / buildPerReferenceGenerations
+//   · parseAgentError / classifyLocalIntent / buildIntentHint
 export {
   MAX_TOOL_ROUNDS,
   ENABLE_TOOLS_ON_NON_STREAM,
@@ -243,9 +230,6 @@ export {
   parseGenerationsFromReply,
   buildRequestMessages,
   parseAgentError,
-  demoPlan,
-  imageModeLooksLikePerReferenceEdit,
-  buildPerReferenceGenerations,
   classifyLocalIntent,
   buildIntentHint,
   INTENT_HINT,
@@ -284,7 +268,6 @@ export interface UseAgentChatReturn {
   switchChat: (id: string) => void
   deleteChat: (id: string) => void
   updateMessageByContent: (content: string, patch?: Record<string, unknown>) => void
-  executePlanDirect: (generations: unknown) => Promise<{ ok: boolean; error: unknown; awaited?: unknown | null; entries?: Record<string, unknown>[] }>
   sendContentToCanvas: (msg: unknown) => void
   confirmPendingMemorySuggest: () => Promise<{ ok?: boolean; error?: string }>
   getActivePendingMemorySuggest: () => unknown
@@ -438,7 +421,7 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
     [model, toolSchemas, provider]
   )
 
-  /** 执行一批工具调用并回填 tool 消息（send 的真实分支与 Demo 分支共用）。
+  /** 执行一批工具调用并回填 tool 消息。
    *  tools: [{ name, args, callId? }] → 逐个 callTool，把 tool 消息 append 到历史。
    *  【TASK-006 #1 修复】execute_plan/generate_node/trigger_generation 等是 async 工具，
    *  callTool 返回 Promise。旧实现同步 for 循环拿 `result.ok` 全是 undefined →
@@ -452,22 +435,6 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
       callIdFor
     )
   }, [callTool, appendMsg, model])
-
-  /**
-   * Demo 模式（VITE_AGENT_DEMO='1'）：本地规则引擎模拟，不走真实 LLM。
-   * 抽独立函数让 send 主流程更清晰（send 里只剩「保护 → steer → 准备 → 真实循环 → 收尾」）。
-   * @returns {boolean} true = 已走 Demo 分支处理完，调用方应提前 return（收尾交给 finally）
-   * 【职责模块化】逻辑已下沉到 agentRuntime.runDemoMode（依赖注入），此处只构造 ctx 转发；
-   *  abortRef 收尾是 hook 持有 ref 的职责，保留在 hook 侧。
-   */
-  const runDemoMode = useCallback(async (text) => {
-    const done = await agentRuntimeRunDemoMode(
-      { callTool, appendMsg, model, demoPlan },
-      text
-    )
-    abortRef.current = null
-    return done
-  }, [appendMsg, callTool, model])
 
   // ── 「记」：分层压缩历史→memory.summary（照搬参考项目，fire-and-forget，不阻塞主流程）──
   // 节流：同一次会话中短间隔不重复压缩；门槛：历史消息足够多才有压缩价值。
@@ -552,13 +519,8 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
       let ok = true // 标记本次发送是否成功（finally 据此写 workflow.status）
       let aborted = false // 标记是否被用户停止（区分 stopped/failed）
       let pausedForConfirm = false // 三阶段门禁：show_plan_for_confirm 后是否暂停等用户确认（需在 try 外声明，finally 才可访问且避免 TDZ）
-      let round = 0 // 工具循环轮数（提升到 try 外：Demo/异常提前 return 时 finally 的 debug 也安全，否则 TDZ）
+      let round = 0 // 工具循环轮数（提升到 try 外：异常提前 return 时 finally 的 debug 也安全，否则 TDZ）
       try {
-        // ── Demo 模式（VITE_AGENT_DEMO='1'）：本地规则引擎模拟，不走真实 LLM（逻辑抽到 runDemoMode）──
-        if (DEMO_MODE) {
-          if (await runDemoMode(text)) return // 收尾交给 finally
-        }
-
         // ── 真实模式：多轮工具循环（≤ MAX_TOOL_ROUNDS）──
         let assistant // 提升到循环外：供循环结束后判断是否「走满上限仍不收敛」（否则访问 for 块级变量会 ReferenceError）
         let forcedCompressed = false // 本轮 send 是否已做「请求前强制压缩」（只允许一次，避免工具循环里反复压缩）
@@ -585,7 +547,7 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
           // 「反推图一却全反推」安全底线）。见文件顶部注释 + agentCore.js buildRequestMessages 头注释。
           // 意图预判提示随每轮重建（msgs 每轮都是新数组，不会跨轮重复累积）
           const makeContextMessages = () => {
-            const msgs = buildRequestMessages(getCurrentSnapshot().messages as ChatMessage[], systemRef.current, true, skillsRef.current, getCurrentMemory() as AgentMemory, getCurrentImageMap(), loadAgentHistoryTurns(), buildLearnedContext(getCurrentMemory(), text), buildProjectMemoryContextFromStore(agentKey, '', text), getWorkMode())
+            const msgs = buildRequestMessages(getCurrentSnapshot().messages as ChatMessage[], systemRef.current, true, skillsRef.current, getCurrentMemory() as AgentMemory, getCurrentImageMap(), loadAgentHistoryTurns(), buildProjectMemoryContextFromStore(agentKey, '', text), getWorkMode())
             if (intentHint) msgs.push({ role: 'system', content: intentHint })
             return msgs
           }
@@ -709,7 +671,7 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
     // 依赖：roundTrip 闭包了 model/provider/toolSchemas；sendRef 用于 steer 续跑（下方 useRef 保持最新）
     // runDirectBranch 不在 deps：它在 send 之后声明（前向引用），且仅靠稳定 deps（callTool/store），
     // 放在 deps 数组会在声明时求值触发 TDZ；body 为懒求值，运行时已初始化，安全。
-    [sending, model, roundTrip, callTool, runToolCalls, runDemoMode, appendMsg, setHistory, updateLastStreaming, endStreaming, stripStreaming, agentKey, provider, isAgentBusy, maybeCompressSummary]
+    [sending, model, roundTrip, callTool, runToolCalls, appendMsg, setHistory, updateLastStreaming, endStreaming, stripStreaming, agentKey, provider, isAgentBusy, maybeCompressSummary]
   )
 
   /** 保存 send 引用，供 finally 里自动处理 steer 队列（useCallback 无法自调用） */
@@ -745,30 +707,23 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
       // 【链路日志】图像模式发送：提示词摘要 + 参考图数（供排查图生图链路）
       logger.info('AI助手', '图像发送', { prompt: prompt.slice(0, 80), refImageCount: referenceImages.length })
       const panel = getGenParams()
-      // 【TASK-008】多参考图「分别改图」拆分（对齐大雄）：命中「分别/各自/每张/都改成…」语义时，
-      // 拆成 N 个独立 generation（每步 attachment_indices:[i] 只挂自己那张），否则整批塞单 generation。
-      // 必须先把参考图写入模块级 refPool，execute_plan 的 attachment_indices 才能按编号取到图。
+      // 参考图写入 refPool，execute_plan 按 use_attachments 全量挂到节点 data.images 供图生图。
+      // 【2026-09-05 奥卡姆删除】不再做「多参考图分别改图」拆分（图1图2语义对用户/AI 都难，砍）。
+      // 一律单 generation、整批共享全部参考图。
       setCurrentReferenceImages(referenceImages)
-      const perRef = referenceImages.length >= 2 && imageModeLooksLikePerReferenceEdit(prompt, referenceImages.length)
-      const gens = perRef
-        ? buildPerReferenceGenerations(referenceImages, prompt, panel)
-        : [{
-            id: `direct_image_${Date.now()}`,
-            title: '直接生图',
-            prompt,
-            ratio: panel.ratio || 'Auto',
-            resolution: panel.resolution || '1K',
-            depends_on_previous: false,
-            dependency_mode: 'none',
-            // 【图生图·单图修复 2026-08-27】直连模式带参考图时必须声明 use_attachments（对齐多图路径
-            // buildPerReferenceGenerations），否则 execute_plan 的参考图解析分支③（useCanvasAgentTools.ts）
-            // 会把本步作废为 use_attachments:false → 参考图不会写入节点 data.images，图生图失效。
-            // 有参考图 → 整批共享（无 attachment_indices，execute_plan 按 use_attachments=true 全量挂 refPool）。
-            ...(referenceImages.length ? { use_attachments: true } : {}),
-          }]
-      // 【B层】图像模式：是否触发「分别改图」拆分 + 拆出的 generation 数——定位多参考图链路
-      // （必须在 gens 声明之后：const 有 TDZ，放在上面会在 perRef 命中时抛 ReferenceError）
-      logger.debug('AI助手', '[图像] 拆分判定', { perRef, genCount: perRef ? gens.length : 1, refImageCount: referenceImages.length }, { module: 'agent' })
+      const gens = [{
+        id: `direct_image_${Date.now()}`,
+        title: '直接生图',
+        prompt,
+        ratio: panel.ratio || 'Auto',
+        resolution: panel.resolution || '1K',
+        depends_on_previous: false,
+        dependency_mode: 'none',
+        // 【图生图·单图修复 2026-08-27】带参考图时必须声明 use_attachments，否则 execute_plan 的
+        // 参考图解析分支③（useCanvasAgentTools.ts）会把本步作废为 use_attachments:false → 图生图失效。
+        // 有参考图 → 整批共享（无 attachment_indices，execute_plan 按 use_attachments=true 全量挂 refPool）。
+        ...(referenceImages.length ? { use_attachments: true } : {}),
+      }]
 
       // 【积分闸】try 内未赋值时 finally 仍需安全引用（防抛错后 ReferenceError）
       let creditAwaited = false
@@ -891,10 +846,8 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
     applyConversationState(activeId, snapshot)
   }, [applyConversationState])
 
-  // 【对齐大雄 prompts 逐条确认通道】更新某条 assistant 消息的字段（如 prompts 确认状态），
-  //   同步 state + ref + 落盘。供 AgentPanel 的 PromptConfirmCard 在确认/修改/反悔后写回。
-  //   @param {string} assistantContent 定位该 assistant 消息（用内容做弱标识，防消息结构漂移）
-  //   @param {object} patch            要更新的字段（如 { prompts: [...], requestedCount }）
+  // 更新某条 assistant 消息的字段（按内容弱定位），同步 state + ref + 落盘。
+  // 现仅用于 cancelPendingConfirm 清除 awaiting_confirm。
   const updateMessageByContent = useCallback((assistantContent, patch) => {
     if (!assistantContent) return
     const next = getCurrentSnapshot().messages.map((m) =>
@@ -905,24 +858,9 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
     try { captureActiveConversation() } catch { /* ignore */ }
   }, [setHistory])
 
-  // 【对齐大雄 runAgentGenerations（prompts 通道）】prompts 逐条确认全部确认后，把生成的
-  //   generations 直接交给 execute_plan 触发生图（不走 LLM，对齐大雄 confirmed prompts → runAgentGenerations）。
-  //   @param {Array} generations 从 prompts 转换的生图计划
-  //   @returns {Promise<{ok:boolean, error?:string}>}
-  const executePlanDirect = useCallback(async (generations) => {
-    if (!Array.isArray(generations) || generations.length === 0) return { ok: false, error: 'generations 为空' }
-    const res = await callTool('execute_plan', { generations, auto_run: true })
-    const ok = res && (res.ok === true || (res.ok === undefined && !res.error))
-    // 【积分闸兼容 · 2026-08-27 简化】credit=creditSwitch 是全局总闸，与 runMode 正交。
-    // 这一直连点（prompts 确认通道）不自动声称「已生成」：若 execute_plan 返回 awaited:'credit'
-    // （积分总闸拦截，节点已建好待点生成），如实透出，调用方(AgentPanel)据此展示「待确认」，绝不二次 execute_plan。
-    const d = res?.data as Record<string, unknown> | undefined
-    return { ok, error: res?.error || '', awaited: d?.awaited || null, entries: Array.isArray(d?.entries) ? d.entries as Record<string, unknown>[] : [] }
-  }, [callTool])
-
   // 【补跑唯一入口（D8）】对「节点已建好、待点生成」的积分确认态真正触发生成。
   // 只走 runExistingPlanTool（由 run_existing_plan 工具分发，ctx 由 useCanvasAgentTools 持有）。
-  // 供 AgentPanel「确认生成」按钮 / runDirectBranch(直连) / executePlanDirect 确认回调共用，禁止手写 setNodes/逐节点触发。
+  // 供 AgentPanel「确认生成」按钮 / runDirectBranch(直连) 确认回调共用，禁止手写 setNodes/逐节点触发。
   // @returns {Promise<{ok, error?, data?}>}
   const runExistingConfirm = useCallback(async () => {
     const res = await callTool('run_existing_plan', {})
@@ -949,7 +887,7 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
     return callTool('create_node', { type: 'textNode', text })
   }, [callTool])
 
-  return { messages, sending, error, model, setModel, send, stop, clear, stateAction, conversations, activeConversationId, newChat, switchChat, deleteChat, updateMessageByContent, executePlanDirect, sendContentToCanvas, confirmPendingMemorySuggest, getActivePendingMemorySuggest, cancelPendingConfirm, runExistingConfirm, getCreditGate, clearCreditGate,
+  return { messages, sending, error, model, setModel, send, stop, clear, stateAction, conversations, activeConversationId, newChat, switchChat, deleteChat, updateMessageByContent, sendContentToCanvas, confirmPendingMemorySuggest, getActivePendingMemorySuggest, cancelPendingConfirm, runExistingConfirm, getCreditGate, clearCreditGate,
     // 【展示→编排轴薄适配（收口 AgentPanel 的 store 穿透）】回传 UI 会用到的 store 原子能力，
     // 使 AgentPanel 不再直接 import conversationStore（唯一入口收敛到本 hook）。这些是 store 的稳定
     // 模块级函数（透传引用，非拷贝），消息单源下已满足"UI 不直连持久层"的一步；未来如需可再 action 化。

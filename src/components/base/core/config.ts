@@ -20,10 +20,6 @@ export const API_BASE =
   import.meta.env?.VITE_API_BASE?.replace(/\/+$/, '') ||
   `http://127.0.0.1:${LOCAL_TOOL_PORT}`
 
-// ── 演示模式 ─────────────────────────────────────────────────────
-/** VITE_AGENT_DEMO='1' 时启用演示模式（不发真实 LLM 请求，用规则引擎模拟） */
-export const AGENT_DEMO_MODE = import.meta.env?.VITE_AGENT_DEMO === '1'
-
 // ── 调试开关（通用 DEBUG，按模块分类）───────────────────────────────
 /** 通用调试开关。logger.debug(cat, act, det, { module }) 仅在对应模块位开启时输出到 console，
  *  默认全部关闭，生产/日常完全安静，不上报后端。

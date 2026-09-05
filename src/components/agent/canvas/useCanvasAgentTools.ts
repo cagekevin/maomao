@@ -267,7 +267,6 @@ const MUTATING_TOOLS = new Set([
   'delete_node', 'batch_delete_nodes',
   'update_node', 'update_node_any_field',
   'connect_nodes', 'batch_connect_nodes', 'delete_edge',
-  'move_node', 'group_nodes', 'lock_node',
   'execute_plan', // 多步编排：一次改多个节点，整体入 AI 撤销栈（undo_ai 可整体撤回）
 ])
 /** AI 撤销栈上限（分组事务可回滚步数）；【Step D】栈存在 conversationStore per-conversation，不再模块级 */
@@ -1111,7 +1110,7 @@ export async function runExistingPlanTool(ctx) {
 
 /**
  * run_existing_plan 工具（D8 补跑唯一入口的 callTool 封装）。
- * 供 AgentPanel「确认生成」按钮与 runDirectBranch(直连)/executePlanDirect 确认回调共用；
+ * 供 AgentPanel「确认生成」按钮与 runDirectBranch(直连) 确认回调共用；
  * 触发逻辑全部走 runExistingPlanTool(ctx)，禁止任何路径手写 setNodes/逐节点触发。
  * 非 LLM 常规编排工具（creditGate.pending 才放行），注册进 callTool 分发即可。
  */
@@ -1120,42 +1119,6 @@ const runExistingPlanToolDef = {
   description: '对已建好、待点生成的节点补跑触发生成（需先有积分确认待确认态）。仅供确认「确认生成」时调用。',
   parameters: { type: 'object', properties: {}, required: [] },
   execute: (args, ctx) => runExistingPlanTool(ctx),
-}
-
-/** 视图适配（fit_view）—— zoom 到能看到所有节点 */
-const fitViewTool = {
-  name: 'fit_view',
-  description: '缩放视口以显示全部节点。',
-  parameters: { type: 'object', properties: { padding: { type: 'number', description: '留白比例，默认 0.2' } }, required: [] },
-  execute(args, ctx) {
-    const padding = num(args.padding, 0.2)
-    ctx.fitView?.({ padding, duration: 300 })
-    return { ok: true, data: { fit: true } }
-  }
-}
-
-/** 放大视口（zoom_in）—— 补齐幽灵工具，避免后端准则调用它时报"未知工具" */
-const zoomInTool = {
-  name: 'zoom_in',
-  description: '放大画布视口（zoom in）。',
-  parameters: { type: 'object', properties: { factor: { type: 'number', description: '放大倍数（可选，默认 1.2）' } }, required: [] },
-  execute(args, ctx) {
-    const factor = num(args.factor, 1.2)
-    ctx.zoomIn?.({ duration: 200, factor: factor <= 0 ? 1.2 : factor })
-    return { ok: true, data: { zoomed: 'in', factor } }
-  }
-}
-
-/** 缩小视口（zoom_out） */
-const zoomOutTool = {
-  name: 'zoom_out',
-  description: '缩小画布视口（zoom out）。',
-  parameters: { type: 'object', properties: { factor: { type: 'number', description: '缩小倍数（可选，默认 1.2）' } }, required: [] },
-  execute(args, ctx) {
-    const factor = num(args.factor, 1.2)
-    ctx.zoomOut?.({ duration: 200, factor: factor <= 0 ? 1.2 : factor })
-    return { ok: true, data: { zoomed: 'out', factor } }
-  }
 }
 
 /** 定位/聚焦某节点（focus_node）—— 居中视口到指定节点 */
@@ -1177,44 +1140,6 @@ const focusNodeTool = {
 }
 
 /**
- * 锁定/解锁节点（lock_node）。
- * - 支持按 nodeId 锁单个，或按 type 锁该类型所有节点（如「把所有生图节点锁定」）。
- * - 同时写 data.locked + node.draggable/selectable=false，让 NodeShell 真正消费锁定效果
- *   （渲染锁图标 + 禁拖动/编辑），避免"locked 只是死字段、节点还能拖"的假能力。
- */
-const lockNodeTool = {
-  name: 'lock_node',
-  description: '锁定/解锁节点：传 nodeId 锁单个，或传 type 锁该类型全部。锁定后不可拖动/编辑。',
-  parameters: {
-    type: 'object',
-    properties: {
-      nodeId: { type: 'string', description: '要锁定的节点 id（可选；与 type 二选一）' },
-      type: { type: 'string', description: '按节点类型批量锁定，如 promptNode（生图）/imageNode（图片）/textNode（文本）（可选）' },
-      locked: { type: 'boolean', description: 'true=锁定，false=解锁，默认 true' }
-    },
-    required: []
-  },
-  execute(args, ctx) {
-    const host = createCanvasHost(ctx)
-    const locked = args.locked !== false
-    let targets = []
-    if (str(args.nodeId)) {
-      const n = host.getNode(args.nodeId)
-      if (!n) return { ok: false, error: `节点不存在：${args.nodeId}` }
-      targets = [n]
-    } else if (str(args.type)) {
-      targets = host.getNodes().filter((n) => n.type === args.type)
-      if (targets.length === 0) return { ok: false, error: `没有 ${args.type} 类型的节点` }
-    } else {
-      return { ok: false, error: '需提供 nodeId 或 type' }
-    }
-    const ids = targets.map((n) => n.id)
-    host.lockNodes(ids, locked)
-    return { ok: true, data: { locked, ids } }
-  }
-}
-
-/**
  * 撤回 AI 刚才那步操作（undo_ai）。
  * 与用户 Ctrl+Z 完全隔离：从 aiUndoStack 弹出最近一次 AI 写操作前的快照并恢复。
  * 支持分组事务：execute_plan 一次编排（建多节点+连线+触发）push 一次，undo_ai 整体撤回。
@@ -1230,56 +1155,6 @@ const undoAiTool = {
     // 整体恢复快照（undo_ai 是整数组替换，走 host.restoreNodesAndEdges，收口裸 ctx.setNodes/setEdges，见 M1 C1-1）
     createCanvasHost(ctx).restoreNodesAndEdges(snap)
     return { ok: true, data: { reverted: snap.action || '上一步操作', remaining: getActiveAiUndoStack().length } }
-  }
-}
-
-/** 移动节点（move_node） */
-const moveNodeTool = {
-  name: 'move_node',
-  description: '把指定节点移动到新坐标 (x, y)。',
-  parameters: {
-    type: 'object',
-    properties: { nodeId: { type: 'string' }, position: { type: 'object', properties: { x: { type: 'number' }, y: { type: 'number' } }, required: ['x', 'y'] } },
-    required: ['nodeId', 'position']
-  },
-  execute(args, ctx) {
-    const host = createCanvasHost(ctx)
-    const id = str(args.nodeId)
-    if (!host.getNodes().some((n) => n.id === id)) return { ok: false, error: `节点不存在：${id}` }
-    const pos = { x: num(args.position?.x, 0), y: num(args.position?.y, 0) }
-    // 【R3】AI 移动 group 子节点时：React Flow 里子节点 position 是相对父组的坐标，但 move_node
-    // 传的是绝对坐标。若目标在组内，需换算成相对父组坐标，否则视觉错位（对齐用户侧 handleNodeDragStop）。
-    const target = host.getNode(id)
-    let finalPos = pos
-    if (target?.parentId) {
-      let px = 0, py = 0, pid = target.parentId, guard = 0
-      const all = host.getNodes()
-      while (pid && guard++ < 20) {
-        const p = all.find((n) => n.id === pid)
-        if (!p) break
-        px += p.position.x; py += p.position.y
-        pid = p.parentId
-      }
-      finalPos = { x: pos.x - px, y: pos.y - py }
-    }
-    host.updateNodePosition(id, finalPos)
-    return { ok: true, data: { id, position: finalPos } }
-  }
-}
-
-/** 编组（group_nodes）—— 把多个节点放进一个编组（真实现：与右键「编组」共用 createGroupFromNodes） */
-const groupNodesTool = {
-  name: 'group_nodes',
-  description: '把多个节点编成一组（至少 2 个，均非 group 且未在其它组内）。',
-  parameters: { type: 'object', properties: { nodeIds: { type: 'array', items: { type: 'string' } } }, required: ['nodeIds'] },
-  execute(args, ctx) {
-    const ids = Array.isArray(args.nodeIds) ? args.nodeIds.map(String) : []
-    if (ids.length < 2) return { ok: false, error: 'nodeIds 至少 2 个' }
-    const host = createCanvasHost(ctx)
-    const res = createGroupFromNodes(host.getNodes(), ids)
-    if (!res.ok) return { ok: false, error: res.error || '编组失败' }
-    host.replaceNodes(res.nodes) // 整体替换节点数组（收口裸 ctx.setNodes，见 M1 C1-1）
-    return { ok: true, data: { groupId: res.groupId, grouped: ids } }
   }
 }
 
@@ -1363,14 +1238,8 @@ const AGENT_TOOLS = (() => {
     runExistingPlanToolDef,
     // ⑥ 视图/聚焦
     focusNodeTool,
-    fitViewTool,
-    zoomInTool,
-    zoomOutTool,
-    // ⑦ 保护/撤销/组织
-    lockNodeTool,
+    // ⑦ 保护/撤销
     undoAiTool,
-    moveNodeTool,
-    groupNodesTool,
     // ⑧ 「记」长期记忆（memory_suggest：待确认门禁，低频）
     memorySuggestTool
   ]
@@ -1432,30 +1301,12 @@ export function buildCanvasAgentTools(ctx: CanvasAgentCtx): CanvasAgentTools {
   return map
 }
 
-/**
- * 不暴露给 LLM 的工具名单（仅对模型隐藏，注册表 AGENT_TOOLS 仍保留，代码直调不受影响）。
- * 这些工具要么由代码/UI 直接调用（fit_view 被 agentCore 自动布局后回正视图直调），
- * 要么是防御性幽灵工具（zoom_in/out 仅为避免后端准则误调时报「未知工具」），
- * 要么不是生成/编排意图、AI 主动调容易离题（lock_node 锁定、move_node 移动——
- * 二者均为人工编辑动作，自动布局已处理位置，暴露给模型易致「该生成时跑去锁节点/挪位置」）。
- * 隐藏后模型看不到其名称与描述，不会误调；后续要恢复只需从此名单移除。
- */
-const LLM_HIDDEN_TOOLS: ReadonlySet<string> = new Set([
-  'fit_view',
-  'zoom_in',
-  'zoom_out',
-  'lock_node',
-  'move_node',
-])
-
 /** OpenAI function calling schema 数组（直接喂 LLM，让模型学会调这些工具） */
 export function buildCanvasAgentToolSchemas() {
-  return AGENT_TOOLS
-    .filter((t) => !LLM_HIDDEN_TOOLS.has(t.name))
-    .map((t) => ({
-      type: 'function',
-      function: { name: t.name, description: t.description, parameters: t.parameters }
-    }))
+  return AGENT_TOOLS.map((t) => ({
+    type: 'function',
+    function: { name: t.name, description: t.description, parameters: t.parameters }
+  }))
 }
 
 /**

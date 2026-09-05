@@ -10,36 +10,42 @@
  *
  * 【目录结构 · 每个文件干嘛】
  *   runtime/                     —— 对话引擎 + 运行时
- *     ├─ useAgentChat.ts         对话 hook：send/stop/clear 编排骨架（M3 瘦身后只留编排）
- *     ├─ agentCore.js            纯函数：buildRequestMessages / parseSSEChunk / 规则注入
- *     ├─ agentRuntime.js         运行时：roundTrip / runToolCalls（依赖注入版）
- *     ├─ inputStateMachine.js    输入状态机：idle/planning/running/steer/retry
- *     ├─ workflowState.js        M2 工作流状态迁移纯函数（wfStart/wfSteer/wfFinish/…）
- *     ├─ agentMessages.js        M3 消息构造/落盘（appendMsg/setHistory/流式更新）
- *     └─ agentAttachments.js     M3 附件归一/参考图编号（normalizeAttachmentsForSend/buildRefCatalog）
+ *     ├─ useAgentChat.ts         对话 hook：send/stop/clear 编排骨架
+ *     ├─ agentCore.ts            纯函数：buildRequestMessages / parseSSEChunk / 意图分流
+ *     ├─ agentRuntime.ts         运行时：roundTrip（LLM 通信）/ runToolCalls（工具执行，依赖注入版）
+ *     ├─ runModeRegistry.ts      执行分级三态（direct/step-confirm/auto）单一真源
+ *     ├─ agentConfig.ts          system prompt + 运行时常量（值收口）
+ *     ├─ inputStateMachine.ts    输入状态机：idle/planning/running/steer/retry
+ *     ├─ workflowState.ts        M2 工作流状态迁移纯函数（wfStart/wfSteer/wfFinish/…）
+ *     ├─ agentMessages.ts        M3 消息构造/落盘（appendMsg/setHistory/流式更新）
+ *     ├─ agentAttachments.ts     M3 附件归一/参考图编号（normalizeAttachmentsForSend/buildRefCatalog）
+ *     ├─ contextCompression.ts   历史超长→memory.summary 分层压缩
+ *     ├─ projectMemoryStore.ts   项目长期记忆（memory_suggest 写入）
+ *     ├─ memoryRetrieval.ts      记忆检索注入
+ *     └─ tokenBudget.ts          上下文 token 预算
  *
  *   canvas/                      —— 画布操作 + 工具层
- *     ├─ useCanvasAgentTools.ts  24 个画布工具（AI 调用的工具注册表）
+ *     ├─ useCanvasAgentTools.ts  20 个画布工具（AI 调用的工具注册表；2026-09-05 奥卡姆删除 6 个）
  *     ├─ canvasPlanExecutor.ts   多步执行器（Wave1 并行 + Wave2 依赖）
- *     └─ canvasHost.js           M1 画布原语层（getNode/createNode/deleteNodes/transaction，写操作唯一入口）
+ *     └─ canvasHost.ts           M1 画布原语层（getNode/createNode/deleteNodes/transaction，写操作唯一入口）
  *
  *   conversation/                —— 会话状态（单一数据源）
- *     ├─ conversationState.js    底座：模块级 state + 落盘/订阅/归一
- *     ├─ conversationSnapshot.js 当前对话快照（workflow/pending/memory）
- *     ├─ conversationAiState.js  AI 会话态
- *     ├─ conversationImageMap.js 跨轮图记忆（图1~图N 编号）
- *     ├─ conversationSkillState.js Skill 三阶段态
- *     └─ conversationStore.js    聚合 re-export（外部统一从这 import）
+ *     ├─ conversationState.ts    底座：模块级 state + 落盘/订阅/归一
+ *     ├─ conversationSnapshot.ts 当前对话快照（workflow/pending/memory）
+ *     ├─ conversationAiState.ts  AI 编排态（global_contract/artifacts/undo/refImages/runMode）
+ *     ├─ conversationImageMap.ts 跨轮图记忆（图1~图N 编号）
+ *     ├─ conversationSkillState.ts Skill 三阶段态
+ *     └─ conversationStore.ts    聚合 re-export（外部统一从这 import）
  *
  * 【改 X 看哪（快速定位）】
  *   - 加工具        → canvas/useCanvasAgentTools.ts（注册 name/description/parameters/execute）
  *   - 改发送/循环    → runtime/useAgentChat.ts
- *   - 改工作流状态   → runtime/workflowState.js
- *   - 改会话状态     → conversation/conversationState.js（底座）/ conversationStore.js（聚合）
+ *   - 改执行分级     → runtime/runModeRegistry.ts（三态单一真源）
+ *   - 改会话状态     → conversation/conversationState.ts（底座）/ conversationStore.ts（聚合）
  *   - 改批量出图     → canvas/canvasPlanExecutor.ts
- *   - 改画布操作     → canvas/canvasHost.js（写操作必须走它，禁裸 useReactFlow）
- *   - 改输入状态机   → runtime/inputStateMachine.js
- *   - 改 UI 面板     → panels/AgentPanel.jsx + panels/AgentMessage.jsx（UI 壳，留在 panels/）
+ *   - 改画布操作     → canvas/canvasHost.ts（写操作必须走它，禁裸 useReactFlow）
+ *   - 改输入状态机   → runtime/inputStateMachine.ts
+ *   - 改 UI 面板     → panels/AgentPanel.tsx + panels/AgentMessage.tsx（UI 壳，留在 panels/）
  *
  * 【契约（改前必查，注册表收口）】
  *   - 事件名    → base/contracts.ts 的 EVENTS（publish/subscribe 必须用登记名）

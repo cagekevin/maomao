@@ -8,7 +8,6 @@
  *   由 useAgentChat 在调用点构造 ctx。包含：
  *     · roundTrip         单次 LLM 请求（流式 SSE / 非流式 JSON 双模式）
  *     · runToolCalls      执行一批工具调用并回填 tool 消息
- *     · runDemoMode       Demo 规则引擎分支（VITE_AGENT_DEMO='1'）
  *
  * 【为何依赖注入而非直接 import】这些函数原在 hook 内闭包使用 model/callTool/
  * appendMsg/toolSchemas/provider 等**由 hook 持有的状态**。直接 import 会引入
@@ -429,50 +428,4 @@ export async function runToolCalls(ctx, tools, callIdFor: (tc: ToolCall) => stri
   }
   // 返回本轮是否「execute_plan 命中积分闸」→ send 工具循环据此决定是否暂停等用户点生成
   return { creditHeld }
-}
-
-/** ══════════════════════════════════════════════════════════════════════════════
- *  runDemoMode —— Demo 模式（VITE_AGENT_DEMO='1'）分支。
- * ══════════════════════════════════════════════════════════════════════════════
- *  本地规则引擎模拟，不走真实 LLM。抽独立函数让 send 主流程更清晰。
- *  @param {object} ctx 注入依赖：{ callTool, appendMsg, model }
- *  @param {string} text 用户输入
- *  @returns {Promise<boolean>} true = 已走 Demo 分支处理完，调用方应提前 return
- */
-export async function runDemoMode(ctx, text) {
-  const { callTool, appendMsg, model, demoPlan } = ctx
-  const plan = demoPlan(text, callTool)
-  if (plan.length > 0) {
-    // 模拟 assistant 决策（工具调用）
-    const assistantMsg = {
-      role: 'assistant', content: '', model,
-      tool_calls: plan.map((p, i) => ({
-        id: `call_demo_${Date.now()}_${i}`, type: 'function',
-        function: { name: p.name, arguments: JSON.stringify(p.args) }
-      })),
-      createdAt: Date.now()
-    }
-    appendMsg(assistantMsg)
-    // 执行每个工具并回填 tool 结果（TASK-006 #1：await 异步工具，避免 Promise 被序列化）
-    for (const [i, p] of plan.entries()) {
-      const r = await callTool(p.name, p.args)
-      appendMsg({
-        role: 'tool',
-        content: r?.ok ? JSON.stringify({ ok: true, ...r.data }) : JSON.stringify({ ok: false, error: r?.error }),
-        tool_call_id: assistantMsg.tool_calls[i].id,
-        createdAt: Date.now()
-      })
-    }
-    // 最后补一条 assistant 总结
-    const done = plan.map((p) => p.name).join('、')
-    appendMsg({
-      role: 'assistant',
-      content: `已执行画布操作：${done}。${plan.some((p) => p.name === 'create_node') ? '新节点已创建。' : ''}${plan.some((p) => p.name === 'connect_nodes') ? '已建立连线。' : ''}${plan.some((p) => p.name === 'delete_node') ? '节点已删除。' : ''}`,
-      model, createdAt: Date.now()
-    })
-  } else {
-    appendMsg({ role: 'assistant', content: '（演示模式）我暂时只会演示这些画布操作：创建节点（生图/视频/文本）、连接两个节点、删除节点、查看画布、适配视图。试试说「创建一个生图节点」或「连接 text-1 和 image-1」。', model, createdAt: Date.now() })
-  }
-  // Demo 分支落盘交给 finally 统一处理（captureActiveConversation），这里只 return
-  return true
 }

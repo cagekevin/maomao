@@ -16,7 +16,7 @@
     "extract:tw": "node scripts/extract-tailwind.mjs",
     "test:smoke": "node scripts/smoke_test.cjs",
     "test:regression": "vitest run tests/unit/nodes/ssrRegression.test.ts",
-    "test:tools": "vitest run tests/unit/canvasAgentTools.test.ts tests/unit/demoPlan.test.ts",
+    "test:tools": "vitest run tests/unit/canvasAgentTools.test.ts",
     "test:unit": "vitest run",
     "test:unit:logic": "vitest run --config vitest.logic.config.ts",
     "test:unit:heavy": "vitest run --config vitest.heavy.config.ts",

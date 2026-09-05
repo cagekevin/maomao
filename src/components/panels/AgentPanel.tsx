@@ -180,7 +180,7 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
   // 新建对话短锁：新建后 1s 内禁用按钮，避免用户狂点出十几个空对话
   const newChatLock = useRef(false)
 
-  const { messages, sending, error, model, setModel, send, stop, clear, stateAction, conversations, activeConversationId, newChat, switchChat, deleteChat, updateMessageByContent, executePlanDirect, sendContentToCanvas, confirmPendingMemorySuggest, getActivePendingMemorySuggest, cancelPendingConfirm, runExistingConfirm, getCreditGate, clearCreditGate,
+  const { messages, sending, error, model, setModel, send, stop, clear, stateAction, conversations, activeConversationId, newChat, switchChat, deleteChat, sendContentToCanvas, confirmPendingMemorySuggest, getActivePendingMemorySuggest, cancelPendingConfirm, runExistingConfirm, getCreditGate, clearCreditGate,
     // 展示→编排轴薄适配（收口 store 穿透）：这 3 个由 useAgentChat 回传，UI 不再直接 import conversationStore
     setCurrentSnapshot, setAwaitingConfirm } = useAgentChat({
     agentKey,
@@ -512,24 +512,6 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
     Promise.resolve(send('已确认，请按刚才展示的策划执行。')).catch((e) => logger.error('Agent', '确认后 send 失败', e))
   }, [send, confirmPendingMemorySuggest, getActivePendingMemorySuggest])
 
-  // 【对齐大雄 prompts 逐条确认通道 · 保留为可选能力，当前不激活】
-  //  大雄 prompts 逐条确认是其「思维模式」遗留（thinkingModeOn=false 已废弃，见 promptFlow.js 头「★ 重要」），
-  //  大雄当前走 generations 快速执行（我们已对齐）。此 handler 仅在 assistant 消息带 prompts 时被
-  //  PromptConfirmCard 触发；默认不触发（走 generations 通道）。若未来要恢复逐条确认，此链路已就绪。
-  //  【追加：保留决策已确认，2026-08-18】人类明确决策**不删、也不接入/补全**，维持保留。后续 AI 直接跳过，勿当待办。
-  //  - update：把确认后的 prompts 写回对应 assistant 消息（updateMessageByContent，渲染同步 + 落盘）
-  //  - generate：全部确认后把 prompts 转的 generations 交给 execute_plan 直接生图（executePlanDirect，对齐大雄 runAgentGenerations）
-  const handlePromptAction = useCallback(({ action, assistantContent, prompts, generations }) => {
-    if (action === 'update') {
-      updateMessageByContent(assistantContent, { prompts })
-    } else if (action === 'generate') {
-      if (typeof showToast === 'function') showToast('正在执行全部提示词…', { type: 'info' })
-      Promise.resolve(executePlanDirect(generations))
-        .then((r) => { if (!r.ok && typeof showToast === 'function') showToast(typeof r.error === 'string' ? r.error : '生成失败', { type: 'error' }) })
-        .catch((e) => logger.error('Agent', 'prompts 全确认生图失败', e))
-    }
-  }, [updateMessageByContent, executePlanDirect])
-
   // 单步失败重试：点击失败 tool 卡片的「重试」，只重跑该 nodeId（复用 taskStore 已注册的生成契约，对齐大雄 retryAgentGeneration）
   const handleRetryStep = useCallback((nodeId) => {
     if (!nodeId) return
@@ -755,7 +737,7 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
               )}
             </div>
           )}
-          {messages.map((m) => <AgentMessage key={m.id} message={m} onConfirmPlan={handleConfirmPlan} onCancelPlan={cancelPendingConfirm} onRetryStep={handleRetryStep} onPromptAction={handlePromptAction} onSendToCanvas={sendContentToCanvas} />)}
+          {messages.map((m) => <AgentMessage key={m.id} message={m} onConfirmPlan={handleConfirmPlan} onCancelPlan={cancelPendingConfirm} onRetryStep={handleRetryStep} onSendToCanvas={sendContentToCanvas} />)}
           {/* 高消耗积分确认卡（跟随消息流末尾，与策划/记忆确认共用 AgentConfirmCard 统一样式）：
               credit 命中（任一模式 + 开关开）时，execute_plan 已建好节点（status='ready'）、真生成未触发；
               确认 → runExistingPlanTool 补跑；取消 → 仅收起卡片、保留待确认态（不删节点，节点已在画布上）。 */}

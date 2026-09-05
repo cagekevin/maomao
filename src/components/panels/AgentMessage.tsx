@@ -1,12 +1,10 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { toAbsoluteFileUrl } from '../base/api/index.ts'
 import LazyImage from '../base/ui/LazyImage.tsx'
-import PromptConfirmCard from './PromptConfirmCard.tsx'
 import AgentConfirmCard from './AgentConfirmCard.tsx'
 import ImageZoomDialog from '../base/editors/ImageZoomDialog.tsx'
 import ChatMarkdown from './ChatMarkdown.tsx'
 import { type ToolCall, type ChatMessage } from '../agent/runtime/agentCore.ts'
-import { type PromptItem } from '../base/prompt/promptFlow.ts'
 
 /** AgentMessage 实际渲染的消息形状：兼容 LLM 协议（ChatMessage）并扩展 UI 态字段。
  *  UI 层只处理文本/图片类消息，故将 content 收窄为 string（协议层 ChatMessage 允许数组形态，UI 不消费）。 */
@@ -16,8 +14,6 @@ export interface AgentMessageData extends ChatMessage {
   streaming?: boolean
   skills?: Array<{ name?: string; id?: string; [k: string]: unknown }>
   generations?: Array<{ id?: string; title?: string; professionalPrompt?: string; prompt?: string; plannedPrompt?: string; ratio?: string; resolution?: string; [k: string]: unknown }>
-  prompts?: PromptItem[]
-  requestedCount?: number
   awaiting_confirm?: boolean
   memory_suggest?: boolean
 }
@@ -142,27 +138,16 @@ const GenerationStepsCard = memo(function GenerationStepsCard({ generations }: {
  *  @param {object} message
  *  @param {Function} onConfirmPlan 阶段2 一次性确认整个策划（generations 通道）
  *  @param {Function} onCancelPlan  取消待确认（策划/记忆）：放弃本次确认，清门禁并收起确认卡
- *  @param {Function} onRetryStep   重试失败步骤
- *  @param {Function} [onPromptAction] prompts 逐条确认通道：{ action, prompts, index?, text? } →
- *      应用后写回消息并可能触发出图（prompts 通道，对齐大雄 confirm/edit/save/reopen/regenerate/confirm-all） */
-/** prompts 逐条确认通道的 action 载荷（与 AgentPanel.handlePromptAction 对齐） */
-interface PromptActionPayload {
-  action: 'update' | 'generate' | 'edit' | 'save' | 'reopen' | 'regenerate' | 'confirm-all' | string
-  assistantContent?: string
-  prompts?: PromptItem[]
-  generations?: unknown[]
-}
-
+ *  @param {Function} onRetryStep   重试失败步骤 */
 interface AgentMessageProps {
   message: AgentMessageData
   onConfirmPlan?: () => void
   onCancelPlan?: (content?: string) => void
   onRetryStep?: (nodeId: string) => void
-  onPromptAction?: (payload: PromptActionPayload) => void
   onSendToCanvas?: (content: string) => void
 }
 
-function AgentMessage({ message, onConfirmPlan, onCancelPlan, onRetryStep, onPromptAction, onSendToCanvas }: AgentMessageProps) {
+function AgentMessage({ message, onConfirmPlan, onCancelPlan, onRetryStep, onSendToCanvas }: AgentMessageProps) {
   // 图片查看大图（原生 dialog）：点击消息里的图片 → 打开查看，替代 target=_blank 新窗口
   const zoomRef = useRef(null)
   const [zoomUrl, setZoomUrl] = useState(null)
@@ -249,22 +234,8 @@ function AgentMessage({ message, onConfirmPlan, onCancelPlan, onRetryStep, onPro
           )}
           {/* 【对齐大雄】阶段1 generations → 渲染步骤卡片（可折叠，用户确认前检查每步） */}
           <GenerationStepsCard generations={message.generations} />
-          {/* 【对齐大雄 prompts 通道 · 保留为可选能力，当前不激活】
-             大雄的 prompts 逐条确认是其「思维模式」遗留，当前大雄 thinkingModeOn=false 已废弃（见
-             promptFlow.js 文件头「★ 重要」）。我们保留此渲染 + PromptConfirmCard，但 assistant 消息
-             默认不带 prompts（走 generations 快速执行通道，见 useAgentChat 文件头路径表），故本卡片
-             默认不出现。若未来要恢复「逐条确认提示词」，把 prompts 灌到 assistant 消息即可，UI/状态机已就绪。
-             【追加：保留决策已确认，2026-08-18】人类明确决策**不删、也不接入/补全**，维持保留。后续 AI 直接跳过此块。 */}
-          {message.prompts && message.prompts.length > 0 && !message.streaming && (
-            <PromptConfirmCard
-              prompts={message.prompts}
-              requestedCount={message.requestedCount}
-              onUpdatePrompts={(newPrompts) => onPromptAction?.({ action: 'update', assistantContent: message.content, prompts: newPrompts })}
-              onGenerate={(generations) => onPromptAction?.({ action: 'generate', assistantContent: message.content, generations })}
-            />
-          )}
           {/* 待确认（策划/记忆/积分）→ 统一确认卡（AgentConfirmCard）：仅前端按钮翻转 awaitingConfirm。
-              记忆确认（memory_suggest）与策划确认共用同一种卡，靠标题/图标/文案区分语义。 */}
+             记忆确认（memory_suggest）与策划确认共用同一种卡，靠标题/图标/文案区分语义。 */}
           {message.awaiting_confirm && !message.streaming && (
             message.memory_suggest ? (
               <AgentConfirmCard

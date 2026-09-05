@@ -18,7 +18,7 @@
 | `prompt/`     | 提示词域（输入/提示词库/纯函数/store）                   |
 | `depthVideo/` | 深度视频域                                     |
 
-> 专项归位（2026-09-04 复核执行）：`d3dPersistence` → `director3d/`、`useImageHoverActions` → `nodes/`（业务域专属件回收）；`upstreamLink`/`toolRegistry` → `canvas/`；`settings/` 已拆分清空删除（组件→ui/、框架→panels/、store→store/、sections→panels/sections/）。`promptFlow.ts` 经复核为边缘死代码，另立 TODO 清理。
+> 专项归位（2026-09-04 复核执行）：`d3dPersistence` → `director3d/`、`useImageHoverActions` → `nodes/`（业务域专属件回收）；`upstreamLink`/`toolRegistry` → `canvas/`；`settings/` 已拆分清空删除（组件→ui/、框架→panels/、store→store/、sections→panels/sections/）。`promptFlow.ts`（prompts 逐条确认通道死代码）已于 2026-09-05 奥卡姆精简删除。
 
 ## 一、core/ （横切唯一入口 P0 红线 + 通用地基）
 
@@ -71,7 +71,7 @@
 UI：`PromptInput.tsx` `PromptLibrary.tsx` `PromptLibraryButton.tsx` `PromptHub.tsx`
 纯函数：`promptChips.ts` `promptMention.ts`
 数据层：`promptHubStore.ts` `promptManager.ts`
-（`promptFlow.ts` 复核为边缘死代码，另立 TODO 清理）
+（`promptFlow.ts` 已于 2026-09-05 奥卡姆精简删除，prompts 逐条确认通道不再保留）
 
 ## 十一、depthVideo/ （深度视频域）
 

@@ -11,9 +11,6 @@
  *     · parseGenerationsFromReply 从 LLM 回复正文解析 plan + generations
  *     · buildRequestMessages     fresh-task 发 LLM 消息组装（协议核心）
  *     · parseAgentError          统一解析 Agent 请求错误
- *     · demoPlan                 Demo 规则引擎
- *     · imageModeLooksLikePerReferenceEdit  图像模式「分别改图」语义判断
- *     · buildPerReferenceGenerations        每参考图一对一 generation 构造
  *     · classifyLocalIntent / buildIntentHint  意图本地判定与预判提示（docs/76 L1 层）
  *     · historyKey / loadHistory 旧单会话历史迁移
  *
@@ -21,9 +18,9 @@
  * sendingRef/abortRef 等可变 ref 闭包，抽出来零行为变化、可被 useAgentChat.ts
  * 与单测共同引用（re-export 保测试契约）。改动优先级低于 hook 核心。
  *
- * 【测试契约】useAgentChat.ts 会 re-export 本模块全部导出，既有单测
- * （agentLogic.test.js / demoPlan.test.js / imageModeSplit.test.js /
- * useAgentChat.hook.test.ts / canvasAgentTools.test.ts）import 路径不变。
+ * 【测试契约】useAgentChat.ts 会 re-export 本模块部分导出，既有单测
+ * （agentLogic.test.js / imageModeSplit.test.js / useAgentChat.hook.test.ts /
+ * canvasAgentTools.test.ts）import 路径不变。
  *
  * 【更新 2026-09-01 · 意图本地判定（docs/76）】新增 classifyLocalIntent /
  *   buildIntentHint / INTENT_HINT / LOCAL_INTENT_THRESHOLD / LocalIntent 类型。
@@ -120,9 +117,6 @@ export interface GenerationSpec {
 // 工具循环常量已收口到 agentConfig（docs/66 §4/A 层）。此处 re-export 保持
 // useAgentChat 与既有单测的 import 契约不变（re-export 保测试契约，见本文件头注释）。
 export { MAX_TOOL_ROUNDS, ENABLE_TOOLS_ON_NON_STREAM } from '../agentConfig.ts'
-
-/** P6：删除节点工具的动词集合——提为模块常量，避免 parseIntent 每次调用重建 Set */
-const DELETE_VERBS = new Set(['删除', '移除', '删掉', 'delete'])
 
 // ── 画布操作准则（单一来源，前端注入）──
 // 原设计把准则放后端 agentChat.ts unshift，但默认路径（provider 存在）走统一生成入口 /api/generate（旧 /api/proxy），
@@ -297,8 +291,6 @@ export function parseGenerationsFromReply(content = '') {
  *                                    补齐 memory 自动摘要（summary/facts 自动沉淀）+ 结构性历史，届时可移除本参数
  *                                    回到纯 fresh-task + 更强 memory。当前在 memory 摘要未落地前，它是性价比最高的解。
  *                                  - 调用方传 0（默认）→ 行为与旧版完全一致，不破坏既有单测与链路的反推安全。
- *  @param {string} [learnedContext] 可选「学」注入块：调用方用 buildLearnedContext 预提取的本对话历史
- *                                   成功生图样本（脱敏/限 token/按意图相似度排序）。空串=不注入。
  *  @param {string} [projectMemoryContext] 可选「记」注入块：调用方用 buildProjectMemoryContextFromStore
  *                                   提取的按 agentKey 全局长期记忆（MMR 排序/限 token）。空串=不注入。
  *  导出供单测（AI 助手前端逻辑核心：确认发给 LLM 的 messages 组装正确）。 */
@@ -310,7 +302,6 @@ export function buildRequestMessages(
   memory: AgentMemory | null = null,
   imageCatalog: ImageRef[] = [],
   historyTurns: number = 0,
-  learnedContext: string = '',
   projectMemoryContext: string = '',
   workMode: WorkMode = RUN_MODE_IDS.AUTO,
 ) {
@@ -385,15 +376,9 @@ export function buildRequestMessages(
     lines.push('在 generations 某步里，若需引用这些图，把其 url 填进该步的 direct_refs 数组，并在 prompt 里写「图N」；执行层会自动把它当作该步参考图。')
     out.push({ role: 'system', content: lines.join('\n') })
   }
-  // 【对齐参考项目 promptLearningService】「学」：注入「本对话历史成功生图样本」为不可信上下文。
-  // 样本由调用方用 buildLearnedContext 预提取（含脱敏/限 token/相似度排序），本函数仅透传装配。
-  // 空串=无需注入，不污染上下文；即便有样本也只作只读学习，不改变任何规则或权限（见样本自带约束说明）。
-  if (learnedContext && typeof learnedContext === 'string' && learnedContext.trim()) {
-    out.push({ role: 'system', content: learnedContext })
-  }
   // 【对齐参考项目 contextManager 的记忆注入】「记」长期记忆：写入用户已确认的按 agentKey 全局记忆。
   // 块由调用方用 buildProjectMemoryContextFromStore 预提取（MMR 排序/脱敏/限 token），本函数仅透传装配。
-  // 空串=无需注入，不污染上下文。置于「学」之后，作为补充事实而非新指令（见块自带约束说明）。
+  // 空串=无需注入，不污染上下文。作为补充事实而非新指令（见块自带约束说明）。
   if (projectMemoryContext && typeof projectMemoryContext === 'string' && projectMemoryContext.trim()) {
     out.push({ role: 'system', content: projectMemoryContext })
   }
@@ -509,120 +494,6 @@ export async function parseAgentError(res: Response, fallback: string = '调用�
     /* 保留默认文案 */
   }
   return msg
-}
-
-/**
- * Demo 规则引擎（仅 VITE_AGENT_DEMO='1' 时用）。
- * 模拟 LLM：把「自然语言一句话」映射成一系列工具调用，驱动画布变化。
- * 返回 [{ name, args }, ...]；不认识的话返回 []（assistant 纯文字答复）。
- * 说明：这是原型演示用的简化规则，真实对话应走 roundTrip（真实 LLM）。
- */
-export function demoPlan(text: string, callTool?: unknown): Array<{ name: string; args: Record<string, unknown> }> {
-  const t = text.trim().toLowerCase()
-
-  // 识别节点类型关键词 → type
-  const typeMap: Array<[RegExp, string]> = [
-    [/生图|图片|画(?:一张|个)?|生成.*图|image|prompt/i, 'promptNode'],
-    [/视频|video/i, 'discountVideoNode'],
-    [/文本|text/i, 'textNode'],
-    [/编组|group/i, 'group']
-  ]
-  let type = null
-  for (const [re, ty] of typeMap) {
-    if (re.test(t)) { type = ty; break }
-  }
-
-  // 提取中文/英文引号内容作为 prompt（如「帮我生成一张「赛博朋克」图」）
-  let prompt = ''
-  const qm = text.match(/[「『"“']([^」』"”']+)[」』"”']/)
-  if (qm) prompt = qm[1]
-  else if (/生成|创建|画/.test(t)) {
-    // 兜底：取「一张…图」等
-    const pm = text.match(/(?:一张|一个|一段)?\s*([^，。,．.！？!?\s]{2,30})/i)
-    if (pm && pm[1] && !/节点|画布/.test(pm[1])) prompt = pm[1]
-  }
-
-  const calls = []
-
-  // 1) 创建节点
-  if (/创建|新建|生成|添加|画|放一个|建一个|帮我.*(节点|图|视频)/i.test(t) && type) {
-    const label = type === 'promptNode' ? '生图节点' : type === 'discountVideoNode' ? '视频节点' : '文本节点'
-    calls.push({ name: 'create_node', args: { type, ...(prompt ? { prompt } : {}), label } })
-  }
-
-  // 2) 连接：「把 A 连到 B」「连接 text-1 和 prompt-1」
-  if (/连接|连到|连线|connect/i.test(t)) {
-    const ids = text.match(/([a-zA-Z0-9_-]+-?\d*)/g)?.filter((s) => s !== t)
-    // 匹配「连接 A 和 B」里的两个节点标识
-    const m = text.match(/([\w-]+)(?:\s*(?:和|与|到|to)\s*([\w-]+))?/)
-    if (m) {
-      const a = m[1]
-      const b = m[2] || ids?.[1]
-      if (a && b && a !== b) calls.push({ name: 'connect_nodes', args: { source: a, target: b } })
-    }
-  }
-
-  // 3) 删除：「删除 X」。中文删除动词不被 [\w-]+ 匹配，故在全部 token 里取第一个非动词的当节点 id。
-  //    （例：删除 text-1 → ['删除','text-1'] → text-1；把 text-1 删掉 → ['text-1'] → text-1）
-  if (/删除|移除|删掉|delete/i.test(t)) {
-    const tokens: string[] = text.match(/([\w-]+)/g) || []
-    const id = tokens.find((s) => !DELETE_VERBS.has(s.toLowerCase()))
-    if (id) calls.push({ name: 'delete_node', args: { nodeId: id } })
-  }
-
-  // 4) 查看画布
-  if (/看看|列出|有哪些|查看|list|结构/i.test(t)) {
-    calls.push({ name: 'read_canvas', args: {} })
-  }
-
-  // 5) 适配视图
-  if (/适配|全览|全部显示|fit/i.test(t)) {
-    calls.push({ name: 'fit_view', args: {} })
-  }
-
-  return calls
-}
-
-/* ════════════════════════════════════════════════════════════════
- * 图像模式「每参考图一对一改图」拆分（对齐大雄 agentLooksLikePerReferenceEdit
- * L2259 + agentExpandPerReferenceGenerations L2334）。纯函数、无副作用。
- * ────────────────────────────────────────────────────────────────
- * 用户说「分别把图1变白、图2变黑」「每张各自生成一张」这类语义时，
- * 把整批参考图拆成 N 个独立 generation，每步 attachment_indices:[i] 只挂自己那张，
- * 让底层 execute_plan / canvasPlanExecutor 按步精确图生图。非分别语义保持原单 generation 行为。
- */
-export function imageModeLooksLikePerReferenceEdit(text: string = '', attachCount: number = 0): boolean {
-  if (attachCount < 2) return false // 单张/无图不拆（对齐大雄 L2262）
-  const t = String(text || '')
-  // 情况 A：直接「分别/各自/逐一/逐个/每张/各出/各改…」（对齐大雄 L2263）
-  if (/(分别|各自|逐一|逐个|每张|各出|各改|各变成|分别改成|分别变成|分别做成)/.test(t)) return true
-  // 情况 B：多对象 + 分别/都/各自/改成/变成/换成（对齐大雄 L2264）
-  if (/(这两|这两张|这两个|这几张|这几个|全部|两只|两张|两个|几只|几张).{0,16}(分别|都|各自|改成|变成|换成)/.test(t)) return true
-  // 情况 C：都/全部改成/变成/换成（对齐大雄 L2265）
-  if (/(都改成|都变成|都换成|全部改成|全部变成)/.test(t)) return true
-  // 情况 D：多个「目标 + 变化动词」逐一改（对齐大雄 L2266-2267，补强单字「变」与无标点并列）
-  //   - 覆盖「图1变白、图2变黑」「图1变成红色图2变成蓝色」「第1张变X、第2张变Y」等
-  const perTargets = t.match(/图\s*\d+\s*(?:变成|改成|换成|变为|变)|第\s*\d+\s*张\s*(?:变成|改成|换成|变为|变)/g) || []
-  if (perTargets.length >= 2) return true
-  // 情况 E：逗号分隔的多个「变成X」目标（对齐大雄 L2266-2267 原逻辑）
-  const targets = t.match(/变成[^，,。；;\n]{1,12}/g) || []
-  if (targets.length >= 2) return true
-  return false
-}
-
-/** 构造「每参考图一对一」的 N 个 generation（对齐大雄 agentExpandPerReferenceGenerations L2334） */
-export function buildPerReferenceGenerations(referenceImages: string[] = [], prompt: string = '', panel: { ratio?: string; resolution?: string } = {}): GenerationSpec[] {
-  return referenceImages.map((url, i) => ({
-    id: `direct_image_${Date.now()}_ref${i + 1}`,
-    title: `参考图${i + 1}`,
-    prompt: String(prompt || '').trim() || '基于该参考图生成一张图',
-    ratio: panel.ratio || 'Auto',
-    resolution: panel.resolution || '1K',
-    depends_on_previous: false,
-    dependency_mode: 'none',
-    use_attachments: true,
-    attachment_indices: [i],
-  }))
 }
 
 /* ════════════════════════════════════════════════════════════════

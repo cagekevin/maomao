@@ -507,8 +507,8 @@ describe('useAgentChat · 直接生图（三态=direct，send 内部第一行分
 
   it('【图生图·单图修复】直连模式带一张参考图 → 生成的 generation 声明 use_attachments:true（否则 execute_plan 作废参考图，图生图失效）', async () => {
     vi.mocked(convStore.getWorkMode).mockReturnValue('direct')
-    // 单参考图 → perRef 拆分不触发（referenceImages.length>=2 才拆），走单 generation。
-    // 该 generation 必须带 use_attachments:true，让 execute_plan 把它整批共享挂到节点 data.images（对齐多图 buildPerReferenceGenerations）。
+    // 单参考图 → 走单 generation（2026-09-05 起不再做多图分别拆图，一律单 generation）。
+    // 该 generation 必须带 use_attachments:true，让 execute_plan 把它整批共享挂到节点 data.images。
     callTool.mockReturnValue({ ok: true, data: { entries: [{ status: 'completed', nodeId: 'n1' }] } })
     const { result } = renderHook<AgentChatApi, unknown>(() => useAgentChat())
     await act(async () => {
@@ -835,7 +835,7 @@ describe('useAgentChat · 三态 × Skill 四象限提示词注入（docs/65 M5�
   })
 
   it('noSkill × auto：注入「完全自主」分流段，引导 plan 可调且不卡确认（R2）', () => {
-    const out = buildRequestMessages(base, '', true, [], null, [], 0, '', '', 'auto') as AssembledMsg[];
+    const out = buildRequestMessages(base, '', true, [], null, [], 0, '', 'auto') as AssembledMsg[];
 const joined = systemTexts(out).join('\n')
     expect(joined).toContain('show_plan_for_confirm')
     expect(joined).toContain('完全自主')
@@ -844,7 +844,7 @@ const joined = systemTexts(out).join('\n')
   })
 
   it('noSkill × step-confirm：注入「分步确认」分流段，引导 plan 等待确认', () => {
-    const out = buildRequestMessages(base, '', true, [], null, [], 0, '', '', 'step-confirm') as AssembledMsg[];
+    const out = buildRequestMessages(base, '', true, [], null, [], 0, '', 'step-confirm') as AssembledMsg[];
 const joined = systemTexts(out).join('\n')
     expect(joined).toContain('show_plan_for_confirm')
     expect(joined).toContain('分步确认')
@@ -852,7 +852,7 @@ const joined = systemTexts(out).join('\n')
   })
 
   it('skill × auto：Skill 阶段2 不等待（追加自适应），确认粒度仍由 auto 决定（R1）', () => {
-    const out = buildRequestMessages(base, '', true, skill(), null, [], 0, '', '', 'auto') as AssembledMsg[];
+    const out = buildRequestMessages(base, '', true, skill(), null, [], 0, '', 'auto') as AssembledMsg[];
 const texts = systemTexts(out)
     const skillSys = texts.find((t) => t.includes('Skill 文档'))
     expect(skillSys).toContain('【确认粒度自适应 · 完全自主】') // 阶段2 作废
@@ -860,7 +860,7 @@ const texts = systemTexts(out)
   })
 
   it('skill × step-confirm：Skill 阶段2 保持等待确认，确认粒度由 step-confirm 决定', () => {
-    const out = buildRequestMessages(base, '', true, skill(), null, [], 0, '', '', 'step-confirm') as AssembledMsg[];
+    const out = buildRequestMessages(base, '', true, skill(), null, [], 0, '', 'step-confirm') as AssembledMsg[];
 const texts = systemTexts(out)
     const skillSys = texts.find((t) => t.includes('Skill 文档'))
     expect(skillSys).not.toContain('作废')

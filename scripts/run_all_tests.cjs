@@ -32,7 +32,7 @@ function findVitestBin() {
 }
 
 // 门禁套件说明：
-//  - L2 vitest run 已是全量（含 canvasAgentTools / demoPlan 工具层单测），不再单独起 esbuild 进程。
+//  - L2 vitest run 已是全量（含 canvasAgentTools 工具层单测），不再单独起 esbuild 进程。
 //  - SSR 结构回归（原 regression_test.cjs 的 esbuild-CJS 版）已迁为 vitest 用例
 //    tests/unit/nodes/ssrRegression.test.ts，直接用 vitest 跑，消除 "import.meta is not available
 //    with cjs" 警告（vitest 原生支持 import.meta.env / ESM，无需 esbuild CJS 黑魔法）。
