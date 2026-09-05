@@ -143,11 +143,11 @@ describe('TextNode 上游文本/图片合并（修复点）', () => {
     fireEvent.click(screen.getByText('生成'))
     await waitFor(() => expect(mockChat).toHaveBeenCalled())
     const call = mockChat.mock.calls[0][0] as unknown as { messages: Array<{ role: string; [k: string]: unknown }>; images?: unknown }
-    // 芯片被解析为可读文本（图片 → 图片N），绝不把 @{id:label|url} 噪音原样发给 LLM
+    // 芯片被解析为显式垫图引用（图片 → [img=图片N]），绝不把 @{id:label|url} 噪音原样发给 LLM
     const userMsg = call.messages.find((m) => m.role === 'user')
     expect(userMsg.content).not.toContain('@{i1')
     expect(userMsg.content).not.toContain('http%3A')
-    expect(userMsg.content).toContain('图片1')
+    expect(userMsg.content).toContain('[img=图片1]')
     // 芯片图被提取进参考图，供 LLM 看图理解
     expect(call.images).toContain('http://up/ref.png')
   })

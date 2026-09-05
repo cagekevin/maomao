@@ -134,16 +134,16 @@ describe('resolvePromptChips（生成端解析）', () => {
   ]
   const refTexts = [{ id: 't-1', label: '参考文本' }]
 
-  it('图片芯片 → 提取为参考图，prompt 替换为 图片N', () => {
+  it('图片芯片 → 提取为参考图，prompt 原地替换为 [img=图片N] 垫图引用', () => {
     const { text, refImages: out } = resolvePromptChips('用 @{img-1:人物} 生成', refImages, refTexts)
-    expect(text).toBe('用 图片1 生成')
+    expect(text).toBe('用 [img=图片1] 生成')
     expect(out).toEqual([{ id: 'img-1', url: 'http://x/1.png' }])
   })
 
-  it('同一图多次引用只取一张参考图', () => {
+  it('同一图多次引用只取一张参考图（引用标记原位重复出现）', () => {
     const { text, refImages: out } = resolvePromptChips('@{img-1:a} 与 @{img-1:b}', refImages, refTexts)
     expect(out).toHaveLength(1)
-    expect(text).toContain('图片1')
+    expect(text).toContain('[img=图片1]')
   })
 
   it('文本芯片 → 替换为其 label', () => {

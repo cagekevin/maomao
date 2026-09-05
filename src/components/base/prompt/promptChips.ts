@@ -212,7 +212,8 @@ export function renderPromptToNodes(text: string, metaMap?: Map<string, ChipMeta
 
 /**
  * 生成前解析：把 prompt 里的 `@{id:label}` 芯片解析为「纯文本 + 参考图」。
- *   - 图片素材芯片 → 其 url 加入 refImages 参考图列表（同一 id 去重），位置替换为 `图片N`；
+ *   - 图片素材芯片 → 其 url 加入 refImages 参考图列表（同一 id 去重），位置替换为显式垫图引用
+ *     `[img=图片N]`（seedance 富文本垫图语法，避免裸词「图片N」被模型当成画面描述词汇而忽略垫图）；
  *   - 文本素材芯片 → 替换为其 label（作为纯文本随 prompt 发出）；
  *   - 找不到对应素材 → 替换为空（不产生垃圾字符）。
  * @param {string} rawPrompt 含 `@{id:label}` 的原始 prompt
@@ -230,7 +231,7 @@ export function resolvePromptChips(
   const textById = new Map<string, string>()
   for (const t of refTexts) if (t && t.id && t.label) textById.set(t.id, t.label)
 
-  const imageKeyToIndex = new Map<string, number>() // 图引用去重：id → 图片N
+  const imageKeyToIndex = new Map<string, number>() // 图引用去重：id → [img=图片N]
   const resolvedRefImages: Array<{ id: string; url: string }> = []
 
   const text = String(rawPrompt || '').replace(PROMPT_CHIP_RE, (_match: string, id: string, label: string) => {
@@ -242,7 +243,9 @@ export function resolvePromptChips(
         imageKeyToIndex.set(id, idx)
         resolvedRefImages.push({ id, url: imgUrl })
       }
-      return `图片${idx}`
+      // seedance 富文本垫图语法：显式 `[img=图片N]` 声明垫图引用，而非裸词「图片N」，
+      // 避免模型把「图片1」当成画面描述词汇而忽略垫图 / 凭空重画。
+      return `[img=图片${idx}]`
     }
     const textLabel = textById.get(id)
     if (textLabel) return textLabel
