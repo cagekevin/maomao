@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react'
+import React, { type ReactNode } from 'react'
 import { LayoutGrid, Map, Maximize, RefreshCw, Zap } from 'lucide-react'
 
 /**
@@ -28,7 +28,8 @@ import { LayoutGrid, Map, Maximize, RefreshCw, Zap } from 'lucide-react'
  * @param {Function} props.onToggleMinimap
  * @param {Function} props.onArrange      整理画布（dagre 自动排版）
  * @param {Function} props.onFitView      适合视图（fitView）
- * @param {number} props.zoomPercent      当前缩放百分比（整型）
+ * @param {ReactNode} props.zoomPercentNode 缩放百分比显示（叶子组件插槽，P0-C C3：
+ *      由宿主注入自订阅 store 的 ZoomPercent，缩放时仅它重渲，本工具栏与宿主不参与）
  * @param {boolean} props.performanceMode 缩放性能模式开关（激活黄高亮）
  * @param {Function} props.onTogglePerformance
  * @param {Function} [props.onClearCache] 清理缓存（App 传入：释放节点内大 dataURL 资源）
@@ -42,8 +43,8 @@ export interface CanvasToolbarProps {
   onArrange: () => void
   /** 适合视图（fitView） */
   onFitView: () => void
-  /** 当前缩放百分比（整型） */
-  zoomPercent: number
+  /** 缩放百分比显示（叶子组件插槽，P0-C C3：宿主注入自订阅 store 的 ZoomPercent） */
+  zoomPercentNode: ReactNode
   /** 缩放性能模式开关（激活黄高亮） */
   performanceMode: boolean
   onTogglePerformance: () => void
@@ -58,15 +59,12 @@ function CanvasToolbar({
   onToggleMinimap,
   onArrange,
   onFitView,
-  zoomPercent,
+  zoomPercentNode,
   performanceMode,
   onTogglePerformance,
   onClearCache,
   localToolConnected,
 }: CanvasToolbarProps) {
-  // 缩放%按钮可点击回到 100%
-  const zoomPercentText = useMemo(() => `${zoomPercent}%`, [zoomPercent])
-
   // 框整体紧凑化（用户要求不占大面积）：容器 padding 收窄、按钮 p 减小、分隔线间距减小，图标尺寸不变。
   const baseBtn =
     'p-1.5 rounded-full transition-colors flex items-center justify-center text-secondary hover:text-white hover:bg-surface-hover-strong'
@@ -130,7 +128,7 @@ function CanvasToolbar({
           className="text-xs text-secondary font-medium min-w-[36px] text-center cursor-default select-none"
           title="点击适配视图"
         >
-          {zoomPercentText}
+          {zoomPercentNode}
         </button>
       </div>
     </div>

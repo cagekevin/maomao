@@ -37,28 +37,39 @@ function CustomHandle({ className = '', variant = 'large', position, handleId, t
   useEffect(() => {
     const el = ref.current
     if (!el) return
-    // P3：mousemove 高频 → rAF 合并；getBoundingClientRect 从「每事件一次」降到「每帧一次」
-    // （句柄 hover 期间画布不 pan，rect 在帧内取值即可，无需 pointerdown 缓存到拖拽结束）。
+    // P0（docs/106 复核 D reflow 候选#1）：mousemove 不再每帧 getBoundingClientRect
+    // （「读布局→写样式」同帧 = forced reflow）。改为 mouseenter 时缓存一次端口圆心，
+    // mousemove 的 rAF 回调只算偏移 + 写 CSS 变量，不触发布局。
+    // 为什么可接受：鼠标停在端口上 hover 时画布几乎不动（不拖拽不缩放），
+    // 缓存 rect 的偏移偏差可忽略；mouseleave 清 0 复位。
+    // rAF 合帧保留（P3：高频 mousemove 每帧只执行一次）。
+    let cachedCx = 0
+    let cachedCy = 0
     const batch = createRafBatch((clientX, clientY) => {
-      const r = el.getBoundingClientRect()
-      const cx = r.left + r.width / 2
-      const cy = r.top + r.height / 2
-      let dx = Math.max(-14, Math.min(14, (clientX - cx) * 0.35))
-      let dy = Math.max(-14, Math.min(14, (clientY - cy) * 0.35))
+      let dx = Math.max(-14, Math.min(14, (clientX - cachedCx) * 0.35))
+      let dy = Math.max(-14, Math.min(14, (clientY - cachedCy) * 0.35))
       if (isLeft) dx = Math.min(0, dx)
       else if (isRight) dx = Math.max(0, dx)
       el.style.setProperty('--cust-shift-x', `${dx}px`)
       el.style.setProperty('--cust-shift-y', `${dy}px`)
     })
+    const enter = () => {
+      // 一次性读布局（mouseenter 时无 React 同帧写竞争，非每帧路径）
+      const r = el.getBoundingClientRect()
+      cachedCx = r.left + r.width / 2
+      cachedCy = r.top + r.height / 2
+    }
     const move = (e) => batch(e.clientX, e.clientY)
     const reset = () => {
       batch.cancel()
       el.style.setProperty('--cust-shift-x', '0px')
       el.style.setProperty('--cust-shift-y', '0px')
     }
+    el.addEventListener('mouseenter', enter)
     el.addEventListener('mousemove', move)
     el.addEventListener('mouseleave', reset)
     return () => {
+      el.removeEventListener('mouseenter', enter)
       el.removeEventListener('mousemove', move)
       el.removeEventListener('mouseleave', reset)
       batch.cancel()

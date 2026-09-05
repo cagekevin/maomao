@@ -646,9 +646,11 @@ body,
   opacity: 0;
   pointer-events: none;
 }
-.react-flow.lod-3 .react-flow__node .node-content {
-  display: none;
-}
+/* P3（docs/106）：删除死规则 .node-content { display:none }——NodeShell 主容器没有 node-content 类，
+   规则从未生效（缩到极小仍渲染内容）。曾考虑给主容器加该 class，但会触发三处实质回归：
+   ① CustomHandle 端口就渲染在主容器内 → display:none 使端口 rect 归零 → 边 code-008/消失；
+   ② 内容自适应节点（ScriptBox/GridSplit/GridMerge/VideoExtract）的 RO 会把极小高度写回并持久化；
+   ③ 与 lod-2/3 的 visibility:hidden 叠加视觉等于清空节点。故首选删死规则（方案 A）。 */
 .react-flow.lod-3 .react-flow__node {
   opacity: 0.8;
   transition: opacity 0.2s;

@@ -1,5 +1,13 @@
 import { describe, it, expect } from 'vitest'
-import { getNodeOutput, NODE_OUTPUTS } from '../../src/hooks/useConnectedInputs.ts'
+import {
+  getNodeOutput,
+  NODE_OUTPUTS,
+  buildIncomingIndex,
+  incomingOf,
+  collectUpstream,
+  upstreamEqual,
+  aggregateUpstream,
+} from '../../src/hooks/useConnectedInputs.ts'
 import { SHOT_HANDLE_PREFIX, shotHandleId, parseShotHandle } from '../../src/components/base/core/contracts.ts'
 
 // 分镜端口契约（contracts.SHOT_HANDLE_PREFIX）：写侧 shotHandleId / 读侧 parseShotHandle 必须成对往返
@@ -152,3 +160,195 @@ describe('管线契约 getNodeOutput', () => {
     expect(Object.keys(NODE_OUTPUTS)).not.toContain('textNode')
   })
 })
+
+// ════════════════════════════════════════════════════════════════
+// P0-B（docs/106 画布重渲放大器根治）窄订阅纯函数契约
+// 三段式：① incomingOf（入边，edges 引用缓存）→ ② collectUpstream/upstreamEqual（上游窄订阅）
+//        → ③ aggregateUpstream（聚合，签名与旧 useMemo 体一致）
+// ════════════════════════════════════════════════════════════════
+
+function mkNode(id: string, type: string, data: Record<string, unknown> = {}, extra: Record<string, unknown> = {}) {
+  return { id, type, data, position: { x: 0, y: 0 }, ...extra }
+}
+
+describe('P0-B ① 入边索引（incomingOf 引用缓存，edges 引用变才重建）', () => {
+  it('同 edges 引用 → 返回同一缓存数组对象（拖拽期间 edges 引用稳定 → 不重建不重渲）', () => {
+    const edges = [
+      { id: 'e1', source: 'u1', target: 'd1' },
+      { id: 'e2', source: 'u2', target: 'd1' },
+    ]
+    const a = incomingOf(edges, 'd1')
+    const b = incomingOf(edges, 'd1')
+    expect(a).toBe(b)
+    expect(a.map((x) => x.source)).toEqual(['u1', 'u2'])
+  })
+
+  it('edges 引用变化（增连线）→ 重建并反映新入边', () => {
+    const edges1 = [{ id: 'e1', source: 'u1', target: 'd1' }]
+    const edges2 = [
+      { id: 'e1', source: 'u1', target: 'd1' },
+      { id: 'e2', source: 'u3', target: 'd1' },
+    ]
+    const a = incomingOf(edges1, 'd1')
+    const b = incomingOf(edges2, 'd1')
+    expect(a).not.toBe(b)
+    expect(b.map((x) => x.source)).toEqual(['u1', 'u3'])
+  })
+
+  it('删连线 → 入边收缩', () => {
+    const edges1 = [
+      { id: 'e1', source: 'u1', target: 'd1' },
+      { id: 'e2', source: 'u2', target: 'd1' },
+    ]
+    const edges2 = [{ id: 'e2', source: 'u2', target: 'd1' }]
+    expect(incomingOf(edges1, 'd1')).toHaveLength(2)
+    expect(incomingOf(edges2, 'd1')).toHaveLength(1)
+  })
+
+  it('无 nodeId / 无 edges / 无入边 → 空数组（不报错）', () => {
+    const edges = [{ id: 'e1', source: 'u1', target: 'd1' }]
+    expect(incomingOf(edges, undefined)).toEqual([])
+    expect(incomingOf(undefined, 'd1')).toEqual([])
+    expect(incomingOf(edges, 'nobody')).toEqual([])
+    expect(incomingOf([], 'd1')).toEqual([])
+  })
+
+  it('buildIncomingIndex 按 target 分组（多 target 各得其边）', () => {
+    const edges = [
+      { id: 'e1', source: 'u1', target: 'd1', sourceHandle: 'out-a' },
+      { id: 'e2', source: 'u2', target: 'd2' },
+      { id: 'e3', source: 'u3', target: 'd1' },
+    ]
+    const idx = buildIncomingIndex(edges)
+    expect(idx.get('d1')?.map((x) => x.source)).toEqual(['u1', 'u3'])
+    expect(idx.get('d1')?.[0].sourceHandle).toBe('out-a')
+    expect(idx.get('d2')?.map((x) => x.source)).toEqual(['u2'])
+  })
+})
+
+describe('P0-B ② 上游收集与判等（collectUpstream / upstreamEqual）', () => {
+  it('上游改 data（引用变化）→ upstreamEqual 判不等 → 重算', () => {
+    const before = mkNode('u1', 'promptNode', { imageUrl: 'http://a.png' })
+    const after = mkNode('u1', 'promptNode', { imageUrl: 'http://b.png' }) // 重新生成 → 新 data 引用
+    const upA = [{ node: before, sourceHandle: undefined }]
+    const upB = [{ node: after, sourceHandle: undefined }]
+    expect(upstreamEqual(upA, upB)).toBe(false)
+  })
+
+  it('上游被拖拽只改 position（node 引用变、data 引用不变）→ 判等 → 下游不重渲', () => {
+    const data = { imageUrl: 'http://a.png' }
+    const still1 = mkNode('u1', 'promptNode', data, { position: { x: 0, y: 0 } })
+    const moved = mkNode('u1', 'promptNode', data, { position: { x: 10, y: 10 } }) // 新 node 引用，data 同引用
+    expect(upstreamEqual([{ node: still1 }], [{ node: moved }])).toBe(true)
+  })
+
+  it('同引用 / 同内容 → 判等（不重渲）', () => {
+    const n = mkNode('u1', 'promptNode', { imageUrl: 'http://a.png' })
+    expect(upstreamEqual([{ node: n, sourceHandle: 'o' }], [{ node: n, sourceHandle: 'o' }])).toBe(true)
+    expect(upstreamEqual([], [])).toBe(true)
+    expect(upstreamEqual(undefined, undefined)).toBe(true)
+  })
+
+  it('长度 / 来源 id / handle / 类型 任一变化 → 判不等', () => {
+    const n1 = mkNode('u1', 'promptNode', { imageUrl: 'http://a.png' })
+    const n2 = mkNode('u2', 'promptNode', { imageUrl: 'http://a.png' })
+    expect(upstreamEqual([{ node: n1 }], [])).toBe(false) // 删连线 → 上游变短
+    expect(upstreamEqual([{ node: n1 }], [{ node: n1 }, { node: n2 }])).toBe(false) // 增连线
+    expect(upstreamEqual([{ node: n1, sourceHandle: 'a' }], [{ node: n1, sourceHandle: 'b' }])).toBe(false)
+    const renamed = { ...n1, type: 'imageNode' }
+    expect(upstreamEqual([{ node: n1 }], [{ node: renamed }])).toBe(false) // 类型变化
+  })
+
+  it('上游节点被删除 → 从 lookup 消失 → 上游收缩（判不等）', () => {
+    const lookup = new Map([['u1', mkNode('u1', 'promptNode', { imageUrl: 'http://a.png' })]])
+    const incoming = [{ source: 'u1', sourceHandle: undefined }]
+    const up = collectUpstream({ nodeLookup: lookup }, incoming)
+    expect(up).toHaveLength(1)
+    lookup.delete('u1') // 节点被删
+    expect(collectUpstream({ nodeLookup: lookup }, incoming)).toHaveLength(0)
+  })
+})
+
+describe('P0-B ③ 聚合（aggregateUpstream 与旧 useMemo 体语义等价）', () => {
+  it('非编组上游：聚合产出 + 补 sourceNodeId', () => {
+    const src = mkNode('u1', 'promptNode', { imageUrl: 'http://a.png' })
+    const out = aggregateUpstream([{ node: src, sourceHandle: undefined }])
+    expect(out.images).toHaveLength(1)
+    expect(out.images[0].url).toBe('http://a.png')
+    expect(out.images[0].sourceNodeId).toBe('u1')
+  })
+
+  it('textNode 上游 → texts 通道带 sourceNodeId', () => {
+    const src = mkNode('t1', 'textNode', { text: '你好' })
+    const out = aggregateUpstream([{ node: src, sourceHandle: undefined }])
+    expect(out.texts[0].text).toBe('你好')
+    expect(out.texts[0].sourceNodeId).toBe('t1')
+  })
+
+  it('相对 /files/ URL 兜底为绝对 URL（刷新不破图）', () => {
+    const src = mkNode('u1', 'promptNode', { imageUrl: '/files/a.png' })
+    const out = aggregateUpstream([{ node: src, sourceHandle: undefined }])
+    expect(out.images[0].url).toContain('/files/a.png')
+    expect(out.images[0].url.startsWith('http')).toBe(true)
+  })
+
+  it('无上游 → 空聚合', () => {
+    expect(aggregateUpstream([])).toEqual({ images: [], texts: [], videos: [], audios: [] })
+  })
+})
+
+describe('P0-B 编组出口（parentLookup 展开，行为与旧 nodes.filter 等价）', () => {
+  const group = mkNode('g1', 'group', {})
+  const child1 = mkNode('c1', 'imageNode', { imageUrl: 'http://c1.png' })
+  const childHidden = mkNode('c2', 'imageNode', { imageUrl: 'http://c2.png' }, { hidden: true })
+
+  it('group 上游展开为非 hidden 子节点（hidden 被排除）', () => {
+    const lookup = new Map([
+      ['g1', group],
+      ['c1', child1],
+      ['c2', childHidden],
+    ])
+    const parentLookup = new Map([
+      ['g1', new Map([['c1', child1], ['c2', childHidden]])],
+    ])
+    const up = collectUpstream({ nodeLookup: lookup, parentLookup }, [{ source: 'g1', sourceHandle: undefined }])
+    expect(up).toHaveLength(1)
+    expect(up[0].node.id).toBe('c1')
+    expect(up[0].fromGroup).toBe(true)
+  })
+
+  it('组内子节点聚合：不补 sourceNodeId（保持既有行为）', () => {
+    const up = [{ node: child1, sourceHandle: undefined, fromGroup: true }]
+    const out = aggregateUpstream(up)
+    expect(out.images[0].url).toBe('http://c1.png')
+    expect(out.images[0].sourceNodeId).toBeUndefined()
+  })
+
+  it('组内子节点 data 变化 → upstreamEqual 判不等（折叠/增删子节点同理走长度/元素变化）', () => {
+    const childNew = mkNode('c1', 'imageNode', { imageUrl: 'http://c1-new.png' })
+    expect(
+      upstreamEqual(
+        [{ node: child1, sourceHandle: undefined, fromGroup: true }],
+        [{ node: childNew, sourceHandle: undefined, fromGroup: true }]
+      )
+    ).toBe(false)
+  })
+
+  it('子节点被移出组（parentLookup 不再含它）→ 上游收缩', () => {
+    const lookup = new Map([
+      ['g1', group],
+      ['c1', child1],
+    ])
+    const incoming = [{ source: 'g1', sourceHandle: undefined }]
+    // 移出前：组内有 c1
+    const before = collectUpstream(
+      { nodeLookup: lookup, parentLookup: new Map([['g1', new Map([['c1', child1]])]]) },
+      incoming
+    )
+    expect(before).toHaveLength(1)
+    // 移出后：组空
+    const after = collectUpstream({ nodeLookup: lookup, parentLookup: new Map() }, incoming)
+    expect(after).toHaveLength(0)
+  })
+})
+

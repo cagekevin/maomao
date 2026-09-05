@@ -41,20 +41,29 @@ interface NodeShellProps {
   children?: ReactNode
 }
 
-// ReactFlow store 选择器：订阅单个节点的当前 width/height。
+// ReactFlow store 选择器：订阅单个节点的当前 width / height。
 // 目的：让根 div 的 inline width/height 永远等于 ReactFlow 的 node.width/height。
 // 当 NodeResizer 拖拽 / 自定义手柄 onMainBoxResize 写回 setNodes 后，store 更新 →
 // 本 hook 触发重渲染 → 根 div 尺寸跟随新值 → 与 ReactFlow wrapper 保持像素一致。
 // （SSR / 未初始化时 store 可能无 nodeLookup，需安全兜底返回 undefined，外层回退到默认尺寸）
-function useNodeSize(id) {
+//
+// P0（docs/106 画布重渲放大器根治）：拆成两个返回**原始值**的 selector。
+// 旧实现返回 {width, height} 新对象字面量 → zustand 用 Object.is 比较 → 永远不等 →
+// 拖拽/缩放时 store 每帧变化 → 所有 NodeShell（16 类节点）每帧全量重渲染。
+// 返回原始 number/string/undefined 后 Object.is 相等 → 只有尺寸真变的节点才重渲自己。
+// （不推荐 useShallow：它每次仍分配新对象，大画布下每帧几百次对象分配有 GC 压力。）
+// 等价性：旧实现在 !lookup / !n / !id 三种情况下返回 {width:undefined,height:undefined}，
+// 新实现 s?.nodeLookup?.get(id) 在这三种情况下同样得到 undefined → 行为完全等价。
+function useNodeWidth(id) {
   return useStore((s) => {
-    const lookup = s?.nodeLookup
-    if (!lookup || !id) return { width: undefined, height: undefined }
-    const n = lookup.get(id)
-    if (!n) return { width: undefined, height: undefined }
-    const w = n.width ?? n.style?.width
-    const h = n.height ?? n.style?.height
-    return { width: w, height: h }
+    const n = s?.nodeLookup?.get(id)
+    return n?.width ?? n?.style?.width
+  })
+}
+function useNodeHeight(id) {
+  return useStore((s) => {
+    const n = s?.nodeLookup?.get(id)
+    return n?.height ?? n?.style?.height
   })
 }
 
@@ -138,7 +147,7 @@ function useNodeSize(id) {
  *     tailwind.config.js。禁止新写裸色值 bg-[#1c1c1c] / text-gray-500 / text-[10px] / z-[9999]。
  *
  * ── 2. 尺寸 / 高度自适应 ──
- *   · 根 div 尺寸 = ReactFlow node.width/height（NodeShell 用 useNodeSize 从 store 订阅，
+ *   · 根 div 尺寸 = ReactFlow node.width/height（NodeShell 用 useNodeWidth/useNodeHeight 从 store 订阅，
  *     非 w-full/h-full 跟随父容器），端口基于中点定位。别在节点里另写一套尺寸逻辑。
  *   · 简单节点：内容固定在 NodeShell 尺寸内即可。复合节点（内容撑高超 node.height）：
  *     ResizeObserver 监听 → useNodeResize(id).onMainBoxResize(w,h) 写回 node.height +
@@ -165,6 +174,9 @@ function useNodeSize(id) {
  *     ? {...n, data:{...n.data,...patch}} : n))`，非目标节点 : n 原样返回。
  *   · **外部写 data → 同步回本地 state**：用 useEffect 监听 `data.xxx`，变化时 setState 刷新
  *     （GridSplit/GridMerge/DiscountVideo 都这么做）。若外部是 Agent 批量写，用 `useSyncNodeData(data, setters)`。
+ *   · ⚠️ **P0-B 红线（docs/106 F1）：写 `node.data` 必须不可变更新，禁止原地 mutation
+ *     （`node.data.x = ...`）。** useConnectedInputs 窄订阅后，下游只对上游 `data` **引用**变化敏感——
+ *     原地 mutation 引用不变 → 下游**静默不更新**（比旧实现"性能差"更难查）。全项目已核查 0 处原地 mutation。
  *   · 例外（别当通用范式）：ImageBoxNode 直接读 data.images、不复制 state——因为它是「多图容器」，
  *     数据量大且常被连线/剧本盒子读写，直接读 data 避免副本失控。单参数节点照统一范式即可。
  *   · 判断准则（ARCHITECTURE.md §三）：数据会不会被引擎/连线/持久化/复制读写。
@@ -243,8 +255,9 @@ function NodeShell({
   // 否则内容区撑满主容器会把可拖区域盖住（只剩标题栏可拖）。
   const mainShellClassName = `relative w-full flex-1 min-h-0 flex flex-col bg-surface-raised rounded-xl border shadow-xl transition-colors duration-200 drag-handle cursor-move ${selected ? 'border-edge-strong' : 'border-edge hover:border-edge-muted'}`
 
-  // 订阅当前节点尺寸，用于根 div inline style
-  const { width, height } = useNodeSize(id)
+  // 订阅当前节点尺寸，用于根 div inline style（P0：拆两个原始值 selector，见上方 useNodeWidth/Height）
+  const width = useNodeWidth(id)
+  const height = useNodeHeight(id)
   // 尺寸来源：node data（初始渲染时可能还没 width/height，回退到默认值）
   //  - 宽度：width-fixed 用 420，area-fixed 用面积基准（baseSize）
   //  - 高度：用 defaultHeight

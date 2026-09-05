@@ -8,7 +8,8 @@ import {
   ReactFlowProvider,
   useNodesState,
   useEdgesState,
-  useReactFlow
+  useReactFlow,
+  useStore
 } from '@xyflow/react'
 import type { Node, Edge, Connection } from '@xyflow/react'
 import { Zap, RefreshCw } from 'lucide-react'
@@ -57,7 +58,6 @@ import { createGroupFromNodes, ungroupNodes, deleteNodesWithCascade, duplicateSe
 import { externalizeInlineData } from './components/base/utils/externalizeInline.ts'
 import { saveInlineToLocal } from './components/base/api/index.ts'
 import { generateId } from './components/base/core/idGen.ts'
-import { createRafBatch } from './components/base/core/utils.ts'
 import { resolveDragGrouping } from './components/base/canvas/groupNodes.ts'
 import { buildNodesFromClipboard } from './components/base/utils/clipboard.ts'
 import { applyNodeTypeDefaults } from './components/base/canvas/nodeDefaults.ts'
@@ -96,6 +96,25 @@ function handleReactFlowError(code, message) {
   if (RF_SILENCED_ERROR_CODES.has(String(code))) return
   logger.warn('react-flow', `code-${code}`, message)
 }
+
+// ═══ P0-C（106 画布重渲放大器根治）常量提取：消除每帧多余的 store.setState ═══
+// 背景：StoreUpdater（react/index.mjs）的 effect deps 含 fitViewOptions / deleteKeyCode。
+// 内联字面量会让「App 每次渲染 → effect 重跑 → 多一次 store.setState → 全画布 selector 重跑一轮」。
+// 提成模块常量后引用永远稳定，effect 只在真变化时触发（零行为改动，值完全不变）。
+// C1：fitViewOptions 只在初始化 fitView 时读一次（fitView={initialFitView}），提常量无副作用。
+const FIT_VIEW_OPTIONS = { padding: 0.2, maxZoom: 1, minZoom: 0.05 }
+// C2：deleteKeyCode 内联数组会破坏 memo(FlowRenderer)（react/index.mjs:2117），提常量恢复命中率。
+const DELETE_KEY_CODE = ['Backspace', 'Delete']
+
+// ═══ P0-C C3：缩放百分比叶子组件（把 App 重渲移出 rAF 回调）═══
+// 原实现：onViewportChange → viewportRaf（rAF 回调内 setZoomPercent）→ App 全量 setState →
+// App 重渲（ReactFlow + 全部节点）→ 耗时记在 rAF handler 上 → [Violation] 81ms。
+// 现在 zoom% 自订阅 ReactFlow store 的 transform（原始 number，Object.is 安全）：
+// 缩放时只有本叶子重渲自己，App / CanvasToolbar 完全不参与。App 不再持有 zoomPercent state。
+const ZoomPercent = React.memo(function ZoomPercent() {
+  const pct = useStore((s) => Math.round((s.transform?.[2] ?? 1) * 100))
+  return <>{pct}%</>
+})
 
 function Canvas() {
   /* ====================================================================
@@ -255,18 +274,24 @@ function Canvas() {
   // arrangeCanvas 在此统一编排（见能力区）。
   const { arrange } = useArrangeCanvas()
 
-  // 当前缩放百分比（监听 viewport 变化，驱动左下角 zoom% 显示）。
+  // 当前缩放百分比：已下沉为 ZoomPercent 叶子组件自订阅 store（P0-C C3），App 不再持有 state。
   // 接真系统：若需在缩小到某级做额外事（如隐藏 toolbar 部分按钮），可直接读 lodLevel state（见下）。
-  const [zoomPercent, setZoomPercent] = React.useState(100)
-  // P3：viewport 高频变化（拖拽/滚轮缩放）→ rAF 合并 setState，避免一帧内多次重渲染
-  const viewportRaf = React.useRef(null)
-  if (viewportRaf.current == null) {
-    viewportRaf.current = createRafBatch((zoom) => setZoomPercent(Math.round((zoom || 1) * 100)))
-  }
+  // onViewportChange 保留只为同步 viewportRef（持久化视窗位置用，persistCanvas 读它），
+  // 不再驱动任何 setState → 缩放时 App 不重渲染，rAF 回调不再承担全量重渲。
   const onViewportChange = React.useCallback((v) => {
     viewportRef.current = v || null
-    viewportRaf.current?.(v?.zoom || 1)
   }, [])
+
+  // P0-C C3：zoom% 叶子组件插槽。useMemo 固定元素引用 → CanvasToolbar 的 memo 不被每次 App 重渲打破
+  // （叶子自身订阅 store，缩放时只有它重渲，CanvasToolbar/App 不参与）。
+  const zoomPercentSlot = React.useMemo(() => <ZoomPercent />, [])
+
+  // P0-C 收尾（docs/106）：CanvasToolbar 三个回调提 useCallback，让 memo(CanvasToolbar) 在
+  // 「App 因拖拽等其它原因每帧重渲」时命中 → 拖拽期间工具栏不再跟着每帧重渲。
+  // 依赖都是稳定源：setSetting 是模块级函数、fitView 是 useReactFlow 的 store action、minimapOn/performanceMode 来自 useAppSettings。
+  const handleToggleMinimap = React.useCallback(() => setSetting('minimapOn', !minimapOn), [minimapOn])
+  const handleFitView = React.useCallback(() => fitView({ padding: 0.2, duration: 800 }), [fitView])
+  const handleTogglePerformance = React.useCallback(() => setSetting('performanceMode', !performanceMode), [performanceMode])
 
   // 始终指向最新 nodes/edges（撤销/重做取快照用）
   const nodesRef = React.useRef(nodes)
@@ -1164,7 +1189,7 @@ function Canvas() {
           onError={handleReactFlowError}
           connectionLineComponent={ConnectionLine}
           connectionRadius={60}
-          deleteKeyCode={['Backspace', 'Delete']}
+          deleteKeyCode={DELETE_KEY_CODE}
           onPaneContextMenu={menu.onPaneContextMenu}
           onNodeContextMenu={menu.onNodeContextMenu}
           onSelectionContextMenu={menu.onSelectionContextMenu}
@@ -1263,7 +1288,7 @@ function Canvas() {
               onToggleMinimap={() => setSetting('minimapOn', !minimapOn)}
               onArrange={arrangeCanvas}
               onFitView={() => fitView({ padding: 0.2, duration: 800 })}
-              zoomPercent={zoomPercent}
+              zoomPercentNode={zoomPercentSlot}
               performanceMode={performanceMode}
               onTogglePerformance={() => setSetting('performanceMode', !performanceMode)}
               onClearCache={handleClearCache}
