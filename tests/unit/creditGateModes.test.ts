@@ -1,22 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 /**
- * 三种模式 × 高消耗积分开关（creditSwitch）的端到端契约测试。
+ * 高消耗积分开关（creditSwitch）× execute_plan 唯一入口的契约测试。
  *
  * 契约来源：docs/59-AI助手模式收敛-PRD-三按钮与积分确认（§4.3 / §8）、docs/60 施工执行计划（D1-D9）。
+ * 【2026-09-05 精简】执行模型收敛恒 auto（direct/step-confirm 已删），故删掉「直接生图/分步确认」两组死路径用例，
+ *   仅保留「完全自主 auto」× 开关两态：creditHit = getCreditSwitch()（与执行模型正交，只拦真生成那下）。
  *
  * 核心判定（收敛到 execute_plan 唯一入口，useCanvasAgentTools.ts executePlanTool）：
  *   creditHit = getCreditSwitch()   // 2026-08-27 简化：全局总闸，与 runMode/模式正交
  *   · 命中（开关开）→ 强制 autoRun=false（只建节点、不烧积分），置 per-conv creditGate，返回 awaited:'credit'
  *   · 未命中（开关关）→ 按原 autoRun 放行（真烧积分）
  *
- * 三种模式 = inputMode/runMode 维度，但对积分闸判定无区别（credit=creditSwitch，与模式正交）：
- *   直接生图  → inputMode='image'（sendImageMode 直连）→ 开关开即拦
- *   分步确认  → inputMode='agent' + runMode='step-confirm'   → 开关开即拦（一视同仁，2026-08-27 删 D2 不叠分支）
- *   完全自主  → inputMode='agent' + runMode='auto'   → 开关开即拦
- *
- * 本文件只测 execute_plan 这一收敛入口对三种模式 × 开关两态的放行/拦截行为，
- * 通过控制 creditSwitch 与 runMode 断言 autoRun 传参、creditGate 置位、返回语义，并固化「残留 step-confirm 短路」回归防线。
+ * 通过控制 creditSwitch 与 runMode 断言 autoRun 传参、creditGate 置位、返回语义。
  */
 // 可控 creditSwitch：getX 读 __credit，setX 写 __credit（contentStore 的 contentGet/contentSet 也被 mock 到同一状态）
 let __creditState
@@ -139,7 +135,7 @@ describe('三种模式 × 积分开关 × execute_plan 唯一入口', () => {
       // creditGate 置位并持久化
       expect(convMock.__state.creditGate?.pending).toBe(true)
       expect(convMock.__state.creditGate?.map).toBeTruthy()
-      // 分步确认态未置位（两条门禁独立）
+      // 未置 awaiting 态（credit 闸与 awaiting 确认闸两条门禁互相独立）
       expect(convMock.__state.awaiting).toBe(false)
     })
 
@@ -153,72 +149,6 @@ describe('三种模式 × 积分开关 × execute_plan 唯一入口', () => {
       expect(mockExecutePlan).toHaveBeenCalledTimes(1)
       expect(mockExecutePlan.mock.calls[0][0].autoRun).toBe(true)
       expect(convMock.__state.creditGate).toBeNull()
-    })
-  })
-
-  describe('直接生图（inputMode=image，runMode 沿用默认 auto）', () => {
-    it('开关开【拦截】→ 不再 auto_run 直出，建节点等确认（PRD §8.4 / 边界 §4）', async () => {
-      convMock.__state.runMode = 'auto' // 直接生图不改 runMode，默认 auto
-      __creditState = true
-      const t = buildTool()
-      // 直接生图真实路径：sendImageMode → callTool('execute_plan', {generations, auto_run:true})
-      const r = await t.execute_plan({ generations: GENS, auto_run: true })
-      expect(r.ok).toBe(true)
-      expect(r.data.awaited).toBe('credit')
-      expect(mockExecutePlan).toHaveBeenCalledTimes(1)
-      expect(mockExecutePlan.mock.calls[0][0].autoRun).toBe(false) // 不直出
-      expect(convMock.__state.creditGate?.pending).toBe(true)
-    })
-
-    it('开关关【放行】→ 直接 auto_run 出图，不弹确认（PRD §8.4）', async () => {
-      convMock.__state.runMode = 'auto'
-      __creditState = false
-      const t = buildTool()
-      const r = await t.execute_plan({ generations: GENS, auto_run: true })
-      expect(r.ok).toBe(true)
-      expect(r.data.awaited).toBeUndefined()
-      expect(mockExecutePlan).toHaveBeenCalledTimes(1)
-      expect(mockExecutePlan.mock.calls[0][0].autoRun).toBe(true) // 直出
-      expect(convMock.__state.creditGate).toBeNull()
-    })
-
-    it('【回归·BUG】直接生图若残留 runMode=step-confirm（先前切过分步确认），开关开必须仍拦截（PRD：直接生图受通用积分闸，与残留 runMode 无关）', async () => {
-      // 用户先切「分步确认」(runMode='step-confirm')，再切「直接生图」——runMode 残留 step-confirm。
-      // 直接生图语义下积分闸应只看 creditSwitch，绝不能因残留 step-confirm 被跳过。
-      convMock.__state.runMode = 'step-confirm'
-      __creditState = true
-      const t = buildTool()
-      const r = await t.execute_plan({ generations: GENS, auto_run: true })
-      expect(r.ok).toBe(true)
-      expect(r.data.awaited).toBe('credit')
-      expect(mockExecutePlan.mock.calls[0][0].autoRun).toBe(false)
-      expect(convMock.__state.creditGate?.pending).toBe(true)
-    })
-  })
-
-  describe('分步确认（runMode=step-confirm）', () => {
-    it('开关开【通用闸一视同仁】→ 分步确认同样拦截，建节点置 creditGate、返回 awaited:credit（2026-08-27 简化：删 D2 不叠分支）', async () => {
-      convMock.__state.runMode = 'step-confirm'
-      __creditState = true
-      const t = buildTool()
-      const r = await t.execute_plan({ generations: GENS, auto_run: true })
-      expect(r.ok).toBe(true)
-      expect(r.data.awaited).toBe('credit') // 通用总闸一视同仁，无论模式开关开都拦
-      expect(convMock.__state.creditGate?.pending).toBe(true)
-      expect(mockExecutePlan).toHaveBeenCalledTimes(1)
-      expect(mockExecutePlan.mock.calls[0][0].autoRun).toBe(false)
-    })
-
-    it('开关关【放行】→ 不置 creditGate，按 auto_run 执行', async () => {
-      convMock.__state.runMode = 'step-confirm'
-      __creditState = false
-      const t = buildTool()
-      const r = await t.execute_plan({ generations: GENS, auto_run: true })
-      expect(r.ok).toBe(true)
-      expect(r.data.awaited).toBeUndefined()
-      expect(convMock.__state.creditGate).toBeNull()
-      expect(mockExecutePlan).toHaveBeenCalledTimes(1)
-      expect(mockExecutePlan.mock.calls[0][0].autoRun).toBe(true)
     })
   })
 })

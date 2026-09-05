@@ -1,5 +1,5 @@
-import React, { useState, useRef } from 'react'
-import { Coins } from 'lucide-react'
+import React, { useState, useRef, type ReactNode } from 'react'
+import { Coins, Cpu } from 'lucide-react'
 import { useOutsideClick } from '../core/uiHooks.ts'
 
 /**

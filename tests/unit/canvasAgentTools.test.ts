@@ -479,38 +479,6 @@ describe('画布 Agent 工具层 §2.5', () => {
     expect(convMock.__state.awaiting).toBe(false)
   })
 
-  it('【D7 真值表】hasSkillNow=true + auto：不再进入 awaiting（删 hasSkillNow 强制项，needConfirm 只由 runMode===\'step-confirm\' 决定）', async () => {
-    // D7：show_plan 判定收敛为 needConfirm = runMode==='step-confirm'，hasSkillNow 已删除。
-    // 此用例覆盖「有 Skill 但 runMode=auto」→ 不再强制进入 awaiting（awaitingConfirm=false）。
-    convMock.__state.awaiting = false
-    vi.mocked(convStore.getWorkMode).mockReturnValue('auto')
-    vi.mocked(convStore.getCurrentSnapshot).mockReturnValue({ skills: [{ name: 'poster', params: {} }] } as unknown as ConversationSnapshot)
-    const ctx = makeCtx()
-    const t = buildCanvasAgentTools(ctx)
-    const r = await t.show_plan_for_confirm({ plan_text: '做5张主图+8详情', generations: [{ id: 'g1', prompt: '主图1' }] })
-    expect(r.ok).toBe(true)
-    expect(r.data.awaiting_confirm).toBe(false)
-    expect(convMock.__state.awaiting).toBe(false)
-    expect(convStore.setAwaitingConfirm).not.toHaveBeenCalledWith(true)
-  })
-
-  it('【对齐大雄 §12.1 真值表】hasSkillNow=false + auto：不进入 awaiting（全自动直接执行）', async () => {
-    // 真值表另一角：无 Skill 且 auto → needConfirm 为假。
-    convMock.__state.awaiting = false
-    vi.mocked(convStore.getWorkMode).mockReturnValue('auto')
-    vi.mocked(convStore.getCurrentSnapshot).mockReturnValue({ skills: [] } as unknown as ConversationSnapshot)
-    const ctx = makeCtx()
-    const t = buildCanvasAgentTools(ctx)
-    const r = await t.show_plan_for_confirm({ plan_text: '做1张猫图', generations: [{ id: 'g1', prompt: '一只猫' }] })
-    expect(r.ok).toBe(true)
-    expect(r.data.awaiting_confirm).toBe(false)
-    expect(convMock.__state.awaiting).toBe(false)
-    // 全自动：execute_plan 不被 awaiting 门禁拦截，可直接执行
-    convMock.__state.awaiting = false
-    const r2 = await t.execute_plan({ generations: [{ id: 'g1', prompt: '一只猫' }] })
-    expect(r2.ok).toBe(true)
-  })
-
   it('execute_plan 未确认被拒', async () => {
     convMock.__state.awaiting = true // 模拟 show_plan_for_confirm 已暂存、进入待确认
     const ctx = makeCtx()
@@ -574,7 +542,7 @@ describe('画布 Agent 工具层 §2.5', () => {
     expect(convMock.__state.creditGate?.pending).toBe(true)
     expect(convMock.__state.creditGate?.map).toBeTruthy()
     expect(convMock.__state.creditGate?.gens[0].prompt).toBe('猫')
-    // 未置分步确认态（D1：两条门禁独立）
+    // 未置 awaiting 态（credit 闸与 awaiting 确认闸两条门禁互相独立）
     expect(convMock.__state.awaiting).toBe(false)
   })
 

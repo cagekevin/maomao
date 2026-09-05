@@ -602,12 +602,12 @@ describe('useAgentChat · buildRequestMessages 深度（请求体组装）', () 
     { role: 'tool', content: '{"ok":true}', tool_call_id: 'c1' },
   ] as ChatMessage[]
 
-  it('enhance=true 且无 system：前置注入画布准则 + 三态分流段（默认 auto），历史消息按顺序接在后面', () => {
+  it('enhance=true 且无 system：前置注入画布准则 + 执行模型分流段（恒 auto），历史消息按顺序接在后面', () => {
     const out = buildRequestMessages(base, '', true) as AssembledMsg[];
 // 首条是系统准则
     expect(out[0].role).toBe('system')
     expect(out[0].content).toContain('你是猫猫画布助手')
-    // 三态分流段（默认 auto）紧随准则作为独立 system（docs/65 M5：引导 show_plan_for_confirm 可调性）
+    // 执行模型分流段（恒 auto）紧随准则作为独立 system（引导 show_plan_for_confirm 可调性）
     expect(out[1]).toMatchObject({ role: 'system' })
     expect(out[1].content).toContain('show_plan_for_confirm')
     expect(out[1].content).toContain('完全自主')
@@ -716,7 +716,7 @@ const a = out.find((m) => m.role === 'assistant')
     expect(t.tool_call_id).toBe('c9')
   })
 
-  it('空 messages：enhance=true 仍至少注入 system（画布准则 + 三态分流段，LLM 永远有规则）', () => {
+  it('空 messages：enhance=true 仍至少注入 system（画布准则 + 执行模型分流段，LLM 永远有规则）', () => {
     const out = buildRequestMessages([], '', true) as AssembledMsg[];
 expect(out).toHaveLength(2)
     expect(out.every((m) => m.role === 'system')).toBe(true)

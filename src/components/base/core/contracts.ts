@@ -31,6 +31,8 @@
  * 高消耗积分确认（通用积分闸 creditSwitch）相关契约字符串 —— 单一事实来源。
  * 【三按钮收敛 · 2026-08-27】直接生图/分步确认/完全自主下，真生成图/视频前是否先确认，
  * 由全局开关 creditSwitch（默认开）+ per-conversation creditGate 决定（见 docs/59、60）。
+ * 【更新 2026-09-05】执行模型已收敛恒 auto（direct/step-confirm 三态删除），
+ * 上述三模式成因仅剩 auto；闸语义不变：真生成前先确认，由 creditSwitch + creditGate 决定。
  * 所有消费方一律 import 本常量引用，禁止散写裸字面量。
  */
 /** creditSwitch 全局存储键（localStorage，默认 true = 任何模式真烧积分前先确认） */
@@ -359,13 +361,13 @@ export const STORAGE_KEYS: Record<string, StorageKeyMeta> = {
     domain: 'agent',
     store: 'AgentPanel.jsx',
     backend: 'local',
-    note: 'AI 助手输入模式（agent | chat 等）',
+    note: 'AI 助手输入模式兼容字段（2026-09-05 精简后不再产出；agent_input_mode 登记保留，仅历史读兼容）',
   },
   agent_work_mode: {
     domain: 'agent',
     store: 'runModeRegistry.js',
     backend: 'local',
-    note: 'AI 助手三态 workMode（direct/step-confirm/auto）单一真源；inputMode/runMode 为其兼容派生态（setWorkMode 原子同步）',
+    note: 'AI 助手执行模型（2026-09-05 收敛恒 auto 完全自主）；getWorkMode/setWorkMode 恒 auto，历史旧值（direct/step-confirm）幂等回写归 auto',
   },
   [CREDIT_SWITCH_KEY]: {
     domain: 'agent',

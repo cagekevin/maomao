@@ -18,30 +18,28 @@ import {
 } from '../runtime/runModeRegistry.ts'
 
 /**
- * runMode（执行分级）现为 workMode 的兼容派生态（docs/64 §5.3 / docs/65 M4）：
- *  - 读：getCurrentRunMode 由 workMode 派生（resolveConvRunMode(getWorkMode())）
- *  - 写：setCurrentRunMode 收敛为 setWorkMode，触发注册表原子写三处（workMode+inputMode+当前会话 runMode）
- * 首占钩子：legacyRunModeReader 供首次迁移由遗留会话 runMode 推导初始 workMode；
- *           runModeSync 使 setWorkMode 同步写当前会话 conv.runMode（兼容历史持久化）。
+ * runMode（执行分级）2026-09-05 精简收敛恒 auto（direct/step-confirm 已删）：
+ *  - 读：getCurrentRunMode 由 workMode 派生，恒 auto
+ *  - 写：setCurrentRunMode 收敛为 setWorkMode，恒映射 auto
+ * 首占钩子：legacyRunModeReader 已不再参与推导（getWorkMode 恒 auto）；
+ *           runModeSync 使 setWorkMode 同步写当前会话 conv.runMode 归 auto（兼容历史持久化）。
  */
 registerLegacyRunModeReader(() => String(getActiveConv()?.runMode || 'auto').toLowerCase())
-registerRunModeSync((runMode) => {
+registerRunModeSync((_runMode) => {
   const conv = getActiveConv()
   if (!conv) return // 会话未就绪不写（读取侧以 workMode 为真源，不受影响）
-  const next = runMode === 'step-confirm' ? 'step-confirm' : 'auto'
+  // 2026-09-05 精简：执行模型恒 auto，runMode 兼容字段一律归 auto
   commit({
     ...getState(),
-    conversations: getState().conversations.map((c) => (c.id === conv.id ? { ...c, runMode: next, updatedAt: Date.now() } : c)),
+    conversations: getState().conversations.map((c) => (c.id === conv.id ? { ...c, runMode: 'auto', updatedAt: Date.now() } : c)),
   })
 })
 
-/** 执行分级（workMode 的派生态：step-confirm / auto） */
+/** 执行分级（workMode 的派生态）：2026-09-05 精简后运行时恒 'auto'；保留 'step-confirm' 供读历史持久化数据 */
 export type RunMode = 'step-confirm' | 'auto'
 
-/** 【对齐大雄 agentGetRunMode】读当前执行分级：由 workMode 派生（step-confirm/auto；direct→auto）。 */
+/** 【对齐大雄 agentGetRunMode】读当前执行分级：由 workMode 派生，恒 auto（direct/step-confirm 已删） */
 export function getCurrentRunMode(): RunMode {
-  // resolveConvRunMode 签名是 WorkMode（三态），但其实现只可能返回 step-confirm / auto；
-  // 此处按运行时实际值域收窄为 RunMode，不改变行为。
   return resolveConvRunMode(getWorkMode()) as RunMode
 }
 

@@ -943,9 +943,11 @@ const executePlanTool = {
       // 删掉旧版 runMode!=='semi' 特殊分支：它把「分步确认残留的 semi」与「直接生图」混为一谈，
       // 导致切过「分步确认」后回「直接生图」时积分闸被永久短路（bug，见 tests/unit/creditGateModes.test.js）。
       // 心智模型：积分开关就是通用总闸，开了就拦、关了就放，对「直接生图/分步确认/完全自主」一视同仁（PRD §3.2）。
-      // 命中 → 强制 autoRun=false：只建节点（免费，status='ready'），真正的「点生成烧积分那下」留待
-      // 用户点确认 → runExistingPlanTool 补跑。绝不放行 LLM 的 auto_run:true 直接真生成（红线 §6.4）。
-      // 注：分步确认（step-confirm）在开关开时也会再经一次积分确认（不算 D2 的「不叠」）——这是「通用闸一视同仁」的直接结果。
+      //     命中 → 强制 autoRun=false：只建节点（免费，status='ready'），真正的「点生成烧积分那下」留待
+      //     用户点确认 → runExistingPlanTool 补跑。绝不放行 LLM 的 auto_run:true 直接真生成（红线 §6.4）。
+      //     注：分步确认（step-confirm）在开关开时也会再经一次积分确认（不算 D2 的「不叠」）——这是「通用闸一视同仁」的直接结果。
+      //     【更新 2026-09-05】执行模型已收敛恒 auto（direct/step-confirm 已删，见 runModeRegistry）：
+      //     上述「直接生图/分步确认/完全自主」历史成因仅剩 auto 一种；闸仍通用、判定不变（只看 creditSwitch）。
       const creditHit = getCreditSwitch()
       const autoRun = creditHit ? false : (args.auto_run !== false)
       // 【模型锁定】用面板生图参数区（getGenParams）作为默认；LLM 显式传 model 则优先。

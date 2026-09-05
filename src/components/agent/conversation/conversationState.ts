@@ -552,10 +552,9 @@ export function normalizeConversation(raw: unknown): Conversation | null {
   // 【积分闸】creditGate：单一对象 { pending, gens, map(stepId→nodeId) }，含媒体生成待确认态 + 步骤映射
   if (c[CREDIT_GATE_FIELD] === undefined) c[CREDIT_GATE_FIELD] = null
   if (!Array.isArray(c.referenceImages)) c.referenceImages = [] // 本轮用户引用的参考图 URL（per-conversation，防跨对话泄漏）
-  // 【对齐大雄 runMode】执行分级：'auto'（默认，完全自主：直接出 generations 执行，不展示 plan 门禁）/
-  // 'step-confirm'（分步确认：出 generations 后展示 plan 确认再执行）。大雄 agentNormalizeRunModeState(1468)。
-  // 旧值 'semi'（半自动旧代号）在此归一化自动迁移为 'step-confirm'（非 auto 一律归 step-confirm）。
-  c.runMode = String(c.runMode || 'auto').toLowerCase() === 'auto' ? 'auto' : 'step-confirm'
+  // 【2026-09-05 精简】执行模型收敛恒 auto：runMode 兼容字段一律归 auto（历史旧值 direct/step-confirm/semi 归一丢弃；
+  // 运行时断言以 workMode 真源 getWorkMode()=auto 为准，本字段仅历史持久化兼容，写入侧 registerRunModeSync 恒写 auto）。
+  c.runMode = 'auto'
   return c as Conversation
 }
 
