@@ -759,3 +759,132 @@
   background: rgb(var(--mao-surface-hover));
   color: rgb(var(--mao-text-strong));
 }
+
+/* ════════════════════════════════════════════════════════════════
+ * AI 助手表格工作区（左栏）—— mockup: mockup/storyboard-workspace-mockup.html
+ * 样式令牌一律取 --mao-*；本体在 AgentPanel 的 .agent-body 左右行容器内。
+ * ════════════════════════════════════════════════════════════════ */
+
+/* 消息区主容器改左右行：左表格 | 分隔条 | 右对话 */
+.agent-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+/* 表格左栏 */
+.agent-body .sb {
+  flex-shrink: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 拖拽分隔条 */
+.agent-split {
+  width: 5px;
+  flex-shrink: 0;
+  cursor: col-resize;
+  background: transparent;
+  border-left: 1px solid rgb(var(--mao-edge-subtle));
+  transition: background .15s;
+}
+.agent-split:hover, .agent-split.is-dragging { background: rgb(var(--mao-accent) / 0.35); }
+
+/* 表头区：全局风格条 + 工具条（都不属于 rows） */
+.agent-body .sb-head { flex-shrink: 0; padding: 10px 12px 8px; display: flex; flex-direction: column; gap: 8px; }
+
+.agent-body .gs {
+  display: flex; align-items: flex-start; gap: 7px;
+  padding: 6px 9px; border-radius: 8px;
+  background: rgb(var(--mao-surface-sunken)); border: 1px solid rgb(var(--mao-edge-faint));
+  transition: border-color .15s;
+}
+.agent-body .gs:hover { border-color: rgb(var(--mao-edge-subtle)); }
+.agent-body .gs-l { flex-shrink: 0; display: flex; align-items: center; gap: 5px; padding-top: 1px; color: rgb(var(--mao-text-faint)); font-size: 11px; }
+.agent-body .gs-v { flex: 1; min-width: 0; outline: none; background: transparent; border: none; color: rgb(var(--mao-text-body)); font-size: 12px; line-height: 1.55; border-radius: 4px; padding: 0; font-family: inherit; }
+.agent-body .gs-v:focus { background: rgb(var(--mao-surface)); box-shadow: inset 0 0 0 1px rgb(var(--mao-accent)); color: rgb(var(--mao-text-strong)); }
+.agent-body .gs-v.is-ph { color: rgb(var(--mao-text-subtle)); }
+.agent-body .gs .pen { flex-shrink: 0; color: rgb(var(--mao-text-subtle)); margin-top: 2px; }
+
+.agent-body .sb-tools { display: flex; align-items: center; gap: 6px; }
+.agent-body .tb {
+  display: inline-flex; align-items: center; gap: 5px; height: 26px; padding: 0 9px; border-radius: 7px;
+  border: 1px solid rgb(var(--mao-edge-faint)); background: transparent;
+  color: rgb(var(--mao-text-secondary)); font-size: 11.5px; cursor: pointer;
+  transition: background .15s, color .15s, border-color .15s;
+}
+.agent-body .tb:hover { background: rgb(var(--mao-surface-hover)); color: rgb(var(--mao-text-strong)); border-color: rgb(var(--mao-edge)); }
+.agent-body .tb.primary { color: rgb(var(--mao-accent-strong)); border-color: rgb(var(--mao-accent) / 0.3); background: rgb(var(--mao-accent-soft) / 0.08); }
+.agent-body .tb.primary:hover { background: rgb(var(--mao-accent-soft) / 0.16); }
+.agent-body .sb-tools .spacer { flex: 1; }
+.agent-body .sb-tools .cnt { font-size: 11px; color: rgb(var(--mao-text-faint)); margin-right: 2px; }
+.agent-body .ib.sm { width: 26px; height: 26px; border-radius: 7px; }
+
+/* 表体：表头吸顶 + 表体滚动 */
+.agent-body .sb-body { flex: 1; min-height: 0; overflow: auto; padding: 0 12px 12px; }
+.agent-body table.sbt { width: 100%; table-layout: fixed; border-collapse: separate; border-spacing: 0; font-size: 12px; }
+.agent-body table.sbt th {
+  position: sticky; top: 0; z-index: 2;
+  background: rgb(var(--mao-surface-deep));
+  padding: 7px 7px 6px; text-align: left;
+  color: rgb(var(--mao-text-faint)); font-size: 11px; font-weight: 500; white-space: nowrap;
+  border-bottom: 1px solid rgb(var(--mao-edge-subtle));
+}
+.agent-body table.sbt td { padding: 4px 7px; vertical-align: top; border-bottom: 1px solid rgb(var(--mao-edge-faint) / 0.5); color: rgb(var(--mao-text-body)); line-height: 1.55; }
+.agent-body table.sbt tbody tr { transition: background .12s; cursor: pointer; }
+.agent-body table.sbt tbody tr:hover { background: rgb(var(--mao-surface-hover)); }
+.agent-body table.sbt tbody tr.sel { background: rgb(var(--mao-accent) / 0.10); }
+.agent-body table.sbt tr.sel td:first-child { box-shadow: inset 2px 0 0 rgb(var(--mao-accent)); }
+.agent-body table.sbt td.idx { color: rgb(var(--mao-text-faint)); font-size: 11px; width: 30px; }
+.agent-body table.sbt tr.sel td.idx { color: rgb(var(--mao-accent-strong)); }
+
+.agent-body .cell {
+  width: 100%; outline: none; border: none; background: transparent; color: inherit; border-radius: 4px;
+  padding: 1px 2px; font-size: 12px; font-family: inherit; line-height: 1.5;
+}
+.agent-body .cell:focus { background: rgb(var(--mao-surface)); box-shadow: inset 0 0 0 1px rgb(var(--mao-accent)); color: rgb(var(--mao-text-strong)); }
+
+.agent-body .ops { display: flex; align-items: center; gap: 2px; justify-content: flex-end; opacity: 0; transition: opacity .12s; }
+.agent-body tbody tr:hover .ops, .agent-body tbody tr.sel .ops { opacity: 1; }
+.agent-body .op { display: flex; align-items: center; justify-content: center; width: 16px; height: 16px; border: none; background: transparent; border-radius: 4px; color: rgb(var(--mao-text-faint)); cursor: pointer; transition: background .12s, color .12s; }
+.agent-body .op:hover { background: rgb(var(--mao-surface-hover-strong)); color: #fff; }
+.agent-body .op svg { width: 13px; height: 13px; }
+
+/* 表格空态 */
+.agent-body .sb-empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 0 26px; text-align: center; }
+.agent-body .sb-empty .mark { width: 40px; height: 40px; border-radius: 10px; border: 1px dashed rgb(var(--mao-edge)); background: rgb(var(--mao-surface-sunken)); display: flex; align-items: center; justify-content: center; color: rgb(var(--mao-text-faint)); margin-bottom: 4px; }
+.agent-body .sb-empty h4 { font-size: 13px; font-weight: 500; color: rgb(var(--mao-text-body)); }
+.agent-body .sb-empty p { font-size: 11.5px; color: rgb(var(--mao-text-faint)); line-height: 1.75; }
+.agent-body .sb-empty .acts { display: flex; gap: 8px; margin-top: 8px; }
+
+/* AI 返回表格 → 可视化预览卡（预览与正式表两份状态，确认才写回） */
+.agent-body .pv { border: 1px solid rgb(var(--mao-edge-faint)); border-radius: 8px; background: rgb(var(--mao-surface-sunken)); overflow: hidden; }
+.agent-body .pv-hd { display: flex; align-items: center; gap: 6px; padding: 7px 10px; border-bottom: 1px solid rgb(var(--mao-edge-subtle)); color: rgb(var(--mao-text-secondary)); font-size: 11.5px; }
+.agent-body .pv-hd .badge { font-size: 10px; padding: 1px 6px; border-radius: 4px; background: rgb(var(--mao-accent-soft) / 0.12); border: 1px solid rgb(var(--mao-accent) / 0.3); color: rgb(var(--mao-accent-strong)); }
+.agent-body .pv-hd .spacer { flex: 1; }
+.agent-body .pv-hd .rows { font-size: 10.5px; color: rgb(var(--mao-text-faint)); }
+.agent-body .pv-body { max-height: 300px; overflow: auto; padding: 0 10px; }
+.agent-body .pv table { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+.agent-body .pv th { position: sticky; top: 0; background: rgb(var(--mao-surface-sunken)); padding: 6px 8px; text-align: left; color: rgb(var(--mao-text-faint)); font-weight: 500; border-bottom: 1px solid rgb(var(--mao-edge-subtle)); white-space: nowrap; }
+.agent-body .pv td { padding: 6px 8px; vertical-align: top; color: rgb(var(--mao-text-secondary)); border-bottom: 1px solid rgb(var(--mao-edge-faint) / 0.4); line-height: 1.6; }
+.agent-body .pv tr:last-child td { border-bottom: none; }
+.agent-body .pv .gs-line { display: flex; gap: 6px; padding: 8px 10px 0; color: rgb(var(--mao-text-faint)); font-size: 11px; }
+.agent-body .pv .gs-line b { color: rgb(var(--mao-text-secondary)); font-weight: 400; }
+.agent-body .pv-ft { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-top: 1px solid rgb(var(--mao-edge-subtle)); }
+.agent-body .btn { display: inline-flex; align-items: center; gap: 5px; padding: 5px 11px; border-radius: 6px; font-size: 11.5px; cursor: pointer; border: 1px solid transparent; transition: background .15s, color .15s, border-color .15s; }
+.agent-body .btn-ok { background: rgb(var(--mao-live)); color: #fff; }
+.agent-body .btn-ok:hover { filter: brightness(1.1); }
+.agent-body .btn:disabled { opacity: .5; cursor: not-allowed; }
+.agent-body .btn-ghost { background: transparent; color: rgb(var(--mao-text-faint)); }
+.agent-body .btn-ghost:hover { background: rgb(var(--mao-surface-hover)); color: rgb(var(--mao-text-strong)); }
+.agent-body .pv-ft .tip { margin-left: auto; font-size: 10.5px; color: rgb(var(--mao-text-subtle)); }
+
+/* 顶栏「表格」图标：展开 = 强调蓝 */
+.agent-icon-btn.is-table-on { color: rgb(var(--mao-accent)); background: rgb(var(--mao-accent-soft) / 0.12); }
+.agent-icon-btn.is-table-on:hover { color: rgb(var(--mao-accent)); background: rgb(var(--mao-accent-soft) / 0.18); }
+
+/* 聊天区顶部「表格模式」徽标 */
+.agent-mode-bar { display: flex; align-items: center; gap: 6px; padding: 6px 9px; border-radius: 8px; background: rgb(var(--mao-accent-soft) / 0.07); border: 1px solid rgb(var(--mao-accent) / 0.18); color: rgb(var(--mao-accent-strong)); font-size: 11px; margin-bottom: 12px; flex-shrink: 0; }
+.agent-mode-clear { margin-left: auto; border: none; background: transparent; color: rgb(var(--mao-text-faint)); font-size: 11px; cursor: pointer; text-decoration: underline; }
+.agent-mode-clear:hover { color: rgb(var(--mao-accent-strong)); }

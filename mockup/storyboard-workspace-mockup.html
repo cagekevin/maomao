@@ -1,0 +1,1142 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>分镜协作 · AI 助手内嵌工作区 —— 外观 Mockup</title>
+<style>
+  :root{
+    /* 对齐项目 tailwind 语义令牌（tailwind.config.ts 注释里的 hex） */
+    --canvas:#0d0c0c;
+    --surface-deep:#151414;
+    --surface:#1a1a1a;
+    --surface-1:#222222;
+    --surface-hover:#2a2a2a;
+    --surface-hover-strong:#333333;
+    --surface-sunken:#121212;
+    --edge:#333333;
+    --edge-strong:#555555;
+    --edge-faint:#2a2a2a;
+    --edge-subtle:#222222;
+    --t-strong:#ffffff;
+    --t-primary:#dddddd;
+    --t-body:#cccccc;
+    --t-secondary:#aaaaaa;
+    --t-muted:#888888;
+    --t-faint:#666666;
+    --t-subtle:#555555;
+    --accent:#3b82f6;
+    --ok:#22c55e;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  html,body{height:100%;}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+    background:#0a0a0a;
+    color:var(--t-primary);
+    padding:28px;
+    display:flex;
+    flex-wrap:wrap;
+    gap:30px;
+    align-items:flex-start;
+  }
+
+  /* ── 页面抬头 ── */
+  .page-head{width:100%;display:flex;flex-direction:column;gap:6px;margin-bottom:-8px;}
+  .page-head h1{font-size:16px;font-weight:600;color:var(--t-strong);}
+  .page-head p{font-size:12px;color:var(--t-muted);line-height:1.75;}
+  .page-head b{color:var(--t-primary);font-weight:600;}
+  .page-head .warn{color:#f0b45e;}
+
+  /* ── 舞台（面板 + 说明） ── */
+  .stage{display:flex;flex-direction:column;gap:10px;}
+  .stage-cap{font-size:12px;line-height:1.8;color:var(--t-muted);}
+  .stage-cap b{color:var(--t-primary);font-weight:600;}
+  .stage-cap .tag{
+    display:inline-block;font-size:10px;padding:1px 6px;border-radius:4px;
+    background:#1f1f1f;border:1px solid #2c2c2c;color:#8a8a8a;margin-right:6px;
+  }
+  .stage-cap .tag.main{color:#7ab8ff;border-color:#2a3a52;}
+  .note{border-top:1px dashed #242424;padding-top:8px;margin-top:6px;font-size:11px;line-height:1.8;}
+  .note b{color:#9a9a9a;font-weight:600;}
+  .note .keep{color:#6ee7b7;}
+  .note .new{color:#7ab8ff;}
+  .note .cut{color:#f87171;}
+  .note code{
+    background:#1d1d1d;border:1px solid #292929;border-radius:5px;
+    padding:1px 4px;font-size:11px;color:#c9c9c9;
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+  }
+
+  /* ── 面板外壳 ── */
+  .panel{
+    height:780px;
+    background:var(--surface-deep);
+    border:1px solid var(--edge-subtle);
+    border-radius:14px;
+    display:flex;flex-direction:column;overflow:hidden;
+    box-shadow:0 24px 60px rgba(0,0,0,.55);
+    position:relative;
+  }
+  .grip{position:absolute;left:0;top:0;bottom:0;width:5px;cursor:col-resize;background:transparent;}
+  .grip:hover{background:rgba(59,130,246,.25);}
+
+  /* ── 顶栏（沿用现状；新增「表格」开关） ── */
+  .header{
+    height:48px;flex-shrink:0;
+    display:flex;align-items:center;justify-content:space-between;
+    padding:0 8px 0 6px;
+    border-bottom:1px solid var(--edge-subtle);
+  }
+  .h-left{
+    display:flex;align-items:center;gap:4px;
+    padding:5px 8px;border-radius:8px;cursor:pointer;
+    transition:background .15s;max-width:230px;
+  }
+  .h-left:hover{background:var(--surface-hover);}
+  .h-title{
+    font-size:13px;color:var(--t-primary);font-weight:500;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:190px;
+  }
+  .h-left svg{color:var(--t-muted);flex-shrink:0;}
+  .h-right{display:flex;align-items:center;gap:2px;}
+  .ib{
+    width:30px;height:30px;flex-shrink:0;
+    display:flex;align-items:center;justify-content:center;
+    border:none;background:transparent;border-radius:8px;
+    color:var(--t-muted);cursor:pointer;
+    transition:background .15s,color .15s;
+  }
+  .ib:hover{background:var(--surface-hover);color:var(--t-strong);}
+  .ib.on{color:var(--ok);}
+  .ib.tb-on{color:var(--accent);background:rgba(59,130,246,.12);}
+  .ib.tb-on:hover{color:var(--accent);background:rgba(59,130,246,.18);}
+  .ib.sm{width:26px;height:26px;border-radius:7px;}
+
+  /* ── 内容区：左表格 | 拖拽条 | 右对话 ── */
+  .body{flex:1;min-height:0;display:flex;}
+  .sb{width:460px;flex-shrink:0;display:flex;flex-direction:column;min-width:0;}
+  .panel.is-collapsed .sb,
+  .panel.is-collapsed .split{display:none;}
+
+  /* 表头区：全局风格条 + 工具条（都不属于 rows） */
+  .sb-head{flex-shrink:0;padding:10px 12px 8px;display:flex;flex-direction:column;gap:8px;}
+  .gs{
+    display:flex;align-items:flex-start;gap:7px;
+    padding:7px 9px;border-radius:8px;
+    background:var(--surface-sunken);border:1px solid var(--edge-faint);
+    transition:border-color .15s;
+  }
+  .gs:hover{border-color:var(--edge-subtle);}
+  .gs-l{
+    flex-shrink:0;display:flex;align-items:center;gap:5px;
+    padding-top:1px;color:var(--t-faint);font-size:11px;
+  }
+  .gs-v{
+    flex:1;min-width:0;outline:none;
+    color:var(--t-body);font-size:12px;line-height:1.55;
+    border-radius:4px;
+  }
+  .gs-v:focus{background:var(--surface);box-shadow:inset 0 0 0 1px var(--accent);color:var(--t-strong);}
+  /* 未填时的占位态：弱化显示，点开即可写（空着也照常发给 AI，AI 自会补一个） */
+  .gs-v.is-ph{color:var(--t-subtle);}
+  .gs .pen{flex-shrink:0;color:var(--t-subtle);margin-top:2px;}
+
+  .sb-tools{display:flex;align-items:center;gap:6px;}
+  .tb{
+    display:inline-flex;align-items:center;gap:5px;
+    height:26px;padding:0 9px;border-radius:7px;
+    border:1px solid var(--edge-faint);background:transparent;
+    color:var(--t-secondary);font-size:11.5px;cursor:pointer;
+    transition:background .15s,color .15s,border-color .15s;
+  }
+  .tb:hover{background:var(--surface-hover);color:var(--t-strong);border-color:var(--edge);}
+  .tb.primary{color:#8ab4ff;border-color:rgba(59,130,246,.3);background:rgba(59,130,246,.08);}
+  .tb.primary:hover{background:rgba(59,130,246,.16);color:#a8c8ff;}
+  .sb-tools .spacer{flex:1;}
+  .sb-tools .cnt{font-size:11px;color:var(--t-faint);margin-right:2px;}
+
+  /* 表体：表头吸顶 + 表体滚动 */
+  .sb-body{flex:1;min-height:0;overflow:auto;padding:0 12px 12px;}
+  .sb-body::-webkit-scrollbar{width:6px;height:6px;}
+  .sb-body::-webkit-scrollbar-thumb{background:#2a2a2a;border-radius:3px;}
+  table.sbt{width:100%;table-layout:fixed;border-collapse:separate;border-spacing:0;font-size:12px;}
+  table.sbt th{
+    position:sticky;top:0;z-index:2;
+    background:var(--surface-deep);
+    padding:7px 7px 6px;text-align:left;
+    color:var(--t-faint);font-size:11px;font-weight:500;white-space:nowrap;
+    border-bottom:1px solid var(--edge-subtle);
+  }
+  table.sbt td{
+    padding:5px 7px;vertical-align:top;
+    border-bottom:1px solid rgba(255,255,255,.045);
+    color:var(--t-body);line-height:1.55;
+  }
+  table.sbt tbody tr{transition:background .12s;}
+  table.sbt tbody tr:hover{background:var(--surface-hover);}
+  table.sbt tbody tr.sel{background:rgba(59,130,246,.10);}
+  table.sbt tr.sel td:first-child{box-shadow:inset 2px 0 0 var(--accent);}
+  table.sbt td.idx{color:var(--t-faint);font-size:11px;}
+  table.sbt tr.sel td.idx{color:#8ab4ff;}
+  .cell{outline:none;border-radius:4px;word-break:break-word;}
+  .cell:focus{background:var(--surface);box-shadow:inset 0 0 0 1px var(--accent);color:var(--t-strong);}
+  .ops{display:flex;align-items:center;gap:3px;justify-content:flex-end;opacity:0;transition:opacity .12s;}
+  tbody tr:hover .ops,tbody tr.sel .ops{opacity:1;}
+  .op{
+    display:flex;align-items:center;justify-content:center;
+    width:16px;height:16px;border:none;background:transparent;border-radius:4px;
+    color:#6f6f6f;cursor:pointer;transition:background .12s,color .12s;
+  }
+  .op:hover{background:var(--surface-hover-strong);color:#fff;}
+  .op svg{width:13px;height:13px;}
+
+  /* 表格空态 */
+  .sb-empty{
+    flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:8px;padding:0 26px;text-align:center;
+  }
+  .sb-empty .mark{
+    width:40px;height:40px;border-radius:10px;
+    border:1px dashed var(--edge);background:var(--surface-sunken);
+    display:flex;align-items:center;justify-content:center;color:#7a7a7a;margin-bottom:4px;
+  }
+  .sb-empty h4{font-size:13px;font-weight:500;color:var(--t-body);}
+  .sb-empty p{font-size:11.5px;color:var(--t-faint);line-height:1.75;}
+  .sb-empty .acts{display:flex;gap:8px;margin-top:8px;}
+
+  /* 拖拽分隔条 */
+  .split{
+    width:5px;flex-shrink:0;cursor:col-resize;
+    background:transparent;border-left:1px solid var(--edge-subtle);
+    transition:background .15s;
+  }
+  .split:hover,.split.dragging{background:rgba(59,130,246,.35);}
+
+  /* ── 右：对话区（沿用现状） ── */
+  .chat{flex:1;min-width:0;display:flex;flex-direction:column;}
+  .msgs{flex:1;min-height:0;overflow-y:auto;padding:18px 16px;display:flex;flex-direction:column;gap:20px;}
+  .msgs::-webkit-scrollbar{width:6px;}
+  .msgs::-webkit-scrollbar-thumb{background:#2a2a2a;border-radius:3px;}
+  .u-row{display:flex;justify-content:flex-end;}
+  .u-col{display:flex;flex-direction:column;align-items:flex-end;gap:6px;max-width:88%;}
+  .u-bub{
+    background:var(--surface-hover);
+    color:var(--t-strong);font-size:13.5px;line-height:1.6;
+    padding:9px 13px;border-radius:16px 16px 4px 16px;
+  }
+  .u-skills{display:flex;flex-wrap:wrap;gap:4px;justify-content:flex-end;}
+  .u-skill{
+    display:inline-flex;align-items:center;gap:4px;
+    padding:2px 6px;background:var(--surface);
+    border:1px solid var(--edge-faint);border-radius:6px;
+    color:var(--t-secondary);font-size:11px;
+  }
+  .a-row{display:flex;flex-direction:column;gap:10px;}
+  .a-text{font-size:13.5px;line-height:1.75;color:#d8d8d8;}
+  .a-text p{margin-bottom:8px;}
+  .a-text p:last-child{margin-bottom:0;}
+  .trace{
+    display:flex;align-items:center;gap:6px;width:100%;
+    padding:3px 0;border:none;background:transparent;
+    color:var(--t-faint);font-size:11.5px;text-align:left;cursor:pointer;
+    transition:color .15s;
+  }
+  .trace:hover{color:var(--t-secondary);}
+  .trace .dot{width:5px;height:5px;border-radius:50%;background:#3d3d3d;flex-shrink:0;}
+  .trace .dot.ok{background:var(--ok);}
+  .a-foot{display:flex;align-items:center;gap:10px;opacity:.5;transition:opacity .15s;}
+  .a-row:hover .a-foot{opacity:1;}
+  .a-meta{font-size:11px;color:var(--t-faint);}
+  .a-acts{display:flex;align-items:center;gap:1px;margin-left:auto;}
+  .a-acts .ib{width:26px;height:26px;border-radius:7px;}
+  .a-acts .ib svg{width:13px;height:13px;}
+
+  /* ── AI 返回表格 → 可视化预览卡（不是裸 JSON） ── */
+  .pv{border:1px solid var(--edge-faint);border-radius:8px;background:var(--surface-sunken);overflow:hidden;}
+  .pv-hd{
+    display:flex;align-items:center;gap:6px;
+    padding:7px 10px;border-bottom:1px solid var(--edge-subtle);
+    color:var(--t-secondary);font-size:11.5px;
+  }
+  .pv-hd .badge{
+    font-size:10px;padding:1px 6px;border-radius:4px;
+    background:rgba(59,130,246,.12);border:1px solid rgba(59,130,246,.3);color:#8ab4ff;
+  }
+  .pv-hd .spacer{flex:1;}
+  .pv-hd .rows{font-size:10.5px;color:var(--t-faint);}
+  .pv-body{max-height:230px;overflow:auto;padding:0 10px;}
+  .pv-body::-webkit-scrollbar{width:6px;}
+  .pv-body::-webkit-scrollbar-thumb{background:#2a2a2a;border-radius:3px;}
+  .pv table{width:100%;border-collapse:collapse;font-size:11.5px;}
+  .pv th{
+    position:sticky;top:0;background:var(--surface-sunken);
+    padding:6px 8px;text-align:left;color:var(--t-faint);font-weight:500;
+    border-bottom:1px solid var(--edge-subtle);white-space:nowrap;
+  }
+  .pv td{
+    padding:6px 8px;vertical-align:top;color:var(--t-secondary);
+    border-bottom:1px solid rgba(255,255,255,.04);line-height:1.6;
+  }
+  .pv tr:last-child td{border-bottom:none;}
+  .pv .gs-line{display:flex;gap:6px;padding:8px 10px 0;color:var(--t-faint);font-size:11px;}
+  .pv .gs-line b{color:var(--t-secondary);font-weight:400;}
+  .pv .old{color:#7c7c7c;text-decoration:line-through;}
+  .pv .new{color:var(--t-strong);}
+  .pv .arrow{color:var(--t-subtle);padding:0 4px;}
+  .pv-ft{display:flex;align-items:center;gap:8px;padding:8px 10px;border-top:1px solid var(--edge-subtle);}
+  .btn{
+    display:inline-flex;align-items:center;gap:5px;
+    padding:5px 11px;border-radius:6px;
+    font-size:11.5px;cursor:pointer;border:1px solid transparent;
+    transition:background .15s,color .15s,border-color .15s;
+  }
+  .btn-ok{background:#16a34a;color:#fff;}
+  .btn-ok:hover{background:#22c55e;}
+  .btn-ghost{background:transparent;color:var(--t-faint);}
+  .btn-ghost:hover{background:var(--surface-hover);color:var(--t-strong);}
+  .pv-ft .tip{margin-left:auto;font-size:10.5px;color:var(--t-subtle);}
+  .pv-done{
+    display:flex;align-items:center;gap:6px;
+    padding:6px 10px;border-radius:7px;
+    background:var(--surface-sunken);border:1px solid var(--edge-faint);
+    color:var(--t-faint);font-size:11.5px;
+  }
+  .pv-done .ck{color:var(--ok);display:flex;}
+
+  /* ── 底部输入区（整面板宽，沿用现状） ── */
+  .composer{flex-shrink:0;padding:10px 12px 12px;border-top:1px solid var(--edge-subtle);}
+  .box{
+    background:var(--surface);
+    border:1px solid var(--edge-subtle);
+    border-radius:18px;
+    padding:8px 10px 6px;
+    transition:border-color .15s;
+  }
+  .box:focus-within{border-color:#3a3a3a;}
+  .ctx-row{display:flex;flex-wrap:wrap;gap:6px;padding:2px 2px 8px;}
+  .ctx{
+    display:inline-flex;align-items:center;gap:5px;
+    padding:3px 8px;border-radius:7px;font-size:11.5px;
+    background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.28);color:#8ab4ff;
+  }
+  .ctx.is-img{background:rgba(255,255,255,.05);border-color:var(--edge-faint);color:var(--t-secondary);}
+  .ctx .x{cursor:pointer;opacity:.65;display:flex;}
+  .ctx .x:hover{opacity:1;}
+  .ta{
+    width:100%;background:transparent;border:none;outline:none;resize:none;
+    color:var(--t-strong);font-size:13.5px;line-height:1.6;
+    min-height:48px;max-height:140px;padding:2px 2px 4px;font-family:inherit;
+  }
+  .ta::placeholder{color:#575757;}
+  .tools{display:flex;align-items:center;gap:1px;padding:2px 0;}
+  .tools .ib{width:28px;height:28px;border-radius:8px;color:#7a7a7a;}
+  .tools .ib:hover{background:var(--surface-hover);color:var(--t-primary);}
+  .tools .ib.on{color:var(--accent);background:rgba(59,130,246,.12);}
+  .tools .spacer{flex:1;}
+  .tools .skill-btn{
+    display:inline-flex;align-items:center;gap:4px;height:28px;padding:0 9px;
+    border:none;border-radius:7px;background:transparent;
+    color:var(--t-secondary);font-size:11.5px;cursor:pointer;transition:background .15s,color .15s;
+  }
+  .tools .skill-btn:hover{background:var(--surface-hover);color:var(--t-strong);}
+  .tools .skill-btn.on{color:var(--accent);background:rgba(59,130,246,.12);}
+  .send{
+    width:30px;height:30px;border-radius:50%;flex-shrink:0;
+    background:#f2f2f2;color:#111;
+    display:flex;align-items:center;justify-content:center;
+    border:none;cursor:pointer;transition:background .15s;
+  }
+  .send:hover{background:#fff;}
+
+  /* 对话空态 */
+  .chat-empty{
+    height:100%;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;text-align:center;padding:0 20px;
+  }
+  .chat-empty .mark{
+    width:38px;height:38px;border-radius:50%;
+    background:linear-gradient(135deg,#2a2a2a,#1c1c1c);
+    border:1px solid var(--edge-faint);
+    display:flex;align-items:center;justify-content:center;color:#cfcfcf;margin-bottom:14px;
+  }
+  .chat-empty h3{font-size:15px;font-weight:500;color:#e8e8e8;margin-bottom:6px;}
+  .chat-empty p{font-size:12px;color:var(--t-faint);line-height:1.7;}
+  .chips{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-top:18px;max-width:280px;}
+  .chip{
+    display:inline-flex;align-items:center;gap:5px;
+    padding:5px 11px;border-radius:999px;
+    background:transparent;border:1px solid var(--edge-faint);
+    color:var(--t-secondary);font-size:12px;cursor:pointer;transition:all .15s;
+  }
+  .chip:hover{border-color:var(--edge-strong);color:var(--t-strong);background:var(--surface-hover);}
+
+  /* 模式徽标 */
+  .mode-bar{
+    display:flex;align-items:center;gap:6px;
+    padding:6px 9px;border-radius:8px;
+    background:rgba(59,130,246,.07);border:1px solid rgba(59,130,246,.18);
+    color:#8ab4ff;font-size:11px;
+  }
+
+  /* Toast（演示用） */
+  .toast-host{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);z-index:9999;display:flex;flex-direction:column;gap:8px;align-items:center;}
+  .toast{
+    padding:8px 14px;border-radius:9px;
+    background:#222;border:1px solid #333;color:#ddd;font-size:12.5px;
+    box-shadow:0 12px 40px rgba(0,0,0,.6);
+    animation:tin .18s ease-out;
+  }
+  @keyframes tin{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+  /* 结尾：待定问题 */
+  .open-q{width:100%;margin-top:6px;padding:14px 16px;border:1px solid #2a2a2a;border-radius:12px;background:#101010;}
+  .open-q h2{font-size:13px;color:var(--t-strong);font-weight:600;margin-bottom:8px;}
+  .open-q ol{margin-left:18px;font-size:12px;color:var(--t-muted);line-height:1.9;}
+  .open-q b{color:var(--t-primary);font-weight:600;}
+  .open-q code{
+    background:#1d1d1d;border:1px solid #292929;border-radius:5px;
+    padding:1px 4px;font-size:11px;color:#c9c9c9;
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+  }
+</style>
+</head>
+<body>
+
+<div class="page-head">
+  <h1>分镜协作 · AI 助手内嵌工作区 —— 外观 Mockup</h1>
+  <p>
+    依据 <b>docs/分镜协作-AI助手内嵌工作区-2026-09-05.md</b>（定稿）与 <b>…可执行方案-2026-09-05.md</b> §4.2b UI 布局规格绘制；
+    样式沿用现有 <b>agent-panel.css</b> 的令牌与视觉语言（AI 回复无气泡 / 圆角输入卡 / 纯图标工具条 / 绿=确认）。
+    可交互：顶栏<b>表格图标</b>开合左栏、<b>拖拽分隔条</b>调宽、<b>点行选中</b>、<b>点格改字</b>、行 hover 操作、预览卡<b>确认写入</b>。
+    <span class="warn">注意：面板宽度上限当前是 720px（AgentPanel MIN/MAX_WIDTH），表格模式需要更宽 —— 见页尾「待定问题」。</span>
+  </p>
+</div>
+
+<!-- ══════════ 1. 收起态 = 现在的普通对话 ══════════ -->
+<div class="stage">
+  <div class="panel is-collapsed" style="width:400px;">
+    <div class="grip"></div>
+    <div class="header">
+      <div class="h-left">
+        <span class="h-title">小马过河 · 分镜</span>
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+      <div class="h-right">
+        <button class="ib" data-toggle-table title="展开分镜表格（表格模式）">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
+        </button>
+        <button class="ib on" title="积分确认已开启">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        </button>
+        <button class="ib" title="新建对话">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </button>
+        <button class="ib" title="关闭">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="body">
+      <section class="sb"></section>
+      <div class="split"></div>
+      <section class="chat">
+        <div class="msgs">
+          <div class="u-row"><div class="u-col"><div class="u-bub">帮我在画布上画一只月光下的猫</div></div></div>
+          <div class="a-row">
+            <div class="trace"><span class="dot ok"></span><span>已执行 2 个工具 · 新建 1 个图像节点</span></div>
+            <div class="a-text"><p>已经建好了。画布上新增了一个图像节点，描述词用了蓝紫色调 + 月光氛围。</p></div>
+            <div class="a-foot">
+              <span class="a-meta">以上内容由 AI 生成</span>
+              <div class="a-acts">
+                <button class="ib" title="复制到剪贴板"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>
+                <button class="ib" title="发到画布"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg></button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <div class="composer">
+      <div class="box">
+        <textarea class="ta" rows="1" placeholder="描述你想做的事，回车发送，Shift+Enter 换行"></textarea>
+        <div class="tools">
+          <button class="ib" title="生图模型"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6" rx="1"/></svg></button>
+          <button class="ib" title="生图参数"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
+          <button class="skill-btn" title="应用 Skill"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>Skill</button>
+          <span class="spacer"></span>
+          <button class="send"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg></button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="stage-cap" style="width:400px;">
+    <span class="tag">收起态</span><b>普通对话（与现状零差异）</b>
+    <div class="note">
+      顶栏<span class="new">+1 个「表格」图标</span>（灰=收起 / 蓝=展开）；<span class="keep">其余不动</span><br/>
+      收起态不追加表格系统提示词 —— 还是同一个 AI、同一个对话，只是换了个「模式」<br/>
+      <span class="cut">-不做独立页面 / 不做画布表格节点</span>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ 2. 展开态 · 空表（两个入口） ══════════ -->
+<div class="stage">
+  <div class="panel" style="width:820px;">
+    <div class="grip"></div>
+    <div class="header">
+      <div class="h-left">
+        <span class="h-title">新对话</span>
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+      <div class="h-right">
+        <button class="ib tb-on" data-toggle-table title="分镜表格已展开（表格模式）：AI 已聚焦左侧表格。点击收起">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
+        </button>
+        <button class="ib on" title="积分确认已开启">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        </button>
+        <button class="ib" title="新建对话（= 一张新空表）">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </button>
+        <button class="ib" title="关闭">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="body">
+      <!-- 左：表格（空态） -->
+      <section class="sb">
+        <div class="sb-head">
+          <div class="gs">
+            <span class="gs-l">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+              全局风格
+            </span>
+            <span class="gs-v is-ph" contenteditable="true">未设置（AI 会自行补一个）</span>
+            <svg class="pen" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>
+          </div>
+          <div class="sb-tools">
+            <button class="tb" data-demo="粘贴：读取剪贴板，首行作为表头">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              粘贴表格
+            </button>
+            <button class="tb primary" data-demo="入口其实在右侧对话：发「需求 + Skill」，AI 返回整表">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.8 4.7L18.5 9l-4.7 1.3L12 15l-1.8-4.7L5.5 9l4.7-1.3z"/><path d="M18.5 15.5l.8 2 2.2.8-2.2.8-.8 2-.8-2-2.2-.8 2.2-.8z"/></svg>
+              用 AI 生成
+            </button>
+            <span class="spacer"></span>
+            <span class="cnt">0 行</span>
+            <button class="ib sm" data-demo="新增一行" title="新增一行">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="sb-empty">
+          <div class="mark">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
+          </div>
+          <h4>还没有表格</h4>
+          <p>粘贴一段带表头的文字（首行=列名），<br/>或在右侧对话里描述需求让 AI 设计表头并填充</p>
+          <div class="acts">
+            <button class="tb" data-demo="粘贴：读取剪贴板，首行作为表头">粘贴表格</button>
+            <button class="tb primary" data-demo="去右侧对话发需求 + Skill">让 AI 生成</button>
+          </div>
+        </div>
+      </section>
+
+      <div class="split" title="拖拽调整左右宽度"></div>
+
+      <!-- 右：对话（空态） -->
+      <section class="chat">
+        <div class="msgs">
+          <div class="mode-bar">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
+            <span>表格模式已开启 · AI 会优先处理左侧表格</span>
+          </div>
+          <div class="chat-empty">
+            <div class="mark">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 1 3 3v1h1.5a2.5 2.5 0 0 1 2.5 2.5v1.5a5 5 0 0 1-5 5h-4a5 5 0 0 1-5-5V8.5A2.5 2.5 0 0 1 7.5 6H9V5a3 3 0 0 1 3-3z"/><path d="M9 14h6"/><path d="M10 18h4"/></svg>
+            </div>
+            <h3>想要一张什么表？</h3>
+            <p>发需求 + Skill，我帮你设计列并填好每行</p>
+            <div class="chips">
+              <span class="chip">《小马过河》分镜脚本</span>
+              <span class="chip">10 屏产品详情页</span>
+              <span class="chip">10 套主图提示词</span>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <div class="composer">
+      <div class="box">
+        <textarea class="ta" rows="1" placeholder="描述你想做的事，回车发送，Shift+Enter 换行"></textarea>
+        <div class="tools">
+          <button class="ib" title="生图模型"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6" rx="1"/></svg></button>
+          <button class="ib" title="生图参数"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l-.06-.06A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
+          <button class="skill-btn on" title="已启用 Skill：一句话变分镜脚本"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>Skill·一句话变分镜</button>
+          <span class="spacer"></span>
+          <button class="send"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg></button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="stage-cap" style="width:820px;">
+    <span class="tag main">展开态 ①</span><b>空表 · 两个入口</b>
+    <div class="note">
+      左栏 = 分镜表格工作区，<span class="new">无独立标题栏</span>（面板已有标题栏）<br/>
+      <b>全局风格条</b>在表格最顶、表外独立一行（<span class="keep">不占 rows、不是内容行</span>），可直接点开改<br/>
+      工具条：<span class="new">粘贴表格 / 用 AI 生成 / 加行 + 行数</span>；粘贴<b>以首行为表头</b>，不预设模板<br/>
+      空表给<span class="new">两个入口</span>；对话区顶部一条<span class="new">模式徽标</span>，提示 AI 已进入表格模式<br/>
+      <span class="keep">表格归属当前对话</span>：新建对话 = 一张新空表
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ 3. AI 生成整表 → 可视化预览 → 确认落表 ══════════ -->
+<div class="stage">
+  <div class="panel" style="width:820px;">
+    <div class="grip"></div>
+    <div class="header">
+      <div class="h-left">
+        <span class="h-title">《小马过河》分镜</span>
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+      <div class="h-right">
+        <button class="ib tb-on" data-toggle-table title="分镜表格已展开（表格模式）。点击收起">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
+        </button>
+        <button class="ib on" title="积分确认已开启">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        </button>
+        <button class="ib" title="新建对话">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </button>
+        <button class="ib" title="关闭">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="body">
+      <!-- 左：表格（空，等确认） -->
+      <section class="sb">
+        <div class="sb-head">
+          <div class="gs">
+            <span class="gs-l">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+              全局风格
+            </span>
+            <span class="gs-v is-ph" contenteditable="true">未设置（AI 会自行补一个）</span>
+            <svg class="pen" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>
+          </div>
+          <div class="sb-tools">
+            <button class="tb" data-demo="粘贴：读取剪贴板，首行作为表头">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              粘贴表格
+            </button>
+            <button class="tb primary" data-demo="入口在右侧对话：发「需求 + Skill」">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.8 4.7L18.5 9l-4.7 1.3L12 15l-1.8-4.7L5.5 9l4.7-1.3z"/><path d="M18.5 15.5l.8 2 2.2.8-2.2.8-.8 2-.8-2-2.2-.8 2.2-.8z"/></svg>
+              用 AI 生成
+            </button>
+            <span class="spacer"></span>
+            <span class="cnt">0 行</span>
+            <button class="ib sm" data-demo="新增一行" title="新增一行">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="sb-empty">
+          <div class="mark">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
+          </div>
+          <h4>等你在右侧确认后写入</h4>
+          <p>预览不改正式表 —— 确认才是唯一写回闸口</p>
+        </div>
+      </section>
+
+      <div class="split" title="拖拽调整左右宽度"></div>
+
+      <!-- 右：AI 返回整表预览 -->
+      <section class="chat">
+        <div class="msgs">
+          <div class="mode-bar">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
+            <span>表格模式已开启 · AI 会优先处理左侧表格</span>
+          </div>
+
+          <div class="u-row"><div class="u-col">
+            <div class="u-skills"><span class="u-skill">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+              一句话变分镜脚本
+            </span></div>
+            <div class="u-bub">我要做一个《小马过河》的故事，帮我出整张分镜表</div>
+          </div></div>
+
+          <div class="a-row">
+            <div class="trace"><span class="dot ok"></span><span>已按 Skill 结构设计表格 · 6 行</span></div>
+            <div class="a-text"><p>设计成 5 列、6 个镜头，整批统一风格写在「全局风格」里，每行只写各自内容。确认后写入左侧表格，之后可以逐行改。</p></div>
+
+            <!-- 可视化预览卡：AI 返回的是 JSON，但给你看的是表格 -->
+            <div class="pv">
+              <div class="pv-hd">
+                <span class="badge">表格预览</span>
+                <span>AI 生成 · 未写入</span>
+                <span class="spacer"></span>
+                <span class="rows">共 6 行</span>
+              </div>
+              <div class="gs-line"><b>全局风格：</b><span>写实电影感 · 暖调午后阳光 · 柔和自然光</span></div>
+              <div class="pv-body">
+                <table>
+                  <thead><tr><th style="width:34px">镜号</th><th>景别</th><th>画面描述</th><th>运镜</th><th>对白·旁白</th></tr></thead>
+                  <tbody>
+                    <tr><td>1</td><td>全景</td><td>阳光下的小河，小马驮着麦子站在岸边</td><td>缓慢横移</td><td>旁白：老马让小马去磨坊</td></tr>
+                    <tr><td>2</td><td>中景</td><td>小马抬起前蹄试探河水，眼神犹豫</td><td>固定</td><td>小马：这条河我能过去吗？</td></tr>
+                    <tr><td>3</td><td>近景</td><td>松鼠从树上探身挥手，神情焦急</td><td>轻微推近</td><td>松鼠：别过去！</td></tr>
+                    <tr><td>4</td><td>中景</td><td>老牛低头吃草，神态从容</td><td>固定</td><td>老牛：水很浅，刚没小腿</td></tr>
+                    <tr><td>5</td><td>特写</td><td>小马低头看流水，耳朵动了动</td><td>推镜</td><td>旁白：小马为难了</td></tr>
+                    <tr><td>6</td><td>全景</td><td>小马稳稳过河，水花溅起</td><td>跟拍</td><td>旁白：原来不深也不浅</td></tr>
+                  </tbody>
+                </table>
+              </div>
+              <div class="pv-ft">
+                <button class="btn btn-ok" data-confirm="已写入左侧表格 · 6 行（可编辑）">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                  确认写入表格
+                </button>
+                <button class="btn btn-ghost" data-cancel="已取消，表格未改动">取消</button>
+                <span class="tip">取消则表格保持原样</span>
+              </div>
+            </div>
+
+            <div class="a-foot">
+              <span class="a-meta">以上内容由 AI 生成</span>
+              <div class="a-acts">
+                <button class="ib" title="复制到剪贴板"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>
+                <button class="ib" title="重新生成"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <div class="composer">
+      <div class="box">
+        <textarea class="ta" rows="1" placeholder="描述你想做的事，回车发送，Shift+Enter 换行"></textarea>
+        <div class="tools">
+          <button class="ib" title="生图模型"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6" rx="1"/></svg></button>
+          <button class="ib" title="生图参数"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l-.06-.06A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
+          <button class="skill-btn on" title="已启用 Skill：一句话变分镜脚本"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>Skill·一句话变分镜</button>
+          <span class="spacer"></span>
+          <button class="send"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg></button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="stage-cap" style="width:820px;">
+    <span class="tag main">展开态 ②</span><b>AI 生成整表 → 可视化预览 → 确认才落表</b>
+    <div class="note">
+      入口在<b>对话区</b>（需求 + Skill），表格只承接结果：<span class="new">AI 的 JSON → 渲染成预览表格</span>，<span class="cut">不给你看裸 JSON</span><br/>
+      预览卡 = 全局风格 + 表头 + 全行（可滚动）；<span class="keep">沿用 AgentConfirmCard 的绿确认按钮</span><br/>
+      <span class="new">预览与正式表是两份状态</span>：不点确认，左侧表格一行都不动<br/>
+      列由 AI 按 Skill 设计，<span class="keep">不预设模板</span>；确认后即可点格改字、加删行
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ 4. 选中行打磨 · 单行改动预览 → 确认写回 ══════════ -->
+<div class="stage">
+  <div class="panel" style="width:820px;">
+    <div class="grip"></div>
+    <div class="header">
+      <div class="h-left">
+        <span class="h-title">《小马过河》分镜</span>
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+      <div class="h-right">
+        <button class="ib tb-on" data-toggle-table title="分镜表格已展开（表格模式）。点击收起">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
+        </button>
+        <button class="ib on" title="积分确认已开启">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        </button>
+        <button class="ib" title="新建对话">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </button>
+        <button class="ib" title="关闭">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="body">
+      <!-- 左：已落表的可编辑表格（行由脚本按数据渲染） -->
+      <section class="sb">
+        <div class="sb-head">
+          <div class="gs">
+            <span class="gs-l">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+              全局风格
+            </span>
+            <span class="gs-v" contenteditable="true">写实电影感 · 暖调午后阳光 · 柔和自然光</span>
+            <svg class="pen" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>
+          </div>
+          <div class="sb-tools">
+            <button class="tb" data-demo="粘贴：读取剪贴板，首行作为表头">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              粘贴表格
+            </button>
+            <button class="tb primary" data-demo="去右侧对话发「改第 N 行 / 生成这行」">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.8 4.7L18.5 9l-4.7 1.3L12 15l-1.8-4.7L5.5 9l4.7-1.3z"/><path d="M18.5 15.5l.8 2 2.2.8-2.2.8-.8 2-.8-2-2.2-.8 2.2-.8z"/></svg>
+              用 AI 生成
+            </button>
+            <span class="spacer"></span>
+            <span class="cnt">6 行</span>
+            <button class="ib sm" data-addrow title="新增一行">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="sb-body">
+          <table class="sbt">
+            <colgroup><col style="width:7%"><col style="width:12%"><col style="width:27%"><col style="width:12%"><col style="width:25%"><col style="width:17%"></colgroup>
+            <thead><tr><th>#</th><th>景别</th><th>画面描述</th><th>运镜</th><th>对白·旁白</th><th></th></tr></thead>
+            <tbody data-rows></tbody>
+          </table>
+        </div>
+      </section>
+
+      <div class="split" title="拖拽调整左右宽度"></div>
+
+      <!-- 右：选中行的对话打磨 -->
+      <section class="chat">
+        <div class="msgs">
+          <div class="mode-bar">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
+            <span>表格模式已开启 · 当前选中第 3 行</span>
+          </div>
+
+          <div class="u-row"><div class="u-col">
+            <div class="u-skills"><span class="u-skill">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+              一句话变分镜脚本
+            </span></div>
+            <div class="u-bub">我要做一个《小马过河》的故事，帮我出整张分镜表</div>
+          </div></div>
+
+          <div class="a-row">
+            <div class="pv-done">
+              <span class="ck"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+              已写入左侧表格 · 6 行（可编辑）
+            </div>
+            <div class="a-text"><p>表格已经可以改了。选中任意一行，我就能针对那一行改；也可以直接说「生成这行」，我把它落到画布去生图。</p></div>
+          </div>
+
+          <div class="u-row"><div class="u-col">
+            <div class="u-bub">把第 3 行写得更紧张一点，加一句松鼠的动作</div>
+          </div></div>
+
+          <div class="a-row">
+            <div class="trace"><span class="dot ok"></span><span>read_storyboard · 第 3 行（列结构 + 全局风格 + 参考图 1）</span></div>
+            <div class="a-text"><p>只动了「画面描述」和「对白·旁白」两列，景别 / 运镜保持原样：</p></div>
+
+            <!-- 单行 diff 预览 -->
+            <div class="pv">
+              <div class="pv-hd">
+                <span class="badge">第 3 行 · 改动预览</span>
+                <span class="spacer"></span>
+                <span class="rows">2 处改动</span>
+              </div>
+              <div class="pv-body">
+                <table>
+                  <thead><tr><th style="width:74px">列</th><th>当前</th><th>改为</th></tr></thead>
+                  <tbody>
+                    <tr>
+                      <td>画面描述</td>
+                      <td><span class="old">松鼠从树上探身挥手，神情焦急</span></td>
+                      <td><span class="new">松鼠猛地从树杈窜出，前爪死死扒住树干，尾巴炸开，冲着小马急叫</span></td>
+                    </tr>
+                    <tr>
+                      <td>对白·旁白</td>
+                      <td><span class="old">松鼠：别过去！</span></td>
+                      <td><span class="new">松鼠（尖声）：别过去！水太深了！</span></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <div class="pv-ft">
+                <button class="btn btn-ok" data-confirm="已写回第 3 行（仅文字，图与列结构不变）">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                  确认写回第 3 行
+                </button>
+                <button class="btn btn-ghost" data-cancel="已取消，第 3 行未改动">取消</button>
+                <span class="tip">只覆盖文字 · 图只作参考不带回</span>
+              </div>
+            </div>
+
+            <div class="a-foot">
+              <span class="a-meta">以上内容由 AI 生成</span>
+              <div class="a-acts">
+                <button class="ib" title="复制到剪贴板"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>
+                <button class="ib" title="重新生成"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- 输入区：顶部 chip 显示「当前上下文」 -->
+    <div class="composer">
+      <div class="box">
+        <div class="ctx-row">
+          <span class="ctx">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
+            <span class="ctx-text">正在处理：第 3 行 · 近景</span>
+            <span class="x" data-demo="已取消选中该行"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span>
+          </span>
+          <span class="ctx is-img">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+            <span>参考图 1（画布选中）</span>
+            <span class="x" data-demo="已移除该参考图"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span>
+          </span>
+        </div>
+        <textarea class="ta" rows="1">再狠一点，把松鼠的害怕写出来</textarea>
+        <div class="tools">
+          <button class="ib" title="生图模型"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6" rx="1"/></svg></button>
+          <button class="ib" title="生图参数"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l-.06-.06A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
+          <button class="skill-btn on" title="已启用 Skill：一句话变分镜脚本"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>Skill·一句话变分镜</button>
+          <span class="spacer"></span>
+          <button class="send"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg></button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="stage-cap" style="width:820px;">
+    <span class="tag main">展开态 ③</span><b>点选行 → 交给 AI 打磨 → diff 预览 → 确认写回</b>
+    <div class="note">
+      <span class="new">点行即选中</span>（蓝底 + 左侧蓝条）→ 该行随对话发 AI；<span class="new">输入框顶部 chip</span>显式告诉你「正在处理：第 3 行 + 参考图」<br/>
+      AI 每次只被注入「列结构 + 全局风格 + 当前选中行」；要看全貌时它自己调 <code>read_storyboard</code>（只读）<br/>
+      返回 <b>diff 预览</b>（旧 → 新，只列改动列），<span class="keep">确认才写回该行</span>；<span class="cut">图只作参考不带回</span><br/>
+      行 hover 出操作：<span class="new">复制 / 上移 / 下移 / 删除 / 发送到画布</span>；<span class="new">点格直接改字</span>；表头吸顶、表体独立滚动
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ 待定问题（要你拍板） ══════════ -->
+<div class="open-q">
+  <h2>看外观时顺带暴露的 3 个待定问题</h2>
+  <ol>
+    <li><b>面板宽度不够</b>：现在 <code>AgentPanel</code> 宽度 320–720（默认 400）。表格模式要「左表 + 右对话」并排，720 仍然局促（对话只剩 ~250px）。建议：进入表格模式<b>自动加宽到 ~900</b>，并把 <code>MAX_WIDTH</code> 提到 900–1000；或者表格做成<b>可折叠覆盖层</b>（展开时盖住对话区，不并排）。</li>
+    <li><b>窄栏下的列挤压</b>：左栏 ~460px 时 5 列就偏挤，长文本靠换行撑高（方案 §4.2b 定的「允许换行不截断」）。若列数 ≥6（例如再加「时长 / 音效」），建议允许<b>横向滚动 + 表头吸顶</b>，而不是无限压缩列宽。</li>
+    <li><b>全局风格 vs 行内风格</b>：现在只有一条顶层「全局风格」。若某行要脱离统一风格（如闪回镜头），是允许行内覆写，还是必须改全局？当前 mockup 按定稿<b>只留一条顶层</b>，行内不写 style。</li>
+  </ol>
+</div>
+
+<div class="toast-host" id="toastHost"></div>
+
+<script>
+/* ══════════ 表格行数据（= 会话记忆 storyboard 的 rows 形态） ══════════ */
+const ROWS = [
+  ['全景', '阳光下的小河，小马驮着麦子站在岸边', '缓慢横移', '旁白：老马让小马去磨坊'],
+  ['中景', '小马抬起前蹄试探河水，眼神犹豫', '固定', '小马：这条河我能过去吗？'],
+  ['近景', '松鼠从树上探身挥手，神情焦急', '轻微推近', '松鼠：别过去！'],
+  ['中景', '老牛低头吃草，神态从容', '固定', '老牛：水很浅，刚没小腿'],
+  ['特写', '小马低头看流水，耳朵动了动', '推镜', '旁白：小马为难了'],
+  ['全景', '小马稳稳过河，水花溅起', '跟拍', '旁白：原来不深也不浅'],
+]
+const OPS = [
+  { act: 'copy', title: '复制该行', tip: '已复制到下一行', svg: '<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>' },
+  { act: 'up', title: '上移', tip: '已上移', svg: '<polyline points="18 15 12 9 6 15"/>' },
+  { act: 'down', title: '下移', tip: '已下移', svg: '<polyline points="6 9 12 15 18 9"/>' },
+  { act: 'del', title: '删除', tip: '已删除该行', svg: '<polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>' },
+  { act: 'canvas', title: '发送到画布去生图', tip: '已发送到画布（建成文本节点）', svg: '<line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>' },
+]
+const opsHtml = () => '<div class="ops">' + OPS.map((o) =>
+  '<button class="op" data-act="' + o.act + '" data-tip="' + o.tip + '" title="' + o.title +
+  '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + o.svg + '</svg></button>'
+).join('') + '</div>'
+
+function rowHtml(cells, sel) {
+  return '<tr' + (sel ? ' class="sel"' : '') + '><td class="idx"></td>' +
+    cells.map((c) => '<td><div class="cell" contenteditable="true">' + c + '</div></td>').join('') +
+    '<td>' + opsHtml() + '</td></tr>'
+}
+
+/* ══════════ Toast（演示用反馈） ══════════ */
+const toastHost = document.getElementById('toastHost')
+function toast(msg) {
+  const el = document.createElement('div')
+  el.className = 'toast'
+  el.textContent = msg
+  toastHost.appendChild(el)
+  setTimeout(() => el.remove(), 2200)
+}
+
+/* ══════════ 渲染表格 + 行号 / 行数 ══════════ */
+function renumber(tbody) {
+  Array.from(tbody.querySelectorAll('tr')).forEach((tr, i) => {
+    tr.querySelector('td.idx').textContent = String(i + 1)
+  })
+  const cnt = tbody.closest('.panel').querySelector('.sb-tools .cnt')
+  if (cnt) cnt.textContent = tbody.querySelectorAll('tr').length + ' 行'
+}
+document.querySelectorAll('[data-rows]').forEach((tbody) => {
+  tbody.innerHTML = ROWS.map((r, i) => rowHtml(r, i === 2)).join('')
+  renumber(tbody)
+})
+
+/* ══════════ 选中行 → 同步上下文 chip 与模式条 ══════════ */
+function syncContext(panel) {
+  const tr = panel.querySelector('table.sbt tbody tr.sel')
+  if (!tr) return
+  const idx = tr.querySelector('td.idx').textContent
+  const shot = tr.children[1].innerText.trim()
+  const chipText = panel.querySelector('.ctx-text')
+  if (chipText) chipText.textContent = '正在处理：第 ' + idx + ' 行 · ' + shot
+  const barText = panel.querySelector('.mode-bar span')
+  if (barText) barText.textContent = '表格模式已开启 · 当前选中第 ' + idx + ' 行'
+}
+
+/* ══════════ 点行选中（事件委托：行内新增/复制的行同样生效） ══════════ */
+document.addEventListener('click', (e) => {
+  const tr = e.target.closest('table.sbt tbody tr')
+  if (!tr) return
+  if (e.target.closest('.ops')) return       // 行操作按钮不触发选行
+  const panel = tr.closest('.panel')
+  panel.querySelectorAll('table.sbt tbody tr.sel').forEach((x) => x.classList.remove('sel'))
+  tr.classList.add('sel')
+  syncContext(panel)
+})
+
+/* ══════════ 行操作：复制 / 上下移 / 删除 / 发送画布 ══════════ */
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest('.op')
+  if (!btn) return
+  e.stopPropagation()
+  const tr = btn.closest('tr')
+  const tbody = tr.parentNode
+  const panel = tr.closest('.panel')
+  const act = btn.dataset.act
+  if (act === 'copy') {
+    const copy = tr.cloneNode(true)
+    copy.classList.remove('sel')
+    tr.after(copy)
+    renumber(tbody)
+  } else if (act === 'up') {
+    if (tr.previousElementSibling) tbody.insertBefore(tr, tr.previousElementSibling)
+  } else if (act === 'down') {
+    if (tr.nextElementSibling) tbody.insertBefore(tr.nextElementSibling, tr)
+  } else if (act === 'del') {
+    tr.remove()
+    renumber(tbody)
+    const first = tbody.querySelector('tr')
+    if (first) { first.classList.add('sel'); }
+  } else {
+    toast(btn.dataset.tip)
+    return
+  }
+  renumber(tbody)
+  syncContext(panel)
+  toast(btn.dataset.tip)
+})
+
+/* ══════════ 顶栏「表格」图标：开合左栏 ══════════ */
+document.querySelectorAll('[data-toggle-table]').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    const panel = btn.closest('.panel')
+    const on = !panel.classList.toggle('is-collapsed')
+    btn.classList.toggle('tb-on', on)
+    toast(on ? '已展开分镜表格（进入表格模式）' : '已收起表格（回到普通对话）')
+  })
+})
+
+/* ══════════ 拖拽分隔条：调左右宽度（左栏 min 300，对话至少留 320） ══════════ */
+document.querySelectorAll('.split').forEach((bar) => {
+  bar.addEventListener('mousedown', (e) => {
+    e.preventDefault()
+    const panel = bar.closest('.panel')
+    const sb = panel.querySelector('.sb')
+    const panelW = panel.getBoundingClientRect().width
+    const startX = e.clientX
+    const startW = sb.getBoundingClientRect().width
+    bar.classList.add('dragging')
+    const onMove = (ev) => {
+      const next = Math.min(Math.max(startW + ev.clientX - startX, 300), Math.max(panelW - 320, 300))
+      sb.style.width = next + 'px'
+    }
+    const onUp = () => {
+      bar.classList.remove('dragging')
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+    }
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+  })
+})
+
+/* ══════════ 新增一行 ══════════ */
+document.querySelectorAll('[data-addrow]').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    const panel = btn.closest('.panel')
+    const tbody = panel.querySelector('table.sbt tbody')
+    if (!tbody) { toast('空表请先粘贴或让 AI 生成'); return }
+    const row = tbody.querySelector('tr').cloneNode(true)
+    row.classList.remove('sel')
+    row.querySelectorAll('.cell').forEach((c) => { c.textContent = '' })
+    tbody.appendChild(row)
+    renumber(tbody)
+    toast('已新增一行（点格子填内容）')
+  })
+})
+
+/* ══════════ 预览卡：确认 / 取消（确认才是唯一写回闸口） ══════════ */
+function collapseCard(card, text, withCheck) {
+  const done = document.createElement('div')
+  done.className = 'pv-done'
+  done.innerHTML = withCheck
+    ? '<span class="ck"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>'
+    : ''
+  done.appendChild(document.createTextNode(text))
+  card.replaceWith(done)
+}
+document.querySelectorAll('[data-confirm]').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    collapseCard(btn.closest('.pv'), btn.dataset.confirm, true)
+    toast(btn.dataset.confirm)
+  })
+})
+document.querySelectorAll('[data-cancel]').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    collapseCard(btn.closest('.pv'), btn.dataset.cancel, false)
+    toast(btn.dataset.cancel)
+  })
+})
+
+/* ══════════ 演示型按钮（粘贴 / AI 生成 / chip 移除） ══════════ */
+document.querySelectorAll('[data-demo]').forEach((el) => {
+  el.addEventListener('click', (e) => { e.stopPropagation(); toast(el.dataset.demo) })
+})
+document.querySelectorAll('.tools .ib, .tools .skill-btn').forEach((b) => {
+  b.addEventListener('click', () => b.classList.toggle('on'))
+})
+
+/* ══════════ 单元格 / 全局风格编辑：回车提交 ══════════ */
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter' || e.isComposing) return
+  const t = e.target
+  if (t.classList && (t.classList.contains('cell') || t.classList.contains('gs-v'))) {
+    e.preventDefault()
+    t.blur()
+  }
+})
+</script>
+</body>
+</html>
+

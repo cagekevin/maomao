@@ -21,6 +21,10 @@ import { logger } from '../base/core/logger.ts'
 import previewUrls from '../base/utils/previewUrl.ts'
 import { subscribe } from '../base/core/eventBus.ts'
 import { CREDIT_GATE_EVENT } from '../base/core/contracts.ts'
+// AI 助手表格工作区：左栏表格组件 + 纯函数模型/上下文拼装
+import AssistantTablePanel from '../agent/assistantTable/AssistantTablePanel.tsx'
+import { normalizeAssistantTable, rowToText } from '../agent/assistantTable/assistantTable.ts'
+import { buildTableModeContext } from '../agent/assistantTable/assistantTablePrompt.ts'
 
 /**
  * ════════════════════════════════════════════════════════════════
@@ -40,9 +44,15 @@ import { CREDIT_GATE_EVENT } from '../base/core/contracts.ts'
 // 模型列表来自所选厂商在设置里实际配置的 chat_models（不再用 AGENT_MODELS 兜底）
 const PANEL_WIDTH_KEY = 'agent_panel_width'
 const AGENT_DRAFT_KEY = 'agent_draft'
+const AGENT_SPLIT_WIDTH_KEY = 'agent_split_width' // 表格模式左右分栏：左栏宽（px）
 const MIN_WIDTH = 320
-const MAX_WIDTH = 720
+const MAX_WIDTH = 960 // 表格模式需更宽（mockup 待定①：进入表格模式自动加宽）
 const DEFAULT_WIDTH = 400
+/** 表格模式打开时若面板过窄，自动加宽到的下限（给左表+右对话并排留空间） */
+const TABLE_OPEN_MIN_WIDTH = 820
+/** 表格左栏默认宽度 / 可拖拽范围 */
+const SPLIT_DEFAULT = 460
+const SPLIT_MIN = 300
 
 /** 距底部 <= 该 px 即视为「已到底」：留余量规避小数像素/缩放导致的按钮闪烁 */
 const BOTTOM_EPS = 60
@@ -70,6 +80,16 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
 }) {
   const [width, setWidth] = useState(loadWidth)
   const [dragging, setDragging] = useState(false)
+  // ── 表格工作区状态 ──
+  // tableOpen：顶栏「表格」图标开关（展开=进入表格模式，追加表格专注上下文；收起=普通对话）
+  const [tableOpen, setTableOpen] = useState(false)
+  // selectedRowId：当前表格选中的行（发 AI 时自动注入该行上下文）；由 AssistantTablePanel lift
+  const [selectedRowId, setSelectedRowId] = useState<string | null>(null)
+  // 表格左栏宽度（localStorage 记忆）+ 分栏拖拽
+  const [tableWidth, setTableWidth] = useState(() => {
+    try { const n = Number(contentGet(AGENT_SPLIT_WIDTH_KEY)); return Number.isFinite(n) ? Math.max(SPLIT_MIN, n) : SPLIT_DEFAULT } catch { return SPLIT_DEFAULT }
+  })
+  const [tableSplitDragging, setTableSplitDragging] = useState(false)
   // 【设置即生效·方案 B】聊天模型配置（agent_chat_model）变更计数器。
   // 每次「设置 → AI 助手」改模型/供应商写入该键，contentSubscribe 回调自增此值，
   // 触发下方 agentProvider / agentModels / configuredModel 重算（它们原本只在挂载时算一次）。
@@ -193,6 +213,15 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
     skills: activeSkills,
     onConversationChange: handleConversationChange
   })
+
+  // ── 表格工作区数据（自当前对话会话记忆派生；conversations 订阅时随记忆写回刷新）──
+  const activeConv = (conversations || []).find((c) => c.id === activeConversationId)
+  const storyboard = useMemo(() => normalizeAssistantTable(activeConv?.memory?.assistantTable ?? null), [activeConv])
+  const globalStyle = useMemo(() => {
+    const gc = activeConv?.memory?.global_contract
+    return gc ? String((gc as { unified_style_prompt?: string }).unified_style_prompt ?? '').trim() : ''
+  }, [activeConv])
+  const selectedRow = storyboard.rows.find((r) => r.id === selectedRowId) || null
 
   // 【设置即生效·方案 B】订阅「设置 → AI 助手」的聊天模型键（agent_chat_model）。
   // 该键由 AgentChatSettings.saveAgentChatModel → contentSet 写入，contentSubscribe 即时回调。
@@ -350,6 +379,37 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
     document.addEventListener('mouseup', onUp)
   }, [])
 
+  // ── 表格模式：左右分栏拖拽（左栏 min SPLIT_MIN，对话至少留 320）──
+  const startTableSplitDrag = useCallback((e) => {
+    e.preventDefault()
+    setTableSplitDragging(true)
+    const startX = e.clientX
+    const startW = tableWidth
+    const containerW = width
+    const onMove = (ev) => {
+      const next = Math.min(Math.max(startW + ev.clientX - startX, SPLIT_MIN), Math.max(containerW - 320, SPLIT_MIN))
+      setTableWidth(next)
+    }
+    const onUp = () => {
+      setTableSplitDragging(false)
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+    }
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+  }, [tableWidth, width])
+  // 表格左栏宽记忆
+  useEffect(() => {
+    try { contentSet(AGENT_SPLIT_WIDTH_KEY, String(tableWidth)) } catch { /* ignore */ }
+  }, [tableWidth])
+  // 进入表格模式 → 面板过窄时自动加宽到 TABLE_OPEN_MIN_WIDTH（给左表+右对话并排留空间）
+  useEffect(() => {
+    if (tableOpen && width < TABLE_OPEN_MIN_WIDTH) setWidth(Math.min(MAX_WIDTH, TABLE_OPEN_MIN_WIDTH))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tableOpen])
+  const toggleTable = useCallback(() => { setTableOpen((v) => !v) }, [])
+  const clearRowSelection = useCallback(() => { setSelectedRowId(null) }, [])
+
   // 点击外部关闭模型下拉
   useEffect(() => {
     if (!modelOpen) return
@@ -476,6 +536,17 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
       .filter((a, i, arr) => arr.findIndex((x) => x.url === a.url) === i)
     const text = (typeof overrideText === 'string' ? overrideText : input).trim()
     if ((!text && allImages.length === 0) || (sending && stateAction !== 'steer')) return
+    // 表格模式：发 AI 前自动注入「表格专注上下文 + 全局风格(整批统一) + 当前选中行」，
+    // 让 AI 聚焦当前表格/行，不必靠用户每次把表现塞进对话（对齐定稿 §1.7/§1.8 自动注入）。
+    let finalText = text
+    if (tableOpen) {
+      const parts: string[] = []
+      const modeCtx = buildTableModeContext(storyboard.columns.map((c) => c.label), globalStyle)
+      if (modeCtx) parts.push(modeCtx)
+      if (text) parts.push(text)
+      if (selectedRow) parts.push(`【当前选中行（本次请优先处理该行）】\n${rowToText(storyboard, selectedRow)}`)
+      finalText = parts.filter(Boolean).join('\n\n')
+    }
     // 【单入口 · docs/65 M7/M8】一律调 send；direct 由 send 内部第一行分流到直连生图
     //（不再由 UI 分 inputMode 调 send/sendImageMode，发送分支只存在于 send）。
     const attach = allImages.length > 0 ? allImages.map(({ url, nodeId, label, x, y }) => ({ type: 'image', url, nodeId, label, x: x || 0, y: y || 0 })) : undefined
@@ -485,7 +556,7 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
     setInput('')
     try { contentSet(AGENT_DRAFT_KEY, '') } catch { /* ignore */ }
     scrollToBottom('smooth') // 自己发消息 → 无论当前是否已上翻，都强制贴底
-    Promise.resolve(send(text, attach)).catch((e) => logger.error('Agent', 'send 失败', e))
+    Promise.resolve(send(finalText, attach)).catch((e) => logger.error('Agent', 'send 失败', e))
   }
 
   // Skill 阶段2 确认：翻转 awaitingConfirm 并通知 LLM 按策划执行（Step F）。
@@ -725,6 +796,15 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
         </span>
 
         <div className="agent-header-actions">
+          {/* 表格工作区开关：灰=收起（普通对话）/ 蓝=展开（表格模式，AI 聚焦左栏）。展开后自动加宽面板 */}
+          <button
+            type="button"
+            onClick={toggleTable}
+            className={`agent-icon-btn ${tableOpen ? 'is-table-on' : ''}`}
+            title={tableOpen ? '分镜表格已展开（表格模式）：AI 已聚焦左侧表格。点击收起' : '展开分镜表格（表格模式）'}
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
+          </button>
           {/* 高消耗积分确认闸（creditSwitch）：全局、默认开。AI 助手恒 auto 完全自主，
               确认粒度只此一处——真烧积分那下（image/video 生成）先经用户确认。图标化：亮=开，灰=关。 */}
           <button
@@ -764,9 +844,37 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
         </div>
       </header>
 
-      {/* 消息区（外层 relative 定位 + 内层滚动，回底按钮置于外层避免被滚动裁剪） */}
-      <div className="flex-1 relative flex flex-col min-h-0">
+      {/* 消息区（外层 relative 定位 + 内层滚动，回底按钮置于外层避免被滚动裁剪）。
+          表格模式：外层改为左右行容器，[左表格 | 拖拽分隔条 | 右对话]。 */}
+      <div className="agent-body">
+        {tableOpen && (
+          <AssistantTablePanel
+            messages={messages}
+            width={tableWidth}
+            sending={sending}
+            onSelectRow={setSelectedRowId}
+            onSendToCanvas={sendContentToCanvas}
+            onFocusComposer={focusTextarea}
+          />
+        )}
+        {tableOpen && (
+          <div
+            onMouseDown={startTableSplitDrag}
+            className={`agent-split ${tableSplitDragging ? 'is-dragging' : ''}`}
+            title="拖拽调整左右宽度"
+          />
+        )}
+        <div className="flex-1 relative flex flex-col min-h-0">
         <div ref={scrollRef} className="agent-messages custom-scrollbar">
+          {tableOpen && (
+            <div className="agent-mode-bar">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
+              <span>表格模式已开启 · {selectedRow ? `当前选中第 ${storyboard.rows.findIndex((r) => r.id === selectedRow.id) + 1} 行` : 'AI 会优先处理左侧表格'}</span>
+              {selectedRow && (
+                <button type="button" onClick={clearRowSelection} className="agent-mode-clear" title="取消选中该行">取消选中</button>
+              )}
+            </div>
+          )}
           {messages.length === 0 && (
             <div className="agent-empty" onClick={focusTextarea}>
               <div className="agent-empty-mark">{AI_ICON}</div>
@@ -853,7 +961,8 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
             <polyline points="19 12 12 19 5 12" />
           </svg>
         </button>
-      </div>
+        </div> {/* 结束 flex-1 消息容器 */}
+      </div> {/* 结束 agent-body（左表格 | 分隔条 | 右对话） */}
 
       {/* 底部输入区（OneBox：附件 chips → 输入框 → 纯图标工具栏） */}
       <div className="agent-composer">

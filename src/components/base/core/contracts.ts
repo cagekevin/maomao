@@ -351,6 +351,12 @@ export const STORAGE_KEYS: Record<string, StorageKeyMeta> = {
     backend: 'local',
     note: 'AI 助手面板宽度（px）',
   },
+  agent_split_width: {
+    domain: 'agent',
+    store: 'AgentPanel.jsx',
+    backend: 'local',
+    note: 'AI 助手表格模式左右分栏：左栏宽（px）。表格工作区左表格 | 分隔条 | 右对话',
+  },
   agent_draft: {
     domain: 'agent',
     store: 'AgentPanel.jsx',

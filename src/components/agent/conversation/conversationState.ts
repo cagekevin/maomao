@@ -50,6 +50,9 @@ export interface ConversationMemory {
   notes: unknown[]
   global_contract: GlobalContractShape | null
   artifacts: ArtifactShape[] | null
+  /** AI 助手左栏表格工作区（assistantTable：{columns,rows}）。不走精确类型（保持底座轻 + 避免
+   *  底座反向依赖 assistantTable 模块）；读写由 get/setCurrentAssistantTable 经 normalizeAssistantTable 归一。 */
+  assistantTable: unknown
   // 索引签名：①落盘数据可能携带历史遗留字段；②使本类型可赋值给 volumePolicy 的宽松
   // ConversationMemory（TS 的 interface 无隐式索引签名，缺此会在跨层调用处报 TS2345）。
   [key: string]: unknown
@@ -64,6 +67,7 @@ export interface RawMemory {
   notes?: unknown[]
   global_contract?: unknown
   artifacts?: unknown
+  assistantTable?: unknown
   [key: string]: unknown
 }
 
@@ -221,6 +225,7 @@ export function emptyMemory() {
     summary: '', facts: [], lastPlan: null, lastSharedStyle: '', notes: [],
     global_contract: null, // 统一风格契约 {visual_positioning, unified_style_prompt, unified_negative_prompt}（对齐大雄 global_contract）
     artifacts: null,       // 跨步成果资产 [{id,type,title,description,nodeId?,url?}]（对齐大雄 plan.artifacts）
+    assistantTable: null,  // AI 助手表格工作区（{columns,rows}；读写见 get/setCurrentAssistantTable）
   }
 }
 
@@ -621,6 +626,7 @@ export function normalizeMemory(raw: unknown): ConversationMemory {
         }
       : null,
     artifacts: Array.isArray(m.artifacts) ? (m.artifacts as unknown[]).map((a) => ({ ...a as Record<string, unknown> })) : null,
+    assistantTable: (m.assistantTable !== undefined && m.assistantTable !== null) ? m.assistantTable : null,
   }
 }
 

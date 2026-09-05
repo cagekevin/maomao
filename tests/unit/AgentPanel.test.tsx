@@ -137,6 +137,12 @@ vi.mock('../../src/components/panels/AgentMessage.tsx', () => ({
 vi.mock('../../src/components/base/ui/ModelSelect.tsx', () => ({
   default: () => React.createElement('span', null, 'ModelSelect'),
 }))
+// 表格工作区面板：本测试只验 AgentPanel 接线，不测表格本身 → mock 掉。
+// （若不 mock，面板自 import conversationState/conversationStore 会拉入 contentStore 的
+//   createDebouncedPersist 等本测试已精简 mock 的依赖，间接破坏现有 mock 契约。）
+vi.mock('../../src/components/agent/assistantTable/AssistantTablePanel.tsx', () => ({
+  default: () => React.createElement('div', { 'data-testid': 'assistant-table' }, null),
+}))
 
 import AgentPanel from '../../src/components/panels/AgentPanel.tsx'
 

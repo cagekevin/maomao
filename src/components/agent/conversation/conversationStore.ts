@@ -169,6 +169,7 @@ export {
 // conversationAiState：AI 编排状态（F 类）
 export {
   getCurrentRunMode, setCurrentRunMode, getCurrentGlobalContract, setCurrentGlobalContract,
+  getCurrentAssistantTable, setCurrentAssistantTable,
   getCurrentArtifacts, setCurrentArtifacts, getActiveAiUndoStack, pushActiveAiUndo, popActiveAiUndo,
   getCurrentRefImages, setCurrentRefImages,
 } from './conversationAiState.ts'

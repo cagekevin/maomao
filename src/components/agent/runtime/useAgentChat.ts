@@ -683,7 +683,7 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
     // 【积分闸】清空对话时一并清除 creditGate（含映射），防残留"待点生成"永久拒（对齐 awaitingConfirm 同清理）
     clearCreditGate()
     // 落盘当前对话为空（messages/attachments/workflow/pending/memory 一并清空）
-    setCurrentSnapshot({ messages: [], skills: skillsRef.current, draft: '', attachments: [], workflow: null, pending: null, memory: { summary: '', facts: [], lastPlan: null, lastSharedStyle: '', notes: [], global_contract: null, artifacts: null }, pendingGenerations: null, awaitingConfirm: false })
+    setCurrentSnapshot({ messages: [], skills: skillsRef.current, draft: '', attachments: [], workflow: null, pending: null, memory: { summary: '', facts: [], lastPlan: null, lastSharedStyle: '', notes: [], global_contract: null, artifacts: null, assistantTable: null }, pendingGenerations: null, awaitingConfirm: false })
     try { captureActiveConversation() } catch { /* ignore */ }
     stateMachineRef.current.setStatus('idle')
   }, [agentKey, setHistory, setAwaitingConfirm, clearCreditGate])

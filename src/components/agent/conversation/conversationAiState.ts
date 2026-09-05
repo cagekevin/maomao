@@ -12,6 +12,8 @@
  * ════════════════════════════════════════════════════════════════
  */
 import { getActiveConv, commit, getState, normalizeMemory } from './conversationState.ts'
+import { normalizeAssistantTable } from '../assistantTable/assistantTable.ts'
+import type { AssistantTable } from '../assistantTable/assistantTable.ts'
 import {
   getWorkMode, setWorkMode, resolveConvRunMode,
   registerLegacyRunModeReader, registerRunModeSync,
@@ -74,6 +76,26 @@ export function setCurrentGlobalContract(c: GlobalContract | null): void {
       // 我们统一风格走 global_contract，故在此映射，保证 memory.lastSharedStyle 有承载。
       lastSharedStyle: (c && (c.unified_style_prompt || c.visual_positioning)) ? String(c.unified_style_prompt || c.visual_positioning || '').trim() : x.memory.lastSharedStyle,
     }), updatedAt: Date.now() } : x)),
+  })
+}
+
+/* ── AI 助手表格工作区（per-conversation，挂会话记忆 memory.assistantTable）──
+   一个对话绑定一份表格；新建对话 = 新空表，回看旧对话 = 那张表还在。
+   不与画布节点/其它存储耦合，随既有「按 agentKey 隔离 + 会话记忆落盘」链路走。 */
+
+/** 读当前对话的表格（归一兜底空表；无则空表） */
+export function getCurrentAssistantTable(): AssistantTable {
+  const raw = getActiveConv()?.memory?.assistantTable
+  return normalizeAssistantTable(raw ?? null)
+}
+
+/** 写当前对话的表格（归一后落 memory.assistantTable + commit 自动落盘） */
+export function setCurrentAssistantTable(sb: AssistantTable): void {
+  const conv = getActiveConv()
+  if (!conv) return
+  commit({
+    ...getState(),
+    conversations: getState().conversations.map((x) => (x.id === conv.id ? { ...x, memory: normalizeMemory({ ...x.memory, assistantTable: normalizeAssistantTable(sb) }), updatedAt: Date.now() } : x)),
   })
 }
 
