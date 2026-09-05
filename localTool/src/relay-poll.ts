@@ -41,7 +41,7 @@ import { stableRequest } from './ai-relay/httpTransport.js';
 import { LOVART_DIRECT_BASE_URL } from './ai-relay/providerEndpoints.js';
 import type { LovartDirectProfile, LovartTransport } from './ai-relay/providers/lovart/lovart_contract.js';
 import { fetchWithProxy } from './utils/netProxy.js';
-import { resolveLocalImages } from './utils/resolveLocalImages.js';
+import { resolveLocalImages, resolveImagesForEgress } from './utils/resolveLocalImages.js';
 import { saveRemoteUrl } from './routes/files.js';
 import { upsertTask } from './routes/tasks.js';
 import { readProviderConfigFile } from './providerConfigStore.js';
@@ -400,8 +400,10 @@ async function runDirectSubmit(handle: PollHandle): Promise<boolean> {
   try {
     // 单请求超时兜底（防底层出站单步卡死无限挂；任务总时长仍由 handle 总超时约束）
     const profile = lovartDirectProfile(handle.baseUrl, undefined, DIRECT_SUBMIT_TIMEOUT_MS);
+    // 参考图形态按 lovart 直连（cdn）：不预压 base64，转回环可下载 URL 交给 adapter
+    // resolveLovartAttachments 自取（下载→传 CDN），省掉 encode→decode 两遍。见 resolveLocalImages.ts 头。
     const images = p.images && p.images.length > 0
-      ? ((await resolveLocalImages(p.images)) as string[])
+      ? ((await resolveImagesForEgress(p.images, 'cdn')) as string[])
       : undefined;
     const out = await submitLovartTask(profile, {
       model: p.model,

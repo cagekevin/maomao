@@ -20,7 +20,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const src = path.join(__dirname, '..', 'src');
 function toFileUrl(p) { return 'file:///' + p.split(path.sep).join('/'); }
 
-const { resolveLocalImages } = await import(toFileUrl(path.join(src, 'utils', 'resolveLocalImages.ts')));
+const { resolveLocalImages, resolveImagesForEgress, refFormatOf, toLoopbackUrl } =
+  await import(toFileUrl(path.join(src, 'utils', 'resolveLocalImages.ts')));
 const { getUploadDir } = await import(toFileUrl(path.join(src, 'db', 'database.ts')));
 
 // ── 隔离数据目录 + 固定夹具（顶层 await 一次建好）──
@@ -123,4 +124,43 @@ test('幂等：已转换的 base64 再入 → 原样返回', async () => {
   const once = await resolveLocalImages('/files/sub/a.png');
   const twice = await resolveLocalImages(once);
   assert.equal(twice, once);
+});
+
+/* ═══ 出站形态裁决（resolveImagesForEgress / refFormatOf / toLoopbackUrl）═══ */
+
+test('refFormatOf：仅 lovart 走 cdn，其余走 base64', () => {
+  assert.equal(refFormatOf('lovart'), 'cdn');
+  assert.equal(refFormatOf('modelscope'), 'base64');
+  assert.equal(refFormatOf('anything-else'), 'base64');
+});
+
+test('toLoopbackUrl：相对 /files/ 补成回环 URL；绝对自指/公网/data 原样', () => {
+  assert.equal(toLoopbackUrl('/files/sub/a.png'), 'http://127.0.0.1:18080/files/sub/a.png');
+  assert.equal(toLoopbackUrl('http://127.0.0.1:18080/files/sub/a.png'), 'http://127.0.0.1:18080/files/sub/a.png');
+  assert.equal(toLoopbackUrl('http://localhost:18080/files/sub/a.png'), 'http://localhost:18080/files/sub/a.png');
+  assert.equal(toLoopbackUrl('http://public/x.png'), 'http://public/x.png');
+  assert.equal(toLoopbackUrl('data:image/png;base64,abc'), 'data:image/png;base64,abc');
+});
+
+test('resolveImagesForEgress cdn：本机 /files/ 转回环 URL（不 base64）；公网/data 原样', async () => {
+  const out = await resolveImagesForEgress(['/files/sub/a.png', 'http://public/x.png', 'data:image/png;base64,abc'], 'cdn');
+  assert.equal(out[0], 'http://127.0.0.1:18080/files/sub/a.png', '本机图给回环 URL，不预 base64');
+  assert.equal(out[1], 'http://public/x.png', '公网 URL 原样');
+  assert.equal(out[2], 'data:image/png;base64,abc', 'data: 原样（blob 无法避免 base64）');
+});
+
+test('resolveImagesForEgress base64：行为与 resolveLocalImages 一致（本机图→base64）', async () => {
+  const out = await resolveImagesForEgress('/files/sub/a.png', 'base64');
+  assert.match(out, /^data:image\/png;base64,/);
+});
+
+test('resolveImagesForEgress cdn 嵌套：messages 的 image_url.url 转回环，非图字段原样', async () => {
+  const payload = {
+    messages: [{ role: 'user', content: [{ type: 'image_url', image_url: { url: '/files/sub/a.png' } }, { type: 'text', text: '描述' }] }],
+    prompt: '原样',
+  };
+  const out = await resolveImagesForEgress(payload, 'cdn');
+  assert.equal(out.messages[0].content[0].image_url.url, 'http://127.0.0.1:18080/files/sub/a.png');
+  assert.equal(out.messages[0].content[1].text, '描述');
+  assert.equal(out.prompt, '原样');
 });

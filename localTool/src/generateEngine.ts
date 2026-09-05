@@ -22,7 +22,7 @@ import { stableRequest } from './ai-relay/httpTransport.js';
 import { LOVART_DIRECT_BASE_URL } from './ai-relay/providerEndpoints.js';
 import type { LovartDirectProfile, LovartTransport } from './ai-relay/providers/lovart/lovart_contract.js';
 import type { AuthConfig } from './ai-relay/types.js';
-import { resolveLocalImages } from './utils/resolveLocalImages.js';
+import { resolveLocalImages, resolveImagesForEgress } from './utils/resolveLocalImages.js';
 import { saveRemoteUrl } from './routes/files.js';
 import { fetchWithProxy } from './utils/netProxy.js';
 import { sendError } from './utils/helpers.js';
@@ -210,9 +210,14 @@ export async function relayGenerate(input: RelayGenerateInput): Promise<RelayGen
         // lovart.ai 必须经代理访问：transport = stableRequest + 代理 fetch
         const proxyTransport: LovartTransport = (opts) => stableRequest({ ...opts, fetchImpl: fetchWithProxy as typeof fetch });
         const profile: LovartDirectProfile = { baseUrl: baseUrl || LOVART_DIRECT_BASE_URL, auth, timeoutMs, transport: proxyTransport };
+        // 参考图形态按 lovart 直连（cdn）：不把 messages 里 /files/ 预压 base64，而是保留
+        // 回环可下载 URL 交给 adapter 自取（resolveLovartAttachments 下载→传 CDN），省 encode→decode。
+        // resolvedMessages 是通用 base64 形态（给非直连通用分支用），此分支不复用它，用原消息按 cdn 归一。
+        const cdnMessages =
+          (await resolveImagesForEgress(input.messages, 'cdn')) as { role: string; content?: string }[];
         const text = await chatLovartText(profile, {
           model,
-          messages: (resolvedMessages ?? input.messages) as { role: string; content?: string }[],
+          messages: cdnMessages,
           signal: timeout.signal,
           timeoutMs,
         });

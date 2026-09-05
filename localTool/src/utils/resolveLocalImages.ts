@@ -129,3 +129,69 @@ export async function resolveLocalImages(value: unknown): Promise<unknown> {
 
   return walk(value);
 }
+
+/* ════════════════════════════════════════════════════════════════
+ * 出站形态裁决（按 provider 决定「本机 /files/ 图转成什么」）
+ * ════════════════════════════════════════════════════════════════
+ * 背景（单出口纪律的延伸）：外部上游都读不到 localTool 本机 /files/，所以必须由
+ * localTool 唯一出站口把本机图变成「上游可访问」形态。但具体形态因平台而异：
+ *   - base64：多数 OpenAI 兼容平台只认内联 base64 → /files/ 压成 data:base64（现状）。
+ *   - cdn   ：lovart 直连 adapter 在本机进程内，能自己下载回环 URL 再传 CDN → 后端
+ *             不必预压 base64，直接把回环可下载 URL 交给 adapter，省掉 encode→decode 两遍。
+ * 形态决策只收敛在本文件（refFormatOf + resolveImagesForEgress），数据流单向、可追溯，
+ * 不在各处手写「要不要 base64」。
+ */
+
+/** provider → 出站参考图形态。出厂内置：只有 lovart（原生直连）走 cdn，其余走 base64。 */
+export type RefFormat = 'base64' | 'cdn';
+export function refFormatOf(providerId: string): RefFormat {
+  return providerId === 'lovart' ? 'cdn' : 'base64';
+}
+
+/** 本机 /files/（相对或绝对自指）→ 127.0.0.1 回环可下载绝对 URL；非本机可读 URL 返回原值。 */
+export function toLoopbackUrl(u: string): string {
+  const filePath = resolveLocalPath(u);
+  if (!filePath) return u; // 公网 / data / 其它：不可能是本机，原样
+  // 绝对自指 http(s) 已是完整 URL → 原样返回（保留原端口/原协议细节）。
+  if (/^https?:\/\/(?:127\.0\.0\.1|localhost|::1)(?::\d+)?\/files\//i.test(u)) return u;
+  // 相对 /files/ 或可还原为 /files/ 的绝对 URL → 补全为回环 URL。
+  const rel = u.replace(/^https?:\/\/[^/]+\/files\//i, '/files/');
+  return `http://127.0.0.1:${localPortOf()}${rel}`;
+}
+
+/** 回环端口：复用数据服务端口（与前端 toAbsoluteFileUrl 口径一致，读环境兜底 18080）。 */
+function localPortOf(): number {
+  const p = Number(process.env.LOCALTOOL_PORT || process.env.PORT || 18080);
+  return Number.isFinite(p) && p > 0 ? p : 18080;
+}
+
+/**
+ * 按 provider 出站形态把任意请求体里本机 /files/ 图归一。
+ *   - refFormat='base64'：走既有 resolveLocalImages（压 base64；data:/公网幂等透传）——现状不变。
+ *   - refFormat='cdn'   ：把本机 /files/ 补成回环可下载 URL（不 base64），其余原样；交由
+ *                         lovart adapter 自取（resolveLovartAttachments 下载回环→传 CDN）。
+ * @returns 转换后的新值（原对象不变）。
+ */
+export async function resolveImagesForEgress(value: unknown, refFormat: RefFormat): Promise<unknown> {
+  if (refFormat === 'base64') return resolveLocalImages(value);
+  // cdn：遍历字符串，仅把本机 /files/ 替换为回环 URL；data:/公网/其它原样。
+  async function walkCdn(v: unknown): Promise<unknown> {
+    if (typeof v === 'string') {
+      if (v.startsWith('data:')) return v;
+      const url = toLoopbackUrl(v);
+      if (url !== v) {
+        console.log(`[resolve:cdn-url] ${v.slice(0, 80)} -> ${url.slice(0, 120)}`);
+        return url;
+      }
+      return v;
+    }
+    if (Array.isArray(v)) return Promise.all(v.map((item) => walkCdn(item)));
+    if (v && typeof v === 'object') {
+      const entries = Object.entries(v as Record<string, unknown>);
+      const resolved = await Promise.all(entries.map(([k, val]) => walkCdn(val).then((nv) => [k, nv] as const)));
+      return Object.fromEntries(resolved);
+    }
+    return v;
+  }
+  return walkCdn(value);
+}

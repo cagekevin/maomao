@@ -108,6 +108,20 @@ test('B8 对齐 main：本机回环 http 下载失败 → 阻断，未进入 sen
   assert.equal(t.sendBodies.length, 0, '下载失败不得进入 send');
 });
 
+test('B8 回环 URL 下载成功 → 上传 CDN 进 attachments（lovart cdn 态：喂回环 URL 而非预 base64）', async () => {
+  const t = makeTransport();
+  // 回环 URL fetch 成功返回一张 1x1 红点 PNG 字节
+  const pngB64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
+  const fetchImpl = async () => new Response(Buffer.from(pngB64, 'base64'), { status: 200, headers: { 'content-type': 'image/png' } });
+  const out = await generateImageLovart(
+    { ...PROFILE, transport: t.transport, fetchImpl },
+    { model: 'gpt-image-2-low', prompt: 'x', imageUrls: ['http://127.0.0.1:18080/files/a.png'] },
+  );
+  assert.deepEqual(out, ['http://cdn/r.png']);
+  assert.equal(t.sendBodies.length, 1);
+  assert.deepEqual(t.sendBodies[0].attachments, ['http://cdn/up.png'], '回环 URL 下载后上传 CDN 进 attachments');
+});
+
 test('B8 参考图 base64 经上传成功：send 请求体 attachments 含 CDN URL', async () => {
   const t = makeTransport();
   // 1x1 红点 PNG 的 base64，fetchImpl 不经下载（data: 直接解析字节）
