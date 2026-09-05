@@ -17,7 +17,9 @@ import {
   getLastUserReferenceImages, getCurrentImageMap,
   getCurrentRunMode, getCurrentSnapshot,
   getCreditGate, setCreditGate, clearCreditGate,
+  getCurrentAssistantTable,
 } from '../conversation/conversationStore.ts'
+import { rowToObj } from '../assistantTable/assistantTable.ts'
 // ═══ 补充 import（拆行放置，避免挤爆单行）═══
 import { getActivePendingMemorySuggest, setActivePendingMemorySuggest } from '../conversation/conversationStore.ts'
 // 「记」项目记忆：记忆类别枚举 + 脱敏函数（memory_suggest 工具校验/脱敏用）
@@ -720,6 +722,37 @@ const readCanvasTool = {
 }
 
 /**
+ * 只读当前对话的「AI 助手表格」（read_storyboard）
+ * 方案 §1.8：AI 默认聚焦用户给的「当前选中行」（send 时自动注入），需要完整表格/某行时自己调本工具。
+ * 语义：只读，无副作用、不改表、不落盘。无参=整表（列结构 + 各行带 id + 全局风格）；rowId=只返回该行。
+ * 防滥用：description 引导 AI 仅在「需要看选中行以外的内容」时才调用。
+ */
+const readStoryboardTool = {
+  name: 'read_storyboard',
+  description: '只读当前对话的「AI 助手表格」（左栏表格工作区）：无参返回整表（列结构 + 各行含列名/值 + 全局风格），传 rowId 只返回带列名的那一行。仅当需要查看「当前选中行以外的表格内容」（其它行 / 整表结构）时才调用；一般场景上下文已含当前选中行的内容，无需调用本工具。只读、无副作用，不会修改表格、不落盘。',
+  parameters: { type: 'object', properties: { rowId: { type: 'string', description: '可选：某行的 id（整表返回里的 rows[].id），只返回该行（带列名）。缺省返回整表' } }, required: [] },
+  execute(args) {
+    const sb = getCurrentAssistantTable()
+    const rowId = (args && typeof args === 'object' && typeof (args as { rowId?: unknown }).rowId === 'string') ? (args as { rowId: string }).rowId.trim() : ''
+    const globalStyle = getCurrentGlobalContract()?.unified_style_prompt || ''
+    if (rowId) {
+      const row = sb.rows.find((r) => r.id === rowId)
+      if (!row) return { ok: false, error: `行不存在：${rowId}。当前行 id：${sb.rows.map((r) => r.id).join('、') || '（空表）'}` }
+      return { ok: true, data: { rowId, index: sb.rows.indexOf(row) + 1, fields: rowToObj(sb, row), globalStyle } }
+    }
+    return {
+      ok: true,
+      data: {
+        columns: sb.columns.map((c) => c.label),
+        count: sb.rows.length,
+        rows: sb.rows.map((r, i) => ({ id: r.id, index: i + 1, fields: rowToObj(sb, r) })),
+        globalStyle,
+      },
+    }
+  }
+}
+
+/**
  * 触发生成（generate_node）
  * 走统一生成契约：useNodeGeneration 已把各节点的 start 注册到 taskStore.retryRegistry，
  * 这里按 nodeId 调用 runNodeGeneration 即可驱动「真」生成（含进度 + 任务中心 + node.data 双写）。
@@ -1223,6 +1256,7 @@ const AGENT_TOOLS = (() => {
     listNodesTool,
     listEdgesTool,
     getNodeDetailsTool,
+    readStoryboardTool,
     // ② 节点增删
     createNodeTool,
     batchCreateNodesTool,

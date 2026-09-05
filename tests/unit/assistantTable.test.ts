@@ -1,8 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import {
   emptyAssistantTable, normalizeAssistantTable, parsePasted,
-  addRow, deleteRow, moveRow, duplicateRow, setCell,
+  addRow, deleteRow, moveRow, duplicateRow, setCell, renameColumn,
   rowToObj, rowToText, sbToJson, jsonToSb, mergeRowFromObj, tryParseAssistantTableJson,
+  buildPreviewModel,
 } from '../../src/components/agent/assistantTable/assistantTable.ts'
 import type { AssistantTable } from '../../src/components/agent/assistantTable/assistantTable.ts'
 
@@ -79,6 +80,19 @@ describe('AI 助手表格模型（assistantTable 纯函数）', () => {
     expect(dup.rows[2].values).toEqual(orig.rows[1].values)
   })
 
+  it('renameColumn：改列名不影响行数据；空/相同/未知列幂等', () => {
+    const sb = parsePasted('景别\t画面\n中景\t人')
+    const colId = sb!.columns[0].id
+    const next = renameColumn(sb!, colId, '景别类型')
+    expect(next.columns[0].label).toBe('景别类型')
+    // 行 values 以 col.id 为键 → 改名后行数据不变
+    expect(next.rows[0].values[colId]).toBe('中景')
+    // 幂等
+    expect(renameColumn(sb!, colId, '景别')).toBe(sb)
+    expect(renameColumn(sb!, colId, '   ')).toBe(sb)
+    expect(renameColumn(sb!, 'nope', 'x')).toBe(sb)
+  })
+
   it('setCell：不可变、值相同幂等、未知列/行忽略', () => {
     const sb = parsePasted('列A\nx')
     const rid = sb!.rows[0].id
@@ -117,5 +131,24 @@ describe('AI 助手表格模型（assistantTable 纯函数）', () => {
   it('兼容类型导出：AssistantTable 可用', () => {
     const _t: AssistantTable = emptyAssistantTable()
     expect(_t).toBeTruthy()
+  })
+
+  it('buildPreviewModel：单行 → 还原成完整行（AI 给到的新值 + 未给沿用当前值），带 rowIndex', () => {
+    const sb = parsePasted('景别\t画面\t对白\n中景\t原画面\t原对白')
+    const rid = sb!.rows[0].id
+    // AI 只返回画面列新值，其余沿用当前值
+    const p = buildPreviewModel(sb!, { rows: [{ 画面: '新画面' }] }, rid)
+    expect(p.kind).toBe('table')
+    expect(p.rowIndex).toBe(1)
+    expect(p.rows).toEqual([{ 景别: '中景', 画面: '新画面', 对白: '原对白' }])
+  })
+
+  it('buildPreviewModel：整表 → 列与行还原，rowIndex=null', () => {
+    const p = buildPreviewModel(emptyAssistantTable(), { globalStyle: '写实', rows: [{ A: '1', B: '2' }] }, null)
+    expect(p.kind).toBe('table')
+    expect(p.globalStyle).toBe('写实')
+    expect(p.columns).toEqual(['A', 'B'])
+    expect(p.rows).toEqual([{ A: '1', B: '2' }])
+    expect(p.rowIndex).toBeNull()
   })
 })

@@ -141,6 +141,9 @@ vi.mock('../../src/components/agent/conversation/conversationStore.ts', () => {
     setSending: vi.fn((v) => sharedConvStore.setSendingState(v)),
     setAwaitingConfirm: vi.fn(),
     getAwaitingConfirm: vi.fn(() => false),
+    // 阶段1E：助手表格/全局契约写回 handler（薄壳透传，回传 AgentPanel 收口用）
+    setCurrentAssistantTable: vi.fn(),
+    setCurrentGlobalContract: vi.fn(),
     getActivePendingGenerations: vi.fn(() => null),
     setActivePendingGenerations: vi.fn(),
     getCreditGate: vi.fn(() => null),

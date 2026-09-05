@@ -839,9 +839,17 @@
 .agent-body table.sbt td.idx { color: rgb(var(--mao-text-faint)); font-size: 11px; width: 30px; }
 .agent-body table.sbt tr.sel td.idx { color: rgb(var(--mao-accent-strong)); }
 
+/* 表头列名可编辑（点列名直接改，回车/失焦提交） */
+.agent-body table.sbt th .col-head {
+  width: 100%; outline: none; border: none; background: transparent; color: inherit;
+  padding: 0 2px; font: inherit; line-height: 1.4; border-radius: 3px;
+}
+.agent-body table.sbt th .col-head:focus { background: rgb(var(--mao-surface)); box-shadow: inset 0 0 0 1px rgb(var(--mao-accent)); color: rgb(var(--mao-text-strong)); }
+
 .agent-body .cell {
   width: 100%; outline: none; border: none; background: transparent; color: inherit; border-radius: 4px;
-  padding: 1px 2px; font-size: 12px; font-family: inherit; line-height: 1.5;
+  padding: 2px; font-size: 12px; font-family: inherit; line-height: 1.5;
+  resize: none; overflow: hidden; min-height: 22px; vertical-align: top; word-break: break-word;
 }
 .agent-body .cell:focus { background: rgb(var(--mao-surface)); box-shadow: inset 0 0 0 1px rgb(var(--mao-accent)); color: rgb(var(--mao-text-strong)); }
 
@@ -879,6 +887,16 @@
 .agent-body .btn-ghost { background: transparent; color: rgb(var(--mao-text-faint)); }
 .agent-body .btn-ghost:hover { background: rgb(var(--mao-surface-hover)); color: rgb(var(--mao-text-strong)); }
 .agent-body .pv-ft .tip { margin-left: auto; font-size: 10.5px; color: rgb(var(--mao-text-subtle)); }
+
+/* 预览卡折叠态（确认/取消后，对齐 mockup collapseCard → pv-done） */
+.agent-body .pv-done { display: flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 7px; background: rgb(var(--mao-surface-sunken)); border: 1px solid rgb(var(--mao-edge-faint)); color: rgb(var(--mao-text-faint)); font-size: 11.5px; }
+.agent-body .pv-done .ck { color: rgb(var(--mao-live)); display: flex; }
+
+/* 输入框顶部「当前上下文」chip（正在处理第 N 行 + 参考图，对齐 mockup ctx-row） */
+.agent-ctx-row { display: flex; flex-wrap: wrap; gap: 6px; padding: 2px 2px 6px; }
+.agent-ctx { display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; border-radius: 7px; font-size: 11.5px; background: rgb(var(--mao-accent-soft) / 0.1); border: 1px solid rgb(var(--mao-accent) / 0.28); color: rgb(var(--mao-accent-strong)); }
+.agent-ctx .x { cursor: pointer; opacity: .65; display: flex; }
+.agent-ctx .x:hover { opacity: 1; }
 
 /* 顶栏「表格」图标：展开 = 强调蓝 */
 .agent-icon-btn.is-table-on { color: rgb(var(--mao-accent)); background: rgb(var(--mao-accent-soft) / 0.12); }

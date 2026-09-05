@@ -87,6 +87,8 @@ import {
   getCurrentImageMap,
   getCurrentRunMode,
   setCurrentRunMode,
+  setCurrentAssistantTable,
+  setCurrentGlobalContract,
   getWorkMode,
   waitHydrated,
 } from '../conversation/conversationStore.ts'
@@ -275,6 +277,8 @@ export interface UseAgentChatReturn {
   clearCreditGate: () => void
   setCurrentSnapshot: (patch: Record<string, unknown>) => void
   setAwaitingConfirm: (v: boolean) => void
+  setCurrentAssistantTable: typeof setCurrentAssistantTable
+  setCurrentGlobalContract: typeof setCurrentGlobalContract
   getCurrentRunMode: () => string
   setCurrentRunMode: (mode: string) => void
 }
@@ -790,5 +794,5 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
     // 【展示→编排轴薄适配（收口 AgentPanel 的 store 穿透）】回传 UI 会用到的 store 原子能力，
     // 使 AgentPanel 不再直接 import conversationStore（唯一入口收敛到本 hook）。这些是 store 的稳定
     // 模块级函数（透传引用，非拷贝），消息单源下已满足"UI 不直连持久层"的一步；未来如需可再 action 化。
-    setCurrentSnapshot, setAwaitingConfirm, getCurrentRunMode, setCurrentRunMode }
+    setCurrentSnapshot, setAwaitingConfirm, setCurrentAssistantTable, setCurrentGlobalContract, getCurrentRunMode, setCurrentRunMode }
 }

@@ -221,6 +221,17 @@ export function setCell(sb: AssistantTable, rowId: string, colId: string, text: 
   return { ...sb, rows: sb.rows.map((r, i) => (i === idx ? { ...r, values } : r)) }
 }
 
+/** 改列名（不可变；行 values 以 col.id 为键，改 label 不影响行数据）。label 空/相同返回原表（幂等）。 */
+export function renameColumn(sb: AssistantTable, colId: string, label: string): AssistantTable {
+  const idx = sb.columns.findIndex((c) => c.id === colId)
+  if (idx < 0) return sb // 未知列忽略
+  const trimmed = String(label ?? '').trim()
+  if (!trimmed) return sb
+  const col = sb.columns[idx]
+  if (col.label === trimmed) return sb // 相同幂等
+  return { ...sb, columns: sb.columns.map((c, i) => (i === idx ? { ...c, label: trimmed } : c)) }
+}
+
 /** 行 → { 列名: 值 }（按 columns 顺序；发给 AI / 序列化都用它，保证每值带列名） */
 export function rowToObj(sb: AssistantTable, row: TableRow): Record<string, string> {
   const obj: Record<string, string> = {}
@@ -301,15 +312,18 @@ export function mergeRowFromObj(sb: AssistantTable, rowId: string, obj: Record<s
  */
 export function tryParseAssistantTableJson(text: unknown): { json: AssistantTableJson } | null {
   if (typeof text !== 'string') return null
-  const t = text
-    .replace(/```(?:json)?/gi, '') // 剥 Markdown 代码块围栏
+  // 对齐剧本盒 scriptBoxEngine.parseJsonText 的提取：剥 ```json 围栏、只取首个 {...} 到最后一个 }，
+  // 再严格 JSON.parse——前台自然语言包裹 / 围栏残留 / 尾部杂字都能救回，解析成功率更高。
+  let s = text
+    .replace(/```json/gi, '')
+    .replace(/```/g, '')
     .trim()
-  // 从含 rows 的对象开始试解析：先找第一个 {...} 作为 JSON 对象，再校验含 rows
-  const start = t.indexOf('{')
-  if (start < 0) return null
+  const f = s.indexOf('{')
+  const p = s.lastIndexOf('}')
+  if (f >= 0 && p > f) s = s.slice(f, p + 1)
   let obj: unknown
   try {
-    obj = JSON.parse(t.slice(start))
+    obj = JSON.parse(s)
   } catch {
     return null
   }
@@ -317,4 +331,49 @@ export function tryParseAssistantTableJson(text: unknown): { json: AssistantTabl
   const rows = (obj as Record<string, unknown>).rows
   if (!Array.isArray(rows)) return null
   return { json: obj as AssistantTableJson }
+}
+
+/**
+ * 解析 AI 返回 + 对当前表生成「预览模型」——只显示 AI 这次发来的「新内容」，供左表/右卡左右对比。
+ *  - 整表（json 多行）：列 + 各行（AI 设计的列/行）。
+ *  - 单行（有选中行且 json 仅 1 行）：把该行还原成「完整行」（AI 给到的列用新值，未给的沿用当前值），
+ *    供与左表该行直接对比；rowIndex 标注是第几行。
+ * 刻意不做"旧→新"内联 diff——用户左表即旧态、右卡即新态，天然可对比（方案/用户裁定，勿回退）。
+ * 纯函数无副作用，UI 据此渲染预览卡，确认才写回。
+ */
+export interface AssistantTablePreview {
+  kind: 'table'
+  globalStyle: string
+  columns: string[]
+  rows: Array<Record<string, string>>
+  /** 单行时为行号（1 起），整表为 null */
+  rowIndex: number | null
+}
+
+export function buildPreviewModel(sb: AssistantTable, json: AssistantTableJson, rowId?: string | null): AssistantTablePreview {
+  const globalStyle = String(json?.globalStyle ?? '').trim()
+  const rows = Array.isArray(json?.rows) ? json.rows : []
+  const hitRow = rowId ? sb.rows.find((r) => r.id === rowId) : null
+  // 单行：命中选中行且 AI 只返回 1 行 → 还原成「完整行」（AI 没给的列沿用当前值）
+  if (hitRow && rows.length === 1 && rows[0] && typeof rows[0] === 'object') {
+    const obj = rows[0] as Record<string, unknown>
+    const columns = sb.columns.map((c) => c.label)
+    const rec: Record<string, string> = {}
+    for (const col of sb.columns) {
+      rec[col.label] = col.label in obj ? String(obj[col.label] ?? '').trim() : (hitRow.values[col.id] ?? '')
+    }
+    return { kind: 'table', globalStyle, columns, rows: [rec], rowIndex: sb.rows.indexOf(hitRow) + 1 }
+  }
+  // 整表：列 = AI 返回首行键，行 = AI 返回各列值
+  const keys = rows.length && rows[0] && typeof rows[0] === 'object' ? Object.keys(rows[0] as Record<string, unknown>) : []
+  const columns = keys.map((k) => k.trim()).filter(Boolean)
+  const tableRows = rows
+    .map((r) => {
+      if (!r || typeof r !== 'object') return null
+      const rec: Record<string, string> = {}
+      for (const c of columns) rec[c] = String((r as Record<string, unknown>)[c] ?? '').trim()
+      return Object.keys(rec).length ? rec : null
+    })
+    .filter((r): r is Record<string, string> => r !== null)
+  return { kind: 'table', globalStyle, columns, rows: tableRows, rowIndex: null }
 }

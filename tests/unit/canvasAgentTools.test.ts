@@ -95,8 +95,9 @@ beforeEach(() => {
 })
 
 describe('画布 Agent 工具层 §2.5', () => {
-  it('共 20 个工具注册（奥卡姆精简后删除 6 个：fit_view/zoom_in/zoom_out/lock_node/move_node/group_nodes）', () => {
-    expect(CANVAS_AGENT_TOOL_NAMES).toHaveLength(20)
+  it('共 21 个工具注册（奥卡姆精简后删除 6 个；新增只读 read_storyboard 供表格工作区 AI 自取全貌）', () => {
+    expect(CANVAS_AGENT_TOOL_NAMES).toHaveLength(21)
+    expect(CANVAS_AGENT_TOOL_NAMES).toContain('read_storyboard')
   })
 
   it('create_node 建文本节点成功 + 返回 id', () => {

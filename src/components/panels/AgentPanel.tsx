@@ -21,10 +21,12 @@ import { logger } from '../base/core/logger.ts'
 import previewUrls from '../base/utils/previewUrl.ts'
 import { subscribe } from '../base/core/eventBus.ts'
 import { CREDIT_GATE_EVENT } from '../base/core/contracts.ts'
-// AI 助手表格工作区：左栏表格组件 + 纯函数模型/上下文拼装
+// AI 助手表格工作区：左栏表格组件 + 纯函数模型/上下文拼装 + 对话流预览卡
 import AssistantTablePanel from '../agent/assistantTable/AssistantTablePanel.tsx'
-import { normalizeAssistantTable, rowToText } from '../agent/assistantTable/assistantTable.ts'
-import { buildTableModeContext } from '../agent/assistantTable/assistantTablePrompt.ts'
+import AssistantTablePreviewCard from '../agent/assistantTable/AssistantTablePreviewCard.tsx'
+import { normalizeAssistantTable, rowToText, jsonToSb, mergeRowFromObj, buildPreviewModel, tryParseAssistantTableJson } from '../agent/assistantTable/assistantTable.ts'
+import type { AssistantTableJson } from '../agent/assistantTable/assistantTable.ts'
+import { buildTableModeContext, ASSISTANT_TABLE_FORMAT, buildRefineRowUser } from '../agent/assistantTable/assistantTablePrompt.ts'
 
 /**
  * ════════════════════════════════════════════════════════════════
@@ -90,6 +92,10 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
     try { const n = Number(contentGet(AGENT_SPLIT_WIDTH_KEY)); return Number.isFinite(n) ? Math.max(SPLIT_MIN, n) : SPLIT_DEFAULT } catch { return SPLIT_DEFAULT }
   })
   const [tableSplitDragging, setTableSplitDragging] = useState(false)
+  // 表格 AI 预览（渲染在对话流里，确认才写回）：{ json, messageId, rowId?, resolved? }。
+  // rowId=探测当下选中的行；resolved=确认/取消后折叠态（对齐 mockup collapseCard → pv-done）。
+  const [tbPreview, setTbPreview] = useState<{ json: AssistantTableJson; messageId: unknown; rowId: string | null; resolved: null | 'confirmed' | 'cancelled' } | null>(null)
+  const tbPreviewHandledRef = useRef<unknown>(null)
   // 【设置即生效·方案 B】聊天模型配置（agent_chat_model）变更计数器。
   // 每次「设置 → AI 助手」改模型/供应商写入该键，contentSubscribe 回调自增此值，
   // 触发下方 agentProvider / agentModels / configuredModel 重算（它们原本只在挂载时算一次）。
@@ -205,7 +211,7 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
 
   const { messages, sending, error, model, setModel, send, stop, clear, stateAction, conversations, activeConversationId, newChat, switchChat, deleteChat, sendContentToCanvas, confirmPendingMemorySuggest, getActivePendingMemorySuggest, cancelPendingConfirm, runExistingConfirm, getCreditGate, clearCreditGate,
     // 展示→编排轴薄适配（收口 store 穿透）：这 3 个由 useAgentChat 回传，UI 不再直接 import conversationStore
-    setCurrentSnapshot, setAwaitingConfirm } = useAgentChat({
+    setCurrentSnapshot, setAwaitingConfirm, setCurrentAssistantTable, setCurrentGlobalContract } = useAgentChat({
     agentKey,
     systemPrompt,
     defaultModel: defaultAgentModel,
@@ -222,6 +228,80 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
     return gc ? String((gc as { unified_style_prompt?: string }).unified_style_prompt ?? '').trim() : ''
   }, [activeConv])
   const selectedRow = storyboard.rows.find((r) => r.id === selectedRowId) || null
+  // 输入框 ctx-chip 用：选中行号 + 首列内容简写
+  const selCtx = selectedRow
+    ? (() => {
+        const idx = storyboard.rows.findIndex((r) => r.id === selectedRow.id) + 1
+        const first = storyboard.columns.map((c) => selectedRow.values[c.id] || '').find((v) => !!v) || ''
+        return { idx, first }
+      })()
+    : null
+
+  // ── 表格 AI 预览（对话流内）：watch 最后一条 assistant 消息 → 解析表格 JSON → 渲染预览卡，确认才写回 ──
+  // selectedRowId 供探测 effect 读取（effect 不依赖它，故用 ref 取当时选中行）
+  const selectedRowIdRef = useRef(selectedRowId)
+  useEffect(() => { selectedRowIdRef.current = selectedRowId }, [selectedRowId])
+  // tableOpen 供探测 effect 读取（判断是否要报"JSON 解析失败"；普通对话不发该报错）
+  const tableOpenRef = useRef(tableOpen)
+  useEffect(() => { tableOpenRef.current = tableOpen }, [tableOpen])
+  useEffect(() => {
+    if (messages.length === 0) return
+    // 只认「已结束流式」的 assistant 消息（streaming 仍 true 是流式中途增量占位，内容未定）
+    const last = [...messages].reverse().find((m) =>
+      (m as { streaming?: unknown }).streaming !== true &&
+      m?.role === 'assistant' && typeof m?.content === 'string' && String(m.content).trim() !== ''
+    )
+    if (!last) return
+    if (last.id === tbPreviewHandledRef.current) return // 已处理过（确认/取消/非表格回复），不重复弹
+    tbPreviewHandledRef.current = last.id
+    const hit = tryParseAssistantTableJson(last.content)
+    if (hit) {
+      // 结构校验（对齐剧本盒 L334）：JSON 合法但未解析出任何行 → 视为格式不符，给可重试的明确提示
+      if (!Array.isArray(hit.json.rows) || hit.json.rows.length === 0) {
+        showToast?.('AI 返回的表格 JSON 格式不符（未解析出任何行），请让 AI 重新生成', { type: 'error' })
+        logger.error('AI助手', '表格 JSON 结构不符（空 rows）', { messageId: last.id })
+      } else {
+        setTbPreview({ json: hit.json, messageId: last.id, rowId: selectedRowIdRef.current, resolved: null })
+      }
+    } else if (tableOpenRef.current && looksLikeTableJson(last.content)) {
+      // AI 明显在尝试返回表格 JSON 但格式错误 → 不显示预览卡，直接报错让用户重试（对齐剧本盒：勿静默）
+      showToast?.('AI 返回的表格 JSON 解析失败，请让 AI 重新生成', { type: 'error' })
+      logger.error('AI助手', '表格 JSON 解析失败', { text: String(last.content || '').slice(0, 300), messageId: last.id })
+    }
+  }, [messages, storyboard])
+  // 切对话 → 清预览/探测游标（防止串到别的对话）
+  useEffect(() => { setTbPreview(null); tbPreviewHandledRef.current = null }, [activeConversationId])
+  // 画面预览模型（整表 / 单行 diff，由纯函数对出「旧 vs 新」）
+  const tablePreviewModel = useMemo(
+    () => (tbPreview ? buildPreviewModel(storyboard, tbPreview.json, tbPreview.rowId) : null),
+    [tbPreview, storyboard]
+  )
+  const confirmTablePreview = useCallback(() => {
+    if (!tbPreview) return
+    const { json, rowId } = tbPreview
+    const rows = Array.isArray(json.rows) ? json.rows : []
+    if (rowId && rows.length === 1 && rows[0] && typeof rows[0] === 'object') {
+      // 单行 diff → 只 merge 回原行（仅覆盖该行已有列，不毁列/其它行、不新增列）
+      const next = mergeRowFromObj(storyboard, rowId, rows[0] as Record<string, unknown>)
+      if (next !== storyboard) setCurrentAssistantTable(next)
+    } else {
+      // 整表 → AI 设计列 + 行全量替换；globalStyle 同步（保留既有 visual_positioning / negative）
+      const { globalStyle: gs, sb: next } = jsonToSb(json)
+      if (gs && gs !== globalStyle) {
+        const g = activeConv?.memory?.global_contract
+        const cur = g && typeof g === 'object' ? g as { visual_positioning?: string; unified_negative_prompt?: string } : {}
+        setCurrentGlobalContract({
+          visual_positioning: String(cur.visual_positioning ?? '').trim(),
+          unified_style_prompt: gs,
+          unified_negative_prompt: String(cur.unified_negative_prompt ?? '').trim(),
+        })
+      }
+      if (next.columns.length > 0) setCurrentAssistantTable(next)
+    }
+    setTbPreview((p) => (p ? { ...p, resolved: 'confirmed' } : p))
+    showToast?.('已写入表格', { type: 'success' })
+  }, [tbPreview, storyboard, globalStyle, activeConv, setCurrentAssistantTable, setCurrentGlobalContract])
+  const cancelTablePreview = useCallback(() => { setTbPreview((p) => (p ? { ...p, resolved: 'cancelled' } : p)) }, [])
 
   // 【设置即生效·方案 B】订阅「设置 → AI 助手」的聊天模型键（agent_chat_model）。
   // 该键由 AgentChatSettings.saveAgentChatModel → contentSet 写入，contentSubscribe 即时回调。
@@ -536,15 +616,22 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
       .filter((a, i, arr) => arr.findIndex((x) => x.url === a.url) === i)
     const text = (typeof overrideText === 'string' ? overrideText : input).trim()
     if ((!text && allImages.length === 0) || (sending && stateAction !== 'steer')) return
-    // 表格模式：发 AI 前自动注入「表格专注上下文 + 全局风格(整批统一) + 当前选中行」，
-    // 让 AI 聚焦当前表格/行，不必靠用户每次把表现塞进对话（对齐定稿 §1.7/§1.8 自动注入）。
+    // 表格模式：发 AI 前自动注入「表格专注上下文 + 输出格式契约 + 全局风格 + 当前选中行」，
+    // 让 AI 聚焦当前表格/行、并按要求返回可解析的表格 JSON（对齐定稿 §1.3/§1.7/§1.8 与§2.2 输出契约）。
+    // ⚠️ ASSISTANT_TABLE_FORMAT 是"只返回纯 JSON {globalStyle, rows:[{列名:值}]}"的强制格式，
+    //    必须每次都带，否则 AI 可能返回自由文本→预览/写回失效。
     let finalText = text
     if (tableOpen) {
       const parts: string[] = []
       const modeCtx = buildTableModeContext(storyboard.columns.map((c) => c.label), globalStyle)
       if (modeCtx) parts.push(modeCtx)
-      if (text) parts.push(text)
-      if (selectedRow) parts.push(`【当前选中行（本次请优先处理该行）】\n${rowToText(storyboard, selectedRow)}`)
+      parts.push(ASSISTANT_TABLE_FORMAT)
+      if (selectedRow) {
+        // 有选中行 → 按「改单行」模式：当前行 + 全局风格 + 用户意见，只改该行（跨改面最小）
+        parts.push(buildRefineRowUser(rowToText(storyboard, selectedRow), globalStyle, text))
+      } else if (text) {
+        parts.push(text)
+      }
       finalText = parts.filter(Boolean).join('\n\n')
     }
     // 【单入口 · docs/65 M7/M8】一律调 send；direct 由 send 内部第一行分流到直连生图
@@ -849,9 +936,8 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
       <div className="agent-body">
         {tableOpen && (
           <AssistantTablePanel
-            messages={messages}
             width={tableWidth}
-            sending={sending}
+            previewing={!!tbPreview && !tbPreview.resolved}
             onSelectRow={setSelectedRowId}
             onSendToCanvas={sendContentToCanvas}
             onFocusComposer={focusTextarea}
@@ -904,15 +990,35 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
             </div>
           )}
           {messages.map((m) => (
-            <AgentMessage
-              key={m.id}
-              message={m}
-              onConfirmPlan={handleConfirmPlan}
-              onCancelPlan={cancelPendingConfirm}
-              onRetryStep={handleRetryStep}
-              onSendToCanvas={sendContentToCanvas}
-              onRegenerate={() => handleRegenerate(m)}
-            />
+            <div key={m.id} className="agent-msg-wrap">
+              <AgentMessage
+                message={m}
+                onConfirmPlan={handleConfirmPlan}
+                onCancelPlan={cancelPendingConfirm}
+                onRetryStep={handleRetryStep}
+                onSendToCanvas={sendContentToCanvas}
+                onRegenerate={() => handleRegenerate(m)}
+              />
+              {/* 表格 AI 预览卡：渲染在对应 assistant 消息正下方（对齐 mockup 展开态②/③），确认才写回。
+                  确认/取消后原位折叠成 pv-done（对齐 mockup collapseCard），成功=绿勾、取消=灰"已取消"。 */}
+              {tablePreviewModel && tbPreview?.messageId === m.id && (
+                tbPreview.resolved === 'confirmed' ? (
+                  <div className="pv-done">
+                    <span className="ck"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+                    已写入表格
+                  </div>
+                ) : tbPreview.resolved === 'cancelled' ? (
+                  <div className="pv-done">已取消，表格未改动</div>
+                ) : (
+                  <AssistantTablePreviewCard
+                    preview={tablePreviewModel}
+                    sending={sending}
+                    onConfirm={confirmTablePreview}
+                    onCancel={cancelTablePreview}
+                  />
+                )
+              )}
+            </div>
           ))}
           {/* 高消耗积分确认卡（跟随消息流末尾，与策划/记忆确认共用 AgentConfirmCard 统一样式）：
               credit 命中（任一模式 + 开关开）时，execute_plan 已建好节点（status='ready'）、真生成未触发；
@@ -967,6 +1073,25 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
       {/* 底部输入区（OneBox：附件 chips → 输入框 → 纯图标工具栏） */}
       <div className="agent-composer">
         <div className="agent-box">
+          {/* 当前上下文 chip（对齐 mockup ctx-row）：正在处理第 N 行 + 画布参考图，可一键移除 */}
+          {tableOpen && (selectedRow || pendingImageNodes.length > 0) && (
+            <div className="agent-ctx-row">
+              {selCtx && (
+                <span className="agent-ctx">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
+                  <span className="ctx-text">正在处理：第 {selCtx.idx} 行{selCtx.first ? ` · ${selCtx.first.slice(0, 14)}` : ''}</span>
+                  <span className="x" onClick={clearRowSelection} title="取消选中该行"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span>
+                </span>
+              )}
+              {pendingImageNodes.length > 0 && (
+                <span className="agent-ctx">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                  <span>{pendingImageNodes.length} 张画布参考图</span>
+                  <span className="x" onClick={() => setPendingImageNodes([])} title="移除全部参考图"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span>
+                </span>
+              )}
+            </div>
+          )}
           {/* 参考图 chips（内联在输入框上方） */}
           {(attachments.length > 0 || uploading) && (
             <div className="agent-att-row">
@@ -1249,4 +1374,12 @@ function readTextFile(file: File): Promise<string> {
     reader.onerror = () => reject(new Error('读取失败'))
     reader.readAsText(file, 'utf-8')
   })
+}
+
+/** 粗略判断某段文本「明显在试图返回表格 JSON」（代码块 / globalStyle / rows / 以 { 开头）。
+ *  用于解析失败时判定"AI 想给表格但格式坏了" → 报错让用户重试，而非误报普通回复。 */
+function looksLikeTableJson(text: unknown): boolean {
+  const t = String(text ?? '')
+  if (!t) return false
+  return /```(?:json)?/i.test(t) || /["']?globalStyle["']?\s*:/.test(t) || /["']?rows["']?\s*:/.test(t) || /^\s*\{/.test(t)
 }

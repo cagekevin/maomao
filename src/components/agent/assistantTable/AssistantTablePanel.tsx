@@ -13,7 +13,7 @@
  *    确认才写回（整表 replace / 单行 mergeRowFromObj），取消则表格不动（预览与正式表两份状态）。
  *  - 落画布：行操作「发送到画布」→ rowToText → onSendToCanvas（复用 sendContentToCanvas）。
  */
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { subscribe, getState } from '../conversation/conversationState.ts'
 import { useStoreSelector, shallowEqual } from '@/hooks/useStoreSelector.ts'
 import {
@@ -21,9 +21,9 @@ import {
 } from '../conversation/conversationStore.ts'
 import {
   normalizeAssistantTable, parsePasted, addRow, deleteRow, moveRow, duplicateRow, setCell,
-  rowToText, jsonToSb, mergeRowFromObj, tryParseAssistantTableJson,
+  rowToText, renameColumn,
 } from './assistantTable.ts'
-import type { AssistantTable, AssistantTableJson, TableRow } from './assistantTable.ts'
+import type { AssistantTable, TableRow } from './assistantTable.ts'
 import { showToast } from '@/components/base/core/toastStore.ts'
 
 /** 写全局风格（复用到 memory.global_contract.unified_style_prompt；缺另两字段时补空串对齐 GlobalContractShape） */
@@ -33,13 +33,12 @@ function writeGlobalStyle(style: string): void {
   setCurrentGlobalContract(next)
 }
 
-/** 面板外部注入：消息流（据此探测 AI 表格 JSON）与回调 */
+/** 面板外部注入：回调与左栏宽度 */
 export interface AssistantTablePanelProps {
-  messages: Array<{ id?: unknown; role?: unknown; content?: unknown }>
   /** 左栏固定宽度（px）（父级分栏拖拽决定） */
   width?: number
-  /** 当前是否正在发送（行操作/确认时避免并发） */
-  sending?: boolean
+  /** AI 表格预览当前是否存在（待确认写回）。存在且空表时左栏空态提示「等你在右侧确认后写入」 */
+  previewing?: boolean
   /** 选中某行（null=取消选中）。供 AgentPanel 在发 AI 时自动注入该行上下文 */
   onSelectRow?: (rowId: string | null) => void
   /** 某行 → 发送到画布（AgentPanel 传 sendContentToCanvas，内部 rowToText 拼好文字） */
@@ -48,7 +47,7 @@ export interface AssistantTablePanelProps {
   onFocusComposer?: () => void
 }
 
-export default function AssistantTablePanel({ messages, width = 460, sending = false, onSelectRow, onSendToCanvas, onFocusComposer }: AssistantTablePanelProps) {
+export default function AssistantTablePanel({ width = 460, previewing = false, onSelectRow, onSendToCanvas, onFocusComposer }: AssistantTablePanelProps) {
   // ── 响应式读 store ──
   const activeConversationId = useStoreSelector(subscribe, getState, (s) => s.activeId || '', shallowEqual)
   const rawTable = useStoreSelector(subscribe, getState, (s) => {
@@ -65,41 +64,19 @@ export default function AssistantTablePanel({ messages, width = 460, sending = f
   // ── 本地编辑态 ──
   const [selectedRowId, setSelectedRowId] = useState<string | null>(null)
   const [edits, setEdits] = useState<Record<string, string>>({}) // `${rowId}:${colId}` → draft
+  const [colRenameDraft, setColRenameDraft] = useState<Record<string, string>>({}) // colId → 列名 draft
   const [styleDraft, setStyleDraft] = useState(globalStyle)
-  const [preview, setPreview] = useState<{ json: AssistantTableJson; messageId: unknown } | null>(null)
-  const previewHandledRef = useRef<unknown>(null) // 已处理过的最新 assistant 消息 id（防重复弹卡）
 
-  // 切对话 → 重置本地选中/预览/编辑草稿（避免跨对话串表）
+  // 切对话 → 重置本地选中/编辑草稿（避免跨对话串表）。AI 表格预览已上移到 AgentPanel 对话流内处理
   useEffect(() => {
     setSelectedRowId(null)
-    setPreview(null)
     setEdits({})
-    previewHandledRef.current = null
+    setColRenameDraft({})
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeConversationId])
 
   // 全局风格外部变化 → 同步草稿（仅当外部值变化，用户在输入时不被覆盖因 typing 不改 rawGc）
   useEffect(() => { setStyleDraft(globalStyle) }, [globalStyle])
-
-  // ⚠️ 暂存编辑草稿随行删除/列变化清理（简单处理：行删了残留草稿不影响渲染，读不到即忽略；不额外清理保持轻量）
-
-  // ── AI 表格 JSON 探测：watch 最后一条 assistant 消息 ──
-  useEffect(() => {
-    if (messages.length === 0) return
-    // 只认「已结束流式」的 assistant 消息（streaming 仍 true 是流式中途的增量占位，内容未定，跳过防误解析）
-    const last = [...messages].reverse().find((m) =>
-      (m as { streaming?: unknown }).streaming !== true &&
-      m?.role === 'assistant' && typeof m?.content === 'string' && String(m.content).trim() !== ''
-    )
-    if (!last) return
-    if (last.id === previewHandledRef.current) return // 已处理过（含已确认/取消/非表格回复），不重复弹
-    previewHandledRef.current = last.id
-    const hit = tryParseAssistantTableJson(last.content)
-    if (hit) {
-      setPreview({ json: hit.json, messageId: last.id })
-    }
-    // 非表格回复 → 不弹卡（已推进 handled）
-  }, [messages, storyboard])
 
   const commit = (sb: AssistantTable) => { setCurrentAssistantTable(sb) }
 
@@ -172,14 +149,10 @@ export default function AssistantTablePanel({ messages, width = 460, sending = f
     }
     return (
       <td key={col.id}>
-        <input
-          className="cell"
+        <CellEditor
           value={value}
-          onChange={(e) => setEdits((prev) => ({ ...prev, [key]: e.target.value }))}
-          onBlur={commitCell}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.nativeEvent.isComposing) { e.preventDefault(); (e.target as HTMLInputElement).blur() }
-          }}
+          onChange={(v) => setEdits((prev) => ({ ...prev, [key]: v }))}
+          onCommit={commitCell}
         />
       </td>
     )
@@ -189,26 +162,6 @@ export default function AssistantTablePanel({ messages, width = 460, sending = f
     const next = selectedRowId === row.id ? null : row.id
     setSelectedRowId(next)
     onSelectRow?.(next)
-  }
-
-  // 预览卡确认/取消
-  const dismissPreview = () => { setPreview(null) }
-  const confirmPreview = () => {
-    if (!preview) return
-    const { json } = preview
-    // 单行（rows.length === 1 且当前有选中行）→ 只 merge 回该行（不毁列/其它行）
-    if (Array.isArray(json.rows) && json.rows.length === 1 && selectedRowId) {
-      const obj = (json.rows[0] && typeof json.rows[0] === 'object') ? (json.rows[0] as Record<string, unknown>) : {}
-      const next = mergeRowFromObj(storyboard, selectedRowId, obj)
-      if (next !== storyboard) commit(next)
-    } else {
-      // 整表：AI 设计列 + 行 → 全量替换
-      const { globalStyle: gs, sb: next } = jsonToSb(json)
-      if (gs && gs !== globalStyle) writeGlobalStyle(gs)
-      if (next.columns.length > 0) commit(next)
-    }
-    setPreview(null)
-    showToast?.('已写入表格', { type: 'success' })
   }
 
   const hasData = storyboard.columns.length > 0
@@ -232,29 +185,6 @@ export default function AssistantTablePanel({ messages, width = 460, sending = f
           />
           <svg className="pen" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>
         </div>
-
-        {preview && (
-          <div className="pv">
-            <div className="pv-hd">
-              <span className="badge">表格预览</span>
-              <span>AI 生成 · 未写入</span>
-              <span className="spacer" />
-              <span className="rows">共 {Array.isArray(preview.json.rows) ? preview.json.rows.length : 0} 行</span>
-            </div>
-            {preview.json.globalStyle ? <div className="gs-line"><b>全局风格：</b><span>{preview.json.globalStyle}</span></div> : null}
-            <div className="pv-body">
-              <PreviewTable json={preview.json} />
-            </div>
-            <div className="pv-ft">
-              <button type="button" className="btn btn-ok" onClick={confirmPreview} disabled={sending}>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                确认写入{selectedRowId && Array.isArray(preview.json.rows) && preview.json.rows.length === 1 ? '该行' : '表格'}
-              </button>
-              <button type="button" className="btn btn-ghost" onClick={dismissPreview}>取消</button>
-              <span className="tip">只覆盖文字</span>
-            </div>
-          </div>
-        )}
 
         <div className="sb-tools">
           <button type="button" className="tb" onClick={handlePaste} title="粘贴：读取剪贴板，首行作为表头">
@@ -280,21 +210,41 @@ export default function AssistantTablePanel({ messages, width = 460, sending = f
           <div className="mark">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
           </div>
-          <h4>还没有表格</h4>
-          <p>粘贴一段带表头的文字（首行=列名），<br/>或在右侧对话里描述需求让 AI 设计表头并填充</p>
-          <div className="acts">
-            <button type="button" className="tb" onClick={handlePaste}>粘贴表格</button>
-            <button type="button" className="tb primary" onClick={() => { onFocusComposer?.(); showToast?.('在右侧对话框发需求，AI 生成整表') }}>让 AI 生成</button>
-          </div>
+          <h4>{previewing ? '等你在右侧确认后写入' : '还没有表格'}</h4>
+          <p>{previewing ? '预览不改正式表 —— 确认才是唯一写回闸口' : '粘贴一段带表头的文字（首行=列名），<br/>或在右侧对话里描述需求让 AI 设计表头并填充'}</p>
+          {previewing ? null : (
+            <div className="acts">
+              <button type="button" className="tb" onClick={handlePaste}>粘贴表格</button>
+              <button type="button" className="tb primary" onClick={() => { onFocusComposer?.(); showToast?.('在右侧对话框发需求，AI 生成整表') }}>让 AI 生成</button>
+            </div>
+          )}
         </div>
       ) : (
         <div className="sb-body">
           <table className="sbt">
-            <colgroup><col style={{ width: 34 }} /><col style={{ width: 96 }} /><col /><col style={{ width: 120 }} /></colgroup>
+            <colgroup>
+              <col style={{ width: 32 }} />
+              {storyboard.columns.map((col) => <col key={col.id} />)}
+              <col style={{ width: 88 }} />
+            </colgroup>
             <thead>
               <tr>
                 <th>#</th>
-                {storyboard.columns.map((col) => <th key={col.id}>{col.label}</th>)}
+                {storyboard.columns.map((col) => (
+                  <th key={col.id} title="点击改列名">
+                    <input
+                      className="col-head"
+                      value={colRenameDraft[col.id] ?? col.label}
+                      onChange={(e) => setColRenameDraft((p) => ({ ...p, [col.id]: e.target.value }))}
+                      onBlur={() => {
+                        const v = (colRenameDraft[col.id] ?? col.label).trim()
+                        if (v && v !== col.label) commit(renameColumn(storyboard, col.id, v))
+                        setColRenameDraft((p) => { const n = { ...p }; delete n[col.id]; return n })
+                      }}
+                      onKeyDown={(e) => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) (e.target as HTMLInputElement).blur() }}
+                    />
+                  </th>
+                ))}
                 <th />
               </tr>
             </thead>
@@ -314,24 +264,27 @@ export default function AssistantTablePanel({ messages, width = 460, sending = f
   )
 }
 
-/** 预览内嵌表格（展示 AI 返回 JSON；首行键即列名） */
-function PreviewTable({ json }: { json: AssistantTableJson }) {
-  const rows = Array.isArray(json.rows) ? json.rows : []
-  const cols = (rows[0] && typeof rows[0] === 'object') ? Object.keys(rows[0] as Record<string, unknown>) : []
+/** 单元格编辑器：受控 textarea，随内容自动撑高（长文本多行换行，对齐 mockup），blur 提交 */
+function CellEditor({ value, onChange, onCommit }: { value: string; onChange: (v: string) => void; onCommit: () => void }) {
+  const ref = useRef<HTMLTextAreaElement>(null)
+  const grow = useCallback(() => {
+    const el = ref.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${el.scrollHeight}px`
+  }, [])
+  // 外部值变化（粘贴/写回/切对话）→ 重算高度
+  useEffect(() => { grow() }, [value, grow])
   return (
-    <table>
-      {cols.length > 0 && (
-        <thead>
-          <tr>{cols.map((c, i) => <th key={i}>{c}</th>)}</tr>
-        </thead>
-      )}
-      <tbody>
-        {rows.map((r, ri) => (
-          <tr key={ri}>
-            {cols.map((c, ci) => <td key={ci}>{String((r as Record<string, unknown>)[c] ?? '')}</td>)}
-          </tr>
-        ))}
-      </tbody>
-    </table>
+    <textarea
+      ref={ref}
+      className="cell"
+      rows={1}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      onInput={grow}
+      onBlur={onCommit}
+      spellCheck={false}
+    />
   )
 }
