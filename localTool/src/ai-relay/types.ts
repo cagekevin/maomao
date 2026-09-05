@@ -212,10 +212,7 @@ export type ModelProtocolPresetName =
   | 'openai-chat'
   | 'openai-image'
   | 'agnes-video'
-  | 'lovart-image'
-  | 'lovart-video'
-  | 'lovart-chat'
-  | 'custom';
+  | 'custom'; // custom = per-provider 自定义协议（relay-poll 按 provider 读取 model_protocols，见 providerConfigStore）
 
 export interface ModelProtocolProfile {
   preset: ModelProtocolPresetName;

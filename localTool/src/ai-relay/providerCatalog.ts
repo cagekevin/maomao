@@ -174,21 +174,7 @@ export const BUILT_IN_PROVIDER_DEFINITIONS: ProviderDefinition[] = [
     allowCustomBaseUrl: true,
     credentials: [API_KEY_FIELD, { key: 'baseUrl', label: '接口地址', required: true }],
   },
-  // ── 旧轨：lovart-old（apimart 系 / 9004 本地网关，退役回退）──
-  // 双轨已收敛到直连 lovart(lgw.lovart.ai)；本轨留作 9004 回退，后续删除。
-  {
-    id: 'lovart-old',
-    name: 'Lovart Old',
-    description: 'Lovart / APIMart 本地网关（9004，旧轨回退），异步生图/生视频 + 文本',
-    badgeText: 'LV',
-    authType: 'api-key',
-    catalogAdapter: 'local-manifest',
-    defaultBaseUrl: 'http://127.0.0.1:9004',
-    allowCustomBaseUrl: false,
-    credentials: [{ ...API_KEY_FIELD, label: 'Lovart Key' }],
-    models: LOVART_MODEL_MANIFEST,
-  },
-  // ── Lovart 原生 Agent 协议直连（lgw.lovart.ai，正式主平台，取代 9004）──
+  // ── Lovart 原生 Agent 协议直连（lgw.lovart.ai，正式主平台）──
   // 走 providers/lovart 命令式 adapter（HMAC 鉴权 + project/轮询/confirm/SSE 合成）。
   {
     id: 'lovart',

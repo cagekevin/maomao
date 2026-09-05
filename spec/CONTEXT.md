@@ -166,9 +166,9 @@
 
 * **新增 store/持久化自查**：会不会产生画布↔任务↔磁盘不一致？写码时主动规避（排查脚本见 CLAUDE.md §四）。
 
-* **字符串契约零损伤（红线，改任何引用必须全量 grep 同步）**：`proxyMode=local-tool`、`127.0.0.1:18080`、`127.0.0.1:9004`、`/api/proxy`、`x-proxy-url`、画布硬编码字段 `t.data[0].url`、`{code,data}` 信封、SSE 事件格式。禁止局部替换漏网。
+* **字符串契约零损伤（红线，改任何引用必须全量 grep 同步）**：`proxyMode=local-tool`、`127.0.0.1:18080`、`/api/proxy`、`x-proxy-url`、画布硬编码字段 `t.data[0].url`、`{code,data}` 信封、SSE 事件格式。禁止局部替换漏网。注：`127.0.0.1:9004` 已随 2026-09-05 `lovart-old` 退役删除，禁止恢复（勿新增引用）。
 
-  > ⚠️ **已失效 2026-09-03（生成入口收口）：新行为 = 上列 `proxyMode=local-tool`、`/api/proxy`、`x-proxy-url` 三项已退役，禁止恢复。** 前端不再有 `/api/proxy` 出站通道：chat / image / video 一律打统一生成入口 `POST /api/generate`，本地入口由 `config.ts` 的 `apiBase` 决定（指向 localTool `:18080`）；出站由 localTool 侧 `routes/generate.ts` + `passthrough.ts` + `relay-poll.ts` 承担。仍有效的只有：`127.0.0.1:18080`、`127.0.0.1:9004`（relay 重构后仅 lovart-old 回退轨）、`t.data[0].url`、`{code,data}` 信封、SSE 事件格式。现行红线以 `CLAUDE.md` §5.4.4 / §5.7 为准。代码里散落的「旧 `/api/proxy` 已退役」注释是**决策留痕**，不是待恢复项（勿照此行反推回去"保护"死契约）。
+  > ⚠️ **已失效（生成入口收口 2026-09-03 + lovart-old/9004 退役 2026-09-05）：** `proxyMode=local-tool`、`/api/proxy`、`x-proxy-url` 三项已退役、禁止恢复；`127.0.0.1:9004` 随 `lovart-old` 一并删除、禁止恢复。前端不再有 `/api/proxy` 出站通道：chat / image / video 一律打统一生成入口 `POST /api/generate`，本地入口由 `config.ts` 的 `apiBase` 决定（指向 localTool `:18080`）；出站由 localTool 侧 `routes/generate.ts` + `passthrough.ts` + `relay-poll.ts` 承担，Lovart 走 `lgw.lovart.ai` 直连（`localTool/.env` 持 HMAC 凭证）。仍有效的只有：`127.0.0.1:18080`、`t.data[0].url`、`{code,data}` 信封、SSE 事件格式。现行红线以 `CLAUDE.md` §5.4.4 / §5.7 为准。代码里散落的「旧 `/api/proxy` 已退役」「旧 9004/lovart-old 已退役」注释是**决策留痕**，不是待恢复项（勿照此行反推回去"保护"死契约）。
 
 * **SSE 流式三件套豁免 httpClient（红线）**：`chatApi.ts`/`imageApi.ts`/`videoApi.ts` 走独立 `proxyGenerate.ts` 深模块（SSE 逐块/轮询 + envelope 语义），**禁止迁移到** **`httpClient.ts`**——httpClient 的「非 2xx 抛 HttpError + 网络/超时自动重试」会破坏流式增量、多轮工具循环与轮询节奏。三个文件头部均带「为何不走 httpClient」注释。新网络请求仍一律走 httpClient，本豁免仅限此三件套。
 

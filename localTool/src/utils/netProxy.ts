@@ -10,8 +10,8 @@
  *  2. 直连失败且检测到可用代理时 → 用 node:https CONNECT 隧道经代理重试；
  *  3. 代理解析优先级：HTTPS_PROXY > HTTP_PROXY > ALL_PROXY（大小写兼容）→ 无则探测常见本机端口。
  *
- * 本模块只服务「下载/转发外部资源」的场景，localTool 内部 /api/proxy → 127.0.0.1:9004
- * 是本地链路，绝不走代理（避免误伤本地请求）。
+ * 本模块只服务「下载/转发外部资源」的场景；localTool 内部请求（如 127.0.0.1 / localhost）
+ * 属本地链路，绝不走代理（避免误伤本地请求）。
  */
 
 import * as https from 'node:https';

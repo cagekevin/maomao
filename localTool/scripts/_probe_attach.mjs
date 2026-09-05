@@ -1,10 +1,11 @@
 import fs from 'node:fs';
-import path from 'node:path';
+import path, { fileURLToPath } from 'node:path';
 import { resolveLovartAttachments } from '../src/ai-relay/providers/lovart/lovart_attachments.ts';
 import { stableRequest } from '../src/ai-relay/httpTransport.ts';
 import { fetchWithProxy } from '../src/utils/netProxy.ts';
 
-const envPath = path.join(process.cwd(), '..', 'apimart-gateway', '.env');
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const envPath = path.join(__dirname, '..', '.env');
 const envRaw = fs.readFileSync(envPath, 'utf-8');
 const g = (k) => (envRaw.match(new RegExp(k + '\\s*=\\s*(\\S+)')) || [])[1]?.replace(/['"]/g, '') || '';
 const ak = g('LOVART_ACCESS_KEY');

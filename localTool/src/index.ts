@@ -11,7 +11,7 @@ import path from 'node:path';
 import { execSync } from 'node:child_process';
 import { createServer } from 'node:net';
 import { getDb, closeDb, getUploadDir, getDataDir, backupDb, startBackupSchedule } from './db/database.js';
-import { getEnvFile, getFrontendDistDir, getApimartGatewayEnv, getDepthVideoDir } from './paths.js';
+import { getEnvFile, getFrontendDistDir, getDepthVideoDir } from './paths.js';
 import { VERSION } from './version.js';
 import { sendError } from './utils/helpers.js';
 // 声明式路由表：所有具名路由集中在 router.ts，新增端点只加一行（详见 docs/11）
@@ -389,51 +389,25 @@ async function main(): Promise<void> {
   // 初始化数据库（async）
   await getDb();
 
-  // ── 凭据检查：读取网关 .env，警告占位凭据 ──
-  const envPaths = [
-    getApimartGatewayEnv(),                                          // localTool/ → 项目根/apimart-gateway/.env
-    path.join(process.cwd(), 'apimart-gateway', '.env'),              // 从项目根启动
-  ];
-  let credsOk = false;
-  for (const envPath of envPaths) {
-    try {
-      const envContent = fs.readFileSync(envPath, 'utf-8');
-      const accessKeyMatch = envContent.match(/LOVART_ACCESS_KEY\s*=\s*(\S+)/);
-      const secretKeyMatch = envContent.match(/LOVART_SECRET_KEY\s*=\s*(\S+)/);
-      const baseUrlMatch = envContent.match(/LOVART_BASE_URL\s*=\s*(\S+)/);
-      if (accessKeyMatch && secretKeyMatch) {
-        const ak = accessKeyMatch[1].replace(/['"]/g, '');
-        const sk = secretKeyMatch[1].replace(/['"]/g, '');
-        // 注入 process.env 供 relay 的 lovart（原生直连，HMAC 鉴权）使用。
-        // 直连 Lovart 与旧轨 lovart-old(9004) 共用同一对 LOVART 凭证；直连后由 relay 直接持有，不再经网关。
-        process.env.LOVART_ACCESS_KEY = ak;
-        process.env.LOVART_SECRET_KEY = sk;
-        if (baseUrlMatch) process.env.LOVART_BASE_URL = baseUrlMatch[1].replace(/['"]/g, '');
-        if (ak.includes('xxxx') || ak.includes('REPLACE') || sk.includes('xxxx') || sk.includes('REPLACE')) {
-          console.log('');
-          console.log('  ⚠️  ═══════════════════════════════════════════');
-          console.log('  ⚠️  LOVART 凭据为占位符！生图/对话将不会真正生效。');
-          console.log('  ⚠️  请在 apimart-gateway/.env 中填入真实 AK/SK。');
-          console.log('  ⚠️  ═══════════════════════════════════════════');
-          console.log('');
-        } else {
-          credsOk = true;
-        }
-      }
-      break; // found the file, stop trying
-    } catch {
-      // file not found at this path, try next
-    }
-  }
-  if (!credsOk) {
-    // 如果文件未找到也提示一下（可能未部署网关）
-    const anyEnvFound = envPaths.some(p => { try { return fs.existsSync(p); } catch { return false; } });
-    if (!anyEnvFound) {
+  // ── 凭据检查：校验 localTool/.env 注入的 LOVART 凭证，警告占位/缺失 ──
+  // 直连 Lovart 走 HMAC 鉴权，凭证真源 = localTool/.env（由模块顶部 loadDotEnv() 注入 process.env）。
+  // apimart-gateway 已退役，不再依赖任何外部网关；密钥只进 localTool/.env，勿入库。
+  const ak = process.env.LOVART_ACCESS_KEY || '';
+  const sk = process.env.LOVART_SECRET_KEY || '';
+  if (ak && sk) {
+    if (ak.includes('xxxx') || ak.includes('REPLACE') || sk.includes('xxxx') || sk.includes('REPLACE')) {
       console.log('');
-      console.log('  ℹ️  未检测到 apimart-gateway/.env，网关凭据检查跳过。');
-      console.log('     如需生图/对话功能，请确保网关已部署并配置真实 LOVART 凭据。');
+      console.log('  ⚠️  ═══════════════════════════════════════════');
+      console.log('  ⚠️  LOVART 凭据为占位符！生图/对话将不会真正生效。');
+      console.log('  ⚠️  请在 localTool/.env 填入真实 LOVART_ACCESS_KEY / LOVART_SECRET_KEY。');
+      console.log('  ⚠️  ═══════════════════════════════════════════');
       console.log('');
     }
+  } else {
+    console.log('');
+    console.log('  ℹ️  未检测到 LOVART 凭据（localTool/.env 无 LOVART_ACCESS_KEY / LOVART_SECRET_KEY）。');
+    console.log('     如需生图/对话功能，请在 localTool/.env 配置真实 LOVART 凭据。');
+    console.log('');
   }
 
   const server = http.createServer(handleRequest);

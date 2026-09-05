@@ -2,7 +2,7 @@
 
 > **本文件定位：项目认知入口。每个 AI 进来第一步读它**，了解"这是什么项目、技术栈、架构、目录、红线、怎么启动"。
 > 读完按任务再读对应入口：**写代码 →** **`spec/CONTEXT.md`（决策地图）**；**写/改测试 →** **`spec/TEST-GUIDE.md`（测试权威）**。三文件互补不重叠（见 §七.0）。
-> **最后更新**：2026-09-04（四轮核对：① 计数 apiRegistry 60 条、tests/unit 176 文件/约 2209 用例；② 移除已删 `reference-1mao/`、不存 `docs/node-types-map.md`、已退役 `/api/proxy`/`proxyMode`/`x-proxy-url`、`Python 网关`/`lovart_client.py` 引用，节点规范改指 `spec/NEW-NODE-GUIDE.md`；③ 修正 `check:health` 覆盖、`localTool` 测试路径、`base/*.js`→`base/utils/`、`pre-commit` 跑 `test-affected`、`pre-push` 已删、`launch-all.ps1` 无参、relay 重构后 `9004` 仅 lovart-old 回退轨（非 relay 默认）、代理/转发逻辑改指 `passthrough.ts`/`generate.ts`/`relay-poll.ts`；④ 治理清理：删 5 个 0 引用脚本（`merge-node-audit.cjs`/`test_all_positions.mjs`/`test_group_collapse|persist|size.mjs`）、假入口 `sync-mapping.mjs`（连带 `npm run sync:mapping`）、孤儿 `share/index.html`，卸载零引用包 `zustand`/`three-stdlib`/`@babel/parser`；此前为 2026-08-26 事件契约红线收口 + 2026-08-22 API 中转层收口）
+> **最后更新**：2026-09-05（五轮核对：① 计数 apiRegistry 60 条、tests/unit 176 文件/约 2209 用例；② 移除已删 `reference-1mao/`、不存 `docs/node-types-map.md`、已退役 `/api/proxy`/`proxyMode`/`x-proxy-url`、`Python 网关`/`lovart_client.py` 引用，节点规范改指 `spec/NEW-NODE-GUIDE.md`；③ 修正 `check:health` 覆盖、`localTool` 测试路径、`base/*.js`→`base/utils/`、`pre-commit` 跑 `test-affected`、`pre-push` 已删、`launch-all.ps1` 无参、代理/转发逻辑改指 `passthrough.ts`/`generate.ts`/`relay-poll.ts`；④ 治理清理：删 5 个 0 引用脚本（`merge-node-audit.cjs`/`test_all_positions.mjs`/`test_group_collapse|persist|size.mjs`）、假入口 `sync-mapping.mjs`（连带 `npm run sync:mapping`）、孤儿 `share/index.html`，卸载零引用包 `zustand`/`three-stdlib`/`@babel/parser`；⑤ 2026-09-05：`lovart-old`/9004 旧轨与死路由 `handleGatewayTask` 已删、`apimart-gateway` 已退役，Lovart 凭证真源 = `localTool/.env`（由 `src/index.ts` `loadDotEnv` 注入），`localTool` 仅走直连上游 `lgw.lovart.ai`；同步 §5.1 端口铁律、§五.5 字符串契约、§7 调试口径。此前为 2026-08-26 事件契约红线收口 + 2026-08-22 API 中转层收口）
 
 ## ⚠️ 最新情况（改动前必读）
 
@@ -236,11 +236,11 @@ node scripts/task-inspect.mjs --canvas-health   # 画布结构体检
   2. **拿前端 task\_id 查实时状态（relay 重构后首选）**：`node scripts/task-inspect.mjs --poll-status <前端任务中心显示的id>` → 经 localTool 网关 `GET /api/generate/{id}` 返回 relay 聚合后的 `status`/`url`（需 localTool 运行于 18080，无需 Lovart HMAC/代理）。
   3. **拿上游结果（出图 URL/文本）**：`--poll-status` 已直接返回 `data.url`；仅上游为直连 Lovart 时仍可用 `node scripts/task-inspect.mjs --lovart-result <thread_id>`（连 Lovart `/chat/result`，需 LOVART_* 凭据 + 代理）。
 
-  > relay 任务主平台直连 `lgw.lovart.ai`（localTool 内部 `relay-poll` 常驻轮询 + 落盘 `/files/`），`lovart-old` 回退轨才经 127.0.0.1:9004；`--poll-status` 走 localTool 自身 18080 网关即可，不必开 VPN/代理；`--lovart-*` 仅 `lovart-old`/直连 Lovart 才需 `HTTPS_PROXY`（常见 7897）与 `LOVART_ACCESS_KEY/LOVART_SECRET_KEY`（从 lovart-old 进程 env 取：`ps eww $(lsof -tiTCP:9004 -sTCP:LISTEN | head -1)`）。
+  > relay 任务主平台直连 `lgw.lovart.ai`（localTool 内部 `relay-poll` 常驻轮询 + 落盘 `/files/`），`lovart-old` 旧轨（`:9004`）已随 2026-09-05 退役删除；`--poll-status` 走 localTool 自身 18080 网关即可，不必开 VPN/代理；`--lovart-*` 直连 Lovart 需 `HTTPS_PROXY`（常见 7897）与 `LOVART_ACCESS_KEY/LOVART_SECRET_KEY`（来自 `localTool/.env`，由 `src/index.ts` `loadDotEnv` 注入）。
 
 - **出站代理**：localTool 原生 `fetch` 不继承系统代理；经 `localTool/src/utils/netProxy.ts` 的 `fetchWithProxy`（直连→环境变量→探测本机代理端口→隧道）兜底。
 
-> 前端经 `config.ts` 的 `apiBase` 指向 localTool `:18080` 作为唯一本地入口；localTool 内部按 provider 走直连上游（`lgw.lovart.ai`）或 `lovart-old` 回退（`:9004`），旧 `/api/proxy` 出站已随 2026-09-03 生成入口收口退役。
+> 前端经 `config.ts` 的 `apiBase` 指向 localTool `:18080` 作为唯一本地入口；localTool 内部按 provider 走直连上游（`lgw.lovart.ai`），`lovart-old` 回退轨（`:9004`）已随 2026-09-05 退役删除，旧 `/api/proxy` 出站已随 2026-09-03 生成入口收口退役。
 
 ***
 
@@ -248,7 +248,7 @@ node scripts/task-inspect.mjs --canvas-health   # 画布结构体检
 
 ### 5.1 绝对禁区 🚫
 
-- **端口与入口**：禁止改 `18080`/`9004` 端口；禁止改唯一本地入口（前端 `config.ts` 的 `apiBase` → localTool `:18080`）。
+- **端口与入口**：禁止改 `18080` 端口（`9004` 已随 `lovart-old` 退役，禁止恢复/复用）；禁止改唯一本地入口（前端 `config.ts` 的 `apiBase` → localTool `:18080`）。
 
 - **VPN 前置**：连 Lovart (`lgw.lovart.ai:443`) **必须开 VPN**，否则网关静默 502，非代码问题。
 
@@ -285,7 +285,7 @@ node scripts/task-inspect.mjs --canvas-health   # 画布结构体检
 1. **共享函数不随意从模块抽取**：被高频依赖的基座函数（如 `NodeShell`、`useArrangeCanvas`）改动需评估下游，避免破坏引用。
 2. **禁止新文件循环 import 大模块**（TDZ）：跨模块引用走既有 barrel / 已导出符号。
 3. **React 单实例不可破**：整工程唯一 React 实例，✗ 不可新增独立 react/react-dom 实例。
-4. **字符串契约零损伤**（见 §五.5）：`127.0.0.1:18080`、`127.0.0.1:9004`、`t.data[0].url`、`{code,data}` 信封——改任何引用必须全量 grep 同步。**注**：旧 `proxyMode=local-tool`/`/api/proxy`/`x-proxy-url` 已随 2026-09-03 生成入口收口退役，禁止恢复（前端直连 `/api/generate`，本地入口由 `config.ts` 的 `apiBase` 决定）。
+4. **字符串契约零损伤**（见 §五.5）：`127.0.0.1:18080`（、`127.0.0.1:9004` 已随 2026-09-05 `lovart-old` 退役删除，禁止恢复）、`t.data[0].url`、`{code,data}` 信封——改任何引用必须全量 grep 同步。**注**：旧 `proxyMode=local-tool`/`/api/proxy`/`x-proxy-url` 已随 2026-09-03 生成入口收口退役，禁止恢复（前端直连 `/api/generate`，本地入口由 `config.ts` 的 `apiBase` 决定）。
 5. **存储键禁止裸字符串（P0 红线）**：所有存储读写（`content*/s*/storage*/kv*`）的 key 必须引用 `contracts.ts` 的 `STORAGE_KEYS` 登记项，**禁止裸字符串字面量 key**。新增键先登记、改键名全量 grep、删键先确认无引用。编译期拦截：`npm run check:keys`（静态）；运行时拦截：`contentStore.checkRegistered` 在 dev 环境对未登记字面量 key 直接 throw（`scripts/check-storage-keys.mjs` + `src/components/base/contentStore.ts` 为权威实现，改此机制须同步本红线）。
 6. **事件名禁止裸字符串 + 登记表零滞后（P0 红线，与存储键对称）**：所有事件总线调用（`publish`/`subscribe`/`subscribeOnce`）的事件名必须是 `contracts.ts` 的 `EVENTS` 登记项，**禁止裸字符串字面量事件名**（编译期 `npm run check:events` 拦截）。`EVENTS` 的 `from`/`to` 是发布/订阅事实源，**必须与代码实测的** **`publish`/`subscribe`** **位置自洽**：① 表 `to: []` 但代码实测有 `subscribe` → 视为"登记表滞后"（实际已被订阅），**禁止据此判定死事件/可删发布逻辑**；② 行号漂移须同步对齐。双向校验 `npm run check:events` 已挂 `prebuild`+`pretest`（`scripts/check-events.mjs` 为权威实现）。
 7. **降复杂度优先**：能减少复杂度又不引入 bug 的改动都做（混淆短名改语义长名、抽公共、删冗余），被运行时契约钉死的除外。改完必须 `npm run build` 验证。
@@ -319,7 +319,7 @@ node scripts/task-inspect.mjs --canvas-health   # 画布结构体检
 
 以下前后端契约值一字不差，改任何引用必须全量 grep 同步，禁止局部替换漏网：
 
-- `127.0.0.1:18080`、`127.0.0.1:9004`（端口铁律；旧 `proxyMode=local-tool`/`/api/proxy`/`x-proxy-url` 已随 2026-09-03 收口退役，勿恢复）
+- `127.0.0.1:18080`（端口铁律；`127.0.0.1:9004` 已随 2026-09-05 `lovart-old` 退役删除，禁止恢复；旧 `proxyMode=local-tool`/`/api/proxy`/`x-proxy-url` 已随 2026-09-03 收口退役，勿恢复）
 
 - 画布硬编码字段：`t.data[0].url`、`{code,data}` 信封结构、SSE 事件格式
 

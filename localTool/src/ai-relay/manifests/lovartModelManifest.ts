@@ -1,7 +1,8 @@
 /**
- * lovart（第 13 个平台 / apimart 系 9004 网关）模型清单。
+ * lovart（apimart 系）模型清单。
  * 从 localTool 运行期 providers.json 的 lovart 连接（image/chat/video_models）搬出，
- * 供 ai-relay local-manifest 目录离线列出模型。声明式执行协议见 protocol/presets.ts 的 lovart-*。
+ * 供 ai-relay local-manifest 目录离线列出模型。执行走直连 adapter（providers/lovart），
+ * 不依赖旧声明式 lovart-* preset（已随 lovart-old 9004 旧轨退役删除，见 docs/105）。
  */
 export const LOVART_MODEL_MANIFEST: import('../types.js').CatalogModel[] = [
   // 图片（异步任务，直连走 providers/lovart adapter）

@@ -669,8 +669,6 @@ export const apiRegistry = {
   localPatchCrop:        { fn: '(前端零消费·局部裁剪)',                method: 'POST',   path: '/api/local-patch/crop',        envelope: 'code-data', status: 'RESERVED' },
   localPatchMerge:       { fn: '(前端零消费·局部拼回)',                method: 'POST',   path: '/api/local-patch/merge',       envelope: 'code-data', status: 'RESERVED' },
   localPatchFingerprint: { fn: '(前端零消费·指纹比对)',                method: 'POST',   path: '/api/local-patch/fingerprint', envelope: 'code-data', status: 'RESERVED' },
-  /** apimart 网关任务查询（RESERVED：旧轮询协议，前端 pollTask.ts 已不走此路） */
-  gatewayTask:           { fn: '(前端零消费·旧 apimart 轮询协议)',      method: 'GET',    path: '/api/v1/gateway/task/{x}+',    envelope: 'code-data', status: 'RESERVED' },
   jianying:              { fn: '(前端零消费)',                          method: 'POST',   path: '/api/jianying/send',          envelope: 'stub',     status: 'RESERVED' },
   /** platform 域（RESERVED：前端零消费——模型源是 providerModels.js 聚合，不走 platform；handler 保留为「自研替换官方」兜底） */
   pluginManifest:        { fn: '(前端零消费·未实现)',                  method: 'GET',    path: '/plugin/manifest.json',       envelope: 'code-data', status: 'RESERVED' },

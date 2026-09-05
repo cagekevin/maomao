@@ -150,7 +150,7 @@ export default function ApiSettings() {
                   <input
                     value={selected.base_url || (selected._relay && (selected._relay as { defaultBaseUrl?: string })?.defaultBaseUrl) || ''}
                     onChange={(e) => updateProviderField(selected.id, 'base_url', e.target.value)}
-                    placeholder="请求地址（如 http://127.0.0.1:9004）"
+                    placeholder="请求地址（如 http://127.0.0.1:18080）"
                     className="w-full mt-1 h-8 text-xs bg-surface-1 border border-edge rounded-lg px-3 text-body outline-none focus:border-secondary placeholder:text-muted"
                   />
                 </div>

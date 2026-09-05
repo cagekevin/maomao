@@ -48,7 +48,7 @@ function assertCategory(model: string, expected: 'IMAGE' | 'VIDEO' | 'CHAT'): vo
 
 /**
  * 从 OpenAI 风格 messages 提取「纯文本」+「图片 URL 列表」。
- * 对齐 9004 main.py chat_completions：content 为字符串直接取；为数组时提取 text 块与
+ * 对齐 apimart-gateway/main.py chat_completions：content 为字符串直接取；为数组时提取 text 块与
  * image_url 块（url 可为 data:base64 / http(s) / 本地 /files/ 路径，后续由 resolveLovartAttachments 上传 CDN）。
  */
 function extractChatTextAndImages(messages?: Array<{ role?: string; content?: unknown }>): { text: string; images: string[] } {
@@ -150,7 +150,7 @@ export async function streamChatLovart(
   return synthesizeLovartChatStream(text, deps.signal); // 交回 parseStream
 }
 
-// ── 对话（非流式，9004 chat 同步文本语义，供后端 relayGenerate 用）──
+// ── 对话（非流式，Lovart chat 同步文本语义，供后端 relayGenerate 用）──
 // Lovart chat 是异步轮询拿整段文本（无真流式）；本函数 send→poll→抽 text，返回 string。
 export async function chatLovartText(
   profile: LovartDirectProfile,

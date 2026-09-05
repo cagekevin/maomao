@@ -43,5 +43,5 @@ export const XAI_BASE_URL = 'https://api.x.ai/v1';
 /** Google Gemini */
 export const GOOGLE_GEMINI_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/openai';
 
-/** Lovart 原生 Agent 协议直连（绕过 9004 网关） */
+/** Lovart 原生 Agent 协议直连 */
 export const LOVART_DIRECT_BASE_URL = 'https://lgw.lovart.ai';

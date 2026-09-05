@@ -9,7 +9,7 @@
  *
  * 【唯一查询协议】恢复不再自建轮询/落盘：复用 relayProxy.relayAttachUntilDone（和 in-flight
  * relayGenerate 同一 attach 循环），只 attach 不 cancel。结果 url = 后端已落盘 /files/，
- * 前端无需再 saveResultToTasks（旧 /api/v1/gateway/task 协议分支已删）。
+ * 前端无需再 saveResultToTasks（旧网关 task 协议分支已删，恢复统一走 GET /api/generate/:id attach）。
  *
  * 【候选判定】旧实现依赖 pollTaskId（需 setTaskPollId 写入，relay 下无人写 → 候选空、恢复失效）。
  * 现改为 running 任务即可（task.id = frontTaskId = 后端句柄键），不再依赖 pollTaskId 字段。

@@ -3,7 +3,7 @@
  *
  * 这是【统一日志总线】的接收端，不绑定任何特定上游：
  *   - 前端 logger.ts 上报 → source 默认 "frontend"（向后兼容，body 不传 source 即前端）
- *   - 各后端服务（如 apimart-gateway:9004、未来其他网关/Worker）主动上报 →
+ *   - 各后端服务（如未来其他网关/Worker）主动上报 →
  *     在 body 带 source 字段（如 "apimart" / "worker-xxx"），18080 以 [source] 前缀
  *     打进 console，随 logWriter 落盘 localtool_18080_*.log，并实时广播给日志面板 SSE。
  *

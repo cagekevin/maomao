@@ -215,7 +215,7 @@ test('异步原语：pollTaskOnce pending_confirmation → auto-confirm → runn
   assert.equal(t.confirms.length, 1, '触发一次 confirm');
 });
 
-test('chatLovartText 非流式：send→poll→抽 text，返回整段文本（对齐 9004 chat）', async () => {
+test('chatLovartText 非流式：send→poll→抽 text，返回整段文本（对齐 Lovart chat 同步语义）', async () => {
   // result 返回 text 型 items
   const transport = async (opts) => {
     if (opts.path === '/v1/openapi/project/save') return json({ code: 0, data: { project_id: 'proj-x' } });

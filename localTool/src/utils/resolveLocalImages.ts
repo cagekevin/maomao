@@ -2,7 +2,7 @@
  * localTool 出站图片回读 —— 把请求体里的本机 /files/ 图片 URL 内联成 data: base64（E 方案，docs/72）。
  *
  * 背景：前端会话/内存态只存 /files/ 相对路径（KB 级，不撑爆会话快照、不误触发 volumePolicy 降级）。
- *       AI 聊天 / 生图等出站请求（本地网关 9004 / 外部 provider / LLM）都读不到用户本机 127.0.0.1:18080
+ *       AI 聊天 / 生图等出站请求（外部 provider / LLM）都读不到用户本机 127.0.0.1:18080
  *       的 /files/ 磁盘文件，必须由 localTool（架构红线：唯一出站口）在转发前读 uploads/ → 压缩≤1920
  *       → base64 内联。与入库方向（base64Externalize：base64 → /files/）形成「存俩名」闭环（docs/41 §2）。
  *

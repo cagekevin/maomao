@@ -4,7 +4,7 @@
  * 覆盖依赖出站 fetch 的模块，用替换 globalThis.fetch 的方式模拟外部响应：
  *   - official：readOfficialBase（passthrough 转发目标 base 解析）
  *   - passthrough：本地路径不转发 / 转发头构建 / 响应回传
- *   - system：handleGatewayTask code 转换 / 400→404 归一
+ *   - system：状态/剪映接口（handleStatus / handleJianyingSend）
  *   - files：saveRemoteUrl（fileUrl 下载落盘）
  *
  * 运行：node --test test/*.test.js
@@ -152,35 +152,6 @@ test('passthrough·转发 GET 并流式回传（mock fetch）', async () => {
   assert.equal(handled, true);
   assert.equal(res.status, 200);
   assert.equal(Buffer.concat(chunks).toString('utf-8'), body);
-});
-
-// ══════════════════════════════════════════════════════════════
-// system：handleGatewayTask
-// ══════════════════════════════════════════════════════════════
-
-test('system·handleGatewayTask 转 code 200→1 且 400→404', async () => {
-  let call = 0;
-  mockFetchOnce((url) => {
-    call++;
-    if (call === 1) return jsonResponse({ code: 200, data: { id: 't1', status: 'running' } }, 200);
-    return jsonResponse({ error: 'not found' }, 400);
-  });
-  // 第一次：code 200 → 1
-  const res1 = makeRes();
-  await systemMod.handleGatewayTask(makeJsonReq(), res1, new URL('http://x/api/v1/gateway/task/t1'));
-  const b1 = parseResBody(res1);
-  assert.equal(b1.code, 1, 'code 200 应转为 1');
-  assert.equal(res1.status, 200);
-  // 第二次：上游 400 → 响应 404
-  const res2 = makeRes();
-  await systemMod.handleGatewayTask(makeJsonReq(), res2, new URL('http://x/api/v1/gateway/task/t2'));
-  assert.equal(res2.status, 404, '上游 400 应归一为 404');
-});
-
-test('system·handleGatewayTask 缺 taskId → 400', async () => {
-  const res = makeRes();
-  await systemMod.handleGatewayTask(makeJsonReq(), res, new URL('http://x/api/v1/gateway/task/'));
-  assert.equal(res.status, 400);
 });
 
 // ══════════════════════════════════════════════════════════════

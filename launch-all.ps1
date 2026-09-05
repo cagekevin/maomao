@@ -285,6 +285,30 @@ function Open-Canvas {
     Start-Process $url
 }
 
+# ── 🛠️ 弹出独立 cmd 窗口跑构建命令（菜单项：构建前端 / 构建 localTool）──
+# 为什么用 cmd /k 弹独立窗口而非后台静默：构建可能耗时且会报错，
+# 实时可见输出 + 窗口保持不关（/k）便于看清失败原因。构建完成后手动关窗口，
+# 需要让新产物生效时再点菜单「重启服务」即可（localTool 或 localTool 托管的 dist 即被刷新）。
+# 注：刻意用 ProcessStartInfo 而非 Start-Process -ArgumentList —— cmd 需要整串引号，
+#     PowerShell 5.1 对 ArgumentList 数组元素的引号转义有缺陷，ProcessStartInfo 可精确控制不踩坑。
+function Invoke-BuildWindow {
+    param([string]$Title, [string]$WorkDir, [string]$Command)
+    try {
+        # 一条命令：先 cd 到工作目录再执行构建。工作目录可能含中文/空格，用双引号包住防切词。
+        $cmdLine = "cd /d `"$WorkDir`" && $Command"
+        $psi = New-Object System.Diagnostics.ProcessStartInfo
+        $psi.FileName = "cmd.exe"
+        $psi.Arguments = "/k " + $cmdLine
+        $psi.WorkingDirectory = $WorkDir
+        $psi.UseShellExecute = $true    # 独立新窗口
+        $psi.CreateNoWindow = $false
+        $null = [System.Diagnostics.Process]::Start($psi)
+        Write-Log "  🛠️ 已弹出构建窗口「$Title」，构建日志实时输出，窗口保持不关" "Info"
+    } catch {
+        Write-Log "  ❌ 弹出「$Title」构建窗口失败：$($_.Exception.Message)" "Error"
+    }
+}
+
 # =====================================================================
 # ── 🚀 业务功能模块 ──
 # =====================================================================
@@ -454,6 +478,24 @@ function Start-TrayDaemon {
         }
     })
     $null = $menu.Items.Add($miRestart)
+
+    # ── 🛠️ 构建子菜单：构建前端 / 构建 localTool（各弹独立 cmd 窗口实时看日志）──
+    $miBuild = New-Object System.Windows.Forms.ToolStripMenuItem("构建")
+    $miBuild.Font = New-Object System.Drawing.Font($miBuild.Font, [System.Drawing.FontStyle]::Bold)
+
+    $miBuildFe = New-Object System.Windows.Forms.ToolStripMenuItem("构建前端 (npm run build → dist/)")
+    $miBuildFe.Add_Click({
+        Invoke-BuildWindow -Title "构建前端" -WorkDir $ScriptDir -Command "npm run build"
+    })
+    $null = $miBuild.DropDownItems.Add($miBuildFe)
+
+    $miBuildTool = New-Object System.Windows.Forms.ToolStripMenuItem("构建 localTool (npm run build → localTool/dist/)")
+    $miBuildTool.Add_Click({
+        Invoke-BuildWindow -Title "构建 localTool" -WorkDir (Join-Path $ScriptDir $Config.LocalTool.Dir) -Command "npm run build"
+    })
+    $null = $miBuild.DropDownItems.Add($miBuildTool)
+
+    $null = $menu.Items.Add($miBuild)
 
     $miLog = New-Object System.Windows.Forms.ToolStripMenuItem("打开日志目录")
     $miLog.Add_Click({

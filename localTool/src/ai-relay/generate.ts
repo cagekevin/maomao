@@ -67,7 +67,7 @@ export async function chat({ apiKey, baseUrl, model, messages, signal, tools, to
 
 /**
  * OpenAI 兼容 chat（非流式）+ 返回 tool_calls —— 画布 Agent 工具循环出站。
- * 【为什么新增】9004(lovart) 不支持流式+tools；魔搭等 OpenAI 兼容厂商无 data. 信封、
+ * 【为什么新增】lovart 不支持流式+tools；魔搭等 OpenAI 兼容厂商无 data. 信封、
  * 一次返回完整 tool_calls，是画布 Agent 唯一可用的工具出站。relay chat 按 provider 分流：
  * 带 tools → 走本函数；普通文本 → 走 executeModelProtocol(LOVART preset)。非流式，打字机留后补。
  */

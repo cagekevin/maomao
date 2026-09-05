@@ -118,7 +118,7 @@ export async function handleProviderProbeAsync(req: IncomingMessage, res: Server
   const def = getProviderDefinition(id);
   const url = baseUrl || def?.defaultBaseUrl || '';
   // 探「提交异步任务」端点是否可用：用假 task_id 命中异步子路径（网关对不存在 task 返 4xx 但端点存在）
-  // relay 层用 connection 探测 /models 判定连通；异步能力以 9004 lovart/复现 apimart 为准（保守返回连通=testConnection 结果）。
+  // relay 层用 connection 探测 /models 判定连通；异步能力以 lovart/复现 apimart 为准（保守返回连通=testConnection 结果）。
   if (!url) return sendError(res, 'Provider no base url', 400);
   const r = await relayTestConnection(id, { apiKey: apiKey || undefined, baseUrl: url }, undefined);
   return json(res, { code: 0, data: { ok: r.ok, status: r.status, warning: r.warning } });

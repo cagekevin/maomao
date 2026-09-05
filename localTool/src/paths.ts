@@ -43,11 +43,6 @@ export function getFrontendDistDir(): string {
   return path.join(getRoot(), '..', 'dist');
 }
 
-/** 项目根 maomao/apimart-gateway/.env */
-export function getApimartGatewayEnv(): string {
-  return path.join(getRoot(), '..', 'apimart-gateway', '.env');
-}
-
 /**
  * 本机推理资源根（vendor + models，供浏览器运行时按 URL 读）。
  * 物理收进 localTool/runtime-models/（与 data/、logs/ 这类运行时目录并列），

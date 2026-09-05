@@ -2,7 +2,7 @@
  * relay — localTool 后端生成层（统一收口）。
  *
  * 链路：前端只发意图 → POST /api/generate（routes/generate.ts）→ 本文件 relayGenerate
- * → ai-relay 引擎（localTool/src/ai-relay/，内置 14 平台目录含 lovart/9004）
+ * → ai-relay 引擎（localTool/src/ai-relay/，内置多平台目录，含 lovart 直连适配器）
  * → image/video 拿到远端结果后经 saveRemoteUrl 落盘成本地 /files/ url → 统一 {code,data} 回前端。
  *
  * 【2026-09-03 收口】/api/relay 已并入 /api/generate，本文件删除 handleRelay HTTP 薄壳，
@@ -16,22 +16,17 @@
  * 给整个执行套硬超时（默认 10 分钟），到点 abort 抛错（失败可见，不静默挂起）。
  */
 
-import { getModelProtocolPreset, protocol, getProviderDefinition, chatWithTools, chat } from './ai-relay/index.js';
+import { getProviderDefinition, chatWithTools, chat } from './ai-relay/index.js';
 import { chatLovartText } from './ai-relay/providers/lovart/index.js';
 import { stableRequest } from './ai-relay/httpTransport.js';
 import { LOVART_DIRECT_BASE_URL } from './ai-relay/providerEndpoints.js';
 import type { LovartDirectProfile, LovartTransport } from './ai-relay/providers/lovart/lovart_contract.js';
 import type { AuthConfig } from './ai-relay/types.js';
 import { resolveLocalImages, resolveImagesForEgress } from './utils/resolveLocalImages.js';
-import { saveRemoteUrl } from './routes/files.js';
 import { fetchWithProxy } from './utils/netProxy.js';
 import { sendError } from './utils/helpers.js';
 import { readProviderConfigFile } from './providerConfigStore.js';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import type { ModelProtocolPresetName } from './ai-relay/types.js';
-
-/** relay 生成结果统一落到 uploads 的顶层子目录（对齐 fileStore UPLOAD_ROOT_ALLOW 白名单）。 */
-const RELAY_UPLOAD_SUBFOLDER = 'tasks';
 
 export type RelayCapability = 'image' | 'video' | 'chat';
 
@@ -83,20 +78,6 @@ export interface RelayGenerateOutput {
   model: string;
   error?: string;
   durationMs: number;
-}
-
-/** capability → ai-relay 内置 preset 名（第 13 平台 lovart）。 */
-function presetNameFor(capability: RelayCapability): ModelProtocolPresetName {
-  switch (capability) {
-    case 'image':
-      return 'lovart-image';
-    case 'video':
-      return 'lovart-video';
-    case 'chat':
-      return 'lovart-chat';
-    default:
-      return 'lovart-chat';
-  }
 }
 
 function resolveBaseUrl(providerId: string, override?: string): string {
@@ -153,7 +134,7 @@ export async function relayGenerate(input: RelayGenerateInput): Promise<RelayGen
     // 参考图归一：/files/ 磁盘图 → data: base64（唯一出站口纪律）。
     // chat 参考图在前端经 imageUrl.normalizeImageUrlsForSend + toImageContentBlocks 塞进 messages
     // 的 image_url 内容块（URL 形态，base64s:0）；顶层 images 前端不传。故对 messages 也做 resolveLocalImages
-    // （深遍历就地 inline 内嵌的所有 /files/ URL），否则 9004 读不到本机图、链路失效。data:/公网幂等透传。
+    // （深遍历就地 inline 内嵌的所有 /files/ URL），否则上游读不到本机图、链路失效。data:/公网幂等透传。
     const resolvedImages = input.images && input.images.length > 0
       ? ((await resolveLocalImages(input.images)) as string[])
       : undefined;
@@ -172,7 +153,7 @@ export async function relayGenerate(input: RelayGenerateInput): Promise<RelayGen
     if (resolvedImages !== undefined) variables.imageUrls = resolvedImages;
 
     // ── chat + 画布 Agent（带 tools）分流：走 chatWithTools（OpenAI 兼容非流式）──
-    // 9004(lovart) 不支持流式+tools；魔搭等 OpenAI 兼容厂商无 data. 信封、一次返 tool_calls。
+    // lovart 不支持流式+tools；魔搭等 OpenAI 兼容厂商无 data. 信封、一次返 tool_calls。
     // 参考图已由 resolvedMessages 内联 base64，魔搭能读本机图。非流式，打字机留后补。
     if (capability === 'chat' && input.tools !== undefined) {
       const kitOut = await chatWithTools({
@@ -197,11 +178,11 @@ export async function relayGenerate(input: RelayGenerateInput): Promise<RelayGen
       };
     }
 
-    // ── chat 同步（无 tools）分流：非 9004/lovart 厂商走通用 OpenAI，否则走 LOVART preset（9004 data. 信封）──
-    // 9004(lovart) 返回 {code,data} 双信封，必须走 LOVART preset 剥 data.；魔搭等标准 OpenAI 无信封，
-    // 走 kit chat()。否则预设按 9004 信封抽 text 会拿空（AI 助手非流式"不生效"根因）。
+    // ── chat 同步（无 tools）分流：非 lovart 厂商走通用 OpenAI，否则走 LOVART preset（data. 信封）──
+    // lovart 返回 {code,data} 双信封，必须走 LOVART preset 剥 data.；魔搭等标准 OpenAI 无信封，
+    // 走 kit chat()。否则预设按 data. 信封抽 text 会拿空（AI 助手非流式"不生效"根因）。
     if (capability === 'chat') {
-      // lovart（原生直连）：走 adapter 非流式拿整段文本（对齐 9004 chat 同步语义）
+      // lovart（原生直连）：走 adapter 非流式拿整段文本（对齐 Lovart chat 同步语义）
       if (providerId === 'lovart') {
         const ak = process.env.LOVART_ACCESS_KEY || '';
         const sk = process.env.LOVART_SECRET_KEY || '';
@@ -231,68 +212,32 @@ export async function relayGenerate(input: RelayGenerateInput): Promise<RelayGen
           durationMs: Date.now() - startedAt,
         };
       }
-      const isLovart9004 = providerId === 'lovart-old' || /:9004/.test(baseUrl);
-      if (!isLovart9004) {
-        const text = await chat({
-          apiKey,
-          baseUrl,
-          model,
-          messages: (resolvedMessages ?? input.messages) as unknown[],
-          signal: timeout.signal,
-          timeoutMs,
-        });
-        return {
-          ok: true,
-          providerId,
-          capability,
-          model,
-          kind: 'text',
-          text,
-          durationMs: Date.now() - startedAt,
-        };
-      }
+      const text = await chat({
+        apiKey,
+        baseUrl,
+        model,
+        messages: (resolvedMessages ?? input.messages) as unknown[],
+        signal: timeout.signal,
+        timeoutMs,
+      });
+      return {
+        ok: true,
+        providerId,
+        capability,
+        model,
+        kind: 'text',
+        text,
+        durationMs: Date.now() - startedAt,
+      };
     }
 
-    // 同步 image/video 参考图：与 relay-poll 同一修复（2026-09-03）——preset body 缺 image_url 字段，
-    // 只进 variables.imageUrls 会被引擎忽略 → 上游收不到图。clone preset 把 data:base64 补进 body.image_urls。
-    const protocolDef = structuredClone(getModelProtocolPreset(presetNameFor(capability)));
-    if ((capability === 'image' || capability === 'video') && resolvedImages && resolvedImages.length > 0
-        && protocolDef.submit?.body && typeof protocolDef.submit.body === 'object' && !Array.isArray(protocolDef.submit.body)) {
-      (protocolDef.submit.body as Record<string, unknown>).image_urls = resolvedImages;
-    }
-
-    const result = await protocol.executeModelProtocol({
-      apiKey,
-      baseUrl,
-      protocol: protocolDef,
-      variables,
-      signal: timeout.signal,
-    });
-
-    const output: RelayGenerateOutput = {
-      ok: true,
-      providerId,
-      capability,
-      model,
+    // ── image/video 异步生成：统一走 POST /api/generate → submitGenerateTask（relay-poll 异步句柄），
+    // 本函数仅服务 chat（同步/流式）。此处兜底：若被以 image/video 误调，明确报错而非静默空结果。
+    return {
+      ...base,
+      error: `${capability} 异步生成需经 POST /api/generate 提交异步句柄，请改用异步生成入口`,
       durationMs: Date.now() - startedAt,
     };
-
-    // 媒体（image/video）：拿到远端结果。persist 时后端落盘成本地 /files/ url（收口），否则回远端。
-    const remoteUrl = result.urls && result.urls.length > 0 ? result.urls[0] : undefined;
-    if (remoteUrl && (capability === 'image' || capability === 'video')) {
-      output.kind = capability;
-      output.remoteUrl = remoteUrl;
-      output.url = input.persist
-        ? (await saveRemoteUrl(RELAY_UPLOAD_SUBFOLDER, remoteUrl)).url
-        : remoteUrl;
-    }
-    // 文本（chat）：直接返回内容，不落盘。
-    if (result.text) {
-      output.text = result.text;
-      output.kind = output.kind ?? 'text';
-    }
-    if (result.taskId) output.taskId = result.taskId;
-    return output;
   } catch (e) {
     return {
       ...base,
@@ -306,7 +251,7 @@ export async function relayGenerate(input: RelayGenerateInput): Promise<RelayGen
 
 /**
  * relayChatStream — chat 流式出站（SSE 透传前端，打字机 + tool_calls delta）。
- * 【为什么存在】AI 助手要打字机 + function calling。9004(lovart) 不支持流式+tools；
+ * 【为什么存在】AI 助手要打字机 + function calling。lovart 不支持流式+tools；
  * 魔搭等 OpenAI 兼容厂商支持（无 data. 信封）。前端 roundTrip 自带 SSE + tool_calls delta 解析，
  * 故后端只把上游 SSE 原样透传；上游非 SSE（如不支持流式的厂商报错/降级）→ 读文本包 `data:`
  * 行回写（前端 tryParseNonStreamJsonFallback 兜底自动降级非流式），打字机在有流式的厂商生效。

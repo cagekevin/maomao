@@ -422,8 +422,8 @@ function Canvas() {
   React.useEffect(() => {
     initTasks()
     initProjects()
-    // 【取舍】启动异步任务恢复轮询（pollTask.js）：对 running 且有 pollTaskId 的
-    // 生图/视频任务，刷新后靠 /api/v1/gateway/task/{id} 继续查结果、补回任务记录。
+    // 【取舍】启动异步任务恢复轮询（pollTask.js）：对 running 的任务，
+    // 刷新后统一靠 GET /api/generate/:id attach 回结果、补回任务记录。
     // 文本/生图 sync 同步无 taskId，不在此轮询范围（刷新断即断，官方同此）。
     // 延迟启动：等 initTasks() 从后端加载完历史任务，首轮扫描才有候选。
     const t = setTimeout(() => initTaskRecovery(), 500)

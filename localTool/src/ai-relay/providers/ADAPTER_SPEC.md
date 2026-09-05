@@ -11,7 +11,7 @@
 | OpenAI 兼容 + 请求/响应可用「提交 task_id → 轮询 → 取 url/text」声明式描述 | 声明式 **preset**（存量 12+ 平台，暂不迁移） |
 | chat-thread / 多产物 / confirm 门 / pre-flight（project、上传、set_mode）等**表达不进声明式**的原生协议 | **命令式适配器** `providers/<id>/`（终局，本规范） |
 
-> 迁移方向：存量平台后续逐个迁到适配器；新平台默认适配器。9004(lovart) 为过渡态，跑通直连后删除。
+> 迁移方向：存量平台后续逐个迁到适配器；新平台默认适配器。`lovart` 已为**直连适配器**（`providers/lovart/`），不经过任何本地网关；声明式异步生图/生视频平台见 `../protocol/PRESET_PROTOCOL.md`。
 
 ---
 

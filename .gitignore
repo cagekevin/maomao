@@ -3,7 +3,7 @@
 # 依据 CLAUDE.md §四 开发红线与分层铁律整理：
 #   - 运行只读 dist/，src/bundle/ 是可编辑工程源码（应入库）
 #   - localTool/dist/ 是 tsc 产物（不入库）
-#   - apimart-gateway/.env 含真实 AK/SK（绝不入库）
+#   - localTool/.env 含真实 Lovart AK/SK（绝不入库）
 # ════════════════════════════════════════════════════════════════
 
 # ── 依赖（体积大、可重装，不纳入版本库）──
@@ -31,14 +31,11 @@ tests/e2e/results.json
 # ── Python ──
 __pycache__/
 *.pyc
-apimart-gateway/venv/
 # 依赖变更标记（启动脚本运行期生成，非源码）
-apimart-gateway/.req_installed
 
 # ── 环境变量 / 密钥（含真实 Lovart AK/SK，绝不入库）──
 .env
 .env.*
-apimart-gateway/.env
 
 # ── 闭源引擎二进制交付物（无源码、体积大，仅本地运行用）──
 *.exe
@@ -80,8 +77,6 @@ msg.txt
 # ── 运行时日志（启动脚本落盘，含 [proxy] 转发明细）──
 logs/
 *.log
-apimart-gateway/apimart_9004.log
-apimart-gateway/apimart_9004.err.log
 localTool/localtool_18080.log
 localTool/localtool_18080.err.log
 

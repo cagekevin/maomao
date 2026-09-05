@@ -374,8 +374,8 @@ function initTables(db: any): void {
   try { db.run(`ALTER TABLE tasks ADD COLUMN status TEXT`); } catch { /* 列已存在 */ }
   try { db.run(`ALTER TABLE tasks ADD COLUMN error_message TEXT`); } catch { /* 列已存在 */ }
   try { db.run(`ALTER TABLE tasks ADD COLUMN thread_id TEXT`); } catch { /* 列已存在 */ }
-  // poll_task_id：前端异步任务（生图/视频）提交后从网关拿到的「可轮询查询 task_id」。
-  // 【取舍】只对异步任务存它：刷新网页后前端能靠它查 /api/v1/gateway/task/{id} 恢复任务状态。
+  // poll_task_id：前端异步任务（生图/视频）提交后从上游拿到的「可轮询查询 task_id」。
+  // 【取舍】只对异步任务存它：刷新网页后前端能靠 GET /api/generate/:id attach 恢复任务状态。
   // 文本/生图 sync 是同步阻塞、无 task_id，故不存（刷新断即断，官方同此），存了也查不了。
   try { db.run(`ALTER TABLE tasks ADD COLUMN poll_task_id TEXT`); } catch { /* 列已存在 */ }
   // 90 号 relay 轮询后端化（relay-poll.ts）用到的异步任务时间轴列；旧库缺时补（幂等，重复跑无害）

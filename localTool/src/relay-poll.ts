@@ -23,15 +23,14 @@
 
 import {
   protocol,
-  getModelProtocolPreset,
   getProviderDefinition,
 } from './ai-relay/index.js';
 import type {
   ModelProtocol,
-  ModelProtocolPresetName,
   ModelProtocolSubmitResult,
   ResolvedPollConfig,
   AuthConfig,
+  ModelProtocolProfile,
 } from './ai-relay/types.js';
 import {
   submitLovartTask,
@@ -79,13 +78,28 @@ export type RelayTaskStatus =
   | { status: 'failed'; error: string }
   | { status: 'not-found' };
 
-/** capability → ai-relay preset 名（lovart 第 13 平台） */
-function presetNameFor(capability: RelayCapability): ModelProtocolPresetName {
-  switch (capability) {
-    case 'image': return 'lovart-image';
-    case 'video': return 'lovart-video';
-    default: return 'lovart-chat';
-  }
+/**
+ * 解析某平台 capability 对应的异步调用协议（方案① per-provider 自定义协议）。
+ * 旧声明式 lovart-* preset 已随 lovart-old 9004 旧轨退役删除（docs/105 §阶段 C）。
+ * 非 lovart 平台如需异步 image/video 生成，须在 provider 配置文件
+ * `model_protocols[capability]` 中自备 ModelProtocol（或完整 ModelProtocolProfile）；未配置 → 返回 null，
+ * 由提交方给出明确报错（不再静默错抽）。
+ */
+function resolveProviderAsyncProtocol(
+  providerId: string,
+  capability: RelayCapability,
+): ModelProtocol | null {
+  const file = readProviderConfigFile(providerId);
+  const protocols = (file as { model_protocols?: unknown } | null)?.model_protocols;
+  if (!protocols || typeof protocols !== 'object' || Array.isArray(protocols)) return null;
+  const entry = (protocols as Record<string, unknown>)[capability];
+  if (entry == null || (typeof entry !== 'object')) return null;
+  // 兼容两种落盘形态：完整 ModelProtocolProfile（含 preset）或裸 ModelProtocol（按 custom 封装）
+  const profile: ModelProtocolProfile =
+    typeof entry === 'object' && entry !== null && 'preset' in entry && (entry as ModelProtocolProfile).preset
+      ? (entry as ModelProtocolProfile)
+      : { preset: 'custom', protocol: entry as ModelProtocol };
+  return protocol.resolveModelExecutionProfile(profile);
 }
 
 /** 平台 baseUrl 真源 = ai-relay 内置目录（第 13 平台 lovart 含 defaultBaseUrl） */
@@ -110,7 +124,7 @@ function resolveApiKey(providerId: string, override?: string): string {
   return override || process.env[`API_PROVIDER_${providerId.toUpperCase()}_KEY`] || '';
 }
 
-/** 判断是否为 lovart（原生直连，走 providers/lovart adapter，无 9004 网关）。 */
+/** 判断是否为 lovart（原生直连，走 providers/lovart adapter）。 */
 function isLovartDirect(providerId: string): boolean {
   return providerId === 'lovart';
 }
@@ -126,22 +140,22 @@ function lovartProxyTransport(): LovartTransport {
 
 /**
  * 构造 lovart 的 HMAC profile。
- * 凭证真源 = localTool 启动时从 apimart-gateway/.env 注入的 process.env.LOVART_ACCESS_KEY/SECRET_KEY
- * （见 src/index.ts loadDotEnv 处）。仅驻内存，不入 DB。
+ * 凭证真源 = localTool/.env（由 src/index.ts 顶部 loadDotEnv() 注入 process.env.LOVART_ACCESS_KEY/SECRET_KEY）。
+ * 仅驻内存，不入 DB。
  * transport：注入走代理的 stableRequest（lovart.ai 域名必须经代理，见 netProxy.ts）。
  */
 function lovartDirectProfile(baseUrl: string, signal?: AbortSignal, timeoutMs?: number): LovartDirectProfile {
   const accessKey = process.env.LOVART_ACCESS_KEY || '';
   const secretKey = process.env.LOVART_SECRET_KEY || '';
   if (!accessKey || !secretKey) {
-    throw new Error('lovart 需要 LOVART_ACCESS_KEY 与 LOVART_SECRET_KEY（apimart-gateway/.env）');
+    throw new Error('lovart 需要 LOVART_ACCESS_KEY 与 LOVART_SECRET_KEY（请在 localTool/.env 配置）');
   }
   const auth: AuthConfig = { type: 'hmac', accessKey, secretKey };
   return { baseUrl: baseUrl || LOVART_DIRECT_BASE_URL, auth, signal, timeoutMs, transport: lovartProxyTransport() };
 }
 
 // ── 轮询时序默认值（对齐前端 config.ts GEN_TIMEOUT/VIDEO_TIMEOUT 语义）──
-const DEFAULT_POLL_INTERVAL_MS = 3000;   // 单轮间隔（lovart preset 也是 3s）
+const DEFAULT_POLL_INTERVAL_MS = 3000;   // 单轮间隔（异步任务轮询默认）
 const DEFAULT_TOTAL_TIMEOUT_MS = 10 * 60 * 1000; // 总超时兜底，防无限挂（对齐 relay.ts 10min）
 /** direct(lovart) 单次出站请求超时兜底（后台补提交/轮询的底层单请求上限，防无限挂，对齐 ai-relay 180s）。
  *  注：只兜「连不上/单步卡死」，绝不替代总超时 DEFAULT_TOTAL_TIMEOUT_MS（生成本身可远超此值）。 */
@@ -175,7 +189,7 @@ export interface DirectSubmitInput {
 /** 内存句柄（key 不入库） */
 interface PollHandle {
   frontTaskId: string;
-  taskId: string;        // 上游 task_id（9004=网关 task_id；lovart=thread_id）；direct 待提交阶段为空串
+  taskId: string;        // 上游 task_id（异步网关=网关 task_id；lovart=thread_id）；direct 待提交阶段为空串
   poll: ResolvedPollConfig | null; // 自包含、可 JSON 快照；不含 key。direct 任务为 null
   apiKey: string;        // 驻内存；重启重建时按 providerId 重读（direct 任务可为空串）
   providerId: string;
@@ -300,7 +314,18 @@ export async function submitGenerateTask(input: RelaySubmitInput): Promise<{ ok:
       return { ok: true, frontTaskId };
     }
 
-    const protocolDef: ModelProtocol = structuredClone(getModelProtocolPreset(presetNameFor(capability)));
+    // ── 非 lovart（非 direct）：按 per-provider 自定义异步协议提交（方案①，docs/105 §阶段 C）──
+    // 旧声明式 lovart-* preset 已删；该平台若未在配置文件 `model_protocols[capability]` 里自备协议，
+    // 直接返回明确错误（平台暂不支持异步生成），不静默错抽、不误发 9004 信封。
+    const rawProtocol = resolveProviderAsyncProtocol(providerId, capability);
+    if (!rawProtocol) {
+      return {
+        ok: false,
+        frontTaskId,
+        error: `供应商 ${providerId} 暂不支持异步${capability === 'video' ? '视频' : '图片'}生成：请在平台配置文件中为 ${capability} 配置自定义调用协议（model_protocols.${capability}）`,
+      };
+    }
+    const protocolDef: ModelProtocol = structuredClone(rawProtocol);
 
     // video 附参（resolution/duration）非模板字段：引擎对顶层 body 缺变量的模板字符串会抛错，
     // 故此处按「input 有值才把字面量补进 submit.body」，无值则不发（不污染通用 preset）。
@@ -463,7 +488,7 @@ function registerHandle(frontTaskId: string, handle: PollHandle, timeoutMs: numb
     }
     handle.running = true;
     try {
-      // direct（原生直连）→ adapter 单次轮询；其余 → 声明式 preset 轮询
+      // direct（原生直连）→ adapter 单次轮询；其余 → 走快照中的自定义异步协议轮询
       if (handle.direct) {
         // 【根治·2026-09-04】待提交阶段：先补后台出站（提交即返回的「真正提交」），
         // 成功回填 thread_id 后本轮继续轮询；失败已在 runDirectSubmit 内置 failed + 停句柄。

@@ -36,7 +36,7 @@ import {
   handleResourcesDelete, handleResourcesClear, handleResourcesRescan,
   handleResourcesRename,
 } from './routes/resources.js';
-import { handleStatus, handleJianyingSend, handleGatewayTask } from './routes/system.js';
+import { handleStatus, handleJianyingSend } from './routes/system.js';
 import { handleProjectsGet, handleProjectsSave } from './routes/projects.js';
 import { handlePluginManifest, handleWorkflowAppsByProject, handleBuiltin, handleModels } from './routes/platform.js';
 import {
@@ -150,9 +150,6 @@ export const routes: Route[] = [
   { method: 'POST', pattern: '/api/resources/clear',  handler: handleResourcesClear },
   { method: 'POST', pattern: '/api/resources/rescan', handler: handleResourcesRescan },
   { method: 'POST', pattern: '/api/resources/rename', handler: handleResourcesRename },
-
-  // ── 特惠视频任务查询 ──
-  { method: 'GET', pattern: /^\/api\/v1\/gateway\/task\/[^/]+$/, handler: handleGatewayTask },
 
   // ── 剪映 ──
   { method: 'POST', pattern: '/api/jianying/send', handler: handleJianyingSend },
