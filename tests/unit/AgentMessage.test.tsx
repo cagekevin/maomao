@@ -119,7 +119,8 @@ describe('AgentMessage — assistant 消息（思考/工具/步骤卡片）', ()
     expect(screen.getByText('过程')).toBeTruthy()
   })
 
-  it('tool_calls → 渲染工具名与解析后的参数', () => {
+  // 【简洁化改造 2026-09-05】工具标签只显示工具名，参数收进 title（避免长参数串撑爆消息行、抢正文视觉）
+  it('tool_calls → 渲染工具名，参数收进 title', () => {
     render(
       <AgentMessage
         message={{
@@ -129,9 +130,11 @@ describe('AgentMessage — assistant 消息（思考/工具/步骤卡片）', ()
         }}
       />
     )
-    expect(screen.getByText('generate_node')).toBeTruthy()
-    expect(screen.getByText(/nodeType=imageNode/)).toBeTruthy()
-    expect(screen.getByText(/prompt=猫/)).toBeTruthy()
+    // 注意：getByText 命中的是内层文本 span，title 在外层 .agent-toolchip 上（closest 需带自身选择器）
+    const chip = screen.getByText('generate_node').closest('.agent-toolchip')
+    expect(chip).toBeTruthy()
+    expect(chip.getAttribute('title')).toContain('nodeType=imageNode')
+    expect(chip.getAttribute('title')).toContain('prompt=猫')
   })
 
   it('generations → 渲染生成步骤卡片（条数+步骤标题）', () => {

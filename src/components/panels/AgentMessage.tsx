@@ -4,6 +4,7 @@ import LazyImage from '../base/ui/LazyImage.tsx'
 import AgentConfirmCard from './AgentConfirmCard.tsx'
 import ImageZoomDialog from '../base/editors/ImageZoomDialog.tsx'
 import ChatMarkdown from './ChatMarkdown.tsx'
+import { showToast } from '../base/core/toastStore.ts'
 import { type ToolCall, type ChatMessage } from '../agent/runtime/agentCore.ts'
 
 /** AgentMessage 实际渲染的消息形状：兼容 LLM 协议（ChatMessage）并扩展 UI 态字段。
@@ -50,30 +51,33 @@ const Reasoning = memo(function Reasoning({ text, streaming }: { text?: string; 
     prevStreaming.current = streaming
   }, [streaming])
 
+  // 简洁化：折叠态 = 一行小字，展开才出内容（不再用带边框的独立面板）
   return (
-    <div className="mb-1 border border-edge-faint rounded-md bg-surface-sunken">
+    <>
       <button
         type="button"
         onClick={() => { setOpen(!open); setDone(false) }}
-        className="w-full flex items-center gap-1.5 px-2.5 py-1.5 text-caption-sm text-secondary hover:text-body transition-colors"
+        className={`agent-trace ${open ? 'is-open' : ''}`}
       >
-        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={`transition-transform ${open ? 'rotate-90' : ''}`}>
+        <span className={`agent-dot ${streaming ? '' : 'is-ok'}`} />
+        <span className="agent-trace-label">{streaming ? '思考中...' : done ? '已思考' : '思考过程'}</span>
+        <svg className="agent-caret" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
           <polyline points="9 18 15 12 9 6" />
         </svg>
-        <span className="font-medium">{streaming ? '思考中...' : done ? '已思考' : '思考过程'}</span>
-        {!streaming && <span className="ml-auto text-caption text-muted-2">{open ? '点击折叠' : '点击展开'}</span>}
       </button>
+      {/* 条件渲染而非 CSS 隐藏：折叠时内容不进 DOM（jsdom/无样式环境下才不会「看似可见」，
+          也让折叠态真正从可访问性树里移除） */}
       {open && (
-        <div className="px-3 pb-2 pt-0.5 text-body-xs text-muted whitespace-pre-wrap break-words border-t border-edge-subtle leading-relaxed">
+        <div className="agent-trace-detail">
           {text}
-          {streaming && <span className="inline-block w-1 h-3 bg-gray-600 ml-0.5 animate-pulse align-middle" />}
+          {streaming && <span className="agent-cursor" />}
         </div>
       )}
-    </div>
+    </>
   )
 })
 
-/** 工具调用标签（复刻 _Component34.jsx） */
+/** 工具调用标签（2026-09-05 去噪：中性灰小标签，参数收进 title，不再用紫色高亮抢视觉） */
 const ToolCallChip = memo(function ToolCallChip({ name, args }: { name?: string; args?: string }) {
   let display = args || ''
   try {
@@ -81,12 +85,14 @@ const ToolCallChip = memo(function ToolCallChip({ name, args }: { name?: string;
     display = Object.entries(obj).map(([k, v]) => `${k}=${typeof v === 'string' ? v : JSON.stringify(v)}`).join(', ')
   } catch { /* keep raw */ }
   return (
-    <span className="inline-flex items-center gap-1 text-caption-sm text-purple-300 bg-purple-950/30 border border-purple-800/30 rounded-md px-2 py-0.5">
-      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <span
+      title={display ? `${name}(${display})` : name}
+      className="agent-toolchip"
+    >
+      <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
         <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
       </svg>
-      <span className="font-mono">{name}</span>
-      {display && <span className="text-purple-400 truncate max-w-[200px]">{display}</span>}
+      <span className="font-mono truncate max-w-[150px]">{name}</span>
     </span>
   )
 })
@@ -97,20 +103,22 @@ const GenerationStepsCard = memo(function GenerationStepsCard({ generations }: {
   const list = (generations || []).filter((g) => g && typeof g === 'object')
   if (!list.length) return null
   return (
-    <div className="mt-2 border border-edge-faint rounded-md bg-surface-sunken">
+    <>
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        className="w-full flex items-center gap-1.5 px-2.5 py-1.5 text-caption-sm text-secondary hover:text-body transition-colors"
+        className={`agent-trace ${open ? 'is-open' : ''}`}
       >
-        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={`transition-transform ${open ? 'rotate-90' : ''}`}>
+        <span className="agent-dot" />
+        <span className="agent-trace-label">生成步骤方案</span>
+        <span className="agent-step-meta">{list.length} 条</span>
+        <svg className="agent-caret" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
           <polyline points="9 18 15 12 9 6" />
         </svg>
-        <span className="font-medium">生成步骤方案</span>
-        <span className="ml-auto text-caption text-muted-2">{list.length} 条</span>
       </button>
       {open && (
-        <div className="px-3 pb-2 space-y-2 border-t border-edge-subtle">
+      <div className="agent-trace-detail">
+        <div className="agent-steps">
           {list.map((g, i) => {
             const title = String(g?.title || g?.role || `步骤 ${i + 1}`).trim()
             const prompt = String(g?.professionalPrompt || g?.prompt || g?.plannedPrompt || '').trim()
@@ -118,19 +126,20 @@ const GenerationStepsCard = memo(function GenerationStepsCard({ generations }: {
             const res = String(g?.resolution || '').trim()
             const meta = [ratio && `比例 ${ratio}`, res && `${res}`].filter(Boolean).join(' · ')
             return (
-              <div key={g?.id || i} className="text-body-xs leading-relaxed">
-                <div className="flex items-center gap-1.5 text-body">
-                  <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-surface border border-edge-subtle text-caption-sm text-secondary flex-shrink-0">{i + 1}</span>
-                  <span className="font-medium truncate">{title}</span>
-                  {meta && <span className="ml-auto text-caption text-muted-2 flex-shrink-0">{meta}</span>}
+              <div key={g?.id || i}>
+                <div className="agent-step-head">
+                  <span className="agent-step-index">{i + 1}</span>
+                  <span className="agent-step-title">{title}</span>
+                  {meta && <span className="agent-step-meta">{meta}</span>}
                 </div>
-                {prompt && <div className="mt-0.5 pl-[22px] text-muted whitespace-pre-wrap break-words">{prompt}</div>}
+                {prompt && <div className="agent-step-prompt">{prompt}</div>}
               </div>
             )
           })}
         </div>
+      </div>
       )}
-    </div>
+    </>
   )
 })
 
@@ -145,9 +154,11 @@ interface AgentMessageProps {
   onCancelPlan?: (content?: string) => void
   onRetryStep?: (nodeId: string) => void
   onSendToCanvas?: (content: string) => void
+  /** 重新生成：重发本条回复之前最近一条用户指令 */
+  onRegenerate?: () => void
 }
 
-function AgentMessage({ message, onConfirmPlan, onCancelPlan, onRetryStep, onSendToCanvas }: AgentMessageProps) {
+function AgentMessage({ message, onConfirmPlan, onCancelPlan, onRetryStep, onSendToCanvas, onRegenerate }: AgentMessageProps) {
   // 图片查看大图（原生 dialog）：点击消息里的图片 → 打开查看，替代 target=_blank 新窗口
   const zoomRef = useRef(null)
   const [zoomUrl, setZoomUrl] = useState(null)
@@ -158,17 +169,29 @@ function AgentMessage({ message, onConfirmPlan, onCancelPlan, onRetryStep, onSen
   }, [])
   const zoomDialog = <ImageZoomDialog ref={zoomRef} url={zoomUrl} />
 
+  /** 复制整段回复（navigator.clipboard 在非安全上下文不可用，降级为提示而非静默失败） */
+  const copyContent = useCallback(async () => {
+    const text = String(message?.content || '')
+    if (!text) return
+    try {
+      if (!navigator?.clipboard?.writeText) throw new Error('clipboard unavailable')
+      await navigator.clipboard.writeText(text)
+      showToast('已复制回复', { type: 'success' })
+    } catch {
+      showToast('复制失败，请手动选中文本复制', { type: 'error' })
+    }
+  }, [message?.content])
+
   if (message.role === 'user') {
     const skillNames = (message.skills || []).map((s) => s?.name || s?.id || '').filter(Boolean)
     return (
-      <div className="flex justify-end">
-        <div className="max-w-[85%] flex flex-col items-end gap-1">
-          {/* 已使用 Skill 标签（对齐大雄：user 消息显示本轮用到的 Skill） */}
+      <div className="agent-user-row">
+        <div className="agent-user-col">
+          {/* 已使用 Skill（对齐大雄：user 消息显示本轮用到的 Skill） */}
           {skillNames.length > 0 && (
-            <div className="flex flex-wrap gap-1 justify-end">
-              <span className="text-caption text-muted-2">已使用 Skill</span>
+            <div className="agent-user-skills">
               {skillNames.map((n, i) => (
-                <span key={i} className="inline-flex items-center gap-1 text-caption-sm text-body bg-surface border border-edge-faint rounded-md px-1.5 py-0.5">
+                <span key={i} className="agent-user-skill">
                   <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
                     <polyline points="14 2 14 8 20 8" />
@@ -181,18 +204,16 @@ function AgentMessage({ message, onConfirmPlan, onCancelPlan, onRetryStep, onSen
             </div>
           )}
           {message.attachments && message.attachments.length > 0 && (
-            <div className="flex flex-wrap gap-1 justify-end">
+            <div className="agent-user-att">
               {message.attachments.map((a, i) => (
-                <button key={i} type="button" onClick={() => openZoom(a.url)} className="block w-20 h-20 rounded-md overflow-hidden border border-white/20 hover:border-white/50 transition-colors cursor-zoom-in p-0" title="点击查看大图">
+                <button key={i} type="button" onClick={() => openZoom(a.url)} title="点击查看大图">
                   <LazyImage src={a.url} alt="" className="w-full h-full" />
                 </button>
               ))}
             </div>
           )}
           {message.content && (
-            <div className="bg-surface-hover text-white text-sm rounded-lg rounded-br-sm px-3 py-2 whitespace-pre-wrap break-words border border-edge">
-              {message.content}
-            </div>
+            <div className="agent-user-bubble">{message.content}</div>
           )}
         </div>
         {zoomDialog}
@@ -202,38 +223,24 @@ function AgentMessage({ message, onConfirmPlan, onCancelPlan, onRetryStep, onSen
 
   if (message.role === 'assistant') {
     return (
-      <div className="flex justify-start">
-        <div className="max-w-[85%] w-full">
-          {message.reasoning && <Reasoning text={message.reasoning} streaming={message.streaming} />}
-          {message.tool_calls && message.tool_calls.length > 0 && (
-            <div className="mb-1 space-y-1">
-              {message.tool_calls.map((tc, i) => (
-                <ToolCallChip key={i} name={tc.function?.name} args={tc.function?.arguments} />
-              ))}
-            </div>
-          )}
-          {message.content && (
-            <div className="relative bg-canvas border border-edge-faint text-primary text-sm rounded-lg rounded-bl-sm px-3 py-2">
-              <ChatMarkdown value={message.content} onOpenImage={openZoom} />
-              {message.streaming && <span className="inline-block w-1 h-3 bg-gray-400 ml-0.5 animate-pulse align-middle" />}
-              {/* 右下角箭头：把整段回复发到画布 → 新建文本节点（内容落生成区 data.text） */}
-              {!message.streaming && onSendToCanvas && (
-                <button
-                  type="button"
-                  onClick={() => onSendToCanvas(message.content)}
-                  className="absolute bottom-1.5 right-1.5 flex items-center justify-center w-5 h-5 rounded text-muted hover:text-white hover:bg-surface-hover transition-colors"
-                  title="发到画布生成文本节点"
-                >
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                    <line x1="19" y1="12" x2="5" y2="12" />
-                    <polyline points="12 19 5 12 12 5" />
-                  </svg>
-                </button>
-              )}
-            </div>
-          )}
-          {/* 【对齐大雄】阶段1 generations → 渲染步骤卡片（可折叠，用户确认前检查每步） */}
-          <GenerationStepsCard generations={message.generations} />
+      <div className="agent-ai-row">
+        {message.reasoning && <Reasoning text={message.reasoning} streaming={message.streaming} />}
+        {message.tool_calls && message.tool_calls.length > 0 && (
+          <div className="agent-toolchips">
+            {message.tool_calls.map((tc, i) => (
+              <ToolCallChip key={i} name={tc.function?.name} args={tc.function?.arguments} />
+            ))}
+          </div>
+        )}
+        {/* 正文：无气泡无边框，直接铺在面板底色上 */}
+        {message.content && (
+          <div className="agent-ai-text">
+            <ChatMarkdown value={message.content} onOpenImage={openZoom} />
+            {message.streaming && <span className="agent-cursor" />}
+          </div>
+        )}
+        {/* 【对齐大雄】阶段1 generations → 渲染步骤卡片（可折叠，用户确认前检查每步） */}
+        <GenerationStepsCard generations={message.generations} />
           {/* 待确认（策划/记忆/积分）→ 统一确认卡（AgentConfirmCard）：仅前端按钮翻转 awaitingConfirm。
              记忆确认（memory_suggest）与策划确认共用同一种卡，靠标题/图标/文案区分语义。 */}
           {message.awaiting_confirm && !message.streaming && (
@@ -268,7 +275,38 @@ function AgentMessage({ message, onConfirmPlan, onCancelPlan, onRetryStep, onSen
               />
             )
           )}
-        </div>
+        {/* 底部行：meta + 操作（发到画布从原气泡右下角移入此处，常驻淡显、hover 变亮） */}
+        {!message.streaming && (
+          <div className="agent-foot">
+            <span className="agent-meta">以上内容由 AI 生成</span>
+            <div className="agent-actions">
+              <button type="button" className="agent-icon-btn is-xs" onClick={copyContent} title="复制回复">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="9" y="9" width="13" height="13" rx="2" />
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                </svg>
+              </button>
+              {/* 发到画布：整段回复 → 新建文本节点（内容落生成区 data.text） */}
+              {onSendToCanvas && (
+                <button type="button" className="agent-icon-btn is-xs" onClick={() => onSendToCanvas(message.content)} title="发到画布生成文本节点">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="19" y1="12" x2="5" y2="12" />
+                    <polyline points="12 19 5 12 12 5" />
+                  </svg>
+                </button>
+              )}
+              {/* 重新生成：重发本条回复之前最近一条用户指令（useAgentChat 未单独暴露 regenerate，UI 层就近重发） */}
+              {onRegenerate && (
+                <button type="button" className="agent-icon-btn is-xs" onClick={onRegenerate} title="重新生成（重发上一条指令）">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="23 4 23 10 17 10" />
+                    <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+                  </svg>
+                </button>
+              )}
+            </div>
+          </div>
+        )}
         {zoomDialog}
       </div>
     )
@@ -292,16 +330,17 @@ function AgentMessage({ message, onConfirmPlan, onCancelPlan, onRetryStep, onSen
     // 失败且带 nodeId（generate_node 失败已回传）→ 显示「重试此步骤」；execute_plan 多失败步 → 逐项重试
     const canRetry = !ok && !!nodeId && typeof onRetryStep === 'function'
     const hasFailedSteps = failedEntries.length > 0 && typeof onRetryStep === 'function'
+    // 弱化：一行小字，不再用带边框的卡片（工具结果是过程信息，不该和 AI 正文抢视觉）
     return (
-      <div className="flex justify-start">
-        <div className="max-w-[85%] inline-flex flex-col items-start gap-1.5 text-caption-sm text-muted bg-canvas border border-edge-subtle rounded-md px-2 py-1">
-          <div className="inline-flex items-center gap-1.5">
+      <div className="agent-toolmsg-wrap">
+        <div className="agent-toolmsg">
+          <div className="agent-toolmsg-line">
             {ok && !hasFailedSteps ? (
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-green-500">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="is-ok">
                 <polyline points="20 6 9 17 4 12" />
               </svg>
             ) : (
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-red-400">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="is-fail">
                 <line x1="18" y1="6" x2="6" y2="18" />
                 <line x1="6" y1="6" x2="18" y2="18" />
               </svg>
@@ -311,7 +350,7 @@ function AgentMessage({ message, onConfirmPlan, onCancelPlan, onRetryStep, onSen
               <button
                 type="button"
                 onClick={() => onRetryStep(nodeId)}
-                className="ml-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded border border-edge hover:border-blue-400 text-secondary hover:text-blue-300 transition-colors"
+                className="agent-retry"
                 title="重新生成此步骤（只重试失败项，不影响其他已完成卡片）"
               >
                 <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -323,14 +362,14 @@ function AgentMessage({ message, onConfirmPlan, onCancelPlan, onRetryStep, onSen
             )}
           </div>
           {hasFailedSteps && (
-            <div className="flex flex-col gap-1 pl-1">
+            <div className="agent-failed-steps">
               {failedEntries.map((e) => (
-                <div key={e.nodeId} className="inline-flex items-center gap-2">
-                  <span className="text-red-400/80 truncate max-w-[220px]">{e.error || '生成失败'}</span>
+                <div key={e.nodeId} className="agent-failed-row">
+                  <span className="agent-failed-msg">{e.error || '生成失败'}</span>
                   <button
                     type="button"
                     onClick={() => onRetryStep(e.nodeId)}
-                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded border border-edge hover:border-blue-400 text-secondary hover:text-blue-300 transition-colors"
+                    className="agent-retry"
                     title={`重试此步（${e.id || ''}）`}
                   >
                     <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">

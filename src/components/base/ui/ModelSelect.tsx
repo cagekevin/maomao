@@ -1,5 +1,5 @@
 import React, { useState, useRef, type ReactNode } from 'react'
-import { Coins, Cpu } from 'lucide-react'
+import { Coins, LayoutGrid } from 'lucide-react'
 import { useOutsideClick } from '../core/uiHooks.ts'
 
 /**
@@ -42,6 +42,18 @@ interface ModelSelectProps {
   popupTo?: 'up' | 'down'
   showDivider?: boolean
   labelMaxWidth?: string
+  /**
+   * 图标化触发器：只渲染一个图标按钮，不显示模型名与厂商 badge。
+   * 供窄容器（如 AI 助手底部工具栏去文字化）使用；默认 false，保持原有带文字形态，
+   * 其余调用方（节点模型选择等）视觉零变化。
+   */
+  iconOnly?: boolean
+  /** iconOnly 时的自定义图标（不传则用默认 cpu 图标） */
+  icon?: ReactNode
+  /** iconOnly 时触发器按钮的 title（模型名放这里，避免占用横向空间） */
+  triggerTitle?: string
+  /** iconOnly 时触发器是否呈激活高亮（如「已选非默认模型」） */
+  active?: boolean
 }
 
 function ModelSelect({
@@ -52,7 +64,11 @@ function ModelSelect({
   costMap = {},
   popupTo = 'up',
   showDivider = true,
-  labelMaxWidth = ''
+  labelMaxWidth = '',
+  iconOnly = false,
+  icon,
+  triggerTitle,
+  active = false
 }: ModelSelectProps) {
   const [open, setOpen] = useState(false)
   const ref = useRef(null)
@@ -91,17 +107,31 @@ function ModelSelect({
   return (
     <div className="relative nodrag flex items-center min-w-0" ref={ref}>
       {showDivider && <div className="w-[1px] h-3 bg-surface-3 flex-shrink-0 mr-1.5" />}
-      <button
-        type="button"
-        className="flex items-center gap-1 h-6 px-2 min-w-0 bg-transparent hover:bg-surface-hover border border-transparent hover:border-edge rounded text-caption-sm text-body transition-colors cursor-pointer"
-        onClick={(e) => { e.stopPropagation(); setOpen((v) => !v) }}
-        title={value ? `${value}（${selectedBadge.label}）` : '选择模型'}
-      >
-        <span className={`shrink-0 px-1 rounded text-meta leading-[14px] border bg-white/10 ${selectedBadge.className}`}>
-          {selectedBadge.label}
-        </span>
-        <span className={`whitespace-nowrap overflow-hidden text-ellipsis ${labelMaxWidth ? 'min-w-0' : ''}`} style={labelMaxWidth ? { maxWidth: labelMaxWidth } : undefined}>{selectedItem?.label || value || placeholder}</span>
-      </button>
+      {iconOnly ? (
+        <button
+          type="button"
+          className={`flex items-center justify-center w-7 h-7 rounded-md transition-colors cursor-pointer ${
+            active ? 'text-[#60a5fa] bg-[#3b82f6]/10' : 'text-muted hover:text-primary hover:bg-surface-hover'
+          }`}
+          onClick={(e) => { e.stopPropagation(); setOpen((v) => !v) }}
+          title={triggerTitle || (value ? `生图模型：${selectedItem?.label || value}（${selectedBadge.label}）` : '选择生图模型')}
+        >
+          {/* 图标：LayoutGrid（四宫格，更贴合"图像模型/图集"语义，替代 CPU 芯片） */}
+          {icon || <LayoutGrid className="w-4 h-4" strokeWidth={1.8} />}
+        </button>
+      ) : (
+        <button
+          type="button"
+          className="flex items-center gap-1 h-6 px-2 min-w-0 bg-transparent hover:bg-surface-hover border border-transparent hover:border-edge rounded text-caption-sm text-body transition-colors cursor-pointer"
+          onClick={(e) => { e.stopPropagation(); setOpen((v) => !v) }}
+          title={value ? `${value}（${selectedBadge.label}）` : '选择模型'}
+        >
+          <span className={`shrink-0 px-1 rounded text-meta leading-[14px] border bg-white/10 ${selectedBadge.className}`}>
+            {selectedBadge.label}
+          </span>
+          <span className={`whitespace-nowrap overflow-hidden text-ellipsis ${labelMaxWidth ? 'min-w-0' : ''}`} style={labelMaxWidth ? { maxWidth: labelMaxWidth } : undefined}>{selectedItem?.label || value || placeholder}</span>
+        </button>
+      )}
 
       {open && (
         <div

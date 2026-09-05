@@ -213,7 +213,7 @@ describe('AgentPanel — 消息发送', () => {
   })
   it('输入文本 → 回车发送（携带输入内容）', () => {
     render(<AgentPanel {...OPEN_PROPS} />)
-    const ta = screen.getByPlaceholderText(/输入消息/) as HTMLTextAreaElement
+    const ta = screen.getByPlaceholderText(/描述你想做的事/) as HTMLTextAreaElement
     fireEvent.change(ta, { target: { value: '你好' } })
     fireEvent.keyDown(ta, { key: 'Enter', shiftKey: false })
     expect(h.send).toHaveBeenCalledWith('你好', undefined)
@@ -226,7 +226,7 @@ describe('AgentPanel — 消息发送', () => {
 
   it('发送后 → 清空输入框', () => {
     render(<AgentPanel {...OPEN_PROPS} />)
-    const ta = screen.getByPlaceholderText(/输入消息/) as HTMLTextAreaElement
+    const ta = screen.getByPlaceholderText(/描述你想做的事/) as HTMLTextAreaElement
     fireEvent.change(ta, { target: { value: '你好' } })
     fireEvent.keyDown(ta, { key: 'Enter', shiftKey: false })
     expect(ta.value).toBe('')
@@ -317,6 +317,11 @@ describe('AgentPanel — Skill 应用与移除', () => {
 })
 
 describe('AgentPanel — 对话管理', () => {
+  // 【简洁化改造 2026-09-05】顶栏只留「对话标题（=会话列表入口）+ 3 个图标」：
+  // 独立的「对话列表」「清空对话」按钮已收进标题下拉（下拉底部另挂积分开关与清空对话），
+  // 故涉及清空对话的用例必须先点开标题下拉，按钮才在 DOM 里。
+  const openConvList = () => { fireEvent.click(screen.getByTitle('对话列表')) }
+
   it('点击新建对话 → newChat + showToast', () => {
     render(<AgentPanel {...OPEN_PROPS} />)
     fireEvent.click(screen.getByTitle('新建对话'))
@@ -344,6 +349,7 @@ describe('AgentPanel — 对话管理', () => {
     h.setConfirmAnswer(true)
     h.setAgentState({ messages: [{ id: 'm1', role: 'user', content: 'x' }] })
     render(<AgentPanel {...OPEN_PROPS} />)
+    openConvList()
     fireEvent.click(screen.getByTitle('清空对话'))
     await waitFor(() => expect(h.clear).toHaveBeenCalled())
   })
@@ -352,6 +358,7 @@ describe('AgentPanel — 对话管理', () => {
     h.setConfirmAnswer(false)
     h.setAgentState({ messages: [{ id: 'm1', role: 'user', content: 'x' }] })
     render(<AgentPanel {...OPEN_PROPS} />)
+    openConvList()
     fireEvent.click(screen.getByTitle('清空对话'))
     // 先证明「确实弹了确认」：否则一旦 askConfirm 没结算（挂起），
     // 下面的 not.toHaveBeenCalled 也会成立 → 退化成永不失败的假通过。
@@ -361,6 +368,7 @@ describe('AgentPanel — 对话管理', () => {
 
   it('无消息 → 清空对话按钮禁用', () => {
     render(<AgentPanel {...OPEN_PROPS} />)
+    openConvList()
     expect((screen.getByTitle('清空对话') as HTMLButtonElement).disabled).toBe(true)
   })
 })
@@ -374,7 +382,7 @@ describe('AgentPanel — 待引用图确认', () => {
     render(<AgentPanel {...OPEN_PROPS} selectedImageNodes={[{ url: 'http://x/img.png', label: 'L', nodeId: 'n1', nodeType: 'image' }]} />)
     expect(screen.getByText('待引用：')).toBeTruthy()
     // 聚焦输入框 → 确认并入附件（此时发送附件非空）
-    const ta = screen.getByPlaceholderText(/输入消息/) as HTMLTextAreaElement
+    const ta = screen.getByPlaceholderText(/描述你想做的事/) as HTMLTextAreaElement
     fireEvent.focus(ta)
     fireEvent.change(ta, { target: { value: '参考这张图' } })
     fireEvent.keyDown(ta, { key: 'Enter', shiftKey: false })

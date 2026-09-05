@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+// AI 助手专属样式表（agent-* 前缀，只服务本面板与 AgentMessage；AgentMessage 复用同一套类，无需重复 import）
+import './agent-panel.css'
 import { useAgentChat, setGenParams, getGenParams, getCreditSwitch, setCreditSwitch, type UseAgentChatReturn } from '../agent/index.ts'
 import { useProviders, load as loadProviders } from '../base/store/providerStore.ts'
 import AgentMessage from './AgentMessage.tsx'
@@ -507,6 +509,22 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
     runNodeGeneration(nodeId)
   }, [])
 
+  // 重新生成（消息底部操作行）：往前找最近一条用户指令原样重发。
+  // useAgentChat 未单独暴露 regenerate（大雄该功能依附 prompts 通道，见 useAgentChat 注释），
+  // 故在 UI 层就近重发上一条 user 文本——语义等价「再问一次」，历史会多一轮，行为可预期。
+  const handleRegenerate = useCallback((msg) => {
+    const idx = messages.findIndex((m) => m?.id && m.id === msg?.id)
+    if (idx <= 0) return
+    for (let i = idx - 1; i >= 0; i--) {
+      const m = messages[i]
+      if (m?.role === 'user' && String(m.content || '').trim()) {
+        scrollToBottom('smooth')
+        Promise.resolve(send(String(m.content).trim())).catch((e) => logger.error('Agent', '重新生成失败', e))
+        return
+      }
+    }
+  }, [messages, send, scrollToBottom])
+
   // 快捷建议发送
   const sendShortcut = (text) => {
     setInput(text)
@@ -568,60 +586,157 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
 
   const focusTextarea = () => textareaRef.current?.focus()
 
+  // 输入框自适应增高：textarea 默认不随内容变高（rows 固定），需按 scrollHeight 同步。
+  // min 兜底/防抖动：仅在高度确实变化时写入，避免每击键都触发布局抖动。
+  const fitInputHeight = useCallback(() => {
+    const el = textareaRef.current
+    if (!el) return
+    // 先归零再取 scrollHeight，保证换行时能正确收缩回 min 高度
+    el.style.height = '0px'
+    const next = Math.min(Math.max(el.scrollHeight, 72), 160)
+    el.style.height = `${next}px`
+  }, [])
+  // input 变化（含流式回调 setInput）→ 增高；发送清空后由下方 handleSend 里的 setInput('') 触发同样回落
+  useEffect(() => { fitInputHeight() }, [input, fitInputHeight])
+
   // 【docs/25 阶段1C】不再条件卸载（if !open return null）——面板常驻 DOM，open 控制 CSS 显隐。
   //   这样 useAgentChat 始终挂载、运行态（流式/状态机）不因面板收起而断流（配合"切页不中断"）。
   //   注意：open=false 时 onWidthChange 仍会报 0（见上 effect），保持宽度同步，勿删除。
   //
 
+  /** 空态标识（顶栏已去掉 logo，仅空态保留） */
   const AI_ICON = (
-    <span className="w-7 h-7 rounded-full bg-gradient-to-br from-surface-hover to-surface-deep border border-edge flex items-center justify-center">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-primary">
-        <path d="M12 2a3 3 0 0 1 3 3v1h1.5a2.5 2.5 0 0 1 2.5 2.5v1.5a5 5 0 0 1-5 5h-4a5 5 0 0 1-5-5V8.5A2.5 2.5 0 0 1 7.5 6H9V5a3 3 0 0 1 3-3z" />
-        <path d="M9 14h6" />
-        <path d="M10 18h4" />
-        <path d="M12 14v4" />
-      </svg>
-    </span>
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 2a3 3 0 0 1 3 3v1h1.5a2.5 2.5 0 0 1 2.5 2.5v1.5a5 5 0 0 1-5 5h-4a5 5 0 0 1-5-5V8.5A2.5 2.5 0 0 1 7.5 6H9V5a3 3 0 0 1 3-3z" />
+      <path d="M9 14h6" />
+      <path d="M10 18h4" />
+      <path d="M12 14v4" />
+    </svg>
   )
+
+  /** 顶栏标题 = 当前会话标题（首条用户消息优先，未命名则回退 c.title / “新对话”） */
+  const activeTitle = useMemo(() => {
+    const c = (conversations || []).find((x) => x?.id === activeConversationId)
+    const firstUser = (c?.messages || []).find((m) => m?.role === 'user' && m?.content)
+    if (firstUser?.content) return String(firstUser.content).slice(0, 18)
+    return c?.title || '新对话'
+  }, [conversations, activeConversationId])
 
   // 未配 AI 供应商 → 禁用发送（禁止静默失败，见 L3b）。canSend 网关 provider 存在。
   const noProvider = !agentProvider
   const canSend = (input.trim() || attachments.length > 0) && stateAction !== 'stopping' && !noProvider
 
   return (
-    <div className={`absolute top-0 right-0 bottom-0 bg-surface-deep border-l border-edge-faint flex flex-col z-30 shadow-2xl ${open ? '' : 'hidden'} ${dragging ? 'select-none' : ''}`} style={{ width }}>
+    <div className={`agent-panel absolute top-0 right-0 bottom-0 z-30 ${open ? '' : 'hidden'} ${dragging ? 'select-none' : ''}`} style={{ width }}>
       {/* 宽度拖拽手柄 */}
       <div
         onMouseDown={startDrag}
-        className={`absolute left-[-3px] top-0 bottom-0 w-[6px] cursor-col-resize z-40 hover:bg-blue-500/30 ${dragging ? 'bg-blue-500/40' : ''}`}
+        className={`agent-grip ${dragging ? 'is-dragging' : ''}`}
         title="拖动调整宽度"
       />
 
-      {/* 顶部标题栏 */}
-      <header className="shrink-0 flex items-center justify-between px-3 h-12 border-b border-edge-faint">
-        <div className="flex items-center gap-2">
-          {AI_ICON}
-          <span className="text-white text-sm font-medium">AI 助手</span>
-          {/* 高消耗积分确认开关（creditSwitch）：全局、默认开。AI 助手恒 auto 完全自主，
-              确认粒度只此一处：真烧积分那下（image/video 生成）都先经用户确认，确认前不烧积分。 */}
+      {/* 顶部：对话标题即会话列表入口 + 3 个图标。
+          收口说明：原「AI 图标 / “AI 助手”文字 / 积分胶囊 / 独立列表按钮 / 独立清空按钮」共 6 个视觉元素，
+          现压到「1 标题 + 3 图标」——积分→盾牌图标；列表→标题下拉（下拉底部另挂积分开关与清空对话）。 */}
+      <header className="agent-header">
+        <span ref={chatListRef} className="relative">
+          <button
+            type="button"
+            onClick={() => setChatListOpen((v) => !v)}
+            disabled={sending}
+            className="agent-title-btn"
+            title="对话列表"
+          >
+            <span className="agent-title-text">{activeTitle}</span>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
+          </button>
+          {chatListOpen && (
+            <div className="agent-pop is-conv">
+              <div style={{ maxHeight: '240px', overflowY: 'auto' }} className="custom-scrollbar">
+                {conversations.length === 0 ? (
+                  <div className="agent-pop-empty">暂无对话</div>
+                ) : conversations.map((c) => {
+                  const isActive = c.id === activeConversationId
+                  const firstUser = (c.messages || []).find((m) => m.role === 'user' && m.content)
+                  const title = (firstUser?.content ? String(firstUser.content).slice(0, 18) : (c.title || '对话'))
+                  return (
+                    <div key={c.id} className="agent-row-wrap">
+                      <button
+                        type="button"
+                        onClick={() => { switchChat(c.id); setChatListOpen(false) }}
+                        className={`agent-row ${isActive ? 'is-active' : ''}`}
+                        title={c.title}
+                      >
+                        <span className="agent-row-name">{title}</span>
+                        {isActive && (
+                          <span className="agent-row-check">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                              <polyline points="20 6 9 17 4 12" />
+                            </svg>
+                          </span>
+                        )}
+                      </button>
+                      <span className="agent-row-ops">
+                        <button
+                          type="button"
+                          onClick={async (e) => { e.stopPropagation(); if (await askConfirm({ title: `删除对话「${title}」？`, confirmText: '删除', danger: true })) { deleteChat(c.id); setChatListOpen(false) } }}
+                          title="删除对话"
+                        >
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="3 6 5 6 21 6" />
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                          </svg>
+                        </button>
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
+              <div className="agent-pop-divider" />
+              <button
+                type="button"
+                onClick={handleClear}
+                disabled={sending || messages.length === 0}
+                className="agent-row"
+                title="清空对话"
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="3 6 5 6 21 6" />
+                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                </svg>
+                <span className="agent-row-name">清空当前对话</span>
+              </button>
+              {/* 积分开关（与顶栏盾牌同一状态，下拉内再给一次带文字的显式入口） */}
+              <button
+                type="button"
+                onClick={toggleCreditSwitch}
+                disabled={sending}
+                className="agent-switch-row"
+                title={creditSwitch ? '生成前先确认，避免意外消耗积分。点击关闭' : '生成直接放行。点击开启'}
+              >
+                <span>生成前确认积分</span>
+                <span className={`agent-switch ${creditSwitch ? 'is-on' : ''}`} />
+              </button>
+            </div>
+          )}
+        </span>
+
+        <div className="agent-header-actions">
+          {/* 高消耗积分确认闸（creditSwitch）：全局、默认开。AI 助手恒 auto 完全自主，
+              确认粒度只此一处——真烧积分那下（image/video 生成）先经用户确认。图标化：亮=开，灰=关。 */}
           <button
             type="button"
             onClick={toggleCreditSwitch}
             disabled={sending}
-            className={`flex items-center gap-1 pl-1.5 pr-1 py-0.5 rounded-full border text-caption-sm transition-colors disabled:opacity-50 ${
-              creditSwitch ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300' : 'bg-surface/60 border-edge-faint text-muted'
-            }`}
+            className={`agent-icon-btn ${creditSwitch ? 'is-on' : ''}`}
             title={creditSwitch ? '积分确认已开启：生成前先确认，避免意外消耗积分。点击关闭' : '积分确认已关闭：生成直接放行。点击开启'}
           >
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="2" y="6" width="20" height="12" rx="2" />
-              <line x1="6" y1="10" x2="6" y2="14" />
-              <line x1="10" y1="10" x2="10" y2="14" />
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
             </svg>
-            <span>{creditSwitch ? '积分确认' : '已关闭'}</span>
           </button>
-        </div>
-        <div className="flex items-center gap-0.5">
           <button
             type="button"
             disabled={sending || newChatLock.current}
@@ -632,63 +747,15 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
               newChatLock.current = true
               setTimeout(() => { newChatLock.current = false }, 1000)
             }}
-            className="p-1.5 text-secondary hover:text-white hover:bg-surface-hover rounded-md transition-colors disabled:opacity-40"
+            className="agent-icon-btn"
             title="新建对话"
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
             </svg>
           </button>
-          <span ref={chatListRef} className="relative">
-            <button type="button" onClick={() => setChatListOpen((v) => !v)} disabled={sending} className="p-1.5 text-secondary hover:text-white hover:bg-surface-hover rounded-md transition-colors disabled:opacity-40" title="对话列表">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" /><line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" />
-              </svg>
-            </button>
-            {chatListOpen && (
-              <div className="absolute top-full right-0 mt-1 w-[220px] max-h-[280px] overflow-y-auto bg-surface border border-edge rounded-lg shadow-2xl z-50 py-1 custom-scrollbar">
-                {conversations.length === 0 ? (
-                  <div className="px-3 py-2 text-xs text-muted text-center">暂无对话</div>
-                ) : conversations.map((c) => {
-                  const isActive = c.id === activeConversationId
-                  const firstUser = (c.messages || []).find((m) => m.role === 'user' && m.content)
-                  const title = (firstUser?.content ? String(firstUser.content).slice(0, 18) : (c.title || '对话'))
-                  return (
-                    <div key={c.id} className="flex items-center group">
-                      <button
-                        type="button"
-                        onClick={() => { switchChat(c.id); setChatListOpen(false) }}
-                        className={`flex-1 flex items-center gap-2 text-left px-2 py-1.5 text-caption-sm rounded-md transition-colors ${isActive ? 'bg-surface-hover-strong text-white' : 'text-secondary hover:bg-surface-hover hover:text-primary'}`}
-                        title={c.title}
-                      >
-                        <span className={`shrink-0 w-1.5 h-1.5 rounded-full ${isActive ? 'bg-emerald-400' : 'bg-gray-600'}`} />
-                        <span className="flex-1 truncate">{title}</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={async (e) => { e.stopPropagation(); if (await askConfirm({ title: `删除对话「${title}」？`, confirmText: '删除', danger: true })) { deleteChat(c.id); setChatListOpen(false) } }}
-                        className="shrink-0 p-1 text-muted-2 hover:text-red-400 hover:bg-surface rounded transition-colors opacity-0 group-hover:opacity-100"
-                        title="删除对话"
-                      >
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <polyline points="3 6 5 6 21 6" />
-                          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                        </svg>
-                      </button>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </span>
-          <button type="button" onClick={handleClear} disabled={sending || messages.length === 0} className="p-1.5 text-secondary hover:text-white hover:bg-surface-hover rounded-md transition-colors disabled:opacity-40" title="清空对话">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="3 6 5 6 21 6" />
-              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-            </svg>
-          </button>
-          <button type="button" onClick={onClose} className="p-1.5 text-secondary hover:text-white hover:bg-surface-hover rounded-md transition-colors" title="关闭">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <button type="button" onClick={onClose} className="agent-icon-btn" title="关闭">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <line x1="18" y1="6" x2="6" y2="18" />
               <line x1="6" y1="6" x2="18" y2="18" />
             </svg>
@@ -696,22 +763,23 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
         </div>
       </header>
 
-      {/* 消息区（外层 relative 定位 + 内层滚动，浮层置于外层避免被滚动裁剪） */}
+      {/* 消息区（外层 relative 定位 + 内层滚动，回底按钮置于外层避免被滚动裁剪） */}
       <div className="flex-1 relative flex flex-col min-h-0">
-        <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-3 space-y-3 custom-scrollbar">
+        <div ref={scrollRef} className="agent-messages custom-scrollbar">
           {messages.length === 0 && (
-            <div className="h-full flex flex-col items-center justify-center px-4 text-center" onClick={focusTextarea}>
-              <div className="mb-3">{AI_ICON}</div>
-              <div className="text-white text-base font-medium mb-1">有什么可以帮你？</div>
-              <div className="text-muted text-xs mb-5">创建节点、生图、改布局，一句话的事</div>
+            <div className="agent-empty" onClick={focusTextarea}>
+              <div className="agent-empty-mark">{AI_ICON}</div>
+              <h3>有什么可以帮你？</h3>
+              <p>创建节点、生图、改布局，一句话的事</p>
+              {/* Skill 快捷入口：最多 3 个，其余从工具栏 Skill 图标进入 */}
               {allSkills.length > 0 && (
-                <div className="mt-4 flex flex-wrap justify-center gap-2 max-w-[320px]">
+                <div className="agent-chips">
                   {allSkills.slice(0, 3).map((s) => (
                     <button
                       key={s.id}
                       type="button"
                       onClick={() => applySkill(s)}
-                      className="inline-flex items-center gap-1 px-3 py-1.5 text-xs text-secondary bg-canvas border border-edge-faint rounded-full hover:border-edge hover:text-primary hover:bg-surface transition-colors cursor-pointer"
+                      className="agent-chip"
                     >
                       <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
@@ -726,7 +794,17 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
               )}
             </div>
           )}
-          {messages.map((m) => <AgentMessage key={m.id} message={m} onConfirmPlan={handleConfirmPlan} onCancelPlan={cancelPendingConfirm} onRetryStep={handleRetryStep} onSendToCanvas={sendContentToCanvas} />)}
+          {messages.map((m) => (
+            <AgentMessage
+              key={m.id}
+              message={m}
+              onConfirmPlan={handleConfirmPlan}
+              onCancelPlan={cancelPendingConfirm}
+              onRetryStep={handleRetryStep}
+              onSendToCanvas={sendContentToCanvas}
+              onRegenerate={() => handleRegenerate(m)}
+            />
+          ))}
           {/* 高消耗积分确认卡（跟随消息流末尾，与策划/记忆确认共用 AgentConfirmCard 统一样式）：
               credit 命中（任一模式 + 开关开）时，execute_plan 已建好节点（status='ready'）、真生成未触发；
               确认 → runExistingPlanTool 补跑；取消 → 仅收起卡片、保留待确认态（不删节点，节点已在画布上）。 */}
@@ -747,16 +825,12 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
             />
           )}
           {sending && (
-            <div className="flex items-center gap-2 text-muted text-xs">
-              <span className="flex gap-1">
-                <span className="w-1.5 h-1.5 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                <span className="w-1.5 h-1.5 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                <span className="w-1.5 h-1.5 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-              </span>
+            <div className="agent-thinking">
+              <i /><i /><i />
               <span>思考中...</span>
             </div>
           )}
-          {error && <div className="text-red-400 text-xs bg-red-950/30 border border-red-800/30 rounded-md px-3 py-2">{error}</div>}
+          {error && <div className="agent-error">{error}</div>}
         </div>
 
         {/* 快速回到底部：离开底部时淡入，点击平滑贴底后自动淡出。
@@ -771,9 +845,7 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
           // 「focused element under aria-hidden」警告（辅助技术无法访问），
           // 且 aria-hidden 本身不阻止焦点。inert 既阻止焦点又不被辅助技术识别。
           inert={atBottom || undefined}
-          className={`absolute bottom-3 left-1/2 z-float w-9 h-9 flex items-center justify-center rounded-full border border-edge-strong/70 bg-surface-1/90 text-secondary shadow-popover backdrop-blur-sm cursor-pointer transition-all duration-200 hover:bg-surface-hover hover:text-primary hover:border-edge-strong ${
-            atBottom ? '-translate-x-1/2 translate-y-1 opacity-0 pointer-events-none' : '-translate-x-1/2 translate-y-0 opacity-100 pointer-events-auto'
-          }`}
+          className={`agent-to-bottom ${atBottom ? 'is-hidden' : 'is-shown'}`}
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <line x1="12" y1="5" x2="12" y2="19" />
@@ -782,38 +854,34 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
         </button>
       </div>
 
-      {/* 底部 OneBox 输入区 */}
-      <div className="shrink-0 px-3 py-3 border-t border-edge-faint bg-surface-deep">
-        <div className="bg-canvas border border-edge rounded-xl focus-within:border-edge-strong transition-colors">
+      {/* 底部输入区（OneBox：附件 chips → 输入框 → 纯图标工具栏） */}
+      <div className="agent-composer">
+        <div className="agent-box">
           {/* 参考图 chips（内联在输入框上方） */}
           {(attachments.length > 0 || uploading) && (
-            <div className="flex flex-wrap gap-2 px-3 pt-2.5">
+            <div className="agent-att-row">
               {attachments.map((a, i) => (
-                <span key={i} className="relative w-10 h-10 rounded-lg overflow-hidden border border-edge group">
-                  <img src={toAbsoluteFileUrl(a.localUrl || a.url)} alt="" className="w-full h-full object-cover" />
-                  <button type="button" onClick={() => removeAttachment(i)} className="absolute inset-0 flex items-center justify-center bg-black/60 text-white opacity-0 group-hover:opacity-100 transition-opacity" title="移除">
+                <span key={i} className="agent-att">
+                  <img src={toAbsoluteFileUrl(a.localUrl || a.url)} alt="" />
+                  <button type="button" className="agent-att-remove" onClick={() => removeAttachment(i)} title="移除">
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                       <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
                     </svg>
                   </button>
                 </span>
               ))}
-              {uploading && (
-                <span className="w-10 h-10 rounded-lg border border-edge bg-surface flex items-center justify-center">
-                  <span className="w-4 h-4 border-2 border-gray-600 border-t-gray-300 rounded-full animate-spin" />
-                </span>
-              )}
+              {uploading && <span className="agent-att-loading"><span className="agent-spinner" /></span>}
             </div>
           )}
 
           {/* 待确认引用（选中画布图未确认，防误触）：点输入框/发送才并入正式附件 */}
           {pendingImageNodes.length > 0 && (
-            <div className="flex flex-wrap items-center gap-2 px-3 pt-2.5">
-              <span className="text-caption text-muted">待引用：</span>
+            <div className="agent-att-row">
+              <span className="agent-att-note">待引用：</span>
               {pendingImageNodes.map((a, i) => (
-                <span key={`${a.url}-${i}`} className="relative w-10 h-10 rounded-lg overflow-hidden border border-edge group">
-                  <img src={toAbsoluteFileUrl(a.url)} alt="" className="w-full h-full object-cover" />
-                  <button type="button" onClick={() => setPendingImageNodes((prev) => prev.filter((_, j) => j !== i))} className="absolute inset-0 flex items-center justify-center bg-black/60 text-white opacity-0 group-hover:opacity-100 transition-opacity" title="移除该待引用图">
+                <span key={`${a.url}-${i}`} className="agent-att">
+                  <img src={toAbsoluteFileUrl(a.url)} alt="" />
+                  <button type="button" className="agent-att-remove" onClick={() => setPendingImageNodes((prev) => prev.filter((_, j) => j !== i))} title="移除该待引用图">
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                       <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
                     </svg>
@@ -838,41 +906,39 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
               if (e.key === 'Escape' && skillSlashOpen) { e.preventDefault(); setSkillSlashOpen(false); return }
               if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); handleSend() }
             }}
-            placeholder={noProvider ? '请先在「API/供应商设置」配置 AI 聊天供应商及模型' : '输入消息，回车发送，Shift+Enter 换行…'}
+            placeholder={noProvider ? '请先在「API/供应商设置」配置 AI 聊天供应商及模型' : '描述你想做的事，回车发送，Shift+Enter 换行'}
             rows={1}
             disabled={sending || noProvider}
-            className="w-full bg-transparent text-primary text-sm px-3 py-2.5 resize-none focus:outline-none disabled:opacity-60"
-            style={{ minHeight: '72px', maxHeight: '160px' }}
+            className="agent-textarea"
           />
           {/* 未配供应商引导：禁止静默失败，指引用户去设置（L3b） */}
           {noProvider && (
-            <div className="px-3 pb-2 text-caption-xs text-muted">尚未配置 AI 聊天供应商，发送已禁用。请到「设置 → API/供应商」添加 OpenAI 兼容等供应商并选择聊天模型后使用。</div>
+            <div className="agent-hint">尚未配置 AI 聊天供应商，发送已禁用。请到「设置 → API/供应商」添加 OpenAI 兼容等供应商并选择聊天模型后使用。</div>
           )}
 
           {/* Skill / 快捷调用下拉：锚定在输入框正下方，向上弹出紧贴 textarea */}
           {skillSlashOpen && (
             <div ref={skillSlashRef} className="relative">
-              <div className="absolute bottom-full left-0 mb-1 w-[240px] max-h-[240px] overflow-y-auto bg-surface border border-edge rounded-lg shadow-2xl z-50 py-1 custom-scrollbar">
+              <div className="agent-pop is-slash" style={{ maxHeight: '240px', overflowY: 'auto' }}>
                 {allSkills.length === 0 ? (
-                  <div className="px-3 py-2 text-xs text-muted text-center">暂无 Skill</div>
+                  <div className="agent-pop-empty">暂无 Skill</div>
                 ) : allSkills.map((s) => (
                   <button
                     key={s.id}
                     type="button"
                     onClick={() => { applySkill(s); setInput(''); setSkillSlashOpen(false) }}
-                    className="w-full flex items-center gap-2 text-left px-2 py-1.5 text-caption-sm rounded-md transition-colors text-body hover:bg-surface-hover hover:text-white"
+                    className="agent-row"
                   >
-                    <span className="shrink-0 w-4 text-muted-2">/</span>
-                    <span className="flex-1 truncate">{s.name}</span>
+                    <span style={{ color: 'rgb(var(--mao-text-faint))' }}>/</span>
+                    <span className="agent-row-name">{s.name}</span>
                   </button>
                 ))}
               </div>
             </div>
           )}
 
-          {/* 工具栏 */}
-          <div className="flex items-center justify-between gap-2 px-2 pb-2">
-            <div className="flex items-center gap-0.5 min-w-0">
+          {/* 工具栏：纯图标化（Skill / 生图参数 / 生图模型），去掉全部文字标签 */}
+          <div className="agent-tools">
               {/* ────────────────────────────────────────────────────────────
                   【已注释】左下角聊天模型（AI 助手对话模型）选择按钮。
                   为什么去掉：AI 助手的聊天模型已在「设置 → AI 助手」分区统一指定，
@@ -916,30 +982,30 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
                 )}
               </span> */}
 
-              {/* Skill 应用按钮：第1位（最左）——点击弹「应用/取消 Skill」下拉（管理已移至设置页 AI 助手分区） */}
+              {/* Skill：第1位（最左）——点击弹「应用/取消 Skill」下拉（管理已移至设置页 AI 助手分区）。
+                  Skill 用文字按钮而非纯图标（用户裁定）：未启用显示「Skill」，启用显示「Skill·首个名」，图标保留辅助。 */}
               <span ref={skillPickRef} className="relative">
                 <button
                   type="button"
                   onClick={() => setSkillPickOpen((v) => !v)}
                   disabled={sending}
-                  className={`shrink-0 flex items-center gap-1 px-1.5 py-1 text-xs rounded-md transition-colors whitespace-nowrap disabled:opacity-50 ${activeSkills.length > 0 ? 'text-emerald-300 hover:bg-surface' : 'text-secondary hover:text-primary hover:bg-surface'}`}
+                  className={`agent-skill-btn ${activeSkills.length > 0 ? 'is-active' : ''}`}
                   title={activeSkills.length > 0 ? `已启用 ${activeSkills.map((s) => s.name).join('、')}` : '应用 Skill'}
                 >
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
                     <polyline points="14 2 14 8 20 8" />
                     <line x1="16" y1="13" x2="8" y2="13" />
                     <line x1="16" y1="17" x2="8" y2="17" />
                   </svg>
-                  <span>{activeSkills.length === 0
+                  {activeSkills.length === 0
                     ? 'Skill'
-                    : `Skill·${activeSkills.map((s) => (s.name || '').slice(0, 4)).join('、')}`}
-                  </span>
+                    : `Skill·${(activeSkills[0]?.name || '').slice(0, 5)}`}
                 </button>
                 {skillPickOpen && (
-                  <div className="absolute bottom-full left-0 mb-1 w-[240px] max-h-[280px] overflow-y-auto bg-surface border border-edge rounded-lg shadow-2xl z-50 py-1 custom-scrollbar">
+                  <div className="agent-pop is-slash" style={{ maxHeight: '280px', overflowY: 'auto' }}>
                     {allSkills.length === 0 ? (
-                      <div className="px-3 py-2 text-xs text-muted text-center">暂无 Skill</div>
+                      <div className="agent-pop-empty">暂无 Skill</div>
                     ) : allSkills.map((s) => {
                       const on = activeSkills.some((a) => a.id === s.id)
                       return (
@@ -951,13 +1017,17 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
                             else applySkill(s)
                             setSkillPickOpen(false)
                           }}
-                          className={`w-full flex items-center gap-2 text-left px-2 py-1.5 text-caption-sm rounded-md transition-colors ${on ? 'text-emerald-300' : 'text-body hover:bg-surface-hover hover:text-white'}`}
-                          >
-                          <span className="shrink-0 w-4 flex items-center text-emerald-400">{on ? (
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
-                          ) : ''}</span>
-                          <span className="flex-1 truncate">{s.name}</span>
-                          <span className="text-caption text-muted-2 shrink-0">{s.builtin ? '内置' : ''}</span>
+                          className={`agent-row ${on ? 'is-active' : ''}`}
+                        >
+                          <span className="agent-row-name">{s.name}</span>
+                          <span className="agent-step-meta" style={{ marginLeft: 0 }}>{s.builtin ? '内置' : ''}</span>
+                          {on && (
+                            <span className="agent-row-check">
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                <polyline points="20 6 9 17 4 12" />
+                              </svg>
+                            </span>
+                          )}
                         </button>
                       )
                     })}
@@ -965,39 +1035,38 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
                 )}
               </span>
 
-              {/* 生图参数按钮：第2位——选择画质/比例/渲染质量 */}
+              {/* 生图参数：第2位——选择画质/比例/渲染质量。图标化，当前值收进 title */}
               <span ref={genImgMenuRef} className="relative">
                 <button
                   type="button"
                   onClick={(e) => { e.stopPropagation(); setGenImgMenuOpen((v) => !v) }}
-                  className="shrink-0 flex items-center gap-1 px-1.5 py-1 text-xs text-secondary hover:text-primary hover:bg-surface rounded-md transition-colors whitespace-nowrap"
-                  title="生图参数"
+                  className={`agent-icon-btn is-sm ${genImgMenuOpen ? 'is-active' : ''}`}
+                  title={`生图参数：${genSize} · ${genRatio}`}
                 >
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <rect x="3" y="3" width="18" height="18" rx="2" />
                     <circle cx="8.5" cy="8.5" r="1.5" />
                     <path d="M21 15l-5-5L5 21" />
                   </svg>
-                  <span className="hidden sm:inline truncate max-w-[70px]">{genSize} · {genRatio}</span>
                 </button>
                 {genImgMenuOpen && (
-                  <div className="absolute bottom-full left-0 mb-1 w-60 max-h-[calc(100vh-200px)] overflow-y-auto bg-surface-1 border border-edge rounded-lg shadow-xl p-3 z-50 flex flex-col gap-3 custom-scrollbar" onClick={(e) => e.stopPropagation()}>
-                    <div>
-                      <div className="text-caption text-muted mb-2">画质</div>
-                      <div className="flex gap-1.5">{genSizeOptions.map((s) => (
-                        <button key={s} type="button" className={`flex-1 py-1.5 text-caption-sm rounded-md border transition-colors ${genSize === s ? 'bg-surface-hover-strong border-edge-strong text-white' : 'bg-surface border-transparent text-secondary hover:bg-surface-hover'}`} onClick={() => onGenSize(s)}>{s}</button>
+                  <div className="agent-pop is-gen" style={{ maxHeight: 'calc(100vh - 200px)', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
+                    <div className="agent-gen-group">
+                      <div className="agent-gen-label">画质</div>
+                      <div className="agent-opts">{genSizeOptions.map((s) => (
+                        <button key={s} type="button" className={`agent-opt ${genSize === s ? 'is-on' : ''}`} onClick={() => onGenSize(s)}>{s}</button>
                       ))}</div>
                     </div>
-                    <div>
-                      <div className="text-caption text-muted mb-2">比例</div>
-                      <div className="flex flex-wrap gap-1.5">{genRatioOptions.map((r) => (
-                        <button key={r} type="button" className={`px-2.5 py-1 text-caption-sm rounded-md border transition-colors ${genRatio === r ? 'bg-surface-hover-strong border-edge-strong text-white' : 'bg-surface border-transparent text-secondary hover:bg-surface-hover'}`} onClick={() => onGenRatio(r)}>{r}</button>
+                    <div className="agent-gen-group">
+                      <div className="agent-gen-label">比例</div>
+                      <div className="agent-opts">{genRatioOptions.map((r) => (
+                        <button key={r} type="button" className={`agent-opt ${genRatio === r ? 'is-on' : ''}`} onClick={() => onGenRatio(r)}>{r}</button>
                       ))}</div>
                     </div>
-                    <div>
-                      <div className="text-caption text-muted mb-2">渲染质量</div>
-                      <div className="flex gap-1.5">{genQualityOptions.map((q) => (
-                        <button key={q.value} type="button" className={`flex-1 py-1.5 text-caption-sm rounded-md border transition-colors ${genQuality === q.value ? 'bg-surface-hover-strong border-edge-strong text-white' : 'bg-surface border-transparent text-secondary hover:bg-surface-hover'}`} onClick={() => onGenQuality(q.value)}>{q.label}</button>
+                    <div className="agent-gen-group">
+                      <div className="agent-gen-label">渲染质量</div>
+                      <div className="agent-opts">{genQualityOptions.map((q) => (
+                        <button key={q.value} type="button" className={`agent-opt ${genQuality === q.value ? 'is-on' : ''}`} onClick={() => onGenQuality(q.value)}>{q.label}</button>
                       ))}</div>
                     </div>
                   </div>
@@ -1005,8 +1074,8 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
               </span>
 
               {/* 生图模型选择：第3位——选择用哪个图像模型来生图，随时可切换。
-                  labelMaxWidth 限制按钮上模型名的显示宽度，超长省略号，避免撑出输入框 */}
-              <span className="min-w-0" title="选择生图模型">
+                  iconOnly：只显示 cpu 图标，模型名收进 title（工具栏去文字化） */}
+              <span className="relative">
                 <ModelSelect
                   value={genModel}
                   onChange={onGenModel}
@@ -1014,7 +1083,9 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
                   placeholder="生图模型"
                   popupTo="up"
                   showDivider={false}
-                  labelMaxWidth="100px"
+                  iconOnly
+                  active={!!genModel}
+                  triggerTitle={genModel ? `生图模型：${genModel}` : '选择生图模型'}
                 />
               </span>
 
@@ -1035,19 +1106,19 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
                 </svg>
               </button>
               */}
-            </div>
+            <span className="agent-spacer" />
 
-            {/* 发送/停止（z-[60] 高于 ModelSelect 弹层 z-50，避免被向上弹出的模型下拉盖住） */}
+            {/* 发送/停止 */}
             {sending && stateAction !== 'steer' ? (
-              <button type="button" onClick={stop} className="relative z-[60] w-8 h-8 flex items-center justify-center bg-surface-active-2 hover:bg-surface-raised-2 text-white rounded-full transition-colors cursor-pointer" title="停止">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="white"><rect x="6" y="6" width="12" height="12" rx="2" /></svg>
+              <button type="button" onClick={stop} className="agent-send agent-stop" title="停止">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2" /></svg>
               </button>
             ) : (
               <button
                 type="button"
                 onClick={() => handleSend()}
                 disabled={!canSend}
-                className={`relative z-[60] w-8 h-8 flex items-center justify-center rounded-full transition-colors cursor-pointer ${canSend ? 'bg-white hover:bg-gray-200 text-black' : 'bg-surface-hover text-muted cursor-not-allowed'}`}
+                className="agent-send"
                 title="发送"
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">

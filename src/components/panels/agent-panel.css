@@ -1,0 +1,761 @@
+/**
+ * ════════════════════════════════════════════════════════════════
+ * AI 助手面板 —— 专属样式表（agent-panel.css）
+ * ════════════════════════════════════════════════════════════════
+ *
+ * 【适用范围】只服务 `AgentPanel.tsx` / `AgentMessage.tsx` 两个组件，
+ *   全部 `.agent-*` 前缀，不污染全局（本文件在 AgentPanel 里 import，
+ *   AgentMessage 复用同一套类名，无需重复 import）。
+ *
+ * 【为什么不写进 index.css】index.css 是全站地基（:root 变量 + 全局类），
+ *   AI 助手的视觉是独立演进的局部设计，单独成文件便于整体重构与删除，
+ *   不牵动其他面板（用户裁定 2026-09-05）。
+ *
+ * 【色值纪律】一律取 `:root` 的 `--mao-*` 语义令牌（tailwind.config.ts 为唯一真相，
+ *   禁裸色值），因此主题切换/令牌调整会自动同步。
+ *   仅「强调色」三枚是本面板私有（Tailwind 无对应令牌），集中在下面局部变量里，
+ *   改色只改这一处，不在散落的规则里硬编码。
+ *
+ * 【视觉目标】对齐即梦式简洁：层级靠颜色深浅 + 大留白，不靠边框；
+ *   AI 回复无气泡，用户消息单色圆角气泡；工具行去文字化。
+ * ════════════════════════════════════════════════════════════════
+ */
+
+.agent-panel {
+  /* ── 本面板私有的强调色（三枚，集中管理） ── */
+  --agent-accent: #60a5fa;                  /* 工具栏激活态（对齐 tailwind blue-400） */
+  --agent-accent-bg: rgb(59 130 246 / 0.12);
+  --agent-on: #34d399;                      /* 积分闸开启（对齐 emerald-400） */
+
+  /* ── 尺寸/圆角尺度（改这里统一呼吸感） ── */
+  --agent-icon: 30px;                       /* 顶栏图标按钮 */
+  --agent-icon-sm: 28px;                    /* 工具栏图标按钮 */
+  /* 消息操作行图标用 is-xs：20px 极紧凑档（见 .agent-icon-btn.is-xs） */
+  --agent-radius-box: 18px;                 /* 输入卡片 */
+  --agent-radius-bubble: 16px;              /* 用户气泡 */
+  --agent-radius-pop: 12px;                 /* 浮层 */
+  --agent-pad-x: 16px;                      /* 消息区左右留白 */
+
+  display: flex;
+  flex-direction: column;
+  background: rgb(var(--mao-surface-deep));
+  border-left: 1px solid rgb(var(--mao-edge-subtle));
+  box-shadow: 0 24px 60px rgb(0 0 0 / 0.55);
+}
+
+/* ── 宽度拖拽手柄 ── */
+.agent-grip {
+  position: absolute;
+  left: -3px;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  cursor: col-resize;
+  z-index: 1;
+  background: transparent;
+  transition: background 0.15s;
+}
+.agent-grip:hover { background: rgb(59 130 246 / 0.3); }
+.agent-grip.is-dragging { background: rgb(59 130 246 / 0.4); }
+
+/* ══════════════ 顶栏 ══════════════ */
+.agent-header {
+  flex-shrink: 0;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 6px 0 4px;
+  border-bottom: 1px solid rgb(var(--mao-edge-subtle));
+}
+
+/* 对话标题 = 会话列表触发器（合并掉原「对话列表」独立按钮） */
+.agent-title-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 210px;
+  padding: 5px 8px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: rgb(var(--mao-text-primary));
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.agent-title-btn:hover { background: rgb(var(--mao-surface-hover)); }
+.agent-title-btn:disabled { opacity: 0.45; cursor: default; }
+.agent-title-btn .agent-title-text {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.agent-title-btn svg { flex-shrink: 0; color: rgb(var(--mao-text-muted)); }
+
+.agent-header-actions { display: flex; align-items: center; gap: 2px; }
+
+/* ══════════════ 通用图标按钮（顶栏 / 工具栏 / 消息操作行三档） ══════════════ */
+.agent-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--agent-icon);
+  height: var(--agent-icon);
+  flex-shrink: 0;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: rgb(var(--mao-text-muted));
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.agent-icon-btn:hover {
+  background: rgb(var(--mao-surface-hover));
+  color: rgb(var(--mao-text-strong));
+}
+.agent-icon-btn:disabled { opacity: 0.4; cursor: default; }
+.agent-icon-btn:disabled:hover { background: transparent; color: rgb(var(--mao-text-muted)); }
+/* 尺寸档位 */
+.agent-icon-btn.is-sm { width: var(--agent-icon-sm); height: var(--agent-icon-sm); }
+/* is-xs：消息操作行用的极紧凑图标按钮——比工具栏再小一档 */
+.agent-icon-btn.is-xs {
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+}
+/* 操作行图标：显式给定 SVG 尺寸，避免无 width/height 的 viewBox 被 flex 拉伸 */
+.agent-actions .agent-icon-btn svg {
+  width: 13px;
+  height: 13px;
+}
+/* 语义态：is-on = 积分闸已开启（绿）；is-active = 工具已启用（蓝） */
+.agent-icon-btn.is-on { color: var(--agent-on); }
+.agent-icon-btn.is-on:hover { background: rgb(var(--mao-surface-hover)); color: var(--agent-on); }
+.agent-icon-btn.is-active { color: var(--agent-accent); background: var(--agent-accent-bg); }
+.agent-icon-btn.is-active:hover { color: var(--agent-accent); background: var(--agent-accent-bg); }
+
+/* ══════════════ 浮层（会话列表 / 更多菜单） ══════════════ */
+.agent-pop {
+  position: absolute;
+  z-index: 50;
+  padding: 6px;
+  background: rgb(var(--mao-surface-1));
+  border: 1px solid rgb(var(--mao-edge));
+  border-radius: var(--agent-radius-pop);
+  box-shadow: 0 20px 60px -10px rgb(0 0 0 / 0.85);
+}
+.agent-pop.is-conv { top: 100%; left: 0; margin-top: 6px; width: 244px; }
+.agent-pop.is-more { top: 100%; right: 0; margin-top: 6px; width: 180px; }
+/* 输入区「/」Skill 快调：向上弹出，紧贴输入框 */
+.agent-pop.is-slash { bottom: 100%; left: 0; margin-bottom: 6px; width: 240px; }
+
+/* 生图参数面板（尺寸/比例/质量三组选项） */
+.agent-pop.is-gen { bottom: 100%; left: 0; margin-bottom: 6px; width: 244px; padding: 12px; }
+.agent-gen-group + .agent-gen-group { margin-top: 14px; }
+.agent-gen-label { margin-bottom: 8px; color: rgb(var(--mao-text-muted)); font-size: 10px; }
+.agent-opts { display: flex; flex-wrap: wrap; gap: 6px; }
+.agent-opt {
+  flex: 1;
+  padding: 5px 10px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: rgb(var(--mao-surface));
+  color: rgb(var(--mao-text-secondary));
+  font-size: 11.5px;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.agent-opt:hover { background: rgb(var(--mao-surface-hover)); color: rgb(var(--mao-text-primary)); }
+.agent-opt.is-on {
+  background: rgb(var(--mao-surface-hover-strong));
+  border-color: rgb(var(--mao-edge-strong));
+  color: rgb(var(--mao-text-strong));
+}
+
+/* 会话项（列表 / 菜单通用行） */
+.agent-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 9px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: rgb(var(--mao-text-body));
+  font-size: 12.5px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.agent-row:hover { background: rgb(var(--mao-surface-hover)); color: rgb(var(--mao-text-strong)); }
+.agent-row.is-active { background: rgb(var(--mao-surface-hover)); color: rgb(var(--mao-text-strong)); }
+.agent-row:disabled { opacity: 0.4; cursor: default; }
+.agent-row:disabled:hover { background: transparent; color: rgb(var(--mao-text-body)); }
+.agent-row .agent-row-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.agent-row .agent-row-ops {
+  display: flex;
+  gap: 8px;
+  color: rgb(var(--mao-text-subtle));
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.agent-row:hover .agent-row-ops { opacity: 1; }
+.agent-row .agent-row-ops svg:hover { color: rgb(var(--mao-text-primary)); }
+.agent-row .agent-row-check { color: var(--agent-on); flex-shrink: 0; }
+
+/* 会话行外壳：行按钮 + 悬浮出现的操作图标（避免按钮嵌套的非法结构） */
+.agent-row-wrap { display: flex; align-items: center; }
+.agent-row-wrap .agent-row { flex: 1; min-width: 0; }
+.agent-row-wrap .agent-row-ops {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+  color: rgb(var(--mao-text-subtle));
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.agent-row-wrap:hover .agent-row-ops { opacity: 1; }
+.agent-row-wrap .agent-row-ops button {
+  display: flex;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.agent-row-wrap .agent-row-ops button:hover { color: rgb(var(--mao-text-primary)); }
+
+.agent-pop-empty { padding: 8px 9px; color: rgb(var(--mao-text-faint)); font-size: 11.5px; }
+
+.agent-pop-divider {
+  height: 1px;
+  margin: 5px 4px;
+  background: rgb(var(--mao-edge-subtle));
+}
+
+/* 开关行（会话列表底部：生成前确认积分） */
+.agent-switch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 9px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: rgb(var(--mao-text-muted));
+  font-size: 11.5px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.agent-switch-row:hover { background: rgb(var(--mao-surface-hover)); color: rgb(var(--mao-text-primary)); }
+.agent-switch {
+  position: relative;
+  flex-shrink: 0;
+  width: 30px;
+  height: 17px;
+  border-radius: 9px;
+  background: rgb(var(--mao-surface-3));
+  transition: background 0.18s;
+}
+.agent-switch::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: rgb(var(--mao-text-muted));
+  transition: transform 0.18s, background 0.18s;
+}
+.agent-switch.is-on { background: rgb(34 197 94 / 0.35); }
+.agent-switch.is-on::after { transform: translateX(13px); background: var(--agent-on); }
+
+/* ══════════════ 消息区 ══════════════ */
+.agent-messages {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 18px var(--agent-pad-x);
+}
+
+/* 用户消息：单色圆角气泡，无边框 */
+.agent-user-row { display: flex; justify-content: flex-end; }
+.agent-user-col { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; max-width: 82%; }
+.agent-user-bubble {
+  padding: 9px 13px;
+  background: rgb(var(--mao-surface-hover));
+  color: rgb(var(--mao-text-strong));
+  font-size: 13.5px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  border-radius: var(--agent-radius-bubble) var(--agent-radius-bubble) 4px var(--agent-radius-bubble);
+}
+.agent-user-att { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+.agent-user-att button {
+  width: 56px;
+  height: 56px;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid rgb(var(--mao-edge-faint));
+  border-radius: 10px;
+  cursor: zoom-in;
+  transition: border-color 0.15s;
+}
+.agent-user-att button:hover { border-color: rgb(var(--mao-edge-strong)); }
+.agent-user-skills { display: flex; flex-wrap: wrap; gap: 4px; justify-content: flex-end; }
+.agent-user-skill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  background: rgb(var(--mao-surface));
+  border: 1px solid rgb(var(--mao-edge-faint));
+  border-radius: 6px;
+  color: rgb(var(--mao-text-secondary));
+  font-size: 11px;
+}
+
+/* AI 消息：无气泡无边框，正文直接铺在面板底色上 */
+.agent-ai-row { display: flex; flex-direction: column; gap: 10px; }
+.agent-ai-text {
+  color: rgb(var(--mao-text-primary));
+  font-size: 13.5px;
+  line-height: 1.75;
+  overflow-wrap: anywhere;
+}
+
+/* 过程行（思考 / 工具调用 / 生成步骤，统一为一行可展开） */
+.agent-trace {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 3px 0;
+  border: none;
+  background: transparent;
+  color: rgb(var(--mao-text-faint));
+  font-size: 11.5px;
+  text-align: left;
+  cursor: pointer;
+  transition: color 0.15s;
+}
+.agent-trace:hover { color: rgb(var(--mao-text-secondary)); }
+.agent-trace .agent-dot {
+  width: 5px;
+  height: 5px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: rgb(var(--mao-surface-3));
+}
+.agent-trace .agent-dot.is-ok { background: var(--agent-on); }
+.agent-trace .agent-trace-label {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.agent-trace .agent-caret { flex-shrink: 0; transition: transform 0.15s; }
+.agent-trace.is-open .agent-caret { transform: rotate(90deg); }
+.agent-trace-detail {
+  display: none;
+  margin-top: 2px;
+  padding: 8px 10px;
+  background: rgb(var(--mao-surface-sunken));
+  border-radius: 8px;
+  color: rgb(var(--mao-text-muted));
+  font-size: 11.5px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.agent-trace.is-open + .agent-trace-detail { display: block; }
+
+/* 生成步骤明细（trace-detail 内的编号列表） */
+.agent-steps { display: flex; flex-direction: column; gap: 8px; }
+.agent-step-head { display: flex; align-items: center; gap: 6px; color: rgb(var(--mao-text-body)); }
+.agent-step-index {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  border: 1px solid rgb(var(--mao-edge-subtle));
+  border-radius: 50%;
+  background: rgb(var(--mao-surface));
+  color: rgb(var(--mao-text-secondary));
+  font-size: 11px;
+}
+.agent-step-title { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.agent-step-meta { margin-left: auto; flex-shrink: 0; color: rgb(var(--mao-text-muted-2)); font-size: 10px; }
+.agent-step-prompt {
+  margin-top: 2px;
+  padding-left: 22px;
+  color: rgb(var(--mao-text-muted));
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* 工具调用标签（中性灰小标签，参数收进 title） */
+.agent-toolchips { display: flex; flex-wrap: wrap; gap: 4px; }
+.agent-toolchip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  padding: 2px 7px;
+  background: rgb(var(--mao-surface-sunken));
+  border: 1px solid rgb(var(--mao-edge-subtle));
+  border-radius: 6px;
+  color: rgb(var(--mao-text-muted-2));
+  font-size: 11px;
+}
+.agent-toolchip span {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+/* 工具结果（弱化为一行小字，不再用带边框卡片） */
+.agent-toolmsg {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  color: rgb(var(--mao-text-faint));
+  font-size: 11.5px;
+}
+.agent-toolmsg .agent-toolmsg-line { display: inline-flex; align-items: center; gap: 6px; }
+.agent-toolmsg .is-ok { color: rgb(34 197 94); }
+.agent-toolmsg .is-fail { color: rgb(248 113 113); }
+.agent-toolmsg .agent-retry {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  border: 1px solid rgb(var(--mao-edge));
+  border-radius: 6px;
+  background: transparent;
+  color: rgb(var(--mao-text-secondary));
+  font-size: 11px;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+.agent-toolmsg .agent-retry:hover { border-color: var(--agent-accent); color: var(--agent-accent); }
+.agent-failed-steps { display: flex; flex-direction: column; gap: 4px; }
+.agent-failed-row { display: inline-flex; align-items: center; gap: 8px; }
+.agent-failed-row .agent-failed-msg {
+  max-width: 220px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: rgb(248 113 113 / 0.8);
+}
+
+/* 流式光标（正文末尾 + 思考过程末尾共用） */
+.agent-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 13px;
+  margin-left: 2px;
+  vertical-align: middle;
+  background: rgb(var(--mao-text-muted));
+  animation: agent-pulse 1s infinite;
+}
+@keyframes agent-pulse {
+  0%, 100% { opacity: 0.25; }
+  50% { opacity: 1; }
+}
+
+/* 工具结果行容器（左对齐） */
+.agent-toolmsg-wrap { display: flex; justify-content: flex-start; }
+
+/* 消息底部：meta 行 + 操作图标，分开排布（操作图标 hover 单个高亮，不与 meta 联动） */
+.agent-foot {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: -2px;
+  min-height: 26px;
+}
+.agent-meta { color: rgb(var(--mao-text-faint)); font-size: 11px; white-space: nowrap; }
+/* meta 与操作列用弹性空隙隔开，二者视觉天然分成两段 */
+.agent-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+  /* 默认整组轻微弱化，仅作为「可发现度」提示，不整体变亮 */
+  opacity: 0.75;
+}
+.agent-actions .agent-icon-btn {
+  /* 操作图标：默认淡，单按钮 hover 才提亮 + 给底 */
+  color: rgb(var(--mao-text-faint));
+}
+.agent-actions .agent-icon-btn:hover {
+  color: rgb(var(--mao-text-primary));
+  background: rgb(var(--mao-surface-hover));
+}
+.agent-actions .agent-sep { width: 1px; height: 12px; margin: 0 3px; background: rgb(var(--mao-edge)); }
+
+/* 思考中 */
+.agent-thinking {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: rgb(var(--mao-text-faint));
+  font-size: 12px;
+}
+.agent-thinking i {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: rgb(var(--mao-text-subtle));
+  animation: agent-bob 1.1s infinite;
+}
+.agent-thinking i:nth-child(2) { animation-delay: 0.15s; }
+.agent-thinking i:nth-child(3) { animation-delay: 0.3s; }
+@keyframes agent-bob {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.45; }
+  30% { transform: translateY(-3px); opacity: 1; }
+}
+
+/* 错误提示 */
+.agent-error {
+  padding: 8px 10px;
+  background: rgb(239 68 68 / 0.12);
+  border: 1px solid rgb(239 68 68 / 0.3);
+  border-radius: 8px;
+  color: rgb(248 113 113);
+  font-size: 12px;
+}
+
+/* 回到底部（沿用现有结构，仅收口配色） */
+.agent-to-bottom {
+  position: absolute;
+  bottom: 12px;
+  left: 50%;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid rgb(var(--mao-edge-strong) / 0.7);
+  border-radius: 999px;
+  background: rgb(var(--mao-surface-1) / 0.9);
+  color: rgb(var(--mao-text-secondary));
+  cursor: pointer;
+  backdrop-filter: blur(4px);
+  transition: transform 0.2s, opacity 0.2s, background 0.15s;
+}
+.agent-to-bottom:hover { background: rgb(var(--mao-surface-hover)); color: rgb(var(--mao-text-primary)); }
+.agent-to-bottom.is-hidden {
+  transform: translateX(-50%) translateY(4px);
+  opacity: 0;
+  pointer-events: none;
+}
+.agent-to-bottom.is-shown { transform: translateX(-50%) translateY(0); opacity: 1; }
+
+/* ══════════════ 输入区 ══════════════ */
+.agent-composer {
+  flex-shrink: 0;
+  padding: 10px 12px 12px;
+  border-top: 1px solid rgb(var(--mao-edge-subtle));
+}
+.agent-box {
+  padding: 8px 10px 6px;
+  background: rgb(var(--mao-surface));
+  border: 1px solid rgb(var(--mao-edge-subtle));
+  border-radius: var(--agent-radius-box);
+  transition: border-color 0.15s;
+}
+.agent-box:focus-within { border-color: rgb(var(--mao-edge-raised)); }
+
+/* 参考图 / 待引用 chips */
+.agent-att-row { display: flex; flex-wrap: wrap; gap: 6px; padding: 2px 2px 8px; }
+.agent-att {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  overflow: hidden;
+  border: 1px solid rgb(var(--mao-edge-faint));
+  border-radius: 9px;
+}
+.agent-att img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.agent-att .agent-att-remove {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: rgb(0 0 0 / 0.6);
+  color: #fff;
+  opacity: 0;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+.agent-att:hover .agent-att-remove { opacity: 1; }
+.agent-att-note { display: flex; align-items: center; gap: 6px; padding: 0 2px 6px; color: rgb(var(--mao-text-faint)); font-size: 11px; }
+.agent-att-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border: 1px solid rgb(var(--mao-edge-faint));
+  border-radius: 9px;
+}
+.agent-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgb(var(--mao-surface-3));
+  border-top-color: rgb(var(--mao-text-secondary));
+  border-radius: 50%;
+  animation: agent-spin 0.7s linear infinite;
+}
+@keyframes agent-spin { to { transform: rotate(360deg); } }
+
+/* 输入区高度：默认约 3 行（76px），由 AgentPanel 的 fitInputHeight 按内容在 min~max 间自适应增高。
+   不要把 height 写死——textarea 只有显式设 height 才会随内容长高，故由 JS 写 style.height。 */
+.agent-textarea {
+  display: block;
+  width: 100%;
+  height: auto;
+  min-height: 76px;      /* 约 3 行，默认不显得局促 */
+  max-height: 160px;     /* 超过则滚动 */
+  padding: 2px;
+  border: none;
+  outline: none;
+  resize: none;
+  background: transparent;
+  color: rgb(var(--mao-text-strong));
+  font-family: inherit;
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+.agent-textarea::placeholder { color: rgb(var(--mao-text-subtle)); }
+.agent-textarea:disabled { opacity: 0.6; }
+.agent-hint { padding: 0 2px 6px; color: rgb(var(--mao-text-faint)); font-size: 11px; line-height: 1.6; }
+
+/* 工具栏 */
+.agent-tools { display: flex; align-items: center; gap: 1px; padding: 2px 0; }
+.agent-tools .agent-spacer { flex: 1; }
+
+/* Skill 文字按钮（沿用原有语义：带 skill 图标 + 文字，激活态变色） */
+.agent-skill-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 28px;
+  padding: 0 9px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: rgb(var(--mao-text-secondary));
+  font-size: 11.5px;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.agent-skill-btn:hover { background: rgb(var(--mao-surface-hover)); color: rgb(var(--mao-text-strong)); }
+.agent-skill-btn:disabled { opacity: 0.4; cursor: default; }
+.agent-skill-btn.is-active { color: var(--agent-accent); background: var(--agent-accent-bg); }
+.agent-skill-btn.is-active:hover { color: var(--agent-accent); }
+.agent-skill-btn .agent-skill-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 76px;
+}
+
+.agent-send {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  border: none;
+  border-radius: 50%;
+  background: rgb(var(--mao-inverse));
+  color: #111;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.agent-send:hover { background: rgb(var(--mao-inverse-strong)); }
+.agent-send:disabled {
+  background: rgb(var(--mao-surface-hover));
+  color: rgb(var(--mao-text-subtle));
+  cursor: not-allowed;
+}
+.agent-send.agent-stop { background: rgb(var(--mao-surface-active-2)); color: #fff; }
+.agent-send.agent-stop:hover { background: rgb(var(--mao-surface-raised-2)); }
+
+/* ══════════════ 空态 ══════════════ */
+.agent-empty {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 0 24px;
+  text-align: center;
+  cursor: text;
+}
+.agent-empty-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  margin-bottom: 14px;
+  border: 1px solid rgb(var(--mao-edge-faint));
+  border-radius: 50%;
+  background: linear-gradient(135deg, rgb(var(--mao-surface-hover)), rgb(var(--mao-surface-raised)));
+  color: rgb(var(--mao-text-body));
+}
+.agent-empty h3 {
+  margin-bottom: 6px;
+  color: rgb(var(--mao-text-strong));
+  font-size: 15px;
+  font-weight: 500;
+}
+.agent-empty p { color: rgb(var(--mao-text-faint)); font-size: 12px; line-height: 1.7; }
+.agent-chips { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; max-width: 280px; margin-top: 18px; }
+.agent-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 11px;
+  border: 1px solid rgb(var(--mao-edge-faint));
+  border-radius: 999px;
+  background: transparent;
+  color: rgb(var(--mao-text-secondary));
+  font-size: 12px;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+.agent-chip:hover {
+  border-color: rgb(var(--mao-edge-strong));
+  background: rgb(var(--mao-surface-hover));
+  color: rgb(var(--mao-text-strong));
+}
