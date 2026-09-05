@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useAgentChat, setGenParams, getGenParams, getCreditSwitch, setCreditSwitch, getWorkMode, setWorkMode as setWorkModeGlobal, RUN_MODE_IDS, WORK_MODE_STORAGE_KEY, type UseAgentChatReturn } from '../agent/index.ts'
+import { useAgentChat, setGenParams, getGenParams, getCreditSwitch, setCreditSwitch, type UseAgentChatReturn } from '../agent/index.ts'
 import { useProviders, load as loadProviders } from '../base/store/providerStore.ts'
 import AgentMessage from './AgentMessage.tsx'
 import AgentConfirmCard from './AgentConfirmCard.tsx'
@@ -211,20 +211,9 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
   const [input, setInput] = useState<string>(() => { try { return String(contentGet(AGENT_DRAFT_KEY) || '') } catch { return '' } })
   const [attachments, setAttachments] = useState([])
   const [uploading, setUploading] = useState(false)
-  // 【三态收敛 · docs/65 M8】workMode 由注册表单一真源驱动（getWorkMode 读 / setWorkModeGlobal 原子写三处）。
-  // 组件用本地 state 保持响应式渲染；写走注册表（同时同步 inputMode 与当前会话 runMode 兼容字段）。
-  //   direct        直接生图：send 内部第一行 bypass LLM，直连 execute_plan
-  //   step-confirm  分步确认：LLM 编排，调 show_plan_for_confirm 卡 awaiting 确认
-  //   auto          完全自主：LLM 编排，可调 plan 展示但不卡确认，直 execute_plan
-  //  ⚠️ 积分闸判定（credit=creditSwitch）与三态正交（见 execute_plan / creditSwitch 注释），这里不掺和。
-  const [workMode, setWorkModeState] = useState(() => { try { return getWorkMode() } catch { return RUN_MODE_IDS.AUTO } })
-  const applyWorkMode = (mode) => { setWorkModeState(setWorkModeGlobal(mode)) }
-  // 【docs/65 M8】订阅 agent_work_mode 外部变更：其它入口（如未来设置页）改动时，本面板本地 state 同步跟随，
-  // 避免「两个入口各改各的、UI 不跟随」的交叉。回调读注册表真源；本处只写本地 state，不回写 store，无循环。
-  useEffect(() => {
-    return contentSubscribe(WORK_MODE_STORAGE_KEY, () => { try { setWorkModeState(getWorkMode()) } catch { /* ignore */ } })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  // 【2026-09-05 精简】执行模型收敛恒 auto（完全自主）+ credit 积分闸：三态选择器（direct/step-confirm/auto）已删，
+  // AI 助手只走 auto 完全自主。真正烧积分那下由全局积分闸 creditSwitch 拦截（见 useCanvasAgentTools.executePlanTool），
+  // 与本执行模型正交——这里不掺和确认粒度。
   // attachments 变化 → 同步到 conversationStore（自动落盘，带 hydrated 时序守卫）
   useEffect(() => {
     setCurrentSnapshot({ attachments })
@@ -234,8 +223,8 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
   // 全局开关（默认开）：任何模式下，真正烧积分那下（image/video 生成）都先经用户确认。
   // 心智模型【一句话】：建节点不花积分，随便 AI 建；只有「真生成图/视频那一下」烧积分，
   //   由这个全局总闸把关——开了就等确认、关了直接跑。
-  // 它：①与三态选择器完全正交（在直接生图/分步确认/完全自主下一视同仁）；②只控媒体生成，
-  //   不管「改画布/改布局」这类零成本操作（那由三态决定）。
+  // 它：①是唯一确认闸（AI 助手恒 auto 完全自主，确认粒度只此一处）；②只控媒体生成，
+  //   不管「改画布/改布局」这类零成本操作（完全自主下 AI 直接做）。
   // 判定收敛在 useCanvasAgentTools.executePlanTool 一处：creditHit = getCreditSwitch()。
   // 读写走 contracts.ts 登记的 CREDIT_SWITCH_KEY（index.js 透传 getCreditSwitch/setCreditSwitch）。
   const [creditSwitch, setCreditSwitchState] = useState(() => { try { return getCreditSwitch() } catch { return true } })
@@ -613,8 +602,8 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
         <div className="flex items-center gap-2">
           {AI_ICON}
           <span className="text-white text-sm font-medium">AI 助手</span>
-          {/* 高消耗积分确认开关（creditSwitch）：全局、默认开。任何模式下，真烧积分那下（image/video 生成）
-              都先经用户确认，确认前不烧积分。独立于三态选择器；分步确认（step-confirm）不叠此闸（D2）。 */}
+          {/* 高消耗积分确认开关（creditSwitch）：全局、默认开。AI 助手恒 auto 完全自主，
+              确认粒度只此一处：真烧积分那下（image/video 生成）都先经用户确认，确认前不烧积分。 */}
           <button
             type="button"
             onClick={toggleCreditSwitch}
@@ -834,33 +823,6 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
             </div>
           )}
 
-          {/* 三态选择器（直接生图 / 分步确认 / 完全自主）：合并「智能/图像 × 分步确认/完全自主」两个正交维度，
-              从用户精力出发切分——直接生图=一输就出图（直连生图，不经 LLM 编排工具，自动执行）；
-              分步确认=AI 调工具前先展示策划，逐步确认再执行；完全自主=AI 自主操作、无需逐步确认。
-              workMode 由注册表单一真源驱动（docs/65 M8），inputMode/runMode 为 setWorkMode 原子同步的兼容派生态。 */}
-          <div className="flex items-center gap-1 px-2.5 pt-2">
-            <div className="flex items-center gap-0.5 p-0.5 rounded-lg bg-surface/50 border border-edge-faint shrink-0">
-              <button
-                type="button"
-                onClick={() => applyWorkMode(RUN_MODE_IDS.DIRECT)}
-                className={`shrink-0 whitespace-nowrap px-2 py-0.5 text-caption-sm rounded-md transition-colors ${workMode === RUN_MODE_IDS.DIRECT ? 'bg-surface-hover-strong text-white' : 'text-muted hover:text-body'}`}
-                title="直接生图：提示词 + 参考图直接出图，不经 AI 编排；烧积分那下受全局积分确认总闸约束（开则先确认）"
-              >直接生图</button>
-              <button
-                type="button"
-                onClick={() => applyWorkMode(RUN_MODE_IDS.STEP_CONFIRM)}
-                className={`shrink-0 whitespace-nowrap px-2 py-0.5 text-caption-sm rounded-md transition-colors ${workMode === RUN_MODE_IDS.STEP_CONFIRM ? 'bg-surface-hover-strong text-white' : 'text-muted hover:text-body'}`}
-                title="分步确认：AI 调用工具修改画布前先展示策划，等你确认再执行"
-              >分步确认</button>
-              <button
-                type="button"
-                onClick={() => applyWorkMode(RUN_MODE_IDS.AUTO)}
-                className={`shrink-0 whitespace-nowrap px-2 py-0.5 text-caption-sm rounded-md transition-colors ${workMode === RUN_MODE_IDS.AUTO ? 'bg-surface-hover-strong text-white' : 'text-muted hover:text-body'}`}
-                title="完全自主：AI 自主操作画布，无需逐步确认（含 Skill 场景）"
-              >完全自主</button>
-            </div>
-          </div>
-
           {/* 输入框 */}
           <textarea
             ref={textareaRef}
@@ -876,7 +838,7 @@ export default function AgentPanel({ agentKey = 'canvas-assistant', systemPrompt
               if (e.key === 'Escape' && skillSlashOpen) { e.preventDefault(); setSkillSlashOpen(false); return }
               if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); handleSend() }
             }}
-            placeholder={noProvider ? '请先在「API/供应商设置」配置 AI 聊天供应商及模型' : (workMode === RUN_MODE_IDS.DIRECT ? '输入最终生图提示词，回车直接生图…' : '输入消息，回车发送，Shift+Enter 换行…')}
+            placeholder={noProvider ? '请先在「API/供应商设置」配置 AI 聊天供应商及模型' : '输入消息，回车发送，Shift+Enter 换行…'}
             rows={1}
             disabled={sending || noProvider}
             className="w-full bg-transparent text-primary text-sm px-3 py-2.5 resize-none focus:outline-none disabled:opacity-60"

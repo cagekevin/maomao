@@ -16,7 +16,6 @@ import {
   getCurrentRefImages, setCurrentRefImages,
   getLastUserReferenceImages, getCurrentImageMap,
   getCurrentRunMode, getCurrentSnapshot,
-  getWorkMode,
   getCreditGate, setCreditGate, clearCreditGate,
 } from '../conversation/conversationStore.ts'
 // ═══ 补充 import（拆行放置，避免挤爆单行）═══
@@ -779,6 +778,11 @@ const triggerGenerationTool = {
  * 对齐大雄 canvas-agent：按 depends_on_previous 分独立批+依赖批，依赖批用前序结果当参考图。
  * 是 Skill（5主图+8详情 等大批量任务）的执行引擎。
  */
+// ── presentPlanTool（show_plan_for_confirm）
+// 【2026-09-05 标注】UI/工具框架保留，勿删、勿当死代码。
+// 执行模型精简后 AI 助手恒 auto：show_plan_for_confirm 仅作规划展示（needConfirm 恒 false、不卡确认），
+// 已失去「AI 三阶段批量+策划确认」这一主要触发者；保留框架供将来「表格整表/批量确认后生成」复用。
+// 目前仍被 memory_suggest 的确认交互（awaitingConfirm 门禁）与 execute_plan 的「暂存 generations 来源」消费。
 const presentPlanTool = {
   name: 'show_plan_for_confirm',
   description: '把生成策划展示出来（execute_plan 前调用，展示规划文字与步骤）。是否需用户确认由运行模式决定：半自动需确认后才可执行（execute_plan 会被拒到用户确认）；全自动直接执行（本工具返回 awaiting_confirm:false，你可直接继续 execute_plan）。可传 global_contract（统一风格契约三字段，逐字锁定每步）与 artifacts（跨步成果资产声明）。',
@@ -824,13 +828,11 @@ const presentPlanTool = {
     if (Array.isArray(args.generations) && args.generations.length > 0) {
       setPendingGenerations(gens)
     }
-    // 【docs/65 M6】确认粒度由三态 workMode 单一真源决定（runModeRegistry）：是否进入"待确认"门禁
-    //   - workMode==='step-confirm'：进入 awaiting（分步确认：规划后确认再执行，对齐大雄 6282/7774）。
-    //   - workMode==='auto'（或 direct）：不进入 awaiting（完全自主/直接生图：规划后直接执行）。
-    //   Skill 是独立轴、不改变确认粒度（docs/64 D7/R6）；「完全自主 + 有媒体 + 积分开关开」改由
-    //   execute_plan 通用积分闸（credit）拦截，不在此设 awaitingConfirm（两条门禁互相独立）。
+    // 【2026-09-05 精简】执行模型已收敛恒 auto：show_plan_for_confirm 仅作规划展示（UI 框架保留，
+    // 给将来「表格确认后生成」复用），auto 下不进入 awaiting 确认态（needConfirm 恒 false）。
+    // 「真正烧积分那下」的统一确认由 execute_plan 通用积分闸（credit）拦截，两条门禁互相独立。
     const hasSkillNow = Array.isArray(getCurrentSnapshot()?.skills) && getCurrentSnapshot().skills.length > 0
-    const needConfirm = getWorkMode() === 'step-confirm'
+    const needConfirm = false // auto 完全自主：规划仅供展示、不卡确认（step-confirm 已删）
     setAwaitingConfirm(needConfirm)
     // memory 提炼（对齐大雄 conv.memory.lastPlan）：把阶段1策划记入当前对话，供多轮上下文
     const mem = getCurrentMemory()

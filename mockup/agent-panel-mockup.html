@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AI 助手外观原型（参考图对标）</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: #1a1a1c;
+    display: flex;
+    justify-content: center;
+    align-items: stretch;
+    padding: 24px;
+  }
+
+  /* ── 面板外壳（对标参考图的右侧抽屉） ── */
+  .panel {
+    width: 420px;
+    min-height: 760px;
+    background: #0b0b0c;
+    border: 1px solid #262629;
+    border-radius: 14px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: 0 24px 60px rgba(0,0,0,.5);
+  }
+
+  /* ── 顶部 header（极简） ── */
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 12px;
+    border-bottom: 1px solid #1d1d20;
+    flex-shrink: 0;
+  }
+  .header-left {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 8px;
+    transition: background .15s;
+  }
+  .header-left:hover { background: #18181b; }
+  .header-title { color: #f4f4f5; font-size: 14px; font-weight: 500; }
+  .header-left svg { color: #a1a1aa; }
+
+  .header-right { display: flex; align-items: center; gap: 2px; }
+  .icon-btn {
+    width: 32px; height: 32px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 8px; color: #a1a1aa;
+    cursor: pointer; transition: background .15s, color .15s;
+    background: transparent; border: none;
+  }
+  .icon-btn:hover { background: #18181b; color: #f4f4f5; }
+
+  /* ── 会话下拉（从标题展开） ── */
+  .conv-dropdown {
+    position: absolute;
+    top: 46px; left: 12px;
+    width: 280px;
+    background: #161618;
+    border: 1px solid #262629;
+    border-radius: 12px;
+    padding: 6px;
+    box-shadow: 0 16px 40px rgba(0,0,0,.55);
+    display: none;
+  }
+  .conv-dropdown.open { display: block; }
+  .conv-item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 10px; border-radius: 8px; color: #d4d4d8;
+    font-size: 13px; cursor: pointer;
+  }
+  .conv-item:hover { background: #202024; }
+  .conv-item.active { background: #202024; color: #fff; }
+  .conv-item .name { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .conv-item .check { color: #22c55e; }
+  .conv-item .op { color: #71717a; display: flex; gap: 8px; }
+  .conv-item .op:hover { color: #e4e4e7; }
+  .panel-wrap { position: relative; flex: 1; display: flex; flex-direction: column; }
+
+  /* ── 消息区 ── */
+  .messages { flex: 1; overflow-y: auto; padding: 16px 14px; display: flex; flex-direction: column; gap: 16px; }
+  .messages::-webkit-scrollbar { width: 6px; }
+  .messages::-webkit-scrollbar-thumb { background: #2a2a2e; border-radius: 3px; }
+
+  .user-msg { display: flex; justify-content: flex-end; }
+  .user-bubble {
+    max-width: 78%;
+    background: #2a2a2e;
+    color: #f4f4f5;
+    padding: 10px 14px;
+    border-radius: 18px 18px 4px 18px;
+    font-size: 14px; line-height: 1.5;
+  }
+
+  .ai-msg { display: flex; flex-direction: column; gap: 8px; }
+  .ai-text { color: #e4e4e7; font-size: 14px; line-height: 1.7; }
+  .ai-text p { margin-bottom: 8px; }
+
+  .ai-foot {
+    display: flex; align-items: center; gap: 10px;
+    font-size: 12px; color: #71717a;
+  }
+  .ai-foot .divider { opacity: .5; }
+  .ai-actions { display: flex; align-items: center; gap: 2px; margin-left: auto; }
+  .ai-actions .icon-btn { width: 28px; height: 28px; }
+
+  /* ── 输入区 ── */
+  .composer { padding: 10px 12px 12px; border-top: 1px solid #1d1d20; flex-shrink: 0; }
+  .composer-box {
+    background: #161618;
+    border: 1px solid #262629;
+    border-radius: 16px;
+    padding: 10px 12px;
+  }
+  .composer-box:focus-within { border-color: #3a3a40; }
+  .composer-row { display: flex; align-items: flex-end; gap: 10px; }
+  .upload-slot {
+    flex-shrink: 0;
+    width: 38px; height: 38px;
+    border: 1px dashed #3a3a40;
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    color: #71717a; cursor: pointer;
+    transition: border-color .15s, color .15s;
+  }
+  .upload-slot:hover { border-color: #52525b; color: #a1a1aa; }
+  .textarea {
+    flex: 1;
+    background: transparent; border: none; outline: none; resize: none;
+    color: #f4f4f5; font-size: 14px; line-height: 1.5;
+    min-height: 24px; max-height: 120px; padding: 8px 0;
+  }
+  .textarea::placeholder { color: #52525b; }
+  .send-btn {
+    flex-shrink: 0;
+    width: 34px; height: 34px; border-radius: 50%;
+    background: #f4f4f5; color: #0b0b0c;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; border: none;
+    transition: background .15s;
+  }
+  .send-btn:hover { background: #fff; }
+
+  .toolbar {
+    display: flex; align-items: center; gap: 2px;
+    margin-top: 8px;
+  }
+  .toolbar .spacer { flex: 1; }
+</style>
+</head>
+<body>
+
+<div class="panel-wrap">
+  <div class="panel">
+
+    <!-- 顶部 header -->
+    <div class="header">
+      <div class="header-left" onclick="document.getElementById('conv').classList.toggle('open')">
+        <span class="header-title">问候对话开启</span>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>
+      </div>
+      <div class="header-right">
+        <button class="icon-btn" title="筛选">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+        </button>
+        <button class="icon-btn" title="新建对话">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </button>
+        <button class="icon-btn" title="全屏">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- 会话下拉（点标题展开） -->
+    <div class="conv-dropdown open" id="conv">
+      <div class="conv-item active">
+        <span class="name">问候对话开启</span>
+        <span class="op">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+        </span>
+        <span class="check"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></span>
+      </div>
+      <div class="conv-item">
+        <span class="name">未命名对话</span>
+        <span class="op">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+        </span>
+      </div>
+      <div class="conv-item">
+        <span class="name">画一只猫</span>
+        <span class="op">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+        </span>
+      </div>
+    </div>
+
+    <!-- 消息区 -->
+    <div class="messages">
+      <!-- 用户消息 -->
+      <div class="user-msg">
+        <div class="user-bubble">帮我在画布上画一只在月光下的猫，蓝紫色调，梦幻一点</div>
+      </div>
+
+      <!-- AI 回复 -->
+      <div class="ai-msg">
+        <div class="ai-text">
+          <p>好的，我来帮你创建。我已经在画布上新建了一个图像节点，并应用了蓝紫色梦幻风格的描述词。</p>
+          <p>你可以在画布上拖动调整位置，或者直接告诉我想要的尺寸和比例，我再帮你细化。</p>
+        </div>
+        <div class="ai-foot">
+          <span>以上内容由 AI 生成</span>
+          <div class="ai-actions">
+            <button class="icon-btn" title="点赞">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 10v12"/><path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2a3.13 3.13 0 0 1 3 3.88Z"/></svg>
+            </button>
+            <button class="icon-btn" title="踩">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 14V2"/><path d="M9 18.12 10 14H4.17a2 2 0 0 1-1.92-2.56l2.33-8A2 2 0 0 1 6.5 2H20a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2.76a2 2 0 0 0-1.79 1.11L12 22a3.13 3.13 0 0 1-3-3.88Z"/></svg>
+            </button>
+            <button class="icon-btn" title="重试">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 输入区 -->
+    <div class="composer">
+      <div class="composer-box">
+        <div class="composer-row">
+          <div class="upload-slot" title="上传参考图">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          </div>
+          <textarea class="textarea" rows="1" placeholder="Seedance 2.0 全能参考，上传参考、输入文字或 @ 主体，创意无限可能"></textarea>
+          <button class="send-btn" title="发送">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
+          </button>
+        </div>
+        <div class="toolbar">
+          <button class="icon-btn" title="魔法">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4V2M15 16v-2M8 9h2M20 9h2M17.8 11.8 19 13M15 9h.01M17.8 6.2 19 5M3 21l9-9M12.2 6.2 11 5"/></svg>
+          </button>
+          <button class="icon-btn" title="列表">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+          </button>
+          <button class="icon-btn" title="搜索">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          </button>
+          <button class="icon-btn" title="定位">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
+          </button>
+          <button class="icon-btn" title="提及">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-4 8"/></svg>
+          </button>
+          <span class="spacer"></span>
+          <button class="icon-btn" title="语音">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v4"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+</body>
+</html>

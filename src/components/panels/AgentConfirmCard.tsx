@@ -4,6 +4,10 @@ import { memo, type ReactNode } from 'react'
  * ════════════════════════════════════════════════════════════════
  * AI 助手 —— 统一确认卡（策划确认 / 记忆确认 / 积分确认共用）
  *
+ * 【2026-09-05 标注】此确认卡 UI 框架保留，未来改造为给表格（分镜工作区）'整表/批量确认后生成'使用。
+ * 当前数据源（AI 策划的 generations）在 Skill 三阶段删除后失去主要触发者，将由表格行驱动。
+ * 勿删此组件，勿当死代码。现仍被 credit 积分闸 / memory_suggest 记忆确认消费。
+ *
  * 统一视觉语言（与 Reasoning / GenerationStepsCard 折叠卡同源）：
  *   · 容器：surface-sunken 底 + edge-faint 边 + rounded-md
  *   · 主按钮：emerald 绿（唯一强调色，不再出现黄/琥珀）

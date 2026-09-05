@@ -125,21 +125,16 @@ export { MAX_TOOL_ROUNDS, ENABLE_TOOLS_ON_NON_STREAM } from '../agentConfig.ts'
 // 值已收口到 ../agentConfig.js 的 AGENT_PROMPTS.CANVAS_RULES；此处别名 re-export 保 useAgentChat/单测 import 契约。
 export const CANVAS_AGENT_RULES = AGENT_PROMPTS.CANVAS_RULES
 
-// ── Skill 执行指令（对齐大雄：Skill 驱动多步编排）──
-// 当对话启用了 Skill 时，把它追加到 system，让 LLM 按 Skill 规划 generations 并交给 execute_plan 执行。
-// 对齐大雄 AGENT_FORMAT_INSTRUCTION：generations 是执行唯一真相；Skill 原文无损绑定。
-// 值已收口到 ../agentConfig.js 的 AGENT_PROMPTS.SKILL_EXECUTION_RULES；此处别名沿用，resolveSkillExecutionRules 不改。
+// ── Skill 执行指令（2026-09-05 精简：Skill 仅作理解需求的输入文本，不再引导多步批量编排）──
+// 当对话启用了 Skill 时，把它追加到 system，让 LLM 按 Skill 理解需求并按对话方式自主执行。
+// 值已收口到 ../agentConfig.js 的 AGENT_PROMPTS.SKILL_EXECUTION_RULES；此处别名沿用。
 export const SKILL_EXECUTION_RULES = AGENT_PROMPTS.SKILL_EXECUTION_RULES
 
 /**
- * Skill 执行指令按三态确认粒度自适应（docs/64 R1/R6 · docs/65 M5）。
- * Skill 只编排思维路径、不改变确认粒度；确认粒度永远由三态决定。
- * auto（完全自主）时：SKILL 的【阶段2 · 等待确认】作废，展示策划后直接进阶段3 execute_plan，防 LLM 误等确认卡住。
+ * Skill 注入指令解析。2026-09-05 执行模型精简后恒返回 SKILL_EXECUTION_RULES（单阶段「Skill=理解需求的输入」），
+ * 不再按执行模式追加确认粒度（direct/step-confirm 已删，执行模型恒 auto）。
  */
-export function resolveSkillExecutionRules(workMode: WorkMode): string {
-  if (String(workMode || '').toLowerCase() === RUN_MODE_IDS.AUTO) {
-    return `${SKILL_EXECUTION_RULES}\n\n【确认粒度自适应 · 完全自主】当前为完全自主模式：上述【阶段2 · 等待确认】作废——展示 show_plan_for_confirm 策划后【不要】等待用户确认，直接进入【阶段3 · 执行】调用 execute_plan。`
-  }
+export function resolveSkillExecutionRules(_workMode: WorkMode): string {
   return SKILL_EXECUTION_RULES
 }
 // 【已禁用·Gap E·2026-08-21】count 富字段指令暂不开放给模型：执行器 schema 虽声明了 count/type/role 等，
@@ -323,12 +318,13 @@ export function buildRequestMessages(
     .map((s) => (s && s.content ? `===== Skill 文档开始：${s.name || 'Skill'} =====\n${s.content}\n===== Skill 文档结束：${s.name || 'Skill'} =====` : ''))
     .filter(Boolean)
   if (skillTexts.length > 0) {
-    // 阶段2 是否等待确认按三态自适应（docs/65 M5）：auto 时不等待、直接阶段3
+    // Skill 注入指令：让 LLM 按 Skill 理解需求并按对话方式自主执行（2026-09-05 精简为单阶段）
     out.push({ role: 'system', content: `${skillTexts.join('\n\n')}\n\n${resolveSkillExecutionRules(workMode)}` })
   }
-  // 三态确认粒度分流段（docs/64 §6 / docs/65 M5）：direct→''不注入（不经 LLM）；
-  // step-confirm/auto 注入引导 show_plan_for_confirm 可调性——修复根因：无 Skill 常规任务下 LLM 无 plan 使用指引 → plan 调不了。
-  // enhance=false（最小请求）时不注入，保持「完全不注入 system」的契约不变。
+  // 执行模型指令段（2026-09-05 精简恒 auto）：注入引导 show_plan_for_confirm 可调性——
+  // 修复根因：无 Skill 常规任务下 LLM 无 plan 使用指引 → plan 调不了。direct/step-confirm 已删，
+  // getSystemPromptForWorkMode 恒返回 auto 定义。enhance=false（最小请求）时不注入，
+  // 保持「完全不注入 system」的契约不变。
   if (enhance) {
     const runModePrompt = getSystemPromptForWorkMode(workMode)
     if (runModePrompt) out.push({ role: 'system', content: runModePrompt })

@@ -45,17 +45,10 @@ export function getCurrentRunMode(): RunMode {
   return resolveConvRunMode(getWorkMode()) as RunMode
 }
 
-/** 【对齐大雄 agentSetRunMode】写执行分级：收敛为 setWorkMode（原子写 workMode+inputMode+当前会话 runMode）。 */
-export function setCurrentRunMode(mode: unknown): void {
-  const normalized = String(mode || 'auto').toLowerCase()
-  if (normalized !== 'auto') {
-    // 非 auto（含旧值 'semi' / 任意非法值）一律归 'step-confirm'（对齐历史契约：只有 auto 全自动）
-    setWorkMode('step-confirm')
-    return
-  }
-  // auto：若当前是 direct（直接生图）则保留 direct，不做无关切换
-  const wm = getWorkMode()
-  setWorkMode(wm === 'direct' ? 'direct' : 'auto')
+/** 【对齐大雄 agentSetRunMode】写执行分级：收敛为 setWorkMode。2026-09-05 精简后恒映射 auto。 */
+export function setCurrentRunMode(_mode: unknown): void {
+  // 2026-09-05 精简：执行模型收敛恒 auto（direct/step-confirm 已删），任何入参一律归 'auto'
+  setWorkMode('auto')
 }
 
 /* ── 统一风格契约 global_contract + 跨步成果 artifact（对齐大雄，per-conversation）── */

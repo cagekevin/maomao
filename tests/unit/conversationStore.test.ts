@@ -287,16 +287,16 @@ describe('跨轮图引用数据源（对齐大雄 agentLastUserAttachments / age
     expect(map[1].num).toBe(2)
   })
 
-  it('runMode 分级：默认 auto（完全自主），setCurrentRunMode 可切 step-confirm，normalizeConversation 归一非法值', () => {
+  it('runMode 分级：执行模型收敛恒 auto（2026-09-05），setCurrentRunMode 任意入参均归 auto', () => {
     setup([])
     expect(getCurrentRunMode()).toBe('auto') // 默认完全自主
-    setCurrentRunMode('step-confirm')
-    expect(getCurrentRunMode()).toBe('step-confirm')
+    setCurrentRunMode('step-confirm') // 旧分步确认已删，归 auto
+    expect(getCurrentRunMode()).toBe('auto')
     setCurrentRunMode('auto')
     expect(getCurrentRunMode()).toBe('auto')
-    setCurrentRunMode('garbage') // 非法值归一为 step-confirm（非 auto）
-    expect(getCurrentRunMode()).toBe('step-confirm')
-    setCurrentRunMode('semi') // 旧值 'semi' 兼容迁移为 step-confirm
-    expect(getCurrentRunMode()).toBe('step-confirm')
+    setCurrentRunMode('garbage') // 非法值恒归 auto
+    expect(getCurrentRunMode()).toBe('auto')
+    setCurrentRunMode('semi') // 旧值 'semi' 恒归 auto
+    expect(getCurrentRunMode()).toBe('auto')
   })
 })

@@ -54,7 +54,6 @@ import { decideContextCompression, resolveInputBudget } from './tokenBudget.ts'
 import { AGENT_CONTEXT_WINDOW_DEFAULT, AGENT_CONTEXT_OUTPUT_BUDGET_RATIO } from '../../base/core/config.ts'
 // 工作流状态迁移（M2 收口：steer/起步/awaiting_confirm/终态/队列出队的纯函数，落盘仍走 patchCurrentWorkflow）
 import { wfStart, wfSteer, wfFinish, wfAwaitConfirm, wfNextSteer } from './workflowState.ts'
-import { isAgentWorkMode } from './runModeRegistry.ts'
 // 消息构造/落盘 + 附件归一化（M3 下沉：appendMsg/setHistory/updateLastStreaming/endStreaming/stripStreaming → agentMessages；附件/参考图目录 → agentAttachments）
 import { appendMsg, setHistory, updateLastStreaming, endStreaming, stripStreaming } from './agentMessages.ts'
 import { normalizeAttachmentsForSend, buildRefCatalog, type SendAttachment } from './agentAttachments.ts'
@@ -166,7 +165,7 @@ interface SendUserMessage {
  * ── 一、发送路径（大雄 sendAgentMessage 8170 入口；我们统一在 send 单入口）──
  * | 大雄路径 | 大雄入口 | 我们实现 | 对齐状态 |
  * |---|---|---|---|
- * | 图像模式直连生图 | agentSendDirectImageMessage(8132) | send 内 runDirectBranch 直连 execute_plan（docs/65 M7：workMode=direct 时第一行分流） | ✅ 已对齐 |
+ * | 图像模式直连生图 | agentSendDirectImageMessage(8132) | 【2026-09-05 奥卡姆删除】direct 模式已删，go auto：AI 聊→建节点→生成 | 🚫 已删（仅存 auto） |
  * | 常规：理解→规划→执行 | agentRunUnderstandingStage(6806)→plan→execute | send + 工具循环(≤8轮) + 三阶段门禁 | ✅ 已对齐 |
  * | 常规：无 Skill 单阶段直出 | agentRunPlanningFromUnderstanding(6996) | 同上（工具循环内 execute_plan） | ✅ 已对齐 |
  * | 修改意见（不重跑理解） | agentApplyRevisePlanning(6595, messages:[]) | steer 队列(823) + 新 send | ⚠️ 简化对齐 |
@@ -176,21 +175,20 @@ interface SendUserMessage {
  * > 该通道早已是死代码；大雄当前走 generations 快速执行（我们已对齐）。
  * > 【2026-09-05 奥卡姆删除】promptFlow.ts / PromptConfirmCard.tsx 及其 UI 接入已从本仓删除。
  *
- * ── 二、执行分级 workMode（三态单一真源，runModeRegistry，docs/64 §3/§5 + docs/65 M1-M8）★ 为什么简单任务不 plan ★ ──
- *   用户反馈「发个信息它就执行 plan / 完全自主下 plan 调不了」的根因：此前确认粒度散落推导、且无 Skill 任务
- *   的 system 没引导 show_plan_for_confirm。文档/64 收口为三正交轴：三态轴 / Skill 编排轴 / 积分轴互不进分支。
- *   workMode 是单一真源（runModeRegistry），inputMode / per-conversation runMode 都是 setWorkMode 原子同步的兼容派生物；
- *   确认粒度**永远由 workMode 决定**，Skill 只编排思维路径、不改变确认粒度。
- *   - auto 完全自主（默认）：可用 show_plan_for_confirm 展示规划但**不卡确认**，直接 execute_plan（prompt 已引导，见 agentCore buildRequestMessages）。
- *   - step-confirm 分步确认：调 show_plan_for_confirm 进入 awaiting 门禁，用户确认后才 execute_plan。
- *   - direct 直接生图：send 内部第一行 bypass LLM，直连 execute_plan（runDirectBranch），不经 LLM 编排。
- *   - Skill：独立轴。阶段2 是否等确认按三态自适应（docs/65 M5 resolveSkillExecutionRules）；auto+Skill 不等待，确认粒度仍由三态决定。
- *   积分闸 creditSwitch 与三态正交，只拦真生成那下（docs/64 §2/R6）。
+ * ── 二、执行模型：仅存 auto（2026-09-05 精简，runModeRegistry 收敛恒 auto）──
+ *   最终版本收敛为「完全自主（auto）+ credit 积分闸」一种模式：
+ *   - direct（直接生图 bypass LLM）/ step-confirm（分步确认弹卡）两条模式已删除；三态选择器 UI、
+ *     Skill 三阶段批量、AI 自规划多 generation 批量等高层编排移除（批量交由将来表格承接）。
+ *   - auto 完全自主（唯一模式）：AI 自主建节点/生成/操作画布；可用 show_plan_for_confirm 展示规划但
+ *     **不卡确认**，直接 execute_plan（prompt 已引导，见 agentCore buildRequestMessages）。
+ *   - 需确认的只有 credit 积分闸 creditSwitch（execute_plan 内判定），与本执行模型正交（docs/64 §2/R6）。
  *
- * ── 三、三阶段流（大雄：理解→规划→执行；我们：工具循环内）──
- *   阶段1 理解：LLM 输出自然语言直出 + generations JSON（回复正文解析暂存，对齐大雄 6828/995）。
- *   阶段2 规划确认：show_plan_for_confirm 展示策划，进入 awaiting_confirm 门禁停循环（对齐大雄 923-926）。
- *   阶段3 执行：用户确认后 execute_plan 读取暂存 generations 批量生图（对齐大雄 738-744）。
+ * ── 三、单次生成流（工具循环内）──
+ *   阶段1 理解：LLM 输出自然语言直出 + generations JSON（回复正文解析暂存，对齐大雄 6828/995）——auto 下
+ *     单 gen 直接落地；show_plan_for_confirm 仅作展示、不进入 awaiting（step-confirm 已删）。
+ *   阶段2 执行：LLM 直接 action execute_plan 建节点/生成（对齐大雄 738-744）。
+ *   ⚠️ UI 保留的 AgentConfirmCard / presentPlan / show_plan_for_confirm 框架为将来「表格确认后生成」预留，
+ *     不做「AI 出策划卡等确认」的批量门禁（见 AgentConfirmCard.tsx 顶部注释）。
  *
  * ── 三、fresh-task（所有 LLM 发送路径，最核心）──
  *   大雄 agentFreshTaskHistoryMessages() 恒返回 []（5 个发送点 6806/6996/8306/8619/6595 全用它）；
@@ -465,11 +463,6 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
       // ── 保护：空内容直接返回 ──
       if (!text.trim() && (!attachments || attachments.length === 0)) return
 
-      // 【三态分流 · docs/65 M7】direct（直接生图）在 send 内部第一行 bypass LLM：
-      // 不走 steer 队列、不经 LLM 工具循环，直连 execute_plan（复用内部 runDirectBranch 分支）。
-      // runDirectBranch 前向引用：仅在本次调用时求值，此时已初始化（行为与原同：忙碌静默返回）。
-      if (!isAgentWorkMode(getWorkMode())) return runDirectBranch(text, attachments)
-
       // 【B层】发送入口：原文摘要 + 附件数 + 模型/供应商——定位一次 send 的完整入参
       logger.debug('AI助手', '[发送] 入口', { text: String(text).slice(0, 100), attachCount: (attachments || []).length, model, provider: provider?.id || '', busy: isAgentBusy() }, { module: 'agent' })
 
@@ -526,13 +519,10 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
         let forcedCompressed = false // 本轮 send 是否已做「请求前强制压缩」（只允许一次，避免工具循环里反复压缩）
         // 上下文预算：输入预算 = 窗口 × (1 − 输出留白比例)。用于估算当前请求是否接近模型上限。
         const budgetInput = resolveInputBudget({ contextWindow: AGENT_CONTEXT_WINDOW_DEFAULT, outputBudgetRatio: AGENT_CONTEXT_OUTPUT_BUDGET_RATIO })
-        // 【对齐大雄 runMode 分级】执行分级决定「是否弹执行确认门禁」：
-        //   - 完全自主 auto（默认，对齐大雄 agentSetRunMode 6283）：完整规划后直接执行——show_plan_for_confirm
-        //     仍会输出规划/generations 供展示，但**不进入 awaiting 确认态**，LLM 继续 execute_plan 直接执行（不弹确认按钮）。
-        //   - 分步确认 step-confirm（对齐大雄 6282）：show_plan_for_confirm 进入 awaiting 确认态，展示确认门禁，用户确认后才 execute_plan。
-        //   - Skill：无论 runMode 都走三阶段确认（Skill 需要用户确认策划）。
-        // 具体「是否进入 awaiting」由 useCanvasAgentTools 的 show_plan_for_confirm 按 runMode 决定（见 presentPlanTool）。
-        // 【三阶段门禁】是否因 show_plan_for_confirm（待用户确认策划）而提前暂停循环。
+        // 【2026-09-05 精简】执行模型仅存 auto：AI 完全自主，show_plan_for_confirm 仅作展示、不进 awaiting 确认态，
+        // LLM 直接 continue execute_plan。需暂停等确认的只剩 credit 积分闸（execute_plan 命中 credit）。
+        // 是否进入 awaiting 由 useCanvasAgentTools 的 show_plan_for_confirm 判定（auto 下 needConfirm 恒 false）。
+        // 【三阶段门禁】是否因展示策划+积分闸（awaitingConfirm/creditHeld）而提前暂停循环。
         // 对齐大雄 awaiting_confirm：展示策划后 stop 工具循环，等用户确认，不再让 AI 继续自言自语/重复推演。
         // 【意图预判（docs/76）】本地规则高置信时把结论直接告诉 LLM，省掉它自己推理——
         // 本次故障中模型曾为此在两档之间摇摆 6 轮。tools 照常全量传，本句只作引导，
@@ -669,103 +659,12 @@ export function useAgentChat({ agentKey = 'canvas-assistant', systemPrompt = '',
       }
     },
     // 依赖：roundTrip 闭包了 model/provider/toolSchemas；sendRef 用于 steer 续跑（下方 useRef 保持最新）
-    // runDirectBranch 不在 deps：它在 send 之后声明（前向引用），且仅靠稳定 deps（callTool/store），
-    // 放在 deps 数组会在声明时求值触发 TDZ；body 为懒求值，运行时已初始化，安全。
     [sending, model, roundTrip, callTool, runToolCalls, appendMsg, setHistory, updateLastStreaming, endStreaming, stripStreaming, agentKey, provider, isAgentBusy, maybeCompressSummary]
   )
 
   /** 保存 send 引用，供 finally 里自动处理 steer 队列（useCallback 无法自调用） */
   const sendRef = useRef(send)
   sendRef.current = send
-
-  /**
-   * 直接生图分支（内部私有，docs/65 M7 并入 send；对齐大雄 agentSendDirectImageMessage）：
-   * 参考图 + 最终提示词直连生图，不经过 LLM。由 send 在三态=direct 时第一行分流调用。
-   * 把用户提示词 + 参考图构造为一个 generation 步骤，复用 execute_plan（canvasPlanExecutor）在画布直接生图。
-   * @param {string} text 最终生图提示词
-   * @param {Array}  attachments 参考图 [{ type:'image', url }]
-   */
-  const runDirectBranch = useCallback(
-    async (text, attachments = []) => {
-      const prompt = String(text || '').trim()
-      if (!prompt && (!attachments || attachments.length === 0)) return
-      if (isAgentBusy()) return // 复合忙判定（发送锁 + 状态机 running），防并发双发
-      if (!prompt) { setError('图像模式请输入最终生图提示词'); return }
-      setSending(true) // 同步锁（store.sending），防附件 await 期间并发
-      setError(null)
-      stateMachineRef.current.start({ status: 'running' })
-
-      const userMsg: SendUserMessage = { role: 'user', content: prompt, createdAt: Date.now(), mode: 'image', skills: [] }
-      if (attachments && attachments.length > 0) {
-        // 发送统一出口守卫：附件图必经归一（含缩略图端点自动还原原图），禁止发 render 小图。见 agentAttachments.js
-        userMsg.attachments = await normalizeAttachmentsForSend(attachments, { preferBase64: provider?.refFormat === 'base64' })
-      }
-      setHistory([...getCurrentSnapshot().messages, userMsg])
-
-      // 参考图 url（供图生图）
-      const referenceImages = (userMsg.attachments || []).map((a) => a.url).filter(Boolean)
-      // 【链路日志】图像模式发送：提示词摘要 + 参考图数（供排查图生图链路）
-      logger.info('AI助手', '图像发送', { prompt: prompt.slice(0, 80), refImageCount: referenceImages.length })
-      const panel = getGenParams()
-      // 参考图写入 refPool，execute_plan 按 use_attachments 全量挂到节点 data.images 供图生图。
-      // 【2026-09-05 奥卡姆删除】不再做「多参考图分别改图」拆分（图1图2语义对用户/AI 都难，砍）。
-      // 一律单 generation、整批共享全部参考图。
-      setCurrentReferenceImages(referenceImages)
-      const gens = [{
-        id: `direct_image_${Date.now()}`,
-        title: '直接生图',
-        prompt,
-        ratio: panel.ratio || 'Auto',
-        resolution: panel.resolution || '1K',
-        depends_on_previous: false,
-        dependency_mode: 'none',
-        // 【图生图·单图修复 2026-08-27】带参考图时必须声明 use_attachments，否则 execute_plan 的
-        // 参考图解析分支③（useCanvasAgentTools.ts）会把本步作废为 use_attachments:false → 图生图失效。
-        // 有参考图 → 整批共享（无 attachment_indices，execute_plan 按 use_attachments=true 全量挂 refPool）。
-        ...(referenceImages.length ? { use_attachments: true } : {}),
-      }]
-
-      // 【积分闸】try 内未赋值时 finally 仍需安全引用（防抛错后 ReferenceError）
-      let creditAwaited = false
-      try {
-        // 复用 execute_plan 工具（canvasPlanExecutor）在画布建节点 + 带参考图直连生图
-        const res = await callTool('execute_plan', { generations: gens, auto_run: true, model: panel.model, referenceImages })
-        const ok = res && (res.ok === true || (res.ok === undefined && !res.error))
-        // 【积分闸兼容】credit 命中 → data.awaited==='credit'：节点建好、未真生成、待点生成。
-        // 不复用"已生成"语义（不写「已在画布生图」）、不再次 execute_plan；creditGate 已由 execute_plan 置位并广播，AgentPanel 接 runExistingPlanTool（T10/红线 §6.4）。
-        const d = res?.data as Record<string, unknown> | undefined
-        creditAwaited = ok && d?.awaited === 'credit'
-        // 【A层】图像模式结果：成功/失败 + 出图数——高价值，供排查图生图链路
-        const entries: Record<string, unknown>[] = Array.isArray(d?.entries) ? d.entries as Record<string, unknown>[] : []
-        logger.info('AI助手', '图像模式结果', { ok, awaited: d?.awaited || '', entries: entries.length, error: res?.error || '' })
-        const doneCount = entries.filter((e) => e.status === 'completed').length
-        const logs: Record<string, unknown>[] = Array.isArray(d?.logs) ? d.logs as Record<string, unknown>[] : []
-        const summary = creditAwaited
-          ? `节点已建好，生成待积分确认，确认后自动生成`
-          : ok
-            ? `已在画布生图：${entries.length} 张${doneCount ? `，完成 ${doneCount} 张` : ''}`
-            : `生图失败：${res?.error || ''}`
-        // 【TASK-009】图像模式也展示执行摘要（对齐大雄 workflowLogs）：多参考图拆分/依赖批时有逐步进度可见
-        const withLogs = logs.length
-          ? `${summary}\n\n执行摘要：\n${logs.map((l) => `${l.level === 'error' ? '❌' : l.level === 'warn' ? '⚠️' : l.level === 'ok' ? '✅' : '·'} ${String(l.message)}`).join('\n')}`
-          : summary
-        appendMsg({ role: 'assistant', content: withLogs, mode: 'image', createdAt: Date.now(), ...(logs.length ? { execution_summary: true } : {}) })
-        if (!ok) setError(res?.error || '图像模式生图失败')
-      } catch (e) {
-        setError(e?.message || '图像模式生图失败')
-        appendMsg({ role: 'assistant', content: `生图异常：${e?.message || e}`, mode: 'image', createdAt: Date.now() })
-      } finally {
-        setCurrentSnapshot({ messages: getCurrentSnapshot().messages, skills: skillsRef.current, draft: '' })
-        // 积分闸待确认时不要标记为"完成"（execute_plan 已置 workflow='ready'）；其余路径正常收尾
-        if (!creditAwaited) patchCurrentWorkflow(wfFinish(true))
-        setCurrentPending(null)
-        try { captureActiveConversation() } catch { /* ignore */ }
-        stateMachineRef.current.setStatus('idle')
-        setSending(false)
-      }
-    },
-    [callTool, provider, appendMsg, setHistory, isAgentBusy]
-  )
 
   /** 停止（复刻官方 stop）：状态机置 stopping，中止当前请求 */
   const stop = useCallback(() => {

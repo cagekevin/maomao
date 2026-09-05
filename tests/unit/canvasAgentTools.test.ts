@@ -444,16 +444,15 @@ describe('画布 Agent 工具层 §2.5', () => {
     expect(r.error).toContain('promptNode_real_b')
   })
 
-  it('show_plan_for_confirm 暂存策划并进入待确认', async () => {
-    // D7：show_plan 判定已收敛为 needConfirm = runMode==='step-confirm'（删 hasSkillNow 强制项）。
-    // 半自动模式 → 必进入 awaiting 确认（策划暂存 + 待确认）。
-    vi.mocked(convStore.getWorkMode).mockReturnValue('step-confirm')
+  it('show_plan_for_confirm 暂存策划（auto 恒不进入待确认）', async () => {
+    // 2026-09-05 精简：执行模型恒 auto，needConfirm 恒 false → 不进入 awaiting（策划仅展示、不卡确认）
     const ctx = makeCtx()
     const t = buildCanvasAgentTools(ctx)
     const r = await t.show_plan_for_confirm({ plan_text: '做5张主图', generations: [{ id: 'g1', prompt: '猫' }] })
     expect(r.ok).toBe(true)
-    expect(convStore.setAwaitingConfirm).toHaveBeenCalledWith(true)
-    expect(convMock.__state.awaiting).toBe(true)
+    expect(convStore.setAwaitingConfirm).toHaveBeenCalledWith(false)
+    expect(r.data.awaiting_confirm).toBe(false)
+    expect(convMock.__state.awaiting).toBe(false)
   })
 
   it('【对齐大雄 全自动 auto】无 Skill + auto：show_plan_for_confirm 不进入 awaiting（规划后直接执行，不弹确认）', async () => {
@@ -469,17 +468,15 @@ describe('画布 Agent 工具层 §2.5', () => {
     expect(convMock.__state.awaiting).toBe(false)
   })
 
-  it('【对齐大雄 半自动 step-confirm】无 Skill + step-confirm：show_plan_for_confirm 进入 awaiting（规划后确认再执行）', async () => {
+  it('【2026-09-05 精简】执行模型恒 auto：show_plan_for_confirm 不进入 awaiting（awaiting_confirm:false）', async () => {
+    // step-confirm/direct 已删，执行模型恒 auto：needConfirm 恒 false，show_plan 不卡确认，execute_plan 不被 awaiting 拦截。
     convMock.__state.awaiting = false
-    vi.mocked(convStore.getWorkMode).mockReturnValue('step-confirm')
     const ctx = makeCtx()
     const t = buildCanvasAgentTools(ctx)
     const r = await t.show_plan_for_confirm({ plan_text: '做1张猫图', generations: [{ id: 'g1', prompt: '一只猫' }] })
     expect(r.ok).toBe(true)
-    expect(r.data.awaiting_confirm).toBe(true)
-    expect(convMock.__state.awaiting).toBe(true)
-    // 恢复默认 runMode，避免污染后续用例
-    vi.mocked(convStore.getWorkMode).mockReturnValue('auto')
+    expect(r.data.awaiting_confirm).toBe(false)
+    expect(convMock.__state.awaiting).toBe(false)
   })
 
   it('【D7 真值表】hasSkillNow=true + auto：不再进入 awaiting（删 hasSkillNow 强制项，needConfirm 只由 runMode===\'step-confirm\' 决定）', async () => {
@@ -545,21 +542,18 @@ describe('画布 Agent 工具层 §2.5', () => {
     expect(r.ok).toBe(false)
   })
 
-  // ── Skill 三阶段确认门禁闭环（AI 编排关键防护）──
-  it('show_plan_for_confirm → 返回 awaiting_confirm:true（进入待确认态）', async () => {
+  // ── show_plan / execute_plan 门禁（2026-09-05 精简：执行模型恒 auto，仅 credit 闸拦真生成）──
+  it('show_plan_for_confirm → awaiting_confirm:false（auto 不卡确认），execute_plan 不被 awaiting 拦截', async () => {
     convMock.__state.awaiting = false
-    // D7：step-confirm 半自动 → 必进入 awaiting 确认（策划暂存 + 待确认）
-    vi.mocked(convStore.getWorkMode).mockReturnValue('step-confirm')
     const ctx = makeCtx()
     const t = buildCanvasAgentTools(ctx)
     const r = await t.show_plan_for_confirm({ plan_text: '生成5张主图', generations: [{ id: 'g1', prompt: '猫' }] })
     expect(r.ok).toBe(true)
-    expect(r.data.awaiting_confirm).toBe(true)
-    // 阶段1 后处于待确认 → execute_plan 被拒（Step F 硬约束）
-    const blocked = await t.execute_plan({ generations: [{ id: 'g1', prompt: '猫' }] })
-    expect(blocked.ok).toBe(false)
-    expect(blocked.error).toContain('尚未确认')
-    expect(mockExecutePlan).not.toHaveBeenCalled()
+    expect(r.data.awaiting_confirm).toBe(false)
+    // auto 下 show_plan 不进入 awaiting → execute_plan 不被「尚未确认」拒绝（credit 闸是否拦另由 creditSwitch 决定）
+    const res = await t.execute_plan({ generations: [{ id: 'g1', prompt: '猫' }] })
+    expect(res.ok).toBe(true)
+    expect(res.error).toBeUndefined()
   })
 
   it('【T4】execute_plan credit 命中（creditSwitch 默认开）→ 只建节点待确认，不真生成', async () => {

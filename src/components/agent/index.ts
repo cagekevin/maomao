@@ -13,7 +13,7 @@
  *     ├─ useAgentChat.ts         对话 hook：send/stop/clear 编排骨架
  *     ├─ agentCore.ts            纯函数：buildRequestMessages / parseSSEChunk / 意图分流
  *     ├─ agentRuntime.ts         运行时：roundTrip（LLM 通信）/ runToolCalls（工具执行，依赖注入版）
- *     ├─ runModeRegistry.ts      执行分级三态（direct/step-confirm/auto）单一真源
+ *     ├─ runModeRegistry.ts      执行模型（2026-09-05 收敛恒 auto 完全自主 + credit 积分闸）
  *     ├─ agentConfig.ts          system prompt + 运行时常量（值收口）
  *     ├─ inputStateMachine.ts    输入状态机：idle/planning/running/steer/retry
  *     ├─ workflowState.ts        M2 工作流状态迁移纯函数（wfStart/wfSteer/wfFinish/…）
@@ -40,7 +40,7 @@
  * 【改 X 看哪（快速定位）】
  *   - 加工具        → canvas/useCanvasAgentTools.ts（注册 name/description/parameters/execute）
  *   - 改发送/循环    → runtime/useAgentChat.ts
- *   - 改执行分级     → runtime/runModeRegistry.ts（三态单一真源）
+ *   - 改执行模型     → runtime/runModeRegistry.ts（2026-09-05 收敛恒 auto）
  *   - 改会话状态     → conversation/conversationState.ts（底座）/ conversationStore.ts（聚合）
  *   - 改批量出图     → canvas/canvasPlanExecutor.ts
  *   - 改画布操作     → canvas/canvasHost.ts（写操作必须走它，禁裸 useReactFlow）
@@ -60,5 +60,5 @@ export { useAgentChat } from './runtime/useAgentChat.ts'
 export type { UseAgentChatReturn } from './runtime/useAgentChat.ts'
 export { setGenParams, getGenParams, getNodeImageUrl, getCreditSwitch, setCreditSwitch } from './canvas/useCanvasAgentTools.ts'
 export { setAgentKey } from './conversation/conversationStore.ts'
-// 运行模式注册表透出（docs/65 M1/M8）：三态单一真源，AgentPanel 从这里 import，不绕深层路径
-export { getWorkMode, setWorkMode, RUN_MODE_IDS, DEFAULT_WORK_MODE, isAgentWorkMode, WORK_MODE_STORAGE_KEY } from './runtime/runModeRegistry.ts'
+// 运行模式注册表透出（docs/65 M8→2026-09-05 精简）：收敛恒 auto（三态已删，保留 get/set 归一封装）
+export { getWorkMode, setWorkMode, RUN_MODE_IDS, DEFAULT_WORK_MODE, WORK_MODE_STORAGE_KEY } from './runtime/runModeRegistry.ts'

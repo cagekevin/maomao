@@ -1,13 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 /**
- * AI 助手运行模式注册表（runModeRegistry）单元测试 —— docs/64 §4 + docs/65 M1/M3。
+ * AI 助手运行模式注册表（runModeRegistry）单元测试。
  *
- * 覆盖：
- *   1. normalizeWorkMode 归一化与旧值迁移收敛（image→direct、semi→step-confirm）
- *   2. 派生映射 resolveInputMode / resolveConvRunMode / isAgentWorkMode / getSystemPromptForWorkMode
- *   3. getWorkMode / setWorkMode 读写 + setWorkMode 原子写三处（workMode + inputMode + 会话 runMode 钩子）
- *   4. 首次迁移：遗留 inputMode/runMode 推导初始 workMode 并回写
+ * 【2026-09-05 精简】执行模型收敛为恒 auto（direct/step-confirm 三态已删）。本组断言改为「恒 auto 归一」：
+ *   - normalizeWorkMode / resolveWorkMode 任意入参恒 'auto'
+ *   - getSystemPromptForWorkMode 恒返回 auto 定义指令
+ *   - resolveConvRunMode 恒 'auto'；resolveInputMode / isAgentWorkMode 已随 direct 删除
+ *   - getWorkMode / setWorkMode 读写恒 auto + 原子同步会话 runMode 归 auto
+ *   - registerLegacyRunModeReader 保留但不再参与推导（读恒 auto）
  */
 
 // 可控 contentStore：内存 Map 模拟 localStorage 键值
@@ -23,8 +24,8 @@ vi.mock('../../src/components/base/core/contentStore.ts', async (importOriginal)
 
 import {
   RUN_MODE_IDS, DEFAULT_WORK_MODE, WORK_MODE_STORAGE_KEY, INPUT_MODE_STORAGE_KEY,
-  normalizeWorkMode, resolveWorkMode, getSystemPromptForWorkMode, resolveInputMode,
-  resolveConvRunMode, isAgentWorkMode,
+  normalizeWorkMode, resolveWorkMode, getSystemPromptForWorkMode,
+  resolveConvRunMode,
   getWorkMode, setWorkMode, registerLegacyRunModeReader, registerRunModeSync,
 } from '../../src/components/agent/runtime/runModeRegistry.ts'
 
@@ -35,29 +36,24 @@ beforeEach(() => {
 })
 
 describe('常量', () => {
-  it('RUN_MODE_IDS 三态 + 默认 auto', () => {
-    expect(RUN_MODE_IDS.DIRECT).toBe('direct')
-    expect(RUN_MODE_IDS.STEP_CONFIRM).toBe('step-confirm')
+  it('RUN_MODE_IDS 仅 auto 且默认 auto', () => {
     expect(RUN_MODE_IDS.AUTO).toBe('auto')
+    expect(Object.keys(RUN_MODE_IDS)).toEqual(['AUTO']) // 三态已删，只剩 auto
     expect(DEFAULT_WORK_MODE).toBe('auto')
   })
 })
 
-describe('normalizeWorkMode（含旧值迁移收敛）', () => {
-  it('三态原值不变', () => {
-    expect(normalizeWorkMode('direct')).toBe('direct')
-    expect(normalizeWorkMode('step-confirm')).toBe('step-confirm')
+describe('normalizeWorkMode（收敛恒 auto）', () => {
+  it('历史值（direct/step-confirm/旧别名）一律归 auto', () => {
+    expect(normalizeWorkMode('direct')).toBe('auto')
+    expect(normalizeWorkMode('step-confirm')).toBe('auto')
     expect(normalizeWorkMode('auto')).toBe('auto')
+    expect(normalizeWorkMode('image')).toBe('auto')
+    expect(normalizeWorkMode('semi')).toBe('auto')
   })
-  it('旧值 image→direct、semi→step-confirm（L1/R4）', () => {
-    expect(normalizeWorkMode('image')).toBe('direct')
-    expect(normalizeWorkMode('semi')).toBe('step-confirm')
-  })
-  it('大小写不敏感', () => {
-    expect(normalizeWorkMode('STEP-CONFIRM')).toBe('step-confirm')
-    expect(resolveWorkMode('IMAGE')).toBe('direct')
-  })
-  it('非法/未知 → 默认 auto，绝不回流旧值', () => {
+  it('大小写不敏感；非法/未知 → 默认 auto', () => {
+    expect(normalizeWorkMode('STEP-CONFIRM')).toBe('auto')
+    expect(resolveWorkMode('IMAGE')).toBe('auto')
     expect(normalizeWorkMode(undefined)).toBe('auto')
     expect(normalizeWorkMode(null)).toBe('auto')
     expect(normalizeWorkMode('')).toBe('auto')
@@ -66,75 +62,56 @@ describe('normalizeWorkMode（含旧值迁移收敛）', () => {
   })
 })
 
-describe('派生映射', () => {
-  it('resolveInputMode：direct→image，其余→agent', () => {
-    expect(resolveInputMode('direct')).toBe('image')
-    expect(resolveInputMode('step-confirm')).toBe('agent')
-    expect(resolveInputMode('auto')).toBe('agent')
-  })
-  it('resolveConvRunMode：direct→auto（不经 LLM 归 auto）', () => {
-    expect(resolveConvRunMode('step-confirm')).toBe('step-confirm')
+describe('派生映射（恒 auto）', () => {
+  it('resolveConvRunMode 恒 auto', () => {
+    expect(resolveConvRunMode('step-confirm')).toBe('auto')
     expect(resolveConvRunMode('auto')).toBe('auto')
     expect(resolveConvRunMode('direct')).toBe('auto')
   })
-  it('isAgentWorkMode：仅 direct 返回 false', () => {
-    expect(isAgentWorkMode('direct')).toBe(false)
-    expect(isAgentWorkMode('step-confirm')).toBe(true)
-    expect(isAgentWorkMode('auto')).toBe(true)
-  })
-  it('getSystemPromptForWorkMode：direct 为空；step-confirm 强调等待确认；auto 强调可调 plan + 不阻塞（R2）', () => {
-    expect(getSystemPromptForWorkMode('direct')).toBe('')
-    expect(getSystemPromptForWorkMode('step-confirm')).toContain('show_plan_for_confirm')
-    expect(getSystemPromptForWorkMode('step-confirm')).toContain('等待用户确认')
-    const autoPrompt = getSystemPromptForWorkMode('auto')
-    expect(autoPrompt).toContain('show_plan_for_confirm') // 可调 plan
-    expect(autoPrompt).toContain('不阻塞') // 不卡确认
-    expect(autoPrompt).not.toContain('等待用户确认')
+  it('getSystemPromptForWorkMode：恒返回 auto 定义（可调 plan、不卡确认、不提等待）', () => {
+    const p = getSystemPromptForWorkMode('step-confirm') // 任意入参恒 auto 指令
+    expect(p).toContain('show_plan_for_confirm')
+    expect(p).toContain('完全自主')
+    expect(p).not.toContain('等待用户确认')
+    expect(getSystemPromptForWorkMode('direct')).toBe(p)
+    expect(getSystemPromptForWorkMode('auto')).toBe(p)
   })
 })
 
-describe('getWorkMode / setWorkMode（M3 读写与原子同步）', () => {
-  it('setWorkMode 归一写三处：workMode + inputMode + 会话 runMode 钩子', () => {
+describe('getWorkMode / setWorkMode（收敛恒 auto + 原子同步）', () => {
+  it('setWorkMode 忽略入参恒写 auto，会话 runMode 钩子收 auto', () => {
     const sync = vi.fn()
     registerRunModeSync(sync)
-    expect(setWorkMode('image')).toBe('direct') // 旧值归一返回合法值
-    expect(__store.get(WORK_MODE_STORAGE_KEY)).toBe('direct')
-    expect(__store.get(INPUT_MODE_STORAGE_KEY)).toBe('image')
-    expect(sync).toHaveBeenCalledWith('auto') // direct→runMode auto
+    expect(setWorkMode('image')).toBe('auto')
+    expect(__store.get(WORK_MODE_STORAGE_KEY)).toBe('auto')
+    expect(sync).toHaveBeenCalledWith('auto')
+    // 旧 write 只落 work_mode，不再产出 input_mode（inputMode 兼容字段已随 direct 退役）
+    expect(__store.has(INPUT_MODE_STORAGE_KEY)).toBe(false)
   })
-  it('setWorkMode(step-confirm)：inputMode=agent + runMode=step-confirm', () => {
+  it('setWorkMode(step-confirm/direct) 一律归 auto', () => {
     const sync = vi.fn()
     registerRunModeSync(sync)
     setWorkMode('step-confirm')
-    expect(__store.get(WORK_MODE_STORAGE_KEY)).toBe('step-confirm')
-    expect(__store.get(INPUT_MODE_STORAGE_KEY)).toBe('agent')
-    expect(sync).toHaveBeenCalledWith('step-confirm')
+    expect(__store.get(WORK_MODE_STORAGE_KEY)).toBe('auto')
+    expect(sync).toHaveBeenLastCalledWith('auto')
+    setWorkMode('direct')
+    expect(__store.get(WORK_MODE_STORAGE_KEY)).toBe('auto')
   })
-  it('getWorkMode 以存储为唯一真源（读 register 后返回存储值而非推导）', () => {
-    setWorkMode('step-confirm')
-    registerLegacyRunModeReader(() => 'auto') // 即使遗留读回 auto，存储值仍是 step-confirm
-    expect(getWorkMode()).toBe('step-confirm')
-  })
-  it('首次迁移：遗留 inputMode=image → direct 并回写', () => {
-    __store.set(INPUT_MODE_STORAGE_KEY, 'image')
-    expect(getWorkMode()).toBe('direct')
-    expect(__store.get(WORK_MODE_STORAGE_KEY)).toBe('direct')
-  })
-  it('首次迁移：读钩子 runMode=step-confirm → step-confirm 并回写', () => {
-    registerLegacyRunModeReader(() => 'step-confirm')
-    expect(getWorkMode()).toBe('step-confirm')
-    expect(__store.get(WORK_MODE_STORAGE_KEY)).toBe('step-confirm')
-  })
-  it('首次迁移：无一遗留 → 默认 auto 并回写', () => {
+  it('getWorkMode 恒 auto；历史存储非 auto 时幂等回写 auto', () => {
+    __store.set(WORK_MODE_STORAGE_KEY, 'step-confirm')
     expect(getWorkMode()).toBe('auto')
     expect(__store.get(WORK_MODE_STORAGE_KEY)).toBe('auto')
   })
-  it('setWorkMode 后再 getWorkMode 一致', () => {
+  it('首次迁移：遗留 runMode=step-confirm 也归 auto（不再参与推导，读仍恒 auto）', () => {
+    registerLegacyRunModeReader(() => 'step-confirm')
+    expect(getWorkMode()).toBe('auto')
+  })
+  it('setWorkMode 后再 getWorkMode 恒一致为 auto', () => {
     setWorkMode('auto')
     expect(getWorkMode()).toBe('auto')
     setWorkMode('step-confirm')
-    expect(getWorkMode()).toBe('step-confirm')
+    expect(getWorkMode()).toBe('auto')
     setWorkMode('direct')
-    expect(getWorkMode()).toBe('direct')
+    expect(getWorkMode()).toBe('auto')
   })
 })

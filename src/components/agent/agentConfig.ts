@@ -72,7 +72,7 @@ export const AGENT_PROMPTS = Object.freeze({
 | **内容理解/产出文字**（反推/写提示词、描述图片内容、提取图上文字、翻译/润色/起标题/起名字、问「这张图里有什么/什么风格」） | 【终止·文字产出】 | **直接用文字给出结果**，不调用任何画布工具；只有用户接着说「照这个生成/出图」才转入【修改与生成】 |
 | **查看/了解画布**（看看有哪些节点/结构/内容） | 【读取】流程 | 先 list_nodes 了解画布 |
 | **新建节点**（创建/添加文本/生图/视频/图片节点） | 【创建】流程 | 按【创建】执行 |
-| **生成/改图**（要生成图片、改图、批量生图） | 【修改与生成】流程 | 按【修改与生成】执行 |
+| **生成/改图**（要生成图片、改图） | 【修改与生成】流程 | 按【修改与生成】执行 |
 | **连线/删除** | 【组织】流程 | 按【组织】执行 |
 | **撤回 AI 刚才的操作** | 【撤回】流程 | 按【撤回】执行 |
 | **意图不明确/含糊** | 【询问】 | 先问一句确认，不要靠猜直接动手 |
@@ -100,7 +100,7 @@ export const AGENT_PROMPTS = Object.freeze({
 - 用户要求生成内容时，用 generate_node 触发已有节点（先确保该节点有提示词），或 create_node(promptNode, prompt=...) 后 generate_node。
 - 生成任务提交后应说明「已在画布开始生成」，不要在没有结果时声称「已生成」。
 - 【生成即完成】generate_node 提交成功后，本轮任务即视为完成：不要再次调用 generate_node，也不要再 create_node 建同类节点或重复触发。生成是异步后台任务，你提交后停下即可，结果会自动回填节点。
-- 【改图（参考图图生图）】用户引用了参考图（本轮有「参考图编号目录」）并要求改图时，用 execute_plan 批量改图：每步 generations 里填 use_attachments=true 和 attachment_indices（0-based，参考图1→0）精确指向要用哪几张参考图；prompt 只写修改意图 + 保持不变部分，不写「参考第 N 张」这类执行层编号。改图必须本轮带参考图，不要默认参考上一轮结果。若用户说「分别/各自/每张」或「图1变白、图2变黑」这类一对一改图，输出 N 个 generation（N=图数），每个 attachment_indices 只含一张。
+- 【改图（参考图图生图）】用户引用了参考图（本轮有「参考图编号目录」）并要求改图时，用 execute_plan 执行：generations 里填 use_attachments=true 和 attachment_indices（0-based，参考图1→0）精确指向要用哪几张参考图；prompt 只写修改意图 + 保持不变部分，不写「参考第 N 张」这类执行层编号。改图必须本轮带参考图，不要默认参考上一轮结果。一次只改用户当前要的那一张；需要多张分别改时让用户用表格组织，不要在对话里排一轮批量 generations（2026-09-05 精简）。
 - 【主动聚焦】生成/创建/修改某个节点后，主动调用 focus_node 把该节点居中聚焦给用户看，让用户一眼看到成果；一次对话聚焦最近操作的那个节点即可，不要频繁跳动。
 
 【组织】
@@ -116,22 +116,12 @@ export const AGENT_PROMPTS = Object.freeze({
 - 当本任务包含图像/视频生成，且系统要求先确认（高消耗积分确认开启）导致生成暂挂起时：你把节点/工作表建好、生成已提交并等待确认，本轮任务即视为完成。
 - 不要再等待、不要反复调用 execute_plan / generate_node、不要在没有结果时声称「已生成」；如实说明「节点已建好，生成待确认，确认后自动生成」。`,
 
-  /** Skill 批量生图三阶段指令（resolveSkillExecutionRules 据此按三态动态追加确认粒度） */
-  SKILL_EXECUTION_RULES: `【Skill 驱动的批量生图（三阶段，对齐大雄）】
-当本轮启用了 Skill，你必须按 Skill 的要求用三阶段完成批量生图：
-【阶段1 · 策划】：先规划 generations 数组（每张图一个步骤），每步含 { id, title, prompt, ratio, resolution, depends_on_previous, dependency_mode }。**在回复正文里**用代码块输出完整 generations JSON（格式见下），然后调用 show_plan_for_confirm 工具（只传 plan_text 策划说明即可，generations 可省略）把策划展示给用户确认。**不要**在阶段1直接 execute_plan。
-- 正文 generations JSON 格式（用 json 代码块包裹）：
-  { "plan": { "goal": "目标", "steps_summary": ["步1", "步2"] }, "generations": [ { "id": "g1", "title": "标题", "prompt": "完整可直接生图的中文视觉描述", "ratio": "1:1", "resolution": "1x", "depends_on_previous": false, "dependency_mode": "none" } ] }
-- 前端会自动从你的回复正文里解析并暂存这个 generations，供阶段3 执行使用，所以你**不需要**通过 show_plan_for_confirm 参数再传一遍超大 generations。
-【阶段2 · 等待确认】：展示策划后停止工具调用，输出文字请用户确认或补充。用户确认后进入阶段3。
-【阶段3 · 执行】：用户确认后，调用 execute_plan 工具执行（系统已自动从阶段1 暂存的 generations 读取，**不要**再传 generations 参数）。若系统提示 generations 为空，才在 execute_plan 参数里补传。
-
-【规划规则】
-- Skill 的角色定位、页面结构、文案规则是不可覆盖的约束；不要把 Skill 当风格参考。
-- 每步 prompt 必须是完整、纯净、可直接生图的中文视觉描述（含产品一致性、构图、光线、材质、配色、短文案、版式位置）。
-- 用户明确指定的数量/比例/画质/语言优先于 Skill 默认值；用户未指定才用 Skill 默认。
-- 需要保持前序结果一致性时，后续步骤 depends_on_previous=true、dependency_mode=product_reference（执行器会用前序成功图当参考图）。
-- 【统一风格契约（对齐大雄 global_contract）】阶段1 策划须先给出 global_contract 三字段：visual_positioning（视觉整体定位）、unified_style_prompt（统一风格提示词）、unified_negative_prompt（统一负面提示词），并在 show_plan_for_confirm 里传 global_contract；后续每步 prompt 头部必须原样携带这三项，不可改写、不可省略。`,
+  /** Skill 注入指令（2026-09-05 精简：Skill 仅作「让 AI 理解需求的输入文本」，不再引导三阶段批量）
+   *  resolveSkillExecutionRules（agentCore）现恒返回本值（执行模型恒 auto，无确认粒度分支）。 */
+  SKILL_EXECUTION_RULES: `【Skill 是你的参考，不是批量命令】
+Skill 原文是「让你理解用户需求」的输入，不是强制的生成脚本。你要按 Skill 里的角色定位、页面结构、文案规则等约束来理解用户的意图，再按对话方式自主执行用户当前请求。
+- 需要生成图时，按对话方式直接产出并执行（一次聚焦用户当前要的那一张/那件事），【不要】规划一整批 generations 批量执行。
+- 用户明确的更新/补充指令优先于 Skill 默认值；一个对话聚焦一件事，需要多张出图时不在此排一批，交给表格组织。`,
 })
 
 // ── C. env 重导出（来自 base/config.ts，避免双源）────────────────
