@@ -150,6 +150,10 @@ function DiscountVideoNode({ id, data, selected }: DiscountVideoNodeProps) {
   // 改用 useEffect 同步落盘。
   React.useEffect(() => { debouncedPatch.current({ prompt }) }, [prompt]) // eslint-disable-line react-hooks/exhaustive-deps
   React.useEffect(() => { patchData({ expanded }) }, [expanded]) // eslint-disable-line react-hooks/exhaustive-deps
+  // 全局快捷键（Tab）折叠/展开：外部 data.expanded 变化时同步回本地 state
+  React.useEffect(() => {
+    if (data.expanded !== undefined && data.expanded !== expanded) setExpanded(data.expanded)
+  }, [data.expanded]) // eslint-disable-line react-hooks/exhaustive-deps
   // 卸载前 flush 最后一次待提交（避免防抖窗口内丢数据）
   React.useEffect(() => () => { debouncedPatch.current?.flush() }, [])
   const [videoUrl, setVideoUrl] = useState(data.videoUrl || '')

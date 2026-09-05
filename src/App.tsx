@@ -840,6 +840,24 @@ function Canvas() {
    * 快捷键 / 连线 / 删边监听 / 选中节点→边关联联动
    * ==================================================================== */
 
+  // 一键折叠/展开 text/prompt/discountVideo 节点的 input 面板（Tab 键触发）。
+  // 不在撤销栈里（expanded 是 UI 偏好，与节点内部 patchData 一致：只落盘不进 history）。
+  const toggleInputPanels = useCallback(() => {
+    const targetTypes = new Set(['textNode', 'promptNode', 'discountVideoNode'])
+    const matching = nodesRef.current.filter((n) => targetTypes.has(n.type as string))
+    if (matching.length === 0) return
+    // 只要有一个展开 → 全部折叠；否则全部展开（一键整理全局）
+    const anyExpanded = matching.some((n) => (n.data?.expanded ?? true) === true)
+    const target = !anyExpanded
+    setNodes((ns) =>
+      ns.map((n) =>
+        targetTypes.has(n.type as string)
+          ? { ...n, data: { ...n.data, expanded: target } }
+          : n
+      )
+    )
+  }, [setNodes])
+
   // 键盘快捷键（基座 useCanvasShortcuts）
   useCanvasShortcuts({
     onUndo: history.undo,
@@ -849,6 +867,7 @@ function Canvas() {
     onArrange: arrangeCanvas,
     onGroup: groupSelected,
     onUngroup: ungroupSelected,
+    onToggleInputPanels: toggleInputPanels,
     onAdd: (type) => {
       // 若处于「拖线」菜单态（复用 canvas 菜单但 state 带 connection）：建下游并自动连线
       const conn = menu.state?.connection
@@ -1161,7 +1180,11 @@ function Canvas() {
           onViewportChange={onViewportChange}
           onMoveEnd={handleViewportMoveEnd}
           /* ===== 画布性能优化（复刻 H_.jsx:11958-11964）===== */
-          elevateNodesOnSelect={false}
+          /* 注意：elevateNodesOnSelect 必须保持 true ——
+             选中节点需要自动置顶，否则会被数组顺序靠后的节点遮挡（用户反馈）。
+             该选项仅在选中状态变化时给节点加高 z-index，无持续性能开销，
+             关掉它省不了性能却会导致选中节点被挡，故保持开启。 */
+          elevateNodesOnSelect
           elevateEdgesOnSelect={false}
           nodeOrigin={[0, 0]}
           onlyRenderVisibleElements={nodes.length > 20}

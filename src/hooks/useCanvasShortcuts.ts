@@ -19,6 +19,8 @@ export interface CanvasShortcutHandlers {
   onArrange?: () => void
   /** Q/W/E 快速添加节点，入参为节点类型（textNode/promptNode/discountVideoNode） */
   onAdd?: (nodeType: string) => void
+  /** Tab 一键折叠/展开 text/prompt/discountVideo 节点的 input 面板 */
+  onToggleInputPanels?: () => void
 }
 
 /**
@@ -39,7 +41,7 @@ export interface CanvasShortcutHandlers {
  *  - getPosition()            快速添加节点时的坐标（默认基于当前鼠标不可得时返回 0,0）
  */
 export function useCanvasShortcuts(handlers: CanvasShortcutHandlers = {}) {
-  const { onUndo, onRedo, onSelectAll, onDuplicate, onGroup, onUngroup, onArrange, onAdd } = handlers
+  const { onUndo, onRedo, onSelectAll, onDuplicate, onGroup, onUngroup, onArrange, onAdd, onToggleInputPanels } = handlers
 
   // 有选中文本（复刻 H_.jsx:11427-11434 n）
   const hasSelectionText = useCallback(() => {
@@ -69,6 +71,7 @@ export function useCanvasShortcuts(handlers: CanvasShortcutHandlers = {}) {
         if (key === 'q') { e.preventDefault(); onAdd?.('textNode'); return }
         if (key === 'w') { e.preventDefault(); onAdd?.('promptNode'); return }
         if (key === 'e') { e.preventDefault(); onAdd?.('discountVideoNode'); return }
+        if (key === 'tab') { e.preventDefault(); onToggleInputPanels?.(); return }
       }
 
       if (!mod) return
@@ -96,5 +99,5 @@ export function useCanvasShortcuts(handlers: CanvasShortcutHandlers = {}) {
 
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [hasSelectionText, onUndo, onRedo, onSelectAll, onDuplicate, onGroup, onUngroup, onArrange, onAdd])
+  }, [hasSelectionText, onUndo, onRedo, onSelectAll, onDuplicate, onGroup, onUngroup, onArrange, onAdd, onToggleInputPanels])
 }
