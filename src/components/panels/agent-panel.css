@@ -464,14 +464,26 @@
 }
 
 /* ══════════════ 消息区 ══════════════ */
+/* 【宽度纪律 · 必读】消息区整条链上的容器都必须能收缩到面板宽度（min-width:0 / min-w-0）。
+   否则某个不可断内容（典型：代码块 <pre> 的 white-space:pre，其 min-content = 整行代码宽度，
+   实测可达 2000px+）会沿 flex 链向上撑开，导致 .agent-messages 连自身一起变宽、
+   横向 overflow 失效（容器变宽了就没有滚动条），AI 回复直接冲出面板并溢出到屏幕右侧。
+   阻断点已分布在：.agent-body > .flex-1(AgentPanel.tsx: min-w-0) → .agent-messages
+   → .agent-msg-wrap → .agent-ai-row → .agent-ai-text。**改动结构时务必同步保住这条链。** */
 .agent-messages {
   flex: 1;
   min-height: 0;
+  min-width: 0; /* 收缩下限：不跟随内容的 min-content 变宽，超宽内容交给自身横向滚动 */
   overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 20px;
   padding: 18px var(--agent-pad-x);
+}
+
+/* 单条消息外壳（AgentPanel 消息循环里的包裹 div）：同样必须可收缩 */
+.agent-msg-wrap {
+  min-width: 0;
 }
 
 /* 用户消息：单色圆角气泡，无边框 */
@@ -539,12 +551,14 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
+  min-width: 0; /* 见上方「宽度纪律」：阻断代码块等超宽内容向上撑开 */
 }
 .agent-ai-text {
   color: rgb(var(--mao-text-primary));
   font-size: 13.5px;
   line-height: 1.75;
   overflow-wrap: anywhere;
+  min-width: 0; /* 同上 */
 }
 
 /* 过程行（思考 / 工具调用 / 生成步骤，统一为一行可展开） */

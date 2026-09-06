@@ -1272,7 +1272,10 @@ export default function AgentPanel({
         {/* 消息区（外层 relative 定位 + 内层滚动，回底按钮置于外层避免被滚动裁剪）。
           表格已拆到画布左侧 TableWorkspacePanel（共享态驱动），本面板为纯对话。 */}
         <div className="agent-body">
-          <div className="flex-1 relative flex flex-col min-h-0">
+          {/* min-w-0 必带：本层是 .agent-body(row flex) 的 flex item，默认 min-width:auto 会被内容的
+              min-content 撑开（代码块 <pre white-space:pre> 单行不可断 → min-content = 整行宽），
+              一旦撑开，内层 .agent-messages 的 overflow 横向滚动失效，AI 回复直接冲出面板/屏幕右侧。 */}
+          <div className="flex-1 relative flex flex-col min-h-0 min-w-0">
             <div ref={scrollRef} className="agent-messages custom-scrollbar">
               {tableOpen && (
                 <div className="agent-mode-bar">
