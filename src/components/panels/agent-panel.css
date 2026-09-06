@@ -1298,6 +1298,63 @@
   color: rgb(var(--mao-text-strong));
 }
 
+/* 表头列内删除按钮：hover 该列表头才显示 */
+.agent-body table.sbt th .col-x {
+  position: absolute;
+  top: 3px;
+  right: 2px;
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: rgb(var(--mao-text-faint));
+  cursor: pointer;
+  opacity: 0;
+  transition:
+    opacity 0.12s,
+    background 0.12s,
+    color 0.12s;
+}
+.agent-body table.sbt th:hover .col-x {
+  opacity: 1;
+}
+.agent-body table.sbt th .col-x:hover {
+  background: rgb(var(--mao-surface-hover-strong));
+  color: #fff;
+}
+/* 追加列按钮：表头末列 */
+.agent-body table.sbt th.col-add-cell {
+  position: static;
+  vertical-align: middle;
+  padding: 0;
+  text-align: center;
+}
+.agent-body table.sbt th .col-add {
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed rgb(var(--mao-edge));
+  border-radius: 5px;
+  background: transparent;
+  color: rgb(var(--mao-text-faint));
+  cursor: pointer;
+  transition:
+    background 0.12s,
+    color 0.12s,
+    border-color 0.12s;
+}
+.agent-body table.sbt th .col-add:hover {
+  background: rgb(var(--mao-surface-hover));
+  color: rgb(var(--mao-text-strong));
+  border-color: rgb(var(--mao-accent) / 0.5);
+}
+
 .agent-body .cell {
   width: 100%;
   outline: none;
@@ -1402,6 +1459,9 @@
   border-radius: 8px;
   background: rgb(var(--mao-surface-sunken));
   overflow: hidden;
+  /* 窄容器可收缩、不把祖先/屏幕撑破 */
+  min-width: 0;
+  max-width: 100%;
 }
 .agent-body .pv-hd {
   display: flex;
@@ -1434,6 +1494,7 @@
 }
 .agent-body .pv table {
   width: 100%;
+  table-layout: fixed; /* 列宽由容器分配，内容再长也不会把表撑破容器 */
   border-collapse: collapse;
   font-size: 11.5px;
 }
@@ -1447,6 +1508,8 @@
   font-weight: 500;
   border-bottom: 1px solid rgb(var(--mao-edge-subtle));
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis; /* 列名过长在 fixed 布局内省略，不撑破列 */
 }
 .agent-body .pv td {
   padding: 6px 8px;
@@ -1454,6 +1517,8 @@
   color: rgb(var(--mao-text-secondary));
   border-bottom: 1px solid rgb(var(--mao-edge-faint) / 0.4);
   line-height: 1.6;
+  word-break: break-word;
+  overflow-wrap: anywhere; /* 长词/URL 在格内换行，避免横向撑开 */
 }
 .agent-body .pv tr:last-child td {
   border-bottom: none;

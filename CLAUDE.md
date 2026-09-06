@@ -292,6 +292,10 @@ node scripts/task-inspect.mjs --canvas-health   # 画布结构体检
 
    - **💡 只读查数据流/依赖最优先用** **`refs <file>`**：`node scripts/mv-sync-refs.mjs refs <file>` 一屏给出「① 谁 import 它（消费者）+ ② 字符串残留引用」，是**查某条数据流/依赖方向/改动影响面最快**的命令，不需要为这启动子代理全库翻。惯用：想 trace 一条链路、想知道"改了这处会被谁影响"、想判断某文件是不是死代码 → 先 `refs` 一锤定音（0 引用且非入口即死）。链路图可直接更新进 `spec/DATAFLOW.md`（refs 实证）。`find-dead`/`plan` 可辅助扫孤儿/规划迁移。
 
+   - **代码符号批量改名（变量/函数/类/类型/参数，跨文件）**：`node scripts/mv-sync-refs.mjs rename-symbol <old> <new> [--file <path>] [--dry]`（2026-09-06 新增 L3 能力，基于 typescript LanguageService.findRenameLocations，类型感知覆盖 shadow/类型位置/跨文件 import/export；落地后 tsc 兜底，报错整体回退）。文件层改名仍用 `rename`/`move`。
+
+   - **未用 import 清理（TS 语义版，比 eslint 准）**：`node scripts/mv-sync-refs.mjs remove-unused-imports [<file>] [--dry]`（2026-09-06 新增，基于 checker 绑定级 symbol 判断；能检出 eslint 漏报的「仅类型位置出现」的未用 import——eslint 无类型信息会误判已用，本命令删 49 处后全量单测 2197 通过）。保留副作用 import；落地后 tsc 兜底回退。
+
    - **必须带** **`--suffix ts`**（本项目 import 显式写 `.ts/.tsx`，勿用默认 `auto`——会把 import 改成 `.js` 破工程约定）。
 
    - 每批移动/改名后跑 `npm run type-check`，收尾 `npm run build` + `npm run test:smoke` 验证。

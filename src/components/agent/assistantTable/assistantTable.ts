@@ -238,6 +238,28 @@ export function renameColumn(sb: AssistantTable, colId: string, label: string): 
   return { ...sb, columns: sb.columns.map((c, i) => (i === idx ? { ...c, label: trimmed } : c)) };
 }
 
+/** 追加一列到末尾（label 缺省用占位名「新列N」）。已有行补该列空键，保证列键对齐、渲染不缺键。 */
+export function addColumn(sb: AssistantTable, label?: string): AssistantTable {
+  const l = String(label ?? '').trim();
+  const name = l || `新列${sb.columns.length + 1}`;
+  const col: TableColumn = { id: generateId('col'), label: name };
+  const rows = sb.rows.map((r) => ({ ...r, values: { ...r.values, [col.id]: '' } }));
+  return { ...sb, columns: [...sb.columns, col], rows };
+}
+
+/** 删除一列（不可变；同时清理所有行里该列的键，不留孤儿数据）。列不存在返回原表（幂等）。 */
+export function deleteColumn(sb: AssistantTable, colId: string): AssistantTable {
+  if (!sb.columns.some((c) => c.id === colId)) return sb;
+  const columns = sb.columns.filter((c) => c.id !== colId);
+  const rows = sb.rows.map((r) => {
+    if (!(colId in r.values)) return r;
+    const values = { ...r.values };
+    delete values[colId];
+    return { ...r, values };
+  });
+  return { ...sb, columns, rows };
+}
+
 /** 行 → { 列名: 值 }（按 columns 顺序；发给 AI / 序列化都用它，保证每值带列名） */
 export function rowToObj(sb: AssistantTable, row: TableRow): Record<string, string> {
   const obj: Record<string, string> = {};

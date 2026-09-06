@@ -9,6 +9,8 @@ import {
   duplicateRow,
   setCell,
   renameColumn,
+  addColumn,
+  deleteColumn,
   rowToObj,
   rowToText,
   sbToJson,
@@ -170,5 +172,30 @@ describe('AI 助手表格模型（assistantTable 纯函数）', () => {
     expect(p.columns).toEqual(['A', 'B']);
     expect(p.rows).toEqual([{ A: '1', B: '2' }]);
     expect(p.rowIndex).toBeNull();
+  });
+
+  it('addColumn：追加列并给每行补空键；原表不动', () => {
+    const sb = parsePasted('列A\t列B\nx\ty')!;
+    const colCount = sb.columns.length;
+    const next = addColumn(sb);
+    expect(next).not.toBe(sb);
+    expect(next.columns).toHaveLength(colCount + 1);
+    expect(next.columns[colCount].label).toMatch(/^新列/); // 缺省占位名
+    expect(next.rows[0].values[next.columns[colCount].id]).toBe(''); // 补空键
+    expect(sb.columns).toHaveLength(colCount); // 原表不动
+    // 显式命名
+    const named = addColumn(sb, '备注');
+    expect(named.columns[colCount].label).toBe('备注');
+  });
+
+  it('deleteColumn：删除列并清理所有行该列键；未知列幂等', () => {
+    const sb = parsePasted('列A\t列B\t列C\nx\ty\tz')!;
+    const colB = sb.columns[1].id;
+    const next = deleteColumn(sb, colB);
+    expect(next).not.toBe(sb);
+    expect(next.columns.map((c) => c.label)).toEqual(['列A', '列C']);
+    expect(next.rows[0].values).not.toHaveProperty(colB); // 行键被清理
+    expect(next.rows[0].values[sb.columns[0].id]).toBe('x'); // 其它列数据保留
+    expect(deleteColumn(sb, 'no-such-col')).toBe(sb); // 未知列幂等
   });
 });

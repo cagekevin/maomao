@@ -57,6 +57,24 @@
  *   batch [<dir>] --limit N [--dry] [--nocheck]
  *                             批量 convert 引用数为 0 的叶子节点（危险度高于单文件，先 --dry）
  *
+ *   # 代码符号重命名（L3：进入函数体内的标识符，与上面的文件层 rename 互补）
+ *   rename-symbol <old> <new> [--file <path>] [--dry]
+ *                             跨文件批量改变量/函数/类/类型/参数/import 导出名。
+ *                             - 无 --file：全库搜唯一定义；多个同名定义 → 报错要求 --file 限定。
+ *                             - 基于 typescript LanguageService.findRenameLocations：类型感知，
+ *                              覆盖 shadow/类型位置/跨文件 import/export 引用。
+ *                             - 落地后 tsc --noEmit 兜底，报错即整体回退（原子改名）。
+ *                             - 不处理属性名（obj.x 的 x）与字符串/注释里的名字。
+ *
+ *   # 未用 import 清理（L3 语义版：TS checker 绑定级判断，比 eslint 准）
+ *   remove-unused-imports [<file>] [--dry]
+ *                             自动删除未使用的 import 说明符（保留副作用 import）。
+ *                             - 无 <file>：全库（src+tests 的 .ts/.tsx）扫描；有则只处理该文件。
+ *                             - 判断 = checker.getSymbolAtLocation 绑定级对比：类型位置
+ *                               （typeof X / 注解 X）与 export { X } 命中同一 symbol → 视为已用不误删。
+ *                             - 全部绑定未用 → 整句降级 `import 'x'`（保留模块副作用）；部分未用 → 精确删说明符。
+ *                             - 落地后 tsc 兜底回退。
+ *
  * ═══════════════════════════════════════════════════════════════════════════
  * 常用示例：
  *   # 对子项目重命名并让全仓（含该根下测试 .mjs/.cjs）引用指向新名，ESM 项目保持 .js：
@@ -86,6 +104,7 @@ import { resolve, join, dirname, extname, basename, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { parseArgs } from 'node:util';
+import * as ts from 'typescript'; // rename-symbol 用 LanguageService.findRenameLocations（类型感知的符号改名）
 
 let parse;
 try {
@@ -644,6 +663,7 @@ const { positionals, values } = parseArgs({
     alias: { type: 'string', multiple: true }, // 追加自定义别名：--alias <from>:<to>，可多次
     suffix: { type: 'string', default: 'auto' }, // import 产物后缀：auto(默认,按目标源码推断) | ts | js
     undo: { type: 'boolean', default: false },
+    file: { type: 'string' }, // rename-symbol 限定符号定义文件
   },
   allowPositionals: true,
 });
@@ -1175,6 +1195,447 @@ if (cmd === 'move-dir') {
 }
 
 // ============================================================================
+// TS 重构公共底座（rename-symbol / remove-unused-imports 共用）
+// ============================================================================
+
+/** 建 TS program（tsconfig 的 src + 根配置 + tests 的 .ts/.tsx）与 LanguageService。
+ *  补 tests 是必须的：rename/删除 import 都要求跨文件符号感知，否则测试引用漏改。 */
+function buildTsRefactor() {
+  const tsconfigAbs = join(root, 'tsconfig.json');
+  const readRes = ts.readConfigFile(tsconfigAbs, ts.sys.readFile);
+  if (readRes.error) {
+    console.error('✖ 无法读取 tsconfig.json', readRes.error.messageText);
+    process.exit(1);
+  }
+  const cfg = ts.parseJsonConfigFileContent(readRes.config, ts.sys, root);
+  const progOptions = { ...cfg.options, noEmit: true };
+  const progFiles = [];
+  const seen = new Set();
+  for (const f of cfg.fileNames) {
+    const abs = resolve(f);
+    if (!seen.has(abs)) {
+      seen.add(abs);
+      progFiles.push(abs);
+    }
+  }
+  for (const r of SCAN_ROOTS) {
+    if (!existsSync(r)) continue;
+    for (const f of collectFiles(r, [])) {
+      const ext = extname(f);
+      if ((ext === '.ts' || ext === '.tsx') && !seen.has(f)) {
+        seen.add(f);
+        progFiles.push(f);
+      }
+    }
+  }
+  const program = ts.createProgram({ rootNames: progFiles, options: progOptions });
+  const lsHost = {
+    getCompilationSettings: () => progOptions,
+    getScriptFileNames: () => progFiles,
+    getScriptVersion: () => '0',
+    getScriptSnapshot: (f) => {
+      const txt = ts.sys.readFile(f);
+      return txt === undefined ? undefined : ts.ScriptSnapshot.fromString(txt);
+    },
+    getCurrentDirectory: () => root,
+    getDefaultLibFileName: (o) => ts.getDefaultLibFilePath(o),
+    fileExists: ts.sys.fileExists,
+    readFile: ts.sys.readFile,
+    readDirectory: ts.sys.readDirectory,
+    directoryExists: ts.sys.directoryExists,
+    getDirectories: ts.sys.getDirectories,
+  };
+  const ls = ts.createLanguageService(lsHost);
+  return { program, ls, progFiles };
+}
+
+/** tsc --noEmit 兜底：报错 → 全部涉及文件写回原内容（原子一致），返回是否通过。 */
+function runTscGuard(byFileKeys, backups) {
+  const tscOut = spawnSync(join(root, 'node_modules', '.bin', 'tsc'), ['--noEmit'], {
+    encoding: 'utf8',
+    cwd: root,
+  });
+  const badFiles = new Set();
+  if (tscOut.stdout) {
+    for (const line of tscOut.stdout.split('\n')) {
+      const m = line.match(/^([^(]+)\(\d+,\d+\): error/);
+      if (m) badFiles.add(resolve(root, m[1]));
+    }
+  }
+  if (badFiles.size > 0) {
+    console.error('\n✖ tsc 校验失败，已整体回退本次改写（保持原子一致）：');
+    for (const f of byFileKeys) {
+      const orig = backups.get(f);
+      if (orig !== undefined) {
+        writeFileSync(f, orig, 'utf8');
+        console.error(`  回退 ${relOf(f)}`);
+      }
+    }
+    console.error('  报错文件（含非改写文件，供人工核对）：');
+    for (const bf of badFiles) console.error(`    - ${relOf(bf)}`);
+    return false;
+  }
+  return true;
+}
+
+// ============================================================================
+// remove-unused-imports：自动删除未使用的 import（TS 语义判断，比 eslint 准）
+//   命令：remove-unused-imports [<file>] [--dry]
+//   - 无 <file>：全库（src+tests 的 .ts/.tsx）扫描。
+//   - 判断依据 = checker.getSymbolAtLocation 绑定级对比：import 绑定在文件里
+//     （除 import 声明自身）无任何引用即未用。类型位置（typeof X / 注解 X）、
+//     export { X } 会命中同一 symbol → 视为已用，不误删（这是相对 eslint 的核心优势）。
+//   - 副作用 import（`import 'x'`）无绑定 → 永不删。
+//   - 全部绑定未用 → 整句降级为 `import 'x'`（保留模块副作用）；部分未用 → 精确删说明符+逗号，不破坏格式。
+//   - 落地后 tsc 兜底回退（复用 runTscGuard）。
+// ============================================================================
+
+/** 判断 import 绑定在文件内是否被引用（绑定级 symbol 对比，处理 shadow/类型/export）。
+ *  注意：import 说明符的 symbol 是 Alias，使用处的 getSymbolAtLocation 解到 target ——
+ *  直接 === 恒不相等会误判全部未用，必须双方都 getAliasedSymbol 解别名再比。 */
+function resolveTargetSymbol(checker, id) {
+  let sym;
+  const p = id.parent;
+  if (ts.isShorthandPropertyAssignment(p)) {
+    // `{ x }` 简写属性：getSymbolAtLocation 返回属性符号，须取简写的值绑定符号
+    sym = checker.getShorthandAssignmentValueSymbol(p);
+  } else {
+    sym = checker.getSymbolAtLocation(id);
+  }
+  if (sym && (sym.flags & ts.SymbolFlags.Alias)) sym = checker.getAliasedSymbol(sym);
+  return sym;
+}
+
+function isImportBindingUsed(checker, sf, id) {
+  const target = resolveTargetSymbol(checker, id);
+  if (!target) return true; // 无法解析 → 保守保留
+  let used = false;
+  function walk(n) {
+    if (used) return;
+    if (ts.isIdentifier(n) && n !== id) {
+      const other = resolveTargetSymbol(checker, n);
+      if (other && other === target) {
+        used = true;
+        return;
+      }
+    }
+    n.forEachChild(walk);
+  }
+  walk(sf);
+  return used;
+}
+
+/** 收集每个 ImportDeclaration 的未用绑定。返回 Map<ImportDeclaration, {default?, named[], namespace?}> */
+function collectUnusedImports(checker, sf) {
+  const unused = new Map();
+  for (const stmt of sf.statements) {
+    if (!ts.isImportDeclaration(stmt)) continue;
+    const ic = stmt.importClause;
+    if (!ic) continue; // `import 'x'` 副作用 import：无绑定，永不删
+    const info = { default: null, named: [], namespace: null };
+    if (ic.name) info.default = { id: ic.name, used: isImportBindingUsed(checker, sf, ic.name) };
+    const nb = ic.namedBindings;
+    if (nb) {
+      if (ts.isNamespaceImport(nb)) {
+        info.namespace = { id: nb.name, used: isImportBindingUsed(checker, sf, nb.name) };
+      } else {
+        for (const el of nb.elements) info.named.push({ el, id: el.name, used: isImportBindingUsed(checker, sf, el.name) });
+      }
+    }
+    const allBindings = [info.default, ...info.named, info.namespace].filter(Boolean);
+    if (allBindings.some((b) => !b.used)) unused.set(stmt, { info, allBindings });
+  }
+  return unused;
+}
+
+/** 删除单个绑定（identifier 级），自动处理前后逗号；无逗号则删自身。 */
+function removeBindingWithComma(sf, id, edits) {
+  const text = sf.text;
+  const s = id.getStart(sf);
+  const e = id.getEnd();
+  // 后导逗号：跳过空白找 `,`
+  let j = e;
+  while (j < text.length && (text[j] === ' ' || text[j] === '\t' || text[j] === '\r' || text[j] === '\n')) j++;
+  if (text[j] === ',') {
+    let k = j + 1;
+    while (k < text.length && (text[k] === ' ' || text[k] === '\t')) k++;
+    edits.push({ start: s, end: k, replacement: '' });
+    return;
+  }
+  // 前导逗号：向前跳过空白找 `,`
+  let i = s - 1;
+  while (i >= 0 && (text[i] === ' ' || text[i] === '\t' || text[i] === '\r' || text[i] === '\n')) i--;
+  if (i >= 0 && text[i] === ',') {
+    edits.push({ start: i, end: e, replacement: '' });
+    return;
+  }
+  edits.push({ start: s, end: e, replacement: '' });
+}
+
+/** 生成删除未用 import 的编辑（按位置，不整子句重写，格式无损）。 */
+function buildImportRemovalEdits(sf, unusedMap) {
+  const edits = [];
+  for (const [stmt, { info, allBindings }] of unusedMap) {
+    const anyUnused = allBindings.some((b) => !b.used);
+    if (!anyUnused) continue;
+    const allUnused = allBindings.every((b) => !b.used);
+    if (allUnused) {
+      // 全部绑定未用 → 整句降级为副作用 import（保留模块执行）
+      edits.push({
+        start: stmt.getStart(sf),
+        end: stmt.getEnd(),
+        replacement: `import ${stmt.moduleSpecifier.getText()}`,
+      });
+      continue;
+    }
+    // default 未用
+    if (info.default && !info.default.used) removeBindingWithComma(sf, info.default.id, edits);
+    // namespace 未用
+    if (info.namespace && !info.namespace.used) removeBindingWithComma(sf, info.namespace.id, edits);
+    // named：全部未用 → 删整个 `{ ... }`（含前导逗号）；否则逐 element 删
+    const namedList = info.named;
+    if (namedList.length > 0) {
+      const namedUnused = namedList.filter((b) => !b.used);
+      if (namedUnused.length === namedList.length) {
+        const nb = stmt.importClause.namedBindings;
+        // 前导逗号（default/namespace 保留时）：`D, { a }` → 删 `, { a }`
+        const text = sf.text;
+        const nbStart = nb.getStart(sf);
+        let i = nbStart - 1;
+        while (i >= 0 && (text[i] === ' ' || text[i] === '\t' || text[i] === '\r' || text[i] === '\n')) i--;
+        if (i >= 0 && text[i] === ',') {
+          edits.push({ start: i, end: nb.getEnd(), replacement: '' });
+        } else {
+          edits.push({ start: nbStart, end: nb.getEnd(), replacement: '' });
+        }
+      } else {
+        for (const b of namedUnused) removeBindingWithComma(sf, b.id, edits);
+      }
+    }
+  }
+  return edits;
+}
+
+if (cmd === 'remove-unused-imports') {
+  const targets = fileArg
+    ? [resolve(root, fileArg)]
+    : SCAN_ROOTS.flatMap((r) =>
+        existsSync(r) ? collectFiles(r, []).filter((f) => ['.ts', '.tsx'].includes(extname(f))) : [],
+      );
+  if (fileArg && !existsSync(targets[0])) {
+    console.error(`文件不存在：${fileArg}`);
+    process.exit(1);
+  }
+  if (fileArg && !['.ts', '.tsx'].includes(extname(targets[0]))) {
+    console.error('✖ remove-unused-imports 仅支持 .ts/.tsx（无绑定的 .js/.mjs 副作用 import 无法语义判断）');
+    process.exit(1);
+  }
+
+  const { program } = buildTsRefactor();
+  const checker = program.getTypeChecker();
+
+  const editsByFile = new Map(); // abs -> edits[]
+  for (const abs of targets) {
+    const sf = program.getSourceFile(abs);
+    if (!sf) continue;
+    const unusedMap = collectUnusedImports(checker, sf);
+    if (unusedMap.size === 0) continue;
+    const edits = buildImportRemovalEdits(sf, unusedMap);
+    if (edits.length === 0) continue;
+    editsByFile.set(abs, edits);
+  }
+
+  const totalFiles = editsByFile.size;
+  let totalSpans = 0;
+  for (const edits of editsByFile.values()) totalSpans += edits.length;
+  console.log(
+    totalFiles === 0
+      ? '✔ 未发现未使用的 import（全库干净）。'
+      : `\n发现 ${totalFiles} 个文件存在未使用 import，共 ${totalSpans} 处待删：`,
+  );
+  for (const [f, edits] of editsByFile) {
+    console.log(`   ${relOf(f)}: ${edits.length} 处`);
+  }
+  if (totalFiles === 0) {
+    printWarnings();
+    process.exit(0);
+  }
+  if (dry) {
+    console.log('（--dry 仅预览，未实际落盘）');
+    printWarnings();
+    process.exit(0);
+  }
+
+  // 应用（从后往前替换）+ tsc 兜底回退
+  const backups = new Map();
+  for (const [f, edits] of editsByFile) {
+    let code = readFileSync(f, 'utf8');
+    backups.set(f, code);
+    const sorted = [...edits].sort((a, b) => b.start - a.start);
+    for (const e of sorted) {
+      code = code.slice(0, e.start) + e.replacement + code.slice(e.end);
+    }
+    writeFileSync(f, code, 'utf8');
+    console.log(`✔ ${relOf(f)}: 已删除 ${edits.length} 处`);
+  }
+
+  if (!runTscGuard(editsByFile.keys(), backups)) process.exit(1);
+  console.log(`\n✔ remove-unused-imports 完成（${totalFiles} 文件 / ${totalSpans} 处，tsc 0 错误）。`);
+  printWarnings();
+  process.exit(0);
+}
+
+// ============================================================================
+// rename-symbol：代码符号（变量/函数/类/类型/参数/import 导出名）跨文件批量重命名
+//   命令：rename-symbol <oldName> <newName> [--file <path>] [--dry]
+//   - 无 --file：全库（src+tests 的 .ts/.tsx）搜符号定义；多个定义（同名不同符号）→ 报错提示用 --file。
+//   - 用 typescript LanguageService.findRenameLocations 拿全部引用位置（类型感知：
+//     shadow、类型位置（typeof/类型注解）、跨文件 import/export 导出引用都覆盖）。
+//   - 落地后 tsc --noEmit 兜底：报错 → 全部涉及文件整体回退（改名原子性，不留半改态）。
+//   - 不做属性名（obj.x 的 x）改名：属性改名语义是「改所有 .x 访问」，与「改绑定符号」不同，留待以后。
+// ============================================================================
+// 定义节点类型集合：p.name === n 即视为该符号的「声明/定义处」。
+// 不含 Import/Export 绑定（import { x } / export { x } 是导入导出点，不是定义；
+// 全库定位必须从真实声明出发，否则 import 出现多处会误判多定义）。
+const RENAME_DEF_KINDS = new Set([
+  ts.SyntaxKind.VariableDeclaration,
+  ts.SyntaxKind.FunctionDeclaration,
+  ts.SyntaxKind.FunctionExpression,
+  ts.SyntaxKind.ClassDeclaration,
+  ts.SyntaxKind.ClassExpression,
+  ts.SyntaxKind.Parameter,
+  ts.SyntaxKind.EnumDeclaration,
+  ts.SyntaxKind.EnumMember,
+  ts.SyntaxKind.TypeAliasDeclaration,
+  ts.SyntaxKind.InterfaceDeclaration,
+  ts.SyntaxKind.BindingElement, // 解构绑定（const { x } = ...）
+  ts.SyntaxKind.TypeParameter,
+]);
+
+function findSymbolDefs(sf, name) {
+  const hits = [];
+  function walk(n) {
+    if (ts.isIdentifier(n) && n.text === name) {
+      const p = n.parent;
+      if (p && p.name === n && RENAME_DEF_KINDS.has(p.kind)) hits.push(n);
+    }
+    n.forEachChild(walk);
+  }
+  walk(sf);
+  return hits;
+}
+
+function lineOfPos(abs, pos) {
+  const code = readFileSync(abs, 'utf8');
+  return code.slice(0, pos).split('\n').length;
+}
+
+if (cmd === 'rename-symbol') {
+  const oldName = fileArg;
+  const newName = positionals[2];
+  if (!oldName || !newName) {
+    console.error('用法：rename-symbol <oldName> <newName> [--file <path>] [--dry]');
+    process.exit(1);
+  }
+  if (oldName === newName) {
+    console.error('✖ 新旧符号名相同');
+    process.exit(1);
+  }
+  if (!/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(oldName) || !/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(newName)) {
+    console.error('✖ 仅支持普通标识符改名（字母/数字/_/$）');
+    process.exit(1);
+  }
+
+  // ── Phase 1：建 TS program 与 LanguageService（公共底座，覆盖 src + tests）──
+  const { program, ls } = buildTsRefactor();
+
+  // ── Phase 2：定位符号定义（独立解析带 parent 链接的 AST，只取文件坐标）──
+  // program 的 SourceFile 不带 parent 链接，故用 createSourceFile(setParentNodes=true) 重新解析目标文件
+  const defs = [];
+  const scanDefsIn = (abs, code, scriptKind) => {
+    const ownSf = ts.createSourceFile(abs, code, ts.ScriptTarget.Latest, true, scriptKind);
+    for (const n of findSymbolDefs(ownSf, oldName)) {
+      defs.push({ abs, pos: n.getStart(ownSf) });
+    }
+  };
+  if (values.file) {
+    const abs = resolve(root, values.file);
+    if (!existsSync(abs)) {
+      console.error(`文件不存在：${values.file}`);
+      process.exit(1);
+    }
+    const ext = extname(abs);
+    scanDefsIn(abs, readFileSync(abs, 'utf8'), ext === '.tsx' ? ts.ScriptKind.TSX : ts.ScriptKind.TS);
+  } else {
+    for (const r of SCAN_ROOTS) {
+      if (!existsSync(r)) continue;
+      for (const f of collectFiles(r, [])) {
+        const ext = extname(f);
+        if (ext !== '.ts' && ext !== '.tsx') continue;
+        scanDefsIn(f, readFileSync(f, 'utf8'), ext === '.tsx' ? ts.ScriptKind.TSX : ts.ScriptKind.TS);
+      }
+    }
+  }
+  if (defs.length === 0) {
+    console.error(`✖ 未找到符号定义：${oldName}（src+tests 均无，或限定文件内无）`);
+    process.exit(1);
+  }
+  if (defs.length > 1) {
+    console.error(`✖ 找到 ${defs.length} 处同名定义，请用 --file 限定唯一文件：`);
+    for (const d of defs.slice(0, 20)) console.error(`   - ${relOf(d.abs)}:${lineOfPos(d.abs, d.pos)}`);
+    if (defs.length > 20) console.error(`   …共 ${defs.length} 处`);
+    process.exit(1);
+  }
+
+  // ── Phase 3：findRenameLocations 拿全部引用（跨文件）──
+  const locs = ls.findRenameLocations(defs[0].abs, defs[0].pos, false, false, undefined);
+  if (!locs || locs.length === 0) {
+    console.error('✖ 未获取到引用位置（异常）');
+    process.exit(1);
+  }
+
+  const byFile = new Map(); // fileName -> textSpan[]
+  for (const l of locs) {
+    const arr = byFile.get(l.fileName) || [];
+    arr.push(l.textSpan);
+    byFile.set(l.fileName, arr);
+  }
+
+  if (dry) {
+    console.log(`\n(预览) 符号 ${oldName} → ${newName}，共 ${locs.length} 处，涉及 ${byFile.size} 个文件：`);
+    for (const [f, spans] of byFile) console.log(`   ${relOf(f)}: ${spans.length} 处`);
+    printWarnings();
+    process.exit(0);
+  }
+
+  // ── Phase 4：逐文件改写（从后往前替换，校验原位文本 === oldName，防错位）──
+  const backups = new Map(); // abs -> 原内容
+  for (const [f, spans] of byFile) {
+    let code = readFileSync(f, 'utf8');
+    backups.set(f, code);
+    const sorted = [...spans].sort((a, b) => b.start - a.start);
+    for (const sp of sorted) {
+      const oldText = code.slice(sp.start, sp.start + sp.length);
+      if (oldText !== oldName) {
+        console.error(`✖ 位置文本不符，中止改写：${relOf(f)}:${sp.start}，实际 "${oldText}"`);
+        for (const [ff, orig] of backups) writeFileSync(ff, orig, 'utf8');
+        process.exit(1);
+      }
+      code = code.slice(0, sp.start) + newName + code.slice(sp.start + sp.length);
+    }
+    writeFileSync(f, code, 'utf8');
+    console.log(`✔ ${relOf(f)}: 改写 ${spans.length} 处`);
+  }
+
+  // ── Phase 5：tsc 兜底，报错 → 全部涉及文件回退（改名原子性）──
+  if (!runTscGuard(byFile.keys(), backups)) process.exit(1);
+
+  console.log(`\n✔ 符号 ${oldName} → ${newName} 完成（${locs.length} 处 / ${byFile.size} 文件，tsc 0 错误）。`);
+  printWarnings();
+  process.exit(0);
+}
+
+// ============================================================================
 // refs：列出某模块被谁 import + 字符串残留引用位置（改名/搬移前的事先勘察）
 // ============================================================================
 const STRING_REF_EXT_RE = /\.(js|jsx|ts|tsx|mjs|cjs|json|html|md)$/;
@@ -1260,6 +1721,6 @@ if (cmd === 'refs') {
 }
 
 console.error(
-  `未知或省略的命令：${cmd}\n已知命令：convert / update-imports / move / rename / move-dir / batch / plan / refs / find-dead\n用法详见脚本顶部 JSDoc`,
+  `未知或省略的命令：${cmd}\n已知命令：convert / update-imports / move / rename / move-dir / batch / plan / refs / find-dead / rename-symbol / remove-unused-imports\n用法详见脚本顶部 JSDoc`,
 );
 process.exit(1);

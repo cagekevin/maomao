@@ -31,6 +31,8 @@ import {
   setCell,
   rowToText,
   renameColumn,
+  addColumn,
+  deleteColumn,
 } from './assistantTable.ts';
 import type { AssistantTable, TableRow } from './assistantTable.ts';
 import { showToast } from '@/components/base/core/toastStore.ts';
@@ -305,6 +307,27 @@ export default function AssistantTablePanel({
     onSelectRow?.(next);
   };
 
+  // 列宽：首帧按「表头 + 该列最长内容」估算一个舒适宽度（只读，不持久化、不拖拽）。
+  // 用于避免 table-layout:fixed 把所有数据列均分（列多压窄/列少留白）。列超宽时靠 .sb-body 横向滚动兜底。
+  const colWidths = useMemo(() => {
+    const per = 13; // 每字约 px（12px 字号）
+    const pad = 24; // 左右内边距 + 富余
+    const min = 90;
+    const max = 240;
+    return storyboard.columns.map((col) => {
+      let longest = col.label.length;
+      for (const row of storyboard.rows) {
+        const v = (row.values[col.id] ?? '') as string;
+        if (!v) continue;
+        let len = 0;
+        for (const ch of v) len += ch.charCodeAt(0) > 255 ? 2 : 1; // 中文按 2 字宽
+        if (len > longest) longest = len;
+      }
+      const px = Math.round(longest * per + pad);
+      return Math.max(min, Math.min(max, px));
+    });
+  }, [storyboard]);
+
   const hasData = storyboard.columns.length > 0;
 
   return (
@@ -426,8 +449,8 @@ export default function AssistantTablePanel({
           <table className="sbt">
             <colgroup>
               <col style={{ width: 32 }} />
-              {storyboard.columns.map((col) => (
-                <col key={col.id} />
+              {storyboard.columns.map((col, ci) => (
+                <col key={col.id} style={{ width: colWidths[ci] }} />
               ))}
               <col style={{ width: 88 }} />
             </colgroup>
@@ -459,9 +482,56 @@ export default function AssistantTablePanel({
                           (e.target as HTMLInputElement).blur();
                       }}
                     />
+                    <button
+                      type="button"
+                      className="col-x"
+                      title="删除该列"
+                      onClick={() => {
+                        commit(deleteColumn(storyboard, col.id));
+                        showToast?.('已删除列');
+                      }}
+                    >
+                      <svg
+                        width="11"
+                        height="11"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
+                      </svg>
+                    </button>
                   </th>
                 ))}
-                <th />
+                <th className="col-add-cell">
+                  <button
+                    type="button"
+                    className="col-add"
+                    title="追加一列"
+                    onClick={() => {
+                      commit(addColumn(storyboard));
+                      showToast?.('已追加一列（点表头可改名）');
+                    }}
+                  >
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <line x1="12" y1="5" x2="12" y2="19" />
+                      <line x1="5" y1="12" x2="19" y2="12" />
+                    </svg>
+                  </button>
+                </th>
               </tr>
             </thead>
             <tbody>
