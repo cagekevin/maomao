@@ -61,6 +61,47 @@ func portAlive() -> Bool {
   return !s.isEmpty
 }
 
+// 递归结束某进程及其全部子进程（整棵进程树）。
+// 关键：后端由「npm start」再拉起「node」，若只杀 npm 会留下 node 孤儿孙进程
+// （实测：launcher 退出后 node 变成父进程为 launchd 的孤儿继续存活）。
+// 这里用 pgrep -P 自顶向下递归收集所有后代，先杀叶子再杀根，确保不留孤儿。
+func killProcessTree(rootPid: Int32) {
+  // BFS 收集 rootPid 的所有后代
+  var descendants: [Int32] = []
+  var frontier: [Int32] = [rootPid]
+  var depth: [Int32: Int] = [rootPid: 0]
+  while !frontier.isEmpty {
+    let current = frontier
+    frontier = []
+    let pidsArg = current.map(String.init).joined(separator: ",")
+    let pg = Process()
+    pg.executableURL = URL(fileURLWithPath: "/usr/bin/pgrep")
+    pg.arguments = ["-P", pidsArg]
+    let out = Pipe()
+    pg.standardOutput = out
+    pg.standardError = Pipe()
+    try? pg.run()
+    pg.waitUntilExit()
+    let d = out.fileHandleForReading.readDataToEndOfFile()
+    let s = String(data: d, encoding: .utf8) ?? ""
+    var children: [Int32] = []
+    for line in s.split(separator: "\n") {
+      if let c = Int32(String(line)), c != rootPid { children.append(c) }
+    }
+    for c in children {
+      depth[c] = (depth[current.first ?? rootPid] ?? 0) + 1
+    }
+    descendants.append(contentsOf: children)
+    frontier = children
+  }
+  // 深度优先由叶子向根杀（descendants 中更深的后代先生效）
+  for pid in descendants.sorted(by: { (depth[$0] ?? 0) > (depth[$1] ?? 0) }) {
+    kill(pid, SIGKILL)
+  }
+  // 最后杀根进程自身
+  kill(rootPid, SIGKILL)
+}
+
 func killPort() {
   let p = Process()
   p.executableURL = URL(fileURLWithPath: "/usr/sbin/lsof")
@@ -73,7 +114,7 @@ func killPort() {
   let s = String(data: d, encoding: .utf8)?.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines) ?? ""
   if !s.isEmpty {
     for line in s.split(separator: "\n") {
-      if let pid = Int32(String(line)) { kill(pid, SIGKILL) }
+      if let pid = Int32(String(line)) { killProcessTree(rootPid: pid) }
     }
   }
 }
@@ -194,14 +235,16 @@ var isRestarting = false
 func stopBackend() {
   intentionalStop = true
   if let p = backendProc, p.isRunning {
-    p.terminate()          // 先优雅关闭
-    // 最多等 3 秒退出，超时则强杀，避免卡住退出流程
+    // 先优雅 TERM 通知（让 node 走正常关闭、清资源），给短暂时间
+    p.terminate()
     var waited = 0.0
-    while p.isRunning && waited < 3.0 {
-      Thread.sleep(forTimeInterval: 0.1)
-      waited += 0.1
+    while p.isRunning && waited < 1.0 {
+      Thread.sleep(forTimeInterval: 0.05)
+      waited += 0.05
     }
-    if p.isRunning { kill(p.processIdentifier, SIGKILL) }
+    // 无论 npm 是否退出，都递归杀掉整棵进程树（npm + node 孙进程），
+    // 避免只杀 npm 留下 node 孤儿继续占 18080。
+    killProcessTree(rootPid: p.processIdentifier)
   }
   backendProc = nil
   killPort()
@@ -214,8 +257,8 @@ func restartBackend() {
   isRestarting = true
   setBusy("重启…")
   DispatchQueue.global(qos: .userInitiated).async {
-    // 先杀干净旧进程/端口
-    if let p = backendProc, p.isRunning { p.terminate() }
+    // 先杀干净旧进程树/端口，避免残留旧 node
+    if let p = backendProc, p.isRunning { killProcessTree(rootPid: p.processIdentifier) }
     backendProc = nil
     killPort()
     intentionalStop = false
