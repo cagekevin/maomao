@@ -39,7 +39,7 @@ import {
   getTableWorkspace,
   toggleTableWorkspace,
   closeTableWorkspace,
-  setTableWorkspaceRow,
+  setTableWorkspaceRows,
   acceptTablePreview,
   markTableMessageHandled,
   resetTableWorkspace,
@@ -51,7 +51,7 @@ import {
   tryParseAssistantTableJson,
 } from '../agent/assistantTable/assistantTable.ts';
 import type { AssistantTable } from '../agent/assistantTable/assistantTable.ts';
-import { buildRefineRowUser } from '../agent/assistantTable/assistantTablePrompt.ts';
+import { buildRefineRowsUser } from '../agent/assistantTable/assistantTablePrompt.ts';
 
 /**
  * ════════════════════════════════════════════════════════════════
@@ -132,7 +132,7 @@ export default function AgentPanel({
   const ws = useTableWorkspace();
   // 派生别名：下游（注入/模式条/ctx-chip/图标高亮）沿用原变量名，逻辑零改动
   const tableOpen = ws.open;
-  const selectedRowId = ws.selectedRowId;
+  const selectedRowIds = ws.selectedRowIds;
   // 【设置即生效·方案 B】聊天模型配置（agent_chat_model）变更计数器。
   // 每次「设置 → AI 助手」改模型/供应商写入该键，contentSubscribe 回调自增此值，
   // 触发下方 agentProvider / agentModels / configuredModel 重算（它们原本只在挂载时算一次）。
@@ -335,14 +335,15 @@ export default function AgentPanel({
       ? String((gc as { unified_style_prompt?: string }).unified_style_prompt ?? '').trim()
       : '';
   }, [activeConv]);
-  const selectedRow = storyboard.rows.find((r) => r.id === selectedRowId) || null;
-  // 输入框 ctx-chip 用：选中行号 + 首列内容简写
-  const selCtx = selectedRow
+  const selectedRows = storyboard.rows.filter((r) => selectedRowIds.includes(r.id));
+  // 输入框 ctx-chip 用：首选中行行号 + 首列内容简写 + 选中行数
+  const selCtx = selectedRows.length
     ? (() => {
-        const idx = storyboard.rows.findIndex((r) => r.id === selectedRow.id) + 1;
-        const first =
-          storyboard.columns.map((c) => selectedRow.values[c.id] || '').find((v) => !!v) || '';
-        return { idx, first };
+        const first = selectedRows[0];
+        const idx = storyboard.rows.findIndex((r) => r.id === first.id) + 1;
+        const firstCell =
+          storyboard.columns.map((c) => first.values[c.id] || '').find((v) => !!v) || '';
+        return { idx, first: firstCell, count: selectedRows.length };
       })()
     : null;
 
@@ -379,8 +380,12 @@ export default function AgentPanel({
         });
         logger.error('AI助手', '表格 JSON 结构不符（空 rows）', { messageId: last.id });
       } else if (wsSnap.open) {
-        // 仅表格协作激活时接受预览；rowId=探测当下选中行（同步读共享态）
-        acceptTablePreview({ json: hit.json, messageId: last.id, rowId: wsSnap.selectedRowId });
+        // 仅表格协作激活时接受预览；selectedRowIds=探测当下选中（冻结进 preview，写回不重读）
+        acceptTablePreview({
+          json: hit.json,
+          messageId: last.id,
+          selectedRowIds: wsSnap.selectedRowIds,
+        });
       }
     } else if (wsSnap.open && looksLikeTableJson(last.content)) {
       // AI 明显在尝试返回表格 JSON 但格式错误 → 不显示预览卡，直接报错让用户重试（对齐剧本盒：勿静默）
@@ -605,8 +610,8 @@ export default function AgentPanel({
   }, []);
 
   // 表格工作区开合/宽度/选中行已收敛到共享态 tableWorkspaceState：
-  // 顶栏「表格」图标 → toggleTableWorkspace()；模式条/ctx-chip「取消选中」→ setTableWorkspaceRow(null)。
-  // 左面板宽度拖拽（360~760 + agent_split_width 记忆）在 TableWorkspacePanel 右缘，本面板不再持有。
+  // 顶栏「表格」图标 → toggleTableWorkspace()；模式条/ctx-chip「取消选中」→ setTableWorkspaceRows([])。
+  // 左面板宽度拖拽（360~1080 + agent_split_width 记忆）在 TableWorkspacePanel 左缘，本面板不再持有。
 
   // 点击外部关闭模型下拉
   useEffect(() => {
@@ -775,9 +780,13 @@ export default function AgentPanel({
       const parts: string[] = [];
       const currentTable = buildTableSnapshotText(storyboard, globalStyle);
       if (currentTable) parts.push(currentTable);
-      if (selectedRow) {
-        // 有选中行 → 改单行：带当前行原值 + 全局风格 + 用户修改意见（模型要据原值改）
-        parts.push(buildRefineRowUser(rowToText(storyboard, selectedRow), globalStyle, text));
+      if (selectedRows.length > 0) {
+        // 有选中行（含多选）→ 改行：带每行行号 + 原值，要求按选中行逐一返回（buildRefineRowsUser）
+        const rowTexts = selectedRows.map((r) => {
+          const idx = storyboard.rows.findIndex((x) => x.id === r.id) + 1;
+          return `第${idx}行：${rowToText(storyboard, r) || '（空行）'}`;
+        });
+        parts.push(buildRefineRowsUser(rowTexts, globalStyle, text));
       } else if (text) {
         parts.push(text);
       }
@@ -1271,16 +1280,18 @@ export default function AgentPanel({
                   </svg>
                   <span>
                     表格协作中 ·{' '}
-                    {selectedRow
-                      ? `当前选中第 ${storyboard.rows.findIndex((r) => r.id === selectedRow.id) + 1} 行`
+                    {selectedRows.length > 0
+                      ? selectedRows.length === 1
+                        ? `当前选中第 ${storyboard.rows.findIndex((r) => r.id === selectedRows[0].id) + 1} 行`
+                        : `已选中 ${selectedRows.length} 行`
                       : 'AI 会优先处理左侧表格'}
                   </span>
-                  {selectedRow && (
+                  {selectedRows.length > 0 && (
                     <button
                       type="button"
-                      onClick={() => setTableWorkspaceRow(null)}
+                      onClick={() => setTableWorkspaceRows([])}
                       className="agent-mode-clear"
-                      title="取消选中该行"
+                      title="取消选中"
                     >
                       取消选中
                     </button>
@@ -1452,8 +1463,8 @@ export default function AgentPanel({
         {/* 底部输入区（OneBox：附件 chips → 输入框 → 纯图标工具栏） */}
         <div className="agent-composer">
           <div className="agent-box">
-            {/* 当前上下文 chip（对齐 mockup ctx-row）：正在处理第 N 行 + 画布参考图，可一键移除 */}
-            {tableOpen && (selectedRow || pendingImageNodes.length > 0) && (
+            {/* 当前上下文 chip（对齐 mockup ctx-row）：正在处理第 N 行（多行） + 画布参考图，可一键移除 */}
+            {tableOpen && (selectedRows.length > 0 || pendingImageNodes.length > 0) && (
               <div className="agent-ctx-row">
                 {selCtx && (
                   <span className="agent-ctx">
@@ -1473,14 +1484,12 @@ export default function AgentPanel({
                       <line x1="9" y1="3" x2="9" y2="21" />
                     </svg>
                     <span className="ctx-text">
-                      正在处理：第 {selCtx.idx} 行
+                      {selCtx.count > 1
+                        ? `已选中 ${selCtx.count} 行（第 ${selCtx.idx} 行…）`
+                        : `正在处理：第 ${selCtx.idx} 行`}
                       {selCtx.first ? ` · ${selCtx.first.slice(0, 14)}` : ''}
                     </span>
-                    <span
-                      className="x"
-                      onClick={() => setTableWorkspaceRow(null)}
-                      title="取消选中该行"
-                    >
+                    <span className="x" onClick={() => setTableWorkspaceRows([])} title="取消选中">
                       <svg
                         width="10"
                         height="10"
@@ -1974,15 +1983,14 @@ function buildTableSnapshotText(sb: AssistantTable, globalStyle: string): string
   return lines.join('\n');
 }
 
-/** 粗略判断某段文本「明显在试图返回表格 JSON」（代码块 / globalStyle / rows / 以 { 开头）。
- *  用于解析失败时判定"AI 想给表格但格式坏了" → 报错让用户重试，而非误报普通回复。 */
+/** 粗略判断某段文本「明显在试图返回表格 JSON」（代码块 / globalStyle / rows）。
+ *  用于解析失败时判定"AI 想给表格但格式坏了" → 报错让用户重试，而非误报普通回复。
+ *  收紧（B-005）：不再单凭 `{` 开头判定——普通正文（代码/JSON 示例）会误弹「格式错」，
+ *  必须出现 rows / globalStyle / 代码块等表格特征才报警。 */
 function looksLikeTableJson(text: unknown): boolean {
   const t = String(text ?? '');
   if (!t) return false;
   return (
-    /```(?:json)?/i.test(t) ||
-    /["']?globalStyle["']?\s*:/.test(t) ||
-    /["']?rows["']?\s*:/.test(t) ||
-    /^\s*\{/.test(t)
+    /```(?:json)?/i.test(t) || /["']?globalStyle["']?\s*:/.test(t) || /["']?rows["']?\s*:/.test(t)
   );
 }

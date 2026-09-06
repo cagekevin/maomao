@@ -20,14 +20,32 @@ export default function AssistantTablePreviewCard({
   onConfirm,
   onCancel,
 }: AssistantTablePreviewCardProps) {
-  const isSingle = preview.rowIndex != null;
+  // 操作类别文案（预览=确认：卡内展示的就是确认要写回的结果）
+  const opLabel =
+    preview.opKind === 'update'
+      ? preview.updatedCount && preview.updatedCount > 0
+        ? `更新 ${preview.updatedCount} 行`
+        : '更新选中行'
+      : preview.opKind === 'append'
+        ? `追加 ${preview.appendedCount ?? preview.rows.length} 行`
+        : '重建表格';
+  const confirmLabel =
+    preview.opKind === 'update'
+      ? '确认更新选中行'
+      : preview.opKind === 'append'
+        ? '确认追加'
+        : '确认写入表格';
   return (
     <div className="pv">
       <div className="pv-hd">
-        <span className="badge">{isSingle ? `第 ${preview.rowIndex} 行` : '表格预览'}</span>
+        <span className="badge">
+          {preview.rowIndex != null ? `第 ${preview.rowIndex} 行` : opLabel}
+        </span>
         <span>AI 生成 · 未写入</span>
         <span className="spacer" />
-        <span className="rows">{isSingle ? '单行' : `共 ${preview.rows.length} 行`}</span>
+        <span className="rows">
+          {preview.rowIndex != null ? '单行' : `共 ${preview.rows.length} 行`}
+        </span>
       </div>
       {preview.globalStyle && (
         <div className="gs-line">
@@ -71,7 +89,7 @@ export default function AssistantTablePreviewCard({
           >
             <polyline points="20 6 9 17 4 12" />
           </svg>
-          {isSingle ? `确认写回第 ${preview.rowIndex} 行` : '确认写入表格'}
+          {preview.rowIndex != null ? `确认写回第 ${preview.rowIndex} 行` : confirmLabel}
         </button>
         <button type="button" className="btn btn-ghost" onClick={onCancel}>
           取消

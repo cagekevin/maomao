@@ -14,7 +14,8 @@
  *   AssistantTable = { columns: TableColumn[], rows: TableRow[] }
  *   单元格值以「列 id → 文本」映射存 row.values[columnId]（列增删不毁行）。
  *   globalStyle 不在本表存（复用会话 memory.global_contract.unified_style_prompt），
- *   由上层经 sbToJson 入参注入 / jsonToSb 返回值带出。
+ *   由上层经 rowToObj/rowToText 序列化注入；AI 返回经 buildPreviewResult 统一推导
+ *   （预览=确认的唯一数据源，替代旧 jsonToSb / mergeRowFromObj / buildPreviewModel）。
  */
 import { generateId } from '@/components/base/core/idGen.ts';
 
@@ -25,6 +26,8 @@ export type CellValue = string;
 export interface TableColumn {
   id: string;
   label: string;
+  /** 手动锁定列宽（px）：用户拖拽落点写回此处并持久化到会话记忆；未设时由 UI 按内容估算。 */
+  width?: number;
 }
 
 /** 一行：id 稳定唯一；各列值以 [columnId]: text 映射 */
@@ -69,6 +72,14 @@ export function extractRowIndex(row: unknown): number | null {
   return n - 1; // 1 起 → 0-based
 }
 
+/** 空行判定（B-006 单一实现，parsePasted / buildPreviewResult 共用）：所有单元格 trim 后均为空串 → 空行 */
+export function rowHasText(values: Record<string, unknown>): boolean {
+  for (const v of Object.values(values)) {
+    if (String(v ?? '').trim() !== '') return true;
+  }
+  return false;
+}
+
 /** 空表（无列无行） */
 export function emptyAssistantTable(): AssistantTable {
   return { columns: [], rows: [] };
@@ -90,7 +101,13 @@ export function normalizeAssistantTable(raw: unknown): AssistantTable {
       const col = c as Record<string, unknown>;
       const label = String(col.label ?? '').trim();
       if (!label) continue;
-      columns.push({ id: String(col.id ?? '') || generateId('col'), label });
+      const width =
+        typeof col.width === 'number' && Number.isFinite(col.width) ? col.width : undefined;
+      columns.push({
+        id: String(col.id ?? '') || generateId('col'),
+        label,
+        ...(width !== undefined ? { width } : {}),
+      });
     }
   }
   const ids = new Set(columns.map((c) => c.id));
@@ -139,13 +156,10 @@ export function parsePasted(rawText: string, htmlText?: string): AssistantTable 
   for (let i = 1; i < grid.length; i++) {
     const cells = grid[i];
     const values: Record<string, string> = {};
-    let hasText = false;
     for (let ci = 0; ci < columns.length; ci++) {
-      const cell = String(cells[ci] ?? '').trim();
-      values[columns[ci].id] = cell;
-      if (cell) hasText = true;
+      values[columns[ci].id] = String(cells[ci] ?? '').trim();
     }
-    if (!hasText) continue; // 跳过全空数据行
+    if (!rowHasText(values)) continue; // 跳过全空数据行（B-006 统一实现）
     rows.push({ id: generateId('row'), values });
   }
   return { columns, rows };
@@ -256,6 +270,42 @@ export function renameColumn(sb: AssistantTable, colId: string, label: string): 
 }
 
 /**
+ * 单列「表头 + 该列最长内容」的舒适估算宽度（px）。仅用于未手动锁定列宽时的首帧/结构变化估算，
+ * 非实时 DOM 测量（中文按 2 字宽）。clamp 在 90~240，避免极窄/极宽。纯函数无副作用，便于单测。
+ */
+export function estimateColumnWidth(label: string, rows: TableRow[], colId: string): number {
+  const per = 13; // 每字约 px（12px 字号）
+  const pad = 24; // 左右内边距 + 富余
+  const min = 90;
+  const max = 240;
+  // 表头与内容统一按「中文 2 字宽 / 其它 1 字宽」计长（避免中文表头被低估、列偏窄）
+  const charW = (s: string): number => {
+    let n = 0;
+    for (const ch of s) n += ch.charCodeAt(0) > 255 ? 2 : 1;
+    return n;
+  };
+  let longest = charW(label);
+  for (const row of rows) {
+    const v = row.values[colId] ?? '';
+    if (!v) continue;
+    const len = charW(v);
+    if (len > longest) longest = len;
+  }
+  return Math.max(min, Math.min(max, Math.round(longest * per + pad)));
+}
+
+/** 写某列手动宽度（不可变、幂等；width 非法忽略）。用于拖拽落点一次性写回（持久化到会话记忆）。 */
+export function setColumnWidth(sb: AssistantTable, colId: string, width: number): AssistantTable {
+  const idx = sb.columns.findIndex((c) => c.id === colId);
+  if (idx < 0) return sb; // 未知列忽略
+  const w = Math.round(width);
+  if (!Number.isFinite(w)) return sb;
+  const col = sb.columns[idx];
+  if ((col.width ?? null) === w) return sb; // 相同幂等
+  return { ...sb, columns: sb.columns.map((c, i) => (i === idx ? { ...c, width: w } : c)) };
+}
+
+/**
  * 追加一列到末尾（label 缺省用占位名「新列N」）。已有行补该列空键，保证列键对齐、渲染不缺键。
  * 复用 insertColumnAfter（colId 缺省 = 追加到末尾），单一实现不漂移。
  */
@@ -313,75 +363,11 @@ export function rowToText(sb: AssistantTable, row: TableRow): string {
   return parts.join('\n');
 }
 
-/** 表 → 精简 JSON（顶层 globalStyle + 行数组，每行带列名）。globalStyle 由调用方按需求注入（可分镜/产品页/任意用途）。 */
-export function sbToJson(sb: AssistantTable, globalStyle: string): AssistantTableJson {
-  return {
-    ...(globalStyle ? { globalStyle } : {}),
-    rows: sb.rows.map((r) => rowToObj(sb, r)),
-  };
-}
-
-/**
- * 精简 JSON → 表。
- * 列名取 rows[0] 的键（AI 设计的列）；逐行值写回；globalStyle 单独返回。
- * 空 rows 返回空表（调用方按需决定是否落表）。
- */
-export function jsonToSb(json: AssistantTableJson): { globalStyle: string; sb: AssistantTable } {
-  const rows = Array.isArray(json?.rows) ? json.rows : [];
-  const keys =
-    json && rows[0] && typeof rows[0] === 'object'
-      ? Object.keys(rows[0] as Record<string, unknown>)
-      : [];
-  const columns = keys
-    .filter((k) => k.trim() !== '' && k !== ROW_INDEX_KEY) // _rowIndex 是定位元数据，绝不当列
-    .map((label) => ({ id: generateId('col'), label }));
-  const sb: AssistantTable = { columns, rows: [] };
-  for (const raw of rows) {
-    if (!raw || typeof raw !== 'object') continue;
-    const values: Record<string, string> = {};
-    let hasText = false;
-    for (const col of columns) {
-      const cell = String((raw as Record<string, unknown>)[col.label] ?? '').trim();
-      values[col.id] = cell;
-      if (cell) hasText = true;
-    }
-    if (!hasText) continue;
-    sb.rows.push({ id: generateId('row'), values });
-  }
-  return { globalStyle: String(json?.globalStyle ?? '').trim(), sb };
-}
-
-/**
- * 改单行写回：把「{ 列名: 值 }」合并进指定行（只覆盖该行已有列中的值，
- * 未知列名忽略、不会新增列）。用于「AI 返回该行 JSON → 确认 → 写回原行」。
- */
-export function mergeRowFromObj(
-  sb: AssistantTable,
-  rowId: string,
-  obj: Record<string, unknown>,
-): AssistantTable {
-  const idx = sb.rows.findIndex((r) => r.id === rowId);
-  if (idx < 0) return sb;
-  const row = sb.rows[idx];
-  const next = { ...row.values };
-  let changed = false;
-  for (const col of sb.columns) {
-    if (!(col.label in (obj || {}))) continue;
-    const v = String(obj[col.label] ?? '').trim();
-    if ((next[col.id] ?? '') !== v) {
-      next[col.id] = v;
-      changed = true;
-    }
-  }
-  if (!changed) return sb; // 无实际改动（幂等）
-  return { ...sb, rows: sb.rows.map((r, i) => (i === idx ? { ...r, values: next } : r)) };
-}
-
 /**
  * 从 assistant 消息文本里尝试解析「表格 JSON」。
  * 语义：文本含 JSON 对象且有 `rows` 数组 → 视为表格 JSON（整表或单行均可）。
  * @returns 解析成功返回 { json }；否则返回 null（透传调用方判断是普通回复）。
- * 说明：只做探测，不判定整表/单行——由调用方按场景决定（有 selectedRowId 且单行 → 写回该行）。
+ * 说明：只做探测，不判定意图（update/append/replace）——由 buildPreviewResult 按选中态统一判定。
  */
 export function tryParseAssistantTableJson(text: unknown): { json: AssistantTableJson } | null {
   if (typeof text !== 'string') return null;
@@ -406,14 +392,7 @@ export function tryParseAssistantTableJson(text: unknown): { json: AssistantTabl
   return { json: obj as AssistantTableJson };
 }
 
-/**
- * 解析 AI 返回 + 对当前表生成「预览模型」——只显示 AI 这次发来的「新内容」，供左表/右卡左右对比。
- *  - 整表（json 多行）：列 + 各行（AI 设计的列/行）。
- *  - 单行（有选中行且 json 仅 1 行）：把该行还原成「完整行」（AI 给到的列用新值，未给的沿用当前值），
- *    供与左表该行直接对比；rowIndex 标注是第几行。
- * 刻意不做"旧→新"内联 diff——用户左表即旧态、右卡即新态，天然可对比（方案/用户裁定，勿回退）。
- * 纯函数无副作用，UI 据此渲染预览卡，确认才写回。
- */
+/** 预览卡显示模型：由 TablePreviewResult（resultCols/resultRows/opKind）派生，仅做形状格式，不重推数据（预览=确认） */
 export interface AssistantTablePreview {
   kind: 'table';
   globalStyle: string;
@@ -421,54 +400,157 @@ export interface AssistantTablePreview {
   rows: Array<Record<string, string>>;
   /** 单行时为行号（1 起），整表为 null */
   rowIndex: number | null;
+  /** 操作类别（update/append/replace），供预览卡文案（1.5 契约 C5 后由 result 派生） */
+  opKind?: 'update' | 'append' | 'replace';
+  updatedCount?: number;
+  appendedCount?: number;
 }
 
-export function buildPreviewModel(
+/** buildPreviewResult 产出：操作后最终表格（预览=确认的唯一数据源） */
+export interface TablePreviewResult {
+  opKind: 'update' | 'append' | 'replace';
+  resultCols: TableColumn[];
+  resultRows: TableRow[];
+  /** update 场景：实际被更新的行数 */
+  updatedCount: number;
+  /** update 且 AI 行多于选中行时，追加到末尾的行数（append 场景=追加行数） */
+  appendedCount: number;
+}
+
+/** 列名归一：trim + 折叠多余空白，供「AI 键名 ↔ 现有列」模糊匹配（A-005，C3） */
+function normalizeLabel(label: string): string {
+  return String(label ?? '')
+    .trim()
+    .replace(/\s+/g, ' ');
+}
+
+/**
+ * 统一「AI JSON → 操作后最终表格」推导（预览卡与确认写回共用，替代旧 jsonToSb / mergeRowFromObj / buildPreviewModel）。
+ *
+ * 意图判定（对齐 spec/AI-ASSISTANT-TABLE-IMPLEMENTATION.md §1.5.2 C2）：
+ *  - 当前表无列 → replace：按 AI 返回建表（列 id 新建；全空行丢弃——C4）。
+ *  - 逐行定目标：AI 行带合法 _rowIndex → 按行号定位（未选中也能改指定行，TABLE_RULES「把第 3 行改成 X」场景）；
+ *    无 _rowIndex 时第 i 个 AI 行 → 第 i 个选中行（按表格顺序）。
+ *  - 无任何目标（未选中且无 _rowIndex）→ append：AI 行原样追加末尾（现有列 id/width 全部保留）。
+ *  - 有目标 → update：命中行只覆盖提及列、未提及保留原值；未命中目标的 AI 行追加末尾（M>N）。
+ *  - 列合并（C3）：AI 键名 trim+折叠空白归一后命中现有列 → 沿用原列 id/width；未命中 → 新列追加末尾。
+ *  - 值一律 trim；_rowIndex 是定位元数据，绝不当列；入参 sb 不 mutate。
+ * 纯函数无副作用，便于单测。
+ */
+export function buildPreviewResult(
   sb: AssistantTable,
   json: AssistantTableJson,
-  rowId?: string | null,
-): AssistantTablePreview {
-  const globalStyle = String(json?.globalStyle ?? '').trim();
-  const rows = Array.isArray(json?.rows) ? json.rows : [];
-  const hitRow = rowId ? sb.rows.find((r) => r.id === rowId) : null;
-  // 单行：命中「选中行」或「AI 返回的 _rowIndex 定位行」且 AI 只返回 1 行
-  // → 还原成「完整行」（AI 没给的列沿用当前值）。_rowIndex 用于无选中行时也能精准预览要改第几行。
-  if (rows.length === 1 && rows[0] && typeof rows[0] === 'object') {
-    const obj = rows[0] as Record<string, unknown>;
-    const idx =
-      hitRow && !(ROW_INDEX_KEY in obj)
-        ? sb.rows.indexOf(hitRow)
-        : (extractRowIndex(obj) ?? (hitRow ? sb.rows.indexOf(hitRow) : -1));
-    const targetRow = idx >= 0 && idx < sb.rows.length ? sb.rows[idx] : null;
-    if (targetRow) {
-      const columns = sb.columns.map((c) => c.label);
-      const rec: Record<string, string> = {};
-      for (const col of sb.columns) {
-        rec[col.label] =
-          col.label in obj ? String(obj[col.label] ?? '').trim() : (targetRow.values[col.id] ?? '');
-      }
-      return {
-        kind: 'table',
-        globalStyle,
-        columns,
-        rows: [rec],
-        rowIndex: idx + 1,
-      };
+  selectedRowIds: string[] = [],
+): TablePreviewResult {
+  const current =
+    sb && Array.isArray(sb.columns) && Array.isArray(sb.rows) ? sb : emptyAssistantTable();
+  const rawRows = Array.isArray(json?.rows) ? json.rows : [];
+
+  // 收集 AI 全部键（按出现顺序去重）；_rowIndex 是定位元数据不当列
+  const keys: string[] = [];
+  for (const raw of rawRows) {
+    if (!raw || typeof raw !== 'object') continue;
+    for (const k of Object.keys(raw as Record<string, unknown>)) {
+      if (k === ROW_INDEX_KEY || k.trim() === '') continue;
+      if (!keys.includes(k)) keys.push(k);
     }
   }
-  // 整表：列 = AI 返回首行键（_rowIndex 是定位元数据，不当列），行 = AI 返回各列值
-  const keys =
-    rows.length && rows[0] && typeof rows[0] === 'object'
-      ? Object.keys(rows[0] as Record<string, unknown>)
-      : [];
-  const columns = keys.map((k) => k.trim()).filter((k) => k !== '' && k !== ROW_INDEX_KEY);
-  const tableRows = rows
-    .map((r) => {
-      if (!r || typeof r !== 'object') return null;
-      const rec: Record<string, string> = {};
-      for (const c of columns) rec[c] = String((r as Record<string, unknown>)[c] ?? '').trim();
-      return Object.keys(rec).length ? rec : null;
-    })
-    .filter((r): r is Record<string, string> => r !== null);
-  return { kind: 'table', globalStyle, columns, rows: tableRows, rowIndex: null };
+
+  // ── replace：当前表无列 → 按 AI 建表（建表丢全空行，C4）──
+  if (current.columns.length === 0) {
+    const resultCols: TableColumn[] = keys.map((label) => ({ id: generateId('col'), label }));
+    const resultRows: TableRow[] = [];
+    for (const raw of rawRows) {
+      if (!raw || typeof raw !== 'object') continue;
+      const obj = raw as Record<string, unknown>;
+      const values: Record<string, string> = {};
+      for (const col of resultCols) values[col.id] = String(obj[col.label] ?? '').trim();
+      if (!rowHasText(values)) continue;
+      resultRows.push({ id: generateId('row'), values });
+    }
+    return {
+      opKind: 'replace',
+      resultCols,
+      resultRows,
+      updatedCount: 0,
+      appendedCount: resultRows.length,
+    };
+  }
+
+  // ── 非空表：列 = 现有列（保 id/width）+ 未命中键的新列（追加末尾，C3）──
+  const labelToCol = new Map<string, TableColumn>();
+  for (const c of current.columns) labelToCol.set(normalizeLabel(c.label), c);
+  const resultCols = [...current.columns];
+  for (const k of keys) {
+    if (!labelToCol.has(normalizeLabel(k))) {
+      const col: TableColumn = { id: generateId('col'), label: k };
+      labelToCol.set(normalizeLabel(k), col);
+      resultCols.push(col);
+    }
+  }
+  /** 取某 AI 行中某列的值：先按列 label 精确取，再按归一化兜底（A-005）；未提及返回 undefined（保留原值） */
+  const colValue = (obj: Record<string, unknown>, col: TableColumn): string | undefined => {
+    if (col.label in obj) return String(obj[col.label] ?? '').trim();
+    const norm = normalizeLabel(col.label);
+    for (const k of Object.keys(obj))
+      if (normalizeLabel(k) === norm) return String(obj[k] ?? '').trim();
+    return undefined;
+  };
+  /** 按当前列结构把 AI 行物化成新 TableRow（未提及列补空串） */
+  const materialize = (obj: Record<string, unknown>): TableRow => {
+    const values: Record<string, string> = {};
+    for (const col of resultCols) {
+      const v = colValue(obj, col);
+      values[col.id] = v !== undefined ? v : '';
+    }
+    return { id: generateId('row'), values };
+  };
+
+  // ── 逐行定目标：_rowIndex（1 起）优先按行号；无则第 i 个 AI 行 → 第 i 个选中行；再无 → 追加 ──
+  const selIds = (selectedRowIds || []).filter((id) => current.rows.some((r) => r.id === id));
+  const selectedRows = selIds.map((id) => current.rows.find((r) => r.id === id)!);
+  const targets: Array<number | null> = rawRows.map((raw, i) => {
+    if (raw && typeof raw === 'object') {
+      const byIdx = extractRowIndex(raw);
+      if (byIdx !== null && byIdx >= 0 && byIdx < current.rows.length) return byIdx;
+    }
+    const sel = selectedRows[i];
+    return sel ? current.rows.indexOf(sel) : null;
+  });
+
+  // ── append：无任何目标（未选中且无 _rowIndex）→ AI 行原样追加末尾 ──
+  if (!targets.some((t) => t !== null)) {
+    const added = rawRows
+      .filter((raw): raw is Record<string, unknown> => !!raw && typeof raw === 'object')
+      .map((raw) => materialize(raw));
+    return {
+      opKind: 'append',
+      resultCols,
+      resultRows: [...current.rows, ...added],
+      updatedCount: 0,
+      appendedCount: added.length,
+    };
+  }
+
+  // ── update：命中目标的行按 AI 覆盖提及列，未提及列保留原值；未命中目标的 AI 行追加末尾 ──
+  const nextRows = current.rows.map((r) => ({ id: r.id, values: { ...r.values } }));
+  let updatedCount = 0;
+  let appendedCount = 0;
+  for (let i = 0; i < rawRows.length; i++) {
+    const raw = rawRows[i];
+    if (!raw || typeof raw !== 'object') continue;
+    const ti = targets[i];
+    if (ti !== null) {
+      const obj = raw as Record<string, unknown>;
+      for (const col of resultCols) {
+        const v = colValue(obj, col);
+        if (v !== undefined) nextRows[ti].values[col.id] = v; // 只覆盖提及列，未提及保留原值
+      }
+      updatedCount++;
+    } else {
+      nextRows.push(materialize(raw as Record<string, unknown>));
+      appendedCount++;
+    }
+  }
+  return { opKind: 'update', resultCols, resultRows: nextRows, updatedCount, appendedCount };
 }

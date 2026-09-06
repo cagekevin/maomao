@@ -20,7 +20,7 @@ import {
   toggleTableWorkspace,
   closeTableWorkspace,
   setTableWorkspaceWidth,
-  setTableWorkspaceRow,
+  setTableWorkspaceRows,
   acceptTablePreview,
   markTableMessageHandled,
   confirmTablePreview,
@@ -74,25 +74,29 @@ describe('tableWorkspaceState — 开合/选中/预览/游标（纯运行态）'
     toggleTableWorkspace();
     expect(getTableWorkspace().open).toBe(true);
 
-    setTableWorkspaceRow('r1');
-    acceptTablePreview({ json: { rows: [{ a: 'x' }] }, messageId: 'm1', rowId: 'r1' });
+    setTableWorkspaceRows(['r1', 'r2']);
+    acceptTablePreview({
+      json: { rows: [{ a: 'x' }] },
+      messageId: 'm1',
+      selectedRowIds: ['r1', 'r2'],
+    });
     markTableMessageHandled('m9');
-    expect(getTableWorkspace().selectedRowId).toBe('r1');
+    expect(getTableWorkspace().selectedRowIds).toEqual(['r1', 'r2']);
     expect(getTableWorkspace().preview).not.toBeNull();
     expect(getTableWorkspace().handledMessageId).toBe('m9');
 
     toggleTableWorkspace(); // 关
     expect(getTableWorkspace().open).toBe(false);
-    expect(getTableWorkspace().selectedRowId).toBeNull();
+    expect(getTableWorkspace().selectedRowIds).toEqual([]);
     expect(getTableWorkspace().preview).toBeNull();
     expect(getTableWorkspace().handledMessageId).toBeNull();
   });
 
-  it('宽度 clamp 360~760 + 经 agent_split_width 持久化（localStorage）', () => {
+  it('宽度 clamp 360~1080 + 经 agent_split_width 持久化（localStorage）', () => {
     setTableWorkspaceWidth(100); // 低于 min → 360
     expect(getTableWorkspace().width).toBe(360);
-    setTableWorkspaceWidth(900); // 高于 max → 760
-    expect(getTableWorkspace().width).toBe(760);
+    setTableWorkspaceWidth(2000); // 高于 max → 1080
+    expect(getTableWorkspace().width).toBe(1080);
     setTableWorkspaceWidth(500);
     expect(getTableWorkspace().width).toBe(500);
     expect(contentGet('agent_split_width')).toBe('500');
@@ -101,31 +105,38 @@ describe('tableWorkspaceState — 开合/选中/预览/游标（纯运行态）'
   it('resetTableWorkspace 清选中/预览/游标，保留 open/width（切对话语义）', () => {
     toggleTableWorkspace();
     setTableWorkspaceWidth(520);
-    setTableWorkspaceRow('r1');
-    acceptTablePreview({ json: { rows: [{ a: 'x' }] }, messageId: 'm1', rowId: 'r1' });
+    setTableWorkspaceRows(['r1']);
+    acceptTablePreview({
+      json: { rows: [{ a: 'x' }] },
+      messageId: 'm1',
+      selectedRowIds: ['r1'],
+    });
     markTableMessageHandled('m9');
 
     resetTableWorkspace();
     expect(getTableWorkspace().open).toBe(true);
     expect(getTableWorkspace().width).toBe(520);
-    expect(getTableWorkspace().selectedRowId).toBeNull();
+    expect(getTableWorkspace().selectedRowIds).toEqual([]);
     expect(getTableWorkspace().preview).toBeNull();
     expect(getTableWorkspace().handledMessageId).toBeNull();
   });
 });
 
-describe('tableWorkspaceState — confirmTablePreview 写回（模块化，替代原 AgentPanel）', () => {
-  it('单行（有选中行 + AI 只回 1 行）→ mergeRowFromObj 只覆盖该行已有列，消息打 confirmed，预览清空', () => {
+describe('tableWorkspaceState — acceptTablePreview 算结果 + confirm 原样写回（预览=确认）', () => {
+  it('单行（选中行 + AI 只回 1 行）→ update 该行，消息打 confirmed，预览清空', () => {
     const sb = setupConvWithTable();
     const rowId = sb.rows[0].id;
     const mid = appendAssistant('{"rows":[{"景别":"特写","画面":"新画面"}]}');
 
-    setTableWorkspaceRow(rowId);
+    setTableWorkspaceRows([rowId]);
     acceptTablePreview({
       json: { rows: [{ 景别: '特写', 画面: '新画面' }] },
       messageId: mid,
-      rowId,
+      selectedRowIds: [rowId],
     });
+    const p = getTableWorkspace().preview!;
+    expect(p.opKind).toBe('update');
+    expect(p.resultRows).toHaveLength(1); // 预览存「操作后最终表格」
     confirmTablePreview();
 
     const after = getCurrentAssistantTable();
@@ -139,28 +150,56 @@ describe('tableWorkspaceState — confirmTablePreview 写回（模块化，替�
     expect(msgs[msgs.length - 1].tableResolved).toBe('confirmed');
   });
 
-  it('整表（无选中行 / 多行）→ jsonToSb 全量替换列+行 + globalStyle 写回，消息打 confirmed', () => {
+  it('多行改（选中 2 行 + AI 回 2 行）→ 两行都更新，未选中行不受影响（验收 2）', () => {
     setupConvWithTable();
-    const mid = appendAssistant(
-      '{"globalStyle":"写实电影感","rows":[{"新列A":"a1","新列B":"b1"}]}',
-    );
+    const sb = parsePasted('景别\t画面\n中景\t原1\n特写\t原2\n全景\t原3')!;
+    setCurrentAssistantTable(sb);
+    const r1 = sb.rows[0].id;
+    const r3 = sb.rows[2].id;
+    const mid = appendAssistant('{"rows":[{"画面":"新1"},{"画面":"新3"}]}');
 
+    setTableWorkspaceRows([r1, r3]);
     acceptTablePreview({
-      json: { globalStyle: '写实电影感', rows: [{ 新列A: 'a1', 新列B: 'b1' }] },
+      json: { rows: [{ 画面: '新1' }, { 画面: '新3' }] },
       messageId: mid,
-      rowId: null,
+      selectedRowIds: [r1, r3],
     });
+    expect(getTableWorkspace().preview!.opKind).toBe('update');
     confirmTablePreview();
 
     const after = getCurrentAssistantTable();
-    expect(after.columns.map((c) => c.label)).toEqual(['新列A', '新列B']);
-    expect(after.rows).toHaveLength(1);
-    expect(after.rows[0].values[after.columns[0].id]).toBe('a1');
-    expect(getCurrentGlobalContract()?.unified_style_prompt).toBe('写实电影感');
-    expect(getTableWorkspace().preview).toBeNull();
+    const c1 = after.columns[1].id; // 画面
+    expect(after.rows[0].values[c1]).toBe('新1');
+    expect(after.rows[1].values[c1]).toBe('原2'); // 未选中行不受影响
+    expect(after.rows[2].values[c1]).toBe('新3');
+    expect(after.rows).toHaveLength(3);
   });
 
-  it('单行带 _rowIndex（无选中 rowId）→ 精准 patch 到对应行，不当列、不整表替换', () => {
+  it('未选中行 + AI 返回行 → append 末尾追加，原有行与列宽不丢（验收 3）', () => {
+    setupConvWithTable();
+    const sb = parsePasted('景别\t画面\n中景\t原1\n特写\t原2')!;
+    const col0 = sb.columns[0];
+    setCurrentAssistantTable({ ...sb, columns: [{ ...col0, width: 180 }, sb.columns[1]] });
+    const mid = appendAssistant('{"rows":[{"景别":"全景","画面":"新增"}]}');
+
+    acceptTablePreview({
+      json: { rows: [{ 景别: '全景', 画面: '新增' }] },
+      messageId: mid,
+      selectedRowIds: [],
+    });
+    const p = getTableWorkspace().preview!;
+    expect(p.opKind).toBe('append');
+    expect(p.resultCols[0].id).toBe(col0.id); // 列 id 保留
+    expect(p.resultCols[0].width).toBe(180); // 列宽不丢
+    confirmTablePreview();
+
+    const after = getCurrentAssistantTable();
+    expect(after.rows).toHaveLength(3); // 原 2 行 + 追加 1 行
+    expect(after.rows[2].values[after.columns[0].id]).toBe('全景');
+    expect(after.rows[0].values[after.columns[0].id]).toBe('中景'); // 原行不动
+  });
+
+  it('单行带 _rowIndex（无选中）→ 精准 patch 到对应行，不当列、不整表替换', () => {
     // 先建会话 + 表，再覆盖成一张 3 行表：景别/画面（行序：中景-原1 / 特写-原2 / 全景-原3）
     setupConvWithTable();
     const sb = parsePasted('景别\t画面\n中景\t原1\n特写\t原2\n全景\t原3')!;
@@ -168,12 +207,15 @@ describe('tableWorkspaceState — confirmTablePreview 写回（模块化，替�
     setCurrentAssistantTable(sb);
     const mid = appendAssistant('{"rows":[{"_rowIndex":2,"画面":"已更新"}]}');
 
-    // 未选中任何行（rowId=null），靠 AI 返回的 _rowIndex:2 定位到第 2 行
+    // 未选中任何行（selectedRowIds=[]），靠 AI 返回的 _rowIndex:2 定位到第 2 行
     acceptTablePreview({
       json: { rows: [{ _rowIndex: 2, 画面: '已更新' }] },
       messageId: mid,
-      rowId: null,
+      selectedRowIds: [],
     });
+    // 未选中 + AI 有 _rowIndex → 按行号定位该行（update 语义，非 append）
+    const p = getTableWorkspace().preview!;
+    expect(p.opKind).toBe('update');
     confirmTablePreview();
 
     const after = getCurrentAssistantTable();
@@ -191,13 +233,87 @@ describe('tableWorkspaceState — confirmTablePreview 写回（模块化，替�
     expect(getTableWorkspace().preview).toBeNull();
   });
 
+  it('空表 + AI 整表 → replace 建表 + globalStyle 写回（验收全流程）', () => {
+    setupConvWithTable();
+    setCurrentAssistantTable({ columns: [], rows: [] }); // 清空成空表
+    const mid = appendAssistant(
+      '{"globalStyle":"写实电影感","rows":[{"新列A":"a1","新列B":"b1"}]}',
+    );
+
+    acceptTablePreview({
+      json: { globalStyle: '写实电影感', rows: [{ 新列A: 'a1', 新列B: 'b1' }] },
+      messageId: mid,
+      selectedRowIds: [],
+    });
+    const p = getTableWorkspace().preview!;
+    expect(p.opKind).toBe('replace');
+    expect(p.resultCols.map((c) => c.label)).toEqual(['新列A', '新列B']);
+    confirmTablePreview();
+
+    const after = getCurrentAssistantTable();
+    expect(after.columns.map((c) => c.label)).toEqual(['新列A', '新列B']);
+    expect(after.rows).toHaveLength(1);
+    expect(after.rows[0].values[after.columns[0].id]).toBe('a1');
+    expect(getCurrentGlobalContract()?.unified_style_prompt).toBe('写实电影感');
+    expect(getTableWorkspace().preview).toBeNull();
+  });
+
+  it('AI 返回列名与现有不一致 → 新列出现在预览 resultCols，确认后写入（验收 4）', () => {
+    setupConvWithTable();
+    const sb = getCurrentAssistantTable();
+    const rid = sb.rows[0].id;
+    const mid = appendAssistant('{"rows":[{"画面":"新画面","备注":"新列值"}]}');
+
+    setTableWorkspaceRows([rid]);
+    acceptTablePreview({
+      json: { rows: [{ 画面: '新画面', 备注: '新列值' }] },
+      messageId: mid,
+      selectedRowIds: [rid],
+    });
+    const p = getTableWorkspace().preview!;
+    expect(p.resultCols.map((c) => c.label)).toEqual(['景别', '画面', '备注']); // 新列在预览
+    confirmTablePreview();
+
+    const after = getCurrentAssistantTable();
+    expect(after.columns.map((c) => c.label)).toEqual(['景别', '画面', '备注']);
+    expect(after.rows[0].values[after.columns[2].id]).toBe('新列值');
+  });
+
+  it('预览=确认：preview 冻结结果，确认原样写回（不再二次推导）', () => {
+    setupConvWithTable();
+    const sb = getCurrentAssistantTable();
+    const rid = sb.rows[0].id;
+    const mid = appendAssistant('{"rows":[{"画面":"新画面"}]}');
+
+    setTableWorkspaceRows([rid]);
+    acceptTablePreview({
+      json: { rows: [{ 画面: '新画面' }] },
+      messageId: mid,
+      selectedRowIds: [rid],
+    });
+    const p = getTableWorkspace().preview!;
+    // accept 后即使改选/表已变，确认仍写 preview 里的结果（B-003 结构消解）
+    setTableWorkspaceRows([]);
+    setCurrentAssistantTable(parsePasted('甲\t乙\nx\ty')!);
+    confirmTablePreview();
+
+    const after = getCurrentAssistantTable();
+    expect(after.columns.map((c) => c.label)).toEqual(['景别', '画面']);
+    expect(after.rows[0].values[after.columns[1].id]).toBe('新画面');
+    expect(getTableWorkspace().preview).toBeNull();
+  });
+
   it('cancelTablePreview → 只打 cancelled，正式表不动，预览清空', () => {
     const sb = setupConvWithTable();
     const rowId = sb.rows[0].id;
     const mid = appendAssistant('{"rows":[{"景别":"特写"}]}');
 
-    setTableWorkspaceRow(rowId);
-    acceptTablePreview({ json: { rows: [{ 景别: '特写' }] }, messageId: mid, rowId });
+    setTableWorkspaceRows([rowId]);
+    acceptTablePreview({
+      json: { rows: [{ 景别: '特写' }] },
+      messageId: mid,
+      selectedRowIds: [rowId],
+    });
     cancelTablePreview();
 
     // 表格没变
@@ -211,5 +327,6 @@ describe('tableWorkspaceState — confirmTablePreview 写回（模块化，替�
   it('无预览时 confirm/cancel 为 no-op，不抛', () => {
     expect(() => confirmTablePreview()).not.toThrow();
     expect(() => cancelTablePreview()).not.toThrow();
+    expect(confirmTablePreview()).toEqual({ ok: false });
   });
 });

@@ -14,13 +14,13 @@ import {
   deleteColumn,
   rowToObj,
   rowToText,
-  sbToJson,
-  jsonToSb,
-  mergeRowFromObj,
+  rowHasText,
+  buildPreviewResult,
   tryParseAssistantTableJson,
-  buildPreviewModel,
   extractRowIndex,
   ROW_INDEX_KEY,
+  estimateColumnWidth,
+  setColumnWidth,
 } from '../../src/components/agent/assistantTable/assistantTable.ts';
 import type { AssistantTable } from '../../src/components/agent/assistantTable/assistantTable.ts';
 
@@ -55,28 +55,21 @@ describe('AI 助手表格模型（assistantTable 纯函数）', () => {
     expect(obj).toEqual({ 景别: '中景', 画面: '人' });
   });
 
-  it('sbToJson / jsonToSb roundtrip：顶层 globalStyle + 行数组，数据不丢；globalStyle 空不写该键', () => {
-    const sb = parsePasted('列A\t列B\nx\ty');
-    const json = sbToJson(sb!, '写实电影感');
-    expect(json.globalStyle).toBe('写实电影感');
-    expect(json.rows).toEqual([{ 列A: 'x', 列B: 'y' }]);
-    const { globalStyle, sb: back } = jsonToSb(json);
-    expect(globalStyle).toBe('写实电影感');
-    expect(back.columns.map((c) => c.label)).toEqual(['列A', '列B']);
-    expect(back.rows[0].values[back.columns[0].id]).toBe('x');
-    const noStyle = sbToJson(sb!, '');
-    expect(Object.prototype.hasOwnProperty.call(noStyle, 'globalStyle')).toBe(false);
+  it('rowHasText：全空行 false，任一非空 true（B-006 单一实现）', () => {
+    expect(rowHasText({ a: '', b: '  ' })).toBe(false);
+    expect(rowHasText({ a: '', b: 'x' })).toBe(true);
+    expect(rowHasText({})).toBe(false);
   });
 
-  it('mergeRowFromObj：只覆盖该行已有列，未知列不新增；无改动幂等', () => {
-    const sb = parsePasted('景别\t画面\n中景\t原画面');
-    const rid = sb!.rows[0].id;
-    const next = mergeRowFromObj(sb!, rid, { 画面: '新画面', 不存在: '忽略' });
-    expect(next.rows[0].values[sb!.columns[1].id]).toBe('新画面');
-    expect(next.columns).toHaveLength(2); // 不新增列
-    // 无改动 → 原引用
-    const unchanged = mergeRowFromObj(sb!, rid, { 画面: '原画面' });
-    expect(unchanged).toBe(sb);
+  it('mergeRowFromObj 旧语义已迁入 buildPreviewResult：update 只覆盖提及列、未提及保留原值', () => {
+    const sb = parsePasted('景别\t画面\n中景\t原画面')!;
+    const rid = sb.rows[0].id;
+    const r = buildPreviewResult(sb, { rows: [{ 画面: '新画面', 不存在: '忽略' }] }, [rid]);
+    expect(r.opKind).toBe('update');
+    // 未提及列（景别）保留原值；提及列（画面）更新；未知键不再静默忽略——作为新列追加（A-005）
+    expect(r.resultRows[0].values[sb.columns[0].id]).toBe('中景');
+    expect(r.resultRows[0].values[sb.columns[1].id]).toBe('新画面');
+    expect(r.resultCols.map((c) => c.label)).toEqual(['景别', '画面', '不存在']);
   });
 
   it('addRow / deleteRow / moveRow / duplicateRow：不可变 + 行 id 稳定', () => {
@@ -154,27 +147,109 @@ describe('AI 助手表格模型（assistantTable 纯函数）', () => {
     expect(_t).toBeTruthy();
   });
 
-  it('buildPreviewModel：单行 → 还原成完整行（AI 给到的新值 + 未给沿用当前值），带 rowIndex', () => {
-    const sb = parsePasted('景别\t画面\t对白\n中景\t原画面\t原对白');
-    const rid = sb!.rows[0].id;
-    // AI 只返回画面列新值，其余沿用当前值
-    const p = buildPreviewModel(sb!, { rows: [{ 画面: '新画面' }] }, rid);
-    expect(p.kind).toBe('table');
-    expect(p.rowIndex).toBe(1);
-    expect(p.rows).toEqual([{ 景别: '中景', 画面: '新画面', 对白: '原对白' }]);
+  it('buildPreviewResult：replace（当前表无列）→ 按 AI 建表，丢全空行，_rowIndex 不当列', () => {
+    const r = buildPreviewResult(emptyAssistantTable(), {
+      globalStyle: '写实',
+      rows: [
+        { [ROW_INDEX_KEY]: 2, 列A: 'a1', 列B: 'b1' },
+        { 列A: 'a2', 列B: 'b2' },
+        { 列A: '', 列B: '  ' },
+      ],
+    });
+    expect(r.opKind).toBe('replace');
+    expect(r.resultCols.map((c) => c.label)).toEqual(['列A', '列B']); // _rowIndex 不当列
+    expect(r.resultRows).toHaveLength(2); // 全空行丢弃
+    expect(r.resultRows[0].values[r.resultCols[0].id]).toBe('a1');
   });
 
-  it('buildPreviewModel：整表 → 列与行还原，rowIndex=null', () => {
-    const p = buildPreviewModel(
-      emptyAssistantTable(),
-      { globalStyle: '写实', rows: [{ A: '1', B: '2' }] },
-      null,
+  it('buildPreviewResult：append（未选中行）→ AI 行原样追加末尾，现有列 id/width 保留', () => {
+    const sb = parsePasted('景别\t画面\n中景\t原画面')!;
+    const col0 = sb.columns[0];
+    const withWidth = { ...sb, columns: [{ ...col0, width: 180 }, sb.columns[1]] };
+    const r = buildPreviewResult(withWidth, { rows: [{ 景别: '特写', 画面: '新画面' }] });
+    expect(r.opKind).toBe('append');
+    expect(r.resultCols[0].id).toBe(col0.id); // 列 id 保留
+    expect(r.resultCols[0].width).toBe(180); // 列宽保留
+    expect(r.resultRows).toHaveLength(2); // 原 1 行 + 追加 1 行
+    expect(r.resultRows[1].values[col0.id]).toBe('特写');
+    expect(r.resultRows[0].values[col0.id]).toBe('中景'); // 原行不动
+  });
+
+  it('buildPreviewResult：update（选中 N 行 + AI 回 N 行）→ 第 i 个 AI 行填第 i 个选中行，未选中行不动', () => {
+    const sb = parsePasted('景别\t画面\n中景\t原1\n特写\t原2\n全景\t原3')!;
+    const r1 = sb.rows[0].id;
+    const r3 = sb.rows[2].id;
+    // 选中第 1、3 行，AI 回两行 → 分别更新
+    const r = buildPreviewResult(sb, { rows: [{ 画面: '新1' }, { 画面: '新3' }] }, [r1, r3]);
+    expect(r.opKind).toBe('update');
+    expect(r.updatedCount).toBe(2);
+    expect(r.resultRows).toHaveLength(3);
+    expect(r.resultRows[0].values[sb.columns[1].id]).toBe('新1');
+    expect(r.resultRows[1].values[sb.columns[1].id]).toBe('原2'); // 未选中行不动
+    expect(r.resultRows[2].values[sb.columns[1].id]).toBe('新3');
+    expect(r.resultRows[0].id).toBe(r1); // 行 id 稳定
+    expect(r.resultRows[2].id).toBe(r3);
+  });
+
+  it('buildPreviewResult：update M>N → 前 N 行更新，多余行追加末尾', () => {
+    const sb = parsePasted('景别\t画面\n中景\t原1\n特写\t原2')!;
+    const r1 = sb.rows[0].id;
+    const r = buildPreviewResult(
+      sb,
+      { rows: [{ 画面: '改1' }, { 画面: '新追加1' }, { 画面: '新追加2' }] },
+      [r1],
     );
-    expect(p.kind).toBe('table');
-    expect(p.globalStyle).toBe('写实');
-    expect(p.columns).toEqual(['A', 'B']);
-    expect(p.rows).toEqual([{ A: '1', B: '2' }]);
-    expect(p.rowIndex).toBeNull();
+    expect(r.opKind).toBe('update');
+    expect(r.updatedCount).toBe(1);
+    expect(r.appendedCount).toBe(2);
+    expect(r.resultRows).toHaveLength(4);
+    expect(r.resultRows[0].values[sb.columns[1].id]).toBe('改1');
+    expect(r.resultRows[2].values[sb.columns[1].id]).toBe('新追加1'); // 追加到末尾
+    expect(r.resultRows[3].values[sb.columns[1].id]).toBe('新追加2');
+  });
+
+  it('buildPreviewResult：update 带 _rowIndex → 优先按行号定位（无视选中顺序）', () => {
+    const sb = parsePasted('景别\t画面\n中景\t原1\n特写\t原2\n全景\t原3')!;
+    // 选中第 1 行，但 AI 用 _rowIndex:3 指第 3 行 → 改的是第 3 行
+    const r = buildPreviewResult(sb, { rows: [{ [ROW_INDEX_KEY]: 3, 画面: '已更新' }] }, [
+      sb.rows[0].id,
+    ]);
+    expect(r.opKind).toBe('update');
+    expect(r.resultRows[2].values[sb.columns[1].id]).toBe('已更新');
+    expect(r.resultRows[0].values[sb.columns[1].id]).toBe('原1'); // 选中行没被 AI 覆盖
+  });
+
+  it('buildPreviewResult：选中空行 + AI 续写 → 内容填进该空行（验收 1）', () => {
+    const sb = parsePasted('景别\t画面\n中景\t原画面')!;
+    const emptyRow = addRow(sb).rows[1]; // 全空行
+    const withEmpty = { ...sb, rows: [...sb.rows, emptyRow] };
+    const r = buildPreviewResult(withEmpty, { rows: [{ 景别: '特写', 画面: '续写内容' }] }, [
+      emptyRow.id,
+    ]);
+    expect(r.opKind).toBe('update');
+    expect(r.resultRows[1].values[sb.columns[0].id]).toBe('特写');
+    expect(r.resultRows[1].values[sb.columns[1].id]).toBe('续写内容');
+    expect(r.resultRows).toHaveLength(2);
+  });
+
+  it('buildPreviewResult：update 未提及列保留原值；AI 新列名追加为新列（验收 4）', () => {
+    const sb = parsePasted('景别\t画面\n中景\t原画面')!;
+    const rid = sb.rows[0].id;
+    const r = buildPreviewResult(sb, { rows: [{ 画面: '新画面', 备注: '新列值' }] }, [rid]);
+    expect(r.opKind).toBe('update');
+    expect(r.resultCols.map((c) => c.label)).toEqual(['景别', '画面', '备注']);
+    expect(r.resultRows[0].values[sb.columns[0].id]).toBe('中景'); // 未提及列保留
+    expect(r.resultRows[0].values[r.resultCols[2].id]).toBe('新列值'); // 新列值
+  });
+
+  it('buildPreviewResult：列名空白归一模糊匹配（trim/折叠空白），命中现有列不新增（A-005）', () => {
+    const sb = parsePasted('景别\t画面\n中景\t原画面')!;
+    const rid = sb.rows[0].id;
+    // AI 返回带空格/多余空白的列名 → 归一后命中现有列「画面」
+    const r = buildPreviewResult(sb, { rows: [{ ' 画面 ': '新画面' }] }, [rid]);
+    expect(r.opKind).toBe('update');
+    expect(r.resultCols.map((c) => c.label)).toEqual(['景别', '画面']); // 不新增列
+    expect(r.resultRows[0].values[sb.columns[1].id]).toBe('新画面');
   });
 
   it('addColumn：追加列并给每行补空键；原表不动', () => {
@@ -241,27 +316,37 @@ describe('AI 助手表格模型（assistantTable 纯函数）', () => {
     expect(extractRowIndex(null)).toBeNull();
   });
 
-  it('jsonToSb：行对象带 _rowIndex 时不当列（定位元数据剥离），整表仍只建真实列', () => {
-    const { sb } = jsonToSb({
-      globalStyle: 'g',
-      rows: [
-        { [ROW_INDEX_KEY]: 2, 列A: 'a', 列B: 'b' },
-        { 列A: 'c', 列B: 'd' },
-      ],
-    });
-    expect(sb.columns.map((c) => c.label)).toEqual(['列A', '列B']); // 不含 _rowIndex
-    expect(sb.rows).toHaveLength(2);
-    expect(sb.rows[0].values[sb.columns[0].id]).toBe('a');
-    expect(Object.keys(sb.rows[0].values)).not.toContain(ROW_INDEX_KEY);
+  it('estimateColumnWidth：中文按 2 字宽计长，clamp 在 90~240，表头长度计入', () => {
+    const rows = [{ id: 'r1', values: { c1: '短' } }];
+    const w = estimateColumnWidth('列', rows, 'c1');
+    expect(w).toBeGreaterThanOrEqual(90);
+    expect(w).toBeLessThanOrEqual(240);
+    // 表头 4 个中文（=8 字宽）→ 最长 8；8*13+24=128
+    expect(estimateColumnWidth('列列列列', rows, 'c1')).toBe(
+      Math.max(90, Math.min(240, 8 * 13 + 24)),
+    );
+    // 超长内容触发上限 240
+    const long = '内容'.repeat(50);
+    expect(estimateColumnWidth('列', [{ id: 'r', values: { c1: long } }], 'c1')).toBe(240);
   });
 
-  it('buildPreviewModel：无选中行 + 单行带 _rowIndex → 定位该行还原完整行（不整表替换）', () => {
-    const sb = parsePasted('景别\t画面\t对白\n中景\t原画面\t原对白\n特写\t原2\t原3');
-    // 想改第 2 行（_rowIndex:2 → 0-based index 1）但未选中行（rowId=null）
-    const p = buildPreviewModel(sb!, { rows: [{ [ROW_INDEX_KEY]: 2, 画面: '新画面' }] }, null);
-    expect(p.kind).toBe('table');
-    expect(p.rowIndex).toBe(2); // 预览标第 2 行
-    expect(p.rows).toEqual([{ 景别: '特写', 画面: '新画面', 对白: '原3' }]); // 沿用第2行原值
-    expect(p.columns).toEqual(['景别', '画面', '对白']); // 无 _rowIndex 混入
+  it('setColumnWidth：不可变、写入 width、相同幂等、未知列忽略，行数据不动', () => {
+    const sb = parsePasted('列A\nx')!;
+    const cid = sb.columns[0].id;
+    const next = setColumnWidth(sb, cid, 200);
+    expect(next).not.toBe(sb);
+    expect(next.columns[0].width).toBe(200);
+    expect(setColumnWidth(next, cid, 200)).toBe(next); // 同值幂等（对已设列的再次相同写入）
+    expect(setColumnWidth(sb, 'nope', 200)).toBe(sb); // 未知列忽略
+    expect(next.rows[0].values[cid]).toBe('x'); // 行数据不动
+  });
+
+  it('normalizeAssistantTable：保留列 width 字段（拖拽持久化可回读），未设列不含 width 键', () => {
+    const n = normalizeAssistantTable({
+      columns: [{ id: 'c1', label: 'A', width: 180 }, { label: 'B' }],
+      rows: [{ id: 'r1', values: { c1: '1' } }],
+    });
+    expect(n.columns[0].width).toBe(180);
+    expect(n.columns[1].width).toBeUndefined();
   });
 });

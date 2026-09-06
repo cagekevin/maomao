@@ -6,14 +6,23 @@
  * 本组件自读自写（经 conversationStore 原子订阅 + setCurrentAssistantTable/setCurrentGlobalContract 写回），
  * 渲染 跟随 mockup：全局风格条(.gs) → 工具条(.sb-tools) → 表体(.sbt 表头吸顶/表体滚动)，均可编辑 + 行操作。
  *
- * 关键交互（对应定稿 §1.3/§1.4）：
+ * 关键交互（对应定稿 §1.3/§1.4 + 实施 §1.5）：
  *  - 粘贴：显式「粘贴表格」入口读取剪贴板 → parsePasted(TSV/HTML) → 首行表头，写回表格。
- *  - 点选行：本组件持 selectedRowId，lift 给 AgentPanel onSelectRow 供发 AI 时注入上下文。
- *  - AI 生成整表 / 改单行：watch 最后一条 assistant 消息 → 解析「表格 JSON」→ 本组件顶部渲染预览卡 .pv →
- *    确认才写回（整表 replace / 单行 mergeRowFromObj），取消则表格不动（预览与正式表两份状态）。
+ *  - 点选行：选中态全库只存共享态 selectedRowIds（唯一意图信号，C1）；普通点击=单选/取消，
+ *    Cmd/Ctrl+点击=累加/取消多选；删除行时同步从选中集合移除。
+ *  - AI 生成整表 / 改行 / 追加：watch 最后一条 assistant 消息 → 解析「表格 JSON」→ 本组件顶部渲染预览卡 .pv
+ *    → 确认才写回（预览=确认：写回的就是预览所见，见 tableWorkspaceState），取消则表格不动。
  *  - 落画布：行操作「发送到画布」→ rowToText → onSendToCanvas（复用 sendContentToCanvas）。
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type MouseEvent as ReactMouseEvent,
+  type PointerEvent as ReactPointerEvent,
+} from 'react';
 import { subscribe, getState } from '../conversation/conversationState.ts';
 import { useStoreSelector, shallowEqual } from '@/hooks/useStoreSelector.ts';
 import {
@@ -33,9 +42,13 @@ import {
   renameColumn,
   insertColumnAfter,
   deleteColumn,
+  setColumnWidth,
+  estimateColumnWidth,
 } from './assistantTable.ts';
 import type { AssistantTable, TableRow, AssistantTablePreview } from './assistantTable.ts';
 import { showToast } from '@/components/base/core/toastStore.ts';
+import { askConfirm } from '@/components/base/core/confirmStore.ts';
+import { useTableWorkspace, setTableWorkspaceRows } from './tableWorkspaceState.ts';
 import AssistantTablePreviewCard from './AssistantTablePreviewCard.tsx';
 import '../../panels/agent-panel.css';
 
@@ -58,8 +71,6 @@ export interface AssistantTablePanelProps {
   width?: number;
   /** AI 表格预览当前是否存在（待确认写回）。存在且空表时左栏空态提示「等你在右侧确认后写入」 */
   previewing?: boolean;
-  /** 选中某行（null=取消选中）。供 AgentPanel 在发 AI 时自动注入该行上下文 */
-  onSelectRow?: (rowId: string | null) => void;
   /** 某行 → 发送到画布（AgentPanel 传 sendContentToCanvas，内部 rowToText 拼好文字） */
   onSendToCanvas?: (text: string) => void;
   /** 【待确认预览卡（收进左栏表格下方）2026-09-06】AI 返回表格 JSON → AgentPanel 解析出的「待确认预览模型」。
@@ -77,13 +88,14 @@ export interface AssistantTablePanelProps {
 export default function AssistantTablePanel({
   width = 460,
   previewing = false,
-  onSelectRow,
   onSendToCanvas,
   preview = null,
   sending = false,
   onConfirmPreview,
   onCancelPreview,
 }: AssistantTablePanelProps) {
+  // 选中态唯一信号（C1）：共享态 selectedRowIds（普通点击=单选/取消，Cmd/Ctrl=多选 toggle）
+  const { selectedRowIds } = useTableWorkspace();
   // ── 响应式读 store ──
   const activeConversationId = useStoreSelector(
     subscribe,
@@ -116,14 +128,13 @@ export default function AssistantTablePanel({
       : '';
 
   // ── 本地编辑态 ──
-  const [selectedRowId, setSelectedRowId] = useState<string | null>(null);
   const [edits, setEdits] = useState<Record<string, string>>({}); // `${rowId}:${colId}` → draft
   const [colRenameDraft, setColRenameDraft] = useState<Record<string, string>>({}); // colId → 列名 draft
   const [styleDraft, setStyleDraft] = useState(globalStyle);
 
-  // 切对话 → 重置本地选中/编辑草稿（避免跨对话串表）。AI 表格预览已上移到 AgentPanel 对话流内处理
+  // 切对话 → 重置本地编辑草稿（避免跨对话串表；选中态由共享态 resetTableWorkspace 清，勿另持副本）。
+  // AI 表格预览已上移到 AgentPanel 对话流内处理
   useEffect(() => {
-    setSelectedRowId(null);
     setEdits({});
     setColRenameDraft({});
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -173,6 +184,67 @@ export default function AssistantTablePanel({
     const blob = await item.getType(type);
     return await blob.text();
   }
+
+  // 复制整表为表格：一次写两种格式 —— TSV（Excel/Sheets/Word 粘上成表）+ HTML <table>
+  // （Word/Notion/飞书等富文本粘上保留网格）。无 HTML 权限时回退纯 TSV，仍是表格。
+  const handleCopyTable = useCallback(async () => {
+    if (!storyboard.columns.length) {
+      showToast?.('表格还没有列，无法复制', { type: 'error' });
+      return;
+    }
+    const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const cols = storyboard.columns;
+    const header = cols.map((c) => c.label).join('\t');
+    const bodyRows = storyboard.rows
+      .map((r) => cols.map((c) => (r.values[c.id] ?? '').replace(/\t/g, ' ')).join('\t'))
+      .join('\n');
+    const tsv = bodyRows ? `${header}\n${bodyRows}` : header;
+    const html =
+      '<table border="1" cellspacing="0" cellpadding="4"><thead><tr>' +
+      cols.map((c) => `<th>${esc(c.label)}</th>`).join('') +
+      '</tr></thead><tbody>' +
+      storyboard.rows
+        .map(
+          (r) =>
+            '<tr>' + cols.map((c) => `<td>${esc(r.values[c.id] ?? '')}</td>`).join('') + '</tr>',
+        )
+        .join('') +
+      '</tbody></table>';
+    try {
+      if (
+        navigator.clipboard &&
+        'write' in navigator.clipboard &&
+        typeof ClipboardItem !== 'undefined'
+      ) {
+        await navigator.clipboard.write([
+          new ClipboardItem({
+            'text/plain': new Blob([tsv], { type: 'text/plain' }),
+            'text/html': new Blob([html], { type: 'text/html' }),
+          }),
+        ]);
+      } else {
+        await navigator.clipboard.writeText(tsv);
+      }
+      showToast?.(`已复制表格 · ${storyboard.rows.length} 行 ${cols.length} 列`, {
+        type: 'success',
+      });
+    } catch {
+      showToast?.('复制失败（浏览器可能限制了剪贴板权限）', { type: 'error' });
+    }
+  }, [storyboard]);
+
+  // 清空表格：复用全局 askConfirm（即删除会话同款确认弹窗，danger 红样式），确认后才清空。
+  const handleClearTable = useCallback(async () => {
+    const ok = await askConfirm({
+      title: '清空表格？',
+      message: '所有行和列都会被删除，且无法撤销。',
+      confirmText: '清空',
+      danger: true,
+    });
+    if (!ok) return;
+    commit({ columns: [], rows: [] });
+    showToast?.('已清空表格', { type: 'success' });
+  }, [commit]);
 
   const handleStyleCommit = () => {
     const next = styleDraft.trim();
@@ -248,9 +320,8 @@ export default function AssistantTablePanel({
           title="删除"
           onClick={() => {
             apply((s) => deleteRow(s, row.id));
-            if (selectedRowId === row.id) {
-              setSelectedRowId(null);
-              onSelectRow?.(null);
+            if (selectedRowIds.includes(row.id)) {
+              setTableWorkspaceRows(selectedRowIds.filter((id) => id !== row.id));
             }
           }}
         >
@@ -317,32 +388,106 @@ export default function AssistantTablePanel({
       );
     });
 
-  const onClickRow = (row: TableRow) => {
-    const next = selectedRowId === row.id ? null : row.id;
-    setSelectedRowId(next);
-    onSelectRow?.(next);
+  /** 点选行（唯一意图信号，C1）：普通点击=单选/再点取消；Cmd/Ctrl+点击=累加/取消多选。
+   *  只写共享态 setTableWorkspaceRows，高亮/注入/写回全部读同一份（B-004 双源归一）。 */
+  const onClickRow = (e: ReactMouseEvent, row: TableRow) => {
+    const multi = e.metaKey || e.ctrlKey;
+    let next: string[];
+    if (multi) {
+      next = selectedRowIds.includes(row.id)
+        ? selectedRowIds.filter((id) => id !== row.id)
+        : [...selectedRowIds, row.id];
+    } else {
+      next = selectedRowIds.length === 1 && selectedRowIds[0] === row.id ? [] : [row.id];
+    }
+    setTableWorkspaceRows(next);
   };
 
-  // 列宽：首帧按「表头 + 该列最长内容」估算一个舒适宽度（只读，不持久化、不拖拽）。
-  // 用于避免 table-layout:fixed 把所有数据列均分（列多压窄/列少留白）。列超宽时靠 .sb-body 横向滚动兜底。
+  // 列宽策略（性能优先 + 可选拖拽，无副作用）：
+  //  - 估算值只在「列结构（id 集合）变化」时计算一次（建表/增删列），按内容给舒适宽；
+  //    编辑单元格内容**不**触发重算 → 不抖动、不重渲染。
+  //  - 用户拖拽写回 col.width（持久化到会话记忆），优先于估算。
+  const COL_W_MIN = 60;
+  const COL_W_MAX = 600;
+  const colWidthMapRef = useRef<Record<string, number>>({});
+  const colSigRef = useRef<string>('');
+  const colSig = storyboard.columns.map((c) => c.id).join('|');
   const colWidths = useMemo(() => {
-    const per = 13; // 每字约 px（12px 字号）
-    const pad = 24; // 左右内边距 + 富余
-    const min = 90;
-    const max = 240;
-    return storyboard.columns.map((col) => {
-      let longest = col.label.length;
-      for (const row of storyboard.rows) {
-        const v = (row.values[col.id] ?? '') as string;
-        if (!v) continue;
-        let len = 0;
-        for (const ch of v) len += ch.charCodeAt(0) > 255 ? 2 : 1; // 中文按 2 字宽
-        if (len > longest) longest = len;
+    if (colSigRef.current !== colSig) {
+      const next: Record<string, number> = {};
+      for (const col of storyboard.columns) {
+        if (col.width != null && Number.isFinite(col.width)) {
+          // 已手动锁定 → 用锁定值（clamp 合法范围）
+          next[col.id] = Math.max(COL_W_MIN, Math.min(COL_W_MAX, col.width));
+        } else if (colWidthMapRef.current[col.id] !== undefined) {
+          // 已有估算记忆 → 沿用（防「插入新列」时旧列跳变抖动）
+          next[col.id] = colWidthMapRef.current[col.id];
+        } else {
+          // 新列 → 按内容估算一次
+          next[col.id] = estimateColumnWidth(col.label, storyboard.rows, col.id);
+        }
       }
-      const px = Math.round(longest * per + pad);
-      return Math.max(min, Math.min(max, px));
-    });
-  }, [storyboard]);
+      colWidthMapRef.current = next;
+      colSigRef.current = colSig;
+    }
+    return colWidthMapRef.current;
+    // storyboard 进依赖只为首帧拿到最新内容；sig 不变时直接返回 ref，开销 O(1)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [colSig, storyboard]);
+
+  // 列宽拖拽：拖拽中只直接改 <col> DOM + 更新 ref（不 setState → 整表不重渲），松手才 commit 一次。
+  const colElsRef = useRef<Array<HTMLTableColElement | null>>([]);
+  const resizingRef = useRef<{
+    colId: string;
+    ci: number;
+    startX: number;
+    startW: number;
+    handleEl: HTMLElement;
+  } | null>(null);
+  const storyboardRef = useRef(storyboard);
+  storyboardRef.current = storyboard;
+
+  const onResizeMove = useCallback((e: PointerEvent) => {
+    const r = resizingRef.current;
+    if (!r) return;
+    const w = Math.max(COL_W_MIN, r.startW + (e.clientX - r.startX));
+    const el = colElsRef.current[r.ci];
+    if (el) el.style.width = `${w}px`;
+    colWidthMapRef.current = { ...colWidthMapRef.current, [r.colId]: w };
+  }, []);
+  const onResizeUp = useCallback(() => {
+    const r = resizingRef.current;
+    if (!r) return;
+    window.removeEventListener('pointermove', onResizeMove);
+    window.removeEventListener('pointerup', onResizeUp);
+    document.body.style.userSelect = '';
+    resizingRef.current = null;
+    r.handleEl.classList.remove('active');
+    const w = colWidthMapRef.current[r.colId];
+    if (Number.isFinite(w) && w !== r.startW) {
+      commit(setColumnWidth(storyboardRef.current, r.colId, w));
+    }
+  }, [onResizeMove, commit]);
+  const startResize = useCallback(
+    (e: ReactPointerEvent, colId: string, ci: number) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const el = colElsRef.current[ci];
+      if (!el) return;
+      (e.currentTarget as HTMLElement).classList.add('active');
+      resizingRef.current = {
+        colId,
+        ci,
+        startX: e.clientX,
+        startW: el.getBoundingClientRect().width,
+        handleEl: e.currentTarget as HTMLElement,
+      };
+      document.body.style.userSelect = 'none';
+      window.addEventListener('pointermove', onResizeMove);
+      window.addEventListener('pointerup', onResizeUp);
+    },
+    [onResizeMove, onResizeUp],
+  );
 
   const hasData = storyboard.columns.length > 0;
 
@@ -400,27 +545,62 @@ export default function AssistantTablePanel({
 
           {hasData && <span className="cnt">{storyboard.rows.length} 行</span>}
           {hasData && (
-            <button
-              type="button"
-              className="tw-op"
-              title="新增一行"
-              onClick={() => {
-                commit(addRow(storyboard));
-                showToast?.('已新增一行（点格子填内容）');
-              }}
-            >
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
+            <>
+              <button
+                type="button"
+                className="tw-op"
+                title="新增一行"
+                onClick={() => {
+                  commit(addRow(storyboard));
+                  showToast?.('已新增一行（点格子填内容）');
+                }}
               >
-                <line x1="12" y1="5" x2="12" y2="19" />
-                <line x1="5" y1="12" x2="19" y2="12" />
-              </svg>
-            </button>
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <line x1="12" y1="5" x2="12" y2="19" />
+                  <line x1="5" y1="12" x2="19" y2="12" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                className="tw-op"
+                title="复制为表格（粘到 Excel/Word/Notion 等仍是表格）"
+                onClick={handleCopyTable}
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <rect x="9" y="9" width="13" height="13" rx="2" />
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                </svg>
+              </button>
+              <button type="button" className="tw-op" title="清空表格" onClick={handleClearTable}>
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <polyline points="3 6 5 6 21 6" />
+                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                  <line x1="10" y1="11" x2="10" y2="17" />
+                  <line x1="14" y1="11" x2="14" y2="17" />
+                </svg>
+              </button>
+            </>
           )}
         </div>
       </div>
@@ -464,14 +644,20 @@ export default function AssistantTablePanel({
             <colgroup>
               <col style={{ width: 32 }} />
               {storyboard.columns.map((col, ci) => (
-                <col key={col.id} style={{ width: colWidths[ci] }} />
+                <col
+                  key={col.id}
+                  ref={(el) => {
+                    colElsRef.current[ci] = el;
+                  }}
+                  style={{ width: colWidths[col.id] ?? colWidths[ci] }}
+                />
               ))}
               <col style={{ width: 88 }} />
             </colgroup>
             <thead>
               <tr>
                 <th>#</th>
-                {storyboard.columns.map((col) => (
+                {storyboard.columns.map((col, ci) => (
                   <th key={col.id} title="点击改列名">
                     <input
                       className="col-head"
@@ -542,6 +728,12 @@ export default function AssistantTablePanel({
                         </svg>
                       </button>
                     </span>
+                    {/* 列宽拖拽手柄：hover 表头显示，拖拽只改 DOM 不重渲，松手 commit 一次 */}
+                    <span
+                      className="col-resize"
+                      title="拖拽调整列宽"
+                      onPointerDown={(e) => startResize(e, col.id, ci)}
+                    />
                   </th>
                 ))}
               </tr>
@@ -550,8 +742,8 @@ export default function AssistantTablePanel({
               {storyboard.rows.map((row, i) => (
                 <tr
                   key={row.id}
-                  className={selectedRowId === row.id ? 'sel' : ''}
-                  onClick={() => onClickRow(row)}
+                  className={selectedRowIds.includes(row.id) ? 'sel' : ''}
+                  onClick={(e) => onClickRow(e, row)}
                 >
                   <td className="idx">{i + 1}</td>
                   {cells(row)}

@@ -1032,9 +1032,9 @@
   transition: background 0.15s;
 }
 .agent-send:hover {
-  /* hover 背景反转为深黑(--mao-inverse-strong)时，图标必须同步转白，否则黑图标在黑底上不可见 */
-  background: rgb(var(--mao-inverse-strong));
-  color: #fff;
+  /* hover 背景改为浅灰色，图标保持黑色以清晰显示在浅灰底上 */
+  background: #e1e1df;
+  color: #111;
 }
 .agent-send:disabled {
   background: rgb(var(--mao-surface-hover));
@@ -1171,11 +1171,11 @@
   overflow: hidden;
   animation: tw-panel-in 0.22s ease-out; /* 从右侧（AI 面板方向）划出 */
 }
-/* 右缘宽度拖拽手柄（吸附边界 = 表格宽度条，替代原 .agent-split 分栏条） */
+/* 左缘宽度拖拽手柄（贴画布左缘 = 表格左边，替代原右缘分栏条） */
 .tw-grip {
   position: absolute;
   top: 0;
-  right: 0;
+  left: 0;
   bottom: 0;
   width: 5px;
   cursor: col-resize;
@@ -1331,6 +1331,17 @@
   color: rgb(var(--mao-text-body));
   line-height: 1.55;
 }
+/* 列间竖线贯穿所有行（表头 + 数据行），让表格更像「正常表格」；
+   最右操作列去掉右边框保持右缘整洁 */
+.tw-panel table.sbt th,
+.tw-panel table.sbt td {
+  border-right: 1px solid rgb(var(--mao-edge-faint) / 0.4);
+}
+.tw-panel table.sbt th:last-child,
+.tw-panel table.sbt td:last-child {
+  border-right: none;
+}
+
 .tw-panel table.sbt tbody tr {
   transition: background 0.12s;
   cursor: pointer;
@@ -1360,8 +1371,8 @@
   border: none;
   background: transparent;
   color: inherit;
-  /* 右侧 34px 留给 +/× 操作组（hover 显示），防列名/输入被按钮遮挡 */
-  padding: 0 34px 0 2px;
+  /* 右侧留白给 +/× 操作组（hover 显示，已左移到 resize 手柄左侧），防列名/输入被按钮遮挡 */
+  padding: 0 26px 0 2px;
   font: inherit;
   line-height: 1.4;
   border-radius: 3px;
@@ -1375,8 +1386,9 @@
 /* 表头列内操作组（+ 在该列后插入 / × 删除该列）：hover 该列表头才显示，两者同款（用户裁定 2026-09-06） */
 .tw-panel table.sbt th .col-ops {
   position: absolute;
-  top: 3px;
-  right: 2px;
+  top: 50%;
+  transform: translateY(-50%);
+  right: 11px;
   display: flex;
   align-items: center;
   gap: 1px;
@@ -1385,6 +1397,48 @@
 }
 .tw-panel table.sbt th:hover .col-ops {
   opacity: 1;
+}
+
+/* 列宽拖拽手柄：以列间竖线为中心对称命中（左右各约 6px），不再重左侧偏。
+   蓝线挂在手柄 ::after（right:4px 精确对齐竖线，见下），th 直挂伪元素在该表格下不渲染。 */
+.tw-panel table.sbt th .col-resize {
+  position: absolute;
+  right: -6px; /* 右缘超出表头 6px → 配合 width:12 使中心正好落在竖线（th 右缘）上 */
+  top: 0;
+  bottom: 0;
+  width: 12px;
+  cursor: col-resize;
+  z-index: 3;
+}
+/* 竖线指示（挂手柄上，已知可渲染）：right:4px 使蓝线中心正好落在 th 的 border-right 竖线上
+   （手柄右缘在 padding 右缘外 6px，蓝线右缘内收 4px = padding 右缘外 2px，宽 2 → 中心外 1px = border 中心）。 */
+.tw-panel table.sbt th .col-resize::after {
+  content: '';
+  position: absolute;
+  right: 4px;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  border-radius: 2px;
+  background: rgb(var(--mao-edge-subtle));
+  opacity: 0;
+  pointer-events: none;
+  z-index: 4;
+  transition:
+    opacity 0.12s,
+    background 0.12s;
+}
+.tw-panel table.sbt th:hover .col-resize::after {
+  opacity: 1;
+}
+.tw-panel table.sbt th .col-resize:hover::after,
+.tw-panel table.sbt th .col-resize.active::after {
+  background: rgb(var(--mao-accent));
+  opacity: 1;
+}
+/* 最右操作列无竖线，隐藏其指示线 */
+.tw-panel table.sbt th:last-child .col-resize::after {
+  display: none;
 }
 /* ══ 表格操作按钮统一规范（2026-09-06 用户裁定）：列头 +/×、每行操作组、顶部「新增一行」共用一套。
    单个钮：16×16 透明底、faint 色、hover 深底 + 白图标；图标统一 11×11。
