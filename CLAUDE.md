@@ -6,7 +6,7 @@
 
 ## ⚠️ 最新情况（改动前必读）
 
-**主力开发是** **`src/`** **可维护 React 原型**（Vite + React + `@xyflow/react` 画布），不是原产品混淆还原代码。结构：
+**主力开发是** **`src/`** **可维护 React 原型**（Vite + React + `@xyflow/react` 画布）。结构：
 
 ```
 本目录（新建文件夹，正式工程）
@@ -21,8 +21,6 @@
 ### 改代码入口
 
 - **主力开发/使用**：改本目录 `src/`（原型）。
-
-- **查原产品怎么实现某功能**：原 `reference-1mao/` 混淆还原代码**已移除**；查"原产品怎么实现某功能"以 `scripts/1mao-scripts/`（归档逆向脚本，默认不跑）+ `docs/`（历史调查产物，可过时可清理）为参考。
 
 ### 常用命令
 
@@ -57,8 +55,6 @@ node scripts/task-inspect.mjs --canvas-health   # 画布结构体检
 
 - 下方 §〇\~§七 是**通用工程规范 + 原型架构**，与 `src/` 直接相关。
 
-- 原产品逆向方法论与中间产物在 `docs/逆向专用_ai 禁止读/`（标注「AI 禁止读」，默认不读）。
-
 ***
 
 ## 🔒 决策记录铁律（最高优先，改动前必读，不靠自觉）
@@ -90,7 +86,7 @@ node scripts/task-inspect.mjs --canvas-health   # 画布结构体检
 
 - **精确**：脚本、文件、npm 命令必须是仓库真实存在的，已归档的写 `1mao-scripts/` 或 `archived/`。
 
-- **留痕**：反直觉改动立即注释"语义 + 原始混淆名/来源"（见 §五.4）。
+- **留痕**：反直觉改动立即注释"语义 + 原始命名/来源"（见 §五.4）。
 
 ### 〇.1 沟通铁律（回复用户/给方案时，最高优先）
 
@@ -255,7 +251,7 @@ node scripts/task-inspect.mjs --canvas-health   # 画布结构体检
 
 ### 5.2 变更记录留痕
 
-- 任何反直觉/绕开既有逻辑的改动，在改动处立即注释「语义 + 原始混淆名/来源」（如 `// ol = tasks 数组，来自 H_.jsx`，不设 deadline）。
+- 任何反直觉/绕开既有逻辑的改动，在改动处立即注释「语义 + 原始命名/来源」（如 `// ol = tasks 数组，来自 H_.jsx`，不设 deadline）。
 
 - 跨大块改动（新增/删除节点、改脚本盒引擎）在 `docs/` 或改动文件顶部登记：改了哪、原始来源、目的、影响运行时行为。是后续对照历史实现/承前启后记录的依据。
 
@@ -273,10 +269,6 @@ node scripts/task-inspect.mjs --canvas-health   # 画布结构体检
 
 ### 5.3 参考代码边界 🚫
 
-- 原 `reference-1mao/` 混淆还原只读代码**已移除**；查"原产品怎么实现某功能"以 `scripts/1mao-scripts/`（归档逆向脚本）和 `docs/`（历史调查产物）为参考，不直接改、不把混淆符号当运行契约钉死。
-
-- `scripts/1mao-scripts/` 是已归档的逆向/扩展脚本，默认不跑。
-
 - `docs/逆向专用_ai 禁止读/` 明确标注「AI 禁止读」，默认不读取，仅引用其存在。
 
 ### 5.4 复用规则（原型内）
@@ -287,7 +279,7 @@ node scripts/task-inspect.mjs --canvas-health   # 画布结构体检
 4. **字符串契约零损伤**（见 §五.5）：`127.0.0.1:18080`（、`127.0.0.1:9004` 已随 2026-09-05 `lovart-old` 退役删除，禁止恢复）、`t.data[0].url`、`{code,data}` 信封——改任何引用必须全量 grep 同步。**注**：旧 `proxyMode=local-tool`/`/api/proxy`/`x-proxy-url` 已随 2026-09-03 生成入口收口退役，禁止恢复（前端直连 `/api/generate`，本地入口由 `config.ts` 的 `apiBase` 决定）。
 5. **存储键禁止裸字符串（P0 红线）**：所有存储读写（`content*/s*/storage*/kv*`）的 key 必须引用 `contracts.ts` 的 `STORAGE_KEYS` 登记项，**禁止裸字符串字面量 key**。新增键先登记、改键名全量 grep、删键先确认无引用。编译期拦截：`npm run check:keys`（静态）；运行时拦截：`contentStore.checkRegistered` 在 dev 环境对未登记字面量 key 直接 throw（`scripts/check-storage-keys.mjs` + `src/components/base/contentStore.ts` 为权威实现，改此机制须同步本红线）。
 6. **事件名禁止裸字符串 + 登记表零滞后（P0 红线，与存储键对称）**：所有事件总线调用（`publish`/`subscribe`/`subscribeOnce`）的事件名必须是 `contracts.ts` 的 `EVENTS` 登记项，**禁止裸字符串字面量事件名**（编译期 `npm run check:events` 拦截）。`EVENTS` 的 `from`/`to` 是发布/订阅事实源，**必须与代码实测的** **`publish`/`subscribe`** **位置自洽**：① 表 `to: []` 但代码实测有 `subscribe` → 视为"登记表滞后"（实际已被订阅），**禁止据此判定死事件/可删发布逻辑**；② 行号漂移须同步对齐。双向校验 `npm run check:events` 已挂 `prebuild`+`pretest`（`scripts/check-events.mjs` 为权威实现）。
-7. **降复杂度优先**：能减少复杂度又不引入 bug 的改动都做（混淆短名改语义长名、抽公共、删冗余），被运行时契约钉死的除外。改完必须 `npm run build` 验证。
+7. **降复杂度优先**：能减少复杂度又不引入 bug 的改动都做（短名改语义长名、抽公共、删冗余），被运行时契约钉死的除外。改完必须 `npm run build` 验证。
 8. **架构重排（移位置/改名字）统一走** **`scripts/mv-sync-refs.mjs`**（最高优先，改动前必读）【名字即三件事：`mv`=移动/改名 · `sync`=自动同步全库 import · `refs`=查引用/依赖/死代码；要搬文件、改名字、或查数据流/谁引用谁，第一反应用它】：一旦发现架构不合理需要给文件**移位置或改名字**，一律用 `node scripts/mv-sync-refs.mjs move <src> <dst> --suffix ts` / `rename <file> <newName> --suffix ts` / `move-dir`，**禁止手写** **`mv`/手改 import**。工具是事务式（git mv + 全库同步 import + 可 `undo` 回退，`--dry` 预览），且 2026-09-04 已修复被移文件自身出向 import 不重写的 bug。要点：
 
    - **💡 只读查数据流/依赖最优先用** **`refs <file>`**：`node scripts/mv-sync-refs.mjs refs <file>` 一屏给出「① 谁 import 它（消费者）+ ② 字符串残留引用」，是**查某条数据流/依赖方向/改动影响面最快**的命令，不需要为这启动子代理全库翻。惯用：想 trace 一条链路、想知道"改了这处会被谁影响"、想判断某文件是不是死代码 → 先 `refs` 一锤定音（0 引用且非入口即死）。链路图可直接更新进 `spec/DATAFLOW.md`（refs 实证）。`find-dead`/`plan` 可辅助扫孤儿/规划迁移。
@@ -422,8 +414,6 @@ node scripts/task-inspect.mjs --canvas-health   # 画布结构体检
 
 | 目录                         | 说明                                                                   |
 | -------------------------- | -------------------------------------------------------------------- |
-| ~~`reference-1mao/`~~（已移除） | 原混淆还原只读源码**已移除**；参考 `scripts/1mao-scripts/`（归档逆向脚本）与 `docs/`（历史调查产物） |
-| `scripts/1mao-scripts/`    | 归档逆向脚本（不跑）                                                           |
 | `docs/逆向专用_ai 禁止读/`        | 还原方法论（AI 禁止读）                                                        |
 | `daily/`                   | 执行日志（不导航，不用维护）                                                       |
 

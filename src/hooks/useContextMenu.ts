@@ -34,7 +34,7 @@ export interface ContextMenuApi {
 }
 
 /**
- * 右键菜单状态 hook（复刻 H_.jsx:131,1324-1388 的 Fe/Xe 菜单状态与三个触发 handler）。
+
  *
  * 提供：
  *  - state       { x, y, type, nodeId } | null
@@ -75,7 +75,6 @@ export function useContextMenu(): ContextMenuApi {
     [toContainerPos],
   );
 
-  // 打开「连接」菜单：从端口拖出到空白，弹菜单选下游节点类型（复刻官方 onConnectEnd Oi）
   // 单一数据源：直接复用空白处（canvas）同一套菜单，不另起 connection 菜单。
   // 仅把这次拖拽的源信息（connection）挂进 state，菜单项据此决定是否自动连线。
   const openConnection = useCallback(
@@ -98,7 +97,7 @@ export function useContextMenu(): ContextMenuApi {
     (e: ReactMouseEvent, _nodes: Node[]) => open('selection', null, e),
     [open],
   );
-  // 拖拽框结束且选中>1 时弹出（复刻 er：延迟 50ms 判断选中数）
+
   const onSelectionEnd = useCallback(
     (e: ReactMouseEvent, nodes?: Node[]) => {
       setTimeout(() => {
@@ -109,7 +108,6 @@ export function useContextMenu(): ContextMenuApi {
     [open],
   );
 
-  // 点击空白关闭（复刻 nr）
   const onPaneClick = useCallback(() => setState(null), []);
 
   const close = useCallback(() => setState(null), []);

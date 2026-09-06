@@ -15,7 +15,7 @@ import { NODE_TYPES, parseShotHandle } from '../components/base/core/contracts.t
  * 需要自动拿到「直接连到自己」的上游节点产出的东西（文本/图片/视频/音频），
  * 作为参考输入。本模块就是这套通用机制的实现。
  *
- * 【核心规则（复刻官方 H_.jsx onGenerate 里遍历 incoming edges + Ra/Ia）】
+
  *  1. 上游「只接一层」：只取 edge.target === 本节点 的边，不递归无限上游。
  *     · 为什么只接一层：下游只需直接依赖它的上游产出；隔了多层的间接数据
  *       不应自动混入（否则依赖关系不可控、数据爆炸）。
@@ -151,7 +151,7 @@ function genericOutput(d: Record<string, unknown>, id: string): NodeOutputGroup 
   return empty;
 }
 
-/** 提取「单个」源节点的产出资源（复刻官方 Ra + Ia）。
+/** 提取「单个」源节点的产出资源。
  *  统一调度：特殊类型（剧本盒子/文本节点）→ 节点产出声明表 → 通用字段兜底。
  *  · 为什么统一返回 { id, url, label, text } 对象：下游渲染缩略图/文本都需要 id 作 key、label 作显示名。
  *  · 无产出返回空对象，不返回 undefined：调用方可直接 push，无需判空。 */

@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { Pencil, X } from 'lucide-react';
 
 /**
- * 全屏弹层组件（复刻 Ai.jsx）。
+
  *
  * 双击节点/输入框的「全屏编辑」落点。通过 createPortal 挂到 body，
  * 以 `fixed inset-0` 全屏遮罩展示 children 内容，供大空间编辑。
@@ -73,7 +73,6 @@ export default function FullscreenModal({
   // 只有「按下起点也在遮罩」的点击才算真·点空白，拖选松出框外不再误关。
   const backdropStartRef = useRef(false);
 
-  // Esc 关闭（复刻 Ai.jsx useEffect）
   useEffect(() => {
     if (!open) return;
     const onKeyDown = (e: KeyboardEvent) => {
@@ -83,7 +82,6 @@ export default function FullscreenModal({
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [open, onClose]);
 
-  // 右下角拖拽改尺寸（复刻 Ai.jsx s 函数）
   const onPanelResize = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
       e.preventDefault();

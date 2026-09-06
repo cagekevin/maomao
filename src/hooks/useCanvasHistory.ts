@@ -39,7 +39,6 @@ export function useCanvasHistory(
   const suppressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const stack = stackRef.current;
 
-  // 记录一次画布变化（复刻 H_.jsx:881-897）。
   // snapshot：可显式传入本次操作后的最新 { nodes, edges }。
   // 若不传，则回退用 getSnapshot() 取 ref 里的当前值。
   // 注意：React setState 是异步的，addNode 等「先 setNodes 再 record」的场景，
@@ -52,13 +51,11 @@ export function useCanvasHistory(
     [stack, getSnapshot],
   );
 
-  // undo/redo 结束后启动 600ms 抑制窗口（复刻源码 setTimeout）
   const scheduleRelease = useCallback(() => {
     if (suppressTimerRef.current) clearTimeout(suppressTimerRef.current);
     suppressTimerRef.current = setTimeout(() => stack.releaseSuppress(), 600);
   }, [stack]);
 
-  // 撤销（复刻 Gn）
   const undo = useCallback(() => {
     const snap = stack.undo();
     if (snap) {
@@ -68,7 +65,6 @@ export function useCanvasHistory(
     }
   }, [stack, apply, scheduleRelease]);
 
-  // 重做（复刻 Kn）
   const redo = useCallback(() => {
     const snap = stack.redo();
     if (snap) {

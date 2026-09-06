@@ -1,5 +1,5 @@
 /**
- * localTool 连接状态 hook —— 完整复刻官方 `Gl()`（httpClient-BknZwXjG_components/shared.js L6207-6302，对应 useLocalTool）。
+
  *
  * 官方逻辑（逐条对齐）：
  *  1. state：{ isConnected:false, port:18080 }（初始未连接）。

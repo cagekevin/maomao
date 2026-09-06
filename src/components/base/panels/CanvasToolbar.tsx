@@ -1,40 +1,6 @@
 import React, { type ReactNode } from 'react';
 import { LayoutGrid, Map, Maximize, RefreshCw, Zap } from 'lucide-react';
 
-/**
- * 左下角工具栏（复刻 H_.jsx:12013-12094 bottom-left 工具栏）。
- *
- * 【抉择：为什么是「纯展示 + 回调上抛」】
- * 本组件**不含任何业务逻辑**，只渲染按钮、把点击通过 props 回调上抛给画布宿主（App.jsx）。
- * 原因（原则 1 关注点分离）：按钮「点一下该干嘛」是画布壳的决策（整理→dagre、小地图→切
- * MiniMap、缩放→fitView/zoomIn），不该埋在工具栏组件里。这样工具栏可被任何宿主复用，
- * 换一个画布（脚本盒、别的编辑器）直接换回调即可。
- *
- * 【抉择：图标取舍】
- * 官方图标是混淆后的 lucide 组件（Et/He/_Component124 等，无法直接引用）。本组件用
- * **语义等价**的 lucide 图标：
- *  - 整理画布 → LayoutGrid（网格布局，贴合 dagre 自动排列）
- *  - 清理缓存 → RefreshCw（缓存重整语义，非垃圾桶）
- *  - 性能模式 → Zap（闪电，激活黄高亮）
- * 视觉与官方「表达同一动作」即可，不追求逐像素一致（用户确认过不必 100%）。
- *
- * 【onClearCache 说明】
- * 已由 App 传入真实逻辑（释放节点 data 里超过阈值的内联 dataURL 大资源，原型本地版）。
- * 官方 Ki 是把内联大资源转成 /files/ 本地 URL；原型无后端，改为释放超大内联数据，接真后再转 URL。
- * 说明：原「运行工作流（onRun）」按钮已按需求移除。
- *
- * @param {Object} props
- * @param {boolean} props.minimapOn      小地图开关（激活白高亮）
- * @param {Function} props.onToggleMinimap
- * @param {Function} props.onArrange      整理画布（dagre 自动排版）
- * @param {Function} props.onFitView      适合视图（fitView）
- * @param {ReactNode} props.zoomPercentNode 缩放百分比显示（叶子组件插槽，P0-C C3：
- *      由宿主注入自订阅 store 的 ZoomPercent，缩放时仅它重渲，本工具栏与宿主不参与）
- * @param {boolean} props.performanceMode 缩放性能模式开关（激活黄高亮）
- * @param {Function} props.onTogglePerformance
- * @param {Function} [props.onClearCache] 清理缓存（App 传入：释放节点内大 dataURL 资源）
- * @param {boolean} [props.localToolConnected] 本地引擎是否连接（左上角第一个对号/断开按钮）
- */
 export interface CanvasToolbarProps {
   /** 小地图开关（激活白高亮） */
   minimapOn: boolean;

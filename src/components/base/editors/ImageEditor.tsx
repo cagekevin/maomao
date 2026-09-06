@@ -26,39 +26,6 @@ import { logger } from '../core/logger.ts';
 import { createRafBatch } from '../core/utils.ts';
 import '../core/toastStore.ts';
 
-/**
- * 全屏图片编辑器（复刻官方 _Component129.jsx 图片编辑 / ImageNode 的「裁剪」「标记」入口）。
- *
- * 【为什么用 react-image-crop（抉择）】
- * 官方裁剪就用 react-image-crop（混淆名 _Component27 / To.jsx）。它是成熟库，裁剪的
- * 拖拽选区、比例锁定、ruleOfThirds 三分线、遮罩全是现成实现，自造纯属重复造轮子且易出
- * 坐标换算 bug。故直接复用官方同款库，裁剪交互与官方一致。
- *
- * 【入口与工具（抉择）】
- * ImageNode 的 hover 工具栏两颗按钮打开本编辑器：
- *  - 「裁剪」(Crop)  → initialTool='crop'：进入裁剪模式（ReactCrop 选区 + 比例下拉 + 确认裁剪）；
- *  - 「标记」(Pencil) → initialTool='pencil'：进入画笔/涂鸦模式（画笔/橡皮擦/文字/形状/序号/吸管）。
- * 官方是**同一个编辑器**只是 initialTool 不同（_Component129 的 t prop）——故一组件两入口。
- *
- * 【绘制 + 裁剪共存的方式（抉择，对齐官方）】
- * 底层是一个 canvas（绘制/涂鸦都画在它上面），ReactCrop 作为裁剪层叠在 canvas 外：
- *  - 裁剪模式（tool==='crop'）：ReactCrop disabled=false，可拖选区；canvas 上禁绘制（不响应绘制事件）；
- *  - 绘制模式：ReactCrop disabled=true（不拦截鼠标），canvas 响应绘制。
- * 确认裁剪时把 ReactCrop 的 percentCrop 换算成 canvas 像素坐标 → getImageData 裁切（官方 537-574 同款）。
- * 这样「先涂鸦再裁剪」或「先裁剪再涂鸦」都能正确合并到同一 canvas。
- *
- * 【接真实系统】
- * 官方保存调 `_cmp_Er(canvas.toDataURL('image/jpeg',0.9), 2048, 0.85)`（压缩+上传本地）后回写节点
- * imageUrl。本组件 onSave 直接回传 canvas 的 dataURL；接真系统时在 ImageNode 的 onSave 里改走
- * 「上传 localTool /files/ + 写回 imageUrl」即可，编辑器内部无需改。
- *
- * @param {Object} props
- * @param {string} props.imageUrl    要编辑的图片 URL（dataURL / http / blob）
- * @param {string} props.initialTool 初始工具：'crop' 或 'pencil'（或官方其它工具名）
- * @param {Function} props.onSave    保存回调，入参 { dataUrl }
- * @param {Function} props.onClose   关闭回调
- */
-
 /** 全屏图片编辑器 Props。 */
 interface ImageEditorProps {
   /** 要编辑的图片 URL（dataURL / http / blob） */

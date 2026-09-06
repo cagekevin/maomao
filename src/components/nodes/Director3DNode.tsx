@@ -12,14 +12,6 @@ import { generateId } from '../base/core/idGen.ts';
 import { buildSpawnNodes, applySpawnSnapshot } from '../base/canvas/deriveNodes.ts';
 import { useCanvasEdges } from '../base/canvas/CanvasEdgesContext.tsx';
 
-/**
- * 3D 导演台节点（复刻开源 storyai-3d-director-desk，与"一毛"一致）。
- *
- * 交互：
- *  - 画布上是静态缩略图节点（有 imageUrl → 预览图；无 → 占位）
- *  - 双击节点主体 → 全屏打开 3D 导演台
- *  - 退出时回写 directorProject + 截图（对齐 onCaptureToBox 送图片盒子）
- */
 interface Director3DNodeData {
   label?: string;
   imageUrl?: string;

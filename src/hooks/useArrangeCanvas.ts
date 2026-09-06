@@ -20,7 +20,7 @@ export interface ArrangeOptions {
 }
 
 /**
- * 自动排版（复刻 H_.jsx:10985 `Ui` 整理画布 / Ctrl+L）。
+
  *
  * 【为什么用 dagre 而不是手写布局】
  * 官方就是 dagre 做有向图分层布局（rankdir=LR）。dagre 处理「边 → 左右分层」

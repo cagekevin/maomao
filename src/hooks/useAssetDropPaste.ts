@@ -76,12 +76,12 @@ export interface AssetDropPasteApi {
  *
  * 注意：sanitizePastedText 是用户明确要的方向，见 ./clipboard.js。若再被改成 normalize/
  * 保留格式，是背离需求的错误改动。
- * 官方参考：reference-1mao/httpClient-BEVPUWLI_components/_Component95.jsx:12124-12173
+
  *（handlePaste）与 :10228-10543（Ri 粘贴重建）。官方文字只 trim()（text: e.trim()），
  * 用户要求比官方更强清洗，以「用户诉求」为准。
  * ════════════════════════════════════════════════════════════════════════
  *
- * 画布素材「拖入 + 粘贴」hook（复刻官方 H_.jsx:10201-10350 onDragOver ki / onDrop Ai + handlePaste）。
+
  *
  * 【为什么抽成 hook】
  * App.jsx 里的 onDragOver/onDrop/onPaste/createNodeFromFile 是一组内聚的「素材导入」能力，
@@ -294,7 +294,7 @@ export function useAssetDropPaste({
       } catch {}
       // 普通文本 → textNode：经 sanitizePastedText 彻底清洗（压缩连续空格/空行、去行首行尾空格、
       // 统一换行、去不可见脏字符）。用户核心诉求：粘贴表格/富文本时绝不能被当成图片或带样式贴进来，
-      // 必须压成干净纯文本。官方（reference-1mao _Component95.jsx:10524）只做 trim()，这里按用户要求更强清洗。
+      // 必须压成干净纯文本，这里按用户要求更强清洗。
       const cleanText = sanitizePastedText(rawText);
       if (cleanText) addNode('textNode', pos, { text: cleanText, expanded: false });
     },

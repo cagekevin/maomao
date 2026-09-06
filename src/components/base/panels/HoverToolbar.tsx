@@ -2,7 +2,7 @@ import React from 'react';
 import ToolbarButton from '../ui/ToolbarButton.tsx';
 
 /**
- * 节点 hover 操作栏（复刻各节点悬浮胶囊操作栏的公共结构）。
+
  *
  * 按钮通过配置数组声明，新增节点只需列按钮，避免复制粘贴导致遗漏。
  *

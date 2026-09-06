@@ -1,15 +1,6 @@
 /**
  * 平台路由 — /plugin/*、/api/workflow-apps/*、/public/platform/*
  * 本地模式返回静态兜底数据
- *
- * 重要定位：/public/platform/builtin 与 /public/platform/models 这两个路由
- * 是【自研替换官方 1mao 平台接口】的预备实现。
- * - 官方 1mao 是闭源外部服务（非自研），其平台接口由官方提供；
- * - 这两个路由由我们在 localTool 内自行实现，返回本地静态常量 BUILTIN_MODELS，
- *   目的是在自托管模式下替代官方 1mao 的对应能力，不依赖官方后端。
- * - 模型清单原本同步自 apimart-gateway 的 Lovart 模型定义，该网关已退役；
- *   现由 localTool 本地维护（BUILTIN_MODELS / BUILTIN_MODEL_SERIES），仅作同步参考；
- *   实际返回不连任何远端（既不是 1mao，也不是 Lovart 实时拉取），纯本地兜底。
  */
 
 import type { IncomingMessage, ServerResponse } from 'node:http';
@@ -73,17 +64,13 @@ const BUILTIN_MODEL_SERIES: Array<{ name: string; seriesKey: string; seriesLabel
 ];
 
 // ── GET /public/platform/builtin ──
-// 【自研替换官方 1mao 平台接口】前端 fetchBuiltin（httpClient-BknZwXjG.js）拉取内置模型分类清单
 // 期望格式: { success: true, data: { image:[], video:[], discountVideo:[], discountVideoSpecs:{}, ... } }
-// 注意：返回本地静态常量，不连官方 1mao，也不实时连 Lovart。
 export async function handleBuiltin(_req: IncomingMessage, res: ServerResponse): Promise<void> {
   return json(res, { success: true, data: BUILTIN_MODELS });
 }
 
 // ── GET /public/platform/models ──
-// 【自研替换官方 1mao 平台接口】前端 Xi()（httpClient-BknZwXjG.js）拉取模型系列映射
 // 期望格式: { success: true, data: [{ name, seriesKey, seriesLabel }, ...] }
-// 注意：返回本地静态常量，不连官方 1mao，也不实时连 Lovart。
 export async function handleModels(_req: IncomingMessage, res: ServerResponse): Promise<void> {
   return json(res, { success: true, data: BUILTIN_MODEL_SERIES });
 }

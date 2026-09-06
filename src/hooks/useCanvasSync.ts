@@ -1,5 +1,5 @@
 /**
- * 多窗口画布同步检测 hook（复刻官方 H_.jsx:480-492 + 870-880）。
+
  *
  * 【职责】每窗口唯一 tabId；BroadcastChannel('yimao_canvas_sync') 监听：收到「其他窗口」
  * 保存的同一项目 CANVAS_SAVED → 置 canvasConflict=true（App 据此显示红色警告条）。
