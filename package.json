@@ -39,6 +39,15 @@
     "format:check": "prettier --check .",
     "prepare": "husky"
   },
+  "lint-staged": {
+    "*.{ts,tsx,js,jsx}": [
+      "eslint --fix --cache",
+      "prettier --write"
+    ],
+    "*.{css,json,md,html}": [
+      "prettier --write"
+    ]
+  },
   "overrides": {
     "typescript": "^5.6.0"
   },
@@ -77,6 +86,7 @@
     "eslint-plugin-react-hooks": "^4.6.2",
     "husky": "^9.1.7",
     "jsdom": "^25.0.1",
+    "lint-staged": "^15.5.2",
     "playwright": "^1.62.1",
     "postcss": "^8.4.38",
     "prettier": "^3.9.6",

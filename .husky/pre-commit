@@ -17,11 +17,15 @@
 #
 # 全量前端测试不再在本地重复跑：pre-push 已删除（其 `vitest run` 与下方 --changed 重叠，
 # 也与 CI 的 test:coverage 重叠），全量兜底由 CI 的 frontend job 负责。本地只做快速守卫。
-# lint 已移除（门禁靠类型检查 + 测试）。
+# lint 用 lint-staged 重新接入：只检查「本次暂存」的文件（非全量），故快、不拖慢提交；
+# eslint --cache 进一步加速重复运行。
 #
 # `set +e`：个别环境触发 git hook 时 stdout 可能是坏 fd，husky 用 `sh -e` 运行本脚本，
 # 首个 echo 失败即被 set -e 中止、误判为门禁失败。故关闭 errexit；门禁结论纯由末行命令退出码推导。
 set +e
+# 只对暂存文件做 lint + format（快，不查全站）
+npx lint-staged
+ls=$?
 npm run type-check
 tc=$?
 node scripts/test-affected.cjs
@@ -32,4 +36,4 @@ npm run test:regression
 rg=$?
 npm run test:tools
 tl=$?
-[ "$tc" -eq 0 ] && [ "$vt" -eq 0 ] && [ "$sm" -eq 0 ] && [ "$rg" -eq 0 ] && [ "$tl" -eq 0 ]
+[ "$ls" -eq 0 ] && [ "$tc" -eq 0 ] && [ "$vt" -eq 0 ] && [ "$sm" -eq 0 ] && [ "$rg" -eq 0 ] && [ "$tl" -eq 0 ]

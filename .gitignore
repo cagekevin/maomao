@@ -8,6 +8,7 @@
 
 # ── 依赖（体积大、可重装，不纳入版本库）──
 node_modules/
+.eslintcache
 
 # ── 构建产物 ──
 # localTool 的 tsc 编译产物（由 localTool/src 重建，不入库）
