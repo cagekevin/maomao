@@ -21,6 +21,7 @@
 | `ts-tests.mjs` | 测试类型消化作战系统：`check`/`verify` 单文件、`status` 全局进度、`add/rm-nocheck`。**`status` 已修复可放心用**（批量剥 nocheck → tsc → finally 还原；早期恢复不可靠的历史问题已不再复现） | — |
 | `m1-scan.mjs` | 测试类型错误**全貌聚合**（只读）：复制到 `tmp/unit` 副本扫描，零污染。产出每个文件 × 错误数 × 错误码 | — |
 | `ts-detail.mjs` | 测试类型错误**逐条明细**（只读）：跑 1 次 tsc，按文件名片段过滤出多个目标文件的逐行错误。`check` 逐文件查太慢时用它 | — |
+| `ui-geometry/measure-panel.mjs` | **真实浏览器布局测量**：自起/复用 dev server，注入表格模式+消息流+AI 预览，量指定选择器几何 + 扫「真正撑破面板右缘」的元素（自动排除 `.sb-body` 等滚动容器内被正常收纳的横向滚动内容）。定位"某内容超出去"类布局问题用，别靠猜 | 手动 |
 
 数据文件（根目录，流水线输入/产物）：
 - `dist-snapshot.json`：dist 产物基线快照（体积/文件清单），`health-check` 比对用。

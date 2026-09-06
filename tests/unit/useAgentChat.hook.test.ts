@@ -188,6 +188,8 @@ vi.mock('../../src/components/agent/conversation/conversationStore.ts', () => {
     // 阶段1E：助手表格/全局契约写回 handler（薄壳透传，回传 AgentPanel 收口用）
     setCurrentAssistantTable: vi.fn(),
     setCurrentGlobalContract: vi.fn(),
+    // 表格预览处理态持久化（2026-09-06）：确认/取消写回消息自身（见 conversationAiState.markMessageTableResolved）
+    markMessageTableResolved: vi.fn(),
     getActivePendingGenerations: vi.fn(() => null),
     setActivePendingGenerations: vi.fn(),
     getCreditGate: vi.fn(() => null),

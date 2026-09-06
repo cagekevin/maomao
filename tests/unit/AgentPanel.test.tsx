@@ -80,6 +80,7 @@ const h = vi.hoisted(() => {
     executePlanDirect: vi.fn(async () => ({ ok: true })),
     setCurrentSnapshot,
     setAwaitingConfirm,
+    markMessageTableResolved: vi.fn(),
     getCreditGate: vi.fn(() => null),
     clearCreditGate: vi.fn(),
   }));
@@ -195,6 +196,7 @@ vi.mock('../../src/components/agent/conversation/conversationStore.ts', () => ({
   setAwaitingConfirm: vi.fn(),
   getCurrentRunMode: () => 'auto',
   setCurrentRunMode: h.setCurrentRunMode,
+  markMessageTableResolved: vi.fn(),
 }));
 vi.mock('../../src/components/base/store/taskStore.ts', () => ({ runNodeGeneration: vi.fn() }));
 vi.mock('../../src/components/base/core/toastStore.ts', () => ({
@@ -222,6 +224,37 @@ vi.mock('../../src/components/base/ui/ModelSelect.tsx', () => ({
 //   createDebouncedPersist 等本测试已精简 mock 的依赖，间接破坏现有 mock 契约。）
 vi.mock('../../src/components/agent/assistantTable/AssistantTablePanel.tsx', () => ({
   default: () => React.createElement('div', { 'data-testid': 'assistant-table' }, null),
+}));
+// 表格共享运行态（tableWorkspaceState）：AgentPanel 只读它做注入/探测/协作指示。
+// 用固定快照 mock（open=false），保证既有用例行为不变（表格 UI 另行在专测覆盖）。
+vi.mock('../../src/components/agent/assistantTable/tableWorkspaceState.ts', () => ({
+  useTableWorkspace: () => ({
+    open: false,
+    width: 600,
+    selectedRowId: null,
+    preview: null,
+    handledMessageId: null,
+  }),
+  getTableWorkspace: () => ({
+    open: false,
+    width: 600,
+    selectedRowId: null,
+    preview: null,
+    handledMessageId: null,
+  }),
+  toggleTableWorkspace: vi.fn(),
+  closeTableWorkspace: vi.fn(),
+  setTableWorkspaceWidth: vi.fn(),
+  setTableWorkspaceRow: vi.fn(),
+  acceptTablePreview: vi.fn(),
+  markTableMessageHandled: vi.fn(),
+  resetTableWorkspace: vi.fn(),
+  confirmTablePreview: vi.fn(),
+  cancelTablePreview: vi.fn(),
+}));
+// 吸附面板（TableWorkspacePanel）：内部用 useCanvasAgentTools（useReactFlow），测试无 Provider → mock 掉。
+vi.mock('../../src/components/panels/TableWorkspacePanel.tsx', () => ({
+  default: () => React.createElement('div', { 'data-testid': 'table-workspace-panel' }, null),
 }));
 
 import AgentPanel from '../../src/components/panels/AgentPanel.tsx';

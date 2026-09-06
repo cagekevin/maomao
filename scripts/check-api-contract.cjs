@@ -280,22 +280,121 @@ function extractBackendRoutes() {
   const src = fs.readFileSync(ROUTER, 'utf8');
   const m = src.match(/export\s+const\s+routes[\s\S]*?=\s*\[([\s\S]*?)\n\];/);
   if (!m) throw new Error('未能在 router.ts 定位 `export const routes = [...]`');
+  // 按「路由对象」为单位切块解析（支持单行/多行两种写法），而非逐行。
+  // 旧实现逐行用不跨行的 `pattern:\s*(\S+?),?\s*handler:` 提取，对「method/pattern/handler
+  // 分多行展开」的路由对象整条漏解析 → 误报「后端无路由」（白实现/RESERVED 假阳性，2026-09-06 修）。
+  // 新实现：先按括号深度切出每个 `{ ... },` 对象文本，再在块内正则提取，单行多行均兼容。
   const routes = [];
-  for (const line of m[1].split('\n')) {
-    const t = line.trim();
-    if (!t || t.startsWith('//') || t.startsWith('/*') || t.startsWith('*')) continue;
-    const method = (line.match(/method:\s*'([^']+)'/) || [])[1];
+  let i = 0;
+  const body = m[1];
+  while (i < body.length) {
+    const ob = body.indexOf('{', i);
+    if (ob === -1) break;
+    // 从 { 匹配到配对的 }（深度跟踪，兼容嵌套/注释内的花括号）
+    let depth = 0;
+    let inStr = null;
+    let inLineComment = false;
+    let inBlockComment = false;
+    let j = ob;
+    for (; j < body.length; j++) {
+      const ch = body[j];
+      const nxt = body[j + 1];
+      if (inLineComment) {
+        if (ch === '\n') inLineComment = false;
+        continue;
+      }
+      if (inBlockComment) {
+        if (ch === '*' && nxt === '/') {
+          inBlockComment = false;
+          j++;
+        }
+        continue;
+      }
+      if (inStr) {
+        if (ch === '\\') {
+          j++;
+          continue;
+        }
+        if (ch === inStr) inStr = null;
+        continue;
+      }
+      if (ch === '/' && nxt === '/') {
+        inLineComment = true;
+        j++;
+        continue;
+      }
+      if (ch === '/' && nxt === '*') {
+        inBlockComment = true;
+        j++;
+        continue;
+      }
+      if (ch === "'" || ch === '"' || ch === '`') inStr = ch;
+      else if (ch === '{') depth++;
+      else if (ch === '}') {
+        depth--;
+        if (depth === 0) {
+          j++;
+          break;
+        }
+      }
+    }
+    if (depth !== 0) break; // 括号不配对，终止（交给下一条防御）
+    const block = body.slice(ob, j);
+    i = j;
+    // 跳过注释/空对象
+    const method = (block.match(/method\s*:\s*'([^']+)'/) || [])[1];
     if (!method) continue;
-    const pm = (line.match(/pattern:\s*(\S+?),?\s*handler:/) || [])[1];
-    const hm = (line.match(/handler:\s*([A-Za-z_$][\w$]*)/) || [])[1];
+    const hm = (block.match(/handler\s*:\s*([A-Za-z_$][\w$]*)/) || [])[1];
     routes.push({
       method,
-      template: patternToTemplate(pm),
+      template: patternToTemplate(extractPatternLiteral(block)),
       handler: hm || null,
-      isCatchAll: /catchAll\s*:\s*true/.test(line),
+      isCatchAll: /catchAll\s*:\s*true/.test(block),
     });
   }
   return routes;
+}
+
+/** 在路由对象文本内提取 `pattern: <值>` 的原始字面量文本（含引号/正则闭合符），
+ * 供 patternToTemplate 归一。支持 'str' / "str" / /regex/ 三种，容忍跨行与转义斜杠。 */
+function extractPatternLiteral(block) {
+  const pm = block.match(/pattern\s*:\s*(\/|'|")/);
+  if (!pm) return null;
+  const quote = pm[1];
+  const start = pm.index + pm[0].length - 1; // 值起始（含引号或 /）
+  if (quote !== '/') {
+    // 字符串字面量：读到配对引号（容忍转义）
+    let end = start + 1;
+    for (; end < block.length; end++) {
+      const ch = block[end];
+      if (ch === '\\') {
+        end++;
+        continue;
+      }
+      if (ch === quote) {
+        end++;
+        break;
+      }
+    }
+    return block.slice(start, end);
+  }
+  // 正则字面量：从起始 / 读到真正闭合的 /（跳过转义 \/ 与字符类 [^/] 内的 /）
+  let inClass = false;
+  let end = start + 1;
+  for (; end < block.length; end++) {
+    const ch = block[end];
+    if (ch === '\\') {
+      end++;
+      continue;
+    }
+    if (ch === '[') inClass = true;
+    else if (ch === ']') inClass = false;
+    else if (ch === '/' && !inClass) {
+      end++;
+      break;
+    }
+  }
+  return block.slice(start, end);
 }
 
 // ── 信封形态检测（读 handler 函数体，宽松扫描响应字面量）──

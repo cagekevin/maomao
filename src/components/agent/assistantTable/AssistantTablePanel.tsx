@@ -31,11 +31,12 @@ import {
   setCell,
   rowToText,
   renameColumn,
-  addColumn,
+  insertColumnAfter,
   deleteColumn,
 } from './assistantTable.ts';
-import type { AssistantTable, TableRow } from './assistantTable.ts';
+import type { AssistantTable, TableRow, AssistantTablePreview } from './assistantTable.ts';
 import { showToast } from '@/components/base/core/toastStore.ts';
+import AssistantTablePreviewCard from './AssistantTablePreviewCard.tsx';
 
 /** 写全局风格（复用到 memory.global_contract.unified_style_prompt；缺另两字段时补空串对齐 GlobalContractShape） */
 function writeGlobalStyle(style: string): void {
@@ -60,6 +61,16 @@ export interface AssistantTablePanelProps {
   onSelectRow?: (rowId: string | null) => void;
   /** 某行 → 发送到画布（AgentPanel 传 sendContentToCanvas，内部 rowToText 拼好文字） */
   onSendToCanvas?: (text: string) => void;
+  /** 【待确认预览卡（收进左栏表格下方）2026-09-06】AI 返回表格 JSON → AgentPanel 解析出的「待确认预览模型」。
+   *  非 null 时在本左栏、正式表格下方渲染预览卡（与正式表格同宽、上下贴邻），替代原先横跨整个
+   *  面板宽度的全屏 dock。确认/取消由 AgentPanel 执行真正写回（onConfirmPreview/onCancelPreview）。 */
+  preview?: AssistantTablePreview | null;
+  /** 是否正在发送（发送中禁用确认按钮） */
+  sending?: boolean;
+  /** 确认：AgentPanel 把 AI 新内容写回正式表格（整表 replace / 单行 merge） */
+  onConfirmPreview?: () => void;
+  /** 取消：放弃本次预览，正式表格不动 */
+  onCancelPreview?: () => void;
 }
 
 export default function AssistantTablePanel({
@@ -67,6 +78,10 @@ export default function AssistantTablePanel({
   previewing = false,
   onSelectRow,
   onSendToCanvas,
+  preview = null,
+  sending = false,
+  onConfirmPreview,
+  onCancelPreview,
 }: AssistantTablePanelProps) {
   // ── 响应式读 store ──
   const activeConversationId = useStoreSelector(
@@ -482,56 +497,58 @@ export default function AssistantTablePanel({
                           (e.target as HTMLInputElement).blur();
                       }}
                     />
-                    <button
-                      type="button"
-                      className="col-x"
-                      title="删除该列"
-                      onClick={() => {
-                        commit(deleteColumn(storyboard, col.id));
-                        showToast?.('已删除列');
-                      }}
-                    >
-                      <svg
-                        width="11"
-                        height="11"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
+                    {/* 列头操作组（hover 显示，+ / × 同款样式，用户裁定 2026-09-06）：
+                        每个列表头都有「+（在该列后插入一列）」和「×（删除该列）」，不再固定只能加末尾一列 */}
+                    <span className="col-ops">
+                      <button
+                        type="button"
+                        className="col-x"
+                        title="在该列右侧插入一列"
+                        onClick={() => {
+                          commit(insertColumnAfter(storyboard, col.id));
+                          showToast?.('已插入一列（点表头可改名）');
+                        }}
                       >
-                        <line x1="18" y1="6" x2="6" y2="18" />
-                        <line x1="6" y1="6" x2="18" y2="18" />
-                      </svg>
-                    </button>
+                        <svg
+                          width="11"
+                          height="11"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <line x1="12" y1="5" x2="12" y2="19" />
+                          <line x1="5" y1="12" x2="19" y2="12" />
+                        </svg>
+                      </button>
+                      <button
+                        type="button"
+                        className="col-x"
+                        title="删除该列"
+                        onClick={() => {
+                          commit(deleteColumn(storyboard, col.id));
+                          showToast?.('已删除列');
+                        }}
+                      >
+                        <svg
+                          width="11"
+                          height="11"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <line x1="18" y1="6" x2="6" y2="18" />
+                          <line x1="6" y1="6" x2="18" y2="18" />
+                        </svg>
+                      </button>
+                    </span>
                   </th>
                 ))}
-                <th className="col-add-cell">
-                  <button
-                    type="button"
-                    className="col-add"
-                    title="追加一列"
-                    onClick={() => {
-                      commit(addColumn(storyboard));
-                      showToast?.('已追加一列（点表头可改名）');
-                    }}
-                  >
-                    <svg
-                      width="14"
-                      height="14"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <line x1="12" y1="5" x2="12" y2="19" />
-                      <line x1="5" y1="12" x2="19" y2="12" />
-                    </svg>
-                  </button>
-                </th>
               </tr>
             </thead>
             <tbody>
@@ -548,6 +565,20 @@ export default function AssistantTablePanel({
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* 【待确认预览卡 · 正式表格下方】AI 返回表格 JSON → 解析成预览模型后，在左栏正式表格
+          下方渲染预览卡（与正式表格同宽、上下贴邻，替代原先横跨面板宽度的全屏 dock，2026-09-06 用户裁定）。
+          确认/取消由上层 AgentPanel 真正写回；确认/取消后本块卸载、消息流原位显示 pv-done 历史痕迹。 */}
+      {preview && (
+        <div className="sb-preview">
+          <AssistantTablePreviewCard
+            preview={preview}
+            sending={sending}
+            onConfirm={onConfirmPreview ?? (() => {})}
+            onCancel={onCancelPreview ?? (() => {})}
+          />
         </div>
       )}
     </section>

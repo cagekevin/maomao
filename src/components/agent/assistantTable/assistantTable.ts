@@ -238,13 +238,32 @@ export function renameColumn(sb: AssistantTable, colId: string, label: string): 
   return { ...sb, columns: sb.columns.map((c, i) => (i === idx ? { ...c, label: trimmed } : c)) };
 }
 
-/** 追加一列到末尾（label 缺省用占位名「新列N」）。已有行补该列空键，保证列键对齐、渲染不缺键。 */
+/**
+ * 追加一列到末尾（label 缺省用占位名「新列N」）。已有行补该列空键，保证列键对齐、渲染不缺键。
+ * 复用 insertColumnAfter（colId 缺省 = 追加到末尾），单一实现不漂移。
+ */
 export function addColumn(sb: AssistantTable, label?: string): AssistantTable {
+  return insertColumnAfter(sb, undefined, label);
+}
+
+/**
+ * 在指定列**后**插入一列（label 缺省用占位名「新列N」）；colId 不存在或缺省 → 追加到末尾（幂等回退）。
+ * 与 addColumn 的区别：可插任意位置（不止末尾），供表头「+」在任意列后加列（2026-09-06 用户裁定：
+ * 添加列不再固定只能加末尾）。已有行补该列空键，保证列键对齐、渲染不缺键。不可变（原表不动）。
+ */
+export function insertColumnAfter(
+  sb: AssistantTable,
+  colId?: string,
+  label?: string,
+): AssistantTable {
   const l = String(label ?? '').trim();
   const name = l || `新列${sb.columns.length + 1}`;
   const col: TableColumn = { id: generateId('col'), label: name };
+  const idx = colId ? sb.columns.findIndex((c) => c.id === colId) : -1;
+  const at = idx >= 0 ? idx + 1 : sb.columns.length;
+  const columns = [...sb.columns.slice(0, at), col, ...sb.columns.slice(at)];
   const rows = sb.rows.map((r) => ({ ...r, values: { ...r.values, [col.id]: '' } }));
-  return { ...sb, columns: [...sb.columns, col], rows };
+  return { ...sb, columns, rows };
 }
 
 /** 删除一列（不可变；同时清理所有行里该列的键，不留孤儿数据）。列不存在返回原表（幂等）。 */

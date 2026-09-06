@@ -232,6 +232,7 @@ export {
   setCurrentGlobalContract,
   getCurrentAssistantTable,
   setCurrentAssistantTable,
+  markMessageTableResolved,
   getCurrentArtifacts,
   setCurrentArtifacts,
   getActiveAiUndoStack,

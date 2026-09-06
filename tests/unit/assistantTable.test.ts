@@ -10,6 +10,7 @@ import {
   setCell,
   renameColumn,
   addColumn,
+  insertColumnAfter,
   deleteColumn,
   rowToObj,
   rowToText,
@@ -197,5 +198,36 @@ describe('AI 助手表格模型（assistantTable 纯函数）', () => {
     expect(next.rows[0].values).not.toHaveProperty(colB); // 行键被清理
     expect(next.rows[0].values[sb.columns[0].id]).toBe('x'); // 其它列数据保留
     expect(deleteColumn(sb, 'no-such-col')).toBe(sb); // 未知列幂等
+  });
+
+  it('insertColumnAfter：可在任意列后插入（不止末尾），补空键；未知/缺省 colId 回退追加末尾', () => {
+    const sb = parsePasted('列A\t列B\t列C\nx\ty\tz')!;
+    const colA = sb.columns[0].id; // 在第 1 列后插 → 新列排第 2
+    const next = insertColumnAfter(sb, colA);
+    expect(next).not.toBe(sb);
+    expect(next.columns).toHaveLength(4);
+    expect(next.columns.map((c) => c.label)).toEqual([
+      '列A',
+      expect.stringMatching(/^新列/),
+      '列B',
+      '列C',
+    ]);
+    expect(next.rows[0].values[next.columns[1].id]).toBe(''); // 补空键
+    expect(next.rows[0].values[next.columns[2].id]).toBe('y'); // 原数据保序
+    // 缺省 colId → 追加末尾（与 addColumn 同语义）
+    const appended = insertColumnAfter(sb);
+    expect(appended.columns.map((c) => c.label)).toEqual([
+      '列A',
+      '列B',
+      '列C',
+      expect.stringMatching(/^新列/),
+    ]);
+    // 未知 colId → 幂等追加末尾，不抛
+    const unknown = insertColumnAfter(sb, 'no-such-col', '备注');
+    expect(unknown.columns.at(-1)?.label).toBe('备注');
+    // addColumn 与 insertColumnAfter(缺省) 行为一致（单一实现）
+    expect(addColumn(sb).columns.map((c) => c.label)).toEqual(
+      insertColumnAfter(sb).columns.map((c) => c.label),
+    );
   });
 });

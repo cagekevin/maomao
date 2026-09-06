@@ -123,6 +123,34 @@ export function setCurrentAssistantTable(sb: AssistantTable): void {
   });
 }
 
+/** 给某条消息打「表格预览处理态」标记（confirmed=已写入 / cancelled=已取消），随消息落盘。
+ *  背景（2026-09-06 持久化修复）：AI 返回表格 JSON 会被 AgentPanel 变成「待确认表格预览」；
+ *  用户确认/取消后，表格数据已写回 memory.assistantTable（持久），但「这条消息已被处理」这个
+ *  事实若只留在内存 UI 态（tbPreview state），刷新后 AgentPanel 的探测 effect 会把历史表格消息
+ *  误判成「新的待确认预览」再次弹卡（左侧表格其实已写入）。把处理态写回消息自身，即可让刷新后
+ *  自动恢复消息流里的 pv-done 痕迹、且不再重复弹待确认卡。 */
+export function markMessageTableResolved(
+  messageId: unknown,
+  resolved: 'confirmed' | 'cancelled',
+): void {
+  const conv = getActiveConv();
+  if (!conv || messageId == null) return;
+  commit({
+    ...getState(),
+    conversations: getState().conversations.map((c) =>
+      c.id === conv.id
+        ? {
+            ...c,
+            messages: c.messages.map((m) =>
+              m && (m as { id?: unknown }).id === messageId ? { ...m, tableResolved: resolved } : m,
+            ),
+            updatedAt: Date.now(),
+          }
+        : c,
+    ),
+  });
+}
+
 /** 读当前对话的跨步成果资产（无则 null） */
 /** 跨步成果资产条目（底座 ArtifactShape 的别名；字段由写入方约定，故全部可选） */
 export type Artifact = ArtifactShape;

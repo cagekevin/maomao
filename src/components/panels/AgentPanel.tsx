@@ -32,18 +32,24 @@ import { logger } from '../base/core/logger.ts';
 import previewUrls from '../base/utils/previewUrl.ts';
 import { subscribe } from '../base/core/eventBus.ts';
 import { CREDIT_GATE_EVENT } from '../base/core/contracts.ts';
-// AI 助手表格工作区：左栏表格组件 + 纯函数模型/上下文拼装 + 对话流预览卡
-import AssistantTablePanel from '../agent/assistantTable/AssistantTablePanel.tsx';
-import AssistantTablePreviewCard from '../agent/assistantTable/AssistantTablePreviewCard.tsx';
+// AI 助手表格工作区：共享运行态（开合/宽度/选中行/待确认预览/探测游标）+ 纯函数模型/上下文拼装。
+// 表格本体已拆到画布左侧 TableWorkspacePanel，本面板只读共享态做「注入/探测/协作指示」。
+import {
+  useTableWorkspace,
+  getTableWorkspace,
+  toggleTableWorkspace,
+  closeTableWorkspace,
+  setTableWorkspaceRow,
+  acceptTablePreview,
+  markTableMessageHandled,
+  resetTableWorkspace,
+} from '../agent/assistantTable/tableWorkspaceState.ts';
+import TableWorkspacePanel from './TableWorkspacePanel.tsx';
 import {
   normalizeAssistantTable,
   rowToText,
-  jsonToSb,
-  mergeRowFromObj,
-  buildPreviewModel,
   tryParseAssistantTableJson,
 } from '../agent/assistantTable/assistantTable.ts';
-import type { AssistantTableJson } from '../agent/assistantTable/assistantTable.ts';
 import {
   buildTableModeContext,
   ASSISTANT_TABLE_FORMAT,
@@ -62,23 +68,24 @@ import {
  *  3. 底部 OneBox 输入区：参考图以内联 chip 形式出现；工具栏
  *     整合模式、附件、模型、参数、Skill、发送。
  *  4. 空态文案极简，只保留一句核心欢迎 + 横向快捷 chips。
+ *
+ * 表格工作区（2026-09-06 拆分，见 spec/TABLE-WORKSPACE-INDEPENDENT-PANEL.md §四.5）：
+ *  - 表格本体已拆到画布左侧 TableWorkspacePanel（App 挂载），本面板瘦身为纯对话；
+ *  - 开合/宽度/选中行/待确认预览/探测游标收敛到共享态 tableWorkspaceState，
+ *    本面板只读：顶栏「表格」图标 = toggleTableWorkspace()；handleSend 按 open 注入表格上下文；
+ *    探测 effect（watch 最后一条 assistant 消息 → 解析表格 JSON → acceptTablePreview，仅 open 时）；
+ *    消息流内 pv-done 历史痕迹由消息自身 tableResolved 字段驱动（确认/取消由左面板调用共享态写回）。
  * ════════════════════════════════════════════════════════════════
  */
 
 // 模型列表来自所选厂商在设置里实际配置的 chat_models（不再用 AGENT_MODELS 兜底）
 const PANEL_WIDTH_KEY = 'agent_panel_width';
 const AGENT_DRAFT_KEY = 'agent_draft';
-const AGENT_SPLIT_WIDTH_KEY = 'agent_split_width'; // 表格模式左右分栏：左栏宽（px）
 const MIN_WIDTH = 320;
-const MAX_WIDTH = 1180; // 表格模式需更宽（进入表格模式自动加宽）
+const MAX_WIDTH = 1180;
 const DEFAULT_WIDTH = 400;
-/** 表格模式打开时若面板过窄，自动加宽到的下限（给左表+右对话并排留空间） */
-const TABLE_OPEN_MIN_WIDTH = 1060;
-/** 表格左栏默认宽度 / 可拖拽范围 */
-const SPLIT_DEFAULT = 600;
-const SPLIT_MIN = 300;
-/** 分栏拖拽时为右侧对话栏预留的最小宽度（表格左栏上限 = 面板宽 - 本值） */
-const RIGHT_MIN_WIDTH = 320;
+// 表格工作区（左面板宽/开合/选中行/预览/游标）已拆到共享态 tableWorkspaceState，
+// 宽度 consts（WIDTH_MIN/MAX/DEFAULT + agent_split_width 记忆）随之迁移，本面板不再持有。
 
 /** 距底部 <= 该 px 即视为「已到底」：留余量规避小数像素/缩放导致的按钮闪烁 */
 const BOTTOM_EPS = 60;
@@ -123,30 +130,12 @@ export default function AgentPanel({
 }) {
   const [width, setWidth] = useState(loadWidth);
   const [dragging, setDragging] = useState(false);
-  // ── 表格工作区状态 ──
-  // tableOpen：顶栏「表格」图标开关（展开=进入表格模式，追加表格专注上下文；收起=普通对话）
-  const [tableOpen, setTableOpen] = useState(false);
-  // selectedRowId：当前表格选中的行（发 AI 时自动注入该行上下文）；由 AssistantTablePanel lift
-  const [selectedRowId, setSelectedRowId] = useState<string | null>(null);
-  // 表格左栏宽度（localStorage 记忆）+ 分栏拖拽
-  const [tableWidth, setTableWidth] = useState(() => {
-    try {
-      const n = Number(contentGet(AGENT_SPLIT_WIDTH_KEY));
-      return Number.isFinite(n) ? Math.max(SPLIT_MIN, n) : SPLIT_DEFAULT;
-    } catch {
-      return SPLIT_DEFAULT;
-    }
-  });
-  const [tableSplitDragging, setTableSplitDragging] = useState(false);
-  // 表格 AI 预览（渲染在对话流里，确认才写回）：{ json, messageId, rowId?, resolved? }。
-  // rowId=探测当下选中的行；resolved=确认/取消后折叠态（对齐 mockup collapseCard → pv-done）。
-  const [tbPreview, setTbPreview] = useState<{
-    json: AssistantTableJson;
-    messageId: unknown;
-    rowId: string | null;
-    resolved: null | 'confirmed' | 'cancelled';
-  } | null>(null);
-  const tbPreviewHandledRef = useRef<unknown>(null);
+  // ── 表格工作区（共享运行态 tableWorkspaceState）：本面板只读，开合/宽度/选中行/待确认预览/
+  //    探测游标全部收敛到共享态，左侧 TableWorkspacePanel 与右侧对话共用同一份（spec §四.5）。 ──
+  const ws = useTableWorkspace();
+  // 派生别名：下游（注入/模式条/ctx-chip/图标高亮）沿用原变量名，逻辑零改动
+  const tableOpen = ws.open;
+  const selectedRowId = ws.selectedRowId;
   // 【设置即生效·方案 B】聊天模型配置（agent_chat_model）变更计数器。
   // 每次「设置 → AI 助手」改模型/供应商写入该键，contentSubscribe 回调自增此值，
   // 触发下方 agentProvider / agentModels / configuredModel 重算（它们原本只在挂载时算一次）。
@@ -327,8 +316,6 @@ export default function AgentPanel({
     // 展示→编排轴薄适配（收口 store 穿透）：这 3 个由 useAgentChat 回传，UI 不再直接 import conversationStore
     setCurrentSnapshot,
     setAwaitingConfirm,
-    setCurrentAssistantTable,
-    setCurrentGlobalContract,
   } = useAgentChat({
     agentKey,
     systemPrompt,
@@ -361,17 +348,10 @@ export default function AgentPanel({
       })()
     : null;
 
-  // ── 表格 AI 预览（对话流内）：watch 最后一条 assistant 消息 → 解析表格 JSON → 渲染预览卡，确认才写回 ──
-  // selectedRowId 供探测 effect 读取（effect 不依赖它，故用 ref 取当时选中行）
-  const selectedRowIdRef = useRef(selectedRowId);
-  useEffect(() => {
-    selectedRowIdRef.current = selectedRowId;
-  }, [selectedRowId]);
-  // tableOpen 供探测 effect 读取（判断是否要报"JSON 解析失败"；普通对话不发该报错）
-  const tableOpenRef = useRef(tableOpen);
-  useEffect(() => {
-    tableOpenRef.current = tableOpen;
-  }, [tableOpen]);
+  // ── 表格 AI 预览（共享态）：watch 最后一条 assistant 消息 → 解析表格 JSON → acceptTablePreview
+  // （左侧 TableWorkspacePanel 据此渲染待确认预览卡，确认才写回；本面板只做探测 + 游标推进）。
+  // 运行态经 getTableWorkspace() 同步读（effect 不订阅共享态，避免游标/预览变化重跑整个 effect）；
+  // 语义对齐 spec §四.5.2：仅共享 open（表格协作激活）时才接受预览 / 报解析失败（关面板 = 关协作）。
   useEffect(() => {
     if (messages.length === 0) return;
     // 只认「已结束流式」的 assistant 消息（streaming 仍 true 是流式中途增量占位，内容未定）
@@ -385,8 +365,13 @@ export default function AgentPanel({
           String(m.content).trim() !== '',
       );
     if (!last) return;
-    if (last.id === tbPreviewHandledRef.current) return; // 已处理过（确认/取消/非表格回复），不重复弹
-    tbPreviewHandledRef.current = last.id;
+    const wsSnap = getTableWorkspace();
+    if (last.id === wsSnap.handledMessageId) return; // 已处理过（确认/取消/非表格回复），不重复弹
+    markTableMessageHandled(last.id);
+    // 【持久化 2026-09-06】该条表格消息已被处理过（确认/取消）→ 刷新后不再当「新的待确认预览」重弹；
+    // 「已写入/已取消」的 pv-done 痕迹改由消息自身 tableResolved 字段在渲染层恢复。
+    const lastResolved = (last as { tableResolved?: string }).tableResolved;
+    if (lastResolved === 'confirmed' || lastResolved === 'cancelled') return;
     const hit = tryParseAssistantTableJson(last.content);
     if (hit) {
       // 结构校验（对齐剧本盒 L334）：JSON 合法但未解析出任何行 → 视为格式不符，给可重试的明确提示
@@ -395,15 +380,11 @@ export default function AgentPanel({
           type: 'error',
         });
         logger.error('AI助手', '表格 JSON 结构不符（空 rows）', { messageId: last.id });
-      } else {
-        setTbPreview({
-          json: hit.json,
-          messageId: last.id,
-          rowId: selectedRowIdRef.current,
-          resolved: null,
-        });
+      } else if (wsSnap.open) {
+        // 仅表格协作激活时接受预览；rowId=探测当下选中行（同步读共享态）
+        acceptTablePreview({ json: hit.json, messageId: last.id, rowId: wsSnap.selectedRowId });
       }
-    } else if (tableOpenRef.current && looksLikeTableJson(last.content)) {
+    } else if (wsSnap.open && looksLikeTableJson(last.content)) {
       // AI 明显在尝试返回表格 JSON 但格式错误 → 不显示预览卡，直接报错让用户重试（对齐剧本盒：勿静默）
       showToast?.('AI 返回的表格 JSON 解析失败，请让 AI 重新生成', { type: 'error' });
       logger.error('AI助手', '表格 JSON 解析失败', {
@@ -412,54 +393,15 @@ export default function AgentPanel({
       });
     }
   }, [messages, storyboard]);
-  // 切对话 → 清预览/探测游标（防止串到别的对话）
+  // 切对话 → 清共享态选中行/预览/游标（防止串到别的对话；保留 open/width，spec §4.5.1）
   useEffect(() => {
-    setTbPreview(null);
-    tbPreviewHandledRef.current = null;
-  }, [activeConversationId]);
-  // 画面预览模型（整表 / 单行 diff，由纯函数对出「旧 vs 新」）
-  const tablePreviewModel = useMemo(
-    () => (tbPreview ? buildPreviewModel(storyboard, tbPreview.json, tbPreview.rowId) : null),
-    [tbPreview, storyboard],
-  );
-  const confirmTablePreview = useCallback(() => {
-    if (!tbPreview) return;
-    const { json, rowId } = tbPreview;
-    const rows = Array.isArray(json.rows) ? json.rows : [];
-    if (rowId && rows.length === 1 && rows[0] && typeof rows[0] === 'object') {
-      // 单行 diff → 只 merge 回原行（仅覆盖该行已有列，不毁列/其它行、不新增列）
-      const next = mergeRowFromObj(storyboard, rowId, rows[0] as Record<string, unknown>);
-      if (next !== storyboard) setCurrentAssistantTable(next);
-    } else {
-      // 整表 → AI 设计列 + 行全量替换；globalStyle 同步（保留既有 visual_positioning / negative）
-      const { globalStyle: gs, sb: next } = jsonToSb(json);
-      if (gs && gs !== globalStyle) {
-        const g = activeConv?.memory?.global_contract;
-        const cur =
-          g && typeof g === 'object'
-            ? (g as { visual_positioning?: string; unified_negative_prompt?: string })
-            : {};
-        setCurrentGlobalContract({
-          visual_positioning: String(cur.visual_positioning ?? '').trim(),
-          unified_style_prompt: gs,
-          unified_negative_prompt: String(cur.unified_negative_prompt ?? '').trim(),
-        });
-      }
-      if (next.columns.length > 0) setCurrentAssistantTable(next);
-    }
-    setTbPreview((p) => (p ? { ...p, resolved: 'confirmed' } : p));
-    showToast?.('已写入表格', { type: 'success' });
-  }, [
-    tbPreview,
-    storyboard,
-    globalStyle,
-    activeConv,
-    setCurrentAssistantTable,
-    setCurrentGlobalContract,
-  ]);
-  const cancelTablePreview = useCallback(() => {
-    setTbPreview((p) => (p ? { ...p, resolved: 'cancelled' } : p));
-  }, []);
+    resetTableWorkspace();
+  }, [activeConversationId, resetTableWorkspace]);
+  // 联动（用户裁定）：表格吸附在 AI 面板左缘，AI 面板收起 → 表格一起收（开合一体，非各管各的）。
+  // 注：挂载即执行（open=false 时幂等：表格默认未开，close 无副作用）。
+  useEffect(() => {
+    if (!open) closeTableWorkspace();
+  }, [open, closeTableWorkspace]);
 
   // 【设置即生效·方案 B】订阅「设置 → AI 助手」的聊天模型键（agent_chat_model）。
   // 该键由 AgentChatSettings.saveAgentChatModel → contentSet 写入，contentSubscribe 即时回调。
@@ -664,51 +606,9 @@ export default function AgentPanel({
     document.addEventListener('mouseup', onUp);
   }, []);
 
-  // ── 表格模式：左右分栏拖拽（左栏 min SPLIT_MIN，对话至少留 320）──
-  const startTableSplitDrag = useCallback(
-    (e) => {
-      e.preventDefault();
-      setTableSplitDragging(true);
-      const startX = e.clientX;
-      const startW = tableWidth;
-      const containerW = width;
-      const onMove = (ev) => {
-        const next = Math.min(
-          Math.max(startW + ev.clientX - startX, SPLIT_MIN),
-          Math.max(containerW - RIGHT_MIN_WIDTH, SPLIT_MIN),
-        );
-        setTableWidth(next);
-      };
-      const onUp = () => {
-        setTableSplitDragging(false);
-        document.removeEventListener('mousemove', onMove);
-        document.removeEventListener('mouseup', onUp);
-      };
-      document.addEventListener('mousemove', onMove);
-      document.addEventListener('mouseup', onUp);
-    },
-    [tableWidth, width],
-  );
-  // 表格左栏宽记忆
-  useEffect(() => {
-    try {
-      contentSet(AGENT_SPLIT_WIDTH_KEY, String(tableWidth));
-    } catch {
-      /* ignore */
-    }
-  }, [tableWidth]);
-  // 进入表格模式 → 面板过窄时自动加宽到 TABLE_OPEN_MIN_WIDTH（给左表+右对话并排留空间）
-  useEffect(() => {
-    if (tableOpen && width < TABLE_OPEN_MIN_WIDTH)
-      setWidth(Math.min(MAX_WIDTH, TABLE_OPEN_MIN_WIDTH));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tableOpen]);
-  const toggleTable = useCallback(() => {
-    setTableOpen((v) => !v);
-  }, []);
-  const clearRowSelection = useCallback(() => {
-    setSelectedRowId(null);
-  }, []);
+  // 表格工作区开合/宽度/选中行已收敛到共享态 tableWorkspaceState：
+  // 顶栏「表格」图标 → toggleTableWorkspace()；模式条/ctx-chip「取消选中」→ setTableWorkspaceRow(null)。
+  // 左面板宽度拖拽（360~760 + agent_split_width 记忆）在 TableWorkspacePanel 右缘，本面板不再持有。
 
   // 点击外部关闭模型下拉
   useEffect(() => {
@@ -1091,175 +991,31 @@ export default function AgentPanel({
     (input.trim() || attachments.length > 0) && stateAction !== 'stopping' && !noProvider;
 
   return (
-    <div
-      className={`agent-panel absolute top-0 right-0 bottom-0 z-30 ${open ? '' : 'hidden'} ${dragging ? 'select-none' : ''}`}
-      style={{ width }}
-    >
-      {/* 宽度拖拽手柄 */}
+    <>
       <div
-        onMouseDown={startDrag}
-        className={`agent-grip ${dragging ? 'is-dragging' : ''}`}
-        title="拖动调整宽度"
-      />
-      {/* 顶部：对话标题即会话列表入口 + 3 个图标。
+        className={`agent-panel absolute top-0 right-0 bottom-0 z-30 ${open ? '' : 'hidden'} ${dragging ? 'select-none' : ''}`}
+        style={{ width }}
+      >
+        {/* 宽度拖拽手柄（表格打开时隐藏：吸附边界已被表格右缘 tw-grip 接管，避免双手柄冲突） */}
+        <div
+          onMouseDown={startDrag}
+          className={`agent-grip ${dragging ? 'is-dragging' : ''} ${tableOpen ? 'is-hidden' : ''}`}
+          title="拖动调整宽度"
+        />
+        {/* 顶部：对话标题即会话列表入口 + 3 个图标。
           收口说明：原「AI 图标 / “AI 助手”文字 / 积分胶囊 / 独立列表按钮 / 独立清空按钮」共 6 个视觉元素，
           现压到「1 标题 + 3 图标」——积分→盾牌图标；列表→标题下拉（下拉底部另挂积分开关与清空对话）。 */}
-      <header className="agent-header">
-        <span ref={chatListRef} className="relative">
+        <header className="agent-header">
+          {/* 表格工作区开关（顶栏最左，用户裁定 2026-09-06）：灰=收起 / 蓝=展开（表格协作，吸附面板滑出）。
+            开合收敛到共享态 tableWorkspaceState。 */}
           <button
             type="button"
-            onClick={() => setChatListOpen((v) => !v)}
-            disabled={sending}
-            className="agent-title-btn"
-            title="对话列表"
-          >
-            <span className="agent-title-text">{activeTitle}</span>
-            <svg
-              width="13"
-              height="13"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <polyline points="6 9 12 15 18 9" />
-            </svg>
-          </button>
-          {chatListOpen && (
-            <div className="agent-pop is-conv">
-              <div style={{ maxHeight: '240px', overflowY: 'auto' }} className="custom-scrollbar">
-                {conversations.length === 0 ? (
-                  <div className="agent-pop-empty">暂无对话</div>
-                ) : (
-                  conversations.map((c) => {
-                    const isActive = c.id === activeConversationId;
-                    const firstUser = (c.messages || []).find(
-                      (m) => m.role === 'user' && m.content,
-                    );
-                    const title = firstUser?.content
-                      ? String(firstUser.content).slice(0, 18)
-                      : c.title || '对话';
-                    return (
-                      <div key={c.id} className="agent-row-wrap">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            switchChat(c.id);
-                            setChatListOpen(false);
-                          }}
-                          className={`agent-row ${isActive ? 'is-active' : ''}`}
-                          title={c.title}
-                        >
-                          <span className="agent-row-name">{title}</span>
-                          {isActive && (
-                            <span className="agent-row-check">
-                              <svg
-                                width="13"
-                                height="13"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="2.5"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                              >
-                                <polyline points="20 6 9 17 4 12" />
-                              </svg>
-                            </span>
-                          )}
-                        </button>
-                        <span className="agent-row-ops">
-                          <button
-                            type="button"
-                            onClick={async (e) => {
-                              e.stopPropagation();
-                              if (
-                                await askConfirm({
-                                  title: `删除对话「${title}」？`,
-                                  confirmText: '删除',
-                                  danger: true,
-                                })
-                              ) {
-                                deleteChat(c.id);
-                                setChatListOpen(false);
-                              }
-                            }}
-                            title="删除对话"
-                          >
-                            <svg
-                              width="13"
-                              height="13"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            >
-                              <polyline points="3 6 5 6 21 6" />
-                              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                            </svg>
-                          </button>
-                        </span>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-              <div className="agent-pop-divider" />
-              <button
-                type="button"
-                onClick={handleClear}
-                disabled={sending || messages.length === 0}
-                className="agent-row"
-                title="清空对话"
-              >
-                <svg
-                  width="13"
-                  height="13"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <polyline points="3 6 5 6 21 6" />
-                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                </svg>
-                <span className="agent-row-name">清空当前对话</span>
-              </button>
-              {/* 积分开关（与顶栏盾牌同一状态，下拉内再给一次带文字的显式入口） */}
-              <button
-                type="button"
-                onClick={toggleCreditSwitch}
-                disabled={sending}
-                className="agent-switch-row"
-                title={
-                  creditSwitch
-                    ? '生成前先确认，避免意外消耗积分。点击关闭'
-                    : '生成直接放行。点击开启'
-                }
-              >
-                <span>生成前确认积分</span>
-                <span className={`agent-switch ${creditSwitch ? 'is-on' : ''}`} />
-              </button>
-            </div>
-          )}
-        </span>
-
-        <div className="agent-header-actions">
-          {/* 表格工作区开关：灰=收起（普通对话）/ 蓝=展开（表格模式，AI 聚焦左栏）。展开后自动加宽面板 */}
-          <button
-            type="button"
-            onClick={toggleTable}
+            onClick={toggleTableWorkspace}
             className={`agent-icon-btn ${tableOpen ? 'is-table-on' : ''}`}
             title={
               tableOpen
-                ? '分镜表格已展开（表格模式）：AI 已聚焦左侧表格。点击收起'
-                : '展开分镜表格（表格模式）'
+                ? '表格已展开（表格协作）：AI 聚焦左侧表格。点击收起'
+                : '展开表格（表格协作）'
             }
           >
             <svg
@@ -1278,221 +1034,118 @@ export default function AgentPanel({
               <line x1="9" y1="3" x2="9" y2="21" />
             </svg>
           </button>
-          {/* 高消耗积分确认闸（creditSwitch）：全局、默认开。AI 助手恒 auto 完全自主，
-              确认粒度只此一处——真烧积分那下（image/video 生成）先经用户确认。图标化：亮=开，灰=关。 */}
-          <button
-            type="button"
-            onClick={toggleCreditSwitch}
-            disabled={sending}
-            className={`agent-icon-btn ${creditSwitch ? 'is-on' : ''}`}
-            title={
-              creditSwitch
-                ? '积分确认已开启：生成前先确认，避免意外消耗积分。点击关闭'
-                : '积分确认已关闭：生成直接放行。点击开启'
-            }
-          >
-            <svg
-              width="15"
-              height="15"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
+          {/* 对话标题即会话列表入口（flex-1 撑中间，让表格按钮顶最左、actions 顶最右） */}
+          <span ref={chatListRef} className="relative flex-1">
+            <button
+              type="button"
+              onClick={() => setChatListOpen((v) => !v)}
+              disabled={sending}
+              className="agent-title-btn"
+              title="对话列表"
             >
-              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-            </svg>
-          </button>
-          <button
-            type="button"
-            disabled={sending || newChatLock.current}
-            onClick={() => {
-              if (newChatLock.current) return;
-              newChat();
-              showToast('已新建对话', { type: 'success' });
-              newChatLock.current = true;
-              setTimeout(() => {
-                newChatLock.current = false;
-              }, 1000);
-            }}
-            className="agent-icon-btn"
-            title="新建对话"
-          >
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <line x1="12" y1="5" x2="12" y2="19" />
-              <line x1="5" y1="12" x2="19" y2="12" />
-            </svg>
-          </button>
-          <button type="button" onClick={onClose} className="agent-icon-btn" title="关闭">
-            <svg
-              width="15"
-              height="15"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
-          </button>
-        </div>
-      </header>
-      {/* 消息区（外层 relative 定位 + 内层滚动，回底按钮置于外层避免被滚动裁剪）。
-          表格模式：外层改为左右行容器，[左表格 | 拖拽分隔条 | 右对话]。 */}
-      <div className="agent-body">
-        {tableOpen && (
-          <AssistantTablePanel
-            width={tableWidth}
-            previewing={!!tbPreview && !tbPreview.resolved}
-            onSelectRow={setSelectedRowId}
-            onSendToCanvas={sendContentToCanvas}
-          />
-        )}
-        {tableOpen && (
-          <div
-            onMouseDown={startTableSplitDrag}
-            className={`agent-split ${tableSplitDragging ? 'is-dragging' : ''}`}
-            title="拖拽调整左右宽度"
-          />
-        )}
-        <div className="flex-1 relative flex flex-col min-h-0">
-          <div ref={scrollRef} className="agent-messages custom-scrollbar">
-            {tableOpen && (
-              <div className="agent-mode-bar">
-                <svg
-                  width="12"
-                  height="12"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <rect x="3" y="3" width="18" height="18" rx="2" />
-                  <line x1="3" y1="9" x2="21" y2="9" />
-                  <line x1="3" y1="15" x2="21" y2="15" />
-                  <line x1="9" y1="3" x2="9" y2="21" />
-                </svg>
-                <span>
-                  表格模式已开启 ·{' '}
-                  {selectedRow
-                    ? `当前选中第 ${storyboard.rows.findIndex((r) => r.id === selectedRow.id) + 1} 行`
-                    : 'AI 会优先处理左侧表格'}
-                </span>
-                {selectedRow && (
-                  <button
-                    type="button"
-                    onClick={clearRowSelection}
-                    className="agent-mode-clear"
-                    title="取消选中该行"
-                  >
-                    取消选中
-                  </button>
-                )}
-              </div>
-            )}
-            {messages.length === 0 && (
-              <div className="agent-empty" onClick={focusTextarea}>
-                <div className="agent-empty-mark">{AI_ICON}</div>
-                <h3>有什么可以帮你？</h3>
-                <p>创建节点、生图、改布局，一句话的事</p>
-                {/* Skill 快捷入口：最多 3 个，其余从工具栏 Skill 图标进入 */}
-                {allSkills.length > 0 && (
-                  <div className="agent-chips">
-                    {allSkills.slice(0, 3).map((s) => (
-                      <button
-                        key={s.id}
-                        type="button"
-                        onClick={() => applySkill(s)}
-                        className="agent-chip"
-                      >
-                        <svg
-                          width="10"
-                          height="10"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
-                          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                          <polyline points="14 2 14 8 20 8" />
-                          <line x1="16" y1="13" x2="8" y2="13" />
-                          <line x1="16" y1="17" x2="8" y2="17" />
-                        </svg>
-                        {s.name}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-            {messages.map((m) => (
-              <div key={m.id} className="agent-msg-wrap">
-                <AgentMessage
-                  message={m}
-                  onConfirmPlan={handleConfirmPlan}
-                  onCancelPlan={cancelPendingConfirm}
-                  onRetryStep={handleRetryStep}
-                  onSendToCanvas={sendContentToCanvas}
-                  onRegenerate={() => handleRegenerate(m)}
-                  hideContent={tbPreview?.messageId === m.id}
-                />
-                {/* 表格 AI 预览卡：渲染在对应 assistant 消息正下方（对齐 mockup 展开态②/③），确认才写回。
-                  确认/取消后原位折叠成 pv-done（对齐 mockup collapseCard），成功=绿勾、取消=灰"已取消"。 */}
-                {tablePreviewModel &&
-                  tbPreview?.messageId === m.id &&
-                  (tbPreview.resolved === 'confirmed' ? (
-                    <div className="pv-done">
-                      <span className="ck">
-                        <svg
-                          width="12"
-                          height="12"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2.5"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
-                          <polyline points="20 6 9 17 4 12" />
-                        </svg>
-                      </span>
-                      已写入表格
-                    </div>
-                  ) : tbPreview.resolved === 'cancelled' ? (
-                    <div className="pv-done">已取消，表格未改动</div>
+              <span className="agent-title-text">{activeTitle}</span>
+              <svg
+                width="13"
+                height="13"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+            </button>
+            {chatListOpen && (
+              <div className="agent-pop is-conv">
+                <div style={{ maxHeight: '240px', overflowY: 'auto' }} className="custom-scrollbar">
+                  {conversations.length === 0 ? (
+                    <div className="agent-pop-empty">暂无对话</div>
                   ) : (
-                    <AssistantTablePreviewCard
-                      preview={tablePreviewModel}
-                      sending={sending}
-                      onConfirm={confirmTablePreview}
-                      onCancel={cancelTablePreview}
-                    />
-                  ))}
-              </div>
-            ))}
-            {/* 高消耗积分确认卡（跟随消息流末尾，与策划/记忆确认共用 AgentConfirmCard 统一样式）：
-              credit 命中（任一模式 + 开关开）时，execute_plan 已建好节点（status='ready'）、真生成未触发；
-              确认 → runExistingPlanTool 补跑；取消 → 仅收起卡片、保留待确认态（不删节点，节点已在画布上）。 */}
-            {showCreditCard && (
-              <AgentConfirmCard
-                icon={
+                    conversations.map((c) => {
+                      const isActive = c.id === activeConversationId;
+                      const firstUser = (c.messages || []).find(
+                        (m) => m.role === 'user' && m.content,
+                      );
+                      const title = firstUser?.content
+                        ? String(firstUser.content).slice(0, 18)
+                        : c.title || '对话';
+                      return (
+                        <div key={c.id} className="agent-row-wrap">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              switchChat(c.id);
+                              setChatListOpen(false);
+                            }}
+                            className={`agent-row ${isActive ? 'is-active' : ''}`}
+                            title={c.title}
+                          >
+                            <span className="agent-row-name">{title}</span>
+                            {isActive && (
+                              <span className="agent-row-check">
+                                <svg
+                                  width="13"
+                                  height="13"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2.5"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                >
+                                  <polyline points="20 6 9 17 4 12" />
+                                </svg>
+                              </span>
+                            )}
+                          </button>
+                          <span className="agent-row-ops">
+                            <button
+                              type="button"
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                if (
+                                  await askConfirm({
+                                    title: `删除对话「${title}」？`,
+                                    confirmText: '删除',
+                                    danger: true,
+                                  })
+                                ) {
+                                  deleteChat(c.id);
+                                  setChatListOpen(false);
+                                }
+                              }}
+                              title="删除对话"
+                            >
+                              <svg
+                                width="13"
+                                height="13"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              >
+                                <polyline points="3 6 5 6 21 6" />
+                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                              </svg>
+                            </button>
+                          </span>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+                <div className="agent-pop-divider" />
+                <button
+                  type="button"
+                  onClick={handleClear}
+                  disabled={sending || messages.length === 0}
+                  className="agent-row"
+                  title="清空对话"
+                >
                   <svg
                     width="13"
                     height="13"
@@ -1503,72 +1156,113 @@ export default function AgentPanel({
                     strokeLinecap="round"
                     strokeLinejoin="round"
                   >
-                    <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+                    <polyline points="3 6 5 6 21 6" />
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
                   </svg>
-                }
-                title={creditGenCount > 0 ? `确认生成 ${creditGenCount} 张图/视频` : '确认生成'}
-                desc="节点已建好，确认后开始生成（预计消耗积分）。取消可稍后手动点节点触发。"
-                confirmText="确认生成"
-                cancelText="取消"
-                onConfirm={handleConfirmCredit}
-                onCancel={dismissCreditCard}
-                disabled={sending}
-              />
-            )}
-            {sending && (
-              <div className="agent-thinking">
-                <i />
-                <i />
-                <i />
-                <span>思考中...</span>
+                  <span className="agent-row-name">清空当前对话</span>
+                </button>
+                {/* 积分开关（与顶栏盾牌同一状态，下拉内再给一次带文字的显式入口） */}
+                <button
+                  type="button"
+                  onClick={toggleCreditSwitch}
+                  disabled={sending}
+                  className="agent-switch-row"
+                  title={
+                    creditSwitch
+                      ? '生成前先确认，避免意外消耗积分。点击关闭'
+                      : '生成直接放行。点击开启'
+                  }
+                >
+                  <span>生成前确认积分</span>
+                  <span className={`agent-switch ${creditSwitch ? 'is-on' : ''}`} />
+                </button>
               </div>
             )}
-            {error && <div className="agent-error">{error}</div>}
-          </div>
+          </span>
 
-          {/* 快速回到底部：离开底部时淡入，点击平滑贴底后自动淡出。
-            置于外层 relative 容器（非滚动容器内），避免随消息一起被滚走/裁剪。 */}
-          <button
-            type="button"
-            onClick={() => scrollToBottom('smooth')}
-            aria-label="回到底部"
-            title="回到底部"
-            tabIndex={atBottom ? -1 : 0}
-            // 用 inert 替代 aria-hidden：aria-hidden 包裹可获得焦点的元素会触发
-            // 「focused element under aria-hidden」警告（辅助技术无法访问），
-            // 且 aria-hidden 本身不阻止焦点。inert 既阻止焦点又不被辅助技术识别。
-            inert={atBottom || undefined}
-            className={`agent-to-bottom ${atBottom ? 'is-hidden' : 'is-shown'}`}
-          >
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
+          <div className="agent-header-actions">
+            {/* 高消耗积分确认闸（creditSwitch）：全局、默认开。AI 助手恒 auto 完全自主，
+              确认粒度只此一处——真烧积分那下（image/video 生成）先经用户确认。图标化：亮=开，灰=关。 */}
+            <button
+              type="button"
+              onClick={toggleCreditSwitch}
+              disabled={sending}
+              className={`agent-icon-btn ${creditSwitch ? 'is-on' : ''}`}
+              title={
+                creditSwitch
+                  ? '积分确认已开启：生成前先确认，避免意外消耗积分。点击关闭'
+                  : '积分确认已关闭：生成直接放行。点击开启'
+              }
             >
-              <line x1="12" y1="5" x2="12" y2="19" />
-              <polyline points="19 12 12 19 5 12" />
-            </svg>
-          </button>
-        </div>{' '}
-        {/* 结束 flex-1 消息容器 */}
-      </div>{' '}
-      {/* 结束 agent-body（左表格 | 分隔条 | 右对话） */}
-      {/* 底部输入区（OneBox：附件 chips → 输入框 → 纯图标工具栏） */}
-      <div className="agent-composer">
-        <div className="agent-box">
-          {/* 当前上下文 chip（对齐 mockup ctx-row）：正在处理第 N 行 + 画布参考图，可一键移除 */}
-          {tableOpen && (selectedRow || pendingImageNodes.length > 0) && (
-            <div className="agent-ctx-row">
-              {selCtx && (
-                <span className="agent-ctx">
+              <svg
+                width="15"
+                height="15"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              disabled={sending || newChatLock.current}
+              onClick={() => {
+                if (newChatLock.current) return;
+                newChat();
+                showToast('已新建对话', { type: 'success' });
+                newChatLock.current = true;
+                setTimeout(() => {
+                  newChatLock.current = false;
+                }, 1000);
+              }}
+              className="agent-icon-btn"
+              title="新建对话"
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <line x1="12" y1="5" x2="12" y2="19" />
+                <line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
+            </button>
+            <button type="button" onClick={onClose} className="agent-icon-btn" title="关闭">
+              <svg
+                width="15"
+                height="15"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+          </div>
+        </header>
+        {/* 消息区（外层 relative 定位 + 内层滚动，回底按钮置于外层避免被滚动裁剪）。
+          表格已拆到画布左侧 TableWorkspacePanel（共享态驱动），本面板为纯对话。 */}
+        <div className="agent-body">
+          <div className="flex-1 relative flex flex-col min-h-0">
+            <div ref={scrollRef} className="agent-messages custom-scrollbar">
+              {tableOpen && (
+                <div className="agent-mode-bar">
                   <svg
-                    width="11"
-                    height="11"
+                    width="12"
+                    height="12"
                     viewBox="0 0 24 24"
                     fill="none"
                     stroke="currentColor"
@@ -1581,206 +1275,416 @@ export default function AgentPanel({
                     <line x1="3" y1="15" x2="21" y2="15" />
                     <line x1="9" y1="3" x2="9" y2="21" />
                   </svg>
-                  <span className="ctx-text">
-                    正在处理：第 {selCtx.idx} 行
-                    {selCtx.first ? ` · ${selCtx.first.slice(0, 14)}` : ''}
+                  <span>
+                    表格协作中 ·{' '}
+                    {selectedRow
+                      ? `当前选中第 ${storyboard.rows.findIndex((r) => r.id === selectedRow.id) + 1} 行`
+                      : 'AI 会优先处理左侧表格'}
                   </span>
-                  <span className="x" onClick={clearRowSelection} title="取消选中该行">
-                    <svg
-                      width="10"
-                      height="10"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2.6"
-                      strokeLinecap="round"
-                    >
-                      <line x1="18" y1="6" x2="6" y2="18" />
-                      <line x1="6" y1="6" x2="18" y2="18" />
-                    </svg>
-                  </span>
-                </span>
-              )}
-              {pendingImageNodes.length > 0 && (
-                <span className="agent-ctx">
-                  <svg
-                    width="11"
-                    height="11"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <rect x="3" y="3" width="18" height="18" rx="2" />
-                    <circle cx="8.5" cy="8.5" r="1.5" />
-                    <polyline points="21 15 16 10 5 21" />
-                  </svg>
-                  <span>{pendingImageNodes.length} 张画布参考图</span>
-                  <span
-                    className="x"
-                    onClick={() => setPendingImageNodes([])}
-                    title="移除全部参考图"
-                  >
-                    <svg
-                      width="10"
-                      height="10"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2.6"
-                      strokeLinecap="round"
-                    >
-                      <line x1="18" y1="6" x2="6" y2="18" />
-                      <line x1="6" y1="6" x2="18" y2="18" />
-                    </svg>
-                  </span>
-                </span>
-              )}
-            </div>
-          )}
-          {/* 参考图 chips（内联在输入框上方） */}
-          {(attachments.length > 0 || uploading) && (
-            <div className="agent-att-row">
-              {attachments.map((a, i) => (
-                <span key={i} className="agent-att">
-                  <img src={toAbsoluteFileUrl(a.localUrl || a.url)} alt="" />
-                  <button
-                    type="button"
-                    className="agent-att-remove"
-                    onClick={() => removeAttachment(i)}
-                    title="移除"
-                  >
-                    <svg
-                      width="12"
-                      height="12"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2.5"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <line x1="18" y1="6" x2="6" y2="18" />
-                      <line x1="6" y1="6" x2="18" y2="18" />
-                    </svg>
-                  </button>
-                </span>
-              ))}
-              {uploading && (
-                <span className="agent-att-loading">
-                  <span className="agent-spinner" />
-                </span>
-              )}
-            </div>
-          )}
-
-          {/* 待确认引用（选中画布图未确认，防误触）：点输入框/发送才并入正式附件 */}
-          {pendingImageNodes.length > 0 && (
-            <div className="agent-att-row">
-              <span className="agent-att-note">待引用：</span>
-              {pendingImageNodes.map((a, i) => (
-                <span key={`${a.url}-${i}`} className="agent-att">
-                  <img src={toAbsoluteFileUrl(a.url)} alt="" />
-                  <button
-                    type="button"
-                    className="agent-att-remove"
-                    onClick={() => setPendingImageNodes((prev) => prev.filter((_, j) => j !== i))}
-                    title="移除该待引用图"
-                  >
-                    <svg
-                      width="12"
-                      height="12"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2.5"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <line x1="18" y1="6" x2="6" y2="18" />
-                      <line x1="6" y1="6" x2="18" y2="18" />
-                    </svg>
-                  </button>
-                </span>
-              ))}
-            </div>
-          )}
-
-          {/* 输入框 */}
-          <textarea
-            ref={textareaRef}
-            value={input}
-            onFocus={confirmPendingImages}
-            onChange={(e) => {
-              const v = e.target.value;
-              setInput(v);
-              try {
-                contentSet(AGENT_DRAFT_KEY, v);
-              } catch {
-                /* ignore */
-              }
-              setSkillSlashOpen(v === '/');
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Escape' && skillSlashOpen) {
-                e.preventDefault();
-                setSkillSlashOpen(false);
-                return;
-              }
-              if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
-                e.preventDefault();
-                handleSend();
-              }
-            }}
-            placeholder={
-              noProvider
-                ? '请先在「API/供应商设置」配置 AI 聊天供应商及模型'
-                : '描述你想做的事，回车发送，Shift+Enter 换行'
-            }
-            rows={1}
-            disabled={sending || noProvider}
-            className="agent-textarea"
-          />
-          {/* 未配供应商引导：禁止静默失败，指引用户去设置（L3b） */}
-          {noProvider && (
-            <div className="agent-hint">
-              尚未配置 AI 聊天供应商，发送已禁用。请到「设置 → API/供应商」添加 OpenAI
-              兼容等供应商并选择聊天模型后使用。
-            </div>
-          )}
-
-          {/* Skill / 快捷调用下拉：锚定在输入框正下方，向上弹出紧贴 textarea */}
-          {skillSlashOpen && (
-            <div ref={skillSlashRef} className="relative">
-              <div className="agent-pop is-slash" style={{ maxHeight: '240px', overflowY: 'auto' }}>
-                {allSkills.length === 0 ? (
-                  <div className="agent-pop-empty">暂无 Skill</div>
-                ) : (
-                  allSkills.map((s) => (
+                  {selectedRow && (
                     <button
-                      key={s.id}
                       type="button"
-                      onClick={() => {
-                        applySkill(s);
-                        setInput('');
-                        setSkillSlashOpen(false);
-                      }}
-                      className="agent-row"
+                      onClick={() => setTableWorkspaceRow(null)}
+                      className="agent-mode-clear"
+                      title="取消选中该行"
                     >
-                      <span style={{ color: 'rgb(var(--mao-text-faint))' }}>/</span>
-                      <span className="agent-row-name">{s.name}</span>
+                      取消选中
                     </button>
-                  ))
+                  )}
+                </div>
+              )}
+              {messages.length === 0 && (
+                <div className="agent-empty" onClick={focusTextarea}>
+                  <div className="agent-empty-mark">{AI_ICON}</div>
+                  <h3>有什么可以帮你？</h3>
+                  <p>创建节点、生图、改布局，一句话的事</p>
+                  {/* Skill 快捷入口：最多 3 个，其余从工具栏 Skill 图标进入 */}
+                  {allSkills.length > 0 && (
+                    <div className="agent-chips">
+                      {allSkills.slice(0, 3).map((s) => (
+                        <button
+                          key={s.id}
+                          type="button"
+                          onClick={() => applySkill(s)}
+                          className="agent-chip"
+                        >
+                          <svg
+                            width="10"
+                            height="10"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                            <polyline points="14 2 14 8 20 8" />
+                            <line x1="16" y1="13" x2="8" y2="13" />
+                            <line x1="16" y1="17" x2="8" y2="17" />
+                          </svg>
+                          {s.name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+              {messages.map((m) => {
+                // 【表格预览历史痕迹 · 消息驱动 2026-09-06】「该 AI 回复对应的表格是否已处理」是消息自身
+                // 的持久属性（确认/取消时经 markMessageTableResolved 写回 tableResolved 字段并落盘）。
+                // pv-done 痕迹据此恢复，不再依赖内存预览态 —— 刷新/切对话后历史痕迹不丢。
+                const msgResolved = (m as { tableResolved?: 'confirmed' | 'cancelled' })
+                  .tableResolved;
+                // 待确认预览卡正挂在左侧表格面板（共享态 ws.preview）；该消息命中 → 隐藏正文（JSON 不外泄到对话流）
+                const previewThisMsg = ws.preview?.messageId === m.id;
+                // 隐藏正文：表格类消息（待确认时由左面板预览卡展示，已处理时由 pv-done 代替正文，避免重复）
+                const isTableMsg =
+                  !!previewThisMsg || msgResolved === 'confirmed' || msgResolved === 'cancelled';
+                const showConfirmed = msgResolved === 'confirmed';
+                const showCancelled = msgResolved === 'cancelled';
+                return (
+                  <div key={m.id} className="agent-msg-wrap">
+                    <AgentMessage
+                      message={m}
+                      onConfirmPlan={handleConfirmPlan}
+                      onCancelPlan={cancelPendingConfirm}
+                      onRetryStep={handleRetryStep}
+                      onSendToCanvas={sendContentToCanvas}
+                      onRegenerate={() => handleRegenerate(m)}
+                      hideContent={isTableMsg}
+                    />
+                    {/* 表格预览的「历史痕迹」留在消息流：确认/取消后原位折叠成 pv-done
+                      （对齐 mockup collapseCard），成功=绿勾、取消=灰"已取消"。
+                      待确认的预览卡本身不在这里 —— 它在画布左侧表格面板（TableWorkspacePanel
+                      经共享态 ws.preview 渲染 .sb-preview），确认/取消后本消息流原位留下 pv-done。 */}
+                    {showConfirmed && (
+                      <div className="pv-done">
+                        <span className="ck">
+                          <svg
+                            width="12"
+                            height="12"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2.5"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <polyline points="20 6 9 17 4 12" />
+                          </svg>
+                        </span>
+                        已写入表格
+                      </div>
+                    )}
+                    {showCancelled && <div className="pv-done">已取消，表格未改动</div>}
+                  </div>
+                );
+              })}
+              {/* 高消耗积分确认卡（跟随消息流末尾，与策划/记忆确认共用 AgentConfirmCard 统一样式）：
+              credit 命中（任一模式 + 开关开）时，execute_plan 已建好节点（status='ready'）、真生成未触发；
+              确认 → runExistingPlanTool 补跑；取消 → 仅收起卡片、保留待确认态（不删节点，节点已在画布上）。 */}
+              {showCreditCard && (
+                <AgentConfirmCard
+                  icon={
+                    <svg
+                      width="13"
+                      height="13"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+                    </svg>
+                  }
+                  title={creditGenCount > 0 ? `确认生成 ${creditGenCount} 张图/视频` : '确认生成'}
+                  desc="节点已建好，确认后开始生成（预计消耗积分）。取消可稍后手动点节点触发。"
+                  confirmText="确认生成"
+                  cancelText="取消"
+                  onConfirm={handleConfirmCredit}
+                  onCancel={dismissCreditCard}
+                  disabled={sending}
+                />
+              )}
+              {sending && (
+                <div className="agent-thinking">
+                  <i />
+                  <i />
+                  <i />
+                  <span>思考中...</span>
+                </div>
+              )}
+              {error && <div className="agent-error">{error}</div>}
+            </div>
+
+            {/* 快速回到底部：离开底部时淡入，点击平滑贴底后自动淡出。
+            置于外层 relative 容器（非滚动容器内），避免随消息一起被滚走/裁剪。 */}
+            <button
+              type="button"
+              onClick={() => scrollToBottom('smooth')}
+              aria-label="回到底部"
+              title="回到底部"
+              tabIndex={atBottom ? -1 : 0}
+              // 用 inert 替代 aria-hidden：aria-hidden 包裹可获得焦点的元素会触发
+              // 「focused element under aria-hidden」警告（辅助技术无法访问），
+              // 且 aria-hidden 本身不阻止焦点。inert 既阻止焦点又不被辅助技术识别。
+              inert={atBottom || undefined}
+              className={`agent-to-bottom ${atBottom ? 'is-hidden' : 'is-shown'}`}
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <line x1="12" y1="5" x2="12" y2="19" />
+                <polyline points="19 12 12 19 5 12" />
+              </svg>
+            </button>
+          </div>{' '}
+          {/* 结束 flex-1 消息容器 */}
+        </div>{' '}
+        {/* 结束 agent-body（左表格 | 分隔条 | 右对话）
+          表格预览「待确认操作区」已移入左栏表格下方（见 AssistantTablePanel），
+          与正式表格同宽、上下贴邻，替代原先横跨整个面板宽度的全屏贴底 dock（2026-09-06 用户裁定）。
+          消息流里只保留确认/取消后的 pv-done 历史痕迹。 */}
+        {/* 底部输入区（OneBox：附件 chips → 输入框 → 纯图标工具栏） */}
+        <div className="agent-composer">
+          <div className="agent-box">
+            {/* 当前上下文 chip（对齐 mockup ctx-row）：正在处理第 N 行 + 画布参考图，可一键移除 */}
+            {tableOpen && (selectedRow || pendingImageNodes.length > 0) && (
+              <div className="agent-ctx-row">
+                {selCtx && (
+                  <span className="agent-ctx">
+                    <svg
+                      width="11"
+                      height="11"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <rect x="3" y="3" width="18" height="18" rx="2" />
+                      <line x1="3" y1="9" x2="21" y2="9" />
+                      <line x1="3" y1="15" x2="21" y2="15" />
+                      <line x1="9" y1="3" x2="9" y2="21" />
+                    </svg>
+                    <span className="ctx-text">
+                      正在处理：第 {selCtx.idx} 行
+                      {selCtx.first ? ` · ${selCtx.first.slice(0, 14)}` : ''}
+                    </span>
+                    <span
+                      className="x"
+                      onClick={() => setTableWorkspaceRow(null)}
+                      title="取消选中该行"
+                    >
+                      <svg
+                        width="10"
+                        height="10"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2.6"
+                        strokeLinecap="round"
+                      >
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
+                      </svg>
+                    </span>
+                  </span>
+                )}
+                {pendingImageNodes.length > 0 && (
+                  <span className="agent-ctx">
+                    <svg
+                      width="11"
+                      height="11"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <rect x="3" y="3" width="18" height="18" rx="2" />
+                      <circle cx="8.5" cy="8.5" r="1.5" />
+                      <polyline points="21 15 16 10 5 21" />
+                    </svg>
+                    <span>{pendingImageNodes.length} 张画布参考图</span>
+                    <span
+                      className="x"
+                      onClick={() => setPendingImageNodes([])}
+                      title="移除全部参考图"
+                    >
+                      <svg
+                        width="10"
+                        height="10"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2.6"
+                        strokeLinecap="round"
+                      >
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
+                      </svg>
+                    </span>
+                  </span>
                 )}
               </div>
-            </div>
-          )}
+            )}
+            {/* 参考图 chips（内联在输入框上方） */}
+            {(attachments.length > 0 || uploading) && (
+              <div className="agent-att-row">
+                {attachments.map((a, i) => (
+                  <span key={i} className="agent-att">
+                    <img src={toAbsoluteFileUrl(a.localUrl || a.url)} alt="" />
+                    <button
+                      type="button"
+                      className="agent-att-remove"
+                      onClick={() => removeAttachment(i)}
+                      title="移除"
+                    >
+                      <svg
+                        width="12"
+                        height="12"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
+                      </svg>
+                    </button>
+                  </span>
+                ))}
+                {uploading && (
+                  <span className="agent-att-loading">
+                    <span className="agent-spinner" />
+                  </span>
+                )}
+              </div>
+            )}
 
-          {/* 工具栏：纯图标化（Skill / 生图参数 / 生图模型），去掉全部文字标签 */}
-          <div className="agent-tools">
-            {/* ────────────────────────────────────────────────────────────
+            {/* 待确认引用（选中画布图未确认，防误触）：点输入框/发送才并入正式附件 */}
+            {pendingImageNodes.length > 0 && (
+              <div className="agent-att-row">
+                <span className="agent-att-note">待引用：</span>
+                {pendingImageNodes.map((a, i) => (
+                  <span key={`${a.url}-${i}`} className="agent-att">
+                    <img src={toAbsoluteFileUrl(a.url)} alt="" />
+                    <button
+                      type="button"
+                      className="agent-att-remove"
+                      onClick={() => setPendingImageNodes((prev) => prev.filter((_, j) => j !== i))}
+                      title="移除该待引用图"
+                    >
+                      <svg
+                        width="12"
+                        height="12"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
+                      </svg>
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {/* 输入框 */}
+            <textarea
+              ref={textareaRef}
+              value={input}
+              onFocus={confirmPendingImages}
+              onChange={(e) => {
+                const v = e.target.value;
+                setInput(v);
+                try {
+                  contentSet(AGENT_DRAFT_KEY, v);
+                } catch {
+                  /* ignore */
+                }
+                setSkillSlashOpen(v === '/');
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape' && skillSlashOpen) {
+                  e.preventDefault();
+                  setSkillSlashOpen(false);
+                  return;
+                }
+                if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+                  e.preventDefault();
+                  handleSend();
+                }
+              }}
+              placeholder={
+                noProvider
+                  ? '请先在「API/供应商设置」配置 AI 聊天供应商及模型'
+                  : '描述你想做的事，回车发送，Shift+Enter 换行'
+              }
+              rows={1}
+              disabled={sending || noProvider}
+              className="agent-textarea"
+            />
+            {/* 未配供应商引导：禁止静默失败，指引用户去设置（L3b） */}
+            {noProvider && (
+              <div className="agent-hint">
+                尚未配置 AI 聊天供应商，发送已禁用。请到「设置 → API/供应商」添加 OpenAI
+                兼容等供应商并选择聊天模型后使用。
+              </div>
+            )}
+
+            {/* Skill / 快捷调用下拉：锚定在输入框正下方，向上弹出紧贴 textarea */}
+            {skillSlashOpen && (
+              <div ref={skillSlashRef} className="relative">
+                <div
+                  className="agent-pop is-slash"
+                  style={{ maxHeight: '240px', overflowY: 'auto' }}
+                >
+                  {allSkills.length === 0 ? (
+                    <div className="agent-pop-empty">暂无 Skill</div>
+                  ) : (
+                    allSkills.map((s) => (
+                      <button
+                        key={s.id}
+                        type="button"
+                        onClick={() => {
+                          applySkill(s);
+                          setInput('');
+                          setSkillSlashOpen(false);
+                        }}
+                        className="agent-row"
+                      >
+                        <span style={{ color: 'rgb(var(--mao-text-faint))' }}>/</span>
+                        <span className="agent-row-name">{s.name}</span>
+                      </button>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* 工具栏：纯图标化（Skill / 生图参数 / 生图模型），去掉全部文字标签 */}
+            <div className="agent-tools">
+              {/* ────────────────────────────────────────────────────────────
                   【已注释】左下角聊天模型（AI 助手对话模型）选择按钮。
                   为什么去掉：AI 助手的聊天模型已在「设置 → AI 助手」分区统一指定，
                   这里再放一个聊天模型下拉会和设置页功能重复，用户不易区分。
@@ -1788,7 +1692,7 @@ export default function AgentPanel({
                   与聊天模型是两回事，需随时切换，故保留在工具栏。
                   如需恢复，取消注释即可。
               ──────────────────────────────────────────────────────────── */}
-            {/* <span ref={modelRef} className="relative">
+              {/* <span ref={modelRef} className="relative">
                 <button
                   type="button"
                   onClick={() => setModelOpen(!modelOpen)}
@@ -1823,175 +1727,175 @@ export default function AgentPanel({
                 )}
               </span> */}
 
-            {/* 生图模型选择：第1位（最左）——选择用哪个图像模型来生图，随时可切换。
+              {/* 生图模型选择：第1位（最左）——选择用哪个图像模型来生图，随时可切换。
                   iconOnly：包裹图标表示「模型资产」（生图/3D 模型包），模型名收进 title（工具栏去文字化） */}
-            <span className="relative">
-              <ModelSelect
-                value={genModel}
-                onChange={onGenModel}
-                models={genModels}
-                placeholder="生图模型"
-                popupTo="up"
-                showDivider={false}
-                iconOnly
-                icon={<PackageIcon className="w-4 h-4" strokeWidth={1.8} />}
-                active={!!genModel}
-                triggerTitle={genModel ? `生图模型：${genModel}` : '选择生图模型'}
-              />
-            </span>
+              <span className="relative">
+                <ModelSelect
+                  value={genModel}
+                  onChange={onGenModel}
+                  models={genModels}
+                  placeholder="生图模型"
+                  popupTo="up"
+                  showDivider={false}
+                  iconOnly
+                  icon={<PackageIcon className="w-4 h-4" strokeWidth={1.8} />}
+                  active={!!genModel}
+                  triggerTitle={genModel ? `生图模型：${genModel}` : '选择生图模型'}
+                />
+              </span>
 
-            {/* 生图参数：第2位——选择画质/比例/渲染质量。图标化，当前值收进 title */}
-            <span ref={genImgMenuRef} className="relative">
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setGenImgMenuOpen((v) => !v);
-                }}
-                className={`agent-icon-btn is-sm ${genImgMenuOpen ? 'is-active' : ''}`}
-                title={`生图参数：${genSize} · ${genRatio}`}
-              >
-                <SlidersHorizontal className="w-4 h-4" strokeWidth={1.8} />
-              </button>
-              {genImgMenuOpen && (
-                <div
-                  className="agent-pop is-gen"
-                  style={{ maxHeight: 'calc(100vh - 200px)', overflowY: 'auto' }}
-                  onClick={(e) => e.stopPropagation()}
+              {/* 生图参数：第2位——选择画质/比例/渲染质量。图标化，当前值收进 title */}
+              <span ref={genImgMenuRef} className="relative">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setGenImgMenuOpen((v) => !v);
+                  }}
+                  className={`agent-icon-btn is-sm ${genImgMenuOpen ? 'is-active' : ''}`}
+                  title={`生图参数：${genSize} · ${genRatio}`}
                 >
-                  <div className="agent-gen-group">
-                    <div className="agent-gen-label">画质</div>
-                    <div className="agent-opts">
-                      {genSizeOptions.map((s) => (
-                        <button
-                          key={s}
-                          type="button"
-                          className={`agent-opt ${genSize === s ? 'is-on' : ''}`}
-                          onClick={() => onGenSize(s)}
-                        >
-                          {s}
-                        </button>
-                      ))}
+                  <SlidersHorizontal className="w-4 h-4" strokeWidth={1.8} />
+                </button>
+                {genImgMenuOpen && (
+                  <div
+                    className="agent-pop is-gen"
+                    style={{ maxHeight: 'calc(100vh - 200px)', overflowY: 'auto' }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="agent-gen-group">
+                      <div className="agent-gen-label">画质</div>
+                      <div className="agent-opts">
+                        {genSizeOptions.map((s) => (
+                          <button
+                            key={s}
+                            type="button"
+                            className={`agent-opt ${genSize === s ? 'is-on' : ''}`}
+                            onClick={() => onGenSize(s)}
+                          >
+                            {s}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="agent-gen-group">
+                      <div className="agent-gen-label">比例</div>
+                      <div className="agent-opts">
+                        {genRatioOptions.map((r) => (
+                          <button
+                            key={r}
+                            type="button"
+                            className={`agent-opt ${genRatio === r ? 'is-on' : ''}`}
+                            onClick={() => onGenRatio(r)}
+                          >
+                            {r}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="agent-gen-group">
+                      <div className="agent-gen-label">渲染质量</div>
+                      <div className="agent-opts">
+                        {genQualityOptions.map((q) => (
+                          <button
+                            key={q.value}
+                            type="button"
+                            className={`agent-opt ${genQuality === q.value ? 'is-on' : ''}`}
+                            onClick={() => onGenQuality(q.value)}
+                          >
+                            {q.label}
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   </div>
-                  <div className="agent-gen-group">
-                    <div className="agent-gen-label">比例</div>
-                    <div className="agent-opts">
-                      {genRatioOptions.map((r) => (
-                        <button
-                          key={r}
-                          type="button"
-                          className={`agent-opt ${genRatio === r ? 'is-on' : ''}`}
-                          onClick={() => onGenRatio(r)}
-                        >
-                          {r}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="agent-gen-group">
-                    <div className="agent-gen-label">渲染质量</div>
-                    <div className="agent-opts">
-                      {genQualityOptions.map((q) => (
-                        <button
-                          key={q.value}
-                          type="button"
-                          className={`agent-opt ${genQuality === q.value ? 'is-on' : ''}`}
-                          onClick={() => onGenQuality(q.value)}
-                        >
-                          {q.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </span>
+                )}
+              </span>
 
-            {/* Skill：第3位（最右）——点击弹「应用/取消 Skill」下拉（管理已移至设置页 AI 助手分区）。
+              {/* Skill：第3位（最右）——点击弹「应用/取消 Skill」下拉（管理已移至设置页 AI 助手分区）。
                   Skill 用文字按钮而非纯图标（用户裁定）：未启用显示「Skill」，启用显示「Skill·首个名」，图标保留辅助。 */}
-            <span ref={skillPickRef} className="relative">
-              <button
-                type="button"
-                onClick={() => setSkillPickOpen((v) => !v)}
-                disabled={sending}
-                className={`agent-skill-btn ${activeSkills.length > 0 ? 'is-active' : ''}`}
-                title={
-                  activeSkills.length > 0
-                    ? `已启用 ${activeSkills.map((s) => s.name).join('、')}`
-                    : '应用 Skill'
-                }
-              >
-                <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
+              <span ref={skillPickRef} className="relative">
+                <button
+                  type="button"
+                  onClick={() => setSkillPickOpen((v) => !v)}
+                  disabled={sending}
+                  className={`agent-skill-btn ${activeSkills.length > 0 ? 'is-active' : ''}`}
+                  title={
+                    activeSkills.length > 0
+                      ? `已启用 ${activeSkills.map((s) => s.name).join('、')}`
+                      : '应用 Skill'
+                  }
                 >
-                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                  <polyline points="14 2 14 8 20 8" />
-                  <line x1="16" y1="13" x2="8" y2="13" />
-                  <line x1="16" y1="17" x2="8" y2="17" />
-                </svg>
-                {activeSkills.length === 0
-                  ? 'Skill'
-                  : `Skill·${(activeSkills[0]?.name || '').slice(0, 5)}`}
-              </button>
-              {skillPickOpen && (
-                <div
-                  className="agent-pop is-slash"
-                  style={{ maxHeight: '280px', overflowY: 'auto' }}
-                >
-                  {allSkills.length === 0 ? (
-                    <div className="agent-pop-empty">暂无 Skill</div>
-                  ) : (
-                    allSkills.map((s) => {
-                      const on = activeSkills.some((a) => a.id === s.id);
-                      return (
-                        <button
-                          key={s.id}
-                          type="button"
-                          onClick={() => {
-                            if (on) removeSkill(s.id);
-                            else applySkill(s);
-                            setSkillPickOpen(false);
-                          }}
-                          className={`agent-row ${on ? 'is-active' : ''}`}
-                        >
-                          <span className="agent-row-name">{s.name}</span>
-                          <span className="agent-step-meta" style={{ marginLeft: 0 }}>
-                            {s.builtin ? '内置' : ''}
-                          </span>
-                          {on && (
-                            <span className="agent-row-check">
-                              <svg
-                                width="12"
-                                height="12"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="2.5"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                              >
-                                <polyline points="20 6 9 17 4 12" />
-                              </svg>
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                    <polyline points="14 2 14 8 20 8" />
+                    <line x1="16" y1="13" x2="8" y2="13" />
+                    <line x1="16" y1="17" x2="8" y2="17" />
+                  </svg>
+                  {activeSkills.length === 0
+                    ? 'Skill'
+                    : `Skill·${(activeSkills[0]?.name || '').slice(0, 5)}`}
+                </button>
+                {skillPickOpen && (
+                  <div
+                    className="agent-pop is-slash"
+                    style={{ maxHeight: '280px', overflowY: 'auto' }}
+                  >
+                    {allSkills.length === 0 ? (
+                      <div className="agent-pop-empty">暂无 Skill</div>
+                    ) : (
+                      allSkills.map((s) => {
+                        const on = activeSkills.some((a) => a.id === s.id);
+                        return (
+                          <button
+                            key={s.id}
+                            type="button"
+                            onClick={() => {
+                              if (on) removeSkill(s.id);
+                              else applySkill(s);
+                              setSkillPickOpen(false);
+                            }}
+                            className={`agent-row ${on ? 'is-active' : ''}`}
+                          >
+                            <span className="agent-row-name">{s.name}</span>
+                            <span className="agent-step-meta" style={{ marginLeft: 0 }}>
+                              {s.builtin ? '内置' : ''}
                             </span>
-                          )}
-                        </button>
-                      );
-                    })
-                  )}
-                </div>
-              )}
-            </span>
+                            {on && (
+                              <span className="agent-row-check">
+                                <svg
+                                  width="12"
+                                  height="12"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2.5"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                >
+                                  <polyline points="20 6 9 17 4 12" />
+                                </svg>
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })
+                    )}
+                  </div>
+                )}
+              </span>
 
-            {/* 图片上传：暂时隐藏（如需恢复，取消下方注释即可） */}
-            {/*
+              {/* 图片上传：暂时隐藏（如需恢复，取消下方注释即可） */}
+              {/*
               <input ref={fileRef} type="file" accept="image/*,.md,.markdown,.txt" multiple onChange={handleFiles} className="hidden" />
               <button
                 type="button"
@@ -2007,42 +1911,46 @@ export default function AgentPanel({
                 </svg>
               </button>
               */}
-            <span className="agent-spacer" />
+              <span className="agent-spacer" />
 
-            {/* 发送/停止 */}
-            {sending && stateAction !== 'steer' ? (
-              <button type="button" onClick={stop} className="agent-send agent-stop" title="停止">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
-                  <rect x="6" y="6" width="12" height="12" rx="2" />
-                </svg>
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => handleSend()}
-                disabled={!canSend}
-                className="agent-send"
-                title="发送"
-              >
-                <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
+              {/* 发送/停止 */}
+              {sending && stateAction !== 'steer' ? (
+                <button type="button" onClick={stop} className="agent-send agent-stop" title="停止">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                    <rect x="6" y="6" width="12" height="12" rx="2" />
+                  </svg>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => handleSend()}
+                  disabled={!canSend}
+                  className="agent-send"
+                  title="发送"
                 >
-                  <line x1="12" y1="19" x2="12" y2="5" />
-                  <polyline points="5 12 12 5 19 12" />
-                </svg>
-              </button>
-            )}
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <line x1="12" y1="19" x2="12" y2="5" />
+                    <polyline points="5 12 12 5 19 12" />
+                  </svg>
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </div>
-    </div>
+      {/* 表格工作区面板（吸附在本面板左缘，开合联动——AI 面板收起时上方 effect 已 closeTableWorkspace）。
+          片段兄弟而非子元素：锚点 right=agentPanelWidth，与对话面板并排成一体。 */}
+      <TableWorkspacePanel agentPanelWidth={width} />
+    </>
   );
 }
 

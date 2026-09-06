@@ -194,5 +194,3 @@ export function useImageHoverActions({
     renderInlineCropper,
   };
 }
-
-export default useImageHoverActions;

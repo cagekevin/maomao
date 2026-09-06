@@ -64,6 +64,10 @@
 .agent-grip.is-dragging {
   background: rgb(59 130 246 / 0.4);
 }
+/* 表格打开时隐藏面板宽度手柄：吸附边界已被表格右缘 tw-grip 接管（避免双手柄冲突） */
+.agent-grip.is-hidden {
+  display: none;
+}
 
 /* ══════════════ 顶栏 ══════════════ */
 .agent-header {
@@ -999,7 +1003,9 @@
   transition: background 0.15s;
 }
 .agent-send:hover {
+  /* hover 背景反转为深黑(--mao-inverse-strong)时，图标必须同步转白，否则黑图标在黑底上不可见 */
   background: rgb(var(--mao-inverse-strong));
+  color: #fff;
 }
 .agent-send:disabled {
   background: rgb(var(--mao-surface-hover));
@@ -1094,42 +1100,75 @@
   display: flex;
 }
 
-/* 表格左栏 */
-.agent-body .sb {
-  flex-shrink: 0;
+/* 表格左栏 → 画布左侧 TableWorkspacePanel 内（2026-09-06 拆分）：
+   原嵌在 .agent-body 内（左表|分隔条|右对话），现独立滑出；.sb 本体填满面板高度 */
+.tw-panel .sb {
+  flex: 1;
+  min-height: 0;
   min-width: 0;
   display: flex;
   flex-direction: column;
 }
 
-/* 拖拽分隔条 */
-.agent-split {
+/* 表格面板入场动画（2026-09-06 用户裁定）：从右侧（AI 面板方向）划出——面板吸附在 AI 面板左缘，
+   故初始位移向右（藏在 AI 面板背后），再向左滑到本位。z-index 须低于 .agent-panel(30)，滑出时被
+   AI 面板遮挡住重叠部分，视觉上即「从 AI 面板背后划出」。 */
+@keyframes tw-panel-in {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+/* ══ 表格工作区面板外壳（tw-panel = table workspace panel）══
+   2026-09-06 用户裁定：吸附在 AI 助手面板左缘（表格在左、对话在右、开合联动），
+   锚点 = right: agentPanelWidth（内联），非画布最左独立面板。
+   外观与 AI 助手统一（用户裁定）：直角全高、--mao-surface-deep 底、仅左侧边线、同款阴影，
+   无独立头部（贴近旧 UI 左栏表格）。 */
+.tw-panel {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 29; /* 低于 .agent-panel(30)：入场从 AI 面板背后划出；静止时无重叠不受影响 */
+  display: flex;
+  flex-direction: column;
+  background: rgb(var(--mao-surface-deep)); /* 对齐 .agent-panel 底色 */
+  border-left: 1px solid rgb(var(--mao-edge-subtle)); /* 对齐 .agent-panel 左缘边线；右缘贴 AI 面板由其边线分界 */
+  box-shadow: 0 24px 60px rgb(0 0 0 / 0.55); /* 对齐 .agent-panel 阴影 */
+  overflow: hidden;
+  animation: tw-panel-in 0.22s ease-out; /* 从右侧（AI 面板方向）划出 */
+}
+/* 右缘宽度拖拽手柄（吸附边界 = 表格宽度条，替代原 .agent-split 分栏条） */
+.tw-grip {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
   width: 5px;
-  flex-shrink: 0;
   cursor: col-resize;
   background: transparent;
-  border-left: 1px solid rgb(var(--mao-edge-subtle));
   transition: background 0.15s;
 }
-.agent-split:hover,
-.agent-split.is-dragging {
+.tw-grip:hover {
   background: rgb(var(--mao-accent) / 0.35);
 }
 
 /* 表头区：全局风格条 + 工具条（都不属于 rows） */
-.agent-body .sb-head {
+.tw-panel .sb-head {
   flex-shrink: 0;
   padding: 10px 12px 8px;
 }
 
 /* 顶部单行：全局风格 + 操作按钮同排（不再各占一行） */
-.agent-body .sb-bar {
+.tw-panel .sb-bar {
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
-.agent-body .gs {
+.tw-panel .gs {
   flex: 1 1 auto;
   min-width: 0;
   display: flex;
@@ -1141,10 +1180,10 @@
   border: 1px solid rgb(var(--mao-edge-faint));
   transition: border-color 0.15s;
 }
-.agent-body .gs:hover {
+.tw-panel .gs:hover {
   border-color: rgb(var(--mao-edge-subtle));
 }
-.agent-body .gs-l {
+.tw-panel .gs-l {
   flex-shrink: 0;
   display: flex;
   align-items: center;
@@ -1153,7 +1192,7 @@
   color: rgb(var(--mao-text-faint));
   font-size: 11px;
 }
-.agent-body .gs-v {
+.tw-panel .gs-v {
   flex: 1;
   min-width: 0;
   outline: none;
@@ -1166,20 +1205,20 @@
   padding: 0;
   font-family: inherit;
 }
-.agent-body .gs-v:focus {
+.tw-panel .gs-v:focus {
   background: rgb(var(--mao-surface));
   box-shadow: inset 0 0 0 1px rgb(var(--mao-accent));
   color: rgb(var(--mao-text-strong));
 }
-.agent-body .gs-v.is-ph {
+.tw-panel .gs-v.is-ph {
   color: rgb(var(--mao-text-subtle));
 }
-.agent-body .gs .pen {
+.tw-panel .gs .pen {
   flex-shrink: 0;
   color: rgb(var(--mao-text-subtle));
 }
 
-.agent-body .tb {
+.tw-panel .tb {
   display: inline-flex;
   align-items: center;
   gap: 5px;
@@ -1196,42 +1235,46 @@
     color 0.15s,
     border-color 0.15s;
 }
-.agent-body .tb:hover {
+.tw-panel .tb:hover {
   background: rgb(var(--mao-surface-hover));
   color: rgb(var(--mao-text-strong));
   border-color: rgb(var(--mao-edge));
 }
-.agent-body .tb.primary {
+.tw-panel .tb.primary {
   color: rgb(var(--mao-accent-strong));
   border-color: rgb(var(--mao-accent) / 0.3);
   background: rgb(var(--mao-accent-soft) / 0.08);
 }
-.agent-body .tb.primary:hover {
+.tw-panel .tb.primary:hover {
   background: rgb(var(--mao-accent-soft) / 0.16);
 }
-.agent-body .sb-bar .cnt {
+.tw-panel .sb-bar .cnt {
   font-size: 11px;
   color: rgb(var(--mao-text-faint));
   margin-right: 2px;
   flex-shrink: 0;
 }
-.agent-body .sb-bar .ib {
+.tw-panel .sb-bar .ib {
   flex-shrink: 0;
 }
-.agent-body .ib.sm {
+.tw-panel .ib.sm {
   width: 26px;
   height: 26px;
   border-radius: 7px;
 }
 
 /* 表体：表头吸顶 + 表体滚动 */
-.agent-body .sb-body {
+.tw-panel .sb-body {
   flex: 1;
+  /* 横向收纳表格的关键：flex 子项默认 min-width:auto 会被 width:max-content 的表格撑破，
+     导致表格超出左栏、压进右侧对话区/面板外。min-width:0 允许表体收窄到父宽，
+     超宽内容改由 .sb-body 横向滚动。 */
+  min-width: 0;
   min-height: 0;
   overflow: auto;
   padding: 0 12px 12px;
 }
-.agent-body table.sbt {
+.tw-panel table.sbt {
   /* 列宽自适应内容：让长文本列真正拿到估算宽度，不再被 100% 压缩成窄条疯狂换行；
      总宽超出可视区时由 .sb-body 横向滚动，而非把列压扁。 */
   width: max-content;
@@ -1241,7 +1284,7 @@
   border-spacing: 0;
   font-size: 12px;
 }
-.agent-body table.sbt th {
+.tw-panel table.sbt th {
   position: sticky;
   top: 0;
   z-index: 2;
@@ -1254,58 +1297,69 @@
   white-space: nowrap;
   border-bottom: 1px solid rgb(var(--mao-edge-subtle));
 }
-.agent-body table.sbt td {
+.tw-panel table.sbt td {
   padding: 4px 7px;
   vertical-align: top;
   border-bottom: 1px solid rgb(var(--mao-edge-faint) / 0.5);
   color: rgb(var(--mao-text-body));
   line-height: 1.55;
 }
-.agent-body table.sbt tbody tr {
+.tw-panel table.sbt tbody tr {
   transition: background 0.12s;
   cursor: pointer;
 }
-.agent-body table.sbt tbody tr:hover {
+.tw-panel table.sbt tbody tr:hover {
   background: rgb(var(--mao-surface-hover));
 }
-.agent-body table.sbt tbody tr.sel {
+.tw-panel table.sbt tbody tr.sel {
   background: rgb(var(--mao-accent) / 0.1);
 }
-.agent-body table.sbt tr.sel td:first-child {
+.tw-panel table.sbt tr.sel td:first-child {
   box-shadow: inset 2px 0 0 rgb(var(--mao-accent));
 }
-.agent-body table.sbt td.idx {
+.tw-panel table.sbt td.idx {
   color: rgb(var(--mao-text-faint));
   font-size: 11px;
   width: 30px;
 }
-.agent-body table.sbt tr.sel td.idx {
+.tw-panel table.sbt tr.sel td.idx {
   color: rgb(var(--mao-accent-strong));
 }
 
 /* 表头列名可编辑（点列名直接改，回车/失焦提交） */
-.agent-body table.sbt th .col-head {
+.tw-panel table.sbt th .col-head {
   width: 100%;
   outline: none;
   border: none;
   background: transparent;
   color: inherit;
-  padding: 0 2px;
+  /* 右侧 34px 留给 +/× 操作组（hover 显示），防列名/输入被按钮遮挡 */
+  padding: 0 34px 0 2px;
   font: inherit;
   line-height: 1.4;
   border-radius: 3px;
 }
-.agent-body table.sbt th .col-head:focus {
+.tw-panel table.sbt th .col-head:focus {
   background: rgb(var(--mao-surface));
   box-shadow: inset 0 0 0 1px rgb(var(--mao-accent));
   color: rgb(var(--mao-text-strong));
 }
 
-/* 表头列内删除按钮：hover 该列表头才显示 */
-.agent-body table.sbt th .col-x {
+/* 表头列内操作组（+ 在该列后插入 / × 删除该列）：hover 该列表头才显示，两者同款（用户裁定 2026-09-06） */
+.tw-panel table.sbt th .col-ops {
   position: absolute;
   top: 3px;
   right: 2px;
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.tw-panel table.sbt th:hover .col-ops {
+  opacity: 1;
+}
+.tw-panel table.sbt th .col-x {
   width: 16px;
   height: 16px;
   display: flex;
@@ -1316,49 +1370,16 @@
   background: transparent;
   color: rgb(var(--mao-text-faint));
   cursor: pointer;
-  opacity: 0;
   transition:
-    opacity 0.12s,
     background 0.12s,
     color 0.12s;
 }
-.agent-body table.sbt th:hover .col-x {
-  opacity: 1;
-}
-.agent-body table.sbt th .col-x:hover {
+.tw-panel table.sbt th .col-x:hover {
   background: rgb(var(--mao-surface-hover-strong));
   color: #fff;
 }
-/* 追加列按钮：表头末列 */
-.agent-body table.sbt th.col-add-cell {
-  position: static;
-  vertical-align: middle;
-  padding: 0;
-  text-align: center;
-}
-.agent-body table.sbt th .col-add {
-  width: 22px;
-  height: 22px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px dashed rgb(var(--mao-edge));
-  border-radius: 5px;
-  background: transparent;
-  color: rgb(var(--mao-text-faint));
-  cursor: pointer;
-  transition:
-    background 0.12s,
-    color 0.12s,
-    border-color 0.12s;
-}
-.agent-body table.sbt th .col-add:hover {
-  background: rgb(var(--mao-surface-hover));
-  color: rgb(var(--mao-text-strong));
-  border-color: rgb(var(--mao-accent) / 0.5);
-}
 
-.agent-body .cell {
+.tw-panel .cell {
   width: 100%;
   outline: none;
   border: none;
@@ -1375,13 +1396,13 @@
   vertical-align: top;
   word-break: break-word;
 }
-.agent-body .cell:focus {
+.tw-panel .cell:focus {
   background: rgb(var(--mao-surface));
   box-shadow: inset 0 0 0 1px rgb(var(--mao-accent));
   color: rgb(var(--mao-text-strong));
 }
 
-.agent-body .ops {
+.tw-panel .ops {
   display: flex;
   align-items: center;
   gap: 2px;
@@ -1389,11 +1410,11 @@
   opacity: 0;
   transition: opacity 0.12s;
 }
-.agent-body tbody tr:hover .ops,
-.agent-body tbody tr.sel .ops {
+.tw-panel tbody tr:hover .ops,
+.tw-panel tbody tr.sel .ops {
   opacity: 1;
 }
-.agent-body .op {
+.tw-panel .op {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1418,7 +1439,7 @@
 }
 
 /* 表格空态 */
-.agent-body .sb-empty {
+.tw-panel .sb-empty {
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -1428,7 +1449,7 @@
   padding: 0 26px;
   text-align: center;
 }
-.agent-body .sb-empty .mark {
+.tw-panel .sb-empty .mark {
   width: 40px;
   height: 40px;
   border-radius: 10px;
@@ -1440,24 +1461,45 @@
   color: rgb(var(--mao-text-faint));
   margin-bottom: 4px;
 }
-.agent-body .sb-empty h4 {
+.tw-panel .sb-empty h4 {
   font-size: 15px;
   font-weight: 500;
   color: rgb(var(--mao-text-strong));
 }
-.agent-body .sb-empty p {
+.tw-panel .sb-empty p {
   font-size: 12px;
   color: rgb(var(--mao-text-faint));
   line-height: 1.7;
 }
-.agent-body .sb-empty .acts {
+.tw-panel .sb-empty .acts {
   display: flex;
   gap: 8px;
   margin-top: 8px;
 }
 
-/* AI 返回表格 → 可视化预览卡（预览与正式表两份状态，确认才写回） */
-.agent-body .pv {
+/* ══ AI 返回表格 → 预览「待确认卡」（.sb-preview，收进左栏、正式表格下方）══
+   2026-09-06 用户裁定：预览卡不再横跨整个面板宽度（曾为 AgentPanel 底部全屏 .agent-pv-dock，
+   盖过表格列+对话列+分隔条总宽显得不合理），改与正式表格同宽、上下贴邻。
+   故渲染位置移到 AssistantTablePanel(.sb) 内、.sb-body/.sb-empty 之后；卡本体样式见下方
+   .agent-panel .pv；pv-done（确认/取消后的历史痕迹）仍在消息流内。 */
+.tw-panel .sb-preview {
+  flex-shrink: 0;
+  min-width: 0;
+  padding: 0 12px 12px;
+}
+/* 左栏内给卡一个略保守的高度（比全屏 dock 的 38vh 略小），让上方正式表格仍留出可观可视区 */
+.tw-panel .sb-preview .pv {
+  max-height: clamp(150px, 28vh, 300px);
+}
+/* 整卡 = 受约束的纵向弹性容器：头/尾固定，表体吃剩余高度并独立滚动。
+   高度上限取视口比例（45vh）而非写死像素 —— 任何窗口高度下，
+   「卡头 + 表体 + 确认按钮 + 输入区」都同时在屏内，内容再多也不外溢。 */
+.tw-panel .pv {
+  display: flex;
+  flex-direction: column;
+  /* 高度配额：随窗口高度弹性伸缩（38vh），并夹在 180~400px 之间 ——
+     窗口高时给足表格，窗口矮时保底但仍给消息区留出呼吸空间。 */
+  max-height: clamp(180px, 38vh, 400px);
   border: 1px solid rgb(var(--mao-edge-faint));
   border-radius: 8px;
   background: rgb(var(--mao-surface-sunken));
@@ -1466,7 +1508,8 @@
   min-width: 0;
   max-width: 100%;
 }
-.agent-body .pv-hd {
+.tw-panel .pv-hd {
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -1475,7 +1518,7 @@
   color: rgb(var(--mao-text-secondary));
   font-size: 11.5px;
 }
-.agent-body .pv-hd .badge {
+.tw-panel .pv-hd .badge {
   font-size: 10px;
   padding: 1px 6px;
   border-radius: 4px;
@@ -1483,25 +1526,30 @@
   border: 1px solid rgb(var(--mao-accent) / 0.3);
   color: rgb(var(--mao-accent-strong));
 }
-.agent-body .pv-hd .spacer {
+.tw-panel .pv-hd .spacer {
   flex: 1;
 }
-.agent-body .pv-hd .rows {
+.tw-panel .pv-hd .rows {
   font-size: 10.5px;
   color: rgb(var(--mao-text-faint));
 }
-.agent-body .pv-body {
-  max-height: 300px;
+.tw-panel .pv-body {
+  /* 表体吃掉整卡的剩余高度（头/尾固定），min-height:0 是 flex 子项可收缩的必需项；
+     内容再长也只在内部滚动，绝不顶开整卡。 */
+  flex: 1 1 auto;
+  min-height: 0;
   overflow: auto;
+  /* 滚到顶/底不连锁到外层消息区（各自独立滚动） */
+  overscroll-behavior: contain;
   padding: 0 10px;
 }
-.agent-body .pv table {
+.tw-panel .pv table {
   width: 100%;
   table-layout: fixed; /* 列宽由容器分配，内容再长也不会把表撑破容器 */
   border-collapse: collapse;
   font-size: 11.5px;
 }
-.agent-body .pv th {
+.tw-panel .pv th {
   position: sticky;
   top: 0;
   background: rgb(var(--mao-surface-sunken));
@@ -1514,7 +1562,7 @@
   overflow: hidden;
   text-overflow: ellipsis; /* 列名过长在 fixed 布局内省略，不撑破列 */
 }
-.agent-body .pv td {
+.tw-panel .pv td {
   padding: 6px 8px;
   vertical-align: top;
   color: rgb(var(--mao-text-secondary));
@@ -1523,28 +1571,31 @@
   word-break: break-word;
   overflow-wrap: anywhere; /* 长词/URL 在格内换行，避免横向撑开 */
 }
-.agent-body .pv tr:last-child td {
+.tw-panel .pv tr:last-child td {
   border-bottom: none;
 }
-.agent-body .pv .gs-line {
+.tw-panel .pv .gs-line {
+  flex-shrink: 0;
   display: flex;
   gap: 6px;
   padding: 8px 10px 0;
   color: rgb(var(--mao-text-faint));
   font-size: 11px;
 }
-.agent-body .pv .gs-line b {
+.tw-panel .pv .gs-line b {
   color: rgb(var(--mao-text-secondary));
   font-weight: 400;
 }
-.agent-body .pv-ft {
+/* 操作行（确认/取消）：整卡的固定尾，永远可见 —— 它是写回闸口，不能随滚动沉出视野 */
+.tw-panel .pv-ft {
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 8px 10px;
   border-top: 1px solid rgb(var(--mao-edge-subtle));
 }
-.agent-body .btn {
+.tw-panel .btn {
   display: inline-flex;
   align-items: center;
   gap: 5px;
@@ -1558,33 +1609,33 @@
     color 0.15s,
     border-color 0.15s;
 }
-.agent-body .btn-ok {
+.tw-panel .btn-ok {
   background: rgb(var(--mao-live));
   color: #fff;
 }
-.agent-body .btn-ok:hover {
+.tw-panel .btn-ok:hover {
   filter: brightness(1.1);
 }
-.agent-body .btn:disabled {
+.tw-panel .btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
-.agent-body .btn-ghost {
+.tw-panel .btn-ghost {
   background: transparent;
   color: rgb(var(--mao-text-faint));
 }
-.agent-body .btn-ghost:hover {
+.tw-panel .btn-ghost:hover {
   background: rgb(var(--mao-surface-hover));
   color: rgb(var(--mao-text-strong));
 }
-.agent-body .pv-ft .tip {
+.tw-panel .pv-ft .tip {
   margin-left: auto;
   font-size: 10.5px;
   color: rgb(var(--mao-text-subtle));
 }
 
 /* 预览卡折叠态（确认/取消后，对齐 mockup collapseCard → pv-done） */
-.agent-body .pv-done {
+.agent-panel .pv-done {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -1595,7 +1646,7 @@
   color: rgb(var(--mao-text-faint));
   font-size: 11.5px;
 }
-.agent-body .pv-done .ck {
+.agent-panel .pv-done .ck {
   color: rgb(var(--mao-live));
   display: flex;
 }

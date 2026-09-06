@@ -121,6 +121,12 @@ for (const file of targets) {
   }
 
   const lines = src.split('\n');
+  const eventFns = [...EVENT_FNS].join('|');
+  // 跨行调用合并：处理「fn( 与 '事件名' 分处两行」的多行展开写法。
+  // （2026-09-06 修：usePersistFailureToast 的 subscribe(\n 'persist:failed' 被逐行扫描漏检，
+  //   导致反向校验把登记表 .to 误报为 stale。register 表行号本仅作审计，此处让多行调用也能被捕获。）
+  const CALL_OPEN_RE = new RegExp(`\\b(?:${eventFns})\\s*\\(`, 'g');
+
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     const lineNo = i + 1;
@@ -132,7 +138,9 @@ for (const file of targets) {
 
     LITERAL_EVENT_RE.lastIndex = 0;
     let m;
+    let hasLiteralOnThisLine = false;
     while ((m = LITERAL_EVENT_RE.exec(line)) !== null) {
+      hasLiteralOnThisLine = true;
       const fn = m[1];
       const name = m[3];
       const loc = `${rel}:${lineNo}`;
@@ -144,6 +152,60 @@ for (const file of targets) {
       // 收集实测位置，供下方反向校验
       if (fn === 'publish') pushLoc(actualPublish, name, loc);
       else pushLoc(actualSubscribe, name, loc); // subscribe / subscribeOnce
+    }
+    // 本行已有事件名字面量命中 → 无需再做跨行合并（避免重复计数）
+    if (hasLiteralOnThisLine) continue;
+
+    // 找出本行中「到行尾仍未闭合」的事件总线调用：取其从 fn( 之后的括号净深
+    CALL_OPEN_RE.lastIndex = 0;
+    let leftover = 0;
+    let oc;
+    while ((oc = CALL_OPEN_RE.exec(line)) !== null) {
+      // 从本调用 fn( 起算该调用到行尾的净括号深度（>0 表示跨到下一行）
+      const tail = line.slice(oc.index + oc[0].length);
+      let depth = 1;
+      for (const ch of tail) {
+        if (ch === '(') depth++;
+        else if (ch === ')') depth--;
+      }
+      if (depth > leftover) leftover = depth;
+    }
+    if (leftover <= 0) continue;
+
+    // 向后合并直到括号配对（跳过注释行）
+    let merged = line;
+    let k = i + 1;
+    while (k < lines.length && leftover > 0) {
+      const nextLine = lines[k];
+      merged += '\n' + nextLine;
+      const cand = nextLine.trim();
+      if (!cand.startsWith('//') && !cand.startsWith('*')) {
+        for (const ch of nextLine) {
+          if (ch === '(') leftover++;
+          else if (ch === ')') leftover--;
+        }
+      }
+      k++;
+    }
+    // 在合并片段找该跨行调用的事件名（若存在）
+    LITERAL_EVENT_RE.lastIndex = 0;
+    let mm;
+    let guard = 0;
+    while ((mm = LITERAL_EVENT_RE.exec(merged)) !== null && guard++ < 10) {
+      const name = mm[3];
+      const fn = mm[1];
+      const upTo = merged.slice(0, mm.index);
+      // 仅当事件名出现在本行 fn( 之后（跨行场景），且不在本行已处理范围 —— 用 fn 起始兜底防误并
+      const realLine = lineNo + (upTo.match(/\n/g) || []).length;
+      const loc = `${rel}:${realLine}`;
+      if (!isRegistered(name)) {
+        violations++;
+        console.error(`  ✖ ${loc}  裸事件名未登记: ${fn}('${name}')`);
+        continue;
+      }
+      if (fn === 'publish') pushLoc(actualPublish, name, loc);
+      else pushLoc(actualSubscribe, name, loc);
+      break; // 一个多行调用只取第一个事件名
     }
   }
 }

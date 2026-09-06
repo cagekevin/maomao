@@ -105,6 +105,7 @@ import {
   setCurrentRunMode,
   setCurrentAssistantTable,
   setCurrentGlobalContract,
+  markMessageTableResolved,
   getWorkMode,
   waitHydrated,
 } from '../conversation/conversationStore.ts';
@@ -294,6 +295,7 @@ export interface UseAgentChatReturn {
   setAwaitingConfirm: (v: boolean) => void;
   setCurrentAssistantTable: typeof setCurrentAssistantTable;
   setCurrentGlobalContract: typeof setCurrentGlobalContract;
+  markMessageTableResolved: typeof markMessageTableResolved;
   getCurrentRunMode: () => string;
   setCurrentRunMode: (mode: string) => void;
 }
@@ -1087,6 +1089,7 @@ export function useAgentChat({
     setAwaitingConfirm,
     setCurrentAssistantTable,
     setCurrentGlobalContract,
+    markMessageTableResolved,
     getCurrentRunMode,
     setCurrentRunMode,
   };
