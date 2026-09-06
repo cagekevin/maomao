@@ -7,7 +7,7 @@
  *  - 无上游接入时不渲染素材区
  *  - 断线回调（onDisconnectUpstream）被正确透传调用
  */
-import React from 'react';
+import 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 

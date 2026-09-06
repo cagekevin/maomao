@@ -2,7 +2,7 @@
  * GroupNode 单测（阶段五试点）。
  * 覆盖：展开态/折叠态渲染、双击/按钮切换折叠（调用 useReactFlow().setNodes 更新 data.collapsed 与子节点 hidden）。
  */
-import React from 'react';
+import 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 

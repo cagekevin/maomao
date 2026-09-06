@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import { useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { ChevronDown, Plus, MoreVertical, Pencil, Trash2 } from 'lucide-react';
 import {

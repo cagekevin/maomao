@@ -1,4 +1,4 @@
-import React from 'react';
+import 'react';
 
 /**
  * 小型开关组件（对齐整体 zinc 风格，开启为青蓝色）。

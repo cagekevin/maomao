@@ -1,4 +1,4 @@
-import React from 'react';
+import 'react';
 
 /**
  * 边粒子流光公共组件（彗星拖尾 + 辉光 + 发光头）。

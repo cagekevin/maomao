@@ -8,7 +8,7 @@
  * 修复：引入 backdropStartRef，仅当「本次 mousedown 起点也落在遮罩空白上」时，click 落在遮罩才关闭。
  * 从面板内容按下（拖选）→ 即使在遮罩上松开也不关闭。
  */
-import React from 'react';
+import 'react';
 import { describe, it, expect, vi } from 'vitest';
 import { render, fireEvent, act } from '@testing-library/react';
 import FullscreenModal from '../../src/components/base/panels/FullscreenModal.tsx';

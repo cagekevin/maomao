@@ -10,7 +10,7 @@
  *  - mousemove 更新 --cust-shift-x/y、mouseleave 归零
  *  - 左端口 shift-x 只往左侧（≤0）、右端口只往右侧（≥0）
  */
-import React from 'react';
+import 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render } from '@testing-library/react';
 import { fireEvent } from '@testing-library/react';

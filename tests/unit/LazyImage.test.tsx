@@ -10,7 +10,7 @@
  *  - 降级：无 IntersectionObserver 环境直接显示（不依赖 IO）
  *  - 兜底：加载失败显示「破图占位」，不再保留裂图
  */
-import React, { act } from 'react';
+import { act } from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 

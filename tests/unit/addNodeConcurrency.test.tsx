@@ -12,7 +12,7 @@
  * 即爆红。
  */
 import { describe, it, expect } from 'vitest';
-import React, { useRef, useEffect, useState } from 'react';
+import { useRef, useEffect, useState } from 'react';
 import { render, act } from '@testing-library/react';
 
 // 制造自增 id 的节点（不能用 Date.now()，同一 tick 内会撞 id）

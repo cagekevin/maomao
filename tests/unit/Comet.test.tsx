@@ -10,7 +10,7 @@
  *  - headRadius 固定 3.4（与选中 comet 视觉一致）
  *  - uid 唯一标识避免多实例 filter 冲突
  */
-import React from 'react';
+import 'react';
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render } from '@testing-library/react';
 

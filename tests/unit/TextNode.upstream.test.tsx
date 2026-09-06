@@ -3,7 +3,7 @@
  * 覆盖：上游文本节点连线后文字合并进文本生成消息；多上游文本/图片合并；
  * 上游有文本但本地为空时校验通过。
  */
-import React from 'react';
+import 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 

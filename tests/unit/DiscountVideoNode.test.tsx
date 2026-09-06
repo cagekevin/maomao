@@ -13,7 +13,7 @@
  *  - 点击主显示区 toggleExpanded → 写回 data.expanded
  *  - data.videoUrl 外部写入 → 同步本地 state 显示缩略图
  */
-import React from 'react';
+import 'react';
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 

@@ -7,7 +7,7 @@
  * 契约：onImageReplaced(dataUrl, dims) 后，aspectRatio 写回 'W:H'，真实 NodeShell.useSizeSync
  *       把节点框重算为 dims 比例。
  */
-import React from 'react';
+import 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 

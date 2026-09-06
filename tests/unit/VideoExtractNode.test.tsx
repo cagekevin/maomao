@@ -15,7 +15,7 @@
  *  - toast/contentSet/downloadUrl/clipboard/previewUrl 用 hoisted mock 断言副作用。
  *  - 抽帧流程通过 spy document.createElement 注入 fake video/canvas。
  */
-import React from 'react';
+import 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { mocks } from './_nodeMocks.mjs';

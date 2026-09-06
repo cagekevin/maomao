@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 
 /**
  * 生成中遮罩（复刻官方 Ti.jsx + Di.jsx）。

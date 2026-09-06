@@ -3,7 +3,7 @@
  * 覆盖：上游文本/图片节点连线后文字与图片合并进生图请求；
  * 多上游节点合并；上游有文本但本地 prompt 为空时校验通过。
  */
-import React from 'react';
+import 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 

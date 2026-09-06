@@ -3,7 +3,7 @@
  * 审计建议 P1：多图输入、切图逻辑、参数变更重渲染。
  * 覆盖三种拼接模式切换、网格预设/自定义、多图输入填充格子、无图校验禁用。
  */
-import React from 'react';
+import 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { mocks } from './_nodeMocks.mjs';

@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import { useState, useRef } from 'react';
 import { Loader2, Plus, Trash2, Film, Link2 } from 'lucide-react';
 import {
   SHOT_TYPES,

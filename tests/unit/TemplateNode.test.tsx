@@ -3,7 +3,7 @@
  * 复用共享 mock kit（tests/unit/_nodeMocks.mjs）。
  * 覆盖：渲染不崩、label 透传、点击「生成」触发生成链路（generateImage 被调用）。
  */
-import React from 'react';
+import 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { mocks } from './_nodeMocks.mjs';

@@ -8,7 +8,7 @@
  * 断言核心：素材从 refImages 消失后，富文本里引用它的 data-ref-id 芯片被移除，且 onChange 同步
  * 回不含该引用的新 value（不残留）。
  */
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { describe, it, expect } from 'vitest';
 import { render, act } from '@testing-library/react';
 import PromptInput from '../../src/components/base/prompt/PromptInput.tsx';

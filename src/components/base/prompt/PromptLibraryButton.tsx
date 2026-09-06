@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Sparkles } from 'lucide-react';
 import { useReactFlow } from '@xyflow/react';
 import { useNodePosition } from '../core/uiHooks.ts';

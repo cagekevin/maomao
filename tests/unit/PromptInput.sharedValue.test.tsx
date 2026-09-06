@@ -9,7 +9,7 @@
  *
  * 断言核心：编辑哪个实例，selection 就必须留在哪个实例里。
  */
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { describe, it, expect } from 'vitest';
 import { render, fireEvent, act } from '@testing-library/react';
 import PromptInput from '../../src/components/base/prompt/PromptInput.tsx';

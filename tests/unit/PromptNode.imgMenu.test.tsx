@@ -4,7 +4,7 @@
  *
  * 逆向自 1mao（bo.jsx）。屏蔽重型子组件 / ReactFlow hooks，只验证节点内部交互与 patchData 行为。
  */
-import React from 'react';
+import 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 

@@ -3,7 +3,7 @@
  * 覆盖 content type 判定的多种内容态：empty / image / audio / text / video。
  * detectMediaType 为真实实现；mediaType 显式标注时优先（blob/无扩展名产出场景）。
  */
-import React from 'react';
+import 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { mocks } from './_nodeMocks.mjs';

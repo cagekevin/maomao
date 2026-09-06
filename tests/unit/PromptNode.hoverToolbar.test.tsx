@@ -3,7 +3,7 @@
  * 核心验证：生图节点的「裁剪」按钮此前是死按钮（无 onClick），
  * 迁入共享机制 useImageHoverActions 后必须可点击并打开 ImageEditor。
  */
-import React from 'react';
+import 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 

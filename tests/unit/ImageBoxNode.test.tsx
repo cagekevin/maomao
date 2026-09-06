@@ -9,7 +9,7 @@
  * 节点 data 的精确变化（activeIndex / selectedIds / images / expanded）。
  * 这些断言任一被破坏，说明节点数据契约回归，测试必红。
  */
-import React from 'react';
+import 'react';
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { mocks } from './_nodeMocks.mjs';

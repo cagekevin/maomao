@@ -4,7 +4,7 @@
  * 重点覆盖：空态校验、三种切分模式切换与各自控制区、网格预设与自定义行列。
  * 预切图逻辑走真实 loadImageWithTimeout（异步，失败被逻辑吞掉），断言以稳定文本/禁用态为主。
  */
-import React from 'react';
+import 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { mocks } from './_nodeMocks.mjs';

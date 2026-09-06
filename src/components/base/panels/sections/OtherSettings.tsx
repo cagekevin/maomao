@@ -1,4 +1,4 @@
-import React from 'react';
+import 'react';
 import { useAppSettings, setSetting } from '../../store/appSettings.ts';
 import { UI_SETTING_ROWS } from '../../store/settingRegistry.ts';
 import { Toggle } from '../../ui/Toggle.tsx';

@@ -11,7 +11,7 @@
  *  - 点击删除按钮 → deleteElements({ edges: [{ id }] })
  *  - markerEnd 字符串透传给主线
  */
-import React from 'react';
+import 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 

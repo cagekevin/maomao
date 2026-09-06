@@ -1232,7 +1232,10 @@
   padding: 0 12px 12px;
 }
 .agent-body table.sbt {
-  width: 100%;
+  /* 列宽自适应内容：让长文本列真正拿到估算宽度，不再被 100% 压缩成窄条疯狂换行；
+     总宽超出可视区时由 .sb-body 横向滚动，而非把列压扁。 */
+  width: max-content;
+  min-width: 100%;
   table-layout: fixed;
   border-collapse: separate;
   border-spacing: 0;

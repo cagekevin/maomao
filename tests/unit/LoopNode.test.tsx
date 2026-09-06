@@ -4,7 +4,7 @@
  * 该节点导出纯函数 splitByMethod / splitSmartPromptItems，可用契约测试覆盖拆分边界，
  * 再配合 UI 测试验证「上游文本 → 分段渲染 → 运行建节点」主链路。
  */
-import React from 'react';
+import 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { mocks } from './_nodeMocks.mjs';

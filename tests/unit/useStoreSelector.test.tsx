@@ -11,7 +11,7 @@
  *  ② selector 返回新对象但浅比较相等 → 不重渲染（防无限重渲）
  *  + shallowEqual 纯函数语义
  */
-import React, { act } from 'react';
+import { act } from 'react';
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { useStoreSelector, shallowEqual } from '../../src/hooks/useStoreSelector.ts';

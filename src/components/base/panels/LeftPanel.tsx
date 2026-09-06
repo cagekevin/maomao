@@ -1,4 +1,4 @@
-import React, { useMemo, useEffect, useRef } from 'react';
+import { useMemo, useEffect, useRef } from 'react';
 import { Clock, FolderOpen, Sparkles, Pin, PinOff, BookOpen } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import './panel-kit.css';

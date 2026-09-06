@@ -8,7 +8,7 @@
  *  - aria-hidden（装饰性图标，避免被读屏朗读）
  *  - 唯一 path 存在（防止 SVG 内容被误删成空壳）
  */
-import React from 'react';
+import 'react';
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import JianyingIcon from '../../src/components/base/ui/JianyingIcon.tsx';

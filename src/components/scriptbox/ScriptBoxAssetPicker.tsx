@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Loader2, Image as ImageIcon } from 'lucide-react';
 import { fetchResources, rescanResources } from '../base/api/index.ts';
 import { toAbsoluteFileUrl } from '../base/utils/imageUrl.ts';

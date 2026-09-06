@@ -7,7 +7,7 @@
  *  - useConnectedInputs 本地可控（images 里放 .mp4），验证上游视频自动取链并显示名称。
  *  - 断言以稳定文本/标签为主，不依赖 videoEngine 真实处理（处理链路已由 videoEngine 独立契约测试覆盖）。
  */
-import React from 'react';
+import 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { mocks } from './_nodeMocks.mjs';

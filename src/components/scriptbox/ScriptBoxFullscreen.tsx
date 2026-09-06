@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Clapperboard, Settings, X, Loader2 } from 'lucide-react';
 import StepNav from './StepNav.tsx';

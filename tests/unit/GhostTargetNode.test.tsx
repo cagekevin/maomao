@@ -8,7 +8,7 @@
  *  - 必须渲染一个 target 类型 Handle（type=target、position=left、无 id → 默认 target handle）
  *  - 透明不可见契约（opacity 0 / transparent / pointerEvents none），保证不遮挡画布
  */
-import React from 'react';
+import 'react';
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render } from '@testing-library/react';
 
