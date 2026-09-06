@@ -81,6 +81,7 @@ import {
   newConversation,
   switchConversation,
   deleteConversation,
+  renameConversation,
   captureActiveConversation,
   getActiveConversationId,
   getCurrentSnapshot,
@@ -285,6 +286,7 @@ export interface UseAgentChatReturn {
   newChat: () => void;
   switchChat: (id: string) => void;
   deleteChat: (id: string) => void;
+  renameChat: (id: string, title: string) => void;
   updateMessageByContent: (content: string, patch?: Record<string, unknown>) => void;
   sendContentToCanvas: (msg: unknown) => void;
   confirmPendingMemorySuggest: () => Promise<{ ok?: boolean; error?: string }>;
@@ -1018,6 +1020,12 @@ export function useAgentChat({
     [applyConversationState],
   );
 
+  /** 重命名对话（写 title 并持久化；不切换会话，仅列表改名） */
+  const renameChat = useCallback((id: string, title: string) => {
+    if (getState().sending) return;
+    renameConversation(id, title);
+  }, []);
+
   // 更新某条 assistant 消息的字段（按内容弱定位），同步 state + ref + 落盘。
   // 现仅用于 cancelPendingConfirm 清除 awaiting_confirm。
   const updateMessageByContent = useCallback(
@@ -1088,6 +1096,7 @@ export function useAgentChat({
     newChat,
     switchChat,
     deleteChat,
+    renameChat,
     updateMessageByContent,
     sendContentToCanvas,
     confirmPendingMemorySuggest,

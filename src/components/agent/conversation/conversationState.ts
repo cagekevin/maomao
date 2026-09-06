@@ -167,6 +167,8 @@ export interface ConversationMessage {
 export interface Conversation {
   id: string;
   title: string;
+  /** 用户是否显式重命名过标题（true 时 UI 显示层优先用 c.title，不再用首条消息自动切片覆盖） */
+  titleCustom?: boolean;
   ts: number;
   updatedAt: number;
   draft: string;
@@ -189,6 +191,7 @@ export interface Conversation {
 export interface RawConversation {
   id?: unknown;
   title?: unknown;
+  titleCustom?: unknown;
   ts?: unknown;
   updatedAt?: unknown;
   draft?: unknown;
@@ -619,6 +622,7 @@ export function normalizeConversation(raw: unknown): Conversation | null {
   if (!Array.isArray(c.skills)) c.skills = [];
   if (!Array.isArray(c.attachments)) c.attachments = [];
   if (typeof c.title !== 'string') c.title = c.title || '对话';
+  if (typeof c.titleCustom !== 'boolean') c.titleCustom = false;
   if (typeof c.draft !== 'string') c.draft = '';
   if (!c.id) c.id = uid('ac');
   if (!c.ts) c.ts = Date.now();

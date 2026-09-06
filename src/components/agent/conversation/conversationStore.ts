@@ -151,18 +151,27 @@ export function deleteConversation(id: string): {
   return { activeId: conv.id, snapshot: getCurrentSnapshot() };
 }
 
-/** 重命名当前对话标题（UI 可选） */
+/** 重命名任意会话标题：写入 title 并置 titleCustom=true，UI 显示层据此优先展示自定义名而非首条消息切片 */
+export function renameConversation(id: string, title: string): void {
+  const st = getState();
+  if (!st.conversations.some((c) => c.id === id)) return;
+  const trimmed = String(title || '')
+    .trim()
+    .slice(0, 30);
+  if (!trimmed) return; // 空名不改
+  commit({
+    ...st,
+    conversations: st.conversations.map((c) =>
+      c.id === id ? { ...c, title: trimmed, titleCustom: true, updatedAt: Date.now() } : c,
+    ),
+  });
+}
+
+/** 重命名当前（active）会话标题（旧兼容入口，委托通用 renameConversation） */
 export function renameActiveConversation(title: string): void {
   const conv = getActiveConv();
   if (!conv) return;
-  commit({
-    ...getState(),
-    conversations: getState().conversations.map((c) =>
-      c.id === conv.id
-        ? { ...c, title: String(title || '').slice(0, 30) || c.title, updatedAt: Date.now() }
-        : c,
-    ),
-  });
+  renameConversation(conv.id, title);
 }
 
 /** 从旧单会话数据迁移：conversations 为空且有旧 messages/skills 时，迁成一个对话 */

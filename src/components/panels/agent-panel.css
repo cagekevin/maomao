@@ -78,7 +78,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 4px;
   padding: 0 6px 0 4px;
   border-bottom: 1px solid rgb(var(--mao-edge-subtle));
 }
@@ -89,7 +89,7 @@
   align-items: center;
   gap: 4px;
   max-width: 210px;
-  padding: 5px 8px;
+  padding: 5px 6px;
   border: none;
   border-radius: 8px;
   background: transparent;
@@ -372,6 +372,31 @@
 }
 .agent-row-wrap .agent-row-ops button:hover {
   color: rgb(var(--mao-text-primary));
+}
+
+/* 会话行内重命名编辑态：整行换输入框，输入框吃满行宽 */
+.agent-row.is-editing {
+  flex: 1;
+  min-width: 0;
+  cursor: default;
+}
+.agent-row-rename {
+  width: 100%;
+  padding: 4px 7px;
+  border: 1px solid rgb(var(--mao-edge));
+  border-radius: 6px;
+  background: rgb(var(--mao-surface-sunken));
+  color: rgb(var(--mao-text-strong));
+  font-size: 12.5px;
+  line-height: 1.4;
+  outline: none;
+}
+.agent-row-rename:focus {
+  border-color: rgb(var(--mao-accent));
+}
+.agent-row-wrap:has(.agent-row.is-editing) .agent-row-ops {
+  opacity: 0;
+  pointer-events: none;
 }
 
 .agent-pop-empty {
@@ -974,20 +999,21 @@
   flex: 1;
 }
 
-/* Skill 文字按钮（沿用原有语义：带 skill 图标 + 文字，激活态变色） */
+/* Skill 圆角组容器：最外层 padding 管两侧留白，gap 管元素间(图标→文字)间距；
+   内部所有子元素一律零 margin/padding，间距只归外层管（见 AgentPanel JSX）。
+   兼作弹层锚点（内含下拉 popover），需 relative 定位。 */
 .agent-skill-btn {
+  position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 4px;
   height: 28px;
-  padding: 0 9px;
-  border: none;
+  gap: 4px;
+  padding: 0 6px;
   border-radius: 7px;
   background: transparent;
   color: rgb(var(--mao-text-secondary));
   font-size: 11.5px;
   white-space: nowrap;
-  cursor: pointer;
   transition:
     background 0.15s,
     color 0.15s;
@@ -996,10 +1022,6 @@
   background: rgb(var(--mao-surface-hover));
   color: rgb(var(--mao-text-strong));
 }
-.agent-skill-btn:disabled {
-  opacity: 0.4;
-  cursor: default;
-}
 .agent-skill-btn.is-active {
   color: var(--agent-accent);
   background: var(--agent-accent-bg);
@@ -1007,10 +1029,44 @@
 .agent-skill-btn.is-active:hover {
   color: var(--agent-accent);
 }
-.agent-skill-btn .agent-skill-name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 76px;
+/* 前置图标（未选中态，skill 文档图标）：仅作展示，不单独可点 */
+.agent-skill-btn .agent-skill-ico {
+  flex-shrink: 0;
+  margin: 0;
+}
+/* 选中态把图标位换成叉：点击直接清除当前所选 Skill。
+   与前置图标同位、无任何 hover/背景效果，仅一个可点击的透明按钮承载叉 SVG */
+.agent-skill-clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.agent-skill-clear:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+/* 文字展开区：点击展开「应用/取消 Skill」下拉；自身不带边距，间距由外层 gap 控制 */
+.agent-skill-main {
+  display: inline-flex;
+  align-items: center;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-size: inherit;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.agent-skill-main:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
 
 .agent-send {

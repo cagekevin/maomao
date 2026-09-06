@@ -12,7 +12,22 @@ import { useProviders, load as loadProviders } from '../base/store/providerStore
 import AgentMessage from './AgentMessage.tsx';
 import AgentConfirmCard from './AgentConfirmCard.tsx';
 import ModelSelect from '../base/ui/ModelSelect.tsx';
-import { Package as PackageIcon, SlidersHorizontal } from 'lucide-react';
+import {
+  ArrowDown,
+  ArrowUp,
+  Check,
+  ChevronDown,
+  FileText,
+  Image as ImageIcon,
+  MessageSquarePlus,
+  Package as PackageIcon,
+  Shield,
+  SlidersHorizontal,
+  SquarePen,
+  Trash2,
+  X,
+  Zap,
+} from 'lucide-react';
 import { buildAllModels } from '../base/utils/providerModels.ts';
 import { useOutsideClick } from '../base/core/uiHooks.ts';
 import { loadAgentChatModel, AGENT_CHAT_MODEL_KEY } from '../base/store/agentModelStore.ts';
@@ -288,6 +303,10 @@ export default function AgentPanel({
   useOutsideClick(chatListRef, chatListOpen, () => setChatListOpen(false));
   // 新建对话短锁：新建后 1s 内禁用按钮，避免用户狂点出十几个空对话
   const newChatLock = useRef(false);
+  // 行内重命名：正在重命名的会话 id + 编辑草稿（点铅笔图标进入，Enter/blur 保存，Esc 取消）
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameDraft, setRenameDraft] = useState('');
+  const renameInputRef = useRef<HTMLInputElement>(null);
 
   const {
     messages,
@@ -304,6 +323,7 @@ export default function AgentPanel({
     newChat,
     switchChat,
     deleteChat,
+    renameChat,
     sendContentToCanvas,
     confirmPendingMemorySuggest,
     getActivePendingMemorySuggest,
@@ -982,11 +1002,18 @@ export default function AgentPanel({
   );
 
   /** 顶栏标题 = 当前会话标题（首条用户消息优先，未命名则回退 c.title / “新对话”） */
+  // 会话显示名：用户显式重命名过（titleCustom）→ 用自定义 c.title；否则沿用「首条用户消息 / 标题」自动标题
+  const convDisplayTitle = (c) => {
+    if (!c) return '新对话';
+    if (c.titleCustom && c.title) return c.title;
+    const firstUser = (c.messages || []).find((m) => m?.role === 'user' && m?.content);
+    if (firstUser?.content) return String(firstUser.content).slice(0, 18);
+    return c?.title || '对话';
+  };
+
   const activeTitle = useMemo(() => {
     const c = (conversations || []).find((x) => x?.id === activeConversationId);
-    const firstUser = (c?.messages || []).find((m) => m?.role === 'user' && m?.content);
-    if (firstUser?.content) return String(firstUser.content).slice(0, 18);
-    return c?.title || '新对话';
+    return convDisplayTitle(c);
   }, [conversations, activeConversationId]);
 
   // 未配 AI 供应商 → 禁用发送（禁止静默失败，见 L3b）。canSend 网关 provider 存在。
@@ -1048,18 +1075,7 @@ export default function AgentPanel({
               title="对话列表"
             >
               <span className="agent-title-text">{activeTitle}</span>
-              <svg
-                width="13"
-                height="13"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <polyline points="6 9 12 15 18 9" />
-              </svg>
+              <ChevronDown size={13} strokeWidth={2} />
             </button>
             {chatListOpen && (
               <div className="agent-pop is-conv">
@@ -1069,42 +1085,69 @@ export default function AgentPanel({
                   ) : (
                     conversations.map((c) => {
                       const isActive = c.id === activeConversationId;
-                      const firstUser = (c.messages || []).find(
-                        (m) => m.role === 'user' && m.content,
-                      );
-                      const title = firstUser?.content
-                        ? String(firstUser.content).slice(0, 18)
-                        : c.title || '对话';
+                      const isRenaming = renamingId === c.id;
+                      const title = convDisplayTitle(c);
+                      // 提交重命名（空名/无变化则仅退出编辑）
+                      const commitRename = () => {
+                        const t = renameDraft.trim();
+                        if (t && t !== c.title) renameChat(c.id, t);
+                        setRenamingId(null);
+                      };
                       return (
                         <div key={c.id} className="agent-row-wrap">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              switchChat(c.id);
-                              setChatListOpen(false);
-                            }}
-                            className={`agent-row ${isActive ? 'is-active' : ''}`}
-                            title={c.title}
-                          >
-                            <span className="agent-row-name">{title}</span>
-                            {isActive && (
-                              <span className="agent-row-check">
-                                <svg
-                                  width="13"
-                                  height="13"
-                                  viewBox="0 0 24 24"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  strokeWidth="2.5"
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                >
-                                  <polyline points="20 6 9 17 4 12" />
-                                </svg>
-                              </span>
-                            )}
-                          </button>
+                          {isRenaming ? (
+                            // 行内重命名编辑态：替换整行为输入框，避免按钮嵌 input
+                            <div className="agent-row is-editing">
+                              <input
+                                ref={renameInputRef}
+                                autoFocus
+                                className="agent-row-rename"
+                                value={renameDraft}
+                                maxLength={30}
+                                placeholder="输入会话名称"
+                                onChange={(e) => setRenameDraft(e.target.value)}
+                                onBlur={commitRename}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
+                                    e.preventDefault();
+                                    commitRename();
+                                  } else if (e.key === 'Escape') {
+                                    e.preventDefault();
+                                    setRenamingId(null);
+                                  }
+                                }}
+                              />
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                switchChat(c.id);
+                                setChatListOpen(false);
+                              }}
+                              className={`agent-row ${isActive ? 'is-active' : ''}`}
+                              title={c.title}
+                            >
+                              <span className="agent-row-name">{title}</span>
+                              {isActive && (
+                                <span className="agent-row-check">
+                                  <Check size={13} strokeWidth={2.5} />
+                                </span>
+                              )}
+                            </button>
+                          )}
                           <span className="agent-row-ops">
+                            <button
+                              type="button"
+                              title="重命名对话"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setRenameDraft(title);
+                                setRenamingId(c.id);
+                              }}
+                            >
+                              <SquarePen size={13} strokeWidth={2} />
+                            </button>
                             <button
                               type="button"
                               onClick={async (e) => {
@@ -1122,19 +1165,7 @@ export default function AgentPanel({
                               }}
                               title="删除对话"
                             >
-                              <svg
-                                width="13"
-                                height="13"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="2"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                              >
-                                <polyline points="3 6 5 6 21 6" />
-                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                              </svg>
+                              <Trash2 size={13} strokeWidth={2} />
                             </button>
                           </span>
                         </div>
@@ -1150,19 +1181,7 @@ export default function AgentPanel({
                   className="agent-row"
                   title="清空对话"
                 >
-                  <svg
-                    width="13"
-                    height="13"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <polyline points="3 6 5 6 21 6" />
-                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                  </svg>
+                  <Trash2 size={13} strokeWidth={2} />
                   <span className="agent-row-name">清空当前对话</span>
                 </button>
                 {/* 积分开关（与顶栏盾牌同一状态，下拉内再给一次带文字的显式入口） */}
@@ -1198,18 +1217,7 @@ export default function AgentPanel({
                   : '积分确认已关闭：生成直接放行。点击开启'
               }
             >
-              <svg
-                width="15"
-                height="15"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-              </svg>
+              <Shield size={15} strokeWidth={2} />
             </button>
             <button
               type="button"
@@ -1226,34 +1234,10 @@ export default function AgentPanel({
               className="agent-icon-btn"
               title="新建对话"
             >
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <line x1="12" y1="5" x2="12" y2="19" />
-                <line x1="5" y1="12" x2="19" y2="12" />
-              </svg>
+              <MessageSquarePlus size={16} strokeWidth={2} />
             </button>
             <button type="button" onClick={onClose} className="agent-icon-btn" title="关闭">
-              <svg
-                width="15"
-                height="15"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <line x1="18" y1="6" x2="6" y2="18" />
-                <line x1="6" y1="6" x2="18" y2="18" />
-              </svg>
+              <X size={15} strokeWidth={2} />
             </button>
           </div>
         </header>
@@ -1314,21 +1298,7 @@ export default function AgentPanel({
                           onClick={() => applySkill(s)}
                           className="agent-chip"
                         >
-                          <svg
-                            width="10"
-                            height="10"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          >
-                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                            <polyline points="14 2 14 8 20 8" />
-                            <line x1="16" y1="13" x2="8" y2="13" />
-                            <line x1="16" y1="17" x2="8" y2="17" />
-                          </svg>
+                          <FileText size={10} strokeWidth={2} />
                           {s.name}
                         </button>
                       ))}
@@ -1377,18 +1347,7 @@ export default function AgentPanel({
                     {showConfirmed && (
                       <div className="pv-done">
                         <span className="ck">
-                          <svg
-                            width="12"
-                            height="12"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2.5"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          >
-                            <polyline points="20 6 9 17 4 12" />
-                          </svg>
+                          <Check size={12} strokeWidth={2.5} />
                         </span>
                         已写入表格
                       </div>
@@ -1402,20 +1361,7 @@ export default function AgentPanel({
               确认 → runExistingPlanTool 补跑；取消 → 仅收起卡片、保留待确认态（不删节点，节点已在画布上）。 */}
               {showCreditCard && (
                 <AgentConfirmCard
-                  icon={
-                    <svg
-                      width="13"
-                      height="13"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
-                    </svg>
-                  }
+                  icon={<Zap size={13} strokeWidth={2} />}
                   title={creditGenCount > 0 ? `确认生成 ${creditGenCount} 张图/视频` : '确认生成'}
                   desc="节点已建好，确认后开始生成（预计消耗积分）。取消可稍后手动点节点触发。"
                   confirmText="确认生成"
@@ -1450,19 +1396,7 @@ export default function AgentPanel({
               inert={atBottom || undefined}
               className={`agent-to-bottom ${atBottom ? 'is-hidden' : 'is-shown'}`}
             >
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <line x1="12" y1="5" x2="12" y2="19" />
-                <polyline points="19 12 12 19 5 12" />
-              </svg>
+              <ArrowDown size={16} strokeWidth={2} />
             </button>
           </div>{' '}
           {/* 结束 flex-1 消息容器 */}
@@ -1501,55 +1435,20 @@ export default function AgentPanel({
                       {selCtx.first ? ` · ${selCtx.first.slice(0, 14)}` : ''}
                     </span>
                     <span className="x" onClick={() => setTableWorkspaceRows([])} title="取消选中">
-                      <svg
-                        width="10"
-                        height="10"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2.6"
-                        strokeLinecap="round"
-                      >
-                        <line x1="18" y1="6" x2="6" y2="18" />
-                        <line x1="6" y1="6" x2="18" y2="18" />
-                      </svg>
+                      <X size={10} strokeWidth={2.6} />
                     </span>
                   </span>
                 )}
                 {pendingImageNodes.length > 0 && (
                   <span className="agent-ctx">
-                    <svg
-                      width="11"
-                      height="11"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <rect x="3" y="3" width="18" height="18" rx="2" />
-                      <circle cx="8.5" cy="8.5" r="1.5" />
-                      <polyline points="21 15 16 10 5 21" />
-                    </svg>
+                    <ImageIcon size={11} strokeWidth={2} />
                     <span>{pendingImageNodes.length} 张画布参考图</span>
                     <span
                       className="x"
                       onClick={() => setPendingImageNodes([])}
                       title="移除全部参考图"
                     >
-                      <svg
-                        width="10"
-                        height="10"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2.6"
-                        strokeLinecap="round"
-                      >
-                        <line x1="18" y1="6" x2="6" y2="18" />
-                        <line x1="6" y1="6" x2="18" y2="18" />
-                      </svg>
+                      <X size={10} strokeWidth={2.6} />
                     </span>
                   </span>
                 )}
@@ -1567,19 +1466,7 @@ export default function AgentPanel({
                       onClick={() => removeAttachment(i)}
                       title="移除"
                     >
-                      <svg
-                        width="12"
-                        height="12"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2.5"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <line x1="18" y1="6" x2="6" y2="18" />
-                        <line x1="6" y1="6" x2="18" y2="18" />
-                      </svg>
+                      <X size={12} strokeWidth={2.5} />
                     </button>
                   </span>
                 ))}
@@ -1604,19 +1491,7 @@ export default function AgentPanel({
                       onClick={() => setPendingImageNodes((prev) => prev.filter((_, j) => j !== i))}
                       title="移除该待引用图"
                     >
-                      <svg
-                        width="12"
-                        height="12"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2.5"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <line x1="18" y1="6" x2="6" y2="18" />
-                        <line x1="6" y1="6" x2="18" y2="18" />
-                      </svg>
+                      <X size={12} strokeWidth={2.5} />
                     </button>
                   </span>
                 ))}
@@ -1823,34 +1698,41 @@ export default function AgentPanel({
               </span>
 
               {/* Skill：第3位（最右）——点击弹「应用/取消 Skill」下拉（管理已移至设置页 AI 助手分区）。
-                  Skill 用文字按钮而非纯图标（用户裁定）：未启用显示「Skill」，启用显示「Skill·首个名」，图标保留辅助。 */}
-              <span ref={skillPickRef} className="relative">
+                  Skill 用文字按钮而非纯图标（用户裁定）：未启用显示「Skill」，启用显示「Skill·首个名」。
+                  圆角组容器：选中态把前置图标位换成叉，点叉=清除当前所选；点文字区=展开下拉。 */}
+              <span
+                ref={skillPickRef}
+                className={`agent-skill-btn ${activeSkills.length > 0 ? 'is-active' : ''}`}
+              >
+                {activeSkills.length > 0 ? (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      // Skill 单选：直接清除当前所选的那一个
+                      if (activeSkills[0]) removeSkill(activeSkills[0].id);
+                      setSkillPickOpen(false);
+                    }}
+                    disabled={sending}
+                    className="agent-skill-clear"
+                    title={`清除当前所选 Skill（${activeSkills.map((s) => s.name).join('、')}）`}
+                  >
+                    <X size={12} strokeWidth={2.5} />
+                  </button>
+                ) : (
+                  <FileText className="agent-skill-ico" size={14} strokeWidth={2} />
+                )}
                 <button
                   type="button"
                   onClick={() => setSkillPickOpen((v) => !v)}
                   disabled={sending}
-                  className={`agent-skill-btn ${activeSkills.length > 0 ? 'is-active' : ''}`}
+                  className="agent-skill-main"
                   title={
                     activeSkills.length > 0
                       ? `已启用 ${activeSkills.map((s) => s.name).join('、')}`
                       : '应用 Skill'
                   }
                 >
-                  <svg
-                    width="14"
-                    height="14"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                    <polyline points="14 2 14 8 20 8" />
-                    <line x1="16" y1="13" x2="8" y2="13" />
-                    <line x1="16" y1="17" x2="8" y2="17" />
-                  </svg>
                   {activeSkills.length === 0
                     ? 'Skill'
                     : `Skill·${(activeSkills[0]?.name || '').slice(0, 5)}`}
@@ -1879,18 +1761,7 @@ export default function AgentPanel({
                             </span>
                             {on && (
                               <span className="agent-row-check">
-                                <svg
-                                  width="12"
-                                  height="12"
-                                  viewBox="0 0 24 24"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  strokeWidth="2.5"
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                >
-                                  <polyline points="20 6 9 17 4 12" />
-                                </svg>
+                                <Check size={12} strokeWidth={2.5} />
                               </span>
                             )}
                           </button>
@@ -1924,7 +1795,7 @@ export default function AgentPanel({
               {sending && stateAction !== 'steer' ? (
                 <button type="button" onClick={stop} className="agent-send agent-stop" title="停止">
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
-                    <rect x="6" y="6" width="12" height="12" rx="2" />
+                    <rect x="4" y="4" width="16" height="16" rx="3" />
                   </svg>
                 </button>
               ) : (
@@ -1935,19 +1806,7 @@ export default function AgentPanel({
                   className="agent-send"
                   title="发送"
                 >
-                  <svg
-                    width="14"
-                    height="14"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <line x1="12" y1="19" x2="12" y2="5" />
-                    <polyline points="5 12 12 5 19 12" />
-                  </svg>
+                  <ArrowUp size={14} strokeWidth={2.5} />
                 </button>
               )}
             </div>
