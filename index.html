@@ -5,8 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" href="/icon128.png" />
     <!-- PWA：允许在 Chrome/Safari 里「安装/添加到程序坞」为独立应用窗口。
-         仅新增，不影响 Chrome 扩展(走 /manifest.json) 与浏览器标签页打开。 -->
+         仅新增，不影响 Chrome 扩展(走 /manifest.json) 与浏览器标签页打开。
+         真正的全屏/独立由 manifest.webmanifest 的 display:"standalone" 控制；
+         下两行是「添加到主屏幕」后全屏的补充声明：
+         - mobile-web-app-capable（通用/Chrome）与 apple-mobile-web-app-capable（仅 iOS）
+           两者并存，Safari 只认 apple- 前缀的，Chrome 认通用的，故都要保留。 -->
     <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="猫猫画布" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
