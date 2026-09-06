@@ -29,6 +29,12 @@ echo "🛠️  编译 main.swift → $LAUNCHER ..."
 cd "$HERE"
 swiftc -O main.swift -o "$LAUNCHER"
 
+# 关键：swiftc 直编后的 ad-hoc 签名不含 Info.plist 绑定，通知/系统功能会异常。
+# 这里对整个 .app 做 ad-hoc 重签，绑定 Info.plist 并修正 identifier 为 bundle id，
+# 否则 UNUserNotificationCenter 请求授权会静默失败（hasError:1），通知不显示。
+echo "🔏 重签名 (codesign --deep --sign -，绑定 Info.plist/bundle id) ..."
+codesign --force --deep --sign - --identifier "com.maomao.launcher" "$APP_DIR"
+
 echo "🧹 清除隔离标记 (xattr -cr) ..."
 xattr -cr "$APP_DIR"
 

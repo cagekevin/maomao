@@ -10,9 +10,11 @@
 #   或双击 build-exe.ps1 生成的 launch-猫猫画布.exe               # 静默模式，常驻系统托盘
 #
 # 行为：启动 localTool(:18080) → 打开画布 → 常驻右下角托盘。
-#       右键托盘图标可 打开画布 / 重启服务 / 打开日志目录 / 退出。
+#       右键托盘图标可 打开画布 / 构建前端 / 构建后端(localTool) / 重启服务 / 打开日志目录 / 退出。
+#       构建为静默后台执行（不弹 cmd 窗口），完成后气泡提示；构建后端成功会自动重启服务。
 #       服务掉线会自动重启；连续失败 3 次则停止重试并弹气泡报警，避免无限重试刷爆日志。
 #       点「退出」会连同 node 进程树一并清理，不留孤儿进程。
+#       单实例：基于系统命名 Mutex，进程崩溃/断电自动释放，绝无重复实例。
 # =====================================================================
 
 $ErrorActionPreference = "Continue"
@@ -39,6 +41,15 @@ $script:MaxAutoRestart = 3    # 连续失败上限
 # ── 🧷 Job Object：进程清理的兜底保障 ──
 $script:JobHandle = [IntPtr]::Zero
 $script:JobReady  = $false
+
+# ── 🔧 静默构建状态（供构建 Timer 回调跨作用域读取）──
+$script:BuildBusy    = $false  # 是否有构建在进行
+$script:BuildProc    = $null   # 后台构建进程
+$script:BuildOutBuf  = $null   # stdout 累积
+$script:BuildErrBuf  = $null   # stderr 累积
+$script:BuildLogFile = $null   # 本次构建日志路径
+$script:BuildKey     = $null   # "前端" / "后端"
+$script:BuildAsyncTimer = $null
 
 # =====================================================================
 # ── 🛠️ 核心辅助函数 ──
@@ -238,14 +249,81 @@ function Wait-PortReady {
     return $false
 }
 
+# ── 🔇 静默执行 npm（无控制台窗口）──
+# 关键：在 ps2exe 的 -noConsole GUI 进程里直接调用 `npm`(npm.cmd) 时，
+# Windows 会为 .cmd 批处理强制分配一个 cmd 控制台窗口 → 启动时闪黑框。
+# 解法：用 `node` 直接执行 npm 的 JS 入口 (npm-cli.js)，绕过 cmd.exe，彻底不弹窗。
+# 同时把输出捕获到内存变量，返回退出码，便于判断成败并写入日志。
+function Get-NpmCliPath {
+    # 优先从 PATH 里的 npm.cmd / npm.ps1 反推同目录 node_modules\npm\bin\npm-cli.js
+    try {
+        $npmCmd = Get-Command npm -ErrorAction Stop
+        $src = $npmCmd.Source
+        $dir = Split-Path $src -Parent
+        $cand = Join-Path $dir "node_modules\npm\bin\npm-cli.js"
+        if (Test-Path $cand) { return $cand }
+        # npm 也可能是个符号/转发：真实 cli 在 ..\lib\node_modules\npm\bin\npm-cli.js
+        $cand2 = Join-Path (Split-Path $dir -Parent) "lib\node_modules\npm\bin\npm-cli.js"
+        if (Test-Path $cand2) { return $cand2 }
+    } catch { }
+    return $null
+}
+
+function Invoke-Npm {
+    param(
+        [string]$Arguments,          # 例如 "install" / "run build"
+        [string]$WorkingDir
+    )
+    $cli = Get-NpmCliPath
+    if (-not $cli) {
+        Write-Log "  ❌ 无法定位 npm-cli.js，请确认 Node.js/npm 已安装并在 PATH。" "Error"
+        return 1
+    }
+    $psi = New-Object System.Diagnostics.ProcessStartInfo
+    $psi.FileName = "node"
+    $psi.Arguments = "`"$cli`" $Arguments"
+    $psi.WorkingDirectory = $WorkingDir
+    # 关键：完全隐藏窗口 + 不创建控制台
+    $psi.UseShellExecute = $false
+    $psi.CreateNoWindow  = $true
+    $psi.WindowStyle = [System.Diagnostics.ProcessWindowStyle]::Hidden
+    $psi.RedirectStandardOutput = $true
+    $psi.RedirectStandardError  = $true
+    try {
+        $p = New-Object System.Diagnostics.Process
+        $p.StartInfo = $psi
+        $sb = New-Object System.Text.StringBuilder
+        # 异步行读取：避免 stdout/stderr 任一管道写满导致同步 ReadToEnd 死锁
+        $p.add_OutputDataReceived({ if ($_.Data) { $null = $sb.AppendLine($_.Data) } })
+        $p.add_ErrorDataReceived({ if ($_.Data) { $null = $sb.AppendLine($_.Data) } })
+        if (-not $p.Start()) { Write-Log "  ❌ 无法启动 node 进程执行 npm。" "Error"; return 1 }
+        $p.BeginOutputReadLine()
+        $p.BeginErrorReadLine()
+        # 最多等 10 分钟，防止 install 极慢时无限卡死
+        if (-not $p.WaitForExit(600000)) {
+            Write-Log "  ⚠️ npm 执行超过 10 分钟，强制结束。" "Error"
+            try { $p.Kill() } catch { }
+            return 1
+        }
+        $code = $p.ExitCode
+        if ($code -ne 0) {
+            Write-Log "  stderr: $($sb.ToString())" "Error"
+        }
+        return $code
+    } catch {
+        Write-Log "  ❌ 执行 node npm 失败：$($_.Exception.Message)" "Error"
+        return 1
+    }
+}
+
 # ── 📦 环境就绪检测 ──
 function Ensure-NodeEnvironment {
     param([string]$Path, [switch]$NeedsBuild)
     Push-Location $Path
     try {
         if (-not (Test-Path "node_modules")) {
-            Write-Log "  📦 [$Path] 首次运行，正在安装依赖..." "Info"
-            npm install 2>&1 | Out-Null
+            Write-Log "  📦 [$Path] 首次运行，正在安装依赖（静默）..." "Info"
+            $null = Invoke-Npm -Arguments "install" -WorkingDir $Path
         }
         if ($NeedsBuild) {
             $distIndex = Join-Path $Path "dist\index.js"
@@ -262,11 +340,10 @@ function Ensure-NodeEnvironment {
             }
             
             if ($srcHasNewer) {
-                Write-Log "  🛠️ [$Path] 检测到源码更新，正在编译 TypeScript..." "Info"
-                $buildOutput = npm run build 2>&1
-                if ($LASTEXITCODE -ne 0) {
+                Write-Log "  🛠️ [$Path] 检测到源码更新，正在编译 TypeScript（静默）..." "Info"
+                $code = Invoke-Npm -Arguments "run build" -WorkingDir $Path
+                if ($code -ne 0) {
                     Write-Log "  ❌ [$Path] TypeScript 编译失败，中止启动。" "Error"
-                    Write-Log "     输出：$($buildOutput -join ' | ')" "Error"
                     return $false
                 }
             }
@@ -296,27 +373,146 @@ function Open-Canvas {
     }
 }
 
-# ── 🛠️ 弹出独立 cmd 窗口跑构建命令（菜单项：构建前端 / 构建 localTool）──
-# 为什么用 cmd /k 弹独立窗口而非后台静默：构建可能耗时且会报错，
-# 实时可见输出 + 窗口保持不关（/k）便于看清失败原因。构建完成后手动关窗口，
-# 需要让新产物生效时再点菜单「重启服务」即可（localTool 或 localTool 托管的 dist 即被刷新）。
-# 注：刻意用 ProcessStartInfo 而非 Start-Process -ArgumentList —— cmd 需要整串引号，
-#     PowerShell 5.1 对 ArgumentList 数组元素的引号转义有缺陷，ProcessStartInfo 可精确控制不踩坑。
-function Invoke-BuildWindow {
-    param([string]$Title, [string]$WorkDir, [string]$Command)
+# ── 🛠️ 静默后台构建（菜单项：构建前端 / 构建后端(localTool)）──
+# 不弹任何 cmd 窗口：用 node 直接执行 npm-cli.js（绕过 npm.cmd 触发的控制台创建），
+# 日志写入 logs\build_<key>.log，完成后回 UI 线程用托盘气泡报告成功/失败（与 Mac 一致）。
+# 构建后端成功后会自动重启服务以加载新代码。
+# 可靠性设计：所有跨事件回调的状态都放 $script: 级，避免 PowerShell Add_Tick/异步 IO
+# 事件闭包捕获不到局部变量的坑。
+# BuildPollTicks     累计的轮询计数（构建超时/诊断用，保留占位）
+function Invoke-SilentBuild {
+    param(
+        [string]$titleKey,   # 用于文件名/提示，如 前端 / 后端
+        [string]$WorkDir,
+        [string]$NpmArgs     # 例如 "run build"
+    )
     try {
-        # 一条命令：先 cd 到工作目录再执行构建。工作目录可能含中文/空格，用双引号包住防切词。
-        $cmdLine = "cd /d `"$WorkDir`" && $Command"
+        if ($script:BuildBusy) {
+            Write-Log "  ⏳ 已有构建在进行，忽略重复请求 ($titleKey)。" "Warn"
+            if ($script:NotifyIcon) { $script:NotifyIcon.ShowBalloonTip(3000, "猫猫画布", "已有构建正在进行，请稍候。", [System.Windows.Forms.ToolTipIcon]::Info) }
+            return
+        }
+
+        $cli = Get-NpmCliPath
+        if (-not $cli) {
+            Write-Log "  ❌ 无法定位 npm-cli.js，无法构建 $titleKey。" "Error"
+            if ($script:NotifyIcon) {
+                $script:NotifyIcon.ShowBalloonTip(6000, "猫猫画布", "构建 $titleKey 失败：找不到 npm。请确认 Node 已安装。", [System.Windows.Forms.ToolTipIcon]::Error)
+            }
+            return
+        }
+
+        # 日志文件：logs\build_<key>.log（覆盖旧内容）
+        $logDir = Join-Path $ProjectRoot "logs"
+        if (-not (Test-Path $logDir)) { New-Item -ItemType Directory -Force -Path $logDir | Out-Null }
+        $logFile = Join-Path $logDir "build_$titleKey.log"
+
+        # 用异步 IO 启动 node 构建进程（不创建控制台 → 不弹窗）
         $psi = New-Object System.Diagnostics.ProcessStartInfo
-        $psi.FileName = "cmd.exe"
-        $psi.Arguments = "/k " + $cmdLine
+        $psi.FileName = "node"
+        $psi.Arguments = "`"$cli`" $NpmArgs"
         $psi.WorkingDirectory = $WorkDir
-        $psi.UseShellExecute = $true    # 独立新窗口
-        $psi.CreateNoWindow = $false
-        $null = [System.Diagnostics.Process]::Start($psi)
-        Write-Log "  🛠️ 已弹出构建窗口「$Title」，构建日志实时输出，窗口保持不关" "Info"
+        $psi.UseShellExecute = $false
+        $psi.CreateNoWindow = $true
+        $psi.WindowStyle = [System.Diagnostics.ProcessWindowStyle]::Hidden
+        $psi.RedirectStandardOutput = $true
+        $psi.RedirectStandardError = $true
+
+        $proc = New-Object System.Diagnostics.Process
+        $proc.StartInfo = $psi
+        # 先把缓冲与元数据放进 script 级，供下面的事件 handler / Timer 回调可靠访问
+        $script:BuildOutBuf = New-Object System.Text.StringBuilder
+        $script:BuildErrBuf = New-Object System.Text.StringBuilder
+        $script:BuildLogFile = $logFile
+        $script:BuildKey    = $titleKey
+        # 事件 handler 在异步 IO 线程触发，统一访问 $script: 级缓冲，避免闭包取不到局部变量
+        $proc.add_OutputDataReceived({ if ($_.Data) { $null = $script:BuildOutBuf.AppendLine($_.Data) } })
+        $proc.add_ErrorDataReceived({ if ($_.Data) { $null = $script:BuildErrBuf.AppendLine($_.Data) } })
+
+        if (-not $proc.Start()) {
+            Write-Log "  ❌ 构建 $titleKey 无法启动 node 进程。" "Error"
+            $script:BuildBusy = $false
+            return
+        }
+        $proc.BeginOutputReadLine()
+        $proc.BeginErrorReadLine()
+
+        $script:BuildProc   = $proc
+        $script:BuildBusy   = $true
+        $script:BuildAsyncTimer = $null
+        if ($script:NotifyIcon) { $script:NotifyIcon.Text = "猫猫画布 — 正在构建$titleKey..." }
+
+        Write-Log "  🛠️ 开始静默构建 $titleKey (node npm run ...)。完成后气泡提示。日志：$logFile" "Info"
+        Start-BuildPollTimer
     } catch {
-        Write-Log "  ❌ 弹出「$Title」构建窗口失败：$($_.Exception.Message)" "Error"
+        $script:BuildBusy = $false
+        Write-Log "  ❌ 触发构建 $titleKey 失败：$($_.Exception.Message)" "Error"
+    }
+}
+
+# 启动一个轻量轮询定时器，检测后台构建进程是否结束。
+function Start-BuildPollTimer {
+    $t = New-Object System.Windows.Forms.Timer
+    $t.Interval = 500
+    # Add_Tick 的事件块在独立作用域执行，只能通过 $script: 访问状态。
+    # 注意：回调内绝不能引用局部变量 $t（事件作用域里取不到），统一用 $script:BuildAsyncTimer。
+    $t.Add_Tick({
+        $p = $script:BuildProc
+        if ($null -ne $p -and $p.HasExited) {
+            $self = $script:BuildAsyncTimer
+            if ($null -ne $self) { $self.Stop(); $self.Dispose() }
+            $script:BuildAsyncTimer = $null
+            $code = $p.ExitCode
+            $out = $script:BuildOutBuf.ToString()
+            $err = $script:BuildErrBuf.ToString()
+            $logFile = $script:BuildLogFile
+            $key = $script:BuildKey
+            try { [System.IO.File]::WriteAllText($logFile, ($out + $err), [System.Text.Encoding]::UTF8) } catch { }
+            $script:BuildProc = $null
+            $script:BuildBusy = $false
+            if ($script:NotifyIcon) { $script:NotifyIcon.Text = "猫猫画布 — 运行中 (:18080)" }
+            if ($code -eq 0) {
+                Write-Log "  ✅ 构建 $key 成功。日志：$logFile" "Success"
+                if ($script:NotifyIcon) {
+                    $script:NotifyIcon.ShowBalloonTip(4000, "猫猫画布", "构建 $key 成功", [System.Windows.Forms.ToolTipIcon]::Info)
+                }
+                # 后端构建成功 → 自动重启服务以加载新代码
+                if ($key -eq "后端") {
+                    Write-Log "  🔄 后端已重新编译，正在自动重启服务..." "Info"
+                    Start-RestartServiceSilently
+                }
+            } else {
+                Write-Log "  ❌ 构建 $key 失败。日志：$logFile" "Error"
+                if ($script:NotifyIcon) {
+                    $script:NotifyIcon.ShowBalloonTip(8000, "猫猫画布", "构建 $key 失败，请打开日志目录查看 $logFile", [System.Windows.Forms.ToolTipIcon]::Error)
+                }
+            }
+        }
+    })
+    $script:BuildAsyncTimer = $t
+    $t.Start()
+}
+
+# 静默重启服务（构建后端成功后自动调用）——复用已有逻辑但减少刷屏。
+function Start-RestartServiceSilently {
+    try {
+        if ($script:LocalToolPid -gt 0) { Stop-ProcessTree -ProcessId $script:LocalToolPid }
+        $script:LocalToolPid = 0
+        Clear-Port -Port $Config.LocalTool.Port
+        if (Start-LocalTool) {
+            $script:FailCount = 0
+            if ($script:HealthTimer) { $script:HealthTimer.Start() }
+            if ($script:NotifyIcon) {
+                $script:NotifyIcon.Text = "猫猫画布 — 运行中 (:18080)"
+                $script:NotifyIcon.ShowBalloonTip(3000, "猫猫画布", "服务已重启", [System.Windows.Forms.ToolTipIcon]::Info)
+            }
+        } else {
+            if ($script:NotifyIcon) {
+                $script:NotifyIcon.ShowBalloonTip(6000, "猫猫画布", "重启失败，请打开日志目录排查。", [System.Windows.Forms.ToolTipIcon]::Error)
+            }
+        }
+    } catch {
+        Write-Log "  ❌ 自动重启服务失败：$($_.Exception.Message)" "Error"
     }
 }
 
@@ -490,19 +686,28 @@ function Start-TrayDaemon {
     })
     $null = $menu.Items.Add($miRestart)
 
-    # ── 🛠️ 构建子菜单：构建前端 / 构建 localTool（各弹独立 cmd 窗口实时看日志）──
+    # ── 🛠️ 构建子菜单：构建前端 / 构建后端（静默后台构建，完成气泡提示，不弹 cmd 窗口）──
     $miBuild = New-Object System.Windows.Forms.ToolStripMenuItem("构建")
     $miBuild.Font = New-Object System.Drawing.Font($miBuild.Font, [System.Drawing.FontStyle]::Bold)
 
-    $miBuildFe = New-Object System.Windows.Forms.ToolStripMenuItem("构建前端 (npm run build → dist/)")
+    $miBuildFe = New-Object System.Windows.Forms.ToolStripMenuItem("构建前端")
     $miBuildFe.Add_Click({
-        Invoke-BuildWindow -Title "构建前端" -WorkDir $ProjectRoot -Command "npm run build"
+        if ($script:BuildBusy) {
+            if ($script:NotifyIcon) { $script:NotifyIcon.ShowBalloonTip(3000, "猫猫画布", "已有构建正在进行，请稍候。", [System.Windows.Forms.ToolTipIcon]::Info) }
+            return
+        }
+        Invoke-SilentBuild -titleKey "前端" -WorkDir $ProjectRoot -NpmArgs "run build"
     })
     $null = $miBuild.DropDownItems.Add($miBuildFe)
 
-    $miBuildTool = New-Object System.Windows.Forms.ToolStripMenuItem("构建 localTool (npm run build → localTool/dist/)")
+    $miBuildTool = New-Object System.Windows.Forms.ToolStripMenuItem("构建后端 (localTool)")
     $miBuildTool.Add_Click({
-        Invoke-BuildWindow -Title "构建 localTool" -WorkDir (Join-Path $ProjectRoot $Config.LocalTool.Dir) -Command "npm run build"
+        if ($script:BuildBusy) {
+            if ($script:NotifyIcon) { $script:NotifyIcon.ShowBalloonTip(3000, "猫猫画布", "已有构建正在进行，请稍候。", [System.Windows.Forms.ToolTipIcon]::Info) }
+            return
+        }
+        # 构建后端：完成后需重启服务才能加载新代码
+        Invoke-SilentBuild -titleKey "后端" -WorkDir (Join-Path $ProjectRoot $Config.LocalTool.Dir) -NpmArgs "run build"
     })
     $null = $miBuild.DropDownItems.Add($miBuildTool)
 

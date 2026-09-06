@@ -78,6 +78,16 @@ func killPort() {
   }
 }
 
+// 打开（必要时创建）一个文件句柄用于子进程 stdout/stderr 重定向。
+// 关键：FileHandle(forWritingAtPath:) 在文件不存在时会返回 nil 导致输出丢失，
+// 所以这里先确保文件存在（createFile 会创建空文件）再打开。
+func fileHandleForLog(_ path: String) -> FileHandle? {
+  if !FileManager.default.fileExists(atPath: path) {
+    FileManager.default.createFile(atPath: path, contents: nil)
+  }
+  return FileHandle(forWritingAtPath: path)
+}
+
 func spawn(cmd: String, args: [String], cwd: String, outFile: String?, errFile: String?, extraEnv: [String: String]? = nil) -> Process {
   let p = Process()
   p.executableURL = URL(fileURLWithPath: cmd)
@@ -86,8 +96,9 @@ func spawn(cmd: String, args: [String], cwd: String, outFile: String?, errFile: 
   var env = ["PATH": NODE_PATH_ENV, "HOME": NSHomeDirectory(), "LANG": "en_US.UTF-8", "LC_ALL": "en_US.UTF-8"]
   if let e = extraEnv { env.merge(e) { _, new in new } }
   p.environment = env
-  if let o = outFile, let fh = FileHandle(forWritingAtPath: o) { p.standardOutput = fh } else { p.standardOutput = Pipe() }
-  if let e = errFile, let fh = FileHandle(forWritingAtPath: e) { p.standardError = fh } else { p.standardError = Pipe() }
+  // 用“追加写”确保多次运行日志不会被覆盖丢历史
+  if let o = outFile, let fh = fileHandleForLog(o) { p.standardOutput = fh } else { p.standardOutput = Pipe() }
+  if let e = errFile, let fh = fileHandleForLog(e) { p.standardError = fh } else { p.standardError = Pipe() }
   return p
 }
 
@@ -97,6 +108,22 @@ var catImage: NSImage!
 var catGrayImage: NSImage!
 var backendProc: Process?
 var intentionalStop = false
+// 菜单栏状态文字：让用户不依赖系统通知也能看到当前动作/后端健康度。
+var statusLabel = "" {
+  didSet {
+    DispatchQueue.main.async {
+      refreshStatusItem()
+    }
+  }
+}
+
+func refreshStatusItem() {
+  guard let btn = statusItem?.button else { return }
+  btn.image = isHealthy ? catImage : catGrayImage
+  btn.title = statusLabel
+}
+// 当前是否健康（后端端口在线且非“编译中”）
+var isHealthy = false
 
 func grayscale(_ image: NSImage) -> NSImage {
   guard let cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return image }
@@ -110,15 +137,28 @@ func grayscale(_ image: NSImage) -> NSImage {
 }
 
 func setHealthy() {
-  DispatchQueue.main.async { statusItem.button?.image = catImage }
+  isHealthy = true
+  statusLabel = ""
+}
+func setBusy(_ text: String) {
+  isHealthy = true
+  statusLabel = text
 }
 func setCrashed() {
-  DispatchQueue.main.async { statusItem.button?.image = catGrayImage }
+  isHealthy = false
+  statusLabel = "⚠"
   notify(title: "\(APP_NAME)：后端已停止", msg: "服务崩溃了，点菜单「重启服务」恢复。")
 }
+// 仅标记“编译失败”的菜单栏状态（不误报后端崩溃，不清除后端运行中的图标）。
+func setBuildFailed() {
+  isHealthy = false
+  statusLabel = "✗"
+}
+// 兼容旧名：编译失败用 buildFailed，不用真崩溃图标/通知。
+func setCrashedIconOnly() { setBuildFailed() }
 
 // MARK: - 服务控制
-func startBackend() {
+func startBackend(silent: Bool = false) {
   intentionalStop = false
   killPort() 
   // NO_OPEN_BROWSER=1：让后端 index.ts 不自开普通浏览器标签，
@@ -126,10 +166,12 @@ func startBackend() {
   let p = spawn(cmd: npmExec(), args: ["start"], cwd: LT_DIR, outFile: BACKEND_LOG, errFile: BACKEND_ERR_LOG,
                 extraEnv: ["NO_OPEN_BROWSER": "1"])
   p.terminationHandler = { proc in
-    if !intentionalStop { setCrashed() }
+    // 后端是“服务型”长驻进程：只有在非主动停止、非“被 build 重启接管”时才标记崩溃。
+    if !intentionalStop && !isRestarting { setCrashed() }
   }
   backendProc = p
   try? p.run()
+  if !silent { setBusy("启动…") }
   
   DispatchQueue.global(qos: .userInitiated).async {
     var ok = false
@@ -139,7 +181,7 @@ func startBackend() {
     }
     if ok {
       setHealthy()
-      openCanvas() // 端口就绪后打开一次画布（优先 PWA）
+      if !silent { openCanvas() } // 手动启动才自动开画布；build 后的重启不打扰
     } else {
       setCrashed()
       notify(title: "\(APP_NAME)：启动失败", msg: "后端未起来，请点「Build 后端」。")
@@ -147,30 +189,42 @@ func startBackend() {
   }
 }
 
+var isRestarting = false
+
 func stopBackend() {
   intentionalStop = true
-  // 修复：先尝试优雅关闭，给进程一点时间清理资源
-  backendProc?.terminate()
-  
-  // 给进程 0.5 秒的清理时间，如果还在运行则强杀
-  let group = DispatchGroup()
-  group.enter()
-  DispatchQueue.global().asyncAfter(deadline: .now() + 0.5) {
-      if let pid = backendProc?.processIdentifier, backendProc?.isRunning == true {
-          kill(pid, SIGKILL)
-      }
-      group.leave()
+  if let p = backendProc, p.isRunning {
+    p.terminate()          // 先优雅关闭
+    // 最多等 3 秒退出，超时则强杀，避免卡住退出流程
+    var waited = 0.0
+    while p.isRunning && waited < 3.0 {
+      Thread.sleep(forTimeInterval: 0.1)
+      waited += 0.1
+    }
+    if p.isRunning { kill(p.processIdentifier, SIGKILL) }
   }
-  group.wait()
-  
   backendProc = nil
   killPort()
   intentionalStop = false
 }
 
+// 重启后端：在后台执行，不阻塞菜单栏 UI。
 func restartBackend() {
-  stopBackend()
-  startBackend()
+  if isRestarting { return }
+  isRestarting = true
+  setBusy("重启…")
+  DispatchQueue.global(qos: .userInitiated).async {
+    // 先杀干净旧进程/端口
+    if let p = backendProc, p.isRunning { p.terminate() }
+    backendProc = nil
+    killPort()
+    intentionalStop = false
+    // 再启动新代码
+    startBackend(silent: true)
+    DispatchQueue.main.async {
+      isRestarting = false
+    }
+  }
 }
 
 // 打开画布：优先唤醒已安装的 Chrome PWA 独立应用（不挤浏览器标签），
@@ -186,14 +240,22 @@ func openCanvas() {
 
 // MARK: - Build
 func buildIn(_ cwd: String, logPath: String, label: String) {
+  // 启动新 build 前清空上一次的日志，避免误读旧内容
+  try? FileManager.default.removeItem(atPath: logPath)
   notify(title: "\(APP_NAME)：开始编译 \(label)", msg: "编译中…")
+  setBusy("编译\(label)…")
   let p = spawn(cmd: npmExec(), args: ["run", "build"], cwd: cwd, outFile: logPath, errFile: logPath)
   p.terminationHandler = { proc in
     DispatchQueue.main.async {
       if proc.terminationStatus == 0 {
+        setHealthy()
         notify(title: "\(APP_NAME)：\(label) 编译成功", msg: "已重新拉起后端以加载新代码。")
-        restartBackend()
+        if label == "后端" {
+          // 后端构建成功必须重启服务以加载新代码（后台执行，不阻塞 UI）
+          restartBackend()
+        }
       } else {
+        setCrashedIconOnly()
         notify(title: "\(APP_NAME)：\(label) 编译失败", msg: "详见日志：\(logPath)")
       }
     }
@@ -219,14 +281,40 @@ func notify(title: String, msg: String) {
     UNUserNotificationCenter.current().add(request)
 }
 
-// MARK: - 单实例
-func alreadyRunning() -> Bool {
-  guard let txt = try? String(contentsOfFile: LOCK_PATH, encoding: .utf8),
-        let pid = Int32(txt.trimmingCharacters(in: .whitespacesAndNewlines)), pid > 0 else { return false }
-  return kill(pid, 0) == 0
+// MARK: - 单实例（用 flock 文件锁做真正的原子互斥，杜绝 PID 复用误判与竞态双开）
+// open/flock/ftruncate/close 等来自 Darwin，已由 Cocoa/Foundation 引入。
+
+// 持有锁的文件描述符；进程生命周期内保持打开即持有锁。
+var lockFD: Int32 = -1
+
+// 尝试获取排他锁（原子操作，由内核保证同一时间仅一个进程能持有）。
+// 返回 true 表示成功获得锁（本进程是唯一实例）。
+// 返回 false 表示锁已被占用（已有实例在运行）。
+func acquireSingleInstanceLock() -> Bool {
+  // 打开（必要时创建）锁文件
+  let fd = open(LOCK_PATH, O_CREAT | O_RDWR | O_CLOEXEC, 0o644)
+  if fd < 0 { return false }
+  // 非阻塞尝试加排他锁：已有实例持锁时会立即失败返回 EWOULDBLOCK
+  if flock(fd, LOCK_EX | LOCK_NB) != 0 {
+    close(fd)
+    return false   // 锁被占用，说明已有实例
+  }
+  // 成功持锁：把 PID 写入（便于调试/诊断），截断旧内容
+  let pidStr = "\(ProcessInfo.processInfo.processIdentifier)\n"
+  ftruncate(fd, 0)
+  pidStr.withCString { _ = write(fd, $0, pidStr.utf8.count) }
+  fsync(fd)
+  lockFD = fd
+  return true
 }
-func writeLock() {
-  try? "\(ProcessInfo.processInfo.processIdentifier)".write(toFile: LOCK_PATH, atomically: true, encoding: .utf8)
+
+// 释放锁（退出时调用）。进程正常结束也会自动释放。
+func releaseSingleInstanceLock() {
+  if lockFD >= 0 {
+    flock(lockFD, LOCK_UN)
+    close(lockFD)
+    lockFD = -1
+  }
 }
 
 // MARK: - 菜单与 AppDelegate (修复 Dock 交互)
@@ -236,18 +324,37 @@ class MenuController: NSObject {
   @objc func actBuildBack(_ s: Any) { buildBackend() }
   @objc func actRestart(_ s: Any) { restartBackend() }
   @objc func actLog(_ s: Any) {
-    let url = URL(fileURLWithPath: BACKEND_ERR_LOG)
-    NSWorkspace.shared.activateFileViewerSelecting([url])
+    // 确保日志文件存在，否则先创建空文件。
+    // 优先打开后端运行日志（stdout），若不存在则退回错误日志。
+    let primary = BACKEND_LOG
+    let fallback = BACKEND_ERR_LOG
+    let target = FileManager.default.fileExists(atPath: primary) ? primary : fallback
+    let url = URL(fileURLWithPath: target)
+    if !FileManager.default.fileExists(atPath: target) {
+      FileManager.default.createFile(atPath: target, contents: nil)
+    }
+    // 用默认关联应用（Console / 文本编辑器）打开日志，比 Finder 选中更可靠。
+    NSWorkspace.shared.open(url)
   }
   @objc func actQuit(_ s: Any) { NSApp.terminate(nil) }
 }
 let menuController = MenuController()
 
-// 实现 Application Delegate 处理生命周期和 Dock 点击
-class AppDelegate: NSObject, NSApplicationDelegate {
+// 实现 Application Delegate 处理生命周期和 Dock 点击，并添加通知代理
+class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // 1. 设置通知代理为自身，接管前台通知行为
+        UNUserNotificationCenter.current().delegate = self
         requestNotificationPermission()
         startBackend()
+    }
+    
+    // 2. 添加此代理方法：强制在应用处于前台时展示通知横幅
+    func userNotificationCenter(_ center: UNUserNotificationCenter,
+                                willPresent notification: UNNotification,
+                                withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
+        // 允许展示横幅并播放声音
+        completionHandler([.banner, .sound])
     }
     
     // 当用户点击 Dock 栏图标时，再次打开画布（优先唤醒已装 PWA）
@@ -259,7 +366,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // 退出前清理
     func applicationWillTerminate(_ notification: Notification) {
         stopBackend()
-        try? FileManager.default.removeItem(atPath: LOCK_PATH)
+        releaseSingleInstanceLock()
     }
 }
 
@@ -276,11 +383,11 @@ func buildMenu() -> NSMenu {
 }
 
 // MARK: - 入口
-if alreadyRunning() {
+if !acquireSingleInstanceLock() {
+  // 已有实例在运行（flock 排他锁被占用），礼貌提示后退出。
   notify(title: "\(APP_NAME)", msg: "已在运行，无需重复打开。")
   exit(0)
 }
-writeLock()
 
 let app = NSApplication.shared
 let delegate = AppDelegate()
