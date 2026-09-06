@@ -21,7 +21,8 @@
     "paths": { "@/*": ["./src/*"] }
   },
   // 更新(2026-09-02)：两处扩面，都填的是「TS 化后遗留的类型检查盲区」。
-  //  ① e2e 随 src 一起 TS 化（4 个 .spec.ts + utils/canvasHelpers.ts）。此前 include 只有
+  //  ① e2e 随 src 一起 TS 化（现为 agentPanel.layout.spec.ts + utils/agentPanelHelpers.ts；
+  //     2026-09-07 删除 4 个长期 flaky 的旧 spec 及其 utils/canvasHelpers.ts）。此前 include 只有
   //     unit/**，e2e 长期游离在 `npm run type-check` 之外——改 helper 签名、改 DOM 选择器
   //     都只能等 playwright 真跑起来才暴露。
   //  ② 共享基建 .mjs（setup.mjs / unit/_testUtils.mjs / unit/_nodeMocks.mjs）开 checkJs。

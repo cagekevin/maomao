@@ -148,7 +148,7 @@ scripts/
 tests/
 ├── setup.mjs               # vitest 全局 setup（内存 storage / ResizeObserver / matchMedia / scrollTo /
 │                           #   rAF 垫片 / fetch mock【响铃】 / console 分层降噪——error 放行、噪音过滤）
-├── e2e/                    # Playwright 端到端（nodes.render / scriptBox / settings / canvas.interactions）
+├── e2e/                    # Playwright 端到端（agentPanel.layout：AI 助手面板消息渲染宽度约束）
 └── unit/                   # vitest 单元测试（`npm run test:unit` 全量跑；数量勿写死）
     ├── *.test.js           # 纯逻辑 node 单测（stores / api / 工具函数）—— 轻量、快
     ├── *.test.jsx          # jsdom 组件单测（节点组件 / hooks）—— 由 vitest.config.js 的
@@ -210,7 +210,7 @@ vitest.logic.config.js      # 【逻辑面快速定向】复用 vitest.config.js
 | 纯函数 / store / api / 工具函数（无 React） | `tests/unit/xxx.test.js` | node（默认，无需声明） |
 | React 组件（节点 / 面板 / UI） | `tests/unit/Xxx.test.jsx` | **优先自动 jsdom**（`environmentMatchGlobs` 已处理）；若仍报 `document is not defined`，在**文件第一行**写 `// @vitest-environment jsdom` 兜底（与 `AgentMessage.test.jsx` 一致） |
 | React hook（useXxx） | `tests/unit/useXxx.test.js` | 需要 DOM → 在**文件第一行**写 `// @vitest-environment jsdom` |
-| 端到端 | `tests/e2e/xxx.spec.js` | playwright |
+| 端到端 | `tests/e2e/xxx.spec.ts` | playwright（`npm run test:e2e`，不在 `test:all` 门禁内） |
 | 需要假响应 / KV 桩 / 等异步 / 加速轮询 | 任一层 | 从 `_testUtils.mjs` 取 `jsonResp`/`sseResp`/`createKvMem`/`flushAsync`/`fastPollTimers`（see §六） |
 
 ### 模板 A：纯逻辑单测（node，最简单）
@@ -303,7 +303,7 @@ describe('MyNode', () => {
 
 - ✅ **已补 vitest 单测**（2026-08-16）：`tests/unit/` 下 24 文件 / 244 用例，覆盖剧本盒引擎（回调/分批并发/toast/@资产高亮）、AI 画布工具层、管线契约、各纯函数。
 - ✅ **已补「算法与逻辑层」单测（阶段一，2026-08-17）**：`tests/unit/` 新增 5 文件 / 54 用例，覆盖 `promptManager`（预设 CRUD+持久化+卡片映射）、`resourcesApi`（fetch 封装全 mock）、`pollTask`（轮询状态机+结果 URL 提取）、`faceMosaic`（detector 单例+打码模式）、`videoEngine`（ProgressController 取消传播）。
-- ✅ **已补 Playwright E2E 部分用例**：`tests/e2e/` 已有节点渲染（`nodes.render.spec.js`）与剧本盒状态机（`scriptBox.spec.js`），`npm run test:e2e` 可跑。
+- ✅ **已补 Playwright E2E 用例（2026-09-07 重写）**：`tests/e2e/agentPanel.layout.spec.ts` —— AI 助手面板消息渲染的横向宽度约束（16 类消息 × 320/640 两档面板宽度 + 代码块自身滚动反向保护）。起因是代码块 `<pre>` 的 min-content 沿 flex 链撑破面板、溢出屏幕的实测 bug；旧的节点渲染/剧本盒/设置/画布交互 4 个 spec 长期 flaky、断言价值低，已删除。跑法：`npm run test:e2e`（不在 `test:all` 门禁内，需 dev server）。
 - ✅ **已修复测试门禁历史存量失败（2026-08-17 续）**：整包 `npm run test:all` 此前长期红（46 失败 / 17 文件），本轮逐一定位根因修复后 **全绿（891 单测 + SSR 回归 13 节点 + Agent 工具层）**。要点：① `vitest.config.js` 缺 `@vitejs/plugin-react` 致所有 `.test.jsx` 报 `React is not defined`（加 `react()` 插件一次性修复）；② 真实源码 bug 5 处（`TemplateNode` TDZ、`kvStore` KV 失败不降级、`logger` 前缀写死、`useCanvasShortcuts` 选中文本守卫漏 Q/W/E、`projectStore` 版本号同毫秒不递增、`storageAdapter` chrome.storage 抛错误报）；③ 测试断言过时 4 处（`promptManager`/`nodePrefs`/`backupStore` 键名未对齐 `yimao_` 前缀、`logger` category 格式）；④ 删除遗留死文件 `nodeRegistry.test.js`（源码已移除）。详见计划文档「收尾修复」小节。
 - ✅ **已补高频组件深度测试（2026-08-18，阶段二续）**：`TaskCenter`（任务中心面板）、`AgentPanel`（画布 AI 助手聊天面板）此前为**零测试**的高频改动组件（近 200 次提交多次改动），本轮补齐深度测试（详见各 `.test.jsx` 头部注释）。
   - `tests/unit/TaskCenter.test.jsx`：空态计数、任务列表渲染（状态/类型/模型名/进度）、筛选与搜索、更多菜单操作（重试/删除）、大图预览、清理任务（清理失败/清理全部）、展开请求/响应数据。
