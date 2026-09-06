@@ -79,7 +79,7 @@ async function main() {
     keys = (d.keys || []).map((r) => r.key);
   } catch (e) {
     console.error(`  ❌ localTool 不可达（${BASE}）：${e.message}`);
-    console.error(`     请先启动 localTool（./launch-all.command 2 / launch-all.ps1 2）。`);
+    console.error(`     请先启动 localTool（packaging/mac/launch-all.command / packaging/windows/launch-all.ps1）。`);
     process.exitCode = 1;
     return;
   }
@@ -124,7 +124,7 @@ async function main() {
   }
 
   console.log('\n  💡 提示：若仍遇怪事，建议重启 localTool 一并清空官方权益内存缓存：');
-  console.log('       Mac: ./launch-all.command 2   Win: launch-all.ps1 2');
+  console.log('       Mac: packaging/mac/launch-all.command   Win: packaging/windows/launch-all.ps1');
   console.log('');
 }
 

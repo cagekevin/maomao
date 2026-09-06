@@ -495,17 +495,22 @@ async function main(): Promise<void> {
     });
 
     // 自动打开浏览器
-    const pageUrl = `http://127.0.0.1:${PORT}`;
-    try {
-      const openCmd =
-        process.platform === 'darwin'
-          ? 'open'
-          : process.platform === 'win32'
-            ? 'start'
-            : 'xdg-open';
-      execSync(`${openCmd} "${pageUrl}"`, { timeout: 3000 });
-    } catch {
-      /* 打开失败不阻塞服务 */
+    // ⚠️ 跨端开关：Mac 菜单栏工具(packaging/mac/menubar)会注入 NO_OPEN_BROWSER=1，
+    //    自己用「优先唤醒已装 PWA」的 openCanvas() 打开画布，故这里跳过自动开标签，
+    //    避免「后端开一个普通标签 + 菜单栏开 PWA」两个画面。Windows 未设该变量，行为不变。
+    if (process.env.NO_OPEN_BROWSER !== '1') {
+      const pageUrl = `http://127.0.0.1:${PORT}`;
+      try {
+        const openCmd =
+          process.platform === 'darwin'
+            ? 'open'
+            : process.platform === 'win32'
+              ? 'start'
+              : 'xdg-open';
+        execSync(`${openCmd} "${pageUrl}"`, { timeout: 3000 });
+      } catch {
+        /* 打开失败不阻塞服务 */
+      }
     }
   });
 

@@ -56,7 +56,14 @@ readable/
 # ── 一键启动脚本（Mac .command）──
 # 本机需可执行权限(755)以支持 ./ 双击启动；该权限为本地环境特定、易与远端
 # 100644 冲突反复刷屏，故整体忽略，本地自行 chmod +x（见 docs 提及的启动方式）。
+# 2026-09-06 迁入 packaging/mac/，路径同步更新。
 launch-all.command
+packaging/mac/launch-all.command
+
+# ── macOS 菜单栏/Dock 常驻工具编译产物（猫猫画布.app）──
+# 由 packaging/mac/menubar/build.sh 从 main.swift 编译生成（含 .icns/.png/launcher），
+# 属构建产物不入库；要分发只提交源码 packaging/mac/menubar/main.swift。
+*.app
 
 # ── 测试运行产物（AI 跑 vitest 时重定向/扫描生成的日志与清单，非源码，不入库）──
 vitest_*.txt

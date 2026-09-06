@@ -36,6 +36,8 @@ import {
   markSkillUsed,
   repairMojibakeText,
   isSkillEnabled,
+  SKILLS_KEY,
+  ENABLED_KEY,
 } from '../base/store/skillStore.ts';
 import { contentGet, contentSet, contentSubscribe } from '../base/core/contentStore.ts';
 import { toAbsoluteFileUrl } from '../base/api/index.ts';
@@ -253,7 +255,7 @@ export default function AgentPanel({
 
   // ── Skill 系统 ──
   // 只展示已启用的 Skill（设置页中关闭的 Skill 不显示在可选列表里）
-  const [allSkills, _setAllSkills] = useState(() =>
+  const [allSkills, setAllSkills] = useState(() =>
     getAllSkills().filter((s) => isSkillEnabled(s.id)),
   );
   const [activeSkills, setActiveSkills] = useState([]);
@@ -284,6 +286,32 @@ export default function AgentPanel({
   const removeSkill = (id) => {
     setActiveSkills((prev) => prev.filter((a) => a.id !== id));
   };
+  // 【联动修复】订阅 skillStore 两键：设置页新增/删除/编辑 Skill（agent_skills）、
+  // 开关启用状态（agent_skill_enabled）变更时即时重读 allSkills，避免 AI 助手 Skill 列表
+  // 停留在组件挂载时的旧快照（表现为「永远只有内置默认 skill、读不到自定义 skill」）。
+  // 平台 contentSet 会 notify 这两个键，故 contentSubscribe 可即时收到；卸载时取消订阅防泄漏。
+  // 【关键：已选 skill 同步刷新】applySkill 选中时把 {content,...} 复制进 activeSkills（冻结快照），
+  // 之后在设置页改了 skill 正文，activeSkills 仍是旧 content → 发给 AI 的还是旧 skill。
+  // 故此处一并用 store 最新值回填已选条目（按 id 匹配），确保「改完设置页立刻用新 skill」。
+  useEffect(() => {
+    const resync = () => {
+      const fresh = getAllSkills();
+      setAllSkills(fresh.filter((s) => isSkillEnabled(s.id)));
+      setActiveSkills((prev) =>
+        prev.map((a) => {
+          const f = fresh.find((s) => s.id === a.id);
+          return f ? { ...a, name: f.name, description: f.description, content: f.content } : a;
+        }),
+      );
+    };
+    const unsubSkills = contentSubscribe(SKILLS_KEY, resync);
+    const unsubEnabled = contentSubscribe(ENABLED_KEY, resync);
+    return () => {
+      unsubSkills();
+      unsubEnabled();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleConversationChange = useCallback((snap) => {
     if (snap?.skills) setActiveSkills(snap.skills);
@@ -1733,9 +1761,7 @@ export default function AgentPanel({
                       : '应用 Skill'
                   }
                 >
-                  {activeSkills.length === 0
-                    ? 'Skill'
-                    : `Skill·${(activeSkills[0]?.name || '').slice(0, 5)}`}
+                  {activeSkills.length === 0 ? 'Skill' : activeSkills[0]?.name || 'Skill'}
                 </button>
                 {skillPickOpen && (
                   <div className="agent-pop is-slash agent-mh-280">

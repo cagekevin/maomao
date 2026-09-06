@@ -184,6 +184,9 @@ vi.mock('../../src/components/base/store/skillStore.ts', () => ({
   markSkillUsed: h.markSkillUsed,
   isSkillEnabled: () => true,
   repairMojibakeText: (t) => t,
+  // AgentPanel 订阅「设置页改 Skill/开关启用态」用的两键（resync 里 contentSubscribe 用）。
+  SKILLS_KEY: 'agent_skills',
+  ENABLED_KEY: 'agent_skill_enabled',
 }));
 vi.mock('../../src/components/base/core/contentStore.ts', () => ({
   contentGet: () => null,
@@ -437,8 +440,12 @@ describe('AgentPanel — Skill 应用与移除', () => {
     fireEvent.click(within(picker).getByText('赛博朋克风格'));
     // 再打开下拉移除（按钮标题此时为已启用）
     fireEvent.click(screen.getByTitle(/已启用/));
+    // chip 按钮(agent-skill-main)与下拉行(agent-pop 内)都显示同名，须限定到下拉容器取行。
+    // 见应用用例：chip 显示完整 Skill 名后，整容器(.agent-skill-btn)会有两个同名文本，故 query 下拉 .agent-pop。
     const picker2 = screen.getByTitle(/已启用/).parentElement;
-    fireEvent.click(within(picker2).getByText('赛博朋克风格'));
+    const pop = picker2.querySelector('.agent-pop') as HTMLElement | null;
+    if (!pop) throw new Error('skill 下拉容器 .agent-pop 未找到');
+    fireEvent.click(within(pop).getByText('赛博朋克风格'));
     expect(h.markSkillUsed).toHaveBeenCalledTimes(1); // 移除不计数
     expect(screen.getByTitle('应用 Skill')).toBeTruthy(); // 回到未应用态
   });
@@ -574,12 +581,12 @@ describe('AgentPanel — 设置改模型/供应商即生效（方案 B，无需�
   });
 
   it('卸载 → 取消订阅（返回的 unsubscribe 被调用，防泄漏）', () => {
-    // AgentPanel 注册 1 次 contentSubscribe（agent_chat_model；agent_work_mode 订阅已随 2026-09-05
-    // 三态选择器删除移除）。取该订阅的取消函数验证卸载即退订。若再新增订阅需按 key 定位。
+    // AgentPanel 现注册 3 次 contentSubscribe：SKILLS_KEY + ENABLED_KEY（skill resync，2026-09-06
+    // 「改设置页即时刷新已选 skill」新增）+ AGENT_CHAT_MODEL_KEY（方案 B）。
+    // 卸载时应把每个注册的取消函数都调一遍，防跨用例/全局泄漏。
     const { unmount } = render(<AgentPanel {...OPEN_PROPS} />);
-    expect(h.subscribeUnsubs.length).toBe(1);
-    const unsub = h.subscribeUnsubs[0];
+    expect(h.subscribeUnsubs.length).toBe(3);
     unmount();
-    expect(unsub).toHaveBeenCalled();
+    h.subscribeUnsubs.forEach((unsub) => expect(unsub).toHaveBeenCalled());
   });
 });

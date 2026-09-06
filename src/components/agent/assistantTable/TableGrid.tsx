@@ -129,6 +129,8 @@ export default function TableGrid({
                 />
               </th>
             ))}
+            {/* 操作列表头占位：保持与每行 N+2 列对齐，否则表头下边框比每行少一格 */}
+            <th className="atw-ops-head" aria-hidden />
           </tr>
         </thead>
         <tbody>

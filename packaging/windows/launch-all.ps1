@@ -16,8 +16,10 @@
 # =====================================================================
 
 $ErrorActionPreference = "Continue"
+# 脚本已收拢到 packaging/windows/；项目根 = 脚本目录上两级（本目录不持项目内容）。
 $ScriptDir = if ($PSScriptRoot) { $PSScriptRoot } else { $PWD.Path }
-Set-Location -Path $ScriptDir
+$ProjectRoot = [System.IO.Path]::GetFullPath((Join-Path $ScriptDir "..\.."))
+Set-Location -Path $ProjectRoot
 
 # ── ⚙️ 全局配置 ──
 $Config = @{
@@ -48,7 +50,7 @@ function Write-Log {
     # 因此在静默模式下改为写入日志文件（logs\launcher.log），实现完全无弹窗。
     if ($global:MaomaoSilent) {
         try {
-            $logDir = Join-Path $ScriptDir "logs"
+            $logDir = Join-Path $ProjectRoot "logs"
             if (-not (Test-Path $logDir)) { New-Item -ItemType Directory -Force -Path $logDir | Out-Null }
             $line = "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')][$Level] $Message"
             Add-Content -Path (Join-Path $logDir "launcher.log") -Value $line -Encoding UTF8
@@ -280,9 +282,18 @@ function Ensure-NodeEnvironment {
 }
 
 function Open-Canvas {
+    # 用 Chrome app 模式开独立窗口（无地址栏/标签栏，等同 PWA 观感，不堆标签）。
+    # 找不到 Chrome 才退回默认浏览器。详见 packaging/windows/PWA-说明.md。
     $url = "http://127.0.0.1:$($Config.LocalTool.Port)"
-    Write-Log "  🌐 打开画布 $url" "Info"
-    Start-Process $url
+    $chrome = "$env:ProgramFiles\Google\Chrome\Application\chrome.exe"
+    if (-not (Test-Path $chrome)) { $chrome = "${env:ProgramFiles(x86)}\Google\Chrome\Application\chrome.exe" }
+    if (Test-Path $chrome) {
+        Write-Log "  🌐 用 Chrome app 窗口打开画布 $url" "Info"
+        Start-Process $chrome -ArgumentList "--app=$url"
+    } else {
+        Write-Log "  ⚠️ 未找到 Chrome，退回默认浏览器打开 $url" "Warn"
+        Start-Process $url
+    }
 }
 
 # ── 🛠️ 弹出独立 cmd 窗口跑构建命令（菜单项：构建前端 / 构建 localTool）──
@@ -317,7 +328,7 @@ function Invoke-BuildWindow {
 # [已注释] 前端已提前手动 build，启动流程不再自动构建
 <# function Build-Prototype {
     Write-Log "`n🛠️ 正在构建原型前端（npm run build → dist/）..." "Info"
-    Push-Location $ScriptDir
+    Push-Location $ProjectRoot
     try {
         $out = npm run build 2>&1
         if ($LASTEXITCODE -ne 0) {
@@ -328,7 +339,7 @@ function Invoke-BuildWindow {
     } finally {
         Pop-Location
     }
-    $distIndex = Join-Path $ScriptDir "dist\index.html"
+    $distIndex = Join-Path $ProjectRoot "dist\index.html"
     if (-not (Test-Path $distIndex)) {
         Write-Log "  ❌ 原型构建产物 dist\index.html 不存在，中止启动。" "Error"
         return $false
@@ -338,7 +349,7 @@ function Invoke-BuildWindow {
 } #>
 
 function Start-LocalTool {
-    $dir = Join-Path $ScriptDir $Config.LocalTool.Dir
+    $dir = Join-Path $ProjectRoot $Config.LocalTool.Dir
     if (-not (Test-Path $dir)) { Write-Log "❌ 未找到 localTool 目录: $dir" "Error"; return $false }
 
     if (-not (Ensure-NodeEnvironment -Path $dir -NeedsBuild)) {
@@ -485,13 +496,13 @@ function Start-TrayDaemon {
 
     $miBuildFe = New-Object System.Windows.Forms.ToolStripMenuItem("构建前端 (npm run build → dist/)")
     $miBuildFe.Add_Click({
-        Invoke-BuildWindow -Title "构建前端" -WorkDir $ScriptDir -Command "npm run build"
+        Invoke-BuildWindow -Title "构建前端" -WorkDir $ProjectRoot -Command "npm run build"
     })
     $null = $miBuild.DropDownItems.Add($miBuildFe)
 
     $miBuildTool = New-Object System.Windows.Forms.ToolStripMenuItem("构建 localTool (npm run build → localTool/dist/)")
     $miBuildTool.Add_Click({
-        Invoke-BuildWindow -Title "构建 localTool" -WorkDir (Join-Path $ScriptDir $Config.LocalTool.Dir) -Command "npm run build"
+        Invoke-BuildWindow -Title "构建 localTool" -WorkDir (Join-Path $ProjectRoot $Config.LocalTool.Dir) -Command "npm run build"
     })
     $null = $miBuild.DropDownItems.Add($miBuildTool)
 
@@ -499,7 +510,7 @@ function Start-TrayDaemon {
 
     $miLog = New-Object System.Windows.Forms.ToolStripMenuItem("打开日志目录")
     $miLog.Add_Click({
-        $d = Join-Path $ScriptDir "logs"
+        $d = Join-Path $ProjectRoot "logs"
         if (-not (Test-Path $d)) { New-Item -ItemType Directory -Force -Path $d | Out-Null }
         Start-Process explorer.exe -ArgumentList $d
     })

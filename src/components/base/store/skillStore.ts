@@ -30,6 +30,8 @@ export interface SkillResult {
 }
 
 const SKILLS_KEY: string = 'agent_skills';
+/** 导出供消费方订阅：设置页改 Skill 时 AgentPanel 用此键 contentSubscribe 重读列表（避免裸字符串键） */
+export { SKILLS_KEY };
 
 /* ════════════════════════════════════════════════════════════════
  * mojibake 乱码修复（对齐大雄 backend.py `_repair_mojibake_text`）
@@ -287,6 +289,8 @@ export function getSkillUsage(id: string): number {
 
 /* ── Skill 启用状态（localStorage 记录，内置 skill 默认启用，自定义默认启用）── */
 const ENABLED_KEY: string = 'agent_skill_enabled'; // { [skillId]: boolean }
+/** 导出供消费方订阅：设置页开关 Skill 启用态时 AgentPanel 用此键 contentSubscribe 重读列表 */
+export { ENABLED_KEY };
 function getEnabledMap(): Record<string, boolean> {
   try {
     const m = contentGet(ENABLED_KEY);
