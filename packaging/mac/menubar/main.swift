@@ -392,7 +392,9 @@ if !acquireSingleInstanceLock() {
 let app = NSApplication.shared
 let delegate = AppDelegate()
 app.delegate = delegate 
-app.setActivationPolicy(.regular) // 设置为 regular 会显示在 Dock
+// .accessory（LSUIElement/agent）：纯菜单栏形态 —— 无 Dock 图标、不出现在 Cmd+Tab 切换器，
+// 只在顶部菜单栏显示猫猫图标。绝大多数 macOS 菜单栏工具（输入法/网速监控等）都用此形态。
+app.setActivationPolicy(.accessory)
 
 // 修复图片加载方式：优先使用安全的方法加载资源
 if let path = Bundle.main.path(forResource: "menubar", ofType: "png") {
