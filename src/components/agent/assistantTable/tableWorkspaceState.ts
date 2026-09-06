@@ -60,6 +60,8 @@ export interface TableWorkspacePreview {
   updatedCount: number;
   /** update 且 AI 行多于选中行 / append 场景：追加行数（预览卡文案用） */
   appendedCount: number;
+  /** 「确认后会写回变化」的行 id（buildPreviewResult 产出），供预览卡据此展开变化行、折叠未变行 */
+  changedRowIds: string[];
 }
 
 /** 共享「表格工作区运行态」形状（spec §四.5.1 + §1.5） */
@@ -181,6 +183,7 @@ export function acceptTablePreview(p: {
       opKind: r.opKind,
       updatedCount: r.updatedCount,
       appendedCount: r.appendedCount,
+      changedRowIds: r.changedRowIds,
     },
   });
 }

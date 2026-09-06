@@ -151,9 +151,9 @@ beforeEach(() => {
 });
 
 describe('画布 Agent 工具层 §2.5', () => {
-  it('共 20 个工具注册（奥卡姆删除 6 个 + show_plan_for_confirm；新增 read_storyboard 供表格工作区）', () => {
+  it('共 20 个工具注册（奥卡姆删除 6 个 + show_plan_for_confirm；新增 read_table 供表格工作区）', () => {
     expect(CANVAS_AGENT_TOOL_NAMES).toHaveLength(20);
-    expect(CANVAS_AGENT_TOOL_NAMES).toContain('read_storyboard');
+    expect(CANVAS_AGENT_TOOL_NAMES).toContain('read_table');
   });
 
   it('create_node 建文本节点成功 + 返回 id', () => {

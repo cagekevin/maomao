@@ -9,6 +9,8 @@
  *  - 本文件 IMPORT 无任何 React / store / 事件 / 存储，便于单元测试。
  *  - 所有"增删改行/列"返回【新对象/新数组】，绝不 mutate 入参 sb。
  *  - id 生成唯一走 generateId（集中 ID 工具），禁 Date.now()/index 当行键。
+ *  - 入参命名 `sb` 沿袭 scriptBox 时代（sb≈storyboard 表/脚本盒）；2026-09-06 决策：
+ *    改名 sb→table 风险>收益（导出函数名已固定、测试即护栏），暂不改，读代码把 sb 当 table 即可。
  *
  * 数据形态（与 mockup `ROWS`/`OPS` 及会话记忆 assistantTable 字段一致）：
  *   AssistantTable = { columns: TableColumn[], rows: TableRow[] }
@@ -110,7 +112,6 @@ export function normalizeAssistantTable(raw: unknown): AssistantTable {
       });
     }
   }
-  const ids = new Set(columns.map((c) => c.id));
   // 行归一：values 只保留已声明列的字符串值；extra 忽略
   const rows: TableRow[] = [];
   if (Array.isArray(r.rows)) {
@@ -127,7 +128,6 @@ export function normalizeAssistantTable(raw: unknown): AssistantTable {
       }
       rows.push({ id: rowId, values });
     }
-    void ids;
   }
   return { columns, rows };
 }
@@ -353,14 +353,20 @@ export function rowToObj(sb: AssistantTable, row: TableRow): Record<string, stri
   return obj;
 }
 
-/** 行 → 一段可读文本（每列一行「列名：值」），供「发送到画布」/ 上下文拼装 */
-export function rowToText(sb: AssistantTable, row: TableRow): string {
+/**
+ * 行 → 一段可读文本（每列一行「列名：值」），供「发送到画布」/ 上下文拼装。
+ * @param globalStyle 可选；传入则作为前缀（全局样式）拼到行内容之前，形如「全局样式\n\n列名：值…」。
+ *   仅「发送到画布」路径传它；AI 上下文拼装由调用方单独注入 globalStyle，传空即可避免重复。
+ */
+export function rowToText(sb: AssistantTable, row: TableRow, globalStyle?: string): string {
   const parts: string[] = [];
   for (const col of sb.columns) {
     const v = row.values[col.id] ?? '';
     if (v) parts.push(`${col.label}：${v}`);
   }
-  return parts.join('\n');
+  const body = parts.join('\n');
+  const gs = globalStyle && globalStyle.trim() ? globalStyle.trim() : '';
+  return gs ? `${gs}\n\n${body}` : body;
 }
 
 /**
@@ -392,6 +398,33 @@ export function tryParseAssistantTableJson(text: unknown): { json: AssistantTabl
   return { json: obj as AssistantTableJson };
 }
 
+/**
+ * 剥离「表格 JSON 块」、只留前后自然语言（供表格消息在对话流里显示 JSON 之外的话）。
+ *
+ * 【为什么需要它】表格消息的完整回复（含 JSON 前后的自然语言）一直存在 message.content，
+ *   但对话流把整条正文隐藏以不跟左侧表格预览重复。本函数把 JSON 那段扣掉、保留前后文字，
+ *   让"AI 除了 JSON 还说了什么"能被看到。
+ *
+ * 【最简单的做法 · 不追求精确】复刻 tryParseAssistantTableJson 的同款粗截取：
+ *   取「第一个 `{` 到最后一个 `}`」当表格 JSON 段并删除（连带剥掉可能带的 ```json/``` 围栏）。
+ *   剥离错误/残留 JSON 无妨——本函数只是"尽量留自然语言"的展示层辅助，不做结构判定。
+ *
+ * @returns 剥离后的剩余文本（trim）；未命中任何 `{...}` 时原样返回。
+ */
+export function stripAssistantTableJson(text: unknown): string {
+  if (typeof text !== 'string') return String(text ?? '');
+  let s = text;
+  // 围栏直接剥掉（可能包在 JSON 前后或本无围栏）
+  s = s.replace(/```json/gi, '').replace(/```/g, '');
+  const f = s.indexOf('{');
+  const p = s.lastIndexOf('}');
+  // 没有成对花括号 → 非表格 JSON，原样返回
+  if (f < 0 || p <= f) return text;
+  const before = s.slice(0, f).trim();
+  const after = s.slice(p + 1).trim();
+  return [before, after].filter(Boolean).join('\n');
+}
+
 /** 预览卡显示模型：由 TablePreviewResult（resultCols/resultRows/opKind）派生，仅做形状格式，不重推数据（预览=确认） */
 export interface AssistantTablePreview {
   kind: 'table';
@@ -404,6 +437,8 @@ export interface AssistantTablePreview {
   opKind?: 'update' | 'append' | 'replace';
   updatedCount?: number;
   appendedCount?: number;
+  /** 「确认后会写回变化」的行在 rows 里的 0 基下标（折叠时展开、其余折叠）。空/缺省=不做折叠（全展开） */
+  changedIndexes?: number[];
 }
 
 /** buildPreviewResult 产出：操作后最终表格（预览=确认的唯一数据源） */
@@ -415,6 +450,14 @@ export interface TablePreviewResult {
   updatedCount: number;
   /** update 且 AI 行多于选中行时，追加到末尾的行数（append 场景=追加行数） */
   appendedCount: number;
+  /**
+   * 「确认后会因本次写回而变化」的行 id（在 resultRows 内）。
+   * 语义：预览卡据此把变化行完整展开、未变化行折叠。
+   *  - update：被 AI 覆盖的目标行 + 未命中目标而追加的新行；
+   *  - append：末尾追加的新行；原现有行不在内；
+   *  - replace（空表建表）：全为新建行 → 全部在内（卡端因无「未变行」不启用折叠）。
+   */
+  changedRowIds: string[];
 }
 
 /** 列名归一：trim + 折叠多余空白，供「AI 键名 ↔ 现有列」模糊匹配（A-005，C3） */
@@ -474,6 +517,8 @@ export function buildPreviewResult(
       resultRows,
       updatedCount: 0,
       appendedCount: resultRows.length,
+      // 空表建表：整表都是新建行 → 全部标记 changed（无「未变行」可折叠，卡端据此不折叠）
+      changedRowIds: resultRows.map((r) => r.id),
     };
   }
 
@@ -529,11 +574,14 @@ export function buildPreviewResult(
       resultRows: [...current.rows, ...added],
       updatedCount: 0,
       appendedCount: added.length,
+      // 追加：仅末尾新增行是「写回变化」，原有行不在内
+      changedRowIds: added.map((r) => r.id),
     };
   }
 
   // ── update：命中目标的行按 AI 覆盖提及列，未提及列保留原值；未命中目标的 AI 行追加末尾 ──
   const nextRows = current.rows.map((r) => ({ id: r.id, values: { ...r.values } }));
+  const changed = new Set<string>();
   let updatedCount = 0;
   let appendedCount = 0;
   for (let i = 0; i < rawRows.length; i++) {
@@ -546,11 +594,21 @@ export function buildPreviewResult(
         const v = colValue(obj, col);
         if (v !== undefined) nextRows[ti].values[col.id] = v; // 只覆盖提及列，未提及保留原值
       }
+      changed.add(nextRows[ti].id); // 被 AI 覆盖的目标行 = 写回变化
       updatedCount++;
     } else {
-      nextRows.push(materialize(raw as Record<string, unknown>));
+      const added = materialize(raw as Record<string, unknown>);
+      nextRows.push(added);
+      changed.add(added.id); // 未命中目标而追加的新行 = 写回变化
       appendedCount++;
     }
   }
-  return { opKind: 'update', resultCols, resultRows: nextRows, updatedCount, appendedCount };
+  return {
+    opKind: 'update',
+    resultCols,
+    resultRows: nextRows,
+    updatedCount,
+    appendedCount,
+    changedRowIds: [...changed],
+  };
 }

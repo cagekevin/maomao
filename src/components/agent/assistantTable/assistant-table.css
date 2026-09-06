@@ -1,0 +1,613 @@
+/**
+ * AI 助手表格 —— 样式（assistantTable 域自持，2026-09-06 自 agent-panel.css 迁出）。
+ *
+ * 【归位背景】表格样式曾全部挂在 agent-panel.css，靠祖先 `.tw-panel`（TableWorkspacePanel）前缀才命中，
+ * 组件树与命名树脱节、改名即断。本次把表格域样式独立到本文件：类名语义化、选择器「类名自带前缀」
+ * （不依赖 `.tw-panel` 祖先），使 `.atw` 组件可独立复用、删组件不伤样式。
+ *
+ * 【命名约定】沿袭历史缩写已语义化（原名 → 现名）：
+ *   .sb → .atw（Assistant Table Workspace 根） · .sbt → .atw-grid（<table>）
+ *   .sb-head→.atw-head · .sb-bar→.atw-toolbar · .sb-body→.atw-body
+ *   .sb-empty→.atw-empty · .sb-preview→.atw-preview
+ *   .gs→.atw-style · .gs-l→.atw-style-label · .gs-v→.atw-style-input · .gs-line→.atw-style-line
+ *   .tw-op→.atw-icobtn（icon button） · .pv*→.atw-pv*（预览卡 .pv = preview，同属表格域）
+ *   .tw-panel/.tw-grip = TableWorkspacePanel 面板外壳，保留原名（tw = table workspace，114 用不模糊）。
+ *   其余语义已清晰的小类（.col-head/.col-ops/.col-resize/.cell/.ops/.idx/.badge/.btn 等）不做冗余改名。
+ *
+ * 【合并原则】只挪位置/改名/合并「完全等价或高度近似」的重复块，不碰任何观感值（色值/间距/圆角/字体）。
+ *   样式令牌一律取 --mao-*（语义令牌唯一来源，tailwind.config.ts 为唯一真相）。迁移自 agent-panel.css:1120~1731。
+ */
+
+/* ══ 表格工作区面板外壳（TableWorkspacePanel 自持，原名不变）══
+   .tw-panel 吸附 AI 面板左缘、锚点 right:agentPanelWidth（TableWorkspacePanel 内联）；
+   .tw-grip 为左缘拖拽手柄。入场动画从右侧（AI 面板方向）划出。 */
+@keyframes tw-panel-in {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+.tw-panel {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 29; /* 低于 .agent-panel(30)：入场从 AI 面板背后划出；静止时无重叠不受影响 */
+  display: flex;
+  flex-direction: column;
+  background: rgb(var(--mao-surface-deep)); /* 对齐 .agent-panel 底色 */
+  border-left: 1px solid rgb(var(--mao-edge-subtle)); /* 对齐 .agent-panel 左缘边线；右缘贴 AI 面板由其边线分界 */
+  box-shadow: 0 24px 60px rgb(0 0 0 / 0.55); /* 对齐 .agent-panel 阴影 */
+  overflow: hidden;
+  animation: tw-panel-in 0.22s ease-out; /* 从右侧（AI 面板方向）划出 */
+}
+.tw-grip {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 5px;
+  cursor: col-resize;
+  background: transparent;
+  transition: background 0.15s;
+}
+.tw-grip:hover {
+  background: rgb(var(--mao-accent) / 0.35);
+}
+
+/* ══ 表格面板根（AssistantTablePanel，.atw 自持类名，填满面板高度）══ */
+.atw {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 表头区：全局风格条 + 工具条（都不属于 rows） */
+.atw-head {
+  flex-shrink: 0;
+  padding: 10px 12px 8px;
+}
+
+/* 顶部单行：全局风格 + 操作按钮同排（不再各占一行） */
+.atw-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ── 全局风格编辑条 ── */
+.atw-style {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 9px;
+  border-radius: 8px;
+  background: rgb(var(--mao-surface-sunken));
+  border: 1px solid rgb(var(--mao-edge-faint));
+  transition: border-color 0.15s;
+}
+.atw-style:hover {
+  border-color: rgb(var(--mao-edge-subtle));
+}
+.atw-style-label {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding-top: 1px;
+  color: rgb(var(--mao-text-faint));
+  font-size: 11px;
+}
+.atw-style-input {
+  flex: 1;
+  min-width: 0;
+  outline: none;
+  background: transparent;
+  border: none;
+  color: rgb(var(--mao-text-body));
+  font-size: 12px;
+  line-height: 1.55;
+  border-radius: 4px;
+  padding: 0;
+  font-family: inherit;
+}
+.atw-style-input:focus {
+  background: rgb(var(--mao-surface));
+  box-shadow: inset 0 0 0 1px rgb(var(--mao-accent));
+  color: rgb(var(--mao-text-strong));
+}
+.atw-style-input.is-ph {
+  color: rgb(var(--mao-text-subtle));
+}
+.atw-style .pen {
+  flex-shrink: 0;
+  color: rgb(var(--mao-text-subtle));
+}
+
+/* ── 工具条：行数 & 内容按钮（新增一行 / 复制 / 清空） ── */
+.atw-toolbar .cnt {
+  font-size: 11px;
+  color: rgb(var(--mao-text-faint));
+  margin-right: 2px;
+  flex-shrink: 0;
+}
+.atw-toolbar .atw-icobtn {
+  flex-shrink: 0;
+}
+
+/* ── 通用按钮（占位面板按钮「粘贴表格」+ 预览卡确认/取消，同类归并） ──
+   .tb = 描边小按钮；.btn = 文档流主按钮；两套视觉已各异，仅同类合并，不强行统一。 */
+.atw .tb {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 9px;
+  border-radius: 7px;
+  border: 1px solid rgb(var(--mao-edge-faint));
+  background: transparent;
+  color: rgb(var(--mao-text-secondary));
+  font-size: 11.5px;
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    color 0.15s,
+    border-color 0.15s;
+}
+.atw .tb:hover {
+  background: rgb(var(--mao-surface-hover));
+  color: rgb(var(--mao-text-strong));
+  border-color: rgb(var(--mao-edge));
+}
+.atw .tb.primary {
+  color: rgb(var(--mao-accent-strong));
+  border-color: rgb(var(--mao-accent) / 0.3);
+  background: rgb(var(--mao-accent-soft) / 0.08);
+}
+.atw .tb.primary:hover {
+  background: rgb(var(--mao-accent-soft) / 0.16);
+}
+
+/* ══ 表体：表头吸顶 + 表体滚动 ══ */
+.atw-body {
+  flex: 1;
+  /* 横向收纳表格的关键：flex 子项默认 min-width:auto 会被 width:max-content 的表格撑破，
+     导致表格超出左栏、压进右侧对话区/面板外。min-width:0 允许表体收窄到父宽，
+     超宽内容改由 .atw-body 横向滚动。 */
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  padding: 0 12px 12px;
+}
+
+/* ══ 表格主体（.atw-grid = 实表，列宽自适应内容） ══ */
+.atw-grid {
+  /* 列宽自适应内容：让长文本列真正拿到估算宽度，不再被 100% 压缩成窄条疯狂换行；
+     总宽超出可视区时由 .atw-body 横向滚动，而非把列压扁。 */
+  width: max-content;
+  min-width: 100%;
+  table-layout: fixed;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 12px;
+}
+.atw-grid th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: rgb(var(--mao-surface-deep));
+  padding: 7px 7px 6px;
+  text-align: left;
+  color: rgb(var(--mao-text-faint));
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+  border-bottom: 1px solid rgb(var(--mao-edge-subtle));
+}
+.atw-grid td {
+  padding: 4px 7px;
+  vertical-align: top;
+  border-bottom: 1px solid rgb(var(--mao-edge-faint) / 0.5);
+  color: rgb(var(--mao-text-body));
+  line-height: 1.55;
+}
+/* 列间竖线贯穿所有行（表头 + 数据行），让表格更像「正常表格」；
+   最右操作列去掉右边框保持右缘整洁 */
+.atw-grid th,
+.atw-grid td {
+  border-right: 1px solid rgb(var(--mao-edge-faint) / 0.4);
+}
+.atw-grid th:last-child,
+.atw-grid td:last-child {
+  border-right: none;
+}
+
+/* 行交互：hover 高亮 + 选中态（.sel 蓝底 + 首列左竖条） */
+.atw-grid tbody tr {
+  transition: background 0.12s;
+  cursor: pointer;
+}
+.atw-grid tbody tr:hover {
+  background: rgb(var(--mao-surface-hover));
+}
+.atw-grid tbody tr.sel {
+  background: rgb(var(--mao-accent) / 0.1);
+}
+.atw-grid tr.sel td:first-child {
+  box-shadow: inset 2px 0 0 rgb(var(--mao-accent));
+}
+.atw-grid td.idx {
+  color: rgb(var(--mao-text-faint));
+  font-size: 11px;
+  width: 30px;
+}
+.atw-grid tr.sel td.idx {
+  color: rgb(var(--mao-accent-strong));
+}
+
+/* 表头列名可编辑（点列名直接改，回车/失焦提交） */
+.atw-grid th .col-head {
+  width: 100%;
+  outline: none;
+  border: none;
+  background: transparent;
+  color: inherit;
+  /* 右侧留白给 +/× 操作组（hover 显示，已左移到 resize 手柄左侧），防列名/输入被按钮遮挡 */
+  padding: 0 26px 0 2px;
+  font: inherit;
+  line-height: 1.4;
+  border-radius: 3px;
+}
+.atw-grid th .col-head:focus {
+  background: rgb(var(--mao-surface));
+  box-shadow: inset 0 0 0 1px rgb(var(--mao-accent));
+  color: rgb(var(--mao-text-strong));
+}
+
+/* 表头列内操作组（+ 在该列后插入 / × 删除该列）：hover 该列表头才显示，两者同款 */
+.atw-grid th .col-ops {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  right: 11px;
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.atw-grid th:hover .col-ops {
+  opacity: 1;
+}
+
+/* 列宽拖拽手柄：以列间竖线为中心对称命中（左右各约 6px）。
+   蓝线挂在手柄 ::after（right:4px 精确对齐竖线），th 直挂伪元素在该表格下不渲染。 */
+.atw-grid th .col-resize {
+  position: absolute;
+  right: -6px; /* 右缘超出表头 6px → 配合 width:12 使中心正好落在竖线（th 右缘）上 */
+  top: 0;
+  bottom: 0;
+  width: 12px;
+  cursor: col-resize;
+  z-index: 3;
+}
+.atw-grid th .col-resize::after {
+  content: '';
+  position: absolute;
+  right: 4px;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  border-radius: 2px;
+  background: rgb(var(--mao-edge-subtle));
+  opacity: 0;
+  pointer-events: none;
+  z-index: 4;
+  transition:
+    opacity 0.12s,
+    background 0.12s;
+}
+.atw-grid th:hover .col-resize::after {
+  opacity: 1;
+}
+.atw-grid th .col-resize:hover::after,
+.atw-grid th .col-resize.active::after {
+  background: rgb(var(--mao-accent));
+  opacity: 1;
+}
+/* 最右操作列无竖线，隐藏其指示线 */
+.atw-grid th:last-child .col-resize::after {
+  display: none;
+}
+
+/* ══ 表格操作按钮统一规范 .atw-icobtn（=原 .tw-op，tw 也含糊故改名）：
+   列头 +/×、每行操作组、顶部「新增一行」共用一套。
+   单个钮：16×16 透明底、faint 色、hover 深底 + 白图标；图标统一 11×11。
+   组随宿主 hover 浮出与否由外层容器(.atw-grid th .col-ops / 行内 .ops)各自控制，不在此定义。 */
+.atw-icobtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: rgb(var(--mao-text-faint));
+  cursor: pointer;
+  transition:
+    background 0.12s,
+    color 0.12s;
+}
+.atw-icobtn:hover {
+  background: rgb(var(--mao-surface-hover-strong));
+  color: #fff;
+}
+.atw-icobtn svg {
+  width: 11px;
+  height: 11px;
+}
+
+/* 单元格编辑器（cell = 可编辑 textarea）与行内操作组（ops，hover/sel 浮出） */
+.atw-grid .cell {
+  width: 100%;
+  outline: none;
+  border: none;
+  background: transparent;
+  color: inherit;
+  border-radius: 4px;
+  padding: 2px;
+  font-size: 12px;
+  font-family: inherit;
+  line-height: 1.5;
+  resize: none;
+  overflow: hidden;
+  min-height: 22px;
+  vertical-align: top;
+  word-break: break-word;
+}
+.atw-grid .cell:focus {
+  background: rgb(var(--mao-surface));
+  box-shadow: inset 0 0 0 1px rgb(var(--mao-accent));
+  color: rgb(var(--mao-text-strong));
+}
+.atw-grid .ops {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  justify-content: flex-end;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.atw-grid tbody tr:hover .ops,
+.atw-grid tbody tr.sel .ops {
+  opacity: 1;
+}
+
+/* ══ 表格空态 ══ */
+.atw-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 26px;
+  text-align: center;
+}
+.atw-empty .mark {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  border: 1px dashed rgb(var(--mao-edge));
+  background: rgb(var(--mao-surface-sunken));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgb(var(--mao-text-faint));
+  margin-bottom: 4px;
+}
+.atw-empty h4 {
+  font-size: 15px;
+  font-weight: 500;
+  color: rgb(var(--mao-text-strong));
+}
+.atw-empty p {
+  font-size: 12px;
+  color: rgb(var(--mao-text-faint));
+  line-height: 1.7;
+}
+.atw-empty .acts {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+/* ══ AI 返回表格 → 预览「待确认卡」(.atw-preview 收进左栏正式表格下方，.atw-pv 卡本体) ══
+   卡与正式表格同宽、上下贴邻；确认/取消后 .atw-preview 卸载，消息流原位留 pv-done 历史痕迹(在 agent-panel.css)。 */
+.atw-preview {
+  flex-shrink: 0;
+  min-width: 0;
+  padding: 0 12px 12px;
+}
+/* 左栏内给卡一个略保守的高度，让上方正式表格仍留出可观可视区 */
+.atw-preview .atw-pv {
+  max-height: clamp(150px, 28vh, 300px);
+}
+
+/* 整卡 = 受约束的纵向弹性容器：头/尾固定，表体吃剩余高度并独立滚动。
+   高度上限取视口比例（38vh）而非写死像素 —— 任何窗口高度下，
+   「卡头 + 表体 + 确认按钮」都同时在屏内，内容再多也不外溢。 */
+.atw-pv {
+  display: flex;
+  flex-direction: column;
+  max-height: clamp(180px, 38vh, 400px);
+  border: 1px solid rgb(var(--mao-edge-faint));
+  border-radius: 8px;
+  background: rgb(var(--mao-surface-sunken));
+  overflow: hidden;
+  /* 窄容器可收缩、不把祖先/屏幕撑破 */
+  min-width: 0;
+  max-width: 100%;
+}
+.atw-pv-hd {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 10px;
+  border-bottom: 1px solid rgb(var(--mao-edge-subtle));
+  color: rgb(var(--mao-text-secondary));
+  font-size: 11.5px;
+}
+.atw-pv-hd .badge {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgb(var(--mao-accent-soft) / 0.12);
+  border: 1px solid rgb(var(--mao-accent) / 0.3);
+  color: rgb(var(--mao-accent-strong));
+}
+.atw-pv-hd .spacer {
+  flex: 1;
+}
+.atw-pv-hd .rows {
+  font-size: 10.5px;
+  color: rgb(var(--mao-text-faint));
+}
+.atw-pv-body {
+  /* 表体吃掉整卡的剩余高度（头/尾固定），min-height:0 是 flex 子项可收缩的必需项；
+     内容再长也只在内部滚动，绝不顶开整卡。 */
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  /* 滚到顶/底不连锁到外层消息区（各自独立滚动） */
+  overscroll-behavior: contain;
+  padding: 0 10px;
+}
+.atw-pv table {
+  width: 100%;
+  table-layout: fixed; /* 列宽由容器分配，内容再长也不会把表撑破容器 */
+  border-collapse: collapse;
+  font-size: 11.5px;
+}
+.atw-pv th {
+  position: sticky;
+  top: 0;
+  background: rgb(var(--mao-surface-sunken));
+  padding: 6px 8px;
+  text-align: left;
+  color: rgb(var(--mao-text-faint));
+  font-weight: 500;
+  border-bottom: 1px solid rgb(var(--mao-edge-subtle));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis; /* 列名过长在 fixed 布局内省略，不撑破列 */
+}
+.atw-pv td {
+  padding: 6px 8px;
+  vertical-align: top;
+  color: rgb(var(--mao-text-secondary));
+  border-bottom: 1px solid rgb(var(--mao-edge-faint) / 0.4);
+  line-height: 1.6;
+  word-break: break-word;
+  overflow-wrap: anywhere; /* 长词/URL 在格内换行，避免横向撑开 */
+}
+.atw-pv tr:last-child td {
+  border-bottom: none;
+}
+/* 预览卡·改动行高亮（确认会写回变化的行）：蓝底 + 首列左竖条，与正式表选中态 .sel 同款 accent */
+.atw-pv tbody tr.atw-pv-ai td {
+  background: rgb(var(--mao-accent) / 0.1);
+  color: rgb(var(--mao-text-strong));
+}
+.atw-pv tbody tr.atw-pv-ai td:first-child {
+  box-shadow: inset 2px 0 0 rgb(var(--mao-accent));
+}
+/* 预览卡·折叠摘要行（未改动行收起为一条，点击展开全部） */
+.atw-pv tbody tr.atw-pv-fold {
+  cursor: pointer;
+  background: transparent;
+}
+.atw-pv tbody tr.atw-pv-fold td {
+  padding: 3px 8px;
+  color: rgb(var(--mao-text-faint));
+  text-align: center;
+  font-size: 11px;
+  letter-spacing: 0.2px;
+  background: rgb(var(--mao-surface-sunken) / 0.5);
+  border-bottom: 1px dashed rgb(var(--mao-edge-faint) / 0.5);
+}
+.atw-pv tbody tr.atw-pv-fold:hover td {
+  color: rgb(var(--mao-accent-strong));
+  background: rgb(var(--mao-accent-soft) / 0.1);
+}
+/* 预览卡·全局风格一行 */
+.atw-pv .atw-style-line {
+  flex-shrink: 0;
+  display: flex;
+  gap: 6px;
+  padding: 8px 10px 0;
+  color: rgb(var(--mao-text-faint));
+  font-size: 11px;
+}
+.atw-pv .atw-style-line b {
+  color: rgb(var(--mao-text-secondary));
+  font-weight: 400;
+}
+
+/* 预览卡·操作行（确认/取消）：整卡的固定尾，永远可见 —— 它是写回闸口，不能随滚动沉出视野 */
+.atw-pv-ft {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-top: 1px solid rgb(var(--mao-edge-subtle));
+}
+
+/* ══ 面板内通用按钮（确认/取消 + 其它正文按钮同类；docs = 文档流主按钮） ══ */
+.atw .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 11px;
+  border-radius: 6px;
+  font-size: 11.5px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition:
+    background 0.15s,
+    color 0.15s,
+    border-color 0.15s;
+}
+.atw .btn-ok {
+  background: rgb(var(--mao-live));
+  color: #fff;
+}
+.atw .btn-ok:hover {
+  filter: brightness(1.1);
+}
+.atw .btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.atw .btn-ghost {
+  background: transparent;
+  color: rgb(var(--mao-text-faint));
+}
+.atw .btn-ghost:hover {
+  background: rgb(var(--mao-surface-hover));
+  color: rgb(var(--mao-text-strong));
+}
+.atw-pv-ft .tip {
+  margin-left: auto;
+  font-size: 10.5px;
+  color: rgb(var(--mao-text-subtle));
+}

@@ -49,6 +49,7 @@ import {
   normalizeAssistantTable,
   rowToText,
   tryParseAssistantTableJson,
+  stripAssistantTableJson,
 } from '../agent/assistantTable/assistantTable.ts';
 import type { AssistantTable } from '../agent/assistantTable/assistantTable.ts';
 import { buildRefineRowsUser } from '../agent/assistantTable/assistantTablePrompt.ts';
@@ -325,7 +326,7 @@ export default function AgentPanel({
 
   // ── 表格工作区数据（自当前对话会话记忆派生；conversations 订阅时随记忆写回刷新）──
   const activeConv = (conversations || []).find((c) => c.id === activeConversationId);
-  const storyboard = useMemo(
+  const tableData = useMemo(
     () => normalizeAssistantTable(activeConv?.memory?.assistantTable ?? null),
     [activeConv],
   );
@@ -335,14 +336,14 @@ export default function AgentPanel({
       ? String((gc as { unified_style_prompt?: string }).unified_style_prompt ?? '').trim()
       : '';
   }, [activeConv]);
-  const selectedRows = storyboard.rows.filter((r) => selectedRowIds.includes(r.id));
+  const selectedRows = tableData.rows.filter((r) => selectedRowIds.includes(r.id));
   // 输入框 ctx-chip 用：首选中行行号 + 首列内容简写 + 选中行数
   const selCtx = selectedRows.length
     ? (() => {
         const first = selectedRows[0];
-        const idx = storyboard.rows.findIndex((r) => r.id === first.id) + 1;
+        const idx = tableData.rows.findIndex((r) => r.id === first.id) + 1;
         const firstCell =
-          storyboard.columns.map((c) => first.values[c.id] || '').find((v) => !!v) || '';
+          tableData.columns.map((c) => first.values[c.id] || '').find((v) => !!v) || '';
         return { idx, first: firstCell, count: selectedRows.length };
       })()
     : null;
@@ -395,7 +396,7 @@ export default function AgentPanel({
         messageId: last.id,
       });
     }
-  }, [messages, storyboard]);
+  }, [messages, tableData]);
   // 切对话 → 清共享态选中行/预览/游标（防止串到别的对话；保留 open/width，spec §4.5.1）
   useEffect(() => {
     resetTableWorkspace();
@@ -778,13 +779,13 @@ export default function AgentPanel({
     let finalText = text;
     if (tableOpen) {
       const parts: string[] = [];
-      const currentTable = buildTableSnapshotText(storyboard, globalStyle);
+      const currentTable = buildTableSnapshotText(tableData, globalStyle);
       if (currentTable) parts.push(currentTable);
       if (selectedRows.length > 0) {
         // 有选中行（含多选）→ 改行：带每行行号 + 原值，要求按选中行逐一返回（buildRefineRowsUser）
         const rowTexts = selectedRows.map((r) => {
-          const idx = storyboard.rows.findIndex((x) => x.id === r.id) + 1;
-          return `第${idx}行：${rowToText(storyboard, r) || '（空行）'}`;
+          const idx = tableData.rows.findIndex((x) => x.id === r.id) + 1;
+          return `第${idx}行：${rowToText(tableData, r) || '（空行）'}`;
         });
         parts.push(buildRefineRowsUser(rowTexts, globalStyle, text));
       } else if (text) {
@@ -1282,7 +1283,7 @@ export default function AgentPanel({
                     表格协作中 ·{' '}
                     {selectedRows.length > 0
                       ? selectedRows.length === 1
-                        ? `当前选中第 ${storyboard.rows.findIndex((r) => r.id === selectedRows[0].id) + 1} 行`
+                        ? `当前选中第 ${tableData.rows.findIndex((r) => r.id === selectedRows[0].id) + 1} 行`
                         : `已选中 ${selectedRows.length} 行`
                       : 'AI 会优先处理左侧表格'}
                   </span>
@@ -1348,6 +1349,15 @@ export default function AgentPanel({
                   !!previewThisMsg || msgResolved === 'confirmed' || msgResolved === 'cancelled';
                 const showConfirmed = msgResolved === 'confirmed';
                 const showCancelled = msgResolved === 'cancelled';
+                // 【表格消息正文 2026-09-06】不再整条隐藏：AI 完整回复里 JSON 之外的自然语言
+                //   （如"已按你的意见改了第3行…"）也应显示。剥离出表格 JSON 段、留前后文字
+                //   作为正文展示（displayContent），JSON 本体仍进左侧表格预览/折叠成 pv-done，避免重复。
+                //   剥离用粗逻辑（首 { 到尾 }），允许不精确——最坏残留一点 JSON，不丢自然语言。
+                const surround = isTableMsg
+                  ? stripAssistantTableJson((m as { content?: string }).content ?? '')
+                  : '';
+                const hasSurround = surround.trim() !== '';
+                const hideIt = isTableMsg && !hasSurround; // 表格消息且无环绕文字 → 整条仍隐藏，靠 pv-done
                 return (
                   <div key={m.id} className="agent-msg-wrap">
                     <AgentMessage
@@ -1357,7 +1367,8 @@ export default function AgentPanel({
                       onRetryStep={handleRetryStep}
                       onSendToCanvas={sendContentToCanvas}
                       onRegenerate={() => handleRegenerate(m)}
-                      hideContent={isTableMsg}
+                      hideContent={hideIt}
+                      displayContent={hasSurround ? surround : undefined}
                     />
                     {/* 表格预览的「历史痕迹」留在消息流：确认/取消后原位折叠成 pv-done
                       （对齐 mockup collapseCard），成功=绿勾、取消=灰"已取消"。

@@ -925,13 +925,13 @@ const readCanvasTool = {
 };
 
 /**
- * 只读当前对话的「AI 助手表格」（read_storyboard）
+ * 只读当前对话的「AI 助手表格」（read_table）
  * 方案 §1.8：AI 默认聚焦用户给的「当前选中行」（send 时自动注入），需要完整表格/某行时自己调本工具。
  * 语义：只读，无副作用、不改表、不落盘。无参=整表（列结构 + 各行带 id + 全局风格）；rowId=只返回该行。
  * 防滥用：description 引导 AI 仅在「需要看选中行以外的内容」时才调用。
  */
-const readStoryboardTool = {
-  name: 'read_storyboard',
+const readTableTool = {
+  name: 'read_table',
   description:
     '只读当前对话的「AI 助手表格」（左栏表格工作区）：无参返回整表（列结构 + 各行含列名/值 + 全局风格），传 rowId 只返回带列名的那一行。仅当需要查看「当前选中行以外的表格内容」（其它行 / 整表结构）时才调用；一般场景上下文已含当前选中行的内容，无需调用本工具。只读、无副作用，不会修改表格、不落盘。',
   parameters: {
@@ -1645,7 +1645,7 @@ const AGENT_TOOLS = (() => {
     listNodesTool,
     listEdgesTool,
     getNodeDetailsTool,
-    readStoryboardTool,
+    readTableTool,
     // ② 节点增删
     createNodeTool,
     batchCreateNodesTool,

@@ -214,6 +214,9 @@ interface AgentMessageProps {
   onRegenerate?: () => void;
   /** 隐藏正文：当本消息已被结构化预览卡（如表格预览）替代，正文 JSON 与预览重复时设 true */
   hideContent?: boolean;
+  /** 正文覆盖文本（仅用于展示，不改 message.content）：表格消息给「剥离 JSON 后的前后自然语言」，
+   *  使 AI 在表格 JSON 之外说的话也能显示；发画布/复制等仍走原始 content。缺省用 message.content。 */
+  displayContent?: string;
 }
 
 function AgentMessage({
@@ -224,6 +227,7 @@ function AgentMessage({
   onSendToCanvas,
   onRegenerate,
   hideContent,
+  displayContent,
 }: AgentMessageProps) {
   // 图片查看大图（原生 dialog）：点击消息里的图片 → 打开查看，替代 target=_blank 新窗口
   const zoomRef = useRef(null);
@@ -306,10 +310,14 @@ function AgentMessage({
           </div>
         )}
         {/* 正文：无气泡无边框，直接铺在面板底色上。
-            hideContent=true 时（如表格消息已被下方预览卡替代）隐藏，避免 JSON 与预览重复 */}
-        {!hideContent && message.content && (
+            hideContent=true 时（如表格消息已被下方预览卡替代）隐藏，避免 JSON 与预览重复。
+            displayContent 提供时（表格消息的「剥离 JSON 后的自然语言」）用它展示，不改原始 content */}
+        {!hideContent && (displayContent != null ? displayContent.trim() : message.content) && (
           <div className="agent-ai-text">
-            <ChatMarkdown value={message.content} onOpenImage={openZoom} />
+            <ChatMarkdown
+              value={displayContent != null ? displayContent : message.content}
+              onOpenImage={openZoom}
+            />
             {message.streaming && <span className="agent-cursor" />}
           </div>
         )}

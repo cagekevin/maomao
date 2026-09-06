@@ -33,7 +33,7 @@ import type { AssistantTablePreview } from '../agent/assistantTable/assistantTab
 import { subscribe, getState } from '../agent/conversation/conversationState.ts';
 import type { ConversationStoreState } from '../agent/conversation/conversationState.ts';
 import { useStoreSelector, shallowEqual } from '@/hooks/useStoreSelector.ts';
-import './agent-panel.css';
+import '../agent/assistantTable/assistant-table.css';
 
 export default function TableWorkspacePanel({ agentPanelWidth }: { agentPanelWidth: number }) {
   const ws = useTableWorkspace();
@@ -58,6 +58,13 @@ export default function TableWorkspacePanel({ agentPanelWidth }: { agentPanelWid
       for (const col of p.resultCols) rec[col.label] = r.values[col.id] ?? '';
       return rec;
     });
+    // 把「确认后会写回变化」的行 id → 其在 rows 里的 0 基下标（预览卡据此展开变化行、折叠未变行）。
+    // 非 replace 才有折叠价值：replace（空表建表）全为新行无「未变行」，不传即全展开。
+    const changedIdSet = new Set<string>(p.changedRowIds || []);
+    const changedIndexes =
+      p.opKind === 'replace'
+        ? undefined
+        : rows.map((_, i) => (changedIdSet.has(p.resultRows[i].id) ? i : -1)).filter((i) => i >= 0);
     return {
       kind: 'table',
       globalStyle: String(p.json?.globalStyle ?? '').trim(),
@@ -67,6 +74,7 @@ export default function TableWorkspacePanel({ agentPanelWidth }: { agentPanelWid
       opKind: p.opKind,
       updatedCount: p.updatedCount,
       appendedCount: p.appendedCount,
+      changedIndexes,
     };
   }, [ws.preview]);
 

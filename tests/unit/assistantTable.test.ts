@@ -17,6 +17,7 @@ import {
   rowHasText,
   buildPreviewResult,
   tryParseAssistantTableJson,
+  stripAssistantTableJson,
   extractRowIndex,
   ROW_INDEX_KEY,
   estimateColumnWidth,
@@ -348,5 +349,94 @@ describe('AI 助手表格模型（assistantTable 纯函数）', () => {
     });
     expect(n.columns[0].width).toBe(180);
     expect(n.columns[1].width).toBeUndefined();
+  });
+
+  describe('stripAssistantTableJson（剥离表格 JSON，留前后自然语言）', () => {
+    const json = '{"globalStyle":"x","rows":[{"页码":"主图1"}]}';
+    it('纯 JSON（无环绕文字）→ 剥离后为空', () => {
+      expect(stripAssistantTableJson(json)).toBe('');
+    });
+    it('前置自然语言 + JSON → 只留前置文字', () => {
+      const t = `好的，我为你规划了 5 张主图：\n${json}`;
+      expect(stripAssistantTableJson(t)).toBe('好的，我为你规划了 5 张主图：');
+    });
+    it('JSON + 后置说明 → 只留后置文字', () => {
+      const t = `${json}\n注意第 3 行留空需自行补。`;
+      expect(stripAssistantTableJson(t)).toBe('注意第 3 行留空需自行补。');
+    });
+    it('前置 + JSON + 后置 → 拼接保留前后文字', () => {
+      const t = `说明：改了选中行。\n${json}\n（其余行未动）`;
+      const out = stripAssistantTableJson(t);
+      expect(out).toContain('说明：改了选中行。');
+      expect(out).toContain('（其余行未动）');
+      expect(out).not.toContain('"rows"');
+    });
+    it('```json 围栏包裹的纯 JSON → 剥离后为空（围栏一并去掉）', () => {
+      const t = `\`\`\`json\n${json}\n\`\`\``;
+      expect(stripAssistantTableJson(t)).toBe('');
+    });
+    it('无花括号的普通文本 → 原样返回', () => {
+      const t = '今天天气不错，没有表格。';
+      expect(stripAssistantTableJson(t)).toBe(t);
+    });
+  });
+
+  describe('buildPreviewResult.changedRowIds（预览卡折叠依据：确认后写回变化的行）', () => {
+    it('update·单改选中行：仅被改行在 changedRowIds，其余行不在', () => {
+      const sb = parsePasted('景别\t画面\n中景\t原1\n特写\t原2\n全景\t原3')!;
+      const target = sb.rows[1].id; // 选中第 2 行
+      const r = buildPreviewResult(sb, { rows: [{ 画面: '已改' }] }, [target]);
+      expect(r.opKind).toBe('update');
+      expect(r.updatedCount).toBe(1);
+      expect(r.changedRowIds).toEqual([target]);
+      expect(r.changedRowIds).not.toContain(sb.rows[0].id);
+      expect(r.changedRowIds).not.toContain(sb.rows[2].id);
+    });
+    it('update·多选改多行：两个被改行都在 changedRowIds', () => {
+      const sb = parsePasted('景别\t画面\n中景\t原1\n特写\t原2\n全景\t原3')!;
+      const ids = [sb.rows[0].id, sb.rows[2].id]; // 选中第 1、3 行
+      const r = buildPreviewResult(sb, { rows: [{ 画面: '改1' }, { 画面: '改3' }] }, ids);
+      expect(r.opKind).toBe('update');
+      expect(r.changedRowIds).toEqual([ids[0], ids[1]]);
+    });
+    it('update·AI 行多于选中行（M>N）：被改行 + 追加的新行都在 changedRowIds', () => {
+      const sb = parsePasted('景别\t画面\n中景\t原1\n特写\t原2')!;
+      const target = sb.rows[0].id; // 选中第 1 行
+      const r = buildPreviewResult(
+        sb,
+        { rows: [{ 画面: '改1' }, { 画面: '新A' }, { 画面: '新B' }] },
+        [target],
+      );
+      expect(r.opKind).toBe('update');
+      expect(r.updatedCount).toBe(1);
+      expect(r.appendedCount).toBe(2);
+      // 被改行 + 两个追加新行 → 共 3 行变化；原第 2 行（未动）不在
+      expect(r.changedRowIds).toHaveLength(3);
+      expect(r.changedRowIds).toContain(target);
+      expect(r.resultRows[2].id).not.toBe(sb.rows[1].id); // 追加的是新行（新 id）
+      expect(r.changedRowIds).toContain(r.resultRows[2].id);
+      expect(r.changedRowIds).toContain(r.resultRows[3].id);
+      expect(r.changedRowIds).not.toContain(sb.rows[1].id);
+    });
+    it('append·无选中追加：仅末尾新增行在 changedRowIds，原有行不在', () => {
+      const sb = parsePasted('景别\t画面\n中景\t原1\n特写\t原2')!;
+      const r = buildPreviewResult(sb, { rows: [{ 景别: '全景', 画面: '新加' }] });
+      expect(r.opKind).toBe('append');
+      expect(r.appendedCount).toBe(1);
+      expect(r.changedRowIds).toEqual([r.resultRows[2].id]); // 仅第 3 行（新增）
+      expect(r.changedRowIds).not.toContain(sb.rows[0].id);
+      expect(r.changedRowIds).not.toContain(sb.rows[1].id);
+    });
+    it('replace·空表建表：整表全为新行 → changedRowIds = 全部 resultRows', () => {
+      const r = buildPreviewResult(emptyAssistantTable(), {
+        rows: [
+          { 列A: 'a1', 列B: 'b1' },
+          { 列A: 'a2', 列B: 'b2' },
+        ],
+      });
+      expect(r.opKind).toBe('replace');
+      expect(r.changedRowIds).toHaveLength(r.resultRows.length);
+      expect(r.resultRows.every((row) => r.changedRowIds.includes(row.id))).toBe(true);
+    });
   });
 });

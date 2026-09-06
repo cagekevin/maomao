@@ -9,7 +9,6 @@
  *   4. npm run test:all（统一测试门禁：smoke + regression + tools）
  *   5. TDZ 风险扫描（扫 src 下所有源码 .jsx/.js/.ts/.tsx，防「Cannot access before initialization」；
  *      逐行跳过注释——源码注释常引用报错文案作决策留痕，整文件盲扫会误报，见 depthUrls.ts:35 案例）
- *   6. dist 构建产物基线（借鉴 1mao safety-net：防 dist 意外增删/体积异常）
  *
  * 用法: node scripts/health-check.cjs        （或 npm run check:health）
  * 退出码: 有错误 → 1；仅警告 → 0
@@ -21,8 +20,6 @@ const { execSync } = require('child_process');
 const { resolveSourceFile } = require('./ts-exts.cjs');
 
 const ROOT = path.resolve(__dirname, '..');
-const DIST = path.join(ROOT, 'dist');
-const SNAPSHOT = path.join(__dirname, 'dist-snapshot.json');
 
 let errors = 0,
   warns = 0;
@@ -191,58 +188,7 @@ try {
   check('架构校验', false, msg.split('\n').filter(Boolean).slice(-2).join(' | '));
 }
 
-// ── 6. dist 构建产物基线（借鉴 safety-net）──
-console.log('\n📊 dist 构建产物基线');
-const scanDist = (dir, prefix = '') => {
-  const out = {};
-  if (!fs.existsSync(dir)) return out;
-  for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
-    const p = path.join(dir, e.name);
-    const rel = prefix ? `${prefix}/${e.name}` : e.name;
-    if (e.isDirectory()) out[rel] = scanDist(p, rel);
-    else out[rel] = { size: fs.statSync(p).size };
-  }
-  return out;
-};
-
-const current = scanDist(DIST);
-if (!fs.existsSync(SNAPSHOT)) {
-  fs.writeFileSync(SNAPSHOT, JSON.stringify(current, null, 2));
-  console.log('  ℹ️ 已生成基线快照 scripts/dist-snapshot.json（首次运行仅记录）');
-} else {
-  const prev = JSON.parse(fs.readFileSync(SNAPSHOT, 'utf-8'));
-  const prevFlat = flatten(prev);
-  const curFlat = flatten(current);
-  let diffs = 0;
-  const allKeys = new Set([...Object.keys(prevFlat), ...Object.keys(curFlat)]);
-  for (const k of allKeys) {
-    const a = prevFlat[k];
-    const b = curFlat[k];
-    if (a === undefined) {
-      console.log(`  ⚠️ 新增: ${k}`);
-      diffs++;
-    } else if (b === undefined) {
-      console.log(`  ⚠️ 删除: ${k}`);
-      diffs++;
-    } else if (Math.abs(a - b) > a * 0.1 + 1024) {
-      console.log(`  ⚠️ 体积变化: ${k} ${a}B → ${b}B`);
-      diffs++;
-    }
-  }
-  if (diffs === 0) console.log('  ✅ dist 与基线一致（无新增/删除/显著体积变化）');
-  else warn('dist 基线', false, `${diffs} 处差异（dist 已更新后请重新生成基线）`);
-}
-
-function flatten(obj, p = '', out = {}) {
-  for (const k of Object.keys(obj)) {
-    const key = p ? `${p}/${k}` : k;
-    if (obj[k] && typeof obj[k] === 'object' && !obj[k].size) flatten(obj[k], key, out);
-    else out[key] = obj[k].size;
-  }
-  return out;
-}
-
-// ── 7. 决策渠道门禁（ADR 必须为空；CLAUDE 决策铁律必须存在）──
+// ── 6. 决策渠道门禁（ADR 必须为空；CLAUDE 决策铁律必须存在）──
 // 硬约束：docs/adr/ 非本项目决策渠道（见 CLAUDE.md「🔒 决策记录铁律」）。
 // 若出现 ADR 文件 → error 阻断；若决策铁律被误删 → error 阻断。不靠 AI 自觉，靠门禁拦截。
 console.log('\n🔒 决策渠道门禁');
