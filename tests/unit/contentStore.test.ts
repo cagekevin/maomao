@@ -54,7 +54,7 @@ import {
   contentReadThrough,
 } from '../../src/components/base/core/contentStore.ts';
 
-import { STORAGE_KEYS } from '../../src/components/base/core/contracts.ts';
+import '../../src/components/base/core/contracts.ts';
 
 /* ════════════════════════════════════════════════════════════════
  * 准备工作：每个测试前重置 mock

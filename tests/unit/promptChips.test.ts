@@ -1,7 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from 'vitest';
 import {
-  PROMPT_CHIP_RE,
   serializeDOM,
   renderPromptToNodes,
   buildChipEl,

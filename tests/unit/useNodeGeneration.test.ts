@@ -90,7 +90,7 @@ describe('useNodeGeneration — resultKey/recoverable（P0-2-b）', () => {
   });
 
   it('recoverable + resultKey：收到完成广播自动回填，且过滤非本节点/非完成', async () => {
-    const { result } = renderHook(() =>
+    const { result: _result } = renderHook(() =>
       useNodeGeneration({ ...baseProps, resultKey: 'imageUrl', recoverable: true }),
     );
     // 先让 start 抛错无关：直接测广播路径

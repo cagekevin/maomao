@@ -1,6 +1,6 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { useDebouncedEffect, clamp } from '../base/core/utils.ts';
-import type { Position } from '@xyflow/react';
+import '@xyflow/react';
 import { buildSpawnNodes, spawnAndCommit } from '../base/canvas/deriveNodes.ts';
 import { useCanvasEdges } from '../base/canvas/CanvasEdgesContext.tsx';
 
@@ -13,7 +13,7 @@ import { useConnectedInputs } from '../../hooks/useConnectedInputs.ts';
 import { useMediaDegrade } from '../../hooks/useMediaDegrade.ts';
 import ImageZoomDialog from '../base/editors/ImageZoomDialog.tsx';
 import { useContentHeightSync } from '../base/core/uiHooks.ts';
-import { showToast } from '../base/core/toastStore.ts';
+import '../base/core/toastStore.ts';
 import { toAbsoluteFileUrl } from '../base/api/index.ts';
 import { useRenderImageResolver } from '../base/utils/imageUrl.ts';
 import { logger } from '../base/core/logger.ts';
@@ -131,7 +131,7 @@ interface GridMergeNodeProps {
 function GridMergeNode({ id, data, selected }: GridMergeNodeProps) {
   const { setNodes, getNodes, getNode, getEdges, setEdges } = useReactFlow();
   const history = useCanvasEdges();
-  const { isHidden } = useMediaDegrade();
+  const { isHidden: _isHidden } = useMediaDegrade();
   const render = useRenderImageResolver();
   const contentRef = useRef<HTMLDivElement | null>(null);
   // NodeShell 根 div ref：useContentHeightSync 需测「含标题栏的完整节点」而非仅内容区，
@@ -444,6 +444,7 @@ function GridMergeNode({ id, data, selected }: GridMergeNodeProps) {
     } finally {
       setExporting(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- spawnMergedImage 定义在本 useCallback 之后（TDZ 依赖数组）
   }, [mergeMode, longList, gridCells, overlayState, renderToCanvas, id, setNodes]);
 
   // 生成合成图片节点（复刻 Yo.jsx onSpawnImageNode）
@@ -468,7 +469,7 @@ function GridMergeNode({ id, data, selected }: GridMergeNodeProps) {
       );
       spawnAndCommit(spawned, { getNodes, getEdges, setNodes, setEdges, history });
     },
-    [id, getNode, getEdges, setNodes, setEdges, history],
+    [id, getNode, getNodes, getEdges, setNodes, setEdges, history],
   );
 
   // 交换 grid cell（拖拽）
@@ -497,7 +498,7 @@ function GridMergeNode({ id, data, selected }: GridMergeNodeProps) {
 
   const titleIcon = <Layers size={11} className="text-muted" />;
   const totalCells = rows * cols;
-  const totalCount = mergeMode === 'longImage' ? Math.max(1, longList.length || 3) : totalCells;
+  mergeMode === 'longImage' ? Math.max(1, longList.length || 3) : totalCells;
 
   const modeBtn = (mode: string, label: string, icon: React.ReactNode, title: string) => (
     <button

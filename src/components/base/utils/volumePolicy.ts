@@ -67,7 +67,6 @@ export const SAFE_BUDGET_BYTES: number = 2 * 1024 * 1024;
 /** L3 单次降级允许的最大截断/剥离轮数（防病态输入死循环） */
 const BUDGET_MAX_ITER: number = 8;
 /** 超预算后逐层剥离的可丢弃字段名（按代价从低到高，先丢无用户语义的瞬时数据） */
-const TRANSIENT_FIELDS: string[] = ['pending', 'steerQueue', 'streaming'];
 
 /** 截断字符串到 max 字符，超长补省略标记（保留语义可读性；纯函数） */
 export function truncateTo(str: string, max: number): string {

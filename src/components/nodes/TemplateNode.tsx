@@ -15,7 +15,7 @@ import FullscreenModal from '../base/panels/FullscreenModal.tsx';
 import FullscreenEditor from '../base/panels/FullscreenEditor.tsx';
 import GeneratingOverlay from '../base/ui/GeneratingOverlay.tsx';
 // ═══ 基座 hook（统一范式）═══
-import { useNodeResize, useOutsideClick } from '../base/core/uiHooks.ts';
+import { useNodeResize } from '../base/core/uiHooks.ts';
 import { useConnectedInputs } from '../../hooks/useConnectedInputs.ts';
 import { useMediaDegrade } from '../../hooks/useMediaDegrade.ts';
 import { useGenerateNode } from '../../hooks/useGenerateNode.ts';
@@ -159,7 +159,11 @@ function TemplateNode({ id, data, selected }: TemplateNodeProps) {
     () => mergeRefImages(connected.images, data.images),
     [connected.images, data.images],
   );
-  const refTexts = [...(connected.texts || []), ...(data.texts?.length ? data.texts : [])];
+  // useMemo 稳定化：展开 `[...]` 每渲染生成新数组，作依赖会导致下游 useMemo 每渲染重算
+  const refTexts = useMemo(
+    () => [...(connected.texts || []), ...(data.texts?.length ? data.texts : [])],
+    [connected.texts, data.texts],
+  );
   // 注意：effectivePrompt 依赖下方声明的 prompt state，故计算延后到 prompt 初始化之后
 
   // ─── 2. ReactFlow 数据写回（统一范式）───

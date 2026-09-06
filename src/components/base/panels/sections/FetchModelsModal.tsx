@@ -35,7 +35,7 @@ export default function FetchModelsModal({
   open,
   fetched,
   existing,
-  fetching,
+  fetching: _fetching,
   onClose,
   onConfirm,
 }) {
@@ -93,7 +93,7 @@ export default function FetchModelsModal({
     for (const cat of CATS) {
       const existMap = new Map((existing?.[cat.key] || []).map((m) => [modelId(m), m]));
       const fetchedMap = new Map((fetchedList[cat.key] || []).map((m) => [modelId(m), m]));
-      const ids = new Set([
+      new Set([
         ...(fetchedList[cat.key] || []).map(modelId),
         ...selected[cat.key], // 含已存在但本次未拉到的（它们未必在 fetchedList 里）
       ]);

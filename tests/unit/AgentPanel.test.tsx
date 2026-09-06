@@ -47,7 +47,7 @@ const h = vi.hoisted(() => {
   };
 
   const send = vi.fn(async () => ({ ok: true }));
-  const sendImageMode = vi.fn(async () => ({ ok: true }));
+  vi.fn(async () => ({ ok: true }));
   const stop = vi.fn();
   const clear = vi.fn();
   // 统一确认层（confirmStore.askConfirm）可控答案。

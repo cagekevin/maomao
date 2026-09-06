@@ -12,7 +12,6 @@ import {
   Unlock,
 } from 'lucide-react';
 import {
-  JOINT_DEFINITIONS,
   JOINT_GROUPS,
   RIG_PRESET_GROUPS,
   RIG_PRESET_OPTIONS,

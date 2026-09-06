@@ -5,7 +5,7 @@
  *       ③ 点击 crop/edit → setEditor 设对应 tool → renderEditor 渲染 ImageEditor
  *       ④ 压缩/裁剪写回走 onImageReplaced 回调（解耦写回方式）
  */
-import React from 'react';
+import 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 
@@ -14,10 +14,10 @@ import { useImageHoverActions } from '../../src/components/nodes/useImageHoverAc
 // 依赖 stub（hook 内部 import 的真实模块，测试中用轻量替身）
 vi.mock('../../src/components/base/editors/ImageEditor.tsx', () => ({ default: () => null }));
 vi.mock('../../src/components/base/utils/imageCompress.ts', () => ({
-  compressImage: async (url) => ({ dataUrl: 'data:compressed', size: 1, originalSize: 2 }),
+  compressImage: async (_url) => ({ dataUrl: 'data:compressed', size: 1, originalSize: 2 }),
 }));
 vi.mock('../../src/components/base/utils/imageUpscale.ts', () => ({
-  upscaleImage: async (url) => ({ dataUrl: 'data:upscaled' }),
+  upscaleImage: async (_url) => ({ dataUrl: 'data:upscaled' }),
 }));
 vi.mock('../../src/components/base/api/filesApi.ts', () => ({
   saveInlineToLocal: async () => 'local://saved',

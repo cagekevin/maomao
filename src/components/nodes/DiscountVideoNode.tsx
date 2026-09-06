@@ -6,12 +6,8 @@ import {
   Expand,
   Download,
   Trash2,
-  Play,
   AlertCircle,
   Settings,
-  Link as LinkIcon,
-  RefreshCw,
-  Coins,
   Layers,
 } from 'lucide-react';
 import NodeShell from '../base/ui/NodeShell.tsx';
@@ -36,7 +32,7 @@ import { useNodeResize, useOutsideClick } from '../base/core/uiHooks.ts';
 import { useConnectedInputs } from '../../hooks/useConnectedInputs.ts';
 import { useMediaDegrade } from '../../hooks/useMediaDegrade.ts';
 import { useVideoPoster } from '../../hooks/useVideoPoster.ts';
-import LazyImage from '../base/ui/LazyImage.tsx';
+import '../base/ui/LazyImage.tsx';
 import VideoThumbnail from '../base/ui/VideoThumbnail.tsx';
 import ImageZoomDialog from '../base/editors/ImageZoomDialog.tsx';
 import { useGenerateNode } from '../../hooks/useGenerateNode.ts';
@@ -52,14 +48,6 @@ import { debounce, buildEffectivePrompt, clampSeconds } from '../base/core/utils
  * 保留差异化：主显示区、比例/分辨率/时长菜单、素材区、提示词输入。
  * 性能降级用通用 useMediaDegrade：lodLevel>=3 藏视频（与官方横幅 yt===3 一致）。
  */
-/** 参考图素材形态（MaterialStrip / PromptInput 共用） */
-interface RefImage {
-  id: string;
-  url: string;
-  label?: string;
-  sourceNodeId?: string;
-}
-
 /** 参考文本形态（resolvePromptChips 要求 id/label 必填） */
 interface RefText {
   id: string;
@@ -99,7 +87,11 @@ function DiscountVideoNode({ id, data, selected }: DiscountVideoNodeProps) {
   // 通用连线数据传递：读取直接上游节点的图片/文本作为参考素材
   const connected = useConnectedInputs(id);
   // 上游文本合并（多个文本节点自动聚合；data.texts 额外资产也并入），作为提示词的一部分
-  const refTexts = [...(connected.texts || []), ...(data.texts?.length ? data.texts : [])];
+  // useMemo 稳定化：展开 `[...]` 每渲染生成新数组，作依赖会导致下游 useMemo 每渲染重算
+  const refTexts = useMemo(
+    () => [...(connected.texts || []), ...(data.texts?.length ? data.texts : [])],
+    [connected.texts, data.texts],
+  );
   const { setEdges, setNodes, getNode, getNodes, getEdges } = useReactFlow();
   // 画布历史（undo）：与 VideoProcessNode 的 spawn 语义一致，供 spawnDepthVideoNode 原子提交
   const history = useCanvasEdges();
@@ -125,7 +117,7 @@ function DiscountVideoNode({ id, data, selected }: DiscountVideoNodeProps) {
   const effectivePrompt = buildEffectivePrompt(prompt, refTexts);
   // 【富文本芯片解析】prompt 里可能含 `@{id:label}` 素材芯片（图片 → 参考图，文本 → 纯文本）。
   // 生成前统一解析：chipResolved.text 是发给 AI 的纯文本；chipResolved.refImages 是用户显式 @ 的参考图。
-  const connectedImages = connected.images || [];
+  const connectedImages = useMemo(() => connected.images || [], [connected.images]);
   const chipResolved = useMemo(
     () => resolvePromptChips(effectivePrompt, connectedImages, refTexts),
     [effectivePrompt, connectedImages, refTexts],

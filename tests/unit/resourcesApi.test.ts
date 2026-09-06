@@ -94,7 +94,7 @@ describe('deleteResource', () => {
 describe('saveResource', () => {
   it('POST JSON body', async () => {
     const fetchMock = mockFetchOnce({ ok: true });
-    const res = await ra.saveResource({ id: '1', isFavorite: true });
+    await ra.saveResource({ id: '1', isFavorite: true });
     const [reqUrl, init] = fetchMock.mock.calls[0];
     expect(reqUrl).toBe(`${API_BASE}/api/resources/save`);
     expect(init.method).toBe('POST');

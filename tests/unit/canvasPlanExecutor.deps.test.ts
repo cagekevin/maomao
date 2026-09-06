@@ -9,7 +9,7 @@ vi.mock('../../src/components/base/store/taskStore.ts', () => ({
 import { executePlan } from '../../src/components/agent/canvas/canvasPlanExecutor.ts';
 import type { CanvasHostCtx } from '../../src/components/agent/canvas/canvasHost.ts';
 import type { Node, Edge } from '@xyflow/react';
-import { runNodeGeneration } from '../../src/components/base/store/taskStore.ts';
+import '../../src/components/base/store/taskStore.ts';
 
 // 本地对齐 canvasPlanExecutor.GenerationStep 的形状（未导出），仅用于测试构造入参
 type GenStep = {

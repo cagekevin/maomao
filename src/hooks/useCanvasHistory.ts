@@ -33,7 +33,7 @@ export function useCanvasHistory(
   apply: (snapshot: CanvasSnapshot) => void,
 ): CanvasHistoryApi {
   // React state 镜像（供渲染 canUndo/canRedo 与 record 闭包用）
-  const [version, setVersion] = useState(0);
+  const [_version, setVersion] = useState(0);
   // 纯类实例：真实历史栈（不随渲染重建）
   const stackRef = useRef(new HistoryStack<CanvasSnapshot>());
   const suppressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);

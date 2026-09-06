@@ -31,7 +31,7 @@ export default function AssistantTablePreviewCard({
       </div>
       {preview.globalStyle && (
         <div className="gs-line">
-          <b>全局风格：</b>
+          <b>全局：</b>
           <span>{preview.globalStyle}</span>
         </div>
       )}

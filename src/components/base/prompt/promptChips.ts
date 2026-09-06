@@ -242,7 +242,7 @@ export function resolvePromptChips(
 
   const text = String(rawPrompt || '').replace(
     PROMPT_CHIP_RE,
-    (_match: string, id: string, label: string) => {
+    (_match: string, id: string, _label: string) => {
       const imgUrl = imgById.get(id);
       if (imgUrl) {
         let idx = imageKeyToIndex.get(id);

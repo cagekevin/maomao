@@ -54,10 +54,10 @@ interface UseImageHoverActionsArgs {
 }
 
 export function useImageHoverActions({
-  id,
+  id: _id,
   url,
   hasImage,
-  label,
+  label: _label,
   onImageReplaced,
 }: UseImageHoverActionsArgs) {
   const [editor, setEditor] = useState(null); // 全屏 ImageEditor（重编辑入口，保留）

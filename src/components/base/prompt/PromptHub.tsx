@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { X, ChevronLeft, ImageOff, RefreshCw } from 'lucide-react';
+import { ChevronLeft, ImageOff, RefreshCw } from 'lucide-react';
 import {
   getCachedPromptHub,
   loadPromptHub,
@@ -198,7 +198,7 @@ type HubStatus = 'idle' | 'loading' | 'ready' | 'error';
 function PromptHub() {
   const [items, setItems] = useState<Prompt[]>([]);
   const [status, setStatus] = useState<HubStatus>('idle');
-  const [error, setError] = useState('');
+  const [_error, setError] = useState('');
   const [sourceFilter, setSourceFilter] = useState('all');
   const [openId, setOpenId] = useState<string | null>(null);
 
@@ -238,7 +238,7 @@ function PromptHub() {
     };
   }, []);
 
-  const retry = useCallback(() => {
+  useCallback(() => {
     setStatus('loading');
     setError('');
     loadPromptHub()

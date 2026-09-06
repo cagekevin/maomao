@@ -1,8 +1,8 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { Canvas } from '@react-three/fiber';
-import { useReactFlow, useStore } from '@xyflow/react';
+import { useReactFlow } from '@xyflow/react';
 import { createPortal } from 'react-dom';
-import { Globe, Maximize2, X, Camera, Scan, Grid3X3, CircleDot, Settings } from 'lucide-react';
+import { Globe, X, Camera, Scan, Grid3X3, CircleDot, Settings } from 'lucide-react';
 import NodeShell from '../base/ui/NodeShell.tsx';
 import HoverToolbar from '../base/panels/HoverToolbar.tsx';
 import { useConnectedInputs } from '../../hooks/useConnectedInputs.ts';

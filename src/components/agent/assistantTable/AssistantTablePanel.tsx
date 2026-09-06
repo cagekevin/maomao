@@ -58,8 +58,6 @@ export interface AssistantTablePanelProps {
   onSelectRow?: (rowId: string | null) => void;
   /** 某行 → 发送到画布（AgentPanel 传 sendContentToCanvas，内部 rowToText 拼好文字） */
   onSendToCanvas?: (text: string) => void;
-  /** 让输入框聚焦（"用 AI 生成"入口的引导） */
-  onFocusComposer?: () => void;
 }
 
 export default function AssistantTablePanel({
@@ -67,7 +65,6 @@ export default function AssistantTablePanel({
   previewing = false,
   onSelectRow,
   onSendToCanvas,
-  onFocusComposer,
 }: AssistantTablePanelProps) {
   // ── 响应式读 store ──
   const activeConversationId = useStoreSelector(
@@ -313,7 +310,7 @@ export default function AssistantTablePanel({
   return (
     <section className="sb" style={{ width }}>
       <div className="sb-head">
-        {/* 顶部单行：全局风格 +（正式页）行数 / 新增一行；粘贴 / 用 AI 生成仅见于空态下方 */}
+        {/* 顶部单行：全局风格 +（正式页）行数 / 新增一行；粘贴入口仅见于空态下方 */}
         <div className="sb-bar">
           <div className="gs">
             <span className="gs-l">
@@ -331,7 +328,7 @@ export default function AssistantTablePanel({
                 <line x1="2" y1="12" x2="22" y2="12" />
                 <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
               </svg>
-              全局风格
+              全局
             </span>
             <input
               className={`gs-v ${styleDraft ? '' : 'is-ph'}`}
@@ -414,22 +411,12 @@ export default function AssistantTablePanel({
           <p>
             {previewing
               ? '预览不改正式表 —— 确认才是唯一写回闸口'
-              : '粘贴一段带表头的文字（首行=列名），<br/>或在右侧对话里描述需求让 AI 设计表头并填充'}
+              : '粘贴一段带表头的文字（首行=列名），或在右侧对话里描述需求让 AI 设计表头并填充'}
           </p>
           {previewing ? null : (
             <div className="acts">
               <button type="button" className="tb" onClick={handlePaste}>
                 粘贴表格
-              </button>
-              <button
-                type="button"
-                className="tb primary"
-                onClick={() => {
-                  onFocusComposer?.();
-                  showToast?.('在右侧对话框发需求，AI 生成整表');
-                }}
-              >
-                让 AI 生成
               </button>
             </div>
           )}

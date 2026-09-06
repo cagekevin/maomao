@@ -389,7 +389,7 @@ describe('scriptBoxEngine · 引擎编排', () => {
   it('onStopScriptItem 全停：中止所有 AbortController', async () => {
     const { chatCompletions } = await import('@/components/base/api/generate.ts');
     vi.mocked(chatCompletions).mockImplementationOnce(() => new Promise(() => {})); // 永不 resolve，保持运行
-    const { engine, store } = makeEngine({ story: '长跑剧情' });
+    const { engine, store: _store } = makeEngine({ story: '长跑剧情' });
     const p = engine.onGenerateScript(); // 触发一次生成并挂起
     // 等待引擎进入请求（abortMap 注册 'script'）
     await new Promise((r) => setTimeout(r, 20));

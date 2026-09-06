@@ -23,7 +23,7 @@ const h = vi.hoisted(() => {
   const setNodesMock = vi.fn((updater) => {
     state.nodes = typeof updater === 'function' ? updater(state.nodes) : updater;
   });
-  const applyMosaicMock = vi.fn(async (url, opts) => ({
+  const applyMosaicMock = vi.fn(async (_url, _opts) => ({
     dataUrl: 'data:image/png;base64,AAAA',
     faceCount: 2,
   }));
@@ -76,7 +76,7 @@ vi.mock('../../src/components/base/utils/faceMosaic.ts', () => ({
   MOSAIC_PALETTE: ['#000000', '#ffffff'],
 }));
 vi.mock('../../src/components/base/editors/FaceMosaicEditor.tsx', () => ({
-  default: ({ imageUrl, onSave, onClose }) =>
+  default: ({ imageUrl: _imageUrl, onSave, onClose }) =>
     React.createElement(
       'div',
       { 'data-testid': 'mosaic-editor' },

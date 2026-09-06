@@ -1,9 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import {
-  useCanvasAgentTools,
-  getGenParams,
-  setCurrentReferenceImages,
-} from '../canvas/useCanvasAgentTools.ts';
+import { useCanvasAgentTools, setCurrentReferenceImages } from '../canvas/useCanvasAgentTools.ts';
 import { loadAgentChatModel, loadAgentHistoryTurns } from '../../base/store/agentModelStore.ts';
 import { logger } from '../../base/core/logger.ts';
 import { withTimeout } from '../../base/utils/asyncGuard.ts';
@@ -518,7 +514,8 @@ export function useAgentChat({
         callIdFor,
       );
     },
-    [callTool, appendMsg, model],
+    // appendMsg 是模块级 import 函数（稳定），不属于渲染依赖
+    [callTool, model],
   );
 
   // ── 「记」：分层压缩历史→memory.summary（照搬参考项目，fire-and-forget，不阻塞主流程）──
@@ -860,22 +857,8 @@ export function useAgentChat({
       }
     },
     // 依赖：roundTrip 闭包了 model/provider/toolSchemas；sendRef 用于 steer 续跑（下方 useRef 保持最新）
-    [
-      sending,
-      model,
-      roundTrip,
-      callTool,
-      runToolCalls,
-      appendMsg,
-      setHistory,
-      updateLastStreaming,
-      endStreaming,
-      stripStreaming,
-      agentKey,
-      provider,
-      isAgentBusy,
-      maybeCompressSummary,
-    ],
+    // 已删不必要的稳定依赖（appendMsg/callTool/endStreaming/sending/setHistory/stripStreaming/updateLastStreaming）
+    [model, roundTrip, runToolCalls, agentKey, provider, isAgentBusy, maybeCompressSummary],
   );
 
   /** 保存 send 引用，供 finally 里自动处理 steer 队列（useCallback 无法自调用） */
@@ -925,7 +908,8 @@ export function useAgentChat({
       /* ignore */
     }
     stateMachineRef.current.setStatus('idle');
-  }, [agentKey, setHistory, setAwaitingConfirm, clearCreditGate]);
+    // agentKey/setHistory/setAwaitingConfirm/clearCreditGate 均为稳定/模块级引用，非渲染依赖
+  }, []);
 
   /** 确认「记」长期记忆：memory_suggest 门禁卡片点确认后落库（agentKey 全局，不分项目）。
    *  从会话暂存读建议 → saveProjectMemory 落库 → 清暂存 + 关确认门禁。
@@ -959,7 +943,7 @@ export function useAgentChat({
       contentLen: (saved.content || '').length,
     });
     return { ok: true };
-  }, [agentKey, model, appendMsg]);
+  }, [agentKey, model]); // appendMsg 是模块级 import 函数（稳定），不属于渲染依赖
 
   // 对话切换公共流程（#9）：capture 当前 → 经 store 得到新对话 → 重置 error，重载状态机
   //（load 隔离各对话状态），通知 UI 层恢复 skills/草稿。
@@ -973,7 +957,7 @@ export function useAgentChat({
       stateMachineRef.current.load(targetId);
       onConversationChangeRef.current?.(snapshot);
     },
-    [setHistory],
+    [], // setHistory 是模块级 import 函数（稳定），其余走 ref，非渲染依赖
   );
 
   /** 新建对话（#9）：capture 当前 → 建空对话并切换；通知 UI 层更新 skills/草稿 */
@@ -1034,7 +1018,7 @@ export function useAgentChat({
         /* ignore */
       }
     },
-    [setHistory],
+    [], // setHistory 是模块级 import 函数（稳定），非渲染依赖
   );
 
   // 【补跑唯一入口（D8）】对「节点已建好、待点生成」的积分确认态真正触发生成。
@@ -1057,7 +1041,8 @@ export function useAgentChat({
       setAwaitingConfirm(false);
       if (assistantContent) updateMessageByContent(assistantContent, { awaiting_confirm: false });
     },
-    [setActivePendingMemorySuggest, setAwaitingConfirm, updateMessageByContent],
+    // setActivePendingMemorySuggest/setAwaitingConfirm 为稳定 setter，无需声明依赖
+    [updateMessageByContent],
   );
 
   // 【发到画布】把一段文本内容建成 textNode（内容落生成区 data.text，抽屉收起）。

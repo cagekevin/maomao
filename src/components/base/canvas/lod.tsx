@@ -98,6 +98,7 @@ export default function LodProvider({ enablePerformanceMode = true, nodeCount = 
   };
   const memoValue = React.useMemo(
     () => v,
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 返回 v 本体但按关键字段细粒度缓存：v 每渲染新建对象，若把 v 列入依赖则 memo 永远重算（意图失效）
     [v.lodLevel, v.viewportMoving, v.nodeCount, v.handleFollowLimit, v.edgeFxLimit, v.useThumbnail],
   );
   return <LodContext.Provider value={memoValue}>{children}</LodContext.Provider>;

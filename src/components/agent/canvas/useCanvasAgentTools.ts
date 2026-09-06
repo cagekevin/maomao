@@ -3,7 +3,7 @@ import { useReactFlow } from '@xyflow/react';
 import { registerTool, getTools, type ToolResult } from '../../base/canvas/toolRegistry.ts';
 import { defaultNodeData } from '@/components/base/canvas/NodePalette';
 import { runNodeGeneration } from '../../base/store/taskStore.ts';
-import { createGroupFromNodes, deleteNodesWithCascade } from '@/components/base/canvas/groupNodes';
+import '@/components/base/canvas/groupNodes';
 import { createCanvasHost } from './canvasHost.ts';
 import { executePlan } from './canvasPlanExecutor.ts';
 import {
@@ -18,15 +18,11 @@ import {
   getAwaitingConfirm,
   setAwaitingConfirm,
   getCurrentGlobalContract,
-  setCurrentGlobalContract,
   getCurrentArtifacts,
-  setCurrentArtifacts,
   getCurrentRefImages,
   setCurrentRefImages,
   getLastUserReferenceImages,
   getCurrentImageMap,
-  getCurrentRunMode,
-  getCurrentSnapshot,
   getCreditGate,
   setCreditGate,
   clearCreditGate,
@@ -34,10 +30,7 @@ import {
 } from '../conversation/conversationStore.ts';
 import { rowToObj } from '../assistantTable/assistantTable.ts';
 // ═══ 补充 import（拆行放置，避免挤爆单行）═══
-import {
-  getActivePendingMemorySuggest,
-  setActivePendingMemorySuggest,
-} from '../conversation/conversationStore.ts';
+import { setActivePendingMemorySuggest } from '../conversation/conversationStore.ts';
 // 「记」项目记忆：记忆类别枚举 + 脱敏函数（memory_suggest 工具校验/脱敏用）
 import { PROJECT_MEMORY_KINDS, sanitizeMemoryContent } from '../runtime/projectMemoryStore.ts';
 import { contentGet, contentSet } from '../../base/core/contentStore.ts';
@@ -315,7 +308,6 @@ const MUTATING_TOOLS = new Set([
   'execute_plan', // 多步编排：一次改多个节点，整体入 AI 撤销栈（undo_ai 可整体撤回）
 ]);
 /** AI 撤销栈上限（分组事务可回滚步数）；【Step D】栈存在 conversationStore per-conversation，不再模块级 */
-const MAX_AI_UNDO = 20;
 
 // update_node 白名单字段（对齐官方 update_node，防 LLM 乱改任意 data 造成失同步）。
 // 提为模块常量：避免每次 execute 重建数组；description/parameters 与之一致（含 locked）。
@@ -855,14 +847,12 @@ const listEdgesTool = {
   description: '列出画布上所有连线，返回 source/target 关系。',
   parameters: { type: 'object', additionalProperties: false, properties: {}, required: [] },
   execute(args, ctx) {
-    const edges = ctx
-      .getEdges()
-      .map((e) => ({
-        id: e.id,
-        source: e.source,
-        target: e.target,
-        sourceHandle: e.sourceHandle || null,
-      }));
+    const edges = ctx.getEdges().map((e) => ({
+      id: e.id,
+      source: e.source,
+      target: e.target,
+      sourceHandle: e.sourceHandle || null,
+    }));
     return { ok: true, data: { edges } };
   },
 };
@@ -906,14 +896,12 @@ const readCanvasTool = {
       audioUrl: n.data?.audioUrl || undefined,
       resultUrl: n.data?.resultUrl || undefined,
     }));
-    const edges = ctx
-      .getEdges()
-      .map((e) => ({
-        id: e.id,
-        source: e.source,
-        target: e.target,
-        sourceHandle: e.sourceHandle || null,
-      }));
+    const edges = ctx.getEdges().map((e) => ({
+      id: e.id,
+      source: e.source,
+      target: e.target,
+      sourceHandle: e.sourceHandle || null,
+    }));
     return { ok: true, data: { nodes, edges } };
   },
 };

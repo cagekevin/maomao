@@ -26,7 +26,7 @@ const MANGA = {
 
 describe('exportText', () => {
   it('导出含 __meta + 全字段 + 格式化 JSON', () => {
-    const { text, filename } = exportText(MANGA);
+    const { text, filename: _filename } = exportText(MANGA);
     const obj = JSON.parse(text);
     expect(obj.__meta.type).toBe('scriptbox-playbook');
     expect(obj.__meta.exportedAt).toBeTypeOf('number');

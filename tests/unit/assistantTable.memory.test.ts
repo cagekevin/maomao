@@ -5,7 +5,6 @@ import {
   resetConversationCache,
   ensureActiveConversation,
   applyConversation,
-  setAgentKey,
   newConversation,
   switchConversation,
 } from '../../src/components/agent/conversation/conversationStore.ts';

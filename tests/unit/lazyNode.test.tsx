@@ -12,7 +12,7 @@
  *  - 【源码级】NodePalette 不得再静态 import 重依赖节点
  *  - 【App 级】App.jsx 不得再静态 import Director3DNode
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import fs from 'node:fs';
 import path from 'node:path';

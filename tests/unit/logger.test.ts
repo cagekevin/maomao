@@ -123,10 +123,9 @@ describe('logger §日志格式', () => {
 });
 
 describe('logger §taskId/nodeId 提取', () => {
-  let infoSpy, fetchMock;
+  let fetchMock;
 
   beforeEach(() => {
-    infoSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
     fetchMock = vi.fn(() => Promise.resolve({ ok: true }));
     vi.stubGlobal('fetch', fetchMock);
   });
@@ -164,10 +163,9 @@ describe('logger §taskId/nodeId 提取', () => {
 });
 
 describe('logger §上报去重', () => {
-  let infoSpy, fetchMock;
+  let fetchMock;
 
   beforeEach(() => {
-    infoSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
     fetchMock = vi.fn(() => Promise.resolve({ ok: true }));
     vi.stubGlobal('fetch', fetchMock);
   });
@@ -197,13 +195,6 @@ describe('logger §上报去重', () => {
 });
 
 describe('logger §上报失败静默', () => {
-  let infoSpy, errorSpy;
-
-  beforeEach(() => {
-    infoSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-    errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-  });
-
   it('fetch 拒绝时不抛错（catch 吞掉）', () => {
     const fetchMock = vi.fn(() => Promise.reject(new Error('network down')));
     vi.stubGlobal('fetch', fetchMock);
@@ -222,10 +213,9 @@ describe('logger §上报失败静默', () => {
 });
 
 describe('logger §上报地址与内容', () => {
-  let infoSpy, fetchMock;
+  let fetchMock;
 
   beforeEach(() => {
-    infoSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
     fetchMock = vi.fn(() => Promise.resolve({ ok: true }));
     vi.stubGlobal('fetch', fetchMock);
   });

@@ -146,8 +146,8 @@ describe('accountsStore §4 多开账号管理', () => {
       expect(after.name).toBe('即梦小号');
     });
     it('moveEnv 调换顺序', async () => {
-      const e1 = await createEnv('A');
-      const e2 = await createEnv('B');
+      await createEnv('A');
+      await createEnv('B');
       const ids0 = mod.useAccounts().envs.map((e) => e.id);
       mod.moveEnv(0, 1);
       const ids1 = mod.useAccounts().envs.map((e) => e.id);

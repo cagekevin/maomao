@@ -14,7 +14,7 @@
  *  - data.videoUrl 外部写入 → 同步本地 state 显示缩略图
  */
 import React from 'react';
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 
 // 捕获 setNodes/setEdges 传入的 updater 并执行，得到更新后的 nodes/edges（供断言 data 变更）
@@ -103,7 +103,10 @@ vi.mock('../../src/components/base/prompt/PromptInput.tsx', async (importOrigina
     // 显式给 forwardRef 加泛型：否则 ref 是 ForwardedRef<unknown>，
     // 赋给 textarea 的 Ref<HTMLTextAreaElement> 报 TS2322
     default: ReactMock.forwardRef<HTMLTextAreaElement, MockPromptInputProps>(
-      function MockPromptInput({ value, onChange, onInsert, onReady, placeholder }, ref) {
+      function MockPromptInput(
+        { value, onChange, onInsert: _onInsert, onReady, placeholder },
+        ref,
+      ) {
         ReactMock.useEffect(() => {
           onReady?.((asset) => {
             // asset 形参为 unknown，访问 label 前窄化（对象型才读 label）

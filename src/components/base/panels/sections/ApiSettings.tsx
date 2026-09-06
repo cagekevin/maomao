@@ -65,7 +65,7 @@ export default function ApiSettings() {
 
   React.useEffect(() => {
     let cancelled = false;
-    load().catch((e) => {
+    load().catch((_e) => {
       if (!cancelled) showToast('加载服务商失败', { type: 'error' });
     });
     return () => {

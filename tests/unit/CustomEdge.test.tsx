@@ -12,7 +12,7 @@
  *  - markerEnd 字符串透传给主线
  */
 import React from 'react';
-import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 
 const h = vi.hoisted(() => {

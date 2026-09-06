@@ -8,7 +8,7 @@
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
-import type { Node, Edge } from '@xyflow/react';
+import '@xyflow/react';
 import type { CanvasSnapshot } from '../../src/hooks/useCanvasHistory.ts';
 
 const { useCanvasHistory } = await import('../../src/hooks/useCanvasHistory.ts');

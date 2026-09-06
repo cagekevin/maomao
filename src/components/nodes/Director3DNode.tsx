@@ -51,7 +51,7 @@ function Director3DNode({ id, data, selected }: Director3DNodeProps) {
   const imageUrl = toAbsoluteFileUrl(data.imageUrl || '') || null;
 
   // 输入全景图 URL：连接上游图片 或 已保存
-  const inputImage = useMemo(() => {
+  useMemo(() => {
     // 上游图片（图片节点 / 图片盒子 / 视频抽帧等）作为全景背景。
     // 兼容三种形式：http(s) URL / data: base64 / 相对 /files/ 路径（补全为绝对 URL）。
     const src = connected.images?.find((im) => im?.url)?.url;

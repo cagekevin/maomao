@@ -206,7 +206,6 @@ describe('缺陷②：collectAssets 用用户真实文本', () => {
 // 隐藏 bug 探索
 // ═══════════════════════════════════════════════════════════════════
 describe('隐藏 bug 探索：collectAssets / module', () => {
-  const shot = { description: '深夜@卧室内' };
   const assets = [{ id: 'a1', name: '卧室', imageUrl: '/files/room.png' }];
 
   it('隐藏 bug①：shot.dialogue 是数组 → collectAssets 文本拼接成 "[object Object]"（@资产写在对白里无法收集）', () => {

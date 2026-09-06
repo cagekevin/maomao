@@ -31,7 +31,6 @@ import {
 beforeEach(() => {
   vi.useFakeTimers();
   // 清残留 poller（模块级 Map 跨用例累积）
-  const handles: string[] = [];
   // 无法直接遍历 Map，用 ensurePolling 返回句柄测试后统一 stopPolling；
   // 兜底：清空 module 内注册需在每用例用到的 taskId 上 stop（见各用例清理）
 });
@@ -68,7 +67,7 @@ describe('ensurePolling · 注册表去重（一个 taskId 只有一个 poller�
   it('register 返回 true(终态) → poller 自停并释放注册', async () => {
     // 首轮即到终态：register 只应被调 1 次左右，之后注册释放
     const registered = vi.fn(async () => true);
-    const h = ensurePolling('term-task', {
+    ensurePolling('term-task', {
       register: registered,
       pollIntervalMs: 100,
       timeoutMs: 10000,
@@ -85,7 +84,7 @@ describe('ensurePolling · 注册表去重（一个 taskId 只有一个 poller�
 describe('ensurePolling · 总超时强停', () => {
   it('register 永不终态 → 超时后 poller 自停释放（防无限挂起）', async () => {
     const registered = vi.fn(async () => false);
-    const h = ensurePolling('timeout-task', {
+    ensurePolling('timeout-task', {
       register: registered,
       pollIntervalMs: 20,
       timeoutMs: 100,
@@ -107,7 +106,7 @@ describe('ensurePolling · stopPolling 显式中止与重注册', () => {
 
     // 释放后同 taskId 可再注册新 poller
     const reg2 = vi.fn(async () => true);
-    const h = ensurePolling('stop-task', { register: reg2, pollIntervalMs: 100, timeoutMs: 10000 });
+    ensurePolling('stop-task', { register: reg2, pollIntervalMs: 100, timeoutMs: 10000 });
     expect(isPolling('stop-task')).toBe(true);
     await vi.advanceTimersByTimeAsync(10);
     expect(reg2).toHaveBeenCalledWith('stop-task');
@@ -148,7 +147,7 @@ describe('ensurePolling · 单轮驱动节奏', () => {
 describe('ensurePolling · occupyOnly 纯占位（in-flight 防恢复重复接管）', () => {
   it('occupyOnly 注册后 isPolling=true（恢复扫描据此跳过），且不起定时器/不驱动 register', async () => {
     const registered = vi.fn(async () => false);
-    const h = ensurePolling('inflight-task', {
+    ensurePolling('inflight-task', {
       register: registered,
       occupyOnly: true,
       pollIntervalMs: 10,

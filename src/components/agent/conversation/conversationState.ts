@@ -39,7 +39,7 @@ import {
   estimateConversationsBytes,
   SAFE_BUDGET_BYTES,
 } from '../../base/utils/volumePolicy.ts';
-import { type ChatMessage as AgentChatMessage } from '../runtime/agentCore.ts';
+import '../runtime/agentCore.ts';
 
 /**
  * 存储键按 agentKey 隔离（每项目一个 agentKey → 每项目一套会话）。

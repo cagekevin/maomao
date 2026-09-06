@@ -19,7 +19,7 @@
  *
  * 【返回】parseJson=true（默认）时返回解析后的 JSON；HTTP 非 2xx 抛 HttpError。
  */
-import { withTimeout, TimeoutError, isTimeoutError } from '../utils/asyncGuard.ts';
+import { withTimeout, isTimeoutError } from '../utils/asyncGuard.ts';
 import { logger } from '../core/logger.ts';
 
 /** httpRequest 选项（fetch 统一入口的参数契约） */
@@ -140,7 +140,7 @@ async function readErrorBody(res: Response): Promise<unknown> {
  * @returns {Promise<any>}        解析后的响应体（parseJson=true）或 Response
  * @throws {TimeoutError|NetworkError|HttpError|AbortError}
  */
-export async function httpRequest<T = unknown>(
+export async function httpRequest<_T = unknown>(
   url: string,
   {
     method = 'GET',

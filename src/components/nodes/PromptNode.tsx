@@ -6,11 +6,7 @@ import {
   ZoomIn,
   Send,
   Download,
-  Link as LinkIcon,
   AlertCircle,
-  X,
-  Coins,
-  Zap,
   Camera,
 } from 'lucide-react';
 import NodeShell from '../base/ui/NodeShell.tsx';
@@ -25,7 +21,7 @@ import FullscreenEditor from '../base/panels/FullscreenEditor.tsx';
 import GeneratingOverlay from '../base/ui/GeneratingOverlay.tsx';
 import { NODE_AREA_FIXED_BASE_SIZE } from '../base/core/config.ts';
 import ImageZoomDialog from '../base/editors/ImageZoomDialog.tsx';
-import ImageEditor from '../base/editors/ImageEditor.tsx';
+import '../base/editors/ImageEditor.tsx';
 import { useImageHoverActions } from './useImageHoverActions.tsx';
 import PromptLibraryButton from '../base/prompt/PromptLibraryButton.tsx';
 import { downloadUrl, resolveDownloadFilename } from '../base/utils/clipboard.ts';
@@ -38,7 +34,7 @@ import { useConnectedInputs } from '../../hooks/useConnectedInputs.ts';
 import { useMediaDegrade } from '../../hooks/useMediaDegrade.ts';
 import { useGenerateNode } from '../../hooks/useGenerateNode.ts';
 import { useFitNodeRatio } from '../../hooks/useFitNodeRatio.ts';
-import { toAbsoluteFileUrl } from '../base/api/index.ts';
+import '../base/api/index.ts';
 import { logger } from '../base/core/logger.ts';
 import { fetchTasks } from '../base/api/index.ts';
 import { generateImage } from '../base/api/index.ts';
@@ -123,11 +119,11 @@ function PromptNode({ id, data, selected }: PromptNodeProps) {
     // 合并「连线上游产出」+「剧本盒等塞给本节点的 data.images」时，可能同一批资产图
     // 走了两条路重复进入（同 id，如 script-asset-xxx），mergeRefImages 按 id 去重避免渲染 key 重复。
     () => mergeRefImages(connected.images, data.images),
-    [connected.images, connected.texts, data.images, data.texts],
+    [connected.images, data.images],
   );
   const refTexts = useMemo(
     () => [...(connected.texts || []), ...(data.texts?.length ? data.texts : [])],
-    [connected.texts, connected.images, data.texts, data.images],
+    [connected.texts, data.texts],
   );
 
   // 【修复】上游文本节点连进来时，文字只进入 refTexts（素材区），不会被自动填进 prompt。
@@ -166,7 +162,7 @@ function PromptNode({ id, data, selected }: PromptNodeProps) {
   // 用旧 <img> 尺寸覆盖刚设的正确比例（编辑保存后 aspectRatio 置 Auto 会误触发该 effect）。
   const editedRatioRef = useRef(false);
   // useSyncNodeData（Agent update_node 改 data → 同步本地 state）已收进 useGenerateNode 的 sync 参数，此处不再手写。
-  const { setNodes, setEdges, getEdges, getNodes, addNodes, addEdges } = useReactFlow();
+  const { setNodes, setEdges, getEdges: _getEdges, getNodes, addNodes, addEdges } = useReactFlow();
 
   // 断连线：点击素材缩略图红色 ×，删除该素材来源节点 → 本节点的连线。
   // 仅对来自连线的素材有效（有 sourceNodeId）；data.images（剧本盒子资产）无来源连线，不处理。
@@ -491,35 +487,40 @@ function PromptNode({ id, data, selected }: PromptNodeProps) {
       addEdges([newEdge]);
       setIsCameraStudioOpen(false);
     },
-    [id, setNodes, getNodes, setEdges],
+    [id, getNodes, addNodes, addEdges],
   );
 
   // 共享图片 hover 能力（裁剪/标记/压缩）：写回走 setImageUrl + patchData（不可变落盘）。
-  const { editor, setEditor, renderEditor, renderInlineCropper, imageButtons } =
-    useImageHoverActions({
-      id,
-      url: imageUrl,
-      hasImage,
-      label: data.label,
-      onImageReplaced: (dataUrl, dims) => {
-        // 消费 dims（裁剪/扩图后画布真实尺寸）：用 fitByRatio 让节点框跟随编辑后真实比例，
-        // 并把 aspectRatio 置 'Auto'——这样 useSizeSync 不再按固定比例锁定节点框，也不会把
-        // 自定义 'W:H' 污染到后续生图的比例选择里。Auto 下节点框尺寸由媒体真实比例决定（见 docs/78）。
-        setImageUrl(dataUrl);
-        if (dims?.width && dims?.height) {
-          const w = Math.round(dims.width);
-          const h = Math.round(dims.height);
-          if (w > 0 && h > 0) {
-            editedRatioRef.current = true; // 标记：本次置 Auto 由编辑保存触发，跳过「切 Auto 读图」effect
-            fitByRatio(w, h); // 直接改 node 尺寸跟随图片，等价 ImageNode 消费 dims 的落点
-            setAspectRatio('Auto');
-            patchData({ imageUrl: dataUrl, aspectRatio: 'Auto' });
-            return;
-          }
+  const {
+    editor: _editor,
+    setEditor: _setEditor,
+    renderEditor,
+    renderInlineCropper,
+    imageButtons,
+  } = useImageHoverActions({
+    id,
+    url: imageUrl,
+    hasImage,
+    label: data.label,
+    onImageReplaced: (dataUrl, dims) => {
+      // 消费 dims（裁剪/扩图后画布真实尺寸）：用 fitByRatio 让节点框跟随编辑后真实比例，
+      // 并把 aspectRatio 置 'Auto'——这样 useSizeSync 不再按固定比例锁定节点框，也不会把
+      // 自定义 'W:H' 污染到后续生图的比例选择里。Auto 下节点框尺寸由媒体真实比例决定（见 docs/78）。
+      setImageUrl(dataUrl);
+      if (dims?.width && dims?.height) {
+        const w = Math.round(dims.width);
+        const h = Math.round(dims.height);
+        if (w > 0 && h > 0) {
+          editedRatioRef.current = true; // 标记：本次置 Auto 由编辑保存触发，跳过「切 Auto 读图」effect
+          fitByRatio(w, h); // 直接改 node 尺寸跟随图片，等价 ImageNode 消费 dims 的落点
+          setAspectRatio('Auto');
+          patchData({ imageUrl: dataUrl, aspectRatio: 'Auto' });
+          return;
         }
-        patchData({ imageUrl: dataUrl });
-      },
-    });
+      }
+      patchData({ imageUrl: dataUrl });
+    },
+  });
 
   // hover 操作栏按钮：图片类共享能力(crop/edit/compress)走 useImageHoverActions（带 onClick，修死按钮），
   // zoom/upload/send/jianying/download 按生图节点语义各自声明。

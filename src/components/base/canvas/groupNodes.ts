@@ -247,7 +247,7 @@ export function resolveDragGrouping(draggedNode: Node, nodes: Node[]): Node[] | 
     // 拖出原组：解除 parentId，转绝对坐标（group 保留）
     const parent = cur.find((n) => n.id === draggedNode.parentId);
     if (parent) {
-      const pAbs = absPosOf(parent.id);
+      absPosOf(parent.id);
       cur = cur.map((n) =>
         n.id === draggedNode.id
           ? {

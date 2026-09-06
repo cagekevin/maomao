@@ -6,7 +6,6 @@ import {
   LayoutGrid,
   Columns2,
   RefreshCw,
-  Link2,
   Wand2,
   Copy,
   Check,
@@ -65,7 +64,7 @@ export default function StepPrompt({ data, updateData, callbacks }: StepPromptPr
   const [editing, setEditing] = useState<EditingState | null>(null); // { idx, field, title, base, awaiting }
   const [draft, setDraft] = useState<string | null>(null); // 预览/编辑缓冲：AI 改写结果或人手直接改的内容，点「应用」才写回 shot
   const [chatInput, setChatInput] = useState(''); // 弹窗：下方输入意见（AI 改写用）
-  const [gridPick, setGridPick] = useState<Record<number, number>>({}); // idx -> grid 模式
+  const [_gridPick, _setGridPick] = useState<Record<number, number>>({}); // idx -> grid 模式
   const [selShots, setSelShots] = useState<Set<number>>(new Set());
   const [genType, setGenType] = useState<Record<number, string>>({}); // idx -> 选中的生图类型
   const [copied, setCopied] = useState<Record<number, boolean>>({}); // idx -> 是否已复制
@@ -552,7 +551,7 @@ function ChatEdit({
   shots,
   draft,
   chatInput,
-  assetNames,
+  assetNames: _assetNames,
   onDraft,
   onInput,
   onSend,

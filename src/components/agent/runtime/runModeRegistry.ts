@@ -73,9 +73,10 @@ export function resolveConvRunMode(_wm: unknown): WorkMode {
  */
 
 /** 注册「读当前会话 runMode」钩子（兼容保留；去三态后 getWorkMode 恒 auto，不再读取） */
-let legacyRunModeReader: (() => unknown) | null = null;
+// `_` 前缀 = 官方认可的「有意不用」标记：字段仅为兼容注册点存在，无读取方
+let _legacyRunModeReader: (() => unknown) | null = null;
 export function registerLegacyRunModeReader(fn: unknown): void {
-  legacyRunModeReader = typeof fn === 'function' ? (fn as () => unknown) : null;
+  _legacyRunModeReader = typeof fn === 'function' ? (fn as () => unknown) : null;
 }
 
 /** 注册「写当前会话 runMode」钩子，setWorkMode 原子写时同步 per-conversation runMode（恒 auto） */

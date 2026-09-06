@@ -6,7 +6,6 @@ import {
   capConversationMemory,
   estimateConversationsBytes,
   applyConversationBudget,
-  MSG_CONTENT_MAX,
   LAST_RESULTS_MAX,
   FACTS_MAX,
   ARTIFACTS_MAX,

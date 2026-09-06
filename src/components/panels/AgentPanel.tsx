@@ -7,7 +7,6 @@ import {
   getGenParams,
   getCreditSwitch,
   setCreditSwitch,
-  type UseAgentChatReturn,
 } from '../agent/index.ts';
 import { useProviders, load as loadProviders } from '../base/store/providerStore.ts';
 import AgentMessage from './AgentMessage.tsx';
@@ -71,13 +70,15 @@ const PANEL_WIDTH_KEY = 'agent_panel_width';
 const AGENT_DRAFT_KEY = 'agent_draft';
 const AGENT_SPLIT_WIDTH_KEY = 'agent_split_width'; // 表格模式左右分栏：左栏宽（px）
 const MIN_WIDTH = 320;
-const MAX_WIDTH = 960; // 表格模式需更宽（mockup 待定①：进入表格模式自动加宽）
+const MAX_WIDTH = 1180; // 表格模式需更宽（进入表格模式自动加宽）
 const DEFAULT_WIDTH = 400;
 /** 表格模式打开时若面板过窄，自动加宽到的下限（给左表+右对话并排留空间） */
-const TABLE_OPEN_MIN_WIDTH = 820;
+const TABLE_OPEN_MIN_WIDTH = 1060;
 /** 表格左栏默认宽度 / 可拖拽范围 */
-const SPLIT_DEFAULT = 460;
+const SPLIT_DEFAULT = 600;
 const SPLIT_MIN = 300;
+/** 分栏拖拽时为右侧对话栏预留的最小宽度（表格左栏上限 = 面板宽 - 本值） */
+const RIGHT_MIN_WIDTH = 320;
 
 /** 距底部 <= 该 px 即视为「已到底」：留余量规避小数像素/缩放导致的按钮闪烁 */
 const BOTTOM_EPS = 60;
@@ -250,7 +251,7 @@ export default function AgentPanel({
 
   // ── Skill 系统 ──
   // 只展示已启用的 Skill（设置页中关闭的 Skill 不显示在可选列表里）
-  const [allSkills, setAllSkills] = useState(() =>
+  const [allSkills, _setAllSkills] = useState(() =>
     getAllSkills().filter((s) => isSkillEnabled(s.id)),
   );
   const [activeSkills, setActiveSkills] = useState([]);
@@ -265,6 +266,7 @@ export default function AgentPanel({
   // 且带 hydrated 时序守卫：挂载早期不会用空数据覆盖 localStorage 已有记录）
   useEffect(() => {
     setCurrentSnapshot({ skills: activeSkills });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- setCurrentSnapshot 定义在本 effect 之后（TDZ 依赖数组）
   }, [activeSkills]);
   const applySkill = (skill) => {
     setActiveSkills((prev) => {
@@ -304,7 +306,7 @@ export default function AgentPanel({
     messages,
     sending,
     error,
-    model,
+    model: _model,
     setModel,
     send,
     stop,
@@ -491,7 +493,7 @@ export default function AgentPanel({
   // attachments 变化 → 同步到 conversationStore（自动落盘，带 hydrated 时序守卫）
   useEffect(() => {
     setCurrentSnapshot({ attachments });
-  }, [attachments]);
+  }, [attachments, setCurrentSnapshot]);
 
   // ── 高消耗积分确认闸（creditSwitch）── 2026-08-27 简化定稿
   // 全局开关（默认开）：任何模式下，真正烧积分那下（image/video 生成）都先经用户确认。
@@ -538,7 +540,7 @@ export default function AgentPanel({
       }
     });
     return unsub;
-  }, []);
+  }, [getCreditGate]);
   // 确认生成：走 runExistingPlanTool（D8 补跑唯一入口）。成功后 creditGate 被清除并广播 → 卡片自动收起。
   const handleConfirmCredit = useCallback(async () => {
     const res = await runExistingConfirm();
@@ -614,7 +616,7 @@ export default function AgentPanel({
 
   const [modelOpen, setModelOpen] = useState(false);
   const modelRef = useRef(null);
-  const fileRef = useRef(null);
+  useRef(null);
   const scrollRef = useRef(null);
   const textareaRef = useRef(null);
   // 「回到底部」按钮：atBottom 驱动显隐；atBottomRef 供滚动副作用同步读取最新值（避免闭包读到过期 state）
@@ -673,7 +675,7 @@ export default function AgentPanel({
       const onMove = (ev) => {
         const next = Math.min(
           Math.max(startW + ev.clientX - startX, SPLIT_MIN),
-          Math.max(containerW - 320, SPLIT_MIN),
+          Math.max(containerW - RIGHT_MIN_WIDTH, SPLIT_MIN),
         );
         setTableWidth(next);
       };
@@ -936,7 +938,7 @@ export default function AgentPanel({
     Promise.resolve(send('已确认，请按刚才展示的策划执行。')).catch((e) =>
       logger.error('Agent', '确认后 send 失败', e),
     );
-  }, [send, confirmPendingMemorySuggest, getActivePendingMemorySuggest]);
+  }, [send, confirmPendingMemorySuggest, getActivePendingMemorySuggest, setAwaitingConfirm]);
 
   // 单步失败重试：点击失败 tool 卡片的「重试」，只重跑该 nodeId（复用 taskStore 已注册的生成契约，对齐大雄 retryAgentGeneration）
   const handleRetryStep = useCallback((nodeId) => {
@@ -966,12 +968,12 @@ export default function AgentPanel({
   );
 
   // 快捷建议发送
-  const sendShortcut = (text) => {
+  (text) => {
     setInput(text);
     handleSend(text);
   };
 
-  const handleFiles = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
     setUploading(true);
@@ -1357,7 +1359,6 @@ export default function AgentPanel({
             previewing={!!tbPreview && !tbPreview.resolved}
             onSelectRow={setSelectedRowId}
             onSendToCanvas={sendContentToCanvas}
-            onFocusComposer={focusTextarea}
           />
         )}
         {tableOpen && (

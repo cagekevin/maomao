@@ -30,7 +30,7 @@ const LRM = '‏'; // 左到右标记
 const RLM = '‎'; // 右到左标记
 const SOFT = '­'; // 软连字符
 const BOM = '﻿'; // BOM
-const NBSP = ' '; // 不间断空格（全角风格）
+// 不间断空格（全角风格）
 
 describe('clipboard — sanitizePastedText（纯函数）', () => {
   it('空值/假值返回空串', () => {

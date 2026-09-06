@@ -178,8 +178,8 @@ const ImageZoomDialog = forwardRef(function ImageZoomDialog(
 
   // 视频模式：下载当前帧为图片文件（PNG）。复用 drawVideoFrameToCanvas 抽帧 + downloadBlob 落盘。
   const frameDownloadState = useRef<{ timer: number | null }>({ timer: null });
-  const [frameDl, setFrameDl] = useState<{ status: 'ok' | 'err' | 'busy' } | null>(null);
-  const handleDownloadFrame = useCallback(async () => {
+  const [_frameDl, setFrameDl] = useState<{ status: 'ok' | 'err' | 'busy' } | null>(null);
+  useCallback(async () => {
     const video = imgRef.current as unknown as HTMLVideoElement | null;
     if (!video) return;
     setFrameDl({ status: 'busy' });

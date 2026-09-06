@@ -10,7 +10,7 @@
  *
  * 并发安全：仅用 `npx vitest run tests/unit/canvasHooks.test.js` 验证，不占用共享资源。
  */
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import type { Node } from '@xyflow/react';
 import type { CanvasSnapshot } from '../../src/hooks/useCanvasHistory.ts';
@@ -225,7 +225,7 @@ describe('workflowRuntime createWorkflow 生命周期', () => {
 
   it('cancel 真取消所有运行中任务（AbortController）', () => {
     const wf = createWorkflow({ conversationId: 'c1' });
-    const { signal, cancel } = wf.createTask();
+    const { signal, cancel: _cancel } = wf.createTask();
     expect(signal.aborted).toBe(false);
     wf.cancel();
     expect(signal.aborted).toBe(true);

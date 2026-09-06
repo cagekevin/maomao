@@ -45,7 +45,7 @@ export default function FaceMosaicEditor({ imageUrl, onSave, onClose }: FaceMosa
   const [dims, setDims] = useState({ w: 0, h: 0 });
   const [scale, setScale] = useState(1);
   const [recognizing, setRecognizing] = useState(false);
-  const [dragStart, setDragStart] = useState(null);
+  const [_dragStart, setDragStart] = useState(null);
   const [dragBox, setDragBox] = useState(null);
   const [histIdx, setHistIdx] = useState(0);
   // P3：框选手势期缓存 { rect, batch }；dragBoxRef 供 onPointerUp 读最新框（state 异步，避免差一帧）

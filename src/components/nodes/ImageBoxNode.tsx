@@ -1,11 +1,10 @@
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Box,
   Plus,
   Link as LinkIcon,
   ZoomIn,
-  Send,
   Copy,
   Download,
   Check,
@@ -22,7 +21,7 @@ import { useConnectedInputs } from '../../hooks/useConnectedInputs.ts';
 import { useMediaDegrade } from '../../hooks/useMediaDegrade.ts';
 import LazyImage from '../base/ui/LazyImage.tsx';
 import ImageZoomDialog from '../base/editors/ImageZoomDialog.tsx';
-import { showToast, toastError, toastWarning } from '../base/core/toastStore.ts';
+import { toastError, toastWarning } from '../base/core/toastStore.ts';
 import { loadImageWithTimeout } from '../base/utils/asyncGuard.ts';
 import { generateId } from '../base/core/idGen.ts';
 import { downloadUrl as clipboardDownload } from '../base/utils/clipboard.ts';
@@ -95,10 +94,11 @@ function ImageBoxNode({ id, data, selected }: ImageBoxNodeProps) {
   }, []);
 
   // ---- 从 data 读状态（与官方 Rg.jsx 一致，不复制到本地 state，避免失控）----
-  const images = data.images || [];
+  // useMemo 稳定化：`data.x || []` 每渲染生成新空数组引用，直接作 useCallback 依赖会导致每渲染重建
+  const images = useMemo(() => data.images || [], [data.images]);
   const activeIndex = Math.min(Math.max(0, data.activeIndex ?? 0), Math.max(0, images.length - 1));
   const expanded = data.expanded ?? false;
-  const selectedIds = data.selectedIds || [];
+  const selectedIds = useMemo(() => data.selectedIds || [], [data.selectedIds]);
   const current = images[activeIndex];
 
   // ---- data 写回（统一用 setNodes 不可变更新，与 ImageNode 一致）----

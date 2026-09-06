@@ -175,7 +175,7 @@ describe('relayProxy §R6 — relayGenerate = submit + attach', () => {
     const r = await runWithTimers(p);
     expect(r.value).toEqual({ ok: true, url: '/files/tasks/x.png' });
     // 提交与 attach 请求的 httpRequest options.timeoutMs 都应为 0（不再用默认 15s）
-    for (const [url, opts] of h.mockHttpRequest.mock.calls) {
+    for (const [_url, opts] of h.mockHttpRequest.mock.calls) {
       expect(opts.timeoutMs).toBe(0);
     }
     // 且确实既发过 submit 也发过 attach

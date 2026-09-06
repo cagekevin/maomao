@@ -1,6 +1,5 @@
-import React from 'react';
+import 'react';
 import {
-  Type,
   Image as ImageIcon,
   Clapperboard,
   Box,

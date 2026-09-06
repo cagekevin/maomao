@@ -6,7 +6,7 @@
  *   - enabled=true → 加载视频并 seek 后通过 canvas.toDataURL 产出 poster dataURL
  * 通过 mock document.createElement('video'|'canvas') 触发 onloadeddata→onseeked 时序。
  */
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 
 const { useVideoPoster } = await import('../../src/hooks/useVideoPoster.ts');

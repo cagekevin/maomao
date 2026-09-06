@@ -7,12 +7,10 @@ import {
   Trash2,
   Upload,
   Loader2,
-  Music,
   X,
   Volume2,
   VolumeX,
   Plus,
-  Film,
   AlertCircle,
   X as XIcon,
 } from 'lucide-react';
@@ -289,7 +287,7 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
   );
   const history = useCanvasEdges();
   const { isHidden } = useMediaDegrade();
-  const { onMainBoxResize } = useNodeResize(id);
+  const { onMainBoxResize: _onMainBoxResize } = useNodeResize(id);
   const contentRef = useRef<HTMLDivElement | null>(null);
 
   /* ---------- 状态（复刻官方 1-41 行） ---------- */
@@ -670,6 +668,7 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
       abortRef.current?.abort();
       controllerRef.current?.cancel();
       if (localUrl) previewUrls.release(localUrl);
+      // eslint-disable-next-line react-hooks/exhaustive-deps -- cleanup 读 ref.current 取「卸载时刻最新值」；若在 effect 内捕获旧数组会漏释放后添加的 thumbUrls，规则对 ref 属误报
       thumbUrls.current.forEach((u) => previewUrls.release(u));
     };
   }, [localUrl]);
@@ -980,7 +979,7 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
       );
       spawnAndCommit(spawned, { getNodes, getEdges, setNodes, setEdges, history });
     },
-    [id, getNode, getEdges, setNodes, setEdges, history],
+    [id, getNode, getNodes, getEdges, setNodes, setEdges, history],
   );
 
   const spawnAudioNode = useCallback(
@@ -1005,7 +1004,7 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
       );
       spawnAndCommit(spawned, { getNodes, getEdges, setNodes, setEdges, history });
     },
-    [id, getNode, getEdges, setNodes, setEdges, history],
+    [id, getNode, getNodes, getEdges, setNodes, setEdges, history],
   );
 
   // GIF 结果 spawn 成图片节点（gif 是图片，mediaType:'image'）
@@ -1030,7 +1029,7 @@ function VideoProcessNode({ id, data, selected }: VideoProcessNodeProps) {
       );
       spawnAndCommit(spawned, { getNodes, getEdges, setNodes, setEdges, history });
     },
-    [id, getNodes, getEdges, setNodes, setEdges, history],
+    [id, getNode, getNodes, getEdges, setNodes, setEdges, history],
   );
 
   const handleProcess = useCallback(async () => {

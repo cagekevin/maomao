@@ -664,7 +664,7 @@ function GridSplitNode({ id, data, selected }: GridSplitNodeProps) {
       );
       return spawnAndCommit(spawned, { getNodes, getEdges, setNodes, setEdges, history });
     },
-    [id, getNodes, getEdges, setNodes, setEdges, history],
+    [id, getNode, getNodes, getEdges, setNodes, setEdges, history],
   );
 
   // ---- 批量切分（复刻 Lo.jsx G → onSplit；这里组件内直接生成）----

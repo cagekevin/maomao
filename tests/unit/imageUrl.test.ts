@@ -24,7 +24,7 @@ vi.mock('../../src/components/base/core/logger.ts', () => ({
 // 发送出口会调 compressImage（本地图压缩→base64）。本测试关注「发送归一」的 URL/分支处理，
 // 压缩本身由 imageCompress.test.js 覆盖，这里 mock 掉避免依赖 canvas 浏览器 API。
 vi.mock('../../src/components/base/utils/imageCompress.ts', () => ({
-  compressImage: vi.fn(async (url, opts) => ({
+  compressImage: vi.fn(async (url, _opts) => ({
     dataUrl: `data:image/png;base64,compressed:${url}`,
   })),
 }));

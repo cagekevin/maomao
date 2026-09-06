@@ -500,7 +500,6 @@ export function useAssetDropPaste({
       extractImgFromHtml,
       blobToPastedFile,
       readClipText,
-      isEditableTarget,
     ],
   );
 

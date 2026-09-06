@@ -256,7 +256,7 @@ function MixamoPersonModel({
       mixer: new THREE.AnimationMixer(cloned),
       clips: Object.fromEntries(gltf.animations.map((clip) => [clip.name, clip])),
     };
-  }, [gltf]);
+  }, [gltf, color]);
 
   useLayoutEffect(() => {
     mixer.stopAllAction();

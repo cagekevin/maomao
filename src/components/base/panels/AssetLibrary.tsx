@@ -154,7 +154,7 @@ function AssetLibrary() {
   const [newFolderName, setNewFolderName] = useState('');
   const [renameTarget, setRenameTarget] = useState<ResourceItem | null>(null); // 正在重命名的资源
   const [renameName, setRenameName] = useState('');
-  const [menuItemId, setMenuItemId] = useState<string | null>(null); // 卡片「⋯」菜单打开的卡片 id
+  const [_menuItemId, _setMenuItemId] = useState<string | null>(null); // 卡片「⋯」菜单打开的卡片 id
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);

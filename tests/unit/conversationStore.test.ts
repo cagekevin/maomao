@@ -309,7 +309,7 @@ describe('跨轮图引用数据源（对齐大雄 agentLastUserAttachments / age
   });
 
   it('getCurrentImageMap：上一轮生成图(图1~M) + 当前附件(图M+1~N) 统一编号', () => {
-    const id = setup([
+    setup([
       {
         role: 'assistant',
         content: '生成',

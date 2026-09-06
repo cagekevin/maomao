@@ -10,7 +10,6 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 const mockSetNodes = vi.fn();
 const mockGetNodes = vi.fn(() => []);
 const mockAddNodes = vi.fn();
-let genConfig = null;
 
 vi.mock('@xyflow/react', () => ({
   useReactFlow: () => ({
@@ -23,10 +22,7 @@ vi.mock('@xyflow/react', () => ({
   useStore: vi.fn(() => () => {}),
 }));
 vi.mock('../../src/hooks/useNodeGeneration.ts', () => ({
-  useNodeGeneration: (config) => {
-    genConfig = config;
-    return { loading: false, error: null, stop: vi.fn(), start: vi.fn() };
-  },
+  useNodeGeneration: () => ({ loading: false, error: null, stop: vi.fn(), start: vi.fn() }),
 }));
 // HoverToolbar：把传入的 buttons 数组按 title 渲染成可点击按钮（show=false 不渲染）
 vi.mock('../../src/components/base/panels/HoverToolbar.tsx', () => ({
@@ -94,7 +90,7 @@ vi.mock('../../src/components/base/utils/clipboard.ts', async (importOriginal) =
 // ImageEditor：记录最近渲染的 imageUrl，便于断言「打开编辑器」
 let lastEditorUrl = null;
 vi.mock('../../src/components/base/editors/ImageEditor.tsx', () => ({
-  default: ({ imageUrl, onSave, onClose }) => {
+  default: ({ imageUrl, onSave: _onSave, onClose: _onClose }) => {
     lastEditorUrl = imageUrl;
     return <div data-testid="image-editor" data-url={imageUrl} />;
   },
@@ -102,7 +98,7 @@ vi.mock('../../src/components/base/editors/ImageEditor.tsx', () => ({
 // InlineImageCropper：记录是否打开（就地裁剪浮层）
 let inlineCropperOpen = false;
 vi.mock('../../src/components/base/editors/InlineImageCropper.tsx', () => ({
-  default: ({ imageUrl, onSave, onClose }) => {
+  default: ({ imageUrl, onSave: _onSave, onClose: _onClose }) => {
     inlineCropperOpen = true;
     return <div data-testid="inline-cropper" data-url={imageUrl} />;
   },
@@ -115,7 +111,6 @@ beforeEach(() => {
   mockGetNodes.mockReset();
   mockGetNodes.mockReturnValue([]);
   mockAddNodes.mockClear();
-  genConfig = null;
   lastEditorUrl = null;
   inlineCropperOpen = false;
   // jsdom 无 IntersectionObserver；补一个类型完整的最小实现（DOM lib 已有声明，故无需 as any）

@@ -237,9 +237,9 @@ function addAsset(updateData: ScriptBoxUpdateData, cat: string, assets: ScriptBo
 /** 资产卡：缩略图 + 选中框 + 名称/描述 + 图片上传状态 + more 菜单 */
 function AssetCard({
   asset,
-  idx,
-  data,
-  updateData,
+  idx: _idx,
+  data: _data,
+  updateData: _updateData,
   callbacks,
   render,
   onOpen,

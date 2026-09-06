@@ -95,7 +95,7 @@ export function useContextMenu(): ContextMenuApi {
   );
   // 多选框右键
   const onSelectionContextMenu = useCallback(
-    (e: ReactMouseEvent, nodes: Node[]) => open('selection', null, e),
+    (e: ReactMouseEvent, _nodes: Node[]) => open('selection', null, e),
     [open],
   );
   // 拖拽框结束且选中>1 时弹出（复刻 er：延迟 50ms 判断选中数）

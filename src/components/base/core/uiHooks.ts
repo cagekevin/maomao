@@ -1,11 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import type {
-  Dispatch,
-  SetStateAction,
-  RefObject,
-  Ref,
-  MouseEvent as ReactMouseEvent,
-} from 'react';
+import { Dispatch, SetStateAction, RefObject } from 'react';
 import { useReactFlow, useUpdateNodeInternals } from '@xyflow/react';
 import { NODE_AREA_FIXED_BASE_SIZE } from './config.ts';
 

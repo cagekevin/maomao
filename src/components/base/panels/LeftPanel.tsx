@@ -38,7 +38,7 @@ export default function LeftPanel() {
   const setActiveTab = (key: PanelTabKey) => setPanel({ activeTab: key });
   const setExpanded = (v: boolean) => setPanel({ expanded: v });
   const tasks = useTasks();
-  const assets = useAssets();
+  useAssets();
   const panelRef = useRef<HTMLDivElement>(null);
 
   // 未读角标：失败任务数 + 进行中任务数，单次遍历

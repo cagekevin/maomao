@@ -24,7 +24,7 @@ import ReactCrop, { centerCrop, makeAspectCrop } from 'react-image-crop';
 import 'react-image-crop/dist/ReactCrop.css';
 import { logger } from '../core/logger.ts';
 import { createRafBatch } from '../core/utils.ts';
-import { toastError } from '../core/toastStore.ts';
+import '../core/toastStore.ts';
 
 /**
  * 全屏图片编辑器（复刻官方 _Component129.jsx 图片编辑 / ImageNode 的「裁剪」「标记」入口）。

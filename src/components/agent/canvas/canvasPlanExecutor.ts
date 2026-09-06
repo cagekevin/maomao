@@ -17,7 +17,7 @@ import { runNodeGeneration, isNodeRegistered } from '../../base/store/taskStore.
 import { generateId } from '../../base/core/idGen.ts';
 import { logger } from '../../base/core/logger.ts';
 import { toAbsoluteFileUrl } from '../../base/utils/imageUrl.ts';
-import { createCanvasHost, type CanvasHostCtx, type CanvasHost } from './canvasHost.ts';
+import { createCanvasHost, type CanvasHostCtx } from './canvasHost.ts';
 
 /** 计划单步（generations 数组元素）：字段均可选，因 LLM 计划数据可能不完整。 */
 interface GenerationStep {

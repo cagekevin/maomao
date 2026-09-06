@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Box,
   Camera,
@@ -23,7 +23,7 @@ const MARQUEE_THRESHOLD = 4; // 空白按下后拖动超过该像素才视为框
 // 关键帧右键菜单：插值（不常用操作下沉到右键）+ 删除（也可用 Delete 键）。
 export function Timeline({
   currentFrame,
-  fps,
+  fps: _fps,
   totalFrames,
   onSeek,
   playing,

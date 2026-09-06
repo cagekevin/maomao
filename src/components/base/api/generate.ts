@@ -116,7 +116,7 @@ export interface ChatCompletionsOptions {
 async function attachImages(
   messages: ChatMessage[],
   images: string[] | null | undefined,
-  provider: GenerationProvider | undefined,
+  _provider: GenerationProvider | undefined,
 ): Promise<ChatMessage[]> {
   if (!images?.length) return messages;
   // 发送统一出口守卫：参考图必经此归一（含缩略图端点自动还原原图），禁止绕过。见 imageUrl.js thumbnailToOriginal

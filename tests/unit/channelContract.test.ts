@@ -10,11 +10,7 @@
 // 依赖均为纯函数，node 环境可跑（npm run test:unit:logic）。
 import { describe, it, expect } from 'vitest';
 import { presetJoints } from '../../src/components/director3d/rig.ts';
-import type {
-  ChannelTracks,
-  ChannelKey,
-  ProjectObject,
-} from '../../src/components/director3d/project.ts';
+import { ChannelTracks, ChannelKey } from '../../src/components/director3d/project.ts';
 import {
   ENTITY_CHANNELS,
   snapshotToChannelKeys,

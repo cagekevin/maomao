@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Sparkles, X, Search, Plus, Check, Pencil, Trash2, List, Clock } from 'lucide-react';
+import { Sparkles, X, Search, Plus, Pencil, Trash2, List, Clock } from 'lucide-react';
 import {
   loadPresets,
   saveAndNotify,
@@ -94,7 +94,7 @@ function PromptLibrary({
   }, [open, defaultCategory]);
 
   const cards = useMemo(() => mapToLibraryCards(presets), [presets]);
-  const recentIds = useMemo(() => getRecent(), [open]);
+  const recentIds = useMemo(() => getRecent(), []); // open 是渲染态但 getRecent 只读存储，open 变化无需重算
   const recentCards = useMemo(() => getRecentCards(cards, recentIds), [cards, recentIds]);
 
   const displayCards = useMemo(() => {

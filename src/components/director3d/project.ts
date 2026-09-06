@@ -1493,16 +1493,6 @@ function catmullRomPoint(p0, p1, p2, p3, t) {
   };
 }
 
-// 向量（数组）版 Catmull-Rom 平滑插值：p1-p2 段内 [0,1]，p0/p3 为前后相邻点；
-// 穿越关键帧时切线连续 → 相机回放转角处平滑，无需额外加点。
-function vectorCatmullRom(a, b, c, d, t) {
-  const t2 = t * t;
-  const t3 = t2 * t;
-  const axis = (p, q, r, s) =>
-    0.5 * (2 * q + (-p + r) * t + (2 * p - 5 * q + 4 * r - s) * t2 + (-p + 3 * q - 3 * r + s) * t3);
-  return [axis(a[0], b[0], c[0], d[0]), axis(a[1], b[1], c[1], d[1]), axis(a[2], b[2], c[2], d[2])];
-}
-
 const pathPointDistanceSq = (a, b) =>
   (a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y) + (a.z - b.z) * (a.z - b.z);
 
@@ -1552,7 +1542,7 @@ export function pathTangentAtFraction(path, u = 0) {
 
 // 按弧长把路径均匀切出 `count` 个关键帧（覆盖 [startFrame, endFrame]）。
 // 返回：`{ frames:[{frame, position:[x,y,z]}], sourceKeyframeFrames:number[] }`。
-export function bakePathKeyframes(path, fps = DEFAULT_PROJECT_SETTINGS.fps) {
+export function bakePathKeyframes(path, _fps = DEFAULT_PROJECT_SETTINGS.fps) {
   if (!path || !Array.isArray(path.points) || path.points.length < 2) {
     return { frames: [], sourceKeyframeFrames: [] };
   }

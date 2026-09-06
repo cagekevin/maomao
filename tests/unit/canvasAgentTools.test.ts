@@ -33,7 +33,7 @@ vi.mock(
       getCurrentArtifacts: vi.fn(() => null),
       setCurrentArtifacts: vi.fn(),
       getCurrentRefImages: vi.fn(() => []),
-      setCurrentRefImages: vi.fn((u: unknown[]) => {}),
+      setCurrentRefImages: vi.fn((_u: unknown[]) => {}),
       getLastUserReferenceImages: vi.fn(() => []),
       getCurrentImageMap: vi.fn(() => []),
       getCurrentRunMode: vi.fn(() => 'auto'),
@@ -63,10 +63,9 @@ import {
   setCurrentReferenceImages,
   runExistingPlanTool,
   setCreditSwitch,
-  getCreditSwitch,
 } from '../../src/components/agent/canvas/useCanvasAgentTools.ts';
 import * as convStore from '../../src/components/agent/conversation/conversationStore.ts';
-import type { ConversationSnapshot } from '../../src/components/agent/conversation/conversationSnapshot.ts';
+import '../../src/components/agent/conversation/conversationSnapshot.ts';
 import * as taskStore from '../../src/components/base/store/taskStore.ts';
 import {
   executePlan,

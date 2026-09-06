@@ -80,7 +80,7 @@ describe('providerStore §4 供应商数据层（新时代配置型）', () => {
     });
 
     it('select 切换选中并清 testResult', async () => {
-      const s = await seed([
+      await seed([
         { id: 'a', name: 'A' },
         { id: 'b', name: 'B', primary: true },
       ]);

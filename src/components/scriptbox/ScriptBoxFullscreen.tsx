@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Clapperboard, Settings, X, Loader2 } from 'lucide-react';
 import StepNav from './StepNav.tsx';
@@ -63,10 +63,10 @@ export default function ScriptBoxFullscreen({
 
   // 关闭包装：生成中关闭全屏时告知生成仍在后台进行（引擎异步、不随全屏关闭中断），
   // 避免用户误以为生成已取消/数据丢失
-  const handleClose = () => {
+  const handleClose = useCallback(() => {
     if (genMask) toastInfo('生成仍在后台进行，关闭后可在节点内查看进度');
     onClose();
-  };
+  }, [genMask, onClose]); // toastInfo 是模块级 import 函数（稳定），非渲染依赖
   useEffect(() => {
     if (!genMask) return;
     setGenSecs(0);
@@ -82,7 +82,7 @@ export default function ScriptBoxFullscreen({
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [open, onClose, genMask]);
+  }, [open, onClose, genMask, handleClose]);
 
   if (!open) return null;
 

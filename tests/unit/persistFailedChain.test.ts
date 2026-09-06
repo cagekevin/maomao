@@ -24,7 +24,7 @@ vi.mock('../../src/components/base/core/logger.ts', () => ({
 }));
 
 import { contentSetAsync } from '@/components/base/core/contentStore.ts';
-import { publish, subscribe, clearEvent } from '../../src/components/base/core/eventBus.ts';
+import { subscribe, clearEvent } from '../../src/components/base/core/eventBus.ts';
 import { CANVAS_STATE_PREFIX } from '@/components/base/storage/kvStore.ts'; // 保留：kvStore 壳仍 re-export 前缀
 
 // 真实 storageAdapter：让 localStorage.setItem 可注入异常/可恢复

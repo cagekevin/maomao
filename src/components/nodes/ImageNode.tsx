@@ -109,14 +109,19 @@ function ImageNode({ id, data, selected }: ImageNodeProps) {
   );
 
   // 共享图片 hover 能力（裁剪/标记/压缩）：写回走 replaceImage
-  const { editor, setEditor, renderEditor, renderInlineCropper, imageButtons } =
-    useImageHoverActions({
-      id,
-      url,
-      hasImage: type === 'image',
-      label: data.label,
-      onImageReplaced: replaceImage,
-    });
+  const {
+    editor: _editor,
+    setEditor: _setEditor,
+    renderEditor,
+    renderInlineCropper,
+    imageButtons,
+  } = useImageHoverActions({
+    id,
+    url,
+    hasImage: type === 'image',
+    label: data.label,
+    onImageReplaced: replaceImage,
+  });
 
   // 下载当前内容（图片/视频/音频/文本共用）。用 <a download> 触发浏览器保存，
   // 文件名优先用节点 label，其次是 URL 里的文件名；无扩展名时按类型补扩展名。
@@ -202,7 +207,7 @@ function ImageNode({ id, data, selected }: ImageNodeProps) {
       addEdges([newEdge]);
       setIsCameraStudioOpen(false);
     },
-    [id, setNodes, getNodes, setEdges],
+    [id, getNodes, addNodes, addEdges],
   );
   const handleFileSelect = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -257,7 +262,6 @@ function ImageNode({ id, data, selected }: ImageNodeProps) {
     [id, setNodes],
   );
 
-  const DEMO_IMAGE = data.demoImage || 'https://picsum.photos/seed/imagenode/400/260';
   const defaultTitle =
     type === 'video' ? '视频' : type === 'audio' ? '音频' : type === 'text' ? '文本文件' : '图片';
   const titleIcon =

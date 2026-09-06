@@ -20,7 +20,7 @@ import { useSyncExternalStore } from 'react';
 import { contentGet, contentSet, createDebouncedPersist } from '../core/contentStore.ts';
 import { generateId } from '../core/idGen.ts';
 import { httpRequest } from '../api/httpClient.ts';
-import { API_BASE } from '../core/config.ts';
+import '../core/config.ts';
 import { rescanResources } from '../api/localToolApi.ts';
 import { saveInlineToLocal, uploadFileToLocal, EXT_BY_TYPE } from '../api/filesApi.ts';
 import { UPLOAD_DIRS } from '../utils/uploadDirs.ts';
@@ -314,7 +314,7 @@ async function persistUrlToBackend(
   url: string,
   folder: string,
   name: string,
-  type: AssetType,
+  _type: AssetType,
 ): Promise<void> {
   logger.debug(
     'assetStore',

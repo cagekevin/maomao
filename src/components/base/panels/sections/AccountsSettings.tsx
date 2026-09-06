@@ -25,7 +25,7 @@ import {
  */
 
 // 环境卡片的 ⋮ 菜单（独立子组件，hover 展开，复刻官方 Component851）
-function EnvMenu({ env, isConfirming, onEdit, onCopy, onClearAll, onDelete }) {
+function EnvMenu({ env: _env, isConfirming, onEdit, onCopy, onClearAll, onDelete }) {
   return (
     <div className="relative group/menu" onClick={(e) => e.stopPropagation()}>
       <button

@@ -22,8 +22,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import type { ClipboardEvent as ReactClipboardEvent, DragEvent as ReactDragEvent } from 'react';
 
-const uploadMock = vi.fn(async (file, folder) => 'http://local/' + (file?.name || 'drag'));
-const downloadRemoteMock = vi.fn(async (url, opts) => null);
+const uploadMock = vi.fn(async (file, _folder) => 'http://local/' + (file?.name || 'drag'));
+const downloadRemoteMock = vi.fn(async (_url, _opts) => null);
 vi.mock('../../src/components/base/api/filesApi.ts', () => ({
   uploadFileToLocal: (file, folder) => uploadMock(file, folder),
   downloadRemoteToLocal: (url, opts) => downloadRemoteMock(url, opts),

@@ -73,9 +73,7 @@ function installCanvasMock() {
     return `data:${type || 'image/png'};base64,${btoa('fakeupscaled')}`;
   };
   // 拦截 width/height setter 记录
-  const origCtor = HTMLCanvasElement;
   // jsdom 下直接 spy：记录创建尺寸
-  const origGetContext = HTMLCanvasElement.prototype.getContext;
   // 无法直接拦 width setter，用 Proxy 替代创建
 }
 // 更可靠：spy document.createElement 里的 canvas，记录其宽高

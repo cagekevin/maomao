@@ -525,15 +525,7 @@ const PromptInput = forwardRef(function PromptInput(
         }
       }
     },
-    [
-      showMention,
-      mentionQuery,
-      filtered,
-      activeIndex,
-      handleSelectMention,
-      deleteChipNearCursor,
-      emitDOM,
-    ],
+    [showMention, filtered, activeIndex, handleSelectMention, deleteChipNearCursor, emitDOM],
   );
 
   const handlePaste = useCallback(

@@ -63,6 +63,7 @@ export function useCanvasSync(getProjectId: () => string): CanvasSyncApi {
 
   // 切换项目后重置冲突标记（官方在 projectId 变化时不应残留旧项目冲突）。
   // 用 getProjectIdRef 实时读，仅当返回的 id 变化才重置（避免每次渲染都 setState）。
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- 意图是每渲染轮询 projectId（ref 守卫去重）；加 deps 数组会退化为仅挂载时检查一次，切换项目后不再重置冲突标记（行为回归）
   useEffect(() => {
     const id = getProjectIdRef.current?.();
     if (prevProjectIdRef.current !== id) {

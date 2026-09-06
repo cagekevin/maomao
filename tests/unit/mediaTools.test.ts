@@ -22,8 +22,6 @@ import { useMediaDegrade } from '../../src/hooks/useMediaDegrade.ts';
 import { contentClearCache } from '../../src/components/base/core/contentStore.ts';
 
 // useLod 实际返回完整 LOD 对象（lodLevel/viewportMoving/...6 字段），并非仅 {lodLevel}
-type LodValue = ReturnType<typeof useLod>;
-
 describe('useMediaDegrade —— lodLevel→hideMedia 映射', () => {
   beforeEach(() => {
     vi.clearAllMocks();

@@ -613,7 +613,7 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
       if (!ok) setToast('自动保存空间不足，请使用「导出工程」备份', 'error');
     }, 900);
     return () => clearTimeout(timer);
-  }, [currentProject, setToast]);
+  }, [currentProject, setToast, projectStorageKey]);
 
   const applyProjectSnapshot = useCallback((snapshot) => {
     const normalized = normalizeProjectData(snapshot);
@@ -670,7 +670,7 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
     return () => {
       alive = false;
     };
-  }, [projectStorageKey]);
+  }, [projectStorageKey, applyProjectSnapshot]);
 
   const flushHistory = useCallback(() => {
     const history = historyRef.current;
@@ -689,7 +689,7 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
     applyProjectSnapshot(previous);
     setHistoryVersion((version) => version + 1);
     setToast('已撤销');
-  }, [applyProjectSnapshot, flushHistory]);
+  }, [applyProjectSnapshot, flushHistory, setToast]);
 
   const redo = useCallback(() => {
     const next = redoPeek(historyRef.current);
@@ -697,7 +697,7 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
     applyProjectSnapshot(next);
     setHistoryVersion((version) => version + 1);
     setToast('已重做');
-  }, [applyProjectSnapshot]);
+  }, [applyProjectSnapshot, setToast]);
 
   // ---- 画线运动路径（编辑曲线工具） ----
   // 选中任意对象（含摄像机）→ 进入 path 模式 → 在地面拖出曲线 → 自动把曲线烘焙成该对象的 position 关键帧。
@@ -786,7 +786,7 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
       }));
       // 数据写回 activeShot 走 currentProject → 防抖自动入栈，无需手动 recordChange
     },
-    [camera.focalLength, fps, objects, paths, selectedId],
+    [camera, fps, objects, paths, selectedId],
   );
 
   const commitPathPoints = useCallback(
@@ -1078,6 +1078,7 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
     // 捕获阶段注册：在 maomao 画布（React Flow）之前处理，避免 Delete 触发画布删除导致 overlay 退出
     window.addEventListener('keydown', onKeyDown, true);
     return () => window.removeEventListener('keydown', onKeyDown, true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- deleteSelected/duplicateSelected 定义在本 effect 之后（TDZ 依赖数组）
   }, [selectedId, objects, togglePlayback, undo, redo, focusSelected]);
 
   const applySettings = (nextSettings) => {
@@ -1654,7 +1655,7 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
     setKeyframeClipboard({ kind: selectedKeyframeInfo.kind, key: JSON.parse(JSON.stringify(key)) });
     setToast('关键帧已复制');
   };
-  const pasteKeyframe = () => {
+  () => {
     if (!keyframeClipboard) return;
     const next = { ...JSON.parse(JSON.stringify(keyframeClipboard.key)), frame: currentFrame };
     if (keyframeClipboard.kind === 'camera') {
@@ -1905,7 +1906,7 @@ export function Director3DApp({ storageKey, onExport, onExit, onThumbnail }) {
     reader.readAsText(file);
     event.target.value = '';
   };
-  const resetProject = () => {
+  () => {
     const resetObjects = cloneProjectValue(initialObjects);
     const resetCamera = cloneProjectValue(initialCamera);
     setSettings({ ...DEFAULT_PROJECT_SETTINGS });

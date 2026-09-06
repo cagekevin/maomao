@@ -168,7 +168,7 @@ describe('多步编排执行器 executePlan §2.5/2.6', () => {
 
   it('参考图：写进每个生图节点 data.images', async () => {
     const ctx = makeCtx();
-    const r = await executePlan({
+    await executePlan({
       ctx,
       generations: [{ id: 'g1', prompt: '猫' }],
       referenceImages: ['http://r/ref.png'],

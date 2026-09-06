@@ -35,7 +35,7 @@ describe('useUpstreamAutoTrigger — 下游触发失败可见（§3.3）', () =>
   });
 
   it('下游触发失败 → logger.warn 留痕，且不往上抛 rejection', async () => {
-    const { result } = renderHook(() => useUpstreamAutoTrigger());
+    const { result: _result } = renderHook(() => useUpstreamAutoTrigger());
     expect(busState.handler).toEqual(expect.any(Function));
     runNodeGenerationMock.mockRejectedValueOnce(new Error('网络中断'));
     // handler 同步触发；内部 runNodeGeneration 的 rejection 已被 catch 住，这里 await 不应抛

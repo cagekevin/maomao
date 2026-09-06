@@ -350,13 +350,13 @@ export function useNodeGeneration({
       runningRef.current = false; // 【R4】原子防重复位
       releaseNodeRun(nodeId); // 【P1-E】释放单节点互斥锁
     }
-  }, [loading, nodeId]);
+  }, [loading, nodeId, patchData]);
 
   // stop：真中断底层请求（Step C）。请求经 signal 传到 imageApi/videoApi，abort 后 fetch/轮询中断。
   const stop = useCallback(() => {
     abortRef.current?.abort();
     updateNodeRuntime(nodeId, { loading: false });
-  }, []);
+  }, [nodeId]);
 
   // 「再来一次」注册：让任务中心重试 / Agent generate_node 能驱动本节点
   const startRef = useRef(start);

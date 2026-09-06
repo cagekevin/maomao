@@ -1086,7 +1086,7 @@ export function createScriptBoxEngine({
     else if (kind) key = kind;
     if (!key) {
       // 全停：中止所有
-      abortMap.forEach((ac, k) => {
+      abortMap.forEach((ac, _k) => {
         try {
           ac.abort();
         } catch {
@@ -1479,7 +1479,7 @@ export function createScriptBoxEngine({
   // 思路A：勾选多个镜头 → 调 AI 把各镜资料合并生成「一条序号连贯的合并视频提示词」
   // （"第一个画面…第N个画面"一路排到底，避免直接拼装导致序号重复），再新建 discountVideoNode。
   // 参考图合并、时长累加（各镜 duration 之和，预选视频节点时长选项）；剧本数据完全不变。
-  const onGenerateMergedVideo = (shotIds: string[] | undefined, target: string = 'video') => {
+  const onGenerateMergedVideo = (shotIds: string[] | undefined, _target: string = 'video') => {
     if (!addNodes) return;
     const d = getData();
     const shots = d.shots || [];

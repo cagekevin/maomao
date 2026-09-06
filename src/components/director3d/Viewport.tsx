@@ -112,7 +112,7 @@ function SceneObject({
     appliedGroundRequest.current = requestKey;
     object.position.y -= bounds.min.y;
     onUpdate(data.id, { position: object.position.toArray() });
-  }, [data.id, data.locked, groundRequest?.id, groundRequest?.nonce, onUpdate, preview]);
+  }, [data.id, data.locked, groundRequest, onUpdate, preview]);
   const syncTransform = useCallback(() => {
     const object = groupRef.current;
     if (!object) return;
@@ -878,7 +878,7 @@ function PathEditor({
       }
       invalidate();
     },
-    [invalidate, toWorld],
+    [invalidate, toWorld, spacing],
   );
 
   const endInteraction = useCallback(() => {

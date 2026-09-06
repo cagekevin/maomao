@@ -16,7 +16,6 @@ import {
   readCustomSkills,
   upsertCustomSkill,
   deleteCustomSkill,
-  isSkillEnabled,
   setSkillEnabled,
   getAllEnabledMap,
 } from '../../store/skillStore.ts';
@@ -91,7 +90,6 @@ export default function SkillSettings() {
   }, [allSkills, debouncedKeyword]);
 
   const selected = allSkills.find((s) => s.id === selectedId) || null;
-  const readonly = !!(selected && selected.builtin && !isNew && !editing);
 
   const getEnabled = (id) => {
     if (id in enabledMap) return !!enabledMap[id];

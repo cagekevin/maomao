@@ -1,6 +1,6 @@
 import type { LucideIcon } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import { Box, ChevronRight, CircleDot, Grid3X3, Import, Layers, UserRound } from 'lucide-react';
+import { Box, ChevronRight, Import, Layers, UserRound } from 'lucide-react';
 
 /** 资源库菜单节点：叶子节点带 kind（person/primitive/import），非叶子带 children 递归展开 */
 interface AssetNode {
@@ -65,8 +65,6 @@ const ASSET_TREE: AssetNode[] = [
     kind: 'import',
   },
 ];
-
-const PRIMITIVE_ICON = { box: Box, sphere: CircleDot, cylinder: CircleDot, plane: Grid3X3 };
 
 function isLeaf(node: AssetNode) {
   return node.leaf || !node.children || node.children.length === 0;

@@ -363,7 +363,7 @@ describe('useAgentChat · 真实模式 SSE 编排', () => {
 
   it('复合忙判定：任务进行中（发送锁 + 状态机 running）再次 send 走 steer，不触发第二次请求', async () => {
     // 第一轮 fetch 挂起（pending），保证发送锁保持 true、状态机 running
-    fetchMock.mockImplementation((url, opts) => new Promise(() => {}));
+    fetchMock.mockImplementation((_url, _opts) => new Promise(() => {}));
     const { result } = renderHook<AgentChatApi, unknown>(() => useAgentChat());
     // 发起第一轮
     act(() => {
@@ -1238,7 +1238,6 @@ describe('useAgentChat · 阶段1B 卸载不 abort / 切 key abort', () => {
   });
 
   it('切 agentKey → 旧流被显式 abort（运行态不串台），新 key 独立', async () => {
-    const signals = [];
     fetchMock.mockImplementation(
       () =>
         new Promise(() => {

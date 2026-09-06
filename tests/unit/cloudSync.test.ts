@@ -211,7 +211,7 @@ describe('cloudSync — uploadConfig / downloadConfig 边界', () => {
     contentSet('app_settings', { theme: 'dark' });
     await contentSetAsync('yimao_accounts', [{ id: 'acc1', name: '环境1' }]);
     // 按 URL 分流：KV 读账号 → 返回账号数组；其余（GAS push / kvSet 写）→ 返回成功
-    fetchMock.mockImplementation((url, opt) => {
+    fetchMock.mockImplementation((url, _opt) => {
       if (String(url).includes('/api/kv/get')) {
         return Promise.resolve(jsonResp([{ id: 'acc1', name: '环境1' }]));
       }

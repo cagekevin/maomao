@@ -22,7 +22,7 @@
  * ⚠️ 含用户数据（账号环境/API key 等），同步到云端需注意保密。
  */
 import { getLocalKeys, STORAGE_KEYS } from '../core/contracts.ts';
-import { providerApi, fetchProjects, saveProjects } from '../api/localToolApi.ts';
+import { providerApi, saveProjects } from '../api/localToolApi.ts';
 import { contentGet, contentSet, contentGetAsync, contentSetAsync } from '../core/contentStore.ts';
 import { logger } from '../core/logger.ts';
 import { CLOUD_SYNC_GAS_URL } from '../core/config.ts';

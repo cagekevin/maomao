@@ -1,15 +1,6 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { useReactFlow } from '@xyflow/react';
-import {
-  FileText,
-  Plus,
-  Copy,
-  ChevronDown,
-  ChevronUp,
-  Loader2,
-  AlertCircle,
-  Link as LinkIcon,
-} from 'lucide-react';
+import { FileText, Plus, Copy, ChevronDown, ChevronUp, Loader2, AlertCircle } from 'lucide-react';
 import NodeShell from '../base/ui/NodeShell.tsx';
 import HoverToolbar from '../base/panels/HoverToolbar.tsx';
 import ExpandablePanel from '../base/ui/ExpandablePanel.tsx';
@@ -27,7 +18,7 @@ import { useGenerateNode } from '../../hooks/useGenerateNode.ts';
 import { debounce, buildEffectivePrompt } from '../base/core/utils.ts';
 import { buildSpawnNodes, spawnAndCommit, makeChildId } from '../base/canvas/deriveNodes.ts';
 import { useCanvasEdges } from '../base/canvas/CanvasEdgesContext.tsx';
-import { saveTextToTasks, toAbsoluteFileUrl } from '../base/api/index.ts';
+import { saveTextToTasks } from '../base/api/index.ts';
 import { chatCompletions } from '../base/api/index.ts';
 import { useNodePrefs } from '../base/canvas/nodePrefs.ts';
 import { resolveProviderModel } from '../base/utils/providerModels.ts';
@@ -41,22 +32,6 @@ import previewUrls from '../base/utils/previewUrl.ts';
  * 已迁移到基座：NodeShell + HoverToolbar + ExpandablePanel + ModelSelect + GenerateButton + PromptInput。
  * 保留差异化：文本编辑区（双击编辑）、自动拆分、预设菜单。
  */
-/** 参考图素材形态（MaterialStrip / PromptInput 共用） */
-interface RefImage {
-  id: string;
-  url: string;
-  label?: string;
-  sourceNodeId?: string;
-}
-
-/** 参考文本形态 */
-interface RefText {
-  id: string;
-  label: string;
-  text?: string;
-  sourceNodeId?: string;
-}
-
 /** 文本节点 data 契约 */
 interface TextNodeData {
   label?: string;
@@ -95,7 +70,8 @@ function TextNode({ id, data, selected }: TextNodeProps) {
 
   // 参考输入：自身上传图片（在 images 定义后并入）+ 连线上游产出。
   // refTexts / effectivePrompt 不依赖 images，先定义在 useNodeGeneration 之前，避免 TDZ。
-  const refTexts = connected.texts || [];
+  // useMemo 稳定化：`connected.texts || []` 每渲染生成新空数组引用，作依赖会导致下游 useMemo 每渲染重算
+  const refTexts = useMemo(() => connected.texts || [], [connected.texts]);
   // 有效提示词 = 本地 prompt/文本 + 上游文本（多文本节点合并），两者都参与生成
   const effectivePrompt = buildEffectivePrompt(prompt?.trim() || text?.trim(), refTexts);
   const [autoSplit, setAutoSplit] = useState(data.autoSplit || false);

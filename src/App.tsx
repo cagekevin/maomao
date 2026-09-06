@@ -41,19 +41,13 @@ import { menuForState, type MenuActionCtx } from './components/base/canvas/canva
 import { useNodePosition } from './components/base/core/uiHooks.ts';
 import CustomEdge from './components/edges/CustomEdge.tsx';
 import ConnectionLine from './components/edges/ConnectionLine.tsx';
-import ContextMenu, { ContextMenuItem } from './components/base/ui/ContextMenu.tsx';
+import ContextMenu from './components/base/ui/ContextMenu.tsx';
 import { useContextMenu } from './hooks/useContextMenu.ts';
 import { useCanvasHistory } from './hooks/useCanvasHistory.ts';
 import { patchNodeDataById } from './hooks/useNodeData.ts';
 import { CanvasEdgesProvider } from './components/base/canvas/CanvasEdgesContext.tsx';
 import { useCanvasShortcuts } from './hooks/useCanvasShortcuts.ts';
-import {
-  paletteCategories,
-  getNodesByCategory,
-  defaultNodeData,
-  getPaletteNode,
-  buildNodeTypeComponents,
-} from './components/base/canvas/NodePalette.ts';
+import { defaultNodeData, buildNodeTypeComponents } from './components/base/canvas/NodePalette.ts';
 import LodProvider, { useLod } from './components/base/canvas/lod.tsx';
 import ToastContainer from './components/base/ui/ToastContainer.tsx';
 import ConfirmContainer from './components/base/ui/ConfirmContainer.tsx';
@@ -124,7 +118,6 @@ function handleReactFlowError(code, message) {
 // 内联字面量会让「App 每次渲染 → effect 重跑 → 多一次 store.setState → 全画布 selector 重跑一轮」。
 // 提成模块常量后引用永远稳定，effect 只在真变化时触发（零行为改动，值完全不变）。
 // C1：fitViewOptions 只在初始化 fitView 时读一次（fitView={initialFitView}），提常量无副作用。
-const FIT_VIEW_OPTIONS = { padding: 0.2, maxZoom: 1, minZoom: 0.05 };
 // C2：deleteKeyCode 内联数组会破坏 memo(FlowRenderer)（react/index.mjs:2117），提常量恢复命中率。
 const DELETE_KEY_CODE = ['Backspace', 'Delete'];
 
@@ -206,7 +199,7 @@ function Canvas() {
           const targetIsScriptBox = new Set(
             loadedNodes.filter((n) => n.type === 'scriptBoxNode').map((n) => n.id),
           );
-          const loadedEdges = (saved.edges || []).map((e, i) => ({
+          const loadedEdges = (saved.edges || []).map((e, _i) => ({
             ...e,
             id: e.id || generateId('loaded-edge'),
             targetHandle:
@@ -263,8 +256,14 @@ function Canvas() {
 
   // 视窗中心 → flow 坐标（Q/W/E 快速添加节点用）；适配用 fitView
   // P20 视窗状态持久化：getViewport 读取当前视窗、setViewport 恢复（刷新/切项目回到上次视角）。
-  const { screenToFlowPosition, fitView, getViewport, setViewport, getNodes, getEdges } =
-    useReactFlow();
+  const {
+    screenToFlowPosition,
+    fitView,
+    getViewport: _getViewport,
+    setViewport,
+    getNodes,
+    getEdges: _getEdges,
+  } = useReactFlow();
   // 始终指向最新 viewport（onViewportChange 更新），persistCanvas 保存时无需实时 useReactFlow 查询
   const viewportRef = React.useRef(null);
   // 视窗拖拽/缩放结束后 600ms 防抖保存（P20），与 autoSave 节奏一致，避免高频移动反复写 KV
@@ -331,18 +330,9 @@ function Canvas() {
   // P0-C 收尾（docs/106）：CanvasToolbar 三个回调提 useCallback，让 memo(CanvasToolbar) 在
   // 「App 因拖拽等其它原因每帧重渲」时命中 → 拖拽期间工具栏不再跟着每帧重渲。
   // 依赖都是稳定源：setSetting 是模块级函数、fitView 是 useReactFlow 的 store action、minimapOn/performanceMode 来自 useAppSettings。
-  const handleToggleMinimap = React.useCallback(
-    () => setSetting('minimapOn', !minimapOn),
-    [minimapOn],
-  );
-  const handleFitView = React.useCallback(
-    () => fitView({ padding: 0.2, duration: 800 }),
-    [fitView],
-  );
-  const handleTogglePerformance = React.useCallback(
-    () => setSetting('performanceMode', !performanceMode),
-    [performanceMode],
-  );
+  React.useCallback(() => setSetting('minimapOn', !minimapOn), [minimapOn]);
+  React.useCallback(() => fitView({ padding: 0.2, duration: 800 }), [fitView]);
+  React.useCallback(() => setSetting('performanceMode', !performanceMode), [performanceMode]);
 
   // 始终指向最新 nodes/edges（撤销/重做取快照用）
   const nodesRef = React.useRef(nodes);
@@ -369,19 +359,22 @@ function Canvas() {
   );
 
   // 保存画布并广播到其他窗口（复刻官方 H_.jsx:870-880：保存后 postMessage CANVAS_SAVED）
-  const persistCanvas = React.useCallback((projectId) => {
-    // P20：顺带把视窗状态（缩放/平移）存进快照，刷新/切项目后回到上次视角
-    saveCanvasState(projectId, nodesRef.current, edgesRef.current, viewportRef.current).catch((e) =>
-      logger.warn('canvas', 'save-fail', { projectId, error: e?.message }),
-    );
-    try {
-      const channel = new BroadcastChannel('yimao_canvas_sync');
-      channel.postMessage({ type: 'CANVAS_SAVED', projectId, tabId: tabIdRef.current });
-      channel.close();
-    } catch (err) {
-      logger.warn('Canvas', '广播画布同步失败', err?.message);
-    }
-  }, []);
+  const persistCanvas = React.useCallback(
+    (projectId) => {
+      // P20：顺带把视窗状态（缩放/平移）存进快照，刷新/切项目后回到上次视角
+      saveCanvasState(projectId, nodesRef.current, edgesRef.current, viewportRef.current).catch(
+        (e) => logger.warn('canvas', 'save-fail', { projectId, error: e?.message }),
+      );
+      try {
+        const channel = new BroadcastChannel('yimao_canvas_sync');
+        channel.postMessage({ type: 'CANVAS_SAVED', projectId, tabId: tabIdRef.current });
+        channel.close();
+      } catch (err) {
+        logger.warn('Canvas', '广播画布同步失败', err?.message);
+      }
+    },
+    [tabIdRef],
+  ); // ref 对象稳定，列依赖仅为满足 exhaustive-deps（.current 变化不触发重建）
 
   // 自动保存（防抖）：节点/连线变化后延迟写入画布快照（KV），避免「新建节点后直接刷新丢失」。
   // 之前只有切换/新建项目时保存，画布变更无落盘 → 刷新即丢。这里用 600ms 防抖合并频繁变更，
@@ -919,7 +912,8 @@ function Canvas() {
       setEdges((es) => es.filter((e) => !e.id.startsWith('ghost-edge-')));
       menu.close();
     },
-    [addNode, setNodes, setEdges, menu.close],
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- menu.close 是稳定 useCallback；menu 对象每渲染重建，列 menu 依赖会每渲染重建（性能退化）
+    [addNode, setNodes, setEdges],
   );
 
   // 点击空白：关闭菜单并清理连接拖拽残留（反悔时不留 ghost 线，修复「拉出节点后取消，线仍在」bug）。
@@ -1107,7 +1101,8 @@ function Canvas() {
         );
       }, 50);
     },
-    [setNodes, setEdges, screenToFlowPosition, menu.openConnection],
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- menu.openConnection 是稳定 useCallback；menu 对象每渲染重建，列 menu 依赖会每渲染重建（性能退化）
+    [setNodes, setEdges, screenToFlowPosition],
   );
 
   // 删除连线（统一入口：CustomEdge 的 ✕ 按钮、连线双击删除 都走这里）

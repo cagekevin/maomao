@@ -8,7 +8,6 @@ import {
   AlertCircle,
   Upload,
   Loader2,
-  ArrowUp,
 } from 'lucide-react';
 import NodeShell from '../base/ui/NodeShell.tsx';
 import { useContentHeightSync } from '../base/core/uiHooks.ts';
@@ -18,7 +17,7 @@ import { useMediaDegrade } from '../../hooks/useMediaDegrade.ts';
 import { showToast } from '../base/core/toastStore.ts';
 import { contentSet } from '../base/core/contentStore.ts';
 import { useNodeData } from '../../hooks/useNodeData.ts';
-import { toAbsoluteFileUrl } from '../base/api/index.ts';
+import '../base/api/index.ts';
 import { useRenderImageResolver } from '../base/utils/imageUrl.ts';
 import { downloadUrl } from '../base/utils/clipboard.ts';
 import { logger } from '../base/core/logger.ts';

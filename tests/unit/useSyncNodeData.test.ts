@@ -7,7 +7,7 @@
  * 该 hook 仅依赖 React，无需 mock 任何业务模块。
  */
 import { describe, it, expect, vi } from 'vitest';
-import { renderHook, act } from '@testing-library/react';
+import { renderHook } from '@testing-library/react';
 
 const { useSyncNodeData } = await import('../../src/hooks/useSyncNodeData.ts');
 

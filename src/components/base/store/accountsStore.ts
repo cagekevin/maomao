@@ -10,7 +10,7 @@
  * 数据变更一律新引用，绝不原地修改（useSyncExternalStore 依赖引用变化触发渲染）。
  */
 import { useSyncExternalStore } from 'react';
-import type { Ref } from 'react';
+import 'react';
 import { contentGetAsync, contentSetAsync } from '../core/contentStore.ts';
 import { askConfirm } from '../core/confirmStore.ts';
 import { generateId } from '../core/idGen.ts';

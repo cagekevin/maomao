@@ -15,7 +15,7 @@ import { useConnectedInputs } from '../../hooks/useConnectedInputs.ts';
 import { useMediaDegrade } from '../../hooks/useMediaDegrade.ts';
 import { uploadFileToLocal, toAbsoluteFileUrl } from '../base/api/index.ts';
 import { useRenderImageResolver } from '../base/utils/imageUrl.ts';
-import { showToast, toastError, toastWarning } from '../base/core/toastStore.ts';
+import { toastError, toastWarning } from '../base/core/toastStore.ts';
 import { logger } from '../base/core/logger.ts';
 import { classifyError } from '../base/utils/genErrors.ts';
 import {
@@ -61,7 +61,7 @@ interface FaceMosaicNodeProps {
   selected?: boolean;
 }
 function FaceMosaicNode({ id, data, selected }: FaceMosaicNodeProps) {
-  const { setNodes, getNodes, getNode } = useReactFlow();
+  const { setNodes, getNodes: _getNodes, getNode } = useReactFlow();
   // 标题改名 → 写回 data.label，让下游 @名 匹配 / 素材条显示跟随
   const rename = useCallback(
     (name: string) => {
@@ -228,11 +228,11 @@ function FaceMosaicNode({ id, data, selected }: FaceMosaicNodeProps) {
       }
       setLoading(false);
     },
-    [id, outputResults],
+    [outputResults], // id 在函数体内未使用
   );
 
   const count = imageUrls().length;
-  const isHiddenMedia = hideMedia && hideMedia.includes('image');
+  hideMedia && hideMedia.includes('image');
 
   const toolbarButtons = [
     {

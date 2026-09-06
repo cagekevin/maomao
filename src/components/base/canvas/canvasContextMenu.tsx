@@ -30,7 +30,7 @@ import {
   Upload,
 } from 'lucide-react';
 import { getNodesByCategory, getPaletteNode, paletteCategories } from './NodePalette.ts';
-import { prefetchHeavyNode } from './lazyNode.tsx';
+import './lazyNode.tsx';
 import type { ContextMenuItem } from '../ui/ContextMenu.tsx';
 import type { ContextMenuState } from '../../../hooks/useContextMenu.ts';
 

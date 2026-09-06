@@ -27,7 +27,7 @@ let lastEditorSave = null;
 // 真实 React Flow：getNode 返回当前 node；setNodes 执行 updater 真正更新 node
 vi.mock('@xyflow/react', () => ({
   useReactFlow: () => ({
-    getNode: (id: string) => node,
+    getNode: (_id: string) => node,
     setNodes: (updater: any) => {
       mockSetNodes(updater);
       const next = updater([node]);
@@ -122,7 +122,7 @@ vi.mock('../../src/components/base/store/providerStore.ts', () => ({
 
 // ImageEditor：记录 onSave（模拟裁剪/扩图保存回传 dims）
 vi.mock('../../src/components/base/editors/ImageEditor.tsx', () => ({
-  default: ({ imageUrl, onSave, onClose }: any) => {
+  default: ({ imageUrl, onSave, onClose: _onClose }: any) => {
     lastEditorSave = onSave;
     return <div data-testid="image-editor" data-url={imageUrl} />;
   },

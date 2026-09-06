@@ -27,7 +27,6 @@ import {
 import { normalizeCameraPath } from '../../src/components/director3d/project.ts';
 
 // ---- 样本（与 channelWrite.test.js 一致，保证可比） ----
-const walkJoints = { mixamorigHips: [0.02, 0.01, 0.03], mixamorigLeftUpLeg: [0.12, 0.02, 0.05] };
 const runJoints = { mixamorigHips: [0.2, 0.18, 0.25], mixamorigRightUpLeg: [0.45, 0.05, 0.1] };
 
 const manualSnapshot = (frame, position, pose = 'run') => ({

@@ -25,7 +25,7 @@ vi.mock('../../src/components/base/core/logger.ts', () => ({
 
 const { normalizeAttachmentsForSend, buildRefCatalog } =
   await import('../../src/components/agent/runtime/agentAttachments.ts');
-const { normalizeImageUrlForSend, summarizeImages } =
+const { normalizeImageUrlForSend, summarizeImages: _summarizeImages } =
   await import('../../src/components/base/utils/imageUrl.ts');
 const { logger } = await import('../../src/components/base/core/logger.ts');
 // vi.mock 工厂不改变静态导入类型，用 vi.mocked 标注以拿到 .mockClear/.toHaveBeenCalledWith

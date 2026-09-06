@@ -12,8 +12,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook } from '@testing-library/react';
 import type { DragEvent as ReactDragEvent } from 'react';
 
-const { makeAssetDragProps, useAssetDragToCanvas, fetchText, textCache } =
-  await import('../../src/hooks/useAssetDragToCanvas.ts');
+const {
+  makeAssetDragProps,
+  useAssetDragToCanvas,
+  fetchText: _fetchText,
+  textCache,
+} = await import('../../src/hooks/useAssetDragToCanvas.ts');
 
 // setup.mjs 已把 globalThis.fetch 定义为共享 vi.fn；此处做类型对齐以启用 .mock* / mock.calls。
 const fetchMock = globalThis.fetch as unknown as ReturnType<typeof vi.fn>;

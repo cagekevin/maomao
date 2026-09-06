@@ -201,10 +201,10 @@ describe('agentRuntime.roundTrip —— 非流式工具开关 (§6.3)', () => {
       id: 'x',
       choices: [{ message: { role: 'assistant', content: '流式模式收到非流式JSON' } }],
     };
-    const fetchMock = vi.fn(async (url, opts) => ({
+    const fetchMock = vi.fn(async (_url, _opts) => ({
       ok: true,
       status: 200,
-      headers: { get: (k) => null },
+      headers: { get: (_k) => null },
       body: {
         getReader: () => {
           let done = false;
@@ -255,10 +255,10 @@ describe('agentRuntime.roundTrip —— 非流式工具开关 (§6.3)', () => {
         },
       ],
     };
-    const fetchMock = vi.fn(async (url, opts) => ({
+    const fetchMock = vi.fn(async (_url, _opts) => ({
       ok: true,
       status: 200,
-      headers: { get: (k) => null },
+      headers: { get: (_k) => null },
       body: {
         getReader: () => {
           let done = false;
